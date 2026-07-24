@@ -255,6 +255,118 @@ xcrun notarytool ... # KHÔNG dùng cho App Store; dùng altool/Transporter
 
 ---
 
+## 11. Metadata sẵn dùng (copy-paste)
+
+> Đã canh theo giới hạn ký tự của App Store Connect. Chỉnh theo ý bạn nếu muốn.
+> Primary language = Vietnamese; nhớ **thêm English (U.S.)** làm localization phụ và dán bản EN.
+
+### 🇻🇳 Tiếng Việt (Primary)
+
+**App Name** (≤30):
+```
+VietTelex – Bàn phím Việt
+```
+
+**Subtitle** (≤30):
+```
+Gõ Telex nhanh, gọn, riêng tư
+```
+
+**Promotional Text** (≤170, đổi được không cần review lại):
+```
+Bàn phím Telex thuần Việt: gõ nhanh, gợi ý thông minh, mẫu câu tiện lợi, emoji — và tuyệt đối không thu thập dữ liệu. Chạy được cả khi không cấp Toàn quyền Truy cập.
+```
+
+**Keywords** (≤100, phẩy ngăn cách, KHÔNG dấu cách thừa):
+```
+telex,tiếng việt,bàn phím,gõ tiếng việt,gõ dấu,vietnamese,keyboard,vni,gõ telex,bàn phím việt
+```
+
+**Description**:
+```
+VietTelex là bàn phím tiếng Việt gọn nhẹ, gõ kiểu Telex, được thiết kế để nhanh, chính xác và tôn trọng quyền riêng tư.
+
+TÍNH NĂNG
+• Gõ Telex đầy đủ, kèm Telex đơn giản và bỏ dấu tự do.
+• Gợi ý từ thông minh, học dần thói quen gõ của bạn — tất cả xử lý ngay trên máy.
+• Tự khôi phục tiếng Anh: gõ lẫn Anh–Việt không bị dính dấu ngoài ý.
+• Mẫu câu: lưu sẵn câu hay dùng, chèn nhanh bằng một chạm.
+• Bảng emoji đầy đủ, gợi ý emoji theo từ đang gõ.
+• Tự đổi bố cục theo ô nhập: số, email (@ .), URL (. / .com).
+• Nút return thông minh (go/search/send…) như bàn phím hệ thống.
+
+RIÊNG TƯ TRÊN HẾT
+• KHÔNG thu thập, KHÔNG gửi, KHÔNG lưu nội dung bạn gõ.
+• Không quảng cáo, không theo dõi, không SDK bên thứ ba.
+• Hoạt động bình thường ngay cả khi KHÔNG cấp Toàn quyền Truy cập.
+
+Chính sách quyền riêng tư: https://viettelex.com/privacy-policy
+```
+
+**What's New in This Version** (v1.0):
+```
+Phiên bản đầu tiên của VietTelex. Cảm ơn bạn đã dùng thử — mọi góp ý xin gửi về email hỗ trợ trong app.
+```
+
+---
+
+### 🇬🇧 English (U.S.) — localization phụ
+
+**App Name** (≤30):
+```
+VietTelex – Vietnamese KB
+```
+
+**Subtitle** (≤30):
+```
+Fast, private Telex typing
+```
+
+**Promotional Text** (≤170):
+```
+A clean Vietnamese Telex keyboard: fast typing, smart suggestions, snippets, and emoji — with zero data collection. Works even without Full Access.
+```
+
+**Keywords** (≤100):
+```
+vietnamese,keyboard,telex,vni,typing,diacritics,accents,vietnam,type vietnamese,ban phim
+```
+
+**Description**:
+```
+VietTelex is a lightweight Vietnamese Telex keyboard built to be fast, accurate, and privacy-first.
+
+FEATURES
+• Full Telex input, plus Simple Telex and free tone placement.
+• Smart word suggestions that learn your habits — all processed on-device.
+• Automatic English restore: mixing English and Vietnamese won't add unwanted diacritics.
+• Snippets: save frequently used phrases, insert with one tap.
+• Full emoji browser with word-based emoji suggestions.
+• Adapts to the input field: number, email (@ .), URL (. / .com).
+• Smart return key (go/search/send…) like the system keyboard.
+
+PRIVACY FIRST
+• Does NOT collect, send, or store anything you type.
+• No ads, no tracking, no third-party SDKs.
+• Works fully even without Full Access.
+
+Privacy Policy: https://viettelex.com/privacy-policy
+```
+
+**What's New in This Version** (v1.0):
+```
+Initial release of VietTelex. Thanks for trying it — please send feedback to the support email in the app.
+```
+
+---
+
+### Các URL cần điền trên App Store Connect
+- **Privacy Policy URL:** `https://viettelex.com/privacy-policy`
+- **Support URL:** (bắt buộc) — VD `https://viettelex.com` hoặc trang liên hệ.
+- **Marketing URL:** (tuỳ chọn) — VD `https://viettelex.com`.
+
+---
+
 ## Ghi chú
 - Lần đầu review keyboard thường **1–3 ngày**, đôi khi lâu hơn do bị soi kỹ.
 - Nếu bị reject, đọc kỹ lý do trong Resolution Center, sửa và **Reply** thẳng ở đó (không cần tạo version mới nếu chỉ là metadata/notes).
