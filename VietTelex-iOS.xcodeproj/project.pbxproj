@@ -1,0 +1,698 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		03737E5339AC43A75D973144 /* EmojiSuggest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */; };
+		0FC30ADCCD6DA0E278D59DD3 /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 738732B955CD39C76B2484C7 /* SeedData.swift */; };
+		18EB5C9002EAD3991F709FD5 /* UserLangModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F316CA910C58A9377DC754A0 /* UserLangModel.swift */; };
+		19A0B9BFBF4CF5C3FEE6785B /* SensitiveWords.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9F4445707DBA22FE5219CD /* SensitiveWords.swift */; };
+		1D3501D761DFD4F1BED9ED72 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */; };
+		1FE0301F7BA4765FA3C922D5 /* UserLangModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F316CA910C58A9377DC754A0 /* UserLangModel.swift */; };
+		36C564FD8BADBFB0BCC1E645 /* DisplayCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B7D70220F7D14EBC3C3AACD /* DisplayCase.swift */; };
+		391082DF75889B3977A67837 /* EmojiData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE050ECA55A95B273F9E18A0 /* EmojiData.swift */; };
+		3D6C897D3E6A6D2A37325AD0 /* vnlexicon.bin in Resources */ = {isa = PBXBuildFile; fileRef = 915FC9A836F82E797FA0AEA1 /* vnlexicon.bin */; };
+		3D9FF1966D0667F67B245548 /* SpaceLogo@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = B913AFA01B930811B2848696 /* SpaceLogo@2x.png */; };
+		3DE25701A4C0DB5C7124618A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 07973B1798B754A6DDA969C3 /* Assets.xcassets */; };
+		4E60808450DA80CBC7DEF891 /* ios-mau-cau.yml in Resources */ = {isa = PBXBuildFile; fileRef = E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */; };
+		5219B81A88BC7A0F77DC8467 /* TelexCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE8679AE19C0C9801BE52ADF /* TelexCore */; };
+		54B0665D29CB3187CEBF5157 /* KeyboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 941319FB73DCEB18DDE2E232 /* KeyboardView.swift */; };
+		593AA8DEA7AFB11D6005F173 /* EngineBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD709650C25830CA926EBCF /* EngineBridge.swift */; };
+		5CA3CB101E504E9B3DF8B3A9 /* VietTelexApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03B539001F2CE763F663710B /* VietTelexApp.swift */; };
+		5E9A08F294F260D516411505 /* DisplayCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B7D70220F7D14EBC3C3AACD /* DisplayCase.swift */; };
+		6689B752583E4AE424F48573 /* EngineBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD709650C25830CA926EBCF /* EngineBridge.swift */; };
+		777DFD50684EBFD29E6F41C8 /* ios-mau-cau.yml in Resources */ = {isa = PBXBuildFile; fileRef = E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */; };
+		99E9949680619BC9BFBE9CB6 /* VNLexicon2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E29815B4F2B0747B961A561 /* VNLexicon2.swift */; };
+		A1D007E26A075E6497254AA7 /* EmojiData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE050ECA55A95B273F9E18A0 /* EmojiData.swift */; };
+		AC2407E83BA2FC77C45DE3FF /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 738732B955CD39C76B2484C7 /* SeedData.swift */; };
+		BC7C55450CA36CBF6D0F8297 /* vnlexicon.bin in Resources */ = {isa = PBXBuildFile; fileRef = 915FC9A836F82E797FA0AEA1 /* vnlexicon.bin */; };
+		CE87DFF1AA26E9C3CF185681 /* VNSuggest.swift in Sources */ = {isa = PBXBuildFile; fileRef = C445BEBA75DFC20101EC3BA9 /* VNSuggest.swift */; };
+		CF7F1ABF1498FE511CA6CA87 /* VietTelexKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 09561C431C2FC4B6BAFD5DB7 /* VietTelexKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D4DEA988483DB59F683B8407 /* EngineBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AE58D76A8127D641A2AF62 /* EngineBridgeTests.swift */; };
+		D902A388BD011F37220F5C53 /* SpaceLogo@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = DBA09810793F0754E1A9C3F7 /* SpaceLogo@3x.png */; };
+		DBE4AB9A3B654D9D44392251 /* TelexCore in Frameworks */ = {isa = PBXBuildFile; productRef = E6EA46A66DF9410EF89A3FC9 /* TelexCore */; };
+		DD68A1CBFFCFAC0280ACC90C /* VNSuggest.swift in Sources */ = {isa = PBXBuildFile; fileRef = C445BEBA75DFC20101EC3BA9 /* VNSuggest.swift */; };
+		E295B1FEA8D18A42FF77BD3A /* EmojiSuggest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */; };
+		E29FDF78A65EA7E6F0F8EF8F /* SensitiveWords.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9F4445707DBA22FE5219CD /* SensitiveWords.swift */; };
+		E986D58B038F7EFC5C5803FB /* EmojiPlane.swift in Sources */ = {isa = PBXBuildFile; fileRef = D705942B9BA084047E7A7EF1 /* EmojiPlane.swift */; };
+		F1691715B050F1B3A42B4C84 /* FeatureRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D93CDC9D2CEA8A91A576B183 /* FeatureRegressionTests.swift */; };
+		FE2B9309D2217292E28A9A44 /* VNLexicon2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E29815B4F2B0747B961A561 /* VNLexicon2.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C67E34E4140A550D65AEF935 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1A287EF72D90D197DBD4B8E9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B616D69D459514C86CBAC48E;
+			remoteInfo = VietTelexKeyboard;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		50C6CD8FDEFFC2F62BE61922 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				CF7F1ABF1498FE511CA6CA87 /* VietTelexKeyboard.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		03B539001F2CE763F663710B /* VietTelexApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VietTelexApp.swift; sourceTree = "<group>"; };
+		07973B1798B754A6DDA969C3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		09561C431C2FC4B6BAFD5DB7 /* VietTelexKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = VietTelexKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		097463B6895C7327459CEF6A /* VietTelexKeyboardTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = VietTelexKeyboardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		142CFBEA43046FC96EBF437F /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		23D9F4828FBAE93DCCEB2271 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSuggest.swift; sourceTree = "<group>"; };
+		5E29815B4F2B0747B961A561 /* VNLexicon2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VNLexicon2.swift; sourceTree = "<group>"; };
+		6B7D70220F7D14EBC3C3AACD /* DisplayCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayCase.swift; sourceTree = "<group>"; };
+		738732B955CD39C76B2484C7 /* SeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedData.swift; sourceTree = "<group>"; };
+		80CE2088FB873FD0D894A6C0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
+		8AD709650C25830CA926EBCF /* EngineBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineBridge.swift; sourceTree = "<group>"; };
+		915FC9A836F82E797FA0AEA1 /* vnlexicon.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = vnlexicon.bin; sourceTree = "<group>"; };
+		941319FB73DCEB18DDE2E232 /* KeyboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardView.swift; sourceTree = "<group>"; };
+		B913AFA01B930811B2848696 /* SpaceLogo@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "SpaceLogo@2x.png"; sourceTree = "<group>"; };
+		C445BEBA75DFC20101EC3BA9 /* VNSuggest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VNSuggest.swift; sourceTree = "<group>"; };
+		CAD72939A03B2CDB528A0C4A /* Keyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Keyboard.entitlements; sourceTree = "<group>"; };
+		CCEDEE554C73498F36146A9D /* VietTelexApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = VietTelexApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D705942B9BA084047E7A7EF1 /* EmojiPlane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPlane.swift; sourceTree = "<group>"; };
+		D93CDC9D2CEA8A91A576B183 /* FeatureRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureRegressionTests.swift; sourceTree = "<group>"; };
+		DBA09810793F0754E1A9C3F7 /* SpaceLogo@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "SpaceLogo@3x.png"; sourceTree = "<group>"; };
+		E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = "ios-mau-cau.yml"; sourceTree = "<group>"; };
+		E5AE58D76A8127D641A2AF62 /* EngineBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineBridgeTests.swift; sourceTree = "<group>"; };
+		F2C9781CE8B936C962B3EBA8 /* TelexCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TelexCore; path = ../VietTelex/TelexCore; sourceTree = SOURCE_ROOT; };
+		F316CA910C58A9377DC754A0 /* UserLangModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserLangModel.swift; sourceTree = "<group>"; };
+		FE050ECA55A95B273F9E18A0 /* EmojiData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiData.swift; sourceTree = "<group>"; };
+		FF9F4445707DBA22FE5219CD /* SensitiveWords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensitiveWords.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		87E1F1E46F2E12B36BD37FF9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DBE4AB9A3B654D9D44392251 /* TelexCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8B71F08A9B2078628BECDB15 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5219B81A88BC7A0F77DC8467 /* TelexCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		157C51231B94A40CA803DFF2 = {
+			isa = PBXGroup;
+			children = (
+				E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */,
+				C9D01CBA8ACF33359DB0C0BD /* App */,
+				D31F988D110CA9E478B35C27 /* Keyboard */,
+				9F75E32DB55D92888E77DE61 /* KeyboardTests */,
+				DF35FD668408A625226DFE82 /* Packages */,
+				ACA2EF74601F7B3D920485DD /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		386A21A07F2A4BABEBD7B24B /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				915FC9A836F82E797FA0AEA1 /* vnlexicon.bin */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		9F75E32DB55D92888E77DE61 /* KeyboardTests */ = {
+			isa = PBXGroup;
+			children = (
+				E5AE58D76A8127D641A2AF62 /* EngineBridgeTests.swift */,
+				D93CDC9D2CEA8A91A576B183 /* FeatureRegressionTests.swift */,
+			);
+			path = KeyboardTests;
+			sourceTree = "<group>";
+		};
+		ACA2EF74601F7B3D920485DD /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CCEDEE554C73498F36146A9D /* VietTelexApp.app */,
+				09561C431C2FC4B6BAFD5DB7 /* VietTelexKeyboard.appex */,
+				097463B6895C7327459CEF6A /* VietTelexKeyboardTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C9D01CBA8ACF33359DB0C0BD /* App */ = {
+			isa = PBXGroup;
+			children = (
+				142CFBEA43046FC96EBF437F /* App.entitlements */,
+				07973B1798B754A6DDA969C3 /* Assets.xcassets */,
+				80CE2088FB873FD0D894A6C0 /* Info.plist */,
+				03B539001F2CE763F663710B /* VietTelexApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		D31F988D110CA9E478B35C27 /* Keyboard */ = {
+			isa = PBXGroup;
+			children = (
+				6B7D70220F7D14EBC3C3AACD /* DisplayCase.swift */,
+				FE050ECA55A95B273F9E18A0 /* EmojiData.swift */,
+				D705942B9BA084047E7A7EF1 /* EmojiPlane.swift */,
+				3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */,
+				8AD709650C25830CA926EBCF /* EngineBridge.swift */,
+				23D9F4828FBAE93DCCEB2271 /* Info.plist */,
+				CAD72939A03B2CDB528A0C4A /* Keyboard.entitlements */,
+				941319FB73DCEB18DDE2E232 /* KeyboardView.swift */,
+				853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */,
+				738732B955CD39C76B2484C7 /* SeedData.swift */,
+				FF9F4445707DBA22FE5219CD /* SensitiveWords.swift */,
+				B913AFA01B930811B2848696 /* SpaceLogo@2x.png */,
+				DBA09810793F0754E1A9C3F7 /* SpaceLogo@3x.png */,
+				F316CA910C58A9377DC754A0 /* UserLangModel.swift */,
+				5E29815B4F2B0747B961A561 /* VNLexicon2.swift */,
+				C445BEBA75DFC20101EC3BA9 /* VNSuggest.swift */,
+				386A21A07F2A4BABEBD7B24B /* Resources */,
+			);
+			path = Keyboard;
+			sourceTree = "<group>";
+		};
+		DF35FD668408A625226DFE82 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				F2C9781CE8B936C962B3EBA8 /* TelexCore */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		32544ABB657019963CB395F0 /* VietTelexApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8A03A47E7620CB66F23051BC /* Build configuration list for PBXNativeTarget "VietTelexApp" */;
+			buildPhases = (
+				786919FF256438F39E6D3444 /* Sources */,
+				CB536D937CF8FDB69ADA35CB /* Resources */,
+				50C6CD8FDEFFC2F62BE61922 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DDEE133D48454C285B67D91A /* PBXTargetDependency */,
+			);
+			name = VietTelexApp;
+			packageProductDependencies = (
+			);
+			productName = VietTelexApp;
+			productReference = CCEDEE554C73498F36146A9D /* VietTelexApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		9BFE3D381D857B4356C8A530 /* VietTelexKeyboardTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 037EBE2394924C7EECADEA4A /* Build configuration list for PBXNativeTarget "VietTelexKeyboardTests" */;
+			buildPhases = (
+				BE8947E5410721EE491143E9 /* Sources */,
+				8543D6DA204B06362A3665FF /* Resources */,
+				87E1F1E46F2E12B36BD37FF9 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = VietTelexKeyboardTests;
+			packageProductDependencies = (
+				E6EA46A66DF9410EF89A3FC9 /* TelexCore */,
+			);
+			productName = VietTelexKeyboardTests;
+			productReference = 097463B6895C7327459CEF6A /* VietTelexKeyboardTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		B616D69D459514C86CBAC48E /* VietTelexKeyboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6D180C3F93EC4E175187C06C /* Build configuration list for PBXNativeTarget "VietTelexKeyboard" */;
+			buildPhases = (
+				607477B7E605AF0A89A20B21 /* Sources */,
+				2030DF129A4B1A93660EB0A2 /* Resources */,
+				8B71F08A9B2078628BECDB15 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = VietTelexKeyboard;
+			packageProductDependencies = (
+				BE8679AE19C0C9801BE52ADF /* TelexCore */,
+			);
+			productName = VietTelexKeyboard;
+			productReference = 09561C431C2FC4B6BAFD5DB7 /* VietTelexKeyboard.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1A287EF72D90D197DBD4B8E9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					32544ABB657019963CB395F0 = {
+						DevelopmentTeam = 84T567KMYD;
+					};
+					9BFE3D381D857B4356C8A530 = {
+						DevelopmentTeam = 84T567KMYD;
+					};
+					B616D69D459514C86CBAC48E = {
+						DevelopmentTeam = 84T567KMYD;
+					};
+				};
+			};
+			buildConfigurationList = CCDDBE8BA4A78FD2D35CFB31 /* Build configuration list for PBXProject "VietTelex-iOS" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 157C51231B94A40CA803DFF2;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				1ECF7199D3CE88FC072CE008 /* XCLocalSwiftPackageReference "../VietTelex/TelexCore" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = ACA2EF74601F7B3D920485DD /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				32544ABB657019963CB395F0 /* VietTelexApp */,
+				B616D69D459514C86CBAC48E /* VietTelexKeyboard */,
+				9BFE3D381D857B4356C8A530 /* VietTelexKeyboardTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		2030DF129A4B1A93660EB0A2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3D9FF1966D0667F67B245548 /* SpaceLogo@2x.png in Resources */,
+				D902A388BD011F37220F5C53 /* SpaceLogo@3x.png in Resources */,
+				4E60808450DA80CBC7DEF891 /* ios-mau-cau.yml in Resources */,
+				3D6C897D3E6A6D2A37325AD0 /* vnlexicon.bin in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8543D6DA204B06362A3665FF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BC7C55450CA36CBF6D0F8297 /* vnlexicon.bin in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CB536D937CF8FDB69ADA35CB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3DE25701A4C0DB5C7124618A /* Assets.xcassets in Resources */,
+				777DFD50684EBFD29E6F41C8 /* ios-mau-cau.yml in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		607477B7E605AF0A89A20B21 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5E9A08F294F260D516411505 /* DisplayCase.swift in Sources */,
+				391082DF75889B3977A67837 /* EmojiData.swift in Sources */,
+				E986D58B038F7EFC5C5803FB /* EmojiPlane.swift in Sources */,
+				03737E5339AC43A75D973144 /* EmojiSuggest.swift in Sources */,
+				593AA8DEA7AFB11D6005F173 /* EngineBridge.swift in Sources */,
+				54B0665D29CB3187CEBF5157 /* KeyboardView.swift in Sources */,
+				1D3501D761DFD4F1BED9ED72 /* KeyboardViewController.swift in Sources */,
+				AC2407E83BA2FC77C45DE3FF /* SeedData.swift in Sources */,
+				19A0B9BFBF4CF5C3FEE6785B /* SensitiveWords.swift in Sources */,
+				1FE0301F7BA4765FA3C922D5 /* UserLangModel.swift in Sources */,
+				99E9949680619BC9BFBE9CB6 /* VNLexicon2.swift in Sources */,
+				DD68A1CBFFCFAC0280ACC90C /* VNSuggest.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		786919FF256438F39E6D3444 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5CA3CB101E504E9B3DF8B3A9 /* VietTelexApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE8947E5410721EE491143E9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				36C564FD8BADBFB0BCC1E645 /* DisplayCase.swift in Sources */,
+				A1D007E26A075E6497254AA7 /* EmojiData.swift in Sources */,
+				E295B1FEA8D18A42FF77BD3A /* EmojiSuggest.swift in Sources */,
+				6689B752583E4AE424F48573 /* EngineBridge.swift in Sources */,
+				D4DEA988483DB59F683B8407 /* EngineBridgeTests.swift in Sources */,
+				F1691715B050F1B3A42B4C84 /* FeatureRegressionTests.swift in Sources */,
+				0FC30ADCCD6DA0E278D59DD3 /* SeedData.swift in Sources */,
+				E29FDF78A65EA7E6F0F8EF8F /* SensitiveWords.swift in Sources */,
+				18EB5C9002EAD3991F709FD5 /* UserLangModel.swift in Sources */,
+				FE2B9309D2217292E28A9A44 /* VNLexicon2.swift in Sources */,
+				CE87DFF1AA26E9C3CF185681 /* VNSuggest.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		DDEE133D48454C285B67D91A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B616D69D459514C86CBAC48E /* VietTelexKeyboard */;
+			targetProxy = C67E34E4140A550D65AEF935 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		2737094BE68125A1321A92B1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.viettelex.VietTelexKeyboardTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		394F7282F9B974CA2DDF9539 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Keyboard/Keyboard.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Keyboard/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Tiếng Việt (VietTelex)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.viettelex.ios.keyboard;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		533E51E77424150F834A3BD6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Keyboard/Keyboard.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Keyboard/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Tiếng Việt (VietTelex)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.viettelex.ios.keyboard;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		794B72575B0AF9D12C6FB0F3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 84T567KMYD;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		7B5E5469A9E58696F555E611 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = VietTelex;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.viettelex.ios;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8FBAF83EED491AFB304E8433 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEPLOYMENT_POSTPROCESSING = YES;
+				DEVELOPMENT_TEAM = 84T567KMYD;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LLVM_LTO = YES_THIN;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRIP_INSTALLED_PRODUCT = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-Osize";
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		AA791048E30513361645A50A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.viettelex.VietTelexKeyboardTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C8D2FEE5D005C6259A296E33 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = VietTelex;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.viettelex.ios;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		037EBE2394924C7EECADEA4A /* Build configuration list for PBXNativeTarget "VietTelexKeyboardTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA791048E30513361645A50A /* Debug */,
+				2737094BE68125A1321A92B1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		6D180C3F93EC4E175187C06C /* Build configuration list for PBXNativeTarget "VietTelexKeyboard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				394F7282F9B974CA2DDF9539 /* Debug */,
+				533E51E77424150F834A3BD6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8A03A47E7620CB66F23051BC /* Build configuration list for PBXNativeTarget "VietTelexApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7B5E5469A9E58696F555E611 /* Debug */,
+				C8D2FEE5D005C6259A296E33 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CCDDBE8BA4A78FD2D35CFB31 /* Build configuration list for PBXProject "VietTelex-iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				794B72575B0AF9D12C6FB0F3 /* Debug */,
+				8FBAF83EED491AFB304E8433 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		1ECF7199D3CE88FC072CE008 /* XCLocalSwiftPackageReference "../VietTelex/TelexCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../VietTelex/TelexCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BE8679AE19C0C9801BE52ADF /* TelexCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TelexCore;
+		};
+		E6EA46A66DF9410EF89A3FC9 /* TelexCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TelexCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 1A287EF72D90D197DBD4B8E9 /* Project object */;
+}
