@@ -6,6 +6,14 @@ import UniformTypeIdentifiers
 
 @main
 struct VietTelexApp: App {
+    init() {
+        #if DEBUG
+        let g = UserDefaults(suiteName: "group.com.viettelex")
+        NSLog("DBG kbFullAccess=%d kbLastSeen=%f",
+              g?.bool(forKey: "kbFullAccess") ?? false ? 1 : 0,
+              g?.double(forKey: "kbLastSeen") ?? -1)
+        #endif
+    }
     var body: some Scene {
         WindowGroup { RootView() }
     }
@@ -562,7 +570,49 @@ struct OnboardingCard: View {
 /// (Rung phím, Mẫu câu động https://) — dùng chung.
 struct FullAccessNotice: View {
     var reason: String
+    // Cờ do keyboard extension ghi vào App Group mỗi lần hiện (kbFullAccess) —
+    // app chứa không tự hỏi được iOS về Full Access của extension.
+    @State private var state = FullAccessNotice.check()
+
+    /// granted: hasFullAccess extension báo về lần chạy gần nhất.
+    /// kbSeen: bàn phím đã chạy bản có heartbeat ít nhất một lần chưa —
+    /// chưa chạy thì cờ granted không có ý nghĩa.
+    static func check() -> (granted: Bool, kbSeen: Bool) {
+        guard let g = UserDefaults(suiteName: "group.com.viettelex") else {
+            return (false, false)
+        }
+        return (g.bool(forKey: "kbFullAccess"),
+                g.double(forKey: "kbLastSeen") > 0)
+    }
+
     var body: some View {
+        Group {
+            if state.granted {
+                Label {
+                    Text("Đã cấp Toàn quyền Truy cập.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                } icon: {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            } else {
+                notice
+                if !state.kbSeen {
+                    Text("Nếu đã bật rồi: mở bàn phím VietTelex một lần (gõ ở app bất kỳ) để app nhận trạng thái quyền.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
+        }
+        // Refresh khi view hiện lại (đổi tab) và khi quay lại từ
+        // Settings/bàn phím — cờ chỉ đổi ngoài app.
+        .onAppear { state = Self.check() }
+        .onReceive(NotificationCenter.default.publisher(
+            for: UIApplication.willEnterForegroundNotification)) { _ in
+            state = Self.check()
+        }
+    }
+
+    private var notice: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label {
                 Text("\(reason) cần Toàn quyền Truy cập. Bật trong Cài đặt → Bàn phím → Cho phép Toàn quyền Truy cập. VietTelex không thu thập dữ liệu.")

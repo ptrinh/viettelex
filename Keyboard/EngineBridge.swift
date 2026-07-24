@@ -54,6 +54,11 @@ final class EngineBridge {
     private var engine = TelexEngine()
     private let settings: KeyboardSettings
 
+    /// Field không autocorrect (mã/username, autocorrectionType == .no): gõ
+    /// LITERAL, bỏ qua engine Telex — như field mật khẩu. (Tắt autoRestore thôi
+    /// thì diacritic lại DÍNH, ngược ý.) Set theo field ở viewWillAppear.
+    var passthrough = false
+
     init(settings: KeyboardSettings = .load()) {
         self.settings = settings
         engine.freeMarking = settings.freeMarking
@@ -65,7 +70,7 @@ final class EngineBridge {
 
     /// A letter key ("a"…"z", already cased by the shift state).
     func letter(_ ch: Character, proxy: TextProxyLike) {
-        guard !proxy.isSecure else { proxy.insertText(String(ch)); return }
+        guard !proxy.isSecure, !passthrough else { proxy.insertText(String(ch)); return }
         apply(engine.feed(ch), literal: String(ch), proxy: proxy)
     }
 
@@ -74,7 +79,7 @@ final class EngineBridge {
     /// personalization model must learn what actually landed on screen.
     @discardableResult
     func boundary(_ text: String, proxy: TextProxyLike) -> String {
-        guard !proxy.isSecure else { proxy.insertText(text); return "" }
+        guard !proxy.isSecure, !passthrough else { proxy.insertText(text); return "" }
         let before = engine.composed
         let action = engine.commitBoundary(autoRestore: settings.autoRestore)
         var final = before
@@ -89,7 +94,7 @@ final class EngineBridge {
     /// Backspace. Returns true when the bridge handled it (composition edit);
     /// false → caller should also stop any repeat state it keeps.
     func backspace(proxy: TextProxyLike) {
-        guard !proxy.isSecure, !engine.isEmpty else { proxy.deleteBackward(); return }
+        guard !proxy.isSecure, !passthrough, !engine.isEmpty else { proxy.deleteBackward(); return }
         switch engine.backspace() {
         case .replace(let bs, let insert):
             for _ in 0..<bs { proxy.deleteBackward() }

@@ -127,6 +127,89 @@ final class TopWordsCacheTests: XCTestCase {
     }
 }
 
+// Batch 25/07: thanh gợi ý LUÔN đủ 3 (SuggestionFill.pad) + double-space →
+// ". " (TypingHeuristics). Logic thuần rút khỏi KeyboardViewController để
+// test được; controller chỉ còn nối proxy/model vào 2 hàm này.
+final class SuggestionFillTests: XCTestCase {
+
+    // Đủ sẵn ≥ need → cắt đúng need, không đụng candidates.
+    func testAlreadyEnoughTruncates() {
+        let r = SuggestionFill.pad(["a", "b", "c", "d"], with: ["x"], need: 3)
+        XCTAssertEqual(r, ["a", "b", "c"])
+    }
+
+    // Thiếu → đệm từ candidates cho đủ, giữ thứ tự base trước.
+    func testPadsToNeed() {
+        let r = SuggestionFill.pad(["em"], with: ["anh", "là", "một"], need: 3)
+        XCTAssertEqual(r, ["em", "anh", "là"])
+    }
+
+    // Loại trùng (case-insensitive) giữa base và candidates.
+    func testDedupCaseInsensitive() {
+        let r = SuggestionFill.pad(["Em"], with: ["em", "anh", "ANH", "là"], need: 3)
+        XCTAssertEqual(r, ["Em", "anh", "là"])
+    }
+
+    // Loại từ đang gõ (excluding) khỏi phần đệm.
+    func testExcludesTypedWord() {
+        let r = SuggestionFill.pad([], with: ["xin", "chào", "bạn"], need: 3, excluding: "Chào")
+        XCTAssertEqual(r, ["xin", "bạn"])   // "chào" bị loại vì trùng typed
+    }
+
+    // Không đủ candidates → trả những gì có, không nhồi rỗng/nil.
+    func testUnderfilledReturnsWhatExists() {
+        let r = SuggestionFill.pad(["a"], with: ["b"], need: 3)
+        XCTAssertEqual(r, ["a", "b"])
+    }
+
+    // Base rỗng + đủ candidates → đúng 3 (ca "chưa gõ / hết gợi ý").
+    func testEmptyBaseFillsThree() {
+        let r = SuggestionFill.pad([], with: ["một", "hai", "ba", "bốn"], need: 3)
+        XCTAssertEqual(r, ["một", "hai", "ba"])
+    }
+}
+
+final class DoubleSpacePeriodTests: XCTestCase {
+
+    // Có chữ trước space → thành ". ".
+    func testAfterWord() {
+        XCTAssertTrue(TypingHeuristics.doubleSpaceMakesPeriod(
+            context: "xin chào ", lastWasSpace: true))
+    }
+
+    // Phím trước KHÔNG phải space → không đổi (double-space đến từ timing space).
+    func testRequiresLastWasSpace() {
+        XCTAssertFalse(TypingHeuristics.doubleSpaceMakesPeriod(
+            context: "xin chào ", lastWasSpace: false))
+    }
+
+    // Đầu ô "␣␣" → không biến thành ". ".
+    func testNoPeriodAtStart() {
+        XCTAssertFalse(TypingHeuristics.doubleSpaceMakesPeriod(
+            context: " ", lastWasSpace: true))
+    }
+
+    // Trước space đã là dấu câu → không nhân đôi ". .".
+    func testNoDoublePunctuation() {
+        for c in [".", "!", "?", ","] {
+            XCTAssertFalse(TypingHeuristics.doubleSpaceMakesPeriod(
+                context: "hết\(c) ", lastWasSpace: true), "sau '\(c)' không được thành . .")
+        }
+    }
+
+    // Cuối ô không phải space (chưa có space nào) → false.
+    func testNeedsTrailingSpace() {
+        XCTAssertFalse(TypingHeuristics.doubleSpaceMakesPeriod(
+            context: "chào", lastWasSpace: true))
+    }
+
+    // Chữ có dấu tiếng Việt trước space vẫn tính là chữ.
+    func testVietnameseLetterCounts() {
+        XCTAssertTrue(TypingHeuristics.doubleSpaceMakesPeriod(
+            context: "việt ", lastWasSpace: true))
+    }
+}
+
 final class MemoryBudgetTests: XCTestCase {
 
     private func footprintMB() -> Double {

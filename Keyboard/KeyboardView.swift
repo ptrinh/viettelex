@@ -14,6 +14,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         case newline
         case backspace
         case moveCursor(Int)          // space-hold trackpad mode
+        case clearField               // nút thùng rác plane mẫu câu → xoá sạch ô
     }
 
     private enum Plane { case letters, numbers, symbols, emoji, templates }
@@ -124,9 +125,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         addSubview(suggestionBar)
         // Bar là HÀNG NỘI DUNG cố định 20pt ghim đỉnh (tâm chữ y=10) — vùng
         // strip phía trên phím do rowsTopConstraint quyết định, bar chỉ nằm đó.
+        // Thụt 2 mép chừa chỗ cho burgerZone/chevronZone (ghim cố định) — gợi ý
+        // nằm giữa, không bao giờ chồng lên 2 nút mép.
         NSLayoutConstraint.activate([
-            suggestionBar.leftAnchor.constraint(equalTo: leftAnchor, constant: 6),
-            suggestionBar.rightAnchor.constraint(equalTo: rightAnchor, constant: -6),
+            suggestionBar.leftAnchor.constraint(equalTo: leftAnchor, constant: Self.stripZoneWidth),
+            suggestionBar.rightAnchor.constraint(equalTo: rightAnchor, constant: -Self.stripZoneWidth),
             suggestionBar.topAnchor.constraint(equalTo: topAnchor),
             suggestionBar.heightAnchor.constraint(equalToConstant: 20),
         ])
@@ -172,7 +175,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             self.suggestionBar.alpha = collapsing ? 0 : 1
             let flip = CGAffineTransform(rotationAngle: collapsing ? .pi : 0)
             self.chevronIcon?.transform = flip
-            self.barChevronSlot?.imageView?.transform = flip
+            self.chevronZone.imageView?.transform = flip
             self.layoutIfNeeded()
         } completion: { _ in
             self.updateSuggestionChrome()   // chốt isHidden/alpha trạng thái cuối
@@ -245,12 +248,55 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }()
     private var floatingBurgerIcon: UIImageView?
 
+    // Burger (☰) + chevron (⌄) khi bar MỞ: 2 nút GHIM CỐ ĐỊNH ở mép, cao trọn
+    // strip, tự vẽ icon + nhận tap. Trước nằm trong bar (fillProportionally) nên
+    // trôi vào giữa khi hết gợi ý + vùng tap chỉ 20pt sát mép rất khó bấm
+    // (user 2026-07-25). Giờ frame lớn, luôn ở mép → bấm đâu trong vùng cũng ăn.
+    static let stripZoneWidth: CGFloat = 52
+    private lazy var burgerZone: UIButton = {
+        let b = UIButton(type: .custom)
+        b.addAction(UIAction { [weak self] _ in self?.toggleTemplates() }, for: .touchUpInside)
+        addSubview(b)
+        return b
+    }()
+    private lazy var chevronZone: UIButton = {
+        let b = UIButton(type: .custom)
+        b.addAction(UIAction { [weak self] _ in self?.toggleBarCollapsed() }, for: .touchUpInside)
+        addSubview(b)
+        return b
+    }()
+
+    /// Đặt lại frame + icon + ẩn/hiện 2 nút mép theo trạng thái bar. Gọi mỗi
+    /// layoutSubviews. Chiều cao lấy từ HẰNG SỐ constraint (rowsTop), KHÔNG từ
+    /// frame — frame có thể chưa kịp cập nhật trong cùng pass → strip=0 → tịt.
+    private func layoutStripZones() {
+        let open = suggestionsEnabled && !barCollapsed && plane != .emoji
+        burgerZone.isHidden = !open || !templatesEnabled
+        chevronZone.isHidden = !open
+        guard open, bounds.width > 0 else { return }
+        let strip = max(rowsTopConstraint?.constant ?? 36, 36)
+        let w = Self.stripZoneWidth
+        burgerZone.frame = CGRect(x: 0, y: 0, width: w, height: strip)
+        chevronZone.frame = CGRect(x: bounds.width - w, y: 0, width: w, height: strip)
+        let ink = (dark ? UIColor.white : .black)
+        burgerZone.setImage(UIImage(systemName: "line.3.horizontal",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold)), for: .normal)
+        burgerZone.tintColor = ink.withAlphaComponent(templatesActive ? 0.9 : 0.45)
+        burgerZone.accessibilityLabel = templatesActive ? "Đóng mẫu câu" : "Mẫu câu"
+        chevronZone.setImage(UIImage(systemName: "chevron.down",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)), for: .normal)
+        chevronZone.tintColor = ink.withAlphaComponent(0.45)
+        chevronZone.accessibilityLabel = "Thu gọn thanh gợi ý"
+        chevronZone.imageView?.transform = .identity   // bar mở = chevron xuôi
+        bringSubviewToFront(burgerZone)
+        bringSubviewToFront(chevronZone)
+    }
+
     private func refreshCollapseButton(visible: Bool) {
         // Nút nổi chỉ hiện khi THU GỌN; bar mở dùng slot trong bar.
         let floating = visible && barCollapsed
         collapseButton.isHidden = !floating
         floatingBurger.isHidden = !floating || !templatesEnabled
-        burgerSlot?.isHidden = !templatesEnabled
         if floating {
             floatingBurgerIcon?.image = UIImage(systemName: "line.3.horizontal",
                 withConfiguration: UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold))
@@ -269,18 +315,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             chevronIcon?.tintColor = ink
             collapseButton.accessibilityLabel = "Mở thanh gợi ý"
         }
-        // Slot chevron + burger trong bar (khi bar mở)
+        // Bar mở: burger/chevron là burgerZone/chevronZone (ghim mép) — style +
+        // frame do layoutStripZones lo. Chỉ cần đảm bảo pool đã dựng.
         if visible && !barCollapsed {
             buildSuggestionPoolIfNeeded()
-            barChevronSlot?.setImage(chevImg, for: .normal)
-            barChevronSlot?.tintColor = ink
-            barChevronSlot?.accessibilityLabel = "Thu gọn thanh gợi ý"
-            styleBurger()
         }
-        // Transform khớp trạng thái (animation tự xoay tới đúng giá trị này)
-        let flip = CGAffineTransform(rotationAngle: barCollapsed ? .pi : 0)
-        chevronIcon?.transform = flip
-        barChevronSlot?.imageView?.transform = flip
+        // Transform icon nút nổi (thu gọn) khớp trạng thái.
+        chevronIcon?.transform = CGAffineTransform(rotationAngle: barCollapsed ? .pi : 0)
     }
 
     /// User chỉnh ±10pt/hàng qua Settings (Giao diện); 4 hàng nên tổng đổi 4×.
@@ -344,6 +385,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 r.layoutMargins = UIEdgeInsets(top: 5, left: inset, bottom: 5, right: inset)
             }
         }
+        layoutStripZones()   // sau super.layoutSubviews → frame slot bar đã đúng
     }
 
     /// Cập nhật gợi ý theo layout stock: ["nguyên văn"] | từ gợi ý | emoji(≤3),
@@ -382,17 +424,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             }, for: .touchUpInside)
             return b
         }
-        // Burger menu (mẫu câu) — slot đầu bên trái, đối xứng chevron.
-        let burger = KeyButton(type: .custom)
-        burger.isMultipleTouchEnabled = true
-        // AGGRESSIVE (user 2026-07-24): phủ tới mép màn hình + xuống sát phím;
-        // phần lấn sang slot chữ vô hại (slot thêm sau thắng hitTest vùng đè).
-        burger.hitInsets = UIEdgeInsets(top: -8, left: -20, bottom: -16, right: -10)
-        burger.addAction(UIAction { [weak self] _ in self?.toggleTemplates() },
-                         for: .touchUpInside)
-        burger.widthAnchor.constraint(equalToConstant: 40).isActive = true
-        suggestionBar.addArrangedSubview(burger)
-        burgerSlot = burger
+        // Burger + chevron KHÔNG còn nằm trong bar (fillProportionally khiến
+        // chúng nở/trôi vào giữa khi hết gợi ý — bug user 2026-07-25). Giờ là 2
+        // nút ghim cố định ở mép: burgerZone / chevronZone (xem layoutStripZones).
         func makeDivider() -> UIView {
             let v = UIView()
             v.translatesAutoresizingMaskIntoConstraints = false
@@ -428,20 +462,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             }
         }
         suggestionBar.addArrangedSubview(emojiStack)
-        // Slot chevron thu gọn — arranged subview cuối, hit nở như burger.
-        let chev = KeyButton(type: .custom)
-        chev.isMultipleTouchEnabled = true
-        // AGGRESSIVE: mép phải màn hình + sát phím; lấn trái 12pt (chevron là
-        // subview cuối nên THẮNG hitTest vùng đè lên emoji slot — chấp nhận).
-        chev.hitInsets = UIEdgeInsets(top: -8, left: -12, bottom: -16, right: -20)
-        chev.addAction(UIAction { [weak self] _ in self?.toggleBarCollapsed() },
-                       for: .touchUpInside)
-        chev.widthAnchor.constraint(equalToConstant: 40).isActive = true
-        suggestionBar.addArrangedSubview(chev)
-        barChevronSlot = chev
     }
-    private var barChevronSlot: UIButton?
-    private var burgerSlot: UIButton?
 
     // MARK: mẫu câu nhanh (burger menu, user 2026-07-24)
 
@@ -496,12 +517,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
 
     private func styleBurger() {
-        let ink = dark ? UIColor.white : .black
-        burgerSlot?.setImage(UIImage(systemName: "line.3.horizontal",
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold)), for: .normal)
-        // đang mở danh sách mẫu → đậm lên báo trạng thái
-        burgerSlot?.tintColor = ink.withAlphaComponent(templatesActive ? 0.9 : 0.45)
-        burgerSlot?.accessibilityLabel = templatesActive ? "Đóng mẫu câu" : "Mẫu câu"
+        // Icon/tint burgerZone do layoutStripZones set theo templatesActive —
+        // ép layout lại để đổi trạng thái đậm/nhạt ngay khi bật/tắt mẫu câu.
+        setNeedsLayout()
     }
 
     func showSuggestions(_ set: SuggestionSet) {
@@ -571,6 +589,22 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         case .join: returnTitle = "join"
         default: returnTitle = "return"
         }
+        rebuild()
+    }
+
+    /// Loại ô nhập (từ textDocumentProxy.keyboardType) → đổi layout như stock:
+    /// number mở thẳng plane số; email đổi hàng đáy thành phím @ và . ; url
+    /// thành . / .com. Chỉ ảnh hưởng hàng đáy plane CHỮ + plane mở đầu.
+    enum InputKind { case normal, number, email, url }
+    private var inputKind: InputKind = .normal
+
+    func configureInputKind(_ kind: InputKind) {
+        inputKind = kind
+        plane = (kind == .number) ? .numbers : .letters
+        if plane == .letters, shift == .on { shift = .off }
+        planeCache.removeAll()          // hàng đáy đổi theo kind → cache cũ sai
+        builtPlane = nil                // ép rebuild dù plane không đổi (email/url
+                                        // giữ .letters → guard cũ return sớm)
         rebuild()
     }
 
@@ -675,7 +709,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
            builtDark == dark, builtWidth == bounds.width { return }
         if builtReturn != returnTitle || builtDark != dark || builtWidth != bounds.width {
             planeCache.removeAll()
-        } else if let old = builtPlane, old != .emoji {
+        } else if let old = builtPlane, old != .emoji, old != .templates {
+            // KHÔNG cache emoji/templates: cả hai đổi distribution sang .fill và
+            // dựng layout tự do; khôi phục từ cache (distribution đã bị reset về
+            // .fillEqually + constraint chiều cao hàng đáy còn treo) làm plane
+            // mẫu câu lần 2 co dúm (bug user 2026-07-25). Dựng lại rẻ.
             planeCache[old] = CachedPlane(
                 rows: rowsContainer.arrangedSubviews, letterKeys: letterKeys,
                 shiftKey: shiftKey, spaceBar: spaceBar, spaceLogo: spaceLogo,
@@ -739,7 +777,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         chips.setContentHuggingPriority(.defaultLow, for: .vertical)
         chips.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         rowsContainer.addArrangedSubview(chips)       // giãn hết phần còn lại
-        let bottom = bottomRow(planeKey: "ABC")
+        let bottom = bottomRow(planeKey: "ABC", clearInsteadOfEmoji: true)
         rowsContainer.addArrangedSubview(bottom)
         // Hằng số = đúng chiều cao 1 hàng phím thường; multiplier×rows từng làm
         // hàng đáy phình theo phần host cấp dư (user 2026-07-24).
@@ -886,7 +924,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         rowsContainer.addArrangedSubview(bottomRow(planeKey: altKey))
     }
 
-    private func bottomRow(planeKey: String) -> UIView {
+    private func bottomRow(planeKey: String, clearInsteadOfEmoji: Bool = false) -> UIView {
         var views: [UIView] = []
         let planeBtn = controlButton(title: planeKey) { [weak self] in
             guard let self else { return }
@@ -910,16 +948,29 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             }
             views.append(globe)
         }
-        // nút emoji bên trái space — icon đơn sắc như stock (user 2026-07-23)
-        let emojiBtn = controlButton(title: "") { [weak self] in
-            guard let self else { return }
-            self.plane = .emoji
-            self.rebuild()
+        // Slot cạnh trái space: bình thường là nút emoji; plane mẫu câu thay
+        // bằng THÙNG RÁC = xoá sạch ô nhập (user 2026-07-25). Cùng kiểu nút đơn
+        // sắc như ABC nên giữ chung biến emojiBtn để ăn width multiplier 0.10.
+        let emojiBtn: KeyButton
+        if clearInsteadOfEmoji {
+            emojiBtn = controlButton(title: "") { [weak self] in
+                self?.tapped(.clearField)
+            }
+            emojiBtn.setImage(UIImage(systemName: "trash",
+                withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .regular)), for: .normal)
+            emojiBtn.tintColor = dark ? .white : .black
+            emojiBtn.accessibilityLabel = "Xoá ô nhập"
+        } else {
+            emojiBtn = controlButton(title: "") { [weak self] in
+                guard let self else { return }
+                self.plane = .emoji
+                self.rebuild()
+            }
+            emojiBtn.setImage(UIImage(systemName: "face.smiling.inverse",
+                withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)), for: .normal)
+            emojiBtn.tintColor = dark ? .white : .black
+            emojiBtn.accessibilityLabel = "Emoji"
         }
-        emojiBtn.setImage(UIImage(systemName: "face.smiling.inverse",
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)), for: .normal)
-        emojiBtn.tintColor = dark ? .white : .black
-        emojiBtn.accessibilityLabel = "Emoji"
         views.append(emojiBtn)
         let space = baseButton(title: "", special: true)
         space.backgroundColor = plainFill
@@ -947,6 +998,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             ])
         }
         space.addAction(UIAction { _ in Self.clickModifier() }, for: .touchDown)
+        // touchUpOutside CŨNG commit: gõ nhanh ngón trượt khỏi mép phím lúc
+        // nhấc là chuyện thường — chỉ nhận touchUpInside thì space rơi im lặng.
         space.addAction(UIAction { [weak self] _ in
             guard let self else { return }
             let now = CACurrentMediaTime()
@@ -956,17 +1009,35 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 self.tapped(.space)
             }
             self.lastSpaceTap = now
-        }, for: .touchUpInside)
+        }, for: [.touchUpInside, .touchUpOutside])
         let spacePan = UILongPressGestureRecognizer(target: self, action: #selector(spaceHold(_:)))
         spacePan.minimumPressDuration = 0.4
         space.addGestureRecognizer(spacePan)
         space.setContentHuggingPriority(.defaultLow, for: .horizontal)
         views.append(space)
-        // dấu phẩy bên phải space (user 2026-07-23)
-        let comma = baseButton(title: ",", special: false)
-        comma.pressedBackground = specialFill
-        comma.addAction(UIAction { [weak self] _ in self?.tapped(.text(",")) }, for: .touchUpInside)
-        views.append(comma)
+        // Nhóm phím dấu câu bên phải space. Bình thường là dấu phẩy; ô email/url
+        // đổi thành phím tắt như stock (@ . cho email; . / .com cho url). Chỉ áp
+        // ở hàng đáy plane CHỮ (planeKey == "123").
+        let puncts: [(title: String, insert: String, mult: CGFloat)]
+        if planeKey == "123" {
+            switch inputKind {
+            case .email: puncts = [("@", "@", 0.11), (".", ".", 0.09)]
+            case .url:   puncts = [(".", ".", 0.075), ("/", "/", 0.075), (".com", ".com", 0.17)]
+            default:     puncts = [(",", ",", 0.075)]
+            }
+        } else {
+            puncts = [(",", ",", 0.075)]
+        }
+        var punctKeys: [(btn: KeyButton, mult: CGFloat)] = []
+        for p in puncts {
+            let b = baseButton(title: p.title, special: false)
+            b.pressedBackground = specialFill
+            if p.title == ".com" { b.titleLabel?.font = .systemFont(ofSize: 17) }
+            b.addAction(UIAction { [weak self] _ in self?.tapped(.text(p.insert)) },
+                        for: [.touchUpInside, .touchUpOutside])
+            views.append(b)
+            punctKeys.append((b, p.mult))
+        }
         let ret = controlButton(title: returnTitle == "return" ? "" : returnTitle) { [weak self] in
             self?.tapped(.newline)
         }
@@ -976,6 +1047,21 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .regular)), for: .normal)
             // mờ ngang logo Vᴛ trên spacebar (user 2026-07-23)
             ret.tintColor = (dark ? UIColor.white : .black).withAlphaComponent(0.16)
+        } else {
+            // Return dạng HÀNH ĐỘNG (go/search/send/done…): nút XANH nổi bật +
+            // chữ trắng như stock (Safari search…), thay vì xám lẫn phím thường.
+            ret.backgroundColor = .systemBlue
+            ret.normalBackground = .systemBlue
+            ret.pressedBackground = UIColor.systemBlue.withAlphaComponent(0.7)
+            ret.setTitleColor(.white, for: .normal)
+            ret.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
+            // "go" (Safari search/address): stock hiện MŨI TÊN → trắng, không chữ.
+            if returnTitle == "go" {
+                ret.setTitle("", for: .normal)
+                ret.setImage(UIImage(systemName: "arrow.right",
+                    withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)), for: .normal)
+                ret.tintColor = .white
+            }
         }
         views.append(ret)
         // iPad: phím ẩn bàn phím góc phải dưới như stock
@@ -1002,8 +1088,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         stack.layoutMargins = UIEdgeInsets(top: 5, left: 3, bottom: 5, right: 3)
         planeBtn.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: 0.12).isActive = true
         emojiBtn.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: 0.10).isActive = true
-        comma.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: 0.075).isActive = true
-        ret.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: 0.165).isActive = true
+        for pk in punctKeys {
+            pk.btn.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: pk.mult).isActive = true
+        }
+        ret.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: 0.14).isActive = true
         dismissBtn?.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: 0.07).isActive = true
         return stack
     }
@@ -1095,18 +1183,6 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     static func clickDelete() { feedback() }
     static func clickModifier() { feedback() }
 
-    // ROLLOVER: gõ nhanh thì ngón sau chạm xuống khi phím trước còn đè —
-    // stock chốt phím trước ngay lúc đó. Thiếu rollover là ca "chữ ra chậm /
-    // lộn thứ tự" khi gõ nhanh.
-    private weak var pendingLetterButton: UIButton?
-    private var pendingLetterCommit: (() -> Void)?
-    private func commitPendingLetter() {
-        let commit = pendingLetterCommit
-        pendingLetterCommit = nil
-        pendingLetterButton = nil
-        commit?()
-    }
-
     private func letterButton(_ s: String) -> UIView {
         let title = (shift == .off) ? s : s.uppercased()
         let b = baseButton(title: title, special: false)
@@ -1115,23 +1191,19 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // hộp action được sendActions() kích.
         b.isUserInteractionEnabled = false
         letterKeys.append((b, s))
+        // Chèn NGAY touch-down như stock iOS: chữ lên tức thì, không phụ thuộc
+        // vào việc giao touch-up (main thread bận → touch-up trễ → "phím không
+        // ăn"). Rollover vẫn đúng vì mỗi down tự chèn ký tự của nó.
         b.addAction(UIAction { [weak self, weak b] _ in
             guard let self, let b else { return }
-            self.commitPendingLetter()               // rollover phím trước
             Self.clickLetter()                       // feedback tức thì
             self.showBalloon(over: b, text: b.currentTitle ?? title)
-            self.pendingLetterButton = b
-            self.pendingLetterCommit = { [weak self] in
-                guard let self else { return }
-                let cased: Character = (self.shift == .off) ? Character(s) : Character(s.uppercased())
-                self.tapped(.letter(cased))
-                if self.shift == .on { self.shift = .off; self.applyShiftAppearance() }
-            }
+            let cased: Character = (self.shift == .off) ? Character(s) : Character(s.uppercased())
+            self.tapped(.letter(cased))
+            if self.shift == .on { self.shift = .off; self.applyShiftAppearance() }
         }, for: .touchDown)
-        b.addAction(UIAction { [weak self, weak b] _ in
-            guard let self else { return }
-            self.hideBalloon()
-            if self.pendingLetterButton === b { self.commitPendingLetter() }
+        b.addAction(UIAction { [weak self] _ in
+            self?.hideBalloon()
         }, for: [.touchUpInside, .touchUpOutside, .touchCancel])
         return b
     }
@@ -1228,16 +1300,16 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         b.addAction(UIAction { [weak self] _ in
             self?.hideBalloon()
             self?.tapped(.text(s))
-        }, for: .touchUpInside)
+        }, for: [.touchUpInside, .touchUpOutside])
         b.addAction(UIAction { [weak self] _ in self?.hideBalloon() },
-                    for: [.touchUpOutside, .touchCancel])
+                    for: .touchCancel)
         return b
     }
 
     private func controlButton(title: String, action: @escaping () -> Void) -> KeyButton {
         let b = baseButton(title: title, special: true)
         b.addAction(UIAction { _ in Self.clickModifier() }, for: .touchDown)
-        b.addAction(UIAction { _ in action() }, for: .touchUpInside)
+        b.addAction(UIAction { _ in action() }, for: [.touchUpInside, .touchUpOutside])
         return b
     }
 
@@ -1378,6 +1450,20 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // rollover được). Phím chữ tắt interaction; touch nổi lên đây và được gán
     // cho phím GẦN NHẤT — mọi điểm chạm trong vùng chữ đều trúng một phím.
     private var routedTouches: [ObjectIdentifier: UIButton] = [:]
+
+    // Vùng phím chữ (kể cả khe giữa phím) hit-test về CHÍNH KeyboardView —
+    // một mặt touch duy nhất, isMultipleTouchEnabled=true của self có hiệu lực
+    // thật. Trước đây hit view là row UIStackView (multipleTouch=false mặc
+    // định) rồi forward lên qua responder chain: ngón thứ hai chạm xuống khi
+    // ngón trước chưa nhấc bị nuốt ngay ở row stack → gõ nhanh rớt chữ.
+    // Button thật (space, shift, backspace, số/ký hiệu, slot bar…) vẫn nhận
+    // touch trực tiếp như cũ.
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let v = super.hitTest(point, with: event)
+        if v is UIControl { return v }
+        if v != nil, nearestLetterButton(at: point) != nil { return self }
+        return v
+    }
 
     private func nearestLetterButton(at point: CGPoint) -> UIButton? {
         // Chỉ route touch TRONG vùng phím — touch ở strip gợi ý phía trên là

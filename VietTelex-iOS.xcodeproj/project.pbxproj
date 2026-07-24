@@ -14,6 +14,8 @@
 		1D3501D761DFD4F1BED9ED72 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */; };
 		1FE0301F7BA4765FA3C922D5 /* UserLangModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F316CA910C58A9377DC754A0 /* UserLangModel.swift */; };
 		36C564FD8BADBFB0BCC1E645 /* DisplayCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B7D70220F7D14EBC3C3AACD /* DisplayCase.swift */; };
+		5A9C7E1100000000000000A3 /* SuggestionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A9C7E1100000000000000A1 /* SuggestionSupport.swift */; };
+		5A9C7E1100000000000000A2 /* SuggestionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A9C7E1100000000000000A1 /* SuggestionSupport.swift */; };
 		391082DF75889B3977A67837 /* EmojiData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE050ECA55A95B273F9E18A0 /* EmojiData.swift */; };
 		3D6C897D3E6A6D2A37325AD0 /* vnlexicon.bin in Resources */ = {isa = PBXBuildFile; fileRef = 915FC9A836F82E797FA0AEA1 /* vnlexicon.bin */; };
 		3D9FF1966D0667F67B245548 /* SpaceLogo@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = B913AFA01B930811B2848696 /* SpaceLogo@2x.png */; };
@@ -77,6 +79,7 @@
 		3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSuggest.swift; sourceTree = "<group>"; };
 		5E29815B4F2B0747B961A561 /* VNLexicon2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VNLexicon2.swift; sourceTree = "<group>"; };
 		6B7D70220F7D14EBC3C3AACD /* DisplayCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayCase.swift; sourceTree = "<group>"; };
+		5A9C7E1100000000000000A1 /* SuggestionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionSupport.swift; sourceTree = "<group>"; };
 		738732B955CD39C76B2484C7 /* SeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedData.swift; sourceTree = "<group>"; };
 		80CE2088FB873FD0D894A6C0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
@@ -182,6 +185,7 @@
 				853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */,
 				738732B955CD39C76B2484C7 /* SeedData.swift */,
 				FF9F4445707DBA22FE5219CD /* SensitiveWords.swift */,
+				5A9C7E1100000000000000A1 /* SuggestionSupport.swift */,
 				B913AFA01B930811B2848696 /* SpaceLogo@2x.png */,
 				DBA09810793F0754E1A9C3F7 /* SpaceLogo@3x.png */,
 				F316CA910C58A9377DC754A0 /* UserLangModel.swift */,
@@ -348,6 +352,7 @@
 				E986D58B038F7EFC5C5803FB /* EmojiPlane.swift in Sources */,
 				03737E5339AC43A75D973144 /* EmojiSuggest.swift in Sources */,
 				593AA8DEA7AFB11D6005F173 /* EngineBridge.swift in Sources */,
+				5A9C7E1100000000000000A2 /* SuggestionSupport.swift in Sources */,
 				54B0665D29CB3187CEBF5157 /* KeyboardView.swift in Sources */,
 				1D3501D761DFD4F1BED9ED72 /* KeyboardViewController.swift in Sources */,
 				AC2407E83BA2FC77C45DE3FF /* SeedData.swift in Sources */,
@@ -374,6 +379,7 @@
 				A1D007E26A075E6497254AA7 /* EmojiData.swift in Sources */,
 				E295B1FEA8D18A42FF77BD3A /* EmojiSuggest.swift in Sources */,
 				6689B752583E4AE424F48573 /* EngineBridge.swift in Sources */,
+				5A9C7E1100000000000000A3 /* SuggestionSupport.swift in Sources */,
 				D4DEA988483DB59F683B8407 /* EngineBridgeTests.swift in Sources */,
 				F1691715B050F1B3A42B4C84 /* FeatureRegressionTests.swift in Sources */,
 				0FC30ADCCD6DA0E278D59DD3 /* SeedData.swift in Sources */,
@@ -524,7 +530,7 @@
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = VietTelex;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -624,7 +630,7 @@
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = VietTelex;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

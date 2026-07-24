@@ -1,4 +1,5 @@
 build-sim/
+build/
 *.xcuserdata/
 xcuserdata/
 .DS_Store

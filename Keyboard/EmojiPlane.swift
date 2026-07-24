@@ -348,6 +348,12 @@ final class EmojiPlane: UIView, UICollectionViewDataSource, UICollectionViewDele
         let name = sections[indexPath.section].name
         v.label.text = Self.displayNames[name] ?? name.uppercased()
         v.label.textColor = (dark ? UIColor.white : .black).withAlphaComponent(0.5)
+        // Giới hạn label trong đúng bề rộng section để KHÔNG tràn đè header
+        // section kế (bug section hẹp như "Thường dùng", user 2026-07-25).
+        let rows: CGFloat = 5
+        let cols = max(ceil(CGFloat(sections[indexPath.section].emoji.count) / rows), 1)
+        let itemW = (collectionView.bounds.height - Self.headerBand - (rows - 1) * 4) / rows
+        v.maxWidth = cols * itemW + (cols - 1) * 8   // cột × rộng + line-spacing
         return v
     }
 
@@ -387,15 +393,22 @@ final class EmojiPlane: UIView, UICollectionViewDataSource, UICollectionViewDele
 
     private final class HeaderView: UICollectionReusableView {
         let label = UILabel()
+        private var maxW: NSLayoutConstraint!
+        /// Bề rộng tối đa của label = bề rộng section (đặt mỗi lần dequeue) —
+        /// label vẫn tràn khỏi strip 8pt nhưng KHÔNG tràn sang section kế.
+        var maxWidth: CGFloat = 0 { didSet { maxW.constant = max(maxWidth, 8) } }
         override init(frame: CGRect) {
             super.init(frame: frame)
             clipsToBounds = false          // label rộng hơn strip 8pt — cố ý
             label.font = .systemFont(ofSize: 11, weight: .semibold)
+            label.lineBreakMode = .byTruncatingTail
             label.translatesAutoresizingMaskIntoConstraints = false
             addSubview(label)
+            maxW = label.widthAnchor.constraint(lessThanOrEqualToConstant: 8)
             NSLayoutConstraint.activate([
                 label.leftAnchor.constraint(equalTo: leftAnchor, constant: 2),
                 label.topAnchor.constraint(equalTo: topAnchor),
+                maxW,
             ])
         }
         required init?(coder: NSCoder) { fatalError() }
