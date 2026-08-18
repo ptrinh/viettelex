@@ -430,6 +430,23 @@ Tổng quát: gặp report "shortcut chết trong app X khi bật VietTelex" →
 "Simple Telex có dính không?" trước khi đào code. App Qt (Flameshot, OBS, VLC,
 qBittorrent, Telegram bản Qt…) là ứng viên hàng đầu của lớp này.
 
+## Khoá secure input MỒ CÔI: process chết không nhả — 2026-08-18 (field case Lark)
+
+Lark bật secure input (ô mật khẩu) rồi bị quit → `ps -p <pid>` trống nhưng
+`ioreg` vẫn báo PID đó giữ `kCGSSessionSecureInputPID` — record kẹt theo PHIÊN,
+`pkill` thêm gì cũng vô ích, mọi IME bên thứ ba vô hiệu. Bình thường macOS tự
+dọn khi process chết; ca này là bookkeeping của WindowServer kẹt lại.
+
+Gỡ, theo thứ tự rẻ → chắc:
+1. **Khoá màn hình (⌃⌘Q) rồi mở lại** — FIELD-VERIFIED 18/08: loginwindow chiếm
+   secure input lúc lock rồi nhả khi unlock, ghi đè record mồ côi. Đây là hint
+   icon Vᵀ⃠ hiện khi `Holder.alive == false`.
+2. Đăng xuất / đăng nhập lại — chắc chắn 100%.
+
+Không chặn trước được: secure input là nguyên thủy bảo mật của OS, không có API
+cho app thứ ba từ chối/nhả hộ (cố tình — nhả hộ được thì malware cũng làm được).
+Fix gốc thuộc về app giữ khoá (lớp bug Electron: Enable không Disable khi thoát).
+
 ## ⌘R trong Xcode huỷ đăng ký input source — 2026-08-15 (học từ fork xkhanhs/vtx, 906640f)
 
 Triệu chứng: IME **biến mất khỏi menu bar**, không crash, DebugLog trống. App vẫn
