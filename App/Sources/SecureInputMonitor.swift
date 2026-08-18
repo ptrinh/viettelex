@@ -33,9 +33,24 @@ final class SecureInputMonitor {
     struct Holder: Equatable {
         let pid: pid_t
         let name: String?
-        /// "iTerm2 (PID 12345)" / "PID 12345" — English on purpose: goes into logs
-        /// and bug reports, where greppability beats localization.
-        var label: String { name.map { "\($0) (PID \(pid))" } ?? "PID \(pid)" }
+        /// false = PID giữ khoá ĐÃ CHẾT mà macOS chưa nhả — khoá mồ côi, chỉ
+        /// logout/login mới gỡ (field case 18/08/2026: Lark quit không nhả, ps trống
+        /// mà ioreg vẫn báo giữ). Equatable nên sống→chết tự thành một transition
+        /// mới được log. pid 0 (không rõ ai giữ) coi như alive để khỏi khuyên láo.
+        let alive: Bool
+        /// "iTerm2 (PID 12345)" / "PID 12345" / "PID 12345, exited" — English on
+        /// purpose: goes into logs and bug reports, where greppability beats l10n.
+        var label: String {
+            let base = name.map { "\($0) (PID \(pid))" } ?? "PID \(pid)"
+            return alive ? base : base + ", exited"
+        }
+    }
+
+    /// Process còn sống không — kill(pid, 0) không gửi signal, chỉ hỏi tồn tại;
+    /// EPERM nghĩa là "sống nhưng không phải của mình" nên vẫn tính là sống.
+    static func processIsAlive(_ pid: pid_t) -> Bool {
+        guard pid > 0 else { return true }
+        return kill(pid, 0) == 0 || errno == EPERM
     }
 
     /// nil = secure input off. Non-nil = active; Holder mô tả thủ phạm (pid 0 nếu
@@ -65,8 +80,9 @@ final class SecureInputMonitor {
     func check(reason: String) {
         let active = IsSecureEventInputEnabled()
         let holder: Holder? = active
-            ? Self.secureInputPID().map { Holder(pid: $0, name: Self.processName($0)) }
-                ?? Holder(pid: 0, name: nil)
+            ? Self.secureInputPID().map { Holder(pid: $0, name: Self.processName($0),
+                                                 alive: Self.processIsAlive($0)) }
+                ?? Holder(pid: 0, name: nil, alive: true)
             : nil
         if !active, activeHolder == nil {
             // Trạng thái yên bình: ghi nhớ selection thật của user cho lần chặn sau.
@@ -122,9 +138,12 @@ final class SecureInputMonitor {
                               action: nil, keyEquivalent: "")
         info.isEnabled = false
         menu.addItem(info)
-        // Gợi ý fix phổ biến nhất (field report: dân SSH bật Secure Keyboard Entry rồi quên).
-        let hint = NSMenuItem(title: VTLocalized("If this is Terminal/iTerm2: turn off “Secure Keyboard Entry”"),
-                              action: nil, keyEquivalent: "")
+        // Gợi ý theo ĐÚNG bệnh: khoá mồ côi (process chết không nhả — chỉ logout gỡ
+        // được) khác hẳn Secure Keyboard Entry bật quên (tắt trong menu app là xong).
+        let hintText = holder.alive
+            ? VTLocalized("If this is Terminal/iTerm2: turn off “Secure Keyboard Entry”")
+            : VTLocalized("That process has exited but macOS kept the lock — log out and back in to clear it")
+        let hint = NSMenuItem(title: hintText, action: nil, keyEquivalent: "")
         hint.isEnabled = false
         menu.addItem(hint)
         item.menu = menu

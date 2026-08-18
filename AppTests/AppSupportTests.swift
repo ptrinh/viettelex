@@ -113,9 +113,16 @@ final class AppSupportTests: XCTestCase {
     func testSecureInputHolderLabelIsGreppable() {
         // Label đi vào unified log + bug report: phải chứa cả tên lẫn PID, và không
         // vỡ khi không resolve được tên (process đã chết giữa chừng).
-        XCTAssertEqual(SecureInputMonitor.Holder(pid: 123, name: "iTerm2").label,
+        XCTAssertEqual(SecureInputMonitor.Holder(pid: 123, name: "iTerm2", alive: true).label,
                        "iTerm2 (PID 123)")
-        XCTAssertEqual(SecureInputMonitor.Holder(pid: 123, name: nil).label, "PID 123")
+        XCTAssertEqual(SecureInputMonitor.Holder(pid: 123, name: nil, alive: true).label, "PID 123")
+        // Khoá mồ côi (field case 18/08: Lark chết không nhả): label phải nói rõ —
+        // và alive nằm trong Equatable nên sống→chết tự thành transition được log.
+        XCTAssertEqual(SecureInputMonitor.Holder(pid: 123, name: nil, alive: false).label,
+                       "PID 123, exited")
+        XCTAssertTrue(SecureInputMonitor.processIsAlive(ProcessInfo.processInfo.processIdentifier))
+        XCTAssertFalse(SecureInputMonitor.processIsAlive(99_999_999))   // PID không tồn tại
+        XCTAssertTrue(SecureInputMonitor.processIsAlive(0))             // không rõ ai giữ → đừng khuyên láo
         // Tên process của chính test host phải resolve được (đường NSRunningApplication).
         XCTAssertNotNil(SecureInputMonitor.processName(ProcessInfo.processInfo.processIdentifier))
     }
