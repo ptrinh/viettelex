@@ -140,9 +140,12 @@ final class SecureInputMonitor {
         menu.addItem(info)
         // Gợi ý theo ĐÚNG bệnh: khoá mồ côi (process chết không nhả — chỉ logout gỡ
         // được) khác hẳn Secure Keyboard Entry bật quên (tắt trong menu app là xong).
+        // Khoá mồ côi: mẹo khoá-màn-hình FIELD-VERIFIED 18/08/2026 (ca Lark) — lock
+        // làm loginwindow chiếm secure input rồi nhả khi mở, ghi đè record kẹt.
+        // Rẻ hơn logout nhiều nên khuyên trước; logout là đường chắc chắn dự phòng.
         let hintText = holder.alive
             ? VTLocalized("If this is Terminal/iTerm2: turn off “Secure Keyboard Entry”")
-            : VTLocalized("That process has exited but macOS kept the lock — log out and back in to clear it")
+            : VTLocalized("That process exited but the lock is stuck — lock the screen (⌃⌘Q) and unlock; if that fails, log out and back in")
         let hint = NSMenuItem(title: hintText, action: nil, keyEquivalent: "")
         hint.isEnabled = false
         menu.addItem(hint)
