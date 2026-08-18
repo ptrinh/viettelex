@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.6.13</string>
+	<string>1.6.14</string>
 	<key>CFBundleVersion</key>
-	<string>81</string>
+	<string>82</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Vietnam Blockchain Association by Phil Trinh. MIT License.</string>
 	<key>ComponentInputModeDict</key>
