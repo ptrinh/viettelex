@@ -207,7 +207,7 @@ Bấm “Sửa tự động”: VietTelex tự xoá mục bị kẹt của chín
 /* 1.4.22 — UI/UX audit: captions còn thiếu, banner Trợ năng, kênh cập nhật, nhãn VoiceOver */
 "A word that isn’t valid Vietnamese snaps back to the keys you actually typed when the word ends (retore → retore)." = "Từ không phải tiếng Việt hợp lệ sẽ tự trả về đúng phím đã gõ khi kết thúc từ (retore → retore).";
 "Type “toan”, then “s” → “toán” — no need to retype the whole word. Deleting the space after a word re-opens it: “tháy ” + ⌫ + “a” → “thấy”." = "Gõ “toan” rồi “s” → “toán”, không cần gõ lại từ. Xóa dấu cách mở lại từ vừa chốt: “tháy ” + ⌫ + “a” → “thấy”.";
-"No Accessibility permission — typing in Terminal/Chrome won’t work" = "Chưa có quyền Trợ năng — gõ trong Terminal/Chrome sẽ không hoạt động";
+"No Accessibility permission — typing will be underlined" = "Chưa có quyền Trợ năng — sẽ bị dấu gạch chân khi gõ";
 "Tick VietTelex in Privacy & Security → Accessibility. You may need to restart your Mac for the permission to take effect." = "Vào Quyền riêng tư & Bảo mật → Trợ năng rồi tick VietTelex. Có thể bạn phải khởi động lại máy để quyền Trợ năng có tác dụng.";
 "Manual check: the newest release on GitHub. Weekly check: the stable channel." = "Kiểm tra thủ công: bản mới nhất trên GitHub; kiểm tra hằng tuần: kênh ổn định.";
 "No app matches “%@”" = "Không có app nào khớp “%@”";

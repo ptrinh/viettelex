@@ -587,7 +587,7 @@ struct GeneralTab: View {
             // Typing modes tab.
             if !model.accessibilityTrusted {
                 Section {
-                    Text("⚠️ " + model.loc("No Accessibility permission — typing in Terminal/Chrome won’t work"))
+                    Text("⚠️ " + model.loc("No Accessibility permission — typing will be underlined"))
                         .foregroundStyle(.red)
                     Button {
                         SettingsModel.openAccessibilitySettings()

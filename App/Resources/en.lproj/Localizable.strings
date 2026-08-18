@@ -57,7 +57,7 @@ Press “Repair automatically”: VietTelex removes its own stuck entry and asks
 /* 1.4.22 — UI/UX audit: missing captions, Accessibility banner, update channel, VoiceOver labels */
 "A word that isn’t valid Vietnamese snaps back to the keys you actually typed when the word ends (retore → retore)." = "A word that isn’t valid Vietnamese snaps back to the keys you actually typed when the word ends (retore → retore).";
 "Type “toan”, then “s” → “toán” — no need to retype the whole word. Deleting the space after a word re-opens it: “tháy ” + ⌫ + “a” → “thấy”." = "Type “toan”, then “s” → “toán” — no need to retype the whole word. Deleting the space after a word re-opens it: “tháy ” + ⌫ + “a” → “thấy”.";
-"No Accessibility permission — typing in Terminal/Chrome won’t work" = "No Accessibility permission — typing in Terminal/Chrome won’t work";
+"No Accessibility permission — typing will be underlined" = "No Accessibility permission — typing will be underlined";
 "Tick VietTelex in Privacy & Security → Accessibility. You may need to restart your Mac for the permission to take effect." = "Tick VietTelex in Privacy & Security → Accessibility. You may need to restart your Mac for the permission to take effect.";
 "Manual check: the newest release on GitHub. Weekly check: the stable channel." = "Manual check: the newest release on GitHub. Weekly check: the stable channel.";
 "No app matches “%@”" = "No app matches “%@”";
