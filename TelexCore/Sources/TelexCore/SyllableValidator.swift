@@ -127,6 +127,18 @@ public enum SyllableValidator {
            classes[1] == UInt8(ascii: "y") - UInt8(ascii: "a") {
             return true
         }
+        // TEENCODE "đou" (maintainer 19/08/2026): ĐÚNG MỘT TỪ, không phải một vần.
+        // Thử đưa "ou" vào bảng rime (kể cả khoá không-thanh) đã nổ hai hướng: có
+        // thanh thì hour/sour/tour/pour thành hỏu/sỏu/tỏu/pỏu, và vào bảng là vào
+        // luôn rimeFolded (prefix plausibility) làm live-spell-check hết freeze
+        // được cả họ -ous/-ouse/-out tiếng Anh (house→hóue: quét từ điển miss
+        // 111→3896 ở Simple Telex). Onset đ chỉ đến được từ phím dd nên đường này
+        // không chạm bất kỳ từ tiếng Anh nào, và không đụng prefix table.
+        if n == 3, tone == .none, classes[0] == 32 /* đ */,
+           classes[1] == UInt8(ascii: "o") - UInt8(ascii: "a"),
+           classes[2] == UInt8(ascii: "u") - UInt8(ascii: "a") {
+            return true
+        }
         let q = UInt8(ascii: "q") - UInt8(ascii: "a")
         let u = UInt8(ascii: "u") - UInt8(ascii: "a")
         let g = UInt8(ascii: "g") - UInt8(ascii: "a")
@@ -232,6 +244,14 @@ public enum SyllableValidator {
         // freeze live spell-check at the y). Exact pair, zero onset, unmarked o —
         // longer tails ("oyt…") fall through and freeze as before.
         if n == 2, bases[0] == UInt8(ascii: "o"), bases[1] == UInt8(ascii: "y") {
+            return true
+        }
+        // TEENCODE "đou": intermediate "d-o-u" phải sống qua live-spell-check tới
+        // boundary (bases là bản FOLDED nên đ đã về d — không phân biệt được dou/đou
+        // ở đây; boundary mới xét đúng onset đ). Đúng 3 ký tự — "dou" của
+        // double/doubt vẫn freeze ở ký tự thứ 4 như trước, chỉ muộn hơn một phím.
+        if n == 3, bases[0] & 0x7F == UInt8(ascii: "d"),
+           bases[1] == UInt8(ascii: "o"), bases[2] == UInt8(ascii: "u") {
             return true
         }
         // Nucleus-start candidates. Default = right after the leading consonants; the

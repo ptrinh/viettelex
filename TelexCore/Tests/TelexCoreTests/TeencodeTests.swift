@@ -56,6 +56,24 @@ final class TeencodeTests: XCTestCase {
         XCTAssertEqual(commit("miej"), "mịe")
     }
 
+    // MARK: Teencode "đou" — đúng MỘT TỪ, không phải một vần (maintainer 19/08/2026)
+
+    func testTeencodeDouIsAWordNotARime() {
+        // "đou" giữ nguyên ở boundary; scope là đúng từ này (onset đ + ou, không thanh).
+        XCTAssertEqual(commit("ddou"), "đou")
+        XCTAssertEqual(commit("ddoi"), "đoi")                 // vần thật kế bên không đổi
+        // Vì sao KHÔNG phải một vần: đưa "ou" vào bảng rime là (a) họ -our tiếng Anh
+        // chết (hour→hỏu — r là phím hỏi), (b) vào luôn prefix table làm
+        // live-spell-check hết freeze họ -ous/-ouse (house→hóue; quét từ điển:
+        // miss Simple Telex 111→3896). Pin đủ bộ để ai "nâng cấp thành vần" phải qua đây.
+        for w in ["hour", "sour", "tour", "pour", "dour", "house", "ddous"] {
+            XCTAssertEqual(commit(w), w, "\(w) phải restore — ou không phải vần")
+        }
+        XCTAssertEqual(commitSimple("house"), "house")
+        // Có thanh thì không còn là "đou" → restore raw ("đóu" chưa hỗ trợ, chủ đích).
+        XCTAssertEqual(commit("ddouj"), "ddouj")
+    }
+
     func testAllWWordRestoresAtBoundary() {
         // "www" là prefix URL, không phải escape: gõ live ww→w giữ nguyên (user
         // decision 22/07) nhưng boundary phải trả đủ chữ — trước fix "www." chốt

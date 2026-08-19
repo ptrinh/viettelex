@@ -1007,8 +1007,9 @@ public struct TelexEngine {
             // MỘT đặc cách teencode mỗi từ (19/08/2026, field case "wise.com"→"wíe.com"
             // ở Simple Telex): onset teencode (w→qu) CHỒNG rime teencode ("ie") cho
             // "wíe" validate thành "quíe" → boundary không restore, "wise"/"wife" chết
-            // thành wíe/wìe. Rime teencode duy nhất chạm được từ ascii trần là "ie"
-            // ("oy" đòi zero-onset, "ưm/ưn" đòi ư có dấu) nên guard đúng shape đó:
+            // thành wíe/wìe. Rime teencode CÓ THANH duy nhất chạm được từ ascii trần
+            // là "ie" ("oy" đòi zero-onset, "ưm/ưn" đòi ư có dấu, "ou" chỉ nhận
+            // không-thanh nên composed ≡ raw — không stack được) nên guard shape đó:
             // phần sau onset là đúng hai chữ i-e trần → bỏ nhánh teencode-onset,
             // để đường validate thường (onset 'w' không hợp lệ) từ chối và restore.
             let stacksTeencodeRime = pCount >= 3
@@ -2073,6 +2074,12 @@ private extension SyllableValidator {
         // TEENCODE "òy" — lockstep with the Array twin (zero-onset "oy" only).
         if n == 2, classes[0] == UInt8(ascii: "o") - UInt8(ascii: "a"),
            classes[1] == UInt8(ascii: "y") - UInt8(ascii: "a") {
+            return true
+        }
+        // TEENCODE "đou" — lockstep with the Array twin (đúng một từ, xem comment ở đó).
+        if n == 3, tone == .none, classes[0] == 32 /* đ */,
+           classes[1] == UInt8(ascii: "o") - UInt8(ascii: "a"),
+           classes[2] == UInt8(ascii: "u") - UInt8(ascii: "a") {
             return true
         }
         let q = UInt8(ascii: "q") - UInt8(ascii: "a")
