@@ -945,12 +945,16 @@ enum FocusedFieldDetector {
                 marked: false, host: nil)
     }
 
-    /// Pure: does this web-area URL host a canvas editor that must be typed with
-    /// marked text? Scoped to Google Docs documents only — Sheets has its own shipped
-    /// handling (1.4.20) and Slides is unverified; widen only with field evidence.
+    /// Pure: does this web-area URL host an editor that must be typed with marked
+    /// text? Google Docs (canvas) + tiktok.com (comment box — field report maintainer
+    /// 19/08/2026: Safari page content đi in-place theo carve-out WebKit #44 nhưng
+    /// editor của TikTok áp edit theo model JS riêng → mỗi tone edit bị APPEND
+    /// ("chuủ tichịch"); tap thì Safari nuốt synthetic trong page content — kênh
+    /// đúng còn lại là marked). Widen only with field evidence.
     static func markedFieldURL(_ url: URL?) -> Bool {
         guard let url, let host = url.host else { return false }
-        return host == "docs.google.com" && url.path.hasPrefix("/document")
+        if host == "docs.google.com" && url.path.hasPrefix("/document") { return true }
+        return host == "tiktok.com" || host.hasSuffix(".tiktok.com")
     }
 
     /// Ancestor-walk hop budget. 12 → 24 after field report 2026-07-30 (J2TeamNNL,

@@ -190,6 +190,20 @@ final class MarkedFieldURLTests: XCTestCase {
             URL(string: "https://docs.google.com/")))
     }
 
+    func testTikTokForcesMarked() {
+        // Field report 19/08/2026: comment box TikTok trên Safari — in-place bị
+        // append ("chuủ tichịch"), tap bị Safari nuốt → marked là kênh đúng.
+        XCTAssertTrue(FocusedFieldDetector.markedFieldURL(
+            URL(string: "https://www.tiktok.com/@user/video/123")))
+        XCTAssertTrue(FocusedFieldDetector.markedFieldURL(
+            URL(string: "https://tiktok.com/foryou")))
+        // Không ăn nhầm host chỉ CHỨA chữ tiktok:
+        XCTAssertFalse(FocusedFieldDetector.markedFieldURL(
+            URL(string: "https://faketiktok.com/")))
+        XCTAssertFalse(FocusedFieldDetector.markedFieldURL(
+            URL(string: "https://tiktok.com.evil.example/")))
+    }
+
     func testOtherHostsNeverForceMarked() {
         XCTAssertFalse(FocusedFieldDetector.markedFieldURL(
             URL(string: "https://evil.example.com/document/d/abc")))
