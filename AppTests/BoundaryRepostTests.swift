@@ -39,14 +39,17 @@ final class BoundaryRepostTests: XCTestCase {
     /// semantics in apps that track key state).
     // MARK: Field 19/08/2026 — "thử xem"+Enter trên TikTok post ra mỗi "thử"
 
-    func testMarkedWebEditorNeedsASecondPress() {
-        // Web editor ở lớp marked (Docs canvas, comment box TikTok): KHÔNG gửi hộ được
-        // phím boundary mà giữ được từ cuối — bốn ngả đã thử và vỡ trên TikTok/Safari
-        // 19/08/2026 (re-post ngay / hoãn 60ms / hoãn 300ms / không nuốt / chèn space
-        // rồi Enter). Đường duy nhất không mất chữ: chốt từ, user bấm lần hai.
-        XCTAssertTrue(TelexInputController.boundaryNeedsSecondPress(markedWebField: true))
-        // App native (insertText đồng bộ) vẫn được gửi hộ như cũ — không đụng.
-        XCTAssertFalse(TelexInputController.boundaryNeedsSecondPress(markedWebField: false))
+    func testMarkedWebEditorDelaysTheRepost() {
+        // Web editor ở lớp marked (Docs canvas, comment box TikTok) áp commit vào
+        // model JS BẤT ĐỒNG BỘ → Enter re-post ngay lập tức "gửi" với text cũ.
+        // Hoãn một nhịp; native app (insertText đồng bộ) thì KHÔNG hoãn.
+        XCTAssertEqual(TelexInputController.boundaryRepostDelayMs(markedWebField: true), 60)
+        XCTAssertNil(TelexInputController.boundaryRepostDelayMs(markedWebField: false))
+        // Hoãn phải đủ nhỏ để không cảm nhận được khi bấm gửi, đủ lớn cho một vòng
+        // render — nếu ai đổi số, hai biên này buộc phải cân nhắc lại.
+        let ms = TelexInputController.boundaryRepostDelayMs(markedWebField: true) ?? 0
+        XCTAssertGreaterThanOrEqual(ms, 30, "dưới 30ms không đủ cho React/Lexical")
+        XCTAssertLessThanOrEqual(ms, 120, "trên 120ms user bắt đầu cảm nhận được độ trễ")
     }
 
     func testRepostIsABalancedPair() {

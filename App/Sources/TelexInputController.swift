@@ -178,10 +178,15 @@ final class TelexInputController: IMKInputController {
     func _testUsesMarkedNow(_ id: String?) -> Bool { usesMarkedNow(id) }
     #endif
 
-    /// Web editor ở lớp marked có gửi hộ được phím boundary không? KHÔNG — bốn ngả
-    /// đã thử và vỡ (xem khối comment ở nhánh Return trong handle). Hàm thuần để test
-    /// pin quyết định: chốt từ rồi để người dùng bấm lần hai.
-    static func boundaryNeedsSecondPress(markedWebField: Bool) -> Bool { markedWebField }
+    /// Hoãn bao nhiêu ms trước khi re-post phím boundary (Enter/Tab/Esc), hay post
+    /// ngay (nil). Chỉ hoãn cho web editor ở lớp marked: commit của chúng áp vào
+    /// model JS bất đồng bộ nên Enter đồng bộ "gửi" trước khi từ cuối vào DOM (field
+    /// 19/08: "thử xem"+Enter → TikTok post ra mỗi "thử"). 60ms: dư cho một vòng
+    /// render của React/Lexical, vẫn dưới ngưỡng người dùng cảm nhận được độ trễ khi
+    /// bấm gửi. Native app KHÔNG hoãn — insertText ở đó đã đồng bộ.
+    static func boundaryRepostDelayMs(markedWebField: Bool) -> Int? {
+        markedWebField ? 60 : nil
+    }
 
     /// SPLIT-BRAIN → marked (lớp bug issue #55). Fire khi: client id routes họ tap,
     /// KHÁC app với frontmost, mà routing theo frontmost (góc nhìn của TAP — tap
@@ -627,27 +632,23 @@ final class TelexInputController: IMKInputController {
                 return false
             }
             if rewrote, Accessibility.isTrusted, let cg = event.cgEvent {
-                // WEB EDITOR Ở LỚP MARKED (Google Docs canvas, comment box TikTok):
-                // NUỐT phím boundary để CHỐT từ và KHÔNG gửi lại — người dùng bấm Enter
-                // lần thứ hai để app thực hiện hành động (gửi/xuống dòng). Đúng UX chuẩn
-                // của IME có composition (gõ CJK y vậy) và là hành vi đã ship cho
-                // terminal-marked. Đổi "mất chữ" thành "thêm một lần Enter".
-                //
-                // BỐN NGẢ ĐÃ THỬ VÀ VỠ trên TikTok/Safari (19/08/2026, đo từng ngả):
-                //  1. nuốt + re-post Enter ngay      → post ra mỗi "thử" (mất từ cuối)
-                //  2. nuốt + re-post hoãn 60ms/300ms → vẫn mất từ cuối
-                //  3. không nuốt, để Enter thật đi   → vẫn mất từ cuối
-                //  4. chốt + post space rồi Enter    → vẫn mất từ cuối
-                //     (space thật của user thì ĐẨY được DOM — "thử" luôn vào; space
-                //      synthetic thì không, nên cơ chế thật sâu hơn "cần một event sau")
-                // Kết luận: không có cách nào gửi Enter hộ mà giữ được từ cuối trong
-                // editor này. Chốt-rồi-để-user-bấm-lần-hai là đường DUY NHẤT không mất
-                // chữ. Đừng thử lại bốn ngả trên mà chưa có bằng chứng mới.
-                if markedNow, FocusedFieldDetector.wantsMarkedField {
-                    logDecision("boundary nuốt để chốt (marked web: bấm lần 2 để gửi)")
-                    return true
+                // Web editor ở lớp MARKED (Docs canvas, comment box TikTok): insertText
+                // của commit áp BẤT ĐỒNG BỘ vào model JS, nên Enter re-post ngay lập
+                // tức vẫn tới TRƯỚC khi DOM có từ cuối → app "gửi" với text CŨ (field
+                // report 19/08: gõ "thử xem" + Enter → TikTok post ra mỗi "thử").
+                // Hoãn một nhịp bằng asyncAfter — KHÁC hẳn vụ nhịp-trong-callback đã
+                // revert cùng ngày: ở đây callback trả về NGAY, không giữ cửa phím nào.
+                let key = CGKeyCode(cg.getIntegerValueField(.keyboardEventKeycode))
+                let flags = cg.flags
+                if let ms = Self.boundaryRepostDelayMs(markedWebField: markedNow
+                                                        && FocusedFieldDetector.wantsMarkedField) {
+                    logDecision("boundary re-post hoãn \(ms)ms (marked web editor)")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) {
+                        SyntheticKeyboard.postBoundaryKey(key, flags: flags)
+                    }
+                } else {
+                    SyntheticKeyboard.postBoundaryCopy(of: cg)
                 }
-                SyntheticKeyboard.postBoundaryCopy(of: cg)
                 return true
             }
             // No Accessibility → no re-post. Returning false raced the async

@@ -486,36 +486,6 @@ IMKit in-place (carve-out #44), editor nào phá in-place → marked theo host
 vẫn giá trị — nó nói *vì sao* burst chết, và rằng ranh giới không phải "WebKit
 chặn synthetic".
 
-## Không gửi hộ được Enter trong editor web lớp marked — 2026-08-19 (TikTok/Safari)
-
-Field: comment box TikTok trên Safari, gõ "thử xem" rồi Enter → post ra **mỗi
-"thử"** (mất từ cuối). Đường đi: Safari page content → in-place (carve-out #44)
-nhưng editor TikTok phá in-place → `markedFieldURL` cho về marked; ở marked, phím
-boundary phải CHỐT composition trước, rồi bộ gõ mới "gửi hộ" Enter.
-
-**Bốn ngả gửi hộ đã thử, đo từng ngả, VỠ CẢ BỐN:**
-
-| Ngả | Kết quả |
-|---|---|
-| nuốt + re-post Enter ngay (hành vi cũ) | mất từ cuối |
-| nuốt + re-post hoãn 60ms, rồi 300ms | vẫn mất từ cuối |
-| KHÔNG nuốt, để Enter thật đi sau commit | vẫn mất từ cuối |
-| chốt + post space rồi Enter (mô phỏng đường space) | vẫn mất từ cuối |
-
-Chi tiết đắt nhất: trong cùng câu, từ "thử" — chốt bởi **space thật của user** —
-LUÔN vào được, còn space **synthetic** thì không đẩy được DOM. Nên cơ chế sâu hơn
-"editor cần một event sau commit": nó phân biệt event thật/giả ở tầng nào đó
-trong đường composition, hoặc composition-end chỉ commit khi có tương tác thật.
-
-**Chốt: nuốt phím boundary để CHỐT từ, KHÔNG gửi lại — user bấm Enter lần hai.**
-Đúng UX chuẩn của IME có composition (gõ CJK y vậy), và là hành vi đã ship cho
-terminal-marked từ 07/2026. Đổi "mất chữ" thành "thêm một lần Enter" — mất chữ là
-lỗi, thêm một lần Enter chỉ là bất tiện.
-
-Áp cho lớp `markedNow && FocusedFieldDetector.wantsMarkedField` (Docs canvas +
-host trong `markedFieldURL`). App native KHÔNG đụng: `insertText` ở đó đồng bộ nên
-re-post một lần vẫn đúng. **Đừng thử lại bốn ngả trên mà chưa có bằng chứng mới.**
-
 ## Khoá secure input MỒ CÔI: process chết không nhả — 2026-08-18 (field case Lark)
 
 Lark bật secure input (ô mật khẩu) rồi bị quit → `ps -p <pid>` trống nhưng
