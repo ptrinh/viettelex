@@ -486,6 +486,40 @@ IMKit in-place (carve-out #44), editor nào phá in-place → marked theo host
 vẫn giá trị — nó nói *vì sao* burst chết, và rằng ranh giới không phải "WebKit
 chặn synthetic".
 
+## Editor web lớp marked: KHÔNG chốt được từ cuối nếu không có event THẬT đi sau — 2026-08-19/20 (TikTok/Safari)
+
+Field: comment box TikTok trên Safari, gõ "thử xem" + Enter → post ra **mỗi
+"thử"**. Đường đi: Safari page content → in-place (carve-out #44), editor TikTok
+phá in-place → `markedFieldURL` cho về marked; ở marked, Enter phải chốt
+composition trước.
+
+**SÁU ngả đã thử, đo từng ngả, VỠ CẢ SÁU:**
+
+| Ngả | Kết quả |
+|---|---|
+| nuốt + re-post Enter ngay (hành vi mặc định) | mất từ cuối |
+| nuốt + re-post hoãn 60ms | mất từ cuối |
+| nuốt + re-post hoãn 300ms | mất từ cuối |
+| KHÔNG nuốt, để Enter thật đi sau commit | mất từ cuối |
+| chốt + post space SYNTHETIC rồi Enter | mất từ cuối |
+| nuốt hẳn (chốt), user bấm Enter lần hai | **vẫn** mất từ cuối |
+
+Ngả cuối là bằng chứng quyết định: nếu chỉ là chuyện thứ tự thì "chốt rồi để user
+tự bấm" phải đúng. Nó vẫn sai ⇒ **`insertText` commit KHÔNG vào DOM chút nào** khi
+không có event THẬT của người dùng đi sau. Đối chứng trong cùng câu: từ "thử" —
+chốt bởi **space thật** — luôn vào; space **synthetic** thì không. Tức editor
+phân biệt event thật/giả ở tầng nào đó trong đường composition; không API nào của
+IME chạm tới được.
+
+**Chốt: đây là GIỚI HẠN ĐÃ BIẾT, không sửa.** Ngả "Enter hai lần" đã revert vì
+không cứu được TikTok mà lại làm Google Docs tệ hơn (Enter hai lần mới xuống dòng).
+
+Workaround cho user (đã field-verify 20/08):
+1. **Bấm dấu cách trước Enter** — space thật chốt được từ cuối. ✅ xác nhận đủ chữ.
+2. **Dùng Chrome cho TikTok** — page content Chromium đi kênh tap, không dính lớp này.
+
+Đừng thử lại sáu ngả trên mà chưa có bằng chứng mới (ví dụ macOS/WebKit đổi hành vi).
+
 ## Khoá secure input MỒ CÔI: process chết không nhả — 2026-08-18 (field case Lark)
 
 Lark bật secure input (ô mật khẩu) rồi bị quit → `ps -p <pid>` trống nhưng

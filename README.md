@@ -91,6 +91,14 @@ VietTelex tự tắt trong secure field — đúng hành vi bảo mật, không 
 </details>
 
 <details>
+<summary><strong>Gõ comment trên TikTok (Safari) bị mất chữ cuối khi ấn Enter?</strong></summary>
+
+**Bấm một dấu cách trước khi ấn Enter** là đủ chữ. Hoặc dùng Chrome cho TikTok.
+
+Lý do: ô comment của TikTok chỉ ghi nhận từ đang gõ khi có một phím thật đi sau nó — Enter thì không đủ. Bộ gõ đã thử sáu cách xử lý hộ và không cách nào giữ được từ cuối (chi tiết trong [ghi chú kỹ thuật](docs/MACOS_IME_NOTES.md)), nên đây là giới hạn đã biết chứ không phải lỗi chưa sửa.
+</details>
+
+<details>
 <summary><strong>Gỡ cài đặt thế nào cho sạch?</strong></summary>
 
 Gỡ khỏi Input Sources chỉ tắt bộ gõ, chưa xoá app. Gỡ hẳn: xoá **`~/Library/Input Methods/VietTelex.app`** (Finder → Go → Go to Folder…) rồi đăng xuất/đăng nhập. Muốn xoá luôn cài đặt cá nhân (gõ tắt, tuỳ chỉnh): xoá thêm `~/Library/Preferences/com.viettelex.settings.plist`. Cài bằng Homebrew thì chỉ cần `brew uninstall --cask viettelex`.
