@@ -430,6 +430,37 @@ Tổng quát: gặp report "shortcut chết trong app X khi bật VietTelex" →
 "Simple Telex có dính không?" trước khi đào code. App Qt (Flameshot, OBS, VLC,
 qBittorrent, Telegram bản Qt…) là ứng viên hàng đầu của lớp này.
 
+## WebKit KHÔNG nuốt synthetic — nó bỏ event ĐẾN CÙNG LÚC (đo 2026-08-19)
+
+Sửa lại hiểu biết từ #44/#47: comment cũ ghi "Safari/WebKit macOS 26 nuốt synthetic
+burst của tap" — **sai cơ chế**. Đo trực tiếp vào page content Safari (probe tự
+post + user đọc màn hình, macOS 26):
+
+| Thí nghiệm | Kết quả |
+|---|---|
+| 1 ký tự qua `.cghidEventTap` | **sống** |
+| 1 ký tự qua `.cgSessionEventTap` | **sống** |
+| 3 ký tự, nghỉ 40ms giữa các phím | **sống** |
+| burst `⌫ ⌫ + XY`, **không nghỉ** (gap 0µs) | **BỊ NUỐT TRỌN** |
+| cùng burst, gap **1ms** giữa mỗi event | **sống** |
+| gap 3ms / 5ms / 10ms / 20ms | **sống** |
+
+Kết luận: điểm post KHÔNG quan trọng (HID và session như nhau); thứ bị bỏ là các
+event mang timestamp/thời điểm **quá sát nhau** — WebKit coalesce hoặc rate-limit
+chuỗi event không có gốc phần cứng. **Thêm ~1ms nhịp giữa mỗi event là burst sống
+hoàn hảo** (⌫ ăn đúng, thứ tự đúng).
+
+Hệ quả: lớp bug #44 (Safari), #47 (Spark), Outlook, MarkEdit đáng lẽ chữa được
+bằng NHỊP, không phải bằng cách né sang in-place/marked. Xác nhận chéo: bộ gõ
+event-tap khác (xkey) dùng injection delay 1000–6000µs mỗi phím — giờ biết vì sao
+họ cần nó. Cái giá của nhịp: tone edit 1⌫+1 chữ = 4 event ⇒ ~4-8ms, dưới một
+frame 60Hz, không cảm nhận được.
+
+Ghi chú đo: process đo có `canPostEvents=true` nhưng `AXIsProcessTrusted()` báo
+true trong khi đọc AX trả `-25204` (kAXErrorAPIDisabled) — post được mà đọc
+không được. Đây lại là một biến thể "AXIsProcessTrusted nói dối", cùng họ với
+mục stale-grant ở trên: dùng preflight đúng-quyền, đừng tin cờ tổng.
+
 ## Khoá secure input MỒ CÔI: process chết không nhả — 2026-08-18 (field case Lark)
 
 Lark bật secure input (ô mật khẩu) rồi bị quit → `ps -p <pid>` trống nhưng
