@@ -37,6 +37,15 @@ public enum SyllableValidator {
     // syllables and the boundary keeps them with no special-case restore logic.
     // Scope is deliberately the OPEN rime only: closed "iec"/"ien"/… stay out (their
     // real forms are iêc/iên), so English "diet"/"field" are untouched.
+    // TEENCODE "ik" (maintainer 19/08/2026): thík/chík — "-ich" viết "-ik". Vào
+    // bảng như vần thường nên ăn mask stop-coda (sắc/nặng) tự nhiên. Collision
+    // review: tiếng Anh không có từ "-iks" thuần (sticks/picks/kicks có 'c' chặn
+    // giữa nên prefix freeze trước); "like/duke-class" freeze ở nguyên âm sau k.
+    // Biến thể "thíck" CỐ TÌNH không hỗ trợ: thêm "ick" là picks/kicks/licks/
+    // sticks chết thành píck/kíck — đừng "hoàn thiện" nó.
+    // TEENCODE "ưk" (maintainer 19/08/2026): "ừk" (= ừ, chat) — như ưm/ưn, đòi ư
+    // tường minh (uw) nên tiếng Anh bare-ascii không với tới; mask HUYỀN-only
+    // (ngoại lệ stop-coda, xem toneMask).
     // TEENCODE/interjection "ưm ưn" (maintainer 2026-08-12): "ừm" (uh-huh), "ưn"
     // ("ưng") — full rime-table entries, ALL onsets ("hừm", "hửm" ride along),
     // unlike the zero-onset "oy" special case: these rimes require the explicit
@@ -50,6 +59,7 @@ public enum SyllableValidator {
         e ec em en eng eo ep et
         ê êch êm ên êng ênh êp êt êu
         i ich im in inh ip it iu ia
+        ik
         iê iêc iêm iên iêng iêp iêt iêu
         ie
         o oc oi om on ong op ot
@@ -65,6 +75,7 @@ public enum SyllableValidator {
         uô uôc uôi uôm uôn uông uôt uơ
         uy uya uych uyn uynh uyt uyu uyên uyêt
         ư ưa ưc ưi ưm ưn ưng ưt ưu
+        ưk
         ươ ươi ươm ươn ương ươp ươt ươu ươc
         y yê yêm yên yêng yêt yêu
         """
@@ -80,6 +91,14 @@ public enum SyllableValidator {
     /// Allowed-tone bitmask for a rime: bit = Tone.rawValue. Stop codas
     /// (-p/-t/-c/-ch) only permit sắc/nặng; everything else permits all six.
     private static func toneMask(forRime r: String) -> UInt8 {
+        // "ưk" teencode (ừk = ừ): HUYỀN được phép THÊM VÀO mask stop-coda chuẩn
+        // (sắc/nặng — TypingMatrix đòi mọi vần trong bảng giữ hợp đồng stop-coda;
+        // ứk/ựk vô hại vì vần đòi ư tường minh, tiếng Anh không với tới). Hỏi/ngã
+        // vẫn bị chặn như mọi stop-coda.
+        if r == "ưk" {
+            return (1 << Tone.grave.rawValue)
+                 | (1 << Tone.acute.rawValue) | (1 << Tone.dot.rawValue)
+        }
         let stop = r.hasSuffix("p") || r.hasSuffix("t") || r.hasSuffix("c") || r.hasSuffix("ch")
             || r.hasSuffix("k")   // coda k (Đắk, Lắk): same stop-coda rule as c
         return stop ? (1 << Tone.acute.rawValue) | (1 << Tone.dot.rawValue) : 0b0011_1111
@@ -143,7 +162,9 @@ public enum SyllableValidator {
             let dC = UInt8(ascii: "d") - UInt8(ascii: "a")
             let cC = UInt8(ascii: "c") - UInt8(ascii: "a")
             let hC = UInt8(ascii: "h") - UInt8(ascii: "a")
-            if n == 3, classes[0] == gC || classes[0] == rC || classes[0] == zC { return true }
+            let hC2 = UInt8(ascii: "h") - UInt8(ascii: "a")
+            if n == 3, classes[0] == gC || classes[0] == rC || classes[0] == zC
+                    || classes[0] == hC2 /* hòy = thôi (19/08) */ { return true }
             if n == 4, (classes[0] == dC && classes[1] == zC)
                     || (classes[0] == cC && classes[1] == hC) { return true }
         }
@@ -275,7 +296,8 @@ public enum SyllableValidator {
             // xem prefixIsValid trong TelexEngine) — "zoy"/"dzoy" tới đây là [d,o,y].
             // Tác dụng phụ: "doy" của doyen freeze muộn một phím, vô hại.
             if n == 3, b0 == UInt8(ascii: "g") || b0 == UInt8(ascii: "r")
-                    || b0 == UInt8(ascii: "z") || b0 == UInt8(ascii: "d") {
+                    || b0 == UInt8(ascii: "z") || b0 == UInt8(ascii: "d")
+                    || b0 == UInt8(ascii: "h") {
                 return true
             }
             if n == 4, (b0 == UInt8(ascii: "d") && b1 == UInt8(ascii: "z"))

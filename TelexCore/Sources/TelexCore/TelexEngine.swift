@@ -1092,7 +1092,8 @@ public struct TelexEngine {
     private func isValidHead(_ k: Int, tone: Tone) -> Bool {
         guard k >= 1, k <= Self.capacity else { return false }
         var t = tone
-        if t == .grave || t == .hook || t == .tilde, hasStopCoda(k) { t = .none }
+        if t == .grave || t == .hook || t == .tilde, hasStopCoda(k),
+           !(t == .grave && isUkRime(k)) { t = .none }     // lockstep với render path
         return withUnsafeTemporaryAllocation(of: UInt8.self, capacity: Self.capacity + 1) { buf in
             if let (canon, skip) = teencodeOnset(), skip < k {
                 var n = 0
@@ -1341,7 +1342,8 @@ public struct TelexEngine {
         // Stop codas (-c, -ch, -p, -t) only allow sắc (´) and nặng (.). Drop an
         // invalid huyền/hỏi/ngã (e.g. "batf" stays "bat", not "bàt").
         if toneIdx >= 0, effTone == .grave || effTone == .hook || effTone == .tilde,
-           hasStopCoda(toneScope) {
+           hasStopCoda(toneScope),
+           !(effTone == .grave && isUkRime(toneScope)) {   // ừk/hừk: huyền sống trên ưk
             effTone = .none
             toneIdx = -1
         }
@@ -2037,6 +2039,16 @@ public struct TelexEngine {
     /// also treats it as a stop (the ak/ăk/ưk rimes: Đắk, Lắk). Without it "bakf"
     /// rendered "bàk" and got auto-restored at the boundary instead of silently
     /// dropping the invalid huyền like "batf"→"bat".
+    /// Vần teencode "ưk" (ừk/hừk — 19/08/2026): ư (u+horn) ngay trước coda k.
+    /// Ngoại lệ DUY NHẤT cho luật stop-coda-chặn-huyền; lockstep với mask huyền-only
+    /// của "ưk" trong SyllableValidator.toneMask.
+    @inline(__always)
+    private func isUkRime(_ count: Int) -> Bool {
+        count >= 2 && renderLetters[count - 1].base == UInt8(ascii: "k")
+            && renderLetters[count - 2].base == UInt8(ascii: "u")
+            && renderLetters[count - 2].mark == .horn
+    }
+
     @inline(__always)
     private func hasStopCoda(_ count: Int) -> Bool {
         guard count > 0 else { return false }
@@ -2086,7 +2098,8 @@ private extension SyllableValidator {
             let dC = UInt8(ascii: "d") - UInt8(ascii: "a")
             let cC = UInt8(ascii: "c") - UInt8(ascii: "a")
             let hC = UInt8(ascii: "h") - UInt8(ascii: "a")
-            if n == 3, classes[0] == gC || classes[0] == rC || classes[0] == zC { return true }
+            if n == 3, classes[0] == gC || classes[0] == rC || classes[0] == zC
+                    || classes[0] == hC /* hòy */ { return true }
             if n == 4, (classes[0] == dC && classes[1] == zC)
                     || (classes[0] == cC && classes[1] == hC) { return true }
         }

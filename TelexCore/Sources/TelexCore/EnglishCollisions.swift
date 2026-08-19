@@ -9,6 +9,11 @@ enum EnglishCollisions {
     /// Lưu thành MỘT literal (cách nhau bởi space/newline) rồi split lazily ở lần tra
     /// đầu tiên: 1 string literal thay vì 769 phần tử literal → nhỏ hơn hàng
     /// chục KB __TEXT/__DATA. Cùng kiểu với SyllableValidator.rimes.
+    // disk/risk/lisk/pisk (19/08/2026): nạn nhân của vần teencode "ik" (thík) —
+    // shape i-s-k đọc s thành sắc ra dík/rík hợp lệ oan. Danh sách ĐÓNG, quét đủ
+    // /usr/share/dict: mọi -isk còn lại (brisk/frisk/whisk/obelisk…) tự restore vì
+    // onset không hợp lệ hoặc từ đa âm. Bảng này thắng validity nên vá ở đây,
+    // không phải thu hẹp vần ik.
     static let words: Set<String> = {
         var set = Set<String>(minimumCapacity: 769)
         for token in list.split(whereSeparator: { $0 == " " || $0 == "\n" }) {
@@ -96,7 +101,8 @@ enum EnglishCollisions {
     questions raw reasons redeem refer reference references referred
     refuse regardless releases remember remembered renaissance represents requests
     researchers residents resistance response responses responsible rest results
-    rise risks rooms rose russell russia russian sass
+    rise risk risks rooms rose russell russia russian sass
+    disk lisk pisk
     saw says secretary see seeker seekers seem seemed
     seems sees selected sense sentences september server servers
     session sessions settlement sexo sheffield sheriff sierra sleeve

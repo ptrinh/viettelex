@@ -83,6 +83,7 @@ final class SuiteRegressionTests: XCTestCase {
         for r in rows {
             total[r.behavior, default: 0] += 1
             if matches(run(r.input, context: false), r.expected) { pass[r.behavior, default: 0] += 1 }
+            else if r.behavior == "restore_raw" { print("MISSDBG \(r.input) → \(run(r.input, context: false))") }
             if r.behavior == "ambiguous_needs_context" {
                 ambiguousTotal += 1
                 if matches(runAfterEnglish(r.input), r.expected) { ambiguousWithContext += 1 }

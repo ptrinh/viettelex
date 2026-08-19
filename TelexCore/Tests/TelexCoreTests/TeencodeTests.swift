@@ -100,6 +100,50 @@ final class TeencodeTests: XCTestCase {
         XCTAssertEqual(commit("toyf"), "toyf")
     }
 
+    // MARK: Gói teencode 19/08 đợt 2 — thík (vần ik), hòy, ừk (vần ưk huyền-only)
+
+    func testTeencodeRimeIk() {
+        XCTAssertEqual(commit("thiks"), "thík")
+        XCTAssertEqual(commit("chiks"), "chík")
+        XCTAssertEqual(commit("thikj"), "thịk")               // stop-coda: nặng cũng hợp lệ
+        // Tiếng Anh quanh vùng: 'c' chặn giữa nên freeze trước phím thanh.
+        for w in ["sticks", "picks", "kicks", "licks", "likes", "think", "thinks"] {
+            XCTAssertEqual(commit(w), w, "\(w) phải giữ nguyên")
+        }
+        // "thíck" CỐ TÌNH không hỗ trợ (thêm vần ick là picks→píck) — pin quyết định.
+        XCTAssertEqual(commit("thicks"), "thicks")
+    }
+
+    func testTeencodeHoyJoinsTheGraveWhitelist() {
+        XCTAssertEqual(commit("hoyf"), "hòy")
+        XCTAssertEqual(commit("hoy"), "hoy")                  // ngang: composed ≡ raw, vốn sống
+        XCTAssertEqual(commit("hoys"), "hoys")                // sắc vẫn bị chặn (English -oys)
+    }
+
+    func testTeencodeRimeUk() {
+        // Vần "ưk": HUYỀN (teencode ừk/hừk) + sắc/nặng chuẩn stop-coda (TypingMatrix
+        // đòi mọi vần trong bảng giữ hợp đồng đó; ứk/ựk vô hại — vần đòi ư tường
+        // minh nên tiếng Anh bare-ascii không với tới). Hỏi/ngã vẫn chặn.
+        XCTAssertEqual(commit("uwkf"), "ừk")
+        XCTAssertEqual(commit("huwkf"), "hừk")                // đủ mọi onset như ưm/ưn
+        XCTAssertEqual(commit("uwks"), "ứk")
+        XCTAssertEqual(commit("uwkj"), "ựk")
+        XCTAssertEqual(commit("uwkr"), "uwkr")                // hỏi: restore
+        // duke-class: prefix u-k giờ sống tới 'k' nhưng freeze ở nguyên âm sau đó.
+        for w in ["duke", "dukes", "nuke", "nukes", "puke"] {
+            XCTAssertEqual(commit(w), w, "\(w) phải giữ nguyên")
+        }
+    }
+
+    func testIkRimeDoesNotEatDiskRisk() {
+        // Shape i-s-k: phím s GIỮA từ đọc thành sắc → disk/rík hợp lệ oan khi vần
+        // "ik" ra đời — vá bằng bảng va chạm tiếng Anh (thắng validity). Họ -isk
+        // còn lại tự chết ở onset (br/fr/wh không hợp lệ).
+        for w in ["disk", "risk", "lisk", "pisk", "disks", "risks", "brisk", "frisk", "whisk"] {
+            XCTAssertEqual(commit(w), w, "\(w) phải restore")
+        }
+    }
+
     func testAllWWordRestoresAtBoundary() {
         // "www" là prefix URL, không phải escape: gõ live ww→w giữ nguyên (user
         // decision 22/07) nhưng boundary phải trả đủ chữ — trước fix "www." chốt
