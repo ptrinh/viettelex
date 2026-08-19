@@ -631,6 +631,16 @@ public struct TelexEngine {
         // English protection is also untouched where no cancel happened at all
         // ("his"→hís restores "his") and for accidental reach-back cancels
         // ("hosts", span > 1).
+        // Từ TOÀN chữ w từ 3 phím trở lên = "www" gõ URL, không phải escape:
+        // escape ww→w (user decision 22/07) giữ nguyên khi GÕ LIVE, nhưng ở boundary
+        // thì "www." mà chốt thành "ww." là mất chữ thật (field case 19/08,
+        // "www.wise.com"→"ww.wise.com"). Restore về raw trả lại đủ w; từ 2 phím (ww)
+        // vẫn là escape đúng nghĩa, không đụng.
+        if rawCount >= 3 {
+            var allW = true
+            for i in 0..<rawCount where raw[i] | 0x20 != UInt8(ascii: "w") { allW = false; break }
+            if allW { return true }
+        }
         if markCancelled {
             if composedIsValidSyllable() { return false }
             // A TONE-key cancel that REACHED BACK over letters (span > 1): the tone key
@@ -994,7 +1004,20 @@ public struct TelexEngine {
         // Teencode onset: validate as if spelled canonically ("wá" checks as quá).
         // n ≤ pCount + 1 (canon ≤ 2, skip ≥ 1) nên capacity + 1 luôn đủ.
         return withUnsafeTemporaryAllocation(of: UInt8.self, capacity: Self.capacity + 1) { buf in
-            if pCount < Self.capacity - 1, let (canon, skip) = teencodeOnset() {
+            // MỘT đặc cách teencode mỗi từ (19/08/2026, field case "wise.com"→"wíe.com"
+            // ở Simple Telex): onset teencode (w→qu) CHỒNG rime teencode ("ie") cho
+            // "wíe" validate thành "quíe" → boundary không restore, "wise"/"wife" chết
+            // thành wíe/wìe. Rime teencode duy nhất chạm được từ ascii trần là "ie"
+            // ("oy" đòi zero-onset, "ưm/ưn" đòi ư có dấu) nên guard đúng shape đó:
+            // phần sau onset là đúng hai chữ i-e trần → bỏ nhánh teencode-onset,
+            // để đường validate thường (onset 'w' không hợp lệ) từ chối và restore.
+            let stacksTeencodeRime = pCount >= 3
+                && renderLetters[pCount - 2].base == UInt8(ascii: "i")
+                && renderLetters[pCount - 2].mark == .none
+                && renderLetters[pCount - 1].base == UInt8(ascii: "e")
+                && renderLetters[pCount - 1].mark == .none
+                && teencodeOnset().map { $0.skip == pCount - 2 } ?? false
+            if !stacksTeencodeRime, pCount < Self.capacity - 1, let (canon, skip) = teencodeOnset() {
                 var n = 0
                 for c in canon { buf[n] = Tables.letterClass(base: c, mark: .none); n += 1 }
                 for k in skip..<pCount {

@@ -118,7 +118,9 @@ final class SuiteRegressionTests: XCTestCase {
         // ("uwm"→ưm, "uwmf"→ừm, "uwn"→ưn). Two 2-letter suite tokens flipped —
         // "wm"≡ưm, "wn"≡ưn — the same protected-VN-collision class as won≡ươn /
         // wi≡ưi already counted among this bucket's accepted misses. 7135 → 7133.
-        XCTAssertGreaterThanOrEqual(pass["restore_raw"] ?? 0, 7133,
+        // 19/08/2026: +2 (wise, wife) — fix chồng đặc cách teencode (onset w→qu
+        // KHÔNG được cộng dồn với rime "ie") nâng sàn 7133 → 7135.
+        XCTAssertGreaterThanOrEqual(pass["restore_raw"] ?? 0, 7135,
                                     "English-restore coverage regressed")
         // Trailing-cancel screen-truth (2026-07-31): the escape gesture commits the
         // rendered text even when raw is a real English word — EXACT, no floor.

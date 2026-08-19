@@ -31,6 +31,41 @@ final class TeencodeTests: XCTestCase {
     }
 
     /// Screen state after typing `keys` (what the user is looking at mid-word).
+    // MARK: Field case 19/08/2026 — "wise.com"→"wíe.com" (Simple Telex) + "www"→"ww"
+
+    private func commitSimple(_ keys: String) -> String {
+        var e = engine()
+        e.simpleTelex = true
+        for ch in keys { _ = e.feed(ch) }
+        return e.commitText(autoRestore: true)
+    }
+
+    func testTeencodeOnsetDoesNotStackWithTeencodeRime() {
+        // Simple Telex: w là chữ w thật, s/f giữa từ vẫn là phím dấu → "wise" compose
+        // ra "wíe", "wife" ra "wìe". Trước fix, onset teencode (w→qu) CHỒNG rime
+        // teencode ("ie") cho "quíe/quìe" validate → boundary giữ nguyên chữ hỏng.
+        // Một từ chỉ được MỘT đặc cách teencode: chồng hai cái → invalid → restore raw.
+        XCTAssertEqual(commitSimple("wise"), "wise")
+        XCTAssertEqual(commitSimple("wife"), "wife")
+        // Full Telex cùng chuỗi phím đã restore đúng từ trước — pin làm đối chứng.
+        XCTAssertEqual(commit("wise"), "wise")
+        XCTAssertEqual(commit("wife"), "wife")
+        // Mỗi đặc cách RIÊNG LẺ vẫn sống nguyên:
+        XCTAssertEqual(commitSimple("was"), "wá")     // onset teencode + rime thường ("wá" = quá)
+        XCTAssertEqual(commit("bies"), "bíe")         // rime teencode + onset thường
+        XCTAssertEqual(commit("miej"), "mịe")
+    }
+
+    func testAllWWordRestoresAtBoundary() {
+        // "www" là prefix URL, không phải escape: gõ live ww→w giữ nguyên (user
+        // decision 22/07) nhưng boundary phải trả đủ chữ — trước fix "www." chốt
+        // thành "ww." (mất một w). Từ 2 phím (ww) vẫn là escape đúng nghĩa.
+        XCTAssertEqual(commit("www"), "www")
+        XCTAssertEqual(commit("wwww"), "wwww")
+        XCTAssertEqual(commitSimple("www"), "www")    // Simple Telex: vốn literal, không đổi
+        XCTAssertEqual(commit("ww"), "w")             // escape 2 phím giữ nguyên hành vi cũ
+    }
+
     private func screen(_ keys: String) -> String {
         var e = engine()
         for ch in keys { _ = e.feed(ch) }
