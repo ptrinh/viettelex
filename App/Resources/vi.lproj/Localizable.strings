@@ -262,3 +262,9 @@ Bấm “Sửa tự động”: VietTelex tự xoá mục bị kẹt của chín
 "Settings were removed, but the app file could not be deleted — drag it to the Trash from ~/Library/Input Methods." = "Đã xoá cài đặt, nhưng không xoá được file app — kéo nó vào Thùng rác từ ~/Library/Input Methods.";
 "Menu bar icons are drawn in a single color that follows the menu bar (no full-color icons — macOS strips the colors). Changing the icon rewrites a file inside the app, which breaks the app's code signature seal (the app keeps working and keeps its permissions). Requires a Mac restart to take effect." = "Biểu tượng trên thanh menu chỉ hiển thị một màu theo nền menu bar (không có icon màu — macOS tự bỏ màu). Đổi biểu tượng sẽ ghi lại một file bên trong app, làm hỏng niêm phong chữ ký của app (app vẫn hoạt động và giữ nguyên các quyền). Cần khởi động lại máy để có hiệu lực.";
 "That process exited but the lock is stuck — lock the screen (⌃⌘Q) and unlock; if that fails, log out and back in" = "Process đó đã thoát nhưng khoá bị kẹt — khoá màn hình (⌃⌘Q) rồi mở lại; không được thì đăng xuất rồi đăng nhập lại";
+
+/* Dòng "Chế độ gõ" trong menu (maintainer 19/08/2026) */
+"Typing mode" = "Chế độ gõ";
+"Click to copy the debug info explaining this choice" = "Bấm để sao chép thông tin gỡ lỗi giải thích lựa chọn này";
+"Debug info copied" = "Đã sao chép thông tin gỡ lỗi";
+"Paste it into your bug report (⌘V)." = "Dán vào báo lỗi của bạn (⌘V).";

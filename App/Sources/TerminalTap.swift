@@ -844,6 +844,10 @@ enum FocusedFieldDetector {
     }
 
     /// The focused element's ancestor ROLES, joined — diagnostics only (see the caller).
+    /// Diagnostic-only, dùng cho dòng "Chế độ gõ" trong menu (snapshot decision):
+    /// chuỗi role của cây AX tính từ focused element. KHÔNG bao giờ chứa text/giá trị.
+    static func debugRoleChain() -> String { roleChain() }
+
     private static func roleChain() -> String {
         guard var el = focusedElementForScan() else { return "no-focused-element" }
         var roles: [String] = []

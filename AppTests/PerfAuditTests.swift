@@ -77,6 +77,31 @@ final class PerfAuditTests: XCTestCase {
         XCTAssertFalse(TerminalTapController.stampsLiveness(imeActive: false))
     }
 
+    // MARK: Dòng "Chế độ gõ" trong menu (19/08/2026)
+
+    func testStrategyLabelNamesTheChannelForBothAudiences() {
+        // Không có quyền AX thì MỌI app họ tap rơi về marked (đúng thiết kế
+        // safe-unknown) — test host vốn không được cấp, nên phải override để đo
+        // đúng nhãn của từng kênh.
+        Accessibility.testTrustOverride = true
+        defer { Accessibility.testTrustOverride = nil }
+        FocusedFieldDetector._testSetCached(false)
+        FocusedFieldDetector._testSetMarked(false)
+        let c = TelexInputController()
+        // Bản snapshot (localized: false) phải GIỮ TIẾNG ANH + nêu rõ kênh, để bug
+        // report grep được bất kể ngôn ngữ UI của người báo.
+        let term = c.strategyLabel("com.apple.Terminal", localized: false)
+        XCTAssertTrue(term.contains("tap"), "terminal phải là kênh tap: \(term)")
+        let notes = c.strategyLabel("com.apple.Notes", localized: false)
+        XCTAssertTrue(notes.contains("in-place"), "Notes phải in-place: \(notes)")
+        let excel = c.strategyLabel("com.microsoft.Excel", localized: false)
+        XCTAssertTrue(excel.contains("emptyReset"), "Excel phải emptyReset: \(excel)")
+        // Bản cho menu (localized: true) dùng đúng nhãn người dùng thấy trong Cài đặt.
+        XCTAssertEqual(c.strategyLabel("com.apple.Notes", localized: true), VTLocalized("In-place"))
+        // id nil (chưa biết client) không được crash và vẫn trả nhãn dùng được.
+        XCTAssertFalse(c.strategyLabel(nil, localized: true).isEmpty)
+    }
+
     // MARK: Quyết định marked chỉ giải MỘT lần mỗi phím
 
     func testMarkedDecisionIsPureForAGivenState() {
