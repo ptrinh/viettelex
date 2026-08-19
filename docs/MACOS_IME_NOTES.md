@@ -461,6 +461,31 @@ true trong khi đọc AX trả `-25204` (kAXErrorAPIDisabled) — post được 
 không được. Đây lại là một biến thể "AXIsProcessTrusted nói dối", cùng họ với
 mục stale-grant ở trên: dùng preflight đúng-quyền, đừng tin cờ tổng.
 
+### …nhưng NHỊP KHÔNG DÙNG ĐƯỢC trong kiến trúc tap hiện tại (thử và REVERT 19/08)
+
+Đã thử đúng lời giải mà bảng đo chỉ ra: gap 2ms giữa mỗi event (chỉ họ WebKit),
+ngân sách 30ms/burst, bỏ carve-out để page content Safari đi tap. Kết quả
+field-test NGAY ca đầu (comment TikTok, gõ nhanh): `chuur tichj gif` → **"chu
+ticị gi"** — mất dấu, lộn chữ. Revert toàn bộ.
+
+Nguyên nhân: `SyntheticKeyboard.apply` chạy **TRONG tap callback**, và callback là
+SERIAL — mỗi µs nghỉ trong đó là một µs phím thật của user bị chặn ở cửa. Gõ
+nhanh (~30ms/phím) mà burst giữ cửa 8-30ms thì phím kế tiếp dồn lại và engine
+mất đồng bộ với màn hình. Nhịp cứu được WebKit nhưng phá chính hợp đồng
+"engine ↔ màn hình" mà cả kiến trúc tap dựa vào.
+
+Nghĩa là: **gap-0 không phải sơ suất, nó là hệ quả bắt buộc của việc post đồng bộ
+trong callback.** Muốn dùng nhịp thì phải đổi kiến trúc: post burst trên một
+serial queue RIÊNG (callback trả về ngay), và khi đó phải thiết kế lại toàn bộ
+phần đồng bộ hiện có — `queueDrained`, in-flight counter, thứ tự với phím thật,
+guard echo của Electron. Đó là việc lớn, chưa làm.
+
+Cho tới lúc đó, đường né vẫn là đường đúng cho lớp WebKit: page content Safari →
+IMKit in-place (carve-out #44), editor nào phá in-place → marked theo host
+(`markedFieldURL`: Google Docs canvas, TikTok comment box). Bảng đo ở mục trên
+vẫn giá trị — nó nói *vì sao* burst chết, và rằng ranh giới không phải "WebKit
+chặn synthetic".
+
 ## Khoá secure input MỒ CÔI: process chết không nhả — 2026-08-18 (field case Lark)
 
 Lark bật secure input (ô mật khẩu) rồi bị quit → `ps -p <pid>` trống nhưng
