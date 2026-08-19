@@ -74,6 +74,32 @@ final class TeencodeTests: XCTestCase {
         XCTAssertEqual(commit("ddouj"), "ddouj")
     }
 
+    // MARK: Teencode "-òy" huyền-only (maintainer 19/08/2026, "gòy")
+
+    func testTeencodeOyWithOnsetGraveOnly() {
+        // Cả bộ chat spelling của rồi/trời — tất cả mang HUYỀN:
+        XCTAssertEqual(commit("goyf"), "gòy")
+        XCTAssertEqual(commit("royf"), "ròy")
+        XCTAssertEqual(commit("zoyf"), "zòy")
+        XCTAssertEqual(commit("dzoyf"), "dzòy")
+        XCTAssertEqual(commit("choyf"), "chòy")
+        // Zero-onset "òy" có sẵn từ 07/08 vẫn nguyên:
+        XCTAssertEqual(commit("oyf"), "òy")
+        // CHỈ huyền — sắc là số nhiều -oys tiếng Anh, phải restore. Pin đủ để ai
+        // nới sang 6 thanh phải bước qua đây:
+        for w in ["goys", "boys", "toys", "joys", "roys", "choys"] {
+            XCTAssertEqual(commit(w), w, "\(w) phải restore — oy chỉ bless huyền")
+        }
+        // Thanh khác cũng không: nặng/hỏi chưa có teencode thật nào dùng.
+        XCTAssertEqual(commit("goyj"), "goyj")
+        XCTAssertEqual(commit("goyr"), "goyr")
+        // Onset ngoài danh sách đóng: b/t/j không được bless kể cả huyền
+        // (không có teencode bòy/tòy; mở là mất hàng rào boys/toys khi ai đó
+        // nới thanh sau này).
+        XCTAssertEqual(commit("boyf"), "boyf")
+        XCTAssertEqual(commit("toyf"), "toyf")
+    }
+
     func testAllWWordRestoresAtBoundary() {
         // "www" là prefix URL, không phải escape: gõ live ww→w giữ nguyên (user
         // decision 22/07) nhưng boundary phải trả đủ chữ — trước fix "www." chốt
@@ -305,11 +331,16 @@ final class TeencodeOyTests: XCTestCase {
         XCTAssertEqual(run("oyster"), "oyster")
     }
 
-    func testValidatorScopeIsZeroOnsetOnly() {
+    func testValidatorScopeZeroOnsetPlusGraveWhitelist() {
         XCTAssertTrue(SyllableValidator.isValidSyllable("òy"))
         XCTAssertTrue(SyllableValidator.isValidSyllable("oy"))
-        XCTAssertFalse(SyllableValidator.isValidSyllable("bòy"))
-        XCTAssertFalse(SyllableValidator.isValidSyllable("gòy"), "nới gòy cần review collision trước")
+        // 19/08/2026: collision review cho "gòy" ĐÃ LÀM (grep dict: không từ tiếng
+        // Anh nào dạng onset+oy+phím-thanh; -oys mang SẮC nên chặn bằng huyền-only)
+        // → whitelist onset g/r/z/dz/ch, CHỈ thanh huyền.
+        XCTAssertTrue(SyllableValidator.isValidSyllable("gòy"))
+        XCTAssertTrue(SyllableValidator.isValidSyllable("chòy"))
+        XCTAssertFalse(SyllableValidator.isValidSyllable("góy"), "sắc = -oys tiếng Anh, không bless")
+        XCTAssertFalse(SyllableValidator.isValidSyllable("bòy"), "onset ngoài whitelist")
         XCTAssertTrue(SyllableValidator.isValidPrefix("oy"))
         XCTAssertFalse(SyllableValidator.isValidPrefix("oyt"), "đuôi dài hơn vẫn freeze như cũ")
     }

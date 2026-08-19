@@ -2076,6 +2076,20 @@ private extension SyllableValidator {
            classes[1] == UInt8(ascii: "y") - UInt8(ascii: "a") {
             return true
         }
+        // TEENCODE "-òy" — lockstep with the Array twin (huyền-only, onset g/r/z/dz/ch).
+        if n >= 3, tone == .grave,
+           classes[n - 2] == UInt8(ascii: "o") - UInt8(ascii: "a"),
+           classes[n - 1] == UInt8(ascii: "y") - UInt8(ascii: "a") {
+            let gC = UInt8(ascii: "g") - UInt8(ascii: "a")
+            let rC = UInt8(ascii: "r") - UInt8(ascii: "a")
+            let zC = UInt8(ascii: "z") - UInt8(ascii: "a")
+            let dC = UInt8(ascii: "d") - UInt8(ascii: "a")
+            let cC = UInt8(ascii: "c") - UInt8(ascii: "a")
+            let hC = UInt8(ascii: "h") - UInt8(ascii: "a")
+            if n == 3, classes[0] == gC || classes[0] == rC || classes[0] == zC { return true }
+            if n == 4, (classes[0] == dC && classes[1] == zC)
+                    || (classes[0] == cC && classes[1] == hC) { return true }
+        }
         // TEENCODE "đou" — lockstep with the Array twin (đúng một từ, xem comment ở đó).
         if n == 3, tone == .none, classes[0] == 32 /* đ */,
            classes[1] == UInt8(ascii: "o") - UInt8(ascii: "a"),

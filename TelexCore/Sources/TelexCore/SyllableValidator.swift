@@ -127,6 +127,26 @@ public enum SyllableValidator {
            classes[1] == UInt8(ascii: "y") - UInt8(ascii: "a") {
             return true
         }
+        // TEENCODE "-òy" HUYỀN-ONLY (maintainer 19/08/2026, "gòy"): gòy/ròy/zòy/
+        // dzòy/chòy — chat spelling của rồi/trời, TẤT CẢ mang huyền. Chỉ bless
+        // thanh HUYỀN: tiếng Anh không có từ nào dạng onset+oy+f/r/x/j (đã grep
+        // dict), còn số nhiều -oys (boys/toys/goys) mang SẮC qua phím s nên tự
+        // miễn nhiễm — đây là chính lý do "oy" không vào bảng rime (comment ở
+        // nhánh zero-onset trên). Onset đóng: g r z dz ch; thêm onset mới phải
+        // grep dict lại như trên.
+        if n >= 3, tone == .grave,
+           classes[n - 2] == UInt8(ascii: "o") - UInt8(ascii: "a"),
+           classes[n - 1] == UInt8(ascii: "y") - UInt8(ascii: "a") {
+            let gC = UInt8(ascii: "g") - UInt8(ascii: "a")
+            let rC = UInt8(ascii: "r") - UInt8(ascii: "a")
+            let zC = UInt8(ascii: "z") - UInt8(ascii: "a")
+            let dC = UInt8(ascii: "d") - UInt8(ascii: "a")
+            let cC = UInt8(ascii: "c") - UInt8(ascii: "a")
+            let hC = UInt8(ascii: "h") - UInt8(ascii: "a")
+            if n == 3, classes[0] == gC || classes[0] == rC || classes[0] == zC { return true }
+            if n == 4, (classes[0] == dC && classes[1] == zC)
+                    || (classes[0] == cC && classes[1] == hC) { return true }
+        }
         // TEENCODE "đou" (maintainer 19/08/2026): ĐÚNG MỘT TỪ, không phải một vần.
         // Thử đưa "ou" vào bảng rime (kể cả khoá không-thanh) đã nổ hai hướng: có
         // thanh thì hour/sour/tour/pour thành hỏu/sỏu/tỏu/pỏu, và vào bảng là vào
@@ -245,6 +265,23 @@ public enum SyllableValidator {
         // longer tails ("oyt…") fall through and freeze as before.
         if n == 2, bases[0] == UInt8(ascii: "o"), bases[1] == UInt8(ascii: "y") {
             return true
+        }
+        // TEENCODE "-òy": intermediate onset+oy (g/r/z/dz/ch) phải sống tới boundary
+        // để phím huyền sau đó compose được; sắc ở boundary sẽ bị từ chối và restore
+        // (goys/boys an toàn — xem isValidSyllable).
+        if n >= 3, bases[n - 2] == UInt8(ascii: "o"), bases[n - 1] == UInt8(ascii: "y") {
+            let b0 = bases[0] & 0x7F, b1 = bases[1] & 0x7F
+            // 'd' có mặt vì đường prefix của engine fold z/dz → d (teencode canonical,
+            // xem prefixIsValid trong TelexEngine) — "zoy"/"dzoy" tới đây là [d,o,y].
+            // Tác dụng phụ: "doy" của doyen freeze muộn một phím, vô hại.
+            if n == 3, b0 == UInt8(ascii: "g") || b0 == UInt8(ascii: "r")
+                    || b0 == UInt8(ascii: "z") || b0 == UInt8(ascii: "d") {
+                return true
+            }
+            if n == 4, (b0 == UInt8(ascii: "d") && b1 == UInt8(ascii: "z"))
+                    || (b0 == UInt8(ascii: "c") && b1 == UInt8(ascii: "h")) {
+                return true
+            }
         }
         // TEENCODE "đou": intermediate "d-o-u" phải sống qua live-spell-check tới
         // boundary (bases là bản FOLDED nên đ đã về d — không phân biệt được dou/đou
