@@ -86,6 +86,14 @@ com.westbridge.stremio5-mac: inPlace
 com.apple.finder: inPlace
 com.apple.ActivityMonitor: inPlace
 com.apple.Spotlight: inPlace
+# Overlay launcher (Alfred, Raycast, LaunchBar): cùng lớp Spotlight — ô tìm kiếm là
+# NSTextField chuẩn, gõ trực tiếp sạch. Thiếu rule thì rơi vào "app lạ → kênh an
+# toàn" = marked text, và user thấy "tự nhiên bị gạch chân khi mở Alfred" (issue
+# #57, 22/08/2026: chỉ lộ khi app dưới overlay là in-place — trên terminal/browser
+# thì routing theo frontmost đã đưa sang tap nên không ai để ý).
+com.runningwithcrayons.Alfred: inPlace
+com.raycast.macos: inPlace
+at.obdev.LaunchBar: inPlace
 com.microsoft.Word: inPlace
 com.macromates.TextMate: inPlace
 net.whatsapp.WhatsApp: inPlace

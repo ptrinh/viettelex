@@ -112,6 +112,19 @@ final class BundledTypingModesTests: XCTestCase {
         XCTAssertFalse(guardFires(marked: true))             // đã marked rồi → khỏi log lại
     }
 
+    // MARK: Issue #57 (22/08/2026) — overlay launcher phải có rule như Spotlight
+
+    func testOverlayLaunchersResolveToInPlace() throws {
+        // Alfred/Raycast/LaunchBar là cùng lớp Spotlight: ô tìm kiếm NSTextField
+        // chuẩn. Thiếu rule → "app lạ → kênh an toàn" = marked → user thấy gạch chân
+        // khi mở Alfred trên Notes/Finder (issue #57). Spotlight đi kèm làm hàng rào.
+        for id in ["com.apple.Spotlight", "com.runningwithcrayons.Alfred",
+                   "com.raycast.macos", "at.obdev.LaunchBar"] {
+            XCTAssertEqual(try bundledRules()[id], "inPlace", "\(id) thiếu/hỏng trong typing-modes.yml")
+            XCTAssertEqual(AppState.shared.autoResolvedMode(id), .inPlace, id)
+        }
+    }
+
     func testCometResolvesToInPlaceNotBrowserAxDetect() throws {
         // Comet (Perplexity, Chromium) cố ý KHÔNG theo họ browser axDetect —
         // maintainer chỉ định In-Place 15/08/2026. Hàng rào: một cleanup "gom mọi
