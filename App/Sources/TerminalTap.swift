@@ -2372,6 +2372,13 @@ final class TerminalTapController {
             return pass
         }
 
+        // Word-table class: cell-navigation keys some apps swallow without telling
+        // the IME (see NavKeyWitness). Stamp BEFORE the tap-mode gate — the witness
+        // is for the IMKit controller, whatever mode the tap picks for this app.
+        // ⌘/⌃/⌥ chords returned above and never stamp; stamp() itself ignores
+        // non-navigation keycodes.
+        NavKeyWitness.stamp(keycode: event.getIntegerValueField(.keyboardEventKeycode))
+
         // Decide whether the tap handles this app, and with which emit mode:
         //  - Spotlight (window-list) / Chromium → Shift+Left selection-replace.
         //  - MS Office → empty-char reset (Shift+Left would select adjacent cells).

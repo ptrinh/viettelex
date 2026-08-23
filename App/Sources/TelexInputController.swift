@@ -295,6 +295,18 @@ final class TelexInputController: IMKInputController {
             }
         }
 
+        // Word-table class (maintainer repro 23/08/2026): the tap witnessed a
+        // Tab/arrow that this client swallowed — handle() never saw it, so the word
+        // this key would continue was in fact ended in another cell/position. Drop
+        // BEFORE processing, so this key starts a fresh word anchored at the REAL
+        // caret. Same recovery as the mouse-click .telexResetComposition path,
+        // which is exactly why clicking into the next cell already worked.
+        if NavKeyWitness.consume(keycode: Int64(event.keyCode)) {
+            logDecision("nav key swallowed by app → composition dropped before this key")
+            dropComposition(cause: "nav-key-swallowed")
+            onLen = 0
+        }
+
         // A real key reaching handle() proves VietTelex is the selected source —
         // un-latch a stale imeActive=false so tap-mode apps aren't left dormant
         // (see noteIMKKeyProvesSelected).
@@ -1627,6 +1639,10 @@ final class TelexInputController: IMKInputController {
         SecureFieldDetector.invalidate()
         FocusedFieldDetector.invalidate()
         dropComposition(cause: "activateServer")
+        // A nav-key stamp left by the previous client must not drop the first word
+        // typed in this one (NavKeyWitness — the very key that moved focus here may
+        // have been a swallowed Tab).
+        NavKeyWitness.reset()
         engine.resetContext()   // new field/app: don't inherit the last word's English context
         fieldVerified = false
         fieldForcedMarked = false
