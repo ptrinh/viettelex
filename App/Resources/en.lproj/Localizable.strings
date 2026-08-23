@@ -109,3 +109,5 @@ Press “Repair automatically”: VietTelex removes its own stuck entry and asks
 "Click to copy the debug info explaining this choice" = "Click to copy the debug info explaining this choice";
 "Debug info copied" = "Debug info copied";
 "Paste it into your bug report (⌘V)." = "Paste it into your bug report (⌘V).";
+
+"Click: open the typing-modes guide + copy debug info" = "Click: open the typing-modes guide + copy debug info";
