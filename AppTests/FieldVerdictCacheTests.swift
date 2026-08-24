@@ -190,6 +190,17 @@ final class MarkedFieldURLTests: XCTestCase {
             URL(string: "https://docs.google.com/")))
     }
 
+    func testAntigravityForcesMarked() {
+        // Field report Facebook 24/08/2026: antigravity.google.com (web IDE/chat)
+        // trên Safari — mất vị trí con trỏ khi gõ, mọi chế độ trừ marked đều hỏng,
+        // bộ gõ marked của Apple thì ổn. Cùng lớp Docs/TikTok.
+        XCTAssertTrue(FocusedFieldDetector.markedFieldURL(
+            URL(string: "https://antigravity.google.com/lv/36f62f")))
+        // Không lan sang host Google khác:
+        XCTAssertFalse(FocusedFieldDetector.markedFieldURL(
+            URL(string: "https://calendar.google.com/")))
+    }
+
     func testTikTokForcesMarked() {
         // Field report 19/08/2026: comment box TikTok trên Safari — in-place bị
         // append ("chuủ tichịch"), tap bị Safari nuốt → marked là kênh đúng.

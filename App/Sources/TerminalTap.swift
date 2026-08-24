@@ -958,6 +958,11 @@ enum FocusedFieldDetector {
     static func markedFieldURL(_ url: URL?) -> Bool {
         guard let url, let host = url.host else { return false }
         if host == "docs.google.com" && url.path.hasPrefix("/document") { return true }
+        // Antigravity (Google) — web IDE/chat: field report Facebook 24/08/2026, Safari
+        // "tự động mất vị trí con trỏ khi comment, phải click chuột lại"; mọi chế độ
+        // trừ marked đều hỏng, bộ gõ marked-text của Apple gõ ổn — đúng dấu hiệu lớp
+        // Docs/TikTok (editor áp edit theo model JS riêng).
+        if host == "antigravity.google.com" { return true }
         return host == "tiktok.com" || host.hasSuffix(".tiktok.com")
     }
 
