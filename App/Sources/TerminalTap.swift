@@ -1952,6 +1952,8 @@ final class TerminalTapController {
     /// end of an existing word then pressing a tone key is re-edit's main use.
     /// TAP-thread confined (mouse/key branches of the same serial callback).
     private var lastTapKeyWasBoundary = false
+    // Thời điểm ⌫ vật lý gần nhất — gate của re-edit(tap), xem reEditGateOpen.
+    private var lastDeleteNs: UInt64 = 0
 
     /// TRUE → the Spotlight overlay owns the keys and no one may compose: the
     /// routing verdict (from the app BEHIND the overlay) says tap-family, but a
@@ -2481,6 +2483,7 @@ final class TerminalTapController {
 
         if keyCode == kDelete {
             lastTapKeyWasBoundary = false   // ⌫ is word-adjacent editing, not a boundary
+            lastDeleteNs = DispatchTime.now().uptimeNanoseconds
             if engine.isEmpty {
                 // ⌫ on the boundary character the last word ended with re-opens that
                 // word ("tháy" ␣ ⌫ then `a` → "thấy" — issue #40); the ⌫ still goes
@@ -2618,7 +2621,9 @@ final class TerminalTapController {
         if Self.reEditGateOpen(engineIsEmpty: engine.isEmpty, reEditEnabled: AppState.shared.reEditWord,
                                isDiacriticKey: TelexInputController.isDiacriticOnlyKey(ascii, vni: engine.vniMode),
                                emitMode: emitMode,
-                               lastKeyWasBoundary: lastTapKeyWasBoundary) {
+                               lastKeyWasBoundary: lastTapKeyWasBoundary,
+                               queueDrained: SyntheticKeyboard.queueDrained(),
+                               msSinceDelete: (DispatchTime.now().uptimeNanoseconds &- lastDeleteNs) / 1_000_000) {
             tryReEditWordTap(id: id)
         }
         lastTapKeyWasBoundary = false   // this key is a word key
@@ -2708,11 +2713,23 @@ final class TerminalTapController {
     /// just-typed space — issue #38 (2026-08-12): `git st` in PhpStorm's terminal
     /// seeded "git" across the space and the `s` of "st" became sắc → "gít".
     /// The keystream itself is the one boundary signal AX lag can't fake.
+    ///
+    /// Issue #62 (26/08/2026, Zalo): một loạt ⌫ nhanh rồi gõ phím dấu — seed đọc AX
+    /// khi các ⌫ synthetic còn đang bay nên thấy chữ "a" ĐÃ BỊ XÓA, engine thành
+    /// "a·s·a" và spell-freeze khôi phục raw "asa" trên màn hình. Hai gate mới:
+    /// queue synthetic phải drain hết, và không seed trong 500ms sau một ⌫ vật lý
+    /// (sửa-dấu-sau-⌫ đã có đường reopen riêng; seed ở đó chỉ có thể dựa trên
+    /// screen-state cũ).
+    static let reEditDeleteCooldownMs: UInt64 = 500
     static func reEditGateOpen(engineIsEmpty: Bool, reEditEnabled: Bool,
                               isDiacriticKey: Bool, emitMode: TapEmit,
-                              lastKeyWasBoundary: Bool) -> Bool {
+                              lastKeyWasBoundary: Bool,
+                              queueDrained: Bool = true,
+                              msSinceDelete: UInt64 = .max) -> Bool {
         engineIsEmpty && reEditEnabled && isDiacriticKey && emitMode == .backspace
             && !lastKeyWasBoundary
+            && queueDrained
+            && msSinceDelete >= Self.reEditDeleteCooldownMs
     }
 
     private func tryReEditWordTap(id: String?) {
