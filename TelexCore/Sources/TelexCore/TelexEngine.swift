@@ -1846,9 +1846,20 @@ public struct TelexEngine {
             var k = pCount - 1
             while k >= 0 {
                 if Self.vniMarkAccepts(base: letters[k].base, mark: mark) {
-                    if letters[k].mark == .none {
-                        letters[k].mark = mark
-                        rawLetter[at] = k
+                    // "uu" nucleus: 7 (horn) đặt lên chữ u ĐẦU (→ ưu: lưu, cứu, hưu)
+                    // — "uư" không phải nhân âm tiếng Việt. Cùng luật với w-handler
+                    // Telex ("luuw"→lưu), cùng ngoại lệ "qu" (glide giữ nguyên).
+                    // Issue #66 (29/08/2026): VNI "uu7" ra "uư" thay vì "ưu".
+                    var target = k
+                    if mark == .horn, target >= 1,
+                       letters[target].base == UInt8(ascii: "u"), letters[target].mark == .none,
+                       letters[target - 1].base == UInt8(ascii: "u"), letters[target - 1].mark == .none,
+                       !(target >= 2 && letters[target - 2].base == UInt8(ascii: "q")) {
+                        target -= 1
+                    }
+                    if letters[target].mark == .none {
+                        letters[target].mark = mark
+                        rawLetter[at] = target
                         return
                     }
                     if letters[k].mark == mark {        // re-applied → cancel, literal digit

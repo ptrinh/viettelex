@@ -188,6 +188,12 @@ final class ProbeChordGateTests: XCTestCase {
     func testSecureInputStillBlocksTheProbe() {
         XCTAssertFalse(SyntheticKeyboard.probeMayPost(secureInput: true, secureField: false, chordHeld: false))
         XCTAssertFalse(SyntheticKeyboard.probeMayPost(secureInput: false, secureField: true, chordHeld: false))
+        // Issue #65 (After Effects): giữ Space = hand tool tạm thời; F20 probe rơi
+        // vào giữa lúc giữ làm AE mất track keyUp của Space → kẹt hand tool.
+        XCTAssertFalse(SyntheticKeyboard.probeMayPost(secureInput: false, secureField: false,
+                                                      chordHeld: false, spaceHeld: true))
+        XCTAssertTrue(SyntheticKeyboard.probeMayPost(secureInput: false, secureField: false,
+                                                     chordHeld: false, spaceHeld: false))
     }
 
     func testQuietHandsAllowTheProbe() {

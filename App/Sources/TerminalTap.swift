@@ -1218,8 +1218,20 @@ enum SyntheticKeyboard {
     /// Pure gate for the health probe, shared by postProbe() and the watchdog's
     /// miss-accounting so the two can never disagree (a probe "sent" by the watchdog
     /// but silently skipped here would read as a miss and tear down a healthy tap).
-    static func probeMayPost(secureInput: Bool, secureField: Bool, chordHeld: Bool) -> Bool {
-        !(secureInput || secureField || chordHeld)
+    static func probeMayPost(secureInput: Bool, secureField: Bool, chordHeld: Bool,
+                             spaceHeld: Bool = false) -> Bool {
+        !(secureInput || secureField || chordHeld || spaceHeld)
+    }
+
+    /// TRUE while the user physically holds SPACE. Adobe apps (After Effects,
+    /// Premiere, Photoshop) dùng "giữ Space = hand tool/preview tạm thời" và track
+    /// key state: một F20 keyDown lạ rơi vào giữa lúc giữ làm AE mất track keyUp
+    /// của Space → kẹt hand tool (issue #65, 29/08/2026: ABC không bị, VietTelex
+    /// ~1/5 lần — khớp xác suất probe 3s rơi trúng khoảng giữ). Space chỉ được giữ
+    /// thoáng qua khi gõ chữ nên hoãn probe dưới nó không làm mù watchdog (khác ⇧,
+    /// xem chordFlags).
+    static var spacebarHeld: Bool {
+        CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(49))
     }
 
     static func postProbe() {
@@ -1231,7 +1243,8 @@ enum SyntheticKeyboard {
         // commits the ⌘-Tab switcher). Health monitoring is not worth touching either.
         if !probeMayPost(secureInput: IsSecureEventInputEnabled(),
                          secureField: SecureFieldDetector.isSecure,
-                         chordHeld: chordModifierHeld) { return }
+                         chordHeld: chordModifierHeld,
+                         spaceHeld: spacebarHeld) { return }
         guard let down = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(probeKeycode), keyDown: true),
               let up = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(probeKeycode), keyDown: false)
         else { return }
@@ -1917,7 +1930,8 @@ final class TerminalTapController {
             }
             if !SyntheticKeyboard.probeMayPost(secureInput: IsSecureEventInputEnabled(),
                                                secureField: SecureFieldDetector.isSecure,
-                                               chordHeld: SyntheticKeyboard.chordModifierHeld) {
+                                               chordHeld: SyntheticKeyboard.chordModifierHeld,
+                                               spaceHeld: SyntheticKeyboard.spacebarHeld) {
                 // Password field in focus, or a ⌘/⌃/⌥ chord held: we do not post the
                 // probe there (see postProbe), so there is nothing to ack — counting
                 // that as a miss would raise a false "stale grant" and tear down a
