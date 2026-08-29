@@ -116,4 +116,4 @@ Gặp lỗi? Xem [hướng dẫn báo lỗi kèm cách lấy nhật ký gỡ l�
 
 Build, kiến trúc, benchmark: xem [`docs/CONTRIBUTE.md`](docs/CONTRIBUTE.md) · độ chính xác: [`docs/REGRESSION.md`](docs/REGRESSION.md) · latency: [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
-[MIT License](LICENSE) — © 2026 Vietnam Blockchain Association by Phil Trinh. Tự do dùng/sửa/tích hợp (kể cả thương mại), miễn giữ lại thông báo bản quyền.
+[MIT License](LICENSE) — © 2026 Phil Trinh. Tự do dùng/sửa/tích hợp (kể cả thương mại), miễn giữ lại thông báo bản quyền.

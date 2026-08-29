@@ -1172,7 +1172,7 @@ struct AboutTab: View {
             // error) used to be clipped by the 66pt box.
             .frame(minHeight: 66)
 
-            Text("© \(String(currentYear)) Vietnam Blockchain Association by Phil Trinh").foregroundStyle(.secondary)
+            Text("© \(String(currentYear)) Phil Trinh").foregroundStyle(.secondary)
             Spacer()
             // Gỡ cài đặt trọn gói — hỏi xác nhận bằng NSAlert kiểu critical trước khi
             // làm gì (không hoàn tác được: xoá app + toàn bộ settings/gõ tắt).
