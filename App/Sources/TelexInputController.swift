@@ -352,7 +352,7 @@ final class TelexInputController: IMKInputController {
         }
         if earlyManual == nil,
            ClientPolicy.isRemoteDesktop(earlyID)
-               || earlyID.map({ AppState.builtInPassthroughApps.contains($0) }) == true,
+               || earlyID.map({ AppState.isBuiltInPassthrough($0) }) == true,
            !(Accessibility.isTrusted && FocusedFieldDetector.isTextInput) {
             logDecision("handle \(earlyID ?? "?"): remote-desktop → discard (raw passthrough)")
             discardComposition(); return false

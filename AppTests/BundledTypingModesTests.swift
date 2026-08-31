@@ -151,6 +151,12 @@ final class BundledTypingModesTests: XCTestCase {
         // file mà AppState chưa có set tương ứng thì rule "im lặng không có tác dụng".
         for (id, raw) in try bundledRules() {
             guard let mode = AppState.AppMode(rawValue: raw) else { continue }
+            // Wildcard rule (đuôi *): không vào các Set exact — nó phải resolve qua
+            // wildcardMode cho một id đại diện khớp prefix (issue #68).
+            if id.hasSuffix("*") {
+                XCTAssertEqual(AppState.wildcardMode(String(id.dropLast()) + "probe"), mode, id)
+                continue
+            }
             switch mode {
             case .tap:         XCTAssertTrue(AppState.builtInFallbackApps.contains(id), id)
             case .inPlace:     XCTAssertTrue(AppState.builtInInPlaceApps.contains(id), id)
@@ -285,5 +291,38 @@ final class SyntheticStampTests: XCTestCase {
             XCTAssertGreaterThan(e.timestamp, previous, "stamp thứ \(i) không tăng")
             previous = e.timestamp
         }
+    }
+}
+
+/// Wildcard rules (issue #68, 31/08/2026): "com.valvesoftware.*: passthrough" —
+/// dấu * chỉ đứng cuối, phủ mọi bundle id cùng prefix. Ưu tiên: Ép tay > exact >
+/// learned > wildcard > safe-unknown.
+final class WildcardRuleTests: XCTestCase {
+
+    func testValveGamesResolvePassthrough() {
+        XCTAssertEqual(AppState.wildcardMode("com.valvesoftware.dota2"), .passthrough)
+        XCTAssertEqual(AppState.wildcardMode("com.valvesoftware.cs2"), .passthrough)
+        XCTAssertEqual(AppState.shared.autoResolvedMode("com.valvesoftware.dota2"), .passthrough)
+        XCTAssertTrue(AppState.isBuiltInPassthrough("com.valvesoftware.dota2"))
+    }
+
+    func testWildcardDoesNotLeakToOtherApps() {
+        XCTAssertNil(AppState.wildcardMode("com.valvesoftwareX.game"))   // prefix phải khớp nguyên vẹn
+        XCTAssertNil(AppState.wildcardMode("com.apple.Terminal"))
+    }
+
+    func testExactRulesUntouchedByWildcardLayer() {
+        // Exact rule thắng wildcard, và các app exact hiện có resolve y như cũ.
+        XCTAssertEqual(AppState.shared.autoResolvedMode("com.apple.Terminal"), .tap)
+        XCTAssertEqual(AppState.shared.autoResolvedMode("com.microsoft.Word"), .inPlace)
+        XCTAssertEqual(AppState.exactRuleMode("com.apple.Terminal"), .tap)
+        XCTAssertNil(AppState.exactRuleMode("com.valvesoftware.dota2"))
+    }
+
+    func testWildcardAppRoutesNoTapWants() {
+        // Passthrough qua wildcard: tap không nhận app này (TapWants trống) —
+        // IMKit controller discard raw, tap pass.
+        let r = AppState.shared.tapRouting("com.valvesoftware.dota2")
+        XCTAssertFalse(r.tapDefer)
     }
 }

@@ -178,3 +178,8 @@ com.realvnc.vncviewer: passthrough
 com.nulana.remotixmac: passthrough
 com.carriez.rustdesk: passthrough
 com.philandro.anydesk: passthrough
+
+# Game (Valve/Steam): IME tắt hẳn — phím game giữ nguyên (w = w), field report
+# issue #68 (31/08/2026, Dota 2). Wildcard: dấu * chỉ được đứng CUỐI, phủ mọi
+# bundle id bắt đầu bằng prefix (Dota 2, CS2, TF2…). Exact rule + Ép tay vẫn đè.
+com.valvesoftware.*: passthrough
