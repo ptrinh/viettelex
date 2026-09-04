@@ -637,6 +637,7 @@ final class AppState: @unchecked Sendable {
           || Self.selectionAlwaysApps.contains(id)
           || Self.emptyResetApps.contains(id)
           || Self.builtInPassthroughApps.contains(id)
+          || Self.wildcardMode(id) != nil
           || ClientPolicy.isRemoteDesktop(id))
     }
 
@@ -645,6 +646,13 @@ final class AppState: @unchecked Sendable {
             return TapWants(tap: m == .tap,
                             sel: m == .selection ? .yes : (m == .axDetect ? .perField : .no),
                             empty: m == .emptyReset)
+        }
+        // Wildcard rule (exact rule + learned tap-fallback thắng nó; xem wildcardRules).
+        if Self.exactRuleMode(id) == nil, !fallbackAppsCache.contains(id),
+           let w = Self.wildcardMode(id) {
+            return TapWants(tap: w == .tap,
+                            sel: w == .selection ? .yes : (w == .axDetect ? .perField : .no),
+                            empty: w == .emptyReset)
         }
         return TapWants(
             tap: (fallbackAppsCache.contains(id) || Self.builtInFallbackApps.contains(id)
@@ -777,12 +785,45 @@ final class AppState: @unchecked Sendable {
             return ["com.apple.Terminal": .tap, "com.googlecode.iterm2": .tap]
         }
         var out: [String: AppMode] = [:]
-        for (id, raw) in dict {
+        for (id, raw) in dict where !id.hasSuffix("*") {
             if let m = AppMode(rawValue: raw), m != .auto { out[id] = m }
             else { Signposts.log.fault("typing-modes.yml: unknown mode for \(id, privacy: .public)") }
         }
         return out
     }()
+
+    /// Wildcard rules từ cùng file yml: "com.valvesoftware.*: passthrough" phủ mọi
+    /// bundle id bắt đầu bằng prefix đó (dấu * chỉ được đứng CUỐI). Ưu tiên:
+    /// Ép tay > exact rule > learned cache > wildcard > safe-unknown. Resolve một
+    /// lần cho mỗi bundle id rồi memoize — hot path không tốn thêm.
+    private static let wildcardRules: [(prefix: String, mode: AppMode)] = {
+        guard let url = Bundle.main.url(forResource: "typing-modes", withExtension: "yml"),
+              let data = try? Data(contentsOf: url),
+              let dict = ShortcutImporter.parse(data)
+        else { return [] }
+        return dict.compactMap { id, raw in
+            guard id.hasSuffix("*"), let m = AppMode(rawValue: raw), m != .auto else { return nil }
+            return (prefix: String(id.dropLast()), mode: m)
+        }
+    }()
+    private static let wildcardMemoLock = NSLock()
+    nonisolated(unsafe) private static var wildcardMemo: [String: AppMode?] = [:]
+    static func wildcardMode(_ id: String) -> AppMode? {
+        if wildcardRules.isEmpty { return nil }
+        wildcardMemoLock.lock(); defer { wildcardMemoLock.unlock() }
+        if let hit = wildcardMemo[id] { return hit }
+        let m = wildcardRules.first { id.hasPrefix($0.prefix) }?.mode
+        if wildcardMemo.count > 512 { wildcardMemo.removeAll() }   // bounded, rebuilt on demand
+        wildcardMemo[id] = m
+        return m
+    }
+    /// Exact yml rule (mọi mode) — wildcard KHÔNG được đè một exact rule.
+    static func exactRuleMode(_ id: String) -> AppMode? { builtInRules[id] }
+    /// Built-in passthrough, gồm cả wildcard (exact rule khác mode thì thắng).
+    static func isBuiltInPassthrough(_ id: String) -> Bool {
+        if let exact = builtInRules[id] { return exact == .passthrough }
+        return wildcardMode(id) == .passthrough
+    }
     private static func builtInIDs(_ mode: AppMode) -> Set<String> {
         Set(builtInRules.compactMap { $0.value == mode ? $0.key : nil })
     }
@@ -895,7 +936,7 @@ final class AppState: @unchecked Sendable {
     /// nil = not classified yet (probe hasn't seen a real replace here).
     func autoResolvedMode(_ bundleID: String?) -> AppMode? {
         guard let id = bundleID else { return nil }
-        if ClientPolicy.isRemoteDesktop(id) || Self.builtInPassthroughApps.contains(id) { return .passthrough }
+        if ClientPolicy.isRemoteDesktop(id) || Self.isBuiltInPassthrough(id) { return .passthrough }
         return lock.withLock {
             if Self.isPerFieldByDefault(id) { return .axDetect }
             if Self.selectionAlwaysApps.contains(id) { return .selection }
@@ -905,6 +946,7 @@ final class AppState: @unchecked Sendable {
                 return .tap
             }
             if Self.builtInInPlaceApps.contains(id) { return .inPlace }
+            if Self.exactRuleMode(id) == nil, let w = Self.wildcardMode(id) { return w }
             if !_safeUnknownApps, probedAppsCache.contains(id) { return .inPlace }
             if _safeUnknownApps { return .tap }   // app lạ: kênh an toàn (marked khi thiếu AX)
             return nil

@@ -110,6 +110,8 @@ Press “Repair automatically”, then approve when asked. No restart needed.";
 "Debug info copied" = "Debug info copied";
 "Paste it into your bug report (⌘V)." = "Paste it into your bug report (⌘V).";
 
+"Click: open the typing-modes guide + copy debug info" = "Opens the typing-modes guide and copies info for a bug report.";
+
 /* Captions — short, plain language. Keys stay the English source. */
 "A lone “w” stays “w” (type “uw” for ư). Off = full Telex (cw→cư)." = "On: w stays w. Type uw for ư.";
 "Off = strict Telex: tones apply only next to a vowel — good for English/code (data→data). On: free placement (ama→âm)." = "Type ama to get âm. The extra key doesn’t have to sit next to the vowel.";

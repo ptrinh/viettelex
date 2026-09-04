@@ -1682,8 +1682,23 @@ public struct TelexEngine {
             if freeMarking {
                 var k = pCount - 1
                 while k >= 0 && !isVowelAscii(letters[k].base) { k -= 1 }   // skip coda
+                let nucleusEnd = k
                 while k >= 0, isVowelAscii(letters[k].base) {               // walk nucleus
                     if letters[k].base == lower, letters[k].mark == .none {
+                        // "oeo"/"oao" are REAL rimes (ngoèo, khoèo, ngoáo): an `o`
+                        // that would fold ACROSS the middle bare e/a is the user
+                        // typing the rime's last vowel, not a circumflex — issue
+                        // #58 25/08/2026 ("ngoeof" came out "ngồe"). Literal wins
+                        // in exactly that shape: contiguous run at the word's end
+                        // (no coda skipped), one intervening bare e/a. Everything
+                        // else keeps the 1.3.1 fold ("daua"→dâu, "coio"→côi).
+                        if lower == UInt8(ascii: "o"),
+                           nucleusEnd == pCount - 1, k == pCount - 2,
+                           letters[k + 1].mark == .none,
+                           letters[k + 1].base == UInt8(ascii: "e")
+                               || letters[k + 1].base == UInt8(ascii: "a") {
+                            break                                    // → literal o
+                        }
                         letters[k].mark = .circumflex; rawLetter[at] = k; return
                     }
                     // Cancel mirror of the reach-back (tester bug 2026-07-23):
@@ -1831,9 +1846,20 @@ public struct TelexEngine {
             var k = pCount - 1
             while k >= 0 {
                 if Self.vniMarkAccepts(base: letters[k].base, mark: mark) {
-                    if letters[k].mark == .none {
-                        letters[k].mark = mark
-                        rawLetter[at] = k
+                    // "uu" nucleus: 7 (horn) đặt lên chữ u ĐẦU (→ ưu: lưu, cứu, hưu)
+                    // — "uư" không phải nhân âm tiếng Việt. Cùng luật với w-handler
+                    // Telex ("luuw"→lưu), cùng ngoại lệ "qu" (glide giữ nguyên).
+                    // Issue #66 (29/08/2026): VNI "uu7" ra "uư" thay vì "ưu".
+                    var target = k
+                    if mark == .horn, target >= 1,
+                       letters[target].base == UInt8(ascii: "u"), letters[target].mark == .none,
+                       letters[target - 1].base == UInt8(ascii: "u"), letters[target - 1].mark == .none,
+                       !(target >= 2 && letters[target - 2].base == UInt8(ascii: "q")) {
+                        target -= 1
+                    }
+                    if letters[target].mark == .none {
+                        letters[target].mark = mark
+                        rawLetter[at] = target
                         return
                     }
                     if letters[k].mark == mark {        // re-applied → cancel, literal digit

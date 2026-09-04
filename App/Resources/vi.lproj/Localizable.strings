@@ -272,3 +272,5 @@ Bấm “Sửa tự động”, rồi đồng ý khi máy hỏi. Không cần kh
 "Click to copy the debug info explaining this choice" = "Bấm để chép thông tin khi báo lỗi.";
 "Debug info copied" = "Đã sao chép thông tin gỡ lỗi";
 "Paste it into your bug report (⌘V)." = "Dán vào báo lỗi của bạn (⌘V).";
+
+"Click: open the typing-modes guide + copy debug info" = "Bấm để mở hướng dẫn các kiểu gõ, đồng thời copy thông tin báo lỗi";

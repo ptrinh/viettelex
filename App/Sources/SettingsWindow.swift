@@ -67,6 +67,18 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        // Tear the SwiftUI hosting graph off the window EXPLICITLY (issue #59,
+        // 25/08/2026: heap audit found SettingsModel + NSHostingView + phần lớn
+        // AttributeGraph vẫn live sau khi đóng, peak footprint 137 MB, và mỗi lần
+        // mở lại tạo thêm một graph mới). Dropping our strong refs alone leaves
+        // the window→hostingController→rootView chain intact until AppKit decides
+        // to free the closed window; cutting contentViewController (and the
+        // delegate back-reference) lets the whole graph deallocate now, so the
+        // pressure_relief below actually has pages to hand back.
+        if let win = notification.object as? NSWindow {
+            win.delegate = nil
+            win.contentViewController = nil
+        }
         window = nil
         model = nil
         // Per-session memoization only: an app installed WHILE Settings was closed must
@@ -1152,7 +1164,7 @@ struct AboutTab: View {
             // error) used to be clipped by the 66pt box.
             .frame(minHeight: 66)
 
-            Text("© \(String(currentYear)) Vietnam Blockchain Association by Phil Trinh").foregroundStyle(.secondary)
+            Text("© \(String(currentYear)) Phil Trinh").foregroundStyle(.secondary)
             Spacer()
             // Gỡ cài đặt trọn gói — hỏi xác nhận bằng NSAlert kiểu critical trước khi
             // làm gì (không hoàn tác được: xoá app + toàn bộ settings/gõ tắt).
