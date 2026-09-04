@@ -8,9 +8,9 @@
 
 "Stale permission title" = "Accessibility permission is stuck after an update";
 
-"Stale permission body" = "macOS lists VietTelex as allowed but refuses the event tap — the stored permission pins an older signature, so that checkbox no longer means anything.
+"Stale permission body" = "Your Mac still shows VietTelex as allowed, but typing doesn’t work.
 
-Press “Repair automatically”: VietTelex removes its own stuck entry and asks for the permission again; you just approve it once. No restart needed.";
+Press “Repair automatically”, then approve when asked. No restart needed.";
 
 "Open Accessibility Settings" = "Open Accessibility Settings";
 
@@ -20,7 +20,7 @@ Press “Repair automatically”: VietTelex removes its own stuck entry and asks
 
 "Update now" = "Update now";
 
-"Update now body" = "Update now downloads the new version, verifies its signature and swaps it in automatically — no password needed. The input method restarts when done.";
+"Update now body" = "Downloads the new version and installs it. No password. The input method restarts when finished.";
 
 "Updated to %@" = "Updated to %@";
 
@@ -38,11 +38,11 @@ Press “Repair automatically”: VietTelex removes its own stuck entry and asks
 
 /* System Settings → Input Sources how-to (AX press failed or not allowed) */
 "Input sources howto title" = "One more step in System Settings";
-"Input sources howto body" = "In the Keyboard pane that just opened, find “Input Sources” under “Text Input” and press the “Edit…” button next to it.";
+"Input sources howto body" = "In the Keyboard window that just opened, find Input Sources and press Edit…";
 "Input source hotkey…" = "Input source hotkey…";
-"Opens Keyboard Shortcuts → Input Sources, where the shortcut for switching between VietTelex and other input sources lives." = "Opens Keyboard Shortcuts → Input Sources, where the shortcut for switching between VietTelex and other input sources lives.";
+"Opens Keyboard Shortcuts → Input Sources, where the shortcut for switching between VietTelex and other input sources lives." = "Opens the Mac shortcut for switching keyboards.";
 "Input source hotkey howto title" = "One more step in System Settings";
-"Input source hotkey howto body" = "In the Keyboard pane that just opened, press “Keyboard Shortcuts…”, then select “Input Sources” in the sidebar of the sheet that appears.";
+"Input source hotkey howto body" = "In the Keyboard window that just opened, press Keyboard Shortcuts… then choose Input Sources on the left.";
 "OK" = "OK";
 "Learn Telex typing" = "Learn Telex typing";
 "How to report a bug" = "How to report a bug";
@@ -50,16 +50,16 @@ Press “Repair automatically”: VietTelex removes its own stuck entry and asks
 "Add diacritics to the word before the caret (experimental)" = "Add diacritics to the word before the caret (experimental)";
 "Repair automatically" = "Repair automatically";
 "Repair started title" = "Permission reset — approve it once";
-"Repair started body" = "VietTelex removed its own stale entry. macOS should now ask for Accessibility permission: approve it, or open Accessibility settings and tick VietTelex. Typing in Terminal/Chrome works again the moment you do — no restart needed.";
+"Repair started body" = "VietTelex cleared the old permission. Your Mac will ask again: approve it, or turn on VietTelex in Accessibility. No restart needed.";
 "Repair failed title" = "Couldn’t reset the permission";
-"Repair failed body" = "macOS refused to remove the entry (this happens when it is managed by your organisation). Fix it by hand: open Accessibility settings, select VietTelex, press − to remove it, then + to add it back from ~/Library/Input Methods.";
+"Repair failed body" = "Your Mac wouldn’t remove this entry (often because work manages the computer). Fix it yourself: open Accessibility, select VietTelex, press −, then + to add it back.";
 
 /* 1.4.22 — UI/UX audit: missing captions, Accessibility banner, update channel, VoiceOver labels */
-"A word that isn’t valid Vietnamese snaps back to the keys you actually typed when the word ends (retore → retore)." = "A word that isn’t valid Vietnamese snaps back to the keys you actually typed when the word ends (retore → retore).";
-"Type “toan”, then “s” → “toán” — no need to retype the whole word. Deleting the space after a word re-opens it: “tháy ” + ⌫ + “a” → “thấy”." = "Type “toan”, then “s” → “toán” — no need to retype the whole word. Deleting the space after a word re-opens it: “tháy ” + ⌫ + “a” → “thấy”.";
+"A word that isn’t valid Vietnamese snaps back to the keys you actually typed when the word ends (retore → retore)." = "After you press space, a non-Vietnamese word goes back to what you typed. Example: user won’t become ủe.";
+"Type “toan”, then “s” → “toán” — no need to retype the whole word. Deleting the space after a word re-opens it: “tháy ” + ⌫ + “a” → “thấy”." = "Type toan then s → toán. Delete the space after a word to keep editing it.";
 "No Accessibility permission — typing will be underlined" = "No Accessibility permission — typing will be underlined";
-"Tick VietTelex in Privacy & Security → Accessibility. You may need to restart your Mac for the permission to take effect." = "Tick VietTelex in Privacy & Security → Accessibility. You may need to restart your Mac for the permission to take effect.";
-"Manual check: the newest release on GitHub. Weekly check: the stable channel." = "Manual check: the newest release on GitHub. Weekly check: the stable channel.";
+"Tick VietTelex in Privacy & Security → Accessibility. You may need to restart your Mac for the permission to take effect." = "Turn on VietTelex in System Settings → Privacy & Security → Accessibility. You may need to restart your Mac.";
+"Manual check: the newest release on GitHub. Weekly check: the stable channel." = "Check for updates: newest version. Weekly check: the stable version.";
 "No app matches “%@”" = "No app matches “%@”";
 "Clear filter" = "Clear filter";
 "Delete this shortcut" = "Delete this shortcut";
@@ -72,21 +72,21 @@ Press “Repair automatically”: VietTelex removes its own stuck entry and asks
 
 /* Sticky input source (field report 15/08/2026 — Word comment boxes reset the input source) */
 "Keep VietTelex when macOS auto-switches the input source (experimental)" = "Keep VietTelex when macOS auto-switches the input source (experimental)";
-"Some apps (Word comments…) make macOS fall back to the default input source for every new field when “Automatically switch to a document's input source” is on. This switches back to VietTelex — only when the change wasn't yours (no ⌃Space, no menu click, same app)." = "Some apps (Word comments…) make macOS fall back to the default input source for every new field when “Automatically switch to a document's input source” is on. This switches back to VietTelex — only when the change wasn't yours (no ⌃Space, no menu click, same app).";
+"Some apps (Word comments…) make macOS fall back to the default input source for every new field when “Automatically switch to a document's input source” is on. This switches back to VietTelex — only when the change wasn't yours (no ⌃Space, no menu click, same app)." = "Some apps (like Word comments) switch the keyboard by themselves. On: stay on VietTelex unless you switch.";
 
 /* Menu bar icon picker (maintainer 17/08/2026 — user-selectable MenuIcon, seal-breaking accepted) */
 "Menu bar icon" = "Menu bar icon";
 "Icon" = "Icon";
 "default" = "default";
 "five-pointed star" = "five-pointed star";
-"Changing the menu icon rewrites a file inside the app, which breaks the app's code signature seal (the app keeps working and keeps its permissions). Requires a Mac restart to take effect." = "Changing the menu icon rewrites a file inside the app, which breaks the app's code signature seal (the app keeps working and keeps its permissions). Requires a Mac restart to take effect.";
+"Changing the menu icon rewrites a file inside the app, which breaks the app's code signature seal (the app keeps working and keeps its permissions). Requires a Mac restart to take effect." = "Restart your Mac after changing the icon.";
 "Icon saved — restart your Mac to see it." = "Icon saved — restart your Mac to see it.";
 
 /* Switch hotkey (issue #54 follow-up — modifier-only toggle macOS can't assign) */
 "Switch hotkey" = "Switch hotkey";
 "Toggle VietTelex with" = "Toggle VietTelex with";
 "Off — use the macOS shortcut" = "Off — use the macOS shortcut";
-"Press and release the modifiers alone to toggle between VietTelex and your previous input source — the modifier-only combos macOS's own Keyboard Shortcuts can't assign. Ignored if you type a key or click while holding them. Needs Accessibility permission." = "Press and release the modifiers alone to toggle between VietTelex and your previous input source — the modifier-only combos macOS's own Keyboard Shortcuts can't assign. Ignored if you type a key or click while holding them. Needs Accessibility permission.";
+"Press and release the modifiers alone to toggle between VietTelex and your previous input source — the modifier-only combos macOS's own Keyboard Shortcuts can't assign. Ignored if you type a key or click while holding them. Needs Accessibility permission." = "Press and release these keys (don’t type a letter) to switch keyboards. Needs Accessibility.";
 
 /* Graduated from Experimental (17/08/2026) */
 "VNI typing" = "VNI typing";
@@ -97,15 +97,55 @@ Press “Repair automatically”: VietTelex removes its own stuck entry and asks
 /* Uninstall (About tab, 17/08/2026) */
 "Uninstall VietTelex…" = "Uninstall VietTelex…";
 "Uninstall VietTelex?" = "Uninstall VietTelex?";
-"This removes the app, every setting and all your shortcuts. It cannot be undone." = "This removes the app, every setting and all your shortcuts. It cannot be undone.";
+"This removes the app, every setting and all your shortcuts. It cannot be undone." = "This deletes the app, every setting, and all your shortcuts. It cannot be undone.";
 "Uninstall" = "Uninstall";
 "VietTelex has been removed. Log out and back in to clear it from the input source list." = "VietTelex has been removed. Log out and back in to clear it from the input source list.";
-"Settings were removed, but the app file could not be deleted — drag it to the Trash from ~/Library/Input Methods." = "Settings were removed, but the app file could not be deleted — drag it to the Trash from ~/Library/Input Methods.";
-"Menu bar icons are drawn in a single color that follows the menu bar (no full-color icons — macOS strips the colors). Changing the icon rewrites a file inside the app, which breaks the app's code signature seal (the app keeps working and keeps its permissions). Requires a Mac restart to take effect." = "Menu bar icons are drawn in a single color that follows the menu bar (no full-color icons — macOS strips the colors). Changing the icon rewrites a file inside the app, which breaks the app's code signature seal (the app keeps working and keeps its permissions). Requires a Mac restart to take effect.";
-"That process exited but the lock is stuck — lock the screen (⌃⌘Q) and unlock; if that fails, log out and back in" = "That process exited but the lock is stuck — lock the screen (⌃⌘Q) and unlock; if that fails, log out and back in";
+"Settings were removed, but the app file could not be deleted — drag it to the Trash from ~/Library/Input Methods." = "Settings were deleted, but the app file wasn’t. Drag VietTelex to the Trash from the Input Methods folder.";
+"Menu bar icons are drawn in a single color that follows the menu bar (no full-color icons — macOS strips the colors). Changing the icon rewrites a file inside the app, which breaks the app's code signature seal (the app keeps working and keeps its permissions). Requires a Mac restart to take effect." = "The icon is one color. Restart your Mac after changing it.";
+"That process exited but the lock is stuck — lock the screen (⌃⌘Q) and unlock; if that fails, log out and back in" = "Lock the screen and unlock (⌃⌘Q). If that fails, log out and back in.";
 
 /* Typing-mode menu line (maintainer 19/08/2026) */
 "Typing mode" = "Typing mode";
-"Click to copy the debug info explaining this choice" = "Click to copy the debug info explaining this choice";
+"Click to copy the debug info explaining this choice" = "Click to copy info for a bug report.";
 "Debug info copied" = "Debug info copied";
 "Paste it into your bug report (⌘V)." = "Paste it into your bug report (⌘V).";
+
+/* Captions — short, plain language. Keys stay the English source. */
+"A lone “w” stays “w” (type “uw” for ư). Off = full Telex (cw→cư)." = "On: w stays w. Type uw for ư.";
+"Off = strict Telex: tones apply only next to a vowel — good for English/code (data→data). On: free placement (ama→âm)." = "Type ama to get âm. The extra key doesn’t have to sit next to the vowel.";
+"Off = old style (hòa, thủy, khỏe). On = new style (hoà, thuý, khoẻ). Only oa/oe/uy differ." = "On: hoà, thuý, khoẻ. Off: hòa, thủy, khỏe.";
+"The UniKey habit: “th[” → “thơ”, “ng]” → “ngư” ({ and } for uppercase). Leave OFF if you type code — with it on, [ and ] belong to the word instead of ending it." = "cc → ch, w stays w, th[ → thơ. Turn off if you type [ ] in code.";
+"Post only the key-down for inserted letters in terminals, halving events per keystroke." = "Makes typing in Terminal, Chrome, and Spotlight faster.";
+"Opens Keyboard settings — set automatic input-source switching per app / document there." = "Opens Mac Keyboard settings — switch keyboards per app and set the shortcut.";
+"UniKey-style typing" = "UniKey-style typing";
+"Faster typing" = "Faster typing";
+"Stop adding tones as soon as a word can’t be Vietnamese (google, github…) instead of waiting for word end." = "Stops adding Vietnamese tones as soon as the word can’t be Vietnamese — while you’re still typing. Example: google, github.";
+"After an English word, an ambiguous next word whose keys spell an English word is kept English instead of Vietnamese — “he is” → “he is”, not “he í”. After a Vietnamese or unclear word it stays Vietnamese — “sao í”." = "After an English word, the next word stays English too. Example: he is, not he í.";
+"Adds the Typing modes and Experimental tabs — per-app overrides, latency flags, debug log. Not needed for everyday typing." = "Shows Experimental and Typing modes: VNI, UniKey, per-app typing, debug log. Leave this off for everyday use.";
+"An app types wrong or shows underlines? Pick Tap — real keystrokes, no underline (needs Accessibility). Marked text always renders correctly but underlines while typing. The modes below the divider are for special cases — leave them unless you know the app needs one. Clear forgets everything learned; manual picks are kept." = "Wrong letters or underlines? Choose Tap. Not sure? Leave Auto.";
+"Which physical keyboard Telex reads. Pick Colemak, Dvorak… to type Vietnamese with that layout. Left on “follow”, the layout is inherited from whichever input source you switched from — so the same keys give different letters depending on where you came from." = "Change this only if you use a Colemak or Dvorak keyboard. Otherwise leave the default.";
+"Apps without a rule type via backspace-retype (or underlined composition without Accessibility) instead of trying direct insertion and guessing. Turn off to restore the old probe-and-learn behavior." = "Unknown apps use a safer typing method, so letters are less likely to come out wrong.";
+"Records tap health events in memory (never the text you type). Turn it on, reproduce the problem, then Copy debug log and paste it into your report — or save it as a file." = "Turn on when reporting a problem. It never records what you type.";
+"Type diacritics with digits instead of Telex letters: 1-5 = sắc/huyền/hỏi/ngã/nặng, 6 = â/ê/ô, 7 = ơ/ư, 8 = ă, 9 = đ, 0 = clear tone. Letters stay literal. Keep Live spell-check on so numbers like “mp3” aren’t turned into tones." = "Type tones with numbers: 1 sắc, 2 huyền, 3 hỏi, 4 ngã, 5 nặng, 6 â/ê/ô, 7 ơ/ư, 8 ă, 9 đ, 0 clear. Keep English words on so mp3 stays mp3.";
+"Empty — type a few Vietnamese words in any app and it will appear here." = "Type a few Vietnamese words in any app and it will show up here.";
+"Empty — type a few Vietnamese words in any app and it will appear here." = "Type a few Vietnamese words in any app and it will show up here.";
+"Apply tone edits in Chrome and Spotlight with one Accessibility edit instead of a burst of Shift+Left key events." = "Makes tone edits in Chrome and Spotlight faster.";
+"You can download the update from the releases page. This check ran because weekly update checks are enabled in Settings." = "Download the update from the releases page. You turned on weekly checks in Settings.";
+"Force how VietTelex types in a specific app. Auto = detect automatically. Use Tap (real keystrokes, no underline) if an app types wrong or shows underlines; Marked text is the safe fallback." = "Force how VietTelex types in one app. If letters come out wrong or underlined, choose Tap.";
+"Keep this ON. Stops the terminal tap if it ever floods the keyboard with synthetic events, so a bug can’t freeze typing." = "Leave this on. Stops a bug from freezing the keyboard in Terminal.";
+"In terminals, apply a one-letter tone edit (w→ư) by rewriting the real keystroke instead of posting two synthetic events — lower latency." = "Makes typing in Terminal a bit faster.";
+"Apply tone edits in Chrome and Spotlight with one Accessibility edit instead of a burst of Shift+Left key events — lower latency." = "Makes tone edits in Chrome and Spotlight faster.";
+"VietTelex learns the right method per app. If an app shows underlines or types wrong, tap Reset to re-probe." = "VietTelex remembers how to type in each app. If an app underlines or types wrong, tap Reset.";
+"Doubled first consonant expands: cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th." = "Double the first consonant: cc → ch, gg → gi, nn → ng…";
+"Spelling" = "English words";
+"Keep English words" = "Keep English words";
+"English words stay as you typed them (google, data, he is). Leave all three on." = "google, data, and he is stay as you typed them.";
+"Auto-restore invalid words" = "When the word ends";
+"Context-based decision" = "The next word";
+"Live spell-check" = "While typing";
+"Input source hotkey…" = "Keyboard shortcut…";
+"Unknown apps use the safe channel (tap/marked)" = "Unknown apps use a safer typing method";
+"The file must be a String → String dictionary plist (like the one Export to plist… creates)." = "The file should look like the one Export creates (a list of shortcuts).";
+"VietTelex needs Accessibility to type Vietnamese in Terminal/iTerm and browsers.\n\nOpen System Settings → Privacy & Security → Accessibility and enable VietTelex (if it’s already there, untick then tick it again)." = "VietTelex needs Accessibility so typing isn’t underlined.\n\nOpen System Settings → Privacy & Security → Accessibility, then turn on VietTelex (if it’s already on, turn it off and on again).";
+"Keep VietTelex when macOS auto-switches the input source (experimental)" = "Keep VietTelex when an app switches the keyboard (experimental)";
+"Accessibility permission needed" = "Accessibility permission needed";

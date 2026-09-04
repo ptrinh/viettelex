@@ -391,13 +391,11 @@ final class AppState: @unchecked Sendable {
         set { defaults.set(newValue, forKey: "lastNotifiedUpdateVersion") }
     }
 
-    /// Show the power-user surface (Bảng chế độ gõ + Thử Nghiệm tabs). Default ON
-    /// (maintainer decision 2026-08-12 — was OFF under the "cài xong là gõ"
-    /// philosophy, but hiding the mode table / debug log made every support
-    /// round-trip start with "bật advanced lên đã"). Toggle stays for users who
-    /// prefer the minimal surface. Settings-UI only (main thread), no lock.
+    /// Show the power-user surface (Bảng chế độ gõ + Thử Nghiệm tabs). Default OFF
+    /// ("cài xong là gõ"). Extra typing styles (VNI, UniKey, …) live on those tabs.
+    /// Toggle is in Settings → Tùy chỉnh. Settings-UI only (main thread), no lock.
     var advancedFeatures: Bool {
-        get { (defaults.object(forKey: "advancedFeatures") as? Bool) ?? true }
+        get { (defaults.object(forKey: "advancedFeatures") as? Bool) ?? false }
         set { defaults.set(newValue, forKey: "advancedFeatures") }
     }
 

@@ -66,6 +66,48 @@ LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchS
 # Register + best-effort enable, inside the user's GUI session.
 run_as_user "$DIR/register-source" "$APP" 2>/dev/null
 
+# One setup question (VNI / UniKey / per-app). Skip CLI installs — no GUI, and
+# COMMAND_LINE_INSTALL is set by `installer -pkg`. Skip if they already chose
+# (upgrade). Default button is OFF; "Bật" writes the settings suite.
+# osascript is fed a temp file: stdin does not survive `launchctl asuser` + sudo.
+if [ -z "${COMMAND_LINE_INSTALL:-}" ]; then
+    if ! run_as_user defaults read com.viettelex.settings advancedFeatures >/dev/null 2>&1; then
+        langs="$(run_as_user defaults read -g AppleLanguages 2>/dev/null || true)"
+        askfile="$(mktemp /tmp/viettelex-ask.XXXXXX)"
+        chmod a+r "$askfile"
+        if printf '%s' "$langs" | grep -q '"vi'; then
+            cat > "$askfile" <<'APPLESCRIPT'
+try
+    display dialog "VNI, UniKey, chỉnh theo từng app, nhật ký lỗi. Gõ hàng ngày thì không cần — có thể bật sau trong Cài đặt ViệtTelex." with title "Bật tính năng nâng cao?" buttons {"Để sau", "Bật"} default button "Để sau" with icon note
+    return button returned of result
+on error
+    return "Để sau"
+end try
+APPLESCRIPT
+            btn="$(run_as_user osascript "$askfile" 2>/dev/null || true)"
+            case "$btn" in
+                Bật) run_as_user defaults write com.viettelex.settings advancedFeatures -bool true ;;
+                *)   run_as_user defaults write com.viettelex.settings advancedFeatures -bool false ;;
+            esac
+        else
+            cat > "$askfile" <<'APPLESCRIPT'
+try
+    display dialog "VNI, UniKey, per-app typing, debug log. Not needed for everyday typing — you can turn this on later in ViệtTelex Settings." with title "Turn on advanced features?" buttons {"Not now", "Turn on"} default button "Not now" with icon note
+    return button returned of result
+on error
+    return "Not now"
+end try
+APPLESCRIPT
+            btn="$(run_as_user osascript "$askfile" 2>/dev/null || true)"
+            case "$btn" in
+                "Turn on") run_as_user defaults write com.viettelex.settings advancedFeatures -bool true ;;
+                *)         run_as_user defaults write com.viettelex.settings advancedFeatures -bool false ;;
+            esac
+        fi
+        rm -f "$askfile"
+    fi
+fi
+
 # Drop the user straight into System Settings → Keyboard for the final "＋" step,
 # and open the illustrated install guide (screenshots were removed from the
 # conclusion screen — the guide IS the visual walkthrough now). Settings first so

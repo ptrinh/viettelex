@@ -599,42 +599,17 @@ struct GeneralTab: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Section(header: Label(model.loc("Input style"), systemImage: "keyboard")) {
-                // VNI tốt nghiệp từ tab Thử nghiệm (maintainer 17/08/2026), trình bày
-                // dạng radio Telex/VNI cùng dòng (17/08 chiều) — hai kiểu gõ loại trừ
-                // nhau nên radio đúng ngữ nghĩa hơn toggle bật/tắt. Chọn VNI thì các
-                // tuỳ chỉnh THUẦN-TELEX ẩn đi (Simple/Quick/bỏ dấu tự do/phím ngoặc —
-                // freeMarking chỉ chạy trong parseStep của Telex, VNI không đọc);
-                // "kiểu cũ/mới" là quy tắc ĐẶT dấu, áp dụng cho cả hai nên giữ hiện.
-                Picker(model.loc("Typing method"), selection: Binding(
-                    get: { model.vniMode ? "vni" : "telex" },
-                    set: { model.vniMode = ($0 == "vni") })) {
-                    Text("Telex").tag("telex")
-                    Text("VNI").tag("vni")
-                }
-                .pickerStyle(.radioGroup)
-                .horizontalRadioGroupLayout()
-                if model.vniMode {
-                    Text(model.loc("Type diacritics with digits instead of Telex letters: 1-5 = sắc/huyền/hỏi/ngã/nặng, 6 = â/ê/ô, 7 = ơ/ư, 8 = ă, 9 = đ, 0 = clear tone. Letters stay literal. Keep Live spell-check on so numbers like “mp3” aren’t turned into tones."))
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                if !model.vniMode {
-                    Toggle(model.loc("Simple Telex"), isOn: $model.simpleTelex)
-                    Text(model.loc("A lone “w” stays “w” (type “uw” for ư). Off = full Telex (cw→cư)."))
-                        .font(.caption).foregroundStyle(.secondary)
-                    Toggle(model.loc("Quick Telex"), isOn: $model.quickTelex)
-                    Text(model.loc("Doubled first consonant expands: cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th."))
-                        .font(.caption).foregroundStyle(.secondary)
-                    Toggle(model.loc("Free tone placement"), isOn: $model.freeMarking)
-                    Text(model.loc("Off = strict Telex: tones apply only next to a vowel — good for English/code (data→data). On: free placement (ama→âm)."))
-                        .font(.caption).foregroundStyle(.secondary)
-                    Toggle(model.loc("Bracket vowels: [ types ơ, ] types ư"),
-                           isOn: $model.bracketVowels)
-                    Text(model.loc("The UniKey habit: “th[” → “thơ”, “ng]” → “ngư” ({ and } for uppercase). Leave OFF if you type code — with it on, [ and ] belong to the word instead of ending it."))
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Toggle(model.loc("Modern tone placement (oà, uý)"), isOn: $model.modernOrthography)
-                Text(model.loc("Off = old style (hòa, thủy, khỏe). On = new style (hoà, thuý, khoẻ). Only oa/oe/uy differ."))
+            Section {
+                // One switch drives live spell-check + auto-restore + contextual
+                // English together — three engine flags, one user-facing job.
+                Toggle(model.loc("Keep English words"), isOn: Binding(
+                    get: { model.liveSpellCheck && model.autoRestore && model.contextualEnglish },
+                    set: { on in
+                        model.liveSpellCheck = on
+                        model.autoRestore = on
+                        model.contextualEnglish = on
+                    }))
+                Text(model.loc("English words stay as you typed them (google, data, he is). Leave all three on."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {
@@ -644,26 +619,6 @@ struct GeneralTab: View {
                     Label(model.loc("System Settings…"), systemImage: "gearshape")
                 }
                 Text(model.loc("Opens Keyboard settings — set automatic input-source switching per app / document there."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Button {
-                    TelexInputController.openInputSourceHotkeySettings()
-                } label: {
-                    Label(model.loc("Input source hotkey…"), systemImage: "command")
-                }
-                Text(model.loc("Opens Keyboard Shortcuts → Input Sources, where the shortcut for switching between VietTelex and other input sources lives."))
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section(header: Label(model.loc("Spelling"), systemImage: "textformat.abc.dottedunderline")) {
-                Toggle(model.loc("Auto-restore invalid words"), isOn: $model.autoRestore)
-                Text(model.loc("A word that isn’t valid Vietnamese snaps back to the keys you actually typed when the word ends (retore → retore)."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Live spell-check"), isOn: $model.liveSpellCheck)
-                Text(model.loc("Stop adding tones as soon as a word can’t be Vietnamese (google, github…) instead of waiting for word end."))
-                    .font(.caption).foregroundStyle(.secondary)
-                // Graduated from the Experimental tab (2026-08-03) — shipped ON by
-                // default since 1.4.22 with no field complaints.
-                Toggle(model.loc("Context-based decision"), isOn: $model.contextualEnglish)
-                Text(model.loc("After an English word, an ambiguous next word whose keys spell an English word is kept English instead of Vietnamese — “he is” → “he is”, not “he í”. After a Vietnamese or unclear word it stays Vietnamese — “sao í”."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             // No Section header: the Picker's own label already says "Language" —
@@ -888,8 +843,43 @@ struct ExperimentalTab: View {
 
     var body: some View {
         Form {
-            // VNI + phím ngoặc đã tốt nghiệp sang tab Tùy chỉnh; "gõ thêm dấu cho từ
-            // ngay trước con trỏ" ổn định → bỏ UI, mặc định bật (maintainer 17/08/2026).
+            // Extra typing styles live here (not General): VNI, UniKey, free
+            // marking, modern orthography. Everyday Settings stays compact;
+            // defaults still apply when this tab is hidden.
+            Section(header: Label(model.loc("Input style"), systemImage: "keyboard")) {
+                Picker(model.loc("Typing method"), selection: Binding(
+                    get: { model.vniMode ? "vni" : "telex" },
+                    set: { model.vniMode = ($0 == "vni") })) {
+                    Text("Telex").tag("telex")
+                    Text("VNI").tag("vni")
+                }
+                .pickerStyle(.radioGroup)
+                .horizontalRadioGroupLayout()
+                if model.vniMode {
+                    Text(model.loc("Type diacritics with digits instead of Telex letters: 1-5 = sắc/huyền/hỏi/ngã/nặng, 6 = â/ê/ô, 7 = ơ/ư, 8 = ă, 9 = đ, 0 = clear tone. Letters stay literal. Keep Live spell-check on so numbers like “mp3” aren’t turned into tones."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if !model.vniMode {
+                    Toggle(model.loc("Free tone placement"), isOn: $model.freeMarking)
+                    Text(model.loc("Off = strict Telex: tones apply only next to a vowel — good for English/code (data→data). On: free placement (ama→âm)."))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Toggle(model.loc("UniKey-style typing"), isOn: Binding(
+                        get: { model.simpleTelex && model.quickTelex && model.bracketVowels },
+                        set: { on in
+                            model.simpleTelex = on
+                            model.quickTelex = on
+                            model.bracketVowels = on
+                        }))
+                    Text(model.loc("The UniKey habit: “th[” → “thơ”, “ng]” → “ngư” ({ and } for uppercase). Leave OFF if you type code — with it on, [ and ] belong to the word instead of ending it."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Toggle(model.loc("Modern tone placement (oà, uý)"), isOn: $model.modernOrthography)
+                Text(model.loc("Off = old style (hòa, thủy, khỏe). On = new style (hoà, thuý, khoẻ). Only oa/oe/uy differ."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            // VNI + phím ngoặc từng tốt nghiệp sang Tùy chỉnh rồi kéo về đây
+            // (2026-09) để tab mặc định gọn lại. "gõ thêm dấu cho từ ngay trước
+            // con trỏ" ổn định → bỏ UI, mặc định bật (maintainer 17/08/2026).
             Section(header: Label(model.loc("Input method"), systemImage: "character.textbox")) {
                 Toggle(model.loc("Keep VietTelex when macOS auto-switches the input source (experimental)"),
                        isOn: $model.stickyInputSource)
@@ -941,11 +931,13 @@ struct ExperimentalTab: View {
             // bỏ UI, mặc định bật; giá trị OFF cũ của tester bị xoá lúc khởi động
             // (graduatedKeys trong AppState — maintainer 17/08/2026).
             Section(header: Label(model.loc("Terminal typing latency"), systemImage: "terminal")) {
-                Toggle(model.loc("Skip synthetic key-up"), isOn: $model.tapSkipSyntheticKeyUp)
+                Toggle(model.loc("Faster typing"), isOn: Binding(
+                    get: { model.tapSkipSyntheticKeyUp && model.axSelectionReplace },
+                    set: { on in
+                        model.tapSkipSyntheticKeyUp = on
+                        model.axSelectionReplace = on
+                    }))
                 Text(model.loc("Post only the key-down for inserted letters in terminals, halving events per keystroke."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("AX replace (Chrome/Spotlight)"), isOn: $model.axSelectionReplace)
-                Text(model.loc("Apply tone edits in Chrome and Spotlight with one Accessibility edit instead of a burst of Shift+Left key events."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section(header: Label(model.loc("Diagnostics"), systemImage: "stethoscope")) {

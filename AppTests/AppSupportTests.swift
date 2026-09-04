@@ -513,11 +513,8 @@ extension AppSupportTests {
         _ = s.tapNativeFastPath
     }
 
-    /// Maintainer decision 2026-08-12: the power-user surface (Bảng chế độ gõ +
-    /// Thử Nghiệm) ships VISIBLE — hiding it made every support round-trip start
-    /// with "bật advanced lên đã". A fresh install (key absent) must read true;
-    /// an explicit user OFF must still stick.
-    func testAdvancedFeaturesDefaultsOn() {
+    /// Fresh install (key absent) hides the power-user tabs. An explicit ON must stick.
+    func testAdvancedFeaturesDefaultsOff() {
         let s = AppState.shared
         let saved = s.defaults.object(forKey: "advancedFeatures") as? Bool
         defer {
@@ -525,9 +522,11 @@ extension AppSupportTests {
             else { s.defaults.removeObject(forKey: "advancedFeatures") }
         }
         s.defaults.removeObject(forKey: "advancedFeatures")
-        XCTAssertTrue(s.advancedFeatures, "fresh install (no stored value) must show the advanced tabs")
+        XCTAssertFalse(s.advancedFeatures, "fresh install (no stored value) must hide the advanced tabs")
+        s.advancedFeatures = true
+        XCTAssertTrue(s.advancedFeatures, "explicit ON must survive the OFF default")
         s.advancedFeatures = false
-        XCTAssertFalse(s.advancedFeatures, "explicit OFF must survive the ON default")
+        XCTAssertFalse(s.advancedFeatures, "explicit OFF must stick")
     }
 
     /// Issue #40 (Discord): the markActive AX poke fires only when a reach-back
