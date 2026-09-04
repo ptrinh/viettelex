@@ -268,3 +268,5 @@ Bấm “Sửa tự động”: VietTelex tự xoá mục bị kẹt của chín
 "Click to copy the debug info explaining this choice" = "Bấm để sao chép thông tin gỡ lỗi giải thích lựa chọn này";
 "Debug info copied" = "Đã sao chép thông tin gỡ lỗi";
 "Paste it into your bug report (⌘V)." = "Dán vào báo lỗi của bạn (⌘V).";
+
+"Click: open the typing-modes guide + copy debug info" = "Bấm: mở hướng dẫn về các kiểu gõ + sao chép thông tin gỡ lỗi";

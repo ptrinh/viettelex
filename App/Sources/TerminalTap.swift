@@ -958,6 +958,11 @@ enum FocusedFieldDetector {
     static func markedFieldURL(_ url: URL?) -> Bool {
         guard let url, let host = url.host else { return false }
         if host == "docs.google.com" && url.path.hasPrefix("/document") { return true }
+        // Antigravity (Google) — web IDE/chat: field report Facebook 24/08/2026, Safari
+        // "tự động mất vị trí con trỏ khi comment, phải click chuột lại"; mọi chế độ
+        // trừ marked đều hỏng, bộ gõ marked-text của Apple gõ ổn — đúng dấu hiệu lớp
+        // Docs/TikTok (editor áp edit theo model JS riêng).
+        if host == "antigravity.google.com" { return true }
         return host == "tiktok.com" || host.hasSuffix(".tiktok.com")
     }
 
@@ -1213,8 +1218,20 @@ enum SyntheticKeyboard {
     /// Pure gate for the health probe, shared by postProbe() and the watchdog's
     /// miss-accounting so the two can never disagree (a probe "sent" by the watchdog
     /// but silently skipped here would read as a miss and tear down a healthy tap).
-    static func probeMayPost(secureInput: Bool, secureField: Bool, chordHeld: Bool) -> Bool {
-        !(secureInput || secureField || chordHeld)
+    static func probeMayPost(secureInput: Bool, secureField: Bool, chordHeld: Bool,
+                             spaceHeld: Bool = false) -> Bool {
+        !(secureInput || secureField || chordHeld || spaceHeld)
+    }
+
+    /// TRUE while the user physically holds SPACE. Adobe apps (After Effects,
+    /// Premiere, Photoshop) dùng "giữ Space = hand tool/preview tạm thời" và track
+    /// key state: một F20 keyDown lạ rơi vào giữa lúc giữ làm AE mất track keyUp
+    /// của Space → kẹt hand tool (issue #65, 29/08/2026: ABC không bị, VietTelex
+    /// ~1/5 lần — khớp xác suất probe 3s rơi trúng khoảng giữ). Space chỉ được giữ
+    /// thoáng qua khi gõ chữ nên hoãn probe dưới nó không làm mù watchdog (khác ⇧,
+    /// xem chordFlags).
+    static var spacebarHeld: Bool {
+        CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(49))
     }
 
     static func postProbe() {
@@ -1226,7 +1243,8 @@ enum SyntheticKeyboard {
         // commits the ⌘-Tab switcher). Health monitoring is not worth touching either.
         if !probeMayPost(secureInput: IsSecureEventInputEnabled(),
                          secureField: SecureFieldDetector.isSecure,
-                         chordHeld: chordModifierHeld) { return }
+                         chordHeld: chordModifierHeld,
+                         spaceHeld: spacebarHeld) { return }
         guard let down = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(probeKeycode), keyDown: true),
               let up = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(probeKeycode), keyDown: false)
         else { return }
@@ -1912,7 +1930,8 @@ final class TerminalTapController {
             }
             if !SyntheticKeyboard.probeMayPost(secureInput: IsSecureEventInputEnabled(),
                                                secureField: SecureFieldDetector.isSecure,
-                                               chordHeld: SyntheticKeyboard.chordModifierHeld) {
+                                               chordHeld: SyntheticKeyboard.chordModifierHeld,
+                                               spaceHeld: SyntheticKeyboard.spacebarHeld) {
                 // Password field in focus, or a ⌘/⌃/⌥ chord held: we do not post the
                 // probe there (see postProbe), so there is nothing to ack — counting
                 // that as a miss would raise a false "stale grant" and tear down a
@@ -1947,6 +1966,8 @@ final class TerminalTapController {
     /// end of an existing word then pressing a tone key is re-edit's main use.
     /// TAP-thread confined (mouse/key branches of the same serial callback).
     private var lastTapKeyWasBoundary = false
+    // Thời điểm ⌫ vật lý gần nhất — gate của re-edit(tap), xem reEditGateOpen.
+    private var lastDeleteNs: UInt64 = 0
 
     /// TRUE → the Spotlight overlay owns the keys and no one may compose: the
     /// routing verdict (from the app BEHIND the overlay) says tap-family, but a
@@ -2372,6 +2393,13 @@ final class TerminalTapController {
             return pass
         }
 
+        // Word-table class: cell-navigation keys some apps swallow without telling
+        // the IME (see NavKeyWitness). Stamp BEFORE the tap-mode gate — the witness
+        // is for the IMKit controller, whatever mode the tap picks for this app.
+        // ⌘/⌃/⌥ chords returned above and never stamp; stamp() itself ignores
+        // non-navigation keycodes.
+        NavKeyWitness.stamp(keycode: event.getIntegerValueField(.keyboardEventKeycode))
+
         // Decide whether the tap handles this app, and with which emit mode:
         //  - Spotlight (window-list) / Chromium → Shift+Left selection-replace.
         //  - MS Office → empty-char reset (Shift+Left would select adjacent cells).
@@ -2469,6 +2497,7 @@ final class TerminalTapController {
 
         if keyCode == kDelete {
             lastTapKeyWasBoundary = false   // ⌫ is word-adjacent editing, not a boundary
+            lastDeleteNs = DispatchTime.now().uptimeNanoseconds
             if engine.isEmpty {
                 // ⌫ on the boundary character the last word ended with re-opens that
                 // word ("tháy" ␣ ⌫ then `a` → "thấy" — issue #40); the ⌫ still goes
@@ -2606,7 +2635,9 @@ final class TerminalTapController {
         if Self.reEditGateOpen(engineIsEmpty: engine.isEmpty, reEditEnabled: AppState.shared.reEditWord,
                                isDiacriticKey: TelexInputController.isDiacriticOnlyKey(ascii, vni: engine.vniMode),
                                emitMode: emitMode,
-                               lastKeyWasBoundary: lastTapKeyWasBoundary) {
+                               lastKeyWasBoundary: lastTapKeyWasBoundary,
+                               queueDrained: SyntheticKeyboard.queueDrained(),
+                               msSinceDelete: (DispatchTime.now().uptimeNanoseconds &- lastDeleteNs) / 1_000_000) {
             tryReEditWordTap(id: id)
         }
         lastTapKeyWasBoundary = false   // this key is a word key
@@ -2696,11 +2727,23 @@ final class TerminalTapController {
     /// just-typed space — issue #38 (2026-08-12): `git st` in PhpStorm's terminal
     /// seeded "git" across the space and the `s` of "st" became sắc → "gít".
     /// The keystream itself is the one boundary signal AX lag can't fake.
+    ///
+    /// Issue #62 (26/08/2026, Zalo): một loạt ⌫ nhanh rồi gõ phím dấu — seed đọc AX
+    /// khi các ⌫ synthetic còn đang bay nên thấy chữ "a" ĐÃ BỊ XÓA, engine thành
+    /// "a·s·a" và spell-freeze khôi phục raw "asa" trên màn hình. Hai gate mới:
+    /// queue synthetic phải drain hết, và không seed trong 500ms sau một ⌫ vật lý
+    /// (sửa-dấu-sau-⌫ đã có đường reopen riêng; seed ở đó chỉ có thể dựa trên
+    /// screen-state cũ).
+    static let reEditDeleteCooldownMs: UInt64 = 500
     static func reEditGateOpen(engineIsEmpty: Bool, reEditEnabled: Bool,
                               isDiacriticKey: Bool, emitMode: TapEmit,
-                              lastKeyWasBoundary: Bool) -> Bool {
+                              lastKeyWasBoundary: Bool,
+                              queueDrained: Bool = true,
+                              msSinceDelete: UInt64 = .max) -> Bool {
         engineIsEmpty && reEditEnabled && isDiacriticKey && emitMode == .backspace
             && !lastKeyWasBoundary
+            && queueDrained
+            && msSinceDelete >= Self.reEditDeleteCooldownMs
     }
 
     private func tryReEditWordTap(id: String?) {

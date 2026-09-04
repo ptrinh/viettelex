@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chế độ gõ trong ViệtTelex — chọn sao cho đúng?</title>
+<meta name="description" content="Giải thích dễ hiểu các chế độ gõ của ViệtTelex (Gõ trực tiếp, Tap, Marked text…) và cách đổi chế độ khi một app gõ sai.">
+<link rel="canonical" href="https://viettelex.com/typing-modes">
+<link rel="icon" href="assets/VietTelex-logo.png">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Chế độ gõ trong ViệtTelex">
+<meta property="og:description" content="Các chế độ gõ khác nhau thế nào, và đổi chế độ ra sao khi một app gõ sai.">
+<meta property="og:image" content="https://viettelex.com/assets/VietTelex-logo.png">
+<meta property="og:url" content="https://viettelex.com/typing-modes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #17233d;
+    --navy-2: #1e2d4e;
+    --red: #a81f1f;
+    --red-bright: #c22727;
+    --gold: #d4a94a;
+    --paper: #fbfaf7;
+    --ink: #1c2333;
+    --ink-soft: #55607a;
+    --line: #e6e2d8;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+    --sans: "Be Vietnam Pro", -apple-system, "Segoe UI", sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--sans); color: var(--ink); background: var(--paper); line-height: 1.65; }
+  a { color: var(--red); }
+
+  .hero { background: linear-gradient(175deg, var(--navy) 0%, var(--navy-2) 100%); color: #f2f0ea; padding: 48px 24px 56px; text-align: center; }
+  .hero a.home { color: #c6ccdb; text-decoration: none; font-size: .85rem; }
+  .hero a.home:hover { color: var(--gold); }
+  .hero h1 { margin-top: 10px; font-size: clamp(1.6rem, 4.5vw, 2.6rem); font-weight: 800; letter-spacing: -0.02em; }
+  .hero h1 .accent { color: var(--gold); }
+  .hero p.sub { margin: 14px auto 0; max-width: 36em; color: #c6ccdb; font-size: 1rem; }
+
+  section { padding: 48px 24px; }
+  .wrap { max-width: 880px; margin: 0 auto; }
+  h2 { font-size: clamp(1.3rem, 3vw, 1.7rem); font-weight: 800; margin-bottom: 6px; }
+  .lead { color: var(--ink-soft); max-width: 44em; margin-bottom: 26px; }
+
+  .modecard { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin-bottom: 14px; }
+  .modecard h3 { font-size: 1.05rem; font-weight: 700; }
+  .modecard h3 .tag { display: inline-block; margin-left: 8px; font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border-radius: 999px; padding: 2px 10px; vertical-align: 2px; }
+  .tag.good { background: #e8f2e5; color: #2e6b2e; }
+  .tag.ax { background: #efe9f7; color: #5b3d8f; }
+  .tag.safe { background: #eef0f6; color: #45507a; }
+  .modecard p { font-size: .93rem; color: var(--ink-soft); margin-top: 6px; }
+  .modecard .when { margin-top: 10px; font-size: .88rem; }
+  .modecard .when b { color: var(--ink); }
+  .underline-demo { text-decoration: underline dotted; text-underline-offset: 3px; }
+  code { font-family: var(--mono); font-size: .85em; background: #f3f1ea; padding: 1px 5px; border-radius: 5px; }
+
+  .rule { background: linear-gradient(160deg, var(--navy), var(--navy-2)); color: #eef; border-radius: 16px; padding: 24px 28px; }
+  .rule h2 { color: #fff; }
+  .rule ol { margin: 14px 0 0 20px; }
+  .rule li { margin-bottom: 10px; font-size: .96rem; }
+  .rule li b { color: var(--gold); }
+  .rule .note { margin-top: 14px; font-size: .85rem; color: #9aa3b8; }
+
+  ol.steps { margin: 0 0 0 20px; }
+  ol.steps li { margin-bottom: 12px; }
+  ol.steps b { color: var(--ink); }
+
+  /* CSS mock of the settings table */
+  .mock { background: #23262d; border-radius: 14px; padding: 18px; color: #e8eaf0; font-size: .86rem; box-shadow: 0 14px 40px rgba(20,28,48,.25); margin: 22px 0; overflow-x: auto; }
+  .mock .mocktitle { text-align: center; font-weight: 700; color: #c9cdd8; margin-bottom: 12px; font-size: .8rem; }
+  .mock table { border-collapse: collapse; width: 100%; min-width: 480px; }
+  .mock th { text-align: left; font-size: .72rem; color: #9aa1b2; font-weight: 600; padding: 6px 10px; border-bottom: 1px solid #3a3e48; }
+  .mock td { padding: 9px 10px; border-bottom: 1px solid #2e323b; vertical-align: middle; }
+  .mock .appname { font-weight: 600; color: #fff; }
+  .mock .bundle { font-size: .7rem; color: #8b91a0; }
+  .mock .select { display: inline-block; background: #3a3e48; border-radius: 7px; padding: 4px 26px 4px 12px; position: relative; white-space: nowrap; }
+  .mock .select::after { content: "⇕"; position: absolute; right: 8px; top: 4px; color: #9aa1b2; font-size: .75rem; }
+  .mock .select.picked { background: #2f6fed; color: #fff; }
+  .mock .hintline { margin-top: 12px; font-size: .74rem; color: #9aa1b2; }
+  .mockcaption { font-size: .82rem; color: var(--ink-soft); margin-top: -12px; margin-bottom: 22px; }
+
+  details.extra { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; margin-bottom: 10px; }
+  details.extra summary { cursor: pointer; font-weight: 700; font-size: .95rem; }
+  details.extra p { margin: 10px 0 2px; font-size: .9rem; color: var(--ink-soft); }
+
+  footer { padding: 36px 24px 48px; text-align: center; font-size: .84rem; color: var(--ink-soft); border-top: 1px solid var(--line); }
+  footer a { margin: 0 8px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <a class="home" href="https://viettelex.com/">← viettelex.com</a>
+  <h1>Chế độ gõ trong <span class="accent">ViệtTelex</span></h1>
+  <p class="sub">Mỗi app trên Mac nhận chữ theo một kiểu khác nhau, nên ViệtTelex có nhiều "chế độ gõ" và tự chọn chế độ phù hợp cho từng app. Bình thường bạn không phải làm gì cả — trang này dành cho lúc một app gõ bị sai.</p>
+</div>
+
+<section>
+  <div class="wrap">
+    <h2>3 chế độ chính</h2>
+    <p class="lead">Khác nhau ở <b>cách ViệtTelex "sửa" chữ trên màn hình</b> khi bạn bỏ dấu (gõ <code>vieejt</code> → <code>việt</code>).</p>
+
+    <div class="modecard">
+      <h3>Gõ trực tiếp <span class="tag good">nhanh nhất</span></h3>
+      <p>Nhờ chính app thay chữ giúp. Không gạch chân, mượt như gõ tiếng Anh. Đa số app dùng chế độ này (Notes, Word, Pages…).</p>
+      <p class="when"><b>Dấu hiệu app không hợp:</b> dấu rơi sai chỗ, chữ nhảy lung tung, mất chữ khi gõ nhanh.</p>
+    </div>
+
+    <div class="modecard">
+      <h3>Tap (backspace)</h3>
+      <p>ViệtTelex tự bấm phím xoá rồi gõ lại chữ có dấu — như một người gõ hộ bạn, app không phân biệt được với gõ tay. Không gạch chân. Cần cấp <b>quyền Trợ năng</b> (Accessibility) trong System Settings.</p>
+      <p class="when"><b>Hợp với:</b> Terminal, iTerm, Slack, Discord, VSCode, Zalo… <b>Nếu thiếu quyền Trợ năng</b> thì tự chuyển sang Marked text.</p>
+    </div>
+
+    <div class="modecard">
+      <h3>Marked text <span class="tag safe">an toàn nhất</span></h3>
+      <p>Cách gõ chuẩn của macOS: từ đang gõ có <span class="underline-demo">gạch chân</span>, gõ xong dấu cách thì thành chữ thật. Luôn ra đúng chữ, hoạt động ở mọi app — đổi lại là hơi vướng mắt.</p>
+      <p class="when"><b>Chọn khi:</b> hai chế độ trên đều gõ sai ở app đó.</p>
+    </div>
+
+    <details class="extra">
+      <summary>Các chế độ đặc biệt (hiếm khi cần chọn tay)</summary>
+      <p><b>Tự dò theo ô (AX)</b> — dành cho trình duyệt: thanh địa chỉ và nội dung trang cần cách gõ khác nhau, ViệtTelex tự dò từng ô. <b>Tap (chọn rồi ghi đè)</b> — cho ô soạn thảo của IDE có autocomplete. <b>Tap (Excel)</b> — riêng cho bảng tính Excel. <b>Passthrough (tắt IME)</b> — tắt hẳn ViệtTelex ở app đó, dành cho app remote desktop / máy ảo (máy bên kia tự bỏ dấu).</p>
+    </details>
+  </div>
+</section>
+
+<section style="padding-top: 8px;">
+  <div class="wrap">
+    <div class="rule">
+      <h2>App gõ sai? Thử theo thứ tự này</h2>
+      <ol>
+        <li>Ép app đó sang <b>Tap (backspace)</b> → gõ thử. Đa số trường hợp là xong.</li>
+        <li>Vẫn sai? Ép sang <b>Marked text</b> — luôn đúng chữ, chấp nhận có gạch chân.</li>
+        <li>Ổn rồi thì cứ giữ nguyên. Muốn quay về mặc định: chọn lại <b>Tự động</b>.</li>
+      </ol>
+      <p class="note">Mẹo: bấm biểu tượng ViệtTelex trên thanh menu — dòng "Chế độ gõ: …" cho biết app hiện tại đang dùng chế độ nào. Nếu app vẫn gõ sai sau cả 3 bước, hãy <a style="color:#d4a94a" href="https://github.com/ptrinh/viettelex/issues">báo lỗi</a> kèm tên app.</p>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top: 8px;">
+  <div class="wrap">
+    <h2>Cách đổi chế độ gõ cho một app</h2>
+    <ol class="steps">
+      <li>Bấm biểu tượng <b>ViệtTelex</b> trên thanh menu → <b>Cài đặt…</b></li>
+      <li>Mở tab <b>Bảng cơ chế gõ</b>.</li>
+      <li>Tìm app trong danh sách (gõ tên vào ô lọc). App chưa có trong danh sách? Nhập bundle id vào ô dưới cùng rồi bấm <b>Thêm</b>.</li>
+      <li>Ở cột <b>Ép tay</b>, chọn chế độ muốn thử:</li>
+    </ol>
+
+    <div class="mock" role="img" aria-label="Cửa sổ Cài đặt ViệtTelex, tab Bảng cơ chế gõ, đang mở menu Ép tay của Microsoft Word">
+      <div class="mocktitle">ViệtTelex — Cài đặt · Bảng cơ chế gõ</div>
+      <table>
+        <tr><th>Ứng dụng</th><th>Đã nhận diện</th><th>Ép tay</th></tr>
+        <tr>
+          <td><div class="appname">Microsoft Word</div><div class="bundle">com.microsoft.Word</div></td>
+          <td>Gõ trực tiếp</td>
+          <td><span class="select picked">Tap (backspace)</span></td>
+        </tr>
+        <tr>
+          <td><div class="appname">Notes</div><div class="bundle">com.apple.Notes</div></td>
+          <td>Gõ trực tiếp</td>
+          <td><span class="select">Tự động</span></td>
+        </tr>
+        <tr>
+          <td><div class="appname">Safari</div><div class="bundle">com.apple.Safari</div></td>
+          <td>Tự dò theo ô (AX)</td>
+          <td><span class="select">Tự động</span></td>
+        </tr>
+      </table>
+      <div class="hintline">Ép tay = ghi đè lựa chọn tự động, chỉ áp dụng cho app đó. "Tự động" = trả về mặc định.</div>
+    </div>
+    <p class="mockcaption">Cột "Đã nhận diện" là chế độ ViệtTelex đang tự dùng; cột "Ép tay" là lựa chọn của bạn.</p>
+
+    <ol class="steps" start="5">
+      <li>Quay lại app và <b>gõ thử ngay</b> — thay đổi có hiệu lực tức thì, không cần khởi động lại.</li>
+    </ol>
+  </div>
+</section>
+
+<footer>
+  <a href="https://viettelex.com/">Trang chủ</a> ·
+  <a href="https://github.com/ptrinh/viettelex">GitHub</a> ·
+  <a href="https://github.com/ptrinh/viettelex/issues">Báo lỗi</a>
+  <div style="margin-top:8px;">© 2026 ViệtTelex</div>
+</footer>
+
+</body>
+</html>

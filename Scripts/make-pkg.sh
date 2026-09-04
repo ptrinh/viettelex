@@ -39,8 +39,21 @@ fi
 rm -rf "$WORK"; mkdir -p "$WORK/payload" "$WORK/scripts"
 /usr/bin/ditto "$APP" "$WORK/payload/VietTelex.app"
 
-echo "→ compiling + signing register helper"
-swiftc -O "$RES/register-source.swift" -framework Carbon -o "$WORK/scripts/register-source"
+echo "→ compiling + signing register helper (universal)"
+# UNIVERSAL bắt buộc: helper chỉ-arm64 trên Mac Intel chết với "bad CPU type"
+# (exit 127) và postinstall nuốt lỗi — cài "successful" nhưng input source không
+# bao giờ được đăng ký (issue #69, 04/09/2026, iMac i5-9600K). Rosetta không dịch
+# chiều x86_64→arm64 nên không có lưới đỡ nào ngoài build đủ 2 arch.
+swiftc -O "$RES/register-source.swift" -framework Carbon \
+       -target arm64-apple-macos12 -o "$WORK/scripts/register-source-arm64"
+swiftc -O "$RES/register-source.swift" -framework Carbon \
+       -target x86_64-apple-macos12 -o "$WORK/scripts/register-source-x86_64"
+lipo -create "$WORK/scripts/register-source-arm64" "$WORK/scripts/register-source-x86_64" \
+     -output "$WORK/scripts/register-source"
+rm "$WORK/scripts/register-source-arm64" "$WORK/scripts/register-source-x86_64"
+# Hàng rào: pkg không bao giờ được ship helper thiếu arch nữa.
+lipo -archs "$WORK/scripts/register-source" | grep -q "x86_64" || { echo "register-source thiếu x86_64"; exit 1; }
+lipo -archs "$WORK/scripts/register-source" | grep -q "arm64"  || { echo "register-source thiếu arm64"; exit 1; }
 codesign --force --options runtime --timestamp --sign "$APP_SIGN_ID" "$WORK/scripts/register-source"
 cp "$RES/postinstall" "$WORK/scripts/postinstall"
 chmod +x "$WORK/scripts/postinstall"

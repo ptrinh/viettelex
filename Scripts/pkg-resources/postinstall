@@ -63,8 +63,12 @@ run_as_user pkill -x VietTelex 2>/dev/null
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 "$LSREGISTER" -f "$APP" 2>/dev/null
 
-# Register + best-effort enable, inside the user's GUI session.
-run_as_user "$DIR/register-source" "$APP" 2>/dev/null
+# Register + best-effort enable, inside the user's GUI session. KHÔNG nuốt lỗi
+# nữa (issue #69: helper arm64-only fail exit 127 hoàn toàn im lặng trên Intel) —
+# stderr + exit code đi vào install.log để lần sau nhìn thấy ngay.
+if ! run_as_user "$DIR/register-source" "$APP"; then
+    echo "viettelex postinstall: register-source FAILED (exit $?) — input source chưa được đăng ký; user cần log out/in rồi thêm tay" >&2
+fi
 
 # Drop the user straight into System Settings → Keyboard for the final "＋" step,
 # and open the illustrated install guide (screenshots were removed from the

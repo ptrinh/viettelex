@@ -126,4 +126,20 @@ mainMenu.addItem(windowItem)
 
 NSApplication.shared.mainMenu = mainMenu
 
+// Mở lại app bundle (double-click VietTelex.app trong /Library/Input Methods,
+// hoặc `open -b com.viettelex.inputmethod.telex`) → hiện Cài đặt. Lối thoát khi
+// menu input source không dùng được — issue #61 (25/08/2026): BetterMouse chen
+// event tap làm TextInputMenuAgent chỉ vẽ được "…" thay cho menu của mình; user
+// không còn đường nào tới Cài đặt. macOS gửi reopen cho instance đang chạy
+// (LaunchServices không spawn process IME thứ hai), nên delegate này là đủ.
+final class ReopenDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldHandleReopen(_ sender: NSApplication,
+                                       hasVisibleWindows flag: Bool) -> Bool {
+        if !isTestHost { SettingsWindowController.shared.show(tab: .general) }
+        return false
+    }
+}
+let reopenDelegate = ReopenDelegate()          // held for the process lifetime
+NSApplication.shared.delegate = reopenDelegate
+
 NSApplication.shared.run()

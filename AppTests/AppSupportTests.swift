@@ -638,6 +638,30 @@ final class ReEditWordTests: XCTestCase {
 // itself needs a live focused element, same limitation as the IMKit version above.
 final class ReEditWordTapGateTests: XCTestCase {
 
+    /// Issue #62 (Zalo, 26/08/2026): ⌫ nhanh rồi gõ "s" → seed AX cũ → "asa".
+    /// Seed bị cấm trong cooldown sau ⌫ vật lý và khi queue synthetic chưa drain.
+    func testNoSeedRightAfterPhysicalDelete() {
+        // Trong cooldown 500ms sau ⌫ → đóng gate (chuỗi lỗi của #62).
+        XCTAssertFalse(TerminalTapController.reEditGateOpen(
+            engineIsEmpty: true, reEditEnabled: true, isDiacriticKey: true, emitMode: .backspace,
+            lastKeyWasBoundary: false, queueDrained: true, msSinceDelete: 80))
+        XCTAssertFalse(TerminalTapController.reEditGateOpen(
+            engineIsEmpty: true, reEditEnabled: true, isDiacriticKey: true, emitMode: .backspace,
+            lastKeyWasBoundary: false, queueDrained: true,
+            msSinceDelete: TerminalTapController.reEditDeleteCooldownMs - 1))
+        // Hết cooldown → mở lại.
+        XCTAssertTrue(TerminalTapController.reEditGateOpen(
+            engineIsEmpty: true, reEditEnabled: true, isDiacriticKey: true, emitMode: .backspace,
+            lastKeyWasBoundary: false, queueDrained: true,
+            msSinceDelete: TerminalTapController.reEditDeleteCooldownMs))
+    }
+
+    func testNoSeedWhileSyntheticQueueInFlight() {
+        XCTAssertFalse(TerminalTapController.reEditGateOpen(
+            engineIsEmpty: true, reEditEnabled: true, isDiacriticKey: true, emitMode: .backspace,
+            lastKeyWasBoundary: false, queueDrained: false, msSinceDelete: .max))
+    }
+
     func testOpensOnlyInBackspaceEmitMode() {
         XCTAssertTrue(TerminalTapController.reEditGateOpen(
             engineIsEmpty: true, reEditEnabled: true, isDiacriticKey: true, emitMode: .backspace,

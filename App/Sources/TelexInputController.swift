@@ -295,6 +295,18 @@ final class TelexInputController: IMKInputController {
             }
         }
 
+        // Word-table class (maintainer repro 23/08/2026): the tap witnessed a
+        // Tab/arrow that this client swallowed — handle() never saw it, so the word
+        // this key would continue was in fact ended in another cell/position. Drop
+        // BEFORE processing, so this key starts a fresh word anchored at the REAL
+        // caret. Same recovery as the mouse-click .telexResetComposition path,
+        // which is exactly why clicking into the next cell already worked.
+        if NavKeyWitness.consume(keycode: Int64(event.keyCode)) {
+            logDecision("nav key swallowed by app → composition dropped before this key")
+            dropComposition(cause: "nav-key-swallowed")
+            onLen = 0
+        }
+
         // A real key reaching handle() proves VietTelex is the selected source —
         // un-latch a stale imeActive=false so tap-mode apps aren't left dormant
         // (see noteIMKKeyProvesSelected).
@@ -340,7 +352,7 @@ final class TelexInputController: IMKInputController {
         }
         if earlyManual == nil,
            ClientPolicy.isRemoteDesktop(earlyID)
-               || earlyID.map({ AppState.builtInPassthroughApps.contains($0) }) == true,
+               || earlyID.map({ AppState.isBuiltInPassthrough($0) }) == true,
            !(Accessibility.isTrusted && FocusedFieldDetector.isTextInput) {
             logDecision("handle \(earlyID ?? "?"): remote-desktop → discard (raw passthrough)")
             discardComposition(); return false
@@ -1627,6 +1639,10 @@ final class TelexInputController: IMKInputController {
         SecureFieldDetector.invalidate()
         FocusedFieldDetector.invalidate()
         dropComposition(cause: "activateServer")
+        // A nav-key stamp left by the previous client must not drop the first word
+        // typed in this one (NavKeyWitness — the very key that moved focus here may
+        // have been a swallowed Tab).
+        NavKeyWitness.reset()
         engine.resetContext()   // new field/app: don't inherit the last word's English context
         fieldVerified = false
         fieldForcedMarked = false
@@ -1823,7 +1839,7 @@ final class TelexInputController: IMKInputController {
                                     + strategyLabel(AppState.shared.currentBundleID, localized: true),
                                  action: #selector(copyStrategySnapshot(_:)), keyEquivalent: "")
         strategy.target = self
-        strategy.toolTip = VTLocalized("Click to copy the debug info explaining this choice")
+        strategy.toolTip = VTLocalized("Click: open the typing-modes guide + copy debug info")
         menu.addItem(strategy)
 
         // Everything else lives in the Settings window (Chung + Gõ tắt tabs). The menu
@@ -2093,10 +2109,22 @@ final class TelexInputController: IMKInputController {
         SettingsWindowController.shared.show(tab: .general)
     }
 
+    /// Trang giải thích các kiểu gõ (In-place/Tap/Marked…) — GitHub render sẵn
+    /// docs/TYPING-STRATEGIES.md; GitHub Pages serve .md dạng raw nên không dùng
+    /// viettelex.com cho file này.
+    static let typingModesGuideURL = "https://ptrinh.github.io/viettelex/typing-modes"
+
     @objc private func copyStrategySnapshot(_ sender: Any?) {
-        // Async: menu input-method còn đang đóng, alert phát đồng bộ từ đó không hiện
-        // (cùng lý do đã ghi ở showStatus).
-        DispatchQueue.main.async { [weak self] in self?.showDebugLog() }
+        // Async: menu input-method còn đang đóng (cùng lý do đã ghi ở showStatus).
+        // Click dòng "Chế độ gõ": copy debug VÀ mở trang hướng dẫn các kiểu gõ
+        // (maintainer 23/08 — user cuối bấm vào vì muốn hiểu, dev/tester thì cần
+        // snapshot; browser mở ra là feedback đủ rõ nên bỏ alert ở đường này).
+        DispatchQueue.main.async { [weak self] in
+            self?.showDebugLog(alert: false)
+            if let url = URL(string: Self.typingModesGuideURL) {
+                NSWorkspace.shared.open(url)
+            }
+        }
     }
 
     @objc private func showStatus(_ sender: Any?) {
@@ -2225,7 +2253,7 @@ final class TelexInputController: IMKInputController {
         return localized ? VTLocalized("In-place") : "IMKit · in-place"
     }
 
-    private func showDebugLog() {
+    private func showDebugLog(alert: Bool = true) {
         // Snapshot là lúc user đang thắc mắc "sao thế này" — re-check secure input
         // ngay thay vì đợi nhịp poll 5s.
         SecureInputMonitor.shared.check(reason: "snapshot")
@@ -2279,11 +2307,12 @@ final class TelexInputController: IMKInputController {
         let text = lines.joined(separator: "\n")
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        let alert = NSAlert()
-        alert.messageText = VTLocalized("Debug info copied")
-        alert.informativeText = VTLocalized("Paste it into your bug report (⌘V).")
-        alert.addButton(withTitle: VTLocalized("OK"))
-        alert.runModal()
+        guard alert else { return }   // đường mở-web: browser hiện ra là feedback đủ
+        let box = NSAlert()
+        box.messageText = VTLocalized("Debug info copied")
+        box.informativeText = VTLocalized("Paste it into your bug report (⌘V).")
+        box.addButton(withTitle: VTLocalized("OK"))
+        box.runModal()
     }
 
 }
