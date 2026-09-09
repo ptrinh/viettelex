@@ -130,6 +130,8 @@ final class VNITests: XCTestCase {
         // Same mark digit twice cancels → mark gone, digit literal.
         XCTAssertEqual(vni("a66"), "a6")
         XCTAssertEqual(vni("a88"), "a8")
+        XCTAssertEqual(vni("u77"), "u7")
+        XCTAssertEqual(vni("o77"), "o7")
         XCTAssertEqual(vni("d99"), "d9")
         // Lone 0 with no tone is a literal digit.
         XCTAssertEqual(vni("a0"), "a0")

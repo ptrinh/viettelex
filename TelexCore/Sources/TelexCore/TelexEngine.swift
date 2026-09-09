@@ -1862,12 +1862,14 @@ public struct TelexEngine {
                 if Self.vniMarkAccepts(base: letters[k].base, mark: mark) {
                     // "uu" nucleus: 7 (horn) đặt lên chữ u ĐẦU (→ ưu: lưu, cứu, hưu)
                     // — "uư" không phải nhân âm tiếng Việt. Cùng luật với w-handler
-                    // Telex ("luuw"→lưu), cùng ngoại lệ "qu" (glide giữ nguyên).
-                    // Issue #66 (29/08/2026): VNI "uu7" ra "uư" thay vì "ưu".
+                    // Telex ("luuw"→lưu, "luuww"→luuw): predecessor u may already
+                    // be horned so the second 7 CANCELS that ư ("luu77"→luu7), and
+                    // cancel must use `target` not `k` or the leftover u gets
+                    // horned instead. Cùng ngoại lệ "qu". Issue #66 (29/08/2026).
                     var target = k
                     if mark == .horn, target >= 1,
                        letters[target].base == UInt8(ascii: "u"), letters[target].mark == .none,
-                       letters[target - 1].base == UInt8(ascii: "u"), letters[target - 1].mark == .none,
+                       letters[target - 1].base == UInt8(ascii: "u"),
                        !(target >= 2 && letters[target - 2].base == UInt8(ascii: "q")) {
                         target -= 1
                     }
@@ -1876,8 +1878,8 @@ public struct TelexEngine {
                         rawLetter[at] = target
                         return
                     }
-                    if letters[k].mark == mark {        // re-applied → cancel, literal digit
-                        letters[k].mark = .none
+                    if letters[target].mark == mark {   // re-applied → cancel, literal digit
+                        letters[target].mark = .none
                         pCancelled = true
                         appendLetter(base: key, mark: .none, upper: false)
                         rawLetter[at] = pCount - 1
