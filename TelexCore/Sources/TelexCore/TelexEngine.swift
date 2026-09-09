@@ -1533,6 +1533,15 @@ public struct TelexEngine {
                         rawLetter[toneKeys[j]] = pCount - 1
                     }
                     pToneKeyCount = 0
+                } else if stopCodaRejectsTone(t) {
+                    // OpenKey (`if !isChanged insertKey`): huyền/hỏi/ngã on a
+                    // stop coda are a no-op — render() would drop them and the
+                    // key vanished ("sec"+"r" stayed "sec", so "secret" needed
+                    // a doubled r). Type the letter instead. Tone-THEN-coda
+                    // ("baft"→bat) still drops at render: the tone was legal
+                    // when typed.
+                    appendLetter(base: lower, mark: .none, upper: upper)
+                    rawLetter[at] = pCount - 1
                 } else {
                     pTone = t
                     // English/code signal ONLY when a lowercase letter came BEFORE
@@ -1812,6 +1821,9 @@ public struct TelexEngine {
                         rawLetter[toneKeys[j]] = pCount - 1
                     }
                     pToneKeyCount = 0
+                } else if stopCodaRejectsTone(t) {
+                    appendLetter(base: key, mark: .none, upper: false)
+                    rawLetter[at] = pCount - 1
                 } else {
                     pTone = t
                     rawLetter[at] = -1
@@ -2088,6 +2100,39 @@ public struct TelexEngine {
             return true
         }
         return false
+    }
+
+    /// Parse-time twin of `hasStopCoda` — `renderLetters` is stale inside parseStep.
+    @inline(__always)
+    private func lettersHaveStopCoda(_ count: Int) -> Bool {
+        guard count > 0 else { return false }
+        let last = letters[count - 1].base
+        if last == UInt8(ascii: "p") || last == UInt8(ascii: "t")
+            || last == UInt8(ascii: "c") || last == UInt8(ascii: "k") {
+            return true
+        }
+        if last == UInt8(ascii: "h"), count >= 2, letters[count - 2].base == UInt8(ascii: "c") {
+            return true
+        }
+        return false
+    }
+
+    /// Parse-time twin of `isUkRime`.
+    @inline(__always)
+    private func lettersAreUkRime(_ count: Int) -> Bool {
+        count >= 2 && letters[count - 1].base == UInt8(ascii: "k")
+            && letters[count - 2].base == UInt8(ascii: "u")
+            && letters[count - 2].mark == .horn
+    }
+
+    /// True when applying `tone` now would be silently dropped by render()
+    /// (huyền/hỏi/ngã on a stop coda, except ừk). The key should be a letter.
+    @inline(__always)
+    private func stopCodaRejectsTone(_ tone: Tone) -> Bool {
+        guard tone == .grave || tone == .hook || tone == .tilde else { return false }
+        guard lettersHaveStopCoda(pCount) else { return false }
+        if tone == .grave && lettersAreUkRime(pCount) { return false }
+        return true
     }
 
     @inline(__always)

@@ -152,6 +152,17 @@ final class VNITests: XCTestCase {
         XCTAssertEqual(vniCommit("hello"), "hello")
     }
 
+    // Invalid VNI tone digits after a stop coda type through (same OpenKey rule
+    // as Telex s/f/r/x/j): "sec3" must stay "sec3", not swallow 3 as hỏi.
+    func testStopCodaRejectsToneDigitAsLiteral() {
+        XCTAssertEqual(vni("sec3"), "sec3")
+        XCTAssertEqual(vni("bat2"), "bat2")
+        XCTAssertEqual(vni("bat3"), "bat3")
+        XCTAssertEqual(vni("bat4"), "bat4")
+        XCTAssertEqual(vni("bat1"), "bát")   // sắc still lands
+        XCTAssertEqual(vni("bat5"), "bạt")   // nặng still lands
+    }
+
     // MARK: Boundary restore reverts invalid VNI tokens
 
     func testInvalidTokenRestoresRaw() {

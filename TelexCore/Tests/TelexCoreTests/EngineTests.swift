@@ -678,8 +678,10 @@ final class EngineGoldenTests: XCTestCase {
     }
 
     // B2: stop codas -p, -t, -c, -ch only allow sắc (´) and nặng (.). An invalid
-    // huyền/hỏi/ngã is dropped (the syllable keeps no tone) rather than composing
-    // an illegal word like "bàt".
+    // huyền/hỏi/ngã typed AFTER the coda is a literal letter (OpenKey: if the
+    // tone cannot land, insert the key) rather than composing "bàt" OR swallowing
+    // the key ("sec"+"r" used to stay "sec"). Tone typed BEFORE the coda still
+    // drops at render — it was legal when entered.
     func testStopCodaToneConstraint() {
         // Allowed: sắc / nặng.
         XCTAssertEqual(compose("bats"), "bát")
@@ -688,13 +690,18 @@ final class EngineGoldenTests: XCTestCase {
         XCTAssertEqual(compose("hocj"), "học")
         XCTAssertEqual(compose("caps"), "cáp")
 
-        // Rejected on stop coda -> tone dropped.
-        XCTAssertEqual(compose("batf"), "bat")   // no huyền on -t
-        XCTAssertEqual(compose("batr"), "bat")   // no hỏi on -t
-        XCTAssertEqual(compose("batx"), "bat")   // no ngã on -t
-        XCTAssertEqual(compose("sachf"), "sach") // no huyền on -ch
-        XCTAssertEqual(compose("capr"), "cap")   // no hỏi on -p
-        XCTAssertEqual(compose("hocf"), "hoc")   // no huyền on -c
+        // Rejected on stop coda -> key is a letter, not a vanished tone.
+        XCTAssertEqual(compose("batf"), "batf")   // no huyền on -t
+        XCTAssertEqual(compose("batr"), "batr")   // no hỏi on -t
+        XCTAssertEqual(compose("batx"), "batx")   // no ngã on -t
+        XCTAssertEqual(compose("sachf"), "sachf") // no huyền on -ch
+        XCTAssertEqual(compose("capr"), "capr")   // no hỏi on -p
+        XCTAssertEqual(compose("hocf"), "hocf")   // no huyền on -c
+
+        // Tone first, then stop coda: still dropped at render (illegal "bàt").
+        XCTAssertEqual(compose("baft"), "bat")
+        XCTAssertEqual(compose("bart"), "bat")
+        XCTAssertEqual(compose("baxt"), "bat")
 
         // Non-stop codas (-n, -ng, -nh, -m) still allow every tone.
         XCTAssertEqual(compose("banf"), "bàn")
@@ -703,17 +710,32 @@ final class EngineGoldenTests: XCTestCase {
         XCTAssertEqual(compose("lamf"), "làm")
     }
 
+    // User report: typing "secret" in Vietnamese Telex required "secrret" because
+    // the first r after "sec" was consumed as hỏi and then dropped on stop coda -c.
+    func testSecretDoesNotSwallowRAfterStopCoda() {
+        XCTAssertEqual(compose("secr"), "secr")
+        XCTAssertEqual(compose("secret"), "secret")
+        XCTAssertEqual(composeSpell("secret"), "secret")
+        XCTAssertEqual(commit("secret"), "secret")
+        XCTAssertEqual(commit("secrets"), "secrets")
+        // ưk exception: huyền still lands; hỏi/ngã still cannot (literal).
+        XCTAssertEqual(compose("uwkf"), "ừk")
+        XCTAssertEqual(compose("uwkr"), "ưkr")
+        XCTAssertEqual(compose("uwkx"), "ưkx")
+    }
+
     // Regression: the render-time tone drop must cover EXACTLY the stop codas the
     // validator's toneMask calls stop — including -k (ak/ăk/ưk: Đắk, Lắk). "bakf"
     // used to render "bàk" (an illegal syllable that only the boundary auto-restore
-    // cleaned up) while "batf" silently dropped the huyền. Parity across all five.
+    // cleaned up). Invalid tones AFTER the coda are now letters; tone-THEN-coda
+    // still drops at render. Parity across all five.
     func testStopCodaToneDropParityAcrossAllCodas() {
-        // Invalid tones (huyền/hỏi/ngã) are dropped, not composed, on every stop coda.
+        // Invalid tones after a stop coda type through as letters.
         for (coda, keys) in [("t", "bat"), ("c", "bac"), ("p", "bap"),
                              ("ch", "bach"), ("k", "bak")] {
             for tone in ["f", "r", "x"] {
-                XCTAssertEqual(compose(keys + tone), keys,
-                               "tone \(tone) must be dropped on stop coda -\(coda)")
+                XCTAssertEqual(compose(keys + tone), keys + tone,
+                               "tone \(tone) must type through on stop coda -\(coda)")
             }
         }
         // …and the legal sắc/nặng on a -k rime still compose (Đắk Lắk, "ưk").
@@ -725,11 +747,10 @@ final class EngineGoldenTests: XCTestCase {
         // Bare "k" is a stop coda; "kh"/"ng" are not — a following tone key still lands.
         XCTAssertEqual(compose("khof"), "khò")
         XCTAssertEqual(compose("bangf"), "bàng")
-        // A -k word that is not Vietnamese still reverts to the raw keys at the
-        // boundary; dropping the tone must not make the word look valid.
+        // A -k word that is not Vietnamese stays the raw keys (f is now a letter).
         var e = TelexEngine(); e.liveSpellCheck = true
         for ch in "bakf" { _ = e.feed(ch) }
-        XCTAssertEqual(e.composed, "bak")
+        XCTAssertEqual(e.composed, "bakf")
         XCTAssertEqual(e.commitText(autoRestore: true), "bakf")
     }
 
