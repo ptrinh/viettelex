@@ -31,6 +31,7 @@ final class ModeMatrixTests: XCTestCase {
         "cw", "kw", "uw", "cuw", "thw", "ngw", "windows", "ew", "giw",
         "hoas", "khoer", "thuys", "hoef", "muaf", "mias", "toans", "nguowif",
         "truowngf", "dduowcj", "nuawx", "nuwax", "ddaay", "tieengs", "vieejt",
+        "huaww", "huawwei", "luuww", "waw", "waww",
     ]
 
     // freeMarking flip: rebuild path — must equal from-start for every flip point.

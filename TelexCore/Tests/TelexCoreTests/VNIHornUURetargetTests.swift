@@ -27,5 +27,16 @@ final class VNIHornUURetargetTests: XCTestCase {
     func testQuGlideExcluded() {
         // "qu" glide: chữ u sau q không phải target horn-retarget (giống Telex).
         XCTAssertEqual(vni("quu7"), "quư")
+        XCTAssertEqual(vni("quu77"), "quu7")   // cancel the last-u horn, not retarget
+    }
+
+    /// Second 7 undoes ư on the first u (Telex `luuww`→luuw), instead of horning
+    /// the leftover u (`lưư`). Cancel must follow the retargeted `target`.
+    func testSecondHornCancelsFirstU() {
+        XCTAssertEqual(vni("luu77"), "luu7")
+        XCTAssertEqual(vni("uu77"), "uu7")
+        XCTAssertEqual(vni("cuu775"), "cuu75")  // further digits stay literal
+        XCTAssertEqual(vni("tu77"), "tu7")      // single u: cancel still on that u
+        XCTAssertEqual(vni("hua77"), "hua7")    // 7 never targets a; second 7 cancels ư
     }
 }

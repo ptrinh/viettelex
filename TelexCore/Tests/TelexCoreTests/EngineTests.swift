@@ -518,6 +518,65 @@ final class EngineGoldenTests: XCTestCase {
         // "qu" glide keeps breve on a (the u belongs to the onset, not retargeted).
         XCTAssertEqual(compose("quawt"), "quăt")   // w adjacent to a -> breve, not horn-u
         XCTAssertEqual(compose("quaw"), "quă")
+
+        // Cancel mirror of the ua retarget (Laban/UniKey parity): the leftover
+        // unmarked a is NOT a new breve target. One more w undoes ư and types
+        // literal w, so "huawei" is visible while typing — not "hưă" until space.
+        XCTAssertEqual(compose("huaw"), "hưa")
+        XCTAssertEqual(compose("huaww"), "huaw")
+        XCTAssertEqual(compose("huawwe"), "huawe")
+        XCTAssertEqual(compose("huawwei"), "huawei")
+        XCTAssertEqual(commit("huawwei"), "huawei")
+        XCTAssertEqual(commit("huaww"), "huaw")     // trailing cancel keeps the screen
+        XCTAssertEqual(compose("muaww"), "muaw")
+        XCTAssertEqual(compose("chuaww"), "chuaw")
+        XCTAssertEqual(composeSimple("huaww"), "huaw")
+        XCTAssertEqual(composeFree("huaww"), "huaw")
+        XCTAssertEqual(composeSpell("huaww"), "huaw")
+        // "oa"/"qu" still breve-then-cancel on a (the retarget never applied).
+        XCTAssertEqual(compose("hoaww"), "hoaw")
+        XCTAssertEqual(compose("quaww"), "quaw")
+        // Same cancel shape on the "uu" nucleus: lưu + w → luuw, not lưư.
+        XCTAssertEqual(compose("luuw"), "lưu")
+        XCTAssertEqual(compose("luuww"), "luuw")
+        XCTAssertEqual(commit("luuww"), "luuw")
+        XCTAssertEqual(composeFree("luuww"), "luuw")
+
+        // Standalone-w ư is not a typed-u retarget: the next w breves/horns the
+        // leftover vowel (classic Telex), instead of consuming w at a distance.
+        XCTAssertEqual(compose("waw"), "ưă")
+        XCTAssertEqual(compose("waww"), "ưaw")      // ă-cancel, same as aww→aw
+        XCTAssertEqual(compose("thwaw"), "thưă")
+        XCTAssertEqual(compose("wuw"), "ưư")
+        // Typed-u cancel still works with a tone already on the syllable; the
+        // literal w is a coda so the tone re-homes onto a (same as awsw→áw).
+        XCTAssertEqual(compose("nuawxw"), "nuãw")
+    }
+
+    /// ⌫ after the ua-horn cancel must drop the literal w (back to hưa), never
+    /// desync into extra w's on screen ("huawww").
+    func testUaHornCancelBackspace() {
+        var e = TelexEngine()
+        for ch in "huaww" { _ = e.feed(ch) }
+        XCTAssertEqual(e.composed, "huaw")
+        _ = e.backspace()
+        XCTAssertEqual(e.composed, "hưa")
+        XCTAssertEqual(compose(e.rawKeystrokes), e.composed)
+        _ = e.backspace()
+        XCTAssertEqual(e.composed, "hư")           // drop displayed 'a'; leftover huw → hư
+        XCTAssertEqual(compose(e.rawKeystrokes), e.composed)
+    }
+
+    /// Standalone-w ư + a + w must stay ưă (not consume w). ⌫ drops the whole ă
+    /// (a + the breve w), leaving ư — same provenance as `aw` → ă → ⌫.
+    func testStandaloneWUaKeepsBreveBackspace() {
+        var e = TelexEngine()
+        for ch in "waw" { _ = e.feed(ch) }
+        XCTAssertEqual(e.composed, "ưă")
+        _ = e.backspace()
+        XCTAssertEqual(e.composed, "ư")
+        XCTAssertEqual(compose(e.rawKeystrokes), e.composed)
+        XCTAssertEqual(e.rawKeystrokes, "w")
     }
 
     // Simple Telex: a standalone w is ALWAYS literal — type `uw` for ư.
@@ -876,6 +935,10 @@ final class EngineGoldenTests: XCTestCase {
             ("ooo", "oo"),
             ("ddd", "dd"),
             ("aww", "aw"),
+            ("huaww", "huaw"), // ua-horn cancel, not hưă
+            ("luuww", "luuw"),
+            ("waw", "ưă"),    // standalone-w ư stays; w breves a
+            ("waww", "ưaw"),
             ("ass", "as"),   // double sắc cancels, literal s
             ("aff", "af"),
             ("arr", "ar"),
@@ -1084,5 +1147,19 @@ final class BracketVowelTests: XCTestCase {
         }
         XCTAssertEqual(e.composed, "th")
         XCTAssertEqual(e.rawKeystrokes, "th")
+    }
+
+    /// ua-retarget cancel also hits a `]`-typed ư (stored as u+horn). That ư was
+    /// not created by w, so cancel strips the horn and appends w — same gesture
+    /// as `huaww`, not a new breve on the leftover a.
+    func testUaCancelOnBracketHorn() {
+        var e = TelexEngine(); e.bracketVowels = true
+        for ch in "h]aw" { _ = e.feed(ch) }
+        XCTAssertEqual(e.composed, "huaw")
+        XCTAssertEqual(e.rawKeystrokes, "h]aw")
+        XCTAssertEqual(e.commitText(autoRestore: true), "huaw")
+        var f = TelexEngine(); f.bracketVowels = true
+        for ch in "]aw" { _ = f.feed(ch) }
+        XCTAssertEqual(f.composed, "uaw")
     }
 }
