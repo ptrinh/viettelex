@@ -228,6 +228,11 @@ Bấm “Sửa tự động”: VietTelex tự xoá mục bị kẹt của chín
 "Vietnamese typing is blocked (Secure Input)" = "Gõ tiếng Việt đang bị chặn (Secure Input)";
 "If this is Terminal/iTerm2: turn off “Secure Keyboard Entry”" = "Nếu là Terminal/iTerm2: tắt “Secure Keyboard Entry” trong menu app đó";
 "Status: Blocked by Secure Input" = "Trạng thái: Bị chặn bởi Secure Input";
+"%@ left Secure Input on — click its window then click away, or quit it" = "%@ giữ Secure Input — bấm vào cửa sổ đó rồi bấm ra, hoặc thoát app";
+"loginwindow is listed, but %@ often holds Secure Input after sleep — click it then click away, or quit it" = "Hệ thống ghi loginwindow nhưng %@ hay giữ khoá sau khi ngủ — bấm vào nó rồi bấm ra, hoặc thoát";
+"loginwindow is holding Secure Input after sleep — lock the screen (⌃⌘Q) and unlock" = "loginwindow giữ Secure Input sau khi ngủ — khoá màn hình (⌃⌘Q) rồi mở lại";
+"An app is holding Secure Input (a password field) — click away from that field, or quit the app named above" = "Một app đang giữ Secure Input (ô mật khẩu) — bấm ra khỏi ô đó, hoặc thoát app ghi ở trên";
+"Switch to %@ (then click away)" = "Bấm sang %@ (rồi bấm ra)";
 
 /* Sticky input source (field report 15/08/2026 — ô comment Word reset bộ gõ) */
 "Keep VietTelex when macOS auto-switches the input source (experimental)" = "Giữ VietTelex khi macOS tự đổi bộ gõ (thử nghiệm)";

@@ -537,6 +537,46 @@ Không chặn trước được: secure input là nguyên thủy bảo mật c�
 cho app thứ ba từ chối/nhả hộ (cố tình — nhả hộ được thì malware cũng làm được).
 Fix gốc thuộc về app giữ khoá (lớp bug Electron: Enable không Disable khi thoát).
 
+## 1Password sau sleep giữ Secure Input — 2026-09-09 (EVKey/OpenKey/VietTelex cùng chết)
+
+Triệu chứng (Facebook, lặp lại trên EVKey #30 / OpenKey #179 / 1Password
+Community #25014–#25015): mở máy từ sleep, **nếu 1Password đang mở** thì không
+gõ được Telex ở mọi app. Quit 1Password → gõ lại được. Đổi sang EVKey/OpenKey
+cũng chết y hệt — không phải bug Telex, không phải conflict keymap.
+
+Chuỗi nhân quả:
+
+1. 1Password bật `EnableSecureEventInput` khi hiện ô mật khẩu (khoá vault lúc
+   sleep: setting "Lock when device locks or sleeps").
+2. Sau wake, ô mật khẩu của 1Password **vẫn highlighted** dù app khác đang
+   focus — 1Password không gọi `DisableSecureEventInput` (TN2150: process tự
+   Enable thì phải tự Disable cả khi mất focus; Cocoa `NSSecureTextField` thì
+   hệ thống lo hộ, custom field thì không).
+3. macOS vô hiệu **mọi IME bên thứ ba** khi SI active; `CGEventTap` cũng không
+   nhận phím. Apple Simple Telex (first-party) thường vẫn chọn được.
+4. `ioreg -l | grep kCGSSessionSecureInputPID` hay **báo nhầm `loginwindow`**
+   — không tin PID đó là thủ phạm thật. Quit 1Password vẫn nhả khoá dù ioreg
+   không ghi tên nó.
+
+Gỡ, rẻ → chắc:
+
+1. Click vào cửa sổ 1Password rồi click ra (focus/unfocus) — Community-verified.
+2. Unlock 1Password, hoặc Quit 1Password.
+3. Khoá màn hình (⌃⌘Q) rồi mở lại — ghi đè record; đôi khi **làm nặng hơn**
+   đúng reproduction của #25015.
+4. Đăng xuất / đăng nhập.
+
+Không có bộ gõ bên thứ ba nào "không xung đột": Input Monitoring **không**
+bypass SI trên Ventura+ (OpenKey #179 xác nhận). VietTelex chỉ làm được: hiện
+icon `Vᵀ⃠` ngay lúc wake, gọi đúng tên 1Password kể cả khi ioreg ghi
+loginwindow, và reselect IME khi SI tắt (quit 1Password). Fix gốc là 1Password
+phải `DisableSecureEventInput` khi mất focus / sau wake — họ claim đã vá ở
+18.12.26 ("keep Secure Input enabled longer than intended") nhưng field 07–09
+2026 vẫn còn.
+
+Giảm tần suất phía user: tắt **Lock when device locks or sleeps** trong
+1Password (đánh đổi bảo mật), hoặc cập nhật 1Password.
+
 ## ⌘R trong Xcode huỷ đăng ký input source — 2026-08-15 (học từ fork xkhanhs/vtx, 906640f)
 
 Triệu chứng: IME **biến mất khỏi menu bar**, không crash, DebugLog trống. App vẫn

@@ -127,6 +127,70 @@ final class AppSupportTests: XCTestCase {
         XCTAssertNotNil(SecureInputMonitor.processName(ProcessInfo.processInfo.processIdentifier))
     }
 
+    func testSecureInputHintClassifiesPasswordManagerAfterSleep() {
+        // Field case 09/2026: wake from sleep with 1Password open → Telex dead
+        // until 1Password is quit. ioreg often NAMES loginwindow (false
+        // attribution, 1Password Community #25015) while 1Password is the
+        // EnableSecureEventInput caller. Hint must not say "turn off Terminal
+        // Secure Keyboard Entry".
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(holderName: "1Password", holderAlive: true,
+                                            runningPasswordManagers: ["1Password"]),
+            .passwordManager("1Password"))
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(holderName: "1Password Browser Helper", holderAlive: true,
+                                            runningPasswordManagers: []),
+            .passwordManager("1Password"))
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(holderName: "loginwindow", holderAlive: true,
+                                            runningPasswordManagers: ["1Password"]),
+            .loginwindowWithPasswordManager("1Password"))
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(holderName: "loginwindow", holderAlive: true,
+                                            runningPasswordManagers: []),
+            .loginwindowStuck)
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(holderName: "iTerm2", holderAlive: true,
+                                            runningPasswordManagers: ["1Password"]),
+            .terminal)
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(holderName: "Lark", holderAlive: false,
+                                            runningPasswordManagers: []),
+            .orphan)
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(holderName: "Safari", holderAlive: true,
+                                            runningPasswordManagers: []),
+            .generic)
+        XCTAssertEqual(
+            SecureInputMonitor.revealTarget(.loginwindowWithPasswordManager("1Password")),
+            "1Password")
+        XCTAssertNil(SecureInputMonitor.revealTarget(.terminal))
+        let sleepHint = SecureInputMonitor.hintText(.loginwindowWithPasswordManager("1Password"))
+        XCTAssertTrue(sleepHint.contains("1Password"))
+        XCTAssertFalse(sleepHint.localizedCaseInsensitiveContains("Terminal"),
+                       "sleep+1Password must not be diagnosed as Secure Keyboard Entry")
+        let terminalHint = SecureInputMonitor.hintText(.terminal)
+        XCTAssertTrue(terminalHint.contains("Terminal") || terminalHint.contains("iTerm"),
+                      "iTerm/Terminal Secure Keyboard Entry hint must stay")
+    }
+
+    func testSecureInputPasswordManagerNameMatching() {
+        XCTAssertTrue(SecureInputMonitor.looksLikePasswordManager("1Password"))
+        XCTAssertTrue(SecureInputMonitor.looksLikePasswordManager("com.agilebits.onepassword7"))
+        XCTAssertTrue(SecureInputMonitor.looksLikePasswordManager("Bitwarden"))
+        XCTAssertFalse(SecureInputMonitor.looksLikePasswordManager("Safari"))
+        XCTAssertFalse(SecureInputMonitor.looksLikePasswordManager("Password Manager Settings"))
+        XCTAssertFalse(SecureInputMonitor.looksLikePasswordManager(nil))
+        XCTAssertTrue(SecureInputMonitor.looksLikeLoginwindow("loginwindow"))
+        XCTAssertTrue(SecureInputMonitor.looksLikeLoginwindow("Login Window"))
+        XCTAssertFalse(SecureInputMonitor.looksLikeLoginwindow("1Password"))
+        XCTAssertTrue(SecureInputMonitor.looksLikeTerminal("Terminal"))
+        XCTAssertTrue(SecureInputMonitor.looksLikeTerminal("iTerm2"))
+        XCTAssertFalse(SecureInputMonitor.looksLikeTerminal("1Password"))
+        XCTAssertEqual(SecureInputMonitor.canonicalPasswordManagerName("1Password for Safari"),
+                       "1Password")
+    }
+
     func testBoundedDataEnforcesByteCap() async {
         // data: URLs keep the test off the network; the cap must apply while streaming.
         let small = URLRequest(url: URL(string: "data:text/plain,hello")!)
