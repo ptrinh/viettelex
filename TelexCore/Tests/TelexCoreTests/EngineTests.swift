@@ -542,14 +542,14 @@ final class EngineGoldenTests: XCTestCase {
         XCTAssertEqual(commit("luuww"), "luuw")
         XCTAssertEqual(composeFree("luuww"), "luuw")
 
-        // Retarget onto a standalone-w ư: cancel reverts the LETTER (w→ư, ww→w)
-        // instead of appending, so the second w is consumed at a distance.
-        XCTAssertEqual(compose("waw"), "wa")
-        XCTAssertEqual(compose("waww"), "waw")
-        XCTAssertEqual(compose("thwaw"), "thwa")
-        XCTAssertEqual(compose("wuw"), "wu")
-        // Tone before the cancel still renders; the literal w is a coda so the
-        // tone re-homes onto a (same as awsw→áw — pre-existing, now pinned).
+        // Standalone-w ư is not a typed-u retarget: the next w breves/horns the
+        // leftover vowel (classic Telex), instead of consuming w at a distance.
+        XCTAssertEqual(compose("waw"), "ưă")
+        XCTAssertEqual(compose("waww"), "ưaw")      // ă-cancel, same as aww→aw
+        XCTAssertEqual(compose("thwaw"), "thưă")
+        XCTAssertEqual(compose("wuw"), "ưư")
+        // Typed-u cancel still works with a tone already on the syllable; the
+        // literal w is a coda so the tone re-homes onto a (same as awsw→áw).
         XCTAssertEqual(compose("nuawxw"), "nuãw")
     }
 
@@ -565,6 +565,18 @@ final class EngineGoldenTests: XCTestCase {
         _ = e.backspace()
         XCTAssertEqual(e.composed, "hư")           // drop displayed 'a'; leftover huw → hư
         XCTAssertEqual(compose(e.rawKeystrokes), e.composed)
+    }
+
+    /// Standalone-w ư + a + w must stay ưă (not consume w). ⌫ drops the whole ă
+    /// (a + the breve w), leaving ư — same provenance as `aw` → ă → ⌫.
+    func testStandaloneWUaKeepsBreveBackspace() {
+        var e = TelexEngine()
+        for ch in "waw" { _ = e.feed(ch) }
+        XCTAssertEqual(e.composed, "ưă")
+        _ = e.backspace()
+        XCTAssertEqual(e.composed, "ư")
+        XCTAssertEqual(compose(e.rawKeystrokes), e.composed)
+        XCTAssertEqual(e.rawKeystrokes, "w")
     }
 
     // Simple Telex: a standalone w is ALWAYS literal — type `uw` for ư.
@@ -925,6 +937,8 @@ final class EngineGoldenTests: XCTestCase {
             ("aww", "aw"),
             ("huaww", "huaw"), // ua-horn cancel, not hưă
             ("luuww", "luuw"),
+            ("waw", "ưă"),    // standalone-w ư stays; w breves a
+            ("waww", "ưaw"),
             ("ass", "as"),   // double sắc cancels, literal s
             ("aff", "af"),
             ("arr", "ar"),

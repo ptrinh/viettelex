@@ -1181,6 +1181,16 @@ public struct TelexEngine {
         return false
     }
 
+    /// ua/uu retarget may land on a predecessor `u` that is unmarked (first w → ư)
+    /// or already horned (second w CANCELS that ư: huaww→huaw, luuww→luuw).
+    /// A standalone-w ư is excluded: a later w must breve/horn the leftover
+    /// vowel (waw→ưă, wuw→ưư) instead of consuming w at a distance (waw→wa).
+    @inline(__always)
+    private func uaUuPredecessorAllowsRetarget(_ pred: Int) -> Bool {
+        let m = letters[pred].mark
+        return m == .none || (m == .horn && !letterCreatedByW(pred))
+    }
+
     @inline(__always)
     private func hasLowercaseBefore(_ at: Int) -> Bool {
         for i in 0..<at where raw[i] >= UInt8(ascii: "a") && raw[i] <= UInt8(ascii: "z") {
@@ -1597,24 +1607,27 @@ public struct TelexEngine {
             // "ua" nucleus: w horns the u (→ ưa: mưa, chưa, nữa), not breve the a
             // — "uă" is not a valid Vietnamese nucleus. So an unmarked 'a' target
             // whose immediate predecessor is a REAL 'u' vowel retargets to that u.
-            // If that u is already horned, the same retarget lets a second w
+            // If that typed u is already horned, the same retarget lets a second w
             // CANCEL ư (huaw→hưa, huaww→huaw) instead of breving the leftover a
-            // (hưă). Excludes the "qu" glide ("quatw"→quăt) and "oa" (→ oă:
+            // (hưă). A standalone-w ư is not a typed u — leave it so waw→ưă.
+            // Excludes the "qu" glide ("quatw"→quăt) and "oa" (→ oă:
             // hoăc), where breve on a is correct. Makes marks order-free:
             // "nuawx" and "nuwax" both give "nữa".
             if tIdx >= 1,
                letters[tIdx].base == UInt8(ascii: "a"), letters[tIdx].mark == .none,
                letters[tIdx - 1].base == UInt8(ascii: "u"),
+               uaUuPredecessorAllowsRetarget(tIdx - 1),
                !(tIdx >= 2 && letters[tIdx - 2].base == UInt8(ascii: "q")) {
                 tIdx -= 1
             }
             // "uu" nucleus: w horns the FIRST u (→ ưu: lưu, cứu, hưu) — "uư" is not
             // a valid Vietnamese nucleus, so "luuw"→lưu / "cuuws"→cứu instead of
             // the useless "luư". A second w cancels the same way ("luuww"→luuw).
-            // Same "qu" exclusion ("quuw" keeps the glide u untouched).
+            // Same standalone-w guard (wuw→ưư) and "qu" exclusion.
             if tIdx >= 1,
                letters[tIdx].base == UInt8(ascii: "u"), letters[tIdx].mark == .none,
                letters[tIdx - 1].base == UInt8(ascii: "u"),
+               uaUuPredecessorAllowsRetarget(tIdx - 1),
                !(tIdx >= 2 && letters[tIdx - 2].base == UInt8(ascii: "q")) {
                 tIdx -= 1
             }

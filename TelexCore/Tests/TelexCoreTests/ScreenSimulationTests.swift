@@ -88,7 +88,7 @@ final class ScreenSimulationTests: XCTestCase {
         "thuowr", "huow", "quowr", "quown", "quowrn",
         // ua nucleus retarget
         "nuawx", "nuwax", "muaw", "chuaw", "buawx", "tuawj",
-        "huaww", "huawwei", "luuww",
+        "huaww", "huawwei", "luuww", "waw", "waww", "thwaw",
         // qu + a + w
         "quawt", "quaw", "hoaw", "hoawcj",
         // tones on all vowels
@@ -152,7 +152,7 @@ final class ScreenSimulationTests: XCTestCase {
     // must track the engine through the destructive edits.
     func testScreenTracksBackspaceThenRetype() {
         let words = ["dduwowngf", "nguwowif", "truowngf", "vieejt", "khoo", "tieengs",
-                     "huaww", "huawwei"]
+                     "huaww", "huawwei", "waww"]
         for w in words {
             for cut in 1...w.count {
                 var ops: [(Character?, Bool)] = w.map { ($0, false) }

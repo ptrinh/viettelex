@@ -82,7 +82,7 @@ final class BackspaceTests: XCTestCase {
     func testBackspaceEveryPositionKeepsRawInvariant() {
         let words = ["dduwowngf", "nguwowif", "truowngf", "vieejt", "tieengs",
                      "hoas", "nuawx", "quocs", "ddaay", "nghieeng", "chuyeenr", "khoo",
-                     "huaww", "huawwei", "luuww"]
+                     "huaww", "huawwei", "luuww", "waw", "waww", "thwaw"]
         for w in words {
             // Backspace all the way down, checking the invariant after every delete.
             var e = TelexEngine()
