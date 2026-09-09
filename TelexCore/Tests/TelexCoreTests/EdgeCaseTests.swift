@@ -67,6 +67,7 @@ final class EdgeCaseTests: XCTestCase {
         XCTAssertEqual(compose("oww"), "ow")     // ơ then cancel → literal o + w
         XCTAssertEqual(compose("uww"), "uw")     // ư then cancel → literal u + w
         XCTAssertEqual(compose("aww"), "aw")     // ă then cancel → literal a + w (parity)
+        XCTAssertEqual(compose("huaww"), "huaw") // ua-horn cancel, not hưă
         // After the cancel the word stays literal (English gesture).
         XCTAssertEqual(compose("owws"), "ows")   // trailing s literal, not a tone
     }

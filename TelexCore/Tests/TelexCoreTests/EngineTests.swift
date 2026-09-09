@@ -518,6 +518,43 @@ final class EngineGoldenTests: XCTestCase {
         // "qu" glide keeps breve on a (the u belongs to the onset, not retargeted).
         XCTAssertEqual(compose("quawt"), "quăt")   // w adjacent to a -> breve, not horn-u
         XCTAssertEqual(compose("quaw"), "quă")
+
+        // Cancel mirror of the ua retarget (Laban/UniKey parity): the leftover
+        // unmarked a is NOT a new breve target. One more w undoes ư and types
+        // literal w, so "huawei" is visible while typing — not "hưă" until space.
+        XCTAssertEqual(compose("huaw"), "hưa")
+        XCTAssertEqual(compose("huaww"), "huaw")
+        XCTAssertEqual(compose("huawwe"), "huawe")
+        XCTAssertEqual(compose("huawwei"), "huawei")
+        XCTAssertEqual(commit("huawwei"), "huawei")
+        XCTAssertEqual(commit("huaww"), "huaw")     // trailing cancel keeps the screen
+        XCTAssertEqual(compose("muaww"), "muaw")
+        XCTAssertEqual(compose("chuaww"), "chuaw")
+        XCTAssertEqual(composeSimple("huaww"), "huaw")
+        XCTAssertEqual(composeFree("huaww"), "huaw")
+        XCTAssertEqual(composeSpell("huaww"), "huaw")
+        // "oa"/"qu" still breve-then-cancel on a (the retarget never applied).
+        XCTAssertEqual(compose("hoaww"), "hoaw")
+        XCTAssertEqual(compose("quaww"), "quaw")
+        // Same cancel shape on the "uu" nucleus: lưu + w → luuw, not lưư.
+        XCTAssertEqual(compose("luuw"), "lưu")
+        XCTAssertEqual(compose("luuww"), "luuw")
+        XCTAssertEqual(commit("luuww"), "luuw")
+        XCTAssertEqual(composeFree("luuww"), "luuw")
+    }
+
+    /// ⌫ after the ua-horn cancel must drop the literal w (back to hưa), never
+    /// desync into extra w's on screen ("huawww").
+    func testUaHornCancelBackspace() {
+        var e = TelexEngine()
+        for ch in "huaww" { _ = e.feed(ch) }
+        XCTAssertEqual(e.composed, "huaw")
+        _ = e.backspace()
+        XCTAssertEqual(e.composed, "hưa")
+        XCTAssertEqual(compose(e.rawKeystrokes), e.composed)
+        _ = e.backspace()
+        XCTAssertEqual(e.composed, "hư")           // drop displayed 'a'; leftover huw → hư
+        XCTAssertEqual(compose(e.rawKeystrokes), e.composed)
     }
 
     // Simple Telex: a standalone w is ALWAYS literal — type `uw` for ư.
@@ -876,6 +913,8 @@ final class EngineGoldenTests: XCTestCase {
             ("ooo", "oo"),
             ("ddd", "dd"),
             ("aww", "aw"),
+            ("huaww", "huaw"), // ua-horn cancel, not hưă
+            ("luuww", "luuw"),
             ("ass", "as"),   // double sắc cancels, literal s
             ("aff", "af"),
             ("arr", "ar"),
