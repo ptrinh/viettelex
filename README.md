@@ -91,6 +91,16 @@ VietTelex tự tắt trong secure field — đúng hành vi bảo mật, không 
 </details>
 
 <details>
+<summary><strong>Mở máy từ sleep, đang mở 1Password thì không gõ được Telex?</strong></summary>
+
+Không riêng VietTelex: EVKey, OpenKey, GoTiengViet cũng chết. 1Password giữ **Secure Input** của macOS sau khi ngủ (ô khoá vault vẫn “focus” dù bạn đang ở app khác) — macOS lúc đó vô hiệu mọi bộ gõ bên thứ ba.
+
+Gỡ nhanh: bấm vào cửa sổ 1Password rồi bấm ra, hoặc **Quit 1Password**. Icon `Vᵀ⃠` trên menu bar (khi đang bị chặn) sẽ chỉ đúng hướng đó. Bộ gõ có sẵn của Apple (Simple Telex) thường vẫn dùng được vì không bị disable theo lớp IME bên thứ ba.
+
+Chi tiết: [ghi chú kỹ thuật](docs/MACOS_IME_NOTES.md).
+</details>
+
+<details>
 <summary><strong>Gõ comment trên TikTok (Safari) bị mất chữ cuối khi ấn Enter?</strong></summary>
 
 **Bấm một dấu cách trước khi ấn Enter** là đủ chữ. Hoặc dùng Chrome cho TikTok.

@@ -4,23 +4,27 @@
 // được auto-chọn; user nghi "do đang SSH").
 //
 // Nguyên nhân thật: một process đang giữ SECURE EVENT INPUT (Terminal/iTerm2 bật
-// "Secure Keyboard Entry", ô password treo quyền, loginwindow…). Khi secure input
-// active, macOS vô hiệu MỌI IME bên thứ ba — dòng "ViệtTelex" mờ trong picker là
-// TextInputMenuAgent vẽ từ metadata tĩnh của bundle, mình không sửa động được, và
-// IMK menu của mình cũng không mở được vì không chọn được input source.
+// "Secure Keyboard Entry", ô password treo quyền, loginwindow, 1Password sau
+// sleep…). Khi secure input active, macOS vô hiệu MỌI IME bên thứ ba — dòng
+// "ViệtTelex" mờ trong picker là TextInputMenuAgent vẽ từ metadata tĩnh của
+// bundle, mình không sửa động được, và IMK menu của mình cũng không mở được vì
+// không chọn được input source.
 //
-// Không chặn được (policy của OS), nhưng biến "không rõ nguyên nhân" thành "có tên
-// thủ phạm" thì được, vì PROCESS NÀY VẪN SỐNG khi bị mờ (IMKServer không bị kill):
+// Không chặn được (policy của OS — không có API nhả hộ, kẻo malware cũng làm
+// được), nhưng biến "không rõ nguyên nhân" thành "có tên thủ phạm" thì được, vì
+// PROCESS NÀY VẪN SỐNG khi bị mờ (IMKServer không bị kill):
 //  1. Icon menu bar TẠM THỜI chỉ hiện khi đang bị chặn, ghi rõ thủ phạm + PID,
-//     tự biến mất khi hết chặn.
+//     tự biến mất khi hết chặn. Gợi ý theo ĐÚNG bệnh (1Password sau sleep ≠
+//     Terminal Secure Keyboard Entry ≠ khoá mồ côi).
 //  2. Transition ON/OFF ghi unified log (LUÔN — kể cả khi debugLogging off; sự kiện
 //     hiếm, không có text người dùng) + DebugLog ring.
 //  3. Dòng "Secure input:" trong debug snapshot (click Status: OK) và IMK menu.
 //
 // Phát hiện: notification input-source-changed là đường nhanh (secure input bật
-// thường kèm macOS đá selection sang ABC), poll 5s là lưới an toàn — vi phạm có chủ
-// đích ethos "no timers" của main.swift (tiền lệ: trustPoll) vì lúc bị chặn thì
-// chính là lúc KHÔNG có event nào tới được mình.
+// thường kèm macOS đá selection sang ABC); didWake / screenIsUnlocked bắt ca
+// 1Password-sau-sleep ngay khi mở máy (ioreg hay báo NHẦM loginwindow); poll 5s
+// là lưới an toàn — vi phạm có chủ đích ethos "no timers" của main.swift (tiền
+// lệ: trustPoll) vì lúc bị chặn thì chính là lúc KHÔNG có event nào tới được mình.
 
 import AppKit
 import Carbon.HIToolbox
@@ -46,6 +50,19 @@ final class SecureInputMonitor {
         }
     }
 
+    /// Gợi ý theo bệnh, tách thuần để test được. ioreg SAU SLEEP hay ghi
+    /// loginwindow trong khi 1Password mới là process EnableSecureEventInput
+    /// (1Password Community #25015, 07/2026: password field vẫn highlighted dù
+    /// app khác đang focus; quit 1Password hoặc click vào rồi click ra mới nhả).
+    enum HintKind: Equatable {
+        case orphan
+        case passwordManager(String)
+        case loginwindowWithPasswordManager(String)
+        case loginwindowStuck
+        case terminal
+        case generic
+    }
+
     /// Process còn sống không — kill(pid, 0) không gửi signal, chỉ hỏi tồn tại;
     /// EPERM nghĩa là "sống nhưng không phải của mình" nên vẫn tính là sống.
     static func processIsAlive(_ pid: pid_t) -> Bool {
@@ -57,7 +74,9 @@ final class SecureInputMonitor {
     /// IOKit không nêu tên — hiếm, nhưng "active mà không rõ ai" vẫn đáng báo).
     private(set) var activeHolder: Holder?
     private var timer: Timer?
+    private var settleWork: DispatchWorkItem?
     private var statusItem: NSStatusItem?
+    private var workspaceObservers: [NSObjectProtocol] = []
 
     /// VietTelex có đang là selection của user không — chốt lần cuối TRƯỚC khi bị
     /// chặn. Cập nhật ở mỗi lần check lúc secure input off; đóng băng suốt lúc bị
@@ -73,6 +92,40 @@ final class SecureInputMonitor {
         t.tolerance = 2.0   // coalesce với wakeup khác — đây là lưới an toàn, không cần đúng nhịp
         RunLoop.main.add(t, forMode: .common)
         timer = t
+
+        // 1Password (và loginwindow) bật SI lúc lock/sleep; IME bị mờ TRƯỚC khi
+        // input-source-changed hay poll 5s kịp chạy. Check ngay + một nhịp settle
+        // vì UI khoá của 1Password hiện SAU khi loginwindow nhả.
+        // NSWorkspace không có screensDidUnlockNotification (SDK 13); unlock đi
+        // qua DistributedNotificationCenter `com.apple.screenIsUnlocked`.
+        let nc = NSWorkspace.shared.notificationCenter
+        workspaceObservers.append(nc.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.checkSoon(reason: "wake")
+        })
+        workspaceObservers.append(nc.addObserver(
+            forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.checkSoon(reason: "screens-wake")
+        })
+        workspaceObservers.append(DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("com.apple.screenIsUnlocked"),
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.checkSoon(reason: "unlock")
+        })
+    }
+
+    /// Check ngay, rồi một lần nữa sau 1.2s. Coalesce wake+unlock thành một settle.
+    func checkSoon(reason: String) {
+        check(reason: reason)
+        settleWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.check(reason: reason + "-settle")
+        }
+        settleWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
     }
 
     /// Re-check ngay khi có tín hiệu rẻ (đổi input source, mở snapshot). Idempotent,
@@ -89,15 +142,25 @@ final class SecureInputMonitor {
             selectedBeforeBlock = TelexInputController.isVietTelexSelected()
             return
         }
-        guard holder != activeHolder else { return }
+        guard holder != activeHolder else {
+            // PID không đổi, nhưng HINT có thể đổi: sau sleep ioreg vẫn ghi
+            // loginwindow trong khi 1Password đã kịp hiện ô mật khẩu.
+            if holder != nil { updateStatusItem() }
+            return
+        }
         let was = activeHolder
         activeHolder = holder
         if let h = holder {
             // Thẳng vào unified log không qua guard debugLogging của DebugLog.log —
             // sự kiện này cần dấu vết CẢ KHI user chưa kịp bật debug (chính là ca
             // "thỉnh thoảng, không tái hiện được").
+            let kind = currentHintKind(holder: h)
             Signposts.log.notice("secure-input ON — held by \(h.label, privacy: .public) [\(reason, privacy: .public)]")
             DebugLog.log("secure-input ON — held by \(h.label) [\(reason)]")
+            if case .loginwindowWithPasswordManager(let pm) = kind {
+                Signposts.log.notice("secure-input ON — ioreg names loginwindow, \(pm, privacy: .public) is running (common false attribution after sleep)")
+                DebugLog.log("secure-input ON — ioreg names loginwindow, \(pm) is running (common false attribution after sleep)")
+            }
         } else if let w = was {
             Signposts.log.notice("secure-input OFF — was \(w.label) [\(reason, privacy: .public)]")
             DebugLog.log("secure-input OFF — was \(w.label) [\(reason)]")
@@ -116,7 +179,75 @@ final class SecureInputMonitor {
 
     /// Dòng trạng thái cho snapshot + IMK menu. English cho snapshot-side.
     var snapshotLine: String {
-        activeHolder.map { "Secure input: ACTIVE — held by \($0.label)" } ?? "Secure input: off"
+        guard let holder = activeHolder else { return "Secure input: off" }
+        switch currentHintKind(holder: holder) {
+        case .loginwindowWithPasswordManager(let pm):
+            return "Secure input: ACTIVE — held by \(holder.label) (likely \(pm) after sleep)"
+        case .passwordManager:
+            return "Secure input: ACTIVE — held by \(holder.label) (password manager)"
+        default:
+            return "Secure input: ACTIVE — held by \(holder.label)"
+        }
+    }
+
+    // MARK: - Phân loại gợi ý
+
+    static func looksLikePasswordManager(_ name: String?) -> Bool {
+        guard let raw = name?.lowercased(), !raw.isEmpty else { return false }
+        let needles = ["1password", "agilebits", "bitwarden", "lastpass", "keepass"]
+        return needles.contains { raw.contains($0) }
+    }
+
+    static func looksLikeLoginwindow(_ name: String?) -> Bool {
+        guard let raw = name?.lowercased() else { return false }
+        return raw.contains("loginwindow") || raw == "login window"
+    }
+
+    static func looksLikeTerminal(_ name: String?) -> Bool {
+        guard let raw = name?.lowercased() else { return false }
+        return raw.contains("terminal") || raw.contains("iterm")
+            || raw.contains("alacritty") || raw.contains("wezterm")
+            || raw.contains("ghostty") || raw == "kitty"
+    }
+
+    static func canonicalPasswordManagerName(_ name: String) -> String {
+        let n = name.lowercased()
+        if n.contains("1password") || n.contains("agilebits") { return "1Password" }
+        if n.contains("bitwarden") { return "Bitwarden" }
+        if n.contains("lastpass") { return "LastPass" }
+        if n.contains("keepass") { return "KeePassXC" }
+        return name
+    }
+
+    static func classifyHint(holderName: String?, holderAlive: Bool,
+                             runningPasswordManagers: [String]) -> HintKind {
+        if !holderAlive { return .orphan }
+        if looksLikePasswordManager(holderName) {
+            return .passwordManager(canonicalPasswordManagerName(holderName ?? "1Password"))
+        }
+        if looksLikeLoginwindow(holderName), let pm = runningPasswordManagers.first {
+            return .loginwindowWithPasswordManager(pm)
+        }
+        if looksLikeLoginwindow(holderName) { return .loginwindowStuck }
+        if looksLikeTerminal(holderName) { return .terminal }
+        return .generic
+    }
+
+    static func runningPasswordManagerNames() -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for app in NSWorkspace.shared.runningApplications {
+            let blob = ((app.bundleIdentifier ?? "") + " " + (app.localizedName ?? "")).lowercased()
+            guard looksLikePasswordManager(blob) else { continue }
+            let display = canonicalPasswordManagerName(app.localizedName ?? app.bundleIdentifier ?? "1Password")
+            if seen.insert(display).inserted { out.append(display) }
+        }
+        return out
+    }
+
+    private func currentHintKind(holder: Holder) -> HintKind {
+        Self.classifyHint(holderName: holder.name, holderAlive: holder.alive,
+                          runningPasswordManagers: Self.runningPasswordManagerNames())
     }
 
     // MARK: - Icon menu bar tạm thời
@@ -138,18 +269,75 @@ final class SecureInputMonitor {
                               action: nil, keyEquivalent: "")
         info.isEnabled = false
         menu.addItem(info)
-        // Gợi ý theo ĐÚNG bệnh: khoá mồ côi (process chết không nhả — chỉ logout gỡ
-        // được) khác hẳn Secure Keyboard Entry bật quên (tắt trong menu app là xong).
-        // Khoá mồ côi: mẹo khoá-màn-hình FIELD-VERIFIED 18/08/2026 (ca Lark) — lock
-        // làm loginwindow chiếm secure input rồi nhả khi mở, ghi đè record kẹt.
-        // Rẻ hơn logout nhiều nên khuyên trước; logout là đường chắc chắn dự phòng.
-        let hintText = holder.alive
-            ? VTLocalized("If this is Terminal/iTerm2: turn off “Secure Keyboard Entry”")
-            : VTLocalized("That process exited but the lock is stuck — lock the screen (⌃⌘Q) and unlock; if that fails, log out and back in")
-        let hint = NSMenuItem(title: hintText, action: nil, keyEquivalent: "")
+
+        let kind = currentHintKind(holder: holder)
+        let hint = NSMenuItem(title: Self.hintText(kind), action: nil, keyEquivalent: "")
         hint.isEnabled = false
         menu.addItem(hint)
+
+        if let pm = Self.revealTarget(kind) {
+            menu.addItem(.separator())
+            let reveal = NSMenuItem(
+                title: String(format: VTLocalized("Switch to %@ (then click away)"), pm),
+                action: #selector(MenuActions.revealPasswordManager(_:)),
+                keyEquivalent: "")
+            reveal.target = MenuActions.shared
+            menu.addItem(reveal)
+        }
         item.menu = menu
+    }
+
+    static func hintText(_ kind: HintKind) -> String {
+        switch kind {
+        case .orphan:
+            return VTLocalized("That process exited but the lock is stuck — lock the screen (⌃⌘Q) and unlock; if that fails, log out and back in")
+        case .passwordManager(let pm):
+            return String(format: VTLocalized("%@ left Secure Input on — click its window then click away, or quit it"), pm)
+        case .loginwindowWithPasswordManager(let pm):
+            return String(format: VTLocalized("loginwindow is listed, but %@ often holds Secure Input after sleep — click it then click away, or quit it"), pm)
+        case .loginwindowStuck:
+            return VTLocalized("loginwindow is holding Secure Input after sleep — lock the screen (⌃⌘Q) and unlock")
+        case .terminal:
+            return VTLocalized("If this is Terminal/iTerm2: turn off “Secure Keyboard Entry”")
+        case .generic:
+            return VTLocalized("An app is holding Secure Input (a password field) — click away from that field, or quit the app named above")
+        }
+    }
+
+    static func revealTarget(_ kind: HintKind) -> String? {
+        switch kind {
+        case .passwordManager(let pm), .loginwindowWithPasswordManager(let pm):
+            return pm
+        default:
+            return nil
+        }
+    }
+
+    /// Đưa password manager lên trước — workaround field-verified: focus rồi unfocus
+    /// làm nó gọi DisableSecureEventInput. Không nhả hộ được (không có API).
+    static func activatePasswordManager() {
+        let apps = NSWorkspace.shared.runningApplications.filter { app in
+            let blob = ((app.bundleIdentifier ?? "") + " " + (app.localizedName ?? "")).lowercased()
+            return looksLikePasswordManager(blob)
+        }
+        let preferred = apps.first {
+            ($0.bundleIdentifier ?? "").lowercased().contains("1password.1password")
+        } ?? apps.first {
+            let id = ($0.bundleIdentifier ?? "").lowercased()
+            return !id.contains("helper") && !id.contains("safari")
+        } ?? apps.first
+        if #available(macOS 14.0, *) {
+            preferred?.activate()
+        } else {
+            preferred?.activate(options: [.activateIgnoringOtherApps])
+        }
+    }
+
+    private final class MenuActions: NSObject {
+        static let shared = MenuActions()
+        @objc func revealPasswordManager(_ sender: Any) {
+            SecureInputMonitor.activatePasswordManager()
+        }
     }
 
     // MARK: - Tự kết nối lại sau khi hết chặn

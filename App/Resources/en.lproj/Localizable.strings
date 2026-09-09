@@ -69,6 +69,11 @@ Press “Repair automatically”: VietTelex removes its own stuck entry and asks
 "Vietnamese typing is blocked (Secure Input)" = "Vietnamese typing is blocked (Secure Input)";
 "If this is Terminal/iTerm2: turn off “Secure Keyboard Entry”" = "If this is Terminal/iTerm2: turn off “Secure Keyboard Entry”";
 "Status: Blocked by Secure Input" = "Status: Blocked by Secure Input";
+"%@ left Secure Input on — click its window then click away, or quit it" = "%@ left Secure Input on — click its window then click away, or quit it";
+"loginwindow is listed, but %@ often holds Secure Input after sleep — click it then click away, or quit it" = "loginwindow is listed, but %@ often holds Secure Input after sleep — click it then click away, or quit it";
+"loginwindow is holding Secure Input after sleep — lock the screen (⌃⌘Q) and unlock" = "loginwindow is holding Secure Input after sleep — lock the screen (⌃⌘Q) and unlock";
+"An app is holding Secure Input (a password field) — click away from that field, or quit the app named above" = "An app is holding Secure Input (a password field) — click away from that field, or quit the app named above";
+"Switch to %@ (then click away)" = "Switch to %@ (then click away)";
 
 /* Sticky input source (field report 15/08/2026 — Word comment boxes reset the input source) */
 "Keep VietTelex when macOS auto-switches the input source (experimental)" = "Keep VietTelex when macOS auto-switches the input source (experimental)";
