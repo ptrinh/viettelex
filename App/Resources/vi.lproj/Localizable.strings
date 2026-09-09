@@ -146,8 +146,8 @@
 "Merged into the table (existing pins for the same app take the imported value). Entries with an unknown mode were skipped." = "Đã gộp vào bảng (app trùng lấy giá trị nhập vào). Mục có chế độ không hợp lệ bị bỏ qua.";
 
 /* Advanced features toggle */
-"Show advanced features" = "Mở tính năng nâng cao";
-"Adds the Typing modes and Experimental tabs — per-app overrides, latency flags, debug log. Not needed for everyday typing." = "Hiện thêm tab Bảng cơ chế gõ và Thử nghiệm — ép chế độ theo app, cờ độ trễ, nhật ký gỡ lỗi. Dùng hằng ngày thì không cần.";
+"Hide advanced features" = "Ẩn tính năng nâng cao";
+"Hides the Typing modes and Experimental tabs — per-app overrides, latency flags, debug log. Not needed for everyday typing." = "Ẩn tab Bảng cơ chế gõ và Thử nghiệm — ép chế độ theo app, cờ độ trễ, nhật ký gỡ lỗi. Dùng hằng ngày thì không cần.";
 
 /* UX batch 21/07 pm */
 "Missing Accessibility permission — click to open System Settings" = "Thiếu quyền Trợ năng — bấm để mở System Settings";

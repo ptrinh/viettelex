@@ -137,12 +137,14 @@ final class SettingsModel: ObservableObject {
     @Published var axSelectionReplace: Bool { didSet { AppState.shared.axSelectionReplace = axSelectionReplace } }
     @Published var debugLogging: Bool { didSet { AppState.shared.debugLogging = debugLogging } }
     @Published var autoUpdateCheck: Bool { didSet { AppState.shared.autoUpdateCheck = autoUpdateCheck } }
-    /// Shows/hides the Bảng chế độ gõ + Thử Nghiệm tabs. When turned off while one
-    /// of them is frontmost, selection falls back to Tùy chỉnh.
-    @Published var advancedFeatures: Bool {
+    /// INVERTED view of AppState.advancedFeatures (maintainer 09/09/2026: label đổi
+    /// thành "Ẩn tính năng nâng cao", default TẮT = tab vẫn hiện). Storage giữ
+    /// nguyên key advancedFeatures nên setting cũ của user không đổi nghĩa.
+    /// When hiding while an advanced tab is frontmost, selection falls back to Tùy chỉnh.
+    @Published var hideAdvanced: Bool {
         didSet {
-            AppState.shared.advancedFeatures = advancedFeatures
-            if !advancedFeatures,
+            AppState.shared.advancedFeatures = !hideAdvanced
+            if hideAdvanced,
                selectedTab == .modeTable || selectedTab == .experimental {
                 selectedTab = .general
             }
@@ -201,7 +203,7 @@ final class SettingsModel: ObservableObject {
         axSelectionReplace = AppState.shared.axSelectionReplace
         debugLogging = AppState.shared.debugLogging
         autoUpdateCheck = AppState.shared.autoUpdateCheck
-        advancedFeatures = AppState.shared.advancedFeatures
+        hideAdvanced = !AppState.shared.advancedFeatures
         uiLanguage = AppState.shared.uiLanguage
         reloadShortcuts()
         reloadModeTable()
@@ -536,7 +538,7 @@ struct SettingsView: View {
         HStack(spacing: 2) {
             tabButton(.general, "Settings", "slider.horizontal.3")
             tabButton(.shortcuts, "Shortcuts", "keyboard")
-            if model.advancedFeatures {
+            if !model.hideAdvanced {
                 tabButton(.modeTable, "Typing modes", "list.bullet.rectangle")
                 tabButton(.experimental, "Experimental", "flask")
             }
@@ -565,8 +567,8 @@ struct SettingsView: View {
     }
 
     @ViewBuilder private var activeTab: some View {
-        // selectedTab không bao giờ trỏ vào tab advanced khi advancedFeatures tắt —
-        // SettingsModel tự đưa về .general (xem didSet của advancedFeatures).
+        // selectedTab không bao giờ trỏ vào tab advanced khi đang ẩn nâng cao —
+        // SettingsModel tự đưa về .general (xem didSet của hideAdvanced).
         switch model.selectedTab {
         case .general:      GeneralTab()
         case .shortcuts:    ShortcutsTab()
@@ -688,8 +690,8 @@ struct GeneralTab: View {
                 }
             }
             Section {
-                Toggle(model.loc("Show advanced features"), isOn: $model.advancedFeatures)
-                Text(model.loc("Adds the Typing modes and Experimental tabs — per-app overrides, latency flags, debug log. Not needed for everyday typing."))
+                Toggle(model.loc("Hide advanced features"), isOn: $model.hideAdvanced)
+                Text(model.loc("Hides the Typing modes and Experimental tabs — per-app overrides, latency flags, debug log. Not needed for everyday typing."))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
