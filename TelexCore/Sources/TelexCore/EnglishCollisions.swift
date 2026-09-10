@@ -74,7 +74,7 @@ enum EnglishCollisions {
     jeffrey jerry jesse jessica jesus jewellery kansas karma
     kerry kiss kissing kits laboratory larger larry last
     law laws lesbians less lesser lesson lessons libraries
-    library lies life list listings lists literature loans
+    library lies life listings lists literature loans
     lose loss losses madagascar madness major manufacturer maps
     marks marriage married marriott mary mask mass massage
     massive mattress meets melissa mens merry mess message

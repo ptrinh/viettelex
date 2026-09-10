@@ -83,6 +83,7 @@ let protected: Set<String> = [
     // của một từ Việt phổ biến.
     "ướt",  // worst (ướt át)
     "lẩu",  // laura (nồi lẩu)
+    "lít",  // list  (lít nước — phiên âm mượn litre; 2026-09-10)
 ]
 
 /// Rác viết tắt trong corpus web (không phải từ tiếng Anh thật) — vào bảng sẽ

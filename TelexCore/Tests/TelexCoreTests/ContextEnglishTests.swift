@@ -162,6 +162,11 @@ final class ContextEnglishTests: XCTestCase {
         // "loans" is already an unconditional English-collision word → always English.
         XCTAssertEqual(sentence("loans", context: true), "loans")
         XCTAssertEqual(sentence("she loans", context: true), "she loans")
+        // list→lít: Vietnamese loanword (litre) when alone; English only inside
+        // an English run (stays on the context whitelist, off the collision table).
+        XCTAssertEqual(sentence("list", context: true), "lít")
+        XCTAssertEqual(sentence("she list", context: true), "she list")
+        XCTAssertEqual(sentence("toi list nuoc", context: true), "toi lít nuoc")
     }
 
     // Vietnamese loanwords (email/app/web) are NEUTRAL: they don't open an English run,

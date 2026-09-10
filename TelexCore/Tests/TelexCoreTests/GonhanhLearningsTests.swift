@@ -21,10 +21,14 @@ final class EnglishCollisionTests: XCTestCase {
         // this→thí, is→í, of→ò, if→ì, us→ú, has→há, days→dáy — protect list);
         // this golden keeps only the words whose spelling is NOT a natural
         // telex order, which stay English.
-        for w in ["see", "or", "must", "last", "list", "most", "does", "those",
+        for w in ["see", "or", "must", "last", "most", "does", "those",
                   "these", "there", "here", "test", "now"] where w != "now" {
             XCTAssertEqual(commit(w), w, "English '\(w)' must survive")
         }
+        // list→lít: từ Việt phiên âm mượn (lít nước). Free-marking li+s+t
+        // trùng chính tả English; tiếng Việt thắng (protect list), giống hits→hít.
+        XCTAssertEqual(commit("list"), "lít")
+        XCTAssertEqual(commit("lits"), "lít")
         XCTAssertEqual(commit("did"), "đi")
         XCTAssertEqual(commit("his"), "hí")
         XCTAssertEqual(commit("this"), "thí")
@@ -92,6 +96,7 @@ final class EnglishCollisionTests: XCTestCase {
         XCTAssertEqual(commit("its"), "ít")
         XCTAssertEqual(commit("as"), "á")
         XCTAssertEqual(commit("low"), "lơ")
+        XCTAssertEqual(commit("list"), "lít")
     }
 
     func testTeencodeSurvivesInSimpleTelex() {
@@ -164,7 +169,8 @@ final class EnglishCollisionTests: XCTestCase {
         for banned in ["sex", "teen", "been", "own", "car", "too", "its", "as",
                        "low", "now", "how", "room", "box", "air", "bar", "beer",
                        "bus", "lee", "max", "moon", "seen", "sir", "six", "tax", "ups",
-                       "his", "this", "is", "of", "if", "us", "has", "thus", "queen"] {
+                       "his", "this", "is", "of", "if", "us", "has", "thus", "queen",
+                       "list"] {
             XCTAssertFalse(EnglishCollisions.words.contains(banned), "protected '\(banned)' leaked into the table")
         }
         // web-corpus junk that would eat Vietnamese typing (sw = sư)

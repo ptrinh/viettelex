@@ -201,6 +201,8 @@ final class EngineGoldenTests: XCTestCase {
         XCTAssertEqual(commitFree("hair"), "hải")
         XCTAssertEqual(commitFree("lens"), "lén")
         XCTAssertEqual(commitFree("hits"), "hít")
+        XCTAssertEqual(commitFree("list"), "lít")   // phiên âm mượn litre; list là free-marking
+        XCTAssertEqual(commitFree("lits"), "lít")   // thanh cuối từ — đường còn lại
         XCTAssertEqual(commitFree("sets"), "sét")
         XCTAssertEqual(commitFree("boots"), "bốt")
         XCTAssertEqual(commitFree("lots"), "lót")
