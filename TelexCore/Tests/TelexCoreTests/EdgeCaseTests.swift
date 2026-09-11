@@ -79,9 +79,11 @@ final class EdgeCaseTests: XCTestCase {
         XCTAssertEqual(compose("dddd"), "ddd")   // then a further literal d
     }
 
-    func testZCancelThenLiteral() {
-        // z clears a tone (cancel), then subsequent tone keys are literal.
-        XCTAssertEqual(compose("aszf"), "af")    // á →(z) a → f literal
+    func testZClearsToneThenRetone() {
+        // z clears a tone; a LATER tone key applies again (Unikey/OpenKey contract —
+        // issue #78: "tooiszs" must be tối). Until 1.6.25 z shared the double-tap
+        // "English" latch and every later tone was literal ("aszf"→"af").
+        XCTAssertEqual(compose("aszf"), "à")     // á →(z) a →(f) à
         XCTAssertEqual(compose("huyeenfz"), "huyên")   // clear the huyền
         // z with no tone present is a literal letter wherever it sits.
         XCTAssertEqual(compose("azb"), "azb")

@@ -1576,7 +1576,11 @@ public struct TelexEngine {
         // of being silently swallowed.
         if lower == UInt8(ascii: "z") {
             if pTone != .none {                          // a tone to clear -> consume z
-                pCancelled = true; pToneCancelAt = at
+                // NOT pCancelled: z là lệnh "xóa dấu" tường minh của Telex, khác cử
+                // chỉ gõ-đúp (ss/ff) = "từ này tiếng Anh". Latch pCancelled từng
+                // khóa mọi dấu sau z: "tooiszs" ra "tôis" thay vì "tối" (issue #78,
+                // 11/09/2026). Giữ pToneCancelAt/Span cho provenance ⌫.
+                pToneCancelAt = at
                 pToneCancelSpan = pToneKeyCount > 0 ? at - toneKeys[pToneKeyCount - 1] : 1
                 pTone = .none
                 if upper && hasLowercaseBefore(at) { upperToneKey = true }
@@ -1854,7 +1858,8 @@ public struct TelexEngine {
         // 0 → clear tone (like Telex z): consume only when there's a tone to remove.
         if key == UInt8(ascii: "0") {
             if pTone != .none {
-                pCancelled = true; pToneCancelAt = at
+                // Cùng luật với Telex z (issue #78): 0 xóa dấu, dấu sau đó vẫn gõ được.
+                pToneCancelAt = at
                 pToneCancelSpan = pToneKeyCount > 0 ? at - toneKeys[pToneKeyCount - 1] : 1
                 pTone = .none
                 rawLetter[at] = -1
