@@ -1833,7 +1833,7 @@ final class TelexInputController: IMKInputController {
                                     + strategyLabel(AppState.shared.currentBundleID, localized: true),
                                  action: #selector(copyStrategySnapshot(_:)), keyEquivalent: "")
         strategy.target = self
-        strategy.toolTip = VTLocalized("Click: open the typing-modes guide + copy debug info")
+        strategy.toolTip = VTLocalized("Click: open the Typing modes table + copy debug info")
         menu.addItem(strategy)
 
         // Everything else lives in the Settings window (Chung + Gõ tắt tabs). The menu
@@ -2117,18 +2117,17 @@ final class TelexInputController: IMKInputController {
     /// Trang giải thích các kiểu gõ (In-place/Tap/Marked…) — GitHub render sẵn
     /// docs/TYPING-STRATEGIES.md; GitHub Pages serve .md dạng raw nên không dùng
     /// viettelex.com cho file này.
+    /// Trang hướng dẫn kiểu gõ cho user cuối — vẫn link từ Bảng cơ chế gõ / README.
     static let typingModesGuideURL = "https://ptrinh.github.io/viettelex/typing-modes"
 
     @objc private func copyStrategySnapshot(_ sender: Any?) {
         // Async: menu input-method còn đang đóng (cùng lý do đã ghi ở showStatus).
-        // Click dòng "Chế độ gõ": copy debug VÀ mở trang hướng dẫn các kiểu gõ
-        // (maintainer 23/08 — user cuối bấm vào vì muốn hiểu, dev/tester thì cần
-        // snapshot; browser mở ra là feedback đủ rõ nên bỏ alert ở đường này).
+        // Click dòng "Cơ chế gõ": copy debug VÀ mở thẳng Bảng cơ chế gõ trong Cài đặt
+        // (maintainer 12/09/2026 — thay cho trang web 23/08: user bấm vào là muốn
+        // ĐỔI cơ chế cho app đang gõ, bảng hiện ra là feedback đủ rõ, không alert).
         DispatchQueue.main.async { [weak self] in
             self?.showDebugLog(alert: false)
-            if let url = URL(string: Self.typingModesGuideURL) {
-                NSWorkspace.shared.open(url)
-            }
+            SettingsWindowController.shared.show(tab: .modeTable)
         }
     }
 
