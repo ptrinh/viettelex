@@ -1784,6 +1784,10 @@ final class TelexInputController: IMKInputController {
     // MARK: - Input-method menu (IMK-provided, no NSStatusItem)
 
     override func menu() -> NSMenu! {
+        // Không còn dòng version trong menu (maintainer 12/09/2026: header "VietTelex"
+        // do TextInputMenuAgent vẽ từ Info.plist là tĩnh, không nhúng version được;
+        // hai dòng "VietTelex" + "VietTelex 1.6.x" thừa). Version vẫn ở Cài đặt →
+        // Giới thiệu và dòng đầu của snapshot debug (bấm "Chế độ gõ").
         let menu = NSMenu(title: "VietTelex")
         // macOS appends a standard "Edit Text Substitutions…" item to input-method
         // menus. Strip it (and any trailing separator) each time the menu opens.
@@ -1821,16 +1825,6 @@ final class TelexInputController: IMKInputController {
             menu.addItem(status)
         }
 
-        // Version + build, disabled: testers report "which build?" straight from the
-        // menu without opening Settings. Not localized — it's an identifier.
-        // (Tính năng ẩn click-copy-snapshot đã BỎ hẳn 15/08/2026 — maintainer;
-        // snapshot vẫn lấy được qua Cài đặt → Thử nghiệm → Copy debug log.)
-        let bundle = Bundle(for: TelexInputController.self)
-        let ver = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        let version = NSMenuItem(title: "VietTelex \(ver) (build \(build))", action: nil, keyEquivalent: "")
-        version.isEnabled = false
-        menu.addItem(version)
 
         // Chế độ gõ đang áp dụng + click = copy snapshot giải thích VÌ SAO chọn nó
         // (maintainer 19/08/2026). Trả lời đúng câu hỏi hay gặp nhất trong bug report:
