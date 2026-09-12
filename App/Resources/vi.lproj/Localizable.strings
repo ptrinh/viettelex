@@ -147,6 +147,10 @@
 
 /* Advanced features toggle */
 "Hide advanced features" = "Ẩn tính năng nâng cao";
+"When a word is both English and Vietnamese" = "Khi từ vừa là tiếng Anh vừa là tiếng Việt";
+"Prefer Vietnamese" = "Ưu tiên tiếng Việt";
+"Prefer English" = "Ưu tiên tiếng Anh";
+"For words like last/lát, list/lít, his/hí. Prefer Vietnamese: double the tone key to keep English (lisst → list). Prefer English: put the tone at the end for Vietnamese (lits → lít). Inside an English sentence the word stays English either way." = "Cho các từ như last/lát, list/lít, his/hí. Ưu tiên tiếng Việt: gõ đúp phím dấu để giữ tiếng Anh (lisst → list). Ưu tiên tiếng Anh: đặt dấu ở cuối từ để ra tiếng Việt (lits → lít). Trong câu tiếng Anh thì từ vẫn giữ tiếng Anh dù chọn gì.";
 "Hides the Typing modes and Experimental tabs — per-app overrides, latency flags, debug log. Not needed for everyday typing." = "Ẩn tab Bảng cơ chế gõ và Thử nghiệm — ép chế độ theo app, cờ độ trễ, nhật ký gỡ lỗi. Dùng hằng ngày thì không cần.";
 
 /* UX batch 21/07 pm */

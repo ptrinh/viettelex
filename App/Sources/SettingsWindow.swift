@@ -110,6 +110,7 @@ final class SettingsModel: ObservableObject {
     @Published var quickTelex: Bool { didSet { AppState.shared.quickTelex = quickTelex } }
     @Published var vniMode: Bool { didSet { AppState.shared.vniMode = vniMode } }
     @Published var contextualEnglish: Bool { didSet { AppState.shared.contextualEnglish = contextualEnglish } }
+    @Published var collisionPrefersVietnamese: Bool { didSet { AppState.shared.collisionPrefersVietnamese = collisionPrefersVietnamese } }
     @Published var stickyInputSource: Bool { didSet { AppState.shared.stickyInputSource = stickyInputSource } }
     @Published var switchHotkey: String { didSet { AppState.shared.switchHotkey = switchHotkey } }
     /// "vt" / "star". didSet ghi đè MenuIcon.pdf ngay (hiệu lực sau restart máy);
@@ -188,6 +189,7 @@ final class SettingsModel: ObservableObject {
         quickTelex = AppState.shared.quickTelex
         vniMode = AppState.shared.vniMode
         contextualEnglish = AppState.shared.contextualEnglish
+        collisionPrefersVietnamese = AppState.shared.collisionPrefersVietnamese
         stickyInputSource = AppState.shared.stickyInputSource
         switchHotkey = AppState.shared.switchHotkey
         menuIcon = AppState.shared.menuIcon
@@ -676,6 +678,19 @@ struct GeneralTab: View {
                     .font(.caption).foregroundStyle(.secondary)
                 // Graduated from the Experimental tab (2026-08-03) — shipped ON by
                 // default since 1.4.22 with no field complaints.
+                // "Ưu tiên khi trùng" (maintainer 12/09/2026, default tiếng Việt): kết
+                // thúc chuỗi tranh cãi từng-từ (#60 last/lát, PR#76 list/lít) — user
+                // chọn. Radio cùng dòng như Telex/VNI: hai lựa chọn loại trừ nhau.
+                Picker(model.loc("When a word is both English and Vietnamese"), selection: Binding(
+                    get: { model.collisionPrefersVietnamese ? "vi" : "en" },
+                    set: { model.collisionPrefersVietnamese = ($0 == "vi") })) {
+                    Text(model.loc("Prefer Vietnamese")).tag("vi")
+                    Text(model.loc("Prefer English")).tag("en")
+                }
+                .pickerStyle(.radioGroup)
+                .horizontalRadioGroupLayout()
+                Text(model.loc("For words like last/lát, list/lít, his/hí. Prefer Vietnamese: double the tone key to keep English (lisst → list). Prefer English: put the tone at the end for Vietnamese (lits → lít). Inside an English sentence the word stays English either way."))
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle(model.loc("Context-based decision"), isOn: $model.contextualEnglish)
                 Text(model.loc("After an English word, an ambiguous next word whose keys spell an English word is kept English instead of Vietnamese — “he is” → “he is”, not “he í”. After a Vietnamese or unclear word it stays Vietnamese — “sao í”."))
                     .font(.caption).foregroundStyle(.secondary)
@@ -1054,7 +1069,7 @@ enum DebugHeader {
             // from every prior debug log meant a tester's own `defaults write` was invisible
             // evidence ("chỉ mỗi em bị" — 2026-08-05).
             "flags: modifyInPlace=\(s.tapModifyEventInPlace) skipKeyUp=\(s.tapSkipSyntheticKeyUp) axReplace=\(s.axSelectionReplace) breaker=\(s.tapCascadeBreaker) nativeFastPath=\(s.tapNativeFastPath)",
-            "settings: simpleTelex=\(s.simpleTelex) freeMarking=\(s.freeMarking) modern=\(s.modernOrthography) liveSpell=\(s.liveSpellCheck) autoRestore=\(s.autoRestore) vni=\(s.vniMode) quick=\(s.quickTelex) ctxEnglish=\(s.contextualEnglish) reEdit=\(s.reEditWord) bracket=\(s.bracketVowels) safeUnknown=\(s.safeUnknownApps)",
+            "settings: simpleTelex=\(s.simpleTelex) freeMarking=\(s.freeMarking) modern=\(s.modernOrthography) liveSpell=\(s.liveSpellCheck) autoRestore=\(s.autoRestore) vni=\(s.vniMode) quick=\(s.quickTelex) ctxEnglish=\(s.contextualEnglish) collisionVN=\(s.collisionPrefersVietnamese) reEdit=\(s.reEditWord) bracket=\(s.bracketVowels) safeUnknown=\(s.safeUnknownApps)",
             // Count only — the trigger/expansion pairs are USER-TYPED content the log
             // must never carry (same rule as everywhere else here), but a nonzero count
             // is itself diagnostic: a custom gõ tắt entry colliding with a Vietnamese

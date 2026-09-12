@@ -2310,6 +2310,7 @@ final class TelexInputController: IMKInputController {
             "Modern tone placement: \(onOff(s.modernOrthography))",
             "Live spell check: \(onOff(s.liveSpellCheck))",
             "Auto restore: \(onOff(s.autoRestore))",
+            "Collision priority: \(s.collisionPrefersVietnamese ? "Vietnamese" : "English")",
         ]
         // Copy vào clipboard để user dán thẳng vào báo lỗi (lúc có sự cố thì gõ lại
         // không đáng tin). CÓ alert xác nhận: đây là dòng menu TƯỜNG MINH ("Chế độ

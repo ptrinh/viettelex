@@ -46,6 +46,7 @@ final class AppState: @unchecked Sendable {
         static let quickTelex = "quickTelex"
         static let vniMode = "vniMode"
         static let contextualEnglish = "contextualEnglish"
+        static let collisionPrefersVietnamese = "collisionPrefersVietnamese"
         static let reEditWord = "reEditWord"
         static let shortcuts = "shortcuts"
         static let fallbackApps = "fallbackApps"      // learned: ignore replacementRange
@@ -116,6 +117,7 @@ final class AppState: @unchecked Sendable {
         // cảnh đã đủ chín — người gõ lẫn Anh-Việt hưởng lợi ngay khỏi phải biết
         // toggle tồn tại; ai không muốn vẫn tắt được trong Cài đặt.
         _contextualEnglish = (defaults.object(forKey: Key.contextualEnglish) as? Bool) ?? true
+        _collisionPrefersVietnamese = (defaults.object(forKey: Key.collisionPrefersVietnamese) as? Bool) ?? true
         tapNativeFastPath = (defaults.object(forKey: "tapNativeFastPath") as? Bool) ?? true
         _tapModifyEventInPlace = (defaults.object(forKey: "tapModifyEventInPlace") as? Bool) ?? true
         _tapSkipSyntheticKeyUp = (defaults.object(forKey: "tapSkipSyntheticKeyUp") as? Bool) ?? true
@@ -197,6 +199,7 @@ final class AppState: @unchecked Sendable {
         var freeMarking = true, modernTone = false, liveSpellCheck = true
         var simpleTelex = false, quickTelex = false, vniMode = false
         var bracketVowels = false, contextualEnglish = true
+        var collisionPrefersVietnamese = true
     }
 
     func engineFlags() -> EngineFlags {
@@ -204,13 +207,14 @@ final class AppState: @unchecked Sendable {
             EngineFlags(freeMarking: _freeMarking, modernTone: _modernOrthography,
                         liveSpellCheck: _liveSpellCheck, simpleTelex: _simpleTelex,
                         quickTelex: _quickTelex, vniMode: _vniMode,
-                        bracketVowels: _bracketVowels, contextualEnglish: _contextualEnglish)
+                        bracketVowels: _bracketVowels, contextualEnglish: _contextualEnglish,
+                        collisionPrefersVietnamese: _collisionPrefersVietnamese)
         }
     }
 
     /// Sanity net for the snapshot above: every engine toggle must be carried, or a
     /// setting silently stops reaching the engine. Bump when adding a flag.
-    static let engineFlagCount = 8
+    static let engineFlagCount = 9
 
     /// Tone-placement style. false (default) = old style (hòa, thủy); true = modern
     /// (hoà, thuý). See `TelexEngine.modernTone`.
@@ -363,6 +367,16 @@ final class AppState: @unchecked Sendable {
         get { lock.withLock { _contextualEnglish } }
         set { lock.withLock { _contextualEnglish = newValue }
               defaults.set(newValue, forKey: Key.contextualEnglish) }
+    }
+
+    /// "Ưu tiên khi trùng": từ vừa là English (bảng collision) vừa là âm tiết Việt hợp
+    /// lệ — true (default, maintainer 12/09/2026) giữ tiếng Việt (last→lát), false
+    /// khôi phục tiếng Anh. Xem TelexEngine.collisionPrefersVietnamese.
+    private var _collisionPrefersVietnamese: Bool
+    var collisionPrefersVietnamese: Bool {
+        get { lock.withLock { _collisionPrefersVietnamese } }
+        set { lock.withLock { _collisionPrefersVietnamese = newValue }
+              defaults.set(newValue, forKey: Key.collisionPrefersVietnamese) }
     }
 
     /// UI language override for the Settings window + menu, independent of the
@@ -1154,5 +1168,6 @@ extension TelexEngine {
         vniMode = f.vniMode
         bracketVowels = f.bracketVowels
         contextualEnglish = f.contextualEnglish
+        collisionPrefersVietnamese = f.collisionPrefersVietnamese
     }
 }

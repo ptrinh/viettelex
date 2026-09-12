@@ -112,6 +112,13 @@ public struct TelexEngine {
     /// gen-english turns this OFF to regenerate the table against the
     /// validator-only behavior (the table must not observe itself).
     public var englishWordRestore = true
+    /// Khi một từ VỪA là tiếng Anh trong bảng collision VỪA gõ ra âm tiết Việt hợp lệ
+    /// (last/lát, list/lít, his/hí): true → giữ tiếng Việt, false → khôi phục tiếng
+    /// Anh (hành vi cũ). Chỉ gate bảng collision ĐỨNG MỘT MÌNH: trong mạch tiếng Anh
+    /// (contextualEnglish + từ trước là English) bảng vẫn khôi phục ("the list"),
+    /// âm tiết không hợp lệ vẫn về raw, cử chỉ gõ đúp không đổi. Engine default
+    /// false để golden cũ nguyên; AppState default TRUE (maintainer 12/09/2026).
+    public var collisionPrefersVietnamese = false
 
     static let capacity = 32
 
@@ -671,7 +678,11 @@ public struct TelexEngine {
             // did NOT clean the word up ("excess"→"êcs", "lenses"→"lêns").
             return composedHasDiacritic()
         }
-        if rawIsEnglishCollision() { return true }
+        // Ưu tiên tiếng Việt khi trùng (collisionPrefersVietnamese): từ Việt hợp lệ
+        // thắng bảng collision khi đứng một mình; trong mạch tiếng Anh xem nhánh
+        // context bên dưới (bảng vẫn khôi phục ở đó).
+        if rawIsEnglishCollision(),
+           !(collisionPrefersVietnamese && composedIsValidSyllable()) { return true }
         // `isTeencodeKeep()` runs AFTER the English table above on purpose: the dictionary
         // still wins ("google" restores), and only a word that no dictionary claims gets
         // kept as "valid syllable + repeated tail" ("hôngggg", "vângggg", "đẹpppp").
@@ -682,7 +693,8 @@ public struct TelexEngine {
         // Gated so vniMode/default typing pays nothing (the String build only runs when the
         // flag is on AND the previous word was English).
         if contextualEnglish, previousWordEnglish,
-           rawIsEnglishContextWord(includingRestoreOnly: true) { return true }
+           rawIsEnglishContextWord(includingRestoreOnly: true)
+               || (collisionPrefersVietnamese && rawIsEnglishCollision()) { return true }
         return false
     }
 
