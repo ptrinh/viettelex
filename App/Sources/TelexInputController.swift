@@ -2127,7 +2127,8 @@ final class TelexInputController: IMKInputController {
         // ĐỔI cơ chế cho app đang gõ, bảng hiện ra là feedback đủ rõ, không alert).
         DispatchQueue.main.async { [weak self] in
             self?.showDebugLog(alert: false)
-            SettingsWindowController.shared.show(tab: .modeTable)
+            SettingsWindowController.shared.show(tab: .modeTable,
+                                                 modeFilter: AppState.shared.currentBundleID)
         }
     }
 

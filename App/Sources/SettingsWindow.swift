@@ -21,8 +21,15 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var model: SettingsModel?
 
-    func show(tab: SettingsTab) {
+    /// `modeFilter`: điền sẵn ô lọc của Bảng cơ chế gõ (menu "Cơ chế gõ" truyền bundle
+    /// id của app đang gõ — maintainer 12/09/2026). Mở tab nâng cao theo đường này
+    /// thì tự tắt "Ẩn tính năng nâng cao": user bấm là muốn thấy bảng, không phải
+    /// rơi về Tùy chỉnh.
+    func show(tab: SettingsTab, modeFilter: String? = nil) {
         NSApp.setActivationPolicy(.regular)
+        if tab == .modeTable || tab == .experimental, !AppState.shared.advancedFeatures {
+            AppState.shared.advancedFeatures = true       // trước khi model đọc (init fallback về .general)
+        }
         if window == nil {
             let model = SettingsModel(selected: tab)
             let root = SettingsView().environmentObject(model)
@@ -44,7 +51,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             self.window = win
             self.model = model
         }
+        if model?.hideAdvanced == true, tab == .modeTable || tab == .experimental {
+            model?.hideAdvanced = false
+        }
         model?.selectedTab = tab
+        if let modeFilter { model?.modeFilter = modeFilter }
         // NOT in this runloop turn: the .accessory→.regular policy flip above needs a
         // window-server round trip before an activation can stick. Activating in the
         // same turn intermittently loses the race — the window is created but never
