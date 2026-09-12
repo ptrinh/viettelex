@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.6.26</string>
+	<string>1.6.27</string>
 	<key>CFBundleVersion</key>
-	<string>94</string>
+	<string>95</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Phil Trinh. MIT License.</string>
 	<key>ComponentInputModeDict</key>
