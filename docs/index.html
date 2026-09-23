@@ -226,9 +226,9 @@
 <section id="install"><span id="huongdan"></span>
   <div class="wrap">
     <h2>Cài đặt trong một phút</h2>
-    <p class="lead">Trình cài đặt tự đặt app vào đúng chỗ, đăng ký bộ gõ và mở sẵn System Settings — không phải kéo thả, không phải đăng xuất.</p>
+    <p class="lead">Chọn một cách cài: tải .pkg hoặc Homebrew. Cả hai dùng app đã ký và cài vào <code>~/Library/Input Methods/VietTelex.app</code>; đừng cài đồng thời vì hai trình quản lý sẽ cùng ghi/xoá app đó.</p>
     <div class="steps">
-      <div class="step"><strong>Tải và chạy trình cài đặt</strong><p>Tải <a href="https://github.com/ptrinh/viettelex/releases/latest" rel="noopener" class="dl-direct">VietTelex-x.y.z.pkg</a> (đã được Apple ký &amp; xác thực notarize) rồi nhấp đúp. Hoặc dùng Homebrew: <code>brew install --cask ptrinh/viettelex/viettelex</code></p></div>
+      <div class="step"><strong>Cài qua một kênh</strong><p>Tải <a href="https://github.com/ptrinh/viettelex/releases/latest" rel="noopener" class="dl-direct">VietTelex-x.y.z.pkg</a> (đã được Apple ký &amp; xác thực notarize) rồi nhấp đúp. Hoặc chạy <code>brew install --cask ptrinh/viettelex/viettelex</code>. Khi đổi kênh, gỡ app khỏi kênh hiện tại trước.</p></div>
       <div class="step"><strong>Thêm bộ gõ</strong><p>System Settings → Keyboard → Input Sources → <b>Edit… / ＋</b> → Vietnamese → <b>ViệtTelex</b> → Add.</p>
         <img src="assets/instructions-1.png" alt="Input Sources → Edit trong System Settings" loading="lazy" style="max-width:560px">
         <img src="assets/instructions-2.png" alt="Thêm ViệtTelex trong Input Sources" loading="lazy" style="max-width:560px;margin-top:10px"></div>
@@ -242,7 +242,7 @@
     <h2>Câu hỏi thường gặp</h2>
     <details>
       <summary><strong>Cài xong gõ vẫn bị gạch chân?</strong></summary>
-      <p>Do VietTelex chưa được cấp quyền Trợ năng: System Settings → Privacy &amp; Security → <b>Accessibility</b> → tick VietTelex (đã tick mà vẫn lỗi thì bỏ tick rồi tick lại). Có thể cần khởi động lại máy một lần để quyền có tác dụng.</p>
+      <p>Do VietTelex chưa được cấp quyền Trợ năng: System Settings → Privacy &amp; Security → <b>Accessibility</b> → tick VietTelex (đã tick mà vẫn lỗi thì bỏ tick rồi tick lại). Nếu đang chạy bản Debug từ Xcode, thoát bản đó rồi mở bản trong <code>~/Library/Input Methods</code>; hai bản có định danh quyền riêng.</p>
     </details>
     <details>
       <summary><strong>Không thấy ViệtTelex trong Input Sources?</strong></summary>

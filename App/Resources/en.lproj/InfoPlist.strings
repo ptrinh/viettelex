@@ -2,3 +2,4 @@
 "CFBundleDisplayName" = "VietTelex";
 "com.viettelex.inputmethod.telex" = "ViệtTelex";
 "com.viettelex.inputmethod.telex.vi" = "ViệtTelex";
+"com.viettelex.inputmethod.telex.debug.vi" = "ViệtTelex (Debug)";

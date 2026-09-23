@@ -46,22 +46,69 @@ final class BoundaryRepostTests: XCTestCase {
     /// semantics in apps that track key state).
     // MARK: Field 19/08/2026 — "thử xem"+Enter trên TikTok post ra mỗi "thử"
 
-    func testUntrustedMarkedReturnFoldsANewlineIntoTheCommit() {
+    func testUntrustedChromiumPlainReturnRemainsARealAppKey() {
+        let forward = TelexInputController.forwardPlainReturn(
+            bundleID: nil, untrustedChromiumPage: true)
         XCTAssertEqual(
-            TelexInputController.markedCommitNewlineSuffix(newlineKey: true, marked: true, trusted: false),
-            "\n")
-        // Trusted marked still re-posts the real Return (chat "send"); don't also
-        // inject a newline or the field gets two breaks.
+            TelexInputController.markedBoundaryHandling(newlineKey: true, shifted: false,
+                marked: true, trusted: false, forwardPlainReturn: forward),
+            .init(commitSuffix: "", swallowPhysicalKey: false))
+    }
+
+    func testCodexPlainReturnUsesTheAppsSendAction() {
+        let forward = TelexInputController.forwardPlainReturn(
+            bundleID: "com.openai.codex", untrustedChromiumPage: false)
+        XCTAssertTrue(forward)
         XCTAssertEqual(
-            TelexInputController.markedCommitNewlineSuffix(newlineKey: true, marked: true, trusted: true),
-            "")
+            TelexInputController.markedBoundaryHandling(newlineKey: true, shifted: false,
+                marked: true, trusted: false, forwardPlainReturn: forward),
+            .init(commitSuffix: "", swallowPhysicalKey: false))
+    }
+
+    func testCodexShiftReturnStillCommitsANewline() {
+        let forward = TelexInputController.forwardPlainReturn(
+            bundleID: "com.openai.codex", untrustedChromiumPage: false)
         XCTAssertEqual(
-            TelexInputController.markedCommitNewlineSuffix(newlineKey: true, marked: false, trusted: false),
-            "")
-        // Tab/Esc must not become a line break.
+            TelexInputController.markedBoundaryHandling(newlineKey: true, shifted: true,
+                marked: true, trusted: false, forwardPlainReturn: forward),
+            .init(commitSuffix: "\n", swallowPhysicalKey: true))
+    }
+
+    func testOnlyTheCodexBundleGetsTheAppSpecificReturnPolicy() {
+        XCTAssertFalse(TelexInputController.forwardPlainReturn(
+            bundleID: "com.apple.TextEdit", untrustedChromiumPage: false))
+    }
+
+    func testUntrustedChromiumShiftReturnCommitsOneNewlineAndSwallowsTheKey() {
+        let forward = TelexInputController.forwardPlainReturn(
+            bundleID: nil, untrustedChromiumPage: true)
         XCTAssertEqual(
-            TelexInputController.markedCommitNewlineSuffix(newlineKey: false, marked: true, trusted: false),
-            "")
+            TelexInputController.markedBoundaryHandling(newlineKey: true, shifted: true,
+                marked: true, trusted: false, forwardPlainReturn: forward),
+            .init(commitSuffix: "\n", swallowPhysicalKey: true))
+    }
+
+    func testUntrustedNativeMarkedReturnKeepsSinglePressMultilineFallback() {
+        XCTAssertEqual(
+            TelexInputController.markedBoundaryHandling(newlineKey: true, shifted: false,
+                marked: true, trusted: false, forwardPlainReturn: false),
+            .init(commitSuffix: "\n", swallowPhysicalKey: true))
+    }
+
+    func testTrustedMarkedReturnDoesNotInsertNewlineBeforeRepost() {
+        XCTAssertEqual(
+            TelexInputController.markedBoundaryHandling(newlineKey: true, shifted: false,
+                marked: true, trusted: true, forwardPlainReturn: false),
+            .init(commitSuffix: "", swallowPhysicalKey: false))
+    }
+
+    func testTabAndEscapeNeverInjectNewlines() {
+        let forward = TelexInputController.forwardPlainReturn(
+            bundleID: nil, untrustedChromiumPage: true)
+        XCTAssertEqual(
+            TelexInputController.markedBoundaryHandling(newlineKey: false, shifted: false,
+                marked: true, trusted: false, forwardPlainReturn: forward),
+            .init(commitSuffix: "", swallowPhysicalKey: true))
     }
 
     func testMarkedWebEditorDelaysTheRepost() {

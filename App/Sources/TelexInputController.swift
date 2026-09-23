@@ -192,14 +192,33 @@ final class TelexInputController: IMKInputController {
         markedWebField ? 60 : nil
     }
 
-    /// Untrusted marked Return cannot re-post a synthetic key. Fold the newline
-    /// into the same `insertText` that confirms the composition so one Enter both
-    /// drops the underline and breaks the line (Chrome textarea, Notes, …).
-    /// Terminals strip control characters from IME-inserted text, so they keep
-    /// the documented two-press UX. Tab/Esc never inject. Trusted marked keeps
-    /// the existing swallow+re-post path (chat "send" needs a real Return key).
-    static func markedCommitNewlineSuffix(newlineKey: Bool, marked: Bool, trusted: Bool) -> String {
-        (newlineKey && marked && !trusted) ? "\n" : ""
+    struct MarkedBoundaryHandling: Equatable {
+        let commitSuffix: String
+        let swallowPhysicalKey: Bool
+    }
+
+    /// Resolve the degraded no-Accessibility boundary behavior before committing.
+    /// Send-on-Enter hosts must receive plain Return so their editor can choose
+    /// between send and newline; only Shift+Enter is folded into the marked commit.
+    /// Native multiline fields keep the one-press newline fallback, and terminals
+    /// continue swallowing boundary keys because they discard control text.
+    static func forwardPlainReturn(bundleID: String?, untrustedChromiumPage: Bool) -> Bool {
+        untrustedChromiumPage || bundleID == "com.openai.codex"
+    }
+
+    static func markedBoundaryHandling(newlineKey: Bool, shifted: Bool, marked: Bool,
+                                       trusted: Bool, forwardPlainReturn: Bool)
+        -> MarkedBoundaryHandling {
+        guard marked && !trusted else {
+            return MarkedBoundaryHandling(commitSuffix: "", swallowPhysicalKey: false)
+        }
+        guard newlineKey else {
+            return MarkedBoundaryHandling(commitSuffix: "", swallowPhysicalKey: true)
+        }
+        if forwardPlainReturn && !shifted {
+            return MarkedBoundaryHandling(commitSuffix: "", swallowPhysicalKey: false)
+        }
+        return MarkedBoundaryHandling(commitSuffix: "\n", swallowPhysicalKey: true)
     }
 
     /// SPLIT-BRAIN → marked (lớp bug issue #55). Fire khi: client id routes họ tap,
@@ -645,10 +664,15 @@ final class TelexInputController: IMKInputController {
             // Enter in terminals is what the TAP path provides — grant Accessibility.
             boundaryCommitInFlight = true
             let wasEdge = edgeTapWord
-            let suffix = Self.markedCommitNewlineSuffix(
-                newlineKey: newlineKey, marked: markedNow, trusted: Accessibility.isTrusted)
+            let trustedNow = Accessibility.isTrusted
+            let forwardPlainReturn = Self.forwardPlainReturn(
+                bundleID: id, untrustedChromiumPage: routing.untrustedMarked)
+            let handling = Self.markedBoundaryHandling(
+                newlineKey: newlineKey, shifted: event.modifierFlags.contains(.shift),
+                marked: markedNow, trusted: trustedNow,
+                forwardPlainReturn: forwardPlainReturn)
             let rewrote = boundary(client, allowShortcuts: Self.shortcutExpansionAllowed(afterDigit: wordGluedToDigit),
-                                   commitSuffix: suffix)
+                                   commitSuffix: handling.commitSuffix)
             boundaryCommitInFlight = false
             wordGluedToDigit = false
             // Return/Tab/Esc do not put ONE character after the word the way a space
@@ -701,15 +725,13 @@ final class TelexInputController: IMKInputController {
                 }
                 return true
             }
-            // No Accessibility → no re-post. Returning false raced the async
-            // MARKED commit and the terminal submitted the line missing its tail
-            // ("cho tôi⏎" → "cho tô", tester log #6 2026-07-23, Warp untrusted).
-            // Swallow the original key. For Return/Enter, `commitSuffix` already
-            // folded "\n" into the marked insertText (Chrome/Cocoa honor it;
-            // terminals strip it and keep the two-press UX).
-            if rewrote, !Accessibility.isTrusted,
-               usesMarkedNow(AppState.shared.currentBundleID) {
-                return true
+            // No Accessibility → no synthetic re-post. Native multiline fields and
+            // terminals keep the marked Return fallback (terminals strip control text
+            // and keep the documented two-press behavior). Chromium page content and
+            // the Codex prompt receive a real plain Return so their editors can choose
+            // send vs newline. Shift+Return stays a committed newline.
+            if rewrote, !trustedNow, markedNow {
+                return handling.swallowPhysicalKey
             }
             return false
 
@@ -1804,9 +1826,9 @@ final class TelexInputController: IMKInputController {
     /// True when the CURRENTLY selected keyboard input source is VietTelex — the single
     /// source of truth the flaky activate/deactivate ordering must defer to. Called
     /// only on lifecycle transitions / TIS notifications, never on the keystroke hot
-    /// path, so the Carbon TIS copy is fine here. Matches both the input source and its
-    /// `.vi` input mode by bundle-id prefix — THIS build's own id (see `OwnBundle`), so
-    /// a dev build registered under a separate id still recognizes itself.
+    /// path, so the Carbon TIS copy is fine here. Matches only THIS build's exact
+    /// bundle id or its `.vi` input mode (see `OwnBundle`), so Release cannot claim
+    /// the sibling Debug input source.
     static func isVietTelexSelected() -> Bool {
         guard let src = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
               let ptr = TISGetInputSourceProperty(src, kTISPropertyInputSourceID) else { return false }
@@ -1815,14 +1837,14 @@ final class TelexInputController: IMKInputController {
     }
 
     /// Does this input-source id belong to the RUNNING build? Split out of
-    /// `isVietTelexSelected` so the prefix rule is testable without a live TIS —
+    /// `isVietTelexSelected` so identity matching is testable without a live TIS —
     /// `own` is the seam a test uses to replay the dev-build id mismatch that put the
-    /// tap dormant mid-word (see `OwnBundle`). An EMPTY `own` matches nothing: bare
-    /// `hasPrefix("")` is true for every id, which would claim VietTelex is selected
-    /// while the user types in ABC. `OwnBundle` already refuses to produce one — this
-    /// is the guard at the comparison itself, where the hazard actually lives.
+    /// tap dormant mid-word (see `OwnBundle`). An EMPTY `own` matches nothing; without
+    /// the guard, an empty input-source id would compare equal and be mistaken for
+    /// VietTelex. `OwnBundle` already refuses to produce an empty id, but this check
+    /// keeps the comparison itself safe too.
     static func inputSourceIsOurs(_ id: String, own: String = OwnBundle.id) -> Bool {
-        !own.isEmpty && id.hasPrefix(own)
+        !own.isEmpty && (id == own || id == "\(own).vi")
     }
 
     // MARK: - Input-method menu (IMK-provided, no NSStatusItem)
@@ -2251,15 +2273,23 @@ final class TelexInputController: IMKInputController {
 
     /// One-time gentle prompt on the FIRST activation with the permission missing —
     /// no longer waiting for the user to focus a tap-needing app (they'd type happily
-    /// in Notes, then hit Terminal days later and think the IME broke). Shown once
-    /// ever (axPromptShown); declining is remembered.
+    /// in Notes, then hit Terminal days later and think the IME broke). Only signed
+    /// Developer ID builds can receive a durable Accessibility grant; an ad-hoc Xcode
+    /// build must not keep opening an impossible-to-resolve prompt. Shown once ever
+    /// (axPromptShown); declining is remembered.
     private func maybePromptAccessibility(_ id: String?) {
-        guard !AppState.shared.axPromptShown,
-              !Accessibility.isTrusted else { return }
+        guard Self.shouldPromptAccessibility(trusted: Accessibility.isTrusted,
+                                             alreadyPrompted: AppState.shared.axPromptShown,
+                                             isOurSignedBuild: Accessibility.isOurSignedBuild) else { return }
         AppState.shared.axPromptShown = true
         DispatchQueue.main.async { [weak self] in
             self?.grantAccessibility()
         }
+    }
+
+    static func shouldPromptAccessibility(trusted: Bool, alreadyPrompted: Bool,
+                                          isOurSignedBuild: Bool) -> Bool {
+        isOurSignedBuild && !trusted && !alreadyPrompted
     }
 
     /// Missing permission: show OUR explanatory popup. We deliberately do NOT call

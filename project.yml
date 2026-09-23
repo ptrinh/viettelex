@@ -59,9 +59,13 @@ targets:
       # bundled so AppState loads defaults from data, attached to releases.
       - path: typing-modes.yml
         buildPhase: resources
-      - path: App/Resources/en.lproj
+      - path: App/Resources/en.lproj/InfoPlist.strings
         buildPhase: resources
-      - path: App/Resources/vi.lproj
+      - path: App/Resources/en.lproj/Localizable.strings
+        buildPhase: resources
+      - path: App/Resources/vi.lproj/InfoPlist.strings
+        buildPhase: resources
+      - path: App/Resources/vi.lproj/Localizable.strings
         buildPhase: resources
     dependencies:
       - package: TelexCore
@@ -94,6 +98,15 @@ targets:
         SWIFT_VERSION: "5.0"
         ENABLE_HARDENED_RUNTIME: "YES"
       configs:
+        Debug:
+          # Never let an Xcode-run IMK server register as the installed release.
+          # Reusing the shipping TIS/connection identity lets both processes compete
+          # for one input source and makes Accessibility status appear to disagree.
+          PRODUCT_BUNDLE_IDENTIFIER: com.viettelex.inputmethod.telex.debug
+          INFOPLIST_FILE: App/Resources/Debug-Info.plist
+          # InfoPlist.strings localizes the shipping app name. Exclude that table only
+          # in Debug so the Debug plist's distinct accessibility label takes effect.
+          EXCLUDED_SOURCE_FILE_NAMES: InfoPlist.strings
         Release:
           # Size diet (Release ONLY — Debug keeps symbols so VietTelexTests'
           # BUNDLE_LOADER/@testable linking still works). Measured before: each

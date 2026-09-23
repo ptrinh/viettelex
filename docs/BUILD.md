@@ -36,6 +36,13 @@ Build tay như trên thì bundle nằm trong DerivedData mặc định của Xco
 `$TMPDIR/viettelex-derived/Build/Products/Release/VietTelex.app` (tránh vụ nhiều
 DerivedData tồn đọng làm cài nhầm bản cũ). `TelexCore` link tĩnh, bundle tự chứa.
 
+**Debug và Release có định danh IMK khác nhau.** Xcode Debug dùng
+`com.viettelex.inputmethod.telex.debug`, mode `…debug.vi` và connection
+`…debug_Connection`; Release giữ nguyên `com.viettelex.inputmethod.telex`, mode
+`…telex.vi` và connection `…telex_Connection`. Debug được ký ad-hoc, nên không
+thể dùng quyền Accessibility của Release và không hiện hộp nhắc quyền. Chạy app
+Release đã ký/notarized để kiểm tra hành vi thật; không mở app bằng ⌘R.
+
 ### Cài để test tay
 
 **macOS 26 (Tahoe) yêu cầu input method phải NOTARIZED mới đăng ký được làm input
@@ -120,12 +127,19 @@ app, `make-pkg.sh` cho installer). Đây là kênh DUY NHẤT khả thi cho inpu
 (zip từ app đã staple), `VietTelex-<VER>.pkg`, và copy `typing-modes.yml` — rồi in
 sha256 của app.zip + lệnh upload. **Homebrew cask tải `.app.zip`** (stanza `artifact`
 vào `~/Library/Input Methods`, vì pkg là user-home domain), nên release nào cũng PHẢI
-đính `.app.zip`. Sau khi `gh release upload`:
+đính `.app.zip`. `.pkg` bọc cùng app đã notarize; hai kênh dùng cùng version, bundle
+ID Release và đường dẫn user. Mỗi máy chỉ nên dùng một manager để quản lý app tại một
+thời điểm. Sau khi `gh release upload`:
 
 1. Bump `Casks/viettelex.rb` trong tap `ptrinh/homebrew-viettelex`: `version` + `sha256`.
 2. Khi bản đó đủ tin cậy → **promote lên kênh stable**: bump `docs/stable.json`
    (`version` + `url`) trên GitHub Pages. Auto-update hàng tuần trong app (opt-in)
    CHỈ theo kênh này — release chưa promote thì user không được nhắc update.
+
+Khi đổi manager, gỡ app bằng manager đang sở hữu trước: chạy `brew uninstall --cask
+viettelex` trước khi chuyển sang `.pkg`; khi rời `.pkg`, chuyển sang ABC, thoát app,
+xoá `~/Library/Input Methods/VietTelex.app` rồi mới cài Homebrew. Không đổi đường
+dẫn cài đặt sang `/Library` hay `/Applications`.
 
 **Mac App Store: ĐÃ VERIFY — KHÔNG KHẢ THI (2026-07).** App MAS cài vào
 `/Applications`, nhưng macOS chỉ nạp input method từ `~/Library/Input Methods`;

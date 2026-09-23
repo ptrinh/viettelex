@@ -634,9 +634,17 @@ giành một connection name, macOS xử lý bằng cách dựng lại toàn b�
 với "Registration only PERSISTS via the login scan" ở trên: đăng ký vốn mong manh,
 một bundle trùng connection name đủ để thổi bay.
 
-Luật: **build/cài bằng `Scripts/dev-install.sh`, không bao giờ ⌘R app chính trong
-Xcode.** Mở Xcode để đọc/sửa code hay chạy test (⌘U) qua CLI runner thì theo dõi
-được — xem thêm mục XCTest host cướp IMK trong dev-loop notes. Kiểm tra sức khoẻ:
+Nguyên nhân lịch sử đã được xử lý trong cấu hình build ngày 23/09/2026: Xcode
+Debug nay có bundle ID `com.viettelex.inputmethod.telex.debug`, TIS mode
+`…debug.vi` và IMK connection `…debug_Connection`; Release giữ nguyên cả ba ID
+đang dùng. Hai process không còn tranh cùng input source. Tuy vậy Debug được ký
+ad-hoc, không nhận quyền Accessibility của Release và không phải bản để field-test;
+dùng `Scripts/dev-install.sh` để cài bản Release đã ký vào thư mục user. Đừng chọn
+bundle Debug làm input source. Test qua `xcodebuild test` vẫn dùng XCTest host guard.
+
+Trước khi sửa identity, nguyên tắc là **build/cài bằng `Scripts/dev-install.sh`,
+không bao giờ ⌘R app chính trong Xcode**. Giữ ghi chú này vì nó giải thích triệu
+chứng cũ và giúp nhận diện máy chưa cập nhật. Kiểm tra bản đang hoạt động:
 
 ```bash
 pgrep -lf VietTelex          # đúng 1 dòng, path ~/Library/Input Methods/
@@ -684,6 +692,50 @@ never got exercised there until the tap was off.
 Changing the name requires a logout/login (it is input-source registration
 metadata). Diagnosis trail: missing menu section per-app → zero activateServer in
 DebugLog → sandbox entitlement check → naming convention (vChewing dev guidelines).
+
+## Plain Return trong browser/chat composer khi không có Accessibility — 2026-09-23
+
+Lớp untrusted Chromium mới buộc page content sang marked text để Lexical/ProseMirror
+nhận được chữ có dấu. Nhưng fallback cũ nối `\n` vào mọi marked Return: Discord và
+Messenger nhận xuống dòng thay vì phím thật để gửi. Plain Return giờ được chuyển tiếp
+cho Chromium page content và prompt Codex (`com.openai.codex`), để editor quyết định
+gửi hay xuống dòng. Shift+Return vẫn commit một newline. Text field native không đổi
+fallback một-Enter; Terminal vẫn không nhận control character qua `insertText` và cần
+Tap/Accessibility cho một lần.
+
+Unit tests pin chính sách này, nhưng thứ tự commit trong browser phải được field-test
+riêng: editor JS có thể áp dụng marked commit bất đồng bộ. Chưa đánh dấu Discord web,
+Messenger, Warp hoặc Chrome Remote Desktop là đã xác nhận sau thay đổi cho tới khi
+chạy checklist trên app Release đã cài.
+
+## Bản Debug thừa CHIẾM IMK connection của bản cài — 2026-09-23
+
+Triệu chứng user báo (Discord/Messenger Enter xuống dòng, chữ sai kiểu `ti đã đi`,
+hai dòng "VietTelex" trong Accessibility) hoá ra không phải code: `pgrep -lf
+VietTelex` ra HAI process, và `launchctl print gui/$(id -u)/<application.com.viettelex…>`
+cho thấy process Debug cũ trong DerivedData (bundle id ship, ký ad-hoc, được IMK khởi
+động lúc login/relaunch) mới là chủ dynamic endpoint `…telex_Connection`. Mọi client
+IMK gõ qua bản đó (không có Accessibility → marked + `\n`), trong khi bản Release đã
+cài chỉ chạy tap song song trên cùng phím → hai kênh sửa cùng một từ. Nguyên nhân
+IMK chọn nhầm: `lsregister -dump | grep VietTelex.app` có 9 bản ghi cùng bundle id
+(DerivedData, `/private/tmp/*`, scratchpad của agent) — xoá thư mục không huỷ đăng ký.
+
+Chẩn đoán nhanh trước khi nghi code:
+
+```bash
+pgrep -lf VietTelex                                  # phải đúng 1 process, path ~/Library/Input Methods/
+launchctl print gui/$(id -u) | grep -B3 telex_Connection   # PID nào giữ endpoint
+LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+"$LSREG" -dump | grep -E '^path:.*VietTelex\.app'    # phải đúng 1 dòng
+```
+
+Sửa: kill mọi process VietTelex, `"$LSREG" -u <path thừa>` cho từng bản ngoài
+`~/Library/Input Methods`, `"$LSREG" -f ~/Library/Input\ Methods/VietTelex.app`, chuyển
+ABC rồi chọn lại VietTelex. `Scripts/notarize-install.sh` nay huỷ đăng ký bản thừa qua
+`trap EXIT` (cả khi fail sau build). Identity Debug tách riêng chỉ ngăn bản Debug MỚI;
+bản Debug build trước 23/09 và mọi bản Release build tay vẫn mang bundle id ship.
+Sau khi dọn, bản 1.7.8 pass Discord web, Messenger web, Warp (Tab/mũi tên), TextEdit
+bằng phím giả lập qua HID tap — xem checklist mục 5.9–5.14.
 
 ## WKWebView + in-place: `deactivateServer` sau ⌫ rồi khóa phím — MarkEdit (port vtx PR#19, 15/09/2026)
 

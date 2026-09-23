@@ -18,8 +18,10 @@ var inputSourceObserver: NSObjectProtocol?
 // methods). The old arbitrary name "VietTelex_Connection" silently broke SANDBOXED
 // clients: WhatsApp (MAS) could never connect — no activateServer, no menu section,
 // every keystroke swallowed — while non-sandboxed apps (Terminal, Chrome) worked.
+let bundleID = Bundle.main.bundleIdentifier.flatMap { $0.isEmpty ? nil : $0 }
+    ?? "com.viettelex.inputmethod.telex"
 let connectionName = (Bundle.main.infoDictionary?["InputMethodConnectionName"] as? String)
-    ?? "com.viettelex.inputmethod.telex_Connection"
+    ?? "\(bundleID)_Connection"
 
 // XCTest host guard. AppTests use this app as their test host: the process
 // launches, XCTest injects the bundle, tests run, the process dies. If that

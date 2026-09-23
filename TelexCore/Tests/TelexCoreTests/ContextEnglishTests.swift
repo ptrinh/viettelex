@@ -25,7 +25,41 @@ private func sentence(_ s: String, context: Bool) -> String {
     return words.joined(separator: " ")
 }
 
+/// Mirror AppState.EngineFlags defaults so regressions in the app's shipped typing
+/// configuration are covered as well as TelexCore's intentionally conservative defaults.
+private func appDefaultSentence(_ s: String) -> String {
+    var e = TelexEngine()
+    e.freeMarking = true
+    e.liveSpellCheck = true
+    e.contextualEnglish = true
+    e.collisionPrefersVietnamese = true
+    var words: [String] = []
+    var wroteCurrent = false
+    for ch in s {
+        if ch == " " {
+            words.append(e.commitText(autoRestore: true)); wroteCurrent = false
+        } else {
+            _ = e.feed(ch); wroteCurrent = true
+        }
+    }
+    if wroteCurrent || words.isEmpty { words.append(e.commitText(autoRestore: true)) }
+    return words.joined(separator: " ")
+}
+
 final class ContextEnglishTests: XCTestCase {
+
+    func testAppDefaultsKeepVietnameseSentenceEndingInDidAsDi() {
+        XCTAssertEqual(appDefaultSentence("tooi did"), "tôi đi")
+        XCTAssertEqual(appDefaultSentence("tooi ddax did"), "tôi đã đi")
+        XCTAssertEqual(
+            appDefaultSentence("rox rangf toanf booj tieengs Vieetj maf vaanx tuwj ddoans thanhf did"),
+            "rõ ràng toàn bộ tiếng Việt mà vẫn tự đoán thành đi"
+        )
+    }
+
+    func testAppDefaultsRestoreDidInEnglishContext() {
+        XCTAssertEqual(appDefaultSentence("they did"), "they did")
+    }
 
     // MARK: The examples from the spec
 

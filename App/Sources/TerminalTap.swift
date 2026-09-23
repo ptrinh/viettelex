@@ -25,16 +25,13 @@ import ApplicationServices
 import TelexCore
 
 /// THIS build's bundle id — never the ship constant hardcoded at a call site.
-/// `Scripts/dev-register.sh` installs the same code under a SEPARATE id
-/// (`com.tuanhm.inputmethod.telexdev` by default; it must be separate, see rule #4 in
-/// docs/MACOS_IME_NOTES.md), remapping CFBundleIdentifier and every TISInputSourceID.
-/// A hardcoded ship prefix therefore made `isVietTelexSelected()` answer FALSE for the
-/// dev build's own input source — so the TIS notification, the `deactivateServer`
-/// hint and the per-key reconcile all declared VietTelex unselected and put the tap
-/// DORMANT mid-word, one key at a time (tester log 2026-08-13: "biết" typed in
-/// Terminal came out "biêts" — the tone key passed through raw while the tap was
-/// dormant, and the reset that comes with dormancy also dropped the buffer, so a ⌫
-/// back to "bi" then `s` gave "bis" instead of "bí").
+/// Xcode Debug uses a separate identity configured in project.yml and
+/// Debug-Info.plist; Release retains the shipping id. Exact bundle/mode matching
+/// recognizes either build without letting Release claim Debug's sibling mode.
+/// The old hardcoded ship prefix made a development build report its own input
+/// source as unselected, which put the tap dormant mid-word (tester log 2026-08-13:
+/// "biết" typed in Terminal came out "biêts"; after ⌫ then `s`, it gave "bis"
+/// instead of "bí").
 ///
 /// EMPTY is treated as missing, not just nil: `Bundle.bundleIdentifier` hands back
 /// whatever CFBundleIdentifier holds, and an empty prefix would make `hasPrefix`

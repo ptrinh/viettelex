@@ -26,6 +26,10 @@ Ma trận test tay theo app. Trạng thái: ☐ chưa test / ✅ pass / ❌ fail
 | WhatsApp (native) | inPlace | bản native tôn trọng replacementRange; sandbox cần connection name đúng |
 | Notes, Finder, TextMate | inPlace | — |
 
+Các dấu ✅ ở bảng này là kết quả field-test trước batch ổn định hoá; chúng không
+thay thế các ca hồi quy mới bên dưới. Discord web/Messenger và thao tác Terminal
+qua Chrome Remote Desktop hiện cần test tay lại trên bản Release đã cài.
+
 ## ☐ Còn mở
 
 ### Chrome — các bề mặt ngoài omnibox
@@ -69,6 +73,18 @@ Ma trận test tay theo app. Trạng thái: ☐ chưa test / ✅ pass / ❌ fail
 | 5.6 | ☐ Stress 500 phím/s (`swift Scripts/stress-typing.swift`) vào TextEdit/terminal/Chrome | Text ra khớp 100% — lớp bug chỉ lộ khi gõ nhanh |
 | 5.7 | ☐ RDP/Windows App: focus session rồi rời sang app khác | Passthrough trong RDP; app kia gõ bình thường |
 | 5.8 | ☐ Chrome Remote Desktop (`remotedesktop.google.com`): cả 2 máy cài VietTelex | Máy local passthrough (không Backspace+retype); máy remote gõ dấu bình thường, con trỏ không nhảy |
+| 5.9 | ☐ Discord web trong Chrome, gõ từ cuối đang compose rồi Return | Gửi đúng một lần, giữ đủ từ cuối, không chèn dòng trống; Shift+Enter xuống dòng |
+| 5.10 | ☐ Messenger web trong Chrome, gõ câu tiếng Việt rồi Return | Gửi ngay một lần, không cần Enter lần hai; Shift+Enter xuống dòng |
+| 5.11 | ☐ Chrome chat/textarea khi Accessibility tắt | Plain Return theo hành vi của app; Shift+Enter tạo đúng một newline; không làm rơi từ cuối |
+| 5.12 | ☐ Warp: gõ một từ đang compose rồi Tab, ←/→ và ↑/↓ | Completion/history/caret hoạt động; dấu không lặp hoặc chèn vào vị trí cũ |
+| 5.13 | ☐ Accessibility đã bật: chuyển app/input source nhiều lần | Không lặp hộp nhắc/cửa sổ cài đặt; status khớp với bản Release đang chạy |
+| 5.14 | ☐ Bản Xcode Debug và app Release cùng có mặt trên đĩa | TIS mode + IMK connection của Debug khác Release; chỉ Release là input source người dùng chọn |
+| 5.15 | ☐ Codex desktop prompt khi VietTelex ở marked fallback | Plain Return gửi prompt một lần; Shift+Return xuống dòng; câu tiếng Việt giữ đủ dấu |
+
+Ghi chú 23/09/2026: 5.9, 5.10, 5.12 và 5.14 pass trên Release 1.7.8 đã cài **sau khi
+dọn process Debug thừa** (xem MACOS_IME_NOTES "Bản Debug thừa CHIẾM IMK connection"),
+phím giả lập qua HID tap, Accessibility đã bật. Chưa chạy lại trên bản có patch Plain
+Return vì máy test không có cert Developer ID; 5.8 và 5.15 chưa test.
 
 ---
 

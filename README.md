@@ -39,8 +39,14 @@ https://github.com/user-attachments/assets/b07b7321-912f-4d81-a741-bcaa9a43f07d
 
 **Website:** [ptrinh.github.io/viettelex](https://ptrinh.github.io/viettelex/) · **Homebrew:** `brew install --cask ptrinh/viettelex/viettelex`
 
-1. Tải **`VietTelex-x.y.z.pkg`** từ [Releases](https://github.com/ptrinh/viettelex/releases) (đã ký + notarized).
-2. Double-click → làm theo hướng dẫn (tự cài, đăng ký bộ gõ, mở sẵn System Settings → Keyboard).
+Chọn **một** cách cài: Homebrew hoặc `.pkg`. Cả hai cài cùng app đã ký vào
+`~/Library/Input Methods/VietTelex.app`; không cài song song vì hai bộ quản lý sẽ
+cùng ghi/xoá một app. Khi đổi từ Homebrew sang `.pkg`, chạy
+`brew uninstall --cask viettelex` trước. Khi đổi từ `.pkg` sang Homebrew, chuyển
+sang ABC, thoát VietTelex, xoá app ở đường dẫn trên rồi mới chạy lệnh Homebrew.
+
+1. Nếu chọn `.pkg`, tải **`VietTelex-x.y.z.pkg`** từ [Releases](https://github.com/ptrinh/viettelex/releases) (đã ký + notarized).
+2. Double-click → làm theo hướng dẫn (tự cài vào thư mục user, đăng ký bộ gõ, mở sẵn System Settings → Keyboard).
 3. **Input Sources → Edit… / ＋ → Vietnamese → ViệtTelex → Add.**
 
 | ① Input Sources → Edit… | ② ＋ → Vietnamese → ViệtTelex → Add |
@@ -64,6 +70,12 @@ Tùy chọn (Simple Telex, bỏ dấu tự do, kiểu cũ/mới, kiểm tra chí
 <summary><strong>Cài xong gõ vẫn bị gạch chân?</strong></summary>
 
 Do VietTelex chưa được cấp quyền Trợ năng: System Settings → Privacy & Security → **Accessibility** → tick VietTelex (đã tick mà vẫn lỗi thì bỏ tick rồi tick lại). Có thể cần khởi động lại máy một lần để quyền có tác dụng.
+
+Nếu đã bật quyền mà VietTelex vẫn báo thiếu, hãy kiểm tra bản đang chạy. Bản Debug
+trong Xcode có định danh riêng và không dùng quyền của bản cài trong
+`~/Library/Input Methods`; thoát bản Debug rồi mở lại bản đã cài. Nếu bản đã cài
+vẫn báo thiếu, xoá mục VietTelex khỏi Accessibility rồi thêm lại chính app trong
+`~/Library/Input Methods`.
 </details>
 
 <details>

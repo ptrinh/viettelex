@@ -195,12 +195,12 @@
 <section id="install">
   <div class="wrap">
     <h2>Install in a minute</h2>
-    <p class="lead">The installer places the app, registers the input method and opens System Settings for you — no drag-and-drop, no logout.</p>
+    <p class="lead">Choose one install method: the signed .pkg or Homebrew. Both install the app to <code>~/Library/Input Methods/VietTelex.app</code>; do not install both at once because they manage the same app.</p>
     <div class="steps">
-      <div class="step"><strong>Download and run the installer</strong><p>Download <a href="https://github.com/ptrinh/viettelex/releases/latest" rel="noopener">VietTelex-x.y.z.pkg</a> (signed + notarized by Apple) and double-click. Or use Homebrew: <code>brew install --cask ptrinh/viettelex/viettelex</code></p></div>
+      <div class="step"><strong>Install through one channel</strong><p>Download <a href="https://github.com/ptrinh/viettelex/releases/latest" rel="noopener">VietTelex-x.y.z.pkg</a> (signed + notarized by Apple) and double-click, or run <code>brew install --cask ptrinh/viettelex/viettelex</code>. Uninstall the current app before switching channels.</p></div>
       <div class="step"><strong>Add the input method</strong><p>System Settings → Keyboard → Input Sources → <b>Edit… / ＋</b> → Vietnamese → <b>ViệtTelex</b> → Add.</p>
         <img src="../assets/instructions-2.png" alt="Adding ViệtTelex in Input Sources" loading="lazy" style="max-width:560px"></div>
-      <div class="step"><strong>Give it a try</strong><p>Switch to ViệtTelex with the 🌐 key or ⌃Space. To type in Terminal/iTerm/Chrome, grant Accessibility to VietTelex (Privacy &amp; Security → Accessibility).</p></div>
+      <div class="step"><strong>Give it a try</strong><p>Switch to ViệtTelex with the 🌐 key or ⌃Space. To type in Terminal/iTerm/Chrome, grant Accessibility to VietTelex (Privacy &amp; Security → Accessibility). If an Xcode Debug build is open, quit it and launch the installed app; its permission identity is separate.</p></div>
     </div>
   </div>
 </section>
