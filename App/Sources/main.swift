@@ -33,6 +33,9 @@ let connectionName = (Bundle.main.infoDictionary?["InputMethodConnectionName"] a
 let isTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
 if !isTestHost {
+// Bản thừa (DerivedData, bản cũ…) cùng bundle id tự nhường cho bản đã cài — trước
+// khi đăng ký IMKServer/tap, để không bao giờ có hai kênh cùng sửa một từ.
+SingleInstance.enforce(bundleID: bundleID)
 telexServer = IMKServer(name: connectionName, bundleIdentifier: Bundle.main.bundleIdentifier)
 
 // No internal VI/EN toggle: Vietnamese is ON whenever VietTelex is the active macOS
