@@ -102,6 +102,18 @@ final class BoundaryRepostTests: XCTestCase {
             .init(commitSuffix: "", swallowPhysicalKey: false))
     }
 
+    /// Restored from the pre-#92 suite (dropped in the rewrite): an untrusted field
+    /// that is NOT composing marked (plain in-place) must never get a folded newline
+    /// nor a swallowed Return — the native key does the work.
+    func testUntrustedNonMarkedReturnIsUntouched() {
+        for forward in [false, true] {
+            XCTAssertEqual(
+                TelexInputController.markedBoundaryHandling(newlineKey: true, shifted: false,
+                    marked: false, trusted: false, forwardPlainReturn: forward),
+                .init(commitSuffix: "", swallowPhysicalKey: false))
+        }
+    }
+
     func testTabAndEscapeNeverInjectNewlines() {
         let forward = TelexInputController.forwardPlainReturn(
             bundleID: nil, untrustedChromiumPage: true)
