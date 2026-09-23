@@ -102,4 +102,48 @@ final class OwnBundleIdentityTests: XCTestCase {
     func testOwnBundleIDIsNeverEmpty() {
         XCTAssertFalse(OwnBundle.id.isEmpty)
     }
+
+    /// Debug-Info.plist is a hand-kept copy of Info.plist: Xcode expands build
+    /// variables in plist VALUES but not KEYS, and tsInputModeListKey is keyed by the
+    /// mode id — so one shared plist can't carry both identities (measured 24/09/2026).
+    /// Pin that the copy never drifts: after mapping the Debug identity back onto the
+    /// shipping one, the two files must be identical except for version numbers
+    /// (bumped on Info.plist only) and the Debug display name.
+    func testDebugPlistStaysInSyncWithReleasePlist() throws {
+        let res = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("App/Resources")
+        func load(_ name: String) throws -> String {
+            try String(contentsOf: res.appendingPathComponent(name), encoding: .utf8)
+        }
+        func normalize(_ xml: String) throws -> NSDictionary {
+            let data = Data(xml.replacingOccurrences(of: "com.viettelex.inputmethod.telex.debug",
+                                                     with: "com.viettelex.inputmethod.telex").utf8)
+            let plist = try PropertyListSerialization.propertyList(from: data, format: nil)
+            let d = try XCTUnwrap(plist as? [String: Any])
+            var out = d
+            for k in ["CFBundleShortVersionString", "CFBundleVersion", "CFBundleName",
+                      "CFBundleDisplayName"] { out.removeValue(forKey: k) }
+            return try XCTUnwrap(stripNames(out) as? [String: Any]) as NSDictionary
+        }
+        // Display titles differ by design ("VietTelex (Debug)"): bundle name and the
+        // input mode's menu title. Everything else — ids, connection, icons, modes —
+        // must match.
+        let titleKeys: Set<String> = ["tsInputModeAlternateMenuTitleStringKey"]
+        func stripNames(_ v: Any) -> Any {
+            if let d = v as? [String: Any] {
+                var o: [String: Any] = [:]
+                for (k, x) in d where !titleKeys.contains(k) {
+                    o[k] = stripNames(x)
+                }
+                return o
+            }
+            if let a = v as? [Any] { return a.map(stripNames) }
+            return v
+        }
+        let release = try normalize(load("Info.plist"))
+        let debug = try normalize(load("Debug-Info.plist"))
+        XCTAssertEqual(release, debug,
+                       "Debug-Info.plist drifted from Info.plist — mirror the change (only ids/name/version may differ)")
+    }
 }
