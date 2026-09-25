@@ -127,6 +127,38 @@ final class AppSupportTests: XCTestCase {
         XCTAssertNotNil(SecureInputMonitor.processName(ProcessInfo.processInfo.processIdentifier))
     }
 
+    /// Maintainer 24/09/2026: Chrome on a login page showed "Không gõ được tiếng Việt —
+    /// Google Chrome", which reads like a VietTelex failure. When the holder is the
+    /// app in FRONT it's just a password field — say that. Specific diagnoses win.
+    func testFrontAppPasswordFieldIsNotReportedAsAFault() {
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(holderName: "Google Chrome", holderAlive: true,
+                                            runningPasswordManagers: [], holderIsFrontmost: true),
+            .passwordFieldInFrontApp("Google Chrome"))
+        // Not in front → still the generic "an app is holding it" diagnosis.
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(holderName: "Google Chrome", holderAlive: true,
+                                            runningPasswordManagers: [], holderIsFrontmost: false),
+            .generic)
+        // Specific causes keep their own fix even when in front.
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(holderName: "iTerm2", holderAlive: true,
+                                            runningPasswordManagers: [], holderIsFrontmost: true),
+            .terminal)
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(holderName: "1Password", holderAlive: true,
+                                            runningPasswordManagers: [], holderIsFrontmost: true),
+            .passwordManager("1Password"))
+        XCTAssertEqual(
+            SecureInputMonitor.classifyHint(holderName: "Chrome", holderAlive: false,
+                                            runningPasswordManagers: [], holderIsFrontmost: true),
+            .orphan)
+        let k = SecureInputMonitor.HintKind.passwordFieldInFrontApp("Google Chrome")
+        XCTAssertFalse(SecureInputMonitor.wantsLockScreen(k))
+        XCTAssertNil(SecureInputMonitor.revealTarget(k))
+        XCTAssertTrue(SecureInputMonitor.menuHeadline(k, holderName: "Google Chrome").contains("Google Chrome"))
+    }
+
     func testSecureInputHintClassifiesPasswordManagerAfterSleep() {
         // Field case 09/2026: wake from sleep with 1Password open → Telex dead
         // until 1Password is quit. ioreg often NAMES loginwindow (false

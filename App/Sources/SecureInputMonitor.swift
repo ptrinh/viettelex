@@ -63,6 +63,10 @@ final class SecureInputMonitor {
         case loginwindowWithPasswordManager(String)
         case loginwindowStuck
         case terminal
+        /// The holder IS the app in front (Chrome/Safari on a login page): a password
+        /// field is focused and macOS blocks every IME there ON PURPOSE — not a fault.
+        /// Maintainer 24/09/2026: say so instead of "can't type Vietnamese — Chrome".
+        case passwordFieldInFrontApp(String)
         case generic
     }
 
@@ -235,7 +239,8 @@ final class SecureInputMonitor {
     }
 
     static func classifyHint(holderName: String?, holderAlive: Bool,
-                             runningPasswordManagers: [String]) -> HintKind {
+                             runningPasswordManagers: [String],
+                             holderIsFrontmost: Bool = false) -> HintKind {
         if !holderAlive { return .orphan }
         if looksLikePasswordManager(holderName) {
             return .passwordManager(canonicalPasswordManagerName(holderName ?? "1Password"))
@@ -245,6 +250,9 @@ final class SecureInputMonitor {
         }
         if looksLikeLoginwindow(holderName) { return .loginwindowStuck }
         if looksLikeTerminal(holderName) { return .terminal }
+        // After the specific diagnoses: a password manager / terminal in front still
+        // gets its own fix above; any other front app is simply on a password field.
+        if holderIsFrontmost, let name = holderName { return .passwordFieldInFrontApp(name) }
         return .generic
     }
 
@@ -262,7 +270,9 @@ final class SecureInputMonitor {
 
     private func currentHintKind(holder: Holder) -> HintKind {
         Self.classifyHint(holderName: holder.name, holderAlive: holder.alive,
-                          runningPasswordManagers: Self.runningPasswordManagerNames())
+                          runningPasswordManagers: Self.runningPasswordManagerNames(),
+                          holderIsFrontmost: holder.pid > 0
+                              && NSWorkspace.shared.frontmostApplication?.processIdentifier == holder.pid)
     }
 
     // MARK: - Icon menu bar tạm thời
@@ -330,6 +340,8 @@ final class SecureInputMonitor {
         case .terminal, .generic:
             return String(format: VTLocalized("Vietnamese typing is blocked by %@"),
                           holderName ?? VTLocalized("an app"))
+        case .passwordFieldInFrontApp(let app):
+            return String(format: VTLocalized("%@ is on a password field"), app)
         }
     }
 
@@ -347,6 +359,8 @@ final class SecureInputMonitor {
             return VTLocalized("If this is Terminal/iTerm2: turn off “Secure Keyboard Entry”")
         case .generic:
             return VTLocalized("An app is holding Secure Input (a password field) — click away from that field, or quit the app named above")
+        case .passwordFieldInFrontApp:
+            return VTLocalized("macOS pauses every input method in password fields — normal. Click another field to type Vietnamese again")
         }
     }
 

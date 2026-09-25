@@ -124,3 +124,6 @@ Press “Repair automatically”: VietTelex removes its own stuck entry and asks
 
 "Teencode spelling" = "Teencode spelling";
 "Accept chat spellings: w/z/k instead of qu/d/c (wá, zui zẻ, kó) and bíe, thík, gòy, ừk. Off = standard spelling only, so English words like was, war, worse, zoo stay as typed." = "Accept chat spellings: w/z/k instead of qu/d/c (wá, zui zẻ, kó) and bíe, thík, gòy, ừk. Off = standard spelling only, so English words like was, war, worse, zoo stay as typed.";
+
+"%@ is on a password field" = "%@ is on a password field";
+"macOS pauses every input method in password fields — normal. Click another field to type Vietnamese again" = "macOS pauses every input method in password fields — normal. Click another field to type Vietnamese again";
