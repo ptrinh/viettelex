@@ -65,6 +65,10 @@ struct RootView: View {
     @State private var tryItText = ""
     @State private var tab: AppTab = .kieuGo
     @State private var barCollapsed = false
+    /// Bàn phím đang hiện → ẩn FloatingTabBar: overlay đáy bị iOS đẩy lên theo bàn
+    /// phím và đè đúng dải khung "kính" phía trên bàn phím (host vẽ) → thanh gợi ý
+    /// trông như bị cắt (user 25/09/2026).
+    @State private var keyboardShown = false
     @AppStorage("templatesEnabled", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var templatesEnabled = true
 
@@ -106,7 +110,15 @@ struct RootView: View {
             })
         }
         .overlay(alignment: .bottom) {
-            FloatingTabBar(selected: $tab, tabs: visibleTabs, collapsed: barCollapsed)
+            if !keyboardShown {
+                FloatingTabBar(selected: $tab, tabs: visibleTabs, collapsed: barCollapsed)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardShown = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardShown = false
         }
         .onChange(of: scenePhase) { phase in
             // Quay lại từ Cài đặt → cập nhật trạng thái bật bàn phím ngay.
