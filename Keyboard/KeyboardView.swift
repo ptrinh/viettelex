@@ -388,9 +388,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// phím cuối là vùng globe/mic hệ thống, không thuộc view mình.
     private func updateSuggestionChrome() {
         let visible = suggestionsEnabled && plane != .emoji
-        // Strip 36 mở (bar 20pt ghim đỉnh, chữ tâm 10 — cộng ~22pt inset hệ
-        // thống phía trên cửa sổ thì gần giữa vùng tối) / 14 thu gọn / 0 tắt.
-        let strip: CGFloat = visible ? (barCollapsed ? 14 : Self.openStrip) : 0
+        // Strip mở (bar 20pt + đệm trên) / 14 thu gọn / 0 tắt. Plane emoji GIỮ NGUYÊN
+        // chiều cao strip (chỉ ẩn bar): đổi chiều cao bàn phím khi vào emoji làm host
+        // relayout dở dang — dải trống + vạch đè hàng emoji đầu (Telegram, 25/09/2026).
+        let strip: CGFloat = suggestionsEnabled ? (barCollapsed ? 14 : Self.openStrip) : 0
         let keyArea = keyAreaHeight()
         rowsTopConstraint?.constant = strip
         heightConstraint?.constant = keyArea + strip
