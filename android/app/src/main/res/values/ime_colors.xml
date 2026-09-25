@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Màu bàn phím iOS (spec §6.2) — sáng. Bản tối: values-night/ime_colors.xml -->
+<resources>
+    <color name="ime_bg">#FFD1D3D9</color>
+    <color name="ime_key">#FFFFFFFF</color>
+    <!-- rgb(0.68, 0.70, 0.74) -->
+    <color name="ime_key_special">#FFADB3BD</color>
+    <color name="ime_ink">#FF000000</color>
+    <!-- bóng phẳng 1dp: đen opacity 0.35 -->
+    <color name="ime_key_shadow">#59000000</color>
+    <color name="ime_balloon">#FFFFFFFF</color>
+    <color name="ime_popup">#FFFFFFFF</color>
+    <!-- systemBlue -->
+    <color name="ime_action">#FF007AFF</color>
+</resources>
