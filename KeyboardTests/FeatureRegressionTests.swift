@@ -240,3 +240,61 @@ final class MemoryBudgetTests: XCTestCase {
         XCTAssertLessThan(delta, 8.0, "cấu trúc dữ liệu phình bất thường (\(delta) MB)")
     }
 }
+
+// perf-appear 25/09/2026: saveNow() ở viewWillDisappear từng là ioQueue.sync (chặn
+// main lúc ẩn bàn phím) và ghi cả file dù không có gì đổi. Giờ async + expiring
+// activity, bỏ qua khi không có thay đổi chờ ghi, giữ thứ tự FIFO với save().
+final class UserLangModelSaveNowTests: XCTestCase {
+    private var url: URL!
+
+    override func setUp() {
+        url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("userlm-\(UUID().uuidString).plist")
+    }
+    override func tearDown() { try? FileManager.default.removeItem(at: url) }
+
+    private func loadedModel() -> UserLangModel {
+        let m = UserLangModel(fileURL: url)
+        m.isKnownWord = { _ in true }
+        let e = expectation(description: "load")
+        m.onReady = { e.fulfill() }
+        wait(for: [e], timeout: 5)
+        return m
+    }
+
+    private func waitForFile(_ check: @escaping (UserLangModel) -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
+            if FileManager.default.fileExists(atPath: url.path), check(loadedModel()) { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        return false
+    }
+
+    func testSaveNowPersistsAsync() {
+        let m = loadedModel()
+        m.record(word: "việt", after: nil, prev2: nil, weight: 7)
+        m.saveNow()
+        XCTAssertTrue(waitForFile { $0.count(of: "việt") == 7 })
+    }
+
+    func testSaveNowSkipsWhenNothingPending() {
+        let m = loadedModel()
+        m.record(word: "nam", after: nil, prev2: nil, weight: 3)
+        m.saveNow()
+        XCTAssertTrue(waitForFile { $0.count(of: "nam") == 3 })
+        try? FileManager.default.removeItem(at: url)
+        m.saveNow()                       // không có gì đổi → không ghi lại
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    func testSaveNowThenSaveKeepsNewestSnapshot() {
+        let m = loadedModel()
+        m.record(word: "một", after: nil, prev2: nil, weight: 1)
+        m.saveNow()
+        m.record(word: "một", after: nil, prev2: nil, weight: 4)
+        m.save()                          // cùng ioQueue FIFO → bản mới thắng
+        XCTAssertTrue(waitForFile { $0.count(of: "một") == 5 })
+    }
+}

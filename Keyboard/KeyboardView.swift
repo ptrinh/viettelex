@@ -718,8 +718,21 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         case .join: returnTitle = "join"
         default: returnTitle = "return"
         }
+        rebuild()   // no-op nếu nhãn không đổi (chữ ký trong rebuild)
+    }
+
+    /// Gom cấu hình mỗi lần hiện (return / appearance / input kind) thành MỘT
+    /// lần rebuild: trước đây configureReturnKey rồi configureInputKind mỗi hàm
+    /// tự rebuild (và configureInputKind còn vứt cache) → xé + dựng ~40 phím
+    /// 2 lần mỗi lần hiện dù không có gì đổi. Trong body mọi rebuild() bị hoãn;
+    /// cuối cùng rebuild một lần — và rebuild tự bỏ qua khi chữ ký không đổi.
+    func batchConfigure(_ body: () -> Void) {
+        rebuildDeferred = true
+        body()
+        rebuildDeferred = false
         rebuild()
     }
+    private var rebuildDeferred = false
 
     /// Loại ô nhập (từ textDocumentProxy.keyboardType) → đổi layout như stock:
     /// number mở thẳng plane số; email đổi hàng đáy thành phím @ và . ; url
@@ -730,11 +743,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     func configureInputKind(_ kind: InputKind) {
         inputKind = kind
         plane = (kind == .number) ? .numbers : .letters
-        if plane == .letters, shift == .on { shift = .off }
-        planeCache.removeAll()          // hàng đáy đổi theo kind → cache cũ sai
-        builtPlane = nil                // ép rebuild dù plane không đổi (email/url
-                                        // giữ .letters → guard cũ return sớm)
+        let shiftDropped = plane == .letters && shift == .on
+        if shiftDropped { shift = .off }
+        // Kind nằm trong chữ ký của rebuild: đổi kind → cache vứt + dựng lại;
+        // KHÔNG đổi → giữ cache, khỏi xé ~40 phím mỗi lần hiện.
         rebuild()
+        // Shift đổi KHÔNG bao giờ rebuild — retitle tại chỗ (rebuild bị bỏ qua
+        // thì phím cũ vẫn đang hiện chữ hoa).
+        if shiftDropped, plane == .letters { applyShiftAppearance() }
     }
 
     func applyAppearance(_ appearance: UIKeyboardAppearance) {
@@ -766,8 +782,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     func setNeedsGlobe(_ on: Bool) {
         guard on != needsGlobe else { return }
         needsGlobe = on
-        builtPlane = nil        // ép rebuild dù plane/dark/return không đổi
-        rebuild()
+        rebuild()   // globe nằm trong chữ ký → cache (hàng đáy cũ) bị vứt
     }
 
     /// Sentence-start auto-shift (only upgrades OFF→ON; never downgrades CAPS).
@@ -810,12 +825,16 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     // MARK: layout
 
-    // Dedupe: rebuild bị gọi 3 lần mỗi lần hiện (init, configureReturnKey,
-    // applyAppearance) — chỉ xé/dựng lại khi có gì đó thật sự đổi.
+    // Dedupe: rebuild bị gọi nhiều lần mỗi lần hiện (init, configureReturnKey,
+    // applyAppearance, configureInputKind, setNeedsGlobe) — chỉ xé/dựng lại khi
+    // có gì đó thật sự đổi. Chữ ký = mọi thứ làm nhãn/màu/inset/hàng đáy của
+    // plane khác đi; đổi chữ ký → mọi plane cache đều sai nên vứt hết.
     private var builtPlane: Plane?
     private var builtReturn = ""
     private var builtDark = false
     private var builtWidth: CGFloat = -1
+    private var builtGlobe = false
+    private var builtKind: InputKind = .normal
 
     // Cache view theo plane: bấm 123/#+=/ABC chỉ tráo arrangedSubviews thay vì
     // xé/dựng lại ~40 button + constraints mỗi lần. Emoji KHÔNG cache (recents
@@ -831,12 +850,31 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let indentedRowInset: CGFloat
     }
     private var planeCache: [Plane: CachedPlane] = [:]
+    #if DEBUG
+    static var perfFullBuilds = 0   // xé + dựng mới cả plane (đắt)
+    static var perfCacheSwaps = 0   // tráo rows từ planeCache (rẻ)
+    #endif
 
     private func rebuild() {
+        guard !rebuildDeferred else { return }   // batchConfigure rebuild 1 lần cuối
         updateSuggestionChrome()
-        if builtPlane == plane, builtReturn == returnTitle,
-           builtDark == dark, builtWidth == bounds.width { return }
-        if builtReturn != returnTitle || builtDark != dark || builtWidth != bounds.width {
+        let styleChanged = builtReturn != returnTitle || builtDark != dark
+            || builtGlobe != needsGlobe || builtKind != inputKind
+        let widthChanged = builtWidth != bounds.width
+        let sigChanged = styleChanged || widthChanged
+        if builtPlane == plane, !sigChanged { return }
+        // Chỉ bề ngang đổi (view dựng ở init với width 0, rồi viewWillAppear thấy
+        // width thật — MỖI lần hiện vì iOS tạo controller mới): phím không phụ
+        // thuộc width ngoài inset hàng thụt, mà layoutSubviews tự chỉnh cho plane
+        // đang hiện. Khỏi xé/dựng; chỉ vứt cache các plane khác (inset cũ sai).
+        // Emoji/mẫu câu không cache, dựng tự do → vẫn dựng lại như cũ.
+        if builtPlane == plane, !styleChanged,
+           plane != .emoji, plane != .templates {
+            planeCache.removeAll()
+            builtWidth = bounds.width
+            return
+        }
+        if sigChanged {
             planeCache.removeAll()
         } else if let old = builtPlane, old != .emoji, old != .templates {
             // KHÔNG cache emoji/templates: cả hai đổi distribution sang .fill và
@@ -850,6 +888,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         builtPlane = plane; builtReturn = returnTitle
         builtDark = dark; builtWidth = bounds.width
+        builtGlobe = needsGlobe; builtKind = inputKind
         letterKeys.removeAll()
         shiftKey = nil
         rowsContainer.distribution = .fillEqually
@@ -864,8 +903,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             indentedRowInset = cached.indentedRowInset
             // shift có thể đã đổi trong lúc plane này nằm ngoài màn hình
             if plane == .letters { applyShiftAppearance() }
+            #if DEBUG
+            Self.perfCacheSwaps += 1
+            #endif
             return
         }
+        #if DEBUG
+        Self.perfFullBuilds += 1
+        #endif
         switch plane {
         case .letters: buildLetters()
         case .numbers: buildPlane(rows: [

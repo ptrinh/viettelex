@@ -79,6 +79,12 @@ final class UserLangModel {
         }
     }
 
+    /// Tests: store thật ở file tuỳ ý (App Group không có trong test hostless).
+    init(fileURL url: URL) {
+        fileURL = url
+        loadAsync(from: url)
+    }
+
     private func loadAsync(from url: URL) {
         let gen = loadGeneration
         ioQueue.async { [weak self] in
@@ -302,12 +308,28 @@ final class UserLangModel {
         ioQueue.async { Self.write(snap, to: url) }
     }
 
-    /// Flush đồng bộ cho viewWillDisappear — extension có thể bị kill ngay sau.
+    /// Flush cho viewWillDisappear — extension có thể bị suspend/kill ngay sau.
+    /// KHÔNG còn ioQueue.sync (chặn main đúng lúc bàn phím đang được ẩn):
+    /// - Không có thay đổi chờ ghi (saveWork == nil — mọi mutation đều qua
+    ///   scheduleSave()/save()) → khỏi encode + ghi cả file mỗi lần ẩn.
+    /// - Ghi enqueue async lên ioQueue NGAY trên main → giữ thứ tự FIFO với các
+    ///   save() trước/sau (snapshot cũ không thể ghi đè snapshot mới).
+    /// - performExpiringActivity xin iOS thêm thời gian chạy nền cho tới khi ghi
+    ///   xong (dùng được trong extension, khác beginBackgroundTask). Hết giờ
+    ///   (expired) giữa chừng: .atomic ghi file tạm rồi rename → file cũ nguyên
+    ///   vẹn, tệ nhất mất vài count chưa ghi (cache, không phải sổ cái).
     func saveNow() {
+        guard saveWork != nil else { return }
         saveWork?.cancel(); saveWork = nil
         guard isLoaded, let url = fileURL else { return }
         let snap = snapshotPlist()
-        ioQueue.sync { Self.write(snap, to: url) }
+        let done = DispatchSemaphore(value: 0)
+        ioQueue.async { Self.write(snap, to: url); done.signal() }
+        ProcessInfo.processInfo.performExpiringActivity(
+            withReason: "VietTelex: lưu dữ liệu học từ") { expired in
+            guard !expired else { return }
+            _ = done.wait(timeout: .now() + 10)
+        }
     }
 
     private func snapshotPlist() -> [String: Any] {

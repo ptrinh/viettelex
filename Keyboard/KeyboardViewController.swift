@@ -47,7 +47,21 @@ final class KeyboardViewController: UIInputViewController {
         ])
     }
 
+    #if DEBUG
+    // Đo chi phí hiện bàn phím (Console filter "VTKB perf"): thân viewWillAppear,
+    // thân viewDidAppear, khoảng will→did (gồm animation hệ thống), số lần rebuild.
+    private var perfWillStart: CFTimeInterval = 0
+    #endif
+
     override func viewWillAppear(_ animated: Bool) {
+        #if DEBUG
+        perfWillStart = CACurrentMediaTime()
+        KeyboardView.perfFullBuilds = 0; KeyboardView.perfCacheSwaps = 0
+        defer {
+            NSLog("VTKB perf willAppear body %.2f ms",
+                  (CACurrentMediaTime() - perfWillStart) * 1000)
+        }
+        #endif
         super.viewWillAppear(animated)
         TouchLog.loadSetting()
         TouchLog.session(fullAccess: hasFullAccess)
@@ -57,8 +71,6 @@ final class KeyboardViewController: UIInputViewController {
         bridge.passthrough = textDocumentProxy.autocorrectionType == .no
         lastKeyWasEmailTrigger = false
         restoreUndo = nil; undoOfferActive = false
-        keyboard.configureReturnKey(type: textDocumentProxy.returnKeyType ?? .default)
-        keyboard.applyAppearance(textDocumentProxy.keyboardAppearance ?? .default)
         // Loại ô nhập (web input type=number/email/url ánh xạ sang keyboardType)
         // → đổi layout như bàn phím stock.
         let kind: KeyboardView.InputKind
@@ -73,7 +85,12 @@ final class KeyboardViewController: UIInputViewController {
         default:
             kind = .normal
         }
-        keyboard.configureInputKind(kind)
+        // Một lần rebuild cho cả 3 (và 0 lần nếu field giống lần trước).
+        keyboard.batchConfigure {
+            keyboard.configureReturnKey(type: textDocumentProxy.returnKeyType ?? .default)
+            keyboard.applyAppearance(textDocumentProxy.keyboardAppearance ?? .default)
+            keyboard.configureInputKind(kind)
+        }
         // Thanh gợi ý: gate qua toggle trong app; tự tắt ở field từ chối
         // gợi ý (mật khẩu, autocorrection = .no) — đúng hành vi stock.
         let traitsAllow = textDocumentProxy.autocorrectionType != .no
@@ -87,12 +104,7 @@ final class KeyboardViewController: UIInputViewController {
         // Báo trạng thái Full Access cho app chứa (ẩn banner nhắc cấp quyền).
         // Không Full Access thì iOS chặn GHI App Group → cờ giữ nguyên/vắng,
         // banner vẫn hiện — đúng ý.
-        let group = UserDefaults(suiteName: "group.com.viettelex")
-        group?.set(hasFullAccess, forKey: "kbFullAccess")
-        // Heartbeat: cho app phân biệt "bàn phím chưa chạy bản mới" với
-        // "chạy rồi nhưng hasFullAccess = false".
-        group?.set(Date().timeIntervalSince1970, forKey: "kbLastSeen")
-        group?.synchronize()   // extension bị suspend ngay sau đó — ép flush
+        reportStatusToApp()
         suggestionsActive = settings.showSuggestions && traitsAllow
         keyboard.setSuggestionsEnabled(suggestionsActive)
         keyboard.onSuggestion = { [weak self] item in self?.acceptSuggestion(item) }
@@ -101,7 +113,42 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.showLanguageBadge()   // "ViệtTelex" thoáng trên spacebar như stock
     }
 
+    /// Ghi kbFullAccess CHỈ khi đổi; heartbeat kbLastSeen tối đa 1 lần/giờ (app
+    /// chỉ kiểm tra kbLastSeen > 0). Trước đây mỗi lần hiện ghi 2 key + synchronize()
+    /// trên main. Bỏ synchronize(): lý do cũ là "extension bị suspend ngay sau đó"
+    /// nhưng set() đã giao giá trị cho cfprefsd (daemon lo ghi đĩa) — process bị
+    /// suspend/kill không làm mất; Apple cũng ghi rõ synchronize() không cần gọi.
+    /// Không Full Access thì iOS chặn ghi → giá trị đọc lại không khớp mãi; memo
+    /// theo process để không thử ghi lại mỗi lần hiện.
+    private static var reportedFullAccess: Bool?
+    private static var lastHeartbeatAttempt: TimeInterval = 0
+    private func reportStatusToApp() {
+        let fa = hasFullAccess
+        let now = Date().timeIntervalSince1970
+        let heartbeatDue = now - Self.lastHeartbeatAttempt > 3600
+        guard Self.reportedFullAccess != fa || heartbeatDue else { return }
+        guard let group = UserDefaults(suiteName: "group.com.viettelex") else { return }
+        if Self.reportedFullAccess != fa {
+            if group.object(forKey: "kbFullAccess") as? Bool != fa {
+                group.set(fa, forKey: "kbFullAccess")
+            }
+            Self.reportedFullAccess = fa
+        }
+        if heartbeatDue {
+            Self.lastHeartbeatAttempt = now
+            if now - group.double(forKey: "kbLastSeen") > 3600 {
+                group.set(now, forKey: "kbLastSeen")
+            }
+        }
+    }
+
     override func viewWillDisappear(_ animated: Bool) {
+        #if DEBUG
+        let perfStart = CACurrentMediaTime()
+        defer {
+            NSLog("VTKB perf willDisappear body %.2f ms", (CACurrentMediaTime() - perfStart) * 1000)
+        }
+        #endif
         super.viewWillDisappear(animated)
         langModel.saveNow()   // extension có thể bị kill ngay sau disappear
     }
@@ -303,12 +350,27 @@ final class KeyboardViewController: UIInputViewController {
     // cao mình xin, view phủ từ y=0 — dải tối phía trên là chrome container
     // iOS 26 do HOST vẽ, mọi bàn phím bên thứ ba đều có, không can thiệp được.
     override func viewDidAppear(_ animated: Bool) {
+        #if DEBUG
+        let perfDidStart = CACurrentMediaTime()
+        defer {
+            let now = CACurrentMediaTime()
+            NSLog("VTKB perf didAppear body %.2f ms, will→did %.1f ms, fullBuilds=%d cacheSwaps=%d",
+                  (now - perfDidStart) * 1000, (now - perfWillStart) * 1000,
+                  KeyboardView.perfFullBuilds, KeyboardView.perfCacheSwaps)
+        }
+        #endif
         super.viewDidAppear(animated)
         keyboard?.setNeedsGlobe(needsInputModeSwitchKey)
         // Clipboard có thể vừa đổi trong lúc bàn phím ẩn: tính lại bar khi đã hiện
         // hẳn (cache 2s của pasteOffer bỏ qua để đọc trạng thái mới).
+        // Chỉ tính lại cả bar khi kết quả nút Dán ĐỔI so với lúc viewWillAppear
+        // (thường không đổi) — tránh chạy trùng toàn bộ updateSuggestions.
+        let pasteBefore = pasteCached
         pasteCheckedAt = .distantPast
-        updateSuggestions()
+        if suggestionsActive, keyboard?.isBarCollapsed != true,
+           bridge.composedWord.isEmpty, pasteOffer() != pasteBefore {
+            updateSuggestions()
+        }
         if let mb = Self.memoryFootprintMB() {
             NSLog("VTKB mem: %.1f MB", mb)   // Console filter "VTKB mem"
         }
