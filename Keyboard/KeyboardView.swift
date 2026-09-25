@@ -18,6 +18,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
 
     private enum Plane { case letters, numbers, symbols, emoji, templates }
+
+    /// Gần-trong-suốt nhưng KHÔNG clear: vùng alpha 0 không nhận touch ở cấp hệ thống
+    /// (touch rơi sang app host). Dùng cho mọi nền phủ vùng bàn phím.
+    static let touchableClear = UIColor(white: 0, alpha: 0.01)
     private enum ShiftState { case off, on, caps }
 
     var enableInputClicksWhenVisible: Bool { true }
@@ -85,7 +89,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // lifts. Default isMultipleTouchEnabled=false made iOS reject that second
         // touch outright — the missed-keypress bug.
         isMultipleTouchEnabled = true
-        rowsContainer.axis = .vertical
+        // ROOT CAUSE rớt phím khi gõ nhanh (log thiết bị 25/09/2026): nền view TRONG
+        // SUỐT → iOS hit-test ở render server THEO PIXEL để chọn process nhận touch;
+        // chạm vào khe giữa phím / góc bo rơi xuyên xuống UIRemoteKeyboardWindow của
+        // app host (backboardd giao touch cho Notes, không cho extension) → mất phím.
+        // Gõ chậm chạm giữa phím nên không bị; gõ nhanh hay lệch vào khe. hitInsets /
+        // nearest-key router chỉ có tác dụng SAU khi touch đã tới process này.
+        // Alpha 0.01: đủ để render server coi là "có nội dung", mắt không thấy.
+        backgroundColor = Self.touchableClear
         rowsContainer.distribution = .fillEqually
         rowsContainer.spacing = 0
         rowsContainer.isMultipleTouchEnabled = true

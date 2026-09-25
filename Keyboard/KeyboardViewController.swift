@@ -36,6 +36,8 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.onTemplate = { [weak self] in self?.insertTemplate($0) }
         keyboard.onOpenTemplates = { [weak self] in self?.openTemplatesInApp() }
         keyboard.translatesAutoresizingMaskIntoConstraints = false
+        // Như KeyboardView: nền trong suốt = touch xuyên sang app host (rớt phím).
+        view.backgroundColor = KeyboardView.touchableClear
         view.addSubview(keyboard)
         NSLayoutConstraint.activate([
             keyboard.leftAnchor.constraint(equalTo: view.leftAnchor),
