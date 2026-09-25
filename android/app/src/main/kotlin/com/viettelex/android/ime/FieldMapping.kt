@@ -40,9 +40,10 @@ object FieldMapping {
         val email = text && (variation == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
                 || variation == InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS)
         val uri = text && variation == InputType.TYPE_TEXT_VARIATION_URI
-        val passthrough = rawKeys || email || uri || (text && (
-            variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
-                || variation == InputType.TYPE_TEXT_VARIATION_FILTER))
+        // URI (thanh địa chỉ Chrome) và FILTER (ô tìm trong Cài đặt/danh bạ) là nơi người
+        // dùng GÕ TÌM KIẾM tiếng Việt → giữ Telex; auto-restore trả lại chữ Anh/URL.
+        val passthrough = rawKeys || email ||
+            (text && variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD)
 
         val kind = when {
             cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE

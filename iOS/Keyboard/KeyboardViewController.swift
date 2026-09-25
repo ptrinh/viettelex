@@ -66,9 +66,11 @@ final class KeyboardViewController: UIInputViewController {
         TouchLog.loadSetting()
         TouchLog.session(fullAccess: hasFullAccess)
         bridge = EngineBridge()                       // fresh settings + buffer
-        // Field không autocorrect (mã/username): gõ literal, bỏ qua Telex —
-        // tránh diacritic ngoài ý (autocorrectionType == .no).
-        bridge.passthrough = textDocumentProxy.autocorrectionType == .no
+        // Ô email/URL/username/OTP: gõ literal. KHÔNG dựa vào autocorrect == .no —
+        // Safari/Chrome/Spotlight tắt autocorrect ở ô tìm kiếm (xem FieldPolicy).
+        bridge.passthrough = FieldPolicy.passthrough(
+            keyboardType: textDocumentProxy.keyboardType ?? .default,
+            contentType: textDocumentProxy.textContentType ?? nil)
         lastKeyWasEmailTrigger = false
         restoreUndo = nil; undoOfferActive = false
         // Loại ô nhập (web input type=number/email/url ánh xạ sang keyboardType)

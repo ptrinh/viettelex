@@ -34,11 +34,12 @@ class FieldMappingTest {
     }
 
     @Test fun passthroughVariations() {
-        assertTrue(m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_URI).passthrough)
+        // Regression: thanh địa chỉ Chrome (URI) và ô tìm (FILTER) phải gõ được tiếng Việt.
+        assertFalse(m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_URI).passthrough)
         assertTrue(m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_EMAIL_ADDRESS).passthrough)
         assertTrue(m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS).passthrough)
         assertTrue(m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_VISIBLE_PASSWORD).passthrough)
-        assertTrue(m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_FILTER).passthrough)
+        assertFalse(m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_FILTER).passthrough)
         assertFalse(m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_SHORT_MESSAGE).passthrough)
         assertFalse(m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_PERSON_NAME).passthrough)
     }

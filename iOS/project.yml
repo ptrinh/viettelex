@@ -91,6 +91,7 @@ targets:
     sources:
       - KeyboardTests
       - Keyboard/EngineBridge.swift
+      - Keyboard/FieldPolicy.swift
       - Keyboard/KeyCommitQueue.swift
       - Keyboard/AdjacentKeyFixer.swift
       - Keyboard/TouchGeometry.swift
