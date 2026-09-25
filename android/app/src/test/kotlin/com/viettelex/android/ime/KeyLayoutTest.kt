@@ -18,12 +18,13 @@ class KeyLayoutTest {
     private fun near(a: Float, b: Float, eps: Float = 0.01f) = assertEquals(b, a, eps)
 
     @Test fun heights() {
-        near(KeyLayout.keyAreaDp(false, false, 0), 218f)
-        near(KeyLayout.keyAreaDp(false, true, 0), 162f)
-        near(KeyLayout.keyAreaDp(true, false, 0), 240f)
+        // Gboard: 4 hàng × 56 dp dọc, 42 ngang
+        near(KeyLayout.keyAreaDp(false, false, 0), 224f)
+        near(KeyLayout.keyAreaDp(false, true, 0), 168f)
+        near(KeyLayout.keyAreaDp(true, false, 0), 256f)
         near(KeyLayout.keyAreaDp(true, true, 0), 300f)
-        near(KeyLayout.keyAreaDp(false, false, 10), 258f)
-        near(KeyLayout.keyAreaDp(false, false, -99), 178f)       // kẹp −10
+        near(KeyLayout.keyAreaDp(false, false, 10), 264f)
+        near(KeyLayout.keyAreaDp(false, false, -99), 184f)       // kẹp −10
         near(KeyLayout.stripDp(true, false), 34f)
         near(KeyLayout.stripDp(true, true), 14f)
         near(KeyLayout.stripDp(false, false), 0f)
@@ -37,10 +38,10 @@ class KeyLayoutTest {
         // phím chữ hàng 1 và hàng 2 cùng bề rộng (thụt 0.5 phím mỗi bên)
         near(row1[0].width, row2[0].width)
         near(row1[0].left, 3f)
-        near(row2[0].left, 3f + W / 20f)
+        near(row2[0].left, 3f + (row1[0].width + KeyLayout.KEY_SPACING) / 2)
         near(row1.last().right, W - 3f)
-        // spacing 6 giữa phím
-        near(row1[1].left - row1[0].right, 6f)
+        // khe giữa phím (Gboard 5 dp)
+        near(row1[1].left - row1[0].right, KeyLayout.KEY_SPACING)
         // hàng 54.5 cao: margin 5 trên/dưới
         near(row1[0].top, 5f); near(row1[0].bottom, H / 4 - 5f)
     }
@@ -58,42 +59,50 @@ class KeyLayoutTest {
     @Test fun bottomRowProportions() {
         val keys = build(Plane.LETTERS, ret = "go")
         val bottom = keys.filter { it.top > 3 * H / 4 - 1 }
-        assertEquals(listOf(KeyKind.PLANE, KeyKind.EMOJI, KeyKind.SPACE, KeyKind.PUNCT, KeyKind.RETURN),
+        // Gboard: ?123 , 😊 space . enter
+        assertEquals(listOf(KeyKind.PLANE, KeyKind.PUNCT, KeyKind.EMOJI, KeyKind.SPACE, KeyKind.PUNCT, KeyKind.RETURN),
             bottom.map { it.kind })
-        near(bottom[0].width, 0.12f * W)
+        assertEquals("?123", bottom[0].label)
+        assertEquals(listOf(",", "."), bottom.filter { it.kind == KeyKind.PUNCT }.map { it.insert })
+        near(bottom[0].width, 0.15f * W)
         near(bottom[1].width, 0.10f * W)
-        near(bottom[3].width, 0.075f * W)
-        near(bottom[4].width, 0.14f * W)
+        near(bottom[2].width, 0.10f * W)
+        near(bottom[4].width, 0.10f * W)
+        near(bottom[5].width, 0.15f * W)
         near(bottom.last().right, W - 3f, 0.05f)
-        near(bottom[0].top, 3 * H / 4 + 10f)       // margin trên 10
-        near(bottom[0].bottom, H)                  // dưới 0
-        assertEquals("go", bottom[4].label)
+        // cùng margin như mọi hàng
+        near(bottom[0].top, 3 * H / 4 + KeyLayout.ROW_MARGIN_V)
+        near(bottom[0].bottom, H - KeyLayout.ROW_MARGIN_V)
+        near(bottom[0].height, keys.first { it.label == "q" }.height)
+        assertEquals("go", bottom[5].label)
     }
 
     @Test fun emailAndUrlVariants() {
         val email = build(Plane.LETTERS, InputKind.EMAIL).filter { it.kind == KeyKind.PUNCT }
         assertEquals(listOf("@", "."), email.map { it.insert })
-        near(email[0].width, 0.11f * W); near(email[1].width, 0.09f * W)
         val url = build(Plane.LETTERS, InputKind.URL).filter { it.kind == KeyKind.PUNCT }
-        assertEquals(listOf(".", "/", ".com"), url.map { it.insert })
+        assertEquals(listOf("/", ".com", "."), url.map { it.insert })
+        near(url[1].width, 0.15f * W)
         // plane số không đổi theo kind
         val num = build(Plane.NUMBERS, InputKind.EMAIL).filter { it.kind == KeyKind.PUNCT }
-        assertEquals(listOf(","), num.map { it.insert })
+        assertEquals(listOf(",", "."), num.map { it.insert })
     }
 
     @Test fun globeAndTabletDismiss() {
         val k = build(Plane.LETTERS, globe = true, tablet = true)
         val kinds = k.filter { it.top > 3 * H / 4 - 1 }.map { it.kind }
-        assertEquals(listOf(KeyKind.PLANE, KeyKind.GLOBE, KeyKind.EMOJI, KeyKind.SPACE, KeyKind.PUNCT,
-            KeyKind.RETURN, KeyKind.DISMISS), kinds)
+        assertEquals(listOf(KeyKind.PLANE, KeyKind.PUNCT, KeyKind.GLOBE, KeyKind.EMOJI, KeyKind.SPACE,
+            KeyKind.PUNCT, KeyKind.RETURN, KeyKind.DISMISS), kinds)
+        val space = k.first { it.kind == KeyKind.SPACE }
+        assertTrue(space.width > 0.10f * W)
     }
 
     @Test fun numberAndSymbolPlanes() {
         val n = build(Plane.NUMBERS)
         assertEquals("1234567890".map { it.toString() }, n.filter { it.top < H / 4 }.map { it.label })
-        assertTrue(n.any { it.label == "$" } && n.any { it.kind == KeyKind.MORE && it.label == "#+=" })
+        assertTrue(n.any { it.label == "$" } && n.any { it.kind == KeyKind.MORE && it.label == "=\\<" })
         val s = build(Plane.SYMBOLS)
-        assertTrue(s.any { it.label == "₫" } && s.any { it.kind == KeyKind.MORE && it.label == "123" })
+        assertTrue(s.any { it.label == "₫" } && s.any { it.kind == KeyKind.MORE && it.label == "?123" })
         assertEquals("ABC", s.first { it.kind == KeyKind.PLANE }.label)
         val row3 = n.filter { it.top > H / 2 && it.top < 3 * H / 4 }
         assertEquals(7, row3.size)
@@ -104,7 +113,7 @@ class KeyLayoutTest {
         val t = build(Plane.TEMPLATES)
         assertTrue(t.any { it.kind == KeyKind.CLEAR })
         assertTrue(t.none { it.kind == KeyKind.EMOJI || it.kind == KeyKind.LETTER })
-        near(t[0].top, H - H / 4 + 10f)
+        near(t[0].top, H - H / 4 + KeyLayout.BOTTOM_ROW_TOP)
     }
 
     // --- router ---
@@ -141,7 +150,7 @@ class KeyLayoutTest {
         val keys = build(Plane.LETTERS)
         val shift = keys.first { it.kind == KeyKind.SHIFT }
         val plane = keys.first { it.kind == KeyKind.PLANE }
-        // dải 15 dp giữa hàng 3 và hàng đáy: mọi điểm phải trúng một phím
+        // khe giữa hàng 3 và hàng đáy: mọi điểm phải trúng một phím
         var y = shift.bottom
         while (y < plane.top) {
             assertNotNull("dead at y=$y", KeyLayout.hit(keys, Plane.LETTERS, plane.centerX, y, 4f, d))

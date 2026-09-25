@@ -50,23 +50,29 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
     private val emojiText = arrayOfNulls<String>(3)
     private val emojiL = FloatArray(3); private val emojiR = FloatArray(3)
     private var emojiCount = 0
-    private val divX = FloatArray(2)
-    private val divVis = BooleanArray(2)
     private var paste = false
     private var lastSig = ""
     private var lastSet: SuggestionSet? = null
 
-    private val wordPaint = TextPaint(theme.text(17f))
+    private val wordPaint = TextPaint(theme.text(16f))
     private val wordOff = theme.centerOffset(wordPaint)
+    /** Gboard nhấn mạnh gợi ý giữa (medium). */
+    private val wordCenterPaint = TextPaint(theme.text(16f, medium = true))
+    private val wordCenterOff = theme.centerOffset(wordCenterPaint)
     private val emojiPaint = theme.text(20f)
     private val emojiOff = theme.centerOffset(emojiPaint)
-    private val divPaint = theme.fill(theme.withAlpha(theme.ink, 0.18f))
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val pasteTitle = theme.text(14f, align = Paint.Align.LEFT)
-    private val pasteSub = theme.text(10f, color = theme.withAlpha(theme.ink, 0.55f), align = Paint.Align.LEFT)
+    private val pasteTitle = theme.text(14f, medium = true, align = Paint.Align.LEFT)
+    private val pasteSub = theme.text(12f, color = theme.withAlpha(theme.ink, 0.7f), align = Paint.Align.LEFT)
     private val pasteTitleText = context.getString(R.string.ime_paste_title)
     private val pasteSubText = context.getString(R.string.ime_paste_sub)
-    private var pasteIconCx = 0f; private var pasteTextX = 0f
+    private var pasteIconCx = 0f; private var pasteTextX = 0f; private var pasteSubX = 0f
+    private var pasteL = 0f; private var pasteR = 0f; private var pasteT = 0f; private var pasteB = 0f
+    private var pasteShowSub = true
+    private val chipPaint = theme.fill(theme.chip)
+    private val pressPaint = theme.fill(theme.withAlpha(theme.ink, 0.10f))
+    private var pressed = T_NONE
+    private var pressedIndex = 0
     private var pasteTitleBase = 0f; private var pasteSubBase = 0f; private var pasteIconCy = 0f
 
     // --- touch ---
@@ -108,7 +114,7 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
 
     private fun clearContent() {
         for (i in 0..2) { slotText[i] = null; slotPayload[i] = null; emojiText[i] = null }
-        emojiCount = 0; divVis[0] = false; divVis[1] = false; paste = false
+        emojiCount = 0; paste = false
         lastSet = null
     }
 
@@ -139,9 +145,14 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         clearContent()
         lastSet = set
         if (set.nextWords.isNotEmpty()) {
-            for (i in 0 until minOf(3, set.nextWords.size)) { disp[i] = set.nextWords[i]; slotPayload[i] = set.nextWords[i] }
+            // Gboard: gợi ý tốt nhất ở GIỮA (slot 1), rồi trái, rồi phải.
+            val order = intArrayOf(1, 0, 2)
+            for (i in 0 until minOf(3, set.nextWords.size)) {
+                disp[order[i]] = set.nextWords[i]; slotPayload[order[i]] = set.nextWords[i]
+            }
         } else {
-            set.literal?.let { disp[0] = "“$it”"; slotPayload[0] = it }
+            // Không ngoặc kép kiểu iOS: Gboard hiện nguyên chữ đã gõ ở slot trái.
+            set.literal?.let { disp[0] = it; slotPayload[0] = it }
             set.word?.let { disp[1] = it; slotPayload[1] = it }
             if (set.emojis.isEmpty()) set.word2?.let { disp[2] = it; slotPayload[2] = it }
         }
@@ -150,62 +161,41 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         for (i in emojis.indices) emojiText[i] = emojis[i]
         paste = set.paste
 
-        // fillProportionally: bề rộng theo cỡ chữ intrinsic, divider 1 dp, spacing 6.
+        // Gboard: 3 ô bằng nhau, không vạch ngăn; emoji chia đều ô thứ 3.
         val barL = theme.dp(KeyLayout.STRIP_ZONE_W)
         val barR = width - theme.dp(KeyLayout.STRIP_ZONE_W)
-        val vis0 = disp[0] != null; val vis1 = disp[1] != null
-        val vis2 = disp[2] != null || emojiCount > 0
-        divVis[0] = vis0 && (vis1 || vis2)
-        divVis[1] = vis1 && vis2
-        val intrinsic = FloatArray(4)
-        for (i in 0..2) disp[i]?.let { intrinsic[i] = wordPaint.measureText(it) }
-        var maxE = 0f
-        for (i in 0 until emojiCount) maxE = maxOf(maxE, emojiPaint.measureText(emojiText[i]))
-        intrinsic[3] = maxE * emojiCount
-        // thứ tự: s0 d0 s1 d1 s2 emoji
-        var visibleCount = 0
-        var flexSum = 0f
-        for (i in 0..2) if (disp[i] != null) { visibleCount++; flexSum += intrinsic[i] }
-        if (emojiCount > 0) { visibleCount++; flexSum += intrinsic[3] }
-        val divCount = (if (divVis[0]) 1 else 0) + (if (divVis[1]) 1 else 0)
-        visibleCount += divCount
-        if (visibleCount == 0) return
-        val gap = theme.dp(6f)
-        val avail = (barR - barL) - divCount * theme.dp(1f) - gap * (visibleCount - 1)
-        val scale = if (flexSum > 0) avail / flexSum else 0f
-        var x = barL
-        fun place(i: Int) {
-            val w = intrinsic[i] * scale
-            slotL[i] = x; slotR[i] = x + w
-            slotText[i] = TextUtils.ellipsize(disp[i], wordPaint, w, TextUtils.TruncateAt.MIDDLE).toString()
-            x += w + gap
+        val third = (barR - barL) / 3f
+        val pad = theme.dp(4f)
+        for (i in 0..2) {
+            slotL[i] = barL + i * third; slotR[i] = slotL[i] + third
+            val t = disp[i] ?: continue
+            val p = if (i == 1) wordCenterPaint else wordPaint
+            slotText[i] = TextUtils.ellipsize(t, p, third - 2 * pad, TextUtils.TruncateAt.MIDDLE).toString()
         }
-        fun divider(k: Int) { divX[k] = x; x += theme.dp(1f) + gap }
-        if (disp[0] != null) place(0)
-        if (divVis[0]) divider(0)
-        if (disp[1] != null) place(1)
-        if (divVis[1]) divider(1)
-        if (disp[2] != null) place(2)
         if (emojiCount > 0) {
-            val w = intrinsic[3] * scale
-            val each = w / emojiCount
-            for (i in 0 until emojiCount) { emojiL[i] = x + i * each; emojiR[i] = x + (i + 1) * each }
+            val each = third / emojiCount
+            for (i in 0 until emojiCount) { emojiL[i] = slotL[2] + i * each; emojiR[i] = slotL[2] + (i + 1) * each }
         }
     }
 
+    /** Chip clipboard kiểu Gboard: pill màu secondary container giữa bar, icon + "Dán" + mô tả. */
     private fun layoutPaste() {
-        val top = theme.dp(KeyLayout.BAR_TOP_PAD)
-        val fmT = pasteTitle.fontMetrics; val fmS = pasteSub.fontMetrics
-        val hT = fmT.descent - fmT.ascent; val hS = fmS.descent - fmS.ascent
-        pasteTitleBase = top - fmT.ascent
-        pasteSubBase = top + hT - theme.dp(2f) - fmS.ascent
-        pasteIconCy = top + (hT + hS - theme.dp(2f)) / 2
-        val iconBox = theme.dp(18f)
-        val textW = maxOf(pasteTitle.measureText(pasteTitleText), pasteSub.measureText(pasteSubText))
-        val total = iconBox + theme.dp(8f) + textW
-        val x0 = (width - total) / 2
-        pasteIconCx = x0 + iconBox / 2
-        pasteTextX = x0 + iconBox + theme.dp(8f)
+        val cy = theme.dp(KeyLayout.BAR_TOP_PAD + 10f)
+        val h = theme.dp(28f)
+        val icon = theme.dp(16f); val gap = theme.dp(6f); val padH = theme.dp(12f)
+        val tW = pasteTitle.measureText(pasteTitleText); val sW = pasteSub.measureText(pasteSubText)
+        val maxW = maxOf(0f, width - 2 * theme.dp(KeyLayout.STRIP_ZONE_W))
+        var total = padH + icon + gap + tW + gap + sW + padH
+        pasteShowSub = total <= maxW
+        if (!pasteShowSub) total = padH + icon + gap + tW + padH
+        pasteL = (width - total) / 2; pasteR = pasteL + total
+        pasteT = cy - h / 2; pasteB = cy + h / 2
+        pasteIconCx = pasteL + padH + icon / 2
+        pasteIconCy = cy
+        pasteTextX = pasteL + padH + icon + gap
+        pasteSubX = pasteTextX + tW + gap
+        pasteTitleBase = cy + theme.centerOffset(pasteTitle)
+        pasteSubBase = cy + theme.centerOffset(pasteSub)
     }
 
     // MARK: animation thu gọn
@@ -241,48 +231,60 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         if (!barVisible) return
         val w = width.toFloat()
         val o = openness
-        // ☰ / ⌄: nội suy giữa vị trí nổi (thu gọn) và vị trí zone (mở)
+        // Icon toolbar kiểu Gboard ở đúng vị trí ☰/⌄ cũ: nội suy giữa vị trí nổi (thu gọn)
+        // và vị trí zone (mở).
         val cyOpen = theme.dp(KeyLayout.BAR_TOP_PAD + 10f)
         val cyFloat = theme.dp(7f)
         val cy = cyFloat + (cyOpen - cyFloat) * o
         if (templatesEnabled) {
             val bx = theme.dp(32f) + (theme.dp(26f) - theme.dp(32f)) * o
-            val a = if (plane == Plane.TEMPLATES && o > 0.5f) 0.9f else 0.45f
-            iconPaint.color = theme.withAlpha(theme.ink, a)
-            ImeIcons.draw(c, ImeIcons.MENU, bx, cy, theme.dp(15.6f + 1.4f * o), iconPaint)
+            val active = plane == Plane.TEMPLATES && o > 0.5f
+            if (active) c.drawCircle(bx, cy, theme.dp(15f), chipPaint)
+            iconPaint.color = theme.withAlpha(theme.ink, if (active) 1f else 0.75f)
+            ImeIcons.draw(c, ImeIcons.GRID, bx, cy, theme.dp(14f + 4f * o), iconPaint)
         }
         val chx = (w - theme.dp(24f)) + (theme.dp(24f) - theme.dp(26f)) * o
-        iconPaint.color = theme.withAlpha(theme.ink, 0.45f)
-        ImeIcons.draw(c, ImeIcons.CHEVRON_DOWN, chx, cy, theme.dp(15.6f), iconPaint, rotationDeg = 180f * (1f - o))
+        iconPaint.color = theme.withAlpha(theme.ink, 0.75f)
+        ImeIcons.draw(c, ImeIcons.CHEVRON_DOWN, chx, cy, theme.dp(14f + 2f * o), iconPaint, rotationDeg = 180f * (1f - o))
         if (o <= 0f || collapsed && anim == null) return
         val alpha = (255 * o).toInt()
         if (paste) { drawPaste(c, alpha); return }
         val barCy = cyOpen
-        wordPaint.color = theme.ink
-        wordPaint.alpha = alpha
+        val hh = theme.dp(14f); val inset = theme.dp(2f)
+        if (pressed == T_SLOT) {
+            val i = pressedIndex
+            c.drawRoundRect(slotL[i] + inset, barCy - hh, slotR[i] - inset, barCy + hh, hh, hh, pressPaint)
+        } else if (pressed == T_EMOJI) {
+            val i = pressedIndex
+            c.drawRoundRect(emojiL[i] + inset, barCy - hh, emojiR[i] - inset, barCy + hh, hh, hh, pressPaint)
+        }
+        wordPaint.color = theme.ink; wordPaint.alpha = alpha
+        wordCenterPaint.color = theme.ink; wordCenterPaint.alpha = alpha
         for (i in 0..2) {
             val s = slotText[i] ?: continue
-            c.drawText(s, (slotL[i] + slotR[i]) / 2, barCy + wordOff, wordPaint)
+            if (i == 1) c.drawText(s, (slotL[i] + slotR[i]) / 2, barCy + wordCenterOff, wordCenterPaint)
+            else c.drawText(s, (slotL[i] + slotR[i]) / 2, barCy + wordOff, wordPaint)
         }
         emojiPaint.alpha = alpha
         for (i in 0 until emojiCount) {
             val s = emojiText[i] ?: continue
             c.drawText(s, (emojiL[i] + emojiR[i]) / 2, barCy + emojiOff, emojiPaint)
         }
-        divPaint.alpha = (Math.round(255 * 0.18f) * o).toInt()
-        val barTop = theme.dp(KeyLayout.BAR_TOP_PAD)
-        for (k in 0..1) if (divVis[k]) {
-            c.drawRect(divX[k], barTop + theme.dp(4f), divX[k] + theme.dp(1f), barTop + theme.dp(16f), divPaint)
-        }
     }
 
     private fun drawPaste(c: Canvas, alpha: Int) {
-        iconPaint.color = theme.withAlpha(theme.ink, 0.8f * alpha / 255f)
-        ImeIcons.draw(c, ImeIcons.CLIPBOARD, pasteIconCx, pasteIconCy, theme.dp(18f), iconPaint)
+        chipPaint.alpha = if (pressed == T_PASTE) (alpha * 0.8f).toInt() else alpha
+        val r = (pasteB - pasteT) / 2
+        c.drawRoundRect(pasteL, pasteT, pasteR, pasteB, r, r, chipPaint)
+        chipPaint.alpha = 255
+        iconPaint.color = theme.withAlpha(theme.ink, alpha / 255f)
+        ImeIcons.draw(c, ImeIcons.CLIPBOARD, pasteIconCx, pasteIconCy, theme.dp(16f), iconPaint)
         pasteTitle.alpha = alpha
         c.drawText(pasteTitleText, pasteTextX, pasteTitleBase, pasteTitle)
-        pasteSub.color = theme.withAlpha(theme.ink, 0.55f * alpha / 255f)
-        c.drawText(pasteSubText, pasteTextX, pasteSubBase, pasteSub)
+        if (pasteShowSub) {
+            pasteSub.color = theme.withAlpha(theme.ink, 0.7f * alpha / 255f)
+            c.drawText(pasteSubText, pasteSubX, pasteSubBase, pasteSub)
+        }
     }
 
     // MARK: touch
@@ -293,14 +295,18 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
             MotionEvent.ACTION_DOWN -> {
                 target = findTarget(e.x, e.y)
                 downX = e.x; downY = e.y
+                if (target == T_SLOT || target == T_EMOJI || target == T_PASTE) {
+                    pressed = target; pressedIndex = targetIndex; invalidate()
+                }
                 return target != T_NONE
             }
             MotionEvent.ACTION_UP -> {
                 val t = target; target = T_NONE
+                if (pressed != T_NONE) { pressed = T_NONE; invalidate() }
                 if (abs(e.x - downX) > theme.dp(40f) || abs(e.y - downY) > theme.dp(40f)) return true
                 fire(t)
             }
-            MotionEvent.ACTION_CANCEL -> target = T_NONE
+            MotionEvent.ACTION_CANCEL -> { target = T_NONE; if (pressed != T_NONE) { pressed = T_NONE; invalidate() } }
         }
         return true
     }
@@ -320,9 +326,8 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         if (x < zone) return if (templatesEnabled) T_BURGER else T_NONE
         if (x >= w - zone) return T_CHEVRON
         if (paste) return T_PASTE
-        val sx = theme.dp(3f)
-        for (i in 0..2) if (slotText[i] != null && x >= slotL[i] - sx && x < slotR[i] + sx) { targetIndex = i; return T_SLOT }
-        for (i in 0 until emojiCount) if (x >= emojiL[i] - sx && x < emojiR[i] + sx) { targetIndex = i; return T_EMOJI }
+        for (i in 0 until emojiCount) if (x >= emojiL[i] && x < emojiR[i]) { targetIndex = i; return T_EMOJI }
+        for (i in 0..2) if (slotText[i] != null && x >= slotL[i] && x < slotR[i]) { targetIndex = i; return T_SLOT }
         return T_NONE
     }
 
@@ -337,7 +342,7 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
     }
 
     fun onHidden() {
-        target = T_NONE
+        target = T_NONE; pressed = T_NONE
     }
 
     companion object {

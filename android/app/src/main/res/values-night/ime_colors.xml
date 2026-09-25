@@ -1,16 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Gboard tĩnh — tối (< Android 12). -->
 <resources>
-    <color name="ime_bg">#FF262626</color>
-    <!-- white 0.42 -->
-    <color name="ime_key">#FF6B6B6B</color>
-    <!-- white 0.26 -->
-    <color name="ime_key_special">#FF424242</color>
-    <color name="ime_ink">#FFFFFFFF</color>
-    <!-- opacity 0.30 -->
-    <color name="ime_key_shadow">#4D000000</color>
-    <!-- white 0.35 -->
-    <color name="ime_balloon">#FF595959</color>
-    <!-- white 0.25 -->
-    <color name="ime_popup">#FF404040</color>
-    <color name="ime_action">#FF0A84FF</color>
+    <color name="ime_bg">#FF1F1F1F</color>
+    <color name="ime_key">#FF3C3C3F</color>
+    <color name="ime_key_special">#FF2B2F36</color>
+    <color name="ime_ink">#FFE3E3E3</color>
+    <color name="ime_balloon">#FF4A4A4E</color>
+    <color name="ime_popup">#FF3C3C3F</color>
+    <color name="ime_action">#FFA8C7FA</color>
+    <color name="ime_action_ink">#FF062E6F</color>
+    <color name="ime_chip">#FF004A77</color>
 </resources>

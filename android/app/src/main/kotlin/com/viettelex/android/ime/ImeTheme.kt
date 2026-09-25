@@ -27,10 +27,21 @@ class ImeTheme(ctx: Context) {
     val keyFill = ContextCompat.getColor(ctx, R.color.ime_key)
     val specialFill = ContextCompat.getColor(ctx, R.color.ime_key_special)
     val ink = ContextCompat.getColor(ctx, R.color.ime_ink)
-    val keyShadow = ContextCompat.getColor(ctx, R.color.ime_key_shadow)
     val balloonFill = ContextCompat.getColor(ctx, R.color.ime_balloon)
     val popupFill = ContextCompat.getColor(ctx, R.color.ime_popup)
+    /** Nền phím enter/hành động (pill màu nhấn) + màu icon trên nó. */
     val action = ContextCompat.getColor(ctx, R.color.ime_action)
+    val actionInk = ContextCompat.getColor(ctx, R.color.ime_action_ink)
+    /** Chip (thẻ Dán, highlight category emoji, nhấn slot gợi ý). */
+    val chip = ContextCompat.getColor(ctx, R.color.ime_chip)
+
+    /** Màu khi đè phím: phủ ink 12% kiểu state layer Material. */
+    fun pressed(color: Int): Int = blend(color, ink, 0.12f)
+
+    fun blend(a: Int, b: Int, t: Float): Int = Color.rgb(
+        (Color.red(a) + (Color.red(b) - Color.red(a)) * t).toInt(),
+        (Color.green(a) + (Color.green(b) - Color.green(a)) * t).toInt(),
+        (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * t).toInt())
 
     fun dp(v: Float) = v * density
     fun sp(v: Float) = v * textScale
@@ -46,10 +57,11 @@ class ImeTheme(ctx: Context) {
             textSize = sp(sizeSp)
             this.color = color
             textAlign = align
+            // Font hệ thống "sans-serif" (Roboto / Google Sans trên máy Pixel) như Gboard.
             typeface = when {
-                bold -> Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                bold -> Typeface.create("sans-serif", Typeface.BOLD)
                 medium -> Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                else -> Typeface.DEFAULT
+                else -> Typeface.create("sans-serif", Typeface.NORMAL)
             }
         }
 

@@ -146,6 +146,16 @@ tới trong lúc `applyingEdit`.
 
 ## 6. Giao diện bàn phím
 
+> **Cập nhật 26/09/2026 (quyết định user): giao diện là Android gốc (kiểu Gboard /
+> Material You)**, thay cho bản clone iOS — CHỈ phần hình ảnh. Màu động Material You
+> (Android 12+, `system_neutral*/accent*`; tĩnh kiểu Gboard ở máy cũ, sáng + tối), phím
+> phẳng bo 7 dp không bóng, phím chức năng tô secondary container, enter = pill màu nhấn
+> có icon hành động, hàng đáy `?123 , 😊 space . enter` (🌐 khi cần), vùng phím 224 dp dọc
+> / 168 ngang (tablet 256 / 300), chữ 22 sp font hệ thống, preview phím kiểu Gboard, strip
+> gợi ý 3 ô đều (ô giữa nhấn mạnh, không vạch ngăn), chip clipboard, space hiện "Tiếng
+> Việt". Mọi HÀNH VI (Telex, gợi ý, router chạm, commit queue, dán, plane, inset nav)
+> giữ nguyên như dưới đây; các con số hình học/màu iOS bên dưới chỉ còn là lịch sử.
+
 Clone giao diện bàn phím **iOS** (không phải Gboard). Vẽ bằng Canvas, cache
 `Path`/`Paint`, không alloc trong `onDraw`.
 

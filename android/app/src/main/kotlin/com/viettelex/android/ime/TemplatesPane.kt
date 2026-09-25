@@ -41,7 +41,6 @@ class TemplatesPane(
     private val textPaint = TextPaint(theme.text(16f))
     private val textOff = theme.centerOffset(textPaint)
     private val chipPaint = theme.fill(theme.keyFill)
-    private val shadowPaint = theme.fill(theme.keyShadow)
 
     private var ptr = -1
     private var dragging = false
@@ -115,13 +114,12 @@ class TemplatesPane(
     fun draw(c: Canvas) {
         c.save()
         c.clipRect(0f, 0f, width, bottom)
-        val rad = 16 * d; val sd = 1 * d
+        val rad = 8 * d; val sd = 0f   // chip Material: bo 8 dp, phẳng
         val list = chips
         for (i in list.indices) {
             val ch = list[i]
             val t = ch.t - scrollY; val b = ch.b - scrollY
             if (b + sd < 0 || t > bottom) continue
-            c.drawRoundRect(ch.l, t + sd, ch.r, b + sd, rad, rad, shadowPaint)
             c.drawRoundRect(ch.l, t, ch.r, b, rad, rad, chipPaint)
             c.drawText(ch.shown, (ch.l + ch.r) / 2, (t + b) / 2 + textOff, textPaint)
         }

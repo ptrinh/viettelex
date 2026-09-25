@@ -32,3 +32,8 @@
   ở bản debug), kiểm inset nav bar (gesture + 3 nút, API 35+ edge-to-edge) và ma trận field §13.
 - emoji2 chưa thêm (quy tắc không thêm dependency) ⇒ máy cũ có thể hiện ô trống với emoji mới.
 - TalkBack cho phím vẽ Canvas (ExploreByTouchHelper cần androidx.customview) chưa làm.
+
+## Giao diện Gboard (26/09/2026)
+- Màu: res/values{,-night}{,-v31}/ime_colors.xml (v31 = Material You động). Phím enter luôn là pill màu nhấn.
+- `showSpaceLogo` giờ bật/tắt nhãn "Tiếng Việt" trên space (không còn logo Vᴛ) — D có thể đổi chữ toggle.
+- Tham chiếu Gboard trên emulator không chụp được (Gboard chỉ hiện thanh công cụ bàn phím cứng).

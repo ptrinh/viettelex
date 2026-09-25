@@ -3,13 +3,8 @@ package com.viettelex.android.ime
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
-import android.graphics.RectF
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
@@ -88,25 +83,22 @@ class KeyboardView(
     // --- paint (tạo 1 lần) ---
     private val d = theme.density
     private val radius = theme.dp(KeyLayout.KEY_RADIUS)
-    private val shadowDy = theme.dp(1f)
-    private val shadowPaint = theme.fill(theme.keyShadow)
     private val facePaint = theme.fill(theme.keyFill)
-    private val letterPaint = theme.text(23f)
-    private val controlPaint = theme.text(16f)
-    private val comPaint = theme.text(17f)
-    private val returnPaint = theme.text(16f, color = 0xFFFFFFFF.toInt(), medium = true)
-    private val badgePaint = theme.text(16f)
+    // Gboard: chữ 22 sp regular, nhãn chức năng 14 sp medium (font hệ thống sans-serif)
+    private val letterPaint = theme.text(22f)
+    private val controlPaint = theme.text(14f, medium = true)
+    private val comPaint = theme.text(16f)
+    private val spaceLabelPaint = theme.text(13f, color = theme.withAlpha(theme.ink, 0.6f))
+    private val badgePaint = theme.text(14f, medium = true)
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = theme.ink }
     private val letterOff = theme.centerOffset(letterPaint)
     private val controlOff = theme.centerOffset(controlPaint)
     private val comOff = theme.centerOffset(comPaint)
-    private val returnOff = theme.centerOffset(returnPaint)
-    private val actionPressed = theme.withAlpha(theme.action, 0.7f)
-    private val logoPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
-        colorFilter = PorterDuffColorFilter(theme.withAlpha(theme.ink, 0.16f), PorterDuff.Mode.SRC_IN)
-    }
-    private val logo: Bitmap? by lazy { BitmapFactory.decodeResource(resources, R.drawable.ime_space_logo) }
-    private val logoRect = RectF()
+    private val spaceLabelOff = theme.centerOffset(spaceLabelPaint)
+    private val keyPressed = theme.pressed(theme.keyFill)
+    private val specialPressed = theme.pressed(theme.specialFill)
+    private val actionPressed = theme.blend(theme.action, theme.actionInk, 0.12f)
+    private val spaceLabel = context.getString(R.string.ime_space_label)
 
     private val emojiPane = EmojiPane(this, theme, feedback)
     private val templatesPane = TemplatesPane(this, theme, feedback)
@@ -222,10 +214,6 @@ class KeyboardView(
                 theme.tablet, returnLabel))
         }
         spaceKey = keys.firstOrNull { it.kind == KeyKind.SPACE }
-        spaceKey?.let {
-            val s = theme.dp(22f)
-            logoRect.set(it.right - theme.dp(10f) - s, it.centerY - s / 2, it.right - theme.dp(10f), it.centerY + s / 2)
-        }
         val paneBottom = if (plane == Plane.TEMPLATES) keyAreaPx - keyAreaPx / 4f else keyAreaPx
         templatesPane.layout(width.toFloat(), paneBottom)
         emojiPane.layout(width.toFloat(), keyAreaPx)
@@ -266,12 +254,12 @@ class KeyboardView(
     private fun invalidateSpace() {
         val k = spaceKey ?: return
         @Suppress("DEPRECATION")
-        invalidate(k.left.toInt(), k.top.toInt(), k.right.toInt() + 1, (k.bottom + shadowDy).toInt() + 1)
+        invalidate(k.left.toInt(), k.top.toInt(), k.right.toInt() + 1, k.bottom.toInt() + 1)
     }
 
     @Suppress("DEPRECATION")
     private fun invalidateKey(k: LaidKey) =
-        invalidate(k.left.toInt() - 1, k.top.toInt() - 1, k.right.toInt() + 1, (k.bottom + shadowDy).toInt() + 1)
+        invalidate(k.left.toInt() - 1, k.top.toInt() - 1, k.right.toInt() + 1, k.bottom.toInt() + 1)
 
     // MARK: vẽ
 
@@ -286,22 +274,20 @@ class KeyboardView(
     }
 
     private fun drawKey(c: Canvas, k: LaidKey) {
-        val special = KeyKind.isSpecial(k.kind)
-        val action = k.kind == KeyKind.RETURN && returnLabel != "return"
-        val shiftLit = k.kind == KeyKind.SHIFT && shift != Shift.OFF
-        var face = if (special) theme.specialFill else theme.keyFill
-        if (action) face = theme.action
-        if (shiftLit) face = 0xFFFFFFFF.toInt()
-        if (k.pressed) face = when (k.kind) {
-            KeyKind.SPACE, KeyKind.PUNCT -> theme.specialFill
-            KeyKind.LETTER, KeyKind.CHAR -> face
-            KeyKind.RETURN -> if (action) actionPressed else theme.keyFill
-            else -> theme.keyFill
+        // Gboard: phím phẳng bo góc, KHÔNG bóng; phím chức năng tô màu phụ (secondary
+        // container); enter là pill màu nhấn. Nhấn = state layer ink 12%.
+        val special = KeyKind.isSpecial(k.kind) && k.kind != KeyKind.RETURN
+        var face = when {
+            k.kind == KeyKind.RETURN -> if (k.pressed) actionPressed else theme.action
+            k.kind == KeyKind.SHIFT && shift == Shift.CAPS -> theme.chip
+            special -> if (k.pressed) specialPressed else theme.specialFill
+            k.kind == KeyKind.LETTER || k.kind == KeyKind.CHAR -> theme.keyFill   // popup lo phản hồi
+            else -> if (k.pressed) keyPressed else theme.keyFill
         }
         if (trackpad) face = theme.keyFill
-        c.drawRoundRect(k.left, k.top + shadowDy, k.right, k.bottom + shadowDy, radius, radius, shadowPaint)
         facePaint.color = face
-        c.drawRoundRect(k.left, k.top, k.right, k.bottom, radius, radius, facePaint)
+        val r = if (k.kind == KeyKind.RETURN) minOf(k.width, k.height) / 2 else radius
+        c.drawRoundRect(k.left, k.top, k.right, k.bottom, r, r, facePaint)
 
         val contentAlpha = if (trackpad) 51 else 255   // 0.2
         val cx = k.centerX; val cy = k.centerY
@@ -313,31 +299,35 @@ class KeyboardView(
             KeyKind.PLANE, KeyKind.MORE -> drawLabel(c, k.label, cx, cy, controlPaint, controlOff, contentAlpha)
             KeyKind.SHIFT -> {
                 val id = when (shift) { Shift.CAPS -> ImeIcons.CAPS; Shift.ON -> ImeIcons.SHIFT_FILL; Shift.OFF -> ImeIcons.SHIFT }
-                icon(c, id, cx, cy, 22f, if (shiftLit) 0xFF000000.toInt() else theme.ink, contentAlpha)
+                icon(c, id, cx, cy, 22f, theme.ink, contentAlpha)
             }
             KeyKind.BACKSPACE -> if (k.pressed && !trackpad) {
                 icon(c, ImeIcons.DELETE_FILL, cx, cy, 22f, theme.ink, contentAlpha)
                 icon(c, ImeIcons.DELETE_X, cx, cy, 22f, face, 255)
             } else icon(c, ImeIcons.DELETE, cx, cy, 22f, theme.ink, contentAlpha)
-            KeyKind.GLOBE -> icon(c, ImeIcons.GLOBE, cx, cy, 22f, theme.ink, contentAlpha)
-            KeyKind.EMOJI -> icon(c, ImeIcons.EMOJI, cx, cy, 23f, theme.ink, contentAlpha)
-            KeyKind.CLEAR -> icon(c, ImeIcons.TRASH, cx, cy, 22f, theme.ink, contentAlpha)
+            KeyKind.GLOBE -> icon(c, ImeIcons.GLOBE, cx, cy, 21f, theme.ink, contentAlpha)
+            KeyKind.EMOJI -> icon(c, ImeIcons.FACE, cx, cy, 22f, theme.ink, contentAlpha)
+            KeyKind.CLEAR -> icon(c, ImeIcons.TRASH, cx, cy, 21f, theme.ink, contentAlpha)
             KeyKind.DISMISS -> icon(c, ImeIcons.KB_DISMISS, cx, cy, 22f, theme.ink, contentAlpha)
-            KeyKind.RETURN -> when (returnLabel) {
-                "return" -> icon(c, ImeIcons.RETURN, cx, cy, 22f, theme.ink, (contentAlpha * 0.16f).toInt())
-                "go", "search" -> icon(c, ImeIcons.ARROW_RIGHT, cx, cy, 22f, 0xFFFFFFFF.toInt(), contentAlpha)
-                else -> drawLabel(c, returnLabel, cx, cy, returnPaint, returnOff, contentAlpha)
+            KeyKind.RETURN -> {
+                val id = when (returnLabel) {
+                    "search" -> ImeIcons.SEARCH
+                    "send" -> ImeIcons.SEND
+                    "done" -> ImeIcons.CHECK
+                    "go", "next" -> ImeIcons.ARROW_RIGHT
+                    else -> ImeIcons.RETURN
+                }
+                icon(c, id, cx, cy, 22f, theme.actionInk, contentAlpha)
             }
             KeyKind.SPACE -> {
+                // Nhãn ngôn ngữ nhỏ như Gboard; badge "ViệtTelex" lúc hiện rồi mờ dần về nhãn.
                 if (badgeAlpha > 0f) {
                     badgePaint.alpha = (badgeAlpha * contentAlpha).toInt()
                     c.drawText(badgeText, cx, cy + badgeOff, badgePaint)
-                } else if (showLogo) {
-                    val bmp = logo
-                    if (bmp != null) {
-                        logoPaint.alpha = contentAlpha
-                        c.drawBitmap(bmp, null, logoRect, logoPaint)
-                    }
+                }
+                if (showLogo && badgeAlpha < 1f) {
+                    spaceLabelPaint.alpha = ((1f - badgeAlpha) * 0.6f * contentAlpha).toInt()
+                    c.drawText(spaceLabel, cx, cy + spaceLabelOff, spaceLabelPaint)
                 }
             }
         }

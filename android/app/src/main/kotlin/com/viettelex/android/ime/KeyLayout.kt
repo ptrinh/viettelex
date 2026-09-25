@@ -66,20 +66,22 @@ data class LayoutConfig(
 )
 
 object KeyLayout {
-    // dp — hằng số iOS
-    const val KEY_SPACING = 6f
+    // dp — kiểu Gboard / Material (26/09/2026; hành vi giữ nguyên bản iOS)
+    const val KEY_SPACING = 5f
     const val ROW_MARGIN_V = 5f
     const val ROW_MARGIN_H = 3f
-    const val BOTTOM_ROW_TOP = 10f
-    const val KEY_RADIUS = 5f
+    /** Hàng đáy dùng cùng margin như mọi hàng (Gboard), không sát đáy như iOS. */
+    const val BOTTOM_ROW_TOP = ROW_MARGIN_V
+    const val BOTTOM_ROW_BOTTOM = ROW_MARGIN_V
+    const val KEY_RADIUS = 7f
     const val OPEN_STRIP = 34f
     const val COLLAPSED_STRIP = 14f
     const val BAR_TOP_PAD = 4f
     const val STRIP_ZONE_W = 52f
 
-    /** iPhone 218 dọc / 162 ngang; tablet 240 / 300; + rowHeightAdjust × 4 hàng. */
+    /** Gboard: điện thoại 224 dọc (4 × 56) / 168 ngang; tablet 256 / 300; + rowHeightAdjust × 4 hàng. */
     fun keyAreaDp(tablet: Boolean, landscape: Boolean, rowHeightAdjust: Int): Float {
-        val base = if (tablet) (if (landscape) 300f else 240f) else (if (landscape) 162f else 218f)
+        val base = if (tablet) (if (landscape) 300f else 256f) else (if (landscape) 168f else 224f)
         return base + rowHeightAdjust.coerceIn(-10, 10) * 4f
     }
 
@@ -103,7 +105,7 @@ object KeyLayout {
                 equalRow(out, ROW1.map { it.toString() }, KeyKind.LETTER, c, 0, rowH, 0f)
                 equalRow(out, ROW2.map { it.toString() }, KeyKind.LETTER, c, 1, rowH, 0.5f)
                 thirdRow(out, c, rowH, letters = true)
-                bottomRow(out, c, 3 * rowH, rowH, planeKey = "123", clearInsteadOfEmoji = false)
+                bottomRow(out, c, 3 * rowH, rowH, planeKey = "?123", clearInsteadOfEmoji = false)
             }
             Plane.NUMBERS, Plane.SYMBOLS -> {
                 val num = c.plane == Plane.NUMBERS
@@ -129,7 +131,10 @@ object KeyLayout {
     private fun equalRow(out: MutableList<LaidKey>, labels: List<String>, kind: Int,
                          c: LayoutConfig, rowIndex: Int, rowH: Float, sideInset: Float) {
         val d = c.density
-        val inset = ROW_MARGIN_H * d + sideInset * c.widthPx / 10f
+        val gap0 = KEY_SPACING * d
+        // Thụt theo BƯỚC phím hàng 10 (phím + khe) ⇒ phím hàng 2 đúng bằng hàng 1.
+        val pitch = (c.widthPx - 2 * ROW_MARGIN_H * d - 9 * gap0) / 10f + gap0
+        val inset = ROW_MARGIN_H * d + sideInset * pitch
         val n = labels.size
         val gap = KEY_SPACING * d
         val w = (c.widthPx - 2 * inset - gap * (n - 1)) / n
@@ -144,7 +149,7 @@ object KeyLayout {
 
     /**
      * Hàng 3: plane chữ = ⇧(1.5) z…m ⌫(1.5) trên lưới 10 cột; plane số =
-     * [#+=/123](1.5) . , ? ! ' ⌫(1.5) — 5 dấu chia đều phần còn lại (iOS
+     * [=\\</?123](1.5) . , ? ! ' ⌫(1.5) — 5 dấu chia đều phần còn lại (iOS
      * fillProportionally; stock đo được ≈ 1.45 phím chữ).
      */
     private fun thirdRow(out: MutableList<LaidKey>, c: LayoutConfig, rowH: Float, letters: Boolean) {
@@ -163,7 +168,7 @@ object KeyLayout {
                 out += LaidKey(KeyKind.LETTER, s, s.uppercase(), s, x, t, x + k, b); x += k + gap
             }
         } else {
-            val more = if (c.plane == Plane.NUMBERS) "#+=" else "123"
+            val more = if (c.plane == Plane.NUMBERS) "=\\<" else "?123"
             out += LaidKey(KeyKind.MORE, more, more, more, x, t, x + side, b); x += side + gap
             val p = (inner - 2 * side - 6 * gap) / 5f
             for (s in PUNCT3) { out += LaidKey(KeyKind.CHAR, s, s, s, x, t, x + p, b); x += p + gap }
@@ -172,8 +177,9 @@ object KeyLayout {
     }
 
     /**
-     * Hàng đáy: [123|ABC 0.12][🌐 0.10?][😊|🗑 0.10][space còn lại][dấu][return 0.14][ẩn 0.07 tablet].
-     * Hệ số nhân với bề ngang CẢ hàng (như widthAnchor của stack iOS). Margin trên 10, dưới 0.
+     * Hàng đáy kiểu Gboard: [?123|ABC 0.15][, 0.10][🌐 0.10?][😊|🗑 0.10][space còn lại][. 0.10]
+     * [enter 0.15][ẩn 0.07 tablet]. Ô email: "," ⇒ "@"; ô URL: "," ⇒ "/" và thêm ".com" 0.15
+     * trước ".". Hệ số nhân với bề ngang CẢ hàng.
      */
     private fun bottomRow(out: MutableList<LaidKey>, c: LayoutConfig, rowTop: Float, rowH: Float,
                           planeKey: String, clearInsteadOfEmoji: Boolean) {
@@ -182,22 +188,24 @@ object KeyLayout {
         val m = ROW_MARGIN_H * d
         val gap = KEY_SPACING * d
         val t = rowTop + BOTTOM_ROW_TOP * d
-        val b = rowTop + rowH
+        val b = rowTop + rowH - BOTTOM_ROW_BOTTOM * d
         data class Slot(val kind: Int, val label: String, val insert: String, val mult: Float)
         val slots = ArrayList<Slot>(9)
-        slots += Slot(KeyKind.PLANE, planeKey, planeKey, 0.12f)
+        val letters = c.plane == Plane.LETTERS
+        slots += Slot(KeyKind.PLANE, planeKey, planeKey, 0.15f)
+        val left = if (letters) when (c.kind) {
+            InputKind.EMAIL -> "@"
+            InputKind.URL -> "/"
+            else -> ","
+        } else ","
+        slots += Slot(KeyKind.PUNCT, left, left, 0.10f)
         if (c.needsGlobe) slots += Slot(KeyKind.GLOBE, "", "", 0.10f)
         slots += if (clearInsteadOfEmoji) Slot(KeyKind.CLEAR, "", "", 0.10f)
                  else Slot(KeyKind.EMOJI, "", "", 0.10f)
         slots += Slot(KeyKind.SPACE, "", " ", -1f)
-        val puncts = if (planeKey == "123") when (c.kind) {
-            InputKind.EMAIL -> listOf(Slot(KeyKind.PUNCT, "@", "@", 0.11f), Slot(KeyKind.PUNCT, ".", ".", 0.09f))
-            InputKind.URL -> listOf(Slot(KeyKind.PUNCT, ".", ".", 0.075f), Slot(KeyKind.PUNCT, "/", "/", 0.075f),
-                                    Slot(KeyKind.PUNCT, ".com", ".com", 0.17f))
-            else -> listOf(Slot(KeyKind.PUNCT, ",", ",", 0.075f))
-        } else listOf(Slot(KeyKind.PUNCT, ",", ",", 0.075f))
-        slots += puncts
-        slots += Slot(KeyKind.RETURN, c.returnLabel, "\n", 0.14f)
+        if (letters && c.kind == InputKind.URL) slots += Slot(KeyKind.PUNCT, ".com", ".com", 0.15f)
+        slots += Slot(KeyKind.PUNCT, ".", ".", 0.10f)
+        slots += Slot(KeyKind.RETURN, c.returnLabel, "\n", 0.15f)
         if (c.tablet) slots += Slot(KeyKind.DISMISS, "", "", 0.07f)
         var fixed = 0f
         for (s in slots) if (s.mult > 0) fixed += s.mult * W

@@ -48,7 +48,7 @@ class EmojiPane(
     private val abcPaint = theme.text(15f, medium = true)
     private val abcOff = theme.centerOffset(abcPaint)
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val hiPaint = theme.fill(theme.withAlpha(theme.ink, 0.18f))
+    private val hiPaint = theme.fill(theme.chip)   // chỉ báo kiểu thanh điều hướng Material
     private val popupPaint = theme.fill(theme.popupFill).apply {
         if (android.os.Build.VERSION.SDK_INT >= 28) setShadowLayer(theme.dp(3f), 0f, theme.dp(1f), 0x4D000000)
     }
@@ -169,7 +169,7 @@ class EmojiPane(
         for (i in 0 until 9) {
             val cx = iconsLeft + (i + 0.5f) * iconW
             val on = i == highlighted
-            if (on) c.drawCircle(cx, cy, 13 * d, hiPaint)
+            if (on) { val hw = minOf(iconW / 2 - d, 16 * d); c.drawRoundRect(cx - hw, cy - 13 * d, cx + hw, cy + 13 * d, 13 * d, 13 * d, hiPaint) }
             iconPaint.color = if (on) theme.ink else theme.withAlpha(theme.ink, 0.55f)
             ImeIcons.draw(c, ImeIcons.CATEGORY[i], cx, cy, 19.5f * d, iconPaint)
         }

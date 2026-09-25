@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material You (màu động hệ thống) — sáng. -->
+<resources>
+    <color name="ime_bg">@android:color/system_neutral2_50</color>
+    <color name="ime_key">@android:color/system_neutral1_10</color>
+    <color name="ime_key_special">@android:color/system_accent2_100</color>
+    <color name="ime_ink">@android:color/system_neutral1_900</color>
+    <color name="ime_balloon">@android:color/system_neutral1_10</color>
+    <color name="ime_popup">@android:color/system_neutral1_10</color>
+    <color name="ime_action">@android:color/system_accent1_200</color>
+    <color name="ime_action_ink">@android:color/system_accent1_900</color>
+    <color name="ime_chip">@android:color/system_accent2_100</color>
+</resources>
