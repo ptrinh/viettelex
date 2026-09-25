@@ -1,0 +1,35 @@
+// VietTelexTIP.rc — version info + profile icon (index 0 for RegisterProfile).
+#include <winver.h>
+
+#include "../version.h"
+
+1 ICON "../res/viettelex.ico"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION VTX_VER_MAJOR,VTX_VER_MINOR,VTX_VER_PATCH,VTX_VER_BUILD
+ PRODUCTVERSION VTX_VER_MAJOR,VTX_VER_MINOR,VTX_VER_PATCH,VTX_VER_BUILD
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_DLL
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "042a04b0"
+        BEGIN
+            VALUE "CompanyName", "VietTelex"
+            VALUE "FileDescription", "VietTelex Text Service (TSF)"
+            VALUE "FileVersion", VTX_VER_STRING
+            VALUE "InternalName", "VietTelexTIP"
+            VALUE "LegalCopyright", "MIT License"
+            VALUE "OriginalFilename", "VietTelexTIP.dll"
+            VALUE "ProductName", "VietTelex"
+            VALUE "ProductVersion", VTX_VER_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x042a, 1200
+    END
+END

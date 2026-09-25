@@ -1,0 +1,25 @@
+# winget default-locale manifest TEMPLATE (filled by installer/build.ps1).
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: ptrinh.VietTelex
+PackageVersion: __VERSION__
+PackageLocale: vi-VN
+Publisher: VietTelex
+PublisherUrl: https://viettelex.com
+PublisherSupportUrl: https://github.com/ptrinh/viettelex/issues
+PackageName: VietTelex
+PackageUrl: https://viettelex.com
+License: MIT
+LicenseUrl: https://github.com/ptrinh/viettelex/blob/main/LICENSE
+ShortDescription: Bộ gõ tiếng Việt (Telex/VNI) tối giản, nhanh, ổn định — không thu thập dữ liệu.
+Description: |-
+  VietTelex là bộ gõ tiếng Việt dạng Text Services Framework: không gạch chân từ đang gõ,
+  tự khôi phục từ tiếng Anh, gõ tắt, nhớ Việt/Anh theo từng ứng dụng. Mã nguồn mở (MIT).
+Tags:
+  - vietnamese
+  - telex
+  - vni
+  - ime
+  - keyboard
+ReleaseNotesUrl: https://github.com/ptrinh/viettelex/releases/tag/win-v__VERSION__
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

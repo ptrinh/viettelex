@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  VietTelex — MSIX manifest TEMPLATE for the Microsoft Store.
+
+  IMPORTANT LIMITATION (read windows/README.md § Microsoft Store before using):
+  an MSIX package cannot register a TSF text service for the whole system. Package
+  registry writes are virtualized and TSF loads TIPs from the real
+  HKLM\SOFTWARE\Microsoft\CTF\TIP + HKLM\SOFTWARE\Classes\CLSID into EVERY process,
+  including ones outside the package. So this package can only carry VietTelex.exe
+  (settings/tray/updater); the keyboard itself still has to be installed by the MSI.
+
+  The recommended Store route is therefore the Partner Center "MSI or EXE" app
+  submission pointing at the signed MSI on GitHub Releases (silent switch /qn), which
+  the Store supports for Win32 apps. This manifest is kept for the day Microsoft offers
+  packaged third-party TIPs, and for a Store listing of the companion app.
+
+  Placeholders (filled by installer/build.ps1 from Partner Center values, never secret):
+    __IDENTITY_NAME__       Package/Identity/Name reserved in Partner Center
+    __PUBLISHER__           CN=… of the Store publisher (Partner Center > Product identity)
+    __PUBLISHER_DISPLAY__   publisher display name
+    __VERSION__             e.g. 0.1.0.0 (4 parts, last part must be 0 for the Store)
+    __ARCH__                x64 | arm64
+-->
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+         IgnorableNamespaces="uap desktop rescap">
+  <Identity Name="__IDENTITY_NAME__" Publisher="__PUBLISHER__" Version="__VERSION__"
+            ProcessorArchitecture="__ARCH__" />
+  <Properties>
+    <DisplayName>VietTelex</DisplayName>
+    <PublisherDisplayName>__PUBLISHER_DISPLAY__</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>Bộ gõ tiếng Việt tối giản, nhanh, ổn định. Không thu thập dữ liệu.</Description>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.18362.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="vi-VN" />
+    <Resource Language="en-US" />
+  </Resources>
+  <Applications>
+    <Application Id="VietTelex" Executable="VietTelex.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="VietTelex" Description="Bộ gõ tiếng Việt"
+                          BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png"
+                          Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <desktop:Extension Category="windows.startupTask" Executable="VietTelex.exe"
+                           EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="VietTelexTray" Enabled="true" DisplayName="VietTelex" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <Capability Name="internetClient" />
+  </Capabilities>
+</Package>

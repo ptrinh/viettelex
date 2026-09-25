@@ -1,0 +1,70 @@
+// strings.h — UI strings, Vietnamese (default) and English (settings `uiLanguage`).
+#pragma once
+
+namespace vtx::app {
+
+enum class S {
+    AppName,
+    TrayTip,
+    MenuSettings,
+    MenuCheckUpdate,
+    MenuAbout,
+    MenuQuit,
+    TabTyping,
+    TabSpelling,
+    TabShortcuts,
+    TabApps,
+    TabAbout,
+    InputMethod,
+    Telex,
+    Vni,
+    SimpleTelex,
+    FreeMarking,
+    QuickTelex,
+    ModernOrthography,
+    BracketVowels,
+    AutoRestore,
+    LiveSpellCheck,
+    ContextualEnglish,
+    CollisionPrefersVi,
+    Teencode,
+    ReEditWord,
+    SwitchHotkey,
+    HotkeyCtrlShift,
+    HotkeyWinSpace,
+    HotkeyAltZ,
+    HotkeyOff,
+    HotkeyNote,
+    MenuIcon,
+    MenuIconVt,
+    MenuIconLetter,
+    UiLanguage,
+    AutoUpdateCheck,
+    DebugLogging,
+    ShortcutKey,
+    ShortcutValue,
+    Add,
+    Remove,
+    Import,
+    Export,
+    AppExe,
+    AppModeLabel,
+    ModeComposition,
+    ModeInPlace,
+    ModeHook,
+    ModeOff,
+    AppsNote,
+    AboutText,
+    CheckNow,
+    UpToDate,
+    UpdateAvailable,
+    UpdateFailed,
+    UpdateBadSignature,
+    ImportFailed,
+    Count
+};
+
+const wchar_t* tr(S id);
+void setEnglish(bool en);
+
+}  // namespace vtx::app

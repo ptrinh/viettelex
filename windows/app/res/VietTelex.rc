@@ -1,0 +1,37 @@
+// VietTelex.rc — icon, manifest, version info for VietTelex.exe.
+#include <winver.h>
+#include <winuser.h>
+
+#include "../../ime/version.h"
+
+1 ICON "../../ime/res/viettelex.ico"
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "VietTelex.manifest"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION VTX_VER_MAJOR,VTX_VER_MINOR,VTX_VER_PATCH,VTX_VER_BUILD
+ PRODUCTVERSION VTX_VER_MAJOR,VTX_VER_MINOR,VTX_VER_PATCH,VTX_VER_BUILD
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "042a04b0"
+        BEGIN
+            VALUE "CompanyName", "VietTelex"
+            VALUE "FileDescription", "VietTelex"
+            VALUE "FileVersion", VTX_VER_STRING
+            VALUE "InternalName", "VietTelex"
+            VALUE "LegalCopyright", "MIT License"
+            VALUE "OriginalFilename", "VietTelex.exe"
+            VALUE "ProductName", "VietTelex"
+            VALUE "ProductVersion", VTX_VER_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x042a, 1200
+    END
+END

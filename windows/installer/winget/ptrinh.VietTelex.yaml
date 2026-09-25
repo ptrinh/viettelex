@@ -1,0 +1,8 @@
+# winget version manifest TEMPLATE — installer/build.ps1 fills __VERSION__ and copies
+# the three files to manifests/p/ptrinh/VietTelex/<version>/ for a winget-pkgs PR.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.6.0.schema.json
+PackageIdentifier: ptrinh.VietTelex
+PackageVersion: __VERSION__
+DefaultLocale: vi-VN
+ManifestType: version
+ManifestVersion: 1.6.0
