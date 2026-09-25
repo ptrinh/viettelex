@@ -745,7 +745,6 @@ struct DebugSection: View {
     private var debugTouchLog = false
     @AppStorage("deferBottomEdge", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var deferBottomEdge = true
-    @State private var showLog = false
 
     var body: some View {
         Section {
@@ -756,10 +755,20 @@ struct DebugSection: View {
                 settingToggle("Hoãn cử chỉ hệ thống ở mép dưới",
                               "Thử nghiệm A/B cho lỗi rớt phím: gõ nhanh với BẬT rồi TẮT, so log. Ẩn bàn phím rồi mở lại sau khi đổi.",
                               isOn: $deferBottomEdge)
-                Button("Xem log") { showLog = true }
+                Button("Xem log") { Self.presentLog() }
             }
         } header: { Text("Gỡ lỗi") }
-        .sheet(isPresented: $showLog) { TouchLogView() }
+    }
+
+    /// Present bằng UIKit: `.sheet` gắn trên Section trong Form không hiện (user
+    /// 25/09/2026: "ấn Xem log không hiện ra gì").
+    static func presentLog() {
+        guard let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive }),
+              var top = scene.keyWindow?.rootViewController else { return }
+        while let p = top.presentedViewController { top = p }
+        top.present(UIHostingController(rootView: TouchLogView()), animated: true)
     }
 }
 
