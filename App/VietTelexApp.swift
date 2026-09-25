@@ -662,6 +662,10 @@ struct KieuGoSection: View {
     private var quickTelex = false
     @AppStorage("modernTone", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var modernTone = false
+    @AppStorage("autoFixAdjacent", store: UserDefaults(suiteName: "group.com.viettelex"))
+    private var autoFixAdjacent = false
+    @AppStorage("contextualEnglish", store: UserDefaults(suiteName: "group.com.viettelex"))
+    private var contextualEnglish = true
     @AppStorage("teencode", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var teencode = false
 
@@ -671,6 +675,8 @@ struct KieuGoSection: View {
             settingToggle("Bỏ dấu tự do", "Phím dấu đặt đâu cũng được, không cần đúng thứ tự.", isOn: $freeMarking)
             settingToggle("Gõ nhanh (Quick Telex)", "Phụ âm đôi đầu từ thành phụ âm ghép: cc → ch, nn → ng, tt → th…", isOn: $quickTelex)
             settingToggle("Bỏ dấu kiểu mới", "hoà, thuý thay vì hòa, thúy.", isOn: $modernTone)
+            settingToggle("Quyết định theo ngữ cảnh", "Sau một từ tiếng Anh, từ mơ hồ kế tiếp giữ nguyên tiếng Anh — \"he is\" → he is, không phải \"he í\". Sau từ tiếng Việt thì vẫn là tiếng Việt — \"sao í\".", isOn: $contextualEnglish)
+            settingToggle("Gợi ý sửa lỗi chạm trượt (thử nghiệm)", "Khi từ đang gõ không phải tiếng Việt, gợi ý từ đúng nếu bạn lỡ chạm phím bên cạnh: nbjeeuf → nhiều, ohims → phím, cahcs → cách. Chạm gợi ý để thay.", isOn: $autoFixAdjacent)
             settingToggle("Chính tả teencode", "Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, từ tiếng Anh như was, war, zoo giữ nguyên.", isOn: $teencode)
         } header: { Text("Kiểu gõ") } footer: {
             Text("Cài đặt áp dụng ngay lần mở bàn phím kế tiếp.")

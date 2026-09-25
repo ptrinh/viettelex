@@ -29,6 +29,11 @@ struct KeyboardSettings {
     var learnWords = true      // đi theo showSuggestions (không còn toggle riêng)
     var filterSensitive = true
     var hapticFeedback = false // rung phím — chỉ hoạt động khi có Full Access
+    /// Thử nghiệm (25/09/2026): gợi ý sửa lỗi chạm trượt phím kề (AdjacentKeyFixer).
+    var autoFixAdjacent = false
+    /// Quyết định theo ngữ cảnh (như macOS, mặc định BẬT): sau một từ tiếng Anh, từ
+    /// mơ hồ kế tiếp giữ tiếng Anh ("he is" → he is, không phải "he í").
+    var contextualEnglish = true
 
     static func load() -> KeyboardSettings {
         var s = KeyboardSettings()
@@ -43,6 +48,8 @@ struct KeyboardSettings {
         if d.object(forKey: "showSuggestions") != nil { s.showSuggestions = d.bool(forKey: "showSuggestions") }
         if d.object(forKey: "filterSensitive") != nil { s.filterSensitive = d.bool(forKey: "filterSensitive") }
         if d.object(forKey: "hapticFeedback") != nil { s.hapticFeedback = d.bool(forKey: "hapticFeedback") }
+        if d.object(forKey: "autoFixAdjacent") != nil { s.autoFixAdjacent = d.bool(forKey: "autoFixAdjacent") }
+        if d.object(forKey: "contextualEnglish") != nil { s.contextualEnglish = d.bool(forKey: "contextualEnglish") }
         s.learnWords = s.showSuggestions   // bật gợi ý = bật học (quyết định 2026-07-24)
         return s
     }
@@ -71,6 +78,7 @@ final class EngineBridge {
         engine.quickTelex = settings.quickTelex
         engine.modernTone = settings.modernTone
         engine.teencode = settings.teencode
+        engine.contextualEnglish = settings.contextualEnglish
     }
 
     /// A letter key ("a"…"z", already cased by the shift state).
@@ -110,13 +118,30 @@ final class EngineBridge {
     }
 
     /// Field switch / selection moved / keyboard dismissed → forget the word.
-    func reset() { engine.reset() }
+    /// Cũng xoá ngữ cảnh tiếng Anh: đổi ô / con trỏ nhảy → từ trước không còn là
+    /// "từ ngay trước" nữa (macOS làm y hệt khi activateServer / đổi field).
+    func reset() { engine.reset(); engine.resetContext() }
 
     var isComposing: Bool { !engine.isEmpty }
 
     /// Current word for the suggestion bar: on-screen composed form + raw keys.
     var composedWord: String { engine.composed }
     var rawWord: String { engine.rawKeystrokes }
+    var autoFixAdjacent: Bool { settings.autoFixAdjacent }
+
+    /// Dạng hiển thị engine SẼ ra cho chuỗi phím `raw`, với đúng setting hiện tại —
+    /// engine scratch riêng, không đụng từ đang gõ (AdjacentKeyFixer).
+    func composeTrial(_ raw: String) -> String {
+        var e = TelexEngine()
+        e.freeMarking = settings.freeMarking
+        e.simpleTelex = settings.simpleTelex
+        e.liveSpellCheck = settings.liveSpellCheck
+        e.quickTelex = settings.quickTelex
+        e.modernTone = settings.modernTone
+        e.teencode = settings.teencode
+        for ch in raw { _ = e.feed(ch) }
+        return e.composed
+    }
 
     /// Từ mà boundary SẼ chốt (auto-restore tính sẵn) — peek non-mutating trực
     /// tiếp trên engine. KHÔNG copy struct: bản copy cũ kích hoạt COW copy ~10

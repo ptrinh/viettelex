@@ -565,6 +565,15 @@ final class KeyboardViewController: UIInputViewController {
                     enabled: filterSensitive)
                 set.word = ranked.first.map { DisplayCase.apply($0, after: lastWord) }
                 set.word2 = ranked.dropFirst().first.map { DisplayCase.apply($0, after: lastWord) }
+            } else if bridge.autoFixAdjacent,
+                      let fix = AdjacentKeyFixer.correction(
+                        raw: bridge.rawWord,
+                        compose: { self.bridge.composeTrial($0) },
+                        frequency: { VNSuggest.frequency(of: $0) },
+                        hasCompletion: { !VNSuggest.matches($0, poolLimit: 1).isEmpty }) {
+                // Thử nghiệm: không từ nào khớp → nghi chạm trượt phím kề; đưa bản sửa
+                // lên slot chính (tap để thay, không tự thay).
+                set.word = fix
             }
             // thử cụm 2 từ trước ("hoàn thành", "sinh nhật") rồi mới tới từ đơn.
             // Emoji KHÔNG bị lọc nhạy cảm (user 2026-07-24: gõ "cứt"/"shit"
@@ -599,7 +608,30 @@ final class KeyboardViewController: UIInputViewController {
                 .prefix(3).map { caseForContext(DisplayCase.apply($0)) }
             set.nextWords = padWords(Array(top), need: 3)
         }
+        if composed.isEmpty, pasteOffer() { set.paste = true }
         keyboard.showSuggestions(set)
+    }
+
+    // MARK: Nút Dán (maintainer 25/09/2026, như bàn phím stock/Gboard)
+    // Chỉ khi có Full Access (không có thì extension không đọc được clipboard), không
+    // gõ dở từ, và clipboard có nội dung MỚI trong 3 phút chưa dán. hasStrings không
+    // bật hỏi quyền; nội dung chỉ đọc khi user CHẠM nút. Cache 2s: hasStrings là XPC.
+    private var pasteSeenChange = -1
+    private var pasteSeenAt = Date.distantPast
+    private var pasteUsedChange = -1
+    private var pasteCheckedAt = Date.distantPast
+    private var pasteCached = false
+    private func pasteOffer() -> Bool {
+        guard hasFullAccess else { return false }
+        let now = Date()
+        if now.timeIntervalSince(pasteCheckedAt) < 2 { return pasteCached }
+        pasteCheckedAt = now
+        let pb = UIPasteboard.general
+        let cc = pb.changeCount
+        if cc != pasteSeenChange { pasteSeenChange = cc; pasteSeenAt = now }
+        pasteCached = cc != pasteUsedChange && pb.hasStrings
+            && now.timeIntervalSince(pasteSeenAt) < 180
+        return pasteCached
     }
 
     /// Tap gợi ý (hành vi QuickType): emoji thay hẳn từ; từ tiếng Việt thay
@@ -607,6 +639,16 @@ final class KeyboardViewController: UIInputViewController {
     private func acceptSuggestion(_ item: String) {
         applyingEdit = true
         defer { applyingEdit = false }
+        if item == KeyboardView.pasteToken {
+            let pb = UIPasteboard.general
+            if let s = pb.string, !s.isEmpty { textDocumentProxy.insertText(s) }
+            pasteUsedChange = pb.changeCount
+            pasteCached = false
+            bridge.reset(); lastWord = nil; lastWord2 = nil
+            KeyboardView.clickModifier()
+            updateSuggestions()
+            return
+        }
         // Undo auto-restore: caret đang đứng ngay sau từ raw đã chốt (space vừa
         // bị backspace) → thay cả từ raw bằng dạng có dấu + space.
         if undoOfferActive, let u = restoreUndo, item == u.composed,

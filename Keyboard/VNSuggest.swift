@@ -134,6 +134,19 @@ enum VNSuggest {
         return false
     }
 
+    /// Tần suất của đúng âm tiết `word` trong lexicon, nil nếu không có
+    /// (AdjacentKeyFixer chấm điểm ứng viên sửa lỗi chạm trượt).
+    static func frequency(of word: String) -> Int? {
+        guard let dec = decompose(word) else { return nil }
+        let prefix = dec.map { $0.base }
+        let w = word.lowercased()
+        for id in range(ofFoldedPrefix: prefix) {
+            guard foldedEntry(id).count == prefix.count else { continue }
+            if display(id) == w { return Int(VNLexicon2Data.freq(id)) }
+        }
+        return nil
+    }
+
     /// Range [lo, hi) các entry có foldedKey bắt đầu bằng `prefix`.
     private static func range(ofFoldedPrefix prefix: [UInt8]) -> Range<Int> {
         // so sánh folded[id] với prefix: -1 <, 0 = có prefix này, 1 >

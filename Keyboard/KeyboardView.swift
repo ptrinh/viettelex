@@ -361,7 +361,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if UIDevice.current.userInterfaceIdiom == .pad {
             base = landscape ? 300 : 240
         } else {
-            base = landscape ? 162 : 216
+            // 216 → 224 (25/09/2026): bước hàng stock ≈ 56pt, VietTelex 54pt — phím
+            // cao hơn 2pt/hàng, cũng là vùng chạm rộng hơn khi gõ nhanh.
+            base = landscape ? 162 : 224
         }
         return base + rowHeightAdjust * 4
     }
@@ -415,6 +417,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         var word2: String? = nil       // ứng viên inline thứ hai (khi không có emoji)
         var emojis: [String] = []
         var nextWords: [String] = []   // gợi ý khi CHƯA gõ (đầu câu / sau space)
+        var paste = false               // slot 1 = nút "Dán" (vừa copy, xem controller)
         var isEmpty: Bool {
             literal == nil && word == nil && word2 == nil && emojis.isEmpty && nextWords.isEmpty
         }
@@ -541,6 +544,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         setNeedsLayout()
     }
 
+    /// Payload của nút Dán trên bar — ký tự Private Use, không thể là từ thật.
+    static let pasteToken = "\u{E000}paste"
+
     func showSuggestions(_ set: SuggestionSet) {
         guard suggestionsEnabled, !barCollapsed else { return }
         buildSuggestionPoolIfNeeded()
@@ -554,6 +560,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             if let w = set.word { texts[1] = (w, w) }
             if set.emojis.isEmpty, let w2 = set.word2 { texts[2] = (w2, w2) }
         }
+        if set.paste { texts[0] = ("📋 Dán", Self.pasteToken) }
         // Nội dung không đổi (nextWords thường ổn định giữa các phím) → bỏ qua
         // toàn bộ ghi UI: setTitle trên bar fillProportionally kéo theo một
         // lượt đo text/Auto Layout mỗi keystroke.
@@ -1121,7 +1128,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         stack.spacing = 6
         stack.distribution = .fill
         stack.isLayoutMarginsRelativeArrangement = true
-        stack.layoutMargins = UIEdgeInsets(top: 5, left: 3, bottom: 5, right: 3)
+        // Hàng đáy SÁT đáy hơn như stock (so ảnh 25/09/2026: stock cách đáy bàn phím
+        // 214px, VietTelex 241px): cùng chiều cao phím, dời xuống 3pt (top 8/bottom 2
+        // thay 5/5). Vùng globe/mic dưới đó do host vẽ — không dời được.
+        stack.layoutMargins = UIEdgeInsets(top: 8, left: 3, bottom: 2, right: 3)
         planeBtn.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: 0.12).isActive = true
         emojiBtn.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: 0.10).isActive = true
         for pk in punctKeys {
@@ -1584,7 +1594,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
-            let p = t.location(in: self)
+            let p = TouchGeometry.keySelectionPoint(t.location(in: self))
             let b = nearestLetterButton(at: p)
             TouchLog.touchBegan(active: routedTouches.count, batch: touches.count,
                                 touchTimestamp: t.timestamp, hit: b != nil, y: Double(p.y),
