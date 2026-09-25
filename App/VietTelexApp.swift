@@ -739,12 +739,25 @@ struct TinhNangSections: View {
 }
 
 /// Debug mode (25/09/2026): lấy log "gõ nhanh rớt chữ" không cần cáp/Console.
-/// Bàn phím ghi touchlog.txt vào App Group (cần Full Access); ở đây xem + Copy.
+/// Bàn phím ghi touchlog.txt vào App Group (cần Full Access). Log hiện NGAY trong
+/// section qua một Toggle — Button mở sheet / present UIKit đều "không hiện ra gì"
+/// trên máy user (25/09/2026); Toggle trong cùng Form thì chạy chắc chắn.
 struct DebugSection: View {
     @AppStorage("debugTouchLog", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var debugTouchLog = false
     @AppStorage("deferBottomEdge", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var deferBottomEdge = true
+    @State private var showLog = false
+    @State private var logText = ""
+    @State private var clearLog = false
+
+    static var logURL: URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.viettelex")?
+            .appendingPathComponent("touchlog.txt")
+    }
+    private func reload() {
+        logText = Self.logURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+    }
 
     var body: some View {
         Section {
@@ -755,58 +768,29 @@ struct DebugSection: View {
                 settingToggle("Hoãn cử chỉ hệ thống ở mép dưới",
                               "Thử nghiệm A/B cho lỗi rớt phím: gõ nhanh với BẬT rồi TẮT, so log. Ẩn bàn phím rồi mở lại sau khi đổi.",
                               isOn: $deferBottomEdge)
-                Button("Xem log") { Self.presentLog() }
-            }
-        } header: { Text("Gỡ lỗi") }
-    }
-
-    /// Present bằng UIKit: `.sheet` gắn trên Section trong Form không hiện (user
-    /// 25/09/2026: "ấn Xem log không hiện ra gì").
-    static func presentLog() {
-        guard let scene = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene })
-                .first(where: { $0.activationState == .foregroundActive }),
-              var top = scene.keyWindow?.rootViewController else { return }
-        while let p = top.presentedViewController { top = p }
-        top.present(UIHostingController(rootView: TouchLogView()), animated: true)
-    }
-}
-
-struct TouchLogView: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var text = ""
-
-    private var url: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.viettelex")?
-            .appendingPathComponent("touchlog.txt")
-    }
-    private func reload() {
-        text = url.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                Text(text.isEmpty
-                     ? "Chưa có log. Bật Debug mode, bật \"Cho phép Toàn quyền\" cho bàn phím VietTelex (Cài đặt → Chung → Bàn phím), rồi gõ thử."
-                     : text)
-                    .font(.system(.caption2, design: .monospaced))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-            }
-            .navigationTitle("Log chạm phím")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Đóng") { dismiss() } }
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button("Xoá") { if let u = url { try? FileManager.default.removeItem(at: u) }; reload() }
-                    Button("Copy") { UIPasteboard.general.string = text }
-                        .disabled(text.isEmpty)
+                settingToggle("Hiện log (tự copy vào clipboard)",
+                              "Bật để xem log bên dưới và copy toàn bộ — tắt rồi bật lại để tải log mới.",
+                              isOn: $showLog)
+                settingToggle("Xoá log", "Bật để xoá log cũ trước khi thử lại.", isOn: $clearLog)
+                if showLog {
+                    Text(logText.isEmpty
+                         ? "Chưa có log. Bật \"Cho phép Toàn quyền\" cho bàn phím VietTelex (Cài đặt → Chung → Bàn phím → Bàn phím → VietTelex), rồi gõ thử."
+                         : "\(logText.split(separator: "\n").count) dòng — đã copy vào clipboard.\n\n" + logText.split(separator: "\n").suffix(80).joined(separator: "\n"))
+                        .font(.system(.caption2, design: .monospaced))
+                        .textSelection(.enabled)
                 }
             }
-            .onAppear(perform: reload)
-            .refreshable { reload() }
+        } header: { Text("Gỡ lỗi") }
+        .onChange(of: showLog) { on in
+            guard on else { return }
+            reload()
+            if !logText.isEmpty { UIPasteboard.general.string = logText }
+        }
+        .onChange(of: clearLog) { on in
+            guard on else { return }
+            if let u = Self.logURL { try? FileManager.default.removeItem(at: u) }
+            logText = ""
+            clearLog = false
         }
     }
 }
