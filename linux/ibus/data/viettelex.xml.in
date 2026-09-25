@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component>
+  <name>org.freedesktop.IBus.VietTelex</name>
+  <description>VietTelex Vietnamese input method</description>
+  <exec>@VT_IBUS_EXEC@ --ibus</exec>
+  <version>@PROJECT_VERSION@</version>
+  <author>VietTelex</author>
+  <license>MIT</license>
+  <homepage>https://github.com/ptrinh/viettelex</homepage>
+  <textdomain>viettelex</textdomain>
+  <engines>
+    <engine>
+      <name>viettelex</name>
+      <language>vi</language>
+      <license>MIT</license>
+      <author>VietTelex</author>
+      <icon>viettelex</icon>
+      <layout>default</layout>
+      <longname>Tiếng Việt (VietTelex)</longname>
+      <description>Bộ gõ tiếng Việt Telex/VNI — cùng engine với VietTelex macOS</description>
+      <rank>0</rank>
+      <symbol>VT</symbol>
+      <setup>@VT_SETTINGS_EXEC@</setup>
+    </engine>
+  </engines>
+</component>

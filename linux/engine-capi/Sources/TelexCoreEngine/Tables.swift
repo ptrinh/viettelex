@@ -1,0 +1,1 @@
+../../../../TelexCore/Sources/TelexCore/Tables.swift
