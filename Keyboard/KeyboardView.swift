@@ -939,6 +939,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             layout.sectionInset = UIEdgeInsets(top: 8, left: 6, bottom: 8, right: 6)
             let cv = UICollectionView(frame: .zero, collectionViewLayout: layout)
             cv.backgroundColor = .clear
+            cv.disableKeyboardEdgeEffects()
             cv.alwaysBounceVertical = true
             cv.dataSource = self
             cv.delegate = self

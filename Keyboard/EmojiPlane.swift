@@ -76,6 +76,7 @@ final class EmojiPlane: UIView, UICollectionViewDataSource, UICollectionViewDele
         layout.sectionInset = UIEdgeInsets(top: Self.headerBand, left: 6, bottom: 0, right: 6)
         collection = UICollectionView(frame: .zero, collectionViewLayout: layout)
         collection.backgroundColor = .clear
+        collection.disableKeyboardEdgeEffects()
         collection.showsHorizontalScrollIndicator = false
         collection.dataSource = self
         collection.delegate = self
