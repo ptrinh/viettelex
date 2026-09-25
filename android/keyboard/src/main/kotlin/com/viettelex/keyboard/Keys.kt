@@ -18,6 +18,10 @@ object Keys {
     // Tính Năng
     const val AUTO_RESTORE = "autoRestore"
     const val LIVE_SPELL_CHECK = "liveSpellCheck"
+
+    /** Key ảnh hưởng engine/EngineBridge — đổi lúc bàn phím đang mở thì áp ngay. */
+    val ENGINE_KEYS = setOf(SIMPLE_TELEX, FREE_MARKING, QUICK_TELEX, MODERN_TONE, CONTEXTUAL_ENGLISH,
+        AUTO_FIX_ADJACENT, TEENCODE, AUTO_RESTORE, LIVE_SPELL_CHECK)
     const val SHOW_SUGGESTIONS = "showSuggestions"
     const val FILTER_SENSITIVE = "filterSensitive"
     const val TEMPLATES_ENABLED = "templatesEnabled"

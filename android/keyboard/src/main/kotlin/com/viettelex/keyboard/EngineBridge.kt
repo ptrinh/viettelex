@@ -7,7 +7,8 @@ import com.viettelex.telexcore.TelexEngine
  * Keo giữa TelexEngine và [TextProxy] — port 1:1 iOS EngineBridge. Mỗi phím →
  * diff tối thiểu (xoá N code point + chèn). Không Android API.
  */
-class EngineBridge(private val settings: KeyboardSettings = KeyboardSettings()) {
+class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
+    private var settings = settings
     private val engine = TelexEngine().also { configure(it, true) }
 
     /** Ô không autocorrect (mã/username): gõ LITERAL, bỏ engine. */
@@ -22,6 +23,12 @@ class EngineBridge(private val settings: KeyboardSettings = KeyboardSettings()) 
         e.teencode = settings.teencode
         if (contextual) e.contextualEnglish = settings.contextualEnglish
     }
+
+    /**
+     * Settings đổi khi bàn phím ĐANG hiện (Android: app settings cùng màn hình với ô Thử gõ,
+     * không có onStartInputView mới) — áp ngay vào engine, không reset chữ đang gõ.
+     */
+    fun applySettings(s: KeyboardSettings) { settings = s; configure(engine, true) }
 
     /** Phím chữ (đã theo shift). */
     fun letter(ch: Char, proxy: TextProxy) {

@@ -79,6 +79,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         // App vừa "Xóa từ đã học": bỏ model trong RAM NGAY (không bao giờ ghi đè lại).
         if (key == Keys.USERLM_RESET_AT) model.reloadAfterExternalErase()
+        // Bật/tắt kiểu gõ trong app khi bàn phím đang mở (ô Thử gõ) → áp ngay, không đợi mở lại.
+        else if (key in Keys.ENGINE_KEYS) session.bridge.applySettings(VTPrefs.settings(prefs))
     }
 
     override fun onCreate() {
