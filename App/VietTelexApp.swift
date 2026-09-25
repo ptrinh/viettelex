@@ -559,6 +559,9 @@ struct OnboardingCard: View {
             } label: {
                 Text("Mở Cài đặt VietTelex").font(.subheadline.weight(.semibold))
             }
+            // .borderless: nút trong dòng List có nhiều control — kiểu mặc định để cả
+            // dòng nuốt chạm, nút "không làm gì" (user 25/09/2026, như "Xem log" cũ).
+            .buttonStyle(.borderless)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 4)
