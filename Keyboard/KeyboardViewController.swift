@@ -720,10 +720,10 @@ final class KeyboardViewController: UIInputViewController {
         let cc = pb.changeCount
         if cc != pasteSeenChange { pasteSeenChange = cc; pasteSeenAt = now }
         let has = pb.hasStrings
-        // Ảnh (không có chữ): vẫn báo, nhưng thẻ chỉ hướng dẫn — iOS không cho chèn ảnh.
-        let img = !has && pb.hasImages
-        pasteIsImage = img
-        pasteCached = cc != pasteUsedChange && (has || img)
+        // Ảnh: KHÔNG báo (user 25/09/2026) — iOS không cho bàn phím chèn ảnh, thẻ
+        // hướng dẫn trông như nút bấm được nên gây hiểu nhầm.
+        pasteIsImage = false
+        pasteCached = cc != pasteUsedChange && has
             && now.timeIntervalSince(pasteSeenAt) < 180
         if TouchLog.enabled {
             TouchLog.write(String(format: "paste: cc=%d used=%d hasStrings=%d age=%.0fs → %d",
