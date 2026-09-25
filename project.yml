@@ -87,6 +87,8 @@ targets:
     sources:
       - KeyboardTests
       - Keyboard/EngineBridge.swift
+      - Keyboard/KeyCommitQueue.swift
+      - Keyboard/SuggestionSupport.swift
       - Keyboard/VNSuggest.swift
       - Keyboard/VNLexicon2.swift
       - Keyboard/EmojiSuggest.swift
@@ -102,3 +104,14 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - package: TelexCore
+
+schemes:
+  # Test scheme khai báo ở đây (trước đây là file xcscheme ngoài git, bị xcodegen
+  # xoá mỗi lần generate). Chạy: xcodebuild -scheme VietTelexKeyboardTests test
+  VietTelexKeyboardTests:
+    build:
+      targets:
+        VietTelexKeyboardTests: [test]
+    test:
+      targets:
+        - VietTelexKeyboardTests

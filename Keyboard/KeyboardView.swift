@@ -51,6 +51,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Giữ backspace >3s → xoá theo TỪ (controller đọc proxy, off hot path).
     var onDeleteWord: (() -> Void)?
     private var lastSpaceTap: TimeInterval = 0
+    /// Phím nhấc-mới-chốt đang đè — xem KeyCommitQueue (thứ tự khi gõ chồng ngón).
+    private let commits = KeyCommitQueue()
     private var spaceHoldX: CGFloat = 0
     private var backspaceHoldStart: TimeInterval = 0
 
@@ -1012,9 +1014,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             ])
         }
         space.addAction(UIAction { _ in Self.clickModifier() }, for: .touchDown)
-        // touchUpOutside CŨNG commit: gõ nhanh ngón trượt khỏi mép phím lúc
-        // nhấc là chuyện thường — chỉ nhận touchUpInside thì space rơi im lặng.
-        space.addAction(UIAction { [weak self] _ in
+        // Chốt qua KeyCommitQueue: arm lúc chạm, chốt lúc nhấc / bị huỷ / khi ngón
+        // khác chạm xuống trước (gõ chồng ngón). touchUpOutside CŨNG chốt: ngón trượt
+        // khỏi mép lúc nhấc là chuyện thường. Trackpad (spaceHold) disarm.
+        armCommit(space) { [weak self] in
             guard let self else { return }
             let now = CACurrentMediaTime()
             if now - self.lastSpaceTap < 0.35 {
@@ -1023,7 +1026,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 self.tapped(.space)
             }
             self.lastSpaceTap = now
-        }, for: [.touchUpInside, .touchUpOutside])
+        }
         let spacePan = UILongPressGestureRecognizer(target: self, action: #selector(spaceHold(_:)))
         spacePan.minimumPressDuration = 0.4
         // KHÔNG delay/cancel touch của phím khác: recognizer mặc định trì hoãn
@@ -1053,12 +1056,12 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             let b = baseButton(title: p.title, special: false)
             b.pressedBackground = specialFill
             if p.title == ".com" { b.titleLabel?.font = .systemFont(ofSize: 17) }
-            b.addAction(UIAction { [weak self] _ in self?.tapped(.text(p.insert)) },
-                        for: [.touchUpInside, .touchUpOutside])
+            armCommit(b) { [weak self] in self?.tapped(.text(p.insert)) }
             views.append(b)
             punctKeys.append((b, p.mult))
         }
-        let ret = controlButton(title: returnTitle == "return" ? "" : returnTitle) { [weak self] in
+        let ret = controlButton(title: returnTitle == "return" ? "" : returnTitle,
+                                armed: true) { [weak self] in
             self?.tapped(.newline)
         }
         ret.accessibilityLabel = returnTitle == "return" ? "Xuống dòng" : returnTitle
@@ -1163,6 +1166,12 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // .custom, not .system: system buttons run tint/highlight animations on
         // the main thread per touch — visible latency on a keyboard.
         let b = KeyButton(type: .custom)
+        // ĐẦU TIÊN trong mọi touchDown (kể cả phím chữ qua router sendActions): chốt
+        // các phím nhấc-mới-chốt đang đè TRƯỚC khi phím này làm gì — đúng thứ tự
+        // khi gõ chồng ngón (KeyCommitQueue).
+        b.addAction(UIAction { [weak self, weak b] _ in
+            self?.commits.flush(except: b.map(ObjectIdentifier.init))
+        }, for: .touchDown)
         b.isMultipleTouchEnabled = true
         b.isSpecial = special
         b.setTitle(title, for: .normal)
@@ -1197,7 +1206,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private static let haptic = UIImpactFeedbackGenerator(style: .light)
     private static func feedback() {
         UIDevice.current.playInputClick()
-        if hapticsEnabled { haptic.impactOccurred() }
+        if hapticsEnabled {
+            haptic.impactOccurred()
+            haptic.prepare()   // giữ Taptic Engine sẵn sàng cho phím kế — không trễ rung
+        }
     }
     static func clickLetter() { feedback() }
     static func clickDelete() { feedback() }
@@ -1317,19 +1329,32 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             Self.clickLetter()
             if let self, let b { self.showBalloon(over: b, text: s) }
         }, for: .touchDown)
-        b.addAction(UIAction { [weak self] _ in
-            self?.hideBalloon()
-            self?.tapped(.text(s))
-        }, for: [.touchUpInside, .touchUpOutside])
         b.addAction(UIAction { [weak self] _ in self?.hideBalloon() },
-                    for: .touchCancel)
+                    for: [.touchUpInside, .touchUpOutside, .touchCancel])
+        armCommit(b) { [weak self] in self?.tapped(.text(s)) }
         return b
     }
 
-    private func controlButton(title: String, action: @escaping () -> Void) -> KeyButton {
+    /// Phím ra KÝ TỰ lúc nhấc (space, dấu câu, số/ký hiệu, return): arm lúc chạm,
+    /// chốt lúc nhấc — hoặc lúc touch bị hệ thống huỷ (không nuốt phím ở hàng sát
+    /// home indicator), hoặc sớm hơn khi ngón khác chạm xuống (baseButton flush).
+    private func armCommit(_ b: UIControl, fire: @escaping () -> Void) {
+        b.addAction(UIAction { [weak self, weak b] _ in
+            guard let self, let b else { return }
+            self.commits.arm(ObjectIdentifier(b), fire: fire)
+        }, for: .touchDown)
+        b.addAction(UIAction { [weak self, weak b] _ in
+            guard let self, let b else { return }
+            self.commits.release(ObjectIdentifier(b))
+        }, for: [.touchUpInside, .touchUpOutside, .touchCancel])
+    }
+
+    private func controlButton(title: String, armed: Bool = false,
+                               action: @escaping () -> Void) -> KeyButton {
         let b = baseButton(title: title, special: true)
         b.addAction(UIAction { _ in Self.clickModifier() }, for: .touchDown)
-        b.addAction(UIAction { _ in action() }, for: [.touchUpInside, .touchUpOutside])
+        if armed { armCommit(b, fire: action) }
+        else { b.addAction(UIAction { _ in action() }, for: [.touchUpInside, .touchUpOutside]) }
         return b
     }
 
@@ -1414,6 +1439,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         case .began:
             spaceHoldX = x
             setTrackpadDimmed(true)
+            // Trackpad = không gõ: nhả ra KHÔNG có dấu cách (stock), kể cả khi
+            // chưa di con trỏ. cancelsTouchesInView=false nên touchUpInside vẫn tới.
+            if let v = g.view { commits.disarm(ObjectIdentifier(v)) }
         case .changed:
             let delta = Int((x - spaceHoldX) / 9)
             if delta != 0 {

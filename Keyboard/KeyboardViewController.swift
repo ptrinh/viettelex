@@ -274,6 +274,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         keyboard?.setNeedsGlobe(needsInputModeSwitchKey)
+        undelaySystemGestures()
         if let mb = Self.memoryFootprintMB() {
             NSLog("VTKB mem: %.1f MB", mb)   // Console filter "VTKB mem"
         }
@@ -283,6 +284,29 @@ final class KeyboardViewController: UIInputViewController {
             self?.dumpGeometry("didAppear+1.5s")
         }
         #endif
+    }
+
+    /// Cử chỉ hệ thống gắn trên window/superview của extension (mép màn hình, home
+    /// indicator) mặc định có thể TRÌ HOÃN touchesBegan tới khi chúng tự loại mình —
+    /// phím sát mép (q/a/p/l, shift, backspace, hàng dưới) lên chậm hơn phím giữa
+    /// (research 25/09/2026, chưa đo trên máy thật). Chỉ tắt delaysTouchesBegan —
+    /// không đổi việc chúng nhận diện hay cancel touch. Hành vi không có tài liệu:
+    /// log số recognizer đã đổi để đối chiếu khi đo.
+    private func undelaySystemGestures() {
+        var changed = 0
+        var v: UIView? = view.superview
+        while let cur = v {
+            for g in cur.gestureRecognizers ?? [] where g.delaysTouchesBegan {
+                g.delaysTouchesBegan = false
+                changed += 1
+            }
+            v = cur.superview
+        }
+        for g in view.window?.gestureRecognizers ?? [] where g.delaysTouchesBegan {
+            g.delaysTouchesBegan = false
+            changed += 1
+        }
+        if changed > 0 { NSLog("VTKB gestures: delaysTouchesBegan off ×%d", changed) }
     }
 
     #if DEBUG
