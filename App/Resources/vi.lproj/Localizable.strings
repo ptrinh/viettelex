@@ -284,3 +284,6 @@ Bấm “Sửa tự động”: VietTelex tự xoá mục bị kẹt của chín
 "Paste it into your bug report (⌘V)." = "Dán vào báo lỗi của bạn (⌘V).";
 
 "Click: open the Typing modes table + copy debug info" = "Bấm: mở Bảng cơ chế gõ + sao chép thông tin gỡ lỗi";
+
+"Teencode spelling" = "Chính tả teencode";
+"Accept chat spellings: w/z/k instead of qu/d/c (wá, zui zẻ, kó) and bíe, thík, gòy, ừk. Off = standard spelling only, so English words like was, war, worse, zoo stay as typed." = "Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, nên từ tiếng Anh như was, war, worse, zoo giữ nguyên.";

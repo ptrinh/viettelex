@@ -121,3 +121,6 @@ Press “Repair automatically”: VietTelex removes its own stuck entry and asks
 "Paste it into your bug report (⌘V)." = "Paste it into your bug report (⌘V).";
 
 "Click: open the Typing modes table + copy debug info" = "Click: open the Typing modes table + copy debug info";
+
+"Teencode spelling" = "Teencode spelling";
+"Accept chat spellings: w/z/k instead of qu/d/c (wá, zui zẻ, kó) and bíe, thík, gòy, ừk. Off = standard spelling only, so English words like was, war, worse, zoo stay as typed." = "Accept chat spellings: w/z/k instead of qu/d/c (wá, zui zẻ, kó) and bíe, thík, gòy, ừk. Off = standard spelling only, so English words like was, war, worse, zoo stay as typed.";

@@ -67,6 +67,15 @@ public struct TelexEngine {
     /// this engine, the other Simple-Telex difference.) Preserved across `reset()`.
     public var simpleTelex = false
 
+    /// TEENCODE spelling (issue #94, 25/09/2026): informal onsets w→qu ("wá"),
+    /// z/dz→d ("zô", "dzị"), k before a/o/u ("kó"), and the informal rimes "ie"
+    /// (bíe), "ik" (thík), "ưk" (ừk), "òy"/"-òy" (gòy) and the word "đou". ON = accepted
+    /// as Vietnamese; OFF = standard spelling only, so English words stop composing
+    /// through them (Simple Telex: was→wá, war→wả). Engine default ON keeps the
+    /// library contract and the suite stable; the APP defaults it OFF (maintainer).
+    /// Preserved across `reset()`.
+    public var teencode = true
+
     /// Quick Telex ("gõ nhanh"): a doubled onset consonant expands to its digraph —
     /// cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th. Word-INITIAL pair only
     /// (these are onset digraphs; mid-word doubles like "occur" stay literal).
@@ -766,7 +775,7 @@ public struct TelexEngine {
             return .neutral
         }
         // Toneless-Vietnamese typing ("sao", "khong") keeps the context Vietnamese.
-        if !restored, SyllableValidator.isValidSyllable(composed.lowercased()) { return .vietnamese }
+        if !restored, SyllableValidator.isValidSyllable(composed.lowercased(), teencode: teencode) { return .vietnamese }
         // 1–2 letter tokens that no dictionary knows are chat abbreviations, not
         // English ("b" = bạn, "c" = chị, "k", "mn", "dc", "ng", "vk", "ae"… — issue
         // #93, 25/09/2026: "b is" kept "is" instead of "í"). Every real 1–2 letter
@@ -932,7 +941,7 @@ public struct TelexEngine {
     /// Returns the canonical onset's ascii letters + how many leading letters it
     /// replaces, or nil when the word has no informal onset.
     private func teencodeOnset() -> (canonical: [UInt8], skip: Int)? {
-        guard pCount >= 2, renderLetters[0].mark == .none else { return nil }
+        guard teencode, pCount >= 2, renderLetters[0].mark == .none else { return nil }
         switch renderLetters[0].base {
         case UInt8(ascii: "w"): return ([UInt8(ascii: "q"), UInt8(ascii: "u")], 1)
         case UInt8(ascii: "z"): return ([UInt8(ascii: "d")], 1)
@@ -1046,14 +1055,14 @@ public struct TelexEngine {
                     n += 1
                 }
                 if SyllableValidator.isValidSyllable(classes: buf, count: n,
-                                                     tone: lastEffTone) { return true }
+                                                     tone: lastEffTone, teencode: teencode) { return true }
             }
             for k in 0..<pCount {
                 buf[k] = Tables.letterClass(base: renderLetters[k].base,
                                             mark: renderLetters[k].mark)
             }
             return SyllableValidator.isValidSyllable(classes: buf, count: pCount,
-                                                     tone: lastEffTone)
+                                                     tone: lastEffTone, teencode: teencode)
         }
     }
 
@@ -1122,13 +1131,13 @@ public struct TelexEngine {
                                                 mark: renderLetters[j].mark)
                     n += 1
                 }
-                if SyllableValidator.isValidSyllable(classes: buf, count: n, tone: t) { return true }
+                if SyllableValidator.isValidSyllable(classes: buf, count: n, tone: t, teencode: teencode) { return true }
             }
             for j in 0..<k {
                 buf[j] = Tables.letterClass(base: renderLetters[j].base,
                                             mark: renderLetters[j].mark)
             }
-            return SyllableValidator.isValidSyllable(classes: buf, count: k, tone: t)
+            return SyllableValidator.isValidSyllable(classes: buf, count: k, tone: t, teencode: teencode)
         }
     }
 
@@ -1265,7 +1274,7 @@ public struct TelexEngine {
         // letters (render hasn't happened yet on this path).
         var out = 0
         var start = 0
-        if n >= 1, letters[0].mark == .none, n < Self.capacity - 1 {
+        if teencode, n >= 1, letters[0].mark == .none, n < Self.capacity - 1 {
             switch letters[0].base {
             case UInt8(ascii: "w"):
                 basesScratch[0] = UInt8(ascii: "q"); basesScratch[1] = UInt8(ascii: "u")
@@ -1282,7 +1291,7 @@ public struct TelexEngine {
             basesScratch[out] = letters[k].base | (letters[k].mark != .none ? 0x80 : 0)
             out += 1
         }
-        return SyllableValidator.isValidPrefix(bases: basesScratch, count: out)
+        return SyllableValidator.isValidPrefix(bases: basesScratch, count: out, teencode: teencode)
     }
 
     // MARK: - Test / caller helpers
@@ -2200,15 +2209,15 @@ private extension SyllableValidator {
     /// heap-free (dùng cho cả commit lẫn `peekCommitText` mỗi phím).
     /// Keep in lockstep with the Array version in SyllableValidator.swift.
     static func isValidSyllable(classes: UnsafeMutableBufferPointer<UInt8>,
-                                count n: Int, tone: Tone) -> Bool {
+                                count n: Int, tone: Tone, teencode: Bool) -> Bool {
         if n == 0 { return false }
         // TEENCODE "òy" — lockstep with the Array twin (zero-onset "oy" only).
-        if n == 2, classes[0] == UInt8(ascii: "o") - UInt8(ascii: "a"),
+        if teencode, n == 2, classes[0] == UInt8(ascii: "o") - UInt8(ascii: "a"),
            classes[1] == UInt8(ascii: "y") - UInt8(ascii: "a") {
             return true
         }
         // TEENCODE "-òy" — lockstep with the Array twin (huyền-only, onset g/r/z/dz/ch).
-        if n >= 3, tone == .grave,
+        if teencode, n >= 3, tone == .grave,
            classes[n - 2] == UInt8(ascii: "o") - UInt8(ascii: "a"),
            classes[n - 1] == UInt8(ascii: "y") - UInt8(ascii: "a") {
             let gC = UInt8(ascii: "g") - UInt8(ascii: "a")
@@ -2223,11 +2232,14 @@ private extension SyllableValidator {
                     || (classes[0] == cC && classes[1] == hC) { return true }
         }
         // TEENCODE "đou" — lockstep with the Array twin (đúng một từ, xem comment ở đó).
-        if n == 3, tone == .none, classes[0] == 32 /* đ */,
+        if teencode, n == 3, tone == .none, classes[0] == 32 /* đ */,
            classes[1] == UInt8(ascii: "o") - UInt8(ascii: "a"),
            classes[2] == UInt8(ascii: "u") - UInt8(ascii: "a") {
             return true
         }
+        let onsetT = teencode ? onsetExact : onsetExactStd
+        let rimeT = teencode ? rimeExact : rimeExactStd
+        let kC = UInt8(ascii: "k") - UInt8(ascii: "a")
         let q = UInt8(ascii: "q") - UInt8(ascii: "a")
         let u = UInt8(ascii: "u") - UInt8(ascii: "a")
         let g = UInt8(ascii: "g") - UInt8(ascii: "a")
@@ -2249,16 +2261,18 @@ private extension SyllableValidator {
         @inline(__always) func accepts(onsetEnd: Int, rimeStart: Int) -> Bool {
             var node: Int32 = 0
             for k in 0..<onsetEnd {
-                node = onsetExact.step(node, classes[k])
+                node = onsetT.step(node, classes[k])
                 if node < 0 { return false }
             }
-            guard onsetExact.mask(node) != 0 else { return false }
+            guard onsetT.mask(node) != 0 else { return false }
+            if !teencode, onsetEnd == 1, classes[0] == kC, rimeStart < n,
+               !kOnsetAllows(rimeFirst: classes[rimeStart]) { return false }
             var rnode: Int32 = 0
             for k in rimeStart..<n {
-                rnode = rimeExact.step(rnode, classes[k])
+                rnode = rimeT.step(rnode, classes[k])
                 if rnode < 0 { return false }
             }
-            return (rimeExact.mask(rnode) >> tone.rawValue) & 1 == 1
+            return (rimeT.mask(rnode) >> tone.rawValue) & 1 == 1
         }
 
         // Every reading is tried (see the Array twin for why): the qu- glide's u counted

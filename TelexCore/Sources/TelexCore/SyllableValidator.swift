@@ -104,14 +104,37 @@ public enum SyllableValidator {
         return stop ? (1 << Tone.acute.rawValue) | (1 << Tone.dot.rawValue) : 0b0011_1111
     }
 
+    /// TEENCODE toggle (issue #94, 25/09/2026 — maintainer: default OFF in the app):
+    /// the informal onsets and rimes below are only accepted when the caller passes
+    /// `teencode: true`. Standard spelling never needs them, and with them on, common
+    /// English words compose (Simple Telex: was→wá, war→wả, worse→wóe; zoo→zô).
+    /// NOT part of the toggle: "ưm/ưn" (real interjections ừm/ưng, reached only via
+    /// an explicit ư) and "ak/ăk" (place names Đắk/Lắk).
+    static let teencodeOnsets: Set<String> = ["z", "dz"]
+    static let teencodeRimes: Set<String> = ["ie", "ik", "ưk"]
+
     /// Exact matchers (marked letters, đ distinct from d): full-syllable validation.
     static let onsetExact = ClassTrie(onsets.map { ($0, UInt8(1)) })
     static let rimeExact = ClassTrie(rimes.map { ($0, toneMask(forRime: $0)) })
+    /// Same, WITHOUT the teencode entries (`teencode: false`).
+    static let onsetExactStd = ClassTrie(onsets.subtracting(teencodeOnsets).map { ($0, UInt8(1)) })
+    static let rimeExactStd = ClassTrie(rimes.subtracting(teencodeRimes).map { ($0, toneMask(forRime: $0)) })
 
     /// Folded matchers (â/ă→a, ô/ơ→o, ư→u, ê→e, đ→d): prefix plausibility while
     /// typing, where the diacritic may simply not have been typed yet.
     static let onsetFolded = ClassTrie(onsets.map { (String($0.map(foldBase)), UInt8(1)) })
     static let rimeFolded = ClassTrie(rimes.map { (String($0.map(foldBase)), UInt8(1)) })
+    static let onsetFoldedStd = ClassTrie(onsets.subtracting(teencodeOnsets).map { (String($0.map(foldBase)), UInt8(1)) })
+    static let rimeFoldedStd = ClassTrie(rimes.subtracting(teencodeRimes).map { (String($0.map(foldBase)), UInt8(1)) })
+
+    /// Standard spelling: onset `k` only before i / e / ê / y ("kể", "kín", "kỹ").
+    /// "kó"/"kái" = có/cái are teencode. `rimeFirst` = letter class of the rime's
+    /// first letter. (Cost with teencode off: the place name "Bắc Kạn" — accepted.)
+    @inline(__always)
+    static func kOnsetAllows(rimeFirst c: UInt8) -> Bool {
+        c == UInt8(ascii: "i") - UInt8(ascii: "a") || c == UInt8(ascii: "e") - UInt8(ascii: "a")
+            || c == 28 /* ê */ || c == UInt8(ascii: "y") - UInt8(ascii: "a")
+    }
 
     /// Fold a marked vowel to its bare base letter (ô/ơ→o, ư→u, ê→e, ă/â→a, đ→d),
     /// so a Telex intermediate that has not yet received its diacritic ("uo", "ie",
@@ -134,7 +157,8 @@ public enum SyllableValidator {
     /// (`Tables.letterClass`) of the composed word, `tone` its single tone.
     /// Splits onset deterministically (qu-/gi- glides), then: onset exact-accepted
     /// AND rime exact-accepted AND the rime's tone mask allows `tone`.
-    public static func isValidSyllable(classes: [UInt8], count n: Int, tone: Tone) -> Bool {
+    public static func isValidSyllable(classes: [UInt8], count n: Int, tone: Tone,
+                                       teencode: Bool = true) -> Bool {
         if n == 0 { return false }
         // TEENCODE "òy" (maintainer 07/08/2026): standalone open rime "oy" is a
         // valid syllable — chat spelling for "òi/rồi" ("òy", "óy"…). All six
@@ -142,7 +166,7 @@ public enum SyllableValidator {
         // table: blessing "b/t/j + oy" would let English "boys"/"toys" compose
         // to "bóy"/"tóy" the moment a trailing s lands. Widening this (e.g.
         // teencode "gòy") needs that collision review first.
-        if n == 2, classes[0] == UInt8(ascii: "o") - UInt8(ascii: "a"),
+        if teencode, n == 2, classes[0] == UInt8(ascii: "o") - UInt8(ascii: "a"),
            classes[1] == UInt8(ascii: "y") - UInt8(ascii: "a") {
             return true
         }
@@ -153,7 +177,7 @@ public enum SyllableValidator {
         // miễn nhiễm — đây là chính lý do "oy" không vào bảng rime (comment ở
         // nhánh zero-onset trên). Onset đóng: g r z dz ch; thêm onset mới phải
         // grep dict lại như trên.
-        if n >= 3, tone == .grave,
+        if teencode, n >= 3, tone == .grave,
            classes[n - 2] == UInt8(ascii: "o") - UInt8(ascii: "a"),
            classes[n - 1] == UInt8(ascii: "y") - UInt8(ascii: "a") {
             let gC = UInt8(ascii: "g") - UInt8(ascii: "a")
@@ -175,11 +199,14 @@ public enum SyllableValidator {
         // được cả họ -ous/-ouse/-out tiếng Anh (house→hóue: quét từ điển miss
         // 111→3896 ở Simple Telex). Onset đ chỉ đến được từ phím dd nên đường này
         // không chạm bất kỳ từ tiếng Anh nào, và không đụng prefix table.
-        if n == 3, tone == .none, classes[0] == 32 /* đ */,
+        if teencode, n == 3, tone == .none, classes[0] == 32 /* đ */,
            classes[1] == UInt8(ascii: "o") - UInt8(ascii: "a"),
            classes[2] == UInt8(ascii: "u") - UInt8(ascii: "a") {
             return true
         }
+        let onsetT = teencode ? onsetExact : onsetExactStd
+        let rimeT = teencode ? rimeExact : rimeExactStd
+        let kC = UInt8(ascii: "k") - UInt8(ascii: "a")
         let q = UInt8(ascii: "q") - UInt8(ascii: "a")
         let u = UInt8(ascii: "u") - UInt8(ascii: "a")
         let g = UInt8(ascii: "g") - UInt8(ascii: "a")
@@ -201,16 +228,18 @@ public enum SyllableValidator {
         @inline(__always) func accepts(onsetEnd: Int, rimeStart: Int) -> Bool {
             var node: Int32 = 0
             for k in 0..<onsetEnd {
-                node = onsetExact.step(node, classes[k])
+                node = onsetT.step(node, classes[k])
                 if node < 0 { return false }
             }
-            guard onsetExact.mask(node) != 0 else { return false }
+            guard onsetT.mask(node) != 0 else { return false }
+            if !teencode, onsetEnd == 1, classes[0] == kC, rimeStart < n,
+               !kOnsetAllows(rimeFirst: classes[rimeStart]) { return false }
             var rnode: Int32 = 0
             for k in rimeStart..<n {
-                rnode = rimeExact.step(rnode, classes[k])
+                rnode = rimeT.step(rnode, classes[k])
                 if rnode < 0 { return false }
             }
-            return (rimeExact.mask(rnode) >> tone.rawValue) & 1 == 1
+            return (rimeT.mask(rnode) >> tone.rawValue) & 1 == 1
         }
 
         // EVERY reading is tried and any one accepting is enough — the same permissive
@@ -228,7 +257,7 @@ public enum SyllableValidator {
 
     /// Returns true if `word` is a well-formed Vietnamese syllable. String façade
     /// over the class-based core (word-boundary use; not the per-key hot path).
-    public static func isValidSyllable(_ word: String) -> Bool {
+    public static func isValidSyllable(_ word: String, teencode: Bool = true) -> Bool {
         if word.isEmpty { return false }
         var classes = [UInt8]()
         classes.reserveCapacity(word.count)
@@ -248,7 +277,7 @@ public enum SyllableValidator {
             guard let cls = Tables.charClass[toneless] else { return false }
             classes.append(cls)
         }
-        return isValidSyllable(classes: classes, count: classes.count, tone: tone)
+        return isValidSyllable(classes: classes, count: classes.count, tone: tone, teencode: teencode)
     }
 
     // MARK: - Prefix validity (live spell-check while typing)
@@ -262,8 +291,10 @@ public enum SyllableValidator {
     /// PERMISSIVE by design: it must never reject a valid word mid-typing (that
     /// would wrongly stop composing), so it errs toward true — callers use it only
     /// to DISABLE transforms on words that clearly cannot be Vietnamese.
-    public static func isValidPrefix(bases: [UInt8], count n: Int) -> Bool {
+    public static func isValidPrefix(bases: [UInt8], count n: Int, teencode: Bool = true) -> Bool {
         if n == 0 { return true }
+        let onsetF = teencode ? onsetFolded : onsetFoldedStd
+        let rimeF = teencode ? rimeFolded : rimeFoldedStd
         @inline(__always) func cls(_ i: Int) -> UInt8 { (bases[i] & 0x7F) &- UInt8(ascii: "a") }
         // Anything that isn't an ascii letter (VNI literal digits: "mp3", "html5") can
         // never start a Vietnamese syllable — bail out before the class arithmetic.
@@ -274,7 +305,7 @@ public enum SyllableValidator {
         if pos == n {                                   // no vowel yet: partial onset
             var node: Int32 = 0
             for i in 0..<n {
-                node = onsetFolded.step(node, cls(i))
+                node = onsetF.step(node, cls(i))
                 if node < 0 { return false }
             }
             return true                                 // any live trie node = valid prefix
@@ -284,13 +315,13 @@ public enum SyllableValidator {
         // while typing (no rime starts with "oy", so the trie walk below would
         // freeze live spell-check at the y). Exact pair, zero onset, unmarked o —
         // longer tails ("oyt…") fall through and freeze as before.
-        if n == 2, bases[0] == UInt8(ascii: "o"), bases[1] == UInt8(ascii: "y") {
+        if teencode, n == 2, bases[0] == UInt8(ascii: "o"), bases[1] == UInt8(ascii: "y") {
             return true
         }
         // TEENCODE "-òy": intermediate onset+oy (g/r/z/dz/ch) phải sống tới boundary
         // để phím huyền sau đó compose được; sắc ở boundary sẽ bị từ chối và restore
         // (goys/boys an toàn — xem isValidSyllable).
-        if n >= 3, bases[n - 2] == UInt8(ascii: "o"), bases[n - 1] == UInt8(ascii: "y") {
+        if teencode, n >= 3, bases[n - 2] == UInt8(ascii: "o"), bases[n - 1] == UInt8(ascii: "y") {
             let b0 = bases[0] & 0x7F, b1 = bases[1] & 0x7F
             // 'd' có mặt vì đường prefix của engine fold z/dz → d (teencode canonical,
             // xem prefixIsValid trong TelexEngine) — "zoy"/"dzoy" tới đây là [d,o,y].
@@ -309,7 +340,7 @@ public enum SyllableValidator {
         // boundary (bases là bản FOLDED nên đ đã về d — không phân biệt được dou/đou
         // ở đây; boundary mới xét đúng onset đ). Đúng 3 ký tự — "dou" của
         // double/doubt vẫn freeze ở ký tự thứ 4 như trước, chỉ muộn hơn một phím.
-        if n == 3, bases[0] & 0x7F == UInt8(ascii: "d"),
+        if teencode, n == 3, bases[0] & 0x7F == UInt8(ascii: "d"),
            bases[1] == UInt8(ascii: "o"), bases[2] == UInt8(ascii: "u") {
             return true
         }
@@ -328,14 +359,14 @@ public enum SyllableValidator {
             var node: Int32 = 0
             var ok = true
             for i in 0..<onsetEnd {
-                node = onsetFolded.step(node, cls(i))
+                node = onsetF.step(node, cls(i))
                 if node < 0 { ok = false; break }
             }
-            guard ok, onsetFolded.mask(node) != 0 else { continue }
+            guard ok, onsetF.mask(node) != 0 else { continue }
             var rnode: Int32 = 0
             ok = true
             for i in rimeStart..<n {
-                rnode = rimeFolded.step(rnode, cls(i))
+                rnode = rimeF.step(rnode, cls(i))
                 if rnode < 0 { ok = false; break }
             }
             if ok { return true }                        // any live trie node = valid prefix
@@ -344,7 +375,7 @@ public enum SyllableValidator {
     }
 
     /// String façade over the byte-level prefix check (tests / non-hot callers).
-    public static func isValidPrefix(_ word: String) -> Bool {
+    public static func isValidPrefix(_ word: String, teencode: Bool = true) -> Bool {
         if word.isEmpty { return true }
         var bases = [UInt8]()
         bases.reserveCapacity(word.count)
@@ -359,7 +390,7 @@ public enum SyllableValidator {
             guard let a = folded.asciiValue else { return false }
             bases.append(a | (folded == toneless ? 0 : 0x80))
         }
-        return isValidPrefix(bases: bases, count: bases.count)
+        return isValidPrefix(bases: bases, count: bases.count, teencode: teencode)
     }
 }
 

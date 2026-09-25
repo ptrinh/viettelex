@@ -43,6 +43,7 @@ final class AppState: @unchecked Sendable {
         static let modernOrthography = "modernOrthography"
         static let liveSpellCheck = "liveSpellCheck"
         static let simpleTelex = "simpleTelex"
+        static let teencode = "teencode"
         static let quickTelex = "quickTelex"
         static let vniMode = "vniMode"
         static let contextualEnglish = "contextualEnglish"
@@ -109,6 +110,7 @@ final class AppState: @unchecked Sendable {
         _modernOrthography = (defaults.object(forKey: Key.modernOrthography) as? Bool) ?? false
         _liveSpellCheck = (defaults.object(forKey: Key.liveSpellCheck) as? Bool) ?? true
         _simpleTelex = (defaults.object(forKey: Key.simpleTelex) as? Bool) ?? false
+        _teencode = (defaults.object(forKey: Key.teencode) as? Bool) ?? false
         _quickTelex = (defaults.object(forKey: Key.quickTelex) as? Bool) ?? false
         _vniMode = (defaults.object(forKey: Key.vniMode) as? Bool) ?? false
         // LỊCH SỬ DEFAULT: OFF từ 03/08/2026 (hành vi đổi cách gõ diện rộng, user
@@ -200,6 +202,7 @@ final class AppState: @unchecked Sendable {
         var simpleTelex = false, quickTelex = false, vniMode = false
         var bracketVowels = false, contextualEnglish = true
         var collisionPrefersVietnamese = true
+        var teencode = false
     }
 
     func engineFlags() -> EngineFlags {
@@ -208,13 +211,14 @@ final class AppState: @unchecked Sendable {
                         liveSpellCheck: _liveSpellCheck, simpleTelex: _simpleTelex,
                         quickTelex: _quickTelex, vniMode: _vniMode,
                         bracketVowels: _bracketVowels, contextualEnglish: _contextualEnglish,
-                        collisionPrefersVietnamese: _collisionPrefersVietnamese)
+                        collisionPrefersVietnamese: _collisionPrefersVietnamese,
+                        teencode: _teencode)
         }
     }
 
     /// Sanity net for the snapshot above: every engine toggle must be carried, or a
     /// setting silently stops reaching the engine. Bump when adding a flag.
-    static let engineFlagCount = 9
+    static let engineFlagCount = 10
 
     /// Tone-placement style. false (default) = old style (hòa, thủy); true = modern
     /// (hoà, thuý). See `TelexEngine.modernTone`.
@@ -232,6 +236,16 @@ final class AppState: @unchecked Sendable {
         get { lock.withLock { _liveSpellCheck } }
         set { lock.withLock { _liveSpellCheck = newValue }
               defaults.set(newValue, forKey: Key.liveSpellCheck) }
+    }
+
+    /// Teencode spelling (issue #94, maintainer 25/09/2026: default OFF): w/z/dz/k
+    /// informal onsets (wá, zô, kó) and the ie/ik/ưk/òy/đou rimes (bíe, thík, ừk,
+    /// gòy). OFF = standard spelling only. See `TelexEngine.teencode`.
+    private var _teencode: Bool
+    var teencode: Bool {
+        get { lock.withLock { _teencode } }
+        set { lock.withLock { _teencode = newValue }
+              defaults.set(newValue, forKey: Key.teencode) }
     }
 
     /// Simple Telex: a standalone `w` stays literal (type `uw` for ư). Default OFF
@@ -1214,5 +1228,6 @@ extension TelexEngine {
         bracketVowels = f.bracketVowels
         contextualEnglish = f.contextualEnglish
         collisionPrefersVietnamese = f.collisionPrefersVietnamese
+        teencode = f.teencode
     }
 }
