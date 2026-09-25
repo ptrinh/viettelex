@@ -22,6 +22,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Gần-trong-suốt nhưng KHÔNG clear: vùng alpha 0 không nhận touch ở cấp hệ thống
     /// (touch rơi sang app host). Dùng cho mọi nền phủ vùng bàn phím.
     static let touchableClear = UIColor(white: 0, alpha: 0.01)
+
+    /// Strip gợi ý khi mở. 36 → 30 (25/09/2026, so ảnh stock: vùng bar stock ≈53pt,
+    /// VietTelex ≈59pt — bàn phím cao hơn stock chủ yếu ở đây).
+    static let openStrip: CGFloat = 30
     private enum ShiftState { case off, on, caps }
 
     var enableInputClicksWhenVisible: Bool { true }
@@ -183,7 +187,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let collapsing = barCollapsed
         if !collapsing { suggestionBar.isHidden = false; suggestionBar.alpha = 0 }
         UIView.animate(withDuration: 0.2, delay: 0, options: [.curveEaseInOut]) {
-            let strip: CGFloat = collapsing ? 14 : 36
+            let strip: CGFloat = collapsing ? 14 : Self.openStrip
             self.rowsTopConstraint?.constant = strip
             self.heightConstraint?.constant = self.keyAreaHeight() + strip
             self.suggestionBar.alpha = collapsing ? 0 : 1
@@ -288,7 +292,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         burgerZone.isHidden = !open || !templatesEnabled
         chevronZone.isHidden = !open
         guard open, bounds.width > 0 else { return }
-        let strip = max(rowsTopConstraint?.constant ?? 36, 36)
+        let strip = max(rowsTopConstraint?.constant ?? Self.openStrip, Self.openStrip)
         let w = Self.stripZoneWidth
         burgerZone.frame = CGRect(x: 0, y: 0, width: w, height: strip)
         chevronZone.frame = CGRect(x: bounds.width - w, y: 0, width: w, height: strip)
@@ -361,9 +365,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if UIDevice.current.userInterfaceIdiom == .pad {
             base = landscape ? 300 : 240
         } else {
-            // 216 → 224 (25/09/2026): bước hàng stock ≈ 56pt, VietTelex 54pt — phím
-            // cao hơn 2pt/hàng, cũng là vùng chạm rộng hơn khi gõ nhanh.
-            base = landscape ? 162 : 224
+            // 216 → 218 (25/09/2026): phím nhỉnh hơn chút; 224 làm cả bàn phím cao
+            // hơn stock (user) — phần dư của stock nằm ở vùng đáy, không phải hàng phím.
+            base = landscape ? 162 : 218
         }
         return base + rowHeightAdjust * 4
     }
@@ -382,7 +386,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let visible = suggestionsEnabled && plane != .emoji
         // Strip 36 mở (bar 20pt ghim đỉnh, chữ tâm 10 — cộng ~22pt inset hệ
         // thống phía trên cửa sổ thì gần giữa vùng tối) / 14 thu gọn / 0 tắt.
-        let strip: CGFloat = visible ? (barCollapsed ? 14 : 36) : 0
+        let strip: CGFloat = visible ? (barCollapsed ? 14 : Self.openStrip) : 0
         let keyArea = keyAreaHeight()
         rowsTopConstraint?.constant = strip
         heightConstraint?.constant = keyArea + strip
@@ -433,9 +437,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     private func buildSuggestionPoolIfNeeded() {
         guard slotButtons.isEmpty else { return }
-        // Bar 20pt trong strip 36 → mọi nút nở hit-area xuống 16pt (phủ hết
-        // strip, không đụng phím ở y=36).
-        let barHit = UIEdgeInsets(top: -8, left: -3, bottom: -16, right: -3)
+        // Bar 20pt trong strip openStrip → nút nở hit-area xuống ĐÚNG phần còn lại
+        // của strip (30−20 = 10pt), không lấn hàng phím Q–P bên dưới.
+        let barHit = UIEdgeInsets(top: -8, left: -3, bottom: -(Self.openStrip - 20), right: -3)
         func makeSlot() -> KeyButton {
             let b = KeyButton(type: .custom)
             b.backgroundColor = .clear
@@ -1131,7 +1135,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Hàng đáy SÁT đáy hơn như stock (so ảnh 25/09/2026: stock cách đáy bàn phím
         // 214px, VietTelex 241px): cùng chiều cao phím, dời xuống 3pt (top 8/bottom 2
         // thay 5/5). Vùng globe/mic dưới đó do host vẽ — không dời được.
-        stack.layoutMargins = UIEdgeInsets(top: 8, left: 3, bottom: 2, right: 3)
+        stack.layoutMargins = UIEdgeInsets(top: 10, left: 3, bottom: 0, right: 3)
         planeBtn.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: 0.12).isActive = true
         emojiBtn.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: 0.10).isActive = true
         for pk in punctKeys {
