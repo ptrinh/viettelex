@@ -88,17 +88,20 @@ class KeyboardView(
     private val letterPaint = theme.text(22f)
     private val controlPaint = theme.text(14f, medium = true)
     private val comPaint = theme.text(16f)
-    private val spaceLabelPaint = theme.text(13f, color = theme.withAlpha(theme.ink, 0.6f))
     private val badgePaint = theme.text(14f, medium = true)
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = theme.ink }
     private val letterOff = theme.centerOffset(letterPaint)
     private val controlOff = theme.centerOffset(controlPaint)
     private val comOff = theme.centerOffset(comPaint)
-    private val spaceLabelOff = theme.centerOffset(spaceLabelPaint)
     private val keyPressed = theme.pressed(theme.keyFill)
     private val specialPressed = theme.pressed(theme.specialFill)
     private val actionPressed = theme.blend(theme.action, theme.actionInk, 0.12f)
-    private val spaceLabel = context.getString(R.string.ime_space_label)
+    // Logo Vᴛ mờ ở góc phải phím space như iOS (thay nhãn "Tiếng Việt").
+    private val logoPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+        colorFilter = android.graphics.PorterDuffColorFilter(theme.withAlpha(theme.ink, 0.16f), android.graphics.PorterDuff.Mode.SRC_IN)
+    }
+    private val logo: android.graphics.Bitmap? by lazy { android.graphics.BitmapFactory.decodeResource(resources, R.drawable.ime_space_logo) }
+    private val logoRect = android.graphics.RectF()
 
     private val emojiPane = EmojiPane(this, theme, feedback)
     private val templatesPane = TemplatesPane(this, theme, feedback)
@@ -214,6 +217,10 @@ class KeyboardView(
                 theme.tablet, returnLabel))
         }
         spaceKey = keys.firstOrNull { it.kind == KeyKind.SPACE }
+        spaceKey?.let {
+            val sz = theme.dp(22f)
+            logoRect.set(it.right - theme.dp(10f) - sz, it.centerY - sz / 2, it.right - theme.dp(10f), it.centerY + sz / 2)
+        }
         val paneBottom = if (plane == Plane.TEMPLATES) keyAreaPx - keyAreaPx / 4f else keyAreaPx
         templatesPane.layout(width.toFloat(), paneBottom)
         emojiPane.layout(width.toFloat(), keyAreaPx)
@@ -320,14 +327,17 @@ class KeyboardView(
                 icon(c, id, cx, cy, 22f, theme.actionInk, contentAlpha)
             }
             KeyKind.SPACE -> {
-                // Nhãn ngôn ngữ nhỏ như Gboard; badge "ViệtTelex" lúc hiện rồi mờ dần về nhãn.
+                // Badge "ViệtTelex" lúc hiện rồi mờ dần về logo Vᴛ (như iOS).
                 if (badgeAlpha > 0f) {
                     badgePaint.alpha = (badgeAlpha * contentAlpha).toInt()
                     c.drawText(badgeText, cx, cy + badgeOff, badgePaint)
                 }
                 if (showLogo && badgeAlpha < 1f) {
-                    spaceLabelPaint.alpha = ((1f - badgeAlpha) * 0.6f * contentAlpha).toInt()
-                    c.drawText(spaceLabel, cx, cy + spaceLabelOff, spaceLabelPaint)
+                    val bmp = logo
+                    if (bmp != null) {
+                        logoPaint.alpha = ((1f - badgeAlpha) * contentAlpha).toInt()
+                        c.drawBitmap(bmp, null, logoRect, logoPaint)
+                    }
                 }
             }
         }

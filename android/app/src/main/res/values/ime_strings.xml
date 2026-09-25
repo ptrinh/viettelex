@@ -3,7 +3,6 @@
     <string name="ime_name" translatable="false">Tiếng Việt (VietTelex)</string>
     <string name="ime_subtype_vi" translatable="false">Tiếng Việt (Telex)</string>
     <string name="ime_badge" translatable="false">ViệtTelex</string>
-    <string name="ime_space_label" translatable="false">Tiếng Việt</string>
     <string name="ime_paste_title" translatable="false">Dán</string>
     <string name="ime_paste_sub" translatable="false">Nội dung vừa copy</string>
     <string name="ime_paste_desc" translatable="false">Dán nội dung vừa copy</string>
