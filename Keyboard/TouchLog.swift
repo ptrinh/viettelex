@@ -1,8 +1,10 @@
 // TouchLog — log gỡ lỗi "gõ nhanh bị rớt chữ" (abcdefgh → abegh, 25/09/2026).
 //
-// TẮT mặc định; bật trong app VietTelex → Giới thiệu → Debug mode. Chỉ ghi cấu trúc
-// (thời điểm, độ trễ giao touch, số ngón đang đè, chạm có trúng phím, số lệnh xoá/
-// chèn gửi sang app) — KHÔNG BAO GIỜ ghi ký tự người dùng gõ.
+// TẮT mặc định; bật trong app VietTelex → Giới thiệu → Debug mode. Ghi thời điểm,
+// độ trễ giao touch, số ngón đang đè, chạm trúng phím nào, lệnh xoá/chèn gửi sang
+// app. KÝ TỰ (maintainer 25/09/2026: "record từng ký tự cho dễ debug") CHỈ vào file
+// App Group mà user tự xem/xoá — os_log hệ thống KHÔNG nhận ký tự (sysdiagnose có
+// thể rời máy).
 // Hai đích: os_log "VTKB touch" (Console.app qua cáp) VÀ file touchlog.txt trong App
 // Group — app đọc + nút Copy (cần "Cho phép Toàn quyền": không có Full Access thì
 // extension không ghi được container chung, chỉ còn os_log).
@@ -47,14 +49,16 @@ enum TouchLog {
     }
 
     /// `touchTimestamp` = UITouch.timestamp (same clock as CACurrentMediaTime).
-    static func touchBegan(active: Int, batch: Int, touchTimestamp: TimeInterval, hit: Bool, y: Double) {
+    static func touchBegan(active: Int, batch: Int, touchTimestamp: TimeInterval, hit: Bool, y: Double,
+                           key: String? = nil) {
         guard enabled else { return }
         seq += 1
         let lagMs = (CACurrentMediaTime() - touchTimestamp) * 1000
         let where_ = hit ? "hit" : String(format: "MISS y=%.0f", y)
         os_log("VTKB touch #%d BEGAN batch=%d active=%d lag=%.1fms %{public}@",
                log: log, type: .default, seq, batch, active, lagMs, where_)
-        write(String(format: "#%d BEGAN batch=%d active=%d lag=%.1fms ", seq, batch, active, lagMs) + where_)
+        write(String(format: "#%d BEGAN batch=%d active=%d lag=%.1fms ", seq, batch, active, lagMs) + where_
+              + (key.map { " [\($0)]" } ?? ""))
     }
 
     /// Button keys (space, return, dấu câu…) don't go through the letter router —
@@ -66,6 +70,17 @@ enum TouchLog {
         write("\(name) DOWN lag=\(lag)")
     }
 
+    /// Every touch-began hit-test verdict (deduped per touch timestamp), so a touch
+    /// that never reaches the letter router shows WHERE it went (slot/control/nil).
+    nonisolated(unsafe) private static var lastHitStamp: TimeInterval = -1
+    static func hitTest(target: String, y: Double, stamp: TimeInterval) {
+        guard enabled, stamp != lastHitStamp else { return }
+        lastHitStamp = stamp
+        let s = String(format: "HIT %@ y=%.0f", target, y)
+        os_log("VTKB touch %{public}@", log: log, type: .default, s)
+        write(s)
+    }
+
     static func touchEnded(cancelled: Bool, routed: Bool) {
         guard enabled else { return }
         os_log("VTKB touch %{public}@ routed=%d", log: log, type: .default,
@@ -73,17 +88,18 @@ enum TouchLog {
         write("\(cancelled ? "CANCELLED" : "ended") routed=\(routed ? 1 : 0)")
     }
 
-    static func key(kind: String, composing: Bool, lagMs: Double) {
+    static func key(kind: String, composing: Bool, lagMs: Double, char: String? = nil) {
         guard enabled else { return }
         os_log("VTKB touch key=%{public}@ composing=%d handle=%.2fms", log: log, type: .default,
                kind, composing ? 1 : 0, lagMs)
-        write(String(format: "key=%@ composing=%d handle=%.2fms", kind, composing ? 1 : 0, lagMs))
+        write(String(format: "key=%@ composing=%d handle=%.2fms", kind, composing ? 1 : 0, lagMs)
+              + (char.map { " [\($0)]" } ?? ""))
     }
 
-    static func edit(bs: Int, insertLen: Int) {
+    static func edit(bs: Int, insertLen: Int, insert: String? = nil) {
         guard enabled else { return }
         os_log("VTKB touch edit bs=%d ins=%d", log: log, type: .default, bs, insertLen)
-        write("edit bs=\(bs) ins=\(insertLen)")
+        write("edit bs=\(bs) ins=\(insertLen)" + (insert.map { " [\($0)]" } ?? ""))
     }
 
     static func host(_ event: String, applyingEdit: Bool, composing: Bool) {

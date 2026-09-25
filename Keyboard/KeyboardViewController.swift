@@ -168,9 +168,10 @@ final class KeyboardViewController: UIInputViewController {
             applyingEdit = false
             if TouchLog.enabled {
                 let kind: String
+                var char: String?
                 switch key {
-                case .letter: kind = "letter"
-                case .text: kind = "text"
+                case .letter(let c): kind = "letter"; char = String(c)
+                case .text(let t): kind = "text"; char = t
                 case .space: kind = "space"
                 case .doubleSpacePeriod: kind = "doubleSpace"
                 case .backspace: kind = "backspace"
@@ -179,7 +180,7 @@ final class KeyboardViewController: UIInputViewController {
                 case .clearField: kind = "clear"
                 }
                 TouchLog.key(kind: kind, composing: bridge.isComposing,
-                             lagMs: (CACurrentMediaTime() - t0) * 1000)
+                             lagMs: (CACurrentMediaTime() - t0) * 1000, char: char)
             }
         }
         switch key {

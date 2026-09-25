@@ -764,7 +764,7 @@ struct DebugSection: View {
     var body: some View {
         Section {
             settingToggle("Debug mode — ghi log chạm phím",
-                          "Ghi thời điểm chạm, độ trễ và số phím — KHÔNG ghi nội dung bạn gõ. Cần bật \"Cho phép Toàn quyền\" cho bàn phím. Tắt khi xong.",
+                          "Ghi thời điểm chạm, độ trễ, phím nào VÀ CẢ KÝ TỰ BẠN GÕ vào log trong app (chỉ nằm trên máy này, tự xoá được). Đừng gõ mật khẩu khi đang bật. Cần \"Cho phép Toàn quyền\" cho bàn phím. Tắt + Xoá log khi xong.",
                           isOn: $debugTouchLog)
             if debugTouchLog {
                 settingToggle("Hoãn cử chỉ hệ thống ở mép dưới",

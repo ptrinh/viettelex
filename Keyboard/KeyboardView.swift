@@ -1515,6 +1515,19 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // Button thật (space, shift, backspace, số/ký hiệu, slot bar…) vẫn nhận
     // touch trực tiếp như cũ.
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let v = routedHitTest(point, with: event)
+        if TouchLog.enabled, let e = event, e.type == .touches {
+            let target: String
+            if v === self { target = "router" }
+            else if let b = v as? UIButton {
+                target = "button[\(b.accessibilityLabel ?? b.currentTitle ?? "?")]"
+            } else { target = v.map { String(describing: type(of: $0)) } ?? "nil" }
+            TouchLog.hitTest(target: target, y: Double(point.y), stamp: e.timestamp)
+        }
+        return v
+    }
+
+    private func routedHitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         let v = super.hitTest(point, with: event)
         // Phím chữ ưu tiên trong FOOTPRINT thật của nó, kể cả khi hit-area nở của
         // shift/backspace kề bên "cướp" điểm chạm — nếu không, chạm mép z/m thành
@@ -1557,7 +1570,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             let p = t.location(in: self)
             let b = nearestLetterButton(at: p)
             TouchLog.touchBegan(active: routedTouches.count, batch: touches.count,
-                                touchTimestamp: t.timestamp, hit: b != nil, y: Double(p.y))
+                                touchTimestamp: t.timestamp, hit: b != nil, y: Double(p.y),
+                                key: b?.currentTitle)
             guard let b else { continue }
             routedTouches[ObjectIdentifier(t)] = b
             b.sendActions(for: .touchDown)
