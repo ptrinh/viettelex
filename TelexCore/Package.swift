@@ -7,7 +7,8 @@ let package = Package(
     products: [
         .library(name: "TelexCore", targets: ["TelexCore"]),
         .executable(name: "gen-lessons", targets: ["GenLessons"]),
-        .executable(name: "gen-english", targets: ["GenEnglish"])
+        .executable(name: "gen-english", targets: ["GenEnglish"]),
+        .executable(name: "gen-golden", targets: ["GenGolden"])
     ],
     targets: [
         .target(
@@ -19,6 +20,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "GenEnglish",
+            dependencies: ["TelexCore"]
+        ),
+        .executableTarget(
+            name: "GenGolden",
             dependencies: ["TelexCore"]
         ),
         .testTarget(
