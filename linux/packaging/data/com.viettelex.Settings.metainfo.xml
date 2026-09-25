@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.viettelex.Settings</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>VietTelex</name>
+  <summary>Vietnamese Telex/VNI input method</summary>
+  <summary xml:lang="vi">Bộ gõ tiếng Việt Telex/VNI</summary>
+  <description>
+    <p>
+      VietTelex is a Vietnamese input method for Fcitx5 and IBus that types exactly like
+      the macOS version: Telex, Simple Telex, VNI, free tone placement, Quick Telex,
+      live spell-check, automatic English restore and context-aware decisions.
+    </p>
+    <p xml:lang="vi">
+      VietTelex là bộ gõ tiếng Việt cho Fcitx5 và IBus, gõ y hệt bản macOS: Telex, Telex đơn
+      giản, VNI, bỏ dấu tự do, Gõ nhanh, kiểm tra chính tả khi gõ, tự khôi phục tiếng Anh và
+      quyết định theo ngữ cảnh.
+    </p>
+    <p>This application configures typing options, shortcuts (abbreviations) and per-app typing modes. Changes apply immediately without restarting the input method. No data is collected.</p>
+    <p xml:lang="vi">Ứng dụng này chỉnh kiểu gõ, gõ tắt và cơ chế gõ theo từng app. Thay đổi có hiệu lực ngay, không cần khởi động lại bộ gõ. Không thu thập dữ liệu.</p>
+  </description>
+  <launchable type="desktop-id">com.viettelex.Settings.desktop</launchable>
+  <url type="homepage">https://ptrinh.github.io/viettelex/</url>
+  <url type="bugtracker">https://github.com/ptrinh/viettelex/issues</url>
+  <developer id="com.viettelex">
+    <name>VietTelex contributors</name>
+  </developer>
+  <developer_name>VietTelex contributors</developer_name>
+  <content_rating type="oars-1.1"/>
+  <categories>
+    <category>Settings</category>
+  </categories>
+  <keywords>
+    <keyword>Vietnamese</keyword>
+    <keyword>Telex</keyword>
+    <keyword>VNI</keyword>
+    <keyword>input method</keyword>
+    <keyword>Fcitx5</keyword>
+    <keyword>IBus</keyword>
+  </keywords>
+  <provides>
+    <binary>viettelex-settings</binary>
+  </provides>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <releases>
+    <release version="0.1.0" date="2026-09-26">
+      <description>
+        <p>First Linux release: Fcitx5 and IBus input method plus GTK4 settings app.</p>
+      </description>
+    </release>
+  </releases>
+</component>

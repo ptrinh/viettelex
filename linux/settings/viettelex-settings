@@ -1,0 +1,14 @@
+#!/usr/bin/python3
+"""Launcher: chạy được cả từ cây nguồn lẫn sau khi cài (/usr/share/viettelex-settings)."""
+import os
+import sys
+
+here = os.path.dirname(os.path.realpath(__file__))
+for p in (os.path.join(here, "..", "share", "viettelex-settings"), here):
+    if os.path.isdir(os.path.join(p, "viettelex_settings")):
+        sys.path.insert(0, os.path.abspath(p))
+        break
+
+from viettelex_settings.app import main  # noqa: E402
+
+sys.exit(main())

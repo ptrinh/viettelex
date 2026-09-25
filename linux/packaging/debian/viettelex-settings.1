@@ -1,0 +1,26 @@
+.TH VIETTELEX-SETTINGS 1 "2026-09-26" "VietTelex" "User Commands"
+.SH NAME
+viettelex-settings \- settings for the VietTelex Vietnamese input method
+.SH SYNOPSIS
+.B viettelex-settings
+[\fB\-\-onboarding\fR] [\fB\-\-no\-onboarding\fR] [\fB\-\-page\fR \fITAB\fR]
+.SH DESCRIPTION
+Configures VietTelex (Fcitx5 addon / IBus engine): typing method (Telex, VNI),
+spelling options, shortcuts, per-application typing modes and the
+Vietnamese/English toggle key. Settings are written to
+\fI$XDG_CONFIG_HOME/viettelex/config.toml\fR and \fIshortcuts.yml\fR and apply
+immediately to the running input method.
+.SH OPTIONS
+.TP
+.B \-\-onboarding
+Open the guide for enabling the input method in Fcitx5 or IBus.
+.TP
+.B \-\-no\-onboarding
+Do not open the guide automatically when the input method is not enabled yet.
+.TP
+.BI \-\-page " TAB"
+Open a tab: typing, options, shortcuts, modes or about.
+.SH FILES
+.I ~/.config/viettelex/config.toml
+.br
+.I ~/.config/viettelex/shortcuts.yml

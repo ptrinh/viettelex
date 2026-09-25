@@ -1,0 +1,47 @@
+#!/usr/bin/make -f
+# Nguồn của gói = gốc repo đã dàn bởi linux/packaging/build-deb.sh
+# (TelexCore/ + linux/ + debian/). Profile pkg.viettelex.noengine = chỉ build
+# viettelex-settings (không cần toolchain Swift / dev headers Fcitx5, IBus).
+
+include /usr/share/dpkg/architecture.mk
+# VT_CORE_LIB=/path/libtelexcore.so (env) = dùng engine build sẵn, khỏi cần Swift lúc build gói.
+ENGINE := $(if $(filter pkg.viettelex.noengine,$(DEB_BUILD_PROFILES)),,yes)
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+ifeq ($(ENGINE),yes)
+	# Engine + frontend (agent L1): build CMake ở linux/CMakeLists.txt, xem packaging/README.md.
+	dh_auto_configure --buildsystem=cmake --sourcedirectory=linux --builddirectory=obj-engine -- \
+		-DVT_BUILD_FCITX5=ON -DVT_BUILD_IBUS=ON -DVT_BUILD_TESTS=ON \
+		$(if $(VT_CORE_LIB),-DVT_CORE_LIB=$(VT_CORE_LIB))
+endif
+
+override_dh_auto_build:
+	$(MAKE) -C linux/settings
+ifeq ($(ENGINE),yes)
+	dh_auto_build --buildsystem=cmake --builddirectory=obj-engine
+endif
+
+override_dh_auto_test:
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+	$(MAKE) -C linux/settings check
+ifeq ($(ENGINE),yes)
+	dh_auto_test --buildsystem=cmake --builddirectory=obj-engine
+endif
+endif
+
+override_dh_auto_install:
+	$(MAKE) -C linux/settings install DESTDIR=$(CURDIR)/debian/viettelex-settings PREFIX=/usr
+ifeq ($(ENGINE),yes)
+	dh_auto_install --buildsystem=cmake --builddirectory=obj-engine --destdir=debian/tmp
+endif
+
+# libtelexcore.so nằm ở thư mục riêng (không phải thư viện hệ thống) — chỉ cho dh_shlibdeps biết.
+override_dh_shlibdeps:
+	dh_shlibdeps -l$(CURDIR)/debian/libviettelex-core/usr/lib/$(DEB_HOST_MULTIARCH)/viettelex
+
+override_dh_auto_clean:
+	rm -rf obj-engine
+	find linux/settings -name __pycache__ -prune -exec rm -rf {} +
