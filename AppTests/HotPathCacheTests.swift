@@ -225,4 +225,18 @@ final class SettingsSuiteIsolationTests: XCTestCase {
                         "this suite only proves isolation when actually run under XCTest")
         XCTAssertEqual(AppState.settingsSuiteName, "com.viettelex.settings.tests")
     }
+
+    // MARK: Idle wakeups (maintainer 25/09/2026)
+
+    func testWatchdogSlowsDownWhileIdle() {
+        XCTAssertEqual(TerminalTapController.watchdogInterval(idle: false), 3)
+        XCTAssertEqual(TerminalTapController.watchdogInterval(idle: true), 30)
+    }
+
+    func testSecureInputPollDoesNotReadTheInputSource() {
+        XCTAssertFalse(SecureInputMonitor.refreshesSelection(reason: "poll"))
+        for r in ["startup", "input-source-changed", "wake", "unlock", "wake-settle"] {
+            XCTAssertTrue(SecureInputMonitor.refreshesSelection(reason: r), r)
+        }
+    }
 }

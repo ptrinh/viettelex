@@ -135,6 +135,10 @@ final class SecureInputMonitor {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
     }
 
+    /// Nhịp poll định kỳ không đọc lại input source (xem check). Mọi reason khác —
+    /// startup, input-source-changed, wake/unlock và các nhịp settle — thì có. Pure.
+    static func refreshesSelection(reason: String) -> Bool { reason != "poll" }
+
     /// Re-check ngay khi có tín hiệu rẻ (đổi input source, mở snapshot). Idempotent,
     /// main-thread only (NSStatusItem).
     func check(reason: String) {
@@ -145,8 +149,13 @@ final class SecureInputMonitor {
                 ?? Holder(pid: 0, name: nil, alive: true)
             : nil
         if !active, activeHolder == nil {
-            // Trạng thái yên bình: ghi nhớ selection thật của user cho lần chặn sau.
-            selectedBeforeBlock = TelexInputController.isVietTelexSelected()
+            // Trạng thái yên bình: ghi nhớ selection thật của user cho lần chặn sau —
+            // nhưng KHÔNG ở nhịp poll 5s: selection chỉ đổi qua đúng notification
+            // input-source-changed (main.swift gọi check với reason đó), nên đọc TIS
+            // mỗi 5s là việc thừa lúc máy rảnh (maintainer 25/09/2026).
+            if Self.refreshesSelection(reason: reason) {
+                selectedBeforeBlock = TelexInputController.isVietTelexSelected()
+            }
             return
         }
         guard holder != activeHolder else {
