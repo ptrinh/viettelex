@@ -119,6 +119,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         st.listener = this
         val r = ImeRootView(this, th, kb, st, balloon)
         keyboard = kb; strip = st; root = r
+        kb.setSwitcherHint(switcherHintVisible)
         styleWindow(th, r)
         if (BuildConfig.DEBUG) Log.d(TAG, "perf onCreateInputView ${SystemClock.elapsedRealtime() - t0} ms")
         return r
@@ -235,6 +236,17 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     /** Không có phím 🌐 trên bàn phím (user chốt 26/09): đổi bàn phím bằng nút của thanh điều hướng hệ thống. */
     private fun needsGlobe(): Boolean = false
+
+    /**
+     * API 36: hệ thống báo khi thanh điều hướng KHÔNG vẽ nút đổi bàn phím → hiện gợi ý 🌐 nhỏ
+     * trên phím 😊 (giữ lâu = chọn bàn phím). Có nút hệ thống thì ẩn gợi ý. Dưới API 36 thanh
+     * điều hướng luôn có nút khi máy có ≥2 bàn phím → không hiện gợi ý.
+     */
+    override fun onCustomImeSwitcherButtonRequestedVisible(visible: Boolean) {
+        switcherHintVisible = visible
+        keyboard?.setSwitcherHint(visible)
+    }
+    private var switcherHintVisible = false
 
     override fun onDismissKeyboard() = requestHideSelf(0)
 

@@ -137,6 +137,13 @@ class KeyboardView(
             postDelayed(this, BS_INTERVAL)
         }
     }
+    private val hintInset = theme.dp(9f)
+    private var switcherHint = false
+    fun setSwitcherHint(on: Boolean) {
+        if (on == switcherHint) return
+        switcherHint = on
+        keys.firstOrNull { it.kind == KeyKind.EMOJI }?.let { invalidateKey(it) }
+    }
     private val globeLongRun = Runnable { globeFired = true; listener?.onGlobe(true) }
 
     // --- badge "ViệtTelex" ---
@@ -313,7 +320,12 @@ class KeyboardView(
                 icon(c, ImeIcons.DELETE_X, cx, cy, 22f, face, 255)
             } else icon(c, ImeIcons.DELETE, cx, cy, 22f, theme.ink, contentAlpha)
             KeyKind.GLOBE -> icon(c, ImeIcons.GLOBE, cx, cy, 21f, theme.ink, contentAlpha)
-            KeyKind.EMOJI -> icon(c, ImeIcons.FACE, cx, cy, 22f, theme.ink, contentAlpha)
+            KeyKind.EMOJI -> {
+                icon(c, ImeIcons.FACE, cx, cy, 22f, theme.ink, contentAlpha)
+                // Gợi ý giữ lâu kiểu Gboard: 🌐 nhỏ, mờ ở góc trên-phải — chỉ khi thanh điều hướng
+                // KHÔNG có nút đổi bàn phím (Android 16 báo qua onCustomImeSwitcherButtonRequestedVisible).
+                if (switcherHint) icon(c, ImeIcons.GLOBE, k.right - hintInset, k.top + hintInset, 10f, theme.ink, (contentAlpha * 0.55f).toInt())
+            }
             KeyKind.CLEAR -> icon(c, ImeIcons.TRASH, cx, cy, 21f, theme.ink, contentAlpha)
             KeyKind.DISMISS -> icon(c, ImeIcons.KB_DISMISS, cx, cy, 22f, theme.ink, contentAlpha)
             KeyKind.RETURN -> {
@@ -442,7 +454,8 @@ class KeyboardView(
                 removeCallbacks(bsStartRun); removeCallbacks(bsTickRun)
                 postDelayed(bsStartRun, BS_HOLD_MS)
             }
-            KeyKind.GLOBE -> {
+            KeyKind.GLOBE, KeyKind.EMOJI -> {
+                // 😊: bấm = plane emoji (lúc nhấc), giữ lâu = danh sách bàn phím (thay phím 🌐).
                 feedback.click(Feedback.MODIFIER, this)
                 press(k)
                 globePtr = pid; globeFired = false
@@ -508,6 +521,10 @@ class KeyboardView(
             KeyKind.GLOBE -> if (pid == globePtr) {
                 removeCallbacks(globeLongRun); globePtr = -1
                 if (!globeFired && !cancelled) listener?.onGlobe(false)
+            }
+            KeyKind.EMOJI -> if (pid == globePtr) {
+                removeCallbacks(globeLongRun); globePtr = -1
+                if (!globeFired && !cancelled) controlAction(k)
             }
             KeyKind.SHIFT -> Unit
             else -> if (!cancelled) controlAction(k)
