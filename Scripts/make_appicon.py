@@ -47,6 +47,22 @@ with open(os.path.join(appiconset, 'Contents.json'), 'w') as f:
 with open(os.path.join(xcassets, 'Contents.json'), 'w') as f:
     json.dump({'info': {'version': 1, 'author': 'xcode'}}, f, indent=2)
 
+# AppIcon.icns from the SAME palette PNGs, as raw PNG chunks. Not iconutil (it
+# re-encodes every slice to uncompressed ARGB, ~670 KB) and not actool (it
+# re-encodes the palette PNGs to 32-bit inside Assets.car AND emits a second
+# icns: 396 KB total). PNG-in-icns is supported since OS X 10.7. 25/09/2026: 246 KB.
+import struct
+ICNS_TYPES = [('ic04', 16), ('ic11', 32), ('ic05', 32), ('ic12', 64), ('ic07', 128),
+              ('ic13', 256), ('ic08', 256), ('ic14', 512), ('ic09', 512), ('ic10', 1024)]
+body = b''
+for t, px in ICNS_TYPES:
+    data = open(os.path.join(appiconset, png_for(px)), 'rb').read()
+    body += t.encode() + struct.pack('>I', len(data) + 8) + data
+icns = os.path.join(os.path.dirname(xcassets), 'AppIcon.icns')
+with open(icns, 'wb') as f:
+    f.write(b'icns' + struct.pack('>I', len(body) + 8) + body)
+print(f'{icns}: {os.path.getsize(icns)/1024:.0f} KB')
+
 total = sum(os.path.getsize(os.path.join(appiconset, n)) for n in pngs.values())
 print(f'{appiconset}: {len(pngs)} unique PNGs, {total/1024:.0f} KB source '
-      f'(compiles to a smaller Assets.car)')
+      f'(source slices for AppIcon.icns)')

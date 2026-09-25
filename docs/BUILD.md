@@ -82,10 +82,14 @@ tình trạng quyền Accessibility và **Cài đặt…**
 
 ## Icons
 
-- **App icon**: Asset Catalog `App/Resources/Assets.xcassets/AppIcon.appiconset`
-  (sinh từ `assets/VietTelex-logo.png`, PNG nén palette 256 màu, dedup còn 7 slice).
-  actool compile ra `Assets.car` (~366KB với `ASSETCATALOG_COMPILER_OPTIMIZATION=space`,
-  so với `.icns` cũ 671KB). Regenerate: `python3 Scripts/make_appicon.py` (cần Pillow).
+- **App icon**: `App/Resources/AppIcon.icns` (~246KB) ghép thẳng từ 7 slice PNG
+  palette 256 màu trong `App/Resources/Assets.xcassets/AppIcon.appiconset` (sinh từ
+  `assets/VietTelex-logo.png`) dưới dạng PNG chunk — KHÔNG qua actool (từng re-encode
+  palette sang 32-bit trong `Assets.car` + kèm thêm một `.icns`: ~396KB) và KHÔNG qua
+  iconutil (ARGB không nén, ~671KB). Asset catalog chỉ còn là nguồn slice, không
+  compile. Regenerate: `python3 Scripts/make_appicon.py` (cần Pillow).
+- **`.strings`** ship UTF-8 (`STRINGS_FILE_OUTPUT_ENCODING`), không phải UTF-16 mặc
+  định; bảng `en` chỉ giữ dòng khác key (VTLocalized fallback về key).
 - **Menu badge** (`MenuIcon.pdf` — VECTOR 26×16pt, hộp golden-ratio, VT khoét even-odd;
   PDF là format chuẩn cho icon input method, theo cách Squirrel làm — TIFF bitmap từng
   gây mờ/bé/lệch): `swift Scripts/make_icon.swift App/Resources`.

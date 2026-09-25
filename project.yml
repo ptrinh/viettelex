@@ -39,7 +39,12 @@ targets:
     platform: macOS
     sources:
       - path: App/Sources
-      - path: App/Resources/Assets.xcassets
+      # App icon: AppIcon.icns assembled from the palette-quantized PNG slices in
+      # Assets.xcassets by Scripts/make_appicon.py (PNG chunks, NOT iconutil, NOT
+      # actool). actool re-encoded the 8-bit palette PNGs to 32-bit and emitted a
+      # second AppIcon.icns next to Assets.car: 360 KB car + 36 KB icns → 246 KB,
+      # pixel-identical slices (measured 25/09/2026).
+      - path: App/Resources/AppIcon.icns
         buildPhase: resources
       - path: App/Resources/MenuIcon.pdf
         buildPhase: resources
@@ -77,10 +82,9 @@ targets:
         PRODUCT_NAME: VietTelex
         PRODUCT_MODULE_NAME: VietTelex
         INFOPLIST_FILE: App/Resources/Info.plist
-        # App icon comes from Assets.xcassets (compiled to Assets.car by actool),
-        # not a raw .icns — smaller bundle. See Scripts/make_appicon.py.
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        ASSETCATALOG_COMPILER_OPTIMIZATION: space
+        # .strings ship as UTF-8, not Xcode's default UTF-16 (Vietnamese text is
+        # mostly 1-byte ASCII + 2-byte UTF-8: 52 KB → ~29 KB for vi, measured 25/09).
+        STRINGS_FILE_OUTPUT_ENCODING: UTF-8
         # xcodebuild ad-hoc signs; Scripts/notarize-install.sh re-signs with
         # Developer ID + hardened runtime, then notarizes + staples. macOS 26
         # requires input methods to be NOTARIZED to register — verified with a
