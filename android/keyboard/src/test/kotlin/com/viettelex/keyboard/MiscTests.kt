@@ -142,3 +142,19 @@ class TouchLogTests {
         TouchLog.enabled = false; TouchLog.configure(null, false); TouchLog.synchronous = false
     }
 }
+
+/** Chạm để sửa mẫu câu (26/09/2026) — Templates.edit. */
+class TemplatesEditTests {
+    private val base = listOf(TemplateItem("👋", "Chào"), TemplateItem("", "Hẹn gặp"))
+    @org.junit.Test fun editReplacesRow() {
+        val r = Templates.edit(base, 1, " 🙂 ", " Hẹn gặp lại ")!!
+        kotlin.test.assertEquals(TemplateItem("🙂", "Hẹn gặp lại"), r[1])
+        kotlin.test.assertEquals(base[0], r[0])
+    }
+    @org.junit.Test fun editRejectsEmptyDuplicateOrBadIndex() {
+        kotlin.test.assertNull(Templates.edit(base, 1, "", "  "))
+        kotlin.test.assertNull(Templates.edit(base, 1, "", "Chào"))
+        kotlin.test.assertNull(Templates.edit(base, 5, "", "x"))
+        kotlin.test.assertNotNull(Templates.edit(base, 0, "", "Chào"))   // giữ nguyên câu của chính nó
+    }
+}

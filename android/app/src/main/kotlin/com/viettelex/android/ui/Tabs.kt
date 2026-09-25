@@ -254,11 +254,14 @@ fun MauCauTab() {
     var newLabel by rememberSaveable { mutableStateOf("") }
     var newText by rememberSaveable { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
+    var editing by remember { mutableStateOf<Int?>(null) }
+    var editLabel by remember { mutableStateOf("") }
+    var editText by remember { mutableStateOf("") }
     fun persist(list: List<TemplateItem>) { templates = list; TemplatesStore.save(ctx, list) }
 
     VTSection(
         header = "Mẫu câu (${templates.size})",
-        footer = "Bấm ☰ trên bàn phím để chèn nhanh. Vuốt trái một dòng để xoá. Label (emoji/chữ ngắn) giúp bubble trên bàn phím gọn hơn.",
+        footer = "Bấm ☰ trên bàn phím để chèn nhanh. Chạm một dòng để sửa, vuốt trái để xoá. Label (emoji/chữ ngắn) giúp bubble trên bàn phím gọn hơn.",
     ) {
         templates.forEachIndexed { i, t ->
             key(t.label + "\u0001" + t.text) {
@@ -274,9 +277,28 @@ fun MauCauTab() {
                         }
                     },
                 ) {
-                    VTRow(modifier = Modifier.background(c.card)) {
-                        Text(t.label.ifEmpty { "💬" }, style = VTType.body, modifier = Modifier.widthIn(min = 30.dp))
-                        Text(t.text, style = VTType.body, color = c.label, modifier = Modifier.padding(start = 8.dp))
+                    if (editing == i) {
+                        val canSave = editText.trim().isNotEmpty()
+                        VTRow(modifier = Modifier.background(c.card)) {
+                            VTTextField(editLabel, { editLabel = it }, "👋", center = true, modifier = Modifier.width(44.dp))
+                            Box(Modifier.padding(horizontal = 10.dp).width(0.5.dp).height(28.dp).background(c.separator))
+                            VTTextField(editText, { editText = it }, "Mẫu câu", maxLines = 4, modifier = Modifier.weight(1f))
+                            Box(
+                                Modifier.padding(start = 8.dp).size(28.dp).clickable(enabled = canSave) {
+                                    val r = Templates.edit(templates, i, editLabel, editText)
+                                    if (r != null) { persist(r); editing = null } else notice = "Mẫu câu này đã có."
+                                },
+                                contentAlignment = Alignment.Center,
+                            ) { GlyphIcon(Glyph.Check, if (canSave) c.accent else c.tertiary, 24.dp) }
+                            Text("✕", color = c.secondary, modifier = Modifier.padding(start = 8.dp).clickable { editing = null })
+                        }
+                    } else {
+                        VTRow(modifier = Modifier.background(c.card).clickable {
+                            editLabel = t.label; editText = t.text; editing = i
+                        }) {
+                            Text(t.label.ifEmpty { "💬" }, style = VTType.body, modifier = Modifier.widthIn(min = 30.dp))
+                            Text(t.text, style = VTType.body, color = c.label, modifier = Modifier.padding(start = 8.dp))
+                        }
                     }
                 }
             }

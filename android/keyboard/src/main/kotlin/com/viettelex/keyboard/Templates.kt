@@ -54,6 +54,15 @@ object Templates {
     }
 
     /** Thêm mới từ tab Mẫu Câu: trim, chặn rỗng + trùng text. null = không thêm. */
+    /** Sửa dòng [index]; null nếu câu rỗng, trùng dòng khác, hoặc index sai. */
+    fun edit(current: List<TemplateItem>, index: Int, label: String, text: String): List<TemplateItem>? {
+        val t = text.trim()
+        val l = label.trim(' ', '\t')
+        if (index !in current.indices || t.isEmpty()) return null
+        if (current.withIndex().any { it.index != index && it.value.text == t }) return null
+        return current.toMutableList().also { it[index] = TemplateItem(l, t) }
+    }
+
     fun add(current: List<TemplateItem>, label: String, text: String): List<TemplateItem>? {
         val t = text.trim()
         val l = label.trim(' ', '\t')
