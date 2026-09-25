@@ -47,9 +47,38 @@ class FieldMappingTest {
     @Test fun kinds() {
         assertEquals(InputKind.EMAIL, m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_EMAIL_ADDRESS).kind)
         assertEquals(InputKind.URL, m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_URI).kind)
-        assertEquals(InputKind.NUMBER, m(TYPE_CLASS_PHONE).kind)
-        assertEquals(InputKind.NUMBER, m(TYPE_CLASS_DATETIME).kind)
+        assertEquals(InputKind.PHONE, m(TYPE_CLASS_PHONE).kind)
+        assertEquals(InputKind.DATETIME, m(TYPE_CLASS_DATETIME).kind)
         assertEquals(InputKind.NUMBER, m(TYPE_CLASS_NUMBER or TYPE_NUMBER_FLAG_DECIMAL).kind)
+        assertEquals(Plane.PHONE, InputKind.PHONE.padPlane)
+        assertEquals(Plane.NUMPAD, InputKind.NUMBER.padPlane)
+        assertEquals(Plane.NUMPAD, InputKind.DATETIME.padPlane)
+        assertEquals(null, InputKind.NORMAL.padPlane)
+    }
+
+    @Test fun numberFlags() {
+        val plain = m(TYPE_CLASS_NUMBER)
+        assertFalse(plain.numberSigned); assertFalse(plain.numberDecimal)
+        val web = m(0x6002)   // <input type=number> Chrome: NUMBER | DECIMAL | 0x4000 (không SIGNED)
+        assertEquals(InputKind.NUMBER, web.kind)
+        assertTrue(web.numberSigned); assertTrue(web.numberDecimal)   // web number cho số âm → có "−"
+        val signed = m(TYPE_CLASS_NUMBER or TYPE_NUMBER_FLAG_SIGNED)
+        assertTrue(signed.numberSigned); assertFalse(signed.numberDecimal)
+        val tel = m(0x4003)   // <input type=tel> Chrome
+        assertEquals(InputKind.PHONE, tel.kind)
+        assertFalse(tel.numberSigned)
+        // cờ số không rò sang lớp khác (bit 0x1000 của TEXT là CAP_CHARACTERS)
+        assertFalse(m(TYPE_CLASS_TEXT or 0x1000).numberSigned)
+    }
+
+    @Test fun numericPadsAreLiteralWithoutBar() {
+        for (t in listOf(TYPE_CLASS_NUMBER, TYPE_CLASS_PHONE, TYPE_CLASS_DATETIME, 0x6002, 0x4003)) {
+            val f = m(t)
+            assertTrue(f.passthrough); assertFalse(f.suggestionsAllowed)
+        }
+        val pin = m(TYPE_CLASS_NUMBER or TYPE_NUMBER_VARIATION_PASSWORD)
+        assertTrue(pin.isSecure); assertTrue(pin.passthrough)
+        assertEquals(Plane.NUMPAD, pin.kind.padPlane)
     }
 
     @Test fun typeNullIsRawLiteral() {

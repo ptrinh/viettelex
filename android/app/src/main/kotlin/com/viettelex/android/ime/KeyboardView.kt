@@ -93,6 +93,14 @@ class KeyboardView(
     private val letterOff = theme.centerOffset(letterPaint)
     private val controlOff = theme.centerOffset(controlPaint)
     private val comOff = theme.centerOffset(comPaint)
+    private val digitPaint = theme.text(24f)
+    private val digitOff = theme.centerOffset(digitPaint)
+    private val sidePaint = theme.text(20f)
+    private val sideOff = theme.centerOffset(sidePaint)
+    private val hintPaint = theme.text(10f, medium = true)
+    private val hintOff = theme.centerOffset(hintPaint)
+    private val hintLift = theme.dp(6f)
+    private val hintDrop = theme.dp(12f)
     private val keyPressed = theme.pressed(theme.keyFill)
     private val specialPressed = theme.pressed(theme.specialFill)
     private val actionPressed = theme.blend(theme.action, theme.actionInk, 0.12f)
@@ -153,7 +161,9 @@ class KeyboardView(
 
     private val spaceFire: () -> Unit = {
         val now = SystemClock.uptimeMillis()
-        listener?.onKey(if (now - lastSpaceTap < DOUBLE_SPACE_MS) Key.DoubleSpacePeriod else Key.Space)
+        // Bàn số: space luôn literal (không double-space → ". ").
+        val pad = plane == Plane.PHONE || plane == Plane.NUMPAD
+        listener?.onKey(if (!pad && now - lastSpaceTap < DOUBLE_SPACE_MS) Key.DoubleSpacePeriod else Key.Space)
         lastSpaceTap = now
     }
     private val newlineFire: () -> Unit = { listener?.onKey(Key.Newline) }
@@ -168,7 +178,10 @@ class KeyboardView(
     // MARK: cấu hình
 
     fun configure(returnLabel: String, kind: InputKind, needsGlobe: Boolean, showLogo: Boolean,
-                  templatesEnabled: Boolean, templates: List<TemplateItem>, keyAreaPx: Float) {
+                  templatesEnabled: Boolean, templates: List<TemplateItem>, keyAreaPx: Float,
+                  numberSigned: Boolean = false, numberDecimal: Boolean = false) {
+        this.numberSigned = numberSigned
+        this.numberDecimal = numberDecimal
         this.returnLabel = returnLabel
         this.needsGlobe = needsGlobe
         this.showLogo = showLogo
@@ -177,7 +190,7 @@ class KeyboardView(
         if (this.keyAreaPx != keyAreaPx) { this.keyAreaPx = keyAreaPx; requestLayout() }
         // Loại ô: số ⇒ plane 123; chữ ⇒ shift ON (nếu có) rớt về OFF như iOS configureInputKind.
         inputKind = kind
-        plane = if (kind == InputKind.NUMBER) Plane.NUMBERS else Plane.LETTERS
+        plane = kind.padPlane ?: Plane.LETTERS
         if (plane == Plane.LETTERS && shift == Shift.ON) shift = Shift.OFF
         templatesPane.setItems(templates)
         rebuild()
@@ -213,7 +226,9 @@ class KeyboardView(
         setPlane(if (plane == Plane.TEMPLATES) Plane.LETTERS else Plane.TEMPLATES)
     }
 
-    private fun signature() = "$returnLabel|$inputKind|$needsGlobe|$width|$keyAreaPx"
+    private var numberSigned = false
+    private var numberDecimal = false
+    private fun signature() = "$returnLabel|$inputKind|$needsGlobe|$width|$keyAreaPx|$numberSigned|$numberDecimal"
 
     private fun rebuild() {
         if (width == 0) return
@@ -221,7 +236,7 @@ class KeyboardView(
         if (sig != builtSig) { planeCache.clear(); builtSig = sig }
         keys = planeCache.getOrPut(plane) {
             KeyLayout.build(LayoutConfig(plane, width.toFloat(), keyAreaPx, d, inputKind, needsGlobe,
-                theme.tablet, returnLabel))
+                theme.tablet, returnLabel, numberSigned, numberDecimal))
         }
         spaceKey = keys.firstOrNull { it.kind == KeyKind.SPACE }
         spaceKey?.let {
@@ -296,6 +311,7 @@ class KeyboardView(
             k.kind == KeyKind.SHIFT && shift == Shift.CAPS -> theme.chip
             special -> if (k.pressed) specialPressed else theme.specialFill
             k.kind == KeyKind.LETTER || k.kind == KeyKind.CHAR -> theme.keyFill   // popup lo phản hồi
+            k.kind == KeyKind.PAD && k.side -> if (k.pressed) specialPressed else theme.specialFill
             else -> if (k.pressed) keyPressed else theme.keyFill
         }
         if (trackpad) face = theme.keyFill
@@ -308,6 +324,13 @@ class KeyboardView(
         when (k.kind) {
             KeyKind.LETTER -> drawLabel(c, if (shift == Shift.OFF) k.label else k.upper, cx, cy, letterPaint, letterOff, contentAlpha)
             KeyKind.CHAR -> drawLabel(c, k.label, cx, cy, letterPaint, letterOff, contentAlpha)
+            KeyKind.PAD -> if (k.hint.isEmpty()) {
+                drawLabel(c, k.label, cx, cy, if (k.side) sidePaint else digitPaint, if (k.side) sideOff else digitOff, contentAlpha)
+            } else {
+                // Số + chữ nhỏ bên dưới (bàn điện thoại Gboard)
+                drawLabel(c, k.label, cx, cy - hintLift, digitPaint, digitOff, contentAlpha)
+                drawLabel(c, k.hint, cx, cy + hintDrop, hintPaint, hintOff, (contentAlpha * 0.7f).toInt())
+            }
             KeyKind.PUNCT -> if (k.label == ".com") drawLabel(c, k.label, cx, cy, comPaint, comOff, contentAlpha)
                              else drawLabel(c, k.label, cx, cy, letterPaint, letterOff, contentAlpha)
             KeyKind.PLANE, KeyKind.MORE -> drawLabel(c, k.label, cx, cy, controlPaint, controlOff, contentAlpha)
@@ -419,6 +442,11 @@ class KeyboardView(
                 showBalloon(k, k.label)
                 commits.arm(k, textFire(k.insert))
             }
+            KeyKind.PAD -> {
+                feedback.click(Feedback.LETTER, this)
+                press(k)
+                commits.arm(k, textFire(k.insert))
+            }
             KeyKind.PUNCT -> {
                 feedback.click(Feedback.LETTER, this)
                 press(k)
@@ -505,7 +533,7 @@ class KeyboardView(
         when (k.kind) {
             KeyKind.LETTER -> hideBalloon(k)
             KeyKind.CHAR -> { hideBalloon(k); commits.release(k) }
-            KeyKind.PUNCT, KeyKind.RETURN -> commits.release(k)
+            KeyKind.PUNCT, KeyKind.RETURN, KeyKind.PAD -> commits.release(k)
             KeyKind.SPACE -> {
                 if (pid == spacePtr) {
                     removeCallbacks(spaceHoldRun); spacePtr = -1
@@ -534,7 +562,7 @@ class KeyboardView(
 
     private fun controlAction(k: LaidKey) {
         when (k.kind) {
-            KeyKind.PLANE -> setPlane(if (plane == Plane.LETTERS) Plane.NUMBERS else Plane.LETTERS)
+            KeyKind.PLANE -> setPlane(if (plane == Plane.LETTERS) Plane.NUMBERS else inputKind.padPlane ?: Plane.LETTERS)
             KeyKind.MORE -> setPlane(if (plane == Plane.NUMBERS) Plane.SYMBOLS else Plane.NUMBERS)
             KeyKind.EMOJI -> setPlane(Plane.EMOJI)
             KeyKind.CLEAR -> listener?.onKey(Key.ClearField)

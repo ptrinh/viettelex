@@ -6,8 +6,19 @@ package com.viettelex.android.ime
  * px, tính từ dp qua [density]. Chỉ chạy khi đổi plane / cỡ / cấu hình — không
  * bao giờ trong onDraw.
  */
-enum class Plane { LETTERS, NUMBERS, SYMBOLS, EMOJI, TEMPLATES }
-enum class InputKind { NORMAL, NUMBER, EMAIL, URL }
+enum class Plane { LETTERS, NUMBERS, SYMBOLS, EMOJI, TEMPLATES,
+    /** Bàn số điện thoại kiểu Gboard (TYPE_CLASS_PHONE). */
+    PHONE,
+    /** Bàn số kiểu Gboard (TYPE_CLASS_NUMBER / DATETIME). */
+    NUMPAD }
+enum class InputKind { NORMAL, NUMBER, EMAIL, URL, PHONE, DATETIME;
+    /** Plane mở đầu cho loại ô (bàn số riêng cho ô số/điện thoại/ngày giờ). */
+    val padPlane: Plane? get() = when (this) {
+        PHONE -> Plane.PHONE
+        NUMBER, DATETIME -> Plane.NUMPAD
+        else -> null
+    }
+}
 
 object KeyKind {
     const val LETTER = 0      // chèn lúc DOWN, qua router
@@ -23,9 +34,11 @@ object KeyKind {
     const val PUNCT = 10      // , @ . / .com cạnh space: arm DOWN, chốt UP, không balloon
     const val RETURN = 11
     const val DISMISS = 12    // tablet: ẩn bàn phím
+    /** Phím bàn số (số / ký hiệu phụ): arm DOWN, chốt UP, không balloon, luôn literal. */
+    const val PAD = 13
 
     fun isSpecial(k: Int) = when (k) {
-        LETTER, CHAR, PUNCT, SPACE -> false
+        LETTER, CHAR, PUNCT, SPACE, PAD -> false
         else -> true
     }
 }
@@ -41,6 +54,10 @@ class LaidKey(
     @JvmField val insert: String,
     @JvmField var left: Float, @JvmField var top: Float,
     @JvmField var right: Float, @JvmField var bottom: Float,
+    /** Chữ phụ nhỏ dưới số (bàn điện thoại: ABC, DEF…). */
+    @JvmField val hint: String = "",
+    /** Phím phụ của bàn số (tô màu phím chức năng). */
+    @JvmField val side: Boolean = false,
 ) {
     @JvmField var pressed = false
     /** Chỉ số ổn định trong plane — làm id cho KeyCommitQueue. */
@@ -63,6 +80,9 @@ data class LayoutConfig(
     val needsGlobe: Boolean = false,
     val tablet: Boolean = false,
     val returnLabel: String = "return",
+    /** TYPE_NUMBER_FLAG_SIGNED / DECIMAL (bàn NUMPAD). */
+    val numberSigned: Boolean = false,
+    val numberDecimal: Boolean = false,
 )
 
 object KeyLayout {
@@ -112,13 +132,15 @@ object KeyLayout {
                 equalRow(out, if (num) NUM1 else SYM1, KeyKind.CHAR, c, 0, rowH, 0f)
                 equalRow(out, if (num) NUM2 else SYM2, KeyKind.CHAR, c, 1, rowH, 0f)
                 thirdRow(out, c, rowH, letters = false)
-                bottomRow(out, c, 3 * rowH, rowH, planeKey = "ABC", clearInsteadOfEmoji = false)
+                bottomRow(out, c, 3 * rowH, rowH, planeKey = if (c.kind.padPlane != null) "123" else "ABC",
+                    clearInsteadOfEmoji = false)
             }
             Plane.TEMPLATES -> {
                 // Chips giãn phần trên; hàng đáy cao ĐÚNG 1 hàng phím (keyArea/4).
                 bottomRow(out, c, c.keyAreaPx - rowH, rowH, planeKey = "ABC", clearInsteadOfEmoji = true)
             }
             Plane.EMOJI -> Unit   // EmojiPane tự vẽ
+            Plane.PHONE, Plane.NUMPAD -> numberPad(out, c, rowH)
         }
         for (i in out.indices) out[i].index = i
         return out
@@ -216,6 +238,85 @@ object KeyLayout {
             out += LaidKey(s.kind, s.label, s.label, s.insert, x, t, x + w, b)
             x += w + gap
         }
+    }
+
+    private val PHONE_HINTS = arrayOf("", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ")
+
+    /**
+     * Bàn số kiểu Gboard — lưới 3×4 số ở giữa, cột phụ 0.17 W hai bên, KHÔNG có ô trống:
+     *  PHONE : trái  + · − · ( ) · ?123 | lưới 1…9, * 0 # (chữ ABC… dưới số) |
+     *          phải  ⌫ · , ; (pause/wait) · space · enter
+     *  NUMPAD: trái  (chỉ khi có) − nếu SIGNED; DATETIME: / : − — chia đều cả cột
+     *          lưới 1…9, [, 0 .] — dấu thập phân chỉ khi DECIMAL, không có thì 0 nở rộng
+     *          phải  ⌫ · space · ?123 · enter
+     * Phím không hợp cờ của ô thì không có (không gõ được ký tự ô từ chối).
+     */
+    private fun numberPad(out: MutableList<LaidKey>, c: LayoutConfig, rowH: Float) {
+        val d = c.density
+        val W = c.widthPx
+        val m = ROW_MARGIN_H * d
+        val gap = KEY_SPACING * d
+        val phone = c.plane == Plane.PHONE
+        val sides = ArrayList<String>(3)
+        if (!phone) {
+            if (c.kind == InputKind.DATETIME) { sides += "/"; sides += ":"; sides += "-" }
+            else {
+                // Cột trái kiểu Gboard: − . , xếp dọc (không một phím "−" cao cả 4 hàng).
+                if (c.numberSigned) sides += "-"
+                if (c.numberDecimal) { sides += "."; sides += "," }
+            }
+        }
+        val hasLeft = phone || sides.isNotEmpty()
+        val sideW = 0.17f * W
+        val leftX = m
+        val rightX = W - m - sideW
+        val gridX = if (hasLeft) m + sideW + gap else m
+        val gridW = (rightX - gap - gridX - 2 * gap) / 3f
+        fun top(r: Int) = r * rowH + ROW_MARGIN_V * d
+        fun bot(r: Int) = (r + 1) * rowH - ROW_MARGIN_V * d
+        fun pad(label: String, x0: Float, x1: Float, t: Float, b: Float, hint: String = "", side: Boolean = false) {
+            out += LaidKey(KeyKind.PAD, label, label, label, x0, t, x1, b, hint, side)
+        }
+        fun cellX(col: Int) = gridX + col * (gridW + gap)
+        // lưới số
+        for (i in 0 until 9) {
+            val r = i / 3; val x0 = cellX(i % 3)
+            pad((i + 1).toString(), x0, x0 + gridW, top(r), bot(r), if (phone) PHONE_HINTS[i] else "")
+        }
+        val bl = if (phone) "*" else null
+        val br = if (phone) "#" else null
+        bl?.let { pad(it, cellX(0), cellX(0) + gridW, top(3), bot(3)) }
+        br?.let { pad(it, cellX(2), cellX(2) + gridW, top(3), bot(3)) }
+        pad("0", if (bl != null) cellX(1) else cellX(0), if (br != null) cellX(1) + gridW else cellX(2) + gridW,
+            top(3), bot(3), if (phone) "+" else "")
+        // cột trái
+        if (phone) {
+            pad("+", leftX, leftX + sideW, top(0), bot(0), side = true)
+            pad("-", leftX, leftX + sideW, top(1), bot(1), side = true)
+            val hw = (sideW - gap) / 2
+            pad("(", leftX, leftX + hw, top(2), bot(2), side = true)
+            pad(")", leftX + hw + gap, leftX + sideW, top(2), bot(2), side = true)
+            out += LaidKey(KeyKind.MORE, "?123", "?123", "?123", leftX, top(3), leftX + sideW, bot(3))
+        } else if (sides.isNotEmpty()) {
+            val t0 = top(0); val b0 = bot(3)
+            val h = (b0 - t0 - gap * (sides.size - 1)) / sides.size
+            for ((k, sym) in sides.withIndex()) {
+                val t = t0 + k * (h + gap)
+                pad(sym, leftX, leftX + sideW, t, t + h, side = true)
+            }
+        }
+        // cột phải
+        out += LaidKey(KeyKind.BACKSPACE, "", "", "", rightX, top(0), rightX + sideW, bot(0))
+        if (phone) {
+            val hw = (sideW - gap) / 2
+            pad(",", rightX, rightX + hw, top(1), bot(1), side = true)
+            pad(";", rightX + hw + gap, rightX + sideW, top(1), bot(1), side = true)
+            out += LaidKey(KeyKind.SPACE, "", "", " ", rightX, top(2), rightX + sideW, bot(2))
+        } else {
+            out += LaidKey(KeyKind.SPACE, "", "", " ", rightX, top(1), rightX + sideW, bot(1))
+            out += LaidKey(KeyKind.MORE, "?123", "?123", "?123", rightX, top(2), rightX + sideW, bot(2))
+        }
+        out += LaidKey(KeyKind.RETURN, c.returnLabel, c.returnLabel, "\n", rightX, top(3), rightX + sideW, bot(3))
     }
 
     // MARK: router (port KeyboardView.routedHitTest / nearestLetterButton)

@@ -22,6 +22,9 @@ data class FieldConfig(
     val actionId: Int,
     /** TYPE_NULL (terminal…): app chỉ hiểu key event. */
     val rawKeys: Boolean,
+    /** Ô số: TYPE_NUMBER_FLAG_SIGNED ⇒ phím "−"; FLAG_DECIMAL ⇒ phím "," "." (bàn NUMPAD). */
+    val numberSigned: Boolean = false,
+    val numberDecimal: Boolean = false,
 )
 
 object FieldMapping {
@@ -42,12 +45,16 @@ object FieldMapping {
         val uri = text && variation == InputType.TYPE_TEXT_VARIATION_URI
         // URI (thanh địa chỉ Chrome) và FILTER (ô tìm trong Cài đặt/danh bạ) là nơi người
         // dùng GÕ TÌM KIẾM tiếng Việt → giữ Telex; auto-restore trả lại chữ Anh/URL.
-        val passthrough = rawKeys || email ||
+        val numeric = cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE
+            || cls == InputType.TYPE_CLASS_DATETIME
+        // Bàn số chèn ký tự literal, không bao giờ qua engine Telex.
+        val passthrough = rawKeys || numeric || email ||
             (text && variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD)
 
         val kind = when {
-            cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE
-                || cls == InputType.TYPE_CLASS_DATETIME -> InputKind.NUMBER
+            cls == InputType.TYPE_CLASS_PHONE -> InputKind.PHONE
+            cls == InputType.TYPE_CLASS_DATETIME -> InputKind.DATETIME
+            cls == InputType.TYPE_CLASS_NUMBER -> InputKind.NUMBER
             email -> InputKind.EMAIL
             uri -> InputKind.URL
             else -> InputKind.NORMAL
@@ -73,7 +80,12 @@ object FieldMapping {
                 EditorInfo.IME_ACTION_PREVIOUS -> { label = "return"; actionId = action }
             }
         }
+        val isNumber = cls == InputType.TYPE_CLASS_NUMBER
         return FieldConfig(kind, secure, passthrough, capSentences, suggestionsAllowed,
-            label, actionId, rawKeys)
+            label, actionId, rawKeys,
+            // Chrome gửi <input type=number> là DECIMAL không SIGNED nhưng web cho phép số âm
+            // → DECIMAL cũng hiện "−" (như Gboard).
+            numberSigned = isNumber && (flags and (InputType.TYPE_NUMBER_FLAG_SIGNED or InputType.TYPE_NUMBER_FLAG_DECIMAL)) != 0,
+            numberDecimal = isNumber && (flags and InputType.TYPE_NUMBER_FLAG_DECIMAL) != 0)
     }
 }

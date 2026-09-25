@@ -170,4 +170,87 @@ class KeyLayoutTest {
         val keys = build(Plane.LETTERS)
         assertNull(KeyLayout.nearestLetter(keys, W / 2, -40f, d))
     }
+
+    // --- bàn số ---
+
+    private fun pad(plane: Plane, kind: InputKind, signed: Boolean = false, decimal: Boolean = false, ret: String = "done") =
+        KeyLayout.build(LayoutConfig(plane, W, H, d, kind, returnLabel = ret, numberSigned = signed, numberDecimal = decimal))
+
+    private fun padLabels(keys: List<LaidKey>) = keys.filter { it.kind == KeyKind.PAD }.map { it.label }.toSet()
+
+    @Test fun phonePadGridHintsAndSides() {
+        val k = pad(Plane.PHONE, InputKind.PHONE)
+        assertEquals(setOf("1","2","3","4","5","6","7","8","9","*","0","#","+","-","(",")",",",";"), padLabels(k))
+        assertEquals("ABC", k.first { it.label == "2" }.hint)
+        assertEquals("WXYZ", k.first { it.label == "9" }.hint)
+        assertEquals("", k.first { it.label == "1" }.hint)
+        // lưới 3 cột bằng nhau, 0 giữa * và #
+        val star = k.first { it.label == "*" }; val zero = k.first { it.label == "0" }; val hash = k.first { it.label == "#" }
+        near(star.width, zero.width); near(zero.width, hash.width)
+        assertTrue(star.right < zero.left && zero.right < hash.left)
+        near(zero.centerX, k.first { it.label == "5" }.centerX)
+        // cột phải: ⌫ trên cùng, enter dưới cùng; có space + toggle ?123
+        val bs = k.first { it.kind == KeyKind.BACKSPACE }; val ret = k.first { it.kind == KeyKind.RETURN }
+        assertTrue(bs.top < ret.top && bs.left > hash.right && ret.left > hash.right)
+        assertTrue(k.any { it.kind == KeyKind.SPACE })
+        assertEquals("?123", k.first { it.kind == KeyKind.MORE }.label)
+        assertTrue(k.first { it.label == "+" }.side)
+        assertTrue(!k.first { it.label == "5" }.side)
+    }
+
+    @Test fun numpadFlagsControlSideKeys() {
+        val plain = padLabels(pad(Plane.NUMPAD, InputKind.NUMBER))
+        assertEquals(setOf("0","1","2","3","4","5","6","7","8","9"), plain)
+        val signed = padLabels(pad(Plane.NUMPAD, InputKind.NUMBER, signed = true))
+        assertTrue("-" in signed && "." !in signed && "," !in signed)
+        val dec = padLabels(pad(Plane.NUMPAD, InputKind.NUMBER, decimal = true))
+        assertTrue("." in dec && "," in dec && "-" !in dec)
+        val both = pad(Plane.NUMPAD, InputKind.NUMBER, signed = true, decimal = true)
+        assertTrue(padLabels(both).containsAll(listOf("-", ".", ",")))
+        // 0 ở hàng dưới, giữa cột
+        val zero = both.first { it.label == "0" }
+        near(zero.centerX, both.first { it.label == "8" }.centerX)
+        assertTrue(zero.top > both.first { it.label == "8" }.bottom)
+        // không DECIMAL ⇒ 0 nở phủ cả hàng lưới dưới (không ô trống)
+        val p = pad(Plane.NUMPAD, InputKind.NUMBER)
+        val z = p.first { it.label == "0" }
+        near(z.left, p.first { it.label == "7" }.left); near(z.right, p.first { it.label == "9" }.right)
+        // không cột trái khi không có phím phụ ⇒ lưới rộng hơn
+        assertTrue(p.first { it.label == "1" }.width > both.first { it.label == "1" }.width)
+        // toggle ?123 + space + ⌫ + enter luôn có
+        assertTrue(both.any { it.kind == KeyKind.SPACE } && both.any { it.kind == KeyKind.BACKSPACE }
+            && both.any { it.kind == KeyKind.RETURN })
+        assertEquals("?123", both.first { it.kind == KeyKind.MORE }.label)
+    }
+
+    @Test fun datetimePadHasSeparators() {
+        val k = padLabels(pad(Plane.NUMPAD, InputKind.DATETIME))
+        assertTrue(k.containsAll(listOf("/", ":", "-")))
+        assertTrue("." !in k)
+    }
+
+    @Test fun padKeysDoNotOverlapAndNoDeadGaps() {
+        for (k in listOf(pad(Plane.PHONE, InputKind.PHONE), pad(Plane.NUMPAD, InputKind.DATETIME),
+                         pad(Plane.NUMPAD, InputKind.NUMBER), pad(Plane.NUMPAD, InputKind.NUMBER, signed = true, decimal = true))) {
+            for (a in k) for (b in k) if (a !== b) {
+                val overlap = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+                assertTrue("overlap $a / $b", !overlap)
+            }
+            var y = 1f
+            while (y < H - 1f) {
+                var x = 1f
+                while (x < W - 1f) {
+                    assertNotNull("dead at $x,$y", KeyLayout.hit(k, Plane.NUMPAD, x, y, 4f, d)); x += 7f
+                }
+                y += 3f
+            }
+        }
+    }
+
+    @Test fun symbolsPlaneReturnsToPadForNumericFields() {
+        val n = KeyLayout.build(LayoutConfig(Plane.NUMBERS, W, H, d, InputKind.PHONE))
+        assertEquals("123", n.first { it.kind == KeyKind.PLANE }.label)
+        val t = KeyLayout.build(LayoutConfig(Plane.NUMBERS, W, H, d, InputKind.NORMAL))
+        assertEquals("ABC", t.first { it.kind == KeyKind.PLANE }.label)
+    }
 }
