@@ -6,8 +6,8 @@ open source. Engine Telex (`TelexCore`) vẫn dùng chung với repo public
 hai repo phải nằm cạnh nhau:
 
 ```
-~/ClaudeCode/VietTelex/       # public: macOS app + TelexCore + web
-~/ClaudeCode/VietTelex/iOS/   # repo này (nested, gitignored ở repo cha)
+~/ClaudeCode/VietTelex/       # repo public: macOS app + TelexCore + web + iOS + android
+~/ClaudeCode/VietTelex/iOS/   # app iOS (cùng repo)
 ```
 
 Build: `xcodegen generate && xcodebuild -project VietTelex-iOS.xcodeproj -scheme VietTelexApp -destination 'generic/platform=iOS Simulator' build`
