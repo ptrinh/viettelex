@@ -2,6 +2,7 @@
 // App Group) + a link that opens the Learn site in the browser. Deliberately
 // minimal — no WebView, no third-party dependencies (docs/ios-app.md).
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 @main
@@ -142,6 +143,7 @@ struct RootView: View {
     }
 
     @ViewBuilder private var gioiThieuTab: some View {
+        DebugSection()
         // Logo + tên app trên đầu tab (user 2026-07-24), như About của macOS.
         Section {
             VStack(spacing: 10) {
@@ -692,8 +694,6 @@ struct TinhNangSections: View {
     private var rowHeightAdjust = 0
     @AppStorage("hapticFeedback", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var hapticFeedback = false
-    @AppStorage("debugTouchLog", store: UserDefaults(suiteName: "group.com.viettelex"))
-    private var debugTouchLog = false
 
     var body: some View {
         Section {
@@ -719,7 +719,6 @@ struct TinhNangSections: View {
         Section {
             settingToggle("Hiện logo Vᴛ", "Logo mờ ở góc phải phím space.", isOn: $showSpaceLogo)
             settingToggle("Rung phím", "Rung nhẹ mỗi lần chạm phím.", isOn: $hapticFeedback)
-            settingToggle("Ghi log chạm phím (gỡ lỗi)", "Chỉ để tìm lỗi rớt phím: ghi thời điểm chạm và số phím vào log hệ thống — không ghi nội dung bạn gõ. Để tắt khi không cần.", isOn: $debugTouchLog)
             if hapticFeedback {
                 FullAccessNotice(reason: "Rung phím")
             }
@@ -735,6 +734,70 @@ struct TinhNangSections: View {
             }
         } header: { Text("Giao diện") } footer: {
             Text("Cài đặt áp dụng ngay lần mở bàn phím kế tiếp.")
+        }
+    }
+}
+
+/// Debug mode (25/09/2026): lấy log "gõ nhanh rớt chữ" không cần cáp/Console.
+/// Bàn phím ghi touchlog.txt vào App Group (cần Full Access); ở đây xem + Copy.
+struct DebugSection: View {
+    @AppStorage("debugTouchLog", store: UserDefaults(suiteName: "group.com.viettelex"))
+    private var debugTouchLog = false
+    @AppStorage("deferBottomEdge", store: UserDefaults(suiteName: "group.com.viettelex"))
+    private var deferBottomEdge = true
+    @State private var showLog = false
+
+    var body: some View {
+        Section {
+            settingToggle("Debug mode — ghi log chạm phím",
+                          "Ghi thời điểm chạm, độ trễ và số phím — KHÔNG ghi nội dung bạn gõ. Cần bật \"Cho phép Toàn quyền\" cho bàn phím. Tắt khi xong.",
+                          isOn: $debugTouchLog)
+            if debugTouchLog {
+                settingToggle("Hoãn cử chỉ hệ thống ở mép dưới",
+                              "Thử nghiệm A/B cho lỗi rớt phím: gõ nhanh với BẬT rồi TẮT, so log. Ẩn bàn phím rồi mở lại sau khi đổi.",
+                              isOn: $deferBottomEdge)
+                Button("Xem log") { showLog = true }
+            }
+        } header: { Text("Gỡ lỗi") }
+        .sheet(isPresented: $showLog) { TouchLogView() }
+    }
+}
+
+struct TouchLogView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+
+    private var url: URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.viettelex")?
+            .appendingPathComponent("touchlog.txt")
+    }
+    private func reload() {
+        text = url.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                Text(text.isEmpty
+                     ? "Chưa có log. Bật Debug mode, bật \"Cho phép Toàn quyền\" cho bàn phím VietTelex (Cài đặt → Chung → Bàn phím), rồi gõ thử."
+                     : text)
+                    .font(.system(.caption2, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+            }
+            .navigationTitle("Log chạm phím")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Đóng") { dismiss() } }
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button("Xoá") { if let u = url { try? FileManager.default.removeItem(at: u) }; reload() }
+                    Button("Copy") { UIPasteboard.general.string = text }
+                        .disabled(text.isEmpty)
+                }
+            }
+            .onAppear(perform: reload)
+            .refreshable { reload() }
         }
     }
 }

@@ -48,6 +48,9 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         TouchLog.loadSetting()
+        Self.deferBottomEdge = (UserDefaultsProvider.shared?.object(forKey: "deferBottomEdge") as? Bool) ?? true
+        setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
+        TouchLog.session(deferBottomEdge: Self.deferBottomEdge, fullAccess: hasFullAccess)
         bridge = EngineBridge()                       // fresh settings + buffer
         // Field không autocorrect (mã/username): gõ literal, bỏ qua Telex —
         // tránh diacritic ngoài ý (autocorrectionType == .no).
@@ -285,7 +288,13 @@ final class KeyboardViewController: UIInputViewController {
 
     /// iOS defer touch gần mép ~1s để phân xử system gesture — nguồn số 1 của
     /// "ấn phím hàng dưới không ăn". Xin quyền nhận touch trước ở mép dưới.
-    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { [.bottom] }
+    /// Debug mode (25/09/2026): log thiết bị cho thấy UIKit GIỮ ~half touch events
+    /// ~48ms chờ "system gesture state" (SystemGestureGate) — nghi chính cờ này bắt
+    /// gate phân xử mọi touch. Công tắc A/B "deferBottomEdge" (mặc định BẬT = như cũ).
+    static var deferBottomEdge = true
+    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge {
+        Self.deferBottomEdge ? [.bottom] : []
+    }
 
     // needsInputModeSwitchKey chỉ đáng tin sau khi nối host — gọi 1 LẦN ở
     // viewDidAppear (gọi mỗi layout pass làm iOS 26 spam warning; đã dính).
@@ -295,7 +304,6 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         keyboard?.setNeedsGlobe(needsInputModeSwitchKey)
-        undelaySystemGestures()
         if let mb = Self.memoryFootprintMB() {
             NSLog("VTKB mem: %.1f MB", mb)   // Console filter "VTKB mem"
         }
@@ -305,29 +313,6 @@ final class KeyboardViewController: UIInputViewController {
             self?.dumpGeometry("didAppear+1.5s")
         }
         #endif
-    }
-
-    /// Cử chỉ hệ thống gắn trên window/superview của extension (mép màn hình, home
-    /// indicator) mặc định có thể TRÌ HOÃN touchesBegan tới khi chúng tự loại mình —
-    /// phím sát mép (q/a/p/l, shift, backspace, hàng dưới) lên chậm hơn phím giữa
-    /// (research 25/09/2026, chưa đo trên máy thật). Chỉ tắt delaysTouchesBegan —
-    /// không đổi việc chúng nhận diện hay cancel touch. Hành vi không có tài liệu:
-    /// log số recognizer đã đổi để đối chiếu khi đo.
-    private func undelaySystemGestures() {
-        var changed = 0
-        var v: UIView? = view.superview
-        while let cur = v {
-            for g in cur.gestureRecognizers ?? [] where g.delaysTouchesBegan {
-                g.delaysTouchesBegan = false
-                changed += 1
-            }
-            v = cur.superview
-        }
-        for g in view.window?.gestureRecognizers ?? [] where g.delaysTouchesBegan {
-            g.delaysTouchesBegan = false
-            changed += 1
-        }
-        if changed > 0 { NSLog("VTKB gestures: delaysTouchesBegan off ×%d", changed) }
     }
 
     #if DEBUG
