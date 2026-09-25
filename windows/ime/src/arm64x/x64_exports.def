@@ -1,0 +1,7 @@
+; EC / emulated-x64 view of the ARM64X forwarder -> VietTelexTIP_x64.dll (the regular
+; x64 build, shipped renamed inside the ARM64 MSI)
+EXPORTS
+    DllGetClassObject=VietTelexTIP_x64.DllGetClassObject PRIVATE
+    DllCanUnloadNow=VietTelexTIP_x64.DllCanUnloadNow PRIVATE
+    DllRegisterServer=VietTelexTIP_x64.DllRegisterServer PRIVATE
+    DllUnregisterServer=VietTelexTIP_x64.DllUnregisterServer PRIVATE

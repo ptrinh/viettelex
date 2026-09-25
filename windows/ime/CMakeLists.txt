@@ -3,6 +3,7 @@
 
 add_library(vtx_ime_core STATIC
   core/app_policy.cpp
+  core/com_path.cpp
   core/hotkey.cpp
   core/keymap.cpp
   core/session.cpp
@@ -65,4 +66,32 @@ if(WIN32)
       target_link_options(VietTelexTIP PRIVATE -Wl,--kill-at)
     endif()
   endif()
+endif()
+
+# ---------------------------------------------------------------- ARM64X (MSVC, ARM64)
+# Windows on ARM runs native ARM64 apps and emulated x64 apps side by side, and both
+# read the same 64-bit InprocServer32 path. We ship an ARM64X *pure forwarder* as
+# VietTelexTIP.dll (Microsoft's documented "Arm64X pure forwarder DLL" recipe):
+#   native ARM64 exports -> VietTelexTIP_arm64.dll (this tree's TIP)
+#   EC / x64 exports     -> VietTelexTIP_x64.dll   (the x64 build, renamed by build.ps1)
+# Built automatically in every MSVC ARM64 build — no manual relink.
+if(WIN32 AND MSVC AND CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL "ARM64")
+  set_target_properties(VietTelexTIP PROPERTIES OUTPUT_NAME VietTelexTIP_arm64)
+  add_library(vtx_arm64x_native OBJECT src/arm64x/empty.cpp)
+  add_library(vtx_arm64x_ec OBJECT src/arm64x/empty.cpp)
+  target_compile_options(vtx_arm64x_native PRIVATE /Zl)
+  target_compile_options(vtx_arm64x_ec PRIVATE /Zl /arm64EC)
+  set(_fwd "$<TARGET_FILE_DIR:VietTelexTIP>/VietTelexTIP.dll")
+  add_custom_command(
+    OUTPUT "${_fwd}"
+    COMMAND "${CMAKE_LINKER}" /NOLOGO /DLL /NOENTRY /NODEFAULTLIB /MACHINE:ARM64X
+            "/DEFARM64NATIVE:${CMAKE_CURRENT_SOURCE_DIR}/src/arm64x/arm64_exports.def"
+            "/DEF:${CMAKE_CURRENT_SOURCE_DIR}/src/arm64x/x64_exports.def"
+            $<TARGET_OBJECTS:vtx_arm64x_native> $<TARGET_OBJECTS:vtx_arm64x_ec>
+            "/OUT:${_fwd}"
+    DEPENDS vtx_arm64x_native vtx_arm64x_ec VietTelexTIP
+            src/arm64x/arm64_exports.def src/arm64x/x64_exports.def
+    COMMAND_EXPAND_LISTS
+    COMMENT "Linking ARM64X forwarder VietTelexTIP.dll")
+  add_custom_target(VietTelexTIP_arm64x ALL DEPENDS "${_fwd}")
 endif()

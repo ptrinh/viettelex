@@ -4,8 +4,9 @@
 
   One MSI per native architecture:
     Platform=x64    VietTelexTIP.dll (x64) + VietTelexTIP.dll (x86, for 32-bit apps)
-    Platform=arm64  VietTelexTIP.dll (ARM64X = ARM64 + ARM64EC, so native AND emulated
-                    x64 apps load the same registered DLL) + x86 DLL
+    Platform=arm64  VietTelexTIP.dll = ARM64X pure forwarder (registered), forwarding to
+                    VietTelexTIP_arm64.dll (native ARM64 apps) and VietTelexTIP_x64.dll
+                    (emulated x64 apps); + x86 DLL. All three come from BinNative.
   Build (installer/build.ps1 does all of this):
     wix build VietTelex.wxs -arch x64 -d Version=0.1.0.1 -d Platform=x64
               -d BinNative=..\..\build-x64\Release -d BinX86=..\..\build-x86\Release
@@ -63,6 +64,18 @@
           <PermissionEx Sddl="$(var.TipSddl)" />
         </File>
       </Component>
+      <?if $(var.Platform) = "arm64" ?>
+      <Component Id="TipArm64Half">
+        <File Id="TipArm64Dll" Source="$(var.BinNative)\VietTelexTIP_arm64.dll" KeyPath="yes">
+          <PermissionEx Sddl="$(var.TipSddl)" />
+        </File>
+      </Component>
+      <Component Id="TipX64Half">
+        <File Id="TipX64Dll" Source="$(var.BinNative)\VietTelexTIP_x64.dll" KeyPath="yes">
+          <PermissionEx Sddl="$(var.TipSddl)" />
+        </File>
+      </Component>
+      <?endif?>
     </ComponentGroup>
 
     <ComponentGroup Id="X86" Directory="INSTALLFOLDER86" Bitness="always32">
@@ -78,7 +91,9 @@
       <ComponentGroupRef Id="X86" />
     </Feature>
 
-    <!-- regsvr32 of each architecture (System64Folder = native, SystemFolder = SysWOW64). -->
+    <!-- regsvr32 of each architecture (System64Folder = native, SystemFolder = SysWOW64).
+         On ARM64 the native regsvr32 loads the ARM64X forwarder; the forwarded
+         DllRegisterServer registers the forwarder path as InprocServer32 (com_path.h). -->
     <CustomAction Id="RegisterTipNative" Directory="System64Folder" Execute="deferred" Impersonate="no"
                   Return="check" ExeCommand="regsvr32.exe /s &quot;[INSTALLFOLDER]VietTelexTIP.dll&quot;" />
     <CustomAction Id="RegisterTipX86" Directory="SystemFolder" Execute="deferred" Impersonate="no"

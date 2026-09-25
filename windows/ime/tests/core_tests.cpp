@@ -223,3 +223,17 @@ TEST(utf_roundtrip) {
     CHECK_EQ(utf16ToUtf8(utf8ToUtf16(s)), s);
     CHECK_EQ(utf8ToUtf16("ệ").size(), size_t(1));
 }
+
+#include "com_path.h"
+
+TEST(arm64x_com_server_path) {
+    const std::wstring a = L"C:\\Program Files\\VietTelex\\VietTelexTIP_arm64.dll";
+    const std::wstring x = L"C:\\Program Files\\VietTelex\\viettelextip_X64.DLL";
+    const std::wstring f = L"C:\\Program Files\\VietTelex\\VietTelexTIP.dll";
+    CHECK(comServerPath(a, true) == f);
+    CHECK(comServerPath(x, true) == f);
+    CHECK(comServerPath(a, false) == a);  // no forwarder installed: register self
+    CHECK(comServerPath(f, true) == f);   // plain x64/x86 DLL
+    CHECK(forwarderCandidate(L"C:\\x\\VietTelexTIP.dll").empty());
+    CHECK(forwarderCandidate(L"VietTelexTIP_arm64.dll") == L"VietTelexTIP.dll");
+}

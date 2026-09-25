@@ -10,12 +10,11 @@
     * WiX v4+:  dotnet tool install --global wix
     * optional signing: see signing/sign.ps1 (Azure Trusted Signing, env vars only)
 
-  ARM64: VietTelexTIP.dll for the ARM64 MSI must be ARM64X (ARM64 + ARM64EC in one
-  file) because native ARM64 apps and emulated x64 apps share the 64-bit registry
-  view — one InprocServer32 path has to serve both. The script builds the ARM64EC
-  flavour and links the pair with `link /machine:arm64x` (see Build-Arm64X). Until that
-  step is validated on real hardware, pass -SkipArm64X to ship a plain ARM64 DLL
-  (native ARM64 apps only).
+  ARM64 (v1): the ARM64 MSI ships an ARM64X pure-forwarder VietTelexTIP.dll plus the two
+  real DLLs it forwards to — VietTelexTIP_arm64.dll (native ARM64 apps) and
+  VietTelexTIP_x64.dll (emulated x64 apps, = the x64 build renamed). The forwarder is
+  linked automatically by CMake in the ARM64 tree (/MACHINE:ARM64X, see
+  ime/CMakeLists.txt); this script only gathers the files and checks the machine types.
 
 .EXAMPLE
   ./build.ps1 -Version 0.1.0.1
@@ -24,7 +23,6 @@ param(
     [string]$Version = '',
     [string]$Config = 'Release',
     [switch]$SkipArm64,
-    [switch]$SkipArm64X,
     [switch]$NoSign
 )
 
@@ -47,24 +45,32 @@ function Build-Arch([string]$arch, [string]$cmakeArch) {
     return $dir
 }
 
-# Multi-config layout: <build>\ime\<Config>\VietTelexTIP.dll, <build>\app\<Config>\VietTelex.exe
+# Multi-config layout: <build>\ime\<Config>\*.dll, <build>\app\<Config>\VietTelex.exe
 function Collect([string]$arch, [string]$dir) {
     $bin = Join-Path $out "bin-$arch"
     New-Item -ItemType Directory -Force -Path $bin | Out-Null
-    Copy-Item (Join-Path $dir "ime\$Config\VietTelexTIP.dll") $bin -Force
+    Get-ChildItem (Join-Path $dir "ime\$Config") -Filter 'VietTelexTIP*.dll' | Copy-Item -Destination $bin -Force
     $exe = Join-Path $dir "app\$Config\VietTelex.exe"
     if (Test-Path $exe) { Copy-Item $exe $bin -Force }
     return $bin
 }
 
-function Build-Arm64X([string]$arm64Bin) {
-    # Build the ARM64EC flavour of the TIP; merging it with the ARM64 one into a single
-    # ARM64X DLL is a relink of both object sets:
-    #   link /machine:arm64x /dll /def:ime\src\VietTelexTIP.def <arm64 objs> <arm64ec objs>
-    # CMake has no first-class ARM64X support yet, so this stays an explicit step.
-    $ecDir = Build-Arch 'arm64ec' 'ARM64EC'
-    Write-Warning ("ARM64X: ARM64EC TIP built at $ecDir\ime\$Config\VietTelexTIP.dll; " +
-        'relink with /machine:arm64x before release (see comment above).')
+# `dumpbin /headers` machine line, e.g. "AA64 machine (ARM64) (ARM64X)".
+function Machine([string]$file) {
+    $dumpbin = Get-Command dumpbin.exe -ErrorAction SilentlyContinue
+    if (-not $dumpbin) { return $null }
+    return (& $dumpbin.Source /nologo /headers $file | Select-String 'machine \(' | Select-Object -First 1).Line
+}
+
+function Complete-Arm64([string]$arm64Bin, [string]$x64Bin) {
+    # Emulated-x64 half of the forwarder = the x64 TIP, renamed.
+    Copy-Item (Join-Path $x64Bin 'VietTelexTIP.dll') (Join-Path $arm64Bin 'VietTelexTIP_x64.dll') -Force
+    foreach ($f in 'VietTelexTIP.dll', 'VietTelexTIP_arm64.dll', 'VietTelexTIP_x64.dll', 'VietTelex.exe') {
+        if (-not (Test-Path (Join-Path $arm64Bin $f))) { throw "ARM64 package incomplete: $f missing" }
+    }
+    $m = Machine (Join-Path $arm64Bin 'VietTelexTIP.dll')
+    if ($m -and $m -notmatch 'ARM64X') { throw "VietTelexTIP.dll is not ARM64X: $m" }
+    if ($m) { Write-Host "ARM64 forwarder: $m" }
 }
 
 function Sign([string[]]$files) {
@@ -78,7 +84,7 @@ $bins['x86'] = Collect 'x86' (Build-Arch 'x86' 'Win32')
 $bins['x64'] = Collect 'x64' (Build-Arch 'x64' 'x64')
 if (-not $SkipArm64) {
     $bins['arm64'] = Collect 'arm64' (Build-Arch 'arm64' 'ARM64')
-    if (-not $SkipArm64X) { Build-Arm64X $bins['arm64'] }
+    Complete-Arm64 $bins['arm64'] $bins['x64']
 }
 Sign (Get-ChildItem -Path $out -Recurse -Include *.dll, *.exe | ForEach-Object FullName)
 

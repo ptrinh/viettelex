@@ -1,25 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  VietTelex — MSIX manifest TEMPLATE for the Microsoft Store.
+  OPTIONAL / COMPANION-ONLY — NOT the Store submission path.
 
-  IMPORTANT LIMITATION (read windows/README.md § Microsoft Store before using):
-  an MSIX package cannot register a TSF text service for the whole system. Package
-  registry writes are virtualized and TSF loads TIPs from the real
-  HKLM\SOFTWARE\Microsoft\CTF\TIP + HKLM\SOFTWARE\Classes\CLSID into EVERY process,
-  including ones outside the package. So this package can only carry VietTelex.exe
-  (settings/tray/updater); the keyboard itself still has to be installed by the MSI.
+  VietTelex is submitted to the Microsoft Store as an "MSI or EXE app" (see
+  installer/STORE.md). An MSIX package cannot register a system-wide TSF text service
+  (package registry writes are virtualized; TSF loads TIPs from the real HKLM keys into
+  every process), so this manifest could only ever carry VietTelex.exe without the
+  keyboard. Kept as a template in case packaged third-party TIPs become possible.
 
-  The recommended Store route is therefore the Partner Center "MSI or EXE" app
-  submission pointing at the signed MSI on GitHub Releases (silent switch /qn), which
-  the Store supports for Win32 apps. This manifest is kept for the day Microsoft offers
-  packaged third-party TIPs, and for a Store listing of the companion app.
-
-  Placeholders (filled by installer/build.ps1 from Partner Center values, never secret):
-    __IDENTITY_NAME__       Package/Identity/Name reserved in Partner Center
-    __PUBLISHER__           CN=… of the Store publisher (Partner Center > Product identity)
-    __PUBLISHER_DISPLAY__   publisher display name
-    __VERSION__             e.g. 0.1.0.0 (4 parts, last part must be 0 for the Store)
-    __ARCH__                x64 | arm64
+  Placeholders: __IDENTITY_NAME__ __PUBLISHER__ __PUBLISHER_DISPLAY__ __VERSION__ __ARCH__
 -->
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"

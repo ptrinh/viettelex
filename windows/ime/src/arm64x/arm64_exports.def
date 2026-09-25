@@ -1,0 +1,6 @@
+; Native ARM64 view of the ARM64X forwarder -> VietTelexTIP_arm64.dll
+EXPORTS
+    DllGetClassObject=VietTelexTIP_arm64.DllGetClassObject PRIVATE
+    DllCanUnloadNow=VietTelexTIP_arm64.DllCanUnloadNow PRIVATE
+    DllRegisterServer=VietTelexTIP_arm64.DllRegisterServer PRIVATE
+    DllUnregisterServer=VietTelexTIP_arm64.DllUnregisterServer PRIVATE

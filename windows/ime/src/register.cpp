@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "com_path.h"
 #include "globals.h"
 #include "tsf_compat.h"
 
@@ -37,9 +38,16 @@ bool setString(HKEY root, const std::wstring& sub, const wchar_t* name, const st
 
 const std::wstring kClsidKey = L"SOFTWARE\\Classes\\CLSID\\";
 
+// ARM64: register the ARM64X forwarder, not the half that is running (com_path.h).
+std::wstring serverPath() {
+    const std::wstring self = modulePath();
+    const std::wstring fwd = forwarderCandidate(self);
+    return comServerPath(self, !fwd.empty() && GetFileAttributesW(fwd.c_str()) != INVALID_FILE_ATTRIBUTES);
+}
+
 bool registerCom() {
     const std::wstring key = kClsidKey + guidString(CLSID_VietTelexTIP);
-    const std::wstring path = modulePath();
+    const std::wstring path = serverPath();
     if (path.empty()) return false;
     return setString(HKEY_LOCAL_MACHINE, key, nullptr, L"VietTelex Text Service") &&
            setString(HKEY_LOCAL_MACHINE, key + L"\\InprocServer32", nullptr, path) &&
@@ -55,6 +63,7 @@ bool registerProfile() {
     HRESULT hr = CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr, CLSCTX_INPROC_SERVER,
                                   IID_ITfInputProcessorProfileMgr, reinterpret_cast<void**>(&mgr));
     if (FAILED(hr) || !mgr) return false;
+    // Icon from the module actually running (an ARM64X forwarder has no resources).
     const std::wstring path = modulePath();
     // hklSubstitute = US layout: keys we let through (digits, punctuation) must come
     // out as on a US keyboard, not through the stock Vietnamese layout that maps the

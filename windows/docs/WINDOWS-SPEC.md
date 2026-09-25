@@ -216,3 +216,5 @@ Mặc định lấy từ `App/Sources/AppState.swift` (1.7.12); nếu macOS đ�
 3. Bảng mã cũ (TCVN3, VNI Windows): **không làm** — chỉ Unicode.
 4. **Microsoft Store: có** ngay từ đầu (song song MSI + winget).
 5. Ký số: **Azure Trusted Signing**.
+6. **ARM64 hỗ trợ ngay từ v1**: bản MSI ARM64 cài `VietTelexTIP.dll` dạng ARM64X pure forwarder (đăng ký COM) chuyển tiếp sang `VietTelexTIP_arm64.dll` (app ARM64 gốc) và `VietTelexTIP_x64.dll` (app x64 giả lập); build tự động bằng `link /MACHINE:ARM64X` trong CMake, không relink tay.
+7. **Microsoft Store qua đường "MSI or EXE app"** của Partner Center (không dùng MSIX): MSI đã ký, URL tải HTTPS có phiên bản và bất biến, cài im lặng `/qn`; checklist tại `windows/installer/STORE.md`. MSIX chỉ còn là template tuỳ chọn cho app đồng hành.
