@@ -590,6 +590,7 @@ final class KeyboardViewController: UIInputViewController {
             }
         }
         if !composed.isEmpty {
+            keyboard.hidePasteCard()   // có phím chữ → thẻ Dán biến mất ngay (user 25/09/2026)
             // VNSuggest + AdjacentKeyFixer chạy NỀN (fixer tới vài ms với từ lạ như
             // "keyboard"/"github"); main chỉ re-rank (model cá nhân) + vẽ bar. Kết
             // quả chỉ áp khi còn hiện hành: không có lượt updateSuggestions mới hơn,
@@ -707,6 +708,11 @@ final class KeyboardViewController: UIInputViewController {
     private var pasteIsImage = false
     private func pasteOffer() -> Bool {
         guard hasFullAccess else { TouchLog.write("paste: no Full Access"); return false }
+        // Chỉ ở "đầu chỗ gõ": ô trống, hoặc ngay trước con trỏ là khoảng trắng/xuống dòng.
+        // Bàn phím vừa hiện lại sau "Đang viết" thì engine rỗng nhưng vẫn là gõ dở chữ
+        // (user 25/09/2026). documentContextBeforeInput là bản host đẩy sẵn — đọc rẻ.
+        if let last = textDocumentProxy.documentContextBeforeInput?.last,
+           !last.isWhitespace { return false }
         let now = Date()
         if now.timeIntervalSince(pasteCheckedAt) < 2 { return pasteCached }
         pasteCheckedAt = now

@@ -685,6 +685,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return b
     }()
 
+    /// Đang gõ dở: ẩn thẻ Dán NGAY ở phím (không đợi kết quả gợi ý chạy nền).
+    func hidePasteCard() {
+        guard !pasteCard.isHidden else { return }
+        pasteCard.isHidden = true
+        suggestionBar.alpha = 1
+        lastSuggestionSig = ""
+    }
+
     private func setPasteCard(visible: Bool, image: Bool = false, ink: UIColor) {
         if visible {
             (pasteCard.viewWithTag(91) as? UILabel)?.text = image ? "Ảnh vừa copy" : "Dán"
