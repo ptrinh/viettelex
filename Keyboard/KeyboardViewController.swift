@@ -604,7 +604,7 @@ final class KeyboardViewController: UIInputViewController {
                 .prefix(3).map { caseForContext(DisplayCase.apply($0)) }
             set.nextWords = padWords(Array(top), need: 3)
         }
-        if composed.isEmpty, pasteOffer() { set.paste = true }
+        if composed.isEmpty, pasteOffer() { set.paste = true; set.pasteIsImage = pasteIsImage }
         keyboard.showSuggestions(set)
     }
 
@@ -617,6 +617,7 @@ final class KeyboardViewController: UIInputViewController {
     private var pasteUsedChange = -1
     private var pasteCheckedAt = Date.distantPast
     private var pasteCached = false
+    private var pasteIsImage = false
     private func pasteOffer() -> Bool {
         guard hasFullAccess else { TouchLog.write("paste: no Full Access"); return false }
         let now = Date()
@@ -626,7 +627,10 @@ final class KeyboardViewController: UIInputViewController {
         let cc = pb.changeCount
         if cc != pasteSeenChange { pasteSeenChange = cc; pasteSeenAt = now }
         let has = pb.hasStrings
-        pasteCached = cc != pasteUsedChange && has
+        // Ảnh (không có chữ): vẫn báo, nhưng thẻ chỉ hướng dẫn — iOS không cho chèn ảnh.
+        let img = !has && pb.hasImages
+        pasteIsImage = img
+        pasteCached = cc != pasteUsedChange && (has || img)
             && now.timeIntervalSince(pasteSeenAt) < 180
         TouchLog.write(String(format: "paste: cc=%d used=%d hasStrings=%d age=%.0fs → %d",
                               cc, pasteUsedChange, has ? 1 : 0,
@@ -639,6 +643,13 @@ final class KeyboardViewController: UIInputViewController {
     private func acceptSuggestion(_ item: String) {
         applyingEdit = true
         defer { applyingEdit = false }
+        if item == KeyboardView.pasteImageToken {       // chỉ hướng dẫn → ẩn thẻ
+            pasteUsedChange = UIPasteboard.general.changeCount
+            pasteCached = false
+            KeyboardView.clickModifier()
+            updateSuggestions()
+            return
+        }
         if item == KeyboardView.pasteToken {
             let pb = UIPasteboard.general
             if let s = pb.string, !s.isEmpty { textDocumentProxy.insertText(s) }

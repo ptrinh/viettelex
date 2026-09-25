@@ -428,7 +428,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         var word2: String? = nil       // ứng viên inline thứ hai (khi không có emoji)
         var emojis: [String] = []
         var nextWords: [String] = []   // gợi ý khi CHƯA gõ (đầu câu / sau space)
-        var paste = false               // slot 1 = nút "Dán" (vừa copy, xem controller)
+        var paste = false               // thẻ Dán thay bar (vừa copy, xem controller)
+        var pasteIsImage = false        // clipboard là ẢNH: bàn phím không chèn được → chỉ hướng dẫn
         var isEmpty: Bool {
             literal == nil && word == nil && word2 == nil && emojis.isEmpty && nextWords.isEmpty
         }
@@ -557,6 +558,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     /// Payload của nút Dán trên bar — ký tự Private Use, không thể là từ thật.
     static let pasteToken = "\u{E000}paste"
+    /// Clipboard là ảnh: iOS không cho bàn phím chèn ảnh (chỉ insertText) — thẻ chỉ
+    /// hướng dẫn; chạm = ẩn thẻ.
+    static let pasteImageToken = "\u{E000}pasteImage"
 
     func showSuggestions(_ set: SuggestionSet) {
         guard suggestionsEnabled, !barCollapsed else { return }
@@ -577,7 +581,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let sig = (dark ? "D" : "L")
             + texts.map { $0.map { $0.display + "\u{1}" + $0.insert } ?? "\u{2}" }.joined(separator: "\u{3}")
             + "\u{4}" + (set.nextWords.isEmpty ? set.emojis.prefix(3).joined() : "")
-            + (set.paste ? "\u{5}paste" : "")
+            + (set.paste ? (set.pasteIsImage ? "\u{5}pasteImg" : "\u{5}paste") : "")
         if sig == lastSuggestionSig { return }
         lastSuggestionSig = sig
 
@@ -615,7 +619,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         slotDividers[0].isHidden = !(vis0 && (vis1 || vis2))
         slotDividers[1].isHidden = !(vis1 && vis2)
         // Nút Dán kiểu iOS 27: MỘT ô rộng giữa bar, 2 dòng, thay cả 3 slot.
-        setPasteCard(visible: set.paste, ink: ink)
+        setPasteCard(visible: set.paste, image: set.pasteIsImage, ink: ink)
     }
 
     // MARK: Nút Dán (iOS 27 style, 25/09/2026)
@@ -629,23 +633,25 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         b.accessibilityLabel = "Dán nội dung vừa copy"
         let title = UILabel(), sub = UILabel()
         title.text = "Dán"
-        title.font = .systemFont(ofSize: 15, weight: .regular)
+        title.font = .systemFont(ofSize: 14, weight: .regular)
         sub.text = "Nội dung vừa copy"
-        sub.font = .systemFont(ofSize: 11, weight: .regular)
+        sub.font = .systemFont(ofSize: 10, weight: .regular)
         title.tag = 91; sub.tag = 92
         let icon = UIImageView(image: UIImage(systemName: "doc.on.clipboard",
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .regular)))
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .regular)))
         icon.tag = 93
         let text = UIStackView(arrangedSubviews: [title, sub])
-        text.axis = .vertical; text.alignment = .leading; text.spacing = -1
+        text.axis = .vertical; text.alignment = .leading; text.spacing = -2
         let row = UIStackView(arrangedSubviews: [icon, text])
         row.axis = .horizontal; row.alignment = .center; row.spacing = 8
         row.isUserInteractionEnabled = false
         row.translatesAutoresizingMaskIntoConstraints = false
         b.addSubview(row)
+        // Neo SÁT ĐỈNH (user 25/09/2026: căn giữa strip 30pt làm dòng phụ chạm hàng
+        // Q–P). Cả dải phía trên cửa sổ là khung host — không vẽ lên đó được.
         NSLayoutConstraint.activate([
             row.centerXAnchor.constraint(equalTo: b.centerXAnchor),
-            row.centerYAnchor.constraint(equalTo: b.centerYAnchor),
+            row.topAnchor.constraint(equalTo: b.topAnchor, constant: 0),
         ])
         b.payload = Self.pasteToken
         b.addAction(UIAction { [weak self, weak b] _ in
@@ -655,8 +661,16 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return b
     }()
 
-    private func setPasteCard(visible: Bool, ink: UIColor) {
+    private func setPasteCard(visible: Bool, image: Bool = false, ink: UIColor) {
         if visible {
+            (pasteCard.viewWithTag(91) as? UILabel)?.text = image ? "Ảnh vừa copy" : "Dán"
+            (pasteCard.viewWithTag(92) as? UILabel)?.text = image ? "Giữ ô nhập → Dán" : "Nội dung vừa copy"
+            (pasteCard.viewWithTag(93) as? UIImageView)?.image = UIImage(
+                systemName: image ? "photo.on.rectangle" : "doc.on.clipboard",
+                withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .regular))
+            pasteCard.payload = image ? Self.pasteImageToken : Self.pasteToken
+            pasteCard.accessibilityLabel = image ? "Ảnh vừa copy — giữ ô nhập rồi chọn Dán"
+                                                 : "Dán nội dung vừa copy"
             if pasteCard.superview == nil { addSubview(pasteCard) }
             let w = Self.stripZoneWidth
             pasteCard.frame = CGRect(x: w, y: 0, width: max(bounds.width - 2 * w, 0),
