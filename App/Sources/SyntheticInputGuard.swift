@@ -8,9 +8,8 @@
 // đang gõ, bất kể app nào ở trước) và backspace-retype của tap khi cảnh báo LS
 // (panel không kích hoạt app) nổi lên đúng lúc gõ ở Chrome.
 //
-// Chi phí: một đọc NSWorkspace.runningApplications (cache cục bộ) mỗi tick 3s; chỉ
-// khi app guard ĐANG CHẠY mới gọi CGWindowListCopyWindowInfo. Hot path của tap chỉ
-// đọc một Bool.
+// Chi phí (đo 25/09/2026): ~0,5 ms CPU mỗi refresh, CHỈ khi đang gõ (tick watchdog
+// 3s, nhánh không-idle) — máy không ai gõ thì 0. Hot path của tap chỉ đọc một Bool.
 
 import Cocoa
 
@@ -36,7 +35,10 @@ enum SyntheticInputGuard {
         return windows.contains { guardPIDs.contains($0.ownerPID) && $0.layer != statusLayer }
     }
 
-    /// Recompute. Call off the tap thread (watchdog tick / app activation).
+    /// Idle: forget the last verdict (no scan while nobody types).
+    static func clear() { lock.withLock { _active = false } }
+
+    /// Recompute. Call off the tap thread (watchdog tick, typing-active only).
     static func refresh() {
         let pids = Set(NSWorkspace.shared.runningApplications
             .filter { isGuardApp($0.bundleIdentifier) }

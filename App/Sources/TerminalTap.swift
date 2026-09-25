@@ -1985,8 +1985,6 @@ final class TerminalTapController {
             // Without this a dead tap only healed on the next activateServer
             // (app switch) — typing in the SAME app stayed broken up to that point.
             self.ensureRunning()
-            // Little Snitch-class window up? Refresh BEFORE the probe decides to post.
-            SyntheticInputGuard.refresh()
 
             // FUNCTIONAL probe — the only signal that survives a LYING
             // AXIsProcessTrusted (grant REMOVED via −, field bug 2026-07-22):
@@ -2024,8 +2022,15 @@ final class TerminalTapController {
                     self.trustLooksStale = true
                     DebugLog.log("watchdog: grant looks stale (trusted but canPost=false) → offer repair")
                 }
+                // Idle = no refresh (0% CPU when nobody types — the guard's window scan
+                // is a WindowServer round trip). Drop a stale ON so the first keys after
+                // idle aren't passed raw because of a window closed long ago.
+                SyntheticInputGuard.clear()
                 return
             }
+            // Typing: Little Snitch-class window up? Refresh BEFORE the probe decides
+            // to post (~0.5 ms CPU, measured 25/09/2026, only while typing).
+            SyntheticInputGuard.refresh()
             if sent != seen {
                 self.probeMisses += 1
                 if self.probeMisses >= 2 {
