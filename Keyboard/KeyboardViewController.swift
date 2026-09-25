@@ -48,9 +48,11 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         TouchLog.loadSetting()
+        KeyboardView.balloonDisabled = UserDefaultsProvider.shared?.bool(forKey: "debugNoBalloon") ?? false
         Self.deferBottomEdge = (UserDefaultsProvider.shared?.object(forKey: "deferBottomEdge") as? Bool) ?? true
         setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
         TouchLog.session(deferBottomEdge: Self.deferBottomEdge, fullAccess: hasFullAccess)
+        TouchLog.write("    balloon=\(KeyboardView.balloonDisabled ? 0 : 1) suggestions=\(KeyboardSettings.load().showSuggestions ? 1 : 0)")
         bridge = EngineBridge()                       // fresh settings + buffer
         // Field không autocorrect (mã/username): gõ literal, bỏ qua Telex —
         // tránh diacritic ngoài ý (autocorrectionType == .no).

@@ -749,6 +749,8 @@ struct DebugSection: View {
     private var debugTouchLog = false
     @AppStorage("deferBottomEdge", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var deferBottomEdge = true
+    @AppStorage("debugNoBalloon", store: UserDefaults(suiteName: "group.com.viettelex"))
+    private var noBalloon = false
     @State private var showLog = false
     @State private var logText = ""
     @State private var clearLog = false
@@ -770,6 +772,9 @@ struct DebugSection: View {
                 settingToggle("Hoãn cử chỉ hệ thống ở mép dưới",
                               "Thử nghiệm A/B cho lỗi rớt phím: gõ nhanh với BẬT rồi TẮT, so log. Ẩn bàn phím rồi mở lại sau khi đổi.",
                               isOn: $deferBottomEdge)
+                settingToggle("Tắt balloon phóng to phím",
+                              "Thử nghiệm A/B cho lỗi rớt phím. Ẩn bàn phím rồi mở lại sau khi đổi.",
+                              isOn: $noBalloon)
                 settingToggle("Hiện log (tự copy vào clipboard)",
                               "Bật để xem log bên dưới và copy toàn bộ — tắt rồi bật lại để tải log mới.",
                               isOn: $showLog)
