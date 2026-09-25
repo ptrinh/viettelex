@@ -42,6 +42,10 @@ endif
 override_dh_shlibdeps:
 	dh_shlibdeps -l$(CURDIR)/debian/libviettelex-core/usr/lib/$(DEB_HOST_MULTIARCH)/viettelex
 
+# dwz không hiểu DWARF do swiftc sinh (exit 1) — bỏ qua riêng libtelexcore.
+override_dh_dwz:
+	dh_dwz -Xlibtelexcore.so
+
 override_dh_auto_clean:
 	rm -rf obj-engine
 	find linux/settings -name __pycache__ -prune -exec rm -rf {} +

@@ -2,6 +2,8 @@ Source: viettelex
 Section: utils
 Priority: optional
 Maintainer: VietTelex Maintainers <maintainers@viettelex.invalid>
+# Engine cần thêm Swift toolchain (swift.org, trên PATH) — không có gói Ubuntu; hoặc đặt
+# VT_CORE_LIB=/path/libtelexcore.so. Xem packaging/README.md.
 Build-Depends: debhelper-compat (= 13),
                python3:any,
                cmake <!pkg.viettelex.noengine>,
@@ -11,7 +13,8 @@ Build-Depends: debhelper-compat (= 13),
                libfcitx5config-dev <!pkg.viettelex.noengine>,
                libfcitx5utils-dev <!pkg.viettelex.noengine>,
                libibus-1.0-dev <!pkg.viettelex.noengine>,
-               libglib2.0-dev <!pkg.viettelex.noengine>
+               libglib2.0-dev <!pkg.viettelex.noengine>,
+               fcitx5-modules-dev <!pkg.viettelex.noengine !nocheck>
 Standards-Version: 4.6.0
 Homepage: https://ptrinh.github.io/viettelex/
 Vcs-Browser: https://github.com/ptrinh/viettelex

@@ -291,6 +291,9 @@ class SettingsWindow(Adw.PreferencesWindow):
                     "Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành một từ "
                     "tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → “he is”, không "
                     "phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để tiếng Việt — “sao í”.")
+        self.switch(g, "typing", "re_edit_word", "Gõ thêm dấu cho từ ngay trước con trỏ",
+                    "Đặt con trỏ ngay sau một từ đã gõ rồi gõ phím dấu để sửa dấu từ đó "
+                    "(toan + s → toán).")
         page.add(g)
 
         g = Adw.PreferencesGroup(
@@ -618,13 +621,13 @@ class SettingsWindow(Adw.PreferencesWindow):
             self.toast("Không đọc được file. Định dạng hỗ trợ: JSON, YAML, hoặc mỗi dòng một "
                        "cặp key:value.")
             return
-        applied = 0
+        good = {}
         for app, mode in d.items():
             mode = MAC_MODE_MAP.get(mode, mode)
             if mode in config.APP_MODES and app.strip():
-                self.cfg.data["app_modes"][app.strip().lower()] = mode
-                applied += 1
-        self.cfg.save()
+                good[app] = mode
+        self.cfg.set_app_modes(good)
+        applied = len(good)
         self._rebuild_modes()
         self.toast("Đã nhập %d chế độ app. Mục có chế độ không hợp lệ bị bỏ qua." % applied)
 

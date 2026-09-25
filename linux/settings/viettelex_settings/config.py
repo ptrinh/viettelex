@@ -4,7 +4,9 @@ Không phụ thuộc thư viện ngoài (Ubuntu 22.04 có Python 3.10, chưa có
 Hàm thuần (parse/dump) tách riêng để test không cần GTK.
 
 Ghi nguyên tử: config.toml.tmp → rename() (frontend theo dõi thư mục bằng inotify).
-Key lạ (bản frontend mới hơn thêm vào) được GIỮ NGUYÊN khi ghi lại.
+Ghi TẠI CHỖ (SETTINGS.md "Ghi chung file"): hộp cấu hình Fcitx5 cũng ghi file này, nên mỗi
+lần đổi chỉ nạp lại file rồi sửa đúng dòng của key vừa đổi — comment, thứ tự và key lạ
+giữ nguyên (update_text).
 """
 
 import os
@@ -23,6 +25,7 @@ DEFAULTS = {
         "contextual_english": True,
         "collision_prefers_vietnamese": True,
         "bracket_vowels": False,
+        "re_edit_word": True,
         "shortcuts_enabled": True,
     },
     "general": {
@@ -167,6 +170,84 @@ def dump(data):
     return "\n".join(out) + "\n"
 
 
+def _line_key(s):
+    """Dòng `key = value` (đã strip) → (key, phần sau '='), hoặc (None, None)."""
+    if s.startswith('"'):
+        key, end = _read_string(s, 0)
+        rest = s[end:].lstrip() if key is not None else ""
+    else:
+        eq = s.find("=")
+        key, rest = (s[:eq].strip(), s[eq:]) if eq > 0 else (None, "")
+    if not key or not rest.startswith("="):
+        return None, None
+    return key, rest[1:]
+
+
+def _trailing_comment(raw_value):
+    """Phần `# …` sau giá trị (bỏ qua # nằm trong chuỗi)."""
+    v = raw_value.lstrip()
+    if v.startswith('"'):
+        val, end = _read_string(v, 0)
+        tail = v[end:] if val is not None else ""
+    else:
+        i = v.find("#")
+        tail = v[i:] if i >= 0 else ""
+    i = tail.find("#")
+    return tail[i:] if i >= 0 else ""
+
+
+def _key_text(section, key):
+    return '"%s"' % _escape(key) if section == "app_modes" else key
+
+
+def update_text(text, changes):
+    """Áp `changes` {(section, key): value | None(xoá)} lên nội dung file, sửa tại chỗ.
+
+    Dòng khác (comment, key lạ, section lạ) giữ nguyên từng byte. Key chưa có thì thêm
+    vào cuối section của nó (tạo section ở cuối file nếu chưa có)."""
+    lines = text.split("\n") if text else []
+    if lines and lines[-1] == "":
+        lines.pop()
+    pending = dict(changes)
+    out, section, sec_end = [], "", {}
+    for line in lines:
+        s = line.strip()
+        if s.startswith("[") and s.find("]") > 1:
+            section = s[1:s.find("]")].strip()
+            out.append(line)
+            sec_end[section] = len(out)
+            continue
+        key, raw = (None, None) if not s or s.startswith("#") else _line_key(s)
+        if key is not None and (section, key) in pending:
+            v = pending.pop((section, key))
+            if v is None:
+                continue
+            indent = line[:len(line) - len(line.lstrip())]
+            comment = _trailing_comment(raw)
+            newline = "%s%s = %s" % (indent, _key_text(section, key), _fmt(v))
+            out.append(newline + ("  " + comment if comment else ""))
+        else:
+            out.append(line)
+        if section in sec_end and s:
+            sec_end[section] = len(out)
+    # Key mới: chèn sau dòng không trống cuối cùng của section (giữ dòng trống ngăn cách).
+    by_sec = {}
+    for (sec, key), v in pending.items():
+        if v is not None:
+            by_sec.setdefault(sec, []).append((key, v))
+    for sec in sorted(by_sec, key=lambda x: -sec_end.get(x, -1)):
+        new = ["%s = %s" % (_key_text(sec, k), _fmt(v)) for k, v in sorted(by_sec[sec])]
+        if sec in sec_end:
+            at = sec_end[sec]
+            out[at:at] = new
+        else:
+            if out and out[-1].strip():
+                out.append("")
+            out.append("[%s]" % sec)
+            out += new
+    return "\n".join(out) + "\n"
+
+
 def normalize(data):
     """Điền mặc định + loại giá trị sai kiểu (giống frontend: sai kiểu → mặc định)."""
     out = {sec: dict(vals) for sec, vals in data.items() if isinstance(vals, dict)}
@@ -214,25 +295,41 @@ class Config:
     def get(self, section, key):
         return self.data[section][key]
 
+    def _read_text(self):
+        try:
+            with open(self.path, encoding="utf-8") as f:
+                return f.read()
+        except (OSError, UnicodeDecodeError):
+            return ""
+
+    def apply(self, changes):
+        """Nạp lại file (có thể vừa bị hộp cấu hình Fcitx5 sửa), sửa đúng các key đổi, ghi."""
+        text = self._read_text()
+        self.data = normalize(parse(text))
+        atomic_write(self.path, update_text(text, changes))
+        for (sec, key), v in changes.items():
+            if v is None:
+                self.data.setdefault(sec, {}).pop(key, None)
+            else:
+                self.data.setdefault(sec, {})[key] = v
+
     def set(self, section, key, value):
         if self.data.setdefault(section, {}).get(key) == value:
             return
-        self.data[section][key] = value
-        self.save()
+        self.apply({(section, key): value})
 
     def set_app_mode(self, app, mode):
-        app = app.strip().lower()
-        if not app:
-            return
-        modes = self.data["app_modes"]
-        if mode in APP_MODES:
-            modes[app] = mode
-        else:            # "auto" = bỏ ghi đè
-            modes.pop(app, None)
-        self.save()
+        self.set_app_modes({app: mode})
 
-    def save(self):
-        atomic_write(self.path, dump(self.data))
+    def set_app_modes(self, modes):
+        """{app: mode}; mode ngoài APP_MODES ("auto") = bỏ ghi đè."""
+        changes = {}
+        for app, mode in modes.items():
+            app = app.strip().lower()
+            if app:
+                changes[("app_modes", app)] = mode if mode in APP_MODES else None
+        if changes:
+            self.apply(changes)
 
 
 # ---------------------------------------------------------------- hotkey (§4)

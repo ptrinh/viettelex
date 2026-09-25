@@ -68,6 +68,6 @@ else
 fi
 
 mkdir -p "$OUT"
-find "$WORK" -maxdepth 1 -type f \( -name '*.deb' -o -name '*.dsc' -o -name '*.tar.*' \
+find "$WORK" -maxdepth 1 -type f \( -name '*.deb' -o -name '*.ddeb' -o -name '*.dsc' -o -name '*.tar.*' \
   -o -name '*.changes' -o -name '*.buildinfo' \) -exec cp {} "$OUT/" \;
 ls -l "$OUT"

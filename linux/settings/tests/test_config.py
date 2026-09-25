@@ -82,6 +82,76 @@ class ParseTests(unittest.TestCase):
             self.assertEqual(c.data["app_modes"], {})
 
 
+FCITX_WRITTEN = """# viết tay
+[typing]
+input_method = "telex"   # kiểu gõ
+free_marking = true
+future_flag = 7
+
+[general]
+toggle_hotkey = "Ctrl+space"
+
+[app_modes]
+"kitty" = "preedit"
+"#weird" = "off"  # giữ
+
+[future]
+x = true
+"""
+
+
+class InPlaceTests(unittest.TestCase):
+    def test_only_changed_line_differs(self):
+        out = config.update_text(FCITX_WRITTEN, {("typing", "free_marking"): False})
+        a, b = FCITX_WRITTEN.splitlines(), out.splitlines()
+        self.assertEqual(len(a), len(b))
+        self.assertEqual([i for i in range(len(a)) if a[i] != b[i]], [3])
+        self.assertEqual(b[3], "free_marking = false")
+
+    def test_comment_kept_on_changed_line(self):
+        out = config.update_text(FCITX_WRITTEN, {("typing", "input_method"): "vni"})
+        self.assertIn('input_method = "vni"  # kiểu gõ', out)
+
+    def test_new_key_appended_to_its_section(self):
+        out = config.update_text(FCITX_WRITTEN, {("typing", "re_edit_word"): False,
+                                                 ("app_modes", "code"): "surrounding"})
+        d = config.parse(out)
+        self.assertIs(d["typing"]["re_edit_word"], False)
+        self.assertEqual(d["typing"]["future_flag"], 7)
+        self.assertEqual(d["app_modes"], {"kitty": "preedit", "#weird": "off", "code": "surrounding"})
+        self.assertIn("[future]\nx = true", out)
+        lines = out.splitlines()
+        self.assertLess(lines.index("re_edit_word = false"), lines.index("[general]"))
+
+    def test_delete_app_mode(self):
+        out = config.update_text(FCITX_WRITTEN, {("app_modes", "kitty"): None})
+        self.assertNotIn("kitty", out)
+        self.assertIn('"#weird" = "off"  # giữ', out)
+
+    def test_missing_section_and_empty_file(self):
+        out = config.update_text("", {("general", "display_mode"): "surrounding"})
+        self.assertEqual(config.parse(out), {"general": {"display_mode": "surrounding"}})
+        out = config.update_text("[typing]\na = true\n", {("app_modes", "x"): "off"})
+        self.assertEqual(config.parse(out)["app_modes"], {"x": "off"})
+
+    def test_config_set_picks_up_external_edit(self):
+        # Fcitx5 sửa file sau khi app đã nạp: lần ghi sau của app không được đè mất.
+        with tempfile.TemporaryDirectory() as d:
+            c = config.Config(os.path.join(d, "config.toml"))
+            c.set("typing", "quick_telex", True)
+            with open(c.path, "a") as f:
+                f.write("[typing]\nteencode = true\n")
+            c.set("typing", "simple_telex", True)
+            with open(c.path) as f:
+                d2 = config.normalize(config.parse(f.read()))
+            self.assertTrue(d2["typing"]["teencode"])
+            self.assertTrue(d2["typing"]["simple_telex"])
+            self.assertTrue(d2["typing"]["quick_telex"])
+
+    def test_re_edit_word_default_on(self):
+        self.assertTrue(config.normalize({})["typing"]["re_edit_word"])
+
+
 class HotkeyTests(unittest.TestCase):
     def test_normalize(self):
         self.assertEqual(config.normalize_hotkey("ctrl + Space"), "Ctrl+space")
