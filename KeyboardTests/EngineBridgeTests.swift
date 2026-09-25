@@ -69,6 +69,18 @@ final class EngineBridgeTests: XCTestCase {
         s.simpleTelex = false
         XCTAssertEqual(type("nhw ", settings: s), "như ")
     }
+
+    /// Issue #94 (25/09/2026): teencode spelling is a toggle, default OFF like macOS.
+    func testTeencodeToggle() {
+        var s = KeyboardSettings()                    // iOS default: Simple Telex ON
+        XCTAssertFalse(s.teencode)
+        XCTAssertEqual(type("was ", settings: s), "was ")     // English survives
+        XCTAssertEqual(type("kos ", settings: s), "kos ")
+        s.teencode = true
+        XCTAssertEqual(type("was ", settings: s), "wá ")      // chat spelling = quá
+        XCTAssertEqual(type("kos ", settings: s), "kó ")
+        XCTAssertEqual(type("thiks ", settings: s), "thík ")
+    }
 }
 
 final class SuggestionTests: XCTestCase {

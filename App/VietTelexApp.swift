@@ -658,6 +658,8 @@ struct KieuGoSection: View {
     private var quickTelex = false
     @AppStorage("modernTone", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var modernTone = false
+    @AppStorage("teencode", store: UserDefaults(suiteName: "group.com.viettelex"))
+    private var teencode = false
 
     var body: some View {
         Section {
@@ -665,6 +667,7 @@ struct KieuGoSection: View {
             settingToggle("Bỏ dấu tự do", "Phím dấu đặt đâu cũng được, không cần đúng thứ tự.", isOn: $freeMarking)
             settingToggle("Gõ nhanh (Quick Telex)", "Phụ âm đôi đầu từ thành phụ âm ghép: cc → ch, nn → ng, tt → th…", isOn: $quickTelex)
             settingToggle("Bỏ dấu kiểu mới", "hoà, thuý thay vì hòa, thúy.", isOn: $modernTone)
+            settingToggle("Chính tả teencode", "Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, từ tiếng Anh như was, war, zoo giữ nguyên.", isOn: $teencode)
         } header: { Text("Kiểu gõ") } footer: {
             Text("Cài đặt áp dụng ngay lần mở bàn phím kế tiếp.")
         }

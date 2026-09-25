@@ -22,6 +22,9 @@ struct KeyboardSettings {
     var autoRestore = true
     var quickTelex = false
     var modernTone = false
+    /// Chính tả teencode (wá, zui, kó, bíe, thík, gòy, ừk) — mặc định TẮT như macOS
+    /// 1.7.11 (maintainer 25/09/2026, issue #94).
+    var teencode = false
     var showSuggestions = true
     var learnWords = true      // đi theo showSuggestions (không còn toggle riêng)
     var filterSensitive = true
@@ -36,6 +39,7 @@ struct KeyboardSettings {
         if d.object(forKey: "autoRestore") != nil { s.autoRestore = d.bool(forKey: "autoRestore") }
         if d.object(forKey: "quickTelex") != nil { s.quickTelex = d.bool(forKey: "quickTelex") }
         if d.object(forKey: "modernTone") != nil { s.modernTone = d.bool(forKey: "modernTone") }
+        if d.object(forKey: "teencode") != nil { s.teencode = d.bool(forKey: "teencode") }
         if d.object(forKey: "showSuggestions") != nil { s.showSuggestions = d.bool(forKey: "showSuggestions") }
         if d.object(forKey: "filterSensitive") != nil { s.filterSensitive = d.bool(forKey: "filterSensitive") }
         if d.object(forKey: "hapticFeedback") != nil { s.hapticFeedback = d.bool(forKey: "hapticFeedback") }
@@ -66,6 +70,7 @@ final class EngineBridge {
         engine.liveSpellCheck = settings.liveSpellCheck
         engine.quickTelex = settings.quickTelex
         engine.modernTone = settings.modernTone
+        engine.teencode = settings.teencode
     }
 
     /// A letter key ("a"…"z", already cased by the shift state).
