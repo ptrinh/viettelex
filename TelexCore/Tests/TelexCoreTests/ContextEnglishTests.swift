@@ -340,4 +340,16 @@ final class ContextEnglishFieldReportTests: XCTestCase {
         for ch in "is" { _ = f.feed(ch) }
         XCTAssertEqual(f.commitText(autoRestore: true), "is")
     }
+
+    /// Issue #93 (25/09/2026): "a conf" → "a conf" instead of "a còn". "a" (English
+    /// article, but also Vietnamese "a" = anh / "à") opened an English run, and
+    /// "conf" (an abbreviation, not an English word) sat in the ambiguous table.
+    func testVietnameseAAndConfStayVietnamese() {
+        XCTAssertEqual(sentence("a conf", context: true), "a còn")
+        XCTAssertEqual(sentence("a conf owr ddaay khoong", context: true), "a còn ở đây không")
+        XCTAssertEqual(sentence("he conf", context: true), "he còn")   // conf no longer ambiguous
+        // English runs through "a" still work when something else opened them.
+        XCTAssertEqual(sentence("it is a test", context: true), "it is a test")
+        XCTAssertEqual(sentence("he is a man", context: true), "he is a man")
+    }
 }

@@ -91,7 +91,7 @@ enum EnglishContextWords {
         """,
         // articles / determiners / quantifiers
         """
-        a an the some any every each
+        an the some any every each
         all both half few many much more most
         several enough such other another same
         """,
@@ -143,7 +143,7 @@ enum EnglishContextWords {
         air ais ams ans arm asn asp bangs barn
         beer beest bens best bins bits bons boost boots born
         burn cans caps cast cats chair chans chaos charm
-        chens chest chips choes choir chose conf cons corn cost
+        chens chest chips choes choir chose cons corn cost
         cums cups cuts dans days deer deest dims dist
         docs doms dons dust ems ens eos est gaps gary
         gays hair hangs hans harm hats hays heer heest
@@ -161,7 +161,12 @@ enum EnglishContextWords {
         """,
     ].joined(separator: "\n")
 
+    // "a" (issue #93, 25/09/2026): mạo từ tiếng Anh NHƯNG cũng là "a" = anh / "à" rất
+    // thường trong chat tiếng Việt ("a còn ở đó không") — mở mạch tiếng Anh từ nó lật
+    // từ Việt kế tiếp ("a conf" → "a conf"). Giữ ở lớp restore-only: trong mạch tiếng
+    // Anh đã mở ("this is a test") vẫn đúng, nhưng không bao giờ tự mở mạch.
     private static let restoreOnlyList = """
+        a
         wow ok okay oh ah aha hey hi hello yay yeah
         yep nope oops ouch hmm huh haha hehe lol omg
         wtf bye sorry thanks thank please welcome congrats

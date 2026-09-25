@@ -135,7 +135,11 @@ final class SuiteRegressionTests: XCTestCase {
                        "a Vietnamese word rendered wrong")
         // Ambiguous handled once an English run is established — floor (raised after the
         // broad `degrades_vn` whitelist expansion).
-        XCTAssertGreaterThanOrEqual(ambiguousWithContext, 632,
+        // 25/09/2026 (issue #93, maintainer-approved): "conf" removed from the
+        // ambiguous table — an abbreviation, not an English word, while "còn" is
+        // among the commonest Vietnamese words ("a conf" → "a conf"). Its suite rows
+        // (case variants) now keep còn. 632 → 629.
+        XCTAssertGreaterThanOrEqual(ambiguousWithContext, 629,
                                     "context coverage of ambiguous words regressed")
     }
 
