@@ -536,6 +536,34 @@ struct OnboardingCard: View {
         }
     }
 
+    /// Tuỳ chọn thêm (user 25/09/2026): nút Dán trên thanh gợi ý cần Toàn quyền, và
+    /// iOS hỏi "Allow Paste" MỖI lần trừ khi chọn Cho phép — không có API nào để bàn
+    /// phím bên thứ ba dán mà không hỏi (UIPasteControl không vẽ trong extension).
+    /// Trang Cài đặt của app chứa CẢ công tắc Toàn quyền (mục Bàn phím) lẫn
+    /// "Dán từ ứng dụng khác" → một nút mở thẳng trang đó.
+    @ViewBuilder private var pasteSetup: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Để dán nhanh từ thanh gợi ý", systemImage: "doc.on.clipboard")
+                .font(.subheadline.weight(.semibold))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("1. Bàn phím → VietTelex → bật Cho phép Toàn quyền")
+                Text("2. Dán từ ứng dụng khác → chọn Cho phép")
+                Text("Nếu chưa thấy mục 2: bấm nút Dán trên bàn phím một lần để iOS hỏi, rồi quay lại đây.")
+                    .foregroundStyle(.tertiary)
+            }
+            .font(.footnote).foregroundStyle(.secondary)
+            Button {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            } label: {
+                Text("Mở Cài đặt VietTelex").font(.subheadline.weight(.semibold))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 4)
+    }
+
     var body: some View {
         VStack(spacing: 14) {
             if enabled {
@@ -550,6 +578,7 @@ struct OnboardingCard: View {
                     }
                     Spacer()
                 }
+                pasteSetup
             } else {
                 hero
                 Text("Bật bàn phím VietTelex").font(.title3.bold())
@@ -573,6 +602,7 @@ struct OnboardingCard: View {
                     Text("Mở Cài đặt").font(.headline).frame(maxWidth: .infinity)
                 }
                 .prominentGlassButton()
+                pasteSetup
             }
         }
         .padding(enabled ? 14 : 20)
