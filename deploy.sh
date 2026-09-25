@@ -4,7 +4,9 @@
 # Yêu cầu: iPhone mở khoá, chung WiFi với Mac.
 set -euo pipefail
 
-DEVICE_ID="2549E6A1-1FD4-55A3-8C8A-559743D3277E"
+# UDID (xcodebuild + devicectl đều nhận). CoreDevice id cũ 2549E6A1… làm xcodebuild
+# không tìm được destination (25/09/2026).
+DEVICE_ID="00008110-00027C2222D9801E"
 DERIVED="build/Release"
 APP="$DERIVED/Build/Products/Release-iphoneos/VietTelexApp.app"
 
@@ -12,7 +14,8 @@ echo "▶︎ Build Release…"
 xcodebuild -project VietTelex-iOS.xcodeproj \
   -scheme VietTelexApp \
   -configuration Release \
-  -destination "id=$DEVICE_ID" \
+  -destination "generic/platform=iOS" \
+  -allowProvisioningUpdates \
   -derivedDataPath "$DERIVED" \
   build
 
