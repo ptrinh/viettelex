@@ -394,6 +394,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         rowsMaxHeightConstraint?.constant = keyArea + 60
         suggestionBar.isHidden = !visible || barCollapsed
         suggestionBar.alpha = 1
+        if !visible || barCollapsed { pasteCard.isHidden = true }   // thu gọn / emoji plane
+        lastSuggestionSig = ""   // chrome đổi → lượt show kế ghi lại (kể cả thẻ Dán)
         refreshCollapseButton(visible: visible)
     }
 
@@ -411,6 +413,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             }
         }
         layoutStripZones()   // sau super.layoutSubviews → frame slot bar đã đúng
+        if pasteCard.superview != nil, !pasteCard.isHidden {   // xoay màn hình
+            let w = Self.stripZoneWidth
+            pasteCard.frame = CGRect(x: w, y: 0, width: max(bounds.width - 2 * w, 0),
+                                     height: Self.openStrip)
+        }
     }
 
     /// Cập nhật gợi ý theo layout stock: ["nguyên văn"] | từ gợi ý | emoji(≤3),
@@ -564,13 +571,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             if let w = set.word { texts[1] = (w, w) }
             if set.emojis.isEmpty, let w2 = set.word2 { texts[2] = (w2, w2) }
         }
-        if set.paste { texts[0] = ("📋 Dán", Self.pasteToken) }
         // Nội dung không đổi (nextWords thường ổn định giữa các phím) → bỏ qua
         // toàn bộ ghi UI: setTitle trên bar fillProportionally kéo theo một
         // lượt đo text/Auto Layout mỗi keystroke.
         let sig = (dark ? "D" : "L")
             + texts.map { $0.map { $0.display + "\u{1}" + $0.insert } ?? "\u{2}" }.joined(separator: "\u{3}")
             + "\u{4}" + (set.nextWords.isEmpty ? set.emojis.prefix(3).joined() : "")
+            + (set.paste ? "\u{5}paste" : "")
         if sig == lastSuggestionSig { return }
         lastSuggestionSig = sig
 
@@ -607,6 +614,60 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let vis2 = !(slotButtons[2].isHidden) || !emojiStack.isHidden
         slotDividers[0].isHidden = !(vis0 && (vis1 || vis2))
         slotDividers[1].isHidden = !(vis1 && vis2)
+        // Nút Dán kiểu iOS 27: MỘT ô rộng giữa bar, 2 dòng, thay cả 3 slot.
+        setPasteCard(visible: set.paste, ink: ink)
+    }
+
+    // MARK: Nút Dán (iOS 27 style, 25/09/2026)
+    // Stock hiện nội dung clipboard + "Paste from <App>" — bàn phím bên thứ ba KHÔNG
+    // làm vậy được: đọc nội dung = iOS báo/hỏi quyền dán MỖI lần bàn phím hiện, và
+    // app nguồn không lộ cho extension. Nên: "Dán" / "Nội dung vừa copy".
+    private lazy var pasteCard: KeyButton = {
+        let b = KeyButton(type: .custom)
+        b.backgroundColor = .clear
+        b.hitInsets = UIEdgeInsets(top: -8, left: 0, bottom: 0, right: 0)
+        b.accessibilityLabel = "Dán nội dung vừa copy"
+        let title = UILabel(), sub = UILabel()
+        title.text = "Dán"
+        title.font = .systemFont(ofSize: 15, weight: .regular)
+        sub.text = "Nội dung vừa copy"
+        sub.font = .systemFont(ofSize: 11, weight: .regular)
+        title.tag = 91; sub.tag = 92
+        let icon = UIImageView(image: UIImage(systemName: "doc.on.clipboard",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .regular)))
+        icon.tag = 93
+        let text = UIStackView(arrangedSubviews: [title, sub])
+        text.axis = .vertical; text.alignment = .leading; text.spacing = -1
+        let row = UIStackView(arrangedSubviews: [icon, text])
+        row.axis = .horizontal; row.alignment = .center; row.spacing = 8
+        row.isUserInteractionEnabled = false
+        row.translatesAutoresizingMaskIntoConstraints = false
+        b.addSubview(row)
+        NSLayoutConstraint.activate([
+            row.centerXAnchor.constraint(equalTo: b.centerXAnchor),
+            row.centerYAnchor.constraint(equalTo: b.centerYAnchor),
+        ])
+        b.payload = Self.pasteToken
+        b.addAction(UIAction { [weak self, weak b] _ in
+            Self.clickModifier()
+            if let p = b?.payload { self?.onSuggestion?(p) }
+        }, for: .touchUpInside)
+        return b
+    }()
+
+    private func setPasteCard(visible: Bool, ink: UIColor) {
+        if visible {
+            if pasteCard.superview == nil { addSubview(pasteCard) }
+            let w = Self.stripZoneWidth
+            pasteCard.frame = CGRect(x: w, y: 0, width: max(bounds.width - 2 * w, 0),
+                                     height: Self.openStrip)
+            (pasteCard.viewWithTag(91) as? UILabel)?.textColor = ink
+            (pasteCard.viewWithTag(92) as? UILabel)?.textColor = ink.withAlphaComponent(0.55)
+            (pasteCard.viewWithTag(93) as? UIImageView)?.tintColor = ink.withAlphaComponent(0.8)
+            bringSubviewToFront(pasteCard)
+        }
+        pasteCard.isHidden = !visible
+        suggestionBar.alpha = visible ? 0 : 1
     }
 
     func configureReturnKey(type: UIReturnKeyType) {
