@@ -692,6 +692,8 @@ struct TinhNangSections: View {
     private var rowHeightAdjust = 0
     @AppStorage("hapticFeedback", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var hapticFeedback = false
+    @AppStorage("debugTouchLog", store: UserDefaults(suiteName: "group.com.viettelex"))
+    private var debugTouchLog = false
 
     var body: some View {
         Section {
@@ -717,6 +719,7 @@ struct TinhNangSections: View {
         Section {
             settingToggle("Hiện logo Vᴛ", "Logo mờ ở góc phải phím space.", isOn: $showSpaceLogo)
             settingToggle("Rung phím", "Rung nhẹ mỗi lần chạm phím.", isOn: $hapticFeedback)
+            settingToggle("Ghi log chạm phím (gỡ lỗi)", "Chỉ để tìm lỗi rớt phím: ghi thời điểm chạm và số phím vào log hệ thống — không ghi nội dung bạn gõ. Để tắt khi không cần.", isOn: $debugTouchLog)
             if hapticFeedback {
                 FullAccessNotice(reason: "Rung phím")
             }

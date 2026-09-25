@@ -128,9 +128,11 @@ final class EngineBridge {
     private func apply(_ action: TelexAction, literal: String, proxy: TextProxyLike) {
         switch action {
         case .replace(let bs, let insert):
+            TouchLog.edit(bs: bs, insertLen: insert.count)
             for _ in 0..<bs { proxy.deleteBackward() }
             if !insert.isEmpty { proxy.insertText(insert) }
         case .passthrough:
+            TouchLog.edit(bs: 0, insertLen: literal.count)
             if !literal.isEmpty { proxy.insertText(literal) }
         case .none:
             break

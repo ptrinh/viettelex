@@ -47,6 +47,7 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        TouchLog.loadSetting()
         bridge = EngineBridge()                       // fresh settings + buffer
         // Field không autocorrect (mã/username): gõ literal, bỏ qua Telex —
         // tránh diacritic ngoài ý (autocorrectionType == .no).
@@ -128,6 +129,7 @@ final class KeyboardViewController: UIInputViewController {
         // Selection is about to change from OUTSIDE our own edits (tap elsewhere,
         // field switch) — the composition anchor is gone. Our own proxy edits do
         // not call this re-entrantly during handle().
+        TouchLog.host("textWillChange", applyingEdit: applyingEdit, composing: bridge.isComposing)
         if !applyingEdit {
             bridge.reset(); lastWord = nil; lastWord2 = nil
             restoreUndo = nil; undoOfferActive = false
@@ -139,6 +141,7 @@ final class KeyboardViewController: UIInputViewController {
     // documentContextBeforeInput rỗng → viết hoa chữ đầu. Không tính ở
     // textWillChange vì lúc đó context THÁO DỞ chưa phản ánh selection mới.
     override func textDidChange(_ textInput: UITextInput?) {
+        TouchLog.host("textDidChange", applyingEdit: applyingEdit, composing: bridge.isComposing)
         if !applyingEdit {
             updateAutoShift()
             updateSuggestions()
@@ -157,7 +160,25 @@ final class KeyboardViewController: UIInputViewController {
     private func handle(_ key: KeyboardView.Key) {
         let proxy = Proxy(p: textDocumentProxy)
         applyingEdit = true
-        defer { applyingEdit = false }
+        let t0 = TouchLog.enabled ? CACurrentMediaTime() : 0
+        defer {
+            applyingEdit = false
+            if TouchLog.enabled {
+                let kind: String
+                switch key {
+                case .letter: kind = "letter"
+                case .text: kind = "text"
+                case .space: kind = "space"
+                case .doubleSpacePeriod: kind = "doubleSpace"
+                case .backspace: kind = "backspace"
+                case .newline: kind = "newline"
+                case .moveCursor: kind = "cursor"
+                case .clearField: kind = "clear"
+                }
+                TouchLog.key(kind: kind, composing: bridge.isComposing,
+                             lagMs: (CACurrentMediaTime() - t0) * 1000)
+            }
+        }
         switch key {
         case .letter(let ch):
             bridge.letter(ch, proxy: proxy)

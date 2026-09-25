@@ -88,6 +88,7 @@ targets:
       - KeyboardTests
       - Keyboard/EngineBridge.swift
       - Keyboard/KeyCommitQueue.swift
+      - Keyboard/TouchLog.swift
       - Keyboard/SuggestionSupport.swift
       - Keyboard/VNSuggest.swift
       - Keyboard/VNLexicon2.swift

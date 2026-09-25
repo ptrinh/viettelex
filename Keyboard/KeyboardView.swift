@@ -1549,7 +1549,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
-            guard let b = nearestLetterButton(at: t.location(in: self)) else { continue }
+            let p = t.location(in: self)
+            let b = nearestLetterButton(at: p)
+            TouchLog.touchBegan(active: routedTouches.count, batch: touches.count,
+                                touchTimestamp: t.timestamp, hit: b != nil, y: Double(p.y))
+            guard let b else { continue }
             routedTouches[ObjectIdentifier(t)] = b
             b.sendActions(for: .touchDown)
         }
@@ -1557,7 +1561,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
-            guard let b = routedTouches.removeValue(forKey: ObjectIdentifier(t)) else { continue }
+            let b = routedTouches.removeValue(forKey: ObjectIdentifier(t))
+            TouchLog.touchEnded(cancelled: false, routed: b != nil)
+            guard let b else { continue }
             b.sendActions(for: .touchUpInside)
         }
     }
@@ -1565,7 +1571,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         // hệ thống cancel (edge gesture…) — vẫn CHỐT chữ thay vì nuốt phím
         for t in touches {
-            guard let b = routedTouches.removeValue(forKey: ObjectIdentifier(t)) else { continue }
+            let b = routedTouches.removeValue(forKey: ObjectIdentifier(t))
+            TouchLog.touchEnded(cancelled: true, routed: b != nil)
+            guard let b else { continue }
             b.sendActions(for: .touchUpInside)
         }
     }

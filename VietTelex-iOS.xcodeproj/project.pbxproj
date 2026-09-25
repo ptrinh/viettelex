@@ -22,9 +22,11 @@
 		4E60808450DA80CBC7DEF891 /* ios-mau-cau.yml in Resources */ = {isa = PBXBuildFile; fileRef = E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */; };
 		5219B81A88BC7A0F77DC8467 /* TelexCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE8679AE19C0C9801BE52ADF /* TelexCore */; };
 		54B0665D29CB3187CEBF5157 /* KeyboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 941319FB73DCEB18DDE2E232 /* KeyboardView.swift */; };
+		59184856DB1424FEC29F3781 /* TouchLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73661E1643A0CAA02517C00 /* TouchLog.swift */; };
 		593AA8DEA7AFB11D6005F173 /* EngineBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD709650C25830CA926EBCF /* EngineBridge.swift */; };
 		5CA3CB101E504E9B3DF8B3A9 /* VietTelexApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03B539001F2CE763F663710B /* VietTelexApp.swift */; };
 		5E9A08F294F260D516411505 /* DisplayCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B7D70220F7D14EBC3C3AACD /* DisplayCase.swift */; };
+		665AA760B41DC86808F42E23 /* TouchLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73661E1643A0CAA02517C00 /* TouchLog.swift */; };
 		6689B752583E4AE424F48573 /* EngineBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD709650C25830CA926EBCF /* EngineBridge.swift */; };
 		6883E23E2D9C7A63C862B4AC /* KeyCommitQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8F1F925F053BA5BF36C118C /* KeyCommitQueue.swift */; };
 		777DFD50684EBFD29E6F41C8 /* ios-mau-cau.yml in Resources */ = {isa = PBXBuildFile; fileRef = E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */; };
@@ -89,6 +91,7 @@
 		8AD709650C25830CA926EBCF /* EngineBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineBridge.swift; sourceTree = "<group>"; };
 		915FC9A836F82E797FA0AEA1 /* vnlexicon.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = vnlexicon.bin; sourceTree = "<group>"; };
 		941319FB73DCEB18DDE2E232 /* KeyboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardView.swift; sourceTree = "<group>"; };
+		A73661E1643A0CAA02517C00 /* TouchLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchLog.swift; sourceTree = "<group>"; };
 		A8F1F925F053BA5BF36C118C /* KeyCommitQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCommitQueue.swift; sourceTree = "<group>"; };
 		B913AFA01B930811B2848696 /* SpaceLogo@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "SpaceLogo@2x.png"; sourceTree = "<group>"; };
 		C445BEBA75DFC20101EC3BA9 /* VNSuggest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VNSuggest.swift; sourceTree = "<group>"; };
@@ -195,6 +198,7 @@
 				B913AFA01B930811B2848696 /* SpaceLogo@2x.png */,
 				DBA09810793F0754E1A9C3F7 /* SpaceLogo@3x.png */,
 				F9A392056B54E623933F9CD3 /* SuggestionSupport.swift */,
+				A73661E1643A0CAA02517C00 /* TouchLog.swift */,
 				F316CA910C58A9377DC754A0 /* UserLangModel.swift */,
 				5E29815B4F2B0747B961A561 /* VNLexicon2.swift */,
 				C445BEBA75DFC20101EC3BA9 /* VNSuggest.swift */,
@@ -365,6 +369,7 @@
 				AC2407E83BA2FC77C45DE3FF /* SeedData.swift in Sources */,
 				19A0B9BFBF4CF5C3FEE6785B /* SensitiveWords.swift in Sources */,
 				12C8D72D20143A7862D7B51D /* SuggestionSupport.swift in Sources */,
+				665AA760B41DC86808F42E23 /* TouchLog.swift in Sources */,
 				1FE0301F7BA4765FA3C922D5 /* UserLangModel.swift in Sources */,
 				99E9949680619BC9BFBE9CB6 /* VNLexicon2.swift in Sources */,
 				DD68A1CBFFCFAC0280ACC90C /* VNSuggest.swift in Sources */,
@@ -394,6 +399,7 @@
 				0FC30ADCCD6DA0E278D59DD3 /* SeedData.swift in Sources */,
 				E29FDF78A65EA7E6F0F8EF8F /* SensitiveWords.swift in Sources */,
 				A755E9F920E0111F7E89F9DC /* SuggestionSupport.swift in Sources */,
+				59184856DB1424FEC29F3781 /* TouchLog.swift in Sources */,
 				18EB5C9002EAD3991F709FD5 /* UserLangModel.swift in Sources */,
 				FE2B9309D2217292E28A9A44 /* VNLexicon2.swift in Sources */,
 				CE87DFF1AA26E9C3CF185681 /* VNSuggest.swift in Sources */,
