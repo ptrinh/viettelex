@@ -264,9 +264,9 @@ final class KeyboardViewController: UIInputViewController {
                 self.updateAutoShift()
             }
         }
-        // Gợi ý DEBOUNCE ~30ms: gõ liền tay (burst) thì các lượt cũ bị gen làm
-        // vô hiệu, VNSuggest/scoring/relayout chỉ chạy MỘT lần khi ngừng — giữ
-        // main thread rảnh để nhận touch, chống rớt phím lúc gõ nhanh (2026-07-26).
+        // Gợi ý hoãn ~30ms (gen bỏ lượt cũ nếu phím mới tới trước). Thực tế phím
+        // cách nhau 100–200ms nên hiếm khi gộp — phần nặng (VNSuggest + sửa chạm
+        // trượt) giờ chạy nền trong updateSuggestions, main chỉ re-rank + vẽ bar.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
             guard let self, gen == self.suggestionGen else { return }
             self.updateSuggestions()
@@ -274,6 +274,10 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private var suggestionGen = 0
+    /// Số lượt updateSuggestions — kết quả nền chỉ áp nếu là lượt mới nhất.
+    private var suggestReq = 0
+    private static let suggestQueue = DispatchQueue(label: "com.viettelex.suggest",
+                                                    qos: .userInitiated)
     private var lastInsertWasSpace = false
     private var autoShiftOn = false
     private var suggestionsActive = true
@@ -500,6 +504,7 @@ final class KeyboardViewController: UIInputViewController {
     private func updateSuggestions() {
         // Bar tắt HOẶC đang thu gọn → khỏi tính toán gì hết (VNSuggest,
         // re-rank, emoji, nextWords) — tiết kiệm CPU/RAM theo đúng nghĩa.
+        suggestReq += 1                  // lượt mới → kết quả nền cũ (nếu có) bỏ
         guard suggestionsActive, keyboard?.isBarCollapsed != true else { return }
         let composed = bridge.composedWord
         var set = KeyboardView.SuggestionSet()
@@ -523,72 +528,27 @@ final class KeyboardViewController: UIInputViewController {
             }
         }
         if !composed.isEmpty {
-            // Slot "nguyên văn" = phương án mà boundary SẼ KHÔNG cho ra —
-            // lối thoát cho cả hai chiều collision (user chốt 2026-07-24):
-            //   gõ l,o,s,s → boundary restore "loss"  → slot hiện "los" (composed)
-            //   gõ l,o,s   → boundary giữ "ló"        → slot hiện "los" (raw)
-            // Tap = chèn + reset engine nên boundary sau đó không restore nữa.
-            let predicted = bridge.predictedCommit
-            set.literal = predicted == composed ? bridge.rawWord : composed
-            // Inline suggestion (research 2026-07-24): pool tương thích dấu từ
-            // VNSuggest, re-rank = log(staticFreq) + λ₁·log(personal) +
-            // λ₂·context-bonus + λ₃·chỉ-còn-thiếu-dấu.
-            let pool = VNSuggest.matches(composed, poolLimit: 24,
-                                         excluding: composed.lowercased())
-            if !pool.isEmpty {
-                // ctx chỉ đổi khi (lastWord, lastWord2) đổi — cache, khỏi gọi
-                // nextWords mỗi keystroke trong lúc đang gõ dở một từ.
-                let ctxKey = (lastWord ?? "") + "\u{1}" + (lastWord2 ?? "")
-                if ctxKey != ctxCacheKey {
-                    ctxCache = lastWord.map {
-                        Set(langModel.nextWords(after: $0, prev2: lastWord2, limit: 24))
-                    } ?? []
-                    ctxCacheKey = ctxKey
+            // VNSuggest + AdjacentKeyFixer chạy NỀN (fixer tới vài ms với từ lạ như
+            // "keyboard"/"github"); main chỉ re-rank (model cá nhân) + vẽ bar. Kết
+            // quả chỉ áp khi còn hiện hành: không có lượt updateSuggestions mới hơn,
+            // không có phím mới (suggestionGen), cùng bridge + cùng từ đang gõ.
+            let req = suggestReq, gen = suggestionGen, b = bridge
+            let raw = b.rawWord, predicted = b.predictedCommit, wantFix = b.autoFixAdjacent
+            Self.suggestQueue.async { [weak self] in
+                let pool = VNSuggest.matches(composed, poolLimit: 24,
+                                             excluding: composed.lowercased())
+                let fix = pool.isEmpty && wantFix
+                    ? AdjacentKeyFixer.lexiconCorrection(raw: raw, bridge: b) : nil
+                DispatchQueue.main.async {
+                    guard let self, req == self.suggestReq, gen == self.suggestionGen,
+                          self.bridge === b, b.composedWord == composed,
+                          self.suggestionsActive, self.keyboard?.isBarCollapsed != true
+                    else { return }
+                    self.showComposingSuggestions(composed: composed, raw: raw,
+                                                  predicted: predicted, pool: pool, fix: fix)
                 }
-                let ctx = ctxCache
-                let typedLen = composed.count
-                func score(_ w: String, _ f: Int) -> Double {
-                    log(Double(f) + 1)
-                        + 2.5 * log(Double(langModel.count(of: w)) + 1)
-                        + (ctx.contains(w) ? 4 : 0)
-                        + (w.count == typedLen ? 1.5 : 0)
-                }
-                // score tính 1 lần/ứng viên rồi sort tuple — không gọi lại
-                // trong comparator (2·n·log n lần).
-                let scored = pool.map { ($0.word, score($0.word, $0.freq)) }
-                let ranked = SensitiveWords.filter(
-                    scored.sorted { $0.1 > $1.1 }.map { $0.0 },
-                    enabled: filterSensitive)
-                set.word = ranked.first.map { DisplayCase.apply($0, after: lastWord) }
-                set.word2 = ranked.dropFirst().first.map { DisplayCase.apply($0, after: lastWord) }
-            } else if bridge.autoFixAdjacent,
-                      let fix = AdjacentKeyFixer.correction(
-                        raw: bridge.rawWord,
-                        compose: { self.bridge.composeTrial($0) },
-                        frequency: { VNSuggest.frequency(of: $0) },
-                        hasCompletion: { !VNSuggest.matches($0, poolLimit: 1).isEmpty }) {
-                // Thử nghiệm: không từ nào khớp → nghi chạm trượt phím kề; đưa bản sửa
-                // lên slot chính (tap để thay, không tự thay).
-                set.word = fix
             }
-            // thử cụm 2 từ trước ("hoàn thành", "sinh nhật") rồi mới tới từ đơn.
-            // Emoji KHÔNG bị lọc nhạy cảm (user 2026-07-24: gõ "cứt"/"shit"
-            // phải ra 💩) — filter chỉ chặn gợi ý TỪ, emoji là cách nói giảm.
-            var emojis: [String] = []
-            let cLow = composed.lowercased()
-            if let prev = lastWord {
-                emojis = EmojiSuggest.emojis(for: prev.lowercased() + " " + cLow)
-            }
-            if emojis.isEmpty { emojis = EmojiSuggest.emojis(for: composed) }
-            if emojis.isEmpty { emojis = EmojiSuggest.emojis(for: bridge.rawWord.lowercased()) }
-            set.emojis = emojis
-            // Không có emoji lấp slot 3 → đệm word/word2 cho đủ (literal + 2 từ).
-            if emojis.isEmpty {
-                let words = padWords([set.word, set.word2].compactMap { $0 },
-                                     need: 2, typed: composed)
-                set.word = words.first
-                set.word2 = words.count > 1 ? words.last : nil
-            }
+            return
         } else if let prev = lastWord {
             // vừa space sau một từ → gợi từ KẾ TIẾP (trigram/bigram cá nhân
             // interpolate với seed)
@@ -605,6 +565,71 @@ final class KeyboardViewController: UIInputViewController {
             set.nextWords = padWords(Array(top), need: 3)
         }
         if composed.isEmpty, pasteOffer() { set.paste = true; set.pasteIsImage = pasteIsImage }
+        keyboard.showSuggestions(set)
+    }
+
+    /// Phần main của gợi ý khi đang gõ dở: pool (VNSuggest) + fix đã tính nền.
+    private func showComposingSuggestions(composed: String, raw: String, predicted: String,
+                                          pool: [(word: String, freq: Int)], fix: String?) {
+        var set = KeyboardView.SuggestionSet()
+        // Slot "nguyên văn" = phương án mà boundary SẼ KHÔNG cho ra —
+        // lối thoát cho cả hai chiều collision (user chốt 2026-07-24):
+        //   gõ l,o,s,s → boundary restore "loss"  → slot hiện "los" (composed)
+        //   gõ l,o,s   → boundary giữ "ló"        → slot hiện "los" (raw)
+        // Tap = chèn + reset engine nên boundary sau đó không restore nữa.
+        set.literal = predicted == composed ? raw : composed
+        // Inline suggestion (research 2026-07-24): pool tương thích dấu từ
+        // VNSuggest, re-rank = log(staticFreq) + λ₁·log(personal) +
+        // λ₂·context-bonus + λ₃·chỉ-còn-thiếu-dấu.
+        if !pool.isEmpty {
+            // ctx chỉ đổi khi (lastWord, lastWord2) đổi — cache, khỏi gọi
+            // nextWords mỗi keystroke trong lúc đang gõ dở một từ.
+            let ctxKey = (lastWord ?? "") + "\u{1}" + (lastWord2 ?? "")
+            if ctxKey != ctxCacheKey {
+                ctxCache = lastWord.map {
+                    Set(langModel.nextWords(after: $0, prev2: lastWord2, limit: 24))
+                } ?? []
+                ctxCacheKey = ctxKey
+            }
+            let ctx = ctxCache
+            let typedLen = composed.count
+            func score(_ w: String, _ f: Int) -> Double {
+                log(Double(f) + 1)
+                    + 2.5 * log(Double(langModel.count(of: w)) + 1)
+                    + (ctx.contains(w) ? 4 : 0)
+                    + (w.count == typedLen ? 1.5 : 0)
+            }
+            // score tính 1 lần/ứng viên rồi sort tuple — không gọi lại
+            // trong comparator (2·n·log n lần).
+            let scored = pool.map { ($0.word, score($0.word, $0.freq)) }
+            let ranked = SensitiveWords.filter(
+                scored.sorted { $0.1 > $1.1 }.map { $0.0 },
+                enabled: filterSensitive)
+            set.word = ranked.first.map { DisplayCase.apply($0, after: lastWord) }
+            set.word2 = ranked.dropFirst().first.map { DisplayCase.apply($0, after: lastWord) }
+        } else if let fix {
+            // Thử nghiệm: không từ nào khớp → nghi chạm trượt phím kề; đưa bản sửa
+            // lên slot chính (tap để thay, không tự thay).
+            set.word = fix
+        }
+        // thử cụm 2 từ trước ("hoàn thành", "sinh nhật") rồi mới tới từ đơn.
+        // Emoji KHÔNG bị lọc nhạy cảm (user 2026-07-24: gõ "cứt"/"shit"
+        // phải ra 💩) — filter chỉ chặn gợi ý TỪ, emoji là cách nói giảm.
+        var emojis: [String] = []
+        let cLow = composed.lowercased()
+        if let prev = lastWord {
+            emojis = EmojiSuggest.emojis(for: prev.lowercased() + " " + cLow)
+        }
+        if emojis.isEmpty { emojis = EmojiSuggest.emojis(for: composed) }
+        if emojis.isEmpty { emojis = EmojiSuggest.emojis(for: raw.lowercased()) }
+        set.emojis = emojis
+        // Không có emoji lấp slot 3 → đệm word/word2 cho đủ (literal + 2 từ).
+        if emojis.isEmpty {
+            let words = padWords([set.word, set.word2].compactMap { $0 },
+                                 need: 2, typed: composed)
+            set.word = words.first
+            set.word2 = words.count > 1 ? words.last : nil
+        }
         keyboard.showSuggestions(set)
     }
 
@@ -632,9 +657,11 @@ final class KeyboardViewController: UIInputViewController {
         pasteIsImage = img
         pasteCached = cc != pasteUsedChange && (has || img)
             && now.timeIntervalSince(pasteSeenAt) < 180
-        TouchLog.write(String(format: "paste: cc=%d used=%d hasStrings=%d age=%.0fs → %d",
-                              cc, pasteUsedChange, has ? 1 : 0,
-                              now.timeIntervalSince(pasteSeenAt), pasteCached ? 1 : 0))
+        if TouchLog.enabled {
+            TouchLog.write(String(format: "paste: cc=%d used=%d hasStrings=%d age=%.0fs → %d",
+                                  cc, pasteUsedChange, has ? 1 : 0,
+                                  now.timeIntervalSince(pasteSeenAt), pasteCached ? 1 : 0))
+        }
         return pasteCached
     }
 

@@ -128,9 +128,12 @@ final class EngineBridge {
     var composedWord: String { engine.composed }
     var rawWord: String { engine.rawKeystrokes }
     var autoFixAdjacent: Bool { settings.autoFixAdjacent }
+    /// Cache kết quả AdjacentKeyFixer theo raw — sống cùng bridge (cùng setting).
+    let adjacentFixCache = AdjacentKeyFixer.Cache()
 
     /// Dạng hiển thị engine SẼ ra cho chuỗi phím `raw`, với đúng setting hiện tại —
-    /// engine scratch riêng, không đụng từ đang gõ (AdjacentKeyFixer).
+    /// engine scratch riêng, không đụng từ đang gõ (AdjacentKeyFixer). Chỉ đọc
+    /// `settings` (let) → gọi được từ hàng đợi gợi ý nền.
     func composeTrial(_ raw: String) -> String {
         var e = TelexEngine()
         e.freeMarking = settings.freeMarking

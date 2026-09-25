@@ -30,9 +30,10 @@ enum TouchLog {
     private static let stampFormat: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "HH:mm:ss.SSS"; f.locale = Locale(identifier: "en_US_POSIX"); return f
     }()
-    /// Append off-main; cap ~300 KB (keeps the newer half).
+    /// Append off-main; cap ~300 KB (keeps the newer half). No-op khi Debug mode
+    /// TẮT — mọi caller (kể cả log nút Dán mỗi lần refresh bar) đi qua cổng này.
     static func write(_ line: String) {
-        guard let url = fileURL else { return }
+        guard enabled, let url = fileURL else { return }
         let stamped = stampFormat.string(from: Date()) + " " + line + "\n"
         queue.async {
             let fm = FileManager.default
