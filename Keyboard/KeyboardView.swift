@@ -1059,7 +1059,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         var third: [UIView] = [more]
         third += [".",",","?","!","'"].map(textButton)
         third.append(backspaceButton())
-        rowsContainer.addArrangedSubview(row(third))
+        rowsContainer.addArrangedSubview(row(third, proportional: true))
         rowsContainer.addArrangedSubview(bottomRow(planeKey: altKey))
     }
 
@@ -1246,11 +1246,18 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return stack
     }
 
-    private func row(_ views: [UIView], sideInset: CGFloat = 0) -> UIView {
+    /// `.fill` + width constraint tường minh (mọi phím chữ bằng nhau, shift/⌫
+    /// hàng 3 = 1.5 phím — đặt ở buildLetters): hình học KHÔNG phụ thuộc cỡ
+    /// title. `.fillProportionally` đo intrinsic size của title → mỗi lần shift
+    /// retitle 26 phím là stack tính lại tỉ lệ và relayout cả bàn phím.
+    /// `proportional` chỉ cho hàng 3 plane số/ký hiệu (#+= … ⌫): hàng đó không bao
+    /// giờ retitle, giữ nguyên hình học cũ.
+    private func row(_ views: [UIView], sideInset: CGFloat = 0,
+                     proportional: Bool = false) -> UIView {
         let stack = UIStackView(arrangedSubviews: views)
         stack.axis = .horizontal
         stack.spacing = 6
-        stack.distribution = .fillProportionally
+        stack.distribution = proportional ? .fillProportionally : .fill
         stack.isLayoutMarginsRelativeArrangement = true
         // bounds.width có thể = 0 lúc init — layoutSubviews chỉnh lại ngay
         // pass đầu (và sau mỗi lần xoay / đổi cỡ Split View)
@@ -1287,6 +1294,63 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             if let i = hitInsets { return bounds.inset(by: i).contains(point) }
             return bounds.insetBy(dx: -3, dy: -5.5).contains(point)
         }
+        // Bóng phím KHÔNG dùng layer.shadow*: không shadowPath thì Core Animation
+        // render offscreen alpha của layer mỗi frame (~35 phím, 120 Hz = GPU/pin);
+        // có shadowPath thì CA vẽ bóng mềm hơn ~1px (đo pixel-diff simulator) —
+        // lệch hình. Thay bằng 2 sublayer phẳng dưới title/icon: dropLayer (đen,
+        // lệch xuống 1pt = shadowOffset, radius 0) + faceLayer (màu nền phím).
+        // Thứ tự vẽ y hệt bóng thật (bóng dưới, nền trên) → pixel như cũ, không
+        // offscreen pass. backgroundColor đi vào faceLayer (override bên dưới) nên
+        // mọi chỗ gán b.backgroundColor (pressed, shift, return) giữ nguyên.
+        private var faceLayer: CALayer?
+        private var dropLayer: CALayer?
+        private var faceColor: UIColor?
+        private static let noActions: [String: CAAction] = [
+            "backgroundColor": NSNull(), "bounds": NSNull(), "position": NSNull(),
+            "frame": NSNull(), "cornerRadius": NSNull(), "hidden": NSNull(),
+        ]
+        func setKeyShadow(opacity: CGFloat) {
+            if faceLayer == nil {
+                let drop = CALayer(), face = CALayer()
+                drop.actions = Self.noActions; face.actions = Self.noActions
+                layer.insertSublayer(drop, at: 0)
+                layer.insertSublayer(face, above: drop)
+                dropLayer = drop; faceLayer = face
+                super.backgroundColor = nil   // màu nền đã nằm trong faceColor
+                setNeedsLayout()
+            }
+            dropLayer?.backgroundColor = UIColor.black.withAlphaComponent(opacity).cgColor
+            applyFace()
+        }
+        override var backgroundColor: UIColor? {
+            get { faceLayer == nil ? super.backgroundColor : faceColor }
+            set {
+                faceColor = newValue
+                if faceLayer == nil { super.backgroundColor = newValue } else { applyFace() }
+            }
+        }
+        private func applyFace() {
+            faceLayer?.backgroundColor = faceColor?.resolvedColor(with: traitCollection).cgColor
+        }
+        override func traitCollectionDidChange(_ previous: UITraitCollection?) {
+            super.traitCollectionDidChange(previous)
+            applyFace()   // màu động (.systemBlue của return) theo light/dark
+        }
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            guard let face = faceLayer, let drop = dropLayer else { return }
+            // UIButton chèn imageView/titleLabel ở index 0 khi tạo lười (setImage
+            // sau init) → kéo 2 layer nền về đáy lại, không thì che mất icon.
+            if layer.sublayers?.first !== drop {
+                layer.insertSublayer(drop, at: 0)
+                layer.insertSublayer(face, above: drop)
+            }
+            let r = layer.cornerRadius
+            if face.frame != bounds || face.cornerRadius != r {
+                face.frame = bounds; face.cornerRadius = r
+                drop.frame = bounds.offsetBy(dx: 0, dy: 1); drop.cornerRadius = r
+            }
+        }
     }
 
     private func baseButton(title: String, special: Bool) -> KeyButton {
@@ -1307,10 +1371,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         b.setTitleColor(dark ? .white : .black, for: .normal)
         b.backgroundColor = special ? specialFill : plainFill
         b.normalBackground = b.backgroundColor
-        b.layer.shadowColor = UIColor.black.cgColor
-        b.layer.shadowOffset = CGSize(width: 0, height: 1)
-        b.layer.shadowOpacity = dark ? 0.30 : 0.35
-        b.layer.shadowRadius = 0
+        // bóng 1pt không offscreen — xem KeyButton.setKeyShadow
+        b.setKeyShadow(opacity: dark ? 0.30 : 0.35)
         // Pressed state cho phím chức năng: swap màu phẳng, KHÔNG
         // UIView.animate — animation per-touch trên main thread là latency
         // thấy được trên bàn phím (lý do dùng .custom ở trên).
