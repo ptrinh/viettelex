@@ -352,4 +352,21 @@ final class ContextEnglishFieldReportTests: XCTestCase {
         XCTAssertEqual(sentence("it is a test", context: true), "it is a test")
         XCTAssertEqual(sentence("he is a man", context: true), "he is a man")
     }
+
+    /// Issue #93 follow-up (reporter, 25/09/2026): "b còn", "c còn"… — single letters
+    /// and 2-letter chat abbreviations are not Vietnamese syllables, so the structural
+    /// fallback called them English and they opened a run. They are neutral now.
+    func testShortAbbreviationsDoNotOpenEnglishRun() {
+        for c in "bcdfghjklmnpqrstvxz" {
+            XCTAssertEqual(sentence("\(c) is", context: true), "\(c) í", "\(c)")
+            XCTAssertEqual(sentence("\(c) conf", context: true), "\(c) còn", "\(c)")
+        }
+        for ab in ["vs", "ng", "dc", "mn", "ae", "bn", "nc", "ck", "vk", "js", "db"] {
+            XCTAssertEqual(sentence("\(ab) is", context: true), "\(ab) í", ab)
+        }
+        // Neutral PRESERVES a run already open, and real short English still opens one.
+        XCTAssertEqual(sentence("he dc is", context: true), "he dc is")
+        XCTAssertEqual(sentence("it is", context: true), "it is")
+        XCTAssertEqual(sentence("position is", context: true), "position is")
+    }
 }

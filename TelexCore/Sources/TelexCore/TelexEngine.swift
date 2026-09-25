@@ -767,6 +767,13 @@ public struct TelexEngine {
         }
         // Toneless-Vietnamese typing ("sao", "khong") keeps the context Vietnamese.
         if !restored, SyllableValidator.isValidSyllable(composed.lowercased()) { return .vietnamese }
+        // 1–2 letter tokens that no dictionary knows are chat abbreviations, not
+        // English ("b" = bạn, "c" = chị, "k", "mn", "dc", "ng", "vk", "ae"… — issue
+        // #93, 25/09/2026: "b is" kept "is" instead of "í"). Every real 1–2 letter
+        // English word (is, it, he, on, to, of, my, we, up…) is in the dictionaries
+        // and was classified above, so the structural English fallback below only
+        // ever caught abbreviations here. Neutral: preserve context, never open a run.
+        if rawCount <= 2 { return .neutral }
         // Everything left is a word NO Vietnamese syllable can be — untouched
         // ("github") or restored-to-raw ("position", whose restore is a textual
         // no-op) — and that structure is as strong an English-run signal as a
