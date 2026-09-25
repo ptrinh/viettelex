@@ -108,7 +108,7 @@ fun VTTextField(
         value, onChange, modifier.fillMaxWidth(),
         textStyle = style, minLines = minLines, maxLines = maxLines, singleLine = maxLines == 1,
         cursorBrush = SolidColor(c.accent),
-        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None),
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
         decorationBox = { inner ->
             Box {
                 if (value.isEmpty()) Text(placeholder, style = style.copy(color = c.tertiary), modifier = Modifier.fillMaxWidth())
