@@ -17,6 +17,14 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        if #available(iOS 17.0, *) {
+            // traitCollectionDidChange không còn được gọi tin cậy trên iOS 17+.
+            registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (vc: Self, _: UITraitCollection) in
+                vc.keyboard?.updateDark(AppearancePolicy.isDark(
+                    appearance: vc.textDocumentProxy.keyboardAppearance ?? .default,
+                    style: vc.traitCollection.userInterfaceStyle))
+            }
+        }
         // needsInputModeSwitchKey ở viewDidLoad CHƯA đáng tin (host chưa nối,
         // iOS còn in warning) — khởi tạo false, viewWillAppear set giá trị thật.
         keyboard = KeyboardView(
@@ -90,7 +98,7 @@ final class KeyboardViewController: UIInputViewController {
         // Một lần rebuild cho cả 3 (và 0 lần nếu field giống lần trước).
         keyboard.batchConfigure {
             keyboard.configureReturnKey(type: textDocumentProxy.returnKeyType ?? .default)
-            keyboard.applyAppearance(textDocumentProxy.keyboardAppearance ?? .default)
+            keyboard.applyAppearance(textDocumentProxy.keyboardAppearance ?? .default, style: traitCollection.userInterfaceStyle)
             keyboard.configureInputKind(kind)
         }
         // Thanh gợi ý: gate qua toggle trong app; tự tắt ở field từ chối
@@ -160,7 +168,7 @@ final class KeyboardViewController: UIInputViewController {
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
         if previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle {
-            keyboard?.applyAppearance(textDocumentProxy.keyboardAppearance ?? .default)
+            keyboard?.applyAppearance(textDocumentProxy.keyboardAppearance ?? .default, style: traitCollection.userInterfaceStyle)
         }
     }
 
@@ -362,6 +370,11 @@ final class KeyboardViewController: UIInputViewController {
         }
         #endif
         super.viewDidAppear(animated)
+        // Trait host đã resolve khi view vào window — sửa sáng/tối nếu lúc
+        // viewWillAppear đoán sai (phím sáng trên nền tối).
+        keyboard?.updateDark(AppearancePolicy.isDark(
+            appearance: textDocumentProxy.keyboardAppearance ?? .default,
+            style: traitCollection.userInterfaceStyle))
         keyboard?.setNeedsGlobe(needsInputModeSwitchKey)
         // Clipboard có thể vừa đổi trong lúc bàn phím ẩn: tính lại bar khi đã hiện
         // hẳn (cache 2s của pasteOffer bỏ qua để đọc trạng thái mới).

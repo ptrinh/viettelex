@@ -109,12 +109,9 @@ struct RootView: View {
             .navigationTitle(tab == .kieuGo ? "VietTelex" : tab.title)
             .bottomBarScrollMargin()
             .collapseBarOnScroll($barCollapsed)
-            // Ô "Thử gõ": cuộn hoặc chạm ra ngoài là đóng bàn phím.
+            // Ô "Thử gõ": cuộn là đóng bàn phím. KHÔNG gắn TapGesture lên List —
+            // nó nuốt tap của mọi Button trong row (+, Import, Export, Xóa từ đã học…).
             .scrollDismissesKeyboard(.immediately)
-            .simultaneousGesture(TapGesture().onEnded {
-                UIApplication.shared.sendAction(
-                    #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-            })
         }
         .overlay(alignment: .bottom) {
             if !keyboardShown {
@@ -373,6 +370,24 @@ struct MauCauSections: View {
     @State private var showImporter = false
     @State private var showExporter = false
     @State private var notice: String?
+    @State private var editingIndex: Int?
+    @State private var editLabel = ""
+    @State private var editText = ""
+
+    /// Lưu dòng đang sửa; bỏ qua nếu rỗng hoặc trùng câu của dòng khác.
+    private func commitEdit() {
+        guard let i = editingIndex, templates.indices.contains(i) else { editingIndex = nil; return }
+        let t = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let l = editLabel.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return }
+        if templates.enumerated().contains(where: { $0.offset != i && $0.element.text == t }) {
+            notice = "Mẫu câu này đã có."
+            return
+        }
+        templates[i] = TemplateItem(label: l, text: t)
+        editingIndex = nil
+        persist()
+    }
 
     private func persist() {
         Self.store?.set(templates.map { ["label": $0.label, "text": $0.text] },
@@ -381,10 +396,39 @@ struct MauCauSections: View {
 
     var body: some View {
         Section {
-            ForEach(templates) { t in
-                HStack {
-                    Text(t.label.isEmpty ? "💬" : t.label).frame(minWidth: 30)
-                    Text(t.text)
+            ForEach(Array(templates.enumerated()), id: \.element.id) { i, t in
+                if editingIndex == i {
+                    // Sửa tại chỗ (không dùng sheet/alert — trong List chúng không hiện).
+                    HStack {
+                        TextField("👋", text: $editLabel)
+                            .frame(width: 44)
+                            .multilineTextAlignment(.center)
+                        Divider()
+                        TextField("Mẫu câu", text: $editText, axis: .vertical)
+                            .lineLimit(1...4)
+                        Button { commitEdit() } label: {
+                            Image(systemName: "checkmark.circle.fill").font(.title3)
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(editText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Button { editingIndex = nil } label: {
+                            Image(systemName: "xmark.circle").font(.title3)
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Button {
+                        editLabel = t.label; editText = t.text; editingIndex = i
+                    } label: {
+                        HStack {
+                            Text(t.label.isEmpty ? "💬" : t.label).frame(minWidth: 30)
+                            Text(t.text).foregroundStyle(.primary)
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
                 }
             }
             .onDelete { offsets in
@@ -395,7 +439,7 @@ struct MauCauSections: View {
                 Text("Chưa có mẫu câu nào.").foregroundStyle(.secondary)
             }
         } header: { Text("Mẫu câu (\(templates.count))") } footer: {
-            Text("Bấm ☰ trên bàn phím để chèn nhanh. Vuốt trái một dòng để xoá. Label (emoji/chữ ngắn) giúp bubble trên bàn phím gọn hơn.")
+            Text("Bấm ☰ trên bàn phím để chèn nhanh. Chạm một dòng để sửa, vuốt trái để xoá. Label (emoji/chữ ngắn) giúp bubble trên bàn phím gọn hơn.")
         }
 
         Section {
@@ -415,7 +459,8 @@ struct MauCauSections: View {
                     newLabel = ""; newText = ""
                     persist()
                 } label: { Image(systemName: "plus.circle.fill").font(.title3) }
-.disabled(newText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .buttonStyle(.borderless)
+                .disabled(newText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         } header: { Text("Thêm mới") } footer: {
             Text("Ô nhỏ bên trái là label (không bắt buộc).")

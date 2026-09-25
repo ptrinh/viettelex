@@ -761,11 +761,15 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if shiftDropped, plane == .letters { applyShiftAppearance() }
     }
 
-    func applyAppearance(_ appearance: UIKeyboardAppearance) {
-        // Hầu hết host truyền .default — phải dò trait hệ thống, nếu không
-        // bàn phím sáng trưng trên máy dark mode.
-        dark = (appearance == .dark)
-            || (appearance != .light && traitCollection.userInterfaceStyle == .dark)
+    /// Chỉ đổi sáng/tối (không đọc lại settings) — gọi khi trait host resolve muộn.
+    func updateDark(_ isDark: Bool) {
+        guard isDark != dark else { return }
+        dark = isDark
+        rebuild()
+    }
+
+    func applyAppearance(_ appearance: UIKeyboardAppearance, style: UIUserInterfaceStyle) {
+        dark = AppearancePolicy.isDark(appearance: appearance, style: style)
         // Chiều cao hàng phím ±10pt (Settings → Giao diện) — đọc mỗi lần hiện.
         let adj = UserDefaultsProvider.shared?.object(forKey: "rowHeightAdjust") as? Int ?? 0
         rowHeightAdjust = CGFloat(max(-10, min(10, adj)))

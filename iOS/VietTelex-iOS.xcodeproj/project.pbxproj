@@ -15,6 +15,7 @@
 		19A0B9BFBF4CF5C3FEE6785B /* SensitiveWords.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9F4445707DBA22FE5219CD /* SensitiveWords.swift */; };
 		1D3501D761DFD4F1BED9ED72 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */; };
 		1FE0301F7BA4765FA3C922D5 /* UserLangModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F316CA910C58A9377DC754A0 /* UserLangModel.swift */; };
+		26C607EDB93AB182A66930C9 /* AppearancePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214BE1EF9FDB2118D4F50109 /* AppearancePolicyTests.swift */; };
 		36C564FD8BADBFB0BCC1E645 /* DisplayCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B7D70220F7D14EBC3C3AACD /* DisplayCase.swift */; };
 		37029C6BAEE8201C5C7CA64F /* AdjacentKeyFixer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A25C830B85508BCD22F38A /* AdjacentKeyFixer.swift */; };
 		391082DF75889B3977A67837 /* EmojiData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE050ECA55A95B273F9E18A0 /* EmojiData.swift */; };
@@ -34,6 +35,7 @@
 		6689B752583E4AE424F48573 /* EngineBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD709650C25830CA926EBCF /* EngineBridge.swift */; };
 		6883E23E2D9C7A63C862B4AC /* KeyCommitQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8F1F925F053BA5BF36C118C /* KeyCommitQueue.swift */; };
 		777DFD50684EBFD29E6F41C8 /* ios-mau-cau.yml in Resources */ = {isa = PBXBuildFile; fileRef = E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */; };
+		7A17145A9CA2831379306335 /* AppearancePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E14AD387BE2B1A54881E15 /* AppearancePolicy.swift */; };
 		86FFD0F2F1C505CCB71BBCB3 /* TouchGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 359BC071F163E8255C943DA7 /* TouchGeometry.swift */; };
 		886F6649C089D64E44E1C2FC /* TouchGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 359BC071F163E8255C943DA7 /* TouchGeometry.swift */; };
 		89E603918708D39C00616ABB /* FieldPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 480410FD8F2A324AF6A742C1 /* FieldPolicy.swift */; };
@@ -51,6 +53,7 @@
 		D97E377C61E596A589464160 /* KeyCommitQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0B60123ABBD5FE60D9234A /* KeyCommitQueueTests.swift */; };
 		DBE4AB9A3B654D9D44392251 /* TelexCore in Frameworks */ = {isa = PBXBuildFile; productRef = E6EA46A66DF9410EF89A3FC9 /* TelexCore */; };
 		DD68A1CBFFCFAC0280ACC90C /* VNSuggest.swift in Sources */ = {isa = PBXBuildFile; fileRef = C445BEBA75DFC20101EC3BA9 /* VNSuggest.swift */; };
+		E16D46978F3A25EF2D8990ED /* AppearancePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E14AD387BE2B1A54881E15 /* AppearancePolicy.swift */; };
 		E295B1FEA8D18A42FF77BD3A /* EmojiSuggest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */; };
 		E29FDF78A65EA7E6F0F8EF8F /* SensitiveWords.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9F4445707DBA22FE5219CD /* SensitiveWords.swift */; };
 		E986D58B038F7EFC5C5803FB /* EmojiPlane.swift in Sources */ = {isa = PBXBuildFile; fileRef = D705942B9BA084047E7A7EF1 /* EmojiPlane.swift */; };
@@ -89,6 +92,7 @@
 		09561C431C2FC4B6BAFD5DB7 /* VietTelexKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = VietTelexKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		097463B6895C7327459CEF6A /* VietTelexKeyboardTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = VietTelexKeyboardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		142CFBEA43046FC96EBF437F /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		214BE1EF9FDB2118D4F50109 /* AppearancePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearancePolicyTests.swift; sourceTree = "<group>"; };
 		23D9F4828FBAE93DCCEB2271 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		359BC071F163E8255C943DA7 /* TouchGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchGeometry.swift; sourceTree = "<group>"; };
 		3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSuggest.swift; sourceTree = "<group>"; };
@@ -96,6 +100,7 @@
 		4B68AFA53C7C54443DAB2DA2 /* FieldPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldPolicyTests.swift; sourceTree = "<group>"; };
 		5D0B60123ABBD5FE60D9234A /* KeyCommitQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCommitQueueTests.swift; sourceTree = "<group>"; };
 		5E29815B4F2B0747B961A561 /* VNLexicon2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VNLexicon2.swift; sourceTree = "<group>"; };
+		62E14AD387BE2B1A54881E15 /* AppearancePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearancePolicy.swift; sourceTree = "<group>"; };
 		6B7D70220F7D14EBC3C3AACD /* DisplayCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayCase.swift; sourceTree = "<group>"; };
 		738732B955CD39C76B2484C7 /* SeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedData.swift; sourceTree = "<group>"; };
 		80CE2088FB873FD0D894A6C0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -166,6 +171,7 @@
 			isa = PBXGroup;
 			children = (
 				DB8B0DA94C5E17697D6DE9E7 /* AdjacentKeyFixerTests.swift */,
+				214BE1EF9FDB2118D4F50109 /* AppearancePolicyTests.swift */,
 				E5AE58D76A8127D641A2AF62 /* EngineBridgeTests.swift */,
 				D93CDC9D2CEA8A91A576B183 /* FeatureRegressionTests.swift */,
 				4B68AFA53C7C54443DAB2DA2 /* FieldPolicyTests.swift */,
@@ -199,6 +205,7 @@
 			isa = PBXGroup;
 			children = (
 				08A25C830B85508BCD22F38A /* AdjacentKeyFixer.swift */,
+				62E14AD387BE2B1A54881E15 /* AppearancePolicy.swift */,
 				6B7D70220F7D14EBC3C3AACD /* DisplayCase.swift */,
 				FE050ECA55A95B273F9E18A0 /* EmojiData.swift */,
 				D705942B9BA084047E7A7EF1 /* EmojiPlane.swift */,
@@ -377,6 +384,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				37029C6BAEE8201C5C7CA64F /* AdjacentKeyFixer.swift in Sources */,
+				7A17145A9CA2831379306335 /* AppearancePolicy.swift in Sources */,
 				5E9A08F294F260D516411505 /* DisplayCase.swift in Sources */,
 				391082DF75889B3977A67837 /* EmojiData.swift in Sources */,
 				E986D58B038F7EFC5C5803FB /* EmojiPlane.swift in Sources */,
@@ -411,6 +419,8 @@
 			files = (
 				5B52F74F525D2FE790784DEB /* AdjacentKeyFixer.swift in Sources */,
 				C9C973EB878B8C06CDF7393A /* AdjacentKeyFixerTests.swift in Sources */,
+				E16D46978F3A25EF2D8990ED /* AppearancePolicy.swift in Sources */,
+				26C607EDB93AB182A66930C9 /* AppearancePolicyTests.swift in Sources */,
 				36C564FD8BADBFB0BCC1E645 /* DisplayCase.swift in Sources */,
 				A1D007E26A075E6497254AA7 /* EmojiData.swift in Sources */,
 				E295B1FEA8D18A42FF77BD3A /* EmojiSuggest.swift in Sources */,
@@ -529,7 +539,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 84T567KMYD;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -549,7 +559,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -618,7 +628,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DEVELOPMENT_TEAM = 84T567KMYD;
@@ -634,7 +644,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LLVM_LTO = YES_THIN;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.1.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
