@@ -747,7 +747,14 @@ final class KeyboardViewController: UIInputViewController {
         }
         if item == KeyboardView.pasteToken {
             let pb = UIPasteboard.general
-            if let s = pb.string, !s.isEmpty { textDocumentProxy.insertText(s) }
+            // Không có API hỏi "đã cho phép dán chưa": khi iOS hiện "Allow Paste?",
+            // lệnh đọc BỊ CHẶN tới lúc user chọn (≥ vài trăm ms); đã Cho phép thì gần
+            // như tức thì. Ghi kết quả vào App Group để app ẩn hướng dẫn (user 25/09/2026).
+            let t0 = CACurrentMediaTime()
+            let str = pb.string
+            let noPrompt = str != nil && CACurrentMediaTime() - t0 < 0.25
+            UserDefaults(suiteName: "group.com.viettelex")?.set(noPrompt, forKey: "pasteNoPrompt")
+            if let s = str, !s.isEmpty { textDocumentProxy.insertText(s) }
             pasteUsedChange = pb.changeCount
             pasteCached = false
             bridge.reset(); lastWord = nil; lastWord2 = nil

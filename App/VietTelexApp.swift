@@ -62,6 +62,13 @@ enum AppTab: CaseIterable {
 struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var keyboardEnabled = isKeyboardEnabled()
+    @State private var pasteReady = Self.readPasteReady()
+    /// Đọc thẳng App Group (bàn phím ghi từ process khác — @AppStorage không chắc
+    /// nhận thay đổi chéo process), làm mới mỗi lần app active.
+    static func readPasteReady() -> Bool {
+        let d = UserDefaults(suiteName: "group.com.viettelex")
+        return d?.bool(forKey: "kbFullAccess") == true && d?.bool(forKey: "pasteNoPrompt") == true
+    }
     @State private var tryItText = ""
     @State private var tab: AppTab = .kieuGo
     @State private var barCollapsed = false
@@ -122,7 +129,10 @@ struct RootView: View {
         }
         .onChange(of: scenePhase) { phase in
             // Quay lại từ Cài đặt → cập nhật trạng thái bật bàn phím ngay.
-            if phase == .active { keyboardEnabled = isKeyboardEnabled() }
+            if phase == .active {
+                keyboardEnabled = isKeyboardEnabled()
+                pasteReady = Self.readPasteReady()
+            }
         }
         .onChange(of: templatesEnabled) { on in
             if !on && tab == .mauCau { tab = .tinhNang }
@@ -139,7 +149,7 @@ struct RootView: View {
 
     @ViewBuilder private var kieuGoTab: some View {
         Section {
-            OnboardingCard(enabled: keyboardEnabled)
+            OnboardingCard(enabled: keyboardEnabled, pasteReady: pasteReady)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
         }
@@ -513,6 +523,9 @@ let vtAppIcon: UIImage? = {
 
 struct OnboardingCard: View {
     let enabled: Bool
+    /// Ẩn hướng dẫn Dán khi đã xong cả hai bước: bàn phím báo có Toàn quyền
+    /// (kbFullAccess) VÀ lần dán gần nhất iOS không hỏi (pasteNoPrompt).
+    var pasteReady = false
 
     @ViewBuilder private var hero: some View {
         if let icon = vtAppIcon {
@@ -581,7 +594,7 @@ struct OnboardingCard: View {
                     }
                     Spacer()
                 }
-                pasteSetup
+                if !pasteReady { pasteSetup }
             } else {
                 hero
                 Text("Bật bàn phím VietTelex").font(.title3.bold())
@@ -605,7 +618,7 @@ struct OnboardingCard: View {
                     Text("Mở Cài đặt").font(.headline).frame(maxWidth: .infinity)
                 }
                 .prominentGlassButton()
-                pasteSetup
+                if !pasteReady { pasteSetup }
             }
         }
         .padding(enabled ? 14 : 20)
