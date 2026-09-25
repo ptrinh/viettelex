@@ -1340,12 +1340,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
 
     private let balloon = BalloonView()
-    /// Debug A/B (25/09/2026): backboardd bỏ một số touch vì hit-test không chọn
-    /// context của VietTelex — balloon (layer + shadow hiện MỖI lần chạm, phủ lên
-    /// hàng phía trên) là nghi phạm. App Group "debugNoBalloon".
-    nonisolated(unsafe) static var balloonDisabled = false
     private func showBalloon(over key: UIView, text: String) {
-        if Self.balloonDisabled { return }
         let f = convert(key.bounds, from: key)
         // Strip gợi ý (36 mở / 14 thu gọn) = headroom phía trên hàng phím đầu —
         // cho balloon leo vào đó thay vì kẹp sát -6.

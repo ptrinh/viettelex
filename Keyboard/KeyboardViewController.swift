@@ -50,11 +50,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         TouchLog.loadSetting()
-        KeyboardView.balloonDisabled = UserDefaultsProvider.shared?.bool(forKey: "debugNoBalloon") ?? false
-        Self.deferBottomEdge = (UserDefaultsProvider.shared?.object(forKey: "deferBottomEdge") as? Bool) ?? true
-        setNeedsUpdateOfScreenEdgesDeferringSystemGestures()
-        TouchLog.session(deferBottomEdge: Self.deferBottomEdge, fullAccess: hasFullAccess)
-        TouchLog.write("    balloon=\(KeyboardView.balloonDisabled ? 0 : 1) suggestions=\(KeyboardSettings.load().showSuggestions ? 1 : 0)")
+        TouchLog.session(fullAccess: hasFullAccess)
         bridge = EngineBridge()                       // fresh settings + buffer
         // Field không autocorrect (mã/username): gõ literal, bỏ qua Telex —
         // tránh diacritic ngoài ý (autocorrectionType == .no).
@@ -293,13 +289,9 @@ final class KeyboardViewController: UIInputViewController {
 
     /// iOS defer touch gần mép ~1s để phân xử system gesture — nguồn số 1 của
     /// "ấn phím hàng dưới không ăn". Xin quyền nhận touch trước ở mép dưới.
-    /// Debug mode (25/09/2026): log thiết bị cho thấy UIKit GIỮ ~half touch events
-    /// ~48ms chờ "system gesture state" (SystemGestureGate) — nghi chính cờ này bắt
-    /// gate phân xử mọi touch. Công tắc A/B "deferBottomEdge" (mặc định BẬT = như cũ).
-    static var deferBottomEdge = true
-    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge {
-        Self.deferBottomEdge ? [.bottom] : []
-    }
+    /// (A/B 25/09/2026: bật/tắt cờ này không đổi tỉ lệ rớt phím — nguyên nhân thật
+    /// là nền trong suốt, xem KeyboardView.touchableClear.)
+    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { [.bottom] }
 
     // needsInputModeSwitchKey chỉ đáng tin sau khi nối host — gọi 1 LẦN ở
     // viewDidAppear (gọi mỗi layout pass làm iOS 26 spam warning; đã dính).
@@ -309,6 +301,10 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         keyboard?.setNeedsGlobe(needsInputModeSwitchKey)
+        // Clipboard có thể vừa đổi trong lúc bàn phím ẩn: tính lại bar khi đã hiện
+        // hẳn (cache 2s của pasteOffer bỏ qua để đọc trạng thái mới).
+        pasteCheckedAt = .distantPast
+        updateSuggestions()
         if let mb = Self.memoryFootprintMB() {
             NSLog("VTKB mem: %.1f MB", mb)   // Console filter "VTKB mem"
         }
@@ -622,15 +618,19 @@ final class KeyboardViewController: UIInputViewController {
     private var pasteCheckedAt = Date.distantPast
     private var pasteCached = false
     private func pasteOffer() -> Bool {
-        guard hasFullAccess else { return false }
+        guard hasFullAccess else { TouchLog.write("paste: no Full Access"); return false }
         let now = Date()
         if now.timeIntervalSince(pasteCheckedAt) < 2 { return pasteCached }
         pasteCheckedAt = now
         let pb = UIPasteboard.general
         let cc = pb.changeCount
         if cc != pasteSeenChange { pasteSeenChange = cc; pasteSeenAt = now }
-        pasteCached = cc != pasteUsedChange && pb.hasStrings
+        let has = pb.hasStrings
+        pasteCached = cc != pasteUsedChange && has
             && now.timeIntervalSince(pasteSeenAt) < 180
+        TouchLog.write(String(format: "paste: cc=%d used=%d hasStrings=%d age=%.0fs → %d",
+                              cc, pasteUsedChange, has ? 1 : 0,
+                              now.timeIntervalSince(pasteSeenAt), pasteCached ? 1 : 0))
         return pasteCached
     }
 

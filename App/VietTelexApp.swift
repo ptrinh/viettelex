@@ -675,7 +675,7 @@ struct KieuGoSection: View {
     @AppStorage("modernTone", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var modernTone = false
     @AppStorage("autoFixAdjacent", store: UserDefaults(suiteName: "group.com.viettelex"))
-    private var autoFixAdjacent = false
+    private var autoFixAdjacent = true
     @AppStorage("contextualEnglish", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var contextualEnglish = true
     @AppStorage("teencode", store: UserDefaults(suiteName: "group.com.viettelex"))
@@ -688,7 +688,7 @@ struct KieuGoSection: View {
             settingToggle("Gõ nhanh (Quick Telex)", "Phụ âm đôi đầu từ thành phụ âm ghép: cc → ch, nn → ng, tt → th…", isOn: $quickTelex)
             settingToggle("Bỏ dấu kiểu mới", "hoà, thuý thay vì hòa, thúy.", isOn: $modernTone)
             settingToggle("Quyết định theo ngữ cảnh", "Sau một từ tiếng Anh, từ mơ hồ kế tiếp giữ nguyên tiếng Anh — \"he is\" → he is, không phải \"he í\". Sau từ tiếng Việt thì vẫn là tiếng Việt — \"sao í\".", isOn: $contextualEnglish)
-            settingToggle("Gợi ý sửa lỗi chạm trượt (thử nghiệm)", "Khi từ đang gõ không phải tiếng Việt, gợi ý từ đúng nếu bạn lỡ chạm phím bên cạnh: nbjeeuf → nhiều, ohims → phím, cahcs → cách. Chạm gợi ý để thay.", isOn: $autoFixAdjacent)
+            settingToggle("Gợi ý sửa lỗi chạm trượt", "Khi từ đang gõ không phải tiếng Việt, gợi ý từ đúng nếu bạn lỡ chạm phím bên cạnh: nbjeeuf → nhiều, ohims → phím, cahcs → cách. Chạm gợi ý để thay.", isOn: $autoFixAdjacent)
             settingToggle("Chính tả teencode", "Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, từ tiếng Anh như was, war, zoo giữ nguyên.", isOn: $teencode)
         } header: { Text("Kiểu gõ") } footer: {
             Text("Cài đặt áp dụng ngay lần mở bàn phím kế tiếp.")
@@ -765,10 +765,6 @@ struct TinhNangSections: View {
 struct DebugSection: View {
     @AppStorage("debugTouchLog", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var debugTouchLog = false
-    @AppStorage("deferBottomEdge", store: UserDefaults(suiteName: "group.com.viettelex"))
-    private var deferBottomEdge = true
-    @AppStorage("debugNoBalloon", store: UserDefaults(suiteName: "group.com.viettelex"))
-    private var noBalloon = false
     @State private var showLog = false
     @State private var logText = ""
     @State private var clearLog = false
@@ -787,12 +783,6 @@ struct DebugSection: View {
                           "Ghi thời điểm chạm, độ trễ, phím nào VÀ CẢ KÝ TỰ BẠN GÕ vào log trong app (chỉ nằm trên máy này, tự xoá được). Đừng gõ mật khẩu khi đang bật. Cần \"Cho phép Toàn quyền\" cho bàn phím. Tắt + Xoá log khi xong.",
                           isOn: $debugTouchLog)
             if debugTouchLog {
-                settingToggle("Hoãn cử chỉ hệ thống ở mép dưới",
-                              "Thử nghiệm A/B cho lỗi rớt phím: gõ nhanh với BẬT rồi TẮT, so log. Ẩn bàn phím rồi mở lại sau khi đổi.",
-                              isOn: $deferBottomEdge)
-                settingToggle("Tắt balloon phóng to phím",
-                              "Thử nghiệm A/B cho lỗi rớt phím. Ẩn bàn phím rồi mở lại sau khi đổi.",
-                              isOn: $noBalloon)
                 settingToggle("Hiện log (tự copy vào clipboard)",
                               "Bật để xem log bên dưới và copy toàn bộ — tắt rồi bật lại để tải log mới.",
                               isOn: $showLog)

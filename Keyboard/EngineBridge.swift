@@ -29,8 +29,8 @@ struct KeyboardSettings {
     var learnWords = true      // đi theo showSuggestions (không còn toggle riêng)
     var filterSensitive = true
     var hapticFeedback = false // rung phím — chỉ hoạt động khi có Full Access
-    /// Thử nghiệm (25/09/2026): gợi ý sửa lỗi chạm trượt phím kề (AdjacentKeyFixer).
-    var autoFixAdjacent = false
+    /// Gợi ý sửa lỗi chạm trượt phím kề (AdjacentKeyFixer) — mặc định BẬT (25/09/2026).
+    var autoFixAdjacent = true
     /// Quyết định theo ngữ cảnh (như macOS, mặc định BẬT): sau một từ tiếng Anh, từ
     /// mơ hồ kế tiếp giữ tiếng Anh ("he is" → he is, không phải "he í").
     var contextualEnglish = true

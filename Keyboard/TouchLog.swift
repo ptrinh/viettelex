@@ -111,8 +111,8 @@ enum TouchLog {
 
     /// Session header: settings that change touch behaviour, so a pasted log is
     /// self-describing (A/B of the bottom-edge deferral).
-    static func session(deferBottomEdge: Bool, fullAccess: Bool) {
+    static func session(fullAccess: Bool) {
         guard enabled else { return }
-        write("=== keyboard appear — deferBottomEdge=\(deferBottomEdge ? 1 : 0) fullAccess=\(fullAccess ? 1 : 0)")
+        write("=== keyboard appear — fullAccess=\(fullAccess ? 1 : 0)")
     }
 }

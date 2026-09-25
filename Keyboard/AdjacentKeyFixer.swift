@@ -1,4 +1,5 @@
-// AdjacentKeyFixer — gợi ý sửa lỗi CHẠM TRƯỢT sang phím kề (feature flag, 25/09/2026).
+// AdjacentKeyFixer — gợi ý sửa lỗi CHẠM TRƯỢT sang phím kề (25/09/2026; mặc định BẬT,
+// tắt ở app → Kiểu Gõ).
 //
 // Gõ nhanh trên iPhone hay trượt sang phím bên cạnh: "nbjeeuf" (nhiều: h→b, i→j),
 // "ohims" (phím: p→o), "nayd" (này: f→d), "cahcs" (cách: đảo 2 phím). Khi từ đang gõ

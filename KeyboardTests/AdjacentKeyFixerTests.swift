@@ -12,6 +12,10 @@ final class AdjacentKeyFixerTests: XCTestCase {
                                     hasCompletion: { !VNSuggest.matches($0, poolLimit: 1).isEmpty })
     }
 
+    func testOnByDefault() {                     // maintainer 25/09/2026
+        XCTAssertTrue(KeyboardSettings().autoFixAdjacent)
+    }
+
     func testNeighborsAreQwertyAdjacent() {
         let h = AdjacentKeyFixer.neighbors["h"] ?? []
         XCTAssertTrue(h.contains("g") && h.contains("j") && h.contains("b") && h.contains("y"))
