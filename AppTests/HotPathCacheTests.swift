@@ -183,6 +183,9 @@ final class ProbeChordGateTests: XCTestCase {
 
     func testChordHeldBlocksTheProbe() {
         XCTAssertFalse(SyntheticKeyboard.probeMayPost(secureInput: false, secureField: false, chordHeld: true))
+        // Little Snitch window up (25/09/2026): the probe would be flagged "Simulated Input Ignored".
+        XCTAssertFalse(SyntheticKeyboard.probeMayPost(secureInput: false, secureField: false, chordHeld: false,
+                                                      syntheticGuard: true))
     }
 
     func testSecureInputStillBlocksTheProbe() {

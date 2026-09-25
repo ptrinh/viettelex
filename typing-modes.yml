@@ -79,6 +79,8 @@ com.apple.Passwords: inPlace
 # lạ → tap backspace-retype → LS từ chối "Simulated Input Ignored" (bảo mật, cùng
 # lớp SecurityAgent). Cocoa thuần, in-place sạch.
 at.obdev.littlesnitch.agent: inPlace
+at.obdev.littlesnitch: inPlace
+at.obdev.littlesnitch.networkmonitor: inPlace
 com.apple.appkit.xpc.openAndSavePanelService: inPlace
 # Popover đổi tên file trên thanh tiêu đề (Preview/TextEdit/Pages…) — cũng là
 # remote view service của AppKit như save panel ở trên. Thiếu rule thì client id

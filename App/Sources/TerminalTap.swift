@@ -1307,8 +1307,8 @@ enum SyntheticKeyboard {
     /// miss-accounting so the two can never disagree (a probe "sent" by the watchdog
     /// but silently skipped here would read as a miss and tear down a healthy tap).
     static func probeMayPost(secureInput: Bool, secureField: Bool, chordHeld: Bool,
-                             spaceHeld: Bool = false) -> Bool {
-        !(secureInput || secureField || chordHeld || spaceHeld)
+                             spaceHeld: Bool = false, syntheticGuard: Bool = false) -> Bool {
+        !(secureInput || secureField || chordHeld || spaceHeld || syntheticGuard)
     }
 
     /// TRUE while the user physically holds SPACE. Adobe apps (After Effects,
@@ -1332,7 +1332,8 @@ enum SyntheticKeyboard {
         if !probeMayPost(secureInput: IsSecureEventInputEnabled(),
                          secureField: SecureFieldDetector.isSecure,
                          chordHeld: chordModifierHeld,
-                         spaceHeld: spacebarHeld) { return }
+                         spaceHeld: spacebarHeld,
+                         syntheticGuard: SyntheticInputGuard.isActive) { return }
         guard let down = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(probeKeycode), keyDown: true),
               let up = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(probeKeycode), keyDown: false)
         else { return }
@@ -1984,6 +1985,8 @@ final class TerminalTapController {
             // Without this a dead tap only healed on the next activateServer
             // (app switch) — typing in the SAME app stayed broken up to that point.
             self.ensureRunning()
+            // Little Snitch-class window up? Refresh BEFORE the probe decides to post.
+            SyntheticInputGuard.refresh()
 
             // FUNCTIONAL probe — the only signal that survives a LYING
             // AXIsProcessTrusted (grant REMOVED via −, field bug 2026-07-22):
@@ -2598,6 +2601,12 @@ final class TerminalTapController {
         // login forms, which do NOT switch secure input on): never compose, never emit —
         // pass the raw key through untouched. See SecureFieldDetector.
         if IsSecureEventInputEnabled() || SecureFieldDetector.isSecure {
+            engine.reset(); return pass
+        }
+        // An app that rejects synthetic input has a window up (Little Snitch alert):
+        // the key may land THERE, and every backspace-retype would be refused and
+        // flagged — pass raw instead (SyntheticInputGuard).
+        if SyntheticInputGuard.isActive {
             engine.reset(); return pass
         }
 
