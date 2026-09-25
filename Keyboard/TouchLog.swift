@@ -17,6 +17,14 @@ enum TouchLog {
     private static let log = OSLog(subsystem: "com.viettelex.ios.keyboard", category: "touch")
     nonisolated(unsafe) private static var seq = 0
 
+    /// Ghi KÝ TỰ vào log? Chỉ bản build DEBUG (máy dev). Bản App Store: KHÔNG — Privacy
+    /// Policy cam kết không lưu nội dung gõ, và reviewer soi kỹ bàn phím Full Access.
+    #if DEBUG
+    static let recordsCharacters = true
+    #else
+    static let recordsCharacters = false
+    #endif
+
     static func loadSetting() {
         enabled = UserDefaultsProvider.shared?.bool(forKey: "debugTouchLog") ?? false
     }
@@ -59,7 +67,7 @@ enum TouchLog {
         os_log("VTKB touch #%d BEGAN batch=%d active=%d lag=%.1fms %{public}@",
                log: log, type: .default, seq, batch, active, lagMs, where_)
         write(String(format: "#%d BEGAN batch=%d active=%d lag=%.1fms ", seq, batch, active, lagMs) + where_
-              + (key.map { " [\($0)]" } ?? ""))
+              + (recordsCharacters ? (key.map { " [\($0)]" } ?? "") : ""))
     }
 
     /// Button keys (space, return, dấu câu…) don't go through the letter router —
@@ -94,13 +102,14 @@ enum TouchLog {
         os_log("VTKB touch key=%{public}@ composing=%d handle=%.2fms", log: log, type: .default,
                kind, composing ? 1 : 0, lagMs)
         write(String(format: "key=%@ composing=%d handle=%.2fms", kind, composing ? 1 : 0, lagMs)
-              + (char.map { " [\($0)]" } ?? ""))
+              + (recordsCharacters ? (char.map { " [\($0)]" } ?? "") : ""))
     }
 
     static func edit(bs: Int, insertLen: Int, insert: String? = nil) {
         guard enabled else { return }
         os_log("VTKB touch edit bs=%d ins=%d", log: log, type: .default, bs, insertLen)
-        write("edit bs=\(bs) ins=\(insertLen)" + (insert.map { " [\($0)]" } ?? ""))
+        write("edit bs=\(bs) ins=\(insertLen)"
+              + (recordsCharacters ? (insert.map { " [\($0)]" } ?? "") : ""))
     }
 
     static func host(_ event: String, applyingEdit: Bool, composing: Bool) {
