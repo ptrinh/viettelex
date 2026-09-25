@@ -97,6 +97,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // nearest-key router chỉ có tác dụng SAU khi touch đã tới process này.
         // Alpha 0.01: đủ để render server coi là "có nội dung", mắt không thấy.
         backgroundColor = Self.touchableClear
+        rowsContainer.axis = .vertical
         rowsContainer.distribution = .fillEqually
         rowsContainer.spacing = 0
         rowsContainer.isMultipleTouchEnabled = true
