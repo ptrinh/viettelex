@@ -413,6 +413,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             }
         }
         layoutStripZones()   // sau super.layoutSubviews → frame slot bar đã đúng
+        logGeometryIfChanged()
         if pasteCard.superview != nil, !pasteCard.isHidden {   // xoay màn hình
             let w = Self.stripZoneWidth
             pasteCard.frame = CGRect(x: w, y: 0, width: max(bounds.width - 2 * w, 0),
@@ -620,6 +621,23 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         slotDividers[1].isHidden = !(vis1 && vis2)
         // Nút Dán kiểu iOS 27: MỘT ô rộng giữa bar, 2 dòng, thay cả 3 slot.
         setPasteCard(visible: set.paste, image: set.pasteIsImage, ink: ink)
+    }
+
+    // MARK: Debug — hình học cửa sổ (25/09/2026)
+    // Thanh gợi ý "bị cắt" ở Telegram / app VietTelex nhưng không ở WhatsApp/Notes: host
+    // có lúc KHÔNG vẽ dải khung phía trên cửa sổ extension. Ghi hình học mỗi khi đổi để
+    // tìm dấu hiệu phân biệt (chỉ khi Debug mode bật).
+    private var lastGeomKey = ""
+    private func logGeometryIfChanged() {
+        guard TouchLog.enabled, let w = window else { return }
+        let inWin = convert(bounds, to: w)
+        let key = "\(w.bounds) \(inWin) \(w.safeAreaInsets) \(safeAreaInsets) \(superview?.frame ?? .zero)"
+        guard key != lastGeomKey else { return }
+        lastGeomKey = key
+        TouchLog.write("geom window=\(NSCoder.string(for: w.bounds)) view=\(NSCoder.string(for: inWin)) "
+            + "winSafe=\(NSCoder.string(for: w.safeAreaInsets)) viewSafe=\(NSCoder.string(for: safeAreaInsets)) "
+            + "super=\(NSCoder.string(for: superview?.frame ?? .zero)) "
+            + "host=\(inputController?.parent.map { String(describing: type(of: $0)) } ?? "-")")
     }
 
     // MARK: Nút Dán (iOS 27 style, 25/09/2026)
