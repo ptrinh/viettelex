@@ -1,9 +1,7 @@
-# VietTelex iOS (private)
+# VietTelex iOS
 
-Bàn phím iOS VietTelex — tách khỏi repo open-source từ 24/07/2026, không còn
-open source. Engine Telex (`TelexCore`) vẫn dùng chung với repo public
-[ptrinh/viettelex](https://github.com/ptrinh/viettelex) qua local path:
-hai repo phải nằm cạnh nhau:
+Bàn phím iOS VietTelex, nằm trong repo [ptrinh/viettelex](https://github.com/ptrinh/viettelex).
+Engine Telex (`TelexCore`) dùng chung với app macOS qua local path `../TelexCore`:
 
 ```
 ~/ClaudeCode/VietTelex/       # repo public: macOS app + TelexCore + web + iOS + android
