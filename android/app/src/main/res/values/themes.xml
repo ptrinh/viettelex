@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nền = systemGroupedBackground để không nháy trắng/đen lúc mở app. -->
+    <style name="Theme.VietTelex" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/vt_grouped_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:colorAccent">#0552D6</item>
+    </style>
+</resources>

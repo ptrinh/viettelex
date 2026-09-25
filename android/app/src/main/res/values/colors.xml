@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Màu mép icon iOS (trung bình viền 1px của icon-1024) -->
+    <color name="ic_launcher_background">#182846</color>
+    <color name="vt_grouped_bg">#F2F2F7</color>
+</resources>
