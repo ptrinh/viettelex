@@ -86,7 +86,7 @@ fun KieuGoTab(ime: ImeStatus, onOpenImeSettings: () -> Unit, onPickIme: () -> Un
     VTSection(plain = true) { OnboardingCard(ime, onOpenImeSettings, onPickIme) }
     VTSection(
         header = "Thử gõ",
-        footer = "Chọn Tiếng Việt (VietTelex) — bấm 🌐 trên bàn phím hoặc biểu tượng ⌨ ở thanh điều hướng — rồi gõ thử: vieejt → việt.",
+        footer = "Chọn Tiếng Việt (VietTelex) — bấm biểu tượng bàn phím ở thanh điều hướng — rồi gõ thử: vieejt → việt.",
     ) {
         var text by rememberSaveable { mutableStateOf("") }
         // KHÔNG tắt autoCorrect: bàn phím coi ô "không gợi ý/không sửa" là passthrough (như iOS).
@@ -152,7 +152,7 @@ private fun OnboardingCard(ime: ImeStatus, onOpenImeSettings: () -> Unit, onPick
             }
             Step(2, "Chọn VietTelex làm bàn phím", ime.selected)
             if (ime.enabled) {
-                Note("Khi gõ, bấm 🌐 hoặc biểu tượng ⌨ ở thanh điều hướng để chuyển sang VietTelex", modifier = Modifier.padding(start = 30.dp))
+                Note("Khi gõ, bấm biểu tượng bàn phím ở thanh điều hướng để chuyển sang VietTelex", modifier = Modifier.padding(start = 30.dp))
             }
             Step(3, "Thử gõ ngay bên dưới", false)
         }

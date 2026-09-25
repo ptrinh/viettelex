@@ -233,12 +233,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         }
     }
 
-    private fun needsGlobe(): Boolean = if (Build.VERSION.SDK_INT >= 28) shouldOfferSwitchingToNextInputMethod()
-    else {
-        val token = window?.window?.attributes?.token
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        @Suppress("DEPRECATION") token != null && imm.shouldOfferSwitchingToNextInputMethod(token)
-    }
+    /** Không có phím 🌐 trên bàn phím (user chốt 26/09): đổi bàn phím bằng nút của thanh điều hướng hệ thống. */
+    private fun needsGlobe(): Boolean = false
 
     override fun onDismissKeyboard() = requestHideSelf(0)
 
