@@ -110,7 +110,7 @@
 		DBA09810793F0754E1A9C3F7 /* SpaceLogo@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "SpaceLogo@3x.png"; sourceTree = "<group>"; };
 		E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = "ios-mau-cau.yml"; sourceTree = "<group>"; };
 		E5AE58D76A8127D641A2AF62 /* EngineBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineBridgeTests.swift; sourceTree = "<group>"; };
-		F2C9781CE8B936C962B3EBA8 /* TelexCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TelexCore; path = ../VietTelex/TelexCore; sourceTree = SOURCE_ROOT; };
+		F2C9781CE8B936C962B3EBA8 /* TelexCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TelexCore; path = ../TelexCore; sourceTree = SOURCE_ROOT; };
 		F316CA910C58A9377DC754A0 /* UserLangModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserLangModel.swift; sourceTree = "<group>"; };
 		F9A392056B54E623933F9CD3 /* SuggestionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionSupport.swift; sourceTree = "<group>"; };
 		FE050ECA55A95B273F9E18A0 /* EmojiData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiData.swift; sourceTree = "<group>"; };
@@ -319,7 +319,7 @@
 			mainGroup = 157C51231B94A40CA803DFF2;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				1ECF7199D3CE88FC072CE008 /* XCLocalSwiftPackageReference "../VietTelex/TelexCore" */,
+				ADD4A281FFCC7708269AC2D3 /* XCLocalSwiftPackageReference "../TelexCore" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = ACA2EF74601F7B3D920485DD /* Products */;
@@ -717,9 +717,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		1ECF7199D3CE88FC072CE008 /* XCLocalSwiftPackageReference "../VietTelex/TelexCore" */ = {
+		ADD4A281FFCC7708269AC2D3 /* XCLocalSwiftPackageReference "../TelexCore" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../VietTelex/TelexCore;
+			relativePath = ../TelexCore;
 		};
 /* End XCLocalSwiftPackageReference section */
 

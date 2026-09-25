@@ -6,9 +6,9 @@ options:
   createIntermediateGroups: true
 packages:
   # Engine dùng chung với repo open-source VietTelex (đặt CẠNH repo này):
-  #   ~/ClaudeCode/VietTelex/TelexCore  ← sửa engine là cả macOS lẫn iOS thấy
+  #   ~/ClaudeCode/VietTelex/TelexCore (../TelexCore)  ← sửa engine là cả macOS lẫn iOS thấy
   TelexCore:
-    path: ../VietTelex/TelexCore
+    path: ../TelexCore
 settings:
   base:
     DEVELOPMENT_TEAM: 84T567KMYD
