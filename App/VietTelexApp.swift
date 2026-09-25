@@ -132,9 +132,11 @@ struct RootView: View {
                 .listRowBackground(Color.clear)
         }
         Section {
+            // KHÔNG .autocorrectionDisabled(): bàn phím coi ô autocorrection == .no là
+            // ô mã/username → passthrough (literal, tắt Telex) — ô thử gõ mất tác dụng
+            // (log Debug mode 25/09/2026: composing=0 mọi phím).
             TextField("Thử gõ tại đây…", text: $tryItText, axis: .vertical)
                 .lineLimit(1...4)
-                .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
         } header: { Text("Thử gõ") } footer: {
             Text("Bấm 🌐 dưới bàn phím để chuyển sang Tiếng Việt (VietTelex), rồi gõ thử: vieejt → việt.")
