@@ -52,24 +52,50 @@ enum AdjacentKeyFixer {
             guard w != current, let f = frequency(w) else { return }
             if best == nil || f > best!.freq { best = (w, f) }
         }
+        // Cắt tỉa theo TIỀN TỐ CHẾT: tiền tố raw[0...k] (bỏ dấu THANH — phím thanh
+        // gõ sau có thể đổi/xoá thanh, "cuxmj" → cụm) không còn là tiền tố của từ
+        // nào thì phím gõ thêm chỉ thu hẹp thêm → mọi chỗ sửa phải ≤ chỗ chết đầu tiên. Trước đây thử mù ~n²·25
+        // lần compose (5–11 ms/phím với từ tiếng Anh dài như "keyboard"); giờ phần
+        // lớn nhánh chết sau 1–2 phím. Đối chiếu brute-force trên 1500 biến thể
+        // chạm trượt: kết quả trùng 100% (25/09/2026).
+        var alive: [String: Bool] = [:]
+        func isAlive(_ p: ArraySlice<Character>) -> Bool {
+            let key = String(p)
+            if let v = alive[key] { return v }
+            let v = hasCompletion(stripTones(compose(key)))
+            alive[key] = v
+            return v
+        }
+        /// Chỉ số đầu tiên k ≥ from mà c[0...k] chết; c.count nếu sống hết.
+        func firstDead(_ c: [Character], from: Int) -> Int {
+            var k = from
+            while k < c.count, isAlive(c[...k]) { k += 1 }
+            return k
+        }
+        let dead0 = firstDead(lower, from: 0)
+        let editable = lower.indices.filter { $0 <= dead0 }
         // 1 sửa. Đảo 2 phím liền nhau XÉT TRƯỚC và thắng nếu có: nó giữ nguyên đúng
         // bộ phím đã bấm — bằng chứng mạnh hơn thay phím ("cahcs" → cách, không phải
         // "các" dù "các" phổ biến hơn).
-        for i in lower.indices.dropLast() where lower[i] != lower[i + 1] {
+        for i in editable where i + 1 < lower.count && lower[i] != lower[i + 1] {
             var c = lower; c.swapAt(i, i + 1); consider(c)
         }
         if best == nil {
-            for i in lower.indices {
+            for i in editable {
                 for n in neighbors[lower[i]] ?? [] { var c = lower; c[i] = n; consider(c) }
             }
         }
-        // 2 sửa (chỉ khi 1 sửa không ra, từ ngắn — ~n²·25 lần compose, vẫn < 1 ms).
+        // 2 sửa (chỉ khi 1 sửa không ra): i ≤ chỗ chết của raw gốc, j ≤ chỗ chết
+        // sau khi đã sửa i.
         if best == nil, lower.count <= 8 {
-            for i in lower.indices {
-                for j in lower.indices where j > i {
-                    for a in neighbors[lower[i]] ?? [] {
+            for i in editable {
+                for a in neighbors[lower[i]] ?? [] {
+                    var ci = lower; ci[i] = a
+                    let deadI = firstDead(ci, from: i)
+                    guard deadI > i else { continue }        // sửa i vẫn chết ngay tại i
+                    for j in lower.indices where j > i && j <= deadI {
                         for b in neighbors[lower[j]] ?? [] {
-                            var c = lower; c[i] = a; c[j] = b; consider(c)
+                            var c = ci; c[j] = b; consider(c)
                         }
                     }
                 }
@@ -80,5 +106,51 @@ enum AdjacentKeyFixer {
             w = f.uppercased() + w.dropFirst()
         }
         return w
+    }
+
+    /// Bỏ 5 dấu thanh, giữ dấu chữ (ư, â, đ…): "cũm" → "cum". VNSuggest coi thanh
+    /// trống là tương thích mọi thanh.
+    static func stripTones(_ s: String) -> String {
+        let tones: Set<UInt32> = [0x300, 0x301, 0x303, 0x309, 0x323]
+        var out = String.UnicodeScalarView()
+        for u in s.decomposedStringWithCanonicalMapping.unicodeScalars where !tones.contains(u.value) {
+            out.append(u)
+        }
+        return String(out).precomposedStringWithCanonicalMapping
+    }
+
+    /// Bộ nhớ đệm theo PHÍM THÔ (raw) của từ — cùng raw thì cùng kết quả (setting
+    /// cố định theo EngineBridge; bridge mới = cache mới). Gõ ⌫ rồi gõ lại, hay
+    /// refresh bar (textDidChange, bật/tắt bar) không tính lại. Thread-safe: bàn
+    /// phím gọi từ hàng đợi gợi ý nền.
+    final class Cache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var map: [String: String?] = [:]
+        private let capacity: Int
+        init(capacity: Int = 256) { self.capacity = capacity }
+
+        func value(for raw: String, compute: () -> String?) -> String? {
+            lock.lock()
+            if let hit = map[raw] { lock.unlock(); return hit }
+            lock.unlock()
+            let v = compute()
+            lock.lock()
+            if map.count >= capacity { map.removeAll(keepingCapacity: true) }
+            map[raw] = .some(v)
+            lock.unlock()
+            return v
+        }
+        var count: Int { lock.lock(); defer { lock.unlock() }; return map.count }
+    }
+
+    /// Bản sửa cho từ đang gõ theo đúng setting của `bridge`, qua cache của bridge.
+    /// An toàn gọi ngoài main: chỉ dùng composeTrial (engine scratch riêng) + lexicon tĩnh.
+    static func lexiconCorrection(raw: String, bridge: EngineBridge) -> String? {
+        bridge.adjacentFixCache.value(for: raw) {
+            correction(raw: raw,
+                       compose: { bridge.composeTrial($0) },
+                       frequency: { VNSuggest.frequency(of: $0) },
+                       hasCompletion: { !VNSuggest.matches($0, poolLimit: 1).isEmpty })
+        }
     }
 }
