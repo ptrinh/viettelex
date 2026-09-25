@@ -25,7 +25,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     /// Strip gợi ý khi mở. 36 → 30 (25/09/2026, so ảnh stock: vùng bar stock ≈53pt,
     /// VietTelex ≈59pt — bàn phím cao hơn stock chủ yếu ở đây).
-    static let openStrip: CGFloat = 30
+    static let openStrip: CGFloat = 34
+    /// Đệm trên của bar (user 25/09/2026): host có app KHÔNG vẽ dải khung phía trên
+    /// cửa sổ bàn phím (Telegram, app VietTelex) → bar dính mép. Không có tín hiệu nào
+    /// để phát hiện (log hình học y hệt WhatsApp) → đệm cố định 4pt mọi nơi.
+    static let barTopPad: CGFloat = 4
     private enum ShiftState { case off, on, caps }
 
     var enableInputClicksWhenVisible: Bool { true }
@@ -148,7 +152,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         NSLayoutConstraint.activate([
             suggestionBar.leftAnchor.constraint(equalTo: leftAnchor, constant: Self.stripZoneWidth),
             suggestionBar.rightAnchor.constraint(equalTo: rightAnchor, constant: -Self.stripZoneWidth),
-            suggestionBar.topAnchor.constraint(equalTo: topAnchor),
+            suggestionBar.topAnchor.constraint(equalTo: topAnchor, constant: Self.barTopPad),
             suggestionBar.heightAnchor.constraint(equalToConstant: 20),
         ])
         rebuild()
@@ -308,9 +312,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         chevronZone.imageView?.transform = .identity   // bar mở = chevron xuôi
         // Icon canh giữa trong vùng 20pt TRÊN CÙNG (tâm y≈10) để khớp chữ gợi ý,
         // thay vì canh giữa cả strip 36 (tâm y≈18 → icon thấp hơn chữ, user 2026-07-25).
-        let bottomInset = max(strip - 20, 0)
-        burgerZone.contentEdgeInsets = UIEdgeInsets(top: 0, left: 0, bottom: bottomInset, right: 0)
-        chevronZone.contentEdgeInsets = UIEdgeInsets(top: 0, left: 0, bottom: bottomInset, right: 0)
+        let bottomInset = max(strip - 20 - Self.barTopPad, 0)
+        burgerZone.contentEdgeInsets = UIEdgeInsets(top: Self.barTopPad, left: 0, bottom: bottomInset, right: 0)
+        chevronZone.contentEdgeInsets = UIEdgeInsets(top: Self.barTopPad, left: 0, bottom: bottomInset, right: 0)
         bringSubviewToFront(burgerZone)
         bringSubviewToFront(chevronZone)
     }
@@ -416,8 +420,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         logGeometryIfChanged()
         if pasteCard.superview != nil, !pasteCard.isHidden {   // xoay màn hình
             let w = Self.stripZoneWidth
-            pasteCard.frame = CGRect(x: w, y: 0, width: max(bounds.width - 2 * w, 0),
-                                     height: Self.openStrip)
+            pasteCard.frame = CGRect(x: w, y: Self.barTopPad, width: max(bounds.width - 2 * w, 0),
+                                     height: Self.openStrip - Self.barTopPad)
         }
     }
 
@@ -448,7 +452,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         guard slotButtons.isEmpty else { return }
         // Bar 20pt trong strip openStrip → nút nở hit-area xuống ĐÚNG phần còn lại
         // của strip (30−20 = 10pt), không lấn hàng phím Q–P bên dưới.
-        let barHit = UIEdgeInsets(top: -8, left: -3, bottom: -(Self.openStrip - 20), right: -3)
+        let barHit = UIEdgeInsets(top: -8, left: -3,
+                                  bottom: -(Self.openStrip - 20 - Self.barTopPad), right: -3)
         func makeSlot() -> KeyButton {
             let b = KeyButton(type: .custom)
             b.backgroundColor = .clear
@@ -691,8 +696,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                                                  : "Dán nội dung vừa copy"
             if pasteCard.superview == nil { addSubview(pasteCard) }
             let w = Self.stripZoneWidth
-            pasteCard.frame = CGRect(x: w, y: 0, width: max(bounds.width - 2 * w, 0),
-                                     height: Self.openStrip)
+            pasteCard.frame = CGRect(x: w, y: Self.barTopPad, width: max(bounds.width - 2 * w, 0),
+                                     height: Self.openStrip - Self.barTopPad)
             (pasteCard.viewWithTag(91) as? UILabel)?.textColor = ink
             (pasteCard.viewWithTag(92) as? UILabel)?.textColor = ink.withAlphaComponent(0.55)
             (pasteCard.viewWithTag(93) as? UIImageView)?.tintColor = ink.withAlphaComponent(0.8)
