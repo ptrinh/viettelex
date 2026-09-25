@@ -159,6 +159,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             settings.templatesEnabled, templates,
             th.dp(KeyLayout.keyAreaDp(th.tablet, th.landscape, settings.rowHeightAdjust)))
         st.setPlane(kb.plane)
+        root?.refreshInsets()
         root?.requestLayout()
 
         session.invalidatePasteCache()
@@ -169,6 +170,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     override fun onWindowShown() {
         super.onWindowShown()
+        root?.refreshInsets()           // Android 15+: chừa dải cho nút ⌄/🌐 của hệ thống
         keyboard?.showLanguageBadge()   // "ViệtTelex" thoáng trên space như stock
         keyboard?.setNeedsGlobe(needsGlobe())
         if (BuildConfig.DEBUG) logMemory()

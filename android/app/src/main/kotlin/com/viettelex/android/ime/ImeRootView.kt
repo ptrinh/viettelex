@@ -37,7 +37,7 @@ class ImeRootView(
         val w = MeasureSpec.getSize(widthMeasureSpec)
         val keyH = keyboard.keyAreaPx.roundToInt()
         val s = stripPx()
-        val h = s + keyH + navInset
+        val h = ImeInsets.totalHeight(s, keyH, navInset)
         keyboard.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(keyH, MeasureSpec.EXACTLY))
         strip.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
             MeasureSpec.makeMeasureSpec(strip.viewHeightPx(), MeasureSpec.EXACTLY))
@@ -55,12 +55,54 @@ class ImeRootView(
         balloon.layout(0, 0, w, s + keyH)
     }
 
-    @Suppress("DEPRECATION")
+    private var insetsKnown = false
+
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
-        val bottom = if (Build.VERSION.SDK_INT >= 30) {
-            insets.getInsets(WindowInsets.Type.navigationBars()).bottom
-        } else insets.systemWindowInsetBottom
-        if (bottom != navInset) { navInset = bottom; requestLayout() }
+        applyInsets(insets)
         return insets
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        refreshInsets()
+    }
+
+    /**
+     * Đọc insets CHƯA bị nuốt của cửa sổ IME (khung IMS có thể consume trước khi tới
+     * view này) — gọi mỗi lần bàn phím hiện.
+     */
+    fun refreshInsets() {
+        val ri = rootView?.rootWindowInsets
+        if (ri != null) applyInsets(ri) else update(0, 0)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun applyInsets(insets: WindowInsets) {
+        val nav: Int
+        val tap: Int
+        if (Build.VERSION.SDK_INT >= 30) {
+            nav = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+            tap = insets.getInsets(WindowInsets.Type.tappableElement()).bottom
+        } else {
+            nav = insets.systemWindowInsetBottom
+            tap = if (Build.VERSION.SDK_INT >= 29) insets.tappableElementInsets.bottom else 0
+        }
+        insetsKnown = true
+        update(nav, tap)
+    }
+
+    private fun update(nav: Int, tap: Int) {
+        val pad = ImeInsets.bottomPad(Build.VERSION.SDK_INT, nav, tap, systemNavBarHeight(), insetsKnown)
+        if (pad != navInset) { navInset = pad; requestLayout() }
+    }
+
+    @android.annotation.SuppressLint("DiscouragedApi", "InternalInsetResource")
+    private fun systemNavBarHeight(): Int {
+        val r = resources
+        for (name in arrayOf("navigation_bar_frame_height", "navigation_bar_height")) {
+            val id = r.getIdentifier(name, "dimen", "android")
+            if (id != 0) { val v = r.getDimensionPixelSize(id); if (v > 0) return v }
+        }
+        return 0
     }
 }
