@@ -1014,6 +1014,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             ])
         }
         space.addAction(UIAction { _ in Self.clickModifier() }, for: .touchDown)
+        space.addTarget(self, action: #selector(spaceTouchDown(_:event:)), for: .touchDown)
         // Chốt qua KeyCommitQueue: arm lúc chạm, chốt lúc nhấc / bị huỷ / khi ngón
         // khác chạm xuống trước (gõ chồng ngón). touchUpOutside CŨNG chốt: ngón trượt
         // khỏi mép lúc nhấc là chuyện thường. Trackpad (spaceHold) disarm.
@@ -1429,6 +1430,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             repeatTimer = nil
         default: break
         }
+    }
+
+    @objc private func spaceTouchDown(_ sender: UIControl, event: UIEvent) {
+        TouchLog.buttonDown("space", touchTimestamp: event.allTouches?.first(where: { $0.view === sender })?.timestamp)
     }
 
     /// Space-hold = trackpad mode: sliding left/right moves the caret,

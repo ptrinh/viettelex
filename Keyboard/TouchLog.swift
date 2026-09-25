@@ -57,6 +57,15 @@ enum TouchLog {
         write(String(format: "#%d BEGAN batch=%d active=%d lag=%.1fms ", seq, batch, active, lagMs) + where_)
     }
 
+    /// Button keys (space, return, dấu câu…) don't go through the letter router —
+    /// log their touch-down lag too: the bottom row sits on the system-gesture edge.
+    static func buttonDown(_ name: String, touchTimestamp: TimeInterval?) {
+        guard enabled else { return }
+        let lag = touchTimestamp.map { String(format: "%.1fms", (CACurrentMediaTime() - $0) * 1000) } ?? "?"
+        os_log("VTKB touch %{public}@ DOWN lag=%{public}@", log: log, type: .default, name, lag)
+        write("\(name) DOWN lag=\(lag)")
+    }
+
     static func touchEnded(cancelled: Bool, routed: Bool) {
         guard enabled else { return }
         os_log("VTKB touch %{public}@ routed=%d", log: log, type: .default,
