@@ -1855,9 +1855,12 @@ final class TelexInputController: IMKInputController {
         // hai dòng "VietTelex" + "VietTelex 1.6.x" thừa). Version vẫn ở Cài đặt →
         // Giới thiệu và dòng đầu của snapshot debug (bấm "Chế độ gõ").
         let menu = NSMenu(title: "VietTelex")
-        // macOS appends a standard "Edit Text Substitutions…" item to input-method
-        // menus. Strip it (and any trailing separator) each time the menu opens.
-        menu.delegate = self
+        // NO delegate / no stripping of the system "Edit Text Substitutions…" item any
+        // more: macOS 27's TextInputMenuAgent builds its item views from the menu
+        // BEFORE our delegate edits it, so removing items mid-open left the views off
+        // by one — our section rendered as a "··········" placeholder while the
+        // stripped item showed (log: "didChangeIndent: rep returned item view with
+        // wrong item", 21/09/2026). A visible system item is the lesser evil.
 
         // Status first — nhưng CHỈ khi có chuyện (maintainer 15/08/2026): "Tình
         // trạng: OK" thường trực là nhiễu, ẨN đi khi mọi thứ ổn. Tính năng ẩn
@@ -2427,23 +2430,6 @@ final class TelexInputController: IMKInputController {
 
 }
 
-extension TelexInputController: NSMenuDelegate {
-    // Remove the system-appended "Edit Text Substitutions…" item (+ dangling
-    // separator). Try both hooks: menuNeedsUpdate (early) and menuWillOpen (right
-    // before display, after the system has appended its items).
-    func menuNeedsUpdate(_ menu: NSMenu) { stripSystemItems(menu) }
-    func menuWillOpen(_ menu: NSMenu) { stripSystemItems(menu) }
-
-    private func stripSystemItems(_ menu: NSMenu) {
-        let subs = Selector(("orderFrontSubstitutionsPanel:"))
-        for item in menu.items where item.action == subs || item.title.localizedCaseInsensitiveContains("substitution") {
-            menu.removeItem(item)
-        }
-        while let last = menu.items.last, last.isSeparatorItem {
-            menu.removeItem(last)
-        }
-    }
-}
 
 @inline(__always)
 func isAsciiDigit(_ c: UInt8) -> Bool {
