@@ -2,6 +2,7 @@
 // TelexEngine diff-edits. UI is programmatic UIKit, laid out to Apple's stock
 // metrics (fidelity pass = M2). No Full Access, no network, no timers at idle.
 import UIKit
+import os.log
 import TelexCore
 
 final class KeyboardViewController: UIInputViewController {
@@ -230,9 +231,19 @@ final class KeyboardViewController: UIInputViewController {
         }
         suggestionGen += 1
         let gen = suggestionGen
-        DispatchQueue.main.async { [weak self] in
+        // Auto-shift TỨC THÌ (ảnh hưởng chữ hoa của phím kế tiếp — không debounce
+        // được, kẻo gõ nhanh sau ". " không kịp viết hoa).
+        if needsAutoShift {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, gen == self.suggestionGen else { return }
+                self.updateAutoShift()
+            }
+        }
+        // Gợi ý DEBOUNCE ~30ms: gõ liền tay (burst) thì các lượt cũ bị gen làm
+        // vô hiệu, VNSuggest/scoring/relayout chỉ chạy MỘT lần khi ngừng — giữ
+        // main thread rảnh để nhận touch, chống rớt phím lúc gõ nhanh (2026-07-26).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
             guard let self, gen == self.suggestionGen else { return }
-            if needsAutoShift { self.updateAutoShift() }
             self.updateSuggestions()
         }
     }
@@ -266,7 +277,41 @@ final class KeyboardViewController: UIInputViewController {
         if let mb = Self.memoryFootprintMB() {
             NSLog("VTKB mem: %.1f MB", mb)   // Console filter "VTKB mem"
         }
+        #if DEBUG
+        dumpGeometry("didAppear")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.dumpGeometry("didAppear+1.5s")
+        }
+        #endif
     }
+
+    #if DEBUG
+    /// Dò hình học iOS 27 (dải kính host phủ đỉnh bàn phím). Đọc bằng:
+    /// xcrun simctl spawn <udid> log show --last 5m \
+    ///   --predicate 'subsystem == "com.viettelex.ios.keyboard.geom"' --style compact
+    private func dumpGeometry(_ tag: String) {
+        let log = OSLog(subsystem: "com.viettelex.ios.keyboard.geom", category: "geom")
+        let w = view.window
+        let inWindow = w.map { view.convert(view.bounds, to: $0) } ?? .zero
+        os_log("[%{public}@] view.bounds=%{public}@ inWindow=%{public}@ window.bounds=%{public}@",
+               log: log, type: .default, tag,
+               NSCoder.string(for: view.bounds), NSCoder.string(for: inWindow),
+               NSCoder.string(for: w?.bounds ?? .zero))
+        os_log("[%{public}@] safeArea=%{public}@ additional=%{public}@ kbFrame=%{public}@ kbSafe=%{public}@",
+               log: log, type: .default, tag,
+               NSCoder.string(for: view.safeAreaInsets), NSCoder.string(for: additionalSafeAreaInsets),
+               NSCoder.string(for: keyboard?.frame ?? .zero),
+               NSCoder.string(for: keyboard?.safeAreaInsets ?? .zero))
+        var chain: [String] = []
+        var v: UIView? = view
+        while let cur = v {
+            chain.append("\(type(of: cur))\(NSCoder.string(for: cur.frame)) sa=\(NSCoder.string(for: cur.safeAreaInsets))")
+            v = cur.superview
+        }
+        os_log("[%{public}@] chain: %{public}@", log: log, type: .default, tag,
+               chain.joined(separator: " > "))
+    }
+    #endif
 
     /// RAM thực của extension (phys_footprint — đúng con số jetsam so với
     /// limit ~60-70MB của keyboard extension).

@@ -288,6 +288,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         chevronZone.tintColor = ink.withAlphaComponent(0.45)
         chevronZone.accessibilityLabel = "Thu gọn thanh gợi ý"
         chevronZone.imageView?.transform = .identity   // bar mở = chevron xuôi
+        // Icon canh giữa trong vùng 20pt TRÊN CÙNG (tâm y≈10) để khớp chữ gợi ý,
+        // thay vì canh giữa cả strip 36 (tâm y≈18 → icon thấp hơn chữ, user 2026-07-25).
+        let bottomInset = max(strip - 20, 0)
+        burgerZone.contentEdgeInsets = UIEdgeInsets(top: 0, left: 0, bottom: bottomInset, right: 0)
+        chevronZone.contentEdgeInsets = UIEdgeInsets(top: 0, left: 0, bottom: bottomInset, right: 0)
         bringSubviewToFront(burgerZone)
         bringSubviewToFront(chevronZone)
     }
@@ -884,10 +889,19 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         rowsContainer.addArrangedSubview(row(r1.map(letterButton)))
         // Apple indents row 2 by half a key on iPhone.
         rowsContainer.addArrangedSubview(row(r2.map(letterButton), sideInset: 0.5))
-        var third: [UIView] = [shiftButton()]
-        third += r3.map(letterButton)
-        third.append(backspaceButton())
+        let shiftBtn = shiftButton()
+        let r3btns = r3.map(letterButton)     // z x c v b n m
+        let backBtn = backspaceButton()
+        var third: [UIView] = [shiftBtn]
+        third += r3btns
+        third.append(backBtn)
         rowsContainer.addArrangedSubview(row(third))
+        // Lưới 10 cột như stock: shift + backspace = 1.5 phím chữ → 1.5+7+1.5=10,
+        // Z thẳng dưới A/S và M thẳng dưới K (user 2026-07-25).
+        if let z = r3btns.first {
+            shiftBtn.widthAnchor.constraint(equalTo: z.widthAnchor, multiplier: 1.5).isActive = true
+            backBtn.widthAnchor.constraint(equalTo: z.widthAnchor, multiplier: 1.5).isActive = true
+        }
         rowsContainer.addArrangedSubview(bottomRow(planeKey: "123"))
     }
 
@@ -1012,6 +1026,12 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }, for: [.touchUpInside, .touchUpOutside])
         let spacePan = UILongPressGestureRecognizer(target: self, action: #selector(spaceHold(_:)))
         spacePan.minimumPressDuration = 0.4
+        // KHÔNG delay/cancel touch của phím khác: recognizer mặc định trì hoãn
+        // touchesEnded ~0.15s và cancel touch khi nhận diện — nguồn rớt/khựng
+        // phím kề khi gõ nhanh. Chỉ theo dõi touch bắt đầu TRÊN space.
+        spacePan.delaysTouchesBegan = false
+        spacePan.delaysTouchesEnded = false
+        spacePan.cancelsTouchesInView = false
         space.addGestureRecognizer(spacePan)
         space.setContentHuggingPriority(.defaultLow, for: .horizontal)
         views.append(space)
@@ -1055,8 +1075,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             ret.pressedBackground = UIColor.systemBlue.withAlphaComponent(0.7)
             ret.setTitleColor(.white, for: .normal)
             ret.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
-            // "go" (Safari search/address): stock hiện MŨI TÊN → trắng, không chữ.
-            if returnTitle == "go" {
+            // "go"/"search" (Safari, Gmail…): stock hiện MŨI TÊN → trắng, không chữ.
+            if returnTitle == "go" || returnTitle == "search" {
                 ret.setTitle("", for: .normal)
                 ret.setImage(UIImage(systemName: "arrow.right",
                     withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)), for: .normal)
@@ -1146,7 +1166,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         b.isMultipleTouchEnabled = true
         b.isSpecial = special
         b.setTitle(title, for: .normal)
-        b.titleLabel?.font = .systemFont(ofSize: special ? 16 : 25)
+        b.titleLabel?.font = .systemFont(ofSize: special ? 16 : 23)
         b.layer.cornerRadius = 5
         b.setTitleColor(dark ? .white : .black, for: .normal)
         b.backgroundColor = special ? specialFill : plainFill
@@ -1353,6 +1373,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // press & hold repeats (starts after 0.5s, ~11 Hz — Apple cadence)
         let long = UILongPressGestureRecognizer(target: self, action: #selector(backspaceHold(_:)))
         long.minimumPressDuration = 0.5
+        long.delaysTouchesBegan = false
+        long.delaysTouchesEnded = false
+        long.cancelsTouchesInView = false
         b.addGestureRecognizer(long)
         b.widthAnchor.constraint(greaterThanOrEqualToConstant: 42).isActive = true
         return b
@@ -1460,9 +1483,21 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // touch trực tiếp như cũ.
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         let v = super.hitTest(point, with: event)
+        // Phím chữ ưu tiên trong FOOTPRINT thật của nó, kể cả khi hit-area nở của
+        // shift/backspace kề bên "cướp" điểm chạm — nếu không, chạm mép z/m thành
+        // toggle shift / xoá thay vì ra chữ (nguồn rớt phím ở hàng 3, 2026-07-26).
+        if plane == .letters, letterCoreContains(point) { return self }
         if v is UIControl { return v }
         if v != nil, nearestLetterButton(at: point) != nil { return self }
         return v
+    }
+
+    private func letterCoreContains(_ point: CGPoint) -> Bool {
+        guard point.y >= rowsContainer.frame.minY else { return false }
+        for (b, _) in letterKeys where convert(b.bounds, from: b).contains(point) {
+            return true
+        }
+        return false
     }
 
     private func nearestLetterButton(at point: CGPoint) -> UIButton? {
