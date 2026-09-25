@@ -108,6 +108,14 @@ final class KeyboardViewController: UIInputViewController {
         suggestionsActive = settings.showSuggestions && traitsAllow
         keyboard.setSuggestionsEnabled(suggestionsActive)
         keyboard.onSuggestion = { [weak self] item in self?.acceptSuggestion(item) }
+        keyboard.onPasteText = { [weak self] s in
+            guard let self else { return }
+            self.textDocumentProxy.insertText(s)
+            self.pasteUsedChange = UIPasteboard.general.changeCount
+            self.pasteCached = false
+            self.bridge.reset(); self.lastWord = nil; self.lastWord2 = nil
+            self.updateSuggestions()
+        }
         updateAutoShift()
         updateSuggestions()            // field trống → gợi mở đầu ngay khi hiện
         keyboard.showLanguageBadge()   // "ViệtTelex" thoáng trên spacebar như stock

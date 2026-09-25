@@ -3,6 +3,7 @@
 // globe/space/return. Metrics follow Apple's stock layout; the pixel-perfect
 // fidelity pass (balloons, exact colors per appearance, iPad) is M2.
 import UIKit
+import UniformTypeIdentifiers
 
 final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
@@ -43,6 +44,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     /// M2 suggestion bar: gate qua toggle showSuggestions trong app.
     var onSuggestion: ((String) -> Void)?
+    /// Chữ nhận từ UIPasteControl (nút Dán hệ thống — KHÔNG hỏi "Allow Paste").
+    var onPasteText: ((String) -> Void)?
     private var heightConstraint: NSLayoutConstraint?
     private let suggestionBar = UIStackView()
     private var suggestionsEnabled = false
@@ -685,6 +688,51 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return b
     }()
 
+    // UIPasteControl (iOS 16+): chạm nút hệ thống = user tự dán → iOS KHÔNG hiện
+    // "Allow Paste?" như khi code đọc UIPasteboard.string (user 25/09/2026: hỏi mỗi
+    // lần, phiền). Control gọi paste(itemProviders:) trên target = KeyboardView.
+    private lazy var pasteControl: UIPasteControl = {
+        let cfg = UIPasteControl.Configuration()
+        cfg.displayMode = .iconAndLabel
+        cfg.cornerStyle = .capsule
+        let pc = UIPasteControl(configuration: cfg)
+        pc.target = self
+        pc.translatesAutoresizingMaskIntoConstraints = false
+        return pc
+    }()
+
+    override func paste(itemProviders: [NSItemProvider]) {
+        guard let p = itemProviders.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else { return }
+        _ = p.loadObject(ofClass: NSString.self) { [weak self] obj, _ in
+            guard let s = obj as? String, !s.isEmpty else { return }
+            DispatchQueue.main.async { self?.onPasteText?(s) }
+        }
+    }
+
+    private func installPasteControlIfNeeded(in card: UIView) {
+        guard pasteControl.superview == nil else { return }
+        pasteConfiguration = UIPasteConfiguration(acceptableTypeIdentifiers: [
+            UTType.plainText.identifier, UTType.utf8PlainText.identifier, UTType.text.identifier])
+        let sub = UILabel()
+        sub.text = "Nội dung vừa copy"
+        sub.font = .systemFont(ofSize: 11, weight: .regular)
+        sub.tag = 95
+        let row = UIStackView(arrangedSubviews: [pasteControl, sub])
+        row.axis = .horizontal; row.alignment = .center; row.spacing = 8
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.tag = 96
+        card.addSubview(row)
+        NSLayoutConstraint.activate([
+            row.centerXAnchor.constraint(equalTo: card.centerXAnchor),
+            row.centerYAnchor.constraint(equalTo: card.centerYAnchor, constant: -1),
+            pasteControl.heightAnchor.constraint(equalToConstant: 24),
+        ])
+        // Nhãn tự vẽ cũ (tag 91–93) nhường chỗ cho nút hệ thống.
+        // label 91 nằm trong stack chữ ⊂ row cũ → ẩn cả row cũ (KHÔNG đi lên từ icon 93:
+        // cha của nó đã là row, ông là chính thẻ).
+        card.viewWithTag(91)?.superview?.superview?.isHidden = true
+    }
+
     /// Đang gõ dở: ẩn thẻ Dán NGAY ở phím (không đợi kết quả gợi ý chạy nền).
     func hidePasteCard() {
         guard !pasteCard.isHidden else { return }
@@ -704,6 +752,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             pasteCard.accessibilityLabel = image ? "Ảnh vừa copy — giữ ô nhập rồi chọn Dán"
                                                  : "Dán nội dung vừa copy"
             if pasteCard.superview == nil { addSubview(pasteCard) }
+            if !image {
+                installPasteControlIfNeeded(in: pasteCard)
+                pasteCard.payload = nil       // chạm ngoài nút hệ thống = không làm gì
+                (pasteCard.viewWithTag(95) as? UILabel)?.textColor = ink.withAlphaComponent(0.55)
+            }
             let w = Self.stripZoneWidth
             pasteCard.frame = CGRect(x: w, y: Self.barTopPad, width: max(bounds.width - 2 * w, 0),
                                      height: Self.openStrip - Self.barTopPad)
