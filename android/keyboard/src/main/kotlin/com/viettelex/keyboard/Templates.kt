@@ -70,6 +70,18 @@ object Templates {
         return current + TemplateItem(l, t)
     }
 
+    /** Mẫu động: fetch lúc chạm. */
+    fun isDynamic(text: String) = text.startsWith("https://")
+    const val FETCH_TIMEOUT_MS = 4000
+    const val FETCH_MAX_BYTES = 1000
+
+    /** Body chèn cho mẫu động: ≤1000 byte, trim; null/rỗng ⇒ caller chèn chính URL. */
+    fun bodyFromResponse(bytes: ByteArray?): String? {
+        if (bytes == null) return null
+        val s = String(bytes, 0, minOf(bytes.size, FETCH_MAX_BYTES), Charsets.UTF_8).trim()
+        return s.ifEmpty { null }
+    }
+
     /**
      * Nhập mẫu câu KHÔNG cần mạng (file qua SAF hoặc chữ chia sẻ ACTION_SEND): nội dung có
      * dòng YAML (`- "label | câu"` / `- "câu"`) ⇒ [parseYAML]; không có dòng nào ⇒ cả đoạn

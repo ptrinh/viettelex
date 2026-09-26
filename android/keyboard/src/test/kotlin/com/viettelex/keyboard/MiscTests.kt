@@ -13,9 +13,8 @@ class TemplatesTests {
     @Test fun testParseDefaultsFile() {
         val items = Templates.parseYAML(KeyboardData.text(Keys.ASSET_TEMPLATES_YAML))
         assertEquals(TemplateItem("👋", "Chào buổi sáng"), items.first())
-        assertEquals(TemplateItem("🥰", "Yêu bạn nhiều"), items.last())
-        // App không có quyền INTERNET ⇒ bộ mặc định không được chứa mẫu URL (mẫu động cũ).
-        assertTrue(items.none { it.text.contains("://") })
+        assertEquals(TemplateItem("IP❓", "https://api.ipify.org"), items.last())
+        assertTrue(Templates.isDynamic(items.last().text))
     }
 
     @Test fun testParseFormats() {
@@ -50,6 +49,12 @@ class TemplatesTests {
         assertEquals(TemplateItem("👋", "b"), Templates.add(cur, " 👋 ", " b\n")!!.last())
     }
 
+    @Test fun testDynamicBody() {
+        assertEquals("1.2.3.4", Templates.bodyFromResponse("  1.2.3.4\n".toByteArray()))
+        assertNull(Templates.bodyFromResponse("   ".toByteArray()))
+        assertEquals(1000, Templates.bodyFromResponse(ByteArray(3000) { 'a'.code.toByte() })!!.length)
+    }
+
     @Test fun testParseImportYamlFile() {
         // File YAML (SAF) — giữ nguyên định dạng, kể cả BOM + CRLF từ Windows.
         val y = "\uFEFF# mẫu\r\n- \"👋 | Chào\"\r\n- \"Cảm ơn\"\r\n"
@@ -63,7 +68,7 @@ class TemplatesTests {
         // Chữ chia sẻ (ACTION_SEND) không phải YAML ⇒ cả đoạn là một mẫu, giữ xuống dòng.
         assertEquals(listOf(TemplateItem("", "Số TK: 0123\nNgân hàng ABC")),
             Templates.parseImport("  Số TK: 0123\r\nNgân hàng ABC \n"))
-        // Chia sẻ URL cũng chỉ là chữ — không fetch.
+        // Chia sẻ URL thành mẫu chứa URL (bấm mới fetch nếu là https://).
         assertEquals(listOf(TemplateItem("", "https://example.com")), Templates.parseImport("https://example.com"))
         assertEquals(emptyList<TemplateItem>(), Templates.parseImport("  \n "))
         assertEquals(emptyList<TemplateItem>(), Templates.parseImport(null))

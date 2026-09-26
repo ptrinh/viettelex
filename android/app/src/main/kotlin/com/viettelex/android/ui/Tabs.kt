@@ -338,6 +338,12 @@ fun MauCauTab() {
         }
     }
 
+    VTSection(
+        header = "Mẫu câu động (https://)",
+        footer = "Mẫu có nội dung bắt đầu bằng https:// sẽ fetch dữ liệu NGAY LÚC BẤM và chèn kết quả (tối đa 1000 bytes) — ví dụ IP❓ chèn địa chỉ IP hiện tại. Không có mạng thì bấm sẽ chèn chính URL.",
+        plain = true,
+    ) {}
+
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         val text = runCatching { ctx.contentResolver.openInputStream(uri)?.use { it.bufferedReader().readText() } }.getOrNull()
@@ -408,7 +414,7 @@ fun GioiThieuTab() {
         VTRow { Text("Không thu thập dữ liệu · Không theo dõi · Mã nguồn mở", style = VTType.footnote, color = c.secondary) }
         RowDivider()
         VTRow {
-            Text("Android hiện cảnh báo \"có thể thu thập mọi văn bản bạn nhập\" khi bật bất kỳ bàn phím bên thứ ba nào. VietTelex chạy hoàn toàn trên máy và không có quyền truy cập Internet — không thể gửi gì đi.",
+            Text("Android hiện cảnh báo \"có thể thu thập mọi văn bản bạn nhập\" khi bật bất kỳ bàn phím bên thứ ba nào. VietTelex chạy hoàn toàn trên máy, không gửi gì đi — quyền mạng chỉ dùng cho Mẫu câu động (https://) do bạn tạo.",
                 style = VTType.footnote, color = c.secondary)
         }
     }

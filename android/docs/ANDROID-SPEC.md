@@ -330,8 +330,8 @@ Footer các section: "Cài đặt áp dụng ngay lần mở bàn phím kế ti�
   text cắt "…"; bubble ⚙️ cuối cùng mở app tab Mẫu Câu (`viettelex://maucau`).
 - Hàng đáy: `[ABC] [🗑 xoá sạch ô] [space] [,] [return]` — hàng đáy cao đúng 1 hàng phím.
 - Chạm chip ⇒ về plane chữ, xoá từ đang soạn, chèn nguyên văn, reset engine, không học.
-- **Không có mẫu động** (khác iOS): app Android không có quyền `INTERNET`, mẫu bắt đầu
-  `https://` chỉ chèn nguyên văn URL (§12).
+- Mẫu bắt đầu `https://` = **mẫu động**: fetch lúc chạm (timeout 4 s), chèn body đã trim
+  (≤ 1000 byte); lỗi ⇒ chèn chính URL. Android cần quyền `INTERNET` (§12).
 - 🗑: xoá toàn bộ nội dung ô (dời con trỏ về cuối rồi xoá lùi, có giới hạn an toàn
   20 000 ký tự).
 
@@ -365,14 +365,11 @@ Tab: **Kiểu Gõ** (⌨) · **Tính Năng** · **Mẫu Câu** (chỉ khi `templ
 
 ### 11.3 Mẫu Câu
 Danh sách (label | text, vuốt để xoá), "Thêm mới" (ô label 44 dp + ô câu + nút ＋, chặn
-trùng), **Import…** / **Export ra YAML…** (SAF
+trùng), section "Mẫu câu động (https://)", **Import…** / **Export ra YAML…** (SAF
 `OpenDocument`/`CreateDocument`, tên `viettelex-mau-cau.yaml`), thông báo
 "Đã thêm x/y mẫu (trùng bị bỏ qua)." Định dạng YAML phẳng giống hệt
 (`- "label | câu"` hoặc `- "câu"`, `\"` escape). Mặc định = `ios-mau-cau.yml` (dùng chung
-file, copy vào assets lúc build — bản Android bỏ dòng mẫu động `IP❓`).
-Nhập không cần mạng: Import (YAML; file không có dòng YAML ⇒ cả nội dung là 1 mẫu) và
-**chia sẻ chữ** từ app khác (`ACTION_SEND text/plain` ⇒ MainActivity ⇒ gộp vào tab Mẫu
-Câu), cùng hàm thuần `Templates.parseImport`.
+file, copy vào assets lúc build).
 
 ### 11.4 Giới Thiệu
 - **Gỡ lỗi**: "Debug mode — ghi log chạm phím" + khi bật: "Hiện log (tự copy vào
@@ -391,7 +388,7 @@ Câu), cùng hàm thuần `Templates.parseImport`.
 | iOS | Android | Ghi chú |
 |---|---|---|
 | Keyboard extension + app chứa, App Group | 1 APK, IME service + Activity, 1 SharedPreferences | Hết cảnh "không Full Access thì không ghi được App Group" |
-| Full Access (rung, mẫu động, dán, log) | Không có khái niệm. Rung: không cần quyền. Mạng: **không có quyền `INTERNET`** (manifest khai `tools:node="remove"` để dependency không tự thêm) ⇒ không có mẫu động. Clipboard: IME đang focus đọc được | Bỏ `FullAccessNotice`, `kbFullAccess`, `kbLastSeen`, `pasteNoPrompt` |
+| Full Access (rung, mẫu động, dán, log) | Không có khái niệm. Rung: không cần quyền. Mạng: `INTERNET` trong manifest (chỉ dùng cho mẫu động do user tạo). Clipboard: IME đang focus đọc được | Bỏ `FullAccessNotice`, `kbFullAccess`, `kbLastSeen`, `pasteNoPrompt` |
 | Prompt "Allow Paste" | Android 12+ hiện toast hệ thống "VietTelex đã dán từ bộ nhớ đệm" | chấp nhận |
 | `textDocumentProxy` insert/delete | `InputConnection` + batch edit, `deleteSurroundingTextInCodePoints` | §4 |
 | `textWillChange/DidChange` | `onUpdateSelection` + expected cursor | §4.1 |

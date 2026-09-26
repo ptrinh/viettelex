@@ -2,9 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- KHÔNG có quyền mạng — cam kết riêng tư. Chặn luôn nếu dependency tự thêm vào merged manifest. -->
-    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+    <!-- Chỉ dùng cho Mẫu câu động (https://) do người dùng tạo — fetch lúc chạm. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"

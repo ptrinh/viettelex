@@ -29,10 +29,8 @@ cd android && ./gradlew :app:bundleRelease
 **Short description (en, ≤80)**: `Fast, private Vietnamese Telex keyboard with smart suggestions.`
 
 **Full description**: dùng bản iOS ở `iOS/APP_STORE_SUBMISSION.md` §11, thay 2 dòng về "Toàn quyền Truy cập" bằng:
-- vi: `• Không có quyền Internet — chỉ xin quyền rung phím.`
-- en: `• No Internet permission — the only permission is key haptics.`
-
-(Nháp câu chữ nhấn mạnh riêng tư: `android/store/DRAFT-privacy-copy.md`.)
+- vi: `• Không cần quyền đặc biệt: chỉ rung phím và mẫu câu động (URL do bạn tạo).`
+- en: `• No special permissions: only key haptics and user-created dynamic snippets.`
 
 Thêm dòng hướng dẫn: `Bật: Cài đặt → Hệ thống → Bàn phím → Bàn phím trên màn hình → bật VietTelex.`
 
