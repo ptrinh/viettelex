@@ -159,11 +159,41 @@ export async function createEngine(options = {}) {
 
 const COMPOSING = /^[A-Za-z]$/;
 
+/** Chữ Việt có dấu (dựng sẵn) — một bộ gõ khác trên máy mới sinh ra được trong keydown/input. */
+const VN_DIACRITIC = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i;
+
+/**
+ * Có dấu hiệu một bộ gõ tiếng Việt / IME khác của hệ điều hành đang xử lý phím không?
+ * Trả lý do (string) hoặc null. Thuần — không đụng DOM, test được trên Node.
+ *  - 'composition': IME có marked text (macOS Telex/VietTelex, Windows TSF, iOS/Android):
+ *    keydown isComposing / keyCode 229 / key "Process".
+ *  - 'injected': UniKey/EVKey/OpenKey kiểu backspace-rồi-gửi-ký-tự: keydown mang thẳng
+ *    chữ có dấu (VK_PACKET / CGEvent unicode) mà người dùng không thể gõ bằng 1 phím Latin.
+ */
+export function detectForeignIme(ev) {
+  if (ev.isComposing || ev.keyCode === 229 || ev.key === 'Process') return 'composition';
+  if (typeof ev.key === 'string' && ev.key.length === 1 && VN_DIACRITIC.test(ev.key)) return 'injected';
+  return null;
+}
+
+/** input event chèn chữ có dấu mà KHÔNG phải do SDK chèn ⇒ bộ gõ khác đang gõ. */
+export function isForeignVietnameseInput(inputType, data) {
+  return (inputType === 'insertText' || inputType === 'insertReplacementText'
+    || inputType === 'insertCompositionText') && typeof data === 'string' && VN_DIACRITIC.test(data);
+}
+
+const FOREIGN_KEY = 'viettelex.foreignIme';
+
 /**
  * Make an <input>, <textarea> or contenteditable element type Vietnamese.
  * Returns a `detach()` function. `options.enabled` (default true) can be toggled
  * later with `handle.setEnabled(bool)`; `options.toggleKey` (default 'ctrl+space' — pass
  * null to disable) switches Vietnamese/English.
+ *
+ * Nhường bộ gõ của máy (mặc định `yieldToSystemIme: true`): khi phát hiện một bộ gõ tiếng
+ * Việt / IME khác đang gõ (xem detectForeignIme), SDK tự tắt cho ô này, gọi
+ * `options.onForeignIme(reason)` và nhớ trong localStorage để lần sau khởi động ở trạng
+ * thái tắt. Người dùng bật lại bằng Ctrl+Space (từ đó không tự nhường nữa trong phiên).
  */
 export async function attach(el, options = {}) {
   const engine = await createEngine(options);
@@ -172,6 +202,20 @@ export async function attach(el, options = {}) {
   const isField = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
   let expectedCaret = -1;       // caret we left after our own edit
   let composingIME = false;
+  const yieldToSystem = options.yieldToSystemIme ?? true;
+  let manualOverride = false;   // user bật lại bằng tay → thôi tự nhường
+  let ownEdit = false;          // input event do chính SDK phát
+  const store = (() => { try { return el.ownerDocument.defaultView.localStorage; } catch { return null; } })();
+  if (yieldToSystem && options.enabled === undefined) {
+    try { if (store?.getItem(FOREIGN_KEY) === '1') enabled = false; } catch {}
+  }
+  function yieldTo(reason) {
+    if (!yieldToSystem || manualOverride || !enabled) return;
+    enabled = false; engine.reset(); expectedCaret = -1;
+    try { store?.setItem(FOREIGN_KEY, '1'); } catch {}
+    options.onForeignIme?.(reason);
+    options.onToggle?.(false);
+  }
 
   const literalField = () => {
     if (!isField) return false;
@@ -189,23 +233,30 @@ export async function attach(el, options = {}) {
     if (isField) {
       const end = el.selectionEnd, start = Math.max(0, end - backspaces);
       el.setRangeText(text, start, end, 'end');
-      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+      ownEdit = true;
+      try { el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text })); }
+      finally { ownEdit = false; }
       expectedCaret = el.selectionEnd;
       return;
     }
     const sel = el.ownerDocument.getSelection();
     for (let i = 0; i < backspaces; i++) sel.modify('extend', 'backward', 'character');
     // execCommand keeps the browser's undo stack and fires input events.
-    if (text) el.ownerDocument.execCommand('insertText', false, text);
-    else if (backspaces) el.ownerDocument.execCommand('delete');
+    ownEdit = true;
+    try {
+      if (text) el.ownerDocument.execCommand('insertText', false, text);
+      else if (backspaces) el.ownerDocument.execCommand('delete');
+    } finally { ownEdit = false; }
     expectedCaret = caret();
   }
 
   function onKeyDown(ev) {
     if (toggleKey && ev.key === ' ' && ev.ctrlKey && toggleKey === 'ctrl+space') {
-      ev.preventDefault(); handle.setEnabled(!enabled); return;
+      ev.preventDefault(); manualOverride = true; handle.setEnabled(!enabled); return;
     }
     if (!enabled || composingIME || literalField()) return;
+    const foreign = detectForeignIme(ev);
+    if (foreign) { yieldTo(foreign); return; }   // để phím cho bộ gõ của máy, không đụng
     if (ev.metaKey || ev.ctrlKey || ev.altKey) { engine.reset(); return; }
     if (caret() < 0) { engine.reset(); return; }
     if (expectedCaret >= 0 && caret() !== expectedCaret) engine.reset();
@@ -245,7 +296,10 @@ export async function attach(el, options = {}) {
 
   const onReset = () => { engine.reset(); expectedCaret = -1; };
   const onBlur = () => { engine.resetContext(); expectedCaret = -1; };
-  const onCompStart = () => { composingIME = true; engine.reset(); };
+  const onCompStart = () => { composingIME = true; engine.reset(); yieldTo('composition'); };
+  const onInput = (ev) => {
+    if (!ownEdit && enabled && isForeignVietnameseInput(ev.inputType, ev.data)) yieldTo('injected');
+  };
   const onCompEnd = () => { composingIME = false; };
 
   el.addEventListener('keydown', onKeyDown);
@@ -253,6 +307,7 @@ export async function attach(el, options = {}) {
   el.addEventListener('blur', onBlur);
   el.addEventListener('compositionstart', onCompStart);
   el.addEventListener('compositionend', onCompEnd);
+  el.addEventListener('input', onInput);
 
   const handle = () => {
     el.removeEventListener('keydown', onKeyDown);
@@ -260,13 +315,18 @@ export async function attach(el, options = {}) {
     el.removeEventListener('blur', onBlur);
     el.removeEventListener('compositionstart', onCompStart);
     el.removeEventListener('compositionend', onCompEnd);
+    el.removeEventListener('input', onInput);
     engine.destroy();
   };
   handle.engine = engine;
-  handle.setEnabled = (on) => { enabled = !!on; engine.reset(); options.onToggle?.(enabled); };
+  handle.setEnabled = (on) => {
+    enabled = !!on; engine.reset();
+    if (enabled) { manualOverride = true; try { store?.removeItem(FOREIGN_KEY); } catch {} }
+    options.onToggle?.(enabled);
+  };
   handle.isEnabled = () => enabled;
   handle.setOptions = (o) => engine.setOptions(o);
   return handle;
 }
 
-export default { createEngine, attach, loadModule, Flags, DEFAULT_OPTIONS, VietTelexEngine };
+export default { createEngine, attach, loadModule, Flags, DEFAULT_OPTIONS, VietTelexEngine, detectForeignIme, isForeignVietnameseInput };

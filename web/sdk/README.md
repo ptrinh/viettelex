@@ -19,6 +19,15 @@ không tải thêm gì), không mạng, không lưu dữ liệu.
 `attach(el, options)` hỗ trợ `<input>`, `<textarea>` và `contenteditable`. `Ctrl+Space` chuyển
 Việt/Anh (`toggleKey: null` để tắt). Ô `password`, `email`, `number`, `tel` luôn gõ thường.
 
+### Máy đã có bộ gõ tiếng Việt (UniKey, EVKey, OpenKey, bộ gõ của macOS/Windows, bàn phím điện thoại)
+
+Mặc định `yieldToSystemIme: true`: SDK **tự nhường** ngay khi thấy dấu hiệu bộ gõ khác đang gõ —
+IME có chữ gạch chân (sự kiện composition, keyCode 229) hoặc kiểu UniKey xoá-rồi-gửi chữ có dấu
+(keydown/input mang thẳng `â`, `ệ`, `đ`…). Khi đó SDK tắt cho ô đó, gọi `onForeignIme(reason)`
+và nhớ trong `localStorage` (`viettelex.foreignIme`) để lần sau mở trang đã tắt sẵn. Người dùng
+bật lại bằng `Ctrl+Space` — từ đó SDK không tự nhường nữa. Hạn chế: bộ gõ kiểu UniKey chỉ bị
+phát hiện ở phím đầu tiên nó sinh chữ có dấu, nên từ đầu tiên có thể đã do SDK xử lý.
+
 ## Dùng engine trực tiếp (editor riêng, canvas, game…)
 
 ```js
@@ -73,3 +82,12 @@ port of TelexCore compiled to WebAssembly and matches the VietTelex apps on the 
 field (Ctrl+Space toggles Vietnamese/English). For custom editors use `createEngine()` and apply
 each `{ kind, backspaces, insert }` action yourself. Options and defaults are listed in the table above.
 MIT licensed.
+
+### When the device already has a Vietnamese input method
+
+By default (`yieldToSystemIme: true`) the SDK steps aside as soon as another input method is
+detected — an IME with marked text (composition events / keyCode 229) or a UniKey-style
+backspace-and-send IME (keydown/input carrying precomposed `â`, `ệ`, `đ`…). It then disables
+itself for that field, calls `onForeignIme(reason)` and remembers it in `localStorage`
+(`viettelex.foreignIme`). Ctrl+Space turns it back on and stops auto-yielding for the session.
+`detectForeignIme(ev)` and `isForeignVietnameseInput(type, data)` are exported for custom editors.

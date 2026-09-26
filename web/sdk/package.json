@@ -10,7 +10,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "./scripts/build.sh",
-    "test": "node test/golden.test.mjs"
+    "test": "node test/foreign-ime.test.mjs && node test/golden.test.mjs"
   },
   "keywords": ["vietnamese", "telex", "vni", "input method", "ime", "wasm"],
   "license": "MIT",
