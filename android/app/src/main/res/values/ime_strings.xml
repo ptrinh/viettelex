@@ -6,6 +6,7 @@
     <string name="ime_paste_title" translatable="false">Dán</string>
     <string name="ime_paste_sub" translatable="false">Nội dung vừa copy</string>
     <string name="ime_paste_desc" translatable="false">Dán nội dung vừa copy</string>
+    <string name="ime_restore" translatable="false">Khôi phục</string>
     <string name="ime_templates" translatable="false">Mẫu câu</string>
     <string name="ime_templates_close" translatable="false">Đóng mẫu câu</string>
     <string name="ime_collapse" translatable="false">Thu gọn thanh gợi ý</string>

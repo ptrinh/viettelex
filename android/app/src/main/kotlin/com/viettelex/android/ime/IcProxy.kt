@@ -265,6 +265,61 @@ class IcProxy(
         shadow.invalidate()
     }
 
+    // MARK: vuốt ⌫ xoá theo từ (điều phối ở SwipeDeleteController)
+
+    /** Ảnh chụp lúc bắt đầu vuốt: [anchor] ≥ 0 ⇒ biết chắc con trỏ, được bôi đen bằng setSelection. */
+    class SwipeContext(val before: String, val anchor: Int)
+
+    /** null ⇒ tắt tính năng (mật khẩu, TYPE_NULL, không đọc được chữ trước con trỏ). */
+    fun swipeContext(): SwipeContext? {
+        if (secure || rawKeys) return null
+        conn() ?: return null
+        val before = contextBeforeInput() ?: return null
+        val cur = tracker.cursor
+        val canSelect = writeMode == WriteMode.COMMIT && tracker.reliable && !tracker.hasSelection &&
+            cur >= before.length
+        return SwipeContext(before, if (canSelect) cur else -1)
+    }
+
+    /** Bôi đen [units] UTF-16 trước [anchor] (0 ⇒ thu về con trỏ tại [anchor]). */
+    fun selectBefore(anchor: Int, units: Int): Boolean {
+        val c = conn() ?: return false
+        val ok = c.setSelection(anchor - units, anchor)
+        shadow.invalidate()                   // selection đổi "trước con trỏ"; đọc lại khi cần
+        if (!ok) { tracker.unknown(); return false }
+        if (units == 0) tracker.movedTo(anchor) else tracker.selectedByMe(anchor - units, anchor)
+        return true
+    }
+
+    /** Xoá đoạn đang bôi đen (commitText("")); con trỏ về [start]. */
+    fun deleteSelected(start: Int): Boolean {
+        val c = conn() ?: return false
+        if (!c.commitText("")) { fail("commitText(\"\") swipe"); return false }
+        tracker.movedTo(start)
+        shadow.invalidate()
+        return true
+    }
+
+    /**
+     * Xoá đúng [text] ngay trước con trỏ khi KHÔNG bôi đen được. COMMIT: fail-safe
+     * [confirmTail] rồi deleteSurroundingText theo UTF-16; key event: một DEL mỗi grapheme.
+     */
+    fun deleteExact(text: String): Boolean {
+        if (text.isEmpty()) return false
+        val c = conn() ?: return false
+        if (rawKeys || writeMode != WriteMode.COMMIT) {
+            repeat(WordBoundary.graphemeCount(text)) { c.sendKey(EditorPort.PortKey.DEL) }
+            keyDelQueued = true
+            tracker.unknown(); shadow.invalidate()
+            return true
+        }
+        if (!confirmTail(text)) return false
+        if (!c.deleteBefore(text.length)) { fail("deleteSurroundingText swipe"); return false }
+        tracker.deleted(text.length)
+        shadow.deleted(text.length)
+        return true
+    }
+
     companion object {
         /** Độ dài văn bản trước con trỏ đọc/giữ (đủ cho auto-shift, email, xoá theo từ). */
         const val CONTEXT_CAP = 256

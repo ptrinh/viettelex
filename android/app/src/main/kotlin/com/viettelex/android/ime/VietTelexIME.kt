@@ -62,6 +62,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     private val tracker = SelectionTracker()
     private var portCache: AndroidEditorPort? = null
     private val proxy by lazy { IcProxy({ port() }, tracker) }
+    private val swipe by lazy { SwipeDeleteController(proxy) }
+    /** Đoạn vừa vuốt ⌫ xoá — ô "Khôi phục" một lượt; phím khác bất kỳ gỡ. */
+    private var swipeUndo: String? = null
 
     /** Wrapper cache theo InputConnection hiện hành (không cấp phát mỗi phím). */
     private fun port(): EditorPort? {
@@ -161,6 +164,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             (info.inputType and InputType.TYPE_MASK_VARIATION) == InputType.TYPE_TEXT_VARIATION_URI
         startTracking(info)
         handler.removeCallbacks(autoShiftRun); handler.removeCallbacks(suggestRun)
+        clearSwipeUndo()
 
         session.startInput(settings, FieldTraits(
             isSecure = field.isSecure, passthrough = field.passthrough,
@@ -216,6 +220,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         super.onFinishInputView(finishingInput)
         handler.removeCallbacks(autoShiftRun); handler.removeCallbacks(suggestRun)
         keyboard?.onHidden()
+        clearSwipeUndo()
         strip?.onHidden()
         root?.balloon?.hide()
         session.finishInput()
@@ -237,6 +242,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         // Đổi từ NGOÀI (chạm chỗ khác, select-all, app tự sửa): quên từ + ngữ cảnh.
         proxy.invalidateShadow()
         session.externalSelectionChange()
+        clearSwipeUndo()
         applyAutoShift()
         refreshBar()
     }
@@ -244,6 +250,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     // MARK: phím
 
     override fun onKey(key: Key) {
+        clearSwipeUndo()
         if (!proxy.begin()) return
         val out = try { session.handle(key, proxy) } finally { proxy.end() }
         if (key is Key.MoveCursor) proxy.moveCursor(key.delta)
@@ -256,11 +263,55 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     }
 
     override fun onDeleteWord() {
+        clearSwipeUndo()
         if (!proxy.begin()) return
         try { session.deleteWordBackward(proxy) } finally { proxy.end() }
         resetIfEditFailed()
         applyAutoShift()
         refreshBar()
+    }
+
+    // MARK: vuốt ⌫ xoá theo từ
+
+    override fun onSwipeDeleteStart(): Boolean {
+        clearSwipeUndo()
+        if (!swipe.start()) return false
+        // Từ đang soạn là "từ thứ nhất" trên màn hình (ranh giới tính từ chữ thật): quên nó trong engine.
+        handler.removeCallbacks(suggestRun)
+        session.externalSelectionChange()
+        return true
+    }
+
+    override fun onSwipeDeleteUpdate(words: Int): Int {
+        val n = swipe.update(words)
+        if (!swipe.selecting) strip?.showSwipePreview(swipe.preview)
+        return n
+    }
+
+    override fun onSwipeDeleteEnd(commit: Boolean) {
+        strip?.showSwipePreview(null)
+        val deleted = if (proxy.begin()) try { swipe.finish(commit) } finally { proxy.end() } else { swipe.finish(false); null }
+        resetIfEditFailed()
+        swipeUndo = deleted
+        strip?.showRestore(deleted != null)
+        applyAutoShift()
+        refreshBar()
+    }
+
+    override fun onRestoreDeleted() {
+        val text = swipeUndo ?: return
+        clearSwipeUndo()
+        if (!proxy.begin()) return
+        try { session.externalSelectionChange(); proxy.insertText(text) } finally { proxy.end() }
+        resetIfEditFailed()
+        applyAutoShift()
+        refreshBar()
+    }
+
+    private fun clearSwipeUndo() {
+        if (swipeUndo == null) return
+        swipeUndo = null
+        strip?.showRestore(false)
     }
 
     /** commitText/deleteSurroundingText trả false: màn hình không còn chắc khớp engine ⇒ quên từ. */
@@ -351,6 +402,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     // MARK: strip
 
     override fun onSuggestion(item: String) {
+        clearSwipeUndo()
         if (!proxy.begin()) return
         try { session.acceptSuggestion(item, proxy) } finally { proxy.end() }
         resetIfEditFailed()

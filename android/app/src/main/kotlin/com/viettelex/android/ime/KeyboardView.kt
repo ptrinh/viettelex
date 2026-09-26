@@ -39,6 +39,12 @@ class KeyboardView(
         fun onKey(key: Key)
         /** Giữ ⌫ > 3 s — xoá theo từ. */
         fun onDeleteWord()
+        /** Vuốt trái trên ⌫ vừa vượt ngưỡng; false ⇒ không hỗ trợ ở ô này (bỏ lượt vuốt). */
+        fun onSwipeDeleteStart(): Boolean
+        /** Số từ muốn chọn theo quãng kéo; trả số từ thực chọn. */
+        fun onSwipeDeleteUpdate(words: Int): Int
+        /** Nhấc tay ([commit]) hoặc huỷ (ACTION_CANCEL / bàn phím ẩn). */
+        fun onSwipeDeleteEnd(commit: Boolean)
         fun onGlobe(longPress: Boolean)
         fun onDismissKeyboard()
         fun onTemplate(item: TemplateItem)
@@ -123,6 +129,10 @@ class KeyboardView(
     private var bsHoldStart = 0L
     private var bsTick = 0
     private var bsRepeating = false
+    /** Vuốt ⌫: 0 chưa, 1 đang vuốt, -1 ô không hỗ trợ (lượt này). */
+    private var bsSwipe = 0
+    private var bsSwipeAsked = 0
+    private var bsSwipeWords = 0
     private var globePtr = -1
     private var globeFired = false
     private val slop = theme.dp(10f)   // allowableMovement của UILongPressGestureRecognizer
@@ -338,10 +348,15 @@ class KeyboardView(
                 val id = when (shift) { Shift.CAPS -> ImeIcons.CAPS; Shift.ON -> ImeIcons.SHIFT_FILL; Shift.OFF -> ImeIcons.SHIFT }
                 icon(c, id, cx, cy, 22f, theme.ink, contentAlpha)
             }
-            KeyKind.BACKSPACE -> if (k.pressed && !trackpad) {
-                icon(c, ImeIcons.DELETE_FILL, cx, cy, 22f, theme.ink, contentAlpha)
-                icon(c, ImeIcons.DELETE_X, cx, cy, 22f, face, 255)
-            } else icon(c, ImeIcons.DELETE, cx, cy, 22f, theme.ink, contentAlpha)
+            KeyKind.BACKSPACE -> {
+                if (k.pressed && !trackpad) {
+                    icon(c, ImeIcons.DELETE_FILL, cx, cy, 22f, theme.ink, contentAlpha)
+                    icon(c, ImeIcons.DELETE_X, cx, cy, 22f, face, 255)
+                } else icon(c, ImeIcons.DELETE, cx, cy, 22f, theme.ink, contentAlpha)
+                // Vuốt ⌫: số từ sẽ xoá ở góc trên-phải (xem trước khi không bôi đen được).
+                if (bsSwipe == 1 && bsSwipeWords > 0)
+                    drawLabel(c, "−$bsSwipeWords", k.right - hintInset - theme.dp(2f), k.top + hintInset, hintPaint, hintOff, contentAlpha)
+            }
             KeyKind.GLOBE -> icon(c, ImeIcons.GLOBE, cx, cy, 21f, theme.ink, contentAlpha)
             KeyKind.EMOJI -> {
                 icon(c, ImeIcons.FACE, cx, cy, 22f, theme.ink, contentAlpha)
@@ -479,6 +494,7 @@ class KeyboardView(
                 press(k)
                 listener?.onKey(Key.Backspace)
                 bsPtr = pid; bsRepeating = false
+                bsSwipe = 0; bsSwipeAsked = 0; bsSwipeWords = 0
                 removeCallbacks(bsStartRun); removeCallbacks(bsTickRun)
                 postDelayed(bsStartRun, BS_HOLD_MS)
             }
@@ -515,7 +531,7 @@ class KeyboardView(
                     }
                 } else if (movedFar) removeCallbacks(spaceHoldRun)
             }
-            k.kind == KeyKind.BACKSPACE && pid == bsPtr && !bsRepeating && movedFar -> removeCallbacks(bsStartRun)
+            k.kind == KeyKind.BACKSPACE && pid == bsPtr -> moveBackspace(k, x - ptrDownX[pid], y - ptrDownY[pid], movedFar)
         }
     }
 
@@ -545,6 +561,7 @@ class KeyboardView(
             KeyKind.BACKSPACE -> if (pid == bsPtr) {
                 removeCallbacks(bsStartRun); removeCallbacks(bsTickRun)
                 bsPtr = -1; bsRepeating = false
+                endSwipe(commit = !cancelled)
             }
             KeyKind.GLOBE -> if (pid == globePtr) {
                 removeCallbacks(globeLongRun); globePtr = -1
@@ -558,6 +575,38 @@ class KeyboardView(
             else -> if (!cancelled) controlAction(k)
         }
         if (k.pressed) { k.pressed = false; if (k.kind == KeyKind.SHIFT) invalidate() else invalidateKey(k) }
+    }
+
+    // MARK: vuốt ⌫ xoá theo từ (kiểu Gboard)
+
+    /** Bước kéo = bề rộng một phím chữ (plane số/ký hiệu: phím CHAR). */
+    private fun swipeStepPx(): Float =
+        maxOf(theme.dp(24f), keys.firstOrNull { it.kind == KeyKind.LETTER || it.kind == KeyKind.CHAR }?.width ?: theme.dp(32f))
+
+    private fun moveBackspace(k: LaidKey, dx: Float, dy: Float, movedFar: Boolean) {
+        if (bsRepeating) return                       // đang giữ-lặp: giữ nguyên hành vi cũ
+        if (movedFar) removeCallbacks(bsStartRun)
+        val step = swipeStepPx()
+        val act = SwipeDelete.activatePx(step, theme.dp(16f))
+        if (bsSwipe == 0 && SwipeDelete.activates(dx, dy, act)) {
+            bsSwipe = if (listener?.onSwipeDeleteStart() == true) 1 else -1
+        }
+        if (bsSwipe != 1) return
+        val want = SwipeDelete.words(-dx, act, step)
+        if (want == bsSwipeAsked) return
+        bsSwipeAsked = want
+        val got = listener?.onSwipeDeleteUpdate(want) ?: 0
+        if (got != bsSwipeWords) {
+            bsSwipeWords = got
+            feedback.tick(this)
+            invalidateKey(k)
+        }
+    }
+
+    private fun endSwipe(commit: Boolean) {
+        val was = bsSwipe
+        bsSwipe = 0; bsSwipeAsked = 0; bsSwipeWords = 0
+        if (was == 1) listener?.onSwipeDeleteEnd(commit)
     }
 
     private fun controlAction(k: LaidKey) {
@@ -580,6 +629,7 @@ class KeyboardView(
             ptrKey[i] = null; ptrPane[i] = false
         }
         commits.flush()
+        endSwipe(commit = false)
         removeCallbacks(spaceHoldRun); removeCallbacks(bsStartRun); removeCallbacks(bsTickRun)
         removeCallbacks(globeLongRun)
         spacePtr = -1; bsPtr = -1; globePtr = -1; bsRepeating = false
