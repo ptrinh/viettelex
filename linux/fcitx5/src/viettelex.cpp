@@ -91,6 +91,13 @@ public:
         out = text.substr(0, byte);
         return true;
     }
+    // fcitx5-unikey (src/unikey-im.cpp) guards the same way: an invalid surrounding text
+    // cannot rule a selection out.
+    bool hasSelection() override {
+        if (!ic_->capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText)) return false;
+        const auto &st = ic_->surroundingText();
+        return !st.isValid() || !st.selectedText().empty();
+    }
 
 private:
     fcitx::InputContext *ic_;
@@ -269,11 +276,13 @@ private:
     // Password fields, [app_modes] and surrounding capability can change per focus.
     void refreshFieldFlags(VietTelexState *st, FcitxClient &client) {
         auto caps = st->ic->capabilityFlags();
-        auto policy = vt::resolveAppPolicy(st->appId, settings(),
-                                           caps.test(fcitx::CapabilityFlag::SurroundingText));
+        // Proven = advertised AND the client actually sent a valid text for this field.
+        bool surrounding = caps.test(fcitx::CapabilityFlag::SurroundingText) && st->ic->surroundingText().isValid();
+        auto policy = vt::resolveAppPolicy(st->appId, settings(), surrounding);
         bool password = caps.test(fcitx::CapabilityFlag::Password);
         st->session.setPassthrough(password || policy.off, client);
         st->session.setDisplayMode(policy.mode, client);
+        st->session.setSurroundingEdits(policy.allowSurroundingEdits);
     }
 
     void applySettingsToAll() {

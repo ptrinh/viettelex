@@ -43,6 +43,7 @@ void popChars(std::string &s, int n) {
 struct Mock : InputContext {
     std::string doc, pre;
     bool surrounding = true;
+    bool selection = false;
     int deletes = 0, preeditUpdates = 0;
     void setPreedit(const std::string &s) override { pre = s; ++preeditUpdates; }
     void commit(const std::string &s) override { doc += s; }
@@ -52,6 +53,7 @@ struct Mock : InputContext {
         out = doc;
         return true;
     }
+    bool hasSelection() override { return selection; }
     std::string screen() const { return doc + pre; }
 };
 
@@ -361,6 +363,175 @@ void testHotkeyParse() {
     CHECK(!parseHotkey("Hyper+x", h));
 }
 
+// MARK: - Surrounding safety (terminals, generic app ids, selections)
+
+// Like a terminal / conhost behind IBus: advertises surrounding text but only ever reports
+// an empty one, and cannot delete before the caret (a delete request is simply dropped).
+struct TerminalStore : Mock {
+    bool textBeforeCursor(std::string &out) override { out.clear(); return true; }
+    void deleteBeforeCursor(int) override { ++deletes; }
+};
+
+// What a frontend does on focus: resolve the policy, push it into the Session.
+void applyPolicy(Session &s, InputContext &ic, const std::string &app, const Settings &st, bool proven) {
+    AppPolicy p = resolveAppPolicy(app, st, proven);
+    s.applySettings(st);
+    s.setPassthrough(p.off, ic);
+    s.setDisplayMode(p.mode, ic);
+    s.setSurroundingEdits(p.allowSurroundingEdits);
+}
+
+void testUnknownAppIdsArePreeditWithoutEdits() {
+    Settings s;
+    s.displayMode = DisplayMode::Surrounding;
+    for (const char *id : {"", "default", "gnome-shell", "GNOME-Shell", "QIBusInputContext", "xim", "XIM"}) {
+        CHECK(isUnknownAppId(id));
+        AppPolicy p = resolveAppPolicy(id, s, false);
+        CHECK(p.mode == DisplayMode::Preedit);
+        CHECK(!p.allowSurroundingEdits);
+    }
+    CHECK(!isUnknownAppId("gedit"));
+    // a "surrounding" pin on a generic id covers every app behind it: ignored
+    s.appModes["default"] = "surrounding";
+    CHECK(resolveAppPolicy("default", s, false).mode == DisplayMode::Preedit);
+    // gnome-shell (GNOME Wayland shared context) stays preedit even with text proven
+    AppPolicy gs = resolveAppPolicy("gnome-shell", s, true);
+    CHECK(gs.mode == DisplayMode::Preedit);
+    CHECK(!gs.allowSurroundingEdits);
+    // user picked Preedit: an unproven unknown app still may not read back text
+    s.displayMode = DisplayMode::Preedit;
+    CHECK(!resolveAppPolicy("default", s, false).allowSurroundingEdits);
+    // and the Session honours it: no re-edit, no ⌫ reopen, no delete
+    Session ss;
+    Mock m;
+    applyPolicy(ss, m, "default", s, false);
+    m.doc = "toan";
+    type(ss, m, ">s");
+    CHECK_EQ(m.screen(), std::string("toans"));
+    ss.finish(m);
+    m.doc.clear();
+    type(ss, m, "thays <a");
+    CHECK_EQ(m.screen(), std::string("tháya"));
+    CHECK_EQ(m.deletes, 0);
+}
+
+void testProvenUnknownAppAllowed() {
+    Settings s;
+    s.displayMode = DisplayMode::Surrounding;
+    for (const char *id : {"default", "", "xim", "qibusinputcontext"}) {
+        AppPolicy p = resolveAppPolicy(id, s, true);
+        CHECK(p.mode == DisplayMode::Surrounding);
+        CHECK(p.allowSurroundingEdits);
+    }
+    s.displayMode = DisplayMode::Preedit;
+    CHECK(resolveAppPolicy("default", s, true).allowSurroundingEdits);
+    Session ss;
+    Mock m;
+    applyPolicy(ss, m, "default", s, true);
+    m.doc = "toi toan";
+    type(ss, m, ">s ");
+    CHECK_EQ(m.screen(), std::string("toi toán "));
+}
+
+void testTerminalStoreTypesVietnamese() {
+    const std::string want = "thử gõ tiếng việt";
+    for (auto user : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        for (const char *app : {"default", "gnome-terminal-server", "org.kde.konsole", "kitty", "xim", "vte-2.91"}) {
+            Settings st;
+            st.displayMode = user;
+            Session s;
+            TerminalStore t;
+            applyPolicy(s, t, app, st, false);  // nothing proven: the client never sent text
+            CHECK(s.displayMode() == DisplayMode::Preedit);
+            type(s, t, "thuwr gox tieengs vieetj");
+            s.finish(t);
+            if (t.doc == want && t.deletes == 0) { ++g_pass; continue; }
+            ++g_fail;
+            std::fprintf(stderr, "terminal [%s] %s: got [%s] deletes=%d\n", app,
+                         user == DisplayMode::Preedit ? "preedit" : "surrounding", t.doc.c_str(), t.deletes);
+        }
+        // even a terminal claiming proven text is forced to preedit without edits
+        Settings st;
+        st.displayMode = user;
+        AppPolicy p = resolveAppPolicy("kitty", st, true);
+        CHECK(p.mode == DisplayMode::Preedit);
+        CHECK(!p.allowSurroundingEdits);
+    }
+}
+
+void testSelectionBlocksDeleteAndReEdit() {
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        // re-edit: caret after "toan", but "toan" is selected (Ctrl+L / autocomplete)
+        Session s;
+        Mock m;
+        s.setDisplayMode(mode, m);
+        m.doc = "toan";
+        m.selection = true;
+        type(s, m, ">s");
+        CHECK_EQ(m.deletes, 0);
+        CHECK(m.screen() != std::string("toán"));
+        // reopen: "tháy" ␣ then a selection appears → ⌫ must go to the app
+        Session r;
+        Mock n;
+        r.setDisplayMode(mode, n);
+        type(r, n, "thays ");
+        n.selection = true;
+        int before = n.deletes;
+        type(r, n, "<");
+        CHECK_EQ(n.deletes, before);
+    }
+    // Surrounding mid-word: a key needing a delete while a selection exists is typed
+    // literally instead (the delete would eat the selection)
+    Session s;
+    Mock m;
+    s.setDisplayMode(DisplayMode::Surrounding, m);
+    type(s, m, "vie");
+    m.selection = true;
+    int before = m.deletes;
+    type(s, m, "e");
+    CHECK_EQ(m.deletes, before);
+    CHECK_EQ(m.doc, std::string("viee"));
+    // ⌫ with a selection: no delete of ours, the app's own ⌫ handles it
+    m.selection = false;
+    type(s, m, "s");
+    m.selection = true;
+    before = m.deletes;
+    type(s, m, "<");
+    CHECK_EQ(m.deletes, before);
+}
+
+void testModeSwitchWaitsForWordEnd() {
+    // IBus: the first surrounding update (→ Surrounding allowed) lands after key 1 of a word
+    for (auto from : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        auto to = from == DisplayMode::Preedit ? DisplayMode::Surrounding : DisplayMode::Preedit;
+        Session s;
+        Mock m;
+        s.setDisplayMode(from, m);
+        type(s, m, "t");
+        s.setDisplayMode(to, m);
+        CHECK(s.displayMode() == from);   // deferred, word not split
+        type(s, m, "huwr ");
+        CHECK_EQ(m.screen(), std::string("thử "));
+        type(s, m, "gox ");
+        CHECK(s.displayMode() == to);
+        CHECK_EQ(m.screen(), std::string("thử gõ "));
+    }
+}
+
+void testForcedPreeditList() {
+    for (const char *id : {"firefox", "firefox-esr", "librewolf", "zen", "thunderbird", "gnome-shell",
+                           "org.mozilla.firefox", "gnome-terminal-server", "kgx", "ptyxis", "org.gnome.Ptyxis",
+                           "konsole", "kitty", "alacritty", "wezterm", "foot", "xterm", "tilix", "code",
+                           "codium", "chromium", "chromium-browser", "google-chrome", "brave-browser",
+                           "vte-2.91", "/usr/bin/xfce4-terminal"}) {
+        if (isForcedPreeditApp(id)) { ++g_pass; continue; }
+        ++g_fail;
+        std::fprintf(stderr, "not forced preedit: %s\n", id);
+    }
+    CHECK(!isForcedPreeditApp("gedit"));
+    CHECK(!isForcedPreeditApp("org.gnome.texteditor"));
+}
+
 // MARK: - App policy / state
 
 void testAppPolicy() {
@@ -439,6 +610,12 @@ int main() {
     testShortcutFile();
     testHotkeyParse();
     testAppPolicy();
+    testUnknownAppIdsArePreeditWithoutEdits();
+    testProvenUnknownAppAllowed();
+    testTerminalStoreTypesVietnamese();
+    testSelectionBlocksDeleteAndReEdit();
+    testForcedPreeditList();
+    testModeSwitchWaitsForWordEnd();
     testAppStateStoreAndWatcher();
     std::printf("common tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;

@@ -37,24 +37,39 @@ bool isForcedPreeditApp(const std::string &appId) {
         "konsole", "kitty", "alacritty", "wezterm", "wezterm-gui", "foot", "footclient", "xterm",
         "uxterm", "tilix", "terminator", "xfce4-terminal", "lxterminal", "mate-terminal",
         "qterminal", "terminology", "st", "urxvt", "rxvt", "yakuake", "guake", "blackbox",
+        "gnome-console", "tilda", "sakura", "roxterm", "deepin-terminal", "cool-retro-term",
+        "ghostty", "contour", "rio", "vte", "vte-2.91",
         // LibreOffice
         "soffice", "soffice.bin", "libreoffice", "libreoffice-writer", "libreoffice-calc",
         "libreoffice-impress",
         // Chromium / Electron (unreliable surrounding text, esp. on Wayland)
-        "chrome", "google-chrome", "chromium", "chromium-browser", "brave", "brave-browser",
-        "microsoft-edge", "vivaldi", "opera", "code", "code-oss", "vscodium", "codium", "cursor",
+        "chrome", "google-chrome", "google-chrome-stable", "google-chrome-beta", "chromium",
+        "chromium-browser", "chromium-freeworld", "brave", "brave-browser", "brave-browser-stable",
+        "microsoft-edge", "microsoft-edge-stable", "vivaldi", "vivaldi-stable", "opera", "code",
+        "code-oss", "code-insiders", "vscodium", "codium", "cursor",
         "electron", "slack", "discord", "signal-desktop", "obsidian", "zalo", "teams-for-linux",
+        // Firefox / Gecko (URL bar selects + autocompletes; surrounding text lags)
+        "firefox", "firefox-esr", "librewolf", "zen", "zen-browser", "thunderbird",
+        // GNOME Wayland: one shared text-input-v3 context for every app
+        "gnome-shell",
     };
     std::string id = normalizeAppId(appId);
     if (id.empty()) return false;
     if (names.count(id) || names.count(shortName(id))) return true;
     if (id.rfind("libreoffice", 0) == 0) return true;
+    if (id.rfind("vte-", 0) == 0) return true;
     return false;
 }
 
-AppPolicy resolveAppPolicy(const std::string &appId, const Settings &s, bool clientSurrounding) {
+bool isUnknownAppId(const std::string &appId) {
+    std::string id = normalizeAppId(appId);
+    return id.empty() || id == "default" || id == "gnome-shell" || id == "qibusinputcontext" || id == "xim";
+}
+
+AppPolicy resolveAppPolicy(const std::string &appId, const Settings &s, bool surroundingProven) {
     AppPolicy p;
     std::string id = normalizeAppId(appId);
+    bool unknown = isUnknownAppId(id);
     DisplayMode mode = s.displayMode;
     bool pinned = false;
     auto it = s.appModes.find(id);
@@ -64,11 +79,15 @@ AppPolicy resolveAppPolicy(const std::string &appId, const Settings &s, bool cli
         else if (it->second == "surrounding") { mode = DisplayMode::Surrounding; pinned = true; }
         else if (it->second == "preedit") { mode = DisplayMode::Preedit; pinned = true; }
     }
+    // A generic id covers many apps: a "surrounding" pin on it proves nothing.
+    if (unknown) pinned = false;
+    bool forced = !pinned && isForcedPreeditApp(id);
     if (mode == DisplayMode::Surrounding) {
-        if (!clientSurrounding) mode = DisplayMode::Preedit;          // cannot edit before the caret
-        else if (!pinned && isForcedPreeditApp(id)) mode = DisplayMode::Preedit;
+        if (!surroundingProven) mode = DisplayMode::Preedit;          // cannot edit before the caret
+        else if (forced) mode = DisplayMode::Preedit;
     }
     p.mode = mode;
+    p.allowSurroundingEdits = surroundingProven && !forced;
     return p;
 }
 

@@ -26,6 +26,9 @@ public:
     virtual void deleteBeforeCursor(int nchars) = 0;
     // Text before the caret (UTF-8), when the client reports surrounding text.
     virtual bool textBeforeCursor(std::string &out) { (void)out; return false; }
+    // The client has a selection (or cannot tell): deleting "before the caret" would eat
+    // the selection instead (URL bars select the whole URL / the autocompleted tail).
+    virtual bool hasSelection() { return false; }
 };
 
 class Session {
@@ -37,10 +40,15 @@ public:
 
     // Push a settings snapshot (engine flags, shortcuts, hotkey). Safe mid-word.
     void applySettings(const Settings &s);
+    // Mid-word the change is deferred to the next word: switching then would split the word
+    // being composed (e.g. the first surrounding-text update arrives after its first key).
     void setDisplayMode(DisplayMode m, InputContext &ic);
     DisplayMode displayMode() const { return mode_; }
     // Password field / [app_modes] off: keys pass through literally.
     void setPassthrough(bool on, InputContext &ic);
+    // AppPolicy.allowSurroundingEdits: may re-edit / ⌫ reopen read back and delete text
+    // before the caret? False for terminals, generic app ids and unproven surrounding.
+    void setSurroundingEdits(bool on) { surroundingEdits_ = on; }
     void setVietnamese(bool on, InputContext &ic);
     bool vietnamese() const { return vietnamese_; }
     // Called with the new state whenever the toggle hotkey flips it.
@@ -75,12 +83,16 @@ private:
 
     vt_engine *e_;
     DisplayMode mode_ = DisplayMode::Preedit;
+    DisplayMode pendingMode_ = DisplayMode::Preedit;
+    bool hasPendingMode_ = false;
+    void applyPendingMode();
     bool autoRestore_ = true;
     bool shortcutsEnabled_ = true;
     bool reEdit_ = true;
     bool vni_ = false;
     bool bracketVowels_ = false;
     bool passthrough_ = false;
+    bool surroundingEdits_ = true;
     bool vietnamese_ = true;
     bool gluedToDigit_ = false;
     bool caretMoved_ = true;           // caret may sit after an existing word (re-edit)

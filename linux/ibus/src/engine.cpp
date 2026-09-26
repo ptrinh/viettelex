@@ -29,6 +29,10 @@ struct VtIBusEngine {
     IBusPropList *props;
     IBusProperty *modeProp;
     gboolean password;
+    // The client really sent surrounding text since this focus began. The capability bit
+    // alone is not enough: IBus keeps an empty text for clients that never send one
+    // (XIM, some Qt/Electron builds, terminals), so "nothing before the caret" was trusted.
+    gboolean surroundingProven;
 };
 
 struct VtIBusEngineClass {
@@ -73,19 +77,31 @@ public:
         if (n > 0) ibus_engine_delete_surrounding_text(e_, -n, guint(n));
     }
     bool textBeforeCursor(std::string &out) override {
-        if (!(e_->client_capabilities & IBUS_CAP_SURROUNDING_TEXT)) return false;
         IBusText *text = nullptr;
         guint cursor = 0, anchor = 0;
-        ibus_engine_get_surrounding_text(e_, &text, &cursor, &anchor);
-        if (!text) return false;
+        if (!read(text, cursor, anchor)) return false;
         const gchar *s = ibus_text_get_text(text);
         if (!s) return false;
+        glong len = g_utf8_strlen(s, -1);
+        if (glong(cursor) > len) return false;
         const gchar *end = g_utf8_offset_to_pointer(s, glong(cursor));
         out.assign(s, size_t(end - s));
         return true;
     }
+    bool hasSelection() override {
+        IBusText *text = nullptr;
+        guint cursor = 0, anchor = 0;
+        if (!read(text, cursor, anchor)) return false;
+        return anchor != cursor;
+    }
 
 private:
+    bool read(IBusText *&text, guint &cursor, guint &anchor) {
+        if (!(e_->client_capabilities & IBUS_CAP_SURROUNDING_TEXT)) return false;
+        if (!reinterpret_cast<VtIBusEngine *>(e_)->surroundingProven) return false;
+        ibus_engine_get_surrounding_text(e_, &text, &cursor, &anchor);
+        return text != nullptr;
+    }
     IBusEngine *e_;
 };
 
@@ -105,10 +121,12 @@ void onToggled(VtIBusEngine *self, bool vi) {
 
 void refreshFieldFlags(VtIBusEngine *self) {
     IBusClient client(IBUS_ENGINE(self));
-    bool surrounding = IBUS_ENGINE(self)->client_capabilities & IBUS_CAP_SURROUNDING_TEXT;
+    bool surrounding = (IBUS_ENGINE(self)->client_capabilities & IBUS_CAP_SURROUNDING_TEXT) &&
+                       self->surroundingProven;
     auto policy = vt::resolveAppPolicy(*self->appId, settings(), surrounding);
     self->session->setPassthrough(self->password || policy.off, client);
     self->session->setDisplayMode(policy.mode, client);
+    self->session->setSurroundingEdits(policy.allowSurroundingEdits);
 }
 
 void loadAppState(VtIBusEngine *self) {
@@ -157,8 +175,17 @@ gboolean processKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint 
 
 void focusCommon(VtIBusEngine *self) {
     if (G().watcher->changedOnDisk()) applySettingsToAll();  // inotify fallback
+    self->surroundingProven = FALSE;  // prove it again for this field
     loadAppState(self);
     refreshFieldFlags(self);
+    // Emits RequireSurroundingText: the client sends its text now (→ setSurroundingText),
+    // and the GTK module drops the capability when the widget cannot provide it
+    // (client/gtk2/ibusimcontext.c; ibus-bamboo does the same).
+    {
+        IBusText *text = nullptr;
+        guint cursor = 0, anchor = 0;
+        ibus_engine_get_surrounding_text(IBUS_ENGINE(self), &text, &cursor, &anchor);
+    }
     self->session->focusIn();
     ibus_engine_register_properties(IBUS_ENGINE(self), self->props);
     updateModeProp(self);
@@ -215,8 +242,22 @@ void disable(IBusEngine *engine) {
     IBUS_ENGINE_CLASS(vt_ibus_engine_parent_class)->disable(engine);
 }
 
+void setSurroundingText(IBusEngine *engine, IBusText *text, guint cursor, guint anchor) {
+    IBUS_ENGINE_CLASS(vt_ibus_engine_parent_class)->set_surrounding_text(engine, text, cursor, anchor);
+    auto *self = reinterpret_cast<VtIBusEngine *>(engine);
+    // Only real text proves it: ibus-daemon's engine proxy also pushes its cached empty
+    // text. An empty field gets proven by the update that follows its first word.
+    if (self->surroundingProven || !text || ibus_text_get_length(text) == 0) return;
+    self->surroundingProven = TRUE;
+    try {
+        refreshFieldFlags(self);
+    } catch (...) {
+    }
+}
+
 void setCapabilities(IBusEngine *engine, guint caps) {
     engine->client_capabilities = caps;
+    if (!(caps & IBUS_CAP_SURROUNDING_TEXT)) reinterpret_cast<VtIBusEngine *>(engine)->surroundingProven = FALSE;
     try {
         refreshFieldFlags(reinterpret_cast<VtIBusEngine *>(engine));
     } catch (...) {
@@ -273,6 +314,7 @@ static void vt_ibus_engine_class_init(VtIBusEngineClass *klass) {
     ec->reset = reset;
     ec->disable = disable;
     ec->set_capabilities = setCapabilities;
+    ec->set_surrounding_text = setSurroundingText;
     ec->set_content_type = setContentType;
     ec->property_activate = propertyActivate;
 }
@@ -281,6 +323,7 @@ static void vt_ibus_engine_init(VtIBusEngine *self) {
     self->session = new vt::Session();
     self->appId = new std::string("default");
     self->password = FALSE;
+    self->surroundingProven = FALSE;
     self->session->applySettings(settings());
     self->session->onToggle = [self](bool vi) { onToggled(self, vi); };
 

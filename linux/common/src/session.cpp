@@ -107,9 +107,21 @@ void Session::applySettings(const Settings &s) {
 }
 
 void Session::setDisplayMode(DisplayMode m, InputContext &ic) {
+    hasPendingMode_ = false;
     if (m == mode_) return;
+    if (!vt_is_empty(e_)) {
+        pendingMode_ = m;
+        hasPendingMode_ = true;
+        return;
+    }
     finish(ic);
     mode_ = m;
+}
+
+void Session::applyPendingMode() {
+    if (!hasPendingMode_ || !vt_is_empty(e_)) return;
+    hasPendingMode_ = false;
+    mode_ = pendingMode_;
 }
 
 void Session::setPassthrough(bool on, InputContext &ic) {
@@ -168,6 +180,7 @@ void Session::finish(InputContext &ic, bool commitPreedit) {
     gluedToDigit_ = false;
     caretMoved_ = true;
     lastWasBoundaryChar_ = false;
+    applyPendingMode();
 }
 
 bool Session::isWordKey(uint32_t ch) const {
@@ -184,7 +197,8 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
     std::string word = composed();
     std::string rawWord = raw();
     size_t onScreen = utf8Chars(word);
-    if (allowShortcuts && shortcutsEnabled_ && !word.empty() && shortcuts_) {
+    if (allowShortcuts && shortcutsEnabled_ && !word.empty() && shortcuts_ &&
+        (mode_ == DisplayMode::Preedit || !ic.hasSelection())) {
         auto it = shortcuts_->find(word);
         if (it == shortcuts_->end()) it = shortcuts_->find(rawWord);
         if (it != shortcuts_->end()) {
@@ -198,6 +212,11 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
             ic.commit(expansion);
             return;
         }
+    }
+    // Surrounding + selection: a delete would hit the selection — leave the word as typed.
+    if (mode_ == DisplayMode::Surrounding && ic.hasSelection()) {
+        vt_reset(e_);
+        return;
     }
     bool autoRestore = autoRestore_ && !suppressRestore;
     if (mode_ == DisplayMode::Preedit) {
@@ -219,6 +238,7 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
 bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     if (ev.release) return false;
     if (ks::isModifierOnly(ev.keysym)) return false;
+    applyPendingMode();
 
     // Vi/En toggle hotkey (Ctrl+Space by default).
     if (isToggleHotkey(ev)) {
@@ -288,7 +308,8 @@ bool Session::isToggleHotkey(const KeyEvent &ev) const {
 bool Session::handleLetter(uint32_t ch, InputContext &ic) {
     // RE-EDIT: a diacritic-only key right where the caret landed after a move, directly
     // after a word on screen, adds the diacritic to that word ("toan" + s → "toán").
-    if (vt_is_empty(e_) && reEdit_ && caretMoved_ && isDiacriticOnlyKey(ch, vni_)) {
+    if (vt_is_empty(e_) && reEdit_ && surroundingEdits_ && caretMoved_ && isDiacriticOnlyKey(ch, vni_) &&
+        !ic.hasSelection()) {
         std::string before;
         if (ic.textBeforeCursor(before)) {
             std::string word, c;
@@ -330,6 +351,12 @@ bool Session::handleLetter(uint32_t ch, InputContext &ic) {
     switch (a.kind) {
     case VT_ACTION_PASSTHROUGH: ic.commit(encode(ch)); break;
     case VT_ACTION_REPLACE:
+        if (a.backspaces > 0 && ic.hasSelection()) {
+            // Never delete into a selection: type the key literally, start a new word.
+            vt_reset(e_);
+            ic.commit(encode(ch));
+            break;
+        }
         if (a.backspaces > 0) ic.deleteBeforeCursor(a.backspaces);
         if (a.insert_len > 0) ic.commit(std::string(a.insert, size_t(a.insert_len)));
         break;
@@ -342,7 +369,7 @@ bool Session::handleBackspace(InputContext &ic) {
     if (vt_is_empty(e_)) {
         // ⌫ over the boundary right after a word re-opens it ("tháy" ␣ ⌫ a → "thấy",
         // issue #40) — only when the client's text proves the word is still there.
-        if (vt_can_reopen(e_) && lastWasBoundaryChar_) {
+        if (vt_can_reopen(e_) && lastWasBoundaryChar_ && surroundingEdits_ && !ic.hasSelection()) {
             std::string before;
             if (ic.textBeforeCursor(before)) {
                 char buf[256];
@@ -383,6 +410,10 @@ bool Session::handleBackspace(InputContext &ic) {
     // Surrounding: .none / .passthrough / a pure one-char delete → the app's own ⌫.
     if (a.kind != VT_ACTION_REPLACE) return false;
     if (a.insert_len == 0 && a.backspaces == 1) return false;
+    if (a.backspaces > 0 && ic.hasSelection()) {
+        vt_reset(e_);  // the app's own ⌫ removes the selection
+        return false;
+    }
     if (a.backspaces > 0) ic.deleteBeforeCursor(a.backspaces);
     if (a.insert_len > 0) ic.commit(std::string(a.insert, size_t(a.insert_len)));
     return true;
