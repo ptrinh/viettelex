@@ -13,6 +13,10 @@ final class KeyboardViewController: UIInputViewController {
     private var lastWord: String?         // từ liền trước trong câu (context bigram)
     private var lastWord2: String?        // từ trước nữa (context trigram)
     private var learnEnabled = true
+    /// Vuốt ⌫: context + từ đang soạn chụp lúc chạm ⌫ (trước lần xoá của chạm đó).
+    private var wordSwipeSnapshot: (context: String?, composed: String)?
+    /// Chuỗi vừa vuốt xoá + đuôi phần còn lại → ô "Khôi phục" (một lượt).
+    private var wordSwipeRestore: (text: String, tail: String)?
     private var filterSensitive = true
 
     override func viewDidLoad() {
@@ -40,6 +44,7 @@ final class KeyboardViewController: UIInputViewController {
         // Load plist chạy nền — bar mở-đầu refresh khi dữ liệu sẵn sàng.
         langModel.onReady = { [weak self] in self?.updateSuggestions() }
         keyboard.onDeleteWord = { [weak self] in self?.deleteWordBackward() }
+        wireWordSwipe()
         keyboard.onBarToggle = { [weak self] in self?.updateSuggestions() }
         keyboard.onTemplate = { [weak self] in self?.insertTemplate($0) }
         keyboard.onOpenTemplates = { [weak self] in self?.openTemplatesInApp() }
@@ -91,7 +96,10 @@ final class KeyboardViewController: UIInputViewController {
         // Không Full Access thì iOS chặn GHI App Group → cờ giữ nguyên/vắng,
         // banner vẫn hiện — đúng ý.
         reportStatusToApp()
-        keyboard.onSuggestion = { [weak self] item in self?.acceptSuggestion(item) }
+        keyboard.onSuggestion = { [weak self] item in
+            if item == KeyboardView.restoreToken { self?.restoreWordSwipe() }
+            else { self?.acceptSuggestion(item) }
+        }
         updateAutoShift()
         updateSuggestions()            // field trống → gợi mở đầu ngay khi hiện
         keyboard.showLanguageBadge()   // "ViệtTelex" thoáng trên spacebar như stock
@@ -283,6 +291,7 @@ final class KeyboardViewController: UIInputViewController {
         let proxy = Proxy(p: textDocumentProxy)
         // textWillChange tới mà textDidChange chưa kịp → đối chiếu ngay trước phím.
         if externalChangePending { syncComposition("key") }
+        wordSwipeRestore = nil                 // ô "Khôi phục" chỉ sống tới phím kế
         applyingEdit = true
         let t0 = TouchLog.enabled ? CACurrentMediaTime() : 0
         defer {
@@ -598,10 +607,7 @@ final class KeyboardViewController: UIInputViewController {
         restoreUndo = nil; undoOfferActive = false
         let before = textDocumentProxy.documentContextBeforeInput ?? ""
         guard !before.isEmpty else { return }
-        var chars = Array(before)
-        var count = 0
-        while let c = chars.last, c == " " || c == "\n" { chars.removeLast(); count += 1 }
-        while let c = chars.last, !(c == " " || c == "\n") { chars.removeLast(); count += 1 }
+        let count = WordDelete.charsToDelete(context: before, words: 1)
         for _ in 0..<max(count, 1) { textDocumentProxy.deleteBackward() }
         updateAutoShift()
         updateSuggestions()
@@ -658,6 +664,7 @@ final class KeyboardViewController: UIInputViewController {
         if composed.isEmpty, undoOfferActive, let u = restoreUndo {
             set.literal = u.composed
         }
+        if composed.isEmpty, wordSwipeRestore != nil { set.restoreLabel = "\u{21A9}\u{FE0E} Khôi phục" }
         // Ngữ cảnh email/domain: "phuc@" → gợi đuôi mail; "github." → gợi TLD.
         // Đọc proxy (XPC) chỉ khi phím vừa gõ là @/. — không phải mọi boundary.
         if composed.isEmpty, lastKeyWasEmailTrigger,
@@ -891,4 +898,68 @@ final class KeyboardViewController: UIInputViewController {
 
 extension KeyboardViewController: UIInputViewAudioFeedback {
     var enableInputClicksWhenVisible: Bool { true }
+}
+
+// MARK: vuốt trái trên ⌫ = xoá theo từ (kiểu Gboard) + ô "Khôi phục"
+// Tách riêng để không đụng luồng backspace/engine: KeyboardView báo chạm xuống
+// (chụp context TRƯỚC lần xoá của chạm), hỏi số từ tối đa khi bắt đầu vuốt, và
+// báo số từ khi nhấc tay. Kế hoạch xoá là hàm thuần WordDelete.plan.
+extension KeyboardViewController {
+    fileprivate func wireWordSwipe() {
+        keyboard.onBackspaceTouchDown = { [weak self] in
+            guard let self else { return }
+            // documentContextBeforeInput là bản host đẩy sẵn — đọc rẻ (xem pasteOffer).
+            self.wordSwipeSnapshot = (self.textDocumentProxy.documentContextBeforeInput,
+                                      self.bridge.composedWord)
+        }
+        keyboard.wordSwipeLimit = { [weak self] in
+            guard let snap = self?.wordSwipeSnapshot, let ctx = snap.context else { return 0 }
+            return WordDelete.availableWords(context: ctx)
+        }
+        keyboard.onWordSwipeEnd = { [weak self] n in self?.commitWordSwipe(n) }
+    }
+
+    fileprivate func commitWordSwipe(_ words: Int) {
+        guard let snap = wordSwipeSnapshot else { return }
+        wordSwipeSnapshot = nil
+        applyingEdit = true
+        defer { applyingEdit = false }
+        let current = textDocumentProxy.documentContextBeforeInput
+        guard let plan = WordDelete.plan(snapshot: snap.context, composed: snap.composed,
+                                         current: current, words: words) else {
+            TouchLog.write("failsafe: word-swipe words=\(words) ctx=\(current == nil ? "nil" : "mismatch") → skip")
+            return
+        }
+        // Từ đang soạn (nếu có) là từ thứ nhất — engine bỏ nó như một lần dán.
+        bridge.reset()
+        lastWord = nil; lastWord2 = nil
+        restoreUndo = nil; undoOfferActive = false
+        for _ in 0..<plan.deleteNow { textDocumentProxy.deleteBackward() }
+        if !plan.reinsert.isEmpty { textDocumentProxy.insertText(plan.reinsert) }
+        wordSwipeRestore = plan.removed.isEmpty ? nil
+            : (text: plan.removed, tail: WordDelete.restoreTail(plan.remaining))
+        if TouchLog.enabled {
+            TouchLog.write("word-swipe words=\(words) del=\(plan.deleteNow) reins=\(plan.reinsert.count) removed=\(plan.removed.count)")
+        }
+        updateAutoShift(); updateSuggestions()
+    }
+
+    fileprivate func restoreWordSwipe() {
+        guard let r = wordSwipeRestore else { return }
+        wordSwipeRestore = nil
+        applyingEdit = true
+        defer { applyingEdit = false }
+        guard WordDelete.canRestore(context: textDocumentProxy.documentContextBeforeInput,
+                                    tail: r.tail) else {
+            TouchLog.write("failsafe: word-swipe restore context moved → skip")
+            updateAutoShift(); updateSuggestions()
+            return
+        }
+        bridge.reset()
+        lastWord = nil; lastWord2 = nil
+        restoreUndo = nil; undoOfferActive = false
+        textDocumentProxy.insertText(r.text)
+        KeyboardView.clickModifier()
+        updateAutoShift(); updateSuggestions()
+    }
 }
