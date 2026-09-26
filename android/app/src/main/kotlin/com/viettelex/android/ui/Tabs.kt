@@ -31,6 +31,7 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -258,6 +259,18 @@ fun MauCauTab() {
     var editLabel by remember { mutableStateOf("") }
     var editText by remember { mutableStateOf("") }
     fun persist(list: List<TemplateItem>) { templates = list; TemplatesStore.save(ctx, list) }
+    fun importText(text: String?) {
+        val items = Templates.parseImport(text)
+        if (items.isEmpty()) { notice = "Không tìm thấy mẫu câu nào để thêm."; return }
+        val (merged, msg) = Templates.merge(templates, items)
+        persist(merged)
+        notice = msg
+    }
+    // Chữ chia sẻ từ app khác (MainActivity nhận ACTION_SEND) ⇒ gộp thêm như Import.
+    val shared = SharedImport.pending.value
+    LaunchedEffect(shared) {
+        if (shared != null) { SharedImport.pending.value = null; importText(shared) }
+    }
 
     VTSection(
         header = "Mẫu câu (${templates.size})",
@@ -325,19 +338,11 @@ fun MauCauTab() {
         }
     }
 
-    VTSection(
-        header = "Mẫu câu động (https://)",
-        footer = "Mẫu có nội dung bắt đầu bằng https:// sẽ fetch dữ liệu NGAY LÚC BẤM và chèn kết quả (tối đa 1000 bytes) — ví dụ IP❓ chèn địa chỉ IP hiện tại. Không có mạng thì bấm sẽ chèn chính URL.",
-        plain = true,
-    ) {}
-
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         val text = runCatching { ctx.contentResolver.openInputStream(uri)?.use { it.bufferedReader().readText() } }.getOrNull()
         if (text == null) { notice = "Không đọc được file."; return@rememberLauncherForActivityResult }
-        val (merged, msg) = Templates.merge(templates, Templates.parseYAML(text))
-        persist(merged)
-        notice = msg
+        importText(text)
     }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/x-yaml")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -346,7 +351,7 @@ fun MauCauTab() {
         }.isSuccess
         notice = if (ok) "Đã export ${templates.size} mẫu." else "Không ghi được file."
     }
-    VTSection(footer = "YAML phẳng, mỗi dòng “- \"👋 | Chào buổi sáng\"” (label | câu) hoặc “- \"câu\"”. Import gộp thêm, không thay thế.") {
+    VTSection(footer = "YAML phẳng, mỗi dòng “- \"👋 | Chào buổi sáng\"” (label | câu) hoặc “- \"câu\"”. Import gộp thêm, không thay thế. Cũng có thể chia sẻ chữ từ app khác vào VietTelex để thêm thành mẫu câu.") {
         LinkRow(Glyph.Import, "Import…") { importer.launch(arrayOf("*/*")) }
         RowDivider(52.dp)
         LinkRow(Glyph.Export, "Export ra YAML…") { exporter.launch("viettelex-mau-cau.yaml") }
@@ -403,7 +408,7 @@ fun GioiThieuTab() {
         VTRow { Text("Không thu thập dữ liệu · Không theo dõi · Mã nguồn mở", style = VTType.footnote, color = c.secondary) }
         RowDivider()
         VTRow {
-            Text("Android hiện cảnh báo \"có thể thu thập mọi văn bản bạn nhập\" khi bật bất kỳ bàn phím bên thứ ba nào. VietTelex chạy hoàn toàn trên máy, không gửi gì đi — quyền mạng chỉ dùng cho Mẫu câu động (https://) do bạn tạo.",
+            Text("Android hiện cảnh báo \"có thể thu thập mọi văn bản bạn nhập\" khi bật bất kỳ bàn phím bên thứ ba nào. VietTelex chạy hoàn toàn trên máy và không có quyền truy cập Internet — không thể gửi gì đi.",
                 style = VTType.footnote, color = c.secondary)
         }
     }

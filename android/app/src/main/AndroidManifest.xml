@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- KHÔNG có quyền mạng — cam kết riêng tư. Chặn luôn nếu dependency tự thêm vào merged manifest. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
@@ -24,6 +27,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="viettelex" android:host="maucau" />
+            </intent-filter>
+            <!-- Chia sẻ chữ từ app khác ⇒ thêm vào Mẫu câu (không cần mạng) -->
+            <intent-filter android:label="@string/share_to_templates">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
         <service
