@@ -3,9 +3,9 @@
   "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.7.12",
   "build": 108,
   "windows": {
-    "version": "1.0.8",
-    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.0.8/VietTelex-1.0.8-x64.msi",
-    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.0.8/VietTelex-1.0.8-arm64.msi",
-    "notes": "Chỉ còn 1 icon bàn phím trên taskbar."
+    "version": "1.0.9",
+    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.0.9/VietTelex-1.0.9-x64.msi",
+    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.0.9/VietTelex-1.0.9-arm64.msi",
+    "notes": "Sửa trực tiếp mặc định (không gạch chân), sửa lỗi thanh địa chỉ Chrome."
   }
 }
