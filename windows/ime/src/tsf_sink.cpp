@@ -106,12 +106,21 @@ bool TsfTextSink::hasSelection() {
 bool TsfTextSink::replaceBeforeCaret(const std::u16string& expect, const std::u16string& insert) {
     if (svc_->composition()) return false;
     if (expect.size() > static_cast<size_t>(kMaxRead)) return false;
-    ITfRange* r = selectionRange();
-    if (!r) return false;
+    ITfRange* sel = selectionRange();
+    if (!sel) return false;
+    // Insertion point = selection START. A forward selection (Chrome/Edge omnibox inline
+    // autocomplete suffix) belongs to the app: we edit only [start - n, start) and keep
+    // that suffix selected afterwards, so it is neither deleted nor duplicated.
+    ITfRange* r = nullptr;
+    ITfRange* suffix = nullptr;
     bool ok = false;
-    BOOL empty = FALSE;
-    r->IsEmpty(ec_, &empty);
-    if (empty) {
+    BOOL empty = TRUE;
+    sel->IsEmpty(ec_, &empty);
+    if (SUCCEEDED(sel->Clone(&r)) && r) {
+        r->Collapse(ec_, TF_ANCHOR_START);
+        if (!empty && SUCCEEDED(sel->Clone(&suffix)) && suffix) {
+            // suffix keeps the old selection end; its start is moved after our edit
+        }
         LONG want = static_cast<LONG>(expect.size());
         LONG shifted = 0;
         bool positioned = want == 0 || (SUCCEEDED(r->ShiftStart(ec_, -want, &shifted, nullptr)) && shifted == -want);
@@ -125,8 +134,43 @@ bool TsfTextSink::replaceBeforeCaret(const std::u16string& expect, const std::u1
         if (positioned) {
             ok = SUCCEEDED(r->SetText(ec_, 0, reinterpret_cast<const WCHAR*>(insert.data()),
                                       static_cast<LONG>(insert.size())));
-            if (ok) setCaretAfter(r);
+            if (ok) {
+                if (suffix) {
+                    // selection = [end of our insert, old selection end]
+                    ITfRange* after = nullptr;
+                    if (SUCCEEDED(r->Clone(&after)) && after) {
+                        after->Collapse(ec_, TF_ANCHOR_END);
+                        suffix->ShiftStartToRange(ec_, after, TF_ANCHOR_START);
+                        after->Release();
+                    }
+                    TF_SELECTION ts;
+                    ts.range = suffix;
+                    ts.style.ase = TF_AE_END;
+                    ts.style.fInterimChar = FALSE;
+                    ctx_->SetSelection(ec_, 1, &ts);
+                } else {
+                    setCaretAfter(r);
+                }
+            }
         }
+        r->Release();
+    }
+    if (suffix) suffix->Release();
+    sel->Release();
+    return ok;
+}
+
+bool TsfTextSink::canReadContext() {
+    ITfRange* r = selectionRange();
+    if (!r) return false;
+    r->Collapse(ec_, TF_ANCHOR_START);
+    LONG shifted = 0;
+    HRESULT hr = r->ShiftStart(ec_, -1, &shifted, nullptr);
+    bool ok = SUCCEEDED(hr);
+    if (ok && shifted == -1) {  // something before the caret: it must be readable
+        WCHAR c;
+        ULONG got = 0;
+        ok = SUCCEEDED(r->GetText(ec_, 0, &c, 1, &got)) && got == 1;
     }
     r->Release();
     return ok;

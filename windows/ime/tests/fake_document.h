@@ -18,22 +18,32 @@ public:
     int edits = 0;               // number of TextSink mutations (for "no-op" checks)
     bool refuseEdits = false;    // simulate an app that rejects edit sessions
 
+    // Insertion point = selection START (a selection after it, e.g. an omnibox
+    // autocomplete suffix, belongs to the app).
+    size_t lo() const { return anchor < caret ? anchor : caret; }
+    size_t hi() const { return anchor < caret ? caret : anchor; }
+    bool unreadable = false;     // simulate a control whose text cannot be read
+    bool refuseReplace = false;  // in-place edits refused (verification-style failure)
+    bool canReadContext() override { return !unreadable; }
+
     std::u16string textBeforeCaret(int max) override {
-        size_t end = comp ? compStart : caret;
+        if (unreadable) return {};
+        size_t end = comp ? compStart : lo();
         size_t n = static_cast<size_t>(max) < end ? static_cast<size_t>(max) : end;
         return text.substr(end - n, n);
     }
     char16_t charAfterCaret() override {
-        size_t at = comp ? compEnd : caret;
+        size_t at = comp ? compEnd : hi();
         return at < text.size() ? text[at] : 0;
     }
     bool hasSelection() override { return anchor != caret; }
     bool replaceBeforeCaret(const std::u16string& expect, const std::u16string& ins) override {
-        if (refuseEdits || comp || expect.size() > caret) return false;
-        if (text.compare(caret - expect.size(), expect.size(), expect) != 0) return false;
-        text.replace(caret - expect.size(), expect.size(), ins);
-        caret = caret - expect.size() + ins.size();
-        anchor = caret;
+        const size_t at = lo(), selLen = hi() - lo();
+        if (refuseEdits || refuseReplace || unreadable || comp || expect.size() > at) return false;
+        if (text.compare(at - expect.size(), expect.size(), expect) != 0) return false;
+        text.replace(at - expect.size(), expect.size(), ins);
+        caret = at - expect.size() + ins.size();
+        anchor = caret + selLen;  // the app's selected suffix stays selected, untouched
         ++edits;
         return true;
     }

@@ -192,7 +192,7 @@ TEST(app_policy_resolution) {
     CHECK_EQ(normalizeExeName("C:\\Program Files\\Foo\\Code.EXE"), std::string("code.exe"));
     CHECK_EQ(normalizeExeName("notepad.exe"), std::string("notepad.exe"));
     std::map<std::string, AppMode> o;
-    CHECK(resolveAppMode("notepad.exe", o) == AppMode::Composition);
+    CHECK(resolveAppMode("notepad.exe", o) == AppMode::InPlace);  // default since 1.0.9
     CHECK(resolveAppMode("mstsc.exe", o) == AppMode::Off);
     o["mstsc.exe"] = AppMode::Composition;  // user override beats built-in
     CHECK(resolveAppMode("mstsc.exe", o) == AppMode::Composition);

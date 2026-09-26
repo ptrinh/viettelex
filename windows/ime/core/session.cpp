@@ -76,6 +76,12 @@ void TypingSession::setOutputMode(OutputMode m) {
     if (m == mode_) return;
     reset();
     mode_ = m;
+    wordMode_ = effectiveMode();
+}
+
+void TypingSession::fallBack(const char* why) {
+    if (!contextFallback_ && opt_.log) opt_.log(why);
+    contextFallback_ = true;
 }
 
 std::u16string TypingSession::composed() const { return engine_ ? composedOf(engine_) : std::u16string(); }
@@ -99,6 +105,7 @@ void TypingSession::reset() {
 
 void TypingSession::resetContext() {
     reset();
+    contextFallback_ = false;
     if (engine_) vtx_reset_context(engine_);
 }
 
@@ -154,14 +161,26 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
         vtx_feed(engine_, c, &a);
         return false;
     }
-    const bool comp = mode_ == OutputMode::Composition;
     // A composition we no longer track (engine was reset): close it, text stays.
-    if (comp && vtx_is_empty(engine_) && sink.compositionActive()) sink.endCompositionAsIs();
+    if (vtx_is_empty(engine_) && sink.compositionActive()) sink.endCompositionAsIs();
     if (!vtx_is_empty(engine_)) {
-        // Our picture of the screen went stale (composition ended behind our back,
-        // or the user selected text mid-word): start over rather than edit blindly.
-        if ((comp && !sink.compositionActive()) || (!comp && sink.hasSelection())) reset();
+        // Our picture of the screen went stale (composition ended behind our back, the
+        // app changed the text before the caret): start over rather than edit blindly.
+        // A selection AFTER the caret (Chrome/Edge omnibox autocomplete suffix) is the
+        // app's: it does not invalidate the word, which ends at the insertion point.
+        const bool stale = wordMode_ == OutputMode::Composition
+                               ? !sink.compositionActive()
+                               : sink.textBeforeCaret(static_cast<int>(shown_.size())) != shown_;
+        if (stale) reset();
     }
+    if (vtx_is_empty(engine_)) {
+        wordMode_ = effectiveMode();
+        if (wordMode_ == OutputMode::InPlace && !sink.canReadContext()) {
+            fallBack("in-place: cannot read the text around the caret -> composition for this field");
+            wordMode_ = OutputMode::Composition;
+        }
+    }
+    const bool comp = wordMode_ == OutputMode::Composition;
     if (vtx_is_empty(engine_) && opt_.reEditWord && !sink.hasSelection() &&
         (!comp || !sink.compositionActive())) {
         if (tryReEdit(c, sink)) return true;
@@ -203,6 +222,9 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
     }
     std::u16string expect;
     if (!tailOf(shown_, a.backspaces, expect) || !sink.replaceBeforeCaret(expect, actionInsert(a))) {
+        // Screen did not match what we typed: this word goes literal (never guess), and
+        // the rest of this field uses composition.
+        fallBack("in-place: text before the caret did not verify -> composition for this field");
         reset();
         return false;
     }
@@ -242,7 +264,7 @@ bool TypingSession::tryReEdit(char32_t c, TextSink& sink) {
         return false;
     }
     bool ok;
-    if (mode_ == OutputMode::Composition) {
+    if (wordMode_ == OutputMode::Composition) {
         ok = sink.setComposition(now, static_cast<int>(word.size()));
     } else if (a.kind == VTX_REPLACE) {
         std::u16string expect;
@@ -260,7 +282,8 @@ bool TypingSession::tryReEdit(char32_t c, TextSink& sink) {
 }
 
 bool TypingSession::handleBackspace(TextSink& sink) {
-    const bool comp = mode_ == OutputMode::Composition;
+    if (vtx_is_empty(engine_)) wordMode_ = effectiveMode();
+    const bool comp = wordMode_ == OutputMode::Composition;
     if (overflow_) {  // stale 32-key view: let the app delete, drop the word
         reset();
         return false;
@@ -341,7 +364,7 @@ bool TypingSession::tryReopen(TextSink& sink) {
         vtx_forget_last_commit(engine_);
         return false;
     }
-    if (mode_ == OutputMode::Composition && !sink.setComposition(word, n)) {
+    if (wordMode_ == OutputMode::Composition && !sink.setComposition(word, n)) {
         // Boundary char is gone but the composition failed: the word is plain text
         // now, which is exactly what a normal ⌫ would have left.
         vtx_destroy(t);
@@ -354,7 +377,7 @@ bool TypingSession::tryReopen(TextSink& sink) {
 }
 
 bool TypingSession::commitWord(TextSink& sink, KeyKind kind) {
-    const bool comp = mode_ == OutputMode::Composition;
+    const bool comp = wordMode_ == OutputMode::Composition;
     const bool printable = kind == KeyKind::Char;
     if (overflow_) {
         vtx_action a;

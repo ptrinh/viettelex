@@ -36,8 +36,8 @@ struct Rule {
     const char* exe;
     AppMode mode;
 };
-// Built-in defaults. Kept deliberately short: everything not listed uses TSF
-// composition, which is the correct path for any app that implements TSF. Entries
+// Built-in defaults. Kept deliberately short: everything not listed uses in-place
+// (the default since 1.0.9; composition is a per-app choice). Entries
 // here are apps where typing Vietnamese locally is wrong by design (the remote
 // machine's IME types) — same reasoning as macOS's remote-desktop passthrough.
 // Candidates for InPlace/HookFallback are learned from the §5.2 manual matrix on
@@ -66,7 +66,9 @@ AppMode resolveAppMode(const std::string& exe, const std::map<std::string, AppMo
     if (it != overrides.end()) return it->second;
     AppMode m;
     if (builtInAppMode(exe, m)) return m;
-    return AppMode::Composition;
+    // Default since 1.0.9: in-place (verified edits of the text before the caret; falls
+    // back to composition per field when the text cannot be read or verified).
+    return AppMode::InPlace;
 }
 
 FieldPolicy classifyInputScopes(const int* scopes, size_t count) {

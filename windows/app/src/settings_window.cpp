@@ -113,8 +113,9 @@ constexpr int kToggleCount = static_cast<int>(sizeof(kToggles) / sizeof(kToggles
 const char* const kHotkeys[] = {"ctrl-shift", "win-space", "alt-z", "off"};
 const S kHotkeyLabels[] = {S::HotkeyCtrlShift, S::HotkeyWinSpace, S::HotkeyAltZ, S::HotkeyOff};
 const S kIconLabels[kIconChoiceCount] = {S::IconVt, S::IconStar, S::IconFlag, S::IconLogo, S::IconVi};
-const AppMode kModes[] = {AppMode::Composition, AppMode::InPlace, AppMode::HookFallback, AppMode::Off};
-const S kModeLabels[] = {S::ModeComposition, S::ModeInPlace, S::ModeHook, S::ModeOff};
+// First entry = the default (in-place since 1.0.9).
+const AppMode kModes[] = {AppMode::InPlace, AppMode::Composition, AppMode::HookFallback, AppMode::Off};
+const S kModeLabels[] = {S::ModeInPlace, S::ModeComposition, S::ModeHook, S::ModeOff};
 
 // ---------------------------------------------------------------- theme
 struct Palette {

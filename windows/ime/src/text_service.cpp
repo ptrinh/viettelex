@@ -278,6 +278,7 @@ void TextService::applyConfig(bool force) {
     o.autoRestore = settings_.autoRestore;
     o.reEditWord = settings_.reEditWord && !config::secureMode();
     o.shortcuts = config::secureMode() ? nullptr : &settings_.shortcuts;
+    o.log = config::log;
     session_.configure(o);
 
     const OutputMode want = config::appMode() == AppMode::InPlace ? OutputMode::InPlace : OutputMode::Composition;
@@ -441,11 +442,12 @@ STDMETHODIMP TextService::OnEndEdit(ITfContext* ctx, TfEditCookie ecReadOnly, IT
         }
         return S_OK;
     }
-    if (session_.wordActive() && session_.outputMode() == OutputMode::InPlace) {
+    if (session_.wordActive() && session_.wordMode() == OutputMode::InPlace) {
         const std::u16string& shown = session_.shown();
         // Our own edits and the app inserting a key we passed keep the word right
         // before the caret; anything else (click, arrow, app rewrite) does not.
-        if (ro.hasSelection() || ro.textBeforeCaret(static_cast<int>(shown.size())) != shown) session_.reset();
+        // A forward selection (omnibox autocomplete suffix) is the app's, not a change.
+        if (ro.textBeforeCaret(static_cast<int>(shown.size())) != shown) session_.reset();
     }
     return S_OK;
 }

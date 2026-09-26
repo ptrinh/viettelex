@@ -3,6 +3,7 @@
 #include "fake_document.h"
 #include "session.h"
 #include "settings.h"
+#include "app_policy.h"
 #include "test.h"
 
 using namespace vtx;
@@ -177,14 +178,17 @@ TEST(session_reedit_skips_non_transforming_key) {
     }
 }
 
-TEST(session_inplace_verification_failure_is_literal) {
+TEST(session_inplace_external_change_resyncs_at_next_letter) {
     Rig r(OutputMode::InPlace);
     r.type("vie");
     // The app rewrote the text under us (autocorrect, collaborative edit...).
     r.doc.setText(u"xyz");
-    r.type("e");  // engine wants to replace "e" -> "ê", but the screen shows "z"
+    r.type("e");  // our word is gone: a NEW word starts at this letter
     CHECK_EQ(r.text(), std::string("xyze"));
-    CHECK(!r.s.wordActive());
+    CHECK(r.s.wordActive());
+    CHECK(!r.s.contextFellBack());  // a desync is not a reason to give up in-place
+    r.type("e ");
+    CHECK_EQ(r.text(), std::string("xyzê "));
 }
 
 TEST(session_composition_refused_is_literal) {
@@ -291,4 +295,115 @@ TEST(session_reedit_only_on_diacritic_keys) {
     CHECK(!isDiacriticOnlyKey(U'a', false));
     CHECK(isDiacriticOnlyKey(U'6', true));
     CHECK(!isDiacriticOnlyKey(U's', true));
+}
+
+TEST(default_mode_is_in_place) {
+    TypingSession t;
+    CHECK(t.outputMode() == OutputMode::InPlace);
+    std::map<std::string, AppMode> none;
+    CHECK(resolveAppMode("notepad.exe", none) == AppMode::InPlace);   // implicit default
+    CHECK(resolveAppMode("chrome.exe", none) == AppMode::InPlace);
+    CHECK(resolveAppMode("mstsc.exe", none) == AppMode::Off);         // built-ins unchanged
+}
+
+TEST(migration_keeps_explicit_choices) {
+    // A pre-1.0.9 snapshot: one app pinned to composition, one to hook. Implicit apps now
+    // resolve to in-place; the explicit choices survive.
+    Settings old;
+    old.appModes["word.exe"] = AppMode::Composition;
+    old.appModes["game.exe"] = AppMode::HookFallback;
+    std::vector<uint8_t> b = serialize(old);
+    Settings now;
+    CHECK(deserialize(b.data(), b.size(), now));
+    CHECK(resolveAppMode("word.exe", now.appModes) == AppMode::Composition);
+    CHECK(resolveAppMode("game.exe", now.appModes) == AppMode::HookFallback);
+    CHECK(resolveAppMode("excel.exe", now.appModes) == AppMode::InPlace);
+}
+
+TEST(in_place_falls_back_to_composition_when_unreadable) {
+    Rig r(OutputMode::InPlace);
+    r.doc.unreadable = true;
+    r.type("vieetj ");
+    CHECK_EQ(r.text(), std::string("việt "));   // typed through composition, not corrupted
+    CHECK(r.s.contextFellBack());
+    r.s.resetContext();                          // new field: in-place again
+    CHECK(!r.s.contextFellBack());
+}
+
+TEST(in_place_verification_failure_falls_back_for_the_field) {
+    Rig r(OutputMode::InPlace);
+    r.doc.refuseReplace = true;  // the control will not take our in-place edit
+    r.type("aa");                // replace refused: this key literal, field -> composition
+    CHECK_EQ(r.text(), std::string("aa"));
+    CHECK(r.s.contextFellBack());
+    r.type(" vieetj ");
+    CHECK_EQ(r.text(), std::string("aa việt "));
+}
+
+TEST(omnibox_autocomplete_suffix_is_never_deleted) {
+    // Chrome/Edge address bar: after each typed key the app selects a suggested suffix
+    // AFTER the caret. Our edits touch only the word before the insertion point.
+    Rig r(OutputMode::InPlace);
+    auto suggest = [&](const std::u16string& suffix) {  // app autocompletes
+        r.doc.text += suffix;
+        r.doc.anchor = r.doc.text.size();                // selection [caret, end]
+    };
+    r.type("vie");
+    suggest(u"tnam.vn");
+    r.type("e");                                         // e -> ê before the caret
+    CHECK_EQ(r.text(), std::string("viêtnam.vn"));
+    CHECK(r.doc.hi() - r.doc.lo() == 7);                 // suffix still selected
+    r.type("t");                                         // typing replaces the suggestion
+    suggest(u"nam");
+    r.type("j");
+    CHECK_EQ(r.text(), std::string("việtnam"));
+    CHECK(!r.s.contextFellBack());
+}
+
+namespace {
+// Chrome/Edge omnibox: after every keystroke the app appends a suggestion and selects it
+// (forward selection from the caret); a typed key replaces the selection.
+struct Omnibox : Rig {
+    std::vector<std::u16string> suggestions;  // one per keystroke, "" = none
+    size_t k = 0;
+    Omnibox() : Rig(OutputMode::InPlace) {}
+    void suggest() {
+        if (doc.hi() != doc.lo()) {  // previous suggestion still selected: drop it first
+            doc.text.erase(doc.lo(), doc.hi() - doc.lo());
+            doc.caret = doc.anchor = doc.lo();
+        }
+        std::u16string sfx = k < suggestions.size() ? suggestions[k] : u"";
+        ++k;
+        doc.text.insert(doc.caret, sfx);
+        doc.anchor = doc.caret + sfx.size();  // selection [caret, caret+len)
+    }
+    void typeAc(const char* keys) {
+        for (const char* p = keys; *p; ++p) {
+            key(*p);
+            suggest();
+        }
+    }
+    std::string typedText() const {  // what the user typed (without the live suggestion)
+        return utf16ToUtf8(doc.text.substr(0, doc.lo()));
+    }
+};
+}  // namespace
+
+TEST(omnibox_inline_autocomplete_thuwr_vieecj) {
+    // real-Windows repro (1.0.8): "thuwr vieecj" gave "thử vieecj" — the second word
+    // stayed raw because a forward selection counted as an external edit.
+    Omnibox o;
+    o.suggestions = {u"iết", u"", u"", u"", u"", u" việc có phải", u"iệc có phải", u"ệc có phải", u"c có phải",
+                     u"c có phải", u"c có phải", u" có phải"};
+    o.typeAc("thuwr vieecj");
+    CHECK_EQ(o.typedText(), std::string("thử việc"));
+    CHECK(!o.s.contextFellBack());
+}
+
+TEST(omnibox_inline_autocomplete_vieejt_nam) {
+    Omnibox o;
+    o.suggestions = {u"ietnamnet.vn", u"etnamnet.vn", u"tnamnet.vn", u"", u"", u"", u" nam", u"am", u"m", u""};
+    o.typeAc("vieejt nam");
+    CHECK_EQ(o.typedText(), std::string("việt nam"));
+    CHECK(!o.s.contextFellBack());
 }

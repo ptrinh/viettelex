@@ -51,6 +51,9 @@ public:
     virtual void endComposition(const std::u16string& finalText) = 0;
     // End the composition leaving whatever text it holds (orphaned composition).
     virtual void endCompositionAsIs() = 0;
+    // In-place needs to read the text before the caret. False = this control cannot
+    // (no selection / GetText fails): the session types this context in composition.
+    virtual bool canReadContext() { return true; }
 };
 
 struct SessionOptions {
@@ -58,6 +61,7 @@ struct SessionOptions {
     bool autoRestore = true;
     bool reEditWord = true;
     const std::map<std::u16string, std::u16string>* shortcuts = nullptr;  // not owned
+    void (*log)(const char*) = nullptr;  // debug log (never typed text)
 };
 
 class TypingSession {
@@ -92,6 +96,10 @@ public:
 
     bool wordActive() const;
     const std::u16string& shown() const { return shown_; }
+    // In-place fell back to composition for this context (unreadable / verification
+    // failed); cleared by resetContext() (new field or app).
+    bool contextFellBack() const { return contextFallback_; }
+    OutputMode wordMode() const { return wordMode_; }
 
 private:
     bool isWordKey(char32_t c) const;
@@ -105,7 +113,11 @@ private:
     std::u16string composed() const;
 
     vtx_engine* engine_ = nullptr;
-    OutputMode mode_ = OutputMode::Composition;
+    OutputMode mode_ = OutputMode::InPlace;       // app default since 1.0.9
+    OutputMode wordMode_ = OutputMode::InPlace;   // mode of the word in progress
+    bool contextFallback_ = false;
+    OutputMode effectiveMode() const { return contextFallback_ ? OutputMode::Composition : mode_; }
+    void fallBack(const char* why);
     SessionOptions opt_;
     std::u16string shown_;     // what the current word looks like on screen
     bool overflow_ = false;    // engine overflowed: rest of the word passes through raw
