@@ -115,6 +115,8 @@ targets:
       - Keyboard/EmojiData.swift
       - Keyboard/Trackpad.swift
       - Keyboard/SwipeDecoder.swift
+      - Keyboard/SwipeGesture.swift
+      - Keyboard/SwipeTyping.swift
       - path: Keyboard/Resources/vnlexicon.bin
         buildPhase: resources
     settings:
