@@ -99,6 +99,11 @@ public:
     // In-place fell back to composition for this context (unreadable / verification
     // failed); cleared by resetContext() (new field or app).
     bool contextFellBack() const { return contextFallback_; }
+    // The focused context cannot be read (console / transitory document): compose, and
+    // never reach back into text before the caret (re-edit, ⌫ re-open). Set by the TIP
+    // after each focus change; cleared by resetContext().
+    void setCompositionOnlyContext(bool on);
+    bool compositionOnlyContext() const { return compositionOnly_; }
     OutputMode wordMode() const { return wordMode_; }
 
 private:
@@ -116,7 +121,11 @@ private:
     OutputMode mode_ = OutputMode::InPlace;       // app default since 1.0.9
     OutputMode wordMode_ = OutputMode::InPlace;   // mode of the word in progress
     bool contextFallback_ = false;
-    OutputMode effectiveMode() const { return contextFallback_ ? OutputMode::Composition : mode_; }
+    bool compositionOnly_ = false;
+    OutputMode effectiveMode() const {
+        return (contextFallback_ || compositionOnly_) ? OutputMode::Composition : mode_;
+    }
+    bool mayReadBack() const { return opt_.reEditWord && !compositionOnly_; }
     void fallBack(const char* why);
     SessionOptions opt_;
     std::u16string shown_;     // what the current word looks like on screen

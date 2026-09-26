@@ -30,6 +30,20 @@ bool builtInAppMode(const std::string& exe, AppMode& out);
 // including "composition" picked before 1.0.9 — are kept as they are).
 AppMode resolveAppMode(const std::string& exe, const std::map<std::string, AppMode>& overrides);
 
+// What a text CONTEXT allows, decided per focused field (1.1.1, cmd.exe repro):
+//   console   the TIP was activated with TF_TMAE_CONSOLE (conhost/OpenConsole/Windows
+//             Terminal) — the "document" is only the composition; text outside it is
+//             sent to the shell at once and can never be read back or replaced.
+//   transitory TF_SS_TRANSITORY in the context status: same promise (Windows
+//             Terminal's TSF sets TS_SS_TRANSITORY | TS_SS_NOHIDDENTEXT).
+//   readOnly  TF_SD_READONLY: nothing can be typed there at all.
+enum class HostText : uint8_t {
+    Normal,           // app policy decides (in-place by default, verified)
+    CompositionOnly,  // in-place impossible: compose, and never read back (no re-edit)
+    Literal,          // read-only: keys pass through untouched
+};
+HostText hostTextPolicy(bool console, bool transitory, bool readOnly);
+
 // Input-scope policy (spec §4.2). Values are InputScope enum numbers from InputScope.h.
 enum class FieldPolicy : uint8_t { Normal, Literal };
 FieldPolicy classifyInputScopes(const int* scopes, size_t count);

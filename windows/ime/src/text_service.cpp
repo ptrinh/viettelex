@@ -106,6 +106,9 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* ptim, TfClientId tid, DWORD f
     threadMgr_ = ptim;
     threadMgr_->AddRef();
     clientId_ = tid;
+    // Console hosts (conhost / OpenConsole / Windows Terminal) activate TSF with
+    // TF_TMAE_CONSOLE: their document is only the composition (see app_policy.h HostText).
+    consoleHost_ = (flags & TF_TMAE_CONSOLE) != 0;
 
     config::init((flags & TF_TMAE_SECUREMODE) != 0);
     applyConfig(true);
@@ -363,6 +366,16 @@ void TextService::clearComposition() {
     SafeRelease(compositionContext_);
 }
 
+HostText TextService::hostTextOf(ITfContext* ctx) {
+    TF_STATUS st = {};
+    bool transitory = false, readOnly = false;
+    if (SUCCEEDED(ctx->GetStatus(&st))) {
+        transitory = (st.dwStaticFlags & TF_SS_TRANSITORY) != 0;
+        readOnly = (st.dwDynamicFlags & TF_SD_READONLY) != 0;
+    }
+    return hostTextPolicy(consoleHost_, transitory, readOnly);
+}
+
 bool TextService::fieldIsLiteral(ITfContext* ctx, TfEditCookie ec) {
     // Input scope is a text-store attribute (app property); some stores expose it as a
     // regular property instead.
@@ -508,9 +521,19 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* ea
     BOOL result = FALSE;
     HRESULT hr = RunEditSession(ctx, clientId_, TF_ES_SYNC | TF_ES_READWRITE, [&](TfEditCookie ec) -> HRESULT {
         TsfTextSink sink(this, ctx, ec);
-        // Literal fields (password, PIN, number, e-mail): checked where a word would
-        // start, so a field switch inside one context is caught too.
-        if (!session_.wordActive() && k.kind == KeyKind::Char && fieldIsLiteral(ctx, ec)) return S_OK;
+        // Literal fields (password, PIN, number, e-mail) and what the context allows
+        // (console / transitory / read-only): checked where a word would start, so a
+        // field switch inside one context is caught too.
+        if (!session_.wordActive() && k.kind == KeyKind::Char) {
+            if (fieldIsLiteral(ctx, ec)) return S_OK;
+            const HostText host = hostTextOf(ctx);
+            if (host == HostText::Literal) return S_OK;
+            const bool compOnly = host == HostText::CompositionOnly;
+            if (compOnly != session_.compositionOnlyContext()) {
+                session_.setCompositionOnlyContext(compOnly);
+                if (compOnly) config::log("context: console/transitory document -> composition only");
+            }
+        }
         result = session_.handleKey(k, sink) ? TRUE : FALSE;
         return S_OK;
     });

@@ -407,3 +407,126 @@ TEST(omnibox_inline_autocomplete_vieejt_nam) {
     CHECK_EQ(o.typedText(), std::string("việt nam"));
     CHECK(!o.s.contextFellBack());
 }
+
+namespace {
+// Win10 conhost (cmd.exe / PowerShell) TSF semantics, as in microsoft/terminal's
+// ConsoleTSF: the document is only the composition; letters the TIP lets through go
+// straight to the shell as WM_CHAR, text inserted outside a composition is sent as
+// typed and can never be deleted, and nothing already sent can be read back.
+struct ConsoleDoc : TextSink {
+    std::u16string shell;     // what cmd.exe received
+    std::u16string compText;  // live composition
+    bool comp = false;
+    std::u16string textBeforeCaret(int) override { return {}; }
+    char16_t charAfterCaret() override { return 0; }
+    bool hasSelection() override { return false; }
+    bool replaceBeforeCaret(const std::u16string& expect, const std::u16string& ins) override {
+        if (!expect.empty()) return false;  // nothing to delete in the document
+        shell += ins;                       // insert-only
+        return true;
+    }
+    bool compositionActive() override { return comp; }
+    bool setComposition(const std::u16string& t, int absorb) override {
+        if (absorb) return false;
+        comp = true;
+        compText = t;
+        return true;
+    }
+    void endComposition(const std::u16string& t) override {
+        if (comp) shell += t;
+        comp = false;
+        compText.clear();
+    }
+    void endCompositionAsIs() override { endComposition(compText); }
+};
+
+std::string typeConsole(TypingSession& s, ConsoleDoc& d, const char* keys) {
+    for (const char* p = keys; *p; ++p) {
+        KeyInput k;
+        k.kind = KeyKind::Char;
+        k.ch = static_cast<unsigned char>(*p);
+        const bool eaten = s.wantsKey(k) && s.handleKey(k, d);
+        if (!eaten) d.shell += static_cast<char16_t>(*p);  // WM_CHAR to the shell
+    }
+    return utf16ToUtf8(d.shell);
+}
+
+void configureDefaults(TypingSession& s, const Settings& st) {
+    SessionOptions o;
+    o.engineFlags = st.engineFlags();
+    o.autoRestore = st.autoRestore;
+    o.reEditWord = st.reEditWord;
+    o.shortcuts = &st.shortcuts;
+    s.configure(o);
+}
+}  // namespace
+
+TEST(console_cmd_types_vietnamese_via_composition) {
+    // 1.1.0 repro on Win10 cmd.exe: "thuwr gox tieengs vieetj" -> "thuưr gox tieengs Vieetj".
+    Settings st;
+    TypingSession s;  // in-place is the app default...
+    configureDefaults(s, st);
+    s.setCompositionOnlyContext(true);  // ...but the TIP saw TF_TMAE_CONSOLE / TF_SS_TRANSITORY
+    ConsoleDoc d;
+    CHECK_EQ(typeConsole(s, d, "thuwr gox tieengs vieetj "), std::string("thử gõ tiếng việt "));
+    CHECK(s.wordMode() == OutputMode::Composition);
+}
+
+TEST(console_unflagged_host_recovers_after_first_word) {
+    // A console-like host we did NOT recognise (e.g. mintty via IMM): at the 2nd key the
+    // field shows none of the typed text -> composition for the rest of the field. The
+    // first letter was already passed through, so only a word whose FIRST two keys form
+    // one letter ("dd" -> đ) can come out as typed. Never "thuưr" garbage, never the rest
+    // of the line raw.
+    Settings st;
+    TypingSession s;
+    configureDefaults(s, st);
+    ConsoleDoc d;
+    CHECK_EQ(typeConsole(s, d, "thuwr gox tieengs vieetj "), std::string("thử gõ tiếng việt "));
+    CHECK(s.contextFellBack());
+    TypingSession s2;
+    configureDefaults(s2, st);
+    ConsoleDoc d2;
+    CHECK_EQ(typeConsole(s2, d2, "ddi dduwowngf "), std::string("ddi đường "));
+}
+
+TEST(console_never_reads_back_for_reedit_or_reopen) {
+    Settings st;
+    TypingSession s;
+    configureDefaults(s, st);
+    s.setCompositionOnlyContext(true);
+    ConsoleDoc d;
+    typeConsole(s, d, "thays ");
+    KeyInput bs;
+    bs.kind = KeyKind::Backspace;
+    const bool eaten = s.wantsKey(bs) && s.handleKey(bs, d);
+    CHECK(!eaten);  // the shell deletes the space itself; no re-open of "tháy"
+    CHECK(!s.wordActive());
+}
+
+TEST(host_text_policy) {
+    CHECK(hostTextPolicy(false, false, false) == HostText::Normal);
+    CHECK(hostTextPolicy(true, false, false) == HostText::CompositionOnly);   // TF_TMAE_CONSOLE
+    CHECK(hostTextPolicy(false, true, false) == HostText::CompositionOnly);   // TF_SS_TRANSITORY
+    CHECK(hostTextPolicy(true, true, true) == HostText::Literal);             // TF_SD_READONLY wins
+    std::map<std::string, AppMode> none;
+    for (const char* exe : {"conhost.exe", "openconsole.exe", "windowsterminal.exe", "mintty.exe"})
+        CHECK(resolveAppMode(exe, none) == AppMode::Composition);
+    // search bars are ordinary readable TSF stores: in-place, verified, with fallback
+    for (const char* exe : {"searchhost.exe", "searchapp.exe", "searchui.exe", "explorer.exe",
+                            "systemsettings.exe", "powertoys.powerlauncher.exe", "everything.exe"})
+        CHECK(resolveAppMode(exe, none) == AppMode::InPlace);
+}
+
+TEST(search_box_rewriting_its_text_each_key_stays_in_sync) {
+    // Explorer / Settings / Start search boxes re-set their own text on every keystroke
+    // (same text, caret at the end). That is not a change of OUR word: keep composing.
+    Rig r(OutputMode::InPlace);
+    for (const char* p = "tieengs vieetj"; *p; ++p) {
+        r.key(*p);
+        std::u16string t = r.doc.text;  // app re-sets identical text, caret to end
+        r.doc.setText(t);
+    }
+    CHECK_EQ(r.text(), std::string("tiếng việt"));
+    CHECK(!r.s.contextFellBack());
+}

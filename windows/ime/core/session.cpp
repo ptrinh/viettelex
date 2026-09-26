@@ -103,9 +103,15 @@ void TypingSession::reset() {
     reopenArmed_ = false;
 }
 
+void TypingSession::setCompositionOnlyContext(bool on) {
+    compositionOnly_ = on;
+    if (vtx_is_empty(engine_)) wordMode_ = effectiveMode();
+}
+
 void TypingSession::resetContext() {
     reset();
     contextFallback_ = false;
+    compositionOnly_ = false;
     if (engine_) vtx_reset_context(engine_);
 }
 
@@ -168,9 +174,19 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
         // app changed the text before the caret): start over rather than edit blindly.
         // A selection AFTER the caret (Chrome/Edge omnibox autocomplete suffix) is the
         // app's: it does not invalidate the word, which ends at the insertion point.
-        const bool stale = wordMode_ == OutputMode::Composition
-                               ? !sink.compositionActive()
-                               : sink.textBeforeCaret(static_cast<int>(shown_.size())) != shown_;
+        bool stale;
+        if (wordMode_ == OutputMode::Composition) {
+            stale = !sink.compositionActive();
+        } else {
+            const std::u16string before = sink.textBeforeCaret(static_cast<int>(shown_.size()));
+            stale = before != shown_;
+            // NOTHING before the caret although we just let letters through: the store
+            // does not show the app's text (IMM/CUAS hosts like mintty, xterm.js'
+            // hidden textarea, consoles not flagged as such). In-place can never work
+            // in this field — use composition for the rest of it (this word is lost).
+            if (stale && before.empty() && !shown_.empty())
+                fallBack("in-place: the field shows none of the typed text -> composition for this field");
+        }
         if (stale) reset();
     }
     if (vtx_is_empty(engine_)) {
@@ -181,7 +197,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
         }
     }
     const bool comp = wordMode_ == OutputMode::Composition;
-    if (vtx_is_empty(engine_) && opt_.reEditWord && !sink.hasSelection() &&
+    if (vtx_is_empty(engine_) && mayReadBack() && !sink.hasSelection() &&
         (!comp || !sink.compositionActive())) {
         if (tryReEdit(c, sink)) return true;
     }
@@ -289,7 +305,7 @@ bool TypingSession::handleBackspace(TextSink& sink) {
         return false;
     }
     if (vtx_is_empty(engine_)) {
-        if (opt_.reEditWord && reopenArmed_ && vtx_can_reopen_last_commit(engine_)) return tryReopen(sink);
+        if (mayReadBack() && reopenArmed_ && vtx_can_reopen_last_commit(engine_)) return tryReopen(sink);
         reopenArmed_ = false;
         return false;
     }

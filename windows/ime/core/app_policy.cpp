@@ -43,6 +43,14 @@ struct Rule {
 // Candidates for InPlace/HookFallback are learned from the §5.2 manual matrix on
 // real hardware and added here with a comment naming the symptom.
 constexpr Rule kRules[] = {
+    // Consoles: their TSF document holds only the composition (text typed so far is
+    // already in the shell and unreadable), so in-place can never verify or replace —
+    // 1.1.0 in cmd.exe typed "thuưr gox" (ư inserted, u never deleted, then all raw).
+    // The TIP also detects this at run time (TF_TMAE_CONSOLE / TF_SS_TRANSITORY).
+    {"conhost.exe", AppMode::Composition},        // cmd, PowerShell, WSL console window
+    {"openconsole.exe", AppMode::Composition},    // Windows Terminal's bundled conhost
+    {"windowsterminal.exe", AppMode::Composition},
+    {"mintty.exe", AppMode::Composition},         // Git Bash / MSYS2 / Cygwin (IMM only)
     {"mstsc.exe", AppMode::Off},          // Remote Desktop Connection
     {"msrdc.exe", AppMode::Off},          // Remote Desktop (Store/AVD client)
     {"vmconnect.exe", AppMode::Off},      // Hyper-V console
@@ -69,6 +77,12 @@ AppMode resolveAppMode(const std::string& exe, const std::map<std::string, AppMo
     // Default since 1.0.9: in-place (verified edits of the text before the caret; falls
     // back to composition per field when the text cannot be read or verified).
     return AppMode::InPlace;
+}
+
+HostText hostTextPolicy(bool console, bool transitory, bool readOnly) {
+    if (readOnly) return HostText::Literal;
+    if (console || transitory) return HostText::CompositionOnly;
+    return HostText::Normal;
 }
 
 FieldPolicy classifyInputScopes(const int* scopes, size_t count) {

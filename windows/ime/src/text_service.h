@@ -2,6 +2,7 @@
 // manager, i.e. per UI thread that has text input).
 #pragma once
 #include "globals.h"
+#include "app_policy.h"
 #include "hotkey.h"
 #include "session.h"
 #include "settings.h"
@@ -79,6 +80,7 @@ private:
     void flushAsync(ITfContext* ctx);
     void endCompositionAsync();
     bool fieldIsLiteral(ITfContext* ctx, TfEditCookie ec);
+    HostText hostTextOf(ITfContext* ctx);
 
     bool initThreadMgrSink();
     void uninitThreadMgrSink();
@@ -97,6 +99,7 @@ private:
     DWORD editSinkCookie_ = TF_INVALID_COOKIE;
     bool keySinkAdvised_ = false;
     bool altZPreserved_ = false;
+    bool consoleHost_ = false;  // activated with TF_TMAE_CONSOLE
 
     ITfComposition* composition_ = nullptr;
     ITfContext* compositionContext_ = nullptr;
