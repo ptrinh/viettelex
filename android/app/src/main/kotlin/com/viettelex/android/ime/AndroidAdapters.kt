@@ -39,6 +39,8 @@ class AndroidEditorPort(val ic: InputConnection) : EditorPort {
             EditorPort.PortKey.ENTER -> KeyEvent.KEYCODE_ENTER
             EditorPort.PortKey.LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
             EditorPort.PortKey.RIGHT -> KeyEvent.KEYCODE_DPAD_RIGHT
+            EditorPort.PortKey.UP -> KeyEvent.KEYCODE_DPAD_UP
+            EditorPort.PortKey.DOWN -> KeyEvent.KEYCODE_DPAD_DOWN
         }
         val t = SystemClock.uptimeMillis()
         val flags = KeyEvent.FLAG_SOFT_KEYBOARD or KeyEvent.FLAG_KEEP_TOUCH_MODE

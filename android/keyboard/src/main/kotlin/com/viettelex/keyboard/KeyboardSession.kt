@@ -13,8 +13,9 @@ sealed class Key {
     object DoubleSpacePeriod : Key()
     object Newline : Key()
     object Backspace : Key()
-    /** Trackpad: session reset; IME tự dời con trỏ [delta] ký tự. */
-    data class MoveCursor(val delta: Int) : Key()
+    /** Trackpad: session reset; IME tự dời con trỏ [delta] ký tự, hoặc [delta] dòng
+     *  khi [vertical] (âm = trái/lên). */
+    data class MoveCursor(val delta: Int, val vertical: Boolean = false) : Key()
     /** 🗑 plane mẫu câu: xoá sạch ô (qua [TextProxy.clearAll]). */
     object ClearField : Key()
 }

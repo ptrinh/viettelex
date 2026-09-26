@@ -30,7 +30,7 @@ interface EditorPort {
     /** Gõ [text] bằng key event ký tự (app chỉ nhận phím — [WriteMode.KEY_ONLY]). */
     fun sendText(text: CharSequence) { commitText(text) }
 
-    enum class PortKey { DEL, ENTER, LEFT, RIGHT }
+    enum class PortKey { DEL, ENTER, LEFT, RIGHT, UP, DOWN }
 }
 
 /**
@@ -60,6 +60,8 @@ class IcProxy(
     var rawKeys = false
     /** Ô URI (thanh địa chỉ): trackpad dùng DPAD như cũ. */
     var uriField = false
+    /** TYPE_TEXT_FLAG_MULTI_LINE: trackpad lên/xuống dùng DPAD (dòng hiển thị). */
+    var multiLine = false
     /** EditorInfo.IME_ACTION_*; 0 ⇒ "\n" = KEYCODE_ENTER. */
     var actionId = 0
     /**
@@ -344,7 +346,40 @@ class IcProxy(
         return true
     }
 
+    /**
+     * Trackpad lên (âm) / xuống [lines] dòng — kế hoạch ở [VerticalMove.plan]. Ô URI:
+     * không đi dọc (DPAD xuống trong thanh địa chỉ mở danh sách gợi ý).
+     */
+    fun moveCursorVertical(lines: Int) {
+        if (lines == 0 || uriField) return
+        val c = conn() ?: return
+        val cur = if (tracker.hasSelection) -1 else tracker.cursor
+        var before: String? = null
+        var after: String? = null
+        if (!rawKeys && cur >= 0) {
+            before = c.textBefore(VERTICAL_CAP)?.toString()
+            after = c.textAfter(VERTICAL_CAP)?.toString()
+        }
+        when (val plan = VerticalMove.plan(before, after, lines, multiLine, cur, rawKeys)) {
+            is VerticalMove.Plan.None -> Unit
+            is VerticalMove.Plan.Select -> {
+                val pos = cur + plan.units
+                if (c.setSelection(pos, pos)) {
+                    tracker.movedTo(pos); shadow.invalidate()
+                } else fail("setSelection")
+            }
+            is VerticalMove.Plan.Dpad -> {
+                val key = if (lines < 0) EditorPort.PortKey.UP else EditorPort.PortKey.DOWN
+                repeat(plan.count) { c.sendKey(key) }
+                tracker.unknown()
+                shadow.invalidate()
+            }
+        }
+    }
+
     companion object {
+        /** Văn bản quanh con trỏ đọc khi đi dọc (đủ vài dòng; đọc IPC chỉ lúc trackpad). */
+        const val VERTICAL_CAP = 1000
         /** Độ dài văn bản trước con trỏ đọc/giữ (đủ cho auto-shift, email, xoá theo từ). */
         const val CONTEXT_CAP = 256
     }

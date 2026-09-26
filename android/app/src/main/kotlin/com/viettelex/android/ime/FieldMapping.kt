@@ -30,6 +30,8 @@ data class FieldConfig(
     val capCharacters: Boolean = false,
     /** IME_FLAG_NO_PERSONALIZED_LEARNING (Chrome ẩn danh…): không học từ. */
     val noLearning: Boolean = false,
+    /** TYPE_TEXT_FLAG_MULTI_LINE (sau workaround Pixel Launcher): trackpad lên/xuống bằng DPAD. */
+    val multiLine: Boolean = false,
 )
 
 object FieldMapping {
@@ -121,6 +123,7 @@ object FieldMapping {
             numberSigned = isNumber && (flags and (InputType.TYPE_NUMBER_FLAG_SIGNED or InputType.TYPE_NUMBER_FLAG_DECIMAL)) != 0,
             numberDecimal = isNumber && (flags and InputType.TYPE_NUMBER_FLAG_DECIMAL) != 0,
             capWords = capWords, capCharacters = capCharacters,
-            noLearning = (imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0)
+            noLearning = (imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0,
+            multiLine = multiLine)
     }
 }

@@ -158,6 +158,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             hasActionLabel = info.actionLabel != null, customActionId = info.actionId)
         proxy.secure = field.isSecure
         proxy.rawKeys = field.rawKeys
+        proxy.multiLine = field.multiLine
         proxy.writeMode = com.viettelex.keyboard.WriteMode.forPackage(info.packageName)
         proxy.actionId = field.actionId
         proxy.uriField = (info.inputType and InputType.TYPE_MASK_CLASS) == InputType.TYPE_CLASS_TEXT &&
@@ -253,7 +254,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         clearSwipeUndo()
         if (!proxy.begin()) return
         val out = try { session.handle(key, proxy) } finally { proxy.end() }
-        if (key is Key.MoveCursor) proxy.moveCursor(key.delta)
+        if (key is Key.MoveCursor) {
+            if (key.vertical) proxy.moveCursorVertical(key.delta) else proxy.moveCursor(key.delta)
+        }
         resetIfEditFailed()
         if (key is Key.Letter) strip?.hidePasteCard()
         pendingGen = out.generation

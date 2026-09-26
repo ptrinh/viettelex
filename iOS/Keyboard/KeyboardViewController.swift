@@ -314,6 +314,7 @@ final class KeyboardViewController: UIInputViewController {
                 case .backspace: kind = "backspace"
                 case .newline: kind = "newline"
                 case .moveCursor: kind = "cursor"
+                case .moveLine: kind = "line"
                 case .clearField: kind = "clear"
                 case .replaceLastLetter(let t): kind = "flick"; char = t
                 }
@@ -370,6 +371,17 @@ final class KeyboardViewController: UIInputViewController {
             lastWord = nil; lastWord2 = nil
             restoreUndo = nil; undoOfferActive = false
             textDocumentProxy.adjustTextPosition(byCharacterOffset: delta)
+        case .moveLine(let lines):
+            // Gần đúng: proxy không biết dòng HIỂN THỊ — chỉ nhảy theo ký tự xuống dòng
+            // trong context host cho, giữ cột (VerticalMove). Dòng tự ngắt: không làm gì.
+            bridge.reset()
+            lastWord = nil; lastWord2 = nil
+            restoreUndo = nil; undoOfferActive = false
+            let before = textDocumentProxy.documentContextBeforeInput ?? ""
+            let after = textDocumentProxy.documentContextAfterInput ?? ""
+            if let off = VerticalMove.offset(before: before, after: after, lines: lines), off != 0 {
+                textDocumentProxy.adjustTextPosition(byCharacterOffset: off)
+            }
         case .newline:
             commitAndLearn(bridge.boundary("\n", proxy: proxy))
             lastWord = nil; lastWord2 = nil
@@ -406,7 +418,7 @@ final class KeyboardViewController: UIInputViewController {
         // cho phím cuối, ký tự không bao giờ chờ. Sound đã phát ở touch-down.
         let needsAutoShift: Bool
         switch key {
-        case .space, .newline, .doubleSpacePeriod, .backspace, .moveCursor, .clearField: needsAutoShift = true
+        case .space, .newline, .doubleSpacePeriod, .backspace, .moveCursor, .moveLine, .clearField: needsAutoShift = true
         default: needsAutoShift = false
         }
         suggestionGen += 1

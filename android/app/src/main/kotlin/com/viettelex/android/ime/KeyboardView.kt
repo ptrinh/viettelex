@@ -123,7 +123,7 @@ class KeyboardView(
     // --- trackpad / giữ phím ---
     private var trackpad = false
     private var spaceKey: LaidKey? = null
-    private var spaceHoldX = 0f
+    private val trackpadGesture = TrackpadGesture()
     private var spacePtr = -1
     private var bsPtr = -1
     private var bsHoldStart = 0L
@@ -524,10 +524,9 @@ class KeyboardView(
         when {
             k.kind == KeyKind.SPACE && pid == spacePtr -> {
                 if (trackpad) {
-                    val delta = ((x - spaceHoldX) / (TRACKPAD_STEP_DP * d)).toInt()
-                    if (delta != 0) {
-                        listener?.onKey(Key.MoveCursor(delta))
-                        spaceHoldX = x
+                    // dp: cùng ngưỡng với iOS (pt). Trục/tăng tốc: TrackpadGesture.
+                    trackpadGesture.move(x / d, y / d, SystemClock.uptimeMillis())?.let {
+                        listener?.onKey(Key.MoveCursor(it.count, vertical = it.axis == TrackpadGesture.Axis.V))
                     }
                 } else if (movedFar) removeCallbacks(spaceHoldRun)
             }
@@ -644,7 +643,7 @@ class KeyboardView(
         val k = spaceKey ?: return
         if (spacePtr < 0) return
         trackpad = true
-        spaceHoldX = lastPointerX(spacePtr)
+        trackpadGesture.begin(lastX[spacePtr] / d, lastY[spacePtr] / d, SystemClock.uptimeMillis())
         balloon.hide(); balloonOwner = null
         // Nhả ra KHÔNG có dấu cách (stock), kể cả khi chưa di con trỏ.
         commits.disarm(k)
@@ -652,12 +651,12 @@ class KeyboardView(
     }
 
     private var lastX = FloatArray(MAX_PTR)
-    private fun lastPointerX(pid: Int) = lastX[pid]
+    private var lastY = FloatArray(MAX_PTR)
 
     override fun dispatchTouchEvent(e: MotionEvent): Boolean {
         for (i in 0 until e.pointerCount) {
             val id = e.getPointerId(i)
-            if (id in 0 until MAX_PTR) lastX[id] = e.getX(i)
+            if (id in 0 until MAX_PTR) { lastX[id] = e.getX(i); lastY[id] = e.getY(i) }
         }
         return super.dispatchTouchEvent(e)
     }
@@ -705,6 +704,5 @@ class KeyboardView(
         const val BS_HOLD_MS = 500L
         const val BS_INTERVAL = 90L
         const val GLOBE_HOLD_MS = 500L
-        const val TRACKPAD_STEP_DP = 9f
     }
 }

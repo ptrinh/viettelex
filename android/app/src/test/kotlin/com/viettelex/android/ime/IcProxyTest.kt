@@ -35,8 +35,31 @@ class FakeEditor(initial: String = "", var selStart: Int = initial.length, var s
             EditorPort.PortKey.LEFT -> { if (selStart > 0) selStart--; selEnd = selStart }
             EditorPort.PortKey.RIGHT -> { if (selEnd < sb.length) selEnd++; selStart = selEnd }
             EditorPort.PortKey.ENTER -> replaceSel("\n")
+            EditorPort.PortKey.UP -> dpadVertical(up = true)
+            EditorPort.PortKey.DOWN -> dpadVertical(up = false)
         }
         pendingKeys.clear()
+    }
+    /** Số DPAD lên/xuống KHÔNG được tiêu thụ ⇒ hệ thống sẽ dời focus sang view khác. */
+    var focusEscapes = 0
+    /** Mô phỏng ArrowKeyMovementMethod (Selection.moveUp/moveDown), dòng = dòng logic. */
+    private fun dpadVertical(up: Boolean) {
+        val t = text; val p = selEnd
+        val lineStart = t.lastIndexOf('\n', p - 1) + 1
+        val col = p - lineStart
+        if (up) {
+            if (lineStart > 0) {
+                val prevStart = t.lastIndexOf('\n', lineStart - 2) + 1
+                selStart = prevStart + minOf(col, lineStart - 1 - prevStart)
+            } else if (p != 0) selStart = 0 else focusEscapes++
+        } else {
+            val nl = t.indexOf('\n', p)
+            if (nl >= 0) {
+                val nextEnd = t.indexOf('\n', nl + 1).let { if (it < 0) t.length else it }
+                selStart = nl + 1 + minOf(col, nextEnd - nl - 1)
+            } else if (p != t.length) selStart = t.length else focusEscapes++
+        }
+        selEnd = selStart
     }
     private fun replaceSel(t: CharSequence) {
         sb.replace(selStart, selEnd, t.toString()); selStart += t.length; selEnd = selStart
@@ -266,6 +289,75 @@ class IcProxyTest {
         p2.moveCursor(-1)
         assertEquals(listOf(EditorPort.PortKey.LEFT), ed2.keys)
         assertEquals(0, ed2.setSelections)
+    }
+
+    // Mục 7b: trackpad lên/xuống.
+
+    @Test fun trackpadVerticalSingleLineFieldUsesNewlineSelection() {
+        val ed = FakeEditor("abcdef\nxy\nabcdefgh")         // con trỏ cuối (dòng 3, cột 8)
+        val p = proxy(ed)
+        p.moveCursorVertical(-1)                             // dòng "xy" ngắn hơn ⇒ cuối dòng
+        assertEquals(9, ed.selStart)
+        assertTrue(ed.keys.isEmpty())
+        assertFalse(tracker.onUpdate(9, 9))
+        p.moveCursorVertical(-1)                             // cột 2 ở "abcdef"
+        assertEquals(2, ed.selStart)
+        assertFalse(tracker.onUpdate(2, 2))
+        p.moveCursorVertical(-1)                             // dòng đầu: không làm gì
+        assertEquals(2, ed.selStart)
+        p.moveCursorVertical(2)                              // xuống 2 dòng, cột 2
+        assertEquals(12, ed.selStart)
+        assertTrue(ed.keys.isEmpty())
+    }
+
+    @Test fun trackpadVerticalMultiLineUsesDpadNeverEscapesFocus() {
+        val ed = FakeEditor("ab\ncd\nef")
+        val p = proxy(ed).also { it.multiLine = true }
+        p.moveCursorVertical(-5)                             // 2 '\n' phía trên ⇒ tối đa 2 phím
+        assertEquals(listOf(EditorPort.PortKey.UP, EditorPort.PortKey.UP), ed.keys)
+        assertEquals(2, ed.selStart)
+        p.moveCursorVertical(-1)                             // con trỏ chưa biết (chờ onUpdateSelection) ⇒ bỏ
+        assertEquals(2, ed.keys.size)
+        tracker.onUpdate(ed.selStart, ed.selEnd)
+        p.moveCursorVertical(-3)                             // dòng đầu, chưa ở 0 ⇒ đúng 1 phím về 0
+        assertEquals(0, ed.selStart)
+        tracker.onUpdate(0, 0)
+        p.moveCursorVertical(-1)                             // offset 0: không gửi DPAD
+        assertEquals(3, ed.keys.size)
+        assertEquals(0, ed.focusEscapes)
+        p.moveCursorVertical(8)
+        tracker.onUpdate(ed.selStart, ed.selEnd)
+        p.moveCursorVertical(8)
+        tracker.onUpdate(ed.selStart, ed.selEnd)
+        p.moveCursorVertical(8)                              // cuối ô: dừng
+        assertEquals(ed.text.length, ed.selStart)
+        assertEquals(0, ed.focusEscapes)
+    }
+
+    @Test fun trackpadVerticalColumnZeroDoesNotOvershoot() {
+        // Cột 0 dòng 2: phím UP thứ nhất về đúng offset 0 ⇒ phím thứ hai sẽ thoát focus.
+        val ed = FakeEditor("ab\ncd", selStart = 3)
+        val p = proxy(ed).also { it.multiLine = true }
+        p.moveCursorVertical(-2)
+        assertEquals(1, ed.keys.size)
+        assertEquals(0, ed.focusEscapes)
+    }
+
+    @Test fun trackpadVerticalFallbacks() {
+        val ed = FakeEditor("ab\ncd")
+        val p = proxy(ed).also { it.rawKeys = true }         // TYPE_NULL: DPAD cho app
+        p.moveCursorVertical(-2)
+        assertEquals(listOf(EditorPort.PortKey.UP, EditorPort.PortKey.UP), ed.keys)
+        val ed2 = FakeEditor("ab\ncd").also { it.readable = false }
+        val p2 = proxy(ed2, reliable = false)               // con trỏ vẫn biết từ reset()
+        p2.moveCursorVertical(1)                             // không đọc được: xuống không biết biên
+        assertTrue(ed2.keys.isEmpty())
+        p2.moveCursorVertical(-3)                            // lên: con trỏ > 0 ⇒ 1 phím
+        assertEquals(listOf(EditorPort.PortKey.UP), ed2.keys)
+        val ed3 = FakeEditor("ab\ncd")
+        val p3 = proxy(ed3).also { it.uriField = true }
+        p3.moveCursorVertical(-1)
+        assertTrue(ed3.keys.isEmpty()); assertEquals(0, ed3.setSelections)
     }
 
     // Mục 8: giá trị trả về.

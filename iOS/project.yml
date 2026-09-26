@@ -113,6 +113,7 @@ targets:
       - Keyboard/DisplayCase.swift
       - Keyboard/SensitiveWords.swift
       - Keyboard/EmojiData.swift
+      - Keyboard/Trackpad.swift
       - path: Keyboard/Resources/vnlexicon.bin
         buildPhase: resources
     settings:

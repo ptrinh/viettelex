@@ -13,7 +13,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         case doubleSpacePeriod        // "  " fast → ". " (Apple behavior)
         case newline
         case backspace
-        case moveCursor(Int)          // space-hold trackpad mode
+        case moveCursor(Int)          // space-hold trackpad mode (ký tự, âm = trái)
+        case moveLine(Int)            // trackpad lên/xuống (dòng, âm = lên)
         case clearField               // nút thùng rác plane mẫu câu → xoá sạch ô
         /// Huỷ phím chữ vừa gõ rồi chèn chuỗi (iPad vuốt xuống ra ký tự phụ).
         case replaceLastLetter(String)
@@ -81,7 +82,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var lastSpaceTap: TimeInterval = 0
     /// Phím nhấc-mới-chốt đang đè — xem KeyCommitQueue (thứ tự khi gõ chồng ngón).
     private let commits = KeyCommitQueue()
-    private var spaceHoldX: CGFloat = 0
+    private var trackpadGesture = TrackpadGesture()
     private var backspaceHoldStart: TimeInterval = 0
 
     // Fill đục xấp xỉ stock — alpha-white trên nền trong suốt làm phím
@@ -2024,22 +2025,21 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         TouchLog.buttonDown("space", touchTimestamp: event.allTouches?.first(where: { $0.view === sender })?.timestamp)
     }
 
-    /// Space-hold = trackpad mode: sliding left/right moves the caret,
-    /// one position per ~9pt of travel (stock feel).
+    /// Space-hold = trackpad mode: kéo ngang dời con trỏ ~9pt/ký tự (stock), kéo dọc
+    /// ~24pt/dòng; kéo nhanh thì tăng tốc. Trục + tăng tốc: TrackpadGesture (thuần).
     @objc private func spaceHold(_ g: UILongPressGestureRecognizer) {
-        let x = g.location(in: self).x
+        let p = g.location(in: self)
+        let t = CACurrentMediaTime()
         switch g.state {
         case .began:
-            spaceHoldX = x
+            trackpadGesture.begin(x: Double(p.x), y: Double(p.y), t: t)
             setTrackpadDimmed(true)
             // Trackpad = không gõ: nhả ra KHÔNG có dấu cách (stock), kể cả khi
             // chưa di con trỏ. cancelsTouchesInView=false nên touchUpInside vẫn tới.
             if let v = g.view { commits.disarm(ObjectIdentifier(v)) }
         case .changed:
-            let delta = Int((x - spaceHoldX) / 9)
-            if delta != 0 {
-                tapped(.moveCursor(delta))
-                spaceHoldX = x
+            if let step = trackpadGesture.move(x: Double(p.x), y: Double(p.y), t: t), step.count != 0 {
+                tapped(step.axis == .horizontal ? .moveCursor(step.count) : .moveLine(step.count))
             }
         case .ended, .cancelled, .failed:
             setTrackpadDimmed(false)
