@@ -121,8 +121,23 @@ enum TouchLog {
 
     /// Session header: settings that change touch behaviour, so a pasted log is
     /// self-describing (A/B of the bottom-edge deferral).
-    static func session(fullAccess: Bool) {
+    static func session(fullAccess: Bool, traits: String = "") {
         guard enabled else { return }
-        write("=== keyboard appear — fullAccess=\(fullAccess ? 1 : 0)")
+        write("=== keyboard appear — fullAccess=\(fullAccess ? 1 : 0)" + (traits.isEmpty ? "" : " " + traits))
+    }
+
+    /// Trait ô đổi giữa phiên (host đổi ô không qua viewWillAppear).
+    static func traits(_ desc: String) {
+        guard enabled else { return }
+        write("traits " + desc)
+    }
+
+    /// Sau mỗi edit / thay đổi từ host: CHỈ độ dài context trước con trỏ (-1 = nil)
+    /// và cờ context kết thúc bằng từ đang gõ — KHÔNG BAO GIỜ nội dung chữ.
+    static func sync(_ event: String, ctxLen: Int, suffix: Bool, composingLen: Int) {
+        guard enabled else { return }
+        os_log("VTKB touch sync %{public}@ ctxLen=%d suffix=%d comp=%d", log: log, type: .default,
+               event, ctxLen, suffix ? 1 : 0, composingLen)
+        write("sync \(event) ctxLen=\(ctxLen) suffix=\(suffix ? 1 : 0) comp=\(composingLen)")
     }
 }

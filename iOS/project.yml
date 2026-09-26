@@ -92,6 +92,7 @@ targets:
       - KeyboardTests
       - Keyboard/EngineBridge.swift
       - Keyboard/FieldPolicy.swift
+      - Keyboard/CompositionSync.swift
       - Keyboard/PlanePolicy.swift
       - Keyboard/KeyLayout.swift
       - Keyboard/KeyboardView.swift

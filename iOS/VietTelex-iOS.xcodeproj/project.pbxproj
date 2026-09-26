@@ -28,6 +28,7 @@
 		3D9FF1966D0667F67B245548 /* SpaceLogo@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = B913AFA01B930811B2848696 /* SpaceLogo@2x.png */; };
 		3DE25701A4C0DB5C7124618A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 07973B1798B754A6DDA969C3 /* Assets.xcassets */; };
 		4E60808450DA80CBC7DEF891 /* ios-mau-cau.yml in Resources */ = {isa = PBXBuildFile; fileRef = E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */; };
+		4E871644F8FD8B5DEF5D18C5 /* CompositionSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BDEAB6EAD0F1EA689B388A /* CompositionSync.swift */; };
 		4F177B14857E493A92E95B00 /* PlaneCacheLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EAFABBBF6544841D633BFD9 /* PlaneCacheLayoutTests.swift */; };
 		5219B81A88BC7A0F77DC8467 /* TelexCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE8679AE19C0C9801BE52ADF /* TelexCore */; };
 		54B0665D29CB3187CEBF5157 /* KeyboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 941319FB73DCEB18DDE2E232 /* KeyboardView.swift */; };
@@ -47,10 +48,12 @@
 		886F6649C089D64E44E1C2FC /* TouchGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 359BC071F163E8255C943DA7 /* TouchGeometry.swift */; };
 		89E603918708D39C00616ABB /* FieldPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 480410FD8F2A324AF6A742C1 /* FieldPolicy.swift */; };
 		99E9949680619BC9BFBE9CB6 /* VNLexicon2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E29815B4F2B0747B961A561 /* VNLexicon2.swift */; };
+		9A5AA4C59B2A392ADED6A481 /* CompositionSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 532D1B26A4AA10CD402E4D31 /* CompositionSyncTests.swift */; };
 		A1D007E26A075E6497254AA7 /* EmojiData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE050ECA55A95B273F9E18A0 /* EmojiData.swift */; };
 		A755E9F920E0111F7E89F9DC /* SuggestionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A392056B54E623933F9CD3 /* SuggestionSupport.swift */; };
 		AAEAE3FC59DE30D707662F4F /* KeyCommitQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8F1F925F053BA5BF36C118C /* KeyCommitQueue.swift */; };
 		AC2407E83BA2FC77C45DE3FF /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 738732B955CD39C76B2484C7 /* SeedData.swift */; };
+		B30B77CD7D2FF144AEBB0374 /* CompositionSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BDEAB6EAD0F1EA689B388A /* CompositionSync.swift */; };
 		BC7C55450CA36CBF6D0F8297 /* vnlexicon.bin in Resources */ = {isa = PBXBuildFile; fileRef = 915FC9A836F82E797FA0AEA1 /* vnlexicon.bin */; };
 		C9C973EB878B8C06CDF7393A /* AdjacentKeyFixerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB8B0DA94C5E17697D6DE9E7 /* AdjacentKeyFixerTests.swift */; };
 		CD75BCEC9A128A7E8DC65704 /* KeyLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D77A862B4CBC51471E43C21 /* KeyLayout.swift */; };
@@ -103,11 +106,13 @@
 		0D77A862B4CBC51471E43C21 /* KeyLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyLayout.swift; sourceTree = "<group>"; };
 		142CFBEA43046FC96EBF437F /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		214BE1EF9FDB2118D4F50109 /* AppearancePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearancePolicyTests.swift; sourceTree = "<group>"; };
+		22BDEAB6EAD0F1EA689B388A /* CompositionSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositionSync.swift; sourceTree = "<group>"; };
 		23D9F4828FBAE93DCCEB2271 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		359BC071F163E8255C943DA7 /* TouchGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchGeometry.swift; sourceTree = "<group>"; };
 		3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSuggest.swift; sourceTree = "<group>"; };
 		480410FD8F2A324AF6A742C1 /* FieldPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldPolicy.swift; sourceTree = "<group>"; };
 		4B68AFA53C7C54443DAB2DA2 /* FieldPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldPolicyTests.swift; sourceTree = "<group>"; };
+		532D1B26A4AA10CD402E4D31 /* CompositionSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositionSyncTests.swift; sourceTree = "<group>"; };
 		5D0B60123ABBD5FE60D9234A /* KeyCommitQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCommitQueueTests.swift; sourceTree = "<group>"; };
 		5E29815B4F2B0747B961A561 /* VNLexicon2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VNLexicon2.swift; sourceTree = "<group>"; };
 		62E14AD387BE2B1A54881E15 /* AppearancePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearancePolicy.swift; sourceTree = "<group>"; };
@@ -186,6 +191,7 @@
 			children = (
 				DB8B0DA94C5E17697D6DE9E7 /* AdjacentKeyFixerTests.swift */,
 				214BE1EF9FDB2118D4F50109 /* AppearancePolicyTests.swift */,
+				532D1B26A4AA10CD402E4D31 /* CompositionSyncTests.swift */,
 				E5AE58D76A8127D641A2AF62 /* EngineBridgeTests.swift */,
 				D93CDC9D2CEA8A91A576B183 /* FeatureRegressionTests.swift */,
 				4B68AFA53C7C54443DAB2DA2 /* FieldPolicyTests.swift */,
@@ -223,6 +229,7 @@
 			children = (
 				08A25C830B85508BCD22F38A /* AdjacentKeyFixer.swift */,
 				62E14AD387BE2B1A54881E15 /* AppearancePolicy.swift */,
+				22BDEAB6EAD0F1EA689B388A /* CompositionSync.swift */,
 				6B7D70220F7D14EBC3C3AACD /* DisplayCase.swift */,
 				FE050ECA55A95B273F9E18A0 /* EmojiData.swift */,
 				D705942B9BA084047E7A7EF1 /* EmojiPlane.swift */,
@@ -404,6 +411,7 @@
 			files = (
 				37029C6BAEE8201C5C7CA64F /* AdjacentKeyFixer.swift in Sources */,
 				7A17145A9CA2831379306335 /* AppearancePolicy.swift in Sources */,
+				B30B77CD7D2FF144AEBB0374 /* CompositionSync.swift in Sources */,
 				5E9A08F294F260D516411505 /* DisplayCase.swift in Sources */,
 				391082DF75889B3977A67837 /* EmojiData.swift in Sources */,
 				E986D58B038F7EFC5C5803FB /* EmojiPlane.swift in Sources */,
@@ -442,6 +450,8 @@
 				C9C973EB878B8C06CDF7393A /* AdjacentKeyFixerTests.swift in Sources */,
 				E16D46978F3A25EF2D8990ED /* AppearancePolicy.swift in Sources */,
 				26C607EDB93AB182A66930C9 /* AppearancePolicyTests.swift in Sources */,
+				4E871644F8FD8B5DEF5D18C5 /* CompositionSync.swift in Sources */,
+				9A5AA4C59B2A392ADED6A481 /* CompositionSyncTests.swift in Sources */,
 				36C564FD8BADBFB0BCC1E645 /* DisplayCase.swift in Sources */,
 				A1D007E26A075E6497254AA7 /* EmojiData.swift in Sources */,
 				0222562F9A662E1780357942 /* EmojiPlane.swift in Sources */,

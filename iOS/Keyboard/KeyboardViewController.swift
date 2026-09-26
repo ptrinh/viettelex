@@ -72,42 +72,18 @@ final class KeyboardViewController: UIInputViewController {
         #endif
         super.viewWillAppear(animated)
         TouchLog.loadSetting()
-        TouchLog.session(fullAccess: hasFullAccess)
         bridge = EngineBridge()                       // fresh settings + buffer
-        // Ô email/URL/username/OTP: gõ literal. KHÔNG dựa vào autocorrect == .no —
-        // Safari/Chrome/Spotlight tắt autocorrect ở ô tìm kiếm (xem FieldPolicy).
-        bridge.passthrough = FieldPolicy.passthrough(
-            keyboardType: textDocumentProxy.keyboardType ?? .default,
-            contentType: textDocumentProxy.textContentType ?? nil)
+        externalChangePending = false
         lastKeyWasEmailTrigger = false
         restoreUndo = nil; undoOfferActive = false
-        // Loại ô nhập (web input type=number/email/url ánh xạ sang keyboardType)
-        // → đổi layout như bàn phím stock.
-        let kind: KeyboardView.InputKind
-        switch textDocumentProxy.keyboardType ?? .default {
-        case .numberPad, .numbersAndPunctuation, .decimalPad,
-             .phonePad, .asciiCapableNumberPad:
-            kind = .number
-        case .emailAddress:
-            kind = .email
-        case .URL:
-            kind = .url
-        default:
-            kind = .normal
-        }
-        // Một lần rebuild cho cả 3 (và 0 lần nếu field giống lần trước).
-        keyboard.batchConfigure {
-            keyboard.configureReturnKey(type: textDocumentProxy.returnKeyType ?? .default)
-            keyboard.applyAppearance(textDocumentProxy.keyboardAppearance ?? .default, style: traitCollection.userInterfaceStyle)
-            keyboard.configureInputKind(kind)
-        }
-        // Thanh gợi ý: gate qua toggle trong app; tự tắt ở field từ chối
-        // gợi ý (mật khẩu, autocorrection = .no) — đúng hành vi stock.
-        let traitsAllow = textDocumentProxy.autocorrectionType != .no
-            && (textDocumentProxy as UITextInputTraits).isSecureTextEntry != true
         let settings = KeyboardSettings.load()
         learnEnabled = settings.learnWords
         filterSensitive = settings.filterSensitive
+        showSuggestionsSetting = settings.showSuggestions
+        // Trait ô (layout, return key, passthrough, bar) — force: mỗi lần hiện áp lại
+        // appearance/mẫu câu dù trait y hệt (batchConfigure tự dedupe rebuild).
+        refreshFieldTraits(force: true)
+        TouchLog.session(fullAccess: hasFullAccess, traits: fieldTraits?.logDescription ?? "")
         // Rung phím: cần cả toggle trong app LẪN Toàn quyền Truy cập (iOS
         // vô hiệu haptics trong extension không có Full Access).
         KeyboardView.hapticsEnabled = settings.hapticFeedback && hasFullAccess
@@ -115,8 +91,6 @@ final class KeyboardViewController: UIInputViewController {
         // Không Full Access thì iOS chặn GHI App Group → cờ giữ nguyên/vắng,
         // banner vẫn hiện — đúng ý.
         reportStatusToApp()
-        suggestionsActive = settings.showSuggestions && traitsAllow
-        keyboard.setSuggestionsEnabled(suggestionsActive)
         keyboard.onSuggestion = { [weak self] item in self?.acceptSuggestion(item) }
         updateAutoShift()
         updateSuggestions()            // field trống → gợi mở đầu ngay khi hiện
@@ -182,26 +156,107 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.setAutoShift(auto)
     }
 
-    override func textWillChange(_ textInput: UITextInput?) {
-        // Selection is about to change from OUTSIDE our own edits (tap elsewhere,
-        // field switch) — the composition anchor is gone. Our own proxy edits do
-        // not call this re-entrantly during handle().
-        TouchLog.host("textWillChange", applyingEdit: applyingEdit, composing: bridge.isComposing)
-        if !applyingEdit {
+    /// Trait ô hiện tại (nil = chưa đọc lần nào trong phiên).
+    private var fieldTraits: FieldTraits?
+    private var showSuggestionsSetting = true
+
+    /// Đọc trait ô và cấu hình lại bàn phím CHỈ khi trait đổi (hoặc `force` ở
+    /// viewWillAppear). Host đổi ô trong cùng app không gọi viewWillAppear → gọi
+    /// thêm ở textDidChange / selectionDidChange. KHÔNG đọc documentIdentifier.
+    private func refreshFieldTraits(force: Bool = false) {
+        let p = textDocumentProxy
+        let t = FieldTraits(
+            keyboardType: p.keyboardType ?? .default,
+            returnKeyType: p.returnKeyType ?? .default,
+            appearance: p.keyboardAppearance ?? .default,
+            autocorrection: p.autocorrectionType ?? .default,
+            contentType: p.textContentType ?? nil,
+            secure: (p as UITextInputTraits).isSecureTextEntry == true)
+        let old = fieldTraits
+        guard force || FieldTraits.needsReconfigure(old: old, new: t) else { return }
+        fieldTraits = t
+        if !force { TouchLog.traits(t.logDescription) }
+        // Ô email/URL/username/OTP: gõ literal. KHÔNG dựa vào autocorrect == .no —
+        // Safari/Chrome/Spotlight tắt autocorrect ở ô tìm kiếm (xem FieldPolicy).
+        // Đổi chế độ giữa từ → bỏ từ đang gõ (engine không còn khớp cách chèn).
+        if bridge.passthrough != t.passthrough {
+            bridge.reset()
+            bridge.passthrough = t.passthrough
+        }
+        // Một lần rebuild cho cả 3 (và 0 lần nếu field giống lần trước).
+        keyboard.batchConfigure {
+            keyboard.configureReturnKey(type: t.returnKeyType)
+            keyboard.applyAppearance(t.appearance, style: traitCollection.userInterfaceStyle)
+            // configureInputKind nhảy plane (số/chữ) — chỉ gọi khi loại ô thật sự đổi
+            // (hoặc lúc hiện), kẻo đang ở plane ký hiệu thì bị kéo về.
+            if force || old?.inputKind != t.inputKind {
+                keyboard.configureInputKind(t.inputKind)
+            }
+        }
+        // Thanh gợi ý: gate qua toggle trong app; tự tắt ở field từ chối
+        // gợi ý (mật khẩu, autocorrection = .no) — đúng hành vi stock.
+        let active = showSuggestionsSetting && t.allowsSuggestions
+        if force || active != suggestionsActive {
+            suggestionsActive = active
+            keyboard.setSuggestionsEnabled(active)
+        }
+    }
+
+    /// Host báo text/selection sắp đổi từ NGOÀI handle() — chưa kết luận ngay (lúc
+    /// textWillChange context THÁO DỞ); đánh dấu, đối chiếu ở textDidChange / phím kế.
+    private var externalChangePending = false
+
+    /// Đối chiếu từ đang gõ với chữ thật trước con trỏ (CompositionSync.verdict):
+    /// còn khớp → GIỮ (host gán lại text mỗi phím, textWillChange đến muộn); lệch /
+    /// không biết (nil) → reset như trước.
+    private func syncComposition(_ event: String) {
+        externalChangePending = false
+        let ctx = textDocumentProxy.documentContextBeforeInput
+        let composed = bridge.composedWord
+        var selected: String?
+        if #available(iOS 16.0, *) { selected = textDocumentProxy.selectedText }
+        let verdict = CompositionSync.verdict(context: ctx, composed: composed, selectedText: selected)
+        if TouchLog.enabled {
+            let d = CompositionSync.diagnostic(context: ctx, composed: composed)
+            TouchLog.sync("\(event) \(verdict)", ctxLen: d.len, suffix: d.suffix,
+                          composingLen: composed.count)
+        }
+        if verdict != .keep {
             bridge.reset(); lastWord = nil; lastWord2 = nil
             restoreUndo = nil; undoOfferActive = false
         }
     }
 
+    override func textWillChange(_ textInput: UITextInput?) {
+        // Thay đổi từ NGOÀI edit của mình (tap chỗ khác, đổi ô, host tự gán lại
+        // text…). Edit của mình không gọi lại hàm này trong lúc handle() chạy.
+        TouchLog.host("textWillChange", applyingEdit: applyingEdit, composing: bridge.isComposing)
+        if !applyingEdit { externalChangePending = true }
+    }
+
     // Selection/con trỏ vừa đổi từ NGOÀI (select-all rồi gõ đè, tap chỗ khác,
-    // app tự sửa text): tính lại auto-shift như stock — select-all thì
-    // documentContextBeforeInput rỗng → viết hoa chữ đầu. Không tính ở
-    // textWillChange vì lúc đó context THÁO DỞ chưa phản ánh selection mới.
+    // app tự sửa text): quyết định giữ/bỏ từ đang gõ, đọc lại trait ô, tính lại
+    // auto-shift như stock — select-all thì documentContextBeforeInput rỗng → viết
+    // hoa chữ đầu. Không tính ở textWillChange vì lúc đó context THÁO DỞ.
     override func textDidChange(_ textInput: UITextInput?) {
         TouchLog.host("textDidChange", applyingEdit: applyingEdit, composing: bridge.isComposing)
         if !applyingEdit {
+            if externalChangePending { syncComposition("textDidChange") }
+            refreshFieldTraits()
             updateAutoShift()
             updateSuggestions()
+        }
+    }
+
+    override func selectionWillChange(_ textInput: UITextInput?) {
+        if !applyingEdit { externalChangePending = true }
+    }
+
+    override func selectionDidChange(_ textInput: UITextInput?) {
+        TouchLog.host("selectionDidChange", applyingEdit: applyingEdit, composing: bridge.isComposing)
+        if !applyingEdit {
+            if externalChangePending { syncComposition("selectionDidChange") }
+            refreshFieldTraits()
         }
     }
 
@@ -212,10 +267,22 @@ final class KeyboardViewController: UIInputViewController {
         func insertText(_ text: String) { p.insertText(text) }
         func deleteBackward() { p.deleteBackward() }
         var isSecure: Bool { (p as UITextInputTraits).isSecureTextEntry == true }
+        var contextBeforeInput: String? { p.documentContextBeforeInput }
+    }
+
+    /// Được xoá `expected` (đang nằm ngay trước con trỏ) bằng deleteBackward × N?
+    /// Lệch → false và ghi log (không nội dung).
+    private func canDeleteBefore(_ expected: String, what: String) -> Bool {
+        let ok = CompositionSync.canDelete(expected.count, expected: expected,
+                                           context: { textDocumentProxy.documentContextBeforeInput })
+        if !ok { TouchLog.write("failsafe: \(what) expectedLen=\(expected.count) → skip delete") }
+        return ok
     }
 
     private func handle(_ key: KeyboardView.Key) {
         let proxy = Proxy(p: textDocumentProxy)
+        // textWillChange tới mà textDidChange chưa kịp → đối chiếu ngay trước phím.
+        if externalChangePending { syncComposition("key") }
         applyingEdit = true
         let t0 = TouchLog.enabled ? CACurrentMediaTime() : 0
         defer {
@@ -235,6 +302,13 @@ final class KeyboardViewController: UIInputViewController {
                 }
                 TouchLog.key(kind: kind, composing: bridge.isComposing,
                              lagMs: (CACurrentMediaTime() - t0) * 1000, char: char)
+                // Sau edit: độ dài context + context có kết thúc bằng từ đang gõ
+                // (bắt host gán lại text / nuốt edit). Chỉ khi Debug mode bật.
+                let composed = bridge.composedWord
+                let d = CompositionSync.diagnostic(
+                    context: textDocumentProxy.documentContextBeforeInput, composed: composed)
+                TouchLog.sync("after-\(kind)", ctxLen: d.len, suffix: d.suffix,
+                              composingLen: composed.count)
             }
         }
         switch key {
@@ -462,8 +536,11 @@ final class KeyboardViewController: UIInputViewController {
     private func rawInsert(_ s: String) {
         applyingEdit = true
         defer { applyingEdit = false }
-        let n = bridge.composedWord.count
-        for _ in 0..<n { textDocumentProxy.deleteBackward() }
+        // Lệch (con trỏ đã dời) → không xoá gì, chỉ chèn mẫu tại con trỏ.
+        let composed = bridge.composedWord
+        if canDeleteBefore(composed, what: "template") {
+            for _ in 0..<composed.count { textDocumentProxy.deleteBackward() }
+        }
         textDocumentProxy.insertText(s)
         bridge.reset()
         lastWord = nil; lastWord2 = nil
@@ -476,19 +553,14 @@ final class KeyboardViewController: UIInputViewController {
     /// Nút 🗑 plane mẫu câu: xoá SẠCH ô nhập. Không có API "clear all" —
     /// đẩy con trỏ về cuối rồi deleteBackward tới khi rỗng. documentContext*
     /// chỉ trả CỬA SỔ quanh con trỏ nên phải lặp; safety chặn treo ở field lạ.
+    /// Fail-safe (CompositionSync): lượt nào context không đổi sau khi xoá/dời
+    /// (host không cập nhật đồng bộ) thì dừng — không xoá mù 20k lần.
     private func clearAllText() {
-        var safety = 0
-        while let after = textDocumentProxy.documentContextAfterInput,
-              !after.isEmpty, safety < 20_000 {
-            textDocumentProxy.adjustTextPosition(byCharacterOffset: after.count)
-            safety += after.count
-        }
-        safety = 0
-        while let before = textDocumentProxy.documentContextBeforeInput,
-              !before.isEmpty, safety < 20_000 {
-            for _ in before { textDocumentProxy.deleteBackward() }
-            safety += before.count
-        }
+        let p = textDocumentProxy
+        CompositionSync.moveToEnd(contextAfter: { p.documentContextAfterInput },
+                                  adjust: { p.adjustTextPosition(byCharacterOffset: $0) })
+        CompositionSync.clearBefore(context: { p.documentContextBeforeInput },
+                                    deleteBackward: { p.deleteBackward() })
     }
 
     /// Bubble ⚙️: mở tab Mẫu Câu trong app qua URL scheme viettelex://maucau.
@@ -778,6 +850,13 @@ final class KeyboardViewController: UIInputViewController {
         // bị backspace) → thay cả từ raw bằng dạng có dấu + space.
         if undoOfferActive, let u = restoreUndo, item == u.composed,
            bridge.composedWord.isEmpty {
+            // Chữ trước con trỏ không còn là từ raw vừa chốt → bỏ thao tác (không xoá lan).
+            guard canDeleteBefore(u.raw, what: "undo-restore") else {
+                restoreUndo = nil; undoOfferActive = false
+                bridge.reset(); lastWord = nil; lastWord2 = nil
+                updateSuggestions()
+                return
+            }
             for _ in 0..<u.raw.count { textDocumentProxy.deleteBackward() }
             textDocumentProxy.insertText(u.composed + " ")
             restoreUndo = nil; undoOfferActive = false
@@ -791,8 +870,16 @@ final class KeyboardViewController: UIInputViewController {
         restoreUndo = nil; undoOfferActive = false
         let isFragment = item.contains(".") || item.contains("@")   // gmail.com, com…
         let isWord = !isFragment && item.first?.isLetter == true
-        let n = bridge.composedWord.count
-        for _ in 0..<n { textDocumentProxy.deleteBackward() }
+        let composed = bridge.composedWord
+        // Lệch: từ đang gõ không còn ngay trước con trỏ → bỏ lượt nhận gợi ý (thay
+        // chữ khác là mất dữ liệu; chèn thêm cạnh từ lạ cũng sai) — reset, vẽ lại bar.
+        guard canDeleteBefore(composed, what: "suggestion") else {
+            bridge.reset(); lastWord = nil; lastWord2 = nil
+            updateAutoShift()
+            updateSuggestions()
+            return
+        }
+        for _ in 0..<composed.count { textDocumentProxy.deleteBackward() }
         textDocumentProxy.insertText(isWord ? item + " " : item)
         bridge.reset()
         if isWord { commitAndLearn(item, accepted: true) } else { lastWord = nil; lastWord2 = nil }
