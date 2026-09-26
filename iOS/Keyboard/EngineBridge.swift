@@ -91,6 +91,18 @@ final class EngineBridge {
     /// trỏ KHÔNG phải chữ: phím đầu từ mới khỏi phải đọc context (XPC) để thử seed.
     private var lastWasOwnBoundary = false
 
+    /// Checkpoint của phím CHỮ gần nhất — để HUỶ đúng phím đó khi nó hoá ra là cử chỉ
+    /// (iPad vuốt xuống ra ký tự phụ; sau này gõ vuốt). KHÔNG dùng ⌫: engine.backspace()
+    /// xoá chữ cuối ĐANG HIỆN, không gỡ phím vừa gõ — "tieng" + vuốt s từng ra "tiến#"
+    /// (26/09/2026). Mọi thao tác khác ngoài letter() đều xoá checkpoint.
+    private struct LetterUndo {
+        let engine: TelexEngine
+        let removed: String      // chữ phím đó đã xoá khỏi màn hình
+        let inserted: String     // chữ phím đó đã chèn
+        let ownBoundary: Bool
+    }
+    private var letterUndo: LetterUndo?
+
     init(settings: KeyboardSettings = .load()) {
         self.settings = settings
         engine.freeMarking = settings.freeMarking
@@ -104,14 +116,21 @@ final class EngineBridge {
 
     /// A letter key ("a"…"z", already cased by the shift state).
     func letter(_ ch: Character, proxy: TextProxyLike) {
-        guard !proxy.isSecure, !passthrough else { proxy.insertText(String(ch)); return }
+        letterUndo = nil
+        guard !proxy.isSecure, !passthrough else {
+            proxy.insertText(String(ch))
+            letterUndo = LetterUndo(engine: engine, removed: "", inserted: String(ch),
+                                    ownBoundary: lastWasOwnBoundary)
+            return
+        }
         let ownBoundary = lastWasOwnBoundary
         lastWasOwnBoundary = false
         if engine.isEmpty, !ownBoundary, settings.reEditWord, reachBackAllowed, Self.isReEditKey(ch),
            seedWordBeforeCaret(then: ch, proxy: proxy) {
-            return
+            return                                    // sửa từ trên màn hình: không huỷ được
         }
         let before = engine.composed
+        let snapshot = engine
         let action = engine.feed(ch)
         guard safeToApply(action, expected: before, proxy: proxy) else {
             // Chữ trước con trỏ không còn là từ đang gõ → bỏ từ cũ, phím này mở từ MỚI
@@ -121,6 +140,30 @@ final class EngineBridge {
             return
         }
         apply(action, literal: String(ch), proxy: proxy)
+        switch action {
+        case .replace(let bs, let insert):
+            letterUndo = LetterUndo(engine: snapshot, removed: String(before.suffix(bs)),
+                                    inserted: insert, ownBoundary: ownBoundary)
+        case .passthrough:
+            letterUndo = LetterUndo(engine: snapshot, removed: "", inserted: String(ch),
+                                    ownBoundary: ownBoundary)
+        case .none:
+            letterUndo = LetterUndo(engine: snapshot, removed: "", inserted: "",
+                                    ownBoundary: ownBoundary)
+        }
+    }
+
+    /// Huỷ phím chữ vừa gõ (chỉ khi chưa có thao tác nào khác xen vào): trả màn hình và
+    /// engine về đúng trước phím đó. false = không huỷ được (caller tự xử lý).
+    func undoLastLetter(proxy: TextProxyLike) -> Bool {
+        guard let u = letterUndo else { return false }
+        letterUndo = nil
+        if let ctx = proxy.contextBeforeInput, !ctx.hasSuffix(u.inserted) { return false }
+        for _ in 0..<u.inserted.count { proxy.deleteBackward() }
+        if !u.removed.isEmpty { proxy.insertText(u.removed) }
+        engine = u.engine
+        lastWasOwnBoundary = u.ownBoundary
+        return true
     }
 
     /// Space / return / punctuation: word boundary → auto-restore, then the char.
@@ -128,6 +171,7 @@ final class EngineBridge {
     /// personalization model must learn what actually landed on screen.
     @discardableResult
     func boundary(_ text: String, proxy: TextProxyLike) -> String {
+        letterUndo = nil
         guard !proxy.isSecure, !passthrough else { proxy.insertText(text); return "" }
         let before = engine.composed
         var action = engine.commitBoundary(autoRestore: settings.autoRestore)
@@ -149,6 +193,7 @@ final class EngineBridge {
     /// Backspace. Trả true khi ⌫ này MỞ LẠI từ vừa chốt (engine lại đang gõ từ đó).
     @discardableResult
     func backspace(proxy: TextProxyLike) -> Bool {
+        letterUndo = nil
         lastWasOwnBoundary = false
         guard !proxy.isSecure, !passthrough else { proxy.deleteBackward(); return false }
         guard !engine.isEmpty else {
@@ -258,7 +303,7 @@ final class EngineBridge {
     /// Field switch / selection moved / keyboard dismissed → forget the word.
     /// Cũng xoá ngữ cảnh tiếng Anh: đổi ô / con trỏ nhảy → từ trước không còn là
     /// "từ ngay trước" nữa (macOS làm y hệt khi activateServer / đổi field).
-    func reset() { engine.reset(); engine.resetContext(); lastWasOwnBoundary = false }
+    func reset() { engine.reset(); engine.resetContext(); lastWasOwnBoundary = false; letterUndo = nil }
 
     var isComposing: Bool { !engine.isEmpty }
 

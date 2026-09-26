@@ -306,6 +306,7 @@ final class KeyboardViewController: UIInputViewController {
                 case .newline: kind = "newline"
                 case .moveCursor: kind = "cursor"
                 case .clearField: kind = "clear"
+                case .replaceLastLetter(let t): kind = "flick"; char = t
                 }
                 TouchLog.key(kind: kind, composing: bridge.isComposing,
                              lagMs: (CACurrentMediaTime() - t0) * 1000, char: char)
@@ -321,6 +322,12 @@ final class KeyboardViewController: UIInputViewController {
         switch key {
         case .letter(let ch):
             bridge.letter(ch, proxy: proxy)
+            restoreUndo = nil; undoOfferActive = false
+        case .replaceLastLetter(let s):
+            // Huỷ đúng phím chữ vừa gõ (không được thì ⌫ như cũ) rồi chèn như ký hiệu.
+            if !bridge.undoLastLetter(proxy: proxy) { bridge.backspace(proxy: proxy) }
+            commitAndLearn(bridge.boundary(s, proxy: proxy))
+            lastWord = nil; lastWord2 = nil
             restoreUndo = nil; undoOfferActive = false
         case .text(let s):                            // numbers, symbols
             commitAndLearn(bridge.boundary(s, proxy: proxy))

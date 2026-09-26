@@ -15,6 +15,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         case backspace
         case moveCursor(Int)          // space-hold trackpad mode
         case clearField               // nút thùng rác plane mẫu câu → xoá sạch ô
+        /// Huỷ phím chữ vừa gõ rồi chèn chuỗi (iPad vuốt xuống ra ký tự phụ).
+        case replaceLastLetter(String)
     }
 
     private enum Plane { case letters, numbers, symbols, emoji, templates }
@@ -1701,6 +1703,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             guard let self, let b else { return }
             Self.clickLetter()                       // feedback tức thì
             self.showBalloon(over: b, text: b.currentTitle ?? title)
+            self.shiftBeforeLastLetter = self.shift
             let cased: Character = (self.shift == .off) ? Character(s) : Character(s.uppercased())
             self.tapped(.letter(cased))
             if self.shift == .on { self.shift = .off; self.applyShiftAppearance() }
@@ -2060,16 +2063,18 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             guard let b else { continue }
             b.sendActions(for: .touchUpInside)
             // iPad: vuốt xuống trên phím chữ = ký tự phụ như stock. Chữ đã chèn lúc
-            // chạm (touchDown) → xoá nó rồi chèn ký tự phụ.
+            // chạm (touchDown) → HUỶ đúng phím đó (không ⌫: phím dấu Telex đã đổi từ)
+            // rồi chèn ký tự phụ; shift một lần mà phím đó đã nhả thì trả lại.
             if let start, t.location(in: self).y - start.y > Self.flickDistance,
                let base = letterKeys.first(where: { $0.button === b })?.base,
                let sec = Self.padSecondary[base] {
-                tapped(.backspace)
-                tapped(.text(sec))
+                if shiftBeforeLastLetter == .on, shift == .off { shift = .on; applyShiftAppearance() }
+                tapped(.replaceLastLetter(sec))
             }
         }
     }
     private var routedStart: [ObjectIdentifier: CGPoint] = [:]
+    private var shiftBeforeLastLetter: ShiftState = .off
     private static let flickDistance: CGFloat = 18
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
