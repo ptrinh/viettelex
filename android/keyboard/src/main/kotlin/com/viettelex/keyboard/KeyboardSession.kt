@@ -28,7 +28,56 @@ data class FieldTraits(
     val capSentences: Boolean = false,
     /** Ô cho phép thanh gợi ý (không secure, không passthrough, …). */
     val suggestionsAllowed: Boolean = true,
-)
+    /** TYPE_TEXT_FLAG_CAP_WORDS — auto-shift đầu mỗi từ (ô tên người, tiêu đề…). */
+    val capWords: Boolean = false,
+    /** TYPE_TEXT_FLAG_CAP_CHARACTERS — luôn viết hoa (mã, biển số…). */
+    val capCharacters: Boolean = false,
+    /**
+     * EditorInfo.initialCapsMode ≠ 0 — editor tự tính lúc mở ô. Chỉ dùng khi KHÔNG đọc
+     * được chữ trước con trỏ (getTextBeforeCursor = null) và chưa gõ phím nào.
+     */
+    val initialCaps: Boolean = false,
+    /**
+     * IME_FLAG_NO_PERSONALIZED_LEARNING (Chrome ẩn danh, app nhạy cảm): KHÔNG ghi từ vào
+     * UserLangModel. Gợi ý vẫn hiện (chỉ đọc).
+     */
+    val noLearning: Boolean = false,
+    /** EditorInfo.packageName — tra bảng [WriteMode]. */
+    val packageName: String? = null,
+) {
+    /** Cách ghi chữ vào ô theo app (bảng [WriteMode.forPackage]). */
+    val writeMode: WriteMode get() = WriteMode.forPackage(packageName)
+}
+
+/**
+ * Cách lớp ghi (IcProxy) đẩy chữ vào ô — vài editor văn phòng xử lý sai
+ * commitText/deleteSurroundingText.
+ *
+ * TODO(lớp ghi): IcProxy chưa đọc trait này — nối ở AndroidAdapters.kt:
+ *  - [COMMIT]: như hiện tại (commitText + deleteSurroundingTextInCodePoints).
+ *  - [DEL_VIA_KEY_EVENT]: commitText nhưng xoá bằng KEYCODE_DEL (ONLYOFFICE bỏ qua deleteSurroundingText).
+ *  - [KEY_ONLY]: mọi thứ qua key event (WPS bản Xiaomi/Huawei, HSL) — như TYPE_NULL.
+ */
+enum class WriteMode {
+    COMMIT, DEL_VIA_KEY_EVENT, KEY_ONLY;
+
+    companion object {
+        private val KEY_ONLY_PKGS = listOf("com.huawei.hsl", "cn.wps.huawei")
+
+        fun forPackage(pkg: String?): WriteMode {
+            if (pkg.isNullOrEmpty()) return COMMIT
+            fun under(base: String) = pkg == base || pkg.startsWith("$base.")
+            return when {
+                pkg.startsWith("com.xiaomi.wps") || KEY_ONLY_PKGS.any(::under) -> KEY_ONLY
+                pkg.startsWith("com.onlyoffice.") -> DEL_VIA_KEY_EVENT
+                else -> COMMIT
+            }
+        }
+    }
+}
+
+/** Kiểu viết hoa tự động của ô (TYPE_TEXT_FLAG_CAP_*). */
+enum class CapMode { NONE, SENTENCES, WORDS, CHARACTERS }
 
 /** Kết quả một phím: IME dùng [generation] để coalesce auto-shift + gợi ý 30 ms. */
 data class KeyOutcome(val needsAutoShift: Boolean, val generation: Int)
@@ -96,6 +145,8 @@ class KeyboardSession(
     private var filterSensitive = true
     private var traits = FieldTraits()
     private var lastResetAt: Long? = null
+    /** Chưa gõ phím nào từ startInput — [FieldTraits.initialCaps] còn hiệu lực. */
+    private var initialCapsPending = true
 
     /** Tăng mỗi phím — IME so với KeyOutcome.generation để bỏ lượt cũ. */
     var generation = 0; private set
@@ -131,7 +182,8 @@ class KeyboardSession(
         traits = field
         lastKeyWasEmailTrigger = false
         clearUndo()
-        learnEnabled = settings.learnWords
+        learnEnabled = settings.learnWords && !field.noLearning
+        initialCapsPending = true
         filterSensitive = settings.filterSensitive
         suggestionsActive = settings.showSuggestions && field.suggestionsAllowed && !field.isSecure && !field.passthrough
         lastWord = null; lastWord2 = null
@@ -151,12 +203,20 @@ class KeyboardSession(
     private fun clearUndo() { restoreUndoRaw = null; restoreUndoComposed = null; undoOfferActive = false }
 
     /**
-     * Auto-shift đầu câu: trả true/false khi ô là CAP_SENTENCES; null = không đụng shift.
-     * Chỉ nâng OFF→ON là việc của IME (không hạ CAPS).
+     * Auto-shift theo cờ CAP_* của ô: trả true/false; null = không đụng shift (ô không cờ
+     * CAP, hoặc KHÔNG đọc được chữ trước con trỏ — null ≠ ô trống, trước đây coi null là ""
+     * nên bật shift sai giữa câu). Chỉ nâng OFF→ON là việc của IME (không hạ CAPS).
      */
     fun updateAutoShift(proxy: TextProxy): Boolean? {
-        if (!traits.capSentences) return null
-        val auto = autoShiftFor(proxy.contextBeforeInput() ?: "")
+        val mode = capMode(traits)
+        if (mode == CapMode.NONE) return null
+        val before = proxy.contextBeforeInput()
+        val auto = when {
+            before != null -> autoShiftFor(before, mode)
+            mode == CapMode.CHARACTERS -> true
+            initialCapsPending -> traits.initialCaps
+            else -> return null
+        }
         autoShiftOn = auto
         return auto
     }
@@ -212,9 +272,11 @@ class KeyboardSession(
         }
         lastInsertWasSpace = key == Key.Space || key == Key.DoubleSpacePeriod
         lastKeyWasEmailTrigger = key is Key.Text && (key.text == "@" || key.text == ".")
+        initialCapsPending = false
         val needsAutoShift = when (key) {
             Key.Space, Key.Newline, Key.DoubleSpacePeriod, Key.Backspace, is Key.MoveCursor, Key.ClearField -> true
-            else -> false
+            // CAP_CHARACTERS: shift ON bị bàn phím hạ sau mỗi chữ → bật lại.
+            else -> traits.capCharacters
         }
         if (TouchLog.enabled) {
             val (kind, ch) = when (key) {
@@ -444,6 +506,29 @@ class KeyboardSession(
             return before.isEmpty() ||
                 (before.endsWith(" ") && (t.endsWith(".") || t.endsWith("!") || t.endsWith("?"))) ||
                 before.endsWith("\n")
+        }
+
+        /** Mode mạnh nhất của ô (≈ bitmask TextUtils.getCapsMode: có bit nào là shift). */
+        fun capMode(t: FieldTraits): CapMode = when {
+            t.capCharacters -> CapMode.CHARACTERS
+            t.capWords -> CapMode.WORDS
+            t.capSentences -> CapMode.SENTENCES
+            else -> CapMode.NONE
+        }
+
+        /**
+         * Auto-shift thuần theo mode (logic tương đương TextUtils.getCapsMode, không cần
+         * android.jar): CHARACTERS luôn hoa; WORDS đầu ô hoặc sau khoảng trắng (bỏ qua
+         * ngoặc/nháy mở như getCapsMode: `("` rồi mới tới chữ); SENTENCES như [autoShiftFor].
+         */
+        fun autoShiftFor(before: String, mode: CapMode): Boolean = when (mode) {
+            CapMode.NONE -> false
+            CapMode.CHARACTERS -> true
+            CapMode.SENTENCES -> autoShiftFor(before)
+            CapMode.WORDS -> {
+                val t = before.trimEnd('"', '\'', '(', '[', '{', '“', '‘', '«')
+                t.isEmpty() || t.last().isWhitespace()
+            }
         }
     }
 }

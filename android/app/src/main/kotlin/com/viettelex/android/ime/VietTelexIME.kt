@@ -141,7 +141,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val th = theme ?: return
         val settings = VTPrefs.settings(prefs)
         DebugLog.configure(this, settings.debugTouchLog)
-        field = FieldMapping.map(info.inputType, info.imeOptions)
+        field = FieldMapping.map(info.inputType, info.imeOptions, info.packageName,
+            hasActionLabel = info.actionLabel != null, customActionId = info.actionId)
         proxy.secure = field.isSecure
         proxy.rawKeys = field.rawKeys
         proxy.actionId = field.actionId
@@ -150,7 +151,10 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
         session.startInput(settings, FieldTraits(
             isSecure = field.isSecure, passthrough = field.passthrough,
-            capSentences = field.capSentences, suggestionsAllowed = field.suggestionsAllowed))
+            capSentences = field.capSentences, suggestionsAllowed = field.suggestionsAllowed,
+            capWords = field.capWords, capCharacters = field.capCharacters,
+            initialCaps = info.initialCapsMode != 0, noLearning = field.noLearning,
+            packageName = info.packageName))
         feedback.hapticsEnabled = settings.hapticFeedback
 
         collapsed = prefs.getBoolean(Keys.SUGGESTION_BAR_COLLAPSED, false)

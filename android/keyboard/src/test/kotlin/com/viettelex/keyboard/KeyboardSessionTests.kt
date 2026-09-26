@@ -194,4 +194,71 @@ class KeyboardSessionTests {
         assertTrue(a.signature() != a.copy(word = "b").signature())
         assertNotNull(SuggestionSet().signature())
     }
+
+    /** Ô không cho đọc ngược (getTextBeforeCursor = null). */
+    private class NullCtxProxy : TextProxy {
+        val inner = MockProxy()
+        override val isSecure: Boolean get() = false
+        override fun insertText(text: String) = inner.insertText(text)
+        override fun deleteCodePoints(count: Int) = inner.deleteCodePoints(count)
+        override fun deleteBackward() = inner.deleteBackward()
+        override fun contextBeforeInput(): String? = null
+        override fun clearAll() = inner.clearAll()
+    }
+
+    @Test fun testNullContextKeepsShift() {
+        // Regression: context null bị coi là ô trống ⇒ bật shift sai giữa câu.
+        val s = session(traits = FieldTraits(capSentences = true)); val p = NullCtxProxy()
+        assertEquals(false, s.updateAutoShift(p))          // initialCaps=false, chưa gõ
+        s.typeKeys(p, "xin ")
+        assertNull(s.updateAutoShift(p))                    // đã gõ: không đoán
+        val s2 = session(traits = FieldTraits(capSentences = true, initialCaps = true))
+        assertEquals(true, s2.updateAutoShift(NullCtxProxy()))   // editor báo initialCapsMode
+        val chars = session(traits = FieldTraits(capCharacters = true))
+        assertEquals(true, chars.updateAutoShift(NullCtxProxy()))
+    }
+
+    @Test fun testCapModes() {
+        assertTrue(KeyboardSession.autoShiftFor("nguyễn ", CapMode.WORDS))
+        assertTrue(KeyboardSession.autoShiftFor("", CapMode.WORDS))
+        assertTrue(KeyboardSession.autoShiftFor("nói \"", CapMode.WORDS))
+        assertFalse(KeyboardSession.autoShiftFor("nguyễn", CapMode.WORDS))
+        assertTrue(KeyboardSession.autoShiftFor("abc", CapMode.CHARACTERS))
+        assertFalse(KeyboardSession.autoShiftFor("xin ", CapMode.SENTENCES))
+        assertEquals(CapMode.CHARACTERS, KeyboardSession.capMode(FieldTraits(capSentences = true, capCharacters = true)))
+        assertEquals(CapMode.NONE, KeyboardSession.capMode(FieldTraits()))
+        // ô CAP_WORDS: sau space bật shift; CAP_CHARACTERS: phím chữ cũng xin auto-shift lại
+        val w = session(traits = FieldTraits(capWords = true)); val p = MockProxy()
+        w.typeKeys(p, "an ")
+        assertEquals(true, w.updateAutoShift(p))
+        val c = session(traits = FieldTraits(capCharacters = true))
+        assertTrue(c.handle(Key.Letter('A'), MockProxy()).needsAutoShift)
+        assertFalse(session(traits = FieldTraits()).handle(Key.Letter('a'), MockProxy()).needsAutoShift)
+    }
+
+    @Test fun testNoPersonalizedLearning() {
+        // Regression: IME_FLAG_NO_PERSONALIZED_LEARNING (Chrome ẩn danh) không được học từ.
+        val s = session(traits = FieldTraits(noLearning = true)); val p = MockProxy()
+        val before = s.langModel.count("người")
+        s.typeKeys(p, "nguoi ")
+        s.typeKeys(p, "nguoi"); s.acceptSuggestion("người", p)
+        assertEquals(before, s.langModel.count("người"))
+        assertNotNull(s.suggestionsNow(p))                  // gợi ý vẫn hiện
+        // ô thường cùng session: học lại
+        s.startInput(KeyboardSettings(), FieldTraits())
+        s.typeKeys(p, "nguoi"); s.acceptSuggestion("người", p)
+        assertEquals(before + 2, s.langModel.count("người"))
+    }
+
+    @Test fun testWriteModeTable() {
+        assertEquals(WriteMode.KEY_ONLY, WriteMode.forPackage("com.xiaomi.wps"))
+        assertEquals(WriteMode.KEY_ONLY, WriteMode.forPackage("com.xiaomi.wpsoffice"))
+        assertEquals(WriteMode.KEY_ONLY, WriteMode.forPackage("com.huawei.hsl"))
+        assertEquals(WriteMode.KEY_ONLY, WriteMode.forPackage("cn.wps.huawei"))
+        assertEquals(WriteMode.DEL_VIA_KEY_EVENT, WriteMode.forPackage("com.onlyoffice.documents"))
+        assertEquals(WriteMode.COMMIT, WriteMode.forPackage("com.huawei.hslx"))
+        assertEquals(WriteMode.COMMIT, WriteMode.forPackage(null))
+        assertEquals(WriteMode.COMMIT, WriteMode.forPackage("com.android.chrome"))
+        assertEquals(WriteMode.KEY_ONLY, FieldTraits(packageName = "cn.wps.huawei").writeMode)
+    }
 }
