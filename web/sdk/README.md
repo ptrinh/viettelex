@@ -1,17 +1,40 @@
 # VietTelex Core — JavaScript SDK
 
+[![npm](https://img.shields.io/npm/v/@viettelex/core)](https://www.npmjs.com/package/@viettelex/core)
+
 Nhúng bộ gõ tiếng Việt VietTelex (Telex / VNI) vào website hoặc web app. Engine là bản
 C++ của TelexCore biên dịch sang WebAssembly, **khớp 100%** với engine của app macOS/iOS/Android
 trên toàn bộ golden corpus (358.017 ca). Mặc định WASM nằm sẵn trong file JS (không tải thêm gì);
 có bản **lite** nhỏ hơn và bản **.wasm tách riêng** để cache — xem [Dung lượng file](#dung-lượng-file--file-size).
 Không mạng, không lưu dữ liệu.
 
+## Cài đặt
+
+Có trên npm: [`@viettelex/core`](https://www.npmjs.com/package/@viettelex/core)
+
+```sh
+npm i @viettelex/core
+```
+
+```js
+import { attach } from '@viettelex/core';          // bản đầy đủ, WASM nằm sẵn trong JS
+// '@viettelex/core/lite' · '@viettelex/core/external' · '@viettelex/core/lite/external'
+```
+
+Không dùng bundler? Nạp thẳng từ CDN:
+
+```html
+<script type="module">
+  import { attach } from 'https://cdn.jsdelivr.net/npm/@viettelex/core@1/dist/viettelex.mjs';
+</script>
+```
+
 ## Dùng nhanh — gắn vào ô nhập
 
 ```html
 <textarea id="note"></textarea>
 <script type="module">
-  import { attach } from './viettelex.mjs';   // dist/: viettelex.mjs + core.mjs + viettelex-wasm.mjs
+  import { attach } from '@viettelex/core';   // hoặc './viettelex.mjs' từ dist/
   const vt = await attach(document.getElementById('note'));
   // vt.setEnabled(false) · vt.setOptions({ inputMethod: 'vni' }) · vt()  // gỡ
 </script>
@@ -150,6 +173,10 @@ port of TelexCore compiled to WebAssembly and matches the VietTelex apps on the 
 field (Ctrl+Space toggles Vietnamese/English). For custom editors use `createEngine()` and apply
 each `{ kind, backspaces, insert }` action yourself. Options and defaults are listed in the table above.
 MIT licensed.
+
+Install from npm: [`@viettelex/core`](https://www.npmjs.com/package/@viettelex/core) —
+`npm i @viettelex/core`, then `import { attach } from '@viettelex/core'` (also `/lite`, `/external`,
+`/lite/external`). Without a bundler: `import { attach } from 'https://cdn.jsdelivr.net/npm/@viettelex/core@1/dist/viettelex.mjs'`.
 
 ### When the device already has a Vietnamese input method
 
