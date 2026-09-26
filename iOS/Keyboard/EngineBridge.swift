@@ -13,6 +13,11 @@ protocol TextProxyLike {
     /// Chữ trước con trỏ (UITextDocumentProxy.documentContextBeforeInput). nil =
     /// host không cho biết. Chỉ đọc trước lệnh xoá ≥ CompositionSync.verifyThreshold.
     var contextBeforeInput: String? { get }
+    /// Chữ SAU con trỏ (documentContextAfterInput). nil = không biết / hết văn bản.
+    /// Chỉ đọc ở đường sửa dấu từ đã gõ (không phải hot path).
+    var contextAfterInput: String? { get }
+    /// Đang có vùng chọn khác rỗng (selectedText, iOS 16+).
+    var hasSelection: Bool { get }
 }
 
 /// Shared settings (App Group on device; in-memory defaults in tests).
@@ -37,6 +42,9 @@ struct KeyboardSettings {
     /// Quyết định theo ngữ cảnh (như macOS, mặc định BẬT): sau một từ tiếng Anh, từ
     /// mơ hồ kế tiếp giữ tiếng Anh ("he is" → he is, không phải "he í").
     var contextualEnglish = true
+    /// Sửa dấu từ đã gõ xong (mặc định BẬT, user 26/09/2026): ⌫ ngay sau space/dấu
+    /// câu mở lại từ vừa chốt, và phím dấu thanh ngay sau một từ nạp lại từ đó.
+    var reEditWord = true
 
     static func load() -> KeyboardSettings {
         var s = KeyboardSettings()
@@ -53,6 +61,7 @@ struct KeyboardSettings {
         if d.object(forKey: "hapticFeedback") != nil { s.hapticFeedback = d.bool(forKey: "hapticFeedback") }
         if d.object(forKey: "autoFixAdjacent") != nil { s.autoFixAdjacent = d.bool(forKey: "autoFixAdjacent") }
         if d.object(forKey: "contextualEnglish") != nil { s.contextualEnglish = d.bool(forKey: "contextualEnglish") }
+        if d.object(forKey: "reEditWord") != nil { s.reEditWord = d.bool(forKey: "reEditWord") }
         s.learnWords = s.showSuggestions   // bật gợi ý = bật học (quyết định 2026-07-24)
         return s
     }
@@ -73,6 +82,15 @@ final class EngineBridge {
     /// thì diacritic lại DÍNH, ngược ý.) Set theo field ở viewWillAppear.
     var passthrough = false
 
+    /// Cho phép "với" lại từ đã chốt trước con trỏ: ⌫ mở lại từ vừa chốt, và phím
+    /// dấu/mũ nạp lại từ ngay trước con trỏ (seed). Controller TẮT ở omnibox
+    /// (keyboardType .webSearch): inline autocomplete tự sửa chữ bên dưới mình.
+    var reachBackAllowed = true
+
+    /// Thao tác cuối của bridge là chèn ký tự ranh giới → chắc chắn ký tự trước con
+    /// trỏ KHÔNG phải chữ: phím đầu từ mới khỏi phải đọc context (XPC) để thử seed.
+    private var lastWasOwnBoundary = false
+
     init(settings: KeyboardSettings = .load()) {
         self.settings = settings
         engine.freeMarking = settings.freeMarking
@@ -87,6 +105,12 @@ final class EngineBridge {
     /// A letter key ("a"…"z", already cased by the shift state).
     func letter(_ ch: Character, proxy: TextProxyLike) {
         guard !proxy.isSecure, !passthrough else { proxy.insertText(String(ch)); return }
+        let ownBoundary = lastWasOwnBoundary
+        lastWasOwnBoundary = false
+        if engine.isEmpty, !ownBoundary, settings.reEditWord, reachBackAllowed, Self.isReEditKey(ch),
+           seedWordBeforeCaret(then: ch, proxy: proxy) {
+            return
+        }
         let before = engine.composed
         let action = engine.feed(ch)
         guard safeToApply(action, expected: before, proxy: proxy) else {
@@ -118,19 +142,26 @@ final class EngineBridge {
         }
         apply(action, literal: "", proxy: proxy)
         proxy.insertText(text)
+        lastWasOwnBoundary = text.last.map { !$0.isLetter } ?? false
         return final
     }
 
-    /// Backspace. Returns true when the bridge handled it (composition edit);
-    /// false → caller should also stop any repeat state it keeps.
-    func backspace(proxy: TextProxyLike) {
-        guard !proxy.isSecure, !passthrough, !engine.isEmpty else { proxy.deleteBackward(); return }
+    /// Backspace. Trả true khi ⌫ này MỞ LẠI từ vừa chốt (engine lại đang gõ từ đó).
+    @discardableResult
+    func backspace(proxy: TextProxyLike) -> Bool {
+        lastWasOwnBoundary = false
+        guard !proxy.isSecure, !passthrough else { proxy.deleteBackward(); return false }
+        guard !engine.isEmpty else {
+            if engine.canReopenLastCommit { return reopenLastCommit(proxy: proxy) }
+            proxy.deleteBackward()
+            return false
+        }
         let before = engine.composed
         let action = engine.backspace()
         guard safeToApply(action, expected: before, proxy: proxy) else {
             reset()                    // lệch → xoá thường 1 ký tự, không vẽ lại từ
             proxy.deleteBackward()
-            return
+            return false
         }
         switch action {
         case .replace(let bs, let insert):
@@ -139,12 +170,95 @@ final class EngineBridge {
         case .passthrough, .none:
             proxy.deleteBackward()
         }
+        return false
     }
+
+    // MARK: - Sửa dấu từ đã gõ xong (như macOS: reopenLastCommit + seed)
+
+    /// ⌫ ngay sau ký tự ranh giới vừa chốt một từ: xoá ranh giới (luôn — đó là việc
+    /// của ⌫) và nạp lại từ vào engine để gõ tiếp dấu ("tháy" ␣ ⌫ a → "thấy").
+    /// Chỉ khi màn hình XÁC NHẬN: context trước con trỏ = …từ + 1 ký tự không phải chữ,
+    /// khớp ĐÚNG từng scalar (NFD / host tự sửa chữ ⇒ lệch ⇒ bỏ). Context nil, có vùng
+    /// chọn, ô omnibox ⇒ quên snapshot, ⌫ thường. Snapshot tiêu thụ 1 lần. Từ bị
+    /// auto-restore ("google") engine không capture → không bao giờ tới đây, nên luồng
+    /// backspace-undo (restoreUndo) của controller giữ nguyên.
+    private func reopenLastCommit(proxy: TextProxyLike) -> Bool {
+        guard settings.reEditWord, reachBackAllowed, !proxy.hasSelection,
+              let ctx = proxy.contextBeforeInput,
+              let boundaryChar = ctx.last, !boundaryChar.isLetter else {
+            engine.forgetLastCommit()
+            proxy.deleteBackward()
+            return false
+        }
+        guard let word = engine.reopenLastCommit() else {     // setting đổi → replay lệch
+            proxy.deleteBackward()
+            return false
+        }
+        guard CompositionSync.endsWithWord(String(ctx.dropLast()), word) else {
+            engine.reset()
+            TouchLog.write("reopen: context lệch → bỏ")
+            proxy.deleteBackward()
+            return false
+        }
+        proxy.deleteBackward()
+        // Đọc lại sau khi xoá: host nuốt/đổi lệnh xoá → không giữ từ (nil = không biết,
+        // đã xác minh trước khi xoá nên giữ).
+        if let after = proxy.contextBeforeInput, !CompositionSync.endsWithWord(after, word) {
+            engine.reset()
+            TouchLog.write("reopen: context sau xoá lệch → bỏ")
+            return false
+        }
+        return true
+    }
+
+    /// Phím được nạp lại từ trước con trỏ: CHỈ dấu thanh / huỷ dấu / móc (s f r x j
+    /// z w). KHÔNG a e o d (user 26/09/2026): "to" + o phải ra "too" chứ không "tô" —
+    /// mũ/đ chỉ sửa được qua ⌫ mở lại từ. Lọc rẻ trước khi trả giá đọc context.
+    static func isReEditKey(_ ch: Character) -> Bool {
+        switch ch {
+        case "s", "f", "r", "x", "j", "z", "w",
+             "S", "F", "R", "X", "J", "Z", "W": return true
+        default: return false
+        }
+    }
+
+    /// Engine rỗng, con trỏ đứng NGAY SAU một từ (không ở giữa từ, không vùng chọn):
+    /// seed engine bằng từ đó rồi feed `ch`. Chỉ áp khi seed round-trip VÀ phím thật sự
+    /// biến đổi từ ("viet" + j → "việt"); không thì engine reset, trả false → caller
+    /// chèn literal như cũ. Context trước nil ⇒ không áp. Context SAU nil được coi là
+    /// hết văn bản (host iOS hay trả nil thay cho "" ở cuối ô).
+    private func seedWordBeforeCaret(then ch: Character, proxy: TextProxyLike) -> Bool {
+        guard !proxy.hasSelection,
+              let ctx = proxy.contextBeforeInput,
+              let word = CompositionSync.trailingWord(ctx) else { return false }
+        if let after = proxy.contextAfterInput, let next = after.first, next.isLetter {
+            return false                               // đang ở giữa từ
+        }
+        guard engine.seed(word) else { return false }  // seed tự reset khi không khớp
+        let action = engine.feed(ch)
+        guard case .replace(let bs, let insert) = action, bs > 0,
+              engine.composed != word + String(ch) else {
+            engine.reset()
+            return false
+        }
+        guard safeToApply(action, expected: word, proxy: proxy) else {
+            engine.reset()
+            return false
+        }
+        TouchLog.edit(bs: bs, insertLen: insert.count, insert: insert)
+        for _ in 0..<bs { proxy.deleteBackward() }
+        if !insert.isEmpty { proxy.insertText(insert) }
+        return true
+    }
+
+    /// Ký tự ranh giới vừa chèn đã bị controller viết lại (double-space → ". ") —
+    /// ⌫ kế tiếp không còn xoá đúng ký tự đã chốt từ.
+    func forgetLastCommit() { engine.forgetLastCommit(); lastWasOwnBoundary = false }
 
     /// Field switch / selection moved / keyboard dismissed → forget the word.
     /// Cũng xoá ngữ cảnh tiếng Anh: đổi ô / con trỏ nhảy → từ trước không còn là
     /// "từ ngay trước" nữa (macOS làm y hệt khi activateServer / đổi field).
-    func reset() { engine.reset(); engine.resetContext() }
+    func reset() { engine.reset(); engine.resetContext(); lastWasOwnBoundary = false }
 
     var isComposing: Bool { !engine.isEmpty }
 

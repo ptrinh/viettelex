@@ -62,6 +62,12 @@ final class SettingsRegressionTests: XCTestCase {
         }
     }
 
+    // Sửa dấu từ đã gõ: default BẬT, tắt được qua App Group (user 26/09/2026).
+    func testReEditWordDefaultOnAndReadable() {
+        withDefaults([:]) { XCTAssertTrue(KeyboardSettings.load().reEditWord) }
+        withDefaults(["reEditWord": false]) { XCTAssertFalse(KeyboardSettings.load().reEditWord) }
+    }
+
     // learnWords đi theo showSuggestions (quyết định 24/07).
     func testLearnFollowsSuggestions() {
         withDefaults(["showSuggestions": false]) {

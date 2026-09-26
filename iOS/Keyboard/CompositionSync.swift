@@ -93,6 +93,32 @@ enum CompositionSync {
         return moved
     }
 
+    /// `context` kết thúc ĐÚNG bằng `word` (so từng Unicode scalar — KHÔNG tương đương
+    /// chuẩn: ô NFD phải lệch, vì deleteBackward sẽ cắt vào dấu tổ hợp) và ký tự ngay
+    /// trước `word` (nếu có) không phải chữ — từ đứng riêng, không phải đuôi từ khác.
+    static func endsWithWord(_ context: String, _ word: String) -> Bool {
+        let c = Array(context.unicodeScalars), w = Array(word.unicodeScalars)
+        guard !w.isEmpty, c.count >= w.count, Array(c.suffix(w.count)) == w else { return false }
+        guard c.count > w.count else { return true }
+        return !Character(c[c.count - w.count - 1]).isLetter
+    }
+
+    /// Từ (dãy chữ liền) ngay trước con trỏ, nil nếu ký tự cuối không phải chữ hoặc
+    /// văn bản không ở dạng dựng sẵn (NFC) — sửa dấu trên ô NFD là cắt vào dấu tổ hợp.
+    static func trailingWord(_ context: String) -> String? {
+        var start = context.endIndex
+        while start > context.startIndex {
+            let prev = context.index(before: start)
+            guard context[prev].isLetter else { break }
+            start = prev
+        }
+        guard start < context.endIndex else { return nil }
+        let word = String(context[start...])
+        guard word.unicodeScalars.elementsEqual(
+            word.precomposedStringWithCanonicalMapping.unicodeScalars) else { return nil }
+        return word
+    }
+
     /// Dòng log chẩn đoán: CHỈ độ dài context + cờ khớp — không bao giờ nội dung.
     /// len = -1 khi host trả nil.
     static func diagnostic(context: String?, composed: String) -> (len: Int, suffix: Bool) {

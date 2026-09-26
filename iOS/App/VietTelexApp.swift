@@ -805,11 +805,14 @@ struct TinhNangSections: View {
     private var rowHeightAdjust = 0
     @AppStorage("hapticFeedback", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var hapticFeedback = false
+    @AppStorage("reEditWord", store: UserDefaults(suiteName: "group.com.viettelex"))
+    private var reEditWord = true
 
     var body: some View {
         Section {
             settingToggle("Tự khôi phục từ tiếng Anh", "Từ không phải tiếng Việt tự trả về như đã gõ (google, github…).", isOn: $autoRestore)
             settingToggle("Kiểm tra chính tả khi gõ", "Ngừng bỏ dấu ngay khi từ không thể là tiếng Việt.", isOn: $liveSpellCheck)
+            settingToggle("Sửa dấu từ đã gõ", "Xoá dấu cách ngay sau một từ để gõ tiếp dấu cho từ đó (tháy ␣ ⌫ a → thấy); hoặc đặt con trỏ ngay sau từ rồi gõ phím dấu s f r x j: viêt + j → việt.", isOn: $reEditWord)
         } header: { Text("Chính tả") }
 
         Section {

@@ -11,6 +11,11 @@ final class MockProxy: TextProxyLike {
     /// trả nil; .some("…") = host báo context LỆCH (con trỏ dời, host gán lại text…).
     var fakeContext: String?? = nil
     var contextBeforeInput: String? { fakeContext ?? text }
+    /// Chữ sau con trỏ (con trỏ đứng giữa `text` và `textAfter`). fakeAfter như fakeContext.
+    var textAfter = ""
+    var fakeAfter: String?? = nil
+    var contextAfterInput: String? { fakeAfter ?? textAfter }
+    var hasSelection = false
     func insertText(_ t: String) { text += t }
     func deleteBackward() { if !text.isEmpty { text.removeLast() } }
 }
