@@ -63,6 +63,7 @@ Recommends: viettelex-settings,
             fcitx5-frontend-gtk3,
             fcitx5-frontend-gtk4,
             fcitx5-frontend-qt5,
+            fcitx5-frontend-qt6,
             im-config
 Suggests: fcitx5-config-qt
 Description: VietTelex Vietnamese input method - Fcitx5 addon
@@ -78,7 +79,9 @@ Package: viettelex-ibus
 Architecture: any
 Build-Profiles: <!pkg.viettelex.noengine>
 Depends: ${shlibs:Depends}, ${misc:Depends}, libviettelex-core (= ${binary:Version}), ibus
-Recommends: viettelex-settings
+Recommends: viettelex-settings,
+            ibus-gtk3,
+            ibus-gtk4
 Description: VietTelex Vietnamese input method - IBus engine
  VietTelex types Vietnamese exactly like its macOS version: Telex, Simple
  Telex, VNI, free tone placement, Quick Telex, live spell-check, automatic

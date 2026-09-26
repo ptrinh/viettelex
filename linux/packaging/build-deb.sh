@@ -56,6 +56,12 @@ if [ -n "$SERIES" ]; then
     "$STAGE/debian/changelog"
 fi
 
+# jammy (22.04) chưa có fcitx5-frontend-qt6 (có từ noble) → bỏ khỏi Recommends để control sạch.
+TARGET_SERIES=${SERIES:-$( . /etc/os-release 2>/dev/null; echo "${VERSION_CODENAME:-}")}
+if [ "$TARGET_SERIES" = jammy ]; then
+  sed -i '/^ *fcitx5-frontend-qt6,$/d' "$STAGE/debian/control"
+fi
+
 cd "$STAGE"
 if [ "$SOURCE" = 1 ]; then
   dpkg-buildpackage -S -d -us -uc

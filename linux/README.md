@@ -60,6 +60,22 @@ Ubuntu 22.04 / 24.04, amd64 and arm64.
 Then open **VietTelex** from the app menu and follow the setup guide. `Ctrl+Space` switches
 between Vietnamese and English.
 
+## Tương thích ứng dụng / App compatibility
+
+App cài đặt có tab **Tương thích** chỉ liệt kê lưu ý khớp với máy bạn, kèm nút chép lệnh sửa.
+The settings app has a **Tương thích** (compatibility) tab that lists only the issues that apply
+to your machine, each with a copy button.
+
+| App / môi trường | Vấn đề (VI) | Issue (EN) | Cách sửa / Fix |
+|---|---|---|---|
+| Chrome ≥ 140, Chromium, Electron ≥ 38 (VS Code, Slack, Discord) trên **Wayland** | Mặc định chạy Wayland gốc, không nhận bộ gõ | Default to native Wayland and lose the IME | Chạy với / launch with `--enable-wayland-ime --wayland-text-input-version=3` (GNOME + IBus; KDE: chỉ `--enable-wayland-ime`), hoặc / or `--ozone-platform=x11`. Cố định / persist: `~/.config/chrome-flags.conf`, `~/.config/code-flags.conf`, hoặc sửa dòng `Exec=` trong bản sao `.desktop` ở `~/.local/share/applications/` |
+| kitty trên X11 | Cần biến môi trường | Needs an env variable | `export GLFW_IM_MODULE=ibus` (cả Fcitx5 / also for Fcitx5) trong `~/.profile` |
+| JetBrains IDE trên X11 | Mất bộ gõ sau khi đổi cửa sổ | Loses the IME after switching windows | Help → Edit Custom VM Options → `-Drecreate.x11.input.method=true` |
+| rofi | Không hỗ trợ bộ gõ | No IME support | Dùng / use Ulauncher hoặc KRunner |
+| Tìm kiếm Tổng quan GNOME / GNOME overview search | Có thể rơi chữ đầu (ibus#2246) | May drop the first letter (upstream ibus#2246) | Mở Tổng quan, chờ một nhịp rồi gõ / pause briefly before typing |
+| App Snap + Fcitx5 trên Ubuntu 22.04 | Thường không nhận Fcitx5 | Often ignore Fcitx5 | Dùng IBus (`viettelex-ibus`) hoặc bản .deb / Flatpak của app |
+| Terminal, terminal VS Code, tmux, ssh | Luôn gõ có gạch chân (preedit) — **chủ đích** | Always uses preedit (underlined) — **by design** | Không cần sửa / nothing to fix |
+
 ## Cấu trúc
 
 | Thư mục | Nội dung |
@@ -72,7 +88,7 @@ between Vietnamese and English.
 
 ## App cài đặt (`settings/`)
 
-Tab: Kiểu gõ · Tuỳ chỉnh · Gõ tắt · Bảng cơ chế gõ · Giới thiệu. Ghi
+Tab: Kiểu gõ · Tuỳ chỉnh · Gõ tắt · Bảng cơ chế gõ · Tương thích · Giới thiệu. Ghi
 `~/.config/viettelex/config.toml` + `shortcuts.yml` (ghi nguyên tử); frontend nghe inotify
 nên đổi là có hiệu lực ngay. Gõ tắt và bảng cơ chế gõ nhập/xuất cùng định dạng YAML với
 bản macOS (nhận cả JSON / txt `key:value`).

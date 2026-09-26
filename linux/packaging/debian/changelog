@@ -1,4 +1,16 @@
-viettelex (1.0.1) UNRELEASED; urgency=medium
+viettelex (1.0.2) UNRELEASED; urgency=medium
+
+  * Surrounding mode: generic app ids/terminals/Firefox/gnome-shell use
+    preedit; selection guard; IBus surrounding proven per focus.
+  * Packaging: Fcitx5 recommends fcitx5-frontend-qt6 (noble+), IBus recommends
+    ibus-gtk3 and ibus-gtk4.
+  * Settings: new "App compatibility" tab with copyable fixes (Chrome/Electron
+    on Wayland, kitty, JetBrains, rofi, GNOME overview, Snap + Fcitx5 on 22.04,
+    terminals).
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Sat, 26 Sep 2026 20:00:00 +0000
+
+viettelex (1.0.1) unstable; urgency=medium
 
   * Use the macOS app icon and the macOS menu-bar glyph (V / E) as icons.
 

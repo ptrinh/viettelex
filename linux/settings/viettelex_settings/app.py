@@ -20,7 +20,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import APP_ID, VERSION, config, detect, shortcuts  # noqa: E402
+from . import APP_ID, VERSION, compat, config, detect, shortcuts  # noqa: E402
 
 WEBSITE = "https://ptrinh.github.io/viettelex/"
 LEARN_URL = "https://ptrinh.github.io/viettelex/learn"
@@ -155,6 +155,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.add(self._page_options())
         self.add(self._page_shortcuts())
         self.add(self._page_modes())
+        self.add(self._page_compat())
         self.add(self._page_about())
         self._apply_vni_visibility()
         self._watch_config_dir()
@@ -640,7 +641,67 @@ class SettingsWindow(Adw.PreferencesWindow):
         except OSError:
             self.toast("Không lưu được file.")
 
-    # --- page 5: Giới thiệu ----------------------------------------------
+    # --- page 5: Tương thích ứng dụng -----------------------------------
+
+    def _page_compat(self):
+        page = Adw.PreferencesPage(title="Tương thích", icon_name="dialog-information-symbolic")
+        self.compat_page = page
+        self.compat_groups = []
+        self._rebuild_compat()
+        return page
+
+    def _rebuild_compat(self):
+        for g in self.compat_groups:
+            self.compat_page.remove(g)
+        self.compat_groups = []
+        try:
+            fw = detect.assess(detect.collect())["framework"]
+            issues = compat.assess(compat.collect(framework=fw))
+        except Exception:  # dò môi trường không được phép làm hỏng app cài đặt
+            issues = []
+        g = Adw.PreferencesGroup(
+            title="Tương thích ứng dụng",
+            description="Chỉ liệt kê lưu ý khớp với máy này." if issues else
+            "Không phát hiện vấn đề nào với các ứng dụng đã cài.")
+        again = Gtk.Button(icon_name="view-refresh-symbolic", valign=Gtk.Align.CENTER,
+                           tooltip_text="Dò lại")
+        again.add_css_class("flat")
+        again.connect("clicked", lambda _b: self._rebuild_compat())
+        g.set_header_suffix(again)
+        for it in issues:
+            g.add(self._compat_row(it))
+        self.compat_page.add(g)
+        self.compat_groups.append(g)
+
+    def _compat_row(self, it):
+        icon = Gtk.Image.new_from_icon_name(
+            "dialog-warning-symbolic" if it["level"] == "warn" else "dialog-information-symbolic")
+        if it["level"] == "warn":
+            icon.add_css_class("warning")
+        if not it["fix"]:
+            r = row(it["title"], it["body"])
+            r.add_prefix(icon)
+            return r
+        r = Adw.ExpanderRow()
+        r.set_title(esc(it["title"]))
+        r.set_subtitle(esc(it["body"]))
+        r.add_prefix(icon)
+        copy = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER,
+                          tooltip_text="Chép lệnh")
+        copy.add_css_class("flat")
+        copy.connect("clicked", lambda _b, t=it["fix"]: self.copy_text(t))
+        r.add_action(copy)
+        lbl = Gtk.Label(label=it["fix"], selectable=True, wrap=True, xalign=0,
+                        margin_top=8, margin_bottom=8, margin_start=12, margin_end=12)
+        lbl.add_css_class("monospace")
+        r.add_row(lbl)
+        return r
+
+    def copy_text(self, text):
+        self.get_clipboard().set_content(Gdk.ContentProvider.new_for_value(text))
+        self.toast("Đã chép lệnh.")
+
+    # --- page 6: Giới thiệu ----------------------------------------------
 
     def _page_about(self):
         page = Adw.PreferencesPage(title="Giới thiệu", icon_name="help-about-symbolic")
@@ -928,8 +989,8 @@ class OnboardingWindow(Adw.Window):
             has = True
             self.step(warn, True, "Phiên Wayland: Chrome/Electron (VS Code, Slack…)",
                       "Nếu không gõ được tiếng Việt trong Chrome hay app Electron, chạy app với "
-                      "--enable-wayland-ime --ozone-platform=wayland (Chrome: chrome://flags → "
-                      "Preferred Ozone platform = Wayland).")
+                      "%s (hoặc %s). Lệnh copy sẵn ở tab Tương thích." %
+                      (compat.WAYLAND_IME_FLAGS, compat.X11_FLAG))
         if has:
             page.add(warn)
 
@@ -1026,7 +1087,7 @@ class App(Adw.Application):
         self.add_main_option("no-onboarding", 0, GLib.OptionFlags.NONE, GLib.OptionArg.NONE,
                              "Không tự mở hướng dẫn khi bộ gõ chưa bật", None)
         self.add_main_option("page", 0, GLib.OptionFlags.NONE, GLib.OptionArg.STRING,
-                             "Mở tab: typing|options|shortcuts|modes|about", "TAB")
+                             "Mở tab: typing|options|shortcuts|modes|compat|about", "TAB")
 
     def do_command_line(self, cmdline):
         opts = cmdline.get_options_dict().end().unpack()
@@ -1040,7 +1101,7 @@ class App(Adw.Application):
         Gtk.Window.set_default_icon_name(APP_ID)
         if not self.win:
             self.win = SettingsWindow(self, config.Config())
-        pages = {"typing": 0, "options": 1, "shortcuts": 2, "modes": 3, "about": 4}
+        pages = {"typing": 0, "options": 1, "shortcuts": 2, "modes": 3, "compat": 4, "about": 5}
         if getattr(self, "page", None) in pages:
             self._select_page(pages[self.page])
         self.win.present()

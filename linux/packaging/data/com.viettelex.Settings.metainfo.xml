@@ -51,6 +51,12 @@
     <control>pointing</control>
   </supports>
   <releases>
+    <release version="1.0.2" date="2026-09-26">
+      <description>
+        <p>Surrounding mode: generic app ids, terminals, Firefox and gnome-shell use preedit; selection guard; IBus surrounding text verified per focus.</p>
+        <p>New App compatibility tab with copyable fixes for Chrome/Electron on Wayland, kitty, JetBrains IDEs, rofi, GNOME overview search, Snap apps with Fcitx5 on 22.04 and terminals. Packages now recommend the Qt6 and GTK input-method modules.</p>
+      </description>
+    </release>
     <release version="1.0.1" date="2026-09-26">
       <description>
         <p>Uses the macOS app icon and the macOS menu-bar glyph for the input-method indicator (V / E).</p>
