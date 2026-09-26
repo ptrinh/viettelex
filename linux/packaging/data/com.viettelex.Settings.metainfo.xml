@@ -51,6 +51,9 @@
     <control>pointing</control>
   </supports>
   <releases>
+    <release version="1.0.3" date="2026-09-26">
+      <description><p>Less underline: focused-app detection on GNOME Wayland, Direct mode in terminals, preedit without underline by default.</p></description>
+    </release>
     <release version="1.0.2" date="2026-09-26">
       <description>
         <p>Surrounding mode: generic app ids, terminals, Firefox and gnome-shell use preedit; selection guard; IBus surrounding text verified per focus.</p>

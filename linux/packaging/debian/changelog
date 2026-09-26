@@ -1,3 +1,13 @@
+viettelex (1.0.3) UNRELEASED; urgency=medium
+
+  * GNOME Wayland: real focused-app id via portal GetRunningApplications
+    monitor (per-app memory + no-underline mode on Ubuntu).
+  * Terminals (GTK2/3 IBus, fcitx5-gtk/qt): Direct mode, forwarded BackSpace
+    + text, no underline.
+  * Preedit without underline by default (setting "Gạch chân chữ đang gõ").
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Sat, 26 Sep 2026 23:00:00 +0000
+
 viettelex (1.0.2) UNRELEASED; urgency=medium
 
   * Surrounding mode: generic app ids/terminals/Firefox/gnome-shell use
