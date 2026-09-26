@@ -183,6 +183,8 @@ final class KeyboardViewController: UIInputViewController {
             bridge.reset()
             bridge.passthrough = t.passthrough
         }
+        // Omnibox (inline autocomplete tự viết lại chữ): không với lại từ đã chốt.
+        bridge.reachBackAllowed = t.keyboardType != .webSearch
         // Một lần rebuild cho cả 3 (và 0 lần nếu field giống lần trước).
         keyboard.batchConfigure {
             keyboard.configureReturnKey(type: t.returnKeyType)
@@ -268,6 +270,11 @@ final class KeyboardViewController: UIInputViewController {
         func deleteBackward() { p.deleteBackward() }
         var isSecure: Bool { (p as UITextInputTraits).isSecureTextEntry == true }
         var contextBeforeInput: String? { p.documentContextBeforeInput }
+        var contextAfterInput: String? { p.documentContextAfterInput }
+        var hasSelection: Bool {
+            if #available(iOS 16.0, *) { return p.selectedText?.isEmpty == false }
+            return false
+        }
     }
 
     /// Được xoá `expected` (đang nằm ngay trước con trỏ) bằng deleteBackward × N?
@@ -336,6 +343,7 @@ final class KeyboardViewController: UIInputViewController {
             if TypingHeuristics.doubleSpaceMakesPeriod(context: ctx, lastWasSpace: lastInsertWasSpace) {
                 textDocumentProxy.deleteBackward()
                 textDocumentProxy.insertText(". ")
+                bridge.forgetLastCommit()         // space đã thành ". " → ⌫ không mở lại từ
                 lastWord = nil; lastWord2 = nil
             } else {
                 commitAndLearn(bridge.boundary(" ", proxy: proxy))
@@ -362,7 +370,10 @@ final class KeyboardViewController: UIInputViewController {
             } else {
                 restoreUndo = nil; undoOfferActive = false
             }
-            bridge.backspace(proxy: proxy)
+            if bridge.backspace(proxy: proxy) {
+                // ⌫ mở lại từ vừa chốt: từ đó không còn là "từ trước" trong câu.
+                lastWord = lastWord2; lastWord2 = nil
+            }
             if !bridge.isComposing { lastWord = nil; lastWord2 = nil }  // xoá lấn vào chữ cũ → context mờ
         }
         switch key {
