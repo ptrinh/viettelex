@@ -16,8 +16,11 @@
 #include <shlobj.h>
 
 #include <string>
+#include <vector>
 
 #include "app.h"
+#include "app_quit.h"
+#include "setup_helper_logic.h"
 #include "icons.h"
 #include "registration.h"
 #include "res/icon_ids.h"
@@ -27,6 +30,8 @@
 #include "strings.h"
 #include "tip_control.h"
 #include "updater.h"
+#include "uninstall.h"
+#include "version.h"
 
 namespace vtx::app {
 
@@ -158,7 +163,9 @@ void onUpdateChecked(UpdateInfo* info) {
 
 void onDownloaded(WPARAM status, wchar_t* path) {
     if (status == kDownloadOk && path) {
-        runInstaller(path);
+        // Hand off and leave NOW: saves nothing pending (settings are saved on change),
+        // WM_DESTROY removes the tray icon, WinMain releases the single-instance mutex.
+        if (runInstaller(path)) PostMessageW(g_mainWnd, WM_CLOSE, 0, 0);
     } else {
         MessageBoxW(nullptr, status == kDownloadBadSignature ? tr(S::UpdateBadSignature) : tr(S::UpdateFailed),
                     tr(S::AppName), MB_OK | MB_ICONWARNING | MB_SETFOREGROUND);
@@ -174,6 +181,13 @@ LRESULT CALLBACK mainProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     }
     switch (msg) {
         case kAppCommandMsg: runCommand(static_cast<unsigned>(wp)); return 0;
+        // Restart Manager / logoff / an upgrade closing us: agree, then exit cleanly
+        // (settings are saved on every change, so there is nothing left to flush).
+        case WM_QUERYENDSESSION: return TRUE;
+        case WM_ENDSESSION:
+            if (wp) DestroyWindow(h);
+            return 0;
+        case WM_CLOSE: DestroyWindow(h); return 0;
         case kTrayMsg:
             switch (LOWORD(lp)) {
                 case WM_LBUTTONUP:
@@ -247,10 +261,36 @@ int setProfileIcon(const std::string& name) {
     return written > 0 ? 0 : 1;
 }
 
+// `--wait-install <pid>` (a copy of this exe in %TEMP%): wait for msiexec, then start the
+// installed VietTelex if the MSI's LaunchApp did not (UAC cancelled, install failed).
+int waitInstall(unsigned long pid) {
+    if (HANDLE p = OpenProcess(SYNCHRONIZE, FALSE, pid)) {
+        WaitForSingleObject(p, 2 * 60 * 60 * 1000);
+        CloseHandle(p);
+    }
+    Sleep(3000);  // LaunchApp runs at the very end of the install
+    wchar_t exe[MAX_PATH] = {};
+    DWORD sz = sizeof exe;
+    const bool have = RegGetValueW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\VietTelex", L"AppPath",
+                                   RRF_RT_REG_SZ | RRF_SUBKEY_WOW6464KEY, nullptr, exe, &sz) == ERROR_SUCCESS &&
+                      GetFileAttributesW(exe) != INVALID_FILE_ATTRIBUTES;
+    const bool running = FindWindowW(kAppWindowClass, nullptr) != nullptr;
+    if (vtx::afterInstallAction(running, have) == vtx::AfterInstall::LaunchInstalled)
+        ShellExecuteW(nullptr, L"open", exe, L"--settings", nullptr, SW_SHOWNORMAL);
+    return 0;
+}
+
+unsigned long g_waitPid = 0;
+
 unsigned parseCommandArg(const wchar_t* cmdLine, bool& background, int& oneShot) {
     int argc = 0;
     wchar_t** argv = CommandLineToArgvW(cmdLine, &argc);
     unsigned cmd = 0;
+    {
+        std::vector<std::wstring> all;
+        for (int i = 1; argv && i < argc; ++i) all.push_back(argv[i]);
+        if (vtx::parseWaitInstallArg(all, g_waitPid)) oneShot = 4;
+    }
     for (int i = 1; argv && i < argc; ++i) {
         std::wstring a = argv[i];
         if (a == L"--background") background = true;
@@ -295,6 +335,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         return 0;
     }
     if (oneShot == 3) return setProfileIcon(g_profileIconArg);  // elevated helper
+    if (oneShot == 4) return waitInstall(g_waitPid);             // detached update watcher
     if (oneShot == 2) {  // uninstaller: "gỡ sạch"
         if (HWND h = FindWindowW(kAppWindowClass, nullptr)) PostMessageW(h, WM_CLOSE, 0, 0);
         removeKeyboardForUser();
@@ -304,16 +345,21 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     }
 
     // Single instance: a second launch hands its request to the first and leaves
-    // ("yield, not kill" — macOS SingleInstance).
+    // ("yield, not kill" — macOS SingleInstance) — unless the running one is OLDER (an
+    // upgrade just replaced the files): then it is asked to quit and this one takes over.
     HANDLE mutex = CreateMutexW(nullptr, TRUE, L"Local\\VietTelex.App");
     if (mutex && GetLastError() == ERROR_ALREADY_EXISTS) {
-        if (HWND h = FindWindowW(kAppWindowClass, nullptr)) {
+        HWND h = FindWindowW(kAppWindowClass, nullptr);
+        wchar_t title[64] = {};
+        if (h) GetWindowTextW(h, title, 64);
+        if (h && vtx::decideHandoff(title, vtx::versionForDisplay(VTX_VER_STRING)) == vtx::Handoff::PassToRunning) {
             AllowSetForegroundWindow(ASFW_ANY);
             PostMessageW(h, kAppCommandMsg,
                          cmd ? cmd : (background ? 0 : static_cast<unsigned>(vtx::AppCommand::OpenSettings)), 0);
+            CloseHandle(mutex);
+            return 0;
         }
-        CloseHandle(mutex);
-        return 0;
+        closeRunningApps(GetCurrentProcessId(), vtx::kQuitGraceMs);  // older instance: replace it
     }
 
     INITCOMMONCONTROLSEX icc = {sizeof icc, ICC_TAB_CLASSES | ICC_LISTVIEW_CLASSES | ICC_LINK_CLASS |
@@ -338,7 +384,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     RegisterClassExW(&wc);
     // Hidden top-level window (not HWND_MESSAGE: those are invisible to FindWindow,
     // which is how the TIP and a second instance reach us).
-    g_mainWnd = CreateWindowExW(WS_EX_TOOLWINDOW, kAppWindowClass, L"VietTelex", WS_POPUP, 0, 0, 0, 0, nullptr,
+    const std::wstring mainTitle = vtx::mainWindowTitle(vtx::versionForDisplay(VTX_VER_STRING));  // version for handoff
+    g_mainWnd = CreateWindowExW(WS_EX_TOOLWINDOW, kAppWindowClass, mainTitle.c_str(), WS_POPUP, 0, 0, 0, 0, nullptr,
                                 nullptr, inst, nullptr);
     if (!g_mainWnd) return 1;
     // The TIP posts from inside other apps, some at lower integrity (UIPI).

@@ -8,20 +8,25 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from check_msi import ca_problems, first_key_order_problem  # noqa: E402
 
-GOOD_SEQ = {'CostFinalize': 1000, 'InstallInitialize': 1500, 'RemoveFiles': 3500, 'InstallFinalize': 6600,
-            'SetVtxExe': 1010, 'CleanupUser': 3400, 'SetupUser': 6610, 'LaunchApp': 6620}
+GOOD_SEQ = {'CostFinalize': 1000, 'InstallValidate': 1400, 'InstallInitialize': 1500, 'RemoveFiles': 3500,
+            'InstallFinalize': 6600, 'SetVtxExe': 1010, 'QuitApp': 1020, 'ReleaseTip': 1505,
+            'RemoveExistingProducts': 1510, 'CleanupUser': 3400, 'SetupUser': 6610, 'LaunchApp': 6620}
 GOOD_CAS = {
     'SetVtxExe': {'Type': 51, 'Source': 'VTXEXE', 'Target': '[INSTALLFOLDER]VietTelex.exe'},
     'SetupUser': {'Type': 114, 'Source': 'VTXEXE', 'Target': '--setup-user'},
     'LaunchApp': {'Type': 242, 'Source': 'VTXEXE', 'Target': '--background'},
     'CleanupUser': {'Type': 1138, 'Source': 'VTXEXE', 'Target': '--cleanup-user'},
+    'QuitApp': {'Type': 66, 'Source': 'SetupHelper', 'Target': '--quit-app'},
+    'ReleaseTip': {'Type': 3138, 'Source': 'SetupHelper', 'Target': '--release-tip "[INSTALLFOLDER]." "[INSTALLFOLDER86]."'},
 }
+BINARIES = {'SetupHelper'}
 FILES = {'VietTelexExe'}
 DIRS = {'INSTALLFOLDER', 'TARGETDIR'}
 
 
-def run(cas=None, seq=None):
-    return ca_problems(cas or GOOD_CAS, {'InstallExecuteSequence': seq or GOOD_SEQ}, FILES, DIRS)
+def run(cas=None, seq=None, binaries=None):
+    return ca_problems(cas or GOOD_CAS, {'InstallExecuteSequence': seq or GOOD_SEQ}, FILES, DIRS,
+                       BINARIES if binaries is None else binaries)
 
 
 class KeyOrder(unittest.TestCase):
@@ -56,6 +61,33 @@ class CustomActions(unittest.TestCase):
         seq = dict(GOOD_SEQ)
         del seq['SetVtxExe']
         self.assertTrue(any('nothing sets it' in x for x in run(seq=seq)))
+
+
+class UpgradeInPlace(unittest.TestCase):  # 1.0.6: upgrade must not leave the old app running
+    def test_quit_after_validate_rejected(self):
+        self.assertTrue(any('QuitApp' in x for x in run(seq=dict(GOOD_SEQ, QuitApp=1450))))
+
+    def test_quit_deferred_rejected(self):
+        cas = dict(GOOD_CAS, QuitApp={'Type': 66 + 1024, 'Source': 'SetupHelper', 'Target': '--quit-app'})
+        self.assertTrue(any('immediate' in x for x in run(cas)))
+
+    def test_release_after_old_product_removal_rejected(self):
+        self.assertTrue(any('ReleaseTip' in x for x in run(seq=dict(GOOD_SEQ, ReleaseTip=1520))))
+
+    def test_release_impersonated_rejected(self):
+        cas = dict(GOOD_CAS, ReleaseTip={'Type': 66 + 1024, 'Source': 'SetupHelper', 'Target': '--release-tip'})
+        self.assertTrue(any('not impersonated' in x for x in run(cas)))
+
+    def test_early_rep_rejected(self):  # wixl's default (1401) removes the old product first
+        self.assertTrue(any('RemoveExistingProducts' in x for x in run(seq=dict(GOOD_SEQ, RemoveExistingProducts=1401))))
+
+    def test_release_dir_trailing_backslash_rejected(self):  # "C:\dir\" escapes the quote
+        cas = dict(GOOD_CAS, ReleaseTip={'Type': 3138, 'Source': 'SetupHelper',
+                                         'Target': '--release-tip "[INSTALLFOLDER]" "[INSTALLFOLDER86]"'})
+        self.assertTrue(any('escapes' in x for x in run(cas)))
+
+    def test_missing_binary_rejected(self):
+        self.assertTrue(any('Binary source' in x for x in run(binaries=set())))
 
 
 if __name__ == '__main__':

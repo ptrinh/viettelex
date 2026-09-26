@@ -10,6 +10,7 @@
 #include <string>
 
 #include "settings_store.h"
+#include "setup_helper_logic.h"
 #include "update_check.h"
 #include "version.h"
 
@@ -195,9 +196,39 @@ void startDownload(HWND notify, const wchar_t* url) {
     else delete job;
 }
 
-void runInstaller(const wchar_t* msiPath) {
+bool runInstaller(const wchar_t* msiPath) {
+    // msiexec elevates itself. We get its process handle so a detached watcher can bring
+    // the app back if the install is cancelled or fails (setup_helper_logic.h).
     std::wstring args = L"/i \"" + std::wstring(msiPath) + L"\"";
-    ShellExecuteW(nullptr, L"open", L"msiexec.exe", args.c_str(), nullptr, SW_SHOWNORMAL);
+    SHELLEXECUTEINFOW sei = {};
+    sei.cbSize = sizeof sei;
+    sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
+    sei.lpVerb = L"open";
+    sei.lpFile = L"msiexec.exe";
+    sei.lpParameters = args.c_str();
+    sei.nShow = SW_SHOWNORMAL;
+    if (!ShellExecuteExW(&sei)) return false;
+    if (sei.hProcess) {
+        const DWORD pid = GetProcessId(sei.hProcess);
+        CloseHandle(sei.hProcess);
+        // Watcher = a COPY of this exe in %TEMP%: it holds no installed file open.
+        wchar_t self[MAX_PATH], tmp[MAX_PATH];
+        if (pid && GetModuleFileNameW(nullptr, self, MAX_PATH) && GetTempPathW(MAX_PATH, tmp)) {
+            const std::wstring watcher = std::wstring(tmp) + vtx::kWatcherFileName;
+            if (CopyFileW(self, watcher.c_str(), FALSE)) {
+                std::wstring cmd = L"\"" + watcher + L"\" " + vtx::watcherArgs(pid);
+                STARTUPINFOW si = {};
+                si.cb = sizeof si;
+                PROCESS_INFORMATION pi = {};
+                if (CreateProcessW(watcher.c_str(), &cmd[0], nullptr, nullptr, FALSE, DETACHED_PROCESS, nullptr,
+                                   nullptr, &si, &pi)) {
+                    CloseHandle(pi.hThread);
+                    CloseHandle(pi.hProcess);
+                }
+            }
+        }
+    }
+    return true;
 }
 
 bool autoCheckDue() {

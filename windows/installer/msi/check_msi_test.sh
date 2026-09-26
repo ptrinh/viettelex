@@ -14,25 +14,28 @@ REGTABLE="$1"
 here="$(cd "$(dirname "$0")" && pwd)"
 command -v wixl >/dev/null 2>&1 && command -v msibuild >/dev/null 2>&1 || { echo "skip: msitools absent"; exit 0; }
 d="$(mktemp -d)"; trap 'rm -rf "$d"' EXIT
-for f in VietTelex.exe VietTelexTIP.dll; do echo "$f" > "$d/$f"; done
+for f in VietTelex.exe VietTelexTIP_1_0_0.dll VietTelexSetupHelper.exe; do echo "$f" > "$d/$f"; done
 fill() {
-  sed -e "s|@VERSION@|1.0.0|g; s|@UPGRADECODE@|0F0E0D0C-0B0A-4908-8706-050403020100|g; s|@PRODUCTCODE@|*|g" \
+  sed -e "s|@VERSION@|1.0.0|g; s|@UPGRADECODE@|0F0E0D0C-0B0A-4908-8706-050403020100|g; s|@PRODUCTCODE@|*|g; s|@TIPDLL@|VietTelexTIP_1_0_0.dll|g" \
       -e "s|@ICON@|$here/../../ime/res/viettelex.ico|g; s|@BIN_NATIVE@|$d|g; s|@BIN_X86@|$d|g" \
       -e "s|@GUID_APP@|0F0E0D0C-0B0A-4908-8706-050403020101|; s|@GUID_TIPNATIVE@|0F0E0D0C-0B0A-4908-8706-050403020102|" \
       -e "s|@GUID_TIPX86@|0F0E0D0C-0B0A-4908-8706-050403020103|; s|@GUID_SHORTCUT@|0F0E0D0C-0B0A-4908-8706-050403020104|" \
       -e "/@ARM64_/d" "$here/viettelex.wxs.in"
 }
-dll='[INSTALLFOLDER]VietTelexTIP.dll'
+dll='[INSTALLFOLDER]VietTelexTIP_1_0_0.dll'
 
 # (1.0.0 row-order and the other rules are unit-tested on plain data in
 # check_msi_unit.py; this script checks the real template end to end.)
 
 # ---- the current way
 "$REGTABLE" wxs TipNative "$dll" "$dll" > "$d/reg64.xml"
-"$REGTABLE" wxs TipX86 '[INSTALLFOLDER86]VietTelexTIP.dll' '[INSTALLFOLDER86]VietTelexTIP.dll' > "$d/reg32.xml"
+"$REGTABLE" wxs TipX86 '[INSTALLFOLDER86]VietTelexTIP_1_0_0.dll' '[INSTALLFOLDER86]VietTelexTIP_1_0_0.dll' > "$d/reg32.xml"
 fill | sed -e "/@REG_TIPNATIVE@/r $d/reg64.xml" -e "/@REG_TIPNATIVE@/d" \
            -e "/@REG_TIPX86@/r $d/reg32.xml" -e "/@REG_TIPX86@/d" > "$d/new.wxs"
 wixl --arch x64 -o "$d/new.msi" "$d/new.wxs" 2>/dev/null
+# same post-step as release.sh: helper actions -> type 2 from the Binary table
+msibuild "$d/new.msi" -q "UPDATE \`CustomAction\` SET \`Type\`=66, \`Source\`='SetupHelper' WHERE \`Action\`='QuitApp'"
+msibuild "$d/new.msi" -q "UPDATE \`CustomAction\` SET \`Type\`=3138, \`Source\`='SetupHelper' WHERE \`Action\`='ReleaseTip'"
 python3 "$here/check_msi.py" "$d/new.msi" >/dev/null
 msiinfo export "$d/new.msi" Registry > "$d/Registry.idt"
 "$REGTABLE" check "$d/Registry.idt" TipNative "$dll" "$dll" >/dev/null
@@ -51,4 +54,11 @@ msiinfo export "$d/filekey.msi" CustomAction | grep -q "^SetupUser	82	VietTelexE
 if python3 "$here/check_msi.py" "$d/filekey.msi" 2>/dev/null; then
   echo "FAIL: check_msi.py accepted a FileKey custom action (1.0.4, error 2753)" >&2; exit 1
 fi
-echo "check_msi regression ok (template accepted; 1.0.3 CA sequence and 1.0.4 FileKey CA rejected)"
+# ---- 1.0.6: the old product must be removed only AFTER ReleaseTip (inside the
+# transaction); wixl's default early RemoveExistingProducts (1401) must be rejected.
+cp "$d/new.msi" "$d/rep.msi"
+msibuild "$d/rep.msi" -q "UPDATE \`InstallExecuteSequence\` SET \`Sequence\`=1401 WHERE \`Action\`='RemoveExistingProducts'"
+if python3 "$here/check_msi.py" "$d/rep.msi" 2>/dev/null; then
+  echo "FAIL: check_msi.py accepted RemoveExistingProducts before InstallInitialize" >&2; exit 1
+fi
+echo "check_msi regression ok (template accepted; 1.0.3 CA sequence, 1.0.4 FileKey CA, early REP rejected)"

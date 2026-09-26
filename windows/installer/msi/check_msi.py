@@ -18,6 +18,7 @@ that custom actions running an installed file are sequenced after CostFinalize
 action is FileKey-based (error 2753 on repair — VietTelex 1.0.4).
 Exit 1 with a message per problem.
 """
+import re
 import struct
 import sys
 
@@ -210,7 +211,7 @@ def first_key_order_problem(keys):
     return None
 
 
-def ca_problems(cas, sequences, files, dirs):
+def ca_problems(cas, sequences, files, dirs, binaries=frozenset()):
     """Custom-action rules on plain data (see check_custom_action_sequence)."""
     problems = []
     for name, ca in cas.items():
@@ -238,11 +239,43 @@ def ca_problems(cas, sequences, files, dirs):
                 if not setters:
                     problems.append(f'{table}: {action} runs the exe in property {ca["Source"]} '
                                     f'but nothing sets it before sequence {number}')
+        if table == 'InstallExecuteSequence':
+            problems += upgrade_order_problems(cas, seq, binaries)
         if table == 'InstallExecuteSequence' and 'CleanupUser' in seq:
             n, init, rf = seq['CleanupUser'], seq.get('InstallInitialize'), seq.get('RemoveFiles')
             if not (init is not None and rf is not None and init < n < rf):
                 problems.append(f'{table}: CleanupUser at {n} must be after InstallInitialize ({init}) '
                                 f'and before RemoveFiles ({rf})')
+    return problems
+
+
+def upgrade_order_problems(cas, seq, binaries):
+    """Upgrade-in-place rules (1.0.6): the running app is closed before files are
+    validated, in-use TIP DLLs are moved aside inside the transaction BEFORE the old
+    product is removed, and helper actions point at a real Binary row."""
+    problems = []
+    for name, ca in cas.items():
+        if (ca['Type'] & 0x3F) == 2 and ca['Source'] not in binaries:
+            problems.append(f'CustomAction {name}: Binary source {ca["Source"]} does not exist')
+    iv, ii, rep = seq.get('InstallValidate'), seq.get('InstallInitialize'), seq.get('RemoveExistingProducts')
+    if 'QuitApp' in cas:
+        q, t = seq.get('QuitApp'), cas['QuitApp']['Type']
+        if q is None or iv is None or q >= iv:
+            problems.append(f'QuitApp at {q} must run before InstallValidate ({iv}), or files stay in use')
+        if t & 1024:
+            problems.append('QuitApp must be immediate (runs as the user, before the script)')
+    if 'ReleaseTip' in cas:
+        r, t = seq.get('ReleaseTip'), cas['ReleaseTip']['Type']
+        if not (t & 1024) or not (t & 2048):
+            problems.append('ReleaseTip must be deferred and not impersonated (writes Program Files)')
+        if re.search(r'\[[A-Za-z0-9_]+\]"', cas['ReleaseTip']['Target'] or ''):
+            problems.append('ReleaseTip: a directory property right before a quote ends in "\\" and '
+                            'escapes the quote on the helper command line; append "."')
+        if r is None or ii is None or rep is None or not (ii < r < rep):
+            problems.append(f'ReleaseTip at {r} must be after InstallInitialize ({ii}) and before '
+                            f'RemoveExistingProducts ({rep})')
+    if rep is not None and ii is not None and rep <= ii:
+        problems.append(f'RemoveExistingProducts at {rep} must be after InstallInitialize ({ii})')
     return problems
 
 
@@ -279,10 +312,11 @@ def check_custom_action_sequence(m):
     cas = {r['Action']: r for r in table_dicts(m, 'CustomAction')}
     files = {r['File'] for r in table_dicts(m, 'File')}
     dirs = {r['Directory'] for r in table_dicts(m, 'Directory')}
+    binaries = {r['Name'] for r in table_dicts(m, 'Binary')}
     sequences = {t: {r['Action']: r['Sequence'] for r in table_dicts(m, t)}
                  for t in ('InstallExecuteSequence', 'InstallUISequence', 'AdminExecuteSequence',
                            'AdvtExecuteSequence') if t in m.columns}
-    return ca_problems(cas, sequences, files, dirs)
+    return ca_problems(cas, sequences, files, dirs, binaries)
 
 
 def main(path):

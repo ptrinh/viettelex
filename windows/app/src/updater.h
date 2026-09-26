@@ -22,8 +22,10 @@ enum DownloadStatus : WPARAM { kDownloadOk = 0, kDownloadFailed = 1, kDownloadBa
 void startUpdateCheck(HWND notify, bool interactive);
 // Worker thread; downloads to %TEMP%, verifies Authenticode, posts kMsgUpdateDownloaded.
 void startDownload(HWND notify, const wchar_t* url);
-// msiexec /i <path> (elevation handled by the MSI).
-void runInstaller(const wchar_t* msiPath);
+// msiexec /i <path> (elevation handled by msiexec) + a detached watcher that restarts the
+// installed app if nothing else did. The caller must EXIT right after (it is one of the
+// files being replaced). False = msiexec could not be started.
+bool runInstaller(const wchar_t* msiPath);
 
 // Daily auto-check bookkeeping (autoUpdateCheck).
 bool autoCheckDue();

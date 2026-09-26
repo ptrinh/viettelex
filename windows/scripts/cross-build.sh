@@ -6,6 +6,10 @@
 set -eu
 VERSION="$1"
 W=/src/windows
+# Release TIP DLLs carry the version in their NAME (VietTelexTIP_1_0_6.dll): an upgrade
+# then installs a NEW file instead of overwriting the one loaded in running apps, and the
+# registry points at it at once — no reboot. Underscores, not dots (forwarder module refs).
+V="_$(echo "$VERSION" | tr . _)"
 for pair in i686:x86 x86_64:x64 aarch64:arm64; do
   triple="${pair%%:*}-w64-mingw32"; arch="${pair##*:}"
   b="/tmp/build-$arch"
@@ -18,15 +22,19 @@ for pair in i686:x86 x86_64:x64 aarch64:arm64; do
     grep -E "warning:" "$b.log" | grep -v character-conversion | sort -u >&2
   fi
   mkdir -p "/out/bin/$arch"
-  cp "$b/ime/VietTelexTIP.dll" "$b/app/VietTelex.exe" "/out/bin/$arch/"
+  cp "$b/app/VietTelex.exe" "$b/app/VietTelexSetupHelper.exe" "/out/bin/$arch/"
+  cp "$b/ime/VietTelexTIP.dll" "/out/bin/$arch/VietTelexTIP$V.dll"
   echo "  built $arch"
 done
 
 # ---- ARM64X pure forwarder (Microsoft "Arm64X pure forwarder DLL" recipe, lld flavour)
 a=/out/bin/arm64
-mv "$a/VietTelexTIP.dll" "$a/VietTelexTIP_arm64.dll"
-cp /out/bin/x64/VietTelexTIP.dll "$a/VietTelexTIP_x64.dll"
+mv "$a/VietTelexTIP$V.dll" "$a/VietTelexTIP_arm64$V.dll"
+cp "/out/bin/x64/VietTelexTIP$V.dll" "$a/VietTelexTIP_x64$V.dll"
 f=/tmp/fwd; mkdir -p "$f"
+# Forwarder .def files naming this release's halves.
+sed "s/VietTelexTIP_arm64\./VietTelexTIP_arm64$V./g" "$W/ime/src/arm64x/arm64_exports.def" > "$f/arm64.def"
+sed "s/VietTelexTIP_x64\./VietTelexTIP_x64$V./g" "$W/ime/src/arm64x/x64_exports.def" > "$f/x64.def"
 clang --target=aarch64-pc-windows-msvc -x c -c "$W/ime/src/arm64x/empty.cpp" -o "$f/native.obj"
 clang --target=arm64ec-pc-windows-msvc -x c -c "$W/ime/src/arm64x/empty.cpp" -o "$f/ec.obj"
 # Version/icon resource so the forwarder looks like the product it is.
@@ -37,13 +45,13 @@ aarch64-w64-mingw32-windres -I"$W/ime/src" -DVTX_VER_MAJOR="$(echo "$VERSION" | 
 # the loader cannot see the EC (x64) view at all.
 L=/opt/llvm-mingw/aarch64-w64-mingw32/lib
 lld-link /nologo /dll /noentry /machine:arm64x \
-  "/defarm64native:$W/ime/src/arm64x/arm64_exports.def" "/def:$W/ime/src/arm64x/x64_exports.def" \
+  "/defarm64native:$f/arm64.def" "/def:$f/x64.def" \
   "$f/native.obj" "$f/ec.obj" "$f/fwd.res" "$L/libmingwex.a" "$L/libmingw32.a" /include:_load_config_used \
-  "/out:$a/VietTelexTIP.dll"
+  "/out:$a/VietTelexTIP$V.dll"
 # Prove both views: ARM64X format, native exports -> _arm64, EC exports -> _x64.
-info="$(llvm-readobj --file-headers --coff-exports --coff-load-config "$a/VietTelexTIP.dll")"
+info="$(llvm-readobj --file-headers --coff-exports --coff-load-config "$a/VietTelexTIP$V.dll")"
 echo "$info" | grep -q "Format: COFF-ARM64X" || { echo "forwarder is not ARM64X" >&2; exit 1; }
-echo "$info" | grep -q "ForwardedTo: VietTelexTIP_arm64.DllGetClassObject" || { echo "no native forward" >&2; exit 1; }
-echo "$info" | grep -q "ForwardedTo: VietTelexTIP_x64.DllGetClassObject" || { echo "no EC forward" >&2; exit 1; }
+echo "$info" | grep -q "ForwardedTo: VietTelexTIP_arm64$V.DllGetClassObject" || { echo "no native forward" >&2; exit 1; }
+echo "$info" | grep -q "ForwardedTo: VietTelexTIP_x64$V.DllGetClassObject" || { echo "no EC forward" >&2; exit 1; }
 echo "$info" | grep -q "CHPEMetadataPointer: 0x[1-9A-Fa-f]" || { echo "no CHPE metadata" >&2; exit 1; }
-echo "  built ARM64X forwarder (native -> VietTelexTIP_arm64.dll, x64 -> VietTelexTIP_x64.dll)"
+echo "  built ARM64X forwarder VietTelexTIP$V.dll (native -> VietTelexTIP_arm64$V.dll, x64 -> VietTelexTIP_x64$V.dll)"

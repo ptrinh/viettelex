@@ -4,10 +4,13 @@
   uses WiX v3 syntax and stays inside the subset wixl implements.
 
   Per-machine install:
-    %ProgramFiles%\VietTelex\        VietTelex.exe, VietTelexTIP.dll (native)
-                                     arm64 only: VietTelexTIP.dll is the ARM64X forwarder,
-                                     plus VietTelexTIP_arm64.dll and VietTelexTIP_x64.dll
-    %ProgramFiles(x86)%\VietTelex\   VietTelexTIP.dll (x86, for 32-bit apps)
+    %ProgramFiles%\VietTelex\        VietTelex.exe, VietTelexTIP_<ver>.dll (native)
+                                     arm64 only: VietTelexTIP_<ver>.dll is the ARM64X
+                                     forwarder, plus VietTelexTIP_{arm64,x64}_<ver>.dll
+    %ProgramFiles(x86)%\VietTelex\   VietTelexTIP_<ver>.dll (x86, for 32-bit apps)
+  The TIP DLL names carry the version (e.g. _1_0_6): the TIP is loaded into other running
+  apps and cannot be closed, so an upgrade installs NEW files next to the loaded ones
+  (ReleaseTip moves the old ones aside first) — no "files in use", no reboot prompt.
   Start menu shortcut and an Add/Remove Programs entry.
 
   NO regsvr32. The COM + TSF registration is RegistryValue elements spliced in at the
@@ -30,6 +33,12 @@
     <Property Id="ARPURLINFOABOUT" Value="https://viettelex.com" />
     <Property Id="ARPHELPLINK" Value="https://github.com/ptrinh/viettelex/issues" />
     <Property Id="ARPNOMODIFY" Value="1" />
+    <!-- Restart Manager off: it would offer to close EVERY app that has the TIP loaded
+         (all apps with a text field). QuitApp closes VietTelex.exe itself instead, and the
+         version-named TIP files never collide with loaded ones. -->
+    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
+    <!-- MSI-only helper (not installed): runs before any file of this package exists. -->
+    <Binary Id="SetupHelper" SourceFile="@BIN_NATIVE@/VietTelexSetupHelper.exe" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
@@ -41,7 +50,7 @@
                            Value="[INSTALLFOLDER]VietTelex.exe" />
           </Component>
           <Component Id="TipNative" Guid="@GUID_TIPNATIVE@" Win64="yes">
-            <File Id="TipNativeDll" Name="VietTelexTIP.dll" Source="@BIN_NATIVE@/VietTelexTIP.dll" KeyPath="yes" />
+            <File Id="TipNativeDll" Name="@TIPDLL@" Source="@BIN_NATIVE@/@TIPDLL@" KeyPath="yes" />
             <!-- @REG_TIPNATIVE@ -->
           </Component>
           <!-- @ARM64_COMPONENTS@ -->
@@ -50,7 +59,7 @@
       <Directory Id="ProgramFilesFolder">
         <Directory Id="INSTALLFOLDER86" Name="VietTelex">
           <Component Id="TipX86" Guid="@GUID_TIPX86@" Win64="no">
-            <File Id="TipX86Dll" Name="VietTelexTIP.dll" Source="@BIN_X86@/VietTelexTIP.dll" KeyPath="yes" />
+            <File Id="TipX86Dll" Name="@TIPDLL@" Source="@BIN_X86@/@TIPDLL@" KeyPath="yes" />
             <!-- @REG_TIPX86@ -->
           </Component>
         </Directory>
@@ -80,6 +89,22 @@
            CleanupUser deferred + impersonated (as the user), before RemoveFiles, only on a
                        real uninstall (not the removal half of a major upgrade). -->
     <CustomAction Id="SetVtxExe" Property="VTXEXE" Value="[INSTALLFOLDER]VietTelex.exe" />
+    <!-- QuitApp / ReleaseTip run SetupHelper from the Binary table (type 2). wixl cannot
+         author BinaryKey+ExeCommand, so they are written here as property actions and
+         re-pointed at the Binary row by release.sh (UPDATE of non-key columns only).
+           QuitApp    immediate, as the user, before InstallValidate: WM_CLOSE to every
+                      VietTelex.exe, wait 3 s, terminate only VietTelex.exe images.
+           ReleaseTip deferred as SYSTEM, after InstallInitialize and BEFORE
+                      RemoveExistingProducts: move in-use VietTelexTIP*.dll aside (deleted
+                      at next boot, silently) so neither the old product's removal nor
+                      this install ever meets a file in use.
+                      Paths end in "\." — a bare trailing backslash would escape the
+                      closing quote in the helper's command line. -->
+    <CustomAction Id="QuitApp" Property="VTXHELPER" ExeCommand="--quit-app"
+                  Execute="immediate" Return="ignore" />
+    <CustomAction Id="ReleaseTip" Property="VTXHELPER"
+                  ExeCommand="--release-tip &quot;[INSTALLFOLDER].&quot; &quot;[INSTALLFOLDER86].&quot;"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
     <CustomAction Id="SetupUser" Property="VTXEXE" ExeCommand="--setup-user"
                   Execute="immediate" Return="ignore" />
     <CustomAction Id="LaunchApp" Property="VTXEXE" ExeCommand="--settings"
@@ -88,10 +113,16 @@
                   Execute="deferred" Impersonate="yes" Return="ignore" />
     <!-- EXPLICIT sequence numbers: wixl does not honour Before/After reliably (1.0.3 put
          CleanupUser at 1, before costing, and uninstall failed with error 2731).
-         Standard numbers: CostFinalize 1000, InstallInitialize 1500, RemoveShortcuts 3200,
+         Standard numbers: CostFinalize 1000, InstallValidate 1400, InstallInitialize 1500,
+         RemoveShortcuts 3200,
          RemoveFiles 3500, InstallFinalize 6600. check_msi.py enforces the ordering. -->
     <InstallExecuteSequence>
       <Custom Action="SetVtxExe" Sequence="1010" />
+      <Custom Action="QuitApp" Sequence="1020" />
+      <Custom Action="ReleaseTip" Sequence="1505" />
+      <!-- Old version removed AFTER InstallInitialize (inside this transaction), after
+           ReleaseTip moved its in-use DLLs aside. -->
+      <RemoveExistingProducts Sequence="1510" />
       <Custom Action="CleanupUser" Sequence="3400">REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
       <Custom Action="SetupUser" Sequence="6610">NOT REMOVE</Custom>
       <Custom Action="LaunchApp" Sequence="6620">NOT REMOVE AND NOT REINSTALL AND UILevel &gt;= 4</Custom>

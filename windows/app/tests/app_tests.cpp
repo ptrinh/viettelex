@@ -101,3 +101,69 @@ TEST(version_display_strips_build_field) {
     CHECK_EQ(versionForDisplay("1.0.4"), std::string("1.0.4"));
     CHECK_EQ(versionForDisplay("2.0"), std::string("2.0"));
 }
+
+#include "setup_helper_logic.h"
+
+TEST(helper_only_terminates_the_app_image) {
+    CHECK(isAppImage(L"C:\\Program Files\\VietTelex\\VietTelex.exe"));
+    CHECK(isAppImage(L"viettelex.EXE"));
+    CHECK(!isAppImage(L"C:\\Windows\\explorer.exe"));
+    CHECK(!isAppImage(L"VietTelexSetupHelper.exe"));
+    CHECK(!isAppImage(L"VietTelex.exe.bak"));
+}
+
+TEST(helper_tip_dll_names) {
+    for (const wchar_t* n : {L"VietTelexTIP.dll", L"VietTelexTIP_arm64.dll", L"VietTelexTIP_x64.dll",
+                             L"VietTelexTIP_1_0_6.dll", L"viettelextip_arm64_1_0_6.DLL", L"VietTelexTIP_x64_2_10_0.dll",
+                             L"C:\\Program Files\\VietTelex\\VietTelexTIP_1_0_6.dll"})
+        CHECK(isTipDllName(n));
+    for (const wchar_t* n : {L"VietTelex.exe", L"VietTelexTIP.dll.123.old", L"VietTelexTIPx.dll", L"VietTelexTIP_.dll",
+                             L"VietTelexTIP_1.0.6.dll", L"VietTelexTIP_arm.dll", L"other.dll"})
+        CHECK(!isTipDllName(n));
+    CHECK(isReleasedLeftover(L"VietTelexTIP.dll.42.old"));
+    CHECK(!isReleasedLeftover(L"notes.old"));
+    CHECK(releaseName(L"VietTelexTIP_1_0_6.dll", 42) == std::wstring(L"VietTelexTIP_1_0_6.dll.42.old"));
+    CHECK_EQ(versionSuffix("1.0.6"), std::string("_1_0_6"));
+}
+
+TEST(helper_args) {
+    HelperArgs a = parseHelperArgs({L"--quit-app"});
+    CHECK(a.quitApp && !a.releaseTip);
+    a = parseHelperArgs({L"--release-tip", L"C:\\Program Files\\VietTelex\\", L"C:\\Program Files (x86)\\VietTelex\\\""});
+    CHECK(a.releaseTip && !a.quitApp);
+    CHECK_EQ(a.dirs.size(), size_t(2));
+    CHECK(a.dirs[0] == std::wstring(L"C:\\Program Files\\VietTelex"));
+    CHECK(a.dirs[1] == std::wstring(L"C:\\Program Files (x86)\\VietTelex"));
+    CHECK(parseHelperArgs({L"--bogus"}).dirs.empty());
+    // exactly what the MSI passes: "[INSTALLFOLDER]." "[INSTALLFOLDER86]."
+    a = parseHelperArgs({L"--release-tip", L"C:\\Program Files\\VietTelex\\.", L"C:\\Program Files (x86)\\VietTelex\\."});
+    CHECK_EQ(a.dirs.size(), size_t(2));
+    CHECK(a.dirs[0] == std::wstring(L"C:\\Program Files\\VietTelex"));
+    CHECK(a.dirs[1] == std::wstring(L"C:\\Program Files (x86)\\VietTelex"));
+}
+
+TEST(single_instance_handoff_by_version) {
+    CHECK(mainWindowTitle("1.0.6") == std::wstring(L"VietTelex 1.0.6"));
+    // pre-1.0.6 instances have the bare title -> always replaced by the new exe
+    CHECK(decideHandoff(L"VietTelex", "1.0.6") == Handoff::ReplaceRunning);
+    CHECK(decideHandoff(L"VietTelex 1.0.5.0", "1.0.6") == Handoff::ReplaceRunning);
+    CHECK(decideHandoff(L"VietTelex 1.0.6", "1.0.6") == Handoff::PassToRunning);   // same: yield
+    CHECK(decideHandoff(L"VietTelex 1.0.7", "1.0.6") == Handoff::PassToRunning);   // newer runs
+    CHECK(decideHandoff(L"VietTelex 1.0.10", "1.0.9") == Handoff::PassToRunning);  // numeric compare
+    CHECK(decideHandoff(L"VietTelex 1.0.9", "1.0.10") == Handoff::ReplaceRunning);
+    CHECK(decideHandoff(L"VietTelex x", "1.0.6") == Handoff::ReplaceRunning);      // garbage
+}
+
+TEST(update_handoff_sequence) {
+    CHECK(watcherArgs(4242) == std::wstring(L"--wait-install 4242"));
+    unsigned long pid = 0;
+    CHECK(parseWaitInstallArg({L"--wait-install", L"4242"}, pid) && pid == 4242);
+    CHECK(!parseWaitInstallArg({L"--wait-install", L"0"}, pid));
+    CHECK(!parseWaitInstallArg({L"--wait-install", L"12a"}, pid));
+    CHECK(!parseWaitInstallArg({L"--wait-install"}, pid));
+    CHECK(!parseWaitInstallArg({L"--wait-install", L"99999999999"}, pid));
+    // after msiexec exits:
+    CHECK(afterInstallAction(true, true) == AfterInstall::Nothing);            // LaunchApp ran the new one
+    CHECK(afterInstallAction(false, true) == AfterInstall::LaunchInstalled);   // UAC cancelled / failed
+    CHECK(afterInstallAction(false, false) == AfterInstall::Nothing);          // nothing installed any more
+}

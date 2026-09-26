@@ -31,17 +31,17 @@ DIST="$WIN/dist"
 IMAGE="mstorsjo/llvm-mingw:latest"
 ROOTPEM="$WIN/installer/microsoft-identity-verification-root-2020.pem"
 
-VERSION="" UNSIGNED=0 SKIP_BUILD=0 REPAIR=0
+VERSION="" UNSIGNED=0 SKIP_BUILD=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --version) VERSION="$2"; shift 2 ;;
     --unsigned) UNSIGNED=1; shift ;;
     --skip-build) SKIP_BUILD=1; shift ;;
-    --repair) REPAIR=1; shift ;;   # also build REPAIR_TARGETS packages
-    *) echo "usage: $0 --version X.Y.Z [--unsigned] [--skip-build] [--repair]" >&2; exit 2 ;;
+    *) echo "usage: $0 --version X.Y.Z [--unsigned] [--skip-build]" >&2; exit 2 ;;
   esac
 done
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "--version X.Y.Z is required" >&2; exit 2; }
+V="_${VERSION//./_}"   # version-named TIP DLLs: VietTelexTIP_1_0_6.dll (cross-build.sh)
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing tool: $1" >&2; exit 1; }; }
 for t in docker cmake wixl msibuild msiinfo shasum; do need "$t"; done
@@ -56,8 +56,9 @@ if [ "$SKIP_BUILD" = 0 ]; then
   echo "-- cross-compiling in $IMAGE"
   docker run --rm -v "$ROOT:/src:ro" -v "$DIST:/out" "$IMAGE" sh /src/windows/scripts/cross-build.sh "$VERSION"
 fi
-for f in x86/VietTelexTIP.dll x64/VietTelexTIP.dll x64/VietTelex.exe arm64/VietTelex.exe \
-         arm64/VietTelexTIP.dll arm64/VietTelexTIP_arm64.dll arm64/VietTelexTIP_x64.dll; do
+for f in x86/VietTelexTIP$V.dll x64/VietTelexTIP$V.dll x64/VietTelex.exe arm64/VietTelex.exe \
+         x64/VietTelexSetupHelper.exe arm64/VietTelexSetupHelper.exe \
+         arm64/VietTelexTIP$V.dll arm64/VietTelexTIP_arm64$V.dll arm64/VietTelexTIP_x64$V.dll; do
   [ -f "$DIST/bin/$f" ] || { echo "missing build output bin/$f" >&2; exit 1; }
 done
 
@@ -136,26 +137,24 @@ OUT="$DIST/release"
 mkdir -p "$OUT"
 table() { msiinfo export "$1" "$2" | tr -d '\r'; }
 
-build_msi() {  # build_msi <x64|arm64> [<ProductCode> <suffix>]
-  # With a ProductCode: a REPAIR package (minor update of that exact installed product,
-  # new PackageCode) — see REPAIR_TARGETS.
-  local arch="$1" productcode="${2:-*}" suffix="${3:-}" upgrade icon_native
+build_msi() {  # build_msi <x64|arm64>
+  local arch="$1" productcode="*" suffix="" upgrade icon_native
   # UpgradeCodes are the product identity across versions: NEVER change them. One per
   # architecture so the x64 and arm64 packages never treat each other as upgrades.
   case "$arch" in
-    x64)   upgrade=C7AF803E-D7DC-4371-9318-04EA3B66BF59; icon_native='[INSTALLFOLDER]VietTelexTIP.dll' ;;
+    x64)   upgrade=C7AF803E-D7DC-4371-9318-04EA3B66BF59; icon_native="[INSTALLFOLDER]VietTelexTIP$V.dll" ;;
     # DllRegisterServer runs in the arm64 half (it holds the icon); InprocServer32 is
     # the forwarder (ime/core/com_path.h). The MSI mirrors exactly that.
-    arm64) upgrade=5E0A7C41-9B3D-4F62-A8E1-7D2C4B9F3A06; icon_native='[INSTALLFOLDER]VietTelexTIP_arm64.dll' ;;
+    arm64) upgrade=5E0A7C41-9B3D-4F62-A8E1-7D2C4B9F3A06; icon_native="[INSTALLFOLDER]VietTelexTIP_arm64$V.dll" ;;
   esac
   local msi="$OUT/VietTelex-$VERSION-$arch$suffix.msi" work
   work="$(mktemp -d)"
   local arm64comp="" arm64refs=""
   if [ "$arch" = arm64 ]; then
-    arm64comp="<Component Id=\"TipArm64Half\" Guid=\"$(guid "vtx-msi-tiparm64-$arch")\" Win64=\"yes\"><File Id=\"TipArm64Dll\" Name=\"VietTelexTIP_arm64.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_arm64.dll\" KeyPath=\"yes\" /></Component><Component Id=\"TipX64Half\" Guid=\"$(guid "vtx-msi-tipx64-$arch")\" Win64=\"yes\"><File Id=\"TipX64Dll\" Name=\"VietTelexTIP_x64.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_x64.dll\" KeyPath=\"yes\" /></Component>"
+    arm64comp="<Component Id=\"TipArm64Half\" Guid=\"$(guid "vtx-msi-tiparm64-$arch")\" Win64=\"yes\"><File Id=\"TipArm64Dll\" Name=\"VietTelexTIP_arm64$V.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_arm64$V.dll\" KeyPath=\"yes\" /></Component><Component Id=\"TipX64Half\" Guid=\"$(guid "vtx-msi-tipx64-$arch")\" Win64=\"yes\"><File Id=\"TipX64Dll\" Name=\"VietTelexTIP_x64$V.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_x64$V.dll\" KeyPath=\"yes\" /></Component>"
     arm64refs='<ComponentRef Id="TipArm64Half" /><ComponentRef Id="TipX64Half" />'
   fi
-  sed -e "s|@VERSION@|$VERSION|g" -e "s|@UPGRADECODE@|$upgrade|g" -e "s|@PRODUCTCODE@|$productcode|g" \
+  sed -e "s|@VERSION@|$VERSION|g" -e "s|@UPGRADECODE@|$upgrade|g" -e "s|@PRODUCTCODE@|$productcode|g" -e "s|@TIPDLL@|VietTelexTIP$V.dll|g" \
       -e "s|@ICON@|$WIN/ime/res/viettelex.ico|g" \
       -e "s|@BIN_NATIVE@|$DIST/bin/$arch|g" -e "s|@BIN_X86@|$DIST/bin/x86|g" \
       -e "s|@GUID_APP@|$(guid "vtx-msi-app-$arch")|g" -e "s|@GUID_TIPNATIVE@|$(guid "vtx-msi-tipnative-$arch")|g" \
@@ -164,8 +163,8 @@ build_msi() {  # build_msi <x64|arm64> [<ProductCode> <suffix>]
       "$WIN/installer/msi/viettelex.wxs.in" > "$work/product.in"
   # COM + TSF registration rows, written by wixl itself (see regtable.cpp for why
   # never msibuild -q): 64-bit view (TipNative), 32-bit view (TipX86).
-  "$REGTABLE" wxs TipNative '[INSTALLFOLDER]VietTelexTIP.dll' "$icon_native" > "$work/reg64.xml"
-  "$REGTABLE" wxs TipX86 '[INSTALLFOLDER86]VietTelexTIP.dll' '[INSTALLFOLDER86]VietTelexTIP.dll' > "$work/reg32.xml"
+  "$REGTABLE" wxs TipNative "[INSTALLFOLDER]VietTelexTIP$V.dll" "$icon_native" > "$work/reg64.xml"
+  "$REGTABLE" wxs TipX86 "[INSTALLFOLDER86]VietTelexTIP$V.dll" "[INSTALLFOLDER86]VietTelexTIP$V.dll" > "$work/reg32.xml"
   sed -e "/@REG_TIPNATIVE@/r $work/reg64.xml" -e "/@REG_TIPNATIVE@/d" \
       -e "/@REG_TIPX86@/r $work/reg32.xml" -e "/@REG_TIPX86@/d" "$work/product.in" > "$work/product.wxs"
   if grep -q '@[A-Z0-9_]*@' "$work/product.wxs"; then
@@ -174,6 +173,12 @@ build_msi() {  # build_msi <x64|arm64> [<ProductCode> <suffix>]
   rm -f "$msi"
   wixl --arch x64 -o "$msi" "$work/product.wxs" 2> >(grep -v 'GLib-GObject-CRITICAL' >&2)
   [ -f "$msi" ] || { echo "wixl produced no MSI for $arch" >&2; exit 1; }
+  # QuitApp / ReleaseTip -> type 2 (exe from the Binary table "SetupHelper"); wixl cannot
+  # author BinaryKey+ExeCommand. Non-key columns only, so row order is untouched.
+  #   66   = 2 + 64 (ignore exit code), immediate, impersonated
+  #   3138 = 2 + 64 + 1024 (deferred) + 2048 (no impersonation: SYSTEM)
+  msibuild "$msi" -q "UPDATE \`CustomAction\` SET \`Type\`=66, \`Source\`='SetupHelper' WHERE \`Action\`='QuitApp'"
+  msibuild "$msi" -q "UPDATE \`CustomAction\` SET \`Type\`=3138, \`Source\`='SetupHelper' WHERE \`Action\`='ReleaseTip'"
 
   local template=x64
   if [ "$arch" = arm64 ]; then
@@ -191,8 +196,8 @@ build_msi() {  # build_msi <x64|arm64> [<ProductCode> <suffix>]
   # standard schemas (the 1.0.0 error-2211 class). Run BEFORE any other check.
   python3 "$WIN/installer/msi/check_msi.py" "$msi" || fail=1
   msiinfo export "$msi" Registry > "$work/Registry.idt"
-  "$REGTABLE" check "$work/Registry.idt" TipNative '[INSTALLFOLDER]VietTelexTIP.dll' "$icon_native" >/dev/null || fail=1
-  "$REGTABLE" check "$work/Registry.idt" TipX86 '[INSTALLFOLDER86]VietTelexTIP.dll' '[INSTALLFOLDER86]VietTelexTIP.dll' >/dev/null || fail=1
+  "$REGTABLE" check "$work/Registry.idt" TipNative "[INSTALLFOLDER]VietTelexTIP$V.dll" "$icon_native" >/dev/null || fail=1
+  "$REGTABLE" check "$work/Registry.idt" TipX86 "[INSTALLFOLDER86]VietTelexTIP$V.dll" "[INSTALLFOLDER86]VietTelexTIP$V.dll" >/dev/null || fail=1
   # 64-bit components must have msidbComponentAttributes64bit (256), TipX86 must not.
   local c
   for c in AppExe TipNative; do
@@ -209,15 +214,12 @@ build_msi() {  # build_msi <x64|arm64> [<ProductCode> <suffix>]
   for a in InstallFiles WriteRegistryValues RemoveRegistryValues CreateShortcuts RegisterProduct PublishProduct InstallFinalize; do
     table "$msi" InstallExecuteSequence | grep -q "^$a	" || { echo "sequence missing $a" >&2; fail=1; }
   done
-  local files="VietTelex.exe VietTelexTIP.dll"
-  [ "$arch" = arm64 ] && files="$files VietTelexTIP_arm64.dll VietTelexTIP_x64.dll"
+  local files="VietTelex.exe VietTelexTIP$V.dll"
+  [ "$arch" = arm64 ] && files="$files VietTelexTIP_arm64$V.dll VietTelexTIP_x64$V.dll"
   for f in $files; do
     table "$msi" File | grep -q "	$f	" || { echo "MSI lacks $f" >&2; fail=1; }
   done
   msiinfo suminfo "$msi" | tr -d '\r' | grep -q "Template: $template;" || { echo "template is not $template" >&2; fail=1; }
-  if [ "$productcode" != "*" ]; then
-    table "$msi" Property | grep -q "^ProductCode	$productcode\$" || { echo "repair MSI ProductCode != $productcode" >&2; fail=1; }
-  fi
   rm -rf "$work"
   [ "$fail" = 0 ] || { echo "MSI checks failed for $arch" >&2; exit 1; }
   echo "  msi $(basename "$msi"): $template, registry rows match DllRegisterServer data"
@@ -227,30 +229,7 @@ echo "-- building MSIs"
 build_msi x64
 build_msi arm64
 
-# REPAIR packages for released MSIs whose cached copy in C:\Windows\Installer cannot
-# uninstall itself. Same ProductCode + UpgradeCode, new PackageCode, fixed tables: the
-# user runs it with REINSTALL=ALL REINSTALLMODE=vamus ("v" re-caches the package, "a"
-# forces every file even when the version is unchanged),
-# after which Settings -> Uninstall and major upgrades use the fixed copy.
-#   1.0.3: CleanupUser at sequence 1 (before CostFinalize) -> error 2731 on uninstall.
-#   1.0.4: FileKey custom actions -> error 2753 on repair / maintenance.
-REPAIR_TARGETS=(
-  "x64 1.0.3 {4822CAE4-A773-47FC-A9E1-30E16D0A6F4C}"
-  "arm64 1.0.3 {495C0D86-D141-45E4-BE5C-4AEC755F72CE}"
-  "x64 1.0.4 {68939A18-0B26-465E-BE51-F6F903FA4999}"
-  "arm64 1.0.4 {39889E85-E65B-46F3-B083-185FE3FDC31D}"
-)
-REPAIRS=()
-if [ "$REPAIR" = 1 ]; then
-  for t in "${REPAIR_TARGETS[@]}"; do
-    set -- $t
-    build_msi "$1" "$3" "-repair-$2"
-    REPAIRS+=("$OUT/VietTelex-$VERSION-$1-repair-$2.msi")
-  done
-fi
-
-# ------------------------------------------------------------------ 4. sign + verify + sums
-MSIS=("$OUT/VietTelex-$VERSION-x64.msi" "$OUT/VietTelex-$VERSION-arm64.msi" ${REPAIRS[@]+"${REPAIRS[@]}"})
+MSIS=("$OUT/VietTelex-$VERSION-x64.msi" "$OUT/VietTelex-$VERSION-arm64.msi")
 echo "-- signing MSIs"
 sign "${MSIS[@]}"
 verify "${MSIS[@]}" "${BINS[@]}"

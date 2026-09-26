@@ -238,6 +238,11 @@ TEST(arm64x_com_server_path) {
     CHECK(comServerPath(f, true) == f);   // plain x64/x86 DLL
     CHECK(forwarderCandidate(L"C:\\x\\VietTelexTIP.dll").empty());
     CHECK(forwarderCandidate(L"VietTelexTIP_arm64.dll") == L"VietTelexTIP.dll");
+    // version-named release DLLs (1.0.6+)
+    CHECK(forwarderCandidate(L"C:\\VT\\VietTelexTIP_arm64_1_0_6.dll") == L"C:\\VT\\VietTelexTIP_1_0_6.dll");
+    CHECK(forwarderCandidate(L"VietTelexTIP_x64_1_0_6.dll") == L"VietTelexTIP_1_0_6.dll");
+    CHECK(forwarderCandidate(L"VietTelexTIP_1_0_6.dll").empty());
+    CHECK(forwarderCandidate(L"VietTelexTIP_arm64_x.dll").empty());
 }
 
 #include "registration.h"
