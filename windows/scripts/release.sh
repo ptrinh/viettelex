@@ -8,8 +8,9 @@
 #     pure-forwarder TIP (scripts/cross-build.sh).
 #  2. Sign every .dll/.exe with jsign (Azure Artifact Signing, RFC 3161 timestamp).
 #  3. Build one MSI per native architecture with wixl (msitools). COM/TSF registration
-#     is Registry-table rows generated from ime/core/registration.h — the data
-#     DllRegisterServer uses — and each built MSI is checked against it. ARM64 MSI =
+#     is RegistryValue rows generated from ime/core/registration.h — the data
+#     DllRegisterServer uses — written by wixl; each built MSI is checked against it and
+#     structurally (installer/msi/check_msi.py: row order, string refs, schemas). ARM64 MSI =
 #     x64-shaped database with Template "Arm64;1033" (msibuild), as RelayKey does.
 #  4. Sign the MSIs, verify every signature with osslsigncode against the Microsoft
 #     root in installer/, write SHA256SUMS.
@@ -153,19 +154,19 @@ build_msi() {  # build_msi <x64|arm64>
       -e "s|@GUID_APP@|$(guid "vtx-msi-app-$arch")|g" -e "s|@GUID_TIPNATIVE@|$(guid "vtx-msi-tipnative-$arch")|g" \
       -e "s|@GUID_TIPX86@|$(guid "vtx-msi-tipx86-$arch")|g" -e "s|@GUID_SHORTCUT@|$(guid "vtx-msi-shortcut-$arch")|g" \
       -e "s|<!-- @ARM64_COMPONENTS@ -->|$arm64comp|" -e "s|<!-- @ARM64_REFS@ -->|$arm64refs|" \
-      "$WIN/installer/msi/viettelex.wxs.in" > "$work/product.wxs"
+      "$WIN/installer/msi/viettelex.wxs.in" > "$work/product.in"
+  # COM + TSF registration rows, written by wixl itself (see regtable.cpp for why
+  # never msibuild -q): 64-bit view (TipNative), 32-bit view (TipX86).
+  "$REGTABLE" wxs TipNative '[INSTALLFOLDER]VietTelexTIP.dll' "$icon_native" > "$work/reg64.xml"
+  "$REGTABLE" wxs TipX86 '[INSTALLFOLDER86]VietTelexTIP.dll' '[INSTALLFOLDER86]VietTelexTIP.dll' > "$work/reg32.xml"
+  sed -e "/@REG_TIPNATIVE@/r $work/reg64.xml" -e "/@REG_TIPNATIVE@/d" \
+      -e "/@REG_TIPX86@/r $work/reg32.xml" -e "/@REG_TIPX86@/d" "$work/product.in" > "$work/product.wxs"
   if grep -q '@[A-Z0-9_]*@' "$work/product.wxs"; then
     echo "unfilled placeholder in wxs:" >&2; grep -o '@[A-Z0-9_]*@' "$work/product.wxs" >&2; exit 1
   fi
   rm -f "$msi"
   wixl --arch x64 -o "$msi" "$work/product.wxs" 2> >(grep -v 'GLib-GObject-CRITICAL' >&2)
   [ -f "$msi" ] || { echo "wixl produced no MSI for $arch" >&2; exit 1; }
-
-  # COM + TSF registration rows, 64-bit view (TipNative) and 32-bit view (TipX86).
-  local q
-  while IFS= read -r q; do msibuild "$msi" -q "$q"; done < <(
-    "$REGTABLE" sql TipNative '[INSTALLFOLDER]VietTelexTIP.dll' "$icon_native"
-    "$REGTABLE" sql TipX86 '[INSTALLFOLDER86]VietTelexTIP.dll' '[INSTALLFOLDER86]VietTelexTIP.dll')
 
   local template=x64
   if [ "$arch" = arm64 ]; then
@@ -179,6 +180,9 @@ build_msi() {  # build_msi <x64|arm64>
 
   # ---- read it back the way Windows will
   local fail=0
+  # Byte-level structure: every table's rows in primary-key order, string refs valid,
+  # standard schemas (the 1.0.0 error-2211 class). Run BEFORE any other check.
+  python3 "$WIN/installer/msi/check_msi.py" "$msi" || fail=1
   msiinfo export "$msi" Registry > "$work/Registry.idt"
   "$REGTABLE" check "$work/Registry.idt" TipNative '[INSTALLFOLDER]VietTelexTIP.dll' "$icon_native" >/dev/null || fail=1
   "$REGTABLE" check "$work/Registry.idt" TipX86 '[INSTALLFOLDER86]VietTelexTIP.dll' '[INSTALLFOLDER86]VietTelexTIP.dll' >/dev/null || fail=1

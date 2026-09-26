@@ -1,11 +1,17 @@
 // regtable — turns vtx::reg::tipRegistryEntries() (the data DllRegisterServer registers)
 // into MSI Registry-table rows, and checks a built MSI against it.
 //
-//   regtable sql   <component> <dllPathFmt> <iconPathFmt>   -> one MSI SQL INSERT per line
+//   regtable wxs   <component> <dllPathFmt> <iconPathFmt>   -> <RegistryValue> elements for
+//                                                              the component (wixl input)
 //   regtable rows  <component> <dllPathFmt> <iconPathFmt>   -> expected rows (TSV)
 //   regtable check <Registry.idt> <component> <dllPathFmt> <iconPathFmt>
 //        compares the rows of <component> in `msiinfo export <msi> Registry` output with
 //        the expected rows; exit 1 and a diff on any difference (missing, extra, changed).
+//
+// The rows MUST be written by wixl (spliced into the .wxs), never inserted afterwards
+// with `msibuild -q`: msitools' SQL INSERT appends rows out of primary-key order, which
+// Windows Installer rejects at FileCost with "Error 2211: Could not create database
+// table Registry" (VietTelex 1.0.0). installer/msi/check_msi.py checks the order.
 //
 // Row encoding (MSI Registry table): Root 2 = HKLM; DWORD -> "#<decimal>"; a string
 // starting with '#' -> "##..."; a key with no values -> Name "*" (create on install,
@@ -57,8 +63,22 @@ std::vector<std::string> split(const std::string& s, char sep) {
     return out;
 }
 
+std::string xml(const std::string& in) {
+    std::string o;
+    for (char c : in) {
+        switch (c) {
+            case '&': o += "&amp;"; break;
+            case '<': o += "&lt;"; break;
+            case '>': o += "&gt;"; break;
+            case '"': o += "&quot;"; break;
+            default: o.push_back(c);
+        }
+    }
+    return o;
+}
+
 int usage() {
-    std::fprintf(stderr, "usage: regtable sql|rows <component> <dllPathFmt> <iconPathFmt>\n"
+    std::fprintf(stderr, "usage: regtable wxs|rows <component> <dllPathFmt> <iconPathFmt>\n"
                          "       regtable check <Registry.idt> <component> <dllPathFmt> <iconPathFmt>\n");
     return 2;
 }
@@ -68,21 +88,29 @@ int usage() {
 int main(int argc, char** argv) {
     if (argc < 2) return usage();
     const std::string cmd = argv[1];
-    if ((cmd == "sql" || cmd == "rows") && argc == 5) {
-        const auto rows = expected(argv[2], argv[3], argv[4]);
-        int n = 0;
-        for (const Row& r : rows) {
-            if (cmd == "rows") {
-                std::printf("2\t%s\t%s\t%s\t%s\n", r.key.c_str(), r.name.c_str(), r.value.c_str(), r.component.c_str());
-            } else {
-                for (const std::string* f : {&r.key, &r.name, &r.value})
-                    if (f->find('\'') != std::string::npos) { std::fprintf(stderr, "quote in value\n"); return 1; }
-                std::printf("INSERT INTO `Registry` (`Registry`,`Root`,`Key`,`Name`,`Value`,`Component_`) "
-                            "VALUES ('vtx_%s_%02d',2,'%s','%s','%s','%s')\n",
-                            r.component.c_str(), n++, r.key.c_str(), r.name.c_str(), r.value.c_str(),
-                            r.component.c_str());
+    if (cmd == "wxs" && argc == 5) {
+        for (const auto& e : vtx::reg::tipRegistryEntries(argv[3], argv[4])) {
+            std::string attrs = "Root=\"HKLM\" Key=\"" + xml(e.key) + "\"";
+            switch (e.type) {
+                case vtx::reg::ValueType::Key:  // wixl drops value-less RegistryKey; "*" + empty = key row
+                    attrs += " Name=\"*\" Type=\"string\" Value=\"\"";
+                    break;
+                case vtx::reg::ValueType::Dword:
+                    if (!e.name.empty()) attrs += " Name=\"" + xml(e.name) + "\"";
+                    attrs += " Type=\"integer\" Value=\"" + std::to_string(e.dword) + "\"";
+                    break;
+                case vtx::reg::ValueType::Sz:
+                    if (!e.name.empty()) attrs += " Name=\"" + xml(e.name) + "\"";
+                    attrs += " Type=\"string\" Value=\"" + xml(e.sz) + "\"";
+                    break;
             }
+            std::printf("            <RegistryValue %s />\n", attrs.c_str());
         }
+        return 0;
+    }
+    if (cmd == "rows" && argc == 5) {
+        for (const Row& r : expected(argv[2], argv[3], argv[4]))
+            std::printf("2\t%s\t%s\t%s\t%s\n", r.key.c_str(), r.name.c_str(), r.value.c_str(), r.component.c_str());
         return 0;
     }
     if (cmd == "check" && argc == 6) {

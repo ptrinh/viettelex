@@ -10,11 +10,11 @@
     %ProgramFiles(x86)%\VietTelex\   VietTelexTIP.dll (x86, for 32-bit apps)
   Start menu shortcut and an Add/Remove Programs entry.
 
-  NO regsvr32. The COM + TSF registration goes in as Registry-table rows, which
-  release.sh inserts AFTER wixl runs (the TipNative component writes the 64-bit view and
-  TipX86 the 32-bit view). Those rows are generated from ime/core/registration.h, the same
-  data DllRegisterServer uses, and release.sh checks the built MSI against it. They are
-  not written here because wixl drops key-only rows, which the TSF category keys need.
+  NO regsvr32. The COM + TSF registration is RegistryValue elements spliced in at the
+  REG_* markers by release.sh, generated from ime/core/registration.h (the data
+  DllRegisterServer uses): TipNative writes the 64-bit view, TipX86 the 32-bit view.
+  They must be written BY WIXL: rows inserted afterwards with msibuild's SQL land out of
+  primary-key order and Windows fails at FileCost with error 2211 (1.0.0).
 
   Placeholders (at-sign delimited) must all be filled or the build fails.
 -->
@@ -42,6 +42,7 @@
           </Component>
           <Component Id="TipNative" Guid="@GUID_TIPNATIVE@" Win64="yes">
             <File Id="TipNativeDll" Name="VietTelexTIP.dll" Source="@BIN_NATIVE@/VietTelexTIP.dll" KeyPath="yes" />
+            <!-- @REG_TIPNATIVE@ -->
           </Component>
           <!-- @ARM64_COMPONENTS@ -->
         </Directory>
@@ -50,6 +51,7 @@
         <Directory Id="INSTALLFOLDER86" Name="VietTelex">
           <Component Id="TipX86" Guid="@GUID_TIPX86@" Win64="no">
             <File Id="TipX86Dll" Name="VietTelexTIP.dll" Source="@BIN_X86@/VietTelexTIP.dll" KeyPath="yes" />
+            <!-- @REG_TIPX86@ -->
           </Component>
         </Directory>
       </Directory>
