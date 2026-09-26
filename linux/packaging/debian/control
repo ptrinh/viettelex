@@ -14,7 +14,8 @@ Build-Depends: debhelper-compat (= 13),
                libfcitx5utils-dev <!pkg.viettelex.noengine>,
                libibus-1.0-dev <!pkg.viettelex.noengine>,
                libglib2.0-dev <!pkg.viettelex.noengine>,
-               fcitx5-modules-dev <!pkg.viettelex.noengine !nocheck>
+               fcitx5-modules-dev <!pkg.viettelex.noengine !nocheck>,
+               dbus <!pkg.viettelex.noengine !nocheck>
 Standards-Version: 4.6.0
 Homepage: https://ptrinh.github.io/viettelex/
 Vcs-Browser: https://github.com/ptrinh/viettelex

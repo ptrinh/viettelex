@@ -3,10 +3,13 @@
 // Links the real libtelexcore, so these are end-to-end through the C ABI.
 
 #include "viettelex/app.h"
+#include "viettelex/gnome.h"
 #include "viettelex/keys.h"
 #include "viettelex/session.h"
 #include "viettelex/settings.h"
 #include "viettelex/watcher.h"
+
+#include <glib.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -727,6 +730,176 @@ void testAppPolicy() {
     CHECK(resolveAppPolicy("Steam", s, true).off);
 }
 
+// GetRunningApplications reply bodies, as gnome-shell 42 (Ubuntu 22.04) and 46 (24.04) send
+// them (js/misc/introspect.js: key = ShellApp id, "active-on-seats" only on the focused app,
+// "sandboxed-app-id" for Flatpak/Snap windows; the format is the same in both versions).
+std::vector<gnome::RunningApp> parseFixture(const char *text, bool *ok = nullptr) {
+    GError *err = nullptr;
+    GVariant *v = g_variant_parse(nullptr, text, nullptr, nullptr, &err);
+    std::vector<gnome::RunningApp> apps;
+    bool r = false;
+    if (v) {
+        r = gnome::parseRunningApplications(v, apps);
+        g_variant_unref(v);
+    } else {
+        std::fprintf(stderr, "fixture parse error: %s\n", err->message);
+        g_clear_error(&err);
+        ++g_fail;
+    }
+    if (ok) *ok = r;
+    return apps;
+}
+
+const char *kGnome42Gedit =
+    "({'org.gnome.Nautilus.desktop': @a{sv} {}, "
+    "'org.gnome.gedit.desktop': {'active-on-seats': <['seat0']>}, "
+    "'firefox_firefox.desktop': {'sandboxed-app-id': <'firefox'>}, "
+    "'org.gnome.Terminal.desktop': @a{sv} {}},)";
+const char *kGnome42Terminal =
+    "({'org.gnome.gedit.desktop': @a{sv} {}, "
+    "'org.gnome.Terminal.desktop': {'active-on-seats': <['seat0']>}},)";
+const char *kGnome46Flatpak =
+    "({'org.gnome.TextEditor.desktop': @a{sv} {}, 'window:7': @a{sv} {}, "
+    "'org.mozilla.firefox.desktop': {'active-on-seats': <['seat0']>, 'sandboxed-app-id': <'org.mozilla.firefox'>}},)";
+const char *kGnome46TextEditor =
+    "({'org.gnome.TextEditor.desktop': {'active-on-seats': <['seat0']>}, "
+    "'org.gnome.Ptyxis.desktop': @a{sv} {}},)";
+
+void testGnomePayloads() {
+    bool ok = false;
+    auto a = parseFixture(kGnome42Gedit, &ok);
+    CHECK(ok);
+    CHECK_EQ(a.size(), size_t(4));
+    CHECK_EQ(gnome::focusedAppId(a), std::string("org.gnome.gedit"));
+    CHECK_EQ(gnome::focusedAppId(parseFixture(kGnome42Terminal)), std::string("org.gnome.terminal"));
+    a = parseFixture(kGnome46Flatpak);
+    CHECK_EQ(gnome::focusedAppId(a), std::string("org.mozilla.firefox"));
+    bool sandboxSeen = false;
+    for (auto &x : a) sandboxSeen = sandboxSeen || x.sandboxedAppId == "org.mozilla.firefox";
+    CHECK(sandboxSeen);
+    CHECK_EQ(gnome::focusedAppId(parseFixture(kGnome46TextEditor)), std::string("org.gnome.texteditor"));
+    // bare a{sa{sv}} (no tuple) is accepted too
+    CHECK_EQ(gnome::focusedAppId(parseFixture("{'code_code.desktop': {'active-on-seats': <['seat0']>}}")),
+             std::string("code"));
+    // window-backed app (no .desktop): no id — unless the sandbox names it
+    CHECK_EQ(gnome::focusedAppId(parseFixture("({'window:12': {'active-on-seats': <['seat0']>}},)")), std::string());
+    CHECK_EQ(gnome::focusedAppId(parseFixture(
+                 "({'window:3': {'active-on-seats': <['seat0']>, 'sandboxed-app-id': <'com.example.Notes'>}},)")),
+             std::string("com.example.notes"));
+    // nothing focused (desktop / shell popup), empty seat list, two "focused" apps
+    CHECK_EQ(gnome::focusedAppId(parseFixture("({'org.gnome.Nautilus.desktop': @a{sv} {}},)")), std::string());
+    CHECK_EQ(gnome::focusedAppId(parseFixture("({'org.gnome.gedit.desktop': {'active-on-seats': <@as []>}},)")),
+             std::string());
+    CHECK_EQ(gnome::focusedAppId(parseFixture("({'a.desktop': {'active-on-seats': <['seat0']>}, "
+                                              "'b.desktop': {'active-on-seats': <['seat1']>}},)")),
+             std::string());
+    // foreign payloads: other gnome-shell replies seen by the monitor
+    parseFixture("('ok',)", &ok);
+    CHECK(!ok);
+    parseFixture("({uint64 1: {'app-id': <'x'>}},)", &ok);  // GetWindows (a{ta{sv}})
+    CHECK(!ok);
+    CHECK(!gnome::parseRunningApplications(nullptr, a));
+}
+
+void testGnomeFocusTracker() {
+    gnome::FocusTracker t;
+    auto gedit = parseFixture(kGnome42Gedit), term = parseFixture(kGnome42Terminal);
+    CHECK_EQ(t.resolve("gnome-shell"), std::string("gnome-shell"));  // nothing known yet
+    CHECK_EQ(t.resolve("gtk3-im:gedit"), std::string("gtk3-im:gedit"));
+    // focus change: signal → portal calls → reply to the portal
+    CHECK(!t.onAppsChanged());
+    t.onCall(":1.40", 7);
+    CHECK_EQ(t.resolve("default"), std::string("default"));  // pending
+    CHECK(!t.onReply(":1.41", 7, gedit));                     // not the caller
+    CHECK(!t.onReply(":1.40", 8, gedit));                     // not that call
+    CHECK(t.onReply(":1.40", 7, gedit));
+    CHECK_EQ(t.resolve("gnome-shell"), std::string("org.gnome.gedit"));
+    CHECK_EQ(t.resolve("default"), std::string("org.gnome.gedit"));  // IBus 1.5.26
+    CHECK_EQ(t.resolve("wayland"), std::string("org.gnome.gedit"));
+    CHECK_EQ(t.resolve(""), std::string("org.gnome.gedit"));
+    CHECK_EQ(t.resolve("kitty"), std::string("kitty"));  // a real id is never replaced
+    CHECK(!t.onReply(":1.40", 7, term));                  // answered already
+    // next switch: generic again until the new answer (no guessing from the old app)
+    CHECK(t.onAppsChanged());
+    CHECK_EQ(t.resolve("gnome-shell"), std::string("gnome-shell"));
+    t.onCall(":1.40", 9);
+    CHECK(t.onReply(":1.40", 9, term));
+    CHECK_EQ(t.resolve("gnome-shell"), std::string("org.gnome.terminal"));
+    // a call made BEFORE the latest signal: its answer is stale → still pending
+    t.onCall(":1.40", 10);
+    CHECK(t.onAppsChanged());
+    t.onReply(":1.40", 10, gedit);
+    CHECK(t.pending());
+    CHECK_EQ(t.resolve("gnome-shell"), std::string("gnome-shell"));
+    t.onCall(":1.40", 11);
+    t.onReply(":1.40", 11, gedit);
+    CHECK_EQ(t.resolve("gnome-shell"), std::string("org.gnome.gedit"));
+    // overview beats the focused app
+    CHECK(t.onOverview(true));
+    CHECK(!t.onOverview(true));
+    CHECK_EQ(t.resolve("gnome-shell"), std::string("gnome-shell-overview"));
+    CHECK_EQ(t.resolve("gtk3-im:gedit"), std::string("gtk3-im:gedit"));
+    CHECK(t.onOverview(false));
+    CHECK_EQ(t.resolve("gnome-shell"), std::string("org.gnome.gedit"));
+    // desktop focused (no active app) → generic
+    t.onAppsChanged();
+    t.onCall(":1.40", 12);
+    t.onReply(":1.40", 12, parseFixture("({'org.gnome.gedit.desktop': @a{sv} {}},)"));
+    CHECK_EQ(t.resolve("gnome-shell"), std::string("gnome-shell"));
+    // many unanswered calls never grow without bound, and the newest still counts
+    for (uint32_t i = 100; i < 200; ++i) t.onCall(":1.40", i);
+    CHECK(t.onReply(":1.40", 199, term));
+}
+
+void testGnomeResolvedPolicy() {
+    // The resolved id goes through the normal policy: no-underline where proven and safe.
+    Settings s;
+    s.displayMode = DisplayMode::Surrounding;
+    gnome::FocusTracker t;
+    auto answer = [&t](const char *fixture, uint32_t serial) {
+        t.onAppsChanged();
+        t.onCall(":1.9", serial);
+        t.onReply(":1.9", serial, parseFixture(fixture));
+    };
+    // unknown: generic → preedit, no edits even with proven surrounding
+    CHECK(resolveAppPolicy(t.resolve("gnome-shell"), s, true).mode == DisplayMode::Preedit);
+    CHECK(!resolveAppPolicy(t.resolve("gnome-shell"), s, true).allowSurroundingEdits);
+    answer(kGnome46TextEditor, 1);
+    auto p = resolveAppPolicy(t.resolve("gnome-shell"), s, true);
+    CHECK(p.mode == DisplayMode::Surrounding);
+    CHECK(p.allowSurroundingEdits);
+    CHECK(resolveAppPolicy(t.resolve("gnome-shell"), s, false).mode == DisplayMode::Preedit);  // unproven
+    answer(kGnome42Terminal, 2);
+    CHECK(resolveAppPolicy(t.resolve("default"), s, true).mode == DisplayMode::Preedit);  // terminal
+    answer(kGnome46Flatpak, 3);
+    CHECK(resolveAppPolicy(t.resolve("gnome-shell"), s, true).mode == DisplayMode::Preedit);  // Firefox
+    answer(kGnome42Gedit, 4);
+    t.onOverview(true);
+    CHECK(resolveAppPolicy(t.resolve("gnome-shell"), s, true).mode == DisplayMode::Preedit);  // overview
+    // per-app pins apply to the resolved id ("gedit" matches org.gnome.gedit's short name)
+    t.onOverview(false);
+    s.appModes["gedit"] = "off";
+    CHECK(resolveAppPolicy(t.resolve("gnome-shell"), s, true).off);
+}
+
+void testGnomeSessionDetection() {
+    CHECK(gnome::isGnomeWayland("ubuntu:GNOME", "wayland", nullptr));
+    CHECK(gnome::isGnomeWayland("GNOME", "wayland", ""));
+    CHECK(gnome::isGnomeWayland("GNOME-Classic:GNOME", nullptr, "wayland-0"));
+    CHECK(!gnome::isGnomeWayland("ubuntu:GNOME", "x11", "wayland-0"));  // X11 session
+    CHECK(!gnome::isGnomeWayland("KDE", "wayland", "wayland-0"));
+    CHECK(!gnome::isGnomeWayland("GNOME-Flashback", "wayland", nullptr));
+    CHECK(!gnome::isGnomeWayland(nullptr, "wayland", "wayland-0"));
+    CHECK(!gnome::isGnomeWayland("GNOME", nullptr, nullptr));
+    CHECK(gnome::isSharedShellClientId("gnome-shell"));
+    CHECK(gnome::isSharedShellClientId("default"));
+    CHECK(gnome::isSharedShellClientId("Wayland"));
+    CHECK(gnome::isSharedShellClientId(""));
+    CHECK(!gnome::isSharedShellClientId("gtk3-im:gedit"));
+    CHECK(!gnome::isSharedShellClientId("gnome-shell-overview"));
+    CHECK(!gnome::isSharedShellClientId("xim"));
+}
+
 void testAppStateStoreAndWatcher() {
     char tmpl[] = "/tmp/vt-test-XXXXXX";
     std::string dir = mkdtemp(tmpl);
@@ -795,6 +968,10 @@ int main() {
     testCommitBeforeHidingPreedit();
     testDeleteOnlyEditSendsEmptyCommit();
     testAppStateStoreAndWatcher();
+    testGnomePayloads();
+    testGnomeFocusTracker();
+    testGnomeResolvedPolicy();
+    testGnomeSessionDetection();
     std::printf("common tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

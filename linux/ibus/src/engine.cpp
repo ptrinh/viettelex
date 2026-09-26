@@ -4,12 +4,16 @@
 // input context. Preedit is sent in IBUS_ENGINE_PREEDIT_COMMIT mode, so ibus-daemon
 // commits the visible word itself on focus-out / reset — nothing typed is swallowed.
 // Builds against IBus 1.5.26 (Ubuntu 22.04) and newer; app identity (per-app Vi/En
-// memory, [app_modes]) needs focus_in_id from IBus 1.5.28+, otherwise a single "default"
-// app is used.
+// memory, [app_modes]) comes from focus_in_id (IBus 1.5.28+), otherwise "default". On
+// GNOME Wayland both are generic ("gnome-shell"/"default": one shared context for every
+// app), so the focused app is read from gnome-shell over the session bus instead
+// (viettelex::GnomeAppMonitor).
 
 #include "engine.h"
 
 #include "viettelex/app.h"
+#include "viettelex/gnome.h"
+#include "viettelex/gnome_monitor.h"
 #include "viettelex/session.h"
 #include "viettelex/settings.h"
 #include "viettelex/watcher.h"
@@ -25,7 +29,9 @@ namespace vt = viettelex;
 struct VtIBusEngine {
     IBusEngine parent;
     vt::Session *session;
-    std::string *appId;
+    std::string *appId;     // effective id: clientId, or the GNOME focused app it stands for
+    std::string *clientId;  // what IBus reported ("default" without focus_in_id)
+    gboolean focused;
     IBusPropList *props;
     IBusProperty *modeProp;
     gboolean password;
@@ -50,6 +56,7 @@ struct Globals {
     std::unique_ptr<vt::SettingsWatcher> watcher;
     std::unique_ptr<vt::AppStateStore> appState;
     std::set<VtIBusEngine *> engines;
+    std::unique_ptr<vt::GnomeAppMonitor> gnome;  // GNOME Wayland only
 };
 Globals &G() {
     static Globals g;
@@ -138,6 +145,10 @@ void refreshFieldFlags(VtIBusEngine *self) {
     self->session->setSurroundingEdits(policy.allowSurroundingEdits);
 }
 
+std::string effectiveAppId(const std::string &clientId) {
+    return G().gnome ? G().gnome->resolve(clientId) : clientId;
+}
+
 void loadAppState(VtIBusEngine *self) {
     const auto &s = settings();
     IBusClient client(IBUS_ENGINE(self));
@@ -159,6 +170,25 @@ gboolean onSettingsFd(gint, GIOCondition, gpointer) {
     } catch (...) {
     }
     return G_SOURCE_CONTINUE;
+}
+
+// Main loop: the GNOME focused app (or overview) changed / became known. Re-resolve the
+// focused engines that stand for gnome-shell's shared context.
+gboolean onGnomeFocusChanged(gpointer) {
+    try {
+        for (auto *e : G().engines) {
+            if (!e->focused || !vt::gnome::isSharedShellClientId(*e->clientId)) continue;
+            std::string id = effectiveAppId(*e->clientId);
+            if (id == *e->appId) continue;
+            *e->appId = id;
+            // Vi/En memory of the new app; never flipped under a word being typed.
+            if (!e->session->composing()) loadAppState(e);
+            refreshFieldFlags(e);
+            updateModeProp(e);
+        }
+    } catch (...) {
+    }
+    return G_SOURCE_REMOVE;
 }
 
 // MARK: - vfuncs
@@ -185,6 +215,8 @@ gboolean processKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint 
 void focusCommon(VtIBusEngine *self) {
     if (G().watcher->changedOnDisk()) applySettingsToAll();  // inotify fallback
     self->surroundingProven = FALSE;  // prove it again for this field
+    self->focused = TRUE;
+    *self->appId = effectiveAppId(*self->clientId);
     loadAppState(self);
     refreshFieldFlags(self);
     // Emits RequireSurroundingText: the client sends its text now (→ setSurroundingText),
@@ -214,7 +246,7 @@ void focusInId(IBusEngine *engine, const gchar *objectPath, const gchar *client)
     (void)objectPath;
     auto *self = reinterpret_cast<VtIBusEngine *>(engine);
     try {
-        *self->appId = vt::normalizeAppId(client ? client : "");
+        *self->clientId = vt::normalizeAppId(client ? client : "");
         focusCommon(self);
     } catch (...) {
     }
@@ -223,6 +255,7 @@ void focusInId(IBusEngine *engine, const gchar *objectPath, const gchar *client)
 
 void focusOut(IBusEngine *engine) {
     auto *self = reinterpret_cast<VtIBusEngine *>(engine);
+    self->focused = FALSE;
     try {
         IBusClient client(engine);
         self->session->finish(client, false);  // PREEDIT_COMMIT: the daemon commits it
@@ -305,6 +338,8 @@ void dispose(GObject *obj) {
     self->session = nullptr;
     delete self->appId;
     self->appId = nullptr;
+    delete self->clientId;
+    self->clientId = nullptr;
     g_clear_object(&self->props);
     G_OBJECT_CLASS(vt_ibus_engine_parent_class)->dispose(obj);
 }
@@ -332,6 +367,8 @@ static void vt_ibus_engine_class_init(VtIBusEngineClass *klass) {
 static void vt_ibus_engine_init(VtIBusEngine *self) {
     self->session = new vt::Session();
     self->appId = new std::string("default");
+    self->clientId = new std::string("default");
+    self->focused = FALSE;
     self->password = FALSE;
     self->surroundingProven = FALSE;
     self->purpose = IBUS_INPUT_PURPOSE_FREE_FORM;
@@ -360,6 +397,12 @@ void vt_ibus_globals_init() {
     G().appState = std::make_unique<vt::AppStateStore>(vt::appStatePath());
     G().appState->load();
     if (G().watcher->fd() >= 0) g_unix_fd_add(G().watcher->fd(), G_IO_IN, onSettingsFd, nullptr);
+    // Started now (not at first focus) so the focus changes since login are seen.
+    if (vt::gnome::isGnomeWaylandSession()) {
+        G().gnome = std::make_unique<vt::GnomeAppMonitor>();
+        G().gnome->setOnChange([] { g_main_context_invoke(nullptr, onGnomeFocusChanged, nullptr); });
+        G().gnome->start();
+    }
 }
 
 GType vt_ibus_engine_type() { return vt_ibus_engine_get_type(); }

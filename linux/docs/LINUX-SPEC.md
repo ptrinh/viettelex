@@ -106,8 +106,8 @@ Linux không có "tap backspace" ổn định như macOS; hai cách chuẩn củ
 | Vấn đề | Cách xử lý |
 |---|---|
 | Wayland + Chrome ≥ 140 / Electron ≥ 38 không nhận IM | Cờ `--enable-wayland-ime --wayland-text-input-version=3` (GNOME + IBus), KWin `=1`, hoặc `--ozone-platform=x11`; tự phát hiện và báo trong Cài đặt |
-| GNOME Wayland: một input context chung cho mọi app (IBus, Fcitx5 < 5.1.22) | Không biết app đang gõ → chế độ không gạch chân + nhớ theo app bị hạn chế; ghi rõ trong tài liệu |
-| Ubuntu 22.04 IBus 1.5.26 không có app id | Bảng cơ chế gõ theo app không áp được dưới IBus 22.04 |
+| GNOME Wayland: một input context chung cho mọi app (IBus, Fcitx5 < 5.1.22) | `GnomeAppMonitor` đọc app đang focus từ gnome-shell qua session bus (§6.1) → id thật đi qua `resolveAppPolicy` như mọi app |
+| Ubuntu 22.04 IBus 1.5.26 không có app id | App X11/XWayland vẫn là "default"; trên GNOME Wayland "default" cũng được thay bằng app đang focus (§6.1) |
 | im-config | GNOME: không tác dụng. Desktop khác: `auto` chọn IBus khi cài cả hai → `im-config -n fcitx5`; Cài đặt cảnh báo |
 | Biến môi trường Qt / SDL | Qt ≥ 6.8.2 `QT_IM_MODULES="wayland;fcitx;ibus"`, Qt5 `QT_IM_MODULE`; game SDL `SDL_IM_MODULE`; Cài đặt cảnh báo Qt5 Wayland thiếu biến |
 | Compositor khác | Sway ≥ 1.10 (text-input-v3); Hyprland: dùng Fcitx5 |
@@ -119,6 +119,62 @@ Linux không có "tap backspace" ổn định như macOS; hai cách chuẩn củ
 | Nhiều bộ gõ Việt cùng bật (ibus-unikey, bamboo) | Không can thiệp; hướng dẫn gỡ nếu bị gõ đúp |
 | Xung đột phím tắt GNOME | Không dùng Super+Space; kiểm tra trùng khi đặt phím |
 | Remote desktop / VM / Wine | Giống macOS: có sẵn trong danh sách mặc định tắt tiếng Việt (core); khuyên bật bộ gõ ở máy bị điều khiển |
+
+### 6.1 App đang gõ trên GNOME Wayland (`common/src/gnome*.cpp`)
+
+**Vì sao cần**: mọi app Wayland gõ qua *một* input context của gnome-shell → IBus báo
+`gnome-shell` (≥ 1.5.28) hoặc `default` (1.5.26, Ubuntu 22.04), Fcitx5 < 5.1.22 báo
+`gnome-shell` → không nhớ Việt/Anh theo app, không bật được chế độ không gạch chân.
+
+**Các đường đã xét** (GNOME 42 = 22.04, 46 = 24.04):
+
+| Đường | Kết quả |
+|---|---|
+| Gọi thẳng `org.gnome.Shell.Introspect.GetRunningApplications` / `GetWindows` | GNOME ≥ 41: `DBusSenderChecker` chỉ cho `org.freedesktop.impl.portal.desktop.{gtk,gnome}` → AccessDenied (trừ unsafe mode). Signal `RunningApplicationsChanged` thì ai cũng nghe được |
+| Portal `org.freedesktop.impl.portal.Background.GetAppState` | Chỉ có app Flatpak/Snap (`X-Flatpak` / `sandboxed-app-id`), chỉ báo đổi khi app chạy/tắt → không dùng được |
+| AT-SPI focus | Chrome/Electron/Firefox/Qt chỉ bật a11y khi có trình đọc màn hình; tốn CPU mọi app → bỏ |
+| Extension GNOME | Phải cài + bật tay, vỡ theo phiên bản shell → chỉ để dự phòng, chưa cần |
+| **Theo dõi bus (chọn)** | Như fcitx5 5.1.22 `gnomeappmonitor.cpp` |
+
+**Cơ chế**: gnome-shell phát `RunningApplicationsChanged` *đồng bộ* mỗi khi đổi app focus
+(`notify::focus-app`); xdg-desktop-portal-gnome (background.c, 42 và 46) gọi ngay
+`GetRunningApplications` (được phép). Một kết nối session bus riêng gọi
+`org.freedesktop.DBus.Monitoring.BecomeMonitor` (dbus-daemon/dbus-broker cho phép cùng uid)
+với 4 match rule: signal đó, lời gọi `GetRunningApplications` (của bất kỳ ai), các reply của
+`org.gnome.Shell`, `PropertiesChanged` `OverviewActive`. Reply `a{sa{sv}}` (khoá = id
+ShellApp `org.gnome.TextEditor.desktop`, app focus có `active-on-seats`) → id chuẩn hoá
+`org.gnome.texteditor` → `resolveAppPolicy`. Không polling; message xử lý trên thread worker
+GDBus, frontend chuyển về main loop (IBus `g_main_context_invoke`, Fcitx5 `EventDispatcher`).
+
+**An toàn (mặc định vẫn là gạch chân)**:
+- Chỉ bật khi `XDG_CURRENT_DESKTOP` có `GNOME` và phiên Wayland; chỉ thay id `gnome-shell` /
+  `default` / `wayland` / rỗng — id thật (X11, Fcitx5 ≥ 5.1.22) giữ nguyên.
+- Sau signal mà chưa có reply cho lời gọi *sau* signal → "pending" → giữ id chung (preedit),
+  không đoán theo app cũ. Không có portal / không làm được monitor → luôn id chung.
+- Tổng quan đang mở → `gnome-shell-overview` (ép preedit). App không có .desktop (`window:N`)
+  → id chung.
+- Id thật vẫn qua cổng "surrounding proven" + chặn khi có selection như cũ.
+- Hạn chế đã biết: ô nhập của chính shell ngoài Tổng quan (Alt+F2, hộp thoại shell) mang id
+  của app đang focus bên dưới; lúc mới khởi động, id chỉ biết từ lần đổi app đầu tiên.
+
+**Kiểm thử tự động**: `test_common` (fixture reply GNOME 42/46, máy trạng thái pending/overview,
+policy sau khi resolve); `test_gnome_monitor` chạy dưới `dbus-run-session` với gnome-shell +
+portal giả (allow-list, BecomeMonitor thật, reply trễ, gọi theo unique name, unsafe mode).
+
+**Kiểm thử tay** (Ubuntu 22.04 và 24.04, phiên "Ubuntu" Wayland, IBus hoặc Fcitx5):
+1. Cài gói, bật VietTelex, bật *Không gạch chân*. Đăng xuất/đăng nhập (hoặc `ibus restart`).
+2. `busctl --user status org.freedesktop.impl.portal.desktop.gnome` phải có tiến trình
+   (portal chạy). `dbus-monitor --session "member='GetRunningApplications'"` thấy lời gọi mỗi
+   khi Alt+Tab.
+3. Mở GNOME Text Editor (24.04) / gedit (22.04), gõ `tieengs vieetj ` → không gạch chân.
+4. Alt+Tab sang GNOME Terminal, gõ → có gạch chân (terminal ép preedit). Sang Firefox → gạch
+   chân. Quay lại Text Editor → lại không gạch chân.
+5. Bấm Super, gõ trong ô tìm kiếm Tổng quan → gạch chân.
+6. Ctrl+Space tắt tiếng Việt trong Terminal, sang Text Editor → vẫn tiếng Việt; về Terminal →
+   English (nhớ theo app). `~/.local/state/viettelex/app-state` có dòng `org.gnome.terminal`.
+7. Tắt portal (`systemctl --user mask --runtime --now xdg-desktop-portal-gnome`), Alt+Tab →
+   mọi app về gạch chân (an toàn), không treo. Bật lại: `systemctl --user unmask --runtime
+   xdg-desktop-portal-gnome`.
 
 ## 7. Kiểm thử
 

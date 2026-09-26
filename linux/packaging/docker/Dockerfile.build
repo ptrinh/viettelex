@@ -7,3 +7,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake pkg-config extra-cmake-modules libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev \
     libibus-1.0-dev libglib2.0-dev fcitx5-modules-dev \
     && rm -rf /var/lib/apt/lists/*
+# dbus-daemon: test gnome_monitor (BecomeMonitor thật với gnome-shell + portal giả).
+RUN apt-get update && apt-get install -y --no-install-recommends dbus \
+    && rm -rf /var/lib/apt/lists/*

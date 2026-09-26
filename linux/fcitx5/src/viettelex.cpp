@@ -4,8 +4,12 @@
 // maps Fcitx5 events onto it, keeps one Session per InputContext, remembers Vi/En per
 // program, and reloads ~/.config/viettelex live (inotify on the Fcitx5 event loop).
 // Compatible with Fcitx5 5.0.x (Ubuntu 22.04) through 5.1.x (24.04/26.04).
+// On GNOME Wayland, Fcitx5 < 5.1.22 names every app "gnome-shell" (one shared context);
+// the focused app is then read from gnome-shell over the session bus (GnomeAppMonitor).
 
 #include "viettelex/app.h"
+#include "viettelex/gnome.h"
+#include "viettelex/gnome_monitor.h"
 #include "viettelex/session.h"
 #include "viettelex/settings.h"
 #include "viettelex/watcher.h"
@@ -14,6 +18,7 @@
 #include <fcitx-config/iniparser.h>
 #include <fcitx-config/option.h>
 #include <fcitx-utils/event.h>
+#include <fcitx-utils/eventdispatcher.h>
 #include <fcitx-utils/i18n.h>
 #include <fcitx-utils/key.h>
 #include <fcitx-utils/log.h>
@@ -108,7 +113,8 @@ public:
     VietTelexState(VietTelexEngine *engine, fcitx::InputContext *ic);
     vt::Session session;
     fcitx::InputContext *ic;
-    std::string appId;
+    std::string appId;     // effective id (the GNOME focused app for "gnome-shell")
+    std::string clientId;  // ic->program()
     bool stateLoaded = false;
     bool rememberState = true;  // AppPolicy.rememberState of the current field
 };
@@ -161,6 +167,11 @@ public:
                 }
             });
         syncConfigFromSettings();
+        gnomeSession_ = vt::gnome::isGnomeWaylandSession();
+    }
+
+    ~VietTelexEngine() override {
+        if (gnome_) gnome_->stop();  // joins; no callback runs after this
     }
 
     const vt::Settings &settings() const { return watcher_.settings(); }
@@ -266,12 +277,51 @@ private:
     void ensureAppState(VietTelexState *st) {
         if (st->stateLoaded) return;
         st->stateLoaded = true;
-        st->appId = vt::normalizeAppId(st->ic->program());
+        st->clientId = vt::normalizeAppId(st->ic->program());
+        st->appId = effectiveAppId(st->clientId);
         const auto &s = settings();
         FcitxClient client(st->ic);
         bool vi = s.perAppState ? appState_.vietnamese(st->appId, s.defaultVietnamese) : s.defaultVietnamese;
         st->session.setVietnamese(vi, client);
         refreshFieldFlags(st, client);
+    }
+
+    // GNOME Wayland + a shared "gnome-shell" context (Fcitx5 < 5.1.22 — newer ones name
+    // the app themselves): started on first sight, then signal-driven.
+    std::string effectiveAppId(const std::string &clientId) {
+        if (!gnomeSession_ || !vt::gnome::isSharedShellClientId(clientId)) return clientId;
+        if (!gnome_) {
+            dispatcher_.attach(&instance_->eventLoop());
+            gnome_ = std::make_unique<vt::GnomeAppMonitor>();
+            gnome_->setOnChange([this] { dispatcher_.schedule([this] { onGnomeFocusChanged(); }); });
+            gnome_->start();
+        }
+        return gnome_->resolve(clientId);
+    }
+
+    void onGnomeFocusChanged() {
+        try {
+            instance_->inputContextManager().foreach([this](fcitx::InputContext *ic) {
+                if (!ic->hasFocus() || instance_->inputMethod(ic) != "viettelex") return true;
+                auto *st = state(ic);
+                if (!st->stateLoaded || !vt::gnome::isSharedShellClientId(st->clientId)) return true;
+                std::string id = gnome_->resolve(st->clientId);
+                if (id == st->appId) return true;
+                st->appId = id;
+                FcitxClient client(ic);
+                // Vi/En memory of the new app; never flipped under a word being typed.
+                if (!st->session.composing()) {
+                    const auto &s = settings();
+                    st->session.setVietnamese(
+                        s.perAppState ? appState_.vietnamese(id, s.defaultVietnamese) : s.defaultVietnamese, client);
+                }
+                refreshFieldFlags(st, client);
+                updateAction(st);
+                ic->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea);
+                return true;
+            });
+        } catch (...) {
+        }
     }
 
     // Password fields, [app_modes] and surrounding capability can change per focus.
@@ -332,6 +382,9 @@ private:
     std::unique_ptr<fcitx::EventSourceIO> ioEvent_;
     std::unique_ptr<fcitx::HandlerTableEntry<fcitx::EventHandler>> hotkeyWatcher_;
     VietTelexConfig config_;
+    bool gnomeSession_ = false;
+    fcitx::EventDispatcher dispatcher_;               // declared before gnome_: outlives it
+    std::unique_ptr<vt::GnomeAppMonitor> gnome_;
 };
 
 VietTelexState::VietTelexState(VietTelexEngine *engine, fcitx::InputContext *ic_) : ic(ic_) {
