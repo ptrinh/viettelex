@@ -71,9 +71,12 @@ void scheduleEvent(EventDispatcher *dispatcher, Instance *instance) {
         tf->call<ITestFrontend::keyEvent>(uuid, Key("Control+space"), false);
         EXPECT(instance->inputMethod(ic) == "viettelex");
 
-        // 1. preedit (underlined) composition, committed at the boundary
+        // 1. preedit composition — no underline by default (preedit_underline = false) —
+        //    committed at the boundary
         type(tf, uuid, "vieej");
         EXPECT(preeditOf(ic) == "việ");
+        EXPECT(ic->inputPanel().clientPreedit().size() == 1);
+        EXPECT(!ic->inputPanel().clientPreedit().formatAt(0).test(TextFormatFlag::Underline));
         tf->call<ITestFrontend::pushCommitExpectation>("việt");
         type(tf, uuid, "t ");
         EXPECT(preeditOf(ic).empty());

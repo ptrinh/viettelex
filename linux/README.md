@@ -79,7 +79,8 @@ to your machine, each with a copy button.
 | App Qt5 trên Wayland | Không có bộ gõ nếu thiếu `QT_IM_MODULE` | No IME without `QT_IM_MODULE` | `QT_IM_MODULE=fcitx` (hoặc `ibus`); Qt ≥ 6.8.2: `QT_IM_MODULES="wayland;fcitx;ibus"` — trong `~/.config/environment.d/*.conf` |
 | Game SDL | Cần biến môi trường | Needs an env variable | `SDL_IM_MODULE=fcitx` (hoặc `ibus`) |
 | Ô mật khẩu `sudo` trong terminal | Không nhận ra được là ô mật khẩu | Cannot be detected as a password prompt | Chuyển sang EN trước khi gõ mật khẩu / switch to EN first |
-| Terminal, terminal VS Code, tmux, ssh | Luôn gõ có gạch chân (preedit) — **chủ đích** | Always uses preedit (underlined) — **by design** | Không cần sửa / nothing to fix |
+| Terminal GTK4 (Ptyxis, Console), terminal trên GNOME Wayland, kitty/alacritty/foot, terminal VS Code | Gõ preedit (có thể gạch chân) — terminal GTK3/Qt qua IBus-GTK3/Fcitx5 thì gõ thẳng như UniKey | Preedit (may be underlined) — GTK3/Qt terminals via IBus-GTK3/Fcitx5 type directly like UniKey | Chủ đích: ở đó BackSpace gửi đi không chắc đến trước chữ mới / by design |
+| Chrome/Electron, app Wayland trên GNOME | Chữ đang gõ luôn gạch chân (app tự vẽ) | Composition is always underlined (drawn by the app) | Không tắt được / cannot be turned off |
 
 ### Ghi chú theo môi trường / Desktop notes
 

@@ -39,6 +39,8 @@ class ParseTests(unittest.TestCase):
         self.assertFalse(n["typing"]["teencode"])
         self.assertEqual(n["general"]["display_mode"], "preedit")
         self.assertEqual(n["general"]["toggle_hotkey"], "Ctrl+space")
+        self.assertFalse(n["general"]["preedit_underline"])  # "Gạch chân chữ đang gõ" off
+        self.assertTrue(n["general"]["terminal_direct"])
 
     def test_wrong_type_falls_back_to_default(self):
         n = config.normalize(config.parse('[typing]\nfree_marking = "yes"\ninput_method = "abc"\n'
@@ -46,6 +48,8 @@ class ParseTests(unittest.TestCase):
         self.assertTrue(n["typing"]["free_marking"])
         self.assertEqual(n["typing"]["input_method"], "telex")
         self.assertEqual(n["app_modes"], {"y": "off"})
+        n = config.normalize(config.parse('[app_modes]\n"kitty" = "direct"\n'))
+        self.assertEqual(n["app_modes"], {"kitty": "direct"})
 
     def test_escapes_roundtrip(self):
         d = config.normalize({})

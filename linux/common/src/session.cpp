@@ -90,6 +90,14 @@ void replaceBeforeCursor(InputContext &ic, int backspaces, const std::string &in
 
 Session::Session() : e_(vt_engine_new()) { applySettings(Settings()); }
 
+void Session::replace(InputContext &ic, int backspaces, const std::string &insert) {
+    if (mode_ == DisplayMode::Direct) {
+        if (backspaces > 0 || !insert.empty()) ic.directReplace(backspaces, insert);
+    } else {
+        replaceBeforeCursor(ic, backspaces, insert);
+    }
+}
+
 Session::~Session() { vt_engine_free(e_); }
 
 void Session::applySettings(const Settings &s) {
@@ -209,7 +217,7 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
     std::string rawWord = raw();
     size_t onScreen = utf8Chars(word);
     if (allowShortcuts && shortcutsEnabled_ && !word.empty() && shortcuts_ &&
-        (mode_ == DisplayMode::Preedit || !ic.hasSelection())) {
+        (mode_ != DisplayMode::Surrounding || !ic.hasSelection())) {
         auto it = shortcuts_->find(word);
         if (it == shortcuts_->end()) it = shortcuts_->find(rawWord);
         if (it != shortcuts_->end()) {
@@ -219,7 +227,7 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
                 if (!expansion.empty()) ic.commit(expansion);
                 hidePreedit(ic);
             } else {
-                replaceBeforeCursor(ic, int(onScreen), expansion);
+                replace(ic, int(onScreen), expansion);
             }
             return;
         }
@@ -240,11 +248,12 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
         vt_action a;
         vt_commit(e_, autoRestore, &a);
         if (a.kind == VT_ACTION_REPLACE)
-            replaceBeforeCursor(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)));
+            replace(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)));
     }
 }
 
 bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
+    if (ev.forwarded) return false;  // our own forwarded key: the app must get it untouched
     if (ev.release) return false;
     if (ks::isModifierOnly(ev.keysym)) return false;
     applyPendingMode();
@@ -348,6 +357,8 @@ bool Session::handleLetter(uint32_t ch, InputContext &ic) {
             vt_reset(e_);
             ic.commit(text + encode(ch));
             hidePreedit(ic);
+        } else if (mode_ == DisplayMode::Direct) {
+            ic.directReplace(0, encode(ch));
         } else {
             ic.commit(encode(ch));
         }
@@ -355,6 +366,15 @@ bool Session::handleLetter(uint32_t ch, InputContext &ic) {
     }
     if (mode_ == DisplayMode::Preedit) {
         showPreedit(ic);
+        return true;
+    }
+    if (mode_ == DisplayMode::Direct) {
+        // Blind: the engine's own record of the word is the only truth, no selection check
+        // (a terminal has none) and no read-back. Even an unchanged letter goes through the
+        // forwarded-key channel so it cannot overtake an earlier forwarded BackSpace.
+        if (a.kind == VT_ACTION_PASSTHROUGH) ic.directReplace(0, encode(ch));
+        else if (a.kind == VT_ACTION_REPLACE)
+            replace(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)));
         return true;
     }
     switch (a.kind) {
@@ -415,14 +435,14 @@ bool Session::handleBackspace(InputContext &ic) {
         }
         return true;
     }
-    // Surrounding: .none / .passthrough / a pure one-char delete → the app's own ⌫.
+    // Surrounding / Direct: .none / .passthrough / a pure one-char delete → the app's own ⌫.
     if (a.kind != VT_ACTION_REPLACE) return false;
     if (a.insert_len == 0 && a.backspaces == 1) return false;
-    if (a.backspaces > 0 && ic.hasSelection()) {
+    if (mode_ == DisplayMode::Surrounding && a.backspaces > 0 && ic.hasSelection()) {
         vt_reset(e_);  // the app's own ⌫ removes the selection
         return false;
     }
-    replaceBeforeCursor(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)));
+    replace(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)));
     return true;
 }
 

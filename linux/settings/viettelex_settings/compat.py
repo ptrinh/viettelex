@@ -267,8 +267,11 @@ def assess(snap):
 
     if snap.get("terminals"):
         out.append({"id": "terminal_preedit", "level": "info",
-                    "title": "Terminal luôn gõ có gạch chân",
-                    "body": "Trong terminal (kể cả terminal của VS Code, tmux, ssh) VietTelex luôn "
-                            "dùng preedit — chữ gạch chân đến khi chốt từ. Đây là chủ đích: "
-                            "terminal không cho sửa ngược chữ đã gửi.", "fix": ""})
+                    "title": "Terminal: gõ thẳng khi được, còn lại preedit",
+                    "body": "Terminal nhận phím qua IBus GTK3 hoặc Fcitx5 (fcitx5-gtk3, fcitx5-qt) — "
+                            "gnome-terminal, tilix, konsole… trên X11 — được gõ thẳng như UniKey "
+                            "(sửa dấu bằng Backspace, không gạch chân). Terminal GTK4 (Ptyxis, "
+                            "Console), phiên Wayland GNOME, kitty/alacritty/foot và terminal của "
+                            "VS Code dùng preedit: ở đó Backspace gửi đi không chắc đến trước chữ "
+                            "mới.", "fix": ""})
     return out

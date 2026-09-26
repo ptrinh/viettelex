@@ -62,6 +62,14 @@ class App:
 
     def _preedit(self, ic, text, cursor, visible):
         self.pre = text.get_text() if visible else ""
+        attrs = text.get_attributes()
+        self.pre_underline = None
+        i = 0
+        while attrs is not None and attrs.get(i) is not None:
+            a = attrs.get(i)
+            if a.get_attr_type() == IBus.AttrType.UNDERLINE:
+                self.pre_underline = a.get_value()
+            i += 1
 
     def _delete(self, ic, offset, n):
         assert offset == -n, (offset, n)
@@ -98,6 +106,35 @@ class App:
         return self.doc + self.pre
 
 
+class Term(App):
+    """A GTK3 VTE terminal behind the IBus GTK3 module: no surrounding text, forwarded keys
+    are applied in arrival order (gdk_event_put) and a forwarded printable key is committed
+    by the module itself (IBUS_FORWARD_MASK → ibus_im_context_commit_event)."""
+
+    def __init__(self, bus, name):
+        super().__init__(bus, name)
+        self.commits = 0
+        self.forwarded = []
+        self.ic.connect("forward-key-event", self._forward)
+
+    def _commit(self, ic, text):
+        self.commits += 1
+        super()._commit(ic, text)
+
+    def _forward(self, ic, keyval, keycode, state):
+        self.forwarded.append((keyval, keycode, state))
+        if state & IBus.ModifierType.RELEASE_MASK:
+            return
+        # a client sending our forwarded key back must not get it processed again
+        expect(state & IBus.ModifierType.FORWARD_MASK, "forwarded key without FORWARD_MASK")
+        if keyval == IBus.KEY_BackSpace:
+            self.doc = self.doc[:-1]
+        else:
+            ch = IBus.keyval_to_unicode(keyval)
+            expect(ch, f"forwarded non-text key {keyval:#x}")
+            self.doc += ch
+
+
 def main():
     IBus.init()
     bus = IBus.Bus()
@@ -114,6 +151,8 @@ def main():
     expect(a.ic.get_engine() is not None and a.ic.get_engine().get_name() == "viettelex", "engine not set")
     a.type("vieej")
     expect(a.pre == "việ" and a.doc == "", f"preedit {a.pre!r} doc {a.doc!r}")
+    # "Gạch chân chữ đang gõ" is off by default: an explicit UNDERLINE_NONE attribute
+    expect(a.pre_underline == IBus.AttrUnderline.NONE, f"preedit underline {a.pre_underline!r}")
     a.type("t nam ")
     expect(a.doc == "việt nam ", f"doc {a.doc!r}")
     a.type("google ")
@@ -182,7 +221,7 @@ def main():
         b.doc = ""
         b._sync()
         b.type("a1")
-        expect(b.doc == "á", f"texteditor still Vietnamese {b.doc!r}")
+        expect(b.screen() == "á", f"texteditor still Vietnamese {b.screen()!r}")  # empty field: preedit until proven
         b.ic.focus_out()
         pump()
         t.focus()
@@ -191,6 +230,33 @@ def main():
         expect(t.doc == "a1" and t.pre == "", f"kitty remembered English {t.doc!r} {t.pre!r}")
         with open(os.path.join(os.environ["XDG_STATE_HOME"], "viettelex", "app-state")) as f:
             expect("kitty\ten" in f.read(), "app-state not persisted")
+
+        # 9. Direct mode: a GTK3 terminal — tones fixed with forwarded BackSpace + forwarded
+        #    text, never commit_text / delete_surrounding / preedit (no underline at all)
+        d = Term(bus, "gtk3-im:gnome-terminal-server")
+        d.focus()
+        d.ic.set_content_type(IBus.InputPurpose.TERMINAL, 0)
+        pump()
+        d.type("vie65t ")  # config above is VNI
+        expect(d.doc == "việt " and d.pre == "", f"direct {d.doc!r} pre {d.pre!r}")
+        d.type("toa1n<")
+        expect(d.doc == "việt tóa", f"direct ⌫ {d.doc!r}")
+        expect(d.commits == 0, f"direct used commit_text {d.commits}")
+        expect(any(k == IBus.KEY_BackSpace for k, _c, _s in d.forwarded), "no forwarded BackSpace")
+        # our forwarded keys coming back (FORWARD_MASK) are passed through untouched
+        n = len(d.forwarded)
+        expect(not d.ic.process_key_event(IBus.KEY_BackSpace, 14, IBus.ModifierType.FORWARD_MASK),
+               "forwarded BackSpace consumed")
+        expect(not d.ic.process_key_event(ord("a"), 30, IBus.ModifierType.FORWARD_MASK), "forwarded key consumed")
+        pump()
+        expect(len(d.forwarded) == n, "forwarded key re-processed")
+        # GTK4 module (forwarded BackSpace never reaches the widget): stays preedit
+        g4 = Term(bus, "gtk4-im:ptyxis")
+        g4.focus()
+        g4.ic.set_content_type(IBus.InputPurpose.TERMINAL, 0)
+        pump()
+        g4.type("vie65")
+        expect(g4.pre == "việ" and not g4.forwarded, f"gtk4 terminal {g4.pre!r} {g4.forwarded!r}")
     print(f"ibus smoke: {checks} checks passed (IBus {IBus.MAJOR_VERSION}.{IBus.MINOR_VERSION}.{IBus.MICRO_VERSION})")
 
 

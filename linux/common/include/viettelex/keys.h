@@ -34,6 +34,8 @@ struct KeyEvent {
     uint32_t unicode = 0;  // character after layout (0 = none)
     uint32_t mods = 0;     // VT_MOD_*
     bool release = false;
+    // A key this IM forwarded itself (IBus IBUS_FORWARD_MASK) coming back: never processed.
+    bool forwarded = false;
 };
 
 }  // namespace viettelex

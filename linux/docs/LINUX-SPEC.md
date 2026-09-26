@@ -54,15 +54,66 @@ Linux không có "tap backspace" ổn định như macOS; hai cách chuẩn củ
 | Chế độ | Cách làm | Ưu | Nhược |
 |---|---|---|---|
 | **Preedit** (mặc định) | từ đang gõ là preedit (gạch chân), commit ở boundary | chạy mọi nơi: GTK, Qt, Electron, Chrome, terminal, Wayland/X11 | có gạch chân như ibus-unikey |
-| **Surrounding text** (tuỳ chọn "Không gạch chân") | commit từng phím; sửa dấu bằng `delete_surrounding_text` rồi commit | giống macOS/Windows | chỉ ổn ở app GTK/Qt hỗ trợ surrounding text |
+| **Surrounding text** (tuỳ chọn "Sửa trực tiếp") | commit từng phím; sửa dấu bằng `delete_surrounding_text` rồi commit | giống macOS/Windows | chỉ ổn ở app GTK/Qt hỗ trợ surrounding text |
+| **Direct** (terminal, tự động) | gõ thẳng; sửa dấu bằng BackSpace *forward* + chữ mới cũng *forward* thành phím (kiểu UniKey/Windows) | không gạch chân trong terminal | chỉ ở host giữ đúng thứ tự phím forward (§3.1) |
 
 - Chế độ 2 tự hạ về Preedit khi `IBUS_CAP_SURROUNDING_TEXT` / `CapabilityFlag::SurroundingText`
   không có, hoặc app nằm trong danh sách ép (terminal: gnome-terminal, konsole, kitty, alacritty,
   wezterm, foot; Electron/Chromium trên Wayland; LibreOffice).
 - **Bảng cơ chế theo app** (tương đương tab "Bảng cơ chế gõ" macOS): key = `program`
   (Fcitx5) / `client` + WM_CLASS / app-id Wayland (IBus). User ép tay Preedit/Surrounding.
-- Preedit style: gạch chân mảnh; ở Surrounding bỏ preedit hoàn toàn.
+- Preedit style: **không gạch chân** mặc định (`preedit_underline = false`, "Gạch chân chữ đang
+  gõ"); IBus gửi `IBUS_ATTR_UNDERLINE_NONE` tường minh, Fcitx5 gửi `TextFormatFlag::NoFlag`. Ở
+  Surrounding/Direct bỏ preedit hoàn toàn.
 - Mất focus / click chuột / đổi con trỏ → commit preedit (không nuốt chữ), reset engine.
+
+### 3.1 Direct cho terminal và gạch chân — kết quả đọc mã nguồn (26/09/2026)
+
+**Vì sao không forward BackSpace rồi `commit_text`** (cách ibus-bamboo "BackspaceForwarding"):
+module GTK3 của IBus (`client/gtk2/ibusimcontext.c`) đưa phím forward vào hàng đợi bằng
+`gdk_event_put`, còn `commit` phát ngay → chữ mới đến **trước** BackSpace. ibus-bamboo chữa bằng
+`time.Sleep(30ms × n)` (`engine_backspace.go: SendBackSpace`, ghi chú "serious sync issue").
+fcitx5-gtk3 y hệt (`gdk_event_put` + commit tức thì); fcitx5-qt forward qua
+`QWindowSystemInterface::handleExtendedKeyEvent` (hàng đợi) còn commit là `sendEvent` (tức thì).
+
+**Cách của VietTelex**: forward **cả BackSpace lẫn chữ mới** thành phím (`ibus_unicode_to_keyval`
+/ `Key::keySymFromUnicode`). Phím forward mang `IBUS_FORWARD_MASK`/`IgnoredMask`; module GTK tự
+commit phím in được (`ibus_im_context_commit_event`, fallback `GtkIMContextSimple` của fcitx5-gtk),
+BackSpace đến widget (VTE gửi `^?` cho pty) → một hàng đợi duy nhất, đúng thứ tự, không sleep.
+Engine không bao giờ đọc lại chữ; phím forward quay về engine (có `IBUS_FORWARD_MASK`) bị bỏ qua.
+`delete_surrounding_text` vô dụng ở terminal: VTE không nối tín hiệu `delete-surrounding`,
+Konsole bỏ qua `replacementStart/Length` của `QInputMethodEvent`. fcitx5-unikey/fcitx5-bamboo
+không có chế độ BackSpace: terminal dùng preedit.
+
+| Host (cách client nói chuyện với IM) | Direct? | Lý do |
+|---|---|---|
+| IBus, client `gtk3-im:` / `gtk-im:` (X11, hoặc Wayland khi `GTK_IM_MODULE=ibus`) | **có** | `gdk_event_put` cho mọi phím forward → đúng thứ tự |
+| IBus, client `gtk4-im:` (Ptyxis, Console/kgx) | không | GTK4 forward = `gtk_im_context_filter_key` chỉ tới IM, không tới widget → BackSpace mất |
+| IBus trên GNOME Wayland (client `gnome-shell`, text-input-v3) | không | phím forward thành `wl_keyboard`, commit qua text-input → hai kênh |
+| IBus Qt (`QIBusInputContext`), IBus XIM (`xim`), IBus < 1.5.28 | không | không biết app/terminal (Qt thì đúng thứ tự nhưng không nhận diện được) |
+| Fcitx5 D-Bus có `KeyEventOrderFix` (fcitx5-gtk2/3, fcitx5-qt5/6 — X11 và KDE Wayland khi `QT_IM_MODULE=fcitx`) | **có** | hàng đợi GDK / QWSI cho mọi phím forward |
+| Fcitx5 D-Bus không `KeyEventOrderFix` (fcitx5-gtk4) | không | `_fcitx_im_context_forward_key_cb` của GTK4 là hàm rỗng |
+| Fcitx5 Wayland (`wayland`/`wayland_v2`), XIM, IBus-emulation | không | kênh khác nhau / XIM forward chỉ mang keycode (mất ư, ơ) / không biết toolkit |
+
+Terminal = cờ ô nhập (IBus `PURPOSE_TERMINAL`, Fcitx5 `Terminal`) hoặc app trong `isTerminalApp`.
+Tắt: `terminal_direct = false`; từng app: `[app_modes] "x" = "preedit"`; app thường có thể ép
+`"direct"` (chỉ có tác dụng ở host "có"). Kết thúc từ (reset engine): Enter, Tab, mũi tên,
+phím tắt Ctrl/Alt (Ctrl+Shift+V), click chuột (VTE gọi `im_reset` mỗi lần nhấn chuột → dán
+bằng chuột giữa cũng reset), mất focus. ⌫ giữa từ: engine tự tính lại, xoá bằng BackSpace forward.
+Rủi ro còn lại: `IBUS_ENABLE_SYNC_MODE=1` (không mặc định) + gõ rất nhanh có thể xen phím thật vào.
+
+**Ai tôn trọng "không gạch chân"** (đọc mã nguồn):
+
+| Client | Không gạch chân được? | Chi tiết |
+|---|---|---|
+| GTK3/GTK4 qua module IBus (X11, hoặc `GTK_IM_MODULE=ibus`) | **có** | `ibusimcontext.c` đổi đúng `IBUS_ATTR_TYPE_UNDERLINE` → `pango_attr_underline_new(value)`; GtkEntry/GtkTextView vẽ đúng attr |
+| VTE (gnome-terminal, tilix, Ptyxis…) qua module IBus/Fcitx | **có** | `Terminal::draw_cells_with_attributes` dùng attr Pango của preedit; chỉ ô dưới con trỏ preedit bị đảo màu (ta đặt con trỏ ở cuối) |
+| fcitx5-gtk2/3/4 | **có** | `NoFlag` → không thêm attr gạch chân (chỉ tự gạch chân khi *không có* danh sách định dạng) |
+| Qt qua IBus (`qibustypes.cpp`) / fcitx5-qt | **có** | `UnderlineNone` → `NoUnderline`; fcitx5-qt chỉ gạch khi có cờ `Underline`. Konsole bỏ qua attr, vẽ preedit theo kiểu ô hiện tại |
+| Chromium/Electron (X11 qua GTK) | **không** | `composition_text_util_pango.cc`: mọi attr underline (kể cả NONE) → gạch mảnh; không attr → gạch mảnh mặc định |
+| GNOME Wayland (mọi app qua text-input-v3) | **không** | gnome-shell `inputMethod.js` bỏ mọi attr kiểu dáng, chỉ chuyển *hint*; GTK3 `imwayland.c` luôn gạch chân; GTK4 gạch chân khi không có hint (bản mới: theo CSS `preedit`) |
+| Fcitx5 Wayland (`wayland_v2`) / Qt, GTK text-input-v3 | **không** | text-input-v3 không có kiểu dáng preedit, client tự vẽ gạch chân |
+| kitty, alacritty, wezterm, foot | tuỳ app | tự vẽ preedit, thường luôn gạch chân |
 
 ## 4. Hành vi gõ (port nguyên từ macOS)
 
@@ -115,7 +166,7 @@ Linux không có "tap backspace" ổn định như macOS; hai cách chuẩn củ
 | Konsole/Kate dưới IBus (Qt) | Khuyên Fcitx5 trên KDE |
 | Mật khẩu `sudo` trong terminal | Không phát hiện được ô mật khẩu → hướng dẫn chuyển EN |
 | Flatpak/Snap app | Dùng IBus/Fcitx portal sẵn có; ghi chú: Snap Firefox cần `ibus` portal |
-| Terminal / vim / tmux | Preedit ép buộc; commit khi Esc để vim không mất chữ |
+| Terminal / vim / tmux | Direct ở host đúng thứ tự (§3.1), còn lại Preedit; Esc kết thúc từ để vim không mất chữ |
 | Nhiều bộ gõ Việt cùng bật (ibus-unikey, bamboo) | Không can thiệp; hướng dẫn gỡ nếu bị gõ đúp |
 | Xung đột phím tắt GNOME | Không dùng Super+Space; kiểm tra trùng khi đặt phím |
 | Remote desktop / VM / Wine | Giống macOS: có sẵn trong danh sách mặc định tắt tiếng Việt (core); khuyên bật bộ gõ ở máy bị điều khiển |

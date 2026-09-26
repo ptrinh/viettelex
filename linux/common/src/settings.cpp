@@ -172,12 +172,14 @@ Settings parseConfig(const std::string &toml) {
             } else if (key == "toggle_hotkey") {
                 if (v.kind == Value::Str) s.toggleHotkey = v.s;
             }
+            else if (key == "preedit_underline") setBool(s.preeditUnderline, v);
+            else if (key == "terminal_direct") setBool(s.terminalDirect, v);
             else if (key == "per_app_state") setBool(s.perAppState, v);
             else if (key == "default_vietnamese") setBool(s.defaultVietnamese, v);
         } else if (section == "app_modes") {
             if (v.kind == Value::Str && !key.empty()) {
                 std::string m = lower(v.s);
-                if (m == "preedit" || m == "surrounding" || m == "off") s.appModes[lower(key)] = m;
+                if (m == "preedit" || m == "surrounding" || m == "direct" || m == "off") s.appModes[lower(key)] = m;
             }
         }
     }
@@ -203,6 +205,8 @@ std::string serializeConfig(const Settings &s) {
       << "re_edit_word = " << b(s.reEditWord) << "\n"
       << "\n[general]\n"
       << "display_mode = " << (s.displayMode == DisplayMode::Surrounding ? "\"surrounding\"" : "\"preedit\"") << "\n"
+      << "preedit_underline = " << b(s.preeditUnderline) << "\n"
+      << "terminal_direct = " << b(s.terminalDirect) << "\n"
       << "toggle_hotkey = " << quote(s.toggleHotkey) << "\n"
       << "per_app_state = " << b(s.perAppState) << "\n"
       << "default_vietnamese = " << b(s.defaultVietnamese) << "\n"

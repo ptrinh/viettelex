@@ -29,6 +29,14 @@ public:
     // The client has a selection (or cannot tell): deleting "before the caret" would eat
     // the selection instead (URL bars select the whole URL / the autocompleted tail).
     virtual bool hasSelection() { return false; }
+    // Direct mode (terminals): erase `backspaces` characters before the caret with BackSpace
+    // key events, then type `utf8` — all through the SAME ordered channel (forwarded key
+    // events), so the app sees them in this order. The Session never reads anything back.
+    // Frontends mark the keys they forward (KeyEvent::forwarded) if they come back.
+    virtual void directReplace(int backspaces, const std::string &utf8) {
+        if (backspaces > 0) deleteBeforeCursor(backspaces);
+        if (!utf8.empty()) commit(utf8);
+    }
 };
 
 class Session {
@@ -75,6 +83,8 @@ private:
     bool handleLetter(uint32_t ch, InputContext &ic);
     bool handleBackspace(InputContext &ic);
     void endWord(InputContext &ic, bool suppressRestore, bool allowShortcuts);
+    // Surrounding: delete-surrounding + commit. Direct: forwarded BackSpace + text.
+    void replace(InputContext &ic, int backspaces, const std::string &insert);
     void showPreedit(InputContext &ic);
     void hidePreedit(InputContext &ic);
     bool isWordKey(uint32_t ch) const;

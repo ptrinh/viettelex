@@ -30,6 +30,8 @@ DEFAULTS = {
     },
     "general": {
         "display_mode": "preedit",
+        "preedit_underline": False,
+        "terminal_direct": True,
         "toggle_hotkey": "Ctrl+space",
         "per_app_state": True,
         "default_vietnamese": True,
@@ -38,7 +40,7 @@ DEFAULTS = {
 }
 
 SECTION_ORDER = ["typing", "general", "app_modes"]
-APP_MODES = ("preedit", "surrounding", "off")
+APP_MODES = ("preedit", "surrounding", "direct", "off")
 INPUT_METHODS = ("telex", "vni")
 DISPLAY_MODES = ("preedit", "surrounding")
 

@@ -31,8 +31,9 @@ STABLE_JSON = "https://ptrinh.github.io/viettelex/stable.json"
 
 APP_MODE_CHOICES = [
     ("auto", "Tự động"),
-    ("preedit", "Gạch chân (preedit)"),
-    ("surrounding", "Không gạch chân"),
+    ("preedit", "Chữ đang gõ (preedit)"),
+    ("surrounding", "Sửa trực tiếp (surrounding)"),
+    ("direct", "Gõ thẳng, sửa bằng Backspace"),
     ("off", "Tắt tiếng Việt"),
 ]
 # Chế độ macOS (typing-modes.yml / file xuất từ máy Mac) → gần nhất trên Linux.
@@ -309,12 +310,19 @@ class SettingsWindow(Adw.PreferencesWindow):
 
         g = Adw.PreferencesGroup(
             title="Hiển thị chữ đang gõ",
-            description="Gạch chân: đúng chữ ở mọi app (GTK, Qt, Chrome, Electron, terminal). "
-                        "Không gạch chân: giống macOS, chỉ áp dụng ở app hỗ trợ surrounding "
-                        "text — terminal, LibreOffice và app không hỗ trợ tự dùng gạch chân. "
-                        "Chỉnh riêng từng app ở tab Bảng cơ chế gõ.")
+            description="Chữ đang gõ (preedit): đúng chữ ở mọi app (GTK, Qt, Chrome, Electron). "
+                        "Sửa trực tiếp: giống macOS, chỉ áp dụng ở app hỗ trợ surrounding text — "
+                        "LibreOffice và app không hỗ trợ tự về preedit. Chỉnh riêng từng app ở "
+                        "tab Bảng cơ chế gõ.")
         self.combo(g, "general", "display_mode", "Cách hiện từ đang gõ",
-                   [("preedit", "Gạch chân (preedit)"), ("surrounding", "Không gạch chân")])
+                   [("preedit", "Chữ đang gõ (preedit)"), ("surrounding", "Sửa trực tiếp (surrounding)")])
+        self.switch(g, "general", "preedit_underline", "Gạch chân chữ đang gõ",
+                    "Tắt = chữ đang gõ trông như chữ thường ở app GTK, Qt, VTE (X11). Chrome/Electron "
+                    "và app Wayland trên GNOME vẫn tự vẽ gạch chân.")
+        self.switch(g, "general", "terminal_direct", "Terminal: gõ thẳng, sửa dấu bằng Backspace",
+                    "Giống UniKey: không gạch chân trong gnome-terminal, tilix, konsole… khi app "
+                    "nhận phím qua IBus GTK3 hoặc Fcitx5 (fcitx5-gtk3/fcitx5-qt). Terminal GTK4 "
+                    "(Ptyxis, Console) và phiên Wayland GNOME vẫn dùng preedit.")
         page.add(g)
 
         g = Adw.PreferencesGroup(title="Chuyển Việt/Anh")
@@ -541,7 +549,9 @@ class SettingsWindow(Adw.PreferencesWindow):
             title="Ép cơ chế gõ theo app",
             description="App gõ sai hoặc hiện gạch chân khó chịu? Chọn riêng cho app đó. "
                         "Tự động = theo “Cách hiện từ đang gõ” ở tab Tuỳ chỉnh. Terminal và "
-                        "LibreOffice mặc định dùng gạch chân (%s)." % BUILTIN_PREEDIT_APPS)
+                        "LibreOffice mặc định dùng preedit (%s); terminal gõ thẳng khi hệ hỗ trợ. "
+                        "“Gõ thẳng” chỉ có tác dụng ở app nhận phím qua IBus GTK3 / Fcitx5 GTK3-Qt."
+                        % BUILTIN_PREEDIT_APPS)
         box = Gtk.Box(spacing=6, margin_top=6, margin_bottom=6)
         self.mode_app = Gtk.Entry(hexpand=True,
                                   placeholder_text="Tên app (vd: org.gnome.texteditor, kitty, code)")

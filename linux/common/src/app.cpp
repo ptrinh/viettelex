@@ -39,15 +39,45 @@ bool endsWith(const std::string &s, const std::string &p) {
 }
 }  // namespace
 
-bool isForcedPreeditApp(const std::string &appId) {
+bool isTerminalApp(const std::string &appId) {
     static const std::set<std::string> names = {
-        // terminals
         "gnome-terminal", "gnome-terminal-server", "terminal", "kgx", "console", "ptyxis",
         "konsole", "kitty", "alacritty", "wezterm", "wezterm-gui", "foot", "footclient", "xterm",
         "uxterm", "tilix", "terminator", "xfce4-terminal", "lxterminal", "mate-terminal",
         "qterminal", "terminology", "st", "urxvt", "rxvt", "yakuake", "guake", "blackbox",
         "gnome-console", "tilda", "sakura", "roxterm", "deepin-terminal", "cool-retro-term",
         "ghostty", "contour", "rio", "vte", "vte-2.91",
+    };
+    std::string id = normalizeAppId(appId);
+    if (id.empty()) return false;
+    if (names.count(id) || names.count(shortName(id))) return true;
+    return startsWith(id, "vte-");
+}
+
+ClientHost ibusClientHost(const std::string &raw) {
+    std::string c = raw;
+    for (auto &ch : c)
+        if (ch >= 'A' && ch <= 'Z') ch = char(ch - 'A' + 'a');
+    if (startsWith(c, "gtk3-im:") || startsWith(c, "gtk-im:")) return ClientHost::IBusGtk;
+    if (startsWith(c, "gtk4-im:")) return ClientHost::IBusGtk4;
+    if (c == "qibusinputcontext") return ClientHost::IBusQt;
+    if (c == "xim" || startsWith(c, "xim:")) return ClientHost::IBusXim;
+    if (c == "gnome-shell" || startsWith(c, "ibus-wayland") || c == "wayland") return ClientHost::IBusWayland;
+    return ClientHost::Unknown;
+}
+
+ClientHost fcitxClientHost(const std::string &frontend, bool keyEventOrderFix) {
+    if (frontend == "dbus") return keyEventOrderFix ? ClientHost::FcitxOrdered : ClientHost::FcitxUnordered;
+    if (frontend == "xim") return ClientHost::FcitxXim;
+    if (frontend == "wayland" || frontend == "wayland_v2") return ClientHost::FcitxWayland;
+    if (frontend == "ibus") return ClientHost::FcitxIBus;
+    return ClientHost::Unknown;
+}
+
+bool hostSupportsDirect(ClientHost h) { return h == ClientHost::IBusGtk || h == ClientHost::FcitxOrdered; }
+
+bool isForcedPreeditApp(const std::string &appId) {
+    static const std::set<std::string> names = {
         // KDE launchers/shell, JetBrains/Java (AWT/Swing IM bridge), WPS / OnlyOffice, Steam
         "krunner", "plasmashell", "idea", "java", "wps", "wpp", "et", "wpsoffice",
         "desktopeditors", "steam",
@@ -65,11 +95,12 @@ bool isForcedPreeditApp(const std::string &appId) {
         // GNOME Wayland: one shared text-input-v3 context for every app; the overview search
         "gnome-shell", "gnome-shell-overview",
     };
+    if (isTerminalApp(appId)) return true;
     std::string id = normalizeAppId(appId);
     if (id.empty()) return false;
     if (names.count(id) || names.count(shortName(id))) return true;
     if (id.rfind("libreoffice", 0) == 0) return true;
-    if (startsWith(id, "vte-") || startsWith(id, "jetbrains-")) return true;
+    if (startsWith(id, "jetbrains-")) return true;
     return false;
 }
 
@@ -107,29 +138,41 @@ AppPolicy resolveAppPolicy(const std::string &appId, const Settings &s, bool sur
     AppPolicy p;
     std::string id = normalizeAppId(appId);
     bool unknown = isUnknownAppId(id);
-    DisplayMode mode = s.displayMode;
-    bool pinned = false;
+    DisplayMode mode = s.displayMode == DisplayMode::Direct ? DisplayMode::Preedit : s.displayMode;
+    bool pinned = false, pinPreedit = false, pinDirect = false;
     auto it = s.appModes.find(id);
     if (it == s.appModes.end() && !id.empty()) it = s.appModes.find(shortName(id));
     if (it != s.appModes.end()) {
         if (it->second == "off") p.off = true;
         else if (it->second == "surrounding") { mode = DisplayMode::Surrounding; pinned = true; }
-        else if (it->second == "preedit") { mode = DisplayMode::Preedit; pinned = true; }
+        else if (it->second == "preedit") { mode = DisplayMode::Preedit; pinned = true; pinPreedit = true; }
+        else if (it->second == "direct") { mode = DisplayMode::Preedit; pinned = true; pinDirect = true; }
     } else if (isDefaultOffApp(id)) {
         p.off = true;  // built-in English-only list; any [app_modes] entry overrides it
     }
-    // A generic id covers many apps: a "surrounding" pin on it proves nothing.
-    if (unknown) pinned = false;
+    // A generic id covers many apps: a "surrounding"/"direct" pin on it proves nothing.
+    if (unknown) pinned = pinDirect = false;
     bool forced = !pinned && isForcedPreeditApp(id);
     if (mode == DisplayMode::Surrounding) {
         if (!surroundingProven) mode = DisplayMode::Preedit;          // cannot edit before the caret
         else if (forced) mode = DisplayMode::Preedit;
     }
     p.allowSurroundingEdits = surroundingProven && !forced;
+    bool terminal = field.terminal || isTerminalApp(id);
     // Field type beats every app rule.
     if (field.terminal) {
         mode = DisplayMode::Preedit;
         p.allowSurroundingEdits = false;
+    }
+    // Direct: a terminal (or an app pinned "direct") on a host that delivers forwarded keys
+    // in order. A "preedit" pin keeps the preedit. Direct never reads text back.
+    bool wantDirect = pinDirect || (terminal && s.terminalDirect && !pinPreedit &&
+                                    (field.terminal || mode == DisplayMode::Preedit));
+    if (wantDirect && hostSupportsDirect(field.host) && !field.urlOrEmail) {
+        mode = DisplayMode::Direct;
+        p.allowSurroundingEdits = false;
+    } else if (pinDirect && terminal) {
+        p.allowSurroundingEdits = false;  // fell back to Preedit: still no read-back
     }
     if (field.urlOrEmail) mode = DisplayMode::Preedit;
     if (field.numeric || field.sensitive) p.passthrough = true;

@@ -31,6 +31,8 @@ struct VtIBusEngine {
     vt::Session *session;
     std::string *appId;     // effective id: clientId, or the GNOME focused app it stands for
     std::string *clientId;  // what IBus reported ("default" without focus_in_id)
+    std::string *clientName;  // raw IBus client name ("gtk3-im:…", "xim", "gnome-shell")
+    guint lastKeycode;        // keycode of the key being processed (for forwarded text)
     gboolean focused;
     IBusPropList *props;
     IBusProperty *modeProp;
@@ -65,6 +67,8 @@ Globals &G() {
 
 const vt::Settings &settings() { return G().watcher->settings(); }
 
+constexpr guint kBackSpaceKeycode = 14;  // evdev KEY_BACKSPACE (IBus keycodes are X keycode − 8)
+
 class IBusClient final : public vt::InputContext {
 public:
     explicit IBusClient(IBusEngine *e) : e_(e) {}
@@ -76,7 +80,13 @@ public:
         }
         IBusText *t = ibus_text_new_from_string(s.c_str());
         guint len = ibus_text_get_length(t);
-        ibus_text_append_attribute(t, IBUS_ATTR_TYPE_UNDERLINE, IBUS_ATTR_UNDERLINE_SINGLE, 0, len);
+        // An explicit NONE (not "no attribute"): GTK3/GTK4 IBus module, VTE and Qt's IBus
+        // plugin draw exactly the attributes we send. Chromium and Wayland text-input-v3
+        // clients (GNOME Shell drops style attributes) still draw their own underline.
+        ibus_text_append_attribute(t, IBUS_ATTR_TYPE_UNDERLINE,
+                                   settings().preeditUnderline ? IBUS_ATTR_UNDERLINE_SINGLE
+                                                               : IBUS_ATTR_UNDERLINE_NONE,
+                                   0, len);
         ibus_engine_update_preedit_text_with_mode(e_, t, len, TRUE, IBUS_ENGINE_PREEDIT_COMMIT);
     }
     void commit(const std::string &s) override {
@@ -84,6 +94,26 @@ public:
     }
     void deleteBeforeCursor(int n) override {
         if (n > 0) ibus_engine_delete_surrounding_text(e_, -n, guint(n));
+    }
+    // Direct (terminals on the GTK2/3 IBus module, see vt::ClientHost): BackSpace and the new
+    // text all go out as ForwardKeyEvent. The module gdk_event_put()s each one, so they reach
+    // VTE in order; a forwarded printable key arrives with IBUS_FORWARD_MASK and the module
+    // commits it itself (ibus_im_context_commit_event) — commit_text would be applied at once,
+    // before the queued BackSpaces (the ordering bug ibus-bamboo papers over with sleeps).
+    void directReplace(int backspaces, const std::string &s) override {
+        for (int i = 0; i < backspaces; ++i) {
+            ibus_engine_forward_key_event(e_, IBUS_KEY_BackSpace, kBackSpaceKeycode, 0);
+            ibus_engine_forward_key_event(e_, IBUS_KEY_BackSpace, kBackSpaceKeycode, IBUS_RELEASE_MASK);
+        }
+        // A non-zero keycode keeps the module from looking the keysym up in the keymap
+        // (which fails for ư/ơ/ử… and logs a warning); the keyval alone decides the text.
+        guint keycode = reinterpret_cast<VtIBusEngine *>(e_)->lastKeycode;
+        if (keycode == 0) keycode = kBackSpaceKeycode;
+        for (const gchar *p = s.c_str(); *p; p = g_utf8_next_char(p)) {
+            guint kv = ibus_unicode_to_keyval(g_utf8_get_char(p));
+            ibus_engine_forward_key_event(e_, kv, keycode, 0);
+            ibus_engine_forward_key_event(e_, kv, keycode, IBUS_RELEASE_MASK);
+        }
     }
     bool textBeforeCursor(std::string &out) override {
         IBusText *text = nullptr;
@@ -138,6 +168,7 @@ void refreshFieldFlags(VtIBusEngine *self) {
     field.numeric = self->purpose == IBUS_INPUT_PURPOSE_DIGITS || self->purpose == IBUS_INPUT_PURPOSE_NUMBER ||
                     self->purpose == IBUS_INPUT_PURPOSE_PHONE;
     field.sensitive = (self->hints & IBUS_INPUT_HINT_PRIVATE) != 0;
+    field.host = vt::ibusClientHost(*self->clientName);
     auto policy = vt::resolveAppPolicy(*self->appId, settings(), surrounding, field);
     self->rememberState = policy.rememberState;
     self->session->setPassthrough(self->password || policy.off || policy.passthrough, client);
@@ -194,10 +225,13 @@ gboolean onGnomeFocusChanged(gpointer) {
 // MARK: - vfuncs
 
 gboolean processKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint state) {
-    (void)keycode;  // keysym (after layout) is what we read — AZERTY/Dvorak work
+    // keysym (after layout) is what we read — AZERTY/Dvorak work
     auto *self = reinterpret_cast<VtIBusEngine *>(engine);
     try {
         vt::KeyEvent ev;
+        // A key we forwarded ourselves (Direct mode) that a client sent back: never re-process.
+        ev.forwarded = (state & IBUS_FORWARD_MASK) != 0;
+        if (!ev.forwarded && !(state & IBUS_RELEASE_MASK)) self->lastKeycode = keycode;
         ev.keysym = keyval;
         ev.unicode = ibus_keyval_to_unicode(keyval);
         ev.release = state & IBUS_RELEASE_MASK;
@@ -247,6 +281,7 @@ void focusInId(IBusEngine *engine, const gchar *objectPath, const gchar *client)
     auto *self = reinterpret_cast<VtIBusEngine *>(engine);
     try {
         *self->clientId = vt::normalizeAppId(client ? client : "");
+        *self->clientName = client ? client : "";
         focusCommon(self);
     } catch (...) {
     }
@@ -340,6 +375,8 @@ void dispose(GObject *obj) {
     self->appId = nullptr;
     delete self->clientId;
     self->clientId = nullptr;
+    delete self->clientName;
+    self->clientName = nullptr;
     g_clear_object(&self->props);
     G_OBJECT_CLASS(vt_ibus_engine_parent_class)->dispose(obj);
 }
@@ -368,6 +405,8 @@ static void vt_ibus_engine_init(VtIBusEngine *self) {
     self->session = new vt::Session();
     self->appId = new std::string("default");
     self->clientId = new std::string("default");
+    self->clientName = new std::string();
+    self->lastKeycode = 0;
     self->focused = FALSE;
     self->password = FALSE;
     self->surroundingProven = FALSE;

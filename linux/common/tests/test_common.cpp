@@ -934,6 +934,307 @@ void testAppStateStoreAndWatcher() {
     CHECK_EQ(std::system(cmd.c_str()), 0);
 }
 
+
+// MARK: - Direct mode (terminals)
+
+// A terminal behind an ordered forwarded-key channel: it cannot report or delete text
+// around the caret, draws no preedit, and applies forwarded keys (BackSpace / characters)
+// strictly in order. Every forwarded key also comes back to the IM marked `forwarded`
+// (as a client looping IBUS_FORWARD_MASK events would) and must be ignored there.
+struct BlindTerminal : InputContext {
+    std::string doc;
+    int commits = 0, deletes = 0, preedits = 0, forwardedBs = 0, echoesConsumed = 0;
+    std::vector<std::string> pending;  // forwarded keys not yet applied: "\b" or one UTF-8 char
+    void setPreedit(const std::string &s) override {
+        if (!s.empty()) ++preedits;
+    }
+    void commit(const std::string &s) override {
+        ++commits;
+        doc += s;
+    }
+    void deleteBeforeCursor(int) override { ++deletes; }
+    bool textBeforeCursor(std::string &) override { return false; }
+    bool hasSelection() override { return true; }  // an unreliable answer: Direct must ignore it
+    void directReplace(int bs, const std::string &text) override {
+        for (int i = 0; i < bs; ++i) pending.push_back("\b");
+        forwardedBs += bs;
+        for (size_t i = 0; i < text.size();) {
+            size_t n = 1;
+            while (i + n < text.size() && (static_cast<unsigned char>(text[i + n]) & 0xc0) == 0x80) ++n;
+            pending.push_back(text.substr(i, n));
+            i += n;
+        }
+    }
+    // The event loop: forwarded keys are delivered (and echoed back) before the next key.
+    void flush(Session &s) {
+        auto keys = pending;
+        pending.clear();
+        for (auto &k : keys) {
+            KeyEvent ev;
+            ev.forwarded = true;
+            ev.keysym = k == "\b" ? uint32_t(ks::BackSpace) : uint32_t((unsigned char)k[0]);
+            ev.unicode = k == "\b" ? 0 : ev.keysym;
+            if (s.processKey(ev, *this)) ++echoesConsumed;
+            if (k == "\b") popChars(doc, 1);
+            else doc += k;
+        }
+    }
+};
+
+void pressT(Session &s, BlindTerminal &t, uint32_t keysym, uint32_t unicode, uint32_t mods = 0) {
+    KeyEvent ev;
+    ev.keysym = keysym;
+    ev.unicode = unicode;
+    ev.mods = mods;
+    bool consumed = s.processKey(ev, t);
+    t.flush(s);  // the forwarded keys land before the app handles this key
+    ev.release = true;
+    s.processKey(ev, t);
+    if (consumed || (mods & (VT_MOD_CTRL | VT_MOD_ALT | VT_MOD_SUPER))) return;
+    if (keysym == ks::BackSpace) popChars(t.doc, 1);
+    else if (keysym == ks::Return) t.doc += "\n";
+    else if (unicode >= 0x20 && unicode < 0x7f) t.doc += char(unicode);
+}
+
+void typeT(Session &s, BlindTerminal &t, const std::string &keys) {
+    for (char c : keys) {
+        switch (c) {
+        case '<': pressT(s, t, ks::BackSpace, 0); break;
+        case '\n': pressT(s, t, ks::Return, '\r'); break;
+        case '>': pressT(s, t, ks::Right, 0); break;
+        default: pressT(s, t, uint32_t((unsigned char)c), uint32_t((unsigned char)c));
+        }
+    }
+}
+
+// A host that keeps forwarded keys in order: IBus GTK3 module, terminal purpose.
+FieldHints orderedTerminal() {
+    FieldHints f;
+    f.terminal = true;
+    f.host = ClientHost::IBusGtk;
+    return f;
+}
+
+void enterDirect(Session &s, BlindTerminal &t, const Settings &st = defaults()) {
+    AppPolicy p = resolveAppPolicy("gnome-terminal-server", st, false, orderedTerminal());
+    s.applySettings(st);
+    s.setDisplayMode(p.mode, t);
+    s.setSurroundingEdits(p.allowSurroundingEdits);
+    CHECK(s.displayMode() == DisplayMode::Direct);
+}
+
+std::string runDirect(const std::string &keys, BlindTerminal *out = nullptr) {
+    Session s;
+    BlindTerminal t;
+    enterDirect(s, t);
+    typeT(s, t, keys);
+    s.finish(t);
+    if (out) *out = t;
+    return t.doc;
+}
+
+void testDirectBlindTerminal() {
+    BlindTerminal t;
+    CHECK_EQ(runDirect("thuwr gox tieengs vieetj", &t), std::string("thử gõ tiếng việt"));
+    CHECK(t.forwardedBs > 0);        // tones fixed with BackSpace, not by reading back
+    CHECK_EQ(t.deletes, 0);          // never delete-surrounding (VTE ignores it)
+    CHECK_EQ(t.commits, 0);          // never commit_text: it could overtake a forwarded ⌫
+    CHECK_EQ(t.preedits, 0);         // no preedit → no underline
+    CHECK_EQ(t.echoesConsumed, 0);   // our own forwarded keys are never re-processed
+    CHECK_EQ(runDirect("Tieesng Vieejt\n"), std::string("Tiếng Việt\n"));
+    CHECK_EQ(runDirect("dduwowcj khoong"), std::string("được không"));
+    CHECK_EQ(runDirect("google "), std::string("google "));   // auto-restore via ⌫ + retype
+}
+
+void testDirectBackspaceMidWord() {
+    CHECK_EQ(runDirect("toans<"), std::string("tóa"));      // tone re-placed after ⌫
+    CHECK_EQ(runDirect("khoong<<"), std::string("khô"));
+    CHECK_EQ(runDirect("vieejt<<<<<"), std::string(""));
+    for (const char *keys : {"thuwr<r", "tieengs<<a", "dduwowcj<<", "nguwowif<<<", "Vieejt<j"})
+        CHECK_EQ(runDirect(keys), run(keys, DisplayMode::Preedit, defaults(), false));
+    // Direct agrees with Preedit on random scripts (letters, tones, ⌫, space, punctuation)
+    std::mt19937 rng(777);
+    const std::string alphabet = "aeoudwsfrxjzntghiycqAEO  <<.";
+    for (int i = 0; i < 3000; ++i) {
+        std::string keys;
+        int n = 1 + int(rng() % 14);
+        for (int k = 0; k < n; ++k) keys += alphabet[rng() % alphabet.size()];
+        std::string p = run(keys, DisplayMode::Preedit, defaults(), false);  // blind preedit
+        Session s;
+        BlindTerminal t;
+        enterDirect(s, t);
+        typeT(s, t, keys);
+        std::string d = t.doc;
+        if (p != d) {
+            std::fprintf(stderr, "direct mismatch for [%s]: preedit=[%s] direct=[%s]\n", keys.c_str(), p.c_str(),
+                         d.c_str());
+            ++g_fail;
+            return;
+        }
+    }
+    ++g_pass;
+}
+
+void testDirectResets() {
+    // Enter / arrows end the word: nothing typed later may ⌫ back into it
+    BlindTerminal t;
+    CHECK_EQ(runDirect("toan>s", &t), std::string("toans"));  // no re-edit (never reads back)
+    CHECK_EQ(t.forwardedBs, 0);
+    CHECK_EQ(runDirect("vie\ne", &t), std::string("vie\ne"));
+    CHECK_EQ(t.forwardedBs, 0);
+    CHECK_EQ(runDirect("thays <a", &t), std::string("tháya"));  // ⌫ never reopens a word
+    // paste / click (the frontend's reset) in the middle of a word: next key starts afresh
+    {
+        Session s;
+        BlindTerminal u;
+        enterDirect(s, u);
+        typeT(s, u, "vie");
+        s.finish(u);     // IBus/Fcitx5 reset: VTE resets the IM on every mouse press
+        u.doc += "XYZ";  // pasted text the IM never saw
+        typeT(s, u, "e");
+        CHECK_EQ(u.doc, std::string("vieXYZe"));
+        CHECK_EQ(u.forwardedBs, 0);
+    }
+    // Ctrl chord (Ctrl+Shift+V paste, Ctrl+W…) ends the word too
+    {
+        Session s;
+        BlindTerminal v;
+        enterDirect(s, v);
+        typeT(s, v, "vie");
+        pressT(s, v, 'V', 'V', VT_MOD_CTRL | VT_MOD_SHIFT);
+        v.doc += "XYZ";
+        typeT(s, v, "e");
+        CHECK_EQ(v.doc, std::string("vieXYZe"));
+    }
+    // a forwarded key coming back is ignored: the word state does not move
+    {
+        Session s;
+        BlindTerminal w;
+        enterDirect(s, w);
+        typeT(s, w, "vie");
+        KeyEvent echo;
+        echo.forwarded = true;
+        echo.keysym = echo.unicode = 'e';
+        CHECK(!s.processKey(echo, w));
+        echo.keysym = ks::BackSpace;
+        echo.unicode = 0;
+        CHECK(!s.processKey(echo, w));
+        CHECK(w.pending.empty());
+        typeT(s, w, "e");
+        CHECK_EQ(w.doc, std::string("viê"));
+    }
+}
+
+void testDirectPolicyTable() {
+    // client names → host
+    CHECK(ibusClientHost("gtk3-im:gnome-terminal-server") == ClientHost::IBusGtk);
+    CHECK(ibusClientHost("gtk-im:xfce4-terminal") == ClientHost::IBusGtk);
+    CHECK(ibusClientHost("gtk4-im:ptyxis") == ClientHost::IBusGtk4);
+    CHECK(ibusClientHost("QIBusInputContext") == ClientHost::IBusQt);
+    CHECK(ibusClientHost("xim") == ClientHost::IBusXim);
+    CHECK(ibusClientHost("gnome-shell") == ClientHost::IBusWayland);
+    CHECK(ibusClientHost("default") == ClientHost::Unknown);
+    CHECK(ibusClientHost("") == ClientHost::Unknown);
+    CHECK(fcitxClientHost("dbus", true) == ClientHost::FcitxOrdered);
+    CHECK(fcitxClientHost("dbus", false) == ClientHost::FcitxUnordered);
+    CHECK(fcitxClientHost("xim", false) == ClientHost::FcitxXim);
+    CHECK(fcitxClientHost("wayland_v2", false) == ClientHost::FcitxWayland);
+    CHECK(fcitxClientHost("wayland", false) == ClientHost::FcitxWayland);
+    CHECK(fcitxClientHost("ibus", true) == ClientHost::FcitxIBus);
+    for (auto h : {ClientHost::IBusGtk, ClientHost::FcitxOrdered}) CHECK(hostSupportsDirect(h));
+    for (auto h : {ClientHost::Unknown, ClientHost::IBusGtk4, ClientHost::IBusQt, ClientHost::IBusXim,
+                   ClientHost::IBusWayland, ClientHost::FcitxUnordered, ClientHost::FcitxXim,
+                   ClientHost::FcitxWayland, ClientHost::FcitxIBus})
+        CHECK(!hostSupportsDirect(h));
+
+    struct Row {
+        const char *what, *app;
+        ClientHost host;
+        bool terminalField;
+        DisplayMode want;
+    };
+    const Row rows[] = {
+        {"X11 IBus GTK3 VTE (gnome-terminal)", "gnome-terminal-server", ClientHost::IBusGtk, true, DisplayMode::Direct},
+        {"X11 IBus GTK3 tilix, no purpose", "tilix", ClientHost::IBusGtk, false, DisplayMode::Direct},
+        {"X11 IBus GTK3 pid-only app, terminal purpose", "(4242)", ClientHost::IBusGtk, true, DisplayMode::Direct},
+        {"X11 IBus GTK3 gedit", "gedit", ClientHost::IBusGtk, false, DisplayMode::Preedit},
+        {"IBus GTK4 VTE (ptyxis): forwarded BackSpace lost", "ptyxis", ClientHost::IBusGtk4, true,
+         DisplayMode::Preedit},
+        {"GNOME Wayland (gnome-shell text-input-v3)", "gnome-terminal-server", ClientHost::IBusWayland, true,
+         DisplayMode::Preedit},
+        {"IBus Qt konsole", "qibusinputcontext", ClientHost::IBusQt, false, DisplayMode::Preedit},
+        {"IBus XIM xterm", "xim", ClientHost::IBusXim, false, DisplayMode::Preedit},
+        {"IBus < 1.5.28 (no client name)", "default", ClientHost::Unknown, true, DisplayMode::Preedit},
+        {"Fcitx5 fcitx5-qt konsole (X11 or KDE Wayland)", "konsole", ClientHost::FcitxOrdered, false,
+         DisplayMode::Direct},
+        {"Fcitx5 fcitx5-gtk3 VTE", "xfce4-terminal", ClientHost::FcitxOrdered, true, DisplayMode::Direct},
+        {"Fcitx5 fcitx5-gtk4 VTE: forwardKey no-op", "ptyxis", ClientHost::FcitxUnordered, true,
+         DisplayMode::Preedit},
+        {"Fcitx5 Wayland text-input (KDE/wlroots)", "kitty", ClientHost::FcitxWayland, false, DisplayMode::Preedit},
+        {"Fcitx5 XIM xterm", "xterm", ClientHost::FcitxXim, false, DisplayMode::Preedit},
+        {"Fcitx5 IBus emulation", "alacritty", ClientHost::FcitxIBus, false, DisplayMode::Preedit},
+    };
+    for (auto user : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        for (const auto &r : rows) {
+            Settings s;
+            s.displayMode = user;
+            FieldHints f;
+            f.terminal = r.terminalField;
+            f.host = r.host;
+            AppPolicy p = resolveAppPolicy(r.app, s, true, f);
+            DisplayMode want = r.want;
+            if (want == DisplayMode::Preedit && user == DisplayMode::Surrounding && !r.terminalField &&
+                !isForcedPreeditApp(r.app))
+                want = DisplayMode::Surrounding;  // an ordinary app keeps the user's choice
+            bool ok = p.mode == want && (p.mode != DisplayMode::Direct || !p.allowSurroundingEdits);
+            if (ok) { ++g_pass; continue; }
+            ++g_fail;
+            std::fprintf(stderr, "policy [%s]: mode=%d want=%d edits=%d\n", r.what, int(p.mode), int(want),
+                         int(p.allowSurroundingEdits));
+        }
+    }
+    // user switches: terminal_direct off, per-app pins
+    Settings s;
+    FieldHints f = orderedTerminal();
+    s.terminalDirect = false;
+    CHECK(resolveAppPolicy("gnome-terminal-server", s, false, f).mode == DisplayMode::Preedit);
+    s.terminalDirect = true;
+    s.appModes["gnome-terminal-server"] = "preedit";
+    CHECK(resolveAppPolicy("gnome-terminal-server", s, false, f).mode == DisplayMode::Preedit);
+    s.appModes.clear();
+    s.appModes["gedit"] = "direct";  // any app may be pinned Direct on an ordered host
+    FieldHints plain;
+    plain.host = ClientHost::IBusGtk;
+    CHECK(resolveAppPolicy("gedit", s, true, plain).mode == DisplayMode::Direct);
+    CHECK(!resolveAppPolicy("gedit", s, true, plain).allowSurroundingEdits);
+    plain.host = ClientHost::IBusGtk4;
+    CHECK(resolveAppPolicy("gedit", s, true, plain).mode == DisplayMode::Preedit);  // unordered: no
+    s.appModes["default"] = "direct";  // a generic id covers many apps: ignored
+    plain.host = ClientHost::IBusGtk;
+    CHECK(resolveAppPolicy("default", s, true, plain).mode != DisplayMode::Direct);
+    FieldHints url = orderedTerminal();
+    url.urlOrEmail = true;
+    CHECK(resolveAppPolicy("gnome-terminal-server", Settings(), false, url).mode == DisplayMode::Preedit);
+    // the global display mode can never be Direct
+    Settings g = parseConfig("[general]\ndisplay_mode = \"direct\"\n");
+    CHECK(g.displayMode == DisplayMode::Preedit);
+    CHECK(resolveAppPolicy("gedit", g, true, plain).mode == DisplayMode::Preedit);
+    CHECK(isTerminalApp("org.kde.konsole") && isTerminalApp("vte-2.91") && isTerminalApp("com.mitchellh.ghostty"));
+    CHECK(!isTerminalApp("code") && !isTerminalApp("gedit"));
+}
+
+void testUnderlineAndDirectSettings() {
+    Settings d;
+    CHECK(!d.preeditUnderline);
+    CHECK(d.terminalDirect);
+    Settings s = parseConfig("[general]\npreedit_underline = true\nterminal_direct = false\n[app_modes]\n"
+                             "\"Kitty\" = \"direct\"\n");
+    CHECK(s.preeditUnderline);
+    CHECK(!s.terminalDirect);
+    CHECK_EQ(s.appModes["kitty"], std::string("direct"));
+    CHECK_EQ(serializeConfig(parseConfig(serializeConfig(s))), serializeConfig(s));
+}
+
 }  // namespace
 
 int main() {
@@ -972,6 +1273,11 @@ int main() {
     testGnomeFocusTracker();
     testGnomeResolvedPolicy();
     testGnomeSessionDetection();
+    testDirectBlindTerminal();
+    testDirectBackspaceMidWord();
+    testDirectResets();
+    testDirectPolicyTable();
+    testUnderlineAndDirectSettings();
     std::printf("common tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

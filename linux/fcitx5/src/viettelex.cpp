@@ -46,8 +46,9 @@ namespace vt = viettelex;
 FCITX_CONFIGURATION(
     VietTelexConfig,
     fcitx::Option<bool> vni{this, "VNI", "Kiểu gõ VNI (thay cho Telex)", false};
+    fcitx::Option<bool> preeditUnderline{this, "PreeditUnderline", "Gạch chân chữ đang gõ", false};
     fcitx::Option<bool> noUnderline{this, "NoUnderline",
-                                    "Không gạch chân (sửa trực tiếp; tự về gạch chân ở terminal/app không hỗ trợ)",
+                                    "Sửa trực tiếp quanh con trỏ (surrounding; tự về preedit ở app không hỗ trợ)",
                                     false};
     fcitx::Option<bool> spellCheck{this, "SpellCheck", "Kiểm tra chính tả khi gõ", true};
     fcitx::Option<bool> autoRestore{this, "AutoRestore", "Tự khôi phục từ không phải tiếng Việt", true};
@@ -59,6 +60,9 @@ FCITX_CONFIGURATION(
 
 class VietTelexEngine;
 
+// Settings::preeditUnderline, refreshed with every settings load (one Fcitx5 process).
+bool g_preeditUnderline = false;
+
 // fcitx::InputContext → viettelex::InputContext
 class FcitxClient final : public vt::InputContext {
 public:
@@ -67,7 +71,9 @@ public:
     void setPreedit(const std::string &s) override {
         fcitx::Text text;
         if (!s.empty()) {
-            text.append(s, fcitx::TextFormatFlag::Underline);
+            // NoFlag = no underline: fcitx5-gtk (GTK2/3/4) and fcitx5-qt draw exactly these
+            // formats; Wayland text-input-v3 clients (fcitx5 wayland_v2 frontend) draw their own.
+            text.append(s, g_preeditUnderline ? fcitx::TextFormatFlag::Underline : fcitx::TextFormatFlag::NoFlag);
             text.setCursor(int(s.size()));
         }
         if (ic_->capabilityFlags().test(fcitx::CapabilityFlag::Preedit)) {
@@ -81,6 +87,28 @@ public:
     void commit(const std::string &s) override { ic_->commitString(s); }
     void deleteBeforeCursor(int n) override {
         if (n > 0) ic_->deleteSurroundingText(-n, unsigned(n));
+    }
+    // Direct (terminals on a D-Bus client with KeyEventOrderFix: fcitx5-gtk2/3, fcitx5-qt; see
+    // vt::ClientHost). BackSpace AND the new text are forwarded keys: the client queues them
+    // (gdk_event_put / QWindowSystemInterface) and commits forwarded printable keys through
+    // its fallback IM context, so they stay in order. commitString would be applied at once,
+    // ahead of the queued BackSpaces. Forwarded keys never pass through engines again.
+    void directReplace(int backspaces, const std::string &s) override {
+        const fcitx::Key bs(FcitxKey_BackSpace);
+        for (int i = 0; i < backspaces; ++i) {
+            ic_->forwardKey(bs, false);
+            ic_->forwardKey(bs, true);
+        }
+        for (size_t i = 0; i < s.size();) {
+            unsigned char b = static_cast<unsigned char>(s[i]);
+            size_t n = b < 0x80 ? 1 : (b >> 5) == 6 ? 2 : (b >> 4) == 14 ? 3 : 4;
+            uint32_t cp = n == 1 ? b : n == 2 ? (b & 0x1f) : n == 3 ? (b & 0x0f) : (b & 0x07);
+            for (size_t k = 1; k < n && i + k < s.size(); ++k) cp = (cp << 6) | (s[i + k] & 0x3f);
+            i += n;
+            const fcitx::Key key(fcitx::Key::keySymFromUnicode(cp));
+            ic_->forwardKey(key, false);
+            ic_->forwardKey(key, true);
+        }
     }
     bool textBeforeCursor(std::string &out) override {
         if (!ic_->capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText)) return false;
@@ -259,6 +287,7 @@ public:
         text = vt::setConfigValue(text, "general", "display_mode",
                                   *config_.noUnderline ? "\"surrounding\"" : "\"preedit\"");
         text = vt::setConfigValue(text, "general", "per_app_state", b(*config_.perAppState));
+        text = vt::setConfigValue(text, "general", "preedit_underline", b(*config_.preeditUnderline));
         vt::writeFileAtomic(vt::configPath(), text);
         applySettingsToAll();  // don't wait for inotify
     }
@@ -335,6 +364,7 @@ private:
         field.numeric = caps.test(fcitx::CapabilityFlag::Digit) || caps.test(fcitx::CapabilityFlag::Number) ||
                         caps.test(fcitx::CapabilityFlag::Dialable);
         field.sensitive = caps.test(fcitx::CapabilityFlag::Sensitive);
+        field.host = vt::fcitxClientHost(st->ic->frontend() ? st->ic->frontend() : "", caps.test(fcitx::CapabilityFlag::KeyEventOrderFix));
         auto policy = vt::resolveAppPolicy(st->appId, settings(), surrounding, field);
         st->rememberState = policy.rememberState;
         bool password = caps.test(fcitx::CapabilityFlag::Password);
@@ -357,6 +387,8 @@ private:
         const auto &s = settings();
         config_.vni.setValue(s.vni);
         config_.noUnderline.setValue(s.displayMode == vt::DisplayMode::Surrounding);
+        config_.preeditUnderline.setValue(s.preeditUnderline);
+        g_preeditUnderline = s.preeditUnderline;
         config_.spellCheck.setValue(s.spellCheck);
         config_.autoRestore.setValue(s.autoRestore);
         config_.freeMarking.setValue(s.freeMarking);

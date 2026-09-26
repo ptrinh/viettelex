@@ -9,7 +9,11 @@
 
 namespace viettelex {
 
-enum class DisplayMode { Preedit, Surrounding };
+// Preedit: composition shown by the client. Surrounding: edit committed text through
+// delete-surrounding + commit. Direct (terminals, only on hosts whose forwarded keys reach
+// the app in order — see app.h): type committed text and fix it with forwarded BackSpace
+// keys, never reading anything back. Direct is chosen per app/field, never globally.
+enum class DisplayMode { Preedit, Surrounding, Direct };
 
 using ShortcutTable = std::map<std::string, std::string>;
 
@@ -29,11 +33,13 @@ struct Settings {
     bool shortcutsEnabled = true;
     bool reEditWord = true;
     // [general]
-    DisplayMode displayMode = DisplayMode::Preedit;
+    DisplayMode displayMode = DisplayMode::Preedit;  // Preedit | Surrounding only
+    bool preeditUnderline = false;  // "Gạch chân chữ đang gõ" (clients that honour attributes)
+    bool terminalDirect = true;     // terminals on ordered hosts: Direct instead of Preedit
     std::string toggleHotkey = "Ctrl+space";
     bool perAppState = true;
     bool defaultVietnamese = true;
-    // [app_modes] app id (lowercase) -> "preedit" | "surrounding" | "off"
+    // [app_modes] app id (lowercase) -> "preedit" | "surrounding" | "direct" | "off"
     std::map<std::string, std::string> appModes;
     // shortcuts.yml (never null after load)
     std::shared_ptr<const ShortcutTable> shortcuts = std::make_shared<ShortcutTable>();

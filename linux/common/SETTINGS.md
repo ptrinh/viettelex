@@ -41,14 +41,16 @@ shortcuts_enabled = true            # Bật bảng gõ tắt (shortcuts.yml)
 re_edit_word = true                 # Sửa dấu từ đã gõ khi đặt con trỏ ngay sau nó ("toan" + s → toán)
 
 [general]
-display_mode = "preedit"            # "preedit" (gạch chân, mặc định) | "surrounding" (không gạch chân)
+display_mode = "preedit"            # "preedit" (chữ đang gõ, mặc định) | "surrounding" (sửa trực tiếp)
+preedit_underline = false           # Gạch chân chữ đang gõ (false = gửi attr "không gạch chân")
+terminal_direct = true              # Terminal: gõ thẳng, sửa dấu bằng BackSpace forward (khi host hỗ trợ)
 toggle_hotkey = "Ctrl+space"        # xem §4; "" = tắt phím chuyển
 per_app_state = true                # Nhớ Việt/Anh theo từng app
 default_vietnamese = true           # Trạng thái khi gặp app lần đầu
 
 [app_modes]
 # key = định danh app (Fcitx5: program; IBus: client name / app-id Wayland / WM_CLASS, chữ thường)
-# value = "preedit" | "surrounding" | "off" (off = không gõ tiếng Việt trong app này)
+# value = "preedit" | "surrounding" | "direct" | "off" (off = không gõ tiếng Việt trong app này)
 "org.gnome.texteditor" = "surrounding"
 "kitty" = "preedit"
 ```
@@ -71,6 +73,16 @@ krunner/plasmashell, JetBrains/Java, WPS/OnlyOffice, Steam. Ghi đè tay trong `
 thắng danh sách dựng sẵn (trừ khi surrounding text chưa được chứng minh). Khi không được sửa
 chữ quanh con trỏ, sửa dấu từ đã gõ (re-edit) và ⌫ mở lại từ cũng tắt; có vùng chọn (thanh
 URL sau Ctrl+L / autocomplete) thì không bao giờ xoá chữ trước con trỏ.
+
+**Chế độ Direct** (không bao giờ là `display_mode` toàn cục): terminal (cờ ô nhập hoặc
+`isTerminalApp`) hoặc app ép `"direct"`, *chỉ khi* host giữ đúng thứ tự phím forward —
+IBus client `gtk3-im:`/`gtk-im:`, Fcitx5 D-Bus có `KeyEventOrderFix` (bảng đầy đủ:
+`docs/LINUX-SPEC.md` §3.1). Host khác → Preedit. `terminal_direct = false` hoặc
+`"x" = "preedit"` tắt Direct. Pin `"direct"` trên định danh chung chung bị bỏ qua. Direct không
+đọc lại chữ (không re-edit, ⌫ không mở lại từ).
+
+**Gạch chân** (`preedit_underline`): chỉ app vẽ đúng attr của IM mới bỏ được gạch chân (GTK/Qt/VTE
+qua module IBus/Fcitx5). Chromium/Electron và app Wayland dùng text-input-v3 (GNOME) luôn tự gạch.
 
 **Định danh app chung chung** (`isUnknownAppId`): rỗng, `default`, `gnome-shell`,
 `qibusinputcontext`, `xim`, `wayland`, `sdl2_application`, `sdl3_application`, `gtk-im`, chỉ
