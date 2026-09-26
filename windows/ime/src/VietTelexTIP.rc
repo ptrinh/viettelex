@@ -6,7 +6,8 @@
 #include "../res/icon_ids.h"
 
 IDI_APP ICON "../res/viettelex.ico"
-// Tray / input-indicator glyphs from the macOS menu-bar icons (make_icons.py).
+// Glyph icons stay in the DLL only to keep resource ORDER stable: LanguageProfile\IconIndex
+// is the position in icon_ids.h kAllIconIds (1.0.8 dropped the language-bar item that used them).
 IDI_GLYPH_VT_V_DARK ICON "../res/glyph_vt_v_dark.ico"
 IDI_GLYPH_VT_V_LIGHT ICON "../res/glyph_vt_v_light.ico"
 IDI_GLYPH_VT_E_DARK ICON "../res/glyph_vt_e_dark.ico"

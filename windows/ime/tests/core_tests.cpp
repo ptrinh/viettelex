@@ -1,4 +1,5 @@
 #include "app_policy.h"
+#include "ipc.h"
 #include "hotkey.h"
 #include "keymap.h"
 #include "settings.h"
@@ -329,4 +330,13 @@ TEST(display_attribute_provider_is_registered) {
     for (const auto& e : vtx::reg::tipRegistryEntries("x", "y"))
         if (e.key.find("\\Category\\Category\\{046B8C80-1647-40F7-9B21-B93B81AABC1B}\\") != std::string::npos) rows = true;
     CHECK(rows);  // ...and the MSI writes it (release.sh diffs the built MSI against these rows)
+}
+
+TEST(ipc_state_changed_is_internal) {
+    // TIP -> app Việt/Anh notification (tray icon is the only state indicator since 1.0.8);
+    // accepted on the window message, never from the command line.
+    CHECK(isValidAppCommand(static_cast<unsigned>(AppCommand::StateChanged)));
+    CHECK(!isUserCommand(static_cast<unsigned>(AppCommand::StateChanged)));
+    CHECK(isUserCommand(static_cast<unsigned>(AppCommand::OpenSettings)));
+    CHECK(!isValidAppCommand(0) && !isValidAppCommand(7));
 }

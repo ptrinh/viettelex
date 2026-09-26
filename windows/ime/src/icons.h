@@ -1,4 +1,5 @@
-// icons.h — icons for the taskbar input indicator (TIP) and the app's tray / icon picker.
+// icons.h — the app's tray icon (Việt/Anh state glyphs; the TIP no longer adds a
+// language-bar item since 1.0.8).
 // Glyphs come from the macOS artwork (resources, see res/icon_ids.h); the "VI"/"EN" text
 // choice is drawn at runtime like the system's own ENG/VIE labels.
 #pragma once

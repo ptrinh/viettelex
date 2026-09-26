@@ -9,8 +9,6 @@
 
 namespace vtx::tip {
 
-class LangBarButton;
-
 class TextService final : public ITfTextInputProcessorEx,
                           public ITfThreadMgrEventSink,
                           public ITfTextEditSink,
@@ -55,7 +53,7 @@ public:
     STDMETHODIMP EnumDisplayAttributeInfo(IEnumTfDisplayAttributeInfo** ppEnum) override;
     STDMETHODIMP GetDisplayAttributeInfo(REFGUID guid, ITfDisplayAttributeInfo** ppInfo) override;
 
-    // --- used by TsfTextSink / LangBarButton ---
+    // --- used by TsfTextSink ---
     ITfComposition* composition() const { return composition_; }
     void setComposition(ITfComposition* c, ITfContext* ctx);  // takes a reference
     void clearComposition();
@@ -64,16 +62,16 @@ public:
     ITfCompositionSink* compositionSink() { return this; }
 
     bool vietnamese() const;
-    void toggleVietnamese();                 // hotkey / button click
-    void setVietnameseFromUi(bool on);
+    void toggleVietnamese();                 // switch hotkey
+    void setVietnamese(bool on);
     const Settings& settings() const { return settings_; }
-    void requestConfigRecheck() { recheckConfig_ = true; }
 
 private:
     TextService();
     ~TextService();
 
     bool typingEnabled() const;
+    void notifyAppState(bool on);
     void applyConfig(bool force);
     bool prepareKey(WPARAM wp, bool down, KeyInput& out);
     uint8_t heldModifiers(uint32_t vk, bool down) const;
@@ -109,9 +107,7 @@ private:
     unsigned long settingsGen_ = 0;
     SwitchHotkey hotkey_ = SwitchHotkey::CtrlShift;
     ModifierChord chord_;
-    bool recheckConfig_ = false;
 
-    LangBarButton* langBar_ = nullptr;
 };
 
 }  // namespace vtx::tip

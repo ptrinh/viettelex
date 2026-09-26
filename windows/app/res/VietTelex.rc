@@ -20,6 +20,12 @@ IDI_GLYPH_FLAG_V_DARK ICON "../../ime/res/glyph_flag_v_dark.ico"
 IDI_GLYPH_FLAG_V_LIGHT ICON "../../ime/res/glyph_flag_v_light.ico"
 IDI_GLYPH_FLAG_E_DARK ICON "../../ime/res/glyph_flag_e_dark.ico"
 IDI_GLYPH_FLAG_E_LIGHT ICON "../../ime/res/glyph_flag_e_light.ico"
+// Keyboard-profile icons (the taskbar/Win+Space icon), for the Settings picker preview.
+IDI_PROFILE_VT ICON "../../ime/res/profile_vt.ico"
+IDI_PROFILE_STAR ICON "../../ime/res/profile_star.ico"
+IDI_PROFILE_FLAG ICON "../../ime/res/profile_flag.ico"
+IDI_PROFILE_LOGO ICON "../../ime/res/profile_logo.ico"
+IDI_PROFILE_VI ICON "../../ime/res/profile_vi.ico"
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "VietTelex.manifest"
 
 VS_VERSION_INFO VERSIONINFO

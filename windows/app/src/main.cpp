@@ -6,7 +6,7 @@
 //   (none)          open Settings (starting the tray app if needed)
 //   --background    no window (autostart; tray icon only if enabled)
 //   --settings      open Settings (after an interactive install)
-//   --command <n>   run an AppCommand (sent by the TIP's language-bar menu)
+//   --command <n>   run an AppCommand (open Settings / About, check for updates, Telex/VNI)
 //   --setup-user    add the keyboard for this user + autostart, then exit (installer)
 //   --cleanup-user  remove keyboard, autostart and all user data, then exit (uninstall)
 //   --set-profile-icon <choice>  (elevated) set the keyboard profile icon, then exit
@@ -52,7 +52,14 @@ enum TrayCmd : UINT { kTraySettings = 1, kTrayUpdate, kTrayAbout, kTrayQuit };
 
 
 // Tray glyph = the keyboard icon chosen in settings, for the current taskbar theme.
-HICON trayIcon() { return tip::CreateStateIcon(g_inst, g_settings.menuIcon, true); }
+// Việt/Anh state of the app in the foreground — the tray icon is the only state indicator
+// (1.0.8: the taskbar shows just the keyboard-profile icon). Fed by the TIP
+// (AppCommand::StateChanged) and by foreground changes (fgWinEvent).
+bool g_stateVietnamese = true;
+HWINEVENTHOOK g_fgHook = nullptr;
+void CALLBACK fgWinEvent(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD);
+
+HICON trayIcon() { return tip::CreateStateIcon(g_inst, g_settings.menuIcon, g_stateVietnamese); }
 
 bool g_trayShown = false;
 
@@ -86,8 +93,15 @@ void syncTrayIcon() {
     if (!g_mainWnd) return;
     if (!g_settings.showTrayIcon) {
         if (g_trayShown) removeTrayIcon();
+        if (g_fgHook) {
+            UnhookWinEvent(g_fgHook);
+            g_fgHook = nullptr;
+        }
         return;
     }
+    if (!g_fgHook)
+        g_fgHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr, fgWinEvent, 0, 0,
+                                   WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
     if (!g_trayShown) {
         addTrayIcon();
         return;
@@ -127,9 +141,44 @@ void showTrayMenu() {
     }
 }
 
-void runCommand(unsigned cmd) {
+void setTrayState(bool vietnamese) {
+    if (vietnamese == g_stateVietnamese) return;
+    g_stateVietnamese = vietnamese;
+    syncTrayIcon();
+}
+
+// Foreground app changed: English unless the VietTelex keyboard (vi-VN) is that app's
+// input method; then its remembered Việt/Anh state (HKCU ...\AppLanguage, default Việt).
+void CALLBACK fgWinEvent(HWINEVENTHOOK, DWORD, HWND hwnd, LONG idObject, LONG, DWORD, DWORD) {
+    if (idObject != OBJID_WINDOW || !hwnd) return;
+    DWORD pid = 0;
+    const DWORD tid = GetWindowThreadProcessId(hwnd, &pid);
+    bool viKeyboard = LOWORD(reinterpret_cast<ULONG_PTR>(GetKeyboardLayout(tid))) == 0x042A;
+    bool on = viKeyboard;
+    if (viKeyboard) {
+        std::wstring exe;
+        if (HANDLE p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
+            wchar_t buf[MAX_PATH];
+            DWORD n = MAX_PATH;
+            if (QueryFullProcessImageNameW(p, 0, buf, &n)) {
+                exe.assign(buf, n);
+                exe = exe.substr(exe.find_last_of(L"\\/") + 1);
+            }
+            CloseHandle(p);
+        }
+        DWORD v = 1, sz = sizeof v;
+        if (!exe.empty())
+            RegGetValueW(HKEY_CURRENT_USER, L"Software\\VietTelex\\AppLanguage", exe.c_str(), RRF_RT_REG_DWORD,
+                         nullptr, &v, &sz);
+        on = v != 0;
+    }
+    setTrayState(on);
+}
+
+void runCommand(unsigned cmd, LPARAM lp = 0) {
     if (!isValidAppCommand(cmd)) return;
     switch (static_cast<AppCommand>(cmd)) {
+        case AppCommand::StateChanged: setTrayState(lp != 0); break;
         case AppCommand::OpenSettings: showSettings(Tab::Typing); break;
         case AppCommand::CheckUpdate: startUpdateCheck(g_mainWnd, true); break;
         case AppCommand::OpenAbout: showSettings(Tab::About); break;
@@ -180,7 +229,7 @@ LRESULT CALLBACK mainProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
     switch (msg) {
-        case kAppCommandMsg: runCommand(static_cast<unsigned>(wp)); return 0;
+        case kAppCommandMsg: runCommand(static_cast<unsigned>(wp), lp); return 0;
         // Restart Manager / logoff / an upgrade closing us: agree, then exit cleanly
         // (settings are saved on every change, so there is nothing left to flush).
         case WM_QUERYENDSESSION: return TRUE;
@@ -301,7 +350,10 @@ unsigned parseCommandArg(const wchar_t* cmdLine, bool& background, int& oneShot)
             oneShot = 3;
             g_profileIconArg = narrow(argv[++i]);
         }
-        else if (a == L"--command" && i + 1 < argc) cmd = static_cast<unsigned>(_wtoi(argv[++i]));
+        else if (a == L"--command" && i + 1 < argc) {
+            cmd = static_cast<unsigned>(_wtoi(argv[++i]));
+            if (!vtx::isUserCommand(cmd)) cmd = 0;
+        }
     }
     if (argv) LocalFree(argv);
     return cmd;

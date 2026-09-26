@@ -59,8 +59,6 @@ if(WIN32)
     src/display_attribute.cpp
     src/dllmain.cpp
     src/globals.cpp
-    src/icons.cpp
-    src/langbar.cpp
     src/register.cpp
     src/text_service.cpp
     src/tsf_sink.cpp

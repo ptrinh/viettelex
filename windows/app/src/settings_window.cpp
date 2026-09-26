@@ -602,10 +602,11 @@ void drawButton(const DRAWITEMSTRUCT* di) {
     wchar_t buf[128];
     GetWindowTextW(di->hwndItem, buf, 128);
     if (tile) {
-        // Preview = exactly what the taskbar indicator will show (current taskbar theme).
+        // Preview = the keyboard-profile icon the taskbar / Win+Space list will show.
         const int icon = px(32);
-        if (HICON ic = tip::CreateStateIcon(g_inst, iconChoiceName(static_cast<IconChoice>(choice)), true, icon)) {
-            // The glyph is drawn for the TASKBAR colour; show it on a taskbar-coloured chip.
+        if (HICON ic = static_cast<HICON>(LoadImageW(g_inst, MAKEINTRESOURCEW(profileIconId(static_cast<IconChoice>(choice))),
+                                                     IMAGE_ICON, icon, icon, LR_DEFAULTCOLOR))) {
+            // Shown on a taskbar-coloured chip, as it will appear.
             const bool light = tip::TaskbarIsLight();
             RECT chip = {(w - px(44)) / 2, px(10), (w + px(44)) / 2, px(10) + px(44)};
             HBRUSH cb = CreateSolidBrush(light ? RGB(0xEE, 0xEE, 0xEE) : RGB(0x1F, 0x1F, 0x1F));

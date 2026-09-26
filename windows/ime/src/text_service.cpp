@@ -3,9 +3,9 @@
 #include <new>
 
 #include "config.h"
+#include "ipc.h"
 #include "display_attribute.h"
 #include "edit_session.h"
-#include "langbar.h"
 #include "tsf_sink.h"
 
 namespace vtx::tip {
@@ -117,15 +117,9 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* ptim, TfClientId tid, DWORD f
     registerDisplayAtom();
     updatePreservedKey();
 
-    ITfLangBarItemMgr* lbm = nullptr;
-    if (SUCCEEDED(threadMgr_->QueryInterface(IID_ITfLangBarItemMgr, reinterpret_cast<void**>(&lbm))) && lbm) {
-        langBar_ = new (std::nothrow) LangBarButton(this);
-        if (langBar_ && FAILED(lbm->AddItem(langBar_))) {
-            langBar_->detach();
-            SafeRelease(langBar_);
-        }
-        lbm->Release();
-    }
+    // No language-bar item: the taskbar already shows the keyboard-profile icon (the one
+    // chosen in Settings); a second, input-mode icon next to it was redundant (1.0.8).
+    // Việt/Anh state is shown by the optional tray icon in VietTelex.exe.
 
     ITfDocumentMgr* dm = nullptr;
     if (SUCCEEDED(threadMgr_->GetFocus(&dm)) && dm) {
@@ -149,18 +143,6 @@ STDMETHODIMP TextService::Deactivate() {
     clearComposition();
     session_.resetContext();
     unhookTextEditSink();
-
-    if (langBar_ && threadMgr_) {
-        ITfLangBarItemMgr* lbm = nullptr;
-        if (SUCCEEDED(threadMgr_->QueryInterface(IID_ITfLangBarItemMgr, reinterpret_cast<void**>(&lbm))) && lbm) {
-            lbm->RemoveItem(langBar_);
-            lbm->Release();
-        }
-    }
-    if (langBar_) {
-        langBar_->detach();
-        SafeRelease(langBar_);
-    }
 
     if (altZPreserved_ && threadMgr_) {
         ITfKeystrokeMgr* km = nullptr;
@@ -307,7 +289,6 @@ void TextService::applyConfig(bool force) {
     hotkey_ = parseSwitchHotkey(settings_.switchHotkey);
     chord_.disarm();
     updatePreservedKey();
-    if (langBar_) langBar_->update();
 }
 
 bool TextService::vietnamese() const { return config::vietnamese(); }
@@ -318,9 +299,9 @@ bool TextService::typingEnabled() const {
     return m == AppMode::Composition || m == AppMode::InPlace;
 }
 
-void TextService::toggleVietnamese() { setVietnameseFromUi(!vietnamese()); }
+void TextService::toggleVietnamese() { setVietnamese(!vietnamese()); }
 
-void TextService::setVietnameseFromUi(bool on) {
+void TextService::setVietnamese(bool on) {
     if (on != vietnamese()) {
         if (!on) {
             flushAsync(composition_ ? compositionContext_ : nullptr);
@@ -329,8 +310,14 @@ void TextService::setVietnameseFromUi(bool on) {
         }
         config::setVietnamese(on);
         config::log(on ? "mode: vietnamese" : "mode: english");
+        notifyAppState(on);
     }
-    if (langBar_) langBar_->update();
+}
+
+// The optional tray icon in VietTelex.exe is the only Việt/Anh indicator (1.0.8): tell it.
+void TextService::notifyAppState(bool on) {
+    if (HWND h = FindWindowW(kAppWindowClass, nullptr))
+        PostMessageW(h, kAppCommandMsg, static_cast<WPARAM>(AppCommand::StateChanged), on ? 1 : 0);
 }
 
 void TextService::flushAsync(ITfContext* ctx) {
@@ -421,8 +408,8 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     chord_.disarm();
     config::reloadVietnamese();
     applyConfig(false);
+    if (focus) notifyAppState(vietnamese());
     hookTextEditSink(focus);
-    if (langBar_) langBar_->update();
     return S_OK;
 }
 
@@ -505,10 +492,6 @@ STDMETHODIMP TextService::OnSetFocus(BOOL) { return S_OK; }
 STDMETHODIMP TextService::OnTestKeyDown(ITfContext*, WPARAM wp, LPARAM, BOOL* eaten) {
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
-    if (recheckConfig_) {
-        recheckConfig_ = false;
-        applyConfig(false);
-    }
     KeyInput k;
     if (!prepareKey(wp, true, k)) return S_OK;
     *eaten = session_.wantsKey(k) ? TRUE : FALSE;

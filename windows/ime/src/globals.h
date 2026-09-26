@@ -32,8 +32,6 @@ extern const GUID GUID_VietTelexProfile;
 extern const GUID GUID_DisplayAttributeInput;
 // {F58C2872-C456-4CBF-AF2A-8543B6241E0E} preserved key: Alt+Z toggle
 extern const GUID GUID_PreservedKeyToggle;
-// {2C77A81E-41CC-4178-A3A7-5F8A987568E6} system input-mode button (taskbar indicator)
-extern const GUID GUID_LBI_INPUTMODE_VTX;
 
 constexpr LANGID kLangId = MAKELANGID(LANG_VIETNAMESE, SUBLANG_VIETNAMESE_VIETNAM);  // 0x042A
 constexpr wchar_t kAppWindowClass[] = L"VietTelexAppWindow";
