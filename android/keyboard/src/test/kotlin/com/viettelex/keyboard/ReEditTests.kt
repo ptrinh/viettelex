@@ -11,8 +11,9 @@ import org.junit.Test
 class ReEditTests {
     @Before fun setUp() = TestAssets.install()
 
-    private fun session(model: UserLangModel = UserLangModel(), traits: FieldTraits = FieldTraits()) =
-        KeyboardSession(model).also { it.startInput(KeyboardSettings(), traits) }
+    private fun session(model: UserLangModel = UserLangModel(), traits: FieldTraits = FieldTraits(),
+                        settings: KeyboardSettings = KeyboardSettings()) =
+        KeyboardSession(model).also { it.startInput(settings, traits) }
 
     private fun KeyboardSession.typeKeys(p: TextProxy, keys: String) {
         for (c in keys) handle(when (c) {
@@ -141,8 +142,10 @@ class ReEditTests {
         assertEquals("viẹt", p.text)
     }
 
-    @Test fun seedDoubledVowelAndHorn() {
-        run { val s = session(); val p = MockProxy(); p.sb.append("ban to"); s.typeKeys(p, "o"); assertEquals("ban tô", p.text) }
+    @Test fun seedHornButNotDoubledVowel() {
+        // a/e/o/d KHÔNG nạp lại (user 26/09/2026): con trỏ sau "to" gõ o = "too", không "tô".
+        run { val s = session(); val p = MockProxy(); p.sb.append("ban to"); s.typeKeys(p, "o"); assertEquals("ban too", p.text) }
+        run { val s = session(); val p = MockProxy(); p.sb.append("co"); s.typeKeys(p, "d"); assertEquals("cod", p.text) }
         run { val s = session(); val p = MockProxy(); p.sb.append("tu"); s.typeKeys(p, "w"); assertEquals("tư", p.text) }
         run { val s = session(); val p = MockProxy(); p.sb.append("việt"); s.typeKeys(p, "z"); assertEquals("viêt", p.text) }
     }
@@ -250,5 +253,18 @@ class ReEditTests {
         m.retract(l!!)
         assertEquals(0, m.count("việt"))
         assertNull(m.record("a1", null))      // không learnable ⇒ không biên nhận
+    }
+
+    @Test fun toggleOffDisablesReopenAndSeed() {
+        val off = KeyboardSettings(reEditWords = false)
+        run {   // ⌫ sau dấu cách chỉ xoá dấu cách, a gõ thành chữ mới
+            val s = session(settings = off); val p = MockProxy()
+            s.typeKeys(p, "thays <a"); assertEquals("tháya", p.text)
+        }
+        run {
+            val s = session(settings = off); val p = MockProxy(); p.sb.append("xin chao")
+            s.typeKeys(p, "f"); assertEquals("xin chaof", p.text)
+        }
+        assertTrue(KeyboardSettings().reEditWords)   // mặc định BẬT
     }
 }

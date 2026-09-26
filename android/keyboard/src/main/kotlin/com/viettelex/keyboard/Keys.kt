@@ -13,6 +13,7 @@ object Keys {
     const val QUICK_TELEX = "quickTelex"
     const val MODERN_TONE = "modernTone"
     const val CONTEXTUAL_ENGLISH = "contextualEnglish"
+    const val RE_EDIT_WORDS = "reEditWords"
     const val AUTO_FIX_ADJACENT = "autoFixAdjacent"
     const val TEENCODE = "teencode"
     // Tính Năng

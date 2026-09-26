@@ -22,6 +22,8 @@ data class KeyboardSettings(
     var autoFixAdjacent: Boolean = true,
     /** Quyết định theo ngữ cảnh ("he is" giữ tiếng Anh) — mặc định BẬT. */
     var contextualEnglish: Boolean = true,
+    /** Sửa dấu từ đã gõ xong (⌫ mở lại từ; phím dấu thanh nạp lại từ trước con trỏ) — mặc định BẬT. */
+    var reEditWords: Boolean = true,
     // Phần UI (iOS đọc rải rác trong KeyboardView) — gom về đây cho IME.
     var templatesEnabled: Boolean = true,
     var showSpaceLogo: Boolean = true,
@@ -48,6 +50,7 @@ data class KeyboardSettings(
             s.hapticFeedback = b(Keys.HAPTIC_FEEDBACK, s.hapticFeedback)
             s.autoFixAdjacent = b(Keys.AUTO_FIX_ADJACENT, s.autoFixAdjacent)
             s.contextualEnglish = b(Keys.CONTEXTUAL_ENGLISH, s.contextualEnglish)
+            s.reEditWords = b(Keys.RE_EDIT_WORDS, s.reEditWords)
             s.templatesEnabled = b(Keys.TEMPLATES_ENABLED, s.templatesEnabled)
             s.showSpaceLogo = b(Keys.SHOW_SPACE_LOGO, s.showSpaceLogo)
             s.debugTouchLog = b(Keys.DEBUG_TOUCH_LOG, s.debugTouchLog)

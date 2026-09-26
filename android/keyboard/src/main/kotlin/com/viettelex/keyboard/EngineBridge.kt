@@ -39,7 +39,7 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
     /** Phím chữ (đã theo shift). */
     fun letter(ch: Char, proxy: TextProxy) {
         if (proxy.isSecure || passthrough) { proxy.insertText(ch.toString()); return }
-        val seedable = engine.isEmpty && !afterOwnBoundary && ReEdit.isTransformKey(ch)
+        val seedable = settings.reEditWords && engine.isEmpty && !afterOwnBoundary && ReEdit.isTransformKey(ch)
         afterOwnBoundary = false
         if (seedable && trySeed(ch, proxy)) return
         val before = engine.composed
@@ -112,7 +112,7 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         if (proxy.isSecure || passthrough) { proxy.deleteBackward(); return false }
         afterOwnBoundary = false
         if (engine.isEmpty) {
-            val reopened = engine.canReopenLastCommit && tryReopen(proxy)
+            val reopened = settings.reEditWords && engine.canReopenLastCommit && tryReopen(proxy)
             if (!reopened) { engine.forgetLastCommit(); proxy.deleteBackward() }
             return reopened
         }

@@ -9,9 +9,13 @@ object ReEdit {
     /** Từ dài hơn một âm tiết thì engine cũng từ chối seed — đọc thêm vô ích. */
     const val MAX_WORD = 12
 
-    /** Phím Telex có thể BIẾN ĐỔI từ trước con trỏ: dấu thanh s f r x j z, mũ/móc w, a/e/o/d lặp. */
+    /**
+     * Phím được phép NẠP LẠI từ trước con trỏ: chỉ dấu thanh s f r x j z và móc w. KHÔNG
+     * a/e/o/d (mũ/đ bằng phím lặp): con trỏ sau "to" gõ o thường là muốn "too", không phải
+     * "tô" (user quyết 26/09/2026).
+     */
     fun isTransformKey(ch: Char): Boolean = when (ch.lowercaseChar()) {
-        's', 'f', 'r', 'x', 'j', 'z', 'w', 'a', 'e', 'o', 'd' -> true
+        's', 'f', 'r', 'x', 'j', 'z', 'w' -> true
         else -> false
     }
 

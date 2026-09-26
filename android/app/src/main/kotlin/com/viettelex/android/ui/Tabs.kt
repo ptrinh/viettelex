@@ -195,6 +195,8 @@ private fun KieuGoSection() {
         RowDivider()
         BoolToggle(Keys.CONTEXTUAL_ENGLISH, Prefs.D.contextualEnglish, "Quyết định theo ngữ cảnh", "Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → “he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để tiếng Việt — “sao í”.")
         RowDivider()
+        BoolToggle(Keys.RE_EDIT_WORDS, Prefs.D.reEditWords, "Sửa dấu từ đã gõ", "Bấm ⌫ ngay sau dấu cách để sửa tiếp từ vừa gõ (tháy ␣ ⌫ a → thấy), hoặc đặt con trỏ ngay sau một từ rồi gõ phím dấu thanh để thêm dấu (chao + f → chào).")
+        RowDivider()
         BoolToggle(Keys.AUTO_FIX_ADJACENT, Prefs.D.autoFixAdjacent, "Gợi ý sửa lỗi chạm trượt", "Khi từ đang gõ không phải tiếng Việt, gợi ý từ đúng nếu bạn lỡ chạm phím bên cạnh: nbjeeuf → nhiều, ohims → phím, cahcs → cách. Chạm gợi ý để thay.")
         RowDivider()
         BoolToggle(Keys.TEENCODE, Prefs.D.teencode, "Chính tả teencode", "Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, từ tiếng Anh như was, war, zoo giữ nguyên.")
