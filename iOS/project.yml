@@ -114,6 +114,7 @@ targets:
       - Keyboard/SensitiveWords.swift
       - Keyboard/EmojiData.swift
       - Keyboard/Trackpad.swift
+      - Keyboard/SwipeDecoder.swift
       - path: Keyboard/Resources/vnlexicon.bin
         buildPhase: resources
     settings:
