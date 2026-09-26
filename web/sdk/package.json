@@ -35,7 +35,7 @@
   "homepage": "https://viettelex.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ptrinh/viettelex.git",
+    "url": "git+https://github.com/ptrinh/viettelex.git",
     "directory": "web/sdk"
   }
 }
