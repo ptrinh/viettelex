@@ -18,6 +18,11 @@ final class KeyboardViewController: UIInputViewController {
     /// Chuỗi vừa vuốt xoá + đuôi phần còn lại → ô "Khôi phục" (một lượt).
     private var wordSwipeRestore: (text: String, tail: String)?
     private var filterSensitive = true
+    /// Gõ vuốt (thử nghiệm): công tắc trong app; `swipe` chỉ tạo khi bật (0 RAM khi tắt).
+    private var swipeSetting = false
+    private var swipe: SwipeTyping?
+    /// Từ vuốt đang mở + phương án cho thanh gợi ý (hết hiệu lực khi từ đổi / chốt).
+    private var swipeSuggest: (current: String, alts: [String])?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -45,6 +50,7 @@ final class KeyboardViewController: UIInputViewController {
         langModel.onReady = { [weak self] in self?.updateSuggestions() }
         keyboard.onDeleteWord = { [weak self] in self?.deleteWordBackward() }
         wireWordSwipe()
+        wireSwipeTyping()
         keyboard.onBarToggle = { [weak self] in self?.updateSuggestions() }
         keyboard.onTemplate = { [weak self] in self?.insertTemplate($0) }
         keyboard.onOpenTemplates = { [weak self] in self?.openTemplatesInApp() }
@@ -85,6 +91,9 @@ final class KeyboardViewController: UIInputViewController {
         learnEnabled = settings.learnWords
         filterSensitive = settings.filterSensitive
         showSuggestionsSetting = settings.showSuggestions
+        swipeSetting = settings.swipeTyping
+        if !swipeSetting { swipe = nil }              // tắt ⇒ bỏ template (RAM)
+        swipeSuggest = nil
         // Trait ô (layout, return key, passthrough, bar) — force: mỗi lần hiện áp lại
         // appearance/mẫu câu dù trait y hệt (batchConfigure tự dedupe rebuild).
         refreshFieldTraits(force: true)
@@ -97,8 +106,10 @@ final class KeyboardViewController: UIInputViewController {
         // banner vẫn hiện — đúng ý.
         reportStatusToApp()
         keyboard.onSuggestion = { [weak self] item in
-            if item == KeyboardView.restoreToken { self?.restoreWordSwipe() }
-            else { self?.acceptSuggestion(item) }
+            guard let self else { return }
+            if item == KeyboardView.restoreToken { self.restoreWordSwipe() }
+            else if self.acceptSwipeAlternative(item) { return }
+            else { self.acceptSuggestion(item) }
         }
         updateAutoShift()
         updateSuggestions()            // field trống → gợi mở đầu ngay khi hiện
@@ -142,6 +153,7 @@ final class KeyboardViewController: UIInputViewController {
         }
         #endif
         super.viewWillDisappear(animated)
+        learnSettledSwipe()
         langModel.saveNow()   // extension có thể bị kill ngay sau disappear
     }
 
@@ -210,6 +222,7 @@ final class KeyboardViewController: UIInputViewController {
             suggestionsActive = active
             keyboard.setSuggestionsEnabled(active)
         }
+        updateSwipeEnabled()
     }
 
     /// Host báo text/selection sắp đổi từ NGOÀI handle() — chưa kết luận ngay (lúc
@@ -299,6 +312,8 @@ final class KeyboardViewController: UIInputViewController {
         // textWillChange tới mà textDidChange chưa kịp → đối chiếu ngay trước phím.
         if externalChangePending { syncComposition("key") }
         wordSwipeRestore = nil                 // ô "Khôi phục" chỉ sống tới phím kế
+        learnSettledSwipe()                    // từ vuốt chốt bởi phím trước — giờ mới chắc
+        let openAccepted = bridge.openWordAccepted   // từ vuốt chọn trên bar → weight 2
         applyingEdit = true
         let t0 = TouchLog.enabled ? CACurrentMediaTime() : 0
         defer {
@@ -336,11 +351,11 @@ final class KeyboardViewController: UIInputViewController {
         case .replaceLastLetter(let s):
             // Huỷ đúng phím chữ vừa gõ (không được thì ⌫ như cũ) rồi chèn như ký hiệu.
             if !bridge.undoLastLetter(proxy: proxy) { bridge.backspace(proxy: proxy) }
-            commitAndLearn(bridge.boundary(s, proxy: proxy))
+            commitAndLearn(bridge.boundary(s, proxy: proxy), accepted: openAccepted)
             lastWord = nil; lastWord2 = nil
             restoreUndo = nil; undoOfferActive = false
         case .text(let s):                            // numbers, symbols
-            commitAndLearn(bridge.boundary(s, proxy: proxy))
+            commitAndLearn(bridge.boundary(s, proxy: proxy), accepted: openAccepted)
             lastWord = nil; lastWord2 = nil            // dấu câu/ký hiệu = ngắt câu
             restoreUndo = nil; undoOfferActive = false
         case .space:
@@ -350,7 +365,7 @@ final class KeyboardViewController: UIInputViewController {
             restoreUndo = (!composedBefore.isEmpty && committed != composedBefore)
                 ? (raw: committed, composed: composedBefore) : nil
             undoOfferActive = false
-            commitAndLearn(committed)
+            commitAndLearn(committed, accepted: openAccepted)
         case .doubleSpacePeriod:
             // Apple: double-space biến space vừa gõ thành ". ". ĐỌC context thật
             // (không phải hot path — gesture hiếm): điều kiện = đang có đúng " "
@@ -363,7 +378,7 @@ final class KeyboardViewController: UIInputViewController {
                 bridge.forgetLastCommit()         // space đã thành ". " → ⌫ không mở lại từ
                 lastWord = nil; lastWord2 = nil
             } else {
-                commitAndLearn(bridge.boundary(" ", proxy: proxy))
+                commitAndLearn(bridge.boundary(" ", proxy: proxy), accepted: openAccepted)
             }
             restoreUndo = nil; undoOfferActive = false
         case .moveCursor(let delta):
@@ -383,7 +398,7 @@ final class KeyboardViewController: UIInputViewController {
                 textDocumentProxy.adjustTextPosition(byCharacterOffset: off)
             }
         case .newline:
-            commitAndLearn(bridge.boundary("\n", proxy: proxy))
+            commitAndLearn(bridge.boundary("\n", proxy: proxy), accepted: openAccepted)
             lastWord = nil; lastWord2 = nil
             restoreUndo = nil; undoOfferActive = false
         case .clearField:
@@ -486,6 +501,7 @@ final class KeyboardViewController: UIInputViewController {
             appearance: textDocumentProxy.keyboardAppearance ?? .default,
             style: traitCollection.userInterfaceStyle))
         keyboard?.setNeedsGlobe(needsInputModeSwitchKey)
+        pushSwipeLayout(prepare: true)       // frame phím đã thật → dựng template ở nền
         // Clipboard có thể vừa đổi trong lúc bàn phím ẩn: tính lại bar khi đã hiện
         // hẳn (cache 2s của pasteOffer bỏ qua để đọc trạng thái mới).
         // Chỉ tính lại cả bar khi kết quả nút Dán ĐỔI so với lúc viewWillAppear
@@ -690,6 +706,17 @@ final class KeyboardViewController: UIInputViewController {
         guard suggestionsActive, keyboard?.isBarCollapsed != true else { return }
         let composed = bridge.composedWord
         var set = KeyboardView.SuggestionSet()
+        // Ngay sau vuốt: phương án khác (biến thể dấu + dạng không dấu hạng 2/3) —
+        // chỉ khi từ vuốt còn mở và chưa bị sửa.
+        if let s = swipeSuggest {
+            if bridge.isSwipeWordOpen, composed == s.current {
+                keyboard.hidePasteCard()
+                set.nextWords = s.alts
+                keyboard.showSuggestions(set)
+                return
+            }
+            swipeSuggest = nil
+        }
         // Backspace-undo sau auto-restore: chào dạng có dấu ở slot literal.
         if composed.isEmpty, undoOfferActive, let u = restoreUndo {
             set.literal = u.composed
@@ -859,6 +886,7 @@ final class KeyboardViewController: UIInputViewController {
     private func acceptSuggestion(_ item: String) {
         applyingEdit = true
         defer { applyingEdit = false }
+        learnSettledSwipe()
         if item == KeyboardView.pasteImageToken {       // chỉ hướng dẫn → ẩn thẻ
             pasteUsedChange = UIPasteboard.general.changeCount
             pasteCached = false
@@ -923,6 +951,105 @@ final class KeyboardViewController: UIInputViewController {
         KeyboardView.clickModifier()
         updateAutoShift()
         updateSuggestions()
+    }
+}
+
+// MARK: gõ vuốt (thử nghiệm) — glue SwipeTyping ↔ bridge ↔ thanh gợi ý
+extension KeyboardViewController {
+    fileprivate func wireSwipeTyping() {
+        keyboard.onSwipeBegan = { [weak self] in self?.swipeBegan() }
+        keyboard.onSwipeEnded = { [weak self] path, sc in self?.swipeEnded(path, sc) }
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(voiceOverChanged),
+            name: UIAccessibility.voiceOverStatusDidChangeNotification, object: nil)
+    }
+
+    @objc fileprivate func voiceOverChanged() { updateSwipeEnabled() }
+
+    /// Bật/tắt theo công tắc + SwipePolicy (ô nhập, iPad, VoiceOver).
+    fileprivate func updateSwipeEnabled() {
+        guard let keyboard else { return }
+        let on = SwipePolicy.enabled(setting: swipeSetting,
+                                     isPad: UIDevice.current.userInterfaceIdiom == .pad,
+                                     traits: fieldTraits,
+                                     voiceOver: UIAccessibility.isVoiceOverRunning)
+        keyboard.swipeEnabled = on
+        if on, swipe == nil { swipe = SwipeTyping() }
+        if on { pushSwipeLayout(prepare: true) }
+    }
+
+    /// Tâm phím thật → decoder (đổi layout khi xoay/đổi cỡ; trùng thì no-op).
+    fileprivate func pushSwipeLayout(prepare: Bool) {
+        guard keyboard?.swipeEnabled == true, let swipe,
+              let l = keyboard.swipeLayout() else { return }
+        swipe.setLayout(l, prepare: prepare)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        pushSwipeLayout(prepare: true)
+    }
+
+    /// Từ vuốt được chốt bởi phím chữ trước (dấu cách treo) — học khi chắc chắn.
+    fileprivate func learnSettledSwipe() {
+        if let s = bridge.takeSettledCommit() { commitAndLearn(s.word, accepted: s.accepted) }
+    }
+
+    fileprivate func swipeBegan() {
+        guard let swipe else { return }
+        pushSwipeLayout(prepare: false)
+        if externalChangePending { syncComposition("swipe") }
+        applyingEdit = true
+        defer { applyingEdit = false }
+        swipe.begin(bridge: bridge, proxy: Proxy(p: textDocumentProxy))
+        restoreUndo = nil; undoOfferActive = false
+        swipeSuggest = nil
+    }
+
+    fileprivate func swipeEnded(_ path: SwipePath, _ sc: SwipeCase) {
+        guard let swipe else { return }
+        if externalChangePending { syncComposition("swipe") }
+        wordSwipeRestore = nil
+        learnSettledSwipe()
+        applyingEdit = true
+        defer { applyingEdit = false }
+        // Ngữ cảnh: từ đang gõ dở (sẽ được chốt trước từ vuốt) hoặc từ liền trước.
+        let composing = bridge.isComposing
+        let prev = composing ? bridge.predictedCommit : lastWord
+        let prev2 = composing ? lastWord : lastWord2
+        let ctx = prev.map { langModel.nextWords(after: $0, prev2: prev2, limit: 24) } ?? []
+        let lm = langModel
+        let out = swipe.finish(path, case: sc, contextWords: ctx, count: { lm.count(of: $0) },
+                               bridge: bridge, proxy: Proxy(p: textDocumentProxy))
+        if let out {
+            if let c = out.committed { commitAndLearn(c.word, accepted: c.accepted) }
+            let alts = SensitiveWords.filter(out.alternatives, enabled: filterSensitive)
+            swipeSuggest = alts.isEmpty || !bridge.isSwipeWordOpen ? nil : (out.word, alts)
+            KeyboardView.clickLetter()
+        }
+        lastInsertWasSpace = false
+        lastKeyWasEmailTrigger = false
+        restoreUndo = nil; undoOfferActive = false
+        suggestionGen += 1
+        updateAutoShift()
+        updateSuggestions()
+    }
+
+    /// Chạm phương án trên thanh gợi ý sau vuốt: thay từ, vẫn để mở (không thêm dấu
+    /// cách). false = không phải phương án vuốt (caller xử lý như gợi ý thường).
+    fileprivate func acceptSwipeAlternative(_ item: String) -> Bool {
+        guard let s = swipeSuggest, s.alts.contains(item) else { return false }
+        applyingEdit = true
+        defer { applyingEdit = false }
+        guard bridge.replaceSwipeWord(with: item, proxy: Proxy(p: textDocumentProxy)) else {
+            swipeSuggest = nil
+            return false
+        }
+        swipeSuggest = (item, [s.current] + s.alts.filter { $0 != item })
+        KeyboardView.clickModifier()
+        suggestionGen += 1
+        updateSuggestions()
+        return true
     }
 }
 

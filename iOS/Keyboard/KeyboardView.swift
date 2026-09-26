@@ -2155,34 +2155,67 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
-            let p = TouchGeometry.keySelectionPoint(t.location(in: self))
-            let b = nearestLetterButton(at: p)
-            TouchLog.touchBegan(active: routedTouches.count, batch: touches.count,
-                                touchTimestamp: t.timestamp, hit: b != nil, y: Double(p.y),
-                                key: b?.currentTitle)
-            guard let b else { continue }
-            routedTouches[ObjectIdentifier(t)] = b
-            if Self.isPad { routedStart[ObjectIdentifier(t)] = t.location(in: self) }
-            b.sendActions(for: .touchDown)
+            routeDown(ObjectIdentifier(t), at: t.location(in: self), time: t.timestamp,
+                      batch: touches.count)
+        }
+    }
+
+    /// Chạm xuống vùng chữ: gán phím gần nhất và chèn NGAY (touchDown). Gõ vuốt bật ⇒
+    /// touch duy nhất được route bắt đầu phân loại chạm/vuốt (GestureClassifier).
+    private func routeDown(_ id: ObjectIdentifier, at raw: CGPoint, time: TimeInterval, batch: Int) {
+        let p = TouchGeometry.keySelectionPoint(raw)
+        let b = swipeActive ? nil : nearestLetterButton(at: p)   // đang vuốt: ngón khác không gõ
+        TouchLog.touchBegan(active: routedTouches.count, batch: batch,
+                            touchTimestamp: time, hit: b != nil, y: Double(p.y),
+                            key: b?.currentTitle)
+        guard let b else { return }
+        if classifier != nil {                   // ngón thứ hai lúc chưa quyết ⇒ khoá chạm
+            classifier?.secondTouch()
+            stopClassifying()
+        }
+        routedTouches[id] = b
+        if Self.isPad { routedStart[id] = raw }
+        let since = lastLetterDownTime.map { time - $0 }
+        lastLetterDownTime = time
+        b.sendActions(for: .touchDown)
+        if swipeEnabled, plane == .letters, routedTouches.count == 1, let kw = letterKeyPitch() {
+            startClassifying(id, at: p, time: time, key: convert(b.bounds, from: b),
+                             keyWidth: kw, since: since)
+        }
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let id = swipeTouchID else { return }     // tắt / không theo dõi ⇒ 0 việc
+        for t in touches where ObjectIdentifier(t) == id {
+            for c in event?.coalescedTouches(for: t) ?? [t] {
+                swipeMoved(to: c.location(in: self), time: c.timestamp)
+                if swipeTouchID == nil { return }
+            }
         }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
-            let b = routedTouches.removeValue(forKey: ObjectIdentifier(t))
-            let start = routedStart.removeValue(forKey: ObjectIdentifier(t))
-            TouchLog.touchEnded(cancelled: false, routed: b != nil)
-            guard let b else { continue }
-            b.sendActions(for: .touchUpInside)
-            // iPad: vuốt xuống trên phím chữ = ký tự phụ như stock. Chữ đã chèn lúc
-            // chạm (touchDown) → HUỶ đúng phím đó (không ⌫: phím dấu Telex đã đổi từ)
-            // rồi chèn ký tự phụ; shift một lần mà phím đó đã nhả thì trả lại.
-            if let start, t.location(in: self).y - start.y > Self.flickDistance,
-               let base = letterKeys.first(where: { $0.button === b })?.base,
-               let sec = Self.padSecondary[base] {
-                if shiftBeforeLastLetter == .on, shift == .off { shift = .on; applyShiftAppearance() }
-                tapped(.replaceLastLetter(sec))
-            }
+            routeUp(ObjectIdentifier(t), at: t.location(in: self), time: t.timestamp, cancelled: false)
+        }
+    }
+
+    private func routeUp(_ id: ObjectIdentifier, at raw: CGPoint, time: TimeInterval, cancelled: Bool) {
+        let swiped = swipeUp(id, at: raw, time: time)
+        let b = routedTouches.removeValue(forKey: id)
+        let start = routedStart.removeValue(forKey: id)
+        TouchLog.touchEnded(cancelled: cancelled, routed: b != nil)
+        guard let b else { return }
+        b.sendActions(for: .touchUpInside)
+        guard !swiped, !cancelled else { return }
+        // iPad: vuốt xuống trên phím chữ = ký tự phụ như stock. Chữ đã chèn lúc
+        // chạm (touchDown) → HUỶ đúng phím đó (không ⌫: phím dấu Telex đã đổi từ)
+        // rồi chèn ký tự phụ; shift một lần mà phím đó đã nhả thì trả lại.
+        if let start, raw.y - start.y > Self.flickDistance,
+           let base = letterKeys.first(where: { $0.button === b })?.base,
+           let sec = Self.padSecondary[base] {
+            if shiftBeforeLastLetter == .on, shift == .off { shift = .on; applyShiftAppearance() }
+            tapped(.replaceLastLetter(sec))
         }
     }
     private var routedStart: [ObjectIdentifier: CGPoint] = [:]
@@ -2190,15 +2223,203 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private static let flickDistance: CGFloat = 18
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        // hệ thống cancel (edge gesture…) — vẫn CHỐT chữ thay vì nuốt phím
+        // hệ thống cancel (edge gesture…) — vẫn CHỐT chữ thay vì nuốt phím; cú vuốt
+        // đang dở cũng chốt (chữ đầu đã bị huỷ — bỏ ngang là mất chữ).
         for t in touches {
-            let b = routedTouches.removeValue(forKey: ObjectIdentifier(t))
-            routedStart.removeValue(forKey: ObjectIdentifier(t))
-            TouchLog.touchEnded(cancelled: true, routed: b != nil)
-            guard let b else { continue }
-            b.sendActions(for: .touchUpInside)
+            routeUp(ObjectIdentifier(t), at: t.location(in: self), time: t.timestamp, cancelled: true)
         }
     }
+
+    // MARK: gõ vuốt (thử nghiệm) — router + vệt vuốt
+    // Chỉ từ phím chữ ở plane chữ (space/⌫/shift là button riêng, không tới đây).
+    // Chữ vẫn chèn ngay lúc chạm; thành vuốt thì controller huỷ chữ đó (onSwipeBegan),
+    // nhấc tay giao đường vuốt (onSwipeEnded). Tắt ⇒ không phân loại, không lưu điểm.
+
+    /// Controller bật theo công tắc + SwipePolicy (ô nhập, iPad, VoiceOver).
+    var swipeEnabled = false {
+        didSet { if !swipeEnabled, oldValue { cancelSwipeTracking() } }
+    }
+    /// Touch vừa thành vuốt: huỷ chữ đầu (shift đã được trả lại trước khi gọi).
+    var onSwipeBegan: (() -> Void)?
+    /// Nhấc tay sau vuốt: đường vuốt (toạ độ self, đã dời như điểm chọn phím) + chữ hoa.
+    var onSwipeEnded: ((SwipePath, SwipeCase) -> Void)?
+
+    private var swipeTouchID: ObjectIdentifier?
+    private var classifier: GestureClassifier?
+    private var swipePath: SwipePath?           // cấp một lần, dùng lại
+    private var swipeActive = false
+    private var swipeCase: SwipeCase = .lower
+    private var lastLetterDownTime: TimeInterval?
+    private var trail: SwipeTrail?              // chỉ tạo khi có cú vuốt đầu
+
+    /// Bước phím ngang (tâm q → tâm w), nil nếu chưa có layout chữ.
+    private func letterKeyPitch() -> CGFloat? {
+        guard letterKeys.count >= 2,
+              let q = letterKeys.first(where: { $0.base == "q" })?.button,
+              let w = letterKeys.first(where: { $0.base == "w" })?.button else { return nil }
+        let d = convert(w.bounds, from: w).midX - convert(q.bounds, from: q).midX
+        return d > 1 ? d : nil
+    }
+
+    /// Layout cho SwipeDecoder: tâm a–z theo toạ độ KeyboardView thật.
+    func swipeLayout() -> SwipeLayout? {
+        guard plane == .letters, let kw = letterKeyPitch() else { return nil }
+        var m: [Character: (x: Float, y: Float)] = [:]
+        for (b, s) in letterKeys {
+            guard s.count == 1, let c = s.first else { continue }
+            let f = convert(b.bounds, from: b)
+            m[c] = (Float(f.midX), Float(f.midY))
+        }
+        guard m.count == 26 else { return nil }
+        return SwipeLayout(keyWidth: Float(kw), centers: m)
+    }
+
+    private func startClassifying(_ id: ObjectIdentifier, at p: CGPoint, time: TimeInterval,
+                                  key: CGRect, keyWidth kw: CGFloat, since: TimeInterval?) {
+        classifier = GestureClassifier(start: p, time: time, startKey: key, keyWidth: kw,
+                                       sinceLastLetter: since)
+        swipeTouchID = id
+        let minD = Float(kw / 5)
+        if swipePath?.minDistance != minD { swipePath = SwipePath(minDistance: minD) }
+        swipePath?.reset()
+        swipePath?.add(x: Float(p.x), y: Float(p.y), t: time)
+    }
+
+    private func stopClassifying() {
+        classifier = nil
+        if !swipeActive { swipeTouchID = nil }
+    }
+
+    private func swipeMoved(to raw: CGPoint, time: TimeInterval) {
+        let p = TouchGeometry.keySelectionPoint(raw)
+        swipePath?.add(x: Float(p.x), y: Float(p.y), t: time)
+        if swipeActive {
+            trail?.add(raw, time)
+            trail?.redraw()
+            return
+        }
+        guard var c = classifier else { return }
+        let d = c.move(to: p, time: time)
+        classifier = c
+        switch d {
+        case .swipe: beginSwipe()
+        case .tap: stopClassifying()
+        case .undecided: break
+        }
+    }
+
+    private func beginSwipe() {
+        swipeActive = true
+        classifier = nil
+        hideBalloon()
+        // Phím chữ đầu đã nhả shift một lần — trả lại để từ vuốt viết hoa đúng.
+        if shiftBeforeLastLetter == .on, shift == .off { shift = .on; applyShiftAppearance() }
+        swipeCase = shift == .caps ? .upper : (shift == .on ? .capitalized : .lower)
+        onSwipeBegan?()
+        let t = trail ?? SwipeTrail()
+        trail = t
+        t.begin(color: dark ? UIColor(white: 1, alpha: 0.55)
+                            : UIColor.systemBlue.withAlphaComponent(0.55))
+        layer.addSublayer(t.layer)               // lên trên cùng
+        if let path = swipePath {
+            for i in 0..<path.count {
+                t.add(CGPoint(x: CGFloat(path.xs[i]), y: CGFloat(path.ys[i]) + TouchGeometry.yOffset),
+                      path.ts[i])
+            }
+        }
+        t.redraw()
+    }
+
+    /// Nhấc tay: true nếu touch này là một cú vuốt (đã giao cho controller).
+    private func swipeUp(_ id: ObjectIdentifier, at raw: CGPoint, time: TimeInterval) -> Bool {
+        guard id == swipeTouchID else { return false }
+        guard swipeActive, swipePath != nil else { stopClassifying(); return false }
+        let p = TouchGeometry.keySelectionPoint(raw)
+        swipePath?.add(x: Float(p.x), y: Float(p.y), t: time, force: true)
+        guard let path = swipePath else { return false }
+        let sc = swipeCase
+        swipeActive = false
+        swipeTouchID = nil
+        classifier = nil
+        trail?.fadeOut(reduceMotion: UIAccessibility.isReduceMotionEnabled)
+        if shift == .on { shift = .off; applyShiftAppearance() }
+        onSwipeEnded?(path, sc)
+        return true
+    }
+
+    private func cancelSwipeTracking() {
+        swipeActive = false
+        swipeTouchID = nil
+        classifier = nil
+        trail?.fadeOut(reduceMotion: true)
+    }
+
+    /// Vệt vuốt: MỘT CAShapeLayer phẳng (không bóng), đuôi ~300ms, không animation
+    /// ngầm khi vẽ; nhấc tay mờ dần ~200ms (Reduce Motion: tắt ngay).
+    private final class SwipeTrail {
+        let layer = CAShapeLayer()
+        static let tail: TimeInterval = 0.3
+        private static let cap = 128
+        private var xs = [CGFloat](repeating: 0, count: cap)
+        private var ys = [CGFloat](repeating: 0, count: cap)
+        private var ts = [TimeInterval](repeating: 0, count: cap)
+        private var head = 0, count = 0
+
+        init() {
+            layer.fillColor = nil
+            layer.lineWidth = 6
+            layer.lineCap = .round
+            layer.lineJoin = .round
+            layer.shadowOpacity = 0
+        }
+
+        func begin(color: UIColor) {
+            head = 0; count = 0
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            layer.removeAllAnimations()
+            layer.strokeColor = color.cgColor
+            layer.opacity = 1
+            layer.path = nil
+            CATransaction.commit()
+        }
+
+        func add(_ p: CGPoint, _ t: TimeInterval) {
+            if count == Self.cap { head = (head + 1) % Self.cap; count -= 1 }
+            let i = (head + count) % Self.cap
+            xs[i] = p.x; ys[i] = p.y; ts[i] = t
+            count += 1
+            while count > 2, ts[head] < t - Self.tail { head = (head + 1) % Self.cap; count -= 1 }
+        }
+
+        func redraw() {
+            let path = CGMutablePath()
+            for k in 0..<count {
+                let i = (head + k) % Self.cap
+                let p = CGPoint(x: xs[i], y: ys[i])
+                if k == 0 { path.move(to: p) } else { path.addLine(to: p) }
+            }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            layer.path = path
+            CATransaction.commit()
+        }
+
+        func fadeOut(reduceMotion: Bool) {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            if reduceMotion {
+                layer.path = nil
+            } else {
+                let a = CABasicAnimation(keyPath: "opacity")
+                a.fromValue = 1; a.toValue = 0; a.duration = 0.2
+                layer.add(a, forKey: "fade")
+                layer.opacity = 0
+            }
+            CATransaction.commit()
+        }
+    }
+
 
     private func tapped(_ key: Key) { onKey(key) }
 
@@ -2228,6 +2449,26 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Test hook: payload 3 slot chính đang hiện (nil = ẩn).
     func debugSlotPayloads() -> [String?] {
         slotButtons.map { $0.isHidden ? nil : $0.payload }
+    }
+    /// Test hook: một touch chữ chạm tại `p0`, kéo qua `points` (cách nhau `dt` giây),
+    /// nhấc tay ở điểm cuối — đi đúng đường router (routeDown → swipeMoved → routeUp).
+    /// Trả true nếu touch thành vuốt.
+    @discardableResult
+    func debugTouch(from p0: CGPoint, through points: [CGPoint], dt: TimeInterval = 0.016,
+                    start t0: TimeInterval) -> Bool {
+        let token = NSObject()
+        let id = ObjectIdentifier(token)
+        routeDown(id, at: p0, time: t0, batch: 1)
+        var t = t0
+        var swiped = false
+        for p in points {
+            t += dt
+            if swipeTouchID == id { swipeMoved(to: p, time: t) }
+            if swipeActive { swiped = true }
+        }
+        routeUp(id, at: points.last ?? p0, time: t, cancelled: false)
+        withExtendedLifetime(token) {}
+        return swiped
     }
     /// Test hook: frame phím chữ (toạ độ self).
     func debugLetterFrame(_ s: String) -> CGRect? {

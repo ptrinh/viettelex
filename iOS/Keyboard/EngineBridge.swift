@@ -45,6 +45,9 @@ struct KeyboardSettings {
     /// Sửa dấu từ đã gõ xong (mặc định BẬT, user 26/09/2026): ⌫ ngay sau space/dấu
     /// câu mở lại từ vừa chốt, và phím dấu thanh ngay sau một từ nạp lại từ đó.
     var reEditWord = true
+    /// Gõ vuốt (thử nghiệm, mặc định TẮT): tắt ⇒ không dựng template, không theo dõi
+    /// touchesMoved thêm — 0 RAM/CPU.
+    var swipeTyping = false
 
     static func load() -> KeyboardSettings {
         var s = KeyboardSettings()
@@ -62,6 +65,7 @@ struct KeyboardSettings {
         if d.object(forKey: "autoFixAdjacent") != nil { s.autoFixAdjacent = d.bool(forKey: "autoFixAdjacent") }
         if d.object(forKey: "contextualEnglish") != nil { s.contextualEnglish = d.bool(forKey: "contextualEnglish") }
         if d.object(forKey: "reEditWord") != nil { s.reEditWord = d.bool(forKey: "reEditWord") }
+        if d.object(forKey: "swipeTyping") != nil { s.swipeTyping = d.bool(forKey: "swipeTyping") }
         s.learnWords = s.showSuggestions   // bật gợi ý = bật học (quyết định 2026-07-24)
         return s
     }
@@ -100,8 +104,29 @@ final class EngineBridge {
         let removed: String      // chữ phím đó đã xoá khỏi màn hình
         let inserted: String     // chữ phím đó đã chèn
         let ownBoundary: Bool
+        var swipe: SwipeOpen? = nil
+        var settled: SettledCommit? = nil
     }
     private var letterUndo: LetterUndo?
+
+    // MARK: gõ vuốt — từ vuốt là composition ĐANG MỞ (seed)
+    /// Từ vuốt vừa chèn vẫn đang mở trong engine: phím dấu Telex sửa được, gợi ý thay
+    /// được, ⌫ ĐẦU TIÊN (`fresh`) xoá cả từ. `accepted` = user đã chọn từ này trên thanh
+    /// gợi ý (học weight 2 khi chốt).
+    struct SwipeOpen: Equatable {
+        var fresh = true
+        var accepted = false
+    }
+    struct SettledCommit: Equatable {
+        let word: String
+        let accepted: Bool
+    }
+    private var swipeOpen: SwipeOpen?
+    /// Từ vuốt đã chốt bởi phím chữ gõ tiếp (dấu cách treo) nhưng CHƯA giao cho caller
+    /// học: phím đó có thể còn bị huỷ (nó là chữ đầu của một cú vuốt mới) — khi đó từ
+    /// vuốt mở lại, học sớm là học hai lần. Caller lấy bằng `takeSettledCommit()` ở
+    /// thao tác kế tiếp (lúc đó phím chữ kia không còn huỷ được).
+    private var settledCommit: SettledCommit?
 
     init(settings: KeyboardSettings = .load()) {
         self.settings = settings
@@ -123,6 +148,111 @@ final class EngineBridge {
                                     ownBoundary: lastWasOwnBoundary)
             return
         }
+        if swipeOpen != nil {
+            letterAfterSwipe(ch, proxy: proxy)
+            return
+        }
+        letterCore(ch, proxy: proxy)
+        letterUndo?.settled = settledCommit
+    }
+
+    /// Phím chữ ngay sau từ vuốt đang mở: phím dấu Telex (s f r x j z w) BIẾN ĐỔI từ ⇒
+    /// sửa từ đó (viet vuốt → việt, + s → viết). Phím khác (hoặc phím dấu không đổi
+    /// gì) ⇒ dấu cách treo: chốt từ vuốt + " " rồi phím này mở từ mới. Cả hai huỷ được
+    /// trọn vẹn bằng undoLastLetter (chữ đầu của một cú vuốt mới).
+    private func letterAfterSwipe(_ ch: Character, proxy: TextProxyLike) {
+        guard let open = swipeOpen else { return }
+        let snapshot = engine
+        let before = engine.composed
+        if Self.isReEditKey(ch) {
+            let action = engine.feed(ch)
+            if case .replace(let bs, let insert) = action, bs > 0,
+               engine.composed != before + String(ch),
+               safeToApply(action, expected: before, proxy: proxy) {
+                apply(action, literal: String(ch), proxy: proxy)
+                letterUndo = LetterUndo(engine: snapshot, removed: String(before.suffix(bs)),
+                                        inserted: insert, ownBoundary: false,
+                                        swipe: open, settled: settledCommit)
+                swipeOpen = SwipeOpen(fresh: false, accepted: open.accepted)
+                lastWasOwnBoundary = false
+                return
+            }
+            engine = snapshot
+        }
+        let settledBefore = settledCommit
+        let final = boundary(" ", proxy: proxy)      // xoá swipeOpen + letterUndo
+        settledCommit = SettledCommit(word: final, accepted: open.accepted)
+        letterCore(ch, proxy: proxy)
+        guard let u = letterUndo, u.removed.isEmpty else { letterUndo = nil; return }
+        // Huỷ gộp: màn hình "before" → "final" + " " + chữ phím này.
+        letterUndo = LetterUndo(engine: snapshot, removed: before, inserted: final + " " + u.inserted,
+                                ownBoundary: false, swipe: open, settled: settledBefore)
+    }
+
+    /// Lấy (một lần) từ vuốt đã chốt bởi dấu cách treo — gọi ở đầu thao tác kế tiếp.
+    func takeSettledCommit() -> SettledCommit? {
+        defer { settledCommit = nil }
+        return settledCommit
+    }
+
+    /// Từ vuốt đang mở (chưa chốt) — controller hiện thanh biến thể / học weight.
+    var isSwipeWordOpen: Bool { swipeOpen != nil }
+    /// Từ đang mở là từ user chọn trên thanh gợi ý (học weight 2 khi chốt).
+    var openWordAccepted: Bool { swipeOpen?.accepted ?? false }
+
+    /// Chèn từ vuốt. Đang gõ dở một từ (kể cả từ vuốt trước) ⇒ chốt nó + " " (trả về
+    /// để caller học); không thì thêm " " nếu ngay trước con trỏ là chữ/dấu câu (dấu
+    /// cách treo). Sau đó chèn `word` và SEED engine bằng nó để từ vẫn là composition
+    /// đang mở. Seed không round-trip, hoặc boundary sẽ auto-restore nó ⇒ chữ thường
+    /// (không mở), vẫn chèn.
+    @discardableResult
+    func insertSwipeWord(_ word: String, accepted: Bool = false,
+                         proxy: TextProxyLike) -> SettledCommit? {
+        letterUndo = nil
+        var committed = settledCommit
+        settledCommit = nil
+        if !engine.isEmpty {
+            let wasAccepted = swipeOpen?.accepted ?? false
+            let final = boundary(" ", proxy: proxy)
+            if !final.isEmpty { committed = SettledCommit(word: final, accepted: wasAccepted) }
+        } else if SwipeSpacing.needsLeadingSpace(before: proxy.contextBeforeInput) {
+            engine.forgetLastCommit()                  // ⌫ không mở lại từ cũ qua " " của mình
+            proxy.insertText(" ")
+        }
+        proxy.insertText(word)
+        openSwipeWord(word, accepted: accepted)
+        return committed
+    }
+
+    /// Thay từ vuốt đang mở bằng `word` (biến thể trên thanh gợi ý). false = không còn
+    /// mở / màn hình lệch (caller xử lý như gợi ý thường).
+    func replaceSwipeWord(with word: String, proxy: TextProxyLike) -> Bool {
+        guard swipeOpen != nil, !engine.isEmpty else { return false }
+        let composed = engine.composed
+        guard CompositionSync.canDelete(composed.count, expected: composed,
+                                        context: { proxy.contextBeforeInput }) else {
+            reset()
+            return false
+        }
+        letterUndo = nil
+        for _ in 0..<composed.count { proxy.deleteBackward() }
+        proxy.insertText(word)
+        openSwipeWord(word, accepted: true)
+        return true
+    }
+
+    private func openSwipeWord(_ word: String, accepted: Bool) {
+        lastWasOwnBoundary = false
+        if !passthrough, engine.seed(word),
+           engine.peekCommitText(autoRestore: settings.autoRestore) == word {
+            swipeOpen = SwipeOpen(fresh: true, accepted: accepted)
+        } else {
+            engine.reset()
+            swipeOpen = nil
+        }
+    }
+
+    private func letterCore(_ ch: Character, proxy: TextProxyLike) {
         let ownBoundary = lastWasOwnBoundary
         lastWasOwnBoundary = false
         if engine.isEmpty, !ownBoundary, settings.reEditWord, reachBackAllowed, Self.isReEditKey(ch),
@@ -163,6 +293,8 @@ final class EngineBridge {
         if !u.removed.isEmpty { proxy.insertText(u.removed) }
         engine = u.engine
         lastWasOwnBoundary = u.ownBoundary
+        swipeOpen = u.swipe
+        settledCommit = u.settled
         return true
     }
 
@@ -172,6 +304,7 @@ final class EngineBridge {
     @discardableResult
     func boundary(_ text: String, proxy: TextProxyLike) -> String {
         letterUndo = nil
+        swipeOpen = nil
         guard !proxy.isSecure, !passthrough else { proxy.insertText(text); return "" }
         let before = engine.composed
         var action = engine.commitBoundary(autoRestore: settings.autoRestore)
@@ -195,7 +328,22 @@ final class EngineBridge {
     func backspace(proxy: TextProxyLike) -> Bool {
         letterUndo = nil
         lastWasOwnBoundary = false
+        let open = swipeOpen
+        swipeOpen = nil
         guard !proxy.isSecure, !passthrough else { proxy.deleteBackward(); return false }
+        if open?.fresh == true, !engine.isEmpty {
+            // ⌫ đầu tiên ngay sau vuốt: xoá cả từ (như Gboard/QuickPath). Lệch ⇒ ⌫ thường.
+            let composed = engine.composed
+            engine.reset()
+            if CompositionSync.canDelete(composed.count, expected: composed,
+                                         context: { proxy.contextBeforeInput }) {
+                for _ in 0..<composed.count { proxy.deleteBackward() }
+            } else {
+                TouchLog.write("failsafe: swipe-word ⌫ len=\(composed.count) → ⌫ thường")
+                proxy.deleteBackward()
+            }
+            return false
+        }
         guard !engine.isEmpty else {
             if engine.canReopenLastCommit { return reopenLastCommit(proxy: proxy) }
             proxy.deleteBackward()
@@ -303,7 +451,10 @@ final class EngineBridge {
     /// Field switch / selection moved / keyboard dismissed → forget the word.
     /// Cũng xoá ngữ cảnh tiếng Anh: đổi ô / con trỏ nhảy → từ trước không còn là
     /// "từ ngay trước" nữa (macOS làm y hệt khi activateServer / đổi field).
-    func reset() { engine.reset(); engine.resetContext(); lastWasOwnBoundary = false; letterUndo = nil }
+    func reset() {
+        engine.reset(); engine.resetContext(); lastWasOwnBoundary = false; letterUndo = nil
+        swipeOpen = nil
+    }
 
     var isComposing: Bool { !engine.isEmpty }
 
