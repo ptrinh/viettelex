@@ -74,4 +74,20 @@ class SelectionTrackerTest {
         t.reset(3, 3)
         assertFalse(t.onUpdate(3, 3))
     }
+
+    @Test fun ownSelectionIsNotExternal() {
+        // Vuốt ⌫ bôi đen bằng setSelection: update range khớp mốc ⇒ không reset engine.
+        val t = SelectionTracker()
+        t.reset(12, 12)
+        t.selectedByMe(9, 12)
+        t.selectedByMe(4, 12)
+        assertFalse(t.onUpdate(9, 12))
+        assertTrue(t.hasSelection)           // còn mốc sau ⇒ giữ selection dự đoán (4..12)
+        assertFalse(t.onUpdate(4, 12))
+        assertTrue(t.hasSelection)
+        t.movedTo(12)                         // huỷ: thu về con trỏ cũ
+        assertFalse(t.onUpdate(12, 12))
+        assertEquals(12, t.cursor)
+        assertTrue(t.onUpdate(2, 12))         // selection user tự kéo: đổi từ ngoài
+    }
 }

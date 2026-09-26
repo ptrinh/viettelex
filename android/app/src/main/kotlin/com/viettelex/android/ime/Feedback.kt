@@ -27,6 +27,12 @@ class Feedback(ctx: Context) {
         }
     }
 
+    /** Nấc nhẹ (vuốt ⌫ thêm/bớt một từ): chỉ rung, không âm. */
+    fun tick(view: View) {
+        if (hapticsEnabled) view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK,
+            HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING)
+    }
+
     companion object {
         const val LETTER = 0
         const val DELETE = 1

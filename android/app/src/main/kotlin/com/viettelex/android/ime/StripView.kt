@@ -30,6 +30,8 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         fun onBarToggled(collapsed: Boolean)
         /** Chiều cao strip đổi (animation) — root đo lại. */
         fun onStripHeightChanged()
+        /** Chạm ô "↩︎ Khôi phục" sau vuốt ⌫ xoá theo từ. */
+        fun onRestoreDeleted()
     }
 
     var listener: Listener? = null
@@ -75,6 +77,13 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
     private var pressedIndex = 0
     private var pasteTitleBase = 0f; private var pasteSubBase = 0f; private var pasteIconCy = 0f
 
+    // --- vuốt ⌫: xem trước đoạn sẽ xoá / ô Khôi phục (đè nội dung bar tới khi gỡ) ---
+    private var swipePreview: String? = null
+    private var restoreOffer = false
+    private val restoreText = "↩\uFE0E " + context.getString(R.string.ime_restore)
+    private val chipText = TextPaint(theme.text(14f, medium = true))
+    private val chipTextOff = theme.centerOffset(chipText)
+
     // --- touch ---
     private var target = T_NONE
     private var targetIndex = 0
@@ -116,6 +125,20 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         for (i in 0..2) { slotText[i] = null; slotPayload[i] = null; emojiText[i] = null }
         emojiCount = 0; paste = false
         lastSet = null
+    }
+
+    /** Vuốt ⌫: đoạn sẽ xoá (null = gỡ). */
+    fun showSwipePreview(text: String?) {
+        if (text == swipePreview) return
+        swipePreview = text
+        invalidate()
+    }
+
+    /** Ô "↩︎ Khôi phục" một lượt sau vuốt ⌫ xoá. */
+    fun showRestore(on: Boolean) {
+        if (on == restoreOffer) return
+        restoreOffer = on
+        invalidate()
     }
 
     /** Có phím chữ ⇒ ẩn thẻ Dán NGAY (không đợi gợi ý nền). */
@@ -248,6 +271,8 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         ImeIcons.draw(c, ImeIcons.CHEVRON_DOWN, chx, cy, theme.dp(14f + 2f * o), iconPaint, rotationDeg = 180f * (1f - o))
         if (o <= 0f || collapsed && anim == null) return
         val alpha = (255 * o).toInt()
+        swipePreview?.let { drawChip(c, "⌫ " + it.replace('\n', ' '), alpha, TextUtils.TruncateAt.START); return }
+        if (restoreOffer) { drawChip(c, restoreText, alpha, TextUtils.TruncateAt.END); return }
         if (paste) { drawPaste(c, alpha); return }
         val barCy = cyOpen
         val hh = theme.dp(14f); val inset = theme.dp(2f)
@@ -270,6 +295,21 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
             val s = emojiText[i] ?: continue
             c.drawText(s, (emojiL[i] + emojiR[i]) / 2, barCy + emojiOff, emojiPaint)
         }
+    }
+
+    /** Pill giữa bar (cùng kiểu thẻ Dán) cho xem trước vuốt ⌫ / Khôi phục. */
+    private fun drawChip(c: Canvas, text: String, alpha: Int, trunc: TextUtils.TruncateAt) {
+        val cy = theme.dp(KeyLayout.BAR_TOP_PAD + 10f)
+        val padH = theme.dp(14f); val h = theme.dp(28f)
+        val maxW = maxOf(0f, width - 2 * theme.dp(KeyLayout.STRIP_ZONE_W) - 2 * padH)
+        val t = TextUtils.ellipsize(text, chipText, maxW, trunc).toString()
+        val w = chipText.measureText(t) + 2 * padH
+        val l = (width - w) / 2
+        chipPaint.alpha = if (pressed == T_RESTORE) (alpha * 0.8f).toInt() else alpha
+        c.drawRoundRect(l, cy - h / 2, l + w, cy + h / 2, h / 2, h / 2, chipPaint)
+        chipPaint.alpha = 255
+        chipText.color = theme.ink; chipText.alpha = alpha
+        c.drawText(t, width / 2f, cy + chipTextOff, chipText)
     }
 
     private fun drawPaste(c: Canvas, alpha: Int) {
@@ -295,7 +335,7 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
             MotionEvent.ACTION_DOWN -> {
                 target = findTarget(e.x, e.y)
                 downX = e.x; downY = e.y
-                if (target == T_SLOT || target == T_EMOJI || target == T_PASTE) {
+                if (target == T_SLOT || target == T_EMOJI || target == T_PASTE || target == T_RESTORE) {
                     pressed = target; pressedIndex = targetIndex; invalidate()
                 }
                 return target != T_NONE
@@ -325,6 +365,8 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         val zone = theme.dp(KeyLayout.STRIP_ZONE_W)
         if (x < zone) return if (templatesEnabled) T_BURGER else T_NONE
         if (x >= w - zone) return T_CHEVRON
+        if (swipePreview != null) return T_NONE
+        if (restoreOffer) return T_RESTORE
         if (paste) return T_PASTE
         for (i in 0 until emojiCount) if (x >= emojiL[i] && x < emojiR[i]) { targetIndex = i; return T_EMOJI }
         for (i in 0..2) if (slotText[i] != null && x >= slotL[i] && x < slotR[i]) { targetIndex = i; return T_SLOT }
@@ -336,6 +378,7 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
             T_BURGER -> { feedback.click(Feedback.MODIFIER, this); listener?.onToggleTemplates() }
             T_CHEVRON -> toggleCollapsed()
             T_PASTE -> { feedback.click(Feedback.MODIFIER, this); listener?.onSuggestion(SuggestionSet.PASTE_TOKEN) }
+            T_RESTORE -> { feedback.click(Feedback.MODIFIER, this); listener?.onRestoreDeleted() }
             T_SLOT -> slotPayload[targetIndex]?.let { feedback.click(Feedback.MODIFIER, this); listener?.onSuggestion(it) }
             T_EMOJI -> emojiText[targetIndex]?.let { feedback.click(Feedback.MODIFIER, this); listener?.onSuggestion(it) }
         }
@@ -352,5 +395,6 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         private const val T_PASTE = 3
         private const val T_SLOT = 4
         private const val T_EMOJI = 5
+        private const val T_RESTORE = 6
     }
 }

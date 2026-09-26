@@ -23,6 +23,8 @@ package com.viettelex.android.ime
  */
 class SelectionTracker {
     private val queue = IntArray(CAP)
+    /** Mốc là selection (vuốt ⌫ bôi đen): [queue] = đầu, [queueEnd] = cuối; mốc con trỏ ⇒ bằng nhau. */
+    private val queueEnd = IntArray(CAP)
     private var n = 0
 
     /** Vị trí con trỏ mới nhất đã biết/mong đợi (UTF-16); -1 = chưa biết. */
@@ -80,6 +82,13 @@ class SelectionTracker {
         push(pos)
     }
 
+    /** Mình vừa setSelection(start, end) bôi đen (vuốt ⌫): update khớp ⇒ không phải đổi từ ngoài. */
+    fun selectedByMe(start: Int, end: Int) {
+        setSelection(start, end)
+        cursor = -1
+        push(minOf(start, end), maxOf(start, end))
+    }
+
     /** Thao tác không biết trước con trỏ về đâu. */
     fun unknown() {
         cursor = -1
@@ -99,6 +108,14 @@ class SelectionTracker {
             return false
         }
         if (newSelStart != newSelEnd) {
+            val a = minOf(newSelStart, newSelEnd); val b = maxOf(newSelStart, newSelEnd)
+            for (i in 0 until n) {
+                if (queue[i] == a && queueEnd[i] == b) {
+                    drop(i + 1)
+                    if (n == 0) { cursor = -1; setSelection(a, b) }
+                    return false
+                }
+            }
             n = 0; cursor = -1
             setSelection(newSelStart, newSelEnd)
             return true
@@ -106,7 +123,7 @@ class SelectionTracker {
         setSelection(-1, -1)
         for (i in 0 until n) {
             val q = queue[i]
-            if (q == WILDCARD || q == newSelStart) {
+            if (q == WILDCARD || (q == newSelStart && queueEnd[i] == q)) {
                 if (q != WILDCARD) reliable = true
                 drop(i + 1)
                 // Mốc cuối vừa khớp ⇒ con trỏ chắc chắn; còn mốc sau ⇒ giữ dự đoán.
@@ -120,14 +137,15 @@ class SelectionTracker {
         return true
     }
 
-    private fun push(v: Int) {
+    private fun push(v: Int, end: Int = v) {
         if (n == CAP) drop(1)
-        queue[n++] = v
+        queue[n] = v; queueEnd[n] = end; n++
     }
 
     private fun drop(k: Int) {
         if (k >= n) { n = 0; return }
         System.arraycopy(queue, k, queue, 0, n - k)
+        System.arraycopy(queueEnd, k, queueEnd, 0, n - k)
         n -= k
     }
 
