@@ -58,7 +58,7 @@ enum class S {
     Add, Remove, Import, Export,
     AppsDesc,
     AppExe, AppModeLabel,
-    ModeComposition, ModeInPlace, ModeHook, ModeOff,
+    ModeComposition, ModeInPlace, ModeHook, ModeOff, ModeDirect,
     EmptyShortcuts, EmptyApps,
     // about
     AboutText,

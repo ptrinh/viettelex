@@ -54,6 +54,9 @@ public:
     // In-place needs to read the text before the caret. False = this control cannot
     // (no selection / GetText fails): the session types this context in composition.
     virtual bool canReadContext() { return true; }
+    // A sink that types blind (the hook: SendInput, nothing can be read back). The session
+    // then trusts its own tracking: no stale checks, no verification fallbacks.
+    virtual bool blind() { return false; }
 };
 
 struct SessionOptions {

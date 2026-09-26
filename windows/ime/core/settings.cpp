@@ -139,7 +139,7 @@ bool deserialize(const uint8_t* data, size_t len, Settings& out) {
     for (uint32_t i = 0; i < m && r.ok; ++i) {
         std::string exe = r.str();
         uint8_t mode = r.u8();
-        if (r.ok && mode <= static_cast<uint8_t>(AppMode::Off))
+        if (r.ok && mode <= static_cast<uint8_t>(AppMode::Direct))
             s.appModes[exe] = static_cast<AppMode>(mode);
     }
     if (!r.ok) return false;

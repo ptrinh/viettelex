@@ -205,3 +205,23 @@ TEST(hook_elevated_foreground_warning) {
     CHECK(!hookNeedsElevationWarning(false, true, 0x3000, 0x2000, false)); // not a hook app
     CHECK(!hookNeedsElevationWarning(true, true, 0x3000, 0x2000, true));   // warned already
 }
+
+#include "hook_watchdog.h"
+
+TEST(hook_watchdog_reinstalls_silently_removed_hook) {
+    HookWatchdog w(1000);
+    CHECK(!w.rawKey(5000));            // not active: never
+    w.setActive(true, 10000);
+    w.lowLevelKey(10100);
+    CHECK(!w.rawKey(10100));           // both saw the key
+    CHECK(!w.rawKey(10900));           // within threshold
+    // Windows removed the hook (LowLevelHooksTimeout): raw input keeps seeing keys,
+    // the LL hook does not.
+    CHECK(w.rawKey(11200));
+    w.hookInstalled(11200);            // reinstalled
+    CHECK(!w.rawKey(11300));
+    w.lowLevelKey(11300);
+    CHECK(!w.rawKey(12000));
+    w.setActive(false, 12000);
+    CHECK(!w.rawKey(99999));
+}

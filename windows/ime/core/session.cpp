@@ -169,7 +169,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
     }
     // A composition we no longer track (engine was reset): close it, text stays.
     if (vtx_is_empty(engine_) && sink.compositionActive()) sink.endCompositionAsIs();
-    if (!vtx_is_empty(engine_)) {
+    if (!vtx_is_empty(engine_) && !sink.blind()) {
         // Our picture of the screen went stale (composition ended behind our back, the
         // app changed the text before the caret): start over rather than edit blindly.
         // A selection AFTER the caret (Chrome/Edge omnibox autocomplete suffix) is the
@@ -191,7 +191,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
     }
     if (vtx_is_empty(engine_)) {
         wordMode_ = effectiveMode();
-        if (wordMode_ == OutputMode::InPlace && !sink.canReadContext()) {
+        if (wordMode_ == OutputMode::InPlace && !sink.blind() && !sink.canReadContext()) {
             fallBack("in-place: cannot read the text around the caret -> composition for this field");
             wordMode_ = OutputMode::Composition;
         }

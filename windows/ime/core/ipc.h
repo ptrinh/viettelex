@@ -14,9 +14,10 @@ enum class AppCommand : unsigned {
     SetVni = 4,
     OpenAbout = 5,
     StateChanged = 6,
+    DirectMode = 7,  // TIP -> app: lParam 1 = let the hook type in this field (no underline)
 };
 
-inline bool isValidAppCommand(unsigned v) { return v >= 1 && v <= 6; }
+inline bool isValidAppCommand(unsigned v) { return v >= 1 && v <= 7; }
 // Commands a user may pass as `--command <n>` (StateChanged is TIP-internal).
 inline bool isUserCommand(unsigned v) { return v >= 1 && v <= 5; }
 

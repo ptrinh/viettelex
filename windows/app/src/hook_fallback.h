@@ -15,6 +15,9 @@ namespace vtx::app {
 
 void hookConfigure(const Settings& s);  // (re)apply settings; starts/stops watching
 void hookShutdown();
+// The TIP found a field it cannot type into without an underline (CUAS/IMM app,
+// xterm.js, unflagged console): the hook types there until the foreground changes.
+void hookSetDirectFromTip(bool on);
 // Called (UI thread) when a hook-mode app is elevated above VietTelex.exe: SendInput
 // cannot reach it (UIPI). The app shows a non-modal notice.
 void hookSetElevationNotifier(void (*notify)(const std::wstring& exe));

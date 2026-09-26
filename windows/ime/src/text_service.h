@@ -72,6 +72,8 @@ private:
     ~TextService();
 
     bool typingEnabled() const;
+    bool appRunning() const;
+    bool requestDirect(const char* why);
     void notifyAppState(bool on);
     void applyConfig(bool force);
     bool prepareKey(WPARAM wp, bool down, KeyInput& out);
@@ -104,6 +106,7 @@ private:
     HostText host_ = HostText::Normal;  // classification of the context of the current word
     ITfContext* targetCtx_ = nullptr;   // full transitory-extension parent (Edit/RichEdit)
     bool parentFailed_ = false;         // parent refused edit sessions for this focus
+    bool directActive_ = false;         // this field is typed by the app's hook (Direct)
 
     ITfComposition* composition_ = nullptr;
     ITfContext* compositionContext_ = nullptr;

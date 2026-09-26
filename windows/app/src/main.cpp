@@ -198,6 +198,7 @@ void runCommand(unsigned cmd, LPARAM lp = 0) {
     if (!isValidAppCommand(cmd)) return;
     switch (static_cast<AppCommand>(cmd)) {
         case AppCommand::StateChanged: setTrayState(lp != 0); break;
+        case AppCommand::DirectMode: hookSetDirectFromTip(lp != 0); break;
         case AppCommand::OpenSettings: showSettings(Tab::Typing); break;
         case AppCommand::CheckUpdate: startUpdateCheck(g_mainWnd, true); break;
         case AppCommand::OpenAbout: showSettings(Tab::About); break;

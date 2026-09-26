@@ -15,7 +15,18 @@
 
 namespace vtx {
 
-enum class AppMode : uint8_t { Composition = 0, InPlace = 1, HookFallback = 2, Off = 3 };
+//   Direct       (1.1.3) no underline where TSF cannot edit in place (consoles, IMM/CUAS
+//                apps, xterm.js): like UniKey/OpenKey, VietTelex.exe's low-level hook
+//                eats the key and sends N backspaces + Unicode text in one SendInput
+//                batch; the engine tracks the word itself. Needs VietTelex.exe running —
+//                otherwise the TIP composes.
+enum class AppMode : uint8_t { Composition = 0, InPlace = 1, HookFallback = 2, Off = 3, Direct = 4 };
+// Keys typed by the hook itself carry this in dwExtraInfo; nobody (hook, TIP) may
+// process them again.
+constexpr uintptr_t kInjectedMagic = 0x56545831;  // "VTX1"
+inline bool isOwnInjected(uintptr_t extraInfo) { return extraInfo == kInjectedMagic; }
+// The hook (not the TIP) types for this mode.
+inline bool hookTypes(AppMode m) { return m == AppMode::HookFallback || m == AppMode::Direct; }
 
 const char* appModeName(AppMode m);
 bool parseAppMode(const std::string& s, AppMode& out);

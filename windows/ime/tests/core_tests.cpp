@@ -338,5 +338,7 @@ TEST(ipc_state_changed_is_internal) {
     CHECK(isValidAppCommand(static_cast<unsigned>(AppCommand::StateChanged)));
     CHECK(!isUserCommand(static_cast<unsigned>(AppCommand::StateChanged)));
     CHECK(isUserCommand(static_cast<unsigned>(AppCommand::OpenSettings)));
-    CHECK(!isValidAppCommand(0) && !isValidAppCommand(7));
+    CHECK(isValidAppCommand(static_cast<unsigned>(AppCommand::DirectMode)));
+    CHECK(!isUserCommand(static_cast<unsigned>(AppCommand::DirectMode)));
+    CHECK(!isValidAppCommand(0) && !isValidAppCommand(8));
 }

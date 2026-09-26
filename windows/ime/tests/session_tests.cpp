@@ -534,9 +534,12 @@ TEST(host_text_policy) {
     none.hasContext = false;
     CHECK(classifyContext(none) == HostText::Ignore);
     std::map<std::string, AppMode> no;
+    // consoles/terminals: Direct (hook types, no underline; composition if the app is off)
     for (const char* exe : {"conhost.exe", "openconsole.exe", "windowsterminal.exe", "mintty.exe", "alacritty.exe",
-                            "wezterm-gui.exe", "conemu64.exe", "putty.exe", "kitty.exe", "tabby.exe"})
-        CHECK(resolveAppMode(exe, no) == AppMode::Composition);
+                            "wezterm-gui.exe", "conemu64.exe", "putty.exe", "kitty.exe", "tabby.exe"}) {
+        CHECK(resolveAppMode(exe, no) == AppMode::Direct);
+        CHECK(hookTypes(resolveAppMode(exe, no)));
+    }
     for (const char* exe : {"vmware.exe", "vmware-vmx.exe", "vmware-view.exe", "virtualboxvm.exe", "wfica32.exe",
                             "cdviewer.exe", "ultraviewer_desktop.exe", "moonlight.exe"})
         CHECK(resolveAppMode(exe, no) == AppMode::Off);
@@ -587,4 +590,78 @@ TEST(webview2_resolves_to_owning_app) {
     CHECK_EQ(appIdentity("msedgewebview2.exe", ""), std::string("msedgewebview2.exe"));
     CHECK_EQ(appIdentity("chrome.exe", "chrome.exe"), std::string("chrome.exe"));
     CHECK_EQ(appIdentity("notepad.exe", "explorer.exe"), std::string("notepad.exe"));  // only WebView2 hosts
+}
+
+namespace {
+// What SendInput does to a console / IMM app: backspaces delete, Unicode inserts, and
+// NOTHING can be read back (blind sink, like the hook's).
+struct BlindKeyboardDoc : TextSink {
+    std::u16string screen;
+    int batches = 0;
+    bool blind() override { return true; }
+    std::u16string textBeforeCaret(int) override { return {}; }
+    char16_t charAfterCaret() override { return 0; }
+    bool hasSelection() override { return false; }
+    bool replaceBeforeCaret(const std::u16string& expect, const std::u16string& ins) override {
+        ++batches;  // one SendInput batch: backspaces first, then the text
+        for (size_t i = 0; i < expect.size() && !screen.empty(); ++i) screen.pop_back();
+        screen += ins;
+        return true;
+    }
+    bool compositionActive() override { return false; }
+    bool setComposition(const std::u16string&, int) override { return false; }
+    void endComposition(const std::u16string&) override {}
+    void endCompositionAsIs() override {}
+};
+
+std::string typeBlind(TypingSession& s, BlindKeyboardDoc& d, const char* keys) {
+    for (const char* p = keys; *p; ++p) {
+        KeyInput k;
+        if (*p == '\b') k.kind = KeyKind::Backspace;
+        else {
+            k.kind = KeyKind::Char;
+            k.ch = static_cast<unsigned char>(*p);
+        }
+        const bool eaten = s.wantsKey(k) && s.handleKey(k, d);
+        if (!eaten) {  // the real key reaches the app
+            if (k.kind == KeyKind::Backspace) {
+                if (!d.screen.empty()) d.screen.pop_back();
+            } else {
+                d.screen += static_cast<char16_t>(*p);
+            }
+        }
+    }
+    return utf16ToUtf8(d.screen);
+}
+}  // namespace
+
+TEST(direct_mode_console_types_without_underline) {
+    // Direct mode (hook, SendInput): no composition at all, no read-back.
+    Settings st;
+    TypingSession s;
+    configureDefaults(s, st);  // in-place
+    BlindKeyboardDoc d;
+    CHECK_EQ(typeBlind(s, d, "thuwr gox tieengs vieetj "), std::string("thử gõ tiếng việt "));
+    CHECK(!s.contextFellBack());      // blind sinks never trip the verification fallback
+    CHECK(s.wordMode() == OutputMode::InPlace);
+}
+
+TEST(direct_mode_backspace_mid_word) {
+    Settings st;
+    TypingSession s;
+    configureDefaults(s, st);
+    BlindKeyboardDoc d;
+    // "tieengs" -> "tiếng"; ⌫ deletes the displayed 'g'; "s" is no longer... retype "g"
+    CHECK_EQ(typeBlind(s, d, "tieengs\b"), std::string("tiến"));
+    CHECK_EQ(typeBlind(s, d, "g "), std::string("tiếng "));
+    BlindKeyboardDoc d2;
+    TypingSession s2;
+    configureDefaults(s2, st);
+    CHECK_EQ(typeBlind(s2, d2, "khoo\ba "), std::string("kha "));
+}
+
+TEST(own_injected_events_are_ignored) {
+    CHECK(isOwnInjected(kInjectedMagic));
+    CHECK(!isOwnInjected(0));
+    CHECK(!isOwnInjected(1));  // OpenKey/UniKey's marker is someone else's input
 }

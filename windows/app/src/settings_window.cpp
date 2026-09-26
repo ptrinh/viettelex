@@ -114,8 +114,9 @@ const char* const kHotkeys[] = {"ctrl-shift", "win-space", "alt-z", "off"};
 const S kHotkeyLabels[] = {S::HotkeyCtrlShift, S::HotkeyWinSpace, S::HotkeyAltZ, S::HotkeyOff};
 const S kIconLabels[kIconChoiceCount] = {S::IconVt, S::IconStar, S::IconFlag, S::IconLogo, S::IconVi};
 // First entry = the default (in-place since 1.0.9).
-const AppMode kModes[] = {AppMode::InPlace, AppMode::Composition, AppMode::HookFallback, AppMode::Off};
-const S kModeLabels[] = {S::ModeInPlace, S::ModeComposition, S::ModeHook, S::ModeOff};
+const AppMode kModes[] = {AppMode::InPlace, AppMode::Direct, AppMode::Composition, AppMode::HookFallback, AppMode::Off};
+const S kModeLabels[] = {S::ModeInPlace, S::ModeDirect, S::ModeComposition, S::ModeHook, S::ModeOff};
+constexpr int kModeCount = 5;
 
 // ---------------------------------------------------------------- theme
 struct Palette {
@@ -784,7 +785,7 @@ void createControls() {
                         : makeList(IdAppList, tr(S::AppExe), tr(S::AppModeLabel));
             g_edit1 = sc ? makeEdit(IdScKey, tr(S::ShortcutKey)) : makeEdit(IdAppExe, tr(S::AppExe));
             if (sc) g_edit2 = makeEdit(IdScValue, tr(S::ShortcutValue));
-            else g_combo = makeCombo(IdAppMode, kModeLabels, 4);
+            else g_combo = makeCombo(IdAppMode, kModeLabels, kModeCount);
             g_blockButtons.push_back(makeButton(tr(S::Add), sc ? IdScAdd : IdAppAdd, kBtnPrimary));
             g_blockButtons.push_back(makeButton(tr(S::Remove), sc ? IdScRemove : IdAppRemove));
             if (sc) {
@@ -925,7 +926,7 @@ void scrollTo(int pos) {
 
 // ---------------------------------------------------------------- state sync
 int modeIndex(AppMode m) {
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < kModeCount; ++i)
         if (kModes[i] == m) return i;
     return 0;
 }
@@ -1377,7 +1378,7 @@ void onCommand(int id, int code, HWND ctl) {
         case IdAppAdd: {
             std::string exe = normalizeExeName(narrow(trim(windowText(g_edit1))));
             int m = static_cast<int>(SendMessageW(g_combo, CB_GETCURSEL, 0, 0));
-            if (exe.empty() || exe.find('.') == std::string::npos || m < 0 || m > 3) {
+            if (exe.empty() || exe.find('.') == std::string::npos || m < 0 || m >= kModeCount) {
                 MessageBeep(MB_ICONWARNING);
                 break;
             }

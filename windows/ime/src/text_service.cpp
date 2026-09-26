@@ -286,6 +286,7 @@ void TextService::applyConfig(bool force) {
     session_.configure(o);
 
     const OutputMode want = config::appMode() == AppMode::InPlace ? OutputMode::InPlace : OutputMode::Composition;
+    // (AppMode::Direct maps to Composition only for the case the app is not running.)
     if (want != session_.outputMode()) {
         if (composition_) endCompositionAsync();
         session_.setOutputMode(want);
@@ -298,10 +299,26 @@ void TextService::applyConfig(bool force) {
 
 bool TextService::vietnamese() const { return config::vietnamese(); }
 
+bool TextService::appRunning() const { return FindWindowW(kAppWindowClass, nullptr) != nullptr; }
+
 bool TextService::typingEnabled() const {
-    if (!config::vietnamese()) return false;
+    if (!config::vietnamese() || directActive_) return false;
     AppMode m = config::appMode();
+    if (m == AppMode::Direct) return !appRunning();  // the hook types; without the app, compose
     return m == AppMode::Composition || m == AppMode::InPlace;
+}
+
+// Hand this field to VietTelex.exe's hook (Direct mode: backspaces + Unicode, no
+// underline) instead of composing. Only when the app runs; else composition stays.
+bool TextService::requestDirect(const char* why) {
+    if (directActive_) return true;
+    if (!appRunning()) return false;
+    directActive_ = true;
+    session_.reset();
+    if (HWND h = FindWindowW(kAppWindowClass, nullptr))
+        PostMessageW(h, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode), 1);
+    config::log(why);
+    return true;
 }
 
 void TextService::toggleVietnamese() { setVietnamese(!vietnamese()); }
@@ -443,6 +460,8 @@ void TextService::evaluateHost(ITfContext* ctx) {
     if (dm) dm->Release();
     host_ = classifyContext(c);
     if (host_ != HostText::NormalViaParent) SafeRelease(targetCtx_);
+    // No usable text store: prefer Direct (the hook types, no underline) over composition.
+    if (host_ == HostText::CompositionOnly && requestDirect("context without surrounding text -> direct (hook)")) return;
     session_.setCompositionOnlyContext(host_ == HostText::CompositionOnly);
 }
 
@@ -493,6 +512,11 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     parentFailed_ = false;
     SafeRelease(targetCtx_);
     host_ = HostText::Normal;
+    if (directActive_) {  // the new field is evaluated afresh
+        directActive_ = false;
+        if (HWND h = FindWindowW(kAppWindowClass, nullptr))
+            PostMessageW(h, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode), 0);
+    }
     resolveActiveApp();
     config::reloadVietnamese();
     applyConfig(true);
@@ -622,9 +646,11 @@ STDMETHODIMP TextService::OnSetFocus(BOOL) { return S_OK; }
 STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* eaten) {
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
+    if (isOwnInjected(static_cast<uintptr_t>(GetMessageExtraInfo()))) return S_OK;  // typed by our hook
     KeyInput k;
     if (!prepareKey(wp, true, k)) return S_OK;
     if (!session_.wordActive()) evaluateHost(ctx);
+    if (directActive_) return S_OK;  // the hook types in this field
     // No focused context, keyboard disabled (games, canvases), read-only, ANSI window:
     // never eat a key there (SampleIME _IsKeyboardDisabled).
     if (host_ == HostText::Ignore || host_ == HostText::Literal) return S_OK;
@@ -635,9 +661,11 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL
 STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* eaten) {
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
+    if (isOwnInjected(static_cast<uintptr_t>(GetMessageExtraInfo()))) return S_OK;
     KeyInput k;
     if (!ctx || !prepareKey(wp, true, k)) return S_OK;
     if (!session_.wordActive()) evaluateHost(ctx);
+    if (directActive_) return S_OK;  // the hook types in this field
     if (host_ == HostText::Ignore || host_ == HostText::Literal || !session_.wantsKey(k)) return S_OK;
     // Classic Edit/RichEdit: read and edit through the full transitory-extension parent.
     ITfContext* target = (host_ == HostText::NormalViaParent && targetCtx_) ? targetCtx_ : ctx;
@@ -668,6 +696,9 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* ea
         session_.reset();
         result = FALSE;
     }
+    // In-place just proved impossible in this field (nothing readable, e.g. xterm.js):
+    // hand it to the hook rather than composing with an underline.
+    if (session_.contextFellBack() && !result) requestDirect("in-place failed in this field -> direct (hook)");
     *eaten = result;
     return S_OK;
 }

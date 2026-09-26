@@ -126,6 +126,7 @@ const Pair kStrings[] = {
     {L"Mặc định (sửa trực tiếp)", L"Default (in-place)"},
     {L"Dự phòng (hook bàn phím)", L"Fallback (keyboard hook)"},
     {L"Luôn tiếng Anh", L"Always English"},
+    {L"Trực tiếp (không gạch chân, kiểu UniKey)", L"Direct (no underline, UniKey style)"},
     {L"Chưa có gõ tắt nào", L"No shortcuts yet"},
     {L"Chưa có ứng dụng nào", L"No apps yet"},
 

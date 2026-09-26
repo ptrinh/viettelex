@@ -11,6 +11,7 @@ const char* appModeName(AppMode m) {
         case AppMode::InPlace: return "inPlace";
         case AppMode::HookFallback: return "hookFallback";
         case AppMode::Off: return "off";
+        case AppMode::Direct: return "direct";
     }
     return "composition";
 }
@@ -20,6 +21,7 @@ bool parseAppMode(const std::string& s, AppMode& out) {
     if (s == "inPlace") { out = AppMode::InPlace; return true; }
     if (s == "hookFallback") { out = AppMode::HookFallback; return true; }
     if (s == "off") { out = AppMode::Off; return true; }
+    if (s == "direct") { out = AppMode::Direct; return true; }
     return false;
 }
 
@@ -43,22 +45,22 @@ struct Rule {
 // Candidates for InPlace/HookFallback are learned from the §5.2 manual matrix on
 // real hardware and added here with a comment naming the symptom.
 constexpr Rule kRules[] = {
-    // Consoles: their TSF document holds only the composition (text typed so far is
-    // already in the shell and unreadable), so in-place can never verify or replace —
-    // 1.1.0 in cmd.exe typed "thuưr gox" (ư inserted, u never deleted, then all raw).
-    // The TIP also detects this at run time (TF_TMAE_CONSOLE / TF_SS_TRANSITORY).
-    {"conhost.exe", AppMode::Composition},        // cmd, PowerShell, WSL console window
-    {"openconsole.exe", AppMode::Composition},    // Windows Terminal's bundled conhost
-    {"windowsterminal.exe", AppMode::Composition},
-    {"mintty.exe", AppMode::Composition},         // Git Bash / MSYS2 / Cygwin (IMM only)
+    // Consoles/terminals: their TSF document holds only the composition (text typed so
+    // far is already in the shell), so in-place can never verify or replace — 1.1.0 in
+    // cmd.exe typed "thuưr gox". Direct = the hook types (no underline); without
+    // VietTelex.exe running the TIP composes instead.
+    {"conhost.exe", AppMode::Direct},        // cmd, PowerShell, WSL console window
+    {"openconsole.exe", AppMode::Direct},    // Windows Terminal's bundled conhost
+    {"windowsterminal.exe", AppMode::Direct},
+    {"mintty.exe", AppMode::Direct},         // Git Bash / MSYS2 / Cygwin (IMM only)
     // Other terminals: GPU/own-rendered, IMM or partial TSF, no readable history.
-    {"alacritty.exe", AppMode::Composition},
-    {"wezterm-gui.exe", AppMode::Composition},
-    {"conemu64.exe", AppMode::Composition},
-    {"conemu.exe", AppMode::Composition},
-    {"putty.exe", AppMode::Composition},
-    {"kitty.exe", AppMode::Composition},        // KiTTY (PuTTY fork)
-    {"tabby.exe", AppMode::Composition},
+    {"alacritty.exe", AppMode::Direct},
+    {"wezterm-gui.exe", AppMode::Direct},
+    {"conemu64.exe", AppMode::Direct},
+    {"conemu.exe", AppMode::Direct},
+    {"putty.exe", AppMode::Direct},
+    {"kitty.exe", AppMode::Direct},        // KiTTY (PuTTY fork)
+    {"tabby.exe", AppMode::Direct},
     // Remote / virtual machines: the guest's input method types.
     {"vmware.exe", AppMode::Off},
     {"vmware-vmx.exe", AppMode::Off},
