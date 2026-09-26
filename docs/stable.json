@@ -3,9 +3,9 @@
   "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.7.12",
   "build": 108,
   "windows": {
-    "version": "1.1.0",
-    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.1.0/VietTelex-1.1.0-x64.msi",
-    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.1.0/VietTelex-1.1.0-arm64.msi",
-    "notes": "Sửa lỗi cập nhật không thay bản cũ; trình cập nhật ghi log."
+    "version": "1.1.1",
+    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.1.1/VietTelex-1.1.1-x64.msi",
+    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.1.1/VietTelex-1.1.1-arm64.msi",
+    "notes": "Sửa lỗi gõ tiếng Việt trong Command Prompt, PowerShell, Windows Terminal."
   }
 }
