@@ -26,6 +26,12 @@ class AndroidEditorPort(val ic: InputConnection) : EditorPort {
     override fun finishComposing() = ic.finishComposingText()
     override fun performEditorAction(actionId: Int) = ic.performEditorAction(actionId)
 
+    @Suppress("DEPRECATION")   // ACTION_MULTIPLE + chuỗi: cách duy nhất gửi ký tự Unicode qua key event
+    override fun sendText(text: CharSequence) {
+        ic.sendKeyEvent(KeyEvent(android.os.SystemClock.uptimeMillis(), text.toString(),
+            android.view.KeyCharacterMap.VIRTUAL_KEYBOARD, 0))
+    }
+
     override fun sendKey(key: EditorPort.PortKey) {
         val code = when (key) {
             EditorPort.PortKey.DEL -> KeyEvent.KEYCODE_DEL

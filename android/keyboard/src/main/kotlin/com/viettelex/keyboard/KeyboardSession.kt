@@ -53,10 +53,10 @@ data class FieldTraits(
  * Cách lớp ghi (IcProxy) đẩy chữ vào ô — vài editor văn phòng xử lý sai
  * commitText/deleteSurroundingText.
  *
- * TODO(lớp ghi): IcProxy chưa đọc trait này — nối ở AndroidAdapters.kt:
- *  - [COMMIT]: như hiện tại (commitText + deleteSurroundingTextInCodePoints).
+ * IcProxy.writeMode áp bảng này (VietTelexIME.onStartInputView):
+ *  - [COMMIT]: commitText + deleteSurroundingTextInCodePoints.
  *  - [DEL_VIA_KEY_EVENT]: commitText nhưng xoá bằng KEYCODE_DEL (ONLYOFFICE bỏ qua deleteSurroundingText).
- *  - [KEY_ONLY]: mọi thứ qua key event (WPS bản Xiaomi/Huawei, HSL) — như TYPE_NULL.
+ *  - [KEY_ONLY]: mọi thứ qua key event (WPS bản Xiaomi/Huawei, HSL).
  */
 enum class WriteMode {
     COMMIT, DEL_VIA_KEY_EVENT, KEY_ONLY;

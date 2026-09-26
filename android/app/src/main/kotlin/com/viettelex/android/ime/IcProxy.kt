@@ -2,6 +2,7 @@ package com.viettelex.android.ime
 
 import com.viettelex.keyboard.TextProxy
 import com.viettelex.keyboard.TouchLog
+import com.viettelex.keyboard.WriteMode
 import java.text.BreakIterator
 
 /**
@@ -24,6 +25,8 @@ interface EditorPort {
     fun performEditorAction(actionId: Int): Boolean
     /** Gửi DOWN+UP của phím [key] (qua key event — BẤT ĐỒNG BỘ so với commitText). */
     fun sendKey(key: PortKey)
+    /** Gõ [text] bằng key event ký tự (app chỉ nhận phím — [WriteMode.KEY_ONLY]). */
+    fun sendText(text: CharSequence) { commitText(text) }
 
     enum class PortKey { DEL, ENTER, LEFT, RIGHT }
 }
@@ -57,6 +60,16 @@ class IcProxy(
     var uriField = false
     /** EditorInfo.IME_ACTION_*; 0 ⇒ "\n" = KEYCODE_ENTER. */
     var actionId = 0
+    /**
+     * Cách ghi theo app ([WriteMode.forPackage]): COMMIT như thường; DEL_VIA_KEY_EVENT
+     * (ONLYOFFICE bỏ qua deleteSurroundingText) xoá bằng KEYCODE_DEL; KEY_ONLY (WPS bản
+     * Xiaomi/Huawei, HSL — sandbox Linux) mọi thứ qua key event. Hai chế độ key event đi
+     * CÙNG một hàng đợi nên giữ đúng thứ tự xoá→chèn; con trỏ/shadow coi là không biết.
+     */
+    var writeMode = WriteMode.COMMIT
+    /** Đã gửi KEYCODE_DEL trong batch này ⇒ chèn tiếp PHẢI đi key event (cùng hàng đợi,
+     *  đúng thứ tự); commitText sẽ chạy TRƯỚC phím DEL còn nằm trong hàng đợi. */
+    private var keyDelQueued = false
     private var depth = 0
     private val shadow = TextShadow(CONTEXT_CAP)
     private var failed = false
@@ -80,7 +93,7 @@ class IcProxy(
 
     fun end() {
         if (depth == 0) return
-        if (--depth == 0) { ic?.endBatch(); ic = null }
+        if (--depth == 0) { ic?.endBatch(); ic = null; keyDelQueued = false }
     }
 
     private fun conn(): EditorPort? = ic ?: portOf()
@@ -114,6 +127,9 @@ class IcProxy(
         if (text.isEmpty()) return
         val c = conn() ?: return
         if (text == "\n") { newline(c); return }
+        if (writeMode == WriteMode.KEY_ONLY || (keyDelQueued && writeMode != WriteMode.COMMIT)) {
+            c.sendText(text); tracker.unknown(); shadow.invalidate(); return
+        }
         if (!c.commitText(text)) { fail("commitText"); return }
         tracker.inserted(text.length)
         shadow.inserted(text)
@@ -124,6 +140,11 @@ class IcProxy(
         val c = conn() ?: return
         // Đổi code point → UTF-16 theo shadow (emoji ngoài BMP khi xoá theo từ); không có
         // shadow thì chữ Việt dựng sẵn (BMP) ⇒ code point = đơn vị UTF-16.
+        if (writeMode != WriteMode.COMMIT) {
+            repeat(count) { c.sendKey(EditorPort.PortKey.DEL) }
+            keyDelQueued = true
+            tracker.unknown(); shadow.invalidate(); return
+        }
         val units = shadow.utf16ForCodePoints(count) ?: count
         if (!c.deleteCodePointsBefore(count)) { fail("deleteSurroundingTextInCodePoints"); return }
         tracker.deleted(units)
@@ -137,7 +158,7 @@ class IcProxy(
      */
     override fun deleteBackward() {
         val c = conn() ?: return
-        if (rawKeys) { keyDel(c); return }
+        if (rawKeys || writeMode != WriteMode.COMMIT) { keyDel(c); return }
         if (tracker.hasSelection) {
             if (c.commitText("")) tracker.inserted(0) else fail("commitText(\"\")")
             return
@@ -152,6 +173,7 @@ class IcProxy(
 
     private fun keyDel(c: EditorPort) {
         c.sendKey(EditorPort.PortKey.DEL)
+        keyDelQueued = true
         tracker.unknown()
         shadow.invalidate()
     }
@@ -179,6 +201,8 @@ class IcProxy(
      */
     override fun confirmTail(expected: String): Boolean {
         if (expected.isEmpty()) return true
+        // Key event đến app bất đồng bộ ⇒ text đọc được luôn trễ; so đuôi sẽ báo lệch oan.
+        if (writeMode != WriteMode.COMMIT) return true
         val before = (if (tracker.reliable) shadow.text() else null) ?: readBefore() ?: return true
         // Shadow/IPC cắt 256 ký tự: từ dài hơn chỉ so phần còn thấy.
         val ok = before.endsWith(expected) ||

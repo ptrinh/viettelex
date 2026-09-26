@@ -1,5 +1,6 @@
 package com.viettelex.android.ime
 
+import com.viettelex.keyboard.WriteMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -11,7 +12,10 @@ class FakeEditor(initial: String = "", var selStart: Int = initial.length, var s
     val sb = StringBuilder(initial)
     val text: String get() = sb.toString()
     val keys = ArrayList<EditorPort.PortKey>()
-    private val pendingKeys = ArrayList<EditorPort.PortKey>()
+    private val pendingKeys = ArrayList<Any>()   // PortKey hoặc String (sendText)
+    /** Mô phỏng app bỏ qua lệnh: ONLYOFFICE (deleteSurrounding) / WPS sandbox (commitText). */
+    var ignoreDeletes = false
+    var ignoreCommits = false
     var reads = 0
     var failWrites = false
     var finishComposingCalls = 0
@@ -23,6 +27,7 @@ class FakeEditor(initial: String = "", var selStart: Int = initial.length, var s
     override fun endBatch() { if (--depth == 0) flushKeys() }
     private fun flushKeys() {
         for (k in pendingKeys) when (k) {
+            is String -> replaceSel(k)
             EditorPort.PortKey.DEL -> if (selStart != selEnd) replaceSel("") else if (selStart > 0) {
                 val n = Character.charCount(Character.codePointBefore(sb, selStart))
                 sb.delete(selStart - n, selStart); selStart -= n; selEnd = selStart
@@ -36,13 +41,17 @@ class FakeEditor(initial: String = "", var selStart: Int = initial.length, var s
     private fun replaceSel(t: CharSequence) {
         sb.replace(selStart, selEnd, t.toString()); selStart += t.length; selEnd = selStart
     }
-    override fun commitText(text: CharSequence): Boolean { if (failWrites) return false; replaceSel(text); return true }
+    override fun commitText(text: CharSequence): Boolean {
+        if (failWrites) return false; if (!ignoreCommits) replaceSel(text); return true
+    }
+    override fun sendText(text: CharSequence) { pendingKeys.add(text.toString()); if (depth == 0) flushKeys() }
     override fun deleteBefore(utf16: Int): Boolean {
         if (failWrites) return false
         val n = minOf(utf16, selStart); sb.delete(selStart - n, selStart); selStart -= n; selEnd -= n; return true
     }
     override fun deleteCodePointsBefore(count: Int): Boolean {
         if (failWrites) return false
+        if (ignoreDeletes) return true
         var p = selStart
         repeat(count) { if (p > 0) p -= Character.charCount(Character.codePointBefore(sb, p)) }
         return deleteBefore(selStart - p)
@@ -290,5 +299,32 @@ class IcProxyTest {
         s.set("abc", atFieldStart = true)
         s.deleted(5)
         assertEquals("", s.text())                     // ô trống thật
+    }
+
+    // WriteMode theo app (bảng WriteMode.forPackage) — regression 26/09/2026.
+    private fun telexVieet(p: IcProxy) {
+        p.begin(); p.insertText("vie"); p.end()
+        p.begin(); p.deleteCodePoints(1); p.insertText("ê"); p.end()   // e→ê như engine
+    }
+
+    @Test fun delViaKeyEventForAppsIgnoringDeleteSurrounding() {
+        val bad = FakeEditor().apply { ignoreDeletes = true }
+        telexVieet(proxy(bad, reliable = false))
+        assertEquals("vieê", bad.text)            // COMMIT: app nuốt lệnh xoá ⇒ nhân chữ
+
+        val ed = FakeEditor().apply { ignoreDeletes = true }
+        val p = proxy(ed, reliable = false).apply { writeMode = WriteMode.DEL_VIA_KEY_EVENT }
+        telexVieet(p)
+        assertEquals("viê", ed.text)
+    }
+
+    @Test fun keyOnlyForSandboxedApps() {
+        val ed = FakeEditor().apply { ignoreCommits = true; ignoreDeletes = true }
+        val p = proxy(ed, reliable = false).apply { writeMode = WriteMode.KEY_ONLY }
+        telexVieet(p)
+        assertEquals("viê", ed.text)
+        p.begin(); p.deleteBackward(); p.end()
+        assertEquals("vi", ed.text)
+        assertTrue(p.confirmTail("không khớp"))   // key event trễ ⇒ không so đuôi
     }
 }
