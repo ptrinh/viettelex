@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VietTelex SDK Demo</title>
+<style>
+  :root { color-scheme: light dark; --bg:#f6f7fb; --fg:#15171c; --card:#fff; --mut:#667085; --acc:#2563eb; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#101218; --fg:#e7e9ee; --card:#1a1d25; --mut:#98a2b3; --acc:#60a5fa; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:32px 16px 64px; }
+  h1 { font-size:1.6rem; margin:0 0 4px; }
+  p.mut { color:var(--mut); margin-top:0; }
+  label { display:block; font-weight:600; margin:20px 0 6px; }
+  textarea, input[type=text], [contenteditable] { box-sizing:border-box; width:100%; padding:12px; border-radius:10px;
+    border:1px solid color-mix(in srgb, var(--mut) 40%, transparent); background:var(--card); color:var(--fg); font:inherit; }
+  textarea { min-height:120px; }
+  [contenteditable] { min-height:80px; }
+  .row { display:flex; gap:16px; flex-wrap:wrap; margin-top:16px; align-items:center; }
+  .badge { padding:4px 10px; border-radius:999px; background:var(--acc); color:#fff; font-weight:700; font-size:.85rem; }
+  code { background:color-mix(in srgb, var(--mut) 18%, transparent); padding:1px 5px; border-radius:5px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>VietTelex SDK</h1>
+  <p class="mut">Engine VietTelex (WebAssembly) nhúng thẳng vào trang. Gõ Telex: <code>vieejt nam</code> → việt nam. <code>Ctrl+Space</code> chuyển Việt/Anh.</p>
+  <div class="row"><span class="badge" id="mode">VI</span>
+    <label style="margin:0;font-weight:500"><input type="checkbox" id="vni"> VNI</label>
+    <label style="margin:0;font-weight:500"><input type="checkbox" id="ctx" checked> Quyết định theo ngữ cảnh</label>
+  </div>
+  <label for="ta">Textarea</label>
+  <textarea id="ta" placeholder="Gõ thử ở đây…"></textarea>
+  <label for="in">Input</label>
+  <input id="in" type="text" placeholder="Tìm kiếm…">
+  <label>Contenteditable</label>
+  <div id="ce" contenteditable="true"></div>
+</main>
+<script type="module">
+  import { attach } from '../dist/viettelex.mjs';
+  const mode = document.getElementById('mode');
+  const onToggle = on => { mode.textContent = on ? 'VI' : 'EN'; };
+  const handles = await Promise.all(['ta', 'in', 'ce'].map(id => attach(document.getElementById(id), { onToggle })));
+  const apply = () => handles.forEach(h => h.setOptions({
+    inputMethod: document.getElementById('vni').checked ? 'vni' : 'telex',
+    contextualEnglish: document.getElementById('ctx').checked }));
+  document.getElementById('vni').onchange = apply;
+  document.getElementById('ctx').onchange = apply;
+  window.__vt = handles;
+</script>
+</body>
+</html>

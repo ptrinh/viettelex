@@ -1,0 +1,19 @@
+{
+  "name": "@viettelex/core",
+  "version": "1.0.0",
+  "description": "VietTelex Core — Vietnamese Telex/VNI input engine for the web (WebAssembly, same engine as the VietTelex apps).",
+  "type": "module",
+  "main": "./dist/viettelex.mjs",
+  "module": "./dist/viettelex.mjs",
+  "exports": { ".": "./dist/viettelex.mjs" },
+  "files": ["dist/", "README.md"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "./scripts/build.sh",
+    "test": "node test/golden.test.mjs"
+  },
+  "keywords": ["vietnamese", "telex", "vni", "input method", "ime", "wasm"],
+  "license": "MIT",
+  "homepage": "https://viettelex.com",
+  "repository": { "type": "git", "url": "https://github.com/ptrinh/viettelex.git", "directory": "web/sdk" }
+}
