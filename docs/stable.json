@@ -3,9 +3,9 @@
   "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.7.12",
   "build": 108,
   "windows": {
-    "version": "1.0.5",
-    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.0.5/VietTelex-1.0.5-x64.msi",
-    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.0.5/VietTelex-1.0.5-arm64.msi",
-    "notes": "Giao diện tối đồng bộ, chọn icon bàn phím, nút gỡ cài đặt, sửa lỗi cài đè."
+    "version": "1.0.7",
+    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.0.7/VietTelex-1.0.7-x64.msi",
+    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.0.7/VietTelex-1.0.7-arm64.msi",
+    "notes": "Cài đè tự thoát app cũ, không cần khởi động lại."
   }
 }
