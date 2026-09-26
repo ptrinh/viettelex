@@ -89,6 +89,7 @@ int main(int argc, char** argv) {
     if (argc < 2) return usage();
     const std::string cmd = argv[1];
     if (cmd == "wxs" && argc == 5) {
+        bool first = true;  // the component is registry-only: its first value is the KeyPath
         for (const auto& e : vtx::reg::tipRegistryEntries(argv[3], argv[4])) {
             std::string attrs = "Root=\"HKLM\" Key=\"" + xml(e.key) + "\"";
             switch (e.type) {
@@ -103,6 +104,10 @@ int main(int argc, char** argv) {
                     if (!e.name.empty()) attrs += " Name=\"" + xml(e.name) + "\"";
                     attrs += " Type=\"string\" Value=\"" + xml(e.sz) + "\"";
                     break;
+            }
+            if (first && e.type != vtx::reg::ValueType::Key) {
+                attrs += " KeyPath=\"yes\"";
+                first = false;
             }
             std::printf("            <RegistryValue %s />\n", attrs.c_str());
         }

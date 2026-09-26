@@ -6,27 +6,33 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from check_msi import ca_problems, first_key_order_problem  # noqa: E402
+from check_msi import ca_problems, first_key_order_problem, ice63_problems  # noqa: E402
 
 GOOD_SEQ = {'CostFinalize': 1000, 'InstallValidate': 1400, 'InstallInitialize': 1500, 'RemoveFiles': 3500,
-            'InstallFinalize': 6600, 'SetVtxExe': 1010, 'QuitApp': 1020, 'ReleaseTip': 1505,
-            'RemoveExistingProducts': 1510, 'CleanupUser': 3400, 'SetupUser': 6610, 'LaunchApp': 6620}
+            'InstallFiles': 4000, 'InstallExecute': 6590, 'RemoveExistingProducts': 6595, 'InstallFinalize': 6600,
+            'SetVtxExe': 1010, 'QuitApp': 1020, 'ReleaseTip': 3450, 'CleanupUser': 3400, 'SetupUser': 6610,
+            'LaunchApp': 6620}
 GOOD_CAS = {
     'SetVtxExe': {'Type': 51, 'Source': 'VTXEXE', 'Target': '[INSTALLFOLDER]VietTelex.exe'},
     'SetupUser': {'Type': 114, 'Source': 'VTXEXE', 'Target': '--setup-user'},
     'LaunchApp': {'Type': 242, 'Source': 'VTXEXE', 'Target': '--background'},
     'CleanupUser': {'Type': 1138, 'Source': 'VTXEXE', 'Target': '--cleanup-user'},
     'QuitApp': {'Type': 66, 'Source': 'SetupHelper', 'Target': '--quit-app'},
-    'ReleaseTip': {'Type': 3138, 'Source': 'SetupHelper', 'Target': '--release-tip "[INSTALLFOLDER]." "[INSTALLFOLDER86]."'},
+    'ReleaseTip': {'Type': 3138, 'Source': 'SetupHelper',
+                   'Target': '--max-version 1.0.7 --release-tip "[INSTALLFOLDER]." "[INSTALLFOLDER86]."'},
 }
 BINARIES = {'SetupHelper'}
 FILES = {'VietTelexExe'}
 DIRS = {'INSTALLFOLDER', 'TARGETDIR'}
 
 
-def run(cas=None, seq=None, binaries=None):
+GOOD_COND = {'ReleaseTip': 'NOT UPGRADINGPRODUCTCODE'}
+
+
+def run(cas=None, seq=None, binaries=None, cond=None):
     return ca_problems(cas or GOOD_CAS, {'InstallExecuteSequence': seq or GOOD_SEQ}, FILES, DIRS,
-                       BINARIES if binaries is None else binaries)
+                       BINARIES if binaries is None else binaries,
+                       {'InstallExecuteSequence': GOOD_COND if cond is None else cond})
 
 
 class KeyOrder(unittest.TestCase):
@@ -71,23 +77,63 @@ class UpgradeInPlace(unittest.TestCase):  # 1.0.6: upgrade must not leave the ol
         cas = dict(GOOD_CAS, QuitApp={'Type': 66 + 1024, 'Source': 'SetupHelper', 'Target': '--quit-app'})
         self.assertTrue(any('immediate' in x for x in run(cas)))
 
-    def test_release_after_old_product_removal_rejected(self):
-        self.assertTrue(any('ReleaseTip' in x for x in run(seq=dict(GOOD_SEQ, ReleaseTip=1520))))
+    def test_release_after_file_actions_rejected(self):
+        self.assertTrue(any('before RemoveFiles' in x for x in run(seq=dict(GOOD_SEQ, ReleaseTip=3900))))
 
     def test_release_impersonated_rejected(self):
-        cas = dict(GOOD_CAS, ReleaseTip={'Type': 66 + 1024, 'Source': 'SetupHelper', 'Target': '--release-tip'})
+        cas = dict(GOOD_CAS, ReleaseTip={'Type': 66 + 1024, 'Source': 'SetupHelper',
+                                         'Target': '--release-tip "[INSTALLFOLDER]."'})
         self.assertTrue(any('not impersonated' in x for x in run(cas)))
-
-    def test_early_rep_rejected(self):  # wixl's default (1401) removes the old product first
-        self.assertTrue(any('RemoveExistingProducts' in x for x in run(seq=dict(GOOD_SEQ, RemoveExistingProducts=1401))))
 
     def test_release_dir_trailing_backslash_rejected(self):  # "C:\dir\" escapes the quote
         cas = dict(GOOD_CAS, ReleaseTip={'Type': 3138, 'Source': 'SetupHelper',
                                          'Target': '--release-tip "[INSTALLFOLDER]" "[INSTALLFOLDER86]"'})
         self.assertTrue(any('escapes' in x for x in run(cas)))
 
+    def test_release_runs_in_old_package_during_upgrade_rejected(self):  # found in the 1.0.6->1.0.7 run
+        self.assertTrue(any('NOT UPGRADINGPRODUCTCODE' in x for x in run(cond={})))
+
+    def test_release_without_max_version_rejected(self):
+        cas = dict(GOOD_CAS, ReleaseTip={'Type': 3138, 'Source': 'SetupHelper',
+                                         'Target': '--release-tip "[INSTALLFOLDER]."'})
+        self.assertTrue(any('--max-version' in x for x in run(cas)))
+
     def test_missing_binary_rejected(self):
         self.assertTrue(any('Binary source' in x for x in run(binaries=set())))
+
+
+class Ice63(unittest.TestCase):  # RemoveExistingProducts positions (error 2613 in 1.0.6)
+    def seq(self, **kw):
+        return dict({'InstallValidate': 1400, 'InstallInitialize': 1500, 'InstallExecute': 6590,
+                     'InstallFinalize': 6600, 'ProcessComponents': 1600}, **kw)
+
+    def test_v106_rejected(self):  # REP 1510 with ReleaseTip 1505 in between
+        self.assertTrue(ice63_problems(self.seq(RemoveExistingProducts=1510, ReleaseTip=1505)))
+
+    def test_legal_positions(self):
+        for rep in (1401, 1501, 6595, 6700):
+            self.assertEqual(ice63_problems(self.seq(RemoveExistingProducts=rep)), [], rep)
+
+    def test_between_initialize_and_execute_rejected(self):
+        self.assertTrue(ice63_problems(self.seq(RemoveExistingProducts=3000)))
+
+    def test_execute_window_needs_install_execute(self):
+        s = self.seq(RemoveExistingProducts=6595)
+        del s['InstallExecute']
+        self.assertTrue(ice63_problems(s))
+
+
+class Ice77Ice12(unittest.TestCase):
+    def test_deferred_outside_script_rejected(self):
+        self.assertTrue(any('ICE77' in x for x in run(seq=dict(GOOD_SEQ, CleanupUser=6700))))
+
+    def test_type51_directory_after_costfinalize_rejected(self):
+        cas = dict(GOOD_CAS, SetDir={'Type': 51, 'Source': 'INSTALLFOLDER', 'Target': 'C:\\x'})
+        self.assertTrue(any('ICE12' in x for x in run(cas, dict(GOOD_SEQ, SetDir=1100))))
+
+    def test_type35_before_costfinalize_rejected(self):
+        cas = dict(GOOD_CAS, SetDir={'Type': 35, 'Source': 'INSTALLFOLDER', 'Target': 'C:\\x'})
+        self.assertTrue(any('ICE12' in x for x in run(cas, dict(GOOD_SEQ, SetDir=900))))
 
 
 if __name__ == '__main__':

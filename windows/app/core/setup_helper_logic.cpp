@@ -1,8 +1,15 @@
 #include "setup_helper_logic.h"
 
+#include "update_check.h"
+
 namespace vtx {
 
 namespace {
+size_t lstrlenW_(const wchar_t* s) {
+    size_t n = 0;
+    while (s[n]) ++n;
+    return n;
+}
 std::wstring lower(std::wstring s) {
     for (wchar_t& c : s)
         if (c >= L'A' && c <= L'Z') c = static_cast<wchar_t>(c - L'A' + L'a');
@@ -55,10 +62,31 @@ std::string versionSuffix(const std::string& v) {
     return out;
 }
 
+std::string tipDllVersion(const std::wstring& fileName) {
+    if (!isTipDllName(fileName)) return std::string();
+    std::wstring n = lower(baseName(fileName));
+    n = n.substr(0, n.size() - 4).substr(12);  // strip "viettelextip" and ".dll"
+    for (const wchar_t* arch : {L"_arm64", L"_x64"})
+        if (n.compare(0, lstrlenW_(arch), arch) == 0) n = n.substr(lstrlenW_(arch));
+    if (n.empty()) return "0";
+    std::string v;
+    for (size_t i = 1; i < n.size(); ++i) v.push_back(n[i] == L'_' ? '.' : static_cast<char>(n[i]));
+    return v;
+}
+
+bool shouldRelease(const std::wstring& fileName, const std::string& maxVersion) {
+    const std::string v = tipDllVersion(fileName);
+    if (v.empty()) return false;
+    return maxVersion.empty() || !isNewer(v, maxVersion);
+}
+
 HelperArgs parseHelperArgs(const std::vector<std::wstring>& argv) {
     HelperArgs a;
     for (size_t i = 0; i < argv.size(); ++i) {
         if (argv[i] == L"--quit-app") a.quitApp = true;
+        else if (argv[i] == L"--max-version" && i + 1 < argv.size()) {
+            for (wchar_t c : argv[++i]) a.maxVersion.push_back(static_cast<char>(c));
+        }
         else if (argv[i] == L"--release-tip") {
             a.releaseTip = true;
             while (i + 1 < argv.size() && argv[i + 1].compare(0, 2, L"--") != 0) {

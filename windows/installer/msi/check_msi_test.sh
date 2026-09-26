@@ -17,6 +17,7 @@ d="$(mktemp -d)"; trap 'rm -rf "$d"' EXIT
 for f in VietTelex.exe VietTelexTIP_1_0_0.dll VietTelexSetupHelper.exe; do echo "$f" > "$d/$f"; done
 fill() {
   sed -e "s|@VERSION@|1.0.0|g; s|@UPGRADECODE@|0F0E0D0C-0B0A-4908-8706-050403020100|g; s|@PRODUCTCODE@|*|g; s|@TIPDLL@|VietTelexTIP_1_0_0.dll|g" \
+      -e "s|@GUID_TIPFILE@|0F0E0D0C-0B0A-4908-8706-050403020105|; s|@GUID_TIPFILE86@|0F0E0D0C-0B0A-4908-8706-050403020106|" \
       -e "s|@ICON@|$here/../../ime/res/viettelex.ico|g; s|@BIN_NATIVE@|$d|g; s|@BIN_X86@|$d|g" \
       -e "s|@GUID_APP@|0F0E0D0C-0B0A-4908-8706-050403020101|; s|@GUID_TIPNATIVE@|0F0E0D0C-0B0A-4908-8706-050403020102|" \
       -e "s|@GUID_TIPX86@|0F0E0D0C-0B0A-4908-8706-050403020103|; s|@GUID_SHORTCUT@|0F0E0D0C-0B0A-4908-8706-050403020104|" \
@@ -28,8 +29,8 @@ dll='[INSTALLFOLDER]VietTelexTIP_1_0_0.dll'
 # check_msi_unit.py; this script checks the real template end to end.)
 
 # ---- the current way
-"$REGTABLE" wxs TipNative "$dll" "$dll" > "$d/reg64.xml"
-"$REGTABLE" wxs TipX86 '[INSTALLFOLDER86]VietTelexTIP_1_0_0.dll' '[INSTALLFOLDER86]VietTelexTIP_1_0_0.dll' > "$d/reg32.xml"
+"$REGTABLE" wxs TipReg "$dll" "$dll" > "$d/reg64.xml"
+"$REGTABLE" wxs TipReg86 '[INSTALLFOLDER86]VietTelexTIP_1_0_0.dll' '[INSTALLFOLDER86]VietTelexTIP_1_0_0.dll' > "$d/reg32.xml"
 fill | sed -e "/@REG_TIPNATIVE@/r $d/reg64.xml" -e "/@REG_TIPNATIVE@/d" \
            -e "/@REG_TIPX86@/r $d/reg32.xml" -e "/@REG_TIPX86@/d" > "$d/new.wxs"
 wixl --arch x64 -o "$d/new.msi" "$d/new.wxs" 2>/dev/null
@@ -38,7 +39,7 @@ msibuild "$d/new.msi" -q "UPDATE \`CustomAction\` SET \`Type\`=66, \`Source\`='S
 msibuild "$d/new.msi" -q "UPDATE \`CustomAction\` SET \`Type\`=3138, \`Source\`='SetupHelper' WHERE \`Action\`='ReleaseTip'"
 python3 "$here/check_msi.py" "$d/new.msi" >/dev/null
 msiinfo export "$d/new.msi" Registry > "$d/Registry.idt"
-"$REGTABLE" check "$d/Registry.idt" TipNative "$dll" "$dll" >/dev/null
+"$REGTABLE" check "$d/Registry.idt" TipReg "$dll" "$dll" >/dev/null
 # ---- 1.0.3 regression class: the installed exe's path used before CostFinalize ->
 # Windows error 2731 on every uninstall. Must be rejected.
 cp "$d/new.msi" "$d/seq.msi"
@@ -54,11 +55,12 @@ msiinfo export "$d/filekey.msi" CustomAction | grep -q "^SetupUser	82	VietTelexE
 if python3 "$here/check_msi.py" "$d/filekey.msi" 2>/dev/null; then
   echo "FAIL: check_msi.py accepted a FileKey custom action (1.0.4, error 2753)" >&2; exit 1
 fi
-# ---- 1.0.6: the old product must be removed only AFTER ReleaseTip (inside the
-# transaction); wixl's default early RemoveExistingProducts (1401) must be rejected.
+# ---- 1.0.6 (error 2613): RemoveExistingProducts at 1510 with ReleaseTip between it
+# and InstallInitialize is an ILLEGAL position (ICE63). Must be rejected.
 cp "$d/new.msi" "$d/rep.msi"
-msibuild "$d/rep.msi" -q "UPDATE \`InstallExecuteSequence\` SET \`Sequence\`=1401 WHERE \`Action\`='RemoveExistingProducts'"
+msibuild "$d/rep.msi" -q "UPDATE \`InstallExecuteSequence\` SET \`Sequence\`=1510 WHERE \`Action\`='RemoveExistingProducts'"
+msibuild "$d/rep.msi" -q "UPDATE \`InstallExecuteSequence\` SET \`Sequence\`=1505 WHERE \`Action\`='ReleaseTip'"
 if python3 "$here/check_msi.py" "$d/rep.msi" 2>/dev/null; then
-  echo "FAIL: check_msi.py accepted RemoveExistingProducts before InstallInitialize" >&2; exit 1
+  echo "FAIL: check_msi.py accepted the 1.0.6 RemoveExistingProducts position (error 2613)" >&2; exit 1
 fi
-echo "check_msi regression ok (template accepted; 1.0.3 CA sequence, 1.0.4 FileKey CA, early REP rejected)"
+echo "check_msi regression ok (template accepted; 1.0.3 CA sequence, 1.0.4 FileKey CA, 1.0.6 REP position rejected)"

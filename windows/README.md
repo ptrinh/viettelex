@@ -50,8 +50,11 @@ There is no AppContainer ACL, because wixl has no `Permission` element. It isn't
 To upgrade, install the new MSI over the old one. There are no repair packages. A normal major upgrade does this:
 
 1. **QuitApp** (immediate, before InstallValidate) runs `VietTelexSetupHelper.exe --quit-app` from the MSI's Binary table. It sends `WM_CLOSE` to every VietTelex.exe main window, waits 3 s, then terminates only `VietTelex.exe` images. The app also answers `WM_QUERYENDSESSION`/`WM_ENDSESSION` by exiting.
-2. **ReleaseTip** (deferred as SYSTEM, after InstallInitialize and before RemoveExistingProducts) moves every in-use `VietTelexTIP*.dll` aside to `*.old`, scheduled for silent deletion at the next boot.
-3. The old product is removed and the new files are installed. TIP DLL names carry the version (`VietTelexTIP_1_0_6.dll`), so nothing overwrites a DLL that running apps have loaded, and the registry points at the new file immediately. There is no reboot prompt: Restart Manager is disabled because it would offer to close every app with a text field.
+2. **ReleaseTip** (deferred as SYSTEM, before RemoveFiles/InstallFiles) moves every in-use `VietTelexTIP*.dll` of this version or older (`--max-version`) aside to `*.old`, scheduled for silent deletion at the next boot. It is skipped when this package is the old version being removed (`NOT UPGRADINGPRODUCTCODE`).
+3. The new files are installed. TIP DLL names carry the version (`VietTelexTIP_1_0_7.dll`) and get a per-version component GUID, so nothing overwrites a DLL that running apps have loaded, and the registry points at the new file immediately.
+   - The old version is removed afterwards: RemoveExistingProducts sits between InstallExecute and InstallFinalize, one of the positions ICE63 allows. 1.0.6 put it elsewhere and failed with error 2613.
+   - The COM/TSF registration lives in registry-only components that keep the ≤1.0.5 component GUIDs, so removing the old version keeps the keys the new one wrote.
+   - `REBOOT=ReallySuppress` and Restart Manager disabled: no prompts.
 4. **LaunchApp** starts the new app, which opens Settings.
 5. **Single-instance handoff:** a newer exe that finds an older instance running (compared by the version in the hidden window's title) closes it and takes over.
 6. **In-app update:** it starts `msiexec` plus a detached watcher (a copy of the exe in `%TEMP%`), then exits. If the install is cancelled, the watcher restarts the installed app.

@@ -167,3 +167,22 @@ TEST(update_handoff_sequence) {
     CHECK(afterInstallAction(false, true) == AfterInstall::LaunchInstalled);   // UAC cancelled / failed
     CHECK(afterInstallAction(false, false) == AfterInstall::Nothing);          // nothing installed any more
 }
+
+TEST(helper_release_never_touches_newer_dlls) {
+    CHECK_EQ(tipDllVersion(L"VietTelexTIP.dll"), std::string("0"));
+    CHECK_EQ(tipDllVersion(L"VietTelexTIP_arm64.dll"), std::string("0"));
+    CHECK_EQ(tipDllVersion(L"VietTelexTIP_1_0_8.dll"), std::string("1.0.8"));
+    CHECK_EQ(tipDllVersion(L"viettelextip_x64_1_0_10.DLL"), std::string("1.0.10"));
+    CHECK(tipDllVersion(L"VietTelex.exe").empty());
+    // new 1.0.8 install: moves its predecessors (and a same-version copy on repair)
+    CHECK(shouldRelease(L"VietTelexTIP_1_0_7.dll", "1.0.8"));
+    CHECK(shouldRelease(L"VietTelexTIP.dll", "1.0.8"));
+    CHECK(shouldRelease(L"VietTelexTIP_1_0_8.dll", "1.0.8"));
+    // old 1.0.7 package being removed by 1.0.8 (late RemoveExistingProducts)
+    CHECK(!shouldRelease(L"VietTelexTIP_1_0_8.dll", "1.0.7"));
+    CHECK(!shouldRelease(L"VietTelexTIP_arm64_1_0_10.dll", "1.0.9"));
+    CHECK(!shouldRelease(L"VietTelex.exe", "1.0.8"));
+    HelperArgs a = parseHelperArgs({L"--release-tip", L"C:\\x\\.", L"--max-version", L"1.0.7"});
+    CHECK_EQ(a.maxVersion, std::string("1.0.7"));
+    CHECK_EQ(a.dirs.size(), size_t(1));
+}

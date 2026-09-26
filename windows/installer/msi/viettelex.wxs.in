@@ -37,6 +37,9 @@
          (all apps with a text field). QuitApp closes VietTelex.exe itself instead, and the
          version-named TIP files never collide with loaded ones. -->
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
+    <!-- Never prompt for a reboot: a TIP DLL still mapped by running apps is renamed and
+         deleted at the next boot silently; nothing else needs one. -->
+    <Property Id="REBOOT" Value="ReallySuppress" />
     <!-- MSI-only helper (not installed): runs before any file of this package exists. -->
     <Binary Id="SetupHelper" SourceFile="@BIN_NATIVE@/VietTelexSetupHelper.exe" />
 
@@ -49,8 +52,18 @@
             <RegistryValue Root="HKLM" Key="SOFTWARE\VietTelex" Name="AppPath" Type="string"
                            Value="[INSTALLFOLDER]VietTelex.exe" />
           </Component>
-          <Component Id="TipNative" Guid="@GUID_TIPNATIVE@" Win64="yes">
+          <!-- Component rules for the LATE RemoveExistingProducts (after InstallExecute):
+               the old version is removed after this one is installed, and only resources
+               of components this package does NOT share with it get deleted. So
+                 * version-named files get a per-VERSION component GUID (TipNative, TipX86,
+                   the ARM64 halves): a new name is a new component;
+                 * the COM/TSF registration lives in registry-only components whose GUIDs
+                   are the ones <= 1.0.5 used for TipNative/TipX86 (TipReg, TipReg86):
+                   shared, so removing the old version keeps the keys the new one wrote. -->
+          <Component Id="TipNative" Guid="@GUID_TIPFILE@" Win64="yes">
             <File Id="TipNativeDll" Name="@TIPDLL@" Source="@BIN_NATIVE@/@TIPDLL@" KeyPath="yes" />
+          </Component>
+          <Component Id="TipReg" Guid="@GUID_TIPNATIVE@" Win64="yes">
             <!-- @REG_TIPNATIVE@ -->
           </Component>
           <!-- @ARM64_COMPONENTS@ -->
@@ -58,8 +71,10 @@
       </Directory>
       <Directory Id="ProgramFilesFolder">
         <Directory Id="INSTALLFOLDER86" Name="VietTelex">
-          <Component Id="TipX86" Guid="@GUID_TIPX86@" Win64="no">
+          <Component Id="TipX86" Guid="@GUID_TIPFILE86@" Win64="no">
             <File Id="TipX86Dll" Name="@TIPDLL@" Source="@BIN_X86@/@TIPDLL@" KeyPath="yes" />
+          </Component>
+          <Component Id="TipReg86" Guid="@GUID_TIPX86@" Win64="no">
             <!-- @REG_TIPX86@ -->
           </Component>
         </Directory>
@@ -94,16 +109,19 @@
          re-pointed at the Binary row by release.sh (UPDATE of non-key columns only).
            QuitApp    immediate, as the user, before InstallValidate: WM_CLOSE to every
                       VietTelex.exe, wait 3 s, terminate only VietTelex.exe images.
-           ReleaseTip deferred as SYSTEM, after InstallInitialize and BEFORE
-                      RemoveExistingProducts: move in-use VietTelexTIP*.dll aside (deleted
-                      at next boot, silently) so neither the old product's removal nor
-                      this install ever meets a file in use.
+           ReleaseTip deferred as SYSTEM, before RemoveFiles/InstallFiles (so only
+                      the OLD files exist): move in-use VietTelexTIP*.dll aside (deleted at
+                      next boot, silently). The old product's removal (late REP) then
+                      finds nothing in use; neither does an uninstall. Two guards keep an OLD
+                      package (removed by a newer one) off the NEWER files: the condition
+                      NOT UPGRADINGPRODUCTCODE, and max-version (only DLLs of this version or
+                      older are moved — needed where UPGRADINGPRODUCTCODE is not set).
                       Paths end in "\." — a bare trailing backslash would escape the
                       closing quote in the helper's command line. -->
     <CustomAction Id="QuitApp" Property="VTXHELPER" ExeCommand="--quit-app"
                   Execute="immediate" Return="ignore" />
     <CustomAction Id="ReleaseTip" Property="VTXHELPER"
-                  ExeCommand="--release-tip &quot;[INSTALLFOLDER].&quot; &quot;[INSTALLFOLDER86].&quot;"
+                  ExeCommand="--max-version @VERSION@ --release-tip &quot;[INSTALLFOLDER].&quot; &quot;[INSTALLFOLDER86].&quot;"
                   Execute="deferred" Impersonate="no" Return="ignore" />
     <CustomAction Id="SetupUser" Property="VTXEXE" ExeCommand="--setup-user"
                   Execute="immediate" Return="ignore" />
@@ -114,16 +132,21 @@
     <!-- EXPLICIT sequence numbers: wixl does not honour Before/After reliably (1.0.3 put
          CleanupUser at 1, before costing, and uninstall failed with error 2731).
          Standard numbers: CostFinalize 1000, InstallValidate 1400, InstallInitialize 1500,
-         RemoveShortcuts 3200,
-         RemoveFiles 3500, InstallFinalize 6600. check_msi.py enforces the ordering. -->
+         RemoveShortcuts 3200, RemoveFiles 3500, InstallFiles 4000, InstallFinalize 6600. check_msi.py enforces the ordering. -->
     <InstallExecuteSequence>
       <Custom Action="SetVtxExe" Sequence="1010" />
       <Custom Action="QuitApp" Sequence="1020" />
-      <Custom Action="ReleaseTip" Sequence="1505" />
-      <!-- Old version removed AFTER InstallInitialize (inside this transaction), after
-           ReleaseTip moved its in-use DLLs aside. -->
-      <RemoveExistingProducts Sequence="1510" />
       <Custom Action="CleanupUser" Sequence="3400">REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <!-- NOT UPGRADINGPRODUCTCODE: when THIS package is the old version being removed by
+           a newer one (late REP, after the newer files are installed), it must not move
+           the newer version's DLLs aside. -->
+      <Custom Action="ReleaseTip" Sequence="3450">NOT UPGRADINGPRODUCTCODE</Custom>
+      <!-- RemoveExistingProducts may only sit where Windows Installer allows (ICE63;
+           1.0.6 broke this and failed with error 2613): here, between InstallExecute
+           and InstallFinalize — the old version is removed after the new one is fully
+           in place. check_msi.py encodes the allowed positions. -->
+      <InstallExecute Sequence="6590" />
+      <RemoveExistingProducts Sequence="6595" />
       <Custom Action="SetupUser" Sequence="6610">NOT REMOVE</Custom>
       <Custom Action="LaunchApp" Sequence="6620">NOT REMOVE AND NOT REINSTALL AND UILevel &gt;= 4</Custom>
     </InstallExecuteSequence>
@@ -131,8 +154,10 @@
     <Feature Id="Complete" Level="1">
       <ComponentRef Id="AppExe" />
       <ComponentRef Id="TipNative" />
+      <ComponentRef Id="TipReg" />
       <!-- @ARM64_REFS@ -->
       <ComponentRef Id="TipX86" />
+      <ComponentRef Id="TipReg86" />
       <ComponentRef Id="StartMenuShortcut" />
     </Feature>
   </Product>

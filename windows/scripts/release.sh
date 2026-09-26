@@ -151,20 +151,21 @@ build_msi() {  # build_msi <x64|arm64>
   work="$(mktemp -d)"
   local arm64comp="" arm64refs=""
   if [ "$arch" = arm64 ]; then
-    arm64comp="<Component Id=\"TipArm64Half\" Guid=\"$(guid "vtx-msi-tiparm64-$arch")\" Win64=\"yes\"><File Id=\"TipArm64Dll\" Name=\"VietTelexTIP_arm64$V.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_arm64$V.dll\" KeyPath=\"yes\" /></Component><Component Id=\"TipX64Half\" Guid=\"$(guid "vtx-msi-tipx64-$arch")\" Win64=\"yes\"><File Id=\"TipX64Dll\" Name=\"VietTelexTIP_x64$V.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_x64$V.dll\" KeyPath=\"yes\" /></Component>"
+    arm64comp="<Component Id=\"TipArm64Half\" Guid=\"$(guid "vtx-msi-tiparm64-$arch-$VERSION")\" Win64=\"yes\"><File Id=\"TipArm64Dll\" Name=\"VietTelexTIP_arm64$V.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_arm64$V.dll\" KeyPath=\"yes\" /></Component><Component Id=\"TipX64Half\" Guid=\"$(guid "vtx-msi-tipx64-$arch-$VERSION")\" Win64=\"yes\"><File Id=\"TipX64Dll\" Name=\"VietTelexTIP_x64$V.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_x64$V.dll\" KeyPath=\"yes\" /></Component>"
     arm64refs='<ComponentRef Id="TipArm64Half" /><ComponentRef Id="TipX64Half" />'
   fi
   sed -e "s|@VERSION@|$VERSION|g" -e "s|@UPGRADECODE@|$upgrade|g" -e "s|@PRODUCTCODE@|$productcode|g" -e "s|@TIPDLL@|VietTelexTIP$V.dll|g" \
       -e "s|@ICON@|$WIN/ime/res/viettelex.ico|g" \
       -e "s|@BIN_NATIVE@|$DIST/bin/$arch|g" -e "s|@BIN_X86@|$DIST/bin/x86|g" \
       -e "s|@GUID_APP@|$(guid "vtx-msi-app-$arch")|g" -e "s|@GUID_TIPNATIVE@|$(guid "vtx-msi-tipnative-$arch")|g" \
-      -e "s|@GUID_TIPX86@|$(guid "vtx-msi-tipx86-$arch")|g" -e "s|@GUID_SHORTCUT@|$(guid "vtx-msi-shortcut-$arch")|g" \
+      -e "s|@GUID_TIPX86@|$(guid "vtx-msi-tipx86-$arch")|g" \
+      -e "s|@GUID_TIPFILE@|$(guid "vtx-msi-tipfile-$arch-$VERSION")|g" -e "s|@GUID_TIPFILE86@|$(guid "vtx-msi-tipfile86-$arch-$VERSION")|g" -e "s|@GUID_SHORTCUT@|$(guid "vtx-msi-shortcut-$arch")|g" \
       -e "s|<!-- @ARM64_COMPONENTS@ -->|$arm64comp|" -e "s|<!-- @ARM64_REFS@ -->|$arm64refs|" \
       "$WIN/installer/msi/viettelex.wxs.in" > "$work/product.in"
   # COM + TSF registration rows, written by wixl itself (see regtable.cpp for why
   # never msibuild -q): 64-bit view (TipNative), 32-bit view (TipX86).
-  "$REGTABLE" wxs TipNative "[INSTALLFOLDER]VietTelexTIP$V.dll" "$icon_native" > "$work/reg64.xml"
-  "$REGTABLE" wxs TipX86 "[INSTALLFOLDER86]VietTelexTIP$V.dll" "[INSTALLFOLDER86]VietTelexTIP$V.dll" > "$work/reg32.xml"
+  "$REGTABLE" wxs TipReg "[INSTALLFOLDER]VietTelexTIP$V.dll" "$icon_native" > "$work/reg64.xml"
+  "$REGTABLE" wxs TipReg86 "[INSTALLFOLDER86]VietTelexTIP$V.dll" "[INSTALLFOLDER86]VietTelexTIP$V.dll" > "$work/reg32.xml"
   sed -e "/@REG_TIPNATIVE@/r $work/reg64.xml" -e "/@REG_TIPNATIVE@/d" \
       -e "/@REG_TIPX86@/r $work/reg32.xml" -e "/@REG_TIPX86@/d" "$work/product.in" > "$work/product.wxs"
   if grep -q '@[A-Z0-9_]*@' "$work/product.wxs"; then
@@ -196,16 +197,18 @@ build_msi() {  # build_msi <x64|arm64>
   # standard schemas (the 1.0.0 error-2211 class). Run BEFORE any other check.
   python3 "$WIN/installer/msi/check_msi.py" "$msi" || fail=1
   msiinfo export "$msi" Registry > "$work/Registry.idt"
-  "$REGTABLE" check "$work/Registry.idt" TipNative "[INSTALLFOLDER]VietTelexTIP$V.dll" "$icon_native" >/dev/null || fail=1
-  "$REGTABLE" check "$work/Registry.idt" TipX86 "[INSTALLFOLDER86]VietTelexTIP$V.dll" "[INSTALLFOLDER86]VietTelexTIP$V.dll" >/dev/null || fail=1
+  "$REGTABLE" check "$work/Registry.idt" TipReg "[INSTALLFOLDER]VietTelexTIP$V.dll" "$icon_native" >/dev/null || fail=1
+  "$REGTABLE" check "$work/Registry.idt" TipReg86 "[INSTALLFOLDER86]VietTelexTIP$V.dll" "[INSTALLFOLDER86]VietTelexTIP$V.dll" >/dev/null || fail=1
   # 64-bit components must have msidbComponentAttributes64bit (256), TipX86 must not.
   local c
-  for c in AppExe TipNative; do
+  for c in AppExe TipNative TipReg; do
     table "$msi" Component | awk -F'\t' -v c="$c" '$1==c && int($4/256)%2==1{ok=1} END{exit !ok}' \
       || { echo "$c is not a 64-bit component" >&2; fail=1; }
   done
   table "$msi" Component | awk -F'\t' '$1=="TipX86" && int($4/256)%2==0{ok=1} END{exit !ok}' \
     || { echo "TipX86 is not a 32-bit component" >&2; fail=1; }
+  table "$msi" Component | awk -F'\t' '$1=="TipReg86" && int($4/256)%2==0{ok=1} END{exit !ok}' \
+    || { echo "TipReg86 is not a 32-bit component" >&2; fail=1; }
   table "$msi" Shortcut | grep -q '\[INSTALLFOLDER\]VietTelex.exe' || { echo "no Start menu shortcut" >&2; fail=1; }
   table "$msi" Upgrade | grep -q "^{$upgrade}	" || { echo "no Upgrade row" >&2; fail=1; }
   table "$msi" Property | grep -q "^ProductVersion	$VERSION\$" || { echo "ProductVersion != $VERSION" >&2; fail=1; }

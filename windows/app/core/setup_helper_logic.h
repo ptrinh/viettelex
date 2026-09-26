@@ -38,10 +38,20 @@ std::wstring releaseName(const std::wstring& fileName, unsigned long long stamp)
 // the ARM64X forwarder's module references, so they become underscores.
 std::string versionSuffix(const std::string& version);
 
+// Version encoded in a TIP DLL name: "VietTelexTIP_arm64_1_0_8.dll" -> "1.0.8";
+// unversioned names (<= 1.0.5) -> "0". Empty when not a TIP DLL.
+std::string tipDllVersion(const std::wstring& fileName);
+
+// ReleaseTip only moves DLLs of this package's version or OLDER (`--max-version`): run
+// from an old package being removed by a newer one, it must never touch the newer files,
+// even where UPGRADINGPRODUCTCODE is not set (Wine's RemoveExistingProducts).
+bool shouldRelease(const std::wstring& fileName, const std::string& maxVersion);
+
 // Parses the helper's command line (already split into arguments).
 struct HelperArgs {
     bool quitApp = false;
     bool releaseTip = false;
+    std::string maxVersion;          // --max-version X.Y.Z (empty = no limit)
     std::vector<std::wstring> dirs;  // --release-tip targets
 };
 HelperArgs parseHelperArgs(const std::vector<std::wstring>& argv);

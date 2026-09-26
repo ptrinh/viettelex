@@ -211,7 +211,8 @@ def first_key_order_problem(keys):
     return None
 
 
-def ca_problems(cas, sequences, files, dirs, binaries=frozenset()):
+def ca_problems(cas, sequences, files, dirs, binaries=frozenset(), conditions=None):
+    conditions = conditions or {}
     """Custom-action rules on plain data (see check_custom_action_sequence)."""
     problems = []
     for name, ca in cas.items():
@@ -240,7 +241,8 @@ def ca_problems(cas, sequences, files, dirs, binaries=frozenset()):
                     problems.append(f'{table}: {action} runs the exe in property {ca["Source"]} '
                                     f'but nothing sets it before sequence {number}')
         if table == 'InstallExecuteSequence':
-            problems += upgrade_order_problems(cas, seq, binaries)
+            problems += upgrade_order_problems(cas, seq, binaries, conditions.get(table, {}))
+        problems += ice77_ice12_problems(cas, seq, dirs)
         if table == 'InstallExecuteSequence' and 'CleanupUser' in seq:
             n, init, rf = seq['CleanupUser'], seq.get('InstallInitialize'), seq.get('RemoveFiles')
             if not (init is not None and rf is not None and init < n < rf):
@@ -249,15 +251,64 @@ def ca_problems(cas, sequences, files, dirs, binaries=frozenset()):
     return problems
 
 
-def upgrade_order_problems(cas, seq, binaries):
-    """Upgrade-in-place rules (1.0.6): the running app is closed before files are
-    validated, in-use TIP DLLs are moved aside inside the transaction BEFORE the old
-    product is removed, and helper actions point at a real Binary row."""
+def ice63_problems(seq):
+    """RemoveExistingProducts may only be sequenced (ICE63; Windows fails with error 2613):
+    between InstallValidate and InstallInitialize; IMMEDIATELY after InstallInitialize;
+    between InstallExecute/InstallExecuteAgain and InstallFinalize; or after InstallFinalize."""
+    rep = seq.get('RemoveExistingProducts')
+    if rep is None or rep < 0:
+        return []
+    iv, ii, fin = seq.get('InstallValidate'), seq.get('InstallInitialize'), seq.get('InstallFinalize')
+    ex = [seq[a] for a in ('InstallExecute', 'InstallExecuteAgain') if seq.get(a) is not None]
+    ok = False
+    if iv is not None and ii is not None and iv < rep < ii:
+        ok = True
+    if ii is not None and rep > ii and not any(ii < n < rep for a, n in seq.items()
+                                               if n is not None and n >= 0 and a != 'RemoveExistingProducts'):
+        ok = True
+    if fin is not None and any(e < rep < fin for e in ex):
+        ok = True
+    if fin is not None and rep > fin:
+        ok = True
+    if ok:
+        return []
+    return [f'RemoveExistingProducts at {rep} is not a legal position (ICE63 -> error 2613): allowed '
+            f'InstallValidate<REP<InstallInitialize, immediately after InstallInitialize, '
+            f'InstallExecute<REP<InstallFinalize, or after InstallFinalize']
+
+
+def ice77_ice12_problems(cas, seq, dirs):
+    """ICE77: deferred/rollback/commit custom actions only between InstallInitialize and
+    InstallFinalize. ICE12: type 35 (set directory) after CostFinalize; a type 51 that sets
+    a Directory property before CostFinalize."""
+    problems = []
+    ii, fin, cf = seq.get('InstallInitialize'), seq.get('InstallFinalize'), seq.get('CostFinalize')
+    for action, n in seq.items():
+        ca = cas.get(action)
+        if not ca or n is None or n < 0:
+            continue
+        t, base = ca['Type'], ca['Type'] & 0x3F
+        if t & (1024 | 256 | 512):  # in-script: deferred / rollback / commit
+            if ii is None or fin is None or not (ii < n < fin):
+                problems.append(f'ICE77: in-script custom action {action} at {n} must be between '
+                                f'InstallInitialize ({ii}) and InstallFinalize ({fin})')
+        if base == 35 and (cf is None or n <= cf):
+            problems.append(f'ICE12: type-35 action {action} at {n} must come after CostFinalize ({cf})')
+        if base == 51 and ca['Source'] in dirs and (cf is None or n >= cf):
+            problems.append(f'ICE12: {action} sets directory {ca["Source"]} at {n}, after CostFinalize ({cf})')
+    return problems
+
+
+def upgrade_order_problems(cas, seq, binaries, conds=None):
+    conds = conds or {}
+    """Upgrade-in-place rules: the running app is closed before files are validated;
+    in-use TIP DLLs are moved aside before this package removes or installs files and
+    before the old product is removed; helper actions point at a real Binary row."""
     problems = []
     for name, ca in cas.items():
         if (ca['Type'] & 0x3F) == 2 and ca['Source'] not in binaries:
             problems.append(f'CustomAction {name}: Binary source {ca["Source"]} does not exist')
-    iv, ii, rep = seq.get('InstallValidate'), seq.get('InstallInitialize'), seq.get('RemoveExistingProducts')
+    iv, rep = seq.get('InstallValidate'), seq.get('RemoveExistingProducts')
     if 'QuitApp' in cas:
         q, t = seq.get('QuitApp'), cas['QuitApp']['Type']
         if q is None or iv is None or q >= iv:
@@ -271,11 +322,18 @@ def upgrade_order_problems(cas, seq, binaries):
         if re.search(r'\[[A-Za-z0-9_]+\]"', cas['ReleaseTip']['Target'] or ''):
             problems.append('ReleaseTip: a directory property right before a quote ends in "\\" and '
                             'escapes the quote on the helper command line; append "."')
-        if r is None or ii is None or rep is None or not (ii < r < rep):
-            problems.append(f'ReleaseTip at {r} must be after InstallInitialize ({ii}) and before '
-                            f'RemoveExistingProducts ({rep})')
-    if rep is not None and ii is not None and rep <= ii:
-        problems.append(f'RemoveExistingProducts at {rep} must be after InstallInitialize ({ii})')
+        cond = conds.get('ReleaseTip') or ''
+        if 'NOT UPGRADINGPRODUCTCODE' not in cond:
+            problems.append('ReleaseTip needs the condition NOT UPGRADINGPRODUCTCODE: run from the old '
+                            'package during a late RemoveExistingProducts it would move the NEW DLLs aside')
+        if '--max-version' not in (cas['ReleaseTip']['Target'] or ''):
+            problems.append('ReleaseTip needs --max-version <this version>: an old package being removed '
+                            'must never move a newer version\'s DLLs')
+        for before in ('RemoveFiles', 'InstallFiles', 'RemoveExistingProducts'):
+            b = seq.get(before)
+            if r is not None and b is not None and r >= b:
+                problems.append(f'ReleaseTip at {r} must run before {before} ({b})')
+    problems += ice63_problems(seq)
     return problems
 
 
@@ -316,7 +374,8 @@ def check_custom_action_sequence(m):
     sequences = {t: {r['Action']: r['Sequence'] for r in table_dicts(m, t)}
                  for t in ('InstallExecuteSequence', 'InstallUISequence', 'AdminExecuteSequence',
                            'AdvtExecuteSequence') if t in m.columns}
-    return ca_problems(cas, sequences, files, dirs, binaries)
+    conditions = {t: {r['Action']: r['Condition'] for r in table_dicts(m, t)} for t in sequences}
+    return ca_problems(cas, sequences, files, dirs, binaries, conditions)
 
 
 def main(path):
