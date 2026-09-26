@@ -105,4 +105,65 @@ class FieldMappingTest {
         val ne = m(TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEND or EditorInfo.IME_FLAG_NO_ENTER_ACTION)
         assertEquals("return", ne.returnLabel); assertEquals(0, ne.actionId)
     }
+
+    @Test fun noPersonalizedLearningFlag() {
+        // Regression: Chrome ẩn danh đặt IME_FLAG_NO_PERSONALIZED_LEARNING — trước đây bị bỏ qua.
+        val inc = m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_URI, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING)
+        assertTrue(inc.noLearning); assertFalse(inc.passthrough); assertTrue(inc.suggestionsAllowed)
+        assertFalse(m(TYPE_CLASS_TEXT).noLearning)
+    }
+
+    @Test fun allThreeCapModes() {
+        // Regression: trước chỉ đọc CAP_SENTENCES.
+        assertTrue(m(TYPE_CLASS_TEXT or TYPE_TEXT_FLAG_CAP_WORDS).capWords)
+        assertTrue(m(TYPE_CLASS_TEXT or TYPE_TEXT_FLAG_CAP_CHARACTERS).capCharacters)
+        val plain = m(TYPE_CLASS_TEXT)
+        assertFalse(plain.capSentences); assertFalse(plain.capWords); assertFalse(plain.capCharacters)
+        // bit 0x1000 của lớp NUMBER không phải CAP_CHARACTERS
+        assertFalse(m(TYPE_CLASS_NUMBER or 0x1000).capCharacters)
+    }
+
+    @Test fun pixelLauncherSearchGetsSearchKey() {
+        // Regression (HeliBoard #1989): Pixel Launcher đặt MULTI_LINE + NO_ENTER_ACTION cho ô tìm.
+        val type = TYPE_CLASS_TEXT or TYPE_TEXT_FLAG_MULTI_LINE
+        val opts = EditorInfo.IME_ACTION_SEARCH or EditorInfo.IME_FLAG_NO_ENTER_ACTION
+        val px = FieldMapping.map(type, opts, FieldMapping.PIXEL_LAUNCHER)
+        assertEquals("search", px.returnLabel); assertEquals(EditorInfo.IME_ACTION_SEARCH, px.actionId)
+        // app khác cùng cờ vẫn xuống dòng
+        val other = FieldMapping.map(type, opts, "com.example.notes")
+        assertEquals("return", other.returnLabel); assertEquals(0, other.actionId)
+    }
+
+    @Test fun customActionLabelPerformsCustomActionId() {
+        val f = FieldMapping.map(TYPE_CLASS_TEXT, EditorInfo.IME_FLAG_NO_ENTER_ACTION, null,
+            hasActionLabel = true, customActionId = 42)
+        assertEquals(42, f.actionId); assertEquals("done", f.returnLabel)
+        // ô nhiều dòng: vẫn xuống dòng
+        val ml = FieldMapping.map(TYPE_CLASS_TEXT or TYPE_TEXT_FLAG_MULTI_LINE, 0, null,
+            hasActionLabel = true, customActionId = 42)
+        assertEquals(0, ml.actionId)
+        // nhãn không kèm actionId → như thường
+        assertEquals(EditorInfo.IME_ACTION_SEND, FieldMapping.map(TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEND,
+            null, hasActionLabel = true, customActionId = 0).actionId)
+    }
+
+    @Test fun contradictoryNoSuggestionsIgnored() {
+        // Regression: Google Keep đặt NO_SUGGESTIONS kèm AUTO_CORRECT/AUTO_COMPLETE → bar phải hiện.
+        assertTrue(m(TYPE_CLASS_TEXT or TYPE_TEXT_FLAG_NO_SUGGESTIONS or TYPE_TEXT_FLAG_AUTO_CORRECT).suggestionsAllowed)
+        assertTrue(m(TYPE_CLASS_TEXT or TYPE_TEXT_FLAG_NO_SUGGESTIONS or TYPE_TEXT_FLAG_AUTO_COMPLETE).suggestionsAllowed)
+        assertFalse(m(TYPE_CLASS_TEXT or TYPE_TEXT_FLAG_NO_SUGGESTIONS).suggestionsAllowed)
+    }
+
+    @Test fun forceAsciiIsLiteral() {
+        val f = m(TYPE_CLASS_TEXT, EditorInfo.IME_FLAG_FORCE_ASCII)
+        assertTrue(f.passthrough); assertFalse(f.isSecure); assertFalse(f.suggestionsAllowed)
+    }
+
+    @Test fun multilineVisiblePasswordIsChatNotPassword() {
+        // Regression: app RN/Flutter dùng VISIBLE_PASSWORD để tắt gợi ý ô chat → vẫn gõ Telex.
+        val chat = m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or TYPE_TEXT_FLAG_MULTI_LINE)
+        assertFalse(chat.isSecure); assertFalse(chat.passthrough); assertFalse(chat.suggestionsAllowed)
+        val pw = m(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_VISIBLE_PASSWORD)
+        assertTrue(pw.isSecure); assertTrue(pw.passthrough)
+    }
 }
