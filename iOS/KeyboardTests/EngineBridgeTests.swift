@@ -36,7 +36,8 @@ final class EngineBridgeTests: XCTestCase {
         XCTAssertEqual(type("google "), "google ")
         // Chính sách 2026-07-23: collision THẬT thì tiếng Việt thắng (his ≡ hí)
         XCTAssertEqual(type("his "), "hí ")
-        XCTAssertEqual(type("off "), "off ")
+        // POLICY V2 (31/07/2026): gõ đúp CUỐI từ = huỷ dấu, giữ composed (off→of)
+        XCTAssertEqual(type("off "), "of ")
         XCTAssertEqual(type("Deffault "), "Default ")   // cancel keeps composed
     }
 

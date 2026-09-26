@@ -14,8 +14,8 @@ settings:
     DEVELOPMENT_TEAM: 84T567KMYD
     SWIFT_VERSION: "5.9"
     TARGETED_DEVICE_FAMILY: "1,2"
-    MARKETING_VERSION: "1.1.1"
-    CURRENT_PROJECT_VERSION: "3"
+    MARKETING_VERSION: "1.1.2"
+    CURRENT_PROJECT_VERSION: "4"
   configs:
     Release:
       SWIFT_OPTIMIZATION_LEVEL: "-Osize"
@@ -92,6 +92,7 @@ targets:
       - KeyboardTests
       - Keyboard/EngineBridge.swift
       - Keyboard/FieldPolicy.swift
+      - Keyboard/PlanePolicy.swift
       - Keyboard/AppearancePolicy.swift
       - Keyboard/KeyCommitQueue.swift
       - Keyboard/AdjacentKeyFixer.swift

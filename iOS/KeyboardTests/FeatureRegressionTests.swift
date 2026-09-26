@@ -97,10 +97,11 @@ final class BridgeContractTests: XCTestCase {
         let committed = bridge.boundary(" ", proxy: proxy)
         XCTAssertEqual(composed, "hí")
         XCTAssertEqual(committed, "hí")   // chính sách: collision thật → Việt thắng
-        // và một ca restore thật (từ Anh thuần):
+        // và một ca restore thật (từ Anh thuần). Không dùng "loss": POLICY V2
+        // (31/07/2026) cho gõ đúp cuối từ giữ composed (loss→los).
         let p2 = MockProxy()
         let b2 = EngineBridge(settings: KeyboardSettings())
-        for ch in "loss" { b2.letter(ch, proxy: p2) }
+        for ch in "google" { b2.letter(ch, proxy: p2) }
         XCTAssertNotEqual(b2.composedWord, b2.boundary(" ", proxy: p2))
     }
 }

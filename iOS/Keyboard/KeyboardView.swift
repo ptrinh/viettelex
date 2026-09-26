@@ -26,6 +26,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Strip gợi ý khi mở. 36 → 30 (25/09/2026, so ảnh stock: vùng bar stock ≈53pt,
     /// VietTelex ≈59pt — bàn phím cao hơn stock chủ yếu ở đây).
     static let openStrip: CGFloat = 34
+    /// Khe shift↔Z, M↔⌫ (khe giữa chữ là 6).
+    static let shiftGap: CGFloat = 12
     /// Đệm trên của bar (user 25/09/2026): host có app KHÔNG vẽ dải khung phía trên
     /// cửa sổ bàn phím (Telegram, app VietTelex) → bar dính mép. Không có tín hiệu nào
     /// để phát hiện (log hình học y hệt WhatsApp) → đệm cố định 4pt mọi nơi.
@@ -47,7 +49,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private let suggestionBar = UIStackView()
     private var suggestionsEnabled = false
 
-    private var plane: Plane = .letters
+    private var plane: Plane = .letters {
+        didSet {
+            // Vào plane số/ký hiệu từ plane khác → đếm lại; 123⇄#+= giữ nguyên.
+            if oldValue != .numbers, oldValue != .symbols { typedInSymbolPlane = false }
+        }
+    }
+    /// Đã gõ ký tự ở plane 123/#+= → space kế tiếp quay về chữ (PlanePolicy).
+    private var typedInSymbolPlane = false
     private var shift: ShiftState = .on          // Apple: sentence start = shifted
     private var returnTitle = "return"
     private var dark = false
@@ -1068,7 +1077,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let r1 = "qwertyuiop".map { String($0) }
         let r2 = "asdfghjkl".map { String($0) }
         let r3 = "zxcvbnm".map { String($0) }
-        rowsContainer.addArrangedSubview(row(r1.map(letterButton)))
+        let r1btns = r1.map(letterButton)
+        rowsContainer.addArrangedSubview(row(r1btns))
         // Apple indents row 2 by half a key on iPhone.
         rowsContainer.addArrangedSubview(row(r2.map(letterButton), sideInset: 0.5))
         let shiftBtn = shiftButton()
@@ -1077,12 +1087,17 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         var third: [UIView] = [shiftBtn]
         third += r3btns
         third.append(backBtn)
-        rowsContainer.addArrangedSubview(row(third))
-        // Lưới 10 cột như stock: shift + backspace = 1.5 phím chữ → 1.5+7+1.5=10,
-        // Z thẳng dưới A/S và M thẳng dưới K (user 2026-07-25).
-        if let z = r3btns.first {
-            shiftBtn.widthAnchor.constraint(equalTo: z.widthAnchor, multiplier: 1.5).isActive = true
-            backBtn.widthAnchor.constraint(equalTo: z.widthAnchor, multiplier: 1.5).isActive = true
+        let thirdRow = row(third)
+        rowsContainer.addArrangedSubview(thirdRow)
+        // Như stock: khe shift↔Z và M↔⌫ RỘNG hơn khe giữa chữ (feedback 26/09/2026
+        // "bên phải Shift, bên trái Xoá chưa có khoảng trắng"). Chữ hàng 3 = đúng
+        // bề rộng hàng 1; shift/⌫ bằng nhau, ăn phần còn lại (~1.4 phím).
+        // Khe là vùng chết với UIButton nhưng router trả về phím gần nhất.
+        if let z = r3btns.first, let q = r1btns.first, let stack = thirdRow as? UIStackView {
+            stack.setCustomSpacing(Self.shiftGap, after: shiftBtn)
+            if let m = r3btns.last { stack.setCustomSpacing(Self.shiftGap, after: m) }
+            z.widthAnchor.constraint(equalTo: q.widthAnchor).isActive = true
+            shiftBtn.widthAnchor.constraint(equalTo: backBtn.widthAnchor).isActive = true
         }
         rowsContainer.addArrangedSubview(bottomRow(planeKey: "123"))
     }
@@ -1207,6 +1222,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 self.tapped(.space)
             }
             self.lastSpaceTap = now
+            if PlanePolicy.returnToLettersOnSpace(
+                inSymbolPlane: self.plane == .numbers || self.plane == .symbols,
+                typedInPlane: self.typedInSymbolPlane,
+                numericField: self.inputKind == .number) {
+                self.plane = .letters
+                self.rebuild()
+            }
         }
         let spacePan = UILongPressGestureRecognizer(target: self, action: #selector(spaceHold(_:)))
         spacePan.minimumPressDuration = 0.4
@@ -1292,7 +1314,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Hàng đáy SÁT đáy hơn như stock (so ảnh 25/09/2026: stock cách đáy bàn phím
         // 214px, VietTelex 241px): cùng chiều cao phím, dời xuống 3pt (top 8/bottom 2
         // thay 5/5). Vùng globe/mic dưới đó do host vẽ — không dời được.
-        stack.layoutMargins = UIEdgeInsets(top: 10, left: 3, bottom: 0, right: 3)
+        // bottom ≥ 1: bóng phím (dropLayer lệch xuống 1pt) mà nằm ngoài bounds bàn
+        // phím thì bị cắt — hàng đáy mất bóng ở light theme (feedback 26/09/2026).
+        stack.layoutMargins = UIEdgeInsets(top: 9, left: 3, bottom: 1, right: 3)
         planeBtn.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: 0.12).isActive = true
         emojiBtn.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: 0.10).isActive = true
         for pk in punctKeys {
@@ -1577,7 +1601,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }, for: .touchDown)
         b.addAction(UIAction { [weak self] _ in self?.hideBalloon() },
                     for: [.touchUpInside, .touchUpOutside, .touchCancel])
-        armCommit(b) { [weak self] in self?.tapped(.text(s)) }
+        armCommit(b) { [weak self] in
+            self?.typedInSymbolPlane = true
+            self?.tapped(.text(s))
+        }
         return b
     }
 
