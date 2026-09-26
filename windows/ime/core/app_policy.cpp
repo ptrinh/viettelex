@@ -51,6 +51,23 @@ constexpr Rule kRules[] = {
     {"openconsole.exe", AppMode::Composition},    // Windows Terminal's bundled conhost
     {"windowsterminal.exe", AppMode::Composition},
     {"mintty.exe", AppMode::Composition},         // Git Bash / MSYS2 / Cygwin (IMM only)
+    // Other terminals: GPU/own-rendered, IMM or partial TSF, no readable history.
+    {"alacritty.exe", AppMode::Composition},
+    {"wezterm-gui.exe", AppMode::Composition},
+    {"conemu64.exe", AppMode::Composition},
+    {"conemu.exe", AppMode::Composition},
+    {"putty.exe", AppMode::Composition},
+    {"kitty.exe", AppMode::Composition},        // KiTTY (PuTTY fork)
+    {"tabby.exe", AppMode::Composition},
+    // Remote / virtual machines: the guest's input method types.
+    {"vmware.exe", AppMode::Off},
+    {"vmware-vmx.exe", AppMode::Off},
+    {"vmware-view.exe", AppMode::Off},
+    {"virtualboxvm.exe", AppMode::Off},
+    {"wfica32.exe", AppMode::Off},              // Citrix Workspace
+    {"cdviewer.exe", AppMode::Off},             // Citrix Desktop Viewer
+    {"ultraviewer_desktop.exe", AppMode::Off},
+    {"moonlight.exe", AppMode::Off},
     {"mstsc.exe", AppMode::Off},          // Remote Desktop Connection
     {"msrdc.exe", AppMode::Off},          // Remote Desktop (Store/AVD client)
     {"vmconnect.exe", AppMode::Off},      // Hyper-V console
@@ -61,6 +78,12 @@ constexpr Rule kRules[] = {
     {"vncviewer.exe", AppMode::Off},
 };
 }  // namespace
+
+std::string appIdentity(const std::string& processExe, const std::string& rootOwnerExe) {
+    if (processExe == "msedgewebview2.exe" && !rootOwnerExe.empty() && rootOwnerExe != processExe)
+        return rootOwnerExe;
+    return processExe;
+}
 
 bool builtInAppMode(const std::string& exe, AppMode& out) {
     for (const Rule& r : kRules) {
@@ -79,10 +102,14 @@ AppMode resolveAppMode(const std::string& exe, const std::map<std::string, AppMo
     return AppMode::InPlace;
 }
 
-HostText hostTextPolicy(bool console, bool transitory, bool readOnly) {
-    if (readOnly) return HostText::Literal;
-    if (console || transitory) return HostText::CompositionOnly;
-    return HostText::Normal;
+HostText classifyContext(const ContextInfo& c) {
+    if (!c.hasContext) return HostText::Ignore;
+    if (c.keyboardDisabled || c.readOnly || !c.unicodeWindow) return HostText::Literal;
+    if (c.console) return HostText::CompositionOnly;
+    if (!c.transitory) return HostText::Normal;
+    if (c.hasParent) return c.parentTransitory ? HostText::CompositionOnly : HostText::NormalViaParent;
+    if (c.cuasEmulated) return HostText::CompositionOnly;
+    return HostText::Normal;  // Chromium & co: transitory by convention, fully readable
 }
 
 FieldPolicy classifyInputScopes(const int* scopes, size_t count) {

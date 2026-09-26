@@ -23,6 +23,11 @@ bool parseAppMode(const std::string& s, AppMode& out);
 // "C:\\Program Files\\App\\Foo.EXE" -> "foo.exe" (ASCII lowercase; non-ASCII kept).
 std::string normalizeExeName(const std::string& pathOrName);
 
+// Which app a TSF context belongs to. Inside msedgewebview2.exe (new Teams, new Outlook,
+// many WebView2 apps) the process says nothing: use the exe owning the root window.
+// Both arguments normalized; `rootOwnerExe` may be empty (unknown).
+std::string appIdentity(const std::string& processExe, const std::string& rootOwnerExe);
+
 // Built-in default for `exe` (normalized), or false when the table has no entry.
 bool builtInAppMode(const std::string& exe, AppMode& out);
 
@@ -30,19 +35,36 @@ bool builtInAppMode(const std::string& exe, AppMode& out);
 // including "composition" picked before 1.0.9 — are kept as they are).
 AppMode resolveAppMode(const std::string& exe, const std::map<std::string, AppMode>& overrides);
 
-// What a text CONTEXT allows, decided per focused field (1.1.1, cmd.exe repro):
-//   console   the TIP was activated with TF_TMAE_CONSOLE (conhost/OpenConsole/Windows
-//             Terminal) — the "document" is only the composition; text outside it is
-//             sent to the shell at once and can never be read back or replaced.
-//   transitory TF_SS_TRANSITORY in the context status: same promise (Windows
-//             Terminal's TSF sets TS_SS_TRANSITORY | TS_SS_NOHIDDENTEXT).
-//   readOnly  TF_SD_READONLY: nothing can be typed there at all.
+// What a text CONTEXT allows, decided per focused field at each word start.
+//   TF_SS_TRANSITORY alone means NOTHING about readability: Chromium's TSF store
+//   (Chrome, Edge, Brave, Electron, WebView2) always reports TRANSITORY|NOHIDDENTEXT and
+//   is fully readable (1.1.1 regression). Mozc's rule (tip_transitory_extension.cc):
+//     not transitory                      -> full context
+//     transitory + TRANSITORYEXTENSION    -> use the PARENT context if it is not transitory
+//       parent (classic Edit / RichEdit)     (full), else none
+//     transitory + CUAS-emulated          -> legacy IMM32 app: no surrounding text
+//       (compartment {A94C5FD2-...} & 1)
+//     transitory, otherwise               -> TSF app that says transitory: full (Chromium)
+struct ContextInfo {
+    bool hasContext = true;       // a focused document/context exists
+    bool keyboardDisabled = false;// GUID_COMPARTMENT_KEYBOARD_DISABLED / EMPTYCONTEXT set
+    bool readOnly = false;        // TF_SD_READONLY
+    bool console = false;         // TIP activated with TF_TMAE_CONSOLE
+    bool transitory = false;      // TF_SS_TRANSITORY on this context
+    bool cuasEmulated = false;    // IMM32 app through CUAS (focused field not Edit/RichEdit)
+    bool hasParent = false;       // GUID_COMPARTMENT_TRANSITORYEXTENSION_PARENT document
+    bool parentTransitory = true; // that parent's context status
+    bool unicodeWindow = true;    // IsWindowUnicode(focus); ANSI windows mangle Unicode
+};
+
 enum class HostText : uint8_t {
     Normal,           // app policy decides (in-place by default, verified)
-    CompositionOnly,  // in-place impossible: compose, and never read back (no re-edit)
-    Literal,          // read-only: keys pass through untouched
+    NormalViaParent,  // read / edit through the transitory-extension parent context
+    CompositionOnly,  // no usable surrounding text: compose, never read back
+    Literal,          // keys pass through untouched (read-only, disabled, ANSI window)
+    Ignore,           // no context at all: do not eat keys
 };
-HostText hostTextPolicy(bool console, bool transitory, bool readOnly);
+HostText classifyContext(const ContextInfo& c);
 
 // Input-scope policy (spec §4.2). Values are InputScope enum numbers from InputScope.h.
 enum class FieldPolicy : uint8_t { Normal, Literal };

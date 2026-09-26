@@ -197,3 +197,11 @@ TEST(helper_release_never_touches_newer_dlls) {
     CHECK_EQ(a.maxVersion, std::string("1.0.7"));
     CHECK_EQ(a.dirs.size(), size_t(1));
 }
+
+TEST(hook_elevated_foreground_warning) {
+    CHECK(hookNeedsElevationWarning(true, true, 0x3000, 0x2000, false));   // admin app
+    CHECK(hookNeedsElevationWarning(true, false, 0, 0x2000, false));       // token unreadable
+    CHECK(!hookNeedsElevationWarning(true, true, 0x2000, 0x2000, false));  // same level
+    CHECK(!hookNeedsElevationWarning(false, true, 0x3000, 0x2000, false)); // not a hook app
+    CHECK(!hookNeedsElevationWarning(true, true, 0x3000, 0x2000, true));   // warned already
+}

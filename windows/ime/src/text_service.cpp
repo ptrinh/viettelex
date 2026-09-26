@@ -145,6 +145,7 @@ STDMETHODIMP TextService::Deactivate() {
     }
     clearComposition();
     session_.resetContext();
+    SafeRelease(targetCtx_);
     unhookTextEditSink();
 
     if (altZPreserved_ && threadMgr_) {
@@ -366,14 +367,83 @@ void TextService::clearComposition() {
     SafeRelease(compositionContext_);
 }
 
-HostText TextService::hostTextOf(ITfContext* ctx) {
+namespace {
+// {A94C5FD2-C471-4031-9546-709C17300CB9}: set by CUAS on the document manager of an
+// IMM32 app whose focused field is not an Edit/RichEdit (Mozc IsTsfEmulatedDocumentMgr).
+const GUID kCompartmentTsfEmulated = {0xa94c5fd2, 0xc471, 0x4031, {0x95, 0x46, 0x70, 0x9c, 0x17, 0x30, 0x0c, 0xb9}};
+// GUID_COMPARTMENT_TRANSITORYEXTENSION_PARENT {8BE347F8-C7A0-11D7-B408-00065B84435C}
+// (defined locally: not every SDK/mingw header set declares it).
+const GUID kCompartmentTransitoryParent = {0x8be347f8, 0xc7a0, 0x11d7, {0xb4, 0x08, 0x00, 0x06, 0x5b, 0x84, 0x43, 0x5c}};
+
+bool compartmentVariant(IUnknown* owner, REFGUID guid, VARIANT& out) {
+    VariantInit(&out);
+    if (!owner) return false;
+    ITfCompartmentMgr* mgr = nullptr;
+    if (FAILED(owner->QueryInterface(IID_ITfCompartmentMgr, reinterpret_cast<void**>(&mgr))) || !mgr) return false;
+    ITfCompartment* c = nullptr;
+    bool ok = SUCCEEDED(mgr->GetCompartment(guid, &c)) && c && SUCCEEDED(c->GetValue(&out));
+    if (c) c->Release();
+    mgr->Release();
+    return ok;
+}
+
+bool compartmentFlag(IUnknown* owner, REFGUID guid, LONG mask) {
+    VARIANT v;
+    const bool set = compartmentVariant(owner, guid, v) && v.vt == VT_I4 && (v.lVal & mask) != 0;
+    VariantClear(&v);
+    return set;
+}
+
+bool isTransitory(ITfContext* ctx) {
     TF_STATUS st = {};
-    bool transitory = false, readOnly = false;
-    if (SUCCEEDED(ctx->GetStatus(&st))) {
-        transitory = (st.dwStaticFlags & TF_SS_TRANSITORY) != 0;
-        readOnly = (st.dwDynamicFlags & TF_SD_READONLY) != 0;
+    return ctx && SUCCEEDED(ctx->GetStatus(&st)) && (st.dwStaticFlags & TF_SS_TRANSITORY) != 0;
+}
+}  // namespace
+
+// Classifies the context a word is about to start in (see app_policy.h ContextInfo) and,
+// for classic Edit/RichEdit, finds the full transitory-extension PARENT context.
+void TextService::evaluateHost(ITfContext* ctx) {
+    SafeRelease(targetCtx_);
+    ContextInfo c;
+    c.console = consoleHost_;
+    c.hasContext = ctx != nullptr;
+    ITfDocumentMgr* dm = nullptr;
+    if (ctx && (FAILED(ctx->GetDocumentMgr(&dm)) || !dm)) c.hasContext = false;
+    if (c.hasContext) {
+        c.keyboardDisabled = compartmentFlag(ctx, GUID_COMPARTMENT_KEYBOARD_DISABLED, ~0) ||
+                             compartmentFlag(ctx, GUID_COMPARTMENT_EMPTYCONTEXT, ~0);
+        TF_STATUS st = {};
+        if (SUCCEEDED(ctx->GetStatus(&st))) {
+            c.transitory = (st.dwStaticFlags & TF_SS_TRANSITORY) != 0;
+            c.readOnly = (st.dwDynamicFlags & TF_SD_READONLY) != 0;
+        }
+        if (c.transitory) {
+            c.cuasEmulated = compartmentFlag(dm, kCompartmentTsfEmulated, 0x1);
+            VARIANT v;
+            if (!parentFailed_ && compartmentVariant(dm, kCompartmentTransitoryParent, v) &&
+                v.vt == VT_UNKNOWN && v.punkVal) {
+                ITfDocumentMgr* parent = nullptr;
+                if (SUCCEEDED(v.punkVal->QueryInterface(IID_ITfDocumentMgr, reinterpret_cast<void**>(&parent))) &&
+                    parent && parent != dm) {
+                    c.hasParent = true;
+                    ITfContext* top = nullptr;
+                    if (SUCCEEDED(parent->GetTop(&top)) && top) {
+                        c.parentTransitory = isTransitory(top);
+                        if (!c.parentTransitory) targetCtx_ = top;  // keep the reference
+                        else top->Release();
+                    }
+                }
+                if (parent) parent->Release();
+            }
+            VariantClear(&v);
+        }
+        HWND focus = GetFocus();
+        c.unicodeWindow = !focus || IsWindowUnicode(focus);
     }
-    return hostTextPolicy(consoleHost_, transitory, readOnly);
+    if (dm) dm->Release();
+    host_ = classifyContext(c);
+    if (host_ != HostText::NormalViaParent) SafeRelease(targetCtx_);
+    session_.setCompositionOnlyContext(host_ == HostText::CompositionOnly);
 }
 
 bool TextService::fieldIsLiteral(ITfContext* ctx, TfEditCookie ec) {
@@ -420,11 +490,39 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     if (composition_) endCompositionAsync();
     session_.resetContext();
     chord_.disarm();
+    parentFailed_ = false;
+    SafeRelease(targetCtx_);
+    host_ = HostText::Normal;
+    resolveActiveApp();
     config::reloadVietnamese();
-    applyConfig(false);
+    applyConfig(true);
     if (focus) notifyAppState(vietnamese());
     hookTextEditSink(focus);
     return S_OK;
+}
+
+// WebView2 (new Teams, new Outlook…): the TIP runs in msedgewebview2.exe; per-app rules
+// and Việt/Anh memory must follow the app that owns the root window.
+void TextService::resolveActiveApp() {
+    if (config::exeName() != "msedgewebview2.exe") return;
+    HWND w = GetFocus();
+    if (!w) w = GetForegroundWindow();
+    HWND root = w ? GetAncestor(w, GA_ROOTOWNER) : nullptr;
+    DWORD pid = 0;
+    if (root) GetWindowThreadProcessId(root, &pid);
+    std::wstring name;
+    if (pid && pid != GetCurrentProcessId()) {
+        if (HANDLE p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
+            wchar_t buf[MAX_PATH];
+            DWORD n = MAX_PATH;
+            if (QueryFullProcessImageNameW(p, 0, buf, &n)) {
+                std::wstring path(buf, n);
+                name = path.substr(path.find_last_of(L"\\/") + 1);
+            }
+            CloseHandle(p);
+        }
+    }
+    config::setActiveApp(name);
 }
 
 STDMETHODIMP TextService::OnPushContext(ITfContext*) {
@@ -443,6 +541,21 @@ STDMETHODIMP TextService::OnPopContext(ITfContext* ctx) { return OnPushContext(c
 
 STDMETHODIMP TextService::OnEndEdit(ITfContext* ctx, TfEditCookie ecReadOnly, ITfEditRecord* record) {
     if (!ctx || !record) return S_OK;
+    if (composition_) {
+        // The app emptied our composition (Excel cell autocomplete, app-side clear):
+        // drop the word and end the composition (Mozc tip_edit_session_impl ~L565).
+        ITfRange* cr = nullptr;
+        if (SUCCEEDED(composition_->GetRange(&cr)) && cr) {
+            BOOL empty = FALSE;
+            cr->IsEmpty(ecReadOnly, &empty);
+            cr->Release();
+            if (empty && session_.wordActive()) {
+                session_.reset();
+                endCompositionAsync();
+                return S_OK;
+            }
+        }
+    }
     BOOL selChanged = FALSE;
     if (FAILED(record->GetSelectionStatus(&selChanged)) || !selChanged) return S_OK;
     chord_.disarm();  // a click between Ctrl+Shift press and release is not a toggle
@@ -455,7 +568,9 @@ STDMETHODIMP TextService::OnEndEdit(ITfContext* ctx, TfEditCookie ecReadOnly, IT
         }
         return S_OK;
     }
-    if (session_.wordActive() && session_.wordMode() == OutputMode::InPlace) {
+    // (Via the transitory-extension parent, this context is not the one holding our word;
+    // the session re-verifies against the parent at every key instead.)
+    if (session_.wordActive() && session_.wordMode() == OutputMode::InPlace && host_ != HostText::NormalViaParent) {
         const std::u16string& shown = session_.shown();
         // Our own edits and the app inserting a key we passed keep the word right
         // before the caret; anything else (click, arrow, app rewrite) does not.
@@ -504,11 +619,15 @@ bool TextService::prepareKey(WPARAM wp, bool down, KeyInput& out) {
 
 STDMETHODIMP TextService::OnSetFocus(BOOL) { return S_OK; }
 
-STDMETHODIMP TextService::OnTestKeyDown(ITfContext*, WPARAM wp, LPARAM, BOOL* eaten) {
+STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* eaten) {
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
     KeyInput k;
     if (!prepareKey(wp, true, k)) return S_OK;
+    if (!session_.wordActive()) evaluateHost(ctx);
+    // No focused context, keyboard disabled (games, canvases), read-only, ANSI window:
+    // never eat a key there (SampleIME _IsKeyboardDisabled).
+    if (host_ == HostText::Ignore || host_ == HostText::Literal) return S_OK;
     *eaten = session_.wantsKey(k) ? TRUE : FALSE;
     return S_OK;
 }
@@ -517,26 +636,33 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* ea
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
     KeyInput k;
-    if (!ctx || !prepareKey(wp, true, k) || !session_.wantsKey(k)) return S_OK;
+    if (!ctx || !prepareKey(wp, true, k)) return S_OK;
+    if (!session_.wordActive()) evaluateHost(ctx);
+    if (host_ == HostText::Ignore || host_ == HostText::Literal || !session_.wantsKey(k)) return S_OK;
+    // Classic Edit/RichEdit: read and edit through the full transitory-extension parent.
+    ITfContext* target = (host_ == HostText::NormalViaParent && targetCtx_) ? targetCtx_ : ctx;
     BOOL result = FALSE;
-    HRESULT hr = RunEditSession(ctx, clientId_, TF_ES_SYNC | TF_ES_READWRITE, [&](TfEditCookie ec) -> HRESULT {
-        TsfTextSink sink(this, ctx, ec);
-        // Literal fields (password, PIN, number, e-mail) and what the context allows
-        // (console / transitory / read-only): checked where a word would start, so a
-        // field switch inside one context is caught too.
-        if (!session_.wordActive() && k.kind == KeyKind::Char) {
-            if (fieldIsLiteral(ctx, ec)) return S_OK;
-            const HostText host = hostTextOf(ctx);
-            if (host == HostText::Literal) return S_OK;
-            const bool compOnly = host == HostText::CompositionOnly;
-            if (compOnly != session_.compositionOnlyContext()) {
-                session_.setCompositionOnlyContext(compOnly);
-                if (compOnly) config::log("context: console/transitory document -> composition only");
-            }
-        }
-        result = session_.handleKey(k, sink) ? TRUE : FALSE;
-        return S_OK;
-    });
+    auto run = [&](ITfContext* tc) {
+        return RunEditSession(tc, clientId_, TF_ES_SYNC | TF_ES_READWRITE, [&, tc](TfEditCookie ec) -> HRESULT {
+            TsfTextSink sink(this, tc, ec);
+            // Literal fields (password, PIN, number, e-mail): checked where a word would
+            // start, so a field switch inside one context is caught too.
+            if (!session_.wordActive() && k.kind == KeyKind::Char && fieldIsLiteral(tc, ec)) return S_OK;
+            result = session_.handleKey(k, sink) ? TRUE : FALSE;
+            return S_OK;
+        });
+    };
+    HRESULT hr = run(target);
+    if (hr != S_OK && target != ctx && !session_.wordActive()) {
+        // Guard: the parent context refused a synchronous edit session. Stop using it
+        // for this focus and compose in the keystroke context instead.
+        config::log("transitory extension parent refused an edit session -> composition");
+        parentFailed_ = true;
+        SafeRelease(targetCtx_);
+        host_ = HostText::CompositionOnly;
+        session_.setCompositionOnlyContext(true);
+        hr = run(ctx);
+    }
     if (hr != S_OK) {
         // The app refused a synchronous edit session: type literally, never guess.
         session_.reset();

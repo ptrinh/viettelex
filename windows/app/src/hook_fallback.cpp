@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include <string>
+#include <set>
 #include <vector>
 
 #include "app_policy.h"
@@ -10,6 +11,7 @@
 #include "keymap.h"
 #include "session.h"
 #include "settings_store.h"
+#include "setup_helper_logic.h"
 
 namespace vtx::app {
 
@@ -160,13 +162,46 @@ void installInputHooks(bool on) {
     g->session.resetContext();
 }
 
+void (*g_elevationNotify)(const std::wstring&) = nullptr;
+std::set<std::wstring> g_warnedExes;
+
+// Mandatory integrity RID of a process (0x2000 medium, 0x3000 high). False = unreadable.
+bool integrityOf(HANDLE process, DWORD& rid) {
+    HANDLE tok = nullptr;
+    if (!OpenProcessToken(process, TOKEN_QUERY, &tok)) return false;
+    BYTE buf[128];
+    DWORD len = 0;
+    bool ok = GetTokenInformation(tok, TokenIntegrityLevel, buf, sizeof buf, &len);
+    if (ok) {
+        auto* til = reinterpret_cast<TOKEN_MANDATORY_LABEL*>(buf);
+        rid = *GetSidSubAuthority(til->Label.Sid, *GetSidSubAuthorityCount(til->Label.Sid) - 1);
+    }
+    CloseHandle(tok);
+    return ok;
+}
+
 void onForeground(HWND hwnd) {
     if (!g || !hwnd) return;
     DWORD tid = 0;
     g->fgExe = exeOfWindow(hwnd, &tid);
     g->fgThread = tid;
     const AppMode mode = resolveAppMode(narrow(g->fgExe), g->settings.appModes);
-    installInputHooks(mode == AppMode::HookFallback);
+    const bool hookMode = mode == AppMode::HookFallback;
+    installInputHooks(hookMode);
+    if (hookMode && g_elevationNotify) {
+        DWORD pid = 0, fgRid = 0, ourRid = 0x2000;
+        GetWindowThreadProcessId(hwnd, &pid);
+        bool known = false;
+        if (HANDLE p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
+            known = integrityOf(p, fgRid);
+            CloseHandle(p);
+        }
+        integrityOf(GetCurrentProcess(), ourRid);
+        if (hookNeedsElevationWarning(true, known, fgRid, ourRid, g_warnedExes.count(g->fgExe) != 0)) {
+            g_warnedExes.insert(g->fgExe);
+            g_elevationNotify(g->fgExe);
+        }
+    }
 }
 
 void CALLBACK winEventProc(HWINEVENTHOOK, DWORD event, HWND hwnd, LONG idObject, LONG, DWORD, DWORD) {
@@ -200,6 +235,8 @@ void hookConfigure(const Settings& s) {
     if (g->anyHookApps) onForeground(GetForegroundWindow());
     else installInputHooks(false);
 }
+
+void hookSetElevationNotifier(void (*notify)(const std::wstring& exe)) { g_elevationNotify = notify; }
 
 void hookShutdown() {
     if (!g) return;

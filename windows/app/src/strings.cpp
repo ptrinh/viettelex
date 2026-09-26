@@ -143,6 +143,8 @@ const Pair kStrings[] = {
     {L"Không kiểm tra được cập nhật.", L"Could not check for updates."},
     {L"Tệp cài đặt tải về không có chữ ký hợp lệ — đã huỷ.", L"The downloaded installer is not validly signed — cancelled."},
     {L"Không đọc được tệp gõ tắt.", L"Could not read the shortcut file."},
+    {L"Ứng dụng này chạy với quyền quản trị: chế độ dự phòng không gõ vào được. Chạy VietTelex bằng quyền quản trị hoặc đổi chế độ của ứng dụng.",
+     L"This app runs as administrator: fallback mode cannot type into it. Run VietTelex as administrator or change the app's mode."},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace

@@ -80,7 +80,8 @@ private:
     void flushAsync(ITfContext* ctx);
     void endCompositionAsync();
     bool fieldIsLiteral(ITfContext* ctx, TfEditCookie ec);
-    HostText hostTextOf(ITfContext* ctx);
+    void evaluateHost(ITfContext* ctx);
+    void resolveActiveApp();
 
     bool initThreadMgrSink();
     void uninitThreadMgrSink();
@@ -100,6 +101,9 @@ private:
     bool keySinkAdvised_ = false;
     bool altZPreserved_ = false;
     bool consoleHost_ = false;  // activated with TF_TMAE_CONSOLE
+    HostText host_ = HostText::Normal;  // classification of the context of the current word
+    ITfContext* targetCtx_ = nullptr;   // full transitory-extension parent (Edit/RichEdit)
+    bool parentFailed_ = false;         // parent refused edit sessions for this focus
 
     ITfComposition* composition_ = nullptr;
     ITfContext* compositionContext_ = nullptr;

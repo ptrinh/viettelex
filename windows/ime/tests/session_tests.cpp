@@ -505,17 +505,67 @@ TEST(console_never_reads_back_for_reedit_or_reopen) {
 }
 
 TEST(host_text_policy) {
-    CHECK(hostTextPolicy(false, false, false) == HostText::Normal);
-    CHECK(hostTextPolicy(true, false, false) == HostText::CompositionOnly);   // TF_TMAE_CONSOLE
-    CHECK(hostTextPolicy(false, true, false) == HostText::CompositionOnly);   // TF_SS_TRANSITORY
-    CHECK(hostTextPolicy(true, true, true) == HostText::Literal);             // TF_SD_READONLY wins
-    std::map<std::string, AppMode> none;
-    for (const char* exe : {"conhost.exe", "openconsole.exe", "windowsterminal.exe", "mintty.exe"})
-        CHECK(resolveAppMode(exe, none) == AppMode::Composition);
-    // search bars are ordinary readable TSF stores: in-place, verified, with fallback
-    for (const char* exe : {"searchhost.exe", "searchapp.exe", "searchui.exe", "explorer.exe",
-                            "systemsettings.exe", "powertoys.powerlauncher.exe", "everything.exe"})
-        CHECK(resolveAppMode(exe, none) == AppMode::InPlace);
+    ContextInfo c;
+    CHECK(classifyContext(c) == HostText::Normal);                 // Word, WPF, Firefox
+    c.transitory = true;
+    CHECK(classifyContext(c) == HostText::Normal);                 // Chromium: transitory but full (1.1.1 regression)
+    c.cuasEmulated = true;
+    CHECK(classifyContext(c) == HostText::CompositionOnly);        // IMM32 app via CUAS (Qt, Java, Adobe…)
+    c.cuasEmulated = false;
+    c.hasParent = true;
+    c.parentTransitory = false;
+    CHECK(classifyContext(c) == HostText::NormalViaParent);        // classic Edit/RichEdit
+    c.parentTransitory = true;
+    CHECK(classifyContext(c) == HostText::CompositionOnly);
+    ContextInfo con;
+    con.console = true;
+    con.transitory = true;
+    CHECK(classifyContext(con) == HostText::CompositionOnly);      // conhost / Windows Terminal
+    ContextInfo ro;
+    ro.readOnly = true;
+    CHECK(classifyContext(ro) == HostText::Literal);
+    ContextInfo dis;
+    dis.keyboardDisabled = true;
+    CHECK(classifyContext(dis) == HostText::Literal);              // games / canvases
+    ContextInfo ansi;
+    ansi.unicodeWindow = false;
+    CHECK(classifyContext(ansi) == HostText::Literal);             // VBA editor, ANSI apps
+    ContextInfo none;
+    none.hasContext = false;
+    CHECK(classifyContext(none) == HostText::Ignore);
+    std::map<std::string, AppMode> no;
+    for (const char* exe : {"conhost.exe", "openconsole.exe", "windowsterminal.exe", "mintty.exe", "alacritty.exe",
+                            "wezterm-gui.exe", "conemu64.exe", "putty.exe", "kitty.exe", "tabby.exe"})
+        CHECK(resolveAppMode(exe, no) == AppMode::Composition);
+    for (const char* exe : {"vmware.exe", "vmware-vmx.exe", "vmware-view.exe", "virtualboxvm.exe", "wfica32.exe",
+                            "cdviewer.exe", "ultraviewer_desktop.exe", "moonlight.exe"})
+        CHECK(resolveAppMode(exe, no) == AppMode::Off);
+    // search bars and browsers are ordinary readable stores: in-place, verified, fallback
+    for (const char* exe : {"searchhost.exe", "searchapp.exe", "searchui.exe", "explorer.exe", "chrome.exe",
+                            "msedge.exe", "systemsettings.exe", "powertoys.powerlauncher.exe", "everything.exe"})
+        CHECK(resolveAppMode(exe, no) == AppMode::InPlace);
+}
+
+TEST(chromium_shaped_store_stays_in_place) {
+    // Chromium reports TF_SS_TRANSITORY yet is fully readable, with a forward-selected
+    // omnibox suggestion after each key. Classification keeps it in-place, and typing
+    // works through the suggestion without falling back.
+    ContextInfo chrome;
+    chrome.transitory = true;
+    CHECK(classifyContext(chrome) == HostText::Normal);
+    Rig r(OutputMode::InPlace);
+    for (const char* p = "vieetj"; *p; ++p) {
+        r.key(*p);
+        if (r.doc.hi() != r.doc.lo()) {  // drop the previous suggestion
+            r.doc.text.erase(r.doc.lo(), r.doc.hi() - r.doc.lo());
+            r.doc.caret = r.doc.anchor = r.doc.lo();
+        }
+        r.doc.text += u"nam.vn";
+        r.doc.anchor = r.doc.text.size();
+    }
+    CHECK_EQ(utf16ToUtf8(r.doc.text.substr(0, r.doc.lo())), std::string("việt"));
+    CHECK(r.s.wordMode() == OutputMode::InPlace);
+    CHECK(!r.s.contextFellBack());
 }
 
 TEST(search_box_rewriting_its_text_each_key_stays_in_sync) {
@@ -529,4 +579,12 @@ TEST(search_box_rewriting_its_text_each_key_stays_in_sync) {
     }
     CHECK_EQ(r.text(), std::string("tiếng việt"));
     CHECK(!r.s.contextFellBack());
+}
+
+TEST(webview2_resolves_to_owning_app) {
+    CHECK_EQ(appIdentity("msedgewebview2.exe", "ms-teams.exe"), std::string("ms-teams.exe"));
+    CHECK_EQ(appIdentity("msedgewebview2.exe", "olk.exe"), std::string("olk.exe"));
+    CHECK_EQ(appIdentity("msedgewebview2.exe", ""), std::string("msedgewebview2.exe"));
+    CHECK_EQ(appIdentity("chrome.exe", "chrome.exe"), std::string("chrome.exe"));
+    CHECK_EQ(appIdentity("notepad.exe", "explorer.exe"), std::string("notepad.exe"));  // only WebView2 hosts
 }

@@ -141,6 +141,25 @@ void showTrayMenu() {
     }
 }
 
+// Non-modal notice (notification-area balloon) that hook mode cannot type into an
+// elevated app — shown once per app; uses a temporary icon when the tray icon is off.
+void showElevationNotice(const std::wstring& exe) {
+    NOTIFYICONDATAW nid = {};
+    nid.cbSize = sizeof nid;
+    nid.hWnd = g_mainWnd;
+    nid.uID = g_trayShown ? kTrayId : kTrayId + 1;
+    nid.uFlags = NIF_INFO | NIF_ICON | NIF_TIP;
+    nid.hIcon = trayIcon();
+    lstrcpynW(nid.szTip, tr(S::TrayTip), ARRAYSIZE(nid.szTip));
+    lstrcpynW(nid.szInfoTitle, tr(S::AppName), ARRAYSIZE(nid.szInfoTitle));
+    std::wstring msg = std::wstring(tr(S::ElevatedHookNotice)) + L" (" + exe + L")";
+    lstrcpynW(nid.szInfo, msg.c_str(), ARRAYSIZE(nid.szInfo));
+    nid.dwInfoFlags = NIIF_WARNING;
+    Shell_NotifyIconW(g_trayShown ? NIM_MODIFY : NIM_ADD, &nid);
+    if (nid.hIcon) DestroyIcon(nid.hIcon);
+    if (!g_trayShown) SetTimer(g_mainWnd, 77, 15000, nullptr);  // drop the temporary icon
+}
+
 void setTrayState(bool vietnamese) {
     if (vietnamese == g_stateVietnamese) return;
     g_stateVietnamese = vietnamese;
@@ -236,6 +255,16 @@ LRESULT CALLBACK mainProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         case kAppCommandMsg: runCommand(static_cast<unsigned>(wp), lp); return 0;
         // Restart Manager / logoff / an upgrade closing us: agree, then exit cleanly
         // (settings are saved on every change, so there is nothing left to flush).
+        case WM_TIMER:
+            if (wp == 77) {
+                KillTimer(h, 77);
+                NOTIFYICONDATAW nid = {};
+                nid.cbSize = sizeof nid;
+                nid.hWnd = h;
+                nid.uID = kTrayId + 1;
+                Shell_NotifyIconW(NIM_DELETE, &nid);
+            }
+            return 0;
         case WM_QUERYENDSESSION: return TRUE;
         case WM_ENDSESSION:
             if (wp) DestroyWindow(h);
@@ -482,6 +511,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     ChangeWindowMessageFilterEx(g_mainWnd, kAppCommandMsg, MSGFLT_ALLOW, nullptr);
     g_taskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
     syncTrayIcon();
+    hookSetElevationNotifier(showElevationNotice);
     hookConfigure(g_settings);
 
     if (cmd) runCommand(cmd);

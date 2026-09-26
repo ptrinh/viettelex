@@ -97,3 +97,14 @@ std::wstring updateLogName(const std::string& version);  // "update-1.1.0.log"
 constexpr const wchar_t* kWatcherLogName = L"update-watcher.log";
 
 }  // namespace vtx
+
+namespace vtx {
+
+// Hook fallback vs UIPI: a low-level hook in a medium-integrity VietTelex.exe cannot
+// SendInput into a HIGHER-integrity (elevated / admin) foreground window — typing there
+// silently fails. Warn once per app, non-modally. Integrity = mandatory-label RID
+// (0x2000 medium, 0x3000 high, 0x4000 system); unknown (token unreadable) = higher.
+bool hookNeedsElevationWarning(bool hookMode, bool fgIntegrityKnown, unsigned long fgIntegrity,
+                               unsigned long ourIntegrity, bool alreadyWarned);
+
+}  // namespace vtx

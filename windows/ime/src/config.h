@@ -34,6 +34,9 @@ AppMode appMode();             // resolved for exeName() with current overrides
 bool vietnamese();
 void setVietnamese(bool on);
 void reloadVietnamese();  // pick up a toggle made in another process of the same app
+// The app a focused context belongs to, when the process is only a host (WebView2):
+// per-app mode and Việt/Anh memory then follow that app. See appIdentity().
+void setActiveApp(const std::wstring& exeBaseName);
 
 // Debug log (settings.debugLogging): OutputDebugString only, never typed characters.
 void log(const char* msg);

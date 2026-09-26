@@ -7,11 +7,16 @@
 // Everything else: no hook installed at all. Self-injected events carry a marker in
 // dwExtraInfo and are ignored; a RateBreaker stops any synthetic-event cascade.
 #pragma once
+#include <string>
+
 #include "settings.h"
 
 namespace vtx::app {
 
 void hookConfigure(const Settings& s);  // (re)apply settings; starts/stops watching
 void hookShutdown();
+// Called (UI thread) when a hook-mode app is elevated above VietTelex.exe: SendInput
+// cannot reach it (UIPI). The app shows a non-modal notice.
+void hookSetElevationNotifier(void (*notify)(const std::wstring& exe));
 
 }  // namespace vtx::app

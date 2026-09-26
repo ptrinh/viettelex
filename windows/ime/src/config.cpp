@@ -81,9 +81,12 @@ bool readFile(const std::wstring& path, std::vector<uint8_t>& out) {
 
 bool canUseRegistry() { return !g_secure && !g_appContainer; }
 
+std::wstring g_activeExeW;  // app identity (WebView2: the owning app's exe)
+std::wstring activeExeW() { return g_activeExeW.empty() ? exeNameW() : g_activeExeW; }
+
 void loadVietnameseLocked() {
     if (!canUseRegistry()) return;
-    std::wstring exe = exeNameW();
+    std::wstring exe = activeExeW();
     DWORD v = 1, sz = sizeof v;
     if (RegGetValueW(HKEY_CURRENT_USER, kRegAppLang, exe.c_str(), RRF_RT_REG_DWORD, nullptr, &v, &sz) ==
         ERROR_SUCCESS)
@@ -124,7 +127,7 @@ unsigned long refresh() {
             Settings s;
             if (readFile(path, bytes) && deserialize(bytes.data(), bytes.size(), s)) {
                 g_settings = std::move(s);
-                g_mode = resolveAppMode(g_exe, g_settings.appModes);
+                g_mode = resolveAppMode(narrowLower(activeExeW().c_str()), g_settings.appModes);
                 InterlockedExchange(&g_debug, g_settings.debugLogging ? 1 : 0);
                 g_stamp = fa.ftLastWriteTime;
                 gen = ++g_gen;
@@ -166,7 +169,7 @@ bool vietnamese() { return InterlockedCompareExchange(&g_vietnamese, 0, 0) != 0;
 void setVietnamese(bool on) {
     InterlockedExchange(&g_vietnamese, on ? 1 : 0);
     if (!canUseRegistry()) return;
-    std::wstring exe = exeNameW();
+    std::wstring exe = activeExeW();
     if (exe.empty()) return;
     HKEY k;
     if (RegCreateKeyExW(HKEY_CURRENT_USER, kRegAppLang, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &k, nullptr) ==
@@ -175,6 +178,17 @@ void setVietnamese(bool on) {
         RegSetValueExW(k, exe.c_str(), 0, REG_DWORD, reinterpret_cast<const BYTE*>(&v), sizeof v);
         RegCloseKey(k);
     }
+}
+
+void setActiveApp(const std::wstring& exeBaseName) {
+    AcquireSRWLockExclusive(&g_lock);
+    const std::string id = appIdentity(g_exe, narrowLower(exeBaseName.c_str()));
+    if (id != narrowLower(activeExeW().c_str())) {
+        g_activeExeW = id == g_exe ? std::wstring() : exeBaseName;
+        g_mode = resolveAppMode(id, g_settings.appModes);
+        loadVietnameseLocked();
+    }
+    ReleaseSRWLockExclusive(&g_lock);
 }
 
 void reloadVietnamese() {

@@ -71,6 +71,7 @@ enum class S {
     UpdateFailed,
     UpdateBadSignature,
     ImportFailed,
+    ElevatedHookNotice,
     Count
 };
 

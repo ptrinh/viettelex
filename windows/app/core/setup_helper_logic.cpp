@@ -165,3 +165,13 @@ std::wstring updateLogName(const std::string& version) {
 }
 
 }  // namespace vtx
+
+namespace vtx {
+
+bool hookNeedsElevationWarning(bool hookMode, bool fgIntegrityKnown, unsigned long fgIntegrity,
+                               unsigned long ourIntegrity, bool alreadyWarned) {
+    if (!hookMode || alreadyWarned) return false;
+    return !fgIntegrityKnown || fgIntegrity > ourIntegrity;
+}
+
+}  // namespace vtx
