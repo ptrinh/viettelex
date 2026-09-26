@@ -19,7 +19,7 @@
   Placeholders (at-sign delimited) must all be filled or the build fails.
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="*" Name="VietTelex" Language="1033" Version="@VERSION@"
+  <Product Id="@PRODUCTCODE@" Name="VietTelex" Language="1033" Version="@VERSION@"
            Manufacturer="VietTelex" UpgradeCode="@UPGRADECODE@">
     <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine"
              Description="VietTelex @VERSION@ installer" Manufacturer="VietTelex" />
@@ -76,10 +76,14 @@
          because it runs the exe that step deletes. -->
     <CustomAction Id="CleanupUser" FileKey="VietTelexExe" ExeCommand="--cleanup-user"
                   Execute="deferred" Impersonate="yes" Return="ignore" />
+    <!-- EXPLICIT sequence numbers: wixl does not honour Before/After reliably (1.0.3 put
+         CleanupUser at 1, before costing, and uninstall failed with error 2731).
+         Standard numbers: CostFinalize 1000, InstallInitialize 1500, RemoveShortcuts 3200,
+         RemoveFiles 3500, InstallFinalize 6600. check_msi.py enforces the ordering. -->
     <InstallExecuteSequence>
-      <Custom Action="CleanupUser" Before="RemoveFiles">REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
-      <Custom Action="SetupUser" After="InstallFinalize">NOT REMOVE</Custom>
-      <Custom Action="LaunchApp" After="SetupUser">NOT REMOVE AND UILevel &gt;= 4</Custom>
+      <Custom Action="CleanupUser" Sequence="3400">REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SetupUser" Sequence="6610">NOT REMOVE</Custom>
+      <Custom Action="LaunchApp" Sequence="6620">NOT REMOVE AND UILevel &gt;= 4</Custom>
     </InstallExecuteSequence>
 
     <Feature Id="Complete" Level="1">

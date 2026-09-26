@@ -12,7 +12,9 @@ Checks, for every table in _Tables:
     which Windows reports as "Error 2211: Could not create database table <name>"
     during FileCost (VietTelex 1.0.0). Wine and libmsi accept such a file, so this
     must be checked on the bytes;
-and, for the tables VietTelex writes, that the column schema is the standard one.
+and, for the tables VietTelex writes, that the column schema is the standard one;
+and that custom actions running an installed file are sequenced after CostFinalize
+(error 2731 otherwise — VietTelex 1.0.3 could not be uninstalled).
 Exit 1 with a message per problem.
 """
 import struct
@@ -196,6 +198,56 @@ STANDARD = {
 }
 
 
+def table_dicts(m, table):
+    """Rows of `table` as dicts (strings decoded, ints unbiased, null -> None)."""
+    if table not in m.columns:
+        return []
+    rows, err = m.rows(table)
+    if err:
+        return []
+    out = []
+    for row in rows:
+        d = {}
+        for (_, name, typ), v in zip(m.columns[table], row):
+            if typ & T_STRING:
+                d[name] = m.s(v) if v else None
+            elif v == 0:
+                d[name] = None
+            else:
+                d[name] = v - (0x80000000 if (typ & 0xff) == 4 else 0x8000)
+        out.append(d)
+    return out
+
+
+# Custom-action base types (Type & 0x3F) whose source is a File or Directory: their
+# path only exists after CostFinalize. Scheduled earlier they fail with error 2731
+# "Selection Manager not initialized" (VietTelex 1.0.3: wixl put CleanupUser at
+# sequence 1 despite Before="RemoveFiles", so every uninstall failed).
+FILE_OR_DIR_SOURCED = {17, 18, 21, 22, 34}
+
+
+def check_custom_action_sequence(m):
+    problems = []
+    cas = {r['Action']: r for r in table_dicts(m, 'CustomAction')}
+    for table in ('InstallExecuteSequence', 'InstallUISequence', 'AdminExecuteSequence', 'AdvtExecuteSequence'):
+        seq = {r['Action']: r['Sequence'] for r in table_dicts(m, table)}
+        cost_final = seq.get('CostFinalize')
+        for action, number in seq.items():
+            ca = cas.get(action)
+            if not ca or number is None or number < 0:
+                continue
+            if (ca['Type'] & 0x3F) in FILE_OR_DIR_SOURCED:
+                if cost_final is None or number <= cost_final:
+                    problems.append(f'{table}: custom action {action} (type {ca["Type"]}, source {ca["Source"]}) '
+                                    f'at {number} runs before CostFinalize ({cost_final}) -> error 2731')
+        if table == 'InstallExecuteSequence' and 'CleanupUser' in seq:
+            n, init, rf = seq['CleanupUser'], seq.get('InstallInitialize'), seq.get('RemoveFiles')
+            if not (init is not None and rf is not None and init < n < rf):
+                problems.append(f'{table}: CleanupUser at {n} must be after InstallInitialize ({init}) '
+                                f'and before RemoveFiles ({rf})')
+    return problems
+
+
 def main(path):
     m = Msi(path)
     problems = []
@@ -227,6 +279,7 @@ def main(path):
                      1 if t & T_KEY else 0) for _, n, t in cols]
             if have != STANDARD[table]:
                 problems.append(f'{table}: schema {have} != standard {STANDARD[table]}')
+    problems += check_custom_action_sequence(m)
     for p in problems:
         print(f'{path}: {p}', file=sys.stderr)
     if not problems:

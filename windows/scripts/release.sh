@@ -31,13 +31,14 @@ DIST="$WIN/dist"
 IMAGE="mstorsjo/llvm-mingw:latest"
 ROOTPEM="$WIN/installer/microsoft-identity-verification-root-2020.pem"
 
-VERSION="" UNSIGNED=0 SKIP_BUILD=0
+VERSION="" UNSIGNED=0 SKIP_BUILD=0 REPAIR=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --version) VERSION="$2"; shift 2 ;;
     --unsigned) UNSIGNED=1; shift ;;
     --skip-build) SKIP_BUILD=1; shift ;;
-    *) echo "usage: $0 --version X.Y.Z [--unsigned] [--skip-build]" >&2; exit 2 ;;
+    --repair) REPAIR=1; shift ;;   # also build REPAIR_TARGETS packages
+    *) echo "usage: $0 --version X.Y.Z [--unsigned] [--skip-build] [--repair]" >&2; exit 2 ;;
   esac
 done
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "--version X.Y.Z is required" >&2; exit 2; }
@@ -135,8 +136,10 @@ OUT="$DIST/release"
 mkdir -p "$OUT"
 table() { msiinfo export "$1" "$2" | tr -d '\r'; }
 
-build_msi() {  # build_msi <x64|arm64>
-  local arch="$1" upgrade icon_native
+build_msi() {  # build_msi <x64|arm64> [<ProductCode> <suffix>]
+  # With a ProductCode: a REPAIR package (minor update of that exact installed product,
+  # new PackageCode) — see REPAIR_TARGETS.
+  local arch="$1" productcode="${2:-*}" suffix="${3:-}" upgrade icon_native
   # UpgradeCodes are the product identity across versions: NEVER change them. One per
   # architecture so the x64 and arm64 packages never treat each other as upgrades.
   case "$arch" in
@@ -145,14 +148,14 @@ build_msi() {  # build_msi <x64|arm64>
     # the forwarder (ime/core/com_path.h). The MSI mirrors exactly that.
     arm64) upgrade=5E0A7C41-9B3D-4F62-A8E1-7D2C4B9F3A06; icon_native='[INSTALLFOLDER]VietTelexTIP_arm64.dll' ;;
   esac
-  local msi="$OUT/VietTelex-$VERSION-$arch.msi" work
+  local msi="$OUT/VietTelex-$VERSION-$arch$suffix.msi" work
   work="$(mktemp -d)"
   local arm64comp="" arm64refs=""
   if [ "$arch" = arm64 ]; then
     arm64comp="<Component Id=\"TipArm64Half\" Guid=\"$(guid "vtx-msi-tiparm64-$arch")\" Win64=\"yes\"><File Id=\"TipArm64Dll\" Name=\"VietTelexTIP_arm64.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_arm64.dll\" KeyPath=\"yes\" /></Component><Component Id=\"TipX64Half\" Guid=\"$(guid "vtx-msi-tipx64-$arch")\" Win64=\"yes\"><File Id=\"TipX64Dll\" Name=\"VietTelexTIP_x64.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_x64.dll\" KeyPath=\"yes\" /></Component>"
     arm64refs='<ComponentRef Id="TipArm64Half" /><ComponentRef Id="TipX64Half" />'
   fi
-  sed -e "s|@VERSION@|$VERSION|g" -e "s|@UPGRADECODE@|$upgrade|g" \
+  sed -e "s|@VERSION@|$VERSION|g" -e "s|@UPGRADECODE@|$upgrade|g" -e "s|@PRODUCTCODE@|$productcode|g" \
       -e "s|@ICON@|$WIN/ime/res/viettelex.ico|g" \
       -e "s|@BIN_NATIVE@|$DIST/bin/$arch|g" -e "s|@BIN_X86@|$DIST/bin/x86|g" \
       -e "s|@GUID_APP@|$(guid "vtx-msi-app-$arch")|g" -e "s|@GUID_TIPNATIVE@|$(guid "vtx-msi-tipnative-$arch")|g" \
@@ -212,6 +215,9 @@ build_msi() {  # build_msi <x64|arm64>
     table "$msi" File | grep -q "	$f	" || { echo "MSI lacks $f" >&2; fail=1; }
   done
   msiinfo suminfo "$msi" | tr -d '\r' | grep -q "Template: $template;" || { echo "template is not $template" >&2; fail=1; }
+  if [ "$productcode" != "*" ]; then
+    table "$msi" Property | grep -q "^ProductCode	$productcode\$" || { echo "repair MSI ProductCode != $productcode" >&2; fail=1; }
+  fi
   rm -rf "$work"
   [ "$fail" = 0 ] || { echo "MSI checks failed for $arch" >&2; exit 1; }
   echo "  msi $(basename "$msi"): $template, registry rows match DllRegisterServer data"
@@ -221,8 +227,26 @@ echo "-- building MSIs"
 build_msi x64
 build_msi arm64
 
+# REPAIR packages for released MSIs whose cached copy in C:\Windows\Installer cannot
+# uninstall itself. Same ProductCode + UpgradeCode, new PackageCode, fixed tables: the
+# user runs it with REINSTALL=ALL REINSTALLMODE=vomus ("v" re-caches the package),
+# after which Settings -> Uninstall and major upgrades use the fixed copy.
+#   1.0.3: CleanupUser at sequence 1 (before CostFinalize) -> error 2731 on uninstall.
+REPAIR_TARGETS=(
+  "x64 1.0.3 {4822CAE4-A773-47FC-A9E1-30E16D0A6F4C}"
+  "arm64 1.0.3 {495C0D86-D141-45E4-BE5C-4AEC755F72CE}"
+)
+REPAIRS=()
+if [ "$REPAIR" = 1 ]; then
+  for t in "${REPAIR_TARGETS[@]}"; do
+    set -- $t
+    build_msi "$1" "$3" "-repair-$2"
+    REPAIRS+=("$OUT/VietTelex-$VERSION-$1-repair-$2.msi")
+  done
+fi
+
 # ------------------------------------------------------------------ 4. sign + verify + sums
-MSIS=("$OUT/VietTelex-$VERSION-x64.msi" "$OUT/VietTelex-$VERSION-arm64.msi")
+MSIS=("$OUT/VietTelex-$VERSION-x64.msi" "$OUT/VietTelex-$VERSION-arm64.msi" ${REPAIRS[@]+"${REPAIRS[@]}"})
 echo "-- signing MSIs"
 sign "${MSIS[@]}"
 verify "${MSIS[@]}" "${BINS[@]}"

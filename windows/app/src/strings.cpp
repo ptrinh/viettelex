@@ -19,7 +19,7 @@ const Pair kStrings[] = {
     {L"Cài đặt…", L"Settings…"},
     {L"Kiểm tra cập nhật", L"Check for updates"},
     {L"Giới thiệu", L"About"},
-    {L"Thoát (vẫn gõ được tiếng Việt)", L"Quit (typing keeps working)"},
+    {L"Ẩn biểu tượng khay", L"Hide tray icon"},
 
     {L"Kiểu gõ", L"Typing"},
     {L"Chính tả", L"Spelling"},

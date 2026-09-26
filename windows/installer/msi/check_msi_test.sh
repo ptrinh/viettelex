@@ -17,7 +17,7 @@ command -v wixl >/dev/null 2>&1 && command -v msibuild >/dev/null 2>&1 || { echo
 d="$(mktemp -d)"; trap 'rm -rf "$d"' EXIT
 for f in VietTelex.exe VietTelexTIP.dll; do echo "$f" > "$d/$f"; done
 fill() {
-  sed -e "s|@VERSION@|1.0.0|g; s|@UPGRADECODE@|0F0E0D0C-0B0A-4908-8706-050403020100|g" \
+  sed -e "s|@VERSION@|1.0.0|g; s|@UPGRADECODE@|0F0E0D0C-0B0A-4908-8706-050403020100|g; s|@PRODUCTCODE@|*|g" \
       -e "s|@ICON@|$here/../../ime/res/viettelex.ico|g; s|@BIN_NATIVE@|$d|g; s|@BIN_X86@|$d|g" \
       -e "s|@GUID_APP@|0F0E0D0C-0B0A-4908-8706-050403020101|; s|@GUID_TIPNATIVE@|0F0E0D0C-0B0A-4908-8706-050403020102|" \
       -e "s|@GUID_TIPX86@|0F0E0D0C-0B0A-4908-8706-050403020103|; s|@GUID_SHORTCUT@|0F0E0D0C-0B0A-4908-8706-050403020104|" \
@@ -49,4 +49,11 @@ wixl --arch x64 -o "$d/new.msi" "$d/new.wxs" 2>/dev/null
 python3 "$here/check_msi.py" "$d/new.msi" >/dev/null
 msiinfo export "$d/new.msi" Registry > "$d/Registry.idt"
 "$REGTABLE" check "$d/Registry.idt" TipNative "$dll" "$dll" >/dev/null
-echo "check_msi regression ok (1.0.0-style MSI rejected, wixl-written MSI accepted)"
+# ---- 1.0.3 regression: CleanupUser (exe from an installed File) sequenced before
+# CostFinalize -> Windows error 2731 on every uninstall. Must be rejected.
+cp "$d/new.msi" "$d/seq.msi"
+msibuild "$d/seq.msi" -q "UPDATE \`InstallExecuteSequence\` SET \`Sequence\`=1 WHERE \`Action\`='CleanupUser'"
+if python3 "$here/check_msi.py" "$d/seq.msi" 2>/dev/null; then
+  echo "FAIL: check_msi.py accepted CleanupUser before CostFinalize (1.0.3, error 2731)" >&2; exit 1
+fi
+echo "check_msi regression ok (1.0.0 row order and 1.0.3 CA sequence rejected, current template accepted)"

@@ -107,9 +107,9 @@ DWORD WINAPI checkThread(void* p) {
             lstrcpynW(info->version, widen(rel.version).c_str(), 32);
             lstrcpynW(info->url, widen(url).c_str(), 512);
         }
-    } else if (!body.empty()) {
-        info->ok = true;  // reachable, but no Windows release published yet
     }
+    // Reachable but no parseable "windows" entry → report "couldn't check", NOT "you're on
+    // the latest" (bug 26/09/2026: stable.json had no windows key → misleading "mới nhất").
     if (!PostMessageW(notify, kMsgUpdateChecked, 0, reinterpret_cast<LPARAM>(info))) delete info;
     return 0;
 }
