@@ -70,17 +70,22 @@ object Templates {
         return current + TemplateItem(l, t)
     }
 
-    /** Mẫu động: fetch lúc chạm. */
-    fun isDynamic(text: String) = text.startsWith("https://")
-    const val FETCH_TIMEOUT_MS = 4000
-    const val FETCH_MAX_BYTES = 1000
-
-    /** Body chèn cho mẫu động: ≤1000 byte, trim; null/rỗng ⇒ caller chèn chính URL. */
-    fun bodyFromResponse(bytes: ByteArray?): String? {
-        if (bytes == null) return null
-        val s = String(bytes, 0, minOf(bytes.size, FETCH_MAX_BYTES), Charsets.UTF_8).trim()
-        return s.ifEmpty { null }
+    /**
+     * Nhập mẫu câu KHÔNG cần mạng (file qua SAF hoặc chữ chia sẻ ACTION_SEND): nội dung có
+     * dòng YAML (`- "label | câu"` / `- "câu"`) ⇒ [parseYAML]; không có dòng nào ⇒ cả đoạn
+     * (trim, giữ xuống dòng) là MỘT mẫu không label. Bỏ BOM đầu file; đoạn quá dài
+     * (> [IMPORT_MAX_CHARS]) hoặc rỗng ⇒ danh sách rỗng.
+     */
+    fun parseImport(text: String?): List<TemplateItem> {
+        if (text == null) return emptyList()
+        val s = text.removePrefix("\uFEFF").replace("\r\n", "\n")
+        val yaml = parseYAML(s)
+        if (yaml.isNotEmpty()) return yaml
+        val one = s.trim()
+        if (one.isEmpty() || one.length > IMPORT_MAX_CHARS) return emptyList()
+        return listOf(TemplateItem("", one))
     }
+    const val IMPORT_MAX_CHARS = 2000
 
     // --- JSON tối giản (không phụ thuộc thư viện) ---
 

@@ -14,6 +14,11 @@ import com.viettelex.keyboard.Keys
 /** Trạng thái IME trong hệ thống — làm mới mỗi onResume / khi lấy lại focus (sau picker). */
 data class ImeStatus(val enabled: Boolean, val selected: Boolean)
 
+/** Chữ chia sẻ (ACTION_SEND text/plain) đang chờ tab Mẫu Câu gộp vào — xem [MauCauTab]. */
+object SharedImport {
+    val pending = mutableStateOf<String?>(null)
+}
+
 class MainActivity : ComponentActivity() {
     private val ime = mutableStateOf(ImeStatus(false, false))
     /** Tăng mỗi lần có deep link viettelex://maucau. */
@@ -58,6 +63,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleDeepLink(i: Intent?) {
+        if (i?.action == Intent.ACTION_SEND && i.type == "text/plain") {
+            val text = i.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() ?: return
+            Prefs.of(this).edit().putBoolean(Keys.TEMPLATES_ENABLED, true).apply()
+            SharedImport.pending.value = text
+            openMauCau.value++
+            return
+        }
         val d = i?.data ?: return
         if (d.scheme == "viettelex" && d.host == "maucau") {
             // User chủ động mở từ bàn phím ⇒ bật tính năng + nhảy tab.

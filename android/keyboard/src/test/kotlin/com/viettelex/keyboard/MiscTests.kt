@@ -13,8 +13,9 @@ class TemplatesTests {
     @Test fun testParseDefaultsFile() {
         val items = Templates.parseYAML(KeyboardData.text(Keys.ASSET_TEMPLATES_YAML))
         assertEquals(TemplateItem("👋", "Chào buổi sáng"), items.first())
-        assertEquals(TemplateItem("IP❓", "https://api.ipify.org"), items.last())
-        assertTrue(Templates.isDynamic(items.last().text))
+        assertEquals(TemplateItem("🥰", "Yêu bạn nhiều"), items.last())
+        // App không có quyền INTERNET ⇒ bộ mặc định không được chứa mẫu URL (mẫu động cũ).
+        assertTrue(items.none { it.text.contains("://") })
     }
 
     @Test fun testParseFormats() {
@@ -49,10 +50,25 @@ class TemplatesTests {
         assertEquals(TemplateItem("👋", "b"), Templates.add(cur, " 👋 ", " b\n")!!.last())
     }
 
-    @Test fun testDynamicBody() {
-        assertEquals("1.2.3.4", Templates.bodyFromResponse("  1.2.3.4\n".toByteArray()))
-        assertNull(Templates.bodyFromResponse("   ".toByteArray()))
-        assertEquals(1000, Templates.bodyFromResponse(ByteArray(3000) { 'a'.code.toByte() })!!.length)
+    @Test fun testParseImportYamlFile() {
+        // File YAML (SAF) — giữ nguyên định dạng, kể cả BOM + CRLF từ Windows.
+        val y = "\uFEFF# mẫu\r\n- \"👋 | Chào\"\r\n- \"Cảm ơn\"\r\n"
+        assertEquals(listOf(TemplateItem("👋", "Chào"), TemplateItem("", "Cảm ơn")), Templates.parseImport(y))
+        // Export → import khứ hồi.
+        val items = listOf(TemplateItem("😀", "Chào \"bạn\""), TemplateItem("", "Không label"))
+        assertEquals(items, Templates.parseImport(Templates.exportYAML(items)))
+    }
+
+    @Test fun testParseImportSharedPlainText() {
+        // Chữ chia sẻ (ACTION_SEND) không phải YAML ⇒ cả đoạn là một mẫu, giữ xuống dòng.
+        assertEquals(listOf(TemplateItem("", "Số TK: 0123\nNgân hàng ABC")),
+            Templates.parseImport("  Số TK: 0123\r\nNgân hàng ABC \n"))
+        // Chia sẻ URL cũng chỉ là chữ — không fetch.
+        assertEquals(listOf(TemplateItem("", "https://example.com")), Templates.parseImport("https://example.com"))
+        assertEquals(emptyList<TemplateItem>(), Templates.parseImport("  \n "))
+        assertEquals(emptyList<TemplateItem>(), Templates.parseImport(null))
+        assertEquals(emptyList<TemplateItem>(), Templates.parseImport("a".repeat(Templates.IMPORT_MAX_CHARS + 1)))
+        assertEquals(1, Templates.parseImport("a".repeat(Templates.IMPORT_MAX_CHARS)).size)
     }
 }
 

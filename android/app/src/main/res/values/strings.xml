@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">VietTelex</string>
+    <string name="share_to_templates">Thêm vào Mẫu câu VietTelex</string>
 </resources>

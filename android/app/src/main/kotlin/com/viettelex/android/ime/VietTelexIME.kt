@@ -29,11 +29,8 @@ import com.viettelex.keyboard.Keys
 import com.viettelex.keyboard.MainThread
 import com.viettelex.keyboard.SuggestionPlan
 import com.viettelex.keyboard.TemplateItem
-import com.viettelex.keyboard.Templates
 import com.viettelex.keyboard.UserLangModel
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * Bàn phím VietTelex (port iOS KeyboardViewController — phần nối dây; logic nằm ở
@@ -264,28 +261,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     // MARK: mẫu câu
 
-    override fun onTemplate(item: TemplateItem) {
-        val text = item.text
-        if (!Templates.isDynamic(text)) { insertTemplate(text); return }
-        // Mẫu động: fetch lúc chạm (timeout 4 s), lỗi ⇒ chèn chính URL.
-        val w = worker()
-        w.post {
-            val bytes = try {
-                val c = URL(text).openConnection() as HttpURLConnection
-                c.connectTimeout = Templates.FETCH_TIMEOUT_MS
-                c.readTimeout = Templates.FETCH_TIMEOUT_MS
-                try {
-                    c.inputStream.use { ins ->
-                        val buf = ByteArray(Templates.FETCH_MAX_BYTES)
-                        var n = 0
-                        while (n < buf.size) { val r = ins.read(buf, n, buf.size - n); if (r < 0) break; n += r }
-                        buf.copyOf(n)
-                    }
-                } finally { c.disconnect() }
-            } catch (_: Exception) { null }
-            handler.post { insertTemplate(Templates.bodyFromResponse(bytes) ?: text) }
-        }
-    }
+    // Không fetch mạng (app không có quyền INTERNET): mẫu nào cũng chèn nguyên văn.
+    override fun onTemplate(item: TemplateItem) = insertTemplate(item.text)
 
     private fun insertTemplate(text: String) {
         if (!proxy.begin()) return
