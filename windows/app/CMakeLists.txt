@@ -1,7 +1,7 @@
 # windows/app — VietTelex.exe (Win32 tray + settings + updater + hook fallback) and its
 # portable core (unit-tested on any OS).
 
-add_library(vtx_app_core STATIC core/update_check.cpp core/uninstall.cpp core/setup_helper_logic.cpp core/direct_policy.cpp)
+add_library(vtx_app_core STATIC core/update_check.cpp core/uninstall.cpp core/setup_helper_logic.cpp core/direct_policy.cpp core/input_switch.cpp)
 target_include_directories(vtx_app_core PUBLIC core)
 target_link_libraries(vtx_app_core PUBLIC vtx_ime_core)
 
@@ -19,6 +19,8 @@ if(WIN32)
   add_executable(VietTelex WIN32
     src/app_quit.cpp
     src/direct_verify.cpp
+    ../ime/src/debug_file.cpp
+    src/foreground.cpp
     src/hook_fallback.cpp
     ../ime/src/icons.cpp
     src/main.cpp

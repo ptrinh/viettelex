@@ -284,3 +284,269 @@ TEST(direct_echo_mismatch_counter_policy) {
     p.focusChanged();
     CHECK(!p.fellBack(1, 0));
 }
+
+// ---------------------------------------------------------------- 1.1.5
+#include "app_language.h"
+#include "app_policy.h"
+#include "debug_log.h"
+#include "input_switch.h"
+#include "keymap.h"
+#include "session.h"
+#include "settings.h"
+
+TEST(console_window_identity_is_conhost) {
+    // GetWindowThreadProcessId on a console window names its CLIENT; the TIP runs in
+    // conhost.exe and the built-in Direct rule is keyed "conhost.exe".
+    CHECK_EQ(hostIdentity("ConsoleWindowClass", "cmd.exe"), std::string("conhost.exe"));
+    CHECK_EQ(hostIdentity("ConsoleWindowClass", "powershell.exe"), std::string("conhost.exe"));
+    CHECK_EQ(hostIdentity("Notepad", "notepad.exe"), std::string("notepad.exe"));
+    CHECK_EQ(hostIdentity("CASCADIA_HOSTING_WINDOW_CLASS", "windowsterminal.exe"), std::string("windowsterminal.exe"));
+    CHECK(resolveAppMode("conhost.exe", {}) == AppMode::Direct);
+    CHECK(resolveAppMode("cmd.exe", {}) != AppMode::Direct);  // the 1.1.4 lookup: no rule
+}
+
+TEST(foreground_language_decision) {
+    CHECK(foregroundLanguage(1, true, false, false));   // TIP says Vietnamese: authoritative
+    CHECK(!foregroundLanguage(2, false, true, true));   // TIP says English
+    CHECK(!foregroundLanguage(0, true, true, true));    // console without the TIP's word: no
+    CHECK(foregroundLanguage(0, false, true, true));    // normal window: HKL + memory
+    CHECK(!foregroundLanguage(0, false, true, false));
+    CHECK(!foregroundLanguage(0, false, false, true));
+}
+
+TEST(hook_arming_waits_for_boundary_when_engaged_mid_focus) {
+    HookArming a;
+    a.engaged(true);
+    CHECK(a.key(false));  // fresh window: at once
+    a.engaged(false);     // handed over mid-word
+    CHECK(!a.key(false));
+    CHECK(!a.key(false));
+    CHECK(!a.key(true));  // the boundary itself still belongs to the TIP's word
+    CHECK(a.key(false));
+    a.disengaged();
+    CHECK(!a.key(false));
+    a.click();
+    CHECK(a.key(false));
+    CHECK(tipStaysOut(true, true, false, true));
+    CHECK(!tipStaysOut(true, false, false, true));  // no ack: compose
+    CHECK(!tipStaysOut(true, true, true, true));
+    CHECK(!tipStaysOut(true, true, false, false));
+    CHECK(!tipStaysOut(false, true, false, true));
+}
+
+// ---- fake conhost: the TIP (loaded in conhost via ConsoleTSF) AND the hook, one screen.
+namespace {
+struct FakeConsole {
+    std::u16string screen;      // cmd's line buffer as displayed
+    std::u16string composition; // the TIP's composition (conversion area)
+};
+
+// The TIP's view of a console: nothing readable, composition committed into the line.
+class ConsoleTipSink final : public TextSink {
+public:
+    explicit ConsoleTipSink(FakeConsole& c) : c_(c) {}
+    std::u16string textBeforeCaret(int) override { return {}; }
+    char16_t charAfterCaret() override { return 0; }
+    bool hasSelection() override { return false; }
+    bool replaceBeforeCaret(const std::u16string&, const std::u16string&) override { return false; }
+    bool compositionActive() override { return active_; }
+    bool setComposition(const std::u16string& t, int) override {
+        active_ = true;
+        c_.composition = t;
+        return true;
+    }
+    void endComposition(const std::u16string& f) override {
+        if (!active_) return;
+        c_.screen += f;
+        c_.composition.clear();
+        active_ = false;
+    }
+    void endCompositionAsIs() override { endComposition(c_.composition); }
+    bool canReadContext() override { return false; }
+
+private:
+    FakeConsole& c_;
+    bool active_ = false;
+};
+
+// The hook's SendInput batch, applied as conhost would: VK_BACK (with scan code) erases,
+// KEYEVENTF_UNICODE inserts. Injected keys never reach the TIP (GetMessageExtraInfo).
+class InjectSink final : public TextSink {
+public:
+    explicit InjectSink(FakeConsole& c) : c_(c) {}
+    bool blind() override { return true; }
+    std::u16string textBeforeCaret(int) override { return {}; }
+    char16_t charAfterCaret() override { return 0; }
+    bool hasSelection() override { return false; }
+    bool replaceBeforeCaret(const std::u16string& expect, const std::u16string& insert) override {
+        for (size_t i = 0; i < expect.size() && !c_.screen.empty(); ++i) c_.screen.pop_back();
+        c_.screen += insert;
+        sent = true;
+        return true;
+    }
+    bool compositionActive() override { return false; }
+    bool setComposition(const std::u16string&, int) override { return false; }
+    void endComposition(const std::u16string&) override {}
+    void endCompositionAsIs() override {}
+    bool sent = false;
+
+private:
+    FakeConsole& c_;
+};
+
+uint32_t vkOf(char c) { return c == ' ' ? 0x20 : static_cast<uint32_t>(c - 'a' + 'A'); }
+
+struct ConsoleRig {
+    enum class Build { V114, V115 };
+    Build build;
+    bool handoverMidFocus = false;  // the hook engages after typing started
+    bool arming = true;             // 1.1.5 HookArming on/off (to show the race)
+    int engageAfterKeys = 0;
+
+    FakeConsole con;
+    TypingSession tip, hook;
+    Settings st;
+    ConsoleRig(Build b) : build(b) {
+        SessionOptions o;
+        o.engineFlags = st.engineFlags();
+        o.autoRestore = st.autoRestore;
+        tip.configure(o);
+        tip.setOutputMode(OutputMode::Composition);
+        tip.setCompositionOnlyContext(true);
+        o.reEditWord = false;
+        hook.configure(o);
+        hook.setOutputMode(OutputMode::InPlace);
+    }
+
+    std::u16string type(const std::string& keys) {
+        // Hook side (VietTelex.exe): which app is this window?
+        const std::string ownerExe = "cmd.exe";  // what GetWindowThreadProcessId reports
+        const std::string id = build == Build::V114 ? ownerExe : hostIdentity("ConsoleWindowClass", ownerExe);
+        const bool rule = resolveAppMode(id, {}) == AppMode::Direct;
+        // 1.1.4: the TIP stays out on its own rule whenever the app runs. 1.1.5: only on ack.
+        HookArming arm;
+        bool engaged = false, acked = false;
+        auto engage = [&](bool fresh) {
+            engaged = rule;
+            acked = engaged;
+            arm.engaged(fresh || !arming);
+        };
+        if (!handoverMidFocus) engage(true);
+        ConsoleTipSink tipSink(con);
+        int n = 0;
+        for (char c : keys) {
+            if (handoverMidFocus && n++ == engageAfterKeys) engage(false);
+            KeyInput k = classifyKey(vkOf(c), Modifiers{});
+            const bool boundary = k.kind == KeyKind::Char && k.ch == U' ';
+            // 1) WH_KEYBOARD_LL in VietTelex.exe
+            if (engaged && arm.key(boundary || !arming) && hook.wantsKey(k)) {
+                InjectSink inj(con);
+                const bool eaten = hook.handleKey(k, inj);
+                if (inj.sent) {
+                    if (!eaten) con.screen += static_cast<char16_t>(k.ch);  // replayed after the batch
+                    continue;
+                }
+                if (eaten) continue;
+            }
+            // 2) the TIP in conhost
+            const bool tipOut = build == Build::V114 ? true /* rule Direct + app running */
+                                                     : (!tip.wordActive() && tipStaysOut(true, acked, false, true));
+            if (!tipOut && tip.wantsKey(k) && tip.handleKey(k, tipSink)) continue;
+            // 3) conhost / cmd
+            con.screen += static_cast<char16_t>(k.ch);
+        }
+        tip.flush(tipSink);
+        return con.screen;
+    }
+};
+}  // namespace
+
+TEST(fake_conhost_reproduces_1_1_4_raw_words) {
+    // Win10 cmd.exe report: nobody typed — hook keyed the window as cmd.exe (no rule),
+    // the TIP stayed out on its conhost.exe Direct rule.
+    ConsoleRig r(ConsoleRig::Build::V114);
+    CHECK(r.type("gox thuwr tieengs vieetj") == u"gox thuwr tieengs vieetj");
+}
+
+TEST(fake_conhost_1_1_5_hook_types_everything) {
+    ConsoleRig r(ConsoleRig::Build::V115);
+    CHECK(r.type("gox thuwr tieengs vieetj ") == u"gõ thử tiếng việt ");
+}
+
+TEST(fake_conhost_handover_mid_word_needs_arming) {
+    // The hook engages after "gox thu" (TIP handover arrives late). Without arming the
+    // hook starts a fresh word at "w" while the TIP composes "thu": two typists, garbage.
+    ConsoleRig bad(ConsoleRig::Build::V115);
+    bad.handoverMidFocus = true;
+    bad.arming = false;
+    bad.engageAfterKeys = 7;
+    CHECK(bad.type("gox thuwr tieengs ") != u"gõ thử tiếng ");
+    ConsoleRig good(ConsoleRig::Build::V115);
+    good.handoverMidFocus = true;
+    good.engageAfterKeys = 7;
+    CHECK(good.type("gox thuwr tieengs ") == u"gõ thử tiếng ");
+}
+
+TEST(debug_log_line_format_and_rotation) {
+    LogStamp t{2026, 9, 26, 14, 3, 7, 5};
+    const std::string l = formatLogLine(t, 4312, "conhost.exe", "tip", "rule 4\nx");
+    CHECK_EQ(l, std::string("2026-09-26 14:03:07.005 pid=4312 conhost.exe [tip] rule 4 x\r\n"));
+    CHECK(!logNeedsRotation(0, 100));
+    CHECK(!logNeedsRotation(1000, 100));
+    CHECK(logNeedsRotation(kDebugLogMaxBytes - 10, 100));
+}
+
+TEST(app_language_switch_focus_sequence) {
+    // Chrome -> E, Notepad stays V, back to Chrome: E; a new app defaults to V.
+    AppLanguageStore s;
+    CHECK(s.vietnamese("chrome.exe"));
+    s.set("chrome.exe", false);
+    CHECK(s.vietnamese("notepad.exe"));
+    CHECK(!s.vietnamese("chrome.exe"));
+    CHECK(!s.vietnamese("Chrome.EXE"));
+    s.set("chrome.exe", true);
+    CHECK(s.vietnamese("chrome.exe"));
+}
+
+TEST(app_language_persistence_round_trip) {
+    AppLanguageStore a;
+    a.set("chrome.exe", false);
+    a.set("searchhost.exe", false);
+    a.set("notepad.exe", true);
+    AppLanguageStore b;
+    b.parse(a.serialize());
+    CHECK(!b.vietnamese("chrome.exe"));
+    CHECK(!b.vietnamese("searchhost.exe"));
+    CHECK(b.vietnamese("notepad.exe"));
+    CHECK(b.known("notepad.exe"));
+    b.parse("bad line\nx.exe\t2\n\tn\nok.exe\t0\r\n");
+    CHECK(!b.vietnamese("ok.exe"));
+    CHECK(!b.known("x.exe"));
+    CHECK_EQ(b.entries().size(), static_cast<size_t>(1));
+}
+
+TEST(app_language_webview2_and_console_keys) {
+    AppLanguageStore s;
+    s.set(appIdentity("msedgewebview2.exe", "ms-teams.exe"), false);  // TIP inside WebView2
+    CHECK(!s.vietnamese("ms-teams.exe"));                             // app side: fg exe
+    CHECK(s.vietnamese("msedgewebview2.exe"));
+    s.set("conhost.exe", false);                                      // TIP in conhost
+    CHECK(!s.vietnamese(hostIdentity("ConsoleWindowClass", "cmd.exe")));  // hook / tray
+}
+
+TEST(windows_per_app_input_option) {
+    CHECK(perAppInputFromSpi(true, 1) == PerAppInput::On);
+    CHECK(perAppInputFromSpi(true, 0) == PerAppInput::Off);
+    CHECK(perAppInputFromSpi(false, 1) == PerAppInput::Unknown);
+    CHECK(hotkeyNote(SwitchHotkey::CtrlShift, PerAppInput::Off) == HotkeyNote::TipRemembers);
+    CHECK(hotkeyNote(SwitchHotkey::AltZ, PerAppInput::Unknown) == HotkeyNote::TipRemembers);
+    CHECK(hotkeyNote(SwitchHotkey::WinSpace, PerAppInput::On) == HotkeyNote::WindowsPerApp);
+    CHECK(hotkeyNote(SwitchHotkey::WinSpace, PerAppInput::Off) == HotkeyNote::WindowsGlobal);
+    CHECK(hotkeyNote(SwitchHotkey::Off, PerAppInput::Unknown) == HotkeyNote::WindowsUnknown);
+    CHECK(perAppAction(PerAppInput::Off) == PerAppAction::Enable);
+    CHECK(perAppAction(PerAppInput::On) == PerAppAction::None);
+    CHECK(perAppAction(PerAppInput::Unknown) == PerAppAction::OpenSettings);
+    CHECK(enableNeedsSettingsPage(PerAppInput::Off));
+    CHECK(!enableNeedsSettingsPage(PerAppInput::On));
+    CHECK(parseSwitchHotkey("win-space") == SwitchHotkey::WinSpace);
+}

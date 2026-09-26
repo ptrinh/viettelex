@@ -38,7 +38,10 @@ void reloadVietnamese();  // pick up a toggle made in another process of the sam
 // per-app mode and Việt/Anh memory then follow that app. See appIdentity().
 void setActiveApp(const std::wstring& exeBaseName);
 
-// Debug log (settings.debugLogging): OutputDebugString only, never typed characters.
+// Debug log (settings.debugLogging): %LOCALAPPDATA%\VietTelex\debug.log (debug_file.h),
+// component "tip". Decisions, key classes and lengths only — never typed characters.
 void log(const char* msg);
+void log(const std::string& msg);
+bool logging();
 
 }  // namespace vtx::tip::config

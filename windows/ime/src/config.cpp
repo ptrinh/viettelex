@@ -2,6 +2,10 @@
 
 #include <vector>
 
+#include "app_language.h"
+#include "debug_file.h"
+#include "ipc.h"
+
 namespace vtx::tip::config {
 
 namespace {
@@ -84,13 +88,38 @@ bool canUseRegistry() { return !g_secure && !g_appContainer; }
 std::wstring g_activeExeW;  // app identity (WebView2: the owning app's exe)
 std::wstring activeExeW() { return g_activeExeW.empty() ? exeNameW() : g_activeExeW; }
 
+// Where this process's Việt/Anh memory comes from: HKCU (normal processes), the app's
+// mirror file (AppContainer / low IL: HKCU is off limits), nothing in secure mode.
 void loadVietnameseLocked() {
-    if (!canUseRegistry()) return;
-    std::wstring exe = activeExeW();
-    DWORD v = 1, sz = sizeof v;
-    if (RegGetValueW(HKEY_CURRENT_USER, kRegAppLang, exe.c_str(), RRF_RT_REG_DWORD, nullptr, &v, &sz) ==
-        ERROR_SUCCESS)
-        InterlockedExchange(&g_vietnamese, v ? 1 : 0);
+    const std::wstring exe = activeExeW();
+    const std::string id = narrowLower(exe.c_str());
+    const char* source = "default";
+    bool on = true;
+    if (g_secure) {
+        source = "secure desktop (default)";
+    } else if (canUseRegistry()) {
+        DWORD v = 1, sz = sizeof v;
+        if (RegGetValueW(HKEY_CURRENT_USER, kRegAppLang, exe.c_str(), RRF_RT_REG_DWORD, nullptr, &v, &sz) ==
+            ERROR_SUCCESS) {
+            on = v != 0;
+            source = "registry";
+        }
+    } else {
+        std::wstring path = settingsPath();
+        path = path.substr(0, path.find_last_of(L'\\') + 1) + L"applang.txt";
+        std::vector<uint8_t> bytes;
+        AppLanguageStore store;
+        if (readFile(path, bytes)) {
+            store.parse(std::string(bytes.begin(), bytes.end()));
+            if (store.known(id)) {
+                on = store.vietnamese(id);
+                source = "app mirror (AppContainer)";
+            }
+        }
+    }
+    InterlockedExchange(&g_vietnamese, on ? 1 : 0);
+    if (InterlockedCompareExchange(&g_debug, 0, 0))
+        debugFileWrite("tip", "applang restore " + id + " -> " + (on ? "vi" : "en") + " from " + source);
 }
 
 }  // namespace
@@ -168,16 +197,27 @@ bool vietnamese() { return InterlockedCompareExchange(&g_vietnamese, 0, 0) != 0;
 
 void setVietnamese(bool on) {
     InterlockedExchange(&g_vietnamese, on ? 1 : 0);
-    if (!canUseRegistry()) return;
+    bool stored = false;
     std::wstring exe = activeExeW();
-    if (exe.empty()) return;
-    HKEY k;
-    if (RegCreateKeyExW(HKEY_CURRENT_USER, kRegAppLang, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &k, nullptr) ==
-        ERROR_SUCCESS) {
-        DWORD v = on ? 1 : 0;
-        RegSetValueExW(k, exe.c_str(), 0, REG_DWORD, reinterpret_cast<const BYTE*>(&v), sizeof v);
-        RegCloseKey(k);
+    if (canUseRegistry() && !exe.empty()) {
+        HKEY k;
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, kRegAppLang, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &k, nullptr) ==
+            ERROR_SUCCESS) {
+            DWORD v = on ? 1 : 0;
+            stored = RegSetValueExW(k, exe.c_str(), 0, REG_DWORD, reinterpret_cast<const BYTE*>(&v), sizeof v) ==
+                     ERROR_SUCCESS;
+            RegCloseKey(k);
+        }
     }
+    // Tell VietTelex.exe: it refreshes the AppContainer mirror, and stores the value for
+    // hosts that cannot (AppContainer / low IL; kAppCommandMsg is allowed through UIPI).
+    if (!g_secure)
+        if (HWND app = FindWindowW(kAppWindowClass, nullptr))
+            PostMessageW(app, kAppCommandMsg, static_cast<WPARAM>(AppCommand::SetAppLanguage),
+                         (on ? 1 : 0) | (stored ? 0 : 2));
+    if (InterlockedCompareExchange(&g_debug, 0, 0))
+        debugFileWrite("tip", "applang save " + narrowLower(exe.c_str()) + " -> " + (on ? "vi" : "en") +
+                                  (stored ? " (registry)" : " (via app)"));
 }
 
 void setActiveApp(const std::wstring& exeBaseName) {
@@ -199,9 +239,11 @@ void reloadVietnamese() {
 
 void log(const char* msg) {
     if (!InterlockedCompareExchange(&g_debug, 0, 0) || !msg) return;
-    char buf[512];
-    wsprintfA(buf, "[VietTelexTIP %lu] %s\n", GetCurrentProcessId(), msg);
-    OutputDebugStringA(buf);
+    debugFileWrite("tip", msg);
 }
+
+void log(const std::string& msg) { log(msg.c_str()); }
+
+bool logging() { return InterlockedCompareExchange(&g_debug, 0, 0) != 0; }
 
 }  // namespace vtx::tip::config

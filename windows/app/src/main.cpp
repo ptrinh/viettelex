@@ -24,6 +24,7 @@
 #include "icons.h"
 #include "registration.h"
 #include "res/icon_ids.h"
+#include "foreground.h"
 #include "hook_fallback.h"
 #include "ipc.h"
 #include "settings_store.h"
@@ -166,31 +167,30 @@ void setTrayState(bool vietnamese) {
     syncTrayIcon();
 }
 
-// Foreground app changed: English unless the VietTelex keyboard (vi-VN) is that app's
-// input method; then its remembered Việt/Anh state (HKCU ...\AppLanguage, default Việt).
+// Foreground app changed: its Việt/Anh state. The TIP's kTipLangProp on the window when
+// present (the only truth for consoles, whose reported thread is cmd's), else the
+// VietTelex keyboard on that thread plus the remembered per-app state (foreground.h).
 void CALLBACK fgWinEvent(HWINEVENTHOOK, DWORD, HWND hwnd, LONG idObject, LONG, DWORD, DWORD) {
     if (idObject != OBJID_WINDOW || !hwnd) return;
-    DWORD pid = 0;
-    const DWORD tid = GetWindowThreadProcessId(hwnd, &pid);
-    bool viKeyboard = LOWORD(reinterpret_cast<ULONG_PTR>(GetKeyboardLayout(tid))) == 0x042A;
-    bool on = viKeyboard;
-    if (viKeyboard) {
-        std::wstring exe;
-        if (HANDLE p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
-            wchar_t buf[MAX_PATH];
-            DWORD n = MAX_PATH;
-            if (QueryFullProcessImageNameW(p, 0, buf, &n)) {
-                exe.assign(buf, n);
-                exe = exe.substr(exe.find_last_of(L"\\/") + 1);
-            }
-            CloseHandle(p);
-        }
-        DWORD v = 1, sz = sizeof v;
-        if (!exe.empty())
-            RegGetValueW(HKEY_CURRENT_USER, L"Software\\VietTelex\\AppLanguage", exe.c_str(), RRF_RT_REG_DWORD,
-                         nullptr, &v, &sz);
-        on = v != 0;
+    const FgApp app = describeWindow(hwnd);
+    const bool on = fgVietnamese(hwnd, app);
+    if (appLogging())
+        appLog("app", "tray state for " + narrowAscii(app.identity) + " (class " + app.windowClass + "): " +
+                          (on ? "vi" : "en"));
+    setTrayState(on);
+}
+
+// In-TIP Việt/Anh switch (Ctrl+Shift, Alt+Z): store it for hosts that cannot (bit 1:
+// AppContainer / low IL — keyed by the foreground app, where the switch happened) and
+// refresh the mirror those hosts read.
+void onAppLanguage(LPARAM lp) {
+    const bool on = (lp & 1) != 0;
+    if (lp & 2) {
+        const FgApp app = describeWindow(GetForegroundWindow());
+        storeVietnamese(app.identity, on);
+        appLog("app", "applang stored for " + narrowAscii(app.identity) + " (TIP could not): " + (on ? "vi" : "en"));
     }
+    mirrorAppLanguage();
     setTrayState(on);
 }
 
@@ -199,6 +199,7 @@ void runCommand(unsigned cmd, LPARAM lp = 0) {
     switch (static_cast<AppCommand>(cmd)) {
         case AppCommand::StateChanged: setTrayState(lp != 0); break;
         case AppCommand::DirectMode: hookSetDirectFromTip(lp != 0); break;
+        case AppCommand::SetAppLanguage: onAppLanguage(lp); break;
         case AppCommand::OpenSettings: showSettings(Tab::Typing); break;
         case AppCommand::CheckUpdate: startUpdateCheck(g_mainWnd, true); break;
         case AppCommand::OpenAbout: showSettings(Tab::About); break;
@@ -514,6 +515,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     syncTrayIcon();
     hookSetElevationNotifier(showElevationNotice);
     hookConfigure(g_settings);
+    mirrorAppLanguage();  // AppContainer hosts read the per-app Việt/Anh memory from here
+    appLog("app", std::string("started ") + VTX_VER_STRING);
 
     if (cmd) runCommand(cmd);
     else if (!background) showSettings(Tab::Typing);

@@ -72,6 +72,9 @@ enum class S {
     UpdateBadSignature,
     ImportFailed,
     ElevatedHookNotice,
+    // 1.1.5: per-app Việt/Anh — who remembers depends on how you switch
+    HotkeyNoteWinPerApp, HotkeyNoteWinGlobal, HotkeyNoteWinUnknown,
+    PerAppWin, PerAppWinOn, PerAppWinOff, PerAppWinUnknown, PerAppEnableButton, PerAppOpenButton,
     Count
 };
 

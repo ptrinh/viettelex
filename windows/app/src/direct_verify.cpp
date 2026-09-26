@@ -8,6 +8,7 @@
 
 #include "app_policy.h"
 #include "direct_policy.h"
+#include "foreground.h"
 #include "hook_fallback.h"
 
 namespace vtx::app {
@@ -26,15 +27,20 @@ Job g_job;
 bool g_pending = false;
 bool g_focusChanged = false;
 std::atomic<uint64_t> g_latestSeq{0};
-std::atomic<bool> g_logging{false};
 HANDLE g_wake = nullptr;
 HANDLE g_thread = nullptr;
 std::atomic<bool> g_quit{false};
 
+const char* g_path = "";
+
 Echo readConsole(HWND fg, const std::u16string& expected) {
+    g_path = "console";
     DWORD pid = 0;
     GetWindowThreadProcessId(fg, &pid);
-    if (!pid || !AttachConsole(pid)) return Echo::Unverifiable;
+    if (!pid || !AttachConsole(pid)) {
+        g_path = "console (AttachConsole failed)";
+        return Echo::Unverifiable;
+    }
     Echo result = Echo::Unverifiable;
     HANDLE out = CreateFileW(L"CONOUT$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
                              OPEN_EXISTING, 0, nullptr);
@@ -64,6 +70,7 @@ IUIAutomation* uia() {
 }
 
 Echo readUia(HWND field, const std::u16string& expected) {
+    g_path = "uia (no pattern)";
     IUIAutomation* a = uia();
     if (!a || !field) return Echo::Unverifiable;
     IUIAutomationElement* el = nullptr;
@@ -84,6 +91,7 @@ Echo readUia(HWND field, const std::u16string& expected) {
                 BSTR text = nullptr;
                 if (SUCCEEDED(r->GetText(-1, &text)) && text) {
                     std::u16string before(reinterpret_cast<const char16_t*>(text), SysStringLen(text));
+                    g_path = "uia TextPattern";
                     result = echoMatches(before, expected) ? Echo::Match : Echo::Mismatch;
                     SysFreeString(text);
                 }
@@ -101,6 +109,7 @@ Echo readUia(HWND field, const std::u16string& expected) {
             BSTR v = nullptr;
             if (SUCCEEDED(vp->get_CurrentValue(&v)) && v) {
                 std::u16string value(reinterpret_cast<const char16_t*>(v), SysStringLen(v));
+                g_path = "uia ValuePattern";
                 if (!value.empty()) result = echoInValue(value, expected) ? Echo::Match : Echo::Mismatch;
                 SysFreeString(v);
             }
@@ -146,6 +155,11 @@ DWORD WINAPI verifierMain(void*) {
         const Echo e = lstrcmpW(cls, L"ConsoleWindowClass") == 0 ? readConsole(job.fg, job.expected)
                                                                   : readUia(field ? field : job.fg, job.expected);
         const int control = field ? GetDlgCtrlID(field) : 0;
+        if (appLogging())
+            appLog("verify", std::string("echo ") +
+                                 (e == Echo::Match ? "match" : e == Echo::Mismatch ? "MISMATCH" : "unverifiable") +
+                                 " via " + g_path + ", class " + narrowAscii(cls) + ", word length " +
+                                 std::to_string(job.expected.size()));
         if (policy.record(reinterpret_cast<uintptr_t>(field ? field : job.fg), control, e)) {
             HWND target = field ? field : job.fg;
             SetPropW(target, kNoDirectProp, reinterpret_cast<HANDLE>(1));
@@ -198,11 +212,8 @@ void directVerifyShutdown() {
     g_thread = g_wake = nullptr;
 }
 
-void directSetLogging(bool on) { g_logging.store(on); }
+void directSetLogging(bool on) { appSetLogging(on); }
 
-void directLog(const std::string& line) {
-    if (!g_logging.load()) return;
-    OutputDebugStringA(("[VietTelex] " + line + "\n").c_str());
-}
+void directLog(const std::string& line) { appLog("direct", line); }
 
 }  // namespace vtx::app

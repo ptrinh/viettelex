@@ -22,6 +22,18 @@ bool echoInValue(const std::u16string& value, const std::u16string& expected) {
     return expected.empty() || value.find(expected) != std::u16string::npos;
 }
 
+std::string hostIdentity(const std::string& windowClass, const std::string& ownerExe) {
+    if (isConsoleWindowClass(windowClass)) return "conhost.exe";
+    return ownerExe;
+}
+
+bool foregroundLanguage(int tipProp, bool console, bool hklIsVietTelex, bool storedVietnamese) {
+    if (tipProp == 1) return true;
+    if (tipProp == 2) return false;
+    if (console) return false;
+    return hklIsVietTelex && storedVietnamese;
+}
+
 bool EchoPolicy::record(uintptr_t w, int c, Echo e) {
     const auto key = std::make_pair(w, c);
     if (fallen_[key]) return false;

@@ -112,6 +112,10 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* ptim, TfClientId tid, DWORD f
 
     config::init((flags & TF_TMAE_SECUREMODE) != 0);
     applyConfig(true);
+    publishLangProp();
+    if (config::logging())
+        config::log(std::string("activated in ") + config::exeName() + (consoleHost_ ? " (console)" : "") +
+                    " rule " + std::to_string(static_cast<int>(config::appMode())));
 
     if (!initThreadMgrSink() || !initKeySink()) {
         Deactivate();
@@ -134,6 +138,7 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* ptim, TfClientId tid, DWORD f
 }
 
 STDMETHODIMP TextService::Deactivate() {
+    clearLangProp();
     if (composition_ && compositionContext_) {
         // Best effort: close our composition so the app keeps plain text.
         ITfContext* ctx = compositionContext_;
@@ -325,8 +330,13 @@ bool tokenIntegrity(HANDLE process, DWORD& rid) {
 bool TextService::directServesHere() const {
     HWND app = FindWindowW(kAppWindowClass, nullptr);
     if (!app) return false;
-    if (HWND f = GetFocus())
-        if (GetPropW(f, kNoDirectProp)) return false;
+    HWND f = GetFocus();
+    HWND root = f ? GetAncestor(f, GA_ROOT) : nullptr;
+    if (f && GetPropW(f, kNoDirectProp)) return false;
+    if (root && GetPropW(root, kNoDirectProp)) return false;
+    // Handover ack (1.1.5): the hook confirmed it types in this window. Without it the TIP
+    // composes (no underline) — a rule or a request alone left words raw (cmd, 1.1.4).
+    if (!root || !GetPropW(root, kDirectOnProp)) return false;
     DWORD appPid = 0, own = 0x2000, theirs = 0;
     GetWindowThreadProcessId(app, &appPid);
     tokenIntegrity(GetCurrentProcess(), own);
@@ -340,7 +350,10 @@ bool TextService::directServesHere() const {
 
 bool TextService::typingEnabled() const {
     if (!config::vietnamese()) return false;
-    if (directActive_) return !directServesHere();  // field fell back mid-focus: compose
+    // A word this TIP started stays this TIP's even if the hook's ack appears mid-word
+    // (the hook waits for a boundary too): one word, one typist.
+    if (session_.wordActive()) return true;
+    if (directActive_ || directWanted_) return !directServesHere();  // not (yet) typed by the hook: compose
     AppMode m = config::appMode();
     if (m == AppMode::Direct) return !directServesHere();  // the hook types; else compose
     return m == AppMode::Composition || m == AppMode::InPlace;
@@ -348,15 +361,39 @@ bool TextService::typingEnabled() const {
 
 // Hand this field to VietTelex.exe's hook (Direct mode: backspaces + Unicode, no
 // underline) instead of composing. Only when the app runs; else composition stays.
+// Asks; the TIP only stays out once the hook's ack (kDirectOnProp) is on the window —
+// until then this word (and any before the ack) is composed here. Returns true when the
+// hook already types here.
 bool TextService::requestDirect(const char* why) {
     if (directActive_) return true;
-    if (!directServesHere()) return false;  // elevated / field marked NoDirect: compose
+    HWND app = FindWindowW(kAppWindowClass, nullptr);
+    if (!app) return false;
+    HWND f = GetFocus();
+    if (f && GetPropW(f, kNoDirectProp)) return false;  // proved unusable here: compose
+    if (!directWanted_) {
+        directWanted_ = true;
+        PostMessageW(app, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode), 1);
+        config::log(std::string(why) + " (requested; composing until the hook acks)");
+    }
+    if (!directServesHere()) return false;
     directActive_ = true;
     session_.reset();
-    if (HWND h = FindWindowW(kAppWindowClass, nullptr))
-        PostMessageW(h, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode), 1);
-    config::log(why);
+    config::log("handover acked: the hook types in this field");
     return true;
+}
+
+void TextService::publishLangProp() {
+    HWND f = GetFocus();
+    HWND root = f ? GetAncestor(f, GA_ROOT) : nullptr;
+    if (root != langPropWnd_) clearLangProp();
+    if (!root || config::secureMode()) return;
+    SetPropW(root, kTipLangProp, reinterpret_cast<HANDLE>(static_cast<INT_PTR>(vietnamese() ? 1 : 2)));
+    langPropWnd_ = root;
+}
+
+void TextService::clearLangProp() {
+    if (langPropWnd_ && IsWindow(langPropWnd_)) RemovePropW(langPropWnd_, kTipLangProp);
+    langPropWnd_ = nullptr;
 }
 
 void TextService::toggleVietnamese() { setVietnamese(!vietnamese()); }
@@ -369,6 +406,7 @@ void TextService::setVietnamese(bool on) {
             session_.resetContext();
         }
         config::setVietnamese(on);
+        publishLangProp();
         config::log(on ? "mode: vietnamese" : "mode: english");
         notifyAppState(on);
     }
@@ -550,15 +588,19 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     parentFailed_ = false;
     SafeRelease(targetCtx_);
     host_ = HostText::Normal;
-    if (directActive_) {  // the new field is evaluated afresh
+    if (directActive_ || directWanted_) {  // the new field is evaluated afresh
         directActive_ = false;
+        directWanted_ = false;
         if (HWND h = FindWindowW(kAppWindowClass, nullptr))
             PostMessageW(h, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode), 0);
     }
     resolveActiveApp();
     config::reloadVietnamese();
     applyConfig(true);
-    if (focus) notifyAppState(vietnamese());
+    if (focus) {
+        publishLangProp();
+        notifyAppState(vietnamese());
+    }
     hookTextEditSink(focus);
     return S_OK;
 }
@@ -694,6 +736,9 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL
             directActive_ = false;
             config::log("direct mode unusable in this field -> composition");
             session_.setCompositionOnlyContext(true);
+        } else if (directWanted_ && !directActive_ && directServesHere()) {
+            directActive_ = true;  // the hook acked since the request
+            config::log("handover acked: the hook types in this field");
         }
     }
     if (directActive_) return S_OK;  // the hook types in this field
@@ -717,6 +762,9 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* ea
             directActive_ = false;
             config::log("direct mode unusable in this field -> composition");
             session_.setCompositionOnlyContext(true);
+        } else if (directWanted_ && !directActive_ && directServesHere()) {
+            directActive_ = true;  // the hook acked since the request
+            config::log("handover acked: the hook types in this field");
         }
     }
     if (directActive_) return S_OK;  // the hook types in this field

@@ -28,6 +28,15 @@ inline bool isOwnInjected(uintptr_t extraInfo) { return extraInfo == kInjectedMa
 // Window property VietTelex.exe sets on a field where Direct mode proved unusable
 // (echo mismatches, SendInput refused): the TIP composes there instead (1.1.4).
 constexpr const wchar_t* kNoDirectProp = L"VietTelex.NoDirect";
+// (1.1.5) Set by VietTelex.exe's hook thread on the foreground top-level window while it
+// types there in Direct mode. The TIP stays out of a field ONLY when this is present —
+// never on the strength of a rule or a request alone (the handover race left words raw).
+constexpr const wchar_t* kDirectOnProp = L"VietTelex.DirectOn";
+// (1.1.5) Set by the TIP on its focus root window: 1 = active + Vietnamese, 2 = active +
+// English; removed on deactivation. The hook and the tray read it — a console window's
+// GetWindowThreadProcessId names the CLIENT (cmd.exe) thread, whose keyboard layout says
+// nothing about conhost's input method.
+constexpr const wchar_t* kTipLangProp = L"VietTelex.Lang";
 // The hook (not the TIP) types for this mode.
 inline bool hookTypes(AppMode m) { return m == AppMode::HookFallback || m == AppMode::Direct; }
 

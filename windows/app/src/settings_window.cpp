@@ -37,6 +37,8 @@ using std::min;
 
 #include "app.h"
 #include "icons.h"
+#include "input_switch.h"
+#include "hotkey.h"
 #include "res/icon_ids.h"
 #include "settings_store.h"
 #include "shortcuts.h"
@@ -85,6 +87,7 @@ enum Id : int {
     IdAppRemove,
     IdCheckNow = 5000,
     IdUninstall,
+    IdPerAppWin,
     IdIconTile = 6000,  // + IconChoice
 };
 
@@ -382,6 +385,39 @@ Item blockItem(S t, S d, int h) {
     return i;
 }
 
+// Windows' "different input method for each app window" (input_switch.h).
+PerAppInput readPerAppInput() {
+    BOOL v = FALSE;
+    const bool ok = SystemParametersInfoW(SPI_GETTHREADLOCALINPUTSETTINGS, 0, &v, 0) != FALSE;
+    return perAppInputFromSpi(ok, v ? 1 : 0);
+}
+
+S hotkeyNoteString(HotkeyNote n) {
+    switch (n) {
+        case HotkeyNote::TipRemembers: return S::SwitchHotkeyDesc;
+        case HotkeyNote::WindowsPerApp: return S::HotkeyNoteWinPerApp;
+        case HotkeyNote::WindowsGlobal: return S::HotkeyNoteWinGlobal;
+        default: return S::HotkeyNoteWinUnknown;
+    }
+}
+
+void openTypingSettings() {
+    ShellExecuteW(nullptr, L"open", kTypingSettingsUri, nullptr, nullptr, SW_SHOWNORMAL);
+}
+
+void onPerAppButton() {
+    if (perAppAction(readPerAppInput()) == PerAppAction::Enable) {
+        // Documented per-user preference (Windows 8+); saved and broadcast like the
+        // checkbox in Windows Settings. If it did not take, show the Windows page.
+        SystemParametersInfoW(SPI_SETTHREADLOCALINPUTSETTINGS, 0, reinterpret_cast<PVOID>(static_cast<INT_PTR>(TRUE)),
+                              SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
+        if (enableNeedsSettingsPage(readPerAppInput())) openTypingSettings();
+    } else {
+        openTypingSettings();
+    }
+    PostMessageW(g_wnd, WM_APP + 1, 0, 0);  // re-read and redraw
+}
+
 std::vector<Item> pageItems(int tab) {
     std::vector<Item> v;
     switch (tab) {
@@ -390,7 +426,17 @@ std::vector<Item> pageItems(int tab) {
             v.push_back(comboItem(S::InputMethod, S::InputMethodDesc, IdComboMethod));
             for (int i = 0; i <= 4; ++i) v.push_back(toggleItem(i));
             v.push_back(section(S::SecSwitch));
-            v.push_back(comboItem(S::SwitchHotkey, S::SwitchHotkeyDesc, IdComboHotkey));
+            {
+                const PerAppInput win = readPerAppInput();
+                v.push_back(comboItem(S::SwitchHotkey,
+                                      hotkeyNoteString(hotkeyNote(parseSwitchHotkey(g_settings.switchHotkey), win)),
+                                      IdComboHotkey));
+                v.push_back(buttonItem(S::PerAppWin,
+                                       win == PerAppInput::On    ? S::PerAppWinOn
+                                       : win == PerAppInput::Off ? S::PerAppWinOff
+                                                                 : S::PerAppWinUnknown,
+                                       IdPerAppWin));
+            }
             v.push_back(section(S::SecAppearance));
             {
                 Item picker;
@@ -771,6 +817,10 @@ void createControls() {
                 }
             } else if (it.ctl == Ctl::Button) {
                 if (it.ctlId == IdUninstall) it.hwnd = makeButton(tr(S::UninstallButton), it.ctlId, kBtnDanger);
+                else if (it.ctlId == IdPerAppWin)
+                    it.hwnd = makeButton(tr(perAppAction(readPerAppInput()) == PerAppAction::Enable ? S::PerAppEnableButton
+                                                                                                   : S::PerAppOpenButton),
+                                         it.ctlId, perAppAction(readPerAppInput()) == PerAppAction::Enable ? kBtnPrimary : kBtnSecondary);
                 else it.hwnd = makeButton(tr(it.ctlId == IdCheckNow ? S::CheckButton : it.title), it.ctlId);
             }
         } else if (it.kind == ItemKind::IconPicker) {
@@ -1342,6 +1392,7 @@ void onCommand(int id, int code, HWND ctl) {
             if (code == CBN_SELCHANGE && sel() >= 0 && sel() < 4) {
                 g_settings.switchHotkey = kHotkeys[sel()];
                 changed();
+                PostMessageW(g_wnd, WM_APP + 1, 0, 0);  // the note under it depends on the choice
             }
             break;
         case IdComboLang:
@@ -1398,6 +1449,7 @@ void onCommand(int id, int code, HWND ctl) {
         }
         case IdCheckNow: startUpdateCheck(g_mainWnd, true); break;
         case IdUninstall: uninstallVietTelex(); break;
+        case IdPerAppWin: onPerAppButton(); break;
         default: break;
     }
 }

@@ -11,6 +11,7 @@
 #include "breaker.h"
 #include "direct_policy.h"
 #include "direct_verify.h"
+#include "foreground.h"
 #include "hook_watchdog.h"
 #include "keymap.h"
 #include "session.h"
@@ -28,7 +29,6 @@ namespace vtx::app {
 
 namespace {
 
-constexpr LANGID kViVN = 0x042A;
 enum : UINT {
     kCmdConfig = WM_APP + 1,   // lParam: Settings* (hook thread owns it)
     kCmdForeground,            // lParam: Foreground* (hook thread owns it)
@@ -38,11 +38,13 @@ enum : UINT {
 
 // ---------------------------------------------------------------- hook-thread state
 struct Foreground {
+    FgApp app;
     std::wstring exe;
     DWORD tid = 0;
     HWND hwnd = nullptr;
     bool install = false;
     bool direct = false;  // Direct mode (verify echo) vs explicit hookFallback
+    bool fresh = false;   // a foreground change (not a mid-focus re-publish)
 };
 
 struct HookState {
@@ -58,6 +60,9 @@ struct HookState {
     std::wstring fgExe;        // lowercase
     bool wanted = false;       // hooks should be installed
     bool direct = false;
+    FgApp app;
+    HookArming arming;
+    HWND ackHwnd = nullptr;    // window carrying kDirectOnProp (the TIP stays out there)
     uint64_t editSeq = 0;      // bumps on every injected edit (echo checks use the latest)
 };
 HookState* h = nullptr;        // hook thread only
@@ -71,6 +76,7 @@ struct UiState {
     HWINEVENTHOOK fgHook = nullptr;
     bool directFromTip = false;  // TIP asked for direct mode for the current field
     std::wstring fgExe;
+    FgApp fgApp;
     DWORD fgThread = 0;
 };
 UiState* u = nullptr;
@@ -83,6 +89,7 @@ std::set<std::wstring> g_warnedExes;
 class HookSink final : public TextSink {
 public:
     std::vector<INPUT> inputs;
+    unsigned backspaces = 0, units = 0;
     bool blind() override { return true; }  // nothing can be read back from here
     std::u16string textBeforeCaret(int) override { return {}; }
     char16_t charAfterCaret() override { return 0; }
@@ -90,6 +97,8 @@ public:
     bool replaceBeforeCaret(const std::u16string& expect, const std::u16string& insert) override {
         for (size_t i = 0; i < expect.size(); ++i) addVk(VK_BACK);
         for (char16_t c : insert) addUnicode(c);
+        backspaces += static_cast<unsigned>(expect.size());
+        units += static_cast<unsigned>(insert.size());
         return true;
     }
     bool compositionActive() override { return false; }
@@ -102,6 +111,8 @@ public:
         for (int i = 0; i < 2; ++i) {
             in[i].type = INPUT_KEYBOARD;
             in[i].ki.wVk = vkey;
+            // A real key event: scan code included (console readers look at it).
+            in[i].ki.wScan = static_cast<WORD>(MapVirtualKeyW(vkey, MAPVK_VK_TO_VSC));
             in[i].ki.dwFlags = i ? KEYEVENTF_KEYUP : 0;
             in[i].ki.dwExtraInfo = kInjectedMagic;
             inputs.push_back(in[i]);
@@ -119,35 +130,9 @@ public:
     }
 };
 
-std::wstring exeOfWindow(HWND hwnd, DWORD* tid) {
-    DWORD pid = 0;
-    *tid = GetWindowThreadProcessId(hwnd, &pid);
-    std::wstring out;
-    HANDLE p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-    if (!p) return out;
-    wchar_t buf[MAX_PATH];
-    DWORD n = MAX_PATH;
-    if (QueryFullProcessImageNameW(p, 0, buf, &n)) {
-        std::wstring path(buf, n);
-        size_t slash = path.find_last_of(L"\\/");
-        out = slash == std::wstring::npos ? path : path.substr(slash + 1);
-        for (wchar_t& c : out)
-            if (c >= L'A' && c <= L'Z') c = static_cast<wchar_t>(c - L'A' + L'a');
-    }
-    CloseHandle(p);
-    return out;
-}
-
-bool foregroundVietnamese() {
-    // Our TIP (vi-VN profile) must be the active input method of that thread…
-    HKL hkl = GetKeyboardLayout(h->fgThread);
-    if (LOWORD(reinterpret_cast<ULONG_PTR>(hkl)) != kViVN) return false;
-    // …and the app in Vietnamese mode (per-app memory the TIP maintains).
-    DWORD v = 1, sz = sizeof v;
-    RegGetValueW(HKEY_CURRENT_USER, L"Software\\VietTelex\\AppLanguage", h->fgExe.c_str(), RRF_RT_REG_DWORD,
-                 nullptr, &v, &sz);
-    return v != 0;
-}
+// The VietTelex keyboard is the foreground app's input method and it is in Vietnamese
+// (the TIP's kTipLangProp first — the only truth for consoles; see foreground.h).
+bool foregroundVietnamese() { return fgVietnamese(h->fgHwnd, h->app); }
 
 void markNoDirect(DWORD tid, const char* why);
 
@@ -170,6 +155,10 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     m.capsLock = (GetKeyState(VK_CAPITAL) & 1) != 0;
     KeyInput k = classifyKey(kb->vkCode, m);
     if (k.kind == KeyKind::Modifier || k.kind == KeyKind::Other) return CallNextHookEx(nullptr, code, wp, lp);
+    // Engaged mid-focus: the TIP may be composing this word — start at the next boundary.
+    const bool boundary = k.kind == KeyKind::Boundary || k.kind == KeyKind::Navigation || k.kind == KeyKind::Chord ||
+                          (k.kind == KeyKind::Char && k.ch == U' ');
+    if (!h->arming.key(boundary)) return CallNextHookEx(nullptr, code, wp, lp);
     if (!h->session.wordActive() && !foregroundVietnamese()) return CallNextHookEx(nullptr, code, wp, lp);
     if (!h->session.wantsKey(k)) return CallNextHookEx(nullptr, code, wp, lp);
 
@@ -191,11 +180,16 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     if (!injectionAllowed(reinterpret_cast<uintptr_t>(GetForegroundWindow()), reinterpret_cast<uintptr_t>(h->fgHwnd),
                           false)) {
         h->session.reset();
+        appLog("hook", "foreground changed before injection: edit dropped, word reset");
         return CallNextHookEx(nullptr, code, wp, lp);
     }
     const UINT total = static_cast<UINT>(sink.inputs.size());
     const UINT sent = SendInput(total, sink.inputs.data(), sizeof(INPUT));
     const SendOutcome out = classifySend(sent, total);
+    if (appLogging())
+        appLog("hook", "SendInput " + std::to_string(sent) + "/" + std::to_string(total) + " events (" +
+                           std::to_string(sink.backspaces) + " backspaces, " + std::to_string(sink.units) +
+                           " units) key class " + std::to_string(static_cast<int>(k.kind)));
     if (out != SendOutcome::Ok) {
         // Blocked (UIPI, secure input) or cut short: the screen is unknown. This field
         // goes to composition (TIP) for the rest of the focus.
@@ -210,8 +204,10 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
 }
 
 LRESULT CALLBACK mouseProc(int code, WPARAM wp, LPARAM lp) {
-    if (code == HC_ACTION && h && (wp == WM_LBUTTONDOWN || wp == WM_RBUTTONDOWN || wp == WM_MBUTTONDOWN))
+    if (code == HC_ACTION && h && (wp == WM_LBUTTONDOWN || wp == WM_RBUTTONDOWN || wp == WM_MBUTTONDOWN)) {
         h->session.reset();  // caret probably moved
+        h->arming.click();
+    }
     return CallNextHookEx(nullptr, code, wp, lp);
 }
 
@@ -222,7 +218,16 @@ void markNoDirect(DWORD tid, const char* why) {
     HWND field = (tid && GetGUIThreadInfo(tid, &gi)) ? gi.hwndFocus : nullptr;
     if (!field) field = h ? h->fgHwnd : nullptr;
     if (field) SetPropW(field, kNoDirectProp, reinterpret_cast<HANDLE>(1));
+    if (h && h->fgHwnd && field != h->fgHwnd) SetPropW(h->fgHwnd, kNoDirectProp, reinterpret_cast<HANDLE>(1));
     directLog(std::string("direct mode -> composition for this field: ") + why);
+}
+
+// kDirectOnProp: the TIP stays out of a window only while this is set (handover ack).
+void setAck(HWND w) {
+    if (h->ackHwnd == w) return;
+    if (h->ackHwnd) RemovePropW(h->ackHwnd, kDirectOnProp);
+    h->ackHwnd = w;
+    if (w) SetPropW(w, kDirectOnProp, reinterpret_cast<HANDLE>(1));
 }
 
 void removeHooks() {
@@ -302,14 +307,26 @@ DWORD WINAPI hookThreadMain(void*) {
                 }
                 case kCmdForeground: {
                     std::unique_ptr<Foreground> f(reinterpret_cast<Foreground*>(msg.lParam));
+                    const bool wasEngaged = h->wanted && h->fgHwnd == f->hwnd;
                     h->fgExe = f->exe;
+                    h->app = f->app;
                     h->fgThread = f->tid;
                     h->fgHwnd = f->hwnd;
                     h->direct = f->direct;
                     applyWanted(f->install);
+                    const bool typing = f->install && f->direct;
+                    HWND root = f->hwnd ? GetAncestor(f->hwnd, GA_ROOT) : nullptr;
+                    setAck(typing ? root : nullptr);
+                    if (!f->install) h->arming.disengaged();
+                    else if (!wasEngaged) h->arming.engaged(f->fresh);  // same window: keep state
                     break;
                 }
-                case kCmdDisableHere: applyWanted(false); break;
+                case kCmdDisableHere:
+                    applyWanted(false);
+                    setAck(nullptr);
+                    h->arming.disengaged();
+                    appLog("hook", "stopped for this field (Direct fell back to composition)");
+                    break;
                 case kCmdQuit: PostQuitMessage(0); break;
                 default: break;
             }
@@ -318,6 +335,7 @@ DWORD WINAPI hookThreadMain(void*) {
         DispatchMessageW(&msg);
     }
     removeHooks();
+    setAck(nullptr);
     if (h->sink) DestroyWindow(h->sink);
     delete h;
     h = nullptr;
@@ -356,7 +374,7 @@ bool processIntegrity(DWORD pid, DWORD& rid) {
     return known;
 }
 
-void publishForeground() {
+void publishForeground(bool fresh) {
     const AppMode mode = resolveAppMode(narrow(u->fgExe), u->settings.appModes);
     HWND fg = GetForegroundWindow();
     DWORD pid = 0, fgRid = 0, ourRid = 0x2000;
@@ -365,34 +383,48 @@ void publishForeground() {
     integrityOf(GetCurrentProcess(), ourRid);
     const bool direct = mode == AppMode::Direct || u->directFromTip;
     bool hookOn = mode == AppMode::HookFallback || direct;
-    // A field already marked NoDirect keeps composing.
+    const char* why = hookOn ? "rule/handover" : "no hook rule";
+    // A field already marked NoDirect keeps composing. A console's reported thread is
+    // cmd's (no GUI info): check the window itself too.
     GUITHREADINFO gi = {};
     gi.cbSize = sizeof gi;
-    HWND field = (u->fgThread && GetGUIThreadInfo(u->fgThread, &gi)) ? gi.hwndFocus : nullptr;
-    if (direct && field && GetPropW(field, kNoDirectProp)) hookOn = false;
+    HWND field = (u->fgThread && GetGUIThreadInfo(u->fgThread, &gi) && gi.hwndFocus) ? gi.hwndFocus : fg;
+    if (direct && ((field && GetPropW(field, kNoDirectProp)) || (fg && GetPropW(fg, kNoDirectProp)))) {
+        hookOn = false;
+        why = "field marked NoDirect";
+    }
     // UIPI: SendInput cannot reach a higher-integrity app. Direct simply does not run
     // there — the TIP (in-process) composes instead. Explicit hookFallback apps get the
     // one-time notice, since nothing else types for them.
     if (hookOn && !directUsable(known, fgRid, ourRid)) {
         hookOn = false;
+        why = known ? "target integrity higher (UIPI)" : "target integrity unreadable";
         if (!direct && g_elevationNotify && !u->fgExe.empty() && !g_warnedExes.count(u->fgExe)) {
             g_warnedExes.insert(u->fgExe);
             g_elevationNotify(u->fgExe);
         }
     }
+    if (appLogging()) {
+        char rid[48];
+        wsprintfA(rid, " integrity 0x%lx/0x%lx", fgRid, ourRid);
+        appLog("hook", "foreground " + narrowAscii(u->fgExe) + " class " + u->fgApp.windowClass + " rule " +
+                           std::to_string(static_cast<int>(mode)) + (u->directFromTip ? " +tip-handover" : "") +
+                           " -> " + (hookOn ? (direct ? "DIRECT (hook types)" : "hookFallback") : "no hook") + " (" +
+                           why + ")" + rid + (fresh ? "" : " [mid-focus]"));
+    }
     ensureHookThread();
     directVerifyFocusChanged();
-    auto* f = new Foreground{u->fgExe, u->fgThread, fg, hookOn, direct};
+    auto* f = new Foreground{u->fgApp, u->fgExe, u->fgThread, fg, hookOn, direct, fresh};
     if (!PostThreadMessageW(g_hookTid, kCmdForeground, 0, reinterpret_cast<LPARAM>(f))) delete f;
 }
 
 void onForeground(HWND hwnd) {
     if (!u || !hwnd) return;
-    DWORD tid = 0;
-    u->fgExe = exeOfWindow(hwnd, &tid);
-    u->fgThread = tid;
+    u->fgApp = describeWindow(hwnd);
+    u->fgExe = u->fgApp.identity;
+    u->fgThread = u->fgApp.tid;
     u->directFromTip = false;  // a new window: the TIP re-evaluates its field
-    publishForeground();
+    publishForeground(true);
 }
 
 void CALLBACK winEventProc(HWINEVENTHOOK, DWORD event, HWND hwnd, LONG idObject, LONG, DWORD, DWORD) {
@@ -404,7 +436,7 @@ void CALLBACK winEventProc(HWINEVENTHOOK, DWORD event, HWND hwnd, LONG idObject,
 void hookConfigure(const Settings& s) {
     if (!u) u = new UiState();
     u->settings = s;
-    directSetLogging(s.debugLogging);
+    appSetLogging(s.debugLogging);
     ensureHookThread();
     PostThreadMessageW(g_hookTid, kCmdConfig, 0, reinterpret_cast<LPARAM>(new Settings(s)));
     // Always watch the foreground: built-in Direct rules (consoles, terminals) exist.
@@ -417,7 +449,8 @@ void hookConfigure(const Settings& s) {
 void hookSetDirectFromTip(bool on) {
     if (!u || u->directFromTip == on) return;
     u->directFromTip = on;
-    publishForeground();
+    appLog("hook", std::string("TIP handover: direct ") + (on ? "requested" : "released"));
+    publishForeground(false);
 }
 
 void hookSetElevationNotifier(void (*notify)(const std::wstring& exe)) { g_elevationNotify = notify; }

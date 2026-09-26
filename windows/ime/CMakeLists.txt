@@ -2,7 +2,9 @@
 # TSF text service VietTelexTIP.dll (Windows only).
 
 add_library(vtx_ime_core STATIC
+  core/app_language.cpp
   core/app_policy.cpp
+  core/debug_log.cpp
   core/com_path.cpp
   core/registration.cpp
   core/hotkey.cpp
@@ -56,6 +58,7 @@ endif()
 if(WIN32)
   add_library(VietTelexTIP SHARED
     src/config.cpp
+    src/debug_file.cpp
     src/display_attribute.cpp
     src/dllmain.cpp
     src/globals.cpp

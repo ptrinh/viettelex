@@ -340,5 +340,7 @@ TEST(ipc_state_changed_is_internal) {
     CHECK(isUserCommand(static_cast<unsigned>(AppCommand::OpenSettings)));
     CHECK(isValidAppCommand(static_cast<unsigned>(AppCommand::DirectMode)));
     CHECK(!isUserCommand(static_cast<unsigned>(AppCommand::DirectMode)));
-    CHECK(!isValidAppCommand(0) && !isValidAppCommand(8));
+    CHECK(isValidAppCommand(static_cast<unsigned>(AppCommand::SetAppLanguage)));
+    CHECK(!isUserCommand(static_cast<unsigned>(AppCommand::SetAppLanguage)));
+    CHECK(!isValidAppCommand(0) && !isValidAppCommand(9));
 }

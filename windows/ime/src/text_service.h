@@ -75,6 +75,8 @@ private:
     bool appRunning() const;
     bool directServesHere() const;
     bool requestDirect(const char* why);
+    void publishLangProp();  // kTipLangProp on the focus root (hook / tray read it)
+    void clearLangProp();
     void notifyAppState(bool on);
     void applyConfig(bool force);
     bool prepareKey(WPARAM wp, bool down, KeyInput& out);
@@ -108,6 +110,8 @@ private:
     ITfContext* targetCtx_ = nullptr;   // full transitory-extension parent (Edit/RichEdit)
     bool parentFailed_ = false;         // parent refused edit sessions for this focus
     bool directActive_ = false;         // this field is typed by the app's hook (Direct)
+    bool directWanted_ = false;         // this field asked the app's hook to type (1.1.5)
+    HWND langPropWnd_ = nullptr;        // where kTipLangProp is set
 
     ITfComposition* composition_ = nullptr;
     ITfContext* compositionContext_ = nullptr;
