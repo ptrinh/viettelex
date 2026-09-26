@@ -1,5 +1,5 @@
-viettelex (0.1.0) UNRELEASED; urgency=medium
+viettelex (1.0.0) UNRELEASED; urgency=medium
 
-  * First Linux release: Fcitx5 addon, IBus engine and GTK4 settings app.
+  * First Linux release: Fcitx5 addon, IBus engine, GTK4 settings app.
 
  -- VietTelex Maintainers <maintainers@viettelex.invalid>  Sat, 26 Sep 2026 12:00:00 +0000

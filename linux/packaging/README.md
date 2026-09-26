@@ -42,4 +42,14 @@ for s in 16 22 24 32 48 64 128 256 512; do
     --out linux/packaging/data/icons/hicolor/${s}x${s}/apps/viettelex.png; done
 ```
 
-PPA: xem [PPA.md](PPA.md).
+## Phát hành (GitHub Releases + kho APT)
+
+```sh
+linux/packaging/build-all.sh     # jammy+noble × amd64+arm64 → linux/dist/<series>/*.deb
+VT_APT_KEY=<fingerprint> linux/packaging/apt-repo.sh --out <thư mục repo viettelex-apt>
+```
+
+`build-all.sh` build trong `swift:<series>` (amd64 dùng `--platform linux/amd64`, Rosetta trên
+OrbStack). Lintian có warning là build hỏng. Sau đó script cài thử trong `ubuntu:<ver>` sạch:
+fcitx5 phải liệt kê `viettelex`, và `ibus list-engine` phải thấy engine. Phiên bản là
+`<changelog>~<series>1`. Kho APT: xem [APT.md](APT.md). PPA: xem [PPA.md](PPA.md).

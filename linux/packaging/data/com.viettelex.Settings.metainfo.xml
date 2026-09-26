@@ -50,7 +50,7 @@
     <control>pointing</control>
   </supports>
   <releases>
-    <release version="0.1.0" date="2026-09-26">
+    <release version="1.0.0" date="2026-09-26">
       <description>
         <p>First Linux release: Fcitx5 and IBus input method plus GTK4 settings app.</p>
       </description>

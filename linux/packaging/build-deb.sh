@@ -42,7 +42,7 @@ mkdir -p "$STAGE"
 # Chỉ những gì gói cần: engine Swift dùng chung (TelexCore) + cây linux/ + file mẫu.
 ( cd "$REPO" && tar -cf - \
     --exclude='.build' --exclude='.swiftpm' --exclude='__pycache__' \
-    --exclude='linux/packaging/out' --exclude='*.o' \
+    --exclude='linux/packaging/out' --exclude='linux/dist' --exclude='*.o' \
     LICENSE sample-shortcuts.yml typing-modes.yml TelexCore linux \
     android/telexcore/src/test/resources/golden.tsv.gz ) | tar -xf - -C "$STAGE"
 cp -a "$HERE/debian" "$STAGE/debian"

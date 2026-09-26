@@ -1,0 +1,9 @@
+# Ảnh build .deb: Swift toolchain chính thức (swift:jammy / swift:noble) + build-deps.
+ARG BASE=swift:noble
+FROM ${BASE}
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential debhelper devscripts fakeroot lintian python3 gzip \
+    cmake pkg-config extra-cmake-modules libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev \
+    libibus-1.0-dev libglib2.0-dev fcitx5-modules-dev \
+    && rm -rf /var/lib/apt/lists/*
