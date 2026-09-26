@@ -10,6 +10,9 @@ protocol TextProxyLike {
     func insertText(_ text: String)
     func deleteBackward()
     var isSecure: Bool { get }
+    /// Chữ trước con trỏ (UITextDocumentProxy.documentContextBeforeInput). nil =
+    /// host không cho biết. Chỉ đọc trước lệnh xoá ≥ CompositionSync.verifyThreshold.
+    var contextBeforeInput: String? { get }
 }
 
 /// Shared settings (App Group on device; in-memory defaults in tests).
@@ -84,7 +87,16 @@ final class EngineBridge {
     /// A letter key ("a"…"z", already cased by the shift state).
     func letter(_ ch: Character, proxy: TextProxyLike) {
         guard !proxy.isSecure, !passthrough else { proxy.insertText(String(ch)); return }
-        apply(engine.feed(ch), literal: String(ch), proxy: proxy)
+        let before = engine.composed
+        let action = engine.feed(ch)
+        guard safeToApply(action, expected: before, proxy: proxy) else {
+            // Chữ trước con trỏ không còn là từ đang gõ → bỏ từ cũ, phím này mở từ MỚI
+            // (engine trống + 1 phím = chèn literal, không xoá gì).
+            reset()
+            apply(engine.feed(ch), literal: String(ch), proxy: proxy)
+            return
+        }
+        apply(action, literal: String(ch), proxy: proxy)
     }
 
     /// Space / return / punctuation: word boundary → auto-restore, then the char.
@@ -94,7 +106,12 @@ final class EngineBridge {
     func boundary(_ text: String, proxy: TextProxyLike) -> String {
         guard !proxy.isSecure, !passthrough else { proxy.insertText(text); return "" }
         let before = engine.composed
-        let action = engine.commitBoundary(autoRestore: settings.autoRestore)
+        var action = engine.commitBoundary(autoRestore: settings.autoRestore)
+        if !safeToApply(action, expected: before, proxy: proxy) {
+            // Lệch: KHÔNG auto-restore (sẽ xoá nhầm chữ khác) — chỉ chèn ký tự ngắt.
+            reset()
+            action = .none
+        }
         var final = before
         if case let .replace(bs, insert) = action {
             final = String(before.dropLast(bs)) + insert
@@ -108,7 +125,14 @@ final class EngineBridge {
     /// false → caller should also stop any repeat state it keeps.
     func backspace(proxy: TextProxyLike) {
         guard !proxy.isSecure, !passthrough, !engine.isEmpty else { proxy.deleteBackward(); return }
-        switch engine.backspace() {
+        let before = engine.composed
+        let action = engine.backspace()
+        guard safeToApply(action, expected: before, proxy: proxy) else {
+            reset()                    // lệch → xoá thường 1 ký tự, không vẽ lại từ
+            proxy.deleteBackward()
+            return
+        }
+        switch action {
         case .replace(let bs, let insert):
             for _ in 0..<bs { proxy.deleteBackward() }
             if !insert.isEmpty { proxy.insertText(insert) }
@@ -151,6 +175,16 @@ final class EngineBridge {
     /// buffer cố định mỗi phím khi commitText mutate (reset + scratch).
     var predictedCommit: String {
         engine.peekCommitText(autoRestore: settings.autoRestore)
+    }
+
+    /// Fail-safe trước khi xoá: action định xoá `bs` ký tự của `expected` (từ đang gõ
+    /// lúc trước phím) — chỉ cho khi chữ trước con trỏ đúng là `expected`.
+    private func safeToApply(_ action: TelexAction, expected: String, proxy: TextProxyLike) -> Bool {
+        guard case .replace(let bs, _) = action, bs > 0 else { return true }
+        let ok = CompositionSync.canDelete(bs, expected: expected,
+                                           context: { proxy.contextBeforeInput })
+        if !ok { TouchLog.write("failsafe: bs=\(bs) expectedLen=\(expected.count) → reset") }
+        return ok
     }
 
     private func apply(_ action: TelexAction, literal: String, proxy: TextProxyLike) {

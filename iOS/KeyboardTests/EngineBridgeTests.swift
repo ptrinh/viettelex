@@ -7,6 +7,10 @@ import TelexCore
 final class MockProxy: TextProxyLike {
     var text = ""
     var isSecure = false
+    /// Mô phỏng context host báo: nil (mặc định) = đúng text thật; .some(nil) = host
+    /// trả nil; .some("…") = host báo context LỆCH (con trỏ dời, host gán lại text…).
+    var fakeContext: String?? = nil
+    var contextBeforeInput: String? { fakeContext ?? text }
     func insertText(_ t: String) { text += t }
     func deleteBackward() { if !text.isEmpty { text.removeLast() } }
 }
