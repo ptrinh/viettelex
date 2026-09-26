@@ -29,6 +29,8 @@ struct VtIBusEngine {
     IBusPropList *props;
     IBusProperty *modeProp;
     gboolean password;
+    guint purpose, hints;       // last set_content_type
+    gboolean rememberState;     // AppPolicy.rememberState of the current field
     // The client really sent surrounding text since this focus began. The capability bit
     // alone is not enough: IBus keeps an empty text for clients that never send one
     // (XIM, some Qt/Electron builds, terminals), so "nothing before the caret" was trusted.
@@ -115,7 +117,7 @@ void updateModeProp(VtIBusEngine *self) {
 }
 
 void onToggled(VtIBusEngine *self, bool vi) {
-    if (settings().perAppState) G().appState->set(*self->appId, vi);
+    if (settings().perAppState && self->rememberState) G().appState->set(*self->appId, vi);
     updateModeProp(self);
 }
 
@@ -123,8 +125,15 @@ void refreshFieldFlags(VtIBusEngine *self) {
     IBusClient client(IBUS_ENGINE(self));
     bool surrounding = (IBUS_ENGINE(self)->client_capabilities & IBUS_CAP_SURROUNDING_TEXT) &&
                        self->surroundingProven;
-    auto policy = vt::resolveAppPolicy(*self->appId, settings(), surrounding);
-    self->session->setPassthrough(self->password || policy.off, client);
+    vt::FieldHints field;
+    field.terminal = self->purpose == IBUS_INPUT_PURPOSE_TERMINAL;
+    field.urlOrEmail = self->purpose == IBUS_INPUT_PURPOSE_URL || self->purpose == IBUS_INPUT_PURPOSE_EMAIL;
+    field.numeric = self->purpose == IBUS_INPUT_PURPOSE_DIGITS || self->purpose == IBUS_INPUT_PURPOSE_NUMBER ||
+                    self->purpose == IBUS_INPUT_PURPOSE_PHONE;
+    field.sensitive = (self->hints & IBUS_INPUT_HINT_PRIVATE) != 0;
+    auto policy = vt::resolveAppPolicy(*self->appId, settings(), surrounding, field);
+    self->rememberState = policy.rememberState;
+    self->session->setPassthrough(self->password || policy.off || policy.passthrough, client);
     self->session->setDisplayMode(policy.mode, client);
     self->session->setSurroundingEdits(policy.allowSurroundingEdits);
 }
@@ -265,9 +274,10 @@ void setCapabilities(IBusEngine *engine, guint caps) {
 }
 
 void setContentType(IBusEngine *engine, guint purpose, guint hints) {
-    (void)hints;
     auto *self = reinterpret_cast<VtIBusEngine *>(engine);
     self->password = purpose == IBUS_INPUT_PURPOSE_PASSWORD || purpose == IBUS_INPUT_PURPOSE_PIN;
+    self->purpose = purpose;
+    self->hints = hints;
     try {
         refreshFieldFlags(self);
     } catch (...) {
@@ -324,6 +334,9 @@ static void vt_ibus_engine_init(VtIBusEngine *self) {
     self->appId = new std::string("default");
     self->password = FALSE;
     self->surroundingProven = FALSE;
+    self->purpose = IBUS_INPUT_PURPOSE_FREE_FORM;
+    self->hints = 0;
+    self->rememberState = TRUE;
     self->session->applySettings(settings());
     self->session->onToggle = [self](bool vi) { onToggled(self, vi); };
 

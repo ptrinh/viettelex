@@ -13,6 +13,7 @@
 #include <random>
 #include <string>
 #include <unistd.h>
+#include <vector>
 
 using namespace viettelex;
 
@@ -45,9 +46,14 @@ struct Mock : InputContext {
     bool surrounding = true;
     bool selection = false;
     int deletes = 0, preeditUpdates = 0;
-    void setPreedit(const std::string &s) override { pre = s; ++preeditUpdates; }
-    void commit(const std::string &s) override { doc += s; }
-    void deleteBeforeCursor(int n) override { ++deletes; popChars(doc, n); }
+    std::vector<std::string> log;  // "pre:x" / "commit:x" / "del:n", in call order
+    void setPreedit(const std::string &s) override { pre = s; ++preeditUpdates; log.push_back("pre:" + s); }
+    void commit(const std::string &s) override { doc += s; log.push_back("commit:" + s); }
+    void deleteBeforeCursor(int n) override {
+        ++deletes;
+        popChars(doc, n);
+        log.push_back("del:" + std::to_string(n));
+    }
     bool textBeforeCursor(std::string &out) override {
         if (!surrounding) return false;
         out = doc;
@@ -532,6 +538,172 @@ void testForcedPreeditList() {
     CHECK(!isForcedPreeditApp("org.gnome.texteditor"));
 }
 
+void testMoreGenericIdsAndSnap() {
+    for (const char *id : {"wayland", "sdl2_application", "SDL3_Application", "gtk-im", "(12345)",
+                           "gtk3-im:(4242)", "4242"}) {
+        if (isUnknownAppId(id)) { ++g_pass; continue; }
+        ++g_fail;
+        std::fprintf(stderr, "not unknown: %s\n", id);
+    }
+    CHECK_EQ(normalizeAppId("gtk3-im:gnome-text-editor"), std::string("gnome-text-editor"));
+    CHECK_EQ(normalizeAppId("firefox_firefox"), std::string("firefox"));
+    CHECK_EQ(normalizeAppId("code_code"), std::string("code"));
+    CHECK_EQ(normalizeAppId("libreoffice_writer"), std::string("libreoffice_writer"));
+    CHECK_EQ(normalizeAppId("sdl2_application"), std::string("sdl2_application"));
+    CHECK(isForcedPreeditApp("firefox_firefox"));
+    CHECK(isForcedPreeditApp("gnome-shell-overview"));
+    Settings s;
+    s.displayMode = DisplayMode::Surrounding;
+    CHECK(resolveAppPolicy("gnome-shell-overview", s, true).mode == DisplayMode::Preedit);
+    CHECK(!resolveAppPolicy("wayland", s, false).allowSurroundingEdits);
+}
+
+void testFieldHints() {
+    Settings s;
+    s.displayMode = DisplayMode::Surrounding;
+    FieldHints f;
+    f.terminal = true;
+    AppPolicy p = resolveAppPolicy("gedit", s, true, f);
+    CHECK(p.mode == DisplayMode::Preedit);
+    CHECK(!p.allowSurroundingEdits);
+    CHECK(!p.passthrough);
+    s.appModes["gedit"] = "surrounding";  // a pin does not beat the field type
+    CHECK(resolveAppPolicy("gedit", s, true, f).mode == DisplayMode::Preedit);
+    s.appModes.clear();
+    f = FieldHints();
+    f.urlOrEmail = true;
+    CHECK(resolveAppPolicy("gedit", s, true, f).mode == DisplayMode::Preedit);
+    CHECK(!resolveAppPolicy("gedit", s, true, f).passthrough);
+    f = FieldHints();
+    f.numeric = true;
+    p = resolveAppPolicy("gedit", s, true, f);
+    CHECK(p.passthrough);
+    CHECK(p.rememberState);
+    f = FieldHints();
+    f.sensitive = true;
+    p = resolveAppPolicy("gedit", s, true, f);
+    CHECK(p.passthrough);
+    CHECK(!p.rememberState);
+    p = resolveAppPolicy("gedit", s, true);
+    CHECK(p.mode == DisplayMode::Surrounding);
+    CHECK(!p.passthrough);
+    CHECK(p.rememberState);
+    // and a passthrough field types literally
+    Session ss;
+    Mock m;
+    ss.setPassthrough(resolveAppPolicy("gedit", s, true, f).passthrough, m);
+    type(ss, m, "vieejt 123");
+    CHECK_EQ(m.screen(), std::string("vieejt 123"));
+}
+
+void testDefaultOffApps() {
+    Settings s;
+    for (const char *id : {"remmina", "org.remmina.Remmina", "AnyDesk", "rustdesk", "VirtualBoxVM", "vmware",
+                           "remote-viewer", "gnome-connections", "org.gnome.Connections", "krdc", "xfreerdp",
+                           "wlfreerdp", "moonlight", "parsec", "wine64-preloader", "wine-preloader",
+                           "notepad.exe", "C:\\Program Files\\App\\App.EXE"}) {
+        if (isDefaultOffApp(id) && resolveAppPolicy(id, s, true).off) { ++g_pass; continue; }
+        ++g_fail;
+        std::fprintf(stderr, "not default-off: %s\n", id);
+    }
+    CHECK(!isDefaultOffApp("gedit"));
+    CHECK(!isDefaultOffApp("wine"));
+    CHECK(!resolveAppPolicy("gedit", s, true).off);
+    s.appModes["remmina"] = "preedit";  // [app_modes] overrides the built-in list
+    CHECK(!resolveAppPolicy("remmina", s, true).off);
+    s.appModes["notepad.exe"] = "surrounding";
+    CHECK(!resolveAppPolicy("notepad.exe", s, true).off);
+}
+
+void testMoreForcedPreedit() {
+    for (const char *id : {"krunner", "org.kde.krunner", "plasmashell", "jetbrains-idea", "jetbrains-pycharm",
+                           "idea", "java", "wps", "wpp", "et", "wpsoffice", "desktopeditors", "steam"}) {
+        if (isForcedPreeditApp(id)) { ++g_pass; continue; }
+        ++g_fail;
+        std::fprintf(stderr, "not forced preedit: %s\n", id);
+    }
+}
+
+size_t indexOf(const std::vector<std::string> &v, const std::string &x) {
+    for (size_t i = 0; i < v.size(); ++i)
+        if (v[i] == x) return i;
+    return v.size();
+}
+
+void testCommitBeforeHidingPreedit() {
+    // endWord (space)
+    {
+        Session s;
+        Mock m;
+        type(s, m, "vieejt ");
+        size_t c = indexOf(m.log, "commit:việt"), h = indexOf(m.log, "pre:");
+        CHECK(c < m.log.size());
+        CHECK(c < h);
+    }
+    // finish (focus out / click)
+    {
+        Session s;
+        Mock m;
+        type(s, m, "vieejt");
+        s.finish(m);
+        size_t c = indexOf(m.log, "commit:việt"), h = indexOf(m.log, "pre:");
+        CHECK(c < m.log.size());
+        CHECK(c < h);
+    }
+    // shortcut expansion
+    {
+        Settings st;
+        auto t = std::make_shared<ShortcutTable>();
+        (*t)["ko"] = "không";
+        st.shortcuts = t;
+        Session s;
+        Mock m;
+        s.applySettings(st);
+        type(s, m, "ko ");
+        CHECK_EQ(m.screen(), std::string("không "));
+        CHECK(indexOf(m.log, "commit:không") < indexOf(m.log, "pre:"));
+    }
+    // overflow (> 32 keys in one word)
+    {
+        Session s;
+        Mock m;
+        type(s, m, std::string(40, 'b'));
+        size_t c = m.log.size(), h = m.log.size();
+        for (size_t i = 0; i < m.log.size(); ++i) {
+            if (c == m.log.size() && m.log[i].rfind("commit:", 0) == 0) c = i;
+            if (c != m.log.size() && m.log[i] == "pre:") { h = i; break; }
+        }
+        CHECK(c < m.log.size());
+        CHECK(c < h);
+        CHECK(m.screen().size() >= 40);
+    }
+}
+
+void testDeleteOnlyEditSendsEmptyCommit() {
+    // Surrounding ⌫ reopen: delete the space, insert nothing → empty commit follows
+    Session s;
+    Mock m;
+    s.setDisplayMode(DisplayMode::Surrounding, m);
+    type(s, m, "thays ");
+    m.log.clear();
+    type(s, m, "<");
+    CHECK(m.log.size() >= 2);
+    if (m.log.size() >= 2) {
+        CHECK_EQ(m.log[0], std::string("del:1"));
+        CHECK_EQ(m.log[1], std::string("commit:"));
+    }
+    type(s, m, "a");
+    CHECK_EQ(m.screen(), std::string("thấy"));
+    // a delete that inserts text needs no extra empty commit
+    Session s2;
+    Mock m2;
+    s2.setDisplayMode(DisplayMode::Surrounding, m2);
+    type(s2, m2, "vie");
+    m2.log.clear();
+    type(s2, m2, "e");
+    CHECK(indexOf(m2.log, "commit:") == m2.log.size());
+}
+
 // MARK: - App policy / state
 
 void testAppPolicy() {
@@ -616,6 +788,12 @@ int main() {
     testSelectionBlocksDeleteAndReEdit();
     testForcedPreeditList();
     testModeSwitchWaitsForWordEnd();
+    testMoreGenericIdsAndSnap();
+    testFieldHints();
+    testDefaultOffApps();
+    testMoreForcedPreedit();
+    testCommitBeforeHidingPreedit();
+    testDeleteOnlyEditSendsEmptyCommit();
     testAppStateStoreAndWatcher();
     std::printf("common tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;

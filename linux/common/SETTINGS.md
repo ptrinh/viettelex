@@ -61,10 +61,32 @@ vốn rỗng). Map sang cờ engine (`vt_engine_set_flag`):
 `collision_prefers_vietnamese→COLLISION_PREFERS_VIETNAMESE`, `bracket_vowels→BRACKET_VOWELS`;
 `auto_restore` là tham số của `vt_commit` (không phải cờ).
 
-**Chế độ Surrounding tự hạ về Preedit** khi app không báo hỗ trợ surrounding text, hoặc app
-nằm trong danh sách ép preedit dựng sẵn (terminal: gnome-terminal, kgx/ptyxis, konsole,
-kitty, alacritty, wezterm, foot, xterm, tilix, terminator; LibreOffice). Ghi đè tay trong
-`[app_modes]` thắng danh sách dựng sẵn (trừ khi app không có surrounding text).
+**Chế độ Surrounding tự hạ về Preedit** khi surrounding text chưa được *chứng minh* trong lần
+focus này (Fcitx5: có cờ SurroundingText và `surroundingText().isValid()`; IBus: client đã thực
+sự gửi `SetSurroundingText` có chữ — chỉ cờ capability thì chưa đủ), hoặc app nằm trong danh
+sách ép preedit dựng sẵn (`isForcedPreeditApp` trong `app.cpp`): terminal (gnome-terminal, kgx,
+ptyxis, konsole, kitty, alacritty, wezterm, foot, xterm, tilix, terminator, VTE…), LibreOffice,
+Chromium/Electron/VS Code, Firefox/LibreWolf/Zen/Thunderbird, gnome-shell (+ overview),
+krunner/plasmashell, JetBrains/Java, WPS/OnlyOffice, Steam. Ghi đè tay trong `[app_modes]`
+thắng danh sách dựng sẵn (trừ khi surrounding text chưa được chứng minh). Khi không được sửa
+chữ quanh con trỏ, sửa dấu từ đã gõ (re-edit) và ⌫ mở lại từ cũng tắt; có vùng chọn (thanh
+URL sau Ctrl+L / autocomplete) thì không bao giờ xoá chữ trước con trỏ.
+
+**Định danh app chung chung** (`isUnknownAppId`): rỗng, `default`, `gnome-shell`,
+`qibusinputcontext`, `xim`, `wayland`, `sdl2_application`, `sdl3_application`, `gtk-im`, chỉ
+có pid (`(1234)`) — một id cho nhiều app, nên pin `"surrounding"` trên id này bị bỏ qua. Snap
+`x_x` được rút về `x` (`firefox_firefox` → `firefox`).
+
+**Kiểu ô nhập** thắng mọi luật theo app: terminal (IBus `PURPOSE_TERMINAL` / Fcitx5
+`Terminal`) → Preedit, không sửa chữ quanh con trỏ; URL/email → Preedit; số/điện thoại
+(`DIGITS`/`NUMBER`/`PHONE`, Fcitx5 `Digit`/`Number`/`Dialable`) → gõ thẳng không biến đổi;
+ô nhạy cảm (Fcitx5 `Sensitive`, IBus `HINT_PRIVATE`) → gõ thẳng và không lưu Việt/Anh theo app.
+
+**Mặc định tắt (English)** (`isDefaultOffApp`): remote desktop / máy ảo — remmina, anydesk,
+rustdesk, virtualboxvm, vmware, vmplayer, remote-viewer, gnome-connections, krdc, xfreerdp,
+wlfreerdp, sdl-freerdp, moonlight, parsec — và chương trình Wine (`wine*-preloader`, id đuôi
+`.exe`): phía bên kia tự có bộ gõ. Muốn gõ tiếng Việt ở đó thì thêm bất kỳ mục nào cho app
+trong `[app_modes]` (`"remmina" = "preedit"`), mục đó thắng danh sách dựng sẵn.
 
 **Ghi chung file**: hộp cấu hình Fcitx5 (các tuỳ chọn cơ bản) cũng ghi `config.toml`, nhưng chỉ
 sửa đúng dòng của key nó quản lý (`setConfigValue`), giữ nguyên comment và key lạ — settings app

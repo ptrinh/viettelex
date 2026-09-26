@@ -110,6 +110,7 @@ public:
     fcitx::InputContext *ic;
     std::string appId;
     bool stateLoaded = false;
+    bool rememberState = true;  // AppPolicy.rememberState of the current field
 };
 
 class VietTelexEngine final : public fcitx::InputMethodEngine {
@@ -256,7 +257,7 @@ public:
     VietTelexState *state(fcitx::InputContext *ic) { return ic->propertyFor(&factory_); }
 
     void onToggled(VietTelexState *st, bool vi) {
-        if (settings().perAppState) appState_.set(st->appId, vi);
+        if (settings().perAppState && st->rememberState) appState_.set(st->appId, vi);
         updateAction(st);
         st->ic->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea);
     }
@@ -278,9 +279,16 @@ private:
         auto caps = st->ic->capabilityFlags();
         // Proven = advertised AND the client actually sent a valid text for this field.
         bool surrounding = caps.test(fcitx::CapabilityFlag::SurroundingText) && st->ic->surroundingText().isValid();
-        auto policy = vt::resolveAppPolicy(st->appId, settings(), surrounding);
+        vt::FieldHints field;
+        field.terminal = caps.test(fcitx::CapabilityFlag::Terminal);
+        field.urlOrEmail = caps.test(fcitx::CapabilityFlag::Url) || caps.test(fcitx::CapabilityFlag::Email);
+        field.numeric = caps.test(fcitx::CapabilityFlag::Digit) || caps.test(fcitx::CapabilityFlag::Number) ||
+                        caps.test(fcitx::CapabilityFlag::Dialable);
+        field.sensitive = caps.test(fcitx::CapabilityFlag::Sensitive);
+        auto policy = vt::resolveAppPolicy(st->appId, settings(), surrounding, field);
+        st->rememberState = policy.rememberState;
         bool password = caps.test(fcitx::CapabilityFlag::Password);
-        st->session.setPassthrough(password || policy.off, client);
+        st->session.setPassthrough(password || policy.off || policy.passthrough, client);
         st->session.setDisplayMode(policy.mode, client);
         st->session.setSurroundingEdits(policy.allowSurroundingEdits);
     }

@@ -77,6 +77,15 @@ bool isDiacriticOnlyKey(uint32_t c, bool vni) {
 
 bool isNewlineKey(uint32_t k) { return k == ks::Return || k == ks::KP_Enter; }
 
+// Surrounding-mode edit. A delete with nothing to insert is followed by an empty commit:
+// Wayland text-input-v3 applies delete_surrounding_text only together with a commit
+// (Keyman engine.c apply_changes).
+void replaceBeforeCursor(InputContext &ic, int backspaces, const std::string &insert) {
+    if (backspaces > 0) ic.deleteBeforeCursor(backspaces);
+    if (!insert.empty()) ic.commit(insert);
+    else if (backspaces > 0) ic.commit("");
+}
+
 }  // namespace
 
 Session::Session() : e_(vt_engine_new()) { applySettings(Settings()); }
@@ -171,8 +180,10 @@ void Session::finish(InputContext &ic, bool commitPreedit) {
     if (mode_ == DisplayMode::Preedit && !vt_is_empty(e_)) {
         std::string text = composed();
         vt_reset(e_);
-        hidePreedit(ic);
+        // Commit BEFORE hiding the preedit: Messenger / Draft.js / Google Docs drop the
+        // word when the composition is cleared first (bamboo engine_preedit.go).
         if (commitPreedit && !text.empty()) ic.commit(text);
+        hidePreedit(ic);
     } else {
         vt_reset(e_);
         preedit_.clear();
@@ -205,11 +216,11 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
             std::string expansion = it->second;
             vt_reset(e_);
             if (mode_ == DisplayMode::Preedit) {
+                if (!expansion.empty()) ic.commit(expansion);
                 hidePreedit(ic);
-            } else if (onScreen) {
-                ic.deleteBeforeCursor(int(onScreen));
+            } else {
+                replaceBeforeCursor(ic, int(onScreen), expansion);
             }
-            ic.commit(expansion);
             return;
         }
     }
@@ -223,15 +234,13 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
         char buf[256];
         size_t n = vt_commit_text(e_, autoRestore, buf, sizeof buf);
         std::string text(buf, n < sizeof buf ? n : sizeof buf - 1);
-        hidePreedit(ic);
         if (!text.empty()) ic.commit(text);
+        hidePreedit(ic);
     } else {
         vt_action a;
         vt_commit(e_, autoRestore, &a);
-        if (a.kind == VT_ACTION_REPLACE) {
-            if (a.backspaces > 0) ic.deleteBeforeCursor(a.backspaces);
-            if (a.insert_len > 0) ic.commit(std::string(a.insert, size_t(a.insert_len)));
-        }
+        if (a.kind == VT_ACTION_REPLACE)
+            replaceBeforeCursor(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)));
     }
 }
 
@@ -337,8 +346,8 @@ bool Session::handleLetter(uint32_t ch, InputContext &ic) {
         if (mode_ == DisplayMode::Preedit) {
             std::string text = composed();
             vt_reset(e_);
-            hidePreedit(ic);
             ic.commit(text + encode(ch));
+            hidePreedit(ic);
         } else {
             ic.commit(encode(ch));
         }
@@ -357,8 +366,7 @@ bool Session::handleLetter(uint32_t ch, InputContext &ic) {
             ic.commit(encode(ch));
             break;
         }
-        if (a.backspaces > 0) ic.deleteBeforeCursor(a.backspaces);
-        if (a.insert_len > 0) ic.commit(std::string(a.insert, size_t(a.insert_len)));
+        replaceBeforeCursor(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)));
         break;
     default: break;
     }
@@ -379,7 +387,7 @@ bool Session::handleBackspace(InputContext &ic) {
                     if (popChar(before, last) && before.size() >= word.size() &&
                         before.compare(before.size() - word.size(), word.size(), word) == 0) {
                         if (mode_ == DisplayMode::Surrounding) {
-                            ic.deleteBeforeCursor(1);
+                            replaceBeforeCursor(ic, 1, std::string());
                         } else {
                             ic.deleteBeforeCursor(int(1 + utf8Chars(word)));
                             preedit_.clear();
@@ -414,8 +422,7 @@ bool Session::handleBackspace(InputContext &ic) {
         vt_reset(e_);  // the app's own ⌫ removes the selection
         return false;
     }
-    if (a.backspaces > 0) ic.deleteBeforeCursor(a.backspaces);
-    if (a.insert_len > 0) ic.commit(std::string(a.insert, size_t(a.insert_len)));
+    replaceBeforeCursor(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)));
     return true;
 }
 
