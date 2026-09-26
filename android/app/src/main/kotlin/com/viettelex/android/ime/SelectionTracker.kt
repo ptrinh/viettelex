@@ -12,6 +12,13 @@ package com.viettelex.android.ime
  * [WILDCARD] = thao tác không biết trước độ dời (KEYCODE_DEL xoá cả grapheme,
  * ENTER, xoá sạch ô): khớp mọi vị trí, một lần.
  *
+ * newSelStart < 0 = app "không biết" (spec InputMethodService) — KHÔNG phải đổi từ
+ * ngoài: con trỏ thành chưa biết, báo kế tiếp được nhận làm mốc.
+ *
+ * [reliable]: app đã báo ít nhất một update khớp CHÍNH XÁC mốc của mình trong phiên ⇒
+ * báo cáo selection theo kịp edit của mình, [cursor] dùng được làm offset tuyệt đối
+ * (setSelection) và bản sao văn bản (shadow) trong IcProxy tin được.
+ *
  * THUẦN — pinned by SelectionTrackerTest.
  */
 class SelectionTracker {
@@ -22,30 +29,61 @@ class SelectionTracker {
     var cursor = -1
         private set
 
+    /** Xem doc lớp. */
+    var reliable = false
+        private set
+
+    /** Selection (không rỗng) app báo gần nhất; -1 = không có. */
+    private var selStart = -1
+    private var selEnd = -1
+    val hasSelection: Boolean get() = selStart >= 0
+
     fun reset(selStart: Int, selEnd: Int) {
         n = 0
+        reliable = false
         cursor = if (selStart >= 0 && selStart == selEnd) selStart else -1
+        setSelection(selStart, selEnd)
+    }
+
+    private fun setSelection(a: Int, b: Int) {
+        if (a >= 0 && b >= 0 && a != b) { selStart = minOf(a, b); selEnd = maxOf(a, b) }
+        else { selStart = -1; selEnd = -1 }
     }
 
     /** Mình vừa xoá `count` đơn vị UTF-16 trước con trỏ. */
     fun deleted(count: Int) {
         if (count <= 0) return
+        if (hasSelection) { unknown(); return }       // xoá trước selection: không tính dời
         if (cursor < 0) { push(WILDCARD); return }
         cursor = maxOf(0, cursor - count)
         push(cursor)
     }
 
-    /** Mình vừa chèn chuỗi dài `len` (UTF-16) tại con trỏ. */
+    /** Mình vừa chèn chuỗi dài `len` (UTF-16) tại con trỏ (commitText thay cả selection). */
     fun inserted(len: Int) {
+        if (hasSelection) {
+            cursor = selStart + len
+            setSelection(-1, -1)
+            push(cursor)
+            return
+        }
         if (len <= 0) return
         if (cursor < 0) { push(WILDCARD); return }
         cursor += len
         push(cursor)
     }
 
+    /** Mình vừa setSelection(pos, pos). */
+    fun movedTo(pos: Int) {
+        setSelection(-1, -1)
+        cursor = pos
+        push(pos)
+    }
+
     /** Thao tác không biết trước con trỏ về đâu. */
     fun unknown() {
         cursor = -1
+        setSelection(-1, -1)
         push(WILDCARD)
     }
 
@@ -53,13 +91,23 @@ class SelectionTracker {
 
     /** @return true nếu đây là thay đổi từ NGOÀI (phải reset engine). */
     fun onUpdate(newSelStart: Int, newSelEnd: Int): Boolean {
+        if (newSelStart < 0 || newSelEnd < 0) {
+            // "Không biết" — không reset engine; mốc cũ vô nghĩa, nhận báo kế tiếp làm mốc.
+            n = 0; cursor = -1; reliable = false
+            setSelection(-1, -1)
+            push(WILDCARD)
+            return false
+        }
         if (newSelStart != newSelEnd) {
             n = 0; cursor = -1
+            setSelection(newSelStart, newSelEnd)
             return true
         }
+        setSelection(-1, -1)
         for (i in 0 until n) {
             val q = queue[i]
             if (q == WILDCARD || q == newSelStart) {
+                if (q != WILDCARD) reliable = true
                 drop(i + 1)
                 // Mốc cuối vừa khớp ⇒ con trỏ chắc chắn; còn mốc sau ⇒ giữ dự đoán.
                 if (n == 0) cursor = newSelStart
