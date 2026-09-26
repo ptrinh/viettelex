@@ -53,7 +53,19 @@ class UserLangModel(
     private var saveWork: Cancellable? = null
     private var isLoaded = false
     private var loadGeneration = 0
-    private class PendingRecord(val word: String, val prev1: String?, val prev2: String?, val weight: Int)
+    internal class PendingRecord(val word: String, val prev1: String?, val prev2: String?, val weight: Int) {
+        /** Biên nhận khi đã phát lại sau lúc nạp xong (để [retract] vẫn rút được). */
+        var replayed: Learned? = null
+    }
+
+    /**
+     * Biên nhận một lần [record]: đúng những gì đã cộng (uni / bi / tri) để [retract] trừ
+     * lại chính xác — dùng khi ⌫ mở lại từ vừa chốt.
+     */
+    class Learned internal constructor(
+        internal val word: String?, internal val prev1: String?, internal val triKey: String?,
+        internal val weight: Int, internal val pending: PendingRecord?,
+    )
     private val pendingRecords = ArrayList<PendingRecord>()
     private var pendingSeed: (() -> SeedData.Seed)? = null
     /** Nguồn seed gần nhất — để [reloadAfterExternalErase] seed lại. */
@@ -118,7 +130,7 @@ class UserLangModel(
         pendingSeed = null
         val queued = pendingRecords.toList()
         pendingRecords.clear()
-        for (r in queued) record(r.word, r.prev1, r.prev2, r.weight)
+        for (r in queued) r.replayed = record(r.word, r.prev1, r.prev2, r.weight)
         decayIfDue()
         onReady?.invoke()
     }
@@ -132,30 +144,65 @@ class UserLangModel(
     // MARK: học
 
     /** Một từ vừa chốt; weight 1 gõ thường, 2 khi bấm nhận gợi ý. */
-    fun record(word: String, after: String?, prev2: String? = null, weight: Int = 1) {
+    fun record(word: String, after: String?, prev2: String? = null, weight: Int = 1): Learned? {
         if (!isLoaded) {
-            if (pendingRecords.size < PENDING_RECORD_CAP) pendingRecords.add(PendingRecord(word, after, prev2, weight))
-            return
+            if (pendingRecords.size >= PENDING_RECORD_CAP) return null
+            val pr = PendingRecord(word, after, prev2, weight)
+            pendingRecords.add(pr)
+            return Learned(null, null, null, weight, pr)
         }
-        if (!learnable(word)) return
+        if (!learnable(word)) return null
         val w = word.lowercase()
         uni[w] = (uni[w] ?: 0) + weight
         uniTotal += weight
         topCache = null
+        var biKey: String? = null
+        var triKey: String? = null
         val p1 = after?.lowercase()
         if (p1 != null && learnable(p1)) {
             val b = bi.getOrPut(p1) { HashMap() }
             if (b[w] == null) biPairs++
             b[w] = (b[w] ?: 0) + weight
+            biKey = p1
             val p2 = prev2?.lowercase()
             if (p2 != null && learnable(p2) && (bi[p2]?.get(p1) ?: 0) >= 2) {
-                val t = tri.getOrPut(p2 + SEP + p1) { HashMap() }
+                val k = p2 + SEP + p1
+                val t = tri.getOrPut(k) { HashMap() }
                 if (t[w] == null) triPairs++
                 t[w] = (t[w] ?: 0) + weight
+                triKey = k
             }
         }
         pruneIfNeeded()
         scheduleSave()
+        return Learned(w, biKey, triKey, weight, null)
+    }
+
+    /** Rút lại một lần [record] (từ vừa chốt được mở lại để sửa). Không âm, bỏ mục về 0. */
+    fun retract(l: Learned) {
+        l.pending?.let { p ->
+            if (!pendingRecords.remove(p)) p.replayed?.let { retract(it) }
+            return
+        }
+        val w = l.word ?: return
+        val had = uni[w] ?: return
+        val dec = minOf(had, l.weight)
+        if (had <= l.weight) uni.remove(w) else uni[w] = had - l.weight
+        uniTotal -= dec
+        topCache = null
+        l.prev1?.let { k -> if (decNested(bi, k, w, l.weight)) biPairs-- }
+        l.triKey?.let { k -> if (decNested(tri, k, w, l.weight)) triPairs-- }
+        scheduleSave()
+    }
+
+    /** Trừ [m][[k]][[w]]; true nếu mục bị bỏ hẳn. */
+    private fun decNested(m: HashMap<String, HashMap<String, Int>>, k: String, w: String, by: Int): Boolean {
+        val inner = m[k] ?: return false
+        val c = inner[w] ?: return false
+        if (c > by) { inner[w] = c - by; return false }
+        inner.remove(w)
+        if (inner.isEmpty()) m.remove(k)
+        return true
     }
 
     private fun cachedKnown(w: String): Boolean {

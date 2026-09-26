@@ -20,6 +20,8 @@ interface EditorPort {
     fun deleteSurrounding(before: Int, after: Int): Boolean
     fun textBefore(n: Int): CharSequence?
     fun textAfter(n: Int): CharSequence?
+    /** getSelectedText(0); null = không có / không hỗ trợ. */
+    fun selectedText(): CharSequence? = null
     fun setSelection(start: Int, end: Int): Boolean
     fun finishComposing(): Boolean
     fun performEditorAction(actionId: Int): Boolean
@@ -213,6 +215,28 @@ class IcProxy(
         }
         return ok
     }
+
+    /**
+     * Sửa lại từ đã chốt chỉ ở ô ghi đồng bộ đọc được: không TYPE_NULL, không ô URI
+     * (omnibox tự hoàn tất chữ ngay dưới con trỏ — như macOS loại omnibox), không app chỉ
+     * nhận key event (chữ đọc về luôn trễ, không xác minh được).
+     */
+    override val canReEdit: Boolean
+        get() = !secure && !rawKeys && !uriField && writeMode == WriteMode.COMMIT
+
+    /**
+     * Selection đã biết từ onUpdateSelection; chưa chắc con trỏ (app chưa chứng minh báo
+     * đúng) ⇒ hỏi thẳng getSelectedText. Chỉ gọi ở nhánh sửa lại từ (hiếm), không mỗi phím.
+     */
+    override val hasSelection: Boolean
+        get() {
+            if (tracker.hasSelection) return true
+            if (tracker.reliable && tracker.cursor >= 0) return false
+            return !conn()?.selectedText().isNullOrEmpty()
+        }
+
+    /** 2 UTF-16 đủ cho một code point ngoài BMP. */
+    override fun contextAfterInput(): String? = conn()?.textAfter(2)?.toString()
 
     override fun clearAll() {
         val c = conn() ?: return

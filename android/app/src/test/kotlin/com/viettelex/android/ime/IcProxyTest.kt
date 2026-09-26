@@ -62,6 +62,7 @@ class FakeEditor(initial: String = "", var selStart: Int = initial.length, var s
     }
     override fun textBefore(n: Int): CharSequence? { reads++; if (!readable) return null; return sb.substring(maxOf(0, selStart - n), selStart) }
     override fun textAfter(n: Int): CharSequence? = if (!readable) null else sb.substring(selEnd, minOf(sb.length, selEnd + n))
+    override fun selectedText(): CharSequence? = if (!readable) null else sb.substring(minOf(selStart, selEnd), maxOf(selStart, selEnd))
     override fun setSelection(start: Int, end: Int): Boolean { setSelections++; selStart = start; selEnd = end; return true }
     override fun finishComposing(): Boolean { finishComposingCalls++; return true }
     override fun performEditorAction(actionId: Int) = true
