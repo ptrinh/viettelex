@@ -33,14 +33,13 @@ Kiểm tra: `lintian out/*.changes`, `appstreamcli validate data/*.metainfo.xml`
 
 ## Icon
 
-`data/icons/hicolor/<N>x<N>/apps/viettelex.png` (16…512) thu nhỏ từ đúng logo iOS/macOS
-`iOS/App/Assets.xcassets/AppIcon.appiconset/icon-1024.png`. Đổi logo thì sinh lại (macOS):
-
-```sh
-for s in 16 22 24 32 48 64 128 256 512; do
-  sips -z $s $s iOS/App/Assets.xcassets/AppIcon.appiconset/icon-1024.png \
-    --out linux/packaging/data/icons/hicolor/${s}x${s}/apps/viettelex.png; done
-```
+- **Icon app** `com.viettelex.Settings` (desktop file, AppStream, cửa sổ): lấy đúng icon app macOS
+  `App/Resources/Assets.xcassets/AppIcon.appiconset/icon_<N>.png` → `data/icons/hicolor/<N>x<N>/apps/`
+  (16/32/64/128/256/512 copy nguyên; 24/48 thu nhỏ bằng `sips` từ `icon_1024.png`).
+- **Icon trạng thái bộ gõ** `viettelex` (Vᴛ = tiếng Việt) / `viettelex-off` (E = tiếng Anh), kèm bản
+  `-symbolic`: `data/icons/hicolor/scalable/status/*.svg`, chuyển vector 1:1 từ glyph menu bar macOS
+  `App/Resources/MenuIcon1.pdf` (khung bo góc + V + ᴛ; E vẽ cùng độ đậm). Tên này được Fcitx5
+  (`Icon=viettelex`, action Việt/Anh) và IBus (`<icon>viettelex</icon>`) dùng; gói `libviettelex-core` cài.
 
 ## Phát hành (GitHub Releases + kho APT)
 

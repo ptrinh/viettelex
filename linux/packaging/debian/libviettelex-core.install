@@ -1,1 +1,4 @@
 usr/lib/*/viettelex/libtelexcore.so
+# Icon trạng thái bộ gõ (Fcitx5 "viettelex"/"viettelex-off", IBus "viettelex") — dùng chung
+# cho cả hai frontend nên nằm ở gói mà cả hai phụ thuộc. Vector port từ MenuIcon1.pdf macOS.
+linux/packaging/data/icons/hicolor/scalable/status/*.svg usr/share/icons/hicolor/scalable/status

@@ -52,7 +52,8 @@ Description: VietTelex Vietnamese input method - typing engine
  .
  This package contains libtelexcore, the shared typing engine (Swift, built
  with a static Swift runtime) used by the Fcitx5 and IBus frontends. It is
- installed in a private directory and is not meant for other programs.
+ installed in a private directory and is not meant for other programs. It
+ also ships the input-method status icons shared by both frontends.
 
 Package: viettelex-fcitx5
 Architecture: any

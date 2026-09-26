@@ -1,4 +1,10 @@
-viettelex (1.0.0) UNRELEASED; urgency=medium
+viettelex (1.0.1) UNRELEASED; urgency=medium
+
+  * Use the macOS app icon and the macOS menu-bar glyph (V / E) as icons.
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Sat, 26 Sep 2026 18:00:00 +0000
+
+viettelex (1.0.0) unstable; urgency=medium
 
   * First Linux release: Fcitx5 addon, IBus engine, GTK4 settings app.
 

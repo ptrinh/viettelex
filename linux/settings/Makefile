@@ -6,7 +6,7 @@ DESTDIR ?=
 PYTHON ?= python3
 DATA := ../packaging/data
 SHARE := $(DESTDIR)$(PREFIX)/share
-ICON_SIZES := 16 22 24 32 48 64 128 256 512
+ICON_SIZES := 16 24 32 48 64 128 256 512
 
 .PHONY: all check install uninstall
 all:
@@ -22,11 +22,11 @@ install: all
 	install -Dm644 $(DATA)/com.viettelex.Settings.desktop $(SHARE)/applications/com.viettelex.Settings.desktop
 	install -Dm644 $(DATA)/com.viettelex.Settings.metainfo.xml $(SHARE)/metainfo/com.viettelex.Settings.metainfo.xml
 	for s in $(ICON_SIZES); do \
-	  install -Dm644 $(DATA)/icons/hicolor/$${s}x$${s}/apps/viettelex.png \
-	    $(SHARE)/icons/hicolor/$${s}x$${s}/apps/viettelex.png; done
+	  install -Dm644 $(DATA)/icons/hicolor/$${s}x$${s}/apps/com.viettelex.Settings.png \
+	    $(SHARE)/icons/hicolor/$${s}x$${s}/apps/com.viettelex.Settings.png; done
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/viettelex-settings
 	rm -rf $(SHARE)/viettelex-settings
 	rm -f $(SHARE)/applications/com.viettelex.Settings.desktop $(SHARE)/metainfo/com.viettelex.Settings.metainfo.xml
-	for s in $(ICON_SIZES); do rm -f $(SHARE)/icons/hicolor/$${s}x$${s}/apps/viettelex.png; done
+	for s in $(ICON_SIZES); do rm -f $(SHARE)/icons/hicolor/$${s}x$${s}/apps/com.viettelex.Settings.png; done

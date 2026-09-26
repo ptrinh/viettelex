@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- VietTelex status icon: vector port of App/Resources/MenuIcon1.pdf (macOS menu-bar glyph). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+ <g transform="matrix(1 0 0 -1 0 16)">
+  <rect x="0.5" y="0.5" width="15" height="15" rx="4.2" ry="4.2" fill="none" stroke="#888888" stroke-width="1"/>
+  <polygon points="4.75,3.76 4.75,12.24 11.05,12.24 11.05,10.62 6.65,10.62 6.65,8.78 10.45,8.78 10.45,7.2 6.65,7.2 6.65,5.38 11.25,5.38 11.25,3.76" fill="#888888"/>
+ </g>
+</svg>

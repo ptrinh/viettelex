@@ -21,6 +21,7 @@
     <p xml:lang="vi">Ứng dụng này chỉnh kiểu gõ, gõ tắt và cơ chế gõ theo từng app. Thay đổi có hiệu lực ngay, không cần khởi động lại bộ gõ. Không thu thập dữ liệu.</p>
   </description>
   <launchable type="desktop-id">com.viettelex.Settings.desktop</launchable>
+  <icon type="stock">com.viettelex.Settings</icon>
   <url type="homepage">https://ptrinh.github.io/viettelex/</url>
   <url type="bugtracker">https://github.com/ptrinh/viettelex/issues</url>
   <developer id="com.viettelex">
@@ -50,6 +51,11 @@
     <control>pointing</control>
   </supports>
   <releases>
+    <release version="1.0.1" date="2026-09-26">
+      <description>
+        <p>Uses the macOS app icon and the macOS menu-bar glyph for the input-method indicator (V / E).</p>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-09-26">
       <description>
         <p>First Linux release: Fcitx5 and IBus input method plus GTK4 settings app.</p>

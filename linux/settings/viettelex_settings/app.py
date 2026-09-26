@@ -647,7 +647,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         g = Adw.PreferencesGroup()
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_top=12,
                       halign=Gtk.Align.CENTER)
-        img = Gtk.Image.new_from_icon_name("viettelex")
+        img = Gtk.Image.new_from_icon_name(APP_ID)
         img.set_pixel_size(128)
         box.append(img)
         name = Gtk.Label(label="VietTelex")
@@ -1037,6 +1037,7 @@ class App(Adw.Application):
         return 0
 
     def do_activate(self):
+        Gtk.Window.set_default_icon_name(APP_ID)
         if not self.win:
             self.win = SettingsWindow(self, config.Config())
         pages = {"typing": 0, "options": 1, "shortcuts": 2, "modes": 3, "about": 4}
