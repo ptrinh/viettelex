@@ -57,6 +57,14 @@ final class CompetitorReviewTests: XCTestCase {
 
     private func out(_ keys: String) -> String { type(keys).screen }
 
+    /// Một từ, cấu hình app mặc định, `commitText` — dạng port-swift-tests.py chuyển
+    /// được sang Kotlin/C++ (`commitApp` ↔ commitWith + cờ app default).
+    private func commitApp(_ keys: String) -> String {
+        var e = TelexEngine(); CompetitorReviewTests.appDefault(&e)
+        for ch in keys { _ = e.feed(ch) }
+        return e.commitText(autoRestore: true)
+    }
+
     // MARK: - Link / ô tìm kiếm
 
     /// Review: "now.vn" thành "nơ.vn". VietTelex CŨNG ra "nơ.vn" — CHÍNH SÁCH, không
@@ -70,26 +78,40 @@ final class CompetitorReviewTests: XCTestCase {
         XCTAssertEqual(out("noww"), "now")
     }
 
-    /// Review: "cheese.co" thành "cheé.co". VietTelex không ra "cheé" nhưng ở cấu hình
-    /// mặc định lại ra "chese" (MẤT một chữ e) — LỖI THẬT, xem báo cáo trong commit.
-    /// Nguyên nhân: `chees` → chế; `e` thứ ba huỷ mũ (cancel mark kề nhau TRONG letter
-    /// space) → "chée" không còn là prefix hợp lệ → liveSpellCheck freeze + pFoldTones
-    /// gập phím `s` về chữ thường → "chese". Ở boundary shouldRestoreRaw(): markCancelled,
-    /// toneCancelAt == -1 (mark doubler) và composedHasDiacritic() == false (tone đã bị
-    /// gập) → coi như escape cố ý kiểu "gooogle" → giữ "chese". Chỉ freeMarking hoặc chỉ
-    /// liveSpellCheck thì đều restore đúng "cheese".
-    func testCheeseDotCoKnownBug() {
-        // Không mắc lỗi của review: không bao giờ chốt "cheé".
+    /// Review: "cheese.co" thành "cheé.co". VietTelex không ra "cheé"; ở cấu hình mặc
+    /// định từng ra "chese" (MẤT một chữ e) — đã sửa 26/09/2026.
+    /// Nguyên nhân: `chees` → chế; `e` thứ ba huỷ mũ → "chée" không còn là prefix hợp
+    /// lệ → liveSpellCheck freeze + pFoldTones gập phím `s` về chữ thường → "chese". Ở
+    /// boundary: markCancelled, toneCancelAt == -1 (mark doubler) và composedHasDiacritic()
+    /// == false (tone đã bị gập) → từng bị coi như escape cố ý kiểu "gooogle". Sửa: engine
+    /// nhớ `tonesFolded` — dấu thanh bị gập lúc freeze thì huỷ đó KHÔNG làm sạch từ →
+    /// khôi phục raw. Escape thật ("gooogle", "aaa") không có dấu thanh treo nên không gập.
+    func testCheeseDotCo() {
         XCTAssertFalse(out("cheese.co").contains("é"))
-        // Từng cờ riêng lẻ thì đúng.
         XCTAssertEqual(type("cheese", config: { $0.freeMarking = true }).screen, "cheese")
         XCTAssertEqual(type("cheese", config: { $0.liveSpellCheck = true }).screen, "cheese")
-        XCTExpectFailure("BUG: freeMarking+liveSpellCheck (default app) chốt 'chese' — tone bị fold làm mất tín hiệu composedHasDiacritic") {
-            XCTAssertEqual(out("cheese.co"), "cheese.co")
-            XCTAssertEqual(out("cheese"), "cheese")
-            XCTAssertEqual(out("geese"), "geese")
-            XCTAssertEqual(out("cheeses"), "cheeses")
-        }
+        XCTAssertEqual(out("cheese.co"), "cheese.co")
+        XCTAssertEqual(out("cheese"), "cheese")
+        XCTAssertEqual(out("geese"), "geese")
+        XCTAssertEqual(out("cheeses"), "cheeses")
+        XCTAssertEqual(out("cheese geese"), "cheese geese")
+        // Escape cố ý không đổi.
+        XCTAssertEqual(out("gooogle"), "google")
+        XCTAssertEqual(out("aaa"), "aa")
+        XCTAssertEqual(out("off"), "of")
+        XCTAssertEqual(out("pass"), "pas")
+        XCTAssertEqual(out("boss"), "bos")
+        XCTAssertEqual(out("uaww"), "uaw")
+        XCTAssertEqual(out("seees"), "sees")
+        // Bản port Kotlin/C++ (port-swift-tests.py).
+        XCTAssertEqual(commitApp("cheese"), "cheese")
+        XCTAssertEqual(commitApp("geese"), "geese")
+        XCTAssertEqual(commitApp("cheeses"), "cheeses")
+        XCTAssertEqual(commitApp("gooogle"), "google")
+        XCTAssertEqual(commitApp("aaa"), "aa")
+        XCTAssertEqual(commitApp("off"), "of")
+        XCTAssertEqual(commitApp("pass"), "pas")
+        XCTAssertEqual(commitApp("uaww"), "uaw")
     }
 
     // MARK: - Từ tiếng Anh
@@ -184,17 +206,33 @@ final class CompetitorReviewTests: XCTestCase {
         XCTAssertEqual(r.steps, ["t", "tu", "tư", "tưo", "tươi"])
     }
 
-    /// Review: "lươn" + `o` → "luôn" (đổi móc thành mũ, kiểu UniKey). VietTelex CHƯA
-    /// hỗ trợ — THIẾU TÍNH NĂNG, xem báo cáo trong commit. Hiện: màn hình "lươno", chốt
-    /// raw "luwowno". Nguyên nhân: nhánh circumflex doubler (a/e/o) trong parseStep
-    /// chỉ nhắm nguyên âm cùng base có mark == .none (hoặc .circumflex để huỷ), cả nhánh
-    /// kề nhau lẫn reach-back freeMarking; chữ ơ (.horn) bị bỏ qua nên `o` thành chữ
-    /// thường, không có retarget ơ→ô kèm ư→u.
-    func testLuonRetargetKnownGap() {
+    /// Review: "lươn" + `o` → "luôn" (đổi móc thành mũ, kiểu UniKey) — thêm 26/09/2026.
+    /// Nhánh circumflex doubler `o` giờ nhận cả chữ ơ (kề nhau lẫn reach-back
+    /// freeMarking); trong cụm ươ thì ư mất móc theo (setCircumflex) → uô. Dấu thanh
+    /// giữ nguyên, nằm trên ô: "lượn" + o → "luộn". Chỉ `o` (ơ→ô); `a` trên ă không đổi.
+    func testLuonRetarget() {
         XCTAssertEqual(out("luwown"), "lươn")
-        XCTExpectFailure("GAP: 'o' trên ươ chưa đổi thành uô (UniKey làm được)") {
-            XCTAssertEqual(out("luwowno"), "luôn")
-        }
+        XCTAssertEqual(out("luwowno"), "luôn")
+        XCTAssertEqual(out("luwono"), "luôn")
+        XCTAssertEqual(out("luownoj"), "luộn")
+        XCTAssertEqual(out("luwowjno"), "luộn")
+        XCTAssertEqual(out("luwownoj"), "luộn")
+        XCTAssertEqual(out("mowo"), "mô")
+        XCTAssertEqual(type("luwowo", config: { _ in }).screen, "luô")
+        // Không đụng: ưo → ươ, cửu, uaww.
+        XCTAssertEqual(out("muwon"), "mươn")
+        XCTAssertEqual(out("dduwocj"), "được")
+        XCTAssertEqual(out("dduwowcj"), "được")
+        XCTAssertEqual(out("cuwur"), "cửu")
+        XCTAssertEqual(out("uaww"), "uaw")
+        // Bản port Kotlin/C++ (port-swift-tests.py).
+        XCTAssertEqual(commitApp("luwowno"), "luôn")
+        XCTAssertEqual(commitApp("luwono"), "luôn")
+        XCTAssertEqual(commitApp("luwowjno"), "luộn")
+        XCTAssertEqual(commitApp("mowo"), "mô")
+        XCTAssertEqual(commitApp("muwon"), "mươn")
+        XCTAssertEqual(commitApp("dduwocj"), "được")
+        XCTAssertEqual(commitApp("cuwur"), "cửu")
     }
 
     // MARK: - ⌫ trên từ tiếng Anh đã khôi phục

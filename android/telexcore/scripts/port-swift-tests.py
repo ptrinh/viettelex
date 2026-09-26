@@ -69,6 +69,10 @@ H = {
         "sentence": ("sentenceSplit", [LIVE, "contextualEnglish = true", "collisionPrefersVietnamese = {vietnamese}"]),
     },
     "BoundaryTests.swift": {"commitText": ("commitRestore", [])},
+    "CompetitorReviewTests.swift": {
+        "commitApp": ("commit", [FREE, LIVE, "teencode = false", "contextualEnglish = true",
+                                 "collisionPrefersVietnamese = true"]),
+    },
 }
 
 LIT = r'"((?:[^"\\]|\\.)*)"'

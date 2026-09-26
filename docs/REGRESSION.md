@@ -56,6 +56,7 @@ trúc phân biệt được, **không cần từ điển**:
 | **Phím đôi KỀ NHAU** (tone `ss`/`ff`… hoặc mark `aaa`/`ooo`/`ddd`/`ww`), ở bất kỳ đâu trong từ | `tessted` → tested · `Deffault` → Default · `gooogle` → google · `DDDR` → DDR · `hoass` → hoas · `iss` → is | **GIỮ composed** — what you see is what you commit |
 | Phím tone **vươn ngược** (phím thanh bị huỷ nằm cách vài chữ) | `hosts` · `asks` · `discs` · `buses` | **RESTORE** raw |
 | Bất kỳ dạng nào, nhưng **raw có trong từ điển** | `office` · `possess` · `message` · `class` | **RESTORE** raw (từ điển thắng tất cả) |
+| Mark doubler huỷ mũ để **dấu thanh treo**, rồi liveSpellCheck freeze **gập** dấu đó về chữ thường (`tonesFolded`, 26/09/2026) | `cheese` · `geese` · `reference` · `cosaaa` | **RESTORE** raw (từng chốt `chese`/`refrence` — mất chữ) |
 
 Nguyên tắc: escape thật **luôn** là phím đôi kề nhau, còn cancel vươn ngược thì
 không bao giờ là escape → đó là tín hiệu cấu trúc duy nhất dùng được.

@@ -55,6 +55,30 @@ class CollisionPreferencePortedTest {
     }
 }
 
+/** Ported from TelexCore/Tests/TelexCoreTests/CompetitorReviewTests.swift. */
+class CompetitorReviewPortedTest {
+    @Test fun testCheeseDotCo() {
+        assertEquals("cheese", commitWith("cheese") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("geese", commitWith("geese") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("cheeses", commitWith("cheeses") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("google", commitWith("gooogle") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("aa", commitWith("aaa") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("of", commitWith("off") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("pas", commitWith("pass") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("uaw", commitWith("uaww") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+    }
+
+    @Test fun testLuonRetarget() {
+        assertEquals("luôn", commitWith("luwowno") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("luôn", commitWith("luwono") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("luộn", commitWith("luwowjno") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("mô", commitWith("mowo") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("mươn", commitWith("muwon") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("được", commitWith("dduwocj") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("cửu", commitWith("cuwur") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+    }
+}
+
 /** Ported from TelexCore/Tests/TelexCoreTests/ContextEnglishTests.swift. */
 class ContextEnglishPortedTest {
     @Test fun testAppDefaultsKeepVietnameseSentenceEndingInDidAsDi() {

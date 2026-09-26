@@ -265,6 +265,7 @@ void TelexEngine::feedAscii(uint8_t ascii, Action& out) {
     if (disabledAtCount_ == kNotDisabled && upperToneKey_) {
         disabledAtCount_ = 0;
         rebuildParseState();
+        tonesFolded_ = false;
         newCount = render();
         takeSnapshots();
     }
@@ -277,6 +278,7 @@ void TelexEngine::feedAscii(uint8_t ascii, Action& out) {
             pFoldTones_ = true;
             rebuildParseState();
             pFoldTones_ = false;
+            tonesFolded_ = true;
             newCount = render();
             takeSnapshots();
         }
@@ -393,6 +395,8 @@ bool TelexEngine::shouldRestoreRaw() const {
         if (toneCancelSpan_ > 1) return !composedIsRecognizedEnglish() || rawIsEnglishContextWord();
         if (toneCancelAt_ >= 0 && toneCancelAt_ < rawCount_ - 1 && rawIsEnglishCollision()) return true;
         if (isTeencodeKeep()) return false;
+        // Mark doubler + tone folded at the freeze ("cheese" -> "chese"): restore raw.
+        if (toneCancelAt_ < 0 && tonesFolded_) return true;
         return composedHasDiacritic();
     }
     if (rawIsEnglishCollision() && !(collisionPrefersVietnamese && composedIsValidSyllable())) return true;
@@ -679,6 +683,7 @@ void TelexEngine::resetWord() {
     upperToneKey_ = false;
     overflowed_ = false;
     disabledAtCount_ = kNotDisabled;
+    tonesFolded_ = false;
     pCount_ = 0;
     pTone_ = Tone::None;
     pToneKeyCount_ = 0;
@@ -764,11 +769,21 @@ int TelexEngine::render() {
 
 void TelexEngine::rebuildFrozenAware() {
     rebuildParseState();
+    tonesFolded_ = false;
     if (disabledAtCount_ != kNotDisabled && pTone_ != Tone::None) {
         pFoldTones_ = true;
         rebuildParseState();
         pFoldTones_ = false;
+        tonesFolded_ = true;
     }
+}
+
+// Circumflex the doubler target; an o inside ươ also un-horns the u (ươ -> uô, UniKey).
+void TelexEngine::setCircumflex(int k) {
+    letters_[k].mark = Mark::Circumflex;
+    if (letters_[k].base == 'o' && k >= 1 && letters_[k - 1].base == 'u' &&
+        letters_[k - 1].mark == Mark::Horn)
+        letters_[k - 1].mark = Mark::None;
 }
 
 void TelexEngine::recomputeFreeze() {
@@ -941,7 +956,11 @@ void TelexEngine::parseStep(int at) {
             int pIdx = pCount_ - 1;
             const Letter p = letters_[pIdx];
             if (p.base == lower && p.mark == Mark::None) {
-                letters_[pIdx].mark = Mark::Circumflex; rawLetter_[at] = pIdx; return;
+                setCircumflex(pIdx); rawLetter_[at] = pIdx; return;
+            }
+            // `o` on ơ (ươ cluster): hook -> hat ("mơ"+o -> mô).
+            if (lower == 'o' && p.base == lower && p.mark == Mark::Horn) {
+                setCircumflex(pIdx); rawLetter_[at] = pIdx; return;
             }
             if (p.base == lower && p.mark == Mark::Circumflex) {
                 letters_[pIdx].mark = Mark::None;
@@ -955,12 +974,14 @@ void TelexEngine::parseStep(int at) {
             while (k >= 0 && !isVowelAscii(letters_[k].base)) --k;
             const int nucleusEnd = k;
             while (k >= 0 && isVowelAscii(letters_[k].base)) {
-                if (letters_[k].base == lower && letters_[k].mark == Mark::None) {
+                // "lươn" + o -> "luôn": the reach-back also retargets a horned o.
+                if (letters_[k].base == lower &&
+                    (letters_[k].mark == Mark::None || (lower == 'o' && letters_[k].mark == Mark::Horn))) {
                     if (lower == 'o' && nucleusEnd == pCount_ - 1 && k == pCount_ - 2 &&
                         letters_[k + 1].mark == Mark::None &&
                         (letters_[k + 1].base == 'e' || letters_[k + 1].base == 'a'))
                         break;   // -> literal o ("oeo"/"oao" rimes)
-                    letters_[k].mark = Mark::Circumflex; rawLetter_[at] = k; return;
+                    setCircumflex(k); rawLetter_[at] = k; return;
                 }
                 if (letters_[k].base == lower && letters_[k].mark == Mark::Circumflex) {
                     letters_[k].mark = Mark::None;

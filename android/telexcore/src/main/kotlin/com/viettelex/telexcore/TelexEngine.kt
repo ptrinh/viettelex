@@ -96,6 +96,8 @@ class TelexEngine {
     private var toneCancelAt = -1
     private var toneCancelSpan = 0
     private var pFoldTones = false
+    // Current parse was built with pFoldTones (freeze folded a pending tone) — see Swift.
+    private var tonesFolded = false
     private var lastEffTone = T.NONE
     private var upperToneKey = false
 
@@ -129,7 +131,7 @@ class TelexEngine {
         e.pQuickTelex = pQuickTelex; e.pVniMode = pVniMode; e.pBracketVowels = pBracketVowels
         e.pLiveSpellCheck = pLiveSpellCheck; e.disabledAtCount = disabledAtCount
         e.markCancelled = markCancelled; e.toneCancelAt = toneCancelAt; e.toneCancelSpan = toneCancelSpan
-        e.pFoldTones = pFoldTones; e.lastEffTone = lastEffTone; e.upperToneKey = upperToneKey
+        e.pFoldTones = pFoldTones; e.tonesFolded = tonesFolded; e.lastEffTone = lastEffTone; e.upperToneKey = upperToneKey
         reopenRaw.copyInto(e.reopenRaw); reopenOut.copyInto(e.reopenOut)
         e.reopenRawCount = reopenRawCount; e.reopenOutCount = reopenOutCount
         e.reopenPrevEnglish = reopenPrevEnglish
@@ -182,6 +184,7 @@ class TelexEngine {
         if (disabledAtCount == Int.MAX_VALUE && upperToneKey) {
             disabledAtCount = 0
             rebuildParseState()
+            tonesFolded = false
             newCount = render()
             snapshotCancel()
         }
@@ -194,6 +197,7 @@ class TelexEngine {
                 pFoldTones = true
                 rebuildParseState()
                 pFoldTones = false
+                tonesFolded = true
                 newCount = render()
                 snapshotCancel()
             }
@@ -330,6 +334,8 @@ class TelexEngine {
             }
             if (toneCancelAt >= 0 && toneCancelAt < rawCount - 1 && rawIsEnglishCollision()) return true
             if (isTeencodeKeep()) return false
+            // Mark doubler + tone folded at the freeze ("cheese" → "chese"): restore raw.
+            if (toneCancelAt < 0 && tonesFolded) return true
             return composedHasDiacritic()
         }
         if (rawIsEnglishCollision() && !(collisionPrefersVietnamese && composedIsValidSyllable())) return true
@@ -622,6 +628,7 @@ class TelexEngine {
         upperToneKey = false
         overflowed = false
         disabledAtCount = Int.MAX_VALUE
+        tonesFolded = false
         pCount = 0
         pTone = T.NONE
         pToneKeyCount = 0
@@ -729,12 +736,22 @@ class TelexEngine {
 
     // MARK: - Incremental parse
 
+    /** Circumflex the doubler target; an o inside ươ also un-horns the u (ươ → uô). */
+    private fun setCircumflex(k: Int) {
+        lMark[k] = Mark.CIRCUMFLEX
+        if (lBase[k] == 'o'.code && k >= 1 && lBase[k - 1] == 'u'.code && lMark[k - 1] == Mark.HORN) {
+            lMark[k - 1] = Mark.NONE
+        }
+    }
+
     private fun rebuildFrozenAware() {
         rebuildParseState()
+        tonesFolded = false
         if (disabledAtCount != Int.MAX_VALUE && pTone != T.NONE) {
             pFoldTones = true
             rebuildParseState()
             pFoldTones = false
+            tonesFolded = true
         }
     }
 
@@ -906,7 +923,11 @@ class TelexEngine {
             if (pCount > 0) {
                 val pIdx = pCount - 1
                 if (lBase[pIdx] == lower && lMark[pIdx] == Mark.NONE) {
-                    lMark[pIdx] = Mark.CIRCUMFLEX; rawLetter[at] = pIdx; return
+                    setCircumflex(pIdx); rawLetter[at] = pIdx; return
+                }
+                // `o` on ơ (ươ cluster): hook → hat, UniKey-style ("mơ"+o → mô).
+                if (lower == 'o'.code && lBase[pIdx] == lower && lMark[pIdx] == Mark.HORN) {
+                    setCircumflex(pIdx); rawLetter[at] = pIdx; return
                 }
                 if (lBase[pIdx] == lower && lMark[pIdx] == Mark.CIRCUMFLEX) {
                     lMark[pIdx] = Mark.NONE
@@ -919,12 +940,15 @@ class TelexEngine {
                 while (k >= 0 && !isVowelAscii(lBase[k])) k--
                 val nucleusEnd = k
                 while (k >= 0 && isVowelAscii(lBase[k])) {
-                    if (lBase[k] == lower && lMark[k] == Mark.NONE) {
+                    // "lươn" + o → "luôn": reach-back also retargets a horned o.
+                    if (lBase[k] == lower &&
+                        (lMark[k] == Mark.NONE || (lower == 'o'.code && lMark[k] == Mark.HORN))
+                    ) {
                         if (lower == 'o'.code && nucleusEnd == pCount - 1 && k == pCount - 2 &&
                             lMark[k + 1] == Mark.NONE &&
                             (lBase[k + 1] == 'e'.code || lBase[k + 1] == 'a'.code)
                         ) break
-                        lMark[k] = Mark.CIRCUMFLEX; rawLetter[at] = k; return
+                        setCircumflex(k); rawLetter[at] = k; return
                     }
                     if (lBase[k] == lower && lMark[k] == Mark.CIRCUMFLEX) {
                         lMark[k] = Mark.NONE
