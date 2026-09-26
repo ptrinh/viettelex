@@ -107,6 +107,7 @@ targets:
       - Keyboard/VNSuggest.swift
       - Keyboard/VNLexicon2.swift
       - Keyboard/EmojiSuggest.swift
+      - Keyboard/WordDelete.swift
       - Keyboard/UserLangModel.swift
       - Keyboard/SeedData.swift
       - Keyboard/DisplayCase.swift

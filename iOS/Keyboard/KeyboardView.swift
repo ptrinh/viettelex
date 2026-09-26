@@ -452,6 +452,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         var nextWords: [String] = []   // gợi ý khi CHƯA gõ (đầu câu / sau space)
         var paste = false               // thẻ Dán thay bar (vừa copy, xem controller)
         var pasteIsImage = false        // clipboard là ẢNH: bàn phím không chèn được → chỉ hướng dẫn
+        var restoreLabel: String? = nil // ô "Khôi phục" sau vuốt ⌫ xoá theo từ (slot đầu)
         var isEmpty: Bool {
             literal == nil && word == nil && word2 == nil && emojis.isEmpty && nextWords.isEmpty
         }
@@ -584,6 +585,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Clipboard là ảnh: iOS không cho bàn phím chèn ảnh (chỉ insertText) — thẻ chỉ
     /// hướng dẫn; chạm = ẩn thẻ.
     static let pasteImageToken = "\u{E000}pasteImage"
+    /// Payload ô "Khôi phục" (chèn lại đoạn vừa vuốt ⌫ xoá).
+    static let restoreToken = "\u{E000}restore"
 
     func showSuggestions(_ set: SuggestionSet) {
         guard suggestionsEnabled, !barCollapsed else { return }
@@ -597,6 +600,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             if let l = set.literal { texts[0] = ("\u{201C}\(l)\u{201D}", l) }
             if let w = set.word { texts[1] = (w, w) }
             if set.emojis.isEmpty, let w2 = set.word2 { texts[2] = (w2, w2) }
+        }
+        if let r = set.restoreLabel {
+            texts = [(r, Self.restoreToken), texts[0], texts[1]]
         }
         // Nội dung không đổi (nextWords thường ổn định giữa các phím) → bỏ qua
         // toàn bộ ghi UI: setTitle trên bar fillProportionally kéo theo một
@@ -642,7 +648,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         slotDividers[0].isHidden = !(vis0 && (vis1 || vis2))
         slotDividers[1].isHidden = !(vis1 && vis2)
         // Nút Dán kiểu iOS 27: MỘT ô rộng giữa bar, 2 dòng, thay cả 3 slot.
-        setPasteCard(visible: set.paste, image: set.pasteIsImage, ink: ink)
+        setPasteCard(visible: set.paste && set.restoreLabel == nil, image: set.pasteIsImage, ink: ink)
     }
 
     // MARK: Debug — hình học cửa sổ (25/09/2026)
@@ -1868,10 +1874,12 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         b.setImage(UIImage(systemName: "delete.left.fill"), for: .highlighted)
         b.tintColor = dark ? .white : .black
         b.accessibilityLabel = "Xoá"
-        b.addAction(UIAction { [weak self] _ in
-            Self.clickDelete()
-            self?.tapped(.backspace)
-        }, for: .touchDown)
+        // touchDown xoá 1 ký tự như cũ; kéo ngang → vuốt xoá theo từ (xem MARK dưới).
+        b.addTarget(self, action: #selector(backspaceDown(_:event:)), for: .touchDown)
+        b.addTarget(self, action: #selector(backspaceDrag(_:event:)),
+                    for: [.touchDragInside, .touchDragOutside])
+        b.addTarget(self, action: #selector(backspaceUp(_:event:)),
+                    for: [.touchUpInside, .touchUpOutside, .touchCancel])
         // press & hold repeats (starts after 0.5s, ~11 Hz — Apple cadence)
         let long = UILongPressGestureRecognizer(target: self, action: #selector(backspaceHold(_:)))
         long.minimumPressDuration = 0.5
@@ -1886,6 +1894,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     @objc private func backspaceHold(_ g: UILongPressGestureRecognizer) {
         switch g.state {
         case .began:
+            guard !wordSwipe.active else { return }   // đang vuốt → không giữ-lặp
             backspaceHoldStart = CACurrentMediaTime()
             wordDeleteTick = 0
             repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.09, repeats: true) { [weak self] _ in
@@ -1906,6 +1915,109 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             repeatTimer = nil
         default: break
         }
+    }
+
+    // MARK: vuốt trái trên ⌫ = xoá theo từ (kiểu Gboard)
+    // Extension không tạo được vùng chọn trong app host → xem trước bằng nhãn nổi
+    // trên phím ⌫ ("⌫ 2 từ"), NHẤC TAY mới xoá; kéo về dưới ngưỡng rồi nhấc = huỷ.
+    // Chỉ kích hoạt khi chưa giữ-lặp và kéo ngang ≥ WordDelete.swipeActivation.
+
+    /// Chạm ⌫ xuống — controller chụp context TRƯỚC lần xoá của chạm này.
+    var onBackspaceTouchDown: (() -> Void)?
+    /// Số từ tối đa xoá được (controller đếm trên context đã chụp). 0 = không vuốt.
+    var wordSwipeLimit: (() -> Int)?
+    /// Nhấc tay sau khi vuốt: số từ đã chọn (0 = huỷ).
+    var onWordSwipeEnd: ((Int) -> Void)?
+
+    private struct WordSwipeState {
+        var startX: CGFloat = 0
+        var tracking = false
+        var active = false
+        var maxWords = 0
+        var words = 0
+    }
+    private var wordSwipe = WordSwipeState()
+    private weak var wordSwipeKey: UIView?
+    private var wordSwipePill: UILabel?
+
+    @objc private func backspaceDown(_ sender: UIControl, event: UIEvent) {
+        Self.clickDelete()
+        onBackspaceTouchDown?()
+        let x = event.allTouches?.first(where: { $0.view === sender })?.location(in: self).x
+        wordSwipeKey = sender
+        backspaceSwipeBegan(x: x ?? 0)
+        tapped(.backspace)
+    }
+
+    @objc private func backspaceDrag(_ sender: UIControl, event: UIEvent) {
+        guard let x = event.allTouches?.first(where: { $0.view === sender })?.location(in: self).x
+        else { return }
+        backspaceSwipeMoved(x: x)
+    }
+
+    @objc private func backspaceUp(_ sender: UIControl, event: UIEvent) {
+        backspaceSwipeEnded()
+    }
+
+    private func backspaceSwipeBegan(x: CGFloat) {
+        wordSwipe = WordSwipeState(startX: x, tracking: true)
+    }
+
+    private func backspaceSwipeMoved(x: CGFloat) {
+        guard wordSwipe.tracking else { return }
+        let dragLeft = wordSwipe.startX - x
+        if !wordSwipe.active {
+            // giữ-lặp đã chạy = đã xoá nhiều ký tự → không chuyển sang vuốt nữa
+            guard dragLeft >= WordDelete.swipeActivation, repeatTimer == nil else { return }
+            let limit = wordSwipeLimit?() ?? 0
+            guard limit > 0 else { wordSwipe.tracking = false; return }
+            wordSwipe.active = true
+            wordSwipe.maxWords = limit
+        }
+        let step = WordDelete.swipeStep(letterKeyWidth: letterKeys.first?.button.bounds.width)
+        let n = WordDelete.words(dragLeft: dragLeft, step: step, max: wordSwipe.maxWords)
+        if n != wordSwipe.words {
+            wordSwipe.words = n
+            UIDevice.current.playInputClick()
+        }
+        showWordSwipePill(words: n)
+    }
+
+    private func backspaceSwipeEnded() {
+        let s = wordSwipe
+        wordSwipe = WordSwipeState()
+        hideWordSwipePill()
+        guard s.active else { return }
+        onWordSwipeEnd?(s.words)
+    }
+
+    private func showWordSwipePill(words n: Int) {
+        let pill: UILabel
+        if let p = wordSwipePill { pill = p } else {
+            pill = UILabel()
+            pill.font = .systemFont(ofSize: 15, weight: .semibold)
+            pill.textAlignment = .center
+            pill.layer.cornerRadius = 8
+            pill.layer.masksToBounds = true
+            pill.isUserInteractionEnabled = false
+            wordSwipePill = pill
+        }
+        pill.text = n > 0 ? "\u{232B} \(n) từ" : "Huỷ"
+        pill.textColor = dark ? .white : .black
+        pill.backgroundColor = dark ? UIColor(white: 0.30, alpha: 1) : .white
+        if pill.superview == nil { addSubview(pill) }
+        bringSubviewToFront(pill)
+        let key = wordSwipeKey.map { convert($0.bounds, from: $0) }
+            ?? CGRect(x: bounds.width - 50, y: bounds.height - 100, width: 44, height: 42)
+        let size = pill.intrinsicContentSize
+        let w = size.width + 20, h: CGFloat = 32
+        pill.frame = CGRect(x: max(4, min(key.maxX - w, bounds.width - w - 4)),
+                            y: max(0, key.minY - h - 6), width: w, height: h)
+        pill.isHidden = false
+    }
+
+    private func hideWordSwipePill() {
+        wordSwipePill?.isHidden = true
     }
 
     @objc private func spaceTouchDown(_ sender: UIControl, event: UIEvent) {
@@ -2100,6 +2212,22 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     func debugCycleThroughTemplates() {
         plane = .templates; rebuild(); layoutIfNeeded()
         plane = .letters; rebuild()
+    }
+    /// Test hook: mô phỏng chạm ⌫ tại x, kéo qua các điểm `xs`, rồi nhấc tay.
+    /// Trả về nhãn xem trước sau điểm cuối (nil = không hiện).
+    @discardableResult
+    func debugBackspaceSwipe(from x0: CGFloat, through xs: [CGFloat]) -> String? {
+        onBackspaceTouchDown?()
+        backspaceSwipeBegan(x: x0)
+        tapped(.backspace)
+        for x in xs { backspaceSwipeMoved(x: x) }
+        let label = wordSwipePill?.isHidden == false ? wordSwipePill?.text : nil
+        backspaceSwipeEnded()
+        return label
+    }
+    /// Test hook: payload 3 slot chính đang hiện (nil = ẩn).
+    func debugSlotPayloads() -> [String?] {
+        slotButtons.map { $0.isHidden ? nil : $0.payload }
     }
     /// Test hook: frame phím chữ (toạ độ self).
     func debugLetterFrame(_ s: String) -> CGRect? {
