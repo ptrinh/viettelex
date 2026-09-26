@@ -62,7 +62,8 @@ class EngineBridgeTests {
     }
 
     @Test fun testResetDropsComposition() {
-        val proxy = MockProxy()
+        // reEdit tắt: bật thì "e" ngay sau "vie" nạp lại từ trên màn hình (ReEditTests).
+        val proxy = MockProxy().also { it.reEdit = false }
         val bridge = EngineBridge(KeyboardSettings())
         for (ch in "vie") bridge.letter(ch, proxy)
         bridge.reset()

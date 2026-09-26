@@ -14,6 +14,12 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
     /** Ô không autocorrect (mã/username): gõ LITERAL, bỏ engine. */
     var passthrough = false
 
+    /**
+     * Ký tự ngay trước con trỏ là ranh giới CHÍNH MÌNH vừa chèn ⇒ không có từ nào để nạp
+     * lại, khỏi đọc context (IPC) ở chữ đầu mỗi từ.
+     */
+    private var afterOwnBoundary = false
+
     private fun configure(e: TelexEngine, contextual: Boolean) {
         e.freeMarking = settings.freeMarking
         e.simpleTelex = settings.simpleTelex
@@ -33,6 +39,9 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
     /** Phím chữ (đã theo shift). */
     fun letter(ch: Char, proxy: TextProxy) {
         if (proxy.isSecure || passthrough) { proxy.insertText(ch.toString()); return }
+        val seedable = engine.isEmpty && !afterOwnBoundary && ReEdit.isTransformKey(ch)
+        afterOwnBoundary = false
+        if (seedable && trySeed(ch, proxy)) return
         val before = engine.composed
         val action = engine.feed(ch)
         if (action is TelexAction.Replace && action.backspaces > 0 && !proxy.confirmTail(before)) {
@@ -54,6 +63,7 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
      */
     fun boundary(text: String, proxy: TextProxy): String {
         if (proxy.isSecure || passthrough) { proxy.insertText(text); return "" }
+        afterOwnBoundary = text.isNotEmpty() && !Character.isLetterOrDigit(text.codePointBefore(text.length))
         val before = engine.composed
         val action = engine.commitBoundary(settings.autoRestore)
         if (action is TelexAction.Replace && action.backspaces > 0 && !proxy.confirmTail(before)) {
@@ -70,8 +80,42 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         return final
     }
 
-    fun backspace(proxy: TextProxy) {
-        if (proxy.isSecure || passthrough || engine.isEmpty) { proxy.deleteBackward(); return }
+    /**
+     * Phím dấu/mũ khi engine rỗng, con trỏ ở CUỐI một từ đã có trên màn hình ("viet|" + j):
+     * seed engine bằng từ đó rồi feed phím ⇒ "việt". Chỉ nhận khi seed khớp đúng từ VÀ phím
+     * thật sự biến đổi nó; mọi trường hợp khác trả false (caller gõ literal như cũ).
+     */
+    private fun trySeed(ch: Char, proxy: TextProxy): Boolean {
+        if (!proxy.canReEdit) return false
+        val before = proxy.contextBeforeInput() ?: return false
+        val word = ReEdit.trailingWord(before) ?: return false
+        val after = proxy.contextAfterInput() ?: return false
+        if (!ReEdit.atWordEnd(after) || proxy.hasSelection) return false
+        if (!engine.seed(word)) return false
+        val action = engine.feed(ch)
+        if (action !is TelexAction.Replace || action.backspaces <= 0 ||
+            engine.composed == word + ch) {
+            engine.reset()
+            return false
+        }
+        TouchLog.write("re-edit: seeded ${Cp.count(word)} chars")
+        apply(action, ch.toString(), proxy)
+        return true
+    }
+
+    /**
+     * ⌫. Trả true khi vừa MỞ LẠI từ chốt trước: ⌫ xoá ký tự ranh giới như thường và
+     * engine giữ lại đúng từ đó ("tháy" ␣ ⌫ a → "thấy"). Chỉ khi chữ trước con trỏ khớp
+     * đúng từ + ranh giới; lệch ⇒ quên từ, ⌫ thường.
+     */
+    fun backspace(proxy: TextProxy): Boolean {
+        if (proxy.isSecure || passthrough) { proxy.deleteBackward(); return false }
+        afterOwnBoundary = false
+        if (engine.isEmpty) {
+            val reopened = engine.canReopenLastCommit && tryReopen(proxy)
+            if (!reopened) { engine.forgetLastCommit(); proxy.deleteBackward() }
+            return reopened
+        }
         val before = engine.composed
         when (val a = engine.backspace()) {
             is TelexAction.Replace -> {
@@ -80,17 +124,36 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
                     TouchLog.write("tail mismatch (backspace) → reset")
                     reset()
                     proxy.deleteBackward()
-                    return
+                    return false
                 }
                 if (a.backspaces > 0) proxy.deleteCodePoints(a.backspaces)
                 if (a.insert.isNotEmpty()) proxy.insertText(a.insert)
             }
             else -> proxy.deleteBackward()
         }
+        return false
     }
 
+    private fun tryReopen(proxy: TextProxy): Boolean {
+        if (!proxy.canReEdit || proxy.hasSelection) return false
+        val before = proxy.contextBeforeInput() ?: return false
+        val word = engine.reopenLastCommit() ?: return false
+        if (!ReEdit.endsWithWordThenBoundary(before, word)) {
+            // App nuốt ranh giới / tự sửa chữ / con trỏ lệch: không sửa màn hình.
+            TouchLog.write("re-open: screen disagrees → reset")
+            engine.reset()
+            return false
+        }
+        proxy.deleteBackward()          // xoá ký tự ranh giới
+        TouchLog.write("re-open: ${Cp.count(word)} chars back")
+        return true
+    }
+
+    /** Bỏ snapshot mở lại (Enter có thể đã gửi tin / xuống dòng mà ⌫ không đảo được). */
+    fun forgetLastCommit() = engine.forgetLastCommit()
+
     /** Đổi ô / con trỏ dời / ẩn bàn phím → quên từ + ngữ cảnh tiếng Anh. */
-    fun reset() { engine.reset(); engine.resetContext() }
+    fun reset() { engine.reset(); engine.resetContext(); afterOwnBoundary = false }
 
     val isComposing: Boolean get() = !engine.isEmpty
     val composedWord: String get() = engine.composed

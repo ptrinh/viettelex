@@ -22,6 +22,7 @@ class AndroidEditorPort(val ic: InputConnection) : EditorPort {
     override fun deleteSurrounding(before: Int, after: Int) = ic.deleteSurroundingText(before, after)
     override fun textBefore(n: Int): CharSequence? = ic.getTextBeforeCursor(n, 0)
     override fun textAfter(n: Int): CharSequence? = ic.getTextAfterCursor(n, 0)
+    override fun selectedText(): CharSequence? = ic.getSelectedText(0)
     override fun setSelection(start: Int, end: Int) = ic.setSelection(start, end)
     override fun finishComposing() = ic.finishComposingText()
     override fun performEditorAction(actionId: Int) = ic.performEditorAction(actionId)

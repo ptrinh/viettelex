@@ -21,6 +21,17 @@ interface TextProxy {
      * (không có căn cứ, giữ hành vi cũ).
      */
     fun confirmTail(expected: String): Boolean = true
+
+    /**
+     * Ô cho phép SỬA LẠI từ đã chốt (⌫ mở lại từ, phím dấu nạp lại từ trước con trỏ):
+     * đọc được chữ và ghi bằng commitText/deleteSurroundingText đồng bộ. false ở ô
+     * TYPE_NULL, ô URI (omnibox tự hoàn tất chữ), app chỉ nhận key event. Mặc định false.
+     */
+    val canReEdit: Boolean get() = false
+    /** Đang có selection (không rỗng) — sửa lại từ sẽ đè lên nó ⇒ không làm. */
+    val hasSelection: Boolean get() = false
+    /** Vài ký tự SAU con trỏ; null nếu không đọc được. */
+    fun contextAfterInput(): String? = null
 }
 
 /** Main-thread scheduler (Android: Handler main looper). */

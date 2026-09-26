@@ -38,4 +38,12 @@ class MockProxy(var isSecureField: Boolean = false) : TextProxy {
     override fun contextBeforeInput(): String = text
     override fun clearAll() { sb.setLength(0) }
     override fun confirmTail(expected: String): Boolean = text.endsWith(expected)
+    /** Sửa lại từ đã chốt (IcProxy: ô COMMIT thường). */
+    var reEdit = true
+    /** Chữ SAU con trỏ; null = không đọc được. */
+    var after: String? = ""
+    var selection = false
+    override val canReEdit: Boolean get() = reEdit
+    override val hasSelection: Boolean get() = selection
+    override fun contextAfterInput(): String? = after
 }

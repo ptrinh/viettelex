@@ -163,6 +163,9 @@ class KeyboardSession(
     private var restoreUndoComposed: String? = null
     private var undoOfferActive = false
     private var ctxCacheKey: String? = null
+    /** Từ chốt gần nhất + biên nhận học — ⌫ mở lại từ đó thì rút lại lượt học (không học trùng). */
+    private class LastCommit(val word: String, val prev1: String?, val prev2: String?, val learned: UserLangModel.Learned?)
+    private var lastCommit: LastCommit? = null
     private var ctxCache: Set<String> = emptySet()
 
     init {
@@ -188,6 +191,7 @@ class KeyboardSession(
         suggestionsActive = settings.showSuggestions && field.suggestionsAllowed && !field.isSecure && !field.passthrough
         lastWord = null; lastWord2 = null
         lastInsertWasSpace = false
+        lastCommit = null
     }
 
     /** onFinishInputView (viewWillDisappear). */
@@ -198,6 +202,7 @@ class KeyboardSession(
         TouchLog.host("selectionChanged", false, bridge.isComposing)
         bridge.reset(); lastWord = null; lastWord2 = null
         clearUndo()
+        lastCommit = null
     }
 
     private fun clearUndo() { restoreUndoRaw = null; restoreUndoComposed = null; undoOfferActive = false }
@@ -253,6 +258,8 @@ class KeyboardSession(
                 } else {
                     commitAndLearn(bridge.boundary(" ", proxy))
                 }
+                // Space đôi có thể đã thành ". ": ⌫ sau đó không được mở lại từ.
+                bridge.forgetLastCommit()
                 clearUndo()
             }
             is Key.MoveCursor -> {
@@ -260,6 +267,8 @@ class KeyboardSession(
             }
             Key.Newline -> {
                 commitAndLearn(bridge.boundary("\n", proxy))
+                // Enter có thể là "gửi"/performEditorAction: ⌫ sau đó không mở lại từ cũ.
+                bridge.forgetLastCommit()
                 lastWord = null; lastWord2 = null; clearUndo()
             }
             Key.ClearField -> {
@@ -269,8 +278,8 @@ class KeyboardSession(
             Key.Backspace -> {
                 if (!bridge.isComposing && lastInsertWasSpace && restoreUndoRaw != null) undoOfferActive = true
                 else clearUndo()
-                bridge.backspace(proxy)
-                if (!bridge.isComposing) { lastWord = null; lastWord2 = null }
+                if (bridge.backspace(proxy)) onReopened()
+                else if (!bridge.isComposing) { lastWord = null; lastWord2 = null }
             }
         }
         lastInsertWasSpace = key == Key.Space || key == Key.DoubleSpacePeriod
@@ -324,9 +333,25 @@ class KeyboardSession(
         bridge.reset(); lastWord = null; lastWord2 = null; clearUndo()
     }
 
+    /**
+     * ⌫ vừa mở lại từ chốt trước: từ đó quay về trạng thái "đang gõ" — rút lượt học của nó
+     * (chốt lại sẽ học đúng một lần, kể cả khi đã sửa dấu) và trả ngữ cảnh về trước nó.
+     */
+    private fun onReopened() {
+        clearUndo()
+        val lc = lastCommit
+        lastCommit = null
+        if (lc != null && lc.word == bridge.composedWord) {
+            lc.learned?.let { langModel.retract(it) }
+            lastWord = lc.prev1; lastWord2 = lc.prev2
+        } else { lastWord = null; lastWord2 = null }
+    }
+
     private fun commitAndLearn(word: String, accepted: Boolean = false) {
+        lastCommit = null
         if (word.isEmpty()) return
-        if (learnEnabled) langModel.record(word, lastWord, lastWord2, if (accepted) 2 else 1)
+        val learned = if (learnEnabled) langModel.record(word, lastWord, lastWord2, if (accepted) 2 else 1) else null
+        lastCommit = LastCommit(word, lastWord, lastWord2, learned)
         if (UserLangModel.learnable(word)) { lastWord2 = lastWord; lastWord = word }
         else { lastWord = null; lastWord2 = null }
     }
