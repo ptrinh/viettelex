@@ -11,6 +11,21 @@ using namespace tables;
 
 namespace {
 
+// English word-list lookup (collisions, context words, restore-only, neutral loanwords).
+// -DVTX_NO_ENGLISH_TABLES ("lite" build, e.g. the web SDK's @viettelex/core/lite): every
+// lookup misses, so the lists are dropped by the linker. Dictionary features become
+// no-ops; Telex/VNI, tones, the syllable validator and validator-based auto-restore are
+// untouched. The default build is unchanged.
+template <size_t N>
+inline bool inEnglishList(const std::string_view (&set)[N], const char* w, int len) {
+#ifdef VTX_NO_ENGLISH_TABLES
+    (void)set; (void)w; (void)len;
+    return false;
+#else
+    return contains(set, w, len);
+#endif
+}
+
 inline int emit(const char32_t* src, int n, char16_t* buf, int cap) {
     if (!buf || cap <= 0) return n;
     int w = n < cap - 1 ? n : cap - 1;
@@ -401,7 +416,7 @@ bool TelexEngine::composedIsRecognizedEnglish() const {
     char w[kCapacity];
     int n = lowerAsciiInto(out_, outCount_, 12, w);
     if (n < 0) return false;
-    return contains(gen::kEnglishCollisions, w, n) || contains(gen::kEnglishContextWords, w, n);
+    return inEnglishList(gen::kEnglishCollisions, w, n) || inEnglishList(gen::kEnglishContextWords, w, n);
 }
 
 bool TelexEngine::isRecognizedEnglish() const {
@@ -425,8 +440,8 @@ TelexEngine::WordContext TelexEngine::classifyWordContext(bool restored) const {
             }
         }
         if (n > 0) {
-            bool neutral = contains(gen::kNeutralLoanwords, w, n);
-            if (contains(gen::kEnglishContextWords, w, n) || contains(gen::kEnglishCollisions, w, n) || neutral)
+            bool neutral = inEnglishList(gen::kNeutralLoanwords, w, n);
+            if (inEnglishList(gen::kEnglishContextWords, w, n) || inEnglishList(gen::kEnglishCollisions, w, n) || neutral)
                 return neutral ? WordContext::Neutral : WordContext::English;
         }
     }
@@ -439,7 +454,7 @@ TelexEngine::WordContext TelexEngine::classifyWordContext(bool restored) const {
 bool TelexEngine::rawIsNeutralLoanword() const {
     char w[kCapacity];
     int n = lowerAsciiInto(raw_, rawCount_, gen::kEnglishContextMaxLength, w);
-    return n > 0 && contains(gen::kNeutralLoanwords, w, n);
+    return n > 0 && inEnglishList(gen::kNeutralLoanwords, w, n);
 }
 
 void TelexEngine::updateContext(bool restored) {
@@ -455,8 +470,8 @@ bool TelexEngine::rawIsEnglishContextWord(bool includingRestoreOnly) const {
     char w[kCapacity];
     int n = lowerAsciiInto(raw_, rawCount_, gen::kEnglishContextMaxLength, w);
     if (n <= 0) return false;
-    if (contains(gen::kEnglishContextWords, w, n)) return true;
-    return includingRestoreOnly && contains(gen::kEnglishRestoreOnly, w, n);
+    if (inEnglishList(gen::kEnglishContextWords, w, n)) return true;
+    return includingRestoreOnly && inEnglishList(gen::kEnglishRestoreOnly, w, n);
 }
 
 void TelexEngine::reset() {
@@ -499,7 +514,7 @@ bool TelexEngine::rawIsEnglishCollision() const {
     }
     char w[kCapacity];
     int n = lowerAsciiInto(raw_, rawCount_, 12, w);
-    return n > 0 && contains(gen::kEnglishCollisions, w, n);
+    return n > 0 && inEnglishList(gen::kEnglishCollisions, w, n);
 }
 
 bool TelexEngine::rawIsEnglishException() const {

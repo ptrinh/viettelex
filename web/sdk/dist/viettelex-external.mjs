@@ -1,6 +1,6 @@
-// @viettelex/core — full engine, WebAssembly inlined (single file, no extra request).
+// @viettelex/core/external — full engine, loads viettelex-core.wasm by URL (cacheable). Option: createEngine({ wasmUrl }).
 // Same API as every entry point; see core.mjs and README.md.
-import factory from './viettelex-wasm.mjs';
+import factory from './viettelex-core.mjs';
 import { bindWasm, Flags, DEFAULT_OPTIONS, VietTelexEngine, detectForeignIme, isForeignVietnameseInput } from './core.mjs';
 export * from './core.mjs';
 

@@ -28,7 +28,10 @@
   <div class="row"><span class="badge" id="mode">VI</span>
     <label style="margin:0;font-weight:500"><input type="checkbox" id="vni"> VNI</label>
     <label style="margin:0;font-weight:500"><input type="checkbox" id="ctx" checked> Quyết định theo ngữ cảnh</label>
+    <label style="margin:0;font-weight:500">Bản
+      <select id="build"><option value="full">full (có từ điển tiếng Anh)</option><option value="lite">lite (nhỏ, không từ điển)</option></select></label>
   </div>
+  <p class="mut" id="info"></p>
   <label for="ta">Textarea</label>
   <textarea id="ta" placeholder="Gõ thử ở đây…"></textarea>
   <label for="in">Input</label>
@@ -37,7 +40,16 @@
   <div id="ce" contenteditable="true"></div>
 </main>
 <script type="module">
-  import { attach } from '../dist/viettelex.mjs';
+  // ?build=lite → @viettelex/core/lite (same API; contextualEnglish/collision options are ignored).
+  const build = new URLSearchParams(location.search).get('build') === 'lite' ? 'lite' : 'full';
+  const { attach, LITE } = await import(build === 'lite' ? '../dist/viettelex-lite.mjs' : '../dist/viettelex.mjs');
+  const sel = document.getElementById('build');
+  sel.value = build;
+  sel.onchange = () => { const u = new URL(location.href); u.searchParams.set('build', sel.value); location.href = u; };
+  document.getElementById('ctx').disabled = LITE;
+  document.getElementById('info').textContent = LITE
+    ? 'Bản lite: Telex/VNI, dấu, kiểm tra âm tiết và khôi phục theo luật vẫn đủ; không có từ điển tiếng Anh (thử "he is" → "he í", "affect" → "afect").'
+    : 'Bản full: có từ điển tiếng Anh (thử "he is", "affect", "google").';
   const mode = document.getElementById('mode');
   const onToggle = on => { mode.textContent = on ? 'VI' : 'EN'; };
   const handles = await Promise.all(['ta', 'in', 'ce'].map(id => attach(document.getElementById(id), { onToggle })));

@@ -1,19 +1,41 @@
 {
   "name": "@viettelex/core",
   "version": "1.0.0",
-  "description": "VietTelex Core — Vietnamese Telex/VNI input engine for the web (WebAssembly, same engine as the VietTelex apps).",
+  "description": "VietTelex Core — Vietnamese Telex/VNI input engine for the web (WebAssembly, same engine as the VietTelex apps). Full and lite builds, inlined or separate .wasm.",
   "type": "module",
   "main": "./dist/viettelex.mjs",
   "module": "./dist/viettelex.mjs",
-  "exports": { ".": "./dist/viettelex.mjs" },
-  "files": ["dist/", "README.md"],
+  "exports": {
+    ".": "./dist/viettelex.mjs",
+    "./lite": "./dist/viettelex-lite.mjs",
+    "./external": "./dist/viettelex-external.mjs",
+    "./lite/external": "./dist/viettelex-lite-external.mjs",
+    "./viettelex-core.wasm": "./dist/viettelex-core.wasm",
+    "./viettelex-lite-core.wasm": "./dist/viettelex-lite-core.wasm",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
   "sideEffects": false,
   "scripts": {
     "build": "./scripts/build.sh",
-    "test": "node test/foreign-ime.test.mjs && node test/golden.test.mjs"
+    "test": "node test/foreign-ime.test.mjs && node test/golden.test.mjs && node test/lite.test.mjs"
   },
-  "keywords": ["vietnamese", "telex", "vni", "input method", "ime", "wasm"],
+  "keywords": [
+    "vietnamese",
+    "telex",
+    "vni",
+    "input method",
+    "ime",
+    "wasm"
+  ],
   "license": "MIT",
   "homepage": "https://viettelex.com",
-  "repository": { "type": "git", "url": "https://github.com/ptrinh/viettelex.git", "directory": "web/sdk" }
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ptrinh/viettelex.git",
+    "directory": "web/sdk"
+  }
 }
