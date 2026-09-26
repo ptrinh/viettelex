@@ -192,7 +192,7 @@ private fun KieuGoSection() {
         RowDivider()
         BoolToggle(Keys.MODERN_TONE, Prefs.D.modernTone, "Bỏ dấu kiểu mới", "hoà, thuý thay vì hòa, thúy.")
         RowDivider()
-        BoolToggle(Keys.CONTEXTUAL_ENGLISH, Prefs.D.contextualEnglish, "Quyết định theo ngữ cảnh", "Sau một từ tiếng Anh, từ mơ hồ kế tiếp giữ nguyên tiếng Anh — \"he is\" → he is, không phải \"he í\". Sau từ tiếng Việt thì vẫn là tiếng Việt — \"sao í\".")
+        BoolToggle(Keys.CONTEXTUAL_ENGLISH, Prefs.D.contextualEnglish, "Quyết định theo ngữ cảnh", "Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → “he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để tiếng Việt — “sao í”.")
         RowDivider()
         BoolToggle(Keys.AUTO_FIX_ADJACENT, Prefs.D.autoFixAdjacent, "Gợi ý sửa lỗi chạm trượt", "Khi từ đang gõ không phải tiếng Việt, gợi ý từ đúng nếu bạn lỡ chạm phím bên cạnh: nbjeeuf → nhiều, ohims → phím, cahcs → cách. Chạm gợi ý để thay.")
         RowDivider()
