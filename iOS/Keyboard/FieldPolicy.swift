@@ -20,3 +20,24 @@ enum FieldPolicy {
         return literal.contains(c)
     }
 }
+
+extension FieldPolicy {
+    /// Auto-shift theo kiểu viết hoa của ô: true = bật shift, false = tắt, nil =
+    /// để nguyên. Host KHÔNG khai báo (nil) = mặc định UITextInputTraits là
+    /// `.sentences` — trước đây nil bị coi như "không viết hoa" nên ô trống vẫn
+    /// hiện phím chữ thường (feedback iPad 26/09/2026).
+    static func autoShift(autocap: UITextAutocapitalizationType?, before: String) -> Bool? {
+        switch autocap ?? .sentences {
+        case .none: return nil
+        case .allCharacters: return true
+        case .words:
+            return before.isEmpty || before.last?.isWhitespace == true
+        case .sentences:
+            let t = before.trimmingCharacters(in: .whitespaces)
+            return before.isEmpty
+                || (before.hasSuffix(" ") && (t.hasSuffix(".") || t.hasSuffix("!") || t.hasSuffix("?")))
+                || before.hasSuffix("\n")
+        @unknown default: return nil
+        }
+    }
+}

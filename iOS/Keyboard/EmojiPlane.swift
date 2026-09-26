@@ -31,7 +31,24 @@ final class EmojiPlane: UIView, UICollectionViewDataSource, UICollectionViewDele
         "objects": "ĐỒ VẬT", "symbols": "BIỂU TƯỢNG", "flags": "CỜ",
     ]
 
-    init(dark: Bool) {
+    /// Chỗ phím emoji vừa bấm (toạ độ KeyboardView; plane cùng mép trái + đáy):
+    /// minX, maxX, top = khoảng từ đáy lên đỉnh phím. ABC đặt ĐÚNG cột đó —
+    /// bấm nhầm emoji thì chạm lại chỗ cũ là về chữ (user 26/09/2026).
+    struct ABCSlot { var minX: CGFloat; var maxX: CGFloat; var top: CGFloat }
+    private let abcSlot: ABCSlot?
+    private var abcButton: UIButton?
+
+    /// Vùng chạm nở lên tới đỉnh phím emoji cũ và sang trái tới mép bàn phím.
+    private final class ABCButton: UIButton {
+        var hitRect: CGRect?   // toạ độ superview
+        override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+            guard let r = hitRect, let sv = superview else { return super.point(inside: point, with: event) }
+            return r.contains(convert(point, to: sv))
+        }
+    }
+
+    init(dark: Bool, abcSlot: ABCSlot? = nil) {
+        self.abcSlot = abcSlot
         super.init(frame: .zero)
         self.dark = dark
         isMultipleTouchEnabled = true
@@ -110,7 +127,7 @@ final class EmojiPlane: UIView, UICollectionViewDataSource, UICollectionViewDele
         row.translatesAutoresizingMaskIntoConstraints = false
 
         let ink: UIColor = dark ? .white : .black
-        let abc = UIButton(type: .custom)
+        let abc = ABCButton(type: .custom)
         abc.setTitle("ABC", for: .normal)
         abc.setTitleColor(ink, for: .normal)
         abc.titleLabel?.font = .systemFont(ofSize: 15, weight: .medium)
@@ -118,8 +135,18 @@ final class EmojiPlane: UIView, UICollectionViewDataSource, UICollectionViewDele
             KeyboardView.clickModifier()
             self?.onABC?()
         }, for: .touchDown)
-        row.addArrangedSubview(abc)
-        abc.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        if let slot = abcSlot {
+            // ABC nằm ngoài stack (layoutSubviews đặt frame theo slot); stack chừa
+            // chỗ bằng spacer để icon category không chui dưới ABC.
+            let spacer = UIView()
+            spacer.widthAnchor.constraint(equalToConstant: max(slot.maxX - 8 + 2, 44)).isActive = true
+            row.addArrangedSubview(spacer)
+            addSubview(abc)
+            abcButton = abc
+        } else {
+            row.addArrangedSubview(abc)
+            abc.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        }
 
         let iconsStack = UIStackView()
         iconsStack.axis = .horizontal
@@ -311,6 +338,15 @@ final class EmojiPlane: UIView, UICollectionViewDataSource, UICollectionViewDele
             lastLayoutWidth = bounds.width
             dismissTonePopup()
             collection.collectionViewLayout.invalidateLayout()
+        }
+        if let abc = abcButton as? ABCButton, let slot = abcSlot {
+            // Nhìn: cột phím emoji cũ, cao bằng hàng category (32, cách đáy 2).
+            abc.frame = CGRect(x: slot.minX, y: bounds.height - 34,
+                               width: slot.maxX - slot.minX, height: 32)
+            // Chạm: từ mép trái tới hết phím cũ, từ đỉnh phím cũ xuống đáy.
+            abc.hitRect = CGRect(x: 0, y: bounds.height - slot.top,
+                                 width: slot.maxX, height: slot.top)
+            bringSubviewToFront(abc)
         }
     }
 

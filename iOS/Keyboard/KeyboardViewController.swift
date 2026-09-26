@@ -175,12 +175,9 @@ final class KeyboardViewController: UIInputViewController {
     /// Apple behavior: shift turns on at sentence start when the field asks for
     /// .sentences autocapitalization (empty context, or after ".!?" + space).
     private func updateAutoShift() {
-        guard textDocumentProxy.autocapitalizationType == .sentences else { return }
-        let before = textDocumentProxy.documentContextBeforeInput ?? ""
-        let t = before.trimmingCharacters(in: .whitespaces)
-        let auto = before.isEmpty
-            || (before.hasSuffix(" ") && (t.hasSuffix(".") || t.hasSuffix("!") || t.hasSuffix("?")))
-            || before.hasSuffix("\n")
+        guard let auto = FieldPolicy.autoShift(
+            autocap: textDocumentProxy.autocapitalizationType ?? nil,
+            before: textDocumentProxy.documentContextBeforeInput ?? "") else { return }
         autoShiftOn = auto
         keyboard.setAutoShift(auto)
     }
