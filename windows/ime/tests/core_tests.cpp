@@ -106,6 +106,7 @@ TEST(settings_defaults_match_macos) {
     CHECK(!s.teencode);
     CHECK(!s.autoUpdateCheck);
     CHECK(!s.debugLogging);
+    CHECK(!s.showTrayIcon);  // tray icon hidden by default (1.0.5)
     CHECK_EQ(s.switchHotkey, std::string("ctrl-shift"));
     CHECK_EQ(s.uiLanguage, std::string("vi"));
     uint32_t f = s.engineFlags();
@@ -123,6 +124,7 @@ TEST(settings_snapshot_roundtrip) {
     s.vniMode = true;
     s.autoRestore = false;
     s.debugLogging = true;
+    s.showTrayIcon = true;
     s.switchHotkey = "win-space";
     s.uiLanguage = "en";
     s.shortcuts[u"vn"] = u"Việt Nam";
@@ -266,6 +268,39 @@ TEST(registration_data_shape) {
 
 #include "res/icon_ids.h"
 
+TEST(icon_choice_mapping) {
+    CHECK(parseIconChoice("vt") == IconChoice::Vt);
+    CHECK(parseIconChoice("star") == IconChoice::Star);
+    CHECK(parseIconChoice("flag") == IconChoice::Flag);
+    CHECK(parseIconChoice("logo") == IconChoice::Logo);
+    CHECK(parseIconChoice("vi") == IconChoice::Vi);
+    CHECK(parseIconChoice("letter") == IconChoice::Vt);  // retired "V / E" migrates to Vᴛ
+    CHECK(parseIconChoice("") == IconChoice::Vt);
+    for (int i = 0; i < kIconChoiceCount; ++i) {
+        IconChoice c = static_cast<IconChoice>(i);
+        CHECK(parseIconChoice(iconChoiceName(c)) == c);
+    }
+    // dynamic indicator icon
+    CHECK_EQ(indicatorIcon(IconChoice::Vt, true, false).resourceId, IDI_GLYPH_VT_V_DARK);
+    CHECK_EQ(indicatorIcon(IconChoice::Vt, false, true).resourceId, IDI_GLYPH_VT_E_LIGHT);
+    CHECK_EQ(indicatorIcon(IconChoice::Star, true, true).resourceId, IDI_GLYPH_STAR_V_LIGHT);
+    CHECK_EQ(indicatorIcon(IconChoice::Flag, false, false).resourceId, IDI_GLYPH_FLAG_E_DARK);
+    CHECK_EQ(indicatorIcon(IconChoice::Logo, true, false).resourceId, IDI_APP);
+    CHECK(!indicatorIcon(IconChoice::Logo, true, false).dim);
+    CHECK(indicatorIcon(IconChoice::Logo, false, false).dim);  // English = dimmed logo
+    CHECK_EQ(indicatorIcon(IconChoice::Vi, true, true).resourceId, 0);
+    CHECK_EQ(std::string(indicatorIcon(IconChoice::Vi, true, true).text), std::string("VI"));
+    CHECK_EQ(std::string(indicatorIcon(IconChoice::Vi, false, true).text), std::string("EN"));
+    // static profile icon: resource id and index in the DLL
+    CHECK_EQ(profileIconId(IconChoice::Vt), IDI_PROFILE_VT);
+    CHECK_EQ(profileIconId(IconChoice::Vi), IDI_PROFILE_VI);
+    CHECK_EQ(profileIconIndex(IconChoice::Vt), 13);
+    CHECK_EQ(profileIconIndex(IconChoice::Vi), 17);
+    CHECK_EQ(static_cast<int>(vtx::reg::kIconIndex), profileIconIndex(IconChoice::Vt));
+    // kAllIconIds must be ascending (Windows' icon-group index order)
+    for (size_t i = 1; i < sizeof(kAllIconIds) / sizeof(kAllIconIds[0]); ++i) CHECK(kAllIconIds[i - 1] < kAllIconIds[i]);
+}
+
 TEST(glyph_icon_ids) {
     CHECK_EQ(glyphIconId("vt", true, false), IDI_GLYPH_VT_V_DARK);
     CHECK_EQ(glyphIconId("vt", true, true), IDI_GLYPH_VT_V_LIGHT);
@@ -273,5 +308,20 @@ TEST(glyph_icon_ids) {
     CHECK_EQ(glyphIconId("star", false, true), IDI_GLYPH_STAR_E_LIGHT);
     CHECK_EQ(glyphIconId("flag", true, false), IDI_GLYPH_FLAG_V_DARK);
     CHECK_EQ(glyphIconId("garbage", true, true), IDI_GLYPH_VT_V_LIGHT);  // unknown -> default
-    CHECK_EQ(glyphIconId("letter", true, true), 0);
+    CHECK_EQ(glyphIconId("letter", true, true), IDI_GLYPH_VT_V_LIGHT);   // retired -> Vᴛ
+    CHECK_EQ(glyphIconId("logo", true, true), IDI_APP);
+    CHECK_EQ(glyphIconId("vi", true, true), 0);
+}
+
+TEST(display_attribute_provider_is_registered) {
+    // No-underline composition depends on TSF finding our ITfDisplayAttributeProvider,
+    // which it does ONLY through this category (Chrome underlines otherwise).
+    bool found = false;
+    for (size_t i = 0; i < vtx::reg::kCategoryCount; ++i)
+        if (std::string(vtx::reg::kCategories[i].guid) == "{046B8C80-1647-40F7-9B21-B93B81AABC1B}") found = true;
+    CHECK(found);
+    bool rows = false;
+    for (const auto& e : vtx::reg::tipRegistryEntries("x", "y"))
+        if (e.key.find("\\Category\\Category\\{046B8C80-1647-40F7-9B21-B93B81AABC1B}\\") != std::string::npos) rows = true;
+    CHECK(rows);  // ...and the MSI writes it (release.sh diffs the built MSI against these rows)
 }

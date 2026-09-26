@@ -65,25 +65,36 @@
       </Directory>
     </Directory>
 
-    <!-- Per-user steps (keyboard in the user's language list, autostart), run as the
-         installing user. Other users get them the first time they open VietTelex. -->
-    <CustomAction Id="SetupUser" FileKey="VietTelexExe" ExeCommand="--setup-user"
+    <!-- Per-user steps (keyboard in the user's language list, autostart) and clean removal.
+         NOT FileKey (type 18): a FileKey custom action fails with error 2753 "file not
+         marked for installation" whenever the exe's component has no action in that run —
+         repair, REINSTALL of a same-version file, maintenance (1.0.4). wixl also silently
+         drops Directory+ExeCommand (type 34), so: SetVtxExe (type 51) puts the installed
+         path in VTXEXE after CostFinalize, and the three actions are type 50 ("exe named by
+         a property"), which never looks at file install state.
+           SetupUser   immediate, after InstallFinalize -> runs as the installing user;
+                       any run that leaves the product installed (install, upgrade, repair).
+           LaunchApp   opens the Settings window after an INTERACTIVE install/upgrade only
+                       (UILevel >= 4: never for /qn or Store installs, never on repair
+                       (REINSTALL) or removal), fire-and-forget.
+           CleanupUser deferred + impersonated (as the user), before RemoveFiles, only on a
+                       real uninstall (not the removal half of a major upgrade). -->
+    <CustomAction Id="SetVtxExe" Property="VTXEXE" Value="[INSTALLFOLDER]VietTelex.exe" />
+    <CustomAction Id="SetupUser" Property="VTXEXE" ExeCommand="--setup-user"
                   Execute="immediate" Return="ignore" />
-    <CustomAction Id="LaunchApp" FileKey="VietTelexExe" ExeCommand="--background"
+    <CustomAction Id="LaunchApp" Property="VTXEXE" ExeCommand="--settings"
                   Execute="immediate" Return="asyncNoWait" />
-    <!-- Clean removal: keyboard, autostart, HKCU\Software\VietTelex, %LOCALAPPDATA%\VietTelex.
-         Not during a major upgrade (UPGRADINGPRODUCTCODE), and before RemoveFiles
-         because it runs the exe that step deletes. -->
-    <CustomAction Id="CleanupUser" FileKey="VietTelexExe" ExeCommand="--cleanup-user"
+    <CustomAction Id="CleanupUser" Property="VTXEXE" ExeCommand="--cleanup-user"
                   Execute="deferred" Impersonate="yes" Return="ignore" />
     <!-- EXPLICIT sequence numbers: wixl does not honour Before/After reliably (1.0.3 put
          CleanupUser at 1, before costing, and uninstall failed with error 2731).
          Standard numbers: CostFinalize 1000, InstallInitialize 1500, RemoveShortcuts 3200,
          RemoveFiles 3500, InstallFinalize 6600. check_msi.py enforces the ordering. -->
     <InstallExecuteSequence>
+      <Custom Action="SetVtxExe" Sequence="1010" />
       <Custom Action="CleanupUser" Sequence="3400">REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
       <Custom Action="SetupUser" Sequence="6610">NOT REMOVE</Custom>
-      <Custom Action="LaunchApp" Sequence="6620">NOT REMOVE AND UILevel &gt;= 4</Custom>
+      <Custom Action="LaunchApp" Sequence="6620">NOT REMOVE AND NOT REINSTALL AND UILevel &gt;= 4</Custom>
     </InstallExecuteSequence>
 
     <Feature Id="Complete" Level="1">

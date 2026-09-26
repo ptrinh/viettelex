@@ -17,6 +17,9 @@
                      e = English: the same glyph at 40% opacity. macOS has no English
                          state of its own glyph (the system shows the other input
                          source's icon), so "off" is the dimmed glyph.
+  Profile   windows/ime/res/profile_<vt|star|flag|logo|vi>.ico  (16..48) — the
+            static keyboard-profile icon: white glyph + dark outline (theme-neutral);
+            vi is a simple vector "VI" drawn here, logo is the app icon.
 Every ICO entry is a PNG (supported by Windows Vista+ LoadImage/LoadIconWithScaleDown).
 """
 import os
@@ -136,6 +139,85 @@ def main():
                 name = f'glyph_{style}_{state}_{theme}.ico'
                 write_ico(os.path.join(RES, name), ents)
                 print(name)
+    make_profile_icons(tmp)
+
+
+# ---------------------------------------------------------------- profile icons
+# The static keyboard-profile icon (Win+Space list, taskbar indicator where the TIP is not
+# active) is one registry value, so it cannot follow the taskbar theme. These variants are
+# a WHITE glyph with a 1-px dark outline: readable on both the light and the dark flyout.
+PROFILE_CHOICES = ['vt', 'star', 'flag', 'logo', 'vi']
+
+
+def polys_vi():  # "VI"
+    return [[(0.06, 0.18), (0.22, 0.18), (0.37, 0.64), (0.52, 0.18), (0.68, 0.18), (0.45, 0.84), (0.29, 0.84)],
+            [(0.76, 0.18), (0.91, 0.18), (0.91, 0.84), (0.76, 0.84)]]
+
+
+def inside(poly, x, y):
+    c = False
+    for i in range(len(poly)):
+        x1, y1 = poly[i]
+        x2, y2 = poly[(i + 1) % len(poly)]
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            c = not c
+    return c
+
+
+def raster_polys(polys, size, ss=4):
+    rows = []
+    for py in range(size):
+        line = bytearray(size * 4)
+        for px in range(size):
+            hit = sum(1 for sy in range(ss) for sx in range(ss)
+                      if any(inside(p, (px + (sx + .5) / ss) / size, (py + (sy + .5) / ss) / size) for p in polys))
+            line[px * 4 + 3] = round(255 * hit / (ss * ss))
+        rows.append(line)
+    return rows
+
+
+def outlined(rows, size):
+    """White glyph over a 1-px near-black outline (alpha dilated by one pixel)."""
+    a = [[rows[y][x * 4 + 3] for x in range(size)] for y in range(size)]
+    out = []
+    for y in range(size):
+        line = bytearray(size * 4)
+        for x in range(size):
+            ring = max(a[yy][xx] for yy in range(max(0, y - 1), min(size, y + 2))
+                       for xx in range(max(0, x - 1), min(size, x + 2)))
+            g = a[y][x] / 255.0
+            o = ring / 255.0 * 0.85
+            alpha = g + o * (1 - g)
+            v = int(255 * g / alpha) if alpha > 0 else 0          # white over dark outline
+            line[x * 4:x * 4 + 4] = bytes((v, v, v, int(alpha * 255 + 0.5)))
+        out.append(line)
+    return out
+
+
+def make_profile_icons(tmp):
+    app_png = {s: open(os.path.join(APPICONS, f'icon_{s}.png'), 'rb').read() for s in (16, 32, 64)}
+    for choice in PROFILE_CHOICES:
+        ents = []
+        for s in GLYPH_SIZES:
+            if choice == 'logo':
+                src = os.path.join(APPICONS, 'icon_64.png')
+                out = os.path.join(tmp, f'logo{s}.png')
+                if s in app_png:
+                    ents.append((s, app_png[s]))
+                    continue
+                sips(src, out, s)
+                ents.append((s, open(out, 'rb').read()))
+                continue
+            if choice in MENU:
+                out = os.path.join(tmp, f'p{choice}{s}.png')
+                sips(os.path.join(REPO, 'App', 'Resources', MENU[choice]), out, s)
+                w, h, rows = png_decode(open(out, 'rb').read())
+            else:
+                rows = raster_polys(polys_vi(), s)
+                w = h = s
+            ents.append((s, png_encode(w, h, outlined(rows, s))))
+        write_ico(os.path.join(RES, f'profile_{choice}.ico'), ents)
+        print(f'profile_{choice}.ico')
 
 
 if __name__ == '__main__':

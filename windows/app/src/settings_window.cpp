@@ -22,6 +22,7 @@
 #include <commdlg.h>
 #include <dwmapi.h>
 #include <shellapi.h>
+#include <msi.h>
 #include <uxtheme.h>
 
 #include <algorithm>
@@ -35,10 +36,12 @@ using std::min;
 #include <vector>
 
 #include "app.h"
+#include "icons.h"
 #include "res/icon_ids.h"
 #include "settings_store.h"
 #include "shortcuts.h"
 #include "strings.h"
+#include "uninstall.h"
 #include "updater.h"
 #include "utf.h"
 #include "version.h"
@@ -59,6 +62,7 @@ constexpr int kPad = 32;                  // page side padding
 constexpr int kCardPadX = 16, kCardPadY = 14, kCardGap = 4, kSectionGap = 24;
 constexpr int kControlW = 240;            // every combo is this wide
 constexpr int kToggleW = 40, kToggleH = 20;
+constexpr int kTileW = 96, kTileH = 84;  // icon picker tiles
 
 // ---------------------------------------------------------------- ids
 enum Id : int {
@@ -80,6 +84,8 @@ enum Id : int {
     IdAppAdd,
     IdAppRemove,
     IdCheckNow = 5000,
+    IdUninstall,
+    IdIconTile = 6000,  // + IconChoice
 };
 
 struct ToggleDef {
@@ -100,20 +106,20 @@ const ToggleDef kToggles[] = {
     {&Settings::reEditWord, S::ReEditWord, S::ReEditWordDesc},                         // 10
     {&Settings::autoUpdateCheck, S::AutoUpdateCheck, S::AutoUpdateCheckDesc},          // 11
     {&Settings::debugLogging, S::DebugLogging, S::DebugLoggingDesc},                   // 12
+    {&Settings::showTrayIcon, S::ShowTray, S::ShowTrayDesc},                           // 13
 };
 constexpr int kToggleCount = static_cast<int>(sizeof(kToggles) / sizeof(kToggles[0]));
 
 const char* const kHotkeys[] = {"ctrl-shift", "win-space", "alt-z", "off"};
 const S kHotkeyLabels[] = {S::HotkeyCtrlShift, S::HotkeyWinSpace, S::HotkeyAltZ, S::HotkeyOff};
-const char* const kIcons[] = {"vt", "star", "flag", "letter"};
-const S kIconLabels[] = {S::MenuIconVt, S::MenuIconStar, S::MenuIconFlag, S::MenuIconLetter};
+const S kIconLabels[kIconChoiceCount] = {S::IconVt, S::IconStar, S::IconFlag, S::IconLogo, S::IconVi};
 const AppMode kModes[] = {AppMode::Composition, AppMode::InPlace, AppMode::HookFallback, AppMode::Off};
 const S kModeLabels[] = {S::ModeComposition, S::ModeInPlace, S::ModeHook, S::ModeOff};
 
 // ---------------------------------------------------------------- theme
 struct Palette {
     COLORREF bg, card, cardBorder, text, subtext, navHover, navSelected, accent, accentText, ctrlBg,
-        toggleOffBorder, divider;
+        toggleOffBorder, divider, ctrlBorder, danger;
 };
 
 Palette g_pal;
@@ -168,11 +174,13 @@ void makePalette() {
         g_pal = {RGB(0x20, 0x20, 0x20), RGB(0x2B, 0x2B, 0x2B), RGB(0x1D, 0x1D, 0x1D), RGB(0xFF, 0xFF, 0xFF),
                  RGB(0xC5, 0xC5, 0xC5), RGB(0x2D, 0x2D, 0x2D), RGB(0x2D, 0x2D, 0x2D),
                  mix(accent, RGB(255, 255, 255), 35),  // Win11 uses the light accent shade on dark
-                 RGB(0, 0, 0), RGB(0x37, 0x37, 0x37), RGB(0xC5, 0xC5, 0xC5), RGB(0x3A, 0x3A, 0x3A)};
+                 RGB(0, 0, 0), RGB(0x32, 0x32, 0x32), RGB(0xC5, 0xC5, 0xC5), RGB(0x3A, 0x3A, 0x3A),
+                 RGB(0x48, 0x48, 0x48), RGB(0xFF, 0x99, 0xA4)};
     } else {
         g_pal = {RGB(0xF3, 0xF3, 0xF3), RGB(0xFB, 0xFB, 0xFB), RGB(0xE5, 0xE5, 0xE5), RGB(0x1B, 0x1B, 0x1B),
                  RGB(0x5F, 0x5F, 0x5F), RGB(0xEA, 0xEA, 0xEA), RGB(0xEA, 0xEA, 0xEA), accent,
-                 RGB(255, 255, 255), RGB(0xFF, 0xFF, 0xFF), RGB(0x86, 0x86, 0x86), RGB(0xE5, 0xE5, 0xE5)};
+                 RGB(255, 255, 255), RGB(0xFF, 0xFF, 0xFF), RGB(0x86, 0x86, 0x86), RGB(0xE5, 0xE5, 0xE5),
+                 RGB(0xD1, 0xD1, 0xD1), RGB(0xC4, 0x2B, 0x1C)};
     }
 }
 
@@ -267,13 +275,27 @@ int textHeight(const std::wstring& s, int width, HFONT f) {
     return r.bottom - r.top;
 }
 
+// Undocumented but stable since 1809: uxtheme #133 AllowDarkModeForWindow. The
+// DarkMode_* visual styles only take effect on a window that was allowed dark mode first
+// (without it Windows 10 draws the light classic look — the 1.0.3/1.0.4 screenshots).
+void allowDark(HWND h) {
+    using Fn = BOOL(WINAPI*)(HWND, BOOL);
+    static Fn fn = [] {
+        HMODULE ux = GetModuleHandleW(L"uxtheme.dll");
+        if (!ux) ux = LoadLibraryExW(L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+        return ux ? reinterpret_cast<Fn>(reinterpret_cast<void*>(GetProcAddress(ux, MAKEINTRESOURCEA(133)))) : nullptr;
+    }();
+    if (fn) fn(h, g_dark ? TRUE : FALSE);
+}
+
 void applyControlTheme(HWND h, const wchar_t* darkClass) {
+    allowDark(h);
     SetWindowTheme(h, g_dark ? darkClass : L"Explorer", nullptr);
     SendMessageW(h, WM_THEMECHANGED, 0, 0);
 }
 
 // ---------------------------------------------------------------- page model
-enum class ItemKind { Section, Setting, Block, About, Links };
+enum class ItemKind { Section, Setting, Block, About, Links, IconPicker };
 enum class Ctl { None, Toggle, Combo, Button };
 
 struct Item {
@@ -368,7 +390,14 @@ std::vector<Item> pageItems(int tab) {
             v.push_back(section(S::SecSwitch));
             v.push_back(comboItem(S::SwitchHotkey, S::SwitchHotkeyDesc, IdComboHotkey));
             v.push_back(section(S::SecAppearance));
-            v.push_back(comboItem(S::MenuIcon, S::MenuIconDesc, IdComboIcon));
+            {
+                Item picker;
+                picker.kind = ItemKind::IconPicker;
+                picker.title = S::MenuIcon;
+                picker.desc = S::MenuIconDesc;
+                v.push_back(picker);
+            }
+            v.push_back(toggleItem(13));
             v.push_back(comboItem(S::UiLanguage, S::UiLanguageDesc, IdComboLang));
             break;
         case 1:
@@ -386,6 +415,8 @@ std::vector<Item> pageItems(int tab) {
             v.push_back(toggleItem(11));
             v.push_back(section(S::SecDiagnostics));
             v.push_back(toggleItem(12));
+            v.push_back(section(S::SecUninstall));
+            v.push_back(buttonItem(S::Uninstall, S::UninstallDesc, IdUninstall));
             Item links;
             links.kind = ItemKind::Links;
             v.push_back(links);
@@ -511,29 +542,181 @@ HWND makeCombo(int id, const S* labels, int n) {
     HWND h = makeCtl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL, id);
     for (int i = 0; i < n; ++i) SendMessageW(h, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(tr(labels[i])));
     applyControlTheme(h, L"DarkMode_CFD");
+    SendMessageW(h, CB_SETITEMHEIGHT, static_cast<WPARAM>(-1), px(32) - px(6));  // 32px like edits/buttons
     return h;
 }
 
-HWND makeButton(const wchar_t* label, int id) {
-    HWND h = makeCtl(L"BUTTON", label, BS_PUSHBUTTON | WS_TABSTOP, id);
-    applyControlTheme(h, L"DarkMode_Explorer");
+// ---- one shared set of themed controls for every page (lists, edits, buttons) ----
+enum ButtonKind : LONG_PTR { kBtnSecondary = 0, kBtnPrimary = 1, kBtnDanger = 2, kBtnTile = 10 /* + IconChoice */ };
+std::vector<HWND> g_edits;  // edits get a painted Fluent frame (see paintPage)
+
+// Owner-drawn Fluent button: identical in light/dark and on every Windows version.
+HWND makeButton(const wchar_t* label, int id, ButtonKind kind = kBtnSecondary) {
+    HWND h = makeCtl(L"BUTTON", label, BS_OWNERDRAW | WS_TABSTOP, id);
+    SetWindowLongPtrW(h, GWLP_USERDATA, kind);
     return h;
+}
+
+void drawButton(const DRAWITEMSTRUCT* di) {
+    const LONG_PTR kind = GetWindowLongPtrW(di->hwndItem, GWLP_USERDATA);
+    const bool pressed = (di->itemState & ODS_SELECTED) != 0, focus = (di->itemState & ODS_FOCUS) != 0;
+    const int w = di->rcItem.right - di->rcItem.left, h = di->rcItem.bottom - di->rcItem.top;
+    // Draw into a memory bitmap and blit: GDI+ straight on the owner-draw DC clips the
+    // rounded right edge on some systems.
+    HDC mem = CreateCompatibleDC(di->hDC);
+    HBITMAP bmp = CreateCompatibleBitmap(di->hDC, w, h);
+    HGDIOBJ oldBmp = SelectObject(mem, bmp);
+    RECT rc = {0, 0, w, h};
+    FillRect(mem, &rc, g_brCard);
+    const bool tile = kind >= kBtnTile;
+    const int choice = tile ? static_cast<int>(kind - kBtnTile) : -1;
+    const bool selected = tile && static_cast<int>(parseIconChoice(g_settings.menuIcon)) == choice;
+    COLORREF fill = g_pal.ctrlBg, border = g_pal.ctrlBorder, fg = g_pal.text;
+    if (kind == kBtnPrimary) fill = border = g_pal.accent, fg = g_pal.accentText;
+    if (kind == kBtnDanger) fill = border = g_pal.danger, fg = g_dark ? RGB(0, 0, 0) : RGB(255, 255, 255);
+    if (pressed) fill = mix(fill, g_dark ? RGB(0, 0, 0) : RGB(255, 255, 255), 15);
+    {
+        Gdiplus::Graphics g(mem);
+        g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+        RECT body = rc;
+        if (tile && selected) InflateRect(&body, -1, -1);
+        fillRound(g, body, static_cast<float>(px(tile ? 6 : 4)), fill, selected ? g_pal.accent : border, true);
+        if (selected) {  // 2px accent ring for the chosen icon
+            Gdiplus::GraphicsPath p;
+            roundRectPath(p, body.left + 0.5f, body.top + 0.5f, static_cast<float>(body.right - body.left - 1),
+                          static_cast<float>(body.bottom - body.top - 1), static_cast<float>(px(6)));
+            Gdiplus::Pen pen(gc(g_pal.accent), 2.0f);
+            g.DrawPath(&pen, &p);
+        }
+        if (focus) {
+            RECT fr = rc;
+            InflateRect(&fr, -px(3), -px(3));
+            Gdiplus::GraphicsPath p;
+            roundRectPath(p, fr.left + 0.5f, fr.top + 0.5f, static_cast<float>(fr.right - fr.left - 1),
+                          static_cast<float>(fr.bottom - fr.top - 1), static_cast<float>(px(3)));
+            Gdiplus::Pen pen(gc(tile ? g_pal.text : fg), 1.0f);
+            pen.SetDashStyle(Gdiplus::DashStyleDot);
+            g.DrawPath(&pen, &p);
+        }
+    }
+    wchar_t buf[128];
+    GetWindowTextW(di->hwndItem, buf, 128);
+    if (tile) {
+        // Preview = exactly what the taskbar indicator will show (current taskbar theme).
+        const int icon = px(32);
+        if (HICON ic = tip::CreateStateIcon(g_inst, iconChoiceName(static_cast<IconChoice>(choice)), true, icon)) {
+            // The glyph is drawn for the TASKBAR colour; show it on a taskbar-coloured chip.
+            const bool light = tip::TaskbarIsLight();
+            RECT chip = {(w - px(44)) / 2, px(10), (w + px(44)) / 2, px(10) + px(44)};
+            HBRUSH cb = CreateSolidBrush(light ? RGB(0xEE, 0xEE, 0xEE) : RGB(0x1F, 0x1F, 0x1F));
+            FillRect(mem, &chip, cb);
+            DeleteObject(cb);
+            DrawIconEx(mem, (w - icon) / 2, px(16), ic, icon, icon, 0, nullptr, DI_NORMAL);
+            DestroyIcon(ic);
+        }
+        RECT cap = {px(4), px(58), w - px(4), h - px(4)};
+        text(mem, buf, cap, g_fCaption, g_pal.text, DT_SINGLELINE | DT_VCENTER | DT_CENTER | DT_END_ELLIPSIS);
+    } else {
+        text(mem, buf, rc, g_fBody, fg, DT_SINGLELINE | DT_VCENTER | DT_CENTER);
+    }
+    BitBlt(di->hDC, di->rcItem.left, di->rcItem.top, w, h, mem, 0, 0, SRCCOPY);
+    SelectObject(mem, oldBmp);
+    DeleteObject(bmp);
+    DeleteDC(mem);
+}
+
+// Edit: borderless native EDIT inside a painted frame; its placeholder is painted here in
+// the palette's secondary colour (EM_SETCUEBANNER's grey is unreadable on dark).
+LRESULT CALLBACK editSubclass(HWND h, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR cue) {
+    LRESULT r = DefSubclassProc(h, msg, wp, lp);
+    switch (msg) {
+        case WM_PAINT:
+            if (GetWindowTextLengthW(h) == 0 && GetFocus() != h) {
+                HDC dc = GetDC(h);
+                RECT rc;
+                GetClientRect(h, &rc);
+                rc.left += 2;
+                text(dc, reinterpret_cast<const wchar_t*>(cue), rc, g_fBody, g_pal.subtext,
+                     DT_SINGLELINE | DT_VCENTER);
+                ReleaseDC(h, dc);
+            }
+            break;
+        case WM_SETFOCUS:
+        case WM_KILLFOCUS:
+            InvalidateRect(h, nullptr, TRUE);
+            InvalidateRect(GetParent(h), nullptr, FALSE);  // frame accent line
+            break;
+        default: break;
+    }
+    return r;
 }
 
 HWND makeEdit(int id, const wchar_t* cue) {
-    HWND h = makeCtl(L"EDIT", L"", ES_AUTOHSCROLL | WS_TABSTOP, id, WS_EX_CLIENTEDGE);
-    SendMessageW(h, EM_SETCUEBANNER, TRUE, reinterpret_cast<LPARAM>(cue));
+    HWND h = makeCtl(L"EDIT", L"", ES_AUTOHSCROLL | WS_TABSTOP, id);
     applyControlTheme(h, L"DarkMode_CFD");
+    SetWindowSubclass(h, editSubclass, 1, reinterpret_cast<DWORD_PTR>(cue));
+    g_edits.push_back(h);
     return h;
 }
 
+// ListView header: fully custom-drawn in palette colours (the themed dark header is
+// dim-grey-on-black on Windows 10).
+LRESULT CALLBACK headerSubclass(HWND h, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR) {
+    if (msg == WM_ERASEBKGND) {
+        RECT rc;
+        GetClientRect(h, &rc);
+        FillRect(reinterpret_cast<HDC>(wp), &rc, g_brCard);
+        return 1;
+    }
+    return DefSubclassProc(h, msg, wp, lp);
+}
+
+LRESULT CALLBACK listSubclass(HWND h, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR) {
+    if (msg == WM_NOTIFY) {
+        auto* nm = reinterpret_cast<NMHDR*>(lp);
+        if (nm->hwndFrom == ListView_GetHeader(h) && nm->code == NM_CUSTOMDRAW) {
+            auto* cd = reinterpret_cast<NMCUSTOMDRAW*>(lp);
+            if (cd->dwDrawStage == CDDS_PREPAINT) return CDRF_NOTIFYITEMDRAW;
+            if (cd->dwDrawStage == CDDS_ITEMPREPAINT) {
+                RECT rc = cd->rc;
+                FillRect(cd->hdc, &rc, g_brCard);
+                wchar_t buf[128] = {};
+                HDITEMW item = {};
+                item.mask = HDI_TEXT;
+                item.pszText = buf;
+                item.cchTextMax = 128;
+                Header_GetItem(nm->hwndFrom, static_cast<int>(cd->dwItemSpec), &item);
+                RECT tr1 = rc;
+                tr1.left += px(12);
+                text(cd->hdc, buf, tr1, g_fSection, g_pal.text, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+                RECT line = {rc.left, rc.bottom - 1, rc.right, rc.bottom};
+                HBRUSH b = CreateSolidBrush(g_pal.divider);
+                FillRect(cd->hdc, &line, b);
+                if (cd->dwItemSpec == 0) {  // column separator
+                    RECT sep = {rc.right - 1, rc.top + px(6), rc.right, rc.bottom - px(6)};
+                    FillRect(cd->hdc, &sep, b);
+                }
+                DeleteObject(b);
+                return CDRF_SKIPDEFAULT;
+            }
+        }
+    }
+    return DefSubclassProc(h, msg, wp, lp);
+}
+
 HWND makeList(int id, const wchar_t* c1, const wchar_t* c2) {
-    HWND h = makeCtl(WC_LISTVIEWW, L"", LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | WS_TABSTOP, id);
+    HWND h = makeCtl(WC_LISTVIEWW, L"", LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER | WS_TABSTOP,
+                     id);
     ListView_SetExtendedListViewStyle(h, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
     applyControlTheme(h, L"DarkMode_Explorer");
-    if (HWND hdr = ListView_GetHeader(h)) applyControlTheme(hdr, L"DarkMode_ItemsView");
-    ListView_SetBkColor(h, g_pal.ctrlBg);
-    ListView_SetTextBkColor(h, g_pal.ctrlBg);
+    if (HWND hdr = ListView_GetHeader(h)) {
+        applyControlTheme(hdr, L"DarkMode_ItemsView");
+        SetWindowSubclass(hdr, headerSubclass, 1, 0);
+    }
+    SetWindowSubclass(h, listSubclass, 1, 0);
+    // Body = the card colour, so the list reads as part of the card (framed in paintPage).
+    ListView_SetBkColor(h, g_pal.card);
+    ListView_SetTextBkColor(h, g_pal.card);
     ListView_SetTextColor(h, g_pal.text);
     LVCOLUMNW col = {};
     col.mask = LVCF_TEXT | LVCF_WIDTH;
@@ -546,9 +729,18 @@ HWND makeList(int id, const wchar_t* c1, const wchar_t* c2) {
     return h;
 }
 
+void fitColumns() {
+    if (!g_list) return;
+    RECT rc;
+    GetClientRect(g_list, &rc);
+    ListView_SetColumnWidth(g_list, 0, rc.right * 2 / 5);
+    ListView_SetColumnWidth(g_list, 1, LVSCW_AUTOSIZE_USEHEADER);  // last column fills the rest
+}
+
 void createControls() {
     g_list = g_edit1 = g_edit2 = g_combo = nullptr;
     g_blockButtons.clear();
+    g_edits.clear();
     for (Item& it : g_items) {
         if (it.kind == ItemKind::Setting) {
             if (it.ctl == Ctl::Toggle) {
@@ -564,18 +756,25 @@ void createControls() {
                         break;
                     }
                     case IdComboHotkey: it.hwnd = makeCombo(it.ctlId, kHotkeyLabels, 4); break;
-                    case IdComboIcon: it.hwnd = makeCombo(it.ctlId, kIconLabels, 4); break;
                     case IdComboLang: {
                         it.hwnd = makeCtl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP, it.ctlId);
                         SendMessageW(it.hwnd, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"Tiếng Việt"));
                         SendMessageW(it.hwnd, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"English"));
                         applyControlTheme(it.hwnd, L"DarkMode_CFD");
+                        SendMessageW(it.hwnd, CB_SETITEMHEIGHT, static_cast<WPARAM>(-1), px(32) - px(6));
                         break;
                     }
                     default: break;
                 }
             } else if (it.ctl == Ctl::Button) {
-                it.hwnd = makeButton(tr(it.ctlId == IdCheckNow ? S::CheckButton : it.title), it.ctlId);
+                if (it.ctlId == IdUninstall) it.hwnd = makeButton(tr(S::UninstallButton), it.ctlId, kBtnDanger);
+                else it.hwnd = makeButton(tr(it.ctlId == IdCheckNow ? S::CheckButton : it.title), it.ctlId);
+            }
+        } else if (it.kind == ItemKind::IconPicker) {
+            for (int i = 0; i < kIconChoiceCount; ++i) {
+                HWND t = makeCtl(L"BUTTON", tr(kIconLabels[i]), BS_OWNERDRAW | WS_TABSTOP, IdIconTile + i);
+                SetWindowLongPtrW(t, GWLP_USERDATA, kBtnTile + i);
+                g_blockButtons.push_back(t);
             }
         } else if (it.kind == ItemKind::Block) {
             const bool sc = g_tab == 2;
@@ -584,7 +783,7 @@ void createControls() {
             g_edit1 = sc ? makeEdit(IdScKey, tr(S::ShortcutKey)) : makeEdit(IdAppExe, tr(S::AppExe));
             if (sc) g_edit2 = makeEdit(IdScValue, tr(S::ShortcutValue));
             else g_combo = makeCombo(IdAppMode, kModeLabels, 4);
-            g_blockButtons.push_back(makeButton(tr(S::Add), sc ? IdScAdd : IdAppAdd));
+            g_blockButtons.push_back(makeButton(tr(S::Add), sc ? IdScAdd : IdAppAdd, kBtnPrimary));
             g_blockButtons.push_back(makeButton(tr(S::Remove), sc ? IdScRemove : IdAppRemove));
             if (sc) {
                 g_blockButtons.push_back(makeButton(tr(S::Import), IdScImport));
@@ -625,6 +824,13 @@ void layout() {
                 y = it.rc.bottom + px(kCardGap);
                 break;
             }
+            case ItemKind::IconPicker: {
+                const int textW = cardW - 2 * px(kCardPadX);
+                const int head = textHeight(tr(it.title), textW, g_fBody) + px(2) + textHeight(tr(it.desc), textW, g_fCaption);
+                it.rc = {x0, y, x1, y + 2 * px(kCardPadY) + head + px(12) + px(kTileH)};
+                y = it.rc.bottom + px(kCardGap);
+                break;
+            }
             case ItemKind::About: {
                 const int textW = cardW - px(24 + 64 + 20 + 24);
                 const int h = px(20) + px(28) + px(20) + px(4) + textHeight(tr(S::AboutText), textW, g_fCaption) + px(20);
@@ -659,6 +865,13 @@ void placeControls() {
             } else if (it.ctl == Ctl::Button) {
                 put(it.hwnd, r.right - px(kCardPadX) - px(kControlW), midY - px(16), px(kControlW), px(32));
             }
+        } else if (it.kind == ItemKind::IconPicker) {
+            int x = r.left + px(kCardPadX);
+            const int y = r.bottom - px(kCardPadY) - px(kTileH);
+            for (HWND t : g_blockButtons) {
+                put(t, x, y, px(kTileW), px(kTileH));
+                x += px(kTileW + 8);
+            }
         } else if (it.kind == ItemKind::Block) {
             const int left = r.left + px(kCardPadX), right = r.right - px(kCardPadX);
             int y = r.bottom - px(kCardPadY) - px(it.blockHeight);
@@ -666,8 +879,10 @@ void placeControls() {
             put(g_list, left, y, right - left, listH);
             y += listH + px(8);
             const int half = (right - left - px(8)) / 2;
-            put(g_edit1, left, y, half, px(32));
-            put(g_edit2, left + half + px(8), y, half, px(32));
+            // Edits sit inside a painted 32px frame: 10px side padding, one text line tall.
+            const int lineH = px(20), inset = (px(32) - lineH) / 2;
+            put(g_edit1, left + px(10), y + inset, half - px(20), lineH);
+            put(g_edit2, left + half + px(8) + px(10), y + inset, half - px(20), lineH);
             if (g_combo) put(g_combo, left + half + px(8), y, half, px(320));
             y += px(32 + 8);
             int bx = left;
@@ -675,13 +890,10 @@ void placeControls() {
                 put(b, bx, y, px(112), px(32));
                 bx += px(112 + 8);
             }
-            if (g_list) {  // two columns exactly filling the list (no stub column)
-                ListView_SetColumnWidth(g_list, 0, (right - left) * 2 / 5);
-                ListView_SetColumnWidth(g_list, 1, LVSCW_AUTOSIZE_USEHEADER);
-            }
         }
     }
     EndDeferWindowPos(dwp);
+    fitColumns();
 }
 
 void updateScrollbar() {
@@ -741,6 +953,7 @@ void fillList() {
         for (const auto& kv : g_settings.appModes)
             addRow(g_list, row++, widen(kv.first), tr(kModeLabels[modeIndex(kv.second)]));
     }
+    fitColumns();
 }
 
 void sync() {
@@ -759,10 +972,6 @@ void sync() {
                 for (int i = 0; i < 4; ++i)
                     if (g_settings.switchHotkey == kHotkeys[i]) sel = i;
                 break;
-            case IdComboIcon:
-                for (int i = 0; i < 4; ++i)
-                    if (g_settings.menuIcon == kIcons[i]) sel = i;
-                break;
             case IdComboLang: sel = g_settings.uiLanguage == "en" ? 1 : 0; break;
             default: continue;
         }
@@ -772,6 +981,7 @@ void sync() {
     fillList();
     g_syncing = false;
     InvalidateRect(g_page, nullptr, FALSE);
+    for (HWND b : g_blockButtons) InvalidateRect(b, nullptr, FALSE);
 }
 
 void buildPage() {
@@ -794,6 +1004,8 @@ void buildPage() {
 }
 
 // ---------------------------------------------------------------- painting
+void paintControlFrames(HDC dc, Gdiplus::Graphics& g);
+
 void paintPage(HDC dc, const RECT& client) {
     FillRect(dc, &client, g_brBg);
     g_links.clear();
@@ -842,6 +1054,16 @@ void paintPage(HDC dc, const RECT& client) {
                 text(dc, tr(it.desc), tr1, g_fCaption, g_pal.subtext, DT_WORDBREAK);
                 break;
             }
+            case ItemKind::IconPicker: {
+                fillRound(g, r, radius, g_pal.card, g_pal.cardBorder, true);
+                const int textW = (r.right - r.left) - 2 * px(kCardPadX);
+                RECT tr1 = {r.left + px(kCardPadX), r.top + px(kCardPadY), r.left + px(kCardPadX) + textW, r.bottom};
+                const int th = textHeight(tr(it.title), textW, g_fBody);
+                text(dc, tr(it.title), tr1, g_fBody, g_pal.text, DT_WORDBREAK);
+                tr1.top += th + px(2);
+                text(dc, tr(it.desc), tr1, g_fCaption, g_pal.subtext, DT_WORDBREAK);
+                break;
+            }
             case ItemKind::About: {
                 fillRound(g, r, radius, g_pal.card, g_pal.cardBorder, true);
                 const int icon = px(64);
@@ -851,7 +1073,8 @@ void paintPage(HDC dc, const RECT& client) {
                 RECT tr1 = {r.left + px(24) + icon + px(20), r.top + px(20), r.right - px(24), r.top + px(48)};
                 text(dc, L"VietTelex", tr1, g_fHeader, g_pal.text, DT_SINGLELINE | DT_VCENTER);
                 RECT tr2 = {tr1.left, tr1.bottom, tr1.right, tr1.bottom + px(20)};
-                text(dc, std::wstring(tr(S::Version)) + L" " + VTX_VER_STRING_W, tr2, g_fCaption, g_pal.subtext,
+                text(dc, std::wstring(tr(S::Version)) + L" " + widen(versionForDisplay(VTX_VER_STRING)), tr2,
+                     g_fCaption, g_pal.subtext,
                      DT_SINGLELINE | DT_VCENTER);
                 RECT tr3 = {tr1.left, tr2.bottom + px(4), tr1.right, r.bottom - px(12)};
                 text(dc, tr(S::AboutText), tr3, g_fCaption, g_pal.subtext, DT_WORDBREAK);
@@ -883,6 +1106,38 @@ void paintPage(HDC dc, const RECT& client) {
                 break;
             }
         }
+    }
+    paintControlFrames(dc, g);
+}
+
+// Fluent text-box frames around the borderless edits, and a frame around each list.
+void paintControlFrames(HDC dc, Gdiplus::Graphics& g) {
+    auto frameOf = [&](HWND h, int padX, int padY) {
+        RECT r;
+        GetWindowRect(h, &r);
+        MapWindowPoints(nullptr, g_page, reinterpret_cast<POINT*>(&r), 2);
+        InflateRect(&r, padX, padY);
+        return r;
+    };
+    const float radius = static_cast<float>(px(4));
+    for (HWND e : g_edits) {
+        if (!IsWindowVisible(e)) continue;
+        const int inset = (px(32) - px(20)) / 2;
+        RECT r = frameOf(e, px(10), inset);
+        fillRound(g, r, radius, g_pal.ctrlBg, g_pal.ctrlBorder, true);
+        const bool focus = GetFocus() == e;
+        RECT line = {r.left + px(1), r.bottom - (focus ? px(2) : 1), r.right - px(1), r.bottom};
+        HBRUSH b = CreateSolidBrush(focus ? g_pal.accent : g_pal.toggleOffBorder);
+        FillRect(dc, &line, b);
+        DeleteObject(b);
+    }
+    if (g_list && IsWindowVisible(g_list)) {
+        RECT r = frameOf(g_list, 1, 1);
+        Gdiplus::GraphicsPath path;
+        roundRectPath(path, r.left + 0.5f, r.top + 0.5f, static_cast<float>(r.right - r.left - 1),
+                      static_cast<float>(r.bottom - r.top - 1), radius);
+        Gdiplus::Pen pen(gc(g_pal.ctrlBorder), 1.0f);
+        g.DrawPath(&pen, &path);
     }
 }
 
@@ -998,7 +1253,74 @@ void exportShortcuts() {
 
 void rebuildAll();
 
+bool nativeArm64() {
+    SYSTEM_INFO si;
+    GetNativeSystemInfo(&si);
+    return si.wProcessorArchitecture == 12;  // PROCESSOR_ARCHITECTURE_ARM64
+}
+
+std::vector<std::string> msiRelatedProducts(const std::string& upgradeCode) {
+    std::vector<std::string> out;
+    const std::wstring up = widen(upgradeCode);
+    wchar_t code[39];
+    for (DWORD i = 0; MsiEnumRelatedProductsW(up.c_str(), 0, i, code) == ERROR_SUCCESS; ++i) out.push_back(narrow(code));
+    return out;
+}
+
+// "Gỡ cài đặt VietTelex": confirm, then msiexec /x <our ProductCode found by UpgradeCode>
+// (msiexec elevates itself) and quit the tray app so its files are not in use. A dev
+// build (nothing installed) opens Settings > Apps instead.
+void uninstallVietTelex() {
+    if (MessageBoxW(g_wnd, tr(S::UninstallConfirm), tr(S::AppName), MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES)
+        return;
+    const std::string code = findInstalledProductCode(msiRelatedProducts, nativeArm64());
+    if (code.empty()) {
+        ShellExecuteW(g_wnd, L"open", L"ms-settings:appsfeatures", nullptr, nullptr, SW_SHOWNORMAL);
+        return;
+    }
+    const std::wstring params = widen(uninstallParameters(code));
+    SHELLEXECUTEINFOW sei = {};
+    sei.cbSize = sizeof sei;
+    sei.fMask = SEE_MASK_NOASYNC;
+    sei.hwnd = g_wnd;
+    sei.lpVerb = L"open";
+    sei.lpFile = L"msiexec.exe";
+    sei.lpParameters = params.c_str();
+    sei.nShow = SW_SHOWNORMAL;
+    if (ShellExecuteExW(&sei)) {
+        if (g_wnd) DestroyWindow(g_wnd);
+        if (g_mainWnd) PostMessageW(g_mainWnd, WM_CLOSE, 0, 0);  // tray app exits; typing is unaffected
+    }
+}
+
+// Keyboard-profile icon (HKLM) — changed by the elevated helper; one UAC prompt. The
+// taskbar indicator / tray icon change immediately without it.
+void applyProfileIcon(const std::string& name) {
+    wchar_t exe[MAX_PATH];
+    if (!GetModuleFileNameW(nullptr, exe, MAX_PATH)) return;
+    const std::wstring params = L"--set-profile-icon " + widen(name);
+    SHELLEXECUTEINFOW sei = {};
+    sei.cbSize = sizeof sei;
+    sei.hwnd = g_wnd;
+    sei.lpVerb = L"runas";
+    sei.lpFile = exe;
+    sei.lpParameters = params.c_str();
+    sei.nShow = SW_HIDE;
+    ShellExecuteExW(&sei);  // declined UAC = only the profile icon stays as it was
+}
+
 void onCommand(int id, int code, HWND ctl) {
+    if (id >= IdIconTile && id < IdIconTile + kIconChoiceCount && code == BN_CLICKED) {
+        const std::string name = iconChoiceName(static_cast<IconChoice>(id - IdIconTile));
+        if (parseIconChoice(g_settings.menuIcon) != static_cast<IconChoice>(id - IdIconTile) ||
+            g_settings.menuIcon != name) {
+            g_settings.menuIcon = name;  // also migrates a retired value ("letter")
+            changed();
+            for (HWND t : g_blockButtons) InvalidateRect(t, nullptr, FALSE);
+            applyProfileIcon(name);
+        }
+        return;
+    }
     if (id >= IdToggleBase && id < IdToggleBase + kToggleCount && code == BN_CLICKED) {
         g_settings.*kToggles[id - IdToggleBase].field = SendMessageW(ctl, BM_GETCHECK, 0, 0) == BST_CHECKED;
         changed();
@@ -1016,12 +1338,6 @@ void onCommand(int id, int code, HWND ctl) {
         case IdComboHotkey:
             if (code == CBN_SELCHANGE && sel() >= 0 && sel() < 4) {
                 g_settings.switchHotkey = kHotkeys[sel()];
-                changed();
-            }
-            break;
-        case IdComboIcon:
-            if (code == CBN_SELCHANGE && sel() >= 0 && sel() < 4) {
-                g_settings.menuIcon = kIcons[sel()];
                 changed();
             }
             break;
@@ -1078,14 +1394,21 @@ void onCommand(int id, int code, HWND ctl) {
             break;
         }
         case IdCheckNow: startUpdateCheck(g_mainWnd, true); break;
+        case IdUninstall: uninstallVietTelex(); break;
         default: break;
     }
 }
 
-void onNotify(NMHDR* n) {
-    if (n->code != LVN_ITEMCHANGED) return;
+LRESULT onNotify(NMHDR* n) {
+    if (n->code == LVN_GETEMPTYMARKUP) {  // centred empty-state text
+        auto* em = reinterpret_cast<NMLVEMPTYMARKUP*>(n);
+        em->dwFlags = EMF_CENTERED;
+        lstrcpynW(em->szMarkup, tr(n->idFrom == IdScList ? S::EmptyShortcuts : S::EmptyApps), L_MAX_URL_LENGTH);
+        return TRUE;
+    }
+    if (n->code != LVN_ITEMCHANGED) return 0;
     auto* lv = reinterpret_cast<NMLISTVIEW*>(n);
-    if (!(lv->uNewState & LVIS_SELECTED)) return;
+    if (!(lv->uNewState & LVIS_SELECTED)) return 0;
     if (n->idFrom == IdScList) {
         SetWindowTextW(g_edit1, rowText(g_list, lv->iItem, 0).c_str());
         SetWindowTextW(g_edit2, rowText(g_list, lv->iItem, 1).c_str());
@@ -1096,6 +1419,7 @@ void onNotify(NMHDR* n) {
         if (it != g_settings.appModes.end())
             SendMessageW(g_combo, CB_SETCURSEL, static_cast<WPARAM>(modeIndex(it->second)), 0);
     }
+    return 0;
 }
 
 LRESULT colorCtl(HDC dc, bool ctrl) {
@@ -1107,7 +1431,13 @@ LRESULT colorCtl(HDC dc, bool ctrl) {
 LRESULT CALLBACK pageProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
         case WM_COMMAND: onCommand(LOWORD(wp), HIWORD(wp), reinterpret_cast<HWND>(lp)); return 0;
-        case WM_NOTIFY: onNotify(reinterpret_cast<NMHDR*>(lp)); return 0;
+        case WM_NOTIFY: return onNotify(reinterpret_cast<NMHDR*>(lp));
+        case WM_DRAWITEM:
+            if (reinterpret_cast<DRAWITEMSTRUCT*>(lp)->CtlType == ODT_BUTTON) {
+                drawButton(reinterpret_cast<DRAWITEMSTRUCT*>(lp));
+                return TRUE;
+            }
+            break;
         case WM_CTLCOLOREDIT:
         case WM_CTLCOLORLISTBOX: return colorCtl(reinterpret_cast<HDC>(wp), true);
         case WM_CTLCOLORSTATIC:
@@ -1183,7 +1513,12 @@ void selectTab(int i) {
 
 void applyWindowTheme() {
     BOOL dark = g_dark ? TRUE : FALSE;
-    DwmSetWindowAttribute(g_wnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof dark);
+    allowDark(g_wnd);
+    // DWMWA_USE_IMMERSIVE_DARK_MODE is 20 from Windows 10 20H1; 1809-1909 used 19.
+    if (FAILED(DwmSetWindowAttribute(g_wnd, 20, &dark, sizeof dark)))
+        DwmSetWindowAttribute(g_wnd, 19, &dark, sizeof dark);
+    // Windows 10 only repaints the caption with the new colour after a frame change.
+    SetWindowPos(g_wnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
     if (g_win11) {
         int corner = 2;  // DWMWCP_ROUND
         DwmSetWindowAttribute(g_wnd, 33 /* DWMWA_WINDOW_CORNER_PREFERENCE */, &corner, sizeof corner);

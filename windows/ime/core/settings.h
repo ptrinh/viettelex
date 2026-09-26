@@ -35,10 +35,12 @@ struct Settings {
     bool reEditWord = true;
     // Chuyển / giao diện / hệ thống
     std::string switchHotkey = "ctrl-shift";
-    std::string menuIcon = "vt";      // "vt" (Vᴛ) | "letter" (V / E)
+    std::string menuIcon = "vt";      // keyboard icon: vt | star | flag | logo | vi (res/icon_ids.h)
     std::string uiLanguage = "vi";    // "vi" | "en"
     bool autoUpdateCheck = false;
     bool debugLogging = false;
+    bool showTrayIcon = false;        // tray icon off: the taskbar input indicator shows V/E
+                                      // already; Start menu -> VietTelex opens Settings
     // Data
     std::map<std::u16string, std::u16string> shortcuts;   // gõ tắt
     std::map<std::string, AppMode> appModes;              // user override, key = lowercase exe

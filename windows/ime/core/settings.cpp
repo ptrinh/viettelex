@@ -23,6 +23,7 @@ const BoolKey kBoolKeys[] = {
     {"reEditWord", &Settings::reEditWord},
     {"autoUpdateCheck", &Settings::autoUpdateCheck},
     {"debugLogging", &Settings::debugLogging},
+    {"showTrayIcon", &Settings::showTrayIcon},
 };
 constexpr size_t kBoolCount = sizeof(kBoolKeys) / sizeof(kBoolKeys[0]);
 constexpr uint32_t kMagic = 0x53585456;  // "VTXS"

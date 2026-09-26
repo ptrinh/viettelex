@@ -1,6 +1,6 @@
-// icons.h — mode icons drawn at runtime (no bitmap assets, crisp at any DPI).
-// Glyph is black with alpha; the language bar recolours it to the taskbar text colour
-// (TF_LBI_STYLE_TEXTCOLORICON), so one icon serves light and dark taskbars.
+// icons.h — icons for the taskbar input indicator (TIP) and the app's tray / icon picker.
+// Glyphs come from the macOS artwork (resources, see res/icon_ids.h); the "VI"/"EN" text
+// choice is drawn at runtime like the system's own ENG/VIE labels.
 #pragma once
 #include <string>
 
@@ -8,15 +8,19 @@
 
 namespace vtx::tip {
 
-// vietnamese: "V" (menuIcon "vt": V with a small T) vs "E". size <= 0: SM_CXSMICON.
-HICON CreateModeIcon(bool vietnamese, bool vtStyle, int size, COLORREF color = RGB(0, 0, 0));
-
 // True when the TASKBAR uses the light theme (HKCU ...\Personalize SystemUsesLightTheme).
 // Unreadable (AppContainer, secure desktop) -> false: dark taskbar, the Windows default.
 bool TaskbarIsLight();
 
-// The macOS-derived glyph for the current state, sized for the taskbar (SM_CXSMICON
-// unless `size` > 0). `menuIcon` "letter" -> runtime-drawn V/E. Caller destroys.
+// The icon for choice `menuIcon` ("vt", "star", "flag", "logo", "vi"; anything else = vt)
+// in state `vietnamese`, for the current taskbar theme. `module` holds the icon resources.
+// size <= 0: SM_CXSMICON. Caller destroys.
 HICON CreateStateIcon(HINSTANCE module, const std::string& menuIcon, bool vietnamese, int size = 0);
+
+// Short text ("VI", "EN") as an icon, in `color`, on a transparent background.
+HICON CreateTextIcon(const wchar_t* text, int size, COLORREF color);
+
+// Copy of `icon` with its alpha multiplied by `opacity` (0..1). Caller destroys both.
+HICON CreateDimmedIcon(HICON icon, int size, float opacity);
 
 }  // namespace vtx::tip

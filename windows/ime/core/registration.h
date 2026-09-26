@@ -33,7 +33,10 @@ constexpr const char* kComDescription = "VietTelex Text Service";
 // ASCII on purpose: wixl writes MSI strings in codepage 1252 only, and the MSI carries
 // this value verbatim. Windows lists it under the "Tiếng Việt" language anyway.
 constexpr const char* kProfileDescription = "VietTelex";
-constexpr uint32_t kIconIndex = 0;
+// Index of the default profile icon (monochrome Vᴛ, IDI_PROFILE_VT) in the TIP DLL's icon
+// resources — vtx::profileIconIndex(IconChoice::Vt); a unit test keeps them equal.
+// VietTelex.exe --set-profile-icon rewrites it when the user picks another icon.
+constexpr uint32_t kIconIndex = 13;
 
 struct Category {
     const char* guid;

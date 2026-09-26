@@ -19,6 +19,12 @@ IDI_GLYPH_FLAG_V_DARK ICON "../res/glyph_flag_v_dark.ico"
 IDI_GLYPH_FLAG_V_LIGHT ICON "../res/glyph_flag_v_light.ico"
 IDI_GLYPH_FLAG_E_DARK ICON "../res/glyph_flag_e_dark.ico"
 IDI_GLYPH_FLAG_E_LIGHT ICON "../res/glyph_flag_e_light.ico"
+// Static keyboard-profile icons (LanguageProfile\IconIndex = position in icon_ids.h kAllIconIds).
+IDI_PROFILE_VT ICON "../res/profile_vt.ico"
+IDI_PROFILE_STAR ICON "../res/profile_star.ico"
+IDI_PROFILE_FLAG ICON "../res/profile_flag.ico"
+IDI_PROFILE_LOGO ICON "../res/profile_logo.ico"
+IDI_PROFILE_VI ICON "../res/profile_vi.ico"
 
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION VTX_VER_MAJOR,VTX_VER_MINOR,VTX_VER_PATCH,VTX_VER_BUILD

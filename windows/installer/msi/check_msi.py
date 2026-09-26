@@ -13,8 +13,9 @@ Checks, for every table in _Tables:
     during FileCost (VietTelex 1.0.0). Wine and libmsi accept such a file, so this
     must be checked on the bytes;
 and, for the tables VietTelex writes, that the column schema is the standard one;
-and that custom actions running an installed file are sequenced after CostFinalize
-(error 2731 otherwise — VietTelex 1.0.3 could not be uninstalled).
+that custom actions running an installed file are sequenced after CostFinalize
+(error 2731 otherwise — VietTelex 1.0.3 could not be uninstalled); and that no custom
+action is FileKey-based (error 2753 on repair — VietTelex 1.0.4).
 Exit 1 with a message per problem.
 """
 import struct
@@ -198,6 +199,53 @@ STANDARD = {
 }
 
 
+def first_key_order_problem(keys):
+    """Stored primary keys (string ids / biased ints) must be strictly ascending: that is
+    the order Windows Installer loads a persistent table in. libmsi sorts by key TEXT, so a
+    new string that reused a freed low id lands out of order (VietTelex 1.0.0, error 2211).
+    Returns (row, 'duplicate'|'out of order') for the first bad row, else None."""
+    for r in range(1, len(keys)):
+        if keys[r] <= keys[r - 1]:
+            return r, 'duplicate' if keys[r] == keys[r - 1] else 'out of order'
+    return None
+
+
+def ca_problems(cas, sequences, files, dirs):
+    """Custom-action rules on plain data (see check_custom_action_sequence)."""
+    problems = []
+    for name, ca in cas.items():
+        if (ca['Type'] & 0x3F) in FILE_SOURCED and ca['Source'] in files:
+            problems.append(f'CustomAction {name}: type {ca["Type"]} runs installed file {ca["Source"]} '
+                            f'(FileKey) -> error 2753 on repair/maintenance; use a property (type 50) action')
+    for table, seq in sequences.items():
+        cost_final = seq.get('CostFinalize')
+        for action, number in seq.items():
+            ca = cas.get(action)
+            if not ca or number is None or number < 0:
+                continue
+            base = ca['Type'] & 0x3F
+            target = ca['Target'] or ''
+            if base in FILE_OR_DIR_SOURCED and (cost_final is None or number <= cost_final):
+                problems.append(f'{table}: custom action {action} (type {ca["Type"]}, source {ca["Source"]}) '
+                                f'at {number} runs before CostFinalize ({cost_final}) -> error 2731')
+            if base in (35, 51) and any(f'[{d}]' in target for d in dirs):
+                if cost_final is None or number <= cost_final:
+                    problems.append(f'{table}: {action} formats a directory at {number}, before CostFinalize '
+                                    f'({cost_final}) -> error 2731')
+            if base == 50:
+                setters = [a for a, n in seq.items() if cas.get(a) and (cas[a]['Type'] & 0x3F) == 51
+                           and cas[a]['Source'] == ca['Source'] and n is not None and 0 <= n < number]
+                if not setters:
+                    problems.append(f'{table}: {action} runs the exe in property {ca["Source"]} '
+                                    f'but nothing sets it before sequence {number}')
+        if table == 'InstallExecuteSequence' and 'CleanupUser' in seq:
+            n, init, rf = seq['CleanupUser'], seq.get('InstallInitialize'), seq.get('RemoveFiles')
+            if not (init is not None and rf is not None and init < n < rf):
+                problems.append(f'{table}: CleanupUser at {n} must be after InstallInitialize ({init}) '
+                                f'and before RemoveFiles ({rf})')
+    return problems
+
+
 def table_dicts(m, table):
     """Rows of `table` as dicts (strings decoded, ints unbiased, null -> None)."""
     if table not in m.columns:
@@ -224,28 +272,17 @@ def table_dicts(m, table):
 # "Selection Manager not initialized" (VietTelex 1.0.3: wixl put CleanupUser at
 # sequence 1 despite Before="RemoveFiles", so every uninstall failed).
 FILE_OR_DIR_SOURCED = {17, 18, 21, 22, 34}
+FILE_SOURCED = {17, 18, 21, 22}
 
 
 def check_custom_action_sequence(m):
-    problems = []
     cas = {r['Action']: r for r in table_dicts(m, 'CustomAction')}
-    for table in ('InstallExecuteSequence', 'InstallUISequence', 'AdminExecuteSequence', 'AdvtExecuteSequence'):
-        seq = {r['Action']: r['Sequence'] for r in table_dicts(m, table)}
-        cost_final = seq.get('CostFinalize')
-        for action, number in seq.items():
-            ca = cas.get(action)
-            if not ca or number is None or number < 0:
-                continue
-            if (ca['Type'] & 0x3F) in FILE_OR_DIR_SOURCED:
-                if cost_final is None or number <= cost_final:
-                    problems.append(f'{table}: custom action {action} (type {ca["Type"]}, source {ca["Source"]}) '
-                                    f'at {number} runs before CostFinalize ({cost_final}) -> error 2731')
-        if table == 'InstallExecuteSequence' and 'CleanupUser' in seq:
-            n, init, rf = seq['CleanupUser'], seq.get('InstallInitialize'), seq.get('RemoveFiles')
-            if not (init is not None and rf is not None and init < n < rf):
-                problems.append(f'{table}: CleanupUser at {n} must be after InstallInitialize ({init}) '
-                                f'and before RemoveFiles ({rf})')
-    return problems
+    files = {r['File'] for r in table_dicts(m, 'File')}
+    dirs = {r['Directory'] for r in table_dicts(m, 'Directory')}
+    sequences = {t: {r['Action']: r['Sequence'] for r in table_dicts(m, t)}
+                 for t in ('InstallExecuteSequence', 'InstallUISequence', 'AdminExecuteSequence',
+                           'AdvtExecuteSequence') if t in m.columns}
+    return ca_problems(cas, sequences, files, dirs)
 
 
 def main(path):
@@ -268,12 +305,11 @@ def main(path):
                 if typ & T_STRING and row[i] >= len(m.strings):
                     problems.append(f'{table} row {r}: {name} string id {row[i]} out of range')
         keys = [tuple(row[i] for i in keyidx) for row in rows]
-        for r in range(1, len(keys)):
-            if keys[r] <= keys[r - 1]:
-                what = 'duplicate' if keys[r] == keys[r - 1] else 'out of order'
-                problems.append(f'{table}: row {r} primary key {what} '
-                                f'({[m.s(k) if cols[keyidx[j]][2] & T_STRING else k for j, k in enumerate(keys[r])]})')
-                break
+        bad = first_key_order_problem(keys)
+        if bad:
+            r, what = bad
+            problems.append(f'{table}: row {r} primary key {what} '
+                            f'({[m.s(k) if cols[keyidx[j]][2] & T_STRING else k for j, k in enumerate(keys[r])]})')
         if table in STANDARD:
             have = [(n, 'v0' if (t & T_STRING and (t & 0xff) == 0 and n == 'Data') else typestr(t),
                      1 if t & T_KEY else 0) for _, n, t in cols]

@@ -46,6 +46,10 @@ if(NOT CMAKE_CROSSCOMPILING)
     # 1.0.0 regression (Windows error 2211): MSI tables must be in primary-key order.
     add_test(NAME vtx_msi_structure
              COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/../installer/msi/check_msi_test.sh $<TARGET_FILE:vtx_regtable>)
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_FOUND)
+      add_test(NAME vtx_msi_rules COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../installer/msi/check_msi_unit.py)
+    endif()
   endif()
 endif()
 

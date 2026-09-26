@@ -6,6 +6,10 @@ namespace vtx::tip {
 
 namespace {
 
+// Regression guard (Chrome showed an underline): the attribute must say "no line, no
+// colours, input". Chrome's TSF text store maps lsStyle TF_LS_NONE to no underline.
+static_assert(TF_LS_NONE == 0 && TF_CT_NONE == 0 && TF_ATTR_INPUT == 0, "TSF enum values");
+
 TF_DISPLAYATTRIBUTE InputAttribute() {
     TF_DISPLAYATTRIBUTE a;
     a.crText.type = TF_CT_NONE;

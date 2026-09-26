@@ -27,6 +27,7 @@ enum class S {
     SecApps,
     SecUpdates,
     SecDiagnostics,
+    SecUninstall,
     // settings: title + description
     InputMethod, InputMethodDesc,
     Telex, Vni,
@@ -44,11 +45,13 @@ enum class S {
     SwitchHotkey, SwitchHotkeyDesc,
     HotkeyCtrlShift, HotkeyWinSpace, HotkeyAltZ, HotkeyOff,
     MenuIcon, MenuIconDesc,
-    MenuIconVt, MenuIconStar, MenuIconFlag, MenuIconLetter,
+    IconVt, IconStar, IconFlag, IconLogo, IconVi,
+    ShowTray, ShowTrayDesc,
     UiLanguage, UiLanguageDesc,
     AutoUpdateCheck, AutoUpdateCheckDesc,
     DebugLogging, DebugLoggingDesc,
     CheckNow, CheckNowDesc, CheckButton,
+    Uninstall, UninstallDesc, UninstallButton, UninstallConfirm,
     // lists
     ShortcutsDesc,
     ShortcutKey, ShortcutValue,
@@ -56,6 +59,7 @@ enum class S {
     AppsDesc,
     AppExe, AppModeLabel,
     ModeComposition, ModeInPlace, ModeHook, ModeOff,
+    EmptyShortcuts, EmptyApps,
     // about
     AboutText,
     Version,

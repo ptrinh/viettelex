@@ -57,3 +57,47 @@ TEST(rate_breaker_trips_and_recovers) {
     CHECK_EQ(b.trips(), 1u);
     CHECK(b.allow(1300, 10));  // new window
 }
+
+#include "uninstall.h"
+
+TEST(uninstall_guid_validation) {
+    CHECK(isGuidString("{4822CAE4-A773-47FC-A9E1-30E16D0A6F4C}"));
+    CHECK(isGuidString("{4822cae4-a773-47fc-a9e1-30e16d0a6f4c}"));
+    CHECK(!isGuidString("4822CAE4-A773-47FC-A9E1-30E16D0A6F4C"));
+    CHECK(!isGuidString("{4822CAE4-A773-47FC-A9E1-30E16D0A6F4C} & calc"));
+    CHECK(!isGuidString("{4822CAE4XA773-47FC-A9E1-30E16D0A6F4C}"));
+    CHECK(!isGuidString(""));
+}
+
+TEST(uninstall_product_lookup) {
+    const std::string x64 = "{68939A18-0B26-465E-BE51-F6F903FA4999}";
+    const std::string arm = "{39889E85-E65B-46F3-B083-185FE3FDC31D}";
+    std::vector<std::string> asked;
+    RelatedProducts fake = [&](const std::string& up) {
+        asked.push_back(up);
+        if (up == kUpgradeCodeX64) return std::vector<std::string>{"garbage", x64};
+        if (up == kUpgradeCodeArm64) return std::vector<std::string>{arm};
+        return std::vector<std::string>{};
+    };
+    CHECK_EQ(findInstalledProductCode(fake, false), x64);  // invalid entries skipped
+    CHECK_EQ(asked.front(), std::string(kUpgradeCodeX64));
+    asked.clear();
+    CHECK_EQ(findInstalledProductCode(fake, true), arm);
+    CHECK_EQ(asked.front(), std::string(kUpgradeCodeArm64));
+    RelatedProducts none = [](const std::string&) { return std::vector<std::string>{}; };
+    CHECK(findInstalledProductCode(none, false).empty());  // dev build -> Settings fallback
+}
+
+TEST(uninstall_command_line) {
+    CHECK_EQ(uninstallParameters("{68939A18-0B26-465E-BE51-F6F903FA4999}"),
+             std::string("/x {68939A18-0B26-465E-BE51-F6F903FA4999}"));
+    CHECK(uninstallParameters("{bad}").empty());
+}
+
+TEST(version_display_strips_build_field) {
+    CHECK_EQ(versionForDisplay("1.0.4.0"), std::string("1.0.4"));
+    CHECK_EQ(versionForDisplay("1.0.0.0"), std::string("1.0.0"));
+    CHECK_EQ(versionForDisplay("1.2.3.4"), std::string("1.2.3.4"));
+    CHECK_EQ(versionForDisplay("1.0.4"), std::string("1.0.4"));
+    CHECK_EQ(versionForDisplay("2.0"), std::string("2.0"));
+}

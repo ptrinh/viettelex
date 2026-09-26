@@ -1,2 +1,3 @@
 dist/
 installer/signing.local.env
+__pycache__/

@@ -229,12 +229,16 @@ build_msi arm64
 
 # REPAIR packages for released MSIs whose cached copy in C:\Windows\Installer cannot
 # uninstall itself. Same ProductCode + UpgradeCode, new PackageCode, fixed tables: the
-# user runs it with REINSTALL=ALL REINSTALLMODE=vomus ("v" re-caches the package),
+# user runs it with REINSTALL=ALL REINSTALLMODE=vamus ("v" re-caches the package, "a"
+# forces every file even when the version is unchanged),
 # after which Settings -> Uninstall and major upgrades use the fixed copy.
 #   1.0.3: CleanupUser at sequence 1 (before CostFinalize) -> error 2731 on uninstall.
+#   1.0.4: FileKey custom actions -> error 2753 on repair / maintenance.
 REPAIR_TARGETS=(
   "x64 1.0.3 {4822CAE4-A773-47FC-A9E1-30E16D0A6F4C}"
   "arm64 1.0.3 {495C0D86-D141-45E4-BE5C-4AEC755F72CE}"
+  "x64 1.0.4 {68939A18-0B26-465E-BE51-F6F903FA4999}"
+  "arm64 1.0.4 {39889E85-E65B-46F3-B083-185FE3FDC31D}"
 )
 REPAIRS=()
 if [ "$REPAIR" = 1 ]; then
