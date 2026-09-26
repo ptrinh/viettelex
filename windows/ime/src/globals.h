@@ -36,7 +36,6 @@ extern const GUID GUID_PreservedKeyToggle;
 extern const GUID GUID_LBI_INPUTMODE_VTX;
 
 constexpr LANGID kLangId = MAKELANGID(LANG_VIETNAMESE, SUBLANG_VIETNAMESE_VIETNAM);  // 0x042A
-constexpr wchar_t kDisplayName[] = L"Tiếng Việt (VietTelex)";
 constexpr wchar_t kAppWindowClass[] = L"VietTelexAppWindow";
 constexpr UINT kAppCommandMsg = WM_APP + 0x56;  // wParam = AppCommand (app/src/ipc.h)
 

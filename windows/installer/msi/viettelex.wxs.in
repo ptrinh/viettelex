@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  VietTelex MSI template for wixl (msitools), filled by windows/scripts/release.sh. It
+  uses WiX v3 syntax and stays inside the subset wixl implements.
+
+  Per-machine install:
+    %ProgramFiles%\VietTelex\        VietTelex.exe, VietTelexTIP.dll (native)
+                                     arm64 only: VietTelexTIP.dll is the ARM64X forwarder,
+                                     plus VietTelexTIP_arm64.dll and VietTelexTIP_x64.dll
+    %ProgramFiles(x86)%\VietTelex\   VietTelexTIP.dll (x86, for 32-bit apps)
+  Start menu shortcut and an Add/Remove Programs entry.
+
+  NO regsvr32. The COM + TSF registration goes in as Registry-table rows, which
+  release.sh inserts AFTER wixl runs (the TipNative component writes the 64-bit view and
+  TipX86 the 32-bit view). Those rows are generated from ime/core/registration.h, the same
+  data DllRegisterServer uses, and release.sh checks the built MSI against it. They are
+  not written here because wixl drops key-only rows, which the TSF category keys need.
+
+  Placeholders (at-sign delimited) must all be filled or the build fails.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="VietTelex" Language="1033" Version="@VERSION@"
+           Manufacturer="VietTelex" UpgradeCode="@UPGRADECODE@">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine"
+             Description="VietTelex @VERSION@ installer" Manufacturer="VietTelex" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of VietTelex is already installed." />
+    <Media Id="1" Cabinet="viettelex.cab" EmbedCab="yes" />
+    <Icon Id="viettelex.ico" SourceFile="@ICON@" />
+    <Property Id="ARPPRODUCTICON" Value="viettelex.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://viettelex.com" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/ptrinh/viettelex/issues" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="VietTelex">
+          <Component Id="AppExe" Guid="@GUID_APP@" Win64="yes">
+            <File Id="VietTelexExe" Name="VietTelex.exe" Source="@BIN_NATIVE@/VietTelex.exe" KeyPath="yes" />
+            <!-- The TIP's language-bar menu finds the app through this (64-bit view). -->
+            <RegistryValue Root="HKLM" Key="SOFTWARE\VietTelex" Name="AppPath" Type="string"
+                           Value="[INSTALLFOLDER]VietTelex.exe" />
+          </Component>
+          <Component Id="TipNative" Guid="@GUID_TIPNATIVE@" Win64="yes">
+            <File Id="TipNativeDll" Name="VietTelexTIP.dll" Source="@BIN_NATIVE@/VietTelexTIP.dll" KeyPath="yes" />
+          </Component>
+          <!-- @ARM64_COMPONENTS@ -->
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER86" Name="VietTelex">
+          <Component Id="TipX86" Guid="@GUID_TIPX86@" Win64="no">
+            <File Id="TipX86Dll" Name="VietTelexTIP.dll" Source="@BIN_X86@/VietTelexTIP.dll" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Component Id="StartMenuShortcut" Guid="@GUID_SHORTCUT@">
+          <Shortcut Id="StartMenuLaunch" Name="VietTelex" Description="VietTelex - Vietnamese input"
+                    Target="[INSTALLFOLDER]VietTelex.exe" WorkingDirectory="INSTALLFOLDER" Icon="viettelex.ico" />
+          <RegistryValue Root="HKCU" Key="Software\VietTelex" Name="startMenuShortcut"
+                         Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </Directory>
+
+    <!-- Per-user steps (keyboard in the user's language list, autostart), run as the
+         installing user. Other users get them the first time they open VietTelex. -->
+    <CustomAction Id="SetupUser" FileKey="VietTelexExe" ExeCommand="--setup-user"
+                  Execute="immediate" Return="ignore" />
+    <CustomAction Id="LaunchApp" FileKey="VietTelexExe" ExeCommand="--background"
+                  Execute="immediate" Return="asyncNoWait" />
+    <!-- Clean removal: keyboard, autostart, HKCU\Software\VietTelex, %LOCALAPPDATA%\VietTelex.
+         Not during a major upgrade (UPGRADINGPRODUCTCODE), and before RemoveFiles
+         because it runs the exe that step deletes. -->
+    <CustomAction Id="CleanupUser" FileKey="VietTelexExe" ExeCommand="--cleanup-user"
+                  Execute="deferred" Impersonate="yes" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="CleanupUser" Before="RemoveFiles">REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SetupUser" After="InstallFinalize">NOT REMOVE</Custom>
+      <Custom Action="LaunchApp" After="SetupUser">NOT REMOVE AND UILevel &gt;= 4</Custom>
+    </InstallExecuteSequence>
+
+    <Feature Id="Complete" Level="1">
+      <ComponentRef Id="AppExe" />
+      <ComponentRef Id="TipNative" />
+      <!-- @ARM64_REFS@ -->
+      <ComponentRef Id="TipX86" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Product>
+</Wix>

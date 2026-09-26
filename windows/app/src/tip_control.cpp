@@ -2,25 +2,37 @@
 
 #include <windows.h>
 
+#include <cstdio>
+
 #include <string>
+
+#include "registration.h"
 
 namespace vtx::app {
 
 namespace {
-// Must match CLSID_VietTelexTIP / GUID_VietTelexProfile in ime/src/globals.cpp.
-constexpr wchar_t kTip[] = L"042A:{A93425B6-980D-4BB2-83C4-2DA555A30D85}{A4D93021-292F-4C97-97A1-45F50D970649}";
 constexpr wchar_t kRunKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 constexpr wchar_t kRunValue[] = L"VietTelex";
 constexpr DWORD ILOT_UNINSTALL_ = 0x00000001;
 
 using InstallLayoutOrTipFn = BOOL(WINAPI*)(LPCWSTR, DWORD);
 
+// "042A:{CLSID}{PROFILE}" from the shared registration data.
+std::wstring tipSpec() {
+    char buf[128];
+    snprintf(buf, sizeof buf, "%04X:%s%s", static_cast<unsigned>(vtx::reg::kLangId), vtx::reg::kClsid,
+             vtx::reg::kProfile);
+    std::wstring w;
+    for (const char* p = buf; *p; ++p) w.push_back(static_cast<wchar_t>(*p));
+    return w;
+}
+
 bool callInstall(DWORD flags) {
     HMODULE input = LoadLibraryExW(L"input.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (!input) return false;
     auto fn = reinterpret_cast<InstallLayoutOrTipFn>(
         reinterpret_cast<void*>(GetProcAddress(input, "InstallLayoutOrTip")));
-    bool ok = fn && fn(kTip, flags);
+    bool ok = fn && fn(tipSpec().c_str(), flags);
     FreeLibrary(input);
     return ok;
 }

@@ -237,3 +237,29 @@ TEST(arm64x_com_server_path) {
     CHECK(forwarderCandidate(L"C:\\x\\VietTelexTIP.dll").empty());
     CHECK(forwarderCandidate(L"VietTelexTIP_arm64.dll") == L"VietTelexTIP.dll");
 }
+
+#include "registration.h"
+
+TEST(registration_data_shape) {
+    auto e = vtx::reg::tipRegistryEntries("C:\\VT\\VietTelexTIP.dll", "C:\\VT\\icon.dll");
+    CHECK_EQ(e.size(), size_t(9 + 2 * vtx::reg::kCategoryCount));
+    bool apartment = false, inproc = false, subst = false, enable = false;
+    size_t catKeys = 0, itemKeys = 0;
+    const std::string clsid = vtx::reg::kClsid;
+    for (const auto& r : e) {
+        if (r.name == "ThreadingModel") apartment = r.sz == "Apartment";
+        if (r.key == "SOFTWARE\\Classes\\CLSID\\" + clsid + "\\InprocServer32" && r.name.empty())
+            inproc = r.sz == "C:\\VT\\VietTelexTIP.dll";
+        if (r.name == "SubstituteLayout") subst = r.dword == 0x04090409;
+        if (r.name == "Enable" && r.key == vtx::reg::languageProfileKey()) enable = r.dword == 1;
+        if (r.type == vtx::reg::ValueType::Key) {
+            if (r.key.find("\\Category\\Category\\") != std::string::npos) ++catKeys;
+            if (r.key.find("\\Category\\Item\\" + clsid + "\\") != std::string::npos) ++itemKeys;
+        }
+    }
+    CHECK(apartment && inproc && subst && enable);
+    CHECK_EQ(catKeys, vtx::reg::kCategoryCount);
+    CHECK_EQ(itemKeys, vtx::reg::kCategoryCount);
+    CHECK_EQ(vtx::reg::languageProfileKey(), std::string("SOFTWARE\\Microsoft\\CTF\\TIP\\") + clsid +
+                                                 "\\LanguageProfile\\0x0000042a\\" + vtx::reg::kProfile);
+}

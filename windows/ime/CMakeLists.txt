@@ -4,6 +4,7 @@
 add_library(vtx_ime_core STATIC
   core/app_policy.cpp
   core/com_path.cpp
+  core/registration.cpp
   core/hotkey.cpp
   core/keymap.cpp
   core/session.cpp
@@ -32,6 +33,17 @@ if(VTX_IME_TESTS)
     target_compile_options(vtx_ime_tests PRIVATE /utf-8)
   endif()
   add_test(NAME vtx_ime_tests COMMAND vtx_ime_tests)
+endif()
+
+# Host tool: MSI Registry rows from the shared registration data (used by
+# windows/scripts/release.sh; built for the machine running the build).
+if(NOT CMAKE_CROSSCOMPILING)
+  add_executable(vtx_regtable tools/regtable.cpp)
+  target_link_libraries(vtx_regtable PRIVATE vtx_ime_core)
+  if(VTX_IME_TESTS AND UNIX)
+    add_test(NAME vtx_regtable_roundtrip
+             COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/tests/regtable_test.sh $<TARGET_FILE:vtx_regtable>)
+  endif()
 endif()
 
 if(WIN32)

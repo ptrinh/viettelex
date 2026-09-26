@@ -1,5 +1,6 @@
 // register.cpp — DllRegisterServer / DllUnregisterServer: COM class, TSF profile,
-// TSF categories. Called by the MSI (regsvr32-equivalent custom action) for each
+// TSF categories, for dev installs (regsvr32). Release MSIs write the SAME data as
+// registry rows instead (ime/core/registration.h, windows/scripts/release.sh). For each
 // architecture's DLL. Adding the keyboard to the USER's language list is separate
 // (InstallLayoutOrTip, done by VietTelex.exe on first run — per-user).
 #include <olectl.h>
@@ -7,12 +8,19 @@
 #include <string>
 
 #include "com_path.h"
+#include "registration.h"
+#include "utf.h"
 #include "globals.h"
 #include "tsf_compat.h"
 
 namespace vtx::tip {
 
 namespace {
+
+std::wstring wide(const char* utf8) {
+    std::u16string u = utf8ToUtf16(utf8);
+    return std::wstring(u.begin(), u.end());
+}
 
 std::wstring guidString(REFGUID g) {
     wchar_t buf[64];
@@ -49,7 +57,7 @@ bool registerCom() {
     const std::wstring key = kClsidKey + guidString(CLSID_VietTelexTIP);
     const std::wstring path = serverPath();
     if (path.empty()) return false;
-    return setString(HKEY_LOCAL_MACHINE, key, nullptr, L"VietTelex Text Service") &&
+    return setString(HKEY_LOCAL_MACHINE, key, nullptr, wide(reg::kComDescription)) &&
            setString(HKEY_LOCAL_MACHINE, key + L"\\InprocServer32", nullptr, path) &&
            setString(HKEY_LOCAL_MACHINE, key + L"\\InprocServer32", L"ThreadingModel", L"Apartment");
 }
@@ -68,10 +76,11 @@ bool registerProfile() {
     // hklSubstitute = US layout: keys we let through (digits, punctuation) must come
     // out as on a US keyboard, not through the stock Vietnamese layout that maps the
     // number row to ă â ê ô…
-    HKL us = reinterpret_cast<HKL>(static_cast<ULONG_PTR>(0x04090409));
-    hr = mgr->RegisterProfile(CLSID_VietTelexTIP, kLangId, GUID_VietTelexProfile, kDisplayName,
-                              static_cast<ULONG>(lstrlenW(kDisplayName)), path.c_str(),
-                              static_cast<ULONG>(path.size()), 0 /* icon index */, us, 0, TRUE, 0);
+    HKL us = reinterpret_cast<HKL>(static_cast<ULONG_PTR>(reg::kSubstituteLayout));
+    const std::wstring desc = wide(reg::kProfileDescription);
+    hr = mgr->RegisterProfile(CLSID_VietTelexTIP, static_cast<LANGID>(reg::kLangId), GUID_VietTelexProfile, desc.c_str(),
+                              static_cast<ULONG>(desc.size()), path.c_str(), static_cast<ULONG>(path.size()),
+                              reg::kIconIndex, us, 0, TRUE, 0);
     mgr->Release();
     return SUCCEEDED(hr);
 }
@@ -86,6 +95,7 @@ void unregisterProfile() {
     }
 }
 
+// SDK constants, index-aligned with vtx::reg::kCategories (the list the MSI writes).
 const GUID* const kCategories[] = {
     &GUID_TFCAT_TIP_KEYBOARD,
     &GUID_TFCAT_DISPLAYATTRIBUTEPROVIDER,
@@ -95,6 +105,16 @@ const GUID* const kCategories[] = {
     &GUID_TFCAT_TIPCAP_SECUREMODE,         // UAC / lock screen (minimal mode)
     &GUID_TFCAT_TIPCAP_COMLESS,
 };
+
+// Refuse to register anything if the SDK GUIDs, the CLSID or the profile GUID drifted
+// from the shared data the MSI is generated from.
+bool dataMatchesSdk() {
+    if (sizeof(kCategories) / sizeof(kCategories[0]) != reg::kCategoryCount) return false;
+    for (size_t i = 0; i < reg::kCategoryCount; ++i)
+        if (guidString(*kCategories[i]) != wide(reg::kCategories[i].guid)) return false;
+    return guidString(CLSID_VietTelexTIP) == wide(reg::kClsid) &&
+           guidString(GUID_VietTelexProfile) == wide(reg::kProfile) && kLangId == reg::kLangId;
+}
 
 bool registerCategories(bool reg) {
     ITfCategoryMgr* cm = nullptr;
@@ -115,6 +135,7 @@ bool registerCategories(bool reg) {
 }  // namespace
 
 HRESULT RegisterServer() {
+    if (!dataMatchesSdk()) return E_UNEXPECTED;
     if (!registerCom()) return SELFREG_E_CLASS;
     if (!registerProfile() || !registerCategories(true)) return E_FAIL;
     return S_OK;

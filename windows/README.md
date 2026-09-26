@@ -15,15 +15,35 @@ Spec: [docs/WINDOWS-SPEC.md](docs/WINDOWS-SPEC.md). Engine C ABI: [engine/API.md
 ```
 # any OS: core + tests
 cmake -S windows -B build && cmake --build build && ctest --test-dir build
-# Windows (MSVC), one per architecture
+# RELEASE (macOS): cross-compile x86/x64/ARM64 in Docker, sign, build MSIs, verify
+windows/scripts/release.sh --version 1.0.0          # -> windows/dist/release/
+# Windows dev build (MSVC), one per architecture
 cmake -S windows -B build-x64 -A x64 && cmake --build build-x64 --config Release
-# full release: DLLs/EXE for x86/x64/ARM64, MSIs, winget manifests, signing
-pwsh windows/installer/build.ps1
 ```
 
-Cross-compile check without Windows (llvm-mingw in Docker):
-`cmake -S windows -B b -G Ninja -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-clang++ -DCMAKE_C_COMPILER=x86_64-w64-mingw32-clang -DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres`.
-`ime/src/tsf_compat.h` fills in the TSF declarations mingw lacks. The MSVC + Windows SDK build is the one that ships.
+`release.sh` does the following, and publishes nothing:
+
+1. **Build.** It builds with llvm-mingw inside `mstorsjo/llvm-mingw` (`scripts/cross-build.sh`) and installs nothing on the host.
+2. **Sign binaries.** It signs every `.dll` and `.exe` with `jsign --storetype TRUSTEDSIGNING`, timestamped (RFC 3161, `timestamp.acs.microsoft.com`).
+3. **Build MSIs.** It builds them with `wixl`. The ARM64 MSI is an x64-shaped database with the Template `Arm64;1033`.
+4. **Sign MSIs and verify.** It checks every signature with `osslsigncode` against `installer/microsoft-identity-verification-root-2020.pem`, then writes `SHA256SUMS`.
+
+The signing target comes from `VTX_SIGN_ENDPOINT`, `VTX_SIGN_ACCOUNT` and `VTX_SIGN_PROFILE`, set in the environment or in the gitignored `installer/signing.local.env`. The access token comes from `az login`, or in CI from `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET`. No secret is stored in the repo.
+
+### MSI registration (no regsvr32)
+
+The MSI writes the COM and TSF registration as Registry-table rows:
+
+- `CLSID\{…}\InprocServer32` with `ThreadingModel=Apartment`,
+- `CTF\TIP\{CLSID}` with `Enable`,
+- the vi-VN `LanguageProfile` (Description, IconFile, IconIndex, Enable, `SubstituteLayout=0x04090409`),
+- both `Category\Category` and `Category\Item` keys for every category.
+
+These go into the 64-bit view (`TipNative`) and the 32-bit view (`TipX86`).
+
+The rows are generated from `ime/core/registration.h`, the same data `DllRegisterServer` uses. The DLL refuses to register if its SDK GUIDs drift from that data. `vtx_regtable check` diffs the built MSI against it, and CTest (`vtx_regtable_roundtrip`) covers the checker.
+
+There is no AppContainer ACL, because wixl has no `Permission` element. It isn't needed: the default `Program Files` ACL already grants read and execute to ALL (RESTRICTED) APPLICATION PACKAGES.
 
 ## How typing works
 
@@ -58,11 +78,11 @@ Windows on ARM runs native ARM64 apps and emulated x64 apps side by side, and bo
 | `VietTelexTIP_arm64.dll` | The real TIP for native ARM64 apps. |
 | `VietTelexTIP_x64.dll` | The real TIP for emulated x64 apps. It is the x64 build, renamed. |
 
-The forwarder follows Microsoft's "Arm64X pure forwarder DLL" recipe. `ime/src/arm64x/empty.cpp` is compiled twice, once plain and once with `/arm64EC`. Then `link /DLL /NOENTRY /MACHINE:ARM64X /DEFARM64NATIVE:arm64_exports.def /DEF:x64_exports.def` links both objects into one DLL.
+The forwarder follows Microsoft's "Arm64X pure forwarder DLL" recipe. `ime/src/arm64x/empty.cpp` is compiled once for ARM64 and once for ARM64EC. The two objects are linked with `/MACHINE:ARM64X /DEFARM64NATIVE:arm64_exports.def /DEF:x64_exports.def` into one DLL, and the linker needs `_load_config_used`, or the loader cannot see the EC view.
 
-- CMake does this automatically in every MSVC ARM64 build (`ime/CMakeLists.txt`); there is no manual relink.
-- `installer/build.ps1` copies the x64 TIP in as `VietTelexTIP_x64.dll`, checks with `dumpbin` that the forwarder is ARM64X, and builds the ARM64 MSI.
-- The native `regsvr32` loads the forwarder. The forwarded `DllRegisterServer` then registers the forwarder's path, not its own (`ime/core/com_path.h`, unit-tested).
+- **Release (macOS):** `scripts/cross-build.sh` does this with llvm-mingw's `lld-link`. It takes the load config from the ARM64X-aware mingw-w64 CRT, then checks that the result is COFF-ARM64X, carries CHPE metadata, and forwards native exports to `_arm64` and EC exports to `_x64`.
+- **Windows dev builds:** MSVC ARM64 builds do the same through CMake (`ime/CMakeLists.txt`).
+- **Registration:** the MSI registers the forwarder as `InprocServer32`. The icon comes from `VietTelexTIP_arm64.dll`, which is exactly what `DllRegisterServer` in the arm64 half writes (`ime/core/com_path.h`).
 - 32-bit x86 apps use the separately registered x86 DLL, as on x64 machines.
 
 ## Microsoft Store
@@ -79,5 +99,6 @@ Checklist and listing text: [installer/STORE.md](installer/STORE.md). An MSIX pa
 
 - Everything in the TSF layer: activation, composition behaviour, OnEndEdit caret tracking, input scopes, the taskbar V/E button, and hotkey semantics. In particular, confirm that a key which `OnTestKeyDown` claims and `OnKeyDown` then does not eat still reaches the app.
 - The spec §5.2 app matrix.
-- MSI install/uninstall and signing.
+- **MSI install and uninstall on Windows.** Export `HKLM\SOFTWARE\Microsoft\CTF\TIP\{CLSID}` after `regsvr32 VietTelexTIP.dll` and after an MSI install, then diff the two. The values to confirm are `SubstituteLayout` (stored as a DWORD) and the `Enable` values.
+- **Store installs.** With a `/qn` install run as SYSTEM, the keyboard reaches users in one of two ways: they open VietTelex once, or they add "VietTelex" under Settings > Language > Tiếng Việt > Keyboards.
 - The ARM64X forwarder on Snapdragon hardware: check that both a native ARM64 app and an emulated x64 app (e.g. an x64-only Electron app) type Vietnamese, and that the forwarded DLLs load from the install folder.

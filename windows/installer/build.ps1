@@ -1,13 +1,12 @@
 <#
 .SYNOPSIS
-  Build, sign and package VietTelex for Windows: x86 + x64 + ARM64 binaries, one MSI
-  per native architecture, winget manifests with real SHA-256s.
+  MSVC build of VietTelex on Windows: x86 + x64 + ARM64 (with ARM64X forwarder)
+  binaries for local testing. Release MSIs come from windows/scripts/release.sh (macOS).
 
 .DESCRIPTION
   Requirements (on a Windows build machine / windows-latest runner):
     * Visual Studio 2022 with "Desktop development with C++" incl. ARM64/ARM64EC tools
     * CMake >= 3.20 on PATH
-    * WiX v4+:  dotnet tool install --global wix
     * optional signing: see signing/sign.ps1 (Azure Trusted Signing, env vars only)
 
   ARM64 (v1): the ARM64 MSI ships an ARM64X pure-forwarder VietTelexTIP.dll plus the two
@@ -88,39 +87,7 @@ if (-not $SkipArm64) {
 }
 Sign (Get-ChildItem -Path $out -Recurse -Include *.dll, *.exe | ForEach-Object FullName)
 
-$msis = @{}
-foreach ($arch in @('x64', 'arm64')) {
-    if (-not $bins.ContainsKey($arch)) { continue }
-    $msi = Join-Path $out "VietTelex-$Version-$arch.msi"
-    wix build (Join-Path $PSScriptRoot 'wix\VietTelex.wxs') -arch $arch `
-        -d "Version=$Version" -d "Platform=$arch" -d "BinNative=$($bins[$arch])" -d "BinX86=$($bins['x86'])" `
-        -o $msi | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "wix failed: $arch" }
-    $msis[$arch] = $msi
-}
-Sign ($msis.Values)
-
-# winget manifests with real hashes (ProductCode read back from each MSI).
-function MsiProductCode([string]$path) {
-    $installer = New-Object -ComObject WindowsInstaller.Installer
-    $db = $installer.GetType().InvokeMember('OpenDatabase', 'InvokeMethod', $null, $installer, @($path, 0))
-    $view = $db.GetType().InvokeMember('OpenView', 'InvokeMethod', $null, $db,
-        @("SELECT Value FROM Property WHERE Property='ProductCode'"))
-    $view.GetType().InvokeMember('Execute', 'InvokeMethod', $null, $view, $null) | Out-Null
-    $rec = $view.GetType().InvokeMember('Fetch', 'InvokeMethod', $null, $view, $null)
-    return $rec.GetType().InvokeMember('StringData', 'GetProperty', $null, $rec, 1)
-}
-$wingetOut = Join-Path $out "winget\manifests\p\ptrinh\VietTelex\$Version"
-New-Item -ItemType Directory -Force -Path $wingetOut | Out-Null
-foreach ($f in Get-ChildItem (Join-Path $PSScriptRoot 'winget') -Filter *.yaml) {
-    $t = (Get-Content $f.FullName -Raw).Replace('__VERSION__', $Version)
-    foreach ($arch in @('x64', 'arm64')) {
-        $tag = $arch.ToUpper()
-        if ($msis.ContainsKey($arch)) {
-            $t = $t.Replace("__SHA256_$($tag)__", (Get-FileHash $msis[$arch] -Algorithm SHA256).Hash)
-            $t = $t.Replace("__PRODUCTCODE_$($tag)__", (MsiProductCode $msis[$arch]))
-        }
-    }
-    Set-Content -Path (Join-Path $wingetOut $f.Name) -Value $t -Encoding UTF8
-}
-Write-Host "done: $out"
+# MSIs are built on macOS by windows/scripts/release.sh (wixl, registry-table
+# registration generated from ime/core/registration.h, jsign signing). This script only
+# produces MSVC-built, optionally signed binaries in dist/bin-<arch> for local testing.
+Write-Host "done: $out (binaries only; MSIs: windows/scripts/release.sh)"

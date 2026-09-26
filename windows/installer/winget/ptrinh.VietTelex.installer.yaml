@@ -3,7 +3,7 @@
 PackageIdentifier: ptrinh.VietTelex
 PackageVersion: __VERSION__
 MinimumOSVersion: 10.0.18362.0
-InstallerType: wix
+InstallerType: msi
 Scope: machine
 InstallModes:
   - interactive
