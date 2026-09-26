@@ -3,9 +3,9 @@
   "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.7.12",
   "build": 108,
   "windows": {
-    "version": "1.1.4",
-    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.1.4/VietTelex-1.1.4-x64.msi",
-    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.1.4/VietTelex-1.1.4-arm64.msi",
-    "notes": "Không gạch chân trong console; tự lùi về composition ở ô không hỗ trợ."
+    "version": "1.1.5",
+    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.1.5/VietTelex-1.1.5-x64.msi",
+    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.1.5/VietTelex-1.1.5-arm64.msi",
+    "notes": "Sửa gõ trong Command Prompt; nhớ Việt/Anh theo từng ứng dụng."
   }
 }
