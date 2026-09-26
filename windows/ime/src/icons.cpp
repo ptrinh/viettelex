@@ -1,5 +1,7 @@
 #include "icons.h"
 
+#include "../res/icon_ids.h"
+
 namespace vtx::tip {
 
 HICON CreateModeIcon(bool vietnamese, bool vtStyle, int size, COLORREF color) {
@@ -76,6 +78,22 @@ HICON CreateModeIcon(bool vietnamese, bool vtStyle, int size, COLORREF color) {
     DeleteObject(color32);
     if (mask) DeleteObject(mask);
     return icon;
+}
+
+bool TaskbarIsLight() {
+    DWORD v = 0, sz = sizeof v;
+    return RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                        L"SystemUsesLightTheme", RRF_RT_REG_DWORD, nullptr, &v, &sz) == ERROR_SUCCESS &&
+           v != 0;
+}
+
+HICON CreateStateIcon(HINSTANCE module, const std::string& menuIcon, bool vietnamese, int size) {
+    if (size <= 0) size = GetSystemMetrics(SM_CXSMICON);
+    const bool light = TaskbarIsLight();
+    const int id = glyphIconId(menuIcon, vietnamese, light);
+    if (id == 0) return CreateModeIcon(vietnamese, false, size, light ? RGB(0x1B, 0x1B, 0x1B) : RGB(255, 255, 255));
+    HICON icon = static_cast<HICON>(LoadImageW(module, MAKEINTRESOURCEW(id), IMAGE_ICON, size, size, LR_DEFAULTCOLOR));
+    return icon ? icon : CreateModeIcon(vietnamese, true, size);
 }
 
 }  // namespace vtx::tip

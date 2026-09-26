@@ -15,6 +15,7 @@
 #include <string>
 
 #include "app.h"
+#include "res/icon_ids.h"
 #include "hook_fallback.h"
 #include "ipc.h"
 #include "settings_store.h"
@@ -39,6 +40,33 @@ UINT g_taskbarCreated = 0;
 
 enum TrayCmd : UINT { kTraySettings = 1, kTrayUpdate, kTrayAbout, kTrayQuit };
 
+bool taskbarIsLight() {
+    DWORD v = 0, sz = sizeof v;
+    return RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                        L"SystemUsesLightTheme", RRF_RT_REG_DWORD, nullptr, &v, &sz) == ERROR_SUCCESS &&
+           v != 0;
+}
+
+// Tray glyph = the macOS menu-bar icon chosen in settings, white on a dark taskbar and
+// dark on a light one ("letter" style falls back to the app icon).
+HICON trayIcon() {
+    int id = glyphIconId(g_settings.menuIcon, true, taskbarIsLight());
+    if (id == 0) id = IDI_APP;
+    return static_cast<HICON>(LoadImageW(g_inst, MAKEINTRESOURCEW(id), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
+                                         GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR));
+}
+
+void updateTrayIcon() {
+    NOTIFYICONDATAW nid = {};
+    nid.cbSize = sizeof nid;
+    nid.hWnd = g_mainWnd;
+    nid.uID = kTrayId;
+    nid.uFlags = NIF_ICON;
+    nid.hIcon = trayIcon();
+    Shell_NotifyIconW(NIM_MODIFY, &nid);
+    if (nid.hIcon) DestroyIcon(nid.hIcon);
+}
+
 void addTrayIcon() {
     NOTIFYICONDATAW nid = {};
     nid.cbSize = sizeof nid;
@@ -46,8 +74,7 @@ void addTrayIcon() {
     nid.uID = kTrayId;
     nid.uFlags = NIF_ICON | NIF_TIP | NIF_MESSAGE | NIF_SHOWTIP;
     nid.uCallbackMessage = kTrayMsg;
-    nid.hIcon = static_cast<HICON>(LoadImageW(g_inst, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
-                                              GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR));
+    nid.hIcon = trayIcon();
     lstrcpynW(nid.szTip, tr(S::TrayTip), ARRAYSIZE(nid.szTip));
     Shell_NotifyIconW(NIM_ADD, &nid);
     nid.uVersion = NOTIFYICON_VERSION_4;
@@ -145,6 +172,9 @@ LRESULT CALLBACK mainProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 default: break;
             }
             return 0;
+        case WM_SETTINGCHANGE:  // taskbar switched light/dark
+            if (lp && lstrcmpW(reinterpret_cast<LPCWSTR>(lp), L"ImmersiveColorSet") == 0) updateTrayIcon();
+            return 0;
         case kMsgUpdateChecked: onUpdateChecked(reinterpret_cast<UpdateInfo*>(lp)); return 0;
         case kMsgUpdateDownloaded: onDownloaded(wp, reinterpret_cast<wchar_t*>(lp)); return 0;
         case WM_DESTROY:
@@ -194,6 +224,7 @@ unsigned parseCommandArg(const wchar_t* cmdLine, bool& background, int& oneShot)
 
 void settingsChanged() {
     saveSettings(g_settings);
+    updateTrayIcon();
     setEnglish(g_settings.uiLanguage == "en");
     hookConfigure(g_settings);
 }

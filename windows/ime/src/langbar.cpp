@@ -79,7 +79,7 @@ STDMETHODIMP LangBarButton::GetInfo(TF_LANGBARITEMINFO* info) {
     if (!info) return E_INVALIDARG;
     info->clsidService = CLSID_VietTelexTIP;
     info->guidItem = GUID_LBI_INPUTMODE_VTX;
-    info->dwStyle = TF_LBI_STYLE_BTN_BUTTON | TF_LBI_STYLE_SHOWNINTRAY | TF_LBI_STYLE_TEXTCOLORICON;
+    info->dwStyle = TF_LBI_STYLE_BTN_BUTTON | TF_LBI_STYLE_SHOWNINTRAY;
     info->ulSort = 0;
     lstrcpynW(info->szDescription, L"VietTelex", TF_LBI_DESC_MAXLEN);
     return S_OK;
@@ -143,8 +143,8 @@ STDMETHODIMP LangBarButton::OnMenuSelect(UINT id) {
 
 STDMETHODIMP LangBarButton::GetIcon(HICON* icon) {
     if (!icon) return E_INVALIDARG;
-    bool vt = !svc_ || svc_->settings().menuIcon != "letter";
-    *icon = CreateModeIcon(vietnamese(), vt, 0);
+    // Pre-coloured macOS glyphs, white on the dark taskbar and dark on the light one.
+    *icon = CreateStateIcon(g_hInst, svc_ ? svc_->settings().menuIcon : std::string("vt"), vietnamese());
     return *icon ? S_OK : E_FAIL;
 }
 

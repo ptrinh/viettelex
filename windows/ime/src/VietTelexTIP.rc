@@ -3,7 +3,22 @@
 
 #include "../version.h"
 
-1 ICON "../res/viettelex.ico"
+#include "../res/icon_ids.h"
+
+IDI_APP ICON "../res/viettelex.ico"
+// Tray / input-indicator glyphs from the macOS menu-bar icons (make_icons.py).
+IDI_GLYPH_VT_V_DARK ICON "../res/glyph_vt_v_dark.ico"
+IDI_GLYPH_VT_V_LIGHT ICON "../res/glyph_vt_v_light.ico"
+IDI_GLYPH_VT_E_DARK ICON "../res/glyph_vt_e_dark.ico"
+IDI_GLYPH_VT_E_LIGHT ICON "../res/glyph_vt_e_light.ico"
+IDI_GLYPH_STAR_V_DARK ICON "../res/glyph_star_v_dark.ico"
+IDI_GLYPH_STAR_V_LIGHT ICON "../res/glyph_star_v_light.ico"
+IDI_GLYPH_STAR_E_DARK ICON "../res/glyph_star_e_dark.ico"
+IDI_GLYPH_STAR_E_LIGHT ICON "../res/glyph_star_e_light.ico"
+IDI_GLYPH_FLAG_V_DARK ICON "../res/glyph_flag_v_dark.ico"
+IDI_GLYPH_FLAG_V_LIGHT ICON "../res/glyph_flag_v_light.ico"
+IDI_GLYPH_FLAG_E_DARK ICON "../res/glyph_flag_e_dark.ico"
+IDI_GLYPH_FLAG_E_LIGHT ICON "../res/glyph_flag_e_light.ico"
 
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION VTX_VER_MAJOR,VTX_VER_MINOR,VTX_VER_PATCH,VTX_VER_BUILD

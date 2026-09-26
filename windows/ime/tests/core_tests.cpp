@@ -263,3 +263,15 @@ TEST(registration_data_shape) {
     CHECK_EQ(vtx::reg::languageProfileKey(), std::string("SOFTWARE\\Microsoft\\CTF\\TIP\\") + clsid +
                                                  "\\LanguageProfile\\0x0000042a\\" + vtx::reg::kProfile);
 }
+
+#include "res/icon_ids.h"
+
+TEST(glyph_icon_ids) {
+    CHECK_EQ(glyphIconId("vt", true, false), IDI_GLYPH_VT_V_DARK);
+    CHECK_EQ(glyphIconId("vt", true, true), IDI_GLYPH_VT_V_LIGHT);
+    CHECK_EQ(glyphIconId("vt", false, false), IDI_GLYPH_VT_E_DARK);
+    CHECK_EQ(glyphIconId("star", false, true), IDI_GLYPH_STAR_E_LIGHT);
+    CHECK_EQ(glyphIconId("flag", true, false), IDI_GLYPH_FLAG_V_DARK);
+    CHECK_EQ(glyphIconId("garbage", true, true), IDI_GLYPH_VT_V_LIGHT);  // unknown -> default
+    CHECK_EQ(glyphIconId("letter", true, true), 0);
+}
