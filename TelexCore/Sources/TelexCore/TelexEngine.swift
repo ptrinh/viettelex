@@ -215,6 +215,14 @@ public struct TelexEngine {
     // the screen: ⌫ on "rese" showed "ress" (tester report 2026-07-24).
     private var pFoldTones = false
 
+    // True while the CURRENT parse was built with that fold (a pending tone key was
+    // turned back into its literal letter when live spell-check froze the word).
+    // The boundary needs it: the fold wipes the tone, so a mark-doubler cancel that
+    // left the tone floating ("cheese": chế + e → "chée", frozen → "chese") looks
+    // like a clean deliberate escape ("gooogle") to composedHasDiacritic(). It is
+    // not — the user never saw the literal s where it landed. Reset per word.
+    private var tonesFolded = false
+
     // Effective tone of the last render (after the stop-coda drop) — the composed
     // word's tone, used by the zero-alloc boundary validation.
     private var lastEffTone: Tone = .none
@@ -404,6 +412,7 @@ public struct TelexEngine {
         if disabledAtCount == Int.max, forceRestoreUpperTone {
             disabledAtCount = 0
             rebuildParseState()
+            tonesFolded = false
             newCount = render()
             markCancelled = pCancelled
         toneCancelAt = pToneCancelAt
@@ -431,6 +440,7 @@ public struct TelexEngine {
                 pFoldTones = true
                 rebuildParseState()
                 pFoldTones = false
+                tonesFolded = true
                 newCount = render()
                 // The fold rewrote the cancel bookkeeping (a tone key that used to
                 // float is now a literal letter), so the snapshots taken before the
@@ -681,6 +691,13 @@ public struct TelexEngine {
             // a valid syllable plus the repeated tail, i.e. exactly what the user meant
             // — keep it even though a diacritic survived the cancel.
             if isTeencodeKeep() { return false }
+            // Mark doubler whose cancel left a TONE floating that live spell-check then
+            // folded back to a literal key at the freeze ("cheese": chế + e → "chée" →
+            // "chese", "geese"→"gese"): the cancel did not clean the word, the freeze
+            // did — and it lost a letter the user typed. Restore the raw keys, like the
+            // stuck-diacritic case below would have without the fold. A real escape
+            // ("gooogle", "aaa") has no pending tone, so it never folds.
+            if toneCancelAt < 0, tonesFolded { return true }
             // The deliberate literal-letter escape — keep the screen ("pas", "tessted"→
             // tested, "Deffault"→Default: field reports 2026-07-26 / 07-22). Unless
             // free-marking left a diacritic stuck before the cancel, i.e. the cancel
@@ -1255,6 +1272,7 @@ public struct TelexEngine {
         upperToneKey = false
         overflowed = false
         disabledAtCount = Int.max
+        tonesFolded = false
         pCount = 0
         pTone = .none
         pToneKeyCount = 0
@@ -1417,10 +1435,25 @@ public struct TelexEngine {
     /// freeze site. One-pass for the common cases; the second pass is ⌫-only cost.
     private mutating func rebuildFrozenAware() {
         rebuildParseState()
+        tonesFolded = false
         if disabledAtCount != Int.max, pTone != .none {
             pFoldTones = true
             rebuildParseState()
             pFoldTones = false
+            tonesFolded = true
+        }
+    }
+
+    /// Circumflex the doubler's target letter. An `o` target inside the ươ cluster
+    /// (a u right before it that carries the horn — typed "uwo", "uwow" or reached
+    /// through render's ươ mirroring) takes the u's horn off too: ươ → uô, never the
+    /// invalid "ưô" ("lươn" + o → "luôn", "lượn" + o → "luộn": the tone stays, on ô).
+    /// That is UniKey's behaviour for the hat key on ươ.
+    private mutating func setCircumflex(_ k: Int) {
+        letters[k].mark = .circumflex
+        if letters[k].base == UInt8(ascii: "o"), k >= 1,
+           letters[k - 1].base == UInt8(ascii: "u"), letters[k - 1].mark == .horn {
+            letters[k - 1].mark = .none
         }
     }
 
@@ -1725,7 +1758,13 @@ public struct TelexEngine {
                 let pIdx = pCount - 1
                 let p = letters[pIdx]
                 if p.base == lower && p.mark == .none {
-                    letters[pIdx].mark = .circumflex; rawLetter[at] = pIdx; return
+                    setCircumflex(pIdx); rawLetter[at] = pIdx; return
+                }
+                // `o` on a HORNED o (ơ, the ươ cluster): hook → hat, UniKey-style —
+                // "mơ"+o → mô, "luwowo" → luô (the ư loses its horn with it, see
+                // setCircumflex). A horned o is otherwise never an o-doubler target.
+                if lower == UInt8(ascii: "o"), p.base == lower, p.mark == .horn {
+                    setCircumflex(pIdx); rawLetter[at] = pIdx; return
                 }
                 if p.base == lower && p.mark == .circumflex {
                     letters[pIdx].mark = .none
@@ -1747,7 +1786,12 @@ public struct TelexEngine {
                 while k >= 0 && !isVowelAscii(letters[k].base) { k -= 1 }   // skip coda
                 let nucleusEnd = k
                 while k >= 0, isVowelAscii(letters[k].base) {               // walk nucleus
-                    if letters[k].base == lower, letters[k].mark == .none {
+                    // "lươn" + o → "luôn" (UniKey): the reach-back also turns a
+                    // horned o into ô — same hook→hat retarget as the adjacent case
+                    // (and the same oeo/oao guard below).
+                    if letters[k].base == lower,
+                       letters[k].mark == .none
+                           || (lower == UInt8(ascii: "o") && letters[k].mark == .horn) {
                         // "oeo"/"oao" are REAL rimes (ngoèo, khoèo, ngoáo): an `o`
                         // that would fold ACROSS the middle bare e/a is the user
                         // typing the rime's last vowel, not a circumflex — issue
@@ -1762,7 +1806,7 @@ public struct TelexEngine {
                                || letters[k + 1].base == UInt8(ascii: "a") {
                             break                                    // → literal o
                         }
-                        letters[k].mark = .circumflex; rawLetter[at] = k; return
+                        setCircumflex(k); rawLetter[at] = k; return
                     }
                     // Cancel mirror of the reach-back (tester bug 2026-07-23):
                     // "theme"→thêm, then a third e must UNDO the mark and go

@@ -130,6 +130,7 @@ private:
     int toneCancelAt_ = -1;
     int toneCancelSpan_ = 0;
     bool pFoldTones_ = false;
+    bool tonesFolded_ = false;   // current parse built with pFoldTones_ (freeze folded a tone)
     Tone lastEffTone_ = Tone::None;
     bool upperToneKey_ = false;
 
@@ -174,6 +175,7 @@ private:
     void copyOut(int n);
     int render();
     void rebuildFrozenAware();
+    void setCircumflex(int k);
     void recomputeFreeze();
     void rebuildParseState();
     void parseStep(int at);
