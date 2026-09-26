@@ -11,7 +11,7 @@ import os
 import shutil
 
 WAYLAND_IME_FLAGS = "--enable-wayland-ime --wayland-text-input-version=3"
-WAYLAND_IME_FLAGS_KDE = "--enable-wayland-ime"      # KWin + Fcitx5 dùng text-input-v1
+WAYLAND_IME_FLAGS_KDE = "--enable-wayland-ime --wayland-text-input-version=1"  # KWin: text-input-v1
 X11_FLAG = "--ozone-platform=x11"
 JETBRAINS_OPT = "-Drecreate.x11.input.method=true"
 
@@ -114,6 +114,7 @@ def collect(env=None, home=None, exists=os.path.exists, read=_read, which=shutil
     jetbrains_configured = any(JETBRAINS_OPT in read(p) for p in jb_vmoptions)
 
     snap_apps = globber("/var/lib/snapd/desktop/applications/*.desktop")
+    qt5 = bool(globber("/usr/lib/*/libQt5Gui.so.5*") or globber("/usr/lib/libQt5Gui.so.5*"))
 
     return {
         "session": (env.get("XDG_SESSION_TYPE") or
@@ -128,6 +129,12 @@ def collect(env=None, home=None, exists=os.path.exists, read=_read, which=shutil
         "jetbrains_configured": jetbrains_configured,
         "rofi": bool(which("rofi")),
         "snap_apps": bool(snap_apps),
+        "fcitx5_installed": bool(which("fcitx5")),
+        "ibus_installed": bool(which("ibus-daemon") or which("ibus")),
+        "fcitx5_addon": exists("/usr/share/fcitx5/addon/viettelex.conf"),
+        "xinputrc": read(os.path.join(home, ".xinputrc")),
+        "qt5": qt5,
+        "qt_im_module": env.get("QT_IM_MODULE", ""),
         "terminals": sorted(t for t in TERMINALS if which(t)) + (["code"] if "code" in apps else []),
     }
 
@@ -138,6 +145,17 @@ def _is_gnome(desktop):
 
 def _is_kde(desktop):
     return "kde" in desktop.lower()
+
+
+def im_config_mode(xinputrc):
+    """Chế độ im-config của user: 'auto' khi chưa chọn (không có ~/.xinputrc / run_im auto|default)."""
+    for line in xinputrc.splitlines():
+        s = line.strip()
+        if s.startswith("run_im"):
+            parts = s.split()
+            mode = parts[1] if len(parts) > 1 else ""
+            return "auto" if mode in ("", "auto", "default") else mode
+    return "auto"
 
 
 def chromium_fix(apps, desktop):
@@ -225,6 +243,27 @@ def assess(snap):
                     "body": "Trên 22.04, app dạng Snap (Firefox, Chromium…) thường không nhận "
                             "Fcitx5. Dùng IBus (viettelex-ibus), hoặc cài bản .deb/Flatpak của app.",
                     "fix": "sudo apt install viettelex-ibus && im-config -n ibus"})
+
+    if (not _is_gnome(desktop) and snap.get("fcitx5_installed") and snap.get("ibus_installed")
+            and snap.get("fcitx5_addon") and im_config_mode(snap.get("xinputrc", "")) == "auto"):
+        out.append({"id": "imconfig_auto", "level": "warn",
+                    "title": "im-config đang để tự động: IBus sẽ thắng Fcitx5",
+                    "body": "Máy có cả IBus lẫn Fcitx5; ngoài GNOME, im-config chế độ auto chọn "
+                            "IBus. Muốn dùng VietTelex qua Fcitx5 thì chọn hẳn Fcitx5 rồi đăng "
+                            "nhập lại.",
+                    "fix": "im-config -n fcitx5"})
+
+    if wayland and snap.get("qt5") and not snap.get("qt_im_module"):
+        mod = "ibus" if fw == "ibus" else "fcitx"
+        out.append({"id": "qt5_wayland", "level": "warn",
+                    "title": "App Qt5 trên Wayland: thiếu QT_IM_MODULE",
+                    "body": "App Qt5 chạy Wayland gốc không có bộ gõ nếu thiếu QT_IM_MODULE. "
+                            "Qt ≥ 6.8.2 đọc QT_IM_MODULES (danh sách thử lần lượt). Đăng nhập "
+                            "lại sau khi thêm.",
+                    "fix": "mkdir -p ~/.config/environment.d\n"
+                           "printf 'QT_IM_MODULE=%s\\nQT_IM_MODULES=wayland;%s\\n' "
+                           ">> ~/.config/environment.d/90-viettelex.conf" %
+                           (mod, "fcitx;ibus" if mod == "fcitx" else "ibus")})
 
     if snap.get("terminals"):
         out.append({"id": "terminal_preedit", "level": "info",

@@ -93,7 +93,11 @@ Linux không có "tap backspace" ổn định như macOS; hai cách chuẩn củ
 - Chạy trong process fcitx5 → độ trễ thấp nhất; không crash-loop (catch mọi lỗi ở ranh giới C).
 
 ### 5.3 Cài đặt (`viettelex-settings`, GTK4/libadwaita)
-- Tab giống macOS: Kiểu gõ · Tuỳ chỉnh · Gõ tắt · Bảng cơ chế gõ · Giới thiệu.
+- Tab giống macOS: Kiểu gõ · Tuỳ chỉnh · Gõ tắt · Bảng cơ chế gõ · Tương thích · Giới thiệu.
+- Tab *Tương thích* (`compat.py`, hàm thuần + test): chỉ liệt kê lưu ý khớp máy, mỗi mục có
+  lệnh sửa copy được — Chrome/Electron Wayland, kitty/JetBrains X11, rofi, Tổng quan GNOME,
+  Snap + Fcitx5 (22.04), im-config auto khi cài cả hai framework, Qt5 Wayland thiếu
+  `QT_IM_MODULE`, terminal luôn preedit.
 - Lưu `~/.config/viettelex/config.toml` + `shortcuts.yml`; frontend nghe inotify → áp ngay,
   không cần khởi động lại IM (bài học Android: đổi setting phải có hiệu lực tức thì).
 
@@ -101,12 +105,20 @@ Linux không có "tap backspace" ổn định như macOS; hai cách chuẩn củ
 
 | Vấn đề | Cách xử lý |
 |---|---|
-| Wayland + Chrome/Electron không nhận IM | Hướng dẫn cờ `--enable-wayland-ime` / `--ozone-platform=wayland`; tự phát hiện và báo trong Cài đặt |
+| Wayland + Chrome ≥ 140 / Electron ≥ 38 không nhận IM | Cờ `--enable-wayland-ime --wayland-text-input-version=3` (GNOME + IBus), KWin `=1`, hoặc `--ozone-platform=x11`; tự phát hiện và báo trong Cài đặt |
+| GNOME Wayland: một input context chung cho mọi app (IBus, Fcitx5 < 5.1.22) | Không biết app đang gõ → chế độ không gạch chân + nhớ theo app bị hạn chế; ghi rõ trong tài liệu |
+| Ubuntu 22.04 IBus 1.5.26 không có app id | Bảng cơ chế gõ theo app không áp được dưới IBus 22.04 |
+| im-config | GNOME: không tác dụng. Desktop khác: `auto` chọn IBus khi cài cả hai → `im-config -n fcitx5`; Cài đặt cảnh báo |
+| Biến môi trường Qt / SDL | Qt ≥ 6.8.2 `QT_IM_MODULES="wayland;fcitx;ibus"`, Qt5 `QT_IM_MODULE`; game SDL `SDL_IM_MODULE`; Cài đặt cảnh báo Qt5 Wayland thiếu biến |
+| Compositor khác | Sway ≥ 1.10 (text-input-v3); Hyprland: dùng Fcitx5 |
+| LibreOffice Calc | Bấm ra ô khác / AutoInput có thể làm lệch chữ → khuyên tắt AutoInput nếu gặp lỗi |
+| Konsole/Kate dưới IBus (Qt) | Khuyên Fcitx5 trên KDE |
+| Mật khẩu `sudo` trong terminal | Không phát hiện được ô mật khẩu → hướng dẫn chuyển EN |
 | Flatpak/Snap app | Dùng IBus/Fcitx portal sẵn có; ghi chú: Snap Firefox cần `ibus` portal |
 | Terminal / vim / tmux | Preedit ép buộc; commit khi Esc để vim không mất chữ |
 | Nhiều bộ gõ Việt cùng bật (ibus-unikey, bamboo) | Không can thiệp; hướng dẫn gỡ nếu bị gõ đúp |
 | Xung đột phím tắt GNOME | Không dùng Super+Space; kiểm tra trùng khi đặt phím |
-| Remote desktop / VM | Giống macOS: khuyên bật bộ gõ ở máy bị điều khiển |
+| Remote desktop / VM / Wine | Giống macOS: có sẵn trong danh sách mặc định tắt tiếng Việt (core); khuyên bật bộ gõ ở máy bị điều khiển |
 
 ## 7. Kiểm thử
 

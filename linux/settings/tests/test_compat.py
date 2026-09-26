@@ -98,7 +98,8 @@ class ChromiumTests(unittest.TestCase):
         it = next(i for i in compat.assess(fs.collect(
             {"XDG_SESSION_TYPE": "wayland", "XDG_CURRENT_DESKTOP": "KDE"}))
             if i["id"] == "chromium_wayland")
-        self.assertNotIn("text-input-version", it["fix"])
+        self.assertIn("--wayland-text-input-version=1", it["fix"])
+        self.assertNotIn("version=3", it["fix"])
 
 
 class OtherAppTests(unittest.TestCase):
@@ -144,6 +145,41 @@ class OtherAppTests(unittest.TestCase):
             FakeFS(bins={"tmux"}).collect(GNOME_X11))))
         self.assertNotIn("terminal_preedit", ids(compat.assess(FakeFS().collect({}))))
 
+    def test_im_config_mode(self):
+        self.assertEqual(compat.im_config_mode(""), "auto")
+        self.assertEqual(compat.im_config_mode("# im-config\nrun_im default\n"), "auto")
+        self.assertEqual(compat.im_config_mode("run_im auto\n"), "auto")
+        self.assertEqual(compat.im_config_mode("run_im fcitx5\n"), "fcitx5")
+
+    def test_imconfig_auto_both_frameworks(self):
+        fs = FakeFS({"/usr/share/fcitx5/addon/viettelex.conf": ""}, bins={"fcitx5", "ibus-daemon"})
+        kde = {"XDG_SESSION_TYPE": "x11", "XDG_CURRENT_DESKTOP": "KDE"}
+        it = next(i for i in compat.assess(fs.collect(kde)) if i["id"] == "imconfig_auto")
+        self.assertEqual(it["fix"], "im-config -n fcitx5")
+        # GNOME: im-config không có tác dụng → không báo.
+        self.assertNotIn("imconfig_auto", ids(compat.assess(fs.collect(GNOME_X11))))
+        # Đã chọn hẳn fcitx5.
+        fs.files[HOME + "/.xinputrc"] = "run_im fcitx5\n"
+        self.assertNotIn("imconfig_auto", ids(compat.assess(fs.collect(kde))))
+
+    def test_imconfig_needs_both_and_addon(self):
+        kde = {"XDG_CURRENT_DESKTOP": "XFCE"}
+        fs = FakeFS({"/usr/share/fcitx5/addon/viettelex.conf": ""}, bins={"fcitx5"})
+        self.assertNotIn("imconfig_auto", ids(compat.assess(fs.collect(kde))))
+        fs = FakeFS(bins={"fcitx5", "ibus-daemon"})
+        self.assertNotIn("imconfig_auto", ids(compat.assess(fs.collect(kde))))
+
+    def test_qt5_wayland_without_module(self):
+        fs = FakeFS({"/usr/lib/x86_64-linux-gnu/libQt5Gui.so.5.15.3": ""})
+        it = next(i for i in compat.assess(fs.collect(GNOME_WL, "ibus")) if i["id"] == "qt5_wayland")
+        self.assertIn("QT_IM_MODULE=ibus", it["fix"])
+        it = next(i for i in compat.assess(fs.collect(GNOME_WL, "fcitx5")) if i["id"] == "qt5_wayland")
+        self.assertIn("QT_IM_MODULES=wayland;fcitx;ibus", it["fix"])
+        self.assertNotIn("qt5_wayland", ids(compat.assess(
+            fs.collect(dict(GNOME_WL, QT_IM_MODULE="fcitx"), "fcitx5"))))
+        self.assertNotIn("qt5_wayland", ids(compat.assess(fs.collect(GNOME_X11, "fcitx5"))))
+        self.assertNotIn("qt5_wayland", ids(compat.assess(FakeFS().collect(GNOME_WL, "fcitx5"))))
+
     def test_clean_machine_has_no_issues(self):
         self.assertEqual(compat.assess(FakeFS().collect({"XDG_SESSION_TYPE": "x11"})), [])
 
@@ -151,7 +187,9 @@ class OtherAppTests(unittest.TestCase):
         fs = FakeFS({"/usr/share/applications/code.desktop": "",
                      "/etc/os-release": 'VERSION_ID="22.04"\n',
                      "/var/lib/snapd/desktop/applications/firefox_firefox.desktop": ""},
-                    bins={"kitty", "rofi", "tmux"})
+                    bins={"kitty", "rofi", "tmux", "fcitx5", "ibus-daemon"})
+        fs.files["/usr/lib/x86_64-linux-gnu/libQt5Gui.so.5"] = ""
+        fs.files["/usr/share/fcitx5/addon/viettelex.conf"] = ""
         for env in (GNOME_WL, GNOME_X11):
             for it in compat.assess(fs.collect(env, "fcitx5")):
                 self.assertEqual(set(it), {"id", "level", "title", "body", "fix"})

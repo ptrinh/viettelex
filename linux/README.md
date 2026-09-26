@@ -74,7 +74,30 @@ to your machine, each with a copy button.
 | rofi | Không hỗ trợ bộ gõ | No IME support | Dùng / use Ulauncher hoặc KRunner |
 | Tìm kiếm Tổng quan GNOME / GNOME overview search | Có thể rơi chữ đầu (ibus#2246) | May drop the first letter (upstream ibus#2246) | Mở Tổng quan, chờ một nhịp rồi gõ / pause briefly before typing |
 | App Snap + Fcitx5 trên Ubuntu 22.04 | Thường không nhận Fcitx5 | Often ignore Fcitx5 | Dùng IBus (`viettelex-ibus`) hoặc bản .deb / Flatpak của app |
+| LibreOffice Calc | Bấm ra ô khác / AutoInput (tự gợi ý) có thể làm lệch chữ đang gõ | Clicking away / AutoInput can garble the word being typed | Nếu gặp lỗi: Công cụ → AutoInput → tắt / if it misbehaves: Tools → AutoInput → off |
+| Konsole, Kate (Qt) dưới IBus | Qt qua IBus kém ổn định hơn Fcitx5 | Qt apps under IBus are less reliable than under Fcitx5 | Trên KDE dùng Fcitx5 (`viettelex-fcitx5`) / on KDE prefer Fcitx5 |
+| App Qt5 trên Wayland | Không có bộ gõ nếu thiếu `QT_IM_MODULE` | No IME without `QT_IM_MODULE` | `QT_IM_MODULE=fcitx` (hoặc `ibus`); Qt ≥ 6.8.2: `QT_IM_MODULES="wayland;fcitx;ibus"` — trong `~/.config/environment.d/*.conf` |
+| Game SDL | Cần biến môi trường | Needs an env variable | `SDL_IM_MODULE=fcitx` (hoặc `ibus`) |
+| Ô mật khẩu `sudo` trong terminal | Không nhận ra được là ô mật khẩu | Cannot be detected as a password prompt | Chuyển sang EN trước khi gõ mật khẩu / switch to EN first |
 | Terminal, terminal VS Code, tmux, ssh | Luôn gõ có gạch chân (preedit) — **chủ đích** | Always uses preedit (underlined) — **by design** | Không cần sửa / nothing to fix |
+
+### Ghi chú theo môi trường / Desktop notes
+
+- **GNOME Wayland**: mọi app dùng chung một input context (IBus, và Fcitx5 < 5.1.22), nên chế
+  độ *Không gạch chân* và nhớ Việt/Anh theo từng app bị hạn chế. / *All apps share one input
+  context (IBus, and Fcitx5 < 5.1.22), so the no-underline mode and per-app memory are limited.*
+- **Ubuntu 22.04 + IBus 1.5.26**: IBus không báo app nào đang gõ → bảng cơ chế gõ theo app
+  không áp được. / *IBus 1.5.26 reports no app id, so per-app modes cannot apply.*
+- **im-config**: trên GNOME không có tác dụng (GNOME tự chạy IBus). Desktop khác: chế độ `auto`
+  chọn IBus nếu cài cả hai → chạy `im-config -n fcitx5` rồi đăng nhập lại. / *No effect on
+  GNOME; elsewhere `auto` prefers IBus over Fcitx5, so run `im-config -n fcitx5`.*
+- **Biến Qt / Qt variables**: Qt ≥ 6.8.2 `QT_IM_MODULES="wayland;fcitx;ibus"`; Qt5
+  `QT_IM_MODULE=fcitx` (hoặc `ibus`).
+- **KDE (KWin)**: Electron cần / needs `--enable-wayland-ime --wayland-text-input-version=1`.
+  **Sway** ≥ 1.10. **Hyprland**: dùng Fcitx5 / use Fcitx5. Game SDL: `SDL_IM_MODULE`.
+- **Mặc định tắt / Off by default**: remote desktop, máy ảo và Wine có sẵn trong danh sách tắt
+  tiếng Việt (gõ ở máy bị điều khiển). / *Remote-desktop, VM and Wine apps are in the built-in
+  off list; type Vietnamese on the remote machine instead.*
 
 ## Cấu trúc
 
