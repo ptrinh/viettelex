@@ -20,6 +20,77 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
      */
     private var afterOwnBoundary = false
 
+    /**
+     * Ghi checkpoint mỗi phím chữ để [undoLastLetter] huỷ được đúng phím đó khi nó hoá ra
+     * là đầu một đường VUỐT (gõ vuốt). Tắt (mặc định) ⇒ không tốn gì.
+     */
+    var trackLetterUndo = false
+        set(v) { field = v; if (!v) undo.valid = false }
+
+    /**
+     * Checkpoint của phím CHỮ gần nhất (port iOS `LetterUndo`). KHÔNG dùng ⌫ để huỷ:
+     * engine.backspace() xoá chữ cuối ĐANG HIỆN chứ không gỡ phím vừa gõ — "tieng" + s
+     * rồi ⌫ ra "tiến". Mọi thao tác khác ngoài letter() đều xoá checkpoint.
+     * Engine snapshot cấp MỘT lần, copyInto mỗi phím (không cấp phát trên hot path).
+     */
+    private class LetterUndo {
+        val engine = TelexEngine()
+        var removed = ""      // chữ phím đó đã xoá khỏi màn hình
+        var inserted = ""     // chữ phím đó đã chèn
+        var ownBoundary = false
+        var valid = false
+    }
+    private val undo = LetterUndo()
+
+    private fun checkpoint(ownBoundary: Boolean) {
+        if (!trackLetterUndo) return
+        engine.copyInto(undo.engine)
+        undo.ownBoundary = ownBoundary
+    }
+
+    private fun recordUndo(action: TelexAction, before: String, literal: String) {
+        if (!trackLetterUndo) return
+        when (action) {
+            is TelexAction.Replace -> {
+                undo.removed = before.substring(Cp.dropLast(before, action.backspaces).length)
+                undo.inserted = action.insert
+            }
+            TelexAction.Passthrough -> { undo.removed = ""; undo.inserted = literal }
+            TelexAction.None -> { undo.removed = ""; undo.inserted = "" }
+        }
+        undo.valid = true
+    }
+
+    /**
+     * Huỷ phím chữ vừa gõ (chỉ khi chưa có thao tác nào khác xen vào): trả màn hình và
+     * engine về đúng trước phím đó. Chữ trước con trỏ không kết thúc bằng thứ phím đó
+     * đã chèn ⇒ không sửa gì, trả false (caller tự xử lý).
+     */
+    fun undoLastLetter(proxy: TextProxy): Boolean {
+        if (!undo.valid) return false
+        undo.valid = false
+        if (!proxy.confirmTail(undo.inserted)) return false
+        val n = Cp.count(undo.inserted)
+        if (n > 0) proxy.deleteCodePoints(n)
+        if (undo.removed.isNotEmpty()) proxy.insertText(undo.removed)
+        undo.engine.copyInto(engine)
+        afterOwnBoundary = undo.ownBoundary
+        TouchLog.write("undo letter: -$n +${Cp.count(undo.removed)}")
+        return true
+    }
+
+    /**
+     * Từ vừa chèn nguyên khối (gõ vuốt) thành composition đang mở: phím dấu Telex sửa được,
+     * ⌫ engine như từ gõ tay. false = từ không round-trip qua engine (engine để trống).
+     */
+    fun adoptWord(word: String): Boolean {
+        undo.valid = false
+        afterOwnBoundary = false
+        val ok = engine.seed(word)
+        if (!ok) engine.reset()
+        return ok
+    }
+
     private fun configure(e: TelexEngine, contextual: Boolean) {
         e.freeMarking = settings.freeMarking
         e.simpleTelex = settings.simpleTelex
@@ -38,9 +109,17 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
 
     /** Phím chữ (đã theo shift). */
     fun letter(ch: Char, proxy: TextProxy) {
-        if (proxy.isSecure || passthrough) { proxy.insertText(ch.toString()); return }
+        undo.valid = false
+        if (proxy.isSecure || passthrough) {
+            checkpoint(afterOwnBoundary)
+            proxy.insertText(ch.toString())
+            recordUndo(TelexAction.Passthrough, "", ch.toString())
+            return
+        }
+        val ownBoundary = afterOwnBoundary
         val seedable = settings.reEditWords && engine.isEmpty && !afterOwnBoundary && ReEdit.isTransformKey(ch)
         afterOwnBoundary = false
+        checkpoint(ownBoundary)
         if (seedable && trySeed(ch, proxy)) return
         val before = engine.composed
         val action = engine.feed(ch)
@@ -55,6 +134,7 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
             return
         }
         apply(action, ch.toString(), proxy)
+        recordUndo(action, before, ch.toString())
     }
 
     /**
@@ -62,6 +142,7 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
      * CHỐT (sau auto-restore) để model học đúng thứ nằm trên màn hình.
      */
     fun boundary(text: String, proxy: TextProxy): String {
+        undo.valid = false
         if (proxy.isSecure || passthrough) { proxy.insertText(text); return "" }
         afterOwnBoundary = text.isNotEmpty() && !Character.isLetterOrDigit(text.codePointBefore(text.length))
         val before = engine.composed
@@ -100,6 +181,8 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         }
         TouchLog.write("re-edit: seeded ${Cp.count(word)} chars")
         apply(action, ch.toString(), proxy)
+        // Checkpoint = engine TRỐNG trước seed; màn hình: đuôi từ bị thay ↔ phần chèn.
+        recordUndo(action, word, ch.toString())
         return true
     }
 
@@ -109,6 +192,7 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
      * đúng từ + ranh giới; lệch ⇒ quên từ, ⌫ thường.
      */
     fun backspace(proxy: TextProxy): Boolean {
+        undo.valid = false
         if (proxy.isSecure || passthrough) { proxy.deleteBackward(); return false }
         afterOwnBoundary = false
         if (engine.isEmpty) {
@@ -153,7 +237,7 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
     fun forgetLastCommit() = engine.forgetLastCommit()
 
     /** Đổi ô / con trỏ dời / ẩn bàn phím → quên từ + ngữ cảnh tiếng Anh. */
-    fun reset() { engine.reset(); engine.resetContext(); afterOwnBoundary = false }
+    fun reset() { engine.reset(); engine.resetContext(); afterOwnBoundary = false; undo.valid = false }
 
     val isComposing: Boolean get() = !engine.isEmpty
     val composedWord: String get() = engine.composed

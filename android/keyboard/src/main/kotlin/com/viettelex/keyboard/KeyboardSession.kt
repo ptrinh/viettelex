@@ -169,6 +169,13 @@ class KeyboardSession(
     private var lastCommit: LastCommit? = null
     private var ctxCache: Set<String> = emptySet()
 
+    /** Gõ vuốt bật cho ô hiện tại (IME quyết: setting + loại ô + TalkBack). */
+    var swipeTypingActive = false
+        private set
+    /** Từ vừa vuốt, còn là composition đang mở (null khi phím/thao tác khác xen vào). */
+    private var swipeWord: String? = null
+    private var swipeAlts: List<String> = emptyList()
+
     init {
         langModel.isKnownWord = { VNSuggest.contains(it) }
         langModel.seedIfEmpty(SeedData::load)
@@ -193,7 +200,18 @@ class KeyboardSession(
         lastWord = null; lastWord2 = null
         lastInsertWasSpace = false
         lastCommit = null
+        clearSwipe()
+        setSwipeTyping(false)
     }
+
+    /** IME bật/tắt gõ vuốt cho ô hiện tại (sau [startInput]). Tắt ⇒ bridge thôi ghi checkpoint. */
+    fun setSwipeTyping(on: Boolean) {
+        swipeTypingActive = on
+        bridge.trackLetterUndo = on
+        if (!on) clearSwipe()
+    }
+
+    private fun clearSwipe() { swipeWord = null; swipeAlts = emptyList() }
 
     /** onFinishInputView (viewWillDisappear). */
     fun finishInput() { langModel.saveNow() }
@@ -204,6 +222,7 @@ class KeyboardSession(
         bridge.reset(); lastWord = null; lastWord2 = null
         clearUndo()
         lastCommit = null
+        clearSwipe()
     }
 
     private fun clearUndo() { restoreUndoRaw = null; restoreUndoComposed = null; undoOfferActive = false }
@@ -231,6 +250,8 @@ class KeyboardSession(
 
     fun handle(key: Key, proxy: TextProxy): KeyOutcome {
         val t0 = if (TouchLog.enabled) System.nanoTime() else 0L
+        val swiped = swipeWord?.takeIf { it == bridge.composedWord }
+        clearSwipe()
         when (key) {
             is Key.Letter -> { bridge.letter(key.ch, proxy); clearUndo() }
             is Key.Text -> {
@@ -276,7 +297,12 @@ class KeyboardSession(
                 proxy.clearAll()
                 bridge.reset(); lastWord = null; lastWord2 = null; clearUndo()
             }
-            Key.Backspace -> {
+            Key.Backspace -> if (swiped != null && proxy.confirmTail(swiped)) {
+                // ⌫ ĐẦU TIÊN ngay sau vuốt: xoá cả từ vuốt (từ chưa chốt ⇒ ngữ cảnh giữ nguyên).
+                proxy.deleteCodePoints(Cp.count(swiped))
+                bridge.reset()
+                clearUndo()
+            } else {
                 if (!bridge.isComposing && lastInsertWasSpace && restoreUndoRaw != null) undoOfferActive = true
                 else clearUndo()
                 if (bridge.backspace(proxy)) onReopened()
@@ -307,6 +333,53 @@ class KeyboardSession(
         generation++
         return KeyOutcome(needsAutoShift, generation)
     }
+
+    // MARK: gõ vuốt
+
+    /**
+     * Ngón vừa chuyển từ chạm sang VUỐT: huỷ phím chữ đã chèn lúc chạm xuống (checkpoint
+     * engine, không ⌫). false ⇒ không huỷ được (ô đổi / thao tác khác xen) — IME coi là chạm.
+     */
+    fun undoLastLetter(proxy: TextProxy): Boolean {
+        val ok = bridge.undoLastLetter(proxy)
+        generation++
+        return ok
+    }
+
+    /** Điểm ngữ cảnh cho decoder: từ trước = từ đang soạn (sẽ được chốt) hoặc từ chốt gần nhất. */
+    fun swipeContext(): SwipeSuggest.Context {
+        val pending = if (bridge.isComposing) bridge.predictedCommit.takeIf { UserLangModel.learnable(it) } else null
+        return if (bridge.isComposing) SwipeSuggest.context(langModel, pending, if (pending != null) lastWord else null)
+        else SwipeSuggest.context(langModel, lastWord, lastWord2)
+    }
+
+    /**
+     * Nhấc tay khỏi đường vuốt: chốt từ đang soạn (nếu có, kèm dấu cách), dấu cách treo
+     * nếu liền trước là chữ, chèn [choice] rồi seed engine bằng nó ⇒ composition đang mở
+     * (phím dấu Telex sửa được, ⌫ đầu xoá cả từ, thanh gợi ý hiện biến thể).
+     */
+    fun commitSwipe(choice: SwipeChoice, proxy: TextProxy): KeyOutcome {
+        clearUndo(); clearSwipe()
+        if (bridge.isComposing) {
+            commitAndLearn(bridge.boundary(" ", proxy))
+        } else if (SwipeSuggest.needsLeadingSpace(proxy.contextBeforeInput())) {
+            bridge.boundary(" ", proxy)
+        }
+        proxy.insertText(choice.word)
+        if (bridge.adoptWord(choice.word)) {
+            swipeWord = choice.word
+            swipeAlts = choice.alternatives
+        }
+        lastInsertWasSpace = false
+        lastKeyWasEmailTrigger = false
+        initialCapsPending = false
+        TouchLog.write("swipe: ${Cp.count(choice.word)} chars, ${choice.alternatives.size} alts")
+        generation++
+        return KeyOutcome(true, generation)
+    }
+
+    /** Đang hiện biến thể của từ vừa vuốt (test / IME). */
+    val swipeAlternatives: List<String>? get() = swipeWord?.takeIf { it == bridge.composedWord }?.let { swipeAlts }
 
     /** Giữ ⌫ > 3 s: xoá theo TỪ (khoảng trắng đuôi rồi tới đầu từ). */
     fun deleteWordBackward(proxy: TextProxy) {
@@ -372,6 +445,7 @@ class KeyboardSession(
     fun requestSuggestions(proxy: TextProxy): SuggestionPlan {
         suggestReq++
         if (!suggestionsActive || barCollapsed) return SuggestionPlan.Ready(null)
+        swipeAlternatives?.let { return SuggestionPlan.Ready(SuggestionSet(nextWords = it)) }
         val composed = bridge.composedWord
         var literal: String? = null
         if (composed.isEmpty() && undoOfferActive) literal = restoreUndoComposed
@@ -506,6 +580,19 @@ class KeyboardSession(
             bridge.reset(); lastWord = null; lastWord2 = null
             return
         }
+        val sw = swipeWord
+        if (sw != null && sw == bridge.composedWord && item in swipeAlts) {
+            // Chạm biến thể của từ vừa vuốt: thay từ, vẫn là composition mở (chưa học — học khi chốt).
+            if (!proxy.confirmTail(sw)) { clearSwipe(); bridge.reset(); return }
+            proxy.deleteCodePoints(Cp.count(sw))
+            proxy.insertText(item)
+            if (bridge.adoptWord(item)) {
+                swipeAlts = swipeAlts.map { if (it == item) sw else it }
+                swipeWord = item
+            } else clearSwipe()
+            return
+        }
+        clearSwipe()
         val uRaw = restoreUndoRaw; val uComposed = restoreUndoComposed
         if (undoOfferActive && uRaw != null && uComposed != null && item == uComposed && bridge.composedWord.isEmpty()) {
             if (!proxy.confirmTail(uRaw)) {

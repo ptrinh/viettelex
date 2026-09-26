@@ -111,8 +111,10 @@ class TelexEngine {
     val isEmpty: Boolean get() = rawCount == 0
 
     /** Deep copy (Swift value semantics). */
-    fun copy(): TelexEngine {
-        val e = TelexEngine()
+    fun copy(): TelexEngine = TelexEngine().also { copyInto(it) }
+
+    /** Ghi đè toàn bộ trạng thái của [e] bằng bản này — checkpoint không cấp phát (EngineBridge.undoLastLetter). */
+    fun copyInto(e: TelexEngine) {
         e.freeMarking = freeMarking; e.modernTone = modernTone; e.liveSpellCheck = liveSpellCheck
         e.simpleTelex = simpleTelex; e.teencode = teencode; e.quickTelex = quickTelex
         e.bracketVowels = bracketVowels; e.vniMode = vniMode; e.contextualEnglish = contextualEnglish
@@ -135,7 +137,6 @@ class TelexEngine {
         reopenRaw.copyInto(e.reopenRaw); reopenOut.copyInto(e.reopenOut)
         e.reopenRawCount = reopenRawCount; e.reopenOutCount = reopenOutCount
         e.reopenPrevEnglish = reopenPrevEnglish
-        return e
     }
 
     // MARK: - Public entry points

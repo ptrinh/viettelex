@@ -14,6 +14,7 @@ import android.os.SystemClock
 import android.text.InputType
 import android.util.Log
 import android.view.View
+import android.view.accessibility.AccessibilityManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.core.view.WindowInsetsControllerCompat
@@ -29,6 +30,11 @@ import com.viettelex.keyboard.KeyboardSession
 import com.viettelex.keyboard.Keys
 import com.viettelex.keyboard.MainThread
 import com.viettelex.keyboard.SuggestionPlan
+import com.viettelex.keyboard.SwipeDecoder
+import com.viettelex.keyboard.SwipeLayout
+import com.viettelex.keyboard.SwipePath
+import com.viettelex.keyboard.SwipeSuggest
+import com.viettelex.keyboard.WriteMode
 import com.viettelex.keyboard.TemplateItem
 import com.viettelex.keyboard.Templates
 import com.viettelex.keyboard.TouchLog
@@ -89,9 +95,23 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     private val autoShiftRun = Runnable { if (pendingGen == session.generation) applyAutoShift() }
     private val suggestRun = Runnable { if (pendingGen == session.generation) refreshBar() }
 
+    // --- gõ vuốt ---
+    /**
+     * Lõi giải mã (KHÔNG thread-safe): mọi truy cập nằm trong synchronized(swipeLock) —
+     * prepare() chạy trên worker, setLayout/decode trên main. null khi tính năng tắt (0 RAM).
+     */
+    private var swipeDecoder: SwipeDecoder? = null
+    private val swipeLock = Any()
+    private var swipeSetting = false
+    private var swipeFieldOk = false
+    private var accessibility: AccessibilityManager? = null
+    private val touchExplorationListener = AccessibilityManager.TouchExplorationStateChangeListener { updateSwipeTyping() }
+
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         // App vừa "Xóa từ đã học": bỏ model trong RAM NGAY (không bao giờ ghi đè lại).
         if (key == Keys.USERLM_RESET_AT) model.reloadAfterExternalErase()
+        // Bật/tắt gõ vuốt trong app khi bàn phím đang mở (ô Thử gõ).
+        else if (key == Keys.SWIPE_TYPING) { swipeSetting = VTPrefs.settings(prefs).swipeTyping; updateSwipeTyping() }
         // Bật/tắt kiểu gõ trong app khi bàn phím đang mở (ô Thử gõ) → áp ngay, không đợi mở lại.
         else if (key in Keys.ENGINE_KEYS) session.bridge.applySettings(VTPrefs.settings(prefs))
     }
@@ -107,11 +127,15 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         session = KeyboardSession(model, clipboard)
         model.onReady = { refreshBar() }
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
+        accessibility = (getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager)?.also {
+            it.addTouchExplorationStateChangeListener(touchExplorationListener)
+        }
         if (BuildConfig.DEBUG) Log.d(TAG, "perf onCreate ${SystemClock.elapsedRealtime() - t0} ms")
     }
 
     override fun onDestroy() {
         prefs.unregisterOnSharedPreferenceChangeListener(prefListener)
+        accessibility?.removeTouchExplorationStateChangeListener(touchExplorationListener)
         clipboard.release()
         workerThread?.quitSafely()
         session.finishInput()
@@ -126,11 +150,12 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val th = ImeTheme(this)
         theme = th
         val balloon = BalloonView(this, th)
-        val kb = KeyboardView(this, th, balloon, feedback)
+        val trail = SwipeTrailView(this, th)
+        val kb = KeyboardView(this, th, balloon, feedback, trail)
         val st = StripView(this, th, feedback)
         kb.listener = this
         st.listener = this
-        val r = ImeRootView(this, th, kb, st, balloon)
+        val r = ImeRootView(this, th, kb, st, balloon, trail)
         keyboard = kb; strip = st; root = r
         kb.setSwitcherHint(switcherHintVisible)
         styleWindow(th, r)
@@ -174,6 +199,11 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             initialCaps = info.initialCapsMode != 0, noLearning = field.noLearning,
             packageName = info.packageName))
         feedback.hapticsEnabled = settings.hapticFeedback
+        swipeSetting = settings.swipeTyping
+        // Chỉ ô chữ ghi COMMIT thường: không secure/passthrough (URI, email, mật khẩu hiện,
+        // filter), không TYPE_NULL, không ô URL, không app phải ghi bằng key event.
+        swipeFieldOk = !field.isSecure && !field.passthrough && !field.rawKeys && !proxy.uriField &&
+            proxy.writeMode == WriteMode.COMMIT
 
         collapsed = prefs.getBoolean(Keys.SUGGESTION_BAR_COLLAPSED, false)
         session.barCollapsed = collapsed
@@ -185,6 +215,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             th.dp(KeyLayout.keyAreaDp(th.tablet, th.landscape, settings.rowHeightAdjust)),
             field.numberSigned, field.numberDecimal)
         st.setPlane(kb.plane)
+        updateSwipeTyping()
         root?.refreshInsets()
         root?.requestLayout()
 
@@ -219,6 +250,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
+        swipeFieldOk = false
         handler.removeCallbacks(autoShiftRun); handler.removeCallbacks(suggestRun)
         keyboard?.onHidden()
         clearSwipeUndo()
@@ -270,6 +302,61 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         if (!proxy.begin()) return
         try { session.deleteWordBackward(proxy) } finally { proxy.end() }
         resetIfEditFailed()
+        applyAutoShift()
+        refreshBar()
+    }
+
+    // MARK: gõ vuốt
+
+    /** Bật khi: setting + ô hợp lệ + KHÔNG TalkBack/touch exploration. Tắt ⇒ bỏ decoder (template GC được). */
+    private fun updateSwipeTyping() {
+        val on = swipeSetting && swipeFieldOk && accessibility?.isTouchExplorationEnabled != true
+        if (!on) {
+            keyboard?.swipeTyping = false
+            if (::session.isInitialized) session.setSwipeTyping(false)
+            synchronized(swipeLock) { swipeDecoder = null }
+            return
+        }
+        if (swipeDecoder == null) synchronized(swipeLock) { swipeDecoder = SwipeDecoder() }
+        session.setSwipeTyping(true)
+        keyboard?.swipeTyping = true      // → onSwipeLayout khi plane chữ đã dựng
+    }
+
+    override fun onSwipeLayout(layout: SwipeLayout) {
+        val dec = swipeDecoder ?: return
+        synchronized(swipeLock) { dec.setLayout(layout) }
+        // Dựng template nền (~320 KB) — một luồng nhờ swipeLock; decode chờ nếu chưa xong.
+        worker().post { synchronized(swipeLock) { if (swipeDecoder === dec) dec.prepare() } }
+    }
+
+    override fun onSwipeTypingStart(): Boolean {
+        if (!session.swipeTypingActive) return false
+        clearSwipeUndo()
+        if (!proxy.begin()) return false
+        val ok = try { session.undoLastLetter(proxy) } finally { proxy.end() }
+        resetIfEditFailed()
+        if (ok) { handler.removeCallbacks(suggestRun); handler.removeCallbacks(autoShiftRun) }
+        return ok
+    }
+
+    override fun onSwipeTypingEnd(path: SwipePath, case: SwipeSuggest.Case) {
+        val dec = swipeDecoder ?: return
+        val ctx = session.swipeContext()
+        val t0 = if (TouchLog.enabled) System.nanoTime() else 0L
+        val cands = synchronized(swipeLock) { dec.decode(path, SwipeSuggest.TOP_K, ctx.folded) }
+        val choice = SwipeSuggest.choose(cands, ctx.word, case)
+        if (TouchLog.enabled) TouchLog.write(String.format(java.util.Locale.ROOT, "swipe decode %.1fms pts=%d cands=%d",
+            (System.nanoTime() - t0) / 1e6, path.count, cands.size))
+        if (choice == null || !proxy.begin()) { applyAutoShift(); refreshBar(); return }
+        val out = try { session.commitSwipe(choice, proxy) } finally { proxy.end() }
+        resetIfEditFailed()
+        strip?.hidePasteCard()
+        pendingGen = out.generation
+        applyAutoShift()
+        refreshBar()
+    }
+
+    override fun onSwipeTypingCancel() {
         applyAutoShift()
         refreshBar()
     }
