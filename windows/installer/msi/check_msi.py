@@ -337,6 +337,25 @@ def upgrade_order_problems(cas, seq, binaries, conds=None):
     return problems
 
 
+def file_version_problems(files, expected=None):
+    """Every .exe/.dll File row needs File.Version (and it must be this release's): an
+    unversioned file never replaces an installed versioned one, so 1.0.8/1.0.9 kept the
+    1.0.7 VietTelex.exe. `files`: rows with FileName / Version / Language."""
+    problems = []
+    for f in files:
+        long_name = (f.get('FileName') or '').split('|')[-1].lower()
+        if not long_name.endswith(('.exe', '.dll')):
+            continue
+        v = f.get('Version') or ''
+        if not v:
+            problems.append(f'File {long_name}: Version is empty -> an installed older copy is never replaced')
+        elif expected and v != expected:
+            problems.append(f'File {long_name}: Version {v} != release {expected}')
+        if not f.get('Language'):
+            problems.append(f'File {long_name}: Language is empty (expected 1033)')
+    return problems
+
+
 def table_dicts(m, table):
     """Rows of `table` as dicts (strings decoded, ints unbiased, null -> None)."""
     if table not in m.columns:
@@ -378,7 +397,7 @@ def check_custom_action_sequence(m):
     return ca_problems(cas, sequences, files, dirs, binaries, conditions)
 
 
-def main(path):
+def main(path, expected_version=None):
     m = Msi(path)
     problems = []
     for table in m.tables:
@@ -409,6 +428,7 @@ def main(path):
             if have != STANDARD[table]:
                 problems.append(f'{table}: schema {have} != standard {STANDARD[table]}')
     problems += check_custom_action_sequence(m)
+    problems += file_version_problems(table_dicts(m, 'File'), expected_version)
     for p in problems:
         print(f'{path}: {p}', file=sys.stderr)
     if not problems:
@@ -417,4 +437,8 @@ def main(path):
 
 
 if __name__ == '__main__':
-    sys.exit(max(main(p) for p in sys.argv[1:]))
+    args = sys.argv[1:]
+    version = None
+    if len(args) >= 2 and args[0] == '--version':
+        version, args = args[1], args[2:]
+    sys.exit(max(main(p, version) for p in args))

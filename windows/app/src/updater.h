@@ -25,7 +25,7 @@ void startDownload(HWND notify, const wchar_t* url);
 // msiexec /i <path> (elevation handled by msiexec) + a detached watcher that restarts the
 // installed app if nothing else did. The caller must EXIT right after (it is one of the
 // files being replaced). False = msiexec could not be started.
-bool runInstaller(const wchar_t* msiPath);
+bool runInstaller(const wchar_t* msiPath, const wchar_t* version);
 
 // Daily auto-check bookkeeping (autoUpdateCheck).
 bool autoCheckDue();

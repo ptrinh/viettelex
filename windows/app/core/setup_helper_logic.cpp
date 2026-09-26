@@ -149,10 +149,19 @@ bool parseWaitInstallArg(const std::vector<std::wstring>& argv, unsigned long& p
     return false;
 }
 
-AfterInstall afterInstallAction(bool appAlreadyRunning, bool installedExeExists) {
-    // The MSI's LaunchApp normally started the new version already: never start a second.
+bool msiexecSucceeded(unsigned long code) { return code == 0 || code == 3010 || code == 1641; }
+
+AfterInstall afterInstallAction(bool exitKnown, unsigned long exitCode, bool appAlreadyRunning,
+                                bool installedExeExists) {
+    if (exitKnown && msiexecSucceeded(exitCode)) return AfterInstall::Nothing;  // LaunchApp did it
     if (appAlreadyRunning || !installedExeExists) return AfterInstall::Nothing;
     return AfterInstall::LaunchInstalled;
+}
+
+std::wstring updateLogName(const std::string& version) {
+    std::wstring n = L"update-";
+    for (char c : version) n.push_back(static_cast<wchar_t>(c));
+    return n + L".log";
 }
 
 }  // namespace vtx

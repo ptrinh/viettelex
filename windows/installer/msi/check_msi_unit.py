@@ -6,7 +6,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from check_msi import ca_problems, first_key_order_problem, ice63_problems  # noqa: E402
+from check_msi import ca_problems, file_version_problems, first_key_order_problem, ice63_problems  # noqa: E402
 
 GOOD_SEQ = {'CostFinalize': 1000, 'InstallValidate': 1400, 'InstallInitialize': 1500, 'RemoveFiles': 3500,
             'InstallFiles': 4000, 'InstallExecute': 6590, 'RemoveExistingProducts': 6595, 'InstallFinalize': 6600,
@@ -134,6 +134,26 @@ class Ice77Ice12(unittest.TestCase):
     def test_type35_before_costfinalize_rejected(self):
         cas = dict(GOOD_CAS, SetDir={'Type': 35, 'Source': 'INSTALLFOLDER', 'Target': 'C:\\x'})
         self.assertTrue(any('ICE12' in x for x in run(cas, dict(GOOD_SEQ, SetDir=900))))
+
+
+class FileVersions(unittest.TestCase):  # 1.0.8/1.0.9 kept the 1.0.7 exe (empty File.Version)
+    def row(self, name, v='1.1.0.0', lang='1033'):
+        return {'FileName': name, 'Version': v, 'Language': lang}
+
+    def test_ok(self):
+        self.assertEqual(file_version_problems([self.row('VIETTE~1.EXE|VietTelex.exe'),
+                                                self.row('VietTelexTIP_1_1_0.dll')], '1.1.0.0'), [])
+
+    def test_v109_empty_version_rejected(self):
+        p = file_version_problems([self.row('VietTelex.exe', v=None, lang=None)], '1.1.0.0')
+        self.assertTrue(any('Version is empty' in x for x in p))
+        self.assertTrue(any('Language' in x for x in p))
+
+    def test_wrong_version_rejected(self):
+        self.assertTrue(file_version_problems([self.row('VietTelexTIP_1_1_0.dll', v='1.0.9.0')], '1.1.0.0'))
+
+    def test_non_pe_files_ignored(self):
+        self.assertEqual(file_version_problems([self.row('readme.txt', v=None, lang=None)], '1.1.0.0'), [])
 
 
 if __name__ == '__main__':

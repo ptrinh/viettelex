@@ -19,6 +19,11 @@
   They must be written BY WIXL: rows inserted afterwards with msibuild's SQL land out of
   primary-key order and Windows fails at FileCost with error 2211 (1.0.0).
 
+  Every PE file carries DefaultVersion (= the release, x.y.z.0) and Language 1033. Without
+  a File.Version the MSI treats the new file as UNVERSIONED, and Windows Installer never
+  replaces an installed versioned file with an unversioned one: 1.0.8/1.0.9 left the 1.0.7
+  VietTelex.exe in place. check_msi.py enforces it.
+
   Placeholders (at-sign delimited) must all be filled or the build fails.
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
@@ -47,7 +52,7 @@
       <Directory Id="ProgramFiles64Folder">
         <Directory Id="INSTALLFOLDER" Name="VietTelex">
           <Component Id="AppExe" Guid="@GUID_APP@" Win64="yes">
-            <File Id="VietTelexExe" Name="VietTelex.exe" Source="@BIN_NATIVE@/VietTelex.exe" KeyPath="yes" />
+            <File Id="VietTelexExe" Name="VietTelex.exe" Source="@BIN_NATIVE@/VietTelex.exe" KeyPath="yes" DefaultVersion="@FILEVERSION@" DefaultLanguage="1033" />
             <!-- The TIP's language-bar menu finds the app through this (64-bit view). -->
             <RegistryValue Root="HKLM" Key="SOFTWARE\VietTelex" Name="AppPath" Type="string"
                            Value="[INSTALLFOLDER]VietTelex.exe" />
@@ -61,7 +66,7 @@
                    are the ones <= 1.0.5 used for TipNative/TipX86 (TipReg, TipReg86):
                    shared, so removing the old version keeps the keys the new one wrote. -->
           <Component Id="TipNative" Guid="@GUID_TIPFILE@" Win64="yes">
-            <File Id="TipNativeDll" Name="@TIPDLL@" Source="@BIN_NATIVE@/@TIPDLL@" KeyPath="yes" />
+            <File Id="TipNativeDll" Name="@TIPDLL@" Source="@BIN_NATIVE@/@TIPDLL@" KeyPath="yes" DefaultVersion="@FILEVERSION@" DefaultLanguage="1033" />
           </Component>
           <Component Id="TipReg" Guid="@GUID_TIPNATIVE@" Win64="yes">
             <!-- @REG_TIPNATIVE@ -->
@@ -72,7 +77,7 @@
       <Directory Id="ProgramFilesFolder">
         <Directory Id="INSTALLFOLDER86" Name="VietTelex">
           <Component Id="TipX86" Guid="@GUID_TIPFILE86@" Win64="no">
-            <File Id="TipX86Dll" Name="@TIPDLL@" Source="@BIN_X86@/@TIPDLL@" KeyPath="yes" />
+            <File Id="TipX86Dll" Name="@TIPDLL@" Source="@BIN_X86@/@TIPDLL@" KeyPath="yes" DefaultVersion="@FILEVERSION@" DefaultLanguage="1033" />
           </Component>
           <Component Id="TipReg86" Guid="@GUID_TIPX86@" Win64="no">
             <!-- @REG_TIPX86@ -->

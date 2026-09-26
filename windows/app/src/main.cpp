@@ -191,6 +191,8 @@ void runCommand(unsigned cmd, LPARAM lp = 0) {
     }
 }
 
+wchar_t g_pendingVersion[32] = {};  // version being installed (names the msiexec log)
+
 void onUpdateChecked(UpdateInfo* info) {
     if (!info->interactive) markAutoChecked();
     if (info->available) {
@@ -200,8 +202,10 @@ void onUpdateChecked(UpdateInfo* info) {
         bool show = info->interactive || readString(L"lastNotifiedUpdateVersion") != info->version;
         if (show) {
             writeString(L"lastNotifiedUpdateVersion", info->version);
-            if (MessageBoxW(nullptr, msg, tr(S::AppName), MB_YESNO | MB_ICONINFORMATION | MB_SETFOREGROUND) == IDYES)
+            if (MessageBoxW(nullptr, msg, tr(S::AppName), MB_YESNO | MB_ICONINFORMATION | MB_SETFOREGROUND) == IDYES) {
+                lstrcpynW(g_pendingVersion, info->version, 32);
                 startDownload(g_mainWnd, info->url);
+            }
         }
     } else if (info->interactive) {
         MessageBoxW(nullptr, info->ok ? tr(S::UpToDate) : tr(S::UpdateFailed), tr(S::AppName),
@@ -214,7 +218,7 @@ void onDownloaded(WPARAM status, wchar_t* path) {
     if (status == kDownloadOk && path) {
         // Hand off and leave NOW: saves nothing pending (settings are saved on change),
         // WM_DESTROY removes the tray icon, WinMain releases the single-instance mutex.
-        if (runInstaller(path)) PostMessageW(g_mainWnd, WM_CLOSE, 0, 0);
+        if (runInstaller(path, g_pendingVersion)) PostMessageW(g_mainWnd, WM_CLOSE, 0, 0);
     } else {
         MessageBoxW(nullptr, status == kDownloadBadSignature ? tr(S::UpdateBadSignature) : tr(S::UpdateFailed),
                     tr(S::AppName), MB_OK | MB_ICONWARNING | MB_SETFOREGROUND);
@@ -312,9 +316,35 @@ int setProfileIcon(const std::string& name) {
 
 // `--wait-install <pid>` (a copy of this exe in %TEMP%): wait for msiexec, then start the
 // installed VietTelex if the MSI's LaunchApp did not (UAC cancelled, install failed).
+// Appends one line to %LOCALAPPDATA%\VietTelex\update-watcher.log (evidence for reports).
+void watcherLog(const std::wstring& line) {
+    wchar_t dir[MAX_PATH];
+    DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", dir, MAX_PATH);
+    if (n == 0 || n >= MAX_PATH) return;
+    std::wstring folder = std::wstring(dir) + L"\\VietTelex";
+    CreateDirectoryW(folder.c_str(), nullptr);
+    HANDLE f = CreateFileW((folder + L"\\" + vtx::kWatcherLogName).c_str(), FILE_APPEND_DATA, FILE_SHARE_READ,
+                           nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return;
+    SYSTEMTIME t;
+    GetLocalTime(&t);
+    wchar_t stamp[40];
+    wsprintfW(stamp, L"%04u-%02u-%02u %02u:%02u:%02u ", t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond);
+    std::string u = narrow(stamp + line + L"\r\n");
+    DWORD w = 0;
+    WriteFile(f, u.data(), static_cast<DWORD>(u.size()), &w, nullptr);
+    CloseHandle(f);
+}
+
+// `--wait-install <pid>` (a copy of this exe in %TEMP%): wait for msiexec, then — only if
+// it FAILED or was cancelled — start the installed VietTelex (success: the MSI's
+// LaunchApp already started the new version; starting another would race it).
 int waitInstall(unsigned long pid) {
-    if (HANDLE p = OpenProcess(SYNCHRONIZE, FALSE, pid)) {
+    bool known = false;
+    DWORD code = 0;
+    if (HANDLE p = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
         WaitForSingleObject(p, 2 * 60 * 60 * 1000);
+        known = GetExitCodeProcess(p, &code) && code != STILL_ACTIVE;
         CloseHandle(p);
     }
     Sleep(3000);  // LaunchApp runs at the very end of the install
@@ -323,8 +353,16 @@ int waitInstall(unsigned long pid) {
     const bool have = RegGetValueW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\VietTelex", L"AppPath",
                                    RRF_RT_REG_SZ | RRF_SUBKEY_WOW6464KEY, nullptr, exe, &sz) == ERROR_SUCCESS &&
                       GetFileAttributesW(exe) != INVALID_FILE_ATTRIBUTES;
-    const bool running = FindWindowW(kAppWindowClass, nullptr) != nullptr;
-    if (vtx::afterInstallAction(running, have) == vtx::AfterInstall::LaunchInstalled)
+    HWND runningWnd = FindWindowW(kAppWindowClass, nullptr);
+    wchar_t title[64] = {};
+    if (runningWnd) GetWindowTextW(runningWnd, title, 64);
+    const vtx::AfterInstall act = vtx::afterInstallAction(known, code, runningWnd != nullptr, have);
+    wchar_t line[512];
+    wsprintfW(line, L"watcher %s: msiexec pid %lu exit %s%lu, running=\"%s\", installed=%s -> %s",
+              VTX_VER_STRING_W, pid, known ? L"" : L"unknown/", static_cast<unsigned long>(code), title,
+              have ? exe : L"(none)", act == vtx::AfterInstall::LaunchInstalled ? L"relaunch installed app" : L"nothing");
+    watcherLog(line);
+    if (act == vtx::AfterInstall::LaunchInstalled)
         ShellExecuteW(nullptr, L"open", exe, L"--settings", nullptr, SW_SHOWNORMAL);
     return 0;
 }

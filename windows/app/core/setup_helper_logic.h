@@ -85,6 +85,15 @@ constexpr const wchar_t* kWatcherFileName = L"VietTelex-update-watcher.exe";
 std::wstring watcherArgs(unsigned long msiexecPid);
 bool parseWaitInstallArg(const std::vector<std::wstring>& argv, unsigned long& pid);
 enum class AfterInstall { Nothing, LaunchInstalled };
-AfterInstall afterInstallAction(bool appAlreadyRunning, bool installedExeExists);
+// msiexec's exit code decides: 0 / 3010 / 1641 = success (the MSI's LaunchApp started the
+// new app — never start another); anything else (1602 cancelled, 1603 failed, ...) =
+// bring back whatever is still installed, if nothing is running. `exitKnown` false (the
+// process could not be queried): only relaunch when no instance is running.
+AfterInstall afterInstallAction(bool exitKnown, unsigned long exitCode, bool appAlreadyRunning,
+                                bool installedExeExists);
+bool msiexecSucceeded(unsigned long exitCode);
+// Log files (under %LOCALAPPDATA%\VietTelex): msiexec's verbose log and the watcher's.
+std::wstring updateLogName(const std::string& version);  // "update-1.1.0.log"
+constexpr const wchar_t* kWatcherLogName = L"update-watcher.log";
 
 }  // namespace vtx

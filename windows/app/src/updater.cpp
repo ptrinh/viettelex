@@ -196,10 +196,18 @@ void startDownload(HWND notify, const wchar_t* url) {
     else delete job;
 }
 
-bool runInstaller(const wchar_t* msiPath) {
+bool runInstaller(const wchar_t* msiPath, const wchar_t* version) {
     // msiexec elevates itself. We get its process handle so a detached watcher can bring
-    // the app back if the install is cancelled or fails (setup_helper_logic.h).
+    // the app back if the install is cancelled or fails (setup_helper_logic.h). Always
+    // with a verbose log: %LOCALAPPDATA%\VietTelex\update-<version>.log.
     std::wstring args = L"/i \"" + std::wstring(msiPath) + L"\"";
+    wchar_t lad[MAX_PATH];
+    DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", lad, MAX_PATH);
+    if (n > 0 && n < MAX_PATH) {
+        const std::wstring dir = std::wstring(lad) + L"\\VietTelex";
+        CreateDirectoryW(dir.c_str(), nullptr);
+        args += L" /l*v \"" + dir + L"\\" + vtx::updateLogName(narrow(version ? version : L"")) + L"\"";
+    }
     SHELLEXECUTEINFOW sei = {};
     sei.cbSize = sizeof sei;
     sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;

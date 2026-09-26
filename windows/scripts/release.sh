@@ -151,10 +151,10 @@ build_msi() {  # build_msi <x64|arm64>
   work="$(mktemp -d)"
   local arm64comp="" arm64refs=""
   if [ "$arch" = arm64 ]; then
-    arm64comp="<Component Id=\"TipArm64Half\" Guid=\"$(guid "vtx-msi-tiparm64-$arch-$VERSION")\" Win64=\"yes\"><File Id=\"TipArm64Dll\" Name=\"VietTelexTIP_arm64$V.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_arm64$V.dll\" KeyPath=\"yes\" /></Component><Component Id=\"TipX64Half\" Guid=\"$(guid "vtx-msi-tipx64-$arch-$VERSION")\" Win64=\"yes\"><File Id=\"TipX64Dll\" Name=\"VietTelexTIP_x64$V.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_x64$V.dll\" KeyPath=\"yes\" /></Component>"
+    arm64comp="<Component Id=\"TipArm64Half\" Guid=\"$(guid "vtx-msi-tiparm64-$arch-$VERSION")\" Win64=\"yes\"><File Id=\"TipArm64Dll\" Name=\"VietTelexTIP_arm64$V.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_arm64$V.dll\" KeyPath=\"yes\" DefaultVersion=\"$VERSION.0\" DefaultLanguage=\"1033\" /></Component><Component Id=\"TipX64Half\" Guid=\"$(guid "vtx-msi-tipx64-$arch-$VERSION")\" Win64=\"yes\"><File Id=\"TipX64Dll\" Name=\"VietTelexTIP_x64$V.dll\" Source=\"$DIST/bin/arm64/VietTelexTIP_x64$V.dll\" KeyPath=\"yes\" DefaultVersion=\"$VERSION.0\" DefaultLanguage=\"1033\" /></Component>"
     arm64refs='<ComponentRef Id="TipArm64Half" /><ComponentRef Id="TipX64Half" />'
   fi
-  sed -e "s|@VERSION@|$VERSION|g" -e "s|@UPGRADECODE@|$upgrade|g" -e "s|@PRODUCTCODE@|$productcode|g" -e "s|@TIPDLL@|VietTelexTIP$V.dll|g" \
+  sed -e "s|@VERSION@|$VERSION|g" -e "s|@UPGRADECODE@|$upgrade|g" -e "s|@PRODUCTCODE@|$productcode|g" -e "s|@TIPDLL@|VietTelexTIP$V.dll|g" -e "s|@FILEVERSION@|$VERSION.0|g" \
       -e "s|@ICON@|$WIN/ime/res/viettelex.ico|g" \
       -e "s|@BIN_NATIVE@|$DIST/bin/$arch|g" -e "s|@BIN_X86@|$DIST/bin/x86|g" \
       -e "s|@GUID_APP@|$(guid "vtx-msi-app-$arch")|g" -e "s|@GUID_TIPNATIVE@|$(guid "vtx-msi-tipnative-$arch")|g" \
@@ -180,6 +180,8 @@ build_msi() {  # build_msi <x64|arm64>
   #   3138 = 2 + 64 + 1024 (deferred) + 2048 (no impersonation: SYSTEM)
   msibuild "$msi" -q "UPDATE \`CustomAction\` SET \`Type\`=66, \`Source\`='SetupHelper' WHERE \`Action\`='QuitApp'"
   msibuild "$msi" -q "UPDATE \`CustomAction\` SET \`Type\`=3138, \`Source\`='SetupHelper' WHERE \`Action\`='ReleaseTip'"
+  # wixl writes DefaultVersion but not DefaultLanguage: set File.Language (non-key column).
+  msibuild "$msi" -q "UPDATE \`File\` SET \`Language\`='1033' WHERE \`Version\`='$VERSION.0'"
 
   local template=x64
   if [ "$arch" = arm64 ]; then
@@ -195,7 +197,7 @@ build_msi() {  # build_msi <x64|arm64>
   local fail=0
   # Byte-level structure: every table's rows in primary-key order, string refs valid,
   # standard schemas (the 1.0.0 error-2211 class). Run BEFORE any other check.
-  python3 "$WIN/installer/msi/check_msi.py" "$msi" || fail=1
+  python3 "$WIN/installer/msi/check_msi.py" --version "$VERSION.0" "$msi" || fail=1
   msiinfo export "$msi" Registry > "$work/Registry.idt"
   "$REGTABLE" check "$work/Registry.idt" TipReg "[INSTALLFOLDER]VietTelexTIP$V.dll" "$icon_native" >/dev/null || fail=1
   "$REGTABLE" check "$work/Registry.idt" TipReg86 "[INSTALLFOLDER86]VietTelexTIP$V.dll" "[INSTALLFOLDER86]VietTelexTIP$V.dll" >/dev/null || fail=1

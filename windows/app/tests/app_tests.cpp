@@ -162,10 +162,21 @@ TEST(update_handoff_sequence) {
     CHECK(!parseWaitInstallArg({L"--wait-install", L"12a"}, pid));
     CHECK(!parseWaitInstallArg({L"--wait-install"}, pid));
     CHECK(!parseWaitInstallArg({L"--wait-install", L"99999999999"}, pid));
-    // after msiexec exits:
-    CHECK(afterInstallAction(true, true) == AfterInstall::Nothing);            // LaunchApp ran the new one
-    CHECK(afterInstallAction(false, true) == AfterInstall::LaunchInstalled);   // UAC cancelled / failed
-    CHECK(afterInstallAction(false, false) == AfterInstall::Nothing);          // nothing installed any more
+    // after msiexec exits: success codes -> the MSI's LaunchApp already started the new app
+    for (unsigned long ok : {0ul, 3010ul, 1641ul}) {
+        CHECK(msiexecSucceeded(ok));
+        CHECK(afterInstallAction(true, ok, false, true) == AfterInstall::Nothing);
+    }
+    // cancelled (1602) / failed (1603) / other: bring the installed version back
+    for (unsigned long bad : {1602ul, 1603ul, 1618ul, 1ul}) {
+        CHECK(!msiexecSucceeded(bad));
+        CHECK(afterInstallAction(true, bad, false, true) == AfterInstall::LaunchInstalled);
+        CHECK(afterInstallAction(true, bad, true, true) == AfterInstall::Nothing);   // already running
+        CHECK(afterInstallAction(true, bad, false, false) == AfterInstall::Nothing); // nothing installed
+    }
+    CHECK(afterInstallAction(false, 0, false, true) == AfterInstall::LaunchInstalled);  // exit unknown
+    CHECK(afterInstallAction(false, 0, true, true) == AfterInstall::Nothing);
+    CHECK(updateLogName("1.1.0") == std::wstring(L"update-1.1.0.log"));
 }
 
 TEST(helper_release_never_touches_newer_dlls) {
