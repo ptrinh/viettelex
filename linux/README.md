@@ -83,11 +83,15 @@ to your machine, each with a copy button.
 
 ### Ghi chú theo môi trường / Desktop notes
 
-- **GNOME Wayland**: mọi app dùng chung một input context (IBus, và Fcitx5 < 5.1.22), nên chế
-  độ *Không gạch chân* và nhớ Việt/Anh theo từng app bị hạn chế. / *All apps share one input
-  context (IBus, and Fcitx5 < 5.1.22), so the no-underline mode and per-app memory are limited.*
-- **Ubuntu 22.04 + IBus 1.5.26**: IBus không báo app nào đang gõ → bảng cơ chế gõ theo app
-  không áp được. / *IBus 1.5.26 reports no app id, so per-app modes cannot apply.*
+- **GNOME Wayland**: mọi app dùng chung một input context (IBus, và Fcitx5 < 5.1.22); VietTelex
+  hỏi gnome-shell app nào đang focus (qua D-Bus, cần xdg-desktop-portal-gnome — mặc định có),
+  nên *Không gạch chân* và nhớ Việt/Anh theo app vẫn dùng được. Chưa biết app → tự về gạch chân.
+  / *All apps share one input context; VietTelex reads the focused app from gnome-shell over
+  D-Bus (needs xdg-desktop-portal-gnome, installed by default), so no-underline mode and per-app
+  memory work. Unknown app → falls back to underline.*
+- **Ubuntu 22.04 + IBus 1.5.26**: IBus không báo app nào đang gõ → trên GNOME Wayland lấy app
+  đang focus như trên; app X11 riêng lẻ vẫn là "default". / *IBus 1.5.26 reports no app id; on
+  GNOME Wayland the focused app is used instead.*
 - **im-config**: trên GNOME không có tác dụng (GNOME tự chạy IBus). Desktop khác: chế độ `auto`
   chọn IBus nếu cài cả hai → chạy `im-config -n fcitx5` rồi đăng nhập lại. / *No effect on
   GNOME; elsewhere `auto` prefers IBus over Fcitx5, so run `im-config -n fcitx5`.*

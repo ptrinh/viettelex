@@ -58,13 +58,19 @@ set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_FULL_LIBDIR}/viettelex")
 set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/swift/release;${CMAKE_BINARY_DIR}")
 
 # ---- shared frontend logic ----------------------------------------------------------
+# GIO: GNOME Wayland focused-app monitor (common/src/gnome_monitor.cpp).
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0>=2.56)
+find_package(Threads REQUIRED)
 add_library(viettelex-common STATIC
   common/src/session.cpp
   common/src/settings.cpp
   common/src/app.cpp
-  common/src/watcher.cpp)
+  common/src/watcher.cpp
+  common/src/gnome.cpp
+  common/src/gnome_monitor.cpp)
 target_include_directories(viettelex-common PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/common/include")
-target_link_libraries(viettelex-common PUBLIC telexcore)
+target_link_libraries(viettelex-common PUBLIC telexcore PkgConfig::GIO Threads::Threads)
 target_compile_options(viettelex-common PRIVATE -Wall -Wextra)
 
 if(VT_BUILD_TESTS)
@@ -88,4 +94,14 @@ if(VT_BUILD_TESTS)
   target_link_libraries(test_common PRIVATE viettelex-common)
   target_compile_definitions(test_common PRIVATE VT_SOURCE_ROOT="${VT_REPO_ROOT}")
   add_test(NAME common COMMAND test_common)
+
+  # GnomeAppMonitor against a real dbus-daemon with a fake gnome-shell + portal
+  # (BecomeMonitor, sender allow-list, pending/overview). Needs dbus-daemon.
+  add_executable(test_gnome_monitor common/tests/test_gnome_monitor.cpp)
+  target_link_libraries(test_gnome_monitor PRIVATE viettelex-common)
+  find_program(VT_DBUS_RUN_SESSION_COMMON dbus-run-session)
+  if(VT_DBUS_RUN_SESSION_COMMON)
+    add_test(NAME gnome_monitor COMMAND "${VT_DBUS_RUN_SESSION_COMMON}" -- "$<TARGET_FILE:test_gnome_monitor>")
+    set_tests_properties(gnome_monitor PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
+  endif()
 endif()
