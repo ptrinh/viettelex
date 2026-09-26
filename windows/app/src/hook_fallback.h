@@ -18,6 +18,8 @@ void hookShutdown();
 // The TIP found a field it cannot type into without an underline (CUAS/IMM app,
 // xterm.js, unflagged console): the hook types there until the foreground changes.
 void hookSetDirectFromTip(bool on);
+// Direct proved unusable in the current field (echo verification): stop hooking it.
+void hookDisableCurrentField();
 // Called (UI thread) when a hook-mode app is elevated above VietTelex.exe: SendInput
 // cannot reach it (UIPI). The app shows a non-modal notice.
 void hookSetElevationNotifier(void (*notify)(const std::wstring& exe));

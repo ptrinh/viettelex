@@ -301,10 +301,48 @@ bool TextService::vietnamese() const { return config::vietnamese(); }
 
 bool TextService::appRunning() const { return FindWindowW(kAppWindowClass, nullptr) != nullptr; }
 
+namespace {
+// Mandatory integrity RID of a process token (0x2000 medium, 0x3000 high).
+bool tokenIntegrity(HANDLE process, DWORD& rid) {
+    HANDLE tok = nullptr;
+    if (!OpenProcessToken(process, TOKEN_QUERY, &tok)) return false;
+    BYTE buf[128];
+    DWORD len = 0;
+    const bool ok = GetTokenInformation(tok, TokenIntegrityLevel, buf, sizeof buf, &len) != FALSE;
+    if (ok) {
+        auto* til = reinterpret_cast<TOKEN_MANDATORY_LABEL*>(buf);
+        rid = *GetSidSubAuthority(til->Label.Sid, *GetSidSubAuthorityCount(til->Label.Sid) - 1);
+    }
+    CloseHandle(tok);
+    return ok;
+}
+}  // namespace
+
+// Can VietTelex.exe's hook type into THIS process's focused field? No when the app is not
+// running, when this process has HIGHER integrity than the app (UIPI drops its
+// SendInput — e.g. an elevated cmd.exe), or when the app marked the field NoDirect
+// (echo mismatches / SendInput refused there).
+bool TextService::directServesHere() const {
+    HWND app = FindWindowW(kAppWindowClass, nullptr);
+    if (!app) return false;
+    if (HWND f = GetFocus())
+        if (GetPropW(f, kNoDirectProp)) return false;
+    DWORD appPid = 0, own = 0x2000, theirs = 0;
+    GetWindowThreadProcessId(app, &appPid);
+    tokenIntegrity(GetCurrentProcess(), own);
+    bool known = false;
+    if (HANDLE p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, appPid)) {
+        known = tokenIntegrity(p, theirs);
+        CloseHandle(p);
+    }
+    return known && own <= theirs;
+}
+
 bool TextService::typingEnabled() const {
-    if (!config::vietnamese() || directActive_) return false;
+    if (!config::vietnamese()) return false;
+    if (directActive_) return !directServesHere();  // field fell back mid-focus: compose
     AppMode m = config::appMode();
-    if (m == AppMode::Direct) return !appRunning();  // the hook types; without the app, compose
+    if (m == AppMode::Direct) return !directServesHere();  // the hook types; else compose
     return m == AppMode::Composition || m == AppMode::InPlace;
 }
 
@@ -312,7 +350,7 @@ bool TextService::typingEnabled() const {
 // underline) instead of composing. Only when the app runs; else composition stays.
 bool TextService::requestDirect(const char* why) {
     if (directActive_) return true;
-    if (!appRunning()) return false;
+    if (!directServesHere()) return false;  // elevated / field marked NoDirect: compose
     directActive_ = true;
     session_.reset();
     if (HWND h = FindWindowW(kAppWindowClass, nullptr))
@@ -649,7 +687,15 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL
     if (isOwnInjected(static_cast<uintptr_t>(GetMessageExtraInfo()))) return S_OK;  // typed by our hook
     KeyInput k;
     if (!prepareKey(wp, true, k)) return S_OK;
-    if (!session_.wordActive()) evaluateHost(ctx);
+    if (!session_.wordActive()) {
+        evaluateHost(ctx);
+        // A handed-over field the app since marked NoDirect (or elevated): compose.
+        if (directActive_ && !directServesHere()) {
+            directActive_ = false;
+            config::log("direct mode unusable in this field -> composition");
+            session_.setCompositionOnlyContext(true);
+        }
+    }
     if (directActive_) return S_OK;  // the hook types in this field
     // No focused context, keyboard disabled (games, canvases), read-only, ANSI window:
     // never eat a key there (SampleIME _IsKeyboardDisabled).
@@ -664,7 +710,15 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* ea
     if (isOwnInjected(static_cast<uintptr_t>(GetMessageExtraInfo()))) return S_OK;
     KeyInput k;
     if (!ctx || !prepareKey(wp, true, k)) return S_OK;
-    if (!session_.wordActive()) evaluateHost(ctx);
+    if (!session_.wordActive()) {
+        evaluateHost(ctx);
+        // A handed-over field the app since marked NoDirect (or elevated): compose.
+        if (directActive_ && !directServesHere()) {
+            directActive_ = false;
+            config::log("direct mode unusable in this field -> composition");
+            session_.setCompositionOnlyContext(true);
+        }
+    }
     if (directActive_) return S_OK;  // the hook types in this field
     if (host_ == HostText::Ignore || host_ == HostText::Literal || !session_.wantsKey(k)) return S_OK;
     // Classic Edit/RichEdit: read and edit through the full transitory-extension parent.

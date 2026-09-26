@@ -225,3 +225,62 @@ TEST(hook_watchdog_reinstalls_silently_removed_hook) {
     w.setActive(false, 12000);
     CHECK(!w.rawKey(99999));
 }
+
+#include "direct_policy.h"
+
+TEST(direct_integrity_decision_table) {
+    CHECK(directUsable(true, 0x2000, 0x2000));    // medium -> medium
+    CHECK(directUsable(true, 0x1000, 0x2000));    // low (AppContainer-ish) target
+    CHECK(!directUsable(true, 0x3000, 0x2000));   // admin app: UIPI blocks SendInput
+    CHECK(!directUsable(true, 0x4000, 0x2000));   // system
+    CHECK(!directUsable(false, 0, 0x2000));       // token unreadable = treat as higher
+    CHECK(directUsable(true, 0x3000, 0x3000));    // VietTelex itself elevated
+}
+
+TEST(direct_sendinput_short_count) {
+    CHECK(classifySend(8, 8) == SendOutcome::Ok);
+    CHECK(classifySend(0, 8) == SendOutcome::NothingSent);
+    CHECK(classifySend(3, 8) == SendOutcome::Partial);
+    CHECK(injectionAllowed(42, 42, false));
+    CHECK(!injectionAllowed(43, 42, false));      // focus moved between key and injection
+    CHECK(!injectionAllowed(42, 42, true));       // secure desktop
+    CHECK(!injectionAllowed(0, 42, false));
+}
+
+TEST(direct_echo_verification_console_and_uia) {
+    // fake console buffer row up to the cursor
+    const std::u16string row = u"C:\\Users\\me> echo thử gõ";
+    CHECK(echoMatches(row, u"gõ"));
+    CHECK(!echoMatches(row, u"go"));              // our backspaces/Unicode did not land
+    CHECK(!echoMatches(u"gõ", u"xgõ"));
+    // UIA text range before the caret (Windows Terminal TextPattern / Qt ValuePattern)
+    CHECK(echoMatches(u"tiếng việt", u"việt"));
+    CHECK(!echoMatches(u"tiếng vieetj", u"việt"));
+    CHECK(echoInValue(u"xin chào các bạn", u"chào"));   // Qt/Java ValuePattern
+    CHECK(!echoInValue(u"xin chaof", u"chào"));
+    CHECK(checkStillRelevant(7, 7));
+    CHECK(!checkStillRelevant(7, 9));             // user typed on: not evidence
+}
+
+TEST(direct_echo_mismatch_counter_policy) {
+    EchoPolicy p;
+    CHECK(!p.record(1, 0, Echo::Mismatch));
+    CHECK(!p.fellBack(1, 0));
+    CHECK(p.record(1, 0, Echo::Mismatch));        // 2nd mismatch: fall back
+    CHECK(p.fellBack(1, 0));
+    CHECK(!p.record(1, 0, Echo::Mismatch));       // already fallen: reported once
+    // a match in between resets the count
+    CHECK(!p.record(2, 0, Echo::Mismatch));
+    CHECK(!p.record(2, 0, Echo::Match));
+    CHECK(!p.record(2, 0, Echo::Mismatch));
+    CHECK(!p.fellBack(2, 0));
+    // unverifiable hosts keep Direct
+    for (int i = 0; i < 5; ++i) CHECK(!p.record(3, 0, Echo::Unverifiable));
+    CHECK(!p.fellBack(3, 0));
+    // per control within one window
+    CHECK(!p.record(4, 1, Echo::Mismatch));
+    CHECK(!p.record(4, 2, Echo::Mismatch));
+    CHECK(!p.fellBack(4, 1) && !p.fellBack(4, 2));
+    p.focusChanged();
+    CHECK(!p.fellBack(1, 0));
+}

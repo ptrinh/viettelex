@@ -73,6 +73,7 @@ private:
 
     bool typingEnabled() const;
     bool appRunning() const;
+    bool directServesHere() const;
     bool requestDirect(const char* why);
     void notifyAppState(bool on);
     void applyConfig(bool force);

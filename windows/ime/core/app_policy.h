@@ -25,6 +25,9 @@ enum class AppMode : uint8_t { Composition = 0, InPlace = 1, HookFallback = 2, O
 // process them again.
 constexpr uintptr_t kInjectedMagic = 0x56545831;  // "VTX1"
 inline bool isOwnInjected(uintptr_t extraInfo) { return extraInfo == kInjectedMagic; }
+// Window property VietTelex.exe sets on a field where Direct mode proved unusable
+// (echo mismatches, SendInput refused): the TIP composes there instead (1.1.4).
+constexpr const wchar_t* kNoDirectProp = L"VietTelex.NoDirect";
 // The hook (not the TIP) types for this mode.
 inline bool hookTypes(AppMode m) { return m == AppMode::HookFallback || m == AppMode::Direct; }
 

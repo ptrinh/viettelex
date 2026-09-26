@@ -1,7 +1,7 @@
 # windows/app — VietTelex.exe (Win32 tray + settings + updater + hook fallback) and its
 # portable core (unit-tested on any OS).
 
-add_library(vtx_app_core STATIC core/update_check.cpp core/uninstall.cpp core/setup_helper_logic.cpp)
+add_library(vtx_app_core STATIC core/update_check.cpp core/uninstall.cpp core/setup_helper_logic.cpp core/direct_policy.cpp)
 target_include_directories(vtx_app_core PUBLIC core)
 target_link_libraries(vtx_app_core PUBLIC vtx_ime_core)
 
@@ -18,6 +18,7 @@ endif()
 if(WIN32)
   add_executable(VietTelex WIN32
     src/app_quit.cpp
+    src/direct_verify.cpp
     src/hook_fallback.cpp
     ../ime/src/icons.cpp
     src/main.cpp
@@ -31,7 +32,7 @@ if(WIN32)
   target_compile_definitions(VietTelex PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX
                              _WIN32_WINNT=0x0A00 WINVER=0x0A00)
   target_link_libraries(VietTelex PRIVATE vtx_app_core comctl32 comdlg32 shell32 advapi32 user32 gdi32
-                        dwmapi uxtheme winhttp wintrust crypt32 ole32 gdiplus msi)
+                        dwmapi uxtheme winhttp wintrust crypt32 ole32 oleaut32 uuid gdiplus msi)
   # MSI-only helper (Binary table): quit the app before files are replaced, move in-use
   # TIP DLLs aside. Tiny, windowless, no settings/engine code.
   add_executable(VietTelexSetupHelper WIN32 src/setup_helper.cpp src/app_quit.cpp)

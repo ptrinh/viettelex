@@ -9,6 +9,8 @@
 
 #include "app_policy.h"
 #include "breaker.h"
+#include "direct_policy.h"
+#include "direct_verify.h"
 #include "hook_watchdog.h"
 #include "keymap.h"
 #include "session.h"
@@ -29,11 +31,20 @@ namespace {
 constexpr LANGID kViVN = 0x042A;
 enum : UINT {
     kCmdConfig = WM_APP + 1,   // lParam: Settings* (hook thread owns it)
-    kCmdForeground,            // wParam: install (0/1), lParam: std::wstring* exe; tid in hookTid
+    kCmdForeground,            // lParam: Foreground* (hook thread owns it)
+    kCmdDisableHere,           // Direct proved unusable in the current field: stop hooking
     kCmdQuit,
 };
 
 // ---------------------------------------------------------------- hook-thread state
+struct Foreground {
+    std::wstring exe;
+    DWORD tid = 0;
+    HWND hwnd = nullptr;
+    bool install = false;
+    bool direct = false;  // Direct mode (verify echo) vs explicit hookFallback
+};
+
 struct HookState {
     Settings settings;
     TypingSession session;
@@ -43,8 +54,11 @@ struct HookState {
     HHOOK mouseHook = nullptr;
     HWND sink = nullptr;       // message-only window: raw input for the watchdog
     DWORD fgThread = 0;
+    HWND fgHwnd = nullptr;     // window the hooked typing belongs to
     std::wstring fgExe;        // lowercase
     bool wanted = false;       // hooks should be installed
+    bool direct = false;
+    uint64_t editSeq = 0;      // bumps on every injected edit (echo checks use the latest)
 };
 HookState* h = nullptr;        // hook thread only
 DWORD g_hookTid = 0;
@@ -135,6 +149,8 @@ bool foregroundVietnamese() {
     return v != 0;
 }
 
+void markNoDirect(DWORD tid, const char* why);
+
 LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     if (code != HC_ACTION || !h) return CallNextHookEx(nullptr, code, wp, lp);
     const auto* kb = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lp);
@@ -170,7 +186,26 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
         h->session.reset();
         return CallNextHookEx(nullptr, code, wp, lp);
     }
-    SendInput(static_cast<UINT>(sink.inputs.size()), sink.inputs.data(), sizeof(INPUT));
+    // Focus moved between the key and the injection: the edit belongs to another
+    // window now — drop it, reset the word, let the key go.
+    if (!injectionAllowed(reinterpret_cast<uintptr_t>(GetForegroundWindow()), reinterpret_cast<uintptr_t>(h->fgHwnd),
+                          false)) {
+        h->session.reset();
+        return CallNextHookEx(nullptr, code, wp, lp);
+    }
+    const UINT total = static_cast<UINT>(sink.inputs.size());
+    const UINT sent = SendInput(total, sink.inputs.data(), sizeof(INPUT));
+    const SendOutcome out = classifySend(sent, total);
+    if (out != SendOutcome::Ok) {
+        // Blocked (UIPI, secure input) or cut short: the screen is unknown. This field
+        // goes to composition (TIP) for the rest of the focus.
+        h->session.reset();
+        markNoDirect(h->fgThread, "SendInput refused");
+        PostThreadMessageW(g_hookTid, kCmdDisableHere, 0, 0);
+        return out == SendOutcome::NothingSent ? CallNextHookEx(nullptr, code, wp, lp) : 1;
+    }
+    if (h->direct && h->session.wordActive())
+        directVerifyAfterEdit(h->fgHwnd, h->fgThread, h->session.shown(), ++h->editSeq);
     return 1;
 }
 
@@ -178,6 +213,16 @@ LRESULT CALLBACK mouseProc(int code, WPARAM wp, LPARAM lp) {
     if (code == HC_ACTION && h && (wp == WM_LBUTTONDOWN || wp == WM_RBUTTONDOWN || wp == WM_MBUTTONDOWN))
         h->session.reset();  // caret probably moved
     return CallNextHookEx(nullptr, code, wp, lp);
+}
+
+// Marks the focused field of `tid` NoDirect (the TIP composes there) and logs it.
+void markNoDirect(DWORD tid, const char* why) {
+    GUITHREADINFO gi = {};
+    gi.cbSize = sizeof gi;
+    HWND field = (tid && GetGUIThreadInfo(tid, &gi)) ? gi.hwndFocus : nullptr;
+    if (!field) field = h ? h->fgHwnd : nullptr;
+    if (field) SetPropW(field, kNoDirectProp, reinterpret_cast<HANDLE>(1));
+    directLog(std::string("direct mode -> composition for this field: ") + why);
 }
 
 void removeHooks() {
@@ -256,12 +301,15 @@ DWORD WINAPI hookThreadMain(void*) {
                     break;
                 }
                 case kCmdForeground: {
-                    std::unique_ptr<std::wstring> exe(reinterpret_cast<std::wstring*>(msg.lParam));
-                    h->fgExe = *exe;
-                    h->fgThread = static_cast<DWORD>(msg.wParam >> 1);
-                    applyWanted((msg.wParam & 1) != 0);
+                    std::unique_ptr<Foreground> f(reinterpret_cast<Foreground*>(msg.lParam));
+                    h->fgExe = f->exe;
+                    h->fgThread = f->tid;
+                    h->fgHwnd = f->hwnd;
+                    h->direct = f->direct;
+                    applyWanted(f->install);
                     break;
                 }
+                case kCmdDisableHere: applyWanted(false); break;
                 case kCmdQuit: PostQuitMessage(0); break;
                 default: break;
             }
@@ -299,28 +347,43 @@ bool integrityOf(HANDLE process, DWORD& rid) {
     return ok;
 }
 
+bool processIntegrity(DWORD pid, DWORD& rid) {
+    bool known = false;
+    if (HANDLE p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
+        known = integrityOf(p, rid);
+        CloseHandle(p);
+    }
+    return known;
+}
+
 void publishForeground() {
     const AppMode mode = resolveAppMode(narrow(u->fgExe), u->settings.appModes);
-    const bool hookOn = hookTypes(mode) || u->directFromTip;
-    ensureHookThread();
-    // wParam = (tid << 1) | install
-    PostThreadMessageW(g_hookTid, kCmdForeground, (static_cast<WPARAM>(u->fgThread) << 1) | (hookOn ? 1 : 0),
-                       reinterpret_cast<LPARAM>(new std::wstring(u->fgExe)));
-    if (hookOn && g_elevationNotify && !u->fgExe.empty()) {
-        HWND fg = GetForegroundWindow();
-        DWORD pid = 0, fgRid = 0, ourRid = 0x2000;
-        if (fg) GetWindowThreadProcessId(fg, &pid);
-        bool known = false;
-        if (HANDLE p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
-            known = integrityOf(p, fgRid);
-            CloseHandle(p);
-        }
-        integrityOf(GetCurrentProcess(), ourRid);
-        if (hookNeedsElevationWarning(true, known, fgRid, ourRid, g_warnedExes.count(u->fgExe) != 0)) {
+    HWND fg = GetForegroundWindow();
+    DWORD pid = 0, fgRid = 0, ourRid = 0x2000;
+    if (fg) GetWindowThreadProcessId(fg, &pid);
+    const bool known = processIntegrity(pid, fgRid);
+    integrityOf(GetCurrentProcess(), ourRid);
+    const bool direct = mode == AppMode::Direct || u->directFromTip;
+    bool hookOn = mode == AppMode::HookFallback || direct;
+    // A field already marked NoDirect keeps composing.
+    GUITHREADINFO gi = {};
+    gi.cbSize = sizeof gi;
+    HWND field = (u->fgThread && GetGUIThreadInfo(u->fgThread, &gi)) ? gi.hwndFocus : nullptr;
+    if (direct && field && GetPropW(field, kNoDirectProp)) hookOn = false;
+    // UIPI: SendInput cannot reach a higher-integrity app. Direct simply does not run
+    // there — the TIP (in-process) composes instead. Explicit hookFallback apps get the
+    // one-time notice, since nothing else types for them.
+    if (hookOn && !directUsable(known, fgRid, ourRid)) {
+        hookOn = false;
+        if (!direct && g_elevationNotify && !u->fgExe.empty() && !g_warnedExes.count(u->fgExe)) {
             g_warnedExes.insert(u->fgExe);
             g_elevationNotify(u->fgExe);
         }
     }
+    ensureHookThread();
+    directVerifyFocusChanged();
+    auto* f = new Foreground{u->fgExe, u->fgThread, fg, hookOn, direct};
+    if (!PostThreadMessageW(g_hookTid, kCmdForeground, 0, reinterpret_cast<LPARAM>(f))) delete f;
 }
 
 void onForeground(HWND hwnd) {
@@ -341,6 +404,7 @@ void CALLBACK winEventProc(HWINEVENTHOOK, DWORD event, HWND hwnd, LONG idObject,
 void hookConfigure(const Settings& s) {
     if (!u) u = new UiState();
     u->settings = s;
+    directSetLogging(s.debugLogging);
     ensureHookThread();
     PostThreadMessageW(g_hookTid, kCmdConfig, 0, reinterpret_cast<LPARAM>(new Settings(s)));
     // Always watch the foreground: built-in Direct rules (consoles, terminals) exist.
@@ -358,7 +422,12 @@ void hookSetDirectFromTip(bool on) {
 
 void hookSetElevationNotifier(void (*notify)(const std::wstring& exe)) { g_elevationNotify = notify; }
 
+void hookDisableCurrentField() {
+    if (g_hookTid) PostThreadMessageW(g_hookTid, kCmdDisableHere, 0, 0);
+}
+
 void hookShutdown() {
+    directVerifyShutdown();
     if (u && u->fgHook) UnhookWinEvent(u->fgHook);
     if (g_hookThread) {
         PostThreadMessageW(g_hookTid, kCmdQuit, 0, 0);
