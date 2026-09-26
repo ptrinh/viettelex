@@ -90,6 +90,9 @@ signing_token() {
 }
 
 TOKEN=""
+# Program name baked into the Authenticode signature (SpcSpOpusInfo). UAC shows THIS —
+# without it Windows shows the temp copy msiexec makes (e.g. "130518b5.msi").
+sign_name() { case "$1" in *.msi) echo "VietTelex Setup" ;; *) echo "VietTelex" ;; esac; }
 sign() {  # sign <file>...
   [ "$UNSIGNED" = 1 ] && return 0
   if [ -z "$TOKEN" ]; then
@@ -100,6 +103,7 @@ sign() {  # sign <file>...
   for f in "$@"; do
     jsign --storetype TRUSTEDSIGNING --keystore "$VTX_SIGN_ENDPOINT" --storepass "$TOKEN" \
       --alias "$VTX_SIGN_ACCOUNT/$VTX_SIGN_PROFILE" \
+      --name "$(sign_name "$f")" --url https://viettelex.com \
       --tsaurl http://timestamp.acs.microsoft.com/ --tsmode RFC3161 "$f" >/dev/null \
       || { echo "signing failed: $f" >&2; exit 1; }
   done
