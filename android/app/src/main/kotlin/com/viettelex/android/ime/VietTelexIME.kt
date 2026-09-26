@@ -11,6 +11,7 @@ import android.os.HandlerThread
 import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
+import android.text.InputType
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -30,6 +31,7 @@ import com.viettelex.keyboard.MainThread
 import com.viettelex.keyboard.SuggestionPlan
 import com.viettelex.keyboard.TemplateItem
 import com.viettelex.keyboard.Templates
+import com.viettelex.keyboard.TouchLog
 import com.viettelex.keyboard.UserLangModel
 import java.io.File
 import java.net.HttpURLConnection
@@ -58,7 +60,15 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     private lateinit var clipboard: AndroidClipboard
     private lateinit var session: KeyboardSession
     private val tracker = SelectionTracker()
-    private val proxy by lazy { IcProxy(this, tracker) }
+    private var portCache: AndroidEditorPort? = null
+    private val proxy by lazy { IcProxy({ port() }, tracker) }
+
+    /** Wrapper cache theo InputConnection hiện hành (không cấp phát mỗi phím). */
+    private fun port(): EditorPort? {
+        val ic = currentInputConnection ?: return null
+        portCache?.let { if (it.ic === ic) return it }
+        return AndroidEditorPort(ic).also { portCache = it }
+    }
     private val feedback by lazy { Feedback(this) }
 
     private var worker: Handler? = null
@@ -146,7 +156,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         proxy.secure = field.isSecure
         proxy.rawKeys = field.rawKeys
         proxy.actionId = field.actionId
-        tracker.reset(info.initialSelStart, info.initialSelEnd)
+        proxy.uriField = (info.inputType and InputType.TYPE_MASK_CLASS) == InputType.TYPE_CLASS_TEXT &&
+            (info.inputType and InputType.TYPE_MASK_VARIATION) == InputType.TYPE_TEXT_VARIATION_URI
+        startTracking(info)
         handler.removeCallbacks(autoShiftRun); handler.removeCallbacks(suggestRun)
 
         session.startInput(settings, FieldTraits(
@@ -176,6 +188,21 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         if (BuildConfig.DEBUG) Log.d(TAG, "perf onStartInputView ${SystemClock.elapsedRealtime() - t0} ms")
     }
 
+    /**
+     * initialSel không tin tuyệt đối: đối chiếu độ dài getInitialTextBeforeCursor (API 30+);
+     * lệch ⇒ con trỏ không biết. Khớp ⇒ nạp luôn shadow (khỏi IPC lượt đầu).
+     */
+    private fun startTracking(info: EditorInfo) {
+        val before = if (Build.VERSION.SDK_INT >= 30 && !field.isSecure)
+            info.getInitialTextBeforeCursor(IcProxy.CONTEXT_CAP, 0) else null
+        val s = info.initialSelStart; val e = info.initialSelEnd
+        val ok = InitialSelection.trusted(s, e, before?.length, IcProxy.CONTEXT_CAP)
+        if (ok) tracker.reset(s, e) else tracker.reset(-1, -1)
+        if (!ok && s >= 0 && TouchLog.enabled) TouchLog.write("initialSel $s..$e lệch initialTextBefore len=${before?.length}")
+        proxy.startInput(if (ok) before else null,
+            ok && before != null && InitialSelection.reachesFieldStart(s, e, before.length))
+    }
+
     override fun onWindowShown() {
         super.onWindowShown()
         root?.refreshInsets()           // Android 15+: chừa dải cho nút ⌄/🌐 của hệ thống
@@ -202,8 +229,12 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int,
                                    candidatesStart: Int, candidatesEnd: Int) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        // Mình không dùng composing text: span còn (app/IME trước để sót) ⇒ chốt ở phím kế.
+        if (candidatesStart != -1) proxy.finishComposingOnNextEdit()
+        if (newSelStart < 0) proxy.invalidateShadow()   // "không biết": không reset engine, chỉ đọc lại chữ
         if (!tracker.onUpdate(newSelStart, newSelEnd)) return
         // Đổi từ NGOÀI (chạm chỗ khác, select-all, app tự sửa): quên từ + ngữ cảnh.
+        proxy.invalidateShadow()
         session.externalSelectionChange()
         applyAutoShift()
         refreshBar()
@@ -215,6 +246,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         if (!proxy.begin()) return
         val out = try { session.handle(key, proxy) } finally { proxy.end() }
         if (key is Key.MoveCursor) proxy.moveCursor(key.delta)
+        resetIfEditFailed()
         if (key is Key.Letter) strip?.hidePasteCard()
         pendingGen = out.generation
         if (out.needsAutoShift) { handler.removeCallbacks(autoShiftRun); handler.post(autoShiftRun) }
@@ -225,8 +257,14 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     override fun onDeleteWord() {
         if (!proxy.begin()) return
         try { session.deleteWordBackward(proxy) } finally { proxy.end() }
+        resetIfEditFailed()
         applyAutoShift()
         refreshBar()
+    }
+
+    /** commitText/deleteSurroundingText trả false: màn hình không còn chắc khớp engine ⇒ quên từ. */
+    private fun resetIfEditFailed() {
+        if (proxy.takeFailure()) session.externalSelectionChange()
     }
 
     override fun onGlobe(longPress: Boolean) {
@@ -294,6 +332,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     private fun insertTemplate(text: String) {
         if (!proxy.begin()) return
         try { session.insertTemplate(text, proxy) } finally { proxy.end() }
+        resetIfEditFailed()
         applyAutoShift()
         refreshBar()
     }
@@ -313,6 +352,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     override fun onSuggestion(item: String) {
         if (!proxy.begin()) return
         try { session.acceptSuggestion(item, proxy) } finally { proxy.end() }
+        resetIfEditFailed()
         applyAutoShift()
         refreshBar()
     }

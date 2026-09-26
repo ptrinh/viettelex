@@ -14,6 +14,13 @@ interface TextProxy {
     fun contextBeforeInput(): String? = null
     /** 🗑 mẫu câu: xoá sạch ô (giới hạn an toàn 20 000 ký tự). */
     fun clearAll() {}
+    /**
+     * Fail-safe TRƯỚC khi xoá chữ của từ đang soạn: văn bản trước con trỏ có kết thúc
+     * bằng [expected] (từ engine đang giữ) không. false ⇒ ô đã đổi mà mình không được
+     * báo — caller reset engine và chèn literal thay vì xoá mù. Không đọc được ⇒ true
+     * (không có căn cứ, giữ hành vi cũ).
+     */
+    fun confirmTail(expected: String): Boolean = true
 }
 
 /** Main-thread scheduler (Android: Handler main looper). */

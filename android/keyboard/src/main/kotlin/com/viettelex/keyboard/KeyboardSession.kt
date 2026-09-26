@@ -244,7 +244,10 @@ class KeyboardSession(
             Key.DoubleSpacePeriod -> {
                 val ctx = proxy.contextBeforeInput() ?: ""
                 if (TypingHeuristics.doubleSpaceMakesPeriod(ctx, lastInsertWasSpace)) {
-                    proxy.deleteBackward()
+                    // Xoá space bằng deleteSurroundingText (qua deleteCodePoints), KHÔNG
+                    // deleteBackward: KEYCODE_DEL đi đường key event bất đồng bộ (ViewRootImpl
+                    // post Message) nên có thể tới SAU commitText(". ") → "chữ ." thay vì "chữ. ".
+                    proxy.deleteCodePoints(1)
                     proxy.insertText(". ")
                     lastWord = null; lastWord2 = null
                 } else {
@@ -316,7 +319,7 @@ class KeyboardSession(
      */
     fun insertTemplate(text: String, proxy: TextProxy) {
         val n = Cp.count(bridge.composedWord)
-        if (n > 0) proxy.deleteCodePoints(n)
+        if (n > 0 && proxy.confirmTail(bridge.composedWord)) proxy.deleteCodePoints(n)
         proxy.insertText(text)
         bridge.reset(); lastWord = null; lastWord2 = null; clearUndo()
     }
@@ -479,6 +482,11 @@ class KeyboardSession(
         }
         val uRaw = restoreUndoRaw; val uComposed = restoreUndoComposed
         if (undoOfferActive && uRaw != null && uComposed != null && item == uComposed && bridge.composedWord.isEmpty()) {
+            if (!proxy.confirmTail(uRaw)) {
+                // Chữ vừa chốt không còn trước con trỏ: không xoá mù, bỏ lời mời hoàn tác.
+                clearUndo(); bridge.reset()
+                return
+            }
             proxy.deleteCodePoints(Cp.count(uRaw))
             proxy.insertText("$uComposed ")
             clearUndo()
@@ -490,7 +498,8 @@ class KeyboardSession(
         val isFragment = item.contains('.') || item.contains('@')
         val isWord = !isFragment && item.isNotEmpty() && Character.isLetter(item.codePointAt(0))
         val n = Cp.count(bridge.composedWord)
-        if (n > 0) proxy.deleteCodePoints(n)
+        // Fail-safe: từ đang soạn không còn trước con trỏ ⇒ chèn, không xoá mù.
+        if (n > 0 && proxy.confirmTail(bridge.composedWord)) proxy.deleteCodePoints(n)
         proxy.insertText(if (isWord) "$item " else item)
         bridge.reset()
         if (isWord) commitAndLearn(item, accepted = true) else { lastWord = null; lastWord2 = null }

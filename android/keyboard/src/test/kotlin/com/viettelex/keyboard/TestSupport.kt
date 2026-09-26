@@ -37,4 +37,5 @@ class MockProxy(var isSecureField: Boolean = false) : TextProxy {
     override fun deleteBackward() = deleteCodePoints(1)
     override fun contextBeforeInput(): String = text
     override fun clearAll() { sb.setLength(0) }
+    override fun confirmTail(expected: String): Boolean = text.endsWith(expected)
 }
