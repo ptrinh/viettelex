@@ -10,8 +10,12 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.animation.DecelerateInterpolator
 import com.viettelex.android.R
+import com.viettelex.keyboard.GestureClassifier
 import com.viettelex.keyboard.Key
 import com.viettelex.keyboard.KeyCommitQueue
+import com.viettelex.keyboard.SwipeLayout
+import com.viettelex.keyboard.SwipePath
+import com.viettelex.keyboard.SwipeSuggest
 import com.viettelex.keyboard.TemplateItem
 import com.viettelex.keyboard.TouchGeometry
 import com.viettelex.keyboard.TouchLog
@@ -33,6 +37,8 @@ class KeyboardView(
     private val theme: ImeTheme,
     private val balloon: BalloonView,
     private val feedback: Feedback,
+    /** Vệt gõ vuốt (overlay cùng toạ độ); null = không vẽ. */
+    private val trail: SwipeTrailView? = null,
 ) : View(context) {
 
     interface Listener {
@@ -53,6 +59,16 @@ class KeyboardView(
         /** Recents emoji (đọc/ghi pref). */
         fun emojiRecents(): List<String>
         fun noteEmojiUsed(e: String)
+
+        // --- gõ vuốt (chỉ gọi khi [swipeTyping] bật) ---
+        /** Tâm phím a–z theo toạ độ view (đổi cỡ / xoay / plane chữ dựng lại). */
+        fun onSwipeLayout(layout: SwipeLayout)
+        /** Ngón vừa thành VUỐT: huỷ chữ đã chèn lúc chạm. false ⇒ coi như chạm (bỏ vuốt). */
+        fun onSwipeTypingStart(): Boolean
+        /** Nhấc tay: [path] toạ độ view (đã dời điểm chọn như hit-test), [case] theo shift. */
+        fun onSwipeTypingEnd(path: SwipePath, case: SwipeSuggest.Case)
+        /** Huỷ (ACTION_CANCEL / bàn phím ẩn) sau khi đã huỷ chữ đầu. */
+        fun onSwipeTypingCancel()
     }
 
     var listener: Listener? = null
@@ -116,6 +132,24 @@ class KeyboardView(
     }
     private val logo: android.graphics.Bitmap? by lazy { android.graphics.BitmapFactory.decodeResource(resources, R.drawable.ime_space_logo) }
     private val logoRect = android.graphics.RectF()
+
+    // --- gõ vuốt ---
+    /** IME bật khi setting + loại ô + không TalkBack. Tắt ⇒ không tính layout, không theo dõi ngón. */
+    var swipeTyping = false
+        set(v) {
+            if (field == v) return
+            field = v
+            if (v) publishSwipeLayout() else { abortSwipe(); swipeLayout = null; swipePath = null }
+        }
+    private val classifier = GestureClassifier()
+    private var swipePid = -1
+    private var swiping = false
+    private var swipeShift = Shift.OFF
+    private var swipeKey: LaidKey? = null
+    private var swipePath: SwipePath? = null
+    private var swipeLayout: SwipeLayout? = null
+    private var lastLetterDownT = Long.MIN_VALUE / 2
+    private val yOffPx = TouchGeometry.yOffset * d
 
     private val emojiPane = EmojiPane(this, theme, feedback)
     private val templatesPane = TemplatesPane(this, theme, feedback)
@@ -256,6 +290,7 @@ class KeyboardView(
         val paneBottom = if (plane == Plane.TEMPLATES) keyAreaPx - keyAreaPx / 4f else keyAreaPx
         templatesPane.layout(width.toFloat(), paneBottom)
         emojiPane.layout(width.toFloat(), keyAreaPx)
+        publishSwipeLayout()
         invalidate()
     }
 
@@ -416,10 +451,13 @@ class KeyboardView(
                 val i = e.actionIndex
                 down(e.getPointerId(i), e.getX(i), e.getY(i), e)
             }
-            MotionEvent.ACTION_MOVE -> for (i in 0 until e.pointerCount) move(e.getPointerId(i), e.getX(i), e.getY(i))
+            MotionEvent.ACTION_MOVE -> for (i in 0 until e.pointerCount) {
+                val pid = e.getPointerId(i)
+                if (pid == swipePid) swipeMove(e, i) else move(pid, e.getX(i), e.getY(i))
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val i = e.actionIndex
-                up(e.getPointerId(i), e.getX(i), e.getY(i), cancelled = false)
+                up(e.getPointerId(i), e.getX(i), e.getY(i), cancelled = false, t = e.eventTime)
             }
             MotionEvent.ACTION_CANCEL -> for (i in 0 until e.pointerCount)
                 up(e.getPointerId(i), e.getX(i), e.getY(i), cancelled = true)
@@ -429,6 +467,9 @@ class KeyboardView(
 
     private fun down(pid: Int, x: Float, y: Float, e: MotionEvent) {
         if (pid !in 0 until MAX_PTR) return
+        // Đang vuốt: ngón khác bỏ qua (không gõ chữ lạc); đang chờ phân loại: khoá là chạm.
+        if (swiping) return
+        if (swipePid >= 0 && pid != swipePid) { classifier.pointerAdded(); stopSwipeTracking() }
         ptrDownX[pid] = x; ptrDownY[pid] = y
         if (plane == Plane.EMOJI) { commits.flush(); ptrPane[pid] = true; emojiPane.down(pid, x, y); return }
         if (plane == Plane.TEMPLATES && templatesPane.contains(x, y)) {
@@ -449,8 +490,13 @@ class KeyboardView(
                 feedback.click(Feedback.LETTER, this)
                 showBalloon(k, if (shift == Shift.OFF) k.label else k.upper)
                 val ch = (if (shift == Shift.OFF) k.label else k.upper)[0]
+                val shiftWas = shift
                 listener?.onKey(Key.Letter(ch))
                 if (shift == Shift.ON) { shift = Shift.OFF; invalidate() }
+                val since = e.eventTime - lastLetterDownT
+                lastLetterDownT = e.eventTime
+                if (swipeTyping && plane == Plane.LETTERS && activeCount() == 1)
+                    startSwipeTracking(pid, k, x, y, e.eventTime, since, shiftWas)
             }
             KeyKind.CHAR -> {
                 feedback.click(Feedback.LETTER, this)
@@ -534,13 +580,18 @@ class KeyboardView(
         }
     }
 
-    private fun up(pid: Int, x: Float, y: Float, cancelled: Boolean) {
+    private fun up(pid: Int, x: Float, y: Float, cancelled: Boolean, t: Long = SystemClock.uptimeMillis()) {
         if (pid !in 0 until MAX_PTR) return
         if (ptrPane[pid]) {
             ptrPane[pid] = false
             if (plane == Plane.EMOJI) emojiPane.up(pid, x, y, cancelled)
             else if (plane == Plane.TEMPLATES) templatesPane.up(pid, x, y, cancelled)
             return
+        }
+        if (pid == swipePid) {
+            val wasSwiping = swiping
+            stopSwipeTracking()
+            if (wasSwiping) { finishSwipe(pid, x, y, t, cancelled); return }
         }
         val k = ptrKey[pid] ?: run { if (TouchLog.enabled) TouchLog.touchEnded(cancelled, false); return }
         ptrKey[pid] = null
@@ -623,6 +674,7 @@ class KeyboardView(
     private fun activeCount(): Int { var n = 0; for (k in ptrKey) if (k != null) n++; return n }
 
     private fun cancelAllTouches() {
+        abortSwipe()
         for (i in 0 until MAX_PTR) {
             ptrKey[i]?.pressed = false
             ptrKey[i] = null; ptrPane[i] = false
@@ -635,6 +687,107 @@ class KeyboardView(
         if (trackpad) endTrackpad()
         balloon.hide(); balloonOwner = null
         invalidate()
+    }
+
+    // MARK: gõ vuốt
+
+    /** Tâm phím chữ a–z (plane chữ) → decoder; bước phím = khoảng cách tâm q→w. */
+    private fun publishSwipeLayout() {
+        if (!swipeTyping || plane != Plane.LETTERS || keys.isEmpty()) return
+        val m = HashMap<Char, Pair<Float, Float>>(32)
+        for (k in keys) {
+            if (k.kind != KeyKind.LETTER || k.label.length != 1) continue
+            val c = k.label[0]
+            if (c in 'a'..'z') m[c] = k.centerX to k.centerY
+        }
+        val q = m['q'] ?: return
+        val w = m['w'] ?: return
+        val kw = w.first - q.first
+        if (kw <= 0f) return
+        val l = SwipeLayout(kw, m)
+        if (l == swipeLayout) return
+        abortSwipe()
+        swipeLayout = l
+        swipePath = SwipePath(minDistance = kw / 5f)
+        listener?.onSwipeLayout(l)
+    }
+
+    private fun startSwipeTracking(pid: Int, k: LaidKey, x: Float, y: Float, t: Long, since: Long, shiftWas: Shift) {
+        val l = swipeLayout ?: return
+        val p = swipePath ?: return
+        classifier.begin(x / d, y / d, t, k.left / d, k.top / d, k.right / d, k.bottom / d, l.keyWidth / d, since)
+        p.reset()
+        p.add(x, y - yOffPx, t / 1000.0)
+        swipePid = pid; swipeKey = k; swipeShift = shiftWas
+    }
+
+    private fun stopSwipeTracking() {
+        classifier.end()
+        swipePid = -1
+        swiping = false
+        swipeKey = null
+    }
+
+    /** ACTION_MOVE của ngón đang theo dõi: duyệt cả điểm lịch sử (vuốt nhanh gộp nhiều mẫu/khung). */
+    private fun swipeMove(e: MotionEvent, i: Int) {
+        for (h in 0 until e.historySize) {
+            swipePoint(e.getHistoricalX(i, h), e.getHistoricalY(i, h), e.getHistoricalEventTime(h))
+            if (swipePid < 0) return
+        }
+        swipePoint(e.getX(i), e.getY(i), e.eventTime)
+    }
+
+    private fun swipePoint(x: Float, y: Float, t: Long) {
+        val p = swipePath ?: return
+        p.add(x, y - yOffPx, t / 1000.0)
+        if (swiping) { trail?.add(x, y, t); return }
+        when (classifier.move(x / d, y / d, t)) {
+            GestureClassifier.State.SWIPE -> beginSwipe(p)
+            GestureClassifier.State.TAP -> stopSwipeTracking()
+            else -> Unit
+        }
+    }
+
+    private fun beginSwipe(p: SwipePath) {
+        if (listener?.onSwipeTypingStart() != true) { stopSwipeTracking(); return }
+        swiping = true
+        swipeKey?.let { hideBalloon(it) }
+        // Chữ đầu đã huỷ ⇒ shift một-lần bị nhả lúc chạm phải bật lại (từ vuốt viết hoa).
+        if (swipeShift == Shift.ON && shift == Shift.OFF) { shift = Shift.ON; invalidate() }
+        val tr = trail ?: return
+        tr.begin()
+        for (j in 0 until p.count) tr.add(p.xs[j], p.ys[j] + yOffPx, (p.ts[j] * 1000).toLong())
+    }
+
+    private fun finishSwipe(pid: Int, x: Float, y: Float, t: Long, cancelled: Boolean) {
+        ptrKey[pid]?.let { hideBalloon(it) }
+        ptrKey[pid] = null
+        val p = swipePath
+        if (cancelled || p == null) {
+            trail?.end(fade = false)
+            listener?.onSwipeTypingCancel()
+            return
+        }
+        p.add(x, y - yOffPx, t / 1000.0, force = true)
+        trail?.end(fade = true)
+        val case = when (shift) {
+            Shift.CAPS -> SwipeSuggest.Case.ALL
+            Shift.ON -> SwipeSuggest.Case.FIRST
+            Shift.OFF -> SwipeSuggest.Case.LOWER
+        }
+        listener?.onSwipeTypingEnd(p, case)
+        if (shift == Shift.ON) { shift = Shift.OFF; invalidate() }
+    }
+
+    /** Bỏ lượt vuốt đang dở (ẩn bàn phím / đổi layout / tắt tính năng). */
+    private fun abortSwipe() {
+        val was = swiping
+        val pid = swipePid
+        stopSwipeTracking()
+        if (!was) return
+        if (pid in 0 until MAX_PTR) { ptrKey[pid]?.let { hideBalloon(it) }; ptrKey[pid] = null }
+        trail?.end(fade = false)
+        listener?.onSwipeTypingCancel()
     }
 
     // MARK: trackpad

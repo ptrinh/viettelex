@@ -19,6 +19,8 @@ class ImeRootView(
     val keyboard: KeyboardView,
     val strip: StripView,
     val balloon: BalloonView,
+    /** Vệt gõ vuốt — phủ đúng vùng phím, dưới balloon. */
+    val trail: SwipeTrailView,
 ) : ViewGroup(context) {
 
     private var navInset = 0
@@ -28,6 +30,7 @@ class ImeRootView(
         isMotionEventSplittingEnabled = true
         addView(keyboard)
         addView(strip)
+        addView(trail)
         addView(balloon)
     }
 
@@ -41,6 +44,7 @@ class ImeRootView(
         keyboard.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(keyH, MeasureSpec.EXACTLY))
         strip.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
             MeasureSpec.makeMeasureSpec(strip.viewHeightPx(), MeasureSpec.EXACTLY))
+        trail.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(keyH, MeasureSpec.EXACTLY))
         balloon.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
             MeasureSpec.makeMeasureSpec(s + keyH, MeasureSpec.EXACTLY))
         setMeasuredDimension(w, h)
@@ -52,6 +56,7 @@ class ImeRootView(
         val keyH = keyboard.measuredHeight
         keyboard.layout(0, s, w, s + keyH)
         strip.layout(0, 0, w, strip.measuredHeight)
+        trail.layout(0, s, w, s + keyH)
         balloon.layout(0, 0, w, s + keyH)
     }
 
