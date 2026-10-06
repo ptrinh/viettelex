@@ -192,6 +192,8 @@ final class SettingsModel: ObservableObject {
     /// observes this model (they call `loc(_:)`), so the switch is live — no relaunch.
     @Published var uiLanguage: String { didSet { AppState.shared.uiLanguage = uiLanguage } }
     @Published var shortcuts: [ShortcutRow] = []
+    /// Khoá gõ tắt cũng có trong Text Replacements của macOS (#117).
+    @Published var systemConflicts: [SystemTextReplacements.Conflict] = []
     @Published var modeRows: [AppModeRow] = []            // Bảng chế độ gõ
     @Published var modeFilter: String = ""                // live filter over the table
     /// Header-click sort for the mode table (default: App name A-Z).
@@ -531,6 +533,8 @@ final class SettingsModel: ObservableObject {
         shortcuts = AppState.shared.shortcuts
             .sorted { $0.key < $1.key }
             .map { ShortcutRow(key: $0.key, value: $0.value) }
+        systemConflicts = SystemTextReplacements.conflicts(
+            ours: AppState.shared.shortcuts, system: SystemReplacementGuard.shared.systemTable)
     }
 
     func addShortcut(key: String, value: String) {
@@ -1498,12 +1502,39 @@ struct ShortcutsTab: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if !model.systemConflicts.isEmpty { systemConflictNote }
+
             HStack {
                 Button { importPlist() } label: { Label(model.loc("Import…"), systemImage: "square.and.arrow.up.on.square") }
                 Button { exportPlist() } label: { Label(model.loc("Export to YAML…"), systemImage: "square.and.arrow.up") }
                 Spacer()
             }
         }
+    }
+
+    /// Issue #117: khoá trùng Text Replacements của macOS ("h" → "giờ" ra "giờiờ" ở Lark).
+    private var systemConflictNote: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(model.loc("Also in macOS Text Replacements:"), systemImage: "exclamationmark.triangle")
+                .font(.caption.bold()).foregroundStyle(.orange)
+            Text(model.systemConflicts.map { c in
+                c.sameExpansion ? c.key : "\(c.key) (macOS: \(ShortcutRow.oneLine(c.system)))"
+            }.joined(separator: ", "))
+                .font(.caption.monospaced())
+            Text(model.loc("Chrome, Edge and Electron apps (Lark, Slack…) apply macOS Text Replacements too, so VietTelex leaves these keys to macOS there to avoid a double expansion. A short macOS replacement (like “h”) can still break Vietnamese words in those apps — delete it from macOS: VietTelex’s shortcut works in every app."))
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button(model.loc("Open Keyboard Settings…")) {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                Button(model.loc("Check again")) { model.reloadShortcuts() }
+            }.controlSize(.small)
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.08)))
     }
 
     private var trimmedKey: String { newKey.trimmingCharacters(in: .whitespaces) }

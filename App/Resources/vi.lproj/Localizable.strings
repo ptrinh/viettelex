@@ -326,3 +326,7 @@ Bấm “Sửa tự động”: VietTelex tự xoá mục bị kẹt của chín
 "This Mac isn’t signed in to iCloud." = "Máy Mac này chưa đăng nhập iCloud.";
 "%@ is still holding Secure Input after the password field" = "%@ vẫn giữ Secure Input sau ô mật khẩu";
 "The browser kept the keyboard lock after signing in (usually clears by itself in a few seconds). To clear it now: switch to another app and back (⌘Tab twice), or reload the page" = "Trình duyệt vẫn giữ khoá bàn phím sau khi đăng nhập (thường tự hết sau vài giây). Muốn gỡ ngay: chuyển sang app khác rồi quay lại (⌘Tab hai lần), hoặc tải lại trang";
+"Also in macOS Text Replacements:" = "Trùng với Thay thế văn bản của macOS:";
+"Chrome, Edge and Electron apps (Lark, Slack…) apply macOS Text Replacements too, so VietTelex leaves these keys to macOS there to avoid a double expansion. A short macOS replacement (like “h”) can still break Vietnamese words in those apps — delete it from macOS: VietTelex’s shortcut works in every app." = "Chrome, Edge và các app Electron (Lark, Slack…) cũng tự áp Thay thế văn bản của macOS, nên ở đó VietTelex nhường các khoá này cho macOS để không bị nở hai lần. Khoá ngắn bên macOS (như “h”) vẫn có thể làm hỏng chữ Việt trong các app đó — nên xoá nó khỏi macOS: gõ tắt VietTelex chạy ở mọi app.";
+"Open Keyboard Settings…" = "Mở Cài đặt Bàn phím…";
+"Check again" = "Kiểm tra lại";

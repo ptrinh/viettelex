@@ -1848,7 +1848,9 @@ final class TelexInputController: IMKInputController {
         // shortcut key containing trigger letters still matches; case follows the
         // typing (ko → không, Ko → Không, KO → KHÔNG — ShortcutTable.expansion).
         // On-screen backspace count stays `onScreen` (the composed scalar count).
-        if allowShortcuts, let expansion = table.wordExpansion(composed: word, raw: rawWord) {
+        // Khoá trùng Text Replacements của macOS ở app họ Chromium ⇒ để macOS nở (#117).
+        if allowShortcuts, let expansion = table.wordExpansion(composed: word, raw: rawWord),
+           !SystemReplacementGuard.shared.shouldDefer(onScreen: word, bundleID: id) {
             engine.reset()
             if marked { client.insertText(expansion + commitSuffix, replacementRange: kNoRange) }
             else if wasEdge { noteEdgeBurst(SyntheticKeyboard.applyForEdge(backspaces: onScreen, insert: expansion)) }
@@ -1898,6 +1900,7 @@ final class TelexInputController: IMKInputController {
         guard case let .token(token, expansion)? = ShortcutMatch.find(
             in: table, composed: composed, raw: composed, run: shortcutTail.run,
             allowWord: false, allowToken: allowToken, allowAlnum: allowAlnum) else { return false }
+        if SystemReplacementGuard.shared.shouldDefer(onScreen: token, bundleID: id) { return false }   // #117
         guard Self.replacesCommittedText(id) else {
             DebugLog.log("shortcut token \(id ?? "?"): app not proven in-place → skip")
             return false
@@ -2043,6 +2046,8 @@ final class TelexInputController: IMKInputController {
         if let client = activatedClient {
             AppState.shared.currentBundleID = client.bundleIdentifier()
         }
+        // Gõ tắt trùng Text Replacements của macOS (#117): làm mới bảng ≤ 1 lần/30 giây.
+        SystemReplacementGuard.shared.activated(bundleID: AppState.shared.currentBundleID)
         // Tap-side view of this activation: focus epoch for re-edit(tap) (#111) and
         // the overlay-launcher latch (#110). Before anything else reads the client.
         ClientFocus.noteActivated(client: activatedClient != nil ? AppState.shared.currentBundleID : nil)

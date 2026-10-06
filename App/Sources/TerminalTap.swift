@@ -3490,7 +3490,7 @@ final class TerminalTapController {
         // per key.
         let run = shortcutTail.run
         let afterJump = shortcutTail.afterJump
-        let match = ShortcutMatch.findForTap(
+        var match = ShortcutMatch.findForTap(
             in: table, composed: word, raw: rawWord, tail: shortcutTail,
             allowWord: allowShortcuts, allowToken: allowToken, allowAlnum: allowAlnum) { token in
                 let v = ShortcutScreen.tokenVerdict(token, caret: AXTextEdit.readCaret(),
@@ -3498,6 +3498,16 @@ final class TerminalTapController {
                 DebugLog.log("shortcut token(tap): unanchored run, screen=\(v) afterJump=\(afterJump)")
                 return v
             }
+        // Issue #117: khoá cũng có trong Text Replacements của macOS, app họ Chromium
+        // (Lark) ⇒ macOS sẽ nở vào range CŨ của chữ "h" ("giờiờ") — để macOS nở một mình.
+        if let m = match {
+            let onScreenText: String
+            if case let .token(token, _) = m { onScreenText = token } else { onScreenText = word }
+            if SystemReplacementGuard.shared.shouldDefer(onScreen: onScreenText,
+                                                         bundleID: FrontmostApp.shared.bundleID) {
+                match = nil
+            }
+        }
         switch match {
         case let .word(expansion)?:
             engine.reset()
