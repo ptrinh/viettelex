@@ -101,6 +101,46 @@ enum KeyLayout {
         return sceneLandscape ?? false
     }
 
+    // MARK: iPhone gập (iPhone Duo, iOS 27.1 sim — đo 06/10/2026)
+    // Bug: mở máy (màn 951×669 ngang) view extension rộng 801 (hệ thống chừa 75pt mỗi bên
+    // cho 🌐/mic), trait regular/regular, safeAreaInsets.bottom = 18 (vạch home). Cũ coi đây
+    // là "iPhone ngang" (width > 500 ⇒ 162pt) VÀ hàng đáy (stack insetsLayoutMarginsFromSafeArea)
+    // ăn luôn 18pt safe area vào lề dưới ⇒ phím hàng đáy 40.5 − 10 − 18 ≈ 12pt (viên thuốc
+    // dẹt). Stock cùng máy: bước hàng 51.7, phím 38, hàng đáy cách đáy màn hình 20pt.
+
+    /// Dạng bàn phím iPhone theo hình học THẬT (không đoán theo idiom / orientation):
+    ///  • `.unfolded`: iPhone gập đang MỞ — màn gần vuông (cạnh ngắn ≥ 600pt; iPhone thường
+    ///    ≤ 440) hoặc trait regular cả hai chiều (iPhone thường không bao giờ có).
+    ///  • `.landscape` / `.portrait`: như cũ theo bề ngang view (isPhoneLandscape) — máy gập
+    ///    đang GẬP (466×678) rơi vào đây như một iPhone thường.
+    enum PhoneForm: Equatable { case portrait, landscape, unfolded }
+    static func phoneForm(viewWidth: CGFloat, screenSize: CGSize?, regularBoth: Bool = false,
+                          sceneLandscape: Bool? = nil) -> PhoneForm {
+        if let s = screenSize, min(s.width, s.height) >= unfoldedMinShortSide { return .unfolded }
+        if regularBoth { return .unfolded }
+        return isPhoneLandscape(width: viewWidth, sceneLandscape: sceneLandscape) ? .landscape : .portrait
+    }
+    static let unfoldedMinShortSide: CGFloat = 600
+
+    /// Vùng phím 4 hàng chuẩn theo dạng: dọc 216 (KeyGeometry), ngang 162, máy gập mở 208
+    /// (stock Duo mở: bước hàng 51.7 ≈ 4 × 52).
+    static func phoneKeyAreaBase(_ f: PhoneForm) -> CGFloat {
+        switch f {
+        case .portrait: return 216
+        case .landscape: return 162
+        case .unfolded: return 208
+        }
+    }
+
+    /// Phần safe area ĐÁY của view bàn phím mà hàng phím phải tránh (vạch home trên máy gập
+    /// mở). Hàng phím đặt TRÊN dải này và bàn phím xin cao thêm đúng bằng nó ⇒ 4 hàng giữ đủ
+    /// cao. iPhone thường = 0 (vùng 🌐/mic hệ thống nằm dưới view) ⇒ không đổi gì. iPad giữ
+    /// nguyên cách cũ (bỏ qua safe area ≈5pt). Trần 40: khung tạm lúc host settle (view cỡ
+    /// màn hình) không kéo bàn phím cao vô lý.
+    static func keyboardSafeBottom(pad: Bool, viewSafeBottom: CGFloat) -> CGFloat {
+        pad ? 0 : min(max(viewSafeBottom, 0), 40)
+    }
+
     /// Hàng đáy — units = PHẦN của bề rộng hàng (multiplier theo stack width).
     /// iPad full plane chữ = stock [🌐][.?123][☺︎][space][.?123][⌨︎] — KHÔNG phím ","
     /// riêng (phím "!," hàng 3 đã có ","; Phil 27/09). Đo stock Pro 11": 58.7 / 88 trên 834.

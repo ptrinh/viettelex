@@ -140,6 +140,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var rowsMinHeightConstraint: NSLayoutConstraint?
     private var rowsMinTopConstraint: NSLayoutConstraint?
     private var rowsTopConstraint: NSLayoutConstraint?
+    private var rowsBottomConstraint: NSLayoutConstraint?
     private var rowsLeftConstraint: NSLayoutConstraint?
     private var rowsRightConstraint: NSLayoutConstraint?
     private var repeatTimer: Timer?
@@ -231,6 +232,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         rowsMinTop.priority = UILayoutPriority(999)
         rowsMinTopConstraint = rowsMinTop
         // Hai mép là constraint GIỮ LẠI: chế độ một tay thụt vào (applyOneHand).
+        // Đáy hàng phím = đáy view − safeBottom (máy gập mở: tránh vạch home — KeyLayout).
+        let rowsBottom = rowsContainer.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0)
         let rowsLeft = rowsContainer.leftAnchor.constraint(equalTo: leftAnchor)
         let rowsRight = rowsContainer.rightAnchor.constraint(equalTo: rightAnchor)
         rowsLeftConstraint = rowsLeft
@@ -244,8 +247,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             rowsMin,
             rowsMinTop,
             rowsContainer.topAnchor.constraint(greaterThanOrEqualTo: topAnchor),
-            rowsContainer.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0),
+            rowsBottom,
         ])
+        rowsBottomConstraint = rowsBottom
         rowsHeightConstraint = rowsHeight
         rowsMinHeightConstraint = rowsMin
         rowsMaxHeightConstraint = rowsMax
@@ -346,7 +350,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             let strip: CGFloat = collapsing ? 14 : Self.openStrip
             let c = KeyLayout.chrome(keyArea: self.keyAreaHeight(), strip: strip, mode: self.chromeMode)
             self.rowsTopConstraint?.constant = c.rowsTop
-            self.heightConstraint?.constant = c.total + self.hostFillExtra
+            self.heightConstraint?.constant = c.total + self.safeBottom + self.hostFillExtra
             self.suggestionBar.alpha = collapsing ? 0 : 1
             let flip = CGAffineTransform(rotationAngle: collapsing ? .pi : 0)
             self.chevronIcon?.transform = flip
@@ -590,9 +594,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var isLandscapeNow: Bool {
         // iPhone: theo bề ngang (KeyLayout.isPhoneLandscape) — orientation scene extension
         // có lúc lệch host ⇒ xin chiều cao ngang 162pt khi đang dọc (phím lùn ngẫu nhiên).
-        if !Self.isPad, bounds.width > 0 {
-            return KeyLayout.isPhoneLandscape(width: bounds.width, sceneLandscape: nil)
-        }
+        // Máy gập mở (.unfolded) cũng dùng hình học "ngang": không cắt hàng đáy, khe trên 10.
+        if !Self.isPad, bounds.width > 0 { return phoneForm != .portrait }
         // interfaceOrientation chép cả bộ scene settings mỗi lần đọc; xoay/Split View luôn
         // đổi bounds ⇒ cache theo kích thước (chỉ khi đã gắn window).
         if let c = landscapeCache, c.size == bounds.size, window != nil { return c.landscape }
@@ -601,6 +604,29 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             return o.isLandscape
         }
         return UIDevice.current.userInterfaceIdiom == .phone && bounds.width > 500
+    }
+    /// Dạng bàn phím iPhone (KeyLayout.phoneForm) — cache theo kích thước view: đọc màn hình
+    /// + trait chỉ khi bounds đổi (xoay / gập-mở), không phải mỗi lần tính chiều cao.
+    private var phoneFormCache: (size: CGSize, form: KeyLayout.PhoneForm)?
+    private var phoneForm: KeyLayout.PhoneForm {
+        if let c = phoneFormCache, c.size == bounds.size { return c.form }
+        let t = traitCollection
+        var screen = window?.windowScene?.screen.bounds.size
+        #if DEBUG
+        if let s = debugScreenSize { screen = s }
+        #endif
+        let f = KeyLayout.phoneForm(viewWidth: bounds.width, screenSize: screen,
+                                    regularBoth: t.horizontalSizeClass == .regular && t.verticalSizeClass == .regular)
+        if window != nil { phoneFormCache = (bounds.size, f) }
+        return f
+    }
+    /// Safe area đáy hàng phím phải tránh (KeyLayout.keyboardSafeBottom): 0 trên iPhone thường
+    /// / iPad; vạch home trên máy gập mở. Cập nhật ở safeAreaInsetsDidChange.
+    private var safeBottom: CGFloat = 0
+    override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        let s = KeyLayout.keyboardSafeBottom(pad: Self.isPad, viewSafeBottom: safeAreaInsets.bottom)
+        if s != safeBottom { safeBottom = s; updateSuggestionChrome() }
     }
     /// iPhone dọc: hàng đáy thấp hơn 4pt để 3 hàng chữ nằm đúng chỗ stock (KeyGeometry).
     private var bottomTrim: CGFloat {
@@ -616,7 +642,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             // hơn stock (user) — phần dư của stock nằm ở vùng đáy, không phải hàng phím.
             // 218 → 216 − 4 (27/09/2026, đo stock iOS 26/27 — KeyGeometry): bước hàng 54
             // như stock, hàng đáy vùng 50 → 3 hàng chữ trùng vị trí stock tính từ đáy.
-            base = landscape ? 162 : KeyGeometry.phonePortraitBase
+            // Máy gập mở: 208 (KeyLayout.phoneKeyAreaBase) thay 162 "ngang" — phím lùn.
+            base = bounds.width > 0 ? KeyLayout.phoneKeyAreaBase(phoneForm)
+                : (landscape ? 162 : KeyGeometry.phonePortraitBase)
         }
         return KeyLayout.keyAreaHeight(base: base, adjust: rowHeightAdjust,
                                        numberRow: numberRowEnabled) - bottomTrim
@@ -630,7 +658,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // chiều cao đúng ngay pass đầu (và sau khi host xoay lúc keyboard ẩn).
     override func didMoveToWindow() {
         super.didMoveToWindow()
-        landscapeCache = nil
+        landscapeCache = nil; phoneFormCache = nil
         if window != nil { lastLayoutWidth = -1; setNeedsLayout() }
     }
 
@@ -657,9 +685,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Tìm emoji: ô tìm thế chỗ strip, phím chữ giữ đủ keyArea (KeyLayout.chrome).
         let c = KeyLayout.chrome(keyArea: keyAreaHeight(), strip: strip, mode: chromeMode)
         if rowsTopConstraint?.constant != c.rowsTop { rowsTopConstraint?.constant = c.rowsTop }
-        baseRequestedHeight = c.total
-        let total = c.total + hostFillExtra
+        baseRequestedHeight = c.total + safeBottom
+        let total = baseRequestedHeight + hostFillExtra
         if heightConstraint?.constant != total { heightConstraint?.constant = total }
+        if rowsBottomConstraint?.constant != -safeBottom { rowsBottomConstraint?.constant = -safeBottom }
         if rowsHeightConstraint?.constant != c.rows { rowsHeightConstraint?.constant = c.rows }
         if rowsMinHeightConstraint?.constant != c.rows { rowsMinHeightConstraint?.constant = c.rows }
         if rowsMinTopConstraint?.constant != c.minTop { rowsMinTopConstraint?.constant = c.minTop }
@@ -2334,7 +2363,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 guard let self, let v = a.sender as? UIView else { return }
                 let r = self.convert(v.bounds, from: v)
                 self.emojiABCSlot = .init(minX: r.minX, maxX: r.maxX,
-                                          top: self.bounds.maxY - r.minY)
+                                          top: self.rowsContainer.frame.maxY - r.minY)
             }, for: .touchDown)
             emojiBtn.tintColor = ink
             emojiBtn.accessibilityLabel = "Emoji"
@@ -4531,6 +4560,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return (emojiSearch.query, searchBar?.shownResults ?? [])
     }
     var debugInEmojiSearch: Bool { plane == .emojiSearch }
+    /// Test hook: màn hình giả (máy gập mở 951×669…) cho KeyLayout.phoneForm khi view chưa có window.
+    var debugScreenSize: CGSize? { didSet { phoneFormCache = nil; lastLayoutWidth = -1; setNeedsLayout() } }
+    /// Test hook: safe area đáy giả (vạch home máy gập mở = 18).
+    func debugSetSafeBottom(_ v: CGFloat) {
+        safeBottom = KeyLayout.keyboardSafeBottom(pad: Self.isPad, viewSafeBottom: v)
+        updateSuggestionChrome()
+    }
     /// Test hook: frame các hàng của plane đang hiện (toạ độ self).
     func debugRowFrames() -> [CGRect] {
         rowsContainer.arrangedSubviews.map { convert($0.bounds, from: $0) }

@@ -70,6 +70,9 @@ struct RootView: View {
         return d?.bool(forKey: "kbFullAccess") == true && d?.bool(forKey: "pasteNoPrompt") == true
     }
     @State private var tryItText = ""
+    /// DEBUG `-focusTryIt 1`: tự focus ô thử gõ khi mở app (chụp màn hình bàn phím trên
+    /// simulator không cần chạm — vd. đo bố cục iPhone Duo gập/mở).
+    @FocusState private var tryItFocused: Bool
     @State private var tab: AppTab = Self.initialTab
     /// Bản Debug: `-startTab tinhnang` (launch argument) mở thẳng tab — chụp màn hình tự động.
     private static var initialTab: AppTab {
@@ -191,6 +194,14 @@ struct RootView: View {
             TextField(L("Thử gõ tại đây…"), text: $tryItText, axis: .vertical)
                 .lineLimit(1...4)
                 .textInputAutocapitalization(.sentences)
+                .focused($tryItFocused)
+                #if DEBUG
+                .onAppear {
+                    if UserDefaults.standard.bool(forKey: "focusTryIt") {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { tryItFocused = true }
+                    }
+                }
+                #endif
         } header: { Text(L("Thử gõ")) } footer: {
             Text(L("Bấm 🌐 dưới bàn phím để chuyển sang Tiếng Việt (VietTelex), rồi gõ thử: vieejt → việt."))
         }
