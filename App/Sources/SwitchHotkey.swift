@@ -43,9 +43,13 @@ struct ModifierChordRecognizer {
         return armed && !spoiled
     }
 
-    /// Bất kỳ phím thường / click chuột nào giữa lúc giữ chord → không phải toggle (tới khi
-    /// nhả sạch modifier).
-    mutating func disarm() { armed = false; spoiled = true }
+    /// Phím thường / click chuột giữa lúc GIỮ modifier → không phải toggle (bẩn tới khi nhả
+    /// sạch modifier). Không giữ modifier nào (gõ chữ, click bình thường) thì KHÔNG làm bẩn —
+    /// #116: bản 1.8.11 làm bẩn cả khi gõ chữ thường ⇒ lượt ⌃⇧ đầu sau khi gõ/click bị nuốt.
+    mutating func disarm(flags: CGEventFlags) {
+        armed = false
+        if !flags.intersection(Self.relevant).isEmpty { spoiled = true }
+    }
 }
 
 enum SwitchHotkey {

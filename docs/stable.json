@@ -1,7 +1,7 @@
 {
-  "version": "1.8.11",
-  "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.8.11",
-  "build": 120,
+  "version": "1.8.12",
+  "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.8.12",
+  "build": 121,
   "windows": {
     "version": "1.1.5",
     "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.1.5/VietTelex-1.1.5-x64.msi",
