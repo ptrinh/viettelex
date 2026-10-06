@@ -97,6 +97,7 @@
 		4126B82B172C1B5BE3EDB352 /* EmojiSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD1ABEB72F0DCCF278A46E7 /* EmojiSearch.swift */; };
 		444358B0BE78D91F673CD621 /* TouchTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C928B7D91A4C54D1642E70F /* TouchTargetTests.swift */; };
 		44A5583606CE1DF3341B9EC6 /* BackupStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A809E689B0799E01016CE69B /* BackupStore.swift */; };
+		44D94A4C599EF70E9F4228FD /* SplitKeyboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EDBA5B57FBEDAF80717B58A /* SplitKeyboardTests.swift */; };
 		45143ADE3A7BEAE0B4841933 /* NumberChipsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7FCB71A2846557F9B5442F7 /* NumberChipsTests.swift */; };
 		4518F1378037764E853AA99B /* KeyHitBiasTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AF0B5D15512A88DDB6CFF7 /* KeyHitBiasTests.swift */; };
 		4569D97A1018CAFF39BC9E3D /* KeyGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBCB7D7DAA868C8FB4B96C87 /* KeyGeometry.swift */; };
@@ -377,6 +378,7 @@
 		3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSuggest.swift; sourceTree = "<group>"; };
 		3CD9AC3759F73AB2A6C0BC1B /* ClipboardFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardFeature.swift; sourceTree = "<group>"; };
 		3DF8BE49B914D1B4B31116F3 /* NumberChips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberChips.swift; sourceTree = "<group>"; };
+		3EDBA5B57FBEDAF80717B58A /* SplitKeyboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitKeyboardTests.swift; sourceTree = "<group>"; };
 		41BD0E4DE3C769A2EDE19180 /* ThemeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeSettingsView.swift; sourceTree = "<group>"; };
 		451B2112B13ABD917EEE3D9A /* WordDelete.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordDelete.swift; sourceTree = "<group>"; };
 		46501A28188D32863452971E /* MathResultsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathResultsTests.swift; sourceTree = "<group>"; };
@@ -703,6 +705,7 @@
 				121671DAC21692CEBCF9B296 /* ShortcutTests.swift */,
 				DB94721D99CEB3A5D2CA8A8B /* SlowTests.swift */,
 				11DFA0E70EB963455C306748 /* SpaceFlickTests.swift */,
+				3EDBA5B57FBEDAF80717B58A /* SplitKeyboardTests.swift */,
 				BF6388E96DDD2233A554472A /* SuggestBigramTests.swift */,
 				BA0F7617C32E2C08352F2220 /* SuggestionSlotsTests.swift */,
 				D61FEE31733E89BE49DAF48E /* SuggestTrigramTests.swift */,
@@ -1261,6 +1264,7 @@
 				B7B107E0D177438E5EACCFAC /* SlowTests.swift in Sources */,
 				3D60F41E59C5877D893E1088 /* SpaceFlick.swift in Sources */,
 				8C36E56F67059CC68F98AA21 /* SpaceFlickTests.swift in Sources */,
+				44D94A4C599EF70E9F4228FD /* SplitKeyboardTests.swift in Sources */,
 				68638B723D1A630DC68B3727 /* SuggestBigramTests.swift in Sources */,
 				A5D63AF8B31BCC530FDD52B0 /* SuggestTrigramTests.swift in Sources */,
 				7535E3D6E42FAAF982A6BC34 /* SuggestionSlots.swift in Sources */,

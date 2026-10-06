@@ -144,6 +144,8 @@ enum L10n {
         "Khôi phục giao diện gốc": "Reset appearance",
         "Chiều cao hàng phím": "Key row height",
         "Hiện logo Vᴛ": "Show Vᴛ logo",
+        "Bàn phím tách đôi": "Split keyboard",
+        "Màn hình rộng (iPhone gập khi mở, iPhone xoay ngang, iPad): chia bàn phím làm hai nửa để gõ bằng hai ngón cái. Khi đang tách, gõ vuốt và chế độ một tay tạm tắt.": "On wide screens (an open foldable iPhone, iPhone in landscape, iPad): splits the keyboard into two halves for thumb typing. While split, swipe typing and one-handed mode are paused.",
         "Lịch sử clipboard": "Clipboard history",
         "Chế độ ẩn danh": "Incognito mode",
         "Xuất / nhập file sao lưu": "Export / import backup",

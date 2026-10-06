@@ -28,6 +28,8 @@ struct ThemeSettingsView: View {
     @AppStorage("rowHeightAdjust", store: groupDefaults) private var rowHeightAdjust = 0
     @AppStorage("numberRow", store: groupDefaults) private var numberRow = false
     @AppStorage("showSuggestions", store: groupDefaults) private var showSuggestions = true
+    /// Bàn phím tách đôi khi màn hình rộng (SplitLayout.settingKey) — mặc định TẮT.
+    @AppStorage("splitKeyboard", store: groupDefaults) private var splitKeyboard = false
 
     /// Ảnh đưa vào trình chỉnh: mới chọn (chưa ghi gì) hoặc bản gốc đã lưu ("Chỉnh ảnh").
     struct EditorInput: Identifiable {
@@ -154,6 +156,7 @@ struct ThemeSettingsView: View {
                     }
                 }
                 settingToggle(L("Hiện logo Vᴛ"), L("Logo mờ ở góc phải phím cách."), isOn: $showSpaceLogo)
+                settingToggle(L("Bàn phím tách đôi"), L("Màn hình rộng (iPhone gập khi mở, iPhone xoay ngang, iPad): chia bàn phím làm hai nửa để gõ bằng hai ngón cái. Khi đang tách, gõ vuốt và chế độ một tay tạm tắt."), isOn: $splitKeyboard)
             } header: { Text(L("Bàn phím")) }
 
             Section {

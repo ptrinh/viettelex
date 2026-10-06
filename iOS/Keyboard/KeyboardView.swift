@@ -712,6 +712,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if bounds.width != lastLayoutWidth {
             lastLayoutWidth = bounds.width
             updateSuggestionChrome()
+            // Tách đôi (chỉ khi công tắc bật): xoay / gập-mở đổi bề ngang ⇒ dựng lại theo bề
+            // ngang mới (vào/ra kiểu tách, bề rộng phím). Công tắc tắt: không làm gì.
+            if splitSetting, splitMode || builtSplit { rebuild() }
         }
         applyOneHand()
         if let r = indentedRow {
@@ -1428,6 +1431,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let adj = UserDefaultsProvider.shared?.object(forKey: "rowHeightAdjust") as? Int ?? 0
         rowHeightAdjust = CGFloat(max(-10, min(10, adj)))
         numberRowEnabled = UserDefaultsProvider.shared?.bool(forKey: Self.numberRowKey) ?? false
+        // Bàn phím tách đôi (mặc định TẮT) — rebuild() cuối hàm áp nếu đổi.
+        splitSetting = UserDefaultsProvider.shared?.bool(forKey: SplitLayout.settingKey) ?? false
         keyPreviewEnabled = Self.keyPreviewSetting(UserDefaultsProvider.shared)
         if !keyPreviewEnabled { hideBalloon() }
         // Mẫu câu: danh sách user tự quản trong app + toggle bật/tắt.
@@ -1540,6 +1545,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var oneHandActive: Bool {
         oneHand != .off && !Self.isPad && plane != .emoji && plane != .templates
             && plane != .emojiSearch   // họ emoji: ô tìm + chữ đầy bề ngang (Android y hệt)
+            && !splitMode              // bàn tách đôi đã chia hai bên — một tay vô nghĩa
     }
     /// Bề ngang vùng phím (thụt hàng 2 tính theo đây).
     private var keysWidth: CGFloat {
@@ -1643,11 +1649,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         activeAlts = currentAlts()
         updateSuggestionChrome()
         applyOneHand()                           // plane mới có thể thu hẹp / đầy bề ngang
+        // Tách đôi: công tắc TẮT ⇒ false ngay (không đọc gì thêm).
+        let split = splitMode
         let styleChanged = builtReturn != returnTitle || builtDark != dark
             || builtPalette != palette
             || builtGlobe != needsGlobe || builtKind != inputKind
             || builtNumberRow != numberRowEnabled
             || builtAlts != activeAlts
+            || builtSplit != split
         let widthChanged = builtWidth != bounds.width
         let sigChanged = styleChanged || widthChanged
         if builtPlane == plane, !sigChanged { return }
@@ -1656,7 +1665,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // thuộc width ngoài inset hàng thụt, mà layoutSubviews tự chỉnh cho plane
         // đang hiện. Khỏi xé/dựng; chỉ vứt cache các plane khác (inset cũ sai).
         // Emoji/mẫu câu không cache, dựng tự do → vẫn dựng lại như cũ.
-        if builtPlane == plane, !styleChanged,
+        // Tách đôi: bề rộng phím cố định theo bề ngang ⇒ đổi bề ngang là dựng lại.
+        if builtPlane == plane, !styleChanged, !split,
            plane != .emoji, plane != .templates, plane != .emojiSearch {
             planeCache.removeAll()
             builtWidth = bounds.width
@@ -1683,6 +1693,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         builtGlobe = needsGlobe; builtKind = inputKind
         builtNumberRow = numberRowEnabled
         builtAlts = activeAlts
+        builtSplit = split
         dropAltHold()                            // phím cũ sắp bị gỡ
         commaTimer?.cancel(); commaTimer = nil; commaFired = false
         letterKeys.removeAll()
@@ -1715,18 +1726,12 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         #endif
         switch plane {
         case .letters: buildLetters()
+        case .numbers where builtSplit: buildSplitPlane(rows: Self.numberRows, moreKey: "#+=", altKey: "ABC")
+        case .symbols where builtSplit: buildSplitPlane(rows: Self.symbolRows, moreKey: "123", altKey: "ABC")
         case .numbers where Self.isPad: buildPadSymbolic(numbers: true)
         case .symbols where Self.isPad: buildPadSymbolic(numbers: false)
-        case .numbers: buildPlane(rows: [
-            ["1","2","3","4","5","6","7","8","9","0"],
-            // $ ở đúng chỗ bàn phím EN (user 2026-07-23); ₫ chuyển sang plane #+=
-            ["-","/",":",";","(",")","$","&","@","\""],
-        ], moreKey: "#+=", altKey: "ABC")
-        case .symbols: buildPlane(rows: [
-            ["[","]","{","}","#","%","^","*","+","="],
-            // 3 currencies: EUR, CNY, VND (₫ thế chỗ JPY của layout EN)
-            ["_","\\","|","~","<",">","€","¥","₫","•"],
-        ], moreKey: "123", altKey: "ABC")
+        case .numbers: buildPlane(rows: Self.numberRows, moreKey: "#+=", altKey: "ABC")
+        case .symbols: buildPlane(rows: Self.symbolRows, moreKey: "123", altKey: "ABC")
         case .emoji: buildEmoji()
         case .templates: buildTemplates()
         case .emojiSearch: buildEmojiSearch()
@@ -1897,6 +1902,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
 
     private func buildLetters() {
+        if plane == .letters, builtSplit { buildSplitLetters(); return }
         if UIDevice.current.userInterfaceIdiom == .pad { buildLettersPad(); return }
         let r1 = "qwertyuiop".map { String($0) }
         let r2 = "asdfghjkl".map { String($0) }
@@ -2256,9 +2262,19 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return true
     }
 
-    private func buildPlane(rows planeRows: [[String]], moreKey: String, altKey: String) {
-        rowsContainer.addArrangedSubview(row(planeRows[0].map { textButton($0) }))
-        rowsContainer.addArrangedSubview(row(planeRows[1].map { textButton($0) }))
+    /// Plane 123 / #+= iPhone (và bàn tách đôi).
+    private static let numberRows: [[String]] = [
+        ["1","2","3","4","5","6","7","8","9","0"],
+        // $ ở đúng chỗ bàn phím EN (user 2026-07-23); ₫ chuyển sang plane #+=
+        ["-","/",":",";","(",")","$","&","@","\""],
+    ]
+    private static let symbolRows: [[String]] = [
+        ["[","]","{","}","#","%","^","*","+","="],
+        // 3 currencies: EUR, CNY, VND (₫ thế chỗ JPY của layout EN)
+        ["_","\\","|","~","<",">","€","¥","₫","•"],
+    ]
+    /// Phím #+= / 123 đầu hàng 3 plane số / ký hiệu.
+    private func makeMoreKey(_ moreKey: String) -> KeyButton {
         let more = controlButton(title: moreKey, fire: .down) { [weak self] in
             guard let self else { return }
             self.plane = (self.plane == .numbers) ? .symbols : .numbers
@@ -2266,12 +2282,170 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         more.accessibilityLabel = moreKey == "#+=" ? L("Ký hiệu") : L("Số")
         applyLabelFont(more, size: KeyGeometry.Typography.rowToggleSize)
+        return more
+    }
+
+    private func buildPlane(rows planeRows: [[String]], moreKey: String, altKey: String) {
+        rowsContainer.addArrangedSubview(row(planeRows[0].map { textButton($0) }))
+        rowsContainer.addArrangedSubview(row(planeRows[1].map { textButton($0) }))
+        let more = makeMoreKey(moreKey)
         var third: [UIView] = [more]
         third += [".",",","?","!","'"].map { textButton($0) }
         third.append(backspaceButton())
         rowsContainer.addArrangedSubview(row(third, proportional: true))
         rowsContainer.addArrangedSubview(bottomRow(planeKey: altKey))
         applyRowHeights()
+    }
+
+    // MARK: bàn phím tách đôi (SplitLayout — Settings → Giao diện, mặc định TẮT)
+    // Công tắc tắt ⇒ splitSetting false ⇒ splitMode false ngay (một phép AND), không view /
+    // constraint / vòng lặp nào thêm. Bật + đủ rộng ⇒ plane chữ / 123 / #+= dựng thành hai
+    // nửa (mỗi hàng: [nửa trái][khe chết][nửa phải]); emoji / mẫu câu / tìm emoji giữ đầy
+    // bề ngang. Phím chữ vẫn qua router gần-nhất (letterKeys); gõ vuốt + một tay tắt.
+
+    /// Công tắc App Group `splitKeyboard` (đọc mỗi lần hiện — applyAppearance).
+    private var splitSetting = false
+    /// Tách đôi ở bề ngang hiện tại (công tắc + ≥ SplitLayout.minWidth).
+    private var splitMode: Bool { splitSetting && SplitLayout.active(setting: true, width: bounds.width) }
+    /// Các plane chữ / số dựng theo kiểu tách đôi (chữ ký rebuild — đổi là dựng lại).
+    private var builtSplit = false
+    /// Hàng phím có nửa trái/phải lồng (router duyệt thêm một tầng stack).
+    private var nestedRows: Bool { builtSplit && (plane == .letters || plane == .numbers || plane == .symbols) }
+
+    private var splitMetrics: SplitLayout.Metrics {
+        SplitLayout.metrics(width: bounds.width, margin: Self.sideMargin, gap: Self.keyGap)
+    }
+    private func fixWidth(_ v: UIView, _ w: CGFloat) {
+        v.widthAnchor.constraint(equalToConstant: w).isActive = true
+    }
+    /// Một nửa hàng: phím + lề trong (pt) hai bên.
+    private func splitHalf(_ views: [UIView], left: CGFloat, right: CGFloat) -> UIStackView {
+        let h = UIStackView(arrangedSubviews: views)
+        h.axis = .horizontal
+        h.spacing = Self.keyGap
+        h.distribution = .fill
+        h.isLayoutMarginsRelativeArrangement = true
+        h.insetsLayoutMarginsFromSafeArea = false
+        h.layoutMargins = UIEdgeInsets(top: 0, left: left, bottom: 0, right: right)
+        return h
+    }
+    /// Hàng tách: [nửa trái `half`][khe co giãn, không nhận chạm][nửa phải `half`].
+    private func splitRow(_ l: UIStackView, _ r: UIStackView, half: CGFloat,
+                          top: CGFloat = KeyGeometry.rowGap) -> UIStackView {
+        let gap = UIView()
+        gap.isUserInteractionEnabled = false
+        let row = UIStackView(arrangedSubviews: [l, gap, r])
+        row.axis = .horizontal
+        row.spacing = 0
+        row.distribution = .fill
+        row.isLayoutMarginsRelativeArrangement = true
+        if Self.isPad { row.insetsLayoutMarginsFromSafeArea = false }
+        row.layoutMargins = UIEdgeInsets(top: top, left: Self.sideMargin, bottom: 0, right: Self.sideMargin)
+        fixWidth(l, half)
+        fixWidth(r, half)
+        return row
+    }
+
+    private func buildSplitLetters() {
+        let m = splitMetrics
+        indentedRow = nil
+        func keys(_ s: String) -> [UIView] {
+            s.map { c -> UIView in let b = letterButton(String(c)); fixWidth(b, m.keyWidth); return b }
+        }
+        if numberRowEnabled {
+            let d = SplitLayout.halves(KeyLayout.digits.map { t -> UIView in
+                let b = textButton(t); fixWidth(b, m.keyWidth); return b
+            })
+            rowsContainer.addArrangedSubview(splitRow(splitHalf(d.left, left: 0, right: m.pitch / 2),
+                                                      splitHalf(d.right, left: m.pitch / 2, right: 0), half: m.half))
+        }
+        for i in 0..<2 {
+            let r = SplitLayout.letterRows[i], ind = SplitLayout.letterIndents[i]
+            rowsContainer.addArrangedSubview(splitRow(
+                splitHalf(keys(r.left), left: ind.left.l * m.pitch, right: ind.left.r * m.pitch),
+                splitHalf(keys(r.right), left: ind.right.l * m.pitch, right: ind.right.r * m.pitch),
+                half: m.half))
+        }
+        // Hàng 3: [⇧] z x c v | v b n m [⌫] — ⇧ / ⌫ co giãn (≈ 1.5 bước), khe rộng như iPhone.
+        let r3 = SplitLayout.letterRows[2]
+        let shiftBtn = shiftButton(), backBtn = backspaceButton()
+        let l3 = splitHalf([shiftBtn] + keys(r3.left), left: 0, right: 0)
+        let rk = keys(r3.right)
+        let r3s = splitHalf(rk + [backBtn], left: 0, right: 0)
+        l3.setCustomSpacing(Self.shiftGap, after: shiftBtn)
+        if let last = rk.last { r3s.setCustomSpacing(Self.shiftGap, after: last) }
+        rowsContainer.addArrangedSubview(splitRow(l3, r3s, half: m.half))
+        rowsContainer.addArrangedSubview(splitBottomRow(planeKey: "123", m: m))
+        applyRowHeights()
+    }
+
+    private func buildSplitPlane(rows planeRows: [[String]], moreKey: String, altKey: String) {
+        let m = splitMetrics
+        indentedRow = nil
+        func keys(_ a: [String]) -> [UIView] {
+            a.map { t -> UIView in let b = textButton(t); fixWidth(b, m.keyWidth); return b }
+        }
+        for r in planeRows {
+            let h = SplitLayout.halves(r)
+            rowsContainer.addArrangedSubview(splitRow(splitHalf(keys(h.left), left: 0, right: m.pitch / 2),
+                                                      splitHalf(keys(h.right), left: m.pitch / 2, right: 0),
+                                                      half: m.half))
+        }
+        let more = makeMoreKey(moreKey)
+        let back = backspaceButton()
+        let l3 = splitHalf([more] + keys([".", ","]), left: 0, right: m.pitch / 2)
+        let r3 = splitHalf(keys(["?", "!", "'"]) + [back], left: m.pitch / 2, right: 0)
+        rowsContainer.addArrangedSubview(splitRow(l3, r3, half: m.half))
+        rowsContainer.addArrangedSubview(splitBottomRow(planeKey: altKey, m: m))
+        applyRowHeights()
+    }
+
+    /// Hàng đáy tách: [123][🌐?][☺︎][space] | [space Vᴛ][,][return]. Hai phím cách cùng gõ
+    /// dấu cách; phím phải mang logo / vuốt đổi ngôn ngữ và ưu tiên mép với "," (KeyHitBias).
+    private func splitBottomRow(planeKey: String, m: SplitLayout.Metrics) -> UIView {
+        var left: [UIView] = []
+        let planeBtn = makePlaneKey(planeKey)
+        fixWidth(planeBtn, m.keyWidth)
+        left.append(planeBtn)
+        if needsGlobe {
+            let g = makeGlobeKey()
+            fixWidth(g, m.keyWidth)
+            left.append(g)
+        }
+        let emoji = makeEmojiKey()
+        fixWidth(emoji, m.keyWidth)
+        left.append(emoji)
+        left.append(makeSpaceKey(primary: false))
+        var right: [UIView] = [makeSpaceKey(primary: true)]
+        let puncts: [(title: String, insert: String, mult: CGFloat)]
+        switch planeKey == "123" ? inputKind : .normal {
+        case .email: puncts = [("@", "@", 0), (".", ".", 0)]
+        case .url: puncts = [(".", ".", 0), ("/", "/", 0)]
+        case .search: puncts = [(".", ".", 0)]
+        default: puncts = [(",", ",", 0)]
+        }
+        for p in makePunctKeys(puncts, planeKey: planeKey) {
+            fixWidth(p.btn, m.keyWidth * 0.9)
+            right.append(p.btn)
+        }
+        let ret = returnButton()
+        fixWidth(ret, m.keyWidth * 1.9)
+        right.append(ret)
+        let top = KeyGeometry.bottomRowTopMargin(pad: Self.isPad, landscape: isLandscapeNow)
+        return splitRow(splitHalf(left, left: 0, right: 0), splitHalf(right, left: 0, right: 0),
+                        half: m.half, top: top)
+    }
+
+    /// Nút thật của một hàng phím — hàng tách đôi lồng thêm một tầng (nửa trái/phải).
+    private func rowControls(_ row: UIView) -> [UIControl] {
+        guard let stack = row as? UIStackView else { return [] }
+        guard nestedRows else { return stack.arrangedSubviews.compactMap { $0 as? UIControl } }
+        var out: [UIControl] = []
+        for v in stack.arrangedSubviews {
+            if let c = v as? UIControl { out.append(c) }
+            else if let h = v as? UIStackView { out += h.arrangedSubviews.compactMap { $0 as? UIControl } }
+        }
+        return out
     }
 
     /// Phím return theo returnKeyType của ô (xám + icon, hoặc xanh + chữ/mũi tên).
@@ -2307,8 +2481,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return ret
     }
 
-    private func bottomRow(planeKey: String, clearInsteadOfEmoji: Bool = false) -> UIView {
-        var views: [UIView] = []
+    /// Phím 123 / ABC hàng đáy (iPhone, iPad, bàn tách đôi).
+    private func makePlaneKey(_ planeKey: String) -> KeyButton {
         let planeBtn = controlButton(title: planeKey, fire: .down) { [weak self] in
             guard let self else { return }
             // Từ ô tìm emoji: 123 ra plane số (thoát tìm).
@@ -2318,64 +2492,55 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         planeBtn.accessibilityLabel = planeKey == "123" ? L("Số") : L("Chữ")
         applyLabelFont(planeBtn, size: KeyGeometry.Typography.planeKeySize)
-        views.append(planeBtn)
-        // globe sát bên phải [123] như stock (muscle memory), emoji sau đó
-        var globeBtn: KeyButton?
-        if needsGlobe {
-            let globe = baseButton(title: "", special: true)
-            globe.setImage(UIImage(systemName: "globe",
-                withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .regular)), for: .normal)
-            globe.tintColor = ink
-            globe.accessibilityLabel = L("Bàn phím tiếp theo")
-            if Self.isPad { globe.padRole = .icon }
-            if let c = inputController {
-                // hợp đồng Apple: event thật + allTouchEvents để long-press
-                // mở keyboard picker hoạt động
-                globe.addTarget(c, action: #selector(UIInputViewController.handleInputModeList(from:with:)),
-                                for: .allTouchEvents)
-            }
-            views.append(globe)
-            globeBtn = globe
+        return planeBtn
+    }
+
+    private func makeGlobeKey() -> KeyButton {
+        let globe = baseButton(title: "", special: true)
+        globe.setImage(UIImage(systemName: "globe",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .regular)), for: .normal)
+        globe.tintColor = ink
+        globe.accessibilityLabel = L("Bàn phím tiếp theo")
+        if Self.isPad { globe.padRole = .icon }
+        if let c = inputController {
+            // hợp đồng Apple: event thật + allTouchEvents để long-press
+            // mở keyboard picker hoạt động
+            globe.addTarget(c, action: #selector(UIInputViewController.handleInputModeList(from:with:)),
+                            for: .allTouchEvents)
         }
-        // Slot cạnh trái space: bình thường là nút emoji; plane mẫu câu thay
-        // bằng THÙNG RÁC = xoá sạch ô nhập (user 2026-07-25). Cùng kiểu nút đơn
-        // sắc như ABC nên giữ chung biến emojiBtn để ăn width multiplier 0.10.
-        let emojiBtn: KeyButton
-        if clearInsteadOfEmoji {
-            emojiBtn = controlButton(title: "") { [weak self] in
-                self?.tapped(.clearField)
-            }
-            emojiBtn.setImage(UIImage(systemName: "trash",
-                withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .regular)), for: .normal)
-            emojiBtn.tintColor = ink
-            emojiBtn.accessibilityLabel = L("Xoá ô nhập")
-        } else {
-            // Nhấc tay như stock; touch bị hệ thống huỷ (sát vùng 🌐/mic) vẫn mở emoji.
-            emojiBtn = controlButton(title: "", fire: .upOrCancel) { [weak self] in
-                guard let self else { return }
-                self.plane = .emoji
-                self.rebuild()
-            }
-            emojiBtn.setImage(Self.emojiKeyIcon, for: .normal)
-            // Nhớ chỗ phím emoji (touchDown chạy trước action đổi plane) → EmojiPlane
-            // đặt ABC đúng chỗ đó (Phil 26/09, chốt lại 30/09/2026).
-            emojiBtn.addAction(UIAction { [weak self] a in
-                guard let self, let v = a.sender as? UIView else { return }
-                let r = self.convert(v.bounds, from: v)
-                self.emojiABCSlot = .init(minX: r.minX, maxX: r.maxX,
-                                          top: self.rowsContainer.frame.maxY - r.minY)
-            }, for: .touchDown)
-            emojiBtn.tintColor = ink
-            emojiBtn.accessibilityLabel = "Emoji"
+        return globe
+    }
+
+    private func makeEmojiKey() -> KeyButton {
+        // Nhấc tay như stock; touch bị hệ thống huỷ (sát vùng 🌐/mic) vẫn mở emoji.
+        let emojiBtn = controlButton(title: "", fire: .upOrCancel) { [weak self] in
+            guard let self else { return }
+            self.plane = .emoji
+            self.rebuild()
         }
-        views.append(emojiBtn)
+        emojiBtn.setImage(Self.emojiKeyIcon, for: .normal)
+        // Nhớ chỗ phím emoji (touchDown chạy trước action đổi plane) → EmojiPlane
+        // đặt ABC đúng chỗ đó (Phil 26/09, chốt lại 30/09/2026).
+        emojiBtn.addAction(UIAction { [weak self] a in
+            guard let self, let v = a.sender as? UIView else { return }
+            let r = self.convert(v.bounds, from: v)
+            self.emojiABCSlot = .init(minX: r.minX, maxX: r.maxX,
+                                      top: self.rowsContainer.frame.maxY - r.minY)
+        }, for: .touchDown)
+        emojiBtn.tintColor = ink
+        emojiBtn.accessibilityLabel = "Emoji"
+        return emojiBtn
+    }
+
+    /// Phím cách. `primary`: phím mang logo / mã ngôn ngữ (spaceBar — vuốt đổi ngôn ngữ, ưu
+    /// tiên mép với ","). Bàn tách đôi có thêm một phím cách phụ bên trái, cùng hành vi gõ.
+    private func makeSpaceKey(primary: Bool) -> KeyButton {
         let space = baseButton(title: "", special: true)
         space.backgroundColor = plainFill
         space.normalBackground = plainFill
         space.pressedBackground = specialFill      // space sẫm lại khi đè
         space.accessibilityLabel = L("Dấu cách")
-        spaceBar = space
-        installSpaceMark(on: space)
+        if primary { spaceBar = space; installSpaceMark(on: space) }
         space.addAction(UIAction { _ in Self.clickModifier() }, for: .touchDown)
         space.addTarget(self, action: #selector(spaceTouchDown(_:event:)), for: .touchDown)
         // Vuốt đổi ngôn ngữ (SpaceFlick): theo dõi ngón — công tắc tắt ⇒ handler thoát ngay.
@@ -2412,6 +2577,55 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         spacePan.cancelsTouchesInView = false
         space.addGestureRecognizer(spacePan)
         space.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        return space
+    }
+
+    /// Phím dấu câu hàng đáy (",", hoặc "@ ." / ". /" ô email/url…).
+    private func makePunctKeys(_ puncts: [(title: String, insert: String, mult: CGFloat)],
+                               planeKey: String) -> [(btn: KeyButton, mult: CGFloat)] {
+        var punctKeys: [(btn: KeyButton, mult: CGFloat)] = []
+        for p in puncts {
+            let b = baseButton(title: p.title, special: false)
+            b.pressedBackground = specialFill
+            if Self.isPad { b.padRole = .digit }
+            armCommit(b) { [weak self] in self?.tapped(.text(p.insert)) }
+            // Bàn chữ iPhone: giữ "," ra "." (KeyAlternates.commaHold — bảng ký tự phụ không
+            // rỗng; VoiceOver đã rỗng sẵn; iPad có phím ",/." 2 tầng riêng).
+            if !Self.isPad, p.title == ",", planeKey == "123", KeyAlternates.commaHold(alternates: activeAlts) {
+                armCommaHold(b)
+            }
+            // Ô địa chỉ / URL / email: giữ "." ra hàng đuôi tên miền như stock (DomainPopup).
+            let tlds = DomainPopup.choices(kind: inputKind, key: p.title, lettersPlane: planeKey == "123")
+            if !tlds.isEmpty { armDomainHold(b, choices: tlds) }
+            punctKeys.append((b, p.mult))
+        }
+        return punctKeys
+    }
+
+    private func bottomRow(planeKey: String, clearInsteadOfEmoji: Bool = false) -> UIView {
+        var views: [UIView] = []
+        let planeBtn = makePlaneKey(planeKey)
+        views.append(planeBtn)
+        // globe sát bên phải [123] như stock (muscle memory), emoji sau đó
+        let globeBtn = needsGlobe ? makeGlobeKey() : nil
+        if let globe = globeBtn { views.append(globe) }
+        // Slot cạnh trái space: bình thường là nút emoji; plane mẫu câu thay
+        // bằng THÙNG RÁC = xoá sạch ô nhập (user 2026-07-25). Cùng kiểu nút đơn
+        // sắc như ABC nên giữ chung biến emojiBtn để ăn width multiplier 0.10.
+        let emojiBtn: KeyButton
+        if clearInsteadOfEmoji {
+            emojiBtn = controlButton(title: "") { [weak self] in
+                self?.tapped(.clearField)
+            }
+            emojiBtn.setImage(UIImage(systemName: "trash",
+                withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .regular)), for: .normal)
+            emojiBtn.tintColor = ink
+            emojiBtn.accessibilityLabel = L("Xoá ô nhập")
+        } else {
+            emojiBtn = makeEmojiKey()
+        }
+        views.append(emojiBtn)
+        let space = makeSpaceKey(primary: true)
         views.append(space)
         // Nhóm phím dấu câu bên phải space. Bình thường là dấu phẩy; ô email/url
         // đổi thành phím tắt như stock (@ . cho email; . / cho url). Chỉ áp
@@ -2441,23 +2655,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         } else {
             puncts = [(",", ",", 0.075)]
         }
-        var punctKeys: [(btn: KeyButton, mult: CGFloat)] = []
-        for p in puncts {
-            let b = baseButton(title: p.title, special: false)
-            b.pressedBackground = specialFill
-            if Self.isPad { b.padRole = .digit }
-            armCommit(b) { [weak self] in self?.tapped(.text(p.insert)) }
-            // Bàn chữ iPhone: giữ "," ra "." (KeyAlternates.commaHold — bảng ký tự phụ không
-            // rỗng; VoiceOver đã rỗng sẵn; iPad có phím ",/." 2 tầng riêng).
-            if !Self.isPad, p.title == ",", planeKey == "123", KeyAlternates.commaHold(alternates: activeAlts) {
-                armCommaHold(b)
-            }
-            // Ô địa chỉ / URL / email: giữ "." ra hàng đuôi tên miền như stock (DomainPopup).
-            let tlds = DomainPopup.choices(kind: inputKind, key: p.title, lettersPlane: planeKey == "123")
-            if !tlds.isEmpty { armDomainHold(b, choices: tlds) }
-            views.append(b)
-            punctKeys.append((b, p.mult))
-        }
+        let punctKeys = makePunctKeys(puncts, planeKey: planeKey)
+        views += punctKeys.map(\.btn)
         // iPad: return nằm cuối hàng 2 như stock (buildLettersPad / buildPadSymbolic).
         var ret: KeyButton?
         if !padStock {
@@ -3705,8 +3904,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         guard !Self.isPad, lettersLike else { return nil }
         let since = lastLetterDownTime.map { time - $0 }
         for row in rowsContainer.arrangedSubviews {
-            guard let stack = row as? UIStackView else { continue }
-            for case let c as UIControl in stack.arrangedSubviews where !c.isHidden {
+            for c in rowControls(row) where !c.isHidden {
                 if convert(c.bounds, from: c).insetBy(dx: -3, dy: -5.5).contains(point),
                    let i = letterStealing(from: c, at: point, sinceLetter: since) {
                     return letterKeys[i].button
@@ -3722,8 +3920,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         guard point.y >= rowsContainer.frame.minY, rowsContainer.frame.contains(point) else { return nil }
         var buttons: [UIControl] = []
         for row in rowsContainer.arrangedSubviews {
-            guard let stack = row as? UIStackView else { continue }
-            for case let c as UIControl in stack.arrangedSubviews
+            for c in rowControls(row)
             where c.isUserInteractionEnabled && !c.isHidden && c.alpha > 0.01 {
                 buttons.append(c)
             }
@@ -3828,7 +4025,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             }
         }
         b.sendActions(for: .touchDown)
-        if swipeEnabled, plane == .letters, routedTouches.count == 1, let kw = letterKeyPitch() {
+        if swipeEnabled, plane == .letters, !builtSplit, routedTouches.count == 1, let kw = letterKeyPitch() {
             startClassifying(id, at: p, time: time, key: convert(b.bounds, from: b),
                              keyWidth: kw, since: since)
         }
@@ -4179,7 +4376,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     /// Layout cho SwipeDecoder: tâm a–z theo toạ độ KeyboardView thật.
     func swipeLayout() -> SwipeLayout? {
-        guard plane == .letters, let kw = letterKeyPitch() else { return nil }
+        // Tách đôi: G/V lặp hai nửa + khe giữa — decoder vuốt (một tâm mỗi chữ) không dùng được.
+        guard plane == .letters, !builtSplit, let kw = letterKeyPitch() else { return nil }
         var m: [Character: (x: Float, y: Float)] = [:]
         for (b, s) in letterKeys {
             guard s.count == 1, let c = s.first else { continue }
@@ -4567,6 +4765,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         safeBottom = KeyLayout.keyboardSafeBottom(pad: Self.isPad, viewSafeBottom: v)
         updateSuggestionChrome()
     }
+    /// Test hook: bật/tắt bàn tách đôi (như công tắc App Group) rồi dựng lại.
+    func debugSetSplit(_ on: Bool) { splitSetting = on; rebuild() }
+    /// Test hook: plane đang hiện dựng kiểu tách đôi.
+    var debugIsSplit: Bool { builtSplit }
+    /// Test hook: số phím chữ (kể cả G/V lặp) + có layout gõ vuốt không.
+    var debugLetterKeyCount: Int { letterKeys.count }
+    /// Test hook: chế độ một tay đang thu hẹp vùng phím.
+    var debugOneHandActive: Bool { oneHandActive }
     /// Test hook: frame các hàng của plane đang hiện (toạ độ self).
     func debugRowFrames() -> [CGRect] {
         rowsContainer.arrangedSubviews.map { convert($0.bounds, from: $0) }
@@ -4677,6 +4883,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Test hook: frame phím chữ (toạ độ self).
     func debugLetterFrame(_ s: String) -> CGRect? {
         letterKeys.first { $0.base == s }.map { convert($0.button.bounds, from: $0.button) }
+    }
+    /// Mọi phím chữ `s` (bàn tách đôi: G / V có hai phím).
+    func debugLetterFrames(_ s: String) -> [CGRect] {
+        letterKeys.filter { $0.base == s }.map { convert($0.button.bounds, from: $0.button) }
     }
     #endif
 }

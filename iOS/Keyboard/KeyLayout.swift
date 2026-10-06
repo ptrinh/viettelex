@@ -294,6 +294,53 @@ enum KeyLayout {
     }
 }
 
+// MARK: Bàn phím tách đôi (Settings → Giao diện → "Bàn phím tách đôi", mặc định TẮT)
+// Như split keyboard của Apple (đo stock iPhone Duo mở 06/10/2026, view 801): mỗi nửa
+// ≈ 38% bề ngang, bước phím 57, khe giữa ~174. Hàng 2 nửa phải bắt đầu bằng G, hàng 3
+// bằng V (Apple lặp lại G và V để ngón phải với tới). Chỉ khi đủ rộng (≥ 600pt: iPhone
+// gập mở, iPhone ngang, iPad) — iPhone dọc không bao giờ tách.
+
+/// Hình học THUẦN của bàn tách đôi (unit-test được).
+enum SplitLayout {
+    /// Khoá App Group (Bool, mặc định false).
+    static let settingKey = "splitKeyboard"
+    /// Bề ngang view tối thiểu để tách (iPhone dọc ≤ 440, Duo gập 466 ⇒ không bao giờ).
+    static let minWidth: CGFloat = 600
+    static func active(setting: Bool, width: CGFloat) -> Bool { setting && width >= minWidth }
+
+    /// Mỗi nửa chiếm phần này của bề ngang (stock 303/801).
+    static let halfFraction: CGFloat = 0.38
+    /// Trần bước phím (iPad ngang rất rộng: phím không phình quá cỡ ngón tay).
+    static let maxPitch: CGFloat = 62
+
+    struct Metrics: Equatable {
+        var pitch: CGFloat      // bước phím chữ (tâm → tâm)
+        var keyWidth: CGFloat   // bề rộng phím chữ
+        var half: CGFloat       // bề rộng MỖI nửa = 5.5 bước − khe (5 phím + nửa phím thụt)
+        /// Khe giữa 2 nửa (vùng chết — không phím nào nhận chạm ở đây).
+        func centerGap(width: CGFloat, margin: CGFloat) -> CGFloat { width - 2 * margin - 2 * half }
+    }
+    static func metrics(width: CGFloat, margin: CGFloat, gap: CGFloat) -> Metrics {
+        let pitch = min(maxPitch, (width * halfFraction - margin + gap) / 5.5)
+        return Metrics(pitch: pitch, keyWidth: pitch - gap, half: 5.5 * pitch - gap)
+    }
+
+    /// Phím chữ mỗi hàng (trái, phải) — G và V lặp ở nửa phải như Apple.
+    static let letterRows: [(left: String, right: String)] = [
+        ("qwert", "yuiop"), ("asdfg", "ghjkl"), ("zxcv", "vbnm"),
+    ]
+    /// Lề trong (đơn vị bước phím) của nửa trái / phải mỗi hàng chữ: hàng 1 nửa trái chừa nửa
+    /// phím bên phải (thẳng cột T), nửa phải chừa bên trái (Y thụt sau G); hàng 2 ngược lại.
+    static let letterIndents: [(left: (l: CGFloat, r: CGFloat), right: (l: CGFloat, r: CGFloat))] = [
+        ((0, 0.5), (0.5, 0)), ((0.5, 0), (0, 0.5)), ((0, 0), (0, 0)),
+    ]
+    /// Chia hàng 10 phím (số / ký hiệu) thành 5 | 5.
+    static func halves<T>(_ row: [T]) -> (left: [T], right: [T]) {
+        let k = (row.count + 1) / 2
+        return (Array(row[..<k]), Array(row[k...]))
+    }
+}
+
 // MARK: Khung hệ thống cao hơn input view (Phil 05/10/2026, iPhone thật iOS 27, WhatsApp,
 // theme đen): thỉnh thoảng một dải kính xám bo góc ~15–20pt lộ RA TRÊN nền đen của mình —
 // container (superview/window) hệ thống cấp cho bàn phím cao hơn input view, view mình neo
