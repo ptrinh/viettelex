@@ -184,6 +184,7 @@ com.duckduckgo.macos.browser: axDetect
 com.kagi.kagimacOS: axDetect
 ru.yandex.desktop.yandex-browser: axDetect
 com.sigmaos.sigmaos.macos: axDetect
+net.imput.helium: axDetect
 # Comet (Perplexity, Chromium) — KHÔNG theo họ axDetect như các browser trên:
 # maintainer chỉ định In-Place 15/08/2026.
 ai.perplexity.comet: inPlace
