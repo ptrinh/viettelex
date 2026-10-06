@@ -625,7 +625,16 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var safeBottom: CGFloat = 0
     override func safeAreaInsetsDidChange() {
         super.safeAreaInsetsDidChange()
-        let s = KeyLayout.keyboardSafeBottom(pad: Self.isPad, viewSafeBottom: safeAreaInsets.bottom)
+        syncSafeBottom()
+    }
+    /// Gọi cả ở layoutSubviews: xoay / gập-mở máy gập lúc bàn phím đang hiện có khi đổi safe
+    /// area mà không qua safeAreaInsetsDidChange của view này (một phép so sánh mỗi lượt).
+    private func syncSafeBottom() {
+        var v = safeAreaInsets.bottom
+        #if DEBUG
+        if let o = debugSafeOverride { v = o }
+        #endif
+        let s = KeyLayout.keyboardSafeBottom(pad: Self.isPad, viewSafeBottom: v)
         if s != safeBottom { safeBottom = s; updateSuggestionChrome() }
     }
     /// iPhone dọc: hàng đáy thấp hơn 4pt để 3 hàng chữ nằm đúng chỗ stock (KeyGeometry).
@@ -709,6 +718,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if Self.isPad { KeyButton.padLandscape = isLandscapeNow }   // phím tự áp cỡ chữ theo hướng
         super.layoutSubviews()
         letterGeometryCache = nil
+        syncSafeBottom()
         if bounds.width != lastLayoutWidth {
             lastLayoutWidth = bounds.width
             updateSuggestionChrome()
@@ -2339,7 +2349,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         row.spacing = 0
         row.distribution = .fill
         row.isLayoutMarginsRelativeArrangement = true
-        if Self.isPad { row.insetsLayoutMarginsFromSafeArea = false }
+        row.insetsLayoutMarginsFromSafeArea = false   // safe area: chỉ qua safeBottom (rowsBottom)
         row.layoutMargins = UIEdgeInsets(top: top, left: Self.sideMargin, bottom: 0, right: Self.sideMargin)
         fixWidth(l, half)
         fixWidth(r, half)
@@ -2712,7 +2722,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // hơn stock) — applyBottomTrim chỉnh lại khi xoay.
         // iPad: safe area đáy của view (≈5pt) từng lọt vào layoutMargins → phím hàng đáy thấp
         // hơn 3 hàng trên 5pt (45 thay 50, ngang 60 thay 65) và icon/nhãn sát đáy (đo 27/09).
-        if Self.isPad { stack.insetsLayoutMarginsFromSafeArea = false }
+        // Safe area KHÔNG lọt vào lề hàng (mọi máy): đáy hàng phím tránh vạch home DUY NHẤT qua
+        // safeBottom (rowsBottom). Trước đây iPhone để true ⇒ xoay/gập máy gập lúc safeBottom chưa
+        // kịp đổi thì hàng đáy ăn 18pt vào lề ⇒ phím dẹt (Duo gập + ngang, Phil 06/10/2026).
+        stack.insetsLayoutMarginsFromSafeArea = false
         let bottomTop = KeyGeometry.bottomRowTopMargin(pad: Self.isPad, landscape: isLandscapeNow)
         stack.layoutMargins = UIEdgeInsets(top: bottomTop, left: Self.sideMargin,
                                            bottom: 0, right: Self.sideMargin)
@@ -2765,7 +2778,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         stack.spacing = Self.keyGap
         stack.distribution = proportional ? .fillProportionally : .fill
         stack.isLayoutMarginsRelativeArrangement = true
-        if Self.isPad { stack.insetsLayoutMarginsFromSafeArea = false }   // xem bottomRow
+        stack.insetsLayoutMarginsFromSafeArea = false   // xem bottomRow
         // bounds.width có thể = 0 lúc init — layoutSubviews chỉnh lại ngay
         // pass đầu (và sau mỗi lần xoay / đổi cỡ Split View)
         // 10/0 thay 5/5 (khe giữa hàng vẫn 10): hàng đáy sát đáy (26/09/2026).
@@ -4762,8 +4775,19 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var debugScreenSize: CGSize? { didSet { phoneFormCache = nil; lastLayoutWidth = -1; setNeedsLayout() } }
     /// Test hook: safe area đáy giả (vạch home máy gập mở = 18).
     func debugSetSafeBottom(_ v: CGFloat) {
-        safeBottom = KeyLayout.keyboardSafeBottom(pad: Self.isPad, viewSafeBottom: v)
-        updateSuggestionChrome()
+        debugSafeOverride = v
+        syncSafeBottom()
+    }
+    private(set) var debugSafeOverride: CGFloat?
+    /// Test hook: mọi stack hàng phím (kể cả nửa tách đôi) — kiểm tra không ăn safe area vào lề.
+    var debugRowStacks: [UIStackView] {
+        var out: [UIStackView] = []
+        func walk(_ v: UIView, depth: Int) {
+            guard depth < 4 else { return }
+            for c in v.subviews { if let st = c as? UIStackView, st.axis == .horizontal { out.append(st) }; walk(c, depth: depth + 1) }
+        }
+        walk(rowsContainer, depth: 0)
+        return out
     }
     /// Test hook: bật/tắt bàn tách đôi (như công tắc App Group) rồi dựng lại.
     func debugSetSplit(_ on: Bool) { splitSetting = on; rebuild() }

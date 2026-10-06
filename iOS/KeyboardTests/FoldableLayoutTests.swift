@@ -135,5 +135,34 @@ final class FoldableLayoutTests: XCTestCase {
         XCTAssertEqual(kb.debugRequestedHeight, Self.strip + 212, accuracy: 0.01)
     }
 
+    /// Bug 2 (Phil 06/10/2026, ảnh #63): Duo GẬP + xoay NGANG (màn 678×466, view 528, safe đáy 18)
+    /// — hàng đáy vẫn dẹt khi xoay lúc bàn phím đang hiện: stack hàng iPhone còn
+    /// insetsLayoutMarginsFromSafeArea = true ⇒ safe area lọt vào lề trước khi safeBottom kịp đổi.
+    @MainActor func testFoldedLandscapeBottomRowNotSquashed() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom == .pad)
+        let (kb, _) = makeKeyboard(width: 528, screen: CGSize(width: 678, height: 466), safeBottom: 18)
+        let q = try XCTUnwrap(kb.debugLetterFrame("q"))
+        for name in ["Số", "Dấu cách", "Xuống dòng"] {
+            let f = frame(kb, try XCTUnwrap(kb.debugControl(name)))
+            XCTAssertEqual(f.height, q.height, accuracy: 0.5, "\(name) cao bằng hàng chữ")
+            XCTAssertLessThanOrEqual(f.maxY, kb.bounds.height - 18 + 0.5)
+        }
+        XCTAssertEqual(kb.debugRequestedHeight, Self.strip + 162 + 18, accuracy: 0.5)
+    }
+
+    /// Không stack hàng phím nào (chữ, số, tách đôi) được tự ăn safe area vào lề — safe area
+    /// chỉ đi qua safeBottom, nên lỡ một nhịp cập nhật cũng không ép dẹt hàng đáy.
+    @MainActor func testRowStacksIgnoreSafeAreaMargins() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom == .pad)
+        for split in [false, true] {
+            let (kb, _) = makeKeyboard(width: 801, screen: CGSize(width: 951, height: 669), safeBottom: 18)
+            kb.debugSetSplit(split)
+            kb.setNeedsLayout(); kb.layoutIfNeeded()
+            let rows = kb.debugRowStacks
+            XCTAssertFalse(rows.isEmpty)
+            for r in rows { XCTAssertFalse(r.insetsLayoutMarginsFromSafeArea, "split=\(split)") }
+        }
+    }
+
     private static var strip: CGFloat { KeyboardView.openStrip }
 }
