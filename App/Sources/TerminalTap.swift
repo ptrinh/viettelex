@@ -2773,7 +2773,7 @@ final class TerminalTapController {
             _ = reEditFocus.observe(ClientFocus.epoch)   // click = neo focus mới (#111)
             if handoffKeys >= 0 { TapHandoff.clear(); handoffKeys = -1 }   // #110
             lastTapKeyWasDigit = false
-            chordRecognizer.disarm()        // click giữa lúc giữ chord = không phải toggle
+            chordRecognizer.disarm(flags: event.flags)        // click giữa lúc giữ chord = không phải toggle
             // Sticky-source: click trong dải menu bar = user có thể đang tự đổi input
             // source bằng menu — dấu vết để KHÔNG giành lại (StickyInputSource).
             StickyInputSource.shared.noteClick(at: event.location)
@@ -2818,7 +2818,7 @@ final class TerminalTapController {
         //    engine is tap-thread confined, so the reset happens HERE, on this thread.
         // Phím thường (đã lọc synthetic ở trên) giữa lúc giữ chord = một shortcut
         // thật, không phải toggle bộ gõ — disarm. Tap-thread confined, plain store.
-        chordRecognizer.disarm()
+        chordRecognizer.disarm(flags: event.flags)
 
         var wakeWatchdog = false
         let needsEngineReset: Bool = stateLock.withLock {

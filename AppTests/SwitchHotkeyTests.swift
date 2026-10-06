@@ -14,7 +14,8 @@ final class SwitchHotkeyTests: XCTestCase {
         var r = ModifierChordRecognizer()
         var fires = 0
         for (i, f) in states.enumerated() {
-            if i == interruptAt { r.disarm() }
+            // Phím thường / click chen giữa: flags lúc đó = modifier đang giữ (trạng thái trước).
+            if i == interruptAt { r.disarm(flags: i > 0 ? states[i - 1] : []) }
             if r.note(flags: f, target: target) { fires += 1 }
         }
         return fires
@@ -60,6 +61,57 @@ final class SwitchHotkeyTests: XCTestCase {
         // Sau đó một lượt ⌃⇧ sạch: fire đúng 1 lần.
         XCTAssertEqual(run([ctrlShift, all, ctrlShift, [], [.maskControl], ctrlShift, []],
                            target: ctrlShift), 1)
+    }
+
+    /// #116: gõ chữ / click KHÔNG giữ modifier (rất thường ngay trước khi chuyển bộ gõ) không
+    /// được làm bẩn lượt ⌃⇧ kế tiếp — bản 1.8.11 phải bấm 2 lần.
+    func testTypingWithoutModifiersDoesNotSpoilNextChord() {
+        var r = ModifierChordRecognizer()
+        for _ in 0..<5 { r.disarm(flags: []) }            // gõ "xin chao", click…
+        var fires = 0
+        for f in [[.maskControl], ctrlShift, []] as [CGEventFlags] where r.note(flags: f, target: ctrlShift) { fires += 1 }
+        XCTAssertEqual(fires, 1)
+        // Phím thường khi ĐANG giữ ⌃⇧ thì vẫn huỷ (shortcut thật, #114).
+        r = ModifierChordRecognizer(); fires = 0
+        _ = r.note(flags: ctrlShift, target: ctrlShift)
+        r.disarm(flags: ctrlShift)
+        if r.note(flags: [], target: ctrlShift) { fires += 1 }
+        XCTAssertEqual(fires, 0)
+        // Và lượt ⌃⇧ sạch ngay sau đó fire.
+        for f in [ctrlShift, []] as [CGEventFlags] where r.note(flags: f, target: ctrlShift) { fires += 1 }
+        XCTAssertEqual(fires, 1)
+    }
+
+    /// Một PHIÊN gõ thật trên CÙNG một recognizer (không tạo mới mỗi kịch bản — lỗ hổng làm
+    /// #116 lọt test): gõ chữ, click, ⌃⇧, chụp màn hình ⌃⇧⌘4, ⌘C… xen kẽ. Mỗi ⌃⇧ sạch phải
+    /// chuyển đúng 1 lần, mọi tổ hợp khác 0 lần.
+    func testRealisticSessionSequence() {
+        enum Ev { case key(CGEventFlags), flags(CGEventFlags) }   // key = keyDown/click với flags đang giữ
+        let cs = ctrlShift
+        let csc: CGEventFlags = [.maskControl, .maskShift, .maskCommand]
+        let typing: [Ev] = Array(repeating: .key([]), count: 6)    // "xin chao"
+        let toggle: [Ev] = [.flags([.maskControl]), .flags(cs), .flags([.maskShift]), .flags([])]
+        let screenshot: [Ev] = [.flags([.maskControl]), .flags(cs), .flags(csc), .key(csc),
+                                .flags(cs), .flags([.maskShift]), .flags([])]
+        let copy: [Ev] = [.flags([.maskCommand]), .key([.maskCommand]), .flags([])]
+        let shiftLetter: [Ev] = [.flags([.maskShift]), .key([.maskShift]), .flags([])]
+        let ctrlShiftKey: [Ev] = [.flags(cs), .key(cs), .flags([])]   // ⌃⇧T của app: không chuyển
+        let script: [([Ev], Int)] = [
+            (typing, 0), (toggle, 1), (typing, 0), (.init(repeating: .key([]), count: 1), 0), // click
+            (toggle, 1), (screenshot, 0), (toggle, 1), (copy, 0), (toggle, 1),
+            (shiftLetter, 0), (toggle, 1), (ctrlShiftKey, 0), (toggle, 1), (typing, 0), (toggle, 1),
+        ]
+        var r = ModifierChordRecognizer()
+        for (i, (events, expected)) in script.enumerated() {
+            var fires = 0
+            for e in events {
+                switch e {
+                case .key(let f): r.disarm(flags: f)
+                case .flags(let f): if r.note(flags: f, target: cs) { fires += 1 }
+                }
+            }
+            XCTAssertEqual(fires, expected, "bước \(i)")
+        }
     }
 
     func testWrongComboNeverFires() {
