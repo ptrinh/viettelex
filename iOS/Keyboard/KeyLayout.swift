@@ -117,6 +117,10 @@ enum KeyLayout {
         Key(id: "emoji", units: 0.108), Key(id: "space", units: nil),
         Key(id: "comma", units: 0.083), Key(id: "return", units: 0.156),
     ]
+    /// "," hàng đáy plane CHỮ iPhone hẹp hơn stock "." (0.083 → 0.071 ≈ 28.5pt trên 402,
+    /// phím chữ 33.3): phần dư cho space — chạm space hay lẹm sang "," (Phil 06/10/2026,
+    /// kèm KeyHitBias). Mép phải giữ nguyên (return không đổi). Plane số / mẫu câu giữ 0.083.
+    static let phoneLettersComma: CGFloat = 0.071
 
     // MARK: iPad — hai kiểu bàn phím stock iPadOS 27 (đo simulator 27/09/2026)
     //  • full (Air/Pro 11", 13"): có tab + ⇪, icon/nhãn chức năng dạt góc dưới.

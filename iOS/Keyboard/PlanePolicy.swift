@@ -14,4 +14,19 @@ enum PlanePolicy {
     static func shiftOnReturnToLetters(autoShift: Bool?) -> Bool {
         autoShift ?? false
     }
+
+    /// Plane đích (thuần, KeyboardView ánh xạ plane riêng của nó sang đây).
+    enum Target { case letters, symbols, emoji, emojiSearch, templates }
+
+    /// Rời plane chữ: stock iOS TẮT Caps Lock (và shift một-lần) khi sang 123/#+= hay
+    /// emoji — Caps Lock → 123 → ABC về chữ thường (Phil 06/10/2026: trước đây vẫn hoa).
+    /// Mẫu câu (bảng phủ của VietTelex, không đổi bàn chữ) giữ shift. Về ABC thì
+    /// shiftOnReturnToLetters đánh giá lại viết hoa đầu câu. Song sinh Android
+    /// PlanePolicy.clearsShiftLeavingLetters.
+    static func clearsShiftLeavingLetters(to target: Target) -> Bool {
+        switch target {
+        case .symbols, .emoji, .emojiSearch: return true
+        case .letters, .templates: return false
+        }
+    }
 }

@@ -468,6 +468,9 @@ class KeyboardView(
     fun setPlane(p: Plane) {
         if (p == Plane.TEMPLATES && !templatesEnabled) return
         if (plane == p) return
+        // Rời plane chữ sang ?123 / =\< / emoji: tắt Caps Lock + shift một-lần (như iOS stock;
+        // Phil 06/10/2026). Về chữ IME đánh giá lại viết hoa đầu câu (onPlaneChanged).
+        if (plane == Plane.LETTERS && PlanePolicy.clearsShiftLeavingLetters(p)) shift = Shift.OFF
         plane = p
         if (p == Plane.LETTERS && shift == Shift.ON) shift = Shift.OFF
         if (p == Plane.EMOJI) emojiPane.open(listener?.emojiRecents() ?: emptyList())
@@ -939,7 +942,7 @@ class KeyboardView(
                 return
             }
         }
-        val hit = KeyLayout.hit(keys, plane, x, y, TouchGeometry.yOffset * d, d)
+        val hit = KeyLayout.hit(keys, plane, x, y, TouchGeometry.yOffset * d, d, e.eventTime - lastLetterDownT)
         cancelCommaHold()                 // ngón khác chạm ⇒ "," đang giữ là gõ thường
         if (TouchLog.enabled) {
             val lag = (SystemClock.uptimeMillis() - e.eventTime).toDouble()

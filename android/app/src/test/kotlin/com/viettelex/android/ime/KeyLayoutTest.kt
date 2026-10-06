@@ -110,8 +110,9 @@ class KeyLayoutTest {
         assertEquals(listOf(",", "."), bottom.filter { it.kind == KeyKind.PUNCT }.map { it.insert })
         near(bottom[0].width, 0.15f * W)
         near(bottom[1].width, 0.10f * W)
-        near(bottom[3].width, 0.10f * W)
+        near(bottom[3].width, KeyLayout.PHONE_LETTERS_COMMA * W)   // "," hẹp (06/10/2026)
         near(bottom[4].width, 0.10f * W)
+        assertTrue(bottom[3].width < bottom[4].width)
         near(bottom[5].width, 0.15f * W)
         near(bottom.last().right, W - 3f, 0.05f)
         // cùng margin như mọi hàng
@@ -130,7 +131,8 @@ class KeyLayoutTest {
         // Ô URL / email luôn có "." (giữ ra đuôi tên miền) dù công tắc tắt.
         val urlSpace = build(Plane.LETTERS, InputKind.URL).first { it.kind == KeyKind.SPACE }
         val normalSpace = build(Plane.LETTERS, period = true).first { it.kind == KeyKind.SPACE }
-        near(urlSpace.width, normalSpace.width)
+        // Ô thường: "," hẹp (PHONE_LETTERS_COMMA, 06/10/2026) ⇒ space rộng hơn ô URL đúng phần cắt.
+        near(urlSpace.width + (0.10f - KeyLayout.PHONE_LETTERS_COMMA) * W, normalSpace.width)
         // plane số không đổi theo kind
         val num = build(Plane.NUMBERS, InputKind.EMAIL).filter { it.kind == KeyKind.PUNCT }
         assertEquals(listOf(",", "."), num.map { it.insert })

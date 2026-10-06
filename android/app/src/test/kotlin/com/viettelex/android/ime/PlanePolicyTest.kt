@@ -26,6 +26,16 @@ class PlanePolicyTest {
             assertFalse(p.name, PlanePolicy.reevaluatesShift(p))
     }
 
+    /** Caps Lock / shift một-lần tắt khi rời chữ sang ?123 / emoji (Phil 06/10/2026). */
+    @Test fun leavingLettersClearsShift() {
+        for (p in listOf(Plane.NUMBERS, Plane.SYMBOLS, Plane.EMOJI, Plane.EMOJI_SEARCH))
+            assertTrue(p.name, PlanePolicy.clearsShiftLeavingLetters(p))
+        for (p in listOf(Plane.LETTERS, Plane.TEMPLATES, Plane.EDIT))
+            assertFalse(p.name, PlanePolicy.clearsShiftLeavingLetters(p))
+        // Về chữ vẫn đánh giá lại viết hoa đầu câu (auto-shift áp lại sau khi Caps tắt).
+        assertTrue(PlanePolicy.reevaluatesShift(Plane.LETTERS))
+    }
+
     /** Hợp đồng session mà IME dựa vào: ". " tự thêm ở plane 123 ⇒ auto-shift = true lúc về ABC. */
     @Test fun periodAutoSpaceOnNumbersPlaneCapitalizesNextLetter() {
         val s = com.viettelex.keyboard.KeyboardSession(com.viettelex.keyboard.UserLangModel(), null) { 0L }

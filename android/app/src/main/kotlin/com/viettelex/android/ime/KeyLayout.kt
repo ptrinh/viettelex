@@ -308,7 +308,7 @@ object KeyLayout {
         slots += if (clearInsteadOfEmoji) Slot(KeyKind.CLEAR, "", "", 0.10f)
                  else Slot(KeyKind.EMOJI, "", "", 0.10f)
         slots += Slot(KeyKind.SPACE, "", " ", -1f)
-        if (commaRight) slots += Slot(KeyKind.PUNCT, ",", ",", 0.10f)
+        if (commaRight) slots += Slot(KeyKind.PUNCT, ",", ",", if (c.tablet) 0.10f else PHONE_LETTERS_COMMA)
         if (hasPeriodKey(c)) slots += Slot(KeyKind.PUNCT, ".", ".", 0.10f)
         slots += Slot(KeyKind.RETURN, c.returnLabel, "\n", 0.15f)
         if (c.tablet) slots += Slot(KeyKind.DISMISS, "", "", 0.07f)
@@ -322,6 +322,13 @@ object KeyLayout {
             x += w + gap
         }
     }
+
+    /**
+     * Bề rộng "," hàng đáy plane chữ ĐIỆN THOẠI (tỉ lệ hàng): 0.10 → 0.085 ≈ một phím chữ,
+     * phần dư cho space (Phil 06/10/2026, cùng iOS 0.075 → 0.065; thêm HitBias). Tablet,
+     * plane số, ô URL / email giữ 0.10.
+     */
+    const val PHONE_LETTERS_COMMA = 0.085f
 
     private val PHONE_HINTS = arrayOf("", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ")
 
@@ -435,9 +442,11 @@ object KeyLayout {
      * Plane chữ (y iOS): phím chữ thắng trong footprint THẬT của nó (kể cả khi vùng
      * nở của ⇧/⌫ đè lên); rồi tới phím chức năng theo vùng nở; rồi phím chữ gần
      * nhất trong 21 dp. Cuối cùng (Android, bịt khe chết giữa hàng 3 và hàng đáy):
-     * phím bất kỳ gần nhất trong 21 dp.
+     * phím bất kỳ gần nhất trong 21 dp. `sinceLetterMs` (ms từ lần chạm chữ trước) nới
+     * dải ưu tiên mép của [HitBias] khi gõ cuộn.
      */
-    fun hit(keys: List<LaidKey>, plane: Plane, x: Float, y: Float, yOffsetPx: Float, d: Float): LaidKey? {
+    fun hit(keys: List<LaidKey>, plane: Plane, x: Float, y: Float, yOffsetPx: Float, d: Float,
+            sinceLetterMs: Long = Long.MAX_VALUE): LaidKey? {
         val py = y - yOffsetPx
         if (plane == Plane.LETTERS || plane == Plane.EMOJI_SEARCH) {
             var inCore = false
@@ -448,13 +457,15 @@ object KeyLayout {
             if (inCore) return nearestLetter(keys, x, py, d)
             for (i in keys.indices.reversed()) {
                 val k = keys[i]
-                if (k.kind != KeyKind.LETTER && expandedContains(k, x, y, d)) return k
+                // Mép chung (HitBias): "," sát space ⇒ space; ⇧/⌫ sát chữ ⇒ chữ.
+                if (k.kind != KeyKind.LETTER && expandedContains(k, x, y, d))
+                    return HitBias.refine(keys, k, x, y, sinceLetterMs, d, letters = true)
             }
             nearestLetter(keys, x, py, d)?.let { return it }
         } else {
             for (i in keys.indices.reversed()) {
                 val k = keys[i]
-                if (expandedContains(k, x, y, d)) return k
+                if (expandedContains(k, x, y, d)) return HitBias.refine(keys, k, x, y, sinceLetterMs, d, letters = false)
             }
         }
         var best: LaidKey? = null

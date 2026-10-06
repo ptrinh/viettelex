@@ -182,7 +182,11 @@ final class KeyGeometryTests: XCTestCase {
         let ret = frame(kb, try XCTUnwrap(kb.debugControl("Xuống dòng")))
         XCTAssertEqual(num.midX, KeyGeometry.Stock.planeKeyMidX, accuracy: 1.5)
         XCTAssertEqual(emoji.midX, KeyGeometry.Stock.emojiKeyMidX, accuracy: 1.5)
-        XCTAssertEqual(comma.midX, 402 * KeyGeometry.Stock.periodMidXFraction, accuracy: 2)
+        // "," plane chữ hẹp hơn stock "." (KeyLayout.phoneLettersComma, 06/10/2026): MÉP PHẢI
+        // giữ chỗ stock, tâm dời phải nửa phần cắt.
+        let stockHalf = 402 * KeyLayout.units("comma", in: KeyLayout.phoneBottom)! / 2
+        XCTAssertEqual(comma.maxX, 402 * KeyGeometry.Stock.periodMidXFraction + stockHalf, accuracy: 2)
+        XCTAssertEqual(comma.width, 402 * KeyLayout.phoneLettersComma, accuracy: 1)
         XCTAssertEqual(ret.midX, 402 * KeyGeometry.Stock.returnMidXFraction, accuracy: 2)
     }
 

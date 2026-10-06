@@ -12,4 +12,13 @@ object PlanePolicy {
      * Plane tìm emoji không tính (phím vào ô tìm, không tới ô nhập).
      */
     fun reevaluatesShift(to: Plane): Boolean = to == Plane.LETTERS
+
+    /**
+     * Rời plane chữ: tắt Caps Lock (và shift một-lần) khi sang ?123 / =\< / emoji / tìm emoji
+     * — Caps Lock → ?123 → ABC về chữ thường như iOS stock (Phil 06/10/2026; song sinh iOS
+     * PlanePolicy.clearsShiftLeavingLetters). Mẫu câu / bảng sửa (phủ lên, không đổi bàn
+     * chữ) giữ shift. Về ABC thì [reevaluatesShift] áp lại viết hoa đầu câu.
+     */
+    fun clearsShiftLeavingLetters(to: Plane): Boolean =
+        to == Plane.NUMBERS || to == Plane.SYMBOLS || to == Plane.EMOJI || to == Plane.EMOJI_SEARCH
 }

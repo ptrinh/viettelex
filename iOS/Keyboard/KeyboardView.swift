@@ -109,6 +109,20 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         didSet {
             // Vào plane số/ký hiệu từ plane khác → đếm lại; 123⇄#+= giữ nguyên.
             if oldValue != .numbers, oldValue != .symbols { typedInSymbolPlane = false }
+            // Rời plane chữ sang 123/#+=/emoji: tắt Caps Lock + shift một-lần như stock
+            // (Phil 06/10/2026). Về ABC đánh giá lại viết hoa đầu câu (reevaluateShiftForLetters).
+            if oldValue == .letters, shift != .off, PlanePolicy.clearsShiftLeavingLetters(to: planeTarget(plane)) {
+                shift = .off
+            }
+        }
+    }
+    private func planeTarget(_ p: Plane) -> PlanePolicy.Target {
+        switch p {
+        case .letters: return .letters
+        case .numbers, .symbols: return .symbols
+        case .emoji: return .emoji
+        case .emojiSearch: return .emojiSearch
+        case .templates: return .templates
         }
     }
     /// Đã gõ ký tự ở plane 123/#+= → space kế tiếp quay về chữ (PlanePolicy).
@@ -2130,6 +2144,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         plane.onABC = { [weak self] in
             guard let self else { return }
             self.plane = .letters
+            self.reevaluateShiftForLetters()     // shift đã tắt lúc vào emoji
             self.rebuild()
         }
         plane.onBackspace = { [weak self] in self?.tapped(.backspace) }
@@ -2483,7 +2498,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // hàng đáy iPad nhảy size khi bấm (feedback 26/09/2026). Chỉ space co giãn.
         globeBtn?.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: frac("globe")).isActive = true
         for pk in punctKeys {
-            let m = pk.btn.currentTitle == "," ? (KeyLayout.units("comma", in: spec) ?? pk.mult) : pk.mult
+            // iPhone plane chữ: "," hẹp hơn stock (KeyLayout.phoneLettersComma), phần dư cho
+            // space — chạm space hay lẹm sang "," (Phil 06/10/2026; thêm KeyHitBias).
+            let lettersComma = !padStock && planeKey == "123" && !clearInsteadOfEmoji
+            let m = pk.btn.currentTitle != "," ? pk.mult
+                : lettersComma ? KeyLayout.phoneLettersComma : (KeyLayout.units("comma", in: spec) ?? pk.mult)
             pk.btn.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: m).isActive = true
         }
         ret?.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: frac("return")).isActive = true
@@ -3606,7 +3625,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // shift/backspace kề bên "cướp" điểm chạm — nếu không, chạm mép z/m thành
         // toggle shift / xoá thay vì ra chữ (nguồn rớt phím ở hàng 3, 2026-07-26).
         if lettersLike, letterCoreContains(point) { return self }
-        if v is UIControl { return v }
+        if let c = v as? UIControl {
+            // Mép chung (KeyHitBias): space thắng ","/"." kề; chữ thắng ⇧/⌫ kề.
+            if let r = biasedHit(c, at: point, time: event?.timestamp) { return r }
+            return v
+        }
         // Khe / mép trong vùng phím: nút thật GẦN NHẤT (123, emoji, ⇧, ⌫, số…) hoặc phím chữ
         // gần hơn (router). Trước đây khe trên mỗi hàng nút (4.5pt: nút chỉ nở 5.5 trong khe
         // 10) là vùng CHẾT — chạm cao phím 123/ABC/emoji mất hẳn, chạm cao emoji ra chữ z.
@@ -3617,6 +3640,51 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         if v != nil, nearestLetterButton(at: point) != nil { return self }
         return v
+    }
+
+    /// Ưu tiên ở mép chung (KeyHitBias, iPhone): điểm rơi vào "," / "." nhưng trong dải sát
+    /// space ⇒ space; rơi vào ⇧ / ⌫ nhưng trong dải sát phím chữ ⇒ router chữ (self).
+    /// nil = giữ `c`. Chỉ chạy khi điểm chạm trúng một trong các nút đó (rẻ).
+    private func biasedHit(_ c: UIControl, at point: CGPoint, time: TimeInterval?) -> UIView? {
+        guard !Self.isPad else { return nil }
+        let since = time.flatMap { t in lastLetterDownTime.map { t - $0 } }
+        if let space = spaceBar, c !== space, let b = c as? UIButton,
+           let t = b.currentTitle, t == "," || t == ".",
+           b.superview != nil, b.superview === space.superview {
+            let band = KeyHitBias.spaceBand(sinceLetter: since)
+            if KeyHitBias.intrudes(point, loser: convert(b.bounds, from: b),
+                                   winner: convert(space.bounds, from: space), band: band) {
+                return space
+            }
+            return nil
+        }
+        if lettersLike, letterStealing(from: c, at: point, sinceLetter: since) != nil { return self }
+        return nil
+    }
+
+    /// ⇧ / ⌫ đang hiện ở plane chữ: chỉ số phím chữ kề mà `point` lấn vào (KeyHitBias).
+    private func letterStealing(from c: UIControl, at point: CGPoint, sinceLetter: TimeInterval?) -> Int? {
+        guard !Self.isPad, lettersLike, !letterKeys.isEmpty,
+              shiftKeys.contains(where: { $0 === c }) || c.accessibilityLabel == L("Xoá") else { return nil }
+        return KeyHitBias.stealer(point, loser: convert(c.bounds, from: c), winners: letterGeometry().rects,
+                                  band: KeyHitBias.letterBand(sinceLetter: sinceLetter))
+    }
+
+    /// Router nhận điểm do ⇧/⌫ nhường (KeyHitBias) nhưng nằm ngoài tầm 21pt của phím chữ
+    /// gần nhất (khe ⇧↔z rộng 12) ⇒ lấy đúng phím chữ đã lấn.
+    private func letterStolenFromControl(at point: CGPoint, time: TimeInterval) -> UIButton? {
+        guard !Self.isPad, lettersLike else { return nil }
+        let since = lastLetterDownTime.map { time - $0 }
+        for row in rowsContainer.arrangedSubviews {
+            guard let stack = row as? UIStackView else { continue }
+            for case let c as UIControl in stack.arrangedSubviews where !c.isHidden {
+                if convert(c.bounds, from: c).insetBy(dx: -3, dy: -5.5).contains(point),
+                   let i = letterStealing(from: c, at: point, sinceLetter: since) {
+                    return letterKeys[i].button
+                }
+            }
+        }
+        return nil
     }
 
     /// Nút thật (bật tương tác, đang hiện) trong các hàng phím gần `point` nhất — chỉ chạy ở
@@ -3710,7 +3778,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// touch duy nhất được route bắt đầu phân loại chạm/vuốt (GestureClassifier).
     private func routeDown(_ id: ObjectIdentifier, at raw: CGPoint, time: TimeInterval, batch: Int) {
         let p = TouchGeometry.keySelectionPoint(raw, top: rowsContainer.frame.minY)
-        var b = swipeActive ? nil : nearestLetterButton(at: p)   // đang vuốt: ngón khác không gõ
+        var b = swipeActive ? nil : (nearestLetterButton(at: p) ?? letterStolenFromControl(at: raw, time: time))
         if let hit = b, let lp = letterPrior { b = smartPick(hit, at: p, prior: lp) }
         TouchLog.touchBegan(active: routedTouches.count, batch: batch,
                             touchTimestamp: time, hit: b != nil, y: Double(p.y),
@@ -4327,6 +4395,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var debugTrackpadDimmed: Bool { trackpadDimmed }
     func debugSetKeyPreview(_ on: Bool) { keyPreviewEnabled = on }
     func debugShowEmojiPlane() { plane = .emoji; rebuild() }
+    /// Test hook: chạm ABC của plane emoji (đường onABC thật).
+    func debugEmojiABC() {
+        (rowsContainer.arrangedSubviews.first { $0 is EmojiPlane } as? EmojiPlane)?.onABC?()
+    }
     /// Test hook: frame phím emoji (toạ độ self) ở hàng đáy plane đang hiện.
     var debugEmojiKeyFrame: CGRect? { debugControl("Emoji").map { convert($0.bounds, from: $0) } }
     var debugBalloonVisible: Bool { balloonMade && !balloon.isHidden && balloon.superview != nil }
@@ -4553,6 +4625,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
     var debugPlaneName: String { "\(plane)" }
     var debugShiftOn: Bool { shift != .off }
+    var debugShiftCaps: Bool { shift == .caps }
     /// Test hook: hiện balloon trên phím chữ `s` (như chạm / giữ ra ký tự phụ `text`), trả
     /// frame balloon + khung chữ + cỡ chữ (toạ độ self).
     func debugBalloon(letter s: String, text: String) -> (frame: CGRect, label: CGRect, fontSize: CGFloat)? {
