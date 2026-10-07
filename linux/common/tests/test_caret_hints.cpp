@@ -54,7 +54,7 @@ struct Mock : InputContext {
     std::string doc, pre, shown;
     bool surrounding = true, selection = false;
     int hides = 0;
-    void setPreedit(const std::string &s) override { pre = s; }
+    void setPreedit(const std::string &s, bool) override { pre = s; }
     void commit(const std::string &s) override { doc += s; }
     void deleteBeforeCursor(int n) override { popChars(doc, n); }
     bool textBeforeCursor(std::string &out) override {

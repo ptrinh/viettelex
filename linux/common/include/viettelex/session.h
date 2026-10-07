@@ -22,8 +22,9 @@ namespace viettelex {
 class InputContext {
 public:
     virtual ~InputContext() = default;
-    // Show `utf8` as the (underlined) composition; empty = hide it.
-    virtual void setPreedit(const std::string &utf8) = 0;
+    // Show `utf8` as the (underlined) composition; empty = hide it. `misspelled`: draw it
+    // with the error style (opt-in Settings::underlineMisspelled; always false when off).
+    virtual void setPreedit(const std::string &utf8, bool misspelled) = 0;
     // Insert committed text at the caret (preedit already hidden by the Session).
     virtual void commit(const std::string &utf8) = 0;
     // Delete `nchars` Unicode characters immediately before the caret.
@@ -98,6 +99,7 @@ public:
 
     bool composing() const;
     std::string preedit() const { return preedit_; }
+    bool preeditMisspelled() const { return preeditMisspelled_; }
 
     // MARK: caret suggestions (caret_hints.h)
     // Where trigger requests go (the frontend's HintService); unset = hints off whatever the
@@ -133,6 +135,8 @@ private:
     bool hasPendingMode_ = false;
     void applyPendingMode();
     bool autoRestore_ = true;
+    bool underlineMisspelled_ = false;  // Settings::underlineMisspelled
+    bool preeditMisspelled_ = false;    // style of the preedit last sent
     bool shortcutsEnabled_ = true;
     bool reEdit_ = true;
     bool vni_ = false;

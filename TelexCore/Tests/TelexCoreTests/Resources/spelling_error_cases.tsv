@@ -1,0 +1,99 @@
+# Shared vectors for the opt-in "Gạch đỏ âm tiết sai chính tả khi gõ" decision.
+# Consumers: TelexCore SpellingErrorTests.swift (Swift engine = macOS/Linux libtelexcore),
+# windows/engine/tests/unit_tests.cpp (C++ port), linux/common/tests/test_common.cpp (C ABI).
+# Every expectation was checked against the validator's actual tables, not guessed.
+#
+# Columns (TAB separated): kind  input  expected(0|1)  [options]
+#   syllable  word  -> SyllableValidator.isValidSyllable(word, teencode: false)
+#   error     word  -> SyllableValidator.isSpellingError(word, teencode: false)
+#   keys      keys  -> TelexEngine.hasSpellingError(autoRestore:) after typing `keys`
+#                      with the APP defaults (free marking, live spell-check, contextual
+#                      English, prefer Vietnamese, teencode off). options: L = live
+#                      spell-check off, R = auto-restore off.
+
+# --- valid syllables
+syllable	được	1
+syllable	nghiêng	1
+syllable	khuya	1
+syllable	quốc	1
+syllable	gì	1
+syllable	giếng	1
+syllable	ké	1
+syllable	cá	1
+syllable	ác	1
+syllable	bắng	1
+syllable	tóc	1
+syllable	nghi	1
+# accepted by the tables (they do not model c/k, g/gh, ng/ngh beyond the k-onset rule)
+syllable	ce	1
+syllable	ngi	1
+syllable	gẹ	1
+# --- invalid syllables
+syllable	tòc	0
+syllable	hópng	0
+syllable	đc	0
+syllable	ka	0
+syllable	kà	0
+syllable	ngh	0
+
+# --- underline decision on a composed word
+error	được	0
+error	nghiêng	0
+error	khuya	0
+error	quốc	0
+error	gì	0
+error	giếng	0
+error	ké	0
+error	cá	0
+error	ác	0
+error	bắng	0
+error	tóc	0
+error	nghi	0
+error	ce	0
+error	ngi	0
+# not a plausible prefix: no letters can fix it
+error	hópng	1
+error	đc	1
+# tone a stop coda cannot carry (huyền/hỏi/ngã on -c/-ch/-p/-t)
+error	tòc	1
+error	tỏc	1
+error	bàc	1
+error	tũt	1
+error	tụt	0
+# onset k before a vowel the k-rule rejects
+error	ka	1
+error	kà	1
+error	kớ	1
+error	kê	0
+error	kỳ	0
+# still being typed (plausible prefix): not flagged yet
+error	ngh	0
+error	đ	0
+error	đươc	0
+error	toc	0
+error	hoà	0
+error	hòa	0
+
+# --- engine: only Vietnamese the engine produced and will keep at the boundary
+keys	dduwowcj	0
+keys	nghieengf	0
+keys	khuya	0
+keys	quoocs	0
+keys	gif	0
+keys	gieengs	0
+keys	Vieetj	0
+keys	ddc	1
+keys	DDc	1
+keys	dd	0
+keys	dduwowc	0
+# left as typed (composed == raw keys): English / frozen by live spell-check
+keys	hello	0
+keys	hopsng	0
+keys	tocf	0
+# auto-restore will put the raw keys back: never flagged
+keys	hopsng	0	L
+keys	kaf	0
+# auto-restore off: the composed word stays, so it is judged
+keys	hopsng	1	LR
+keys	kaf	1	R
+keys	tofc	0	R

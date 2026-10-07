@@ -392,6 +392,54 @@ public enum SyllableValidator {
         }
         return isValidPrefix(bases: bases, count: bases.count, teencode: teencode)
     }
+
+    // MARK: - Spelling error while typing (opt-in red underline, Windows/Linux)
+
+    /// TRUE when the word being composed is a spelling error that typing more letters
+    /// cannot fix — the "gạch đỏ âm tiết sai chính tả" decision. No new rules: it is
+    /// the two checks above combined.
+    ///   1. A valid syllable is never an error.
+    ///   2. A word that is not even a plausible PREFIX (`isValidPrefix`, the check
+    ///      live spell-check uses) is one: "đc", "hópng".
+    ///   3. A plausible prefix is still being typed ("ngh", "đươ", "toc"), EXCEPT when
+    ///      its tone can never fit: huyền/hỏi/ngã on a word that is valid with sắc
+    ///      ("tòc" vs "tóc") — a stop-coda rime (-c/-ch/-p/-t/-k) only carries
+    ///      sắc/nặng, and a stop coda cannot be extended into an open/nasal rime —
+    ///      or an onset k before a vowel the k-rule rejects ("kà": standard spelling).
+    /// Spelling the validator accepts ("ce", "ngi", "gẹ": the rule tables do not model
+    /// c/k, g/gh, ng/ngh distribution beyond the k-onset rule) is never flagged.
+    public static func isSpellingError(_ word: String, teencode: Bool = true) -> Bool {
+        if word.isEmpty { return false }
+        var classes = [UInt8]()
+        classes.reserveCapacity(word.count)
+        var tone: Tone = .none
+        for ch in word.lowercased() {
+            guard let scalar = ch.unicodeScalars.first, ch.unicodeScalars.count == 1 else {
+                return false  // not a letter word (VNI literal digit…): not judged
+            }
+            var toneless = ch
+            if let (base, t) = Tables.detoneTable[scalar.value] {
+                toneless = Character(Unicode.Scalar(base)!)
+                if t != .none {
+                    if tone != .none { return true }  // two tones: never a syllable
+                    tone = t
+                }
+            }
+            guard let cls = Tables.charClass[toneless] else { return false }
+            classes.append(cls)
+        }
+        let n = classes.count
+        if isValidSyllable(classes: classes, count: n, tone: tone, teencode: teencode) { return false }
+        if !isValidPrefix(word, teencode: teencode) { return true }
+        // The k-onset rule (standard spelling) is the one exact-syllable rule the folded
+        // prefix check does not see; the rime's first letter is final once typed ("kà").
+        if !teencode, n >= 2, classes[0] == UInt8(ascii: "k") - UInt8(ascii: "a"),
+           Tables.isVowelClass(classes[1]), !kOnsetAllows(rimeFirst: classes[1]) { return true }
+        if tone == .grave || tone == .hook || tone == .tilde {
+            return isValidSyllable(classes: classes, count: n, tone: .acute, teencode: teencode)
+        }
+        return false
+    }
 }
 
 // MARK: - Flat class trie (the compiled rule machine)

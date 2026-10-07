@@ -118,6 +118,7 @@ const ToggleDef kToggles[] = {
     {&Settings::typoHints, S::TypoHints, S::TypoHintsDesc},                            // 17
     {&Settings::toneHints, S::ToneHints, S::ToneHintsDesc},                            // 18
     {&Settings::dateHints, S::DateHints, S::DateHintsDesc},                            // 19
+    {&Settings::underlineMisspelled, S::UnderlineMisspelled, S::UnderlineMisspelledDesc},  // 20
 };
 constexpr int kToggleCount = static_cast<int>(sizeof(kToggles) / sizeof(kToggles[0]));
 
@@ -464,6 +465,7 @@ std::vector<Item> pageItems(int tab) {
         case 1:
             v.push_back(section(S::SecSpelling));
             for (int i = 5; i <= 10; ++i) v.push_back(toggleItem(i));
+            v.push_back(toggleItem(20));  // gạch đỏ âm tiết sai chính tả (composition only)
             // Công cụ văn bản (macOS: same place, after the spelling options; collapsible,
             // collapsed by default)
             {

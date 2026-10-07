@@ -30,6 +30,9 @@ extern const CLSID CLSID_VietTelexTIP;
 extern const GUID GUID_VietTelexProfile;
 // {4DAA5D7F-65EB-4B15-917A-C6A3AD2AC0F8} display attribute: "input, no decoration"
 extern const GUID GUID_DisplayAttributeInput;
+// {1E557088-A15F-4958-9ADB-2A14B8919FA2} display attribute: "input, red squiggle" — the
+// opt-in "Gạch đỏ âm tiết sai chính tả khi gõ" (Settings::underlineMisspelled)
+extern const GUID GUID_DisplayAttributeMisspelled;
 // {F58C2872-C456-4CBF-AF2A-8543B6241E0E} preserved key: Alt+Z toggle
 extern const GUID GUID_PreservedKeyToggle;
 

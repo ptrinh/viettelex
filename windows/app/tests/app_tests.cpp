@@ -356,7 +356,7 @@ public:
     bool hasSelection() override { return false; }
     bool replaceBeforeCaret(const std::u16string&, const std::u16string&) override { return false; }
     bool compositionActive() override { return active_; }
-    bool setComposition(const std::u16string& t, int) override {
+    bool setComposition(const std::u16string& t, int, bool) override {
         active_ = true;
         c_.composition = t;
         return true;
@@ -391,7 +391,7 @@ public:
         return true;
     }
     bool compositionActive() override { return false; }
-    bool setComposition(const std::u16string&, int) override { return false; }
+    bool setComposition(const std::u16string&, int, bool) override { return false; }
     void endComposition(const std::u16string&) override {}
     void endCompositionAsIs() override {}
     bool sent = false;

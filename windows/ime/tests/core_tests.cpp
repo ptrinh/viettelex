@@ -109,6 +109,7 @@ TEST(settings_defaults_match_macos) {
     CHECK(!s.autoUpdateCheck);
     CHECK(!s.debugLogging);
     CHECK(!s.showTrayIcon);  // tray icon hidden by default (1.0.5)
+    CHECK(!s.underlineMisspelled);  // red squiggle is opt-in
     CHECK_EQ(s.switchHotkey, std::string("ctrl-shift"));
     CHECK_EQ(s.uiLanguage, std::string("vi"));
     uint32_t f = s.engineFlags();
@@ -127,6 +128,7 @@ TEST(settings_snapshot_roundtrip) {
     s.autoRestore = false;
     s.debugLogging = true;
     s.showTrayIcon = true;
+    s.underlineMisspelled = true;
     s.switchHotkey = "win-space";
     s.uiLanguage = "en";
     s.shortcuts[u"vn"] = u"Việt Nam";
@@ -381,4 +383,18 @@ TEST(text_tools_settings_defaults) {
     Settings r;
     CHECK(deserialize(b.data(), b.size(), r));
     CHECK(!r.textToolsInMenu);
+}
+
+TEST(settings_underline_misspelled_snapshot_bit) {
+    size_t n = 0;
+    const BoolKey* keys = boolKeys(&n);
+    CHECK(n <= 32);                      // snapshot bits fit the u32
+    CHECK_EQ(std::string(keys[n - 1].name), std::string("underlineMisspelled"));  // appended
+    Settings on;
+    on.underlineMisspelled = true;
+    std::vector<uint8_t> b = serialize(on);
+    Settings r;
+    CHECK(deserialize(b.data(), b.size(), r));
+    CHECK(r.underlineMisspelled);
+    CHECK(!(r == Settings{}));
 }

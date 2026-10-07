@@ -712,6 +712,15 @@ bool TelexEngine::prefixIsValid(int n) {
     return SyllableValidator::isValidPrefix(basesScratch_, o, teencode);
 }
 
+bool TelexEngine::hasSpellingError(bool autoRestore) const {
+    if (rawCount_ == 0 || overflowed_ || outCount_ == 0) return false;
+    bool sameAsRaw = outCount_ == rawCount_;
+    for (int i = 0; sameAsRaw && i < outCount_; ++i) sameAsRaw = out_[i] == static_cast<char32_t>(raw_[i]);
+    if (sameAsRaw) return false;                           // left as typed: English / raw
+    if (autoRestore && shouldRestoreRaw()) return false;   // boundary restores the raw keys
+    return SyllableValidator::isSpellingError(out_, outCount_, teencode);
+}
+
 int TelexEngine::composed(char16_t* buf, int cap) const { return emit(out_, outCount_, buf, cap); }
 int TelexEngine::rawKeystrokes(char16_t* buf, int cap) const { return emitRaw(raw_, rawCount_, buf, cap); }
 

@@ -46,6 +46,9 @@ if(VTX_BUILD_TESTS)
                            tests/unit_tests.cpp)
   target_link_libraries(vtx_tests PRIVATE viettelex_engine)
   target_include_directories(vtx_tests PRIVATE src tests)
+  # Shared with the Swift engine + Linux (opt-in red underline decision).
+  target_compile_definitions(vtx_tests PRIVATE
+    VTX_SPELLING_CASES="${CMAKE_CURRENT_SOURCE_DIR}/../../TelexCore/Tests/TelexCoreTests/Resources/spelling_error_cases.tsv")
   if(ZLIB_FOUND)
     target_link_libraries(vtx_tests PRIVATE ZLIB::ZLIB)
     target_compile_definitions(vtx_tests PRIVATE VTX_HAVE_ZLIB=1)

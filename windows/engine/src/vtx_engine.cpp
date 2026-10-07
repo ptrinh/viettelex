@@ -104,5 +104,8 @@ int vtx_seed(vtx_engine* h, const uint16_t* word, int32_t len) {
     return h->e.seed(reinterpret_cast<const char16_t*>(word), len) ? 1 : 0;
 }
 int vtx_is_overflowed(const vtx_engine* h) { return h ? h->e.isOverflowed() : 0; }
+int vtx_has_spelling_error(const vtx_engine* h, int auto_restore) {
+    return h && h->e.hasSpellingError(auto_restore != 0) ? 1 : 0;
+}
 
 } // extern "C"

@@ -95,12 +95,20 @@ public:
     explicit FcitxClient(fcitx::InputContext *ic, ReadPrimary readPrimary = {})
         : ic_(ic), readPrimary_(std::move(readPrimary)) {}
 
-    void setPreedit(const std::string &s) override {
+    void setPreedit(const std::string &s, bool misspelled) override {
         fcitx::Text text;
         if (!s.empty()) {
             // NoFlag = no underline: fcitx5-gtk (GTK2/3/4) and fcitx5-qt draw exactly these
             // formats; Wayland text-input-v3 clients (fcitx5 wayland_v2 frontend) draw their own.
-            text.append(s, g_preeditUnderline ? fcitx::TextFormatFlag::Underline : fcitx::TextFormatFlag::NoFlag);
+            // Misspelled (opt-in): Fcitx5 text formats carry no colour or error style, so the
+            // mark is an underline — plus italic when every preedit is underlined anyway.
+            fcitx::TextFormatFlags fmt = g_preeditUnderline ? fcitx::TextFormatFlag::Underline
+                                                            : fcitx::TextFormatFlag::NoFlag;
+            if (misspelled) {
+                fmt = fcitx::TextFormatFlag::Underline;
+                if (g_preeditUnderline) fmt |= fcitx::TextFormatFlag::Italic;
+            }
+            text.append(s, fmt);
             text.setCursor(int(s.size()));
         }
         if (ic_->capabilityFlags().test(fcitx::CapabilityFlag::Preedit)) {

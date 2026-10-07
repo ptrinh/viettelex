@@ -173,6 +173,7 @@ Settings parseConfig(const std::string &toml) {
                 if (v.kind == Value::Str) s.toggleHotkey = v.s;
             }
             else if (key == "preedit_underline") setBool(s.preeditUnderline, v);
+            else if (key == "underline_misspelled") setBool(s.underlineMisspelled, v);
             else if (key == "terminal_direct") setBool(s.terminalDirect, v);
             else if (key == "per_app_state") setBool(s.perAppState, v);
             else if (key == "default_vietnamese") setBool(s.defaultVietnamese, v);
@@ -218,6 +219,7 @@ std::string serializeConfig(const Settings &s) {
       << "\n[general]\n"
       << "display_mode = " << (s.displayMode == DisplayMode::Surrounding ? "\"surrounding\"" : "\"preedit\"") << "\n"
       << "preedit_underline = " << b(s.preeditUnderline) << "\n"
+      << "underline_misspelled = " << b(s.underlineMisspelled) << "\n"
       << "terminal_direct = " << b(s.terminalDirect) << "\n"
       << "toggle_hotkey = " << quote(s.toggleHotkey) << "\n"
       << "per_app_state = " << b(s.perAppState) << "\n"

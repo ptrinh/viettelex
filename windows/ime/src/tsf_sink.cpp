@@ -27,15 +27,17 @@ void TsfTextSink::setCaretAfter(ITfRange* r) {
     c->Release();
 }
 
-void TsfTextSink::applyAttribute(ITfRange* r, bool set) {
+void TsfTextSink::applyAttribute(ITfRange* r, bool set, bool misspelled) {
     if (svc_->displayAtom() == TF_INVALID_GUIDATOM) return;
+    TfGuidAtom atom = svc_->displayAtom();
+    if (misspelled && svc_->misspelledAtom() != TF_INVALID_GUIDATOM) atom = svc_->misspelledAtom();
     ITfProperty* prop = nullptr;
     if (FAILED(ctx_->GetProperty(GUID_PROP_ATTRIBUTE, &prop)) || !prop) return;
     if (set) {
         VARIANT v;
         VariantInit(&v);
         v.vt = VT_I4;
-        v.lVal = static_cast<LONG>(svc_->displayAtom());
+        v.lVal = static_cast<LONG>(atom);
         prop->SetValue(ec_, r, &v);
     } else {
         prop->Clear(ec_, r);
@@ -178,7 +180,7 @@ bool TsfTextSink::canReadContext() {
 
 bool TsfTextSink::compositionActive() { return svc_->composition() != nullptr; }
 
-bool TsfTextSink::setComposition(const std::u16string& text, int absorb) {
+bool TsfTextSink::setComposition(const std::u16string& text, int absorb, bool misspelled) {
     ITfComposition* comp = svc_->composition();
     ITfRange* r = nullptr;
     if (!comp) {
@@ -209,7 +211,9 @@ bool TsfTextSink::setComposition(const std::u16string& text, int absorb) {
     if (FAILED(comp->GetRange(&r)) || !r) return false;
     bool ok = SUCCEEDED(r->SetText(ec_, 0, reinterpret_cast<const WCHAR*>(text.data()), static_cast<LONG>(text.size())));
     if (ok) {
-        applyAttribute(r, true);
+        // The whole composition is the one word: one attribute over the range, re-set on
+        // every key so the squiggle follows the word as it becomes (in)valid.
+        applyAttribute(r, true, misspelled);
         setCaretAfter(r);
     }
     r->Release();

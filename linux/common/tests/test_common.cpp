@@ -10,6 +10,7 @@
 #include "viettelex/text_tools.h"
 #include "viettelex/watcher.h"
 
+#include <telexcore.h>
 #include <glib.h>
 
 #include <cstdio>
@@ -53,7 +54,15 @@ struct Mock : InputContext {
     bool selection = false;
     int deletes = 0, preeditUpdates = 0;
     std::vector<std::string> log;  // "pre:x" / "commit:x" / "del:n", in call order
-    void setPreedit(const std::string &s) override { pre = s; ++preeditUpdates; log.push_back("pre:" + s); }
+    bool misspelled = false;  // style of the current preedit
+    int misspelledShows = 0;  // setPreedit calls that asked for the error style
+    void setPreedit(const std::string &s, bool bad) override {
+        pre = s;
+        misspelled = bad;
+        if (bad) ++misspelledShows;
+        ++preeditUpdates;
+        log.push_back("pre:" + s);
+    }
     void commit(const std::string &s) override { doc += s; log.push_back("commit:" + s); }
     void deleteBeforeCursor(int n) override {
         ++deletes;
@@ -1275,7 +1284,7 @@ struct BlindTerminal : InputContext {
     std::string doc;
     int commits = 0, deletes = 0, preedits = 0, forwardedBs = 0, echoesConsumed = 0;
     std::vector<std::string> pending;  // forwarded keys not yet applied: "\b" or one UTF-8 char
-    void setPreedit(const std::string &s) override {
+    void setPreedit(const std::string &s, bool) override {
         if (!s.empty()) ++preedits;
     }
     void commit(const std::string &s) override {
@@ -1565,6 +1574,127 @@ void testUnderlineAndDirectSettings() {
     CHECK_EQ(serializeConfig(parseConfig(serializeConfig(s))), serializeConfig(s));
 }
 
+// MARK: - Gạch đỏ âm tiết sai chính tả khi gõ (opt-in error style on the preedit)
+
+Settings underlineOn() {
+    Settings st;
+    st.underlineMisspelled = true;
+    return st;
+}
+
+void testUnderlineMisspelledOffByDefault() {
+    CHECK(!Settings().underlineMisspelled);
+    Session s;
+    Mock m;
+    type(s, m, "ddc");  // "đc": flagged when the option is on
+    CHECK_EQ(m.pre, std::string("đc"));
+    CHECK(!m.misspelled);
+    CHECK_EQ(m.misspelledShows, 0);
+    CHECK(!s.preeditMisspelled());
+}
+
+void testUnderlineMisspelledFollowsPreedit() {
+    Session s;
+    Mock m;
+    s.applySettings(underlineOn());
+    type(s, m, "dd");
+    CHECK(!m.misspelled);  // "đ": still being typed
+    type(s, m, "c");
+    CHECK_EQ(m.pre, std::string("đc"));
+    CHECK(m.misspelled);
+    type(s, m, "<");
+    CHECK_EQ(m.pre, std::string("đ"));
+    CHECK(!m.misspelled);
+    type(s, m, "c ");
+    CHECK_EQ(m.pre, std::string(""));
+    CHECK(!m.misspelled);  // hidden preedit carries no style
+    CHECK_EQ(m.doc, std::string("đc "));
+}
+
+void testUnderlineMisspelledSkipsValidAndEnglish() {
+    Session s;
+    Mock m;
+    s.applySettings(underlineOn());
+    type(s, m, "dduwowcj nghieengf khuya quoocs gif gieengs hello hopsng kaf ");
+    CHECK_EQ(m.misspelledShows, 0);
+    CHECK_EQ(m.doc, std::string("được nghiềng khuya quốc gì giếng hello hopsng kaf "));
+    // auto-restore off: "kà" stays at the boundary, so it is judged
+    Settings st = underlineOn();
+    st.autoRestore = false;
+    Session s2;
+    Mock m2;
+    s2.applySettings(st);
+    type(s2, m2, "kaf");
+    CHECK(m2.misspelled);
+}
+
+void testUnderlineMisspelledPreeditOnly() {
+    Session s;
+    Mock m;
+    s.applySettings(underlineOn());
+    s.setDisplayMode(DisplayMode::Surrounding, m);
+    type(s, m, "ddc ");
+    CHECK_EQ(m.preeditUpdates, 0);
+    CHECK_EQ(m.misspelledShows, 0);
+    CHECK_EQ(m.doc, std::string("đc "));
+}
+
+void testUnderlineMisspelledConfig() {
+    Settings s = parseConfig("[general]\nunderline_misspelled = true\n");
+    CHECK(s.underlineMisspelled);
+    CHECK(serializeConfig(s).find("underline_misspelled = true") != std::string::npos);
+    CHECK(serializeConfig(Settings()).find("underline_misspelled = false") != std::string::npos);
+    CHECK(parseConfig(serializeConfig(s)).underlineMisspelled);
+}
+
+// The vectors shared with the Swift engine and the Windows C++ port, through the C ABI.
+void testUnderlineMisspelledSharedVectors() {
+    std::string text;
+    CHECK(readFile(std::string(VT_SOURCE_ROOT) + "/TelexCore/Tests/TelexCoreTests/Resources/spelling_error_cases.tsv",
+                   text));
+    int rows = 0;
+    size_t at = 0;
+    while (at < text.size()) {
+        size_t nl = text.find('\n', at);
+        std::string line = text.substr(at, nl == std::string::npos ? std::string::npos : nl - at);
+        at = nl == std::string::npos ? text.size() : nl + 1;
+        if (line.empty() || line[0] == '#') continue;
+        std::vector<std::string> f(1);
+        for (char c : line) {
+            if (c == '\t') f.emplace_back();
+            else f.back() += c;
+        }
+        if (f.size() < 3) continue;
+        const bool want = f[2] == "1";
+        const std::string opts = f.size() > 3 ? f[3] : "";
+        bool got = false;
+        if (f[0] == "syllable") got = vt_is_valid_syllable(f[1].c_str(), false);
+        else if (f[0] == "error") got = vt_is_spelling_error(f[1].c_str(), false);
+        else if (f[0] == "keys") {
+            vt_engine *e = vt_engine_new();
+            vt_engine_set_flag(e, VT_FLAG_FREE_MARKING, true);
+            vt_engine_set_flag(e, VT_FLAG_LIVE_SPELL_CHECK, opts.find('L') == std::string::npos);
+            vt_engine_set_flag(e, VT_FLAG_CONTEXTUAL_ENGLISH, true);
+            vt_engine_set_flag(e, VT_FLAG_COLLISION_PREFERS_VIETNAMESE, true);
+            vt_engine_set_flag(e, VT_FLAG_TEENCODE, false);
+            vt_action a;
+            for (char c : f[1]) vt_feed(e, uint32_t((unsigned char)c), &a);
+            got = vt_has_spelling_error(e, opts.find('R') == std::string::npos);
+            vt_engine_free(e);
+        } else {
+            CHECK(false);
+            continue;
+        }
+        ++rows;
+        if (got == want) ++g_pass;
+        else {
+            ++g_fail;
+            std::fprintf(stderr, "spelling case %s %s: got %d want %d\n", f[0].c_str(), f[1].c_str(), got, want);
+        }
+    }
+    CHECK(rows > 50);
+}
+
 }  // namespace
 
 int main() {
@@ -1609,6 +1739,12 @@ int main() {
     testDirectResets();
     testDirectPolicyTable();
     testUnderlineAndDirectSettings();
+    testUnderlineMisspelledOffByDefault();
+    testUnderlineMisspelledFollowsPreedit();
+    testUnderlineMisspelledSkipsValidAndEnglish();
+    testUnderlineMisspelledPreeditOnly();
+    testUnderlineMisspelledConfig();
+    testUnderlineMisspelledSharedVectors();
     testTextToolSettings();
     testAddTonesHotkey();
     testTextToolNamesAndSelection();

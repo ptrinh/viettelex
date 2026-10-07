@@ -103,6 +103,11 @@ void    vtx_forget_last_commit(vtx_engine* e);  /* boundary char no longer what 
    Returns 1 only if the word round-trips exactly; else 0 and engine is reset. */
 int vtx_seed(vtx_engine* e, const uint16_t* word, int32_t len);
 
+/* Opt-in "underline misspelled syllables": 1 when the composed word is Vietnamese the
+   engine produced (not raw keys, not restored at the boundary) that no further letters
+   can turn into a valid syllable ("đc", "hópng", "tòc"). Call only when the setting is on. */
+int vtx_has_spelling_error(const vtx_engine* e, int auto_restore);
+
 #ifdef __cplusplus
 }
 #endif

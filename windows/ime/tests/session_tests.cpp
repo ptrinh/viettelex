@@ -27,6 +27,7 @@ struct Rig {
         o.engineFlags = settings.engineFlags();
         o.autoRestore = settings.autoRestore;
         o.reEditWord = settings.reEditWord;
+        o.underlineMisspelled = settings.underlineMisspelled;
         o.shortcuts = &settings.shortcuts;
         s.configure(o);
     }
@@ -426,7 +427,7 @@ struct ConsoleDoc : TextSink {
         return true;
     }
     bool compositionActive() override { return comp; }
-    bool setComposition(const std::u16string& t, int absorb) override {
+    bool setComposition(const std::u16string& t, int absorb, bool) override {
         if (absorb) return false;
         comp = true;
         compText = t;
@@ -609,7 +610,7 @@ struct BlindKeyboardDoc : TextSink {
         return true;
     }
     bool compositionActive() override { return false; }
-    bool setComposition(const std::u16string&, int) override { return false; }
+    bool setComposition(const std::u16string&, int, bool) override { return false; }
     void endComposition(const std::u16string&) override {}
     void endCompositionAsIs() override {}
 };
@@ -664,4 +665,71 @@ TEST(own_injected_events_are_ignored) {
     CHECK(isOwnInjected(kInjectedMagic));
     CHECK(!isOwnInjected(0));
     CHECK(!isOwnInjected(1));  // OpenKey/UniKey's marker is someone else's input
+}
+
+// ---- "Gạch đỏ âm tiết sai chính tả khi gõ" (opt-in red squiggle on the composition) ----
+
+TEST(underline_off_by_default_asks_for_no_attribute) {
+    Rig r(OutputMode::Composition);
+    CHECK(!r.settings.underlineMisspelled);
+    r.type("ddc");                       // "đc": flagged when the option is on
+    CHECK(r.doc.comp);
+    CHECK(!r.doc.misspelled);
+    CHECK_EQ(r.doc.misspelledSets, 0);
+    r.type(" ");
+    CHECK_EQ(r.text(), std::string("đc "));
+}
+
+TEST(underline_follows_the_composed_word) {
+    Rig r(OutputMode::Composition);
+    r.settings.underlineMisspelled = true;
+    r.apply();
+    r.type("dd");
+    CHECK(r.doc.comp && !r.doc.misspelled);   // "đ": still being typed
+    r.type("c");
+    CHECK(r.doc.misspelled);                  // "đc": no letter can fix it
+    r.key('\b');
+    CHECK(r.doc.comp && !r.doc.misspelled);   // back to "đ"
+    r.type("c");
+    CHECK(r.doc.misspelled);
+    r.type(" ");                              // committed text carries no attribute
+    CHECK(!r.doc.comp && !r.doc.misspelled);
+    CHECK_EQ(r.text(), std::string("đc "));
+}
+
+TEST(underline_never_marks_valid_english_or_restored_words) {
+    Rig r(OutputMode::Composition);
+    r.settings.underlineMisspelled = true;
+    r.apply();
+    r.type("dduwowcj nghieengf khuya quoocs gif gieengs hello hopsng kaf ");
+    CHECK_EQ(r.doc.misspelledSets, 0);
+    CHECK_EQ(r.text(), std::string("được nghiềng khuya quốc gì giếng hello hopsng kaf "));
+}
+
+TEST(underline_judges_kept_words_when_auto_restore_is_off) {
+    Rig r(OutputMode::Composition);
+    r.settings.underlineMisspelled = true;
+    r.settings.autoRestore = false;
+    r.apply();
+    r.type("kaf");                            // "kà" stays at the boundary now
+    CHECK(r.doc.misspelled);
+}
+
+TEST(underline_in_place_does_nothing) {
+    Rig r(OutputMode::InPlace);
+    r.settings.underlineMisspelled = true;
+    r.apply();
+    r.type("ddc ");
+    CHECK_EQ(r.text(), std::string("đc "));
+    CHECK_EQ(r.doc.misspelledSets, 0);
+}
+
+TEST(underline_reopened_word_keeps_its_mark) {
+    Rig r(OutputMode::Composition);
+    r.settings.underlineMisspelled = true;
+    r.apply();
+    r.type("ddc \b");                       // ⌫ right after the space re-opens "đc"
+    CHECK(r.doc.comp);
+    CHECK_EQ(r.text(), std::string("đc"));
+    CHECK(r.doc.misspelled);
 }

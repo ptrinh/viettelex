@@ -114,6 +114,7 @@ void Session::applySettings(const Settings &s) {
     vt_engine_set_flag(e_, VT_FLAG_CONTEXTUAL_ENGLISH, s.contextualEnglish);
     vt_engine_set_flag(e_, VT_FLAG_COLLISION_PREFERS_VIETNAMESE, s.collisionPrefersVietnamese);
     autoRestore_ = s.autoRestore;
+    underlineMisspelled_ = s.underlineMisspelled;
     shortcutsEnabled_ = s.shortcutsEnabled;
     reEdit_ = s.reEditWord;
     vni_ = s.vni;
@@ -392,15 +393,19 @@ std::string Session::raw() const {
 
 void Session::showPreedit(InputContext &ic) {
     std::string c = composed();
-    if (c == preedit_) return;
+    // Off = no validation call at all.
+    const bool bad = underlineMisspelled_ && vt_has_spelling_error(e_, autoRestore_);
+    if (c == preedit_ && bad == preeditMisspelled_) return;
     preedit_ = c;
-    ic.setPreedit(c);
+    preeditMisspelled_ = bad;
+    ic.setPreedit(c, bad);
 }
 
 void Session::hidePreedit(InputContext &ic) {
     if (preedit_.empty()) return;
     preedit_.clear();
-    ic.setPreedit("");
+    preeditMisspelled_ = false;
+    ic.setPreedit("", false);
 }
 
 void Session::focusIn() {

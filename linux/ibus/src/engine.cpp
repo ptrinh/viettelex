@@ -98,7 +98,7 @@ constexpr guint kBackSpaceKeycode = 14;  // evdev KEY_BACKSPACE (IBus keycodes a
 class IBusClient final : public vt::InputContext {
 public:
     explicit IBusClient(IBusEngine *e) : e_(e) {}
-    void setPreedit(const std::string &s) override {
+    void setPreedit(const std::string &s, bool misspelled) override {
         if (s.empty()) {
             ibus_engine_update_preedit_text_with_mode(e_, ibus_text_new_from_static_string(""), 0, FALSE,
                                                       IBUS_ENGINE_PREEDIT_COMMIT);
@@ -109,10 +109,14 @@ public:
         // An explicit NONE (not "no attribute"): GTK3/GTK4 IBus module, VTE and Qt's IBus
         // plugin draw exactly the attributes we send. Chromium and Wayland text-input-v3
         // clients (GNOME Shell drops style attributes) still draw their own underline.
+        // Misspelled (opt-in): IBUS_ATTR_UNDERLINE_ERROR (GTK/Pango: wavy error underline)
+        // and red text, which also shows in clients that ignore the underline style.
         ibus_text_append_attribute(t, IBUS_ATTR_TYPE_UNDERLINE,
-                                   settings().preeditUnderline ? IBUS_ATTR_UNDERLINE_SINGLE
-                                                               : IBUS_ATTR_UNDERLINE_NONE,
+                                   misspelled                    ? IBUS_ATTR_UNDERLINE_ERROR
+                                   : settings().preeditUnderline ? IBUS_ATTR_UNDERLINE_SINGLE
+                                                                 : IBUS_ATTR_UNDERLINE_NONE,
                                    0, len);
+        if (misspelled) ibus_text_append_attribute(t, IBUS_ATTR_TYPE_FOREGROUND, 0xE01B24, 0, len);
         ibus_engine_update_preedit_text_with_mode(e_, t, len, TRUE, IBUS_ENGINE_PREEDIT_COMMIT);
     }
     void commit(const std::string &s) override {

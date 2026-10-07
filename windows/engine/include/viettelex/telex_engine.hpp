@@ -69,6 +69,10 @@ public:
     bool isEmpty() const { return rawCount_ == 0; }
     bool isOverflowed() const { return overflowed_; }
     bool previousWordEnglish() const { return previousWordEnglish_; }
+    /// Swift `hasSpellingError(autoRestore:)`: the composed word is Vietnamese the engine
+    /// produced (differs from the raw keys, not restored at the boundary) and
+    /// SyllableValidator::isSpellingError says it cannot be completed into a syllable.
+    bool hasSpellingError(bool autoRestore) const;
 
     void reset();
     void resetContext() { previousWordEnglish_ = false; }
@@ -199,6 +203,8 @@ bool isValidSyllable(const char32_t* word, int length, bool teencode = true);
 bool isValidPrefix(const char32_t* word, int length, bool teencode = true);
 bool isValidSyllable(const uint8_t* classes, int n, Tone tone, bool teencode);
 bool isValidPrefix(const uint8_t* bases, int n, bool teencode);
+/// Swift `isSpellingError`: the opt-in red-underline decision for a composed word.
+bool isSpellingError(const char32_t* word, int length, bool teencode = true);
 } // namespace SyllableValidator
 
 /// EnglishContextLookup (TelexCore EnglishContextWords.swift): lowercase ASCII words that

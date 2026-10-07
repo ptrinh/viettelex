@@ -88,6 +88,8 @@ enum class S {
     TypoHints, TypoHintsDesc,
     ToneHints, ToneHintsDesc,
     DateHints, DateHintsDesc,
+    // opt-in red squiggle on the composition (Chính tả page)
+    UnderlineMisspelled, UnderlineMisspelledDesc,
     Count
 };
 

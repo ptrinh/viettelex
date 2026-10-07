@@ -332,6 +332,11 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.switch(g, "typing", "re_edit_word", _("Gõ thêm dấu cho từ ngay trước con trỏ"),
                     _("Đặt con trỏ ngay sau một từ đã gõ rồi gõ phím dấu để sửa dấu từ đó "
                     "(toan + s → toán)."))
+        self.switch(g, "general", "underline_misspelled", _("Gạch đỏ âm tiết sai chính tả khi gõ"),
+                    _("Chữ đang gõ được đánh dấu khi nó không thể thành âm tiết tiếng Việt (đc, "
+                    "hópng, tòc): IBus gạch lượn sóng + chữ đỏ, Fcitx5 gạch chân. Chỉ ở chế độ chữ "
+                    "đang gõ (preedit); từ giữ nguyên phím gõ hoặc sẽ tự khôi phục (tiếng Anh) "
+                    "không bị đánh dấu."))
         page.add(g)
 
         g = Adw.PreferencesGroup(

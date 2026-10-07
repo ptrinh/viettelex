@@ -40,11 +40,18 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(n["general"]["display_mode"], "preedit")
         self.assertEqual(n["general"]["toggle_hotkey"], "Ctrl+space")
         self.assertFalse(n["general"]["preedit_underline"])  # "Gạch chân chữ đang gõ" off
+        self.assertIs(n["general"]["underline_misspelled"], False)  # gạch đỏ: opt-in
         self.assertTrue(n["general"]["terminal_direct"])
         # Gợi ý cạnh con trỏ = macOS 1.8.2: bật hết trừ Thêm dấu cho câu không dấu.
         for k in ("math_results", "number_chips", "typo_hints", "date_hints"):
             self.assertIs(n["general"][k], True, k)
         self.assertIs(n["general"]["tone_hints"], False)
+
+    def test_underline_misspelled_roundtrip(self):
+        out = config.update_text("[general]\npreedit_underline = false\n",
+                                 {("general", "underline_misspelled"): True})
+        self.assertIs(config.normalize(config.parse(out))["general"]["underline_misspelled"], True)
+        self.assertIn("underline_misspelled = true", out)
 
     def test_caret_hint_keys_roundtrip(self):
         n = config.normalize(config.parse('[general]\nmath_results = false\ntone_hints = true\n'

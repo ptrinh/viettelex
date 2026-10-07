@@ -29,7 +29,7 @@ let package = Package(
         .testTarget(
             name: "TelexCoreTests",
             dependencies: ["TelexCore"],
-            resources: [.copy("Resources/telex_test_suite.csv")]
+            resources: [.copy("Resources/telex_test_suite.csv"), .copy("Resources/spelling_error_cases.tsv")]
         )
     ]
 )

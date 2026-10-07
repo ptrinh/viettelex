@@ -218,6 +218,21 @@ public func vt_is_valid_syllable(_ word: UnsafePointer<CChar>?, _ teencode: Bool
     return SyllableValidator.isValidSyllable(cString(word), teencode: teencode)
 }
 
+// MARK: - Gạch đỏ âm tiết sai chính tả khi gõ (opt-in, preedit only)
+
+/// TelexEngine.hasSpellingError(autoRestore:) — asked per key only when the setting is on.
+@_cdecl("vt_has_spelling_error")
+public func vt_has_spelling_error(_ h: OpaquePointer, _ autoRestore: Bool) -> Bool {
+    box(h).e.hasSpellingError(autoRestore: autoRestore)
+}
+
+/// SyllableValidator.isSpellingError (NFC UTF-8) — shared test vectors.
+@_cdecl("vt_is_spelling_error")
+public func vt_is_spelling_error(_ word: UnsafePointer<CChar>?, _ teencode: Bool) -> Bool {
+    guard let word else { return false }
+    return SyllableValidator.isSpellingError(cString(word), teencode: teencode)
+}
+
 /// ToneRunLogic.isUnaccentedSyllable (App/Sources/CaretSuggestions.swift) — không Foundation:
 /// chữ a–z nên "thêm sắc vào nguyên âm đầu" là tra bảng thay cho NFC.
 @_cdecl("vt_is_unaccented_syllable")

@@ -86,6 +86,10 @@ void TypingSession::fallBack(const char* why) {
 
 std::u16string TypingSession::composed() const { return engine_ ? composedOf(engine_) : std::u16string(); }
 
+bool TypingSession::misspelled(const vtx_engine* e) const {
+    return opt_.underlineMisspelled && vtx_has_spelling_error(e, opt_.autoRestore ? 1 : 0) != 0;
+}
+
 bool TypingSession::wordActive() const { return engine_ && (overflow_ || !vtx_is_empty(engine_)); }
 
 bool TypingSession::isWordKey(char32_t c) const {
@@ -221,7 +225,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
     }
 
     if (comp) {
-        if (!sink.setComposition(now, 0)) {
+        if (!sink.setComposition(now, 0, misspelled(engine_))) {
             reset();
             return false;
         }
@@ -283,7 +287,7 @@ bool TypingSession::tryReEdit(char32_t c, TextSink& sink) {
     }
     bool ok;
     if (wordMode_ == OutputMode::Composition) {
-        ok = sink.setComposition(now, static_cast<int>(word.size()));
+        ok = sink.setComposition(now, static_cast<int>(word.size()), misspelled(t));
     } else if (a.kind == VTX_REPLACE) {
         std::u16string expect;
         ok = tailOf(word, a.backspaces, expect) && sink.replaceBeforeCaret(expect, actionInsert(a));
@@ -331,7 +335,7 @@ bool TypingSession::handleBackspace(TextSink& sink) {
             reset();
             return true;
         }
-        if (!sink.setComposition(now, 0)) {
+        if (!sink.setComposition(now, 0, misspelled(engine_))) {
             reset();
             return false;
         }
@@ -382,7 +386,7 @@ bool TypingSession::tryReopen(TextSink& sink) {
         vtx_forget_last_commit(engine_);
         return false;
     }
-    if (wordMode_ == OutputMode::Composition && !sink.setComposition(word, n)) {
+    if (wordMode_ == OutputMode::Composition && !sink.setComposition(word, n, misspelled(t))) {
         // Boundary char is gone but the composition failed: the word is plain text
         // now, which is exactly what a normal ⌫ would have left.
         vtx_destroy(t);

@@ -66,6 +66,16 @@ int main(void) {
     EXPECT(!vtx_is_overflowed(e));
     vtx_reset_context(e);
     EXPECT(!vtx_previous_word_english(e));
+
+    /* opt-in red underline: "đc" is flagged, "việt" and an empty word are not */
+    vtx_reset(e);
+    EXPECT(!vtx_has_spelling_error(e, 1));
+    for (i = 0; i < 3; ++i) vtx_feed(e, (uint32_t)"ddc"[i], &a);
+    EXPECT(vtx_has_spelling_error(e, 1));
+    vtx_reset(e);
+    for (i = 0; i < strlen(keys); ++i) vtx_feed(e, (uint32_t)keys[i], &a);
+    EXPECT(!vtx_has_spelling_error(e, 1));
+    EXPECT(!vtx_has_spelling_error(NULL, 1));
     vtx_destroy(e);
     printf("c abi smoke: %s\n", fails ? "FAIL" : "ok");
     return fails != 0;

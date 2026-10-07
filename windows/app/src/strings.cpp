@@ -212,6 +212,11 @@ const Pair kStrings[] = {
      L"Type “hôm nay”, “ngày mai”, “hôm qua” or “bây giờ” (after an English word: today, tomorrow, yesterday, now) "
      L"and a space — the date (28/09/2026) or time (21:35) shows next to the cursor; press Tab to replace the words "
      L"with it."},
+    {L"Gạch đỏ âm tiết sai chính tả khi gõ", L"Underline misspelled syllables while typing"},
+    {L"Từ đang gõ được gạch đỏ khi nó không thể thành âm tiết tiếng Việt (đc, hópng, tòc). Chỉ ở ứng dụng dùng "
+     L"chế độ khung soạn (composition); từ giữ nguyên phím gõ hoặc sẽ tự khôi phục (tiếng Anh) không bị gạch.",
+     L"The word being typed gets a red squiggle when it can’t become a Vietnamese syllable (đc, hópng, tòc). Only "
+     L"in apps that use composition mode; words left as typed or auto-restored (English) are never marked."},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace

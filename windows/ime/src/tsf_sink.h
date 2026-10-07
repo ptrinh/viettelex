@@ -17,7 +17,7 @@ public:
     bool hasSelection() override;
     bool replaceBeforeCaret(const std::u16string& expect, const std::u16string& insert) override;
     bool compositionActive() override;
-    bool setComposition(const std::u16string& text, int absorb) override;
+    bool setComposition(const std::u16string& text, int absorb, bool misspelled) override;
     void endComposition(const std::u16string& finalText) override;
     void endCompositionAsIs() override;
     bool canReadContext() override;
@@ -28,7 +28,8 @@ public:
 private:
     ITfRange* selectionRange();  // caller releases; nullptr on failure
     void setCaretAfter(ITfRange* r);
-    void applyAttribute(ITfRange* r, bool set);
+    // set=false clears the attribute; `misspelled` picks the red-squiggle atom.
+    void applyAttribute(ITfRange* r, bool set, bool misspelled = false);
 
     TextService* svc_;
     ITfContext* ctx_;

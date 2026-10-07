@@ -170,6 +170,38 @@ bool isValidPrefix(const char32_t* word, int length, bool teencode) {
     return isValidPrefix(bases, length, teencode);
 }
 
+bool isSpellingError(const char32_t* word, int length, bool teencode) {
+    // Swift SyllableValidator.isSpellingError: valid syllable -> no; not a plausible
+    // prefix -> yes; plausible prefix -> only an onset k the k-rule rejects ("kà") or a
+    // tone no stop coda can carry (huyền/hỏi/ngã where sắc would be valid: "tòc").
+    if (length <= 0 || length > 64) return false;
+    uint8_t classes[64];
+    Tone tone = Tone::None;
+    for (int i = 0; i < length; ++i) {
+        char32_t ch = lowerVi(word[i]);
+        char32_t toneless = ch;
+        int row; Tone t;
+        if (detone(ch, row, t)) {
+            toneless = kTonedGroups[row][0];
+            if (t != Tone::None) {
+                if (tone != Tone::None) return true;   // two tones: never a syllable
+                tone = t;
+            }
+        }
+        int cls = charClass(toneless);
+        if (cls < 0) return false;   // not a letter word (VNI literal digit…): not judged
+        classes[i] = static_cast<uint8_t>(cls);
+    }
+    if (isValidSyllable(classes, length, tone, teencode)) return false;
+    if (!isValidPrefix(word, length, teencode)) return true;
+    // The k-onset rule is the one exact rule the folded prefix check does not see ("kà").
+    if (!teencode && length >= 2 && classes[0] == cA('k') && isVowelClass(classes[1]) &&
+        !kOnsetAllows(classes[1])) return true;
+    if (tone == Tone::Grave || tone == Tone::Hook || tone == Tone::Tilde)
+        return isValidSyllable(classes, length, Tone::Acute, teencode);
+    return false;
+}
+
 }} // namespace vtx::SyllableValidator
 
 namespace vtx { namespace EnglishContextLookup {

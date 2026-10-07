@@ -48,8 +48,12 @@ public:
         return true;
     }
     bool compositionActive() override { return comp; }
-    bool setComposition(const std::u16string& t, int absorb) override {
+    bool misspelled = false;     // attribute of the last setComposition (red squiggle)
+    int misspelledSets = 0;      // setComposition calls that asked for the red squiggle
+    bool setComposition(const std::u16string& t, int absorb, bool bad) override {
         if (refuseEdits) return false;
+        misspelled = bad;
+        if (bad) ++misspelledSets;
         if (!comp) {
             if (static_cast<size_t>(absorb) > caret) return false;
             // typing over a selection replaces it
@@ -72,6 +76,7 @@ public:
         compEnd = compStart + t.size();
         caret = anchor = compEnd;
         comp = false;
+        misspelled = false;  // committed text carries no attribute
         ++edits;
     }
 
@@ -79,6 +84,7 @@ public:
         if (!comp) return;
         caret = anchor = compEnd;
         comp = false;
+        misspelled = false;  // committed text carries no attribute
         ++edits;
     }
 

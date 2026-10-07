@@ -126,6 +126,13 @@ EN = {
     "Đặt con trỏ ngay sau một từ đã gõ rồi gõ phím dấu để sửa dấu từ đó (toan + s → toán).":
         "Put the cursor right after a typed word and press a mark key to fix its marks "
         "(toan + s → toán).",
+    "Gạch đỏ âm tiết sai chính tả khi gõ": "Underline misspelled syllables while typing",
+    "Chữ đang gõ được đánh dấu khi nó không thể thành âm tiết tiếng Việt (đc, hópng, tòc): IBus "
+    "gạch lượn sóng + chữ đỏ, Fcitx5 gạch chân. Chỉ ở chế độ chữ đang gõ (preedit); từ giữ "
+    "nguyên phím gõ hoặc sẽ tự khôi phục (tiếng Anh) không bị đánh dấu.":
+        "The word being typed is marked when it can’t become a Vietnamese syllable (đc, hópng, "
+        "tòc): IBus draws a wavy underline and red text, Fcitx5 an underline. Preedit mode only; "
+        "words left as typed or auto-restored (English) are never marked.",
     "Khi từ vừa là tiếng Anh vừa là tiếng Việt": "When a word is both English and Vietnamese",
     "Cho các từ như last/lát, list/lít, his/hí. Ưu tiên tiếng Việt: gõ đúp phím dấu để giữ "
     "tiếng Anh (lisst → list). Ưu tiên tiếng Anh: đặt dấu ở cuối từ để ra tiếng Việt "

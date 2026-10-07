@@ -22,6 +22,7 @@ using namespace vt;
 namespace {
 
 int gPass = 0, gFail = 0;
+volatile int gSink = 0;   // keeps calls whose result is unused from being optimised away
 #define CHECK(cond) do { if (cond) ++gPass; else { ++gFail; std::printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); } } while (0)
 #define CHECK_EQ(a, b) do { auto _a = (a); auto _b = (b); if (_a == _b) ++gPass; else { ++gFail; \
     std::printf("FAIL %s:%d: %s == %s  (\"%s\" vs \"%s\")\n", __FILE__, __LINE__, #a, #b, std::string(_a).c_str(), std::string(_b).c_str()); } } while (0)
@@ -186,6 +187,7 @@ void hotPathDoesNotAllocate() {
             if (*p == ' ') { e.peekCommitText(true, buf, vtx::kMaxText); e.commitBoundary(true, a); }
             else if (*p == '<') e.backspace(a);
             else e.feed(static_cast<char32_t>(*p), a);
+            gSink += e.hasSpellingError(true) ? 1 : 0;   // opt-in underline: per-key, no heap
         }
         e.commitText(true, buf, vtx::kMaxText);
         e.feed(U'x', a); e.commitBoundary(true, a);
@@ -193,6 +195,59 @@ void hotPathDoesNotAllocate() {
         e.seed(u"thấy", 4); e.reset();
     }
     CHECK(gAllocs.load() - before == 0);
+}
+
+// Shared vectors (TelexCore/Tests/TelexCoreTests/Resources/spelling_error_cases.tsv) for
+// the opt-in red underline: isValidSyllable / isSpellingError / hasSpellingError.
+void spellingErrorCases() {
+#ifdef VTX_SPELLING_CASES
+    std::FILE* f = std::fopen(VTX_SPELLING_CASES, "rb");
+    CHECK(f != nullptr);
+    if (!f) return;
+    char line[512];
+    int rows = 0;
+    while (std::fgets(line, sizeof line, f)) {
+        std::string l(line);
+        while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back();
+        if (l.empty() || l[0] == '#') continue;
+        std::string col[4];
+        int c = 0;
+        for (char ch : l) {
+            if (ch == '\t') { if (++c > 3) break; continue; }
+            col[c].push_back(ch);
+        }
+        const bool want = col[2] == "1";
+        bool got = false;
+        if (col[0] == "syllable" || col[0] == "error") {
+            std::u32string w = fromUtf8(col[1]);
+            const int n = static_cast<int>(w.size());
+            got = col[0] == "syllable" ? vtx::SyllableValidator::isValidSyllable(w.data(), n, false)
+                                       : vtx::SyllableValidator::isSpellingError(w.data(), n, false);
+        } else if (col[0] == "keys") {
+            vtx::TelexEngine e;   // app defaults
+            e.freeMarking = true; e.contextualEnglish = true; e.collisionPrefersVietnamese = true;
+            e.teencode = false;
+            e.liveSpellCheck = col[3].find('L') == std::string::npos;
+            const bool autoRestore = col[3].find('R') == std::string::npos;
+            vtx::Action a;
+            for (char k : col[1]) e.feed(static_cast<char32_t>(static_cast<unsigned char>(k)), a);
+            got = e.hasSpellingError(autoRestore);
+        } else {
+            CHECK(!"unknown row kind");
+            continue;
+        }
+        ++rows;
+        if (got == want) ++gPass;
+        else { ++gFail; std::printf("FAIL spelling case: %s %s want %d\n", col[0].c_str(), col[1].c_str(), want); }
+    }
+    std::fclose(f);
+    CHECK(rows > 50);
+#else
+    CHECK(!"VTX_SPELLING_CASES not defined");
+#endif
+    // Never flagged without a word, and the C ABI agrees with the method.
+    vtx::TelexEngine empty;
+    CHECK(!empty.hasSpellingError(true));
 }
 
 } // namespace
@@ -206,6 +261,7 @@ int runUnit() {
     overflowPassesThrough();
     nonLetterPassesThrough();
     hotPathDoesNotAllocate();
+    spellingErrorCases();
     std::printf("unit invariants: %d/%d pass\n", gPass, gPass + gFail);
     return gFail == 0 ? 0 : 1;
 }

@@ -1333,6 +1333,20 @@ public struct TelexEngine {
     /// composition still live). The action alone cannot distinguish the two.
     public var isOverflowed: Bool { overflowed }
 
+    /// Opt-in "red underline" (Windows TSF / Linux preedit): TRUE when the word being
+    /// composed should be marked as misspelled. Only Vietnamese the engine actually
+    /// produced is judged — a word left as typed (composed == raw keys: English, code,
+    /// frozen by live spell-check) or one the boundary will restore to raw keys
+    /// (auto-restore / English context) is never flagged. Callers only ask when the
+    /// setting is on; the cost is one peek + one validator walk over ≤32 letters.
+    public func hasSpellingError(autoRestore: Bool) -> Bool {
+        if rawCount == 0 || overflowed || outCount == 0 { return false }
+        let shown = composed
+        if shown == rawKeystrokes { return false }
+        if peekCommitText(autoRestore: autoRestore) != shown { return false }
+        return SyllableValidator.isSpellingError(shown, teencode: teencode)
+    }
+
     /// Current composed word.
     public var composed: String {
         var s = String.UnicodeScalarView()

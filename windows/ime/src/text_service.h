@@ -68,6 +68,7 @@ public:
     void setComposition(ITfComposition* c, ITfContext* ctx);  // takes a reference
     void clearComposition();
     TfGuidAtom displayAtom() const { return displayAtom_; }
+    TfGuidAtom misspelledAtom() const { return misspelledAtom_; }
     TfClientId clientId() const { return clientId_; }
     ITfCompositionSink* compositionSink() { return this; }
 
@@ -159,6 +160,7 @@ private:
     ITfComposition* composition_ = nullptr;
     ITfContext* compositionContext_ = nullptr;
     TfGuidAtom displayAtom_ = TF_INVALID_GUIDATOM;
+    TfGuidAtom misspelledAtom_ = TF_INVALID_GUIDATOM;  // red squiggle (underlineMisspelled)
 
     TypingSession session_;
     Settings settings_;

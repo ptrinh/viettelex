@@ -45,8 +45,10 @@ public:
     virtual bool compositionActive() = 0;
     // Start (if none is active) or update the composition so it shows `text`. When
     // starting, the `absorb` units before the caret are pulled into the composition
-    // (re-edit / re-open). Caret ends at the composition end.
-    virtual bool setComposition(const std::u16string& text, int absorb) = 0;
+    // (re-edit / re-open). Caret ends at the composition end. `misspelled`: draw the
+    // composition with the red-squiggle attribute instead of the plain one (opt-in
+    // "Gạch đỏ âm tiết sai chính tả khi gõ"; always false when that setting is off).
+    virtual bool setComposition(const std::u16string& text, int absorb, bool misspelled) = 0;
     // Set the composition text to `finalText` and end it (no-op without composition).
     virtual void endComposition(const std::u16string& finalText) = 0;
     // End the composition leaving whatever text it holds (orphaned composition).
@@ -63,6 +65,9 @@ struct SessionOptions {
     uint32_t engineFlags = 0;
     bool autoRestore = true;
     bool reEditWord = true;
+    // "Gạch đỏ âm tiết sai chính tả khi gõ" (default OFF): composition mode only. OFF =
+    // no validation call at all.
+    bool underlineMisspelled = false;
     const std::map<std::u16string, std::u16string>* shortcuts = nullptr;  // not owned
     void (*log)(const char*) = nullptr;  // debug log (never typed text)
 };
@@ -124,6 +129,8 @@ private:
     bool tryReopen(TextSink& sink);
     void swapEngine(vtx_engine* e);
     std::u16string composed() const;
+    // Red-underline decision for the word in `e` (the live engine or a re-edit clone).
+    bool misspelled(const vtx_engine* e) const;
 
     vtx_engine* engine_ = nullptr;
     OutputMode mode_ = OutputMode::InPlace;       // app default since 1.0.9

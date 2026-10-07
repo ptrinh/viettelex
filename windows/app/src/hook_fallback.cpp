@@ -102,7 +102,7 @@ public:
         return true;
     }
     bool compositionActive() override { return false; }
-    bool setComposition(const std::u16string&, int) override { return false; }
+    bool setComposition(const std::u16string&, int, bool) override { return false; }
     void endComposition(const std::u16string&) override {}
     void endCompositionAsIs() override {}
 

@@ -247,6 +247,8 @@ void TextService::registerDisplayAtom() {
         cm = nullptr;
     if (cm) {
         if (FAILED(cm->RegisterGUID(GUID_DisplayAttributeInput, &displayAtom_))) displayAtom_ = TF_INVALID_GUIDATOM;
+        if (FAILED(cm->RegisterGUID(GUID_DisplayAttributeMisspelled, &misspelledAtom_)))
+            misspelledAtom_ = TF_INVALID_GUIDATOM;
         cm->Release();
     }
 }
@@ -293,6 +295,7 @@ void TextService::applyConfig(bool force) {
     o.engineFlags = settings_.engineFlags();
     o.autoRestore = settings_.autoRestore;
     o.reEditWord = settings_.reEditWord && !config::secureMode();
+    o.underlineMisspelled = settings_.underlineMisspelled;
     o.shortcuts = config::secureMode() ? nullptr : &settings_.shortcuts;
     o.log = config::log;
     session_.configure(o);
@@ -917,6 +920,7 @@ STDMETHODIMP TextService::EnumDisplayAttributeInfo(IEnumTfDisplayAttributeInfo**
 STDMETHODIMP TextService::GetDisplayAttributeInfo(REFGUID guid, ITfDisplayAttributeInfo** ppInfo) {
     if (!ppInfo) return E_INVALIDARG;
     *ppInfo = nullptr;
+    if (IsEqualGUID(guid, GUID_DisplayAttributeMisspelled)) return CreateDisplayAttributeInfo(ppInfo, true);
     if (!IsEqualGUID(guid, GUID_DisplayAttributeInput)) return E_INVALIDARG;
     return CreateDisplayAttributeInfo(ppInfo);
 }

@@ -33,6 +33,10 @@ struct Settings {
     bool collisionPrefersVietnamese = true;
     bool teencode = false;
     bool reEditWord = true;
+    // "Gạch đỏ âm tiết sai chính tả khi gõ" (Windows/Linux only, default OFF): the word in
+    // a composition gets a red squiggle when it cannot become a Vietnamese syllable.
+    // Composition mode only; in-place has no composition to decorate.
+    bool underlineMisspelled = false;
     // Chuyển / giao diện / hệ thống
     std::string switchHotkey = "ctrl-shift";
     std::string menuIcon = "vt";      // keyboard icon: vt | star | flag | logo | vi (res/icon_ids.h)

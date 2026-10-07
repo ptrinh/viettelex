@@ -30,6 +30,7 @@ const BoolKey kBoolKeys[] = {
     {"typoHints", &Settings::typoHints},
     {"toneHints", &Settings::toneHints},
     {"dateHints", &Settings::dateHints},
+    {"underlineMisspelled", &Settings::underlineMisspelled},
 };
 constexpr size_t kBoolCount = sizeof(kBoolKeys) / sizeof(kBoolKeys[0]);
 constexpr uint32_t kMagic = 0x53585456;  // "VTXS"

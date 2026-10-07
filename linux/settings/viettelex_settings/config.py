@@ -31,6 +31,8 @@ DEFAULTS = {
     "general": {
         "display_mode": "preedit",
         "preedit_underline": False,
+        # "Gạch đỏ âm tiết sai chính tả khi gõ" — chỉ ở chế độ chữ đang gõ (preedit).
+        "underline_misspelled": False,
         "terminal_direct": True,
         "toggle_hotkey": "Ctrl+space",
         "per_app_state": True,

@@ -102,6 +102,15 @@ bool vt_previous_word_english(const vt_engine *h);
 bool vt_is_valid_syllable(const char *utf8_word, bool teencode);
 bool vt_is_unaccented_syllable(const char *utf8_chunk);
 
+/* Opt-in "Gạch đỏ âm tiết sai chính tả khi gõ" (Settings::underlineMisspelled):
+ * vt_has_spelling_error: TelexEngine.hasSpellingError(autoRestore:) — the word being
+ * composed is Vietnamese the engine produced (not left as raw keys, not restored at the
+ * boundary with this auto_restore) that no further letters can make a valid syllable
+ * ("đc", "hópng", "tòc"). Ask only when the setting is on.
+ * vt_is_spelling_error: SyllableValidator.isSpellingError on a word (NFC UTF-8). */
+bool vt_has_spelling_error(const vt_engine *h, bool auto_restore);
+bool vt_is_spelling_error(const char *utf8_word, bool teencode);
+
 #ifdef __cplusplus
 }
 #endif

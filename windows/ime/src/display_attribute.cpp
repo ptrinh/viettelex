@@ -24,9 +24,20 @@ TF_DISPLAYATTRIBUTE InputAttribute() {
     return a;
 }
 
+// Same input attribute with a red squiggly underline (spell-checker convention). How much
+// of it shows is up to the app's text store (line style and colour are hints it may drop).
+TF_DISPLAYATTRIBUTE MisspelledAttribute() {
+    TF_DISPLAYATTRIBUTE a = InputAttribute();
+    a.lsStyle = TF_LS_SQUIGGLE;
+    a.crLine.type = TF_CT_COLORREF;
+    a.crLine.cr = RGB(0xE8, 0x11, 0x23);
+    return a;
+}
+constexpr ULONG kAttributeCount = 2;  // [0] input, [1] misspelled
+
 class DisplayAttributeInfo final : public ITfDisplayAttributeInfo {
 public:
-    DisplayAttributeInfo() { DllAddRef(); }
+    explicit DisplayAttributeInfo(bool misspelled) : misspelled_(misspelled) { DllAddRef(); }
     STDMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
         if (!ppv) return E_INVALIDARG;
         if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_ITfDisplayAttributeInfo)) {
@@ -45,17 +56,17 @@ public:
     }
     STDMETHODIMP GetGUID(GUID* pguid) override {
         if (!pguid) return E_INVALIDARG;
-        *pguid = GUID_DisplayAttributeInput;
+        *pguid = misspelled_ ? GUID_DisplayAttributeMisspelled : GUID_DisplayAttributeInput;
         return S_OK;
     }
     STDMETHODIMP GetDescription(BSTR* pbstr) override {
         if (!pbstr) return E_INVALIDARG;
-        *pbstr = SysAllocString(L"VietTelex input");
+        *pbstr = SysAllocString(misspelled_ ? L"VietTelex misspelled syllable" : L"VietTelex input");
         return *pbstr ? S_OK : E_OUTOFMEMORY;
     }
     STDMETHODIMP GetAttributeInfo(TF_DISPLAYATTRIBUTE* pda) override {
         if (!pda) return E_INVALIDARG;
-        *pda = InputAttribute();
+        *pda = misspelled_ ? MisspelledAttribute() : InputAttribute();
         return S_OK;
     }
     STDMETHODIMP SetAttributeInfo(const TF_DISPLAYATTRIBUTE*) override { return E_NOTIMPL; }
@@ -64,6 +75,7 @@ public:
 private:
     ~DisplayAttributeInfo() { DllRelease(); }
     LONG ref_ = 1;
+    bool misspelled_;
 };
 
 class EnumDisplayAttributeInfo final : public IEnumTfDisplayAttributeInfo {
@@ -93,11 +105,14 @@ public:
     STDMETHODIMP Next(ULONG ulCount, ITfDisplayAttributeInfo** rgInfo, ULONG* pcFetched) override {
         if (!rgInfo) return E_INVALIDARG;
         ULONG fetched = 0;
-        if (ulCount > 0 && pos_ == 0) {
-            rgInfo[0] = new (std::nothrow) DisplayAttributeInfo();
-            if (!rgInfo[0]) return E_OUTOFMEMORY;
-            fetched = 1;
-            pos_ = 1;
+        while (fetched < ulCount && pos_ < kAttributeCount) {
+            rgInfo[fetched] = new (std::nothrow) DisplayAttributeInfo(pos_ == 1);
+            if (!rgInfo[fetched]) {
+                while (fetched > 0) rgInfo[--fetched]->Release();
+                return E_OUTOFMEMORY;
+            }
+            ++fetched;
+            ++pos_;
         }
         if (pcFetched) *pcFetched = fetched;
         return fetched == ulCount ? S_OK : S_FALSE;
@@ -107,11 +122,10 @@ public:
         return S_OK;
     }
     STDMETHODIMP Skip(ULONG ulCount) override {
-        if (ulCount > 0 && pos_ == 0) {
-            pos_ = 1;
-            return ulCount == 1 ? S_OK : S_FALSE;
-        }
-        return ulCount == 0 ? S_OK : S_FALSE;
+        const ULONG left = kAttributeCount - pos_;
+        const ULONG n = ulCount < left ? ulCount : left;
+        pos_ += n;
+        return n == ulCount ? S_OK : S_FALSE;
     }
 
 private:
@@ -122,9 +136,9 @@ private:
 
 }  // namespace
 
-HRESULT CreateDisplayAttributeInfo(ITfDisplayAttributeInfo** out) {
+HRESULT CreateDisplayAttributeInfo(ITfDisplayAttributeInfo** out, bool misspelled) {
     if (!out) return E_INVALIDARG;
-    *out = new (std::nothrow) DisplayAttributeInfo();
+    *out = new (std::nothrow) DisplayAttributeInfo(misspelled);
     return *out ? S_OK : E_OUTOFMEMORY;
 }
 
