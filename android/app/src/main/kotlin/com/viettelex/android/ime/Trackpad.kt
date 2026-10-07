@@ -11,10 +11,13 @@ import kotlin.math.roundToInt
  *
  * - Ngang: mỗi [H_STEP] dp = 1 ký tự (cảm giác stock ~9pt).
  * - Dọc: mỗi [V_STEP] dp = 1 dòng.
- * - Trục chính quyết định MỖI BƯỚC, có hysteresis: đang ngang thì chỉ sang dọc khi dy
- *   đủ một dòng VÀ lớn gấp [DOMINANCE] lần dx; mỗi bước ngang xoá dy tích luỹ ⇒ kéo
- *   ngang hơi chéo không bao giờ nhảy dòng. Đang dọc thì cần dx ≥ [H_SWITCH] (2 ký tự)
- *   và gấp [DOMINANCE] lần dy mới quay lại ngang.
+ * - Hai trục ĐỘC LẬP như stock (kéo chéo đi cả hai), lọc theo HƯỚNG kéo: hướng = EMA
+ *   véc-tơ dời ([DIR_ALPHA]/sự kiện). Hướng gần ngang (|dy| < [OFF_AXIS]·|dx|, ~22°) ⇒
+ *   bỏ dy — kéo ngang hơi chéo không nhảy dòng; gần dọc ⇒ bỏ dx — rung ngang khi kéo dọc
+ *   không dời ký tự; ở giữa (kéo chéo) ⇒ cộng cả hai. Một sự kiện đủ ngưỡng cả hai trục
+ *   ⇒ phát trục vượt ngưỡng nhiều hơn, trục kia giữ tích luỹ, phát ở sự kiện sau.
+ *   (Bản cũ khoá trục: mỗi bước ngang xoá dy tích luỹ ⇒ kéo chéo / kéo dọc hơi lệch gần
+ *   như không bao giờ lên xuống dòng.)
  * - Tăng tốc: tốc độ (EMA, dp/s) theo trục của bước; ≤ slow ⇒ ×1 (chính xác từng ký
  *   tự/dòng), ≥ fast ⇒ ×max, giữa nội suy tuyến tính. Xem [accelerate].
  *
@@ -25,10 +28,10 @@ class TrackpadGesture {
     /** [count] có dấu: ngang âm = trái; dọc âm = lên. */
     data class Step(val axis: Axis, val count: Int)
 
-    var axis = Axis.H
-        private set
     private var accX = 0f
     private var accY = 0f
+    private var dirX = 0.0
+    private var dirY = 0.0
     private var lastX = 0f
     private var lastY = 0f
     private var lastT = 0L
@@ -36,7 +39,7 @@ class TrackpadGesture {
     private var speedY = 0.0
 
     fun begin(x: Float, y: Float, tMs: Long) {
-        axis = Axis.H; accX = 0f; accY = 0f
+        accX = 0f; accY = 0f; dirX = 0.0; dirY = 0.0
         lastX = x; lastY = y; lastT = tMs
         speedX = 0.0; speedY = 0.0
     }
@@ -53,42 +56,35 @@ class TrackpadGesture {
         val iy = abs(dy) / dt
         if (dtRaw > PAUSE_S) { speedX = ix; speedY = iy }
         else { speedX = EMA * ix + (1 - EMA) * speedX; speedY = EMA * iy + (1 - EMA) * speedY }
-        accX += dx; accY += dy
-
-        val ax = abs(accX); val ay = abs(accY)
-        return when (axis) {
-            Axis.H -> when {
-                ay >= V_STEP && ay > DOMINANCE * ax -> { axis = Axis.V; emitV() }
-                ax >= H_STEP -> emitH()
-                else -> null
-            }
-            Axis.V -> when {
-                ax >= H_SWITCH && ax > DOMINANCE * ay -> { axis = Axis.H; emitH() }
-                ay >= V_STEP -> emitV()
-                else -> null
-            }
-        }
+        dirX = DIR_ALPHA * dx + (1 - DIR_ALPHA) * dirX
+        dirY = DIR_ALPHA * dy + (1 - DIR_ALPHA) * dirY
+        val hx = abs(dirX); val hy = abs(dirY)
+        if (hy >= OFF_AXIS * hx) accY += dy            // không gần-ngang ⇒ tính dọc
+        if (hx >= OFF_AXIS * hy) accX += dx            // không gần-dọc ⇒ tính ngang
+        val rx = abs(accX) / H_STEP; val ry = abs(accY) / V_STEP
+        if (rx < 1f && ry < 1f) return null
+        return if (ry >= rx) emitV() else emitH()
     }
 
     private fun emitH(): Step {
         val units = (accX / H_STEP).toInt()
         accX -= units * H_STEP
-        accY = 0f
         return Step(Axis.H, accelerate(units, speedX, H_SLOW, H_FAST, H_MAX))
     }
 
     private fun emitV(): Step {
         val lines = (accY / V_STEP).toInt()
         accY -= lines * V_STEP
-        accX = 0f
         return Step(Axis.V, accelerate(lines, speedY, V_SLOW, V_FAST, V_MAX))
     }
 
     companion object {
         const val H_STEP = 9f
         const val V_STEP = 24f
-        const val H_SWITCH = 18f
-        const val DOMINANCE = 2f
+        /** Tỉ lệ trục phụ / trục chính (theo hướng kéo) dưới ngưỡng này ⇒ bỏ trục phụ. */
+        const val OFF_AXIS = 0.4
+        /** Trọng số sự kiện mới trong EMA hướng kéo. */
+        const val DIR_ALPHA = 0.3
         /** Ngang: ≤300 dp/s ×1, ≥1500 dp/s ×5. */
         const val H_SLOW = 300.0
         const val H_FAST = 1500.0

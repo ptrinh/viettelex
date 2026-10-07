@@ -829,18 +829,28 @@ final class KeyboardViewController: UIInputViewController {
             bridge.reset()                        // caret moved → composition gone
             lastWord = nil; lastWord2 = nil
             restoreUndo = nil; undoOfferActive = false
+            if trackpadActive {
+                // Giữ view context khớp chỗ con trỏ cho bước dọc sau (host trả context trễ).
+                _ = trackpadContext.resolve(before: textDocumentProxy.documentContextBeforeInput ?? "",
+                                            after: textDocumentProxy.documentContextAfterInput ?? "")
+                trackpadContext.moved(by: delta)
+            }
             textDocumentProxy.adjustTextPosition(byCharacterOffset: delta)
         case .moveLine(let lines):
-            // Gần đúng: proxy không biết dòng HIỂN THỊ — chỉ nhảy theo ký tự xuống dòng
-            // trong context host cho, giữ cột (VerticalMove). Dòng tự ngắt: không làm gì.
+            // Gần đúng: proxy không biết bố cục host — VerticalMove dựng lại dòng hiển thị
+            // (ngắt cứng + tự ngắt theo ký tự/dòng ước lượng), giữ cột grapheme.
             bridge.reset()
             lastWord = nil; lastWord2 = nil
             restoreUndo = nil; undoOfferActive = false
-            let before = textDocumentProxy.documentContextBeforeInput ?? ""
-            let after = textDocumentProxy.documentContextAfterInput ?? ""
-            if let off = VerticalMove.offset(before: before, after: after, lines: lines), off != 0 {
+            let ctx = trackpadContext.resolve(before: textDocumentProxy.documentContextBeforeInput ?? "",
+                                              after: textDocumentProxy.documentContextAfterInput ?? "")
+            if trackpadCharsPerLine == 0 { trackpadCharsPerLine = estimateCharsPerLine() }
+            if let off = VerticalMove.offset(before: ctx.before, after: ctx.after, lines: lines,
+                                             charsPerLine: trackpadCharsPerLine), off != 0 {
+                trackpadContext.moved(by: off)
                 textDocumentProxy.adjustTextPosition(byCharacterOffset: off)
             }
+            if !trackpadActive { trackpadContext.reset() }
         case .newline:
             let final = bridge.boundary("\n", proxy: proxy)
             commitAndLearn(final, accepted: openAccepted)
@@ -1043,6 +1053,12 @@ final class KeyboardViewController: UIInputViewController {
     private var pasteButtonSetting = true
     /// Đang giữ phím cách di con trỏ (KeyboardView.onTrackpad) — xem trackpadChanged.
     private var trackpadActive = false
+    /// Context host đã dời theo lệnh trackpad của mình (host cập nhật bất đồng bộ).
+    private var trackpadContext = TrackpadContext()
+    /// Ký tự/dòng hiển thị ước lượng cho kéo dọc — tính lúc bắt đầu kéo (0 = chưa).
+    private var trackpadCharsPerLine = 0
+    /// Câu mẫu đo một lần theo cỡ chữ (Dynamic Type): (category, bề rộng ký tự TB).
+    private var trackpadAdvance: (UIContentSizeCategory, Double)?
     /// Số lượt updateSuggestions — kết quả nền chỉ áp nếu là lượt mới nhất.
     private var suggestReq = 0
     private static let suggestQueue = DispatchQueue(label: "com.viettelex.suggest",
@@ -2321,10 +2337,29 @@ extension KeyboardViewController {
     /// selectionDidChange của host — tất cả hoãn tới lúc nhả tay, chạy MỘT lần.
     fileprivate func trackpadChanged(_ on: Bool) {
         trackpadActive = on
+        trackpadContext.reset()
+        trackpadCharsPerLine = 0              // đo lại khi cần (xoay / đổi cỡ chữ)
         guard !on else { return }
         externalChangePending = false      // đổi selection trong lúc kéo là của mình
         updateAutoShift()
         updateSuggestions()
+    }
+
+    /// Ký tự/dòng hiển thị ước lượng của ô host (GẦN ĐÚNG — extension không thấy bố cục
+    /// host): bề ngang bàn phím trừ lề ô, chia bề rộng TB một ký tự font thân bài theo cỡ
+    /// chữ hệ thống. Chỉ chạy ở bước dọc đầu tiên của một lần kéo; đo câu mẫu một lần/cỡ.
+    private func estimateCharsPerLine() -> Int {
+        let category = traitCollection.preferredContentSizeCategory
+        let advance: Double
+        if let a = trackpadAdvance, a.0 == category { advance = a.1 }
+        else {
+            let font = UIFont.preferredFont(forTextStyle: .body, compatibleWith: traitCollection)
+            let w = (VerticalMove.sample as NSString).size(withAttributes: [.font: font]).width
+            advance = VerticalMove.avgAdvance(sampleWidth: Double(w))
+            trackpadAdvance = (category, advance)
+        }
+        return VerticalMove.charsPerLine(fieldWidth: Double(view.bounds.width) - VerticalMove.fieldInset,
+                                         avgAdvance: advance)
     }
 
     fileprivate func commitWordSwipe(_ words: Int) {
