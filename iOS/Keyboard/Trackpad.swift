@@ -1,10 +1,14 @@
 // Trackpad (giữ phím cách) — logic THUẦN (không UIKit), pinned by TrackpadTests.
-// Cùng thuật toán/ngưỡng với Android (android/.../ime/Trackpad.kt).
+// Cùng thuật toán/ngưỡng cử chỉ với Android (android/.../ime/Trackpad.kt).
 //
 // • Ngang: mỗi 9pt = 1 ký tự (cảm giác stock). Dọc: mỗi 24pt = 1 dòng.
-// • Trục chính quyết định MỖI BƯỚC, có hysteresis: đang ngang chỉ sang dọc khi dy đủ
-//   một dòng VÀ gấp 2 lần dx; mỗi bước ngang xoá dy tích luỹ ⇒ kéo ngang hơi chéo không
-//   bao giờ nhảy dòng. Đang dọc cần dx ≥ 18pt (2 ký tự) và gấp 2 lần dy mới về ngang.
+// • Hai trục ĐỘC LẬP như stock (kéo chéo đi cả hai), lọc theo HƯỚNG kéo: hướng = EMA
+//   véc-tơ dời (α 0.3/sự kiện). Hướng gần ngang (|dy| < 0.4·|dx|, ~22°) ⇒ bỏ dy — kéo
+//   ngang hơi chéo không nhảy dòng; gần dọc ⇒ bỏ dx — rung ngang khi kéo dọc không dời
+//   ký tự; ở giữa (kéo chéo) ⇒ cộng cả hai. Một sự kiện đủ ngưỡng cả hai trục ⇒ phát
+//   trục vượt ngưỡng nhiều hơn, trục kia giữ tích luỹ, phát ở sự kiện sau.
+//   (Bản cũ khoá trục: mỗi bước ngang xoá dy tích luỹ ⇒ kéo chéo / kéo dọc hơi lệch
+//   gần như không bao giờ lên xuống dòng.)
 // • Tăng tốc: tốc độ (EMA, pt/s) theo trục; ≤ slow ⇒ ×1 (chính xác từng ký tự/dòng),
 //   ≥ fast ⇒ ×max, giữa nội suy tuyến tính. Ngang 300→1500 pt/s, ×5; dọc 200→1000, ×3.
 import Foundation
@@ -14,18 +18,22 @@ struct TrackpadGesture {
     /// `count` có dấu: ngang âm = trái; dọc âm = lên.
     struct Step: Equatable { let axis: Axis; let count: Int }
 
-    static let hStep = 9.0, vStep = 24.0, hSwitch = 18.0, dominance = 2.0
+    static let hStep = 9.0, vStep = 24.0
+    /// Tỉ lệ trục phụ / trục chính (theo hướng kéo) dưới ngưỡng này ⇒ bỏ trục phụ (~22°).
+    static let offAxis = 0.4
+    /// Trọng số sự kiện mới trong EMA hướng kéo.
+    static let dirAlpha = 0.3
     static let hSlow = 300.0, hFast = 1500.0, hMax = 5.0
     static let vSlow = 200.0, vFast = 1000.0, vMax = 3.0
     static let ema = 0.5, minDt = 1.0 / 240, pause = 0.1
 
-    private(set) var axis: Axis = .horizontal
     private var accX = 0.0, accY = 0.0
+    private var dirX = 0.0, dirY = 0.0
     private var lastX = 0.0, lastY = 0.0, lastT = 0.0
     private var speedX = 0.0, speedY = 0.0
 
     mutating func begin(x: Double, y: Double, t: Double) {
-        axis = .horizontal; accX = 0; accY = 0
+        accX = 0; accY = 0; dirX = 0; dirY = 0
         lastX = x; lastY = y; lastT = t
         speedX = 0; speedY = 0
     }
@@ -41,23 +49,19 @@ struct TrackpadGesture {
             speedX = Self.ema * ix + (1 - Self.ema) * speedX
             speedY = Self.ema * iy + (1 - Self.ema) * speedY
         }
-        accX += dx; accY += dy
-        let ax = abs(accX), ay = abs(accY)
-        switch axis {
-        case .horizontal:
-            if ay >= Self.vStep && ay > Self.dominance * ax { axis = .vertical; return emitV() }
-            if ax >= Self.hStep { return emitH() }
-        case .vertical:
-            if ax >= Self.hSwitch && ax > Self.dominance * ay { axis = .horizontal; return emitH() }
-            if ay >= Self.vStep { return emitV() }
-        }
-        return nil
+        dirX = Self.dirAlpha * dx + (1 - Self.dirAlpha) * dirX
+        dirY = Self.dirAlpha * dy + (1 - Self.dirAlpha) * dirY
+        let hx = abs(dirX), hy = abs(dirY)
+        if hy >= Self.offAxis * hx { accY += dy }            // không gần-ngang ⇒ tính dọc
+        if hx >= Self.offAxis * hy { accX += dx }            // không gần-dọc ⇒ tính ngang
+        let rx = abs(accX) / Self.hStep, ry = abs(accY) / Self.vStep
+        if rx < 1 && ry < 1 { return nil }
+        return ry >= rx ? emitV() : emitH()
     }
 
     private mutating func emitH() -> Step {
         let units = Int(accX / Self.hStep)
         accX -= Double(units) * Self.hStep
-        accY = 0
         return Step(axis: .horizontal,
                     count: Self.accelerate(units, speed: speedX, slow: Self.hSlow, fast: Self.hFast, max: Self.hMax))
     }
@@ -65,7 +69,6 @@ struct TrackpadGesture {
     private mutating func emitV() -> Step {
         let lines = Int(accY / Self.vStep)
         accY -= Double(lines) * Self.vStep
-        accX = 0
         return Step(axis: .vertical,
                     count: Self.accelerate(lines, speed: speedY, slow: Self.vSlow, fast: Self.vFast, max: Self.vMax))
     }
@@ -110,44 +113,127 @@ struct TrackpadCoalescer {
     }
 }
 
-enum VerticalMove {
-    /// Dời (UTF-16 — đơn vị NSString mà UITextInput/adjustTextPosition dùng) để lên
-    /// (`lines` < 0) / xuống `lines` dòng LOGIC (ký tự xuống dòng), giữ cột tính theo
-    /// grapheme (dòng đích ngắn hơn ⇒ cuối dòng). Chỉ đi trong context host cho: ít ngắt
-    /// dòng hơn yêu cầu ⇒ đi hết số có; không có ngắt ⇒ nil (dòng đầu/cuối, hoặc dòng tự
-    /// ngắt — không biết dòng hiển thị). Đầu dòng đích không thấy (context trước bị cắt)
-    /// ⇒ coi đầu `before` là đầu dòng: vẫn đúng dòng, cột có thể lệch.
-    static func offset(before: String, after: String, lines: Int) -> Int? {
-        guard lines != 0 else { return 0 }
-        let bSegs = segments(before)
-        let col = bSegs.last!.count
-        if lines < 0 {
-            let breaks = bSegs.count - 1
-            guard breaks > 0 else { return nil }
-            let k = min(-lines, breaks)
-            let ti = bSegs.count - 1 - k
-            let target = bSegs[ti]
-            // Vị trí = đầu dòng đích + col grapheme của nó; tính lùi từ cuối before.
-            let targetStartU16 = before.utf16.distance(from: before.startIndex, to: target.startIndex)
-            let pos = targetStartU16 + prefixUTF16(target, col)
-            return pos - before.utf16.count
-        } else {
-            let aSegs = segments(after)
-            let breaks = aSegs.count - 1
-            guard breaks > 0 else { return nil }
-            let k = min(lines, breaks)
-            let target = aSegs[k]
-            let targetStartU16 = after.utf16.distance(from: after.startIndex, to: target.startIndex)
-            return targetStartU16 + prefixUTF16(target, col)
+/// Context host trong lúc kéo trackpad. Host cập nhật `documentContext*` BẤT ĐỒNG BỘ
+/// sau `adjustTextPosition` (XPC) — bước kế tiếp (frame sau, hoặc dọc ngay sau ngang
+/// trong cùng frame) có thể còn đọc context CŨ ⇒ tính dòng/cột từ chỗ con trỏ đã rời.
+/// Giữ một "view" đã dời theo các lệnh mình gửi: đọc mới GIỐNG lần đọc trước ⇒ host chưa
+/// kịp, dùng view; khác ⇒ host đã cập nhật, lấy context mới. Thuần, pinned by tests.
+struct TrackpadContext {
+    private var lastRead: (before: String, after: String)?
+    private(set) var before = "", after = ""
+
+    mutating func reset() { lastRead = nil; before = ""; after = "" }
+
+    mutating func resolve(before b: String, after a: String) -> (before: String, after: String) {
+        if let r = lastRead, r.before == b, r.after == a { return (before, after) }
+        lastRead = (b, a); before = b; after = a
+        return (b, a)
+    }
+
+    /// Đã gửi lệnh dời `off` UTF-16: dời view (kẹp trong context thấy được, như host kẹp
+    /// ở đầu/cuối văn bản; rơi giữa grapheme ⇒ lùi về đầu grapheme).
+    mutating func moved(by off: Int) {
+        guard off != 0, lastRead != nil else { return }
+        let full = before + after
+        let target = min(max(before.utf16.count + off, 0), full.utf16.count)
+        var u = 0
+        var cut = full.startIndex
+        for i in full.indices {
+            let n = full[i].utf16.count
+            if u + n > target { break }
+            u += n
+            cut = full.index(after: i)
         }
+        before = String(full[..<cut]); after = String(full[cut...])
+    }
+}
+
+enum VerticalMove {
+    /// Ký tự / dòng hiển thị ước lượng: bề ngang ô (≈ bề ngang bàn phím trừ lề) chia bề
+    /// rộng trung bình một ký tự của font thân bài. ≤ 0 ⇒ không biết (chỉ ngắt cứng).
+    static func charsPerLine(fieldWidth: Double, avgAdvance: Double) -> Int {
+        guard fieldWidth > 0, avgAdvance > 0 else { return 0 }
+        return max(minCharsPerLine, Int(fieldWidth / avgAdvance))
+    }
+    static let minCharsPerLine = 8
+    /// Lề trái + phải ước lượng của ô văn bản so với bề ngang bàn phím (Notes ~2×20pt,
+    /// ô Messages hẹp hơn; chọn giữa — xem báo cáo hiệu chỉnh trong TrackpadTests).
+    static let fieldInset = 48.0
+    /// Câu mẫu tiếng Việt để đo bề rộng ký tự trung bình (có dấu cách). Câu nửa Việt nửa
+    /// Anh đo hẹp hơn chữ Việt thật ~6% ⇒ ước dư ký tự/dòng (hiệu chỉnh TrackpadTests).
+    static let sample = "Hôm nay trời đẹp quá, mình rủ mấy đứa bạn đi uống cà phê rồi về nhà nấu cơm tối nhé."
+    /// Bề rộng ký tự TB từ bề rộng `sample` đã đo. ×1.05: TextKit ngắt theo pixel, câu
+    /// mẫu đo hơi hẹp so với văn thật — hiệu chỉnh để số dòng/đầu dòng khớp TextKit
+    /// (testCalibrationAgainstTextKit, màn 375/402/440pt).
+    static func avgAdvance(sampleWidth: Double) -> Double {
+        sampleWidth / Double(sample.count) * 1.05
     }
 
-    /// Tách theo Character.isNewline (\n, \r, \r\n một ký tự, U+2028/2029…).
-    private static func segments(_ s: String) -> [Substring] {
-        s.split(omittingEmptySubsequences: false, whereSeparator: { $0.isNewline })
+    /// Dời (UTF-16 — đơn vị NSString mà UITextInput/adjustTextPosition dùng) để lên
+    /// (`lines` < 0) / xuống `lines` dòng HIỂN THỊ, giữ cột grapheme (dòng đích ngắn hơn
+    /// ⇒ cuối dòng). Proxy không biết bố cục host ⇒ GẦN ĐÚNG: dựng lại dòng hiển thị trên
+    /// context thấy được — đoạn tách bởi ký tự xuống dòng, mỗi đoạn ngắt chữ (word wrap)
+    /// theo `charsPerLine` ký tự (≤ 0 ⇒ chỉ ngắt cứng). Một bước = dòng trên/dưới, dù là
+    /// dòng tự ngắt hay qua ngắt cứng (sang dòng hiển thị cuối/đầu của đoạn kề).
+    /// Ít dòng hơn yêu cầu ⇒ đi hết số có. Đã ở dòng đầu/cuối của phần THẤY ĐƯỢC (host
+    /// hay cắt context — không chắc là đầu/cuối văn bản) ⇒ về đầu/cuối phần thấy được;
+    /// đã ở đúng mép (`before`/`after` rỗng) ⇒ ±1 để vượt sang dòng khuất (đầu/cuối văn
+    /// bản thật thì host kẹp, vô hại — như trackpad ngang). Không có context nào ⇒ nil.
+    static func offset(before: String, after: String, lines: Int, charsPerLine cpl: Int = 0) -> Int? {
+        guard lines != 0 else { return 0 }
+        let b = Array(before), a = Array(after)
+        if b.isEmpty && a.isEmpty { return nil }
+        let chars = b + a
+        let caret = b.count
+        let vl = layout(chars, charsPerLine: cpl)
+        let cur = vl.lastIndex { $0.start <= caret } ?? 0
+        if lines < 0 && cur == 0 { return b.isEmpty ? -1 : -before.utf16.count }
+        if lines > 0 && cur == vl.count - 1 { return a.isEmpty ? 1 : after.utf16.count }
+        let line = vl[min(max(cur + lines, 0), vl.count - 1)]
+        let col = caret - vl[cur].start
+        // Dòng tự ngắt: cuối dòng == đầu dòng sau (con trỏ sẽ hiện ở dòng sau) ⇒ đứng
+        // trước ký tự cuối (thường là dấu cách treo).
+        let maxCol = line.hardEnd ? line.end - line.start : max(line.end - line.start - 1, 0)
+        let pos = line.start + min(col, maxCol)
+        if pos >= caret { return chars[caret..<pos].reduce(0) { $0 + $1.utf16.count } }
+        return -chars[pos..<caret].reduce(0) { $0 + $1.utf16.count }
     }
 
-    private static func prefixUTF16(_ s: Substring, _ n: Int) -> Int {
-        s.prefix(n).utf16.count
+    /// Dòng hiển thị [start, end) theo chỉ số grapheme; `hardEnd` = dòng cuối của đoạn.
+    struct Line: Equatable { let start: Int; let end: Int; let hardEnd: Bool }
+
+    /// Tách đoạn theo Character.isNewline (\n, \r, \r\n một ký tự, U+2028/2029…), rồi
+    /// ngắt chữ tham lam: dòng chứa ≤ cpl ký tự, ngắt sau dấu cách gần nhất; dấu cách ở
+    /// chỗ tràn thì treo cuối dòng (như UIKit); từ dài hơn cả dòng ⇒ cắt cứng.
+    static func layout(_ chars: [Character], charsPerLine cpl: Int) -> [Line] {
+        var out: [Line] = []
+        func wrap(_ ps: Int, _ pe: Int) {
+            var ls = ps
+            if cpl > 0 {
+                while pe - ls > cpl {
+                    let limit = ls + cpl
+                    var next = limit
+                    if isSpace(chars[limit]) {
+                        while next < pe && isSpace(chars[next]) { next += 1 }
+                    } else {
+                        while next > ls && !isSpace(chars[next - 1]) { next -= 1 }
+                        if next == ls { next = limit }
+                    }
+                    if next >= pe { break }           // chỉ còn dấu cách treo: cùng dòng
+                    out.append(Line(start: ls, end: next, hardEnd: false))
+                    ls = next
+                }
+            }
+            out.append(Line(start: ls, end: pe, hardEnd: true))
+        }
+        var ps = 0
+        for (i, c) in chars.enumerated() where c.isNewline {
+            wrap(ps, i)
+            ps = i + 1
+        }
+        wrap(ps, chars.count)
+        return out
     }
+
+    private static func isSpace(_ c: Character) -> Bool { c.isWhitespace && !c.isNewline }
 }

@@ -39,6 +39,7 @@ class TrackpadTest {
         // Kéo ngang 300 dp, trôi xuống 60 dp (> 2 dòng) — vẫn không bước dọc nào.
         val steps = drag((1..100).map { it * 3f to it * 0.6f }, 30)
         steps.forEach { assertEquals(Axis.H, it.axis) }
+        assertEquals(300 / 9, steps.sumOf { it.count })
     }
 
     @Test fun verticalDragMovesLinesDespiteJitter() {
@@ -56,14 +57,40 @@ class TrackpadTest {
         assertEquals(6, fast.last().count)                    // 2 dòng (dư cộng dồn) × 3
     }
 
-    @Test fun verticalModeNeedsTwoCharactersToReturnHorizontal() {
+    private fun List<TrackpadGesture.Step>.sum(axis: Axis) = filter { it.axis == axis }.sumOf { it.count }
+
+    /**
+     * Hồi quy "chỉ đi được mỗi 1 dòng": kéo dọc lệch ngang ~17° — bản khoá trục cũ ra
+     * bước ngang trước (dx đủ 9 dp sau ~22 dp dọc) rồi xoá dy ⇒ không bao giờ đổi dòng.
+     */
+    @Test fun mostlyVerticalWithDriftChangesLinesOnly() {
+        val steps = drag((1..30).map { it * 1.2f to it * 4f }, 50)
+        assertEquals(120 / 24, steps.sum(Axis.V))
+        assertEquals(0, steps.sum(Axis.H))
+    }
+
+    @Test fun diagonalDragMovesBothAxes() {
+        // 45°, 3 dp / 30 ms mỗi trục (không tăng tốc): 300 dp ⇒ ~33 ký tự + ~12 dòng lên.
+        val steps = drag((1..100).map { it * 3f to -it * 3f }, 30)
+        assertTrue(steps.sum(Axis.H) in 32..33)
+        assertTrue(steps.sum(Axis.V) in -12..-11)
+    }
+
+    @Test fun turningFromHorizontalToVerticalInOneDrag() {
+        val pts = (1..30).map { it * 3f to 0f } + (1..24).map { 90f to it * 4f }
+        val steps = drag(pts, 50)
+        assertEquals(10, steps.sum(Axis.H))
+        assertTrue(steps.sum(Axis.V) in 3..4)
+        val firstV = steps.indexOfFirst { it.axis == Axis.V }
+        assertTrue(steps.drop(firstV).all { it.axis == Axis.V })
+        // Dọc rồi quay ngang: vài dp đầu còn mang hướng dọc (bỏ), sau đó 9 dp = 1 ký tự.
         val g = TrackpadGesture()
         g.begin(0f, 0f, 0)
         assertEquals(Axis.V, g.move(0f, 30f, 100)!!.axis)
-        assertNull(g.move(12f, 30f, 200))                     // 12 dp < 18: vẫn dọc, chưa bước
-        val s = g.move(20f, 30f, 300)!!
-        assertEquals(Axis.H, s.axis)
-        assertEquals(2, s.count)
+        assertNull(g.move(4f, 30f, 200))
+        assertNull(g.move(8f, 30f, 300))
+        assertNull(g.move(12f, 30f, 400))
+        assertEquals(TrackpadGesture.Step(Axis.H, 1), g.move(16f, 30f, 500))
     }
 
     @Test fun accelerateCurve() {
