@@ -215,7 +215,8 @@ Phép tính, chip số dạng tiền, sửa lỗi gõ sai, thêm dấu cho cụm
 | Terminal / vim / tmux | Direct ở host đúng thứ tự (§3.1), còn lại Preedit; Esc kết thúc từ để vim không mất chữ |
 | Nhiều bộ gõ Việt cùng bật (ibus-unikey, bamboo) | Không can thiệp; hướng dẫn gỡ nếu bị gõ đúp |
 | Xung đột phím tắt GNOME | Không dùng Super+Space; kiểm tra trùng khi đặt phím |
-| Remote desktop / VM / Wine | Giống macOS: có sẵn trong danh sách mặc định tắt tiếng Việt (core); khuyên bật bộ gõ ở máy bị điều khiển |
+| Remote desktop / VM | Giống macOS: có sẵn trong danh sách mặc định tắt tiếng Việt (core); khuyên bật bộ gõ ở máy bị điều khiển |
+| Wine | App chạy tại máy: gõ tiếng Việt, ép gạch chân (XIM) — từ 1.0.5 |
 
 ### 6.1 App đang gõ trên GNOME Wayland (`common/src/gnome*.cpp`)
 

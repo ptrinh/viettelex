@@ -33,7 +33,9 @@ for s in $SERIES_LIST; do
     echo "==> image $img"
     docker build -q --platform "linux/$a" --build-arg "BASE=swift:$s" \
       -f "$HERE/docker/Dockerfile.build" -t "$img" "$HERE/docker" >/dev/null
-    out="$DIST/.work/$s-$a"; rm -rf "$out"; mkdir -p "$out"
+    # Tên thư mục mới mỗi lần chạy: xoá rồi tạo lại CÙNG đường dẫn ngay trước bind mount làm
+    # OrbStack giữ inode cũ ⇒ "/out/build.log: Directory nonexistent" (08/10/2026).
+    out="$DIST/.work/$s-$a-$$"; mkdir -p "$out"
     echo "==> build $s/$a"
     docker run --rm --platform "linux/$a" -v "$REPO:/src:ro" -v "$out:/out" "$img" sh -c \
       "/src/linux/packaging/build-deb.sh --series $s --out /out/pkg >/out/build.log 2>&1 \

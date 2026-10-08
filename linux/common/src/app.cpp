@@ -101,6 +101,10 @@ bool isForcedPreeditApp(const std::string &appId) {
     if (names.count(id) || names.count(shortName(id))) return true;
     if (id.rfind("libreoffice", 0) == 0) return true;
     if (startsWith(id, "jetbrains-")) return true;
+    // Wine: app Windows chạy NGAY trên máy (không có bộ gõ nào khác như remote desktop/VM) —
+    // nhận chữ qua XIM, sửa chữ quanh con trỏ không tin được ⇒ gạch chân. Trước 1.0.5 nằm
+    // trong danh sách mặc định tắt ⇒ Word qua Wine gõ ra "he1 lo6" (user Zorin OS 08/10/2026).
+    if (isWineApp(id)) return true;
     return false;
 }
 
@@ -114,10 +118,14 @@ bool isDefaultOffApp(const std::string &appId) {
     std::string id = normalizeAppId(appId);
     if (id.empty()) return false;
     if (names.count(id) || names.count(shortName(id))) return true;
-    // Wine: "wine64-preloader", "notepad.exe"
-    if (startsWith(id, "wine") && endsWith(id, "-preloader")) return true;
-    if (id.size() > 4 && endsWith(id, ".exe")) return true;
     return false;
+}
+
+bool isWineApp(const std::string &appId) {
+    std::string id = normalizeAppId(appId);
+    // "wine64-preloader", "notepad.exe", "C:\...\WINWORD.EXE"
+    if (startsWith(id, "wine") && endsWith(id, "-preloader")) return true;
+    return id.size() > 4 && endsWith(id, ".exe");
 }
 
 bool isUnknownAppId(const std::string &appId) {

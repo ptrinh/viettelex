@@ -51,6 +51,8 @@ bool isForcedPreeditApp(const std::string &appId);
 // Built-in list of apps that start in English (keys pass through): remote desktop / VM
 // viewers and Wine programs. Any [app_modes] entry for the app overrides it.
 bool isDefaultOffApp(const std::string &appId);
+// Wine program (wine*-preloader / *.exe): forced preedit, NOT default-off.
+bool isWineApp(const std::string &appId);
 
 // Identities that do not name a real app: empty, "default" (IBus < 1.5.28 has no
 // focus_in_id), "gnome-shell" (GNOME Wayland shares one text-input-v3 context for every

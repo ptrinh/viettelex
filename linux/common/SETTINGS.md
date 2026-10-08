@@ -105,8 +105,9 @@ có pid (`(1234)`) — một id cho nhiều app, nên pin `"surrounding"` trên 
 
 **Mặc định tắt (English)** (`isDefaultOffApp`): remote desktop / máy ảo — remmina, anydesk,
 rustdesk, virtualboxvm, vmware, vmplayer, remote-viewer, gnome-connections, krdc, xfreerdp,
-wlfreerdp, sdl-freerdp, moonlight, parsec — và chương trình Wine (`wine*-preloader`, id đuôi
-`.exe`): phía bên kia tự có bộ gõ. Muốn gõ tiếng Việt ở đó thì thêm bất kỳ mục nào cho app
+wlfreerdp, sdl-freerdp, moonlight, parsec: phía bên kia tự có bộ gõ. Chương trình Wine
+(`wine*-preloader`, id đuôi `.exe`) KHÔNG nằm trong danh sách này (từ 1.0.5) — app chạy tại máy,
+gõ tiếng Việt bình thường, ép gạch chân (`isWineApp`, nhận chữ qua XIM). Muốn gõ tiếng Việt ở đó thì thêm bất kỳ mục nào cho app
 trong `[app_modes]` (`"remmina" = "preedit"`), mục đó thắng danh sách dựng sẵn.
 
 **Ghi chung file**: hộp cấu hình Fcitx5 (các tuỳ chọn cơ bản) cũng ghi `config.toml`, nhưng chỉ

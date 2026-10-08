@@ -146,9 +146,9 @@ to your machine, each with a copy button.
   `QT_IM_MODULE=fcitx` (hoặc `ibus`).
 - **KDE (KWin)**: Electron cần / needs `--enable-wayland-ime --wayland-text-input-version=1`.
   **Sway** ≥ 1.10. **Hyprland**: dùng Fcitx5 / use Fcitx5. Game SDL: `SDL_IM_MODULE`.
-- **Mặc định tắt / Off by default**: remote desktop, máy ảo và Wine có sẵn trong danh sách tắt
-  tiếng Việt (gõ ở máy bị điều khiển). / *Remote-desktop, VM and Wine apps are in the built-in
-  off list; type Vietnamese on the remote machine instead.*
+- **Mặc định tắt / Off by default**: remote desktop và máy ảo có sẵn trong danh sách tắt
+  tiếng Việt (gõ ở máy bị điều khiển); app Wine gõ tiếng Việt bình thường (gạch chân). / *Remote-desktop and VM apps are in the built-in
+  off list; type Vietnamese on the remote machine instead. Wine apps type Vietnamese (preedit).*
 
 ## Cấu trúc
 

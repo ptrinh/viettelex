@@ -48,10 +48,17 @@ mkdir -p "$STAGE"
     iOS/Keyboard/TextTools.swift iOS/Keyboard/AddTones.swift iOS/Keyboard/SyllableLM.swift \
     iOS/Keyboard/VNLexicon2.swift iOS/Keyboard/VNSuggest.swift iOS/Keyboard/SwipeLexicon.swift \
     iOS/Keyboard/SwipeEnglish.swift \
+    iOS/Keyboard/AdjacentKeyFixer.swift iOS/Keyboard/AutoCorrect.swift iOS/Keyboard/MathResults.swift \
+    iOS/Keyboard/NumberChips.swift iOS/Keyboard/SeedData.swift \
     iOS/Keyboard/Resources/vnlexicon.bin iOS/Keyboard/Resources/vnlm.bin iOS/Keyboard/Resources/enlexicon.bin \
     iOS/KeyboardTests/Fixtures/text-tools.txt iOS/KeyboardTests/Fixtures/add-tones.txt \
+    iOS/KeyboardTests/Fixtures/math-results.txt iOS/KeyboardTests/Fixtures/number-chips.txt \
     android/telexcore/src/test/resources/golden.tsv.gz ) | tar -xf - -C "$STAGE"
 cp -a "$HERE/debian" "$STAGE/debian"
+# Symlink trong linux/ trỏ ra ngoài cây đã dàn (thêm file iOS mới mà quên liệt kê ở trên) ⇒ dừng
+# ngay, rõ ràng — đừng để make báo "No rule to make target" giữa chừng build (1.0.5).
+DANGLING=$(cd "$STAGE" && find linux -type l ! -exec test -e {} \; -print)
+[ -z "$DANGLING" ] || { echo "✗ symlink chưa dàn vào build (thêm vào danh sách tar):" >&2; echo "$DANGLING" >&2; exit 1; }
 
 if [ -n "${DEBFULLNAME:-}" ] && [ -n "${DEBEMAIL:-}" ]; then
   sed -i "s|VietTelex Maintainers <maintainers@viettelex.invalid>|$DEBFULLNAME <$DEBEMAIL>|" \

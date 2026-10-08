@@ -1,3 +1,22 @@
+viettelex (1.0.5) UNRELEASED; urgency=medium
+
+  * Gõ tiếng Việt được trong app Windows chạy qua Wine (Word, Excel...):
+    trước đây Wine nằm trong danh sách mặc định tắt tiếng Việt.
+  * Gợi ý cạnh con trỏ như macOS: kết quả phép tính, chip số dạng tiền,
+    sửa từ gõ sai, thêm dấu cho câu không dấu, ngày giờ.
+  * Tuỳ chọn gạch đỏ âm tiết sai chính tả khi gõ (mặc định tắt).
+  * Sửa gõ lại dấu trên chữ dạng NFD.
+  * ---
+  * Vietnamese typing now works in Windows apps running under Wine (Word,
+    Excel...): Wine used to be on the built-in English-only list.
+  * Caret suggestions like macOS: math results, money-formatted number
+    chips, typo fixes, add tones to unaccented sentences, date/time.
+  * Optional red underline for misspelled syllables while typing (off by
+    default).
+  * Fix re-editing tones on NFD text.
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Thu, 08 Oct 2026 12:00:00 +0000
+
 viettelex (1.0.4) UNRELEASED; urgency=medium
 
   * Công cụ văn bản cho vùng chọn: Thêm dấu, HOA, thường, Hoa Đầu Từ,

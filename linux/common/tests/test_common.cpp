@@ -942,8 +942,7 @@ void testDefaultOffApps() {
     Settings s;
     for (const char *id : {"remmina", "org.remmina.Remmina", "AnyDesk", "rustdesk", "VirtualBoxVM", "vmware",
                            "remote-viewer", "gnome-connections", "org.gnome.Connections", "krdc", "xfreerdp",
-                           "wlfreerdp", "moonlight", "parsec", "wine64-preloader", "wine-preloader",
-                           "notepad.exe", "C:\\Program Files\\App\\App.EXE"}) {
+                           "wlfreerdp", "moonlight", "parsec"}) {
         if (isDefaultOffApp(id) && resolveAppPolicy(id, s, true).off) { ++g_pass; continue; }
         ++g_fail;
         std::fprintf(stderr, "not default-off: %s\n", id);
@@ -953,8 +952,25 @@ void testDefaultOffApps() {
     CHECK(!resolveAppPolicy("gedit", s, true).off);
     s.appModes["remmina"] = "preedit";  // [app_modes] overrides the built-in list
     CHECK(!resolveAppPolicy("remmina", s, true).off);
-    s.appModes["notepad.exe"] = "surrounding";
-    CHECK(!resolveAppPolicy("notepad.exe", s, true).off);
+}
+
+// Regression (user Zorin OS, 08/10/2026): Word chạy qua Wine gõ ra "he1 lo6" — Wine từng nằm
+// trong danh sách mặc định tắt. Wine = app chạy tại máy ⇒ gõ tiếng Việt, ép gạch chân (XIM).
+void testWineAppsTypeVietnamese() {
+    Settings s;
+    for (const char *id : {"wine64-preloader", "wine-preloader", "notepad.exe", "WINWORD.EXE",
+                           "C:\\Program Files\\App\\App.EXE"}) {
+        CHECK(isWineApp(id));
+        CHECK(!isDefaultOffApp(id));
+        AppPolicy p = resolveAppPolicy(id, s, true);
+        CHECK(!p.off);
+        CHECK(p.mode == DisplayMode::Preedit);
+        CHECK(!p.allowSurroundingEdits);
+    }
+    CHECK(!isWineApp("wine"));
+    CHECK(!isWineApp("gedit"));
+    s.appModes["notepad.exe"] = "off";  // user can still turn it off
+    CHECK(resolveAppPolicy("notepad.exe", s, true).off);
 }
 
 void testMoreForcedPreedit() {
@@ -1726,6 +1742,7 @@ int main() {
     testMoreGenericIdsAndSnap();
     testFieldHints();
     testDefaultOffApps();
+    testWineAppsTypeVietnamese();
     testMoreForcedPreedit();
     testCommitBeforeHidingPreedit();
     testDeleteOnlyEditSendsEmptyCommit();
