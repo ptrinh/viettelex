@@ -5,11 +5,16 @@ VietTelex is submitted to the Store as a **"MSI or EXE app"** in Partner Center.
 ## 1. Installer requirements (every release)
 
 - [ ] **Signed MSI.** The MSI and every PE file inside it are Authenticode-signed with Azure Trusted Signing (`signing/sign.ps1`), and the certificate chains to the Microsoft Trusted Root Program. Check with `signtool verify /pa /v <msi>`.
-- [ ] **Versioned, HTTPS, immutable URL.** Each architecture gets one URL per version:
-  - `https://github.com/ptrinh/viettelex/releases/download/win-v<VERSION>/VietTelex-<VERSION>-x64.msi`
-  - `https://github.com/ptrinh/viettelex/releases/download/win-v<VERSION>/VietTelex-<VERSION>-arm64.msi`
+- [ ] **Versioned, HTTPS, immutable URL.** Each architecture gets one URL per version. The same bytes are published in two places:
 
-  Never re-upload a changed file under an existing tag. A fix means a new version and a new URL, because the Store validates the file behind the URL.
+  | Where | URL | Used by |
+  |---|---|---|
+  | Website mirror (no redirect) | `https://viettelex.com/download/windows/<VERSION>/VietTelex-<VERSION>-<arch>.msi` (files in `docs/download/windows/<VERSION>/`) | **Partner Center package URLs** (the Store wants a direct, non-redirecting URL) |
+  | GitHub release, tag `windows-v<VERSION>` | `https://github.com/ptrinh/viettelex/releases/download/windows-v<VERSION>/VietTelex-<VERSION>-<arch>.msi` | `docs/stable.json` (in-app updater), winget, Chocolatey |
+
+  `<arch>` is `x64` or `arm64`. The tag prefix is `windows-v`, not `win-v`. Check both before submitting: `curl -sI <url>` must return 200, and `shasum -a 256` must match `SHA256SUMS` on the release.
+
+  Never re-upload a changed file under an existing tag or folder. A fix means a new version and new URLs, because the Store validates the file behind the URL.
 - [ ] **Standalone installer.** It is a complete offline MSI with no downloader stub and nothing bundled.
 - [ ] **Silent install switches.** Partner Center lists MSI switches automatically. If asked:
 
@@ -37,27 +42,134 @@ VietTelex is submitted to the Store as a **"MSI or EXE app"** in Partner Center.
 | License | MIT (open source) |
 | Languages | Vietnamese (primary), English |
 
-**Short description (vi):** Bộ gõ tiếng Việt Telex/VNI tối giản, nhanh, ổn định, không thu thập dữ liệu.
+Field limits (MSI/EXE listing, Microsoft Learn: *Add and edit Store listing info for MSI/EXE app* and the *Store submission API* listing object, checked 2026-10-08): description ≤ 10,000 characters, plain text, no URLs; short description ≤ 1,000 (only ~270 show without "more", so the texts below stay under 270); product features ≤ 20 × 200 characters, no bullets; **search terms ≤ 7, each ≤ 30 characters, ≤ 21 unique words in total**; screenshots 1–10 per language.
 
-**Description (vi):**
+Fill the Vietnamese (vi-VN) listing first, then English (en-US).
 
-> VietTelex là bộ gõ tiếng Việt cho Windows, chạy như một bàn phím của hệ thống (Text Services Framework).
-> - Gõ Telex hoặc VNI, không gạch chân từ đang gõ.
-> - Tự khôi phục từ tiếng Anh (google, windows…), kiểm tra chính tả khi gõ.
-> - Gõ tắt, nhập/xuất bảng gõ tắt.
-> - Nhớ Việt/Anh riêng cho từng ứng dụng; phím chuyển Ctrl+Shift hoặc Win+Space.
-> - Không gõ vào ô mật khẩu.
-> - Không thu thập dữ liệu, không kết nối mạng trừ khi bạn bấm Kiểm tra cập nhật. Mã nguồn mở (MIT).
+### 2.1 Vietnamese (vi-VN)
 
-**Short description (en):** A minimal, fast, stable Vietnamese keyboard (Telex/VNI) with no data collection.
+**Short description** (≈ 200 characters):
 
-**Description (en):**
+```text
+Bộ gõ tiếng Việt Telex/VNI nhanh, riêng tư cho Windows. Chạy trên TSF nên gõ được cả trong Chrome, Excel và ứng dụng quyền quản trị. Không gạch chân, không thu thập dữ liệu, mã nguồn mở, hỗ trợ ARM64.
+```
 
-> VietTelex is a Vietnamese input method for Windows that runs as a system keyboard (Text Services Framework): Telex or VNI with no underline while typing, automatic English-word restore, shortcuts, per-app Vietnamese/English memory, and password fields left alone. No data collection, and no network access unless you click "Check for updates". Open source (MIT).
+**Description:**
 
-**Search terms:** vietnamese, tiếng việt, telex, vni, bộ gõ, keyboard, ime
+```text
+VietTelex là bộ gõ tiếng Việt tối giản, nhanh và ổn định cho Windows 10 và 11, cùng engine với VietTelex trên macOS, iOS và Android.
 
-**Screenshots (1366×768 or larger):** the Settings tabs Kiểu gõ, Chính tả and Gõ tắt; Word with Vietnamese text; the taskbar V/E indicator.
+VietTelex là một bàn phím thật của Windows, chạy trên Text Services Framework (TSF), không dùng hook bàn phím toàn cục. Vì vậy gõ được ổn định trong Chrome, Edge, Word, Excel, Teams, Zalo, VS Code, và cả trong ứng dụng chạy quyền quản trị (Run as administrator).
+
+• Gõ Telex hoặc VNI, bỏ dấu kiểu mới hoặc cũ, sửa dấu ở bất kỳ vị trí nào trong từ.
+• Không gạch chân khi gõ, kể cả trong Command Prompt, PowerShell và Windows Terminal.
+• Tự khôi phục từ tiếng Anh (gõ "thanks" vẫn ra "thanks"), kiểm tra chính tả tiếng Việt.
+• Gõ tắt theo ý bạn; nhớ Việt/Anh riêng cho từng ứng dụng; chuyển bằng Ctrl+Shift, Alt+Z hoặc Win+Space.
+• Không đụng vào ô mật khẩu; tự tắt trong Remote Desktop và máy ảo.
+• Bản x64 và ARM64 gốc: chạy mượt trên máy Snapdragon/Windows on ARM.
+
+Riêng tư: không telemetry, không thu thập dữ liệu, không gửi những gì bạn gõ đi đâu. VietTelex chỉ kết nối mạng khi bạn bấm Kiểm tra cập nhật.
+
+Miễn phí, mã nguồn mở theo giấy phép MIT.
+```
+
+**Product features** (one per field):
+
+```text
+Gõ Telex hoặc VNI, bỏ dấu kiểu mới hoặc cũ
+Chạy trên TSF, không hook bàn phím: gõ được trong Chrome, Excel và ứng dụng quyền quản trị
+Không gạch chân khi gõ, kể cả Command Prompt và Windows Terminal
+Tự khôi phục từ tiếng Anh, kiểm tra chính tả tiếng Việt
+Gõ tắt và nhớ Việt/Anh theo từng ứng dụng
+Không đụng vào ô mật khẩu
+Không telemetry, không thu thập dữ liệu
+Mã nguồn mở (MIT), miễn phí
+Bản x64 và ARM64 gốc
+```
+
+**Search terms** (7 terms, 15 unique words):
+
+| # | Term | Chars |
+|---|---|---|
+| 1 | `bộ gõ tiếng việt` | 16 |
+| 2 | `bàn phím tiếng việt` | 19 |
+| 3 | `telex` | 5 |
+| 4 | `vni` | 3 |
+| 5 | `gõ dấu` | 6 |
+| 6 | `bo go tieng viet` | 16 |
+| 7 | `vietnamese keyboard` | 19 |
+
+### 2.2 English (en-US)
+
+**Short description** (≈ 200 characters):
+
+```text
+Fast, private Vietnamese keyboard (Telex/VNI) for Windows. Built on TSF, so it works in Chrome, Excel and admin apps without a keyboard hook. No underline, no telemetry, open source, native ARM64.
+```
+
+**Description:**
+
+```text
+VietTelex is a minimal, fast and reliable Vietnamese input method for Windows 10 and 11, with the same engine as VietTelex on macOS, iOS and Android.
+
+VietTelex is a real Windows keyboard built on the Text Services Framework (TSF), with no global keyboard hook. That is why it types reliably in Chrome, Edge, Word, Excel, Teams, Zalo and VS Code, and in apps running as administrator.
+
+• Type with Telex or VNI, old or new tone placement, and fix tones anywhere in the word.
+• No underline while typing, including Command Prompt, PowerShell and Windows Terminal.
+• Restores English words automatically ("thanks" stays "thanks") and checks Vietnamese spelling.
+• Custom shortcuts; remembers Vietnamese/English per app; switch with Ctrl+Shift, Alt+Z or Win+Space.
+• Leaves password fields alone and turns itself off in Remote Desktop and virtual machines.
+• Native x64 and ARM64 builds for Snapdragon / Windows on ARM PCs.
+
+Private: no telemetry, no data collection, and nothing you type is ever sent anywhere. VietTelex only goes online when you press Check for updates.
+
+Free and open source under the MIT License.
+```
+
+**Product features:**
+
+```text
+Telex or VNI, old or new tone placement
+Built on TSF with no keyboard hook: works in Chrome, Excel and admin apps
+No underline while typing, even in Command Prompt and Windows Terminal
+Automatic English-word restore and Vietnamese spell check
+Shortcuts and per-app Vietnamese/English memory
+Leaves password fields alone
+No telemetry, no data collection
+Free and open source (MIT)
+Native x64 and ARM64 builds
+```
+
+**Search terms** (7 terms, 11 unique words):
+
+| # | Term | Chars |
+|---|---|---|
+| 1 | `vietnamese keyboard` | 19 |
+| 2 | `vietnamese input method` | 23 |
+| 3 | `vietnamese ime` | 14 |
+| 4 | `telex` | 5 |
+| 5 | `vni` | 3 |
+| 6 | `tieng viet` | 10 |
+| 7 | `bo go tieng viet` | 16 |
+
+Search terms name only VietTelex's own features and the language. Never add another product's or company's name.
+
+### 2.3 Screenshot shot-list
+
+Desktop screenshots: PNG, landscape, **1366×768 or larger** (1920×1080 recommended; 4K accepted), ≤ 50 MB each, up to 10 per language, optional caption ≤ 200 characters. Upload per language, and use Vietnamese Windows UI for vi-VN where possible. Keep the important part in the top two-thirds, because the Store may overlay text on the bottom third. Do not add extra logos or marketing text. Use a clean desktop with no personal names, e-mail addresses, chats or accounts visible, and use sample text only.
+
+| # | Shot | Caption (vi) | Caption (en) |
+|---|---|---|---|
+| 1 | Chrome or Edge: a search box or document with a full Vietnamese sentence just typed, no underline, the taskbar showing the **V** indicator | Gõ tiếng Việt trong Chrome, không gạch chân | Type Vietnamese in Chrome with no underline |
+| 2 | Excel: a cell being edited with Vietnamese text, plus a few filled cells | Gõ trực tiếp trong ô Excel | Type straight into Excel cells |
+| 3 | An app running **as administrator** (e.g. Notepad or Command Prompt with "Administrator" in the title bar) with Vietnamese text | Gõ được cả trong ứng dụng quyền quản trị, nhờ TSF | Works in admin apps too, thanks to TSF |
+| 4 | Windows Terminal / PowerShell with a Vietnamese line | Không gạch chân, kể cả trong Terminal | No underline, even in the terminal |
+| 5 | Settings, **Kiểu gõ** tab (Telex/VNI, tone placement) | Telex hoặc VNI, bỏ dấu kiểu mới hoặc cũ | Telex or VNI, old or new tone placement |
+| 6 | Settings, **Chính tả** tab, next to a document where an English word was kept (e.g. "windows", "thanks") | Tự khôi phục từ tiếng Anh, kiểm tra chính tả | Automatic English restore and spell check |
+| 7 | Settings, **Gõ tắt** tab with a few sample shortcuts | Gõ tắt theo ý bạn | Your own shortcuts |
+| 8 | Settings, **Ứng dụng** tab (per-app Việt/Anh) | Nhớ Việt/Anh cho từng ứng dụng | Remembers Vietnamese/English per app |
+| 9 | Taskbar icon choices (Vᴛ, ★, 🇻🇳, logo, VI) in light and dark theme | Chọn icon bàn phím, giao diện sáng/tối | Pick your keyboard icon, light or dark |
+| 10 | Windows on ARM: Settings > System > About showing an ARM64 processor next to VietTelex typing | Chạy gốc trên máy ARM64 | Runs natively on ARM64 PCs |
 
 ## 3. Partner Center answers
 
