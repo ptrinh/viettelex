@@ -1,3 +1,19 @@
+viettelex (1.0.8) UNRELEASED; urgency=medium
+
+  * Thêm Debian 12/13 và Ubuntu 26.04; lệnh cài một dòng nhận Mint, Pop!_OS,
+    Zorin, elementary, LMDE, MX, Kali.
+  * Thử nghiệm (mặc định tắt): gõ không gạch chân trong trình duyệt Chromium
+    trên GNOME/KDE Wayland — [experimental] no_underline = "forward-keys".
+  * Bản phát hành build trên GitHub Actions, kèm chứng thực nguồn gốc.
+  * ---
+  * Debian 12/13 and Ubuntu 26.04 packages; the one-line installer detects
+    Mint, Pop!_OS, Zorin, elementary, LMDE, MX and Kali.
+  * Experimental (off by default): underline-free typing in Chromium browsers
+    on GNOME/KDE Wayland — [experimental] no_underline = "forward-keys".
+  * Release packages are built on GitHub Actions with build provenance.
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Thu, 08 Oct 2026 20:00:00 +0000
+
 viettelex (1.0.7) UNRELEASED; urgency=medium
 
   * Kiểm tra chữ trước con trỏ trước khi sửa trực tiếp: app báo lệch (lặp
