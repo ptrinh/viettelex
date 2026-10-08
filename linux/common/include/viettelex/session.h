@@ -10,10 +10,12 @@
 #include "viettelex/settings.h"
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 struct vt_engine;
 
@@ -54,6 +56,13 @@ public:
         if (backspaces > 0) deleteBeforeCursor(backspaces);
         if (!utf8.empty()) commit(utf8);
     }
+    // [experimental] no_underline = "forward-keys" (Session::setDeleteWithKeys): erase
+    // `nchars` characters before the caret with forwarded BackSpace KEY events (press +
+    // release, real keycode) through the IM's own key channel; the Session commits the new
+    // text right after, so the host must keep forwarded keys and commits in one order
+    // (hostOrdersForwardedKeys). The page sees real BackSpace keydowns — what web editors
+    // (Draft.js / Lexical) follow, unlike delete-surrounding. Default: delete-surrounding.
+    virtual void forwardBackspaces(int nchars) { deleteBeforeCursor(nchars); }
     // Caret suggestion (caret_hints.h) next to the caret — Fcitx5 aux text / IBus auxiliary
     // text, drawn by the candidate popup at the caret; never part of the preedit.
     virtual void showHint(const std::string &label) { (void)label; }
@@ -86,6 +95,26 @@ public:
     // reaches back into the text and Surrounding words are composed as preedit instead,
     // whatever the frontend's policy asks. Never persisted.
     bool surroundingDistrusted() const { return distrusted_; }
+    // AppPolicy.deleteWithKeys ([experimental] no_underline = "forward-keys"): in Surrounding,
+    // every delete before the caret goes out as forwarded BackSpace keys, then the commit
+    // (InputContext::forwardBackspaces). Each such edit is then CONFIRMED from the host's text
+    // before the caret on the following keys: the text must become what the Session expects
+    // (older states are fine while the host lags); anything else — a lost / doubled BackSpace,
+    // a duplicated commit — or no confirmation within kKeyEditAckTimeoutMs distrusts the
+    // field (back to preedit until the next focusIn). A mismatch with only plain typing since
+    // the last confirmation (the page changed its own text) just restarts the tracking.
+    // Checked lazily at the start of each key event (one short read of the text before the
+    // caret): no timer, never waits.
+    void setDeleteWithKeys(bool on) {
+        if (deleteWithKeys_ != on) ackDrop();
+        deleteWithKeys_ = on;
+    }
+    bool deleteWithKeys() const { return deleteWithKeys_; }
+    static constexpr int64_t kKeyEditAckTimeoutMs = 1000;
+    // An edit made with forwarded BackSpaces is still waiting for the host to show it.
+    bool keyEditUnconfirmed() const { return ackPending_; }
+    // Tests: a fake monotonic clock in milliseconds (default: steady_clock).
+    void setClockForTesting(std::function<int64_t()> nowMs) { nowMs_ = std::move(nowMs); }
     void setVietnamese(bool on, InputContext &ic);
     bool vietnamese() const { return vietnamese_; }
     // Called with the new state whenever the toggle hotkey flips it.
@@ -132,7 +161,47 @@ private:
     bool handleBackspace(InputContext &ic);
     void endWord(InputContext &ic, bool suppressRestore, bool allowShortcuts);
     // Surrounding: delete-surrounding + commit. Direct: forwarded BackSpace + text.
-    void replace(InputContext &ic, int backspaces, const std::string &insert);
+    // `base`: the text right before the caret that the edit changes (its last `backspaces`
+    // characters go) — what the key-edit confirmation starts from.
+    void replace(InputContext &ic, int backspaces, const std::string &insert, const std::string &base);
+    // Surrounding edit: delete-surrounding (+ empty commit), or forwarded BackSpaces when
+    // deleteWithKeys_ (then the result is tracked until the host confirms it).
+    void replaceBeforeCursor(InputContext &ic, int backspaces, const std::string &insert, const std::string &base);
+    // Key-edit confirmation (deleteWithKeys_). ackTrail_: what this Session typed before the
+    // caret since it last moved (last 48 characters) — where the host must end up.
+    // ackStates_: every earlier value of it since the host last showed the trail, oldest
+    // first — what the host may still legitimately show (it applies our ordered operations
+    // late, never out of order). ackPending_: an edit with forwarded BackSpaces is among them.
+    enum class Ack { None, Confirmed, Lagging, Failed };
+    Ack checkKeyEdit(InputContext &ic);
+    void ackArm(const std::string &base, int backspaces, const std::string &insert);
+    void ackPushTrail();
+    void ackAppend(const std::string &s);  // text the app typed / we committed
+    void ackPop();                         // the app's own ⌫ removed one character
+    // The text before the caret is unknown from here on (caret moved, focus, mode change).
+    void ackDrop() {
+        ackStates_.clear();
+        ackTrail_.clear();
+        ackPending_ = ackAnchored_ = ackWhole_ = ackSeeded_ = false;
+        ackSeed_.clear();
+    }
+    bool tracking() const;  // deleteWithKeys_ and Surrounding
+    void ackTrim();         // keep the trail's last 48 characters
+    void failKeyEdit();
+    bool deleteWithKeys_ = false;
+    bool ackLagging_ = false;  // this key event: the host lags behind our key edits, consistently
+    std::vector<std::string> ackStates_;
+    std::string ackTrail_;
+    bool ackPending_ = false;
+    // ackAnchored_: the trail starts with host text seen confirmed (not just our own typing).
+    // ackWhole_: …and that was all the text before the caret (start of the field).
+    bool ackAnchored_ = false, ackWhole_ = false;
+    // What the host showed before the caret when the trail started (last 8 characters;
+    // ackSeedWhole_: all of it) — checked at the trail's first confirmation.
+    std::string ackSeed_;
+    bool ackSeeded_ = false, ackSeedWhole_ = false;
+    int64_t ackSinceMs_ = 0;  // when the oldest unconfirmed key edit was sent
+    std::function<int64_t()> nowMs_;
     void showPreedit(InputContext &ic);
     void hidePreedit(InputContext &ic);
     bool isWordKey(uint32_t ch) const;

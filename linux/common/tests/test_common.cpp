@@ -1711,13 +1711,13 @@ void testDirectPolicyTable() {
     CHECK(fcitxClientHost("dbus", true) == ClientHost::FcitxOrdered);
     CHECK(fcitxClientHost("dbus", false) == ClientHost::FcitxUnordered);
     CHECK(fcitxClientHost("xim", false) == ClientHost::FcitxXim);
-    CHECK(fcitxClientHost("wayland_v2", false) == ClientHost::FcitxWayland);
+    CHECK(fcitxClientHost("wayland_v2", false) == ClientHost::FcitxWaylandV2);
     CHECK(fcitxClientHost("wayland", false) == ClientHost::FcitxWayland);
     CHECK(fcitxClientHost("ibus", true) == ClientHost::FcitxIBus);
     for (auto h : {ClientHost::IBusGtk, ClientHost::FcitxOrdered}) CHECK(hostSupportsDirect(h));
     for (auto h : {ClientHost::Unknown, ClientHost::IBusGtk4, ClientHost::IBusQt, ClientHost::IBusXim,
                    ClientHost::IBusWayland, ClientHost::FcitxUnordered, ClientHost::FcitxXim,
-                   ClientHost::FcitxWayland, ClientHost::FcitxIBus})
+                   ClientHost::FcitxWayland, ClientHost::FcitxIBus, ClientHost::FcitxWaylandV2})
         CHECK(!hostSupportsDirect(h));
 
     struct Row {
@@ -1929,6 +1929,467 @@ void testUnderlineMisspelledSharedVectors() {
     CHECK(rows > 50);
 }
 
+
+// MARK: - [experimental] no_underline = "forward-keys" (docs/NO-UNDERLINE-SPIKE.md)
+
+// A host that applies what it receives LATER, in the order received (the compositor's IM
+// queue + the app), and reports its text before the caret only once applied — like Chromium
+// behind GNOME Shell / KWin. Faults: lost / doubled forwarded BackSpace, duplicated commit,
+// reports that stop updating.
+struct AsyncHost : InputContext {
+    struct Op {
+        char kind;  // 'b' forwarded BackSpace, 'B' the app's own BackSpace, 't' text
+        std::string text;
+    };
+    std::string doc;       // the app's text before the caret (applied ops)
+    std::string reported;  // last surrounding text sent to the IM
+    std::string pre;
+    std::vector<Op> queue;
+    std::vector<std::string> log;  // "bs:n" / "commit:x" / "del:n" / "pre:x", in call order
+    bool reports = true, freezeReports = false, selection = false;
+    int dropBackspaces = 0, extraBackspaces = 0, dupCommits = 0;
+    int preeditUpdates = 0;
+    void setPreedit(const std::string &s, bool) override {
+        pre = s;
+        ++preeditUpdates;
+        log.push_back("pre:" + s);
+    }
+    void commit(const std::string &s) override {
+        log.push_back("commit:" + s);
+        queue.push_back({'t', s});
+    }
+    void deleteBeforeCursor(int n) override {
+        log.push_back("del:" + std::to_string(n));
+        for (int i = 0; i < n; ++i) queue.push_back({'B', ""});
+    }
+    void forwardBackspaces(int n) override {
+        log.push_back("bs:" + std::to_string(n));
+        for (int i = 0; i < n; ++i) queue.push_back({'b', ""});
+    }
+    bool textBeforeCursor(std::string &out) override {
+        if (!reports) return false;
+        out = reported;
+        return true;
+    }
+    bool hasSelection() override { return selection; }
+    bool selectionAtCaret() override { return selection; }
+    // The compositor + app catch up with everything sent so far.
+    void apply() {
+        char prev = 0;
+        for (const Op &op : queue) {
+            char kind = op.kind;
+            if (op.kind == 't') {
+                doc += op.text;
+                if (dupCommits > 0 && prev == 'b') {  // the replacement text of a key edit
+                    --dupCommits;
+                    doc += op.text;
+                }
+            } else if (op.kind == 'b' && dropBackspaces > 0) {
+                --dropBackspaces;
+            } else {
+                popChars(doc, 1);
+                if (op.kind == 'b' && extraBackspaces > 0) {
+                    --extraBackspaces;
+                    popChars(doc, 1);
+                }
+            }
+            prev = kind;
+        }
+        queue.clear();
+        if (!freezeReports) reported = doc;
+    }
+    std::string screen() const { return doc + pre; }
+    int count(const std::string &prefix) const {
+        int n = 0;
+        for (auto &l : log) n += l.compare(0, prefix.size(), prefix) == 0;
+        return n;
+    }
+};
+
+struct FakeClock {
+    int64_t ms = 1000;
+    std::function<int64_t()> fn() {
+        return [this] { return ms; };
+    }
+};
+
+void forwardKeysSession(Session &s, AsyncHost &h, FakeClock &clock) {
+    s.setClockForTesting(clock.fn());
+    s.setDisplayMode(DisplayMode::Surrounding, h);
+    s.setDeleteWithKeys(true);
+    s.setSurroundingEdits(false);  // resolveAppPolicy: no re-edit / reopen on this path
+}
+
+// '<' = BackSpace; everything else is that ASCII key. The host catches up every `every` keys
+// (0 = never; the caller applies).
+void typeAsync(Session &s, AsyncHost &h, const std::string &keys, int every = 1) {
+    int n = 0;
+    for (char c : keys) {
+        KeyEvent ev;
+        ev.keysym = c == '<' ? ks::BackSpace : uint32_t((unsigned char)c);
+        ev.unicode = c == '<' ? 0 : uint32_t((unsigned char)c);
+        bool consumed = s.processKey(ev, h);
+        ev.release = true;
+        s.processKey(ev, h);
+        if (!consumed) h.queue.push_back(c == '<' ? AsyncHost::Op{'B', ""} : AsyncHost::Op{'t', std::string(1, c)});
+        if (every > 0 && ++n % every == 0) h.apply();
+    }
+}
+
+// What the delete-surrounding path types for `keys` with reach-back edits off (the policy of
+// the key path: no re-edit, no ⌫ reopen) on an honest synchronous host.
+std::string surroundingNoEdits(const std::string &keys, const std::string &prefix = std::string()) {
+    Session s;
+    Mock m;
+    m.doc = prefix;
+    s.setDisplayMode(DisplayMode::Surrounding, m);
+    s.setSurroundingEdits(false);
+    type(s, m, keys);
+    return m.screen();
+}
+
+void testForwardKeysTypesInPlace() {
+    FakeClock clock;
+    Session s;
+    AsyncHost h;
+    forwardKeysSession(s, h, clock);
+    typeAsync(s, h, "tieesng vieejt dduwowcj ");
+    h.apply();
+    CHECK_EQ(h.screen(), std::string("tiếng việt được "));
+    CHECK_EQ(h.preeditUpdates, 0);       // no underline: nothing ever composed as preedit
+    CHECK_EQ(h.count("del:"), 0);        // never delete-surrounding
+    CHECK(h.count("bs:") > 0);
+    CHECK(!s.surroundingDistrusted());
+    // Every key edit: the BackSpaces first, then (right after) its text.
+    for (size_t i = 0; i < h.log.size(); ++i)
+        if (h.log[i].compare(0, 3, "bs:") == 0) CHECK(i + 1 < h.log.size() && h.log[i + 1].compare(0, 7, "commit:") == 0);
+    typeAsync(s, h, "a");  // the next key confirms the last edit
+    CHECK(!s.keyEditUnconfirmed());
+}
+
+void testForwardKeysHostLags() {
+    // The host applies (and reports) only every 3 keys, or reports nothing for a while: the
+    // ordered channel keeps the result right, and lagging is never mistaken for a fault.
+    for (int every : {2, 3, 5}) {
+        FakeClock clock;
+        Session s;
+        AsyncHost h;
+        forwardKeysSession(s, h, clock);
+        typeAsync(s, h, "Tieesng Vieejt laf ngoon nguwx cuar chungs tooi ", every);
+        h.apply();
+        CHECK_EQ(h.screen(), std::string("Tiếng Việt là ngôn ngữ của chúng tôi "));
+        CHECK(!s.surroundingDistrusted());
+        if (s.surroundingDistrusted() || h.screen() != "Tiếng Việt là ngôn ngữ của chúng tôi ") {
+            std::fprintf(stderr, "lag %d: [%s]\n", every, h.screen().c_str());
+            for (auto &l : h.log) std::fprintf(stderr, "  %s\n", l.c_str());
+        }
+        CHECK_EQ(h.count("del:"), 0);
+    }
+    {
+        FakeClock clock;
+        Session s;
+        AsyncHost h;
+        forwardKeysSession(s, h, clock);
+        h.reports = false;  // no surrounding text at all yet
+        typeAsync(s, h, "vieej", 0);
+        h.reports = true;
+        h.apply();
+        typeAsync(s, h, "t ");
+        h.apply();
+        CHECK_EQ(h.screen(), std::string("việt "));
+        CHECK(!s.surroundingDistrusted());
+    }
+    // The user's own ⌫ while an edit is unconfirmed is tracked too.
+    {
+        FakeClock clock;
+        Session s;
+        AsyncHost h;
+        forwardKeysSession(s, h, clock);
+        typeAsync(s, h, "vieejt<<", 0);
+        h.apply();
+        typeAsync(s, h, "ej ");
+        h.apply();
+        CHECK_EQ(h.screen(), surroundingNoEdits("vieejt<<ej "));
+        CHECK(!s.surroundingDistrusted());
+    }
+}
+
+// A fault shows up at the next key: the field is distrusted, the key and the rest of the
+// word go on as preedit, no more BackSpaces are sent. focusIn() gives the field a new chance.
+void checkFaultFallsBack(Session &s, AsyncHost &h) {
+    int bsBefore = h.count("bs:");
+    typeAsync(s, h, "s");
+    CHECK(s.surroundingDistrusted());
+    CHECK(s.displayMode() == DisplayMode::Preedit);
+    CHECK_EQ(h.pre, std::string("s"));  // the key itself is composed again (preedit)
+    typeAsync(s, h, "ao ");
+    CHECK_EQ(h.count("bs:"), bsBefore);  // nothing reaches back any more
+    CHECK(!s.keyEditUnconfirmed());
+    s.focusIn();
+    CHECK(!s.surroundingDistrusted());
+    CHECK(s.displayMode() == DisplayMode::Surrounding);
+}
+
+void testForwardKeysLostBackspace() {
+    FakeClock clock;
+    Session s;
+    AsyncHost h;
+    forwardKeysSession(s, h, clock);
+    typeAsync(s, h, "tie");
+    h.dropBackspaces = 1;  // the compositor / app loses the forwarded BackSpace
+    typeAsync(s, h, "e");
+    CHECK_EQ(h.doc, std::string("tieê"));
+    checkFaultFallsBack(s, h);
+    CHECK_EQ(h.screen(), std::string("tieêsao "));
+}
+
+void testForwardKeysDoubledBackspace() {
+    FakeClock clock;
+    Session s;
+    AsyncHost h;
+    forwardKeysSession(s, h, clock);
+    typeAsync(s, h, "tie");
+    h.extraBackspaces = 1;  // the page deletes twice (the Messenger "⌫ xoá 2 lần" symptom)
+    typeAsync(s, h, "e");
+    CHECK_EQ(h.doc, std::string("tê"));
+    checkFaultFallsBack(s, h);
+}
+
+void testForwardKeysDuplicatedCommit() {
+    FakeClock clock;
+    Session s;
+    AsyncHost h;
+    forwardKeysSession(s, h, clock);
+    typeAsync(s, h, "tie");
+    h.dupCommits = 1;  // Draft.js-like duplication of the replacement text
+    typeAsync(s, h, "e");
+    CHECK_EQ(h.doc, std::string("tiêê"));
+    checkFaultFallsBack(s, h);
+}
+
+void testForwardKeysTimeout() {
+    // Reports stop updating after an edit: consistent but never confirmed. Within the
+    // timeout the Session keeps going (no waiting, no sleeping); past it, the field is
+    // distrusted at the next key.
+    FakeClock clock;
+    Session s;
+    AsyncHost h;
+    forwardKeysSession(s, h, clock);
+    typeAsync(s, h, "tie");
+    h.freezeReports = true;  // stays "tie"
+    typeAsync(s, h, "e");
+    CHECK(s.keyEditUnconfirmed());
+    clock.ms += Session::kKeyEditAckTimeoutMs / 2;
+    typeAsync(s, h, "n");  // lagging, still within the timeout: typed in place
+    CHECK(!s.surroundingDistrusted());
+    CHECK_EQ(h.doc, std::string("tiên"));
+    clock.ms += Session::kKeyEditAckTimeoutMs;
+    checkFaultFallsBack(s, h);
+    // Reports come back: confirmation works again after focusIn.
+    h.freezeReports = false;
+    h.apply();
+    typeAsync(s, h, " vieej");
+    typeAsync(s, h, "t");
+    CHECK(!s.surroundingDistrusted());
+    CHECK(!s.keyEditUnconfirmed());
+}
+
+void testForwardKeysSelectionAndKeys() {
+    FakeClock clock;
+    Session s;
+    AsyncHost h;
+    forwardKeysSession(s, h, clock);
+    typeAsync(s, h, "tie");
+    h.selection = true;  // never send BackSpaces into a selection
+    typeAsync(s, h, "e");
+    CHECK_EQ(h.count("bs:"), 0);
+    h.selection = false;
+    // Enter / Ctrl chords end the word: nothing to confirm afterwards.
+    typeAsync(s, h, " ");
+    typeAsync(s, h, "vieej", 0);  // the host lags: the edits stay unconfirmed
+    CHECK(s.keyEditUnconfirmed());
+    KeyEvent ret;
+    ret.keysym = ks::Return;
+    ret.unicode = '\r';
+    s.processKey(ret, h);
+    CHECK(!s.keyEditUnconfirmed());
+    CHECK(!s.surroundingDistrusted());
+    h.apply();
+    // Turning the path off mid-way (policy change) drops the tracking too.
+    typeAsync(s, h, "vie");  // after Enter the host has caught up with the new word…
+    typeAsync(s, h, "ej", 0);  // …then lags again
+    CHECK(s.keyEditUnconfirmed());
+    s.setDeleteWithKeys(false);
+    CHECK(!s.keyEditUnconfirmed());
+}
+
+void testForwardKeysPolicy() {
+    Settings s;
+    s.noUnderline = NoUnderline::ForwardKeys;
+    FieldHints gnome;
+    gnome.host = ClientHost::IBusWayland;
+    FieldHints kwin;
+    kwin.host = ClientHost::FcitxWayland;
+    for (const char *id : {"google-chrome", "chromium", "code", "slack", "coccoc", "crx_abcdef",
+                           "chrome-abcdefghijklmnop-Default", "brave-browser"}) {
+        for (const FieldHints &f : {gnome, kwin}) {
+            AppPolicy p = resolveAppPolicy(id, s, true, f);
+            CHECK(p.mode == DisplayMode::Surrounding);
+            CHECK(p.deleteWithKeys);
+            CHECK(!p.allowSurroundingEdits);
+            // surrounding not proven for this focus: preedit
+            CHECK(resolveAppPolicy(id, s, false, f).mode == DisplayMode::Preedit);
+            CHECK(!resolveAppPolicy(id, s, false, f).deleteWithKeys);
+        }
+    }
+    // off by default
+    CHECK(Settings().noUnderline == NoUnderline::Off);
+    CHECK(!resolveAppPolicy("google-chrome", Settings(), true, gnome).deleteWithKeys);
+    CHECK(resolveAppPolicy("google-chrome", Settings(), true, gnome).mode == DisplayMode::Preedit);
+    // hosts that do not keep forwarded keys in order with commits
+    for (ClientHost hst : {ClientHost::Unknown, ClientHost::IBusGtk, ClientHost::IBusGtk4, ClientHost::IBusQt,
+                           ClientHost::IBusXim, ClientHost::FcitxOrdered, ClientHost::FcitxUnordered,
+                           ClientHost::FcitxXim, ClientHost::FcitxIBus, ClientHost::FcitxWaylandV2}) {
+        FieldHints f;
+        f.host = hst;
+        CHECK(!hostOrdersForwardedKeys(hst));
+        AppPolicy p = resolveAppPolicy("google-chrome", s, true, f);
+        CHECK(p.mode == DisplayMode::Preedit && !p.deleteWithKeys);
+    }
+    CHECK(hostOrdersForwardedKeys(ClientHost::IBusWayland) && hostOrdersForwardedKeys(ClientHost::FcitxWayland));
+    // not Chromium (GTK / Qt / Gecko reorder keys and commits client-side), generic ids
+    for (const char *id : {"firefox", "org.gnome.texteditor", "libreoffice-writer", "gnome-shell", "default", ""}) {
+        AppPolicy p = resolveAppPolicy(id, s, true, gnome);
+        CHECK(!p.deleteWithKeys);
+    }
+    CHECK(isChromiumApp("google-chrome") && isChromiumApp("code") && !isChromiumApp("firefox") &&
+          !isChromiumApp("gedit") && !isChromiumApp("chrome-remote-desktop-host"));
+    // field types win
+    FieldHints url = gnome;
+    url.urlOrEmail = true;  // omnibox: autocomplete selects the tail
+    CHECK(resolveAppPolicy("google-chrome", s, true, url).mode == DisplayMode::Preedit);
+    FieldHints term = kwin;
+    term.terminal = true;
+    CHECK(!resolveAppPolicy("code", s, true, term).deleteWithKeys);
+    FieldHints num = gnome;
+    num.numeric = true;
+    CHECK(!resolveAppPolicy("google-chrome", s, true, num).deleteWithKeys);
+    // a pin wins
+    Settings pinned = s;
+    pinned.appModes["google-chrome"] = "preedit";
+    CHECK(resolveAppPolicy("google-chrome", pinned, true, gnome).mode == DisplayMode::Preedit);
+    pinned.appModes["google-chrome"] = "surrounding";  // the user's choice: delete-surrounding
+    AppPolicy ps = resolveAppPolicy("google-chrome", pinned, true, gnome);
+    CHECK(ps.mode == DisplayMode::Surrounding && !ps.deleteWithKeys);
+    pinned.appModes["google-chrome"] = "off";
+    CHECK(!resolveAppPolicy("google-chrome", pinned, true, gnome).deleteWithKeys);
+    // Chromium stays in the forced-preedit list (the default path is unchanged)
+    CHECK(isForcedPreeditApp("google-chrome") && isForcedPreeditApp("crx_abcdef"));
+}
+
+void testForwardKeysConfig() {
+    CHECK(parseConfig("[experimental]\nno_underline = \"forward-keys\"\n").noUnderline == NoUnderline::ForwardKeys);
+    CHECK(parseConfig("[experimental]\nno_underline = \"FORWARD-KEYS\"\n").noUnderline == NoUnderline::ForwardKeys);
+    CHECK(parseConfig("[experimental]\nno_underline = \"off\"\n").noUnderline == NoUnderline::Off);
+    CHECK(parseConfig("[experimental]\nno_underline = \"gnome-ext\"\n").noUnderline == NoUnderline::Off);
+    CHECK(parseConfig("[experimental]\nno_underline = true\n").noUnderline == NoUnderline::Off);
+    CHECK(parseConfig("[general]\nno_underline = \"forward-keys\"\n").noUnderline == NoUnderline::Off);
+    Settings s;
+    s.noUnderline = NoUnderline::ForwardKeys;
+    CHECK(parseConfig(serializeConfig(s)).noUnderline == NoUnderline::ForwardKeys);
+    CHECK(serializeConfig(Settings()).find("no_underline = \"off\"") != std::string::npos);
+    std::string t = setConfigValue("[general]\ndisplay_mode = \"preedit\"\n", "experimental", "no_underline",
+                                   "\"forward-keys\"");
+    CHECK(parseConfig(t).noUnderline == NoUnderline::ForwardKeys);
+}
+
+// Rounds of the random forward-keys tests (VT_STRESS_ROUNDS to run more locally).
+int stressRounds() {
+    const char *e = std::getenv("VT_STRESS_ROUNDS");
+    int n = e ? std::atoi(e) : 0;
+    return n > 0 ? n : 1000;
+}
+
+// Text already in the field before the caret (the host shows it, the Session never typed it).
+const char *const kFieldPrefixes[] = {"", "xin chào ", "a", "Tiếng Việt\n", "ê ê ê ", "oo"};
+
+// The other modes are unchanged by the key-edit path: random scripts give the same text, and
+// an honest host (lagging 0–2 keys) never makes the Session fall back.
+void testForwardKeysAgreesWithSurrounding() {
+    std::mt19937 rng(7);
+    const std::string alphabet = "aeiouydwsfrxjzcnghtq <";
+    for (int round = 0, rounds = stressRounds(); round < rounds; ++round) {
+        std::string keys;
+        int len = 3 + int(rng() % 14);
+        for (int i = 0; i < len; ++i) keys += alphabet[rng() % alphabet.size()];
+        std::string prefix = kFieldPrefixes[rng() % (sizeof kFieldPrefixes / sizeof *kFieldPrefixes)];
+        std::string want = surroundingNoEdits(keys, prefix);
+        FakeClock clock;
+        Session s;
+        AsyncHost h;
+        h.doc = h.reported = prefix;
+        forwardKeysSession(s, h, clock);
+        // Lagging hosts only at the start of the field: before any of our text is confirmed, a
+        // host that shows older text than the word is not told from a wrong one (falls back).
+        int lagRand = 1 + int(rng() % 3);
+        typeAsync(s, h, keys, prefix.empty() ? lagRand : 1);
+        h.apply();
+        if (h.screen() == want && !s.surroundingDistrusted()) {
+            ++g_pass;
+            continue;
+        }
+        ++g_fail;
+        std::fprintf(stderr, "forward-keys [%s]: got [%s] want [%s] distrusted=%d\n", keys.c_str(),
+                     h.screen().c_str(), want.c_str(), int(s.surroundingDistrusted()));
+        for (auto &l : h.log) std::fprintf(stderr, "  %s\n", l.c_str());
+    }
+}
+
+// One fault (lost / doubled BackSpace, duplicated commit) somewhere in a random script, the
+// host lagging 1–3 keys: once the host has applied it, the next key must notice — either the
+// text came out right anyway, or the field is distrusted. Never a silent wrong edit after.
+void testForwardKeysRandomFaults() {
+    std::mt19937 rng(11);
+    const std::string alphabet = "aeiouydwsfrxjnghtc ";
+    int detected = 0;
+    for (int round = 0, rounds = stressRounds(); round < rounds; ++round) {
+        std::string keys;
+        int len = 4 + int(rng() % 12);
+        for (int i = 0; i < len; ++i) keys += alphabet[rng() % alphabet.size()];
+        std::string prefix = kFieldPrefixes[rng() % (sizeof kFieldPrefixes / sizeof *kFieldPrefixes)];
+        FakeClock clock;
+        Session s;
+        AsyncHost h;
+        h.doc = h.reported = prefix;
+        forwardKeysSession(s, h, clock);
+        int every = 1 + int(rng() % 3), at = int(rng() % keys.size()), fault = int(rng() % 3);
+        for (int i = 0; i < int(keys.size()); ++i) {
+            if (i == at) {
+                if (fault == 0) h.dropBackspaces = 1;
+                else if (fault == 1) h.extraBackspaces = 1;
+                else h.dupCommits = 1;
+            }
+            typeAsync(s, h, keys.substr(size_t(i), 1), 0);
+            if ((i + 1) % every == 0) h.apply();
+        }
+        h.apply();
+        bool fired = h.dropBackspaces == 0 && h.extraBackspaces == 0 && h.dupCommits == 0;
+        typeAsync(s, h, "a");  // the next key reads the host back
+        std::string want = surroundingNoEdits(keys + "a", prefix);
+        bool ok = !fired || s.surroundingDistrusted() || h.screen() == want;
+        if (fired && s.surroundingDistrusted()) ++detected;
+        if (ok) {
+            ++g_pass;
+            continue;
+        }
+        ++g_fail;
+        std::fprintf(stderr, "fault %d at %d [%s%s] every %d: got [%s] want [%s]\n", fault, at, prefix.c_str(),
+                     keys.c_str(), every, h.screen().c_str(), want.c_str());
+        for (auto &l : h.log) std::fprintf(stderr, "  %s\n", l.c_str());
+    }
+    CHECK(detected > stressRounds() / 10);  // the faults do fire and get caught
+}
+
 }  // namespace
 
 int main() {
@@ -1986,6 +2447,17 @@ int main() {
     testAddTonesHotkey();
     testTextToolNamesAndSelection();
     testTextToolHelper();
+    testForwardKeysTypesInPlace();
+    testForwardKeysHostLags();
+    testForwardKeysLostBackspace();
+    testForwardKeysDoubledBackspace();
+    testForwardKeysDuplicatedCommit();
+    testForwardKeysTimeout();
+    testForwardKeysSelectionAndKeys();
+    testForwardKeysPolicy();
+    testForwardKeysConfig();
+    testForwardKeysAgreesWithSurrounding();
+    testForwardKeysRandomFaults();
     std::printf("common tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

@@ -189,6 +189,11 @@ Settings parseConfig(const std::string &toml) {
             else if (key == "add_tones_hotkey") {
                 if (v.kind == Value::Str) s.addTonesHotkey = v.s;
             }
+        } else if (section == "experimental") {
+            if (key == "no_underline" && v.kind == Value::Str) {
+                std::string m = lower(trim(v.s));
+                s.noUnderline = m == "forward-keys" ? NoUnderline::ForwardKeys : NoUnderline::Off;
+            }
         } else if (section == "app_modes") {
             if (v.kind == Value::Str && !key.empty()) {
                 std::string m = lower(v.s);
@@ -232,6 +237,8 @@ std::string serializeConfig(const Settings &s) {
       << "typo_hints = " << b(s.typoHints) << "\n"
       << "tone_hints = " << b(s.toneHints) << "\n"
       << "date_hints = " << b(s.dateHints) << "\n"
+      << "\n[experimental]\n"
+      << "no_underline = " << (s.noUnderline == NoUnderline::ForwardKeys ? "\"forward-keys\"" : "\"off\"") << "\n"
       << "\n[app_modes]\n";
     for (auto &kv : s.appModes) o << quote(kv.first) << " = " << quote(kv.second) << "\n";
     return o.str();

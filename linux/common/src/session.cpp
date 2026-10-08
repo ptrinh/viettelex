@@ -5,6 +5,8 @@
 
 #include "telexcore.h"
 
+#include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <ctime>
 #include <vector>
@@ -79,15 +81,6 @@ bool isDiacriticOnlyKey(uint32_t c, bool vni) {
 
 bool isNewlineKey(uint32_t k) { return k == ks::Return || k == ks::KP_Enter; }
 
-// Surrounding-mode edit. A delete with nothing to insert is followed by an empty commit:
-// Wayland text-input-v3 applies delete_surrounding_text only together with a commit
-// (Keyman engine.c apply_changes).
-void replaceBeforeCursor(InputContext &ic, int backspaces, const std::string &insert) {
-    if (backspaces > 0) ic.deleteBeforeCursor(backspaces);
-    if (!insert.empty()) ic.commit(insert);
-    else if (backspaces > 0) ic.commit("");
-}
-
 bool endsWithBytes(const std::string &s, const std::string &suffix) {
     return s.size() >= suffix.size() && s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
@@ -132,12 +125,19 @@ bool InputContext::textBeforeCursorTail(size_t maxChars, std::string &out) {
     return true;
 }
 
-Session::Session() : e_(vt_engine_new()) { applySettings(Settings()); }
+Session::Session() : e_(vt_engine_new()) {
+    nowMs_ = [] {
+        using namespace std::chrono;
+        return int64_t(duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+    };
+    applySettings(Settings());
+}
 
 void Session::distrust() {
     if (distrusted_) return;
     distrusted_ = true;
     surroundingEdits_ = false;
+    ackDrop();
     if (mode_ == DisplayMode::Surrounding) {
         // Callers have just dropped the word (vt_reset): switch now, else at the word's end.
         pendingMode_ = DisplayMode::Preedit;
@@ -150,21 +150,185 @@ void Session::distrust() {
 
 bool Session::inPlaceAllowed(InputContext &ic, const std::string &expected) {
     if (mode_ != DisplayMode::Surrounding || expected.empty()) return true;
+    // Key edits not shown yet, but everything the host shows is one of the states our
+    // ordered operations pass through (checkKeyEdit, this key event): BackSpaces sent now
+    // land after them.
+    if (deleteWithKeys_ && ackLagging_) return true;
+    // Key edits keep a trail of what was typed before the word too: a host still behind the
+    // boundary ("việt" shown, "việt l" typed) is then recognised as lagging, not as wrong.
+    const std::string &want = deleteWithKeys_ && endsWithBytes(ackTrail_, expected) ? ackTrail_ : expected;
     std::string before;
     // A host that reports nothing cannot be checked: as before (Surrounding is only chosen
     // where the text was proven).
-    if (!ic.textBeforeCursorTail(utf8Chars(expected), before)) return true;
-    if (checkScreen(before, expected) != Screen::Mismatch) return true;  // Stale: ordered channel
+    if (!ic.textBeforeCursorTail(utf8Chars(want), before)) return true;
+    if (checkScreen(before, want) != Screen::Mismatch) return true;  // Stale: ordered channel
     distrust();
     return false;
 }
 
-void Session::replace(InputContext &ic, int backspaces, const std::string &insert) {
+void Session::replace(InputContext &ic, int backspaces, const std::string &insert, const std::string &base) {
     if (mode_ == DisplayMode::Direct) {
         if (backspaces > 0 || !insert.empty()) ic.directReplace(backspaces, insert);
     } else {
-        replaceBeforeCursor(ic, backspaces, insert);
+        replaceBeforeCursor(ic, backspaces, insert, base);
     }
+}
+
+// Surrounding-mode edit. A delete with nothing to insert is followed by an empty commit:
+// Wayland text-input-v3 applies delete_surrounding_text only together with a commit
+// (Keyman engine.c apply_changes). Key edits need no such commit.
+void Session::replaceBeforeCursor(InputContext &ic, int backspaces, const std::string &insert,
+                                  const std::string &base) {
+    if (deleteWithKeys_ && mode_ == DisplayMode::Surrounding) {
+        if (backspaces > 0) ic.forwardBackspaces(backspaces);
+        if (!insert.empty()) ic.commit(insert);
+        if (backspaces > 0) ackArm(base, backspaces, insert);
+        else if (!insert.empty()) ackAppend(insert);
+        return;
+    }
+    if (backspaces > 0) ic.deleteBeforeCursor(backspaces);
+    if (!insert.empty()) ic.commit(insert);
+    else if (backspaces > 0) ic.commit("");
+}
+
+// MARK: - key-edit confirmation ([experimental] no_underline = "forward-keys")
+
+namespace {
+constexpr size_t kAckKeepChars = 48;  // a word + its boundary + the next word, more than enough
+constexpr size_t kAckMaxStates = 16;  // a host lagging further than this is not followed
+constexpr size_t kAckContext = 8;     // host text kept before our own, once confirmed
+
+// Keeps the last kAckKeepChars characters; false when something was cut.
+bool keepTail(std::string &s) {
+    if (utf8Chars(s) <= kAckKeepChars) return true;
+    size_t i = s.size();
+    for (size_t n = 0; i > 0 && n < kAckKeepChars; ++n) {
+        --i;
+        while (i > 0 && (static_cast<unsigned char>(s[i]) & 0xc0) == 0x80) --i;
+    }
+    s.erase(0, i);
+    return false;
+}
+}  // namespace
+
+bool Session::tracking() const { return deleteWithKeys_ && mode_ == DisplayMode::Surrounding; }
+
+void Session::ackTrim() {
+    if (!keepTail(ackTrail_)) ackWhole_ = false;
+}
+
+void Session::ackPushTrail() {
+    // "" would match any host text: an empty trail is simply not a state.
+    if (ackTrail_.empty() || (!ackStates_.empty() && ackStates_.back() == ackTrail_)) return;
+    ackStates_.push_back(ackTrail_);
+    if (ackStates_.size() > kAckMaxStates) ackStates_.erase(ackStates_.begin());
+}
+
+void Session::ackArm(const std::string &base, int backspaces, const std::string &insert) {
+    // The trail lost track of what is before the caret (caret moved mid-word…): restart from
+    // the word itself, unanchored.
+    if (!endsWithBytes(ackTrail_, base)) {
+        ackStates_.clear();
+        ackTrail_ = base;
+        ackAnchored_ = ackWhole_ = ackSeeded_ = false;  // the seed was for another start
+    }
+    ackPushTrail();  // the host may not have applied this edit yet
+    if (!ackPending_) {
+        ackPending_ = true;
+        ackSinceMs_ = nowMs_ ? nowMs_() : 0;
+    }
+    std::string last;
+    for (int i = 0; i < backspaces; ++i) {
+        if (!popChar(ackTrail_, last)) {  // deleting past what we know: the result is unknown
+            ackDrop();
+            return;
+        }
+        ackPushTrail();  // the app handles each BackSpace key on its own
+    }
+    ackTrail_ += insert;
+    ackTrim();
+    ackPushTrail();
+}
+
+void Session::ackAppend(const std::string &s) {
+    if (!tracking() || s.empty()) return;
+    if (ackStates_.empty()) ackPushTrail();
+    ackTrail_ += s;
+    ackTrim();
+    ackPushTrail();
+}
+
+void Session::ackPop() {
+    if (!tracking()) return;
+    std::string last;
+    if (!popChar(ackTrail_, last) || ackTrail_.empty()) {
+        ackDrop();  // ⌫ past the text we know: nothing left to compare
+        return;
+    }
+    ackPushTrail();
+}
+
+Session::Ack Session::checkKeyEdit(InputContext &ic) {
+    // Nothing typed since the host last showed the trail, and it is anchored: nothing to do.
+    if (ackStates_.size() < 2 && !ackPending_ && (ackAnchored_ || ackTrail_.empty())) return Ack::None;
+    // Not anchored yet but seeded: every state is preceded by what the host showed when the
+    // trail started. Without that, "yỳ" would pass for "ỳ" (the first edit's BackSpace lost)
+    // and a lone " " would match the host's own space.
+    const bool seeded = !ackAnchored_ && ackSeeded_;
+    const std::string prefix = seeded ? ackSeed_ : std::string();
+    // All the text there is before the caret is known: compare whole strings, not suffixes.
+    const bool whole = ackAnchored_ ? ackWhole_ : seeded && ackSeedWhole_;
+    size_t longest = utf8Chars(ackTrail_);  // an older state may be longer ("yfn" → "ỳ")
+    for (const std::string &st : ackStates_) longest = std::max(longest, utf8Chars(st));
+    const size_t asked = utf8Chars(prefix) + longest + kAckContext;
+    std::string before;
+    // A host that stops reporting (or reports nothing) cannot confirm: lagging until timeout.
+    bool reported = ic.textBeforeCursorTail(asked, before) && !before.empty();
+    auto shows = [&](const std::string &st) {
+        std::string full = prefix + st;
+        return whole ? before == full : endsWithBytes(before, full);
+    };
+    if (reported && shows(ackTrail_)) {
+        // The host shows everything we sent: from here the trail also covers the host's own
+        // text before it (a BackSpace lost there later shows up).
+        ackTrail_ = before;
+        ackWhole_ = utf8Chars(before) < asked;
+        ackAnchored_ = true;
+        ackSeeded_ = false;
+        ackTrim();
+        ackStates_.assign(1, ackTrail_);
+        ackPending_ = false;
+        return Ack::Confirmed;
+    }
+    // Lagging = the host shows exactly one of the states our ordered operations passed through
+    // (every BackSpace, commit and app-typed key is one), or — seeded — none of them yet.
+    // Unanchored and unseeded (the host reported nothing when the trail started), a strict
+    // prefix of the oldest state also counts (checkScreen's Stale).
+    bool consistent = !reported;
+    for (size_t i = 0; reported && !consistent && i < ackStates_.size(); ++i) consistent = shows(ackStates_[i]);
+    if (reported && !consistent && seeded) consistent = whole ? before == prefix : endsWithBytes(before, prefix);
+    if (reported && !consistent && !ackAnchored_ && !seeded && !ackStates_.empty())
+        consistent = checkScreen(before, ackStates_.front()) == Screen::Stale;
+    if (!consistent) {
+        if (ackPending_) return Ack::Failed;
+        // Only plain typing since the last confirmation: the page changed its own text
+        // (autocomplete, emoji…) — nothing of ours to blame. Start over.
+        ackDrop();
+        return Ack::None;
+    }
+    int64_t now = nowMs_ ? nowMs_() : 0;
+    if (ackPending_ && now - ackSinceMs_ > kKeyEditAckTimeoutMs) return Ack::Failed;  // doubt
+    return Ack::Lagging;
+}
+
+// The host's text is not what our key edits made (lost / doubled BackSpace, duplicated or
+// dropped commit, the page rewrote it) or never caught up: stop editing in place for this
+// focus. The word being typed is left on screen as it is; the next keys compose in preedit.
+void Session::failKeyEdit() {
+    ackDrop();
+    vt_reset(e_);
+    preedit_.clear();
+    distrust();
 }
 
 Session::~Session() { vt_engine_free(e_); }
@@ -406,7 +570,7 @@ bool Session::applyHint(InputContext &ic) {
         if (ic.hasSelection()) return false;
     }
     size_t n = utf8Chars(s.replace);
-    replace(ic, int(n), s.insert);
+    replace(ic, int(n), s.insert, s.replace);
     tailPop(n);
     tailAppend(s.insert);
     vt_forget_last_commit(e_);  // ⌫ must not re-open the word that was replaced
@@ -421,6 +585,7 @@ void Session::setDisplayMode(DisplayMode m, InputContext &ic) {
     if (distrusted_ && m == DisplayMode::Surrounding) m = DisplayMode::Preedit;
     hasPendingMode_ = false;
     if (m == mode_) return;
+    ackDrop();
     if (!vt_is_empty(e_)) {
         pendingMode_ = m;
         hasPendingMode_ = true;
@@ -488,6 +653,7 @@ void Session::focusIn() {
             applyPendingMode();
         }
     }
+    ackDrop();
     hint_.reset();  // the frontend hid it on focus-out (finish)
     if (hintsOn_) keyGen_->fetch_add(1);
     tailReset();
@@ -499,6 +665,7 @@ void Session::finish(InputContext &ic, bool commitPreedit) {
     dismissHint(ic);
     if (hintsOn_) keyGen_->fetch_add(1);  // answers still on their way are stale now
     tailReset();
+    ackDrop();  // the caret moved / focus left: nothing to compare any more
     if (mode_ == DisplayMode::Preedit && !vt_is_empty(e_)) {
         std::string text = composed();
         vt_reset(e_);
@@ -556,7 +723,7 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
                 if (!expansion.empty()) ic.commit(expansion);
                 hidePreedit(ic);
             } else {
-                replace(ic, int(onScreen), expansion);
+                replace(ic, int(onScreen), expansion, word);
             }
             return;
         }
@@ -588,7 +755,7 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
         }
         ended(finalText, rawWord);
         if (a.kind == VT_ACTION_REPLACE)
-            replace(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)));
+            replace(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)), word);
     }
 }
 
@@ -598,6 +765,28 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     if (ks::isModifierOnly(ev.keysym)) return false;
     selectionMemo_ = -1;
     applyPendingMode();
+    // Key edits ([experimental] no_underline): confirm the last ones before anything else.
+    ackLagging_ = false;
+    if (!ackStates_.empty() || ackPending_) {
+        if (!tracking()) {
+            ackDrop();
+        } else {
+            switch (checkKeyEdit(ic)) {
+            case Ack::Failed: failKeyEdit(); break;
+            case Ack::Lagging: ackLagging_ = true; break;
+            default: break;
+            }
+        }
+    }
+    // A trail starts with this key: remember what the host shows before it (see checkKeyEdit).
+    if (ackTrail_.empty() && !ackSeeded_ && tracking() && vietnamese_ && !passthrough_) {
+        std::string before;
+        if (ic.textBeforeCursorTail(kAckContext, before)) {
+            ackSeed_ = before;
+            ackSeedWhole_ = utf8Chars(before) < kAckContext;
+            ackSeeded_ = true;
+        }
+    }
 
     // Caret suggestion showing: Tab applies (math: Enter too), Esc declines, any other key
     // dismisses it and is handled as usual (CaretHintLogic.action).
@@ -625,6 +814,7 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     }
 
     if (!vietnamese_ || passthrough_) {
+        ackDrop();
         if (!vt_is_empty(e_)) finish(ic);
         if (tailSeeded_) tailReset();
         return false;
@@ -635,6 +825,7 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     // Shortcut chords (Ctrl/Alt/Super + key): commit the word, hand the key to the app.
     if (ev.mods & (VT_MOD_CTRL | VT_MOD_ALT | VT_MOD_SUPER)) {
         endWord(ic, false, false);
+        ackDrop();  // Ctrl+V / Ctrl+Z / Ctrl+left: the text before the caret is unknown
         vt_forget_last_commit(e_);
         if (hintsOn_) tailReset();  // Ctrl+V / Ctrl+Z / Ctrl+←: the text before the caret is unknown
         gluedToDigit_ = false;
@@ -645,6 +836,7 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
 
     if (ev.keysym == ks::BackSpace) {
         bool r = handleBackspace(ic);
+        if (!r) ackPop();  // the app's own BackSpace removes one character
         lastWasBoundaryChar_ = false;
         return r;
     }
@@ -663,6 +855,8 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     endWord(ic, printable && isBracket(ch), !gluedToDigit_);
     if (newline) vt_reset_context(e_);   // a new line has no preceding word
     if (hintsOn_) afterBoundary(ch, ev.keysym);
+    if (printable && mode_ == DisplayMode::Surrounding) ackAppend(encode(ch));  // the app types it
+    else ackDrop();
     if (printable) {
         gluedToDigit_ = gluesShortcutToken(ch);
         lastWasBoundaryChar_ = true;
@@ -750,6 +944,7 @@ bool Session::handleLetter(uint32_t ch, InputContext &ic) {
             ic.directReplace(0, encode(ch));
         } else {
             ic.commit(encode(ch));
+            ackAppend(encode(ch));
         }
         return true;
     }
@@ -763,11 +958,15 @@ bool Session::handleLetter(uint32_t ch, InputContext &ic) {
         // forwarded-key channel so it cannot overtake an earlier forwarded BackSpace.
         if (a.kind == VT_ACTION_PASSTHROUGH) ic.directReplace(0, encode(ch));
         else if (a.kind == VT_ACTION_REPLACE)
-            replace(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)));
+            replace(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)),
+                    std::string());
         return true;
     }
     switch (a.kind) {
-    case VT_ACTION_PASSTHROUGH: ic.commit(encode(ch)); break;
+    case VT_ACTION_PASSTHROUGH:
+        ic.commit(encode(ch));
+        ackAppend(encode(ch));
+        break;
     case VT_ACTION_REPLACE:
         if (a.backspaces > 0 && (ic.hasSelection() || !inPlaceAllowed(ic, shown))) {
             // Never delete into a selection, nor text that is not what we typed (the Session
@@ -775,10 +974,12 @@ bool Session::handleLetter(uint32_t ch, InputContext &ic) {
             vt_reset(e_);
             applyPendingMode();  // distrusted: this very key already goes on as preedit text
             if (hintsOn_ && distrusted_) tailReset();
+            ackDrop();  // typed over a selection (or distrusted): nothing to compare
             ic.commit(encode(ch));
             break;
         }
-        replaceBeforeCursor(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)));
+        replaceBeforeCursor(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)),
+                            shown);
         break;
     default: break;
     }
@@ -805,7 +1006,7 @@ bool Session::handleBackspace(InputContext &ic) {
                     if (v == Screen::Match && !selectionAtCaret(ic)) {
                         if (hintsOn_) tailPop(1 + utf8Chars(word));  // boundary gone, word back in the engine
                         if (mode_ == DisplayMode::Surrounding) {
-                            replaceBeforeCursor(ic, 1, std::string());
+                            replaceBeforeCursor(ic, 1, std::string(), word + lastBoundary_);
                         } else {
                             ic.deleteBeforeCursor(int(1 + utf8Chars(word)));
                             preedit_.clear();
@@ -847,7 +1048,7 @@ bool Session::handleBackspace(InputContext &ic) {
         applyPendingMode();
         return false;
     }
-    replace(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)));
+    replace(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)), shown);
     return true;
 }
 

@@ -145,6 +145,21 @@ public:
             ic_->forwardKey(key, true);
         }
     }
+    // [experimental] no_underline = "forward-keys" (Chromium/Electron on KWin Wayland, the
+    // "wayland" frontend — vt::hostOrdersForwardedKeys): real BackSpace key events, then the
+    // Session commits. A real keycode (X 22 = evdev KEY_BACKSPACE): the "wayland" frontend
+    // then sends zwp_input_method_context_v1.key (KWin → wl_keyboard, handled in request
+    // order with commit_string) and adds the release itself; through the IBus frontend
+    // (GNOME, not enabled yet) gnome-shell's forward_key would turn code 0 into evdev key 0.
+    void forwardBackspaces(int n) override {
+        const fcitx::Key bs(FcitxKey_BackSpace, fcitx::KeyStates(), 22);
+        const std::string frontend = ic_->frontend() ? ic_->frontend() : "";
+        const bool autoRelease = frontend == "wayland" || frontend == "wayland_v2";
+        for (int i = 0; i < n; ++i) {
+            ic_->forwardKey(bs, false);
+            if (!autoRelease) ic_->forwardKey(bs, true);
+        }
+    }
     // Aux text below the (client) preedit: the input panel popup at the caret. Never the
     // client preedit itself, so the app's text is not touched until Tab.
     void showHint(const std::string &label) override {
@@ -530,6 +545,7 @@ private:
         bool password = caps.test(fcitx::CapabilityFlag::Password);
         st->session.setPassthrough(password || policy.off || policy.passthrough, client);
         st->session.setDisplayMode(policy.mode, client);
+        st->session.setDeleteWithKeys(policy.deleteWithKeys);
         st->session.setSurroundingEdits(policy.allowSurroundingEdits);
     }
 

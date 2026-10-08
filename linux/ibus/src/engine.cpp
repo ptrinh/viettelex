@@ -145,6 +145,17 @@ public:
             ibus_engine_forward_key_event(e_, kv, keycode, IBUS_RELEASE_MASK);
         }
     }
+    // [experimental] no_underline = "forward-keys" (Chromium/Electron on GNOME Wayland): real
+    // BackSpace keys, then the Session commits. gnome-shell turns ForwardKeyEvent into
+    // clutter_input_method_forward_key and CommitText into an IM commit event — mutter ≥ 3.38
+    // queues both as Clutter events in this order and flushes text_input.done before a
+    // passed-through key, so the app gets wl_keyboard BackSpace, then the commit.
+    void forwardBackspaces(int n) override {
+        for (int i = 0; i < n; ++i) {
+            ibus_engine_forward_key_event(e_, IBUS_KEY_BackSpace, kBackSpaceKeycode, 0);
+            ibus_engine_forward_key_event(e_, IBUS_KEY_BackSpace, kBackSpaceKeycode, IBUS_RELEASE_MASK);
+        }
+    }
     // Auxiliary text: the candidate popup at the caret (never the preedit).
     void showHint(const std::string &label) override {
         ibus_engine_update_auxiliary_text(e_, ibus_text_new_from_string(label.c_str()), TRUE);
@@ -249,6 +260,7 @@ void refreshFieldFlags(VtIBusEngine *self) {
     self->rememberState = policy.rememberState;
     self->session->setPassthrough(self->password || policy.off || policy.passthrough, client);
     self->session->setDisplayMode(policy.mode, client);
+    self->session->setDeleteWithKeys(policy.deleteWithKeys);
     self->session->setSurroundingEdits(policy.allowSurroundingEdits);
 }
 

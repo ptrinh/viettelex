@@ -69,21 +69,18 @@ ClientHost ibusClientHost(const std::string &raw) {
 ClientHost fcitxClientHost(const std::string &frontend, bool keyEventOrderFix) {
     if (frontend == "dbus") return keyEventOrderFix ? ClientHost::FcitxOrdered : ClientHost::FcitxUnordered;
     if (frontend == "xim") return ClientHost::FcitxXim;
-    if (frontend == "wayland" || frontend == "wayland_v2") return ClientHost::FcitxWayland;
+    if (frontend == "wayland") return ClientHost::FcitxWayland;
+    if (frontend == "wayland_v2") return ClientHost::FcitxWaylandV2;
     if (frontend == "ibus") return ClientHost::FcitxIBus;
     return ClientHost::Unknown;
 }
 
 bool hostSupportsDirect(ClientHost h) { return h == ClientHost::IBusGtk || h == ClientHost::FcitxOrdered; }
 
-bool isForcedPreeditApp(const std::string &appId) {
+bool hostOrdersForwardedKeys(ClientHost h) { return h == ClientHost::IBusWayland || h == ClientHost::FcitxWayland; }
+
+bool isChromiumApp(const std::string &appId) {
     static const std::set<std::string> names = {
-        // KDE launchers/shell, JetBrains/Java (AWT/Swing IM bridge), WPS / OnlyOffice, Steam
-        "krunner", "plasmashell", "idea", "java", "wps", "wpp", "et", "wpsoffice",
-        "desktopeditors", "steam",
-        // LibreOffice
-        "soffice", "soffice.bin", "libreoffice", "libreoffice-writer", "libreoffice-calc",
-        "libreoffice-impress",
         // Chromium / Electron (unreliable surrounding text, esp. on Wayland)
         "chrome", "google-chrome", "google-chrome-stable", "google-chrome-beta", "chromium",
         "chromium-browser", "chromium-freeworld", "brave", "brave-browser", "brave-browser-stable",
@@ -98,6 +95,26 @@ bool isForcedPreeditApp(const std::string &appId) {
         "vivaldi-snapshot", "brave-browser-beta", "brave-browser-nightly", "chromium-freeworld",
         "cromite", "cromite-browser", "helium", "helium-browser", "slimjet", "slimjet-browser",
         "flashpeak-slimjet",
+    };
+    std::string id = normalizeAppId(appId);
+    if (id.empty()) return false;
+    if (names.count(id) || names.count(shortName(id))) return true;
+    // Chromium web apps / PWA (Messenger cài từ trình duyệt): WM_CLASS "crx_<id>",
+    // "chrome-<id>-default", "brave-<id>-default", "msedge-<id>-default"; mọi bản Cốc Cốc.
+    if (startsWith(id, "crx_") || startsWith(id, "coccoc")) return true;
+    for (const char *p : {"chrome-", "brave-", "msedge-", "vivaldi-", "opera-"})
+        if (startsWith(id, p) && endsWith(id, "-default")) return true;
+    return false;
+}
+
+bool isForcedPreeditApp(const std::string &appId) {
+    static const std::set<std::string> names = {
+        // KDE launchers/shell, JetBrains/Java (AWT/Swing IM bridge), WPS / OnlyOffice, Steam
+        "krunner", "plasmashell", "idea", "java", "wps", "wpp", "et", "wpsoffice",
+        "desktopeditors", "steam",
+        // LibreOffice
+        "soffice", "soffice.bin", "libreoffice", "libreoffice-writer", "libreoffice-calc",
+        "libreoffice-impress",
         // Firefox / Gecko (URL bar selects + autocompletes; surrounding text lags)
         "firefox", "firefox-esr", "librewolf", "zen", "zen-browser", "thunderbird",
         // GNOME Wayland: one shared text-input-v3 context for every app; the overview search
@@ -109,11 +126,7 @@ bool isForcedPreeditApp(const std::string &appId) {
     if (names.count(id) || names.count(shortName(id))) return true;
     if (id.rfind("libreoffice", 0) == 0) return true;
     if (startsWith(id, "jetbrains-")) return true;
-    // Chromium web apps / PWA (Messenger cài từ trình duyệt): WM_CLASS "crx_<id>",
-    // "chrome-<id>-default", "brave-<id>-default", "msedge-<id>-default"; mọi bản Cốc Cốc.
-    if (startsWith(id, "crx_") || startsWith(id, "coccoc")) return true;
-    for (const char *p : {"chrome-", "brave-", "msedge-", "vivaldi-", "opera-"})
-        if (startsWith(id, p) && endsWith(id, "-default")) return true;
+    if (isChromiumApp(id)) return true;
     // Wine: app Windows chạy NGAY trên máy (không có bộ gõ nào khác như remote desktop/VM) —
     // nhận chữ qua XIM, sửa chữ quanh con trỏ không tin được ⇒ gạch chân. Trước 1.0.5 nằm
     // trong danh sách mặc định tắt ⇒ Word qua Wine gõ ra "he1 lo6" (user Zorin OS 08/10/2026).
@@ -198,6 +211,18 @@ AppPolicy resolveAppPolicy(const std::string &appId, const Settings &s, bool sur
     if (field.urlOrEmail) mode = DisplayMode::Preedit;
     if (field.numeric || field.sensitive) p.passthrough = true;
     if (field.sensitive) p.rememberState = false;
+    // [experimental] no_underline = "forward-keys" (docs/NO-UNDERLINE-SPIKE.md): a Chromium /
+    // Electron app that would otherwise get the preedit types in place, deletes going out as
+    // forwarded BackSpace keys — only on a host that keeps them in order with the commits, and
+    // only where its text before the caret was proven (the Session verifies every delete and
+    // the result of each one, and drops back to preedit on any doubt). A pin always wins.
+    if (s.noUnderline == NoUnderline::ForwardKeys && mode == DisplayMode::Preedit && !pinned && !unknown &&
+        !p.off && !p.passthrough && !field.terminal && !field.urlOrEmail && surroundingProven &&
+        isChromiumApp(id) && hostOrdersForwardedKeys(field.host)) {
+        mode = DisplayMode::Surrounding;
+        p.deleteWithKeys = true;
+        p.allowSurroundingEdits = false;  // no re-edit / ⌫ reopen: in-word edits only
+    }
     p.mode = mode;
     return p;
 }
