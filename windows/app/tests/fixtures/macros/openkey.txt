@@ -1,0 +1,4 @@
+;Compatible OpenKey Macro Data file for UniKey*** version=1 ***
+vn:Việt Nam
+:D:cười
+hn:Hà Nội

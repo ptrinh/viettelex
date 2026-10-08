@@ -23,5 +23,7 @@ void hookDisableCurrentField();
 // Called (UI thread) when a hook-mode app is elevated above VietTelex.exe: SendInput
 // cannot reach it (UIPI). The app shows a non-modal notice.
 void hookSetElevationNotifier(void (*notify)(const std::wstring& exe));
+// Game / fullscreen / Chế độ game (game_mode.cpp): the hook types nothing while on.
+void hookSetSuspended(bool on);
 
 }  // namespace vtx::app

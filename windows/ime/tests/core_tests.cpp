@@ -1,4 +1,5 @@
 #include "app_policy.h"
+#include "game_ipc.h"
 #include "ipc.h"
 #include "hotkey.h"
 #include "keymap.h"
@@ -347,7 +348,9 @@ TEST(ipc_state_changed_is_internal) {
     CHECK(!isUserCommand(static_cast<unsigned>(AppCommand::SetAppLanguage)));
     CHECK(isValidAppCommand(static_cast<unsigned>(AppCommand::TextToolReply)));
     CHECK(!isUserCommand(static_cast<unsigned>(AppCommand::TextToolReply)));
-    CHECK(!isValidAppCommand(0) && !isValidAppCommand(10));
+    CHECK(isValidAppCommand(static_cast<unsigned>(AppCommand::UserSwitched)));
+    CHECK(!isUserCommand(static_cast<unsigned>(AppCommand::UserSwitched)));
+    CHECK(!isValidAppCommand(0) && !isValidAppCommand(11));
 }
 
 TEST(text_tool_ipc_roundtrip) {
@@ -389,7 +392,11 @@ TEST(settings_underline_misspelled_snapshot_bit) {
     size_t n = 0;
     const BoolKey* keys = boolKeys(&n);
     CHECK(n <= 32);                      // snapshot bits fit the u32
-    CHECK_EQ(std::string(keys[n - 1].name), std::string("underlineMisspelled"));  // appended
+    // Appended, never reordered: bit 21, then the game bits (game_ipc.h) after it.
+    CHECK(n >= 24);
+    CHECK_EQ(std::string(keys[21].name), std::string("underlineMisspelled"));
+    CHECK_EQ(std::string(keys[22].name), std::string("autoOffFullscreen"));
+    CHECK_EQ(std::string(keys[23].name), std::string("gameMode"));
     Settings on;
     on.underlineMisspelled = true;
     std::vector<uint8_t> b = serialize(on);
@@ -397,4 +404,44 @@ TEST(settings_underline_misspelled_snapshot_bit) {
     CHECK(deserialize(b.data(), b.size(), r));
     CHECK(r.underlineMisspelled);
     CHECK(!(r == Settings{}));
+}
+
+TEST(settings_snapshot_game_bits) {
+    // Games / fullscreen: appended snapshot bits (game_ipc.h). The TIP reads gameMode from
+    // the snapshot; autoOffFullscreen defaults ON.
+    Settings d;
+    CHECK(d.autoOffFullscreen);
+    CHECK(!d.gameMode);
+    Settings s;
+    s.gameMode = true;
+    s.autoOffFullscreen = false;
+    std::vector<uint8_t> b = serialize(s);
+    Settings r;
+    CHECK(deserialize(b.data(), b.size(), r));
+    CHECK(r.gameMode && !r.autoOffFullscreen);
+    // A snapshot from before these bits (22 of them) leaves both at their defaults.
+    CHECK(b.size() > 8);
+    b[6] = 22;
+    b[7] = 0;
+    CHECK(deserialize(b.data(), b.size(), r));
+    CHECK(!r.gameMode && r.autoOffFullscreen);
+    // Registry-only strings are not in the snapshot.
+    s.gameModeHotkey = "ctrl-alt-g";
+    s.switchIndicator = "off";
+    b = serialize(s);
+    CHECK(deserialize(b.data(), b.size(), r));
+    CHECK_EQ(r.gameModeHotkey, std::string("off"));
+    CHECK_EQ(r.switchIndicator, std::string("auto"));
+}
+
+TEST(tip_suspension_reasons) {
+    CHECK(!tipSuspended(0, false));
+    CHECK(tipSuspended(kSuspendFullscreen, false));
+    CHECK(tipSuspended(0, true));  // Chế độ game reaches every TIP through the snapshot
+    CHECK(tipSuspended(kSuspendFullscreen | kSuspendGameMode, false));
+    CHECK(!tipSuspended(0x100, false));  // unknown bits are ignored
+    // The suspend message must not collide with the TIP window's other messages
+    // (kTipTextToolMsg; text_service.cpp uses WM_APP + 0x59..0x5C internally).
+    CHECK(kTipSuspendMsg != kTipTextToolMsg);
+    CHECK(kTipSuspendMsg > 0x8000u + 0x5Cu && kTipSuspendMsg < 0xC000u);
 }

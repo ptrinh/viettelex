@@ -27,12 +27,12 @@ std::wstring tipSpec() {
     return w;
 }
 
-bool callInstall(DWORD flags) {
+bool callInstall(const std::wstring& spec, DWORD flags) {
     HMODULE input = LoadLibraryExW(L"input.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (!input) return false;
     auto fn = reinterpret_cast<InstallLayoutOrTipFn>(
         reinterpret_cast<void*>(GetProcAddress(input, "InstallLayoutOrTip")));
-    bool ok = fn && fn(tipSpec().c_str(), flags);
+    bool ok = fn && fn(spec.c_str(), flags);
     FreeLibrary(input);
     return ok;
 }
@@ -44,8 +44,21 @@ std::wstring selfPath() {
 }
 }  // namespace
 
-bool addKeyboardForUser() { return callInstall(0); }
-bool removeKeyboardForUser() { return callInstall(ILOT_UNINSTALL_); }
+bool addKeyboardForUser() { return callInstall(tipSpec(), 0); }
+bool removeKeyboardForUser() { return callInstall(tipSpec(), ILOT_UNINSTALL_); }
+bool removeLayoutOrTipForUser(const std::wstring& spec) { return !spec.empty() && callInstall(spec, ILOT_UNINSTALL_); }
+
+bool runningAsSystem() {
+    HANDLE tok = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tok)) return false;
+    BYTE buf[256];
+    DWORD len = 0;
+    bool system = false;
+    if (GetTokenInformation(tok, TokenUser, buf, sizeof buf, &len))
+        system = IsWellKnownSid(reinterpret_cast<TOKEN_USER*>(buf)->User.Sid, WinLocalSystemSid) != FALSE;
+    CloseHandle(tok);
+    return system;
+}
 
 void setAutostart(bool on) {
     HKEY k;

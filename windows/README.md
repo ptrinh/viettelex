@@ -150,6 +150,82 @@ Five suggestions shown in a small window at the caret. Each has its own switch i
 - **Window:** `ime/src/hint_popup.*` — a top-most `WS_EX_NOACTIVATE | WS_EX_TRANSPARENT` popup that never takes focus or clicks. It is light or dark following `AppsUseLightTheme`, auto-hides after 8 s, and hides when the caret moves.
 - **Not here:** password/PIN input scopes, `ES_PASSWORD` edits, secure desktop, consoles and fields typed by the hook (Direct mode), composition-only contexts, and English mode (the TIP is not typing then).
 
+## Onboarding (first run)
+
+Decisions are pure functions in `app/core/onboarding.*` with unit tests; the Win32 side is `main.cpp` (`--setup-user`), `welcome.cpp` and `conflicts.cpp`.
+
+- **Per-user activation through Active Setup.** The MSI writes `HKLM\SOFTWARE\Microsoft\Active Setup\Installed Components\{D1246D27-55D1-45DC-96F6-60BF26027142}` with `StubPath = "<exe>" --setup-user --active-setup`, `Version = 1,0` and `IsInstalled = 1`. At every user's next logon, Windows runs the stub once for that user, so a Store/Intune/`msiexec /qn` install as SYSTEM reaches everyone.
+  - **Why Active Setup:** HKLM RunOnce only reaches the first user to log on. HKLM Run runs at every logon, forever. A logon scheduled task needs the Task Scheduler API, which wixl cannot author. Writing other users' HKCU from SYSTEM misses users created later.
+  - **Fixed version:** the stub runs once per user, not once per release, so an upgrade never re-adds a keyboard the user removed. Uninstall (`--cleanup-user`) deletes the user's Active Setup entry, so a reinstall sets them up again.
+  - **No UI in the stub:** it runs before the desktop exists and only sets `welcomePending`. The autostart (`--background`) then shows the welcome window.
+  - **Idempotent (`planUserSetup`):**
+
+    | Run | What happens |
+    |---|---|
+    | As SYSTEM | Nothing. |
+    | The installer, as a user | Always makes sure of the keyboard and autostart. |
+    | Active Setup or app start | Acts only for a user who was never set up. |
+
+  - **Limit:** a user who is already signed in when the Store installs gets the keyboard when they open VietTelex or sign in again.
+- **Welcome window (`decideWelcome`):** shown once per user. It offers Telex/VNI, the switch key, the tray icon, other input methods and "Chuyển gõ tắt từ UniKey / OpenKey…".
+  - `showTrayIcon` stays off by default. The box is ticked in advance only when UniKey, EVKey or OpenKey is running, because those users are used to a tray indicator.
+  - Users upgrading from a version without onboarding never see it.
+- **Other Vietnamese input methods:** detected only when the welcome window or the Kiểu gõ page is shown, and never in the background. Two kinds are checked:
+  - running UniKey (`UniKeyNT.exe`), EVKey, OpenKey, VKey and GoTiengViet, by process image name;
+  - Microsoft's Vietnamese keyboards in the user's list: any enabled vi-VN profile that is not VietTelex (Telex, Number-key, or the legacy layout), found with `ITfInputProcessorProfileMgr::EnumProfiles`.
+
+  The warning shows on the Kiểu gõ page and in the welcome window, and opens a task dialog with these actions:
+  - open the other app's folder;
+  - show how to quit it (from its tray icon) and how to keep it from starting with Windows;
+  - remove a Microsoft keyboard from the list with `InstallLayoutOrTip(ILOT_UNINSTALL)`, falling back to `ms-settings:regionlanguage`.
+
+  VietTelex never quits or uninstalls other software.
+- **"Chuyển từ UniKey" (`app/core/macro_import.*`):** Nhập… reads the formats below. The fixtures in `app/tests/fixtures/macros` are byte-exact.
+
+  | Format | Source | How it is read |
+  |---|---|---|
+  | UniKey | `ukengine/mactab.cpp` | Header `;DO NOT DELETE THIS LINE*** version=1 ***` with a UTF-8 BOM (Windows build), then `key:text` split at the first colon, untrimmed. |
+  | OpenKey | `Macro.cpp` | Header `;Compatible OpenKey Macro Data file for UniKey*** version=1 ***`, then the first-colon split. A key starting with `:` takes the next field. |
+  | Generic | — | VietTelex/macOS JSON and YAML, `key:value` and `key<TAB>value` text. |
+
+  - **Encodings:** UTF-8 with or without BOM, UTF-16LE with or without BOM, and UTF-16BE with BOM. Anything else is refused, never imported as mojibake.
+  - **Old UniKey files** (VIQR, without the `version=1` line) are imported unconverted, with a warning.
+  - **EVKey's** export format could not be checked against public sources. Its files go through the generic path.
+  - **UniKey's switch-key setting** is not imported: its registry location could not be checked against public sources.
+
+## Games, fullscreen, V/E indicator
+
+Decisions are pure functions in `app/core/game_logic.*`, the TIP side is `ime/core/game_ipc.h`, and the Win32 side is `app/src/game_mode.cpp` and `switch_toast.cpp`.
+
+- **Tự tắt tiếng Việt khi chơi game toàn màn hình** (`autoOffFullscreen`, default on). VietTelex.exe watches foreground changes with a WinEvent hook, installed only while the setting is on. It asks `SHQueryUserNotificationState`:
+
+  | State | Result |
+  |---|---|
+  | `QUNS_RUNNING_D3D_FULL_SCREEN` | Keys pass through. |
+  | `QUNS_PRESENTATION_MODE`, with a captionless foreground that covers its monitor | Keys pass through. |
+  | `QUNS_BUSY` (Chrome F11, YouTube fullscreen, video players) | Typing as usual. |
+
+  - **Late fullscreen:** a game often turns exclusive-fullscreen after it comes to the front. So a new foreground window that covers its monitor gets at most three one-shot re-checks (0.3, 1.5 and 4 s). Nothing polls, and nothing runs per key.
+  - **Telling the TIP:** VietTelex.exe posts `kTipSuspendMsg` to the TIP window of the game's threads and sets `VietTelex.Suspend` on its top-level window. A TIP activated later reads that property on focus.
+  - **While suspended:** the TIP eats nothing, including Ctrl+Shift and Alt+Z, which games bind. A word in progress is committed as typed, and the hook types nothing. Việt/Anh is never changed, so leaving the game restores everything.
+  - **Borderless-window games are not detected.** Use Chế độ game, or "Luôn tiếng Anh" for the game on the Ứng dụng page.
+- **Chế độ game** (`gameMode`, Kiểu gõ page, and an optional hotkey `gameModeHotkey`):
+  - **What it does:** every key passes through, in every app. It reaches every TIP through the snapshot, and the foreground TIP at once.
+  - **Never stuck on:** it is cleared whenever VietTelex.exe starts, and a TIP ignores it while the app is not running.
+  - **Hotkey:** the default is off, because a global hotkey takes its chord away from every app, and Ctrl+Alt is AltGr on some layouts. The choices are `ctrl-alt-g` and `ctrl-shift-alt-g`, never Win+G or Win+Alt+G (Xbox Game Bar).
+- **Floating V/E indicator** (`switchIndicator`: `auto` by default, `on`, `off`; `auto` means "while the tray icon is hidden").
+  - **Trigger:** the TIP posts `AppCommand::UserSwitched` only for a Ctrl+Shift or Alt+Z switch, not for a focus change.
+  - **Window:** a click-through, never-activated popup shows V or E for 1 s, below the caret (`GetGUIThreadInfo`) or in the work area's bottom-right corner.
+  - **Never shown** over a D3D or presentation fullscreen, or while keys pass through.
+  - **Cost:** nothing on the typing path.
+
+## Terminals and AI CLIs (Direct mode Backspace)
+
+- **The bug class:** with other IMEs, a CLI that reads the pty (Claude Code, Gemini CLI, other Node/Ink apps) receives BS `0x08` instead of DEL `0x7F` for Backspace. It does not delete, and the retyped word doubles.
+- **What VietTelex sends** (`directEditEvents`, unit-tested): each backspace is `VK_BACK` as a virtual key with scan code `0x0E`, exactly like the physical key. Windows Terminal and conhost's VT input translate it to DEL, and legacy console readers get the same `KEY_EVENT` record. A control character is never sent as `KEYEVENTF_UNICODE`. The text goes as Unicode, and there are no modifier events.
+- **New guard (`injectionModifiersSafe`):** a batch is dropped (the word resets) if Ctrl, Alt or Win is down at injection. Otherwise `VK_BACK` would become Ctrl+Backspace (`0x08`, or delete-word in GUI apps) or Alt+Backspace (`ESC DEL`, delete-word in readline).
+- **Residual risk, not fixable from the IME:** a CLI that treats one pty read as one key would get "DEL DEL text" together. Windows Terminal stays Direct by default, which means no underline and shell autocomplete intact. For such a CLI, set `windowsterminal.exe` (and `conhost.exe`) to Composition on the Ứng dụng page; then only committed text reaches the app. The override beating the built-in rule is unit-tested.
+
 ## Icons
 
 All icons come from the macOS artwork, regenerated by `installer/icons/make_icons.py` (macOS only; it uses `sips`, nothing gets installed).
@@ -185,7 +261,7 @@ All icons come from the macOS artwork, regenerated by `installer/icons/make_icon
 - The TIP only parses the snapshot, so there is one parser for normal and AppContainer processes. It re-checks the file's timestamp on focus change and after a menu command. There is no timer and no polling.
 - Deviation from spec §9: the TIP does not read the registry directly.
 - **UI language** (`uiLanguage`, the "Ngôn ngữ / Language" picker, Typing tab): `vi` by default whatever the Windows display language, `en` switches the Settings window and the tray menu immediately. All strings, including the text tools, live in `app/src/strings.cpp` in both languages, and a `static_assert` keeps the table complete.
-- `addTonesHotkey` is registry-only: it is not in the TIP snapshot. `textToolsInMenu` and the five caret-hint switches are appended snapshot bits (an older snapshot leaves them at their defaults).
+- `addTonesHotkey`, `gameModeHotkey` and `switchIndicator` are registry-only: they are not in the TIP snapshot. `autoOffFullscreen` and `gameMode` are appended snapshot bits. `textToolsInMenu` and the five caret-hint switches are appended snapshot bits (an older snapshot leaves them at their defaults).
 
 ## ARM64 (supported from v1)
 
@@ -220,7 +296,10 @@ Checklist and listing text: [installer/STORE.md](installer/STORE.md). An MSIX pa
 - The spec §5.2 app matrix.
 - **MSI install and uninstall on Windows.** Export `HKLM\SOFTWARE\Microsoft\CTF\TIP\{CLSID}` after `regsvr32 VietTelexTIP.dll` and after an MSI install, then diff the two. The values to confirm are `SubstituteLayout` (stored as a DWORD) and the `Enable` values.
 - **Chrome underline.** Check that Chrome and Edge now show no underline. The display-attribute provider is registered (its category row is unit-tested and diffed against the MSI), and the attribute is `TF_LS_NONE`. If they still underline, set `chrome.exe` to "Sửa trực tiếp" on the Ứng dụng page to test in-place mode. It is not the default for browsers, because the omnibox's inline autocomplete keeps a selection that in-place editing resets on.
-- **Store installs.** With a `/qn` install run as SYSTEM, the keyboard reaches users in one of two ways: they open VietTelex once, or they add "VietTelex" under Settings > Language > Tiếng Việt > Keyboards.
+- **Store installs (Active Setup).** After a `/qn` install as SYSTEM, sign out and in (or sign in as a second user): the keyboard must be in the list without opening VietTelex, the welcome window must appear once the desktop is up, and `HKCU\Software\Microsoft\Active Setup\Installed Components\{D1246D27-…}` must hold `Version=1,0`. Remove the keyboard by hand, sign out and in: it must not come back. Upgrade the MSI: the stub must not run again.
+- **Onboarding:** the welcome window (DPI, keyboard navigation), conflict detection with UniKey/EVKey/OpenKey running, and with Microsoft's Vietnamese Telex / Number-key keyboard in the list — including that "remove from list" (InstallLayoutOrTip ILOT_UNINSTALL) really removes it, and falls back to ms-settings otherwise. Import a real UniKey (`Lưu` from its macro dialog) and OpenKey export.
+- **Games / fullscreen:** a D3D exclusive-fullscreen game (WASD not eaten, Ctrl+Shift not toggling), Alt+Tab out and back, Chrome F11 / YouTube fullscreen still typing, a PowerPoint slideshow, the Chế độ game hotkey, the V/E indicator near the caret (Notepad) and in the corner (Chrome), never stealing focus.
+- **Terminals + AI CLIs:** Claude Code / Gemini CLI in Windows Terminal and in a legacy conhost window, Direct mode (default) and with `windowsterminal.exe` set to composition.
 - **Caret hints:** that the popup sits at the caret (GetTextExt) in Notepad, Word, WordPad, Chrome/Edge, VS Code and a UWP/WinUI field. Check too that it never steals focus, that Tab/Enter/Esc are eaten only while it shows, and that Tab replaces exactly the suggested text.
 - **Text tools:**
   - The TSF path in Word, Notepad, WordPad (classic RichEdit through the parent context), Chrome/Edge/VS Code (Chromium TSF) and a UWP/WinUI field.

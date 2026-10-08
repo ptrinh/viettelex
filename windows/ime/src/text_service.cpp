@@ -141,6 +141,7 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* ptim, TfClientId tid, DWORD f
 }
 
 STDMETHODIMP TextService::Deactivate() {
+    suspendPosted_ = 0;
     hideHint();
     dropHintWork();
     popup_.destroy();
@@ -290,6 +291,10 @@ void TextService::applyConfig(bool force) {
     if (!force && gen == settingsGen_) return;
     settingsGen_ = gen;
     settings_ = config::copySettings();
+    // Chế độ game is VietTelex.exe's runtime state (cleared at its start). If the app is
+    // gone (crashed, autostart off), a stale "on" in the snapshot must not leave every
+    // key passing through forever. Checked here only (focus change / config change).
+    if (settings_.gameMode && !appRunning()) settings_.gameMode = false;
 
     SessionOptions o;
     o.engineFlags = settings_.engineFlags();
@@ -371,6 +376,7 @@ bool TextService::directServesHere() const {
 }
 
 bool TextService::typingEnabled() const {
+    if (suspended()) return false;  // game / fullscreen: every key passes through
     if (!config::vietnamese()) return false;
     // A word this TIP started stays this TIP's even if the hook's ack appears mid-word
     // (the hook waits for a boundary too): one word, one typist.
@@ -418,7 +424,44 @@ void TextService::clearLangProp() {
     langPropWnd_ = nullptr;
 }
 
-void TextService::toggleVietnamese() { setVietnamese(!vietnamese()); }
+// Switch hotkey (Ctrl+Shift chord, Alt+Z). Besides the state, tell VietTelex.exe that the
+// USER switched (AppCommand::UserSwitched: the floating V/E indicator) — a focus change
+// only sends StateChanged.
+void TextService::toggleVietnamese() {
+    const bool on = !vietnamese();
+    setVietnamese(on);
+    if (HWND h = FindWindowW(kAppWindowClass, nullptr))
+        PostMessageW(h, kAppCommandMsg, static_cast<WPARAM>(AppCommand::UserSwitched), on ? 1 : 0);
+}
+
+// VietTelex.exe (game_mode.cpp): stand aside in this thread / stop standing aside. Also
+// re-reads the snapshot at once (Chế độ game is a setting). A word in progress is
+// committed as typed, so the game never sees a half composition.
+void TextService::setSuspendBits(uint32_t bits) {
+    const bool was = suspended();
+    suspendPosted_ = bits & kSuspendFullscreen;
+    applyConfig(false);
+    if (suspended() && !was) {
+        flushAsync(composition_ ? compositionContext_ : nullptr);
+        session_.resetContext();
+        chord_.disarm();
+        hideHint();
+        dropHintWork();
+        config::log("suspended: every key passes through (game / fullscreen / Che do game)");
+    } else if (!suspended() && was) {
+        session_.resetContext();
+        config::log("resumed after game / fullscreen");
+    }
+}
+
+void TextService::readSuspendProp() {
+    HWND f = GetFocus();
+    if (!f) f = GetForegroundWindow();
+    HWND root = f ? GetAncestor(f, GA_ROOT) : nullptr;
+    const uint32_t bits =
+        root ? static_cast<uint32_t>(reinterpret_cast<UINT_PTR>(GetPropW(root, kSuspendProp))) : 0;
+    suspendPosted_ = bits & kSuspendFullscreen;
+}
 
 void TextService::setVietnamese(bool on) {
     if (on != vietnamese()) {
@@ -629,6 +672,7 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     resolveActiveApp();
     config::reloadVietnamese();
     applyConfig(true);
+    readSuspendProp();
     if (focus) {
         publishLangProp();
         notifyAppState(vietnamese());
@@ -737,7 +781,7 @@ uint8_t TextService::heldModifiers(uint32_t vkey, bool down) const {
 }
 
 void TextService::onModifierEvent(uint32_t vkey, bool down) {
-    if (hotkey_ != SwitchHotkey::CtrlShift) return;
+    if (hotkey_ != SwitchHotkey::CtrlShift || suspended()) return;  // games bind Ctrl+Shift
     if (chord_.note(heldModifiers(vkey, down)) && !down) toggleVietnamese();
 }
 
@@ -895,6 +939,7 @@ STDMETHODIMP TextService::OnPreservedKey(ITfContext*, REFGUID guid, BOOL* eaten)
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
     if (IsEqualGUID(guid, GUID_PreservedKeyToggle)) {
+        if (suspended()) return S_OK;  // Alt+Z goes to the game
         toggleVietnamese();
         *eaten = TRUE;
     }
@@ -969,6 +1014,10 @@ LRESULT CALLBACK TextService::toolWndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp
     auto* self = reinterpret_cast<TextService*>(GetWindowLongPtrW(h, GWLP_USERDATA));
     if (msg == static_cast<UINT>(kTipTextToolMsg)) {
         if (self) self->onTextToolRequest(static_cast<unsigned>(wp), static_cast<uint32_t>(lp));
+        return 0;
+    }
+    if (msg == static_cast<UINT>(kTipSuspendMsg)) {  // VietTelex.exe: game / fullscreen (game_ipc.h)
+        if (self) self->setSuspendBits(static_cast<uint32_t>(wp));
         return 0;
     }
     switch (msg) {

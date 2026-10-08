@@ -114,8 +114,10 @@ const Pair kStrings[] = {
     {L"Gỡ VietTelex khỏi máy này? Bộ gõ, ứng dụng và cài đặt của bạn sẽ bị xoá.",
      L"Uninstall VietTelex from this PC? The input method, the app and your settings will be removed."},
 
-    {L"Gõ viết tắt rồi gõ dấu cách để bung ra nội dung. Nhập/xuất tệp YAML, JSON hoặc văn bản.",
-     L"Type an abbreviation then a space to expand it. Import/export YAML, JSON or plain text."},
+    {L"Gõ viết tắt rồi gõ dấu cách để bung ra nội dung. Nhập/xuất tệp YAML, JSON hoặc văn bản; “Nhập…” đọc "
+     L"được cả tệp gõ tắt của UniKey, OpenKey (UTF-8 hoặc UTF-16).",
+     L"Type an abbreviation then a space to expand it. Import/export YAML, JSON or plain text; “Import…” also "
+     L"reads UniKey and OpenKey macro files (UTF-8 or UTF-16)."},
     {L"Viết tắt", L"Abbreviation"},
     {L"Nội dung", L"Expands to"},
     {L"Thêm", L"Add"},
@@ -217,6 +219,83 @@ const Pair kStrings[] = {
      L"chế độ khung soạn (composition); từ giữ nguyên phím gõ hoặc sẽ tự khôi phục (tiếng Anh) không bị gạch.",
      L"The word being typed gets a red squiggle when it can’t become a Vietnamese syllable (đc, hópng, tòc). Only "
      L"in apps that use composition mode; words left as typed or auto-restored (English) are never marked."},
+
+    // Games / fullscreen
+    {L"Chơi game / toàn màn hình", L"Games / fullscreen"},
+    {L"Tự tắt tiếng Việt khi chơi game toàn màn hình", L"Turn Vietnamese off in fullscreen games"},
+    {L"Khi một game (Direct3D toàn màn hình độc quyền) hoặc trình chiếu đang ở phía trước, VietTelex không giữ phím "
+     L"nào (WASD không thành ư/ă). Trình duyệt F11, xem video toàn màn hình vẫn gõ bình thường. Game chạy dạng cửa "
+     L"sổ không viền: dùng Chế độ game hoặc đặt “Luôn tiếng Anh” ở trang Ứng dụng.",
+     L"While a game (exclusive fullscreen Direct3D) or a slideshow is in front, VietTelex holds no key (WASD never "
+     L"turns into ư/ă). Browsers in F11 and fullscreen video still type normally. For borderless-window games use "
+     L"Game mode, or set the game to “Always English” on the Apps page."},
+    {L"Chế độ game", L"Game mode"},
+    {L"Mọi phím đi thẳng tới ứng dụng, ở mọi ứng dụng, cho tới khi tắt. Tự tắt khi VietTelex khởi động lại.",
+     L"Every key goes straight to the app, in every app, until you turn it off. Turns itself off when VietTelex "
+     L"restarts."},
+    {L"Phím tắt Chế độ game", L"Game mode hotkey"},
+    {L"Bật/tắt Chế độ game từ bất cứ đâu. Mặc định không đặt: phím tắt toàn hệ thống sẽ không còn tới ứng dụng "
+     L"khác (Ctrl+Alt là AltGr trên một số bàn phím).",
+     L"Turns Game mode on/off from anywhere. None by default: a system-wide hotkey no longer reaches other apps "
+     L"(Ctrl+Alt is AltGr on some keyboards)."},
+    {L"Hiện V/E khi chuyển Việt/Anh", L"Show V/E when switching"},
+    {L"Một chữ V hoặc E nhỏ hiện khoảng 1 giây cạnh con trỏ (hoặc ở góc màn hình) khi bạn bấm phím chuyển. "
+     L"“Tự động”: chỉ khi biểu tượng khay đang ẩn. Không bao giờ hiện khi chơi game toàn màn hình.",
+     L"A small V or E shows for about a second next to the cursor (or in the screen corner) when you press the "
+     L"switch key. “Automatic”: only while the tray icon is hidden. Never shown over a fullscreen game."},
+    {L"Tự động", L"Automatic"},
+    {L"Game: bật", L"Game: on"},
+    {L"Game: tắt", L"Game: off"},
+
+    // Other Vietnamese input methods
+    {L"Có bộ gõ tiếng Việt khác", L"Another Vietnamese input method is active"},
+    {L"Hai bộ gõ cùng lúc sẽ bỏ dấu hai lần (vieejt → viêệt). Hãy thoát bộ gõ kia hoặc gỡ nó khỏi danh sách.",
+     L"Two input methods at once add every tone twice (vieejt → viêệt). Quit the other one or remove it from the "
+     L"list."},
+    {L"Xử lý…", L"Resolve…"},
+    {L"VietTelex sẽ không tự tắt hay gỡ phần mềm khác. Chọn việc cần làm:",
+     L"VietTelex never quits or uninstalls other software by itself. Choose what to do:"},
+    {L"Mở thư mục của %s", L"Open the folder of %s"},
+    {L"Cách thoát %s", L"How to quit %s"},
+    {L"Bấm chuột phải vào biểu tượng %s ở khay hệ thống (góc phải thanh tác vụ, có thể trong mũi tên ^) rồi chọn "
+     L"Thoát / Kết thúc. Để nó không tự chạy cùng Windows: bỏ “Khởi động cùng Windows” trong %s, hoặc tắt nó ở "
+     L"Trình quản lý tác vụ → Ứng dụng khởi động.",
+     L"Right-click the %s icon in the notification area (right end of the taskbar, maybe under the ^ arrow) and "
+     L"choose Exit. To stop it starting with Windows: turn off its “Run at startup” option in %s, or disable it in "
+     L"Task Manager → Startup apps."},
+    {L"Gỡ bàn phím “%s” khỏi danh sách ngôn ngữ", L"Remove the “%s” keyboard from the language list"},
+    {L"Chỉ gỡ khỏi danh sách bàn phím của bạn; Windows vẫn giữ nó, thêm lại được trong Cài đặt.",
+     L"Only removes it from your keyboard list; Windows keeps it and you can add it back in Settings."},
+    {L"Mở Cài đặt ngôn ngữ của Windows", L"Open Windows language settings"},
+    {L"Đã gỡ bàn phím khỏi danh sách.", L"The keyboard was removed from the list."},
+    {L"Không gỡ được tự động. Cài đặt ngôn ngữ của Windows sẽ mở ra: Tiếng Việt → Tuỳ chọn → Bàn phím → Gỡ.",
+     L"Could not remove it automatically. Windows language settings will open: Vietnamese → Options → Keyboards → "
+     L"Remove."},
+    {L"Không thấy bộ gõ tiếng Việt nào khác.", L"No other Vietnamese input method found."},
+
+    // Welcome
+    {L"Chào mừng đến với VietTelex", L"Welcome to VietTelex"},
+    {L"VietTelex đã được thêm vào bàn phím của bạn. Chọn vài thứ để bắt đầu — đổi lại lúc nào cũng được trong "
+     L"Cài đặt.",
+     L"VietTelex has been added to your keyboards. Pick a few things to start — you can change them any time in "
+     L"Settings."},
+    {L"Kiểu gõ", L"Typing method"},
+    {L"Phím chuyển Việt/Anh", L"Vietnamese/English switch key"},
+    {L"Hiện biểu tượng V/E ở khay hệ thống (như UniKey)", L"Show a V/E icon in the notification area (like UniKey)"},
+    {L"Không bật thì biểu tượng bàn phím trên thanh tác vụ và chữ V/E nhỏ khi chuyển cho biết đang gõ gì.",
+     L"Without it, the keyboard icon on the taskbar and a small V/E when you switch show the current language."},
+    {L"Chuyển gõ tắt từ UniKey / OpenKey…", L"Bring shortcuts from UniKey / OpenKey…"},
+    {L"Bắt đầu gõ", L"Start typing"},
+    {L"Mở Cài đặt…", L"Open Settings…"},
+
+    // Import result
+    {L"Đã nhập %d gõ tắt (%s).", L"Imported %d shortcuts (%s)."},
+    {L"%d dòng bị bỏ qua (viết tắt có dấu cách, rỗng hoặc dài quá 64 ký tự).",
+     L"%d lines skipped (abbreviation with a space, empty or longer than 64 characters)."},
+    {L"Tệp UniKey kiểu cũ (mã VIQR, không có dòng “version=1”): chữ có dấu chưa được chuyển, ví dụ “Vie^.t”. "
+     L"Mở tệp trong UniKey rồi lưu lại để có bản UTF-8.",
+     L"An old UniKey file (VIQR encoding, no “version=1” line): accented letters were not converted, e.g. "
+     L"“Vie^.t”. Open it in UniKey and save it again to get a UTF-8 file."},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace

@@ -22,9 +22,13 @@ enum class AppCommand : unsigned {
     // TIP -> app (Công cụ văn bản): lParam = textToolReplyParam(request, status), see
     // text_tool_ipc.h.
     TextToolReply = 9,
+    // TIP -> app: the USER switched Việt/Anh (Ctrl+Shift, Alt+Z) — not a focus change.
+    // lParam 1 = Vietnamese, 0 = English. Drives the floating V/E indicator; costs nothing
+    // on the typing path (posted only on a switch).
+    UserSwitched = 10,
 };
 
-inline bool isValidAppCommand(unsigned v) { return v >= 1 && v <= 9; }
+inline bool isValidAppCommand(unsigned v) { return v >= 1 && v <= 10; }
 // Commands a user may pass as `--command <n>` (StateChanged is TIP-internal).
 inline bool isUserCommand(unsigned v) { return v >= 1 && v <= 5; }
 

@@ -31,6 +31,8 @@ const BoolKey kBoolKeys[] = {
     {"toneHints", &Settings::toneHints},
     {"dateHints", &Settings::dateHints},
     {"underlineMisspelled", &Settings::underlineMisspelled},
+    {"autoOffFullscreen", &Settings::autoOffFullscreen},
+    {"gameMode", &Settings::gameMode},
 };
 constexpr size_t kBoolCount = sizeof(kBoolKeys) / sizeof(kBoolKeys[0]);
 constexpr uint32_t kMagic = 0x53585456;  // "VTXS"

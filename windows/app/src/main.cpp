@@ -7,7 +7,8 @@
 //   --background    no window (autostart; tray icon only if enabled)
 //   --settings      open Settings (after an interactive install)
 //   --command <n>   run an AppCommand (open Settings / About, check for updates, Telex/VNI)
-//   --setup-user    add the keyboard for this user + autostart, then exit (installer)
+//   --setup-user    add the keyboard for this user + autostart, then exit (installer);
+//                   with --active-setup: Windows' Active Setup at a user's logon (onboarding.h)
 //   --cleanup-user  remove keyboard, autostart and all user data, then exit (uninstall)
 //   --set-profile-icon <choice>  (elevated) set the keyboard profile icon, then exit
 #include <windows.h>
@@ -25,6 +26,10 @@
 #include "registration.h"
 #include "res/icon_ids.h"
 #include "foreground.h"
+#include "game_logic.h"
+#include "game_mode.h"
+#include "onboarding.h"
+#include "switch_toast.h"
 #include "hook_fallback.h"
 #include "ipc.h"
 #include "settings_store.h"
@@ -206,6 +211,12 @@ void runCommand(unsigned cmd, LPARAM lp = 0) {
     if (!isValidAppCommand(cmd)) return;
     switch (static_cast<AppCommand>(cmd)) {
         case AppCommand::StateChanged: setTrayState(lp != 0); break;
+        case AppCommand::UserSwitched:  // Ctrl+Shift / Alt+Z: the floating V/E indicator
+            setTrayState(lp != 0);
+            if (showSwitchToast(parseSwitchIndicator(g_settings.switchIndicator), g_trayShown, gameSuspendedNow(),
+                                currentNotificationState()))
+                toastShow(lp ? L"V" : L"E");
+            break;
         case AppCommand::DirectMode: hookSetDirectFromTip(lp != 0); break;
         case AppCommand::SetAppLanguage: onAppLanguage(lp); break;
         case AppCommand::TextToolReply: textActionsTipReply(lp); break;
@@ -263,7 +274,8 @@ LRESULT CALLBACK mainProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
     LRESULT handled = 0;
-    if (textActionsMessage(msg, wp, lp, handled)) return handled;  // hotkey, TIP selection, timers
+    if (gameMessage(msg, wp, lp, handled)) return handled;          // Chế độ game hotkey, fullscreen re-checks
+    if (textActionsMessage(msg, wp, lp, handled)) return handled;  // hotkey, TIP selection, timers  // hotkey, TIP selection, timers
     switch (msg) {
         case kAppCommandMsg: runCommand(static_cast<unsigned>(wp), lp); return 0;
         // Restart Manager / logoff / an upgrade closing us: agree, then exit cleanly
@@ -299,6 +311,8 @@ LRESULT CALLBACK mainProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         case kMsgUpdateChecked: onUpdateChecked(reinterpret_cast<UpdateInfo*>(lp)); return 0;
         case kMsgUpdateDownloaded: onDownloaded(wp, reinterpret_cast<wchar_t*>(lp)); return 0;
         case WM_DESTROY:
+            gameShutdown();
+            toastShutdown();
             removeTrayIcon();
             textActionsShutdown();
             hookShutdown();
@@ -411,6 +425,7 @@ int waitInstall(unsigned long pid) {
 }
 
 unsigned long g_waitPid = 0;
+SetupTrigger g_setupTrigger = SetupTrigger::Installer;
 
 unsigned parseCommandArg(const wchar_t* cmdLine, bool& background, int& oneShot) {
     int argc = 0;
@@ -420,6 +435,7 @@ unsigned parseCommandArg(const wchar_t* cmdLine, bool& background, int& oneShot)
         std::vector<std::wstring> all;
         for (int i = 1; argv && i < argc; ++i) all.push_back(argv[i]);
         if (vtx::parseWaitInstallArg(all, g_waitPid)) oneShot = 4;
+        vtx::parseSetupUserArgs(all, g_setupTrigger);
     }
     for (int i = 1; argv && i < argc; ++i) {
         std::wstring a = argv[i];
@@ -448,6 +464,26 @@ void settingsChanged() {
     setEnglish(g_settings.uiLanguage == "en");
     hookConfigure(g_settings);
     textActionsConfigure();
+    gameConfigure();
+}
+
+// Per-user setup (onboarding.h planUserSetup): keyboard in the user's list, autostart, the
+// welcome window flag. Idempotent; nothing at all when running as SYSTEM.
+void runUserSetup(SetupTrigger trigger) {
+    UserSetupState st;
+    st.systemAccount = runningAsSystem();
+    st.setupDone = readFlag(L"userSetupDone");
+    st.welcomeShown = readFlag(L"welcomeShown");
+    const UserSetupPlan plan = planUserSetup(trigger, st);
+    appLog("app", std::string("per-user setup (") +
+                      (trigger == SetupTrigger::ActiveSetup ? "active setup"
+                       : trigger == SetupTrigger::Installer ? "installer"
+                                                            : "app start") +
+                      "): " + (st.systemAccount ? "SYSTEM, skipped" : plan.addKeyboard ? "set up" : "already set up"));
+    if (plan.addKeyboard) addKeyboardForUser();
+    if (plan.autostart) setAutostart(true);
+    if (plan.markDone) writeFlag(L"userSetupDone", true);
+    if (plan.welcomePending) writeFlag(L"welcomePending", true);
 }
 
 }  // namespace vtx::app
@@ -460,13 +496,13 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     int oneShot = 0;
     unsigned cmd = parseCommandArg(GetCommandLineW(), background, oneShot);
 
-    if (oneShot == 1) {  // installer, as the installing user
+    if (oneShot == 1) {  // installer (as the installing user, or SYSTEM) / Active Setup at logon
+        if (runningAsSystem()) return 0;  // HKCU of SYSTEM: nobody's; Active Setup reaches the users
         g_settings = loadSettings();
+        appSetLogging(g_settings.debugLogging);
         saveSettings(g_settings);  // publish the snapshot for the TIP
-        addKeyboardForUser();
-        setAutostart(true);
-        writeFlag(L"userSetupDone", true);
-        return 0;
+        runUserSetup(g_setupTrigger);
+        return 0;  // never UI here: Active Setup runs before the desktop exists
     }
     if (oneShot == 3) return setProfileIcon(g_profileIconArg);  // elevated helper
     if (oneShot == 4) return waitInstall(g_waitPid);             // detached update watcher
@@ -475,6 +511,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         removeKeyboardForUser();
         setAutostart(false);
         eraseUserData();
+        // So that a later reinstall runs the per-user setup (Active Setup) for this user again.
+        const std::wstring as = std::wstring(L"Software\\Microsoft\\Active Setup\\Installed Components\\") +
+                                widen(vtx::kActiveSetupGuid);
+        RegDeleteTreeW(HKEY_CURRENT_USER, as.c_str());
         return 0;
     }
 
@@ -502,13 +542,19 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     allowDarkMenus();
 
     g_settings = loadSettings();
+    appSetLogging(g_settings.debugLogging);
     setEnglish(g_settings.uiLanguage == "en");
-    if (snapshotMissing()) saveSettings(g_settings);
-    if (!readFlag(L"userSetupDone")) {  // another user on a per-machine install
-        addKeyboardForUser();
-        setAutostart(true);
-        writeFlag(L"userSetupDone", true);
-    }
+    // Chế độ game never survives a restart (or a reboot): a forgotten "every key passes
+    // through" would look like a broken keyboard.
+    const bool staleGameMode = g_settings.gameMode;
+    g_settings.gameMode = false;
+    if (snapshotMissing() || staleGameMode) saveSettings(g_settings);
+    // Another user on a per-machine install (Store / SYSTEM install before their next logon).
+    const bool setupDoneBefore = readFlag(L"userSetupDone");
+    runUserSetup(vtx::SetupTrigger::AppStart);
+    const vtx::WelcomeAction welcome =
+        vtx::decideWelcome(true, readFlag(L"welcomePending"), readFlag(L"welcomeShown"), setupDoneBefore);
+    if (welcome == vtx::WelcomeAction::MarkShown) writeFlag(L"welcomeShown", true);
 
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof wc;
@@ -531,16 +577,24 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     hookSetElevationNotifier(showElevationNotice);
     hookConfigure(g_settings);
     textActionsConfigure();
+    gameConfigure();
     mirrorAppLanguage();  // AppContainer hosts read the per-app Việt/Anh memory from here
     appLog("app", std::string("started ") + VTX_VER_STRING);
 
-    if (cmd) runCommand(cmd);
-    else if (!background) showSettings(Tab::Typing);
+    if (welcome == vtx::WelcomeAction::Show) {
+        showWelcome();  // first run: instead of Settings (it has an "Open Settings" button)
+        if (cmd && cmd != static_cast<unsigned>(vtx::AppCommand::OpenSettings)) runCommand(cmd);
+    } else if (cmd) {
+        runCommand(cmd);
+    } else if (!background) {
+        showSettings(Tab::Typing);
+    }
     if (g_settings.autoUpdateCheck && autoCheckDue()) startUpdateCheck(g_mainWnd, false);
 
     MSG msg;
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
         if (settingsDialogMessage(&msg)) continue;
+        if (welcomeDialogMessage(&msg)) continue;
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
