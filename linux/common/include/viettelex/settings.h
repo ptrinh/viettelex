@@ -15,6 +15,13 @@ namespace viettelex {
 // keys, never reading anything back. Direct is chosen per app/field, never globally.
 enum class DisplayMode { Preedit, Surrounding, Direct };
 
+// [experimental] no_underline (linux/docs/NO-UNDERLINE-SPIKE.md). ForwardKeys: in Chromium /
+// Electron on a host that delivers the IM's forwarded keys in order with its commits (GNOME
+// Wayland via IBus, KWin via Fcitx5's Wayland frontend), words are typed in place and fixed
+// with forwarded BackSpace KEY events instead of delete-surrounding (which web editors like
+// Draft.js / Lexical cannot follow). Off (default): those apps keep the preedit.
+enum class NoUnderline { Off, ForwardKeys };
+
 using ShortcutTable = std::map<std::string, std::string>;
 
 struct Settings {
@@ -55,6 +62,8 @@ struct Settings {
     bool dateHints = true;            // "hôm nay␣" → "28/09/2026", "bây giờ␣" → "21:35"
     // [app_modes] app id (lowercase) -> "preedit" | "surrounding" | "direct" | "off"
     std::map<std::string, std::string> appModes;
+    // [experimental]
+    NoUnderline noUnderline = NoUnderline::Off;  // no_underline = "off" | "forward-keys"
     // shortcuts.yml (never null after load)
     std::shared_ptr<const ShortcutTable> shortcuts = std::make_shared<ShortcutTable>();
 };

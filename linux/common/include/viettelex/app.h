@@ -32,21 +32,35 @@ bool isTerminalApp(const std::string &appId);
 //               forwarded keys → gdk_event_put / QWindowSystemInterface queue, printable
 //               ones committed by the module's fallback context → ordered.  Direct: yes
 //   FcitxUnordered D-Bus without KeyEventOrderFix (fcitx5-gtk4: forwardKey is a no-op).
-//   FcitxXim / FcitxWayland / FcitxIBus (fcitx5's IBus emulation): no.
+//   FcitxXim / FcitxWayland ("wayland": zwp_input_method_v1 — KWin, Weston) /
+//   FcitxWaylandV2 ("wayland_v2": input-method-v2 — wlroots) / FcitxIBus (fcitx5's IBus
+//   emulation): no.
 enum class ClientHost {
     Unknown, IBusGtk, IBusGtk4, IBusQt, IBusXim, IBusWayland,
-    FcitxOrdered, FcitxUnordered, FcitxXim, FcitxWayland, FcitxIBus,
+    FcitxOrdered, FcitxUnordered, FcitxXim, FcitxWayland, FcitxIBus, FcitxWaylandV2,
 };
 // IBus client name as sent by the client ("gtk3-im:gnome-terminal-server", "xim", …).
 ClientHost ibusClientHost(const std::string &rawClientName);
 // Fcitx5 InputContext::frontendName() + CapabilityFlag::KeyEventOrderFix.
 ClientHost fcitxClientHost(const std::string &frontendName, bool keyEventOrderFix);
 bool hostSupportsDirect(ClientHost h);
+// [experimental] no_underline = "forward-keys" (docs/NO-UNDERLINE-SPIKE.md): does the
+// compositor deliver the IM's forwarded keys and its commits to the app in the order the IM
+// sent them? IBusWayland: mutter >= 3.38 queues ForwardKeyEvent and CommitText as Clutter
+// events in one queue (MR !1286) and flushes text_input.done before a passed-through key.
+// FcitxWayland (zwp_input_method_v1, KWin): keysym / key / commit_string requests are handled
+// synchronously in request order. Only Chromium-based clients (ozone/wayland dispatches
+// wl_keyboard and text-input on the same thread, synchronously) keep that order up to the
+// page — see isChromiumApp. wlroots (input-method-v2 + virtual keyboard) is unverified.
+bool hostOrdersForwardedKeys(ClientHost h);
 
 // Built-in list of apps where Surrounding mode is unsafe (terminals, LibreOffice,
 // Chromium/Electron, Firefox/Gecko, gnome-shell) → always Preedit unless the user pins
 // "surrounding".
 bool isForcedPreeditApp(const std::string &appId);
+// The Chromium / Electron part of that list (browsers, Electron apps, PWAs "crx_*" /
+// "chrome-*-default"): unreliable delete-surrounding, but BackSpace key events work.
+bool isChromiumApp(const std::string &appId);
 
 // Built-in list of apps that start in English (keys pass through): remote desktop / VM
 // viewers and Wine programs. Any [app_modes] entry for the app overrides it.
@@ -78,6 +92,9 @@ struct AppPolicy {
     // False for forced-preedit apps, and for unknown apps / any app until real
     // surrounding text has been proven for this focus.
     bool allowSurroundingEdits = false;
+    // [experimental] no_underline = "forward-keys": mode is Surrounding, but every delete is
+    // sent as forwarded BackSpace keys (Session::setDeleteWithKeys). Never re-edit / reopen.
+    bool deleteWithKeys = false;
 };
 
 // surroundingProven: the client actually delivered surrounding text for this focus (not

@@ -122,6 +122,14 @@ Rủi ro còn lại: `IBUS_ENABLE_SYNC_MODE=1` (không mặc định) + gõ rấ
 | Fcitx5 Wayland (`wayland_v2`) / Qt, GTK text-input-v3 | **không** | text-input-v3 không có kiểu dáng preedit, client tự vẽ gạch chân |
 | kitty, alacritty, wezterm, foot | tuỳ app | tự vẽ preedit, thường luôn gạch chân |
 
+**Thử nghiệm 10/2026 — Chromium/Electron không gạch chân** (`docs/NO-UNDERLINE-SPIKE.md`): sửa
+dấu bằng BackSpace *forward* rồi `commit` chữ mới (không forward chữ như Direct). mutter ≥ 3.38
+xếp ForwardKeyEvent và CommitText của IM vào cùng hàng đợi Clutter (MR !1286), KWin xử lý
+request của `zwp_input_method_context_v1` theo thứ tự, Chromium xử lý `wl_keyboard` lẫn
+text-input đồng bộ ⇒ trang web thấy keydown BackSpace trước chữ mới. Bật bằng
+`[experimental] no_underline = "forward-keys"` (SETTINGS.md §9); mỗi lần sửa được xác nhận lại
+từ surrounding text, lệch ⇒ về gạch chân. App GTK/Qt không dùng đường này (toolkit đảo thứ tự).
+
 ## 4. Hành vi gõ (port nguyên từ macOS)
 
 - Kiểu gõ: Telex, Simple Telex, bỏ dấu tự do, Gõ nhanh (cc→ch…), kiểu dấu cũ/mới, VNI,

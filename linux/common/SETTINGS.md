@@ -57,6 +57,9 @@ typo_hints = true                   # sửa lỗi gõ sai "tpoi " → tôi
 tone_hints = false                  # thêm dấu cho câu không dấu "toi di hoc." → tôi đi học.
 date_hints = true                   # ngày giờ "hôm nay " → 28/09/2026, "bây giờ " → 21:35
 
+[experimental]
+no_underline = "off"                # "off" | "forward-keys": Chromium/Electron không gạch chân (§9)
+
 [app_modes]
 # key = định danh app (Fcitx5: program; IBus: client name / app-id Wayland / WM_CLASS, chữ thường)
 # value = "preedit" | "surrounding" | "direct" | "off" (off = không gõ tiếng Việt trong app này)
@@ -102,7 +105,8 @@ IBus client `gtk3-im:`/`gtk-im:`, Fcitx5 D-Bus có `KeyEventOrderFix` (bảng đ
 đọc lại chữ (không re-edit, ⌫ không mở lại từ).
 
 **Gạch chân** (`preedit_underline`): chỉ app vẽ đúng attr của IM mới bỏ được gạch chân (GTK/Qt/VTE
-qua module IBus/Fcitx5). Chromium/Electron và app Wayland dùng text-input-v3 (GNOME) luôn tự gạch.
+qua module IBus/Fcitx5). Chromium/Electron và app Wayland dùng text-input-v3 (GNOME) luôn tự gạch (Chromium/Electron trên
+Wayland: thử nghiệm `no_underline = "forward-keys"`, §9).
 
 **Định danh app chung chung** (`isUnknownAppId`): rỗng, `default`, `gnome-shell`,
 `qibusinputcontext`, `xim`, `wayland`, `sdl2_application`, `sdl3_application`, `gtk-im`, chỉ
@@ -211,3 +215,25 @@ Chạy ở đâu: bộ gõ chỉ theo dõi đuôi chữ vừa gõ và xét cổn
 (MathResults, NumberChips, lexicon sửa lỗi, Thêm dấu — mã Swift chung iOS/macOS) ở
 `viettelex-text-tool --serve`: một process con sống lâu, bật ở lần kích hoạt đầu, tự thoát sau
 2 phút rảnh. Thiếu gói `viettelex-text-tools` → không có gợi ý nào.
+
+## 9. Thử nghiệm: không gạch chân ở Chromium/Electron (`[experimental] no_underline`)
+
+`"off"` (mặc định; giá trị lạ cũng là off) hoặc `"forward-keys"`. Chưa có trong app cài đặt —
+sửa tay `config.toml`; áp dụng ngay (inotify). Đánh giá đầy đủ + kế hoạch kiểm thử:
+`docs/NO-UNDERLINE-SPIKE.md`.
+
+- `"forward-keys"`: app họ Chromium (`isChromiumApp`: Chrome/Chromium/Brave/Edge/Vivaldi/Opera/
+  Cốc Cốc…, VS Code, Slack, Discord, Zalo, Obsidian…, PWA `crx_*` / `chrome-*-default`) gõ thẳng
+  không gạch chân; sửa dấu bằng **phím BackSpace do bộ gõ forward** rồi commit chữ mới — không
+  dùng `delete_surrounding_text` (Draft.js/Lexical ở Messenger không theo được). Chỉ khi:
+  host giữ thứ tự phím forward với commit (`hostOrdersForwardedKeys`: IBus trên GNOME Wayland —
+  client `gnome-shell`; Fcitx5 frontend `wayland` trên KWin), app id thật (không phải id chung),
+  surrounding text đã chứng minh trong lần focus này, ô không phải URL / terminal / số / mật
+  khẩu / nhạy cảm, và app không có mục `[app_modes]` (mục đó luôn thắng). Còn lại: như `"off"`.
+- Ở chế độ này không re-edit, ⌫ không mở lại từ (chỉ sửa trong từ đang gõ, gõ tắt, tự khôi
+  phục); vùng chọn ở con trỏ thì không gửi BackSpace.
+- Mỗi lần sửa được **xác nhận** từ chữ app báo trước con trỏ ở các phím sau. Chữ khác điều
+  VietTelex đã gửi (mất / thừa BackSpace, commit đôi…) hoặc quá 1 giây chưa thấy kết quả ⇒ ô đó
+  về gạch chân tới lần focus sau. Không bao giờ chờ / ngủ trong đường phím.
+- Chrome/Electron phải chạy IME Wayland gốc: `--enable-wayland-ime --wayland-text-input-version=3`
+  (KDE cũ: `=1`), không qua `--gtk-version=4`.
