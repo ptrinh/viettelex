@@ -973,6 +973,23 @@ void testWineAppsTypeVietnamese() {
     CHECK(resolveAppPolicy("notepad.exe", s, true).off);
 }
 
+// Regression (user Zorin OS, Wayland, 08/10/2026): Messenger web trong Cốc Cốc lặp chữ ("đợi đợi")
+// và ⌫ sau dấu cách xoá 2 lần — Cốc Cốc không nằm trong nhóm Chromium ⇒ dùng surrounding,
+// mà Chromium báo chữ quanh con trỏ không tin được. Mọi trình duyệt Chromium + PWA ⇒ preedit.
+void testChromiumFamilyForcedPreedit() {
+    Settings s;
+    for (const char *id : {"coccoc", "coccoc.desktop", "Coccoc", "coccoc-browser", "yandex-browser",
+                           "thorium-browser", "ungoogled-chromium", "microsoft-edge-beta",
+                           "crx_bfgdeeglghbfcmhpjlmaajeolejfojjl", "chrome-abcdefghijklmnop-Default",
+                           "brave-abcdefghijklmnop-Default", "msedge-abcdefghijklmnop-Default"}) {
+        CHECK(isForcedPreeditApp(id));
+        AppPolicy p = resolveAppPolicy(id, s, true);
+        CHECK(!p.allowSurroundingEdits);
+    }
+    CHECK(!isForcedPreeditApp("chrome-remote-desktop-host"));
+    CHECK(!isForcedPreeditApp("gedit"));
+}
+
 void testMoreForcedPreedit() {
     for (const char *id : {"krunner", "org.kde.krunner", "plasmashell", "jetbrains-idea", "jetbrains-pycharm",
                            "idea", "java", "wps", "wpp", "et", "wpsoffice", "desktopeditors", "steam"}) {
@@ -1744,6 +1761,7 @@ int main() {
     testDefaultOffApps();
     testWineAppsTypeVietnamese();
     testMoreForcedPreedit();
+    testChromiumFamilyForcedPreedit();
     testCommitBeforeHidingPreedit();
     testDeleteOnlyEditSendsEmptyCommit();
     testAppStateStoreAndWatcher();

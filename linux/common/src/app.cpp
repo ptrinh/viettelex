@@ -90,6 +90,12 @@ bool isForcedPreeditApp(const std::string &appId) {
         "microsoft-edge", "microsoft-edge-stable", "vivaldi", "vivaldi-stable", "opera", "code",
         "code-oss", "code-insiders", "vscodium", "codium", "cursor",
         "electron", "slack", "discord", "signal-desktop", "obsidian", "zalo", "teams-for-linux",
+        // more Chromium-based browsers (Cốc Cốc: Messenger trên web lặp chữ / ⌫ xoá 2 lần khi
+        // dùng surrounding — user Zorin OS Wayland, 08/10/2026)
+        "coccoc", "coccoc-browser", "coccoc-browser-stable", "yandex-browser", "yandex-browser-stable",
+        "thorium", "thorium-browser", "ungoogled-chromium", "google-chrome-unstable",
+        "microsoft-edge-beta", "microsoft-edge-dev", "opera-beta", "opera-developer",
+        "vivaldi-snapshot", "brave-browser-beta", "brave-browser-nightly", "chromium-freeworld",
         // Firefox / Gecko (URL bar selects + autocompletes; surrounding text lags)
         "firefox", "firefox-esr", "librewolf", "zen", "zen-browser", "thunderbird",
         // GNOME Wayland: one shared text-input-v3 context for every app; the overview search
@@ -101,6 +107,11 @@ bool isForcedPreeditApp(const std::string &appId) {
     if (names.count(id) || names.count(shortName(id))) return true;
     if (id.rfind("libreoffice", 0) == 0) return true;
     if (startsWith(id, "jetbrains-")) return true;
+    // Chromium web apps / PWA (Messenger cài từ trình duyệt): WM_CLASS "crx_<id>",
+    // "chrome-<id>-default", "brave-<id>-default", "msedge-<id>-default"; mọi bản Cốc Cốc.
+    if (startsWith(id, "crx_") || startsWith(id, "coccoc")) return true;
+    for (const char *p : {"chrome-", "brave-", "msedge-", "vivaldi-", "opera-"})
+        if (startsWith(id, p) && endsWith(id, "-default")) return true;
     // Wine: app Windows chạy NGAY trên máy (không có bộ gõ nào khác như remote desktop/VM) —
     // nhận chữ qua XIM, sửa chữ quanh con trỏ không tin được ⇒ gạch chân. Trước 1.0.5 nằm
     // trong danh sách mặc định tắt ⇒ Word qua Wine gõ ra "he1 lo6" (user Zorin OS 08/10/2026).

@@ -77,7 +77,8 @@ focus này (Fcitx5: có cờ SurroundingText và `surroundingText().isValid()`; 
 sự gửi `SetSurroundingText` có chữ — chỉ cờ capability thì chưa đủ), hoặc app nằm trong danh
 sách ép preedit dựng sẵn (`isForcedPreeditApp` trong `app.cpp`): terminal (gnome-terminal, kgx,
 ptyxis, konsole, kitty, alacritty, wezterm, foot, xterm, tilix, terminator, VTE…), LibreOffice,
-Chromium/Electron/VS Code, Firefox/LibreWolf/Zen/Thunderbird, gnome-shell (+ overview),
+Chromium/Electron/VS Code (mọi trình duyệt Chromium: Cốc Cốc, Yandex, Thorium…, và web app/PWA
+`crx_*` / `chrome-*-default`), Firefox/LibreWolf/Zen/Thunderbird, Wine, gnome-shell (+ overview),
 krunner/plasmashell, JetBrains/Java, WPS/OnlyOffice, Steam. Ghi đè tay trong `[app_modes]`
 thắng danh sách dựng sẵn (trừ khi surrounding text chưa được chứng minh). Khi không được sửa
 chữ quanh con trỏ, sửa dấu từ đã gõ (re-edit) và ⌫ mở lại từ cũng tắt; có vùng chọn (thanh

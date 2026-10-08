@@ -1,3 +1,14 @@
+viettelex (1.0.6) UNRELEASED; urgency=medium
+
+  * Sửa lặp chữ / Backspace xoá 2 lần trên web (Messenger...) trong Cốc Cốc
+    và các trình duyệt Chromium khác (Yandex, Thorium...), kể cả web app.
+  * ---
+  * Fix duplicated words / Backspace deleting twice on the web (Messenger...)
+    in Cốc Cốc and other Chromium browsers (Yandex, Thorium...), including
+    installed web apps.
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Thu, 08 Oct 2026 13:30:00 +0000
+
 viettelex (1.0.5) UNRELEASED; urgency=medium
 
   * Gõ tiếng Việt được trong app Windows chạy qua Wine (Word, Excel...):
