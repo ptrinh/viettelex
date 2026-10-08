@@ -12,7 +12,7 @@ Khoá GPG, tài khoản Launchpad, tên/email người upload **không bao giờ
 
 ```sh
 export DEBFULLNAME="…" DEBEMAIL="…"       # khớp UID của khoá GPG đã đăng ký
-for s in jammy noble; do                   # 22.04, 24.04 (thêm series 26.04 khi có)
+for s in jammy noble resolute; do          # 22.04, 24.04, 26.04 (Launchpad: chỉ Ubuntu)
   linux/packaging/build-deb.sh --source --series "$s" --out /tmp/ppa-$s
   debsign /tmp/ppa-$s/viettelex_*_source.changes
   dput ppa:<launchpad-user>/viettelex /tmp/ppa-$s/viettelex_*_source.changes

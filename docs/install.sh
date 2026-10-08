@@ -1,5 +1,5 @@
 #!/bin/bash
-# VietTelex — cài / cập nhật / gỡ bằng một lệnh (Linux Ubuntu & macOS).
+# VietTelex — cài / cập nhật / gỡ bằng một lệnh (Linux Ubuntu/Debian & macOS).
 #
 #   curl -fsSL https://viettelex.com/install.sh | bash
 #   curl -fsSL https://viettelex.com/install.sh | bash -s -- --ibus --yes
@@ -11,6 +11,8 @@
 #   --uninstall         gỡ VietTelex (Linux: gói + kho APT + khoá; macOS: app)
 #   --dry-run           chỉ in ra các bước sẽ làm (macOS: vẫn tải .pkg vào thư mục tạm và
 #                       kiểm chữ ký, nhưng KHÔNG cài)
+#   --series S          (Linux) ép series kho APT (jammy|noble|resolute|bookworm|trixie) cho
+#                       bản phái sinh không tự nhận ra; --print-series in series tự nhận rồi thoát
 #   --help
 #
 # An toàn: chỉ tải từ github.com / ptrinh.github.io / viettelex.com qua HTTPS; kho APT được
@@ -34,6 +36,8 @@ ASSUME_YES=0
 UNINSTALL=0
 DRY=0
 FORCE_PKG=0
+SERIES_OVERRIDE=""
+PRINT_SERIES=0
 TMPD=""
 
 say()  { printf '\033[1m==>\033[0m %s\n' "$*"; }
@@ -46,13 +50,14 @@ trap cleanup EXIT
 
 usage() {
   cat <<'EOT'
-VietTelex — cài / cập nhật / gỡ (Linux Ubuntu & macOS)
+VietTelex — cài / cập nhật / gỡ (Linux Ubuntu/Debian & macOS)
   curl -fsSL https://viettelex.com/install.sh | bash [-s -- TUỲ CHỌN]
   --fcitx5 | --ibus   (Linux) chọn bộ khung gõ (mặc định Fcitx5)
   --yes, -y           không hỏi
   --uninstall         gỡ VietTelex
   --pkg               (macOS) dùng .pkg thay vì Homebrew
   --dry-run           chỉ in các bước sẽ làm
+  --series S          (Linux) ép series: jammy noble resolute bookworm trixie
 EOT
 }
 
@@ -92,19 +97,37 @@ ask() {  # ask "câu hỏi" default(y|n)
 
 # ============================== Linux ================================================
 
+# Series có trên kho APT (dists/<series>). Thêm series mới: build-all.sh + đây + APT.md.
+SUPPORTED_SERIES="jammy noble resolute bookworm trixie"
+SUPPORTED_HUMAN="Ubuntu 22.04/24.04/26.04, Debian 12/13 và bản dựa trên chúng"
+
+# Đặt SERIES (dists/<series> của kho) + OS_NAME từ os-release.
+#  - Ubuntu và bản dựa trên Ubuntu (Mint, Pop!_OS, Zorin, elementary, KDE neon…): UBUNTU_CODENAME.
+#  - Debian và bản dựa trên Debian (LMDE, MX, Raspberry Pi OS 64-bit, Kali…): DEBIAN_CODENAME
+#    (LMDE) hoặc VERSION_CODENAME; Kali rolling ≈ Debian testing → dùng gói trixie (thử nghiệm).
+#  - --series S ghi đè (bản phái sinh lạ: chọn series gần nhất, tự chịu rủi ro).
 linux_series() {
-  [ -r /etc/os-release ] || die "không đọc được /etc/os-release."
-  # shellcheck disable=SC1091
-  . /etc/os-release
-  local like=" ${ID:-} ${ID_LIKE:-} "
+  local osr=${VT_OS_RELEASE:-/etc/os-release}
+  [ -r "$osr" ] || die "không đọc được $osr."
+  local ID="" ID_LIKE="" UBUNTU_CODENAME="" DEBIAN_CODENAME="" VERSION_CODENAME="" PRETTY_NAME=""
+  # shellcheck disable=SC1090
+  . "$osr"
+  OS_NAME=${PRETTY_NAME:-Linux}
+  local like=" ${ID:-} ${ID_LIKE:-} " guess=""
   case "$like" in
-    *" ubuntu "*) ;;
-    *" debian "*) die "VietTelex hiện chỉ có gói cho Ubuntu 22.04/24.04 (và bản dựa trên Ubuntu). Debian: chưa hỗ trợ." ;;
-    *) die "hệ điều hành chưa được hỗ trợ (${PRETTY_NAME:-không rõ}). Cần Ubuntu 22.04/24.04 hoặc bản dựa trên Ubuntu." ;;
+    *" ubuntu "*) guess=${UBUNTU_CODENAME:-$VERSION_CODENAME} ;;
+    *" debian "*|*" raspbian "*)
+      guess=${DEBIAN_CODENAME:-$VERSION_CODENAME}
+      case "$guess" in
+        kali-rolling) guess=trixie; warn "Kali rolling: dùng gói Debian 13 (trixie) — chưa kiểm thử chính thức." ;;
+      esac ;;
   esac
-  SERIES=${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}
-  [ -n "$SERIES" ] || die "không xác định được phiên bản Ubuntu."
-  OS_NAME=${PRETTY_NAME:-Ubuntu}
+  SERIES=${SERIES_OVERRIDE:-$guess}
+  [ -n "$SERIES" ] || die "hệ điều hành chưa được hỗ trợ ($OS_NAME). Cần $SUPPORTED_HUMAN (hoặc --series <tên>)."
+  case " $SUPPORTED_SERIES " in
+    *" $SERIES "*) ;;
+    *) die "chưa có bản cho $OS_NAME ($SERIES). Hỗ trợ: $SUPPORTED_HUMAN ($SUPPORTED_SERIES). Xem https://viettelex.com/download/?os=linux" ;;
+  esac
 }
 
 pkg_installed() { dpkg-query -W -f='${db:Status-Abbrev}' "$1" 2>/dev/null | grep -q '^.i'; }
@@ -127,7 +150,7 @@ choose_frontend() {
 }
 
 linux_install() {
-  command -v apt-get >/dev/null 2>&1 || die "cần apt (Ubuntu)."
+  command -v apt-get >/dev/null 2>&1 || die "cần apt (Ubuntu/Debian). Arch Linux: AUR viettelex-bin."
   command -v curl >/dev/null 2>&1 || die "cần curl: sudo apt install curl"
   linux_series
   ARCH=$(dpkg --print-architecture)
@@ -136,7 +159,7 @@ linux_install() {
 
   say "Kiểm tra kho VietTelex cho $OS_NAME ($SERIES, $ARCH)"
   if ! fetch "$APT_BASE/dists/$SERIES/InRelease" "$TMPD/InRelease" 2>/dev/null; then
-    die "chưa có bản cho $OS_NAME ($SERIES). Hỗ trợ: Ubuntu 22.04 (jammy), 24.04 (noble). Xem https://viettelex.com/download/?os=linux"
+    die "kho chưa có bản cho $OS_NAME ($SERIES) hoặc mạng lỗi. Xem https://viettelex.com/download/?os=linux"
   fi
   fetch "$APT_BASE/viettelex-archive-keyring.gpg" "$TMPD/viettelex.gpg"
   # Khoá tải về phải ký đúng InRelease bằng khoá có vân tay ghim sẵn.
@@ -308,11 +331,14 @@ main() {
       --uninstall) UNINSTALL=1 ;;
       --dry-run) DRY=1 ;;
       --pkg) FORCE_PKG=1 ;;
+      --series) [ $# -ge 2 ] || die "--series cần tên (vd bookworm)"; SERIES_OVERRIDE=$2; shift ;;
+      --print-series) PRINT_SERIES=1 ;;
       --help|-h) usage; exit 0 ;;
       *) die "tuỳ chọn lạ: $1 (xem --help)" ;;
     esac
     shift
   done
+  if [ "$PRINT_SERIES" = 1 ]; then linux_series; echo "$SERIES"; exit 0; fi
   [ "$DRY" = 1 ] && say "DRY-RUN: chỉ in các bước, không thay đổi hệ thống."
   case "$(uname -s)" in
     Linux)  if [ "$UNINSTALL" = 1 ]; then linux_uninstall; else linux_install; fi ;;

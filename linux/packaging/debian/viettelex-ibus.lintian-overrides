@@ -1,0 +1,3 @@
+# Engine IBus do ibus-daemon khởi chạy (component XML), không phải lệnh người dùng — lintian của
+# Debian 12 vẫn đòi man page cho /usr/libexec (Ubuntu/Debian 13 không đòi).
+no-manual-page [usr/libexec/ibus-engine-viettelex]

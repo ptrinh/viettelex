@@ -88,6 +88,10 @@ class EnvTests(unittest.TestCase):
         self.assertEqual(updater.detect_series({}, mint), "noble")
         self.assertEqual(updater.detect_series({"viettelex-ibus": "1.0.3~jammy1"}, mint), "jammy")
         self.assertEqual(updater.detect_series({}, {"VERSION_CODENAME": "noble"}), "noble")
+        lmde = {"ID": "linuxmint", "VERSION_CODENAME": "faye", "DEBIAN_CODENAME": "bookworm"}
+        self.assertEqual(updater.detect_series({}, lmde), "bookworm")
+        self.assertEqual(updater.detect_series({"viettelex-fcitx5": "1.0.7~trixie1"}, lmde), "trixie")
+        self.assertEqual(updater.series_from_version("1.0.7~resolute1"), "resolute")
 
     def test_dpkg_query(self):
         out = ("libviettelex-core 1.0.3~noble1 ii \nviettelex-ibus 1.0.2~noble1 rc \n"

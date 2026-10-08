@@ -8,12 +8,14 @@
     copy: "Copy", copied: "Copied ✓", auto: "Picked for your device: %s.",
     latest: "latest", none: "Could not load the list — see GitHub Releases.",
     names: { ios: "iPhone & iPad", android: "Android", macos: "macOS", windows: "Windows", linux: "Linux", web: "Web" },
-    series: { jammy: "Ubuntu 22.04 (jammy)", noble: "Ubuntu 24.04 (noble)" }
+    series: { jammy: "Ubuntu 22.04 (jammy)", noble: "Ubuntu 24.04 (noble)", resolute: "Ubuntu 26.04 (resolute)",
+      bookworm: "Debian 12 (bookworm)", trixie: "Debian 13 (trixie)" }
   } : {
     copy: "Chép", copied: "Đã chép ✓", auto: "Tự chọn theo máy bạn: %s.",
     latest: "mới nhất", none: "Không tải được danh sách — xem GitHub Releases.",
     names: { ios: "iPhone & iPad", android: "Android", macos: "macOS", windows: "Windows", linux: "Linux", web: "Web" },
-    series: { jammy: "Ubuntu 22.04 (jammy)", noble: "Ubuntu 24.04 (noble)" }
+    series: { jammy: "Ubuntu 22.04 (jammy)", noble: "Ubuntu 24.04 (noble)", resolute: "Ubuntu 26.04 (resolute)",
+      bookworm: "Debian 12 (bookworm)", trixie: "Debian 13 (trixie)" }
   };
   var OS = ["ios", "android", "macos", "windows", "linux", "web"];
   var ALIAS = { mac: "macos", osx: "macos", darwin: "macos", win: "windows", win32: "windows",

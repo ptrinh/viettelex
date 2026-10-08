@@ -1,0 +1,93 @@
+name: Linux
+
+# Linux IME (Fcitx5 + IBus + settings app): build the .deb packages exactly like a release
+# does — linux/packaging/build-all.sh in the swift:<series> Docker image (Dockerfile.build),
+# which runs dpkg-buildpackage → dh_auto_test (every ctest target + the settings unit
+# tests), then lintian (warnings fail) and an install smoke test in a clean distro image.
+# CI == release: the same script, the same image, no separate "CI build".
+#
+# No build cache on purpose: the only heavy input is the swift:<series> image (pulled from
+# Docker Hub in ~1 min on hosted runners) and a cached SwiftPM/CMake tree would let CI pass
+# on state a clean release build would not have. The fast job below gives feedback in
+# seconds without Docker.
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+    paths: &linux_paths
+      - "linux/**"
+      - "TelexCore/**"
+      # Shared iOS sources/data the text tool symlinks to (tar list in build-deb.sh).
+      - "iOS/Keyboard/*.swift"
+      - "iOS/Keyboard/Resources/*.bin"
+      - "iOS/KeyboardTests/Fixtures/**"
+      - "android/telexcore/src/test/resources/golden.tsv.gz"
+      - "LICENSE"
+      - "sample-shortcuts.yml"
+      - "typing-modes.yml"
+      - "docs/install.sh"
+      - "docs/stable.json"
+      - ".github/workflows/linux.yml"
+      - ".github/workflows/linux-release.yml"
+  pull_request:
+    branches: [main]
+    paths: *linux_paths
+  workflow_dispatch:
+
+concurrency:
+  group: linux-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  quick:
+    name: Scripts, settings tests, workflow lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Settings app unit tests (no GTK needed)
+        run: make -C linux/settings check
+      - name: install.sh distro → series table
+        run: linux/packaging/test-install-detect.sh
+      - name: AUR PKGBUILD matches stable.json
+        run: python3 linux/packaging/aur/bump.py --check
+      - name: shellcheck
+        run: |
+          shellcheck --severity=warning docs/install.sh linux/packaging/*.sh \
+            linux/packaging/docker/*.sh linux/packaging/aur/*.sh
+      - name: actionlint
+        # Docker image pinned by digest (rhysd/actionlint 1.7.12); runs shellcheck on run: blocks too.
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
+
+  build:
+    name: Build + test + smoke (noble ${{ matrix.arch }})
+    needs: quick
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm  # free hosted arm64 runner for public repos
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: build-all.sh --series noble (build, ctest, settings tests, lintian, smoke)
+        run: linux/packaging/build-all.sh --series noble --arch "${{ matrix.arch }}"
+      - name: Upload .deb (for testing a PR build; not a release)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: viettelex-ci-noble-${{ matrix.arch }}
+          path: linux/dist/noble/*.deb
+          retention-days: 7
+          if-no-files-found: error

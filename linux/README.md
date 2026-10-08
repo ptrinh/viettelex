@@ -1,4 +1,4 @@
-# VietTelex cho Linux (Ubuntu 22.04 / 24.04 / 26.04)
+# VietTelex cho Linux (Ubuntu 22.04 / 24.04 / 26.04, Debian 12 / 13, Arch)
 
 Bộ gõ tiếng Việt VietTelex dạng input method chuẩn: **Fcitx5** (khuyên dùng) hoặc **IBus**
 (mặc định Ubuntu/GNOME). Cùng engine với bản macOS (`TelexCore`), gõ y hệt. Spec:
@@ -6,7 +6,9 @@ Bộ gõ tiếng Việt VietTelex dạng input method chuẩn: **Fcitx5** (khuy�
 
 ## Cài đặt (tiếng Việt)
 
-Ubuntu 22.04 (jammy) / 24.04 (noble), amd64 + arm64.
+Ubuntu 22.04 (jammy) / 24.04 (noble) / 26.04 (resolute), Debian 12 (bookworm) / 13 (trixie)
+và bản dựa trên chúng (Mint, Pop!_OS, Zorin, elementary, LMDE, MX…), amd64 + arm64.
+Arch Linux: gói AUR `viettelex-bin` (xem [packaging/aur/README.md](packaging/aur/README.md)).
 
 **Nhanh nhất — một lệnh** (thêm kho APT đã ký, cài, bật Fcitx5; chạy lại = cập nhật; `--ibus`
 để giữ IBus, `--uninstall` để gỡ):
@@ -24,7 +26,7 @@ curl -fsSL https://ptrinh.github.io/viettelex-apt/viettelex-archive-keyring.gpg 
 sudo tee /etc/apt/sources.list.d/viettelex.sources >/dev/null <<EOF
 Types: deb
 URIs: https://ptrinh.github.io/viettelex-apt/
-Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-${DEBIAN_CODENAME:-$VERSION_CODENAME}}")
 Components: main
 Signed-By: /etc/apt/keyrings/viettelex.gpg
 EOF
@@ -34,7 +36,8 @@ sudo apt install viettelex               # hoặc giữ IBus: sudo apt install v
 ```
 
 **Cách 2 — tải .deb từ [GitHub Releases](https://github.com/ptrinh/viettelex/releases):**
-chọn đúng series (`~jammy1` = 22.04, `~noble1` = 24.04) và kiến trúc (`amd64` = Intel/AMD,
+chọn đúng series (`~jammy1` = Ubuntu 22.04, `~noble1` = 24.04, `~resolute1` = 26.04,
+`~bookworm1` = Debian 12, `~trixie1` = Debian 13) và kiến trúc (`amd64` = Intel/AMD,
 `arm64` = ARM), rồi cài bằng một lệnh (cách này không tự cập nhật):
 
 ```sh
@@ -56,14 +59,16 @@ Chuyển Việt/Anh: `Ctrl+Space` (đổi trong Cài đặt → Tuỳ chỉnh). 
 
 ## Install (English)
 
-Ubuntu 22.04 / 24.04, amd64 and arm64.
+Ubuntu 22.04 / 24.04 / 26.04, Debian 12 / 13 and distributions based on them, amd64 and
+arm64. Arch Linux: AUR package `viettelex-bin`.
 
 1. **APT repository** (recommended; updates arrive through `apt upgrade`). Run the commands
    above: they save the signing key to `/etc/apt/keyrings/viettelex.gpg` and add a deb822
    `viettelex.sources` file with base URL `https://ptrinh.github.io/viettelex-apt/`. Then run
    `sudo apt install viettelex-fcitx5`, or `viettelex-ibus` for IBus.
-2. **Single download** from GitHub Releases. Pick your series (`~jammy1` = 22.04,
-   `~noble1` = 24.04) and architecture, then run `sudo apt install ./libviettelex-core_*.deb
+2. **Single download** from GitHub Releases. Pick your series (`~jammy1` = Ubuntu 22.04,
+   `~noble1` = 24.04, `~resolute1` = 26.04, `~bookworm1` = Debian 12, `~trixie1` = Debian 13)
+   and architecture, then run `sudo apt install ./libviettelex-core_*.deb
    ./viettelex-fcitx5_*.deb ./viettelex-text-tools_*.deb ./viettelex-settings_*_all.deb`.
    This route does not auto-update.
 

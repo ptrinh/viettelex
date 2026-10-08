@@ -1,0 +1,22 @@
+_viettelex_howto() {
+  cat <<'EOF'
+==> VietTelex: enable the input method
+    Fcitx5 (recommended):
+      1. Make Fcitx5 your input method (e.g. GTK_IM_MODULE/QT_IM_MODULE/XMODIFIERS=@im=fcitx
+         in /etc/environment, or KDE: System Settings > Keyboard > Virtual Keyboard > Fcitx 5),
+         then log out and back in once.
+      2. fcitx5-configtool > add "Vietnamese (VietTelex)"   (or run: fcitx5 -r)
+    IBus (GNOME default): install 'ibus', run 'ibus restart', then
+      Settings > Keyboard > Input Sources > + > Vietnamese > VietTelex.
+    Settings app: viettelex-settings  (guided setup: viettelex-settings --onboarding)
+    Switch Vietnamese/English: Ctrl+Space.
+EOF
+}
+
+post_install() {
+  _viettelex_howto
+}
+
+post_upgrade() {
+  echo "==> VietTelex updated: restart the input method (fcitx5 -r, or ibus restart)."
+}

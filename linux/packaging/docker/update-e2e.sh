@@ -9,6 +9,7 @@ export DEBIAN_FRONTEND=noninteractive
 . /etc/os-release; S=$VERSION_CODENAME; A=$(dpkg --print-architecture)
 FAILS=0; fail(){ echo "FAIL: $*"; FAILS=$((FAILS+1)); }
 PK="libviettelex-core viettelex-fcitx5 viettelex-ibus viettelex-text-tools viettelex-settings viettelex"
+# shellcheck disable=SC2046  # danh sách gói: tách từ là chủ ý
 purge(){ dpkg --purge $(dpkg-query -W -f="\${Package} \${db:Status-Abbrev}\\n" $PK 2>/dev/null | awk "\$2 !~ /^u/ {print \$1}") >/dev/null; }
 vers(){ dpkg-query -W -f='${Package}=${Version}(${db:Status-Abbrev}) ' $PK 2>/dev/null; echo; }
 isver(){ v=$(dpkg-query -W -f='${Version}' $1 2>/dev/null); [ "$v" = "$2~${S}1" ] || fail "$1=$v (want $2)"; }
@@ -56,7 +57,7 @@ install -Dm755 /src/linux/settings/viettelex-update /usr/libexec/viettelex/viett
 apt-get install -y -qq /rel/libviettelex-core_$OLD.${S}1_$A.deb /rel/viettelex-ibus_$OLD.${S}1_$A.deb /rel/viettelex-settings_$OLD.${S}1_all.deb >/tmp/b.log 2>&1 || { tail /tmp/b.log; fail "install old debs"; }
 install -Dm755 /src/linux/settings/viettelex-update /usr/libexec/viettelex/viettelex-update
 vers
-mkdir -p /srv/gh; for f in /fake/dist/*/*.deb; do cp "$f" /srv/gh/$(basename "$f" | tr '~' '.'); done
+mkdir -p /srv/gh; for f in /fake/dist/*/*.deb; do cp "$f" "/srv/gh/$(basename "$f" | tr '~' '.')"; done
 cp -r /srv/gh /srv/bad; echo junk >> /srv/bad/viettelex-ibus_$NEW.${S}1_$A.deb
 (cd /srv && python3 -m http.server 8000 --bind 127.0.0.1 >/dev/null 2>&1 &) ; sleep 1
 echo "-- SHA256 sai"
