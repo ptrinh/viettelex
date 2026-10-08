@@ -271,6 +271,19 @@ final class TelexInputController: IMKInputController {
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
         guard let event = event else { return false }
 
+        // Stall breaker (#118): handle() runs on MAIN, the one queue every app's keys
+        // share, and calls back into the client over synchronous XPC that has no
+        // timeout we can set. A client that made recent keys stall is passthrough for
+        // a cooldown — return false at once, never touch it — so its slowness cannot
+        // queue every other app's keys behind it. Otherwise: time this key.
+        let stallID = AppState.shared.currentBundleID ?? FrontmostApp.shared.bundleID
+        if ClientStallBreaker.shared.isDegraded(stallID) {
+            if !engine.isEmpty { dropComposition(cause: "client-stall") }
+            return false
+        }
+        let stallT0 = DispatchTime.now().uptimeNanoseconds
+        defer { ClientStallBreaker.shared.noteKeyHandled(stallID, path: .imk, startNs: stallT0) }
+
         // A ⌘/⌃/⌥ modifier just went DOWN: end any composition NOW, one event cycle
         // BEFORE the shortcut's letter arrives. Committing inside the same cycle as
         // the combo (the old approach) lost the first press — the app swallows a key

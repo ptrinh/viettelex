@@ -2505,7 +2505,14 @@ final class TerminalTapController {
             callback: { _, type, event, refcon in
                 guard let refcon else { return Unmanaged.passUnretained(event) }
                 let me = Unmanaged<TerminalTapController>.fromOpaque(refcon).takeUnretainedValue()
-                return me.handle(type: type, event: event)
+                // Stall breaker (#118): time every keyDown; a slow one is charged to the
+                // frontmost app (id looked up ONLY when slow — two clock reads otherwise).
+                let t0 = DispatchTime.now().uptimeNanoseconds
+                let result = me.handle(type: type, event: event)
+                if type == .keyDown {
+                    ClientStallBreaker.shared.noteKeyHandled(FrontmostApp.shared.bundleID, path: .tap, startNs: t0)
+                }
+                return result
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
@@ -2720,6 +2727,11 @@ final class TerminalTapController {
         // path), so right after the toggle it can still say "trusted" and re-arm the
         // fight. Same rule as the watchdog: revoke-critical paths never read the cache.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            // macOS measured our callback too slow: charge the frontmost app (#118) —
+            // repeated strikes inside the window make its keys pass through untouched.
+            if type == .tapDisabledByTimeout {
+                ClientStallBreaker.shared.noteTapTimeout(FrontmostApp.shared.bundleID)
+            }
             // GRANT-REMOVAL guard (field bug 2026-07-22): when the user REMOVES the
             // Accessibility entry (−, not a toggle), AXIsProcessTrusted() keeps
             // returning a stale TRUE — so the old code re-enabled, the OS disabled
@@ -2931,6 +2943,11 @@ final class TerminalTapController {
         //  - Terminals (fallbackApps) → Backspace+retype.
         //  - Anything else → the IMKit in-place path handles it (pass through).
         let id = FrontmostApp.shared.bundleID
+        // Stall breaker (#118): an app that made recent keys stall is passthrough for a
+        // cooldown — raw key, no AX, no synthetic burst, nothing that can wait on it.
+        if ClientStallBreaker.shared.isDegraded(id) {
+            engine.reset(); shortcutTail.reset(); return pass
+        }
         // Spotlight is IN-PLACE by default (builtInInPlaceApps) — the tap engages
         // only for an explicit tap-family manual pick. Manual pin consulted FIRST:
         // isVisible kicks a CGWindowList background scan every 200ms while typing,

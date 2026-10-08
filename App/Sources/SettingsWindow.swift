@@ -1201,6 +1201,9 @@ enum DebugHeader {
             // prefix is exactly the kind of "settings khác" one tester could have that
             // reproduces nothing on a clean install (2026-08-05 field discussion).
             "custom shortcuts: \(s.shortcuts.count)",
+            // Recorded ALWAYS (not only with debug logging on): a key that took >250ms
+            // and which app it was charged to — the evidence #118 lacked.
+            ClientStallBreaker.shared.reportLine(),
         ]
     }
 }
