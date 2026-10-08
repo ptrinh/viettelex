@@ -31,6 +31,10 @@ public:
     virtual void deleteBeforeCursor(int nchars) = 0;
     // Text before the caret (UTF-8), when the client reports surrounding text.
     virtual bool textBeforeCursor(std::string &out) { (void)out; return false; }
+    // Only the last `maxChars` characters of textBeforeCursor (fewer at the start of the
+    // text). Asked before every in-place edit, so frontends override it to copy just that
+    // tail instead of the whole paragraph; the default trims textBeforeCursor.
+    virtual bool textBeforeCursorTail(size_t maxChars, std::string &out);
     // The client has a selection (or cannot tell): deleting "before the caret" would eat
     // the selection instead (URL bars select the whole URL / the autocompleted tail).
     virtual bool hasSelection() { return false; }
@@ -73,7 +77,15 @@ public:
     void setPassthrough(bool on, InputContext &ic);
     // AppPolicy.allowSurroundingEdits: may re-edit / ⌫ reopen read back and delete text
     // before the caret? False for terminals, generic app ids and unproven surrounding.
-    void setSurroundingEdits(bool on) { surroundingEdits_ = on; }
+    void setSurroundingEdits(bool on) {
+        requestedEdits_ = on;
+        surroundingEdits_ = on && !distrusted_;
+    }
+    // The host's text before the caret contradicted what this Session put there (edited
+    // under us, duplicated commits, NFD normalisation…): until the next focusIn() no edit
+    // reaches back into the text and Surrounding words are composed as preedit instead,
+    // whatever the frontend's policy asks. Never persisted.
+    bool surroundingDistrusted() const { return distrusted_; }
     void setVietnamese(bool on, InputContext &ic);
     bool vietnamese() const { return vietnamese_; }
     // Called with the new state whenever the toggle hotkey flips it.
@@ -94,7 +106,8 @@ public:
     // commitPreedit=false when the framework commits the preedit itself (IBus
     // PREEDIT_COMMIT mode); the state is dropped either way.
     void finish(InputContext &ic, bool commitPreedit = true);
-    // New field/app: forget the previous word's English context.
+    // New field/app: forget the previous word's English context (and a distrusted
+    // surrounding, see surroundingDistrusted()).
     void focusIn();
 
     bool composing() const;
@@ -125,12 +138,19 @@ private:
     bool isWordKey(uint32_t ch) const;
     // ic.selectionAtCaret(), asked at most once per key event.
     bool selectionAtCaret(InputContext &ic);
+    // Verify-before-delete (Surrounding in-place edits): may the Session delete `expected`,
+    // the text it put right before the caret? Mismatch → distrust() and false.
+    bool inPlaceAllowed(InputContext &ic, const std::string &expected);
+    void distrust();
     int selectionMemo_ = -1;  // -1 = not asked during this key event
     std::string composed() const;
     std::string raw() const;
 
     vt_engine *e_;
     DisplayMode mode_ = DisplayMode::Preedit;
+    DisplayMode requestedMode_ = DisplayMode::Preedit;  // what the frontend's policy asked
+    bool requestedEdits_ = true;
+    bool distrusted_ = false;
     DisplayMode pendingMode_ = DisplayMode::Preedit;
     bool hasPendingMode_ = false;
     void applyPendingMode();
@@ -147,6 +167,7 @@ private:
     bool gluedToDigit_ = false;
     bool caretMoved_ = true;           // caret may sit after an existing word (re-edit)
     bool lastWasBoundaryChar_ = false; // previous key typed one boundary char (reopen)
+    char lastBoundary_ = 0;            // …that char (printable ASCII)
     uint32_t hotkeySym_ = 0, hotkeyMods_ = 0;
     bool hotkeyValid_ = false;
     uint32_t addTonesSym_ = 0, addTonesMods_ = 0;

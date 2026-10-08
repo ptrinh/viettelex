@@ -213,7 +213,7 @@ Phép tính, chip số dạng tiền, sửa lỗi gõ sai, thêm dấu cho cụm
 | Mật khẩu `sudo` trong terminal | Không phát hiện được ô mật khẩu → hướng dẫn chuyển EN |
 | Flatpak/Snap app | Dùng IBus/Fcitx portal sẵn có; ghi chú: Snap Firefox cần `ibus` portal |
 | Terminal / vim / tmux | Direct ở host đúng thứ tự (§3.1), còn lại Preedit; Esc kết thúc từ để vim không mất chữ |
-| Nhiều bộ gõ Việt cùng bật (ibus-unikey, bamboo) | Không can thiệp; hướng dẫn gỡ nếu bị gõ đúp |
+| Nhiều bộ gõ Việt cùng bật (ibus-unikey, bamboo, fcitx5-lotus) | Không can thiệp; hướng dẫn gỡ nếu bị gõ đúp; Lotus chế độ uinput (server `fcitx5-lotus-server@<user>` / thiết bị `Lotus-Uinput-Server`) có cảnh báo riêng — BackSpace thật của nó có thể xoá thừa chữ khi đổi bộ gõ giữa từ |
 | Xung đột phím tắt GNOME | Không dùng Super+Space; kiểm tra trùng khi đặt phím |
 | Remote desktop / VM | Giống macOS: có sẵn trong danh sách mặc định tắt tiếng Việt (core); khuyên bật bộ gõ ở máy bị điều khiển |
 | Wine | App chạy tại máy: gõ tiếng Việt, ép gạch chân (XIM) — từ 1.0.5 |

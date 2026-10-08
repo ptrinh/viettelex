@@ -63,7 +63,16 @@ struct Mock : InputContext {
         ++preeditUpdates;
         log.push_back("pre:" + s);
     }
-    void commit(const std::string &s) override { doc += s; log.push_back("commit:" + s); }
+    // Draft.js-like host: every commit lands twice.
+    bool dup = false;
+    void commit(const std::string &s) override {
+        doc += s;
+        if (dup) doc += s;
+        log.push_back("commit:" + s);
+    }
+    // Stale / lying host: textBeforeCursor reports `reported` instead of `doc`.
+    bool hasReported = false;
+    std::string reported;
     void deleteBeforeCursor(int n) override {
         ++deletes;
         popChars(doc, n);
@@ -71,7 +80,7 @@ struct Mock : InputContext {
     }
     bool textBeforeCursor(std::string &out) override {
         if (!surrounding) return false;
-        out = doc;
+        out = hasReported ? reported : doc;
         return true;
     }
     bool hasSelection() override { return selection; }
@@ -259,6 +268,184 @@ void testReEditAfterCaretMove() {
     }
 }
 
+// Verify-before-delete (lesson from fcitx5-lotus): every edit that deletes text before the
+// caret first checks the host shows exactly what VietTelex put there.
+void testVerifyBeforeDelete() {
+    // Normal: matching text, in-place tones and ⌫ reopen still work, nothing distrusted.
+    {
+        Session s;
+        Mock m;
+        s.setDisplayMode(DisplayMode::Surrounding, m);
+        type(s, m, "toans thays <a");
+        CHECK_EQ(m.screen(), std::string("toán thấy"));
+        CHECK(!s.surroundingDistrusted());
+        CHECK(s.displayMode() == DisplayMode::Surrounding);
+    }
+    // Stale in-place: the host has not applied the last commit ("n") yet. The channel is
+    // ordered, so the edit goes ahead — and the host is not blamed.
+    {
+        Session s;
+        Mock m;
+        s.setDisplayMode(DisplayMode::Surrounding, m);
+        type(s, m, "toan");
+        m.hasReported = true;
+        m.reported = "toa";
+        type(s, m, "s");
+        CHECK_EQ(m.screen(), std::string("toán"));
+        m.reported = "";  // nothing applied yet at all
+        type(s, m, " vie");
+        type(s, m, "e");
+        CHECK_EQ(m.screen(), std::string("toán viê"));
+        CHECK(!s.surroundingDistrusted());
+    }
+    // Stale reopen: the boundary was not applied yet → plain ⌫ (never block, never guess),
+    // no distrust; once the host catches up, reopen works again.
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        Session s;
+        Mock m;
+        s.setDisplayMode(mode, m);
+        type(s, m, "thays ");
+        m.hasReported = true;
+        m.reported = "tháy";
+        int deletes = m.deletes;
+        type(s, m, "<");
+        CHECK_EQ(m.deletes, deletes);
+        CHECK_EQ(m.screen(), std::string("tháy"));
+        CHECK(!s.surroundingDistrusted());
+        m.hasReported = false;
+        m.doc.clear();
+        type(s, m, "thays <a");
+        CHECK_EQ(m.screen(), std::string("thấy"));
+    }
+    // Mismatch in-place: the app changed the word under us ("toan" → "Toan"): the tone key
+    // is typed literally, nothing deleted, and the rest of the focus composes in preedit
+    // even though the frontend keeps asking for Surrounding.
+    {
+        Session s;
+        Mock m;
+        s.setDisplayMode(DisplayMode::Surrounding, m);
+        type(s, m, "toan");
+        m.doc = "Toan";
+        int deletes = m.deletes;
+        type(s, m, "s");
+        CHECK_EQ(m.deletes, deletes);
+        CHECK_EQ(m.screen(), std::string("Toans"));
+        CHECK(s.surroundingDistrusted());
+        CHECK(s.displayMode() == DisplayMode::Preedit);
+        s.setDisplayMode(DisplayMode::Surrounding, m);  // per-key policy refresh
+        s.setSurroundingEdits(true);
+        CHECK(s.displayMode() == DisplayMode::Preedit);
+        type(s, m, " vieej");
+        CHECK_EQ(m.pre, std::string("việ"));
+        type(s, m, "t thays <");  // ⌫ reopen is off too
+        CHECK_EQ(m.screen(), std::string("Toans việt tháy"));
+        // New focus: trusted again (never persisted).
+        s.focusIn();
+        CHECK(!s.surroundingDistrusted());
+        CHECK(s.displayMode() == DisplayMode::Surrounding);
+        m.doc.clear();
+        type(s, m, "toans");
+        CHECK_EQ(m.screen(), std::string("toán"));
+        CHECK(m.pre.empty());
+    }
+    // Mismatch reopen: the word changed, or a different boundary is shown.
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        Session s;
+        Mock m;
+        s.setDisplayMode(mode, m);
+        type(s, m, "thays ");
+        m.doc = "thay ";
+        int deletes = m.deletes;
+        type(s, m, "<");
+        CHECK_EQ(m.deletes, deletes);
+        CHECK_EQ(m.screen(), std::string("thay"));
+        CHECK(s.surroundingDistrusted());
+        CHECK(s.displayMode() == DisplayMode::Preedit);
+    }
+    {
+        Session s;
+        Mock m;
+        type(s, m, "thays,");
+        m.doc = "tháy.";
+        type(s, m, "<");
+        CHECK_EQ(m.screen(), std::string("tháy"));
+        CHECK(s.surroundingDistrusted());
+    }
+    // In-place ⌫ that rewrites the word (classic tone: "toán" ⌫ → "tóa", the tone moves): the
+    // app's own ⌫ when the word changed under us.
+    {
+        Settings st;
+        st.modernTone = false;
+        Session s;
+        Mock m;
+        s.applySettings(st);
+        s.setDisplayMode(DisplayMode::Surrounding, m);
+        type(s, m, "toans<");
+        CHECK_EQ(m.screen(), std::string("tóa"));  // the matching case still rewrites
+        CHECK(!s.surroundingDistrusted());
+        m.doc.clear();
+        type(s, m, " toans");
+        m.doc = "Toán";
+        int deletes = m.deletes;
+        type(s, m, "<");
+        CHECK_EQ(m.deletes, deletes);
+        CHECK_EQ(m.screen(), std::string("Toá"));
+        CHECK(s.surroundingDistrusted());
+    }
+    // Shortcut / auto-restore delete in place: the word changed → left as it is.
+    {
+        Settings st;
+        auto t = std::make_shared<ShortcutTable>();
+        (*t)["ko"] = "không";
+        st.shortcuts = t;
+        Session s;
+        Mock m;
+        s.applySettings(st);
+        s.setDisplayMode(DisplayMode::Surrounding, m);
+        type(s, m, "ko");
+        m.doc = "kO";
+        int deletes = m.deletes;
+        type(s, m, " ");
+        CHECK_EQ(m.deletes, deletes);
+        CHECK_EQ(m.screen(), std::string("kO "));
+        CHECK(s.surroundingDistrusted());
+    }
+    // Host that duplicates commits (Draft.js-like): caught at the first in-place edit, never
+    // deletes, then preedit.
+    {
+        Session s;
+        Mock m;
+        m.dup = true;
+        s.setDisplayMode(DisplayMode::Surrounding, m);
+        type(s, m, "toans");
+        CHECK_EQ(m.deletes, 0);
+        CHECK(s.surroundingDistrusted());
+        CHECK(s.displayMode() == DisplayMode::Preedit);
+        CHECK_EQ(m.screen(), std::string("ttooaannss"));
+    }
+    // NFD host: same letters, more code points — deletes counted in characters would be off.
+    {
+        Session s;
+        Mock m;
+        type(s, m, "thays ");
+        m.doc = "tha\xcc\x81y ";  // tha + U+0301 + y
+        type(s, m, "<");
+        CHECK_EQ(m.deletes, 0);
+        CHECK_EQ(m.screen(), std::string("tha\xcc\x81y"));
+        CHECK(s.surroundingDistrusted());
+    }
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        Session s;
+        Mock m;
+        s.setDisplayMode(mode, m);
+        m.doc = "toa\xcc\x80n";  // toàn, decomposed; caret arrives by navigation
+        type(s, m, ">s");
+        CHECK_EQ(m.deletes, 0);
+        CHECK_EQ(m.screen(), std::string("toa\xcc\x80ns"));
+        CHECK(s.surroundingDistrusted());
+    }
+}
+
 void testFinishCommitsPreedit() {
     Session s;
     Mock m;
@@ -302,6 +489,18 @@ void testModesAgreeOnRandomScripts() {
         for (int k = 0; k < n; ++k) keys += alphabet[rng() % alphabet.size()];
         std::string p = run(keys, DisplayMode::Preedit);
         std::string q = run(keys, DisplayMode::Surrounding);
+        {
+            // An honest host never trips verify-before-delete.
+            Session s;
+            Mock m;
+            s.setDisplayMode(DisplayMode::Surrounding, m);
+            type(s, m, keys);
+            if (s.surroundingDistrusted()) {
+                std::fprintf(stderr, "honest host distrusted for [%s]\n", keys.c_str());
+                ++g_fail;
+                return;
+            }
+        }
         if (p != q) {
             std::fprintf(stderr, "mode mismatch for [%s]: preedit=[%s] surrounding=[%s]\n", keys.c_str(),
                          p.c_str(), q.c_str());
@@ -980,6 +1179,8 @@ void testChromiumFamilyForcedPreedit() {
     Settings s;
     for (const char *id : {"coccoc", "coccoc.desktop", "Coccoc", "coccoc-browser", "yandex-browser",
                            "thorium-browser", "ungoogled-chromium", "microsoft-edge-beta",
+                           "cromite", "cromite-browser", "helium", "helium-browser", "slimjet",
+                           "slimjet-browser", "flashpeak-slimjet", "net.imput.helium",
                            "crx_bfgdeeglghbfcmhpjlmaajeolejfojjl", "chrome-abcdefghijklmnop-Default",
                            "brave-abcdefghijklmnop-Default", "msedge-abcdefghijklmnop-Default"}) {
         CHECK(isForcedPreeditApp(id));
@@ -1740,6 +1941,7 @@ int main() {
     testPasswordLiteral();
     testReopenAfterBoundary();
     testReEditAfterCaretMove();
+    testVerifyBeforeDelete();
     testFinishCommitsPreedit();
     testOverflowNeverLosesText();
     testVniAndLiveSettings();

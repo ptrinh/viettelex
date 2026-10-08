@@ -162,6 +162,21 @@ public:
         out.assign(s, size_t(end - s));
         return true;
     }
+    // Verify-before-delete (Session) asks before every in-place edit: copy only the tail.
+    bool textBeforeCursorTail(size_t maxChars, std::string &out) override {
+        IBusText *text = nullptr;
+        guint cursor = 0, anchor = 0;
+        if (!read(text, cursor, anchor)) return false;
+        const gchar *s = ibus_text_get_text(text);
+        if (!s) return false;
+        glong len = g_utf8_strlen(s, -1);
+        if (glong(cursor) > len) return false;
+        const gchar *end = g_utf8_offset_to_pointer(s, glong(cursor));
+        const gchar *start = end;
+        for (size_t n = 0; start > s && n < maxChars; ++n) start = g_utf8_prev_char(start);
+        out.assign(start, size_t(end - start));
+        return true;
+    }
     bool hasSelection() override {
         IBusText *text = nullptr;
         guint cursor = 0, anchor = 0;

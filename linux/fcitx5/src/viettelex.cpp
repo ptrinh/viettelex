@@ -169,6 +169,26 @@ public:
         out = text.substr(0, byte);
         return true;
     }
+    // Verify-before-delete (Session) asks before every in-place edit: copy only the tail.
+    bool textBeforeCursorTail(size_t maxChars, std::string &out) override {
+        if (!ic_->capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText)) return false;
+        const auto &st = ic_->surroundingText();
+        if (!st.isValid()) return false;
+        const std::string &text = st.text();
+        unsigned cursor = st.cursor();  // in characters
+        size_t byte = 0;
+        for (unsigned c = 0; c < cursor && byte < text.size(); ++c) {
+            ++byte;
+            while (byte < text.size() && (static_cast<unsigned char>(text[byte]) & 0xc0) == 0x80) ++byte;
+        }
+        size_t start = byte;
+        for (size_t n = 0; start > 0 && n < maxChars; ++n) {
+            --start;
+            while (start > 0 && (static_cast<unsigned char>(text[start]) & 0xc0) == 0x80) --start;
+        }
+        out.assign(text, start, byte - start);
+        return true;
+    }
     // fcitx5-unikey (src/unikey-im.cpp) guards the same way: an invalid surrounding text
     // cannot rule a selection out.
     bool hasSelection() override {

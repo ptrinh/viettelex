@@ -96,6 +96,8 @@ bool isForcedPreeditApp(const std::string &appId) {
         "thorium", "thorium-browser", "ungoogled-chromium", "google-chrome-unstable",
         "microsoft-edge-beta", "microsoft-edge-dev", "opera-beta", "opera-developer",
         "vivaldi-snapshot", "brave-browser-beta", "brave-browser-nightly", "chromium-freeworld",
+        "cromite", "cromite-browser", "helium", "helium-browser", "slimjet", "slimjet-browser",
+        "flashpeak-slimjet",
         // Firefox / Gecko (URL bar selects + autocompletes; surrounding text lags)
         "firefox", "firefox-esr", "librewolf", "zen", "zen-browser", "thunderbird",
         // GNOME Wayland: one shared text-input-v3 context for every app; the overview search

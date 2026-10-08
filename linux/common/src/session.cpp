@@ -88,9 +88,76 @@ void replaceBeforeCursor(InputContext &ic, int backspaces, const std::string &in
     else if (backspaces > 0) ic.commit("");
 }
 
+bool endsWithBytes(const std::string &s, const std::string &suffix) {
+    return s.size() >= suffix.size() && s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+// A combining mark (U+0300–U+036F): the host keeps the text decomposed (NFD).
+bool isCombiningMark(uint32_t c) { return c >= 0x300 && c <= 0x36f; }
+
+// Verify-before-delete: what the host reports right before the caret vs. `expected`, the
+// text the Session put there. Byte-exact on purpose: deletes count characters, so an NFD
+// host (same letters, more code points) is a mismatch, not a match.
+//   Match    — the expected text is there.
+//   Stale    — the host has not applied our latest commits yet: it ends with a strict prefix
+//              of `expected` (or reports nothing at all). The IM channel is ordered, so a
+//              delete sent now still lands after those commits — but nothing proves it.
+//   Mismatch — anything else: the text was changed under us.
+// Never waits for the host to catch up (fcitx5-lotus #487: sleeping in the key path).
+// `expected` is one word (<= 32 keys): the prefix scan is a handful of short compares.
+enum class Screen { Match, Stale, Mismatch };
+Screen checkScreen(const std::string &before, const std::string &expected) {
+    if (endsWithBytes(before, expected)) return Screen::Match;
+    if (before.empty()) return Screen::Stale;
+    size_t k = expected.size();
+    while (k > 0) {
+        --k;
+        while (k > 0 && (static_cast<unsigned char>(expected[k]) & 0xc0) == 0x80) --k;
+        if (k > 0 && before.size() >= k && before.compare(before.size() - k, k, expected, 0, k) == 0)
+            return Screen::Stale;
+    }
+    return Screen::Mismatch;
+}
+
 }  // namespace
 
+bool InputContext::textBeforeCursorTail(size_t maxChars, std::string &out) {
+    if (!textBeforeCursor(out)) return false;
+    size_t i = out.size();
+    for (size_t n = 0; i > 0 && n < maxChars; ++n) {
+        --i;
+        while (i > 0 && (static_cast<unsigned char>(out[i]) & 0xc0) == 0x80) --i;
+    }
+    out.erase(0, i);
+    return true;
+}
+
 Session::Session() : e_(vt_engine_new()) { applySettings(Settings()); }
+
+void Session::distrust() {
+    if (distrusted_) return;
+    distrusted_ = true;
+    surroundingEdits_ = false;
+    if (mode_ == DisplayMode::Surrounding) {
+        // Callers have just dropped the word (vt_reset): switch now, else at the word's end.
+        pendingMode_ = DisplayMode::Preedit;
+        hasPendingMode_ = true;
+        applyPendingMode();
+    } else if (hasPendingMode_ && pendingMode_ == DisplayMode::Surrounding) {
+        pendingMode_ = DisplayMode::Preedit;
+    }
+}
+
+bool Session::inPlaceAllowed(InputContext &ic, const std::string &expected) {
+    if (mode_ != DisplayMode::Surrounding || expected.empty()) return true;
+    std::string before;
+    // A host that reports nothing cannot be checked: as before (Surrounding is only chosen
+    // where the text was proven).
+    if (!ic.textBeforeCursorTail(utf8Chars(expected), before)) return true;
+    if (checkScreen(before, expected) != Screen::Mismatch) return true;  // Stale: ordered channel
+    distrust();
+    return false;
+}
 
 void Session::replace(InputContext &ic, int backspaces, const std::string &insert) {
     if (mode_ == DisplayMode::Direct) {
@@ -350,6 +417,8 @@ bool Session::applyHint(InputContext &ic) {
 }
 
 void Session::setDisplayMode(DisplayMode m, InputContext &ic) {
+    requestedMode_ = m;
+    if (distrusted_ && m == DisplayMode::Surrounding) m = DisplayMode::Preedit;
     hasPendingMode_ = false;
     if (m == mode_) return;
     if (!vt_is_empty(e_)) {
@@ -410,6 +479,15 @@ void Session::hidePreedit(InputContext &ic) {
 
 void Session::focusIn() {
     vt_reset_context(e_);
+    if (distrusted_) {
+        distrusted_ = false;
+        surroundingEdits_ = requestedEdits_;
+        if (requestedMode_ != mode_) {
+            pendingMode_ = requestedMode_;
+            hasPendingMode_ = true;
+            applyPendingMode();
+        }
+    }
     hint_.reset();  // the frontend hid it on focus-out (finish)
     if (hintsOn_) keyGen_->fetch_add(1);
     tailReset();
@@ -469,7 +547,8 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
         auto it = shortcuts_->find(word);
         if (it == shortcuts_->end()) it = shortcuts_->find(rawWord);
         // Surrounding deletes the word to expand it: never with a selection at the caret.
-        if (it != shortcuts_->end() && (mode_ != DisplayMode::Surrounding || !selectionAtCaret(ic))) {
+        if (it != shortcuts_->end() && (mode_ != DisplayMode::Surrounding ||
+                                        (!selectionAtCaret(ic) && inPlaceAllowed(ic, word)))) {
             std::string expansion = it->second;
             vt_reset(e_);
             ended(expansion, std::string());
@@ -502,7 +581,7 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
         // Auto-restore deletes the word: with a selection at the caret the delete would hit
         // the selection — leave the word as typed.
         if (mode_ == DisplayMode::Surrounding && a.kind == VT_ACTION_REPLACE && a.backspaces > 0 &&
-            selectionAtCaret(ic)) {
+            (selectionAtCaret(ic) || !inPlaceAllowed(ic, word))) {
             vt_reset(e_);
             ended(word, rawWord);
             return;
@@ -587,6 +666,7 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     if (printable) {
         gluedToDigit_ = gluesShortcutToken(ch);
         lastWasBoundaryChar_ = true;
+        lastBoundary_ = char(ch);
         caretMoved_ = false;
     } else {
         // Keys that do not leave exactly one character after the word (Enter, Tab,
@@ -624,16 +704,24 @@ bool Session::handleLetter(uint32_t ch, InputContext &ic) {
     if (vt_is_empty(e_) && reEdit_ && surroundingEdits_ && caretMoved_ && isDiacriticOnlyKey(ch, vni_) &&
         !ic.hasSelection()) {
         std::string before;
-        if (ic.textBeforeCursor(before)) {
+        if (ic.textBeforeCursorTail(14, before)) {
             std::string word, c;
             size_t n = 0;
-            bool tooLong = false;
+            bool tooLong = false, decomposed = false;
             while (popChar(before, c)) {
-                if (!isWordLetter(decodeOne(c))) break;
+                uint32_t cp = decodeOne(c);
+                if (!isWordLetter(cp)) {
+                    // NFD host ("toa" U+0300 "n"): the scan would stop inside the word and the
+                    // delete count (in characters) would not match what is shown.
+                    decomposed = isCombiningMark(cp);
+                    break;
+                }
                 word.insert(0, c);
                 if (++n > 12) { tooLong = true; break; }
             }
-            if (!word.empty() && !tooLong && !selectionAtCaret(ic) && vt_seed(e_, word.c_str())) {
+            if (decomposed) {
+                distrust();
+            } else if (!word.empty() && !tooLong && !selectionAtCaret(ic) && vt_seed(e_, word.c_str())) {
                 if (hintsOn_) tailPop(n);  // the word is being edited again (back in the engine)
                 if (mode_ == DisplayMode::Preedit) {
                     ic.deleteBeforeCursor(int(n));
@@ -643,6 +731,10 @@ bool Session::handleLetter(uint32_t ch, InputContext &ic) {
         }
     }
 
+    // The word as it is on screen right now (Surrounding: what we committed), for
+    // verify-before-delete. O(word), like showPreedit's per-key composed() in Preedit.
+    std::string shown;
+    if (mode_ == DisplayMode::Surrounding && !vt_is_empty(e_)) shown = composed();
     vt_action a;
     vt_feed(e_, ch, &a);
     if (a.kind == VT_ACTION_PASSTHROUGH && vt_is_overflowed(e_)) {
@@ -677,9 +769,12 @@ bool Session::handleLetter(uint32_t ch, InputContext &ic) {
     switch (a.kind) {
     case VT_ACTION_PASSTHROUGH: ic.commit(encode(ch)); break;
     case VT_ACTION_REPLACE:
-        if (a.backspaces > 0 && ic.hasSelection()) {
-            // Never delete into a selection: type the key literally, start a new word.
+        if (a.backspaces > 0 && (ic.hasSelection() || !inPlaceAllowed(ic, shown))) {
+            // Never delete into a selection, nor text that is not what we typed (the Session
+            // then composes in preedit): type the key literally, start a new word.
             vt_reset(e_);
+            applyPendingMode();  // distrusted: this very key already goes on as preedit text
+            if (hintsOn_ && distrusted_) tailReset();
             ic.commit(encode(ch));
             break;
         }
@@ -694,16 +789,20 @@ bool Session::handleBackspace(InputContext &ic) {
     if (vt_is_empty(e_)) {
         // ⌫ over the boundary right after a word re-opens it ("tháy" ␣ ⌫ a → "thấy",
         // issue #40) — only when the client's text proves the word is still there.
-        if (vt_can_reopen(e_) && lastWasBoundaryChar_ && surroundingEdits_ && !ic.hasSelection()) {
+        // Verify-before-delete: the host must show exactly the word AND the boundary we
+        // typed. Stale (our commit / the boundary not applied yet) → plain ⌫, no reopen;
+        // anything else → plain ⌫ and the surrounding text is distrusted for this focus.
+        if (vt_can_reopen(e_) && lastWasBoundaryChar_ && lastBoundary_ && surroundingEdits_ &&
+            !ic.hasSelection()) {
             std::string before;
-            if (ic.textBeforeCursor(before)) {
+            if (ic.textBeforeCursorTail(64, before)) {
                 char buf[256];
                 long n = vt_reopen(e_, buf, sizeof buf);
                 if (n > 0 && size_t(n) < sizeof buf) {
-                    std::string word(buf, size_t(n)), last;
-                    if (popChar(before, last) && before.size() >= word.size() &&
-                        before.compare(before.size() - word.size(), word.size(), word) == 0 &&
-                        !selectionAtCaret(ic)) {
+                    std::string word(buf, size_t(n));
+                    Screen v = checkScreen(before, word + lastBoundary_);
+                    if (v == Screen::Mismatch) distrust();
+                    if (v == Screen::Match && !selectionAtCaret(ic)) {
                         if (hintsOn_) tailPop(1 + utf8Chars(word));  // boundary gone, word back in the engine
                         if (mode_ == DisplayMode::Surrounding) {
                             replaceBeforeCursor(ic, 1, std::string());
@@ -717,6 +816,7 @@ bool Session::handleBackspace(InputContext &ic) {
                     }
                 }
                 vt_reset(e_);
+                applyPendingMode();
                 if (hintsOn_) tailPop(1);
                 return false;
             }
@@ -725,6 +825,8 @@ bool Session::handleBackspace(InputContext &ic) {
         if (hintsOn_) tailPop(1);  // the app's own ⌫ deletes one character
         return false;
     }
+    std::string shown;
+    if (mode_ == DisplayMode::Surrounding) shown = composed();
     vt_action a;
     vt_backspace(e_, &a);
     if (mode_ == DisplayMode::Preedit) {
@@ -739,8 +841,10 @@ bool Session::handleBackspace(InputContext &ic) {
     // Surrounding / Direct: .none / .passthrough / a pure one-char delete → the app's own ⌫.
     if (a.kind != VT_ACTION_REPLACE) return false;
     if (a.insert_len == 0 && a.backspaces == 1) return false;
-    if (mode_ == DisplayMode::Surrounding && a.backspaces > 0 && ic.hasSelection()) {
-        vt_reset(e_);  // the app's own ⌫ removes the selection
+    if (mode_ == DisplayMode::Surrounding && a.backspaces > 0 &&
+        (ic.hasSelection() || !inPlaceAllowed(ic, shown))) {
+        vt_reset(e_);  // the app's own ⌫ removes the selection / one character
+        applyPendingMode();
         return false;
     }
     replace(ic, a.backspaces, std::string(a.insert, size_t(a.insert_len > 0 ? a.insert_len : 0)));

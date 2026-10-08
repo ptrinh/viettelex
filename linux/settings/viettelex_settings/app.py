@@ -1146,6 +1146,14 @@ class OnboardingWindow(Adw.Window):
             self.step(warn, False, _("Có bộ gõ tiếng Việt khác: %s") % ", ".join(a["other_vn"]),
                       _("Bật cùng lúc hai bộ gõ Việt dễ bị gõ đúp dấu. Chỉ để một bộ trong danh "
                       "sách nguồn nhập (hoặc gỡ gói kia)."))
+        if "lotus_uinput" in a["warnings"]:
+            has = True
+            stop = "sudo systemctl disable --now " + detect.LOTUS_SERVER_UNIT % "$USER"
+            self.step(warn, False, _("fcitx5-lotus đang chạy chế độ uinput"),
+                      _("Lotus ở chế độ uinput gửi phím BackSpace thật: đổi bộ gõ hay cửa sổ giữa "
+                        "chừng một từ có thể xoá thừa chữ khi gõ bằng VietTelex. Nên chỉ giữ một bộ "
+                        "gõ tiếng Việt; nếu vẫn dùng Lotus, chuyển Lotus sang Preedit hoặc tắt "
+                        "server: %s") % stop)
         if "both_running" in a["warnings"]:
             has = True
             self.step(warn, False, _("Fcitx5 và IBus cùng chạy"),

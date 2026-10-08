@@ -77,12 +77,22 @@ focus này (Fcitx5: có cờ SurroundingText và `surroundingText().isValid()`; 
 sự gửi `SetSurroundingText` có chữ — chỉ cờ capability thì chưa đủ), hoặc app nằm trong danh
 sách ép preedit dựng sẵn (`isForcedPreeditApp` trong `app.cpp`): terminal (gnome-terminal, kgx,
 ptyxis, konsole, kitty, alacritty, wezterm, foot, xterm, tilix, terminator, VTE…), LibreOffice,
-Chromium/Electron/VS Code (mọi trình duyệt Chromium: Cốc Cốc, Yandex, Thorium…, và web app/PWA
+Chromium/Electron/VS Code (mọi trình duyệt Chromium: Cốc Cốc, Yandex, Thorium, Cromite, Helium,
+Slimjet…, và web app/PWA
 `crx_*` / `chrome-*-default`), Firefox/LibreWolf/Zen/Thunderbird, Wine, gnome-shell (+ overview),
 krunner/plasmashell, JetBrains/Java, WPS/OnlyOffice, Steam. Ghi đè tay trong `[app_modes]`
 thắng danh sách dựng sẵn (trừ khi surrounding text chưa được chứng minh). Khi không được sửa
 chữ quanh con trỏ, sửa dấu từ đã gõ (re-edit) và ⌫ mở lại từ cũng tắt; có vùng chọn (thanh
 URL sau Ctrl+L / autocomplete) thì không bao giờ xoá chữ trước con trỏ.
+
+**Kiểm tra trước khi xoá** (`checkScreen` trong `session.cpp`): mọi lần xoá chữ trước con trỏ
+(sửa dấu tại chỗ ở Surrounding, ⌫ mở lại từ, re-edit, gõ tắt / tự khôi phục) đọc lại chữ app báo
+và so byte với chữ VietTelex đã đặt ở đó (⌫ mở lại: từ + đúng ký tự ranh giới đã gõ). Khớp ⇒ làm.
+App chưa kịp nhận commit mới nhất (chữ báo về là tiền tố của chữ mong đợi, hoặc rỗng) ⇒ sửa tại
+chỗ vẫn làm (kênh IM giữ thứ tự), ⌫ mở lại / re-edit thì bỏ qua — không bao giờ chờ app. Không
+khớp (app tự sửa chữ, commit bị nhân đôi kiểu Draft.js, chữ dạng NFD…) ⇒ bỏ lần sửa đó (phím đi
+như thường: ⌫ của app, phím dấu gõ thành chữ) và **đến lần focus sau** coi surrounding của ô này
+là không tin được: không re-edit / ⌫ mở lại, từ mới gõ bằng preedit. Không ghi vào config.
 
 **Chế độ Direct** (không bao giờ là `display_mode` toàn cục): terminal (cờ ô nhập hoặc
 `isTerminalApp`) hoặc app ép `"direct"`, *chỉ khi* host giữ đúng thứ tự phím forward —

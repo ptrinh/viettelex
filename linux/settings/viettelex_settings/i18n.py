@@ -479,6 +479,14 @@ EN = {
     "(hoặc gỡ gói kia).":
         "Two Vietnamese input methods at once easily double the marks. Keep only one in the "
         "input source list (or remove the other package).",
+    "fcitx5-lotus đang chạy chế độ uinput": "fcitx5-lotus is running in uinput mode",
+    "Lotus ở chế độ uinput gửi phím BackSpace thật: đổi bộ gõ hay cửa sổ giữa chừng một từ có "
+    "thể xoá thừa chữ khi gõ bằng VietTelex. Nên chỉ giữ một bộ gõ tiếng Việt; nếu vẫn dùng "
+    "Lotus, chuyển Lotus sang Preedit hoặc tắt server: %s":
+        "Lotus in uinput mode sends real BackSpace keys: switching input method or window in "
+        "the middle of a word can delete extra characters while typing with VietTelex. Keep "
+        "only one Vietnamese input method; if you keep Lotus, set it to Preedit or stop its "
+        "server: %s",
     "Fcitx5 và IBus cùng chạy": "Fcitx5 and IBus are both running",
     "Nên chỉ dùng một bộ khung gõ: im-config -n fcitx5 (hoặc ibus) rồi đăng nhập lại.":
         "Use only one framework: im-config -n fcitx5 (or ibus), then log in again.",
