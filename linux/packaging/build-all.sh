@@ -52,12 +52,15 @@ for s in $SERIES_LIST; do
     # OrbStack giữ inode cũ ⇒ "/out/build.log: Directory nonexistent" (08/10/2026).
     out="$DIST/.work/$s-$a-$$"; mkdir -p "$out"
     echo "==> build $s/$a"
+    # Container chạy root: trả quyền /out về user host khi thoát (CI Linux — không thì `rm -rf "$out"`
+    # báo Permission denied; OrbStack trên macOS tự map nên không lộ).
     docker run --rm --platform "linux/$a" -v "$REPO:/src:ro" -v "$out:/out" "$img" sh -c \
-      "/src/linux/packaging/build-deb.sh --series $s --out /out/pkg >/out/build.log 2>&1 \
+      "trap 'chown -R $(id -u):$(id -g) /out' EXIT
+       /src/linux/packaging/build-deb.sh --series $s --out /out/pkg >/out/build.log 2>&1 \
          || { tail -40 /out/build.log; exit 1; }
        # Debian ra gói dbgsym dạng .deb (Ubuntu: .ddeb) — không phát hành, không đưa vào kho.
        rm -f /out/pkg/*-dbgsym_*.deb
-       cd /out/pkg && lintian --fail-on error,warning *.deb 2>&1 | grep -v 'root privileges' | tee /out/lintian.log
+       cd /out/pkg && lintian --fail-on error,warning *.deb 2>&1 | grep -v 'root privileges' | grep -v '^N: ' | tee /out/lintian.log
        test ! -s /out/lintian.log"
     for f in "$out"/pkg/*.deb; do
       b=$(basename "$f")
