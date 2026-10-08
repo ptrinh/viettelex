@@ -1,3 +1,22 @@
+viettelex (1.0.7) UNRELEASED; urgency=medium
+
+  * Kiểm tra chữ trước con trỏ trước khi sửa trực tiếp: app báo lệch (lặp
+    chữ, chưa cập nhật, NFD) thì bỏ lần sửa đó và chuyển sang gạch chân
+    cho tới khi đổi ô nhập — tránh lặp chữ / Backspace xoá 2 lần.
+  * App cài đặt nhận ra bộ gõ Lotus và cảnh báo khi server uinput của
+    Lotus đang chạy (có thể xoá thừa chữ khi đổi bộ gõ giữa chừng).
+  * Thêm trình duyệt Cromite, Helium, Slimjet vào nhóm Chromium.
+  * ---
+  * Verify the text before the caret before editing it in place: if the
+    app reports something else (duplicated commit, not updated yet, NFD),
+    skip that edit and use preedit until the next focus change — avoids
+    duplicated words / Backspace deleting twice.
+  * The settings app detects the Lotus input method and warns when its
+    uinput server is running (it can delete extra characters).
+  * Cromite, Helium and Slimjet added to the Chromium browser group.
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Thu, 08 Oct 2026 16:00:00 +0000
+
 viettelex (1.0.6) UNRELEASED; urgency=medium
 
   * Sửa lặp chữ / Backspace xoá 2 lần trên web (Messenger...) trong Cốc Cốc
