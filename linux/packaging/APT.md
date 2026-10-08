@@ -1,7 +1,10 @@
 # Kho APT của VietTelex / VietTelex APT repository
 
-Kho: `https://ptrinh.github.io/viettelex-apt/` — Ubuntu 22.04 (jammy) và 24.04 (noble),
-amd64 + arm64. Được ký bằng GPG; `apt` tự kiểm chữ ký.
+Kho: `https://ptrinh.github.io/viettelex-apt/` — Ubuntu 22.04 (jammy), 24.04 (noble),
+26.04 (resolute), Debian 12 (bookworm), 13 (trixie); amd64 + arm64. Được ký bằng GPG; `apt` tự
+kiểm chữ ký. Bản phái sinh dùng series gốc: Mint/Pop!_OS/Zorin/elementary → `UBUNTU_CODENAME`,
+LMDE → `DEBIAN_CODENAME`, MX/Raspberry Pi OS 64-bit → `VERSION_CODENAME`, Kali rolling → trixie
+(thử nghiệm). Arch Linux: AUR `viettelex-bin` ([aur/README.md](aur/README.md)).
 
 ## Cài bằng một lệnh / One-line install
 
@@ -29,7 +32,7 @@ curl -fsSL https://ptrinh.github.io/viettelex-apt/viettelex-archive-keyring.gpg 
 sudo tee /etc/apt/sources.list.d/viettelex.sources >/dev/null <<EOF
 Types: deb
 URIs: https://ptrinh.github.io/viettelex-apt/
-Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-${DEBIAN_CODENAME:-$VERSION_CODENAME}}")
 Components: main
 Signed-By: /etc/apt/keyrings/viettelex.gpg
 EOF
@@ -83,15 +86,21 @@ downloads the new .debs, checks their SHA256 against `stable.json` and installs 
 ## Dành cho người phát hành / For maintainers
 
 ```sh
-linux/packaging/build-all.sh                         # linux/dist/{jammy,noble}/*.deb, lintian + smoke test
+linux/packaging/build-all.sh     # linux/dist/{jammy,noble,resolute,bookworm,trixie}/*.deb, lintian + smoke test
 VT_APT_KEY=<fingerprint> linux/packaging/apt-repo.sh --out ../viettelex-apt
 ```
+
+Build đủ 5 series × 2 arch trên máy local tốn ~6 GB ảnh Docker mỗi series × arch (swift:<series>)
+và nhiều giờ qua Rosetta cho amd64 — **đường chính là build trên CI** (mục "Phát hành qua CI"
+bên dưới); `build-all.sh` local vẫn dùng được (`--series`/`--arch` để build một phần).
 
 - `apt-repo.sh` sinh `pool/main/v/viettelex/`, `dists/<series>/main/binary-{amd64,arm64}/Packages(.gz)`
   và `Release` bằng `apt-ftparchive` (trong container `ubuntu:24.04` nếu host không có). Script ký
   `InRelease` (clearsign) và `Release.gpg` (detached) bằng `gpg` **trên host**, rồi xuất khoá công khai
   ra `viettelex-archive-keyring.gpg` (binary). Khoá bí mật không bao giờ vào container hay repo.
-- Mỗi series có phiên bản riêng (`1.0.0~jammy1`, `1.0.0~noble1`), nên pool dùng chung được.
+- Mỗi series có phiên bản riêng (`1.0.0~jammy1`, `1.0.0~noble1`, `1.0.0~bookworm1`…), nên pool
+  dùng chung được. Thứ tự chữ cái của tên series trùng thứ tự phát hành (jammy < noble <
+  resolute; bookworm < trixie) ⇒ nâng cấp distro thì `apt` cũng nâng gói.
   Gói `_all` lấy từ bản build đầu tiên của series để mọi arch cùng trỏ vào một file.
 - Đẩy thư mục output lên repo GitHub Pages `viettelex-apt` (có sẵn `.nojekyll`).
 - Đổi/xoay khoá: xuất bản khoá mới cùng lúc với khoá cũ trong một thời gian, và báo người dùng
@@ -104,11 +113,51 @@ VT_APT_KEY=<fingerprint> linux/packaging/apt-repo.sh --out ../viettelex-apt
   `org.viettelex.update` (`/usr/share/polkit-1/actions/org.viettelex.update.policy`) cho nút
   cập nhật một chạm; helper chỉ nhận các gói VietTelex (danh sách trắng).
 
-### Checklist phát hành Linux
+### Phát hành qua CI (khuyên dùng)
+
+`.github/workflows/linux-release.yml` (chạy tay) build mọi series × arch bằng đúng
+`build-all.sh` (build + ctest + test app cài đặt + lintian + cài thử), sinh `SHA256SUMS` và
+**build provenance attestation** (Sigstore) cho từng .deb. CI **không** ký kho APT và không
+phát hành gì: khoá GPG chỉ nằm trên máy người phát hành.
+
+```sh
+# 0. VERSION + debian/changelog đã tăng và đã push lên main (workflow kiểm hai số khớp nhau).
+V=X.Y.Z
+gh workflow run linux-release.yml --ref main -f version=$V      # thêm -f draft_release=true để CI tạo release NHÁP
+RUN=$(gh run list --workflow linux-release.yml --limit 1 --json databaseId -q '.[0].databaseId')
+gh run watch "$RUN" --exit-status
+
+# 1. Tải về đúng chỗ apt-repo.sh / stable-linux.py đọc: linux/dist/<series>/*.deb
+rm -rf linux/dist && gh run download "$RUN" -n "viettelex-linux-$V" -D linux/dist
+
+# 2. Kiểm attestation: mỗi .deb phải được build bởi workflow này của repo này.
+for f in linux/dist/*/*.deb; do
+  gh attestation verify "$f" --repo ptrinh/viettelex     --signer-workflow ptrinh/viettelex/.github/workflows/linux-release.yml >/dev/null     && echo "ok  $f" || { echo "FAIL $f"; break; }
+done
+
+# 3. stable.json + SHA256SUMS sinh lại trên máy này — phải trùng bản CI
+mv linux/dist/SHA256SUMS linux/dist/SHA256SUMS.ci && rm linux/dist/stable.json
+linux/packaging/stable-linux.py --notes "…"
+cmp linux/dist/SHA256SUMS.ci linux/dist/SHA256SUMS && rm linux/dist/SHA256SUMS.ci
+
+# 4. GitHub Release: nếu đã chạy draft_release=true thì sửa ghi chú rồi publish bản nháp
+#    (gh release edit linux-v$V --notes-file … --draft=false); không thì:
+gh release create "linux-v$V" linux/dist/*/*.deb linux/dist/SHA256SUMS --notes-file …
+
+# 5. Ký + dựng kho APT trên máy này, rồi push repo viettelex-apt
+VT_APT_KEY=<fingerprint> linux/packaging/apt-repo.sh --out ../viettelex-apt
+
+# 6. Sau cùng: commit + push docs/stable.json; AUR: linux/packaging/aur/README.md
+```
+
+Người dùng tự kiểm được một .deb tải về: `gh attestation verify <file>.deb --repo ptrinh/viettelex`.
+
+### Checklist phát hành Linux (build local)
 
 1. Tăng `VERSION` trong `linux/settings/viettelex_settings/__init__.py` + mục mới đầu
    `linux/packaging/debian/changelog` (cùng số).
-2. `linux/packaging/build-all.sh` → `linux/dist/{jammy,noble}/*.deb` (lintian + smoke test).
+2. `linux/packaging/build-all.sh` → `linux/dist/<series>/*.deb` (lintian + smoke test), hoặc tải
+   từ CI như mục trên.
 3. `linux/packaging/stable-linux.py --notes "…"` → ghi mục `"linux"` vào `docs/stable.json`
    (phiên bản, link, series, SHA256 từng .deb theo tên asset GitHub — `~` thành `.`) và
    `linux/dist/SHA256SUMS`. Khoá gốc (macOS) và `"windows"` giữ nguyên.
@@ -119,6 +168,7 @@ VT_APT_KEY=<fingerprint> linux/packaging/apt-repo.sh --out ../viettelex-apt
    `viettelex-apt` (Pages).
 6. Commit + push `docs/stable.json` **sau cùng** (khi asset và kho đã có): app cài đặt Linux
    đọc `https://viettelex.com/stable.json` → mục `linux` để báo/cài bản mới.
+7. AUR: `linux/packaging/aur/bump.py` rồi đẩy `viettelex-bin` (xem [aur/README.md](aur/README.md)).
 
 `stable.json` — mục Linux (app bản ≥ 1.0.4 đọc; macOS/Windows bỏ qua):
 
@@ -127,7 +177,7 @@ VT_APT_KEY=<fingerprint> linux/packaging/apt-repo.sh --out ../viettelex-apt
   "version": "1.0.4",
   "url": "https://github.com/ptrinh/viettelex/releases/tag/linux-v1.0.4",
   "download": "https://github.com/ptrinh/viettelex/releases/download/linux-v1.0.4/",
-  "series": ["jammy", "noble"],
+  "series": ["bookworm", "jammy", "noble", "resolute", "trixie"],
   "sha256": { "libviettelex-core_1.0.4.noble1_amd64.deb": "<sha256>", "…": "…" },
   "notes": "…"
 }
@@ -136,12 +186,13 @@ VT_APT_KEY=<fingerprint> linux/packaging/apt-repo.sh --out ../viettelex-apt
 ### Mẫu ghi chú phát hành / Release notes template
 
 ```markdown
-**Cài / cập nhật bằng một lệnh (Ubuntu 22.04/24.04):**
+**Cài / cập nhật bằng một lệnh (Ubuntu 22.04/24.04/26.04, Debian 12/13):**
 
     curl -fsSL https://viettelex.com/install.sh | bash
 
 Đã cài từ kho APT: `sudo apt update && sudo apt upgrade`, hoặc app VietTelex → Giới thiệu →
-Kiểm tra cập nhật. Tải tay: chọn `.jammy1` (22.04) / `.noble1` (24.04) + kiến trúc, rồi
+Kiểm tra cập nhật. Tải tay: chọn `.jammy1` (22.04) / `.noble1` (24.04) / `.resolute1` (26.04) /
+`.bookworm1` (Debian 12) / `.trixie1` (Debian 13) + kiến trúc, rồi
 `sudo apt install ./*.deb` — kiểm bằng `sha256sum -c SHA256SUMS --ignore-missing`.
 
 ### Thay đổi

@@ -115,12 +115,13 @@ def series_from_version(version):
 
 def detect_series(installed, os_release):
     """Series của bộ gói: ưu tiên hậu tố phiên bản đang cài, rồi UBUNTU_CODENAME
-    (Mint/Pop/elementary), rồi VERSION_CODENAME."""
+    (Mint/Pop/elementary), DEBIAN_CODENAME (LMDE), rồi VERSION_CODENAME."""
     for p in PACKAGES:
         s = series_from_version(installed.get(p))
         if s:
             return s
-    return os_release.get("UBUNTU_CODENAME") or os_release.get("VERSION_CODENAME") or None
+    return (os_release.get("UBUNTU_CODENAME") or os_release.get("DEBIAN_CODENAME")
+            or os_release.get("VERSION_CODENAME") or None)
 
 
 def apt_repo_configured(read=None):

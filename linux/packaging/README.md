@@ -17,7 +17,7 @@
 Tên dùng chung: IM Fcitx5 = `viettelex`, engine IBus = `viettelex`, icon = `viettelex`
 (do `viettelex-settings` cài), app id = `com.viettelex.Settings`.
 
-## Build (trên Ubuntu 22.04 / 24.04 / 26.04, hoặc container)
+## Build (trên Ubuntu 22.04 / 24.04 / 26.04, Debian 12 / 13, hoặc container)
 
 ```sh
 sudo apt install build-essential debhelper devscripts fakeroot python3
@@ -43,14 +43,34 @@ Kiểm tra: `lintian out/*.changes`, `appstreamcli validate data/*.metainfo.xml`
   `App/Resources/MenuIcon1.pdf` (khung bo góc + V + ᴛ; E vẽ cùng độ đậm). Tên này được Fcitx5
   (`Icon=viettelex`, action Việt/Anh) và IBus (`<icon>viettelex</icon>`) dùng; gói `libviettelex-core` cài.
 
-## Phát hành (GitHub Releases + kho APT)
+## Phát hành (GitHub Releases + kho APT + AUR)
+
+| Series | Distro | Ảnh build | Ảnh smoke |
+|---|---|---|---|
+| `jammy` | Ubuntu 22.04 | `swift:jammy` | `ubuntu:22.04` |
+| `noble` | Ubuntu 24.04 | `swift:noble` | `ubuntu:24.04` |
+| `resolute` | Ubuntu 26.04 LTS | `swift:resolute` | `ubuntu:26.04` |
+| `bookworm` | Debian 12 | `swift:bookworm` | `debian:12` |
+| `trixie` | Debian 13 | `swift:trixie` | `debian:13` |
+
+Ubuntu 25.10 (questing) không có: hết hỗ trợ 07/2026 và không có ảnh `swift:questing`.
+Thêm series: `smoke_of` trong `build-all.sh`, matrix trong `.github/workflows/linux-release.yml`,
+`SUPPORTED_SERIES` trong `docs/install.sh` (+ `test-install-detect.sh`).
 
 ```sh
-linux/packaging/build-all.sh     # jammy+noble × amd64+arm64 → linux/dist/<series>/*.deb
+linux/packaging/build-all.sh     # mọi series × amd64+arm64 → linux/dist/<series>/*.deb
+linux/packaging/build-all.sh --series bookworm --arch arm64     # một phần
 VT_APT_KEY=<fingerprint> linux/packaging/apt-repo.sh --out <thư mục repo viettelex-apt>
 ```
 
 `build-all.sh` build trong `swift:<series>` (amd64 dùng `--platform linux/amd64`, Rosetta trên
-OrbStack). Lintian có warning là build hỏng. Sau đó script cài thử trong `ubuntu:<ver>` sạch:
-fcitx5 phải liệt kê `viettelex`, và `ibus list-engine` phải thấy engine. Phiên bản là
-`<changelog>~<series>1`. Kho APT: xem [APT.md](APT.md). PPA: xem [PPA.md](PPA.md).
+OrbStack; `VT_SWIFT_TAG=6.4` ⇒ `swift:6.4-<series>` để ghim bản Swift). Lintian có warning là
+build hỏng. Sau đó script cài thử trong distro sạch: fcitx5 phải liệt kê `viettelex`, và
+`ibus list-engine` phải thấy engine. Phiên bản là `<changelog>~<series>1`. Debian sinh gói
+`-dbgsym` dạng `.deb` — script bỏ chúng (không phát hành).
+
+CI: `.github/workflows/linux.yml` chạy `build-all.sh --series noble` (amd64 + arm64) cho mọi PR/push
+đụng tới Linux; `linux-release.yml` (chạy tay) build đủ series × arch + attestation — quy trình
+phát hành qua CI và ký kho trên máy local: [APT.md](APT.md#phát-hành-qua-ci-khuyên-dùng).
+Kho APT: [APT.md](APT.md). AUR: [aur/README.md](aur/README.md). PPA: [PPA.md](PPA.md).
+Bảng distro → series của `install.sh`: `linux/packaging/test-install-detect.sh`.

@@ -35,10 +35,11 @@ inst viettelex-fcitx5 && fail "rerun switched to fcitx5"
 bash /e2e/install.sh --uninstall --yes >/dev/null 2>&1
 echo "### 6) he dieu hanh khong ho tro"
 cp /etc/os-release /tmp/osr
-sed -i 's/^VERSION_CODENAME=.*/VERSION_CODENAME=resolute/; s/^UBUNTU_CODENAME=.*/UBUNTU_CODENAME=resolute/' /etc/os-release
-bash /e2e/install.sh --yes 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | tail -1; [ ${PIPESTATUS[0]} != 0 ] || fail "resolute accepted"
-printf 'ID=debian\nVERSION_CODENAME=trixie\nPRETTY_NAME="Debian 13"\n' > /etc/os-release
-bash /e2e/install.sh --yes 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | tail -1
+sed -i 's/^VERSION_CODENAME=.*/VERSION_CODENAME=questing/; s/^UBUNTU_CODENAME=.*/UBUNTU_CODENAME=questing/' /etc/os-release
+bash /e2e/install.sh --yes 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | tail -1; [ ${PIPESTATUS[0]} != 0 ] || fail "questing accepted"
+printf 'ID=debian\nVERSION_CODENAME=forky\nPRETTY_NAME="Debian forky/sid"\n' > /etc/os-release
+bash /e2e/install.sh --yes 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | tail -1; [ ${PIPESTATUS[0]} != 0 ] || fail "forky accepted"
+# (bảng distro → series đầy đủ: linux/packaging/test-install-detect.sh)
 printf 'ID=linuxmint\nID_LIKE="ubuntu debian"\nVERSION_CODENAME=wilma\nUBUNTU_CODENAME=%s\nPRETTY_NAME="Linux Mint 22"\n' $S > /etc/os-release
 bash /e2e/install.sh --dry-run --yes 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E "Kiểm tra kho|chữ ký"
 cp /tmp/osr /etc/os-release

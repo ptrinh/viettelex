@@ -3,6 +3,23 @@ find_package(Fcitx5Core 5.0 REQUIRED)
 find_package(Fcitx5Config REQUIRED)
 find_package(Fcitx5Utils REQUIRED)
 
+# Fcitx5 ≥ 5.1.13 (Ubuntu 26.04: 5.1.19) headers need C++20 (std::string_view::starts_with);
+# older ones (22.04/24.04, Debian 12/13) build as C++17. Probe instead of guessing a version:
+# the addon (and its test) switch to C++20 only when the headers reject C++17.
+include(CheckCXXSourceCompiles)
+get_target_property(_vt_fcitx_inc Fcitx5::Utils INTERFACE_INCLUDE_DIRECTORIES)
+get_target_property(_vt_fcitx_core_inc Fcitx5::Core INTERFACE_INCLUDE_DIRECTORIES)
+set(CMAKE_REQUIRED_INCLUDES ${_vt_fcitx_inc} ${_vt_fcitx_core_inc})
+check_cxx_source_compiles("
+#include <fcitx-utils/stringutils.h>
+#include <fcitx/inputmethodengine.h>
+int main() { return 0; }" VT_FCITX5_HEADERS_CXX17)
+unset(CMAKE_REQUIRED_INCLUDES)
+if(NOT VT_FCITX5_HEADERS_CXX17)
+  message(STATUS "Fcitx5 ${Fcitx5Core_VERSION} headers need C++20 — building the addon as C++20")
+  set(CMAKE_CXX_STANDARD 20)
+endif()
+
 add_library(viettelex-fcitx5 MODULE src/viettelex.cpp)
 set_target_properties(viettelex-fcitx5 PROPERTIES OUTPUT_NAME viettelex PREFIX "")
 target_link_libraries(viettelex-fcitx5 PRIVATE Fcitx5::Core Fcitx5::Config Fcitx5::Utils viettelex-common)

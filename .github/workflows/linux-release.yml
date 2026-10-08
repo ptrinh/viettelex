@@ -1,0 +1,165 @@
+name: Linux release build
+
+# Builds every series × arch .deb for a Linux release in CI, with build provenance
+# attestations. It does NOT publish: no APT push, no public release. The APT repository is
+# signed on the maintainer's machine (the key never leaves it) — see linux/packaging/APT.md
+# "Phát hành qua CI": gh run download → gh attestation verify → apt-repo.sh (sign) locally.
+#
+# Run: Actions → "Linux release build" → Run workflow (version = VERSION in
+# linux/settings/viettelex_settings/__init__.py), or
+#   gh workflow run linux-release.yml -f version=X.Y.Z
+# Manual only — no tag trigger: publishing the release creates the linux-vX.Y.Z tag, and a
+# tag-triggered rebuild would attest different bytes than the ones being published.
+# Optional: draft_release=true attaches the .debs + SHA256SUMS to a DRAFT GitHub release
+# (not visible to users until the maintainer publishes it).
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (must equal VERSION in linux/settings/viettelex_settings/__init__.py)"
+        required: true
+        type: string
+      draft_release:
+        description: "Also attach assets to a DRAFT GitHub release linux-v<version>"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: linux-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Check version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: v
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          src=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' linux/settings/viettelex_settings/__init__.py)
+          head=$(sed -n '1s/^viettelex (\([^)~]*\)).*/\1/p' linux/packaging/debian/changelog)
+          want=$INPUT_VERSION
+          echo "source VERSION=$src changelog=$head requested=$want"
+          [ "$src" = "$head" ] || { echo "::error::__init__.py VERSION ($src) != debian/changelog ($head)"; exit 1; }
+          [ "$src" = "$want" ] || { echo "::error::requested $want but the source is $src (bump VERSION first)"; exit 1; }
+          echo "version=$src" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.series }} ${{ matrix.arch }}
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep in sync with SERIES_LIST / smoke_of in linux/packaging/build-all.sh.
+        series: [jammy, noble, resolute, bookworm, trixie]
+        arch: [amd64, arm64]
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: build-all.sh (build, ctest + settings tests, lintian, smoke install)
+        run: linux/packaging/build-all.sh --series "${{ matrix.series }}" --arch "${{ matrix.arch }}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: debs-${{ matrix.series }}-${{ matrix.arch }}
+          path: linux/dist/${{ matrix.series }}/*.deb
+          retention-days: 3
+          if-no-files-found: error
+
+  assemble:
+    name: SHA256SUMS + attestations
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write      # Sigstore signing for the attestation
+      attestations: write  # store the attestation in this repository
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: debs-*
+          path: ${{ runner.temp }}/debs
+      - name: Lay out linux/dist/<series>/ (arch:all packages from the amd64 build)
+        run: |
+          dist=linux/dist; mkdir -p "$dist"
+          for d in "$RUNNER_TEMP"/debs/debs-*; do
+            n=${d##*/debs-}; s=${n%-*}; a=${n##*-}
+            mkdir -p "$dist/$s"
+            for f in "$d"/*.deb; do
+              case "$f" in *_all.deb) [ "$a" = amd64 ] || continue ;; esac
+              cp "$f" "$dist/$s/"
+            done
+          done
+          ls -l "$dist"/*/
+          echo "$(find "$dist" -name '*.deb' | wc -l) .deb"
+      - name: stable.json "linux" entry + SHA256SUMS (same script as a local release)
+        run: |
+          cp docs/stable.json "$RUNNER_TEMP/stable.json"
+          python3 linux/packaging/stable-linux.py --stable "$RUNNER_TEMP/stable.json" --sums linux/dist/SHA256SUMS
+          cp "$RUNNER_TEMP/stable.json" linux/dist/stable.json
+          cat linux/dist/SHA256SUMS
+      - name: Build provenance attestation (every .deb, by digest)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: linux/dist/SHA256SUMS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: viettelex-linux-${{ env.VERSION }}
+          # dist/<series>/*.deb (names with "~", as apt-repo.sh expects) + SHA256SUMS
+          # (GitHub asset names, "~" → ".") + stable.json with the new "linux" entry.
+          path: |
+            linux/dist/*/*.deb
+            linux/dist/SHA256SUMS
+            linux/dist/stable.json
+          retention-days: 30
+          if-no-files-found: error
+
+  draft-release:
+    name: Draft GitHub release (opt-in)
+    needs: [version, assemble]
+    if: ${{ inputs.draft_release }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write  # create/update a DRAFT release only
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: viettelex-linux-${{ env.VERSION }}
+          path: ${{ runner.temp }}/rel
+      - name: Create or update the draft (never publishes)
+        run: |
+          tag="linux-v$VERSION"
+          cd "$RUNNER_TEMP/rel"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            [ "$(gh release view "$tag" --json isDraft -q .isDraft)" = true ] \
+              || { echo "::error::$tag is already published — not touching it"; exit 1; }
+          else
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "VietTelex Linux $VERSION" \
+              --notes "Draft from CI run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID — edit the notes (template in linux/packaging/APT.md) before publishing."
+          fi
+          # GitHub renames "~" to "." in asset names, matching SHA256SUMS / stable.json.
+          gh release upload "$tag" ./*/*.deb SHA256SUMS --clobber
