@@ -1,0 +1,2 @@
+# Byte-exact fixtures (BOMs, CRLF, UTF-16): never normalise line endings.
+* -text

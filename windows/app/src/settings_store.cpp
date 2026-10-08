@@ -152,6 +152,8 @@ Settings loadSettings() {
     if (getString(k, L"menuIcon", str)) s.menuIcon = narrow(str);
     if (getString(k, L"uiLanguage", str)) s.uiLanguage = narrow(str);
     if (getString(k, L"addTonesHotkey", str)) s.addTonesHotkey = narrow(str);
+    if (getString(k, L"gameModeHotkey", str)) s.gameModeHotkey = narrow(str);
+    if (getString(k, L"switchIndicator", str)) s.switchIndicator = narrow(str);
     std::string json;
     StringMap m;
     if (getBinary(k, L"shortcuts", json) && parseFlatJson(json, m))
@@ -176,6 +178,8 @@ bool saveSettings(const Settings& s) {
     setString(k, L"menuIcon", widen(s.menuIcon));
     setString(k, L"uiLanguage", widen(s.uiLanguage));
     setString(k, L"addTonesHotkey", widen(s.addTonesHotkey));
+    setString(k, L"gameModeHotkey", widen(s.gameModeHotkey));
+    setString(k, L"switchIndicator", widen(s.switchIndicator));
     StringMap sc;
     for (const auto& kv : s.shortcuts) sc[utf16ToUtf8(kv.first)] = utf16ToUtf8(kv.second);
     std::string j = toFlatJson(sc);

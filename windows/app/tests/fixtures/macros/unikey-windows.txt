@@ -1,0 +1,7 @@
+﻿;DO NOT DELETE THIS LINE*** version=1 ***
+vn:Việt Nam
+ko:không
+dc:được
+hcm:Thành phố Hồ Chí Minh
+sig:Trân trọng,  
+a b:bad key

@@ -36,6 +36,9 @@ using std::min;
 #include <vector>
 
 #include "app.h"
+#include "conflicts.h"
+#include "game_logic.h"
+#include "macro_import.h"
 #include "icons.h"
 #include "input_switch.h"
 #include "hotkey.h"
@@ -75,6 +78,8 @@ enum Id : int {
     IdComboIcon,
     IdComboLang,
     IdComboAddTones,
+    IdComboGameHotkey,
+    IdComboIndicator,
     IdScList = 3000,
     IdScKey,
     IdScValue,
@@ -90,6 +95,7 @@ enum Id : int {
     IdCheckNow = 5000,
     IdUninstall,
     IdPerAppWin,
+    IdConflicts,
     IdIconTile = 6000,  // + IconChoice
 };
 
@@ -119,6 +125,8 @@ const ToggleDef kToggles[] = {
     {&Settings::toneHints, S::ToneHints, S::ToneHintsDesc},                            // 18
     {&Settings::dateHints, S::DateHints, S::DateHintsDesc},                            // 19
     {&Settings::underlineMisspelled, S::UnderlineMisspelled, S::UnderlineMisspelledDesc},  // 20
+    {&Settings::autoOffFullscreen, S::AutoOffFullscreen, S::AutoOffFullscreenDesc},    // 21
+    {&Settings::gameMode, S::GameMode, S::GameModeDesc},                               // 22
 };
 constexpr int kToggleCount = static_cast<int>(sizeof(kToggles) / sizeof(kToggles[0]));
 
@@ -316,6 +324,7 @@ struct Item {
     ItemKind kind = ItemKind::Setting;
     S title = S::AppName;
     S desc = S::Count;         // S::Count = no description
+    std::wstring descText;     // Setting: a runtime description (overrides desc when set)
     Ctl ctl = Ctl::None;
     int toggle = -1;           // index into kToggles
     int ctlId = 0;             // combo / button id
@@ -325,6 +334,9 @@ struct Item {
     RECT rc = {0, 0, 0, 0};
     HWND hwnd = nullptr;       // the control, if any
 };
+
+bool hasDesc(const Item& it) { return !it.descText.empty() || it.desc != S::Count; }
+std::wstring descOf(const Item& it) { return it.descText.empty() ? std::wstring(tr(it.desc)) : it.descText; }
 
 struct LinkHit {
     RECT rc;
@@ -432,10 +444,20 @@ void onPerAppButton() {
     PostMessageW(g_wnd, WM_APP + 1, 0, 0);  // re-read and redraw
 }
 
+std::vector<FoundConflict> g_conflicts;  // detected when the Kiểu gõ page is built
+
 std::vector<Item> pageItems(int tab) {
     std::vector<Item> v;
     switch (tab) {
         case 0:
+            // Another Vietnamese IME running / Microsoft Vietnamese keyboards in the list:
+            // a warning card on top, with actions (never automatic).
+            g_conflicts = detectConflicts();
+            if (!g_conflicts.empty()) {
+                Item c = buttonItem(S::ConflictTitle, S::ConflictDesc, IdConflicts);
+                c.descText = std::wstring(tr(S::ConflictDesc)) + L" (" + conflictNames(g_conflicts) + L")";
+                v.push_back(c);
+            }
             v.push_back(section(S::SecInputStyle));
             v.push_back(comboItem(S::InputMethod, S::InputMethodDesc, IdComboMethod));
             for (int i = 0; i <= 4; ++i) v.push_back(toggleItem(i));
@@ -451,6 +473,11 @@ std::vector<Item> pageItems(int tab) {
                                                                  : S::PerAppWinUnknown,
                                        IdPerAppWin));
             }
+            v.push_back(comboItem(S::SwitchIndicator, S::SwitchIndicatorDesc, IdComboIndicator));
+            v.push_back(section(S::SecGames));
+            v.push_back(toggleItem(21));
+            v.push_back(toggleItem(22));
+            v.push_back(comboItem(S::GameModeHotkey, S::GameModeHotkeyDesc, IdComboGameHotkey));
             v.push_back(section(S::SecAppearance));
             {
                 Item picker;
@@ -841,6 +868,20 @@ void createControls() {
                         SendMessageW(it.hwnd, CB_SETITEMHEIGHT, static_cast<WPARAM>(-1), px(32) - px(6));
                         break;
                     }
+                    case IdComboGameHotkey: {
+                        it.hwnd = makeCtl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP, it.ctlId);
+                        for (const GameHotkeyChoice& c : kGameModeHotkeys)
+                            SendMessageW(it.hwnd, CB_ADDSTRING, 0,
+                                         reinterpret_cast<LPARAM>(c.label ? c.label : tr(S::HotkeyOff)));
+                        applyControlTheme(it.hwnd, L"DarkMode_CFD");
+                        SendMessageW(it.hwnd, CB_SETITEMHEIGHT, static_cast<WPARAM>(-1), px(32) - px(6));
+                        break;
+                    }
+                    case IdComboIndicator: {
+                        const S labels[] = {S::IndicatorAuto, S::On, S::Off};  // SwitchIndicator order
+                        it.hwnd = makeCombo(it.ctlId, labels, 3);
+                        break;
+                    }
                     case IdComboAddTones: {
                         it.hwnd = makeCtl(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_TABSTOP, it.ctlId);
                         for (const HotkeyChoice& c : kAddTonesHotkeys)
@@ -854,6 +895,7 @@ void createControls() {
                 }
             } else if (it.ctl == Ctl::Button) {
                 if (it.ctlId == IdUninstall) it.hwnd = makeButton(tr(S::UninstallButton), it.ctlId, kBtnDanger);
+                else if (it.ctlId == IdConflicts) it.hwnd = makeButton(tr(S::ConflictButton), it.ctlId, kBtnPrimary);
                 else if (it.ctlId == IdPerAppWin)
                     it.hwnd = makeButton(tr(perAppAction(readPerAppInput()) == PerAppAction::Enable ? S::PerAppEnableButton
                                                                                                    : S::PerAppOpenButton),
@@ -902,7 +944,7 @@ void layout() {
                 const int ctlW = it.ctl == Ctl::Toggle ? px(kToggleW + 56) : it.ctl == Ctl::None ? 0 : px(kControlW);
                 const int textW = cardW - 2 * px(kCardPadX) - ctlW - px(24);
                 int h = textHeight(tr(it.title), textW, g_fBody);
-                if (it.desc != S::Count) h += px(2) + textHeight(tr(it.desc), textW, g_fCaption);
+                if (hasDesc(it)) h += px(2) + textHeight(descOf(it), textW, g_fCaption);
                 h = std::max(h + 2 * px(kCardPadY), px(68));
                 it.rc = {x0, y, x1, y + h};
                 y = it.rc.bottom + px(kCardGap);
@@ -1065,6 +1107,8 @@ void sync() {
                 break;
             case IdComboLang: sel = g_settings.uiLanguage == "en" ? 1 : 0; break;
             case IdComboAddTones: sel = static_cast<int>(addTonesHotkeyIndex(g_settings.addTonesHotkey)); break;
+            case IdComboGameHotkey: sel = static_cast<int>(gameModeHotkeyIndex(g_settings.gameModeHotkey)); break;
+            case IdComboIndicator: sel = static_cast<int>(parseSwitchIndicator(g_settings.switchIndicator)); break;
             default: continue;
         }
         SendMessageW(it.hwnd, CB_SETCURSEL, static_cast<WPARAM>(sel), 0);
@@ -1138,13 +1182,13 @@ void paintPage(HDC dc, const RECT& client) {
                 const int ctlW = it.ctl == Ctl::Toggle ? px(kToggleW + 56) : it.ctl == Ctl::None ? 0 : px(kControlW);
                 const int textW = (r.right - r.left) - 2 * px(kCardPadX) - ctlW - px(24);
                 const int th = textHeight(tr(it.title), textW, g_fBody);
-                const int dh = it.desc != S::Count ? px(2) + textHeight(tr(it.desc), textW, g_fCaption) : 0;
+                const int dh = hasDesc(it) ? px(2) + textHeight(descOf(it), textW, g_fCaption) : 0;
                 int ty = (r.top + r.bottom - th - dh) / 2;
                 RECT tr1 = {r.left + px(kCardPadX), ty, r.left + px(kCardPadX) + textW, ty + th};
                 text(dc, tr(it.title), tr1, g_fBody, g_pal.text, DT_WORDBREAK);
                 if (dh) {
                     RECT tr2 = {tr1.left, tr1.bottom + px(2), tr1.right, tr1.bottom + dh};
-                    text(dc, tr(it.desc), tr2, g_fCaption, g_pal.subtext, DT_WORDBREAK);
+                    text(dc, descOf(it), tr2, g_fCaption, g_pal.subtext, DT_WORDBREAK);
                 }
                 if (it.ctl == Ctl::Toggle && it.hwnd) {  // "Bật"/"Tắt" left of the switch
                     const bool on = SendMessageW(it.hwnd, BM_GETCHECK, 0, 0) == BST_CHECKED;
@@ -1308,12 +1352,17 @@ bool validShortcutKey(const std::wstring& k) {
     return true;
 }
 
-void importShortcuts() {
+}  // namespace
+
+// "Nhập…" and the welcome window's "Chuyển từ UniKey": any shortcut file — VietTelex /
+// macOS JSON or YAML, UniKey, OpenKey, generic text — in UTF-8 or UTF-16 (macro_import.h).
+void importShortcutsDialog(HWND owner) {
     wchar_t file[MAX_PATH] = {};
     OPENFILENAMEW ofn = {};
     ofn.lStructSize = sizeof ofn;
-    ofn.hwndOwner = g_wnd;
-    ofn.lpstrFilter = L"Shortcuts (*.yml;*.yaml;*.txt;*.json)\0*.yml;*.yaml;*.txt;*.json\0All files\0*.*\0";
+    ofn.hwndOwner = owner;
+    ofn.lpstrFilter =
+        L"Shortcuts / UniKey / OpenKey (*.txt;*.yml;*.yaml;*.json)\0*.txt;*.yml;*.yaml;*.json\0All files\0*.*\0";
     ofn.lpstrFile = file;
     ofn.nMaxFile = MAX_PATH;
     ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
@@ -1330,15 +1379,30 @@ void importShortcuts() {
         }
         CloseHandle(f);
     }
-    StringMap m;
-    if (data.empty() || !parseShortcutFile(data, m)) {
-        MessageBoxW(g_wnd, tr(S::ImportFailed), tr(S::AppName), MB_ICONWARNING);
+    MacroImport m;
+    if (data.empty() || !parseMacroFile(data, m)) {
+        MessageBoxW(owner, tr(S::ImportFailed), tr(S::AppName), MB_ICONWARNING);
         return;
     }
-    for (const auto& kv : m) g_settings.shortcuts[utf8ToUtf16(kv.first)] = utf8ToUtf16(kv.second);
-    changed();
-    fillList();
+    for (const auto& kv : m.entries) g_settings.shortcuts[utf8ToUtf16(kv.first)] = utf8ToUtf16(kv.second);
+    settingsChanged();
+    refreshSettingsWindow();
+    const wchar_t* fmtName = m.format == MacroFormat::UniKey ? L"UniKey" : m.format == MacroFormat::OpenKey ? L"OpenKey" : L"VietTelex / text";
+    wchar_t line[512];
+    swprintf(line, 512, tr(S::ImportResult), static_cast<int>(m.entries.size()), fmtName);
+    std::wstring msg = line;
+    if (m.skipped) {
+        swprintf(line, 512, tr(S::ImportSkipped), static_cast<int>(m.skipped));
+        msg += L"\n\n";
+        msg += line;
+    }
+    if (m.viqr) msg += std::wstring(L"\n\n") + tr(S::ImportViqr);
+    MessageBoxW(owner, msg.c_str(), tr(S::AppName), MB_OK | (m.viqr ? MB_ICONWARNING : MB_ICONINFORMATION));
 }
+
+namespace {
+
+void importShortcuts() { importShortcutsDialog(g_wnd); }
 
 void exportShortcuts() {
     wchar_t file[MAX_PATH] = L"viettelex-shortcuts.yml";
@@ -1465,6 +1529,22 @@ void onCommand(int id, int code, HWND ctl) {
                 g_settings.addTonesHotkey = kAddTonesHotkeys[sel()].id;
                 changed();  // settingsChanged() re-registers the hotkey
             }
+            break;
+        case IdComboGameHotkey:
+            if (code == CBN_SELCHANGE && sel() >= 0 && sel() < static_cast<int>(kGameModeHotkeyCount)) {
+                g_settings.gameModeHotkey = kGameModeHotkeys[sel()].id;
+                changed();  // settingsChanged() -> gameConfigure() re-registers the hotkey
+            }
+            break;
+        case IdComboIndicator:
+            if (code == CBN_SELCHANGE && sel() >= 0 && sel() < 3) {
+                g_settings.switchIndicator = switchIndicatorName(static_cast<SwitchIndicator>(sel()));
+                changed();
+            }
+            break;
+        case IdConflicts:
+            resolveConflicts(g_wnd, g_conflicts);
+            PostMessageW(g_wnd, WM_APP + 1, 0, 0);  // re-detect and redraw
             break;
         case IdScAdd: {
             std::wstring k = trim(windowText(g_edit1)), v = trim(windowText(g_edit2));

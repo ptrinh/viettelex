@@ -4,6 +4,7 @@
 #include "globals.h"
 #include "app_policy.h"
 #include "caret_hints.h"
+#include "game_ipc.h"
 #include "hint_popup.h"
 #include "hotkey.h"
 #include "session.h"
@@ -82,6 +83,11 @@ private:
     ~TextService();
 
     bool typingEnabled() const;
+    // Games / fullscreen (game_ipc.h): VietTelex.exe told this TIP to eat nothing, or
+    // Chế độ game is on. One bool test per key; nothing else on the key path.
+    bool suspended() const { return tipSuspended(suspendPosted_, settings_.gameMode); }
+    void setSuspendBits(uint32_t bits);  // from kTipSuspendMsg / kSuspendProp
+    void readSuspendProp();              // focus change: a suspension set before we had focus
     bool appRunning() const;
     bool directServesHere() const;
     bool requestDirect(const char* why);
@@ -156,6 +162,7 @@ private:
     bool directActive_ = false;         // this field is typed by the app's hook (Direct)
     bool directWanted_ = false;         // this field asked the app's hook to type (1.1.5)
     HWND langPropWnd_ = nullptr;        // where kTipLangProp is set
+    uint32_t suspendPosted_ = 0;        // game_ipc.h kSuspendFullscreen (from VietTelex.exe)
 
     ITfComposition* composition_ = nullptr;
     ITfContext* compositionContext_ = nullptr;

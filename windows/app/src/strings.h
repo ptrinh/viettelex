@@ -90,6 +90,23 @@ enum class S {
     DateHints, DateHintsDesc,
     // opt-in red squiggle on the composition (Chính tả page)
     UnderlineMisspelled, UnderlineMisspelledDesc,
+    // Games / fullscreen, floating V/E indicator (Kiểu gõ page)
+    SecGames,
+    AutoOffFullscreen, AutoOffFullscreenDesc,
+    GameMode, GameModeDesc,
+    GameModeHotkey, GameModeHotkeyDesc,
+    SwitchIndicator, SwitchIndicatorDesc, IndicatorAuto,
+    ToastGameOn, ToastGameOff,
+    // Other Vietnamese input methods (welcome window + Kiểu gõ page)
+    ConflictTitle, ConflictDesc, ConflictButton,
+    ConflictDlgIntro, ConflictOpenLocation, ConflictHowToQuit, ConflictQuitHelp,
+    ConflictRemoveMs, ConflictRemoveMsNote, ConflictOpenLangSettings, ConflictRemoved, ConflictRemoveFailed,
+    ConflictNone,
+    // Welcome (first run)
+    WelcomeTitle, WelcomeIntro, WelcomeMethod, WelcomeSwitch, WelcomeTray, WelcomeTrayNote,
+    WelcomeImport, WelcomeDone, WelcomeOpenSettings,
+    // Chuyển từ UniKey (import result)
+    ImportResult, ImportSkipped, ImportViqr,
     Count
 };
 

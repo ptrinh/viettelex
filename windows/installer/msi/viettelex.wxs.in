@@ -56,6 +56,20 @@
             <!-- The TIP's language-bar menu finds the app through this (64-bit view). -->
             <RegistryValue Root="HKLM" Key="SOFTWARE\VietTelex" Name="AppPath" Type="string"
                            Value="[INSTALLFOLDER]VietTelex.exe" />
+            <!-- Active Setup (app/core/onboarding.h): at each user's next logon Windows runs
+                 StubPath once for that user, so a SYSTEM install (Microsoft Store, Intune,
+                 msiexec /qn) still adds the keyboard to every user's language list. The stub
+                 is idempotent and shows no UI (it runs before the desktop); the version is
+                 FIXED so an upgrade never re-adds a keyboard a user removed. Removed with the
+                 product. -->
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Microsoft\Active Setup\Installed Components\{D1246D27-55D1-45DC-96F6-60BF26027142}"
+                           Type="string" Value="VietTelex" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Microsoft\Active Setup\Installed Components\{D1246D27-55D1-45DC-96F6-60BF26027142}"
+                           Name="StubPath" Type="string" Value="&quot;[INSTALLFOLDER]VietTelex.exe&quot; --setup-user --active-setup" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Microsoft\Active Setup\Installed Components\{D1246D27-55D1-45DC-96F6-60BF26027142}"
+                           Name="Version" Type="string" Value="1,0" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Microsoft\Active Setup\Installed Components\{D1246D27-55D1-45DC-96F6-60BF26027142}"
+                           Name="IsInstalled" Type="integer" Value="1" />
           </Component>
           <!-- Component rules for the LATE RemoveExistingProducts (after InstallExecute):
                the old version is removed after this one is installed, and only resources

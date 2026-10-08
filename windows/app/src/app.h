@@ -22,4 +22,12 @@ bool settingsDialogMessage(MSG* msg);
 // Dark mode helpers (settings_window.cpp).
 bool systemUsesDarkApps();
 
+// Shortcut import with a file picker: VietTelex/macOS files and UniKey / OpenKey macro
+// files, UTF-8 or UTF-16 (settings_window.cpp; also the welcome window's "Chuyển từ UniKey").
+void importShortcutsDialog(HWND owner);
+
+// First-run welcome window (welcome.cpp).
+void showWelcome();
+bool welcomeDialogMessage(MSG* msg);
+
 }  // namespace vtx::app

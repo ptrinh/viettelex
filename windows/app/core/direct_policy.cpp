@@ -59,4 +59,14 @@ void EchoPolicy::focusChanged() {
     fallen_.clear();
 }
 
+std::vector<DirectKeyEvent> directEditEvents(unsigned backspaces, const std::u16string& text) {
+    std::vector<DirectKeyEvent> v;
+    v.reserve(2 * (backspaces + text.size()));
+    for (unsigned i = 0; i < backspaces; ++i)
+        for (bool up : {false, true}) v.push_back(DirectKeyEvent{kVkBack, 0, false, up});
+    for (char16_t c : text)
+        for (bool up : {false, true}) v.push_back(DirectKeyEvent{0, static_cast<uint16_t>(c), true, up});
+    return v;
+}
+
 }  // namespace vtx

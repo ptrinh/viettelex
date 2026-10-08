@@ -58,6 +58,20 @@ struct Settings {
     bool typoHints = true;
     bool toneHints = false;
     bool dateHints = true;
+    // Games / fullscreen (app/core/game_logic.h, ime/core/game_ipc.h).
+    //   autoOffFullscreen: VietTelex stands aside (eats no key) while an exclusive-fullscreen
+    //     Direct3D app/game (or a slideshow) is in the foreground. Default ON — borderless
+    //     fullscreen browsers / video players are not affected.
+    //   gameMode: "Chế độ game" — every key passes through, in every app. Runtime state:
+    //     toggled by gameModeHotkey (or Settings), in the snapshot so every TIP sees it,
+    //     and cleared whenever VietTelex.exe starts (never left on across a reboot).
+    bool autoOffFullscreen = true;
+    bool gameMode = false;
+    // VietTelex.exe only, registry-only like addTonesHotkey (not in the snapshot, not
+    // compared by operator==): the Chế độ game hotkey (game_logic.h kGameModeHotkeys,
+    // default "off") and the floating V/E indicator ("auto" | "on" | "off").
+    std::string gameModeHotkey = "off";
+    std::string switchIndicator = "auto";
     // Data
     std::map<std::u16string, std::u16string> shortcuts;   // gõ tắt
     std::map<std::string, AppMode> appModes;              // user override, key = lowercase exe

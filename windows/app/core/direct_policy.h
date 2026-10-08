@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace vtx {
 
@@ -95,5 +96,38 @@ inline bool tipStaysOut(bool directWanted, bool hookAcked, bool fieldNoDirect, b
 
 // Only verify an edit that is still the latest one when the check runs.
 inline bool checkStillRelevant(uint64_t editSeqAtSend, uint64_t editSeqNow) { return editSeqAtSend == editSeqNow; }
+
+// ---- What one Direct edit sends (terminals and AI CLIs, 1.1.x) -----------------------
+// The bug class seen with other IMEs in terminals: a CLI that reads the pty (Claude Code,
+// Gemini CLI, other Node/Ink apps) expects Backspace as DEL 0x7F; if the IME's "backspace"
+// reaches it as BS 0x08 (a Unicode 0x08 character, or VK_BACK while Ctrl is down — Windows
+// Terminal and conhost's VT input send 0x08 for Ctrl+Backspace) the app does not delete,
+// and the retyped word lands after the old one: doubled characters.
+// What VietTelex sends, by construction:
+//   * each backspace = VK_BACK as a VIRTUAL KEY with its scan code (0x0E), down + up —
+//     exactly what the physical key produces. Windows Terminal / conhost therefore
+//     translate it like a real Backspace (DEL 0x7F in VT input mode); a legacy console
+//     reader gets the same KEY_EVENT record a real key gives.
+//   * never KEYEVENTF_UNICODE for a control character (that is how 0x08 would leak);
+//   * text = KEYEVENTF_UNICODE (VK_PACKET), one down/up per UTF-16 unit;
+//   * no modifier events, and the batch is only sent when no Ctrl/Alt/Win key is held
+//     (injectionModifiersSafe) — otherwise VK_BACK becomes Ctrl+Backspace (0x08, or
+//     "delete word" in GUI apps) / Alt+Backspace (ESC DEL = delete word in readline).
+// Residual risk (documented, not fixable from here): a CLI that parses one pty read as ONE
+// key would see "DEL DEL text" arriving together. For such an app set the terminal to
+// "Khung soạn" (composition) on the Ứng dụng page: then only committed text is sent.
+struct DirectKeyEvent {
+    uint16_t vk = 0;       // virtual key (0 for Unicode events)
+    uint16_t unit = 0;     // UTF-16 unit for Unicode events
+    bool unicode = false;  // KEYEVENTF_UNICODE
+    bool up = false;       // KEYEVENTF_KEYUP
+};
+constexpr uint16_t kVkBack = 0x08;
+// N backspaces then `text`, as the SendInput batch HookSink builds (scan codes added there).
+std::vector<DirectKeyEvent> directEditEvents(unsigned backspaces, const std::u16string& text);
+// A Direct batch may only be injected while no modifier that changes Backspace is held.
+inline bool injectionModifiersSafe(bool ctrlDown, bool altDown, bool winDown) {
+    return !ctrlDown && !altDown && !winDown;
+}
 
 }  // namespace vtx

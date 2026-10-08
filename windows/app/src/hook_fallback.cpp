@@ -33,6 +33,7 @@ enum : UINT {
     kCmdConfig = WM_APP + 1,   // lParam: Settings* (hook thread owns it)
     kCmdForeground,            // lParam: Foreground* (hook thread owns it)
     kCmdDisableHere,           // Direct proved unusable in the current field: stop hooking
+    kCmdSuspend,               // wParam 1 = game / fullscreen: type nothing (game_mode.cpp)
     kCmdQuit,
 };
 
@@ -64,6 +65,7 @@ struct HookState {
     HookArming arming;
     HWND ackHwnd = nullptr;    // window carrying kDirectOnProp (the TIP stays out there)
     uint64_t editSeq = 0;      // bumps on every injected edit (echo checks use the latest)
+    bool suspended = false;    // game / fullscreen / Chế độ game: every key passes through
 };
 HookState* h = nullptr;        // hook thread only
 DWORD g_hookTid = 0;
@@ -95,8 +97,13 @@ public:
     char16_t charAfterCaret() override { return 0; }
     bool hasSelection() override { return false; }
     bool replaceBeforeCaret(const std::u16string& expect, const std::u16string& insert) override {
-        for (size_t i = 0; i < expect.size(); ++i) addVk(VK_BACK);
-        for (char16_t c : insert) addUnicode(c);
+        // VK_BACK as a virtual key (never a Unicode 0x08), then Unicode text: see
+        // direct_policy.h directEditEvents (terminals / AI CLIs expect DEL from Backspace).
+        for (const DirectKeyEvent& e : directEditEvents(static_cast<unsigned>(expect.size()), insert)) {
+            if (e.up) continue;  // addVk / addUnicode emit down + up
+            if (e.unicode) addUnicode(static_cast<char16_t>(e.unit));
+            else addVk(e.vk);
+        }
         backspaces += static_cast<unsigned>(expect.size());
         units += static_cast<unsigned>(insert.size());
         return true;
@@ -143,6 +150,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     h->watchdog.lowLevelKey(GetTickCount64());
     const bool down = wp == WM_KEYDOWN || wp == WM_SYSKEYDOWN;
     if (!down) return CallNextHookEx(nullptr, code, wp, lp);
+    if (h->suspended) return CallNextHookEx(nullptr, code, wp, lp);  // game / fullscreen
     if (kb->flags & LLKHF_INJECTED) {  // someone else's synthetic input: do not compose over it
         h->session.reset();
         return CallNextHookEx(nullptr, code, wp, lp);
@@ -181,6 +189,14 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
                           false)) {
         h->session.reset();
         appLog("hook", "foreground changed before injection: edit dropped, word reset");
+        return CallNextHookEx(nullptr, code, wp, lp);
+    }
+    // A modifier pressed since the key (or AltGr) would turn our VK_BACK into Ctrl+Backspace
+    // (BS 0x08 in terminals, delete-word elsewhere) / Alt+Backspace: drop the edit instead.
+    if (!injectionModifiersSafe(GetAsyncKeyState(VK_CONTROL) < 0, GetAsyncKeyState(VK_MENU) < 0,
+                                GetAsyncKeyState(VK_LWIN) < 0 || GetAsyncKeyState(VK_RWIN) < 0)) {
+        h->session.reset();
+        appLog("hook", "modifier held at injection: edit dropped, word reset");
         return CallNextHookEx(nullptr, code, wp, lp);
     }
     const UINT total = static_cast<UINT>(sink.inputs.size());
@@ -327,6 +343,11 @@ DWORD WINAPI hookThreadMain(void*) {
                     h->arming.disengaged();
                     appLog("hook", "stopped for this field (Direct fell back to composition)");
                     break;
+                case kCmdSuspend:
+                    h->suspended = msg.wParam != 0;
+                    h->session.resetContext();
+                    appLog("hook", h->suspended ? "suspended (game / fullscreen)" : "resumed");
+                    break;
                 case kCmdQuit: PostQuitMessage(0); break;
                 default: break;
             }
@@ -457,6 +478,11 @@ void hookSetElevationNotifier(void (*notify)(const std::wstring& exe)) { g_eleva
 
 void hookDisableCurrentField() {
     if (g_hookTid) PostThreadMessageW(g_hookTid, kCmdDisableHere, 0, 0);
+}
+
+void hookSetSuspended(bool on) {
+    ensureHookThread();
+    PostThreadMessageW(g_hookTid, kCmdSuspend, on ? 1 : 0, 0);
 }
 
 void hookShutdown() {
