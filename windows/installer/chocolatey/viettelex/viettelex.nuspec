@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chocolatey package for VietTelex for Windows. Version and checksums are bumped by
+     ../update.sh <X.Y.Z>, which also prints the pack/push commands. -->
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>viettelex</id>
+    <version>1.1.5</version>
+    <packageSourceUrl>https://github.com/ptrinh/viettelex/tree/main/windows/installer/chocolatey/viettelex</packageSourceUrl>
+    <!-- owners = the community.chocolatey.org account(s) maintaining this package. -->
+    <owners>VietTelex</owners>
+    <title>VietTelex</title>
+    <authors>VietTelex</authors>
+    <projectUrl>https://viettelex.com</projectUrl>
+    <iconUrl>https://viettelex.com/assets/VietTelex-logo.png</iconUrl>
+    <licenseUrl>https://github.com/ptrinh/viettelex/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/ptrinh/viettelex</projectSourceUrl>
+    <docsUrl>https://viettelex.com/hdsd/?os=windows</docsUrl>
+    <bugTrackerUrl>https://github.com/ptrinh/viettelex/issues</bugTrackerUrl>
+    <tags>viettelex vietnamese telex vni ime keyboard input-method tieng-viet bo-go foss</tags>
+    <summary>Fast, private Vietnamese keyboard (Telex/VNI) for Windows: no underline, no data collection.</summary>
+    <description><![CDATA[VietTelex is a Vietnamese input method for Windows 10 (1903+) and 11, built on the Text Services Framework (TSF), the system keyboard API. It needs no global keyboard hook, so it also works in Chrome, Edge, Excel and Word, and in apps running as administrator.
+
+- Telex or VNI, old or new tone placement, fix tones anywhere in the word.
+- No underline while typing; Command Prompt, PowerShell and Windows Terminal included.
+- Restores English words automatically and checks Vietnamese spelling.
+- Custom shortcuts; remembers Vietnamese/English per app; Ctrl+Shift, Alt+Z or Win+Space to switch.
+- Leaves password fields alone; turns itself off in Remote Desktop and virtual machines.
+- Native x64 and ARM64 installers (this package picks the right one).
+
+No telemetry: VietTelex collects no data and only goes online when you press "Check for updates". Free and open source (MIT).
+
+**Bộ gõ tiếng Việt** Telex/VNI cho Windows: không gạch chân, không thu thập dữ liệu, mã nguồn mở.
+
+After installing, open VietTelex once (Start menu) or add the "VietTelex" keyboard under Settings > Time & language > Language > Vietnamese.
+]]></description>
+    <releaseNotes>https://github.com/ptrinh/viettelex/releases/tag/windows-v1.1.5</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

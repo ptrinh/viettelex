@@ -270,3 +270,16 @@ else
   echo "== done: $OUT — ${#BINS[@]} binaries + ${#MSIS[@]} MSIs signed, timestamped and verified"
 fi
 echo "   Nothing was uploaded. Publishing is a separate, deliberate step."
+# Publishing checklist (printed only; every step is manual). Tag and URL layout must match
+# docs/stable.json, installer/STORE.md, installer/winget/ and installer/chocolatey/.
+cat <<EOF
+
+-- publish checklist for $VERSION (manual, in order):
+   1. GitHub release, tag windows-v$VERSION (assets = the two MSIs + SHA256SUMS):
+        gh release create windows-v$VERSION "$OUT/VietTelex-$VERSION-x64.msi" "$OUT/VietTelex-$VERSION-arm64.msi" "$OUT/SHA256SUMS" ...
+   2. Store mirror (no-redirect URL Partner Center fetches):
+        docs/download/windows/$VERSION/VietTelex-$VERSION-{x64,arm64}.msi
+   3. docs/stable.json "windows" -> $VERSION (GitHub windows-v$VERSION URLs); Partner Center package URLs -> step 2.
+   4. Update winget manifest:     windows/installer/winget/submit.sh $VERSION   (prints the winget-pkgs PR commands)
+   5. Update Chocolatey package:  windows/installer/chocolatey/update.sh $VERSION (prints pack/push commands)
+EOF

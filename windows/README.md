@@ -209,10 +209,10 @@ The forwarder follows Microsoft's "Arm64X pure forwarder DLL" recipe. `ime/src/a
 VietTelex is submitted as a Partner Center **"MSI or EXE app"** that points at the signed MSI. Requirements:
 
 - a signed MSI (Azure Trusted Signing),
-- a versioned, HTTPS, immutable download URL per architecture (a GitHub Releases asset under `win-v<VERSION>`; never replaced),
+- a versioned, HTTPS, immutable download URL per architecture: Partner Center uses the no-redirect website mirror `https://viettelex.com/download/windows/<VERSION>/VietTelex-<VERSION>-<arch>.msi` (`docs/download/windows/`); the same bytes are the GitHub release assets under tag `windows-v<VERSION>` (used by `docs/stable.json`, winget and Chocolatey); never replaced,
 - silent install `msiexec /i <msi> /qn /norestart` and uninstall `msiexec /x {ProductCode} /qn`.
 
-Checklist and listing text: [installer/STORE.md](installer/STORE.md). An MSIX package cannot register a system-wide TSF text service, so `installer/msix/AppxManifest.xml` is an **optional, companion-only** template and is not part of the submission.
+Checklist and listing text: [installer/STORE.md](installer/STORE.md). Package managers: `installer/winget/submit.sh` (generates + validates the winget-pkgs manifests, prints the PR commands) and `installer/chocolatey/update.sh` (bumps the Chocolatey package); neither publishes anything. An MSIX package cannot register a system-wide TSF text service, so `installer/msix/AppxManifest.xml` is an **optional, companion-only** template and is not part of the submission.
 
 ## Needs a real Windows machine
 
