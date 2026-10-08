@@ -101,6 +101,9 @@ final class TelexInputController: IMKInputController {
     /// offset-0 in-place is honored, and pinned apps get no verify probes, so
     /// this is the only guard their first word has.
     private var edgeTapWord = false
+    /// Machine-speed key burst in THIS client (#118: OpenClaw types ~1 key/ms) — those
+    /// keys pass through verbatim, no composition, no calls into the client.
+    private var machineTyping = MachineTypingDetector()
     /// Echo budget of the edge word's synthetic bursts. macOS 26 strips the magic
     /// userData before events reach IMKit (measured: our own burst arrives
     /// "magic=false" even in TextEdit), so echoes are recognized by CONTENT:
@@ -386,6 +389,29 @@ final class TelexInputController: IMKInputController {
                 logDecision("edge-echo chunk swallowed, chunks left=\(edgeEchoChunks.count)")
                 return false
             }
+        }
+
+        // Machine typing (#118): a burst faster than any human (agent / text expander /
+        // barcode scanner) passes through VERBATIM — composing it mangles the text the
+        // sender chose, and an agent that re-reads and retypes turns that into an
+        // endless stream of synchronous IMK round trips on MAIN. Our own echoes were
+        // filtered above, so only foreign keys reach the detector.
+        let machine = machineTyping.observe(
+            eventNs: event.timestamp > 0 ? UInt64(event.timestamp * 1_000_000_000) : 0,
+            arrivalNs: DispatchTime.now().uptimeNanoseconds,
+            isRepeat: event.isARepeat)
+        if machine.machine, AppState.shared.tapCascadeBreaker {
+            if machine.began {
+                MachineTypingLog.noteBurst(entryID, path: "imk")
+                DebugLog.log("machine typing: \(entryID) — burst faster than human, keys pass verbatim")
+                Signposts.log.notice("machine typing: \(entryID, privacy: .public) — passthrough")
+                // Once per burst: a MARKED composition must be committed, or the
+                // passed-through key would replace the still-marked word.
+                endComposition(client)
+            }
+            discardComposition()
+            spMode = "machine"
+            return false
         }
 
         // Word-table class (maintainer repro 23/08/2026): the tap witnessed a

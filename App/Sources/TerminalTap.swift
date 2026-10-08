@@ -2229,6 +2229,8 @@ final class TerminalTapController {
     /// Máy nhận diện chord hotkey chuyển bộ gõ — TAP-thread confined (mọi note/disarm
     /// đều từ callback), không cần lock. Xem SwitchHotkey.swift.
     private var chordRecognizer = ModifierChordRecognizer()
+    /// Machine-speed key bursts (#118) — TAP-thread confined like chordRecognizer.
+    private var machineTyping = MachineTypingDetector()
 
     private var trustPoll: Timer?
 
@@ -2943,6 +2945,21 @@ final class TerminalTapController {
         //  - Terminals (fallbackApps) → Backspace+retype.
         //  - Anything else → the IMKit in-place path handles it (pass through).
         let id = FrontmostApp.shared.bundleID
+        // Machine typing (#118, see MachineTypingDetector): a superhuman burst (agent,
+        // text expander, scanner) passes VERBATIM — no compose, no synthetic burst per
+        // key. CGEventTimestamp is fed as-is: if it is mach ticks rather than ns the
+        // event clock only reads "faster", and the arrival clock still has to agree.
+        let machine = machineTyping.observe(
+            eventNs: UInt64(event.timestamp),
+            arrivalNs: DispatchTime.now().uptimeNanoseconds,
+            isRepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0)
+        if machine.machine, AppState.shared.tapCascadeBreaker {
+            if machine.began {
+                MachineTypingLog.noteBurst(id, path: "tap")
+                DebugLog.log("machine typing (tap): \(id ?? "?") — keys pass verbatim")
+            }
+            engine.reset(); shortcutTail.reset(); return pass
+        }
         // Stall breaker (#118): an app that made recent keys stall is passthrough for a
         // cooldown — raw key, no AX, no synthetic burst, nothing that can wait on it.
         if ClientStallBreaker.shared.isDegraded(id) {

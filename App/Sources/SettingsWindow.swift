@@ -1204,6 +1204,8 @@ enum DebugHeader {
             // Recorded ALWAYS (not only with debug logging on): a key that took >250ms
             // and which app it was charged to — the evidence #118 lacked.
             ClientStallBreaker.shared.reportLine(),
+            // Also always: superhuman key bursts passed verbatim (agents, #118).
+            MachineTypingLog.reportLine(),
         ]
     }
 }
