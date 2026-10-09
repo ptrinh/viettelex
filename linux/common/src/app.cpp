@@ -66,18 +66,41 @@ ClientHost ibusClientHost(const std::string &raw) {
     return ClientHost::Unknown;
 }
 
-ClientHost fcitxClientHost(const std::string &frontend, bool keyEventOrderFix) {
+bool fcitxIBusIsGnomeShell(const std::string &rawProgram, bool gnomeWaylandSession) {
+    if (!gnomeWaylandSession) return false;
+    std::string p = rawProgram;
+    for (auto &ch : p)
+        if (ch >= 'A' && ch <= 'Z') ch = char(ch - 'A' + 'a');
+    if (p == "gnome-shell") return true;  // the shell's context itself (or its overview one)
+    // Fcitx5's per-app virtual contexts: a ShellApp id. No path, no IM-module prefix.
+    if (p.find('/') != std::string::npos || p.find(' ') != std::string::npos) return false;
+    if (startsWith(p, "window:")) {
+        if (p.size() == 7) return false;
+        for (size_t i = 7; i < p.size(); ++i)
+            if (p[i] < '0' || p[i] > '9') return false;
+        return true;
+    }
+    const std::string desktop = ".desktop";
+    return p.find(':') == std::string::npos && p.size() > desktop.size() && endsWith(p, desktop);
+}
+
+ClientHost fcitxClientHost(const std::string &frontend, bool keyEventOrderFix, const std::string &rawProgram,
+                           bool gnomeWaylandSession) {
     if (frontend == "dbus") return keyEventOrderFix ? ClientHost::FcitxOrdered : ClientHost::FcitxUnordered;
     if (frontend == "xim") return ClientHost::FcitxXim;
     if (frontend == "wayland") return ClientHost::FcitxWayland;
     if (frontend == "wayland_v2") return ClientHost::FcitxWaylandV2;
-    if (frontend == "ibus") return ClientHost::FcitxIBus;
+    if (frontend == "ibus")
+        return fcitxIBusIsGnomeShell(rawProgram, gnomeWaylandSession) ? ClientHost::FcitxGnomeWayland
+                                                                      : ClientHost::FcitxIBus;
     return ClientHost::Unknown;
 }
 
 bool hostSupportsDirect(ClientHost h) { return h == ClientHost::IBusGtk || h == ClientHost::FcitxOrdered; }
 
-bool hostOrdersForwardedKeys(ClientHost h) { return h == ClientHost::IBusWayland || h == ClientHost::FcitxWayland; }
+bool hostOrdersForwardedKeys(ClientHost h) {
+    return h == ClientHost::IBusWayland || h == ClientHost::FcitxWayland || h == ClientHost::FcitxGnomeWayland;
+}
 
 bool isChromiumApp(const std::string &appId) {
     static const std::set<std::string> names = {

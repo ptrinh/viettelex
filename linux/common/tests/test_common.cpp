@@ -2326,6 +2326,80 @@ void testForwardKeysPolicy() {
     CHECK(isForcedPreeditApp("google-chrome") && isForcedPreeditApp("crx_abcdef"));
 }
 
+// Fcitx5 on GNOME Wayland (Zorin OS, Ubuntu + im-config fcitx5): gnome-shell talks IBus to
+// Fcitx5's "ibus" frontend, which also serves X11/XWayland apps with GTK_IM_MODULE=ibus.
+// Only gnome-shell's own context (or Fcitx5's per-app virtual contexts under it) is the
+// ordered gnome-shell → mutter path; everything else stays FcitxIBus (preedit).
+void testFcitxGnomeWaylandHost() {
+    // classification: gnome-shell's context, by program name, only in a GNOME Wayland session
+    CHECK(fcitxIBusIsGnomeShell("gnome-shell", true));
+    CHECK(fcitxIBusIsGnomeShell("GNOME-Shell", true));
+    CHECK(!fcitxIBusIsGnomeShell("gnome-shell", false));  // GNOME X11: shell entries only
+    // Fcitx5's own GNOME app monitor: virtual contexts named by the ShellApp id
+    CHECK(fcitxIBusIsGnomeShell("google-chrome.desktop", true));
+    CHECK(fcitxIBusIsGnomeShell("org.gnome.TextEditor.desktop", true));
+    CHECK(fcitxIBusIsGnomeShell("window:12", true));
+    CHECK(!fcitxIBusIsGnomeShell("google-chrome.desktop", false));
+    // X11 / XWayland IBus clients through the same frontend
+    for (const char *prog : {"", "chrome", "code", "gtk3-im:google-chrome", "gtk-im", "gtk3-im:foo.desktop",
+                             "QIBusInputContext", "xim", "/usr/bin/gnome-shell", "gnome-shell-x", "window:",
+                             "window:1a", ".desktop", "x.desktop y", ":1.42"}) {
+        CHECK(!fcitxIBusIsGnomeShell(prog, true));
+        CHECK(fcitxClientHost("ibus", false, prog, true) == ClientHost::FcitxIBus);
+    }
+    CHECK(fcitxClientHost("ibus", false, "gnome-shell", true) == ClientHost::FcitxGnomeWayland);
+    CHECK(fcitxClientHost("ibus", true, "gnome-shell", true) == ClientHost::FcitxGnomeWayland);
+    CHECK(fcitxClientHost("ibus", false, "google-chrome.desktop", true) == ClientHost::FcitxGnomeWayland);
+    CHECK(fcitxClientHost("ibus", false, "gnome-shell", false) == ClientHost::FcitxIBus);
+    CHECK(fcitxClientHost("ibus", false) == ClientHost::FcitxIBus);  // no program given
+    // the program only matters for the ibus frontend
+    CHECK(fcitxClientHost("dbus", true, "gnome-shell", true) == ClientHost::FcitxOrdered);
+    CHECK(fcitxClientHost("wayland", false, "gnome-shell", true) == ClientHost::FcitxWayland);
+    CHECK(fcitxClientHost("xim", false, "gnome-shell", true) == ClientHost::FcitxXim);
+    CHECK(hostOrdersForwardedKeys(ClientHost::FcitxGnomeWayland));
+    CHECK(!hostOrdersForwardedKeys(ClientHost::FcitxIBus));
+    CHECK(!hostSupportsDirect(ClientHost::FcitxGnomeWayland));  // Direct: still no
+
+    // policy
+    Settings s;
+    s.noUnderline = NoUnderline::ForwardKeys;
+    FieldHints shell;
+    shell.host = fcitxClientHost("ibus", false, "gnome-shell", true);
+    FieldHints x11;
+    x11.host = fcitxClientHost("ibus", false, "chrome", true);
+    // Chromium app id resolved by GnomeAppMonitor (old Fcitx5) or the virtual context's own
+    // program (new Fcitx5, "google-chrome.desktop" → "google-chrome") + proven surrounding
+    for (const char *id : {"google-chrome", "google-chrome.desktop", "code", "chromium", "coccoc"}) {
+        AppPolicy p = resolveAppPolicy(id, s, true, shell);
+        CHECK(p.mode == DisplayMode::Surrounding && p.deleteWithKeys && !p.allowSurroundingEdits);
+        CHECK(resolveAppPolicy(id, s, false, shell).mode == DisplayMode::Preedit);  // not proven
+        CHECK(!resolveAppPolicy(id, s, false, shell).deleteWithKeys);
+        CHECK(!resolveAppPolicy(id, Settings(), true, shell).deleteWithKeys);  // flag off
+        // the same Chromium app over X11/XWayland through the ibus frontend: preedit
+        AppPolicy px = resolveAppPolicy(id, s, true, x11);
+        CHECK(px.mode == DisplayMode::Preedit && !px.deleteWithKeys);
+    }
+    // gnome-shell with no real app id (monitor pending / portal missing / overview / Alt+F2):
+    // generic ⇒ preedit
+    for (const char *id : {"gnome-shell", "gnome-shell-overview", "default", "", "window:12", "12"}) {
+        AppPolicy p = resolveAppPolicy(id, s, true, shell);
+        CHECK(p.mode == DisplayMode::Preedit && !p.deleteWithKeys);
+    }
+    // non-Chromium apps on the shell path keep their usual policy
+    CHECK(!resolveAppPolicy("org.gnome.texteditor", s, true, shell).deleteWithKeys);
+    CHECK(!resolveAppPolicy("firefox", s, true, shell).deleteWithKeys);
+    // field types and pins still win
+    FieldHints url = shell;
+    url.urlOrEmail = true;
+    CHECK(resolveAppPolicy("google-chrome", s, true, url).mode == DisplayMode::Preedit);
+    FieldHints pw = shell;
+    pw.sensitive = true;
+    CHECK(!resolveAppPolicy("google-chrome", s, true, pw).deleteWithKeys);
+    Settings pinned = s;
+    pinned.appModes["code"] = "preedit";
+    CHECK(resolveAppPolicy("code", pinned, true, shell).mode == DisplayMode::Preedit);
+}
+
 void testForwardKeysConfig() {
     CHECK(parseConfig("[experimental]\nno_underline = \"forward-keys\"\n").noUnderline == NoUnderline::ForwardKeys);
     CHECK(parseConfig("[experimental]\nno_underline = \"FORWARD-KEYS\"\n").noUnderline == NoUnderline::ForwardKeys);
@@ -2495,6 +2569,7 @@ int main() {
     testForwardKeysTimeout();
     testForwardKeysSelectionAndKeys();
     testForwardKeysPolicy();
+    testFcitxGnomeWaylandHost();
     testForwardKeysConfig();
     testForwardKeysAgreesWithSurrounding();
     testForwardKeysRandomFaults();

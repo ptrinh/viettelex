@@ -146,11 +146,13 @@ public:
         }
     }
     // [experimental] no_underline = "forward-keys" (Chromium/Electron on KWin Wayland, the
-    // "wayland" frontend — vt::hostOrdersForwardedKeys): real BackSpace key events, then the
-    // Session commits. A real keycode (X 22 = evdev KEY_BACKSPACE): the "wayland" frontend
-    // then sends zwp_input_method_context_v1.key (KWin → wl_keyboard, handled in request
-    // order with commit_string) and adds the release itself; through the IBus frontend
-    // (GNOME, not enabled yet) gnome-shell's forward_key would turn code 0 into evdev key 0.
+    // "wayland" frontend, or on GNOME Wayland through the "ibus" frontend serving gnome-shell
+    // — vt::hostOrdersForwardedKeys): real BackSpace key events, then the Session commits.
+    // A real keycode (X 22 = evdev KEY_BACKSPACE): the "wayland" frontend then sends
+    // zwp_input_method_context_v1.key (KWin → wl_keyboard, handled in request order with
+    // commit_string) and adds the release itself; the "ibus" frontend sends ForwardKeyEvent
+    // with code 22 - 8 = 14 and gnome-shell's forward_key adds 8 back (code 0 would become
+    // evdev key 0); the release is ours to send there.
     void forwardBackspaces(int n) override {
         const fcitx::Key bs(FcitxKey_BackSpace, fcitx::KeyStates(), 22);
         const std::string frontend = ic_->frontend() ? ic_->frontend() : "";
@@ -539,7 +541,10 @@ private:
         field.numeric = caps.test(fcitx::CapabilityFlag::Digit) || caps.test(fcitx::CapabilityFlag::Number) ||
                         caps.test(fcitx::CapabilityFlag::Dialable);
         field.sensitive = caps.test(fcitx::CapabilityFlag::Sensitive);
-        field.host = vt::fcitxClientHost(st->ic->frontend() ? st->ic->frontend() : "", caps.test(fcitx::CapabilityFlag::KeyEventOrderFix));
+        // "ibus" frontend: gnome-shell's own context (GNOME Wayland) vs any other IBus client.
+        field.host = vt::fcitxClientHost(st->ic->frontend() ? st->ic->frontend() : "",
+                                         caps.test(fcitx::CapabilityFlag::KeyEventOrderFix), st->ic->program(),
+                                         gnomeSession_);
         auto policy = vt::resolveAppPolicy(st->appId, settings(), surrounding, field);
         st->rememberState = policy.rememberState;
         bool password = caps.test(fcitx::CapabilityFlag::Password);

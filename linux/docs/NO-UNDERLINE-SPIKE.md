@@ -42,7 +42,7 @@ cần extension, không cần portal, không cần quyền gì thêm:
 | KDE Plasma Wayland (Fcitx5 frontend `wayland`) | **forward-keys** (prototype) | cần Fcitx5 biết app id (`program`, chưa kiểm trên KWin); KWin master bỏ text-input-v1 (27/02/2026) ⇒ Chromium dùng v3 |
 | X11 (mọi desktop) | giữ preedit | Chromium X11 dùng GTK IM context riêng; forward key qua module GTK đi `gdk_event_put` — chưa kiểm chứng |
 | wlroots (Sway, Hyprland; Fcitx5 `wayland_v2`) | giữ preedit | forward = `zwp_virtual_keyboard_v1`, commit = `input_method_v2` — hai object, thứ tự chưa kiểm |
-| Fcitx5 trên GNOME (frontend `ibus`) | giữ preedit (bật sau) | cùng đường gnome-shell như IBus, nhưng host `FcitxIBus` lẫn cả X11 — cần cờ phân biệt |
+| Fcitx5 trên GNOME Wayland (frontend `ibus`, vd. Zorin OS) | **forward-keys** (prototype, 09/10/2026) | chỉ ngữ cảnh của chính gnome-shell (host `FcitxGnomeWayland`, §5.1): `program` = `gnome-shell` (hoặc id app `*.desktop` / `window:N` của ngữ cảnh ảo Fcitx5 mới) **và** phiên GNOME Wayland; client IBus khác qua cùng frontend (X11/XWayland, `GTK_IM_MODULE=ibus`) vẫn `FcitxIBus` ⇒ preedit. App id: GnomeAppMonitor như IBus. GNOME 45: như dòng IBus |
 
 ## 1. Bài toán
 
@@ -167,9 +167,56 @@ cần extension, không cần portal, không cần quyền gì thêm:
 - **X11** — giữ preedit. Chromium X11 tự gạch chân mọi attr (`composition_text_util_pango.cc`);
   forward key qua module IBus GTK3 đi `gdk_event_put` trong khi commit phát ngay (LINUX-SPEC
   §3.1) — với Chromium chưa kiểm. Có thể thử sau với host `IBusGtk`/`FcitxOrdered` nếu cần.
+- **Fcitx5 trên GNOME Wayland** (Zorin OS, Ubuntu + `im-config -n fcitx5`) — xem §5.1.
 - **wlroots** — Fcitx5 `wayland_v2` forward bằng `zwp_virtual_keyboard_v1`, commit bằng
   `zwp_input_method_v2`: hai object, compositor xử lý theo thứ tự nhận nhưng chưa đọc kỹ ⇒ giữ
   preedit (host `FcitxWaylandV2` tách riêng để bật sau).
+
+### 5.1 Fcitx5 trên GNOME Wayland (frontend `ibus`) — 09/10/2026
+
+gnome-shell chỉ nói giao thức IBus D-Bus, nên trên GNOME Wayland Fcitx5 phục vụ nó qua frontend
+`ibus` (giả làm ibus-daemon). Nhưng frontend đó cũng phục vụ mọi client IBus khác (app X11 /
+XWayland với `GTK_IM_MODULE=ibus`, Qt `QIBusInputContext`) ⇒ `frontend == "ibus"` không đủ.
+
+**Tín hiệu đã chọn (theo từng input context, không dựa env toàn cục):**
+`fcitxIBusIsGnomeShell(program, phiênGnomeWayland)` (`common/src/app.cpp`) ⇒ host `FcitxGnomeWayland`.
+
+- gnome-shell tạo ngữ cảnh bằng `create_input_context_async('gnome-shell', …)`
+  (`js/misc/inputMethod.js`, 42.0 → main). Fcitx5 `IBusFrontend::createInputContext` giữ tên
+  không chung chung làm `program` (chỉ `""`, `QIBusInputContext`, `gtk-im` mới bị thay bằng tên
+  tiến trình qua `GetConnectionUnixProcessID`) ⇒ `program() == "gnome-shell"`. Client X11 gửi
+  `gtk3-im:<prgname>` / `gtk-im` (→ tên tiến trình, vd. `chrome`) / `QIBusInputContext` — không bao
+  giờ là `gnome-shell`.
+- Fcitx5 bản có `GnomeAppMonitor` riêng (`src/frontend/ibusfrontend/gnomeappmonitor.cpp`, chỉ bật
+  khi desktop GNOME + `XDG_SESSION_TYPE=wayland` + không flatpak, nhận gnome-shell bằng **pid
+  người gọi** == pid của `org.gnome.Shell`): engine thấy `VirtualInputContext` (frontend vẫn `ibus`)
+  mỗi app, `program` = id ShellApp (`google-chrome.desktop`, `window:12`; overview = `gnome-shell`).
+  Tên `*.desktop` / `window:N` không client IBus nào gửi ⇒ cũng nhận là gnome-shell. Addon không
+  hỏi được pid người gọi (API công khai không có) ⇒ dùng tên.
+- Kèm điều kiện phiên GNOME Wayland (`isGnomeWaylandSession()` của tiến trình Fcitx5,
+  `XDG_CURRENT_DESKTOP` chứa GNOME — Zorin là `zorin:GNOME`): trên GNOME X11, ngữ cảnh
+  `gnome-shell` chỉ phục vụ ô của chính shell, app X11 có IM module riêng.
+- Đã loại: `InputContext::display()` — ngữ cảnh `ibus` nhận focus group mặc định
+  (`Instance::defaultFocusGroup` ưu tiên nhóm `wayland:`), giống hệt cho client X11 ⇒ không phân
+  biệt được; env `WAYLAND_DISPLAY`/`XDG_SESSION_TYPE` một mình — phiên Wayland vẫn có app
+  XWayland; cờ capability — gnome-shell và module GTK đều báo PREEDIT|FOCUS|SURROUNDING.
+
+**Thứ tự:** `IBusInputContext::forwardKeyDelegate` phát signal `ForwardKeyEvent` (keycode − 8,
+`bus()->flush()`), `commitStringDelegate` phát `CommitText` — cùng một kết nối D-Bus tới
+gnome-shell ⇒ gnome-shell nhận theo thứ tự gửi; `_onForwardKeyEvent` → `forward_key(keyval,
+keycode + 8, …)`, `_onCommitText` → `commit()` — từ đây y hệt đường IBus (hàng đợi Clutter MR
+!1286, flush `done` 6f316345). Khác IBus duy nhất: không qua ibus-daemon (bớt một chặng, không
+thêm kênh). Keycode: addon gửi `Key(BackSpace, 0, 22)` ⇒ Fcitx5 gửi 14 ⇒ gnome-shell cộng 8 =
+22 (đúng evdev KEY_BACKSPACE + 8); release do addon gửi (frontend `ibus` không tự thêm).
+Cảnh báo GNOME 45 (mutter#3090) áp dụng y như IBus: chỉ ranh giới commit→phím, không ảnh hưởng
+chuỗi BS→commit.
+
+**App id:** gnome-shell là client nên `program` là `gnome-shell`. Fcitx5 cũ (không có app
+monitor riêng — Zorin 17 / Ubuntu 22.04 Fcitx5 5.0.x, 24.04 5.1.7): addon đã dùng chung
+`GnomeAppMonitor` của `linux/common` (cùng cơ chế với engine IBus: theo dõi reply
+`GetRunningApplications` mà xdg-desktop-portal-gnome nhận) cho id chung `gnome-shell`. Fcitx5 mới:
+`program` của ngữ cảnh ảo là id app luôn (`google-chrome.desktop` → `google-chrome`). Chưa có id
+thật (portal thiếu, đang chờ reply, overview, `window:N`) ⇒ id chung ⇒ preedit.
 
 ## 6. Prototype (commit này)
 
@@ -178,7 +225,7 @@ cần extension, không cần portal, không cần quyền gì thêm:
 - `config.toml`: `[experimental] no_underline = "off" | "forward-keys"` (mặc định `off`; giá trị
   lạ = `off`). Hợp đồng: `common/SETTINGS.md` §9. App cài đặt chưa có nút (thử nghiệm).
 - `resolveAppPolicy` (`common/src/app.cpp`): `forward-keys` + `isChromiumApp(id)` +
-  `hostOrdersForwardedKeys(host)` (`IBusWayland`, `FcitxWayland`) + surrounding đã chứng minh +
+  `hostOrdersForwardedKeys(host)` (`IBusWayland`, `FcitxWayland`, `FcitxGnomeWayland`) + surrounding đã chứng minh +
   không pin + không phải id chung / URL / terminal / số / nhạy cảm ⇒ `mode = Surrounding`,
   `deleteWithKeys = true`, `allowSurroundingEdits = false` (không re-edit, không ⌫ mở lại từ —
   chỉ sửa trong từ đang gõ, gõ tắt, tự khôi phục). Pin `[app_modes]` luôn thắng. Danh sách
@@ -269,6 +316,9 @@ Chrome/Chromium mở bằng `--enable-wayland-ime --wayland-text-input-version=3
 | 11 | KDE: `fcitx5-diagnose` phần "Frontend" + `WAYLAND_DEBUG=1 google-chrome … 2>&1 \| grep -E "wl_keyboard@.*key\|commit_string"` | Thứ tự `key(14)` ×n trước `commit_string` |
 | 12 | Tắt cờ (`no_underline = "off"`) | Về như 1.0.7: Chrome gạch chân |
 | 13 | Máy tải nặng (`stress -c $(nproc)`), gõ như 3 | Hoặc đúng chữ, hoặc tự về gạch chân; không bao giờ sai chữ mà vẫn không gạch chân |
+| 14 | Zorin OS / Ubuntu GNOME Wayland + Fcitx5 (`im-config -n fcitx5`), Chrome + VS Code/Antigravity với cờ Ozone, làm lại 1–5 | Như 1–5 |
+| 15 | Như 14: `dbus-monitor --session "interface='org.freedesktop.IBus.InputContext'"` (frontend `ibus` của Fcitx5 nằm trên session bus) | `ForwardKeyEvent(65288, 14, …)` nhấn + nhả cho mỗi BS rồi `CommitText` |
+| 16 | Như 14 nhưng một app XWayland với `GTK_IM_MODULE=ibus` (vd. `google-chrome --ozone-platform=x11`) | Gạch chân (host `FcitxIBus`) |
 
 Ghi lại cho mỗi dòng: phiên bản GNOME/KWin, Chrome, IBus/Fcitx5, kết quả, có fallback không
 (VietTelex về gạch chân giữa chừng = fallback).

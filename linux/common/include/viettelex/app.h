@@ -34,22 +34,42 @@ bool isTerminalApp(const std::string &appId);
 //   FcitxUnordered D-Bus without KeyEventOrderFix (fcitx5-gtk4: forwardKey is a no-op).
 //   FcitxXim / FcitxWayland ("wayland": zwp_input_method_v1 — KWin, Weston) /
 //   FcitxWaylandV2 ("wayland_v2": input-method-v2 — wlroots) / FcitxIBus (fcitx5's IBus
-//   emulation): no.
+//   emulation, any other client — X11/XWayland apps with GTK_IM_MODULE=ibus…): no.
+//   FcitxGnomeWayland  Fcitx5's "ibus" frontend serving gnome-shell itself on GNOME Wayland
+//               (fcitxIBusIsGnomeShell): the same gnome-shell → mutter path as IBusWayland.
 enum class ClientHost {
     Unknown, IBusGtk, IBusGtk4, IBusQt, IBusXim, IBusWayland,
     FcitxOrdered, FcitxUnordered, FcitxXim, FcitxWayland, FcitxIBus, FcitxWaylandV2,
+    FcitxGnomeWayland,
 };
 // IBus client name as sent by the client ("gtk3-im:gnome-terminal-server", "xim", …).
 ClientHost ibusClientHost(const std::string &rawClientName);
-// Fcitx5 InputContext::frontendName() + CapabilityFlag::KeyEventOrderFix.
-ClientHost fcitxClientHost(const std::string &frontendName, bool keyEventOrderFix);
+// Fcitx5 "ibus" frontend: is this input context gnome-shell's own (the one context every
+// app types through on GNOME Wayland)? `rawProgram` is InputContext::program() as is.
+//   * gnome-shell creates its context as CreateInputContext("gnome-shell") (js/misc/
+//     inputMethod.js, 42 → main) and Fcitx5 keeps a non-generic name as the program;
+//   * Fcitx5 versions with their own GNOME app monitor hand engines a VirtualInputContext
+//     per app under that context, named by the shell's app id ("google-chrome.desktop",
+//     "window:12"; the overview one is "gnome-shell") — names no IBus client sends
+//     (GTK: "gtk3-im:…"/"gtk-im" → process name, Qt: process name, ibus-x11: "xim").
+// Only in a GNOME Wayland session (the Fcitx5 process's XDG_CURRENT_DESKTOP /
+// XDG_SESSION_TYPE): on GNOME X11 gnome-shell's context only serves the shell's own entries.
+// InputContext::display() is no help: an "ibus" context gets the default focus group
+// (Instance::defaultFocusGroup prefers any "wayland:" group), the same for X11 clients.
+bool fcitxIBusIsGnomeShell(const std::string &rawProgram, bool gnomeWaylandSession);
+// Fcitx5 InputContext::frontendName() + CapabilityFlag::KeyEventOrderFix; for "ibus" also
+// the raw program + session (fcitxIBusIsGnomeShell → FcitxGnomeWayland, else FcitxIBus).
+ClientHost fcitxClientHost(const std::string &frontendName, bool keyEventOrderFix,
+                           const std::string &rawProgram = std::string(), bool gnomeWaylandSession = false);
 bool hostSupportsDirect(ClientHost h);
 // [experimental] no_underline = "forward-keys" (docs/NO-UNDERLINE-SPIKE.md): does the
 // compositor deliver the IM's forwarded keys and its commits to the app in the order the IM
 // sent them? IBusWayland: mutter >= 3.38 queues ForwardKeyEvent and CommitText as Clutter
 // events in one queue (MR !1286) and flushes text_input.done before a passed-through key.
 // FcitxWayland (zwp_input_method_v1, KWin): keysym / key / commit_string requests are handled
-// synchronously in request order. Only Chromium-based clients (ozone/wayland dispatches
+// synchronously in request order. FcitxGnomeWayland: Fcitx5's ibus frontend emits
+// ForwardKeyEvent and CommitText as signals on the one D-Bus connection to gnome-shell, whose
+// inputMethod.js turns them into forward_key / commit — the IBusWayland queue from there on. Only Chromium-based clients (ozone/wayland dispatches
 // wl_keyboard and text-input on the same thread, synchronously) keep that order up to the
 // page — see isChromiumApp. wlroots (input-method-v2 + virtual keyboard) is unverified.
 bool hostOrdersForwardedKeys(ClientHost h);
