@@ -17,7 +17,8 @@ WAYLAND_IME_FLAGS_KDE = "--enable-wayland-ime --wayland-text-input-version=1"  #
 X11_FLAG = "--ozone-platform=x11"
 JETBRAINS_OPT = "-Drecreate.x11.input.method=true"
 
-# Chrome ≥140 / Electron ≥38 mặc định chạy Wayland gốc → mất IME nếu thiếu cờ.
+# Chrome ≥140 / Electron ≥38 mặc định chạy Wayland gốc; Chromium ≥137 bật text-input-v3 mặc định
+# (chromium e48954bd) — chỉ bản cũ hơn mới mất IME nếu thiếu cờ.
 # (id, tên, lệnh, file .desktop, flatpak id, file cờ ~/.config/<x>-flags.conf)
 CHROMIUM_APPS = (
     ("chrome", "Google Chrome", ("google-chrome", "google-chrome-stable"),
@@ -200,8 +201,8 @@ def assess(snap):
     todo = {k: v for k, v in snap.get("apps", {}).items() if not v.get("configured")}
     if wayland and todo:
         names = ", ".join(a["name"] for a in todo.values())
-        body = (_("Chrome ≥ 140 và app Electron ≥ 38 mặc định chạy Wayland gốc và không nhận bộ gõ "
-                "nếu thiếu cờ %s.") % (WAYLAND_IME_FLAGS_KDE if _is_kde(desktop) else WAYLAND_IME_FLAGS))
+        body = (_("Chrome/Electron trên Wayland: bản mới (Chrome ≥ 137) tự nhận bộ gõ; bản cũ hơn "
+                "hoặc app Electron chưa cập nhật cần cờ %s.") % (WAYLAND_IME_FLAGS_KDE if _is_kde(desktop) else WAYLAND_IME_FLAGS))
         if _is_gnome(desktop):
             body += _(" Cờ này chạy tốt với GNOME + IBus.")
         body += _(" Cách khác: %s (chạy qua XWayland).") % X11_FLAG

@@ -343,10 +343,10 @@ EN = {
     "Chép lệnh": "Copy command",
     "Đã chép lệnh.": "Command copied.",
     "%s: cần cờ bật bộ gõ trên Wayland": "%s: needs a flag to enable the input method on Wayland",
-    "Chrome ≥ 140 và app Electron ≥ 38 mặc định chạy Wayland gốc và không nhận bộ gõ nếu thiếu "
-    "cờ %s.":
-        "Chrome ≥ 140 and Electron ≥ 38 apps run native Wayland by default and ignore the input "
-        "method without the flag %s.",
+    "Chrome/Electron trên Wayland: bản mới (Chrome ≥ 137) tự nhận bộ gõ; bản cũ hơn hoặc app "
+    "Electron chưa cập nhật cần cờ %s.":
+        "Chrome/Electron on Wayland: recent versions (Chrome ≥ 137) pick up the input method on "
+        "their own; older ones or outdated Electron apps need the flag %s.",
     " Cờ này chạy tốt với GNOME + IBus.": " This flag works well with GNOME + IBus.",
     " Cách khác: %s (chạy qua XWayland).": " Alternatively: %s (runs through XWayland).",
     "# Chạy thử một lần:": "# Try it once:",
