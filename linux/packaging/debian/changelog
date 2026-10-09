@@ -1,3 +1,21 @@
+viettelex (1.0.9) UNRELEASED; urgency=medium
+
+  * Thêm Antigravity, Windsurf, Kiro, Trae và khoảng 60 app Electron/Chromium
+    (Signal, Element, Mattermost, Notion, Logseq, Joplin, Bitwarden, Postman…)
+    vào nhóm gõ an toàn (gạch chân chữ đang gõ) — tránh lặp chữ, xoá thừa.
+  * Thử nghiệm bỏ gạch chân chạy được với Fcitx5 trên GNOME Wayland (Zorin,
+    Ubuntu…), không chỉ IBus.
+  * App Cài đặt: công tắc "Bỏ gạch chân trong Chrome/Electron (thử nghiệm)"
+    ở tab Tuỳ chỉnh — tự thêm cờ bộ gõ Wayland cho app cần, tắt là dọn sạch.
+  * ---
+  * Antigravity, Windsurf, Kiro, Trae and ~60 more Electron/Chromium apps now
+    use the safe underlined composition (no doubled letters / extra deletes).
+  * The underline-free experiment now also works with Fcitx5 on GNOME Wayland.
+  * Settings: "No underline in Chrome/Electron (experimental)" toggle under
+    Customize; adds the Wayland IME launcher flags where needed.
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Sat, 10 Oct 2026 02:21:03 +0800
+
 viettelex (1.0.8) UNRELEASED; urgency=medium
 
   * Thêm Debian 12/13 và Ubuntu 26.04; lệnh cài một dòng nhận Mint, Pop!_OS,
