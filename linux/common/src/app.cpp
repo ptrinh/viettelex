@@ -95,10 +95,39 @@ bool isChromiumApp(const std::string &appId) {
         "vivaldi-snapshot", "brave-browser-beta", "brave-browser-nightly", "chromium-freeworld",
         "cromite", "cromite-browser", "helium", "helium-browser", "slimjet", "slimjet-browser",
         "flashpeak-slimjet",
+        // Flatpak ids whose last component is not the app's own name (shortName alone misses
+        // them): Brave/Edge/Yandex/ungoogled-chromium, Vivaldi flatpak WM_CLASS
+        "com.brave.browser", "com.microsoft.edge", "ru.yandex.browser", "vivaldi-flatpak",
+        "io.github.ungoogled_software.ungoogled_chromium", "com.github.eloston.ungoogledchromium",
+        "wavebox", "min-browser",
+        // AI code editors / VS Code forks (Electron). Antigravity: user báo gạch chân 10/2026
+        "antigravity", "windsurf", "kiro", "trae", "void", "pearai", "positron",
+        // chat (Electron / Chromium): .desktop, WM_CLASS, binary, Flatpak / snap ids
+        "signal", "org.signal.signal", "element", "element-desktop", "im.riot.riot",
+        "mattermost", "mattermost-desktop", "com.mattermost.desktop", "rocketchat-desktop",
+        "rocket.chat", "rocketchat", "caprine", "ferdium", "rambox", "franz", "beeper",
+        "beepertexts", "vesktop", "teams_for_linux", "whatsapp-desktop-linux", "whatsappdesktop",
+        "zalo-linux", "feishu", "bytedance-feishu", "bytedance-feishu-stable",
+        // notes / productivity / dev tools (Electron), Spotify (CEF)
+        "notion", "notion-app", "logseq", "joplin", "joplin-desktop", "joplin_desktop", "typora",
+        "marktext", "notesnook", "anytype", "bitwarden", "bitwarden-desktop",
+        "com.bitwarden.desktop", "1password", "com.onepassword.onepassword", "postman",
+        "insomnia", "figma-linux", "figma_linux", "github-desktop", "io.github.shiftey.desktop",
+        "io.github.shiftey",  // normalizeAppId strips a ".Desktop" tail: "io.github.shiftey.Desktop"
+        "gitkraken", "spotify", "com.spotify.client", "claude", "claude-desktop",
     };
     std::string id = normalizeAppId(appId);
     if (id.empty()) return false;
     if (names.count(id) || names.count(shortName(id))) return true;
+    // AppImage desktop files: "appimagekit-joplin", AppImageLauncher "appimagekit_<md5>-Logseq"
+    if (startsWith(id, "appimagekit")) {
+        size_t dash = id.find('-');
+        if (dash != std::string::npos && names.count(id.substr(dash + 1))) return true;
+    }
+    // Arch system Electron ("electron37" + app.asar) runs unnamed apps under this binary
+    if (startsWith(id, "electron") && id.size() > 8 &&
+        id.find_first_not_of("0123456789", 8) == std::string::npos)
+        return true;
     // Chromium web apps / PWA (Messenger cài từ trình duyệt): WM_CLASS "crx_<id>",
     // "chrome-<id>-default", "brave-<id>-default", "msedge-<id>-default"; mọi bản Cốc Cốc.
     if (startsWith(id, "crx_") || startsWith(id, "coccoc")) return true;

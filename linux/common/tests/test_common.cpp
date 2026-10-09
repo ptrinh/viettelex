@@ -1191,6 +1191,45 @@ void testChromiumFamilyForcedPreedit() {
     CHECK(!isForcedPreeditApp("gedit"));
 }
 
+// Regression (10/2026): Google Antigravity (Electron, VS Code fork) gạch chân lẫn lộn vì không
+// nằm trong nhóm Chromium. Id thật IME thấy: binary/program, WM_CLASS, .desktop, Flatpak, snap.
+void testElectronAppsAreChromium() {
+    for (const char *id : {
+             // AI editors
+             "antigravity", "Antigravity", "antigravity.desktop", "windsurf", "Windsurf", "kiro",
+             "trae", "Trae", "void", "PearAI", "positron",
+             // Flatpak / WM_CLASS forms the shortName rule alone misses or already covers
+             "com.google.Chrome", "com.visualstudio.code", "com.discordapp.Discord", "com.slack.Slack",
+             "com.brave.Browser", "com.microsoft.Edge", "ru.yandex.Browser", "Vivaldi-flatpak",
+             "io.github.ungoogled_software.ungoogled_chromium", "org.signal.Signal", "Signal",
+             "im.riot.Riot", "Element", "com.mattermost.Desktop", "chat.rocket.RocketChat",
+             "Rocket.Chat", "com.github.IsmaelMartinez.teams_for_linux", "dev.vencord.Vesktop",
+             "io.github.mimbrero.WhatsAppDesktop", "com.sindresorhus.Caprine", "org.ferdium.Ferdium",
+             "BeeperTexts", "zalo-linux_zalo-linux", "bytedance-feishu-stable", "feishu",
+             "com.logseq.Logseq", "net.cozic.joplin_desktop", "appimagekit-joplin",
+             "appimagekit_0123456789abcdef0123456789abcdef-Logseq", "io.typora.Typora", "marktext",
+             "com.notesnook.Notesnook", "io.anytype.anytype", "com.bitwarden.desktop",
+             "bitwarden-desktop", "com.onepassword.OnePassword", "1password", "Postman",
+             "rest.insomnia.Insomnia", "io.github.Figma_Linux.figma_linux", "io.github.shiftey.Desktop",
+             "io.github.shiftey.Desktop.desktop", "com.mattermost.Desktop.desktop",
+             "com.bitwarden.desktop.desktop",
+             "github-desktop", "com.axosoft.GitKraken", "com.spotify.Client", "spotify",
+             "com.anthropic.Claude", "claude-desktop", "notion-app", "electron37", "Wavebox",
+             "min-browser"}) {
+        if (isChromiumApp(id) && isForcedPreeditApp(id)) { ++g_pass; continue; }
+        ++g_fail;
+        std::fprintf(stderr, "not Chromium/Electron: %s\n", id);
+    }
+    // not Chromium: GTK WebKit / Qt WebEngine wrappers, Gecko, Zed (GPUI), generic Flatpak tails
+    for (const char *id : {"com.github.eneshecan.WhatsAppForLinux", "com.rtosta.zapzap", "dev.zed.Zed",
+                           "org.mozilla.firefox", "org.gnome.Desktop", "com.example.Browser",
+                           "org.kde.Client", "electron-cash", "appimagekit-gimp", "appimagekit"}) {
+        if (!isChromiumApp(id)) { ++g_pass; continue; }
+        ++g_fail;
+        std::fprintf(stderr, "wrongly Chromium: %s\n", id);
+    }
+}
+
 void testMoreForcedPreedit() {
     for (const char *id : {"krunner", "org.kde.krunner", "plasmashell", "jetbrains-idea", "jetbrains-pycharm",
                            "idea", "java", "wps", "wpp", "et", "wpsoffice", "desktopeditors", "steam"}) {
@@ -2425,6 +2464,7 @@ int main() {
     testWineAppsTypeVietnamese();
     testMoreForcedPreedit();
     testChromiumFamilyForcedPreedit();
+    testElectronAppsAreChromium();
     testCommitBeforeHidingPreedit();
     testDeleteOnlyEditSendsEmptyCommit();
     testAppStateStoreAndWatcher();

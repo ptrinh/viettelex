@@ -81,8 +81,11 @@ sự gửi `SetSurroundingText` có chữ — chỉ cờ capability thì chưa �
 sách ép preedit dựng sẵn (`isForcedPreeditApp` trong `app.cpp`): terminal (gnome-terminal, kgx,
 ptyxis, konsole, kitty, alacritty, wezterm, foot, xterm, tilix, terminator, VTE…), LibreOffice,
 Chromium/Electron/VS Code (mọi trình duyệt Chromium: Cốc Cốc, Yandex, Thorium, Cromite, Helium,
-Slimjet…, và web app/PWA
-`crx_*` / `chrome-*-default`), Firefox/LibreWolf/Zen/Thunderbird, Wine, gnome-shell (+ overview),
+Slimjet…; editor AI họ VS Code: Antigravity, Windsurf, Kiro, Trae, Void, PearAI, Positron; app
+Electron: Signal, Element, Mattermost, Rocket.Chat, Caprine, Ferdium, Beeper, Vesktop, Feishu,
+Notion, Logseq, Joplin, Typora, Notesnook, Anytype, Bitwarden, 1Password, Postman, Insomnia,
+GitHub Desktop, GitKraken, Claude…; Spotify (CEF); kể cả id Flatpak/snap/AppImage của chúng; web
+app/PWA `crx_*` / `chrome-*-default`), Firefox/LibreWolf/Zen/Thunderbird, Wine, gnome-shell (+ overview),
 krunner/plasmashell, JetBrains/Java, WPS/OnlyOffice, Steam. Ghi đè tay trong `[app_modes]`
 thắng danh sách dựng sẵn (trừ khi surrounding text chưa được chứng minh). Khi không được sửa
 chữ quanh con trỏ, sửa dấu từ đã gõ (re-edit) và ⌫ mở lại từ cũng tắt; có vùng chọn (thanh
@@ -223,7 +226,7 @@ sửa tay `config.toml`; áp dụng ngay (inotify). Đánh giá đầy đủ + k
 `docs/NO-UNDERLINE-SPIKE.md`.
 
 - `"forward-keys"`: app họ Chromium (`isChromiumApp`: Chrome/Chromium/Brave/Edge/Vivaldi/Opera/
-  Cốc Cốc…, VS Code, Slack, Discord, Zalo, Obsidian…, PWA `crx_*` / `chrome-*-default`) gõ thẳng
+  Cốc Cốc…, VS Code + Antigravity/Windsurf/Kiro…, Slack, Discord, Zalo, Obsidian…, PWA `crx_*` / `chrome-*-default`) gõ thẳng
   không gạch chân; sửa dấu bằng **phím BackSpace do bộ gõ forward** rồi commit chữ mới — không
   dùng `delete_surrounding_text` (Draft.js/Lexical ở Messenger không theo được). Chỉ khi:
   host giữ thứ tự phím forward với commit (`hostOrdersForwardedKeys`: IBus trên GNOME Wayland —
