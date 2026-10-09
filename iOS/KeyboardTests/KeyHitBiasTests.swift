@@ -1,6 +1,7 @@
 // Ưu tiên phím ở mép chung (KeyHitBias, Phil 06/10/2026) — song sinh Android HitBiasTest.kt.
 //  1. space thắng "," / "." kề trong dải 30% (gõ cuộn < 150 ms sau chữ: 40%);
-//  2. chữ thắng ⇧ / ⌫ kề trong dải 20% (gõ nhanh < 200 ms: 35%); tâm phím luôn của nó;
+//  2. (BỎ 10/10/2026 — bug "bấm ⌫ thành m / l") phím chữ KHÔNG lấn ⇧ / ⌫ nữa: phím chức
+//     năng có vùng chạm ổn định + khe cùng hàng (SpecialKeyGutter) — xem test cuối file;
 //  3. Caps Lock tắt khi rời plane chữ (123 / emoji), về ABC vẫn đánh giá lại viết hoa đầu câu.
 import XCTest
 import UIKit
@@ -17,11 +18,8 @@ final class KeyHitBiasTests: XCTestCase {
         XCTAssertEqual(B.spaceBand(sinceLetter: 0.10), 0.40)
         XCTAssertEqual(B.spaceBand(sinceLetter: 0.15), 0.30)      // hết cửa sổ cuộn
         XCTAssertEqual(B.spaceBand(sinceLetter: -1), 0.30)
-        XCTAssertEqual(B.letterBand(sinceLetter: nil), 0.20)
-        XCTAssertEqual(B.letterBand(sinceLetter: 0.199), 0.35)
-        XCTAssertEqual(B.letterBand(sinceLetter: 0.20), 0.20)
         // Dải luôn < nửa phím ⇒ tâm phím thua không bao giờ bị cướp.
-        for b in [B.spaceBand, B.spaceBandRolling, B.letterBand, B.letterBandRolling] { XCTAssertLessThan(b, 0.5) }
+        for b in [B.spaceBand, B.spaceBandRolling] { XCTAssertLessThan(b, 0.5) }
     }
 
     func testSpaceWinsNearCommaBoundary() {
@@ -52,39 +50,6 @@ final class KeyHitBiasTests: XCTestCase {
         // Không kề (cách xa) ⇒ không bao giờ.
         let far = CGRect(x: 360, y: 162, width: 30, height: 43)
         XCTAssertFalse(B.intrudes(CGPoint(x: 361, y: y), loser: far, winner: space, band: 0.45))
-    }
-
-    func testLettersWinNearShiftAndBackspace() {
-        // Hàng 3 iPhone 402: ⇧ 6.5…49 (42.5), khe 12, z 61…94; ⌫ 353…395.5, m 308…341.
-        // Hàng 2: a 26.3…59.5, đáy 98; ⇧ đỉnh 108.
-        let shift = CGRect(x: 6.5, y: 108, width: 42.5, height: 43)
-        let back = CGRect(x: 353, y: 108, width: 42.5, height: 43)
-        let z = CGRect(x: 61, y: 108, width: 33.3, height: 43)
-        let m = CGRect(x: 308, y: 108, width: 33.3, height: 43)
-        let a = CGRect(x: 26.3, y: 54, width: 33.3, height: 44)
-        let letters = [a, z, m]
-        let y = shift.midY
-        // (điểm, phím thua, since, phím thắng mong đợi: nil = giữ ⇧/⌫)
-        let table: [(CGPoint, CGRect, TimeInterval?, Int?)] = [
-            (CGPoint(x: 48, y: y), shift, nil, 1),           // sát mép phải ⇧ → z
-            (CGPoint(x: 41, y: y), shift, nil, 1),           // 18% → z
-            (CGPoint(x: 39, y: y), shift, nil, nil),         // 23% → ⇧
-            (CGPoint(x: 39, y: y), shift, 0.1, 1),           // gõ nhanh: 35%
-            (CGPoint(x: 33, y: y), shift, 0.1, nil),         // 37% → ⇧
-            (CGPoint(x: shift.midX, y: y), shift, 0.05, nil), // tâm ⇧ luôn ⇧
-            (CGPoint(x: 20, y: y), shift, 0.05, nil),        // mép trái ⇧
-            (CGPoint(x: 40, y: 110), shift, nil, 0),         // đỉnh ⇧ dưới a → a
-            (CGPoint(x: 40, y: 118), shift, nil, nil),       // 23% chiều cao → ⇧
-            (CGPoint(x: 15, y: 110), shift, nil, nil),       // đỉnh ⇧ nhưng ngoài khoảng x của a
-            (CGPoint(x: 354, y: back.midY), back, nil, 2),   // sát mép trái ⌫ → m
-            (CGPoint(x: 362, y: back.midY), back, nil, nil), // 21% → ⌫
-            (CGPoint(x: 362, y: back.midY), back, 0.1, 2),
-            (CGPoint(x: back.midX, y: back.midY), back, 0.1, nil),
-        ]
-        for (p, loser, since, want) in table {
-            let got = B.stealer(p, loser: loser, winners: letters, band: B.letterBand(sinceLetter: since))
-            XCTAssertEqual(got, want, "p=\(p) since=\(String(describing: since))")
-        }
     }
 
     // MARK: KeyboardView thật (iPhone 402pt) — đường hitTest / router
@@ -118,26 +83,6 @@ final class KeyHitBiasTests: XCTestCase {
         XCTAssertTrue(kb.hitTest(CGPoint(x: cf.minX + 0.2 * cf.width, y: cf.midY), with: nil) === space)
         XCTAssertTrue(kb.hitTest(CGPoint(x: cf.minX - 1, y: cf.midY), with: nil) === space, "khe")
         XCTAssertTrue(kb.hitTest(CGPoint(x: cf.minX + 0.4 * cf.width, y: cf.midY), with: nil) === comma)
-    }
-
-    @MainActor func testLettersStealShiftAndBackspaceEdges() throws {
-        try XCTSkipIf(isPad)
-        var typed: [Character] = []
-        let (kb, host) = makeKeyboard { if case .letter(let c) = $0 { typed.append(c) } }
-        _ = host
-        let shift = try XCTUnwrap(kb.debugControl("Shift"))
-        let back = try XCTUnwrap(kb.debugControl("Xoá"))
-        let sf = kb.convert(shift.bounds, from: shift), bf = kb.convert(back.bounds, from: back)
-        XCTAssertTrue(kb.hitTest(CGPoint(x: sf.midX, y: sf.midY), with: nil) === shift, "tâm ⇧")
-        XCTAssertTrue(kb.hitTest(CGPoint(x: bf.midX, y: bf.midY), with: nil) === back, "tâm ⌫")
-        let nearZ = CGPoint(x: sf.maxX - 0.1 * sf.width, y: sf.midY)
-        let nearM = CGPoint(x: bf.minX + 0.1 * bf.width, y: bf.midY)
-        XCTAssertTrue(kb.hitTest(nearZ, with: nil) === kb, "mép ⇧ sát z → router chữ")
-        XCTAssertTrue(kb.hitTest(nearM, with: nil) === kb, "mép ⌫ sát m → router chữ")
-        // Router ra đúng chữ kề (kể cả khi ngoài tầm 21pt của phím chữ gần nhất).
-        kb.debugTouch(from: nearZ, through: [], start: 100)
-        kb.debugTouch(from: nearM, through: [], start: 101)
-        XCTAssertEqual(typed.map { Character($0.lowercased()) }, ["z", "m"])
     }
 
     // MARK: Caps Lock tắt khi đổi plane
@@ -194,5 +139,184 @@ final class KeyHitBiasTests: XCTestCase {
         kb.debugEmojiABC()
         XCTAssertEqual(kb.debugPlaneName, "letters")
         XCTAssertTrue(kb.debugShiftOn)
+    }
+
+    // MARK: ⌫ / ⇧ vùng chạm ổn định (bug tester 1.2.6/1.2.7: "bấm ⌫ hay thành chữ m hoặc l")
+    // Gốc: KeyHitBias 06/10 cho phím chữ lấn 20 % (gõ nhanh < 200 ms: 35 %) mép trái ⌫ (→ m)
+    // và ĐỈNH ⌫ dưới l (→ l), cộng trọn khe giữa hai hàng; khe m↔⌫ (12pt) router chữ ăn nửa.
+
+    /// Hàm thuần — hình học iPhone 402: ⌫ 353…395.5, m 308…341 (hàng 3), l 347.9…381.2 (hàng 2,
+    /// đáy 98); ⇧ 6.5…49, z 61…94.
+    func testSpecialKeyGutterPure() {
+        let back = CGRect(x: 353, y: 108, width: 42.5, height: 43)
+        let shift = CGRect(x: 6.5, y: 108, width: 42.5, height: 43)
+        let m = CGRect(x: 308, y: 108, width: 33.3, height: 43)
+        let z = CGRect(x: 61, y: 108, width: 33.3, height: 43)
+        let l = CGRect(x: 347.9, y: 54, width: 33.3, height: 44)
+        let a = CGRect(x: 26.3, y: 54, width: 33.3, height: 44)
+        let letters = [a, l, z, m]
+        let specials = [shift, back]
+        let y = back.midY
+        // (điểm, chủ mong đợi: 0 = ⇧, 1 = ⌫, nil = để router chữ quyết)
+        let table: [(CGPoint, Int?)] = [
+            (CGPoint(x: back.midX, y: y), 1),
+            (CGPoint(x: 353.5, y: y), 1),               // mép trái ⌫ (cũ: m)
+            (CGPoint(x: 360, y: y), 1),                 // 16 % (cũ: m khi gõ nhanh)
+            (CGPoint(x: 365, y: 108.5), 1),             // đỉnh ⌫ ngay dưới l (cũ: l)
+            (CGPoint(x: 370, y: 120), 1),               // 28 % chiều cao (cũ: l khi gõ nhanh)
+            (CGPoint(x: 395, y: 150.5), 1),             // góc dưới phải
+            (CGPoint(x: 347, y: y), 1),                 // khe m↔⌫ giữa
+            (CGPoint(x: 344.5, y: y), 1),               // khe, 3.5pt từ m
+            (CGPoint(x: 343.5, y: y), nil),             // ≤ 3pt sát m ⇒ của m
+            (CGPoint(x: 400, y: y), 1),                 // mép màn hình bên phải ⌫
+            (CGPoint(x: m.midX, y: y), nil),            // lõi m
+            (CGPoint(x: 341, y: y), nil),               // mép phải m (trong hình m)
+            (CGPoint(x: 365, y: 100), nil),             // khe giữa hai hàng, nửa trên ⇒ router (l)
+            (CGPoint(x: 365, y: 103), 1),               // khe giữa hai hàng, ≤ 5.5pt trên ⌫
+            (CGPoint(x: 20, y: shift.midY), 0),
+            (CGPoint(x: 48.5, y: shift.midY), 0),       // mép phải ⇧ (cũ: z)
+            (CGPoint(x: 40, y: 108.5), 0),              // đỉnh ⇧ dưới a (cũ: a)
+            (CGPoint(x: 55, y: shift.midY), 0),         // khe ⇧↔z
+            (CGPoint(x: 58.5, y: shift.midY), nil),     // ≤ 3pt sát z
+            (CGPoint(x: 2, y: shift.midY), 0),          // mép màn hình trái
+        ]
+        for (p, want) in table {
+            XCTAssertEqual(SpecialKeyGutter.owner(p, specials: specials, letters: letters), want, "p=\(p)")
+        }
+        // Khe xa hơn maxGap ⇒ không thuộc.
+        XCTAssertNil(SpecialKeyGutter.owner(CGPoint(x: back.maxX + 17, y: y), specials: [back], letters: []))
+    }
+
+    /// Một cấu hình bàn phím thật: bề ngang view, màn hình giả, safe area đáy, tách đôi.
+    private struct Form {
+        let name: String; let width: CGFloat; let screen: CGSize
+        var safe: CGFloat = 0; var split = false
+    }
+    private var forms: [Form] { [
+        Form(name: "SE 375", width: 375, screen: CGSize(width: 375, height: 667)),
+        Form(name: "390", width: 390, screen: CGSize(width: 390, height: 844)),
+        Form(name: "393", width: 393, screen: CGSize(width: 393, height: 852)),
+        Form(name: "402", width: 402, screen: CGSize(width: 402, height: 874)),
+        Form(name: "430", width: 430, screen: CGSize(width: 430, height: 932)),
+        Form(name: "440", width: 440, screen: CGSize(width: 440, height: 956)),
+        Form(name: "ngang 667", width: 667, screen: CGSize(width: 667, height: 375)),
+        Form(name: "ngang 750", width: 750, screen: CGSize(width: 852, height: 393)),
+        Form(name: "ngang 874", width: 874, screen: CGSize(width: 874, height: 402)),
+        Form(name: "Duo gập", width: 466, screen: CGSize(width: 466, height: 678)),
+        Form(name: "Duo gập ngang", width: 528, screen: CGSize(width: 678, height: 466), safe: 18),
+        Form(name: "Duo mở", width: 801, screen: CGSize(width: 951, height: 669), safe: 18),
+        Form(name: "Duo mở dọc", width: 669, screen: CGSize(width: 669, height: 951), safe: 18),
+        Form(name: "Duo mở tách đôi", width: 801, screen: CGSize(width: 951, height: 669), safe: 18, split: true),
+    ] }
+
+    @MainActor private func makeKeyboard(_ f: Form, onKey: @escaping (KeyboardView.Key) -> Void)
+        -> (KeyboardView, UIView) {
+        let kb = KeyboardView(needsGlobe: false, inputController: nil, onKey: onKey)
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: f.width, height: 500))
+        host.addSubview(kb)
+        kb.frame = CGRect(x: 0, y: 0, width: f.width, height: 300)
+        kb.debugScreenSize = f.screen
+        kb.configureInputKind(.normal)
+        kb.setSuggestionsEnabled(true)
+        kb.debugSetSafeBottom(f.safe)
+        if f.split { kb.debugSetSplit(true) }
+        kb.layoutIfNeeded()
+        kb.frame.size.height = kb.debugRequestedHeight
+        kb.setNeedsLayout(); kb.layoutIfNeeded()
+        return (kb, host)
+    }
+
+    private func grid(_ r: CGRect) -> [CGPoint] {
+        let fr: [CGFloat] = [0.01, 0.1, 0.2, 0.34, 0.5, 0.8, 0.99]
+        return fr.flatMap { fx in fr.map { fy in CGPoint(x: r.minX + fx * r.width, y: r.minY + fy * r.height) } }
+    }
+
+    /// Mọi điểm trong hình ⌫ / ⇧ (lưới 7×7 kể cả sát mép) và khe cùng hàng cạnh nó ra ĐÚNG
+    /// phím chức năng — gõ chậm lẫn gõ cuộn (chạm 50 ms sau m / l / z / a), ở mọi bề ngang
+    /// iPhone dọc / ngang / máy gập / tách đôi. Lõi m / l / z / a (và 2pt ngoài mép) vẫn ra chữ.
+    @MainActor func testBackspaceAndShiftNeverStolenByLetters() throws {
+        try XCTSkipIf(isPad)
+        for f in forms {
+            var typed: [Character] = []
+            let (kb, host) = makeKeyboard(f) { if case .letter(let c) = $0 { typed.append(Character(c.lowercased())) } }
+            _ = host
+            let back = try XCTUnwrap(kb.debugControl("Xoá"), f.name)
+            let shift = try XCTUnwrap(kb.debugControl("Shift"), f.name)
+            let bf = kb.convert(back.bounds, from: back), sf = kb.convert(shift.bounds, from: shift)
+            let mf = try XCTUnwrap(kb.debugLetterFrames("m").last, f.name)
+            let zf = try XCTUnwrap(kb.debugLetterFrames("z").first, f.name)
+            XCTAssertLessThan(mf.maxX, bf.minX, f.name)
+            XCTAssertGreaterThan(zf.minX, sf.maxX, f.name)
+            // Khe cùng hàng: m.maxX + 3.5 … ⌫, z − 3.5 … ⇧; mép màn hình.
+            var backPts = grid(bf), shiftPts = grid(sf)
+            var x = mf.maxX + 3.5
+            while x < bf.minX { backPts.append(CGPoint(x: x, y: bf.midY)); x += 1 }
+            if bf.maxX + 1 < kb.bounds.width {
+                backPts.append(CGPoint(x: min(bf.maxX + 4, kb.bounds.width - 0.5), y: bf.midY))
+            }
+            x = zf.minX - 3.5
+            while x > sf.maxX { shiftPts.append(CGPoint(x: x, y: sf.midY)); x -= 1 }
+            // Khe trên ⌫ / ⇧: phần sát phím (≤ 5pt) vẫn là phím chức năng như trước 1.2.6.
+            backPts.append(CGPoint(x: bf.midX, y: bf.minY - 4.5))
+            shiftPts.append(CGPoint(x: sf.midX, y: sf.minY - 4.5))
+            var t: TimeInterval = 100
+            for prev in ["m", "l", "z", "a", nil] as [String?] {
+                if let prev, let pf = kb.debugLetterFrames(prev).first {
+                    kb.debugTouch(from: CGPoint(x: pf.midX, y: pf.midY), through: [], start: t)
+                }
+                t += 0.05                                          // gõ cuộn: 50 ms sau chữ
+                for p in backPts {
+                    XCTAssertTrue(kb.debugHitTest(p, time: t) === back,
+                                  "\(f.name): ⌫ bị cướp tại \(p) sau \(prev ?? "-") → \(kb.debugHitTest(p, time: t).map { ($0 as? UIControl)?.accessibilityLabel ?? String(describing: type(of: $0)) } ?? "nil")")
+                }
+                for p in shiftPts {
+                    XCTAssertTrue(kb.debugHitTest(p, time: t) === shift,
+                                  "\(f.name): ⇧ bị cướp tại \(p) sau \(prev ?? "-") → \(kb.debugHitTest(p, time: t).map { ($0 as? UIControl)?.accessibilityLabel ?? String(describing: type(of: $0)) } ?? "nil")")
+                }
+                XCTAssertTrue(kb.hitTest(CGPoint(x: bf.minX + 1, y: bf.minY + 1), with: nil) === back, f.name)
+                t += 1
+            }
+            // Phím chữ kề vẫn là của chúng: lõi, và 2pt ngoài mép phía phím chức năng.
+            typed.removeAll()
+            for s in ["m", "l", "z", "a"] {
+                let lf = try XCTUnwrap(kb.debugLetterFrames(s).last, f.name)
+                let p = CGPoint(x: lf.midX, y: lf.midY)
+                XCTAssertTrue(kb.debugHitTest(p, time: t) === kb, "\(f.name): lõi \(s)")
+                kb.debugTouch(from: p, through: [], start: t); t += 1
+            }
+            let nearM = CGPoint(x: mf.maxX + 2, y: mf.midY), nearZ = CGPoint(x: zf.minX - 2, y: zf.midY)
+            XCTAssertTrue(kb.debugHitTest(nearM, time: t) === kb, "\(f.name): 2pt phải m")
+            kb.debugTouch(from: nearM, through: [], start: t); t += 1
+            XCTAssertTrue(kb.debugHitTest(nearZ, time: t) === kb, "\(f.name): 2pt trái z")
+            kb.debugTouch(from: nearZ, through: [], start: t); t += 1
+            XCTAssertEqual(String(typed), "mlzamz", f.name)
+        }
+    }
+
+    /// Lăn ngón: chạm m, chưa nhấc đã chạm ⌫ ⇒ m chèn trước, ⌫ xoá sau (đúng thứ tự), nhấc
+    /// ngón m không phát lại m. (Phím chữ chèn lúc chạm; ⌫ chốt phím đang đè trước khi xoá.)
+    @MainActor func testRolloverLetterThenBackspaceOrder() throws {
+        try XCTSkipIf(isPad)
+        var keys: [String] = []
+        let (kb, host) = makeKeyboard(forms[3]) { k in
+            switch k {
+            case .letter(let c): keys.append(String(c).lowercased())
+            case .backspace: keys.append("⌫")
+            default: break
+            }
+        }
+        _ = host
+        let back = try XCTUnwrap(kb.debugControl("Xoá"))
+        let mf = try XCTUnwrap(kb.debugLetterFrame("m"))
+        let bf = kb.convert(back.bounds, from: back)
+        let token = NSObject()
+        let id = ObjectIdentifier(token)
+        kb.debugRouteDown(id, at: CGPoint(x: mf.midX, y: mf.midY), time: 10)
+        XCTAssertTrue(kb.debugHitTest(CGPoint(x: bf.minX + 2, y: bf.minY + 2), time: 10.04) === back)
+        back.sendActions(for: .touchDown)                  // flush phím đang đè (baseButton)
+        kb.debugBackspaceSwipe(from: bf.midX, through: []) // ⌫ xoá (backspaceDown → tapped)
+        kb.debugRouteUp(id, at: CGPoint(x: mf.midX + 6, y: mf.midY), time: 10.08)   // nhấc m (trôi 6pt)
+        withExtendedLifetime(token) {}
+        XCTAssertEqual(keys, ["m", "⌫"])
     }
 }

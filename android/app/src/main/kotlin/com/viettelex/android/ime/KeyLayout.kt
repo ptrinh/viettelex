@@ -457,15 +457,17 @@ object KeyLayout {
             if (inCore) return nearestLetter(keys, x, py, d)
             for (i in keys.indices.reversed()) {
                 val k = keys[i]
-                // Mép chung (HitBias): "," sát space ⇒ space; ⇧/⌫ sát chữ ⇒ chữ.
+                // Mép chung (HitBias): "," sát space ⇒ space. ⇧/⌫ không nhường cho chữ.
                 if (k.kind != KeyKind.LETTER && expandedContains(k, x, y, d))
-                    return HitBias.refine(keys, k, x, y, sinceLetterMs, d, letters = true)
+                    return HitBias.refine(keys, k, x, y, sinceLetterMs, d)
             }
+            // Khe cạnh phím chức năng (m↔⌫, z↔⇧, mép màn hình) ⇒ phím chức năng.
+            gutterOwner(keys, x, y, d)?.let { return it }
             nearestLetter(keys, x, py, d)?.let { return it }
         } else {
             for (i in keys.indices.reversed()) {
                 val k = keys[i]
-                if (expandedContains(k, x, y, d)) return HitBias.refine(keys, k, x, y, sinceLetterMs, d, letters = false)
+                if (expandedContains(k, x, y, d)) return HitBias.refine(keys, k, x, y, sinceLetterMs, d)
             }
         }
         var best: LaidKey? = null
@@ -476,6 +478,38 @@ object KeyLayout {
         }
         val lim = 21f * d
         return if (best != null && bestD <= lim * lim) best else null
+    }
+
+    /**
+     * Phím chức năng sở hữu khe quanh nó (song sinh iOS SpecialKeyGutter.owner — 10/10/2026, bug
+     * "bấm ⌫ hay thành m / l"). Lõi phím chữ ⇒ null. Khe CÙNG HÀNG ≤ 16 dp cạnh phím chức năng
+     * ⇒ phím đó, trừ 3 dp sát mép phím chữ (nửa khe chữ↔chữ). Khe trên/dưới trong khoảng x của
+     * nó ≤ 5.5 dp ⇒ phím đó. Nhiều phím ⇒ gần nhất.
+     */
+    fun gutterOwner(keys: List<LaidKey>, x: Float, y: Float, d: Float): LaidKey? {
+        for (k in keys) if (k.kind == KeyKind.LETTER && k.contains(x, y)) return null
+        val reach = 3f * d; val maxGap = 16f * d; val rowReach = 5.5f * d
+        var best: LaidKey? = null
+        var bestD = Float.MAX_VALUE
+        for (k in keys) {
+            if (k.kind == KeyKind.LETTER) continue
+            val dd: Float
+            if (k.contains(x, y)) dd = 0f
+            else if (x >= k.left && x <= k.right) {
+                dd = maxOf(k.top - y, y - k.bottom)
+                if (dd > rowReach) continue
+            } else {
+                if (y < k.top || y > k.bottom) continue
+                dd = maxOf(k.left - x, x - k.right)
+                if (dd <= 0f || dd > maxGap) continue
+                for (l in keys) {
+                    if (l.kind == KeyKind.LETTER && y >= l.top && y <= l.bottom &&
+                        x >= l.left - reach && x < l.right + reach) return null
+                }
+            }
+            if (dd < bestD) { bestD = dd; best = k }
+        }
+        return best
     }
 
     /** nearestLetterButton: footprint nở ⇒ phím đó; không thì gần nhất nếu ≤ 21 dp. */

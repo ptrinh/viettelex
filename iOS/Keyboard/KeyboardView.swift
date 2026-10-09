@@ -3847,7 +3847,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // Button thật (space, shift, backspace, số/ký hiệu, slot bar…) vẫn nhận
     // touch trực tiếp như cũ.
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        let v = routedHitTest(point, with: event)
+        let v = routedHitTest(point, with: event, time: event?.timestamp)
         if TouchLog.enabled, let e = event, e.type == .touches {
             let target: String
             if v === self { target = "router" }
@@ -3859,7 +3859,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return v
     }
 
-    private func routedHitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    private func routedHitTest(_ point: CGPoint, with event: UIEvent?, time: TimeInterval?) -> UIView? {
         let v = super.hitTest(point, with: event)
         if let p = overlayPanel, !p.isHidden, p.frame.contains(point) { return v }
         // Phím chữ ưu tiên trong FOOTPRINT thật của nó, kể cả khi hit-area nở của
@@ -3867,10 +3867,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // toggle shift / xoá thay vì ra chữ (nguồn rớt phím ở hàng 3, 2026-07-26).
         if lettersLike, letterCoreContains(point) { return self }
         if let c = v as? UIControl {
-            // Mép chung (KeyHitBias): space thắng ","/"." kề; chữ thắng ⇧/⌫ kề.
-            if let r = biasedHit(c, at: point, time: event?.timestamp) { return r }
+            // Mép chung (KeyHitBias): space thắng ","/"." kề. Phím chữ KHÔNG BAO GIỜ lấn
+            // ⇧ / ⌫ (bug 1.2.6/1.2.7 "bấm ⌫ thành m / l" — SpecialKeyGutter).
+            if let r = biasedHit(c, at: point, time: time) { return r }
             return v
         }
+        // Khe cùng hàng cạnh phím chức năng (m↔⌫, z↔⇧, mép màn hình) ⇒ phím chức năng,
+        // trừ 3pt sát mép phím chữ (SpecialKeyGutter) — trước đây router chữ ăn trọn nửa khe.
+        if v != nil, lettersLike, let s = gutterSpecial(at: point) { return s }
         // Khe / mép trong vùng phím: nút thật GẦN NHẤT (123, emoji, ⇧, ⌫, số…) hoặc phím chữ
         // gần hơn (router). Trước đây khe trên mỗi hàng nút (4.5pt: nút chỉ nở 5.5 trong khe
         // 10) là vùng CHẾT — chạm cao phím 123/ABC/emoji mất hẳn, chạm cao emoji ra chữ z.
@@ -3884,8 +3888,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
 
     /// Ưu tiên ở mép chung (KeyHitBias, iPhone): điểm rơi vào "," / "." nhưng trong dải sát
-    /// space ⇒ space; rơi vào ⇧ / ⌫ nhưng trong dải sát phím chữ ⇒ router chữ (self).
-    /// nil = giữ `c`. Chỉ chạy khi điểm chạm trúng một trong các nút đó (rẻ).
+    /// space ⇒ space. ⇧ / ⌫ không bao giờ nhường cho phím chữ (SpecialKeyGutter).
+    /// nil = giữ `c`. Chỉ chạy khi điểm chạm trúng "," / "." (rẻ).
     private func biasedHit(_ c: UIControl, at point: CGPoint, time: TimeInterval?) -> UIView? {
         guard !Self.isPad else { return nil }
         let since = time.flatMap { t in lastLetterDownTime.map { t - $0 } }
@@ -3897,34 +3901,25 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                                    winner: convert(space.bounds, from: space), band: band) {
                 return space
             }
-            return nil
         }
-        if lettersLike, letterStealing(from: c, at: point, sinceLetter: since) != nil { return self }
         return nil
     }
 
-    /// ⇧ / ⌫ đang hiện ở plane chữ: chỉ số phím chữ kề mà `point` lấn vào (KeyHitBias).
-    private func letterStealing(from c: UIControl, at point: CGPoint, sinceLetter: TimeInterval?) -> Int? {
-        guard !Self.isPad, lettersLike, !letterKeys.isEmpty,
-              shiftKeys.contains(where: { $0 === c }) || c.accessibilityLabel == L("Xoá") else { return nil }
-        return KeyHitBias.stealer(point, loser: convert(c.bounds, from: c), winners: letterGeometry().rects,
-                                  band: KeyHitBias.letterBand(sinceLetter: sinceLetter))
-    }
-
-    /// Router nhận điểm do ⇧/⌫ nhường (KeyHitBias) nhưng nằm ngoài tầm 21pt của phím chữ
-    /// gần nhất (khe ⇧↔z rộng 12) ⇒ lấy đúng phím chữ đã lấn.
-    private func letterStolenFromControl(at point: CGPoint, time: TimeInterval) -> UIButton? {
-        guard !Self.isPad, lettersLike else { return nil }
-        let since = lastLetterDownTime.map { time - $0 }
+    /// Nút thật (phím chức năng) sở hữu khe cùng hàng chứa `point` (SpecialKeyGutter).
+    /// Chỉ chạy ở khe (hiếm), ≤ ~15 rect.
+    private func gutterSpecial(at point: CGPoint) -> UIControl? {
+        guard point.y >= rowsContainer.frame.minY, rowsContainer.frame.contains(point) else { return nil }
+        var buttons: [UIControl] = []
         for row in rowsContainer.arrangedSubviews {
-            for c in rowControls(row) where !c.isHidden {
-                if convert(c.bounds, from: c).insetBy(dx: -3, dy: -5.5).contains(point),
-                   let i = letterStealing(from: c, at: point, sinceLetter: since) {
-                    return letterKeys[i].button
-                }
+            for c in rowControls(row)
+            where c.isUserInteractionEnabled && !c.isHidden && c.alpha > 0.01 {
+                buttons.append(c)
             }
         }
-        return nil
+        guard !buttons.isEmpty else { return nil }
+        let i = SpecialKeyGutter.owner(point, specials: buttons.map { convert($0.bounds, from: $0) },
+                                       letters: letterGeometry().rects)
+        return i.map { buttons[$0] }
     }
 
     /// Nút thật (bật tương tác, đang hiện) trong các hàng phím gần `point` nhất — chỉ chạy ở
@@ -4017,7 +4012,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// touch duy nhất được route bắt đầu phân loại chạm/vuốt (GestureClassifier).
     private func routeDown(_ id: ObjectIdentifier, at raw: CGPoint, time: TimeInterval, batch: Int) {
         let p = TouchGeometry.keySelectionPoint(raw, top: rowsContainer.frame.minY)
-        var b = swipeActive ? nil : (nearestLetterButton(at: p) ?? letterStolenFromControl(at: raw, time: time))
+        var b = swipeActive ? nil : nearestLetterButton(at: p)
         if let hit = b, let lp = letterPrior { b = smartPick(hit, at: p, prior: lp) }
         TouchLog.touchBegan(active: routedTouches.count, batch: batch,
                             touchTimestamp: time, hit: b != nil, y: Double(p.y),
@@ -4830,6 +4825,18 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
     /// Test hook: giữ lâu burger (bật/tắt một tay).
     func debugHoldBurger() { toggleOneHandFromKeyboard() }
+    /// Test hook: hitTest như một touch thật ở thời điểm `time` (giây, cùng trục với
+    /// debugTouch `start`) — để test dải gõ cuộn (thời gian từ chữ trước).
+    func debugHitTest(_ p: CGPoint, time: TimeInterval) -> UIView? {
+        routedHitTest(p, with: nil, time: time)
+    }
+    /// Test hook: chạm / nhấc một touch router riêng lẻ (lăn ngón: giữ chữ rồi chạm phím khác).
+    func debugRouteDown(_ id: ObjectIdentifier, at p: CGPoint, time: TimeInterval) {
+        routeDown(id, at: p, time: time, batch: 1)
+    }
+    func debugRouteUp(_ id: ObjectIdentifier, at p: CGPoint, time: TimeInterval) {
+        routeUp(id, at: p, time: time, cancelled: false)
+    }
     /// Bench hook (KeyboardBenchTests): một chạm phím chữ tại `p` đi đúng đường thật —
     /// hitTest (router) → routeDown (smartPick, sendActions touchDown → chèn) → routeUp.
     func benchTap(at p: CGPoint, time: TimeInterval) {
