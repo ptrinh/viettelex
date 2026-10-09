@@ -227,7 +227,10 @@ sửa tay `config.toml`; áp dụng ngay (inotify). Đánh giá đầy đủ + k
   không gạch chân; sửa dấu bằng **phím BackSpace do bộ gõ forward** rồi commit chữ mới — không
   dùng `delete_surrounding_text` (Draft.js/Lexical ở Messenger không theo được). Chỉ khi:
   host giữ thứ tự phím forward với commit (`hostOrdersForwardedKeys`: IBus trên GNOME Wayland —
-  client `gnome-shell`; Fcitx5 frontend `wayland` trên KWin), app id thật (không phải id chung),
+  client `gnome-shell`; Fcitx5 frontend `wayland` trên KWin; Fcitx5 frontend `ibus` trên GNOME
+  Wayland, chỉ ngữ cảnh của chính gnome-shell — `program` `gnome-shell` hoặc id app `*.desktop` /
+  `window:N` của Fcitx5 mới, trong phiên GNOME Wayland; client IBus X11/XWayland khác qua cùng
+  frontend vẫn gạch chân), app id thật (không phải id chung),
   surrounding text đã chứng minh trong lần focus này, ô không phải URL / terminal / số / mật
   khẩu / nhạy cảm, và app không có mục `[app_modes]` (mục đó luôn thắng). Còn lại: như `"off"`.
 - Ở chế độ này không re-edit, ⌫ không mở lại từ (chỉ sửa trong từ đang gõ, gõ tắt, tự khôi

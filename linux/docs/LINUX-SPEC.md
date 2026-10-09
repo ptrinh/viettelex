@@ -124,7 +124,8 @@ Rủi ro còn lại: `IBUS_ENABLE_SYNC_MODE=1` (không mặc định) + gõ rấ
 
 **Thử nghiệm 10/2026 — Chromium/Electron không gạch chân** (`docs/NO-UNDERLINE-SPIKE.md`): sửa
 dấu bằng BackSpace *forward* rồi `commit` chữ mới (không forward chữ như Direct). mutter ≥ 3.38
-xếp ForwardKeyEvent và CommitText của IM vào cùng hàng đợi Clutter (MR !1286), KWin xử lý
+xếp ForwardKeyEvent và CommitText của IM vào cùng hàng đợi Clutter (MR !1286) — cả khi IM là
+Fcitx5 qua frontend `ibus` phục vụ gnome-shell (host `FcitxGnomeWayland`), KWin xử lý
 request của `zwp_input_method_context_v1` theo thứ tự, Chromium xử lý `wl_keyboard` lẫn
 text-input đồng bộ ⇒ trang web thấy keydown BackSpace trước chữ mới. Bật bằng
 `[experimental] no_underline = "forward-keys"` (SETTINGS.md §9); mỗi lần sửa được xác nhận lại
