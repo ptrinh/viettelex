@@ -169,15 +169,11 @@ def chromium_fix(apps, desktop):
            "Slack": "slack", "Discord": "discord"}[first["name"]]
     lines.append("%s %s" % (exe, flags))
     lines.append("")
-    ff = [a for a in apps.values() if a["flags_file"] and a["kind"] == "deb"]
-    if ff:
-        lines.append(_("# Cố định, cách A — file cờ (app đọc khi khởi động):"))
-    for a in ff:
-        lines.append("printf -- '%s\\n' >> ~/.config/%s" % (
-            "\\n".join(flags.split()), a["flags_file"]))
+    # Không gợi ý ~/.config/<app>-flags.conf: chỉ wrapper của Arch đọc file đó; gói .deb của
+    # Google Chrome (wrapper chrome/installer/linux/common/wrapper) và VS Code thì không.
     desk = [a for a in apps.values() if a["kind"] == "deb" and a["desktop"].startswith("/usr/")]
     if desk:
-        lines.append(_("# Cố định, cách B — sửa dòng Exec của file .desktop (mọi app):"))
+        lines.append(_("# Cố định — sửa dòng Exec của file .desktop:"))
         lines.append("mkdir -p ~/.local/share/applications")
         for a in desk:
             base = os.path.basename(a["desktop"])

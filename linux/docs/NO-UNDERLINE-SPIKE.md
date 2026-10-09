@@ -223,7 +223,9 @@ thật (portal thiếu, đang chờ reply, overview, `window:N`) ⇒ id chung �
 ### 6.1 Cấu hình + chính sách
 
 - `config.toml`: `[experimental] no_underline = "off" | "forward-keys"` (mặc định `off`; giá trị
-  lạ = `off`). Hợp đồng: `common/SETTINGS.md` §9. App cài đặt chưa có nút (thử nghiệm).
+  lạ = `off`). Hợp đồng: `common/SETTINGS.md` §9. App cài đặt: nút "Bỏ gạch chân trong
+  Chrome/Electron (thử nghiệm)" (tab Tuỳ chỉnh) — bật thì tự tạo lối tắt `.desktop` có cờ IME
+  Wayland cho mọi app họ Chromium đã cài (§6.4).
 - `resolveAppPolicy` (`common/src/app.cpp`): `forward-keys` + `isChromiumApp(id)` +
   `hostOrdersForwardedKeys(host)` (`IBusWayland`, `FcitxWayland`, `FcitxGnomeWayland`) + surrounding đã chứng minh +
   không pin + không phải id chung / URL / terminal / số / nhạy cảm ⇒ `mode = Surrounding`,
@@ -282,6 +284,42 @@ Kết quả (Docker `viettelex-build:noble-arm64`): ctest đủ bộ xanh; chạ
 trễ 1–3 phím *và* ô có sẵn chữ ⇒ 24/20 000 kịch bản (0,12 %) fallback thừa về preedit (seed lấy
 lúc host còn trễ) — an toàn, không sai chữ.
 
+### 6.4 Cờ IME Wayland tự động (app cài đặt, 10/10/2026)
+
+Mặc định hiện tại (đọc mã Chromium main + ghi chú phát hành, 10/10/2026):
+
+- **Chrome/Chromium ≥ 137**: text-input-v3 bật mặc định — `kWaylandTextInputV3`
+  `FEATURE_ENABLED_BY_DEFAULT` (commit e48954bd "[ozone/wayland] Make WaylandTextInputV3 enabled by
+  default", 10/04/2025; chromiumdash: bản đầu 137.0.7121.0). `IsImeEnabled()` trả true khi feature
+  bật mà không cần `--enable-wayland-ime`; `GtkUiPlatformWayland::CreateInputMethodContext` trả
+  `nullptr` ("Use text-input-v3 on Wayland") ⇒ không còn module GTK trên Wayland.
+- **Chrome ≥ 140**: `--ozone-platform-hint=auto` thành mặc định (Wayland gốc khi phiên là Wayland);
+  Chromium main đã bỏ hẳn cờ hint (`SetOzonePlatformForLinuxIfNeeded` tự chọn Wayland).
+- **Electron ≥ 38** (Chromium 140): "Electron now runs as a native Wayland app by default"
+  (`--ozone-platform` mặc định `auto`, bỏ `ELECTRON_OZONE_PLATFORM_HINT`) ⇒ cũng có text-input-v3.
+- ⇒ Chrome/Electron cập nhật thì **không cần cờ** trên GNOME. Cần cờ: Electron < 38 (mặc định
+  XWayland — cần `--ozone-platform-hint=auto` mới sang Wayland), Chromium 128–136, KDE với KWin
+  < 6.7 (Fcitx khuyên text-input-v1). Không đọc được phiên bản (Electron, Brave, Vivaldi…) ⇒ vẫn
+  thêm cờ (vô hại khi đã là mặc định). Chrome/Edge/Chromium .deb + snap chromium ≥ 140 ⇒ bỏ qua.
+- Cờ thêm: `--enable-wayland-ime --wayland-text-input-version=3 --ozone-platform-hint=auto`
+  (KWin < 6.7: `=1`). Cách chèn, quy tắc sở hữu file: `common/SETTINGS.md` §9.1.
+- Không dùng `~/.config/chrome-flags.conf`: wrapper `google-chrome` của gói .deb
+  (`chrome/installer/linux/common/wrapper`) không đọc file đó (chỉ gói AUR của Arch).
+- Gợi ý "mở lại app" phía bộ gõ (khi app Chromium tới qua module GTK/XWayland): **không làm**.
+  Kênh duy nhất có sẵn là gợi ý cạnh con trỏ (`showHint`, aux text) — gắn với Tab = áp dụng,
+  phải thêm loại gợi ý mới + lưu "đã báo" + chạy trong đường phím. Thay vào đó app cài đặt dò
+  `/proc`: app đang chạy mà tiến trình chính không mang `--enable-wayland-ime` ⇒ báo "thoát hẳn
+  rồi mở lại …" ngay khi bật.
+
+Nguồn: https://chromium.googlesource.com/chromium/src/+/e48954bdc391fcba2fd20a5a40a8a16332cf1638 ;
+https://chromiumdash.appspot.com/commit/e48954bdc391fcba2fd20a5a40a8a16332cf1638 ; Chromium main
+`ui/base/ui_base_features.cc`, `ui/ozone/platform/wayland/host/wayland_input_method_context.cc`
+(`IsImeEnabled`, `CreateTextInput`), `ui/gtk/wayland/gtk_ui_platform_wayland.cc`,
+`ui/linux/display_server_utils.cc`, `chrome/installer/linux/common/wrapper` ;
+https://www.electronjs.org/blog/electron-38-0 ;
+https://www.omgubuntu.co.uk/2025/08/chrome-140-wayland-auto-detection-linux ;
+https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland .
+
 ## 7. Còn phải kiểm trên máy thật — kế hoạch kiểm thử tay
 
 Không chạy được phiên GNOME/KDE thật ở đây. Đã cân nhắc Docker headless (`gnome-shell
@@ -289,15 +327,16 @@ Không chạy được phiên GNOME/KDE thật ở đây. Đã cân nhắc Docke
 GNOME + Chromium vài GB, và gnome-shell headless + IBus trong
 container nhiều ẩn số ⇒ không làm trong spike này.
 
-Chuẩn bị (mỗi máy): cài bản build từ nhánh này; `~/.config/viettelex/config.toml` thêm
+Chuẩn bị (mỗi máy), không cần gõ lệnh:
 
-```toml
-[experimental]
-no_underline = "forward-keys"
-```
+1. Cập nhật VietTelex (bản từ nhánh này).
+2. Mở **VietTelex** (app cài đặt) → tab **Tuỳ chỉnh** → bật **"Bỏ gạch chân trong Chrome/Electron
+   (thử nghiệm)"**. Dòng mô tả liệt kê app đã thêm cờ / đã bật sẵn / cần mở lại.
+3. **Thoát hẳn** Chrome / VS Code / Slack… (Chrome: menu → Thoát, kể cả chạy nền) rồi mở lại từ
+   menu ứng dụng hoặc dock.
 
-Chrome/Chromium mở bằng `--enable-wayland-ime --wayland-text-input-version=3` (KDE ≤ 6.6 thử cả
-`=1`); kiểm `chrome://gpu` → "Ozone platform: wayland". Trang thử: `data:text/html,<textarea>`,
+Kiểm (tuỳ chọn) `chrome://gpu` → "Ozone platform: wayland". Mở app từ terminal thì không có cờ
+của lối tắt — Chrome ≥ 140 / Electron ≥ 38 vẫn đúng vì đã là mặc định. Trang thử: `data:text/html,<textarea>`,
 `data:text/html,<div contenteditable>`, messenger.com (Lexical), facebook.com ô bình luận
 (Draft.js/Lexical), Google Docs, Slack/Discord (Electron), VS Code.
 
@@ -314,7 +353,8 @@ Chrome/Chromium mở bằng `--enable-wayland-ime --wayland-text-input-version=3
 | 9 | Ubuntu 22.04 (GNOME 42) làm lại 1–3 | Như trên |
 | 10 | Kubuntu/KDE Plasma 6 Wayland + Fcitx5 (Virtual Keyboard = Fcitx 5), Chrome v3 (và v1 nếu KWin ≤ 6.6) | Như 1–5 |
 | 11 | KDE: `fcitx5-diagnose` phần "Frontend" + `WAYLAND_DEBUG=1 google-chrome … 2>&1 \| grep -E "wl_keyboard@.*key\|commit_string"` | Thứ tự `key(14)` ×n trước `commit_string` |
-| 12 | Tắt cờ (`no_underline = "off"`) | Về như 1.0.7: Chrome gạch chân |
+| 12 | Tắt nút trong app cài đặt | Về như 1.0.7: Chrome gạch chân; `~/.local/share/applications` không còn file có `X-VietTelex-Generated` |
+| 12b | Bật lại; xem `~/.local/share/applications/google-chrome.desktop` (hoặc `code.desktop`…) | `Exec=` (cả Desktop Actions) có cờ ngay sau chương trình, trước `%U`; `Icon`/`TryExec`/`StartupWMClass` giữ nguyên; app vẫn hiện đúng trong menu/dock |
 | 13 | Máy tải nặng (`stress -c $(nproc)`), gõ như 3 | Hoặc đúng chữ, hoặc tự về gạch chân; không bao giờ sai chữ mà vẫn không gạch chân |
 | 14 | Zorin OS / Ubuntu GNOME Wayland + Fcitx5 (`im-config -n fcitx5`), Chrome + VS Code/Antigravity với cờ Ozone, làm lại 1–5 | Như 1–5 |
 | 15 | Như 14: `dbus-monitor --session "interface='org.freedesktop.IBus.InputContext'"` (frontend `ibus` của Fcitx5 nằm trên session bus) | `ForwardKeyEvent(65288, 14, …)` nhấn + nhả cho mỗi BS rồi `CommitText` |

@@ -52,8 +52,9 @@ class ChromiumTests(unittest.TestCase):
         self.assertIn("Google Chrome", it["title"])
         self.assertIn("VS Code", it["title"])
         self.assertIn(compat.WAYLAND_IME_FLAGS, it["fix"])
-        self.assertIn("~/.config/chrome-flags.conf", it["fix"])
-        self.assertIn("~/.config/code-flags.conf", it["fix"])
+        # Gói .deb của Chrome/VS Code không đọc ~/.config/*-flags.conf (chỉ wrapper Arch) ⇒
+        # không gợi ý cách đó.
+        self.assertNotIn("flags.conf", it["fix"])
         self.assertIn("~/.local/share/applications/code.desktop", it["fix"])
         self.assertIn(compat.X11_FLAG, it["fix"])
 

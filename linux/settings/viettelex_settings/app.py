@@ -21,7 +21,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import APP_ID, VERSION, compat, config, detect, i18n, shortcuts, updater  # noqa: E402
+from . import APP_ID, VERSION, compat, config, detect, i18n, launchers, shortcuts, updater  # noqa: E402
 from .i18n import N_, _  # noqa: E402
 
 WEBSITE = "https://ptrinh.github.io/viettelex/"
@@ -189,6 +189,8 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.add(self._page_about())
         self._apply_vni_visibility()
         self._watch_config_dir()
+        # Làm mới file .desktop có cờ IME (nguồn đổi / gỡ app) mỗi lần mở app cài đặt.
+        GLib.idle_add(lambda: (self.sync_launchers(), False)[1])
 
     # --- helpers ---------------------------------------------------------
 
@@ -364,6 +366,7 @@ class SettingsWindow(Adw.PreferencesWindow):
                     _("Giống UniKey: không gạch chân trong gnome-terminal, tilix, konsole… khi app "
                     "nhận phím qua IBus GTK3 hoặc Fcitx5 (fcitx5-gtk3/fcitx5-qt). Terminal GTK4 "
                     "(Ptyxis, Console) và phiên Wayland GNOME vẫn dùng preedit."))
+        self._no_underline_switch(g)
         page.add(g)
 
         # Công cụ văn bản: thu gọn được, MẶC ĐỊNH ĐÓNG (như macOS 1.8.2) — khi đóng, dòng tóm
@@ -464,6 +467,141 @@ class SettingsWindow(Adw.PreferencesWindow):
         conflict = gnome_hotkey_conflict(value)
         if conflict:
             self.toast(_("Trùng phím tắt GNOME: %s — hãy chọn tổ hợp khác.") % conflict)
+
+    # --- thử nghiệm: không gạch chân ở Chrome/Electron (SETTINGS.md §9) -------
+
+    def _no_underline_switch(self, group):
+        r = row(_("Bỏ gạch chân trong Chrome/Electron (thử nghiệm)"))
+        sw = Gtk.Switch(valign=Gtk.Align.CENTER)
+        r.add_suffix(sw)
+        r.set_activatable_widget(sw)
+        self.no_underline_row = r
+        self._launcher_state = None       # (bật?, áp dụng được?) của lần đồng bộ gần nhất
+        self._launcher_report = None
+        self._update_no_underline_subtitle()
+
+        def on():
+            return self.cfg.get("experimental", "no_underline") == "forward-keys"
+
+        def toggled(s, _p):
+            if s.get_active() == on():
+                return
+            self.cfg.set("experimental", "no_underline", "forward-keys" if s.get_active() else "off")
+            self.sync_launchers(announce=True)
+        handler = sw.connect("notify::active", toggled)
+
+        def refresh():
+            if sw.get_active() != on():
+                sw.handler_block(handler)
+                sw.set_active(on())
+                sw.handler_unblock(handler)
+            if self._launcher_state is not None and self._launcher_state[0] != on():
+                self.sync_launchers()      # file config.toml bị sửa từ bên ngoài
+        refresh()
+        self.refreshers.append(refresh)
+        group.add(r)
+
+    def _session(self):
+        env = os.environ
+        session = env.get("XDG_SESSION_TYPE") or ("wayland" if env.get("WAYLAND_DISPLAY") else "")
+        return session.lower(), env.get("XDG_CURRENT_DESKTOP", "")
+
+    def sync_launchers(self, announce=False):
+        """Tạo / làm mới / gỡ file .desktop có cờ IME Wayland (launchers.py) — luồng nền."""
+        enabled = self.cfg.get("experimental", "no_underline") == "forward-keys"
+        session, desktop = self._session()
+        fw = (getattr(self, "assessment", None) or {}).get("framework")
+        appl = launchers.applicability(session, desktop, fw)
+        self._launcher_state = (enabled, appl)
+
+        def work():
+            reopen = []
+            try:
+                kwin = launchers.kwin_version() if enabled and "kde" in desktop.lower() else None
+                flags = launchers.flags_for(launchers.text_input_version(desktop, kwin))
+                rep = launchers.sync(enabled, create_new=(appl == "ok"), flags=flags,
+                                     default_on=launchers.default_on_versions() if enabled else {})
+                rep["flags"] = flags
+                if enabled and appl == "ok":
+                    target = launchers.user_apps_dir()
+                    entries = []
+                    for did, name in rep["created"] + rep["updated"] + rep["unchanged"]:
+                        try:
+                            with open(os.path.join(target, did), encoding="utf-8") as f:
+                                entries.append((did, name, f.read()))
+                        except (OSError, UnicodeDecodeError):
+                            pass
+                    reopen = launchers.running_without_flag(entries)
+            except Exception as e:  # không được làm hỏng app cài đặt
+                rep = launchers._empty_report()
+                rep["errors"].append(("", str(e)))
+            GLib.idle_add(self._launchers_done, rep, reopen, enabled, appl, announce)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _launchers_done(self, rep, reopen, enabled, appl, announce):
+        self._launcher_report = (rep, reopen)
+        self._update_no_underline_subtitle()
+        if announce:
+            names = ", ".join(n for _d, n in reopen)
+            if not enabled:
+                self.toast(_("Đã tắt — Chrome/Electron về gạch chân như cũ."))
+            elif appl != "ok":
+                self.toast(_("Đã bật, nhưng máy này chưa áp dụng được (xem dòng mô tả)."))
+            elif names:
+                self.toast(_("Thoát hẳn rồi mở lại %s để bỏ gạch chân.") % names)
+            else:
+                self.toast(_("Đã bật. Mở lại Chrome/Electron để bỏ gạch chân."))
+        return False
+
+    def _update_no_underline_subtitle(self):
+        enabled = self.cfg.get("experimental", "no_underline") == "forward-keys"
+        session, desktop = self._session()
+        fw = (getattr(self, "assessment", None) or {}).get("framework")
+        appl = launchers.applicability(session, desktop, fw)
+        parts = [_("Chrome, VS Code, Slack, Discord… gõ thẳng như ở app khác; sửa dấu bằng phím "
+                   "Backspace, lỗi thì tự về gạch chân. Chỉ GNOME Wayland (IBus hoặc Fcitx5) và "
+                   "KDE Wayland (Fcitx5). Bật lên, VietTelex tự thêm cờ IME Wayland vào lối tắt "
+                   "của các app này — mở lại app là xong.")]
+        if appl == "not_wayland":
+            parts.append(_("Phiên này là X11: không áp dụng, Chrome/Electron vẫn gạch chân."))
+        elif appl == "kde_ibus":
+            parts.append(_("KDE cần Fcitx5; IBus trên KDE chưa hỗ trợ."))
+        elif appl == "unsupported_desktop":
+            parts.append(_("Desktop này (%s) chưa hỗ trợ — chỉ GNOME và KDE Plasma.") %
+                         (desktop or "?"))
+        report = self._launcher_report
+        if enabled and appl == "ok" and report:
+            rep, reopen = report
+            done = rep["created"] + rep["updated"] + rep["unchanged"]
+
+            def listing(items):
+                names = []
+                for i in items:
+                    if i[1] not in names:
+                        names.append(i[1])
+                return ", ".join(names)
+            if done:
+                parts.append(_("Đã thêm cờ cho: %s.") % listing(done))
+            if rep["default_on"]:
+                parts.append(_("Đã bật sẵn, không cần cờ: %s.") % listing(rep["default_on"]))
+            if reopen:
+                parts.append(_("Đang chạy bản cũ — thoát hẳn rồi mở lại: %s.") % listing(reopen))
+            if rep["user_configured"]:
+                parts.append(_("Lối tắt bạn tự sửa (đã có cờ): %s.") % listing(rep["user_configured"]))
+            if rep["conflicts"]:
+                parts.append(_("Không sửa lối tắt bạn tự tạo: %s — tự thêm %s vào dòng Exec=.") % (
+                    ", ".join(i[2] for i in rep["conflicts"]),
+                    " ".join(rep.get("flags") or launchers.flags_for())))
+            if rep["x11"]:
+                parts.append(_("Đang ép chạy X11, giữ nguyên (vẫn gạch chân): %s.") % listing(rep["x11"]))
+            if rep["unsupported"]:
+                parts.append(_("Không tự thêm cờ được: %s.") % listing(rep["unsupported"]))
+            if not (done or rep["default_on"] or rep["user_configured"] or rep["conflicts"]
+                    or rep["x11"] or rep["unsupported"]):
+                parts.append(_("Chưa thấy app Chrome/Electron nào cài trên máy."))
+            if rep["errors"]:
+                parts.append(_("Lỗi khi ghi lối tắt: %s") % rep["errors"][0][1])
+        self.no_underline_row.set_subtitle(esc("\n".join(parts)))
 
     def _language_changed(self):
         lang = self.cfg.get("general", "ui_language")

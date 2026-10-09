@@ -163,6 +163,36 @@ EN = {
         "Like UniKey: no underline in gnome-terminal, tilix, konsole… when the app gets keys "
         "through IBus GTK3 or Fcitx5 (fcitx5-gtk3/fcitx5-qt). GTK4 terminals (Ptyxis, Console) "
         "and GNOME Wayland sessions still use preedit.",
+    "Bỏ gạch chân trong Chrome/Electron (thử nghiệm)":
+        "No underline in Chrome/Electron (experimental)",
+    "Chrome, VS Code, Slack, Discord… gõ thẳng như ở app khác; sửa dấu bằng phím Backspace, lỗi "
+    "thì tự về gạch chân. Chỉ GNOME Wayland (IBus hoặc Fcitx5) và KDE Wayland (Fcitx5). Bật lên, "
+    "VietTelex tự thêm cờ IME Wayland vào lối tắt của các app này — mở lại app là xong.":
+        "Chrome, VS Code, Slack, Discord… type directly like other apps; marks are fixed with "
+        "Backspace, and on any error it falls back to the underline. GNOME Wayland (IBus or "
+        "Fcitx5) and KDE Wayland (Fcitx5) only. When on, VietTelex adds the Wayland IME flags to "
+        "these apps’ launchers — just reopen the app.",
+    "Phiên này là X11: không áp dụng, Chrome/Electron vẫn gạch chân.":
+        "This is an X11 session: not applicable, Chrome/Electron keep the underline.",
+    "KDE cần Fcitx5; IBus trên KDE chưa hỗ trợ.": "KDE needs Fcitx5; IBus on KDE is not supported.",
+    "Desktop này (%s) chưa hỗ trợ — chỉ GNOME và KDE Plasma.":
+        "This desktop (%s) is not supported — GNOME and KDE Plasma only.",
+    "Đã thêm cờ cho: %s.": "Flags added for: %s.",
+    "Đã bật sẵn, không cần cờ: %s.": "Already on by default, no flags needed: %s.",
+    "Đang chạy bản cũ — thoát hẳn rồi mở lại: %s.": "Running without the flags — quit fully and reopen: %s.",
+    "Lối tắt bạn tự sửa (đã có cờ): %s.": "Launchers you edited yourself (flags present): %s.",
+    "Không sửa lối tắt bạn tự tạo: %s — tự thêm %s vào dòng Exec=.":
+        "Not touching launchers you created: %s — add %s to the Exec= line yourself.",
+    "Đang ép chạy X11, giữ nguyên (vẫn gạch chân): %s.":
+        "Forced to X11, left as is (keeps the underline): %s.",
+    "Không tự thêm cờ được: %s.": "Could not add the flags automatically: %s.",
+    "Chưa thấy app Chrome/Electron nào cài trên máy.": "No Chrome/Electron apps found on this computer.",
+    "Lỗi khi ghi lối tắt: %s": "Error writing launchers: %s",
+    "Đã tắt — Chrome/Electron về gạch chân như cũ.": "Off — Chrome/Electron go back to the underline.",
+    "Đã bật, nhưng máy này chưa áp dụng được (xem dòng mô tả).":
+        "On, but it does not apply on this computer (see the description).",
+    "Thoát hẳn rồi mở lại %s để bỏ gạch chân.": "Quit fully and reopen %s to drop the underline.",
+    "Đã bật. Mở lại Chrome/Electron để bỏ gạch chân.": "On. Reopen Chrome/Electron to drop the underline.",
     "Công cụ văn bản": "Text tools",
     "Bôi đen chữ ở app bất kỳ rồi chọn trong menu bộ gõ → Công cụ…: Thêm dấu cho vùng chọn, "
     "HOA, thường, Hoa Đầu Từ, Hoa đầu câu, Xoá dấu. Không bao giờ chạy ở ô mật khẩu.":
@@ -320,10 +350,8 @@ EN = {
     " Cờ này chạy tốt với GNOME + IBus.": " This flag works well with GNOME + IBus.",
     " Cách khác: %s (chạy qua XWayland).": " Alternatively: %s (runs through XWayland).",
     "# Chạy thử một lần:": "# Try it once:",
-    "# Cố định, cách A — file cờ (app đọc khi khởi động):":
-        "# Make it permanent, option A — flags file (read at app start):",
-    "# Cố định, cách B — sửa dòng Exec của file .desktop (mọi app):":
-        "# Make it permanent, option B — edit the Exec line of the .desktop file (any app):",
+    "# Cố định — sửa dòng Exec của file .desktop:":
+        "# Make it permanent — edit the Exec line of the .desktop file:",
     "# %s (snap/flatpak): thêm cờ trên vào dòng Exec= của file .desktop":
         "# %s (snap/flatpak): add the flags above to the Exec= line of the .desktop file",
     "# Hoặc chạy qua XWayland (chắc ăn nhất):  … %s": "# Or run through XWayland (most reliable):  … %s",

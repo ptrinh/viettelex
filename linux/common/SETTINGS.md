@@ -10,6 +10,7 @@ Parser tham chiếu: `linux/common/src/settings.cpp` (C++17, không phụ thuộ
 | Cài đặt | `$XDG_CONFIG_HOME/viettelex/config.toml` (mặc định `~/.config/viettelex/config.toml`) | settings app |
 | Gõ tắt | `$XDG_CONFIG_HOME/viettelex/shortcuts.yml` | settings app (import/export) |
 | Trạng thái Việt/Anh theo app | `$XDG_STATE_HOME/viettelex/app-state` (mặc định `~/.local/state/viettelex/app-state`) | **frontend** (settings app không đụng) |
+| Lối tắt Chrome/Electron có cờ IME Wayland (§9) | `$XDG_DATA_HOME/applications/<id>.desktop` có dòng `X-VietTelex-Generated=` | settings app — chỉ file mang dòng đó |
 
 - Thiếu file / thiếu key / giá trị sai kiểu → dùng **mặc định** bên dưới (không lỗi, không crash).
 - **Ghi nguyên tử**: ghi `config.toml.tmp` rồi `rename()` sang `config.toml` (cùng thư mục).
@@ -221,8 +222,9 @@ Chạy ở đâu: bộ gõ chỉ theo dõi đuôi chữ vừa gõ và xét cổn
 
 ## 9. Thử nghiệm: không gạch chân ở Chromium/Electron (`[experimental] no_underline`)
 
-`"off"` (mặc định; giá trị lạ cũng là off) hoặc `"forward-keys"`. Chưa có trong app cài đặt —
-sửa tay `config.toml`; áp dụng ngay (inotify). Đánh giá đầy đủ + kế hoạch kiểm thử:
+`"off"` (mặc định; giá trị lạ cũng là off) hoặc `"forward-keys"`. App cài đặt: tab **Tuỳ chỉnh →
+Hiển thị chữ đang gõ → "Bỏ gạch chân trong Chrome/Electron (thử nghiệm)"** (ghi tại chỗ như mọi
+key khác); áp dụng ngay (inotify). Đánh giá đầy đủ + kế hoạch kiểm thử:
 `docs/NO-UNDERLINE-SPIKE.md`.
 
 - `"forward-keys"`: app họ Chromium (`isChromiumApp`: Chrome/Chromium/Brave/Edge/Vivaldi/Opera/
@@ -241,5 +243,37 @@ sửa tay `config.toml`; áp dụng ngay (inotify). Đánh giá đầy đủ + k
 - Mỗi lần sửa được **xác nhận** từ chữ app báo trước con trỏ ở các phím sau. Chữ khác điều
   VietTelex đã gửi (mất / thừa BackSpace, commit đôi…) hoặc quá 1 giây chưa thấy kết quả ⇒ ô đó
   về gạch chân tới lần focus sau. Không bao giờ chờ / ngủ trong đường phím.
-- Chrome/Electron phải chạy IME Wayland gốc: `--enable-wayland-ime --wayland-text-input-version=3`
-  (KDE cũ: `=1`), không qua `--gtk-version=4`.
+- Chrome/Electron phải chạy IME Wayland gốc (text-input), không qua `--gtk-version=4` / XWayland.
+  Chrome ≥ 140 và Electron ≥ 38 đã như vậy mặc định trên phiên Wayland (text-input-v3 mặc định
+  từ Chromium 137, Wayland mặc định từ Chrome 140 / Electron 38). App cũ hơn cần cờ ⇒ app cài
+  đặt tự làm, người dùng không chạy lệnh nào:
+
+### 9.1 Lối tắt có cờ (`viettelex_settings/launchers.py`)
+
+- Khi cờ bật **và** phiên Wayland trên GNOME (IBus/Fcitx5) hoặc KDE (Fcitx5): với mỗi app họ
+  Chromium (tên file .desktop hoặc `StartupWMClass` khớp `isChromiumApp` — danh sách Python có
+  test so khớp với `app.cpp`) tìm trong `XDG_DATA_DIRS` (+ export Flatpak, `/var/lib/snapd/desktop`),
+  chép file sang `$XDG_DATA_HOME/applications/` (mặc định `~/.local/share/applications`, ưu
+  tiên cao hơn theo XDG) và chèn `--enable-wayland-ime --wayland-text-input-version=3
+  --ozone-platform-hint=auto` vào mọi `Exec=` (mục chính + Desktop Actions): ngay sau chương
+  trình (trước tham số và `%U/%F`); `env A=1 /opt/x` ⇒ sau `/opt/x`; `flatpak run … <appid>` ⇒
+  sau app id (trước `@@u`); `/snap/bin/x`, `snap run x` ⇒ sau đó. Cờ đã có thì không thêm
+  (idempotent). KDE với KWin < 6.7 (còn text-input-v1): `=1`. Mọi key khác (`TryExec`, `Icon`,
+  `StartupWMClass`, bản dịch, `X-Flatpak`…) giữ nguyên.
+- Bỏ qua (báo trong dòng mô tả): Exec ép X11 (`--ozone-platform=x11`, `GDK_BACKEND=x11`,
+  `ELECTRON_OZONE_PLATFORM_HINT=x11`, `--disable-wayland-ime`), wrapper không sửa an toàn
+  (`sh -c`, `flatpak run --command=sh`, `gtk-launch`…), `DBusActivatable=true`; Chrome / Edge /
+  Chromium (.deb, snap) có phiên bản ≥ 140 đọc được từ `/var/lib/dpkg/status` /
+  `snap.yaml` (đã bật mặc định — trừ KDE cần `=1`).
+- Sở hữu: file tạo ra có `X-VietTelex-Generated=<sha256(nguồn + cờ)[:16]>` và
+  `X-VietTelex-Source=<đường dẫn nguồn>`. Chỉ file có dòng `X-VietTelex-Generated` mới bị sửa/xoá;
+  file người dùng tự đặt cùng tên (hoặc symlink) không bao giờ bị ghi đè — chỉ báo lại. Muốn
+  giữ file của ta làm của mình: xoá dòng `X-VietTelex-Generated`.
+- Làm mới mỗi lần mở app cài đặt và khi bật/tắt: nguồn đổi (hash khác) ⇒ tạo lại; nguồn mất ⇒
+  xoá; tắt ⇒ xoá mọi file của ta. Phiên X11 / desktop chưa hỗ trợ mà cờ đang bật: chỉ làm mới /
+  xoá file đã có, không tạo mới. Có thay đổi ⇒ `update-desktop-database -q <dir>` nếu có (lỗi bỏ
+  qua).
+- App đang chạy mà tiến trình chính không mang `--enable-wayland-ime` (mở trước khi có lối tắt)
+  ⇒ dòng mô tả + thông báo "thoát hẳn rồi mở lại …".
+- Không dùng `~/.config/<app>-flags.conf`: chỉ wrapper của Arch đọc; wrapper của gói .deb Google
+  Chrome (`chrome/installer/linux/common/wrapper`) chỉ `exec -a "$0" "$HERE/chrome" "$@"`.

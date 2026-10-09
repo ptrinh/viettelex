@@ -51,10 +51,15 @@ DEFAULTS = {
         "tone_hints": False,      # toi di hoc. → tôi đi học.
         "date_hints": True,       # hôm nay␣ → 28/09/2026, bây giờ␣ → 21:35
     },
+    # Thử nghiệm (SETTINGS.md §9): "forward-keys" = gõ không gạch chân ở Chrome/Electron.
+    "experimental": {
+        "no_underline": "off",
+    },
     "app_modes": {},
 }
 
-SECTION_ORDER = ["typing", "general", "app_modes"]
+SECTION_ORDER = ["typing", "general", "experimental", "app_modes"]
+NO_UNDERLINE_MODES = ("off", "forward-keys")
 APP_MODES = ("preedit", "surrounding", "direct", "off")
 INPUT_METHODS = ("telex", "vni")
 DISPLAY_MODES = ("preedit", "surrounding")
@@ -282,6 +287,8 @@ def normalize(data):
         g["display_mode"] = "preedit"
     if g["ui_language"] not in UI_LANGUAGES:
         g["ui_language"] = "vi"
+    if out["experimental"]["no_underline"] not in NO_UNDERLINE_MODES:
+        out["experimental"]["no_underline"] = "off"
     if g["add_tones_hotkey"] and normalize_hotkey(g["add_tones_hotkey"]) is None:
         g["add_tones_hotkey"] = ""
     out["app_modes"] = {k: v for k, v in out["app_modes"].items()

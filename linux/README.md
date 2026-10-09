@@ -174,6 +174,12 @@ Việt mặc định, có English — bảng dịch `viettelex_settings/i18n.py`
 nên đổi là có hiệu lực ngay. Gõ tắt và bảng cơ chế gõ nhập/xuất cùng định dạng YAML với
 bản macOS (nhận cả JSON / txt `key:value`).
 
+Nút thử nghiệm **"Bỏ gạch chân trong Chrome/Electron"** (tab Tuỳ chỉnh) ghi `[experimental]
+no_underline` và — trên phiên Wayland GNOME/KDE — tự tạo lối tắt `~/.local/share/applications/*.desktop`
+có cờ IME Wayland cho các app Chrome/Electron đã cài (chỉ sửa/xoá file mang dòng
+`X-VietTelex-Generated`; tắt nút là gỡ hết). Người dùng chỉ cần mở lại app. Chi tiết:
+[SETTINGS.md §9.1](common/SETTINGS.md).
+
 ```sh
 cd linux/settings
 make check                      # unit test (không cần GTK)
