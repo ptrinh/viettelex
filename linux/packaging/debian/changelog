@@ -6,6 +6,8 @@ viettelex (1.0.10) UNRELEASED; urgency=medium
     dòng làm việc này thay cho im-config (không có tác dụng trên GNOME).
   * Hướng dẫn nhận đúng Fcitx5 khi Fcitx5 đã thế chỗ IBus trên GNOME.
   * Menu Fcitx5 có mục "Cài đặt…" mở app VietTelex.
+  * Fcitx5: click chuột (hay đổi chỗ con trỏ) khi đang gõ dở một từ không còn
+    nhân đôi từ đó ("thửthử") trong Terminal, Firefox và app GTK/Qt khác.
   * IBus: ký hiệu trên thanh GNOME đổi thành "Vᴛ" (T nhỏ như logo macOS).
   * Sửa "Không kết nối được máy chủ cập nhật" (máy chủ chặn trình tải mặc
     định của Python).
@@ -16,6 +18,8 @@ viettelex (1.0.10) UNRELEASED; urgency=medium
     undoes it. The one-line installer does this instead of im-config.
   * The setup guide detects Fcitx5 when it has replaced IBus on GNOME.
   * Fcitx5 menu: "Settings…" opens the VietTelex app.
+  * Fcitx5: clicking (or moving the caret) in the middle of a word no longer
+    types that word twice in Terminal, Firefox and other GTK/Qt apps.
   * IBus: the GNOME top-bar symbol is now "Vᴛ" (small T, like the macOS mark).
   * Fix "Couldn’t reach the update server" (the server blocked Python's
     default downloader).

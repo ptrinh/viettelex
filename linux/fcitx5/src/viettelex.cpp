@@ -403,12 +403,20 @@ public:
 
     void reset(const fcitx::InputMethodEntry &, fcitx::InputContextEvent &event) override {
         try {
-            auto *st = state(event.inputContext());
-            FcitxClient client(event.inputContext());
-            // FocusOut: Fcitx5 (or the client, with ClientUnfocusCommit) has ALREADY committed
-            // the client preedit — committing again would type the word twice. Any other
-            // reset (click / cursor move / IM switch): commit it ourselves so it is not lost.
-            bool alreadyCommitted = event.type() == fcitx::EventType::InputContextFocusOut;
+            auto *ic = event.inputContext();
+            auto *st = state(ic);
+            FcitxClient client(ic);
+            // The client preedit is ALREADY committed — committing again types the word twice:
+            // - FocusOut: by Fcitx5, or by the client when it has ClientUnfocusCommit;
+            // - Reset from a ClientUnfocusCommit client (fcitx5-gtk2/3/4, fcitx5-qt): its reset
+            //   commits the preedit before sending Reset — a click in Ptyxis/VTE gave "thửthử".
+            // Any other reset (IM switch, Wayland / IBus-frontend clients, preedit shown in the
+            // panel): commit it ourselves so it is not lost.
+            const auto &caps = ic->capabilityFlags();
+            bool clientCommits = caps.test(fcitx::CapabilityFlag::ClientUnfocusCommit) &&
+                                 caps.test(fcitx::CapabilityFlag::Preedit);
+            bool alreadyCommitted = event.type() == fcitx::EventType::InputContextFocusOut ||
+                                    (event.type() == fcitx::EventType::InputContextReset && clientCommits);
             st->session.finish(client, !alreadyCommitted);
         } catch (...) {
         }
