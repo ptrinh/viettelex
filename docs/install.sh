@@ -130,6 +130,8 @@ linux_series() {
   esac
 }
 
+is_gnome() { case "$(printf '%s' "${XDG_CURRENT_DESKTOP:-}" | tr '[:upper:]' '[:lower:]')" in *gnome*) return 0 ;; esac; return 1; }
+
 pkg_installed() { dpkg-query -W -f='${db:Status-Abbrev}' "$1" 2>/dev/null | grep -q '^.i'; }
 
 choose_frontend() {
@@ -142,7 +144,7 @@ choose_frontend() {
   if command -v ibus >/dev/null 2>&1 || case "$desk" in *gnome*) true ;; *) false ;; esac; then
     say "Máy đang dùng IBus (mặc định của Ubuntu/GNOME)."
     info "Fcitx5 được khuyên dùng: gõ mượt hơn, ít lỗi hơn trong Chrome/Electron/terminal."
-    info "Cài Fcitx5 sẽ đặt nó làm bộ gõ mặc định (im-config); cần đăng xuất/đăng nhập một lần."
+    info "Cài Fcitx5 sẽ đặt nó làm bộ gõ mặc định thay IBus; cần đăng xuất/đăng nhập một lần."
     if ask "Cài Fcitx5? [C/n] (n = giữ IBus)" y; then FRONTEND=fcitx5; else FRONTEND=ibus; fi
     return
   fi
@@ -191,7 +193,14 @@ linux_install() {
   srun env DEBIAN_FRONTEND=noninteractive apt-get install -y $pkgs
 
   if [ "$FRONTEND" = fcitx5 ]; then
-    if command -v im-config >/dev/null 2>&1 || [ "$DRY" = 1 ]; then
+    if is_gnome; then
+      # GNOME: im-config không có tác dụng (gnome-shell tự chạy IBus) ⇒ autostart Fcitx5 +
+      # GTK_IM_MODULE=fcitx trong ~/.config (linux/settings/viettelex_settings/gnome_fcitx5.py).
+      if [ "$(id -u)" != 0 ] && { command -v viettelex-settings >/dev/null 2>&1 || [ "$DRY" = 1 ]; }; then
+        say "Đặt Fcitx5 chạy thay IBus cho người dùng $(id -un) (GNOME)"
+        run viettelex-settings --use-fcitx5
+      fi
+    elif command -v im-config >/dev/null 2>&1 || [ "$DRY" = 1 ]; then
       say "Đặt Fcitx5 làm bộ gõ mặc định cho người dùng $(id -un)"
       run im-config -n fcitx5
     fi
@@ -217,6 +226,9 @@ linux_install() {
 
 linux_uninstall() {
   need_sudo
+  if [ "$(id -u)" != 0 ] && command -v viettelex-settings >/dev/null 2>&1; then
+    run viettelex-settings --use-ibus >/dev/null   # gỡ autostart/env Fcitx5 do VietTelex đặt (GNOME)
+  fi
   local p present=""
   for p in $PKGS_ALL; do pkg_installed "$p" && present="$present $p"; done
   if [ -n "$present" ]; then
@@ -231,7 +243,7 @@ linux_uninstall() {
     srun rm -f "$SOURCES" /etc/apt/sources.list.d/viettelex.list "$KEYRING"
   fi
   say "Đã gỡ. Cài đặt cá nhân vẫn ở ~/.config/viettelex (xoá tay nếu muốn)."
-  info "Nếu trước đây dùng IBus: im-config -n ibus  (rồi đăng xuất/đăng nhập)."
+  info "Nếu trước đây dùng IBus: đăng xuất/đăng nhập lại (desktop khác GNOME: im-config -n ibus trước)."
 }
 
 # ============================== macOS ================================================

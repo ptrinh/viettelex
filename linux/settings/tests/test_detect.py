@@ -51,6 +51,18 @@ class DetectTests(unittest.TestCase):
         self.assertEqual(a["framework"], "ibus")
         self.assertTrue(a["ok"])
 
+    def test_running_process_beats_gnome_env(self):
+        # GNOME đặt XMODIFIERS=@im=ibus cho mọi phiên; Fcitx5 đã thế chỗ ibus-daemon.
+        a = detect.assess(snap(env={"XMODIFIERS": "@im=ibus", "QT_IM_MODULE": "ibus"},
+                               fcitx5_running=True, fcitx5_addon=True, fcitx5_profile=PROFILE))
+        self.assertEqual(a["framework"], "fcitx5")
+        self.assertTrue(a["ok"])
+
+    def test_both_running_falls_back_to_env(self):
+        a = detect.assess(snap(env={"XMODIFIERS": "@im=ibus"}, fcitx5_running=True, ibus_running=True))
+        self.assertEqual(a["framework"], "ibus")
+        self.assertIn("both_running", a["warnings"])
+
     def test_xinputrc_fallback(self):
         a = detect.assess(snap(xinputrc="# im-config\nrun_im fcitx5\n"))
         self.assertEqual(a["framework"], "fcitx5")

@@ -31,7 +31,18 @@ import subprocess
 import tempfile
 import urllib.request
 
+from . import VERSION
 from .i18n import _
+
+# User-Agent riêng: Cloudflare (Browser Integrity Check của viettelex.com) trả 403 cho
+# "Python-urllib/x.y" mặc định ⇒ "Không kết nối được máy chủ cập nhật".
+USER_AGENT = "VietTelex-Linux/%s" % VERSION
+
+
+def urlopen(url, timeout):
+    return urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": USER_AGENT}),
+                                  timeout=timeout)
+
 
 HELPER = "/usr/libexec/viettelex/viettelex-update"
 POLKIT_ACTION = "org.viettelex.update"
@@ -291,7 +302,7 @@ def run_update(lin, progress=lambda _t: None, allowed_prefix=None, helper=None):
                 progress(_("Đang tải %d/%d: %s") % (i, len(p["files"]), name))
                 dest = os.path.join(tmp, name)
                 try:
-                    with urllib.request.urlopen(url, timeout=30) as r, open(dest, "wb") as f:
+                    with urlopen(url, timeout=30) as r, open(dest, "wb") as f:
                         shutil.copyfileobj(r, f)
                 except OSError:
                     return False, _("Không tải được %s — kiểm tra mạng rồi thử lại.") % name, False

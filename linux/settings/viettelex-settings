@@ -9,6 +9,11 @@ for p in (os.path.join(here, "..", "share", "viettelex-settings"), here):
         sys.path.insert(0, os.path.abspath(p))
         break
 
+if sys.argv[1:2] in (["--use-fcitx5"], ["--use-ibus"]):
+    # Không cần GTK/màn hình (install.sh gọi trong terminal).
+    from viettelex_settings import gnome_fcitx5  # noqa: E402
+    sys.exit(gnome_fcitx5.main(sys.argv[1:]))
+
 from viettelex_settings.app import main  # noqa: E402
 
 sys.exit(main())

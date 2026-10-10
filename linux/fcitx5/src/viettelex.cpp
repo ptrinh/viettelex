@@ -30,6 +30,7 @@
 #include <fcitx-utils/i18n.h>
 #include <fcitx-utils/key.h>
 #include <fcitx-utils/log.h>
+#include <fcitx-utils/misc.h>
 #include <fcitx/action.h>
 #include <fcitx/addonfactory.h>
 #include <fcitx/addoninstance.h>
@@ -280,6 +281,11 @@ public:
         }
         toolsAction_.setMenu(&toolsMenu_);
         instance_->userInterfaceManager().registerAction("viettelex-tools", &toolsAction_);
+        // "Cài đặt…" opens the settings app, like the IBus property and the macOS menu.
+        settingsAction_.setIcon("preferences-system");
+        settingsAction_.connect<fcitx::SimpleAction::Activated>(
+            [](fcitx::InputContext *) { fcitx::startProcess({"viettelex-settings"}); });
+        instance_->userInterfaceManager().registerAction("viettelex-settings", &settingsAction_);
         updateLabels();
         if (watcher_.fd() >= 0) {
             ioEvent_ = instance_->eventLoop().addIOEvent(
@@ -418,7 +424,7 @@ public:
         return state(&ic)->session.vietnamese() ? "viettelex" : "viettelex-off";
     }
     std::string subModeLabelImpl(const fcitx::InputMethodEntry &, fcitx::InputContext &ic) override {
-        return state(&ic)->session.vietnamese() ? "VT" : "E";
+        return state(&ic)->session.vietnamese() ? "Vᴛ" : "E";
     }
 
     // MARK: config (Fcitx5 config UI → config.toml; the watcher then applies it)
@@ -578,14 +584,19 @@ private:
         toolsAction_.setLongText(tr("Công cụ văn bản cho chữ đang bôi đen"));
         for (int i = 0; i < vt::kTextToolCount; ++i)
             toolActions_[size_t(i)].setShortText(vt::textToolLabel(vt::textToolAt(i), english()));
+        settingsAction_.setShortText(tr("Cài đặt…"));
+        settingsAction_.setLongText(tr("Mở VietTelex Settings"));
     }
 
-    // "Hiện công cụ văn bản trong menu" (and only when the helper is installed).
+    // "Hiện công cụ văn bản trong menu" (and only when the helper is installed); "Cài đặt…"
+    // always comes last.
     void updateToolsAction(fcitx::InputContext *ic) {
         auto &area = ic->statusArea();
         area.removeAction(&toolsAction_);
+        area.removeAction(&settingsAction_);
         if (settings().textToolsMenu && vt::textToolAvailable())
             area.addAction(fcitx::StatusGroup::InputMethod, &toolsAction_);
+        area.addAction(fcitx::StatusGroup::InputMethod, &settingsAction_);
     }
 
     // MARK: text tools (Công cụ…) — see linux/common/include/viettelex/text_tools.h
@@ -705,6 +716,7 @@ private:
     fcitx::SimpleAction modeAction_;
     fcitx::SimpleAction toolsAction_;
     fcitx::Menu toolsMenu_;
+    fcitx::SimpleAction settingsAction_;
     std::array<fcitx::SimpleAction, vt::kTextToolCount> toolActions_;
     std::unique_ptr<fcitx::EventSourceIO> ioEvent_;
     std::unique_ptr<fcitx::HandlerTableEntry<fcitx::EventHandler>> hotkeyWatcher_;

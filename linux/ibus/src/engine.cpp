@@ -221,8 +221,8 @@ void updateModeProp(VtIBusEngine *self) {
     bool vi = self->session->vietnamese();
     ibus_property_set_label(self->modeProp, text(tr(vi ? "Tiếng Việt" : "English")));
     // GNOME Shell shows the InputMode symbol as the indicator text; ibus-ui-gtk3 (and
-    // icon-capable panels) show its icon: Vᴛ / E like the macOS menu bar.
-    ibus_property_set_symbol(self->modeProp, ibus_text_new_from_static_string(vi ? "VT" : "E"));
+    // icon-capable panels) show its icon. "Vᴛ" (small-cap T, U+1D1B) mimics the macOS menu-bar mark.
+    ibus_property_set_symbol(self->modeProp, ibus_text_new_from_static_string(vi ? "Vᴛ" : "E"));
     ibus_property_set_icon(self->modeProp, vi ? "viettelex" : "viettelex-off");
     ibus_property_set_state(self->modeProp, vi ? PROP_STATE_CHECKED : PROP_STATE_UNCHECKED);
     ibus_engine_update_property(IBUS_ENGINE(self), self->modeProp);

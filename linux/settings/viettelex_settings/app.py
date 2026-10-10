@@ -12,7 +12,6 @@ import os
 import subprocess
 import sys
 import threading
-import urllib.request
 from types import SimpleNamespace
 
 import gi
@@ -21,7 +20,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import APP_ID, VERSION, compat, config, detect, i18n, launchers, shortcuts, updater  # noqa: E402
+from . import APP_ID, VERSION, compat, config, detect, gnome_fcitx5, i18n, launchers, shortcuts, updater  # noqa: E402
 from .i18n import N_, _  # noqa: E402
 
 WEBSITE = "https://ptrinh.github.io/viettelex/"
@@ -1026,7 +1025,7 @@ class SettingsWindow(Adw.PreferencesWindow):
 
         def work():
             try:
-                with urllib.request.urlopen(STABLE_JSON, timeout=8) as r:
+                with updater.urlopen(STABLE_JSON, timeout=8) as r:
                     info = json.loads(r.read().decode("utf-8"))
                 st, lin = updater.state(info, VERSION)
                 msg, url = updater.update_message(info, VERSION)
@@ -1209,6 +1208,7 @@ class OnboardingWindow(Adw.Window):
     def rebuild(self):
         a = detect.assess(detect.collect())
         snap_env = {k: os.environ.get(k, "") for k in ("XDG_CURRENT_DESKTOP",)}
+        gnome = "GNOME" in snap_env["XDG_CURRENT_DESKTOP"].upper()
         page = Adw.PreferencesPage()
         fw = a["framework"]
         choose = Adw.PreferencesGroup(
@@ -1217,16 +1217,17 @@ class OnboardingWindow(Adw.Window):
                         "hợp KDE) hoặc IBus (mặc định của Ubuntu/GNOME)."))
         if not fw:
             self.step(choose, False, _("Chưa thấy Fcitx5 hay IBus"),
-                      _("Cài một trong hai gói: sudo apt install ./viettelex-fcitx5_*.deb (hoặc "
-                      "viettelex-ibus). Với Fcitx5, chạy thêm: im-config -n fcitx5 rồi đăng "
-                      "xuất/đăng nhập lại."))
+                      _("Cài một trong hai gói: sudo apt install viettelex-fcitx5 (hoặc "
+                      "viettelex-ibus), rồi mở lại hướng dẫn này."))
             page.add(choose)
             self._finish(page, a)
             return
         name = "Fcitx5" if fw == "fcitx5" else "IBus"
         self.step(choose, True, _("Đang dùng %s") % name,
-                  _("Phát hiện qua biến môi trường / im-config của phiên đăng nhập này."))
+                  _("Theo tiến trình đang chạy và biến môi trường của phiên đăng nhập này."))
         page.add(choose)
+        if gnome:
+            self._gnome_choice(page, a, fw)
 
         g = Adw.PreferencesGroup(title=_("Các bước"))
         pkg = "viettelex-fcitx5" if fw == "fcitx5" else "viettelex-ibus"
@@ -1236,9 +1237,10 @@ class OnboardingWindow(Adw.Window):
         if fw == "fcitx5":
             self.step(g, a["running"]["fcitx5"], _("2. Fcitx5 đang chạy"),
                       _("Đang chạy.") if a["running"]["fcitx5"] else
+                      _("Bấm “Dùng Fcitx5” ở trên rồi đăng xuất/đăng nhập lại.") if gnome else
                       _("Khởi động Fcitx5. Nếu mỗi lần đăng nhập đều phải bật tay: chạy "
                       "im-config -n fcitx5 rồi đăng nhập lại."),
-                      _("Khởi động Fcitx5"), self.start_fcitx5)
+                      None if gnome else _("Khởi động Fcitx5"), self.start_fcitx5)
             self.step(g, a["enabled"]["fcitx5"], _("3. Thêm VietTelex vào nhóm bộ gõ"),
                       _("Đã có trong nhóm bộ gõ Fcitx5.") if a["enabled"]["fcitx5"] else
                       _("Thêm “Tiếng Việt (VietTelex)” vào nhóm hiện tại. Không cần đăng xuất."),
@@ -1255,7 +1257,6 @@ class OnboardingWindow(Adw.Window):
                       _("Đang chạy. Vừa cài gói xong thì bấm “Khởi động lại IBus” để IBus thấy "
                       "VietTelex.") if a["running"]["ibus"] else _("Khởi động IBus."),
                       _("Khởi động IBus"), lambda: self.run_ok(["ibus-daemon", "-drx"], _("Đã khởi động IBus.")))
-            gnome = "GNOME" in snap_env["XDG_CURRENT_DESKTOP"].upper()
             self.step(g, a["enabled"]["ibus"], _("3. Thêm VietTelex vào nguồn nhập"),
                       _("Đã có trong nguồn nhập.") if a["enabled"]["ibus"] else
                       (_("Cài đặt → Bàn phím → Nguồn nhập → + → Tiếng Việt → VietTelex. "
@@ -1275,6 +1276,50 @@ class OnboardingWindow(Adw.Window):
                 g.add(r)
         page.add(g)
         self._finish(page, a)
+
+    def _gnome_choice(self, page, a, fw):
+        """GNOME: im-config không có tác dụng ⇒ nút đổi hẳn sang Fcitx5 / quay về IBus."""
+        g = Adw.PreferencesGroup(
+            title=_("Fcitx5 thay IBus trên GNOME"),
+            description=_("Với Fcitx5, app GTK (Firefox, Terminal, Text Editor…) không gạch chân chữ "
+                        "đang gõ và thanh trên cùng hiện icon VietTelex. Chrome/Electron vẫn có thể "
+                        "gạch chân (xem tab Tương thích)."))
+        if a["gnome_fcitx5"]:
+            r = row(_("Đã đặt Fcitx5 chạy thay IBus"),
+                    _("Đang có hiệu lực.")
+                    if fw == "fcitx5" and "fcitx" in os.environ.get("GTK_IM_MODULE", "") else
+                    _("Chưa có hiệu lực — đăng xuất rồi đăng nhập lại."))
+            b = Gtk.Button(label=_("Quay về IBus"), valign=Gtk.Align.CENTER)
+            b.connect("clicked", lambda _b: self.use_ibus())
+        elif not a["installed"]["fcitx5"]:
+            r = row(_("Dùng Fcitx5 thay IBus"),
+                    _("Cài gói trước: sudo apt install viettelex-fcitx5"))
+            b = None
+        else:
+            r = row(_("Dùng Fcitx5 thay IBus"),
+                    _("Fcitx5 tự chạy khi đăng nhập, app GTK nhận chữ thẳng từ Fcitx5. Đăng "
+                      "xuất/đăng nhập lại một lần."))
+            b = Gtk.Button(label=_("Dùng Fcitx5"), valign=Gtk.Align.CENTER)
+            b.add_css_class("suggested-action")
+            b.connect("clicked", lambda _b: self.use_fcitx5())
+        if b:
+            r.add_suffix(b)
+        g.add(r)
+        page.add(g)
+
+    def use_fcitx5(self):
+        try:
+            gnome_fcitx5.enable()
+        except OSError:
+            self.toast(_("Không ghi được cấu hình trong ~/.config."))
+            return
+        self.toast(_("Xong — đăng xuất rồi đăng nhập lại để dùng Fcitx5."))
+        GLib.timeout_add(800, lambda: (self.rebuild(), False)[1])
+
+    def use_ibus(self):
+        gnome_fcitx5.disable()
+        self.toast(_("Xong — đăng xuất rồi đăng nhập lại để quay về IBus."))
+        GLib.timeout_add(800, lambda: (self.rebuild(), False)[1])
 
     def _finish(self, page, a):
         warn = Adw.PreferencesGroup(title=_("Lưu ý"))

@@ -49,8 +49,12 @@ sudo apt install ./libviettelex-core_*_amd64.deb ./viettelex-fcitx5_*_amd64.deb 
 **Sau khi cài:** mở **VietTelex** trong menu ứng dụng (hoặc chạy `viettelex-settings --onboarding`)
 và làm theo hướng dẫn:
 
-- **Fcitx5**: `im-config -n fcitx5`, đăng nhập lại (lần đầu), rồi trong hướng dẫn bấm
-  *Thêm* — VietTelex vào nhóm bộ gõ ngay, không cần đăng xuất.
+- **Fcitx5 trên GNOME** (Ubuntu mặc định): trong hướng dẫn bấm *Dùng Fcitx5* (hoặc
+  `viettelex-settings --use-fcitx5`; lệnh một dòng ở trên tự làm), rồi đăng xuất/đăng nhập lại
+  một lần. Fcitx5 tự chạy thay IBus, app GTK (Firefox, Terminal…) không gạch chân, thanh trên
+  cùng hiện icon Vᴛ. *Quay về IBus* (`--use-ibus`) gỡ lại.
+- **Fcitx5 (KDE, desktop khác)**: `im-config -n fcitx5`, đăng nhập lại (lần đầu), rồi trong
+  hướng dẫn bấm *Thêm* — VietTelex vào nhóm bộ gõ ngay, không cần đăng xuất.
 - **IBus (GNOME)**: `ibus restart`, rồi Cài đặt → Bàn phím → Nguồn nhập → + → Tiếng Việt →
   VietTelex (hoặc bấm *Thêm* trong hướng dẫn).
 
@@ -72,18 +76,20 @@ arm64. Arch Linux: AUR package `viettelex-bin`.
    ./viettelex-fcitx5_*.deb ./viettelex-text-tools_*.deb ./viettelex-settings_*_all.deb`.
    This route does not auto-update.
 
-Then open **VietTelex** from the app menu and follow the setup guide. `Ctrl+Space` switches
-between Vietnamese and English.
+Then open **VietTelex** from the app menu and follow the setup guide. On GNOME, *Use Fcitx5*
+(or `viettelex-settings --use-fcitx5`) makes Fcitx5 start at login instead of IBus and sets
+`GTK_IM_MODULE=fcitx` (no underline in GTK apps); log out and back in once. `Ctrl+Space`
+switches between Vietnamese and English.
 
 ## Biểu tượng khay, ngôn ngữ, công cụ văn bản / Tray icon, language, text tools
 
 - **Biểu tượng khay / Tray icon** — giống thanh menu macOS: **Vᴛ** trong ô vuông bo góc khi gõ
   tiếng Việt, **E** (cùng kiểu, như logo EN phím cách iOS) khi chuyển sang English. Fcitx5: icon
-  bộ gõ theo trạng thái (tray / kimpanel); IBus: icon + ký hiệu của property InputMode (GNOME
-  Shell chỉ hiện chữ: `VT` / `E`). Có bản `-symbolic` để GNOME/KDE tự đổi màu theo theme sáng/tối.
+  bộ gõ theo trạng thái (tray / kimpanel; GNOME hiện đúng icon này); IBus: icon + ký hiệu của
+  property InputMode (GNOME Shell chỉ hiện chữ: `Vᴛ` / `E`). Có bản `-symbolic` để GNOME/KDE tự đổi màu theo theme sáng/tối.
   Nguồn: `Scripts/make_linux_status_icons.swift` (cùng hình học `make_space_logo.swift`).
   / *Same as the macOS menu bar: Vᴛ in a rounded square for Vietnamese, E for English (the iOS
-  space-bar EN logo). GNOME Shell shows the text symbol `VT` / `E`.*
+  space-bar EN logo). With IBus, GNOME Shell shows only the text symbol `Vᴛ` / `E`.*
 - **Ngôn ngữ / Language** — Tuỳ chỉnh → "Ngôn ngữ / Language": Tiếng Việt (mặc định, kể cả máy
   cài tiếng Anh) hoặc English; áp dụng ngay cho app cài đặt và menu bộ gõ. / *Settings →
   Tuỳ chỉnh → "Ngôn ngữ / Language": Vietnamese (default, whatever the system locale) or
@@ -144,9 +150,12 @@ to your machine, each with a copy button.
 - **Ubuntu 22.04 + IBus 1.5.26**: IBus không báo app nào đang gõ → trên GNOME Wayland lấy app
   đang focus như trên; app X11 riêng lẻ vẫn là "default". / *IBus 1.5.26 reports no app id; on
   GNOME Wayland the focused app is used instead.*
-- **im-config**: trên GNOME không có tác dụng (GNOME tự chạy IBus). Desktop khác: chế độ `auto`
+- **im-config**: trên GNOME không có tác dụng (GNOME tự chạy IBus; Ubuntu 26.04
+  `im-launch.desktop` là `Exec=/usr/bin/true`) → dùng *Dùng Fcitx5* / `--use-fcitx5` (autostart
+  Fcitx5 + `~/.config/environment.d/90-viettelex-fcitx5.conf`). Desktop khác: chế độ `auto`
   chọn IBus nếu cài cả hai → chạy `im-config -n fcitx5` rồi đăng nhập lại. / *No effect on
-  GNOME; elsewhere `auto` prefers IBus over Fcitx5, so run `im-config -n fcitx5`.*
+  GNOME — use* Use Fcitx5 */* `--use-fcitx5` *there; elsewhere `auto` prefers IBus over Fcitx5,
+  so run `im-config -n fcitx5`.*
 - **Biến Qt / Qt variables**: Qt ≥ 6.8.2 `QT_IM_MODULES="wayland;fcitx;ibus"`; Qt5
   `QT_IM_MODULE=fcitx` (hoặc `ibus`).
 - **KDE (KWin)**: Electron cần / needs `--enable-wayland-ime --wayland-text-input-version=1`.

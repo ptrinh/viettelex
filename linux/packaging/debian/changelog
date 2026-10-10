@@ -1,3 +1,27 @@
+viettelex (1.0.10) UNRELEASED; urgency=medium
+
+  * GNOME (Ubuntu mặc định): nút "Dùng Fcitx5" trong hướng dẫn — Fcitx5 tự
+    chạy thay IBus, app GTK (Firefox, Terminal…) hết gạch chân chữ đang gõ,
+    thanh trên cùng hiện icon VietTelex. "Quay về IBus" gỡ lại. Lệnh cài một
+    dòng làm việc này thay cho im-config (không có tác dụng trên GNOME).
+  * Hướng dẫn nhận đúng Fcitx5 khi Fcitx5 đã thế chỗ IBus trên GNOME.
+  * Menu Fcitx5 có mục "Cài đặt…" mở app VietTelex.
+  * IBus: ký hiệu trên thanh GNOME đổi thành "Vᴛ" (T nhỏ như logo macOS).
+  * Sửa "Không kết nối được máy chủ cập nhật" (máy chủ chặn trình tải mặc
+    định của Python).
+  * ---
+  * GNOME (Ubuntu default): "Use Fcitx5" in the setup guide — Fcitx5 starts
+    instead of IBus, GTK apps (Firefox, Terminal…) stop underlining the text
+    being typed, and the top bar shows the VietTelex icon. "Back to IBus"
+    undoes it. The one-line installer does this instead of im-config.
+  * The setup guide detects Fcitx5 when it has replaced IBus on GNOME.
+  * Fcitx5 menu: "Settings…" opens the VietTelex app.
+  * IBus: the GNOME top-bar symbol is now "Vᴛ" (small T, like the macOS mark).
+  * Fix "Couldn’t reach the update server" (the server blocked Python's
+    default downloader).
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Sun, 11 Oct 2026 01:30:00 +0800
+
 viettelex (1.0.9) UNRELEASED; urgency=medium
 
   * Thêm Antigravity, Windsurf, Kiro, Trae và khoảng 60 app Electron/Chromium

@@ -460,13 +460,33 @@ EN = {
         "VietTelex is an input method for Fcitx5 (recommended — lowest latency, suits KDE) or "
         "IBus (the Ubuntu/GNOME default).",
     "Chưa thấy Fcitx5 hay IBus": "Neither Fcitx5 nor IBus found",
-    "Cài một trong hai gói: sudo apt install ./viettelex-fcitx5_*.deb (hoặc viettelex-ibus). "
-    "Với Fcitx5, chạy thêm: im-config -n fcitx5 rồi đăng xuất/đăng nhập lại.":
-        "Install one of the packages: sudo apt install ./viettelex-fcitx5_*.deb (or "
-        "viettelex-ibus). For Fcitx5, also run: im-config -n fcitx5, then log out and back in.",
+    "Cài một trong hai gói: sudo apt install viettelex-fcitx5 (hoặc viettelex-ibus), rồi mở lại "
+    "hướng dẫn này.":
+        "Install one of the packages: sudo apt install viettelex-fcitx5 (or viettelex-ibus), then "
+        "open this guide again.",
     "Đang dùng %s": "Using %s",
-    "Phát hiện qua biến môi trường / im-config của phiên đăng nhập này.":
-        "Detected from the environment / im-config of this login session.",
+    "Theo tiến trình đang chạy và biến môi trường của phiên đăng nhập này.":
+        "Based on the running processes and the environment of this login session.",
+    "Bấm “Dùng Fcitx5” ở trên rồi đăng xuất/đăng nhập lại.":
+        "Click “Use Fcitx5” above, then log out and back in.",
+    "Fcitx5 thay IBus trên GNOME": "Fcitx5 instead of IBus on GNOME",
+    "Với Fcitx5, app GTK (Firefox, Terminal, Text Editor…) không gạch chân chữ đang gõ và thanh "
+    "trên cùng hiện icon VietTelex. Chrome/Electron vẫn có thể gạch chân (xem tab Tương thích).":
+        "With Fcitx5, GTK apps (Firefox, Terminal, Text Editor…) don’t underline the text being "
+        "typed and the top bar shows the VietTelex icon. Chrome/Electron may still underline "
+        "(see the Compatibility tab).",
+    "Đã đặt Fcitx5 chạy thay IBus": "Fcitx5 is set to replace IBus",
+    "Đang có hiệu lực.": "In effect.",
+    "Chưa có hiệu lực — đăng xuất rồi đăng nhập lại.": "Not in effect yet — log out and back in.",
+    "Quay về IBus": "Back to IBus",
+    "Dùng Fcitx5 thay IBus": "Use Fcitx5 instead of IBus",
+    "Cài gói trước: sudo apt install viettelex-fcitx5": "Install the package first: sudo apt install viettelex-fcitx5",
+    "Fcitx5 tự chạy khi đăng nhập, app GTK nhận chữ thẳng từ Fcitx5. Đăng xuất/đăng nhập lại một lần.":
+        "Fcitx5 starts at login and GTK apps get text straight from Fcitx5. Log out and back in once.",
+    "Dùng Fcitx5": "Use Fcitx5",
+    "Không ghi được cấu hình trong ~/.config.": "Couldn’t write the configuration in ~/.config.",
+    "Xong — đăng xuất rồi đăng nhập lại để dùng Fcitx5.": "Done — log out and back in to use Fcitx5.",
+    "Xong — đăng xuất rồi đăng nhập lại để quay về IBus.": "Done — log out and back in to go back to IBus.",
     "Các bước": "Steps",
     "1. Cài gói %s": "1. Install the %s package",
     "Đã cài.": "Installed.",

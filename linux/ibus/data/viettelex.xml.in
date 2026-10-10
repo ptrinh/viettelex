@@ -19,7 +19,7 @@
       <longname>Tiếng Việt (VietTelex)</longname>
       <description>Bộ gõ tiếng Việt Telex/VNI — cùng engine với VietTelex macOS</description>
       <rank>0</rank>
-      <symbol>VT</symbol>
+      <symbol>Vᴛ</symbol>
       <setup>@VT_SETTINGS_EXEC@</setup>
     </engine>
   </engines>

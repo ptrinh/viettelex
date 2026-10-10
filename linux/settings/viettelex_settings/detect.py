@@ -8,6 +8,8 @@ import os
 import shutil
 import subprocess
 
+from . import gnome_fcitx5
+
 FCITX5_ADDON = "viettelex"          # /usr/share/fcitx5/addon/viettelex.conf
 IBUS_ENGINE = "viettelex"           # engine name trong /usr/share/ibus/component/viettelex.xml
 
@@ -141,6 +143,7 @@ def collect():
         "has_configtool": bool(shutil.which("fcitx5-configtool")),
         "has_gnome_settings": bool(shutil.which("gnome-control-center")),
         "has_ibus_setup": bool(shutil.which("ibus-setup")),
+        "gnome_fcitx5": gnome_fcitx5.is_enabled(),
     }
 
 
@@ -158,7 +161,15 @@ def _ibus_enabled(preload, gnome_sources):
 
 
 def active_framework(snap):
-    """Framework mà app đang dùng: 'fcitx5' | 'ibus' | None (theo env, rồi im-config, rồi process)."""
+    """Framework mà app đang dùng: 'fcitx5' | 'ibus' | None.
+
+    Chỉ một trong hai đang chạy ⇒ tin process: trên GNOME env luôn là ibus (gnome-shell đặt),
+    kể cả khi Fcitx5 đã thế chỗ ibus-daemon. Còn lại: env, rồi im-config, rồi process."""
+    fcitx5, ibus = snap.get("fcitx5_running"), snap.get("ibus_running")
+    if fcitx5 and not ibus:
+        return "fcitx5"
+    if ibus and not fcitx5:
+        return "ibus"
     env = snap.get("env", {})
     vals = [env.get("GTK_IM_MODULE", ""), env.get("QT_IM_MODULE", ""),
             env.get("XMODIFIERS", "")]
@@ -219,5 +230,6 @@ def assess(snap):
         "ok": ok,
         "warnings": warnings,
         "other_vn": snap.get("other_vn", []),
+        "gnome_fcitx5": snap.get("gnome_fcitx5", False),
     }
 

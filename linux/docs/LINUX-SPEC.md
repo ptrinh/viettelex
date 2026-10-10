@@ -214,7 +214,7 @@ Phép tính, chip số dạng tiền, sửa lỗi gõ sai, thêm dấu cho cụm
 | Wayland + Chrome ≥ 140 / Electron ≥ 38 không nhận IM | Cờ `--enable-wayland-ime --wayland-text-input-version=3` (GNOME + IBus), KWin `=1`, hoặc `--ozone-platform=x11`; tự phát hiện và báo trong Cài đặt |
 | GNOME Wayland: một input context chung cho mọi app (IBus, Fcitx5 < 5.1.22) | `GnomeAppMonitor` đọc app đang focus từ gnome-shell qua session bus (§6.1) → id thật đi qua `resolveAppPolicy` như mọi app |
 | Ubuntu 22.04 IBus 1.5.26 không có app id | App X11/XWayland vẫn là "default"; trên GNOME Wayland "default" cũng được thay bằng app đang focus (§6.1) |
-| im-config | GNOME: không tác dụng. Desktop khác: `auto` chọn IBus khi cài cả hai → `im-config -n fcitx5`; Cài đặt cảnh báo |
+| im-config | GNOME: không tác dụng (Ubuntu 26.04 `im-launch.desktop` = `Exec=/usr/bin/true`) → `gnome_fcitx5.py`: autostart `org.fcitx.Fcitx5.desktop` + `environment.d/90-viettelex-fcitx5.conf` (`GTK_IM_MODULE=fcitx`…) + profile nếu chưa có; nút *Dùng Fcitx5* / `--use-fcitx5`. Đã thử 26.04 Wayland: Fcitx5 thế chỗ ibus-daemon, Ptyxis + Firefox (Snap) không gạch chân, GNOME hiện icon Vᴛ/E. Nhận diện framework: chỉ một process chạy ⇒ tin process (env GNOME luôn `ibus`). Desktop khác: `auto` chọn IBus khi cài cả hai → `im-config -n fcitx5`; Cài đặt cảnh báo |
 | Biến môi trường Qt / SDL | Qt ≥ 6.8.2 `QT_IM_MODULES="wayland;fcitx;ibus"`, Qt5 `QT_IM_MODULE`; game SDL `SDL_IM_MODULE`; Cài đặt cảnh báo Qt5 Wayland thiếu biến |
 | Compositor khác | Sway ≥ 1.10 (text-input-v3); Hyprland: dùng Fcitx5 |
 | LibreOffice Calc | Bấm ra ô khác / AutoInput có thể làm lệch chữ → khuyên tắt AutoInput nếu gặp lỗi |
