@@ -505,12 +505,19 @@ class SettingsWindow(Adw.PreferencesWindow):
         session = env.get("XDG_SESSION_TYPE") or ("wayland" if env.get("WAYLAND_DISPLAY") else "")
         return session.lower(), env.get("XDG_CURRENT_DESKTOP", "")
 
+    def _gnome_major(self, desktop):
+        if "gnome" not in desktop.lower():
+            return None
+        if not hasattr(self, "_gnome_major_cache"):
+            self._gnome_major_cache = launchers.gnome_shell_major()
+        return self._gnome_major_cache
+
     def sync_launchers(self, announce=False):
         """Tạo / làm mới / gỡ file .desktop có cờ IME Wayland (launchers.py) — luồng nền."""
         enabled = self.cfg.get("experimental", "no_underline") == "forward-keys"
         session, desktop = self._session()
         fw = (getattr(self, "assessment", None) or {}).get("framework")
-        appl = launchers.applicability(session, desktop, fw)
+        appl = launchers.applicability(session, desktop, fw, self._gnome_major(desktop))
         self._launcher_state = (enabled, appl)
 
         def work():
@@ -556,13 +563,17 @@ class SettingsWindow(Adw.PreferencesWindow):
         enabled = self.cfg.get("experimental", "no_underline") == "forward-keys"
         session, desktop = self._session()
         fw = (getattr(self, "assessment", None) or {}).get("framework")
-        appl = launchers.applicability(session, desktop, fw)
+        appl = launchers.applicability(session, desktop, fw, self._gnome_major(desktop))
         parts = [_("Chrome, VS Code, Slack, Discord… gõ thẳng như ở app khác; sửa dấu bằng phím "
                    "Backspace, lỗi thì tự về gạch chân. Chỉ GNOME Wayland (IBus hoặc Fcitx5) và "
                    "KDE Wayland (Fcitx5). Bật lên, VietTelex tự thêm cờ IME Wayland vào lối tắt "
                    "của các app này — mở lại app là xong.")]
         if appl == "not_wayland":
             parts.append(_("Phiên này là X11: không áp dụng, Chrome/Electron vẫn gạch chân."))
+        elif appl == "gnome_50":
+            parts.append(_("GNOME 50 (Ubuntu 26.04) bỏ mất phím Backspace mà bộ gõ gửi (lỗi GNOME, "
+                           "đã sửa ở GNOME 51): VietTelex tạm giữ gạch chân ở Chrome/Electron để "
+                           "không gõ sai chữ."))
         elif appl == "kde_ibus":
             parts.append(_("KDE cần Fcitx5; IBus trên KDE chưa hỗ trợ."))
         elif appl == "unsupported_desktop":

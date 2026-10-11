@@ -109,6 +109,7 @@ bool isChromiumApp(const std::string &appId) {
         "chromium-browser", "chromium-freeworld", "brave", "brave-browser", "brave-browser-stable",
         "microsoft-edge", "microsoft-edge-stable", "vivaldi", "vivaldi-stable", "opera", "code",
         "code-oss", "code-insiders", "vscodium", "codium", "cursor",
+        "vscode",  // VS Code ≥ 1.10x .deb/.rpm: com.microsoft.VSCode.desktop (GNOME Shell app id)
         "electron", "slack", "discord", "signal-desktop", "obsidian", "zalo", "teams-for-linux",
         // more Chromium-based browsers (Cốc Cốc: Messenger trên web lặp chữ / ⌫ xoá 2 lần khi
         // dùng surrounding — user Zorin OS Wayland, 08/10/2026)
@@ -270,7 +271,7 @@ AppPolicy resolveAppPolicy(const std::string &appId, const Settings &s, bool sur
     // the result of each one, and drops back to preedit on any doubt). A pin always wins.
     if (s.noUnderline == NoUnderline::ForwardKeys && mode == DisplayMode::Preedit && !pinned && !unknown &&
         !p.off && !p.passthrough && !field.terminal && !field.urlOrEmail && surroundingProven &&
-        isChromiumApp(id) && hostOrdersForwardedKeys(field.host)) {
+        isChromiumApp(id) && hostOrdersForwardedKeys(field.host) && !field.forwardedKeysDropped) {
         mode = DisplayMode::Surrounding;
         p.deleteWithKeys = true;
         p.allowSurroundingEdits = false;  // no re-edit / ⌫ reopen: in-word edits only

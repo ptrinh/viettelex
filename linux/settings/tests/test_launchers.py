@@ -232,6 +232,23 @@ class VersionTests(unittest.TestCase):
         self.assertEqual(L.applicability("wayland", "KDE", "fcitx5"), "ok")
         self.assertEqual(L.applicability("wayland", "KDE", "ibus"), "kde_ibus")
         self.assertEqual(L.applicability("wayland", "sway", "fcitx5"), "unsupported_desktop")
+        # GNOME 50: mutter drops forwarded keys (mutter #4853, fixed in 51)
+        self.assertEqual(L.applicability("wayland", "ubuntu:GNOME", "ibus", 50), "gnome_50")
+        self.assertEqual(L.applicability("wayland", "ubuntu:GNOME", "fcitx5", 50), "gnome_50")
+        self.assertEqual(L.applicability("wayland", "ubuntu:GNOME", "ibus", 46), "ok")
+        self.assertEqual(L.applicability("wayland", "ubuntu:GNOME", "ibus", 51), "ok")
+        self.assertEqual(L.applicability("x11", "ubuntu:GNOME", "ibus", 50), "not_wayland")
+        self.assertEqual(L.applicability("wayland", "KDE", "fcitx5", 50), "ok")
+
+    def test_gnome_shell_major(self):
+        class R:
+            def __init__(self, out):
+                self.stdout, self.stderr = out, ""
+        which = lambda b: "/usr/bin/" + b
+        self.assertEqual(L.gnome_shell_major(run=lambda *a, **k: R("GNOME Shell 50.1\n"), which=which), 50)
+        self.assertEqual(L.gnome_shell_major(run=lambda *a, **k: R("GNOME Shell 46.0\n"), which=which), 46)
+        self.assertIsNone(L.gnome_shell_major(run=lambda *a, **k: R("garbage"), which=which))
+        self.assertIsNone(L.gnome_shell_major(which=lambda b: None))
 
 
 class SyncTests(unittest.TestCase):

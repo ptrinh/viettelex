@@ -40,6 +40,7 @@ struct GnomeAppMonitor::Impl {
     mutable std::mutex mu;  // tracker + flags + connections
     gnome::FocusTracker tracker;
     bool started = false, stopped = false, monitoring = false;
+    int shellMajor = 0;
     std::string monUnique;
     GDBusConnection *mon = nullptr, *conn = nullptr;
     guint filterId = 0;
@@ -179,6 +180,29 @@ struct GnomeAppMonitor::Impl {
             conn = c;
             if (stopped || !c) return;
         }
+        // Shell version: whether forwarded keys reach apps (gnome::mutterDeliversForwardedKeys).
+        res = g_dbus_connection_call_sync(c, kShell, kShellPath, "org.freedesktop.DBus.Properties", "Get",
+                                          g_variant_new("(ss)", kShell, "ShellVersion"), G_VARIANT_TYPE("(v)"),
+                                          G_DBUS_CALL_FLAGS_NO_AUTO_START, 2000, nullptr, &err);
+        if (res) {
+            GVariant *v = nullptr;
+            g_variant_get(res, "(v)", &v);
+            int major = 0;
+            if (v && g_variant_is_of_type(v, G_VARIANT_TYPE_STRING))
+                major = gnome::shellMajorFromVersion(g_variant_get_string(v, nullptr));
+            if (v) g_variant_unref(v);
+            g_variant_unref(res);
+            if (major > 0) {
+                {
+                    std::lock_guard<std::mutex> l(mu);
+                    shellMajor = major;
+                }
+                notify();
+            }
+        } else {
+            logErr("ShellVersion", err);
+            g_clear_error(&err);
+        }
         // Initial overview state (later changes come as PropertiesChanged).
         res = g_dbus_connection_call_sync(c, kShell, kShellPath, "org.freedesktop.DBus.Properties", "Get",
                                           g_variant_new("(ss)", kShell, "OverviewActive"), G_VARIANT_TYPE("(v)"),
@@ -268,6 +292,11 @@ std::string GnomeAppMonitor::resolve(const std::string &clientId) const {
 bool GnomeAppMonitor::monitoring() const {
     std::lock_guard<std::mutex> l(d_->mu);
     return d_->monitoring;
+}
+
+int GnomeAppMonitor::shellMajor() const {
+    std::lock_guard<std::mutex> l(d_->mu);
+    return d_->shellMajor;
 }
 
 void GnomeAppMonitor::setOnChange(std::function<void()> cb) {

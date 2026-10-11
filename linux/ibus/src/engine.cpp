@@ -30,6 +30,7 @@
 #include <glib-unix.h>
 
 #include <chrono>
+#include <cstdlib>
 #include <functional>
 #include <memory>
 #include <set>
@@ -256,12 +257,24 @@ void refreshFieldFlags(VtIBusEngine *self) {
                     self->purpose == IBUS_INPUT_PURPOSE_PHONE;
     field.sensitive = (self->hints & IBUS_INPUT_HINT_PRIVATE) != 0;
     field.host = vt::ibusClientHost(*self->clientName);
+    // gnome-shell turns our forwarded keys into mutter events — dropped by mutter 50.
+    if (field.host == vt::ClientHost::IBusWayland)
+        field.forwardedKeysDropped = !vt::gnome::mutterDeliversForwardedKeys(G().gnome ? G().gnome->shellMajor() : 0);
     auto policy = vt::resolveAppPolicy(*self->appId, settings(), surrounding, field);
     self->rememberState = policy.rememberState;
     self->session->setPassthrough(self->password || policy.off || policy.passthrough, client);
     self->session->setDisplayMode(policy.mode, client);
     self->session->setDeleteWithKeys(policy.deleteWithKeys);
     self->session->setSurroundingEdits(policy.allowSurroundingEdits);
+    // VIETTELEX_DEBUG=1 in ibus-daemon's environment: why a field got its mode (stderr).
+    static const bool debug = std::getenv("VIETTELEX_DEBUG") != nullptr;
+    if (debug)
+        g_message("viettelex: client=%s app=%s host=%d surroundingCap=%d proven=%d purpose=%d shell=%d "
+                  "keysDropped=%d mode=%d deleteWithKeys=%d",
+                  self->clientName->c_str(), self->appId->c_str(), int(field.host),
+                  (IBUS_ENGINE(self)->client_capabilities & IBUS_CAP_SURROUNDING_TEXT) != 0,
+                  int(self->surroundingProven), int(self->purpose),
+                  G().gnome ? G().gnome->shellMajor() : 0, int(field.forwardedKeysDropped), int(policy.mode), int(policy.deleteWithKeys));
 }
 
 std::string effectiveAppId(const std::string &clientId) {
@@ -432,7 +445,16 @@ gboolean processKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint 
             return TRUE;
         }
         IBusClient client(engine);
-        return self->session->processKey(ev, client) ? TRUE : FALSE;
+        bool handled = self->session->processKey(ev, client);
+        static const bool debug = std::getenv("VIETTELEX_DEBUG") != nullptr;
+        if (debug && !ev.release) {
+            std::string before;
+            bool ok = client.textBeforeCursorTail(24, before);
+            g_message("viettelex key: sym=%u fwd=%d mode=%d distrusted=%d before(%d)=[%s]", keyval,
+                      int(ev.forwarded), int(self->session->displayMode()),
+                      int(self->session->surroundingDistrusted()), int(ok), before.c_str());
+        }
+        return handled ? TRUE : FALSE;
     } catch (...) {
         return FALSE;
     }

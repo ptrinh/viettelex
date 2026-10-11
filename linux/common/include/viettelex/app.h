@@ -101,6 +101,9 @@ struct FieldHints {
     bool numeric = false;     // DIGITS / NUMBER / PHONE (Fcitx5 Digit/Number/Dialable) → passthrough
     bool sensitive = false;   // Fcitx5 Sensitive / IBus HINT_PRIVATE → passthrough, not remembered
     ClientHost host = ClientHost::Unknown;  // may Direct mode be used here?
+    // The compositor drops the keys the IM forwards (gnome::mutterDeliversForwardedKeys:
+    // mutter 50, or GNOME Shell's version not known yet) → no_underline "forward-keys" is off.
+    bool forwardedKeysDropped = false;
 };
 
 struct AppPolicy {

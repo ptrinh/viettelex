@@ -84,6 +84,20 @@ bool isGnomeWayland(const char *currentDesktop, const char *sessionType, const c
     return waylandDisplay && *waylandDisplay;
 }
 
+int shellMajorFromVersion(const char *version) {
+    if (!version) return 0;
+    int major = 0;
+    const char *p = version;
+    for (; *p >= '0' && *p <= '9'; ++p) {
+        major = major * 10 + (*p - '0');
+        if (major > 100000) return 0;
+    }
+    if (p == version || (*p && *p != '.')) return 0;
+    return major;
+}
+
+bool mutterDeliversForwardedKeys(int shellMajor) { return shellMajor > 0 && shellMajor != 50; }
+
 bool isGnomeWaylandSession() {
     return isGnomeWayland(std::getenv("XDG_CURRENT_DESKTOP"), std::getenv("XDG_SESSION_TYPE"),
                           std::getenv("WAYLAND_DISPLAY"));

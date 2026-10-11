@@ -130,6 +130,8 @@ request của `zwp_input_method_context_v1` theo thứ tự, Chromium xử lý `
 text-input đồng bộ ⇒ trang web thấy keydown BackSpace trước chữ mới. Bật bằng
 `[experimental] no_underline = "forward-keys"` (SETTINGS.md §9); mỗi lần sửa được xác nhận lại
 từ surrounding text, lệch ⇒ về gạch chân. App GTK/Qt không dùng đường này (toolkit đảo thứ tự).
+GNOME 50 (Ubuntu 26.04): tắt — mutter 50 bỏ phím IM forward (mutter #4853, sửa ở 51;
+NO-UNDERLINE-SPIKE §5.2), engine đọc `ShellVersion` và giữ gạch chân.
 
 ## 4. Hành vi gõ (port nguyên từ macOS)
 

@@ -56,6 +56,7 @@ CHROMIUM_NAMES = frozenset((
     "chromium-browser", "chromium-freeworld", "brave", "brave-browser", "brave-browser-stable",
     "microsoft-edge", "microsoft-edge-stable", "vivaldi", "vivaldi-stable", "opera", "code",
     "code-oss", "code-insiders", "vscodium", "codium", "cursor",
+    "vscode",
     "electron", "slack", "discord", "signal-desktop", "obsidian", "zalo", "teams-for-linux",
     "coccoc", "coccoc-browser", "coccoc-browser-stable", "yandex-browser", "yandex-browser-stable",
     "thorium", "thorium-browser", "ungoogled-chromium", "google-chrome-unstable",
@@ -489,6 +490,19 @@ def kwin_version(run=subprocess.run, which=shutil.which):
     return (int(m.group(1)), int(m.group(2))) if m else None
 
 
+def gnome_shell_major(run=subprocess.run, which=shutil.which):
+    """Số phiên bản chính của GNOME Shell (50 cho "50.1"), None nếu không biết."""
+    exe = which("gnome-shell")
+    if not exe:
+        return None
+    try:
+        r = run([exe, "--version"], capture_output=True, text=True, timeout=2)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = re.search(r"GNOME Shell (\d+)", r.stdout or "")
+    return int(m.group(1)) if m else None
+
+
 def text_input_version(desktop, kwin=None):
     """KWin < 6.7 (còn text-input-v1): v1 như wiki Fcitx khuyên; còn lại v3 (mặc định Chromium)."""
     if "kde" in desktop.lower() and kwin is not None and tuple(kwin) < KWIN_DROPPED_V1:
@@ -498,14 +512,16 @@ def text_input_version(desktop, kwin=None):
 
 # ---------------------------------------------------------------- áp dụng được không
 
-def applicability(session, desktop, framework):
-    """"ok" | "not_wayland" | "kde_ibus" | "unsupported_desktop" — theo hostOrdersForwardedKeys:
-    GNOME Wayland (IBus hoặc Fcitx5) và KDE Wayland + Fcitx5."""
+def applicability(session, desktop, framework, gnome_major=None):
+    """"ok" | "not_wayland" | "kde_ibus" | "gnome_50" | "unsupported_desktop" — theo
+    hostOrdersForwardedKeys: GNOME Wayland (IBus hoặc Fcitx5) và KDE Wayland + Fcitx5.
+    GNOME 50 (Ubuntu 26.04, Fedora 44): mutter 50 bỏ phím bộ gõ forward (mutter #4853, sửa ở 51)
+    ⇒ bộ gõ tự giữ gạch chân (gnome::mutterDeliversForwardedKeys)."""
     if (session or "").lower() != "wayland":
         return "not_wayland"
     d = (desktop or "").lower()
     if "gnome" in d:
-        return "ok"
+        return "gnome_50" if gnome_major == 50 else "ok"
     if "kde" in d:
         return "ok" if framework == "fcitx5" else "kde_ibus"
     return "unsupported_desktop"

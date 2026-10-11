@@ -47,6 +47,7 @@
 #include <fcitx/userinterfacemanager.h>
 
 #include <array>
+#include <cstdlib>
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -320,6 +321,13 @@ public:
             });
         syncConfigFromSettings();
         gnomeSession_ = vt::gnome::isGnomeWaylandSession();
+        // Watch focus changes from the start: gnome-shell refuses our own
+        // GetRunningApplications (GNOME ≥ 41), so the monitor learns the focused app only from
+        // the portal's call after a focus change. Started lazily, on the first gnome-shell
+        // context, it missed every change before — with GTK_IM_MODULE=fcitx (GTK apps on the
+        // dbus frontend) that is the first Chrome/Electron field, already focused: app stayed
+        // "gnome-shell" and no_underline never applied.
+        if (gnomeSession_) ensureGnomeMonitor();
     }
 
     ~VietTelexEngine() override {
@@ -376,6 +384,15 @@ public:
                 return;
             }
             if (st->session.processKey(ev, client)) event.filterAndAccept();
+            static const bool debug = std::getenv("VIETTELEX_DEBUG") != nullptr;
+            if (debug) {
+                std::string before;
+                bool ok = client.textBeforeCursorTail(24, before);
+                FCITX_INFO() << "viettelex key: sym=" << ev.keysym << " mode="
+                             << int(st->session.displayMode())
+                             << " distrusted=" << st->session.surroundingDistrusted()
+                             << " before(" << ok << ")=[" << before << "]";
+            }
         } catch (...) {
             // never take fcitx5 down with us: the key simply reaches the app
         }
@@ -510,13 +527,15 @@ private:
     // the app themselves): started on first sight, then signal-driven.
     std::string effectiveAppId(const std::string &clientId) {
         if (!gnomeSession_ || !vt::gnome::isSharedShellClientId(clientId)) return clientId;
-        if (!gnome_) {
-            gnome_
- = std::make_unique<vt::GnomeAppMonitor>();
-            gnome_->setOnChange([this] { dispatcher_.schedule([this] { onGnomeFocusChanged(); }); });
-            gnome_->start();
-        }
+        ensureGnomeMonitor();
         return gnome_->resolve(clientId);
+    }
+
+    void ensureGnomeMonitor() {
+        if (gnome_) return;
+        gnome_ = std::make_unique<vt::GnomeAppMonitor>();
+        gnome_->setOnChange([this] { dispatcher_.schedule([this] { onGnomeFocusChanged(); }); });
+        gnome_->start();
     }
 
     void onGnomeFocusChanged() {
@@ -559,6 +578,9 @@ private:
         field.host = vt::fcitxClientHost(st->ic->frontend() ? st->ic->frontend() : "",
                                          caps.test(fcitx::CapabilityFlag::KeyEventOrderFix), st->ic->program(),
                                          gnomeSession_);
+        // gnome-shell turns our forwarded keys into mutter events — dropped by mutter 50.
+        if (field.host == vt::ClientHost::FcitxGnomeWayland)
+            field.forwardedKeysDropped = !vt::gnome::mutterDeliversForwardedKeys(gnome_ ? gnome_->shellMajor() : 0);
         auto policy = vt::resolveAppPolicy(st->appId, settings(), surrounding, field);
         st->rememberState = policy.rememberState;
         bool password = caps.test(fcitx::CapabilityFlag::Password);
@@ -566,6 +588,18 @@ private:
         st->session.setDisplayMode(policy.mode, client);
         st->session.setDeleteWithKeys(policy.deleteWithKeys);
         st->session.setSurroundingEdits(policy.allowSurroundingEdits);
+        // VIETTELEX_DEBUG=1 in Fcitx5's environment: why a field got its mode (journal / stderr).
+        static const bool debug = std::getenv("VIETTELEX_DEBUG") != nullptr;
+        if (debug) {
+            FCITX_INFO() << "viettelex: program=" << st->ic->program() << " app=" << st->appId
+                         << " frontend=" << (st->ic->frontend() ? st->ic->frontend() : "")
+                         << " host=" << int(field.host) << " surroundingCap="
+                         << caps.test(fcitx::CapabilityFlag::SurroundingText)
+                         << " surroundingValid=" << st->ic->surroundingText().isValid()
+                         << " shell=" << (gnome_ ? gnome_->shellMajor() : 0)
+                         << " keysDropped=" << field.forwardedKeysDropped << " terminal=" << field.terminal << " url=" << field.urlOrEmail
+                         << " mode=" << int(policy.mode) << " deleteWithKeys=" << policy.deleteWithKeys;
+        }
     }
 
     void applySettingsToAll() {

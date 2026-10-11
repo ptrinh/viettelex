@@ -1,3 +1,25 @@
+viettelex (1.0.11) UNRELEASED; urgency=medium
+
+  * Chế độ thử nghiệm "Bỏ gạch chân trong Chrome/Electron": GNOME 50
+    (Ubuntu 26.04, Fedora 44) bỏ mất phím Backspace mà bộ gõ gửi (lỗi GNOME,
+    đã sửa ở GNOME 51) nên chữ có thể ra sai ("thuw" → "thuư"). Trên GNOME 50
+    VietTelex giờ tự giữ gạch chân ở Chrome/Electron (IBus và Fcitx5); app cài
+    đặt ghi rõ lý do. GNOME 42–49 (Ubuntu 22.04/24.04) không đổi.
+  * Nhận ra VS Code bản mới (id "com.microsoft.VSCode") là app Electron.
+  * Fcitx5 trên GNOME: biết app đang dùng ngay từ đầu phiên (trước đây chỉ
+    sau lần đổi cửa sổ đầu tiên).
+  * ---
+  * Experimental "No underline in Chrome/Electron": GNOME 50 (Ubuntu 26.04,
+    Fedora 44) drops the Backspace keys an input method sends (a GNOME bug,
+    fixed in GNOME 51), so letters could come out wrong ("thuw" → "thuư"). On
+    GNOME 50 VietTelex now keeps the underline in Chrome/Electron (IBus and
+    Fcitx5) and the settings app says why. GNOME 42–49 unchanged.
+  * Recognise current VS Code (app id "com.microsoft.VSCode") as Electron.
+  * Fcitx5 on GNOME: knows the focused app from the start of the session
+    (before, only after the first window switch).
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Sun, 11 Oct 2026 10:00:00 +0800
+
 viettelex (1.0.10) UNRELEASED; urgency=medium
 
   * GNOME (Ubuntu mặc định): nút "Dùng Fcitx5" trong hướng dẫn — Fcitx5 tự

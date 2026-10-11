@@ -42,6 +42,10 @@ public:
     // Monitor is active (BecomeMonitor succeeded) — for tests/diagnostics.
     bool monitoring() const;
 
+    // gnome-shell's major version (ShellVersion, read once at start), 0 until known or if it
+    // could not be read. Thread-safe. The change callback fires once it is known.
+    int shellMajor() const;
+
     // Called (from a background thread) when resolve() may give a different answer.
     void setOnChange(std::function<void()> cb);
 

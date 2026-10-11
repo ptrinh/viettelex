@@ -235,7 +235,8 @@ key khác); áp dụng ngay (inotify). Đánh giá đầy đủ + kế hoạch k
   client `gnome-shell`; Fcitx5 frontend `wayland` trên KWin; Fcitx5 frontend `ibus` trên GNOME
   Wayland, chỉ ngữ cảnh của chính gnome-shell — `program` `gnome-shell` hoặc id app `*.desktop` /
   `window:N` của Fcitx5 mới, trong phiên GNOME Wayland; client IBus X11/XWayland khác qua cùng
-  frontend vẫn gạch chân), app id thật (không phải id chung),
+  frontend vẫn gạch chân) — **trừ GNOME 50** (mutter 50 bỏ phím forward, sửa ở 51:
+  `gnome::mutterDeliversForwardedKeys`, NO-UNDERLINE-SPIKE §5.2), app id thật (không phải id chung),
   surrounding text đã chứng minh trong lần focus này, ô không phải URL / terminal / số / mật
   khẩu / nhạy cảm, và app không có mục `[app_modes]` (mục đó luôn thắng). Còn lại: như `"off"`.
 - Ở chế độ này không re-edit, ⌫ không mở lại từ (chỉ sửa trong từ đang gõ, gõ tắt, tự khôi

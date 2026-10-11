@@ -1199,7 +1199,7 @@ void testElectronAppsAreChromium() {
              "antigravity", "Antigravity", "antigravity.desktop", "windsurf", "Windsurf", "kiro",
              "trae", "Trae", "void", "PearAI", "positron",
              // Flatpak / WM_CLASS forms the shortName rule alone misses or already covers
-             "com.google.Chrome", "com.visualstudio.code", "com.discordapp.Discord", "com.slack.Slack",
+             "com.google.Chrome", "com.visualstudio.code", "com.microsoft.VSCode", "com.microsoft.VSCode.desktop", "com.discordapp.Discord", "com.slack.Slack",
              "com.brave.Browser", "com.microsoft.Edge", "ru.yandex.Browser", "Vivaldi-flatpak",
              "io.github.ungoogled_software.ungoogled_chromium", "org.signal.Signal", "Signal",
              "im.riot.Riot", "Element", "com.mattermost.Desktop", "chat.rocket.RocketChat",
@@ -2330,6 +2330,31 @@ void testForwardKeysPolicy() {
 // Fcitx5's "ibus" frontend, which also serves X11/XWayland apps with GTK_IM_MODULE=ibus.
 // Only gnome-shell's own context (or Fcitx5's per-app virtual contexts under it) is the
 // ordered gnome-shell → mutter path; everything else stays FcitxIBus (preedit).
+void testMutterForwardedKeys() {
+    using namespace viettelex::gnome;
+    CHECK(shellMajorFromVersion("50.1") == 50);
+    CHECK(shellMajorFromVersion("46.0") == 46);
+    CHECK(shellMajorFromVersion("51.beta") == 51);
+    CHECK(shellMajorFromVersion("42") == 42);
+    CHECK(shellMajorFromVersion("") == 0);
+    CHECK(shellMajorFromVersion(nullptr) == 0);
+    CHECK(shellMajorFromVersion("x50") == 0);
+    CHECK(shellMajorFromVersion("50x") == 0);
+    // mutter 50.x: the forwarded key event has no device and is dropped (#4853, fixed in 51)
+    CHECK(!mutterDeliversForwardedKeys(50));
+    CHECK(!mutterDeliversForwardedKeys(0));  // unknown: do not vouch for it
+    for (int v : {42, 45, 46, 47, 48, 49, 51, 52}) CHECK(mutterDeliversForwardedKeys(v));
+    // IBus on GNOME Wayland: same gate
+    Settings s;
+    s.noUnderline = NoUnderline::ForwardKeys;
+    FieldHints f;
+    f.host = ClientHost::IBusWayland;
+    CHECK(resolveAppPolicy("chromium", s, true, f).deleteWithKeys);
+    f.forwardedKeysDropped = true;
+    CHECK(!resolveAppPolicy("chromium", s, true, f).deleteWithKeys);
+    CHECK(resolveAppPolicy("chromium", s, true, f).mode == DisplayMode::Preedit);
+}
+
 void testFcitxGnomeWaylandHost() {
     // classification: gnome-shell's context, by program name, only in a GNOME Wayland session
     CHECK(fcitxIBusIsGnomeShell("gnome-shell", true));
@@ -2398,6 +2423,11 @@ void testFcitxGnomeWaylandHost() {
     Settings pinned = s;
     pinned.appModes["code"] = "preedit";
     CHECK(resolveAppPolicy("code", pinned, true, shell).mode == DisplayMode::Preedit);
+    // mutter 50 drops forwarded keys (or the shell version is not known yet): preedit
+    FieldHints dropped = shell;
+    dropped.forwardedKeysDropped = true;
+    CHECK(resolveAppPolicy("google-chrome", s, true, dropped).mode == DisplayMode::Preedit);
+    CHECK(!resolveAppPolicy("google-chrome", s, true, dropped).deleteWithKeys);
 }
 
 void testForwardKeysConfig() {
@@ -2570,6 +2600,7 @@ int main() {
     testForwardKeysSelectionAndKeys();
     testForwardKeysPolicy();
     testFcitxGnomeWaylandHost();
+    testMutterForwardedKeys();
     testForwardKeysConfig();
     testForwardKeysAgreesWithSurrounding();
     testForwardKeysRandomFaults();

@@ -174,6 +174,12 @@ EN = {
         "these apps’ launchers — just reopen the app.",
     "Phiên này là X11: không áp dụng, Chrome/Electron vẫn gạch chân.":
         "This is an X11 session: not applicable, Chrome/Electron keep the underline.",
+    "GNOME 50 (Ubuntu 26.04) bỏ mất phím Backspace mà bộ gõ gửi (lỗi GNOME, "
+    "đã sửa ở GNOME 51): VietTelex tạm giữ gạch chân ở Chrome/Electron để "
+    "không gõ sai chữ.":
+        "GNOME 50 (Ubuntu 26.04) drops the Backspace keys an input method sends (a GNOME bug, "
+        "fixed in GNOME 51): VietTelex keeps the underline in Chrome/Electron for now so no "
+        "letters come out wrong.",
     "KDE cần Fcitx5; IBus trên KDE chưa hỗ trợ.": "KDE needs Fcitx5; IBus on KDE is not supported.",
     "Desktop này (%s) chưa hỗ trợ — chỉ GNOME và KDE Plasma.":
         "This desktop (%s) is not supported — GNOME and KDE Plasma only.",

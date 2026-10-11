@@ -38,11 +38,11 @@ cần extension, không cần portal, không cần quyền gì thêm:
 
 | Desktop | Khuyến nghị | Ghi chú |
 |---|---|---|
-| GNOME Wayland (IBus, Ubuntu 22.04/24.04/26.04) | **forward-keys** (prototype) | cần app id thật (GnomeAppMonitor), surrounding đã chứng minh; GNOME 45 có lỗi thứ tự commit→phím (đã sửa ở 46) — không ảnh hưởng chuỗi BS→commit |
+| GNOME Wayland (IBus, Ubuntu 22.04/24.04/26.04) | **forward-keys** (prototype) | cần app id thật (GnomeAppMonitor), surrounding đã chứng minh; GNOME 45 có lỗi thứ tự commit→phím (đã sửa ở 46) — không ảnh hưởng chuỗi BS→commit. **GNOME 50: tắt** — mutter 50 bỏ phím forward (§5.2) |
 | KDE Plasma Wayland (Fcitx5 frontend `wayland`) | **forward-keys** (prototype) | cần Fcitx5 biết app id (`program`, chưa kiểm trên KWin); KWin master bỏ text-input-v1 (27/02/2026) ⇒ Chromium dùng v3 |
 | X11 (mọi desktop) | giữ preedit | Chromium X11 dùng GTK IM context riêng; forward key qua module GTK đi `gdk_event_put` — chưa kiểm chứng |
 | wlroots (Sway, Hyprland; Fcitx5 `wayland_v2`) | giữ preedit | forward = `zwp_virtual_keyboard_v1`, commit = `input_method_v2` — hai object, thứ tự chưa kiểm |
-| Fcitx5 trên GNOME Wayland (frontend `ibus`, vd. Zorin OS) | **forward-keys** (prototype, 09/10/2026) | chỉ ngữ cảnh của chính gnome-shell (host `FcitxGnomeWayland`, §5.1): `program` = `gnome-shell` (hoặc id app `*.desktop` / `window:N` của ngữ cảnh ảo Fcitx5 mới) **và** phiên GNOME Wayland; client IBus khác qua cùng frontend (X11/XWayland, `GTK_IM_MODULE=ibus`) vẫn `FcitxIBus` ⇒ preedit. App id: GnomeAppMonitor như IBus. GNOME 45: như dòng IBus |
+| Fcitx5 trên GNOME Wayland (frontend `ibus`, vd. Zorin OS) | **forward-keys** (prototype, 09/10/2026) | chỉ ngữ cảnh của chính gnome-shell (host `FcitxGnomeWayland`, §5.1): `program` = `gnome-shell` (hoặc id app `*.desktop` / `window:N` của ngữ cảnh ảo Fcitx5 mới) **và** phiên GNOME Wayland; client IBus khác qua cùng frontend (X11/XWayland, `GTK_IM_MODULE=ibus`) vẫn `FcitxIBus` ⇒ preedit. App id: GnomeAppMonitor như IBus. GNOME 45 / 50: như dòng IBus |
 
 ## 1. Bài toán
 
@@ -217,6 +217,29 @@ monitor riêng — Zorin 17 / Ubuntu 22.04 Fcitx5 5.0.x, 24.04 5.1.7): addon đ�
 `GetRunningApplications` mà xdg-desktop-portal-gnome nhận) cho id chung `gnome-shell`. Fcitx5 mới:
 `program` của ngữ cảnh ảo là id app luôn (`google-chrome.desktop` → `google-chrome`). Chưa có id
 thật (portal thiếu, đang chờ reply, overview, `window:N`) ⇒ id chung ⇒ preedit.
+
+
+### 5.2 GNOME 50: mutter bỏ phím forward — 11/10/2026
+
+Thử trên Ubuntu 26.04 (GNOME Shell 50.1, mutter 50.1-0ubuntu2.4), VS Code 1.141 + Chromium
+Wayland, cả IBus lẫn Fcitx5 5.1.19: `forward-keys` bật đúng (app id, surrounding đã chứng minh)
+nhưng **BackSpace forward không tới app**, commit vẫn tới ⇒ "thuw" → "thuư"; xác nhận phát hiện
+lệch và về preedit, nhưng chữ đã sai.
+
+Nguyên nhân (mutter, không phải VietTelex/Fcitx5): từ 50.alpha (e68b5882, "Drop virtual device
+field from ClutterEvent structs") `clutter_input_method_forward_key` tạo key event với
+`source_device = NULL`, mà `clutter_event_key_new` vẫn `g_return_val_if_fail
+(CLUTTER_IS_INPUT_DEVICE (source_device), NULL)` ⇒ trả NULL, phím mất (journal có critical
+`clutter_event_key_new`). Issue mutter #4853 (bộ gõ tiếng Việt daklak gặp y hệt), sửa bằng
+!5121 (2710ddc8) — **chỉ có từ 51.0**, không backport về nhánh `gnome-50`; Ubuntu 26.04 chưa
+vá (changelog tới 50.1-0ubuntu2.5).
+
+Xử lý: `GnomeAppMonitor` đọc `org.gnome.Shell` `ShellVersion` lúc khởi động;
+`gnome::mutterDeliversForwardedKeys(major)` = `major > 0 && major != 50` (chưa biết ⇒ không);
+engine đặt `FieldHints::forwardedKeysDropped` cho host `IBusWayland` / `FcitxGnomeWayland` ⇒
+`resolveAppPolicy` giữ preedit. App cài đặt: `launchers.applicability(..., gnome_major=50)` →
+`"gnome_50"`, dòng mô tả giải thích. Không có đường thay thế trên GNOME 50:
+`delete_surrounding_text` là đúng cái Draft.js/Lexical không theo được (§1).
 
 ## 6. Prototype (commit này)
 

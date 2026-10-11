@@ -45,6 +45,17 @@ std::string focusedAppId(const std::vector<RunningApp> &apps);
 bool isGnomeWayland(const char *currentDesktop, const char *sessionType, const char *waylandDisplay);
 bool isGnomeWaylandSession();  // from the environment
 
+// org.gnome.Shell ShellVersion ("50.1", "46.0", "51.beta") → its major number; 0 if unparsable.
+int shellMajorFromVersion(const char *version);
+// Does this GNOME Shell's mutter deliver the keys an input method forwards (IBus
+// ForwardKeyEvent → clutter_input_method_forward_key) to Wayland apps? Not mutter 50: since
+// 50.alpha (e68b5882) the forwarded event has no source device and clutter_event_key_new
+// rejects it (g_return_val_if_fail → NULL), so the key is silently dropped — commits still
+// arrive, a "BackSpace, then commit" edit leaves the old letter ("thuw" → "thuư"). Fixed in
+// 51.0 (mutter!5121, issue #4853), not backported to 50.x (Ubuntu 26.04 ships 50.1, Fedora 44
+// 50.x). Unknown version (0) → false: no forwarded-key edits on a host we cannot vouch for.
+bool mutterDeliversForwardedKeys(int shellMajor);
+
 // The ids a frontend gets for gnome-shell's shared context: "gnome-shell", "default",
 // "wayland" and "" (normalised). Only these are replaced by the focused app.
 bool isSharedShellClientId(const std::string &clientId);
