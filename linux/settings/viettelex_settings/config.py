@@ -23,6 +23,8 @@ DEFAULTS = {
         "auto_restore": True,
         "teencode": False,
         "contextual_english": True,
+        # "Tự sửa từ phía trước" (thử nghiệm): chỉ hiện / chỉ có tác dụng khi contextual_english bật.
+        "retroactive_english": False,
         "collision_prefers_vietnamese": True,
         "bracket_vowels": False,
         "re_edit_word": True,
@@ -345,6 +347,12 @@ def atomic_write(path, text):
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp, path)
+
+
+def retro_english_visible(get):
+    """Công tắc "Tự sửa từ phía trước" chỉ hiện khi "Quyết định theo ngữ cảnh" bật
+    (`get(section, key)` = Config.get)."""
+    return bool(get("typing", "contextual_english"))
 
 
 class Config:

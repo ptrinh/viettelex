@@ -83,7 +83,7 @@ class CompletenessTests(unittest.TestCase):
                    "gòy", "ừk", "wá", "cư", "âm", "oà", "uý", "hòa", "thủy", "khỏe", "hoà",
                    "thuý", "khoẻ", "thơ", "ngư", "Gõ Nhanh", "ch", "Ư",
                    "tỷ", "tôi", "hôm nay", "ngày mai", "hôm qua", "bây giờ", "hópng", "tòc",
-                   "Được")
+                   "Được", "Hí cả í")
         for vi, en in i18n.EN.items():
             rest = en
             for a in sorted(allowed, key=len, reverse=True):

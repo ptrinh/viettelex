@@ -143,6 +143,7 @@ phím). Mặc định tắt; user bật theo app.
 | Chính tả | Tự khôi phục từ tiếng Anh (`autoRestore`) | bật |
 | | Kiểm tra chính tả khi gõ (`liveSpellCheck`) | bật |
 | | Quyết định theo ngữ cảnh (`contextualEnglish`) | bật |
+| | Tự sửa từ phía trước, thử nghiệm (`retroactiveEnglish`; chỉ hiện khi `contextualEnglish` bật) | tắt |
 | | Ưu tiên tiếng Việt khi trùng (`collisionPrefersVietnamese`) | bật |
 | | Chính tả teencode (`teencode`) | tắt |
 | | Gõ lại dấu cho từ trước con trỏ (`reEditWord`) | bật |

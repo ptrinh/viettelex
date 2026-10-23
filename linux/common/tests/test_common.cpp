@@ -5,6 +5,7 @@
 #include "viettelex/app.h"
 #include "viettelex/gnome.h"
 #include "viettelex/keys.h"
+#include "viettelex/retro_english.h"
 #include "viettelex/session.h"
 #include "viettelex/settings.h"
 #include "viettelex/text_tools.h"
@@ -2690,7 +2691,136 @@ void testForwardKeysRandomFaults() {
 
 }  // namespace
 
+// MARK: - Tự sửa từ phía trước (retroactive_english, retro_english.h)
+
+Settings retroSettings(bool on, bool contextual = true) {
+    Settings st;
+    st.retroactiveEnglish = on;
+    st.contextualEnglish = contextual;
+    return st;
+}
+
+void testRetroSettingsGate() {
+    Settings d;
+    CHECK(!d.retroactiveEnglish);  // experimental: default OFF
+    CHECK(retro::flagWanted(true, true));
+    CHECK(!retro::flagWanted(true, false));
+    CHECK(!retro::flagWanted(false, true));
+    Settings p = parseConfig("[typing]\nretroactive_english = true\n");
+    CHECK(p.retroactiveEnglish);
+    CHECK(parseConfig(serializeConfig(p)).retroactiveEnglish);
+    // contextual_english off: the switch is inert (same text as with it off).
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding})
+        CHECK_EQ(run("His car is very fast ", mode, retroSettings(true, false)),
+                 run("His car is very fast ", mode, retroSettings(false, false)));
+}
+
+void testRetroAutoApplies() {
+    bothModes("His car is very fast ", "His car is very fast ", retroSettings(true));
+    bothModes("His car is very fast ", "Hí cả í very fast ", retroSettings(false));
+    bothModes("His car is very fast.", "His car is very fast.", retroSettings(true));
+    // Enter / Tab only end the phrase: no rewrite behind the user's back.
+    bothModes("His car is very fast\n", "Hí cả í very fast\n", retroSettings(true));
+}
+
+void testRetroBackspaceReverts() {
+    bothModes("His car is very fast <", "Hí cả í very fast ", retroSettings(true));
+    bothModes("His car is very fast <<", "Hí cả í very fast", retroSettings(true));     // 2nd ⌫: plain
+    bothModes("His car is very fast x<", "His car is very fast ", retroSettings(true)); // next key only
+    bothModes("His car is very fast <now ", "Hí cả í very fast now ", retroSettings(true));
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        Session s;
+        Mock m;
+        s.applySettings(retroSettings(true));
+        s.setDisplayMode(mode, m);
+        type(s, m, "His car is very fast ");
+        CHECK(s.retroUndoArmed());
+        m.doc += "!";  // something the Session did not see
+        type(s, m, "<");
+        CHECK_EQ(m.screen(), std::string("His car is very fast "));  // ordinary ⌫ deleted "!"
+    }
+}
+
+void testRetroSkippedWhenUnverifiable() {
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        // No surrounding text: never rewrite blindly.
+        CHECK_EQ(run("His car is very fast ", mode, retroSettings(true), false), std::string("Hí cả í very fast "));
+        // The app changed a word the engine counts on.
+        Session s;
+        Mock m;
+        s.applySettings(retroSettings(true));
+        s.setDisplayMode(mode, m);
+        type(s, m, "His car is very ");
+        const size_t at = m.doc.find("cả");
+        CHECK(at != std::string::npos);
+        if (at != std::string::npos) m.doc.replace(at, std::string("cả").size(), "ca");
+        type(s, m, "fast ");
+        CHECK_EQ(m.screen(), std::string("Hí ca í very fast "));
+        CHECK(!s.retroUndoArmed());
+        // Policy forbids reaching back into committed text (terminal / generic app id).
+        Session t;
+        Mock n;
+        t.applySettings(retroSettings(true));
+        t.setDisplayMode(mode, n);
+        t.setSurroundingEdits(false);
+        type(t, n, "His car is very fast ");
+        CHECK_EQ(n.screen(), std::string("Hí cả í very fast "));
+    }
+}
+
+void testRetroHostLagsBehindTheLastWord() {
+    // IBus / Fcitx5 surrounding text follows our commits asynchronously: the word committed
+    // by this very key may be missing — the rewritten words must still all be there.
+    Session s;
+    Mock m;
+    s.applySettings(retroSettings(true));
+    type(s, m, "His car is very ");
+    m.hasReported = true;
+    m.reported = m.doc;  // the host has not shown "fast" yet
+    type(s, m, "fast ");
+    CHECK_EQ(m.screen(), std::string("His car is very fast "));
+    // Lagging further (the rewritten words not shown): skip.
+    Session t;
+    Mock n;
+    t.applySettings(retroSettings(true));
+    type(t, n, "His car is ");
+    n.hasReported = true;
+    n.reported = n.doc;
+    type(t, n, "very fast ");
+    CHECK_EQ(n.screen(), std::string("Hí cả í very fast "));
+}
+
+void testRetroDecisions() {
+    using retro::Apply;
+    const std::string before = "Hí cả í very fast", expected = "í cả í very fast";
+    CHECK(retro::decideApply(true, true, false, before, expected, 0) == Apply::Apply);
+    CHECK(retro::decideApply(true, true, false, "Hí ca í very fast", expected, 0) == Apply::Mismatch);
+    CHECK(retro::decideApply(true, true, false, "Hí cả í very ", expected, 4) == Apply::Apply);
+    CHECK(retro::decideApply(true, true, false, "Hí cả í very ", expected, 0) == Apply::Mismatch);
+    CHECK(retro::decideApply(true, true, false, "Hí cả í ", expected, 4) == Apply::Mismatch);
+    CHECK(retro::decideApply(true, true, false, "", expected, 4) == Apply::Unverifiable);
+    CHECK(retro::decideApply(false, true, false, before, expected, 0) == Apply::Unverifiable);
+    CHECK(retro::decideApply(true, false, false, before, expected, 0) == Apply::Unverifiable);
+    CHECK(retro::decideApply(true, true, true, before, expected, 0) == Apply::Unverifiable);
+    CHECK(retro::decideApply(true, true, false, before, "", 0) == Apply::Mismatch);
+    const retro::Undo u = retro::makeUndo(expected, "is car is very fast", ' ');
+    CHECK_EQ(u.applied, std::string("is car is very fast "));
+    CHECK_EQ(u.original, std::string("í cả í very fast "));
+    CHECK(retro::undoApplies(u, true, true, false, "His car is very fast "));
+    CHECK(!retro::undoApplies(u, true, true, false, "His car is very fast !"));
+    CHECK(!retro::undoApplies(u, true, true, true, "His car is very fast "));
+    CHECK(!retro::undoApplies(u, false, true, false, "His car is very fast "));
+    CHECK(!retro::undoApplies(u, true, false, false, "His car is very fast "));
+    CHECK(!retro::makeUndo(expected, "is", 0).armed());
+}
+
 int main() {
+    testRetroSettingsGate();
+    testRetroAutoApplies();
+    testRetroBackspaceReverts();
+    testRetroSkippedWhenUnverifiable();
+    testRetroHostLagsBehindTheLastWord();
+    testRetroDecisions();
     testBasicTyping();
     testPreeditIsUnderlinedComposition();
     testSurroundingHasNoPreedit();

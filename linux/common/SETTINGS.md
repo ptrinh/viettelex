@@ -36,6 +36,7 @@ spell_check = true                  # Kiểm tra chính tả khi gõ (dừng bi�
 auto_restore = true                 # Tự khôi phục từ không phải tiếng Việt (tiếng Anh)
 teencode = false                    # Chấp nhận teencode (wá, zô, kó, thík…)
 contextual_english = true           # Quyết định theo ngữ cảnh (từ trước là tiếng Anh)
+retroactive_english = false         # Tự sửa từ phía trước (thử nghiệm; chỉ khi contextual_english bật)
 collision_prefers_vietnamese = true # last/lát, his/hí: giữ tiếng Việt
 bracket_vowels = false              # [ → ơ, ] → ư
 shortcuts_enabled = true            # Bật bảng gõ tắt (shortcuts.yml)
@@ -80,6 +81,7 @@ vốn rỗng). Map sang cờ engine (`vt_engine_set_flag`):
 `input_method=vni→VT_FLAG_VNI`, `simple_telex→SIMPLE_TELEX`, `free_marking→FREE_MARKING`,
 `modern_tone→MODERN_TONE`, `quick_telex→QUICK_TELEX`, `spell_check→LIVE_SPELL_CHECK`,
 `teencode→TEENCODE`, `contextual_english→CONTEXTUAL_ENGLISH`,
+`contextual_english && retroactive_english→RETRO_ENGLISH`,
 `collision_prefers_vietnamese→COLLISION_PREFERS_VIETNAMESE`, `bracket_vowels→BRACKET_VOWELS`;
 `auto_restore` là tham số của `vt_commit` (không phải cờ).
 
@@ -261,6 +263,18 @@ hình (đọc lại trước khi xoá). Tính ở `viettelex-text-tool --serve` 
 SuggestRank, SyllableLM `vnlm.bin`, SeedData, DisplayCase, SensitiveWords, SwipeEnglish
 `enlexicon.bin`); bộ gõ chỉ hẹn giờ (HintService chờ 0,3 s, phím mới = huỷ). Không biết chữ
 trước đoạn đã gõ (vừa focus ở Chrome…) ⇒ từ đầu tiên được coi là đứng riêng.
+
+## 8c. Tự sửa từ phía trước (`[typing] retroactive_english`, thử nghiệm, mặc định tắt)
+
+Xem docs/DESIGN.md "Sửa ngược tiếng Anh". App cài đặt chỉ hiện công tắc ngay dưới "Quyết định
+theo ngữ cảnh", và chỉ khi nó bật. Cờ `VT_FLAG_RETRO_ENGLISH` chỉ bật khi cả hai bật.
+`Session` (`retro_english.h`) báo mọi ký tự ranh giới cho engine (`vt_note_boundary`). Ở ranh
+giới gõ được (dấu cách, dấu câu), nó áp phép sửa bằng delete-surrounding + commit. Điều kiện:
+Session được phép sửa chữ đã chốt (`allowSurroundingEdits`; không áp ở terminal/Direct/field bị
+distrust) và surrounding text chứng minh các từ bị viết lại có đúng trên màn hình. Host được
+phép chậm đúng phần từ vừa commit trong phím này. Enter/Tab chỉ cắt mạch. ⌫ ngay sau đó khôi
+phục chữ cũ nếu text trước con trỏ vẫn kết thúc bằng phần vừa chèn. Không có chip gợi ý trên
+desktop.
 
 ## 9. Thử nghiệm: không gạch chân ở Chromium/Electron (`[experimental] no_underline`)
 

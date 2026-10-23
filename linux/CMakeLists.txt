@@ -112,6 +112,7 @@ add_library(viettelex-common STATIC
   common/src/gnome_monitor.cpp
   common/src/text_tools.cpp
   common/src/caret_hints.cpp
+  common/src/retro_english.cpp
   common/src/auto_text.cpp)
 target_include_directories(viettelex-common PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/common/include")
 target_compile_definitions(viettelex-common PRIVATE VT_TEXT_TOOL_PATH="${VT_TEXT_TOOL_INSTALLED}")

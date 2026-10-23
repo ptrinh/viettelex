@@ -127,6 +127,9 @@ enum class S {
     WelcomeHowTo, WelcomeDefaultInput,
     // Windows' own Ctrl+Shift hotkey (conflict card / dialog)
     WinHotkeyName, WinHotkeyDesc, WinHotkeyFix, WinHotkeyFixNote, WinHotkeyFixed, WinHotkeyFixFailed,
+    // Tự sửa từ phía trước (Chính tả page, right under Quyết định theo ngữ cảnh, shown only
+    // while that is on; experimental)
+    RetroEnglish, RetroEnglishDesc,
     Count
 };
 

@@ -184,6 +184,12 @@ Luồng tích hợp (mỗi ranh giới từ):
    bỏ qua. Lấy phép sửa = cam kết áp nó (lịch sử ghi các từ đó là tiếng Anh).
 4. Phép sửa hết hạn ở lệnh engine kế tiếp (phím mới, ⌫, reset…).
 
+Desktop (Windows TIP `windows/ime/core/retro_english.h`, Linux `linux/common/include/viettelex/retro_english.h`):
+không có chip. Công tắc "Tự sửa từ phía trước" bật thì tự áp ở ranh giới gõ được (dấu cách, dấu
+câu; Enter/Tab chỉ cắt mạch), có kiểm chứng văn bản trước con trỏ. ⌫ ngay sau đó khôi phục chữ
+cũ. Công tắc tắt thì cờ engine tắt. Lấy phép sửa TRƯỚC khi báo ký tự ranh giới, vì app chèn ký
+tự đó sau phím này.
+
 Lịch sử từ (6 từ gần nhất) bị xoá bởi `reset()`, `resetContext()`, `forgetLastCommit()`,
 `seed`, `reopenLastCommit`, ⌫ khi buffer rỗng, ranh giới không phải dấu cách, từ tràn
 buffer, và khi cờ/`contextualEnglish` tắt. Mọi thao tác engine không thấy (di chuyển con

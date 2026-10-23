@@ -1,5 +1,7 @@
 // End-to-end plumbing tests: key sequence -> TypingSession -> FakeDocument, in both
 // output modes, against the real C++ engine (windows/engine).
+#include <viettelex/vtx_engine.h>
+
 #include "caret_hints.h"
 #include "fake_document.h"
 #include "session.h"
@@ -910,4 +912,186 @@ TEST(session_prediction_english_context) {
     Rig v(OutputMode::InPlace);
     v.type("xin ");
     CHECK(!v.s.previousWordEnglish());
+}
+
+// ---------------------------------------------------------------- Tự sửa từ phía trước
+// (retroactiveEnglish, core/retro_english.h). Desktop: auto-apply at the boundary when the
+// text before the caret verifies, ⌫ next reverts; switch off = nothing.
+
+namespace {
+struct RetroRig : Rig {
+    RetroRig(OutputMode m, bool on, bool contextual = true) : Rig(m) {
+        settings.retroactiveEnglish = on;
+        settings.contextualEnglish = contextual;
+        apply();
+    }
+};
+}  // namespace
+
+TEST(retro_settings_gate) {
+    Settings s;
+    CHECK(!s.retroactiveEnglish);  // experimental: default OFF
+    CHECK(!(s.engineFlags() & VTX_RETRO_ENGLISH));
+    s.retroactiveEnglish = true;
+    CHECK(s.engineFlags() & VTX_RETRO_ENGLISH);
+    s.contextualEnglish = false;  // depends on Quyết định theo ngữ cảnh
+    CHECK(!(s.engineFlags() & VTX_RETRO_ENGLISH));
+    CHECK(retro::flagWanted(true, true));
+    CHECK(!retro::flagWanted(true, false));
+    CHECK(!retro::flagWanted(false, true));
+}
+
+TEST(retro_auto_applies_both_modes) {
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        RetroRig r(m, true);
+        r.type("His car is very fast ");
+        CHECK_EQ(r.text(), std::string("His car is very fast "));
+        CHECK(r.s.retroUndoArmed());
+        RetroRig off(m, false);
+        off.type("His car is very fast ");
+        CHECK_EQ(off.text(), std::string("Hí cả í very fast "));
+        CHECK(!off.s.retroUndoArmed());
+        RetroRig noCtx(m, true, false);  // contextualEnglish off: the switch is inert
+        RetroRig noCtxOff(m, false, false);
+        noCtx.type("His car is very fast ");
+        noCtxOff.type("His car is very fast ");
+        CHECK_EQ(noCtx.text(), noCtxOff.text());
+    }
+}
+
+TEST(retro_punctuation_boundary) {
+    RetroRig r(OutputMode::InPlace, true);
+    r.type("His car is very fast.");
+    CHECK_EQ(r.text(), std::string("His car is very fast."));
+    // Enter / Tab only end the phrase: no rewrite behind the user's back, no undo.
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        RetroRig e(m, true);
+        e.type("His car is very fast\n");
+        CHECK_EQ(e.text(), std::string("Hí cả í very fast\n"));
+        CHECK(!e.s.retroUndoArmed());
+    }
+}
+
+TEST(retro_backspace_reverts) {
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        RetroRig r(m, true);
+        r.type("His car is very fast \b");
+        CHECK_EQ(r.text(), std::string("Hí cả í very fast "));  // exact previous text, boundary kept
+        CHECK(!r.s.retroUndoArmed());
+        r.key('\b');  // a second ⌫ is an ordinary one
+        CHECK_EQ(r.text(), std::string("Hí cả í very fast"));
+        // Reverted: the phrase is not rewritten again by the next words.
+        RetroRig q(m, true);
+        q.type("His car is very fast \bnow ");
+        CHECK_EQ(q.text(), std::string("Hí cả í very fast now "));
+    }
+}
+
+TEST(retro_undo_only_for_the_next_key) {
+    RetroRig r(OutputMode::InPlace, true);
+    r.type("His car is very fast x\b");
+    CHECK_EQ(r.text(), std::string("His car is very fast "));
+    r.key('\b');  // not armed any more: plain ⌫
+    CHECK_EQ(r.text(), std::string("His car is very fast"));
+}
+
+TEST(retro_undo_skipped_when_text_changed) {
+    RetroRig r(OutputMode::InPlace, true);
+    r.type("His car is very fast ");
+    r.doc.setText(r.doc.text + u"!");  // something the session did not see
+    r.key('\b');
+    CHECK_EQ(r.text(), std::string("His car is very fast "));  // ordinary ⌫ deleted "!"
+}
+
+TEST(retro_skipped_when_text_does_not_verify) {
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        RetroRig r(m, true);
+        r.type("His car is very ");
+        // The app changed text the engine counts on ("cả" -> "ca"): never rewrite blindly.
+        std::u16string t = r.doc.text;
+        const size_t at = t.find(u"cả");
+        CHECK(at != std::u16string::npos);
+        if (at == std::u16string::npos) continue;
+        t.replace(at, 2, u"ca");
+        r.doc.setText(t);
+        r.type("fast ");
+        CHECK_EQ(r.text(), std::string("Hí ca í very fast "));
+        CHECK(!r.s.retroUndoArmed());
+    }
+}
+
+TEST(retro_skipped_in_unreadable_or_composition_only_fields) {
+    RetroRig r(OutputMode::Composition, true);
+    r.s.setCompositionOnlyContext(true);  // console / transitory document
+    r.type("His car is very fast ");
+    CHECK_EQ(r.text(), std::string("Hí cả í very fast "));
+    RetroRig u(OutputMode::Composition, true);
+    u.doc.unreadable = true;
+    u.type("His car is very fast ");
+    CHECK_EQ(u.text(), std::string("Hí cả í very fast "));
+}
+
+TEST(retro_decide_apply) {
+    const std::u16string before = u"Hí cả í very fast", expected = u"í cả í very fast";
+    const int n = static_cast<int>(expected.size());
+    retro::Field f;
+    CHECK(retro::decideApply(f, before, expected, n) == retro::Apply::Apply);
+    CHECK(retro::decideApply(f, u"Hí ca í very fast", expected, n) == retro::Apply::Mismatch);
+    CHECK(retro::decideApply(f, u"í very fast", expected, n) == retro::Apply::Mismatch);
+    CHECK(retro::decideApply(f, before, expected, n - 1) == retro::Apply::Mismatch);
+    CHECK(retro::decideApply(f, u"", u"", 0) == retro::Apply::Mismatch);
+    retro::Field g = f;
+    g.blind = true;
+    CHECK(retro::decideApply(g, before, expected, n) == retro::Apply::Unverifiable);
+    g = f;
+    g.compositionOnly = true;
+    CHECK(retro::decideApply(g, before, expected, n) == retro::Apply::Unverifiable);
+    g = f;
+    g.canRead = false;
+    CHECK(retro::decideApply(g, before, expected, n) == retro::Apply::Unverifiable);
+    g = f;
+    g.hasSelection = true;
+    CHECK(retro::decideApply(g, before, expected, n) == retro::Apply::Unverifiable);
+    g = f;
+    g.compositionActive = true;
+    CHECK(retro::decideApply(g, before, expected, n) == retro::Apply::Unverifiable);
+}
+
+TEST(retro_undo_decision) {
+    const retro::Undo u = retro::makeUndo(u"í cả í very fast", u"is car is very fast", u' ');
+    CHECK(u.armed());
+    CHECK(u.applied == u"is car is very fast ");
+    CHECK(u.original == u"í cả í very fast ");
+    retro::Field f;
+    CHECK(retro::undoApplies(u, f, u"His car is very fast "));
+    CHECK(!retro::undoApplies(u, f, u"His car is very fast !"));
+    CHECK(!retro::undoApplies(u, f, u"His car is very fast"));
+    retro::Field sel = f;
+    sel.hasSelection = true;
+    CHECK(!retro::undoApplies(u, sel, u"His car is very fast "));
+    retro::Field blind = f;
+    blind.blind = true;
+    CHECK(!retro::undoApplies(u, blind, u"His car is very fast "));
+    CHECK(!retro::makeUndo(u"í", u"is", 0).armed());  // Enter / Tab ended the word: no undo
+    retro::Undo none;
+    CHECK(!retro::undoApplies(none, f, u"anything"));
+}
+
+TEST(retro_never_in_terminals_or_remote_viewers) {
+    CHECK(!retro::allowedForApp("windowsterminal.exe"));
+    CHECK(!retro::allowedForApp("conhost.exe"));
+    CHECK(!retro::allowedForApp("mintty.exe"));
+    CHECK(!retro::allowedForApp("mstsc.exe"));
+    CHECK(retro::allowedForApp("notepad.exe"));
+    CHECK(retro::allowedForApp("chrome.exe"));
+}
+
+TEST(retro_snapshot_bit_roundtrip) {
+    Settings s;
+    s.retroactiveEnglish = true;
+    const std::vector<uint8_t> b = serialize(s);
+    Settings t;
+    CHECK(deserialize(b.data(), b.size(), t));
+    CHECK(t.retroactiveEnglish);
+    CHECK(t == s);
 }

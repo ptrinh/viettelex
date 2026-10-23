@@ -8,6 +8,7 @@ add_library(vtx_ime_core STATIC
   core/debug_log.cpp
   core/com_path.cpp
   core/registration.cpp
+  core/retro_english.cpp
   core/hotkey.cpp
   core/keymap.cpp
   core/session.cpp

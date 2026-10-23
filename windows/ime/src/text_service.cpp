@@ -4,6 +4,8 @@
 #include <new>
 
 #include "config.h"
+#include "retro_english.h"
+#include <viettelex/vtx_engine.h>
 #include "ipc.h"
 #include "text_tool_ipc.h"
 #include "version.h"
@@ -296,6 +298,10 @@ void TextService::applyConfig(bool force) {
 
         SessionOptions o;
         o.engineFlags = s.engineFlags();
+        // "Tự sửa từ phía trước": never on the secure desktop, nor in terminals / remote
+        // viewers / games (retro_english.h); the session also skips any field it cannot read.
+        if (config::secureMode() || !retro::allowedForApp(config::exeName()))
+            o.engineFlags &= ~static_cast<uint32_t>(VTX_RETRO_ENGLISH);
         o.autoRestore = s.autoRestore;
         o.reEditWord = s.reEditWord && !config::secureMode();
         o.underlineMisspelled = s.underlineMisspelled;

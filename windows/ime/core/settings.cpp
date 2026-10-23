@@ -2,6 +2,7 @@
 
 #include <viettelex/vtx_engine.h>
 
+#include "retro_english.h"
 #include "utf.h"
 
 namespace vtx {
@@ -36,6 +37,7 @@ const BoolKey kBoolKeys[] = {
     {"systemTextPrediction", &Settings::systemTextPrediction},
     {"filterSensitive", &Settings::filterSensitive},
     {"learnWords", &Settings::learnWords},
+    {"retroactiveEnglish", &Settings::retroactiveEnglish},
 };
 constexpr size_t kBoolCount = sizeof(kBoolKeys) / sizeof(kBoolKeys[0]);
 constexpr uint32_t kMagic = 0x53585456;  // "VTXS"
@@ -91,6 +93,7 @@ uint32_t Settings::engineFlags() const {
     if (vniMode) f |= VTX_VNI;
     if (contextualEnglish) f |= VTX_CONTEXTUAL_ENGLISH;
     if (collisionPrefersVietnamese) f |= VTX_COLLISION_PREFERS_VI;
+    if (retro::flagWanted(contextualEnglish, retroactiveEnglish)) f |= VTX_RETRO_ENGLISH;
     // "goog" not "gôg" mid-word — only with auto-restore (else the boundary keeps "gôgle").
     if (autoRestore) f |= VTX_EAGER_ENGLISH_RESTORE;
     return f;
