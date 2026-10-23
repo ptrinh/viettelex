@@ -74,8 +74,8 @@
     "notes": "Từ tiếng Anh trả về chữ gốc ngay khi gõ, gợi ý đuôi email, thêm nhiều từ gợi ý, viết hoa đúng tên riêng."
   },
   "android": {
-    "version": "1.5.18",
-    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.18/VietTelex-android-1.5.18.apk",
+    "version": "1.5.19",
+    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.19/VietTelex-android-1.5.19.apk",
     "play": "https://play.google.com/store/apps/details?id=com.viettelex.android"
   }
 }
