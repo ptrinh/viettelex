@@ -54,8 +54,10 @@ struct CaretSuggestion: Equatable {
     /// predict: gợi ý từ (WordPrediction.swift); email: đuôi email "user@g" → gmail.com
     /// (EmailDomainPrediction, WordPrediction.swift) — cùng họ gợi ý từ (ô nổi, click được,
     /// nhường gợi ý khác) nhưng chèn nguyên văn, không dấu cách, không học.
+    /// retro: đề xuất "Tự sửa từ phía trước" khi công tắc tắt (RetroEnglishApply.swift) —
+    /// thắng mọi gợi ý khác (chỉ hiện khi mạch tiếng Anh đã chắc).
     enum Kind: Equatable {
-        case math, number, typo, tones, date, predict, email
+        case math, number, typo, tones, date, predict, email, retro
         /// Họ gợi ý từ (cài đặt "Show inline predictive text").
         var isPrediction: Bool { self == .predict || self == .email }
     }
@@ -78,6 +80,14 @@ enum CaretHintLogic {
         case (false, true): return .tones
         case (false, false): return .none
         }
+    }
+
+    /// Gợi ý mới `new` có nhường gợi ý đang hiện `current` không (true ⇒ không hiện `new`).
+    /// Sửa ngược tiếng Anh thắng tất cả; gợi ý từ nhường mọi loại khác.
+    static func yields(_ new: CaretSuggestion.Kind, to current: CaretSuggestion.Kind?) -> Bool {
+        guard let current, new != .retro else { return false }
+        if current == .retro { return true }
+        return new.isPrediction && !current.isPrediction
     }
 
     // MARK: Phím khi gợi ý đang hiện
@@ -435,6 +445,26 @@ final class CaretHint {
         }
     }
 
+    // MARK: Sửa ngược tiếng Anh — đề xuất (RetroEnglishApply.swift)
+
+    /// Bất kỳ thread, NGAY sau phím ranh giới (caller đã xác nhận kênh + màn hình trước ranh
+    /// giới). Đợi ký tự ranh giới tới app rồi đọc lại: văn bản trước con trỏ phải kết thúc
+    /// đúng bằng `s.replace` — không thì không hiện. Có phím mới trước đó ⇒ không hiện.
+    func offerRetro(_ s: CaretSuggestion, client: IMKTextInput?, controller: TelexInputController?) {
+        let gen = keyGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
+            guard let self, self.keyGeneration == gen, !IsSecureEventInputEnabled() else { return }
+            let window = s.replace.utf16.count + RetroApply.displayLookback
+            guard let before = Self.textBeforeCaret(client: client, window: window),
+                  let display = RetroApply.offerDisplay(before: before, replace: s.replace, insert: s.insert) else {
+                DebugLog.log("retro offer: screen disagrees → no hint")
+                return
+            }
+            self.present(CaretSuggestion(kind: .retro, display: display, replace: s.replace, insert: s.insert),
+                         before: before, client: client, controller: controller)
+        }
+    }
+
     // MARK: Ranh giới từ (CaretSuggestions.swift): sửa lỗi gõ / thêm dấu / ngày giờ
 
     /// Ranh giới từ vừa gõ. `run` = cụm đã chốt ngay trước ranh giới (ShortcutTail.run),
@@ -742,8 +772,9 @@ final class CaretHint {
 
     private func present(_ s: CaretSuggestion, before: String, client: IMKTextInput?,
                          controller: TelexInputController?) {
-        // Gợi ý từ nhường mọi gợi ý khác đang hiện (sửa lỗi gõ, thêm dấu, ngày giờ…).
-        if s.kind.isPrediction, lock.withLock({ pending.map { !$0.kind.isPrediction } ?? false }) { return }
+        // Gợi ý từ nhường mọi gợi ý khác đang hiện (sửa lỗi gõ, thêm dấu, ngày giờ…); mọi
+        // gợi ý nhường đề xuất sửa ngược tiếng Anh (CaretHintLogic.yields).
+        if lock.withLock({ CaretHintLogic.yields(s.kind, to: pending?.kind) }) { return }
         hideWindows()
         pickController = s.kind.isPrediction ? controller : nil
         let screens = NSScreen.screens.map(\.frame)

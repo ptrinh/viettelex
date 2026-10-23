@@ -3429,9 +3429,14 @@ final class TerminalTapController {
             var rewrote = emitBoundary(suppressAutoRestore: isBracketUnichar(ch.utf16.first ?? unit),
                                        allowShortcuts: allow.word, allowToken: allow.token,
                                        allowAlnum: allow.alnum)
-            // "Tự sửa từ phía trước" (thử nghiệm): tắt ⇒ một phép so nil. Áp TRƯỚC ký tự
-            // ranh giới; áp được ⇒ phím ranh giới phải đi sau burst (re-emit bên dưới).
-            let retroApplied = engine.pendingRetroCorrection != nil ? applyRetroCorrectionTap(id: id) : nil
+            // "Tự sửa từ phía trước" (thử nghiệm): không có phép sửa ⇒ một phép so nil. Công
+            // tắc bật: áp TRƯỚC ký tự ranh giới; áp được ⇒ phím ranh giới phải đi sau burst
+            // (re-emit bên dưới). Tắt: chỉ xác nhận kênh + AX, đề xuất sau ranh giới.
+            let retroMode = engine.pendingRetroCorrection != nil
+                ? RetroApply.mode(contextualEnglish: engine.contextualEnglish,
+                                  autoApply: AppState.shared.retroactiveEnglish) : .none
+            let retroApplied = retroMode == .autoApply ? applyRetroCorrectionTap(id: id) : nil
+            let retroOffer = retroMode == .offer ? verifiedRetroOfferTap(id: id) : nil
             if retroApplied != nil { rewrote = true }
             lastTapKeyWasDigit = TelexInputController.gluesShortcutToken(ch.asciiValue)   // #82 số, #87 / # @ . _ -
             // Chip số (chỉ dạng tiền): dấu cách ngay sau cụm có chữ số ⇒ đọc màn hình (AX)
@@ -3469,6 +3474,9 @@ final class TerminalTapController {
             if let c = RetroApply.boundaryCharacter(smartQuote ?? boundaryText) { engine.noteBoundaryCharacter(c) }
             if let r = retroApplied {
                 retroUndo = RetroApply.undo(expected: r.expected, insert: r.insert, boundary: smartQuote ?? boundaryText)
+            }
+            if let c = retroOffer, let o = RetroApply.offer(expected: c.expected, insert: c.insert, boundary: smartQuote ?? boundaryText) {
+                CaretHint.shared.offerRetro(o, client: nil, controller: nil)
             }
             if ch == " ", SystemAutoTextSettings.shared.period {
                 periodSpaceNs = DispatchTime.now().uptimeNanoseconds
@@ -3794,6 +3802,7 @@ final class TerminalTapController {
     /// thay đứng riêng ngay trước con trỏ (Firefox — #104); trình duyệt không xác nhận được
     /// ⇒ bỏ; terminal thuần ⇒ tin dòng phím như cũ. ⌫ theo KÝ TỰ như gõ tắt ký hiệu.
     private func applyCaretSuggestionTap(_ s: CaretSuggestion, id: String?) {
+        if s.kind == .retro { applyRetroOfferTap(s, id: id); return }
         engine.reset()
         guard !s.replace.isEmpty else {
             SyntheticKeyboard.apply(backspaces: 0, insert: s.insert, mode: emitMode)
@@ -3949,6 +3958,35 @@ final class TerminalTapController {
         shortcutTail.replaceSuffix(c.expected, with: c.insert)
         DebugLog.log("retro english(tap) \(id ?? "?"): \(c.words) word(s) bs=\(c.backspaces) ins=\(c.insert.count)")
         return c
+    }
+
+    /// Công tắc tắt (đề xuất): cùng kênh + cùng phép đọc AX như khi tự áp, không áp.
+    private func verifiedRetroOfferTap(id: String?) -> RetroCorrection? {
+        guard let c = engine.pendingRetroCorrection,
+              RetroApply.tapChannel(appAllowed: SystemAutoText.appAllowed(id), emitMode: emitMode,
+                                    queueDrained: SyntheticKeyboard.queueDrained()) == .tapRetype,
+              RetroApply.verifiedRange(c.expected, caret: AXTextEdit.readCaret(),
+                                       read: { AXTextEdit.readString(at: $0.location, length: $0.length) }) != nil
+        else { return nil }
+        return c
+    }
+
+    /// Tab trên đề xuất sửa ngược (tap): kênh còn hợp lệ, AX đọc lại khớp ĐÚNG `replace`
+    /// (gồm ký tự ranh giới) ⇒ ⌫-gõ-lại; không xác nhận được ⇒ bỏ.
+    private func applyRetroOfferTap(_ s: CaretSuggestion, id: String?) {
+        guard engine.isEmpty,
+              RetroApply.tapChannel(appAllowed: SystemAutoText.appAllowed(id), emitMode: emitMode,
+                                    queueDrained: SyntheticKeyboard.queueDrained()) == .tapRetype,
+              RetroApply.verifiedRange(s.replace, caret: AXTextEdit.readCaret(),
+                                       read: { AXTextEdit.readString(at: $0.location, length: $0.length) }) != nil
+        else {
+            DebugLog.log("retro offer(tap) \(id ?? "?"): channel/screen unverifiable → skip")
+            return
+        }
+        if engine.pendingRetroCorrection?.expected == s.replace { _ = engine.takeRetroCorrection() }
+        SyntheticKeyboard.apply(backspaces: s.replace.utf16.count, insert: s.insert, mode: emitMode)
+        shortcutTail.replaceSuffix(s.replace, with: s.insert)
+        DebugLog.log("retro offer(tap) \(id ?? "?"): bs=\(s.replace.utf16.count) ins=\(s.insert.count)")
     }
 
     /// ⌫ ngay sau lần sửa ngược (tap): AX phải xác nhận màn hình kết thúc ĐÚNG bằng chữ vừa

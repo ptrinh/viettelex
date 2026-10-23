@@ -835,7 +835,7 @@ struct TypingTab: View {
                 // định theo ngữ cảnh bật (engine retroactiveEnglishActive) ⇒ chỉ hiện khi đó.
                 if model.contextualEnglish {
                     Toggle(model.loc("Fix earlier words (experimental)"), isOn: $model.retroactiveEnglish)
-                    Text(model.loc("As you keep typing an English sentence, words that just got Vietnamese tones by mistake are fixed (e.g. “Hí cả í very fast” → “His car is very fast”). Press ⌫ right after to undo."))
+                    Text(model.loc("As you keep typing an English sentence, words that just got Vietnamese tones by mistake are fixed (e.g. “Hí cả í very fast” → “His car is very fast”)."))
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

@@ -234,8 +234,9 @@ final class AppState: @unchecked Sendable {
         var freeMarking = true, modernTone = false, liveSpellCheck = true
         var simpleTelex = false, quickTelex = false, vniMode = false
         var bracketVowels = false, contextualEnglish = true
-        /// "Tự sửa từ phía trước" → engine `retroactiveEnglish` (inert unless
-        /// contextualEnglish is on — `TelexEngine.retroactiveEnglishActive`).
+        /// Engine `retroactiveEnglish`: ON whenever contextualEnglish is ON (23/10/2026) — both
+        /// modes need the decision; the "Tự sửa từ phía trước" switch only picks auto-apply
+        /// vs offer-as-caret-hint (`RetroApply.mode`, read only when a correction is pending).
         var retroactiveEnglish = false
         var collisionPrefersVietnamese = true
         var teencode = false
@@ -252,7 +253,7 @@ final class AppState: @unchecked Sendable {
                         liveSpellCheck: _liveSpellCheck, simpleTelex: _simpleTelex,
                         quickTelex: _quickTelex, vniMode: _vniMode,
                         bracketVowels: _bracketVowels, contextualEnglish: _contextualEnglish,
-                        retroactiveEnglish: _retroactiveEnglish,
+                        retroactiveEnglish: RetroApply.engineFlag(contextualEnglish: _contextualEnglish),
                         collisionPrefersVietnamese: _collisionPrefersVietnamese,
                         teencode: _teencode, autoRestore: _autoRestore)
         }
@@ -428,7 +429,8 @@ final class AppState: @unchecked Sendable {
     /// "Tự sửa từ phía trước" (THỬ NGHIỆM, mặc định TẮT): khi mạch tiếng Anh đã chắc,
     /// sửa ngược các từ ngay trước nó vừa bị ghép thành tiếng Việt ("Hí cả í very fast"
     /// → "His car is very fast"; RetroEnglishApply.swift). Chỉ có tác dụng khi
-    /// `contextualEnglish` bật — Cài đặt chỉ hiện công tắc khi đó.
+    /// `contextualEnglish` bật — Cài đặt chỉ hiện công tắc khi đó. Bật = tự áp; tắt = đề xuất
+    /// bằng gợi ý cạnh con trỏ (Tab áp) — `RetroApply.mode`.
     private var _retroactiveEnglish: Bool
     var retroactiveEnglish: Bool {
         get { lock.withLock { _retroactiveEnglish } }

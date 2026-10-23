@@ -117,35 +117,50 @@ final class RetroEnglishApplyTests: XCTestCase {
 
     // MARK: Luồng tích hợp của app trên màn hình giả
 
-    /// Như controller: chữ cái → feed; ký tự khác → commit (từ đã nằm trên màn hình in-place),
-    /// lấy + xác nhận + áp phép sửa TRƯỚC ký tự ranh giới, rồi ký tự ranh giới tới app và
-    /// được báo cho engine. Trả về màn hình + bản ghi hoàn tác cuối.
+    /// Như controller: chữ cái → feed; ký tự khác → commit (từ đã nằm trên màn hình in-place).
+    /// Cờ engine theo "Quyết định theo ngữ cảnh" (`RetroApply.engineFlag`); công tắc chọn chế
+    /// độ (`RetroApply.mode`). Tự áp: lấy + xác nhận + áp TRƯỚC ký tự ranh giới. Đề xuất: chỉ
+    /// xác nhận trước ranh giới, dựng gợi ý sau ranh giới (đọc lại màn hình). Ký tự ranh giới
+    /// tới app rồi được báo cho engine. Trả về màn hình + bản ghi hoàn tác + đề xuất cuối.
     private func typeLikeApp(_ keys: String, setting: Bool, contextual: Bool = true)
-        -> (screen: String, undo: RetroUndo?) {
+        -> (screen: String, undo: RetroUndo?, offer: CaretSuggestion?, engine: TelexEngine) {
         var e = TelexEngine()
         var flags = AppState.EngineFlags()
         flags.contextualEnglish = contextual
-        flags.retroactiveEnglish = setting
+        flags.retroactiveEnglish = R.engineFlag(contextualEnglish: contextual)
         e.apply(flags)
         var screen = ""
         var undo: RetroUndo?
+        var offer: CaretSuggestion?
         for ch in keys {
             if ch.isASCII, ch.isLetter { _ = e.feed(ch); continue }
             screen += e.commitText(autoRestore: true)
+            offer = nil
             var applied: RetroCorrection?
+            var offered: RetroCorrection?
             if let c = e.pendingRetroCorrection {
                 let ns = screen as NSString
-                if let r = R.verifiedRange(c.expected, caret: ns.length, read: reader(screen)) {
-                    _ = e.takeRetroCorrection()
-                    screen = ns.replacingCharacters(in: r, with: c.insert)
-                    applied = c
+                let r = R.verifiedRange(c.expected, caret: ns.length, read: reader(screen))
+                switch R.mode(contextualEnglish: e.contextualEnglish, autoApply: setting) {
+                case .autoApply:
+                    if let r {
+                        _ = e.takeRetroCorrection()
+                        screen = ns.replacingCharacters(in: r, with: c.insert)
+                        applied = c
+                    }
+                case .offer: if r != nil { offered = c }
+                case .none: XCTFail("engine decided with contextual English off")
                 }
             }
             screen.append(ch)
             if let b = R.boundaryCharacter(String(ch)) { e.noteBoundaryCharacter(b) }
             undo = applied.flatMap { R.undo(expected: $0.expected, insert: $0.insert, boundary: String(ch)) }
+            if let c = offered, let o = R.offer(expected: c.expected, insert: c.insert, boundary: String(ch)),
+               let d = R.offerDisplay(before: screen, replace: o.replace, insert: o.insert) {
+                offer = CaretSuggestion(kind: .retro, display: d, replace: o.replace, insert: o.insert)
+            }
         }
-        return (screen, undo)
+        return (screen, undo, offer, e)
     }
 
     func testSettingOnRewritesThenBackspaceRestoresExactPreviousText() {
@@ -162,17 +177,108 @@ final class RetroEnglishApplyTests: XCTestCase {
         }
     }
 
-    func testSettingOffOrContextualOffChangesNothing() {
-        XCTAssertEqual(typeLikeApp("His car is very fast ", setting: false).screen, "Hí cả í very fast ")
-        XCTAssertNil(typeLikeApp("His car is very fast ", setting: false).undo)
-        // Cờ engine bật nhưng "Quyết định theo ngữ cảnh" tắt ⇒ engine không bao giờ đề xuất.
-        let off = typeLikeApp("His car is very fast ", setting: true, contextual: false)
-        XCTAssertNil(off.undo)
-        XCTAssertFalse(off.screen.hasPrefix("His car"))
+    func testSettingOffOffersInsteadOfRewriting() {
+        var run = typeLikeApp("His car is very fast ", setting: false)
+        XCTAssertEqual(run.screen, "Hí cả í very fast ")
+        XCTAssertNil(run.undo)
+        let o = try? XCTUnwrap(run.offer)
+        XCTAssertNotNil(o)
+        guard let o else { return }
+        XCTAssertEqual(o.kind, .retro)
+        XCTAssertEqual(o.display, "His car is")
+        XCTAssertTrue(o.replace.hasSuffix(" "))      // gồm ký tự ranh giới
+        // Tab: đọc lại khớp ⇒ thay đúng range đó (như applyRetroOffer).
+        let ns = run.screen as NSString
+        let r = R.verifiedRange(o.replace, caret: ns.length, read: reader(run.screen))
+        XCTAssertNotNil(r)
+        if let r { XCTAssertEqual(ns.replacingCharacters(in: r, with: o.insert), "His car is very fast ") }
+        // Phép sửa vẫn đang chờ đúng bằng đề xuất ⇒ lấy được (lịch sử ghi tiếng Anh).
+        XCTAssertEqual(run.engine.pendingRetroCorrection?.expected, o.replace)
+        XCTAssertNotNil(run.engine.takeRetroCorrection())
+        // Màn hình đã khác (người dùng sửa tay) ⇒ không áp.
+        XCTAssertNil(R.verifiedRange(o.replace, caret: 10, read: reader("Hí cả í ve")))
+    }
+
+    func testContextualOffDoesNothingInEitherMode() {
+        for setting in [true, false] {
+            let off = typeLikeApp("His car is very fast ", setting: setting, contextual: false)
+            XCTAssertNil(off.undo)
+            XCTAssertNil(off.offer)
+            XCTAssertFalse(off.screen.hasPrefix("His car"))
+        }
+    }
+
+    func testEnterOrTabBoundaryNeverOffers() {
+        func offer(_ b: String?) -> CaretSuggestion? { R.offer(expected: "í cả í", insert: "is car is", boundary: b) }
+        XCTAssertNil(offer("\n"))
+        XCTAssertNil(offer("\r"))
+        XCTAssertNil(offer("\t"))
+        XCTAssertNil(offer(nil))
+        XCTAssertNil(offer("ab"))
+        let o = offer(".")
+        XCTAssertEqual(o?.replace, "í cả í.")
+        XCTAssertEqual(o?.insert, "is car is.")
+        XCTAssertNil(R.offer(expected: "ab", insert: "ab", boundary: " "))
+        XCTAssertNil(R.offer(expected: "", insert: "x", boundary: " "))
+    }
+
+    func testModeAndEngineFlag() {
+        XCTAssertEqual(R.mode(contextualEnglish: true, autoApply: true), .autoApply)
+        XCTAssertEqual(R.mode(contextualEnglish: true, autoApply: false), .offer)
+        XCTAssertEqual(R.mode(contextualEnglish: false, autoApply: true), .none)
+        XCTAssertEqual(R.mode(contextualEnglish: false, autoApply: false), .none)
+        XCTAssertTrue(R.engineFlag(contextualEnglish: true))
+        XCTAssertFalse(R.engineFlag(contextualEnglish: false))
+    }
+
+    func testAppStateEngineFlagFollowsContextualNotSwitch() {
+        let s = AppState.shared
+        let (ctx, sw) = (s.contextualEnglish, s.retroactiveEnglish)
+        defer { s.contextualEnglish = ctx; s.retroactiveEnglish = sw }
+        for (c, w) in [(true, false), (true, true), (false, true), (false, false)] {
+            s.contextualEnglish = c; s.retroactiveEnglish = w
+            XCTAssertEqual(s.engineFlags().retroactiveEnglish, c)
+        }
+    }
+
+    func testOfferDisplayShowsWholeRewrittenWords() {
+        XCTAssertEqual(R.offerDisplay(before: "ok. Hí cả í very fast ", replace: "í cả í very fast ",
+                                      insert: "is car is very fast "), "His car is")
+        // Từ đầu đổi ngay chữ đầu (không có phần LCP).
+        XCTAssertEqual(R.offerDisplay(before: "xem ò course ", replace: "ò course ", insert: "of course "), "of")
+        // Ký tự không phải chữ trước phần thay không lọt vào ô.
+        XCTAssertEqual(R.offerDisplay(before: "(Hí cả í very ", replace: "í cả í very ",
+                                      insert: "is car is very "), "His car is")
+        // Màn hình không kết thúc đúng bằng replace ⇒ không đề xuất.
+        XCTAssertNil(R.offerDisplay(before: "Hí cả í very", replace: "í cả í very ", insert: "is car is very "))
+        // NFD trên màn hình không được coi là khớp.
+        XCTAssertNil(R.offerDisplay(before: "Hi\u{301} very ", replace: "í very ", insert: "is very "))
+    }
+
+    func testRetroHintWinsOverOtherHints() {
+        typealias L = CaretHintLogic
+        // Đề xuất sửa ngược thay mọi gợi ý đang hiện.
+        for k in [CaretSuggestion.Kind.tones, .typo, .predict, .email, .date, .number, .math] {
+            XCTAssertFalse(L.yields(.retro, to: k))
+            XCTAssertTrue(L.yields(k, to: .retro), "\(k) must not replace the retro hint")
+        }
+        XCTAssertFalse(L.yields(.retro, to: nil))
+        XCTAssertFalse(L.yields(.retro, to: .retro))
+        // Luật cũ giữ nguyên: gợi ý từ nhường loại khác, loại khác thay gợi ý từ.
+        XCTAssertTrue(L.yields(.predict, to: .tones))
+        XCTAssertFalse(L.yields(.predict, to: .email))
+        XCTAssertFalse(L.yields(.tones, to: .predict))
+        XCTAssertFalse(L.yields(.typo, to: nil))
+        // Tab nhận, Enter KHÔNG nhận (đi tiếp như thường), Esc tắt.
+        XCTAssertEqual(L.action(kind: .retro, keyCode: L.kTab, plain: true), .accept)
+        XCTAssertEqual(L.action(kind: .retro, keyCode: L.kReturn, plain: true), .dismissPass)
+        XCTAssertEqual(L.action(kind: .retro, keyCode: L.kEscape, plain: true), .dismissConsume)
+        XCTAssertEqual(L.action(kind: .retro, keyCode: 0, plain: true), .dismissPass)
     }
 
     func testVietnameseSentenceUntouched() {
         XCTAssertNil(typeLikeApp("Mai car team hojp ", setting: true).undo)
+        XCTAssertNil(typeLikeApp("Mai car team hojp ", setting: false).offer)
     }
 
     func testEngineFlagCarriesTheSetting() {

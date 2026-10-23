@@ -185,13 +185,18 @@ Luồng tích hợp (mỗi ranh giới từ):
 4. Phép sửa hết hạn ở lệnh engine kế tiếp (phím mới, ⌫, reset…).
 
 macOS (`App/Sources/RetroEnglishApply.swift`, cài đặt "Tự sửa từ phía trước", chỉ hiện khi
-"Quyết định theo ngữ cảnh" bật; tắt = cờ engine tắt): lấy phép sửa ngay sau commit, TRƯỚC
+"Quyết định theo ngữ cảnh" bật; cờ engine bật theo "Quyết định theo ngữ cảnh", công tắc chỉ
+chọn chế độ — `RetroApply.mode`). Công tắc BẬT = tự áp: lấy phép sửa ngay sau commit, TRƯỚC
 khi ký tự ranh giới tới app, rồi báo ký tự ranh giới. IMK in-place (app đã chứng minh tôn
 trọng replacementRange): đọc lại `expected` trước con trỏ, khớp UTF-16 thì một
 `insertText(replacementRange)`. Tap ⌫-gõ-lại: chỉ khi AX đọc lại khớp và không còn burst
 đang bay. Terminal/app mã nguồn/marked/passthrough/chọn-ghi-đè/edge: không bao giờ. ⌫ ngay
-sau đó trả lại đúng văn bản cũ nếu màn hình còn khớp. (Chip đề xuất / "Khôi phục" là của
-iOS/Android.)
+sau đó trả lại đúng văn bản cũ nếu màn hình còn khớp. Công tắc TẮT = đề xuất: cùng kênh và
+cùng phép đọc lại trước ranh giới nhưng không áp; sau ranh giới (một ký tự in được, không
+Enter/Tab) hiện gợi ý cạnh con trỏ `CaretSuggestion.Kind.retro` ("His car is ⇥ Tab") nếu màn
+hình đọc lại kết thúc đúng bằng `expected + ranh giới`. Tab áp qua đúng đường an toàn trên
+(kiểm kênh + đọc lại lần nữa); phím khác tắt gợi ý. Gợi ý này thắng mọi gợi ý cạnh con trỏ
+khác (`CaretHintLogic.yields`). (Chip "Khôi phục" là của iOS/Android.)
 
 Desktop (Windows TIP `windows/ime/core/retro_english.h`, Linux `linux/common/include/viettelex/retro_english.h`):
 không có chip. Công tắc "Tự sửa từ phía trước" bật thì tự áp ở ranh giới gõ được (dấu cách, dấu

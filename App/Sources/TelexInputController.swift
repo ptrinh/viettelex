@@ -968,11 +968,17 @@ final class TelexInputController: IMKInputController {
             let rewrote = boundary(client, suppressAutoRestore: boundaryChar.map(isBracket) ?? false,
                                    allowShortcuts: allow.word, allowTokenShortcuts: allow.token,
                                    allowAlnumShortcuts: allow.alnum)
-            // "Tự sửa từ phía trước" (thử nghiệm): engine chỉ đặt phép sửa khi cài đặt bật —
-            // tắt ⇒ một phép so nil. Áp TRƯỚC khi ký tự ranh giới tới app (con trỏ đang ở
-            // cuối từ vừa chốt; `expected` chưa gồm ký tự ranh giới).
-            let retroApplied = engine.pendingRetroCorrection != nil
+            // "Tự sửa từ phía trước" (thử nghiệm): engine chỉ đặt phép sửa khi "Quyết định theo
+            // ngữ cảnh" bật — không có ⇒ một phép so nil. Công tắc bật: áp TRƯỚC khi ký tự ranh
+            // giới tới app (con trỏ ở cuối từ vừa chốt; `expected` chưa gồm ranh giới). Tắt:
+            // chỉ xác nhận kênh + màn hình, đề xuất bằng gợi ý cạnh con trỏ sau ranh giới.
+            let retroMode = engine.pendingRetroCorrection != nil
+                ? RetroApply.mode(contextualEnglish: engine.contextualEnglish,
+                                  autoApply: AppState.shared.retroactiveEnglish) : .none
+            let retroApplied = retroMode == .autoApply
                 ? applyRetroCorrection(marked: markedNow, edge: wasEdge, client, id: id) : nil
+            let retroOffer = retroMode == .offer
+                ? verifiedRetroOffer(marked: markedNow, edge: wasEdge, client, id: id) : nil
             // Học từ bạn gõ: từ vừa chốt (đứng riêng = cụm đã chốt đúng bằng từ đó).
             learnAtBoundary(word: lastCommitWord, boundary: inserted,
                             standsAlone: shortcutTail.run == lastCommitWord, id: id, edge: wasEdge)
@@ -1024,6 +1030,9 @@ final class TelexInputController: IMKInputController {
             if let c = RetroApply.boundaryCharacter(smartQuote ?? inserted) { engine.noteBoundaryCharacter(c) }
             if let r = retroApplied {
                 retroUndo = RetroApply.undo(expected: r.expected, insert: r.insert, boundary: smartQuote ?? inserted)
+            }
+            if let c = retroOffer, let o = RetroApply.offer(expected: c.expected, insert: c.insert, boundary: smartQuote ?? inserted) {
+                CaretHint.shared.offerRetro(o, client: client, controller: self)
             }
             if inserted == " ", SystemAutoTextSettings.shared.period {
                 periodSpaceNs = DispatchTime.now().uptimeNanoseconds
@@ -2182,6 +2191,50 @@ final class TelexInputController: IMKInputController {
         return c
     }
 
+    /// Công tắc tắt (đề xuất): cùng kênh + cùng phép đọc lại như khi tự áp, nhưng KHÔNG áp
+    /// và không lấy phép sửa — trả về phép sửa nếu được phép đề xuất.
+    private func verifiedRetroOffer(marked: Bool, edge: Bool, _ client: IMKTextInput,
+                                    id: String?) -> RetroCorrection? {
+        guard let c = engine.pendingRetroCorrection,
+              RetroApply.imkChannel(appAllowed: SystemAutoText.appAllowed(id), marked: marked, edge: edge,
+                                    replacesCommittedText: Self.replacesCommittedText(id)) == .imkReplace else {
+            return nil
+        }
+        let sel = client.selectedRange()
+        guard RetroApply.verifiedRange(c.expected, caret: sel.location == NSNotFound ? nil : sel.location,
+                                       selectionLength: sel.length,
+                                       read: { client.attributedSubstring(from: $0)?.string }) != nil else {
+            DebugLog.log("retro offer \(id ?? "?"): screen disagrees → no hint")
+            return nil
+        }
+        return c
+    }
+
+    /// Tab trên đề xuất sửa ngược: đường an toàn như tự áp — kênh còn hợp lệ, đọc lại khớp
+    /// ĐÚNG `replace` (gồm ký tự ranh giới) ngay trước con trỏ, rồi MỘT insertText(range).
+    private func applyRetroOffer(_ s: CaretSuggestion, _ client: IMKTextInput) {
+        let id = AppState.shared.currentBundleID
+        guard engine.isEmpty,
+              RetroApply.imkChannel(appAllowed: SystemAutoText.appAllowed(id), marked: false, edge: false,
+                                    replacesCommittedText: Self.replacesCommittedText(id)) == .imkReplace else {
+            DebugLog.log("retro offer \(id ?? "?"): channel not allowed → skip")
+            return
+        }
+        let sel = client.selectedRange()
+        guard let range = RetroApply.verifiedRange(
+                s.replace, caret: sel.location == NSNotFound ? nil : sel.location, selectionLength: sel.length,
+                read: { client.attributedSubstring(from: $0)?.string }) else {
+            DebugLog.log("retro offer \(id ?? "?"): screen disagrees → skip")
+            return
+        }
+        // Lịch sử engine ghi các từ là tiếng Anh (chỉ khi phép sửa vẫn là cái đang chờ).
+        if engine.pendingRetroCorrection?.expected == s.replace { _ = engine.takeRetroCorrection() }
+        client.insertText(s.insert, replacementRange: range)
+        shortcutTail.replaceSuffix(s.replace, with: s.insert)
+        learn.discard()
+        logDecision("retro offer \(id ?? "?"): -\(range.length) +\((s.insert as NSString).length)")
+    }
+
     /// ⌫ ngay sau lần sửa ngược: màn hình phải kết thúc ĐÚNG bằng chữ vừa chèn + ranh giới
     /// (đọc lại) → thay bằng văn bản cũ + ranh giới. false ⇒ ⌫ thường.
     private func tryRetroUndo(_ u: RetroUndo, _ client: IMKTextInput) -> Bool {
@@ -2346,6 +2399,7 @@ final class TelexInputController: IMKInputController {
     /// cụm đứng riêng (như gõ tắt ký hiệu); lệch ⇒ không đụng gì.
     private func applyCaretSuggestion(_ s: CaretSuggestion, _ client: IMKTextInput) {
         if s.kind == .email { applyEmailSuggestion(s, client); return }
+        if s.kind == .retro { applyRetroOffer(s, client); return }
         if !engine.isEmpty { endComposition(client) }
         guard !s.replace.isEmpty else {
             client.insertText(s.insert, replacementRange: kNoRange)
