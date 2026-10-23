@@ -1,3 +1,23 @@
+viettelex (1.0.18) UNRELEASED; urgency=medium
+
+  * Thử nghiệm "Tự sửa từ phía trước" (trong Quyết định theo ngữ cảnh): khi bạn
+    gõ tiếp một câu tiếng Anh, sửa các từ vừa bị bỏ dấu nhầm ("Hí cả í very fast"
+    → "His car is very fast"). Tắt: hiện gợi ý, Tab để sửa. Bật: tự sửa, ⌫ để
+    khôi phục.
+  * Từ tiếng Anh trùng từ Việt ("my car is") không còn làm lật từ phía sau;
+    "queue" không còn ra "quêu" (PR #130).
+  * "Ưu tiên tiếng Việt khi trùng" không còn biến "task" thành "ták" (#127).
+  * ---
+  * Experimental "Fix earlier words" (under context-based decision): when you
+    keep typing in English, words that got Vietnamese marks by mistake are
+    fixed ("Hí cả í very fast" → "His car is very fast"). Off: shown as a hint,
+    Tab to apply. On: applied automatically, Backspace to undo.
+  * English words that collide with Vietnamese ("my car is") no longer flip
+    the next word; "queue" no longer becomes "quêu" (PR #130).
+  * "Prefer Vietnamese on collision" no longer turns "task" into "ták" (#127).
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Fri, 23 Oct 2026 17:00:00 +0700
+
 viettelex (1.0.17) UNRELEASED; urgency=medium
 
   * Từ tiếng Anh tự trả về chữ gốc ngay khi gõ ("goog" thay vì "gôg").
