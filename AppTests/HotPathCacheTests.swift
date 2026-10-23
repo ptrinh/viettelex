@@ -146,6 +146,8 @@ final class HotPathCacheTests: XCTestCase {
             ("vniMode", "vniMode", { s.vniMode }, { s.vniMode = $0 }),
             ("contextualEnglish", "contextualEnglish",
              { s.contextualEnglish }, { s.contextualEnglish = $0 }),
+            ("retroactiveEnglish", "retroactiveEnglish",
+             { s.retroactiveEnglish }, { s.retroactiveEnglish = $0 }),
         ]
         for t in toggles {
             let saved = t.get()

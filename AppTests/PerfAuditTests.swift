@@ -22,6 +22,7 @@ final class PerfAuditTests: XCTestCase {
         XCTAssertEqual(f.vniMode, s.vniMode)
         XCTAssertEqual(f.bracketVowels, s.bracketVowels)
         XCTAssertEqual(f.contextualEnglish, s.contextualEnglish)
+        XCTAssertEqual(f.retroactiveEnglish, s.retroactiveEnglish)
     }
 
     func testEngineFlagsSnapshotFollowsAToggle() {
@@ -41,26 +42,26 @@ final class PerfAuditTests: XCTestCase {
         flags.freeMarking = true; flags.modernTone = true; flags.liveSpellCheck = true
         flags.simpleTelex = true; flags.quickTelex = true; flags.vniMode = true
         flags.bracketVowels = true; flags.contextualEnglish = true; flags.teencode = true
-        flags.autoRestore = true
+        flags.autoRestore = true; flags.retroactiveEnglish = true
         var e = TelexEngine()
         e.apply(flags)
         XCTAssertTrue(e.freeMarking); XCTAssertTrue(e.modernTone)
         XCTAssertTrue(e.liveSpellCheck); XCTAssertTrue(e.simpleTelex)
         XCTAssertTrue(e.quickTelex); XCTAssertTrue(e.vniMode)
         XCTAssertTrue(e.bracketVowels); XCTAssertTrue(e.contextualEnglish); XCTAssertTrue(e.teencode)
-        XCTAssertTrue(e.eagerEnglishRestore)
+        XCTAssertTrue(e.eagerEnglishRestore); XCTAssertTrue(e.retroactiveEnglish)
 
         var allOff = AppState.EngineFlags()
         allOff.freeMarking = false; allOff.modernTone = false; allOff.liveSpellCheck = false
         allOff.simpleTelex = false; allOff.quickTelex = false; allOff.vniMode = false
         allOff.bracketVowels = false; allOff.contextualEnglish = false; allOff.teencode = false
-        allOff.autoRestore = false
+        allOff.autoRestore = false; allOff.retroactiveEnglish = false
         e.apply(allOff)
         XCTAssertFalse(e.freeMarking); XCTAssertFalse(e.modernTone)
         XCTAssertFalse(e.liveSpellCheck); XCTAssertFalse(e.simpleTelex)
         XCTAssertFalse(e.quickTelex); XCTAssertFalse(e.vniMode)
         XCTAssertFalse(e.bracketVowels); XCTAssertFalse(e.contextualEnglish); XCTAssertFalse(e.teencode)
-        XCTAssertFalse(e.eagerEnglishRestore)
+        XCTAssertFalse(e.eagerEnglishRestore); XCTAssertFalse(e.retroactiveEnglish)
     }
 
     func testEngineFlagsHasExactlyTheDocumentedCount() {

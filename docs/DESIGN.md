@@ -184,6 +184,15 @@ Luồng tích hợp (mỗi ranh giới từ):
    bỏ qua. Lấy phép sửa = cam kết áp nó (lịch sử ghi các từ đó là tiếng Anh).
 4. Phép sửa hết hạn ở lệnh engine kế tiếp (phím mới, ⌫, reset…).
 
+macOS (`App/Sources/RetroEnglishApply.swift`, cài đặt "Tự sửa từ phía trước", chỉ hiện khi
+"Quyết định theo ngữ cảnh" bật; tắt = cờ engine tắt): lấy phép sửa ngay sau commit, TRƯỚC
+khi ký tự ranh giới tới app, rồi báo ký tự ranh giới. IMK in-place (app đã chứng minh tôn
+trọng replacementRange): đọc lại `expected` trước con trỏ, khớp UTF-16 thì một
+`insertText(replacementRange)`. Tap ⌫-gõ-lại: chỉ khi AX đọc lại khớp và không còn burst
+đang bay. Terminal/app mã nguồn/marked/passthrough/chọn-ghi-đè/edge: không bao giờ. ⌫ ngay
+sau đó trả lại đúng văn bản cũ nếu màn hình còn khớp. (Chip đề xuất / "Khôi phục" là của
+iOS/Android.)
+
 Lịch sử từ (6 từ gần nhất) bị xoá bởi `reset()`, `resetContext()`, `forgetLastCommit()`,
 `seed`, `reopenLastCommit`, ⌫ khi buffer rỗng, ranh giới không phải dấu cách, từ tràn
 buffer, và khi cờ/`contextualEnglish` tắt. Mọi thao tác engine không thấy (di chuyển con

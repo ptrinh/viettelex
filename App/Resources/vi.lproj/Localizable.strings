@@ -83,6 +83,8 @@
 "Type diacritics with digits instead of Telex letters: 1-5 = sắc/huyền/hỏi/ngã/nặng, 6 = â/ê/ô, 7 = ơ/ư, 8 = ă, 9 = đ, 0 = clear tone. Letters stay literal. Keep Live spell-check on so numbers like “mp3” aren’t turned into tones." = "Gõ dấu bằng số thay cho chữ Telex: 1–5 = sắc/huyền/hỏi/ngã/nặng, 6 = â/ê/ô, 7 = ơ/ư, 8 = ă, 9 = đ, 0 = bỏ dấu. Chữ cái vẫn giữ nguyên. Hãy bật “Kiểm tra chính tả khi gõ” để các chuỗi như “mp3” không bị hiểu nhầm thành dấu.";
 "Context-based decision" = "Quyết định theo ngữ cảnh";
 "After an English word, an ambiguous next word whose keys spell an English word is kept English instead of Vietnamese — “he is” → “he is”, not “he í”. After a Vietnamese or unclear word it stays Vietnamese — “sao í”." = "Sau một từ tiếng Anh, nếu từ tiếp theo có thể được hiểu theo cả hai cách, VietTelex sẽ ưu tiên tiếng Anh (“he is” giữ nguyên, không thành “he í”). Sau từ tiếng Việt hoặc khi chưa rõ, VietTelex ưu tiên tiếng Việt (“sao í”).";
+"Fix earlier words (experimental)" = "Tự sửa từ phía trước (thử nghiệm)";
+"As you keep typing an English sentence, words that just got Vietnamese tones by mistake are fixed (e.g. “Hí cả í very fast” → “His car is very fast”). Press ⌫ right after to undo." = "Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm (vd. “Hí cả í very fast” → “His car is very fast”). Nhấn ⌫ ngay sau đó để hoàn tác.";
 "Safety" = "An toàn";
 "Cascade circuit breaker" = "Tự ngắt khi có lỗi";
 "Keep this ON. Stops the terminal tap if it ever floods the keyboard with synthetic events, so a bug can’t freeze typing." = "Nên bật mục này. Nếu bộ gõ gửi quá nhiều phím giả lập, VietTelex sẽ tự dừng để bàn phím không bị treo.";

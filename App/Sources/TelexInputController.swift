@@ -62,6 +62,9 @@ final class TelexInputController: IMKInputController {
     /// ⌫ ngay sau khi nở gõ tắt → trả lại chữ đã gõ (một lần, chỉ in-place, verify màn
     /// hình). Bị tiêu thụ bởi BẤT KỲ phím thật nào tới sau.
     private var shortcutUndo: ShortcutUndo?
+    /// "Tự sửa từ phía trước": ⌫ ngay sau lần sửa ngược → trả lại đúng văn bản cũ (một
+    /// lần, verify màn hình — RetroEnglishApply.swift). Phím thật nào tới cũng tiêu thụ.
+    private var retroUndo: RetroUndo?
     /// Cài đặt Nhập văn bản của macOS (SystemAutoText.swift): uptime ns của dấu cách vừa
     /// đi qua (0 = phím trước không phải dấu cách) — dấu chấm khi nhấn đúp phím cách;
     /// "—" vừa đổi từ "--" (gõ "-" tiếp ⇒ trả "---"); chữ đầu từ vừa được viết hoa tự
@@ -473,6 +476,8 @@ final class TelexInputController: IMKInputController {
         // (sau khi đã lọc echo của chính mình ở trên) đều tiêu thụ nó.
         let pendingShortcutUndo = shortcutUndo
         shortcutUndo = nil
+        let pendingRetroUndo = retroUndo
+        retroUndo = nil
         let prevSpaceNs = periodSpaceNs
         let prevEmDashOurs = lastEmDashOurs
         periodSpaceNs = 0; lastEmDashOurs = false
@@ -694,6 +699,11 @@ final class TelexInputController: IMKInputController {
                 // khi màn hình khớp y hệt (đọc lại), ngược lại ⌫ thường.
                 if let u = pendingShortcutUndo, !markedNow, tryUndoShortcut(u, client) {
                     spMode = "shortcut-undo"
+                    return true
+                }
+                // ⌫ ngay sau "Tự sửa từ phía trước": trả lại văn bản cũ (verify màn hình).
+                if let u = pendingRetroUndo, !markedNow, tryRetroUndo(u, client) {
+                    spMode = "retro-undo"
                     return true
                 }
                 shortcutTail.backspace()
@@ -958,6 +968,11 @@ final class TelexInputController: IMKInputController {
             let rewrote = boundary(client, suppressAutoRestore: boundaryChar.map(isBracket) ?? false,
                                    allowShortcuts: allow.word, allowTokenShortcuts: allow.token,
                                    allowAlnumShortcuts: allow.alnum)
+            // "Tự sửa từ phía trước" (thử nghiệm): engine chỉ đặt phép sửa khi cài đặt bật —
+            // tắt ⇒ một phép so nil. Áp TRƯỚC khi ký tự ranh giới tới app (con trỏ đang ở
+            // cuối từ vừa chốt; `expected` chưa gồm ký tự ranh giới).
+            let retroApplied = engine.pendingRetroCorrection != nil
+                ? applyRetroCorrection(marked: markedNow, edge: wasEdge, client, id: id) : nil
             // Học từ bạn gõ: từ vừa chốt (đứng riêng = cụm đã chốt đúng bằng từ đó).
             learnAtBoundary(word: lastCommitWord, boundary: inserted,
                             standsAlone: shortcutTail.run == lastCommitWord, id: id, edge: wasEdge)
@@ -1005,6 +1020,11 @@ final class TelexInputController: IMKInputController {
             let smartQuote = (boundaryChar == UInt8(ascii: "\"") || boundaryChar == UInt8(ascii: "'"))
                 && !(rewrote && wasEdge) ? smartQuoteText(boundaryText, client, id: id) : nil
             if let s = smartQuote ?? inserted { shortcutTail.append(s) } else { shortcutTail.reset() }
+            // Hợp đồng sửa ngược (DESIGN.md): báo MỌI ký tự ranh giới cho engine (tắt ⇒ no-op).
+            if let c = RetroApply.boundaryCharacter(smartQuote ?? inserted) { engine.noteBoundaryCharacter(c) }
+            if let r = retroApplied {
+                retroUndo = RetroApply.undo(expected: r.expected, insert: r.insert, boundary: smartQuote ?? inserted)
+            }
             if inserted == " ", SystemAutoTextSettings.shared.period {
                 periodSpaceNs = DispatchTime.now().uptimeNanoseconds
             }
@@ -2130,6 +2150,55 @@ final class TelexInputController: IMKInputController {
         shortcutTail.reset()
         shortcutTail.append(u.restored)
         logDecision("shortcut undo \(id ?? "?"): -\(range.length) +\((u.restored as NSString).length)")
+        return true
+    }
+
+    // MARK: - "Tự sửa từ phía trước" (RetroEnglishApply.swift)
+
+    /// Áp phép sửa ngược tiếng Anh đang chờ: chỉ app in-place đã chứng minh (không marked,
+    /// không edge, không terminal/app mã nguồn), và chỉ khi văn bản ngay trước con trỏ
+    /// đọc lại ĐÚNG `expected` — rồi MỘT insertText(replacementRange), không ⌫. Không xác
+    /// nhận được ⇒ bỏ (phép sửa tự hết hạn ở lệnh engine kế tiếp). Trả về phép sửa đã áp.
+    private func applyRetroCorrection(marked: Bool, edge: Bool, _ client: IMKTextInput,
+                                      id: String?) -> RetroCorrection? {
+        guard let c = engine.pendingRetroCorrection else { return nil }
+        guard RetroApply.imkChannel(appAllowed: SystemAutoText.appAllowed(id), marked: marked, edge: edge,
+                                    replacesCommittedText: Self.replacesCommittedText(id)) == .imkReplace else {
+            DebugLog.log("retro english \(id ?? "?"): channel not allowed → skip")
+            return nil
+        }
+        let sel = client.selectedRange()
+        guard let range = RetroApply.verifiedRange(
+                c.expected, caret: sel.location == NSNotFound ? nil : sel.location,
+                selectionLength: sel.length,
+                read: { client.attributedSubstring(from: $0)?.string }) else {
+            DebugLog.log("retro english \(id ?? "?"): screen disagrees → skip")
+            return nil
+        }
+        _ = engine.takeRetroCorrection()     // lấy = cam kết áp (lịch sử ghi các từ là tiếng Anh)
+        client.insertText(c.insert, replacementRange: range)
+        shortcutTail.replaceSuffix(c.expected, with: c.insert)
+        logDecision("retro english \(id ?? "?"): \(c.words) word(s) -\(range.length) +\((c.insert as NSString).length)")
+        return c
+    }
+
+    /// ⌫ ngay sau lần sửa ngược: màn hình phải kết thúc ĐÚNG bằng chữ vừa chèn + ranh giới
+    /// (đọc lại) → thay bằng văn bản cũ + ranh giới. false ⇒ ⌫ thường.
+    private func tryRetroUndo(_ u: RetroUndo, _ client: IMKTextInput) -> Bool {
+        let id = AppState.shared.currentBundleID
+        guard Self.replacesCommittedText(id) else { return false }
+        let sel = client.selectedRange()
+        guard let range = RetroApply.revertRange(
+                u, caret: sel.location == NSNotFound ? nil : sel.location, selectionLength: sel.length,
+                read: { client.attributedSubstring(from: $0)?.string }) else {
+            DebugLog.log("retro undo \(id ?? "?"): screen disagrees → plain ⌫")
+            return false
+        }
+        client.insertText(u.previous, replacementRange: range)
+        engine.reset()               // xoá lịch sử sửa ngược + re-open: ⌫ sau đó là ⌫ thường
+        tracking = false; onLen = 0
+        shortcutTail.replaceSuffix(u.current, with: u.previous)
+        logDecision("retro undo \(id ?? "?"): -\(range.length) +\((u.previous as NSString).length)")
         return true
     }
 

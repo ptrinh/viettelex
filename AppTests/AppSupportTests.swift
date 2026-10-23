@@ -895,6 +895,7 @@ extension AppSupportTests {
             ({ s.quickTelex }, { s.quickTelex = $0 }),
             ({ s.vniMode }, { s.vniMode = $0 }),
             ({ s.contextualEnglish }, { s.contextualEnglish = $0 }),
+            ({ s.retroactiveEnglish }, { s.retroactiveEnglish = $0 }),
             ({ s.bracketVowels }, { s.bracketVowels = $0 }),
             ({ s.tapModifyEventInPlace }, { s.tapModifyEventInPlace = $0 }),
             ({ s.tapSkipSyntheticKeyUp }, { s.tapSkipSyntheticKeyUp = $0 }),

@@ -28,6 +28,7 @@ final class MacSyncStore: SyncLocal {
         Setting(canonical: "quickTelex", local: "quickTelex"),
         Setting(canonical: "modernTone", local: "modernOrthography"),
         Setting(canonical: "contextualEnglish", local: "contextualEnglish"),
+        Setting(canonical: "retroactiveEnglish", local: "retroactiveEnglish"),   // "Tự sửa từ phía trước"
         Setting(canonical: "teencode", local: "teencode"),
         Setting(canonical: "autoRestore", local: "autoRestore"),
         Setting(canonical: "liveSpellCheck", local: "liveSpellCheck"),

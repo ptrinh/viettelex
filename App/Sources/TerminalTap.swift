@@ -2571,6 +2571,8 @@ final class TerminalTapController {
     private var toneRun = ToneRunLogic.Tracker()
     /// ⌫ ngay sau khi nở → trả lại chữ đã gõ (một lần). Phím thật nào tới cũng tiêu thụ.
     private var shortcutUndo: ShortcutUndo?
+    /// "Tự sửa từ phía trước": ⌫ ngay sau lần sửa ngược → văn bản cũ (một lần, verify AX).
+    private var retroUndo: RetroUndo?
     /// Cài đặt Nhập văn bản của macOS (SystemAutoText.swift) — như các cờ cùng tên ở
     /// TelexInputController. TAP-thread confined.
     private var periodSpaceNs: UInt64 = 0
@@ -2931,7 +2933,7 @@ final class TerminalTapController {
 
         if type == .leftMouseDown || type == .rightMouseDown {
             engine.reset()
-            shortcutTail.caretMoved(); shortcutUndo = nil   // con trỏ đã dời (neo khi AX mù, #99)
+            shortcutTail.caretMoved(); shortcutUndo = nil; retroUndo = nil   // con trỏ đã dời (neo khi AX mù, #99)
             autoCappedWord = false; suppressAutoCap = false; lastEmDashOurs = false; periodSpaceNs = 0
             toneRun.reset()
             numberPrevRun = ""
@@ -2969,6 +2971,8 @@ final class TerminalTapController {
         // Gõ tắt hoàn tác: chỉ ⌫ NGAY SAU lần nở — mọi phím thật khác tiêu thụ nó.
         let pendingShortcutUndo = shortcutUndo
         shortcutUndo = nil
+        let pendingRetroUndo = retroUndo
+        retroUndo = nil
         let prevSpaceNs = periodSpaceNs
         let prevEmDashOurs = lastEmDashOurs
         periodSpaceNs = 0; lastEmDashOurs = false
@@ -3267,6 +3271,8 @@ final class TerminalTapController {
             if engine.isEmpty {
                 // ⌫ ngay sau khi nở gõ tắt: trả lại đúng chữ đã gõ + ranh giới (một lần).
                 if let u = pendingShortcutUndo, tryUndoShortcutTap(u, id: id) { return nil }
+                // ⌫ ngay sau "Tự sửa từ phía trước": trả lại văn bản cũ (chỉ khi AX xác nhận).
+                if let u = pendingRetroUndo, tryRetroUndoTap(u, id: id) { return nil }
                 shortcutTail.backspace()
                 // ⌫ on the boundary character the last word ended with re-opens that
                 // word ("tháy" ␣ ⌫ then `a` → "thấy" — issue #40); the ⌫ still goes
@@ -3420,9 +3426,13 @@ final class TerminalTapController {
                 return nil
             }
             let allow = ShortcutMatch.triggers(boundary: boundaryText, glued: lastTapKeyWasDigit)
-            let rewrote = emitBoundary(suppressAutoRestore: isBracketUnichar(ch.utf16.first ?? unit),
+            var rewrote = emitBoundary(suppressAutoRestore: isBracketUnichar(ch.utf16.first ?? unit),
                                        allowShortcuts: allow.word, allowToken: allow.token,
                                        allowAlnum: allow.alnum)
+            // "Tự sửa từ phía trước" (thử nghiệm): tắt ⇒ một phép so nil. Áp TRƯỚC ký tự
+            // ranh giới; áp được ⇒ phím ranh giới phải đi sau burst (re-emit bên dưới).
+            let retroApplied = engine.pendingRetroCorrection != nil ? applyRetroCorrectionTap(id: id) : nil
+            if retroApplied != nil { rewrote = true }
             lastTapKeyWasDigit = TelexInputController.gluesShortcutToken(ch.asciiValue)   // #82 số, #87 / # @ . _ -
             // Chip số (chỉ dạng tiền): dấu cách ngay sau cụm có chữ số ⇒ đọc màn hình (AX)
             // một lần sau khi phím tới app; terminal không có AX ⇒ dựng từ dòng phím (cụm neo).
@@ -3455,6 +3465,11 @@ final class TerminalTapController {
             // Ngoặc kép cong (cài đặt macOS): phát “ ” ‘ ’ thay phím " '.
             let smartQuote = ch == "\"" || ch == "'" ? smartQuoteTap(ch, id: id) : nil
             shortcutTail.append(smartQuote ?? boundaryText)
+            // Hợp đồng sửa ngược (DESIGN.md): báo MỌI ký tự ranh giới cho engine (tắt ⇒ no-op).
+            if let c = RetroApply.boundaryCharacter(smartQuote ?? boundaryText) { engine.noteBoundaryCharacter(c) }
+            if let r = retroApplied {
+                retroUndo = RetroApply.undo(expected: r.expected, insert: r.insert, boundary: smartQuote ?? boundaryText)
+            }
             if ch == " ", SystemAutoTextSettings.shared.period {
                 periodSpaceNs = DispatchTime.now().uptimeNanoseconds
             }
@@ -3909,6 +3924,46 @@ final class TerminalTapController {
         shortcutTail.reset()
         shortcutTail.append(u.restored)
         DebugLog.log("shortcut undo(tap) \(id ?? "?"): bs=\(u.onScreen.count) ins=\(u.restored.count)")
+        return true
+    }
+
+    // MARK: "Tự sửa từ phía trước" (RetroEnglishApply.swift)
+
+    /// Áp phép sửa ngược đang chờ bằng ⌫-gõ-lại — CHỈ khi AX đọc lại được văn bản trước
+    /// con trỏ và nó khớp ĐÚNG `expected` (trình duyệt/Electron); không có AX (terminal
+    /// thuần, Firefox) hay app bị loại trừ ⇒ bỏ. Trả về phép sửa đã áp.
+    private func applyRetroCorrectionTap(id: String?) -> RetroCorrection? {
+        guard let c = engine.pendingRetroCorrection else { return nil }
+        guard RetroApply.tapChannel(appAllowed: SystemAutoText.appAllowed(id), emitMode: emitMode,
+                                    queueDrained: SyntheticKeyboard.queueDrained()) == .tapRetype else {
+            DebugLog.log("retro english(tap) \(id ?? "?"): channel not allowed → skip")
+            return nil
+        }
+        guard RetroApply.verifiedRange(c.expected, caret: AXTextEdit.readCaret(),
+                                       read: { AXTextEdit.readString(at: $0.location, length: $0.length) }) != nil else {
+            DebugLog.log("retro english(tap) \(id ?? "?"): screen unverifiable/disagrees → skip")
+            return nil
+        }
+        _ = engine.takeRetroCorrection()     // lấy = cam kết áp
+        SyntheticKeyboard.apply(backspaces: c.backspaces, insert: c.insert, mode: emitMode)
+        shortcutTail.replaceSuffix(c.expected, with: c.insert)
+        DebugLog.log("retro english(tap) \(id ?? "?"): \(c.words) word(s) bs=\(c.backspaces) ins=\(c.insert.count)")
+        return c
+    }
+
+    /// ⌫ ngay sau lần sửa ngược (tap): AX phải xác nhận màn hình kết thúc ĐÚNG bằng chữ vừa
+    /// chèn + ranh giới ⇒ ⌫ hết đoạn đó, gõ lại văn bản cũ + ranh giới. Ngược lại ⌫ thường.
+    private func tryRetroUndoTap(_ u: RetroUndo, id: String?) -> Bool {
+        guard emitMode == .backspace, SyntheticKeyboard.queueDrained(),
+              RetroApply.revertRange(u, caret: AXTextEdit.readCaret(),
+                                     read: { AXTextEdit.readString(at: $0.location, length: $0.length) }) != nil else {
+            DebugLog.log("retro undo(tap) \(id ?? "?"): screen disagrees → plain ⌫")
+            return false
+        }
+        engine.reset()
+        SyntheticKeyboard.apply(backspaces: u.current.count, insert: u.previous, mode: emitMode)
+        shortcutTail.replaceSuffix(u.current, with: u.previous)
+        DebugLog.log("retro undo(tap) \(id ?? "?"): bs=\(u.current.count) ins=\(u.previous.count)")
         return true
     }
 

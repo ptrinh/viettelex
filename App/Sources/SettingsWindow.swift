@@ -153,6 +153,7 @@ final class SettingsModel: ObservableObject {
     @Published var quickTelex: Bool { didSet { AppState.shared.quickTelex = quickTelex } }
     @Published var vniMode: Bool { didSet { AppState.shared.vniMode = vniMode } }
     @Published var contextualEnglish: Bool { didSet { AppState.shared.contextualEnglish = contextualEnglish } }
+    @Published var retroactiveEnglish: Bool { didSet { AppState.shared.retroactiveEnglish = retroactiveEnglish } }
     @Published var collisionPrefersVietnamese: Bool { didSet { AppState.shared.collisionPrefersVietnamese = collisionPrefersVietnamese } }
     @Published var stickyInputSource: Bool { didSet { AppState.shared.stickyInputSource = stickyInputSource } }
     @Published var switchHotkey: String { didSet { AppState.shared.switchHotkey = switchHotkey } }
@@ -241,6 +242,7 @@ final class SettingsModel: ObservableObject {
         quickTelex = AppState.shared.quickTelex
         vniMode = AppState.shared.vniMode
         contextualEnglish = AppState.shared.contextualEnglish
+        retroactiveEnglish = AppState.shared.retroactiveEnglish
         collisionPrefersVietnamese = AppState.shared.collisionPrefersVietnamese
         stickyInputSource = AppState.shared.stickyInputSource
         switchHotkey = AppState.shared.switchHotkey
@@ -829,6 +831,13 @@ struct TypingTab: View {
                 Toggle(model.loc("Context-based decision"), isOn: $model.contextualEnglish)
                 Text(model.loc("After an English word, an ambiguous next word whose keys spell an English word is kept English instead of Vietnamese — “he is” → “he is”, not “he í”. After a Vietnamese or unclear word it stays Vietnamese — “sao í”."))
                     .font(.caption).foregroundStyle(.secondary)
+                // "Tự sửa từ phía trước" (thử nghiệm, 23/10/2026): chỉ có nghĩa khi quyết
+                // định theo ngữ cảnh bật (engine retroactiveEnglishActive) ⇒ chỉ hiện khi đó.
+                if model.contextualEnglish {
+                    Toggle(model.loc("Fix earlier words (experimental)"), isOn: $model.retroactiveEnglish)
+                    Text(model.loc("As you keep typing an English sentence, words that just got Vietnamese tones by mistake are fixed (e.g. “Hí cả í very fast” → “His car is very fast”). Press ⌫ right after to undo."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             // Phil 18/10/2026: các tính năng VietTelex đi theo cài đặt nguồn nhập liệu của macOS
             // (viết hoa, gợi ý chữ, dấu chấm khi gõ hai dấu cách, ngoặc cong) nằm ngoài cửa sổ này
@@ -1307,7 +1316,7 @@ enum DebugHeader {
             // from every prior debug log meant a tester's own `defaults write` was invisible
             // evidence ("chỉ mỗi em bị" — 2026-08-05).
             "flags: modifyInPlace=\(s.tapModifyEventInPlace) skipKeyUp=\(s.tapSkipSyntheticKeyUp) axReplace=\(s.axSelectionReplace) breaker=\(s.tapCascadeBreaker) nativeFastPath=\(s.tapNativeFastPath)",
-            "settings: simpleTelex=\(s.simpleTelex) freeMarking=\(s.freeMarking) modern=\(s.modernOrthography) liveSpell=\(s.liveSpellCheck) autoRestore=\(s.autoRestore) vni=\(s.vniMode) quick=\(s.quickTelex) ctxEnglish=\(s.contextualEnglish) teencode=\(s.teencode) collisionVN=\(s.collisionPrefersVietnamese) reEdit=\(s.reEditWord) bracket=\(s.bracketVowels) safeUnknown=\(s.safeUnknownApps)",
+            "settings: simpleTelex=\(s.simpleTelex) freeMarking=\(s.freeMarking) modern=\(s.modernOrthography) liveSpell=\(s.liveSpellCheck) autoRestore=\(s.autoRestore) vni=\(s.vniMode) quick=\(s.quickTelex) ctxEnglish=\(s.contextualEnglish) retroEnglish=\(s.retroactiveEnglish) teencode=\(s.teencode) collisionVN=\(s.collisionPrefersVietnamese) reEdit=\(s.reEditWord) bracket=\(s.bracketVowels) safeUnknown=\(s.safeUnknownApps)",
             // Count only — the trigger/expansion pairs are USER-TYPED content the log
             // must never carry (same rule as everywhere else here), but a nonzero count
             // is itself diagnostic: a custom gõ tắt entry colliding with a Vietnamese

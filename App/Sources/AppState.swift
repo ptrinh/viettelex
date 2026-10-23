@@ -65,6 +65,7 @@ final class AppState: @unchecked Sendable {
         static let quickTelex = "quickTelex"
         static let vniMode = "vniMode"
         static let contextualEnglish = "contextualEnglish"
+        static let retroactiveEnglish = "retroactiveEnglish"   // "Tự sửa từ phía trước"
         static let collisionPrefersVietnamese = "collisionPrefersVietnamese"
         static let reEditWord = "reEditWord"
         static let shortcuts = "shortcuts"
@@ -148,6 +149,8 @@ final class AppState: @unchecked Sendable {
         // cảnh đã đủ chín — người gõ lẫn Anh-Việt hưởng lợi ngay khỏi phải biết
         // toggle tồn tại; ai không muốn vẫn tắt được trong Cài đặt.
         _contextualEnglish = (defaults.object(forKey: Key.contextualEnglish) as? Bool) ?? true
+        // "Tự sửa từ phía trước" (thử nghiệm, 23/10/2026): mặc định TẮT.
+        _retroactiveEnglish = (defaults.object(forKey: Key.retroactiveEnglish) as? Bool) ?? false
         _collisionPrefersVietnamese = (defaults.object(forKey: Key.collisionPrefersVietnamese) as? Bool) ?? true
         tapNativeFastPath = (defaults.object(forKey: "tapNativeFastPath") as? Bool) ?? true
         _tapModifyEventInPlace = (defaults.object(forKey: "tapModifyEventInPlace") as? Bool) ?? true
@@ -231,6 +234,9 @@ final class AppState: @unchecked Sendable {
         var freeMarking = true, modernTone = false, liveSpellCheck = true
         var simpleTelex = false, quickTelex = false, vniMode = false
         var bracketVowels = false, contextualEnglish = true
+        /// "Tự sửa từ phía trước" → engine `retroactiveEnglish` (inert unless
+        /// contextualEnglish is on — `TelexEngine.retroactiveEnglishActive`).
+        var retroactiveEnglish = false
         var collisionPrefersVietnamese = true
         var teencode = false
         /// Auto-restore → engine `eagerEnglishRestore` (18/10/2026): with live spell-check,
@@ -246,6 +252,7 @@ final class AppState: @unchecked Sendable {
                         liveSpellCheck: _liveSpellCheck, simpleTelex: _simpleTelex,
                         quickTelex: _quickTelex, vniMode: _vniMode,
                         bracketVowels: _bracketVowels, contextualEnglish: _contextualEnglish,
+                        retroactiveEnglish: _retroactiveEnglish,
                         collisionPrefersVietnamese: _collisionPrefersVietnamese,
                         teencode: _teencode, autoRestore: _autoRestore)
         }
@@ -253,7 +260,7 @@ final class AppState: @unchecked Sendable {
 
     /// Sanity net for the snapshot above: every engine toggle must be carried, or a
     /// setting silently stops reaching the engine. Bump when adding a flag.
-    static let engineFlagCount = 11
+    static let engineFlagCount = 12
 
     /// Tone-placement style. false (default) = old style (hòa, thủy); true = modern
     /// (hoà, thuý). See `TelexEngine.modernTone`.
@@ -416,6 +423,17 @@ final class AppState: @unchecked Sendable {
         get { lock.withLock { _contextualEnglish } }
         set { lock.withLock { _contextualEnglish = newValue }
               defaults.set(newValue, forKey: Key.contextualEnglish) }
+    }
+
+    /// "Tự sửa từ phía trước" (THỬ NGHIỆM, mặc định TẮT): khi mạch tiếng Anh đã chắc,
+    /// sửa ngược các từ ngay trước nó vừa bị ghép thành tiếng Việt ("Hí cả í very fast"
+    /// → "His car is very fast"; RetroEnglishApply.swift). Chỉ có tác dụng khi
+    /// `contextualEnglish` bật — Cài đặt chỉ hiện công tắc khi đó.
+    private var _retroactiveEnglish: Bool
+    var retroactiveEnglish: Bool {
+        get { lock.withLock { _retroactiveEnglish } }
+        set { lock.withLock { _retroactiveEnglish = newValue }
+              defaults.set(newValue, forKey: Key.retroactiveEnglish) }
     }
 
     /// "Ưu tiên khi trùng": từ vừa là English (bảng collision) vừa là âm tiết Việt hợp
@@ -1293,6 +1311,7 @@ final class AppState: @unchecked Sendable {
         case Key.quickTelex: return quickTelex
         case Key.modernOrthography: return modernOrthography
         case Key.contextualEnglish: return contextualEnglish
+        case Key.retroactiveEnglish: return retroactiveEnglish
         case Key.teencode: return teencode
         case Key.autoRestore: return autoRestore
         case Key.liveSpellCheck: return liveSpellCheck
@@ -1308,6 +1327,7 @@ final class AppState: @unchecked Sendable {
         case Key.quickTelex: quickTelex = v
         case Key.modernOrthography: modernOrthography = v
         case Key.contextualEnglish: contextualEnglish = v
+        case Key.retroactiveEnglish: retroactiveEnglish = v
         case Key.teencode: teencode = v
         case Key.autoRestore: autoRestore = v
         case Key.liveSpellCheck: liveSpellCheck = v
@@ -1479,6 +1499,7 @@ extension TelexEngine {
         vniMode = f.vniMode
         bracketVowels = f.bracketVowels
         contextualEnglish = f.contextualEnglish
+        retroactiveEnglish = f.retroactiveEnglish
         collisionPrefersVietnamese = f.collisionPrefersVietnamese
         teencode = f.teencode
         eagerEnglishRestore = f.autoRestore
