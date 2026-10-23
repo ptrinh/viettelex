@@ -400,6 +400,8 @@ final class CaretHintTests: XCTestCase {
 
     func testSurfaceChoice() {
         XCTAssertEqual(L.surface(kind: .typo, imkPath: true, hasCandidateWindow: true, source: .imkFirstRect), .candidates)
+        // Sửa từ phía trước: cụm nhiều từ, ô hệ thống cắt chữ ⇒ luôn ô nổi tự giãn.
+        XCTAssertEqual(L.surface(kind: .retro, imkPath: true, hasCandidateWindow: true, source: .imkFirstRect), .panel)
         XCTAssertEqual(L.surface(kind: .typo, imkPath: true, hasCandidateWindow: true, source: .axCaret), .panel)
         XCTAssertEqual(L.surface(kind: .typo, imkPath: false, hasCandidateWindow: true, source: .imkFirstRect), .panel)
         XCTAssertEqual(L.surface(kind: .typo, imkPath: true, hasCandidateWindow: false, source: .imkFirstRect), .panel)

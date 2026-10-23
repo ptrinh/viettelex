@@ -330,7 +330,9 @@ enum CaretHintLogic {
     /// viên, gợi ý từ chỉ có một ứng viên, không số thứ tự (Phil 16/10/2026).
     static func surface(kind: CaretSuggestion.Kind, imkPath: Bool, hasCandidateWindow: Bool,
                         source: CaretSource) -> Surface {
-        guard !kind.isPrediction else { return .panel }
+        // Gợi ý từ + sửa từ phía trước (nhiều từ): luôn ô nổi tự giãn — ô ứng viên hệ thống
+        // hẹp, cắt mất cụm "His car is…" (Phil 23/10/2026).
+        guard !kind.isPrediction, kind != .retro else { return .panel }
         return imkPath && hasCandidateWindow && source == .imkFirstRect ? .candidates : .panel
     }
 }
