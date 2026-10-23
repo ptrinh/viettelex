@@ -1377,6 +1377,40 @@ enum AXTextEdit {
         return selected.location
     }
 
+    /// Caret + up to `maxLength` UTF-16 units right before it, through ONE focused-element
+    /// lookup: 3 AX round trips (focused element, selected range, string-for-range — a
+    /// RANGED read, never the whole kAXValue) instead of readCaret() + readString()'s 4.
+    /// nil on a live selection, caret at 0, AX untrusted, or any failure/timeout.
+    /// `timeout` caps EACH round trip (the system default is seconds).
+    static func readBeforeCaret(maxLength: Int, timeout: Float = 0.05) -> (caret: Int, start: Int, text: String)? {
+        guard maxLength > 0, AXIsProcessTrusted() else { return nil }
+        let systemWide = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(systemWide, timeout)
+        var focusedRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
+              let focused = focusedRef, CFGetTypeID(focused) == AXUIElementGetTypeID()
+        else { return nil }
+        let element = focused as! AXUIElement
+        AXUIElementSetMessagingTimeout(element, timeout)
+        var rangeRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeRef) == .success,
+              let rangeVal = rangeRef, CFGetTypeID(rangeVal) == AXValueGetTypeID()
+        else { return nil }
+        var selected = CFRange(location: 0, length: 0)
+        guard AXValueGetValue(rangeVal as! AXValue, .cfRange, &selected), selected.length == 0,
+              selected.location > 0 else { return nil }
+        let caret = selected.location
+        let start = max(0, caret - maxLength)
+        var want = CFRange(location: start, length: caret - start)
+        guard let wantVal = AXValueCreate(.cfRange, &want) else { return nil }
+        var result: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(
+                element, kAXStringForRangeParameterizedAttribute as CFString, wantVal, &result) == .success,
+              let str = result as? String
+        else { return nil }
+        return (caret, start, str)
+    }
+
     /// Ground-truth read for the in-place probe: the ACTUAL text the focused element
     /// holds at `[start, start+length)`, via the Accessibility tree — a channel
     /// INDEPENDENT of the IMKit read-back (attributedSubstring / selectedRange) that
@@ -3432,11 +3466,14 @@ final class TerminalTapController {
             // "Tự sửa từ phía trước" (thử nghiệm): không có phép sửa ⇒ một phép so nil. Công
             // tắc bật: áp TRƯỚC ký tự ranh giới; áp được ⇒ phím ranh giới phải đi sau burst
             // (re-emit bên dưới). Tắt: chỉ xác nhận kênh + AX, đề xuất sau ranh giới.
+            // Đề xuất: không đọc AX trên đường phím (gợi ý tự xác nhận lúc hiện). App từng
+            // đọc chậm ⇒ tự áp lùi về đề xuất (RetroApply.keyPathMode).
             let retroMode = engine.pendingRetroCorrection != nil
-                ? RetroApply.mode(contextualEnglish: engine.contextualEnglish,
-                                  autoApply: AppState.shared.retroactiveEnglish) : .none
+                ? RetroApply.keyPathMode(RetroApply.mode(contextualEnglish: engine.contextualEnglish,
+                                                         autoApply: AppState.shared.retroactiveEnglish),
+                                         slowApp: RetroCost.isSlow(id)) : .none
             let retroApplied = retroMode == .autoApply ? applyRetroCorrectionTap(id: id) : nil
-            let retroOffer = retroMode == .offer ? verifiedRetroOfferTap(id: id) : nil
+            let retroOffer = retroMode == .offer ? retroOfferAllowedTap(id: id) : nil
             if retroApplied != nil { rewrote = true }
             lastTapKeyWasDigit = TelexInputController.gluesShortcutToken(ch.asciiValue)   // #82 số, #87 / # @ . _ -
             // Chip số (chỉ dạng tiền): dấu cách ngay sau cụm có chữ số ⇒ đọc màn hình (AX)
@@ -3948,8 +3985,7 @@ final class TerminalTapController {
             DebugLog.log("retro english(tap) \(id ?? "?"): channel not allowed → skip")
             return nil
         }
-        guard RetroApply.verifiedRange(c.expected, caret: AXTextEdit.readCaret(),
-                                       read: { AXTextEdit.readString(at: $0.location, length: $0.length) }) != nil else {
+        guard RetroCost.verify(id, "tap-apply", { Self.axScreenEndsWith(c.expected) }) else {
             DebugLog.log("retro english(tap) \(id ?? "?"): screen unverifiable/disagrees → skip")
             return nil
         }
@@ -3960,15 +3996,24 @@ final class TerminalTapController {
         return c
     }
 
-    /// Công tắc tắt (đề xuất): cùng kênh + cùng phép đọc AX như khi tự áp, không áp.
-    private func verifiedRetroOfferTap(id: String?) -> RetroCorrection? {
+    /// Đề xuất (công tắc tắt, hoặc app đọc chậm): CHỈ kiểm kênh — không lượt AX nào khi phím
+    /// ranh giới đang bị giữ ở tap. Gợi ý xác nhận màn hình lúc hiện (CaretHint.offerRetro)
+    /// và lần nữa khi Tab áp.
+    private func retroOfferAllowedTap(id: String?) -> RetroCorrection? {
         guard let c = engine.pendingRetroCorrection,
               RetroApply.tapChannel(appAllowed: SystemAutoText.appAllowed(id), emitMode: emitMode,
-                                    queueDrained: SyntheticKeyboard.queueDrained()) == .tapRetype,
-              RetroApply.verifiedRange(c.expected, caret: AXTextEdit.readCaret(),
-                                       read: { AXTextEdit.readString(at: $0.location, length: $0.length) }) != nil
+                                    queueDrained: SyntheticKeyboard.queueDrained()) == .tapRetype
         else { return nil }
         return c
+    }
+
+    /// AX: văn bản NGAY trước con trỏ (không vùng chọn) đúng bằng `text` (UTF-16). Một lần
+    /// tra phần tử focus + đọc theo range — 3 lượt AX, mỗi lượt trần RetroCost.axTimeout.
+    private static func axScreenEndsWith(_ text: String) -> Bool {
+        let len = text.utf16.count
+        guard len > 0, let r = AXTextEdit.readBeforeCaret(maxLength: len, timeout: RetroCost.axTimeout) else { return false }
+        return RetroApply.verifiedRange(text, caret: r.caret,
+                                        read: { $0.location == r.start && $0.length == r.caret - r.start ? r.text : nil }) != nil
     }
 
     /// Tab trên đề xuất sửa ngược (tap): kênh còn hợp lệ, AX đọc lại khớp ĐÚNG `replace`
@@ -3977,8 +4022,7 @@ final class TerminalTapController {
         guard engine.isEmpty,
               RetroApply.tapChannel(appAllowed: SystemAutoText.appAllowed(id), emitMode: emitMode,
                                     queueDrained: SyntheticKeyboard.queueDrained()) == .tapRetype,
-              RetroApply.verifiedRange(s.replace, caret: AXTextEdit.readCaret(),
-                                       read: { AXTextEdit.readString(at: $0.location, length: $0.length) }) != nil
+              Self.axScreenEndsWith(s.replace)
         else {
             DebugLog.log("retro offer(tap) \(id ?? "?"): channel/screen unverifiable → skip")
             return
@@ -3993,8 +4037,7 @@ final class TerminalTapController {
     /// chèn + ranh giới ⇒ ⌫ hết đoạn đó, gõ lại văn bản cũ + ranh giới. Ngược lại ⌫ thường.
     private func tryRetroUndoTap(_ u: RetroUndo, id: String?) -> Bool {
         guard emitMode == .backspace, SyntheticKeyboard.queueDrained(),
-              RetroApply.revertRange(u, caret: AXTextEdit.readCaret(),
-                                     read: { AXTextEdit.readString(at: $0.location, length: $0.length) }) != nil else {
+              Self.axScreenEndsWith(u.current) else {
             DebugLog.log("retro undo(tap) \(id ?? "?"): screen disagrees → plain ⌫")
             return false
         }
