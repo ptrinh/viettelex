@@ -978,6 +978,15 @@ constexpr std::string_view kContractionTails[3] = {
   "ll","re","ve",
 };
 
+constexpr std::string_view kRunKeepers[72] = {
+  "arms","arts","axis","bar","bars","bee","beef","bees","boom","bow","box","burns","burst",
+  "bus","car","cars","char","charts","cheers","chef","corps","cow","cows","dawn","gas","keen",
+  "lawn","lee","max","mix","moon","nor","own","par","parts","per","queen","rams","rats","reef",
+  "refer","refers","reset","rest","roof","room","roots","row","rows","rust","sets","sex","sir",
+  "six","sofa","sorts","suns","surf","tar","tax","tee","teen","terms","texts","town","tree",
+  "trust","var","verse","virus","war","wars",
+};
+
 // Eager English restore (EnglishFreezePrefixes.swift): raw prefixes at which an English
 // word freezes with marks on screen; probed once per word at the freeze moment.
 constexpr int kFreezePrefixMinLength = 4;

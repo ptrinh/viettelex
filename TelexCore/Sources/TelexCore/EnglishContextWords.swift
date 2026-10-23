@@ -111,6 +111,19 @@ enum EnglishContextWords {
         ve re ll
         """)
 
+    /// RUN KEEPERS — English words whose Telex reading is a COMMON Vietnamese word (the
+    /// suite's `never` rows: box→bõ, car→cả, six→sĩ, max→mã). They are never restored
+    /// (that would make the Vietnamese word untypeable), but inside an open English run
+    /// they must not END it, or the next function word flips too: "my car is here" came
+    /// out "my cả í here", "a mix of both" → "a mĩ ò both". Neutral inside a run only.
+    static let runKeepers: Set<String> = parse("""
+        arms arts axis bar bars bee beef bees boom bow box burns burst bus car cars
+        char charts chef cheers corps cow cows dawn gas keen lawn lee max mix moon
+        nor own par parts per queen rams rats reef refer refers reset rest roof room
+        roots row rows rust sets sex sir six sofa sorts suns surf tar tax tee teen
+        terms texts town tree trust var verse virus war wars
+        """)
+
     private static func parseGates(_ list: String) -> [(word: String, predecessors: Set<String>)] {
         var rules: [(word: String, predecessors: Set<String>)] = []
         for line in list.split(separator: "\n") {

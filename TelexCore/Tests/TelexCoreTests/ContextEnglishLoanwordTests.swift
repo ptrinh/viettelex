@@ -186,4 +186,26 @@ final class ContextEnglishLoanwordTests: XCTestCase {
         XCTAssertEqual(EnglishContextWords.predecessorBits(of: "is"), 0)
         XCTAssertLessThanOrEqual(EnglishContextWords.predecessorGates.count, 8)
     }
+
+    /// Run keepers (23/10/2026): "box"/"car"/"mix" still compose Vietnamese, but inside an
+    /// English run they no longer end it — the following function word stays English.
+    func testRunKeeperDoesNotEndEnglishRun() {
+        for app in [true, false] {
+            XCTAssertEqual(typed("my car is here", app: app), "my cả is here")
+            XCTAssertEqual(typed("it was a mix of both", app: app), "it was a mĩ of both")
+            XCTAssertEqual(typed("the box is in the car", app: app), "the bõ is in the cả")
+        }
+        // Outside a run nothing changes: the keeper is Vietnamese and ends no run.
+        XCTAssertEqual(typed("box is"), "bõ í")
+        XCTAssertEqual(typed("car nhaf ow"), "cả nhà ơ")
+        XCTAssertEqual(typed("ddi xe bus"), "đi xe bú")
+    }
+
+    /// "queue" → "quêu" passed the validator; restored in every context.
+    func testQueueRestores() {
+        for app in [true, false] {
+            XCTAssertEqual(typed("queue", app: app), "queue")
+            XCTAssertEqual(typed("put it in the queue", app: app), "put it in the queue")
+        }
+    }
 }

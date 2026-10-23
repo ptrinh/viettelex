@@ -143,7 +143,8 @@ inline int commonPrefixLength(const char32_t* a, const char32_t* b, int limit) {
     return i;
 }
 
-const uint8_t kEnglishExceptions[3][4] = {{'w', 'a', 's', 0}, {'w', 'o', 'w', 0}, {'y', 'e', 's', 0}};
+// "queue": "quêu" passes the validator but is no Vietnamese word.
+const std::string_view kEnglishExceptions[] = {"was", "wow", "yes", "queue"};
 
 } // namespace
 
@@ -520,6 +521,12 @@ bool TelexEngine::rawIsFunctionWord() const {
     return n > 0 && inEnglishList(gen::kFunctionWords, w, n);
 }
 
+bool TelexEngine::rawIsRunKeeper() const {
+    char w[kCapacity];
+    int n = lowerAsciiInto(raw_, rawCount_, gen::kEnglishContextMaxLength, w);
+    return n > 0 && inEnglishList(gen::kRunKeepers, w, n);
+}
+
 bool TelexEngine::rawIsContractionTail() const {
     if (rawCount_ > 2) return false;
     char w[kCapacity];
@@ -551,7 +558,9 @@ bool TelexEngine::isRecognizedEnglish() const {
 }
 
 TelexEngine::WordContext TelexEngine::classifyWordContext(bool restored) const {
-    if (!restored && compositionHasDiacritic()) return WordContext::Vietnamese;
+    // Run keeper (box→bõ, car→cả): stays Vietnamese but must not END an open English run.
+    if (!restored && compositionHasDiacritic())
+        return previousWordEnglish_ && rawIsRunKeeper() ? WordContext::Neutral : WordContext::Vietnamese;
     if (isRecognizedEnglish())
         return rawIsFunctionWord() ? WordContext::EnglishFunction : WordContext::English;
     {   // composedAsciiWord
@@ -670,11 +679,11 @@ bool TelexEngine::rawIsEnglishException() const {
     if (pCount_ <= 0) return false;
     bool wTransformed = renderLetters_[0].base == 'u' && renderLetters_[0].mark == Mark::Horn;
     for (const auto& word : kEnglishExceptions) {
-        if (rawCount_ != 3) continue;
+        if (rawCount_ != static_cast<int>(word.size())) continue;
         if (word[0] == 'w' && !wTransformed) continue;
         bool match = true;
         for (int i = 0; i < rawCount_; ++i)
-            if (lowercased(raw_[i]) != word[i]) { match = false; break; }
+            if (lowercased(raw_[i]) != static_cast<uint8_t>(word[i])) { match = false; break; }
         if (match) return true;
     }
     return false;

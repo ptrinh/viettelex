@@ -129,7 +129,8 @@ ctxwords = [w for b in blocks(section(ctx, "private static let wordList", "priva
 restore = [w for b in blocks(section(ctx, "private static let restoreOnlyList", None)) for w in words(b)]
 maxlen = int(re.search(r"static let maxLength = (\d+)", ctx).group(1))
 function = [w for b in blocks(section(ctx, "static let functionWords", "static let predecessorGates")) for w in words(b)]
-tails = [w for b in blocks(section(ctx, "static let contractionTails", "private static func parseGates")) for w in words(b)]
+tails = [w for b in blocks(section(ctx, "static let contractionTails", "static let runKeepers")) for w in words(b)]
+keepers = [w for b in blocks(section(ctx, "static let runKeepers", "private static func parseGates")) for w in words(b)]
 gates = []
 for b in blocks(section(ctx, "static let predecessorGates", "static let contractionTails")):
     for line in b.split("\n"):
@@ -141,7 +142,7 @@ for gw, ps in gates:
     assert re.fullmatch(r"[a-z]+", gw) and ps and all(re.fullmatch(r"[a-z]+", p) for p in ps), (gw, ps)
 
 for name, ws in (("collisions", collisions), ("neutral", neutral), ("ctx", ctxwords), ("restore", restore),
-                 ("function", function), ("tails", tails)):
+                 ("function", function), ("tails", tails), ("keepers", keepers)):
     assert ws, name
     for w in ws:
         assert re.fullmatch(r"[a-z]+", w), (name, w)
@@ -187,6 +188,7 @@ with open(out, "w", encoding="utf-8") as f:
     emit_words(f, "kNeutralLoanwords", neutral)
     emit_words(f, "kFunctionWords", function)
     emit_words(f, "kContractionTails", tails)
+    emit_words(f, "kRunKeepers", keepers)
     f.write("// Eager English restore (EnglishFreezePrefixes.swift): raw prefixes at which an English\n")
     f.write("// word freezes with marks on screen; probed once per word at the freeze moment.\n")
     f.write(f"constexpr int kFreezePrefixMinLength = {freeze_min};\n")

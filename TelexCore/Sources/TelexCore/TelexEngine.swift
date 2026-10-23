@@ -944,7 +944,12 @@ public struct TelexEngine {
         // OUTPUT, not on "differs from raw": a cancelled transform ("thiss" → plain
         // ascii "this") also differs, and calling that Vietnamese is what made
         // "thiss is" come out "this í" (field report 2026-08-14).
-        if !restored, compositionHasDiacritic() { return .vietnamese }
+        // Exception: an English word that collides with COMMON Vietnamese ("box" → bõ,
+        // "car" → cả) stays Vietnamese on screen, but inside an open English run it must
+        // not END the run — or the next function word flips too ("my car is" → "my cả í").
+        if !restored, compositionHasDiacritic() {
+            return previousWordEnglish && rawIsRunKeeper() ? .neutral : .vietnamese
+        }
         if isRecognizedEnglish() {                              // "he", "the", collisions
             return rawIsFunctionWord() ? .englishFunction : .english
         }
@@ -1007,6 +1012,12 @@ public struct TelexEngine {
     private func rawIsFunctionWord() -> Bool {
         guard let w = rawLowerWord() else { return false }
         return EnglishContextWords.functionWords.contains(w)
+    }
+
+    /// `EnglishContextWords.runKeepers`. Boundary-only; called only inside an open run.
+    private func rawIsRunKeeper() -> Bool {
+        guard let w = rawLowerWord() else { return false }
+        return EnglishContextWords.runKeepers.contains(w)
     }
 
     private func rawIsContractionTail() -> Bool {
@@ -1136,6 +1147,7 @@ public struct TelexEngine {
     private static let englishExceptions: [[UInt8]] = [
         Array("was".utf8), Array("wow".utf8),
         Array("yes".utf8),   // "ýe" slips through the validator as a syllable
+        Array("queue".utf8), // "quêu" passes the validator but is no Vietnamese word
     ]
     /// Generated English-collision table (EnglishCollisions.swift, gen-english):
     /// top-frequency English words whose default-Telex transform yields a VALID

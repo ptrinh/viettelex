@@ -179,6 +179,7 @@ private:
     uint8_t rawPredecessorBits() const;
     bool rawIsFunctionWord() const;
     bool rawIsContractionTail() const;
+    bool rawIsRunKeeper() const;
     bool rawIsEnglishContextWord(bool includingRestoreOnly = false) const;
     bool rawIsEnglishCollision() const;
     bool rawIsEnglishException() const;

@@ -435,6 +435,11 @@ class TelexEngine {
         return n > 0 && EnglishContextWords.functionWords.contains(wordBuf, n)
     }
 
+    private fun rawIsRunKeeper(): Boolean {
+        val n = lowerAsciiInto(raw, rawCount, EnglishContextWords.maxLength)
+        return n > 0 && EnglishContextWords.runKeepers.contains(wordBuf, n)
+    }
+
     private fun rawIsContractionTail(): Boolean {
         if (rawCount > 2) return false
         val n = lowerAsciiInto(raw, rawCount, EnglishContextWords.maxLength)
@@ -476,7 +481,9 @@ class TelexEngine {
         rawIsEnglishContextWord(false) || rawIsEnglishCollision() || rawIsEnglishException()
 
     private fun classifyWordContext(restored: Boolean): Int {
-        if (!restored && compositionHasDiacritic()) return CTX_VIETNAMESE
+        // Run keeper (box→bõ, car→cả): stays Vietnamese but must not END an open English run.
+        if (!restored && compositionHasDiacritic())
+            return if (previousWordEnglish && rawIsRunKeeper()) CTX_NEUTRAL else CTX_VIETNAMESE
         if (isRecognizedEnglish()) return if (rawIsFunctionWord()) CTX_ENGLISH_FUNCTION else CTX_ENGLISH
         val wn = lowerAsciiInto(out, outCount, EnglishContextWords.maxLength)   // composedAsciiWord
         if (wn > 0) {
@@ -1400,6 +1407,7 @@ class TelexEngine {
             "was".map { it.code }.toIntArray(),
             "wow".map { it.code }.toIntArray(),
             "yes".map { it.code }.toIntArray(),
+            "queue".map { it.code }.toIntArray(),   // "quêu" passes the validator but is no Vietnamese word
         )
 
         private val ONSETS_ALLOWING_STANDALONE_U = ClassTrie(

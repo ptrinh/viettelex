@@ -33,14 +33,15 @@ ctxwords = [w for b in blocks(section(ctx, "private static let wordList", "priva
 restore = [w for b in blocks(section(ctx, "private static let restoreOnlyList", None)) for w in words(b)]
 maxlen = re.search(r"static let maxLength = (\d+)", ctx).group(1)
 function = [w for b in blocks(section(ctx, "static let functionWords", "static let predecessorGates")) for w in words(b)]
-tails = [w for b in blocks(section(ctx, "static let contractionTails", "private static func parseGates")) for w in words(b)]
+tails = [w for b in blocks(section(ctx, "static let contractionTails", "static let runKeepers")) for w in words(b)]
+keepers = [w for b in blocks(section(ctx, "static let runKeepers", "private static func parseGates")) for w in words(b)]
 gates = []
 for b in blocks(section(ctx, "static let predecessorGates", "static let contractionTails")):
     for line in b.split("\n"):
         if ":" not in line: continue
         w, preds = line.split(":", 1)
         gates.append((w.strip(), words(preds.strip())))
-assert function and tails and gates and len(gates) <= 8
+assert function and tails and keepers and gates and len(gates) <= 8
 
 def lit(ws):
     lines, cur = [], ""
@@ -67,6 +68,8 @@ with open(out, "w") as f:
     f.write("    val functionWords = WordSet(parseWords(FUNCTION))\n")
     f.write("    /** Contraction tails left by the apostrophe boundary (I've → ve): neutral. */\n")
     f.write("    val contractionTails = WordSet(parseWords(CONTRACTION_TAILS))\n")
+    f.write("    /** Run keepers (box→bõ, car→cả): stay Vietnamese but do not end an English run. */\n")
+    f.write("    val runKeepers = WordSet(parseWords(RUN_KEEPERS))\n")
     f.write("    /** Predecessor gates: gateWords[i] restores in a run only right after gatePredecessors[i]. */\n")
     f.write("    val gateWords: Array<String> = arrayOf(" + ", ".join('"%s"' % w for w, _ in gates) + ")\n")
     f.write("    val gatePredecessors: Array<WordSet> = arrayOf(\n")
@@ -78,6 +81,7 @@ with open(out, "w") as f:
     f.write('    private const val RESTORE_ONLY = """\n' + lit(restore) + '\n"""\n')
     f.write('    private const val FUNCTION = """\n' + lit(function) + '\n"""\n')
     f.write('    private const val CONTRACTION_TAILS = """\n' + lit(tails) + '\n"""\n')
+    f.write('    private const val RUN_KEEPERS = """\n' + lit(keepers) + '\n"""\n')
     f.write('    private const val NEUTRAL = """\n' + lit(neutral) + '\n"""\n}\n\n')
     f.write("/**\n")
     f.write(" * API công khai (bàn phím — gõ vuốt, giai đoạn 3): phân loại MỘT từ đã chốt theo cùng\n")
@@ -142,4 +146,4 @@ with open(out, "w") as f:
     f.write("        while (i < n && list[i] != ' ' && list[i] != '\\n') i++\n")
     f.write("        if (i > s) set.add(list.substring(s, i))\n")
     f.write("    }\n    return set\n}\n")
-print(len(freeze), len(collisions), len(ctxwords), len(restore), len(neutral), len(function), len(tails), gates)
+print(len(freeze), len(collisions), len(ctxwords), len(restore), len(neutral), len(function), len(tails), len(keepers), gates)
