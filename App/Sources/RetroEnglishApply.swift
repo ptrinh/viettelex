@@ -27,8 +27,15 @@
 // Chi phí khi tắt: không gì ở đây chạy — caller chỉ vào khi
 // `engine.pendingRetroCorrection != nil` (engine không bao giờ đặt nó khi cờ tắt), cộng
 // một lần gọi `noteBoundaryCharacter` mỗi ranh giới (engine thoát ngay bằng một phép thử Bool).
+//
+// Chi phí khi bật (đo 23/10/2026, RetroBoundaryPerfTests): quyết định của engine
+// ~0.46µs/ranh giới. Phần đắt là đọc màn hình — nên: ĐỀ XUẤT không đọc gì trên đường phím
+// (gợi ý tự xác nhận 40ms sau, chỉ khi người gõ dừng); TỰ ÁP đọc đúng MỘT range (IMK 2
+// IPC; tap 3 lượt AX, mỗi lượt trần 30ms), có đo (signpost "retro.verify"); app vượt
+// ngân sách 8ms ⇒ lùi về đề xuất 10 phút (RetroCost / RetroSlowApps).
 
 import Foundation
+import os
 import TelexCore
 
 /// Bản ghi để ⌫ kế tiếp hoàn tác một lần sửa đã áp.
@@ -54,6 +61,15 @@ enum RetroApply {
     static func mode(contextualEnglish: Bool, autoApply: Bool) -> Mode {
         guard contextualEnglish else { return .none }
         return autoApply ? .autoApply : .offer
+    }
+
+    /// Chế độ THỰC TẾ trên phím ranh giới. Chi phí trên đường phím (đo 23/10/2026, xem
+    /// RetroCost): `.autoApply` trả MỘT lần đọc màn hình đồng bộ (IMK: selectedRange +
+    /// attributedSubstring = 2 IPC; tap: 3 lượt AX) TRƯỚC khi phím tới app; `.offer` không
+    /// đọc gì — gợi ý tự xác nhận lúc hiện (40ms sau, ngoài đường phím). App đã bị ghi nhận
+    /// đọc chậm (`slowApp`) ⇒ tự áp lùi về đề xuất: không bao giờ trả lần đọc chậm thứ hai.
+    static func keyPathMode(_ mode: Mode, slowApp: Bool) -> Mode {
+        mode == .autoApply && slowApp ? .offer : mode
     }
 
     /// Cờ engine `retroactiveEnglish`: cả hai chế độ cần quyết định ⇒ theo "Quyết định theo
@@ -161,3 +177,71 @@ enum RetroApply {
         return text.isEmpty ? nil : text
     }
 }
+
+// MARK: - Chi phí đường phím (RetroCost)
+
+/// App đọc màn hình chậm trên đường phím ranh giới — thuần, khoá ở RetroCost.
+/// Một lần xác nhận (đọc màn hình đồng bộ trước khi phím ranh giới tới app) vượt
+/// `budgetNs` ⇒ app đó lùi về đề xuất (`RetroApply.keyPathMode`) trong `penaltyNs`:
+/// người gõ trả tối đa MỘT lần trễ mỗi app mỗi 10 phút, không phải mỗi cụm từ.
+struct RetroSlowApps: Equatable {
+    /// Nửa khung hình 60Hz. App gốc AppKit: ~0.1–1ms cho cả hai IPC; WebKit/Catalyst
+    /// vài ms; AX Chromium 1–10ms/lượt, tới trần timeout khi renderer bận.
+    static let budgetNs: UInt64 = 8_000_000
+    static let penaltyNs: UInt64 = 600_000_000_000          // 10 phút
+    static let capacity = 16
+
+    private(set) var until: [String: UInt64] = [:]
+
+    func isSlow(_ id: String?, now: UInt64) -> Bool {
+        guard let id, let u = until[id] else { return false }
+        return now < u
+    }
+
+    /// Ghi một lần đọc `elapsedNs`; trong ngân sách thì không làm gì (không cấp phát).
+    mutating func record(_ id: String?, elapsedNs: UInt64, now: UInt64) {
+        guard let id, elapsedNs > Self.budgetNs else { return }
+        if until[id] == nil, until.count >= Self.capacity {
+            until = until.filter { $0.value > now }
+            if until.count >= Self.capacity { until.removeAll() }
+        }
+        until[id] = now &+ Self.penaltyNs
+    }
+}
+
+/// Đo + giới hạn chi phí xác nhận sửa ngược trên đường phím (IMK main thread / tap thread).
+/// Signpost "retro.verify" (Instruments → os_signpost, subsystem com.viettelex.inputmethod.telex)
+/// đo từng lần đọc; DebugLog ghi số ms (không bao giờ ghi văn bản).
+enum RetroCost {
+    private static let lock = NSLock()
+    private static var slow = RetroSlowApps()
+
+    /// Timeout AX cho các lần đọc sửa ngược (mặc định cả hệ thống là vài GIÂY; đường phím
+    /// tap khác dùng 50ms). Ba lượt AX ⇒ trần 90ms ở app treo, rồi app bị ghi chậm.
+    static let axTimeout: Float = 0.03
+
+    static func isSlow(_ id: String?) -> Bool {
+        let now = DispatchTime.now().uptimeNanoseconds
+        return lock.withLock { slow.isSlow(id, now: now) }
+    }
+
+    /// Chạy `body` (một lần đọc màn hình) có đo; vượt ngân sách ⇒ ghi app chậm.
+    static func verify<T>(_ id: String?, _ what: String, _ body: () -> T) -> T {
+        let sp = Signposts.poster.beginInterval("retro.verify", id: Signposts.poster.makeSignpostID())
+        let t0 = DispatchTime.now().uptimeNanoseconds
+        let r = body()
+        let t1 = DispatchTime.now().uptimeNanoseconds
+        let dt = t1 &- t0
+        Signposts.poster.endInterval("retro.verify", sp, "\(what, privacy: .public) us=\(dt / 1000, privacy: .public)")
+        lock.withLock { slow.record(id, elapsedNs: dt, now: t1) }
+        if dt > RetroSlowApps.budgetNs {
+            DebugLog.log("retro \(what) \(id ?? "?"): read took \(dt / 1_000_000)ms > budget → offer mode for this app")
+        }
+        return r
+    }
+
+    #if DEBUG
+    static func _testReset() { lock.withLock { slow = RetroSlowApps() } }
+    #endif
+}
+

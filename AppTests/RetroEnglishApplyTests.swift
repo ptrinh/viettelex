@@ -119,10 +119,11 @@ final class RetroEnglishApplyTests: XCTestCase {
 
     /// Như controller: chữ cái → feed; ký tự khác → commit (từ đã nằm trên màn hình in-place).
     /// Cờ engine theo "Quyết định theo ngữ cảnh" (`RetroApply.engineFlag`); công tắc chọn chế
-    /// độ (`RetroApply.mode`). Tự áp: lấy + xác nhận + áp TRƯỚC ký tự ranh giới. Đề xuất: chỉ
-    /// xác nhận trước ranh giới, dựng gợi ý sau ranh giới (đọc lại màn hình). Ký tự ranh giới
+    /// độ (`RetroApply.mode`). Tự áp: lấy + xác nhận + áp TRƯỚC ký tự ranh giới. Đề xuất: KHÔNG
+    /// đọc màn hình trên đường phím; gợi ý tự xác nhận sau ranh giới (đọc lại màn hình). Ký tự ranh giới
     /// tới app rồi được báo cho engine. Trả về màn hình + bản ghi hoàn tác + đề xuất cuối.
-    private func typeLikeApp(_ keys: String, setting: Bool, contextual: Bool = true)
+    private func typeLikeApp(_ keys: String, setting: Bool, contextual: Bool = true, slowApp: Bool = false,
+                             reads: UnsafeMutablePointer<Int>? = nil)
         -> (screen: String, undo: RetroUndo?, offer: CaretSuggestion?, engine: TelexEngine) {
         var e = TelexEngine()
         var flags = AppState.EngineFlags()
@@ -140,15 +141,17 @@ final class RetroEnglishApplyTests: XCTestCase {
             var offered: RetroCorrection?
             if let c = e.pendingRetroCorrection {
                 let ns = screen as NSString
-                let r = R.verifiedRange(c.expected, caret: ns.length, read: reader(screen))
-                switch R.mode(contextualEnglish: e.contextualEnglish, autoApply: setting) {
+                let read = reader(screen)
+                let counted: (NSRange) -> String? = { reads?.pointee += 1; return read($0) }
+                switch R.keyPathMode(R.mode(contextualEnglish: e.contextualEnglish, autoApply: setting),
+                                     slowApp: slowApp) {
                 case .autoApply:
-                    if let r {
+                    if let r = R.verifiedRange(c.expected, caret: ns.length, read: counted) {
                         _ = e.takeRetroCorrection()
                         screen = ns.replacingCharacters(in: r, with: c.insert)
                         applied = c
                     }
-                case .offer: if r != nil { offered = c }
+                case .offer: offered = c          // không đọc màn hình trên đường phím
                 case .none: XCTFail("engine decided with contextual English off")
                 }
             }
@@ -220,6 +223,55 @@ final class RetroEnglishApplyTests: XCTestCase {
         XCTAssertEqual(o?.insert, "is car is.")
         XCTAssertNil(R.offer(expected: "ab", insert: "ab", boundary: " "))
         XCTAssertNil(R.offer(expected: "", insert: "x", boundary: " "))
+    }
+
+    // MARK: Chi phí đường phím
+
+    func testOfferModeNeverReadsTheScreenOnTheKeyPath() {
+        var reads = 0
+        let run = typeLikeApp("His car is very fast ", setting: false, reads: &reads)
+        XCTAssertEqual(reads, 0, "offer mode must not read the screen before the boundary reaches the app")
+        XCTAssertEqual(run.offer?.display, "His car is")       // vẫn xác nhận lúc hiện gợi ý
+        // Tự áp: đúng MỘT lần đọc (range đúng bằng `expected`) cho cả cụm.
+        reads = 0
+        XCTAssertNotNil(typeLikeApp("His car is very fast ", setting: true, reads: &reads).undo)
+        XCTAssertEqual(reads, 1)
+    }
+
+    func testSlowAppDemotesAutoApplyToOffer() {
+        XCTAssertEqual(R.keyPathMode(.autoApply, slowApp: false), .autoApply)
+        XCTAssertEqual(R.keyPathMode(.autoApply, slowApp: true), .offer)
+        XCTAssertEqual(R.keyPathMode(.offer, slowApp: true), .offer)
+        XCTAssertEqual(R.keyPathMode(.none, slowApp: true), .none)
+        var reads = 0
+        let run = typeLikeApp("His car is very fast ", setting: true, slowApp: true, reads: &reads)
+        XCTAssertEqual(reads, 0)
+        XCTAssertNil(run.undo)
+        XCTAssertEqual(run.screen, "Hí cả í very fast ")
+        XCTAssertEqual(run.offer?.display, "His car is")
+    }
+
+    func testSlowAppsBudgetAndPenalty() {
+        var g = RetroSlowApps()
+        let b = RetroSlowApps.budgetNs, p = RetroSlowApps.penaltyNs
+        g.record("com.a", elapsedNs: b, now: 1_000)                 // đúng ngân sách: không ghi
+        XCTAssertFalse(g.isSlow("com.a", now: 1_000))
+        XCTAssertTrue(g.until.isEmpty)
+        g.record("com.a", elapsedNs: b + 1, now: 1_000)
+        XCTAssertTrue(g.isSlow("com.a", now: 1_000))
+        XCTAssertTrue(g.isSlow("com.a", now: 1_000 + p - 1))
+        XCTAssertFalse(g.isSlow("com.a", now: 1_000 + p))           // hết phạt ⇒ thử tự áp lại
+        XCTAssertFalse(g.isSlow("com.b", now: 1_000))
+        XCTAssertFalse(g.isSlow(nil, now: 1_000))
+        g.record(nil, elapsedNs: b * 10, now: 1_000)
+        XCTAssertEqual(g.until.count, 1)
+        // Bảng có trần: đầy ⇒ dọn mục hết hạn, vẫn đầy ⇒ xoá hết; luôn ghi mục mới.
+        var h = RetroSlowApps()
+        for i in 0..<RetroSlowApps.capacity { h.record("app\(i)", elapsedNs: b + 1, now: 0) }
+        XCTAssertEqual(h.until.count, RetroSlowApps.capacity)
+        h.record("new", elapsedNs: b + 1, now: 1)
+        XCTAssertLessThanOrEqual(h.until.count, RetroSlowApps.capacity)
+        XCTAssertTrue(h.isSlow("new", now: 1))
     }
 
     func testModeAndEngineFlag() {

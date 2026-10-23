@@ -971,14 +971,17 @@ final class TelexInputController: IMKInputController {
             // "Tự sửa từ phía trước" (thử nghiệm): engine chỉ đặt phép sửa khi "Quyết định theo
             // ngữ cảnh" bật — không có ⇒ một phép so nil. Công tắc bật: áp TRƯỚC khi ký tự ranh
             // giới tới app (con trỏ ở cuối từ vừa chốt; `expected` chưa gồm ranh giới). Tắt:
-            // chỉ xác nhận kênh + màn hình, đề xuất bằng gợi ý cạnh con trỏ sau ranh giới.
+            // đề xuất bằng gợi ý cạnh con trỏ sau ranh giới.
+            // Đề xuất KHÔNG đọc màn hình trên đường phím (chỉ kiểm kênh); gợi ý tự xác nhận lúc
+            // hiện. App từng đọc chậm ⇒ tự áp lùi về đề xuất (RetroApply.keyPathMode).
             let retroMode = engine.pendingRetroCorrection != nil
-                ? RetroApply.mode(contextualEnglish: engine.contextualEnglish,
-                                  autoApply: AppState.shared.retroactiveEnglish) : .none
+                ? RetroApply.keyPathMode(RetroApply.mode(contextualEnglish: engine.contextualEnglish,
+                                                         autoApply: AppState.shared.retroactiveEnglish),
+                                         slowApp: RetroCost.isSlow(id)) : .none
             let retroApplied = retroMode == .autoApply
                 ? applyRetroCorrection(marked: markedNow, edge: wasEdge, client, id: id) : nil
             let retroOffer = retroMode == .offer
-                ? verifiedRetroOffer(marked: markedNow, edge: wasEdge, client, id: id) : nil
+                ? retroOfferAllowed(marked: markedNow, edge: wasEdge, id: id) : nil
             // Học từ bạn gõ: từ vừa chốt (đứng riêng = cụm đã chốt đúng bằng từ đó).
             learnAtBoundary(word: lastCommitWord, boundary: inserted,
                             standsAlone: shortcutTail.run == lastCommitWord, id: id, edge: wasEdge)
@@ -2176,11 +2179,16 @@ final class TelexInputController: IMKInputController {
             DebugLog.log("retro english \(id ?? "?"): channel not allowed → skip")
             return nil
         }
-        let sel = client.selectedRange()
-        guard let range = RetroApply.verifiedRange(
+        // Hai IPC đồng bộ (selectedRange + attributedSubstring đúng `expected`, không đọc cả
+        // văn bản) — đo; vượt ngân sách ⇒ lần sau app này chỉ đề xuất (RetroCost).
+        let range: NSRange? = RetroCost.verify(id, "imk-apply") {
+            let sel = client.selectedRange()
+            return RetroApply.verifiedRange(
                 c.expected, caret: sel.location == NSNotFound ? nil : sel.location,
                 selectionLength: sel.length,
-                read: { client.attributedSubstring(from: $0)?.string }) else {
+                read: { client.attributedSubstring(from: $0)?.string })
+        }
+        guard let range else {
             DebugLog.log("retro english \(id ?? "?"): screen disagrees → skip")
             return nil
         }
@@ -2191,20 +2199,13 @@ final class TelexInputController: IMKInputController {
         return c
     }
 
-    /// Công tắc tắt (đề xuất): cùng kênh + cùng phép đọc lại như khi tự áp, nhưng KHÔNG áp
-    /// và không lấy phép sửa — trả về phép sửa nếu được phép đề xuất.
-    private func verifiedRetroOffer(marked: Bool, edge: Bool, _ client: IMKTextInput,
-                                    id: String?) -> RetroCorrection? {
+    /// Đề xuất (công tắc tắt, hoặc app đọc chậm): CHỈ kiểm kênh — không IPC nào trước khi
+    /// phím ranh giới tới app. Màn hình được xác nhận lúc hiện gợi ý (CaretHint.offerRetro
+    /// đọc lại `expected + ranh giới`, 40ms sau, ngoài đường phím) và lần nữa khi Tab áp.
+    private func retroOfferAllowed(marked: Bool, edge: Bool, id: String?) -> RetroCorrection? {
         guard let c = engine.pendingRetroCorrection,
               RetroApply.imkChannel(appAllowed: SystemAutoText.appAllowed(id), marked: marked, edge: edge,
                                     replacesCommittedText: Self.replacesCommittedText(id)) == .imkReplace else {
-            return nil
-        }
-        let sel = client.selectedRange()
-        guard RetroApply.verifiedRange(c.expected, caret: sel.location == NSNotFound ? nil : sel.location,
-                                       selectionLength: sel.length,
-                                       read: { client.attributedSubstring(from: $0)?.string }) != nil else {
-            DebugLog.log("retro offer \(id ?? "?"): screen disagrees → no hint")
             return nil
         }
         return c

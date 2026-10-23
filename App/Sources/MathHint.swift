@@ -765,9 +765,8 @@ final class CaretHint {
             let start = max(0, sel.location - window)
             return client.attributedSubstring(from: NSRange(location: start, length: sel.location - start))?.string
         }
-        guard let caret = AXTextEdit.readCaret(), caret > 0 else { return nil }
-        let start = max(0, caret - window)
-        return AXTextEdit.readString(at: start, length: caret - start)
+        // Một lần tra phần tử focus cho cả con trỏ lẫn chữ (3 lượt AX thay vì 4).
+        return AXTextEdit.readBeforeCaret(maxLength: window)?.text
     }
 
     // MARK: Hiển thị
