@@ -111,7 +111,8 @@ enum SuggestionSlots {
         // gốc" (vừa tự sửa) chiếm slot đầu, chữ dời phải theo thứ tự đọc.
         let lead = undo ?? action.flatMap {
             [KeyboardView.addTonesToken, KeyboardView.undoReviseToken,
-             KeyboardView.undoAutoCorrectToken].contains($0.payload) ? $0 : nil
+             KeyboardView.undoAutoCorrectToken, KeyboardView.retroOfferToken,
+             KeyboardView.undoRetroToken].contains($0.payload) ? $0 : nil
         }
         if let lead {
             let words = set.nextWords.isEmpty ? slots.compactMap { $0 }

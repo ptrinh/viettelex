@@ -41,6 +41,7 @@ enum BackupSettings {
         Spec(key: "quickTelex", kind: .bool(false)),
         Spec(key: "modernTone", kind: .bool(false)),
         Spec(key: "contextualEnglish", kind: .bool(true)),
+        Spec(key: "retroactiveEnglish", kind: .bool(false)),
         Spec(key: "reEditWords", kind: .bool(true)),
         Spec(key: "autoFixAdjacent", kind: .bool(true)),
         Spec(key: "teencode", kind: .bool(false)),

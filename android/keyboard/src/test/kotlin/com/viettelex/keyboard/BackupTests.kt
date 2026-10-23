@@ -72,7 +72,7 @@ class BackupTests {
         val p = BackupCodec.decode(fixture("backup-ios-v1"))
         assertEquals("ios", p.platform)
         assertEquals(Instant.parse("2026-09-27T08:00:00Z"), p.createdAt)
-        assertEquals(43, p.settings!!.size)             // emojiSuggest/pasteButton chỉ iOS, bị bỏ qua
+        assertEquals(44, p.settings!!.size)             // emojiSuggest/pasteButton chỉ iOS, bị bỏ qua
         assertEquals(true, p.settings!![Keys.HOLD_SHIFT_SYMBOLS])   // "Giữ Shift để gõ số và ký hiệu"
         assertEquals(KeyStyleStoreTests.GOLDEN, p.settings!![Keys.KEY_STYLES])   // chuỗi chuẩn trùng iOS
         assertEquals("""{"custom":{"dark":"same","id":"custom","light":{"accent":"#0A84FF","bg":"#EEEEEE","ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"Thử"},"v":1}}""", p.settings!![Keys.CUSTOM_THEMES])   // Giao diện JSON: cùng chuỗi chuẩn
@@ -142,7 +142,7 @@ class BackupTests {
             "keyboardTransparency" to 250, "keyLabelTransparency" to 35,
             BackupPrefs.SHORTCUTS_KEY to "# VietTelex — bảng gõ tắt\nko: không\n")
         val p = BackupPrefs.snapshot({ prefs[it] }, listOf(TemplateItem("", "a")), null)
-        assertEquals(58, p.settings!!.size)   // +splitKeyboard; 6 khoá KeyStyle chung → 1 keyStyles (18/10/2026); +keyEffect, +holdShiftSymbols, +swipeTrail, +keyboardBuddy (19/10)
+        assertEquals(59, p.settings!!.size)   // +retroactiveEnglish (23/10); +splitKeyboard; 6 khoá KeyStyle chung → 1 keyStyles (18/10/2026); +keyEffect, +holdShiftSymbols, +swipeTrail, +keyboardBuddy (19/10)
         assertEquals("simple", p.settings!![Keys.SWIPE_TRAIL])   // hiệu ứng nét vuốt: mặc định Đơn giản
         assertEquals("off", p.settings!![Keys.KEYBOARD_BUDDY])   // bạn đồng hành: mặc định Tắt
         assertEquals(true, p.settings!![Keys.HOLD_SHIFT_SYMBOLS])   // giữ Shift ra số/ký hiệu: mặc định bật
