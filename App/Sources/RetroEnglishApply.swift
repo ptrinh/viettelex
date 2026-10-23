@@ -72,6 +72,14 @@ enum RetroApply {
         mode == .autoApply && slowApp ? .offer : mode
     }
 
+    /// Đường tap (trình duyệt / Electron): không thay được cả cụm trong một lần — phải ⌫ rồi
+    /// gõ lại từng ký tự (~37 phím cho "Hí cả í very fast"), thấy chữ chạy lại và phím gõ
+    /// tiếp xếp hàng. Phil 23/10/2026: sửa CẢ CỤM (≥2 từ) ở tap ⇒ luôn đề xuất (Tab), kể cả
+    /// khi công tắc bật; sửa một từ vẫn tự áp. App gốc (IMK, thay một lần) không đổi.
+    static func tapMode(_ mode: Mode, words: Int) -> Mode {
+        mode == .autoApply && words >= 2 ? .offer : mode
+    }
+
     /// Cờ engine `retroactiveEnglish`: cả hai chế độ cần quyết định ⇒ theo "Quyết định theo
     /// ngữ cảnh", không theo công tắc.
     static func engineFlag(contextualEnglish: Bool) -> Bool { contextualEnglish }

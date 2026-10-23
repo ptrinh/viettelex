@@ -243,6 +243,11 @@ final class RetroEnglishApplyTests: XCTestCase {
         XCTAssertEqual(R.keyPathMode(.autoApply, slowApp: true), .offer)
         XCTAssertEqual(R.keyPathMode(.offer, slowApp: true), .offer)
         XCTAssertEqual(R.keyPathMode(.none, slowApp: true), .none)
+        // Tap (trình duyệt/Electron): sửa cả cụm ⇒ đề xuất; một từ vẫn tự áp (Phil 23/10/2026).
+        XCTAssertEqual(R.tapMode(.autoApply, words: 3), .offer)
+        XCTAssertEqual(R.tapMode(.autoApply, words: 1), .autoApply)
+        XCTAssertEqual(R.tapMode(.offer, words: 3), .offer)
+        XCTAssertEqual(R.tapMode(.none, words: 3), .none)
         var reads = 0
         let run = typeLikeApp("His car is very fast ", setting: true, slowApp: true, reads: &reads)
         XCTAssertEqual(reads, 0)

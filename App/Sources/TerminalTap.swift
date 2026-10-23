@@ -3468,10 +3468,12 @@ final class TerminalTapController {
             // (re-emit bên dưới). Tắt: chỉ xác nhận kênh + AX, đề xuất sau ranh giới.
             // Đề xuất: không đọc AX trên đường phím (gợi ý tự xác nhận lúc hiện). App từng
             // đọc chậm ⇒ tự áp lùi về đề xuất (RetroApply.keyPathMode).
-            let retroMode = engine.pendingRetroCorrection != nil
-                ? RetroApply.keyPathMode(RetroApply.mode(contextualEnglish: engine.contextualEnglish,
-                                                         autoApply: AppState.shared.retroactiveEnglish),
-                                         slowApp: RetroCost.isSlow(id)) : .none
+            let retroMode = engine.pendingRetroCorrection.map { pending in
+                RetroApply.tapMode(RetroApply.keyPathMode(RetroApply.mode(contextualEnglish: engine.contextualEnglish,
+                                                                          autoApply: AppState.shared.retroactiveEnglish),
+                                                          slowApp: RetroCost.isSlow(id)),
+                                   words: pending.words)
+            } ?? .none
             let retroApplied = retroMode == .autoApply ? applyRetroCorrectionTap(id: id) : nil
             let retroOffer = retroMode == .offer ? retroOfferAllowedTap(id: id) : nil
             if retroApplied != nil { rewrote = true }
