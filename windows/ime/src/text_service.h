@@ -158,6 +158,7 @@ private:
     bool replaceForHint(ITfContext* c, TfEditCookie ec, const hints::Suggestion& s);
     void afterHintApplied(bool ok, ITfContext* c, const hints::Suggestion& s);
     bool hintKeyTest(WPARAM wp, BOOL* eaten);  // true = handled (eaten set)
+    void notePassedBy(const KeyInput& k);      // session_.noteKeyPassedBy + passNoted_
 
     bool initThreadMgrSink();
     void uninitThreadMgrSink();
@@ -243,6 +244,13 @@ private:
     bool acceptSpaceApply(ITfContext* ctx);
     hints::Rejected rejectedTypos_;
     std::u32string declinedTones_;
+    // "Tự sửa từ phía trước" offer mode (retro_english.h: contextualEnglish on, switch off):
+    // the session's verified correction shown as a caret hint (Kind::Retro), Tab applies it.
+    bool retroOfferOn_ = false;
+    hints::Suggestion retroHint_;        // the offer of the armed Retro trigger
+    // A key the session declined was already reported in OnTestKeyDown (noteKeyPassedBy):
+    // OnKeyDown of that key (retyped as US) must not report it twice.
+    bool passNoted_ = false;
     // word prediction (Settings::systemTextPrediction = Windows' setting; off: one bool read)
     bool predictOn_ = false;
     bool predictApp_ = true;             // not a code editor / terminal (caret_hints.h)

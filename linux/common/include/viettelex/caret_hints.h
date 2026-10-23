@@ -37,7 +37,9 @@ struct CaretSuggestion {
     // a trailing space. Shown as the single entry of the frontend's candidate window.
     // Email: tên miền email (autotext::emailDomainSuggestion) — shown like Predict (one entry,
     // "Tab"), computed in the IME process (no helper); `insert` is inserted raw, no space.
-    enum class Kind { Math, Number, Typo, Tones, Date, Predict, Email };
+    // Retro: "Tự sửa từ phía trước" offered (retro_english.h Mode::Offer) — computed in the IME
+    // process at the boundary key, shown at once, wins over every other suggestion.
+    enum class Kind { Math, Number, Typo, Tones, Date, Predict, Email, Retro };
     Kind kind = Kind::Math;
     std::string display;  // shown near the caret ("= 36", "1.200.000 ₫", "tôi")
     std::string replace;  // tail of the text before the caret to replace ("" = insert only)

@@ -124,10 +124,9 @@ EN = {
         "Vietnamese — “sao í”.",
     "Tự sửa từ phía trước (thử nghiệm)": "Fix earlier words (experimental)",
     "Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm (vd. “Hí cả í very fast” "
-    "→ “His car is very fast”). Nhấn Backspace ngay sau đó để khôi phục.":
+    "→ “His car is very fast”).":
         "When you go on typing an English sentence, words that were wrongly given Vietnamese "
-        "tones are fixed (e.g. “Hí cả í very fast” → “His car is very fast”). Press Backspace "
-        "right after to undo.",
+        "tones are fixed (e.g. “Hí cả í very fast” → “His car is very fast”).",
     "Gõ thêm dấu cho từ ngay trước con trỏ": "Add marks to the word before the cursor",
     "Đặt con trỏ ngay sau một từ đã gõ rồi gõ phím dấu để sửa dấu từ đó (toan + s → toán).":
         "Put the cursor right after a typed word and press a mark key to fix its marks "

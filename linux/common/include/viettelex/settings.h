@@ -36,8 +36,8 @@ struct Settings {
     bool teencode = false;
     bool contextualEnglish = true;
     // "Tự sửa từ phía trước" (retroactive_english, EXPERIMENTAL, default OFF; needs
-    // contextual_english): "Hí cả í very fast" → "His car is very fast" at the boundary,
-    // ⌫ next reverts it (retro_english.h).
+    // contextual_english): on = "Hí cả í very fast" → "His car is very fast" at the boundary,
+    // ⌫ next reverts it; off = offered as a caret suggestion, Tab applies (retro_english.h).
     bool retroactiveEnglish = false;
     bool collisionPrefersVietnamese = true;
     bool bracketVowels = false;

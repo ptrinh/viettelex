@@ -31,6 +31,7 @@ struct Rig {
         o.autoRestore = settings.autoRestore;
         o.reEditWord = settings.reEditWord;
         o.underlineMisspelled = settings.underlineMisspelled;
+        o.retroOffer = retro::modeFor(settings.contextualEnglish, settings.retroactiveEnglish) == retro::Mode::Offer;
         o.shortcuts = &settings.shortcuts;
         s.configure(o);
     }
@@ -44,7 +45,9 @@ struct Rig {
         send(k);
     }
     void send(const KeyInput& k) {
-        bool eaten = s.wantsKey(k) && s.handleKey(k, doc);
+        const bool wanted = s.wantsKey(k);
+        if (!wanted) s.noteKeyPassedBy(k);  // the TIP: keys let through still reach the engine
+        bool eaten = wanted && s.handleKey(k, doc);
         if (eaten) return;
         // Invariant: a key reaching the app never finds a composition open.
         CHECK(!doc.comp);
@@ -930,14 +933,20 @@ struct RetroRig : Rig {
 
 TEST(retro_settings_gate) {
     Settings s;
-    CHECK(!s.retroactiveEnglish);  // experimental: default OFF
-    CHECK(!(s.engineFlags() & VTX_RETRO_ENGLISH));
+    CHECK(!s.retroactiveEnglish);  // experimental: default OFF (= offer as a caret hint)
+    CHECK(s.contextualEnglish);
+    CHECK(s.engineFlags() & VTX_RETRO_ENGLISH);  // the engine flag follows contextualEnglish
     s.retroactiveEnglish = true;
     CHECK(s.engineFlags() & VTX_RETRO_ENGLISH);
     s.contextualEnglish = false;  // depends on Quyết định theo ngữ cảnh
     CHECK(!(s.engineFlags() & VTX_RETRO_ENGLISH));
-    CHECK(retro::flagWanted(true, true));
-    CHECK(!retro::flagWanted(true, false));
+    s.retroactiveEnglish = false;
+    CHECK(!(s.engineFlags() & VTX_RETRO_ENGLISH));
+    CHECK(retro::modeFor(true, true) == retro::Mode::Auto);
+    CHECK(retro::modeFor(true, false) == retro::Mode::Offer);
+    CHECK(retro::modeFor(false, true) == retro::Mode::Off);
+    CHECK(retro::modeFor(false, false) == retro::Mode::Off);
+    CHECK(retro::flagWanted(true, false));
     CHECK(!retro::flagWanted(false, true));
 }
 
@@ -947,6 +956,7 @@ TEST(retro_auto_applies_both_modes) {
         r.type("His car is very fast ");
         CHECK_EQ(r.text(), std::string("His car is very fast "));
         CHECK(r.s.retroUndoArmed());
+        CHECK(r.s.retroOffer().empty());  // auto: applied, nothing offered
         RetroRig off(m, false);
         off.type("His car is very fast ");
         CHECK_EQ(off.text(), std::string("Hí cả í very fast "));
@@ -1075,6 +1085,142 @@ TEST(retro_undo_decision) {
     CHECK(!retro::makeUndo(u"í", u"is", 0).armed());  // Enter / Tab ended the word: no undo
     retro::Undo none;
     CHECK(!retro::undoApplies(none, f, u"anything"));
+}
+
+// ---- offer mode (switch OFF, contextualEnglish ON): the correction becomes a caret hint
+
+TEST(retro_offer_vs_auto_vs_none) {
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        RetroRig offer(m, false);
+        offer.type("His car is very fast ");
+        CHECK_EQ(offer.text(), std::string("Hí cả í very fast "));  // nothing changed
+        const retro::Offer& o = offer.s.retroOffer();
+        CHECK(!o.empty());
+        CHECK(o.display == u"His car is");
+        CHECK(o.replace == u"í cả í very fast ");   // boundary included: the app typed it
+        CHECK(o.insert == u"is car is very fast ");
+        CHECK(!offer.s.retroUndoArmed());
+        CHECK_EQ(offer.s.lastRetroWords(), 0);
+        RetroRig autoRig(m, true);
+        autoRig.type("His car is very fast ");
+        CHECK_EQ(autoRig.text(), std::string("His car is very fast "));
+        CHECK(autoRig.s.retroOffer().empty());
+        RetroRig none(m, false, false);  // contextualEnglish off: nothing at all
+        none.type("His car is very fast ");
+        CHECK_EQ(none.text(), std::string("Hí cả í very fast "));
+        CHECK(none.s.retroOffer().empty());
+        RetroRig noneOn(m, true, false);
+        noneOn.type("His car is very fast ");
+        CHECK(noneOn.s.retroOffer().empty());
+    }
+}
+
+TEST(retro_offer_lasts_one_key_and_never_on_enter) {
+    RetroRig r(OutputMode::InPlace, false);
+    r.type("His car is very fast ");
+    CHECK(!r.s.retroOffer().empty());
+    r.key('x');  // the next key: gone (the hint hides with it)
+    CHECK(r.s.retroOffer().empty());
+    RetroRig e(OutputMode::InPlace, false);
+    e.type("His car is very fast\n");
+    CHECK(e.s.retroOffer().empty());
+    // A key the session lets through (second space) also clears it.
+    RetroRig s2(OutputMode::InPlace, false);
+    s2.type("His car is very fast ");
+    s2.key(' ');
+    CHECK(s2.s.retroOffer().empty());
+}
+
+TEST(retro_offer_accept_applies_through_verified_replace) {
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        RetroRig r(m, false);
+        r.type("His car is very fast ");
+        const retro::Offer o = r.s.retroOffer();
+        const hints::Suggestion sug = hints::retroHint(o.display, o.replace, o.insert);
+        // What the TIP does on Tab (replaceForHint): re-read, check, replace.
+        const std::u16string before = r.doc.textBeforeCaret(static_cast<int>(sug.replace.size()) + 2);
+        CHECK(hints::hintStillValid(sug, hints::toU32(before)));
+        CHECK(r.doc.replaceBeforeCaret(sug.replace, sug.insert));
+        r.s.reset();  // afterHintApplied
+        CHECK_EQ(r.text(), std::string("His car is very fast "));
+        r.type("now ");
+        CHECK_EQ(r.text(), std::string("His car is very fast now "));
+    }
+}
+
+TEST(retro_offer_mismatch_no_hint) {
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        RetroRig r(m, false);
+        r.type("His car is very ");
+        std::u16string t = r.doc.text;
+        const size_t at = t.find(u"cả");
+        CHECK(at != std::u16string::npos);
+        if (at == std::u16string::npos) continue;
+        t.replace(at, 2, u"ca");
+        r.doc.setText(t);
+        r.type("fast ");
+        CHECK(r.s.retroOffer().empty());  // the text before the caret disagrees: no hint
+    }
+    // Unreadable / console fields: never offered either.
+    RetroRig u(OutputMode::Composition, false);
+    u.doc.unreadable = true;
+    u.type("His car is very fast ");
+    CHECK(u.s.retroOffer().empty());
+    RetroRig c(OutputMode::Composition, false);
+    c.s.setCompositionOnlyContext(true);
+    c.type("His car is very fast ");
+    CHECK(c.s.retroOffer().empty());
+    // Shown later only if the screen still ends with what it replaces.
+    const hints::Suggestion sug = hints::retroHint(u"His car is", u"í cả í very fast ", u"is car is very fast ");
+    CHECK(hints::retroSuggestion(U"Hí cả í very fast ", sug).has_value());
+    CHECK(!hints::retroSuggestion(U"Hí cả í very fast x", sug).has_value());
+    CHECK(!hints::retroSuggestion(U"Hí ca í very fast ", sug).has_value());
+    CHECK(!hints::hintStillValid(sug, U"Hí cả í very fast"));
+}
+
+TEST(retro_offer_wins_over_other_hints) {
+    hints::Trigger typo;
+    typo.kind = hints::TriggerKind::Typo;
+    typo.raw = U"fats";
+    CHECK(hints::withRetro(typo, true).kind == hints::TriggerKind::Retro);
+    CHECK(hints::withRetro(typo, false).kind == hints::TriggerKind::Typo);
+    hints::Trigger none;
+    CHECK(hints::withRetro(none, true).kind == hints::TriggerKind::Retro);
+    CHECK(hints::withRetro(none, false).kind == hints::TriggerKind::None);
+    // Tab accepts it, Enter never does, Esc dismisses.
+    CHECK(hints::action(hints::Kind::Retro, hints::kVkTab, true) == hints::KeyAction::Accept);
+    CHECK(hints::action(hints::Kind::Retro, hints::kVkReturn, true) == hints::KeyAction::DismissPass);
+    CHECK(hints::action(hints::Kind::Retro, hints::kVkEscape, true) == hints::KeyAction::DismissConsume);
+}
+
+TEST(retro_offer_display) {
+    CHECK(retro::offerDisplay(u"Hí cả í very fast", u"í cả í very fast", u"is car is very fast") == u"His car is");
+    CHECK(retro::offerDisplay(u"winter í coming", u"í coming", u"is coming") == u"is");
+    CHECK(retro::offerDisplay(u"x", u"same", u"same").empty());
+    CHECK(retro::makeOffer(u"Hí cả í very fast", u"í cả í very fast", u"is car is very fast", 0, 3).empty());
+    CHECK(retro::makeOffer(u"Hí ca í very fast", u"í cả í very fast", u"is car is very fast", u' ', 3).empty());
+    const retro::Offer o = retro::makeOffer(u"Hí cả í very fast", u"í cả í very fast", u"is car is very fast", u',', 3);
+    CHECK(o.replace == u"í cả í very fast,");
+    CHECK(o.insert == u"is car is very fast,");
+    CHECK_EQ(o.words, 3);
+}
+
+TEST(retro_passed_by_keys_reach_the_engine) {
+    // Keys the session lets through (no edit session) still end the phrase: "fast" then
+    // Enter-less punctuation / navigation are reported via noteKeyPassedBy.
+    RetroRig r(OutputMode::InPlace, true);
+    KeyInput space{KeyKind::Char, U' '};
+    KeyInput nav{KeyKind::Navigation, 0};
+    KeyInput enter{KeyKind::Boundary, 0};
+    // Cost: with the flag on, a boundary with no word / nothing armed needs no edit session.
+    CHECK(!r.s.wantsKey(space));
+    CHECK(!r.s.wantsKey(nav));
+    CHECK(!r.s.wantsKey(enter));
+    RetroRig n(OutputMode::InPlace, true);
+    n.type("His car is ");
+    n.s.noteKeyPassedBy(nav);  // e.g. an arrow the TIP let through: the phrase ends
+    n.type("very fast ");
+    CHECK_EQ(n.text(), std::string("Hí cả í very fast "));
 }
 
 TEST(retro_never_in_terminals_or_remote_viewers) {

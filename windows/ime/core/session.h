@@ -69,6 +69,9 @@ struct SessionOptions {
     // "Gạch đỏ âm tiết sai chính tả khi gõ" (default OFF): composition mode only. OFF =
     // no validation call at all.
     bool underlineMisspelled = false;
+    // "Tự sửa từ phía trước" switch OFF while VTX_RETRO_ENGLISH is on (contextualEnglish):
+    // a verified correction is offered (retroOffer()) instead of applied.
+    bool retroOffer = false;
     const std::map<std::u16string, std::u16string>* shortcuts = nullptr;  // not owned
     void (*log)(const char*) = nullptr;  // debug log (never typed text)
 };
@@ -153,6 +156,14 @@ public:
     // number of words the LAST handleKey rewrote (0 = none), and whether ⌫ next reverts it.
     int lastRetroWords() const { return lastRetroWords_; }
     bool retroUndoArmed() const { return retroUndo_.armed(); }
+    // Offer mode (SessionOptions::retroOffer): the correction the LAST handleKey verified and
+    // did not apply, for the caret hint (empty = none). The TIP shows it once the app has
+    // typed the boundary key and applies it on Tab (caret_hints.h Kind::Retro).
+    const retro::Offer& retroOffer() const { return retroOffer_; }
+    // A key wantsKey() declined (the TIP lets it through without an edit session): with the
+    // retro flag on, the engine still has to hear about it — a boundary character keeps or
+    // ends the English phrase, anything else ends it. One engine call, no document access.
+    void noteKeyPassedBy(const KeyInput& k);
 
 private:
     bool isWordKey(char32_t c) const;
@@ -207,6 +218,7 @@ private:
     std::u16string lastWord_;            // see lastCommitWord()
     retro::Undo retroUndo_;              // armed for exactly one key after a rewrite
     int lastRetroWords_ = 0;
+    retro::Offer retroOffer_;            // see retroOffer()
 };
 
 // Characters that may belong to a word already on screen (ASCII letters + Latin

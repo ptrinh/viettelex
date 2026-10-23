@@ -93,6 +93,14 @@ struct Mock : InputContext {
         return selection || primarySelection;
     }
     std::string screen() const { return doc + pre; }
+    // Caret suggestion (aux text) currently shown; "" = none.
+    std::string hintShown;
+    int hintShows = 0;
+    void showHint(const std::string &label) override {
+        hintShown = label;
+        ++hintShows;
+    }
+    void hideHint() override { hintShown.clear(); }
 };
 
 void press(Session &s, Mock &m, uint32_t keysym, uint32_t unicode, uint32_t mods = 0) {
@@ -2702,9 +2710,14 @@ Settings retroSettings(bool on, bool contextual = true) {
 
 void testRetroSettingsGate() {
     Settings d;
-    CHECK(!d.retroactiveEnglish);  // experimental: default OFF
+    CHECK(!d.retroactiveEnglish);  // experimental: default OFF (= offered as a caret suggestion)
+    CHECK(d.contextualEnglish);
+    CHECK(retro::modeFor(true, true) == retro::Mode::Auto);
+    CHECK(retro::modeFor(true, false) == retro::Mode::Offer);
+    CHECK(retro::modeFor(false, true) == retro::Mode::Off);
+    CHECK(retro::modeFor(false, false) == retro::Mode::Off);
     CHECK(retro::flagWanted(true, true));
-    CHECK(!retro::flagWanted(true, false));
+    CHECK(retro::flagWanted(true, false));  // the engine flag follows contextual_english
     CHECK(!retro::flagWanted(false, true));
     Settings p = parseConfig("[typing]\nretroactive_english = true\n");
     CHECK(p.retroactiveEnglish);
@@ -2790,6 +2803,165 @@ void testRetroHostLagsBehindTheLastWord() {
     CHECK_EQ(n.screen(), std::string("Hí cả í very fast "));
 }
 
+// Offer mode (retroactive_english off, contextual_english on): a caret suggestion, Tab applies.
+void testRetroOfferMode() {
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        Session s;
+        Mock m;
+        s.applySettings(retroSettings(false));
+        s.setDisplayMode(mode, m);
+        type(s, m, "His car is very fast ");
+        CHECK_EQ(m.screen(), std::string("Hí cả í very fast "));  // nothing changed yet
+        CHECK(s.hint() && s.hint()->kind == CaretSuggestion::Kind::Retro);
+        if (s.hint()) {
+            CHECK_EQ(s.hint()->display, std::string("His car is"));
+            CHECK_EQ(s.hint()->replace, std::string("í cả í very fast "));
+            CHECK_EQ(s.hint()->insert, std::string("is car is very fast "));
+        }
+        CHECK_EQ(m.hintShown, std::string("His car is   Tab"));
+        CHECK(!s.retroUndoArmed());
+        type(s, m, "\t");  // accept: the verified rewrite, the Tab is consumed
+        CHECK_EQ(m.screen(), std::string("His car is very fast "));
+        CHECK(!s.hint());
+        CHECK(m.hintShown.empty());
+        type(s, m, "now ");
+        CHECK_EQ(m.screen(), std::string("His car is very fast now "));
+
+        // Any other key dismisses it and goes on as usual.
+        Session t;
+        Mock n;
+        t.applySettings(retroSettings(false));
+        t.setDisplayMode(mode, n);
+        type(t, n, "His car is very fast x");
+        CHECK(!t.hint());
+        CHECK(n.hintShown.empty());
+        CHECK_EQ(n.screen(), std::string("Hí cả í very fast x"));
+
+        // Auto: applied, nothing offered. contextual_english off: nothing at all.
+        Session a;
+        Mock am;
+        a.applySettings(retroSettings(true));
+        a.setDisplayMode(mode, am);
+        type(a, am, "His car is very fast ");
+        CHECK(!a.hint());
+        CHECK_EQ(am.hintShows, 0);
+        for (bool sw : {false, true}) {
+            Session o;
+            Mock om;
+            o.applySettings(retroSettings(sw, false));
+            o.setDisplayMode(mode, om);
+            type(o, om, "His car is very fast ");
+            CHECK(!o.hint());
+            CHECK_EQ(om.screen(), std::string("Hí cả í very fast "));
+        }
+        // Enter never offers (it may have sent the message).
+        Session e;
+        Mock em;
+        e.applySettings(retroSettings(false));
+        e.setDisplayMode(mode, em);
+        type(e, em, "His car is very fast\n");
+        CHECK(!e.hint());
+    }
+}
+
+void testRetroOfferNeedsVerifiedText() {
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        // The app changed a word the engine counts on: no suggestion.
+        Session s;
+        Mock m;
+        s.applySettings(retroSettings(false));
+        s.setDisplayMode(mode, m);
+        type(s, m, "His car is very ");
+        const size_t at = m.doc.find("cả");
+        CHECK(at != std::string::npos);
+        if (at != std::string::npos) m.doc.replace(at, std::string("cả").size(), "ca");
+        type(s, m, "fast ");
+        CHECK(!s.hint());
+        // No surrounding text / edits not allowed here (terminal, generic app id): none either.
+        Session t;
+        Mock n;
+        n.surrounding = false;
+        t.applySettings(retroSettings(false));
+        t.setDisplayMode(mode, n);
+        type(t, n, "His car is very fast ");
+        CHECK(!t.hint());
+        Session u;
+        Mock p;
+        u.applySettings(retroSettings(false));
+        u.setDisplayMode(mode, p);
+        u.setSurroundingEdits(false);
+        type(u, p, "His car is very fast ");
+        CHECK(!u.hint());
+        // Shown, then the text changed before Tab: not applied, the Tab goes on.
+        Session v;
+        Mock q;
+        v.applySettings(retroSettings(false));
+        v.setDisplayMode(mode, q);
+        type(v, q, "His car is very fast ");
+        CHECK(v.hint());
+        q.doc += "!";
+        type(v, q, "\t");
+        CHECK_EQ(q.screen(), std::string("Hí cả í very fast !\t"));
+    }
+    // The host lags by the word this key committed: offered (the head "H" still found).
+    Session s;
+    Mock m;
+    s.applySettings(retroSettings(false));
+    s.setDisplayMode(DisplayMode::Surrounding, m);
+    type(s, m, "His car is very ");
+    m.hasReported = true;
+    m.reported = m.doc;
+    type(s, m, "fast ");
+    CHECK(s.hint() && s.hint()->display == "His car is");
+}
+
+void testRetroOfferWinsOverOtherSuggestions() {
+    for (bool offer : {true, false}) {
+        Settings st = retroSettings(false, offer);  // offer: contextual on; control: off
+        st.wordPrediction = true;
+        Session s;
+        Mock m;
+        std::vector<HintRequest> reqs;
+        s.setHintSink([&reqs](const HintRequest &r) { reqs.push_back(r); });
+        s.applySettings(st);
+        s.setDisplayMode(DisplayMode::Surrounding, m);
+        type(s, m, "His car is very fast ");
+        CHECK(!reqs.empty());  // the next-word request after the space
+        if (reqs.empty()) continue;
+        CaretSuggestion typo;
+        typo.kind = CaretSuggestion::Kind::Typo;
+        typo.display = "fát";
+        typo.replace = "fast ";
+        typo.insert = "fát ";
+        s.deliverHint(reqs.back().gen, typo, m);
+        CHECK(s.hint() != nullptr);
+        if (!s.hint()) continue;
+        if (offer) {
+            CHECK(s.hint()->kind == CaretSuggestion::Kind::Retro);  // the retro offer wins
+            CHECK_EQ(m.hintShown, std::string("His car is   Tab"));
+        } else {
+            CHECK(s.hint()->kind == CaretSuggestion::Kind::Typo);  // control: the path works
+        }
+    }
+}
+
+void testRetroOfferDisplay() {
+    CHECK_EQ(retro::offerDisplay("Hí cả í very fast", "í cả í very fast", "is car is very fast", 0),
+             std::string("His car is"));
+    CHECK_EQ(retro::offerDisplay("Hí cả í very ", "í cả í very fast", "is car is very fast", 4),
+             std::string("His car is"));  // host lag
+    CHECK_EQ(retro::offerDisplay("winter í coming", "í coming", "is coming", 0), std::string("is"));
+    CHECK(retro::offerDisplay("x", "same", "same", 0).empty());
+    CHECK(retro::makeOffer("Hí cả í very fast", "í cả í very fast", "is car is very fast", 0, 3, 0).empty());
+    const retro::Offer o = retro::makeOffer("Hí cả í very fast", "í cả í very fast", "is car is very fast", ',', 3, 0);
+    CHECK_EQ(o.replace, std::string("í cả í very fast,"));
+    CHECK_EQ(o.insert, std::string("is car is very fast,"));
+    CHECK_EQ(o.words, 3);
+    CHECK(hints::keyAction(CaretSuggestion::Kind::Retro, ks::Tab, 0) == hints::KeyAction::Accept);
+    CHECK(hints::keyAction(CaretSuggestion::Kind::Retro, ks::Return, 0) == hints::KeyAction::DismissPass);
+    CHECK(hints::keyAction(CaretSuggestion::Kind::Retro, ks::Escape, 0) == hints::KeyAction::DismissConsume);
+}
+
 void testRetroDecisions() {
     using retro::Apply;
     const std::string before = "Hí cả í very fast", expected = "í cả í very fast";
@@ -2821,6 +2993,10 @@ int main() {
     testRetroSkippedWhenUnverifiable();
     testRetroHostLagsBehindTheLastWord();
     testRetroDecisions();
+    testRetroOfferMode();
+    testRetroOfferNeedsVerifiedText();
+    testRetroOfferWinsOverOtherSuggestions();
+    testRetroOfferDisplay();
     testBasicTyping();
     testPreeditIsUnderlinedComposition();
     testSurroundingHasNoPreedit();

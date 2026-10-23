@@ -362,8 +362,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         # Thử nghiệm, ngay dưới "Quyết định theo ngữ cảnh" và chỉ hiện khi nó bật.
         retro_row = self.switch(g, "typing", "retroactive_english", _("Tự sửa từ phía trước (thử nghiệm)"),
                                 _("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm "
-                                "(vd. “Hí cả í very fast” → “His car is very fast”). Nhấn Backspace "
-                                "ngay sau đó để khôi phục."))
+                                "(vd. “Hí cả í very fast” → “His car is very fast”)."))
 
         def retro_visibility(*_a):
             retro_row.set_visible(config.retro_english_visible(self.cfg.get))

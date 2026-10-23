@@ -1393,7 +1393,26 @@ std::optional<Suggestion> emailDomainSuggestion(const std::u32string& before, co
     return std::nullopt;
 }
 
+Suggestion retroHint(const std::u16string& display, const std::u16string& replace, const std::u16string& insert) {
+    return Suggestion{Kind::Retro, display, replace, insert};
+}
+
+Trigger withRetro(const Trigger& fromTracker, bool retroOffered) {
+    if (!retroOffered) return fromTracker;
+    Trigger t;
+    t.kind = TriggerKind::Retro;
+    t.delayMs = 40;  // the app has typed the boundary key by then
+    return t;
+}
+
+std::optional<Suggestion> retroSuggestion(const std::u32string& before, const Suggestion& offer) {
+    if (offer.kind != Kind::Retro || offer.replace.empty() || !hintStillValid(offer, before)) return std::nullopt;
+    return offer;
+}
+
 bool hintStillValid(const Suggestion& s, const std::u32string& before) {
+    // Retro: the rewritten words start mid-word ("í" of "Hí"): the exact tail is the check.
+    if (s.kind == Kind::Retro) return !s.replace.empty() && endsWithU32(before, toU32(s.replace));
     if (s.kind == Kind::Email) {
         const size_t at = before.rfind(U'@');
         if (at == std::u32string::npos) return false;

@@ -187,6 +187,7 @@ public:
     // rewrote (0 = none) and whether ⌫ next reverts the rewrite.
     int lastRetroWords() const { return lastRetroWords_; }
     bool retroUndoArmed() const { return retroUndo_.armed(); }
+    bool retroOffering() const { return retroMode_ == retro::Mode::Offer; }
 
 private:
     bool handleLetter(uint32_t ch, InputContext &ic);
@@ -197,7 +198,11 @@ private:
     // the phrase). The app inserts the key after this event, so it is not on screen yet.
     void finishRetro(InputContext &ic, uint32_t ch);
     bool tryRetroUndo(const retro::Undo &u, InputContext &ic);
+    // Offer mode: Tab on the shown Kind::Retro suggestion.
+    bool applyRetroOffer(const CaretSuggestion &s, InputContext &ic);
     bool retroOn_ = false;
+    retro::Mode retroMode_ = retro::Mode::Off;
+    retro::Offer retroOffer_;        // verified during this key event, shown at its end
     retro::Undo retroUndo_;          // armed for exactly one key after a rewrite
     int lastRetroWords_ = 0;
     size_t retroInflight_ = 0;       // UTF-8 bytes endWord committed during this key event

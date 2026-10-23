@@ -13,6 +13,9 @@
 //                                  (Thêm dấu runs in VietTelex.exe, as the text tools do).
 //   5. Date/time (default ON):     "hôm nay " -> "28/09/2026", "bây giờ " -> "21:35"; English
 //                                  today/tomorrow/yesterday/now only after an English word.
+//   7. Retro English (offer mode of "Tự sửa từ phía trước", retro_english.h): "Hí cả í very
+//                                  fast " -> "His car is", Tab rewrites the words. The
+//                                  session decides and verifies; it wins over every other hint.
 //
 // Never auto-replaces. Only Tab applies (Enter too for math); Esc dismisses (and declines
 // typo/tones); every other key dismisses and goes through. Off in password fields. A key
@@ -36,7 +39,7 @@ char32_t lowerChar(char32_t c);  // ASCII + Latin-1/Ext-A/B + Vietnamese block
 std::u32string lower(const std::u32string& s);
 
 // ---------------------------------------------------------------- the suggestion
-enum class Kind : uint8_t { Math, Number, Typo, Tones, Date, Predict, Email };
+enum class Kind : uint8_t { Math, Number, Typo, Tones, Date, Predict, Email, Retro };
 
 // `replace` = tail of the text before the caret that gets replaced ("" = insert only,
 // the math result), `insert` = what goes there, `display` = what the window shows.
@@ -270,7 +273,7 @@ private:
 };
 
 // ---------------------------------------------------------------- key stream -> trigger
-enum class TriggerKind : uint8_t { None, Math, Number, Date, Typo, Tones };
+enum class TriggerKind : uint8_t { None, Math, Number, Date, Typo, Tones, Retro };
 struct Trigger {
     TriggerKind kind = TriggerKind::None;
     int delayMs = 40;            // read the screen after the app inserted the key
@@ -299,6 +302,17 @@ private:
     std::u32string chunk_, prev_;
     ToneTracker tones_;
 };
+
+// ---------------------------------------------------------------- 7. retro English offer
+// The session's verified correction (TypingSession::retroOffer(): replace / insert end with
+// the boundary key) as a suggestion. The TIP reads the screen once the app typed that key.
+Suggestion retroHint(const std::u16string& display, const std::u16string& replace, const std::u16string& insert);
+// This key's trigger when the session offered a correction: the retro offer replaces whatever
+// the tracker armed (math / number / date / typo / tones) — it wins; word prediction then only
+// runs if it misses.
+Trigger withRetro(const Trigger& fromTracker, bool retroOffered);
+// Shown only when the screen still ends with what it replaces (hintStillValid).
+std::optional<Suggestion> retroSuggestion(const std::u32string& before, const Suggestion& offer);
 
 // Cheap pre-filters on RAW keys (the screen decides).
 bool numberWorthChecking(const std::u32string& run, const std::u32string& prevRun);

@@ -194,10 +194,13 @@ sau đó trả lại đúng văn bản cũ nếu màn hình còn khớp. (Chip �
 iOS/Android.)
 
 Desktop (Windows TIP `windows/ime/core/retro_english.h`, Linux `linux/common/include/viettelex/retro_english.h`):
-không có chip. Công tắc "Tự sửa từ phía trước" bật thì tự áp ở ranh giới gõ được (dấu cách, dấu
-câu; Enter/Tab chỉ cắt mạch), có kiểm chứng văn bản trước con trỏ. ⌫ ngay sau đó khôi phục chữ
-cũ. Công tắc tắt thì cờ engine tắt. Lấy phép sửa TRƯỚC khi báo ký tự ranh giới, vì app chèn ký
-tự đó sau phím này.
+cờ engine bật khi "Quyết định theo ngữ cảnh" bật (tắt = không có gì). Phép sửa chỉ dùng ở ranh
+giới gõ được (dấu cách, dấu câu; Enter/Tab chỉ cắt mạch) và khi văn bản trước con trỏ kiểm chứng
+được. Công tắc "Tự sửa từ phía trước" BẬT: tự áp, ⌫ ngay sau đó khôi phục chữ cũ. TẮT: MỜI bằng
+gợi ý cạnh con trỏ sẵn có của nền tảng ("His car is", Tab áp — đọc lại văn bản trước khi thay;
+phím khác ẩn gợi ý); gợi ý này thắng mọi gợi ý khác cùng phím. Lấy phép sửa TRƯỚC khi báo ký tự
+ranh giới, vì app chèn ký tự đó sau phím này; phép sửa được mời kèm ký tự ranh giới vào cả phần
+thay lẫn phần chèn. Lấy mà không áp (mời, lệch) thì cắt mạch.
 
 Lịch sử từ (6 từ gần nhất) bị xoá bởi `reset()`, `resetContext()`, `forgetLastCommit()`,
 `seed`, `reopenLastCommit`, ⌫ khi buffer rỗng, ranh giới không phải dấu cách, từ tràn
