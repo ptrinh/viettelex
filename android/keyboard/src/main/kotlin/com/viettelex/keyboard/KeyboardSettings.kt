@@ -51,6 +51,12 @@ data class KeyboardSettings(
     var autoFixAdjacent: Boolean = true,
     /** Quyết định theo ngữ cảnh ("he is" giữ tiếng Anh) — mặc định BẬT. */
     var contextualEnglish: Boolean = true,
+    /**
+     * "Tự sửa từ phía trước" (thử nghiệm, mặc định TẮT): engine luôn quyết định sửa ngược tiếng
+     * Anh khi [contextualEnglish] bật (docs/DESIGN.md "Sửa ngược tiếng Anh"); công tắc này chọn
+     * TỰ ÁP (+ chip "Khôi phục", ⌫ ngay sau trả lại) thay vì chỉ MỜI qua chip. Giống iOS.
+     */
+    var retroEnglishAuto: Boolean = false,
     /** Sửa dấu từ đã gõ xong (⌫ mở lại từ; phím dấu thanh nạp lại từ trước con trỏ) — mặc định BẬT. */
     var reEditWords: Boolean = true,
     /** Gõ vuốt (thử nghiệm) — mặc định TẮT; tắt ⇒ không dựng template, không ghi checkpoint. */
@@ -180,6 +186,7 @@ data class KeyboardSettings(
             s.keySoundStyle = (get(Keys.KEY_SOUND_STYLE) as? String)?.takeIf { it in KeySoundStyle.IDS } ?: KeySoundStyle.DEFAULT.id
             s.autoFixAdjacent = b(Keys.AUTO_FIX_ADJACENT, s.autoFixAdjacent)
             s.contextualEnglish = b(Keys.CONTEXTUAL_ENGLISH, s.contextualEnglish)
+            s.retroEnglishAuto = b(Keys.RETRO_ENGLISH_AUTO, s.retroEnglishAuto)
             s.reEditWords = b(Keys.RE_EDIT_WORDS, s.reEditWords)
             s.swipeTyping = b(Keys.SWIPE_TYPING, s.swipeTyping)
             s.swipeEnglish = b(Keys.SWIPE_ENGLISH, s.swipeEnglish)
@@ -223,4 +230,13 @@ data class KeyboardSettings(
             return s
         }
     }
+}
+
+/** "Tự sửa từ phía trước" — phần dùng chung app ↔ bàn phím (song sinh iOS RetroEnglishUI). */
+object RetroEnglishUI {
+    /**
+     * Công tắc chỉ hiện khi "Quyết định theo ngữ cảnh" bật (engine chỉ sửa ngược khi đó), và
+     * không ở VNI (engine chỉ sửa ngược ở Telex — như teencode).
+     */
+    fun switchVisible(contextualEnglish: Boolean, vniMode: Boolean = false): Boolean = contextualEnglish && !vniMode
 }

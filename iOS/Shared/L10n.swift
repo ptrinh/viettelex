@@ -643,6 +643,8 @@ enum L10n {
         "Tự động viết hoa đầu câu": "Auto-capitalize sentences",
         "Bật shift ở đầu ô, sau . ! ? và khi xuống dòng. Công tắc “Tự động viết hoa” trong Cài đặt → Bàn phím của iOS không áp dụng cho bàn phím bên thứ ba — tắt ở đây.": "Turns on shift at the start of a field, after . ! ? and on new lines. The iOS “Auto-Capitalization” switch in Settings → Keyboard doesn’t apply to third-party keyboards — turn it off here.",
         "Quyết định theo ngữ cảnh": "Context-aware decisions",
+        "Tự sửa từ phía trước": "Fix earlier words",
+        "Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm (vd. \"Hí cả í very fast\" → \"His car is very fast\").": "When you go on typing an English sentence, automatically fix the words just before it that got Vietnamese marks by mistake (e.g. \"Hí cả í very fast\" → \"His car is very fast\").",
         "Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → “he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để tiếng Việt — “sao í”.": "After an English word, an ambiguous next word whose keys spell an English word stays English instead of Vietnamese — “he is” → “he is”, not “he í”. After a Vietnamese or unclear word it stays Vietnamese — “sao í”.",
         "Gợi ý sửa lỗi chạm trượt": "Typo suggestions",
         "Khi từ đang gõ không phải tiếng Việt, gợi ý từ đúng nếu bạn lỡ chạm phím bên cạnh: nbjeeuf → nhiều, ohims → phím, cahcs → cách. Chạm gợi ý để thay.": "When the word you’re typing isn’t Vietnamese, suggest the right word if you hit a neighboring key: nbjeeuf → nhiều, ohims → phím, cahcs → cách. Tap the suggestion to replace.",

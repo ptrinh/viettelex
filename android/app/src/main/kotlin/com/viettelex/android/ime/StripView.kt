@@ -316,7 +316,8 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         if (l is BarLayout.Slots && l.slots.size != slotCount)
             l = SuggestionSlots.arrange(set, undoAsPill = true, bestInMiddle = true, pasteLabel = pasteTitleText, count = slotCount)
         val led = set.action == SuggestionSet.ADD_TONES_TOKEN || set.action == SuggestionSet.UNDO_REVISE_TOKEN ||
-            set.action == SuggestionSet.UNDO_AUTOCORRECT_TOKEN
+            set.action == SuggestionSet.UNDO_AUTOCORRECT_TOKEN || set.action == SuggestionSet.RETRO_OFFER_TOKEN ||
+            set.action == SuggestionSet.UNDO_RETRO_TOKEN
         primary = SuggestionSlots.primaryIndex(slotCount, set.nextWords.isNotEmpty() && !led, bestInMiddle = true)
         when (l) {
             is BarLayout.Pill -> { actionPill = l.chip; return }

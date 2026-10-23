@@ -350,6 +350,8 @@ final class KeyboardViewController: UIInputViewController {
             else if item == KeyboardView.undoTonesToken { self.undoAddTones() }
             else if item == KeyboardView.undoReviseToken { self.undoSwipeRevision() }
             else if item == KeyboardView.undoAutoCorrectToken { self.revertAutoCorrect() }
+            else if item == KeyboardView.retroOfferToken { self.retroChip(apply: true) }
+            else if item == KeyboardView.undoRetroToken { self.retroChip(apply: false) }
             else if self.acceptSwipeAlternative(item) { return }
             else { self.acceptSuggestion(item) }
         }
@@ -1002,6 +1004,10 @@ final class KeyboardViewController: UIInputViewController {
                 bridge.revertedAutoCorrect = nil
                 autoCorrectReverted(orig, fixed: acUndo?.fixed)
             }
+            if bridge.revertedRetro {             // ⌫ ngay sau tự sửa ngược = "Khôi phục"
+                bridge.revertedRetro = false
+                restoreUndo = nil; undoOfferActive = false
+            }
         }
         if let a = typedArm {
             // phím chữ: dấu cách treo đã chốt từ vuốt (từ gõ bắt đầu); dấu cách: chốt đúng từ vuốt
@@ -1103,6 +1109,20 @@ final class KeyboardViewController: UIInputViewController {
                 autoCorrectRejected.contains(w) || lexiconWords.contains(w)
                     || langModel.isUserWord(w) || AutoCorrect.isEnglish(w)
             })
+    }
+
+    /// Chip sửa ngược tiếng Anh: `apply` = áp phép sửa đang mời ("His car is"), không thì
+    /// "↩︎ Khôi phục" trả lại chữ trước lần tự sửa. Bridge kiểm chữ trước con trỏ, lệch ⇒ không sửa.
+    private func retroChip(apply: Bool) {
+        applyingEdit = true
+        let proxy = Proxy(p: textDocumentProxy)
+        _ = apply ? bridge.applyRetroOffer(proxy: proxy) : bridge.revertRetro(proxy: proxy)
+        applyingEdit = false
+        bridge.revertedRetro = false
+        restoreUndo = nil; undoOfferActive = false
+        KeyboardView.clickModifier()
+        updateAutoShift()
+        updateSuggestions()
     }
 
     /// Chip "↩︎ chữ gốc".
@@ -1718,6 +1738,16 @@ final class KeyboardViewController: UIInputViewController {
         // Vừa tự sửa: chip "↩︎ chữ gốc" (một chạm trả lại) thắng mọi chip khác tới phím kế.
         if composed.isEmpty, let u = bridge.autoCorrectUndo {
             set.actionLabel = "\u{21A9}\u{FE0E} \(u.original)"; set.actionPayload = KeyboardView.undoAutoCorrectToken
+            set.literal = nil; set.paste = false; set.clipChips = []
+        }
+        // Sửa ngược tiếng Anh (docs/DESIGN.md): công tắc tắt ⇒ chip mời "His car is"; bật và
+        // vừa tự sửa ⇒ chip "↩︎ Khôi phục". Bridge xoá cả hai ở phím kế.
+        if composed.isEmpty, let c = bridge.retroOffer {
+            set.actionLabel = EngineBridge.retroLabel(c, context: textDocumentProxy.documentContextBeforeInput)
+            set.actionPayload = KeyboardView.retroOfferToken
+            set.literal = nil; set.paste = false; set.clipChips = []
+        } else if composed.isEmpty, bridge.retroUndoAvailable {
+            set.actionLabel = RetroEnglishUI.undoChipLabel; set.actionPayload = KeyboardView.undoRetroToken
             set.literal = nil; set.paste = false; set.clipChips = []
         }
         // Vừa sửa lại từ vuốt theo từ gõ: chip "↩︎ từ cũ" tới phím kế.

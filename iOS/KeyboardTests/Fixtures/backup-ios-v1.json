@@ -55,6 +55,7 @@
     "pasteButton" : true,
     "quickTelex" : false,
     "reEditWords" : false,
+    "retroactiveEnglish" : false,
     "rowHeightAdjust" : -3,
     "showSpaceLogo" : false,
     "shortcutsEnabled" : true,

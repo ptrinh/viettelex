@@ -864,6 +864,8 @@ struct KieuGoSection: View {
     private var modernTone = false
     @AppStorage("contextualEnglish", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var contextualEnglish = true
+    @AppStorage(RetroEnglishUI.autoKey, store: UserDefaults(suiteName: "group.com.viettelex"))
+    private var retroEnglishAuto = false
     @AppStorage("teencode", store: UserDefaults(suiteName: "group.com.viettelex"))
     private var teencode = false
     @AppStorage("vniMode", store: UserDefaults(suiteName: "group.com.viettelex"))
@@ -901,6 +903,9 @@ struct KieuGoSection: View {
             // iOS không cho bàn phím bên thứ ba đọc công tắc Tự động viết hoa của hệ thống.
             settingToggle(L("Tự động viết hoa đầu câu"), L("Bật shift ở đầu ô, sau . ! ? và khi xuống dòng. Công tắc “Tự động viết hoa” trong Cài đặt → Bàn phím của iOS không áp dụng cho bàn phím bên thứ ba — tắt ở đây."), isOn: $autoCapitalize)
             settingToggle(L("Quyết định theo ngữ cảnh"), L("Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → “he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để tiếng Việt — “sao í”."), isOn: $contextualEnglish)
+            if RetroEnglishUI.switchVisible(contextualEnglish: contextualEnglish, vniMode: vniMode) {
+                experimentalToggle(L("Tự sửa từ phía trước"), L("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm (vd. \"Hí cả í very fast\" → \"His car is very fast\")."), isOn: $retroEnglishAuto)
+            }
             if !vniMode {
                 settingToggle(L("Chính tả teencode"), L("Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, từ tiếng Anh như was, war, zoo giữ nguyên."), isOn: $teencode)
             }

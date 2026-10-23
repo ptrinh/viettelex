@@ -1291,6 +1291,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     static let undoReviseToken = "\u{E000}undoRevise"
     /// Payload chip "↩︎ chữ gốc": trả lại chữ đã gõ của lần tự sửa vừa rồi (AutoCorrect).
     static let undoAutoCorrectToken = "\u{E000}undoAutoCorrect"
+    /// Payload chip sửa ngược tiếng Anh ("His car is") — công tắc "Tự sửa từ phía trước" TẮT.
+    static let retroOfferToken = "\u{E000}retroOffer"
+    /// Payload chip "↩︎ Khôi phục" sau khi tự sửa ngược (công tắc BẬT).
+    static let undoRetroToken = "\u{E000}undoRetro"
 
     /// Khoá "nội dung bar không đổi" của `showSuggestions` (trước: chuỗi ghép mỗi lần refresh).
     struct BarSignature: Equatable {

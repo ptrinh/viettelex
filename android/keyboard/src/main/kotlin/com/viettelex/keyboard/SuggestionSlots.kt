@@ -107,7 +107,8 @@ object SuggestionSlots {
         // 1 (slot) / 3. hoàn tác (iOS), "Thêm dấu", "↩︎ từ cũ" (vuốt vừa sửa từ trước) hoặc
         // "↩︎ chữ gốc" (vừa tự sửa) chiếm slot đầu, chữ dời phải theo thứ tự đọc.
         val lead = u ?: action?.takeIf { it.payload == SuggestionSet.ADD_TONES_TOKEN || it.payload == SuggestionSet.UNDO_REVISE_TOKEN ||
-            it.payload == SuggestionSet.UNDO_AUTOCORRECT_TOKEN }
+            it.payload == SuggestionSet.UNDO_AUTOCORRECT_TOKEN || it.payload == SuggestionSet.RETRO_OFFER_TOKEN ||
+            it.payload == SuggestionSet.UNDO_RETRO_TOKEN }
         if (lead != null) {
             val words = if (set.nextWords.isNotEmpty())
                 set.nextWords.take(n).map { BarChip(it, it) } else slots.filterNotNull()

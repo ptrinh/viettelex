@@ -50,6 +50,11 @@ struct KeyboardSettings {
     /// Quyết định theo ngữ cảnh (như macOS, mặc định BẬT): sau một từ tiếng Anh, từ
     /// mơ hồ kế tiếp giữ tiếng Anh ("he is" → he is, không phải "he í").
     var contextualEnglish = true
+    /// "Tự sửa từ phía trước" (thử nghiệm, mặc định TẮT; chỉ hiện khi contextualEnglish
+    /// bật): engine luôn quyết định sửa ngược tiếng Anh khi contextualEnglish bật
+    /// (docs/DESIGN.md "Sửa ngược tiếng Anh"); công tắc này chọn TỰ ÁP (+ chip "Khôi
+    /// phục", ⌫ ngay sau trả lại) thay vì chỉ MỜI qua chip trên thanh gợi ý.
+    var retroEnglishAuto = false
     /// Sửa dấu từ đã gõ xong (mặc định BẬT, user 26/09/2026): ⌫ ngay sau space/dấu
     /// câu mở lại từ vừa chốt, và phím dấu thanh ngay sau một từ nạp lại từ đó.
     var reEditWord = true
@@ -139,6 +144,7 @@ struct KeyboardSettings {
         if let v = d.string(forKey: "keySoundStyle"), KeySoundStyle(rawValue: v) != nil { s.keySoundStyle = v }
         if d.object(forKey: "autoFixAdjacent") != nil { s.autoFixAdjacent = d.bool(forKey: "autoFixAdjacent") }
         if d.object(forKey: "contextualEnglish") != nil { s.contextualEnglish = d.bool(forKey: "contextualEnglish") }
+        if d.object(forKey: RetroEnglishUI.autoKey) != nil { s.retroEnglishAuto = d.bool(forKey: RetroEnglishUI.autoKey) }
         if d.object(forKey: "reEditWord") != nil { s.reEditWord = d.bool(forKey: "reEditWord") }
         if d.object(forKey: "swipeTyping") != nil { s.swipeTyping = d.bool(forKey: "swipeTyping") }
         if d.object(forKey: "swipeEnglish") != nil { s.swipeEnglish = d.bool(forKey: "swipeEnglish") }
@@ -211,8 +217,21 @@ final class EngineBridge {
         let expansion: String
         let boundary: String
         var autoCorrect = false
+        /// Sửa ngược tiếng Anh vừa TỰ ÁP: typed = chữ cũ (kể cả ký tự ranh giới),
+        /// expansion = chữ mới, boundary rỗng.
+        var retro = false
     }
-    private var expansionUndo: ExpansionUndo?
+    /// Mọi thao tác đổi hoàn tác này (phím kế, reset…) cũng bỏ lời mời sửa ngược.
+    private var expansionUndo: ExpansionUndo? { didSet { retroOffer = nil } }
+
+    // MARK: sửa ngược tiếng Anh (RetroCorrection) — docs/DESIGN.md "Sửa ngược tiếng Anh"
+    /// Phép sửa engine vừa đề xuất, công tắc "Tự sửa từ phía trước" TẮT ⇒ controller hiện
+    /// chip (chữ đã sửa) tới phím kế; chạm ⇒ `applyRetroOffer`.
+    private(set) var retroOffer: RetroCorrection?
+    /// Phép sửa vừa TỰ ÁP còn hoàn tác được (chip "Khôi phục" / ⌫ ngay sau).
+    var retroUndoAvailable: Bool { expansionUndo?.retro == true }
+    /// ⌫ / chip vừa trả lại chữ trước lần tự sửa ngược (một lần — controller đọc rồi xoá).
+    var revertedRetro = false
     /// boundary() vừa rồi đã bung gõ tắt / tự sửa (controller: không mời "hoàn tác khôi
     /// phục", học nội dung đã bung thay vì chữ tắt).
     private(set) var expandedAtLastBoundary = false
@@ -322,6 +341,8 @@ final class EngineBridge {
         engine.teencode = settings.teencode
         engine.contextualEnglish = settings.contextualEnglish
         engine.vniMode = settings.vniMode
+        // Cả hai chế độ (mời / tự áp) cần quyết định của engine; contextualEnglish tắt ⇒ không gì cả.
+        engine.retroactiveEnglish = settings.contextualEnglish
     }
 
     /// A letter key ("a"…"z", already cased by the shift state).
@@ -636,13 +657,92 @@ final class EngineBridge {
         apply(action, literal: "", proxy: proxy)
         if !text.isEmpty { proxy.insertText(text) }
         lastWasOwnBoundary = text.last.map { !$0.isLetter } ?? false
+        if engine.retroactiveEnglish { retroAfterBoundary(text, proxy: proxy) }
         return final
+    }
+
+    /// Bước 2–3 của luồng tích hợp sửa ngược: báo MỌI ký tự ranh giới vừa chèn, rồi mời
+    /// (công tắc tắt) hoặc tự áp (bật) phép sửa — chỉ khi chữ trước con trỏ đúng `expected`.
+    /// Enter không sửa (có thể đã gửi tin; chèn lại "\n" là phím Return của host).
+    private func retroAfterBoundary(_ text: String, proxy: TextProxyLike) {
+        for ch in text { engine.noteBoundaryCharacter(ch) }
+        guard let c = engine.pendingRetroCorrection else { return }
+        guard !text.contains("\n"), !proxy.hasSelection else { return }
+        guard settings.retroEnglishAuto else { retroOffer = c; return }
+        guard Self.retroMatches(c.expected, proxy.contextBeforeInput) else {
+            TouchLog.write("retro: context lệch → không sửa")
+            return
+        }
+        _ = engine.takeRetroCorrection()
+        TouchLog.edit(bs: c.backspaces, insertLen: c.insert.count, insert: c.insert)
+        for _ in 0..<c.backspaces { proxy.deleteBackward() }
+        proxy.insertText(c.insert)
+        expansionUndo = ExpansionUndo(typed: c.expected, expansion: c.insert, boundary: "", retro: true)
+    }
+
+    /// Chữ trước con trỏ kết thúc ĐÚNG (từng scalar) bằng `expected`. nil (host không cho
+    /// biết) ⇒ không sửa: phép sửa viết lại nhiều từ, không đoán.
+    static func retroMatches(_ expected: String, _ ctx: String?) -> Bool {
+        guard let ctx, !expected.isEmpty else { return false }
+        let e = Array(expected.unicodeScalars), c = Array(ctx.unicodeScalars.suffix(e.count))
+        return c == e
+    }
+
+    /// Nhãn chip mời: các từ ĐỔI sau khi sửa, trọn từ ("Hí cả í very fast " → "His car is").
+    /// `context` = chữ trước con trỏ (lấy phần đầu từ không nằm trong phép sửa); nil/lệch ⇒
+    /// chỉ dựa vào `insert`.
+    static func retroLabel(_ c: RetroCorrection, context: String?) -> String {
+        let exp = Array(c.expected.unicodeScalars), ins = Array(c.insert.unicodeScalars)
+        var suf = 0
+        while suf < exp.count, suf < ins.count, exp[exp.count - 1 - suf] == ins[ins.count - 1 - suf] { suf += 1 }
+        var pre: [Unicode.Scalar] = []
+        if let context, retroMatches(c.expected, context) {
+            pre = Array(context.unicodeScalars.dropLast(exp.count).suffix(64))
+        }
+        let full = pre + ins
+        func inWord(_ s: Unicode.Scalar) -> Bool { CharacterSet.alphanumerics.contains(s) || s == "'" || s == "\u{2019}" }
+        var start = pre.count, end = max(start, full.count - suf)
+        while start > 0, inWord(full[start - 1]) { start -= 1 }
+        while end < full.count, inWord(full[end]) { end += 1 }
+        var out = String.UnicodeScalarView()
+        out.append(contentsOf: full[start..<end])
+        let label = String(out).trimmingCharacters(in: .whitespacesAndNewlines)
+        return label.isEmpty ? c.insert.trimmingCharacters(in: .whitespacesAndNewlines) : label
+    }
+
+    /// Chạm chip sửa ngược (công tắc tắt): áp phép sửa đang mời. false = không còn mời /
+    /// chữ trước con trỏ đã khác ⇒ không sửa gì.
+    @discardableResult
+    func applyRetroOffer(proxy: TextProxyLike) -> Bool {
+        guard let c = retroOffer else { return false }
+        retroOffer = nil
+        guard !proxy.isSecure, !passthrough, !proxy.hasSelection,
+              Self.retroMatches(c.expected, proxy.contextBeforeInput) else {
+            TouchLog.write("retro offer: context lệch → không sửa")
+            return false
+        }
+        // Còn trong engine (chưa có lệnh nào khác) ⇒ lấy để lịch sử ghi các từ là tiếng Anh;
+        // không thì quên lịch sử (màn hình đã khác cái engine nhớ).
+        if engine.pendingRetroCorrection == c { _ = engine.takeRetroCorrection() } else { engine.resetContext() }
+        TouchLog.edit(bs: c.backspaces, insertLen: c.insert.count, insert: c.insert)
+        for _ in 0..<c.backspaces { proxy.deleteBackward() }
+        proxy.insertText(c.insert)
+        return true
+    }
+
+    /// Chip "Khôi phục" (công tắc bật): trả lại đúng chữ trước lần tự sửa ngược (như ⌫ ngay sau).
+    @discardableResult
+    func revertRetro(proxy: TextProxyLike) -> Bool {
+        guard let u = expansionUndo, u.retro else { return false }
+        expansionUndo = nil
+        return undoExpansion(u, proxy: proxy)
     }
 
     /// Backspace. Trả true khi ⌫ này MỞ LẠI từ vừa chốt (engine lại đang gõ từ đó).
     @discardableResult
     func backspace(proxy: TextProxyLike) -> Bool {
         letterUndo = nil
+        retroOffer = nil
         if let u = expansionUndo {
             expansionUndo = nil
             if undoExpansion(u, proxy: proxy) { return false }
@@ -866,7 +966,8 @@ final class EngineBridge {
     /// context, nil ⇒ không làm) → thay bằng chữ đã gõ + ranh giới. false ⇒ ⌫ thường.
     private func undoExpansion(_ u: ExpansionUndo, proxy: TextProxyLike) -> Bool {
         guard !proxy.isSecure, !passthrough, !proxy.hasSelection,
-              let ctx = proxy.contextBeforeInput, ctx.hasSuffix(u.expansion + u.boundary) else {
+              let ctx = proxy.contextBeforeInput,
+              u.retro ? Self.retroMatches(u.expansion, ctx) : ctx.hasSuffix(u.expansion + u.boundary) else {
             TouchLog.write("shortcut undo: context lệch → ⌫ thường")
             return false
         }
@@ -879,6 +980,11 @@ final class EngineBridge {
         lastWasOwnBoundary = u.boundary.last.map { !$0.isLetter } ?? false
         TouchLog.write("shortcut undo: -\(u.expansion.count) +\(u.typed.count)")
         if u.autoCorrect { revertedAutoCorrect = u.typed }
+        if u.retro {
+            engine.resetContext()          // màn hình lại là chữ Việt cũ: lịch sử engine không còn khớp
+            lastWasOwnBoundary = u.typed.last.map { !$0.isLetter } ?? false
+            revertedRetro = true
+        }
         return true
     }
 

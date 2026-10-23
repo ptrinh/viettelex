@@ -1,5 +1,6 @@
 package com.viettelex.keyboard
 
+import com.viettelex.telexcore.RetroCorrection
 import com.viettelex.telexcore.TelexAction
 import com.viettelex.telexcore.TelexEngine
 
@@ -30,8 +31,21 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
     var shortcutsAllowed = true
 
     /** Lần bung gõ tắt gần nhất — ⌫ NGAY SAU đó trả lại đúng chữ đã gõ (một lần). */
-    private class ExpansionUndo(val typed: String, val expansion: String, val boundary: String, val autoCorrect: Boolean = false)
+    /** [retro] = sửa ngược tiếng Anh vừa TỰ ÁP: typed = chữ cũ (kể cả ranh giới), expansion = chữ mới, boundary rỗng. */
+    private class ExpansionUndo(val typed: String, val expansion: String, val boundary: String, val autoCorrect: Boolean = false,
+                                val retro: Boolean = false)
+    /** Mọi thao tác đổi hoàn tác này (phím kế, reset…) cũng bỏ lời mời sửa ngược. */
     private var expansionUndo: ExpansionUndo? = null
+        set(v) { field = v; retroOffer = null }
+
+    // MARK: sửa ngược tiếng Anh (RetroCorrection) — docs/DESIGN.md "Sửa ngược tiếng Anh"
+    /** Phép sửa engine vừa đề xuất, công tắc "Tự sửa từ phía trước" TẮT ⇒ session hiện chip tới phím kế. */
+    var retroOffer: RetroCorrection? = null
+        private set
+    /** Phép sửa vừa TỰ ÁP còn hoàn tác được (chip "Khôi phục" / ⌫ ngay sau). */
+    val retroUndoAvailable: Boolean get() = expansionUndo?.retro == true
+    /** ⌫ / chip vừa trả lại chữ trước lần tự sửa ngược (một lần — session đọc rồi xoá). */
+    var revertedRetro = false
     /** boundary() vừa rồi đã bung gõ tắt / tự sửa (session: không mời hoàn tác khôi phục, học nội dung). */
     var expandedAtLastBoundary = false
         private set
@@ -181,7 +195,11 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         e.modernTone = settings.modernTone
         e.teencode = settings.teencode
         e.vniMode = settings.vniMode
-        if (contextual) e.contextualEnglish = settings.contextualEnglish
+        if (contextual) {
+            e.contextualEnglish = settings.contextualEnglish
+            // Cả hai chế độ (mời / tự áp) cần quyết định của engine; contextualEnglish tắt ⇒ không gì cả.
+            e.retroactiveEnglish = settings.contextualEnglish
+        }
     }
 
     /**
@@ -293,7 +311,52 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         if (action is TelexAction.Replace) final = Cp.dropLast(before, action.backspaces) + action.insert
         apply(action, "", proxy)
         put(text)
+        if (engine.retroactiveEnglish) retroAfterBoundary(text, proxy)
         return final
+    }
+
+    /**
+     * Bước 2–3 của luồng tích hợp sửa ngược: báo MỌI ký tự ranh giới vừa chèn, rồi mời (công tắc
+     * tắt) hoặc tự áp (bật) — chỉ khi chữ trước con trỏ đúng `expected`. Enter không sửa (có thể
+     * đã gửi tin / performEditorAction).
+     */
+    private fun retroAfterBoundary(text: String, proxy: TextProxy) {
+        for (ch in text) engine.noteBoundaryCharacter(ch)
+        val c = engine.pendingRetroCorrection ?: return
+        if (text.contains('\n') || proxy.hasSelection) return
+        if (!settings.retroEnglishAuto) { retroOffer = c; return }
+        if (!retroMatches(c.expected, proxy.contextBeforeInput())) {
+            TouchLog.write("retro: screen disagrees → không sửa")
+            return
+        }
+        engine.takeRetroCorrection()
+        if (TouchLog.enabled) TouchLog.edit(c.backspaces, Cp.count(c.insert), c.insert)
+        proxy.deleteCodePoints(c.backspaces)
+        proxy.insertText(c.insert)
+        expansionUndo = ExpansionUndo(c.expected, c.insert, "", retro = true)
+    }
+
+    /** Chạm chip sửa ngược (công tắc tắt): áp phép sửa đang mời. false = hết mời / chữ đã khác ⇒ không sửa. */
+    fun applyRetroOffer(proxy: TextProxy): Boolean {
+        val c = retroOffer ?: return false
+        retroOffer = null
+        if (proxy.isSecure || passthrough || proxy.hasSelection || !retroMatches(c.expected, proxy.contextBeforeInput())) {
+            TouchLog.write("retro offer: screen disagrees → không sửa")
+            return false
+        }
+        // Còn trong engine ⇒ lấy để lịch sử ghi các từ là tiếng Anh; không thì quên lịch sử.
+        if (engine.pendingRetroCorrection == c) engine.takeRetroCorrection() else engine.resetContext()
+        if (TouchLog.enabled) TouchLog.edit(c.backspaces, Cp.count(c.insert), c.insert)
+        proxy.deleteCodePoints(c.backspaces)
+        proxy.insertText(c.insert)
+        return true
+    }
+
+    /** Chip "Khôi phục" (công tắc bật): trả lại đúng chữ trước lần tự sửa ngược (như ⌫ ngay sau). */
+    fun revertRetro(proxy: TextProxy): Boolean {
+        val u = expansionUndo?.takeIf { it.retro } ?: return false
+        expansionUndo = null
+        return undoExpansion(u, proxy)
     }
 
     /**
@@ -328,6 +391,7 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
      */
     fun backspace(proxy: TextProxy): Boolean {
         undo.valid = false
+        retroOffer = null
         expansionUndo?.let { u ->
             expansionUndo = null
             if (undoExpansion(u, proxy)) return false
@@ -533,7 +597,7 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         if (proxy.isSecure || passthrough || proxy.hasSelection) return false
         val tail = u.expansion + u.boundary
         val ctx = proxy.contextBeforeInput()
-        if (ctx == null || !ctx.endsWith(tail)) {
+        if (ctx == null || !ctx.endsWith(tail) || u.retro && tail.isEmpty()) {
             TouchLog.write("shortcut undo: screen disagrees → ⌫ thường")
             return false
         }
@@ -545,6 +609,11 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         afterOwnBoundary = u.boundary.isNotEmpty() && !Character.isLetterOrDigit(u.boundary.codePointBefore(u.boundary.length))
         TouchLog.write("shortcut undo: -${Cp.count(u.expansion)} +${Cp.count(u.typed)}")
         if (u.autoCorrect) revertedAutoCorrect = u.typed
+        if (u.retro) {
+            engine.resetContext()          // màn hình lại là chữ Việt cũ: lịch sử engine không còn khớp
+            afterOwnBoundary = u.typed.isNotEmpty() && !Character.isLetterOrDigit(u.typed.codePointBefore(u.typed.length))
+            revertedRetro = true
+        }
         return true
     }
 
@@ -597,10 +666,35 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         return e.composed
     }
 
-    private companion object {
+    companion object {
+        /** Chữ trước con trỏ kết thúc ĐÚNG bằng [expected]. null (không đọc được) ⇒ không sửa. */
+        fun retroMatches(expected: String, ctx: String?): Boolean = ctx != null && expected.isNotEmpty() && ctx.endsWith(expected)
+
+        /**
+         * Nhãn chip mời: các từ ĐỔI sau khi sửa, trọn từ ("Hí cả í very fast " → "His car is").
+         * [context] = chữ trước con trỏ (lấy phần đầu từ không nằm trong phép sửa); null/lệch ⇒ chỉ `insert`.
+         */
+        fun retroLabel(c: RetroCorrection, context: String?): String {
+            val exp = c.expected; val ins = c.insert
+            var suf = 0
+            while (suf < exp.length && suf < ins.length && exp[exp.length - 1 - suf] == ins[ins.length - 1 - suf]) suf++
+            val pre = if (context != null && retroMatches(exp, context)) context.dropLast(exp.length).takeLast(64) else ""
+            val full = pre + ins
+            fun inWord(ch: Char) = ch.isLetterOrDigit() || ch == '\'' || ch == '\u2019'
+            var start = pre.length
+            var end = maxOf(start, full.length - suf)
+            while (start > 0 && inWord(full[start - 1])) start--
+            while (end < full.length && inWord(full[end])) end++
+            val label = full.substring(start, end).trim()
+            return label.ifEmpty { ins.trim() }
+        }
+
+        /** Nhãn chip "Khôi phục" sau khi tự sửa ngược. Không qua tr(): khoá "Khôi phục" đã dịch "Restore". */
+        val RETRO_UNDO_LABEL: String get() = "↩\uFE0E " + (if (L10n.isEnglish) "Undo" else "Khôi phục")
+
         /** Engine chưa từng gõ — chỉ đọc (copyInto không ghi vào nguồn). */
-        val PRISTINE = TelexEngine()
-        val trialEngine: ThreadLocal<TelexEngine> = ThreadLocal.withInitial { TelexEngine() }
+        private val PRISTINE = TelexEngine()
+        private val trialEngine: ThreadLocal<TelexEngine> = ThreadLocal.withInitial { TelexEngine() }
     }
 
     /** Từ boundary SẼ chốt (peek non-mutating). */

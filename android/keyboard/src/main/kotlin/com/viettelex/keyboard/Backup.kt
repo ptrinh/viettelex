@@ -39,6 +39,7 @@ object BackupSettings {
         Spec(Keys.QUICK_TELEX, SettingKind.Bool(false)),
         Spec(Keys.MODERN_TONE, SettingKind.Bool(false)),
         Spec(Keys.CONTEXTUAL_ENGLISH, SettingKind.Bool(true)),
+        Spec(Keys.RETRO_ENGLISH_AUTO, SettingKind.Bool(false)),
         Spec(Keys.RE_EDIT_WORDS, SettingKind.Bool(true)),
         Spec(Keys.AUTO_FIX_ADJACENT, SettingKind.Bool(true)),
         Spec(Keys.TEENCODE, SettingKind.Bool(false)),

@@ -220,6 +220,10 @@ data class SuggestionSet(
         const val UNDO_REVISE_TOKEN = "\uE000undoRevise"
         /** Chip "↩︎ chữ gốc": trả lại chữ đã gõ của lần tự sửa vừa rồi ([AutoCorrect]). */
         const val UNDO_AUTOCORRECT_TOKEN = "\uE000undoAutoCorrect"
+        /** Chip sửa ngược tiếng Anh ("His car is") — công tắc "Tự sửa từ phía trước" TẮT. */
+        const val RETRO_OFFER_TOKEN = "\uE000retroOffer"
+        /** Chip "↩︎ Khôi phục" sau khi tự sửa ngược (công tắc BẬT). */
+        const val UNDO_RETRO_TOKEN = "\uE000undoRetro"
     }
 }
 
@@ -810,6 +814,8 @@ class KeyboardSession(
                 if (bridge.backspace(proxy)) onReopened()
                 else if (!bridge.isComposing) { lastWord = null; lastWord2 = null }
                 bridge.revertedAutoCorrect?.let { bridge.revertedAutoCorrect = null; onAutoCorrectReverted(it, acUndo?.second) }
+                // ⌫ ngay sau tự sửa ngược = "Khôi phục" (bridge đã trả lại chữ cũ): không mời hoàn tác khôi phục.
+                if (bridge.revertedRetro) { bridge.revertedRetro = false; clearUndo() }
             }
         }
         if (typedWait != null) when {
@@ -1212,6 +1218,14 @@ class KeyboardSession(
             return SuggestionPlan.Ready(SuggestionSet(nextWords = next, number = number, math = math,
                 actionLabel = "\u21A9\uFE0E ${u.edit.old}", action = SuggestionSet.UNDO_REVISE_TOKEN))
         }
+        // Sửa ngược tiếng Anh (docs/DESIGN.md): công tắc tắt ⇒ chip mời "His car is"; bật và vừa
+        // tự sửa ⇒ chip "↩︎ Khôi phục". Bridge xoá cả hai ở phím kế.
+        bridge.retroOffer?.let { c ->
+            return SuggestionPlan.Ready(SuggestionSet(nextWords = next, number = number, math = math,
+                actionLabel = EngineBridge.retroLabel(c, proxy.contextBeforeInput()), action = SuggestionSet.RETRO_OFFER_TOKEN))
+        }
+        if (bridge.retroUndoAvailable) return SuggestionPlan.Ready(SuggestionSet(nextWords = next, number = number, math = math,
+            actionLabel = EngineBridge.RETRO_UNDO_LABEL, action = SuggestionSet.UNDO_RETRO_TOKEN))
         bridge.autoCorrectUndo?.let { (orig, _) ->
             return SuggestionPlan.Ready(SuggestionSet(nextWords = next, number = number, math = math,
                 actionLabel = "\u21A9\uFE0E $orig", action = SuggestionSet.UNDO_AUTOCORRECT_TOKEN))
@@ -1458,6 +1472,10 @@ class KeyboardSession(
         if (item == SuggestionSet.ADD_TONES_TOKEN) { applyAddTones(proxy); return }
         if (item == SuggestionSet.UNDO_TONES_TOKEN) { undoAddTones(proxy); return }
         if (item == SuggestionSet.UNDO_REVISE_TOKEN) { undoRevise(proxy); return }
+        if (item == SuggestionSet.RETRO_OFFER_TOKEN) { bridge.applyRetroOffer(proxy); clearUndo(); return }
+        if (item == SuggestionSet.UNDO_RETRO_TOKEN) {
+            bridge.revertRetro(proxy); bridge.revertedRetro = false; clearUndo(); return
+        }
         if (item == SuggestionSet.UNDO_AUTOCORRECT_TOKEN) {
             val fixed = bridge.autoCorrectUndo?.second
             if (bridge.revertAutoCorrect(proxy)) bridge.revertedAutoCorrect?.let { bridge.revertedAutoCorrect = null; onAutoCorrectReverted(it, fixed) }
