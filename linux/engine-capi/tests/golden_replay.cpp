@@ -182,10 +182,39 @@ std::string run(const std::string &flags, const std::string &opsUtf8) {
     return line;
 }
 
+// Retroactive English through the C ABI (vt_note_boundary / vt_take_retro, the vt_retro
+// layout). Same case as TelexCore RetroEnglishTests.testCorrectionShape.
+bool retroSmoke() {
+    vt_engine *e = vt_engine_new();
+    const int on[] = {VT_FLAG_FREE_MARKING, VT_FLAG_LIVE_SPELL_CHECK, VT_FLAG_EAGER_ENGLISH_RESTORE,
+                      VT_FLAG_CONTEXTUAL_ENGLISH, VT_FLAG_COLLISION_PREFERS_VIETNAMESE, VT_FLAG_RETRO_ENGLISH};
+    for (int f : on) vt_engine_set_flag(e, f, true);
+    vt_engine_set_flag(e, VT_FLAG_TEENCODE, false);
+    vt_action a;
+    vt_retro r;
+    bool ok = true;
+    const char *words[] = {"His", "car", "is", "very", "fast"};
+    for (int w = 0; w < 5; ++w) {
+        for (const char *p = words[w]; *p; ++p) vt_feed(e, uint32_t(*p), &a);
+        vt_commit(e, true, &a);
+        vt_note_boundary(e, ' ');
+        bool got = vt_take_retro(e, &r);
+        if (got != (w == 4)) ok = false;
+    }
+    ok = ok && r.backspaces == 17 && r.words == 3
+        && std::string(r.expected, size_t(r.expected_len)) == "\xC3\xAD c\xE1\xBA\xA3 \xC3\xAD very fast "
+        && std::string(r.insert, size_t(r.insert_len)) == "is car is very fast ";
+    vt_engine_set_flag(e, VT_FLAG_CONTEXTUAL_ENGLISH, false);   // feature depends on it
+    ok = ok && vt_engine_get_flag(e, VT_FLAG_RETRO_ENGLISH);
+    vt_engine_free(e);
+    return ok;
+}
+
 } // namespace
 
 int main() {
     if (vt_abi_version() != VT_ABI_VERSION) { std::fprintf(stderr, "ABI mismatch\n"); return 2; }
+    if (!retroSmoke()) { std::fprintf(stderr, "retro smoke FAILED\n"); return 3; }
     std::string line;
     size_t total = 0, bad = 0;
     while (std::getline(std::cin, line)) {

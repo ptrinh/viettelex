@@ -39,7 +39,9 @@ enum {
     VTX_CONTEXTUAL_ENGLISH  = 1u << 8,   /* contextualEnglish      (app default ON) */
     VTX_ENGLISH_WORD_RESTORE= 1u << 9,   /* englishWordRestore     (ON; keep ON) */
     VTX_COLLISION_PREFERS_VI= 1u << 10,  /* collisionPrefersVietnamese (app default ON) */
-    VTX_EAGER_ENGLISH_RESTORE=1u << 11   /* eagerEnglishRestore (app: = autoRestore)    */
+    VTX_EAGER_ENGLISH_RESTORE=1u << 11,  /* eagerEnglishRestore (app: = autoRestore)    */
+    VTX_RETRO_ENGLISH       = 1u << 12   /* retroactiveEnglish (EXPERIMENTAL, OFF; needs
+                                            CONTEXTUAL_ENGLISH, inert without it)        */
 };
 /* Engine defaults (== Swift TelexEngine()): TEENCODE | ENGLISH_WORD_RESTORE. */
 #define VTX_ENGINE_DEFAULT_FLAGS (VTX_TEENCODE | VTX_ENGLISH_WORD_RESTORE)
@@ -96,6 +98,28 @@ int vtx_seed(vtx_engine* e, const uint16_t* word, int32_t len);
    restored at the boundary with this auto_restore) that no further letters can turn
    into a valid syllable ("đc", "hópng", "tòc"). Call only when the setting is on. */
 int vtx_has_spelling_error(const vtx_engine* e, int auto_restore);
+
+/* Retroactive English correction (VTX_RETRO_ENGLISH; Swift TelexEngine.retroactiveEnglish,
+   docs/DESIGN.md). After inserting EVERY boundary character the caller reports it with
+   vtx_note_boundary (spaces keep a phrase going, anything else starts a new one). Right
+   after each commit (before or after reporting its boundary char) the caller asks
+   vtx_take_retro_correction: 1 = `out` holds one edit to apply like a REPLACE action —
+   delete `backspaces` UTF-16 units before the caret (they are exactly `expected`; skip the
+   edit if the document disagrees), insert `insert`. Any other engine call discards it.
+   Edits the engine cannot see (caret moves, deletes into committed text, paste, undo)
+   must go through vtx_reset / vtx_reset_context / vtx_backspace as today, which drop the
+   word history. */
+#define VTX_RETRO_MAX 256          /* UTF-16 units incl. NUL */
+typedef struct vtx_retro_correction {
+    int32_t  backspaces;
+    int32_t  words;                    /* words rewritten */
+    int32_t  expected_len;             /* UTF-16 units */
+    int32_t  insert_len;               /* UTF-16 units */
+    uint16_t expected[VTX_RETRO_MAX];  /* NUL-terminated */
+    uint16_t insert[VTX_RETRO_MAX];    /* NUL-terminated */
+} vtx_retro_correction;
+void vtx_note_boundary(vtx_engine* e, uint32_t ch);
+int  vtx_take_retro_correction(vtx_engine* e, vtx_retro_correction* out);
 
 #ifdef __cplusplus
 }

@@ -42,6 +42,16 @@ for b in blocks(section(ctx, "static let predecessorGates", "static let contract
         w, preds = line.split(":", 1)
         gates.append((w.strip(), words(preds.strip())))
 assert function and tails and keepers and gates and len(gates) <= 8
+# Retroactive English: class letters in bit order (RetroEnglish.classLetters) + `X: words` lines.
+class_letters = re.findall(r'"(\w)"', re.search(r"static let classLetters: \[Character\] = \[(.*?)\]",
+                           open(os.path.join(src, "RetroEnglish.swift")).read()).group(1))
+retro = []
+for b in blocks(section(ctx, "static let retroClassList", "static let retroClasses")):
+    for line in b.split("\n"):
+        if ":" not in line: continue
+        letter, ws = line.split(":", 1)
+        retro.append((class_letters.index(letter.strip()), words(ws.strip())))
+assert retro and len(class_letters) <= 8
 
 def lit(ws):
     lines, cur = [], ""
@@ -77,6 +87,11 @@ with open(out, "w") as f:
         f.write('        WordSet(parseWords("' + " ".join(ps) + '")),\n')
     f.write("    )\n")
     f.write(f"    const val maxLength = {maxlen}\n")
+    f.write("    /** Retroactive English word classes (EnglishContextWords.retroClassList): word → bits. */\n")
+    f.write("    val retroClasses: HashMap<String, Int> = HashMap<String, Int>(256).also { m ->\n")
+    for bit, ws in retro:
+        f.write(f'        for (w in parseWords("{" ".join(ws)}")) m[w] = (m[w] ?: 0) or {1 << bit}\n')
+    f.write("    }\n")
     f.write('    private const val WORDS = """\n' + lit(ctxwords) + '\n"""\n')
     f.write('    private const val RESTORE_ONLY = """\n' + lit(restore) + '\n"""\n')
     f.write('    private const val FUNCTION = """\n' + lit(function) + '\n"""\n')

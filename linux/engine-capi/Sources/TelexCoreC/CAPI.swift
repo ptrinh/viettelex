@@ -108,6 +108,7 @@ public func vt_engine_set_flag(_ h: OpaquePointer, _ flag: Int32, _ on: Bool) {
     case 9: b.e.englishWordRestore = on
     case 10: b.e.collisionPrefersVietnamese = on
     case 11: b.e.eagerEnglishRestore = on
+    case 12: b.e.retroactiveEnglish = on
     default: break
     }
 }
@@ -128,6 +129,7 @@ public func vt_engine_get_flag(_ h: OpaquePointer, _ flag: Int32) -> Bool {
     case 9: return e.englishWordRestore
     case 10: return e.collisionPrefersVietnamese
     case 11: return e.eagerEnglishRestore
+    case 12: return e.retroactiveEnglish
     default: return false
     }
 }
@@ -189,6 +191,36 @@ public func vt_forget_last_commit(_ h: OpaquePointer) { box(h).e.forgetLastCommi
 public func vt_seed(_ h: OpaquePointer, _ word: UnsafePointer<CChar>?) -> Bool {
     guard let word else { return false }
     return box(h).e.seed(cString(word))
+}
+
+@_cdecl("vt_note_boundary")
+public func vt_note_boundary(_ h: OpaquePointer, _ ch: UInt32) {
+    guard let scalar = Unicode.Scalar(ch) else { box(h).e.reset(); return }
+    box(h).e.noteBoundaryCharacter(Character(scalar))
+}
+
+/// vt_retro layout: int32 backspaces @0, words @4, expected_len @8, insert_len @12,
+/// char expected[1024] @16, char insert[1024] @1040.
+@_cdecl("vt_take_retro")
+public func vt_take_retro(_ h: OpaquePointer, _ out: UnsafeMutableRawPointer?) -> Bool {
+    guard let out, let c = box(h).e.takeRetroCorrection() else { return false }
+    let cap = 1024
+    func put(_ s: String, _ at: Int) -> Int32? {
+        var n = 0
+        for b in s.utf8 {
+            if n >= cap - 1 { return nil }
+            out.storeBytes(of: b, toByteOffset: at + n, as: UInt8.self)
+            n += 1
+        }
+        out.storeBytes(of: 0, toByteOffset: at + n, as: UInt8.self)
+        return Int32(n)
+    }
+    guard let el = put(c.expected, 16), let il = put(c.insert, 16 + cap) else { return false }
+    out.storeBytes(of: Int32(c.backspaces), toByteOffset: 0, as: Int32.self)
+    out.storeBytes(of: Int32(c.words), toByteOffset: 4, as: Int32.self)
+    out.storeBytes(of: el, toByteOffset: 8, as: Int32.self)
+    out.storeBytes(of: il, toByteOffset: 12, as: Int32.self)
+    return true
 }
 
 @_cdecl("vt_reopen")

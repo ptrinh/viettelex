@@ -5,6 +5,7 @@
 
 static_assert(sizeof(char16_t) == sizeof(uint16_t), "UTF-16 unit size");
 static_assert(VTX_MAX_TEXT == vtx::kMaxText, "text capacity mismatch");
+static_assert(VTX_RETRO_MAX == vtx::RetroCorrection::kMax, "retro capacity mismatch");
 
 struct vtx_engine {
     vtx::TelexEngine e;
@@ -43,6 +44,7 @@ void vtx_set_flags(vtx_engine* h, uint32_t f) {
     e.englishWordRestore = (f & VTX_ENGLISH_WORD_RESTORE) != 0;
     e.collisionPrefersVietnamese = (f & VTX_COLLISION_PREFERS_VI) != 0;
     e.eagerEnglishRestore = (f & VTX_EAGER_ENGLISH_RESTORE) != 0;
+    e.retroactiveEnglish = (f & VTX_RETRO_ENGLISH) != 0;
 }
 
 uint32_t vtx_get_flags(const vtx_engine* h) {
@@ -61,6 +63,7 @@ uint32_t vtx_get_flags(const vtx_engine* h) {
     if (e.englishWordRestore) f |= VTX_ENGLISH_WORD_RESTORE;
     if (e.collisionPrefersVietnamese) f |= VTX_COLLISION_PREFERS_VI;
     if (e.eagerEnglishRestore) f |= VTX_EAGER_ENGLISH_RESTORE;
+    if (e.retroactiveEnglish) f |= VTX_RETRO_ENGLISH;
     return f;
 }
 
@@ -108,6 +111,21 @@ int vtx_seed(vtx_engine* h, const uint16_t* word, int32_t len) {
 int vtx_is_overflowed(const vtx_engine* h) { return h ? h->e.isOverflowed() : 0; }
 int vtx_has_spelling_error(const vtx_engine* h, int auto_restore) {
     return h && h->e.hasSpellingError(auto_restore != 0) ? 1 : 0;
+}
+void vtx_note_boundary(vtx_engine* h, uint32_t ch) {
+    if (h) h->e.noteBoundaryCharacter(static_cast<char32_t>(ch));
+}
+int vtx_take_retro_correction(vtx_engine* h, vtx_retro_correction* out) {
+    if (!h || !out) return 0;
+    vtx::RetroCorrection c;
+    if (!h->e.takeRetroCorrection(c)) return 0;
+    out->backspaces = c.backspaces;
+    out->words = c.words;
+    out->expected_len = c.expectedLength;
+    out->insert_len = c.insertLength;
+    for (int i = 0; i <= c.expectedLength; ++i) out->expected[i] = static_cast<uint16_t>(c.expected[i]);
+    for (int i = 0; i <= c.insertLength; ++i) out->insert[i] = static_cast<uint16_t>(c.insert[i]);
+    return 1;
 }
 
 } // extern "C"

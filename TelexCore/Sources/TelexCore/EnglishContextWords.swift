@@ -137,6 +137,43 @@ enum EnglishContextWords {
         return rules
     }
 
+    /// RETROACTIVE English correction (`TelexEngine.retroactiveEnglish`, EXPERIMENTAL):
+    /// coarse English word classes for the plausibility check that decides whether the
+    /// Vietnamese compositions right before an English run ("Hí cả í" before "very fast")
+    /// read as English ("His car is very fast"). A word may sit in several classes; any
+    /// unlisted word is OPEN class (noun/verb/adjective/adverb). Letters = bit order:
+    ///   P subject pronoun (bit 0), O object pronoun (1), D determiner/possessive (2),
+    ///   B be/auxiliary/modal/not (3), R preposition (4), C conjunction/wh-word (5),
+    ///   X (6) = flag, not a class: the word's Vietnamese reading is a very common particle
+    ///   ("did" → đi, right after English verbs: "merge đi"), so it is never rewritten
+    ///   just because an English word sits on its left.
+    /// Pair rules (RetroEnglish.pairAllowed): P → B|open, D → open, R → D|P|O|open,
+    /// everything else → anything. Where a rewritten span may START: see RetroEnglish.plan.
+    /// Format: one class per line, `X: word word …`. Lowercase ascii.
+    static let retroClassList = """
+        P: i you he she it we they there who this that these those
+        O: me him her us them it you
+        D: the a an my your his her its our their this that these those some any every each no all both
+        B: is am are was were be been being has have had do does did will would shall should can could may might must not
+        R: of in on at to for with from by about into onto over under after before between through during without within along across behind beyond upon as like
+        C: and or but nor so yet if then than because while when where why how though although unless until whether since as what which who whom whose that
+        X: did
+        """
+
+    /// Class bits of `retroClassList` (bit i = i-th line letter), parsed once.
+    static let retroClasses: [String: UInt8] = {
+        var map: [String: UInt8] = [:]
+        for line in retroClassList.split(separator: "\n") {
+            let parts = line.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2, let letter = parts[0].first(where: { $0 != " " }),
+                  let bit = RetroEnglish.classLetters.firstIndex(of: letter) else { continue }
+            for w in parts[1].split(separator: " ") {
+                map[String(w), default: 0] |= UInt8(1) << UInt8(bit)
+            }
+        }
+        return map
+    }()
+
     /// Index of the gate rule for `w`, or nil when `w` is not gated.
     static func gateIndex(of w: String) -> Int? {
         for (i, r) in predecessorGates.enumerated() where r.word == w { return i }

@@ -63,6 +63,22 @@ class TelexEngine {
     var englishWordRestore = true
     /** Prefer a valid Vietnamese syllable over a standalone collision-table hit. */
     var collisionPrefersVietnamese = false
+    /**
+     * Retroactive English correction (Swift `retroactiveEnglish`, EXPERIMENTAL, default OFF):
+     * when an English run becomes certain, collision words composed as Vietnamese right before
+     * it ("Hí cả í very fast") are rewritten to their raw keys. Inert unless
+     * [contextualEnglish] is on (and in VNI). Callers report boundary characters with
+     * [noteBoundaryCharacter] and apply [takeRetroCorrection] after each commit.
+     */
+    var retroactiveEnglish = false
+    /** [retroactiveEnglish] is in effect (needs contextual English, Telex only). */
+    val retroactiveEnglishActive: Boolean get() = retroactiveEnglish && contextualEnglish && !vniMode
+
+    // Retroactive-English session state (Swift retroHistory / retroGap / retroPending…).
+    private val retroHistory = ArrayList<RetroWord>(RetroEnglish.HISTORY_CAPACITY)
+    private var retroGap = 0
+    private var retroPending: RetroCorrection? = null
+    private var retroPendingPicks: IntArray? = null
 
     // Raw keystrokes (ascii, case preserved).
     private val raw = IntArray(CAPACITY)
@@ -137,6 +153,9 @@ class TelexEngine {
         e.previousWordEnglish = previousWordEnglish; e.englishWordRestore = englishWordRestore
         e.englishCandidate = englishCandidate; e.previousGateBits = previousGateBits
         e.collisionPrefersVietnamese = collisionPrefersVietnamese
+        e.retroactiveEnglish = retroactiveEnglish
+        e.retroHistory.clear(); for (w in retroHistory) e.retroHistory.add(w.copy())
+        e.retroGap = retroGap; e.retroPending = retroPending; e.retroPendingPicks = retroPendingPicks
         raw.copyInto(e.raw); e.rawCount = rawCount; e.overflowed = overflowed
         out.copyInto(e.out); e.outCount = outCount
         scratch.copyInto(e.scratch)
@@ -178,7 +197,10 @@ class TelexEngine {
         ) return TelexAction.Passthrough
         if (rawCount >= CAPACITY) { overflowed = true; return TelexAction.Passthrough }
 
-        if (rawCount == 0) { reopenRawCount = 0; reopenOutCount = 0 }
+        if (rawCount == 0) {
+            reopenRawCount = 0; reopenOutCount = 0
+            if (retroPending != null) retroPending = null
+        }
 
         raw[rawCount] = ascii
         rawCount++
@@ -269,7 +291,11 @@ class TelexEngine {
 
     /** Backspace: delete the whole last DISPLAYED character, then reconcile. */
     fun backspace(): TelexAction {
-        if (rawCount <= 0) return TelexAction.Passthrough
+        if (rawCount <= 0) {
+            // The app deletes committed text: the retro history no longer matches the screen.
+            if (retroHistory.isNotEmpty() || retroPending != null) retroClear()
+            return TelexAction.Passthrough
+        }
         if (overflowed) return TelexAction.Passthrough
 
         rebuildFrozenAware()
@@ -302,6 +328,7 @@ class TelexEngine {
             if (overflowed) {
                 if (contextualEnglish) clearEnglishContext()
                 reopenRawCount = 0; reopenOutCount = 0
+                if (retroHistory.isNotEmpty() || retroPending != null) retroClear()
                 return TelexAction.None
             }
             val wantsRestore = outCount > 0 &&
@@ -320,6 +347,7 @@ class TelexEngine {
             val elongate = !wantsRestore && outCount > 0 && isToneThenATail()
             if (elongate) action = TelexAction.Replace(1, elongatedTail())
             captureReopen(wantsRestore || elongate)
+            if (retroactiveEnglish || retroHistory.isNotEmpty()) retroRecord(wantsRestore, elongate)
             updateContext(wantsRestore)
             return action
         } finally {
@@ -342,6 +370,7 @@ class TelexEngine {
     fun forgetLastCommit() {
         reopenRawCount = 0
         reopenOutCount = 0
+        if (retroHistory.isNotEmpty() || retroPending != null) retroClear()   // text changed under us
     }
 
     /** True while `reopenLastCommit()` has something to put back. */
@@ -535,7 +564,86 @@ class TelexEngine {
     }
 
     /** Clear the cross-word English context (focus / app switch). */
-    fun resetContext() { clearEnglishContext() }
+    fun resetContext() {
+        clearEnglishContext()
+        if (retroHistory.isNotEmpty() || retroPending != null) retroClear()
+    }
+
+    // MARK: - Retroactive English correction (Swift retroactiveEnglish)
+
+    /** The caller inserted boundary character [ch] after a commit (Swift `noteBoundaryCharacter`). */
+    fun noteBoundaryCharacter(ch: Char) {
+        if (!retroactiveEnglish && retroHistory.isEmpty() && retroPending == null) return
+        if (!retroactiveEnglishActive || rawCount != 0 || ch.isSurrogate()) { retroClear(); return }
+        retroPending?.let { p ->
+            retroPending = RetroCorrection(p.backspaces + 1, p.expected + ch, p.insert + ch, p.words)
+        }
+        if (ch == ' ') {
+            retroGap++
+        } else {
+            retroHistory.clear()
+            retroPendingPicks = null
+            retroGap = 0
+        }
+    }
+
+    /** The edit the last commit decided, or null; taking it means the caller applies it. */
+    fun takeRetroCorrection(): RetroCorrection? {
+        val c = retroPending ?: return null
+        retroPending = null
+        retroPendingPicks?.let { picks ->
+            for (i in picks) if (i < retroHistory.size) {
+                val w = retroHistory[i]
+                w.shown = w.raw; w.english = true; w.candidate = false
+            }
+        }
+        retroPendingPicks = null
+        return c
+    }
+
+    /** Non-consuming look at the pending edit. */
+    val pendingRetroCorrection: RetroCorrection? get() = retroPending
+
+    private fun retroClear() {
+        retroHistory.clear()
+        retroPendingPicks = null
+        retroPending = null
+        retroGap = 0
+    }
+
+    private fun retroRecord(restored: Boolean, elongated: Boolean) {
+        retroPending = null
+        retroPendingPicks = null
+        if (!retroactiveEnglishActive || rawCount <= 0) { retroClear(); return }
+        val rawText = rawKeystrokes
+        val shown = if (restored) rawText else if (elongated) composedElongated() else composed
+        var ascii = true
+        for (c in shown) if (c.code >= 128) { ascii = false; break }
+        val kind = classifyWordContext(restored)
+        val ln = lowerAsciiInto(raw, rawCount, EnglishContextWords.maxLength)
+        val lower: String? = if (ln > 0) rawText.lowercase() else null
+        val english = ascii && (kind == CTX_ENGLISH || kind == CTX_ENGLISH_FUNCTION ||
+            (rawCount == 1 && (raw[0] or 0x20) == 'a'.code))
+        val candidate = !ascii && !restored && !elongated && rawCount >= 2 &&
+            lower != null && RetroEnglish.isCandidateRaw(lower)
+        val gap = if (retroHistory.isNotEmpty() && retroGap in 1..RetroEnglish.MAX_GAP) retroGap else 0
+        val leftNonEnglish = gap > 0 && !retroHistory.last().english
+        val gi = if (ln > 0) gateIndex(ln) else -1     // wordBuf still holds the lowercase raw
+        val gateBit = if (gi >= 0) 1 shl gi else 0
+        val predBits = rawPredecessorBits()
+        if (retroHistory.size >= RetroEnglish.HISTORY_CAPACITY) retroHistory.removeAt(0)
+        retroHistory.add(RetroWord(rawText, shown, english, candidate,
+            if (lower != null) RetroEnglish.classBits(lower) else 0, gap, leftNonEnglish, gateBit, predBits))
+        retroGap = 0
+        if (!english) return
+        val picks = RetroEnglish.plan(retroHistory) ?: return
+        val c = RetroEnglish.correction(retroHistory, picks) ?: return
+        retroPending = c
+        retroPendingPicks = picks
+    }
+
+    /** Test-only: the history the retroactive check sees. */
+    internal val debugRetroHistory: List<RetroWord> get() = retroHistory
 
     /** Caller vừa chèn NGUYÊN VĂN một từ ngoài engine (vuốt ra từ tiếng Anh): cập nhật ngữ cảnh chéo từ. */
     fun noteExternalWord(english: Boolean) = noteExternalWord(null, english)
@@ -564,6 +672,7 @@ class TelexEngine {
             if (overflowed) {
                 if (contextualEnglish) clearEnglishContext()
                 reopenRawCount = 0; reopenOutCount = 0
+                if (retroHistory.isNotEmpty() || retroPending != null) retroClear()
                 return composed
             }
             val wantsRestore = outCount > 0 &&
@@ -571,6 +680,7 @@ class TelexEngine {
             val elongate = !wantsRestore && outCount > 0 && isToneThenATail()
             val text = if (wantsRestore) rawKeystrokes else if (elongate) composedElongated() else composed
             captureReopen(wantsRestore || elongate)
+            if (retroactiveEnglish || retroHistory.isNotEmpty()) retroRecord(wantsRestore, elongate)
             updateContext(wantsRestore)
             return text
         } finally {
@@ -807,6 +917,7 @@ class TelexEngine {
         resetWord()
         reopenRawCount = 0
         reopenOutCount = 0
+        if (retroHistory.isNotEmpty() || retroPending != null) retroClear()   // caret moved / text unknown
     }
 
     private fun resetWord() {

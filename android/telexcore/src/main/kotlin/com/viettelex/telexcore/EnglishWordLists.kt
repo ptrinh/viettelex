@@ -98,6 +98,16 @@ internal object EnglishContextWords {
         WordSet(parseWords("have has had having ve")),
     )
     const val maxLength = 12
+    /** Retroactive English word classes (EnglishContextWords.retroClassList): word → bits. */
+    val retroClasses: HashMap<String, Int> = HashMap<String, Int>(256).also { m ->
+        for (w in parseWords("i you he she it we they there who this that these those")) m[w] = (m[w] ?: 0) or 1
+        for (w in parseWords("me him her us them it you")) m[w] = (m[w] ?: 0) or 2
+        for (w in parseWords("the a an my your his her its our their this that these those some any every each no all both")) m[w] = (m[w] ?: 0) or 4
+        for (w in parseWords("is am are was were be been being has have had do does did will would shall should can could may might must not")) m[w] = (m[w] ?: 0) or 8
+        for (w in parseWords("of in on at to for with from by about into onto over under after before between through during without within along across behind beyond upon as like")) m[w] = (m[w] ?: 0) or 16
+        for (w in parseWords("and or but nor so yet if then than because while when where why how though although unless until whether since as what which who whom whose that")) m[w] = (m[w] ?: 0) or 32
+        for (w in parseWords("did")) m[w] = (m[w] ?: 0) or 64
+    }
     private const val WORDS = """
 i you he she it we they me him her us them my your his its our their mine yours hers ours
 theirs this that these those who whom whose which what myself yourself himself herself

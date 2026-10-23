@@ -52,7 +52,8 @@ enum {
     VTX_CONTEXTUAL_ENGLISH  = 1u << 8,   /* contextualEnglish      (app default ON) */
     VTX_ENGLISH_WORD_RESTORE= 1u << 9,   /* englishWordRestore     (ON; keep ON) */
     VTX_COLLISION_PREFERS_VI= 1u << 10,  /* collisionPrefersVietnamese (app default ON) */
-    VTX_EAGER_ENGLISH_RESTORE=1u << 11   /* eagerEnglishRestore (app: = autoRestore)    */
+    VTX_EAGER_ENGLISH_RESTORE=1u << 11,  /* eagerEnglishRestore (app: = autoRestore)    */
+    VTX_RETRO_ENGLISH       = 1u << 12   /* retroactiveEnglish (EXPERIMENTAL, OFF)          */
 };
 /* Engine defaults (== Swift TelexEngine()): TEENCODE | ENGLISH_WORD_RESTORE. */
 #define VTX_ENGINE_DEFAULT_FLAGS (VTX_TEENCODE | VTX_ENGLISH_WORD_RESTORE)
@@ -156,6 +157,7 @@ Notes for the TIP:
 | contextualEnglish | ON | `VTX_CONTEXTUAL_ENGLISH` |
 | collisionPrefersVietnamese | ON | `VTX_COLLISION_PREFERS_VI` |
 | eagerEnglishRestore | = autoRestore | `VTX_EAGER_ENGLISH_RESTORE` ("goog" not "gôg" mid-word; needs liveSpellCheck) |
+| retroactiveEnglish | OFF (experimental; shown only when contextualEnglish is ON) | `VTX_RETRO_ENGLISH` (inert without `VTX_CONTEXTUAL_ENGLISH`; needs `vtx_note_boundary` after every boundary char + `vtx_take_retro_correction` after every commit — see docs/DESIGN.md "Sửa ngược tiếng Anh") |
 | englishWordRestore | ON (not user-facing) | `VTX_ENGLISH_WORD_RESTORE` |
 
 App defaults as one mask:

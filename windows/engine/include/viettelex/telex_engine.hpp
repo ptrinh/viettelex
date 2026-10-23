@@ -30,6 +30,19 @@ struct Action {
     char16_t text[kMaxText] = {};
 };
 
+/// Swift `RetroCorrection`: one edit that rewrites the words before the caret. Apply like a
+/// Replace action: delete `backspaces` UTF-16 units before the caret, insert `insert`.
+/// `expected` is what those units are right now (verify against the document if you can).
+struct RetroCorrection {
+    static constexpr int kMax = 256;
+    int32_t backspaces = 0;
+    int32_t words = 0;
+    int32_t expectedLength = 0;
+    int32_t insertLength = 0;
+    char16_t expected[kMax] = {};   // NUL-terminated
+    char16_t insert[kMax] = {};     // NUL-terminated
+};
+
 class TelexEngine {
 public:
     static constexpr int kCapacity = 32;
@@ -50,6 +63,11 @@ public:
     /// gen::kEnglishFreezePrefixes restores the whole word to raw ("goog", not "gôg").
     /// Callers pass their effective auto-restore. Engine default OFF.
     bool eagerEnglishRestore = false;
+    /// Swift `retroactiveEnglish` (EXPERIMENTAL, default OFF): when an English run becomes
+    /// certain, collision words composed as Vietnamese right before it are rewritten to their
+    /// raw keys ("Hí cả í very fast" -> "His car is very fast"). Inert unless
+    /// contextualEnglish is on (and in VNI). See noteBoundaryCharacter / takeRetroCorrection.
+    bool retroactiveEnglish = false;
 
     TelexEngine();
 
@@ -79,10 +97,22 @@ public:
     bool hasSpellingError(bool autoRestore) const;
 
     void reset();
-    void resetContext() { clearEnglishContext(); }
+    void resetContext();
+
+    // ---- Retroactive English correction (Swift retroactiveEnglish) ------------------
+    bool retroactiveEnglishActive() const { return retroactiveEnglish && contextualEnglish && !vniMode; }
+    /// The caller inserted boundary character `ch` after a commit (space, punctuation…).
+    void noteBoundaryCharacter(char32_t ch);
+    /// The edit the last commit decided; true = `out` filled and the caller applies it.
+    bool takeRetroCorrection(RetroCorrection& out);
+    /// Non-consuming look at the pending edit.
+    bool pendingRetroCorrection(RetroCorrection& out) const;
 
     // ---- Re-open / re-edit -------------------------------------------------------
-    void forgetLastCommit() { reopenRawCount_ = 0; reopenOutCount_ = 0; }
+    void forgetLastCommit() {
+        reopenRawCount_ = 0; reopenOutCount_ = 0;
+        if (retroCount_ > 0 || retroHasPending_) retroClear();   // text changed under us
+    }
     bool canReopenLastCommit() const { return rawCount_ == 0 && reopenRawCount_ > 0; }
     /// Re-open the last committed word. Returns its UTF-16 length, or -1 (nil).
     int reopenLastCommit(char16_t* buf, int cap);
@@ -158,6 +188,36 @@ private:
     bool reopenPrevEnglish_ = false;
     bool reopenCandidate_ = false;
     uint8_t reopenGateBits_ = 0;
+
+    // retroactive English: history ring (oldest first), spaces since the last commit,
+    // the pending edit and the history indices it rewrites.
+    struct RetroWord {
+        uint8_t raw[kCapacity];
+        char32_t shown[kCapacity + 1];
+        int rawLen = 0;
+        int shownLen = 0;
+        bool english = false;
+        bool candidate = false;
+        uint8_t cls = 0;
+        int gap = 0;
+        bool leftNonEnglish = false;
+        uint8_t gateBit = 0;
+        uint8_t predBits = 0;
+    };
+    static constexpr int kRetroHistory = 6;
+    RetroWord retroHist_[kRetroHistory];
+    int retroCount_ = 0;
+    int retroGap_ = 0;
+    bool retroHasPending_ = false;
+    RetroCorrection retroPending_;
+    int retroPicks_[kRetroHistory] = {};
+    int retroPickCount_ = 0;
+    void retroClear();
+    void retroRecord(bool restored, bool elongated);
+    int retroPlan(int* picks) const;
+    bool retroAnchors(int a, const int* picks, int np) const;
+    bool retroLeftIsNonEnglish(int a) const;
+    bool retroBuild(const int* picks, int np);
 
     // ---- internals (names follow the Swift source) --------------------------------
     void feedAscii(uint8_t ascii, Action& out);

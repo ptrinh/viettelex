@@ -138,6 +138,18 @@ for b in blocks(section(ctx, "static let predecessorGates", "static let contract
         gw, preds = line.split(":", 1)
         gates.append((gw.strip(), words(preds)))
 assert gates and len(gates) <= 8
+# Retroactive English word classes (EnglishContextWords.retroClassList; bit = index of the
+# letter in RetroEnglish.classLetters).
+class_letters = re.findall(r'"(\w)"', re.search(r"static let classLetters: \[Character\] = \[(.*?)\]",
+                           read("RetroEnglish.swift")).group(1))
+retro_bits = {}
+for b in blocks(section(ctx, "static let retroClassList", "static let retroClasses")):
+    for line in b.split("\n"):
+        if ":" not in line: continue
+        letter, ws = line.split(":", 1)
+        for w in words(ws):
+            retro_bits[w] = retro_bits.get(w, 0) | (1 << class_letters.index(letter.strip()))
+assert retro_bits and len(class_letters) <= 8
 for gw, ps in gates:
     assert re.fullmatch(r"[a-z]+", gw) and ps and all(re.fullmatch(r"[a-z]+", p) for p in ps), (gw, ps)
 
@@ -203,6 +215,10 @@ with open(out, "w", encoding="utf-8") as f:
     f.write("struct GatePredecessors { const std::string_view* words; int count; };\n")
     f.write("constexpr GatePredecessors kGatePredecessors[kGateCount] = {"
             + ", ".join(f"{{kGatePredecessors{i}, {len(set(ps))}}}" for i, (_, ps) in enumerate(gates)) + "};\n\n")
+    f.write("// Retroactive English (EnglishContextWords.retroClassList): sorted words + class bits.\n")
+    rw = sorted(retro_bits)
+    emit_words(f, "kRetroClassWords", rw)
+    f.write(f"constexpr uint8_t kRetroClassBits[{len(rw)}] = {{" + ",".join(str(retro_bits[w]) for w in rw) + "};\n\n")
     f.write("}} // namespace vtx::gen\n")
 
 print(f"freeze={len(set(freeze))} onsets={len(onsets_u)} rimes={len(rimes_u)} collisions={len(set(collisions))} "

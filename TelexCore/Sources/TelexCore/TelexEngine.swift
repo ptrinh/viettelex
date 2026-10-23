@@ -153,6 +153,30 @@ public struct TelexEngine {
     /// false để golden cũ nguyên; AppState default TRUE (maintainer 12/09/2026).
     public var collisionPrefersVietnamese = false
 
+    /// RETROACTIVE English correction (EXPERIMENTAL, default OFF). When an English run
+    /// becomes certain (two consecutive words committed as English, the second one just
+    /// now), up to 3 words right before it that were composed as Vietnamese only because
+    /// their raw keys collide ("His"→Hí, "car"→cả, "is"→í) are rewritten to their raw keys
+    /// — if they read as plausible English with the run ("Hí cả í very fast" → "His car is
+    /// very fast"; "Mai cả team họp" never changes). Decision: `RetroEnglish.plan`.
+    /// DEPENDS ON `contextualEnglish` ("Quyết định theo ngữ cảnh"): inert unless that is on
+    /// (and in VNI). Off = zero behaviour change; the only cost is one Bool test per commit.
+    /// The caller must report every boundary character it inserts
+    /// (`noteBoundaryCharacter`) and fetch the edit right after a commit
+    /// (`takeRetroCorrection`). Preserved across `reset()`.
+    public var retroactiveEnglish = false
+
+    /// `retroactiveEnglish` is actually in effect (needs contextual English, Telex only).
+    public var retroactiveEnglishActive: Bool { retroactiveEnglish && contextualEnglish && !vniMode }
+
+    // Retroactive-English session state: the last committed words (oldest first, at most
+    // RetroEnglish.historyCapacity), spaces reported since the last commit, and the edit
+    // computed by the last commit until the caller takes it (or anything else happens).
+    private var retroHistory: [RetroWord] = []
+    private var retroGap = 0
+    private var retroPending: RetroCorrection?
+    private var retroPendingPicks: [Int] = []
+
     static let capacity = 32
 
     // Raw keystrokes that make up the current word (ascii, case preserved).
@@ -405,7 +429,10 @@ public struct TelexEngine {
         // First key of a NEW word: whatever the last boundary committed is now two
         // edits away from the caret, so a later ⌫ must not re-open it (typing then
         // backspacing all the way back would otherwise resurrect the wrong word).
-        if rawCount == 0 { reopenRawCount = 0; reopenOutCount = 0 }
+        if rawCount == 0 {
+            reopenRawCount = 0; reopenOutCount = 0
+            if retroPending != nil { retroPending = nil }
+        }
 
         raw[rawCount] = ascii
         rawCount += 1
@@ -547,7 +574,11 @@ public struct TelexEngine {
     /// backspace gives "kh", not "kho". Achieved by dropping every raw key that
     /// produced the last displayed letter (tracked via `rawLetter` provenance).
     public mutating func backspace() -> TelexAction {
-        guard rawCount > 0 else { return .passthrough }
+        guard rawCount > 0 else {
+            // The app deletes committed text: the retro history no longer matches the screen.
+            if !retroHistory.isEmpty || retroPending != nil { retroClear() }
+            return .passthrough
+        }
         // Overflowed: the engine's 32-char view is a stale prefix of the screen, so
         // any rebuild/diff would rewrite the whole range with the short composition
         // and drop the overflow. Let the app delete the last char natively instead.
@@ -612,6 +643,7 @@ public struct TelexEngine {
         if overflowed {
             if contextualEnglish { clearEnglishContext() }   // undetermined → Vietnamese
             reopenRawCount = 0; reopenOutCount = 0                 // stale prefix: never re-open
+            if !retroHistory.isEmpty || retroPending != nil { retroClear() }
             return .none
         }
         // Skip restore when the user cancelled a diacritic on purpose ("iss"→is).
@@ -643,6 +675,7 @@ public struct TelexEngine {
         // The screen no longer shows `composed` (and no keystrokes re-compose "dạa"), so a
         // ⌫ on the boundary must not re-open it — same as a restored word.
         captureReopen(restored: wantsRestore || elongate)
+        if retroactiveEnglish || !retroHistory.isEmpty { retroRecord(restored: wantsRestore, elongated: elongate) }
         updateContext(restored: wantsRestore)
         return action
     }
@@ -733,6 +766,7 @@ public struct TelexEngine {
     public mutating func forgetLastCommit() {
         reopenRawCount = 0
         reopenOutCount = 0
+        if !retroHistory.isEmpty || retroPending != nil { retroClear() }   // text changed under us
     }
 
     /// True while `reopenLastCommit()` has something to put back.
@@ -1069,7 +1103,96 @@ public struct TelexEngine {
 
     /// Clear the cross-word English context (caller: focus change / app switch), so a new
     /// typing context doesn't inherit the previous field's last word.
-    public mutating func resetContext() { clearEnglishContext() }
+    public mutating func resetContext() {
+        clearEnglishContext()
+        if !retroHistory.isEmpty || retroPending != nil { retroClear() }
+    }
+
+    // MARK: - Retroactive English correction (retroactiveEnglish)
+
+    /// The caller inserted boundary character `ch` after a commit (space, punctuation,
+    /// newline, apostrophe…). Spaces keep the next word in the same phrase; anything else
+    /// starts a new one. A pending correction is extended to cover `ch`, so it stays
+    /// relative to the caret. No-op while the feature is inactive.
+    public mutating func noteBoundaryCharacter(_ ch: Character) {
+        guard retroactiveEnglish || !retroHistory.isEmpty || retroPending != nil else { return }
+        // One BMP scalar only: the edit counts characters as UTF-16 units on every platform.
+        guard retroactiveEnglishActive, rawCount == 0, ch.unicodeScalars.count == 1,
+              let sc = ch.unicodeScalars.first, sc.value <= 0xFFFF else { retroClear(); return }
+        if let p = retroPending {
+            retroPending = RetroCorrection(backspaces: p.backspaces + 1,
+                                           expected: p.expected + String(ch),
+                                           insert: p.insert + String(ch), words: p.words)
+        }
+        if ch == " " {
+            retroGap += 1
+        } else {
+            retroHistory.removeAll(keepingCapacity: true)
+            retroPendingPicks.removeAll()
+            retroGap = 0
+        }
+    }
+
+    /// The edit the LAST commit decided (nil = nothing to rewrite). Taking it means the
+    /// caller APPLIES it: the history then records the rewritten words as English.
+    /// Valid right after the commit (and after any `noteBoundaryCharacter` calls); any
+    /// other engine call (next key, ⌫, reset…) discards it.
+    public mutating func takeRetroCorrection() -> RetroCorrection? {
+        guard let c = retroPending else { return nil }
+        retroPending = nil
+        for i in retroPendingPicks where i < retroHistory.count {
+            retroHistory[i].shown = retroHistory[i].raw
+            retroHistory[i].english = true
+            retroHistory[i].candidate = false
+        }
+        retroPendingPicks.removeAll()
+        return c
+    }
+
+    /// Non-consuming look at the pending edit.
+    public var pendingRetroCorrection: RetroCorrection? { retroPending }
+
+    private mutating func retroClear() {
+        retroHistory.removeAll()
+        retroPendingPicks.removeAll()
+        retroPending = nil
+        retroGap = 0
+    }
+
+    /// Record the word being committed (BEFORE `updateContext`: the classifier reads the
+    /// previous word's context) and decide. Boundary-only; allocates a few small Strings.
+    private mutating func retroRecord(restored: Bool, elongated: Bool) {
+        retroPending = nil
+        retroPendingPicks.removeAll()
+        guard retroactiveEnglishActive, rawCount > 0 else { retroClear(); return }
+        let rawText = rawKeystrokes
+        let shown = restored ? rawText : (elongated ? composedElongated() : composed)
+        let ascii = shown.unicodeScalars.allSatisfy { $0.isASCII }
+        let kind = classifyWordContext(restored: restored)
+        let lower = rawLowerWord()
+        // The article "a" is restore-only for the context machinery (it never opens a
+        // run: "a" = anh in chat) but inside the retro history it IS English text.
+        let english = ascii && (kind == .english || kind == .englishFunction
+                                || (rawCount == 1 && raw[0] | 0x20 == UInt8(ascii: "a")))
+        let candidate = !ascii && !restored && !elongated && rawCount >= 2
+            && (lower.map(RetroEnglish.isCandidateRaw) ?? false)
+        let gap = (!retroHistory.isEmpty && retroGap >= 1 && retroGap <= RetroEnglish.maxGap) ? retroGap : 0
+        let leftNonEnglish = gap > 0 && !(retroHistory.last?.english ?? true)
+        if retroHistory.count >= RetroEnglish.historyCapacity { retroHistory.removeFirst() }
+        let gateBit: UInt8 = lower.flatMap(EnglishContextWords.gateIndex(of:)).map { UInt8(1) << UInt8($0) } ?? 0
+        retroHistory.append(RetroWord(raw: rawText, shown: shown, english: english, candidate: candidate,
+                                      cls: lower.map(RetroEnglish.classBits) ?? 0, gap: gap,
+                                      leftNonEnglish: leftNonEnglish, gateBit: gateBit,
+                                      predBits: lower.map(EnglishContextWords.predecessorBits(of:)) ?? 0))
+        retroGap = 0
+        guard english, let picks = RetroEnglish.plan(retroHistory),
+              let c = RetroEnglish.correction(retroHistory, picks) else { return }
+        retroPending = c
+        retroPendingPicks = picks
+    }
+
+    /// Test-only: the history the retroactive check sees.
+    var debugRetroHistory: [RetroWord] { retroHistory }
 
     /// Previous word unknown / Vietnamese: no run, no pending content word, no gate.
     private mutating func clearEnglishContext() {
@@ -1108,6 +1231,7 @@ public struct TelexEngine {
         if overflowed {
             if contextualEnglish { clearEnglishContext() }
             reopenRawCount = 0; reopenOutCount = 0                 // stale prefix: never re-open
+            if !retroHistory.isEmpty || retroPending != nil { retroClear() }
             return composed
         }
         // Decide with the PREVIOUS word's context, then refresh it for the NEXT word
@@ -1117,6 +1241,7 @@ public struct TelexEngine {
         let elongate = !wantsRestore && outCount > 0 && isToneThenATail()
         let text = wantsRestore ? rawKeystrokes : (elongate ? composedElongated() : composed)
         captureReopen(restored: wantsRestore || elongate)
+        if retroactiveEnglish || !retroHistory.isEmpty { retroRecord(restored: wantsRestore, elongated: elongate) }
         updateContext(restored: wantsRestore)
         return text
     }
@@ -1504,6 +1629,7 @@ public struct TelexEngine {
         resetWord()
         reopenRawCount = 0
         reopenOutCount = 0
+        if !retroHistory.isEmpty || retroPending != nil { retroClear() }   // caret moved / text unknown
     }
 
     /// Word state only; the re-open snapshot survives. The boundary commits capture

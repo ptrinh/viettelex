@@ -77,6 +77,31 @@ int main(void) {
     EXPECT(!vtx_has_spelling_error(e, 1));
     EXPECT(!vtx_has_spelling_error(NULL, 1));
     vtx_destroy(e);
+
+    /* retroactive English: "His car is very fast " -> one edit back to the raw keys */
+    {
+        static const char* words[] = {"His", "car", "is", "very", "fast"};
+        const uint16_t want[] = {0xED, ' ', 'c', 0x1EA3, ' ', 0xED, ' ', 'v', 'e', 'r', 'y', ' ', 'f', 'a', 's', 't', ' '};
+        vtx_retro_correction r;
+        int w, got = 0;
+        e = vtx_create();
+        vtx_set_flags(e, VTX_FREE_MARKING | VTX_LIVE_SPELL_CHECK | VTX_CONTEXTUAL_ENGLISH |
+                         VTX_COLLISION_PREFERS_VI | VTX_ENGLISH_WORD_RESTORE | VTX_EAGER_ENGLISH_RESTORE |
+                         VTX_RETRO_ENGLISH);
+        EXPECT((vtx_get_flags(e) & VTX_RETRO_ENGLISH) != 0);
+        for (w = 0; w < 5; ++w) {
+            for (i = 0; i < strlen(words[w]); ++i) vtx_feed(e, (uint32_t)words[w][i], &a);
+            vtx_commit_boundary(e, 1, &a);
+            vtx_note_boundary(e, ' ');
+            got = vtx_take_retro_correction(e, &r);
+            EXPECT(got == (w == 4));
+        }
+        EXPECT(got && r.backspaces == 17 && r.words == 3);
+        EXPECT(eq16(r.expected, r.expected_len, NULL, want, 17));
+        EXPECT(eq16(r.insert, r.insert_len, "is car is very fast ", NULL, 0));
+        EXPECT(!vtx_take_retro_correction(e, &r));
+        vtx_destroy(e);
+    }
     printf("c abi smoke: %s\n", fails ? "FAIL" : "ok");
     return fails != 0;
 }

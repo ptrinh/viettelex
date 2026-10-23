@@ -55,7 +55,9 @@ enum {
     VT_FLAG_CONTEXTUAL_ENGLISH = 8,           /* default false */
     VT_FLAG_ENGLISH_WORD_RESTORE = 9,         /* default TRUE  */
     VT_FLAG_COLLISION_PREFERS_VIETNAMESE = 10, /* default false */
-    VT_FLAG_EAGER_ENGLISH_RESTORE = 11        /* default false; frontends pass auto-restore */
+    VT_FLAG_EAGER_ENGLISH_RESTORE = 11,       /* default false; frontends pass auto-restore */
+    VT_FLAG_RETRO_ENGLISH = 12                /* default false; EXPERIMENTAL retroactiveEnglish,
+                                                 inert unless CONTEXTUAL_ENGLISH is on      */
 };
 
 /* Lifecycle */
@@ -114,6 +116,26 @@ bool vt_is_english_word(const char *utf8_lower_word);
  * ("đc", "hópng", "tòc"). Ask only when the setting is on.
  * vt_is_spelling_error: SyllableValidator.isSpellingError on a word (NFC UTF-8). */
 bool vt_has_spelling_error(const vt_engine *h, bool auto_restore);
+
+/* Retroactive English correction (VT_FLAG_RETRO_ENGLISH; TelexEngine.retroactiveEnglish,
+ * docs/DESIGN.md). Report EVERY boundary character the frontend inserts with
+ * vt_note_boundary (spaces keep a phrase going, anything else starts a new one). Right
+ * after each commit (before or after reporting its boundary char) call vt_take_retro:
+ * true = `out` holds one edit — delete `backspaces` characters (Unicode scalars) before
+ * the caret (they are exactly `expected`; skip if the surrounding text disagrees), then
+ * insert `insert`. Any other engine call discards it. Caret moves / deletes into committed
+ * text must go through vt_reset / vt_reset_context / vt_backspace as today. */
+#define VT_RETRO_CAP 1024   /* bytes of UTF-8 incl. NUL (256 BMP chars x 3 + room) */
+typedef struct vt_retro {
+    int32_t backspaces;       /* characters (Unicode scalars) to delete */
+    int32_t words;            /* words rewritten */
+    int32_t expected_len;     /* bytes in `expected` (excluding NUL) */
+    int32_t insert_len;       /* bytes in `insert` (excluding NUL) */
+    char expected[VT_RETRO_CAP];
+    char insert[VT_RETRO_CAP];
+} vt_retro;
+void vt_note_boundary(vt_engine *h, uint32_t ch);
+bool vt_take_retro(vt_engine *h, vt_retro *out);
 bool vt_is_spelling_error(const char *utf8_word, bool teencode);
 
 #ifdef __cplusplus

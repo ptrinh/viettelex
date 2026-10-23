@@ -1094,4 +1094,19 @@ constexpr std::string_view kGateWords[kGateCount] = {"been"};
 struct GatePredecessors { const std::string_view* words; int count; };
 constexpr GatePredecessors kGatePredecessors[kGateCount] = {{kGatePredecessors0, 5}};
 
+// Retroactive English (EnglishContextWords.retroClassList): sorted words + class bits.
+constexpr std::string_view kRetroClassWords[111] = {
+  "a","about","across","after","all","along","although","am","an","and","any","are","as","at",
+  "be","because","been","before","behind","being","between","beyond","both","but","by","can",
+  "could","did","do","does","during","each","every","for","from","had","has","have","he","her",
+  "him","his","how","i","if","in","into","is","it","its","like","may","me","might","must","my",
+  "no","nor","not","of","on","onto","or","our","over","shall","she","should","since","so",
+  "some","than","that","the","their","them","then","there","these","they","this","those",
+  "though","through","to","under","unless","until","upon","us","was","we","were","what","when",
+  "where","whether","which","while","who","whom","whose","why","will","with","within","without",
+  "would","yet","you","your",
+};
+
+constexpr uint8_t kRetroClassBits[111] = {4,16,16,16,4,16,32,8,4,32,4,8,48,16,8,32,8,16,16,8,16,16,4,32,16,8,8,72,8,8,16,4,4,16,16,8,8,8,1,6,2,4,32,1,32,16,16,8,3,4,16,8,2,8,8,4,4,32,8,16,16,16,32,4,16,8,1,8,32,32,4,32,37,4,4,2,32,1,5,1,5,5,32,16,16,16,32,32,16,2,8,1,8,32,32,32,32,32,32,33,32,32,32,8,16,16,16,8,32,3,4};
+
 }} // namespace vtx::gen

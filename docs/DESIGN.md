@@ -130,6 +130,74 @@ Quy tắc ổn định đã rút ra khi implement (chi tiết trong `MACOS_IME_N
 - Hạn chế cố hữu (chấp nhận): từ tiếng Anh trùng âm tiết Việt hợp lệ (`test`→tét,
   `list`→lít) không khôi phục được — cần từ điển/tần suất, ngoài phạm vi.
 
+## Sửa ngược tiếng Anh (`retroactiveEnglish`, THỬ NGHIỆM, mặc định TẮT)
+
+Gõ trộn: từ có phím gõ trùng tiếng Việt bị ghép thành tiếng Việt vì lúc gõ chưa có gì nói
+câu là tiếng Anh ("His car is" → "Hí cả í"). Khi mạch tiếng Anh đã CHẮC (hai từ liền nhau
+được chốt là tiếng Anh, từ thứ hai vừa chốt), engine đề xuất MỘT phép sửa đưa các từ ngay
+trước mạch về phím gõ thô: "Hí cả í very fast" → "His car is very fast".
+
+**Phụ thuộc "Quyết định theo ngữ cảnh" (`contextualEnglish`)**: cờ chỉ có tác dụng khi
+`contextualEnglish` bật (và không ở VNI) — `retroactiveEnglishActive`. UI chỉ hiện công tắc
+khi cài đặt kia đang bật. Tắt = không đổi hành vi, chi phí một phép thử Bool mỗi lần chốt
+từ; golden không đổi.
+
+Quyết định (thuần, `RetroEnglish.plan` — Swift `TelexCore/Sources/TelexCore/RetroEnglish.swift`,
+Kotlin `android/telexcore/.../RetroEnglish.kt`, C++ `TelexEngine::retroPlan`):
+1. Kích hoạt: từ vừa chốt VÀ từ trước nó đều là tiếng Anh (bộ phân loại ngữ cảnh gọi là
+   English + màn hình là ascii), cách nhau chỉ bằng dấu cách.
+2. Cửa sổ: tối đa 3 từ liền trước mạch, chỉ gồm *ứng viên* (chốt có dấu Việt, phím thô nằm
+   trong `EnglishCollisions` ∪ `EnglishContextWords.words` ∪ `runKeepers` ∪ was/wow/yes/queue)
+   hoặc từ đã là tiếng Anh; dừng ở từ Việt khác, từ mượn trung tính, dấu câu, xuống dòng,
+   hơn 2 dấu cách, hay bất kỳ sửa đổi nào engine không thấy. Bỏ `restoreOnly` (ừ/á/ok… là
+   tiểu từ chat).
+3. Đoạn viết lại phải có *điểm neo* (`EnglishContextWords.retroClassList`, 6 lớp + cờ X):
+   bắt đầu bằng đại từ chủ ngữ / hạn định / giới từ / liên từ ("His…", "of course", "as far
+   as"); hoặc trợ động từ đầu cụm + đại từ chủ ngữ (câu hỏi đảo: "Did you", "Is this");
+   hoặc một từ đã là tiếng Anh khi mọi từ viết lại là trợ động từ không mang cờ X
+   ("winter í coming" → is; "merge đi this PR" giữ "đi").
+4. Cặp kề nhau phải hợp lý (P→B|mở, D→mở, R→D|P|O|mở, còn lại tự do); cổng tiền tố
+   (`predecessorGates`: "been" chỉ sau have/has/had/'ve) áp dụng.
+5. Giữa câu sau một từ Việt, cần ≥ 2 từ viết lại ("cái này á the best" giữ "á").
+
+API cho integrator (giống nhau ở 3 port; đơn vị = ký tự UTF-16, mọi ký tự liên quan đều BMP):
+
+| | Swift (`TelexEngine`) | Kotlin (`TelexEngine`) | C++ (`vtx::TelexEngine`) | C ABI Windows | C ABI Linux |
+|---|---|---|---|---|---|
+| Cờ | `retroactiveEnglish` | `retroactiveEnglish` | `retroactiveEnglish` | `VTX_RETRO_ENGLISH` (1u<<12) | `VT_FLAG_RETRO_ENGLISH` (12) |
+| Đang hiệu lực | `retroactiveEnglishActive` | `retroactiveEnglishActive` | `retroactiveEnglishActive()` | — | — |
+| Báo ký tự ranh giới | `noteBoundaryCharacter(_:)` | `noteBoundaryCharacter(ch)` | `noteBoundaryCharacter(ch)` | `vtx_note_boundary` | `vt_note_boundary` |
+| Lấy phép sửa | `takeRetroCorrection() -> RetroCorrection?` | `takeRetroCorrection(): RetroCorrection?` | `takeRetroCorrection(out) -> bool` | `vtx_take_retro_correction` | `vt_take_retro` |
+| Xem không lấy | `pendingRetroCorrection` | `pendingRetroCorrection` | `pendingRetroCorrection(out)` | — | — |
+
+`RetroCorrection { backspaces, expected, insert, words }` — áp như `TelexAction.replace`:
+xoá `backspaces` ký tự ngay trước con trỏ (đúng bằng `expected`), chèn `insert`. Tiền tố
+không đổi đã bỏ ("Hí"→"His" chỉ xoá từ "í").
+
+Luồng tích hợp (mỗi ranh giới từ):
+1. `commitBoundary`/`commitText` như cũ, áp action của từ hiện tại.
+2. Chèn ký tự ranh giới như cũ rồi gọi `noteBoundaryCharacter(ch)` — BẮT BUỘC cho mọi ký tự
+   ranh giới; thiếu báo cáo = hai từ không liền nhau = không bao giờ sửa (an toàn).
+3. `takeRetroCorrection()` (trước hay sau bước 2 đều được — phép sửa luôn tính từ con trỏ
+   hiện tại, ký tự ranh giới đã báo được nối vào cả `expected` lẫn `insert`). Nếu đọc được
+   văn bản trước con trỏ (AX, `getTextBeforeCursor`, `ITfRange`), so với `expected`, lệch thì
+   bỏ qua. Lấy phép sửa = cam kết áp nó (lịch sử ghi các từ đó là tiếng Anh).
+4. Phép sửa hết hạn ở lệnh engine kế tiếp (phím mới, ⌫, reset…).
+
+Lịch sử từ (6 từ gần nhất) bị xoá bởi `reset()`, `resetContext()`, `forgetLastCommit()`,
+`seed`, `reopenLastCommit`, ⌫ khi buffer rỗng, ranh giới không phải dấu cách, từ tràn
+buffer, và khi cờ/`contextualEnglish` tắt. Mọi thao tác engine không thấy (di chuyển con
+trỏ, xoá vào chữ đã chốt, dán, undo, gõ tắt) phải đi qua các lệnh đó như hiện nay.
+
+Đo (fixture chung `iOS/KeyboardTests/Fixtures/retro-english-eval.txt`, sinh bởi
+`Scripts/gen-retro-english-eval.py`: 1.200 câu Anh + 573 câu trộn + 3.834 câu Việt Tatoeba +
+52 câu chat + 72 câu tự soạn; cấu hình mặc định app): precision 1.000 (253 từ sửa đúng,
+0 sai), recall 253/467 = 54% số từ Anh mà engine gõ sai khi TẮT; 0 từ Việt bị đổi. Test
+có ngưỡng ở cả 3 port (`RetroEnglishTests`, `RetroEnglishTest`, `vtx_tests retro`).
+Giới hạn đã biết: chỉ nhìn LÙI — từ trùng đứng SAU mạch hoặc mạch chỉ 1 từ không được sửa
+("His car is here now" ở cấu hình mặc định không có từ nào chốt là tiếng Anh: here→hể vì
+`collisionPrefersVietnamese`, now→nơ); "Ít people know…" ở ĐẦU câu sẽ thành "Its".
+
 ## State & Settings
 
 - `UserDefaults` (suite riêng): autoRestore, freeMarking, modernOrthography,

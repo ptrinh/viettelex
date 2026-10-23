@@ -235,6 +235,7 @@ void TelexEngine::takeSnapshots() {
 }
 
 void TelexEngine::feedAscii(uint8_t ascii, Action& out) {
+    if (rawCount_ == 0 && retroHasPending_) retroHasPending_ = false;
     bool bu;
     if (!(isLetter(ascii) || (vniMode && isDigit(ascii)) || (bracketVowels && bracketBase(ascii, bu) != 0))) {
         setSimple(out, Action::Passthrough);
@@ -326,7 +327,12 @@ void TelexEngine::feedAscii(uint8_t ascii, Action& out) {
 }
 
 void TelexEngine::backspace(Action& out) {
-    if (rawCount_ <= 0) { setSimple(out, Action::Passthrough); return; }
+    if (rawCount_ <= 0) {
+        // The app deletes committed text: the retro history no longer matches the screen.
+        if (retroCount_ > 0 || retroHasPending_) retroClear();
+        setSimple(out, Action::Passthrough);
+        return;
+    }
     if (overflowed_) { setSimple(out, Action::Passthrough); return; }
 
     rebuildFrozenAware();
@@ -356,6 +362,7 @@ void TelexEngine::commitBoundary(bool autoRestore, Action& out) {
     if (overflowed_) {
         if (contextualEnglish) clearEnglishContext();
         reopenRawCount_ = 0; reopenOutCount_ = 0;
+        if (retroCount_ > 0 || retroHasPending_) retroClear();
         resetWord();
         return;
     }
@@ -379,6 +386,7 @@ void TelexEngine::commitBoundary(bool autoRestore, Action& out) {
         setReplace(out, 1, tail, 2);
     }
     captureReopen(wantsRestore || elongate);
+    if (retroactiveEnglish || retroCount_ > 0) retroRecord(wantsRestore, elongate);
     updateContext(wantsRestore);
     resetWord();
 }
@@ -632,6 +640,247 @@ void TelexEngine::reset() {
     resetWord();
     reopenRawCount_ = 0;
     reopenOutCount_ = 0;
+    if (retroCount_ > 0 || retroHasPending_) retroClear();   // caret moved / text unknown
+}
+
+void TelexEngine::resetContext() {
+    clearEnglishContext();
+    if (retroCount_ > 0 || retroHasPending_) retroClear();
+}
+
+// MARK: - Retroactive English correction (Swift RetroEnglish.swift + TelexEngine retro*)
+
+namespace {
+constexpr uint8_t kClsP = 1u << 0, kClsO = 1u << 1, kClsD = 1u << 2, kClsB = 1u << 3,
+                  kClsR = 1u << 4, kClsC = 1u << 5, kClsX = 1u << 6;
+constexpr uint8_t kAnchorMask = kClsP | kClsD | kClsR | kClsC;
+constexpr int kRetroWindow = 3;
+constexpr int kRetroMaxGap = 2;
+
+uint8_t retroClassBits(const char* w, int n) {
+#ifdef VTX_NO_ENGLISH_TABLES
+    (void)w; (void)n;
+    return 0;
+#else
+    std::string_view key(w, static_cast<size_t>(n));
+    size_t lo = 0, hi = sizeof(gen::kRetroClassBits);
+    while (lo < hi) {
+        size_t mid = (lo + hi) / 2;
+        int c = gen::kRetroClassWords[mid].compare(key);
+        if (c == 0) return gen::kRetroClassBits[mid];
+        if (c < 0) lo = mid + 1; else hi = mid;
+    }
+    return 0;
+#endif
+}
+
+bool retroIsCandidateRaw(const char* w, int n) {
+    if (inEnglishList(gen::kEnglishCollisions, w, n) || inEnglishList(gen::kEnglishContextWords, w, n)
+        || inEnglishList(gen::kRunKeepers, w, n)) return true;
+    std::string_view key(w, static_cast<size_t>(n));
+    for (const auto& x : kEnglishExceptions) if (x == key) return true;
+    return false;
+}
+
+bool retroPairAllowed(uint8_t l, uint8_t r) {
+    if (l == 0) return true;
+    if (l & (kClsO | kClsB | kClsC)) return true;
+    if ((l & kClsP) && (r == 0 || (r & kClsB))) return true;
+    if ((l & kClsD) && r == 0) return true;
+    if ((l & kClsR) && (r == 0 || (r & (kClsD | kClsP | kClsO)))) return true;
+    return false;
+}
+
+inline bool appendU16(char16_t* buf, int32_t& len, char32_t c) {
+    if (len >= RetroCorrection::kMax - 1) return false;
+    buf[len++] = static_cast<char16_t>(c);
+    buf[len] = 0;
+    return true;
+}
+} // namespace
+
+void TelexEngine::retroClear() {
+    retroCount_ = 0;
+    retroPickCount_ = 0;
+    retroHasPending_ = false;
+    retroGap_ = 0;
+}
+
+void TelexEngine::noteBoundaryCharacter(char32_t ch) {
+    if (!retroactiveEnglish && retroCount_ == 0 && !retroHasPending_) return;
+    if (!retroactiveEnglishActive() || rawCount_ != 0 || ch > 0xFFFF) { retroClear(); return; }
+    if (retroHasPending_) {
+        RetroCorrection& p = retroPending_;
+        if (appendU16(p.expected, p.expectedLength, ch) && appendU16(p.insert, p.insertLength, ch)) {
+            p.backspaces += 1;
+        } else {
+            retroHasPending_ = false;   // too long to carry: drop the edit, never a partial one
+        }
+    }
+    if (ch == U' ') {
+        ++retroGap_;
+    } else {
+        retroCount_ = 0;
+        retroPickCount_ = 0;
+        retroGap_ = 0;
+    }
+}
+
+bool TelexEngine::takeRetroCorrection(RetroCorrection& out) {
+    if (!retroHasPending_) return false;
+    retroHasPending_ = false;
+    out = retroPending_;
+    for (int k = 0; k < retroPickCount_; ++k) {
+        int i = retroPicks_[k];
+        if (i >= retroCount_) continue;
+        RetroWord& w = retroHist_[i];
+        for (int j = 0; j < w.rawLen; ++j) w.shown[j] = w.raw[j];
+        w.shownLen = w.rawLen;
+        w.english = true;
+        w.candidate = false;
+    }
+    retroPickCount_ = 0;
+    return true;
+}
+
+bool TelexEngine::pendingRetroCorrection(RetroCorrection& out) const {
+    if (!retroHasPending_) return false;
+    out = retroPending_;
+    return true;
+}
+
+void TelexEngine::retroRecord(bool restored, bool elongated) {
+    retroHasPending_ = false;
+    retroPickCount_ = 0;
+    if (!retroactiveEnglishActive() || rawCount_ <= 0) { retroClear(); return; }
+    if (retroCount_ >= kRetroHistory) {
+        for (int i = 1; i < retroCount_; ++i) retroHist_[i - 1] = retroHist_[i];
+        --retroCount_;
+    }
+    const bool hadPrev = retroCount_ > 0;
+    const bool prevEnglish = hadPrev && retroHist_[retroCount_ - 1].english;
+    RetroWord& w = retroHist_[retroCount_];
+    w.rawLen = rawCount_;
+    for (int i = 0; i < rawCount_; ++i) w.raw[i] = raw_[i];
+    if (restored) {
+        w.shownLen = rawCount_;
+        for (int i = 0; i < rawCount_; ++i) w.shown[i] = raw_[i];
+    } else if (elongated) {
+        for (int i = 0; i < outCount_ - 1; ++i) w.shown[i] = out_[i];
+        elongatedTail(w.shown + outCount_ - 1);
+        w.shownLen = outCount_ + 1;
+    } else {
+        w.shownLen = outCount_;
+        for (int i = 0; i < outCount_; ++i) w.shown[i] = out_[i];
+    }
+    bool ascii = true;
+    for (int i = 0; i < w.shownLen; ++i) if (w.shown[i] >= 128) { ascii = false; break; }
+    const WordContext kind = classifyWordContext(restored);
+    char lw[kCapacity];
+    const int ln = lowerAsciiInto(raw_, rawCount_, gen::kEnglishContextMaxLength, lw);
+    w.english = ascii && (kind == WordContext::English || kind == WordContext::EnglishFunction
+                          || (rawCount_ == 1 && (raw_[0] | 0x20) == 'a'));
+    w.candidate = !ascii && !restored && !elongated && rawCount_ >= 2 && ln > 0 && retroIsCandidateRaw(lw, ln);
+    w.cls = ln > 0 ? retroClassBits(lw, ln) : 0;
+    w.gap = (hadPrev && retroGap_ >= 1 && retroGap_ <= kRetroMaxGap) ? retroGap_ : 0;
+    w.leftNonEnglish = w.gap > 0 && !prevEnglish;
+    w.gateBit = 0;
+    if (ln > 0) {
+        std::string_view key(lw, static_cast<size_t>(ln));
+        for (int i = 0; i < gen::kGateCount; ++i)
+            if (gen::kGateWords[i] == key) { w.gateBit = static_cast<uint8_t>(1u << i); break; }
+    }
+    w.predBits = rawPredecessorBits();
+    ++retroCount_;
+    retroGap_ = 0;
+    if (!w.english) return;
+    int picks[kRetroHistory];
+    int np = retroPlan(picks);
+    if (np > 0 && retroBuild(picks, np)) {
+        retroHasPending_ = true;
+        for (int i = 0; i < np; ++i) retroPicks_[i] = picks[i];
+        retroPickCount_ = np;
+    }
+}
+
+bool TelexEngine::retroLeftIsNonEnglish(int a) const {
+    if (retroHist_[a].gap <= 0) return false;
+    if (a > 0) return !retroHist_[a - 1].english;
+    return retroHist_[a].leftNonEnglish;
+}
+
+bool TelexEngine::retroAnchors(int a, const int* picks, int np) const {
+    const RetroWord& w = retroHist_[a];
+    if (w.cls & kAnchorMask) return true;
+    if (w.candidate && (w.cls & kClsB) && a + 1 < retroCount_ && (retroHist_[a + 1].cls & kClsP) && w.gap <= 0)
+        return true;
+    if (w.english && !w.candidate) {
+        for (int k = 0; k < np; ++k) {
+            uint8_t c = retroHist_[picks[k]].cls;
+            if (!(c & kClsB) || (c & kClsX)) return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+// Swift RetroEnglish.plan over the history ring. Returns the number of picks (0 = nil).
+int TelexEngine::retroPlan(int* picks) const {
+    const RetroWord* h = retroHist_;
+    const int n = retroCount_;
+    if (n < 2 || !h[n - 1].english || !h[n - 2].english || h[n - 1].gap <= 0) return 0;
+    int s = n - 2;
+    while (s > 0 && h[s].gap > 0 && h[s - 1].english) --s;
+    int lo = s, k = 0;
+    while (k < kRetroWindow && lo > 0 && h[lo].gap > 0 && (h[lo - 1].candidate || h[lo - 1].english)) { --lo; ++k; }
+    if (lo >= s) return 0;
+    for (int a = lo; a < s; ++a) {
+        int np = 0;
+        for (int i = a; i < s; ++i) if (h[i].candidate) picks[np++] = i;
+        if (np == 0 || !retroAnchors(a, picks, np)) continue;
+        bool ok = true;
+        for (int i = a; i < s && ok; ++i) if (!retroPairAllowed(h[i].cls, h[i + 1].cls)) ok = false;
+        for (int q = 0; q < np && ok; ++q) {
+            int i = picks[q];
+            if (h[i].gateBit == 0) continue;
+            if (i == a || (h[i - 1].predBits & h[i].gateBit) == 0) ok = false;
+        }
+        if (!ok) continue;
+        if (h[a].candidate && retroLeftIsNonEnglish(a) && np < 2) continue;
+        return np;
+    }
+    return 0;
+}
+
+// Swift RetroEnglish.correction into retroPending_. False if it does not fit.
+bool TelexEngine::retroBuild(const int* picks, int np) {
+    RetroCorrection& c = retroPending_;
+    char16_t e[RetroCorrection::kMax], r[RetroCorrection::kMax];
+    int32_t el = 0, rl = 0;
+    const int first = picks[0];
+    int q = 0;
+    for (int i = first; i < retroCount_; ++i) {
+        const RetroWord& w = retroHist_[i];
+        if (i > first)
+            for (int g = 0; g < w.gap; ++g)
+                if (!appendU16(e, el, U' ') || !appendU16(r, rl, U' ')) return false;
+        const bool pick = q < np && picks[q] == i;
+        if (pick) ++q;
+        for (int j = 0; j < w.shownLen; ++j) if (!appendU16(e, el, w.shown[j])) return false;
+        if (pick) { for (int j = 0; j < w.rawLen; ++j) if (!appendU16(r, rl, w.raw[j])) return false; }
+        else { for (int j = 0; j < w.shownLen; ++j) if (!appendU16(r, rl, w.shown[j])) return false; }
+    }
+    int lcp = 0;
+    while (lcp < el && lcp < rl && e[lcp] == r[lcp]) ++lcp;
+    c.backspaces = el - lcp;
+    c.words = np;
+    c.expectedLength = el - lcp;
+    c.insertLength = rl - lcp;
+    for (int i = lcp; i < el; ++i) c.expected[i - lcp] = e[i];
+    c.expected[c.expectedLength] = 0;
+    for (int i = lcp; i < rl; ++i) c.insert[i - lcp] = r[i];
+    c.insert[c.insertLength] = 0;
+    return true;
 }
 
 int TelexEngine::commitText(bool autoRestore, char16_t* buf, int cap) {
@@ -639,6 +888,7 @@ int TelexEngine::commitText(bool autoRestore, char16_t* buf, int cap) {
     if (overflowed_) {
         if (contextualEnglish) clearEnglishContext();
         reopenRawCount_ = 0; reopenOutCount_ = 0;
+        if (retroCount_ > 0 || retroHasPending_) retroClear();
         n = emit(out_, outCount_, buf, cap);
         resetWord();
         return n;
@@ -649,6 +899,7 @@ int TelexEngine::commitText(bool autoRestore, char16_t* buf, int cap) {
     n = wantsRestore ? emitRaw(raw_, rawCount_, buf, cap)
         : elongate ? emitElongated(buf, cap) : emit(out_, outCount_, buf, cap);
     captureReopen(wantsRestore || elongate);
+    if (retroactiveEnglish || retroCount_ > 0) retroRecord(wantsRestore, elongate);
     updateContext(wantsRestore);
     resetWord();
     return n;
