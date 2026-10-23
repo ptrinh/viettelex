@@ -17,6 +17,7 @@
 #include "input_switch.h"
 #include "keymap.h"
 #include "session.h"
+#include <viettelex/vtx_engine.h>
 #include "settings_store.h"
 #include "setup_helper_logic.h"
 
@@ -345,7 +346,8 @@ void applyWanted(bool on) {
 void configureSession(const Settings& s) {
     h->settings = s;
     SessionOptions o;
-    o.engineFlags = s.engineFlags();
+    // "Tự sửa từ phía trước" needs to read the text back (never blind): off here.
+    o.engineFlags = s.engineFlags() & ~static_cast<uint32_t>(VTX_RETRO_ENGLISH);
     o.autoRestore = s.autoRestore;
     o.reEditWord = false;  // cannot read the app's text from here
     o.shortcuts = &h->settings.shortcuts;

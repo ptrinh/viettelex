@@ -354,10 +354,22 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.switch(g, "typing", "spell_check", _("Kiểm tra chính tả khi gõ"),
                     _("Ngừng bỏ dấu ngay khi từ không thể là tiếng Việt (google, github…) thay vì "
                     "đợi hết từ."))
-        self.switch(g, "typing", "contextual_english", _("Quyết định theo ngữ cảnh"),
-                    _("Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành một từ "
-                    "tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → “he is”, không "
-                    "phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để tiếng Việt — “sao í”."))
+        ctx_row = self.switch(g, "typing", "contextual_english", _("Quyết định theo ngữ cảnh"),
+                              _("Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành "
+                              "một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → "
+                              "“he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để "
+                              "tiếng Việt — “sao í”."))
+        # Thử nghiệm, ngay dưới "Quyết định theo ngữ cảnh" và chỉ hiện khi nó bật.
+        retro_row = self.switch(g, "typing", "retroactive_english", _("Tự sửa từ phía trước (thử nghiệm)"),
+                                _("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm "
+                                "(vd. “Hí cả í very fast” → “His car is very fast”). Nhấn Backspace "
+                                "ngay sau đó để khôi phục."))
+
+        def retro_visibility(*_a):
+            retro_row.set_visible(config.retro_english_visible(self.cfg.get))
+        retro_visibility()
+        ctx_row.get_activatable_widget().connect("notify::active", retro_visibility)
+        self.refreshers.append(retro_visibility)
         self.switch(g, "typing", "re_edit_word", _("Gõ thêm dấu cho từ ngay trước con trỏ"),
                     _("Đặt con trỏ ngay sau một từ đã gõ rồi gõ phím dấu để sửa dấu từ đó "
                     "(toan + s → toán)."))

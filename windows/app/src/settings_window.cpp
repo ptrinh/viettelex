@@ -135,6 +135,7 @@ const ToggleDef kToggles[] = {
     {&Settings::gameMode, S::GameMode, S::GameModeDesc},                               // 22
     {&Settings::filterSensitive, S::FilterSensitive, S::FilterSensitiveDesc},          // 23
     {&Settings::learnWords, S::LearnWords, S::LearnWordsDesc},                         // 24
+    {&Settings::retroactiveEnglish, S::RetroEnglish, S::RetroEnglishDesc},             // 25
 };
 constexpr int kToggleCount = static_cast<int>(sizeof(kToggles) / sizeof(kToggles[0]));
 
@@ -519,7 +520,12 @@ std::vector<Item> pageItems(int tab) {
             break;
         case 1:
             v.push_back(section(S::SecSpelling));
-            for (int i = 5; i <= 10; ++i) v.push_back(toggleItem(i));
+            for (int i = 5; i <= 10; ++i) {
+                v.push_back(toggleItem(i));
+                // Tự sửa từ phía trước: only while Quyết định theo ngữ cảnh is on (it
+                // depends on it), right under it.
+                if (i == 7 && g_settings.contextualEnglish) v.push_back(toggleItem(25));
+            }
             v.push_back(toggleItem(20));  // gạch đỏ âm tiết sai chính tả (composition only)
             // Gợi ý cạnh con trỏ: mostly on by default, so always visible (not collapsed).
             v.push_back(section(S::SecHints));
@@ -1552,6 +1558,9 @@ void onCommand(int id, int code, HWND ctl) {
         g_settings.*kToggles[id - IdToggleBase].field = SendMessageW(ctl, BM_GETCHECK, 0, 0) == BST_CHECKED;
         changed();
         InvalidateRect(g_page, nullptr, FALSE);  // "Bật"/"Tắt" label
+        // Tự sửa từ phía trước shows only while Quyết định theo ngữ cảnh is on.
+        if (kToggles[id - IdToggleBase].field == &Settings::contextualEnglish)
+            PostMessageW(g_wnd, WM_APP + 1, 0, 0);  // rebuild outside this notification
         return;
     }
     const auto sel = [&]() { return static_cast<int>(SendMessageW(ctl, CB_GETCURSEL, 0, 0)); };

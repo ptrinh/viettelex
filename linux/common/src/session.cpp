@@ -343,6 +343,10 @@ void Session::applySettings(const Settings &s) {
     vt_engine_set_flag(e_, VT_FLAG_BRACKET_VOWELS, s.bracketVowels);
     vt_engine_set_flag(e_, VT_FLAG_VNI, s.vni);
     vt_engine_set_flag(e_, VT_FLAG_CONTEXTUAL_ENGLISH, s.contextualEnglish);
+    // "Tự sửa từ phía trước": only with contextual_english (the engine ignores it otherwise).
+    retroOn_ = retro::flagWanted(s.contextualEnglish, s.retroactiveEnglish);
+    vt_engine_set_flag(e_, VT_FLAG_RETRO_ENGLISH, retroOn_);
+    if (!retroOn_) retroUndo_.clear();
     vt_engine_set_flag(e_, VT_FLAG_COLLISION_PREFERS_VIETNAMESE, s.collisionPrefersVietnamese);
     // "goog" not "gôg" mid-word — only with auto-restore (else the boundary keeps "gôgle").
     vt_engine_set_flag(e_, VT_FLAG_EAGER_ENGLISH_RESTORE, s.autoRestore);
@@ -999,6 +1003,60 @@ bool Session::isWordKey(uint32_t ch) const {
     return isAsciiLetter(ch) || (vni_ && isDigit(ch)) || (bracketVowels_ && isBracketVowelKey(ch));
 }
 
+void Session::finishRetro(InputContext &ic, uint32_t ch) {
+    vt_retro r;
+    if (vt_take_retro(e_, &r)) {
+        const std::string expected(r.expected, size_t(r.expected_len > 0 && r.expected_len < VT_RETRO_CAP ? r.expected_len : 0));
+        const std::string insert(r.insert, size_t(r.insert_len > 0 && r.insert_len < VT_RETRO_CAP ? r.insert_len : 0));
+        // Only where the Session may reach back into committed text (never Direct /
+        // terminals / distrusted fields) and only after a printable boundary (Enter / Tab may
+        // send the message or leave the field: no rewrite behind the user's back).
+        const bool edits = surroundingEdits_ && !passthrough_ && mode_ != DisplayMode::Direct && ch != 0 &&
+                           r.backspaces == int(utf8Chars(expected)) && !insert.empty();
+        std::string before;
+        const bool have = edits && ic.textBeforeCursorTail(utf8Chars(expected), before);
+        const bool sel = edits && have && (ic.hasSelection() || selectionAtCaret(ic));
+        bool applied = false;
+        if (retro::decideApply(edits, have, sel, before, expected, retroInflight_) == retro::Apply::Apply) {
+            if (mode_ == DisplayMode::Surrounding) {
+                replaceBeforeCursor(ic, r.backspaces, insert, expected);
+            } else {
+                ic.deleteBeforeCursor(r.backspaces);
+                ic.commit(insert);
+            }
+            applied = true;
+        }
+        if (applied) {
+            lastRetroWords_ = r.words;
+            retroUndo_ = retro::makeUndo(expected, insert, char(ch));
+            vt_forget_last_commit(e_);  // ⌫ next reverts the rewrite, never re-opens a word
+            if (hintsOn_) tailReset();  // the typed tail no longer matches the screen
+        } else {
+            // The engine recorded those words as English already: end the phrase.
+            vt_note_boundary(e_, '\n');
+        }
+    }
+    // After the take: `expected` / `insert` must not contain the key the app types next.
+    vt_note_boundary(e_, ch ? ch : '\n');
+}
+
+bool Session::tryRetroUndo(const retro::Undo &u, InputContext &ic) {
+    const bool edits = surroundingEdits_ && !passthrough_ && mode_ != DisplayMode::Direct;
+    std::string before;
+    const bool have = edits && ic.textBeforeCursorTail(utf8Chars(u.applied), before);
+    const bool sel = edits && have && (ic.hasSelection() || selectionAtCaret(ic));
+    if (!retro::undoApplies(u, edits, have, sel, before)) return false;
+    if (mode_ == DisplayMode::Surrounding) {
+        replaceBeforeCursor(ic, int(utf8Chars(u.applied)), u.original, u.applied);
+    } else {
+        ic.deleteBeforeCursor(int(utf8Chars(u.applied)));
+        ic.commit(u.original);
+    }
+    vt_reset(e_);  // the word history says English; the screen holds the old text again
+    if (hintsOn_) tailReset();
+    return true;
+}
+
 // TelexInputController.boundary(): shortcut first (composed, then raw keys), then the
 // auto-restore decision.
 void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcuts) {
@@ -1040,6 +1098,7 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
         char buf[256];
         size_t n = vt_commit_text(e_, autoRestore, buf, sizeof buf);
         std::string text(buf, n < sizeof buf ? n : sizeof buf - 1);
+        retroInflight_ = text.size();
         if (!text.empty()) ic.commit(text);
         hidePreedit(ic);
         ended(text, rawWord);
@@ -1052,6 +1111,8 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
         }
         vt_action a;
         vt_commit(e_, autoRestore, &a);
+        // Typed in place letter by letter: the host may still lag by the whole word.
+        retroInflight_ = word.size() + size_t(a.insert_len > 0 ? a.insert_len : 0);
         // Auto-restore deletes the word: with a selection at the caret the delete would hit
         // the selection — leave the word as typed.
         if (mode_ == DisplayMode::Surrounding && a.kind == VT_ACTION_REPLACE && a.backspaces > 0 &&
@@ -1076,6 +1137,11 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     }
     if (ks::isModifierOnly(ev.keysym)) return false;
     selectionMemo_ = -1;
+    // A retro rewrite can be reverted by the very next key only.
+    const retro::Undo undo = std::move(retroUndo_);
+    retroUndo_.clear();
+    lastRetroWords_ = 0;
+    retroInflight_ = 0;
     // Auto text state of the previous key: every real key consumes it (macOS periodSpaceNs /
     // lastEmDashOurs).
     const int64_t prevSpaceMs = lastSpaceMs_;
@@ -1152,6 +1218,7 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     if (ev.mods & (VT_MOD_CTRL | VT_MOD_ALT | VT_MOD_SUPER)) {
         learn_.discard();  // Ctrl+Z / Ctrl+Backspace may undo / delete it: never learned
         endWord(ic, false, false);
+        if (retroOn_) finishRetro(ic, 0);  // a chord may change the text: never rewrite, end the phrase
         ackDrop();  // Ctrl+V / Ctrl+Z / Ctrl+left: the text before the caret is unknown
         vt_forget_last_commit(e_);
         if (hintsOn_) tailReset();  // Ctrl+V / Ctrl+Z / Ctrl+←: the text before the caret is unknown
@@ -1162,6 +1229,10 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     }
 
     if (ev.keysym == ks::BackSpace) {
+        if (undo.armed() && vt_is_empty(e_) && tryRetroUndo(undo, ic)) {
+            lastWasBoundaryChar_ = false;
+            return true;
+        }
         if (vt_is_empty(e_)) learn_.discard();  // ⌫ into the committed word: maybe being edited
         bool r = handleBackspace(ic);
         if (!r) ackPop();  // the app's own BackSpace removes one character
@@ -1190,12 +1261,14 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     if (printable && (ch == ' ' ? period_ : (ch == '-' && smart_)) && !ks::isKeypad(ev.keysym) &&
         vt_is_empty(e_) && tryAutoReplace(ch == ' ', prevSpaceMs, spaceHeld, prevEmDashOurs, ic)) {
         learnFlush();  // Học từ bạn gõ: ". " / "—" ends the sentence context
+        if (retroOn_) vt_note_boundary(e_, '.');  // ". " / "—": not a space between words
         gluedToDigit_ = false;
         lastWasBoundaryChar_ = false;
         caretMoved_ = false;
         return true;
     }
     endWord(ic, printable && isBracket(ch), !gluedToDigit_);
+    if (retroOn_) finishRetro(ic, printable ? ch : 0);
     if (newline) vt_reset_context(e_);   // a new line has no preceding word
     // Smart quotes: “ ” ‘ ’ instead of the key (inserted, nothing replaced).
     std::string quoted;

@@ -376,6 +376,11 @@ const Pair kStrings[] = {
      L"ngôn ngữ nhập.",
      L"Could not change it automatically. Windows Typing settings will open: Advanced keyboard settings → Input "
      L"language hot keys."},
+    {L"Tự sửa từ phía trước (thử nghiệm)", L"Fix earlier words (experimental)"},
+    {L"Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm (vd. “Hí cả í very fast” → “His car is "
+     L"very fast”). Nhấn Backspace ngay sau đó để khôi phục.",
+     L"When you go on typing an English sentence, words that were wrongly given Vietnamese tones are fixed "
+     L"(e.g. “Hí cả í very fast” → “His car is very fast”). Press Backspace right after to undo."},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace

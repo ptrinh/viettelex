@@ -33,6 +33,11 @@ struct Settings {
     bool collisionPrefersVietnamese = true;
     bool teencode = false;
     bool reEditWord = true;
+    // "Tự sửa từ phía trước" (Fix earlier words, EXPERIMENTAL, default OFF; macOS/iOS/Android
+    // retroactiveEnglish): only shown and only effective while contextualEnglish is on. On =
+    // the TIP rewrites "Hí cả í very fast" -> "His car is very fast" at the boundary (verified
+    // against the text before the caret), ⌫ next reverts it (core/retro_english.h).
+    bool retroactiveEnglish = false;
     // "Gạch đỏ âm tiết sai chính tả khi gõ" (Windows/Linux only, default OFF): the word in
     // a composition gets a red squiggle when it cannot become a Vietnamese syllable.
     // Composition mode only; in-place has no composition to decorate.

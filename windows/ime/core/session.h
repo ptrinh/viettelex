@@ -22,6 +22,7 @@
 #include <string>
 
 #include "keymap.h"
+#include "retro_english.h"
 
 struct vtx_engine;
 
@@ -148,6 +149,10 @@ public:
     // boundary OR Enter / Tab / Esc (text on screen, auto-restore applied); empty otherwise
     // (shortcut expansion, chords, navigation, nothing composed).
     const std::u16string& lastCommitWord() const { return lastWord_; }
+    // "Tự sửa từ phía trước" (VTX_RETRO_ENGLISH in engineFlags; core/retro_english.h): the
+    // number of words the LAST handleKey rewrote (0 = none), and whether ⌫ next reverts it.
+    int lastRetroWords() const { return lastRetroWords_; }
+    bool retroUndoArmed() const { return retroUndo_.armed(); }
 
 private:
     bool isWordKey(char32_t c) const;
@@ -156,7 +161,15 @@ private:
     bool handleWordKey(char32_t c, TextSink& sink);
     bool handleBackspace(TextSink& sink);
     // kind: Char (printable boundary), Boundary (Enter/Tab/Esc), Navigation/Chord.
-    bool commitWord(TextSink& sink, KeyKind kind);
+    bool commitWord(TextSink& sink, KeyKind kind, char32_t ch = 0);
+    bool commitWordInner(TextSink& sink, KeyKind kind);
+    // Retro English: on with the engine flag (Settings: contextualEnglish + the switch).
+    bool retroOn() const;
+    retro::Field retroField(TextSink& sink) const;
+    // After every boundary: take + apply the engine's correction, then report the boundary
+    // character (the app inserts it after this key: it is not on screen yet).
+    void finishRetro(TextSink& sink, KeyKind kind, char32_t ch);
+    bool tryRetroUndo(const retro::Undo& u, TextSink& sink);
     bool tryReEdit(char32_t c, TextSink& sink);
     bool tryReopen(TextSink& sink);
     void swapEngine(vtx_engine* e);
@@ -192,6 +205,8 @@ private:
     bool reopenArmed_ = false; // last event was a printable boundary after a commit
     std::u16string lastRaw_, lastText_;  // see lastCommitRaw()
     std::u16string lastWord_;            // see lastCommitWord()
+    retro::Undo retroUndo_;              // armed for exactly one key after a rewrite
+    int lastRetroWords_ = 0;
 };
 
 // Characters that may belong to a word already on screen (ASCII letters + Latin

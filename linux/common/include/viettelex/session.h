@@ -8,6 +8,7 @@
 #include "viettelex/auto_text.h"
 #include "viettelex/caret_hints.h"
 #include "viettelex/keys.h"
+#include "viettelex/retro_english.h"
 #include "viettelex/settings.h"
 
 #include <atomic>
@@ -182,10 +183,24 @@ public:
     void setMultiline(bool on) { multiline_ = on; }
     bool autoTextAllowed() const { return autoTextAllowed_; }
 
+    // MARK: "Tự sửa từ phía trước" (retro_english.h). For tests: words the LAST key event
+    // rewrote (0 = none) and whether ⌫ next reverts the rewrite.
+    int lastRetroWords() const { return lastRetroWords_; }
+    bool retroUndoArmed() const { return retroUndo_.armed(); }
+
 private:
     bool handleLetter(uint32_t ch, InputContext &ic);
     bool handleBackspace(InputContext &ic);
     void endWord(InputContext &ic, bool suppressRestore, bool allowShortcuts);
+    // Retro English: after every boundary take + apply the engine's correction, then report
+    // the boundary character (`ch` printable ASCII, else 0 = Enter / Tab / navigation: ends
+    // the phrase). The app inserts the key after this event, so it is not on screen yet.
+    void finishRetro(InputContext &ic, uint32_t ch);
+    bool tryRetroUndo(const retro::Undo &u, InputContext &ic);
+    bool retroOn_ = false;
+    retro::Undo retroUndo_;          // armed for exactly one key after a rewrite
+    int lastRetroWords_ = 0;
+    size_t retroInflight_ = 0;       // UTF-8 bytes endWord committed during this key event
     // Surrounding: delete-surrounding + commit. Direct: forwarded BackSpace + text.
     // `base`: the text right before the caret that the edit changes (its last `backspaces`
     // characters go) — what the key-edit confirmation starts from.

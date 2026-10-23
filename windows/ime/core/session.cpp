@@ -123,6 +123,7 @@ void TypingSession::reset() {
     droppedSig_.clear();
     overflow_ = false;
     reopenArmed_ = false;
+    retroUndo_.clear();
 }
 
 void TypingSession::setCompositionOnlyContext(bool on) {
@@ -191,14 +192,16 @@ bool TypingSession::wantsKey(const KeyInput& k) const {
     if (!engine_) return false;
     switch (k.kind) {
         case KeyKind::Char:
-            return isWordKey(k) || wordActive() || reopenArmed_;
+            // retroOn(): every boundary character must reach the engine (DESIGN.md).
+            return isWordKey(k) || wordActive() || reopenArmed_ || retroOn();
         case KeyKind::Backspace:
-            return wordActive() ||
+            return wordActive() || retroUndo_.armed() ||
                    (opt_.reEditWord && reopenArmed_ && vtx_can_reopen_last_commit(engine_));
         case KeyKind::Boundary:
         case KeyKind::Navigation:
         case KeyKind::Chord:
-            return wordActive() || reopenArmed_;  // reopenArmed_: so the key disarms it
+            // reopenArmed_ / retro: so the key disarms it / ends the English phrase
+            return wordActive() || reopenArmed_ || retroOn() || retroUndo_.armed();
         case KeyKind::Modifier:
         case KeyKind::Other:
             return false;
@@ -210,12 +213,17 @@ bool TypingSession::handleKey(const KeyInput& k, TextSink& sink) {
     lastRaw_.clear();
     lastText_.clear();
     lastWord_.clear();
+    lastRetroWords_ = 0;
+    // A rewrite can be reverted by the very next key only.
+    const retro::Undo undo = std::move(retroUndo_);
+    retroUndo_.clear();
     if (!engine_) return false;
     switch (k.kind) {
         case KeyKind::Char:
             if (isWordKey(k)) return handleWordKey(k.ch, sink);
-            return commitWord(sink, KeyKind::Char);
+            return commitWord(sink, KeyKind::Char, k.ch);
         case KeyKind::Backspace:
+            if (undo.armed() && vtx_is_empty(engine_) && tryRetroUndo(undo, sink)) return true;
             return handleBackspace(sink);
         case KeyKind::Boundary:
         case KeyKind::Navigation:
@@ -503,7 +511,84 @@ bool TypingSession::tryReopen(TextSink& sink) {
     return true;
 }
 
-bool TypingSession::commitWord(TextSink& sink, KeyKind kind) {
+bool TypingSession::retroOn() const { return engine_ && (opt_.engineFlags & VTX_RETRO_ENGLISH) != 0; }
+
+retro::Field TypingSession::retroField(TextSink& sink) const {
+    retro::Field f;
+    f.blind = sink.blind();
+    f.compositionOnly = compositionOnly_;
+    if (f.blind || f.compositionOnly) return f;
+    f.canRead = sink.canReadContext();
+    f.hasSelection = sink.hasSelection();
+    f.compositionActive = sink.compositionActive();
+    return f;
+}
+
+void TypingSession::finishRetro(TextSink& sink, KeyKind kind, char32_t ch) {
+    // Enter / Tab / Esc / navigation / chords end the English phrase (DESIGN.md: anything
+    // but a space starts a new one); only a printable boundary (space, punctuation) applies
+    // a rewrite.
+    const bool printable = kind == KeyKind::Char && ch != 0 && ch <= 0xFFFF;
+    vtx_retro_correction c;
+    if (vtx_take_retro_correction(engine_, &c)) {
+        const std::u16string expected = toU16(c.expected, c.expected_len < VTX_RETRO_MAX ? c.expected_len : 0);
+        const std::u16string insert = toU16(c.insert, c.insert_len < VTX_RETRO_MAX ? c.insert_len : 0);
+        const retro::Field f = retroField(sink);
+        const bool canRead = !f.blind && !f.compositionOnly && f.canRead;
+        const std::u16string before = canRead ? sink.textBeforeCaret(static_cast<int>(expected.size())) : std::u16string();
+        bool applied = false;
+        // Only at a typed boundary: Enter / Tab may send the message or leave the field —
+        // no rewrite behind the user's back (and no ⌫ to undo it).
+        const retro::Apply d =
+            printable ? retro::decideApply(f, before, expected, c.backspaces) : retro::Apply::Unverifiable;
+        switch (d) {
+            case retro::Apply::Apply:
+                applied = sink.replaceBeforeCaret(expected, insert);
+                if (!applied && opt_.log) opt_.log("retro: the field refused the rewrite");
+                break;
+            case retro::Apply::Unverifiable:
+                if (opt_.log) opt_.log("retro: field not verifiable -> skipped");
+                break;
+            case retro::Apply::Mismatch:
+                if (opt_.log) opt_.log("retro: text before the caret differs -> skipped");
+                break;
+        }
+        if (applied) {
+            lastRetroWords_ = c.words;
+            if (printable) retroUndo_ = retro::makeUndo(expected, insert, static_cast<char16_t>(ch));
+            reopenArmed_ = false;  // ⌫ next reverts the rewrite, never re-opens a word
+            vtx_forget_last_commit(engine_);
+        } else {
+            // The engine already recorded those words as English: its history no longer
+            // matches the screen. End the phrase.
+            vtx_note_boundary(engine_, U'\n');
+        }
+    }
+    // Report the boundary AFTER taking the correction: the app inserts it after this key,
+    // so `expected` / `insert` must not contain it.
+    vtx_note_boundary(engine_, printable ? ch : U'\n');
+}
+
+bool TypingSession::tryRetroUndo(const retro::Undo& u, TextSink& sink) {
+    const retro::Field f = retroField(sink);
+    const std::u16string before = (!f.blind && !f.compositionOnly && f.canRead)
+                                      ? sink.textBeforeCaret(static_cast<int>(u.applied.size()))
+                                      : std::u16string();
+    if (!retro::undoApplies(u, f, before) || !sink.replaceBeforeCaret(u.applied, u.original)) return false;
+    if (opt_.log) opt_.log("retro: reverted by backspace");
+    // The engine's word history says English; the screen is back to the old text.
+    reset();
+    vtx_note_boundary(engine_, U'\n');
+    return true;
+}
+
+bool TypingSession::commitWord(TextSink& sink, KeyKind kind, char32_t ch) {
+    const bool r = commitWordInner(sink, kind);
+    if (retroOn()) finishRetro(sink, kind, ch);
+    return r;
+}
+
+bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind) {
     const bool comp = wordMode_ == OutputMode::Composition;
     const bool printable = kind == KeyKind::Char;
     if (overflow_) {
