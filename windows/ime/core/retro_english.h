@@ -2,24 +2,30 @@
 // the frontend half of the engine's retroactive English correction (docs/DESIGN.md
 // "Sửa ngược tiếng Anh"). Pure decisions, unit-tested on any OS; TypingSession applies them.
 //
-// Windows/Linux behaviour (owner spec 23/10/2026 — no suggestion chip on desktop):
-//   * The engine flag is on only when "Quyết định theo ngữ cảnh" (contextualEnglish) AND
-//     this switch are on. Off = nothing happens.
-//   * On: at a typed word boundary (space / punctuation; Enter / Tab only end the phrase)
-//     the correction is applied automatically, only when the text
-//     before the caret reads back exactly as the engine's `expected` (never blind, never
-//     in a context that cannot be read, never in a terminal / remote viewer / game).
-//   * ⌫ as the very next key reverts the rewrite to the exact previous text, again only
-//     when the text before the caret still verifiably is what we inserted; otherwise ⌫
-//     is an ordinary ⌫.
+// Windows/Linux behaviour (owner spec 23/10/2026):
+//   * "Quyết định theo ngữ cảnh" (contextualEnglish) off = nothing (engine flag off).
+//   * contextualEnglish on = the engine flag is on; the switch picks what a correction does:
+//       - switch ON  (Mode::Auto): at a typed word boundary (space / punctuation; Enter / Tab
+//         only end the phrase) the correction is applied, only when the text before the caret
+//         reads back exactly as the engine's `expected` (never blind, never in a context that
+//         cannot be read, never in a terminal / remote viewer / game). ⌫ as the very next key
+//         reverts it to the exact previous text (again only when it verifies).
+//       - switch OFF (Mode::Offer): the same verified correction is OFFERED as a caret hint
+//         ("His car is", caret_hints.h Kind::Retro); Tab applies it (text re-read first), any
+//         other key dismisses it. It wins over every other caret hint of that key.
 #pragma once
 #include <cstdint>
 #include <string>
 
 namespace vtx::retro {
 
-// Settings gate: VTX_RETRO_ENGLISH wanted (Settings::engineFlags()).
-bool flagWanted(bool contextualEnglish, bool fixEarlierWords);
+// Settings gate. The engine flag (VTX_RETRO_ENGLISH, Settings::engineFlags()) is on for
+// Offer and Auto.
+enum class Mode : uint8_t { Off, Offer, Auto };
+Mode modeFor(bool contextualEnglish, bool fixEarlierWords);
+inline bool flagWanted(bool contextualEnglish, bool fixEarlierWords) {
+    return modeFor(contextualEnglish, fixEarlierWords) != Mode::Off;
+}
 
 // Per-app gate: never where the built-in table types through the hook or not at all
 // (terminals, remote desktop / VM viewers, games). `exe` normalized ("notepad.exe").
@@ -63,5 +69,24 @@ Undo makeUndo(const std::u16string& expected, const std::u16string& insert, char
 // ⌫ right after the rewrite: revert only when the text before the caret still ends with
 // what we put there and nothing else is going on in the field.
 bool undoApplies(const Undo& u, const Field& f, const std::u16string& before);
+
+// Offer mode: the verified correction as a caret hint. `replace` / `insert` include the
+// boundary character (the app inserts it after the key that produced the correction, before
+// the hint can be accepted). `display` = the rewritten words, whole ("His car is"): the part
+// of `insert` that differs from `expected`, widened to word edges, with the start of the
+// first word taken from `before` when the engine dropped an unchanged prefix ("H" of "Hí").
+struct Offer {
+    std::u16string display, replace, insert;
+    int words = 0;
+    bool empty() const { return replace.empty(); }
+    void clear() { display.clear(); replace.clear(); insert.clear(); words = 0; }
+};
+// `before` = text before the caret (must end with `expected`; the boundary is not typed
+// yet). Empty Offer when `boundary` is 0 (Enter / Tab: never), nothing differs, or `before`
+// does not end with `expected`.
+Offer makeOffer(const std::u16string& before, const std::u16string& expected, const std::u16string& insert,
+                char16_t boundary, int words);
+std::u16string offerDisplay(const std::u16string& before, const std::u16string& expected,
+                            const std::u16string& insert);
 
 }  // namespace vtx::retro

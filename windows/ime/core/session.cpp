@@ -124,6 +124,7 @@ void TypingSession::reset() {
     overflow_ = false;
     reopenArmed_ = false;
     retroUndo_.clear();
+    retroOffer_.clear();
 }
 
 void TypingSession::setCompositionOnlyContext(bool on) {
@@ -192,16 +193,17 @@ bool TypingSession::wantsKey(const KeyInput& k) const {
     if (!engine_) return false;
     switch (k.kind) {
         case KeyKind::Char:
-            // retroOn(): every boundary character must reach the engine (DESIGN.md).
-            return isWordKey(k) || wordActive() || reopenArmed_ || retroOn();
+            // Retro English: boundary characters declined here reach the engine through
+            // noteKeyPassedBy() (no edit session for them).
+            return isWordKey(k) || wordActive() || reopenArmed_;
         case KeyKind::Backspace:
             return wordActive() || retroUndo_.armed() ||
                    (opt_.reEditWord && reopenArmed_ && vtx_can_reopen_last_commit(engine_));
         case KeyKind::Boundary:
         case KeyKind::Navigation:
         case KeyKind::Chord:
-            // reopenArmed_ / retro: so the key disarms it / ends the English phrase
-            return wordActive() || reopenArmed_ || retroOn() || retroUndo_.armed();
+            // reopenArmed_ / retro undo: so the key disarms it
+            return wordActive() || reopenArmed_ || retroUndo_.armed();
         case KeyKind::Modifier:
         case KeyKind::Other:
             return false;
@@ -214,6 +216,7 @@ bool TypingSession::handleKey(const KeyInput& k, TextSink& sink) {
     lastText_.clear();
     lastWord_.clear();
     lastRetroWords_ = 0;
+    retroOffer_.clear();
     // A rewrite can be reverted by the very next key only.
     const retro::Undo undo = std::move(retroUndo_);
     retroUndo_.clear();
@@ -237,6 +240,27 @@ bool TypingSession::handleKey(const KeyInput& k, TextSink& sink) {
 }
 
 void TypingSession::flush(TextSink& sink) { commitWord(sink, KeyKind::Navigation); }
+
+void TypingSession::noteKeyPassedBy(const KeyInput& k) {
+    retroOffer_.clear();
+    lastRetroWords_ = 0;
+    if (!retroOn()) return;
+    retroUndo_.clear();
+    switch (k.kind) {
+        case KeyKind::Char:
+            vtx_note_boundary(engine_, k.ch != 0 && k.ch <= 0xFFFF ? k.ch : U'\n');
+            break;
+        case KeyKind::Backspace:
+        case KeyKind::Boundary:
+        case KeyKind::Navigation:
+        case KeyKind::Chord:
+            vtx_note_boundary(engine_, U'\n');  // ends the phrase (the text may change)
+            break;
+        case KeyKind::Modifier:
+        case KeyKind::Other:
+            break;
+    }
+}
 
 bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
     reopenArmed_ = false;
@@ -535,7 +559,10 @@ void TypingSession::finishRetro(TextSink& sink, KeyKind kind, char32_t ch) {
         const std::u16string insert = toU16(c.insert, c.insert_len < VTX_RETRO_MAX ? c.insert_len : 0);
         const retro::Field f = retroField(sink);
         const bool canRead = !f.blind && !f.compositionOnly && f.canRead;
-        const std::u16string before = canRead ? sink.textBeforeCaret(static_cast<int>(expected.size())) : std::u16string();
+        const bool offer = opt_.retroOffer;
+        // Offer: a few more units, for the start of the first word in the hint ("H" of "Hí").
+        const int want = static_cast<int>(expected.size()) + (offer ? 24 : 0);
+        const std::u16string before = canRead ? sink.textBeforeCaret(want) : std::u16string();
         bool applied = false;
         // Only at a typed boundary: Enter / Tab may send the message or leave the field —
         // no rewrite behind the user's back (and no ⌫ to undo it).
@@ -543,6 +570,11 @@ void TypingSession::finishRetro(TextSink& sink, KeyKind kind, char32_t ch) {
             printable ? retro::decideApply(f, before, expected, c.backspaces) : retro::Apply::Unverifiable;
         switch (d) {
             case retro::Apply::Apply:
+                if (offer) {
+                    retroOffer_ = retro::makeOffer(before, expected, insert, static_cast<char16_t>(ch), c.words);
+                    if (opt_.log) opt_.log(retroOffer_.empty() ? "retro: nothing to offer" : "retro: offered");
+                    break;
+                }
                 applied = sink.replaceBeforeCaret(expected, insert);
                 if (!applied && opt_.log) opt_.log("retro: the field refused the rewrite");
                 break;
@@ -560,7 +592,8 @@ void TypingSession::finishRetro(TextSink& sink, KeyKind kind, char32_t ch) {
             vtx_forget_last_commit(engine_);
         } else {
             // The engine already recorded those words as English: its history no longer
-            // matches the screen. End the phrase.
+            // matches the screen (offer: not until Tab, which resets the session). End the
+            // phrase.
             vtx_note_boundary(engine_, U'\n');
         }
     }

@@ -3,24 +3,33 @@
 // "Sửa ngược tiếng Anh"; VT_FLAG_RETRO_ENGLISH, vt_note_boundary, vt_take_retro).
 // Pure decisions, unit-tested; Session applies them.
 //
-// Desktop behaviour (owner spec 23/10/2026 — no suggestion chip on Windows / Linux):
-//   * The engine flag is on only when [typing] contextual_english AND retroactive_english
-//     are on. Off = nothing happens.
-//   * On: at a word boundary the correction is applied (delete-surrounding + commit) only
-//     where the Session may reach back into committed text (AppPolicy surrounding edits:
-//     never terminals / Direct / passthrough / a distrusted field) and the client's
-//     surrounding text proves the words being rewritten are on screen exactly.
-//   * ⌫ as the very next key reverts it to the exact previous text, again only when the
-//     surrounding text still ends with what was inserted; otherwise ⌫ is an ordinary ⌫.
+// Desktop behaviour (owner spec 23/10/2026):
+//   * [typing] contextual_english off = nothing (engine flag off).
+//   * contextual_english on = the engine flag is on; retroactive_english picks what a
+//     correction does. Either way it is used only where the Session may reach back into
+//     committed text (AppPolicy surrounding edits: never terminals / Direct / passthrough / a
+//     distrusted field) and the client's surrounding text proves the words being rewritten
+//     are on screen exactly (only after a printable boundary; Enter / Tab end the phrase).
+//       - on  (Mode::Auto): applied (delete-surrounding + commit). ⌫ as the very next key
+//         reverts it to the exact previous text, again only when the surrounding text still
+//         ends with what was inserted; otherwise ⌫ is an ordinary ⌫.
+//       - off (Mode::Offer): offered as a caret suggestion ("His car is   Tab",
+//         CaretSuggestion::Kind::Retro); Tab applies it after reading the text back, any other
+//         key dismisses it. It wins over every other caret suggestion of that key.
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
 namespace viettelex::retro {
 
-// Settings gate: VT_FLAG_RETRO_ENGLISH wanted.
-bool flagWanted(bool contextualEnglish, bool fixEarlierWords);
+// Settings gate. VT_FLAG_RETRO_ENGLISH is on for Offer and Auto.
+enum class Mode : uint8_t { Off, Offer, Auto };
+Mode modeFor(bool contextualEnglish, bool fixEarlierWords);
+inline bool flagWanted(bool contextualEnglish, bool fixEarlierWords) {
+    return modeFor(contextualEnglish, fixEarlierWords) != Mode::Off;
+}
 
 enum class Apply {
     Apply,         // the text before the caret verifies: delete `expected`, commit `insert`
@@ -49,5 +58,22 @@ struct Undo {
 Undo makeUndo(const std::string &expected, const std::string &insert, char boundary);
 // ⌫ right after the rewrite reverts only when the surrounding text ends with `applied`.
 bool undoApplies(const Undo &u, bool editsAllowed, bool haveText, bool selection, const std::string &before);
+
+// Offer mode: the verified correction as a caret suggestion. `replace` / `insert` end with
+// the boundary key (the app types it after this key event, before Tab can accept).
+// `display` = the rewritten words, whole ("His car is"): the part of `insert` that differs
+// from `expected`, widened to word edges, the start of the first word taken from `before`
+// when the engine dropped an unchanged prefix ("H" of "Hí").
+struct Offer {
+    std::string display, replace, insert;
+    int words = 0;
+    bool empty() const { return replace.empty(); }
+};
+// `before` / `inflightBytes` as for decideApply (the caller decided Apply). Empty when
+// `boundary` is not printable ASCII (Enter / Tab: never) or nothing differs.
+Offer makeOffer(const std::string &before, const std::string &expected, const std::string &insert, char boundary,
+                int words, size_t inflightBytes);
+std::string offerDisplay(const std::string &before, const std::string &expected, const std::string &insert,
+                         size_t inflightBytes);
 
 }  // namespace viettelex::retro

@@ -81,7 +81,7 @@ vốn rỗng). Map sang cờ engine (`vt_engine_set_flag`):
 `input_method=vni→VT_FLAG_VNI`, `simple_telex→SIMPLE_TELEX`, `free_marking→FREE_MARKING`,
 `modern_tone→MODERN_TONE`, `quick_telex→QUICK_TELEX`, `spell_check→LIVE_SPELL_CHECK`,
 `teencode→TEENCODE`, `contextual_english→CONTEXTUAL_ENGLISH`,
-`contextual_english && retroactive_english→RETRO_ENGLISH`,
+`contextual_english→RETRO_ENGLISH` (`retroactive_english` chọn tự áp / mời bằng gợi ý),
 `collision_prefers_vietnamese→COLLISION_PREFERS_VIETNAMESE`, `bracket_vowels→BRACKET_VOWELS`;
 `auto_restore` là tham số của `vt_commit` (không phải cờ).
 
@@ -267,14 +267,17 @@ trước đoạn đã gõ (vừa focus ở Chrome…) ⇒ từ đầu tiên đư
 ## 8c. Tự sửa từ phía trước (`[typing] retroactive_english`, thử nghiệm, mặc định tắt)
 
 Xem docs/DESIGN.md "Sửa ngược tiếng Anh". App cài đặt chỉ hiện công tắc ngay dưới "Quyết định
-theo ngữ cảnh", và chỉ khi nó bật. Cờ `VT_FLAG_RETRO_ENGLISH` chỉ bật khi cả hai bật.
-`Session` (`retro_english.h`) báo mọi ký tự ranh giới cho engine (`vt_note_boundary`). Ở ranh
-giới gõ được (dấu cách, dấu câu), nó áp phép sửa bằng delete-surrounding + commit. Điều kiện:
-Session được phép sửa chữ đã chốt (`allowSurroundingEdits`; không áp ở terminal/Direct/field bị
-distrust) và surrounding text chứng minh các từ bị viết lại có đúng trên màn hình. Host được
-phép chậm đúng phần từ vừa commit trong phím này. Enter/Tab chỉ cắt mạch. ⌫ ngay sau đó khôi
-phục chữ cũ nếu text trước con trỏ vẫn kết thúc bằng phần vừa chèn. Không có chip gợi ý trên
-desktop.
+theo ngữ cảnh", và chỉ khi nó bật. Cờ `VT_FLAG_RETRO_ENGLISH` bật khi `contextual_english` bật
+(tắt nó = không có gì). `Session` (`retro_english.h`) báo mọi ký tự ranh giới cho engine
+(`vt_note_boundary`). Ở ranh giới gõ được (dấu cách, dấu câu), phép sửa chỉ được dùng khi Session
+được phép sửa chữ đã chốt (`allowSurroundingEdits`; không ở terminal/Direct/passthrough/field bị
+distrust) và surrounding text chứng minh các từ bị viết lại có đúng trên màn hình (host được phép
+chậm đúng phần từ vừa commit trong phím này). Enter/Tab chỉ cắt mạch.
+- Công tắc **bật**: áp bằng delete-surrounding + commit. ⌫ ngay sau đó khôi phục chữ cũ nếu text
+  trước con trỏ vẫn kết thúc bằng phần vừa chèn.
+- Công tắc **tắt**: MỜI bằng gợi ý cạnh con trỏ (aux text, `CaretSuggestion::Kind::Retro`):
+  "His car is   Tab". Tab đọc lại text rồi áp đúng phép sửa đó; phím khác ẩn gợi ý và đi tiếp.
+  Gợi ý này thắng mọi gợi ý khác cùng phím (trả lời của helper bị bỏ khi nó đang hiện).
 
 ## 9. Thử nghiệm: không gạch chân ở Chromium/Electron (`[experimental] no_underline`)
 

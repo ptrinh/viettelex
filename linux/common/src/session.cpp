@@ -344,9 +344,11 @@ void Session::applySettings(const Settings &s) {
     vt_engine_set_flag(e_, VT_FLAG_VNI, s.vni);
     vt_engine_set_flag(e_, VT_FLAG_CONTEXTUAL_ENGLISH, s.contextualEnglish);
     // "Tự sửa từ phía trước": only with contextual_english (the engine ignores it otherwise).
-    retroOn_ = retro::flagWanted(s.contextualEnglish, s.retroactiveEnglish);
+    // Off = nothing; on = the engine flag, the switch picks auto-apply vs offer (Tab).
+    retroMode_ = retro::modeFor(s.contextualEnglish, s.retroactiveEnglish);
+    retroOn_ = retroMode_ != retro::Mode::Off;
     vt_engine_set_flag(e_, VT_FLAG_RETRO_ENGLISH, retroOn_);
-    if (!retroOn_) retroUndo_.clear();
+    if (retroMode_ != retro::Mode::Auto) retroUndo_.clear();
     vt_engine_set_flag(e_, VT_FLAG_COLLISION_PREFERS_VIETNAMESE, s.collisionPrefersVietnamese);
     // "goog" not "gôg" mid-word — only with auto-restore (else the boundary keeps "gôgle").
     vt_engine_set_flag(e_, VT_FLAG_EAGER_ENGLISH_RESTORE, s.autoRestore);
@@ -636,6 +638,7 @@ void Session::learnFlush() {
 
 void Session::deliverHint(uint64_t gen, const CaretSuggestion &s, InputContext &ic) {
     if (!hintsOn_ || gen != keyGen_->load() || passthrough_ || !vietnamese_) return;
+    if (hint_ && hint_->kind == CaretSuggestion::Kind::Retro) return;  // the retro offer wins
     if (s.kind == CaretSuggestion::Kind::Predict) {
         // Every other suggestion wins (CaretHint.present); never in terminals.
         if (!predict_ || hint_ || mode_ == DisplayMode::Direct) return;
@@ -854,6 +857,11 @@ void Session::declineHint(InputContext &ic) {
 
 // Tab (math: Enter too). False = the screen no longer matches: dismissed, key goes on.
 bool Session::applyHint(InputContext &ic) {
+    if (hint_->kind == CaretSuggestion::Kind::Retro) {
+        const CaretSuggestion s = *hint_;
+        dismissHint(ic);
+        return applyRetroOffer(s, ic);
+    }
     if (hint_->kind == CaretSuggestion::Kind::Predict) return applyPrediction(hint_->display, ic);
     if (hint_->kind == CaretSuggestion::Kind::Email) return applyEmailDomain(ic);
     CaretSuggestion s = *hint_;
@@ -1014,17 +1022,22 @@ void Session::finishRetro(InputContext &ic, uint32_t ch) {
         const bool edits = surroundingEdits_ && !passthrough_ && mode_ != DisplayMode::Direct && ch != 0 &&
                            r.backspaces == int(utf8Chars(expected)) && !insert.empty();
         std::string before;
-        const bool have = edits && ic.textBeforeCursorTail(utf8Chars(expected), before);
+        const bool offer = retroMode_ == retro::Mode::Offer;
+        // Offer: a few more characters, for the start of the first word ("H" of "Hí").
+        const bool have = edits && ic.textBeforeCursorTail(utf8Chars(expected) + (offer ? 24 : 0), before);
         const bool sel = edits && have && (ic.hasSelection() || selectionAtCaret(ic));
         bool applied = false;
         if (retro::decideApply(edits, have, sel, before, expected, retroInflight_) == retro::Apply::Apply) {
-            if (mode_ == DisplayMode::Surrounding) {
+            if (offer) {
+                // Shown once this key event is done (processKey): Tab applies it.
+                retroOffer_ = retro::makeOffer(before, expected, insert, char(ch), r.words, retroInflight_);
+            } else if (mode_ == DisplayMode::Surrounding) {
                 replaceBeforeCursor(ic, r.backspaces, insert, expected);
             } else {
                 ic.deleteBeforeCursor(r.backspaces);
                 ic.commit(insert);
             }
-            applied = true;
+            applied = !offer;
         }
         if (applied) {
             lastRetroWords_ = r.words;
@@ -1032,7 +1045,8 @@ void Session::finishRetro(InputContext &ic, uint32_t ch) {
             vt_forget_last_commit(e_);  // ⌫ next reverts the rewrite, never re-opens a word
             if (hintsOn_) tailReset();  // the typed tail no longer matches the screen
         } else {
-            // The engine recorded those words as English already: end the phrase.
+            // The engine recorded those words as English already (offer: Tab resets the
+            // engine anyway): end the phrase.
             vt_note_boundary(e_, '\n');
         }
     }
@@ -1054,6 +1068,32 @@ bool Session::tryRetroUndo(const retro::Undo &u, InputContext &ic) {
     }
     vt_reset(e_);  // the word history says English; the screen holds the old text again
     if (hintsOn_) tailReset();
+    return true;
+}
+
+// Tab on the offered correction: read the text back (it must still end with what the offer
+// replaces, the boundary key included), then the same edit auto mode makes. False = the text
+// moved on / cannot be read here: dismissed, the Tab goes on as usual.
+bool Session::applyRetroOffer(const CaretSuggestion &s, InputContext &ic) {
+    const bool edits = surroundingEdits_ && !passthrough_ && mode_ != DisplayMode::Direct && vt_is_empty(e_) &&
+                       !s.replace.empty() && !s.insert.empty();
+    if (!edits) return false;
+    const size_t n = utf8Chars(s.replace);
+    std::string before;
+    if (!ic.textBeforeCursorTail(n, before) || !endsWith(before, s.replace)) return false;
+    if (ic.hasSelection() || selectionAtCaret(ic)) return false;
+    if (mode_ == DisplayMode::Surrounding) {
+        replaceBeforeCursor(ic, int(n), s.insert, s.replace);
+    } else {
+        ic.deleteBeforeCursor(int(n));
+        ic.commit(s.insert);
+    }
+    vt_reset(e_);  // the engine's word history no longer matches the text
+    if (hintsOn_) tailReset();
+    learn_.discard();
+    lastWasBoundaryChar_ = false;
+    lastEnded_ = EndedWord();
+    toneTracker_.reset();
     return true;
 }
 
@@ -1142,6 +1182,7 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     retroUndo_.clear();
     lastRetroWords_ = 0;
     retroInflight_ = 0;
+    retroOffer_ = retro::Offer();
     // Auto text state of the previous key: every real key consumes it (macOS periodSpaceNs /
     // lastEmDashOurs).
     const int64_t prevSpaceMs = lastSpaceMs_;
@@ -1279,6 +1320,19 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     if (predict_ && (ch == '@' || ch == '.' || ch == '-') && !ks::isKeypad(ev.keysym)) {
         if (ch == '@') declinedEmail_ = false;  // a new address
         offerEmailDomain(ic);
+    }
+    // "Tự sửa từ phía trước" offered: wins over every other suggestion of this key (helper
+    // answers for it are dropped in deliverHint while it shows).
+    if (!retroOffer_.empty()) {
+        if (hint_) ic.hideHint();
+        CaretSuggestion s;
+        s.kind = CaretSuggestion::Kind::Retro;
+        s.display = retroOffer_.display;
+        s.replace = retroOffer_.replace;
+        s.insert = retroOffer_.insert;
+        hint_ = s;
+        ic.showHint(hints::label(s));
+        retroOffer_ = retro::Offer();
     }
     if (printable && mode_ == DisplayMode::Surrounding)
         ackAppend(quoted.empty() ? encode(ch) : quoted);  // the app types it / we committed it

@@ -302,6 +302,9 @@ void TextService::applyConfig(bool force) {
         // viewers / games (retro_english.h); the session also skips any field it cannot read.
         if (config::secureMode() || !retro::allowedForApp(config::exeName()))
             o.engineFlags &= ~static_cast<uint32_t>(VTX_RETRO_ENGLISH);
+        // Switch off (contextualEnglish on): offer the correction as a caret hint instead.
+        o.retroOffer = retro::modeFor(s.contextualEnglish, s.retroactiveEnglish) == retro::Mode::Offer;
+        retroOfferOn_ = o.retroOffer && (o.engineFlags & VTX_RETRO_ENGLISH) != 0;
         o.autoRestore = s.autoRestore;
         o.reEditWord = s.reEditWord && !config::secureMode();
         o.underlineMisspelled = s.underlineMisspelled;
@@ -321,8 +324,9 @@ void TextService::applyConfig(bool force) {
         learnOn_ = predictOn_ && predictApp_ && s.learnWords;
         if (!learnOn_) learn_.discard();
         if (!predictOn_) declinedPredict_.clear();
-        if ((!hintsAny_ && !predictOn_) ||
-            (!predictOn_ && hint_ && (hint_->kind == hints::Kind::Predict || hint_->kind == hints::Kind::Email))) {
+        if ((!hintsAny_ && !predictOn_ && !retroOfferOn_) ||
+            (!predictOn_ && hint_ && (hint_->kind == hints::Kind::Predict || hint_->kind == hints::Kind::Email)) ||
+            (!retroOfferOn_ && hint_ && hint_->kind == hints::Kind::Retro)) {
             hideHint();
             dropHintWork();
         }
@@ -941,11 +945,17 @@ STDMETHODIMP TextService::OnSetFocus(BOOL foreground) {
     return S_OK;
 }
 
+void TextService::notePassedBy(const KeyInput& k) {
+    session_.noteKeyPassedBy(k);
+    passNoted_ = true;
+}
+
 STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* eaten) {
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
     if (isOwnInjected(static_cast<uintptr_t>(GetMessageExtraInfo()))) return S_OK;  // typed by our hook
     if (!isModifierVk(static_cast<uint32_t>(wp))) ++keyGen_;  // background hint work: "typing on cancels"
+    passNoted_ = false;
     if (hint_ && hintKeyTest(wp, eaten)) return S_OK;         // Tab / Esc while a caret hint shows
     KeyInput k;
     // Every key let through below asks retypeAsUs (#121): eaten here, retyped in OnKeyDown.
@@ -966,6 +976,7 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL
         hostEval_.noteTest(keyGen_, ctx);  // OnKeyDown of this key reuses it
     }
     if (directActive_) {  // the hook types in this field
+        notePassedBy(k);
         noteHintKey(k, ctx, false);
         *eaten = retypeAsUs(ctx, wp, false) ? TRUE : FALSE;
         return S_OK;
@@ -974,12 +985,14 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL
     // never eat a key there (SampleIME _IsKeyboardDisabled) — retypeAsUs only takes a
     // writable, keyboard-enabled context (password / PIN fields included).
     if (host_ == HostText::Ignore || host_ == HostText::Literal) {
+        notePassedBy(k);
         noteHintKey(k, ctx, false);
         *eaten = retypeAsUs(ctx, wp, false) ? TRUE : FALSE;
         return S_OK;
     }
     *eaten = session_.wantsKey(k) ? TRUE : FALSE;
     if (!*eaten) {
+        notePassedBy(k);                        // retro English: one engine call, no edit session
         noteHintKey(k, keyTarget(ctx), false);  // OnKeyDown will not see this key...
         *eaten = retypeAsUs(ctx, wp, false) ? TRUE : FALSE;  // ...unless it retypes it
     }
@@ -1025,9 +1038,12 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* ea
     const bool evaluatedInTest = hostEval_.takeForKeyDown(keyGen_, ctx);
     if (!session_.wordActive() && !evaluatedInTest) evaluateHostAtWordStart(ctx);
     if (directActive_ || host_ == HostText::Ignore || host_ == HostText::Literal || !session_.wantsKey(k)) {
+        if (!passNoted_) session_.noteKeyPassedBy(k);  // a host that skipped OnTestKeyDown
+        passNoted_ = false;
         *eaten = retypeAsUs(ctx, wp, true) ? TRUE : FALSE;  // #121; else the key goes to the app
         return S_OK;
     }
+    passNoted_ = false;
     // Classic Edit/RichEdit: read and edit through the full transitory-extension parent.
     ITfContext* target = (host_ == HostText::NormalViaParent && targetCtx_) ? targetCtx_ : ctx;
     BOOL result = FALSE;
@@ -1574,13 +1590,14 @@ const char* hintKindName(hints::Kind k) {
         case hints::Kind::Date: return "date";
         case hints::Kind::Predict: return "predict";
         case hints::Kind::Email: return "email";
+        case hints::Kind::Retro: return "retro";
     }
     return "?";
 }
 }  // namespace
 
 bool TextService::hintsUsable() const {
-    return (hintsAny_ || predictOn_) && toolWnd_ && !config::secureMode() && !consoleHost_ && !directActive_ &&
+    return (hintsAny_ || predictOn_ || retroOfferOn_) && toolWnd_ && !config::secureMode() && !consoleHost_ && !directActive_ &&
            !directWanted_ && host_ != HostText::Ignore && host_ != HostText::Literal && host_ != HostText::CompositionOnly &&
            !session_.contextFellBack();
 }
@@ -1593,7 +1610,7 @@ ITfContext* TextService::keyTarget(ITfContext* ctx) const {
 // OnKeyDown otherwise).
 // `handled` = the session saw this key (its lastCommit*() describe THIS key).
 void TextService::noteHintKey(const KeyInput& k, ITfContext* target, bool handled) {
-    if (!hintsAny_ && !predictOn_) return;  // all off: this one test per key
+    if (!hintsAny_ && !predictOn_ && !retroOfferOn_) return;  // all off: this one test per key
     if (!hintsUsable() || !target) {
         hintTracker_.reset();
         emailToken_ = false;
@@ -1604,12 +1621,22 @@ void TextService::noteHintKey(const KeyInput& k, ITfContext* target, bool handle
     switch (k.kind) {
         case KeyKind::Char: {
             bool scheduled = false;
+            // Retro English offer: verified by the session at this key; wins over the rest.
+            const bool retroOffered = retroOfferOn_ && handled && !session_.retroOffer().empty();
+            hints::Trigger t;
             if (hintsAny_) {
                 hints::Commit c;  // only read at a boundary (the hot path is a letter)
                 if (handled && !hints::isLetter(k.ch) && !hints::isDigit(k.ch))
                     c = hints::Commit{hints::toU32(session_.lastCommitRaw()), hints::toU32(session_.lastCommitText())};
-                const hints::Trigger t = hintTracker_.onChar(k.ch, c, hintsOn_);
-                if (t.kind != hints::TriggerKind::None) scheduleHint(t, target);
+                t = hintTracker_.onChar(k.ch, c, hintsOn_);
+            }
+            t = hints::withRetro(t, retroOffered);
+            if (retroOffered) {
+                const retro::Offer& o = session_.retroOffer();
+                retroHint_ = hints::retroHint(o.display, o.replace, o.insert);
+            }
+            if (t.kind != hints::TriggerKind::None) {
+                scheduleHint(t, target);
                 scheduled = hintStage_ != HintStage::None;
             }
             if (predictOn_) notePredictKey(k, target, scheduled);
@@ -1651,7 +1678,11 @@ void TextService::onHintTimer() {
         case HintStage::TypoAsk: askApp(HintJob::Typo, hints::toU16(hintTrig_.raw)); break;
         case HintStage::TonesRun: readForHint(HintStage::TonesRun, hints::kToneWindow); break;
         case HintStage::PredictWait: readForHint(HintStage::PredictRead, hints::kPredictWindow); break;
-        default: readForHint(HintStage::Show, kHintWindow); break;
+        default:
+            readForHint(HintStage::Show, hintTrig_.kind == hints::TriggerKind::Retro
+                                             ? static_cast<int>(retroHint_.replace.size()) + 2
+                                             : kHintWindow);
+            break;
     }
 }
 
@@ -1689,7 +1720,9 @@ void TextService::onHintRead() {
     std::optional<hints::Suggestion> sug;
     switch (hintStage_) {
         case HintStage::Show:
-            if (hintTrig_.kind == hints::TriggerKind::Math) {
+            if (hintTrig_.kind == hints::TriggerKind::Retro) {
+                sug = hints::retroSuggestion(before, retroHint_);
+            } else if (hintTrig_.kind == hints::TriggerKind::Math) {
                 if (auto r = hints::mathChip(before))
                     sug = hints::Suggestion{hints::Kind::Math, hints::toU16(hints::mathLabel(*r)), u"",
                                             hints::toU16(*r)};
