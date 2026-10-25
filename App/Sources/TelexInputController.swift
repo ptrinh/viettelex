@@ -2646,6 +2646,10 @@ final class TelexInputController: IMKInputController {
         let activatedClient = sender as? IMKTextInput
         if let client = activatedClient {
             AppState.shared.currentBundleID = client.bundleIdentifier()
+            // Qt 5 apps resolve ⌫/⌦ shortcuts through the input-method layout override
+            // and break without one (DaVinci Media Pool, #131) — see QtKeymapFix.
+            // Non-Qt apps: one cached dictionary lookup.
+            QtKeymapFix.apply(client: client, bundleID: AppState.shared.currentBundleID)
         }
         // "Show inline predictive text" của macOS (gợi ý từ — WordPrediction.swift): đọc lại khi
         // đổi ô/app (≤ 1 lần / 2 giây), không bao giờ mỗi phím. Vừa tắt ⇒ bỏ dữ liệu đã nạp.

@@ -202,7 +202,8 @@ enum KeyboardLayoutOverride {
         }
     }
 
-    private static func liveLayoutID() -> String {
+    /// Also read by QtKeymapFix (#131) — the layout to name in a Qt client's override.
+    static func liveLayoutID() -> String {
         property(TISCopyCurrentKeyboardLayoutInputSource().takeRetainedValue(),
                  kTISPropertyInputSourceID) ?? "?"
     }
