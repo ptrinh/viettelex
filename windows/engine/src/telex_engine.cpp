@@ -276,9 +276,18 @@ void TelexEngine::feedAscii(uint8_t ascii, Action& out) {
     if (liveSpellCheck && disabledAtCount_ == kNotDisabled && !prefixIsValid(newCount) &&
         elongationHeadCount(newCount, pTone_) <= 0) {
         disabledAtCount_ = rawCount_;
+        freezeKeepsTone_ = false;
         if (eagerRestoreApplies(newCount)) {
             // Eager English restore: the whole word back to raw ("gôg" -> "goog").
             disabledAtCount_ = 0;
+            rebuildParseState();
+            tonesFolded_ = false;
+            newCount = render();
+            takeSnapshots();
+        } else if (pTone_ != Tone::None && prefixKeepsTone(rawCount_ - 1)) {
+            // Marked word + visible tone (PR #133): keep it as shown, this key on literal.
+            disabledAtCount_ = rawCount_ - 1;
+            freezeKeepsTone_ = true;
             rebuildParseState();
             tonesFolded_ = false;
             newCount = render();
@@ -1091,6 +1100,8 @@ void TelexEngine::resetWord() {
     overflowed_ = false;
     disabledAtCount_ = kNotDisabled;
     tonesFolded_ = false;
+    freezeKeepsTone_ = false;
+    pFreezeLetters_ = -1;
     pCount_ = 0;
     pTone_ = Tone::None;
     pToneKeyCount_ = 0;
@@ -1142,14 +1153,17 @@ void TelexEngine::copyOut(int n) {
 int TelexEngine::render() {
     const int count = pCount_;
     for (int k = 0; k < count; ++k) renderLetters_[k] = letters_[k];
+    // Kept-tone freeze (PR #133): the literal tail neither attracts the tone nor re-shapes ươ.
+    const int headEnd = (freezeKeepsTone_ && pFreezeLetters_ >= 0 && pFreezeLetters_ < count)
+                            ? pFreezeLetters_ : count;
 
     // ươ propagation.
-    for (int k = 1; k < (count > 1 ? count : 1); ++k) {
+    for (int k = 1; k < (headEnd > 1 ? headEnd : 1); ++k) {
         if (renderLetters_[k - 1].base != 'u' || renderLetters_[k].base != 'o') continue;
         bool prevHorn = renderLetters_[k - 1].mark == Mark::Horn;
         bool curHorn = renderLetters_[k].mark == Mark::Horn;
         if (prevHorn == curHorn) continue;
-        bool oIsLast = (k == count - 1);
+        bool oIsLast = (k == headEnd - 1);
         bool isQuGlide = (k >= 2 && renderLetters_[k - 2].base == 'q');
         if (!oIsLast && !isQuGlide) {
             renderLetters_[k - 1].mark = Mark::Horn;
@@ -1158,8 +1172,8 @@ int TelexEngine::render() {
     }
 
     Tone effTone = pTone_;
-    int toneScope = count;
-    if (pTone_ != Tone::None) {
+    int toneScope = headEnd;
+    if (pTone_ != Tone::None && headEnd == count) {
         int head = elongationHeadCount(count, pTone_);
         if (head > 0) toneScope = head;
     }
@@ -1187,7 +1201,7 @@ int TelexEngine::render() {
 void TelexEngine::rebuildFrozenAware() {
     rebuildParseState();
     tonesFolded_ = false;
-    if (disabledAtCount_ != kNotDisabled && pTone_ != Tone::None) {
+    if (disabledAtCount_ != kNotDisabled && pTone_ != Tone::None && !freezeKeepsTone_) {
         pFoldTones_ = true;
         rebuildParseState();
         pFoldTones_ = false;
@@ -1225,14 +1239,23 @@ void TelexEngine::recomputeFreeze() {
     if (disabledAtCount_ == 0 && upperToneKey_ && !liveSpellCheck) return;
     const int full = rawCount_;
     disabledAtCount_ = kNotDisabled;
+    freezeKeepsTone_ = false;
     if (!liveSpellCheck) return;
     for (int r = 1; r <= full; ++r) {
         rawCount_ = r;
         rebuildParseState();
         if (disabledAtCount_ == kNotDisabled && pCount_ > 0 && !prefixIsValid(pCount_)) {
             int n = render();
-            if (elongationHeadCount(pCount_, pTone_) <= 0)
-                disabledAtCount_ = eagerRestoreApplies(n) ? 0 : r;
+            if (elongationHeadCount(pCount_, pTone_) <= 0) {
+                if (eagerRestoreApplies(n)) {
+                    disabledAtCount_ = 0;
+                } else if (pTone_ != Tone::None && prefixKeepsTone(r - 1)) {
+                    disabledAtCount_ = r - 1;   // same kept-tone rule as feed() (PR #133)
+                    freezeKeepsTone_ = true;
+                } else {
+                    disabledAtCount_ = r;
+                }
+            }
         } else if (eagerEnglishRestore && disabledAtCount_ != kNotDisabled && disabledAtCount_ > 0 &&
                    disabledAtCount_ < gen::kFreezePrefixMinLength && r == gen::kFreezePrefixMinLength) {
             rebuildFrozenAware();
@@ -1247,7 +1270,40 @@ void TelexEngine::recomputeFreeze() {
         rebuildParseState();
         (void)render();
         if (elongationHeadCount(pCount_, pTone_) <= 0) disabledAtCount_ = frozenAt;
+        else freezeKeepsTone_ = false;
     }
+}
+
+// Kept-tone freeze test (PR #133, Swift `prefixKeepsTone`): the word of the first n raw keys
+// carries a letter mark (đ ư ơ â ê ô ă) AND a visible tone, and key n, parsed normally, only
+// appends one character to that display. Freeze-time only; leaves the parse state built
+// for the full rawCount_.
+bool TelexEngine::prefixKeepsTone(int n) {
+    const int full = rawCount_;
+    rawCount_ = n;
+    rebuildParseState();
+    bool keep = false;
+    int shown = 0;
+    uint64_t sig = 0;
+    if (pTone_ != Tone::None) {
+        for (int k = 0; k < pCount_; ++k)
+            if (letters_[k].mark != Mark::None) { keep = true; break; }
+        if (keep) {
+            shown = render();
+            keep = lastEffTone_ != Tone::None;
+            sig = scratchSignature(shown);
+        }
+    }
+    rawCount_ = full;
+    rebuildParseState();
+    if (keep) keep = render() == shown + 1 && scratchSignature(shown) == sig;
+    return keep;
+}
+
+uint64_t TelexEngine::scratchSignature(int n) const {
+    uint64_t h = 0;
+    for (int k = 0; k < n; ++k) h = h * 1000003u + static_cast<uint64_t>(scratch_[k]);
+    return h;
 }
 
 void TelexEngine::rebuildParseState() {
@@ -1264,6 +1320,7 @@ void TelexEngine::rebuildParseState() {
     pVniMode_ = vniMode;
     pBracketVowels_ = bracketVowels;
     pLiveSpellCheck_ = liveSpellCheck;
+    pFreezeLetters_ = -1;
     for (int i = 0; i < rawCount_; ++i) rawLetter_[i] = -1;
     for (int i = 0; i < rawCount_; ++i) parseStep(i);
     pProcessed_ = rawCount_;
@@ -1273,6 +1330,7 @@ void TelexEngine::parseStep(int at) {
     const uint8_t key = raw_[at];
     const uint8_t lower = lowercased(key);
     const bool upper = isUpperAscii(key);
+    if (at == disabledAtCount_) pFreezeLetters_ = pCount_;
 
     if (pCancelled_ || (at >= disabledAtCount_ && !abbreviationDoublerException(lower, upper))) {
         appendLetter(lower, Mark::None, upper);

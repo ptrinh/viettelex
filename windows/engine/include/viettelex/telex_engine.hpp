@@ -171,6 +171,9 @@ private:
     int toneCancelSpan_ = 0;
     bool pFoldTones_ = false;
     bool tonesFolded_ = false;   // current parse built with pFoldTones_ (freeze folded a tone)
+    // Kept-tone freeze (PR #133): a marked word + visible tone stays as shown — see Swift.
+    bool freezeKeepsTone_ = false;
+    int pFreezeLetters_ = -1;    // letter count when the parse reached disabledAtCount_
     Tone lastEffTone_ = Tone::None;
     bool upperToneKey_ = false;
 
@@ -267,6 +270,8 @@ private:
     void rebuildFrozenAware();
     void setCircumflex(int k);
     void recomputeFreeze();
+    bool prefixKeepsTone(int n);
+    uint64_t scratchSignature(int n) const;
     void rebuildParseState();
     void parseStep(int at);
     void parseStepVNI(int at, uint8_t key, uint8_t lower, bool upper);

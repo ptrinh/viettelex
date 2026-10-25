@@ -127,6 +127,10 @@ class TelexEngine {
     private var pFoldTones = false
     // Current parse was built with pFoldTones (freeze folded a pending tone) — see Swift.
     private var tonesFolded = false
+    // Kept-tone freeze (PR #133): a marked word + visible tone stays as shown — see Swift.
+    private var freezeKeepsTone = false
+    // Letter count when the parse reached raw index disabledAtCount (-1 before) — see Swift.
+    private var pFreezeLetters = -1
     private var lastEffTone = T.NONE
     private var upperToneKey = false
 
@@ -170,6 +174,7 @@ class TelexEngine {
         e.pLiveSpellCheck = pLiveSpellCheck; e.disabledAtCount = disabledAtCount
         e.markCancelled = markCancelled; e.toneCancelAt = toneCancelAt; e.toneCancelSpan = toneCancelSpan
         e.pFoldTones = pFoldTones; e.tonesFolded = tonesFolded; e.lastEffTone = lastEffTone; e.upperToneKey = upperToneKey
+        e.freezeKeepsTone = freezeKeepsTone; e.pFreezeLetters = pFreezeLetters
         reopenRaw.copyInto(e.reopenRaw); reopenOut.copyInto(e.reopenOut)
         e.reopenRawCount = reopenRawCount; e.reopenOutCount = reopenOutCount
         e.reopenPrevEnglish = reopenPrevEnglish
@@ -234,8 +239,17 @@ class TelexEngine {
             elongationHeadCount(newCount, pTone) <= 0
         ) {
             disabledAtCount = rawCount
+            freezeKeepsTone = false
             if (eagerRestoreApplies(newCount)) {
                 disabledAtCount = 0
+                rebuildParseState()
+                tonesFolded = false
+                newCount = render()
+                snapshotCancel()
+            } else if (pTone != T.NONE && prefixKeepsTone(rawCount - 1)) {
+                // Marked word + visible tone (PR #133): keep it as shown, this key on literal.
+                disabledAtCount = rawCount - 1
+                freezeKeepsTone = true
                 rebuildParseState()
                 tonesFolded = false
                 newCount = render()
@@ -930,6 +944,8 @@ class TelexEngine {
         overflowed = false
         disabledAtCount = Int.MAX_VALUE
         tonesFolded = false
+        freezeKeepsTone = false
+        pFreezeLetters = -1
         pCount = 0
         pTone = T.NONE
         pToneKeyCount = 0
@@ -1012,13 +1028,15 @@ class TelexEngine {
         System.arraycopy(lBase, 0, rBase, 0, count)
         System.arraycopy(lMark, 0, rMark, 0, count)
         System.arraycopy(lUpper, 0, rUpper, 0, count)
+        // Kept-tone freeze (PR #133): the literal tail neither attracts the tone nor re-shapes ươ.
+        val headEnd = if (freezeKeepsTone && pFreezeLetters >= 0) minOf(count, pFreezeLetters) else count
 
-        for (k in 1 until maxOf(1, count)) {
+        for (k in 1 until maxOf(1, headEnd)) {
             if (rBase[k - 1] != 'u'.code || rBase[k] != 'o'.code) continue
             val prevHorn = rMark[k - 1] == Mark.HORN
             val curHorn = rMark[k] == Mark.HORN
             if (prevHorn == curHorn) continue
-            val oIsLast = k == count - 1
+            val oIsLast = k == headEnd - 1
             val isQuGlide = k >= 2 && rBase[k - 2] == 'q'.code
             if (!oIsLast && !isQuGlide) {
                 rMark[k - 1] = Mark.HORN
@@ -1027,8 +1045,8 @@ class TelexEngine {
         }
 
         var effTone = pTone
-        var toneScope = count
-        if (pTone != T.NONE) {
+        var toneScope = headEnd
+        if (pTone != T.NONE && headEnd == count) {
             val head = elongationHeadCount(count, pTone)
             if (head > 0) toneScope = head
         }
@@ -1064,7 +1082,7 @@ class TelexEngine {
     private fun rebuildFrozenAware() {
         rebuildParseState()
         tonesFolded = false
-        if (disabledAtCount != Int.MAX_VALUE && pTone != T.NONE) {
+        if (disabledAtCount != Int.MAX_VALUE && pTone != T.NONE && !freezeKeepsTone) {
             pFoldTones = true
             rebuildParseState()
             pFoldTones = false
@@ -1076,6 +1094,7 @@ class TelexEngine {
         if (disabledAtCount == 0 && upperToneKey && !liveSpellCheck) return
         val full = rawCount
         disabledAtCount = Int.MAX_VALUE
+        freezeKeepsTone = false
         if (!liveSpellCheck) return
         var r = 1
         while (r <= full) {
@@ -1084,7 +1103,14 @@ class TelexEngine {
             if (disabledAtCount == Int.MAX_VALUE && pCount > 0 && !prefixIsValid(pCount)) {
                 val n = render()
                 if (elongationHeadCount(pCount, pTone) <= 0) {
-                    disabledAtCount = if (eagerRestoreApplies(n)) 0 else r
+                    if (eagerRestoreApplies(n)) {
+                        disabledAtCount = 0
+                    } else if (pTone != T.NONE && prefixKeepsTone(r - 1)) {
+                        disabledAtCount = r - 1   // same kept-tone rule as feed() (PR #133)
+                        freezeKeepsTone = true
+                    } else {
+                        disabledAtCount = r
+                    }
                 }
             } else if (eagerEnglishRestore && disabledAtCount != Int.MAX_VALUE && disabledAtCount > 0 &&
                 disabledAtCount < EnglishFreezePrefixes.minLength && r == EnglishFreezePrefixes.minLength
@@ -1101,8 +1127,41 @@ class TelexEngine {
             disabledAtCount = Int.MAX_VALUE
             rebuildParseState()
             render()
-            if (elongationHeadCount(pCount, pTone) <= 0) disabledAtCount = frozenAt
+            if (elongationHeadCount(pCount, pTone) <= 0) disabledAtCount = frozenAt else freezeKeepsTone = false
         }
+    }
+
+    /**
+     * Kept-tone freeze test (PR #133, Swift `prefixKeepsTone`): the word of the first [n] raw
+     * keys carries a letter mark (đ ư ơ â ê ô ă) AND a visible tone, and key [n], parsed
+     * normally, only appends one character to that display. Freeze-time only; leaves the
+     * parse state built for the full rawCount.
+     */
+    private fun prefixKeepsTone(n: Int): Boolean {
+        val full = rawCount
+        rawCount = n
+        rebuildParseState()
+        var keep = false
+        var shown = 0
+        var sig = 0
+        if (pTone != T.NONE) {
+            for (k in 0 until pCount) if (lMark[k] != Mark.NONE) { keep = true; break }
+            if (keep) {
+                shown = render()
+                keep = lastEffTone != T.NONE
+                sig = scratchSignature(shown)
+            }
+        }
+        rawCount = full
+        rebuildParseState()
+        if (keep) keep = render() == shown + 1 && scratchSignature(shown) == sig
+        return keep
+    }
+
+    private fun scratchSignature(n: Int): Int {
+        var h = 0
+        for (k in 0 until n) h = h * 1_000_003 + scratch[k]
+        return h
     }
 
     private fun rebuildParseState() {
@@ -1119,6 +1178,7 @@ class TelexEngine {
         pVniMode = vniMode
         pBracketVowels = bracketVowels
         pLiveSpellCheck = liveSpellCheck
+        pFreezeLetters = -1
         for (i in 0 until rawCount) rawLetter[i] = -1
         for (i in 0 until rawCount) parseStep(i)
         pProcessed = rawCount
@@ -1133,6 +1193,7 @@ class TelexEngine {
         val key = raw[at]
         val lower = lowercased(key)
         val upper = isUpperAscii(key)
+        if (at == disabledAtCount) pFreezeLetters = pCount
 
         if (pCancelled || (at >= disabledAtCount && !abbreviationDoublerException(lower, upper))) {
             literal(at, lower, upper); return
