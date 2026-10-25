@@ -2834,6 +2834,9 @@ final class TelexInputController: IMKInputController {
         // trạng: OK" thường trực là nhiễu, ẨN đi khi mọi thứ ổn. Tính năng ẩn
         // "click status → copy debug snapshot" KHÔNG mất: nó chuyển xuống dòng
         // version bên dưới (click được ở mọi trạng thái).
+        // Mở menu = lúc user nhìn trạng thái: hỏi lại quyền NGAY (macOS 27 có thể không
+        // báo khi bật quyền). Một lần đọc lock khi tap đang chạy — không tốn gì lúc ổn.
+        TerminalTapController.shared.recheckTrust(reason: "menu opened")
         let statusTitle: String?
         if SecureInputMonitor.shared.activeHolder != nil {
             // Hiếm khi tới được đây (secure input thường đá selection sang ABC nên

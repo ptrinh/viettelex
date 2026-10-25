@@ -298,6 +298,9 @@ final class SettingsModel: ObservableObject {
     /// `readTrustNow`, not `isTrusted`: this is a UI path, and the cached reader can
     /// serve the pre-grant answer while its background probe is still in flight.
     func refreshAccessibilityStatus() {
+        // Settings opened / became key: also start the tap now if the grant landed
+        // without a system notification (no-op while the tap runs).
+        TerminalTapController.shared.recheckTrust(reason: "settings window")
         let now = Accessibility.readTrustNow()
         if now != accessibilityTrusted { accessibilityTrusted = now }
     }
@@ -878,6 +881,11 @@ struct TypingTab: View {
             .publisher(for: Notification.Name("com.apple.accessibility.api"))
             .receive(on: DispatchQueue.main)) { _ in
             model.accessibilityMayHaveChanged()
+        }
+        // macOS 27: the pane above may not post that notification at all — the tap
+        // controller's own poll / UI re-checks announce the transition instead.
+        .onReceive(NotificationCenter.default.publisher(for: .telexTrustStateChanged)) { _ in
+            model.refreshAccessibilityStatus()
         }
     }
 }

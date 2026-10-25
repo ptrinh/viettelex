@@ -132,7 +132,7 @@ enum Accessibility {
     /// concurrent duplicate is harmless, a blocked lock on the key path is not.
     @discardableResult
     private static func syncRefresh() -> Bool {
-        let trusted = AXIsProcessTrusted()
+        let trusted = liveRead()
         lock.withLock {
             cached = trusted
             hasValue = true
@@ -151,7 +151,7 @@ enum Accessibility {
         }
         guard go else { return }
         refreshQueue.async {
-            let trusted = AXIsProcessTrusted()
+            let trusted = liveRead()
             lock.withLock {
                 cached = trusted
                 hasValue = true
@@ -159,6 +159,17 @@ enum Accessibility {
                 refreshing = false
             }
         }
+    }
+
+    /// Uncached TCC read behind the cache: `AXIsProcessTrusted()`, and — only when that
+    /// says no — the PostEvent preflight. macOS 27 (27.0.1, 26/10/2026): after a grant
+    /// in the renamed pane AXIsProcessTrusted kept answering false in the running
+    /// process until restart, while the grant was live. Short-circuits when trusted,
+    /// so the normal state costs exactly what it did before. See TrustPollSchedule.
+    static func liveRead() -> Bool {
+        // Same rule as TrustPollSchedule.grantDetected, written with `||` so the
+        // preflight is only paid when AX says no.
+        AXIsProcessTrusted() || CGPreflightPostEventAccess()
     }
 
     /// Mark the cached answer stale AND start the refresh right away, so the value
@@ -268,7 +279,7 @@ enum Accessibility {
     @discardableResult
     static func requestIfNeeded() -> Bool {
         invalidateCache()
-        if AXIsProcessTrusted() { return true }
+        if liveRead() { return true }
         guard isOurSignedBuild else {
             DebugLog.log("skip AX prompt: this build is not Developer ID-signed by our team "
                 + "(would poison the TCC row for every signed release)")
@@ -2352,24 +2363,105 @@ final class TerminalTapController {
     /// minutes after the grant, with the user staying in the same field the whole
     /// time (no focus switch) — only killing and relaunching the process picked up
     /// the new permission. Polling here means a grant is noticed within one tick
-    /// (same 3s cadence as the health watchdog) with no cooperation required from
-    /// either of those signals.
+    /// with no cooperation required from either of those signals. Cadence and the
+    /// macOS 27 "AX stuck false" story: TrustPollSchedule (2s, 10s after a minute,
+    /// none while trusted); UI moments call recheckTrust(reason:boost:).
     /// Máy nhận diện chord hotkey chuyển bộ gõ — TAP-thread confined (mọi note/disarm
     /// đều từ callback), không cần lock. Xem SwitchHotkey.swift.
     private var chordRecognizer = ModifierChordRecognizer()
     /// Machine-speed key bursts (#118) — TAP-thread confined like chordRecognizer.
     private var machineTyping = MachineTypingDetector()
 
+    /// One-shot timer for the NEXT tick (re-armed per tick so the cadence can back off).
     private var trustPoll: Timer?
+    /// MAIN only. Cadence state — see TrustPollSchedule (2s → 10s, nil = no polling).
+    private var trustSchedule = TrustPollSchedule()
+    /// Observes System Settings losing focus — installed ONLY while the poll is armed.
+    private var settingsDeactivateObserver: NSObjectProtocol?
 
     private func startTrustPollIfNeeded() {
-        guard trustPoll == nil else { return }
-        let t = Timer(timeInterval: 3, repeats: true) { [weak self] _ in
-            self?.ensureRunning()
+        let fresh = trustSchedule.arm(nowNs: DispatchTime.now().uptimeNanoseconds)
+        if trustPoll == nil { scheduleTrustPollTick() }
+        installSettingsDeactivateObserver()
+        if fresh {
+            DebugLog.log("trust poll armed (untrusted: ax=\(AXIsProcessTrusted()) canPost=\(Accessibility.canPostEvents))")
+            // Async: never re-enter a UI observer from inside ensureRunning().
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .telexTrustStateChanged, object: nil)
+            }
         }
-        t.tolerance = 1
+    }
+
+    private func scheduleTrustPollTick() {
+        trustPoll?.invalidate()
+        trustPoll = nil
+        guard let interval = trustSchedule.nextInterval(nowNs: DispatchTime.now().uptimeNanoseconds)
+        else { return }
+        let t = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
+            self?.trustPollTick()
+        }
+        t.tolerance = interval / 4
         RunLoop.main.add(t, forMode: .common)
         trustPoll = t
+    }
+
+    private func trustPollTick() {
+        trustPoll = nil
+        guard trustSchedule.isArmed else { return }
+        // Fresh read (bypasses the TTL cache AND refreshes it, so the menu / routing
+        // see the new answer at once). liveRead = AX || PostEvent preflight.
+        if Accessibility.readTrustNow() {
+            trustGrantDetected(reason: "poll")
+        } else {
+            scheduleTrustPollTick()
+        }
+    }
+
+    /// Untrusted → trusted without the system notification: start the tap, tell the UI.
+    private func trustGrantDetected(reason: String) {
+        DebugLog.log("trust: grant detected (\(reason)) ax=\(AXIsProcessTrusted()) "
+            + "canPost=\(Accessibility.canPostEvents) → starting tap")
+        ensureRunning()   // disarms the poll (trusted) and creates the tap
+        NotificationCenter.default.post(name: .telexTrustStateChanged, object: nil)
+    }
+
+    /// Re-check NOW from a UI moment (menu opened, Settings window key, "Open Settings"
+    /// clicked, back from System Settings). One lock read while a tap is running — the
+    /// trusted state never reaches TCC from here (revocation is the watchdog's job).
+    /// `boost`: the user is acting on the permission → poll fast for a couple of minutes.
+    func recheckTrust(reason: String, boost: Bool = false) {
+        guard stateLock.withLock({ tap == nil }) else { return }
+        if Accessibility.readTrustNow() {
+            if trustSchedule.isArmed {
+                trustGrantDetected(reason: reason)
+            } else {
+                ensureRunning()   // trusted, no tap (quarantine / stale grant): unchanged flow
+            }
+            return
+        }
+        if boost {
+            trustSchedule.boost(nowNs: DispatchTime.now().uptimeNanoseconds)
+            scheduleTrustPollTick()   // switch to the fast cadence now, not after a 10s wait
+        }
+        startTrustPollIfNeeded()
+    }
+
+    private func installSettingsDeactivateObserver() {
+        guard settingsDeactivateObserver == nil else { return }
+        settingsDeactivateObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didDeactivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            guard TrustPollSchedule.isSystemSettings(app?.bundleIdentifier) else { return }
+            self?.recheckTrust(reason: "back from System Settings", boost: true)
+        }
+    }
+
+    private func removeSettingsDeactivateObserver() {
+        if let o = settingsDeactivateObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(o)
+            settingsDeactivateObserver = nil
+        }
     }
 
     #if DEBUG
@@ -2377,6 +2469,8 @@ final class TerminalTapController {
     /// Identity of the current poll Timer, or nil if not armed — lets a test prove
     /// a second arm attempt reused the SAME timer instead of leaking a new one.
     var _testTrustPollToken: ObjectIdentifier? { trustPoll.map(ObjectIdentifier.init) }
+    var _testTrustSchedule: TrustPollSchedule { trustSchedule }
+    var _testSettingsObserverInstalled: Bool { settingsDeactivateObserver != nil }
     // Exercise the poll's start/stop mechanics directly — NOT through ensureRunning()
     // with testTrustOverride=true, which would reach CGEvent.tapCreate in the test
     // host (see GonhanhHardeningTests' testEnsureRunningIsSafeWithoutTrust for why
@@ -2387,6 +2481,8 @@ final class TerminalTapController {
     private func stopTrustPoll() {
         trustPoll?.invalidate()
         trustPoll = nil
+        trustSchedule.disarm()
+        removeSettingsDeactivateObserver()
     }
 
     /// Watchdog cadence. Typing: 3s (probe + trust + tap health). Idle (no key for
@@ -2421,7 +2517,10 @@ final class TerminalTapController {
         if !keepHealthyRun { watchdogHealthyTicks = 0 }
         let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             guard let self else { return }
-            if !AXIsProcessTrusted() {
+            // liveRead, not AXIsProcessTrusted alone: a tap started on the PostEvent
+            // preflight while AX was stuck false (macOS 27) must not be torn down
+            // every tick. A real revoke flips both; a LYING true is the probe's job.
+            if !Accessibility.liveRead() {
                 Signposts.log.fault("watchdog: Accessibility revoked with a live tap — forcing teardown")
                 self.trustMayHaveChanged()
                 return
@@ -2939,7 +3038,7 @@ final class TerminalTapController {
                 DispatchQueue.main.async { TerminalTapController.shared.trustMayHaveChanged() }
                 return pass
             }
-            if AXIsProcessTrusted() {
+            if Accessibility.liveRead() {
                 if let tap = stateLock.withLock({ tap }) { CGEvent.tapEnable(tap: tap, enable: true) }
             } else {
                 Accessibility.invalidateCache()

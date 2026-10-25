@@ -66,7 +66,10 @@ enum PrivacyPane {
     ]
 
     /// Mở Cài đặt hệ thống → Quyền riêng tư & Bảo mật → mục quyền này.
+    /// Kèm: poll quyền nhanh (2s) vài phút — user sắp bật VietTelex ở đó, và macOS 27
+    /// có thể không phát com.apple.accessibility.api (TrustPollSchedule).
     static func openSettings() {
+        TerminalTapController.shared.recheckTrust(reason: "open-settings clicked", boost: true)
         for s in settingsURLStrings {
             if let url = URL(string: s), NSWorkspace.shared.open(url) { return }
         }
