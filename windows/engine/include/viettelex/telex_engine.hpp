@@ -176,6 +176,7 @@ private:
     int pFreezeLetters_ = -1;    // letter count when the parse reached disabledAtCount_
     Tone lastEffTone_ = Tone::None;
     bool upperToneKey_ = false;
+    bool upperToneFrozen_ = false;   // word frozen by feed()'s upper-case tone rule — see Swift
 
     // English RUN open (function word, or 2nd English word in a row); a lone content
     // word is only a candidate; gate bits = predecessorGates the previous word satisfies.

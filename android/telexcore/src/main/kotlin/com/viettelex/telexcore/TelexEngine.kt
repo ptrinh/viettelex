@@ -133,6 +133,8 @@ class TelexEngine {
     private var pFreezeLetters = -1
     private var lastEffTone = T.NONE
     private var upperToneKey = false
+    // Word frozen by feed()'s upper-case tone rule (disabledAtCount = 0) — see Swift.
+    private var upperToneFrozen = false
 
     // Re-open snapshot.
     private val reopenRaw = IntArray(CAPACITY)
@@ -174,6 +176,7 @@ class TelexEngine {
         e.pLiveSpellCheck = pLiveSpellCheck; e.disabledAtCount = disabledAtCount
         e.markCancelled = markCancelled; e.toneCancelAt = toneCancelAt; e.toneCancelSpan = toneCancelSpan
         e.pFoldTones = pFoldTones; e.tonesFolded = tonesFolded; e.lastEffTone = lastEffTone; e.upperToneKey = upperToneKey
+        e.upperToneFrozen = upperToneFrozen
         e.freezeKeepsTone = freezeKeepsTone; e.pFreezeLetters = pFreezeLetters
         reopenRaw.copyInto(e.reopenRaw); reopenOut.copyInto(e.reopenOut)
         e.reopenRawCount = reopenRawCount; e.reopenOutCount = reopenOutCount
@@ -229,6 +232,7 @@ class TelexEngine {
 
         if (disabledAtCount == Int.MAX_VALUE && upperToneKey) {
             disabledAtCount = 0
+            upperToneFrozen = true
             rebuildParseState()
             tonesFolded = false
             newCount = render()
@@ -276,7 +280,7 @@ class TelexEngine {
             snapshotCancel()
         }
 
-        if (liveSpellCheck && disabledAtCount != Int.MAX_VALUE && !upperToneKey &&
+        if (liveSpellCheck && disabledAtCount != Int.MAX_VALUE && !upperToneFrozen &&
             rawCount >= 2 && raw[rawCount - 1] == raw[rawCount - 2]
         ) {
             recomputeFreeze()
@@ -941,6 +945,7 @@ class TelexEngine {
         toneCancelAt = -1
         toneCancelSpan = 0
         upperToneKey = false
+        upperToneFrozen = false
         overflowed = false
         disabledAtCount = Int.MAX_VALUE
         tonesFolded = false
@@ -1091,15 +1096,22 @@ class TelexEngine {
     }
 
     private fun recomputeFreeze() {
-        if (disabledAtCount == 0 && upperToneKey && !liveSpellCheck) return
         val full = rawCount
         disabledAtCount = Int.MAX_VALUE
         freezeKeepsTone = false
-        if (!liveSpellCheck) return
+        upperToneFrozen = false
         var r = 1
         while (r <= full) {
             rawCount = r
             rebuildParseState()
+            // feed()'s upper-case tone freeze, before spell-check and independent of it;
+            // nothing lifts it ("VieeJt" ⌫ → "VieeJ") — see Swift.
+            if (disabledAtCount == Int.MAX_VALUE && upperToneKey) {
+                disabledAtCount = 0
+                upperToneFrozen = true
+                break
+            }
+            if (!liveSpellCheck) { r++; continue }
             if (disabledAtCount == Int.MAX_VALUE && pCount > 0 && !prefixIsValid(pCount)) {
                 val n = render()
                 if (elongationHeadCount(pCount, pTone) <= 0) {
@@ -1119,16 +1131,17 @@ class TelexEngine {
                 val n = render()
                 if (eagerRestoreApplies(n)) disabledAtCount = 0
             }
+            // feed()'s elongation unfreeze, on the key it fires on (exact repeat) — see Swift.
+            if (disabledAtCount != Int.MAX_VALUE && r >= 2 && raw[r - 1] == raw[r - 2]) {
+                val frozenAt = disabledAtCount
+                disabledAtCount = Int.MAX_VALUE
+                rebuildParseState()
+                render()
+                if (elongationHeadCount(pCount, pTone) <= 0) disabledAtCount = frozenAt else freezeKeepsTone = false
+            }
             r++
         }
         rawCount = full
-        if (disabledAtCount != Int.MAX_VALUE) {
-            val frozenAt = disabledAtCount
-            disabledAtCount = Int.MAX_VALUE
-            rebuildParseState()
-            render()
-            if (elongationHeadCount(pCount, pTone) <= 0) disabledAtCount = frozenAt else freezeKeepsTone = false
-        }
     }
 
     /**

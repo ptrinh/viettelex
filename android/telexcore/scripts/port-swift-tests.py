@@ -80,6 +80,10 @@ H = {
                                 "collisionPrefersVietnamese = true"]),
         "vni": ("composed", ["vniMode = true", LIVE]),
     },
+    "UpperToneBackspaceTests.swift": {
+        "bs": ("backspace", [FREE, LIVE]), "bsNoSpell": ("backspace", [FREE]),
+        "bsSimple": ("backspace", [LIVE, "simpleTelex = true"]), "screen": ("composed", [FREE, LIVE]),
+    },
     "CompetitorReviewTests.swift": {
         "commitApp": ("commit", [FREE, LIVE, "teencode = false", "contextualEnglish = true",
                                  "collisionPrefersVietnamese = true"]),

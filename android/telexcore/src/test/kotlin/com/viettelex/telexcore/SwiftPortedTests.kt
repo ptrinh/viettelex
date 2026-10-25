@@ -1107,6 +1107,37 @@ class TypingMatrixPortedTest {
     }
 }
 
+/** Ported from TelexCore/Tests/TelexCoreTests/UpperToneBackspaceTests.swift. */
+class UpperToneBackspacePortedTest {
+    @Test fun testUpperToneFreezeSurvivesBackspace() {
+        assertEquals("VieeJt", composeWith("VieeJt") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("VieeJ", backspaceWith("VieeJt", 1) { freeMarking = true; liveSpellCheck = true })
+        assertEquals("uxuJxwl", composeWith("uxuJxwl") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("uxuJxw", backspaceWith("uxuJxwl", 1) { freeMarking = true; liveSpellCheck = true })
+        assertEquals("SaaS", backspaceWith("SaaSa", 1) { freeMarking = true; liveSpellCheck = true })
+        assertEquals("OmS", backspaceWith("OmSs", 1) { freeMarking = true; liveSpellCheck = true })
+        assertEquals("VieeJ", backspaceWith("VieeJt", 1) { freeMarking = true })
+        assertEquals("uxuJxw", backspaceWith("uxuJxwl", 1) { freeMarking = true })
+        assertEquals("SaaS", backspaceWith("SaaSa", 1) { freeMarking = true })
+    }
+
+    @Test fun testUpperToneKeyLastStillDeletesIt() {
+        assertEquals("Toi", backspaceWith("ToiJ", 1) { freeMarking = true; liveSpellCheck = true })
+        assertEquals("Viêt", backspaceWith("VieetJ", 1) { freeMarking = true; liveSpellCheck = true })
+        assertEquals("Đươc", backspaceWith("DduowcJ", 1) { freeMarking = true; liveSpellCheck = true })
+        assertEquals("Toi", backspaceWith("ToiJ", 1) { freeMarking = true })
+        assertEquals("Viêt", backspaceWith("VieetJ", 1) { freeMarking = true })
+    }
+
+    @Test fun testElongationUnfreezeAndUpperTone() {
+        assertEquals("VieeJtt", composeWith("VieeJtt") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("VieeJt", backspaceWith("VieeJtt", 1) { freeMarking = true; liveSpellCheck = true })
+        assertEquals("quàaaa", composeWith("quafaaaa") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("YnnnS", backspaceWith("YnnnSc", 1) { freeMarking = true; liveSpellCheck = true })
+        assertEquals("ASUUu", backspaceWith("ASUUuz", 1) { liveSpellCheck = true; simpleTelex = true })
+    }
+}
+
 /** Ported from TelexCore/Tests/TelexCoreTests/VNIHornUURetargetTests.swift. */
 class VNIHornUURetargetPortedTest {
     @Test fun testHornOnDoubleUTargetsFirstU() {

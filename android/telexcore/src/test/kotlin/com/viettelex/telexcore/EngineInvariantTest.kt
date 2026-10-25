@@ -118,4 +118,52 @@ class EngineInvariantTest {
         for (c in "1.,!ễ[") assertEquals(TelexAction.Passthrough, e.feed(c))
         assertTrue(e.isEmpty)
     }
+
+    /**
+     * UpperToneBackspaceTests.testBackspaceEqualsRetypeWithoutLastKey (same LCG, same
+     * sequences): when the last key was inserted literally, ⌫ == retyping without it.
+     */
+    @Test fun backspaceEqualsRetypeWithoutLastKey() {
+        var seed = 0x9E3779B97F4A7C15UL
+        fun next(): ULong {
+            seed = seed * 6364136223846793005UL + 1442695040888963407UL
+            return seed shr 33
+        }
+        fun engine(cfg: Int) = TelexEngine().apply {
+            liveSpellCheck = cfg and 1 != 0; freeMarking = cfg and 2 != 0
+            simpleTelex = cfg and 4 != 0; teencode = cfg and 8 != 0; vniMode = cfg and 16 != 0
+        }
+        fun typed(cfg: Int, keys: String) = engine(cfg).also { e -> for (c in keys) e.feed(c) }
+        val telexKeys = "aeiouydwsfrxjzntcghl"
+        val vniKeys = "aeiouydntcgh1234567890"
+        var checked = 0
+        for (cfg in 0 until 32) {
+            val keys = if (cfg and 16 != 0) vniKeys else telexKeys
+            repeat(600) {
+                val sb = StringBuilder()
+                repeat(3 + (next() % 6UL).toInt()) {
+                    var c = keys[(next() % keys.length.toULong()).toInt()]
+                    if (next() % 3UL == 0UL) c = c.uppercaseChar()
+                    sb.append(c)
+                }
+                val word = if (checked == 0) "uxuJxwl" else sb.toString()
+                for (n in 2..word.length) {
+                    val prefix = word.substring(0, n - 1)
+                    val e = typed(cfg, word.substring(0, n))
+                    val f = typed(cfg, prefix)
+                    if (e.composed != f.composed + word[n - 1]) continue
+                    checked++
+                    e.backspace()
+                    assertEquals("cfg=$cfg keys=${word.substring(0, n)} ⌫", f.composed, e.composed)
+                }
+            }
+        }
+        for (keys in listOf("VieeJt", "uxuJxwl")) {
+            for (cfg in 0 until 16) {
+                val e = typed(cfg, keys); e.backspace()
+                assertEquals("cfg=$cfg keys=$keys ⌫", typed(cfg, keys.dropLast(1)).composed, e.composed)
+            }
+        }
+        assertTrue("checked=$checked", checked > 20_000)
+    }
 }

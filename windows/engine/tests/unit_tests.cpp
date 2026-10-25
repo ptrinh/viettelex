@@ -250,6 +250,61 @@ void spellingErrorCases() {
     CHECK(!empty.hasSpellingError(true));
 }
 
+// UpperToneBackspaceTests.testBackspaceEqualsRetypeWithoutLastKey (same LCG, same
+// sequences as Swift/Kotlin): when the last key was inserted literally, ⌫ == retyping
+// the keys without it on a fresh engine with the same settings.
+void backspaceEqualsRetypeWithoutLastKey() {
+    uint64_t seed = 0x9E3779B97F4A7C15ULL;
+    auto next = [&seed]() { seed = seed * 6364136223846793005ULL + 1442695040888963407ULL; return seed >> 33; };
+    auto typed = [](int cfg, const std::string& keys) {
+        vtx::TelexEngine e;
+        e.liveSpellCheck = (cfg & 1) != 0; e.freeMarking = (cfg & 2) != 0;
+        e.simpleTelex = (cfg & 4) != 0; e.teencode = (cfg & 8) != 0; e.vniMode = (cfg & 16) != 0;
+        feedStr(e, keys);
+        return e;
+    };
+    const std::string telexKeys = "aeiouydwsfrxjzntcghl";
+    const std::string vniKeys = "aeiouydntcgh1234567890";
+    int checked = 0, bad = 0;
+    for (int cfg = 0; cfg < 32; ++cfg) {
+        const std::string& keys = (cfg & 16) ? vniKeys : telexKeys;
+        for (int it = 0; it < 600; ++it) {
+            std::string word;
+            const int len = 3 + static_cast<int>(next() % 6);
+            for (int i = 0; i < len; ++i) {
+                char c = keys[static_cast<size_t>(next() % keys.size())];
+                if (next() % 3 == 0 && c >= 'a' && c <= 'z') c = static_cast<char>(c - 'a' + 'A');
+                word.push_back(c);
+            }
+            if (checked == 0) word = "uxuJxwl";
+            for (size_t n = 2; n <= word.size(); ++n) {
+                const std::string prefix = word.substr(0, n - 1);
+                vtx::TelexEngine e = typed(cfg, word.substr(0, n));
+                const std::string fresh = composed(typed(cfg, prefix));
+                if (composed(e) != fresh + word[n - 1]) continue;
+                ++checked;
+                vtx::Action a;
+                e.backspace(a);
+                if (composed(e) != fresh) {
+                    if (++bad <= 10) std::printf("FAIL ⌫ cfg=%d keys=%s got %s want %s\n", cfg,
+                                                 word.substr(0, n).c_str(), composed(e).c_str(), fresh.c_str());
+                }
+            }
+        }
+    }
+    for (const char* k : {"VieeJt", "uxuJxwl"}) {
+        const std::string keys = k;
+        for (int cfg = 0; cfg < 16; ++cfg) {
+            vtx::TelexEngine e = typed(cfg, keys);
+            vtx::Action a;
+            e.backspace(a);
+            CHECK_EQ(composed(e), composed(typed(cfg, keys.substr(0, keys.size() - 1))));
+        }
+    }
+    CHECK(bad == 0);
+    CHECK(checked > 20000);
+}
+
 } // namespace
 
 int runUnit() {
@@ -262,6 +317,7 @@ int runUnit() {
     nonLetterPassesThrough();
     hotPathDoesNotAllocate();
     spellingErrorCases();
+    backspaceEqualsRetypeWithoutLastKey();
     std::printf("unit invariants: %d/%d pass\n", gPass, gPass + gFail);
     return gFail == 0 ? 0 : 1;
 }

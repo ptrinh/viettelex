@@ -266,6 +266,7 @@ void TelexEngine::feedAscii(uint8_t ascii, Action& out) {
     // Uppercase tone key in a mixed-case word: freeze the whole word to raw now.
     if (disabledAtCount_ == kNotDisabled && upperToneKey_) {
         disabledAtCount_ = 0;
+        upperToneFrozen_ = true;
         rebuildParseState();
         tonesFolded_ = false;
         newCount = render();
@@ -315,7 +316,7 @@ void TelexEngine::feedAscii(uint8_t ascii, Action& out) {
     }
 
     // Elongation unfreeze.
-    if (liveSpellCheck && disabledAtCount_ != kNotDisabled && !upperToneKey_ && rawCount_ >= 2 &&
+    if (liveSpellCheck && disabledAtCount_ != kNotDisabled && !upperToneFrozen_ && rawCount_ >= 2 &&
         raw_[rawCount_ - 1] == raw_[rawCount_ - 2]) {
         recomputeFreeze();
         rebuildFrozenAware();
@@ -1097,6 +1098,7 @@ void TelexEngine::resetWord() {
     toneCancelAt_ = -1;
     toneCancelSpan_ = 0;
     upperToneKey_ = false;
+    upperToneFrozen_ = false;
     overflowed_ = false;
     disabledAtCount_ = kNotDisabled;
     tonesFolded_ = false;
@@ -1236,14 +1238,21 @@ bool TelexEngine::eagerRestoreApplies(int n) const {
 }
 
 void TelexEngine::recomputeFreeze() {
-    if (disabledAtCount_ == 0 && upperToneKey_ && !liveSpellCheck) return;
     const int full = rawCount_;
     disabledAtCount_ = kNotDisabled;
     freezeKeepsTone_ = false;
-    if (!liveSpellCheck) return;
+    upperToneFrozen_ = false;
     for (int r = 1; r <= full; ++r) {
         rawCount_ = r;
         rebuildParseState();
+        // feed()'s upper-case tone freeze, before spell-check and independent of it;
+        // nothing lifts it ("VieeJt" ⌫ → "VieeJ") — see Swift.
+        if (disabledAtCount_ == kNotDisabled && upperToneKey_) {
+            disabledAtCount_ = 0;
+            upperToneFrozen_ = true;
+            break;
+        }
+        if (!liveSpellCheck) continue;
         if (disabledAtCount_ == kNotDisabled && pCount_ > 0 && !prefixIsValid(pCount_)) {
             int n = render();
             if (elongationHeadCount(pCount_, pTone_) <= 0) {
@@ -1262,16 +1271,17 @@ void TelexEngine::recomputeFreeze() {
             int n = render();
             if (eagerRestoreApplies(n)) disabledAtCount_ = 0;
         }
+        // feed()'s elongation unfreeze, on the key it fires on (exact repeat) — see Swift.
+        if (disabledAtCount_ != kNotDisabled && r >= 2 && raw_[r - 1] == raw_[r - 2]) {
+            int frozenAt = disabledAtCount_;
+            disabledAtCount_ = kNotDisabled;
+            rebuildParseState();
+            (void)render();
+            if (elongationHeadCount(pCount_, pTone_) <= 0) disabledAtCount_ = frozenAt;
+            else freezeKeepsTone_ = false;
+        }
     }
     rawCount_ = full;
-    if (disabledAtCount_ != kNotDisabled) {
-        int frozenAt = disabledAtCount_;
-        disabledAtCount_ = kNotDisabled;
-        rebuildParseState();
-        (void)render();
-        if (elongationHeadCount(pCount_, pTone_) <= 0) disabledAtCount_ = frozenAt;
-        else freezeKeepsTone_ = false;
-    }
 }
 
 // Kept-tone freeze test (PR #133, Swift `prefixKeepsTone`): the word of the first n raw keys

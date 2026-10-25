@@ -299,6 +299,14 @@ public struct TelexEngine {
     // a doubler is normal typing.
     private var upperToneKey = false
 
+    // TRUE once feed() froze the word for an upper-case tone key (`disabledAtCount`
+    // = 0, see `forceRestoreUpperTone`). The frozen rebuild parses every key as a
+    // literal, so `upperToneKey` itself reads false afterwards — this remembers the
+    // freeze reason: the elongation unfreeze must not lift it ("VieeJ"+tt stays
+    // "VieeJtt"), and ⌫ recomputes it by replay ("VieeJt" ⌫ → "VieeJ", not "Việ").
+    // Reset per word; recomputed by `recomputeFreeze`.
+    private var upperToneFrozen = false
+
     // MARK: Re-open snapshot (⌫ right after a word boundary — issue #40)
     //
     // The keystrokes of the word the LAST boundary committed, kept only while that
@@ -486,6 +494,7 @@ public struct TelexEngine {
         // transforms disabled from the first key, then re-render.
         if disabledAtCount == Int.max, forceRestoreUpperTone {
             disabledAtCount = 0
+            upperToneFrozen = true
             rebuildParseState()
             tonesFolded = false
             newCount = render()
@@ -575,7 +584,7 @@ public struct TelexEngine {
         // is unambiguous, so re-evaluate the freeze from scratch and lift it, which
         // re-renders the tone in ONE keystroke ("quàaa"). Gated on "frozen AND this key
         // repeats the previous one", so it never runs on ordinary typing.
-        if liveSpellCheck, disabledAtCount != Int.max, !forceRestoreUpperTone,
+        if liveSpellCheck, disabledAtCount != Int.max, !upperToneFrozen,
            rawCount >= 2, raw[rawCount - 1] == raw[rawCount - 2] {
             recomputeFreeze()
             rebuildFrozenAware()
@@ -1672,6 +1681,7 @@ public struct TelexEngine {
         toneCancelAt = -1
         toneCancelSpan = 0
         upperToneKey = false
+        upperToneFrozen = false
         overflowed = false
         disabledAtCount = Int.max
         tonesFolded = false
@@ -1913,17 +1923,26 @@ public struct TelexEngine {
     /// Leaves the parse state built for the FULL word but possibly not fold-aware —
     /// callers must follow with `rebuildFrozenAware()`.
     private mutating func recomputeFreeze() {
-        // An upper-tone freeze (mixed-case English/code, `disabledAtCount == 0`) is not
-        // a spell-check verdict, so spell-check must not clear it while it still holds.
-        if disabledAtCount == 0, forceRestoreUpperTone, !liveSpellCheck { return }
         let full = rawCount
         disabledAtCount = Int.max
         freezeKeepsTone = false
-        guard liveSpellCheck else { return }
+        upperToneFrozen = false
         var r = 1
         while r <= full {
             rawCount = r
             rebuildParseState()
+            // feed()'s upper-case tone freeze (mixed-case English/code), checked BEFORE
+            // spell-check exactly like forward typing and independent of it. Nothing
+            // lifts it, so the replay stops here: "VieeJt" ⌫ → "VieeJ", not "Việ".
+            if disabledAtCount == Int.max, forceRestoreUpperTone {
+                disabledAtCount = 0
+                upperToneFrozen = true
+                break
+            }
+            if !liveSpellCheck {
+                r += 1
+                continue
+            }
             if disabledAtCount == Int.max, pCount > 0, !prefixIsValid(pCount) {
                 // Same teencode-elongation escape forward typing applies. render()
                 // fills `renderLetters` for the split check; every buffer it touches is
@@ -1951,25 +1970,27 @@ public struct TelexEngine {
                 let n = render()
                 if eagerRestoreApplies(n) { disabledAtCount = 0 }
             }
+            // feed()'s elongation UNFREEZE, at the same key it fires on (a key that
+            // repeats the previous one byte-for-byte): a freeze the extra characters
+            // have since EXPLAINED is lifted — "quafa" freezes on the first stray 'a',
+            // the second turns the tail into an elongation ("quàaa"). Replayed per key,
+            // not once on the whole word: forward typing may lift the freeze mid-word
+            // and later re-freeze for an upper-case tone key ("Ynnn"+S → "YnnnS"), and
+            // it never lifts on a case-differing repeat ("ASUU"+u stays "ASUUu").
+            if disabledAtCount != Int.max, r >= 2, raw[r - 1] == raw[r - 2] {
+                let frozenAt = disabledAtCount
+                disabledAtCount = Int.max
+                rebuildParseState()
+                _ = render()
+                if elongationHeadCount(pCount, tone: pTone) <= 0 {
+                    disabledAtCount = frozenAt
+                } else {
+                    freezeKeepsTone = false
+                }
+            }
             r += 1
         }
         rawCount = full
-        // A freeze the extra characters have since EXPLAINED must be lifted: "quafa"
-        // freezes on the first stray 'a' and the second one turns the tail into an
-        // elongation ("quàaa"). The walk above can't see that (it stops looking once
-        // frozen), so re-test the whole word unfrozen — this is the ⌫/replay twin of
-        // feed()'s unfreeze step, so both paths agree on the final freeze state.
-        if disabledAtCount != Int.max {
-            let frozenAt = disabledAtCount
-            disabledAtCount = Int.max
-            rebuildParseState()
-            _ = render()
-            if elongationHeadCount(pCount, tone: pTone) <= 0 {
-                disabledAtCount = frozenAt
-            } else {
-                freezeKeepsTone = false
-            }
-        }
     }
 
     /// Kept-tone freeze test (PR #133). True when the word typed by the first `n` raw
