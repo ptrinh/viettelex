@@ -92,37 +92,82 @@ final class KeySound {
     private var squeakWanted = false
     private var squeakBuffer: AVAudioPCMBuffer?
 
+    // MARK: cấu hình từ main — KHÔNG BAO GIỜ chờ lock
+    // startNow/stopNow giữ `lock` suốt lúc dựng engine (AVAudioSession.setActive = XPC, tổng hợp bộ
+    // nốt piano ~2 MB) — có thể hàng chục–hàng trăm ms trên máy cũ. Ẩn rồi hiện lại nhanh (đổi ô,
+    // Danh bạ → ô tìm kiếm) ⇒ viewWillAppear gọi setStyle/setVolume/prepare/setSqueakEnabled trên
+    // main và CHỜ lock ⇒ bàn phím hiện chậm (đo 25/10/2026: ~12 ms simulator chỉ riêng setSqueakEnabled).
+    // Nay: lock rảnh ⇒ làm ngay (như cũ); bận (hoặc còn việc cấu hình đang xếp hàng — giữ thứ tự) ⇒
+    // xếp vào queue nối tiếp, main đi tiếp.
+
+    /// Bảo vệ `queuedConfig` — chỉ giữ vài lệnh, không bao giờ giữ qua việc chậm.
+    private let configGate = NSLock()
+    private var queuedConfig = 0
+
+    /// Chạy `body` trong `lock`: ngay nếu lock rảnh và không còn cấu hình nào đang chờ, không thì
+    /// xếp hàng trên `queue` (cùng thứ tự gọi). Trả true nếu đã chạy đồng bộ.
+    @discardableResult
+    private func configure(_ body: @escaping () -> Void) -> Bool {
+        configGate.lock()
+        if queuedConfig == 0, lock.try() {
+            configGate.unlock()
+            body()
+            lock.unlock()
+            return true
+        }
+        queuedConfig += 1
+        configGate.unlock()
+        queue.async { [self] in
+            lock.lock(); body(); lock.unlock()
+            configGate.lock(); queuedConfig -= 1; configGate.unlock()
+        }
+        return false
+    }
+
     func setVolume(percent: Int) {
         let g = KeySoundSynth.gain(forPercent: percent)
-        lock.lock(); defer { lock.unlock() }
-        gain = g
-        engine?.mainMixerNode.outputVolume = g
+        configure { [self] in
+            gain = g
+            engine?.mainMixerNode.outputVolume = g
+        }
     }
 
     /// Chọn kiểu (giá trị `keySoundStyle`). Đổi ⇒ bộ mẫu dựng lại ở lần khởi động kế tiếp.
     func setStyle(_ raw: String, customURL: URL? = KeySoundCustom.fileURL) {
-        lock.lock(); defer { lock.unlock() }
-        styleRaw = raw
-        self.customURL = customURL
+        configure { [self] in
+            styleRaw = raw
+            self.customURL = customURL
+        }
     }
 
     /// Dựng + khởi động engine NỀN (không chặn lúc bàn phím hiện).
     func prepare() {
-        lock.lock()
-        if !KeySoundStyle.needsEngine(styleRaw) { lock.unlock(); return }   // kiểu "iOS": click hệ thống, không engine
-        wanted = true
-        let ready = running && builtKey == KeySoundCustom.bankKey(style: styleRaw, customURL: customURL)
-        lock.unlock()
-        if ready { return }
-        queue.async { [self] in _ = startNow() }
+        configure { [self] in
+            guard KeySoundStyle.needsEngine(styleRaw) else { return }   // kiểu "iOS": click hệ thống, không engine
+            wanted = true
+            let ready = running && builtKey == KeySoundCustom.bankKey(style: styleRaw, customURL: customURL)
+            if !ready { queue.async { [self] in _ = startNow() } }
+        }
     }
 
     /// Dừng + nhả engine/buffer (ẩn bàn phím, thiếu RAM, tắt setting).
     func shutdown() {
-        lock.lock(); wanted = false; let has = engine != nil; lock.unlock()
-        guard has else { return }
-        queue.async { [self] in stopNow() }
+        configure { [self] in
+            wanted = false
+            if engine != nil { queue.async { [self] in stopNow() } }
+        }
     }
+
+    #if DEBUG
+    /// Test: giữ `lock` như startNow đang dựng engine (đo main không bị chặn).
+    func debugHoldLock(for seconds: TimeInterval) {
+        queue.async { [self] in lock.lock(); Thread.sleep(forTimeInterval: seconds); lock.unlock() }
+    }
+    /// Test: chờ queue xong (mọi cấu hình xếp hàng đã áp).
+    func debugDrain() { queue.sync {} }
+    var debugStyleRaw: String { lock.lock(); defer { lock.unlock() }; return styleRaw }
+    var debugGain: Float { lock.lock(); defer { lock.unlock() }; return gain }
+    #endif
 
     /// Phát ngay (gọi ở touch-down trên main). false = engine chưa sẵn sàng (bỏ tiếng này,
     /// KHÔNG chờ — trừ khi khởi động lại kịp trong lateWindow). Không cấp phát ở đường nóng.
@@ -166,12 +211,13 @@ final class KeySound {
 
     /// Theme Đập chuột đang bật ⇒ dựng mẫu "éc" (~5.7k mẫu) cùng engine; tắt ⇒ nhả. Theme khác: không gọi.
     func setSqueakEnabled(_ on: Bool) {
-        lock.lock()
-        squeakWanted = on
-        if !on { squeakBuffer = nil }
-        let build = on && engine != nil && squeakBuffer == nil
-        lock.unlock()
-        if build { queue.async { [self] in lock.lock(); buildSqueakLocked(); lock.unlock() } }
+        configure { [self] in
+            squeakWanted = on
+            if !on { squeakBuffer = nil }
+            if on && engine != nil && squeakBuffer == nil {
+                queue.async { [self] in lock.lock(); buildSqueakLocked(); lock.unlock() }
+            }
+        }
     }
 
     private func buildSqueakLocked() {

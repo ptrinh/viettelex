@@ -113,6 +113,7 @@ final class KeyboardViewController: UIInputViewController {
     private var language: KeyboardLanguage = .vi
 
     override func viewDidLoad() {
+        StartupPrewarm.start()   // nền: SF Symbols / phông của phím — song song với dựng UIKit
         super.viewDidLoad()
         if #available(iOS 17.0, *) {
             // traitCollectionDidChange không còn được gọi tin cậy trên iOS 17+.
@@ -121,7 +122,7 @@ final class KeyboardViewController: UIInputViewController {
             }
         }
         registerObservers()
-        installKeyboard()
+        StartupTrace.span("installKeyboard") { installKeyboard() }
     }
 
     /// Dựng KeyboardView + nối callback. Gọi ở viewDidLoad, và ở viewWillAppear khi CÙNG
@@ -134,6 +135,7 @@ final class KeyboardViewController: UIInputViewController {
         keyboard = KeyboardView(
             needsGlobe: false,
             inputController: self,     // globe key addTarget thẳng vào handleInputModeList
+            deferInitialBuild: true,   // configureForAppearance dựng MỘT lần với kiểu cuối
             onKey: { [weak self] key in self?.handle(key) }
         )
         keyboard.onDeleteWord = { [weak self] in self?.deleteWordBackward() }
@@ -231,12 +233,18 @@ final class KeyboardViewController: UIInputViewController {
         }
         #endif
         super.viewWillAppear(animated)
+        StartupTrace.event("viewWillAppear")
         appearance.willAppear()
-        configureForAppearance()
+        StartupTrace.span("willAppear") { configureForAppearance() }
     }
 
     /// Chuỗi callback hiện/ẩn (AppearanceCycle): chặn xé muộn + bù willAppear bị nuốt.
     private var appearance = AppearanceCycle()
+    /// Việc của lần hiện không cần cho khung đầu — chạy ngay sau commit khung đầu (StartupTrace.swift).
+    private let postFrame = PostFrameWork()
+    #if DEBUG
+    var debugPostFramePending: Bool { postFrame.isPending }
+    #endif
 
     /// Toàn bộ cấu hình của một lần hiện (đọc cài đặt, trait ô, thanh gợi ý…). Chạy ở
     /// viewWillAppear; viewDidAppear chạy lại nếu lần hiện này chưa được cấu hình (willAppear
@@ -245,13 +253,15 @@ final class KeyboardViewController: UIInputViewController {
         // Cùng controller hiện lại sau viewDidDisappear (cây view đã xé) → dựng mới, rồi phần
         // dưới áp lại toàn bộ cấu hình như lần hiện đầu.
         if keyboard.isTornDown { installKeyboard() }
+        // Mọi rebuild() tới hết trait ô / theme / một tay gom thành MỘT lần dựng phím (kiểu cuối).
+        keyboard.beginBatch()
         L10n.reload()   // ngôn ngữ giao diện app (uiLanguage) — một lần mỗi lần hiện
         TouchLog.loadSetting()
         // Lần hiện mới: không mang phần xin thêm (HostFill) của lần trước sang.
         hostFill.reset(); keyboard.hostFillExtra = 0; lastHostGeomKey = ""
         // Đọc settings MỘT lần mỗi lần hiện (trước đây EngineBridge() tự load lần hai).
         let settings = KeyboardSettings.load()
-        bridge = EngineBridge(settings: settings)     // fresh settings + buffer
+        bridge = EngineBridge(settings: settings)  // fresh settings + buffer
         externalChangePending = false
         lastKeyWasEmailTrigger = false
         restoreUndo = nil; undoOfferActive = false
@@ -290,8 +300,15 @@ final class KeyboardViewController: UIInputViewController {
         smartTouchSetting = settings.smartTouch
         autoCorrectSetting = settings.autoCorrect && !settings.vniMode
         wordTouches.removeAll(); wordTouchesOk = false; pendingTouch = nil
-        if autoCorrectSetting { loadSupplementaryLexicon() }
-        loadSystemTextReplacements(settings)
+        // Thay thế văn bản iOS / danh bạ (tự sửa): nạp bất đồng bộ — khởi động SAU khung đầu.
+        let wantsLexicon = autoCorrectSetting
+        postFrame.schedule { [weak self] in
+            guard let self else { return }
+            StartupTrace.span("lexicons") {
+                if wantsLexicon { self.loadSupplementaryLexicon() }
+                self.loadSystemTextReplacements(settings)
+            }
+        }
         // Tắt ⇒ router không gọi prior (không closure, không cấp phát ở vùng biên phím).
         keyboard.letterPrior = smartTouchSetting ? { [weak self] in self?.smartTouchPrior() } : nil
         if smartTouchSetting { TelexKeyPrior.warmUpInBackground() }
@@ -312,14 +329,17 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.configureSpaceFlick(enabled: spaceFlickSetting, language: language)
         keyboard.configureKeyAlternates(numbers: settings.longPressNumbers, symbols: settings.longPressSymbols,
                                         holdShift: settings.holdShiftSymbols)
-        warmUpData()
+        // Model cá nhân + mô hình âm tiết: sau khung đầu (getter langModel vẫn tạo lười nếu phím
+        // tới trước — gõ ngay không mất gì, chỉ gợi ý tới muộn vài chục ms).
+        postFrame.schedule { [weak self] in StartupTrace.span("warmUpData") { self?.warmUpData() } }
         swipeSuggest = nil
         recentEnglish = []; langRecent = []
         addTonesUndo = nil; addTonesDismissed = nil; addTonesCache = nil
         // Trait ô (layout, return key, passthrough, bar) — force: mỗi lần hiện áp lại
         // appearance/mẫu câu dù trait y hệt (batchConfigure tự dedupe rebuild).
-        refreshFieldTraits(force: true)
+        StartupTrace.span("fieldTraits") { refreshFieldTraits(force: true) }
         applyOneHandSetting()
+        StartupTrace.span("buildKeys") { keyboard.endBatch() }
         TouchLog.session(fullAccess: hasFullAccess, traits: fieldTraits?.logDescription ?? "")
         logHostGeometry("willAppear")
         // Rung phím: cần cả toggle trong app LẪN Toàn quyền Truy cập (iOS
@@ -329,11 +349,11 @@ final class KeyboardViewController: UIInputViewController {
         KeyHaptics.log = { TouchLog.write($0) }
         KeyHaptics.shared.setStrength(settings.hapticStrength)
         TouchLog.write("haptics setting=\(settings.hapticFeedback ? 1 : 0) strength=\(settings.hapticStrength) fullAccess=\(hasFullAccess ? 1 : 0)")
-        applyKeySound(settings)
+        StartupTrace.span("keySound") { applyKeySound(settings) }
         // Báo trạng thái Full Access cho app chứa (ẩn banner nhắc cấp quyền).
         // Không Full Access thì iOS chặn GHI App Group → cờ giữ nguyên/vắng,
         // banner vẫn hiện — đúng ý.
-        reportStatusToApp()
+        postFrame.schedule { [weak self] in StartupTrace.span("reportStatus") { self?.reportStatusToApp() } }
         keyboard.onShiftChange = { [weak self] in self?.shiftChanged() }
         keyboard.onSuggestion = { [weak self] item in
             guard let self else { return }
@@ -364,7 +384,9 @@ final class KeyboardViewController: UIInputViewController {
                 before: { self.textDocumentProxy.documentContextBeforeInput ?? "" })
         }
         updateAutoShift()
-        updateSuggestions()            // field trống → gợi mở đầu ngay khi hiện
+        // Thanh gợi ý mở đầu (field trống → gợi ý từ đầu câu, nút Dán): ngay SAU khung đầu —
+        // phím hiện trước, chữ trên thanh tới trong lúc bàn phím còn đang trượt lên.
+        postFrame.schedule { [weak self] in StartupTrace.span("suggestions") { self?.updateSuggestions() } }
         keyboard.showLanguageBadge()   // "ViệtTelex" thoáng trên spacebar như stock
     }
 
@@ -418,6 +440,7 @@ final class KeyboardViewController: UIInputViewController {
         #endif
         super.viewWillDisappear(animated)
         appearance.willDisappear()
+        postFrame.cancel()
         pasteOnce.ended()   // ẩn bàn phím: lời mời dán đang hiện coi như đã bỏ qua
         closeClipboardPanel()
         learnSettledSwipe()
@@ -484,6 +507,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func tearDownKeyboard() {
+        postFrame.cancel()
         closeClipboardPanel()
         NSLayoutConstraint.deactivate(keyboardEdges)
         keyboardEdges = []
@@ -1289,6 +1313,12 @@ final class KeyboardViewController: UIInputViewController {
         }
         #endif
         super.viewDidAppear(animated)
+        StartupTrace.event("viewDidAppear")
+        StartupTrace.span("didAppear") { didAppearBody() }
+    }
+
+    private func didAppearBody() {
+        postFrame.flush()   // thường đã chạy (sau khung đầu); chưa thì chạy nốt trước khi đối chiếu
         // Recognizer cổng cử chỉ hệ thống có thể gắn vào window sau didMoveToWindow ⇒ tắt
         // trì hoãn lần nữa khi đã hiện hẳn (phím mép trái/phải ăn ngay như phím giữa).
         KeyboardView.releaseSystemTouchDelays(for: view)
@@ -1304,7 +1334,7 @@ final class KeyboardViewController: UIInputViewController {
         keyboard?.updateDark(presentationDark)
         keyboard?.setNeedsGlobe(needsInputModeSwitchKey)
         refreshFullAccessIfChanged()
-        pushSwipeLayout(prepare: true)       // frame phím đã thật → dựng template ở nền
+        pushSwipeLayout(prepare: true)   // frame phím đã thật → dựng template ở nền
         // Clipboard có thể vừa đổi trong lúc bàn phím ẩn: tính lại bar khi đã hiện
         // hẳn (cache 2s của pasteOffer bỏ qua để đọc trạng thái mới).
         // Chỉ tính lại cả bar khi kết quả nút Dán ĐỔI so với lúc viewWillAppear
@@ -2421,6 +2451,7 @@ extension KeyboardViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        StartupTrace.event("didLayout")
         pushSwipeLayout(prepare: true)
         // Sáng/tối: iOS 27 đôi khi báo trait SÁNG lúc viewWillAppear/viewDidAppear dù máy
         // tối ⇒ phím trắng trên backdrop tối, chữ gợi ý đen khó đọc (Phil 28/09/2026). Mỗi

@@ -245,6 +245,7 @@ targets:
       - Keyboard/TextToolRunner.swift
       - Keyboard/Translate.swift
       - Keyboard/MainDebouncer.swift
+      - Keyboard/StartupTrace.swift
       # bảng gõ tắt mẫu ở gốc repo — test khứ hồi parse/export cùng định dạng macOS
       - path: ../sample-shortcuts.yml
       # VietTelex Plus: gate dùng chung + logic mua (không StoreKit) + cấu hình StoreKit test.

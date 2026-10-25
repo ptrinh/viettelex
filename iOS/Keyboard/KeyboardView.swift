@@ -244,7 +244,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var themeScreenLoadedFor: (size: CGSize, sig: String)?
     private var builtAssetsSig: String?
 
-    init(needsGlobe: Bool, inputController: UIInputViewController?, onKey: @escaping (Key) -> Void) {
+    /// `deferInitialBuild`: KHÔNG dựng phím ở init (controller dựng một lần sau khi biết
+    /// sáng/tối + theme + loại ô — trước đây init dựng plane chữ kiểu mặc định rồi viewWillAppear
+    /// dựng LẠI khi máy ở chế độ tối / có theme / ô số: ~40 phím xé + dựng 2 lần mỗi lần hiện).
+    init(needsGlobe: Bool, inputController: UIInputViewController?, deferInitialBuild: Bool = false,
+         onKey: @escaping (Key) -> Void) {
         self.needsGlobe = needsGlobe
         self.inputController = inputController
         self.onKey = onKey
@@ -329,7 +333,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // (frame đặt ở layoutSubviews, không constraint): xem SuggestionBar.
         suggestionBar.isHidden = true
         addSubview(suggestionBar)
-        rebuild()
+        if deferInitialBuild {
+            initialBuildPending = true
+        } else {
+            StartupTrace.span("kv.initRebuild") { rebuild() }
+        }
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -873,6 +881,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // không dùng UIScreen.main (deprecated, sai trong Split View).
     private var lastLayoutWidth: CGFloat = 0
     override func layoutSubviews() {
+        StartupTrace.span("kv.layout") { layoutSubviewsBody() }
+    }
+    private func layoutSubviewsBody() {
+        if initialBuildPending, !rebuildDeferred, !isTornDown { rebuild() }
         if Self.isPad { KeyButton.padLandscape = isLandscapeNow }   // phím tự áp cỡ chữ theo hướng
         super.layoutSubviews()
         letterGeometryCache = nil
@@ -901,8 +913,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         layoutStripZones()
         layoutOverlayPanel()
         layoutBackdrop()
-        loadWallpaperIfNeeded()
-        loadThemeScreensIfNeeded()
+        StartupTrace.span("kv.wallpaper+screens") {
+            loadWallpaperIfNeeded()
+            loadThemeScreensIfNeeded()
+        }
         logGeometryIfChanged()
         if pasteCard.superview != nil, !pasteCard.isHidden {   // xoay màn hình
             let w = Self.stripZoneWidth
@@ -1632,12 +1646,23 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// 2 lần mỗi lần hiện dù không có gì đổi. Trong body mọi rebuild() bị hoãn;
     /// cuối cùng rebuild một lần — và rebuild tự bỏ qua khi chữ ký không đổi.
     func batchConfigure(_ body: () -> Void) {
-        rebuildDeferred = true
+        beginBatch()
         body()
-        rebuildDeferred = false
-        rebuild()
+        endBatch()
     }
-    private var rebuildDeferred = false
+    /// Như batchConfigure nhưng mở/đóng tách rời (controller gom CẢ lần hiện: dựng KeyboardView
+    /// → đọc cài đặt → trait ô/theme/sáng-tối ⇒ dựng phím MỘT lần với kiểu cuối). Lồng được.
+    func beginBatch() { batchDepth += 1 }
+    func endBatch() {
+        guard batchDepth > 0 else { return }
+        batchDepth -= 1
+        if batchDepth == 0 { rebuild() }
+    }
+    private var batchDepth = 0
+    private var rebuildDeferred: Bool { batchDepth > 0 }
+    /// Dựng bằng `deferInitialBuild` và CHƯA dựng plane nào. layoutSubviews dựng bù nếu
+    /// tới lượt layout mà chưa ai dựng (willAppear bị nuốt…) — không bao giờ hiện bàn phím rỗng.
+    private(set) var initialBuildPending = false
 
     /// Loại ô nhập (từ textDocumentProxy.keyboardType) → đổi layout như stock:
     /// number mở thẳng plane số; email đổi hàng đáy thành phím @ và . ; url
@@ -1927,6 +1952,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
 
     func applyAppearance(_ appearance: UIKeyboardAppearance, style: UIUserInterfaceStyle) {
+        StartupTrace.span("kv.applyAppearance") { applyAppearanceBody(appearance, style: style) }
+    }
+    private func applyAppearanceBody(_ appearance: UIKeyboardAppearance, style: UIUserInterfaceStyle) {
         systemDark = AppearancePolicy.isDark(appearance: appearance, style: style)
         themeSettings = ThemeSettings.load(UserDefaultsProvider.shared)
         // Tệp tải về: chỉ theme có khai báo mới đọc mục lục / giải ảnh (một lần, cache theo chữ ký).
@@ -2195,6 +2223,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     private func rebuild() {
         guard !rebuildDeferred else { return }   // batchConfigure rebuild 1 lần cuối
+        StartupTrace.span("kv.rebuild") { rebuildBody() }
+    }
+    private func rebuildBody() {
+        initialBuildPending = false
         letterGeometryCache = nil
         // Hoạ tiết nền (chỉ theme có hoạ tiết): hàng phím mới ⇒ lượt layout kế đo lại khe giữa hàng
         // (khe không đổi thì không dựng lại path).
