@@ -2,6 +2,8 @@
 
 Gửi issue tại **https://github.com/ptrinh/viettelex/issues/new/choose** → chọn **🐞 Báo lỗi**. Trước khi báo: cập nhật bản mới nhất (tab **Giới thiệu** → *Kiểm tra cập nhật*) và thử lại.
 
+Gõ trong Terminal/iTerm/Chrome bị gạch chân hoặc không ra dấu → kiểm tra quyền trước: **Cài đặt hệ thống → Quyền riêng tư & Bảo mật → Trợ năng** (macOS 26 trở về trước) / **Điều khiển thiết bị và truy cập dữ liệu** (macOS 27) → bật VietTelex. Đã bật mà vẫn báo thiếu quyền: chọn VietTelex, bấm − để xoá rồi bấm + thêm lại.
+
 ## Mẫu issue
 
 Form sẽ hỏi đúng những field dưới đây — xem trước cho nhanh. Phiên bản, macOS, chế độ gõ… đã nằm sẵn trong nhật ký:

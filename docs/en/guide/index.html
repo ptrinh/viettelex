@@ -216,7 +216,7 @@ window.vtxDetectOS = function (ua, plat, touch) {
       <ul>
         <li>Install <b>one</b> way: download <a href="/en/download/?os=macos">VietTelex-x.y.z.pkg</a> (signed &amp; notarized) and double-click it, or run <code>brew install --cask ptrinh/viettelex/viettelex</code>. Don't install through both channels.</li>
         <li>The installer opens System Settings → Keyboard: <b>Input Sources → Edit… → ＋ → Vietnamese → ViệtTelex → Add</b>.</li>
-        <li>To type in <b>Terminal, iTerm, Chrome/Edge/Brave</b>: grant <b>Accessibility</b> (Privacy &amp; Security → Accessibility → tick VietTelex); a one-time restart may be needed.</li>
+        <li>To type in <b>Terminal, iTerm, Chrome/Edge/Brave</b>: grant the permission in Privacy &amp; Security → <b>Accessibility</b> (macOS 26 and earlier) / <b>Device Control and Data Access</b> (macOS 27) → enable VietTelex; a one-time restart may be needed.</li>
         <li>Switch Vietnamese/English with 🌐 or <kbd>⌃</kbd><kbd>Space</kbd> like any macOS input source (macOS remembers it per app). VietTelex settings: the Vᴛ menu bar icon → <b>Cài đặt…</b> (Settings…).</li>
       </ul>
     </div>
@@ -620,7 +620,7 @@ sudo apt install viettelex-fcitx5   # or: sudo apt install viettelex-ibus</pre>
       <ul>
         <li data-os="ios"><b>iOS</b>: the keyboard is fully usable <b>without</b> Full Access. It's only needed for haptics, the custom key sound, live snippets (https://), the Paste button, clipboard history and saving learned words. VietTelex never collects or sends what you type.</li>
         <li data-os="android"><b>Android</b>: network access is used only for live snippets you create. VietTelex never collects or sends what you type.</li>
-        <li data-os="macos"><b>macOS</b>: <b>Accessibility</b> is needed for typing in Terminal/Chrome (Tap mode), the switch hotkey and the add-tones hotkey. No data collection.</li>
+        <li data-os="macos"><b>macOS</b>: The <b>Accessibility</b> permission (macOS 27: <b>Device Control and Data Access</b>) is needed for typing in Terminal/Chrome (Tap mode), the switch hotkey and the add-tones hotkey. No data collection.</li>
         <li data-os="windows"><b>Windows</b>: no data collection; network is used only when you click Check for updates or turn on the automatic check.</li>
         <li data-os="linux"><b>Linux</b>: no data collection; network is used only when you click Check for updates.</li>
         <li data-os="ios android"><b>VietTelex Plus</b> (one-time purchase): premium themes &amp; wallpaper, whole-sentence tones, advanced clipboard, iCloud sync, text tools, a thank-you badge. All typing features are free forever. On iOS, from version 1.2 Plus is a one-time purchase; on Android it is still unlocked for everyone for now. How to use each feature (also shown on the Plus screen):

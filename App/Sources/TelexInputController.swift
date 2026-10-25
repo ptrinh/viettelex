@@ -3242,15 +3242,13 @@ final class TelexInputController: IMKInputController {
         alert.messageText = VTLocalized("Stale permission title")
         alert.informativeText = VTLocalized("Stale permission body")
         alert.addButton(withTitle: VTLocalized("Repair automatically"))
-        alert.addButton(withTitle: VTLocalized("Open Accessibility Settings"))
+        alert.addButton(withTitle: VTLocalized("Open {PANE} Settings"))
         alert.addButton(withTitle: VTLocalized("Close"))
         switch alert.runModal() {
         case .alertFirstButtonReturn:
             repairStaleTrust()
         case .alertSecondButtonReturn:
-            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                NSWorkspace.shared.open(url)
-            }
+            PrivacyPane.openSettings()
             TerminalTapController.shared.retryNow()
         default:
             TerminalTapController.shared.retryNow()
@@ -3272,14 +3270,13 @@ final class TelexInputController: IMKInputController {
         let done = NSAlert()
         done.messageText = VTLocalized(didReset ? "Repair started title" : "Repair failed title")
         done.informativeText = VTLocalized(didReset ? "Repair started body" : "Repair failed body")
-        done.addButton(withTitle: VTLocalized("Open Accessibility Settings"))
+        done.addButton(withTitle: VTLocalized("Open {PANE} Settings"))
         done.addButton(withTitle: VTLocalized("Close"))
         NSApp.activate(ignoringOtherApps: true)
         done.window.level = .floating
         done.window.orderFrontRegardless()
-        if done.runModal() == .alertFirstButtonReturn,
-           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
+        if done.runModal() == .alertFirstButtonReturn {
+            PrivacyPane.openSettings()
         }
         TerminalTapController.shared.retryNow()
     }
@@ -3350,8 +3347,11 @@ final class TelexInputController: IMKInputController {
     private func grantAccessibility(firstRun: Bool = false) {
         NSApp.setActivationPolicy(.regular)
         let alert = NSAlert()
-        alert.messageText = VTLocalized("Accessibility permission needed")
-        alert.informativeText = VTLocalized("VietTelex needs Accessibility to type Vietnamese in Terminal/iTerm and browsers.\n\nOpen System Settings → Privacy & Security → Accessibility and enable VietTelex (if it’s already there, untick then tick it again).")
+        alert.messageText = VTLocalized("{PANE} permission needed")
+        // macOS 27 renamed the pane AND re-adding beats re-toggling a stale grant there.
+        alert.informativeText = VTLocalized(PrivacyPane.pick(
+            legacy: "VietTelex needs Accessibility to type Vietnamese in Terminal/iTerm and browsers.\n\nOpen System Settings → Privacy & Security → Accessibility and enable VietTelex (if it’s already there, untick then tick it again).",
+            modern: "Permission alert body (macOS 27)"))
         alert.addButton(withTitle: VTLocalized("Open Settings"))
         alert.addButton(withTitle: VTLocalized("Close"))
         if let keys = Self.axPromptKeyEquivalents(firstRun: firstRun) {
@@ -3367,9 +3367,8 @@ final class TelexInputController: IMKInputController {
         alert.window.orderFrontRegardless()
         alert.window.makeKeyAndOrderFront(nil)
         let resp = alert.runModal()
-        if resp == .alertFirstButtonReturn,
-           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
+        if resp == .alertFirstButtonReturn {
+            PrivacyPane.openSettings()
         }
         NSApp.setActivationPolicy(.accessory)
     }

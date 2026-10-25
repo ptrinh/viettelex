@@ -53,7 +53,7 @@ sang ABC, thoát VietTelex, xoá app ở đường dẫn trên rồi mới chạ
 |---|---|
 | ![Input Sources → Edit](assets/instructions-1.png) | ![Add ViệtTelex](assets/instructions-2.png) |
 
-Để gõ trong **Terminal, iTerm, Chrome/Edge/Brave**: bật quyền **Accessibility** cho VietTelex (Privacy & Security → Accessibility). Chuyển Việt/Anh bằng phím 🌐 hoặc ⌃Space (macOS nhớ theo từng app).
+Để gõ trong **Terminal, iTerm, Chrome/Edge/Brave**: cấp quyền cho VietTelex trong Privacy & Security → **Accessibility** (macOS 26 trở về trước) / **Device Control and Data Access** (macOS 27). Chuyển Việt/Anh bằng phím 🌐 hoặc ⌃Space (macOS nhớ theo từng app).
 
 ## Cách gõ
 
@@ -69,7 +69,7 @@ Các tuỳ chọn về kiểu gõ nằm trong menu bộ gõ → **Cài đặt…
 <details>
 <summary><strong>Cài xong gõ vẫn bị gạch chân?</strong></summary>
 
-Nếu chữ bị gạch chân, có thể VietTelex chưa được cấp quyền Trợ năng. Mở Cài đặt hệ thống (System Settings) → Quyền riêng tư & Bảo mật (Privacy & Security) → Trợ năng (Accessibility), rồi bật VietTelex. Nếu đã bật mà vẫn lỗi, hãy tắt rồi bật lại. Có thể cần khởi động lại máy để quyền có hiệu lực.
+Nếu chữ bị gạch chân, có thể VietTelex chưa được cấp quyền. Mở Cài đặt hệ thống (System Settings) → Quyền riêng tư & Bảo mật (Privacy & Security) → **Trợ năng** (Accessibility, macOS 26 trở về trước) / **Điều khiển thiết bị và truy cập dữ liệu** (Device Control and Data Access, macOS 27), rồi bật VietTelex. Lưu ý: mục "Trợ năng" ở thanh bên trên macOS 27 là cài đặt hỗ trợ nhìn/nghe, không phải chỗ cấp quyền. Nếu đã bật mà vẫn lỗi, hãy chọn VietTelex, bấm − để xoá rồi bấm + thêm lại (từ ~/Library/Input Methods). Có thể cần khởi động lại máy để quyền có hiệu lực.
 
 Nếu đã bật quyền mà VietTelex vẫn báo thiếu, hãy kiểm tra bản đang chạy. Bản Debug
 trong Xcode có định danh riêng và không dùng quyền của bản cài trong
@@ -135,7 +135,7 @@ Khi **cả hai máy** đều cài VietTelex, bộ gõ local và bộ gõ remote 
 
 Muốn gõ tiếng Việt vào ô tên máy / PIN trên trang Chrome Remote Desktop: chuyển sang ABC, hoặc gõ không dấu.
 
-Cần quyền Trợ năng để bộ gõ đọc được URL tab (Chrome vốn đã cần quyền này).
+Cần quyền Trợ năng (macOS 27: Điều khiển thiết bị và truy cập dữ liệu) để bộ gõ đọc được URL tab (Chrome vốn đã cần quyền này).
 </details>
 
 <details>

@@ -315,12 +315,11 @@ final class SettingsModel: ObservableObject {
         }
     }
 
-    /// Open System Settings → Privacy & Security → Accessibility. One definition, used
-    /// by the General-tab banner and the mode table's ⚠️ badge.
+    /// Open System Settings → Privacy & Security → Accessibility (macOS 27: Device
+    /// Control and Data Access — PrivacyPane). Used by the General-tab banner and the
+    /// mode table's ⚠️ badge.
     static func openAccessibilitySettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
-        }
+        PrivacyPane.openSettings()
     }
 
     // MARK: Bảng chế độ gõ
@@ -740,15 +739,15 @@ struct TypingTab: View {
             // First tab = what "Settings…" opens, so the warning can't be missed.
             if !model.accessibilityTrusted {
                 Section {
-                    Text("⚠️ " + model.loc("No Accessibility permission — typing will be underlined"))
+                    Text("⚠️ " + model.loc("No {PANE} permission — typing will be underlined"))
                         .foregroundStyle(.red)
                     Button {
                         SettingsModel.openAccessibilitySettings()
                     } label: {
-                        Label(model.loc("Open Accessibility Settings"), systemImage: "accessibility")
+                        Label(model.loc("Open {PANE} Settings"), systemImage: "accessibility")
                     }
                     .prominentGlass()
-                    Text(model.loc("Tick VietTelex in Privacy & Security → Accessibility. You may need to restart your Mac for the permission to take effect."))
+                    Text(model.loc("Tick VietTelex in Privacy & Security → {PANE}. You may need to restart your Mac for the permission to take effect."))
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -907,7 +906,7 @@ struct ToolsTab: View {
                         Text(c.id == "off" ? model.loc("Off") : c.label).tag(c.id)
                     }
                 }
-                Text(model.loc("Works in any app, even when another input source is active. Needs Accessibility permission (copies the selection, then pastes the result — your clipboard is restored)."))
+                Text(model.loc("Works in any app, even when another input source is active. Needs {PANE} permission (copies the selection, then pastes the result — your clipboard is restored)."))
                     .font(.caption).foregroundStyle(.secondary)
                 if #available(macOS 26.0, *) {
                     TranslateSettingsRows()
@@ -1001,8 +1000,8 @@ struct ModeTableTab: View {
                                 SettingsModel.openAccessibilitySettings()
                             } label: { Text("⚠️") }
                                 .buttonStyle(.borderless)
-                                .help(model.loc("Missing Accessibility permission — click to open System Settings"))
-                                .accessibilityLabel(model.loc("Missing Accessibility permission — click to open System Settings"))
+                                .help(model.loc("Missing {PANE} permission — click to open System Settings"))
+                                .accessibilityLabel(model.loc("Missing {PANE} permission — click to open System Settings"))
                         }
                     }
                 }.width(min: 120)
@@ -1080,14 +1079,14 @@ struct ModeTableTab: View {
                 Button { importModes() } label: { Label(model.loc("Import…"), systemImage: "square.and.arrow.up.on.square") }
                 Button { exportModes() } label: { Label(model.loc("Export to YAML…"), systemImage: "square.and.arrow.up") }
             }
-            Text(model.loc("An app types wrong or shows underlines? Pick Tap — real keystrokes, no underline (needs Accessibility). Marked text always renders correctly but underlines while typing. The modes below the divider are for special cases — leave them unless you know the app needs one. Clear forgets everything learned; manual picks are kept."))
+            Text(model.loc("An app types wrong or shows underlines? Pick Tap — real keystrokes, no underline (needs {PANE} permission). Marked text always renders correctly but underlines while typing. The modes below the divider are for special cases — leave them unless you know the app needs one. Clear forgets everything learned; manual picks are kept."))
                 .font(.caption).foregroundStyle(.secondary)
 
             // Từ tab Thử nghiệm (14/10/2026): cả hai quyết định "app nào gõ thế nào".
             Divider().padding(.vertical, 2)
             Toggle(model.loc("Unknown apps use the safe channel (tap/marked)"),
                    isOn: $model.safeUnknownApps)
-            Text(model.loc("Apps without a rule type via backspace-retype (or underlined composition without Accessibility) instead of trying direct insertion and guessing. Turn off to restore the old probe-and-learn behavior."))
+            Text(model.loc("Apps without a rule type via backspace-retype (or underlined composition without {PANE} permission) instead of trying direct insertion and guessing. Turn off to restore the old probe-and-learn behavior."))
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Toggle(model.loc("Keep VietTelex when macOS auto-switches the input source"),
@@ -1165,7 +1164,7 @@ struct GeneralTab: View {
                         Text("⌥⇧  Option + Shift").tag("opt-shift")
                         Text("⌘⇧  Command + Shift").tag("cmd-shift")
                     }
-                    Text(model.loc("Press and release the modifiers alone to toggle between VietTelex and your previous input source — the modifier-only combos macOS's own Keyboard Shortcuts can't assign. Ignored if you type a key or click while holding them. Needs Accessibility permission."))
+                    Text(model.loc("Press and release the modifiers alone to toggle between VietTelex and your previous input source — the modifier-only combos macOS's own Keyboard Shortcuts can't assign. Ignored if you type a key or click while holding them. Needs {PANE} permission."))
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section(header: Label(model.loc("Menu bar icon"), systemImage: "star.square")) {

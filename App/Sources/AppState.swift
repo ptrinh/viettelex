@@ -1345,7 +1345,15 @@ final class AppState: @unchecked Sendable {
 /// Used by both the SwiftUI Settings window and the AppKit menu/alerts so an
 /// explicit language pick applies everywhere, immediately (views re-render via the
 /// SettingsModel's @Published language).
+/// Strings containing `{PANE}` get the privacy pane's name for THIS macOS (renamed on
+/// 27 — see PrivacyPane), localized the same way.
 func VTLocalized(_ key: String) -> String {
+    let s = VTLocalizedRaw(key)
+    guard s.contains(PrivacyPane.token) else { return s }
+    return PrivacyPane.fill(s, paneName: VTLocalizedRaw(PrivacyPane.nameKey(major: PrivacyPane.currentMajor)))
+}
+
+private func VTLocalizedRaw(_ key: String) -> String {
     let lang = AppState.shared.uiLanguage
     if lang != "system",
        let path = Bundle.main.path(forResource: lang, ofType: "lproj"),

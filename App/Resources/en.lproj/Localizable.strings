@@ -6,10 +6,10 @@
    so an explicit "English" UI-language pick resolves to en.lproj even on a
    Vietnamese-language system (VTLocalized loads this bundle by name). */
 
-"Status: Permission stale — click to fix" = "⚠️ Accessibility permission stuck — click to fix";
+"Status: Permission stale — click to fix" = "⚠️ {PANE} permission stuck — click to fix";
 "Status: Tap paused — click to retry" = "⚠️ Typing engine paused (self-protect) — click to retry";
 
-"Stale permission title" = "Accessibility permission is stuck after an update";
+"Stale permission title" = "{PANE} permission is stuck after an update";
 
 "Stale permission body" = "macOS lists VietTelex as allowed but refuses the event tap — the stored permission pins an older signature, so that checkbox no longer means anything.
 
@@ -27,9 +27,9 @@ Press “Repair automatically”: VietTelex removes its own stuck entry and asks
 "Input source hotkey howto title" = "One more step in System Settings";
 "Input source hotkey howto body" = "In the Keyboard pane that just opened, press “Keyboard Shortcuts…”, then select “Input Sources” in the sidebar of the sheet that appears.";
 "Repair started title" = "Permission reset — approve it once";
-"Repair started body" = "VietTelex removed its own stale entry. macOS should now ask for Accessibility permission: approve it, or open Accessibility settings and tick VietTelex. Typing in Terminal/Chrome works again the moment you do — no restart needed.";
+"Repair started body" = "VietTelex removed its own stale entry. macOS should now ask for {PANE} permission: approve it, or open System Settings → Privacy & Security → {PANE} and tick VietTelex. Typing in Terminal/Chrome works again the moment you do — no restart needed.";
 "Repair failed title" = "Couldn’t reset the permission";
-"Repair failed body" = "macOS refused to remove the entry (this happens when it is managed by your organisation). Fix it by hand: open Accessibility settings, select VietTelex, press − to remove it, then + to add it back from ~/Library/Input Methods.";
+"Repair failed body" = "macOS refused to remove the entry (this happens when it is managed by your organisation). Fix it by hand: open System Settings → Privacy & Security → {PANE}, select VietTelex, press − to remove it, then + to add it back from ~/Library/Input Methods.";
 
 /* 1.4.22 — UI/UX audit: missing captions, Accessibility banner, update channel, VoiceOver labels */
 
@@ -46,3 +46,6 @@ Press “Repair automatically”: VietTelex removes its own stuck entry and asks
 /* Uninstall (About tab, 17/08/2026) */
 
 /* Typing-mode menu line (maintainer 19/08/2026) */
+
+/* macOS 27 renamed the permission's pane (PrivacyPane): {PANE} = "Device Control and Data Access". */
+"Permission alert body (macOS 27)" = "VietTelex needs the {PANE} permission to type Vietnamese in Terminal/iTerm and browsers.\n\nOpen System Settings → Privacy & Security → {PANE} and enable VietTelex. If it’s already on but VietTelex still says the permission is missing, select VietTelex, press − to remove it, then + to add it back (from ~/Library/Input Methods).";

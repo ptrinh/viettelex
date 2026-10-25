@@ -78,6 +78,18 @@ Ba chi tiết phải giữ:
 Cache: TTL 300ms + invalidate khi `activateServer` (đổi ô/đổi app). Ký tự ĐẦU của
 password mà đọc trễ thì vô hại — engine chỉ ghi lại text từ phím thứ hai của âm tiết.
 
+## macOS 27 đổi tên mục quyền Trợ năng — 2026-10-25
+
+Quyền riêng tư & Bảo mật → "Accessibility / Trợ năng" trên macOS 27 thành
+**"Device Control and Data Access / Điều khiển thiết bị và truy cập dữ liệu"**
+(nguyên văn từ `SecurityPrivacyExtension.appex/.../Localizable.loctable`, khoá
+`ACCESSIBILITY`, macOS 27.0.1). Mục "Trợ năng" ở thanh bên vẫn còn nhưng là cài đặt
+nhìn/nghe — user đọc hướng dẫn cũ sẽ lạc. Mọi chuỗi giao diện nói tên mục dùng token
+`{PANE}` (VTLocalized thay theo phiên bản, `PrivacyPane.swift`); alert chính trên 27
+khuyên "bấm − xoá rồi + thêm lại" thay vì tắt/bật. Deep link không đổi: extension vẫn
+khai `legacyBundleIdentifier = com.apple.preference.security` và anchor
+`Privacy_Accessibility` (không có anchor mới).
+
 ## "Quyền Trợ năng bị kẹt": nguyên nhân thật và cách sửa dứt điểm — 2026-07-27
 
 **Cơ chế.** Grant Accessibility nằm ở TCC.db hệ thống, mỗi dòng gồm bundle id + một

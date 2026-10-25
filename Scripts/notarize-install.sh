@@ -97,4 +97,4 @@ pkill -x VietTelex 2>/dev/null || true
 
 echo "Done. Log out / log in ONCE (first install only), then add it: Keyboard → Input Sources → + → Vietnamese → Tiếng Việt (VietTelex)."
 echo "If Terminal/Chromium typing stops after this install, the IME menu will show"
-echo "'Quyền trợ năng bị kẹt' with one-click repair instructions."
+echo "a 'permission stuck' status line (Trợ năng/Accessibility; macOS 27: Điều khiển thiết bị và truy cập dữ liệu) with one-click repair."

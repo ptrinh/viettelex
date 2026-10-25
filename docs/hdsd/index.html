@@ -216,7 +216,7 @@ window.vtxDetectOS = function (ua, plat, touch) {
       <ul>
         <li>Cài <b>một</b> trong hai cách: tải <a href="/download/?os=macos">VietTelex-x.y.z.pkg</a> (đã ký &amp; notarize) rồi nhấp đúp, hoặc <code>brew install --cask ptrinh/viettelex/viettelex</code>. Đừng cài song song hai kênh.</li>
         <li>Trình cài tự mở Cài đặt hệ thống → Bàn phím: <b>Nguồn đầu vào → Sửa… → ＋ → Tiếng Việt → ViệtTelex → Thêm</b>.</li>
-        <li>Để gõ được trong <b>Terminal, iTerm, Chrome/Edge/Brave</b>: bật quyền <b>Trợ năng</b> (Quyền riêng tư &amp; bảo mật → Trợ năng → tick VietTelex); có thể cần khởi động lại máy một lần.</li>
+        <li>Để gõ được trong <b>Terminal, iTerm, Chrome/Edge/Brave</b>: vào Quyền riêng tư &amp; Bảo mật → <b>Trợ năng</b> (macOS 26 trở về trước) / <b>Điều khiển thiết bị và truy cập dữ liệu</b> (macOS 27) → bật VietTelex; có thể cần khởi động lại máy một lần.</li>
         <li>Chuyển Việt/Anh bằng 🌐 hoặc <kbd>⌃</kbd><kbd>Space</kbd> như mọi bộ gõ của macOS (macOS nhớ theo từng app). Cài đặt của VietTelex: biểu tượng Vᴛ trên thanh menu → <b>Cài đặt…</b>.</li>
       </ul>
     </div>
@@ -620,7 +620,7 @@ sudo apt install viettelex-fcitx5   # hoặc: sudo apt install viettelex-ibus</p
       <ul>
         <li data-os="ios"><b>iOS</b>: bàn phím dùng đầy đủ khi <b>không</b> cấp Toàn quyền truy cập. Chỉ cần quyền này cho: Rung phím, Âm thanh phím, Mẫu câu động (https://), nút Dán, Lịch sử clipboard và lưu từ đã học. VietTelex không thu thập, không gửi nội dung bạn gõ.</li>
         <li data-os="android"><b>Android</b>: quyền mạng chỉ dùng cho Mẫu câu động do bạn tạo. VietTelex không thu thập, không gửi nội dung bạn gõ.</li>
-        <li data-os="macos"><b>macOS</b>: quyền <b>Trợ năng</b> cần cho gõ trong Terminal/Chrome (cơ chế Tap), phím tắt chuyển bộ gõ và phím tắt Thêm dấu. Không thu thập dữ liệu.</li>
+        <li data-os="macos"><b>macOS</b>: quyền <b>Trợ năng</b> (macOS 27: <b>Điều khiển thiết bị và truy cập dữ liệu</b>) cần cho gõ trong Terminal/Chrome (cơ chế Tap), phím tắt chuyển bộ gõ và phím tắt Thêm dấu. Không thu thập dữ liệu.</li>
         <li data-os="windows"><b>Windows</b>: không thu thập dữ liệu; chỉ kết nối mạng khi bạn bấm Kiểm tra cập nhật hoặc bật tự kiểm tra.</li>
         <li data-os="linux"><b>Linux</b>: không thu thập dữ liệu; chỉ kết nối mạng khi bạn bấm Kiểm tra cập nhật.</li>
         <li data-os="ios android"><b>VietTelex Plus</b> (mua một lần): theme cao cấp &amp; ảnh nền, thêm dấu cả câu, clipboard nâng cao, đồng bộ iCloud, công cụ văn bản, huy hiệu cảm ơn. Toàn bộ phần gõ luôn miễn phí. Trên iOS từ bản 1.2 Plus là gói mua một lần (69.000đ); Android hiện vẫn mở miễn phí. Cách dùng từng tính năng (cũng ghi ngay trên màn Plus):

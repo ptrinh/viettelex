@@ -649,8 +649,13 @@ mac_install() {
   echo
   echo "Bước tiếp theo:"
   echo "  1. System Settings → Keyboard → Input Sources → Edit… → + → Vietnamese → VietTelex."
-  echo "  2. Lần đầu gõ, macOS hỏi quyền Trợ năng (Accessibility): bật VietTelex trong"
-  echo "     System Settings → Privacy & Security → Accessibility."
+  # macOS 27 đổi tên mục quyền (Accessibility → Device Control and Data Access).
+  local pane="Accessibility" pane_vi="Trợ năng"
+  if [ "$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)" -ge 27 ] 2>/dev/null; then
+    pane="Device Control and Data Access" pane_vi="Điều khiển thiết bị và truy cập dữ liệu"
+  fi
+  echo "  2. Lần đầu gõ, macOS hỏi quyền $pane_vi ($pane): bật VietTelex trong"
+  echo "     System Settings → Privacy & Security → $pane."
   echo "  Chuyển Việt/Anh: phím tắt đổi bộ gõ của macOS (Ctrl+Space hoặc 🌐)."
   if [ "$DRY" = 1 ]; then echo "(dry-run: chưa cài gì)"; fi
 }
