@@ -75,6 +75,11 @@ H = {
         "sentence": ("sentenceSplit", [LIVE, "contextualEnglish = true", "collisionPrefersVietnamese = {vietnamese}"]),
     },
     "BoundaryTests.swift": {"commitText": ("commitRestore", [])},
+    "PostTonedSyllableReproTests.swift": {
+        "screen": ("composed", [FREE, LIVE, "teencode = false", "contextualEnglish = true",
+                                "collisionPrefersVietnamese = true"]),
+        "vni": ("composed", ["vniMode = true", LIVE]),
+    },
     "CompetitorReviewTests.swift": {
         "commitApp": ("commit", [FREE, LIVE, "teencode = false", "contextualEnglish = true",
                                  "collisionPrefersVietnamese = true"]),

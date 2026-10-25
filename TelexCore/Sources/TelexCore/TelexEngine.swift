@@ -271,6 +271,21 @@ public struct TelexEngine {
     // not — the user never saw the literal s where it landed. Reset per word.
     private var tonesFolded = false
 
+    // True when live spell-check froze a word that ALREADY carried Vietnamese letter
+    // marks (đ ư ơ â ê ô ă) plus a pending tone (PR #133, stevedat): the composed word
+    // stays exactly as displayed — tone included — and the breaking key (and every key
+    // after it) is appended literally: "dduowcj"+"u" → "đượcu", not the half-folded
+    // "đươcju". The freeze then starts AT the breaking key (`disabledAtCount` = its
+    // index) and the tone is pinned to the letters before it (`pFreezeLetters`).
+    // Words without letter marks still fold the tone back ("installer", "cart").
+    // Decided once at the freeze (feed / recomputeFreeze). Reset per word.
+    private var freezeKeepsTone = false
+
+    // Parse state: letter count when the parse reached raw index `disabledAtCount`
+    // (the first frozen key), -1 before that. Render caps tone placement here when
+    // `freezeKeepsTone`, so the kept tone never floats onto the literal tail.
+    private var pFreezeLetters = -1
+
     // Effective tone of the last render (after the stop-coda drop) — the composed
     // word's tone, used by the zero-alloc boundary validation.
     private var lastEffTone: Tone = .none
@@ -493,11 +508,26 @@ public struct TelexEngine {
         if liveSpellCheck, disabledAtCount == Int.max, !prefixIsValid(newCount),
            elongationHeadCount(newCount, tone: pTone) <= 0 {
             disabledAtCount = rawCount
+            freezeKeepsTone = false
             if eagerRestoreApplies(newCount) {
                 // EAGER English restore: freeze from the FIRST key, i.e. the whole word
                 // back to raw ("gôg" → "goog"). Same rebuild the upper-tone freeze uses;
                 // a pending tone cannot float either (every key is literal now).
                 disabledAtCount = 0
+                rebuildParseState()
+                tonesFolded = false
+                newCount = render()
+                markCancelled = pCancelled
+                toneCancelAt = pToneCancelAt
+                toneCancelSpan = pToneCancelSpan
+            } else if pTone != .none, prefixKeepsTone(rawCount - 1) {
+                // The word as displayed BEFORE this key already carries letter marks
+                // (đ ư ơ â ê ô ă) and a visible tone: it is a Vietnamese word the user
+                // finished, not an English word half-converted — keep it exactly as
+                // shown, tone included, and type this key (and the rest) literally:
+                // "dduowcj"+"u" → "đượcu" (PR #133), not "đươcju".
+                disabledAtCount = rawCount - 1
+                freezeKeepsTone = true
                 rebuildParseState()
                 tonesFolded = false
                 newCount = render()
@@ -1645,6 +1675,8 @@ public struct TelexEngine {
         overflowed = false
         disabledAtCount = Int.max
         tonesFolded = false
+        freezeKeepsTone = false
+        pFreezeLetters = -1
         pCount = 0
         pTone = .none
         pToneKeyCount = 0
@@ -1778,6 +1810,9 @@ public struct TelexEngine {
     private mutating func render() -> Int {
         let count = pCount
         for k in 0..<count { renderLetters[k] = letters[k] }
+        // Kept-tone freeze (PR #133): the word before the freeze is shown exactly as it
+        // was — the literal tail neither attracts the tone nor re-shapes ươ.
+        let headEnd = freezeKeepsTone && pFreezeLetters >= 0 ? min(count, pFreezeLetters) : count
 
         // ươ propagation: in a "uo" cluster, if EITHER letter is horned, mirror it
         // onto the other so both become ươ — in a closed syllable (coda/offglide
@@ -1785,13 +1820,13 @@ public struct TelexEngine {
         // typing that reorders o/w ("uow" vs "uwo") still yields ươ: trường, được,
         // nước, người, sương. Stays plain "uơ" when the o is the last letter (open:
         // thuở, huơ) or after "qu" (quở, quởn).
-        for k in 1..<max(1, count) {
+        for k in 1..<max(1, headEnd) {
             guard renderLetters[k - 1].base == UInt8(ascii: "u"),
                   renderLetters[k].base == UInt8(ascii: "o") else { continue }
             let prevHorn = renderLetters[k - 1].mark == .horn
             let curHorn = renderLetters[k].mark == .horn
             guard prevHorn != curHorn else { continue }   // exactly one horned
-            let oIsLast = (k == count - 1)
+            let oIsLast = (k == headEnd - 1)
             let isQuGlide = (k >= 2 && renderLetters[k - 2].base == UInt8(ascii: "q"))
             if !oIsLast && !isQuGlide {
                 renderLetters[k - 1].mark = .horn
@@ -1807,8 +1842,8 @@ public struct TelexEngine {
         // valid head only ("cóaaaaaa", "ạaaaaaa"; without the cap free-marking drifts
         // the tone onto the first tail vowel: "coáaaaa", "aạaaaa"). Gated on "a tone is
         // pending AND the word ends in a doubled letter", so normal words pay nothing.
-        var toneScope = count
-        if pTone != .none {
+        var toneScope = headEnd
+        if pTone != .none, headEnd == count {
             let head = elongationHeadCount(count, tone: pTone)
             if head > 0 { toneScope = head }
         }
@@ -1847,7 +1882,7 @@ public struct TelexEngine {
     private mutating func rebuildFrozenAware() {
         rebuildParseState()
         tonesFolded = false
-        if disabledAtCount != Int.max, pTone != .none {
+        if disabledAtCount != Int.max, pTone != .none, !freezeKeepsTone {
             pFoldTones = true
             rebuildParseState()
             pFoldTones = false
@@ -1883,6 +1918,7 @@ public struct TelexEngine {
         if disabledAtCount == 0, forceRestoreUpperTone, !liveSpellCheck { return }
         let full = rawCount
         disabledAtCount = Int.max
+        freezeKeepsTone = false
         guard liveSpellCheck else { return }
         var r = 1
         while r <= full {
@@ -1896,7 +1932,15 @@ public struct TelexEngine {
                 if elongationHeadCount(pCount, tone: pTone) <= 0 {
                     // Eager English restore decides on exactly what forward typing saw
                     // at this key (raw[0..<r] + its render), so the replay agrees.
-                    disabledAtCount = eagerRestoreApplies(n) ? 0 : r
+                    if eagerRestoreApplies(n) {
+                        disabledAtCount = 0
+                    } else if pTone != .none, prefixKeepsTone(r - 1) {
+                        // Same keep-the-marked-word rule as feed() (PR #133).
+                        disabledAtCount = r - 1
+                        freezeKeepsTone = true
+                    } else {
+                        disabledAtCount = r
+                    }
                 }
             } else if eagerEnglishRestore, disabledAtCount != Int.max, disabledAtCount > 0,
                       disabledAtCount < EnglishFreezePrefixes.minLength,
@@ -1920,8 +1964,56 @@ public struct TelexEngine {
             disabledAtCount = Int.max
             rebuildParseState()
             _ = render()
-            if elongationHeadCount(pCount, tone: pTone) <= 0 { disabledAtCount = frozenAt }
+            if elongationHeadCount(pCount, tone: pTone) <= 0 {
+                disabledAtCount = frozenAt
+            } else {
+                freezeKeepsTone = false
+            }
         }
+    }
+
+    /// Kept-tone freeze test (PR #133). True when the word typed by the first `n` raw
+    /// keys — what the screen showed before key `n` broke it — carries a Vietnamese
+    /// LETTER mark (đ ư ơ â ê ô ă) AND a VISIBLE tone, and key `n`, parsed normally,
+    /// only APPENDS one character to that display. Then the word is kept as shown and
+    /// key `n` onward is typed literally ("được"+u → "đượcu", "người"+w → "ngườiw").
+    /// - A tone render dropped (huyền/hỏi/ngã on a stop coda: "chả"+a+c shows
+    ///   "châc") is not on screen: folding it loses nothing the user saw and brings
+    ///   the English letter back ("character", "arkansas", "software" unchanged).
+    /// - A key that visibly re-shaped the word is a deliberate Telex gesture, not an
+    ///   append: "coấ"+a (aaa cancel → "cóaa", teencode "cosaaa"), "chế"+e
+    ///   ("cheese" → "chée") keep their historical fold.
+    /// Freeze-time only (once per word): replays + renders the prefix and the full
+    /// word, leaving the parse state built for the full `rawCount` (callers re-render).
+    /// No allocation.
+    private mutating func prefixKeepsTone(_ n: Int) -> Bool {
+        let full = rawCount
+        rawCount = n
+        rebuildParseState()
+        var keep = false
+        var shown = 0
+        var sig = 0
+        if pTone != .none {
+            for k in 0..<pCount where letters[k].mark != .none { keep = true; break }
+            if keep {
+                shown = render()
+                keep = lastEffTone != .none
+                sig = scratchSignature(shown)
+            }
+        }
+        rawCount = full
+        rebuildParseState()
+        if keep {
+            keep = render() == shown + 1 && scratchSignature(shown) == sig
+        }
+        return keep
+    }
+
+    /// Order-sensitive digest of the first `n` rendered scalars (n ≤ 32).
+    private func scratchSignature(_ n: Int) -> Int {
+        var h = 0
+        for k in 0..<n { h = h &* 1_000_003 &+ Int(scratch[k]) }
+        return h
     }
 
     private mutating func rebuildParseState() {
@@ -1938,6 +2030,7 @@ public struct TelexEngine {
         pVniMode = vniMode
         pBracketVowels = bracketVowels
         pLiveSpellCheck = liveSpellCheck
+        pFreezeLetters = -1
         for i in 0..<rawCount { rawLetter[i] = -1 }
         for i in 0..<rawCount { parseStep(i) }
         pProcessed = rawCount
@@ -1963,6 +2056,7 @@ public struct TelexEngine {
         let key = raw[at]
         let lower = lowercased(key)
         let upper = isUpperAscii(key)
+        if at == disabledAtCount { pFreezeLetters = pCount }
 
         // (The historical pWWord "leading w = English word" guard is GONE — it
         // blocked the teencode w-forms in Simple Telex ("wá" = quá, "wó"…). English

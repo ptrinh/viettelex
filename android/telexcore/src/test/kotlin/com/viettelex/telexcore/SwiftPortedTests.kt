@@ -841,6 +841,29 @@ class GonhanhLearningsPortedTest {
     }
 }
 
+/** Ported from TelexCore/Tests/TelexCoreTests/PostTonedSyllableReproTests.swift. */
+class PostTonedSyllableReproPortedTest {
+    @Test fun testKeptToneScreenTable() {
+        assertEquals("đượcu", composeWith("dduowcju") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("đượcu", composeWith("dduowjcu") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("đượcu", composeWith("ddujowcu") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("đượcu", composeWith("duowcjdu") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("đượcuj", composeWith("dduowcjuj") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("việtk", composeWith("vieetjk") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("tiếngk", composeWith("tieengsk") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("ngườiw", composeWith("nguwowfiw") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("đềmn", composeWith("ddeemfn") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("đượcf", composeWith("dduowcjf") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("đượcu", composeWith("d9u7o7c5u") { vniMode = true; liveSpellCheck = true })
+        assertEquals("installer", composeWith("installer") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("tifw", composeWith("tifw") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("chârct", composeWith("charact") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("ârkn", composeWith("arkan") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("sơfta", composeWith("softwa") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("chese", composeWith("cheese") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+    }
+}
+
 /** Ported from TelexCore/Tests/TelexCoreTests/TeencodeTests.swift. */
 class TeencodePortedTest {
     @Test fun testTeencodeOnsetDoesNotStackWithTeencodeRime() {
