@@ -67,11 +67,11 @@ enum BuddyStyle: String, CaseIterable {
     func season(_ s: BuddySeason?) -> BuddySeason? { self == .vector ? s : nil }
 }
 
-/// "Vị trí & cỡ" (Phil 26/10/2026) — CHUNG mọi nhân vật, cùng khoá + miền Android: cỡ 1…10 (5 = cỡ gốc, mỗi nấc
+/// "Vị trí & cỡ" (Phil 26/10/2026) — CHUNG mọi nhân vật, cùng khoá + miền Android: cỡ 1…20 (5 = cỡ gốc, mỗi nấc
 /// ±8 %), lề phải / lề trên −10…+10 pt. Đọc lúc hiện bàn phím, khung tính một lần lúc layout (0 việc mỗi phím).
 struct BuddyPlacement: Equatable {
     static let sizeKey = "buddySize", padRightKey = "buddyPadRight", padTopKey = "buddyPadTop"
-    static let sizeRange = 1...10, padRange = -10...10
+    static let sizeRange = 1...20, padRange = -10...10
     static let defaultSize = 5
     static let standard = BuddyPlacement()
 

@@ -64,7 +64,7 @@ enum class BuddyStyle(val id: String, val viTitle: String) {
 }
 
 /**
- * "Vị trí & cỡ" (Phil 26/10/2026) = iOS BuddyPlacement — CHUNG mọi nhân vật: cỡ 1…10 (5 = cỡ gốc, mỗi nấc ±8 %),
+ * "Vị trí & cỡ" (Phil 26/10/2026) = iOS BuddyPlacement — CHUNG mọi nhân vật: cỡ 1…20 (5 = cỡ gốc, mỗi nấc ±8 %),
  * lề phải / lề trên −10…+10 dp. IME đọc lúc hiện, khung tính một lần lúc layout (0 việc mỗi phím).
  */
 data class BuddyPlacement(
@@ -94,7 +94,7 @@ data class BuddyPlacement(
 
     companion object {
         const val DEFAULT_SIZE = 5
-        val SIZE_RANGE = 1..10
+        val SIZE_RANGE = 1..20
         val PAD_RANGE = -10..10
         val STANDARD = BuddyPlacement()
         fun of(size: Any?, padRight: Any?, padTop: Any?): BuddyPlacement = BuddyPlacement(

@@ -78,6 +78,7 @@ class KeyboardBuddyTests {
         assertEquals(1.0, BuddyPlacement.STANDARD.scale, 1e-9)
         assertEquals(0.68, BuddyPlacement(size = 1).scale, 1e-9)
         assertEquals(1.40, BuddyPlacement(size = 10).scale, 1e-9)
+        assertEquals(2.20, BuddyPlacement(size = 20).scale, 1e-9)
         val base = BuddyRect(324, 0, 66, 66)
         eq(base, BuddyPlacement.STANDARD.frame(base, 34.0))
         eq(BuddyRect(345, 21, 45, 45), BuddyPlacement(size = 1).frame(base, 34.0))
@@ -91,7 +92,7 @@ class KeyboardBuddyTests {
         assertEquals(34.0, BuddyPlacement(padRight = -6).zoneWidth(34.0), 1e-9)
         assertEquals(BuddyPlacement.STANDARD, KeyboardSettings.load { null }.buddyPlacement)
         val prefs = mapOf(Keys.BUDDY_SIZE to 42, Keys.BUDDY_PAD_RIGHT to -30, Keys.BUDDY_PAD_TOP to 7)
-        assertEquals(BuddyPlacement(10, -10, 7), KeyboardSettings.load { prefs[it] }.buddyPlacement)
+        assertEquals(BuddyPlacement(20, -10, 7), KeyboardSettings.load { prefs[it] }.buddyPlacement)
         assertEquals(listOf("buddySize", "buddyPadRight", "buddyPadTop"), listOf(Keys.BUDDY_SIZE, Keys.BUDDY_PAD_RIGHT, Keys.BUDDY_PAD_TOP))
         for (k in prefs.keys) assertTrue("sao lưu $k", BackupSettings.all.any { it.key == k })
     }

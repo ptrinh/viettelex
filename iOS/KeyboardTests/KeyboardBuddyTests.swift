@@ -95,6 +95,7 @@ final class KeyboardBuddyTests: XCTestCase {
         XCTAssertEqual(BuddyPlacement.standard.scale, 1, accuracy: 1e-9)
         XCTAssertEqual(BuddyPlacement(size: 1).scale, 0.68, accuracy: 1e-9)
         XCTAssertEqual(BuddyPlacement(size: 10).scale, 1.40, accuracy: 1e-9)
+        XCTAssertEqual(BuddyPlacement(size: 20).scale, 2.20, accuracy: 1e-9)
         let base = BuddyRect(x: 324, y: 0, w: 66, h: 66)
         XCTAssertEqual(BuddyPlacement.standard.frame(standard: base, minWidth: 34), base)
         XCTAssertEqual(BuddyPlacement(size: 1).frame(standard: base, minWidth: 34), BuddyRect(x: 345, y: 21, w: 45, h: 45),
@@ -117,7 +118,7 @@ final class KeyboardBuddyTests: XCTestCase {
         defer { d.removePersistentDomain(forName: suite) }
         XCTAssertEqual(BuddyPlacement.load(d), .standard)
         d.set(42, forKey: BuddyPlacement.sizeKey); d.set(-30, forKey: BuddyPlacement.padRightKey); d.set(7, forKey: BuddyPlacement.padTopKey)
-        XCTAssertEqual(BuddyPlacement.load(d), BuddyPlacement(size: 10, padRight: -10, padTop: 7))
+        XCTAssertEqual(BuddyPlacement.load(d), BuddyPlacement(size: 20, padRight: -10, padTop: 7))
         for k in [BuddyPlacement.sizeKey, BuddyPlacement.padRightKey, BuddyPlacement.padTopKey] {
             XCTAssertNotNil(BackupSettings.all.first { $0.key == k }, "sao lưu \(k)")
         }

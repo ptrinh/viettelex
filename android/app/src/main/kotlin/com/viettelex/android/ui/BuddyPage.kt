@@ -46,7 +46,7 @@ import com.viettelex.keyboard.tr
  * trên nền theme. Mở trang: mọi nhân vật nhảy một tràng như đang gõ rồi ngủ; chạm ô là chọn + diễn lại. Ô Plus bị
  * khoá: mờ + nhãn Plus, chạm mở VietTelex Plus. Lưu [Keys.KEYBOARD_BUDDY] — IME đọc lần hiện kế. Dưới lưới: "Kiểu vẽ"
  * Hoạt hình | Vẽ nét của nhân vật đang chọn ([BuddyStyle], khoá `buddyStyle.<id>`); mỗi ô vẽ theo kiểu của nhân vật đó.
- * "Vị trí & cỡ" ([BuddyPlacement]: cỡ 1…10, lề phải / lề trên −10…10 dp) chung mọi nhân vật. iOS: BuddyPickerView.
+ * "Vị trí & cỡ" ([BuddyPlacement]: cỡ 1…20, lề phải / lề trên −10…10 dp) chung mọi nhân vật. iOS: BuddyPickerView.
  */
 @Composable
 internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () -> Unit, onBack: () -> Unit) {
