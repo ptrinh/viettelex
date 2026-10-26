@@ -169,7 +169,7 @@ final class KeyboardBuddyTests: XCTestCase {
             XCTAssertLessThan(peaks[0], peaks[3])
             // Xoay vòng chỉ ở bậc cao nhất.
             XCTAssertTrue((0..<100).allSatisfy { BuddyDance.pose(s, tier: 2, p: Double($0) / 100).sx == 1 })
-            XCTAssertTrue((0..<100).contains { BuddyDance.pose(s, tier: 3, p: Double($0) / 100).sx < 0 })
+            XCTAssertTrue((0..<100).contains { BuddyDance.pose(s, tier: 3, p: Double($0) / 100, move: .spin).sx < 0 })
             XCTAssertEqual(BuddyDance.cheer(s, f: 0), .rest)
             XCTAssertEqual(BuddyDance.cheer(s, f: 1).dy, 0, accuracy: 1e-9)
         }
@@ -283,7 +283,7 @@ final class KeyboardBuddyTests: XCTestCase {
         print("BUDDY checksum \(sums)")
         XCTAssertEqual(sums, Self.checksums)
     }
-    static let checksums = ["0.0000", "13803.1358", "12756.7491", "15286.2573", "12025.5890"]
+    static let checksums = ["0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220"]
 
     func testEveryRigHasAllPartsAndSleepPose() {
         for c in BuddyCharacter.allCases where c != .off {
@@ -800,7 +800,7 @@ final class KeyboardBuddyTests: XCTestCase {
             }
         }
         XCTAssertEqual(BuddyOutfit.make(.tet, .girl).recolor[0xFFB3C7], BuddyOutfit.red, "áo dài đỏ")
-        XCTAssertTrue(BuddyOutfit.make(.midAutumn, .boy).pieces.allSatisfy { $0.part == .armR }, "lồng đèn theo tay")
+        XCTAssertTrue(BuddyOutfit.make(.midAutumn, .boy).pieces.filter { $0.part != .sleep }.allSatisfy { $0.part == .armR }, "lồng đèn theo tay")
     }
 
     @MainActor func testOutfitViewIsStaticNoExtraAnimations() {
@@ -898,6 +898,148 @@ final class KeyboardBuddyTests: XCTestCase {
                     }
                 }
                 XCTAssertGreaterThanOrEqual(thick * pt, 2.5, "\(c) \(part): \(thick * pt) pt")
+            }
+        }
+    }
+
+    // Shared holiday cases and move fixtures below are identical to Android. Intentionally not run here.
+    func testHolidayNamesWorkYearRoundAndFold() {
+        let cases: [(String, BuddyReaction)] = [
+            ("lì xì", .luckyMoney),
+            ("mừng tuổi", .luckyMoney),
+            ("tết", .luckyMoney),
+            ("năm mới", .luckyMoney),
+            ("chúc mừng năm mới", .luckyMoney),
+            ("vạn sự như ý", .luckyMoney),
+            ("happy new year", .luckyMoney),
+            ("giáng sinh", .gift),
+            ("noel", .gift),
+            ("merry christmas", .gift),
+            ("xmas", .gift),
+            ("ông già noel", .gift),
+            ("halloween", .candy),
+            ("trick or treat", .candy),
+            ("trung thu", .mooncake),
+            ("bánh trung thu", .mooncake),
+            ("rước đèn", .mooncake),
+            ("đèn ông sao", .mooncake),
+            ("chị hằng", .mooncake),
+        ]
+        for (phrase, reaction) in cases {
+            for text in [phrase, BuddyWords.fold(phrase).uppercased()] {
+                let tokens = text.split(separator: " ").map(String.init).reversed().map { $0 }
+                XCTAssertEqual(BuddyWords.reaction(word: tokens[0] + "!", prev: tokens.count > 1 ? tokens[1] : nil,
+                    prev2: tokens.count > 2 ? tokens[2] : nil, prev3: tokens.count > 3 ? tokens[3] : nil), reaction, text)
+            }
+        }
+        XCTAssertNil(BuddyWords.holiday(word: "ý", prev: "như", prev2: "sự"))
+        XCTAssertNil(BuddyWords.holiday(word: "christmas", prev: nil))
+        XCTAssertNil(BuddyWords.holiday(word: "noelish", prev: nil))
+        XCTAssertNil(BuddyWords.holiday(word: "", prev: "noel"))
+    }
+
+    func testHolidayGenericSeasonGatesAndAccents() {
+        let cases: [(String, BuddySeason, BuddyReaction, Bool)] = [
+            ("quà", .christmas, .gift, true),
+            ("kẹo", .halloween, .candy, true),
+            ("bí ngô", .halloween, .candy, false),
+            ("cuội", .midAutumn, .mooncake, true),
+            ("an khang", .tet, .luckyMoney, false),
+            ("phát tài", .tet, .luckyMoney, false),
+        ]
+        for (phrase, active, reaction, strict) in cases {
+            let tokens = phrase.split(separator: " ").map(String.init).reversed().map { $0 }
+            let word = tokens[0], prev = tokens.count > 1 ? tokens[1] : nil
+            XCTAssertNil(BuddyWords.holiday(word: word, prev: prev))
+            for season in BuddySeason.allCases {
+                XCTAssertEqual(BuddyWords.holiday(word: word, prev: prev, season: season), season == active ? reaction : nil)
+            }
+            XCTAssertEqual(BuddyWords.holiday(word: BuddyWords.fold(word), prev: prev.map(BuddyWords.fold), season: active), strict ? nil : reaction)
+        }
+        XCTAssertNil(BuddyWords.reaction(word: "qua", prev: nil, season: .christmas))
+        XCTAssertNil(BuddyWords.reaction(word: "keo", prev: nil, season: .halloween))
+        XCTAssertEqual(BuddyWords.reaction(word: "noelll", prev: nil), .gift)
+    }
+
+    func testAccessoriesHaveSmallBudgetsAndBothPoses() {
+        for c in BuddyCharacter.allCases where c != .off {
+            for season in BuddySeason.allCases {
+                let outfit = BuddyOutfit.make(season, c)
+                for sleeping in [false, true] {
+                    let pieces = outfit.pieces.filter { ($0.part == .sleep) == sleeping }
+                    XCTAssertFalse(pieces.isEmpty)
+                    XCTAssertLessThanOrEqual(pieces.count, 8)
+                    XCTAssertTrue(pieces.allSatisfy { $0.width <= 3.2 })
+                }
+            }
+            for reaction in BuddyReaction.allCases where reaction.isHoliday {
+                let pieces = BuddyProp.make(reaction, BuddyRig.rig(c)!)
+                XCTAssertFalse(pieces.isEmpty)
+                XCTAssertLessThanOrEqual(pieces.count, 8)
+                XCTAssertTrue(pieces.allSatisfy { $0.part == .body && $0.width <= 3.2 })
+                XCTAssertEqual(reaction.duration, 1.5)
+                XCTAssertEqual(BuddyFX.count(reaction), 0)
+            }
+            XCTAssertTrue(BuddyProp.make(.love, BuddyRig.rig(c)!).isEmpty)
+        }
+    }
+
+    func testNamedMovesNeutralAndSelection() {
+        for c in BuddyCharacter.allCases where c != .off {
+            let style = BuddyRig.rig(c)!.style
+            for tier in 0...3 {
+                for move in BuddyDance.Move.allCases {
+                    XCTAssertEqual(BuddyDance.pose(style, tier: tier, p: 0, move: move), .rest)
+                    XCTAssertEqual(BuddyDance.pose(style, tier: tier, p: 1, move: move), .rest)
+                    if tier < 3 || move != .spin {
+                        XCTAssertTrue((0..<48).allSatisfy { BuddyDance.pose(style, tier: tier, p: Double($0)/48, move: move).sx == 1 })
+                    }
+                }
+                let pool = BuddyDance.moves(tier)
+                XCTAssertEqual(pool.count, tier == 3 ? 5 : 4)
+                XCTAssertEqual(pool.contains(.spin), tier == 3)
+                XCTAssertEqual(pool.contains(.skip), tier >= 2)
+                XCTAssertEqual(pool.contains(.bounce), tier < 2)
+                for seed in [0, 1, 42, -7, Int.max] {
+                    for group in 0..<100 {
+                        let a = BuddyDance.move(c, tier: tier, loopIndex: group * 2, seed: seed)
+                        XCTAssertTrue(pool.contains(a))
+                        XCTAssertEqual(a, BuddyDance.move(c, tier: tier, loopIndex: group * 2 + 1, seed: seed))
+                        XCTAssertNotEqual(a, BuddyDance.move(c, tier: tier, loopIndex: (group + 1) * 2, seed: seed))
+                    }
+                }
+            }
+        }
+        XCTAssertEqual((0..<10).map { BuddyDance.move(.girl, tier: 3, loopIndex: $0, seed: 42) },
+                       [.spin, .spin, .chicken, .chicken, .dab, .dab, .flossLite, .flossLite, .skip, .skip])
+    }
+
+    func testNamedMovePoseParity() {
+        let expected: [[Double]] = [
+            [5.656854, -9.000000, -0.100000, -0.120000, 2.000000, -2.600000, 0.000000, -0.600000, 0.000000, 1.000000], // bounce p=0.375
+            [-5.656854, -9.000000, -0.100000, -0.120000, 2.000000, -2.600000, 0.000000, -0.600000, 0.000000, 1.000000], // bounce p=0.875
+            [5.656854, 0.000000, 0.127279, -0.070711, -0.450000, 0.450000, 0.000000, 0.000000, 0.000000, 1.000000], // hipSway p=0.375
+            [-5.656854, 0.000000, -0.127279, 0.070711, -0.450000, 0.450000, 0.000000, 0.000000, 0.000000, 1.000000], // hipSway p=0.875
+            [0.000000, -3.150000, 0.000000, 0.084853, 0.250000, -2.100000, 0.000000, 0.000000, 0.000000, 1.000000], // wave p=0.375
+            [0.000000, -3.150000, 0.000000, -0.084853, 0.250000, -2.100000, 0.000000, 0.000000, 0.000000, 1.000000], // wave p=0.875
+            [0.000000, -2.250000, 0.000000, 0.080000, -1.050000, 1.050000, 0.000000, 0.000000, 0.000000, 1.000000], // clap p=0.375
+            [0.000000, -2.250000, 0.000000, 0.080000, -1.050000, 1.050000, 0.000000, 0.000000, 0.000000, 1.000000], // clap p=0.875
+            [0.000000, -2.700000, -0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 1.000000], // dab p=0.375
+            [0.000000, -2.700000, -0.180000, 0.650000, 2.500000, 0.900000, 0.000000, 0.000000, 0.000000, 1.000000], // dab p=0.875
+            [3.394113, -13.500000, 0.056569, 0.000000, 0.424264, 0.424264, 0.636396, -0.000000, 0.000000, 1.000000], // skip p=0.375
+            [-3.394113, -13.500000, -0.056569, 0.000000, -0.424264, -0.424264, 0.000000, -0.636396, 0.000000, 1.000000], // skip p=0.875
+            [-5.656854, 0.000000, -0.098995, 0.084853, 0.601041, 0.601041, 0.000000, 0.000000, 0.000000, 1.000000], // flossLite p=0.375
+            [5.656854, 0.000000, 0.098995, -0.084853, -0.601041, -0.601041, 0.000000, 0.000000, 0.000000, 1.000000], // flossLite p=0.875
+            [5.656854, -9.000000, -0.100000, -0.120000, 2.000000, -2.600000, 0.000000, -0.600000, 0.000000, 1.000000], // spin p=0.375
+            [-5.656854, -9.000000, -0.100000, -0.120000, 2.000000, -2.600000, 0.000000, -0.600000, 0.000000, -1.000000], // spin p=0.875
+            [0.000000, -5.850000, 0.000000, 0.250000, 0.900000, -0.900000, 0.000000, 0.000000, 0.000000, 1.000000], // chicken p=0.375
+            [0.000000, -5.850000, 0.000000, 0.250000, 0.900000, -0.900000, 0.000000, 0.000000, 0.000000, 1.000000], // chicken p=0.875
+        ]
+        for (i, move) in BuddyDance.Move.allCases.enumerated() {
+            for (j, phase) in [0.375, 0.875].enumerated() {
+                let p = BuddyDance.pose(BuddyRig.girl.style, tier: 3, p: phase, move: move)
+                let values = [p.dx, p.dy, p.rot, p.head, p.armL, p.armR, p.legL, p.legR, p.tail, p.sx]
+                for (a, b) in zip(values, expected[i * 2 + j]) { XCTAssertEqual(a, b, accuracy: 1e-6) }
             }
         }
     }

@@ -219,7 +219,98 @@ object BuddyDance {
     data class Style(val armL: Double, val armR: Double, val armAmp: Double, val alternate: Boolean,
                      val kick: Double, val bounce: Double, val step: Double)
 
-    fun pose(s: Style, tier: Int, p: Double, out: BuddyPose = BuddyPose()): BuddyPose {
+    enum class Move { BOUNCE, HIP_SWAY, WAVE, CLAP, DAB, SKIP, FLOSS_LITE, SPIN, CHICKEN }
+    private val calm = listOf(Move.BOUNCE, Move.HIP_SWAY, Move.WAVE, Move.CLAP)
+    private val lively = listOf(Move.SKIP, Move.FLOSS_LITE, Move.DAB, Move.CHICKEN)
+    private val energetic = lively + Move.SPIN
+    fun moves(tier: Int): List<Move> = if (clamp(tier) < 2) calm else if (clamp(tier) == 2) lively else energetic
+    fun move(character: BuddyCharacter, tier: Int, loopIndex: Int, seed: Int): Move {
+        val pool = moves(tier); val n = pool.size
+        val offset = abs(seed % 997) + character.ordinal * 17
+        val group = max(0, loopIndex) / 2 % n
+        return pool[(offset + group * (n - 1)) % n]
+    }
+
+    fun pose(s: Style, tier: Int, p: Double, out: BuddyPose = BuddyPose(), move: Move = Move.BOUNCE): BuddyPose {
+        val pp = p - floor(p)
+        out.reset()
+        if (pp <= 0) return out
+        val e = ENERGY[clamp(tier)]; val two = 2 * Math.PI
+        val wave = sin(two * pp); val fast = sin(two * pp * 4)
+        val beat = pp * 4; val bf = beat - floor(beat)
+        val hop = abs(sin(Math.PI * bf))
+        val gate = minOf(1.0, pp / 0.08, (1 - pp) / 0.08)
+        when (move) {
+            Move.BOUNCE -> {
+                bounceBase(s, tier, pp, out)
+                out.sx = 1.0
+            }
+            Move.HIP_SWAY -> {
+                out.dx = s.step * e * wave
+                out.rot = 0.18 * e * wave
+                out.armL = -0.45 * e; out.armR = 0.45 * e
+                out.head = -0.10 * e * wave
+            }
+            Move.WAVE -> {
+                out.dy = -s.bounce * 0.35 * e * hop
+                out.armR = (-2.1 + 0.4 * fast) * e
+                out.armL = 0.25 * e
+                out.head = 0.12 * e * wave
+            }
+            Move.CLAP -> {
+                val hit = if (floor(beat).toInt() % 2 == 1) hop else 0.0
+                out.dy = -s.bounce * 0.25 * e * hop
+                out.armL = (-0.2 - 0.85 * hit) * e
+                out.armR = (0.2 + 0.85 * hit) * e
+                out.head = 0.08 * e * hit
+            }
+            Move.DAB -> {
+                val hit = if (beat >= 3) hop else 0.0
+                out.dy = -s.bounce * 0.3 * e * hop
+                out.rot = -0.18 * e * hit
+                out.head = 0.65 * e * hit
+                out.armL = 2.5 * e * hit; out.armR = 0.9 * e * hit
+            }
+            Move.SKIP -> {
+                out.dx = s.step * 0.6 * e * wave
+                out.dy = -s.bounce * 1.5 * e * hop
+                out.legL = 0.9 * e * max(0.0, wave)
+                out.legR = -0.9 * e * max(0.0, -wave)
+                out.armL = 0.6 * e * wave; out.armR = 0.6 * e * wave
+                out.rot = 0.08 * e * wave
+            }
+            Move.FLOSS_LITE -> {
+                out.dx = -s.step * e * wave
+                out.rot = -0.14 * e * wave
+                out.armL = 0.85 * e * wave; out.armR = 0.85 * e * wave
+                out.head = 0.12 * e * wave
+            }
+            Move.SPIN -> {
+                bounceBase(s, tier, pp, out)
+            }
+            Move.CHICKEN -> {
+                out.dy = -s.bounce * 0.65 * e * hop
+                out.armL = (0.9 + 0.55 * fast) * e
+                out.armR = -(0.9 + 0.55 * fast) * e
+                out.head = 0.25 * e * hop
+                out.tail = 0.3 * e * fast
+            }
+        }
+        out.dx *= gate; out.dy *= gate; out.rot *= gate; out.head *= gate
+        out.armL *= gate; out.armR *= gate; out.legL *= gate; out.legR *= gate; out.tail *= gate
+        return out
+    }
+
+    fun bounce(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.BOUNCE)
+    fun hipSway(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.HIP_SWAY)
+    fun wave(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.WAVE)
+    fun clap(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.CLAP)
+    fun dab(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.DAB)
+    fun skip(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.SKIP)
+    fun flossLite(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.FLOSS_LITE)
+    fun spin(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.SPIN)
+    fun chicken(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.CHICKEN)
+    private fun bounceBase(s: Style, tier: Int, p: Double, out: BuddyPose = BuddyPose()): BuddyPose {
         val t = clamp(tier)
         val e = ENERGY[t]
         val pp = p - floor(p)
@@ -258,7 +349,7 @@ object BuddyDance {
         val a = if (r == BuddyReaction.PANIC) min(1.0, ff / 0.15 + 1) else minOf(1.0, ff / 0.15, (1 - ff) / 0.15)
         out.reset()
         when (r) {
-            BuddyReaction.LOVE -> {
+            BuddyReaction.LOVE, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE -> {
                 out.dy = -s.bounce * 0.5 * a * abs(sin(3 * pi * ff))
                 out.armL = -0.55 * a; out.armR = 0.55 * a
                 out.head = 0.18 * a * sin(2 * pi * ff)
@@ -301,14 +392,15 @@ object BuddyDance {
         return out
     }
 
-    fun happyEyes(r: BuddyReaction) = r == BuddyReaction.LOVE || r == BuddyReaction.LAUGH
+    fun happyEyes(r: BuddyReaction) = r == BuddyReaction.LOVE || r == BuddyReaction.LAUGH || r.isHoliday
 }
 
 // MARK: phản ứng theo từ
 
 /** Thứ tự = ƯU TIÊN khi một từ khớp nhiều bảng: giận > thả tim > cười > ngạc nhiên > buồn. = iOS BuddyReaction. */
 enum class BuddyReaction(val duration: Double) {
-    ANGRY(1.2), LOVE(1.2), LAUGH(1.3), SURPRISED(1.0), SAD(1.5), PANIC(0.8)
+    ANGRY(1.2), LOVE(1.2), LAUGH(1.3), SURPRISED(1.0), SAD(1.5), PANIC(0.8), LUCKY_MONEY(1.5), GIFT(1.5), CANDY(1.5), MOONCAKE(1.5);
+    val isHoliday: Boolean get() = this == LUCKY_MONEY || this == GIFT || this == CANDY || this == MOONCAKE
 }
 
 /** = iOS BuddyWords: cùng bảng, cùng luật strict / gộp chữ lặp / mẫu cười-buồn. */
@@ -392,12 +484,36 @@ object BuddyWords {
 
     /** Phản ứng cho từ vừa chốt — tục / cặp / bộ ba ([SensitiveWords], cùng bảng bộ lọc gợi ý) ⇒ giận, KHÔNG
      *  phụ thuộc công tắc lọc. Null = không. */
-    fun reaction(word: String, prev: String?, prev2: String? = null): BuddyReaction? {
+    private data class Holiday(val reaction: BuddyReaction, val season: BuddySeason, val names: Table, val generic: Table)
+    private val holidays by lazy { listOf(
+        Holiday(BuddyReaction.LUCKY_MONEY, BuddySeason.TET, Table(listOf(e("lì xì", false), e("mừng tuổi", false), e("tết", false), e("năm mới", false), e("chúc mừng năm mới", false), e("vạn sự như ý", false), e("happy new year", false))), Table(listOf(e("an khang", false), e("phát tài", false)))),
+        Holiday(BuddyReaction.GIFT, BuddySeason.CHRISTMAS, Table(listOf(e("giáng sinh", false), e("noel", false), e("merry christmas", false), e("xmas", false), e("ông già noel", false))), Table(listOf(e("quà", true)))),
+        Holiday(BuddyReaction.CANDY, BuddySeason.HALLOWEEN, Table(listOf(e("halloween", false), e("trick or treat", false))), Table(listOf(e("kẹo", true), e("bí ngô", false)))),
+        Holiday(BuddyReaction.MOONCAKE, BuddySeason.MID_AUTUMN, Table(listOf(e("trung thu", false), e("bánh trung thu", false), e("rước đèn", false), e("đèn ông sao", false), e("chị hằng", false))), Table(listOf(e("cuội", true)))),
+    ) }
+
+    fun holiday(word: String, prev: String?, prev2: String? = null, prev3: String? = null,
+                season: BuddySeason? = null): BuddyReaction? {
+        val w = clean(word)
+        if (w.isEmpty() || w.length > 24) return null
+        val candidates = mutableListOf(w)
+        var phrase = w
+        for (previous in listOf(prev, prev2, prev3)) {
+            if (previous == null || clean(previous).isEmpty()) break
+            phrase = clean(previous) + " " + phrase
+            candidates.add(phrase)
+        }
+        for (h in holidays) if (candidates.any { h.names.has(it) || (season == h.season && h.generic.has(it)) }) return h.reaction
+        return null
+    }
+
+    fun reaction(word: String, prev: String?, prev2: String? = null, prev3: String? = null, season: BuddySeason? = null): BuddyReaction? {
         val w = clean(word)
         if (w.isEmpty() || w.length > 24) return null
         val p = prev?.let(::clean)?.ifEmpty { null }
         val p2 = prev2?.let(::clean)?.ifEmpty { null }
         if (w in SensitiveWords.set || SensitiveWords.isPair(p, w) || SensitiveWords.isTriple(p2, p, w)) return BuddyReaction.ANGRY
+        holiday(w, p, p2, prev3, season)?.let { return it }
         val f = fold(w)
         for ((r, t) in tables) {
             if (p != null && t.has("$p $w")) return r
@@ -443,7 +559,7 @@ object BuddyFX {
         BuddyReaction.LAUGH -> 4
         BuddyReaction.SAD -> 3
         BuddyReaction.PANIC -> 3
-        BuddyReaction.ANGRY, BuddyReaction.SURPRISED -> 0
+        BuddyReaction.ANGRY, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE -> 0
     }
 
     fun particle(r: BuddyReaction, i: Int, w: Double, h: Double): Particle {
@@ -469,7 +585,7 @@ object BuddyFX {
             BuddyReaction.PANIC -> {
                 x0 = w / 2; y0 = h * 0.6; x1 = rad + (w - 2 * rad) * t; y1 = rad + h * 0.1 * (i % 2); delay = i * 0.1
             }
-            BuddyReaction.ANGRY, BuddyReaction.SURPRISED -> { x0 = w / 2; y0 = h / 2; x1 = x0; y1 = y0; delay = 0.0 }
+            BuddyReaction.ANGRY, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE -> { x0 = w / 2; y0 = h / 2; x1 = x0; y1 = y0; delay = 0.0 }
         }
         fun cx(x: Double) = min(max(x, rad), w - rad)
         fun cy(y: Double) = min(max(y, rad), h - rad)
@@ -657,127 +773,122 @@ class BuddyRig(
         private fun limb(part: BuddyPart, d: String, color: Int, w: Number): List<BuddyPiece> =
             listOf(L(part, d, Stroke.Outline, w.toDouble() + 5), L(part, d, Stroke.Color(color), w))
 
-        // Cô gái — chibi thon, chân dài: tóc dài nâu, băng đô hồng tai mèo trắng (lòng hồng), đuôi mèo nâu, váy hồng, giày hồng.
+        // Pink-haired cat girl: hoodie, pleated skirt and soft flowing locks.
         val GIRL: BuddyRig = run {
-            val skin = 0xFFE0C7; val dress = 0xFFB3C7; val shoe = 0xFF6F91; val hair = 0x5B3A29
-            val earIn = 0xFFC2D4; val blush = 0xFF9EAA
-            // Đuôi mèo sau váy: vẫy khi nhảy.
-            val p = mutableListOf<BuddyPiece>(); p += limb(BuddyPart.TAIL, "M14 66 Q50 70 52 40 Q54 20 40 18", hair, 5)
-            p += listOf(
-                L(BuddyPart.TAIL, "M44 22 Q40 17 38 19", Stroke.Color(0xFFFFFF), 4),
+            val p = listOf(
+                P(BuddyPart.TAIL, "M14 63 Q44 71 49 49 Q53 34 44 29 Q38 27 37 33 Q47 42 39 53 Q31 61 15 56 Z", fill = 0xE996B2, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.TAIL, "M43 34 Q48 43 43 50", stroke = Stroke.Color(0xFFD4E2), width = 3),
+                P(BuddyPart.LEG_L, "M -2 72 Q -8 68 -14 73 L -16 102 L -15 137 Q -10 143 -5 137 L -4 105 Z", fill = 0xFFE0C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_L, "M -4 109 Q -10 112 -16 109 L -15 137 Q -10 143 -5 137 Z", fill = 0xFFF7F4, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_L, "M -5 134 Q -10 131 -16 135 L -19 140 Q -21 146 -13 146 L -4 145 Q 0 142 -5 134 Z", fill = 0xFF6F91, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_L, "M -6 139 L -14 139", stroke = Stroke.Color(0xFFF7F4), width = 2.5),
+                P(BuddyPart.LEG_R, "M 2 72 Q 8 68 14 73 L 16 102 L 15 137 Q 10 143 5 137 L 4 105 Z", fill = 0xFFE0C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_R, "M 4 109 Q 10 112 16 109 L 15 137 Q 10 143 5 137 Z", fill = 0xFFF7F4, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_R, "M 5 134 Q 10 131 16 135 L 19 140 Q 21 146 13 146 L 4 145 Q 0 142 5 134 Z", fill = 0xFF6F91, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_R, "M 6 139 L 14 139", stroke = Stroke.Color(0xFFF7F4), width = 2.5),
+                P(BuddyPart.BODY, "M-17 59 L-26 79 Q0 88 26 79 L17 59 Z", fill = 0xFFF7F4, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M-13 68 L-16 79 M-4 70 L-5 81 M5 70 L6 81 M14 68 L17 79", stroke = Stroke.Color(0xD9CADA), width = 1.8),
+                P(BuddyPart.BODY, "M-16 22 Q0 14 16 22 Q23 41 22 62 Q25 69 18 72 Q0 78 -22 70 Q-21 44 -16 22 Z", fill = 0xFFB3C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M14 25 Q18 46 13 60 Q1 66 -20 62 L-22 70 Q0 78 18 72 Q25 69 22 62 Q23 42 14 25 Z", fill = 0xDF8EAB, stroke = Stroke.None, width = 0),
+                P(BuddyPart.BODY, "M-10 26 Q0 35 10 26 M-8 34 L-9 43 M8 34 L9 43 M-9 55 Q0 61 9 55", stroke = Stroke.Color(0xFFF0F4), width = 2),
+                P(BuddyPart.ARM_L, "M -10 25 Q -18 22 -22 32 Q -28 45 -29 57 Q -27 65 -19 62 Q -15 50 -9 36 Z", fill = 0xFFB3C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_L, "M -21 37 Q -29 49 -29 57 Q -27 65 -19 62 L -18 56 Q -25 57 -21 37 Z", fill = 0xDF8EAB, stroke = Stroke.None, width = 0),
+                P(BuddyPart.ARM_L, "M -19 60 Q -24 57 -28 61 Q -32 67 -26 70 Q -20 72 -18 67 Z", fill = 0xFFE0C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_R, "M 10 25 Q 18 22 22 32 Q 28 45 29 57 Q 27 65 19 62 Q 15 50 9 36 Z", fill = 0xFFB3C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_R, "M 21 37 Q 29 49 29 57 Q 27 65 19 62 L 18 56 Q 25 57 21 37 Z", fill = 0xDF8EAB, stroke = Stroke.None, width = 0),
+                P(BuddyPart.ARM_R, "M 19 60 Q 24 57 28 61 Q 32 67 26 70 Q 20 72 18 67 Z", fill = 0xFFE0C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-31 -28 Q-45 6 -40 43 L-46 54 Q-29 54 -22 35 L-24 8 Z M31 -28 Q45 6 40 43 L46 54 Q29 54 22 35 L24 8 Z", fill = 0xE996B2, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-33 -36 Q-39 -55 -31 -72 Q-20 -70 -10 -51 M10 -51 Q23 -71 32 -73 Q39 -54 34 -35 Z", fill = 0xFFF7F4, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-29 -62 L-26 -43 L-17 -50 Z M28 -63 L18 -50 L29 -43 Z", fill = 0xE996B2, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M-36 -20 Q-38 -53 0 -54 Q38 -53 36 -20 L34 -4 Q28 19 0 20 Q-28 19 -34 -4 Z", fill = 0xFFE0C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-33 -7 Q-21 17 5 15 Q24 15 34 -4 Q28 19 0 20 Q-28 19 -33 -7 Z", fill = 0xF4BEAB, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M-36 -10 Q-45 -45 -19 -53 Q4 -65 25 -49 Q43 -40 35 -8 L27 -18 L22 -36 Q14 -22 0 -20 L5 -35 Q-6 -22 -22 -23 L-27 -9 L-30 32 Q-39 19 -36 -10 Z", fill = 0xF3ACC4, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-29 -38 Q-15 -53 2 -49 Q-14 -42 -22 -32 Z M11 -49 Q27 -48 30 -31 Q22 -42 11 -44 Z", fill = 0xFFD6E3, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M-34 4 Q-35 26 -39 39 M32 0 Q38 25 34 40", stroke = Stroke.Color(0xFFD6E3), width = 2),
+                P(BuddyPart.HEAD, "M-18 -9 Q-18 -16 -13 -16 Q-8 -16 -8 -9 Q-8 -2 -13 -2 Q-18 -2 -18 -9 Z M8 -9 Q8 -16 13 -16 Q18 -16 18 -9 Q18 -2 13 -2 Q8 -2 8 -9 Z", fill = 0x75445D, stroke = Stroke.Ink, width = 1.6, show = Show.REST),
+                P(BuddyPart.HEAD, "M-14 -4 h2 M12 -4 h2", stroke = Stroke.Color(0xDFA284), width = 1.8, show = Show.REST),
+                P(BuddyPart.HEAD, "M-15.7 -12 Q-15.7 -14.5 -13.5 -14.5 Q-11.3 -14.5 -11.3 -12 Q-11.3 -9.5 -13.5 -9.5 Q-15.7 -9.5 -15.7 -12 Z M10.3 -12 Q10.3 -14.5 12.5 -14.5 Q14.7 -14.5 14.7 -12 Q14.7 -9.5 12.5 -9.5 Q10.3 -9.5 10.3 -12 Z", fill = 0xFFFFFF, stroke = Stroke.None, width = 0, show = Show.REST),
+                P(BuddyPart.HEAD, "M-18 -9 q5 -7 10 0 M8 -9 q5 -7 10 0", stroke = Stroke.Ink, width = 3, show = Show.DANCE),
+                E(BuddyPart.HEAD, -24, 3, 6, 3, fill = 0xF3A0AC, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 24, 3, 6, 3, fill = 0xF3A0AC, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-6 5 Q0 8 6 5 Q4 15 0 14 Q-4 15 -6 5 Z", fill = 0xA94C60, stroke = Stroke.Ink, width = 1.6),
+                P(BuddyPart.HEAD, "M-2 11 Q0 10 2 11", stroke = Stroke.Color(0xFFB3C7), width = 2.4),
+                P(BuddyPart.SLEEP, "M-12 28 Q18 14 46 26 Q65 31 67 47 Q54 59 15 57 L-14 50 Z", fill = 0xFFB3C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M12 47 Q41 53 61 39 L67 47 Q54 59 15 57 L-14 50 Z", fill = 0xDF8EAB, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M56 37 Q69 34 77 40 L78 49 Q68 53 58 48 Z", fill = 0xFFF7F4, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M73 39 Q83 36 84 44 Q84 51 76 51 L72 48 Z", fill = 0xFF6F91, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-60 12 Q-63 -10 -35 -13 Q-7 -13 -5 15 Q4 24 16 39 Q8 56 -24 55 L-57 45 Z", fill = 0xE996B2, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-60 8 Q-69 -11 -63 -23 Q-50 -21 -42 -8 M-28 -8 Q-21 -31 -15 -30 Q-6 -15 -8 5 Z", fill = 0xFFF7F4, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-60 -14 L-56 0 L-48 -6 Z M-18 -21 L-24 -7 L-14 -4 Z", fill = 0xF3ACC4, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-63 22 Q-64 -5 -34 -6 Q-5 -5 -5 23 Q-8 49 -34 51 Q-61 49 -63 22 Z", fill = 0xFFE0C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-62 23 Q-68 -5 -42 -12 Q-12 -18 -5 12 L-8 24 Q-17 8 -24 9 L-30 16 L-31 5 Q-43 17 -54 13 Z", fill = 0xF3ACC4, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-56 3 Q-45 -7 -32 -6", stroke = Stroke.Color(0xFFD6E3), width = 3),
+                P(BuddyPart.SLEEP, "M-51 27 Q-46 33 -40 27 M-29 27 Q-24 33 -18 27", stroke = Stroke.Ink, width = 2.5),
+                P(BuddyPart.SLEEP, "M-37 39 Q-33 42 -29 38", stroke = Stroke.Ink, width = 1.8),
+                E(BuddyPart.SLEEP, -52, 37, 5, 3, fill = 0xF3A0AC, stroke = Stroke.None),
+                E(BuddyPart.SLEEP, -16, 37, 5, 3, fill = 0xF3A0AC, stroke = Stroke.None),
+                P(BuddyPart.SLEEP, "M-22 44 Q-8 37 3 44 Q6 50 -2 53 L-22 53 Q-28 49 -22 44 Z", fill = 0xFFE0C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M54 53 Q81 57 83 42 Q81 37 85 35 Q93 34 93 44 Q93 72 55 69 L29 66 Q25 60 31 59 Z", fill = 0xF3ACC4, stroke = Stroke.Outline, width = 3.2),
             )
-            p += limb(BuddyPart.LEG_L, "M-8 72 L-10 140", skin, 11)
-            p += listOf(
-                E(BuddyPart.LEG_L, -11, 142, 8, 4.5, fill = shoe),
-            )
-            p += limb(BuddyPart.LEG_R, "M8 72 L10 140", skin, 11)
-            p += listOf(
-                E(BuddyPart.LEG_R, 11, 142, 8, 4.5, fill = shoe),
-                P(BuddyPart.BODY, "M-14 24 Q0 18 14 24 L24 76 Q0 84 -24 76 Z", fill = dress),
-                L(BuddyPart.BODY, "M-20 70 Q0 78 20 70", Stroke.Color(0xFFFFFF), 4),
-            )
-            p += limb(BuddyPart.ARM_L, "M-12 30 L-22 62", skin, 11)
-            p += listOf(
-                C(BuddyPart.ARM_L, -23, 64, 6, fill = skin),
-            )
-            p += limb(BuddyPart.ARM_R, "M12 30 L22 62", skin, 11)
-            p += listOf(
-                C(BuddyPart.ARM_R, 23, 64, 6, fill = skin),
-                C(BuddyPart.HEAD, 0, -16, 32, fill = skin),
-                P(BuddyPart.HEAD, "M-30 -36 L-26 -72 L-8 -48 Z", fill = 0xFFFFFF),
-                P(BuddyPart.HEAD, "M-25 -42 L-23 -62 L-13 -48 Z", fill = earIn, stroke = Stroke.None),
-                P(BuddyPart.HEAD, "M30 -36 L26 -72 L8 -48 Z", fill = 0xFFFFFF),
-                P(BuddyPart.HEAD, "M25 -42 L23 -62 L13 -48 Z", fill = earIn, stroke = Stroke.None),
-                P(BuddyPart.HEAD, "M-34 -14 Q-38 -52 0 -52 Q38 -52 34 -14 Q36 18 26 30 Q26 -6 18 -26 Q4 -18 -6 -30 "
-                    + "Q-18 -20 -26 -26 Q-30 -6 -26 30 Q-36 18 -34 -14 Z", fill = hair),
-                L(BuddyPart.HEAD, "M-30 -42 Q0 -62 30 -42", Stroke.Color(shoe), 5),
-                C(BuddyPart.HEAD, -10, -13, 3.5, fill = ink, stroke = Stroke.None, show = Show.REST),
-                C(BuddyPart.HEAD, 10, -13, 3.5, fill = ink, stroke = Stroke.None, show = Show.REST),
-                L(BuddyPart.HEAD, "M-14 -14 q4 -5 8 0 M6 -14 q4 -5 8 0", Stroke.Ink, 4.5, show = Show.DANCE),
-                E(BuddyPart.HEAD, -18, -2, 6, 3.5, fill = blush, stroke = Stroke.None, alpha = 0.6),
-                E(BuddyPart.HEAD, 18, -2, 6, 3.5, fill = blush, stroke = Stroke.None, alpha = 0.6),
-                P(BuddyPart.HEAD, "M-6 0 Q0 8 6 0 Z", fill = 0xE84D6A, stroke = Stroke.Ink, width = 2.5),
-            )
-            // Ngủ: nằm cuộn tròn, tai mèo, đuôi quấn quanh.
-            p += listOf(
-                E(BuddyPart.SLEEP, 14, 40, 56, 17, fill = dress),
-                E(BuddyPart.SLEEP, 74, 46, 8, 4.5, fill = shoe),
-                C(BuddyPart.SLEEP, -34, 22, 28, fill = skin),
-                P(BuddyPart.SLEEP, "M-58 4 L-66 -24 L-46 -10 Z", fill = 0xFFFFFF),
-                P(BuddyPart.SLEEP, "M-58 0 L-62 -16 L-50 -8 Z", fill = earIn, stroke = Stroke.None),
-                P(BuddyPart.SLEEP, "M-26 -8 L-18 -34 L-8 -10 Z", fill = 0xFFFFFF),
-                P(BuddyPart.SLEEP, "M-22 -10 L-18 -26 L-12 -12 Z", fill = earIn, stroke = Stroke.None),
-                P(BuddyPart.SLEEP, "M-62 22 Q-66 -12 -34 -12 Q-2 -12 -6 22 Q-12 6 -22 6 Q-30 -2 -40 6 Q-54 2 -62 22 Z", fill = hair),
-                L(BuddyPart.SLEEP, "M-46 24 q4 4 8 0 M-28 24 q4 4 8 0", Stroke.Ink, 4),
-                E(BuddyPart.SLEEP, -48, 34, 5, 3, fill = blush, stroke = Stroke.None, alpha = 0.6),
-                E(BuddyPart.SLEEP, -16, 34, 5, 3, fill = blush, stroke = Stroke.None, alpha = 0.6),
-            )
-            // Đuôi mèo cuộn quanh người khi ngủ.
-            p += limb(BuddyPart.SLEEP, "M66 36 Q96 30 86 60 Q70 76 30 64", hair, 5)
             BuddyRig(
                 pieces = p,
                 pivots = mapOf(BuddyPart.TAIL to P2(14, 66), BuddyPart.LEG_L to P2(-8, 72), BuddyPart.LEG_R to P2(8, 72), BuddyPart.BODY to P2(0, 72), BuddyPart.ARM_L to P2(-12, 30), BuddyPart.ARM_R to P2(12, 30), BuddyPart.HEAD to P2(0, 18)),
                 full = BuddyRect(-96, -84, 196, 234), barBottom = null, feet = P2(0, 146), sleepBottom = 72,
                 zzz = listOf(P3(0, -30, 12), P3(16, -46, 15), P3(36, -64, 19)),
-                style = BuddyDance.Style(armL = 2.3, armR = 2.3, armAmp = 0.3, alternate = true, kick = 0.6, bounce = 9.0, step = 8.0))
+                style = BuddyDance.Style(armL = 2.3, armR = 2.3, armAmp = 0.3, alternate = true, kick = 0.6, bounce = 9.0, step = 8.0),
+                face = P4(0, -2, 28, 19), brows = "M-20 -20 L-8 -17 M20 -20 L8 -17",
+                hat = P3(0, -49, 26), sleepHat = P3(-34, -10, 26), neck = P2(0, 22), hand = P2(24, 66))
         }
 
-        // Chàng trai — chibi thon hiphop: mũ lưỡi trai đội ngược sọc đỏ, kính râm, headphone đeo cổ, áo vàng "69",
-        // dây chuyền vàng to có mặt dây, quần baggy xanh đen, sneaker trắng dày.
+        // Tousled-haired boy: navy vest, ivory tee and denim sneakers.
         val BOY: BuddyRig = run {
-            val skin = 0xFFE0C7; val tee = 0xF2B134; val pants = 0x3B4252; val cap = 0x2E2A3A
-            val red = 0xE2453C; val lens = 0x1B1B22; val blush = 0xFF9EAA
-            val gold = 0xFFD54F; val gold2 = 0xB8860B
-            val p = mutableListOf(
-                P(BuddyPart.LEG_L, "M-16 64 L-26 132 L-12 134 L-2 76 Z", fill = pants),
-                P(BuddyPart.LEG_L, "M-32 132 q-2 10 8 10 h16 q4 -9 -4 -10 Z", fill = 0xFFFFFF),
-                L(BuddyPart.LEG_L, "M-30 139 h20", Stroke.Color(red), 3),
-                P(BuddyPart.LEG_R, "M2 76 L14 134 L28 130 L16 64 Z", fill = pants),
-                P(BuddyPart.LEG_R, "M10 132 q-2 10 8 10 h16 q4 -9 -4 -10 Z", fill = 0xFFFFFF),
-                L(BuddyPart.LEG_R, "M12 139 h20", Stroke.Color(red), 3),
-                P(BuddyPart.BODY, "M-20 20 Q0 12 20 20 L24 70 Q0 76 -24 70 Z", fill = tee),
-                L(BuddyPart.BODY, "M-3 40 Q-11 40 -11 50 Q-11 56 -7 56 Q-3 56 -3 52 Q-3 47 -7 47 Q-11 47 -11 51 "
-                    + "M3 56 Q11 56 11 46 Q11 40 7 40 Q3 40 3 44 Q3 49 7 49 Q11 49 11 45", Stroke.Ink, 3.5),
-                // Dây chuyền vàng to + mặt dây.
-                L(BuddyPart.BODY, "M-11 21 Q0 40 11 21", Stroke.Color(gold2), 6),
-                L(BuddyPart.BODY, "M-11 21 Q0 40 11 21", Stroke.Color(gold), 3.5),
-                BuddyPiece(BuddyPart.BODY, Shape.Circle(0, 34, 4.5), fill = gold, stroke = Stroke.Color(gold2), width = 2.5),
-            )
-            p += limb(BuddyPart.ARM_L, "M-18 26 L-26 58", skin, 11)
-            p += listOf(
-                C(BuddyPart.ARM_L, -27, 60, 6, fill = skin),
-            )
-            p += limb(BuddyPart.ARM_R, "M18 26 L26 58", skin, 11)
-            p += listOf(
-                C(BuddyPart.ARM_R, 27, 60, 6, fill = skin),
-                C(BuddyPart.HEAD, 0, -16, 32, fill = skin),
-                P(BuddyPart.HEAD, "M-32 -24 Q-30 -54 2 -54 Q32 -52 32 -24 Z", fill = cap),
-                P(BuddyPart.HEAD, "M-30 -30 Q-46 -30 -48 -22 Q-40 -18 -28 -22 Z", fill = cap),
-                L(BuddyPart.HEAD, "M-20 -46 h40", Stroke.Color(red), 3.5),
-                P(BuddyPart.HEAD, "M-22 -18 h16 q1 11 -8 11 q-8 0 -8 -11 Z", fill = lens, width = 4),
-                P(BuddyPart.HEAD, "M6 -18 h16 q0 11 -8 11 q-9 0 -8 -11 Z", fill = lens, width = 4),
-                L(BuddyPart.HEAD, "M-6 -16 h12", Stroke.Ink, 3),
-                L(BuddyPart.HEAD, "M-18 -15 l5 -1 M10 -15 l5 -1", Stroke.Color(0x7FB8FF), 2.5),
-                L(BuddyPart.HEAD, "M-7 6 Q2 13 9 4", Stroke.Ink, 4),
-                L(BuddyPart.HEAD, "M-20 14 Q0 24 20 14", Stroke.Color(red), 5),
-                R(BuddyPart.HEAD, -28, 6, 10, 14, 4, fill = 0x2A2A33),
-                R(BuddyPart.HEAD, 18, 6, 10, 14, 4, fill = 0x2A2A33),
-            )
-            // Ngủ: kéo mũ che mắt, ngáy.
-            p += listOf(
-                E(BuddyPart.SLEEP, 14, 40, 56, 17, fill = tee),
-                P(BuddyPart.SLEEP, "M62 40 h16 v8 h-18 Z", fill = 0xFFFFFF),
-                C(BuddyPart.SLEEP, -34, 22, 28, fill = skin),
-                P(BuddyPart.SLEEP, "M-62 16 Q-62 -14 -34 -14 Q-6 -14 -6 16 Z", fill = cap),
-                P(BuddyPart.SLEEP, "M-64 14 Q-34 24 -4 14 Q-34 30 -64 14 Z", fill = cap),
-                L(BuddyPart.SLEEP, "M-52 2 h36", Stroke.Color(red), 3.5),
-                E(BuddyPart.SLEEP, -34, 38, 4, 3, fill = ink, stroke = Stroke.None),
-                E(BuddyPart.SLEEP, -56, 32, 5, 3, fill = blush, stroke = Stroke.None, alpha = 0.6),
-                E(BuddyPart.SLEEP, -12, 32, 5, 3, fill = blush, stroke = Stroke.None, alpha = 0.6),
-                L(BuddyPart.SLEEP, "M-50 50 Q-34 58 -18 50", Stroke.Color(red), 4),
-                L(BuddyPart.SLEEP, "M-44 44 Q-30 54 -14 44", Stroke.Color(gold2), 5.5),
-                L(BuddyPart.SLEEP, "M-44 44 Q-30 54 -14 44", Stroke.Color(gold), 3.5),
-                BuddyPiece(BuddyPart.SLEEP, Shape.Circle(-28, 50, 3.5), fill = gold, stroke = Stroke.Color(gold2), width = 2),
+            val p = listOf(
+                P(BuddyPart.LEG_L, "M -2 68 L -17 65 Q -21 91 -20 108 L -23 132 Q -16 139 -9 132 L -5 106 Z", fill = 0x83ACCA, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_L, "M -14 70 L -17 65 Q -21 91 -20 108 L -23 132 L -17 134 L -13 105 Z", fill = 0x5F88AB, stroke = Stroke.None, width = 0),
+                P(BuddyPart.LEG_L, "M -9 130 Q -17 126 -23 131 L -29 137 Q -32 143 -24 144 L -8 143 Q -4 139 -9 130 Z", fill = 0xFFF9F3, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_L, "M -11 135 L -20 135 M -9 141 L -26 141", stroke = Stroke.Color(0xB8C6D7), width = 1.7),
+                P(BuddyPart.LEG_R, "M 2 68 L 17 65 Q 21 91 20 108 L 23 132 Q 16 139 9 132 L 5 106 Z", fill = 0x83ACCA, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_R, "M 14 70 L 17 65 Q 21 91 20 108 L 23 132 L 17 134 L 13 105 Z", fill = 0x5F88AB, stroke = Stroke.None, width = 0),
+                P(BuddyPart.LEG_R, "M 9 130 Q 17 126 23 131 L 29 137 Q 32 143 24 144 L 8 143 Q 4 139 9 130 Z", fill = 0xFFF9F3, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_R, "M 11 135 L 20 135 M 9 141 L 26 141", stroke = Stroke.Color(0xB8C6D7), width = 1.7),
+                P(BuddyPart.BODY, "M-18 20 Q0 14 18 20 L23 69 Q0 76 -23 69 Z", fill = 0xFFF9F3, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M8 32 Q10 52 19 62 L23 69 Q0 76 -23 69 L-21 64 Q2 70 8 59 Z", fill = 0xDFE6EE, stroke = Stroke.None, width = 0),
+                P(BuddyPart.BODY, "M-19 20 L-9 18 Q-12 38 -9 57 L-10 73 L-26 73 L-22 36 Z M9 18 L19 20 L22 36 L26 73 L10 73 L9 57 Q12 38 9 18 Z", fill = 0x304563, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M-18 28 L-19 59 M18 28 L19 59", stroke = Stroke.Color(0x536B8C), width = 2),
+                P(BuddyPart.BODY, "M-7 23 Q0 28 7 23", stroke = Stroke.Color(0xB8C6D7), width = 2),
+                P(BuddyPart.ARM_L, "M -14 28 Q -20 23 -25 31 L -32 53 Q -36 63 -29 67 Q -22 69 -20 60 L -15 45 Z", fill = 0xFFE0C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_L, "M -14 23 Q -21 19 -26 27 L -30 39 Q -24 45 -16 40 L -11 31 Z", fill = 0xFFF9F3, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_L, "M -24 45 Q -30 56 -27 61", stroke = Stroke.Color(0xF0BCA3), width = 2),
+                P(BuddyPart.ARM_R, "M 14 28 Q 20 23 25 31 L 32 53 Q 36 63 29 67 Q 22 69 20 60 L 15 45 Z", fill = 0xFFE0C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_R, "M 14 23 Q 21 19 26 27 L 30 39 Q 24 45 16 40 L 11 31 Z", fill = 0xFFF9F3, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_R, "M 24 45 Q 30 56 27 61", stroke = Stroke.Color(0xF0BCA3), width = 2),
+                P(BuddyPart.HEAD, "M-32 -16 Q-45 -21 -42 -7 Q-40 2 -31 2 M32 -16 Q45 -21 42 -7 Q40 2 31 2 Z", fill = 0xFFE0C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-36 -24 Q-35 -53 0 -53 Q36 -53 36 -24 L33 -2 Q26 19 0 20 Q-26 19 -33 -2 Z", fill = 0xFFE0C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-33 -3 Q-20 15 6 14 Q22 13 33 -2 Q26 19 0 20 Q-26 19 -33 -3 Z", fill = 0xF0BCA3, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M-34 -5 L-40 -22 L-37 -33 L-43 -34 Q-35 -51 -19 -53 L-24 -60 Q-7 -62 3 -57 Q18 -64 28 -52 Q42 -45 39 -27 L35 -8 L28 -17 L25 -35 Q14 -24 5 -25 L9 -38 Q-3 -23 -16 -22 L-12 -33 L-27 -22 L-29 -7 Z", fill = 0x303141, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-31 -37 Q-18 -52 -4 -48 Q-16 -43 -22 -33 Z M6 -49 Q22 -56 30 -39 Q18 -46 6 -43 Z", fill = 0x4C5066, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M-20 -20 Q-14 -23 -8 -20 M8 -20 Q14 -23 20 -20", stroke = Stroke.Ink, width = 1.8),
+                P(BuddyPart.HEAD, "M-17.8 -8 Q-17.8 -14.8 -13 -14.8 Q-8.2 -14.8 -8.2 -8 Q-8.2 -1.2 -13 -1.2 Q-17.8 -1.2 -17.8 -8 Z M8.2 -8 Q8.2 -14.8 13 -14.8 Q17.8 -14.8 17.8 -8 Q17.8 -1.2 13 -1.2 Q8.2 -1.2 8.2 -8 Z", fill = 0x4B485C, stroke = Stroke.Ink, width = 1.6, show = Show.REST),
+                P(BuddyPart.HEAD, "M-14 -3.2 h2 M12 -3.2 h2", stroke = Stroke.Color(0xDFA284), width = 1.8, show = Show.REST),
+                P(BuddyPart.HEAD, "M-15.7 -11 Q-15.7 -13.5 -13.5 -13.5 Q-11.3 -13.5 -11.3 -11 Q-11.3 -8.5 -13.5 -8.5 Q-15.7 -8.5 -15.7 -11 Z M10.3 -11 Q10.3 -13.5 12.5 -13.5 Q14.7 -13.5 14.7 -11 Q14.7 -8.5 12.5 -8.5 Q10.3 -8.5 10.3 -11 Z", fill = 0xFFFFFF, stroke = Stroke.None, width = 0, show = Show.REST),
+                P(BuddyPart.HEAD, "M-18 -8 q5 -7 10 0 M8 -8 q5 -7 10 0", stroke = Stroke.Ink, width = 3, show = Show.DANCE),
+                E(BuddyPart.HEAD, -24, 4, 6, 3, fill = 0xF2B1A7, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 24, 4, 6, 3, fill = 0xF2B1A7, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-8 5 Q0 9 8 5 Q6 16 0 16 Q-6 16 -8 5 Z", fill = 0xA7525B, stroke = Stroke.Ink, width = 1.8),
+                P(BuddyPart.HEAD, "M-5 7 Q0 9 5 7 L4 10 L-4 10 Z", fill = 0xFFF9F3, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-10 27 Q14 15 41 25 L61 35 L59 50 Q35 58 -8 53 Z", fill = 0x304563, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M26 29 Q49 25 68 38 L70 48 Q54 58 30 49 Z", fill = 0x83ACCA, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M40 36 Q52 44 61 43", stroke = Stroke.Color(0x5F88AB), width = 3),
+                P(BuddyPart.SLEEP, "M66 38 Q76 33 81 42 Q84 49 76 51 L67 49 Z", fill = 0xFFF9F3, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-64 21 Q-64 -8 -34 -8 Q-4 -8 -4 22 Q-7 48 -34 51 Q-60 48 -64 21 Z", fill = 0xFFE0C7, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-61 32 Q-36 54 -7 31 Q-10 49 -34 51 Q-55 48 -61 32 Z", fill = 0xF0BCA3, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-62 24 L-68 9 L-65 -3 L-69 -7 Q-54 -18 -41 -14 Q-18 -24 -7 -8 Q2 3 -5 21 L-13 11 L-17 2 Q-28 15 -40 13 L-35 3 Q-48 15 -58 11 Z", fill = 0x303141, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-57 -2 Q-42 -13 -28 -9 L-42 1 Z", fill = 0x4C5066, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-51 26 Q-46 32 -40 26 M-29 26 Q-24 32 -18 26", stroke = Stroke.Ink, width = 2.5),
+                E(BuddyPart.SLEEP, -51, 36, 5, 3, fill = 0xF2B1A7, stroke = Stroke.None),
+                E(BuddyPart.SLEEP, -17, 36, 5, 3, fill = 0xF2B1A7, stroke = Stroke.None),
+                P(BuddyPart.SLEEP, "M-37 38 Q-33 42 -29 38", stroke = Stroke.Ink, width = 1.8),
+                P(BuddyPart.SLEEP, "M-22 44 Q-9 38 2 44 Q6 50 -3 53 L-22 53 Q-28 49 -22 44 Z", fill = 0xFFE0C7, stroke = Stroke.Outline, width = 3.2),
             )
             BuddyRig(
                 pieces = p,
@@ -785,97 +896,122 @@ class BuddyRig(
                 full = BuddyRect(-92, -76, 184, 226), barBottom = null, feet = P2(0, 142), sleepBottom = 57,
                 zzz = listOf(P3(0, -30, 12), P3(16, -46, 15), P3(36, -64, 19)),
                 style = BuddyDance.Style(armL = -1.3, armR = 2.3, armAmp = 0.2, alternate = false, kick = 0.3, bounce = 8.0, step = 10.0),
-                brows = "M-20 -24 L-8 -20 M20 -24 L8 -20", hat = P3(2, -46, 36), hand = P2(27, 60))
+                face = P4(0, -2, 28, 19), brows = "M-20 -20 L-8 -17 M20 -20 L8 -17",
+                hat = P3(2, -48, 26), sleepHat = P3(-34, -12, 26), neck = P2(0, 22), hand = P2(27, 60))
         }
 
-        // Mèo (chibi): cam mướp, bụng kem, đuôi vẫy.
+        // Round tabby: cream cheeks, tiny paw pads and a striped tail.
         val CAT: BuddyRig = run {
-            val fur = 0xF6A94E; val cream = 0xFFF1DC; val stripe = 0xD9822B; val pink = 0xFFB3C7
-            val nose = 0xF27A8A; val blush = 0xFF9EAA
-            val p = mutableListOf<BuddyPiece>(); p += limb(BuddyPart.TAIL, "M18 80 Q50 82 48 50 Q47 36 56 30", fur, 10)
-            p += limb(BuddyPart.LEG_L, "M-14 88 L-14 106", fur, 11)
-            p += listOf(E(BuddyPart.LEG_L, -16, 110, 10, 6, fill = cream))
-            p += limb(BuddyPart.LEG_R, "M14 88 L14 106", fur, 11)
-            p += listOf(E(BuddyPart.LEG_R, 16, 110, 10, 6, fill = cream),
-                  E(BuddyPart.BODY, 0, 72, 30, 28, fill = fur),
-                  E(BuddyPart.BODY, 0, 78, 17, 18, fill = cream, stroke = Stroke.None))
-            p += limb(BuddyPart.ARM_L, "M-22 52 L-30 74", fur, 10)
-            p += listOf(C(BuddyPart.ARM_L, -31, 77, 6.5, fill = cream))
-            p += limb(BuddyPart.ARM_R, "M22 52 L30 74", fur, 10)
-            p += listOf(C(BuddyPart.ARM_R, 31, 77, 6.5, fill = cream),
-                  P(BuddyPart.HEAD, "M-36 -16 L-32 -58 L-6 -40 Z", fill = fur),
-                  P(BuddyPart.HEAD, "M36 -16 L32 -58 L6 -40 Z", fill = fur),
-                  P(BuddyPart.HEAD, "M-30 -26 L-28 -48 L-14 -38 Z M30 -26 L28 -48 L14 -38 Z", fill = pink, stroke = Stroke.None),
-                  E(BuddyPart.HEAD, 0, -4, 42, 36, fill = fur),
-                  L(BuddyPart.HEAD, "M-7 -38 L-4 -28 M7 -38 L4 -28 M0 -40 L0 -29", Stroke.Color(stripe), 4),
-                  E(BuddyPart.HEAD, 0, 12, 13, 9, fill = cream, stroke = Stroke.None),
-                  C(BuddyPart.HEAD, -16, -6, 4.5, fill = ink, stroke = Stroke.None, show = Show.REST),
-                  C(BuddyPart.HEAD, 16, -6, 4.5, fill = ink, stroke = Stroke.None, show = Show.REST),
-                  L(BuddyPart.HEAD, "M-21 -4 q5 -6 10 0 M11 -4 q5 -6 10 0", Stroke.Ink, 5, show = Show.DANCE),
-                  P(BuddyPart.HEAD, "M-4 5 L4 5 L0 10 Z", fill = nose, stroke = Stroke.None),
-                  L(BuddyPart.HEAD, "M-6 13 q3 4 6 0 q3 4 6 0", Stroke.Ink, 3),
-                  L(BuddyPart.HEAD, "M-26 8 L-44 4 M-26 14 L-44 16 M26 8 L44 4 M26 14 L44 16", Stroke.Ink, 3),
-                  E(BuddyPart.HEAD, -26, 6, 6, 3.5, fill = blush, stroke = Stroke.None, alpha = 0.6),
-                  E(BuddyPart.HEAD, 26, 6, 6, 3.5, fill = blush, stroke = Stroke.None, alpha = 0.6))
-            // Ngủ: cuộn tròn, đuôi quấn trước.
-            p += listOf(E(BuddyPart.SLEEP, 10, 40, 52, 24, fill = fur),
-                  L(BuddyPart.SLEEP, "M10 18 L12 28 M26 18 L26 28 M42 22 L40 31", Stroke.Color(stripe), 4))
-            p += limb(BuddyPart.SLEEP, "M58 46 Q72 66 40 66 Q10 66 -8 60", fur, 10)
-            p += listOf(P(BuddyPart.SLEEP, "M-58 10 L-62 -14 L-42 0 Z", fill = fur),
-                  P(BuddyPart.SLEEP, "M-26 0 L-10 -14 L-12 8 Z", fill = fur),
-                  C(BuddyPart.SLEEP, -34, 26, 30, fill = fur),
-                  E(BuddyPart.SLEEP, -34, 38, 9, 6, fill = cream, stroke = Stroke.None),
-                  L(BuddyPart.SLEEP, "M-48 26 q5 5 10 0 M-30 26 q5 5 10 0", Stroke.Ink, 4.5),
-                  P(BuddyPart.SLEEP, "M-37 33 L-31 33 L-34 37 Z", fill = nose, stroke = Stroke.None),
-                  E(BuddyPart.SLEEP, -52, 36, 5, 3, fill = blush, stroke = Stroke.None, alpha = 0.6),
-                  E(BuddyPart.SLEEP, -16, 36, 5, 3, fill = blush, stroke = Stroke.None, alpha = 0.6))
+            val p = listOf(
+                P(BuddyPart.TAIL, "M18 75 Q45 82 47 61 Q44 39 54 30 Q60 24 64 30 Q68 36 61 43 Q58 48 61 61 Q64 94 20 88 Z", fill = 0xFFB957, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.TAIL, "M48 43 Q46 35 54 30 Q60 24 64 30 Q68 36 61 43 L57 48 Z", fill = 0xFFF0D5, stroke = Stroke.None, width = 0),
+                P(BuddyPart.TAIL, "M50 55 L60 53 M46 73 L56 78", stroke = Stroke.Color(0xDC8736), width = 5),
+                P(BuddyPart.LEG_L, "M -7 85 Q -14 80 -21 87 L -24 103 Q -29 115 -17 116 L -8 115 Q -2 112 -5 103 Z", fill = 0xFFB957, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_L, "M -5 103 Q -14 108 -24 103 Q -29 115 -17 116 L -8 115 Q -2 112 -5 103 Z", fill = 0xFFF0D5, stroke = Stroke.None, width = 0),
+                P(BuddyPart.LEG_L, "M -10 109 L -10 113 M -16 110 L -16 114", stroke = Stroke.Color(0xD4AE8D), width = 1.4),
+                P(BuddyPart.LEG_R, "M 7 85 Q 14 80 21 87 L 24 103 Q 29 115 17 116 L 8 115 Q 2 112 5 103 Z", fill = 0xFFB957, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_R, "M 5 103 Q 14 108 24 103 Q 29 115 17 116 L 8 115 Q 2 112 5 103 Z", fill = 0xFFF0D5, stroke = Stroke.None, width = 0),
+                P(BuddyPart.LEG_R, "M 10 109 L 10 113 M 16 110 L 16 114", stroke = Stroke.Color(0xD4AE8D), width = 1.4),
+                P(BuddyPart.BODY, "M-20 28 Q-32 42 -30 70 Q-32 101 0 102 Q32 101 30 70 Q32 42 20 28 Z", fill = 0xFFB957, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M21 42 Q39 94 10 101 L-5 101 Q25 88 21 42 Z", fill = 0xEA9B41, stroke = Stroke.None, width = 0),
+                P(BuddyPart.BODY, "M0 43 Q-20 44 -20 71 Q-22 93 0 94 Q22 93 20 71 Q20 44 0 43 Z", fill = 0xFFF0D5, stroke = Stroke.None, width = 0),
+                P(BuddyPart.BODY, "M-29 61 L-24 64 M-29 77 L-24 79 M29 61 L24 64 M29 77 L24 79", stroke = Stroke.Color(0xDC8736), width = 3),
+                P(BuddyPart.ARM_L, "M -18 48 Q -24 43 -29 49 L -39 70 Q -43 80 -34 85 Q -25 87 -23 76 L -17 59 Z", fill = 0xFFB957, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_L, "M -24 73 Q -31 68 -39 73 Q -43 80 -34 85 Q -25 87 -24 73 Z", fill = 0xFFF0D5, stroke = Stroke.None, width = 0),
+                E(BuddyPart.ARM_L, -31, 78, 3.5, 3.5, fill = 0xF4A0A1, stroke = Stroke.None),
+                P(BuddyPart.ARM_R, "M 18 48 Q 24 43 29 49 L 39 70 Q 43 80 34 85 Q 25 87 23 76 L 17 59 Z", fill = 0xFFB957, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_R, "M 24 73 Q 31 68 39 73 Q 43 80 34 85 Q 25 87 24 73 Z", fill = 0xFFF0D5, stroke = Stroke.None, width = 0),
+                E(BuddyPart.ARM_R, 31, 78, 3.5, 3.5, fill = 0xF4A0A1, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-40 -17 Q-44 -39 -34 -57 Q-26 -59 -10 -39 L10 -39 Q26 -59 34 -57 Q44 -39 40 -17 Z", fill = 0xFFB957, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-35 -46 Q-38 -32 -31 -25 L-18 -36 Z M35 -46 Q38 -32 31 -25 L18 -36 Z", fill = 0xF4A0A1, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M-38 -21 Q-28 -39 0 -39 Q28 -39 38 -21 L43 -8 L39 -7 L46 2 L41 4 Q47 17 32 29 Q17 40 0 40 Q-17 40 -32 29 Q-47 17 -41 4 L-46 2 L-39 -7 L-43 -8 Z", fill = 0xFFB957, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-40 9 Q-25 -3 -12 6 Q0 -2 12 6 Q25 -3 40 9 Q41 27 18 35 Q0 43 -18 35 Q-41 27 -40 9 Z", fill = 0xFFF0D5, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M-14 -36 L-10 -21 Q-6 -20 -7 -35 Z M-3 -39 L-2 -22 Q1 -17 4 -38 Z M11 -36 L7 -22 Q11 -20 16 -34 Z", fill = 0xDC8736, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M-22.5 -4 Q-22.5 -11 -17 -11 Q-11.5 -11 -11.5 -4 Q-11.5 3 -17 3 Q-22.5 3 -22.5 -4 Z M11.5 -4 Q11.5 -11 17 -11 Q22.5 -11 22.5 -4 Q22.5 3 17 3 Q11.5 3 11.5 -4 Z", fill = 0x654532, stroke = Stroke.Ink, width = 1.6, show = Show.REST),
+                P(BuddyPart.HEAD, "M-18 1 h2 M16 1 h2", stroke = Stroke.Color(0xDFA284), width = 1.8, show = Show.REST),
+                P(BuddyPart.HEAD, "M-19.7 -7 Q-19.7 -9.5 -17.5 -9.5 Q-15.3 -9.5 -15.3 -7 Q-15.3 -4.5 -17.5 -4.5 Q-19.7 -4.5 -19.7 -7 Z M14.3 -7 Q14.3 -9.5 16.5 -9.5 Q18.7 -9.5 18.7 -7 Q18.7 -4.5 16.5 -4.5 Q14.3 -4.5 14.3 -7 Z", fill = 0xFFFFFF, stroke = Stroke.None, width = 0, show = Show.REST),
+                P(BuddyPart.HEAD, "M-22 -4 q5 -7 10 0 M12 -4 q5 -7 10 0", stroke = Stroke.Ink, width = 3, show = Show.DANCE),
+                E(BuddyPart.HEAD, -29, 14, 6, 3, fill = 0xF4B09A, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 29, 14, 6, 3, fill = 0xF4B09A, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-4 8 Q0 6 4 8 Q3 12 0 13 Q-3 12 -4 8 Z", fill = 0xE7878B, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M-7 17 Q0 21 7 17 Q5 29 0 29 Q-5 29 -7 17 Z", fill = 0xA65350, stroke = Stroke.Ink, width = 1.8),
+                P(BuddyPart.HEAD, "M-3 25 Q0 23 3 25", stroke = Stroke.Color(0xF4A0A1), width = 3),
+                P(BuddyPart.HEAD, "M0 13 L0 17 Q-4 21 -8 16 M0 17 Q4 21 8 16 M-32 11 L-44 8 M-32 18 L-44 20 M32 11 L44 8 M32 18 L44 20", stroke = Stroke.Ink, width = 1.8),
+                P(BuddyPart.SLEEP, "M-20 32 Q-3 9 29 16 Q62 19 64 45 Q64 65 28 65 L-22 58 Z", fill = 0xFFB957, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M26 23 Q45 29 43 54 Q29 64 3 57 Q10 42 26 23 Z", fill = 0xFFF0D5, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M13 18 L10 27 M28 19 L24 30 M44 24 L39 34", stroke = Stroke.Color(0xDC8736), width = 4),
+                P(BuddyPart.SLEEP, "M-61 12 Q-68 -7 -61 -15 Q-49 -13 -40 0 L-26 0 Q-15 -14 -7 -13 L-10 16 Z", fill = 0xFFB957, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-59 -7 L-55 9 L-45 3 Z M-13 -5 L-25 5 L-14 11 Z", fill = 0xF4A0A1, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-65 25 Q-65 -2 -34 -3 Q-3 -2 -3 25 Q-6 54 -34 55 Q-62 54 -65 25 Z", fill = 0xFFB957, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-63 32 Q-48 21 -34 30 Q-20 21 -5 32 Q-10 53 -34 55 Q-58 53 -63 32 Z", fill = 0xFFF0D5, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-42 1 L-40 11 M-32 0 L-32 10 M-22 2 L-24 11", stroke = Stroke.Color(0xDC8736), width = 3),
+                P(BuddyPart.SLEEP, "M-54 26 Q-48 33 -41 26 M-28 26 Q-21 33 -15 26", stroke = Stroke.Ink, width = 2.5),
+                P(BuddyPart.SLEEP, "M-38 34 Q-34 31 -30 34 L-34 38 Z", fill = 0xE7878B, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-34 38 Q-38 43 -42 39 M-34 38 Q-30 43 -26 39", stroke = Stroke.Ink, width = 1.6),
+                E(BuddyPart.SLEEP, -54, 37, 5, 3, fill = 0xF4B09A, stroke = Stroke.None),
+                E(BuddyPart.SLEEP, -14, 37, 5, 3, fill = 0xF4B09A, stroke = Stroke.None),
+                P(BuddyPart.SLEEP, "M56 45 Q64 40 67 48 Q72 66 44 67 Q13 70 -6 60 Q-12 55 -7 51 Q-3 47 5 51 Q35 62 54 56 Q60 53 56 45 Z", fill = 0xFFB957, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M12 54 Q7 64 -3 62 Q-13 58 -7 51 Q-3 47 5 51 Z", fill = 0xFFF0D5, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M28 59 L26 66 M43 60 L43 67", stroke = Stroke.Color(0xDC8736), width = 4),
+            )
             BuddyRig(
                 pieces = p,
                 pivots = mapOf(BuddyPart.TAIL to P2(18, 80), BuddyPart.LEG_L to P2(-14, 88), BuddyPart.LEG_R to P2(14, 88), BuddyPart.BODY to P2(0, 96), BuddyPart.ARM_L to P2(-22, 52), BuddyPart.ARM_R to P2(22, 52), BuddyPart.HEAD to P2(0, 32)),
                 full = BuddyRect(-80, -66, 160, 188), barBottom = null, feet = P2(0, 116), sleepBottom = 68,
                 zzz = listOf(P3(0, -30, 12), P3(16, -46, 15), P3(36, -64, 19)),
                 style = BuddyDance.Style(armL = 1.2, armR = 1.2, armAmp = 0.6, alternate = true, kick = 0.2, bounce = 10.0, step = 8.0),
-                heart = P3(0, 68, 13), face = P4(0, 6, 30, 18), brows = "M-23 -16 L-11 -11 M23 -16 L11 -11",
-                hat = P3(0, -36, 36), sleepHat = P3(-34, -2, 28), neck = P2(0, 34), hand = P2(31, 77))
+                heart = P3(0, 68, 13), face = P4(0, 10, 33, 22), brows = "M-24 -17 L-11 -13 M24 -17 L11 -13",
+                hat = P3(0, -36, 24), sleepHat = P3(-34, -2, 28), neck = P2(0, 40), hand = P2(31, 78))
         }
 
-        // Gà con (chibi): tròn vàng, cánh vỗ.
+        // Butter-yellow chick: swept crest, downy belly and scalloped wings.
         val CHICK: BuddyRig = run {
-            val yellow = 0xFFD43B; val wing = 0xF5BE2A; val orange = 0xF08A24; val blush = 0xFF9EAA
-            val p = mutableListOf<BuddyPiece>(); p += limb(BuddyPart.LEG_L, "M-12 86 L-12 104", orange, 9)
-            p += limb(BuddyPart.LEG_L, "M-22 108 L-12 103 L-2 108", orange, 7)
-            p += limb(BuddyPart.LEG_R, "M12 86 L12 104", orange, 9)
-            p += limb(BuddyPart.LEG_R, "M2 108 L12 103 L22 108", orange, 7)
-            p += listOf(E(BuddyPart.BODY, 0, 64, 38, 30, fill = yellow),
-                  E(BuddyPart.BODY, 0, 70, 22, 18, fill = 0xFFE68A, stroke = Stroke.None),
-                  P(BuddyPart.ARM_L, "M-32 50 Q-58 62 -44 84 Q-34 74 -28 62 Z", fill = wing),
-                  P(BuddyPart.ARM_R, "M32 50 Q58 62 44 84 Q34 74 28 62 Z", fill = wing),
-                  P(BuddyPart.HEAD, "M-4 -38 Q-12 -62 2 -56 Q8 -68 14 -54 Q10 -44 4 -39 Z", fill = yellow),
-                  C(BuddyPart.HEAD, 0, -2, 38, fill = yellow),
-                  C(BuddyPart.HEAD, -14, -4, 4.5, fill = ink, stroke = Stroke.None, show = Show.REST),
-                  C(BuddyPart.HEAD, 14, -4, 4.5, fill = ink, stroke = Stroke.None, show = Show.REST),
-                  L(BuddyPart.HEAD, "M-19 -2 q5 -6 10 0 M9 -2 q5 -6 10 0", Stroke.Ink, 5, show = Show.DANCE),
-                  P(BuddyPart.HEAD, "M-9 8 L9 8 L0 18 Z", fill = orange),
-                  E(BuddyPart.HEAD, -24, 8, 6, 3.5, fill = blush, stroke = Stroke.None, alpha = 0.6),
-                  E(BuddyPart.HEAD, 24, 8, 6, 3.5, fill = blush, stroke = Stroke.None, alpha = 0.6))
-            // Ngủ: tròn xoe, đầu gục.
-            p += listOf(E(BuddyPart.SLEEP, 6, 42, 46, 26, fill = yellow),
-                  P(BuddyPart.SLEEP, "M18 30 Q42 32 38 54 Q26 50 18 40 Z", fill = wing))
-            p += limb(BuddyPart.SLEEP, "M44 64 L54 66", orange, 5)
-            p += listOf(P(BuddyPart.SLEEP, "M-34 -1 Q-42 -18 -30 -14 Q-26 -24 -18 -10 Z", fill = yellow),
-                  C(BuddyPart.SLEEP, -30, 26, 28, fill = yellow),
-                  P(BuddyPart.SLEEP, "M-56 30 L-68 36 L-56 42 Z", fill = orange),
-                  L(BuddyPart.SLEEP, "M-44 24 q5 5 10 0 M-28 24 q5 5 10 0", Stroke.Ink, 4.5),
-                  E(BuddyPart.SLEEP, -46, 34, 5, 3, fill = blush, stroke = Stroke.None, alpha = 0.6),
-                  E(BuddyPart.SLEEP, -16, 36, 5, 3, fill = blush, stroke = Stroke.None, alpha = 0.6))
+            val p = listOf(
+                P(BuddyPart.LEG_L, "M -8 85 L -17 85 L -17 101 Q -27 102 -26 108 Q -23 113 -17 109 Q -11 115 -7 109 Q 0 111 0 106 Q -1 102 -8 101 Z", fill = 0xF6A13A, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_L, "M -11 102 L -11 108 M -17 103 L -19 107", stroke = Stroke.Color(0xD78129), width = 1.5),
+                P(BuddyPart.LEG_R, "M 8 85 L 17 85 L 17 101 Q 27 102 26 108 Q 23 113 17 109 Q 11 115 7 109 Q 0 111 0 106 Q 1 102 8 101 Z", fill = 0xF6A13A, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_R, "M 11 102 L 11 108 M 17 103 L 19 107", stroke = Stroke.Color(0xD78129), width = 1.5),
+                P(BuddyPart.BODY, "M-27 31 Q-42 50 -36 74 Q-30 96 0 96 Q30 96 36 74 Q42 50 27 31 Z", fill = 0xFFE17A, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M28 47 Q44 84 14 94 Q-2 100 -22 89 Q24 93 28 47 Z", fill = 0xF5C35D, stroke = Stroke.None, width = 0),
+                P(BuddyPart.BODY, "M0 48 Q-22 48 -23 70 Q-23 89 0 90 Q23 89 23 70 Q22 48 0 48 Z", fill = 0xFFF1BE, stroke = Stroke.None, width = 0),
+                P(BuddyPart.ARM_L, "M -30 47 Q -39 44 -48 53 Q -61 64 -54 68 L -49 67 Q -59 77 -49 78 L -45 76 Q -50 87 -40 84 Q -29 79 -25 59 Z", fill = 0xFFE17A, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_L, "M -35 64 Q -40 71 -46 72 M -34 72 Q -38 78 -41 79", stroke = Stroke.Color(0xF0BC55), width = 2),
+                P(BuddyPart.ARM_R, "M 30 47 Q 39 44 48 53 Q 61 64 54 68 L 49 67 Q 59 77 49 78 L 45 76 Q 50 87 40 84 Q 29 79 25 59 Z", fill = 0xFFE17A, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_R, "M 35 64 Q 40 71 46 72 M 34 72 Q 38 78 41 79", stroke = Stroke.Color(0xF0BC55), width = 2),
+                P(BuddyPart.HEAD, "M-39 -6 Q-38 -34 -8 -39 Q-19 -49 -11 -53 Q-5 -53 -4 -44 Q-3 -61 13 -61 Q24 -59 14 -49 L7 -41 Q24 -52 28 -44 Q30 -38 18 -34 Q40 -25 40 -3 L43 6 L39 8 Q38 35 0 39 Q-38 35 -39 8 L-43 6 Z", fill = 0xFFE17A, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-33 14 Q-13 38 14 29 Q31 25 38 13 Q35 37 0 39 Q-28 36 -33 14 Z", fill = 0xF5C35D, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M-27 -20 Q-18 -34 -4 -33 Q-17 -25 -20 -15 Z M0 -47 Q4 -57 13 -56 L7 -50 Z", fill = 0xFFF1AE, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M-23 -15 Q-18 -19 -13 -16 M13 -16 Q18 -19 23 -15", stroke = Stroke.Color(0xC49139), width = 1.8),
+                P(BuddyPart.HEAD, "M-21 0 Q-21 -6.5 -16 -6.5 Q-11 -6.5 -11 0 Q-11 6.5 -16 6.5 Q-21 6.5 -21 0 Z M11 0 Q11 -6.5 16 -6.5 Q21 -6.5 21 0 Q21 6.5 16 6.5 Q11 6.5 11 0 Z", fill = 0x6A482B, stroke = Stroke.Ink, width = 1.6, show = Show.REST),
+                P(BuddyPart.HEAD, "M-17 4.5 h2 M15 4.5 h2", stroke = Stroke.Color(0xDFA284), width = 1.8, show = Show.REST),
+                P(BuddyPart.HEAD, "M-18.7 -3 Q-18.7 -5.5 -16.5 -5.5 Q-14.3 -5.5 -14.3 -3 Q-14.3 -0.5 -16.5 -0.5 Q-18.7 -0.5 -18.7 -3 Z M13.3 -3 Q13.3 -5.5 15.5 -5.5 Q17.7 -5.5 17.7 -3 Q17.7 -0.5 15.5 -0.5 Q13.3 -0.5 13.3 -3 Z", fill = 0xFFFFFF, stroke = Stroke.None, width = 0, show = Show.REST),
+                P(BuddyPart.HEAD, "M-21 0 q5 -7 10 0 M11 0 q5 -7 10 0", stroke = Stroke.Ink, width = 3, show = Show.DANCE),
+                E(BuddyPart.HEAD, -27, 14, 6, 3, fill = 0xF5AF71, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 27, 14, 6, 3, fill = 0xF5AF71, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-8 14 Q0 10 8 14 Q6 27 0 27 Q-6 27 -8 14 Z", fill = 0xC46A36, stroke = Stroke.Ink, width = 1.8),
+                P(BuddyPart.HEAD, "M-10 12 Q-4 4 0 5 Q4 4 10 12 Q0 19 -10 12 Z", fill = 0xF6A13A, stroke = Stroke.Ink, width = 1.8),
+                P(BuddyPart.HEAD, "M-2 23 L2 23", stroke = Stroke.Color(0xF5AF71), width = 2.5),
+                P(BuddyPart.SLEEP, "M-21 28 Q6 9 33 21 Q56 31 53 51 Q50 69 10 68 Q-23 67 -31 49 Z", fill = 0xFFE17A, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M10 48 Q28 42 45 52 Q35 66 10 65 Q-9 65 -18 56 Z", fill = 0xFFF1BE, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M41 60 Q47 57 53 62 L57 66 Q49 70 42 66 Z", fill = 0xF6A13A, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M13 31 Q32 25 42 38 Q48 48 41 48 L36 46 Q41 54 33 53 Q20 50 13 31 Z", fill = 0xFFE17A, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M24 37 Q29 43 34 44", stroke = Stroke.Color(0xF0BC55), width = 2),
+                P(BuddyPart.SLEEP, "M-59 24 Q-59 3 -39 -1 Q-48 -10 -42 -14 Q-36 -16 -31 -6 Q-27 -23 -17 -18 Q-11 -13 -24 -4 Q-1 1 0 24 Q-1 52 -30 55 Q-59 52 -59 24 Z", fill = 0xFFE17A, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-56 35 Q-32 55 -3 34 Q-8 52 -30 55 Q-50 52 -56 35 Z", fill = 0xF5C35D, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-49 10 Q-42 2 -33 4 L-43 14 Z", fill = 0xFFF1AE, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-49 25 Q-43 32 -37 25 M-25 25 Q-19 32 -13 25", stroke = Stroke.Ink, width = 2.5),
+                P(BuddyPart.SLEEP, "M-57 32 Q-68 33 -68 38 Q-62 43 -55 40 Z", fill = 0xF6A13A, stroke = Stroke.Ink, width = 1.8),
+                E(BuddyPart.SLEEP, -47, 37, 5, 3, fill = 0xF5AF71, stroke = Stroke.None),
+                E(BuddyPart.SLEEP, -12, 37, 5, 3, fill = 0xF5AF71, stroke = Stroke.None),
+            )
             BuddyRig(
                 pieces = p,
                 pivots = mapOf(BuddyPart.LEG_L to P2(-12, 86), BuddyPart.LEG_R to P2(12, 86), BuddyPart.BODY to P2(0, 94), BuddyPart.ARM_L to P2(-32, 50), BuddyPart.ARM_R to P2(32, 50), BuddyPart.HEAD to P2(0, 34)),
                 full = BuddyRect(-80, -66, 160, 188), barBottom = null, feet = P2(0, 110), sleepBottom = 68,
                 zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
                 style = BuddyDance.Style(armL = 1.0, armR = 1.0, armAmp = 0.7, alternate = false, kick = 0.3, bounce = 12.0, step = 8.0),
-                heart = P3(0, 66, 13), face = P4(0, 6, 28, 18), brows = "M-21 -13 L-9 -9 M21 -13 L9 -9",
-                hat = P3(0, -36, 34), sleepHat = P3(-30, 0, 26), neck = P2(0, 36), hand = P2(44, 84))
+                heart = P3(0, 66, 13), face = P4(0, 10, 30, 21), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
+                hat = P3(0, -36, 24), sleepHat = P3(-30, 0, 26), neck = P2(0, 39), hand = P2(43, 79))
         }
     }
 }
@@ -1018,90 +1154,156 @@ enum class BuddySeason {
 }
 
 /** = iOS BuddyOutfit: mảnh thêm + đổi màu. */
+object BuddyAccessory {
+    val santa: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-17 0 Q-17 -16 -5 -22 Q10 -29 19 -14 Q11 -18 9 -8 L15 0 Z"), 0xDE5263, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M2 -22 Q10 -25 19 -14 Q11 -18 9 -8 L15 0 L4 0 Q8 -12 2 -22 Z"), 0xB93650, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-11 -10 Q-10 -17 -5 -18"), null, 1.0, Stroke.Color(0xFFB1BB), 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-16 -4 L15 -4 Q20 -4 20 1 Q20 6 15 6 L-16 6 Q-21 6 -21 1 Q-21 -4 -16 -4 Z"), 0xFFF7ED, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-17 2 Q0 5 17 1 L17 4 L-17 4 Z"), 0xE4D8D5, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M16 -18 Q23 -21 25 -14 Q27 -7 20 -6 Q13 -6 13 -12 Q12 -16 16 -18 Z"), 0xFFF7ED, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M20 -16 L22 -14"), null, 1.0, Stroke.Color(0xFFFFFF), 2.0),
+    ) }
+    val witch: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-22 0 Q0 -8 22 0 Q27 4 18 7 Q0 11 -20 6 Q-27 3 -22 0 Z"), 0x695185, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-15 0 Q-12 -14 -6 -23 Q-2 -31 12 -24 Q5 -25 4 -18 L14 0 Z"), 0x8C72AF, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-1 -25 Q4 -28 12 -24 Q5 -25 4 -18 L14 0 L5 0 Q0 -13 -1 -25 Z"), 0x695185, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-12 -6 L11 -6 L13 0 L-15 0 Z"), 0xF5A65B, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-3 -7 L4 -7 L4 0 L-3 0 Z"), 0xF8D77B, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-7 -16 L-5 -20"), null, 1.0, Stroke.Color(0xC9AFE3), 2.0),
+    ) }
+    val pumpkin: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-2 -19 L-3 -28 Q1 -31 4 -27 L3 -18 Z"), 0x799656, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M3 -24 Q13 -32 15 -23 Q8 -19 3 -24 Z"), 0xA9C879, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M0 -21 Q-15 -26 -18 -13 Q-22 1 -10 4 Q0 7 12 3 Q23 -1 18 -14 Q14 -25 0 -21 Z"), 0xF5A65B, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M9 -20 Q18 -18 18 -9 Q20 3 9 4 Q15 -9 9 -20 Z"), 0xD97B46, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-7 -17 Q-11 -14 -11 -10"), null, 1.0, Stroke.Color(0xFFDA91), 2.5),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-9 -7 Q-6 -13 -3 -7 Z M3 -7 Q6 -13 9 -7 Z M-7 -2 Q0 4 7 -2 Q0 0 -7 -2 Z"), 0x563D3C, 1.0, Stroke.None, 3.2),
+    ) }
+    val khanDong: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-18 0 L-18 -8 Q-17 -20 0 -20 Q17 -20 18 -8 L18 0 Q0 7 -18 0 Z"), 0xDE5263, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M8 -18 Q17 -16 18 -8 L18 0 Q0 7 -18 0 L-18 -4 Q9 2 8 -18 Z"), 0xB93650, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-14 -9 Q0 -16 14 -9 M-14 -3 Q0 -9 14 -3"), null, 1.0, Stroke.Color(0xF8D77B), 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-10 -13 L-6 -15"), null, 1.0, Stroke.Color(0xFFABB6), 2.0),
+    ) }
+    val bow: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M0 0 Q-18 -17 -19 -6 L-19 6 Q-18 17 0 0 Q18 -17 19 -6 L19 6 Q18 17 0 0 Z"), 0xDE5263, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-18 7 L-3 0 L-7 7 Q-18 15 -18 7 Z M18 7 L3 0 L7 7 Q18 15 18 7 Z"), 0xB93650, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-12 -5 L-8 -3 M8 -3 L12 -5"), null, 1.0, Stroke.Color(0xFFB1BB), 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-4 -4 Q0 -7 4 -4 L4 4 Q0 7 -4 4 Z"), 0xF8D77B, 1.0, Stroke.Outline, 3.2),
+    ) }
+    val pattern: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M0 4 Q9 9 0 14 Q-9 9 0 4 Z M-7 20 Q0 14 5 23 Q-4 29 -7 20 Z M7 31 Q14 36 7 41 Q0 36 7 31 Z"), 0xF8D77B, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M0 9 L0 28 Q0 33 7 36"), null, 1.0, Stroke.Color(0xF8D77B), 1.5),
+    ) }
+    val lantern: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M0 0 L13 -8 L18 1"), null, 1.0, Stroke.Color(0x8B6655), 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M18 -2 Q37 -2 37 17 Q37 36 18 36 Q-1 36 -1 17 Q-1 -2 18 -2 Z"), 0xF8D77B, 0.16, Stroke.None, 0.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M18 0 L22 10 L33 11 L25 19 L28 30 L18 24 L8 30 L11 19 L3 11 L14 10 Z"), 0xDE5263, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M18 4 L21 13 L29 13 L23 18 L25 26 L18 21 L11 26 L13 18 L7 13 L15 13 Z"), 0xF8D77B, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M18 9 L20 15 L18 20 L16 15 Z"), 0xFFF0B3, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M18 25 L18 36 M14 34 L14 38 M22 34 L22 38"), null, 1.0, Stroke.Color(0xF5A65B), 2.0),
+    ) }
+    val luckyMoney: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-11 -8 L-10 -20 L10 -20 L11 -8 Z"), 0xA9C879, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-6 -16 L5 -16"), null, 1.0, Stroke.Color(0xE7EFC7), 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-14 -11 Q0 -8 14 -11 L14 15 Q0 20 -14 15 Z"), 0xDE5263, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M8 -10 L14 -11 L14 15 Q0 20 -14 15 L-14 11 Q8 16 8 -10 Z"), 0xB93650, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-14 -11 L0 -1 L14 -11"), null, 1.0, Stroke.Color(0xF8D77B), 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M0 1 L6 7 L0 13 L-6 7 Z"), 0xF8D77B, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M19 -15 L19 -7 M15 -11 L23 -11"), null, 1.0, Stroke.Color(0xF8D77B), 2.0),
+    ) }
+    val gift: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-15 -6 L15 -6 L15 15 Q0 19 -15 15 Z"), 0x83B9A4, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M8 -6 L15 -6 L15 15 Q0 19 -15 15 L-15 11 L8 11 Z"), 0x5B9686, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-16 -12 L16 -12 L16 -4 L-16 -4 Z"), 0xA9D5BF, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-3 -12 L3 -12 L3 16 L-3 16 Z"), 0xF8D77B, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M0 -12 Q-17 -12 -10 -21 Q-4 -25 0 -12 Q4 -25 10 -21 Q17 -12 0 -12 Z"), 0xDE5263, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-10 -8 L-6 -8"), null, 1.0, Stroke.Color(0xE6F4DC), 2.0),
+    ) }
+    val candy: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-11 -7 Q-13 -27 0 -27 Q13 -27 11 -7"), null, 1.0, Stroke.Color(0x8C72AF), 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-12 -12 L-16 -19 L-8 -21 L-5 -12 M5 -12 L7 -23 L15 -20 L13 -10"), 0xF8D77B, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-16 -10 Q0 -5 16 -10 L14 11 Q0 21 -14 11 Z"), 0xF5A65B, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M9 -8 L16 -10 L14 11 Q0 21 -14 11 L-13 7 Q7 15 9 -8 Z"), 0xD97B46, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-10 -1 L-5 -6 L-2 -1 Z M2 -1 L5 -6 L10 -1 Z M-7 5 Q0 13 7 5 Q0 8 -7 5 Z"), 0x563D3C, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-11 -7 L-7 -6"), null, 1.0, Stroke.Color(0xFFDA91), 2.0),
+    ) }
+    val mooncake: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-15 -9 Q-20 -5 -16 0 Q-20 5 -14 8 Q-15 15 -8 15 Q-4 20 1 16 Q6 20 10 15 Q17 15 16 8 Q22 4 17 -1 Q20 -7 14 -10 Q13 -16 6 -15 Q0 -20 -6 -15 Q-13 -17 -15 -9 Z"), 0xD99450, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-14 5 Q0 16 16 5 L16 9 Q17 15 10 15 Q6 20 1 16 Q-4 20 -8 15 Q-15 15 -14 8 Z"), 0xB97245, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-12 -7 Q0 -17 12 -7 L12 5 Q0 14 -12 5 Z"), 0xF5C778, 1.0, Stroke.None, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M0 -9 Q8 -9 5 -3 Q12 1 5 5 Q0 12 -5 5 Q-12 1 -5 -3 Q-8 -9 0 -9 Z"), null, 1.0, Stroke.Color(0xB97245), 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-8 -9 L-4 -10"), null, 1.0, Stroke.Color(0xFFE6A8), 2.0),
+    ) }
+
+    fun place(art: List<BuddyPiece>, part: BuddyPart, x: Double, y: Double, size: Double): List<BuddyPiece> {
+        val k = size / 32
+        fun f(v: Double) = String.format(Locale.US, "%.2f", v)
+        return art.map { p ->
+            val d = (p.shape as Shape.Path).d
+            val path = BuddySVG.parse(d).joinToString(" ") { cmd -> when (cmd) {
+                is BuddySVG.Cmd.Move -> "M${f(x + cmd.x * k)} ${f(y + cmd.y * k)}"
+                is BuddySVG.Cmd.Line -> "L${f(x + cmd.x * k)} ${f(y + cmd.y * k)}"
+                is BuddySVG.Cmd.Quad -> "Q${f(x + cmd.cx * k)} ${f(y + cmd.cy * k)} ${f(x + cmd.x * k)} ${f(y + cmd.y * k)}"
+                BuddySVG.Cmd.Close -> "Z"
+            } }
+            BuddyPiece(part, Shape.Path(path), p.fill, p.alpha, p.stroke, p.width)
+        }
+    }
+}
+
 class BuddyOutfit(val pieces: List<BuddyPiece> = emptyList(), val recolor: Map<Int, Int> = emptyMap()) {
     companion object {
-        const val RED = 0xD7263D
-        const val GOLD = 0xF2C14E
-        const val WHITE = 0xFFFFFF
-
+        const val RED = 0xDE5263
+        const val GOLD = 0xF8D77B
+        const val WHITE = 0xFFF7ED
         fun make(s: BuddySeason?, c: BuddyCharacter): BuddyOutfit {
             val r = BuddyRig.rig(c) ?: return BuddyOutfit()
             if (s == null) return BuddyOutfit()
             val h = r.hat; val sh = r.sleepHat
+            val sn = P2(sh.x + sh.size * 1.15, sh.y + sh.size * 1.8)
             return when (s) {
                 BuddySeason.TET -> when (c) {
-                    BuddyCharacter.GIRL -> BuddyOutfit(listOf(
-                        BuddyPiece(BuddyPart.BODY, Shape.Circle(-6, 44, 2.5), GOLD, 1.0, Stroke.None),
-                        BuddyPiece(BuddyPart.BODY, Shape.Circle(6, 56, 2.5), GOLD, 1.0, Stroke.None),
-                        BuddyPiece(BuddyPart.BODY, Shape.Circle(-4, 66, 2.5), GOLD, 1.0, Stroke.None)),
-                        mapOf(0xFFB3C7 to RED, 0xFF6F91 to GOLD))
-                    BuddyCharacter.BOY -> BuddyOutfit(khanDong(BuddyPart.HEAD, h) + khanDong(BuddyPart.SLEEP, sh), mapOf(0xF2B134 to RED))
-                    else -> BuddyOutfit(bow(BuddyPart.HEAD, r.neck))
+                    BuddyCharacter.GIRL -> BuddyOutfit(
+                        BuddyAccessory.place(BuddyAccessory.pattern, BuddyPart.BODY, r.neck.x, r.neck.y + 10, h.size) +
+                        BuddyAccessory.place(BuddyAccessory.pattern, BuddyPart.SLEEP, sh.x + sh.size * 2.4, sh.y + sh.size * 1.4, sh.size * 0.6),
+                        mapOf(0xFFB3C7 to RED, 0xDF8EAB to 0xB93650, 0xFF6F91 to GOLD, 0xFFF0F4 to GOLD))
+                    BuddyCharacter.BOY -> BuddyOutfit(khanDong(BuddyPart.HEAD, h) + khanDong(BuddyPart.SLEEP, sh),
+                        mapOf(0x304563 to RED, 0x536B8C to 0xF18B95))
+                    else -> BuddyOutfit(bow(BuddyPart.HEAD, r.neck) + bow(BuddyPart.SLEEP, sn))
                 }
                 BuddySeason.CHRISTMAS -> BuddyOutfit(santa(BuddyPart.HEAD, h) + santa(BuddyPart.SLEEP, sh))
-                BuddySeason.HALLOWEEN -> BuddyOutfit(
-                    if (c == BuddyCharacter.GIRL) witch(BuddyPart.HEAD, h) + witch(BuddyPart.SLEEP, sh)
+                BuddySeason.HALLOWEEN -> BuddyOutfit(if (c == BuddyCharacter.GIRL) witch(BuddyPart.HEAD, h) + witch(BuddyPart.SLEEP, sh)
                     else pumpkin(BuddyPart.HEAD, h) + pumpkin(BuddyPart.SLEEP, sh))
-                BuddySeason.MID_AUTUMN -> BuddyOutfit(lantern(r.hand))
+                BuddySeason.MID_AUTUMN -> {
+                    val x = sh.x + sh.size * (if (c == BuddyCharacter.CHICK) 2.3 else 0.9)
+                    val y = sh.y + sh.size * (if (c == BuddyCharacter.CHICK) 1.6 else 2.1)
+                    BuddyOutfit(lantern(r.hand) + BuddyAccessory.place(BuddyAccessory.lantern, BuddyPart.SLEEP, x, y, 24.0).map {
+                        BuddyPiece(BuddyPart.SLEEP, it.shape, it.fill, it.alpha, it.stroke, it.width, turn = Triple(-70.0, x, y))
+                    })
+                }
             }
         }
+        fun santa(part: BuddyPart, a: P3) = BuddyAccessory.place(BuddyAccessory.santa, part, a.x, a.y, a.size)
+        fun witch(part: BuddyPart, a: P3) = BuddyAccessory.place(BuddyAccessory.witch, part, a.x, a.y, a.size)
+        fun pumpkin(part: BuddyPart, a: P3) = BuddyAccessory.place(BuddyAccessory.pumpkin, part, a.x, a.y, a.size)
+        fun khanDong(part: BuddyPart, a: P3) = BuddyAccessory.place(BuddyAccessory.khanDong, part, a.x, a.y, a.size)
+        fun bow(part: BuddyPart, a: P2) = BuddyAccessory.place(BuddyAccessory.bow, part, a.x, a.y, 22.0)
+        fun lantern(hnd: P2) = BuddyAccessory.place(BuddyAccessory.lantern, BuddyPart.ARM_R, hnd.x, hnd.y, 24.0)
+    }
+}
 
-        private fun f(v: Double) = String.format(Locale.US, "%.2f", v)
-
-        fun santa(part: BuddyPart, a: P3): List<BuddyPiece> {
-            val x = a.x; val y = a.y; val k = a.size
-            return listOf(
-                BuddyPiece(part, Shape.Path("M${f(x - k / 2)} ${f(y)} Q${f(x - k * 0.1)} ${f(y - k * 1.1)} ${f(x + k * 0.55)} ${f(y - k * 0.75)} L${f(x + k / 2)} ${f(y)} Z"), 0xD62828),
-                BuddyPiece(part, Shape.RRect(x - k * 0.55, y - k * 0.12, k * 1.1, k * 0.24, k * 0.12), WHITE),
-                BuddyPiece(part, Shape.Circle(x + k * 0.55, y - k * 0.75, k * 0.13), WHITE),
-            )
+object BuddyProp {
+    fun make(reaction: BuddyReaction, r: BuddyRig): List<BuddyPiece> {
+        val art = when (reaction) {
+            BuddyReaction.LUCKY_MONEY -> BuddyAccessory.luckyMoney
+            BuddyReaction.GIFT -> BuddyAccessory.gift
+            BuddyReaction.CANDY -> BuddyAccessory.candy
+            BuddyReaction.MOONCAKE -> BuddyAccessory.mooncake
+            else -> return emptyList()
         }
-
-        fun witch(part: BuddyPart, a: P3): List<BuddyPiece> {
-            val x = a.x; val y = a.y; val k = a.size
-            return listOf(
-                BuddyPiece(part, Shape.Ellipse(x, y, k * 0.75, k * 0.13), 0x3B2B4F),
-                BuddyPiece(part, Shape.Path("M${f(x - k * 0.35)} ${f(y)} L${f(x + k * 0.2)} ${f(y - k * 1.2)} L${f(x + k * 0.35)} ${f(y)} Z"), 0x3B2B4F),
-                BuddyPiece(part, Shape.RRect(x - k * 0.33, y - k * 0.22, k * 0.66, k * 0.12, 0.0), 0xF28C28, 1.0, Stroke.None),
-            )
-        }
-
-        fun pumpkin(part: BuddyPart, a: P3): List<BuddyPiece> {
-            val x = a.x; val y = a.y; val k = a.size
-            return listOf(
-                BuddyPiece(part, Shape.RRect(x - k * 0.06, y - k * 0.72, k * 0.12, k * 0.18, k * 0.04), 0x4E7A2C),
-                BuddyPiece(part, Shape.Ellipse(x, y - k * 0.28, k * 0.5, k * 0.33), 0xF28C28),
-                BuddyPiece(part, Shape.Path("M${f(x)} ${f(y - k * 0.58)} L${f(x)} ${f(y + k * 0.02)} M${f(x - k * 0.25)} ${f(y - k * 0.52)} " +
-                    "Q${f(x - k * 0.34)} ${f(y - k * 0.28)} ${f(x - k * 0.25)} ${f(y - k * 0.02)}"), null, 1.0, Stroke.Color(0xC75F12), 3.0),
-            )
-        }
-
-        fun khanDong(part: BuddyPart, a: P3): List<BuddyPiece> {
-            val x = a.x; val y = a.y; val k = a.size
-            return listOf(
-                BuddyPiece(part, Shape.Path("M${f(x - k * 0.55)} ${f(y)} Q${f(x)} ${f(y - k * 0.55)} ${f(x + k * 0.55)} ${f(y)} Z"), RED),
-                BuddyPiece(part, Shape.Path("M${f(x - k * 0.45)} ${f(y - k * 0.12)} Q${f(x)} ${f(y - k * 0.32)} ${f(x + k * 0.45)} ${f(y - k * 0.12)}"),
-                    null, 1.0, Stroke.Color(GOLD), 3.0),
-            )
-        }
-
-        fun bow(part: BuddyPart, a: P2): List<BuddyPiece> {
-            val x = a.x; val y = a.y
-            return listOf(
-                BuddyPiece(part, Shape.Path("M${f(x)} ${f(y)} L${f(x - 11)} ${f(y - 7)} L${f(x - 11)} ${f(y + 7)} Z M${f(x)} ${f(y)} L${f(x + 11)} ${f(y - 7)} L${f(x + 11)} ${f(y + 7)} Z"), RED),
-                BuddyPiece(part, Shape.Circle(x, y, 3.5), GOLD),
-            )
-        }
-
-        fun lantern(hnd: P2): List<BuddyPiece> {
-            val x = hnd.x; val y = hnd.y
-            return listOf(
-                BuddyPiece(BuddyPart.ARM_R, Shape.Path("M${f(x)} ${f(y)} L${f(x + 2)} ${f(y + 12)}"), null, 1.0, Stroke.Ink, 2.5),
-                BuddyPiece(BuddyPart.ARM_R, Shape.Ellipse(x + 2, y + 21, 9.0, 8.0), 0xE63946),
-                BuddyPiece(BuddyPart.ARM_R, Shape.RRect(x - 3, y + 11, 10.0, 3.0, 1.0), GOLD),
-                BuddyPiece(BuddyPart.ARM_R, Shape.RRect(x - 3, y + 28, 10.0, 3.0, 1.0), GOLD),
-            )
-        }
+        return BuddyAccessory.place(art, BuddyPart.BODY, r.heart.x, r.heart.y, r.heart.size * 2)
     }
 }
 
@@ -1183,9 +1385,23 @@ object BuddySVG {
  */
 class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
     val brain = BuddyBrain()
+    var season: BuddySeason? = null
+    private var lastWord: String? = null
+    private var lastPrev: String? = null
+    private var lastPrev2: String? = null
     var shown: BuddyPhase = BuddyPhase.Asleep.QUIET; private set
     var phaseStart = 0.0; private set
     var shownSerial = 0; private set
+    var character: BuddyCharacter = when (rig) {
+        BuddyRig.GIRL -> BuddyCharacter.GIRL; BuddyRig.BOY -> BuddyCharacter.BOY
+        BuddyRig.CHICK -> BuddyCharacter.CHICK; else -> BuddyCharacter.CAT
+    }
+    var danceSeed: Int = 0
+    var vectorDance: Boolean = true
+    private var danceLoopBase = 0
+    private var danceMove = BuddyDance.Move.BOUNCE
+    private var nextMoveAt = Double.POSITIVE_INFINITY
+    private val loopCache = mutableMapOf<Int, List<BuddyPose>>()
     private var loopEpoch = 0.0
     private var loopLen = 1.0
     private val blendDelta = BuddyPose()
@@ -1193,13 +1409,20 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
     private val tmp = BuddyPose()
     private val tmp2 = BuddyPose()
 
+    fun beginAppearance(seed: Int) {
+        danceSeed = seed
+        nextMoveAt = Double.NEGATIVE_INFINITY
+    }
+
     fun keyPressed(t: Double) { brain.press(t) }
     fun deletePressed(t: Double) { brain.delete(t) }
     fun cheer(t: Double) { brain.cheer(t) }
     fun react(r: BuddyReaction, t: Double) { brain.react(r, t) }
     /** Ranh giới từ: tra bảng O(1); true = có phản ứng. */
     fun wordCommitted(word: String, prev: String?, prev2: String?, t: Double): Boolean {
-        val r = BuddyWords.reaction(word, prev, prev2) ?: return false
+        val prev3 = if (lastWord == prev && lastPrev == prev2) lastPrev2 else null
+        lastWord = word; lastPrev = prev; lastPrev2 = prev2
+        val r = BuddyWords.reaction(word, prev, prev2, prev3, season) ?: return false
         brain.react(r, t)
         return true
     }
@@ -1207,7 +1430,9 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
     /** Trạng thái hiển thị tại [t] có khác đang hiện không (gọi trên đường phím — không cấp phát). */
     fun needsUpdate(t: Double): Boolean {
         val v = BuddyPolicy.visual(brain.phase(t), lowPower)
-        return v !== shown || (v is BuddyPhase.React && brain.reactSerial != shownSerial)
+        // The key path only compares a deadline; selection/sampling happens in update/onDraw.
+        val moveChanged = vectorDance && v is BuddyPhase.Dancing && shown is BuddyPhase.Dancing && t >= nextMoveAt
+        return moveChanged || v !== shown || (v is BuddyPhase.React && brain.reactSerial != shownSerial)
     }
 
     /** Áp trạng thái tại [t]; true = vừa đổi. */
@@ -1223,9 +1448,12 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
             BuddyPhase.Awake -> tmp.reset()
             is BuddyPhase.Dancing -> {
                 val p = if (prev is BuddyPhase.Dancing) loopPhase(t) else 0.0
+                danceLoopBase = if (prev is BuddyPhase.Dancing) danceLoopIndex(t) else 0
+                danceMove = BuddyDance.move(character, v.tier, danceLoopBase, danceSeed)
                 loopLen = BuddyDance.loopLength(v.tier)
                 loopEpoch = t - p * loopLen
-                BuddyDance.pose(rig.style, v.tier, p, tmp)
+                nextMoveAt = loopEpoch + ((danceLoopBase / 2 + 1) * 2 - danceLoopBase) * loopLen
+                if (vectorDance) dancePose(v.tier, p, tmp) else tmp.reset()
             }
             BuddyPhase.Cheering -> tmp.reset()
             is BuddyPhase.React -> { shownSerial = brain.reactSerial; BuddyDance.react(v.reaction, rig.style, 0.0, tmp) }
@@ -1242,6 +1470,24 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
         return true
     }
 
+    private fun danceLoopIndex(t: Double) = danceLoopBase + max(0, floor((t - loopEpoch) / loopLen).toInt())
+
+    private fun dancePose(tier: Int, p: Double, out: BuddyPose): BuddyPose {
+        val key = tier * BuddyDance.Move.entries.size + danceMove.ordinal
+        val frames = loopCache.getOrPut(key) {
+            (0..48).map { BuddyDance.pose(rig.style, tier, it / 48.0, move = danceMove) }
+        }
+        val x = (p * 48).coerceIn(0.0, 48.0); val i = min(47, x.toInt()); val f = x - i
+        val a = frames[i]; val b = frames[i + 1]
+        out.dx = a.dx + (b.dx - a.dx) * f; out.dy = a.dy + (b.dy - a.dy) * f
+        out.rot = a.rot + (b.rot - a.rot) * f; out.sx = a.sx + (b.sx - a.sx) * f
+        out.head = a.head + (b.head - a.head) * f
+        out.armL = a.armL + (b.armL - a.armL) * f; out.armR = a.armR + (b.armR - a.armR) * f
+        out.legL = a.legL + (b.legL - a.legL) * f; out.legR = a.legR + (b.legR - a.legR) * f
+        out.tail = a.tail + (b.tail - a.tail) * f
+        return out
+    }
+
     private fun loopPhase(t: Double): Double { val x = (t - loopEpoch) / loopLen; return x - floor(x) }
 
     /** Độ dài vòng phản ứng (hoảng: lặp 0,5 s). */
@@ -1250,7 +1496,7 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
     private fun displayed(t: Double, out: BuddyPose): BuddyPose? = when (val s = shown) {
         is BuddyPhase.Asleep -> null
         BuddyPhase.Awake -> out.reset()
-        is BuddyPhase.Dancing -> BuddyDance.pose(rig.style, s.tier, loopPhase(t), out)
+        is BuddyPhase.Dancing -> if (vectorDance) dancePose(s.tier, loopPhase(t), out) else out.reset()
         BuddyPhase.Cheering -> BuddyDance.cheer(rig.style, (t - phaseStart) / BuddyBrain.CHEER, out)
         is BuddyPhase.React -> {
             var f = (t - phaseStart) / reactLength(s.reaction)
@@ -1283,5 +1529,8 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
     }
 
     /** Mốc tự đổi kế (để hẹn một lần gọi [update]); null = ngủ yên. */
-    fun nextDeadline(t: Double): Double? = brain.nextDeadline(t)
+    fun nextDeadline(t: Double): Double? {
+        val deadline = brain.nextDeadline(t)
+        return if (vectorDance && shown is BuddyPhase.Dancing) min(deadline ?: nextMoveAt, nextMoveAt) else deadline
+    }
 }

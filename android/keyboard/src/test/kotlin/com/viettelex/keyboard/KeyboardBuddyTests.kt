@@ -121,7 +121,7 @@ class KeyboardBuddyTests {
             }
             assertEquals(peaks.sorted(), peaks)
             assertTrue((0 until 100).all { BuddyDance.pose(s, 2, it / 100.0).sx == 1.0 })
-            assertTrue((0 until 100).any { BuddyDance.pose(s, 3, it / 100.0).sx < 0 })
+            assertTrue((0 until 100).any { BuddyDance.pose(s, 3, it / 100.0, move = BuddyDance.Move.SPIN).sx < 0 })
             assertTrue(BuddyDance.cheer(s, 0.0).isRest())
         }
         assertEquals(2.48, BuddyDance.loopLength(0), 1e-9)
@@ -148,7 +148,7 @@ class KeyboardBuddyTests {
     /** Bảng hình giống hệt iOS (KeyboardBuddyTests.checksums). */
     @Test fun rigChecksumParity() {
         val sums = BuddyCharacter.entries.map { String.format(Locale.US, "%.4f", BuddyRig.checksum(it)) }
-        assertEquals(listOf("0.0000", "13803.1358", "12756.7491", "15286.2573", "12025.5890"), sums)
+        assertEquals(listOf("0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220"), sums)
     }
 
     /** = iOS testMirroredFramesDoublePoses: lật gương khung có sẵn để gấp đôi dáng. */
@@ -375,7 +375,7 @@ class KeyboardBuddyTests {
             for (s in BuddySeason.entries) { val o = BuddyOutfit.make(s, c); assertFalse("$c $s", o.pieces.isEmpty() && o.recolor.isEmpty()) }
         }
         assertEquals(BuddyOutfit.RED, BuddyOutfit.make(BuddySeason.TET, BuddyCharacter.GIRL).recolor[0xFFB3C7])
-        assertTrue(BuddyOutfit.make(BuddySeason.MID_AUTUMN, BuddyCharacter.BOY).pieces.all { it.part == BuddyPart.ARM_R })
+        assertTrue(BuddyOutfit.make(BuddySeason.MID_AUTUMN, BuddyCharacter.BOY).pieces.filter { it.part != BuddyPart.SLEEP }.all { it.part == BuddyPart.ARM_R })
     }
 
     // MARK: driver (logic view Android)
@@ -525,6 +525,135 @@ class KeyboardBuddyTests {
                 }
                 assertTrue("$c $part: ${thick * pt} dp", thick * pt >= 2.5)
             }
+        }
+    }
+
+    @Test fun holidayNamesWorkYearRoundAndFold() {
+        val cases = listOf(
+            "lì xì" to BuddyReaction.LUCKY_MONEY,
+            "mừng tuổi" to BuddyReaction.LUCKY_MONEY,
+            "tết" to BuddyReaction.LUCKY_MONEY,
+            "năm mới" to BuddyReaction.LUCKY_MONEY,
+            "chúc mừng năm mới" to BuddyReaction.LUCKY_MONEY,
+            "vạn sự như ý" to BuddyReaction.LUCKY_MONEY,
+            "happy new year" to BuddyReaction.LUCKY_MONEY,
+            "giáng sinh" to BuddyReaction.GIFT,
+            "noel" to BuddyReaction.GIFT,
+            "merry christmas" to BuddyReaction.GIFT,
+            "xmas" to BuddyReaction.GIFT,
+            "ông già noel" to BuddyReaction.GIFT,
+            "halloween" to BuddyReaction.CANDY,
+            "trick or treat" to BuddyReaction.CANDY,
+            "trung thu" to BuddyReaction.MOONCAKE,
+            "bánh trung thu" to BuddyReaction.MOONCAKE,
+            "rước đèn" to BuddyReaction.MOONCAKE,
+            "đèn ông sao" to BuddyReaction.MOONCAKE,
+            "chị hằng" to BuddyReaction.MOONCAKE,
+        )
+        for ((phrase, reaction) in cases) for (text in listOf(phrase, BuddyWords.fold(phrase).uppercase())) {
+            val tokens = text.split(" ").reversed()
+            assertEquals(text, reaction, BuddyWords.reaction(tokens[0] + "!", tokens.getOrNull(1), tokens.getOrNull(2), tokens.getOrNull(3)))
+        }
+        assertNull(BuddyWords.holiday("ý", "như", "sự"))
+        assertNull(BuddyWords.holiday("christmas", null))
+        assertNull(BuddyWords.holiday("noelish", null))
+        assertNull(BuddyWords.holiday("", "noel"))
+    }
+
+    @Test fun holidayGenericSeasonGatesAndAccents() {
+        data class Case(val phrase: String, val season: BuddySeason, val reaction: BuddyReaction, val strict: Boolean)
+        val cases = listOf(
+            Case("quà", BuddySeason.CHRISTMAS, BuddyReaction.GIFT, true),
+            Case("kẹo", BuddySeason.HALLOWEEN, BuddyReaction.CANDY, true),
+            Case("bí ngô", BuddySeason.HALLOWEEN, BuddyReaction.CANDY, false),
+            Case("cuội", BuddySeason.MID_AUTUMN, BuddyReaction.MOONCAKE, true),
+            Case("an khang", BuddySeason.TET, BuddyReaction.LUCKY_MONEY, false),
+            Case("phát tài", BuddySeason.TET, BuddyReaction.LUCKY_MONEY, false),
+        )
+        for ((phrase, active, reaction, strict) in cases) {
+            val tokens = phrase.split(" ").reversed(); val word = tokens[0]; val prev = tokens.getOrNull(1)
+            assertNull(BuddyWords.holiday(word, prev))
+            for (season in BuddySeason.entries) assertEquals(if (season == active) reaction else null, BuddyWords.holiday(word, prev, season = season))
+            assertEquals(if (strict) null else reaction, BuddyWords.holiday(BuddyWords.fold(word), prev?.let(BuddyWords::fold), season = active))
+        }
+        assertNull(BuddyWords.reaction("qua", null, season = BuddySeason.CHRISTMAS))
+        assertNull(BuddyWords.reaction("keo", null, season = BuddySeason.HALLOWEEN))
+        assertEquals(BuddyReaction.GIFT, BuddyWords.reaction("noelll", null))
+    }
+
+    @Test fun accessoriesHaveSmallBudgetsAndBothPoses() {
+        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
+            for (season in BuddySeason.entries) {
+                val outfit = BuddyOutfit.make(season, c)
+                for (sleeping in listOf(false, true)) {
+                    val pieces = outfit.pieces.filter { (it.part == BuddyPart.SLEEP) == sleeping }
+                    assertTrue(pieces.isNotEmpty()); assertTrue(pieces.size <= 8)
+                    assertTrue(pieces.all { it.width <= 3.2 })
+                }
+            }
+            for (reaction in BuddyReaction.entries.filter { it.isHoliday }) {
+                val pieces = BuddyProp.make(reaction, BuddyRig.rig(c)!!)
+                assertTrue(pieces.isNotEmpty()); assertTrue(pieces.size <= 8)
+                assertTrue(pieces.all { it.part == BuddyPart.BODY && it.width <= 3.2 })
+                assertEquals(1.5, reaction.duration, 0.0); assertEquals(0, BuddyFX.count(reaction))
+            }
+            assertTrue(BuddyProp.make(BuddyReaction.LOVE, BuddyRig.rig(c)!!).isEmpty())
+        }
+    }
+
+    @Test fun namedMovesNeutralAndSelection() {
+        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
+            val style = BuddyRig.rig(c)!!.style
+            for (tier in 0..3) {
+                for (move in BuddyDance.Move.entries) {
+                    assertTrue(BuddyDance.pose(style, tier, 0.0, move = move).isRest())
+                    assertTrue(BuddyDance.pose(style, tier, 1.0, move = move).isRest())
+                    if (tier < 3 || move != BuddyDance.Move.SPIN)
+                        assertTrue((0 until 48).all { BuddyDance.pose(style, tier, it/48.0, move = move).sx == 1.0 })
+                }
+                val pool = BuddyDance.moves(tier)
+                assertEquals(if (tier == 3) 5 else 4, pool.size)
+                assertEquals(tier == 3, pool.contains(BuddyDance.Move.SPIN))
+                assertEquals(tier >= 2, pool.contains(BuddyDance.Move.SKIP))
+                assertEquals(tier < 2, pool.contains(BuddyDance.Move.BOUNCE))
+                for (seed in listOf(0, 1, 42, -7, Int.MAX_VALUE)) for (group in 0 until 100) {
+                    val a = BuddyDance.move(c, tier, group * 2, seed)
+                    assertTrue(pool.contains(a))
+                    assertEquals(a, BuddyDance.move(c, tier, group * 2 + 1, seed))
+                    assertNotEquals(a, BuddyDance.move(c, tier, (group + 1) * 2, seed))
+                }
+            }
+        }
+        assertEquals(listOf(BuddyDance.Move.SPIN, BuddyDance.Move.SPIN, BuddyDance.Move.CHICKEN, BuddyDance.Move.CHICKEN,
+            BuddyDance.Move.DAB, BuddyDance.Move.DAB, BuddyDance.Move.FLOSS_LITE, BuddyDance.Move.FLOSS_LITE, BuddyDance.Move.SKIP, BuddyDance.Move.SKIP),
+            (0 until 10).map { BuddyDance.move(BuddyCharacter.GIRL, 3, it, 42) })
+    }
+
+    @Test fun namedMovePoseParity() {
+        val expected = listOf(
+            listOf(5.656854, -9.000000, -0.100000, -0.120000, 2.000000, -2.600000, 0.000000, -0.600000, 0.000000, 1.000000), // bounce p=0.375
+            listOf(-5.656854, -9.000000, -0.100000, -0.120000, 2.000000, -2.600000, 0.000000, -0.600000, 0.000000, 1.000000), // bounce p=0.875
+            listOf(5.656854, 0.000000, 0.127279, -0.070711, -0.450000, 0.450000, 0.000000, 0.000000, 0.000000, 1.000000), // hipSway p=0.375
+            listOf(-5.656854, 0.000000, -0.127279, 0.070711, -0.450000, 0.450000, 0.000000, 0.000000, 0.000000, 1.000000), // hipSway p=0.875
+            listOf(0.000000, -3.150000, 0.000000, 0.084853, 0.250000, -2.100000, 0.000000, 0.000000, 0.000000, 1.000000), // wave p=0.375
+            listOf(0.000000, -3.150000, 0.000000, -0.084853, 0.250000, -2.100000, 0.000000, 0.000000, 0.000000, 1.000000), // wave p=0.875
+            listOf(0.000000, -2.250000, 0.000000, 0.080000, -1.050000, 1.050000, 0.000000, 0.000000, 0.000000, 1.000000), // clap p=0.375
+            listOf(0.000000, -2.250000, 0.000000, 0.080000, -1.050000, 1.050000, 0.000000, 0.000000, 0.000000, 1.000000), // clap p=0.875
+            listOf(0.000000, -2.700000, -0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 1.000000), // dab p=0.375
+            listOf(0.000000, -2.700000, -0.180000, 0.650000, 2.500000, 0.900000, 0.000000, 0.000000, 0.000000, 1.000000), // dab p=0.875
+            listOf(3.394113, -13.500000, 0.056569, 0.000000, 0.424264, 0.424264, 0.636396, -0.000000, 0.000000, 1.000000), // skip p=0.375
+            listOf(-3.394113, -13.500000, -0.056569, 0.000000, -0.424264, -0.424264, 0.000000, -0.636396, 0.000000, 1.000000), // skip p=0.875
+            listOf(-5.656854, 0.000000, -0.098995, 0.084853, 0.601041, 0.601041, 0.000000, 0.000000, 0.000000, 1.000000), // flossLite p=0.375
+            listOf(5.656854, 0.000000, 0.098995, -0.084853, -0.601041, -0.601041, 0.000000, 0.000000, 0.000000, 1.000000), // flossLite p=0.875
+            listOf(5.656854, -9.000000, -0.100000, -0.120000, 2.000000, -2.600000, 0.000000, -0.600000, 0.000000, 1.000000), // spin p=0.375
+            listOf(-5.656854, -9.000000, -0.100000, -0.120000, 2.000000, -2.600000, 0.000000, -0.600000, 0.000000, -1.000000), // spin p=0.875
+            listOf(0.000000, -5.850000, 0.000000, 0.250000, 0.900000, -0.900000, 0.000000, 0.000000, 0.000000, 1.000000), // chicken p=0.375
+            listOf(0.000000, -5.850000, 0.000000, 0.250000, 0.900000, -0.900000, 0.000000, 0.000000, 0.000000, 1.000000), // chicken p=0.875
+        )
+        for ((i, move) in BuddyDance.Move.entries.withIndex()) for ((j, phase) in listOf(0.375, 0.875).withIndex()) {
+            val p = BuddyDance.pose(BuddyRig.GIRL.style, 3, phase, move = move)
+            val values = listOf(p.dx, p.dy, p.rot, p.head, p.armL, p.armR, p.legL, p.legR, p.tail, p.sx)
+            for ((a, b) in values.zip(expected[i * 2 + j])) assertEquals(b, a, 1e-6)
         }
     }
 }

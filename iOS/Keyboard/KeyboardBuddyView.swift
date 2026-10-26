@@ -75,6 +75,9 @@ final class BuddyView: UIView {
     private var scale: CGFloat = 1
     private var builtFor: CGSize = .zero
     private var loopEpoch = 0.0, loopLen = 1.0, cheerStart = 0.0
+    private var danceSeed = Int.random(in: 0...1_000_000)
+    private var danceLoopBase = 0
+    private var danceMove = BuddyDance.Move.bounce
     private var loopCache: [Int: [(CALayer, CAAnimation)]] = [:]
     private var cheerAnims: [(CALayer, CAAnimation)]?
     private var timer: Timer?
@@ -86,6 +89,9 @@ final class BuddyView: UIView {
     private var reactAnims: [BuddyReaction: [(CALayer, CAAnimation)]] = [:]
     /// Trái tim ôm trước ngực (thả tim) — trong cây nhảy, đi theo người.
     private let prop = CAShapeLayer()
+    private var holidayProps: [BuddyReaction: (CALayer, [(CAShapeLayer, BuddyPiece)])] = [:]
+    private var wordHistory: (word: String, prev: String?, prev2: String?)?
+
     /// Giận: mặt đỏ + lông mày cau (trong đầu).
     private let flush = CAShapeLayer(), brows = CAShapeLayer()
     private var fxShapes: [CAShapeLayer] = []
@@ -134,7 +140,7 @@ final class BuddyView: UIView {
         sleepGroup.addSublayer(sleepHalo)
         // Nhóm quầng theo (bộ phận, bề rộng nét): hình tô ⇒ nét viền + tô kín; nét đơn ⇒ nét của nó.
         var keys: [(BuddyPart, Double, Bool)] = []
-        for piece in rig.pieces + outfit.pieces {
+        for piece in rig.pieces + outfit.pieces where piece.alpha == 1 {
             let k = Self.haloKey(piece)
             if !keys.contains(where: { $0.0 == piece.part && $0.1 == k.0 && $0.2 == k.1 }) { keys.append((piece.part, k.0, k.1)) }
         }
@@ -173,6 +179,15 @@ final class BuddyView: UIView {
 
     deinit { timer?.invalidate() }
 
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil {
+            danceSeed = Int.random(in: 0...1_000_000)
+            forceApply(); schedule(clock())
+        }
+        else { halt(); wordHistory = nil }
+    }
+
     // MARK: Đầu vào (đường phím)
 
     /// Một phím vừa gõ. Chỉ ghi giờ + so trạng thái; đổi trạng thái thì áp ở lượt runloop sau.
@@ -198,7 +213,11 @@ final class BuddyView: UIView {
 
     /// Ranh giới từ: từ vừa chốt ⇒ phản ứng (giận / thả tim / cười / ngạc nhiên / buồn). Tra O(1), chỉ ở ranh giới.
     func wordCommitted(_ word: String, prev: String?, prev2: String? = nil) {
-        guard let r = BuddyWords.reaction(word: word, prev: prev, prev2: prev2) else { return }
+        let prev3 = wordHistory.flatMap { $0.word == prev && $0.prev == prev2 ? $0.prev2 : nil }
+        wordHistory = (word, prev, prev2)
+        let date = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        let active = season ?? BuddySeason.of(year: date.year ?? 0, month: date.month ?? 0, day: date.day ?? 0)
+        guard let r = BuddyWords.reaction(word: word, prev: prev, prev2: prev2, prev3: prev3, season: active) else { return }
         react(r)
     }
 
@@ -238,7 +257,13 @@ final class BuddyView: UIView {
 
     private func schedule(_ now: Double) {
         timer?.invalidate(); timer = nil
-        guard let d = brain.nextDeadline(after: now) else { return }
+        var deadline = brain.nextDeadline(after: now)
+        if spriteAtlas == nil, case .dancing = shown {
+            let index = danceLoopIndex(now)
+            let boundary = loopEpoch + Double((index / 2 + 1) * 2 - danceLoopBase) * loopLen
+            deadline = min(deadline ?? boundary, boundary)
+        }
+        guard let d = deadline else { return }
         let t = Timer(timeInterval: max(d - now, 0.01) + 0.01, repeats: false) { [weak self] _ in
             self?.timer = nil
             self?.tick()
@@ -278,7 +303,11 @@ final class BuddyView: UIView {
 
     func apply(_ phase: BuddyPhase, now: Double) {
         let v = BuddyPolicy.visual(phase, lowPower: lowPower)
-        guard v != shown || (isReact(v) && brain.reactSerial != shownSerial) else { return }
+        var moveChanged = false
+        if spriteAtlas == nil, case .dancing(let tier) = v, case .dancing = shown {
+            moveChanged = BuddyDance.move(character, tier: tier, loopIndex: danceLoopIndex(now), seed: danceSeed) != danceMove
+        }
+        guard moveChanged || v != shown || (isReact(v) && brain.reactSerial != shownSerial) else { return }
         let old = displayedPose(now)
         let prev = shown
         shown = v
@@ -304,15 +333,17 @@ final class BuddyView: UIView {
             stopZzz()
             showSleep(false); showEyes(dance: true)
             var p = 0.0
-            if case .dancing = prev { p = loopPhase(now) }
+            if case .dancing = prev { p = loopPhase(now); danceLoopBase = danceLoopIndex(now) }
+            else { danceLoopBase = 0 }
+            danceMove = BuddyDance.move(character, tier: t, loopIndex: danceLoopBase, seed: danceSeed)
             loopLen = BuddyDance.loopLength(t)
             loopEpoch = now - p * loopLen
             removeRigAnimations()
-            for (l, a) in loops(t) {
+            for (l, a) in loops(t, danceMove) {
                 a.beginTime = loopEpoch
                 l.add(a, forKey: "loop")
             }
-            addBlend(from: old ?? .rest, to: BuddyDance.pose(rig.style, tier: t, p: p))
+            addBlend(from: old ?? .rest, to: BuddyDance.pose(rig.style, tier: t, p: p, move: danceMove))
         case .cheering:
             stopZzz()
             showSleep(false); showEyes(dance: true)
@@ -378,7 +409,7 @@ final class BuddyView: UIView {
         switch shown {
         case .asleep: return nil
         case .awake: return .rest
-        case .dancing(let t): return BuddyDance.pose(rig.style, tier: t, p: loopPhase(now))
+        case .dancing(let t): return BuddyDance.pose(rig.style, tier: t, p: loopPhase(now), move: danceMove)
         case .cheering: return BuddyDance.cheer(rig.style, f: (now - cheerStart) / BuddyBrain.cheer)
         case .react(let r):
             let len = Self.reactLength(r)
@@ -389,6 +420,10 @@ final class BuddyView: UIView {
     }
 
     private static func reactLength(_ r: BuddyReaction) -> Double { r == .panic ? 0.5 : r.duration }
+
+    private func danceLoopIndex(_ now: Double) -> Int {
+        danceLoopBase + max(0, Int(floor((now - loopEpoch) / loopLen)))
+    }
 
     private func loopPhase(_ now: Double) -> Double {
         let x = (now - loopEpoch) / loopLen
@@ -444,12 +479,13 @@ final class BuddyView: UIView {
     }
 
     /// Hoạt ảnh vòng của bậc `t` (dựng một lần, cache).
-    private func loops(_ t: Int) -> [(CALayer, CAAnimation)] {
-        if let c = loopCache[t] { return c }
+    private func loops(_ t: Int, _ move: BuddyDance.Move) -> [(CALayer, CAAnimation)] {
+        let key = t * BuddyDance.Move.allCases.count + move.rawValue
+        if let c = loopCache[key] { return c }
         let out = sampled(Self.samples, BuddyDance.loopLength(t), repeatForever: true) {
-            BuddyDance.pose(rig.style, tier: t, p: $0)
+            BuddyDance.pose(rig.style, tier: t, p: $0, move: move)
         }
-        loopCache[t] = out
+        loopCache[key] = out
         return out
     }
 
@@ -531,11 +567,58 @@ final class BuddyView: UIView {
 
     // MARK: Hiệu ứng phản ứng
 
+    private func holidayProp(_ reaction: BuddyReaction) -> CALayer {
+        if let cached = holidayProps[reaction] { return cached.0 }
+        let group = CALayer()
+        let shapes = BuddyProp.make(reaction, rig).map { piece -> (CAShapeLayer, BuddyPiece) in
+            let l = CAShapeLayer()
+            l.lineCap = .round; l.lineJoin = .round
+            group.addSublayer(l)
+            return (l, piece)
+        }
+        if spriteAtlas != nil { layer.addSublayer(group) }
+        else { spin.insertSublayer(group, above: parts[.armR]) }
+        holidayProps[reaction] = (group, shapes)
+        layoutHolidayProps()
+        return group
+    }
+
+    private func layoutHolidayProps() {
+        guard !holidayProps.isEmpty else { return }
+        let hp = rig.heart, vp = rig.viewport(framing)
+        let s = spriteAtlas == nil ? scale : prop.bounds.width / CGFloat(hp.size * 2)
+        let center = spriteAtlas == nil
+            ? CGPoint(x: CGFloat(hp.x - vp.x) * s, y: CGFloat(hp.y - vp.y) * s)
+            : prop.position
+        for (group, shapes) in holidayProps.values {
+            group.position = center
+            for (l, piece) in shapes {
+                l.path = Self.path(piece, origin: (hp.x, hp.y), scale: s)
+                l.lineWidth = CGFloat(piece.width) * s
+                l.fillColor = piece.fill.map { Self.cg($0, alpha: piece.alpha) }
+                switch piece.stroke {
+                case .none: l.strokeColor = nil
+                case .outline: l.strokeColor = Self.cg(tones.outline)
+                case .ink: l.strokeColor = Self.cg(BuddyRig.ink)
+                case .color(let c): l.strokeColor = Self.cg(c)
+                }
+            }
+        }
+    }
+
     private func startFX(_ r: BuddyReaction) {
         let w = Double(bounds.width), h = Double(bounds.height)
         guard w > 0, h > 0 else { return }
         let dur = r.duration
         switch r {
+        case .luckyMoney, .gift, .candy, .mooncake:
+            let group = holidayProp(r)
+            group.isHidden = false
+            let pulse = CAKeyframeAnimation(keyPath: "transform.scale")
+            pulse.values = [0.2, 1.15, 0.95, 1.1, 1, 1.1, 0.2]
+            pulse.keyTimes = [0, 0.15, 0.3, 0.45, 0.6, 0.8, 1]
+            pulse.duration = dur
+            group.add(pulse, forKey: "fx")
         case .love:
             prop.isHidden = false
             let pulse = CAKeyframeAnimation(keyPath: "transform.scale")
@@ -680,6 +763,7 @@ final class BuddyView: UIView {
     }
 
     private func stopFX() {
+        for (group, _) in holidayProps.values { group.removeAllAnimations(); group.isHidden = true }
         for l in [prop, flush, brows] as [CALayer] { l.removeAllAnimations(); l.isHidden = true }
         for l in fxShapes as [CALayer] + fxTexts { l.removeAllAnimations(); l.opacity = 0 }
         for l in [badge, badgeText].compactMap({ $0 }) as [CALayer] { l.removeAllAnimations(); l.opacity = 0; l.isHidden = true }
@@ -710,6 +794,7 @@ final class BuddyView: UIView {
                                 width: heartSize, height: heartSize)
             prop.path = Self.svg(BuddyFX.heartPath(cx: Double(heartSize / 2), cy: Double(heartSize / 2),
                                                  k: Double(heartSize / 2)), origin: (0, 0), scale: 1)
+            layoutHolidayProps()
             CATransaction.commit()
             return
         }
@@ -751,7 +836,7 @@ final class BuddyView: UIView {
         for (l, part, w, filled) in haloShapes {
             let m = CGMutablePath()
             let dy = part == .sleep ? sleepDy : 0
-            for (_, piece) in shapes where piece.part == part {
+            for (_, piece) in shapes where piece.part == part && piece.alpha == 1 {
                 let k = Self.haloKey(piece)
                 guard k.0 == w, k.1 == filled else { continue }
                 m.addPath(Self.path(piece, origin: (vp.x, vp.y - dy), scale: s))
@@ -774,6 +859,7 @@ final class BuddyView: UIView {
         brows.frame = box
         brows.path = Self.svg(rig.brows, origin: (vp.x, vp.y), scale: s)
         brows.lineWidth = 4.5 * s
+        layoutHolidayProps()
         // Cỡ đổi ⇒ dời (pt) trong hoạt ảnh đổi: dựng lại.
         loopCache.removeAll(); cheerAnims = nil; reactAnims.removeAll()
         let now = clock()
@@ -794,6 +880,7 @@ final class BuddyView: UIView {
         let outline = Self.cg(tones.outline)
         let halo = Self.cg(tones.halo)
         for (l, _, _, filled) in haloShapes { l.strokeColor = halo; l.fillColor = filled ? halo : nil }
+        layoutHolidayProps()
         prop.fillColor = Self.cg(BuddyFX.heartColor)
         prop.strokeColor = outline
         flush.fillColor = Self.cg(BuddyFX.angryRed, alpha: 0.45)

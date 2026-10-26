@@ -17,6 +17,7 @@ import com.viettelex.keyboard.BuddyDriver
 import com.viettelex.keyboard.BuddyFX
 import com.viettelex.keyboard.BuddyFraming
 import com.viettelex.keyboard.BuddyHalo
+import com.viettelex.keyboard.BuddyProp
 import com.viettelex.keyboard.BuddyOutfit
 import com.viettelex.keyboard.BuddyPart
 import com.viettelex.keyboard.BuddyPhase
@@ -80,7 +81,11 @@ class BuddyView(
     private val spriteTarget = RectF()
     private val spritePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     val rig: BuddyRig = BuddyRig.rig(character) ?: BuddyRig.CAT
-    val driver = BuddyDriver(rig, lowPower)
+    val driver = BuddyDriver(rig, lowPower).apply {
+        this.character = this@BuddyView.character
+        danceSeed = kotlin.random.Random.nextInt(1_000_001)
+        vectorDance = spriteAtlas == null
+    }
     private val outfit = BuddyOutfit.make(season, character)
     private val pieces: List<BuddyPiece> = rig.pieces + outfit.pieces
     private val paths = Array(pieces.size) { Path() }
@@ -94,6 +99,30 @@ class BuddyView(
     private val zPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; strokeWidth = 4.5f
         color = 0xFF000000.toInt() or BuddyRig.Z_COLOR
+    }
+    private data class PropPiece(val path: Path, val fill: Paint?, val stroke: Paint?)
+    private val holidayProps = mutableMapOf<BuddyReaction, List<PropPiece>>()
+    private fun drawHoliday(c: Canvas, reaction: BuddyReaction, f: Float) {
+        val art = holidayProps.getOrPut(reaction) {
+            BuddyProp.make(reaction, rig).map { p ->
+                val path = Path(); build(p, path)
+                val fill = p.fill?.let { rgb -> Paint(Paint.ANTI_ALIAS_FLAG).apply { color = argb(rgb, p.alpha) } }
+                val stroke = if (p.stroke == Stroke.None) null else Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE; strokeWidth = p.width.toFloat()
+                    strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
+                    color = when (val st = p.stroke) {
+                        is Stroke.Color -> argb(st.rgb, 1.0)
+                        Stroke.Ink -> argb(BuddyRig.INK, 1.0)
+                        else -> outline
+                    }
+                }
+                PropPiece(path, fill, stroke)
+            }
+        }
+        val save = c.save(); val sc = pulse(f)
+        c.scale(sc, sc, rig.heart.x.toFloat(), rig.heart.y.toFloat())
+        for (p in art) { p.fill?.let { c.drawPath(p.path, it) }; p.stroke?.let { c.drawPath(p.path, it) } }
+        c.restoreToCount(save)
     }
     private val heartProp = svg(BuddyFX.heartPath(rig.heart.x, rig.heart.y, rig.heart.size))
     private val flushPath = Path().apply {
@@ -117,6 +146,7 @@ class BuddyView(
     private val halos: List<Halo> = run {
         val out = ArrayList<Halo>()
         for (p in pieces) {
+            if (p.alpha != 1.0) continue
             val (w, f) = BuddyHalo.key(p)
             val h = out.firstOrNull { it.part == p.part && it.width == w && it.filled == f } ?: Halo(p.part, w, f).also { out += it }
             val tmp = Path(); build(p, tmp)
@@ -163,6 +193,7 @@ class BuddyView(
     }
 
     private fun applyTones() {
+        holidayProps.clear() // Rebuild lazily with the new outline only if a prop is shown.
         outline = 0xFF000000.toInt() or tones.outline
         haloPaint.color = 0xFF000000.toInt() or tones.halo
         haloStroke.color = haloPaint.color
@@ -191,6 +222,9 @@ class BuddyView(
     fun cheer() { val t = clock(); driver.cheer(t); afterInput(t) }
     fun wordCommitted(word: String, prev: String?, prev2: String?) {
         val t = clock()
+        val date = java.util.Calendar.getInstance()
+        driver.season = season ?: BuddySeason.ofDate(date.get(java.util.Calendar.YEAR),
+            date.get(java.util.Calendar.MONTH) + 1, date.get(java.util.Calendar.DAY_OF_MONTH))
         if (driver.wordCommitted(word, prev, prev2, t)) afterInput(t)
     }
     fun react(r: BuddyReaction) { val t = clock(); driver.react(r, t); afterInput(t) }
@@ -211,6 +245,11 @@ class BuddyView(
 
     /** Ẩn bàn phím: dừng hẹn giờ (không còn khung hình). */
     fun halt() { removeCallbacks(tick); tickAt = Double.NaN }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        driver.beginAppearance(kotlin.random.Random.nextInt(1_000_001))
+    }
 
     override fun onDetachedFromWindow() { halt(); super.onDetachedFromWindow() }
 
@@ -234,6 +273,15 @@ class BuddyView(
         if (!shownInSlot || width <= 0 || height <= 0) { schedule(t); return }
         spriteAtlas?.let {
             drawSprite(c, it, t)
+            val reaction = driver.shown as? BuddyPhase.React
+            if (reaction != null && reaction.reaction.isHoliday) {
+                c.save()
+                val s = spriteTarget.height() * 0.18f / (rig.heart.size * 2).toFloat()
+                c.translate(width / 2f, spriteTarget.top + spriteTarget.height() * 0.54f)
+                c.scale(s, s); c.translate(-rig.heart.x.toFloat(), -rig.heart.y.toFloat())
+                drawHoliday(c, reaction.reaction, ((t - driver.phaseStart) / reaction.reaction.duration).toFloat())
+                c.restore()
+            }
             drawFX(c, t)
             if (animating(t)) postInvalidateDelayed(if (character == BuddyCharacter.GIRL) 50L else 80L) else schedule(t)
             return
@@ -338,6 +386,7 @@ class BuddyView(
                 c.drawPath(browsPath, fxStroke)
             }
             c.restoreToCount(save)
+            if (part == BuddyPart.ARM_R && react?.isHoliday == true) drawHoliday(c, react, f)
             if (part == BuddyPart.BODY && react == BuddyReaction.LOVE) {
                 val sc = pulse(f)
                 val save2 = c.save()
