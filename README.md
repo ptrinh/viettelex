@@ -79,6 +79,19 @@ vẫn báo thiếu, xoá mục VietTelex khỏi Accessibility rồi thêm lại 
 </details>
 
 <details>
+<summary><strong>Đã bật quyền mà VietTelex vẫn báo thiếu quyền?</strong></summary>
+
+Hiếm gặp, thường do quyền còn "kẹt" với bản cài cũ. Cập nhật lên bản mới nhất trước (từ 1.8.32 VietTelex tự nhận quyền vừa bật, không cần khởi động lại). Nếu vẫn báo thiếu:
+
+1. Trong **Điều khiển thiết bị và truy cập dữ liệu** (macOS 27) / **Trợ năng** (macOS 26 trở về trước), chọn VietTelex rồi bấm **−** để xoá hẳn (không chỉ tắt).
+2. Mở Terminal, chạy:
+   ```
+   tccutil reset Accessibility com.viettelex.inputmethod.telex
+   ```
+3. Chuyển sang bộ gõ khác rồi chuyển lại VietTelex (hoặc đăng xuất/đăng nhập). Khi VietTelex hỏi quyền, bấm cho phép và bật lại.
+</details>
+
+<details>
 <summary><strong>Không thấy ViệtTelex trong danh sách bộ gõ?</strong></summary>
 
 Đăng xuất/đăng nhập lại một lần rồi thêm lại.
