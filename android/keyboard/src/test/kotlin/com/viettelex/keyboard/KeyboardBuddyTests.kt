@@ -75,14 +75,16 @@ class KeyboardBuddyTests {
     /** = iOS testPlacementMath: cỡ 5 = khung cũ; hệ số 0,68…1,40; neo đáy-phải; to thì lớn xuống; lề dời đúng chiều. */
     @Test fun placementMath() {
         fun eq(e: BuddyRect, a: BuddyRect) { assertEquals(e.x, a.x, 1e-9); assertEquals(e.y, a.y, 1e-9); assertEquals(e.w, a.w, 1e-9); assertEquals(e.h, a.h, 1e-9) }
-        assertEquals(1.0, BuddyPlacement.STANDARD.scale, 1e-9)
-        assertEquals(0.68, BuddyPlacement(size = 1).scale, 1e-9)
-        assertEquals(1.40, BuddyPlacement(size = 10).scale, 1e-9)
-        assertEquals(2.20, BuddyPlacement(size = 20).scale, 1e-9)
+        assertEquals(1.0, BuddyPlacement.STANDARD.scale(4.0), 1e-9)
+        assertEquals(0.68, BuddyPlacement(size = 1).scale(4.0), 1e-9)
+        assertEquals(4.0, BuddyPlacement(size = 20).scale(4.0), 1e-9)
+        assertEquals(Math.pow(4.0, 1.0 / 3), BuddyPlacement(size = 10).scale(4.0), 1e-9)
+        assertEquals(1.0, BuddyPlacement(size = 20).scale(0.5), 1e-9)
         val base = BuddyRect(324, 0, 66, 66)
         eq(base, BuddyPlacement.STANDARD.frame(base, 34.0))
         eq(BuddyRect(345, 21, 45, 45), BuddyPlacement(size = 1).frame(base, 34.0))
-        eq(BuddyRect(298, 0, 92, 92), BuddyPlacement(size = 10).frame(base, 34.0))
+        eq(BuddyRect(304, 0, 86, 86), BuddyPlacement(size = 10).frame(base, 34.0))
+        eq(BuddyRect(126, 0, 264, 264), BuddyPlacement(size = 20).frame(base, 34.0, fullHeight = 264.0))
         eq(BuddyRect(314, -4, 66, 66), BuddyPlacement(padRight = 10, padTop = -4).frame(base, 34.0))
         assertEquals(334.0, BuddyPlacement(padRight = -10).frame(base, 34.0).x, 1e-9)
         assertEquals(6.0, BuddyPlacement(padTop = 3).frame(base, 34.0, unit = 2.0).y, 1e-9)

@@ -437,7 +437,8 @@ class ImeRootView(
         val h = StripGeometry.buddyHeight(s)
         val w = StripGeometry.buddyDrawWidth(s, r - l)
         val bl = minOf((l + r - w) / 2, px + pw - w)
-        val f = buddyPlacement.frame(com.viettelex.keyboard.BuddyRect(bl, py, w, h), (r - l).toDouble(), theme.dp(1f).toDouble())
+        val f = buddyPlacement.frame(com.viettelex.keyboard.BuddyRect(bl, py, w, h), (r - l).toDouble(), theme.dp(1f).toDouble(),
+            (height - py).toDouble())
         val fl = Math.round(f.x).toInt(); val ft = Math.round(f.y).toInt()
         val fw = Math.round(f.w).toInt(); val fh = Math.round(f.h).toInt()
         b.measure(MeasureSpec.makeMeasureSpec(fw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(fh, MeasureSpec.EXACTLY))

@@ -5949,12 +5949,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Khung VẼ nhân vật — THUẦN để test: cao strip + phần tràn xuống phím, rộng vuông (dáng ngủ nằm ngang không
     /// bị cắt), canh giữa ô chừa nhưng không vượt mép phải; được đè lên 📋 / phím (lớp trên cùng, không nhận chạm).
     /// Cỡ / lề (BuddyPlacement): neo đáy-phải khung cỡ gốc; to hơn thì lớn dần xuống phím (trần bàn phím không vẽ được).
-    static func buddyFrame(width: CGFloat, strip: CGFloat, placement: BuddyPlacement = .standard) -> CGRect {
+    static func buddyFrame(width: CGFloat, strip: CGFloat, placement: BuddyPlacement = .standard,
+                           height: CGFloat? = nil) -> CGRect {
         let zone = buddyZoneFrame(width: width, strip: strip)
         let h = (strip * (1 + buddyOverlapRatio)).rounded()
         let w = max(zone.width, h)
         let base = BuddyRect(x: Double(min(zone.midX - w / 2, width - w)), y: 0, w: Double(w), h: Double(h))
-        let f = placement.frame(standard: base, minWidth: Double(zone.width))
+        let f = placement.frame(standard: base, minWidth: Double(zone.width), fullHeight: height.map(Double.init))
         return CGRect(x: f.x, y: f.y, width: f.w, height: f.h)
     }
 
@@ -5995,7 +5996,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Strip thật (rowsContainer bắt đầu ngay dưới); ô nhân vật tràn xuống hàng phím đầu (không nhận chạm).
         let strip = min(max(rowsTopConstraint?.constant ?? openStripNow, openStripNow),
                         rowsContainer.frame.height > 0 ? rowsContainer.frame.minY : .greatestFiniteMagnitude)
-        let f = Self.buddyFrame(width: bounds.width, strip: strip, placement: buddyPlacement)
+        let f = Self.buddyFrame(width: bounds.width, strip: strip, placement: buddyPlacement, height: bounds.height)
         if b.frame != f { b.frame = f }
         b.layer.zPosition = 1000   // trên cùng: không bị phím / popup / hiệu ứng đè hay chèn
         bringSubviewToFront(b)

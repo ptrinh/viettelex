@@ -67,8 +67,8 @@ enum BuddyStyle: String, CaseIterable {
     func season(_ s: BuddySeason?) -> BuddySeason? { self == .vector ? s : nil }
 }
 
-/// "Vị trí & cỡ" (Phil 26/10/2026) — CHUNG mọi nhân vật, cùng khoá + miền Android: cỡ 1…20 (5 = cỡ gốc, mỗi nấc
-/// ±8 %), lề phải / lề trên −10…+10 pt. Đọc lúc hiện bàn phím, khung tính một lần lúc layout (0 việc mỗi phím).
+/// "Vị trí & cỡ" (Phil 26/10/2026) — CHUNG mọi nhân vật, cùng khoá + miền Android: cỡ 1…20 (5 = cỡ gốc; 1…5 mỗi nấc
+/// 8 %; 5…20 tăng đều theo cấp số nhân tới cỡ 20 = cao trọn bàn phím), lề phải / lề trên −10…+10 pt. Đọc lúc hiện bàn phím, khung tính một lần lúc layout (0 việc mỗi phím).
 struct BuddyPlacement: Equatable {
     static let sizeKey = "buddySize", padRightKey = "buddyPadRight", padTopKey = "buddyPadTop"
     static let sizeRange = 1...20, padRange = -10...10
@@ -81,8 +81,13 @@ struct BuddyPlacement: Equatable {
     /// Dương = dời xuống; âm = dời lên.
     var padTop = 0
 
-    /// Hệ số cỡ: 1 → 0,68×, 5 → 1×, 10 → 1,40×.
-    var scale: Double { 1 + Double(size - Self.defaultSize) * 0.08 }
+    /// Hệ số cỡ: 1…5 tuyến tính (1 → 0,68×, 5 → 1×); 5…20 mỗi nấc nhân đều, cỡ 20 = `full` (cao trọn bàn phím /
+    /// cao cỡ gốc). `full` ≤ 1 ⇒ không lớn hơn cỡ gốc.
+    func scale(full: Double) -> Double {
+        let n = Double(size - Self.defaultSize)
+        if n <= 0 { return 1 + n * 0.08 }
+        return pow(max(full, 1), n / Double(Self.sizeRange.upperBound - Self.defaultSize))
+    }
 
     static func load(_ d: UserDefaults?) -> BuddyPlacement {
         func int(_ k: String, _ def: Int, _ r: ClosedRange<Int>) -> Int {
@@ -93,13 +98,18 @@ struct BuddyPlacement: Equatable {
                               padTop: int(padTopKey, 0, padRange))
     }
 
-    /// Ô chừa trên thanh gợi ý (chip / 📋 / 😊 dời trái) theo cỡ + lề phải dương. `base` = ô cỡ gốc.
-    func zoneWidth(_ base: Double) -> Double { (base * scale).rounded() + Double(max(0, padRight)) }
+    /// Ô chừa trên thanh gợi ý (chip / 📋 / 😊 dời trái) theo cỡ + lề phải dương. `base` = ô cỡ gốc. Cỡ lớn chỉ
+    /// chừa tối đa 1,4× (cỡ 10 cũ) — nhân vật to hơn thì đè lên chip, không bóp mất thanh gợi ý.
+    func zoneWidth(_ base: Double) -> Double {
+        (base * min(1 + Double(size - Self.defaultSize) * 0.08, 1.4)).rounded() + Double(max(0, padRight))
+    }
 
     /// Khung vẽ từ khung cỡ gốc `f`: neo ĐÁY-PHẢI như cũ, cao × `scale`, rộng ≥ `minWidth`; to hơn mà đỉnh vượt
     /// đỉnh khung gốc (trần bàn phím — không vẽ được) ⇒ lớn dần xuống phím. Lề × `unit` (iOS pt = 1, Android px/dp).
-    func frame(standard f: BuddyRect, minWidth: Double, unit: Double = 1) -> BuddyRect {
-        let h = (f.h * scale).rounded()
+    /// `fullHeight` = cao bàn phím tính từ đỉnh khung gốc (cỡ 20 phủ trọn); nil ⇒ cỡ 20 = 2,2× cỡ gốc.
+    func frame(standard f: BuddyRect, minWidth: Double, unit: Double = 1, fullHeight: Double? = nil) -> BuddyRect {
+        let full = fullHeight.map { $0 / max(f.h, 1) } ?? 2.2
+        let h = (f.h * scale(full: full)).rounded()
         let w = max(minWidth, h)
         let right = f.x + f.w - Double(padRight) * unit
         let top = max(f.y, f.maxY - h) + Double(padTop) * unit

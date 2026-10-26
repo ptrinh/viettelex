@@ -64,7 +64,8 @@ enum class BuddyStyle(val id: String, val viTitle: String) {
 }
 
 /**
- * "Vị trí & cỡ" (Phil 26/10/2026) = iOS BuddyPlacement — CHUNG mọi nhân vật: cỡ 1…20 (5 = cỡ gốc, mỗi nấc ±8 %),
+ * "Vị trí & cỡ" (Phil 26/10/2026) = iOS BuddyPlacement — CHUNG mọi nhân vật: cỡ 1…20 (5 = cỡ gốc; 1…5 mỗi nấc 8 %;
+ * 5…20 nhân đều tới cỡ 20 = cao trọn bàn phím),
  * lề phải / lề trên −10…+10 dp. IME đọc lúc hiện, khung tính một lần lúc layout (0 việc mỗi phím).
  */
 data class BuddyPlacement(
@@ -74,18 +75,25 @@ data class BuddyPlacement(
     /** Dương = dời xuống; âm = dời lên. */
     val padTop: Int = 0,
 ) {
-    /** Hệ số cỡ: 1 → 0,68×, 5 → 1×, 10 → 1,40×. */
-    val scale: Double get() = 1 + (size - DEFAULT_SIZE) * 0.08
+    /** Hệ số cỡ: 1…5 tuyến tính (1 → 0,68×, 5 → 1×); 5…20 nhân đều, cỡ 20 = [full] (cao trọn bàn phím / cao cỡ gốc). */
+    fun scale(full: Double): Double {
+        val n = (size - DEFAULT_SIZE).toDouble()
+        if (n <= 0) return 1 + n * 0.08
+        return Math.pow(max(full, 1.0), n / (SIZE_RANGE.last - DEFAULT_SIZE))
+    }
 
-    /** Ô chừa trên strip (dp) theo cỡ + lề phải dương. [base] = ô cỡ gốc. */
-    fun zoneWidth(base: Double): Double = Math.round(base * scale).toDouble() + max(0, padRight)
+    /** Ô chừa trên strip (dp) theo cỡ + lề phải dương; cỡ lớn chỉ chừa tối đa 1,4× (nhân vật đè lên chip). */
+    fun zoneWidth(base: Double): Double =
+        Math.round(base * minOf(1 + (size - DEFAULT_SIZE) * 0.08, 1.4)).toDouble() + max(0, padRight)
 
     /**
      * Khung vẽ từ khung cỡ gốc [f]: neo ĐÁY-PHẢI như cũ, cao × [scale], rộng ≥ [minWidth]; to hơn mà đỉnh vượt đỉnh
-     * khung gốc (trần bàn phím) ⇒ lớn dần xuống phím. Lề × [unit] (Android px/dp, iOS pt = 1). = iOS frame(standard:).
+     * khung gốc (trần bàn phím) ⇒ lớn dần xuống phím. Lề × [unit] (Android px/dp, iOS pt = 1). [fullHeight] = cao bàn
+     * phím từ đỉnh khung gốc (cỡ 20 phủ trọn); null ⇒ cỡ 20 = 2,2×. = iOS frame(standard:).
      */
-    fun frame(f: BuddyRect, minWidth: Double, unit: Double = 1.0): BuddyRect {
-        val h = Math.round(f.h * scale).toDouble()
+    fun frame(f: BuddyRect, minWidth: Double, unit: Double = 1.0, fullHeight: Double? = null): BuddyRect {
+        val full = fullHeight?.let { it / max(f.h, 1.0) } ?: 2.2
+        val h = Math.round(f.h * scale(full)).toDouble()
         val w = max(minWidth, h)
         val right = f.x + f.w - padRight * unit
         val top = max(f.y, f.maxY - h) + padTop * unit

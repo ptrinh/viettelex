@@ -92,16 +92,19 @@ final class KeyboardBuddyTests: XCTestCase {
 
     /// Vị trí & cỡ: cỡ 5 = khung y như cũ; hệ số 0,68…1,40; neo đáy-phải; to hơn thì lớn xuống; lề dời đúng chiều.
     func testPlacementMath() {
-        XCTAssertEqual(BuddyPlacement.standard.scale, 1, accuracy: 1e-9)
-        XCTAssertEqual(BuddyPlacement(size: 1).scale, 0.68, accuracy: 1e-9)
-        XCTAssertEqual(BuddyPlacement(size: 10).scale, 1.40, accuracy: 1e-9)
-        XCTAssertEqual(BuddyPlacement(size: 20).scale, 2.20, accuracy: 1e-9)
+        XCTAssertEqual(BuddyPlacement.standard.scale(full: 4), 1, accuracy: 1e-9)
+        XCTAssertEqual(BuddyPlacement(size: 1).scale(full: 4), 0.68, accuracy: 1e-9)
+        XCTAssertEqual(BuddyPlacement(size: 20).scale(full: 4), 4, accuracy: 1e-9, "cỡ 20 = cao trọn bàn phím")
+        XCTAssertEqual(BuddyPlacement(size: 10).scale(full: 4), pow(4, 1.0 / 3), accuracy: 1e-9, "5…20 nhân đều")
+        XCTAssertEqual(BuddyPlacement(size: 20).scale(full: 0.5), 1, accuracy: 1e-9, "bàn phím thấp ⇒ không nhỏ hơn gốc")
         let base = BuddyRect(x: 324, y: 0, w: 66, h: 66)
         XCTAssertEqual(BuddyPlacement.standard.frame(standard: base, minWidth: 34), base)
         XCTAssertEqual(BuddyPlacement(size: 1).frame(standard: base, minWidth: 34), BuddyRect(x: 345, y: 21, w: 45, h: 45),
                        "nhỏ: neo đáy-phải")
-        XCTAssertEqual(BuddyPlacement(size: 10).frame(standard: base, minWidth: 34), BuddyRect(x: 298, y: 0, w: 92, h: 92),
+        XCTAssertEqual(BuddyPlacement(size: 10).frame(standard: base, minWidth: 34), BuddyRect(x: 304, y: 0, w: 86, h: 86),
                        "to: đỉnh giữ ở trần, lớn xuống phím")
+        XCTAssertEqual(BuddyPlacement(size: 20).frame(standard: base, minWidth: 34, fullHeight: 264),
+                       BuddyRect(x: 126, y: 0, w: 264, h: 264), "cỡ 20 phủ trọn chiều cao bàn phím")
         XCTAssertEqual(BuddyPlacement(padRight: 10, padTop: -4).frame(standard: base, minWidth: 34),
                        BuddyRect(x: 314, y: -4, w: 66, h: 66))
         XCTAssertEqual(BuddyPlacement(padRight: -10).frame(standard: base, minWidth: 34).x, 334, "âm ⇒ dời phải")
