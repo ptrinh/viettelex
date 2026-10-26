@@ -93,8 +93,9 @@ class KeyboardBuddyTests {
         assertEquals(29.0, BuddyPlacement(size = 1, padRight = 6).zoneWidth(34.0), 1e-9)
         assertEquals(34.0, BuddyPlacement(padRight = -6).zoneWidth(34.0), 1e-9)
         assertEquals(BuddyPlacement.STANDARD, KeyboardSettings.load { null }.buddyPlacement)
-        val prefs = mapOf(Keys.BUDDY_SIZE to 42, Keys.BUDDY_PAD_RIGHT to -30, Keys.BUDDY_PAD_TOP to 7)
-        assertEquals(BuddyPlacement(20, -10, 7), KeyboardSettings.load { prefs[it] }.buddyPlacement)
+        val prefs = mapOf(Keys.BUDDY_SIZE to 42, Keys.BUDDY_PAD_RIGHT to -300, Keys.BUDDY_PAD_TOP to 7)
+        assertEquals(44.0, BuddyPlacement(padRight = 100).zoneWidth(34.0), 1e-9)
+        assertEquals(BuddyPlacement(20, -100, 7), KeyboardSettings.load { prefs[it] }.buddyPlacement)
         assertEquals(listOf("buddySize", "buddyPadRight", "buddyPadTop"), listOf(Keys.BUDDY_SIZE, Keys.BUDDY_PAD_RIGHT, Keys.BUDDY_PAD_TOP))
         for (k in prefs.keys) assertTrue("sao lưu $k", BackupSettings.all.any { it.key == k })
     }

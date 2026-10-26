@@ -120,8 +120,9 @@ final class KeyboardBuddyTests: XCTestCase {
         let d = UserDefaults(suiteName: suite)!
         defer { d.removePersistentDomain(forName: suite) }
         XCTAssertEqual(BuddyPlacement.load(d), .standard)
-        d.set(42, forKey: BuddyPlacement.sizeKey); d.set(-30, forKey: BuddyPlacement.padRightKey); d.set(7, forKey: BuddyPlacement.padTopKey)
-        XCTAssertEqual(BuddyPlacement.load(d), BuddyPlacement(size: 20, padRight: -10, padTop: 7))
+        d.set(42, forKey: BuddyPlacement.sizeKey); d.set(-300, forKey: BuddyPlacement.padRightKey); d.set(7, forKey: BuddyPlacement.padTopKey)
+        XCTAssertEqual(BuddyPlacement.load(d), BuddyPlacement(size: 20, padRight: -100, padTop: 7))
+        XCTAssertEqual(BuddyPlacement(padRight: 100).zoneWidth(34), 34 + 10, "lề lớn không bóp thanh gợi ý")
         for k in [BuddyPlacement.sizeKey, BuddyPlacement.padRightKey, BuddyPlacement.padTopKey] {
             XCTAssertNotNil(BackupSettings.all.first { $0.key == k }, "sao lưu \(k)")
         }

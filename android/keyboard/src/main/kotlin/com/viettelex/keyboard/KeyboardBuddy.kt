@@ -66,7 +66,7 @@ enum class BuddyStyle(val id: String, val viTitle: String) {
 /**
  * "Vị trí & cỡ" (Phil 26/10/2026) = iOS BuddyPlacement — CHUNG mọi nhân vật: cỡ 1…20 (5 = cỡ gốc; 1…5 mỗi nấc 8 %;
  * 5…20 nhân đều tới cỡ 20 = cao trọn bàn phím),
- * lề phải / lề trên −10…+10 dp. IME đọc lúc hiện, khung tính một lần lúc layout (0 việc mỗi phím).
+ * lề phải / lề trên −100…+100 dp. IME đọc lúc hiện, khung tính một lần lúc layout (0 việc mỗi phím).
  */
 data class BuddyPlacement(
     val size: Int = DEFAULT_SIZE,
@@ -82,9 +82,9 @@ data class BuddyPlacement(
         return Math.pow(max(full, 1.0), n / (SIZE_RANGE.last - DEFAULT_SIZE))
     }
 
-    /** Ô chừa trên strip (dp) theo cỡ + lề phải dương; cỡ lớn chỉ chừa tối đa 1,4× (nhân vật đè lên chip). */
+    /** Ô chừa trên strip (dp) theo cỡ + lề phải dương; cỡ lớn chỉ chừa tối đa 1,4×, lề chỉ chừa tối đa [ZONE_PAD_MAX] (nhân vật đè lên chip). */
     fun zoneWidth(base: Double): Double =
-        Math.round(base * minOf(1 + (size - DEFAULT_SIZE) * 0.08, 1.4)).toDouble() + max(0, padRight)
+        Math.round(base * minOf(1 + (size - DEFAULT_SIZE) * 0.08, 1.4)).toDouble() + padRight.coerceIn(0, ZONE_PAD_MAX)
 
     /**
      * Khung vẽ từ khung cỡ gốc [f]: neo ĐÁY-PHẢI như cũ, cao × [scale], rộng ≥ [minWidth]; to hơn mà đỉnh vượt đỉnh
@@ -102,8 +102,12 @@ data class BuddyPlacement(
 
     companion object {
         const val DEFAULT_SIZE = 5
+        /** Lề phải chừa thêm trên strip tối đa — lề lớn hơn chỉ dời nhân vật, không bóp thanh gợi ý. */
+        const val ZONE_PAD_MAX = 10
         val SIZE_RANGE = 1..20
-        val PAD_RANGE = -10..10
+        val PAD_RANGE = -100..100
+        /** Nấc chỉnh lề trong trang cài đặt. */
+        const val PAD_STEP = 5
         val STANDARD = BuddyPlacement()
         fun of(size: Any?, padRight: Any?, padTop: Any?): BuddyPlacement = BuddyPlacement(
             ((size as? Number)?.toInt() ?: DEFAULT_SIZE).coerceIn(SIZE_RANGE),

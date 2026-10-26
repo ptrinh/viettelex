@@ -3,7 +3,7 @@
 // xem lại. Ô Plus bị khoá: mờ + nhãn Plus, chạm mở VietTelex Plus. Lưu App Group `keyboardBuddy`
 // (BuddyCharacter.key) — bàn phím đọc lần hiện kế. Dưới lưới: "Kiểu vẽ" Hoạt hình | Vẽ nét của nhân vật đang
 // chọn (BuddyStyle, khoá `buddyStyle.<id>`); mỗi ô vẽ theo kiểu của nhân vật đó. "Vị trí & cỡ" (BuddyPlacement:
-// cỡ 1…20, lề phải / lề trên −10…10 pt) chung mọi nhân vật. Android: BuddyPage.kt.
+// cỡ 1…20, lề phải / lề trên −100…100 pt, nấc 5) chung mọi nhân vật. Android: BuddyPage.kt.
 import SwiftUI
 import UIKit
 
@@ -71,10 +71,10 @@ struct BuddyPickerView: View {
                     Stepper(value: $size, in: BuddyPlacement.sizeRange) {
                         valueRow(L("Cỡ"), "\(size)")
                     }
-                    Stepper(value: $padRight, in: BuddyPlacement.padRange) {
+                    Stepper(value: $padRight, in: BuddyPlacement.padRange, step: BuddyPlacement.padStep) {
                         valueRow(L("Lề phải"), "\(padRight) pt")
                     }
-                    Stepper(value: $padTop, in: BuddyPlacement.padRange) {
+                    Stepper(value: $padTop, in: BuddyPlacement.padRange, step: BuddyPlacement.padStep) {
                         valueRow(L("Lề trên"), "\(padTop) pt")
                     }
                     Button(L("Mặc định")) {

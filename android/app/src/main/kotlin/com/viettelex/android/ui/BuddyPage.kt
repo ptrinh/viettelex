@@ -46,7 +46,7 @@ import com.viettelex.keyboard.tr
  * trên nền theme. Mở trang: mọi nhân vật nhảy một tràng như đang gõ rồi ngủ; chạm ô là chọn + diễn lại. Ô Plus bị
  * khoá: mờ + nhãn Plus, chạm mở VietTelex Plus. Lưu [Keys.KEYBOARD_BUDDY] — IME đọc lần hiện kế. Dưới lưới: "Kiểu vẽ"
  * Hoạt hình | Vẽ nét của nhân vật đang chọn ([BuddyStyle], khoá `buddyStyle.<id>`); mỗi ô vẽ theo kiểu của nhân vật đó.
- * "Vị trí & cỡ" ([BuddyPlacement]: cỡ 1…20, lề phải / lề trên −10…10 dp) chung mọi nhân vật. iOS: BuddyPickerView.
+ * "Vị trí & cỡ" ([BuddyPlacement]: cỡ 1…20, lề phải / lề trên −100…100 dp, nấc 5) chung mọi nhân vật. iOS: BuddyPickerView.
  */
 @Composable
 internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () -> Unit, onBack: () -> Unit) {
@@ -144,9 +144,9 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
             footer = tr("Chung cho mọi nhân vật. Lề phải dương: dời sang trái; lề trên dương: dời xuống. Bàn phím áp dụng lần hiện kế.")) {
             PlacementRow(tr("Cỡ"), "$size", size, BuddyPlacement.SIZE_RANGE) { size = it }
             RowDivider()
-            PlacementRow(tr("Lề phải"), "$padRight dp", padRight, BuddyPlacement.PAD_RANGE) { padRight = it }
+            PlacementRow(tr("Lề phải"), "$padRight dp", padRight, BuddyPlacement.PAD_RANGE, BuddyPlacement.PAD_STEP) { padRight = it }
             RowDivider()
-            PlacementRow(tr("Lề trên"), "$padTop dp", padTop, BuddyPlacement.PAD_RANGE) { padTop = it }
+            PlacementRow(tr("Lề trên"), "$padTop dp", padTop, BuddyPlacement.PAD_RANGE, BuddyPlacement.PAD_STEP) { padTop = it }
             RowDivider()
             val standard = size == BuddyPlacement.DEFAULT_SIZE && padRight == 0 && padTop == 0
             VTRow(onClick = if (standard) null else ({ size = BuddyPlacement.DEFAULT_SIZE; padRight = 0; padTop = 0 })) {
@@ -158,12 +158,12 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
 
 /** Một dòng "Vị trí & cỡ": tên · giá trị · stepper − | +. */
 @Composable
-private fun PlacementRow(title: String, value: String, v: Int, range: IntRange, onChange: (Int) -> Unit) {
+private fun PlacementRow(title: String, value: String, v: Int, range: IntRange, step: Int = 1, onChange: (Int) -> Unit) {
     val c = LocalVT.current
     VTRow {
         Text(title, style = VTType.body, color = c.label, modifier = Modifier.weight(1f))
         Text(value, style = VTType.body, color = c.secondary, modifier = Modifier.padding(end = 12.dp))
-        IosStepper(v, range) { onChange(it) }
+        IosStepper(v, range, step) { onChange(it) }
     }
 }
 
