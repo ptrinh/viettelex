@@ -5932,24 +5932,30 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private(set) var buddy: BuddyView?
     /// Ô nhân vật sát MÉP PHẢI (thanh gợi ý co lại đúng bấy nhiêu, 📋 / 😊 dời trái) — không đè chip gợi ý.
     static let buddyZoneWidth: CGFloat = 34
-    private var buddyZone: CGFloat { buddy == nil ? 0 : Self.buddyZoneWidth }
+    private var buddyZone: CGFloat { buddy == nil ? 0 : CGFloat(buddyPlacement.zoneWidth(Double(Self.buddyZoneWidth))) }
+    /// "Vị trí & cỡ" (BuddyPlacement, chung mọi nhân vật) — đọc lúc hiện bàn phím.
+    private var buddyPlacement = BuddyPlacement.standard
 
     /// Phần nhân vật tràn xuống hàng phím đầu (theo tỉ lệ strip) — chỉ là hình, không nhận chạm
     /// (BuddyView.isUserInteractionEnabled = false) nên phím bên dưới vẫn bấm bình thường.
     static let buddyOverlapRatio: CGFloat = 0.65
 
     /// Ô chừa cho nhân vật trong thanh gợi ý (chip gợi ý / 📋 / 😊 dời trái đúng bấy nhiêu) — sát mép phải.
-    static func buddyZoneFrame(width: CGFloat, strip: CGFloat) -> CGRect {
-        CGRect(x: width - buddyZoneWidth, y: 0, width: buddyZoneWidth, height: strip)
+    static func buddyZoneFrame(width: CGFloat, strip: CGFloat, placement: BuddyPlacement = .standard) -> CGRect {
+        let w = CGFloat(placement.zoneWidth(Double(buddyZoneWidth)))
+        return CGRect(x: width - w, y: 0, width: w, height: strip)
     }
 
     /// Khung VẼ nhân vật — THUẦN để test: cao strip + phần tràn xuống phím, rộng vuông (dáng ngủ nằm ngang không
     /// bị cắt), canh giữa ô chừa nhưng không vượt mép phải; được đè lên 📋 / phím (lớp trên cùng, không nhận chạm).
-    static func buddyFrame(width: CGFloat, strip: CGFloat) -> CGRect {
+    /// Cỡ / lề (BuddyPlacement): neo đáy-phải khung cỡ gốc; to hơn thì lớn dần xuống phím (trần bàn phím không vẽ được).
+    static func buddyFrame(width: CGFloat, strip: CGFloat, placement: BuddyPlacement = .standard) -> CGRect {
         let zone = buddyZoneFrame(width: width, strip: strip)
         let h = (strip * (1 + buddyOverlapRatio)).rounded()
         let w = max(zone.width, h)
-        return CGRect(x: min(zone.midX - w / 2, width - w), y: 0, width: w, height: h)
+        let base = BuddyRect(x: Double(min(zone.midX - w / 2, width - w)), y: 0, w: Double(w), h: Double(h))
+        let f = placement.frame(standard: base, minWidth: Double(zone.width))
+        return CGRect(x: f.x, y: f.y, width: f.w, height: f.h)
     }
 
     /// Lúc hiện / đổi cài đặt: gắn hoặc gỡ nhân vật (cài đặt + Plus), nguồn điện thấp ⇒ chỉ dáng tĩnh.
@@ -5964,6 +5970,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let today = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: Date())
         let season = BuddySeason.resolve(themeID: themeSettings.effectiveTheme.rawValue,
                                          year: today.year ?? 0, month: today.month ?? 0, day: today.day ?? 0)
+        // Vị trí & cỡ: chỉ đổi khung (layout kế), không dựng lại view.
+        let placement = BuddyPlacement.load(UserDefaultsProvider.shared)
+        if placement != buddyPlacement { buddyPlacement = placement; setNeedsLayout() }
         // Kiểu vẽ riêng nhân vật (Hoạt hình mặc định / Vẽ nét) — đổi ⇒ dựng view mới, chỉ nạp tài nguyên kiểu đó.
         let style = BuddyStyle.load(UserDefaultsProvider.shared, c)
         if let b = buddy, b.character == c, b.season == season, b.artStyle == style {
@@ -5986,7 +5995,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Strip thật (rowsContainer bắt đầu ngay dưới); ô nhân vật tràn xuống hàng phím đầu (không nhận chạm).
         let strip = min(max(rowsTopConstraint?.constant ?? openStripNow, openStripNow),
                         rowsContainer.frame.height > 0 ? rowsContainer.frame.minY : .greatestFiniteMagnitude)
-        let f = Self.buddyFrame(width: bounds.width, strip: strip)
+        let f = Self.buddyFrame(width: bounds.width, strip: strip, placement: buddyPlacement)
         if b.frame != f { b.frame = f }
         b.layer.zPosition = 1000   // trên cùng: không bị phím / popup / hiệu ứng đè hay chèn
         bringSubviewToFront(b)

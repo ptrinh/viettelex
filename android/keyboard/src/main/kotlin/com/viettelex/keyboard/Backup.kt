@@ -98,6 +98,10 @@ object BackupSettings {
         Spec(BuddyStyle.key(BuddyCharacter.BOY), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
         Spec(BuddyStyle.key(BuddyCharacter.CAT), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
         Spec(BuddyStyle.key(BuddyCharacter.CHICK), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
+        // Vị trí & cỡ ([BuddyPlacement], chung mọi nhân vật) — cùng khoá + miền iOS.
+        Spec(Keys.BUDDY_SIZE, SettingKind.IntRange(BuddyPlacement.DEFAULT_SIZE, BuddyPlacement.SIZE_RANGE)),
+        Spec(Keys.BUDDY_PAD_RIGHT, SettingKind.IntRange(0, BuddyPlacement.PAD_RANGE)),
+        Spec(Keys.BUDDY_PAD_TOP, SettingKind.IntRange(0, BuddyPlacement.PAD_RANGE)),
         // "Hiệu ứng nét vuốt" ([SwipeTrailStyle]) — cùng khoá + id iOS; lạ ⇒ bỏ qua (máy giữ Đơn giản).
         Spec(Keys.SWIPE_TRAIL, SettingKind.Choice(SwipeTrailStyle.DEFAULT.id, SwipeTrailStyle.IDS)),
         // "Tuỳ chỉnh nâng cao" (Plus) RIÊNG từng theme — MỘT chuỗi JSON chuẩn ([KeyStyleStore]), cùng khoá +

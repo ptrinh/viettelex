@@ -187,6 +187,12 @@ object L10nTable {
         put("Kiểu vẽ", "Art style")
         put("Hoạt hình", "Cartoon")
         put("Vẽ nét", "Vector")
+        put("Vị trí & cỡ", "Position & size")
+        put("Cỡ", "Size")
+        put("Lề phải", "Right padding")
+        put("Lề trên", "Top padding")
+        put("Chung cho mọi nhân vật. Lề phải dương: dời sang trái; lề trên dương: dời xuống. Bàn phím áp dụng lần hiện kế.",
+            "Shared by all characters. Positive right padding moves it left; positive top padding moves it down. The keyboard applies it the next time it appears.")
         put("Hoạt hình: hình vẽ sẵn, giữ nguyên quanh năm. Vẽ nét: mặc trang phục mùa lễ (Tết, Trung Thu, Halloween, Giáng sinh) và có thêm điệu nhảy.",
             "Cartoon: hand-drawn frames, the same all year. Vector: wears holiday outfits (Tết, Mid-Autumn, Halloween, Christmas) and has extra dance moves.")
         put("Nhân vật nhỏ ở góc phải thanh gợi ý: gõ thì nhảy — gõ càng nhanh nhảy càng sung — ngừng gõ thì cuộn tròn ngủ. Chỉ chuyển động khi đang gõ; Trình tiết kiệm pin chỉ hiện dáng đứng yên.",

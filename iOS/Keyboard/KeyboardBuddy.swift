@@ -67,6 +67,46 @@ enum BuddyStyle: String, CaseIterable {
     func season(_ s: BuddySeason?) -> BuddySeason? { self == .vector ? s : nil }
 }
 
+/// "Vị trí & cỡ" (Phil 26/10/2026) — CHUNG mọi nhân vật, cùng khoá + miền Android: cỡ 1…10 (5 = cỡ gốc, mỗi nấc
+/// ±8 %), lề phải / lề trên −10…+10 pt. Đọc lúc hiện bàn phím, khung tính một lần lúc layout (0 việc mỗi phím).
+struct BuddyPlacement: Equatable {
+    static let sizeKey = "buddySize", padRightKey = "buddyPadRight", padTopKey = "buddyPadTop"
+    static let sizeRange = 1...10, padRange = -10...10
+    static let defaultSize = 5
+    static let standard = BuddyPlacement()
+
+    var size = defaultSize
+    /// Dương = cách mép phải thêm (dời trái); âm = dời phải (có thể bị cắt ở mép).
+    var padRight = 0
+    /// Dương = dời xuống; âm = dời lên.
+    var padTop = 0
+
+    /// Hệ số cỡ: 1 → 0,68×, 5 → 1×, 10 → 1,40×.
+    var scale: Double { 1 + Double(size - Self.defaultSize) * 0.08 }
+
+    static func load(_ d: UserDefaults?) -> BuddyPlacement {
+        func int(_ k: String, _ def: Int, _ r: ClosedRange<Int>) -> Int {
+            guard let v = d?.object(forKey: k) as? Int else { return def }
+            return min(max(v, r.lowerBound), r.upperBound)
+        }
+        return BuddyPlacement(size: int(sizeKey, defaultSize, sizeRange), padRight: int(padRightKey, 0, padRange),
+                              padTop: int(padTopKey, 0, padRange))
+    }
+
+    /// Ô chừa trên thanh gợi ý (chip / 📋 / 😊 dời trái) theo cỡ + lề phải dương. `base` = ô cỡ gốc.
+    func zoneWidth(_ base: Double) -> Double { (base * scale).rounded() + Double(max(0, padRight)) }
+
+    /// Khung vẽ từ khung cỡ gốc `f`: neo ĐÁY-PHẢI như cũ, cao × `scale`, rộng ≥ `minWidth`; to hơn mà đỉnh vượt
+    /// đỉnh khung gốc (trần bàn phím — không vẽ được) ⇒ lớn dần xuống phím. Lề × `unit` (iOS pt = 1, Android px/dp).
+    func frame(standard f: BuddyRect, minWidth: Double, unit: Double = 1) -> BuddyRect {
+        let h = (f.h * scale).rounded()
+        let w = max(minWidth, h)
+        let right = f.x + f.w - Double(padRight) * unit
+        let top = max(f.y, f.maxY - h) + Double(padTop) * unit
+        return BuddyRect(x: right - w, y: top, w: w, h: h)
+    }
+}
+
 /// Cổng Plus: đi cùng quyền giao diện cao cấp (như hiệu ứng khi bấm phím).
 enum BuddyGate {
     static var allows: Bool { PlusGate.isUnlocked(.premiumThemes) }

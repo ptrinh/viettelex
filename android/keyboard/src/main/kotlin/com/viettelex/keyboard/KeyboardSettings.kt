@@ -100,6 +100,8 @@ data class KeyboardSettings(
     var buddy: BuddyCharacter = BuddyCharacter.DEFAULT,
     /** Kiểu vẽ của [buddy] (cài đặt riêng từng nhân vật, [BuddyStyle.key]) — mặc định Hoạt hình. */
     var buddyStyle: BuddyStyle = BuddyStyle.DEFAULT,
+    /** "Vị trí & cỡ" nhân vật (chung mọi nhân vật) — mặc định cỡ 5, lề 0. */
+    var buddyPlacement: BuddyPlacement = BuddyPlacement.STANDARD,
     /** "Hiệu ứng nét vuốt" — mặc định Đơn giản; Tắt ⇒ IME không gắn vệt vuốt. */
     var swipeTrail: SwipeTrailStyle = SwipeTrailStyle.DEFAULT,
     /** [ROW_HEIGHT_MIN]…[ROW_HEIGHT_MAX] dp mỗi hàng (IME kẹp thêm phần trên +10 theo cao màn hình — KeyLayout.effectiveRowAdjust). */
@@ -209,6 +211,7 @@ data class KeyboardSettings(
             s.keyEffect = KeyEffect.of(get(Keys.KEY_EFFECT))
             s.buddy = BuddyCharacter.of(get(Keys.KEYBOARD_BUDDY))
             s.buddyStyle = BuddyStyle.of(get(BuddyStyle.key(s.buddy)))
+            s.buddyPlacement = BuddyPlacement.of(get(Keys.BUDDY_SIZE), get(Keys.BUDDY_PAD_RIGHT), get(Keys.BUDDY_PAD_TOP))
             s.swipeTrail = SwipeTrailStyle.of(get(Keys.SWIPE_TRAIL))
             s.debugTouchLog = b(Keys.DEBUG_TOUCH_LOG, s.debugTouchLog)
             s.numberRow = b(Keys.NUMBER_ROW, s.numberRow)

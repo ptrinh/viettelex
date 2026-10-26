@@ -63,6 +63,47 @@ enum class BuddyStyle(val id: String, val viTitle: String) {
     }
 }
 
+/**
+ * "Vị trí & cỡ" (Phil 26/10/2026) = iOS BuddyPlacement — CHUNG mọi nhân vật: cỡ 1…10 (5 = cỡ gốc, mỗi nấc ±8 %),
+ * lề phải / lề trên −10…+10 dp. IME đọc lúc hiện, khung tính một lần lúc layout (0 việc mỗi phím).
+ */
+data class BuddyPlacement(
+    val size: Int = DEFAULT_SIZE,
+    /** Dương = cách mép phải thêm (dời trái); âm = dời phải (có thể bị cắt ở mép). */
+    val padRight: Int = 0,
+    /** Dương = dời xuống; âm = dời lên. */
+    val padTop: Int = 0,
+) {
+    /** Hệ số cỡ: 1 → 0,68×, 5 → 1×, 10 → 1,40×. */
+    val scale: Double get() = 1 + (size - DEFAULT_SIZE) * 0.08
+
+    /** Ô chừa trên strip (dp) theo cỡ + lề phải dương. [base] = ô cỡ gốc. */
+    fun zoneWidth(base: Double): Double = Math.round(base * scale).toDouble() + max(0, padRight)
+
+    /**
+     * Khung vẽ từ khung cỡ gốc [f]: neo ĐÁY-PHẢI như cũ, cao × [scale], rộng ≥ [minWidth]; to hơn mà đỉnh vượt đỉnh
+     * khung gốc (trần bàn phím) ⇒ lớn dần xuống phím. Lề × [unit] (Android px/dp, iOS pt = 1). = iOS frame(standard:).
+     */
+    fun frame(f: BuddyRect, minWidth: Double, unit: Double = 1.0): BuddyRect {
+        val h = Math.round(f.h * scale).toDouble()
+        val w = max(minWidth, h)
+        val right = f.x + f.w - padRight * unit
+        val top = max(f.y, f.maxY - h) + padTop * unit
+        return BuddyRect(right - w, top, w, h)
+    }
+
+    companion object {
+        const val DEFAULT_SIZE = 5
+        val SIZE_RANGE = 1..10
+        val PAD_RANGE = -10..10
+        val STANDARD = BuddyPlacement()
+        fun of(size: Any?, padRight: Any?, padTop: Any?): BuddyPlacement = BuddyPlacement(
+            ((size as? Number)?.toInt() ?: DEFAULT_SIZE).coerceIn(SIZE_RANGE),
+            ((padRight as? Number)?.toInt() ?: 0).coerceIn(PAD_RANGE),
+            ((padTop as? Number)?.toInt() ?: 0).coerceIn(PAD_RANGE))
+    }
+}
+
 /** Cổng Plus: đi cùng quyền giao diện cao cấp (như hiệu ứng khi bấm phím). */
 object BuddyGate {
     val allows: Boolean get() = PlusGate.isUnlocked(PlusFeature.PREMIUM_THEMES)

@@ -90,6 +90,39 @@ final class KeyboardBuddyTests: XCTestCase {
         sprite.halt(); vector.halt()
     }
 
+    /// Vị trí & cỡ: cỡ 5 = khung y như cũ; hệ số 0,68…1,40; neo đáy-phải; to hơn thì lớn xuống; lề dời đúng chiều.
+    func testPlacementMath() {
+        XCTAssertEqual(BuddyPlacement.standard.scale, 1, accuracy: 1e-9)
+        XCTAssertEqual(BuddyPlacement(size: 1).scale, 0.68, accuracy: 1e-9)
+        XCTAssertEqual(BuddyPlacement(size: 10).scale, 1.40, accuracy: 1e-9)
+        let base = BuddyRect(x: 324, y: 0, w: 66, h: 66)
+        XCTAssertEqual(BuddyPlacement.standard.frame(standard: base, minWidth: 34), base)
+        XCTAssertEqual(BuddyPlacement(size: 1).frame(standard: base, minWidth: 34), BuddyRect(x: 345, y: 21, w: 45, h: 45),
+                       "nhỏ: neo đáy-phải")
+        XCTAssertEqual(BuddyPlacement(size: 10).frame(standard: base, minWidth: 34), BuddyRect(x: 298, y: 0, w: 92, h: 92),
+                       "to: đỉnh giữ ở trần, lớn xuống phím")
+        XCTAssertEqual(BuddyPlacement(padRight: 10, padTop: -4).frame(standard: base, minWidth: 34),
+                       BuddyRect(x: 314, y: -4, w: 66, h: 66))
+        XCTAssertEqual(BuddyPlacement(padRight: -10).frame(standard: base, minWidth: 34).x, 334, "âm ⇒ dời phải")
+        XCTAssertEqual(BuddyPlacement(padTop: 3).frame(standard: base, minWidth: 34, unit: 2).y, 6, "Android: dp × mật độ")
+        XCTAssertEqual(BuddyPlacement.standard.zoneWidth(34), 34)
+        XCTAssertEqual(BuddyPlacement(size: 10).zoneWidth(34), 48)
+        XCTAssertEqual(BuddyPlacement(size: 1, padRight: 6).zoneWidth(34), 23 + 6)
+        XCTAssertEqual(BuddyPlacement(padRight: -6).zoneWidth(34), 34)
+        // Cỡ mặc định: khung bàn phím y như trước khi có cài đặt.
+        XCTAssertEqual(KeyboardView.buddyFrame(width: 390, strip: 40, placement: .standard),
+                       KeyboardView.buddyFrame(width: 390, strip: 40))
+        // Đọc App Group: thiếu ⇒ mặc định, ngoài miền ⇒ kẹp; có trong sao lưu.
+        let d = UserDefaults(suiteName: suite)!
+        defer { d.removePersistentDomain(forName: suite) }
+        XCTAssertEqual(BuddyPlacement.load(d), .standard)
+        d.set(42, forKey: BuddyPlacement.sizeKey); d.set(-30, forKey: BuddyPlacement.padRightKey); d.set(7, forKey: BuddyPlacement.padTopKey)
+        XCTAssertEqual(BuddyPlacement.load(d), BuddyPlacement(size: 10, padRight: -10, padTop: 7))
+        for k in [BuddyPlacement.sizeKey, BuddyPlacement.padRightKey, BuddyPlacement.padTopKey] {
+            XCTAssertNotNil(BackupSettings.all.first { $0.key == k }, "sao lưu \(k)")
+        }
+    }
+
     func testBackupSpecWhitelistsIds() {
         let spec = BackupSettings.all.first { $0.key == BuddyCharacter.key }
         XCTAssertNotNil(spec, "sao lưu cùng khoá với Android")

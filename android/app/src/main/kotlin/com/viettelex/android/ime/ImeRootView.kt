@@ -425,7 +425,11 @@ class ImeRootView(
             requestLayout()
         }
 
-    /** Khung ô nhân vật (px, gốc = khung bàn phím): sát mép phải, cao = strip + phần tràn xuống phím. */
+    /** "Vị trí & cỡ" ([BuddyPlacement], chung mọi nhân vật) — IME đặt lúc hiện; đổi ⇒ layout lại (không dựng view). */
+    var buddyPlacement = com.viettelex.keyboard.BuddyPlacement.STANDARD
+        set(v) { if (field != v) { field = v; requestLayout() } }
+
+    /** Khung ô nhân vật (px, gốc = khung bàn phím): sát mép phải, cao = strip + phần tràn xuống phím; cỡ / lề neo đáy-phải. */
     private fun layoutBuddy(px: Int, py: Int, pw: Int, s: Int) {
         val b = buddy ?: return
         val r = px + pw
@@ -433,8 +437,11 @@ class ImeRootView(
         val h = StripGeometry.buddyHeight(s)
         val w = StripGeometry.buddyDrawWidth(s, r - l)
         val bl = minOf((l + r - w) / 2, px + pw - w)
-        b.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
-        b.layout(bl, py, bl + w, py + h)
+        val f = buddyPlacement.frame(com.viettelex.keyboard.BuddyRect(bl, py, w, h), (r - l).toDouble(), theme.dp(1f).toDouble())
+        val fl = Math.round(f.x).toInt(); val ft = Math.round(f.y).toInt()
+        val fw = Math.round(f.w).toInt(); val fh = Math.round(f.h).toInt()
+        b.measure(MeasureSpec.makeMeasureSpec(fw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(fh, MeasureSpec.EXACTLY))
+        b.layout(fl, ft, fl + fw, ft + fh)
         b.shownInSlot = strip.buddySlotShown() && s > 0
     }
 

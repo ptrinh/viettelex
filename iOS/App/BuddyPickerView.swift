@@ -2,7 +2,8 @@
 // trên nền theme đang dùng. Mở trang: mọi nhân vật nhảy một tràng (như đang gõ) rồi ngủ; chạm ô là chọn +
 // xem lại. Ô Plus bị khoá: mờ + nhãn Plus, chạm mở VietTelex Plus. Lưu App Group `keyboardBuddy`
 // (BuddyCharacter.key) — bàn phím đọc lần hiện kế. Dưới lưới: "Kiểu vẽ" Hoạt hình | Vẽ nét của nhân vật đang
-// chọn (BuddyStyle, khoá `buddyStyle.<id>`); mỗi ô vẽ theo kiểu của nhân vật đó. Android: BuddyPage.kt.
+// chọn (BuddyStyle, khoá `buddyStyle.<id>`); mỗi ô vẽ theo kiểu của nhân vật đó. "Vị trí & cỡ" (BuddyPlacement:
+// cỡ 1…10, lề phải / lề trên −10…10 pt) chung mọi nhân vật. Android: BuddyPage.kt.
 import SwiftUI
 import UIKit
 
@@ -18,6 +19,10 @@ struct BuddyPickerView: View {
     @State private var styles: [BuddyCharacter: BuddyStyle] =
         Dictionary(uniqueKeysWithValues: BuddyCharacter.allCases.map { ($0, BuddyStyle.load(buddyDefaults, $0)) })
 
+    @AppStorage(BuddyPlacement.sizeKey, store: buddyDefaults) private var size = BuddyPlacement.defaultSize
+    @AppStorage(BuddyPlacement.padRightKey, store: buddyDefaults) private var padRight = 0
+    @AppStorage(BuddyPlacement.padTopKey, store: buddyDefaults) private var padTop = 0
+
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
     private var current: BuddyCharacter { BuddyCharacter.parse(raw) }
 
@@ -28,13 +33,19 @@ struct BuddyPickerView: View {
         let today = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: Date())
         let season = BuddySeason.resolve(themeID: theme.effectiveTheme.rawValue,
                                          year: today.year ?? 0, month: today.month ?? 0, day: today.day ?? 0)
+        // ĐỌC state ngay trong body: ô lưới (LazyVGrid) dựng lười, đọc ở đó thì SwiftUI không coi body phụ thuộc ⇒
+        // đổi kiểu vẽ (chỉ ghi styles / plays) không vẽ lại ô xem thử (Phil: chọn Vẽ nét mà preview không đổi).
+        let styles = self.styles, plays = self.plays
         List {
             if !BuddyGate.allows {
                 Section { PlusEntryRow() }
             }
             Section {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(BuddyCharacter.allCases, id: \.self) { tile($0, palette: palette, season: season) }
+                    ForEach(BuddyCharacter.allCases, id: \.self) {
+                        tile($0, palette: palette, season: season, style: styles[$0, default: .defaultValue],
+                             play: plays[$0, default: 0])
+                    }
                 }
                 .padding(.vertical, 6)
             } header: {
@@ -56,6 +67,25 @@ struct BuddyPickerView: View {
                 } footer: {
                     Text(L("Hoạt hình: hình vẽ sẵn, giữ nguyên quanh năm. Vẽ nét: mặc trang phục mùa lễ (Tết, Trung Thu, Halloween, Giáng sinh) và có thêm điệu nhảy."))
                 }
+                Section {
+                    Stepper(value: $size, in: BuddyPlacement.sizeRange) {
+                        valueRow(L("Cỡ"), "\(size)")
+                    }
+                    Stepper(value: $padRight, in: BuddyPlacement.padRange) {
+                        valueRow(L("Lề phải"), "\(padRight) pt")
+                    }
+                    Stepper(value: $padTop, in: BuddyPlacement.padRange) {
+                        valueRow(L("Lề trên"), "\(padTop) pt")
+                    }
+                    Button(L("Mặc định")) {
+                        size = BuddyPlacement.defaultSize; padRight = 0; padTop = 0
+                    }
+                    .disabled(size == BuddyPlacement.defaultSize && padRight == 0 && padTop == 0)
+                } header: {
+                    Text(L("Vị trí & cỡ"))
+                } footer: {
+                    Text(L("Chung cho mọi nhân vật. Lề phải dương: dời sang trái; lề trên dương: dời xuống. Bàn phím áp dụng lần hiện kế."))
+                }
             }
         }
         .bottomBarScrollMargin()
@@ -64,13 +94,21 @@ struct BuddyPickerView: View {
         .navigationDestination(isPresented: $showPlus) { PlusView(model: PlusShared.model) }
     }
 
-    private func tile(_ c: BuddyCharacter, palette: KeyboardPalette, season: BuddySeason?) -> some View {
+    private func valueRow(_ title: String, _ value: String) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value).monospacedDigit().foregroundStyle(.secondary)
+        }
+    }
+
+    private func tile(_ c: BuddyCharacter, palette: KeyboardPalette, season: BuddySeason?, style: BuddyStyle,
+                      play: Int) -> some View {
         let locked = !BuddyGate.allows(c)
         let selected = current == c
         return VStack(spacing: 6) {
             Button { tap(c, locked: locked) } label: {
-                BuddyPreview(character: c, style: styles[c, default: .defaultValue], season: season,
-                             palette: palette, play: plays[c, default: 0])
+                BuddyPreview(character: c, style: style, season: season, palette: palette, play: play)
                     .overlay(Color.clear.contentShape(Rectangle()))
                     .frame(height: 96)
                     .clipShape(RoundedRectangle(cornerRadius: 10))

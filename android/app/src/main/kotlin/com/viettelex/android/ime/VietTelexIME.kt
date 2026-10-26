@@ -381,7 +381,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
      * mỗi lần hiện. Tắt ⇒ gỡ view, strip không chừa ô (0 chi phí mỗi phím).
      */
     private fun applyBuddy(setting: com.viettelex.keyboard.BuddyCharacter, style: com.viettelex.keyboard.BuddyStyle,
-                           th: ImeTheme, st: StripView) {
+                           placement: com.viettelex.keyboard.BuddyPlacement, th: ImeTheme, st: StripView) {
         val r = root ?: return
         val c = com.viettelex.keyboard.BuddyPolicy.active(setting, com.viettelex.keyboard.BuddyGate.allows(setting))
         if (c == com.viettelex.keyboard.BuddyCharacter.OFF) {
@@ -401,7 +401,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             r.buddy = BuddyView(this, c, th.density, com.viettelex.keyboard.BuddyHalo.opaque(th.bg, th.dark), low, season,
                 artStyle = style)
         }
-        st.buddyDp = StripGeometry.BUDDY_W
+        r.buddyPlacement = placement
+        st.buddyDp = placement.zoneWidth(StripGeometry.BUDDY_W.toDouble()).toFloat()
         session.trackBoundaryWord = true
     }
 
@@ -542,7 +543,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         kb.keyPreview = settings.keyPreview
         kb.keyPressHighlight = settings.keyPressHighlight
         applyKeyEffect(settings.keyEffect, th, kb)
-        applyBuddy(settings.buddy, settings.buddyStyle, th, st)
+        applyBuddy(settings.buddy, settings.buddyStyle, settings.buddyPlacement, th, st)
         applySwipeTrail(settings.swipeTrail, th, kb)
         applyMole(th, kb)
         kb.configureSpaceFlick(settings.spaceSwipeLanguage, session.language)

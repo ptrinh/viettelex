@@ -72,6 +72,30 @@ class KeyboardBuddyTests {
         assertFalse(BuddyOutfit.make(BuddyStyle.VECTOR.season(BuddySeason.CHRISTMAS), BuddyCharacter.GIRL).pieces.isEmpty())
     }
 
+    /** = iOS testPlacementMath: cỡ 5 = khung cũ; hệ số 0,68…1,40; neo đáy-phải; to thì lớn xuống; lề dời đúng chiều. */
+    @Test fun placementMath() {
+        fun eq(e: BuddyRect, a: BuddyRect) { assertEquals(e.x, a.x, 1e-9); assertEquals(e.y, a.y, 1e-9); assertEquals(e.w, a.w, 1e-9); assertEquals(e.h, a.h, 1e-9) }
+        assertEquals(1.0, BuddyPlacement.STANDARD.scale, 1e-9)
+        assertEquals(0.68, BuddyPlacement(size = 1).scale, 1e-9)
+        assertEquals(1.40, BuddyPlacement(size = 10).scale, 1e-9)
+        val base = BuddyRect(324, 0, 66, 66)
+        eq(base, BuddyPlacement.STANDARD.frame(base, 34.0))
+        eq(BuddyRect(345, 21, 45, 45), BuddyPlacement(size = 1).frame(base, 34.0))
+        eq(BuddyRect(298, 0, 92, 92), BuddyPlacement(size = 10).frame(base, 34.0))
+        eq(BuddyRect(314, -4, 66, 66), BuddyPlacement(padRight = 10, padTop = -4).frame(base, 34.0))
+        assertEquals(334.0, BuddyPlacement(padRight = -10).frame(base, 34.0).x, 1e-9)
+        assertEquals(6.0, BuddyPlacement(padTop = 3).frame(base, 34.0, unit = 2.0).y, 1e-9)
+        assertEquals(34.0, BuddyPlacement.STANDARD.zoneWidth(34.0), 1e-9)
+        assertEquals(48.0, BuddyPlacement(size = 10).zoneWidth(34.0), 1e-9)
+        assertEquals(29.0, BuddyPlacement(size = 1, padRight = 6).zoneWidth(34.0), 1e-9)
+        assertEquals(34.0, BuddyPlacement(padRight = -6).zoneWidth(34.0), 1e-9)
+        assertEquals(BuddyPlacement.STANDARD, KeyboardSettings.load { null }.buddyPlacement)
+        val prefs = mapOf(Keys.BUDDY_SIZE to 42, Keys.BUDDY_PAD_RIGHT to -30, Keys.BUDDY_PAD_TOP to 7)
+        assertEquals(BuddyPlacement(10, -10, 7), KeyboardSettings.load { prefs[it] }.buddyPlacement)
+        assertEquals(listOf("buddySize", "buddyPadRight", "buddyPadTop"), listOf(Keys.BUDDY_SIZE, Keys.BUDDY_PAD_RIGHT, Keys.BUDDY_PAD_TOP))
+        for (k in prefs.keys) assertTrue("sao lưu $k", BackupSettings.all.any { it.key == k })
+    }
+
     @Test fun plusFallback() {
         assertEquals(BuddyCharacter.OFF, BuddyPolicy.active(BuddyCharacter.CAT, plus = false))
         assertEquals(BuddyCharacter.CAT, BuddyPolicy.active(BuddyCharacter.CAT, plus = true))

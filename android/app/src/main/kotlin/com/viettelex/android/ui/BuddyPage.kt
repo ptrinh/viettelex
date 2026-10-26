@@ -34,6 +34,7 @@ import com.viettelex.android.ime.BuddyView
 import com.viettelex.keyboard.BuddyCharacter
 import com.viettelex.keyboard.BuddyFraming
 import com.viettelex.keyboard.BuddyGate
+import com.viettelex.keyboard.BuddyPlacement
 import com.viettelex.keyboard.BuddySeason
 import com.viettelex.keyboard.BuddyStyle
 import com.viettelex.keyboard.Keys
@@ -45,7 +46,7 @@ import com.viettelex.keyboard.tr
  * trên nền theme. Mở trang: mọi nhân vật nhảy một tràng như đang gõ rồi ngủ; chạm ô là chọn + diễn lại. Ô Plus bị
  * khoá: mờ + nhãn Plus, chạm mở VietTelex Plus. Lưu [Keys.KEYBOARD_BUDDY] — IME đọc lần hiện kế. Dưới lưới: "Kiểu vẽ"
  * Hoạt hình | Vẽ nét của nhân vật đang chọn ([BuddyStyle], khoá `buddyStyle.<id>`); mỗi ô vẽ theo kiểu của nhân vật đó.
- * iOS: BuddyPickerView.
+ * "Vị trí & cỡ" ([BuddyPlacement]: cỡ 1…10, lề phải / lề trên −10…10 dp) chung mọi nhân vật. iOS: BuddyPickerView.
  */
 @Composable
 internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () -> Unit, onBack: () -> Unit) {
@@ -54,6 +55,18 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
     var raw by rememberStringPref(Keys.KEYBOARD_BUDDY, BuddyCharacter.DEFAULT.id)
     val current = BuddyCharacter.of(raw)
     val plays = remember { mutableStateMapOf<BuddyCharacter, Int>() }
+    // Kiểu vẽ từng nhân vật: MỘT bảng state (đọc prefs một lần) — ô xem thử và nút chọn cùng nguồn, đổi là vẽ lại
+    // ngay (không dựa vào listener prefs giữa nhiều state rời).
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val styles = remember {
+        val sp = Prefs.of(ctx)
+        mutableStateMapOf<BuddyCharacter, BuddyStyle>().apply {
+            BuddyCharacter.entries.forEach { put(it, BuddyStyle.of(sp.getString(BuddyStyle.key(it), null))) }
+        }
+    }
+    var size by rememberIntPref(Keys.BUDDY_SIZE, BuddyPlacement.DEFAULT_SIZE)
+    var padRight by rememberIntPref(Keys.BUDDY_PAD_RIGHT, 0)
+    var padTop by rememberIntPref(Keys.BUDDY_PAD_TOP, 0)
     // Vẽ nét xem thử mặc trang phục mùa lễ như trên bàn phím (theme lễ / ngày).
     val season = remember(themeId) {
         val cal = java.util.Calendar.getInstance()
@@ -74,8 +87,7 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
                 row.forEach { ch ->
                     val locked = !BuddyGate.allows(ch)
                     val selected = current == ch
-                    val style = if (ch == BuddyCharacter.OFF) BuddyStyle.DEFAULT
-                        else BuddyStyle.of(rememberStringPref(BuddyStyle.key(ch), BuddyStyle.DEFAULT.id).value)
+                    val style = styles[ch] ?: BuddyStyle.DEFAULT
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Box(Modifier.fillMaxWidth().height(96.dp).clip(RoundedCornerShape(10.dp))
                             .border(if (selected) 3.dp else 1.dp, if (selected) c.accent else c.separator, RoundedCornerShape(10.dp))
@@ -103,8 +115,7 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
         }
     }
     if (current != BuddyCharacter.OFF && BuddyGate.allows(current)) {
-        var styleRaw by rememberStringPref(BuddyStyle.key(current), BuddyStyle.DEFAULT.id)
-        val style = BuddyStyle.of(styleRaw)
+        val style = styles[current] ?: BuddyStyle.DEFAULT
         VTSection(header = tr("Kiểu vẽ") + " · " + current.title,
             footer = tr("Hoạt hình: hình vẽ sẵn, giữ nguyên quanh năm. Vẽ nét: mặc trang phục mùa lễ (Tết, Trung Thu, Halloween, Giáng sinh) và có thêm điệu nhảy.")) {
             VTRow {
@@ -115,7 +126,13 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
                         Box(
                             Modifier.weight(1f).clip(RoundedCornerShape(7.dp))
                                 .background(if (sel) c.card else Color.Transparent)
-                                .clickable { if (!sel) { styleRaw = s.id; plays[current] = (plays[current] ?: 0) + 1 } }
+                                .clickable {
+                                    if (!sel) {
+                                        styles[current] = s
+                                        Prefs.of(ctx).edit().putString(BuddyStyle.key(current), s.id).apply()
+                                        plays[current] = (plays[current] ?: 0) + 1
+                                    }
+                                }
                                 .padding(vertical = 6.dp),
                             contentAlignment = Alignment.Center,
                         ) { Text(s.title, style = VTType.subheadline, color = c.label) }
@@ -123,6 +140,30 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
                 }
             }
         }
+        VTSection(header = tr("Vị trí & cỡ"),
+            footer = tr("Chung cho mọi nhân vật. Lề phải dương: dời sang trái; lề trên dương: dời xuống. Bàn phím áp dụng lần hiện kế.")) {
+            PlacementRow(tr("Cỡ"), "$size", size, BuddyPlacement.SIZE_RANGE) { size = it }
+            RowDivider()
+            PlacementRow(tr("Lề phải"), "$padRight dp", padRight, BuddyPlacement.PAD_RANGE) { padRight = it }
+            RowDivider()
+            PlacementRow(tr("Lề trên"), "$padTop dp", padTop, BuddyPlacement.PAD_RANGE) { padTop = it }
+            RowDivider()
+            val standard = size == BuddyPlacement.DEFAULT_SIZE && padRight == 0 && padTop == 0
+            VTRow(onClick = if (standard) null else ({ size = BuddyPlacement.DEFAULT_SIZE; padRight = 0; padTop = 0 })) {
+                Text(tr("Mặc định"), style = VTType.body, color = if (standard) c.tertiary else c.accent)
+            }
+        }
+    }
+}
+
+/** Một dòng "Vị trí & cỡ": tên · giá trị · stepper − | +. */
+@Composable
+private fun PlacementRow(title: String, value: String, v: Int, range: IntRange, onChange: (Int) -> Unit) {
+    val c = LocalVT.current
+    VTRow {
+        Text(title, style = VTType.body, color = c.label, modifier = Modifier.weight(1f))
+        Text(value, style = VTType.body, color = c.secondary, modifier = Modifier.padding(end = 12.dp))
+        IosStepper(v, range) { onChange(it) }
     }
 }
 

@@ -101,6 +101,10 @@ enum BackupSettings {
         Spec(key: BuddyStyle.key(.boy), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
         Spec(key: BuddyStyle.key(.cat), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
         Spec(key: BuddyStyle.key(.chick), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
+        // Vị trí & cỡ (BuddyPlacement, chung mọi nhân vật) — cùng khoá + miền Android.
+        Spec(key: BuddyPlacement.sizeKey, kind: .int(BuddyPlacement.defaultSize, BuddyPlacement.sizeRange)),
+        Spec(key: BuddyPlacement.padRightKey, kind: .int(0, BuddyPlacement.padRange)),
+        Spec(key: BuddyPlacement.padTopKey, kind: .int(0, BuddyPlacement.padRange)),
         // "Hiệu ứng nét vuốt" (SwipeTrailStyle) — cùng khoá + id Android; lạ ⇒ bỏ qua (máy giữ Đơn giản).
         Spec(key: SwipeTrailStyle.key, kind: .string(SwipeTrailStyle.defaultValue.rawValue, SwipeTrailStyle.allCases.map(\.rawValue))),
         // "Tuỳ chỉnh nâng cao" (Plus) RIÊNG từng theme — MỘT chuỗi JSON chuẩn (KeyStyleStore), cùng
