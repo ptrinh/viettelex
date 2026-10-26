@@ -300,7 +300,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     }
 
     if (pickingBuddy) {
-        BuddyPage(s.styledCurrent(s.basePalette(dark) ?: previewPalette(KeyboardTheme.SYSTEM, dark), dark),
+        BuddyPage(s.styledCurrent(s.basePalette(dark) ?: previewPalette(KeyboardTheme.SYSTEM, dark), dark), s.effectiveTheme.id,
             onOpenPlus = onOpenPlus, onBack = { pickingBuddy = false })
         return
     }

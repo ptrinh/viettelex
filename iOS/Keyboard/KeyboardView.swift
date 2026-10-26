@@ -5964,13 +5964,15 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let today = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: Date())
         let season = BuddySeason.resolve(themeID: themeSettings.effectiveTheme.rawValue,
                                          year: today.year ?? 0, month: today.month ?? 0, day: today.day ?? 0)
-        if let b = buddy, b.character == c, b.season == season {
+        // Kiểu vẽ riêng nhân vật (Hoạt hình mặc định / Vẽ nét) — đổi ⇒ dựng view mới, chỉ nạp tài nguyên kiểu đó.
+        let style = BuddyStyle.load(UserDefaultsProvider.shared, c)
+        if let b = buddy, b.character == c, b.season == season, b.artStyle == style {
             b.lowPower = low
             b.setBar(palette.buddyBar)
             return
         }
         buddy?.halt(); buddy?.removeFromSuperview()
-        let b = BuddyView(character: c, bar: palette.buddyBar, lowPower: low, season: season)
+        let b = BuddyView(character: c, bar: palette.buddyBar, lowPower: low, season: season, artStyle: style)
         addSubview(b)
         buddy = b
         setNeedsLayout()

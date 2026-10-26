@@ -1,7 +1,8 @@
 // "Bạn đồng hành" (Plus): lưới chọn Tắt / Cô gái / Chàng trai / Mèo / Gà con — mỗi ô là BuddyView thật
 // trên nền theme đang dùng. Mở trang: mọi nhân vật nhảy một tràng (như đang gõ) rồi ngủ; chạm ô là chọn +
 // xem lại. Ô Plus bị khoá: mờ + nhãn Plus, chạm mở VietTelex Plus. Lưu App Group `keyboardBuddy`
-// (BuddyCharacter.key) — bàn phím đọc lần hiện kế. Android: BuddyPage.kt.
+// (BuddyCharacter.key) — bàn phím đọc lần hiện kế. Dưới lưới: "Kiểu vẽ" Hoạt hình | Vẽ nét của nhân vật đang
+// chọn (BuddyStyle, khoá `buddyStyle.<id>`); mỗi ô vẽ theo kiểu của nhân vật đó. Android: BuddyPage.kt.
 import SwiftUI
 import UIKit
 
@@ -13,25 +14,48 @@ struct BuddyPickerView: View {
     @State private var showPlus = false
     /// Số lần chạm từng ô — đổi ⇒ ô diễn lại.
     @State private var plays: [BuddyCharacter: Int] = [:]
+    /// Kiểu vẽ từng nhân vật (BuddyStyle.key) — đọc một lần lúc mở trang, ghi thẳng App Group khi đổi.
+    @State private var styles: [BuddyCharacter: BuddyStyle] =
+        Dictionary(uniqueKeysWithValues: BuddyCharacter.allCases.map { ($0, BuddyStyle.load(buddyDefaults, $0)) })
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
     private var current: BuddyCharacter { BuddyCharacter.parse(raw) }
 
     var body: some View {
-        let palette = ThemeSettings.load(buddyDefaults).palette(systemDark: scheme == .dark, wallpaperActive: false)
+        let theme = ThemeSettings.load(buddyDefaults)
+        let palette = theme.palette(systemDark: scheme == .dark, wallpaperActive: false)
+        // Vẽ nét xem thử mặc trang phục mùa lễ như trên bàn phím (theme lễ / ngày).
+        let today = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: Date())
+        let season = BuddySeason.resolve(themeID: theme.effectiveTheme.rawValue,
+                                         year: today.year ?? 0, month: today.month ?? 0, day: today.day ?? 0)
         List {
             if !BuddyGate.allows {
                 Section { PlusEntryRow() }
             }
             Section {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(BuddyCharacter.allCases, id: \.self) { tile($0, palette: palette) }
+                    ForEach(BuddyCharacter.allCases, id: \.self) { tile($0, palette: palette, season: season) }
                 }
                 .padding(.vertical, 6)
             } header: {
                 Text(L("Chạm một ô để chọn và xem thử."))
             } footer: {
                 Text(L("Nhân vật nhỏ ở góc phải thanh gợi ý: gõ thì nhảy — gõ càng nhanh nhảy càng sung — ngừng gõ thì cuộn tròn ngủ. Chỉ chuyển động khi đang gõ; Chế độ nguồn điện thấp chỉ hiện dáng đứng yên."))
+            }
+            if current != .off && BuddyGate.allows(current) {
+                Section {
+                    Picker(L("Kiểu vẽ"), selection: Binding(
+                        get: { styles[current, default: .defaultValue] },
+                        set: { setStyle($0, for: current) })) {
+                        ForEach(BuddyStyle.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                } header: {
+                    Text(L("Kiểu vẽ") + " · " + current.title)
+                } footer: {
+                    Text(L("Hoạt hình: hình vẽ sẵn, giữ nguyên quanh năm. Vẽ nét: mặc trang phục mùa lễ (Tết, Trung Thu, Halloween, Giáng sinh) và có thêm điệu nhảy."))
+                }
             }
         }
         .bottomBarScrollMargin()
@@ -40,12 +64,13 @@ struct BuddyPickerView: View {
         .navigationDestination(isPresented: $showPlus) { PlusView(model: PlusShared.model) }
     }
 
-    private func tile(_ c: BuddyCharacter, palette: KeyboardPalette) -> some View {
+    private func tile(_ c: BuddyCharacter, palette: KeyboardPalette, season: BuddySeason?) -> some View {
         let locked = !BuddyGate.allows(c)
         let selected = current == c
         return VStack(spacing: 6) {
             Button { tap(c, locked: locked) } label: {
-                BuddyPreview(character: c, palette: palette, play: plays[c, default: 0])
+                BuddyPreview(character: c, style: styles[c, default: .defaultValue], season: season,
+                             palette: palette, play: plays[c, default: 0])
                     .overlay(Color.clear.contentShape(Rectangle()))
                     .frame(height: 96)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -76,6 +101,13 @@ struct BuddyPickerView: View {
         plays[c, default: 0] += 1
     }
 
+    /// Đổi kiểu vẽ: ghi App Group (bàn phím đọc lần hiện kế) + ô diễn lại theo kiểu mới.
+    private func setStyle(_ s: BuddyStyle, for c: BuddyCharacter) {
+        styles[c] = s
+        buddyDefaults?.set(s.rawValue, forKey: BuddyStyle.key(c))
+        plays[c, default: 0] += 1
+    }
+
     private var plusBadge: some View {
         Text("Plus").font(.caption2.weight(.bold))
             .padding(.horizontal, 5).padding(.vertical, 1)
@@ -87,12 +119,14 @@ struct BuddyPickerView: View {
 /// Ô xem thử: nền theme + BuddyView thật (cả người, to hơn trên bàn phím).
 struct BuddyPreview: UIViewRepresentable {
     let character: BuddyCharacter
+    let style: BuddyStyle
+    let season: BuddySeason?
     let palette: KeyboardPalette
     let play: Int
 
     func makeUIView(context: Context) -> BuddyPreviewView { BuddyPreviewView() }
     func updateUIView(_ v: BuddyPreviewView, context: Context) {
-        v.update(character: character, palette: palette, play: play)
+        v.update(character: character, style: style, season: season, palette: palette, play: play)
     }
 }
 
@@ -114,15 +148,16 @@ final class BuddyPreviewView: UIView {
     required init?(coder: NSCoder) { fatalError() }
     deinit { demo?.invalidate() }
 
-    func update(character: BuddyCharacter, palette: KeyboardPalette, play: Int) {
+    func update(character: BuddyCharacter, style: BuddyStyle, season: BuddySeason?, palette: KeyboardPalette, play: Int) {
         backgroundColor = palette.background?.ui ?? (palette.isDark ? UIColor(white: 0.16, alpha: 1)
                                                                     : UIColor(red: 0.82, green: 0.84, blue: 0.87, alpha: 1))
         off.textColor = palette.barInk.ui.withAlphaComponent(0.5)
         off.isHidden = character != .off
         if character == .off { buddy?.removeFromSuperview(); buddy = nil; return }
-        if buddy?.character != character {
-            buddy?.removeFromSuperview()
-            let b = BuddyView(character: character, bar: palette.buddyBar, lowPower: false, framing: .full)
+        if buddy?.character != character || buddy?.artStyle != style || buddy?.season != season {
+            buddy?.halt(); buddy?.removeFromSuperview()
+            let b = BuddyView(character: character, bar: palette.buddyBar, lowPower: false, framing: .full,
+                              season: season, artStyle: style)
             b.maxFigureHeight = 88
             addSubview(b)
             buddy = b
@@ -132,7 +167,7 @@ final class BuddyPreviewView: UIView {
         if play != lastPlay { lastPlay = play; startDemo() }
     }
 
-    /// Một tràng "gõ" ~2,6 s nhanh dần (lên tới bậc cao nhất) rồi thôi ⇒ đứng, sau 3 s ngủ.
+    /// Một tràng "gõ" ~2,6 s nhanh dần (lên tới bậc cao nhất) rồi thôi ⇒ lắc nhẹ ~8 s rồi ngủ.
     private func startDemo() {
         demo?.invalidate()
         var n = 0

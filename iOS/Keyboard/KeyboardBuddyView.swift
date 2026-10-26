@@ -14,8 +14,10 @@ final class BuddyView: UIView {
     let character: BuddyCharacter
     let rig: BuddyRig
     let framing: BuddyFraming
-    /// Mùa lễ (trang phục) — giải một lần lúc hiện bàn phím; đổi mùa ⇒ dựng view mới.
+    /// Mùa lễ (trang phục + đạo cụ lễ theo từ) — giải một lần lúc hiện bàn phím; đổi mùa ⇒ dựng view mới.
     let season: BuddySeason?
+    /// Kiểu vẽ (BuddyStyle, cài đặt riêng từng nhân vật): Hoạt hình ⇒ ảnh atlas, không trang phục; Vẽ nét ⇒ khung vector.
+    let artStyle: BuddyStyle
     /// Chế độ nguồn điện thấp: chỉ dáng tĩnh.
     var lowPower: Bool { didSet { if lowPower != oldValue { forceApply() } } }
     /// Chiều cao nhân vật tối đa (pt) — thanh gợi ý: cao trọn ô (chạm trần strip, tràn xuống hàng phím).
@@ -74,12 +76,13 @@ final class BuddyView: UIView {
 
     private var scale: CGFloat = 1
     private var builtFor: CGSize = .zero
-    private var loopEpoch = 0.0, loopLen = 1.0, cheerStart = 0.0
+    private var loopEpoch = 0.0, loopLen = 1.0, cheerStart = 0.0, idleStart = 0.0
     private var danceSeed = Int.random(in: 0...1_000_000)
     private var danceLoopBase = 0
     private var danceMove = BuddyDance.Move.bounce
     private var loopCache: [Int: [(CALayer, CAAnimation)]] = [:]
     private var cheerAnims: [(CALayer, CAAnimation)]?
+    private var idleAnims: [(CALayer, CAAnimation)]?
     private var timer: Timer?
     private var applyQueued = false
 
@@ -99,20 +102,22 @@ final class BuddyView: UIView {
     private var badge: CAShapeLayer?
     private var badgeText: CATextLayer?
 
-    init(character: BuddyCharacter, bar: UInt32, lowPower: Bool, framing: BuddyFraming = .bar, season: BuddySeason? = nil) {
+    init(character: BuddyCharacter, bar: UInt32, lowPower: Bool, framing: BuddyFraming = .bar, season: BuddySeason? = nil,
+         artStyle: BuddyStyle = .defaultValue) {
         self.character = character
         self.rig = BuddyRig.rig(character) ?? BuddyRig.cat
         self.framing = framing
         self.season = season
-        self.outfit = BuddyOutfit.make(season, character)
+        self.artStyle = artStyle
+        self.outfit = BuddyOutfit.make(artStyle.season(season), character)
         self.tones = BuddyHalo.colors(bar: bar)
         self.lowPower = lowPower
         super.init(frame: .zero)
         isUserInteractionEnabled = false
         isAccessibilityElement = false
         clipsToBounds = true          // không vẽ ra ngoài ô (ô đã gồm phần tràn xuống hàng phím đầu)
-        // Seasonal costumes still use the existing vector rig until matching seasonal art is available.
-        if season == nil, let atlas = Self.atlas(character) {
+        // Hoạt hình: chỉ nạp ảnh atlas (không dựng cây vector); thiếu ảnh ⇒ lùi về vector. Vẽ nét: không nạp ảnh.
+        if artStyle == .sprite, let atlas = Self.atlas(character) {
             spriteAtlas = atlas
             sprite.contents = atlas
             sprite.contentsRect = spriteRect(BuddySprites.sleep(character))
@@ -344,6 +349,13 @@ final class BuddyView: UIView {
                 l.add(a, forKey: "loop")
             }
             addBlend(from: old ?? .rest, to: BuddyDance.pose(rig.style, tier: t, p: p, move: danceMove))
+        case .idle:
+            stopZzz()
+            showSleep(false); showEyes(dance: false)
+            removeRigAnimations()
+            idleStart = now
+            for (l, a) in idleLoop() { l.add(a, forKey: "loop") }
+            addBlend(from: old ?? .rest, to: BuddyDance.idle(rig.style, p: 0))
         case .cheering:
             stopZzz()
             showSleep(false); showEyes(dance: true)
@@ -376,6 +388,8 @@ final class BuddyView: UIView {
             frames = BuddySprites.dance(character, tier)
             duration = BuddySprites.duration(character, tier)
             repeats = true
+        case .idle:
+            frames = BuddySprites.idle; duration = BuddySprites.idleDuration; repeats = true
         case .cheering:
             frames = BuddySprites.cheer; duration = BuddyBrain.cheer
         case .react(let reaction):
@@ -410,6 +424,7 @@ final class BuddyView: UIView {
         case .asleep: return nil
         case .awake: return .rest
         case .dancing(let t): return BuddyDance.pose(rig.style, tier: t, p: loopPhase(now), move: danceMove)
+        case .idle: return BuddyDance.idle(rig.style, p: (now - idleStart) / BuddyDance.idleLoop)
         case .cheering: return BuddyDance.cheer(rig.style, f: (now - cheerStart) / BuddyBrain.cheer)
         case .react(let r):
             let len = Self.reactLength(r)
@@ -486,6 +501,14 @@ final class BuddyView: UIView {
             BuddyDance.pose(rig.style, tier: t, p: $0, move: move)
         }
         loopCache[key] = out
+        return out
+    }
+
+    /// Vòng lắc nhẹ (`.idle`) — dựng một lần, cache như vòng nhảy.
+    private func idleLoop() -> [(CALayer, CAAnimation)] {
+        if let c = idleAnims { return c }
+        let out = sampled(Self.samples, BuddyDance.idleLoop, repeatForever: true) { BuddyDance.idle(rig.style, p: $0) }
+        idleAnims = out
         return out
     }
 

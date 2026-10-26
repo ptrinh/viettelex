@@ -184,6 +184,11 @@ object L10nTable {
         put("Chàng trai", "Boy")
         put("Mèo", "Cat")
         put("Gà con", "Chick")
+        put("Kiểu vẽ", "Art style")
+        put("Hoạt hình", "Cartoon")
+        put("Vẽ nét", "Vector")
+        put("Hoạt hình: hình vẽ sẵn, giữ nguyên quanh năm. Vẽ nét: mặc trang phục mùa lễ (Tết, Trung Thu, Halloween, Giáng sinh) và có thêm điệu nhảy.",
+            "Cartoon: hand-drawn frames, the same all year. Vector: wears holiday outfits (Tết, Mid-Autumn, Halloween, Christmas) and has extra dance moves.")
         put("Nhân vật nhỏ ở góc phải thanh gợi ý: gõ thì nhảy — gõ càng nhanh nhảy càng sung — ngừng gõ thì cuộn tròn ngủ. Chỉ chuyển động khi đang gõ; Trình tiết kiệm pin chỉ hiện dáng đứng yên.",
             "A little character in the right corner of the suggestion bar: it dances while you type — the faster you type, the livelier it gets — and curls up to sleep when you stop. It only moves while you type; with Battery Saver it just stands still.")
         put("Không", "None")

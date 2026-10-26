@@ -10,7 +10,7 @@ import kotlin.math.sin
 
 /*
  * "Bạn đồng hành" (Keyboard buddy, Plus, Phil 19/10/2026): nhân vật nhỏ ở góc phải thanh gợi ý — gõ thì
- * nhảy (gõ càng nhanh càng sung), ngừng ≥ 3 s thì ngủ; phản ứng theo từ vừa chốt (giận / thả tim / cười /
+ * nhảy (gõ càng nhanh càng sung), ngừng gõ thì lắc nhẹ ~8 s rồi ngủ; phản ứng theo từ vừa chốt (giận / thả tim / cười /
  * ngạc nhiên / buồn), hoảng khi xoá dồn; trang phục mùa lễ. Phần THUẦN — song sinh iOS/Keyboard/KeyboardBuddy.swift:
  * cùng khoá [Keys.KEYBOARD_BUDDY] (`keyboardBuddy`), cùng id, cùng máy trạng thái, cùng bậc, cùng hàm dáng, cùng
  * bảng hình (test số chung [BuddyRig.checksum]).
@@ -40,6 +40,29 @@ enum class BuddyCharacter(val id: String, val viTitle: String) {
     }
 }
 
+/**
+ * Kiểu vẽ RIÊNG từng nhân vật (Phil 26/10/2026) = iOS BuddyStyle: Hoạt hình = bộ khung hình PNG vẽ sẵn ([BuddySprites],
+ * mặc định) / Vẽ nét = khung vector [BuddyRig] (trang phục mùa lễ, đạo cụ lễ theo từ, thêm điệu nhảy). Lưu
+ * `buddyStyle.<id nhân vật>` ([Keys.BUDDY_STYLE_PREFIX], cùng khoá + id iOS); IME đọc lần hiện kế như đổi nhân vật.
+ * Chỉ nạp tài nguyên của kiểu đang chọn (Hoạt hình: ảnh atlas; Vẽ nét: không ảnh nào).
+ */
+enum class BuddyStyle(val id: String, val viTitle: String) {
+    SPRITE("sprite", "Hoạt hình"), // l10n-key
+    VECTOR("vector", "Vẽ nét"); // l10n-key
+
+    val title: String get() = tr(viTitle)
+
+    /** Mùa lễ có hiệu lực: Hoạt hình ⇒ không trang phục (null) kể cả đang mùa lễ. */
+    fun season(s: BuddySeason?): BuddySeason? = if (this == VECTOR) s else null
+
+    companion object {
+        val DEFAULT = SPRITE
+        val IDS: Set<String> = entries.map { it.id }.toSet()
+        fun of(raw: Any?): BuddyStyle = entries.firstOrNull { it.id == raw } ?: DEFAULT
+        fun key(c: BuddyCharacter): String = Keys.BUDDY_STYLE_PREFIX + c.id
+    }
+}
+
 /** Cổng Plus: đi cùng quyền giao diện cao cấp (như hiệu ứng khi bấm phím). */
 object BuddyGate {
     val allows: Boolean get() = PlusGate.isUnlocked(PlusFeature.PREMIUM_THEMES)
@@ -61,7 +84,7 @@ object BuddyPolicy {
     }
 
     fun animates(p: BuddyPhase): Boolean = when (p) {
-        is BuddyPhase.Dancing, BuddyPhase.Cheering, is BuddyPhase.React -> true
+        is BuddyPhase.Dancing, BuddyPhase.Idle, BuddyPhase.Cheering, is BuddyPhase.React -> true
         is BuddyPhase.Asleep -> p.zzz
         BuddyPhase.Awake -> false
     }
@@ -88,7 +111,10 @@ sealed class BuddyPhase {
         override fun toString() = "Asleep(zzz=$zzz)"
         companion object { val QUIET = Asleep(false); val ZZZ = Asleep(true); fun of(z: Boolean) = if (z) ZZZ else QUIET }
     }
+    /** Đứng yên — chỉ còn ở tiết kiệm pin ([BuddyPolicy.visual]). */
     object Awake : BuddyPhase() { override fun toString() = "Awake" }
+    /** Vừa ngừng gõ (hết đuôi nhảy, chưa tới [BuddyBrain.SLEEP_AFTER]): lắc hông nhẹ, chậm rồi mới ngủ. */
+    object Idle : BuddyPhase() { override fun toString() = "Idle" }
     class Dancing private constructor(val tier: Int) : BuddyPhase() {
         override fun toString() = "Dancing($tier)"
         companion object { private val all = Array(BuddyTempo.TIERS) { Dancing(it) }; fun of(t: Int) = all[t.coerceIn(0, BuddyTempo.TIERS - 1)] }
@@ -104,7 +130,9 @@ sealed class BuddyPhase {
 class BuddyBrain {
     companion object {
         const val TAIL = 0.6
-        const val SLEEP_AFTER = 3.0
+        /** Lắc nhẹ ([BuddyPhase.Idle]) từng này giây sau đuôi nhảy rồi mới ngủ (Phil 26/10/2026). */
+        const val IDLE = 8.0
+        const val SLEEP_AFTER = TAIL + IDLE
         const val ZZZ = 2.0
         const val CHEER = 0.6
         const val CAPACITY = 16
@@ -169,7 +197,7 @@ class BuddyBrain {
         if (t < cheerUntil) return BuddyPhase.Cheering
         val dt = t - lastKey
         if (dt < TAIL) return BuddyPhase.Dancing.of(tier)
-        if (dt < SLEEP_AFTER) return BuddyPhase.Awake
+        if (dt < SLEEP_AFTER) return BuddyPhase.Idle
         return BuddyPhase.Asleep.of(dt < SLEEP_AFTER + ZZZ)
     }
 
@@ -215,6 +243,9 @@ object BuddyDance {
 
     fun clamp(t: Int) = t.coerceIn(0, BuddyTempo.TIERS - 1)
     fun loopLength(t: Int) = BEATS[clamp(t)] * BEATS_PER_LOOP
+    /** = iOS: lắc nhẹ sau khi ngừng gõ ([BuddyPhase.Idle]) — lắc hông độ sung bậc 0, một vòng chậm [IDLE_LOOP] giây. */
+    const val IDLE_LOOP = 4.0
+    fun idle(s: Style, p: Double, out: BuddyPose = BuddyPose()): BuddyPose = pose(s, 0, p, out, Move.HIP_SWAY)
 
     data class Style(val armL: Double, val armR: Double, val armAmp: Double, val alternate: Boolean,
                      val kick: Double, val bounce: Double, val step: Double)
@@ -1084,6 +1115,9 @@ class BuddySprites(val sleep: String, val rest: String, val dance: List<List<Str
         }
         val CHEER = intArrayOf(0, 1, 6, 1 + MIRROR, 0)
         val REACT = intArrayOf(0, 1, 6, 6 + MIRROR)
+        /** Lắc nhẹ sau khi ngừng gõ ([BuddyPhase.Idle]): qua lại khung 5 ↔ 6, chậm. */
+        val IDLE = intArrayOf(5, 6)
+        const val IDLE_DURATION = 1.6
         fun columns(c: BuddyCharacter) = 4
         fun rows(c: BuddyCharacter) = 2
         fun rest(c: BuddyCharacter) = 0
@@ -1446,6 +1480,7 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
         val target: BuddyPose? = when (v) {
             is BuddyPhase.Asleep -> null
             BuddyPhase.Awake -> tmp.reset()
+            BuddyPhase.Idle -> if (vectorDance) idlePose(0.0, tmp) else tmp.reset()
             is BuddyPhase.Dancing -> {
                 val p = if (prev is BuddyPhase.Dancing) loopPhase(t) else 0.0
                 danceLoopBase = if (prev is BuddyPhase.Dancing) danceLoopIndex(t) else 0
@@ -1477,6 +1512,17 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
         val frames = loopCache.getOrPut(key) {
             (0..48).map { BuddyDance.pose(rig.style, tier, it / 48.0, move = danceMove) }
         }
+        return sample(frames, p, out)
+    }
+
+    /** Vòng lắc nhẹ ([BuddyPhase.Idle]) — dựng một lần lúc cần, cache như vòng nhảy. */
+    private var idleFrames: List<BuddyPose>? = null
+    private fun idlePose(p: Double, out: BuddyPose): BuddyPose {
+        val frames = idleFrames ?: (0..48).map { BuddyDance.idle(rig.style, it / 48.0) }.also { idleFrames = it }
+        return sample(frames, p - floor(p), out)
+    }
+
+    private fun sample(frames: List<BuddyPose>, p: Double, out: BuddyPose): BuddyPose {
         val x = (p * 48).coerceIn(0.0, 48.0); val i = min(47, x.toInt()); val f = x - i
         val a = frames[i]; val b = frames[i + 1]
         out.dx = a.dx + (b.dx - a.dx) * f; out.dy = a.dy + (b.dy - a.dy) * f
@@ -1496,6 +1542,7 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
     private fun displayed(t: Double, out: BuddyPose): BuddyPose? = when (val s = shown) {
         is BuddyPhase.Asleep -> null
         BuddyPhase.Awake -> out.reset()
+        BuddyPhase.Idle -> if (vectorDance) idlePose((t - phaseStart) / BuddyDance.IDLE_LOOP, out) else out.reset()
         is BuddyPhase.Dancing -> if (vectorDance) dancePose(s.tier, loopPhase(t), out) else out.reset()
         BuddyPhase.Cheering -> BuddyDance.cheer(rig.style, (t - phaseStart) / BuddyBrain.CHEER, out)
         is BuddyPhase.React -> {

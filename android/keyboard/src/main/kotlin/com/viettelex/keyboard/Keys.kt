@@ -109,6 +109,8 @@ object Keys {
     const val KEY_EFFECT = "keyEffect"
     /** String — "Bạn đồng hành" ([BuddyCharacter.id], Plus): off|girl|boy|cat|chick, mặc định off. Tên như iOS App Group. */
     const val KEYBOARD_BUDDY = "keyboardBuddy"
+    /** + [BuddyCharacter.id] — String kiểu vẽ RIÊNG từng nhân vật ([BuddyStyle.id]): sprite|vector, mặc định sprite. Tên như iOS App Group. */
+    const val BUDDY_STYLE_PREFIX = "buddyStyle."
     /** String — "Hiệu ứng nét vuốt" ([SwipeTrailStyle.id]): none|simple|fire|electric|brush|rainbow|neon|stardust|firework|theme, mặc định simple. Tên như iOS App Group. */
     const val SWIPE_TRAIL = "swipeTrail"
     /** Int −10…18 (dp mỗi hàng; [KeyboardSettings.ROW_HEIGHT_MAX], trên +10 còn kẹp theo cao màn hình). */

@@ -28,6 +28,7 @@ import com.viettelex.keyboard.BuddyRig
 import com.viettelex.keyboard.BuddySVG
 import com.viettelex.keyboard.BuddySeason
 import com.viettelex.keyboard.BuddySprites
+import com.viettelex.keyboard.BuddyStyle
 import com.viettelex.keyboard.BuddyWords
 import com.viettelex.keyboard.Shape
 import com.viettelex.keyboard.Show
@@ -51,6 +52,8 @@ class BuddyView(
     lowPower: Boolean,
     val season: BuddySeason? = null,
     private val framing: BuddyFraming = BuddyFraming.BAR,
+    /** Kiểu vẽ ([BuddyStyle], riêng từng nhân vật): Hoạt hình ⇒ ảnh atlas, không trang phục; Vẽ nét ⇒ khung vector. */
+    val artStyle: BuddyStyle = BuddyStyle.DEFAULT,
 ) : View(context) {
     private object SpriteAssets {
         private val cache = object : android.util.LruCache<String, Bitmap>(3_145_728) {
@@ -76,7 +79,8 @@ class BuddyView(
             } catch (_: java.io.IOException) { null } // Keep vector fallback for missing assets.
         }
     }
-    private var spriteAtlas = if (season == null) SpriteAssets.load(context, character) else null
+    // Hoạt hình: chỉ nạp ảnh atlas; thiếu ảnh ⇒ lùi về vector. Vẽ nét: không nạp ảnh.
+    private var spriteAtlas = if (artStyle == BuddyStyle.SPRITE) SpriteAssets.load(context, character) else null
     private val spriteSource = Rect()
     private val spriteTarget = RectF()
     private val spritePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
@@ -86,7 +90,7 @@ class BuddyView(
         danceSeed = kotlin.random.Random.nextInt(1_000_001)
         vectorDance = spriteAtlas == null
     }
-    private val outfit = BuddyOutfit.make(season, character)
+    private val outfit = BuddyOutfit.make(artStyle.season(season), character)
     private val pieces: List<BuddyPiece> = rig.pieces + outfit.pieces
     private val paths = Array(pieces.size) { Path() }
     private val fills = Array(pieces.size) { Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL } }
@@ -256,7 +260,7 @@ class BuddyView(
     /** Có cần khung kế không — = driver (ngủ yên / đứng yên = false). */
     fun animating(t: Double = clock()): Boolean {
         if (spriteAtlas != null) return !driver.lowPower && when (driver.shown) {
-            is BuddyPhase.Dancing, BuddyPhase.Cheering, is BuddyPhase.React -> true
+            is BuddyPhase.Dancing, BuddyPhase.Idle, BuddyPhase.Cheering, is BuddyPhase.React -> true
             else -> false
         }
         return driver.animating(t) || fxActive(t)
@@ -310,6 +314,10 @@ class BuddyView(
             is BuddyPhase.Dancing -> {
                 val frames = BuddySprites.dance(character, phase.tier)
                 frames[BuddySprites.frameIndex(elapsed / BuddySprites.duration(character, phase.tier), frames.size)]
+            }
+            BuddyPhase.Idle -> {
+                val frames = BuddySprites.IDLE
+                frames[BuddySprites.frameIndex(elapsed / BuddySprites.IDLE_DURATION, frames.size)]
             }
             BuddyPhase.Cheering -> {
                 val frames = BuddySprites.CHEER

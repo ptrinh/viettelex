@@ -34,6 +34,8 @@ import com.viettelex.android.ime.BuddyView
 import com.viettelex.keyboard.BuddyCharacter
 import com.viettelex.keyboard.BuddyFraming
 import com.viettelex.keyboard.BuddyGate
+import com.viettelex.keyboard.BuddySeason
+import com.viettelex.keyboard.BuddyStyle
 import com.viettelex.keyboard.Keys
 import com.viettelex.keyboard.ThemePalette
 import com.viettelex.keyboard.tr
@@ -41,15 +43,23 @@ import com.viettelex.keyboard.tr
 /**
  * "Bạn đồng hành" (Plus): lưới Tắt / Cô gái / Chàng trai / Mèo / Gà con — mỗi ô là [BuddyView] thật (cả người)
  * trên nền theme. Mở trang: mọi nhân vật nhảy một tràng như đang gõ rồi ngủ; chạm ô là chọn + diễn lại. Ô Plus bị
- * khoá: mờ + nhãn Plus, chạm mở VietTelex Plus. Lưu [Keys.KEYBOARD_BUDDY] — IME đọc lần hiện kế. iOS: BuddyPickerView.
+ * khoá: mờ + nhãn Plus, chạm mở VietTelex Plus. Lưu [Keys.KEYBOARD_BUDDY] — IME đọc lần hiện kế. Dưới lưới: "Kiểu vẽ"
+ * Hoạt hình | Vẽ nét của nhân vật đang chọn ([BuddyStyle], khoá `buddyStyle.<id>`); mỗi ô vẽ theo kiểu của nhân vật đó.
+ * iOS: BuddyPickerView.
  */
 @Composable
-internal fun BuddyPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack: () -> Unit) {
+internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () -> Unit, onBack: () -> Unit) {
     val c = LocalVT.current
     BackHandler(onBack = onBack)
     var raw by rememberStringPref(Keys.KEYBOARD_BUDDY, BuddyCharacter.DEFAULT.id)
     val current = BuddyCharacter.of(raw)
     val plays = remember { mutableStateMapOf<BuddyCharacter, Int>() }
+    // Vẽ nét xem thử mặc trang phục mùa lễ như trên bàn phím (theme lễ / ngày).
+    val season = remember(themeId) {
+        val cal = java.util.Calendar.getInstance()
+        BuddySeason.resolve(themeId, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1,
+            cal.get(java.util.Calendar.DAY_OF_MONTH))
+    }
 
     SubPageHeader(tr("Bạn đồng hành"), onBack)
     if (!BuddyGate.allows) {
@@ -64,13 +74,15 @@ internal fun BuddyPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack: ()
                 row.forEach { ch ->
                     val locked = !BuddyGate.allows(ch)
                     val selected = current == ch
+                    val style = if (ch == BuddyCharacter.OFF) BuddyStyle.DEFAULT
+                        else BuddyStyle.of(rememberStringPref(BuddyStyle.key(ch), BuddyStyle.DEFAULT.id).value)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Box(Modifier.fillMaxWidth().height(96.dp).clip(RoundedCornerShape(10.dp))
                             .border(if (selected) 3.dp else 1.dp, if (selected) c.accent else c.separator, RoundedCornerShape(10.dp))
                             .alpha(if (locked) 0.5f else 1f)) {
                             val play = plays[ch] ?: 0
                             AndroidView(factory = { BuddyPreviewView(it) }, modifier = Modifier.matchParentSize(),
-                                update = { it.update(ch, palette, play) })
+                                update = { it.update(ch, style, season, palette, play) })
                             Box(Modifier.matchParentSize().clickable {
                                 if (locked) onOpenPlus() else { raw = ch.id; plays[ch] = (plays[ch] ?: 0) + 1 }
                             })
@@ -87,6 +99,28 @@ internal fun BuddyPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack: ()
                     }
                 }
                 repeat(3 - row.size) { Box(Modifier.weight(1f)) }
+            }
+        }
+    }
+    if (current != BuddyCharacter.OFF && BuddyGate.allows(current)) {
+        var styleRaw by rememberStringPref(BuddyStyle.key(current), BuddyStyle.DEFAULT.id)
+        val style = BuddyStyle.of(styleRaw)
+        VTSection(header = tr("Kiểu vẽ") + " · " + current.title,
+            footer = tr("Hoạt hình: hình vẽ sẵn, giữ nguyên quanh năm. Vẽ nét: mặc trang phục mùa lễ (Tết, Trung Thu, Halloween, Giáng sinh) và có thêm điệu nhảy.")) {
+            VTRow {
+                // Segmented như "Ngôn ngữ / Language" (LanguagePickerRow); đổi ⇒ ô xem thử diễn lại theo kiểu mới.
+                Row(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(c.fill).padding(2.dp)) {
+                    for (s in BuddyStyle.entries) {
+                        val sel = style == s
+                        Box(
+                            Modifier.weight(1f).clip(RoundedCornerShape(7.dp))
+                                .background(if (sel) c.card else Color.Transparent)
+                                .clickable { if (!sel) { styleRaw = s.id; plays[current] = (plays[current] ?: 0) + 1 } }
+                                .padding(vertical = 6.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Text(s.title, style = VTType.subheadline, color = c.label) }
+                    }
+                }
             }
         }
     }
@@ -112,13 +146,14 @@ internal class BuddyPreviewView(context: Context) : FrameLayout(context) {
 
     init { setWillNotDraw(false) }
 
-    fun update(ch: BuddyCharacter, p: ThemePalette, play: Int) {
+    fun update(ch: BuddyCharacter, style: BuddyStyle, season: BuddySeason?, p: ThemePalette, play: Int) {
         bg = p.bg; dash.color = (p.ink and 0xFFFFFF) or 0x80000000.toInt()
         off = ch == BuddyCharacter.OFF
         if (off) { buddy?.let { it.halt(); removeView(it) }; buddy = null; invalidate(); return }
-        if (buddy?.character != ch) {
+        if (buddy?.character != ch || buddy?.artStyle != style || buddy?.season != season) {
             buddy?.let { it.halt(); removeView(it) }
-            val b = BuddyView(context, ch, d, com.viettelex.keyboard.BuddyHalo.opaque(p.bg, p.isDark), false, null, BuddyFraming.FULL).apply { maxFigureDp = 88f }
+            val b = BuddyView(context, ch, d, com.viettelex.keyboard.BuddyHalo.opaque(p.bg, p.isDark), false, season, BuddyFraming.FULL,
+                style).apply { maxFigureDp = 88f }
             val m = (4 * d).toInt()
             addView(b, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT).apply { setMargins(m, m, m, m) })
             buddy = b

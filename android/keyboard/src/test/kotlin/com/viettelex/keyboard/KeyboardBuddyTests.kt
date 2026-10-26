@@ -44,6 +44,34 @@ class KeyboardBuddyTests {
         assertEquals(BuddyCharacter.CAT, KeyboardSettings.load { if (it == Keys.KEYBOARD_BUDDY) "cat" else null }.buddy)
     }
 
+    /** = iOS testStyleKeysAndDefault: kiểu vẽ riêng từng nhân vật, mặc định Hoạt hình, khoá `buddyStyle.<id>`. */
+    @Test fun styleKeysAndDefault() {
+        assertEquals(listOf("sprite", "vector"), BuddyStyle.IDS.toList())
+        assertEquals(BuddyStyle.SPRITE, BuddyStyle.DEFAULT)
+        assertEquals("buddyStyle.girl", BuddyStyle.key(BuddyCharacter.GIRL))
+        assertEquals("buddyStyle.chick", BuddyStyle.key(BuddyCharacter.CHICK))
+        assertEquals(BuddyStyle.SPRITE, BuddyStyle.of(null))
+        assertEquals(BuddyStyle.SPRITE, BuddyStyle.of("lạ"))
+        assertEquals(BuddyStyle.VECTOR, BuddyStyle.of("vector"))
+        assertEquals(BuddyStyle.SPRITE, KeyboardSettings.load { if (it == Keys.KEYBOARD_BUDDY) "cat" else null }.buddyStyle)
+        val prefs = mapOf(Keys.KEYBOARD_BUDDY to "cat", "buddyStyle.cat" to "vector", "buddyStyle.boy" to "sprite")
+        assertEquals(BuddyStyle.VECTOR, KeyboardSettings.load { prefs[it] }.buddyStyle)
+        assertEquals("riêng từng nhân vật", BuddyStyle.SPRITE,
+            KeyboardSettings.load { (prefs + (Keys.KEYBOARD_BUDDY to "boy"))[it] }.buddyStyle)
+        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF })
+            assertTrue("sao lưu kiểu vẽ $c", BackupSettings.all.any { it.key == BuddyStyle.key(c) })
+    }
+
+    /** Hoạt hình + mùa lễ ⇒ không trang phục; Vẽ nét + mùa lễ ⇒ trang phục; ngoài mùa ⇒ không. */
+    @Test fun styleSeasonResolution() {
+        assertNull(BuddyStyle.SPRITE.season(BuddySeason.TET))
+        assertNull(BuddyStyle.SPRITE.season(null))
+        assertSame(BuddySeason.CHRISTMAS, BuddyStyle.VECTOR.season(BuddySeason.CHRISTMAS))
+        assertNull(BuddyStyle.VECTOR.season(null))
+        assertTrue(BuddyOutfit.make(BuddyStyle.SPRITE.season(BuddySeason.CHRISTMAS), BuddyCharacter.GIRL).pieces.isEmpty())
+        assertFalse(BuddyOutfit.make(BuddyStyle.VECTOR.season(BuddySeason.CHRISTMAS), BuddyCharacter.GIRL).pieces.isEmpty())
+    }
+
     @Test fun plusFallback() {
         assertEquals(BuddyCharacter.OFF, BuddyPolicy.active(BuddyCharacter.CAT, plus = false))
         assertEquals(BuddyCharacter.CAT, BuddyPolicy.active(BuddyCharacter.CAT, plus = true))
@@ -92,19 +120,35 @@ class KeyboardBuddyTests {
         assertEquals(listOf(0, 1, 2, 3), seen)
         val last = t
         assertSame(BuddyPhase.Dancing.of(3), b.phase(last + 0.59))
-        assertSame(BuddyPhase.Awake, b.phase(last + 0.61))
-        assertEquals(last + 3, b.nextDeadline(last + 0.61)!!, 1e-9)
-        assertSame(BuddyPhase.Awake, b.phase(last + 2.99))
-        assertSame(BuddyPhase.Asleep.ZZZ, b.phase(last + 3.01))
-        assertEquals(last + 5, b.nextDeadline(last + 3.01)!!, 1e-9)
-        assertSame(BuddyPhase.Asleep.QUIET, b.phase(last + 5.01))
-        assertNull(b.nextDeadline(last + 5.01))
+        assertEquals(8.6, BuddyBrain.SLEEP_AFTER, 1e-9)
+        assertSame(BuddyPhase.Idle, b.phase(last + 0.61))   // hết đuôi nhảy ⇒ lắc nhẹ
+        assertEquals(last + 8.6, b.nextDeadline(last + 0.61)!!, 1e-9)
+        assertSame(BuddyPhase.Idle, b.phase(last + 8.59))
+        assertSame(BuddyPhase.Asleep.ZZZ, b.phase(last + 8.61))
+        assertEquals(last + 10.6, b.nextDeadline(last + 8.61)!!, 1e-9)
+        assertSame(BuddyPhase.Asleep.QUIET, b.phase(last + 10.61))
+        assertNull(b.nextDeadline(last + 10.61))
         b.press(last + 20)
         assertSame(BuddyPhase.Dancing.of(0), b.phase(last + 20))
     }
 
+    /** = iOS testIdleSwayBeforeSleep: ngừng gõ + 5 s vẫn lắc nhẹ, + 9 s đã ngủ. */
+    @Test fun idleSwayBeforeSleep() {
+        val b = BuddyBrain()
+        b.press(10.0)
+        assertSame(BuddyPhase.Idle, b.phase(15.0))
+        assertSame(BuddyPhase.Asleep.ZZZ, b.phase(19.0))
+        assertSame(BuddyPhase.Awake, BuddyPolicy.visual(BuddyPhase.Idle, true))
+        assertTrue(BuddyPolicy.animates(BuddyPhase.Idle))
+        val s = BuddyRig.GIRL.style
+        assertTrue(BuddyDance.idle(s, 0.0).isRest())
+        assertEquals(BuddyDance.pose(s, 0, 0.375, move = BuddyDance.Move.HIP_SWAY), BuddyDance.idle(s, 0.375))
+        assertTrue(BuddyDance.IDLE_LOOP > BuddyDance.loopLength(0))
+        assertEquals(listOf(5, 6), BuddySprites.IDLE.toList())
+    }
+
     @Test fun lowPowerStaticOnly() {
-        for (p in listOf(BuddyPhase.Dancing.of(3), BuddyPhase.Cheering, BuddyPhase.Awake, BuddyPhase.React.of(BuddyReaction.LOVE)))
+        for (p in listOf(BuddyPhase.Dancing.of(3), BuddyPhase.Idle, BuddyPhase.Cheering, BuddyPhase.Awake, BuddyPhase.React.of(BuddyReaction.LOVE)))
             assertSame(BuddyPhase.Awake, BuddyPolicy.visual(p, true))
         assertSame(BuddyPhase.Asleep.QUIET, BuddyPolicy.visual(BuddyPhase.Asleep.ZZZ, true))
         assertFalse(BuddyPolicy.animates(BuddyPhase.Awake)); assertFalse(BuddyPolicy.animates(BuddyPhase.Asleep.QUIET))
@@ -260,7 +304,7 @@ class KeyboardBuddyTests {
 
     @Test fun reactionStateMachine() {
         val b = BuddyBrain()
-        b.press(0.0)
+        b.press(-5.0)
         assertSame(BuddyPhase.Asleep.QUIET, b.phase(10.0))
         b.react(BuddyReaction.LOVE, 10.0)
         assertSame(BuddyPhase.React.of(BuddyReaction.LOVE), b.phase(10.5))
@@ -393,9 +437,10 @@ class KeyboardBuddyTests {
             assertTrue(d.animating(t))
             assertNotNull(d.poseAt(t, BuddyPose()))
             t += 1; d.update(t)
-            assertSame(BuddyPhase.Awake, d.shown)
-            assertFalse("$c đứng yên sau nối", d.animating(t + BuddyDance.BLEND + 0.01))
-            t += 2.5; d.update(t)
+            assertSame(BuddyPhase.Idle, d.shown)
+            assertTrue("$c lắc nhẹ", d.animating(t + BuddyDance.BLEND + 0.01))
+            assertNotNull(d.poseAt(t, BuddyPose()))
+            t += 8; d.update(t)
             assertSame(BuddyPhase.Asleep.ZZZ, d.shown)
             assertTrue(d.animating(t))
             t += 2.1; d.update(t)
@@ -412,7 +457,7 @@ class KeyboardBuddyTests {
         assertSame(BuddyPhase.Awake, d.shown)
         d.wordCommitted("yêu", null, null, t); d.update(t)
         assertSame(BuddyPhase.Awake, d.shown)
-        t += 3.5; d.update(t)
+        t += 9; d.update(t)
         assertSame(BuddyPhase.Asleep.QUIET, d.shown)
         assertFalse(d.animating(t))
     }

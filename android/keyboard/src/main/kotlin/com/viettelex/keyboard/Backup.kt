@@ -93,6 +93,11 @@ object BackupSettings {
         Spec(Keys.KEY_EFFECT, SettingKind.Choice(KeyEffect.DEFAULT.id, KeyEffect.IDS)),
         // "Bạn đồng hành" (Plus, [BuddyCharacter]) — cùng khoá + id iOS; lạ ⇒ bỏ qua (máy giữ Tắt).
         Spec(Keys.KEYBOARD_BUDDY, SettingKind.Choice(BuddyCharacter.DEFAULT.id, BuddyCharacter.IDS)),
+        // Kiểu vẽ riêng từng nhân vật ([BuddyStyle]: Hoạt hình / Vẽ nét) — cùng khoá + id iOS; lạ ⇒ bỏ qua.
+        Spec(BuddyStyle.key(BuddyCharacter.GIRL), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
+        Spec(BuddyStyle.key(BuddyCharacter.BOY), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
+        Spec(BuddyStyle.key(BuddyCharacter.CAT), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
+        Spec(BuddyStyle.key(BuddyCharacter.CHICK), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
         // "Hiệu ứng nét vuốt" ([SwipeTrailStyle]) — cùng khoá + id iOS; lạ ⇒ bỏ qua (máy giữ Đơn giản).
         Spec(Keys.SWIPE_TRAIL, SettingKind.Choice(SwipeTrailStyle.DEFAULT.id, SwipeTrailStyle.IDS)),
         // "Tuỳ chỉnh nâng cao" (Plus) RIÊNG từng theme — MỘT chuỗi JSON chuẩn ([KeyStyleStore]), cùng khoá +

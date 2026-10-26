@@ -96,6 +96,11 @@ enum BackupSettings {
         Spec(key: KeyEffect.key, kind: .string(KeyEffect.defaultValue.rawValue, KeyEffect.allCases.map(\.rawValue))),
         // "Bạn đồng hành" (Plus, BuddyCharacter) — cùng khoá + id Android; lạ ⇒ bỏ qua (máy giữ Tắt).
         Spec(key: BuddyCharacter.key, kind: .string(BuddyCharacter.defaultValue.rawValue, BuddyCharacter.allCases.map(\.rawValue))),
+        // Kiểu vẽ riêng từng nhân vật (BuddyStyle: Hoạt hình / Vẽ nét) — cùng khoá + id Android; lạ ⇒ bỏ qua.
+        Spec(key: BuddyStyle.key(.girl), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
+        Spec(key: BuddyStyle.key(.boy), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
+        Spec(key: BuddyStyle.key(.cat), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
+        Spec(key: BuddyStyle.key(.chick), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
         // "Hiệu ứng nét vuốt" (SwipeTrailStyle) — cùng khoá + id Android; lạ ⇒ bỏ qua (máy giữ Đơn giản).
         Spec(key: SwipeTrailStyle.key, kind: .string(SwipeTrailStyle.defaultValue.rawValue, SwipeTrailStyle.allCases.map(\.rawValue))),
         // "Tuỳ chỉnh nâng cao" (Plus) RIÊNG từng theme — MỘT chuỗi JSON chuẩn (KeyStyleStore), cùng

@@ -36,6 +36,60 @@ final class KeyboardBuddyTests: XCTestCase {
         XCTAssertEqual(BuddyCharacter.parse("chick"), .chick)
     }
 
+    /// Kiểu vẽ riêng từng nhân vật: mặc định Hoạt hình, khoá `buddyStyle.<id>` (= Android), lạ ⇒ mặc định.
+    func testStyleKeysAndDefault() {
+        XCTAssertEqual(BuddyStyle.allCases.map(\.rawValue), ["sprite", "vector"])
+        XCTAssertEqual(BuddyStyle.defaultValue, .sprite)
+        XCTAssertEqual(BuddyStyle.key(.girl), "buddyStyle.girl")
+        XCTAssertEqual(BuddyStyle.key(.chick), "buddyStyle.chick")
+        XCTAssertEqual(BuddyStyle.parse(nil), .sprite)
+        XCTAssertEqual(BuddyStyle.parse("lạ"), .sprite)
+        XCTAssertEqual(BuddyStyle.parse("vector"), .vector)
+        let d = UserDefaults(suiteName: suite)!
+        defer { d.removePersistentDomain(forName: suite) }
+        XCTAssertEqual(BuddyStyle.load(d, .cat), .sprite, "chưa chọn ⇒ Hoạt hình")
+        d.set("vector", forKey: BuddyStyle.key(.cat))
+        XCTAssertEqual(BuddyStyle.load(d, .cat), .vector)
+        XCTAssertEqual(BuddyStyle.load(d, .boy), .sprite, "riêng từng nhân vật")
+        for c in BuddyCharacter.allCases where c != .off {
+            XCTAssertNotNil(BackupSettings.all.first { $0.key == BuddyStyle.key(c) }, "sao lưu kiểu vẽ \(c)")
+        }
+    }
+
+    /// Hoạt hình + mùa lễ ⇒ không trang phục; Vẽ nét + mùa lễ ⇒ trang phục; ngoài mùa ⇒ không.
+    func testStyleSeasonResolution() {
+        XCTAssertNil(BuddyStyle.sprite.season(.tet))
+        XCTAssertNil(BuddyStyle.sprite.season(nil))
+        XCTAssertEqual(BuddyStyle.vector.season(.christmas), .christmas)
+        XCTAssertNil(BuddyStyle.vector.season(nil))
+        XCTAssertTrue(BuddyOutfit.make(BuddyStyle.sprite.season(.christmas), .girl).pieces.isEmpty)
+        XCTAssertFalse(BuddyOutfit.make(BuddyStyle.vector.season(.christmas), .girl).pieces.isEmpty)
+    }
+
+    func testStyleTitlesBilingual() {
+        defer { L10n.apply("vi") }
+        L10n.apply("vi")
+        XCTAssertEqual(BuddyStyle.allCases.map(\.title), ["Hoạt hình", "Vẽ nét"])
+        L10n.apply("en")
+        XCTAssertEqual(BuddyStyle.allCases.map(\.title), ["Cartoon", "Vector"])
+    }
+
+    /// View: Hoạt hình (mặc định) dùng atlas dù đang mùa lễ, không trang phục; Vẽ nét không nạp atlas.
+    @MainActor func testViewFollowsStyle() throws {
+        let sprite = BuddyView(character: .girl, bar: 0x222222, lowPower: false, season: .tet)
+        XCTAssertEqual(sprite.artStyle, .sprite)
+        sprite.frame = CGRect(x: 0, y: 0, width: 50, height: 44)
+        sprite.layoutIfNeeded()
+        XCTAssertNotNil(try XCTUnwrap(sprite.layer.sublayers?.first).contents, "mùa lễ vẫn là ảnh atlas")
+        XCTAssertEqual(sprite.outfitPieceCount, 0)
+        let vector = BuddyView(character: .girl, bar: 0x222222, lowPower: false, season: .tet, artStyle: .vector)
+        vector.frame = sprite.frame
+        vector.layoutIfNeeded()
+        XCTAssertNil(vector.layer.sublayers?.first?.contents, "Vẽ nét: không ảnh atlas")
+        XCTAssertGreaterThan(vector.outfitPieceCount, 0)
+        sprite.halt(); vector.halt()
+    }
+
     func testBackupSpecWhitelistsIds() {
         let spec = BackupSettings.all.first { $0.key == BuddyCharacter.key }
         XCTAssertNotNil(spec, "sao lưu cùng khoá với Android")
@@ -103,7 +157,7 @@ final class KeyboardBuddyTests: XCTestCase {
 
     // MARK: Máy trạng thái
 
-    /// Ngủ → thức → nhảy (lên bậc) → đứng → ngủ ("z z" 2 s) → ngủ yên; mốc hẹn giờ đúng từng chặng.
+    /// Ngủ → thức → nhảy (lên bậc) → lắc nhẹ 8 s → ngủ ("z z" 2 s) → ngủ yên; mốc hẹn giờ đúng từng chặng.
     func testStateMachineTimeline() {
         var b = BuddyBrain()
         XCTAssertEqual(b.phase(at: 0), .asleep(zzz: false), "mới mở bàn phím: ngủ yên, không hoạt ảnh")
@@ -122,13 +176,14 @@ final class KeyboardBuddyTests: XCTestCase {
         XCTAssertEqual(seen, [0, 1, 2, 3], "lên bậc dần, không nhảy cóc / lùi")
         let last = t
         XCTAssertEqual(b.phase(at: last + 0.59), .dancing(3), "đuôi nhảy 0,6 s")
-        XCTAssertEqual(b.phase(at: last + 0.61), .awake)
-        XCTAssertEqual(b.nextDeadline(after: last + 0.61)!, last + 3, accuracy: 1e-9)
-        XCTAssertEqual(b.phase(at: last + 2.99), .awake)
-        XCTAssertEqual(b.phase(at: last + 3.01), .asleep(zzz: true), "≥ 3 s không gõ ⇒ ngủ, z z")
-        XCTAssertEqual(b.nextDeadline(after: last + 3.01)!, last + 5, accuracy: 1e-9)
-        XCTAssertEqual(b.phase(at: last + 5.01), .asleep(zzz: false), "z z chỉ ~2 s rồi dừng hẳn")
-        XCTAssertNil(b.nextDeadline(after: last + 5.01), "ngủ yên ⇒ không hẹn giờ nào")
+        XCTAssertEqual(BuddyBrain.sleepAfter, 8.6, accuracy: 1e-9)
+        XCTAssertEqual(b.phase(at: last + 0.61), .idle, "hết đuôi nhảy ⇒ lắc nhẹ")
+        XCTAssertEqual(b.nextDeadline(after: last + 0.61)!, last + 8.6, accuracy: 1e-9)
+        XCTAssertEqual(b.phase(at: last + 8.59), .idle)
+        XCTAssertEqual(b.phase(at: last + 8.61), .asleep(zzz: true), "≥ 8,6 s không gõ ⇒ ngủ, z z")
+        XCTAssertEqual(b.nextDeadline(after: last + 8.61)!, last + 10.6, accuracy: 1e-9)
+        XCTAssertEqual(b.phase(at: last + 10.61), .asleep(zzz: false), "z z chỉ ~2 s rồi dừng hẳn")
+        XCTAssertNil(b.nextDeadline(after: last + 10.61), "ngủ yên ⇒ không hẹn giờ nào")
         // Gõ lại sau giấc ngủ: bậc tính lại từ 0.
         b.press(at: last + 20)
         XCTAssertEqual(b.phase(at: last + 20), .dancing(0))
@@ -138,12 +193,28 @@ final class KeyboardBuddyTests: XCTestCase {
         var b = BuddyBrain()
         b.cheer(at: 5)
         XCTAssertEqual(b.phase(at: 5.1), .cheering)
-        XCTAssertEqual(b.phase(at: 5.0 + BuddyBrain.cheer + 0.01), .awake)
-        XCTAssertEqual(b.phase(at: 8.1), .asleep(zzz: true))
+        XCTAssertEqual(b.phase(at: 5.0 + BuddyBrain.cheer + 0.01), .idle)
+        XCTAssertEqual(b.phase(at: 13.7), .asleep(zzz: true))
+    }
+
+    /// Ngừng gõ: + 5 s vẫn lắc nhẹ, + 9 s đã ngủ.
+    func testIdleSwayBeforeSleep() {
+        var b = BuddyBrain()
+        b.press(at: 10)
+        XCTAssertEqual(b.phase(at: 15), .idle)
+        XCTAssertEqual(b.phase(at: 19), .asleep(zzz: true))
+        XCTAssertEqual(BuddyPolicy.visual(.idle, lowPower: true), .awake, "nguồn điện thấp: dáng nghỉ")
+        XCTAssertTrue(BuddyPolicy.animates(.idle))
+        // Lắc hông bậc 0 (nhẹ nhất), bắt đầu/kết thúc ở dáng nghỉ ⇒ nối mượt với nhảy và ngủ.
+        let s = BuddyRig.girl.style
+        XCTAssertEqual(BuddyDance.idle(s, p: 0), .rest)
+        XCTAssertEqual(BuddyDance.idle(s, p: 0.375), BuddyDance.pose(s, tier: 0, p: 0.375, move: .hipSway))
+        XCTAssertGreaterThan(BuddyDance.idleLoop, BuddyDance.loopLength(0), "chậm hơn bậc nhảy chậm nhất")
+        XCTAssertEqual(BuddySprites.idle, [5, 6])
     }
 
     func testLowPowerShowsStaticPosesOnly() {
-        for p: BuddyPhase in [.dancing(3), .cheering, .awake] {
+        for p: BuddyPhase in [.dancing(3), .idle, .cheering, .awake] {
             XCTAssertEqual(BuddyPolicy.visual(p, lowPower: true), .awake)
         }
         XCTAssertEqual(BuddyPolicy.visual(.asleep(zzz: true), lowPower: true), .asleep(zzz: false))
@@ -305,8 +376,8 @@ final class KeyboardBuddyTests: XCTestCase {
     private final class Clock { var t = 100.0 }
 
     @MainActor private func makeView(_ c: BuddyCharacter, low: Bool = false, clock: Clock) -> BuddyView {
-        // Exercise the seasonal vector fallback; atlas lifecycle is tested separately above.
-        let v = BuddyView(character: c, bar: BuddyHalo.systemLight, lowPower: low, season: .christmas)
+        // Kiểu Vẽ nét + mùa lễ (khung vector); vòng đời atlas Hoạt hình test riêng ở trên.
+        let v = BuddyView(character: c, bar: BuddyHalo.systemLight, lowPower: low, season: .christmas, artStyle: .vector)
         v.clock = { clock.t }
         v.frame = CGRect(x: 0, y: 0, width: KeyboardView.buddyZoneWidth, height: 40)
         v.layoutIfNeeded()
@@ -327,8 +398,9 @@ final class KeyboardBuddyTests: XCTestCase {
             XCTAssertGreaterThan(v.runningAnimationCount, 3)
             XCTAssertTrue(v.hasPendingTimer)
             clock.t += 1; v.tick()
-            XCTAssertEqual(v.shown, .awake)
-            clock.t += 2.5; v.tick()
+            XCTAssertEqual(v.shown, .idle)
+            XCTAssertGreaterThan(v.runningAnimationCount, 0, "\(c): lắc nhẹ")
+            clock.t += 8; v.tick()
             XCTAssertEqual(v.shown, .asleep(zzz: true))
             XCTAssertEqual(v.runningAnimationCount, 3, "\(c): chỉ ba chữ z")
             clock.t += 2.1; v.tick()
@@ -347,7 +419,7 @@ final class KeyboardBuddyTests: XCTestCase {
         XCTAssertEqual(v.runningAnimationCount, 0)
         v.cheer(); v.tick()
         XCTAssertEqual(v.runningAnimationCount, 0)
-        clock.t += 3.5; v.tick()
+        clock.t += 9; v.tick()
         XCTAssertEqual(v.shown, .asleep(zzz: false))
         XCTAssertEqual(v.runningAnimationCount, 0)
         v.halt()
@@ -624,7 +696,7 @@ final class KeyboardBuddyTests: XCTestCase {
     func testReactionStateMachine() {
         // Đang ngủ ⇒ giật mình thức, diễn xong ngủ tiếp (mốc ngủ giữ nguyên, không z z lại).
         var b = BuddyBrain()
-        b.press(at: 0)
+        b.press(at: -5)
         XCTAssertEqual(b.phase(at: 10), .asleep(zzz: false))
         b.react(.love, at: 10)
         XCTAssertEqual(b.phase(at: 10.5), .react(.love))
@@ -806,7 +878,7 @@ final class KeyboardBuddyTests: XCTestCase {
     @MainActor func testOutfitViewIsStaticNoExtraAnimations() {
         let clock = Clock()
         let plain = makeView(.girl, clock: clock)
-        let v = BuddyView(character: .girl, bar: BuddyHalo.systemLight, lowPower: false, season: .christmas)
+        let v = BuddyView(character: .girl, bar: BuddyHalo.systemLight, lowPower: false, season: .christmas, artStyle: .vector)
         v.clock = { clock.t }
         v.frame = plain.frame
         v.layoutIfNeeded()

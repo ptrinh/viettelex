@@ -380,7 +380,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
      * "Bạn đồng hành" (Plus): nhân vật + cổng Plus + Trình tiết kiệm pin + mùa lễ (theme lễ / ngày) — đọc MỘT lần
      * mỗi lần hiện. Tắt ⇒ gỡ view, strip không chừa ô (0 chi phí mỗi phím).
      */
-    private fun applyBuddy(setting: com.viettelex.keyboard.BuddyCharacter, th: ImeTheme, st: StripView) {
+    private fun applyBuddy(setting: com.viettelex.keyboard.BuddyCharacter, style: com.viettelex.keyboard.BuddyStyle,
+                           th: ImeTheme, st: StripView) {
         val r = root ?: return
         val c = com.viettelex.keyboard.BuddyPolicy.active(setting, com.viettelex.keyboard.BuddyGate.allows(setting))
         if (c == com.viettelex.keyboard.BuddyCharacter.OFF) {
@@ -393,10 +394,12 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val season = com.viettelex.keyboard.BuddySeason.resolve(th.settings.effectiveTheme.id,
             cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH))
         val old = r.buddy
-        if (old != null && old.character == c && old.season == season) {
+        // Kiểu vẽ riêng nhân vật (Hoạt hình mặc định / Vẽ nét) — đổi ⇒ dựng view mới, chỉ nạp tài nguyên kiểu đó.
+        if (old != null && old.character == c && old.season == season && old.artStyle == style) {
             old.lowPower = low; old.setBar(com.viettelex.keyboard.BuddyHalo.opaque(th.bg, th.dark))
         } else {
-            r.buddy = BuddyView(this, c, th.density, com.viettelex.keyboard.BuddyHalo.opaque(th.bg, th.dark), low, season)
+            r.buddy = BuddyView(this, c, th.density, com.viettelex.keyboard.BuddyHalo.opaque(th.bg, th.dark), low, season,
+                artStyle = style)
         }
         st.buddyDp = StripGeometry.BUDDY_W
         session.trackBoundaryWord = true
@@ -539,7 +542,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         kb.keyPreview = settings.keyPreview
         kb.keyPressHighlight = settings.keyPressHighlight
         applyKeyEffect(settings.keyEffect, th, kb)
-        applyBuddy(settings.buddy, th, st)
+        applyBuddy(settings.buddy, settings.buddyStyle, th, st)
         applySwipeTrail(settings.swipeTrail, th, kb)
         applyMole(th, kb)
         kb.configureSpaceFlick(settings.spaceSwipeLanguage, session.language)

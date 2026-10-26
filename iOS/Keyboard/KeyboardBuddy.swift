@@ -1,5 +1,5 @@
 // "Bạn đồng hành" (Keyboard buddy, Plus, Phil 19/10/2026): nhân vật nhỏ ở góc phải thanh gợi ý — gõ thì
-// nhảy (gõ càng nhanh càng sung), ngừng ≥ 3 s thì ngủ. Phần THUẦN (không UIKit) — song sinh
+// nhảy (gõ càng nhanh càng sung), ngừng gõ thì lắc nhẹ ~8 s rồi ngủ. Phần THUẦN (không UIKit) — song sinh
 // android/keyboard/.../KeyboardBuddy.kt: cùng khoá `keyboardBuddy`, cùng id, cùng máy trạng thái, cùng
 // bậc tốc độ, cùng hàm dáng nhảy, cùng bảng hình vẽ (test số chung `BuddyRig.checksum`).
 //
@@ -41,6 +41,32 @@ enum BuddyCharacter: String, CaseIterable {
     var isPlus: Bool { self != .off }
 }
 
+/// Kiểu vẽ RIÊNG từng nhân vật (Phil 26/10/2026): Hoạt hình = bộ khung hình PNG vẽ sẵn (BuddySprites, mặc
+/// định) / Vẽ nét = khung vector BuddyRig (trang phục mùa lễ, đạo cụ lễ theo từ, thêm điệu nhảy). Lưu App
+/// Group `buddyStyle.<id nhân vật>` (cùng khoá + id Android); bàn phím đọc lần hiện kế như đổi nhân vật.
+/// Chỉ nạp tài nguyên của kiểu đang chọn (Hoạt hình: ảnh atlas; Vẽ nét: không ảnh nào).
+enum BuddyStyle: String, CaseIterable {
+    case sprite, vector
+
+    static let defaultValue: BuddyStyle = .sprite
+
+    static func key(_ c: BuddyCharacter) -> String { "buddyStyle.\(c.rawValue)" }
+    static func parse(_ raw: Any?) -> BuddyStyle {
+        (raw as? String).flatMap(BuddyStyle.init(rawValue:)) ?? defaultValue
+    }
+    static func load(_ d: UserDefaults?, _ c: BuddyCharacter) -> BuddyStyle { parse(d?.object(forKey: key(c))) }
+
+    var title: String {
+        switch self {
+        case .sprite: return L("Hoạt hình")
+        case .vector: return L("Vẽ nét")
+        }
+    }
+
+    /// Mùa lễ có hiệu lực: Hoạt hình ⇒ không trang phục / đạo cụ lễ (nil) kể cả đang mùa lễ.
+    func season(_ s: BuddySeason?) -> BuddySeason? { self == .vector ? s : nil }
+}
+
 /// Cổng Plus: đi cùng quyền giao diện cao cấp (như hiệu ứng khi bấm phím).
 enum BuddyGate {
     static var allows: Bool { PlusGate.isUnlocked(.premiumThemes) }
@@ -65,7 +91,7 @@ enum BuddyPolicy {
     static func visual(_ p: BuddyPhase, lowPower: Bool) -> BuddyPhase {
         guard lowPower else { return p }
         switch p {
-        case .dancing, .cheering, .awake, .react: return .awake
+        case .dancing, .idle, .cheering, .awake, .react: return .awake
         case .asleep: return .asleep(zzz: false)
         }
     }
@@ -73,7 +99,7 @@ enum BuddyPolicy {
     /// Trạng thái này có hoạt ảnh chạy không (dáng tĩnh = không).
     static func animates(_ p: BuddyPhase) -> Bool {
         switch p {
-        case .dancing, .cheering, .react, .asleep(zzz: true): return true
+        case .dancing, .idle, .cheering, .react, .asleep(zzz: true): return true
         case .awake, .asleep(zzz: false): return false
         }
     }
@@ -107,8 +133,10 @@ enum BuddyTempo {
 enum BuddyPhase: Equatable {
     /// Ngủ; `zzz` = đang chạy "z z" (~2 s đầu sau khi thiếp đi).
     case asleep(zzz: Bool)
-    /// Thức, đứng yên (hết đuôi nhảy, chưa tới 3 s).
+    /// Thức, đứng yên (chỉ còn ở chế độ nguồn điện thấp — BuddyPolicy.visual).
     case awake
+    /// Vừa ngừng gõ (hết đuôi nhảy, chưa tới `BuddyBrain.sleepAfter`): lắc hông nhẹ, chậm rồi mới ngủ.
+    case idle
     /// Nhảy bậc 0…3.
     case dancing(Int)
     /// Cổ vũ ngắn (chọn từ gợi ý).
@@ -120,8 +148,10 @@ enum BuddyPhase: Equatable {
 struct BuddyBrain {
     /// Nhảy thêm sau phím cuối.
     static let tail = 0.6
-    /// Không gõ từng này giây ⇒ ngủ.
-    static let sleepAfter = 3.0
+    /// Lắc nhẹ (`.idle`) từng này giây sau đuôi nhảy rồi mới ngủ (Phil 26/10/2026).
+    static let idle = 8.0
+    /// Không gõ từng này giây ⇒ ngủ (= đuôi nhảy + lắc nhẹ).
+    static let sleepAfter = tail + idle
     /// "z z" chạy từng này giây rồi dừng hẳn.
     static let zzz = 2.0
     static let cheer = 0.6
@@ -196,7 +226,7 @@ struct BuddyBrain {
         if t < cheerUntil { return .cheering }
         let dt = t - lastKey
         if dt < Self.tail { return .dancing(tier) }
-        if dt < Self.sleepAfter { return .awake }
+        if dt < Self.sleepAfter { return .idle }
         return .asleep(zzz: dt < Self.sleepAfter + Self.zzz)
     }
 
@@ -242,6 +272,9 @@ enum BuddyDance {
     static let blend = 0.25
 
     static func loopLength(_ tier: Int) -> Double { beats[clamp(tier)] * beatsPerLoop }
+    /// Lắc nhẹ sau khi ngừng gõ (`.idle`): lắc hông độ sung bậc 0, một vòng chậm `idleLoop` giây.
+    static let idleLoop = 4.0
+    static func idle(_ s: Style, p: Double) -> BuddyPose { pose(s, tier: 0, p: p, move: .hipSway) }
     static func clamp(_ tier: Int) -> Int { min(max(tier, 0), BuddyTempo.tiers - 1) }
 
     /// Kiểu nhảy riêng từng nhân vật (rad / đơn vị thiết kế), nhân với độ sung của bậc.
@@ -908,6 +941,9 @@ struct BuddySprites {
     }
     static let cheer = [0, 1, 6, 1 + mirror, 0]
     static let react = [0, 1, 6, 6 + mirror]
+    /// Lắc nhẹ sau khi ngừng gõ (`.idle`): qua lại khung 5 ↔ 6, chậm.
+    static let idle = [5, 6]
+    static let idleDuration = 1.6
     static func dance(_ c: BuddyCharacter, _ tier: Int) -> [Int] { tier >= 2 ? turn(c) : tier == 1 ? sway : gentle }
     /// Vòng dài theo số khung (giữ nhịp mỗi khung như bộ cũ: 10 khung ở bậc cao, 4 khung ở bậc thấp).
     static func duration(_ c: BuddyCharacter, _ tier: Int) -> Double {
