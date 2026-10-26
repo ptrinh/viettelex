@@ -1,0 +1,13 @@
+// Serves viettelex.com/download/windows/* from R2 with exact Content-Length and correct
+// byte ranges. GitHub Pages gzips .msi on the way to Cloudflare, and Cloudflare then answers
+// Range requests with the gzip length (3233559 instead of 3312128) — the Microsoft Store
+// downloader fetches in ranges, got a truncated file and hung (10.3.4, three times).
+// Deploy: CLOUDFLARE_ACCOUNT_ID=<personal account> npx wrangler deploy
+{
+  "name": "viettelex-download",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "routes": [{ "pattern": "viettelex.com/download/windows/*", "zone_name": "viettelex.com" }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "viettelex-downloads" }],
+  "workers_dev": false
+}

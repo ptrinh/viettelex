@@ -279,6 +279,8 @@ cat <<EOF
         gh release create windows-v$VERSION "$OUT/VietTelex-$VERSION-x64.msi" "$OUT/VietTelex-$VERSION-arm64.msi" "$OUT/SHA256SUMS" ...
    2. Store mirror (no-redirect URL Partner Center fetches):
         docs/download/windows/$VERSION/VietTelex-$VERSION-{x64,arm64}.msi
+      then upload to R2 (the Store downloads in byte ranges; GitHub Pages gzip breaks them):
+        windows/installer/download-worker/upload.sh $VERSION
    3. docs/stable.json "windows" -> $VERSION (GitHub windows-v$VERSION URLs); Partner Center package URLs -> step 2.
    4. Update winget manifest:     windows/installer/winget/submit.sh $VERSION   (prints the winget-pkgs PR commands)
    5. Update Chocolatey package:  windows/installer/chocolatey/update.sh $VERSION (prints pack/push commands)
