@@ -28,7 +28,13 @@ enum class BuddyCharacter(val id: String, val viTitle: String) {
     GIRL("girl", "Cô gái"), // l10n-key
     BOY("boy", "Chàng trai"), // l10n-key
     CAT("cat", "Mèo"), // l10n-key
-    CHICK("chick", "Gà con"); // l10n-key
+    CHICK("chick", "Gà con"),
+    SHIBA("shiba", "Chó Shiba"),
+    KOI("koi", "Cá Koi"),
+    PANDA("panda", "Gấu trúc"),
+    PIG("pig", "Heo con"),
+    DRAGON("dragon", "Rồng con"),
+    EAGLE("eagle", "Đại bàng"); // l10n-key
 
     val title: String get() = tr(viTitle)
     /** Mèo dùng miễn phí (Phil 27/10/2026); các nhân vật khác thuộc Plus. */
@@ -55,12 +61,14 @@ enum class BuddyStyle(val id: String, val viTitle: String) {
 
     /** Mùa lễ có hiệu lực: Hoạt hình ⇒ không trang phục (null) kể cả đang mùa lễ. */
     fun season(s: BuddySeason?): BuddySeason? = if (this == VECTOR) s else null
+    fun resolved(c: BuddyCharacter): BuddyStyle = if (hasAtlas(c)) this else VECTOR
 
     companion object {
         val DEFAULT = SPRITE
         val IDS: Set<String> = entries.map { it.id }.toSet()
         fun of(raw: Any?): BuddyStyle = entries.firstOrNull { it.id == raw } ?: DEFAULT
         fun key(c: BuddyCharacter): String = Keys.BUDDY_STYLE_PREFIX + c.id
+        fun hasAtlas(c: BuddyCharacter): Boolean = c == BuddyCharacter.GIRL || c == BuddyCharacter.BOY || c == BuddyCharacter.CAT || c == BuddyCharacter.CHICK
     }
 }
 
@@ -299,7 +307,11 @@ object BuddyDance {
     fun loopLength(t: Int) = BEATS[clamp(t)] * BEATS_PER_LOOP
     /** = iOS: lắc nhẹ sau khi ngừng gõ ([BuddyPhase.Idle]) — lắc hông độ sung bậc 0, một vòng chậm [IDLE_LOOP] giây. */
     const val IDLE_LOOP = 4.0
-    fun idle(s: Style, p: Double, out: BuddyPose = BuddyPose()): BuddyPose = pose(s, 0, p, out, Move.HIP_SWAY)
+    fun idle(s: Style, p: Double, out: BuddyPose = BuddyPose(), character: BuddyCharacter = BuddyCharacter.OFF): BuddyPose {
+        pose(s, 0, p, out, Move.HIP_SWAY)
+        if (character == BuddyCharacter.PANDA) { out.head = 0.08 * sin(8 * Math.PI * p); out.armL = -0.3; out.armR = 0.3 }
+        return out
+    }
 
     data class Style(val armL: Double, val armR: Double, val armAmp: Double, val alternate: Boolean,
                      val kick: Double, val bounce: Double, val step: Double)
@@ -310,13 +322,17 @@ object BuddyDance {
     private val energetic = lively + Move.SPIN
     fun moves(tier: Int): List<Move> = if (clamp(tier) < 2) calm else if (clamp(tier) == 2) lively else energetic
     fun move(character: BuddyCharacter, tier: Int, loopIndex: Int, seed: Int): Move {
-        val pool = moves(tier); val n = pool.size
+        val pool = if (character == BuddyCharacter.KOI || character == BuddyCharacter.EAGLE)
+            if (clamp(tier) < 2) listOf(Move.WAVE, Move.CHICKEN, Move.BOUNCE, Move.CLAP)
+            else listOf(Move.CHICKEN, Move.WAVE, Move.SKIP, Move.SPIN, Move.DAB)
+        else moves(tier)
+        val n = pool.size
         val offset = abs(seed % 997) + character.ordinal * 17
         val group = max(0, loopIndex) / 2 % n
         return pool[(offset + group * (n - 1)) % n]
     }
 
-    fun pose(s: Style, tier: Int, p: Double, out: BuddyPose = BuddyPose(), move: Move = Move.BOUNCE): BuddyPose {
+    fun pose(s: Style, tier: Int, p: Double, out: BuddyPose = BuddyPose(), move: Move = Move.BOUNCE, character: BuddyCharacter = BuddyCharacter.OFF): BuddyPose {
         val pp = p - floor(p)
         out.reset()
         if (pp <= 0) return out
@@ -381,6 +397,10 @@ object BuddyDance {
                 out.tail = 0.3 * e * fast
             }
         }
+        if (character == BuddyCharacter.BOY && move == Move.SPIN && tier == 3) {
+            if (pp < 0.65) { out.head = 2 * Math.PI * pp / 0.65; out.rot = -0.22 * gate; out.dy -= s.bounce * 0.4 * gate }
+            else { out.head = 0.0; out.rot = -0.55 * gate; out.armL = 1.9 * gate; out.armR = -1.9 * gate; out.sx = 1.0 }
+        }
         out.dx *= gate; out.dy *= gate; out.rot *= gate; out.head *= gate
         out.armL *= gate; out.armR *= gate; out.legL *= gate; out.legR *= gate; out.tail *= gate
         return out
@@ -417,18 +437,21 @@ object BuddyDance {
         return out
     }
 
-    fun cheer(s: Style, f: Double, out: BuddyPose = BuddyPose()): BuddyPose {
+    fun cheer(s: Style, f: Double, out: BuddyPose = BuddyPose(), character: BuddyCharacter = BuddyCharacter.OFF): BuddyPose {
         val k = sin(Math.PI * f.coerceIn(0.0, 1.0))
         out.reset()
         out.dy = -s.bounce * 1.4 * k
         out.armL = 2.4 * k; out.armR = -2.4 * k
         out.legL = 0.4 * k; out.legR = -0.4 * k
         out.tail = 0.5 * k
+        if (character == BuddyCharacter.KOI) { out.rot = 0.18 * k; out.armL = 1.5 * k; out.armR = -1.5 * k; out.dy *= 1.5; out.tail = 0.8 * k }
+        if (character == BuddyCharacter.EAGLE) { out.armL = 2.8 * k; out.armR = -2.8 * k }
+        if (character == BuddyCharacter.SHIBA) out.tail = 1.1 * sin(10 * Math.PI * f) * k
         return out
     }
 
     /** = iOS BuddyDance.react. */
-    fun react(r: BuddyReaction, s: Style, f: Double, out: BuddyPose = BuddyPose()): BuddyPose {
+    fun react(r: BuddyReaction, s: Style, f: Double, out: BuddyPose = BuddyPose(), character: BuddyCharacter = BuddyCharacter.OFF): BuddyPose {
         val ff = f.coerceIn(0.0, 1.0)
         val pi = Math.PI
         val a = if (r == BuddyReaction.PANIC) min(1.0, ff / 0.15 + 1) else minOf(1.0, ff / 0.15, (1 - ff) / 0.15)
@@ -455,6 +478,11 @@ object BuddyDance {
                 out.head = 0.1 * a * sin(8 * pi * ff)
                 out.tail = 0.3 * a * sin(8 * pi * ff)
             }
+            BuddyReaction.GREET -> {
+                out.dy = -s.bounce * 0.45 * a * abs(sin(3 * pi * ff))
+                out.armR = (-2.35 + 0.35 * sin(8 * pi * ff)) * a
+                out.head = -0.08 * a * sin(4 * pi * ff)
+            }
             BuddyReaction.SURPRISED -> {
                 out.dy = if (ff < 0.4) -s.bounce * 1.6 * sin(pi * ff / 0.4) else 0.0
                 out.armL = 1.3 * a; out.armR = -1.3 * a
@@ -474,23 +502,76 @@ object BuddyDance {
                 out.dy = -s.bounce * 0.15 * a * abs(sin(10 * pi * ff))
             }
         }
+        if (character == BuddyCharacter.PANDA && r == BuddyReaction.LAUGH) { out.rot = 2 * pi * ff * a; out.dy -= s.bounce * 0.4 * a }
+        if (character == BuddyCharacter.PIG && r == BuddyReaction.LAUGH) { out.rot = 2 * pi * ff * a; out.dx += 4 * sin(2 * pi * ff) * a }
+        if (character == BuddyCharacter.GIRL && r == BuddyReaction.LOVE) { out.head = -0.25 * a; out.armR = -1.0 * a }
+        if (character == BuddyCharacter.SHIBA && r == BuddyReaction.LOVE) out.tail = sin(12 * pi * ff) * a
         return out
     }
 
     fun happyEyes(r: BuddyReaction) = r == BuddyReaction.LOVE || r == BuddyReaction.LAUGH || r.isHoliday
 }
 
+/** Pure seeded signature selection; equals the Swift BuddySignature table. */
+enum class BuddySignature {
+    KISS, BREAKDANCE, YARN, EGG, BONE, SPLASH, BAMBOO, MUD, SNORT, FIRE, LASER;
+    companion object {
+        fun cheer(c: BuddyCharacter, seed: Int): BuddySignature? = when (c) {
+            BuddyCharacter.GIRL -> KISS
+            BuddyCharacter.CHICK -> if (seed % 3 == 0) EGG else null
+            BuddyCharacter.SHIBA -> BONE
+            BuddyCharacter.KOI -> SPLASH
+            BuddyCharacter.DRAGON -> FIRE
+            BuddyCharacter.EAGLE -> LASER
+            else -> null
+        }
+        fun reaction(c: BuddyCharacter, r: BuddyReaction): BuddySignature? = when (c to r) {
+            BuddyCharacter.GIRL to BuddyReaction.LOVE -> KISS
+            BuddyCharacter.CAT to BuddyReaction.PANIC -> YARN
+            BuddyCharacter.PANDA to BuddyReaction.LAUGH -> BAMBOO
+            BuddyCharacter.PIG to BuddyReaction.LAUGH -> MUD
+            BuddyCharacter.PIG to BuddyReaction.ANGRY -> SNORT
+            BuddyCharacter.DRAGON to BuddyReaction.ANGRY, BuddyCharacter.DRAGON to BuddyReaction.LAUGH -> FIRE
+            BuddyCharacter.EAGLE to BuddyReaction.ANGRY, BuddyCharacter.EAGLE to BuddyReaction.SURPRISED -> LASER
+            else -> null
+        }
+        fun idle(c: BuddyCharacter): BuddySignature? = if (c == BuddyCharacter.PANDA) BAMBOO else null
+        fun dance(c: BuddyCharacter, tier: Int, group: Int, seed: Int): BuddySignature? {
+            if (tier != 3) return null
+            if (c == BuddyCharacter.BOY && (group + seed % 5) % 5 == 0) return BREAKDANCE
+            if (c == BuddyCharacter.CAT && (group + seed % 4) % 4 == 0) return YARN
+            return null
+        }
+        private val shibaWords = setOf("gioi qua", "good boy", "good dog", "ngoan")
+        fun word(c: BuddyCharacter, word: String): BuddySignature? {
+            if (BuddyWords.signatureEmoji(word, c)) return when (c) {
+                BuddyCharacter.SHIBA -> BONE; BuddyCharacter.KOI -> SPLASH; BuddyCharacter.PANDA -> BAMBOO
+                BuddyCharacter.PIG -> SNORT; BuddyCharacter.DRAGON -> FIRE; BuddyCharacter.EAGLE -> LASER
+                else -> null
+            }
+            if (c != BuddyCharacter.SHIBA) return null
+            val w = BuddyWords.fold(BuddyWords.clean(word))
+            return if (w in shibaWords) BONE else null
+        }
+    }
+}
+
 // MARK: phản ứng theo từ
 
 /** Thứ tự = ƯU TIÊN khi một từ khớp nhiều bảng: giận > thả tim > cười > ngạc nhiên > buồn. = iOS BuddyReaction. */
 enum class BuddyReaction(val duration: Double) {
-    ANGRY(1.2), LOVE(1.2), LAUGH(1.3), SURPRISED(1.0), SAD(1.5), PANIC(0.8), LUCKY_MONEY(1.5), GIFT(1.5), CANDY(1.5), MOONCAKE(1.5);
+    ANGRY(1.2), LOVE(1.2), LAUGH(1.3), SURPRISED(1.0), SAD(1.5), GREET(1.0), PANIC(0.8), LUCKY_MONEY(1.5), GIFT(1.5), CANDY(1.5), MOONCAKE(1.5);
     val isHoliday: Boolean get() = this == LUCKY_MONEY || this == GIFT || this == CANDY || this == MOONCAKE
 }
 
 /** = iOS BuddyWords: cùng bảng, cùng luật strict / gộp chữ lặp / mẫu cười-buồn. */
 object BuddyWords {
     private fun e(f: String, strict: Boolean = false) = f to strict
+    val GREET = listOf(
+        e("hi"), e("hello"), e("hey"), e("hế lô"), e("hê lô"), e("helo"), e("chào", true),
+        e("xin chào", true), e("chào bạn", true), e("alo"), e("yo"), e("sup"),
+        e("good morning"), e("chào buổi sáng", true),
+    )
     val LOVE = listOf(
         e("yêu"), e("iu"), e("thương"), e("nhớ", true), e("love"), e("luv"), e("lub"), e("miss"), e("cưng", true),
         e("thích"), e("crush"), e("tim"), e("hun"), e("thơm", true), e("honey"), e("baby"), e("anh yêu"), e("em yêu"),
@@ -509,6 +590,61 @@ object BuddyWords {
         e("😢"), e("😭"),
     )
 
+    fun normalizeEmoji(text: String): String {
+        val out = StringBuilder(text.length)
+        var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i); i += Character.charCount(cp)
+            if (cp != 0xFE0F && cp !in 0x1F3FB..0x1F3FF) out.appendCodePoint(cp)
+        }
+        return out.toString()
+    }
+    private val emojiMap: Map<String, BuddyReaction> by lazy {
+        buildMap {
+            for (symbol in "👋 🙋 🙋‍♀️ 🙋‍♂️ 🤗".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.GREET)
+            for (symbol in "❤️ ♥️ 💕 💖 💗 😍 🥰 😘 😻 💋".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.LOVE)
+            for (symbol in "😂 🤣 😆 😄 😁 😹 😅 😝 😜".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.LAUGH)
+            for (symbol in "😮 😲 😱 🤯 😳 ‼️ ⁉️".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.SURPRISED)
+            for (symbol in "😢 😭 😞 😔 🥺 💔 😿".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.SAD)
+            for (symbol in "😡 🤬 😠 👿 💢".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.ANGRY)
+            for (symbol in "🧧 🧨".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.LUCKY_MONEY)
+            for (symbol in "🎁 🎄 🎅 🤶 ⛄".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.GIFT)
+            for (symbol in "🎃 🍬 🍭 👻 🦇".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.CANDY)
+            for (symbol in "🥮 🏮 🌕".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.MOONCAKE)
+        }
+    }
+    fun emoji(text: String): BuddyReaction? {
+        val normalized = normalizeEmoji(text)
+        emojiMap[normalized]?.let { return it }
+        var i = 0
+        while (i < normalized.length) {
+            val cp = normalized.codePointAt(i); i += Character.charCount(cp)
+            val candidate = StringBuilder().appendCodePoint(cp)
+            while (i < normalized.length && normalized.codePointAt(i) == 0x200D) {
+                i += 1
+                if (i >= normalized.length) break
+                val joined = normalized.codePointAt(i); i += Character.charCount(joined)
+                candidate.appendCodePoint(0x200D).appendCodePoint(joined)
+            }
+            emojiMap[candidate.toString()]?.let { return it }
+            if (candidate.length != Character.charCount(cp))
+                emojiMap[String(Character.toChars(cp))]?.let { return it }
+        }
+        return null
+    }
+    private val signatureSymbols = mapOf(
+        BuddyCharacter.SHIBA to setOf("🐶", "🐕", "🦴"), BuddyCharacter.PANDA to setOf("🐼", "🎋"),
+        BuddyCharacter.PIG to setOf("🐷", "🐖"), BuddyCharacter.KOI to setOf("🐟", "🎏"),
+        BuddyCharacter.DRAGON to setOf("🐉", "🐲", "🔥"), BuddyCharacter.EAGLE to setOf("🦅"),
+    )
+    fun signatureEmoji(text: String, character: BuddyCharacter): Boolean {
+        val symbols = signatureSymbols[character] ?: return false
+        if (text.none { it.code >= 0x203C }) return false
+        val normalized = normalizeEmoji(text)
+        if (normalized in symbols) return true
+        return symbols.any { normalized.contains(it) }
+    }
+
     private class Table(e: List<Pair<String, Boolean>>) {
         val exact = e.map { it.first }.toHashSet()
         val folded = e.filter { !it.second }.map { fold(it.first) }.toHashSet()
@@ -524,7 +660,8 @@ object BuddyWords {
     }
     private val tables: List<Pair<BuddyReaction, Table>> by lazy {
         listOf(BuddyReaction.LOVE to Table(LOVE), BuddyReaction.LAUGH to Table(LAUGH),
-            BuddyReaction.SURPRISED to Table(SURPRISED), BuddyReaction.SAD to Table(SAD))
+            BuddyReaction.SURPRISED to Table(SURPRISED), BuddyReaction.SAD to Table(SAD),
+            BuddyReaction.GREET to Table(GREET))
     }
 
     fun fold(s: String): String = EmojiWords.fold(s)
@@ -557,6 +694,10 @@ object BuddyWords {
         while (i + 1 < f.length && f.substring(i, i + 2) in units) { i += 2; n++ }
         return n >= 2 && f.length - i <= 1
     }
+
+    fun isGreetPattern(f: String): Boolean =
+        (f.startsWith("hi") && f.length >= 3 && f.drop(2).all { it == 'i' }) ||
+        (f.startsWith("hey") && f.length >= 4 && f.drop(3).all { it == 'y' })
 
     fun isSadPattern(f: String): Boolean {
         if (f.length >= 2 && f.startsWith(":(") && f.drop(2).all { it == '(' }) return true
@@ -593,6 +734,7 @@ object BuddyWords {
     }
 
     fun reaction(word: String, prev: String?, prev2: String? = null, prev3: String? = null, season: BuddySeason? = null): BuddyReaction? {
+        emoji(word)?.let { return it }
         val w = clean(word)
         if (w.isEmpty() || w.length > 24) return null
         val p = prev?.let(::clean)?.ifEmpty { null }
@@ -601,10 +743,12 @@ object BuddyWords {
         holiday(w, p, p2, prev3, season)?.let { return it }
         val f = fold(w)
         for ((r, t) in tables) {
+            if (p != null && p2 != null && t.has("$p2 $p $w")) return r
             if (p != null && t.has("$p $w")) return r
             if (t.has(w)) return r
             if (r == BuddyReaction.LAUGH && isLaughPattern(f)) return r
             if (r == BuddyReaction.SAD && isSadPattern(f)) return r
+            if (r == BuddyReaction.GREET && isGreetPattern(f)) return r
         }
         return null
     }
@@ -644,7 +788,7 @@ object BuddyFX {
         BuddyReaction.LAUGH -> 4
         BuddyReaction.SAD -> 3
         BuddyReaction.PANIC -> 3
-        BuddyReaction.ANGRY, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE -> 0
+        BuddyReaction.ANGRY, BuddyReaction.GREET, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE -> 0
     }
 
     fun particle(r: BuddyReaction, i: Int, w: Double, h: Double): Particle {
@@ -670,7 +814,7 @@ object BuddyFX {
             BuddyReaction.PANIC -> {
                 x0 = w / 2; y0 = h * 0.6; x1 = rad + (w - 2 * rad) * t; y1 = rad + h * 0.1 * (i % 2); delay = i * 0.1
             }
-            BuddyReaction.ANGRY, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE -> { x0 = w / 2; y0 = h / 2; x1 = x0; y1 = y0; delay = 0.0 }
+            BuddyReaction.ANGRY, BuddyReaction.GREET, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE -> { x0 = w / 2; y0 = h / 2; x1 = x0; y1 = y0; delay = 0.0 }
         }
         fun cx(x: Double) = min(max(x, rad), w - rad)
         fun cy(y: Double) = min(max(y, rad), h - rad)
@@ -809,6 +953,12 @@ class BuddyRig(
             BuddyCharacter.BOY -> BOY
             BuddyCharacter.CAT -> CAT
             BuddyCharacter.CHICK -> CHICK
+            BuddyCharacter.SHIBA -> SHIBA
+            BuddyCharacter.KOI -> KOI
+            BuddyCharacter.PANDA -> PANDA
+            BuddyCharacter.PIG -> PIG
+            BuddyCharacter.DRAGON -> DRAGON
+            BuddyCharacter.EAGLE -> EAGLE
         }
 
         /** = iOS BuddyRig.checksum (cùng công thức) — sửa hình một bên mà quên bên kia thì test đỏ. */
@@ -1098,6 +1248,256 @@ class BuddyRig(
                 heart = P3(0, 66, 13), face = P4(0, 10, 30, 21), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
                 hat = P3(0, -36, 24), sleepHat = P3(-30, 0, 26), neck = P2(0, 39), hand = P2(43, 79))
         }
+        val SHIBA: BuddyRig = run {
+            val p = listOf(
+                P(BuddyPart.TAIL, "M29 58 Q63 66 62 34 Q62 18 48 18 Q36 19 39 34 Q42 39 49 35 Q45 54 24 44 Z", fill = 0xDA8345, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.TAIL, "M48 21 Q62 20 59 36 Q58 43 51 47 Q56 34 48 32 Z", fill = 0xFFF2D7, stroke = Stroke.None, width = 0),
+                P(BuddyPart.LEG_L, "M-27 76 Q-31 86 -30 103 Q-29 112 -16 111 Q-6 110 -8 102 L-12 77 Z", fill = 0xF4B267, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_R, "M13 77 L28 77 Q31 91 31 103 Q31 112 18 111 Q8 110 8 103 Z", fill = 0xF4B267, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M-28 28 Q-43 44 -38 75 Q-34 96 0 97 Q35 98 39 72 Q43 46 27 28 Z", fill = 0xE99B58, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M27 48 Q42 83 12 95 Q-14 100 -28 86 Q22 92 27 48 Z", fill = 0xD47D43, stroke = Stroke.None, width = 0),
+                P(BuddyPart.BODY, "M-20 49 Q0 39 20 49 Q28 76 0 89 Q-28 77 -20 49 Z", fill = 0xFFF2D7, stroke = Stroke.None, width = 0),
+                P(BuddyPart.ARM_L, "M-30 45 Q-49 47 -46 70 Q-43 84 -29 79 L-21 58 Z", fill = 0xE99B58, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_R, "M30 45 Q49 47 46 70 Q43 84 29 79 L21 58 Z", fill = 0xE99B58, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-36 -15 L-37 -55 Q-23 -53 -12 -34 Q0 -39 12 -34 Q23 -53 37 -55 L36 -15 Q44 3 33 22 Q19 40 0 40 Q-20 40 -34 22 Q-44 2 -36 -15 Z", fill = 0xE99B58, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-34 15 Q-28 38 0 40 Q28 39 34 15 Q19 23 13 14 Q0 24 -13 14 Q-19 23 -34 15 Z", fill = 0xFFF2D7, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M-33 -48 L-29 -22 Q-24 -30 -20 -36 Z M33 -48 L29 -22 Q24 -30 20 -36 Z", fill = 0xD87570, stroke = Stroke.None, width = 0),
+                E(BuddyPart.HEAD, -15, -5, 5, 7, fill = 0x352B2B, stroke = Stroke.Ink),
+                E(BuddyPart.HEAD, 15, -5, 5, 7, fill = 0x352B2B, stroke = Stroke.Ink),
+                E(BuddyPart.HEAD, -16, -8, 1.8, 2, fill = 0xFFFFFF, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 14, -8, 1.8, 2, fill = 0xFFFFFF, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-20 -5 q5 -7 10 0 M10 -5 q5 -7 10 0", stroke = Stroke.Ink, width = 2.6, show = Show.DANCE),
+                E(BuddyPart.HEAD, -29, 17, 7, 3, fill = 0xF2A1A1, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 29, 17, 7, 3, fill = 0xF2A1A1, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-6 12 Q0 8 6 12 Q4 18 0 18 Q-4 18 -6 12 Z", fill = 0x453532, stroke = Stroke.Ink, width = 1.5),
+                P(BuddyPart.HEAD, "M0 19 Q-8 27 -13 20 M0 19 Q8 27 13 20", stroke = Stroke.Ink, width = 2.2),
+                P(BuddyPart.SLEEP, "M-30 30 Q-10 14 23 20 Q57 22 58 47 Q59 68 27 69 L-20 68 Q-49 64 -47 45 Z", fill = 0xE99B58, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M14 50 Q43 45 54 52 Q47 68 21 67 Q-5 68 -24 60 Q-6 64 14 50 Z", fill = 0xD47D43, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-59 28 Q-58 -5 -29 -7 Q-5 -5 0 25 Q2 52 -28 55 Q-57 54 -59 28 Z", fill = 0xE99B58, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-49 27 Q-43 34 -37 27 M-25 27 Q-19 34 -13 27", stroke = Stroke.Ink, width = 2.5),
+                E(BuddyPart.SLEEP, -49, 39, 5, 3, fill = 0xF2A1A1, stroke = Stroke.None),
+                E(BuddyPart.SLEEP, -13, 39, 5, 3, fill = 0xF2A1A1, stroke = Stroke.None),
+                P(BuddyPart.SLEEP, "M-37 36 Q-30 32 -25 36 Q-30 41 -37 36 Z", fill = 0x433331, stroke = Stroke.Ink, width = 1.6),
+                P(BuddyPart.SLEEP, "M-55 1 L-54 -16 L-38 -3 M-15 -5 L-3 -19 L-3 7", fill = 0xE99B58, stroke = Stroke.Outline, width = 3.2),
+            )
+            BuddyRig(
+                pieces = p,
+                pivots = mapOf(BuddyPart.TAIL to P2(31, 58), BuddyPart.LEG_L to P2(-18, 78), BuddyPart.LEG_R to P2(18, 78), BuddyPart.BODY to P2(0, 92), BuddyPart.ARM_L to P2(-30, 46), BuddyPart.ARM_R to P2(30, 46), BuddyPart.HEAD to P2(0, 34)),
+                full = BuddyRect(-80, -66, 160, 188), barBottom = null, feet = P2(0, 111), sleepBottom = 69,
+                zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
+                style = BuddyDance.Style(armL = 1.2, armR = 1.2, armAmp = 0.55, alternate = true, kick = 0.3, bounce = 9, step = 8),
+                heart = P3(0, 64, 12), face = P4(0, 4, 29, 20), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
+                hat = P3(0, -38, 31), sleepHat = P3(-30, -7, 26), neck = P2(0, 37), hand = P2(40, 76))
+        }
+        val KOI: BuddyRig = run {
+            val p = listOf(
+                P(BuddyPart.TAIL, "M-11 82 Q-27 97 -23 113 Q-9 108 0 101 Q9 108 23 113 Q27 97 11 82 Z", fill = 0xEF8A55, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.TAIL, "M0 87 L0 105 M-16 107 Q0 94 16 107", stroke = Stroke.Color(0xD65D4E), width = 1.7),
+                P(BuddyPart.BODY, "M0 20 Q-35 30 -35 62 Q-34 91 0 96 Q34 91 35 62 Q35 30 0 20 Z", fill = 0xFFF8EE, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M24 38 Q40 73 10 93 Q-4 99 -20 86 Q17 91 24 38 Z", fill = 0xE9E0DB, stroke = Stroke.None, width = 0),
+                P(BuddyPart.BODY, "M-24 42 Q-10 30 -2 44 Q8 53 -2 61 Q-15 65 -21 55 Z M10 68 Q28 57 29 73 Q26 84 12 87 Q3 80 10 68 Z", fill = 0xEF8654, stroke = Stroke.None, width = 0),
+                P(BuddyPart.ARM_L, "M-27 46 Q-56 39 -59 57 Q-46 74 -26 66 Z", fill = 0xFFF5E8, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_L, "M-51 56 Q-42 54 -33 60", stroke = Stroke.Color(0xE7A492), width = 1.8),
+                P(BuddyPart.ARM_R, "M27 46 Q56 39 59 57 Q46 74 26 66 Z", fill = 0xFFF5E8, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_R, "M51 56 Q42 54 33 60", stroke = Stroke.Color(0xE7A492), width = 1.8),
+                P(BuddyPart.HEAD, "M-37 17 Q-44 -10 -27 -29 Q-11 -47 9 -42 Q34 -37 40 -10 Q46 17 26 34 Q0 47 -28 32 Q-35 27 -37 17 Z", fill = 0xFFF8EE, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-28 -31 Q-9 -53 12 -41 Q27 -36 30 -22 Q14 -28 11 -16 Q-7 -12 -16 -22 Z", fill = 0xED7450, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M20 30 Q35 21 40 4 Q45 33 17 38 Q-8 47 -28 32 Q0 40 20 30 Z", fill = 0xE9E0DB, stroke = Stroke.None, width = 0),
+                E(BuddyPart.HEAD, -19, -4, 5, 7, fill = 0x352B2B, stroke = Stroke.Ink),
+                E(BuddyPart.HEAD, 19, -4, 5, 7, fill = 0x352B2B, stroke = Stroke.Ink),
+                E(BuddyPart.HEAD, -20, -7, 1.8, 2, fill = 0xFFFFFF, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 18, -7, 1.8, 2, fill = 0xFFFFFF, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-24 -4 q5 -7 10 0 M14 -4 q5 -7 10 0", stroke = Stroke.Ink, width = 2.6, show = Show.DANCE),
+                E(BuddyPart.HEAD, -31, 13, 6, 3, fill = 0xF4ABA4, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 31, 13, 6, 3, fill = 0xF4ABA4, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-5 15 Q0 20 5 15", stroke = Stroke.Ink, width = 2.2),
+                P(BuddyPart.HEAD, "M-38 16 Q-50 14 -47 26 Q-40 27 -34 22 M38 16 Q50 14 47 26 Q40 27 34 22", fill = 0xFFF8EE, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-30 30 Q-10 14 23 20 Q57 22 58 47 Q59 68 27 69 L-20 68 Q-49 64 -47 45 Z", fill = 0xFFF8EE, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M14 50 Q43 45 54 52 Q47 68 21 67 Q-5 68 -24 60 Q-6 64 14 50 Z", fill = 0xE9E0DB, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-59 28 Q-58 -5 -29 -7 Q-5 -5 0 25 Q2 52 -28 55 Q-57 54 -59 28 Z", fill = 0xFFF8EE, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-49 27 Q-43 34 -37 27 M-25 27 Q-19 34 -13 27", stroke = Stroke.Ink, width = 2.5),
+                E(BuddyPart.SLEEP, -49, 39, 5, 3, fill = 0xF4ABA4, stroke = Stroke.None),
+                E(BuddyPart.SLEEP, -13, 39, 5, 3, fill = 0xF4ABA4, stroke = Stroke.None),
+                P(BuddyPart.SLEEP, "M-57 11 Q-42 -18 -23 -3 L-15 6 Q-34 3 -42 17 Z", fill = 0xED7450, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M36 45 Q59 34 67 48 Q61 61 39 60 Z", fill = 0xFFF2E8, stroke = Stroke.Outline, width = 3.2),
+            )
+            BuddyRig(
+                pieces = p,
+                pivots = mapOf(BuddyPart.TAIL to P2(0, 85), BuddyPart.BODY to P2(0, 88), BuddyPart.ARM_L to P2(-28, 53), BuddyPart.ARM_R to P2(28, 53), BuddyPart.HEAD to P2(0, 31)),
+                full = BuddyRect(-80, -66, 160, 188), barBottom = null, feet = P2(0, 110), sleepBottom = 69,
+                zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
+                style = BuddyDance.Style(armL = 1.8, armR = 1.8, armAmp = 0.8, alternate = true, kick = 0, bounce = 14, step = 10),
+                heart = P3(0, 62, 11), face = P4(0, 3, 30, 20), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
+                hat = P3(0, -43, 28), sleepHat = P3(-32, -9, 25), neck = P2(0, 35), hand = P2(46, 60))
+        }
+        val PANDA: BuddyRig = run {
+            val p = listOf(
+                P(BuddyPart.LEG_L, "M-25 77 Q-35 87 -32 105 Q-28 115 -11 110 Q-6 102 -11 77 Z", fill = 0x333238, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_R, "M25 77 Q35 87 32 105 Q28 115 11 110 Q6 102 11 77 Z", fill = 0x333238, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M-29 30 Q-44 48 -38 80 Q-30 100 0 99 Q30 100 38 80 Q44 48 29 30 Z", fill = 0xFFF8EE, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M24 47 Q42 80 14 96 Q-10 104 -29 89 Q22 94 24 47 Z", fill = 0xE6E1DF, stroke = Stroke.None, width = 0),
+                P(BuddyPart.ARM_L, "M-29 44 Q-48 43 -49 65 Q-45 86 -30 79 L-21 57 Z", fill = 0x333238, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_R, "M29 44 Q48 43 49 65 Q45 86 30 79 L21 57 Z", fill = 0x333238, stroke = Stroke.Outline, width = 3.2),
+                E(BuddyPart.HEAD, -31, -30, 14, 15, fill = 0x333238, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 31, -30, 14, 15, fill = 0x333238, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-38 -13 Q-35 -42 0 -44 Q35 -42 38 -13 Q43 16 26 31 Q0 45 -26 31 Q-43 16 -38 -13 Z", fill = 0xFFF8EE, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M25 17 Q12 37 -12 34 Q-30 29 -37 11 Q-32 37 0 40 Q32 37 36 10 Z", fill = 0xE6E1DF, stroke = Stroke.None, width = 0),
+                E(BuddyPart.HEAD, -17, -2, 13, 16, fill = 0x333238, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 17, -2, 13, 16, fill = 0x333238, stroke = Stroke.None),
+                E(BuddyPart.HEAD, -17, -1, 5, 7, fill = 0x352B2B, stroke = Stroke.Ink),
+                E(BuddyPart.HEAD, 17, -1, 5, 7, fill = 0x352B2B, stroke = Stroke.Ink),
+                E(BuddyPart.HEAD, -18, -4, 1.8, 2, fill = 0xFFFFFF, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 16, -4, 1.8, 2, fill = 0xFFFFFF, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-22 -1 q5 -7 10 0 M12 -1 q5 -7 10 0", stroke = Stroke.Ink, width = 2.6, show = Show.DANCE),
+                E(BuddyPart.HEAD, -30, 19, 6, 3, fill = 0xF4B6B8, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 30, 19, 6, 3, fill = 0xF4B6B8, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-7 16 Q0 12 7 16 Q5 23 0 23 Q-5 23 -7 16 Z", fill = 0x333238, stroke = Stroke.Ink, width = 1.5),
+                P(BuddyPart.HEAD, "M0 23 Q-6 29 -10 24 M0 23 Q6 29 10 24", stroke = Stroke.Ink, width = 1.8),
+                P(BuddyPart.SLEEP, "M-30 30 Q-10 14 23 20 Q57 22 58 47 Q59 68 27 69 L-20 68 Q-49 64 -47 45 Z", fill = 0xFFF8EE, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M14 50 Q43 45 54 52 Q47 68 21 67 Q-5 68 -24 60 Q-6 64 14 50 Z", fill = 0xE6E1DF, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-59 28 Q-58 -5 -29 -7 Q-5 -5 0 25 Q2 52 -28 55 Q-57 54 -59 28 Z", fill = 0xFFF8EE, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-49 27 Q-43 34 -37 27 M-25 27 Q-19 34 -13 27", stroke = Stroke.Ink, width = 2.5),
+                E(BuddyPart.SLEEP, -49, 39, 5, 3, fill = 0xF4B6B8, stroke = Stroke.None),
+                E(BuddyPart.SLEEP, -13, 39, 5, 3, fill = 0xF4B6B8, stroke = Stroke.None),
+                P(BuddyPart.SLEEP, "M-37 37 Q-30 33 -24 37 Q-30 42 -37 37 Z", fill = 0x433331, stroke = Stroke.Ink, width = 1.6),
+                E(BuddyPart.SLEEP, -52, 0, 10, 10, fill = 0x333238, stroke = Stroke.None),
+                E(BuddyPart.SLEEP, -6, 0, 10, 10, fill = 0x333238, stroke = Stroke.None),
+                P(BuddyPart.SLEEP, "M2 35 Q15 32 25 47 M-8 41 Q5 34 18 42", stroke = Stroke.Ink, width = 5),
+            )
+            BuddyRig(
+                pieces = p,
+                pivots = mapOf(BuddyPart.LEG_L to P2(-20, 79), BuddyPart.LEG_R to P2(20, 79), BuddyPart.BODY to P2(0, 94), BuddyPart.ARM_L to P2(-31, 48), BuddyPart.ARM_R to P2(31, 48), BuddyPart.HEAD to P2(0, 34)),
+                full = BuddyRect(-80, -66, 160, 188), barBottom = null, feet = P2(0, 111), sleepBottom = 69,
+                zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
+                style = BuddyDance.Style(armL = 1.0, armR = 1.0, armAmp = 0.5, alternate = true, kick = 0.2, bounce = 7, step = 7),
+                heart = P3(0, 66, 12), face = P4(0, 5, 29, 20), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
+                hat = P3(0, -43, 30), sleepHat = P3(-30, -8, 26), neck = P2(0, 37), hand = P2(42, 77))
+        }
+        val PIG: BuddyRig = run {
+            val p = listOf(
+                P(BuddyPart.TAIL, "M30 64 Q52 51 52 65 Q51 76 44 74 Q37 72 43 66 Q46 64 47 68", stroke = Stroke.Color(0xEA8FA2), width = 6),
+                P(BuddyPart.LEG_L, "M-24 78 Q-33 92 -30 107 Q-24 114 -12 109 L-9 81 Z", fill = 0xF5AABB, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_R, "M24 78 Q33 92 30 107 Q24 114 12 109 L9 81 Z", fill = 0xF5AABB, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M-30 32 Q-44 45 -39 77 Q-34 99 0 98 Q34 99 39 77 Q44 45 30 32 Z", fill = 0xFFC5CF, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M25 46 Q42 79 14 96 Q-9 102 -28 87 Q20 94 25 46 Z", fill = 0xF2A6B7, stroke = Stroke.None, width = 0),
+                P(BuddyPart.ARM_L, "M-31 46 Q-49 44 -50 67 Q-47 83 -30 79 L-23 57 Z", fill = 0xFFC5CF, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_R, "M31 46 Q49 44 50 67 Q47 83 30 79 L23 57 Z", fill = 0xFFC5CF, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-37 -19 L-45 -45 Q-32 -50 -20 -32 Q0 -43 20 -32 Q32 -50 45 -45 L37 -19 Q44 10 29 30 Q0 47 -29 30 Q-44 10 -37 -19 Z", fill = 0xFFC5CF, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-41 -42 Q-30 -44 -25 -30 L-35 -27 Z M41 -42 Q30 -44 25 -30 L35 -27 Z", fill = 0xF08FA6, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M29 18 Q13 36 -12 34 Q-31 30 -37 13 Q-33 39 0 41 Q32 39 37 13 Z", fill = 0xF2A6B7, stroke = Stroke.None, width = 0),
+                E(BuddyPart.HEAD, -15, -8, 5, 7, fill = 0x352B2B, stroke = Stroke.Ink),
+                E(BuddyPart.HEAD, 15, -8, 5, 7, fill = 0x352B2B, stroke = Stroke.Ink),
+                E(BuddyPart.HEAD, -16, -11, 1.8, 2, fill = 0xFFFFFF, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 14, -11, 1.8, 2, fill = 0xFFFFFF, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-20 -8 q5 -7 10 0 M10 -8 q5 -7 10 0", stroke = Stroke.Ink, width = 2.6, show = Show.DANCE),
+                E(BuddyPart.HEAD, -29, 13, 7, 3, fill = 0xEF8EA5, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 29, 13, 7, 3, fill = 0xEF8EA5, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 0, 15, 16, 11, fill = 0xF190A7, stroke = Stroke.Outline),
+                E(BuddyPart.HEAD, -6, 16, 2, 3, fill = 0xA94C65, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 6, 16, 2, 3, fill = 0xA94C65, stroke = Stroke.None),
+                P(BuddyPart.SLEEP, "M-30 30 Q-10 14 23 20 Q57 22 58 47 Q59 68 27 69 L-20 68 Q-49 64 -47 45 Z", fill = 0xFFC5CF, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M14 50 Q43 45 54 52 Q47 68 21 67 Q-5 68 -24 60 Q-6 64 14 50 Z", fill = 0xF2A6B7, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-59 28 Q-58 -5 -29 -7 Q-5 -5 0 25 Q2 52 -28 55 Q-57 54 -59 28 Z", fill = 0xFFC5CF, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-49 27 Q-43 34 -37 27 M-25 27 Q-19 34 -13 27", stroke = Stroke.Ink, width = 2.5),
+                E(BuddyPart.SLEEP, -49, 39, 5, 3, fill = 0xEF8EA5, stroke = Stroke.None),
+                E(BuddyPart.SLEEP, -13, 39, 5, 3, fill = 0xEF8EA5, stroke = Stroke.None),
+                E(BuddyPart.SLEEP, -31, 39, 10, 7, fill = 0xF190A7, stroke = Stroke.Outline),
+                E(BuddyPart.SLEEP, -34, 40, 1.5, 2, fill = 0xA94C65, stroke = Stroke.None),
+                E(BuddyPart.SLEEP, -27, 40, 1.5, 2, fill = 0xA94C65, stroke = Stroke.None),
+            )
+            BuddyRig(
+                pieces = p,
+                pivots = mapOf(BuddyPart.TAIL to P2(29, 64), BuddyPart.LEG_L to P2(-20, 79), BuddyPart.LEG_R to P2(20, 79), BuddyPart.BODY to P2(0, 94), BuddyPart.ARM_L to P2(-30, 48), BuddyPart.ARM_R to P2(30, 48), BuddyPart.HEAD to P2(0, 34)),
+                full = BuddyRect(-80, -66, 160, 188), barBottom = null, feet = P2(0, 111), sleepBottom = 69,
+                zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
+                style = BuddyDance.Style(armL = 1.1, armR = 1.1, armAmp = 0.65, alternate = true, kick = 0.25, bounce = 10, step = 8),
+                heart = P3(0, 66, 12), face = P4(0, 4, 30, 21), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
+                hat = P3(0, -40, 29), sleepHat = P3(-30, -8, 25), neck = P2(0, 38), hand = P2(44, 77))
+        }
+        val DRAGON: BuddyRig = run {
+            val p = listOf(
+                P(BuddyPart.TAIL, "M25 73 Q52 75 62 48 L67 62 L75 59 Q66 91 29 91 Z", fill = 0x48B9A8, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.TAIL, "M43 79 L47 67 L54 74 L59 58 L64 66", stroke = Stroke.Color(0xF7D48A), width = 3),
+                P(BuddyPart.LEG_L, "M-22 78 Q-34 90 -29 108 Q-18 116 -10 108 L-9 81 Z", fill = 0x4FC2B0, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_R, "M22 78 Q34 90 29 108 Q18 116 10 108 L9 81 Z", fill = 0x4FC2B0, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M-29 28 Q-42 48 -37 77 Q-30 99 0 99 Q30 99 37 77 Q42 48 29 28 Z", fill = 0x50C7B2, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M26 46 Q40 84 12 97 Q-10 103 -27 87 Q19 93 26 46 Z", fill = 0x329B93, stroke = Stroke.None, width = 0),
+                P(BuddyPart.BODY, "M-16 44 Q0 38 16 44 Q23 77 0 92 Q-23 77 -16 44 Z", fill = 0xFFE4A1, stroke = Stroke.None, width = 0),
+                P(BuddyPart.ARM_L, "M-30 44 Q-53 37 -54 59 L-42 58 L-48 72 Q-36 76 -26 64 Z", fill = 0x45B5A9, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_R, "M30 44 Q53 37 54 59 L42 58 L48 72 Q36 76 26 64 Z", fill = 0x45B5A9, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-38 -16 Q-43 -42 -27 -44 Q-18 -45 -13 -35 Q0 -42 13 -35 Q18 -45 27 -44 Q43 -42 38 -16 Q43 10 29 28 Q0 44 -29 28 Q-43 10 -38 -16 Z", fill = 0x50C7B2, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-28 -39 L-31 -58 Q-23 -63 -16 -39 M28 -39 L31 -58 Q23 -63 16 -39", fill = 0xFFE4A1, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-17 -42 L-12 -51 L-5 -42 L0 -55 L7 -42 L13 -48 L18 -38", fill = 0xF5CE80, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M30 15 Q12 36 -10 33 Q-29 30 -38 14 Q-31 40 0 40 Q32 38 38 12 Z", fill = 0x329B93, stroke = Stroke.None, width = 0),
+                E(BuddyPart.HEAD, -15, -4, 5, 7, fill = 0x352B2B, stroke = Stroke.Ink),
+                E(BuddyPart.HEAD, 15, -4, 5, 7, fill = 0x352B2B, stroke = Stroke.Ink),
+                E(BuddyPart.HEAD, -16, -7, 1.8, 2, fill = 0xFFFFFF, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 14, -7, 1.8, 2, fill = 0xFFFFFF, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-20 -4 q5 -7 10 0 M10 -4 q5 -7 10 0", stroke = Stroke.Ink, width = 2.6, show = Show.DANCE),
+                E(BuddyPart.HEAD, -28, 15, 6, 3, fill = 0xF0A6A0, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 28, 15, 6, 3, fill = 0xF0A6A0, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-8 17 Q0 23 8 17", stroke = Stroke.Ink, width = 2.2),
+                P(BuddyPart.HEAD, "M-24 21 Q-36 21 -45 28 M24 21 Q36 21 45 28", stroke = Stroke.Color(0xD3A76A), width = 1.7),
+                P(BuddyPart.SLEEP, "M-30 30 Q-10 14 23 20 Q57 22 58 47 Q59 68 27 69 L-20 68 Q-49 64 -47 45 Z", fill = 0x50C7B2, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M14 50 Q43 45 54 52 Q47 68 21 67 Q-5 68 -24 60 Q-6 64 14 50 Z", fill = 0x329B93, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-59 28 Q-58 -5 -29 -7 Q-5 -5 0 25 Q2 52 -28 55 Q-57 54 -59 28 Z", fill = 0x50C7B2, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-49 27 Q-43 34 -37 27 M-25 27 Q-19 34 -13 27", stroke = Stroke.Ink, width = 2.5),
+                E(BuddyPart.SLEEP, -49, 39, 5, 3, fill = 0xF0A6A0, stroke = Stroke.None),
+                E(BuddyPart.SLEEP, -13, 39, 5, 3, fill = 0xF0A6A0, stroke = Stroke.None),
+                P(BuddyPart.SLEEP, "M-53 4 L-49 -13 L-39 3 M-19 -5 L-15 -20 L-5 1", fill = 0xFFE4A1, stroke = Stroke.Outline, width = 3.2),
+            )
+            BuddyRig(
+                pieces = p,
+                pivots = mapOf(BuddyPart.TAIL to P2(27, 79), BuddyPart.LEG_L to P2(-20, 79), BuddyPart.LEG_R to P2(20, 79), BuddyPart.BODY to P2(0, 94), BuddyPart.ARM_L to P2(-30, 46), BuddyPart.ARM_R to P2(30, 46), BuddyPart.HEAD to P2(0, 34)),
+                full = BuddyRect(-82, -70, 164, 192), barBottom = null, feet = P2(0, 111), sleepBottom = 69,
+                zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
+                style = BuddyDance.Style(armL = 1.5, armR = 1.5, armAmp = 0.7, alternate = true, kick = 0.3, bounce = 10, step = 9),
+                heart = P3(0, 65, 12), face = P4(0, 5, 29, 21), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
+                hat = P3(0, -47, 27), sleepHat = P3(-30, -11, 25), neck = P2(0, 38), hand = P2(42, 69))
+        }
+        val EAGLE: BuddyRig = run {
+            val p = listOf(
+                P(BuddyPart.TAIL, "M-20 80 L-28 105 L-9 96 L0 112 L9 96 L28 105 L20 80 Z", fill = 0x815D48, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_L, "M-18 84 L-18 102 Q-34 105 -32 111 Q-21 113 -15 108 Q-8 115 0 111 Q2 105 -10 103 L-9 84 Z", fill = 0xF6C45D, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.LEG_R, "M18 84 L18 102 Q34 105 32 111 Q21 113 15 108 Q8 115 0 111 Q-2 105 10 103 L9 84 Z", fill = 0xF6C45D, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M-27 30 Q-42 49 -37 77 Q-31 98 0 99 Q31 98 37 77 Q42 49 27 30 Z", fill = 0x8C6048, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.BODY, "M27 49 Q37 81 13 96 Q-10 101 -28 87 Q19 92 27 49 Z", fill = 0x694835, stroke = Stroke.None, width = 0),
+                P(BuddyPart.BODY, "M-17 51 Q0 43 17 51 Q20 77 0 91 Q-20 77 -17 51 Z", fill = 0xBD9272, stroke = Stroke.None, width = 0),
+                P(BuddyPart.ARM_L, "M-27 42 Q-56 34 -60 55 L-53 61 L-57 68 L-43 66 L-44 77 Q-28 77 -20 55 Z", fill = 0x8C6048, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_L, "M-54 57 Q-40 58 -29 65", stroke = Stroke.Color(0xB68265), width = 1.8),
+                P(BuddyPart.ARM_R, "M27 42 Q56 34 60 55 L53 61 L57 68 L43 66 L44 77 Q28 77 20 55 Z", fill = 0x8C6048, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.ARM_R, "M54 57 Q40 58 29 65", stroke = Stroke.Color(0xB68265), width = 1.8),
+                P(BuddyPart.HEAD, "M-39 -12 Q-37 -43 0 -43 Q37 -43 39 -12 Q42 18 25 32 Q0 45 -25 32 Q-42 18 -39 -12 Z", fill = 0xFFF7ED, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.HEAD, "M-37 8 Q-27 33 0 39 Q27 33 37 8 Q33 37 0 40 Q-33 37 -37 8 Z", fill = 0xE5DCD5, stroke = Stroke.None, width = 0),
+                P(BuddyPart.HEAD, "M-34 -22 Q-28 -43 0 -43 Q26 -43 34 -22 Q15 -34 4 -25 Q-10 -37 -34 -22 Z", fill = 0xFFFFFF, stroke = Stroke.None, width = 0),
+                E(BuddyPart.HEAD, -17, -4, 5, 7, fill = 0x352B2B, stroke = Stroke.Ink),
+                E(BuddyPart.HEAD, 17, -4, 5, 7, fill = 0x352B2B, stroke = Stroke.Ink),
+                E(BuddyPart.HEAD, -18, -7, 1.8, 2, fill = 0xFFFFFF, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 16, -7, 1.8, 2, fill = 0xFFFFFF, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-22 -4 q5 -7 10 0 M12 -4 q5 -7 10 0", stroke = Stroke.Ink, width = 2.6, show = Show.DANCE),
+                E(BuddyPart.HEAD, -30, 15, 6, 3, fill = 0xEAB0A0, stroke = Stroke.None),
+                E(BuddyPart.HEAD, 30, 15, 6, 3, fill = 0xEAB0A0, stroke = Stroke.None),
+                P(BuddyPart.HEAD, "M-10 12 Q0 9 10 12 L0 29 Z", fill = 0xF5C35D, stroke = Stroke.Ink, width = 2),
+                P(BuddyPart.HEAD, "M-3 24 L3 24", stroke = Stroke.Color(0xD89541), width = 1.7),
+                P(BuddyPart.SLEEP, "M-30 30 Q-10 14 23 20 Q57 22 58 47 Q59 68 27 69 L-20 68 Q-49 64 -47 45 Z", fill = 0x8C6048, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M14 50 Q43 45 54 52 Q47 68 21 67 Q-5 68 -24 60 Q-6 64 14 50 Z", fill = 0x694835, stroke = Stroke.None, width = 0),
+                P(BuddyPart.SLEEP, "M-59 28 Q-58 -5 -29 -7 Q-5 -5 0 25 Q2 52 -28 55 Q-57 54 -59 28 Z", fill = 0xFFF7ED, stroke = Stroke.Outline, width = 3.2),
+                P(BuddyPart.SLEEP, "M-49 27 Q-43 34 -37 27 M-25 27 Q-19 34 -13 27", stroke = Stroke.Ink, width = 2.5),
+                E(BuddyPart.SLEEP, -49, 39, 5, 3, fill = 0xEAB0A0, stroke = Stroke.None),
+                E(BuddyPart.SLEEP, -13, 39, 5, 3, fill = 0xEAB0A0, stroke = Stroke.None),
+                P(BuddyPart.SLEEP, "M-39 37 L-30 48 L-22 36 Z", fill = 0xF5C35D, stroke = Stroke.Ink, width = 1.5),
+                P(BuddyPart.SLEEP, "M11 27 Q40 19 48 42 Q27 51 11 42 Z", fill = 0x8C6048, stroke = Stroke.Outline, width = 3.2),
+            )
+            BuddyRig(
+                pieces = p,
+                pivots = mapOf(BuddyPart.TAIL to P2(0, 85), BuddyPart.LEG_L to P2(-18, 86), BuddyPart.LEG_R to P2(18, 86), BuddyPart.BODY to P2(0, 94), BuddyPart.ARM_L to P2(-27, 45), BuddyPart.ARM_R to P2(27, 45), BuddyPart.HEAD to P2(0, 34)),
+                full = BuddyRect(-82, -66, 164, 188), barBottom = null, feet = P2(0, 111), sleepBottom = 69,
+                zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
+                style = BuddyDance.Style(armL = 1.9, armR = 1.9, armAmp = 0.9, alternate = true, kick = 0.25, bounce = 11, step = 8),
+                heart = P3(0, 66, 12), face = P4(0, 5, 30, 20), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
+                hat = P3(0, -43, 30), sleepHat = P3(-30, -8, 26), neck = P2(0, 38), hand = P2(48, 66))
+        }
+
     }
 }
 
@@ -1361,7 +1761,8 @@ class BuddyOutfit(val pieces: List<BuddyPiece> = emptyList(), val recolor: Map<I
                         mapOf(0x304563 to RED, 0x536B8C to 0xF18B95))
                     else -> BuddyOutfit(bow(BuddyPart.HEAD, r.neck) + bow(BuddyPart.SLEEP, sn))
                 }
-                BuddySeason.CHRISTMAS -> BuddyOutfit(santa(BuddyPart.HEAD, h) + santa(BuddyPart.SLEEP, sh))
+                BuddySeason.CHRISTMAS -> BuddyOutfit(if (c == BuddyCharacter.KOI) bow(BuddyPart.HEAD, r.neck) + bow(BuddyPart.SLEEP, sn)
+                    else santa(BuddyPart.HEAD, h) + santa(BuddyPart.SLEEP, sh))
                 BuddySeason.HALLOWEEN -> BuddyOutfit(if (c == BuddyCharacter.GIRL) witch(BuddyPart.HEAD, h) + witch(BuddyPart.SLEEP, sh)
                     else pumpkin(BuddyPart.HEAD, h) + pumpkin(BuddyPart.SLEEP, sh))
                 BuddySeason.MID_AUTUMN -> {
@@ -1482,7 +1883,11 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
     var shownSerial = 0; private set
     var character: BuddyCharacter = when (rig) {
         BuddyRig.GIRL -> BuddyCharacter.GIRL; BuddyRig.BOY -> BuddyCharacter.BOY
-        BuddyRig.CHICK -> BuddyCharacter.CHICK; else -> BuddyCharacter.CAT
+        BuddyRig.CHICK -> BuddyCharacter.CHICK
+        BuddyRig.SHIBA -> BuddyCharacter.SHIBA; BuddyRig.KOI -> BuddyCharacter.KOI
+        BuddyRig.PANDA -> BuddyCharacter.PANDA; BuddyRig.PIG -> BuddyCharacter.PIG
+        BuddyRig.DRAGON -> BuddyCharacter.DRAGON; BuddyRig.EAGLE -> BuddyCharacter.EAGLE
+        else -> BuddyCharacter.CAT
     }
     var danceSeed: Int = 0
     var vectorDance: Boolean = true
@@ -1545,7 +1950,7 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
                 if (vectorDance) dancePose(v.tier, p, tmp) else tmp.reset()
             }
             BuddyPhase.Cheering -> tmp.reset()
-            is BuddyPhase.React -> { shownSerial = brain.reactSerial; BuddyDance.react(v.reaction, rig.style, 0.0, tmp) }
+            is BuddyPhase.React -> { shownSerial = brain.reactSerial; BuddyDance.react(v.reaction, rig.style, 0.0, tmp, character) }
         }
         if (target == null || lowPower) { blendStart = -1e9; blendDelta.reset() }
         else {
@@ -1564,7 +1969,7 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
     private fun dancePose(tier: Int, p: Double, out: BuddyPose): BuddyPose {
         val key = tier * BuddyDance.Move.entries.size + danceMove.ordinal
         val frames = loopCache.getOrPut(key) {
-            (0..48).map { BuddyDance.pose(rig.style, tier, it / 48.0, move = danceMove) }
+            (0..48).map { BuddyDance.pose(rig.style, tier, it / 48.0, move = danceMove, character = character) }
         }
         return sample(frames, p, out)
     }
@@ -1572,7 +1977,7 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
     /** Vòng lắc nhẹ ([BuddyPhase.Idle]) — dựng một lần lúc cần, cache như vòng nhảy. */
     private var idleFrames: List<BuddyPose>? = null
     private fun idlePose(p: Double, out: BuddyPose): BuddyPose {
-        val frames = idleFrames ?: (0..48).map { BuddyDance.idle(rig.style, it / 48.0) }.also { idleFrames = it }
+        val frames = idleFrames ?: (0..48).map { BuddyDance.idle(rig.style, it / 48.0, character = character) }.also { idleFrames = it }
         return sample(frames, p - floor(p), out)
     }
 
@@ -1598,11 +2003,11 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
         BuddyPhase.Awake -> out.reset()
         BuddyPhase.Idle -> if (vectorDance) idlePose((t - phaseStart) / BuddyDance.IDLE_LOOP, out) else out.reset()
         is BuddyPhase.Dancing -> if (vectorDance) dancePose(s.tier, loopPhase(t), out) else out.reset()
-        BuddyPhase.Cheering -> BuddyDance.cheer(rig.style, (t - phaseStart) / BuddyBrain.CHEER, out)
+        BuddyPhase.Cheering -> BuddyDance.cheer(rig.style, (t - phaseStart) / BuddyBrain.CHEER, out, character)
         is BuddyPhase.React -> {
             var f = (t - phaseStart) / reactLength(s.reaction)
             if (s.reaction == BuddyReaction.PANIC) f -= floor(f)
-            BuddyDance.react(s.reaction, rig.style, f, out)
+            BuddyDance.react(s.reaction, rig.style, f, out, character)
         }
     }
 

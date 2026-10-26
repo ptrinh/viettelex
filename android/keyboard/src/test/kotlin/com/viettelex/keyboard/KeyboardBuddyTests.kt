@@ -30,12 +30,13 @@ class KeyboardBuddyTests {
     // MARK: cài đặt
 
     @Test fun idsMatchIOSAndDefaultIsOff() {
-        assertEquals(listOf("off", "girl", "boy", "cat", "chick"), BuddyCharacter.IDS.toList())
+        assertEquals(listOf("off", "girl", "boy", "cat", "chick", "shiba", "koi", "panda", "pig", "dragon", "eagle"), BuddyCharacter.IDS.toList())
         assertEquals("keyboardBuddy", Keys.KEYBOARD_BUDDY)
         assertEquals(BuddyCharacter.OFF, BuddyCharacter.DEFAULT)
         assertEquals(BuddyCharacter.OFF, BuddyCharacter.of("lạ"))
         assertEquals(BuddyCharacter.OFF, BuddyCharacter.of(null))
         assertEquals(BuddyCharacter.CHICK, BuddyCharacter.of("chick"))
+        for (c in BuddyCharacter.entries.drop(5)) assertEquals(c, BuddyCharacter.of(c.id))
         assertTrue(BackupSettings.all.any { it.key == Keys.KEYBOARD_BUDDY })
     }
 
@@ -58,6 +59,10 @@ class KeyboardBuddyTests {
         assertEquals(BuddyStyle.VECTOR, KeyboardSettings.load { prefs[it] }.buddyStyle)
         assertEquals("riêng từng nhân vật", BuddyStyle.SPRITE,
             KeyboardSettings.load { (prefs + (Keys.KEYBOARD_BUDDY to "boy"))[it] }.buddyStyle)
+        assertEquals(BuddyStyle.VECTOR, BuddyStyle.SPRITE.resolved(BuddyCharacter.EAGLE))
+        assertEquals(BuddyStyle.VECTOR, KeyboardSettings.load { if (it == Keys.KEYBOARD_BUDDY) "dragon" else null }.buddyStyle)
+        assertTrue(BuddyStyle.hasAtlas(BuddyCharacter.CAT))
+        assertFalse(BuddyStyle.hasAtlas(BuddyCharacter.KOI))
         for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF })
             assertTrue("sao lưu kiểu vẽ $c", BackupSettings.all.any { it.key == BuddyStyle.key(c) })
     }
@@ -221,7 +226,7 @@ class KeyboardBuddyTests {
     /** Bảng hình giống hệt iOS (KeyboardBuddyTests.checksums). */
     @Test fun rigChecksumParity() {
         val sums = BuddyCharacter.entries.map { String.format(Locale.US, "%.4f", BuddyRig.checksum(it)) }
-        assertEquals(listOf("0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220"), sums)
+        assertEquals(listOf("0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220", "15269.7078", "14816.0100", "12385.2865", "14587.2357", "12839.3196", "16368.4397"), sums)
     }
 
     /** = iOS testMirroredFramesDoublePoses: lật gương khung có sẵn để gấp đôi dáng. */
@@ -268,7 +273,9 @@ class KeyboardBuddyTests {
     @Test fun everyRigComplete() {
         for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
             val r = BuddyRig.rig(c)!!
-            for (p in listOf(BuddyPart.LEG_L, BuddyPart.LEG_R, BuddyPart.BODY, BuddyPart.ARM_L, BuddyPart.ARM_R, BuddyPart.HEAD, BuddyPart.SLEEP))
+            val required = if (c == BuddyCharacter.KOI) listOf(BuddyPart.TAIL, BuddyPart.BODY, BuddyPart.ARM_L, BuddyPart.ARM_R, BuddyPart.HEAD, BuddyPart.SLEEP)
+                else listOf(BuddyPart.LEG_L, BuddyPart.LEG_R, BuddyPart.BODY, BuddyPart.ARM_L, BuddyPart.ARM_R, BuddyPart.HEAD, BuddyPart.SLEEP)
+            for (p in required)
                 assertTrue("$c thiếu $p", r.pieces.any { it.part == p })
             for (p in r.pieces) if (p.part != BuddyPart.SLEEP) assertNotNull("$c ${p.part}", r.pivots[p.part])
         }
@@ -295,6 +302,48 @@ class KeyboardBuddyTests {
         for (w in listOf("nho", "nhỏ", "cung", "thom", "chan", "a", "o", "ha", "an", "anh", "bàn", "trời", "k", "kk", "hah", ""))
             assertNull(w, BuddyWords.reaction(w, null))
         assertNull(BuddyWords.reaction("a".repeat(30), null))
+    }
+
+    @Test fun greetingEmojiAndSignatures() {
+        for (w in listOf("hi", "hello", "hey", "hế lô", "hê lô", "helo", "chào", "alo", "yo", "sup", "hiii", "heyyy"))
+            assertEquals(w, BuddyReaction.GREET, BuddyWords.reaction(w, null))
+        assertEquals(BuddyReaction.GREET, BuddyWords.reaction("chào", "xin"))
+        assertEquals(BuddyReaction.GREET, BuddyWords.reaction("morning", "good"))
+        assertEquals(BuddyReaction.GREET, BuddyWords.reaction("sáng", "buổi", "chào"))
+        for (w in listOf("chao", "they", "hockey")) assertNull(w, BuddyWords.reaction(w, null))
+        assertNull(BuddyWords.reaction("chao", "xin"))
+        for (w in listOf("haha", "hihi", "hehe", "hoho", "kkkk", "=)))", ":)))"))
+            assertEquals(w, BuddyReaction.LAUGH, BuddyWords.reaction(w, null))
+        assertEquals(BuddyReaction.SAD, BuddyWords.reaction("huhu", null))
+        val groups = listOf(
+            BuddyReaction.GREET to "👋 🙋 🙋‍♀️ 🙋‍♂️ 🤗", BuddyReaction.LOVE to "❤️ ♥️ 💕 💖 💗 😍 🥰 😘 😻 💋",
+            BuddyReaction.LAUGH to "😂 🤣 😆 😄 😁 😹 😅 😝 😜", BuddyReaction.SURPRISED to "😮 😲 😱 🤯 😳 ‼️ ⁉️",
+            BuddyReaction.SAD to "😢 😭 😞 😔 🥺 💔 😿", BuddyReaction.ANGRY to "😡 🤬 😠 👿 💢",
+            BuddyReaction.LUCKY_MONEY to "🧧 🧨", BuddyReaction.GIFT to "🎁 🎄 🎅 🤶 ⛄",
+            BuddyReaction.CANDY to "🎃 🍬 🍭 👻 🦇", BuddyReaction.MOONCAKE to "🥮 🏮 🌕")
+        for ((reaction, group) in groups) for (emoji in group.split(" ")) {
+            assertEquals(emoji, reaction, BuddyWords.emoji(emoji))
+            assertEquals(emoji, reaction, BuddyWords.reaction(emoji, null))
+        }
+        assertEquals(BuddyReaction.GREET, BuddyWords.emoji("👋🏽"))
+        assertEquals(BuddyReaction.GREET, BuddyWords.emoji("🙋🏽‍♀️"))
+        assertEquals(BuddyReaction.GREET, BuddyWords.emoji("a🙋🏽‍♀️b"))
+        assertEquals(BuddyReaction.LAUGH, BuddyWords.reaction("abc😂x", null))
+        assertEquals(BuddyWords.emoji("❤️"), BuddyWords.emoji("❤"))
+        assertEquals(BuddySignature.FIRE, BuddySignature.cheer(BuddyCharacter.DRAGON, 1))
+        assertEquals(BuddySignature.LASER, BuddySignature.cheer(BuddyCharacter.EAGLE, 1))
+        assertEquals(BuddySignature.EGG, BuddySignature.cheer(BuddyCharacter.CHICK, 3))
+        assertNull(BuddySignature.cheer(BuddyCharacter.CHICK, 2))
+        assertEquals(BuddySignature.YARN, BuddySignature.reaction(BuddyCharacter.CAT, BuddyReaction.PANIC))
+        assertEquals(BuddySignature.SNORT, BuddySignature.reaction(BuddyCharacter.PIG, BuddyReaction.ANGRY))
+        assertEquals(BuddySignature.BONE, BuddySignature.word(BuddyCharacter.SHIBA, "good dog"))
+        assertEquals(BuddySignature.FIRE, BuddySignature.word(BuddyCharacter.DRAGON, "🐉"))
+        for ((character, emojis) in listOf(BuddyCharacter.SHIBA to "🐶 🐕 🦴", BuddyCharacter.KOI to "🐟 🎏",
+            BuddyCharacter.PANDA to "🐼 🎋", BuddyCharacter.PIG to "🐷 🐖", BuddyCharacter.DRAGON to "🐉 🐲 🔥",
+            BuddyCharacter.EAGLE to "🦅")) for (emoji in emojis.split(" "))
+            assertTrue(BuddyWords.signatureEmoji(emoji, character))
+        assertEquals(BuddySignature.BAMBOO, BuddySignature.idle(BuddyCharacter.PANDA))
+        assertEquals(BuddySignature.BREAKDANCE, BuddySignature.dance(BuddyCharacter.BOY, 3, 0, 0))
     }
 
     /** Giận dùng ĐÚNG bảng của bộ lọc gợi ý (từ / cặp / bộ ba), không phụ thuộc công tắc lọc. */
@@ -692,7 +741,9 @@ class KeyboardBuddyTests {
                 assertEquals(tier < 2, pool.contains(BuddyDance.Move.BOUNCE))
                 for (seed in listOf(0, 1, 42, -7, Int.MAX_VALUE)) for (group in 0 until 100) {
                     val a = BuddyDance.move(c, tier, group * 2, seed)
-                    assertTrue(pool.contains(a))
+                    assertTrue((if (c == BuddyCharacter.KOI || c == BuddyCharacter.EAGLE)
+                        listOf(BuddyDance.Move.WAVE, BuddyDance.Move.CHICKEN, BuddyDance.Move.BOUNCE, BuddyDance.Move.CLAP, BuddyDance.Move.SKIP, BuddyDance.Move.SPIN, BuddyDance.Move.DAB)
+                        else pool).contains(a))
                     assertEquals(a, BuddyDance.move(c, tier, group * 2 + 1, seed))
                     assertNotEquals(a, BuddyDance.move(c, tier, (group + 1) * 2, seed))
                 }

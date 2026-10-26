@@ -28,12 +28,13 @@ final class KeyboardBuddyTests: XCTestCase {
     // MARK: Cài đặt
 
     func testIdsMatchAndroidAndDefaultIsOff() {
-        XCTAssertEqual(BuddyCharacter.allCases.map(\.rawValue), ["off", "girl", "boy", "cat", "chick"])
+        XCTAssertEqual(BuddyCharacter.allCases.map(\.rawValue), ["off", "girl", "boy", "cat", "chick", "shiba", "koi", "panda", "pig", "dragon", "eagle"])
         XCTAssertEqual(BuddyCharacter.key, "keyboardBuddy")
         XCTAssertEqual(BuddyCharacter.defaultValue, .off)
         XCTAssertEqual(BuddyCharacter.parse("lạ"), .off)
         XCTAssertEqual(BuddyCharacter.parse(nil), .off)
         XCTAssertEqual(BuddyCharacter.parse("chick"), .chick)
+        for c in BuddyCharacter.allCases.dropFirst(5) { XCTAssertEqual(BuddyCharacter.parse(c.rawValue), c) }
     }
 
     /// Kiểu vẽ riêng từng nhân vật: mặc định Hoạt hình, khoá `buddyStyle.<id>` (= Android), lạ ⇒ mặc định.
@@ -51,6 +52,10 @@ final class KeyboardBuddyTests: XCTestCase {
         d.set("vector", forKey: BuddyStyle.key(.cat))
         XCTAssertEqual(BuddyStyle.load(d, .cat), .vector)
         XCTAssertEqual(BuddyStyle.load(d, .boy), .sprite, "riêng từng nhân vật")
+        XCTAssertEqual(BuddyStyle.load(d, .dragon), .vector)
+        XCTAssertEqual(BuddyStyle.sprite.resolved(for: .eagle), .vector)
+        XCTAssertTrue(BuddyStyle.hasAtlas(.cat))
+        XCTAssertFalse(BuddyStyle.hasAtlas(.koi))
         for c in BuddyCharacter.allCases where c != .off {
             XCTAssertNotNil(BackupSettings.all.first { $0.key == BuddyStyle.key(c) }, "sao lưu kiểu vẽ \(c)")
         }
@@ -139,7 +144,7 @@ final class KeyboardBuddyTests: XCTestCase {
         XCTAssertEqual(BuddyCharacter.girl.title, "Cô gái")
         XCTAssertEqual(BuddyCharacter.off.title, "Tắt")
         L10n.apply("en")
-        XCTAssertEqual(BuddyCharacter.allCases.map(\.title), ["Off", "Girl", "Boy", "Cat", "Chick"])
+        XCTAssertEqual(BuddyCharacter.allCases.map(\.title), ["Off", "Girl", "Boy", "Cat", "Chick", "Shiba", "Koi", "Panda", "Piggy", "Little dragon", "Eagle"])
         XCTAssertEqual(L("Bạn đồng hành"), "Keyboard buddy")
     }
 
@@ -297,6 +302,55 @@ final class KeyboardBuddyTests: XCTestCase {
         XCTAssertEqual(p.tail, 0.2829, accuracy: 1e-3)
     }
 
+    func testGreetingEmojiAndSignatures() {
+        for word in ["hi", "hello", "hey", "hế lô", "hê lô", "helo", "chào", "alo", "yo", "sup", "hiii", "heyyy"] {
+            XCTAssertEqual(BuddyWords.reaction(word: word, prev: nil), .greet, word)
+        }
+        XCTAssertEqual(BuddyWords.reaction(word: "chào", prev: "xin"), .greet)
+        XCTAssertEqual(BuddyWords.reaction(word: "morning", prev: "good"), .greet)
+        XCTAssertEqual(BuddyWords.reaction(word: "sáng", prev: "buổi", prev2: "chào"), .greet)
+        XCTAssertNil(BuddyWords.reaction(word: "chao", prev: nil))
+        XCTAssertNil(BuddyWords.reaction(word: "chao", prev: "xin"))
+        XCTAssertNil(BuddyWords.reaction(word: "they", prev: nil))
+        XCTAssertNil(BuddyWords.reaction(word: "hockey", prev: nil))
+        for word in ["haha", "hihi", "hehe", "hoho", "kkkk", "=)))", ":)))"] {
+            XCTAssertEqual(BuddyWords.reaction(word: word, prev: nil), .laugh, word)
+        }
+        XCTAssertEqual(BuddyWords.reaction(word: "huhu", prev: nil), .sad)
+        let groups: [(BuddyReaction, String)] = [
+            (.greet, "👋 🙋 🙋‍♀️ 🙋‍♂️ 🤗"), (.love, "❤️ ♥️ 💕 💖 💗 😍 🥰 😘 😻 💋"),
+            (.laugh, "😂 🤣 😆 😄 😁 😹 😅 😝 😜"), (.surprised, "😮 😲 😱 🤯 😳 ‼️ ⁉️"),
+            (.sad, "😢 😭 😞 😔 🥺 💔 😿"), (.angry, "😡 🤬 😠 👿 💢"),
+            (.luckyMoney, "🧧 🧨"), (.gift, "🎁 🎄 🎅 🤶 ⛄"),
+            (.candy, "🎃 🍬 🍭 👻 🦇"), (.mooncake, "🥮 🏮 🌕"),
+        ]
+        for (reaction, group) in groups { for emoji in group.split(separator: " ") {
+            XCTAssertEqual(BuddyWords.emoji(String(emoji)), reaction, String(emoji))
+            XCTAssertEqual(BuddyWords.reaction(word: String(emoji), prev: nil), reaction)
+        } }
+        XCTAssertEqual(BuddyWords.emoji("👋🏽"), .greet)
+        XCTAssertEqual(BuddyWords.emoji("🙋🏽‍♀️"), .greet)
+        XCTAssertEqual(BuddyWords.emoji("a🙋🏽‍♀️b"), .greet)
+        XCTAssertEqual(BuddyWords.reaction(word: "abc😂x", prev: nil), .laugh)
+        XCTAssertEqual(BuddyWords.emoji("❤️"), BuddyWords.emoji("❤"))
+        XCTAssertEqual(BuddySignature.cheer(.dragon, seed: 1), .fire)
+        XCTAssertEqual(BuddySignature.cheer(.eagle, seed: 1), .laser)
+        XCTAssertEqual(BuddySignature.cheer(.chick, seed: 3), .egg)
+        XCTAssertNil(BuddySignature.cheer(.chick, seed: 2))
+        XCTAssertEqual(BuddySignature.reaction(.cat, .panic), .yarn)
+        XCTAssertEqual(BuddySignature.reaction(.pig, .angry), .snort)
+        XCTAssertEqual(BuddySignature.word(.shiba, "good dog"), .bone)
+        XCTAssertEqual(BuddySignature.word(.dragon, "🐉"), .fire)
+        for (character, emojis) in [(BuddyCharacter.shiba, "🐶 🐕 🦴"), (.koi, "🐟 🎏"),
+                                    (.panda, "🐼 🎋"), (.pig, "🐷 🐖"), (.dragon, "🐉 🐲 🔥"), (.eagle, "🦅")] {
+            for emoji in emojis.split(separator: " ") {
+                XCTAssertTrue(BuddyWords.signatureEmoji(String(emoji), character: character))
+            }
+        }
+        XCTAssertEqual(BuddySignature.idle(.panda), .bamboo)
+        XCTAssertEqual(BuddySignature.dance(.boy, tier: 3, group: 0, seed: 0), .breakdance)
+    }
+
     // MARK: Hình (dữ liệu)
 
     /// Phil 20/10: lật gương khung có sẵn để gấp đôi dáng (nhấc chân trái → chân phải).
@@ -393,12 +447,14 @@ final class KeyboardBuddyTests: XCTestCase {
         print("BUDDY checksum \(sums)")
         XCTAssertEqual(sums, Self.checksums)
     }
-    static let checksums = ["0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220"]
+    static let checksums = ["0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220", "15269.7078", "14816.0100", "12385.2865", "14587.2357", "12839.3196", "16368.4397"]
 
     func testEveryRigHasAllPartsAndSleepPose() {
         for c in BuddyCharacter.allCases where c != .off {
             let r = BuddyRig.rig(c)!
-            for p in [BuddyPart.legL, .legR, .body, .armL, .armR, .head, .sleep] {
+            let required: [BuddyPart] = c == .koi ? [.tail, .body, .armL, .armR, .head, .sleep]
+                : [.legL, .legR, .body, .armL, .armR, .head, .sleep]
+            for p in required {
                 XCTAssertTrue(r.pieces.contains { $0.part == p }, "\(c) thiếu \(p)")
             }
             for p in r.pieces where p.part != .sleep { XCTAssertNotNil(r.pivots[p.part], "\(c) \(p.part) thiếu điểm xoay") }
@@ -429,7 +485,7 @@ final class KeyboardBuddyTests: XCTestCase {
         for c in BuddyCharacter.allCases where c != .off {
             let v = makeView(c, clock: clock)
             XCTAssertEqual(v.shown, .asleep(zzz: false))
-            XCTAssertEqual(v.runningAnimationCount, 0, "\(c): mới hiện — ngủ yên")
+            XCTAssertEqual(v.runningAnimationCount, c == .koi ? 3 : 0, "\(c): mới hiện — ngủ yên")
             XCTAssertFalse(v.hasPendingTimer)
             for _ in 0..<20 { clock.t += 0.1; v.keyPressed() }
             v.tick()
@@ -441,10 +497,10 @@ final class KeyboardBuddyTests: XCTestCase {
             XCTAssertGreaterThan(v.runningAnimationCount, 0, "\(c): lắc nhẹ")
             clock.t += 8; v.tick()
             XCTAssertEqual(v.shown, .asleep(zzz: true))
-            XCTAssertEqual(v.runningAnimationCount, 3, "\(c): chỉ ba chữ z")
+            XCTAssertEqual(v.runningAnimationCount, c == .koi ? 6 : 3, "\(c): ba chữ z và bong bóng koi")
             clock.t += 2.1; v.tick()
             XCTAssertEqual(v.shown, .asleep(zzz: false))
-            XCTAssertEqual(v.runningAnimationCount, 0, "\(c): ngủ yên ⇒ 0 hoạt ảnh")
+            XCTAssertEqual(v.runningAnimationCount, c == .koi ? 3 : 0, "\(c): ngủ yên ⇒ chỉ koi có bong bóng")
             XCTAssertFalse(v.hasPendingTimer, "\(c): ngủ yên ⇒ không hẹn giờ")
             v.halt()
         }
@@ -1114,7 +1170,7 @@ final class KeyboardBuddyTests: XCTestCase {
                 for seed in [0, 1, 42, -7, Int.max] {
                     for group in 0..<100 {
                         let a = BuddyDance.move(c, tier: tier, loopIndex: group * 2, seed: seed)
-                        XCTAssertTrue(pool.contains(a))
+                        XCTAssertTrue((c == .koi || c == .eagle) ? [.wave, .chicken, .bounce, .clap, .skip, .spin, .dab].contains(a) : pool.contains(a))
                         XCTAssertEqual(a, BuddyDance.move(c, tier: tier, loopIndex: group * 2 + 1, seed: seed))
                         XCTAssertNotEqual(a, BuddyDance.move(c, tier: tier, loopIndex: (group + 1) * 2, seed: seed))
                     }

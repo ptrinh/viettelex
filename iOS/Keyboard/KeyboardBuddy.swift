@@ -18,7 +18,7 @@ import Foundation
 
 /// Nhân vật (giá trị lưu App Group / sao lưu = rawValue — CHỈ thêm cuối).
 enum BuddyCharacter: String, CaseIterable {
-    case off, girl, boy, cat, chick
+    case off, girl, boy, cat, chick, shiba, koi, panda, pig, dragon, eagle
 
     static let key = "keyboardBuddy"
     static let defaultValue: BuddyCharacter = .off
@@ -35,6 +35,12 @@ enum BuddyCharacter: String, CaseIterable {
         case .boy: return L("Chàng trai")
         case .cat: return L("Mèo")
         case .chick: return L("Gà con")
+        case .shiba: return L("Chó Shiba")
+        case .koi: return L("Cá Koi")
+        case .panda: return L("Gấu trúc")
+        case .pig: return L("Heo con")
+        case .dragon: return L("Rồng con")
+        case .eagle: return L("Đại bàng")
         }
     }
 
@@ -52,10 +58,12 @@ enum BuddyStyle: String, CaseIterable {
     static let defaultValue: BuddyStyle = .sprite
 
     static func key(_ c: BuddyCharacter) -> String { "buddyStyle.\(c.rawValue)" }
+    static func hasAtlas(_ c: BuddyCharacter) -> Bool { [.girl, .boy, .cat, .chick].contains(c) }
+    func resolved(for c: BuddyCharacter) -> BuddyStyle { Self.hasAtlas(c) ? self : .vector }
     static func parse(_ raw: Any?) -> BuddyStyle {
         (raw as? String).flatMap(BuddyStyle.init(rawValue:)) ?? defaultValue
     }
-    static func load(_ d: UserDefaults?, _ c: BuddyCharacter) -> BuddyStyle { parse(d?.object(forKey: key(c))) }
+    static func load(_ d: UserDefaults?, _ c: BuddyCharacter) -> BuddyStyle { parse(d?.object(forKey: key(c))).resolved(for: c) }
 
     var title: String {
         switch self {
@@ -329,7 +337,11 @@ enum BuddyDance {
     static func loopLength(_ tier: Int) -> Double { beats[clamp(tier)] * beatsPerLoop }
     /// Lắc nhẹ sau khi ngừng gõ (`.idle`): lắc hông độ sung bậc 0, một vòng chậm `idleLoop` giây.
     static let idleLoop = 4.0
-    static func idle(_ s: Style, p: Double) -> BuddyPose { pose(s, tier: 0, p: p, move: .hipSway) }
+    static func idle(_ s: Style, p: Double, character: BuddyCharacter = .off) -> BuddyPose {
+        var o = pose(s, tier: 0, p: p, move: .hipSway)
+        if character == .panda { o.head = 0.08 * sin(8 * Double.pi * p); o.armL = -0.3; o.armR = 0.3 }
+        return o
+    }
     static func clamp(_ tier: Int) -> Int { min(max(tier, 0), BuddyTempo.tiers - 1) }
 
     /// Kiểu nhảy riêng từng nhân vật (rad / đơn vị thiết kế), nhân với độ sung của bậc.
@@ -349,15 +361,18 @@ enum BuddyDance {
     }
     /// A seeded cyclic permutation; each selection lasts two loops, adjacent groups cannot repeat.
     static func move(_ character: BuddyCharacter, tier: Int, loopIndex: Int, seed: Int) -> Move {
-        let pool = moves(tier), n = pool.count
+        let pool: [Move] = (character == .koi || character == .eagle)
+            ? (clamp(tier) < 2 ? [.wave, .chicken, .bounce, .clap] : [.chicken, .wave, .skip, .spin, .dab])
+            : moves(tier)
+        let n = pool.count
         let c: Int
-        switch character { case .off: c = 0; case .girl: c = 1; case .boy: c = 2; case .cat: c = 3; case .chick: c = 4 }
+        switch character { case .off: c = 0; case .girl: c = 1; case .boy: c = 2; case .cat: c = 3; case .chick: c = 4; case .shiba: c = 5; case .koi: c = 6; case .panda: c = 7; case .pig: c = 8; case .dragon: c = 9; case .eagle: c = 10 }
         let offset = abs(seed % 997) + c * 17
         let group = max(0, loopIndex) / 2 % n
         return pool[(offset + group * (n - 1)) % n]
     }
 
-    static func pose(_ s: Style, tier: Int, p: Double, move: Move = .bounce) -> BuddyPose {
+    static func pose(_ s: Style, tier: Int, p: Double, move: Move = .bounce, character: BuddyCharacter = .off) -> BuddyPose {
         let pp = p - floor(p)
         guard pp > 0 else { return .rest }
         let e = energy[clamp(tier)], two = 2 * Double.pi
@@ -413,6 +428,10 @@ enum BuddyDance {
             o.head = 0.25 * e * hop
             o.tail = 0.3 * e * fast
         }
+        if character == .boy && move == .spin && tier == 3 {
+            if pp < 0.65 { o.head = 2 * Double.pi * pp / 0.65; o.rot = -0.22 * gate; o.dy -= s.bounce * 0.4 * gate }
+            else { o.head = 0; o.rot = -0.55 * gate; o.armL = 1.9 * gate; o.armR = -1.9 * gate; o.sx = 1 }
+        }
         for channel in BuddyPose.additiveChannels { o[keyPath: channel] *= gate }
         return o
     }
@@ -450,7 +469,7 @@ enum BuddyDance {
     }
 
     /// Cổ vũ: nhảy lên, hai tay giơ cao — f 0…1 (về dáng nghỉ ở 0 và 1).
-    static func cheer(_ s: Style, f: Double) -> BuddyPose {
+    static func cheer(_ s: Style, f: Double, character: BuddyCharacter = .off) -> BuddyPose {
         let k = sin(Double.pi * min(max(f, 0), 1))
         var o = BuddyPose()
         o.dy = -s.bounce * 1.4 * k
@@ -459,11 +478,14 @@ enum BuddyDance {
         o.legL = 0.4 * k
         o.legR = -0.4 * k
         o.tail = 0.5 * k
+        if character == .koi { o.rot = 0.18 * k; o.armL = 1.5 * k; o.armR = -1.5 * k; o.dy *= 1.5; o.tail = 0.8 * k }
+        if character == .eagle { o.armL = 2.8 * k; o.armR = -2.8 * k }
+        if character == .shiba { o.tail = 1.1 * sin(10 * Double.pi * f) * k }
         return o
     }
 
     /// Dáng phản ứng — f 0…1 của `r.duration` (về nghỉ ở 0 và 1; hoảng: lặp, không về nghỉ ở cuối).
-    static func react(_ r: BuddyReaction, _ s: Style, f: Double) -> BuddyPose {
+    static func react(_ r: BuddyReaction, _ s: Style, f: Double, character: BuddyCharacter = .off) -> BuddyPose {
         let ff = min(max(f, 0), 1)
         let pi = Double.pi
         let a = r == .panic ? min(1, ff / 0.15 + 1) : min(1, ff / 0.15, (1 - ff) / 0.15)
@@ -487,6 +509,10 @@ enum BuddyDance {
             o.armL = -0.7 * a; o.armR = 0.7 * a
             o.head = 0.1 * a * sin(8 * pi * ff)
             o.tail = 0.3 * a * sin(8 * pi * ff)
+        case .greet:
+            o.dy = -s.bounce * 0.45 * a * abs(sin(3 * pi * ff))
+            o.armR = (-2.35 + 0.35 * sin(8 * pi * ff)) * a
+            o.head = -0.08 * a * sin(4 * pi * ff)
         case .surprised:  // bật nhảy, giang tay
             o.dy = ff < 0.4 ? -s.bounce * 1.6 * sin(pi * ff / 0.4) : 0
             o.armL = 1.3 * a; o.armR = -1.3 * a
@@ -503,11 +529,68 @@ enum BuddyDance {
             o.head = 0.08 * a * sin(20 * pi * ff)
             o.dy = -s.bounce * 0.15 * a * abs(sin(10 * pi * ff))
         }
+        if character == .panda && r == .laugh { o.rot = 2 * pi * ff * a; o.dy -= s.bounce * 0.4 * a }
+        if character == .pig && r == .laugh { o.rot = 2 * pi * ff * a; o.dx += 4 * sin(2 * pi * ff) * a }
+        if character == .girl && r == .love { o.head = -0.25 * a; o.armR = -1.0 * a }
+        if character == .shiba && r == .love { o.tail = sin(12 * pi * ff) * a }
         return o
     }
 
     /// Mắt khi phản ứng: true = mắt cười (cung), false = mắt tròn.
     static func happyEyes(_ r: BuddyReaction) -> Bool { r == .love || r == .laugh || r.isHoliday }
+}
+
+/// Selection is pure so previews, keyboard animations and fixtures use the same triggers.
+enum BuddySignature: String {
+    case kiss, breakdance, yarn, egg, bone, splash, bamboo, mud, snort, fire, laser
+
+    static func cheer(_ c: BuddyCharacter, seed: Int) -> BuddySignature? {
+        switch c {
+        case .girl: return .kiss
+        case .chick: return seed % 3 == 0 ? .egg : nil
+        case .shiba: return .bone
+        case .koi: return .splash
+        case .dragon: return .fire
+        case .eagle: return .laser
+        default: return nil
+        }
+    }
+    static func reaction(_ c: BuddyCharacter, _ r: BuddyReaction) -> BuddySignature? {
+        switch (c, r) {
+        case (.girl, .love): return .kiss
+        case (.cat, .panic): return .yarn
+        case (.panda, .laugh): return .bamboo
+        case (.pig, .laugh): return .mud
+        case (.pig, .angry): return .snort
+        case (.dragon, .angry), (.dragon, .laugh): return .fire
+        case (.eagle, .angry), (.eagle, .surprised): return .laser
+        default: return nil
+        }
+    }
+    static func idle(_ c: BuddyCharacter) -> BuddySignature? { c == .panda ? .bamboo : nil }
+    static func dance(_ c: BuddyCharacter, tier: Int, group: Int, seed: Int) -> BuddySignature? {
+        guard tier == 3 else { return nil }
+        if c == .boy && (group + seed % 5) % 5 == 0 { return .breakdance }
+        if c == .cat && (group + seed % 4) % 4 == 0 { return .yarn }
+        return nil
+    }
+    private static let shibaWords: Set<String> = ["gioi qua", "good boy", "good dog", "ngoan"]
+    static func word(_ c: BuddyCharacter, _ word: String) -> BuddySignature? {
+        if BuddyWords.signatureEmoji(word, character: c) {
+            switch c {
+            case .shiba: return .bone
+            case .koi: return .splash
+            case .panda: return .bamboo
+            case .pig: return .snort
+            case .dragon: return .fire
+            case .eagle: return .laser
+            default: return nil
+            }
+        }
+        guard c == .shiba else { return nil }
+        let w = BuddyWords.fold(BuddyWords.clean(word))
+        return shibaWords.contains(w) ? .bone : nil
+    }
 }
 
 // MARK: - Phản ứng theo từ (ranh giới từ, tra O(1))
@@ -516,7 +599,7 @@ enum BuddyDance {
 /// khớp nhiều bảng = thứ tự case: tục (giận) > yêu thương > cười > ngạc nhiên > buồn ("wtf" = giận).
 /// `panic` (xoá dồn) không theo từ — bộ đếm phím ⌫ trong BuddyBrain.
 enum BuddyReaction: Int, CaseIterable {
-    case angry, love, laugh, surprised, sad, panic, luckyMoney, gift, candy, mooncake
+    case angry, love, laugh, surprised, sad, greet, panic, luckyMoney, gift, candy, mooncake
 
     var isHoliday: Bool { self == .luckyMoney || self == .gift || self == .candy || self == .mooncake }
 
@@ -525,7 +608,7 @@ enum BuddyReaction: Int, CaseIterable {
         switch self {
         case .angry, .love: return 1.2
         case .laugh: return 1.3
-        case .surprised: return 1.0
+        case .surprised, .greet: return 1.0
         case .sad: return 1.5
         case .panic: return 0.8
         case .luckyMoney, .gift, .candy, .mooncake: return 1.5
@@ -538,6 +621,11 @@ enum BuddyReaction: Int, CaseIterable {
 /// khác hẳn: nhớ → "nho", chán → "chan", á → "a") chỉ khớp đúng dấu. Chữ lặp ("hahaha", "kkkkk", "woww")
 /// khớp theo mẫu, không liệt kê.
 enum BuddyWords {
+    static let greet: [(String, Bool)] = [
+        ("hi", false), ("hello", false), ("hey", false), ("hế lô", false), ("hê lô", false),
+        ("helo", false), ("chào", true), ("xin chào", true), ("chào bạn", true), ("alo", false),
+        ("yo", false), ("sup", false), ("good morning", false), ("chào buổi sáng", true),
+    ]
     static let love: [(String, Bool)] = [
         ("yêu", false), ("iu", false), ("thương", false), ("nhớ", true), ("love", false), ("luv", false),
         ("lub", false), ("miss", false), ("cưng", true), ("thích", false), ("crush", false), ("tim", false),
@@ -559,6 +647,45 @@ enum BuddyWords {
         (":(", false), ("chán", true), ("mệt mỏi", false), ("😢", false), ("😭", false),
     ]
 
+    static func normalizeEmoji(_ text: String) -> String {
+        String(text.unicodeScalars.filter { $0.value != 0xFE0F && !(0x1F3FB...0x1F3FF).contains($0.value) })
+    }
+    private static let emojiMap: [String: BuddyReaction] = {
+        var out: [String: BuddyReaction] = [:]
+        for (reaction, group) in [
+            (BuddyReaction.greet, "👋 🙋 🙋‍♀️ 🙋‍♂️ 🤗"),
+            (BuddyReaction.love, "❤️ ♥️ 💕 💖 💗 😍 🥰 😘 😻 💋"),
+            (BuddyReaction.laugh, "😂 🤣 😆 😄 😁 😹 😅 😝 😜"),
+            (BuddyReaction.surprised, "😮 😲 😱 🤯 😳 ‼️ ⁉️"),
+            (BuddyReaction.sad, "😢 😭 😞 😔 🥺 💔 😿"),
+            (BuddyReaction.angry, "😡 🤬 😠 👿 💢"),
+            (BuddyReaction.luckyMoney, "🧧 🧨"),
+            (BuddyReaction.gift, "🎁 🎄 🎅 🤶 ⛄"),
+            (BuddyReaction.candy, "🎃 🍬 🍭 👻 🦇"),
+            (BuddyReaction.mooncake, "🥮 🏮 🌕"),
+        ] { for symbol in group.split(separator: " ") { out[normalizeEmoji(String(symbol))] = reaction } }
+        return out
+    }()
+    static func emoji(_ text: String) -> BuddyReaction? {
+        let normalized = normalizeEmoji(text)
+        if let direct = emojiMap[normalized] { return direct }
+        for c in normalized where !c.isLetter && !c.isNumber {
+            if let found = emojiMap[String(c)] { return found }
+        }
+        return nil
+    }
+    private static let signatureSymbols: [BuddyCharacter: Set<String>] = [
+        .shiba: ["🐶", "🐕", "🦴"], .panda: ["🐼", "🎋"], .pig: ["🐷", "🐖"],
+        .koi: ["🐟", "🎏"], .dragon: ["🐉", "🐲", "🔥"], .eagle: ["🦅"],
+    ]
+    static func signatureEmoji(_ text: String, character: BuddyCharacter) -> Bool {
+        guard let values = signatureSymbols[character],
+              text.unicodeScalars.contains(where: { $0.value >= 0x203C }) else { return false }
+        let normalized = normalizeEmoji(text)
+        if values.contains(normalized) { return true }
+        return normalized.contains { values.contains(String($0)) }
+    }
+
     private struct Table {
         let exact: Set<String>, folded: Set<String>, squeezed: Set<String>
         init(_ e: [(String, Bool)]) {
@@ -578,6 +705,7 @@ enum BuddyWords {
     }
     private static let tables: [(BuddyReaction, Table)] = [
         (.love, Table(love)), (.laugh, Table(laugh)), (.surprised, Table(surprised)), (.sad, Table(sad)),
+        (.greet, Table(greet)),
     ]
 
     /// Chữ thường, bỏ dấu (đ → d).
@@ -608,6 +736,12 @@ enum BuddyWords {
         var i = 0, n = 0
         while i + 1 < c.count, units.contains(String(c[i...(i + 1)])) { i += 2; n += 1 }
         return n >= 2 && c.count - i <= 1
+    }
+
+    static func isGreetPattern(_ f: String) -> Bool {
+        if f.hasPrefix("hi"), f.count >= 3, f.dropFirst(2).allSatisfy({ $0 == "i" }) { return true }
+        if f.hasPrefix("hey"), f.count >= 4, f.dropFirst(3).allSatisfy({ $0 == "y" }) { return true }
+        return false
     }
 
     /// Buồn theo mẫu: hu lặp ≥ 2 ("huhuhu"), hic/hix lặp, ":(((".
@@ -651,6 +785,7 @@ enum BuddyWords {
     }
 
     static func reaction(word: String, prev: String?, prev2: String? = nil, prev3: String? = nil, season: BuddySeason? = nil) -> BuddyReaction? {
+        if let direct = emoji(word) { return direct }
         let w = clean(word)
         guard !w.isEmpty, w.count <= 24 else { return nil }
         let p = prev.map(clean).flatMap { $0.isEmpty ? nil : $0 }
@@ -661,10 +796,12 @@ enum BuddyWords {
         if let r = holiday(word: w, prev: p, prev2: p2, prev3: prev3, season: season) { return r }
         let f = fold(w)
         for (r, t) in tables {
+            if let p, let p2, t.has(p2 + " " + p + " " + w) { return r }
             if let p, t.has(p + " " + w) { return r }
             if t.has(w) { return r }
             if r == .laugh, isLaughPattern(f) { return r }
             if r == .sad, isSadPattern(f) { return r }
+            if r == .greet, isGreetPattern(f) { return r }
         }
         return nil
     }
@@ -710,7 +847,7 @@ enum BuddyFX {
         case .laugh: return 4
         case .sad: return 3
         case .panic: return 3
-        case .angry, .surprised, .luckyMoney, .gift, .candy, .mooncake: return 0
+        case .angry, .greet, .surprised, .luckyMoney, .gift, .candy, .mooncake: return 0
         }
     }
 
@@ -736,7 +873,7 @@ enum BuddyFX {
         case .panic:     // chữ bay khỏi người, lên + ra hai bên
             p = Particle(x0: w / 2, y0: h * 0.6, x1: rad + (w - 2 * rad) * t, y1: rad + h * 0.1 * Double(i % 2),
                          delay: Double(i) * 0.1)
-        case .angry, .surprised, .luckyMoney, .gift, .candy, .mooncake:
+        case .angry, .greet, .surprised, .luckyMoney, .gift, .candy, .mooncake:
             p = Particle(x0: w / 2, y0: h / 2, x1: w / 2, y1: h / 2, delay: 0)
         }
         func cx(_ x: Double) -> Double { min(max(x, rad), w - rad) }
@@ -893,6 +1030,12 @@ struct BuddyRig {
         case .boy: return boy
         case .cat: return cat
         case .chick: return chick
+        case .shiba: return shiba
+        case .koi: return koi
+        case .panda: return panda
+        case .pig: return pig
+        case .dragon: return dragon
+        case .eagle: return eagle
         }
     }
 
@@ -1294,6 +1437,255 @@ extension BuddyRig {
             heart: (0, 66, 13), face: (0, 10, 30, 21), brows: "M-23 -15 L-11 -11 M23 -15 L11 -11",
             hat: (0, -36, 24), sleepHat: (-30, 0, 26), neck: (0, 39), hand: (43, 79))
     }()
+    static let shiba: BuddyRig = {
+        let p: [BuddyPiece] = [
+            P(.tail, "M29 58 Q63 66 62 34 Q62 18 48 18 Q36 19 39 34 Q42 39 49 35 Q45 54 24 44 Z", fill: 0xDA8345, stroke: .outline, width: 3.2),
+            P(.tail, "M48 21 Q62 20 59 36 Q58 43 51 47 Q56 34 48 32 Z", fill: 0xFFF2D7, stroke: .none, width: 0),
+            P(.legL, "M-27 76 Q-31 86 -30 103 Q-29 112 -16 111 Q-6 110 -8 102 L-12 77 Z", fill: 0xF4B267, stroke: .outline, width: 3.2),
+            P(.legR, "M13 77 L28 77 Q31 91 31 103 Q31 112 18 111 Q8 110 8 103 Z", fill: 0xF4B267, stroke: .outline, width: 3.2),
+            P(.body, "M-28 28 Q-43 44 -38 75 Q-34 96 0 97 Q35 98 39 72 Q43 46 27 28 Z", fill: 0xE99B58, stroke: .outline, width: 3.2),
+            P(.body, "M27 48 Q42 83 12 95 Q-14 100 -28 86 Q22 92 27 48 Z", fill: 0xD47D43, stroke: .none, width: 0),
+            P(.body, "M-20 49 Q0 39 20 49 Q28 76 0 89 Q-28 77 -20 49 Z", fill: 0xFFF2D7, stroke: .none, width: 0),
+            P(.armL, "M-30 45 Q-49 47 -46 70 Q-43 84 -29 79 L-21 58 Z", fill: 0xE99B58, stroke: .outline, width: 3.2),
+            P(.armR, "M30 45 Q49 47 46 70 Q43 84 29 79 L21 58 Z", fill: 0xE99B58, stroke: .outline, width: 3.2),
+            P(.head, "M-36 -15 L-37 -55 Q-23 -53 -12 -34 Q0 -39 12 -34 Q23 -53 37 -55 L36 -15 Q44 3 33 22 Q19 40 0 40 Q-20 40 -34 22 Q-44 2 -36 -15 Z", fill: 0xE99B58, stroke: .outline, width: 3.2),
+            P(.head, "M-34 15 Q-28 38 0 40 Q28 39 34 15 Q19 23 13 14 Q0 24 -13 14 Q-19 23 -34 15 Z", fill: 0xFFF2D7, stroke: .none, width: 0),
+            P(.head, "M-33 -48 L-29 -22 Q-24 -30 -20 -36 Z M33 -48 L29 -22 Q24 -30 20 -36 Z", fill: 0xD87570, stroke: .none, width: 0),
+            E(.head, -15, -5, 5, 7, fill: 0x352B2B, stroke: .ink),
+            E(.head, 15, -5, 5, 7, fill: 0x352B2B, stroke: .ink),
+            E(.head, -16, -8, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            E(.head, 14, -8, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            P(.head, "M-20 -5 q5 -7 10 0 M10 -5 q5 -7 10 0", stroke: .ink, width: 2.6, show: .dance),
+            E(.head, -29, 17, 7, 3, fill: 0xF2A1A1, stroke: .none),
+            E(.head, 29, 17, 7, 3, fill: 0xF2A1A1, stroke: .none),
+            P(.head, "M-6 12 Q0 8 6 12 Q4 18 0 18 Q-4 18 -6 12 Z", fill: 0x453532, stroke: .ink, width: 1.5),
+            P(.head, "M0 19 Q-8 27 -13 20 M0 19 Q8 27 13 20", stroke: .ink, width: 2.2),
+            P(.sleep, "M-30 30 Q-10 14 23 20 Q57 22 58 47 Q59 68 27 69 L-20 68 Q-49 64 -47 45 Z", fill: 0xE99B58, stroke: .outline, width: 3.2),
+            P(.sleep, "M14 50 Q43 45 54 52 Q47 68 21 67 Q-5 68 -24 60 Q-6 64 14 50 Z", fill: 0xD47D43, stroke: .none, width: 0),
+            P(.sleep, "M-59 28 Q-58 -5 -29 -7 Q-5 -5 0 25 Q2 52 -28 55 Q-57 54 -59 28 Z", fill: 0xE99B58, stroke: .outline, width: 3.2),
+            P(.sleep, "M-49 27 Q-43 34 -37 27 M-25 27 Q-19 34 -13 27", stroke: .ink, width: 2.5),
+            E(.sleep, -49, 39, 5, 3, fill: 0xF2A1A1, stroke: .none),
+            E(.sleep, -13, 39, 5, 3, fill: 0xF2A1A1, stroke: .none),
+            P(.sleep, "M-37 36 Q-30 32 -25 36 Q-30 41 -37 36 Z", fill: 0x433331, stroke: .ink, width: 1.6),
+            P(.sleep, "M-55 1 L-54 -16 L-38 -3 M-15 -5 L-3 -19 L-3 7", fill: 0xE99B58, stroke: .outline, width: 3.2),
+        ]
+        return BuddyRig(
+            pieces: p,
+            pivots: [.tail: (31, 58), .legL: (-18, 78), .legR: (18, 78), .body: (0, 92), .armL: (-30, 46), .armR: (30, 46), .head: (0, 34)],
+            full: BuddyRect(x: -80, y: -66, w: 160, h: 188), barBottom: nil, feet: (0, 111), sleepBottom: 69,
+            zzz: [(0, -34, 12), (16, -50, 15), (36, -68, 19)],
+            style: .init(armL: 1.2, armR: 1.2, armAmp: 0.55, alternate: true, kick: 0.3, bounce: 9, step: 8),
+            heart: (0, 64, 12), face: (0, 4, 29, 20), brows: "M-23 -15 L-11 -11 M23 -15 L11 -11",
+            hat: (0, -38, 31), sleepHat: (-30, -7, 26), neck: (0, 37), hand: (40, 76))
+    }()
+    static let koi: BuddyRig = {
+        let p: [BuddyPiece] = [
+            P(.tail, "M-11 82 Q-27 97 -23 113 Q-9 108 0 101 Q9 108 23 113 Q27 97 11 82 Z", fill: 0xEF8A55, stroke: .outline, width: 3.2),
+            P(.tail, "M0 87 L0 105 M-16 107 Q0 94 16 107", stroke: .color(0xD65D4E), width: 1.7),
+            P(.body, "M0 20 Q-35 30 -35 62 Q-34 91 0 96 Q34 91 35 62 Q35 30 0 20 Z", fill: 0xFFF8EE, stroke: .outline, width: 3.2),
+            P(.body, "M24 38 Q40 73 10 93 Q-4 99 -20 86 Q17 91 24 38 Z", fill: 0xE9E0DB, stroke: .none, width: 0),
+            P(.body, "M-24 42 Q-10 30 -2 44 Q8 53 -2 61 Q-15 65 -21 55 Z M10 68 Q28 57 29 73 Q26 84 12 87 Q3 80 10 68 Z", fill: 0xEF8654, stroke: .none, width: 0),
+            P(.armL, "M-27 46 Q-56 39 -59 57 Q-46 74 -26 66 Z", fill: 0xFFF5E8, stroke: .outline, width: 3.2),
+            P(.armL, "M-51 56 Q-42 54 -33 60", stroke: .color(0xE7A492), width: 1.8),
+            P(.armR, "M27 46 Q56 39 59 57 Q46 74 26 66 Z", fill: 0xFFF5E8, stroke: .outline, width: 3.2),
+            P(.armR, "M51 56 Q42 54 33 60", stroke: .color(0xE7A492), width: 1.8),
+            P(.head, "M-37 17 Q-44 -10 -27 -29 Q-11 -47 9 -42 Q34 -37 40 -10 Q46 17 26 34 Q0 47 -28 32 Q-35 27 -37 17 Z", fill: 0xFFF8EE, stroke: .outline, width: 3.2),
+            P(.head, "M-28 -31 Q-9 -53 12 -41 Q27 -36 30 -22 Q14 -28 11 -16 Q-7 -12 -16 -22 Z", fill: 0xED7450, stroke: .none, width: 0),
+            P(.head, "M20 30 Q35 21 40 4 Q45 33 17 38 Q-8 47 -28 32 Q0 40 20 30 Z", fill: 0xE9E0DB, stroke: .none, width: 0),
+            E(.head, -19, -4, 5, 7, fill: 0x352B2B, stroke: .ink),
+            E(.head, 19, -4, 5, 7, fill: 0x352B2B, stroke: .ink),
+            E(.head, -20, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            E(.head, 18, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            P(.head, "M-24 -4 q5 -7 10 0 M14 -4 q5 -7 10 0", stroke: .ink, width: 2.6, show: .dance),
+            E(.head, -31, 13, 6, 3, fill: 0xF4ABA4, stroke: .none),
+            E(.head, 31, 13, 6, 3, fill: 0xF4ABA4, stroke: .none),
+            P(.head, "M-5 15 Q0 20 5 15", stroke: .ink, width: 2.2),
+            P(.head, "M-38 16 Q-50 14 -47 26 Q-40 27 -34 22 M38 16 Q50 14 47 26 Q40 27 34 22", fill: 0xFFF8EE, stroke: .outline, width: 3.2),
+            P(.sleep, "M-30 30 Q-10 14 23 20 Q57 22 58 47 Q59 68 27 69 L-20 68 Q-49 64 -47 45 Z", fill: 0xFFF8EE, stroke: .outline, width: 3.2),
+            P(.sleep, "M14 50 Q43 45 54 52 Q47 68 21 67 Q-5 68 -24 60 Q-6 64 14 50 Z", fill: 0xE9E0DB, stroke: .none, width: 0),
+            P(.sleep, "M-59 28 Q-58 -5 -29 -7 Q-5 -5 0 25 Q2 52 -28 55 Q-57 54 -59 28 Z", fill: 0xFFF8EE, stroke: .outline, width: 3.2),
+            P(.sleep, "M-49 27 Q-43 34 -37 27 M-25 27 Q-19 34 -13 27", stroke: .ink, width: 2.5),
+            E(.sleep, -49, 39, 5, 3, fill: 0xF4ABA4, stroke: .none),
+            E(.sleep, -13, 39, 5, 3, fill: 0xF4ABA4, stroke: .none),
+            P(.sleep, "M-57 11 Q-42 -18 -23 -3 L-15 6 Q-34 3 -42 17 Z", fill: 0xED7450, stroke: .none, width: 0),
+            P(.sleep, "M36 45 Q59 34 67 48 Q61 61 39 60 Z", fill: 0xFFF2E8, stroke: .outline, width: 3.2),
+        ]
+        return BuddyRig(
+            pieces: p,
+            pivots: [.tail: (0, 85), .body: (0, 88), .armL: (-28, 53), .armR: (28, 53), .head: (0, 31)],
+            full: BuddyRect(x: -80, y: -66, w: 160, h: 188), barBottom: nil, feet: (0, 110), sleepBottom: 69,
+            zzz: [(0, -34, 12), (16, -50, 15), (36, -68, 19)],
+            style: .init(armL: 1.8, armR: 1.8, armAmp: 0.8, alternate: true, kick: 0, bounce: 14, step: 10),
+            heart: (0, 62, 11), face: (0, 3, 30, 20), brows: "M-23 -15 L-11 -11 M23 -15 L11 -11",
+            hat: (0, -43, 28), sleepHat: (-32, -9, 25), neck: (0, 35), hand: (46, 60))
+    }()
+    static let panda: BuddyRig = {
+        let p: [BuddyPiece] = [
+            P(.legL, "M-25 77 Q-35 87 -32 105 Q-28 115 -11 110 Q-6 102 -11 77 Z", fill: 0x333238, stroke: .outline, width: 3.2),
+            P(.legR, "M25 77 Q35 87 32 105 Q28 115 11 110 Q6 102 11 77 Z", fill: 0x333238, stroke: .outline, width: 3.2),
+            P(.body, "M-29 30 Q-44 48 -38 80 Q-30 100 0 99 Q30 100 38 80 Q44 48 29 30 Z", fill: 0xFFF8EE, stroke: .outline, width: 3.2),
+            P(.body, "M24 47 Q42 80 14 96 Q-10 104 -29 89 Q22 94 24 47 Z", fill: 0xE6E1DF, stroke: .none, width: 0),
+            P(.armL, "M-29 44 Q-48 43 -49 65 Q-45 86 -30 79 L-21 57 Z", fill: 0x333238, stroke: .outline, width: 3.2),
+            P(.armR, "M29 44 Q48 43 49 65 Q45 86 30 79 L21 57 Z", fill: 0x333238, stroke: .outline, width: 3.2),
+            E(.head, -31, -30, 14, 15, fill: 0x333238, stroke: .none),
+            E(.head, 31, -30, 14, 15, fill: 0x333238, stroke: .none),
+            P(.head, "M-38 -13 Q-35 -42 0 -44 Q35 -42 38 -13 Q43 16 26 31 Q0 45 -26 31 Q-43 16 -38 -13 Z", fill: 0xFFF8EE, stroke: .outline, width: 3.2),
+            P(.head, "M25 17 Q12 37 -12 34 Q-30 29 -37 11 Q-32 37 0 40 Q32 37 36 10 Z", fill: 0xE6E1DF, stroke: .none, width: 0),
+            E(.head, -17, -2, 13, 16, fill: 0x333238, stroke: .none),
+            E(.head, 17, -2, 13, 16, fill: 0x333238, stroke: .none),
+            E(.head, -17, -1, 5, 7, fill: 0x352B2B, stroke: .ink),
+            E(.head, 17, -1, 5, 7, fill: 0x352B2B, stroke: .ink),
+            E(.head, -18, -4, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            E(.head, 16, -4, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            P(.head, "M-22 -1 q5 -7 10 0 M12 -1 q5 -7 10 0", stroke: .ink, width: 2.6, show: .dance),
+            E(.head, -30, 19, 6, 3, fill: 0xF4B6B8, stroke: .none),
+            E(.head, 30, 19, 6, 3, fill: 0xF4B6B8, stroke: .none),
+            P(.head, "M-7 16 Q0 12 7 16 Q5 23 0 23 Q-5 23 -7 16 Z", fill: 0x333238, stroke: .ink, width: 1.5),
+            P(.head, "M0 23 Q-6 29 -10 24 M0 23 Q6 29 10 24", stroke: .ink, width: 1.8),
+            P(.sleep, "M-30 30 Q-10 14 23 20 Q57 22 58 47 Q59 68 27 69 L-20 68 Q-49 64 -47 45 Z", fill: 0xFFF8EE, stroke: .outline, width: 3.2),
+            P(.sleep, "M14 50 Q43 45 54 52 Q47 68 21 67 Q-5 68 -24 60 Q-6 64 14 50 Z", fill: 0xE6E1DF, stroke: .none, width: 0),
+            P(.sleep, "M-59 28 Q-58 -5 -29 -7 Q-5 -5 0 25 Q2 52 -28 55 Q-57 54 -59 28 Z", fill: 0xFFF8EE, stroke: .outline, width: 3.2),
+            P(.sleep, "M-49 27 Q-43 34 -37 27 M-25 27 Q-19 34 -13 27", stroke: .ink, width: 2.5),
+            E(.sleep, -49, 39, 5, 3, fill: 0xF4B6B8, stroke: .none),
+            E(.sleep, -13, 39, 5, 3, fill: 0xF4B6B8, stroke: .none),
+            P(.sleep, "M-37 37 Q-30 33 -24 37 Q-30 42 -37 37 Z", fill: 0x433331, stroke: .ink, width: 1.6),
+            E(.sleep, -52, 0, 10, 10, fill: 0x333238, stroke: .none),
+            E(.sleep, -6, 0, 10, 10, fill: 0x333238, stroke: .none),
+            P(.sleep, "M2 35 Q15 32 25 47 M-8 41 Q5 34 18 42", stroke: .ink, width: 5),
+        ]
+        return BuddyRig(
+            pieces: p,
+            pivots: [.legL: (-20, 79), .legR: (20, 79), .body: (0, 94), .armL: (-31, 48), .armR: (31, 48), .head: (0, 34)],
+            full: BuddyRect(x: -80, y: -66, w: 160, h: 188), barBottom: nil, feet: (0, 111), sleepBottom: 69,
+            zzz: [(0, -34, 12), (16, -50, 15), (36, -68, 19)],
+            style: .init(armL: 1.0, armR: 1.0, armAmp: 0.5, alternate: true, kick: 0.2, bounce: 7, step: 7),
+            heart: (0, 66, 12), face: (0, 5, 29, 20), brows: "M-23 -15 L-11 -11 M23 -15 L11 -11",
+            hat: (0, -43, 30), sleepHat: (-30, -8, 26), neck: (0, 37), hand: (42, 77))
+    }()
+    static let pig: BuddyRig = {
+        let p: [BuddyPiece] = [
+            P(.tail, "M30 64 Q52 51 52 65 Q51 76 44 74 Q37 72 43 66 Q46 64 47 68", stroke: .color(0xEA8FA2), width: 6),
+            P(.legL, "M-24 78 Q-33 92 -30 107 Q-24 114 -12 109 L-9 81 Z", fill: 0xF5AABB, stroke: .outline, width: 3.2),
+            P(.legR, "M24 78 Q33 92 30 107 Q24 114 12 109 L9 81 Z", fill: 0xF5AABB, stroke: .outline, width: 3.2),
+            P(.body, "M-30 32 Q-44 45 -39 77 Q-34 99 0 98 Q34 99 39 77 Q44 45 30 32 Z", fill: 0xFFC5CF, stroke: .outline, width: 3.2),
+            P(.body, "M25 46 Q42 79 14 96 Q-9 102 -28 87 Q20 94 25 46 Z", fill: 0xF2A6B7, stroke: .none, width: 0),
+            P(.armL, "M-31 46 Q-49 44 -50 67 Q-47 83 -30 79 L-23 57 Z", fill: 0xFFC5CF, stroke: .outline, width: 3.2),
+            P(.armR, "M31 46 Q49 44 50 67 Q47 83 30 79 L23 57 Z", fill: 0xFFC5CF, stroke: .outline, width: 3.2),
+            P(.head, "M-37 -19 L-45 -45 Q-32 -50 -20 -32 Q0 -43 20 -32 Q32 -50 45 -45 L37 -19 Q44 10 29 30 Q0 47 -29 30 Q-44 10 -37 -19 Z", fill: 0xFFC5CF, stroke: .outline, width: 3.2),
+            P(.head, "M-41 -42 Q-30 -44 -25 -30 L-35 -27 Z M41 -42 Q30 -44 25 -30 L35 -27 Z", fill: 0xF08FA6, stroke: .none, width: 0),
+            P(.head, "M29 18 Q13 36 -12 34 Q-31 30 -37 13 Q-33 39 0 41 Q32 39 37 13 Z", fill: 0xF2A6B7, stroke: .none, width: 0),
+            E(.head, -15, -8, 5, 7, fill: 0x352B2B, stroke: .ink),
+            E(.head, 15, -8, 5, 7, fill: 0x352B2B, stroke: .ink),
+            E(.head, -16, -11, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            E(.head, 14, -11, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            P(.head, "M-20 -8 q5 -7 10 0 M10 -8 q5 -7 10 0", stroke: .ink, width: 2.6, show: .dance),
+            E(.head, -29, 13, 7, 3, fill: 0xEF8EA5, stroke: .none),
+            E(.head, 29, 13, 7, 3, fill: 0xEF8EA5, stroke: .none),
+            E(.head, 0, 15, 16, 11, fill: 0xF190A7, stroke: .outline),
+            E(.head, -6, 16, 2, 3, fill: 0xA94C65, stroke: .none),
+            E(.head, 6, 16, 2, 3, fill: 0xA94C65, stroke: .none),
+            P(.sleep, "M-30 30 Q-10 14 23 20 Q57 22 58 47 Q59 68 27 69 L-20 68 Q-49 64 -47 45 Z", fill: 0xFFC5CF, stroke: .outline, width: 3.2),
+            P(.sleep, "M14 50 Q43 45 54 52 Q47 68 21 67 Q-5 68 -24 60 Q-6 64 14 50 Z", fill: 0xF2A6B7, stroke: .none, width: 0),
+            P(.sleep, "M-59 28 Q-58 -5 -29 -7 Q-5 -5 0 25 Q2 52 -28 55 Q-57 54 -59 28 Z", fill: 0xFFC5CF, stroke: .outline, width: 3.2),
+            P(.sleep, "M-49 27 Q-43 34 -37 27 M-25 27 Q-19 34 -13 27", stroke: .ink, width: 2.5),
+            E(.sleep, -49, 39, 5, 3, fill: 0xEF8EA5, stroke: .none),
+            E(.sleep, -13, 39, 5, 3, fill: 0xEF8EA5, stroke: .none),
+            E(.sleep, -31, 39, 10, 7, fill: 0xF190A7, stroke: .outline),
+            E(.sleep, -34, 40, 1.5, 2, fill: 0xA94C65, stroke: .none),
+            E(.sleep, -27, 40, 1.5, 2, fill: 0xA94C65, stroke: .none),
+        ]
+        return BuddyRig(
+            pieces: p,
+            pivots: [.tail: (29, 64), .legL: (-20, 79), .legR: (20, 79), .body: (0, 94), .armL: (-30, 48), .armR: (30, 48), .head: (0, 34)],
+            full: BuddyRect(x: -80, y: -66, w: 160, h: 188), barBottom: nil, feet: (0, 111), sleepBottom: 69,
+            zzz: [(0, -34, 12), (16, -50, 15), (36, -68, 19)],
+            style: .init(armL: 1.1, armR: 1.1, armAmp: 0.65, alternate: true, kick: 0.25, bounce: 10, step: 8),
+            heart: (0, 66, 12), face: (0, 4, 30, 21), brows: "M-23 -15 L-11 -11 M23 -15 L11 -11",
+            hat: (0, -40, 29), sleepHat: (-30, -8, 25), neck: (0, 38), hand: (44, 77))
+    }()
+    static let dragon: BuddyRig = {
+        let p: [BuddyPiece] = [
+            P(.tail, "M25 73 Q52 75 62 48 L67 62 L75 59 Q66 91 29 91 Z", fill: 0x48B9A8, stroke: .outline, width: 3.2),
+            P(.tail, "M43 79 L47 67 L54 74 L59 58 L64 66", stroke: .color(0xF7D48A), width: 3),
+            P(.legL, "M-22 78 Q-34 90 -29 108 Q-18 116 -10 108 L-9 81 Z", fill: 0x4FC2B0, stroke: .outline, width: 3.2),
+            P(.legR, "M22 78 Q34 90 29 108 Q18 116 10 108 L9 81 Z", fill: 0x4FC2B0, stroke: .outline, width: 3.2),
+            P(.body, "M-29 28 Q-42 48 -37 77 Q-30 99 0 99 Q30 99 37 77 Q42 48 29 28 Z", fill: 0x50C7B2, stroke: .outline, width: 3.2),
+            P(.body, "M26 46 Q40 84 12 97 Q-10 103 -27 87 Q19 93 26 46 Z", fill: 0x329B93, stroke: .none, width: 0),
+            P(.body, "M-16 44 Q0 38 16 44 Q23 77 0 92 Q-23 77 -16 44 Z", fill: 0xFFE4A1, stroke: .none, width: 0),
+            P(.armL, "M-30 44 Q-53 37 -54 59 L-42 58 L-48 72 Q-36 76 -26 64 Z", fill: 0x45B5A9, stroke: .outline, width: 3.2),
+            P(.armR, "M30 44 Q53 37 54 59 L42 58 L48 72 Q36 76 26 64 Z", fill: 0x45B5A9, stroke: .outline, width: 3.2),
+            P(.head, "M-38 -16 Q-43 -42 -27 -44 Q-18 -45 -13 -35 Q0 -42 13 -35 Q18 -45 27 -44 Q43 -42 38 -16 Q43 10 29 28 Q0 44 -29 28 Q-43 10 -38 -16 Z", fill: 0x50C7B2, stroke: .outline, width: 3.2),
+            P(.head, "M-28 -39 L-31 -58 Q-23 -63 -16 -39 M28 -39 L31 -58 Q23 -63 16 -39", fill: 0xFFE4A1, stroke: .outline, width: 3.2),
+            P(.head, "M-17 -42 L-12 -51 L-5 -42 L0 -55 L7 -42 L13 -48 L18 -38", fill: 0xF5CE80, stroke: .none, width: 0),
+            P(.head, "M30 15 Q12 36 -10 33 Q-29 30 -38 14 Q-31 40 0 40 Q32 38 38 12 Z", fill: 0x329B93, stroke: .none, width: 0),
+            E(.head, -15, -4, 5, 7, fill: 0x352B2B, stroke: .ink),
+            E(.head, 15, -4, 5, 7, fill: 0x352B2B, stroke: .ink),
+            E(.head, -16, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            E(.head, 14, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            P(.head, "M-20 -4 q5 -7 10 0 M10 -4 q5 -7 10 0", stroke: .ink, width: 2.6, show: .dance),
+            E(.head, -28, 15, 6, 3, fill: 0xF0A6A0, stroke: .none),
+            E(.head, 28, 15, 6, 3, fill: 0xF0A6A0, stroke: .none),
+            P(.head, "M-8 17 Q0 23 8 17", stroke: .ink, width: 2.2),
+            P(.head, "M-24 21 Q-36 21 -45 28 M24 21 Q36 21 45 28", stroke: .color(0xD3A76A), width: 1.7),
+            P(.sleep, "M-30 30 Q-10 14 23 20 Q57 22 58 47 Q59 68 27 69 L-20 68 Q-49 64 -47 45 Z", fill: 0x50C7B2, stroke: .outline, width: 3.2),
+            P(.sleep, "M14 50 Q43 45 54 52 Q47 68 21 67 Q-5 68 -24 60 Q-6 64 14 50 Z", fill: 0x329B93, stroke: .none, width: 0),
+            P(.sleep, "M-59 28 Q-58 -5 -29 -7 Q-5 -5 0 25 Q2 52 -28 55 Q-57 54 -59 28 Z", fill: 0x50C7B2, stroke: .outline, width: 3.2),
+            P(.sleep, "M-49 27 Q-43 34 -37 27 M-25 27 Q-19 34 -13 27", stroke: .ink, width: 2.5),
+            E(.sleep, -49, 39, 5, 3, fill: 0xF0A6A0, stroke: .none),
+            E(.sleep, -13, 39, 5, 3, fill: 0xF0A6A0, stroke: .none),
+            P(.sleep, "M-53 4 L-49 -13 L-39 3 M-19 -5 L-15 -20 L-5 1", fill: 0xFFE4A1, stroke: .outline, width: 3.2),
+        ]
+        return BuddyRig(
+            pieces: p,
+            pivots: [.tail: (27, 79), .legL: (-20, 79), .legR: (20, 79), .body: (0, 94), .armL: (-30, 46), .armR: (30, 46), .head: (0, 34)],
+            full: BuddyRect(x: -82, y: -70, w: 164, h: 192), barBottom: nil, feet: (0, 111), sleepBottom: 69,
+            zzz: [(0, -34, 12), (16, -50, 15), (36, -68, 19)],
+            style: .init(armL: 1.5, armR: 1.5, armAmp: 0.7, alternate: true, kick: 0.3, bounce: 10, step: 9),
+            heart: (0, 65, 12), face: (0, 5, 29, 21), brows: "M-23 -15 L-11 -11 M23 -15 L11 -11",
+            hat: (0, -47, 27), sleepHat: (-30, -11, 25), neck: (0, 38), hand: (42, 69))
+    }()
+    static let eagle: BuddyRig = {
+        let p: [BuddyPiece] = [
+            P(.tail, "M-20 80 L-28 105 L-9 96 L0 112 L9 96 L28 105 L20 80 Z", fill: 0x815D48, stroke: .outline, width: 3.2),
+            P(.legL, "M-18 84 L-18 102 Q-34 105 -32 111 Q-21 113 -15 108 Q-8 115 0 111 Q2 105 -10 103 L-9 84 Z", fill: 0xF6C45D, stroke: .outline, width: 3.2),
+            P(.legR, "M18 84 L18 102 Q34 105 32 111 Q21 113 15 108 Q8 115 0 111 Q-2 105 10 103 L9 84 Z", fill: 0xF6C45D, stroke: .outline, width: 3.2),
+            P(.body, "M-27 30 Q-42 49 -37 77 Q-31 98 0 99 Q31 98 37 77 Q42 49 27 30 Z", fill: 0x8C6048, stroke: .outline, width: 3.2),
+            P(.body, "M27 49 Q37 81 13 96 Q-10 101 -28 87 Q19 92 27 49 Z", fill: 0x694835, stroke: .none, width: 0),
+            P(.body, "M-17 51 Q0 43 17 51 Q20 77 0 91 Q-20 77 -17 51 Z", fill: 0xBD9272, stroke: .none, width: 0),
+            P(.armL, "M-27 42 Q-56 34 -60 55 L-53 61 L-57 68 L-43 66 L-44 77 Q-28 77 -20 55 Z", fill: 0x8C6048, stroke: .outline, width: 3.2),
+            P(.armL, "M-54 57 Q-40 58 -29 65", stroke: .color(0xB68265), width: 1.8),
+            P(.armR, "M27 42 Q56 34 60 55 L53 61 L57 68 L43 66 L44 77 Q28 77 20 55 Z", fill: 0x8C6048, stroke: .outline, width: 3.2),
+            P(.armR, "M54 57 Q40 58 29 65", stroke: .color(0xB68265), width: 1.8),
+            P(.head, "M-39 -12 Q-37 -43 0 -43 Q37 -43 39 -12 Q42 18 25 32 Q0 45 -25 32 Q-42 18 -39 -12 Z", fill: 0xFFF7ED, stroke: .outline, width: 3.2),
+            P(.head, "M-37 8 Q-27 33 0 39 Q27 33 37 8 Q33 37 0 40 Q-33 37 -37 8 Z", fill: 0xE5DCD5, stroke: .none, width: 0),
+            P(.head, "M-34 -22 Q-28 -43 0 -43 Q26 -43 34 -22 Q15 -34 4 -25 Q-10 -37 -34 -22 Z", fill: 0xFFFFFF, stroke: .none, width: 0),
+            E(.head, -17, -4, 5, 7, fill: 0x352B2B, stroke: .ink),
+            E(.head, 17, -4, 5, 7, fill: 0x352B2B, stroke: .ink),
+            E(.head, -18, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            E(.head, 16, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            P(.head, "M-22 -4 q5 -7 10 0 M12 -4 q5 -7 10 0", stroke: .ink, width: 2.6, show: .dance),
+            E(.head, -30, 15, 6, 3, fill: 0xEAB0A0, stroke: .none),
+            E(.head, 30, 15, 6, 3, fill: 0xEAB0A0, stroke: .none),
+            P(.head, "M-10 12 Q0 9 10 12 L0 29 Z", fill: 0xF5C35D, stroke: .ink, width: 2),
+            P(.head, "M-3 24 L3 24", stroke: .color(0xD89541), width: 1.7),
+            P(.sleep, "M-30 30 Q-10 14 23 20 Q57 22 58 47 Q59 68 27 69 L-20 68 Q-49 64 -47 45 Z", fill: 0x8C6048, stroke: .outline, width: 3.2),
+            P(.sleep, "M14 50 Q43 45 54 52 Q47 68 21 67 Q-5 68 -24 60 Q-6 64 14 50 Z", fill: 0x694835, stroke: .none, width: 0),
+            P(.sleep, "M-59 28 Q-58 -5 -29 -7 Q-5 -5 0 25 Q2 52 -28 55 Q-57 54 -59 28 Z", fill: 0xFFF7ED, stroke: .outline, width: 3.2),
+            P(.sleep, "M-49 27 Q-43 34 -37 27 M-25 27 Q-19 34 -13 27", stroke: .ink, width: 2.5),
+            E(.sleep, -49, 39, 5, 3, fill: 0xEAB0A0, stroke: .none),
+            E(.sleep, -13, 39, 5, 3, fill: 0xEAB0A0, stroke: .none),
+            P(.sleep, "M-39 37 L-30 48 L-22 36 Z", fill: 0xF5C35D, stroke: .ink, width: 1.5),
+            P(.sleep, "M11 27 Q40 19 48 42 Q27 51 11 42 Z", fill: 0x8C6048, stroke: .outline, width: 3.2),
+        ]
+        return BuddyRig(
+            pieces: p,
+            pivots: [.tail: (0, 85), .legL: (-18, 86), .legR: (18, 86), .body: (0, 94), .armL: (-27, 45), .armR: (27, 45), .head: (0, 34)],
+            full: BuddyRect(x: -82, y: -66, w: 164, h: 188), barBottom: nil, feet: (0, 111), sleepBottom: 69,
+            zzz: [(0, -34, 12), (16, -50, 15), (36, -68, 19)],
+            style: .init(armL: 1.9, armR: 1.9, armAmp: 0.9, alternate: true, kick: 0.25, bounce: 11, step: 8),
+            heart: (0, 66, 12), face: (0, 5, 30, 20), brows: "M-23 -15 L-11 -11 M23 -15 L11 -11",
+            hat: (0, -43, 30), sleepHat: (-30, -8, 26), neck: (0, 38), hand: (48, 66))
+    }()
 }
 
 // MARK: - Trang phục theo mùa lễ (không theo phím — giải MỘT lần lúc hiện bàn phím)
@@ -1484,10 +1876,10 @@ struct BuddyOutfit {
             case .boy:
                 o.recolor = [0x304563: red, 0x536B8C: 0xF18B95]
                 o.pieces = khanDong(.head, h) + khanDong(.sleep, sh)
-            case .cat, .chick, .off:
+            case .cat, .chick, .shiba, .koi, .panda, .pig, .dragon, .eagle, .off:
                 o.pieces = bow(.head, r.neck) + bow(.sleep, sn)
             }
-        case .christmas: o.pieces = santa(.head, h) + santa(.sleep, sh)
+        case .christmas: o.pieces = c == .koi ? bow(.head, r.neck) + bow(.sleep, sn) : santa(.head, h) + santa(.sleep, sh)
         case .halloween:
             o.pieces = c == .girl ? witch(.head, h) + witch(.sleep, sh) : pumpkin(.head, h) + pumpkin(.sleep, sh)
         case .midAutumn:

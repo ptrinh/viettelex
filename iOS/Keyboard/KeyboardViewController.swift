@@ -940,6 +940,7 @@ final class KeyboardViewController: UIInputViewController {
             } else {
                 let final = bridge.boundary(s, proxy: proxy)
                 fxWordBoundary(final, prev: lastWord)
+                keyboard?.buddy?.emojiInserted(s)
                 commitAndLearn(final, accepted: openAccepted)
                 lastWord = nil; lastWord2 = nil            // dấu câu/ký hiệu = ngắt câu
                 typedCommit = (final, s)
@@ -2102,6 +2103,7 @@ final class KeyboardViewController: UIInputViewController {
         }
         for _ in 0..<composed.count { textDocumentProxy.deleteBackward() }
         textDocumentProxy.insertText(isWord ? item + " " : item)
+        keyboard?.buddy?.emojiInserted(item)
         bridge.reset()
         // Chèn đúng dạng đang hiện ("Bên" khi Shift); học dạng thường (record lowercased).
         if isWord { commitAndLearn(item, accepted: true) } else { lastWord = nil; lastWord2 = nil }

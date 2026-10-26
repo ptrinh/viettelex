@@ -92,3 +92,18 @@ python3 assets/companion/previews/rig-v3/render.py --png --sharp-module /path/to
 
 The Python script remains stdlib-only. Swift parsing and source/data parity checks were used;
 no app build, test suite, simulator or emulator was run.
+
+## Round 3: six vector companions
+
+`new/` contains a dark/light awake-and-sleep PNG, four individual seasonal PNGs,
+and one four-season contact sheet for each of Shiba, Koi, Panda, Piggy, Little
+dragon and Eagle. The dragon and eagle also have a signature-effect frame. The
+PNG extension is `.svg.png` because the Sharp fallback rasterizes each generated
+SVG directly. Every source rig has 29–31 pieces, and `render.py` checks exact
+Swift/Kotlin geometry, metadata and checksum parity for all ten characters.
+
+Regenerate the SVGs and parity report with `python3 render.py`. To regenerate the
+PNGs, use `python3 render.py --png --sharp-module /path/to/sharp` when Quick Look
+is unavailable. The shared signature effects use short vector animations only
+when triggered; Koi's three sleep bubbles animate while the view is visible.
+The new companions have no sprite atlas and always resolve to vector style.

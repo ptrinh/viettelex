@@ -101,6 +101,12 @@ enum BackupSettings {
         Spec(key: BuddyStyle.key(.boy), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
         Spec(key: BuddyStyle.key(.cat), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
         Spec(key: BuddyStyle.key(.chick), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
+        Spec(key: BuddyStyle.key(.shiba), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
+        Spec(key: BuddyStyle.key(.koi), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
+        Spec(key: BuddyStyle.key(.panda), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
+        Spec(key: BuddyStyle.key(.pig), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
+        Spec(key: BuddyStyle.key(.dragon), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
+        Spec(key: BuddyStyle.key(.eagle), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
         // Vị trí & cỡ (BuddyPlacement, chung mọi nhân vật) — cùng khoá + miền Android.
         Spec(key: BuddyPlacement.sizeKey, kind: .int(BuddyPlacement.defaultSize, BuddyPlacement.sizeRange)),
         Spec(key: BuddyPlacement.padRightKey, kind: .int(0, BuddyPlacement.padRange)),

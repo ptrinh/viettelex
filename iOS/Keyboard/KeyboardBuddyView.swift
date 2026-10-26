@@ -19,7 +19,7 @@ final class BuddyView: UIView {
     /// Kiểu vẽ (BuddyStyle, cài đặt riêng từng nhân vật): Hoạt hình ⇒ ảnh atlas, không trang phục; Vẽ nét ⇒ khung vector.
     let artStyle: BuddyStyle
     /// Chế độ nguồn điện thấp: chỉ dáng tĩnh.
-    var lowPower: Bool { didSet { if lowPower != oldValue { forceApply() } } }
+    var lowPower: Bool { didSet { if lowPower != oldValue { if lowPower { stopSignature() }; forceApply() } } }
     /// Chiều cao nhân vật tối đa (pt) — thanh gợi ý: cao trọn ô (chạm trần strip, tràn xuống hàng phím).
     var maxFigureHeight: CGFloat = 200 { didSet { if maxFigureHeight != oldValue { builtFor = .zero; setNeedsLayout() } } }
     /// Đồng hồ (giây) — test thay bằng giờ giả.
@@ -94,6 +94,10 @@ final class BuddyView: UIView {
     private let prop = CAShapeLayer()
     private var holidayProps: [BuddyReaction: (CALayer, [(CAShapeLayer, BuddyPiece)])] = [:]
     private var wordHistory: (word: String, prev: String?, prev2: String?)?
+    private var signatureShapes: [CAShapeLayer] = []
+    private var cheerSerial = 0
+    private var activeSignature: BuddySignature?
+    private var bubbleLayers: [CAShapeLayer] = []
 
     /// Giận: mặt đỏ + lông mày cau (trong đầu).
     private let flush = CAShapeLayer(), brows = CAShapeLayer()
@@ -108,8 +112,8 @@ final class BuddyView: UIView {
         self.rig = BuddyRig.rig(character) ?? BuddyRig.cat
         self.framing = framing
         self.season = season
-        self.artStyle = artStyle
-        self.outfit = BuddyOutfit.make(artStyle.season(season), character)
+        self.artStyle = artStyle.resolved(for: character)
+        self.outfit = BuddyOutfit.make(artStyle.resolved(for: character).season(season), character)
         self.tones = BuddyHalo.colors(bar: bar)
         self.lowPower = lowPower
         super.init(frame: .zero)
@@ -117,7 +121,7 @@ final class BuddyView: UIView {
         isAccessibilityElement = false
         clipsToBounds = true          // không vẽ ra ngoài ô (ô đã gồm phần tràn xuống hàng phím đầu)
         // Hoạt hình: chỉ nạp ảnh atlas (không dựng cây vector); thiếu ảnh ⇒ lùi về vector. Vẽ nét: không nạp ảnh.
-        if artStyle == .sprite, let atlas = Self.atlas(character) {
+        if self.artStyle == .sprite, let atlas = Self.atlas(character) {
             spriteAtlas = atlas
             sprite.contents = atlas
             sprite.contentsRect = spriteRect(BuddySprites.sleep(character))
@@ -205,7 +209,9 @@ final class BuddyView: UIView {
     /// Phím ⌫ (cả lặp khi giữ, xoá theo từ): bộ đếm xoá dồn ⇒ hoảng.
     func deletePressed() {
         let now = clock()
+        let serial = brain.reactSerial
         brain.delete(at: now)
+        if brain.reactSerial != serial, let signature = BuddySignature.reaction(character, .panic) { showSignature(signature) }
         afterInput(now)
     }
 
@@ -213,6 +219,8 @@ final class BuddyView: UIView {
     func cheer() {
         let now = clock()
         brain.cheer(at: now)
+        cheerSerial &+= 1
+        if let signature = BuddySignature.cheer(character, seed: cheerSerial) { showSignature(signature) }
         afterInput(now)
     }
 
@@ -220,15 +228,22 @@ final class BuddyView: UIView {
     func wordCommitted(_ word: String, prev: String?, prev2: String? = nil) {
         let prev3 = wordHistory.flatMap { $0.word == prev && $0.prev == prev2 ? $0.prev2 : nil }
         wordHistory = (word, prev, prev2)
+        if let signature = BuddySignature.word(character, word) ?? prev.flatMap({ BuddySignature.word(character, $0 + " " + word) }) { showSignature(signature) }
         let date = Calendar.current.dateComponents([.year, .month, .day], from: Date())
         let active = season ?? BuddySeason.of(year: date.year ?? 0, month: date.month ?? 0, day: date.day ?? 0)
         guard let r = BuddyWords.reaction(word: word, prev: prev, prev2: prev2, prev3: prev3, season: active) else { return }
         react(r)
     }
 
+    func emojiInserted(_ text: String) {
+        if let signature = BuddySignature.word(character, text) { showSignature(signature) }
+        if let reaction = BuddyWords.emoji(text) { react(reaction) }
+    }
+
     func react(_ r: BuddyReaction) {
         let now = clock()
         brain.react(r, at: now)
+        if let signature = BuddySignature.reaction(character, r) { showSignature(signature) }
         afterInput(now)
     }
 
@@ -320,9 +335,15 @@ final class BuddyView: UIView {
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
         if isReact(prev) { stopFX() }
+        if case .asleep = v { stopSignature() }
+        if case .awake = v { stopSignature() }
+        if case .idle = prev, v != .idle, activeSignature == .bamboo { stopSignature() }
         if spriteAtlas != nil {
             applySprite(v)
             return
+        }
+        if character == .koi {
+            if case .asleep = v { startBubbles() } else { stopBubbles() }
         }
         switch v {
         case .asleep(let zzz):
@@ -341,6 +362,7 @@ final class BuddyView: UIView {
             if case .dancing = prev { p = loopPhase(now); danceLoopBase = danceLoopIndex(now) }
             else { danceLoopBase = 0 }
             danceMove = BuddyDance.move(character, tier: t, loopIndex: danceLoopBase, seed: danceSeed)
+            if let signature = BuddySignature.dance(character, tier: t, group: danceLoopBase / 2, seed: danceSeed) { showSignature(signature) }
             loopLen = BuddyDance.loopLength(t)
             loopEpoch = now - p * loopLen
             removeRigAnimations()
@@ -348,14 +370,15 @@ final class BuddyView: UIView {
                 a.beginTime = loopEpoch
                 l.add(a, forKey: "loop")
             }
-            addBlend(from: old ?? .rest, to: BuddyDance.pose(rig.style, tier: t, p: p, move: danceMove))
+            addBlend(from: old ?? .rest, to: BuddyDance.pose(rig.style, tier: t, p: p, move: danceMove, character: character))
         case .idle:
             stopZzz()
             showSleep(false); showEyes(dance: false)
             removeRigAnimations()
             idleStart = now
+            if let signature = BuddySignature.idle(character) { showSignature(signature) }
             for (l, a) in idleLoop() { l.add(a, forKey: "loop") }
-            addBlend(from: old ?? .rest, to: BuddyDance.idle(rig.style, p: 0))
+            addBlend(from: old ?? .rest, to: BuddyDance.idle(rig.style, p: 0, character: character))
         case .cheering:
             stopZzz()
             showSleep(false); showEyes(dance: true)
@@ -370,7 +393,7 @@ final class BuddyView: UIView {
             reactStart = now
             shownSerial = brain.reactSerial
             for (l, a) in reactLoop(r) { l.add(a, forKey: "loop") }
-            addBlend(from: old ?? .rest, to: BuddyDance.react(r, rig.style, f: 0))
+            addBlend(from: old ?? .rest, to: BuddyDance.react(r, rig.style, f: 0, character: character))
             startFX(r)
         }
     }
@@ -423,14 +446,14 @@ final class BuddyView: UIView {
         switch shown {
         case .asleep: return nil
         case .awake: return .rest
-        case .dancing(let t): return BuddyDance.pose(rig.style, tier: t, p: loopPhase(now), move: danceMove)
-        case .idle: return BuddyDance.idle(rig.style, p: (now - idleStart) / BuddyDance.idleLoop)
-        case .cheering: return BuddyDance.cheer(rig.style, f: (now - cheerStart) / BuddyBrain.cheer)
+        case .dancing(let t): return BuddyDance.pose(rig.style, tier: t, p: loopPhase(now), move: danceMove, character: character)
+        case .idle: return BuddyDance.idle(rig.style, p: (now - idleStart) / BuddyDance.idleLoop, character: character)
+        case .cheering: return BuddyDance.cheer(rig.style, f: (now - cheerStart) / BuddyBrain.cheer, character: character)
         case .react(let r):
             let len = Self.reactLength(r)
             var f = (now - reactStart) / len
             if r == .panic { f -= f.rounded(.down) }
-            return BuddyDance.react(r, rig.style, f: f)
+            return BuddyDance.react(r, rig.style, f: f, character: character)
         }
     }
 
@@ -498,7 +521,7 @@ final class BuddyView: UIView {
         let key = t * BuddyDance.Move.allCases.count + move.rawValue
         if let c = loopCache[key] { return c }
         let out = sampled(Self.samples, BuddyDance.loopLength(t), repeatForever: true) {
-            BuddyDance.pose(rig.style, tier: t, p: $0, move: move)
+            BuddyDance.pose(rig.style, tier: t, p: $0, move: move, character: character)
         }
         loopCache[key] = out
         return out
@@ -507,14 +530,14 @@ final class BuddyView: UIView {
     /// Vòng lắc nhẹ (`.idle`) — dựng một lần, cache như vòng nhảy.
     private func idleLoop() -> [(CALayer, CAAnimation)] {
         if let c = idleAnims { return c }
-        let out = sampled(Self.samples, BuddyDance.idleLoop, repeatForever: true) { BuddyDance.idle(rig.style, p: $0) }
+        let out = sampled(Self.samples, BuddyDance.idleLoop, repeatForever: true) { BuddyDance.idle(rig.style, p: $0, character: character) }
         idleAnims = out
         return out
     }
 
     private func cheerLoop() -> [(CALayer, CAAnimation)] {
         if let c = cheerAnims { return c }
-        let out = sampled(24, BuddyBrain.cheer, repeatForever: false) { BuddyDance.cheer(rig.style, f: $0) }
+        let out = sampled(24, BuddyBrain.cheer, repeatForever: false) { BuddyDance.cheer(rig.style, f: $0, character: character) }
         cheerAnims = out
         return out
     }
@@ -522,7 +545,7 @@ final class BuddyView: UIView {
     private func reactLoop(_ r: BuddyReaction) -> [(CALayer, CAAnimation)] {
         if let c = reactAnims[r] { return c }
         let out = sampled(r == .panic ? 30 : 48, Self.reactLength(r), repeatForever: r == .panic) {
-            BuddyDance.react(r, rig.style, f: $0)
+            BuddyDance.react(r, rig.style, f: $0, character: character)
         }
         reactAnims[r] = out
         return out
@@ -564,6 +587,8 @@ final class BuddyView: UIView {
         sprite.removeAllAnimations()
         removeRigAnimations()
         stopZzz()
+        stopBubbles()
+        stopSignature()
         stopFX()
     }
 
@@ -586,6 +611,35 @@ final class BuddyView: UIView {
 
     private func stopZzz() {
         for z in zLayers { z.removeAllAnimations() }
+    }
+
+    private func startBubbles() {
+        guard !lowPower, bounds.width > 0, bounds.height > 0 else { stopBubbles(); return }
+        if bubbleLayers.first?.animation(forKey: "rise") != nil { return }
+        while bubbleLayers.count < 3 {
+            let bubble = CAShapeLayer()
+            bubble.fillColor = UIColor.clear.cgColor
+            bubble.strokeColor = Self.cg(0x79C9E9)
+            bubble.lineWidth = 1.5
+            layer.addSublayer(bubble)
+            bubbleLayers.append(bubble)
+        }
+        for (i, bubble) in bubbleLayers.enumerated() {
+            let radius: CGFloat = CGFloat(2 + i)
+            bubble.path = UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: radius * 2, height: radius * 2)).cgPath
+            bubble.position = CGPoint(x: bounds.midX + CGFloat(i - 1) * 8, y: bounds.height * 0.62)
+            let rise = CABasicAnimation(keyPath: "transform.translation.y")
+            rise.fromValue = 0; rise.toValue = -bounds.height * 0.28
+            let fade = CAKeyframeAnimation(keyPath: "opacity")
+            fade.values = [0, 0.8, 0.8, 0]; fade.keyTimes = [0, 0.2, 0.7, 1]
+            let group = CAAnimationGroup(); group.animations = [rise, fade]
+            group.duration = 2.4; group.repeatCount = .infinity
+            group.beginTime = CACurrentMediaTime() + Double(i) * 0.8
+            bubble.add(group, forKey: "rise")
+        }
+    }
+    private func stopBubbles() {
+        for bubble in bubbleLayers { bubble.removeAllAnimations(); bubble.opacity = 0 }
     }
 
     // MARK: Hiệu ứng phản ứng
@@ -629,6 +683,132 @@ final class BuddyView: UIView {
         }
     }
 
+    /// Sparse vector effect pool. Paths are built only when the signature fires;
+    /// Core Animation owns the short animation without a per-frame callback.
+    private func showSignature(_ signature: BuddySignature) {
+        guard !lowPower, bounds.width > 0, bounds.height > 0 else { return }
+        stopSignature()
+        activeSignature = signature
+        let w = bounds.width, h = bounds.height
+        let cx = w * 0.54, cy = h * 0.48
+        var paths: [UIBezierPath] = []
+        var colors: [UInt32] = []
+        var widths: [CGFloat] = []
+        func add(_ path: UIBezierPath, _ color: UInt32, _ width: CGFloat = 0) {
+            paths.append(path); colors.append(color); widths.append(width)
+        }
+        switch signature {
+        case .fire:
+            for (i, color) in [UInt32(0xF05036), 0xFF9B37, 0xFFE370].enumerated() {
+                let p = UIBezierPath()
+                let y = cy + CGFloat(i - 1) * 2
+                p.move(to: CGPoint(x: cx, y: y))
+                p.addQuadCurve(to: CGPoint(x: min(w - 2, cx + w * (0.32 - CGFloat(i) * 0.05)), y: y - 2),
+                               controlPoint: CGPoint(x: cx + w * 0.19, y: y - h * 0.12))
+                p.addQuadCurve(to: CGPoint(x: cx, y: y), controlPoint: CGPoint(x: cx + w * 0.2, y: y + h * 0.08))
+                add(p, color)
+            }
+        case .laser:
+            for (i, color) in [UInt32(0xF44A83), 0xFF5B8F, 0xFFFFFF].enumerated() {
+                let p = UIBezierPath()
+                for eye in [-1.0, 1.0] {
+                    let ex = cx + CGFloat(eye) * w * 0.075
+                    p.move(to: CGPoint(x: ex, y: cy - h * 0.12))
+                    p.addLine(to: CGPoint(x: max(2, w * 0.08 + CGFloat(eye + 1) * 5), y: 3))
+                }
+                add(p, color, [9, 4, 1.5][i])
+            }
+        case .kiss:
+            let p = UIBezierPath()
+            p.move(to: CGPoint(x: cx, y: cy))
+            p.addCurve(to: CGPoint(x: cx, y: cy + 13), controlPoint1: CGPoint(x: cx - 15, y: cy - 13), controlPoint2: CGPoint(x: cx - 15, y: cy + 7))
+            p.addCurve(to: CGPoint(x: cx, y: cy), controlPoint1: CGPoint(x: cx + 15, y: cy + 7), controlPoint2: CGPoint(x: cx + 15, y: cy - 13))
+            add(p, BuddyFX.heartColor)
+            let wink = UIBezierPath()
+            wink.move(to: CGPoint(x: cx - w * 0.13, y: cy - h * 0.12))
+            wink.addQuadCurve(to: CGPoint(x: cx - w * 0.045, y: cy - h * 0.12),
+                              controlPoint: CGPoint(x: cx - w * 0.09, y: cy - h * 0.07))
+            add(wink, BuddyRig.ink, 2)
+        case .bone:
+            let p = UIBezierPath(roundedRect: CGRect(x: cx - 15, y: cy - 5, width: 30, height: 10), cornerRadius: 5)
+            add(p, 0xFFF4DF)
+            for x in [cx - 16, cx + 16] { for y in [cy - 5, cy + 5] { add(UIBezierPath(ovalIn: CGRect(x: x - 5, y: y - 5, width: 10, height: 10)), 0xFFF4DF) } }
+        case .egg:
+            add(UIBezierPath(ovalIn: CGRect(x: cx - 11, y: cy - 4, width: 22, height: 30)), 0xFFF7EC)
+            let crack = UIBezierPath(); crack.move(to: CGPoint(x: cx - 9, y: cy + 11)); crack.addLine(to: CGPoint(x: cx - 2, y: cy + 7)); crack.addLine(to: CGPoint(x: cx + 3, y: cy + 13)); crack.addLine(to: CGPoint(x: cx + 10, y: cy + 8))
+            add(crack, 0xE2A76E, 1.6)
+            add(UIBezierPath(ovalIn: CGRect(x: cx - 7, y: cy - 10, width: 14, height: 13)), 0xFFE17A)
+            add(UIBezierPath(ovalIn: CGRect(x: cx - 4, y: cy - 5, width: 2, height: 2)), BuddyRig.ink)
+            add(UIBezierPath(ovalIn: CGRect(x: cx + 2, y: cy - 5, width: 2, height: 2)), BuddyRig.ink)
+        case .splash:
+            for i in 0..<3 { add(UIBezierPath(ovalIn: CGRect(x: cx - 15 + CGFloat(i) * 12, y: cy + 14 - CGFloat(i % 2) * 15, width: 6, height: 6)), 0x79C9E9) }
+        case .bamboo:
+            let stem = UIBezierPath(); stem.move(to: CGPoint(x: cx - 10, y: cy + 20)); stem.addLine(to: CGPoint(x: cx + 5, y: cy - 22)); add(stem, 0x5AA873, 5)
+            for i in 0..<3 { add(UIBezierPath(ovalIn: CGRect(x: cx - 14 + CGFloat(i) * 5, y: cy - 17 + CGFloat(i) * 11, width: 15, height: 6)), 0x82C584) }
+        case .mud, .snort, .yarn, .breakdance:
+            let color: UInt32 = signature == .mud ? 0x9B7158 : signature == .snort ? 0xD8D3D0 : signature == .yarn ? 0xE995B5 : 0x8AA6E8
+            for i in 0..<3 { add(UIBezierPath(ovalIn: CGRect(x: cx - 18 + CGFloat(i) * 12, y: cy + CGFloat(i % 2) * 8, width: 10, height: 10)), color) }
+        }
+        while signatureShapes.count < paths.count {
+            let layer = CAShapeLayer(); layer.lineCap = .round; layer.lineJoin = .round
+            self.layer.addSublayer(layer); signatureShapes.append(layer)
+        }
+        let dur: CFTimeInterval = signature == .laser ? 0.4 : signature == .fire ? 0.55 : 0.9
+        if signature == .bone {
+            for tail in [parts[.tail], haloParts[.tail]].compactMap({ $0 }) {
+                let wag = CAKeyframeAnimation(keyPath: "transform.rotation.z")
+                wag.values = [0, 0.9, -0.9, 0.9, -0.9, 0]
+                wag.duration = dur; wag.isAdditive = true
+                tail.add(wag, forKey: "signatureWag")
+            }
+        }
+        for (i, path) in paths.enumerated() {
+            let layer = signatureShapes[i]
+            layer.path = path.cgPath
+            layer.fillColor = widths[i] == 0 ? Self.cg(colors[i]) : UIColor.clear.cgColor
+            layer.strokeColor = widths[i] == 0 ? nil : Self.cg(colors[i])
+            layer.lineWidth = widths[i]
+            layer.isHidden = false; layer.opacity = 0
+            let fade = CAKeyframeAnimation(keyPath: "opacity")
+            if signature == .egg && i >= 2 {
+                fade.values = [0, 0, 1, 0]; fade.keyTimes = [0, 0.52, 0.75, 1]
+            } else {
+                fade.values = [0, 1, 0.8, 0]; fade.keyTimes = [0, 0.15, 0.65, 1]
+            }
+            let scale = CAKeyframeAnimation(keyPath: "transform.scale")
+            scale.values = [0.4, 1.1, 0.9, 0.2]; scale.keyTimes = [0, 0.25, 0.7, 1]
+            let group = CAAnimationGroup()
+            var animations: [CAAnimation] = [fade, scale]
+            if signature == .bone {
+                let rise = CABasicAnimation(keyPath: "transform.translation.y")
+                rise.fromValue = 14; rise.toValue = -12
+                animations.append(rise)
+            }
+            if signature == .yarn {
+                let fly = CABasicAnimation(keyPath: "transform.translation.x")
+                fly.fromValue = -w * 0.12; fly.toValue = w * 0.2
+                animations.append(fly)
+            }
+            if signature == .kiss && i == 0 {
+                let flyX = CABasicAnimation(keyPath: "transform.translation.x")
+                flyX.fromValue = 0; flyX.toValue = w * 0.22
+                let flyY = CABasicAnimation(keyPath: "transform.translation.y")
+                flyY.fromValue = 0; flyY.toValue = -h * 0.18
+                animations += [flyX, flyY]
+            }
+            group.animations = animations; group.duration = dur
+            group.repeatCount = signature == .bamboo && character == .panda && shown == .idle ? 9 : 1
+            layer.add(group, forKey: "signature")
+        }
+    }
+
+    private func stopSignature() {
+        parts[.tail]?.removeAnimation(forKey: "signatureWag")
+        haloParts[.tail]?.removeAnimation(forKey: "signatureWag")
+        activeSignature = nil
+        for layer in signatureShapes { layer.removeAllAnimations(); layer.opacity = 0; layer.isHidden = true }
+    }
+
     private func startFX(_ r: BuddyReaction) {
         let w = Double(bounds.width), h = Double(bounds.height)
         guard w > 0, h > 0 else { return }
@@ -661,7 +841,7 @@ final class BuddyView: UIView {
             showBadge(r, w: w, h: h, text: "!", dur: dur)
         case .sad:
             showBadge(r, w: w, h: h, text: nil, dur: dur)
-        case .laugh, .panic:
+        case .laugh, .greet, .panic:
             break
         }
         let n = min(BuddyFX.count(r), BuddyFX.maxParticles)
@@ -799,6 +979,7 @@ final class BuddyView: UIView {
         guard bounds.size != builtFor, bounds.width > 0, bounds.height > 0 else { return }
         builtFor = bounds.size
         build()
+        if character == .koi, !lowPower, case .asleep = shown { stopBubbles(); startBubbles() }
     }
 
     /// Dựng path theo cỡ view (chỉ khi cỡ đổi). Nhân vật đứng đáy ô, giữa ngang.

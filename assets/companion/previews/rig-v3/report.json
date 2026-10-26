@@ -1,0 +1,69 @@
+{
+  "before_revision": "111c61f44a9d87e51f0abebb37b5dda7ff201b8f",
+  "characters": {
+    "girl": {
+      "before_pieces": 43,
+      "after_pieces": 53,
+      "checksum": "29155.8356",
+      "parity": "exact",
+      "pivots": "unchanged",
+      "bounds": "unchanged"
+    },
+    "boy": {
+      "before_pieces": 42,
+      "after_pieces": 46,
+      "checksum": "19939.9990",
+      "parity": "exact",
+      "pivots": "unchanged",
+      "bounds": "unchanged"
+    },
+    "cat": {
+      "before_pieces": 42,
+      "after_pieces": 50,
+      "checksum": "28728.3206",
+      "parity": "exact",
+      "pivots": "unchanged",
+      "bounds": "unchanged"
+    },
+    "chick": {
+      "before_pieces": 30,
+      "after_pieces": 36,
+      "checksum": "20913.1220",
+      "parity": "exact",
+      "pivots": "unchanged",
+      "bounds": "unchanged"
+    },
+    "shiba": {
+      "after_pieces": 29,
+      "checksum": "15269.7078",
+      "parity": "exact"
+    },
+    "koi": {
+      "after_pieces": 29,
+      "checksum": "14816.0100",
+      "parity": "exact"
+    },
+    "panda": {
+      "after_pieces": 31,
+      "checksum": "12385.2865",
+      "parity": "exact"
+    },
+    "pig": {
+      "after_pieces": 29,
+      "checksum": "14587.2357",
+      "parity": "exact"
+    },
+    "dragon": {
+      "after_pieces": 29,
+      "checksum": "12839.3196",
+      "parity": "exact"
+    },
+    "eagle": {
+      "after_pieces": 30,
+      "checksum": "16368.4397",
+      "parity": "exact"
+    }
+  },
+  "move_numeric_constants": "exact Swift/Kotlin parity",
+  "accessories": "11 exact Swift/Kotlin tables; <=8 pieces per pose/prop"
+}

@@ -87,7 +87,7 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
                 row.forEach { ch ->
                     val locked = !BuddyGate.allows(ch)
                     val selected = current == ch
-                    val style = styles[ch] ?: BuddyStyle.DEFAULT
+                    val style = (styles[ch] ?: BuddyStyle.DEFAULT).resolved(ch)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Box(Modifier.fillMaxWidth().height(96.dp).clip(RoundedCornerShape(10.dp))
                             .border(if (selected) 3.dp else 1.dp, if (selected) c.accent else c.separator, RoundedCornerShape(10.dp))
@@ -116,7 +116,7 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
     }
     if (current != BuddyCharacter.OFF && BuddyGate.allows(current)) {
         val style = styles[current] ?: BuddyStyle.DEFAULT
-        VTSection(header = tr("Kiểu vẽ") + " · " + current.title,
+        if (BuddyStyle.hasAtlas(current)) VTSection(header = tr("Kiểu vẽ") + " · " + current.title,
             footer = tr("Hoạt hình: hình vẽ sẵn, giữ nguyên quanh năm. Vẽ nét: mặc trang phục mùa lễ (Tết, Trung Thu, Halloween, Giáng sinh) và có thêm điệu nhảy.")) {
             VTRow {
                 // Segmented như "Ngôn ngữ / Language" (LanguagePickerRow); đổi ⇒ ô xem thử diễn lại theo kiểu mới.
@@ -139,6 +139,8 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
                     }
                 }
             }
+        } else {
+            VTSection { VTRow { Text(tr("Chỉ có kiểu Vẽ nét"), style = VTType.footnote, color = c.secondary) } }
         }
         VTSection(header = tr("Vị trí & cỡ"),
             footer = tr("Chung cho mọi nhân vật. Lề phải dương: dời sang trái; lề trên dương: dời xuống. Bàn phím áp dụng lần hiện kế.")) {

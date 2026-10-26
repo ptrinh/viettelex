@@ -906,7 +906,10 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         if (!proxy.begin()) return
         val out = try { session.handle(key, proxy, touch) } finally { proxy.end() }
         if (session.trackBoundaryWord) fxBoundaryEmoji()
-        root?.buddy?.let { if (key == Key.Backspace) it.deletePressed() else it.keyPressed() }
+        root?.buddy?.let { buddy ->
+            if (key == Key.Backspace) buddy.deletePressed() else buddy.keyPressed()
+            if (key is Key.Text) buddy.emojiInserted(key.text)
+        }
         if (key is Key.MoveCursor) {
             if (key.vertical) proxy.moveCursorVertical(key.delta) else proxy.moveCursor(key.delta)
         }
@@ -1371,6 +1374,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         syncShift()
         try { session.acceptSuggestion(item, proxy) } finally { proxy.end() }
         root?.buddy?.cheer()
+        root?.buddy?.emojiInserted(item)
         resetIfEditFailed()
         // Chọn gợi ý = gõ một từ: Shift một-lần nhả (session đã hạ keyboardShift), Caps giữ.
         if (session.keyboardShift == SuggestionCase.Shift.OFF) keyboard?.setAutoShift(false)

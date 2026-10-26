@@ -22,7 +22,9 @@ SWIFT = 'iOS/Keyboard/KeyboardBuddy.swift'
 KOTLIN = 'android/keyboard/src/main/kotlin/com/viettelex/keyboard/KeyboardBuddy.kt'
 BEFORE = '111c61f44a9d87e51f0abebb37b5dda7ff201b8f'
 SHARP = None
-NAMES = ('girl', 'boy', 'cat', 'chick')
+OLD_NAMES = ('girl', 'boy', 'cat', 'chick')
+NEW_NAMES = ('shiba', 'koi', 'panda', 'pig', 'dragon', 'eagle')
+NAMES = OLD_NAMES + NEW_NAMES
 PARTS = ('tail', 'legL', 'legR', 'body', 'armL', 'armR', 'head', 'sleep')
 NUM = r'-?(?:\d*\.)?\d+'
 
@@ -140,7 +142,7 @@ def parse(source, name):
 
 def kotlin_as_swift(source):
     """Normalize only the four declarative tables, then use the same parser."""
-    source = re.sub(r'val (GIRL|BOY|CAT|CHICK): BuddyRig = run \{', lambda m: f'static let {m[1].lower()}: BuddyRig = {{', source)
+    source = re.sub(r'val (GIRL|BOY|CAT|CHICK|SHIBA|KOI|PANDA|PIG|DRAGON|EAGLE): BuddyRig = run \{', lambda m: f'static let {m[1].lower()}: BuddyRig = {{', source)
     for swift, kt in zip(PARTS, ('TAIL', 'LEG_L', 'LEG_R', 'BODY', 'ARM_L', 'ARM_R', 'HEAD', 'SLEEP')):
         source = source.replace('BuddyPart.' + kt, '.' + swift)
     for a, b in [('Stroke.None', '.none'), ('Stroke.Outline', '.outline'), ('Stroke.Ink', '.ink'),
@@ -316,6 +318,8 @@ def costume(r, name, season, art):
             extra = at('khanDong', 'head', h) + at('khanDong', 'sleep', sh)
         else:
             extra = at('bow', 'head', r['neck'] + [22]) + at('bow', 'sleep', sn + [22])
+    elif season == 'christmas' and name == 'koi':
+        extra = at('bow', 'head', r['neck'] + [22]) + at('bow', 'sleep', sn + [22])
     elif season in ('christmas', 'halloween'):
         key = 'santa' if season == 'christmas' else 'witch' if name == 'girl' else 'pumpkin'
         extra = at(key, 'head', h) + at(key, 'sleep', sh)
@@ -416,7 +420,7 @@ def extras(swift, kotlin, make_png):
     art = accessories(swift)
     assert art == accessories(kotlin, True), 'accessory Swift/Kotlin parity mismatch'
     for folder in ('costumes', 'props', 'moves'): (OUT/folder).mkdir(exist_ok=True)
-    for name in NAMES:
+    for name in OLD_NAMES:
         r = parse(swift, name)
         for season in SEASONS:
             path = OUT/'costumes'/f'{name}-{season}.svg'
@@ -439,6 +443,49 @@ def extras(swift, kotlin, make_png):
         if make_png: png(path, 2400)
 
 
+
+def new_previews(name, rig, art, make_png):
+    folder = OUT / 'new'
+    folder.mkdir(exist_ok=True)
+    # Two themes, each with awake and asleep. The geometry comes from the same
+    # parsed tables used by the application, including the sleep offset.
+    out = ['<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="360" viewBox="0 0 1100 360">']
+    for theme, dark in enumerate((True, False)):
+        x = theme * 550
+        bg, fg = ('#1C1C1E', '#F2F2F7') if dark else ('#F2F2F7', '#302C38')
+        out += [f'<rect x="{x}" width="550" height="360" fill="{bg}"/>',
+                f'<text x="{x+275}" y="34" fill="{fg}" text-anchor="middle" font-family="Helvetica" font-size="21">{name.title()} · {"dark" if dark else "light"}</text>',
+                pose(rig, dark, False, x+20, 55), pose(rig, dark, True, x+280, 55)]
+    out.append('</svg>')
+    path = folder / f'{name}.svg'
+    path.write_text('\n'.join(out) + '\n')
+    if make_png: png(path)
+    for season in SEASONS:
+        target = folder / f'{name}-{season}.svg'
+        sheet(target, costume(rig, name, season, art), f'{name} · {season}')
+        if make_png: png(target)
+    # A single four-season sheet remains quick to scan on a phone.
+    tiles = []
+    for i, season in enumerate(SEASONS):
+        dressed = costume(rig, name, season, art)
+        for dark in (True, False):
+            x = i * 260
+            y = 0 if dark else 300
+            tiles += [f'<rect x="{x}" y="{y}" width="260" height="300" fill="{"#1C1C1E" if dark else "#F2F2F7"}"/>',
+                      pose(dressed, dark, False, x+5, y+22, 250, 250)]
+    target = folder / f'{name}-seasons.svg'
+    target.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="600">\n' + '\n'.join(tiles) + '\n</svg>')
+    if make_png: png(target)
+    if name in ('dragon', 'eagle'):
+        x0, y0 = 380, 210
+        if name == 'dragon':
+            effect = '<path d="M365 170 Q413 145 482 169 Q447 172 480 188 Q418 188 365 170Z" fill="#FF5A36"/><path d="M368 170 Q418 157 466 170 Q442 176 468 181 Q415 180 368 170Z" fill="#FFAA3D"/><path d="M371 170 Q412 163 451 172 Q413 177 371 170Z" fill="#FFE479"/>'
+        else:
+            effect = '<path d="M345 132 L140 20 M387 132 L160 26" stroke="#F34B81" stroke-width="13" stroke-opacity=".35"/><path d="M345 132 L140 20 M387 132 L160 26" stroke="#FF5480" stroke-width="5"/><path d="M345 132 L140 20 M387 132 L160 26" stroke="#FFFFFF" stroke-width="2"/>'
+        target = folder / f'{name}-effect.svg'
+        target.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="520" height="350"><rect width="520" height="350" fill="#1C1C1E"/>' + pose(rig, True, False, 240, 35, 250, 280) + effect + '</svg>')
+        if make_png: png(target)
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--before', default=BEFORE, help='git revision for the original Swift tables')
@@ -451,7 +498,7 @@ def main():
     swift = (ROOT / SWIFT).read_text()
     kotlin = kotlin_as_swift((ROOT / KOTLIN).read_text())
     report = {'before_revision': args.before, 'characters': {}}
-    for name in NAMES:
+    for name in OLD_NAMES:
         before, after, android = parse(original, name), parse(swift, name), parse(kotlin, name)
         assert after == android, f'{name}: Swift/Kotlin data differs'
         for field in ('pivots', 'full', 'barBottom', 'feet', 'sleepBottom', 'zzz', 'style'):
@@ -468,11 +515,17 @@ def main():
                 print('Quick Look unavailable:', result.stderr.strip())
             else:
                 print(path.with_suffix('.svg.png'))
+    for name in NEW_NAMES:
+        after, android = parse(swift, name), parse(kotlin, name)
+        assert after == android, f'{name}: Swift/Kotlin data differs'
+        assert len(after['pieces']) <= 55, f'{name}: piece budget exceeded'
+        report['characters'][name] = dict(after_pieces=len(after['pieces']), checksum=checksum(after), parity='exact')
+        new_previews(name, after, accessories(swift), args.png)
     expected = ['0.0000'] + [report['characters'][n]['checksum'] for n in NAMES]
     for fixture in ('iOS/KeyboardTests/KeyboardBuddyTests.swift',
                     'android/keyboard/src/test/kotlin/com/viettelex/keyboard/KeyboardBuddyTests.kt'):
         text = (ROOT / fixture).read_text()
-        actual = re.search(r'\"0\.0000\"(?:, \"[0-9.]+\"){4}', text)
+        actual = re.search(r'\"0\.0000\"(?:, \"[0-9.]+\"){10}', text)
         assert actual and re.findall(r'\"([0-9.]+)\"', actual[0]) == expected, f'{fixture}: stale checksums'
     extras(swift, (ROOT / KOTLIN).read_text(), args.png)
     report['move_numeric_constants'] = 'exact Swift/Kotlin parity'

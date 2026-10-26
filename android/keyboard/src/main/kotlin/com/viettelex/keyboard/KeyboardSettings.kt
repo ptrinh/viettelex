@@ -210,7 +210,7 @@ data class KeyboardSettings(
             s.keyPressHighlight = b(Keys.KEY_PRESS_HIGHLIGHT, s.keyPressHighlight)
             s.keyEffect = KeyEffect.of(get(Keys.KEY_EFFECT))
             s.buddy = BuddyCharacter.of(get(Keys.KEYBOARD_BUDDY))
-            s.buddyStyle = BuddyStyle.of(get(BuddyStyle.key(s.buddy)))
+            s.buddyStyle = BuddyStyle.of(get(BuddyStyle.key(s.buddy))).resolved(s.buddy)
             s.buddyPlacement = BuddyPlacement.of(get(Keys.BUDDY_SIZE), get(Keys.BUDDY_PAD_RIGHT), get(Keys.BUDDY_PAD_TOP))
             s.swipeTrail = SwipeTrailStyle.of(get(Keys.SWIPE_TRAIL))
             s.debugTouchLog = b(Keys.DEBUG_TOUCH_LOG, s.debugTouchLog)

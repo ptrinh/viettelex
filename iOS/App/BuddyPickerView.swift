@@ -43,7 +43,7 @@ struct BuddyPickerView: View {
             Section {
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(BuddyCharacter.allCases, id: \.self) {
-                        tile($0, palette: palette, season: season, style: styles[$0, default: .defaultValue],
+                        tile($0, palette: palette, season: season, style: styles[$0, default: .defaultValue].resolved(for: $0),
                              play: plays[$0, default: 0])
                     }
                 }
@@ -54,18 +54,22 @@ struct BuddyPickerView: View {
                 Text(L("Nhân vật nhỏ ở góc phải thanh gợi ý: gõ thì nhảy — gõ càng nhanh nhảy càng sung — ngừng gõ thì cuộn tròn ngủ. Chỉ chuyển động khi đang gõ; Chế độ nguồn điện thấp chỉ hiện dáng đứng yên."))
             }
             if current != .off && BuddyGate.allows(current) {
-                Section {
-                    Picker(L("Kiểu vẽ"), selection: Binding(
-                        get: { styles[current, default: .defaultValue] },
-                        set: { setStyle($0, for: current) })) {
-                        ForEach(BuddyStyle.allCases, id: \.self) { Text($0.title).tag($0) }
+                if BuddyStyle.hasAtlas(current) {
+                    Section {
+                        Picker(L("Kiểu vẽ"), selection: Binding(
+                            get: { styles[current, default: .defaultValue] },
+                            set: { setStyle($0, for: current) })) {
+                            ForEach(BuddyStyle.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                    } header: {
+                        Text(L("Kiểu vẽ") + " · " + current.title)
+                    } footer: {
+                        Text(L("Hoạt hình: hình vẽ sẵn, giữ nguyên quanh năm. Vẽ nét: mặc trang phục mùa lễ (Tết, Trung Thu, Halloween, Giáng sinh) và có thêm điệu nhảy."))
                     }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                } header: {
-                    Text(L("Kiểu vẽ") + " · " + current.title)
-                } footer: {
-                    Text(L("Hoạt hình: hình vẽ sẵn, giữ nguyên quanh năm. Vẽ nét: mặc trang phục mùa lễ (Tết, Trung Thu, Halloween, Giáng sinh) và có thêm điệu nhảy."))
+                } else {
+                    Section { Text(L("Chỉ có kiểu Vẽ nét")).foregroundStyle(.secondary) }
                 }
                 Section {
                     Stepper(value: $size, in: BuddyPlacement.sizeRange) {
