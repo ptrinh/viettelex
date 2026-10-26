@@ -1285,7 +1285,7 @@ class BuddyRig(
                 pivots = mapOf(BuddyPart.TAIL to P2(31, 58), BuddyPart.LEG_L to P2(-18, 78), BuddyPart.LEG_R to P2(18, 78), BuddyPart.BODY to P2(0, 92), BuddyPart.ARM_L to P2(-30, 46), BuddyPart.ARM_R to P2(30, 46), BuddyPart.HEAD to P2(0, 34)),
                 full = BuddyRect(-80, -66, 160, 188), barBottom = null, feet = P2(0, 111), sleepBottom = 69,
                 zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
-                style = BuddyDance.Style(armL = 1.2, armR = 1.2, armAmp = 0.55, alternate = true, kick = 0.3, bounce = 9, step = 8),
+                style = BuddyDance.Style(armL = 1.2, armR = 1.2, armAmp = 0.55, alternate = true, kick = 0.3, bounce = 9.0, step = 8.0),
                 heart = P3(0, 64, 12), face = P4(0, 4, 29, 20), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
                 hat = P3(0, -38, 31), sleepHat = P3(-30, -7, 26), neck = P2(0, 37), hand = P2(40, 76))
         }
@@ -1326,7 +1326,7 @@ class BuddyRig(
                 pivots = mapOf(BuddyPart.TAIL to P2(0, 85), BuddyPart.BODY to P2(0, 88), BuddyPart.ARM_L to P2(-28, 53), BuddyPart.ARM_R to P2(28, 53), BuddyPart.HEAD to P2(0, 31)),
                 full = BuddyRect(-80, -66, 160, 188), barBottom = null, feet = P2(0, 110), sleepBottom = 69,
                 zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
-                style = BuddyDance.Style(armL = 1.8, armR = 1.8, armAmp = 0.8, alternate = true, kick = 0, bounce = 14, step = 10),
+                style = BuddyDance.Style(armL = 1.8, armR = 1.8, armAmp = 0.8, alternate = true, kick = 0.0, bounce = 14.0, step = 10.0),
                 heart = P3(0, 62, 11), face = P4(0, 3, 30, 20), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
                 hat = P3(0, -43, 28), sleepHat = P3(-32, -9, 25), neck = P2(0, 35), hand = P2(46, 60))
         }
@@ -1369,7 +1369,7 @@ class BuddyRig(
                 pivots = mapOf(BuddyPart.LEG_L to P2(-20, 79), BuddyPart.LEG_R to P2(20, 79), BuddyPart.BODY to P2(0, 94), BuddyPart.ARM_L to P2(-31, 48), BuddyPart.ARM_R to P2(31, 48), BuddyPart.HEAD to P2(0, 34)),
                 full = BuddyRect(-80, -66, 160, 188), barBottom = null, feet = P2(0, 111), sleepBottom = 69,
                 zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
-                style = BuddyDance.Style(armL = 1.0, armR = 1.0, armAmp = 0.5, alternate = true, kick = 0.2, bounce = 7, step = 7),
+                style = BuddyDance.Style(armL = 1.0, armR = 1.0, armAmp = 0.5, alternate = true, kick = 0.2, bounce = 7.0, step = 7.0),
                 heart = P3(0, 66, 12), face = P4(0, 5, 29, 20), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
                 hat = P3(0, -43, 30), sleepHat = P3(-30, -8, 26), neck = P2(0, 37), hand = P2(42, 77))
         }
@@ -1410,7 +1410,7 @@ class BuddyRig(
                 pivots = mapOf(BuddyPart.TAIL to P2(29, 64), BuddyPart.LEG_L to P2(-20, 79), BuddyPart.LEG_R to P2(20, 79), BuddyPart.BODY to P2(0, 94), BuddyPart.ARM_L to P2(-30, 48), BuddyPart.ARM_R to P2(30, 48), BuddyPart.HEAD to P2(0, 34)),
                 full = BuddyRect(-80, -66, 160, 188), barBottom = null, feet = P2(0, 111), sleepBottom = 69,
                 zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
-                style = BuddyDance.Style(armL = 1.1, armR = 1.1, armAmp = 0.65, alternate = true, kick = 0.25, bounce = 10, step = 8),
+                style = BuddyDance.Style(armL = 1.1, armR = 1.1, armAmp = 0.65, alternate = true, kick = 0.25, bounce = 10.0, step = 8.0),
                 heart = P3(0, 66, 12), face = P4(0, 4, 30, 21), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
                 hat = P3(0, -40, 29), sleepHat = P3(-30, -8, 25), neck = P2(0, 38), hand = P2(44, 77))
         }
@@ -1451,7 +1451,7 @@ class BuddyRig(
                 pivots = mapOf(BuddyPart.TAIL to P2(27, 79), BuddyPart.LEG_L to P2(-20, 79), BuddyPart.LEG_R to P2(20, 79), BuddyPart.BODY to P2(0, 94), BuddyPart.ARM_L to P2(-30, 46), BuddyPart.ARM_R to P2(30, 46), BuddyPart.HEAD to P2(0, 34)),
                 full = BuddyRect(-82, -70, 164, 192), barBottom = null, feet = P2(0, 111), sleepBottom = 69,
                 zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
-                style = BuddyDance.Style(armL = 1.5, armR = 1.5, armAmp = 0.7, alternate = true, kick = 0.3, bounce = 10, step = 9),
+                style = BuddyDance.Style(armL = 1.5, armR = 1.5, armAmp = 0.7, alternate = true, kick = 0.3, bounce = 10.0, step = 9.0),
                 heart = P3(0, 65, 12), face = P4(0, 5, 29, 21), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
                 hat = P3(0, -47, 27), sleepHat = P3(-30, -11, 25), neck = P2(0, 38), hand = P2(42, 69))
         }
@@ -1493,7 +1493,7 @@ class BuddyRig(
                 pivots = mapOf(BuddyPart.TAIL to P2(0, 85), BuddyPart.LEG_L to P2(-18, 86), BuddyPart.LEG_R to P2(18, 86), BuddyPart.BODY to P2(0, 94), BuddyPart.ARM_L to P2(-27, 45), BuddyPart.ARM_R to P2(27, 45), BuddyPart.HEAD to P2(0, 34)),
                 full = BuddyRect(-82, -66, 164, 188), barBottom = null, feet = P2(0, 111), sleepBottom = 69,
                 zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
-                style = BuddyDance.Style(armL = 1.9, armR = 1.9, armAmp = 0.9, alternate = true, kick = 0.25, bounce = 11, step = 8),
+                style = BuddyDance.Style(armL = 1.9, armR = 1.9, armAmp = 0.9, alternate = true, kick = 0.25, bounce = 11.0, step = 8.0),
                 heart = P3(0, 66, 12), face = P4(0, 5, 30, 20), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
                 hat = P3(0, -43, 30), sleepHat = P3(-30, -8, 26), neck = P2(0, 38), hand = P2(48, 66))
         }
