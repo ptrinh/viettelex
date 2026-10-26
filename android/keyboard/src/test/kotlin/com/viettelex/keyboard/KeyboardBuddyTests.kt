@@ -101,11 +101,12 @@ class KeyboardBuddyTests {
     }
 
     @Test fun plusFallback() {
-        assertEquals(BuddyCharacter.OFF, BuddyPolicy.active(BuddyCharacter.CAT, plus = false))
-        assertEquals(BuddyCharacter.CAT, BuddyPolicy.active(BuddyCharacter.CAT, plus = true))
+        assertEquals(BuddyCharacter.OFF, BuddyPolicy.active(BuddyCharacter.GIRL, plus = false))
+        assertEquals(BuddyCharacter.GIRL, BuddyPolicy.active(BuddyCharacter.GIRL, plus = true))
         assertEquals(BuddyCharacter.OFF, BuddyPolicy.active(BuddyCharacter.OFF, plus = true))
         assertFalse(BuddyCharacter.OFF.isPlus)
-        assertTrue(BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }.all { it.isPlus })
+        assertFalse(BuddyCharacter.CAT.isPlus)
+        assertTrue(BuddyCharacter.entries.filter { it != BuddyCharacter.OFF && it != BuddyCharacter.CAT }.all { it.isPlus })
         assertTrue(BuddyGate.allows(BuddyCharacter.OFF))
         // Bật thu phí, chưa mua ⇒ khoá; mua ⇒ mở.
         PlusGate.paywallEnabled = true

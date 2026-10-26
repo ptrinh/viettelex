@@ -31,7 +31,8 @@ enum class BuddyCharacter(val id: String, val viTitle: String) {
     CHICK("chick", "Gà con"); // l10n-key
 
     val title: String get() = tr(viTitle)
-    val isPlus: Boolean get() = this != OFF
+    /** Mèo dùng miễn phí (Phil 27/10/2026); các nhân vật khác thuộc Plus. */
+    val isPlus: Boolean get() = this != OFF && this != CAT
 
     companion object {
         val DEFAULT = OFF

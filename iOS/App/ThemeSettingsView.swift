@@ -167,7 +167,8 @@ struct ThemeSettingsView: View {
                         Text(L("Bạn đồng hành"))
                         if !BuddyGate.allows { plusBadge }
                         Spacer()
-                        Text(BuddyGate.allows ? BuddyCharacter.parse(buddyRaw).title : BuddyCharacter.off.title)
+                        Text(BuddyPolicy.active(setting: BuddyCharacter.parse(buddyRaw),
+                                                plus: BuddyGate.allows(BuddyCharacter.parse(buddyRaw))).title)
                             .foregroundStyle(.secondary).lineLimit(1)
                     }
                 }

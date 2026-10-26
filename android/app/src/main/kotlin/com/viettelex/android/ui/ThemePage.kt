@@ -349,7 +349,8 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
             val on = com.viettelex.keyboard.BuddyGate.allows
             Text(tr("Bạn đồng hành") + if (on) "" else " · Plus", style = VTType.body, color = c.label,
                 modifier = Modifier.weight(1f))
-            Text("${(if (on) com.viettelex.keyboard.BuddyCharacter.of(buddyRaw) else com.viettelex.keyboard.BuddyCharacter.OFF).title} ›",
+            val ch = com.viettelex.keyboard.BuddyCharacter.of(buddyRaw)
+            Text("${(if (com.viettelex.keyboard.BuddyGate.allows(ch)) ch else com.viettelex.keyboard.BuddyCharacter.OFF).title} ›",
                 style = VTType.body, color = c.secondary, maxLines = 1)
         }
     }

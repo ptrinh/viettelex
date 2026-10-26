@@ -145,8 +145,8 @@ final class KeyboardBuddyTests: XCTestCase {
 
     /// Plus: hết Plus ⇒ Tắt (không tạo view) nhưng GIỮ cài đặt (mua lại là có ngay).
     func testPlusFallback() {
-        XCTAssertEqual(BuddyPolicy.active(setting: .cat, plus: false), .off)
-        XCTAssertEqual(BuddyPolicy.active(setting: .cat, plus: true), .cat)
+        XCTAssertEqual(BuddyPolicy.active(setting: .girl, plus: false), .off)
+        XCTAssertEqual(BuddyPolicy.active(setting: .girl, plus: true), .girl)
         XCTAssertEqual(BuddyPolicy.active(setting: .off, plus: true), .off)
         let d = UserDefaults(suiteName: suite)!
         defer { d.removePersistentDomain(forName: suite) }
@@ -158,7 +158,8 @@ final class KeyboardBuddyTests: XCTestCase {
         PlusGate.defaults.set(true, forKey: PlusConfig.unlockedKey)
         XCTAssertEqual(BuddyPolicy.current(d), .girl)
         XCTAssertFalse(BuddyCharacter.off.isPlus)
-        XCTAssertTrue(BuddyCharacter.allCases.filter { $0 != .off }.allSatisfy(\.isPlus))
+        XCTAssertFalse(BuddyCharacter.cat.isPlus, "mèo miễn phí")
+        XCTAssertTrue(BuddyCharacter.allCases.filter { $0 != .off && $0 != .cat }.allSatisfy(\.isPlus))
     }
 
     // MARK: Bậc tốc độ

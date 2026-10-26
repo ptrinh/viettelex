@@ -38,7 +38,8 @@ enum BuddyCharacter: String, CaseIterable {
         }
     }
 
-    var isPlus: Bool { self != .off }
+    /// Mèo dùng miễn phí (Phil 27/10/2026); các nhân vật khác thuộc Plus.
+    var isPlus: Bool { self != .off && self != .cat }
 }
 
 /// Kiểu vẽ RIÊNG từng nhân vật (Phil 26/10/2026): Hoạt hình = bộ khung hình PNG vẽ sẵn (BuddySprites, mặc
