@@ -31,4 +31,15 @@ enum AppFlavor {
     static let vietnameseInput = true
     /// Bàn phím đếm số phím đã gõ vào App Group (`KeystrokeCounter`) — chỉ con số, không nội dung.
     static let countsKeystrokes = false
+
+    // Bạn đồng hành (KeyboardBuddy.swift). Id = BuddyCharacter.rawValue.
+    /// Nhân vật khi người dùng chưa chọn ("off" = tắt).
+    static let defaultBuddy = "off"
+    /// Nhân vật cho chọn, theo thứ tự (gồm "off" nếu cho tắt). nil = tất cả.
+    static let buddyCharacters: [String]? = nil
+    /// Nhân vật không cần Plus.
+    static let freeBuddies = ["cat"]
+    /// Hình + tên riêng của app cho nhân vật có sẵn: id → (tên hiển thị, tên file atlas PNG không đuôi, bố cục
+    /// 4 × 2 như atlas có sẵn, xoay theo ô 2…6). Rỗng = hình của mã chung.
+    static let buddySkins: [String: (title: String, atlas: String)] = [:]
 }

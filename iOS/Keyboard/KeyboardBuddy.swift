@@ -74,7 +74,16 @@ enum BuddyCharacter: String, CaseIterable {
     case off, girl, boy, cat, chick, shiba, koi, panda, pig, dragon, eagle, robot
 
     static let key = "keyboardBuddy"
-    static let defaultValue: BuddyCharacter = .off
+    static let defaultValue: BuddyCharacter = BuddyCharacter(rawValue: AppFlavor.defaultBuddy) ?? .off
+
+    /// Nhân vật app này cho chọn, theo thứ tự (`AppFlavor.buddyCharacters`; nil = tất cả).
+    static var offered: [BuddyCharacter] {
+        AppFlavor.buddyCharacters?.compactMap(BuddyCharacter.init(rawValue:)) ?? allCases
+    }
+
+    /// Tên + atlas riêng của app cho nhân vật này (`AppFlavor.buddySkins`) — giữ nguyên tính cách (điệu nhảy,
+    /// phản ứng, ký hiệu), chỉ thay hình và tên. Có da ⇒ luôn vẽ bằng atlas (khung vector là hình của mã chung).
+    var skin: (title: String, atlas: String)? { AppFlavor.buddySkins[rawValue] }
 
     static func parse(_ raw: Any?) -> BuddyCharacter {
         (raw as? String).flatMap(BuddyCharacter.init(rawValue:)) ?? defaultValue
@@ -82,6 +91,7 @@ enum BuddyCharacter: String, CaseIterable {
     static func load(_ d: UserDefaults?) -> BuddyCharacter { parse(d?.object(forKey: key)) }
 
     var title: String {
+        if let skin { return skin.title }
         switch self {
         case .off: return L("Tắt")
         case .girl: return L("Cô gái")
@@ -98,8 +108,8 @@ enum BuddyCharacter: String, CaseIterable {
         }
     }
 
-    /// Mèo dùng miễn phí (Phil 27/10/2026); các nhân vật khác thuộc Plus.
-    var isPlus: Bool { self != .off && self != .cat }
+    /// Nhân vật miễn phí theo `AppFlavor.freeBuddies` (VietTelex: Mèo, Phil 27/10/2026); còn lại thuộc Plus.
+    var isPlus: Bool { self != .off && !AppFlavor.freeBuddies.contains(rawValue) }
 }
 
 /// Kiểu vẽ RIÊNG từng nhân vật (Phil 26/10/2026): Hoạt hình = bộ khung hình PNG vẽ sẵn (BuddySprites, mặc
@@ -112,8 +122,10 @@ enum BuddyStyle: String, CaseIterable {
     static let defaultValue: BuddyStyle = .sprite
 
     static func key(_ c: BuddyCharacter) -> String { "buddyStyle.\(c.rawValue)" }
-    static func hasAtlas(_ c: BuddyCharacter) -> Bool { [.girl, .boy, .cat, .chick].contains(c) }
-    func resolved(for c: BuddyCharacter) -> BuddyStyle { Self.hasAtlas(c) ? self : .vector }
+    static func hasAtlas(_ c: BuddyCharacter) -> Bool { c.skin != nil || [.girl, .boy, .cat, .chick].contains(c) }
+    /// Người dùng được chọn Hoạt hình / Vẽ nét: có atlas và không mặc da của app (da chỉ có atlas).
+    static func isChoosable(_ c: BuddyCharacter) -> Bool { c.skin == nil && hasAtlas(c) }
+    func resolved(for c: BuddyCharacter) -> BuddyStyle { c.skin != nil ? .sprite : Self.hasAtlas(c) ? self : .vector }
     static func parse(_ raw: Any?) -> BuddyStyle {
         (raw as? String).flatMap(BuddyStyle.init(rawValue:)) ?? defaultValue
     }
@@ -1293,7 +1305,7 @@ struct BuddySprites {
     private static let sway = [0, 1, 0, 1 + mirror, 5, 6, 5, 6]
     /// Thứ tự ảnh khi xoay trọn một vòng (từ chính diện, quay sang trái). Mèo / gà / chàng trai: 2…6 theo
     /// thứ tự; cô gái vẽ khác thứ tự (6 ¾ trước, 3 nghiêng, 4 lưng, 2 ¾ lưng, 5 nghiêng bên kia).
-    static func turnOrder(_ c: BuddyCharacter) -> [Int] { c == .girl ? [6, 3, 4, 2, 5] : [2, 3, 4, 5, 6] }
+    static func turnOrder(_ c: BuddyCharacter) -> [Int] { c == .girl && c.skin == nil ? [6, 3, 4, 2, 5] : [2, 3, 4, 5, 6] }
     /// Bậc cao: nhảy, xoay trọn vòng trái, rồi trọn vòng phải (bản lật gương), rồi lắc hông.
     private static func turn(_ c: BuddyCharacter) -> [Int] {
         let o = turnOrder(c)

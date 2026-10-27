@@ -46,7 +46,7 @@ struct BuddyPickerView: View {
             }
             Section {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(BuddyCharacter.allCases, id: \.self) {
+                    ForEach(BuddyCharacter.offered, id: \.self) {
                         tile($0, palette: palette, season: season, style: styles[$0, default: .defaultValue].resolved(for: $0),
                              play: plays[$0, default: 0])
                     }
@@ -64,7 +64,7 @@ struct BuddyPickerView: View {
                         set: { let v = BuddyName.clean($0); names[current] = v; buddyDefaults?.set(v, forKey: BuddyName.key(current)) }))
                         .textInputAutocapitalization(.words)
                 } header: { Text(L("Đặt tên") + " · " + current.title) }
-                if BuddyStyle.hasAtlas(current) {
+                if BuddyStyle.isChoosable(current) {
                     Section {
                         Picker(L("Kiểu vẽ"), selection: Binding(
                             get: { styles[current, default: .defaultValue] },

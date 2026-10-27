@@ -54,7 +54,7 @@ final class BuddyView: UIView {
 
     private static func atlas(_ character: BuddyCharacter) -> CGImage? {
         guard character != .off else { return nil }
-        let name = "buddy-\(character.rawValue)-v2"
+        let name = character.skin?.atlas ?? "buddy-\(character.rawValue)-v2"
         if let image = atlasCache.object(forKey: name as NSString) { return image }
         guard let url = VTBundleResource.url(name, "png", anchor: BuddyView.self),
               let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
