@@ -58,6 +58,8 @@ targets:
       - path: iOS/Shared/TranslatePrefs.swift
       # L("…") của TextTools (giao diện tiếng Anh, b8da26e) — chỉ Foundation.
       - path: iOS/Shared/L10n.swift
+      # L10n đọc App Group / ngôn ngữ mặc định qua AppFlavor (giá trị riêng của từng app dựng từ mã iOS).
+      - path: iOS/Shared/AppFlavor.swift
       - path: iOS/Keyboard/AddTones.swift
       #  • cặp chọn tay (Scripts/curated-pairs.txt) — Thêm dấu dùng chung với iOS/Android/Windows.
       - path: iOS/Keyboard/CuratedPairs.swift
