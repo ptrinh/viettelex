@@ -71,7 +71,7 @@ enum BuddyTap {
 
 /// Nhân vật (giá trị lưu App Group / sao lưu = rawValue — CHỈ thêm cuối).
 enum BuddyCharacter: String, CaseIterable {
-    case off, girl, boy, cat, chick, shiba, koi, panda, pig, dragon, eagle
+    case off, girl, boy, cat, chick, shiba, koi, panda, pig, dragon, eagle, robot
 
     static let key = "keyboardBuddy"
     static let defaultValue: BuddyCharacter = .off
@@ -94,6 +94,7 @@ enum BuddyCharacter: String, CaseIterable {
         case .pig: return L("Heo con")
         case .dragon: return L("Rồng con")
         case .eagle: return L("Đại bàng")
+        case .robot: return L("Robot")
         }
     }
 
@@ -404,22 +405,35 @@ enum BuddyDance {
     }
 
     /// Dáng nhảy bậc `tier` tại pha `p` (0…1 của một vòng). Bậc cao nhất: xoay một vòng ở phách 4.
-    enum Move: Int, CaseIterable { case bounce, hipSway, wave, clap, dab, skip, flossLite, spin, chicken }
+    enum Move: Int, CaseIterable {
+        case bounce, hipSway, wave, clap, dab, skip, flossLite, spin, chicken, robot, fanShake, floss
+        var title: String {
+            switch self {
+            case .robot: return L("Nhảy robot")
+            case .fanShake: return L("Múa quạt")
+            case .floss: return L("Floss")
+            default: return String(describing: self)
+            }
+        }
+    }
     private static let calm: [Move] = [.bounce, .hipSway, .wave, .clap]
-    private static let lively: [Move] = [.skip, .flossLite, .dab, .chicken]
-    private static let energetic: [Move] = lively + [.spin]
+    private static let lively: [Move] = [.skip, .flossLite, .dab, .chicken, .robot, .fanShake]
+    private static let energetic: [Move] = lively + [.spin, .floss]
     static func moves(_ tier: Int) -> [Move] {
         if clamp(tier) < 2 { return calm }
         return clamp(tier) == 2 ? lively : energetic
     }
     /// A seeded cyclic permutation; each selection lasts two loops, adjacent groups cannot repeat.
-    static func move(_ character: BuddyCharacter, tier: Int, loopIndex: Int, seed: Int) -> Move {
-        let pool: [Move] = (character == .koi || character == .eagle)
-            ? (clamp(tier) < 2 ? [.wave, .chicken, .bounce, .clap] : [.chicken, .wave, .skip, .spin, .dab])
-            : moves(tier)
+    static func move(_ character: BuddyCharacter, tier: Int, loopIndex: Int, seed: Int, season: BuddySeason? = nil) -> Move {
+        var pool: [Move] = character == .robot && clamp(tier) >= 2
+            ? [.robot, .fanShake, .robot, .floss, .wave]
+            : (character == .koi || character == .eagle)
+                ? (clamp(tier) < 2 ? [.wave, .chicken, .bounce, .clap] : [.chicken, .wave, .skip, .spin, .dab, .robot, .fanShake, .floss])
+                : moves(tier)
+        if season == .tet && clamp(tier) >= 2 { pool.insert(.fanShake, at: character == .robot ? 4 : 1) }
         let n = pool.count
         let c: Int
-        switch character { case .off: c = 0; case .girl: c = 1; case .boy: c = 2; case .cat: c = 3; case .chick: c = 4; case .shiba: c = 5; case .koi: c = 6; case .panda: c = 7; case .pig: c = 8; case .dragon: c = 9; case .eagle: c = 10 }
+        switch character { case .off: c = 0; case .girl: c = 1; case .boy: c = 2; case .cat: c = 3; case .chick: c = 4; case .shiba: c = 5; case .koi: c = 6; case .panda: c = 7; case .pig: c = 8; case .dragon: c = 9; case .eagle: c = 10; case .robot: c = 11 }
         let offset = abs(seed % 997) + c * 17
         let group = max(0, loopIndex) / 2 % n
         return pool[(offset + group * (n - 1)) % n]
@@ -480,12 +494,33 @@ enum BuddyDance {
             o.armR = -(0.9 + 0.55 * fast) * e
             o.head = 0.25 * e * hop
             o.tail = 0.3 * e * fast
+        case .robot:
+            let step = Int(floor(pp * 16)) % 8
+            o.dx = s.step * 0.3 * e * Double([-1, -1, 0, 0, 1, 1, 0, 0][step])
+            o.dy = -s.bounce * 0.12 * e * Double(step == 2 || step == 6 ? 1 : 0)
+            o.armL = e * Double([0, 1, 1, 0, 0, -1, -1, 0][step]) * 1.35
+            o.armR = e * Double([0, 0, -1, -1, 0, 0, 1, 1][step]) * 1.35
+            o.head = e * Double([-1, -1, 0, 0, 1, 1, 0, 0][step]) * 0.16
+        case .fanShake:
+            o.dy = -s.bounce * 0.22 * e * hop
+            o.rot = 0.09 * e * fast
+            o.head = 0.22 * e * sin(two * pp * 2)
+            o.armL = (1.7 + 0.35 * fast) * e
+            o.armR = -(1.7 - 0.35 * fast) * e
+        case .floss:
+            let swing = sin(two * pp * 4)
+            o.dx = -s.step * 0.45 * e * swing
+            o.rot = -0.18 * e * swing
+            o.armL = 1.2 * e * swing
+            o.armR = 1.2 * e * swing
+            o.legL = -0.35 * e * swing
+            o.legR = 0.35 * e * swing
         }
         if character == .boy && move == .spin && tier == 3 {
             if pp < 0.65 { o.head = 2 * Double.pi * pp / 0.65; o.rot = -0.22 * gate; o.dy -= s.bounce * 0.4 * gate }
             else { o.head = 0; o.rot = -0.55 * gate; o.armL = 1.9 * gate; o.armR = -1.9 * gate; o.sx = 1 }
         }
-        for channel in BuddyPose.additiveChannels { o[keyPath: channel] *= gate }
+        if move != .robot { for channel in BuddyPose.additiveChannels { o[keyPath: channel] *= gate } }
         return o
     }
 
@@ -498,6 +533,9 @@ enum BuddyDance {
     static func flossLite(_ s: Style, tier: Int, p: Double) -> BuddyPose { pose(s, tier: tier, p: p, move: .flossLite) }
     static func spin(_ s: Style, tier: Int, p: Double) -> BuddyPose { pose(s, tier: tier, p: p, move: .spin) }
     static func chicken(_ s: Style, tier: Int, p: Double) -> BuddyPose { pose(s, tier: tier, p: p, move: .chicken) }
+    static func robot(_ s: Style, tier: Int, p: Double) -> BuddyPose { pose(s, tier: tier, p: p, move: .robot) }
+    static func fanShake(_ s: Style, tier: Int, p: Double) -> BuddyPose { pose(s, tier: tier, p: p, move: .fanShake) }
+    static func floss(_ s: Style, tier: Int, p: Double) -> BuddyPose { pose(s, tier: tier, p: p, move: .floss) }
     private static func bounceBase(_ s: Style, tier: Int, p: Double) -> BuddyPose {
         let t = clamp(tier)
         let e = energy[t]
@@ -544,7 +582,7 @@ enum BuddyDance {
         let a = r == .panic ? min(1, ff / 0.15 + 1) : min(1, ff / 0.15, (1 - ff) / 0.15)
         var o = BuddyPose()
         switch r {
-        case .love, .luckyMoney, .gift, .candy, .mooncake, .cake:       // tay khép ôm đạo cụ trước ngực
+        case .love, .luckyMoney, .gift, .candy, .mooncake, .cake, .bouquet, .banhChung, .moonGaze, .bell, .rose, .balloon:
             o.dy = -s.bounce * 0.5 * a * abs(sin(3 * pi * ff))
             o.armL = -0.55 * a; o.armR = 0.55 * a
             o.head = 0.18 * a * sin(2 * pi * ff)
@@ -590,7 +628,19 @@ enum BuddyDance {
             o.armL = 2.6 * a; o.armR = -2.6 * a
             o.head = 0.08 * a * sin(20 * pi * ff)
             o.dy = -s.bounce * 0.15 * a * abs(sin(10 * pi * ff))
+        case .tetWish:
+            o.head = 0.35 * a * abs(sin(2 * pi * ff))
+            o.armL = -0.9 * a; o.armR = 0.9 * a
+        case .lionDance:
+            o.head = 0.3 * a * sin(8 * pi * ff)
+            o.dy = -s.bounce * 0.5 * a * abs(sin(8 * pi * ff))
+        case .boo:
+            o.dy = ff < 0.5 ? s.bounce * 0.5 * a : -s.bounce * 0.8 * a
+            o.head = ff < 0.5 ? 0.3 * a : -0.2 * a
         }
+        if r == .moonGaze { o.dy = s.bounce * 0.7 * a; o.head = -0.3 * a; o.armL = -0.3 * a; o.armR = 0.3 * a }
+        if r == .bell { o.armR = (-1.5 + 0.35 * sin(16 * pi * ff)) * a }
+        if r == .bouquet { o.armL = -0.8 * a; o.armR = 0.8 * a }
         if character == .panda && r == .laugh { o.rot = 2 * pi * ff * a; o.dy -= s.bounce * 0.4 * a }
         if character == .pig && r == .laugh { o.rot = 2 * pi * ff * a; o.dx += 4 * sin(2 * pi * ff) * a }
         if character == .girl && r == .love { o.head = -0.25 * a; o.armR = -1.0 * a }
@@ -604,7 +654,7 @@ enum BuddyDance {
 
 /// Selection is pure so previews, keyboard animations and fixtures use the same triggers.
 enum BuddySignature: String {
-    case kiss, breakdance, yarn, egg, bone, splash, bamboo, mud, snort, fire, laser
+    case kiss, breakdance, yarn, egg, bone, splash, bamboo, mud, snort, fire, laser, beep
 
     static func cheer(_ c: BuddyCharacter, seed: Int) -> BuddySignature? {
         switch c {
@@ -614,6 +664,7 @@ enum BuddySignature: String {
         case .koi: return .splash
         case .dragon: return .fire
         case .eagle: return .laser
+        case .robot: return .beep
         default: return nil
         }
     }
@@ -626,6 +677,7 @@ enum BuddySignature: String {
         case (.pig, .angry): return .snort
         case (.dragon, .angry), (.dragon, .laugh): return .fire
         case (.eagle, .angry), (.eagle, .surprised): return .laser
+        case (.robot, .surprised): return .beep
         default: return nil
         }
     }
@@ -646,6 +698,7 @@ enum BuddySignature: String {
             case .pig: return .snort
             case .dragon: return .fire
             case .eagle: return .laser
+            case .robot: return .beep
             default: return nil
             }
         }
@@ -662,8 +715,14 @@ enum BuddySignature: String {
 /// `panic` (xoá dồn) không theo từ — bộ đếm phím ⌫ trong BuddyBrain.
 enum BuddyReaction: Int, CaseIterable {
     case angry, love, laugh, surprised, sad, greet, panic, luckyMoney, gift, candy, mooncake, tickle, yawn, cake
+    case tetWish, lionDance, bouquet, banhChung, moonGaze, bell, boo, rose, balloon
 
-    var isHoliday: Bool { self == .luckyMoney || self == .gift || self == .candy || self == .mooncake }
+    var isHoliday: Bool {
+        switch self {
+        case .luckyMoney, .gift, .candy, .mooncake, .lionDance, .bouquet, .banhChung, .moonGaze, .bell, .boo, .rose, .balloon: return true
+        default: return false
+        }
+    }
 
     /// Thời gian diễn (giây). Hoảng: kéo dài tới `duration` sau phím ⌫ cuối.
     var duration: Double {
@@ -675,7 +734,7 @@ enum BuddyReaction: Int, CaseIterable {
         case .tickle: return 0.85
         case .sad: return 1.5
         case .panic: return 0.8
-        case .luckyMoney, .gift, .candy, .mooncake, .cake: return 1.5
+        case .luckyMoney, .gift, .candy, .mooncake, .cake, .tetWish, .lionDance, .bouquet, .banhChung, .moonGaze, .bell, .boo, .rose, .balloon: return 1.5
         }
     }
 }
@@ -741,7 +800,7 @@ enum BuddyWords {
     }
     private static let signatureSymbols: [BuddyCharacter: Set<String>] = [
         .shiba: ["🐶", "🐕", "🦴"], .panda: ["🐼", "🎋"], .pig: ["🐷", "🐖"],
-        .koi: ["🐟", "🎏"], .dragon: ["🐉", "🐲", "🔥"], .eagle: ["🦅"],
+        .koi: ["🐟", "🎏"], .dragon: ["🐉", "🐲", "🔥"], .eagle: ["🦅"], .robot: ["🤖", "⚙", "🔋"],
     ]
     static func signatureEmoji(_ text: String, character: BuddyCharacter) -> Bool {
         guard let values = signatureSymbols[character],
@@ -830,6 +889,33 @@ enum BuddyWords {
         (.mooncake, .midAutumn, Table([("trung thu", false), ("bánh trung thu", false), ("rước đèn", false), ("đèn ông sao", false), ("chị hằng", false)]), Table([("cuội", true)])),
     ]
 
+    static func newHoliday(word: String, prev: String?, prev2: String?, prev3: String?, season: BuddySeason?) -> BuddyReaction? {
+        guard let season else { return nil }
+        let w = clean(word)
+        let parts = [prev3, prev2, prev, w].compactMap { $0.map(clean) }
+        let phrase = fold(parts.joined(separator: " "))
+        func has(_ term: String) -> Bool { phrase.hasSuffix(fold(term)) }
+        switch season {
+        case .tet:
+            if ["🦁", "🥁"].contains(word) { return .lionDance }
+            if has("bánh chưng") { return .banhChung }
+            if ["chúc mừng năm mới", "năm mới vui vẻ", "an khang thịnh vượng", "vạn sự như ý", "phát tài", "happy new year"].contains(where: has) { return .tetWish }
+        case .womensDay, .vietnameseWomensDay:
+            if ["💐", "🌷", "🌹"].contains(word) || ["chúc mừng 8/3", "chúc mừng 20/10", "mùng 8 tháng 3", "ngày phụ nữ"].contains(where: has) { return .bouquet }
+        case .midAutumn:
+            if word == "🌕" || ["chị Hằng", "chú Cuội", "ngắm trăng"].contains(where: has) { return .moonGaze }
+        case .christmas:
+            if ["merry christmas", "giáng sinh", "noel"].contains(where: has) { return .bell }
+        case .halloween:
+            if word == "👻" || has("boo") || has("trick or treat") || w == "ma" { return .boo }
+        case .valentine:
+            if has("valentine") || has("lễ tình nhân") { return .rose }
+        case .childrensDay:
+            return nil
+        }
+        return nil
+    }
+
     /// Pure gating: names work year-round; ambiguous everyday words require the matching season.
     /// prev3 handles four-token wishes ("vạn sự như ý", "chúc mừng năm mới").
     static func holiday(word: String, prev: String?, prev2: String? = nil, prev3: String? = nil,
@@ -851,6 +937,9 @@ enum BuddyWords {
 
     static func reaction(word: String, prev: String?, prev2: String? = nil, prev3: String? = nil, season: BuddySeason? = nil) -> BuddyReaction? {
         if BuddyBirthday.trigger(word: word, prev: prev) { return .cake }
+        if ["🦁", "🥁", "💐", "🌷", "🌹", "🌕", "👻"].contains(word),
+           let r = newHoliday(word: word, prev: prev, prev2: prev2, prev3: prev3, season: season) { return r }
+        if word == "🌕" || word == "👻" { return nil }
         if let direct = emoji(word) { return direct }
         let w = clean(word)
         guard !w.isEmpty, w.count <= 24 else { return nil }
@@ -859,6 +948,7 @@ enum BuddyWords {
         if SensitiveWords.set.contains(w) || SensitiveWords.isPair(p, w) || SensitiveWords.isTriple(p2, p, w) {
             return .angry
         }
+        if let r = newHoliday(word: w, prev: p, prev2: p2, prev3: prev3, season: season) { return r }
         if let r = holiday(word: w, prev: p, prev2: p2, prev3: prev3, season: season) { return r }
         let f = fold(w)
         for (r, t) in tables {
@@ -910,11 +1000,13 @@ enum BuddyFX {
     static func count(_ r: BuddyReaction) -> Int {
         switch r {
         case .love: return 5
+        case .bouquet, .rose: return 4
         case .laugh: return 4
         case .sad: return 3
         case .panic, .tickle: return 3
         case .cake: return 8
-        case .angry, .greet, .surprised, .luckyMoney, .gift, .candy, .mooncake, .yawn: return 0
+        case .angry, .greet, .surprised, .luckyMoney, .gift, .candy, .mooncake, .yawn,
+             .tetWish, .lionDance, .banhChung, .moonGaze, .bell, .boo, .balloon: return 0
         }
     }
 
@@ -925,7 +1017,7 @@ enum BuddyFX {
         let t = n > 1 ? Double(i) / Double(n - 1) : 0.5            // 0…1 trái → phải
         var p: Particle
         switch r {
-        case .love:      // tim bay lên, toả ra
+        case .love, .bouquet, .rose:      // tim bay lên, toả ra
             p = Particle(x0: w / 2 + (t - 0.5) * w * 0.3, y0: h * 0.55,
                          x1: rad + (w - 2 * rad) * (0.1 + 0.8 * t), y1: rad + (h * 0.35) * Double((i * 7) % 3) / 2,
                          delay: Double(i) * 0.08)
@@ -940,7 +1032,8 @@ enum BuddyFX {
         case .panic, .tickle, .cake:     // hạt bay khỏi người
             p = Particle(x0: w / 2, y0: h * 0.6, x1: rad + (w - 2 * rad) * t, y1: rad + h * 0.1 * Double(i % 2),
                          delay: Double(i) * 0.1)
-        case .angry, .greet, .surprised, .luckyMoney, .gift, .candy, .mooncake, .yawn:
+        case .angry, .greet, .surprised, .luckyMoney, .gift, .candy, .mooncake, .yawn,
+             .tetWish, .lionDance, .banhChung, .moonGaze, .bell, .boo, .balloon:
             p = Particle(x0: w / 2, y0: h / 2, x1: w / 2, y1: h / 2, delay: 0)
         }
         func cx(_ x: Double) -> Double { min(max(x, rad), w - rad) }
@@ -954,7 +1047,7 @@ enum BuddyFX {
         case .angry: return BuddyRect(x: 0, y: 0, w: w, h: min(13, h * 0.32))
         case .surprised: return BuddyRect(x: w - 9, y: 1, w: 8, h: min(14, h * 0.36))
         case .sad: return BuddyRect(x: w * 0.18, y: 0, w: w * 0.64, h: min(10, h * 0.24))
-        case .greet: return BuddyRect(x: 0, y: 0, w: w, h: min(15, h * 0.32))
+        case .greet, .tetWish: return BuddyRect(x: 0, y: 0, w: w, h: min(15, h * 0.32))
         default: return nil
         }
     }
@@ -1104,6 +1197,7 @@ struct BuddyRig {
         case .pig: return pig
         case .dragon: return dragon
         case .eagle: return eagle
+        case .robot: return robot
         }
     }
 
@@ -1712,6 +1806,51 @@ extension BuddyRig {
             heart: (0, 65, 12), face: (0, 5, 29, 21), brows: "M-23 -15 L-11 -11 M23 -15 L11 -11",
             hat: (0, -47, 27), sleepHat: (-30, -11, 25), neck: (0, 38), hand: (42, 69))
     }()
+    static let robot: BuddyRig = {
+        let p: [BuddyPiece] = [
+            P(.legL, "M-22 80 L-8 80 L-8 106 Q-8 112 -16 112 L-27 112 Q-31 108 -27 103 Z", fill: 0xAEB9C5, stroke: .outline, width: 3.2),
+            P(.legR, "M22 80 L8 80 L8 106 Q8 112 16 112 L27 112 Q31 108 27 103 Z", fill: 0xAEB9C5, stroke: .outline, width: 3.2),
+            P(.legL, "M-25 103 L-11 103 L-11 108 L-27 108 Z", fill: 0x7B91A4, stroke: .none, width: 0),
+            P(.legR, "M25 103 L11 103 L11 108 L27 108 Z", fill: 0x7B91A4, stroke: .none, width: 0),
+            P(.body, "M-29 34 Q-35 34 -37 44 L-35 85 Q-33 96 -22 99 L22 99 Q33 96 35 85 L37 44 Q35 34 29 34 Z", fill: 0xD9E2EA, stroke: .outline, width: 3.2),
+            P(.body, "M22 37 L33 45 L31 84 Q27 95 13 96 L-18 96 Q14 87 22 37 Z", fill: 0xAABBC9, stroke: .none, width: 0),
+            P(.body, "M-23 45 Q0 49 23 45", stroke: .color(0xF5FAFC), width: 2),
+            E(.body, 0, 66, 13, 13, fill: 0x7B91A4, stroke: .outline),
+            E(.body, 0, 66, 8, 8, fill: 0x62D8EB, stroke: .none),
+            E(.body, -3, 63, 2, 2, fill: 0xE8FFFF, stroke: .none),
+            P(.armL, "M-34 45 Q-49 42 -51 52 L-49 72 Q-47 80 -39 78 L-31 73 L-32 53 Z", fill: 0xBFCBD5, stroke: .outline, width: 3.2),
+            P(.armR, "M34 45 Q49 42 51 52 L49 72 Q47 80 39 78 L31 73 L32 53 Z", fill: 0xBFCBD5, stroke: .outline, width: 3.2),
+            E(.armL, -44, 76, 8, 6, fill: 0x7B91A4, stroke: .outline),
+            E(.armR, 44, 76, 8, 6, fill: 0x7B91A4, stroke: .outline),
+            P(.head, "M-2 -43 L-2 -57 L2 -57 L2 -43", stroke: .color(0x7B91A4), width: 4),
+            E(.head, 0, -60, 6, 6, fill: 0x62D8EB, stroke: .outline),
+            P(.head, "M-32 -43 Q-41 -43 -41 -34 L-41 19 Q-41 30 -29 32 L29 32 Q41 30 41 19 L41 -34 Q41 -43 32 -43 Z", fill: 0xE4ECF1, stroke: .outline, width: 3.2),
+            P(.head, "M25 -40 Q38 -38 38 -27 L38 18 Q37 28 27 29 L-20 29 Q22 18 25 -40 Z", fill: 0xBDCBD5, stroke: .none, width: 0),
+            P(.head, "M-31 -29 Q-31 -34 -25 -34 L25 -34 Q31 -34 31 -29 L31 17 Q31 23 25 23 L-25 23 Q-31 23 -31 17 Z", fill: 0x344957, stroke: .outline, width: 2),
+            E(.head, -14, -7, 5, 7, fill: 0x62D8EB, stroke: .none),
+            E(.head, 14, -7, 5, 7, fill: 0x62D8EB, stroke: .none),
+            P(.head, "M-19 -8 Q-14 1 -9 -8 M9 -8 Q14 1 19 -8", stroke: .color(0x62D8EB), width: 3, show: .dance),
+            P(.head, "M-18 0 L-10 0 M10 0 L18 0", stroke: .color(0x62D8EB), width: 2.5, show: .rest),
+            P(.head, "M-6 10 L6 10", stroke: .color(0x62D8EB), width: 3),
+            E(.head, 35, 3, 3, 3, fill: 0xF5A65B, stroke: .none),
+            P(.sleep, "M-36 26 Q-36 16 -24 16 L40 16 Q53 17 55 30 L55 55 Q55 66 43 68 L-30 68 Q-43 67 -43 56 Z", fill: 0xD9E2EA, stroke: .outline, width: 3.2),
+            P(.sleep, "M16 19 Q51 18 51 32 L51 53 Q50 65 39 65 L-18 65 Q12 52 16 19 Z", fill: 0xAABBC9, stroke: .none, width: 0),
+            P(.sleep, "M-58 6 Q-58 -3 -48 -5 L-2 -5 Q8 -3 8 7 L8 44 Q7 54 -3 54 L-48 54 Q-58 52 -58 43 Z", fill: 0xE4ECF1, stroke: .outline, width: 3.2),
+            P(.sleep, "M-51 12 Q-50 7 -45 7 L-5 7 Q0 7 0 12 L0 41 Q0 46 -5 46 L-45 46 Q-51 46 -51 41 Z", fill: 0x344957, stroke: .none, width: 0),
+            P(.sleep, "M-43 26 L-33 26 M-18 26 L-8 26", stroke: .color(0x62D8EB), width: 2.5),
+            P(.sleep, "M-30 37 L-22 37", stroke: .color(0x62D8EB), width: 2),
+            P(.sleep, "M-28 -5 L-28 -17", stroke: .color(0x7B91A4), width: 3),
+            E(.sleep, -28, -18, 5, 5, fill: 0x7B91A4, stroke: .outline),
+        ]
+        return BuddyRig(
+            pieces: p,
+            pivots: [.legL: (-16, 83), .legR: (16, 83), .body: (0, 94), .armL: (-34, 49), .armR: (34, 49), .head: (0, 32)],
+            full: BuddyRect(x: -80, y: -72, w: 160, h: 194), barBottom: nil, feet: (0, 112), sleepBottom: 68,
+            zzz: [(0, -34, 12), (16, -50, 15), (36, -68, 19)],
+            style: .init(armL: 1.0, armR: 1.0, armAmp: 0.5, alternate: true, kick: 0.15, bounce: 7, step: 7),
+            heart: (0, 67, 12), face: (0, -6, 28, 18), brows: "M-20 -20 L-9 -17 M20 -20 L9 -17",
+            hat: (0, -43, 31), sleepHat: (-29, -5, 26), neck: (0, 37), hand: (44, 76))
+    }()
     static let eagle: BuddyRig = {
         let p: [BuddyPiece] = [
             P(.tail, "M-20 80 L-28 105 L-9 96 L0 112 L9 96 L28 105 L20 80 Z", fill: 0x815D48, stroke: .outline, width: 3.2),
@@ -1761,7 +1900,7 @@ extension BuddyRig {
 /// Mùa lễ: theme lễ đang dùng (Tết / Tết mai vàng, Giáng sinh / Giáng sinh tuyết, Halloween, Trung Thu) HOẶC
 /// ngày rơi vào cửa sổ mùa. Âm lịch tra bảng nhúng 2026–2035 (không mạng).
 enum BuddySeason: String, CaseIterable {
-    case tet, christmas, halloween, midAutumn
+    case tet, christmas, halloween, midAutumn, womensDay, vietnameseWomensDay, valentine, childrensDay
 
     /// Theme lễ ⇒ mùa (theme thắng ngày).
     static func of(themeID: String?) -> BuddySeason? {
@@ -1811,6 +1950,10 @@ enum BuddySeason: String, CaseIterable {
             let n = dayNumber(y, t.0, t.1)
             if abs(today - n) <= 5 { return .midAutumn }
         }
+        if m == 3 && (7...8).contains(d) { return .womensDay }
+        if m == 10 && (19...20).contains(d) { return .vietnameseWomensDay }
+        if m == 2 && (13...14).contains(d) { return .valentine }
+        if m == 6 && d == 1 { return .childrensDay }
         return nil
     }
 
@@ -1820,8 +1963,52 @@ enum BuddySeason: String, CaseIterable {
     }
 }
 
+enum BuddyHolidayClock {
+    static func fireworks(year: Int, month: Int, day: Int, hour: Int, minute: Int) -> Bool {
+        guard hour == 0, (0...15).contains(minute) else { return false }
+        if month == 1 && day == 1 { return true }
+        guard let tet = BuddySeason.lunarNewYear[year] else { return false }
+        return month == tet.0 && day == tet.1
+    }
+    static func countdown(month: Int, day: Int, hour: Int, minute: Int, second: Int) -> Int? {
+        guard month == 12, day == 31, hour == 23, minute == 59, (57...59).contains(second) else { return nil }
+        return 60 - second
+    }
+}
+
 /// Trang phục: mảnh thêm (mũ, nơ, lồng đèn…) + đổi màu (áo dài đỏ ngày Tết). Hình là DỮ LIỆU như BuddyRig.
 enum BuddyAccessory {
+    static let lionHead: [BuddyPiece] = [
+        BuddyPiece(.body, .path("M-25 9 Q-31 -3 -22 -15 Q-14 -27 0 -23 Q14 -27 22 -15 Q31 -3 25 9 L18 15 L-18 15 Z"), fill: 0xDE5263, alpha: 1, stroke: .outline, width: 3.2),
+        BuddyPiece(.body, .path("M-23 8 Q-26 17 -19 19 L-12 11 L-5 20 L2 11 L9 20 L16 11 L23 19 Q28 17 23 8"), fill: 0xF8D77B, alpha: 1, stroke: .outline, width: 2),
+        BuddyPiece(.body, .ellipse(-11, -5, 7, 8), fill: 0xFFF7ED, alpha: 1, stroke: .ink, width: 2),
+        BuddyPiece(.body, .ellipse(11, -5, 7, 8), fill: 0xFFF7ED, alpha: 1, stroke: .ink, width: 2),
+        BuddyPiece(.body, .path("M-13 -5 L-9 -5 M9 -5 L13 -5 M-5 8 Q0 13 5 8"), fill: nil, alpha: 1, stroke: .color(0xF8D77B), width: 2.5),
+    ]
+    static let bouquet: [BuddyPiece] = [
+        BuddyPiece(.body, .path("M-14 0 L0 21 L14 0 Z"), fill: 0xF2C8A2, alpha: 1, stroke: .outline, width: 2),
+        BuddyPiece(.body, .path("M-10 0 L0 15 L10 0"), fill: nil, alpha: 1, stroke: .color(0x72A376), width: 2),
+        BuddyPiece(.body, .ellipse(-10, -8, 7, 7), fill: 0xF7A7B9, alpha: 1, stroke: .outline, width: 2),
+        BuddyPiece(.body, .ellipse(0, -13, 7, 7), fill: 0xDE5263, alpha: 1, stroke: .outline, width: 2),
+        BuddyPiece(.body, .ellipse(10, -8, 7, 7), fill: 0xF8D77B, alpha: 1, stroke: .outline, width: 2),
+    ]
+    static let banhChung: [BuddyPiece] = [
+        BuddyPiece(.body, .path("M-16 -15 L16 -15 L16 17 L-16 17 Z"), fill: 0x679A62, alpha: 1, stroke: .outline, width: 3.2),
+        BuddyPiece(.body, .path("M-16 -15 L16 17 M16 -15 L-16 17"), fill: nil, alpha: 1, stroke: .color(0xDDE3A4), width: 2),
+    ]
+    static let moon: [BuddyPiece] = [BuddyPiece(.body, .ellipse(0, 0, 17, 17), fill: 0xF8D77B, alpha: 1, stroke: .outline, width: 2)]
+    static let bell: [BuddyPiece] = [
+        BuddyPiece(.body, .path("M-13 8 Q-10 2 -10 -6 Q-10 -17 0 -17 Q10 -17 10 -6 Q10 2 13 8 Z"), fill: 0xF8D77B, alpha: 1, stroke: .outline, width: 2),
+        BuddyPiece(.body, .ellipse(0, 11, 4, 4), fill: 0xF5A65B, alpha: 1, stroke: .outline, width: 2),
+    ]
+    static let rose: [BuddyPiece] = [
+        BuddyPiece(.body, .path("M0 16 L0 -7 M0 5 L-9 -1 M0 8 L9 1"), fill: nil, alpha: 1, stroke: .color(0x679A62), width: 3),
+        BuddyPiece(.body, .path("M0 -3 Q-16 -9 -9 -18 Q-3 -24 0 -16 Q3 -24 9 -18 Q16 -9 0 -3 Z"), fill: 0xDE5263, alpha: 1, stroke: .outline, width: 2),
+    ]
+    static let balloon: [BuddyPiece] = [
+        BuddyPiece(.body, .path("M0 19 Q3 0 0 -8"), fill: nil, alpha: 1, stroke: .color(0x7B91A4), width: 2),
+        BuddyPiece(.body, .ellipse(0, -16, 11, 15), fill: 0xF7A7B9, alpha: 1, stroke: .outline, width: 2),
+    ]
     static let nightcap: [BuddyPiece] = [
         BuddyPiece(.body, .path("M-19 1 Q-10 -13 -2 -24 Q3 -29 9 -20 Q12 -13 22 -14 Q15 -7 13 1 Z"), fill: 0x697FA7, alpha: 1, stroke: .outline, width: 3.2),
         BuddyPiece(.body, .path("M-18 -1 Q0 4 17 -1 L18 5 Q0 10 -19 5 Z"), fill: 0xFFF7ED, alpha: 1, stroke: .outline, width: 3.2),
@@ -1960,7 +2147,7 @@ struct BuddyOutfit {
             case .boy:
                 o.recolor = [0x304563: red, 0x536B8C: 0xF18B95]
                 o.pieces = khanDong(.head, h) + khanDong(.sleep, sh)
-            case .cat, .chick, .shiba, .koi, .panda, .pig, .dragon, .eagle, .off:
+            case .cat, .chick, .shiba, .koi, .panda, .pig, .dragon, .eagle, .robot, .off:
                 o.pieces = bow(.head, r.neck) + bow(.sleep, sn)
             }
         case .christmas: o.pieces = c == .koi ? bow(.head, r.neck) + bow(.sleep, sn) : santa(.head, h) + santa(.sleep, sh)
@@ -1972,6 +2159,7 @@ struct BuddyOutfit {
             o.pieces = lantern(r.hand) + BuddyAccessory.place(BuddyAccessory.lantern, .sleep, x: x, y: y, size: 24).map {
                 BuddyPiece(.sleep, $0.shape, fill: $0.fill, alpha: $0.alpha, stroke: $0.stroke, width: $0.width, turn: (-70, x, y))
             }
+        case .womensDay, .vietnameseWomensDay, .valentine, .childrensDay: break
         }
         return o
     }
@@ -2005,6 +2193,14 @@ enum BuddyProp {
         case .candy: art = BuddyAccessory.candy
         case .mooncake: art = BuddyAccessory.mooncake
         case .cake: art = BuddyAccessory.cake
+        case .lionDance: return BuddyAccessory.place(BuddyAccessory.lionHead, .head, x: r.hat.x, y: r.hat.y - 4, size: r.hat.size * 1.8)
+        case .bouquet: art = BuddyAccessory.bouquet
+        case .banhChung: art = BuddyAccessory.banhChung
+        case .moonGaze: art = BuddyAccessory.moon
+        case .bell: art = BuddyAccessory.bell
+        case .boo: art = BuddyAccessory.pumpkin
+        case .rose: art = BuddyAccessory.rose
+        case .balloon: art = BuddyAccessory.balloon
         default: return []
         }
         return BuddyAccessory.place(art, .body, x: r.heart.x, y: r.heart.y, size: r.heart.size * 2)

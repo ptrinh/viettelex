@@ -103,6 +103,10 @@ final class BuddyView: UIView {
     /// Trái tim ôm trước ngực (thả tim) — trong cây nhảy, đi theo người.
     private let prop = CAShapeLayer()
     private var holidayProps: [BuddyReaction: (CALayer, [(CAShapeLayer, BuddyPiece)])] = [:]
+    private var ambientLayers: [CAShapeLayer] = []
+    private var momentTimer: Timer?
+    private var momentLayers: [CAShapeLayer] = []
+    private var momentCheered = false
     private var wordHistory: (word: String, prev: String?, prev2: String?)?
     private var signatureShapes: [CAShapeLayer] = []
     private var cheerSerial = 0
@@ -207,11 +211,13 @@ final class BuddyView: UIView {
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    deinit { timer?.invalidate() }
+    deinit { timer?.invalidate(); momentTimer?.invalidate() }
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
         if window != nil {
+            updateHolidayMoment()
+            if season == .childrensDay { startBalloon() }
             lastClockRead = clock()
             lastNightYawn = lastClockRead
             let date = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day, .hour, .minute], from: Date())
@@ -227,7 +233,7 @@ final class BuddyView: UIView {
             danceSeed = Int.random(in: 0...1_000_000)
             forceApply(); schedule(clock())
         }
-        else { halt(); wordHistory = nil }
+        else { momentTimer?.invalidate(); momentTimer = nil; momentCheered = false; halt(); wordHistory = nil }
     }
 
     // MARK: Đầu vào (đường phím)
@@ -273,7 +279,7 @@ final class BuddyView: UIView {
 
     func emojiInserted(_ text: String) {
         if let signature = BuddySignature.word(character, text) { showSignature(signature) }
-        if let reaction = BuddyWords.emoji(text) { react(reaction) }
+        if let reaction = BuddyWords.reaction(word: text, prev: nil, season: season) { react(reaction) }
     }
 
     func react(_ r: BuddyReaction) {
@@ -361,6 +367,8 @@ final class BuddyView: UIView {
     /// Ẩn bàn phím / gỡ: dừng hẹn giờ + gỡ hoạt ảnh.
     func halt() {
         timer?.invalidate(); timer = nil
+        momentTimer?.invalidate(); momentTimer = nil
+        for l in ambientLayers + momentLayers { l.removeAllAnimations(); l.isHidden = true }
         tickleAfterYawn?.cancel(); tickleAfterYawn = nil
         sprite.removeAllAnimations()
         removeAllAnimations()
@@ -392,12 +400,16 @@ final class BuddyView: UIView {
         let v = BuddyPolicy.visual(phase, lowPower: lowPower)
         var moveChanged = false
         if spriteAtlas == nil, case .dancing(let tier) = v, case .dancing = shown {
-            moveChanged = BuddyDance.move(character, tier: tier, loopIndex: danceLoopIndex(now), seed: danceSeed) != danceMove
+            moveChanged = BuddyDance.move(character, tier: tier, loopIndex: danceLoopIndex(now), seed: danceSeed, season: season) != danceMove
         }
         guard moveChanged || v != shown || (isReact(v) && brain.reactSerial != shownSerial) else { return }
         let old = displayedPose(now)
         let prev = shown
         shown = v
+        if case .dancing(let tier) = v {
+            updateAmbient(active: true)
+            if season == .tet, tier == 3 { holidayProp(.lionDance).isHidden = false }
+        } else { updateAmbient(active: false) }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
@@ -428,7 +440,7 @@ final class BuddyView: UIView {
             var p = 0.0
             if case .dancing = prev { p = loopPhase(now); danceLoopBase = danceLoopIndex(now) }
             else { danceLoopBase = 0 }
-            danceMove = BuddyDance.move(character, tier: t, loopIndex: danceLoopBase, seed: danceSeed)
+            danceMove = BuddyDance.move(character, tier: t, loopIndex: danceLoopBase, seed: danceSeed, season: season)
             if let signature = BuddySignature.dance(character, tier: t, group: danceLoopBase / 2, seed: danceSeed) { showSignature(signature) }
             loopLen = BuddyDance.loopLength(t)
             loopEpoch = now - p * loopLen
@@ -721,7 +733,7 @@ final class BuddyView: UIView {
             return (l, piece)
         }
         if spriteAtlas != nil { layer.addSublayer(group) }
-        else { spin.insertSublayer(group, above: parts[.armR]) }
+        else { spin.insertSublayer(group, above: parts[reaction == .lionDance ? .head : .armR]) }
         holidayProps[reaction] = (group, shapes)
         layoutHolidayProps()
         return group
@@ -809,6 +821,11 @@ final class BuddyView: UIView {
             add(UIBezierPath(ovalIn: CGRect(x: cx + 2, y: cy - 5, width: 2, height: 2)), BuddyRig.ink)
         case .splash:
             for i in 0..<3 { add(UIBezierPath(ovalIn: CGRect(x: cx - 15 + CGFloat(i) * 12, y: cy + 14 - CGFloat(i % 2) * 15, width: 6, height: 6)), 0x79C9E9) }
+        case .beep:
+            add(UIBezierPath(ovalIn: CGRect(x: cx - 5, y: cy - h * 0.31, width: 10, height: 10)), 0x62D8EB)
+            for i in 0..<3 {
+                add(UIBezierPath(ovalIn: CGRect(x: cx - 16 + CGFloat(i) * 12, y: cy - h * 0.18 - CGFloat(i % 2) * 6, width: 4, height: 4)), 0xF8D77B)
+            }
         case .bamboo:
             let stem = UIBezierPath(); stem.move(to: CGPoint(x: cx - 10, y: cy + 20)); stem.addLine(to: CGPoint(x: cx + 5, y: cy - 22)); add(stem, 0x5AA873, 5)
             for i in 0..<3 { add(UIBezierPath(ovalIn: CGRect(x: cx - 14 + CGFloat(i) * 5, y: cy - 17 + CGFloat(i) * 11, width: 15, height: 6)), 0x82C584) }
@@ -881,7 +898,7 @@ final class BuddyView: UIView {
         guard w > 0, h > 0 else { return }
         let dur = r.duration
         switch r {
-        case .luckyMoney, .gift, .candy, .mooncake, .cake:
+        case .luckyMoney, .gift, .candy, .mooncake, .cake, .lionDance, .bouquet, .banhChung, .moonGaze, .bell, .boo, .rose, .balloon:
             let group = holidayProp(r)
             group.isHidden = false
             let pulse = CAKeyframeAnimation(keyPath: "transform.scale")
@@ -906,12 +923,22 @@ final class BuddyView: UIView {
             showBadge(r, w: w, h: h, text: BuddyWords.grawlix(seed: brain.reactSerial), dur: dur)
         case .surprised:
             showBadge(r, w: w, h: h, text: "!", dur: dur)
+            if character == .robot {
+                for (l, piece) in shapes where piece.part == .head && piece.fill == 0x62D8EB {
+                    let flash = CAKeyframeAnimation(keyPath: "opacity")
+                    flash.values = [1, 0.15, 1, 0.15, 1]
+                    flash.duration = dur
+                    l.add(flash, forKey: "eyeFlash")
+                }
+            }
         case .sad:
             showBadge(r, w: w, h: h, text: nil, dur: dur)
         case .greet:
             if let bubble = BuddyName.bubble(petName, english: L("chào bạn!") == "says hi!", maxCharacters: Int(w / 5.2)) {
                 showBadge(r, w: w, h: h, text: bubble, dur: dur)
             }
+        case .tetWish:
+            showBadge(r, w: w, h: h, text: "Chúc mừng năm mới!", dur: dur)
         case .laugh, .panic, .tickle, .yawn:
             break
         }
@@ -928,9 +955,10 @@ final class BuddyView: UIView {
                 l = t
             } else {
                 let s = fxShape(i)
-                let d = r == .love ? BuddyFX.heartPath(cx: k, cy: k, k: k * 0.85) : r == .cake ? "M0 0 L7 0 L7 7 L0 7 Z" : BuddyFX.dropPath(cx: k, cy: k, k: k * 0.8)
+                let hearts = r == .love || r == .bouquet || r == .rose
+                let d = hearts ? BuddyFX.heartPath(cx: k, cy: k, k: k * 0.85) : r == .cake ? "M0 0 L7 0 L7 7 L0 7 Z" : BuddyFX.dropPath(cx: k, cy: k, k: k * 0.8)
                 s.path = Self.svg(d, origin: (0, 0), scale: 1)
-                s.fillColor = Self.cg(r == .cake ? [UInt32(0xF8D77B), 0xF7A7B9, 0x83B9A4, 0xA48AC0][i % 4] : r == .love ? BuddyFX.heartColor : r == .sad ? BuddyFX.rainColor : BuddyFX.tearColor)
+                s.fillColor = Self.cg(r == .cake ? [UInt32(0xF8D77B), 0xF7A7B9, 0x83B9A4, 0xA48AC0][i % 4] : hearts ? BuddyFX.heartColor : r == .sad ? BuddyFX.rainColor : BuddyFX.tearColor)
                 l = s
             }
             l.isHidden = false
@@ -981,7 +1009,7 @@ final class BuddyView: UIView {
             b.path = Self.svg(BuddyFX.cloudPath(BuddyRect(x: 0, y: 0, w: rect.w, h: rect.h)), origin: (0, 0), scale: 1)
             b.fillColor = Self.cg(BuddyFX.cloudColor)
             b.strokeColor = nil
-        case .greet:
+        case .greet, .tetWish:
             b.path = UIBezierPath(roundedRect: local.insetBy(dx: 0.5, dy: 0.5), cornerRadius: 5).cgPath
             b.fillColor = Self.cg(0xFFF7ED)
             b.strokeColor = Self.cg(tones.outline)
@@ -993,8 +1021,8 @@ final class BuddyView: UIView {
         if let text {
             t.isHidden = false
             t.string = text
-            t.fontSize = r == .greet ? min(7, frame.height * 0.55) : r == .surprised ? frame.height * 0.95 : frame.height * 0.72
-            t.foregroundColor = Self.cg(r == .greet ? BuddyRig.ink : BuddyFX.angryRed)
+            t.fontSize = r == .tetWish ? min(4, frame.width / 20) : r == .greet ? min(7, frame.height * 0.55) : r == .surprised ? frame.height * 0.95 : frame.height * 0.72
+            t.foregroundColor = Self.cg(r == .greet || r == .tetWish ? BuddyRig.ink : BuddyFX.angryRed)
             t.frame = CGRect(x: frame.minX, y: frame.minY + (r == .surprised ? -1 : frame.height * 0.06),
                              width: frame.width, height: frame.height + 2)
         } else {
@@ -1043,11 +1071,107 @@ final class BuddyView: UIView {
     }
 
     private func stopFX() {
+        for (l, _) in shapes { l.removeAnimation(forKey: "eyeFlash") }
         for (group, _) in holidayProps.values { group.removeAllAnimations(); group.isHidden = true }
         if birthdayToday { holidayProps[.cake]?.0.isHidden = false }
+        if season == .childrensDay { startBalloon() }
+        if season == .tet, case .dancing(let tier) = shown, tier == 3 { holidayProps[.lionDance]?.0.isHidden = false }
         for l in [prop, flush, brows] as [CALayer] { l.removeAllAnimations(); l.isHidden = true }
         for l in fxShapes as [CALayer] + fxTexts { l.removeAllAnimations(); l.opacity = 0 }
         for l in [badge, badgeText].compactMap({ $0 }) as [CALayer] { l.removeAllAnimations(); l.opacity = 0; l.isHidden = true }
+    }
+
+    private func updateAmbient(active: Bool) {
+        guard !lowPower, spriteAtlas == nil, active,
+              season == .tet || season == .christmas || season == .midAutumn,
+              bounds.width > 0, bounds.height > 0 else {
+            for l in ambientLayers { l.removeAllAnimations(); l.isHidden = true }
+            return
+        }
+        let count = season == .christmas ? 5 : season == .tet ? 4 : 1
+        while ambientLayers.count < count {
+            let l = CAShapeLayer(); l.fillColor = Self.cg(season == .tet ? (ambientLayers.count % 2 == 0 ? 0xF8D77B : 0xF7A7B9) : season == .christmas ? 0xF2F2F7 : 0xF8D77B)
+            layer.addSublayer(l); ambientLayers.append(l)
+        }
+        for (i, l) in ambientLayers.enumerated() {
+            l.isHidden = i >= count
+            guard i < count, l.animation(forKey: "drift") == nil else { continue }
+            let x = bounds.width * CGFloat(i + 1) / CGFloat(count + 1)
+            if season == .midAutumn {
+                let star = UIBezierPath()
+                for j in 0..<10 {
+                    let a = CGFloat(j) * .pi / 5 - .pi / 2
+                    let radius: CGFloat = j % 2 == 0 ? 7 : 3
+                    let p = CGPoint(x: cos(a) * radius, y: sin(a) * radius)
+                    if j == 0 { star.move(to: p) } else { star.addLine(to: p) }
+                }
+                star.close(); l.path = star.cgPath
+            } else { l.path = UIBezierPath(ovalIn: CGRect(x: -2, y: -2, width: 4, height: 4)).cgPath }
+            l.position = CGPoint(x: x, y: bounds.midY)
+            let a = CABasicAnimation(keyPath: season == .midAutumn ? "transform.rotation.z" : "position.y")
+            if season == .midAutumn { a.fromValue = 0; a.toValue = 2 * Double.pi }
+            else { a.fromValue = -4; a.toValue = bounds.height + 4 }
+            a.duration = CFTimeInterval(4 + i); a.repeatCount = .infinity
+            l.add(a, forKey: "drift")
+        }
+    }
+
+    private func startBalloon() {
+        guard season == .childrensDay, !birthdayToday else { return }
+        let group = holidayProp(.balloon); group.isHidden = false
+        guard !lowPower, window != nil, group.animation(forKey: "bob") == nil else { return }
+        let bob = CAKeyframeAnimation(keyPath: "transform.translation.y")
+        bob.values = [0, -4, 0]; bob.keyTimes = [0, 0.5, 1]; bob.duration = 2
+        bob.repeatCount = .infinity
+        group.add(bob, forKey: "bob")
+    }
+
+    private func updateHolidayMoment() {
+        momentTimer?.invalidate(); momentTimer = nil
+        guard window != nil, !lowPower else { return }
+        let now = Date(), cal = Calendar.current
+        let d = cal.dateComponents([.year, .month, .day, .hour, .minute, .second], from: now)
+        guard let y = d.year, let m = d.month, let day = d.day,
+              let hour = d.hour, let minute = d.minute, let second = d.second else { return }
+        var next: TimeInterval?
+        if BuddyHolidayClock.fireworks(year: y, month: m, day: day, hour: hour, minute: minute) {
+            if !momentCheered { momentCheered = true; cheer() }
+            if bounds.width > 0, bounds.height > 0 {
+                while momentLayers.count < 3 {
+                    let l = CAShapeLayer(); l.lineWidth = 1.5; l.lineCap = .round; l.fillColor = UIColor.clear.cgColor
+                    layer.addSublayer(l); momentLayers.append(l)
+                }
+                for (i, l) in momentLayers.enumerated() {
+                    let x = bounds.width * CGFloat(i + 1) / 4, yy = bounds.height * CGFloat(0.17 + Double(i % 2) * 0.1)
+                    let p = UIBezierPath()
+                    for j in 0..<8 {
+                        let a = CGFloat(j) * .pi / 4
+                        p.move(to: CGPoint(x: x + cos(a) * 3, y: yy + sin(a) * 3))
+                        p.addLine(to: CGPoint(x: x + cos(a) * 9, y: yy + sin(a) * 9))
+                    }
+                    l.path = p.cgPath; l.strokeColor = Self.cg([UInt32(0xF8D77B), 0xF7A7B9, 0x62D8EB][i])
+                    let flash = CAKeyframeAnimation(keyPath: "opacity")
+                    flash.values = [0, 1, 0]; flash.keyTimes = [0, 0.3, 1]; flash.duration = 2.5
+                    l.add(flash, forKey: "firework")
+                }
+            }
+            next = 3
+        } else if let count = BuddyHolidayClock.countdown(month: m, day: day, hour: hour, minute: minute, second: second) {
+            if bounds.width > 0 { showBadge(.tetWish, w: Double(bounds.width), h: Double(bounds.height), text: String(count), dur: 1) }
+            next = 1
+        } else if m == 12 && day == 31 {
+            let target = cal.date(from: DateComponents(year: y, month: 12, day: 31, hour: 23, minute: 59, second: 57))
+            if let target, target > now { next = target.timeIntervalSince(now) }
+        } else if let tomorrow = cal.date(byAdding: .day, value: 1, to: now) {
+            let t = cal.dateComponents([.year, .month, .day], from: tomorrow)
+            if let yy = t.year, let mm = t.month, let dd = t.day,
+               let tet = BuddySeason.lunarNewYear[yy], tet.0 == mm, tet.1 == dd {
+                next = cal.startOfDay(for: tomorrow).timeIntervalSince(now)
+            }
+        }
+        if let next, next > 0 {
+            momentTimer = Timer.scheduledTimer(withTimeInterval: next, repeats: false) { [weak self] _ in self?.updateHolidayMoment() }
+        }
     }
 
     // MARK: Hình
@@ -1058,6 +1182,7 @@ final class BuddyView: UIView {
         builtFor = bounds.size
         build()
         if birthdayToday { holidayProp(.cake).isHidden = false }
+        if season == .childrensDay { startBalloon() }
         if character == .koi, !lowPower, case .asleep = shown { stopBubbles(); startBubbles() }
     }
 

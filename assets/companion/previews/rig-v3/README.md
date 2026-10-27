@@ -107,3 +107,16 @@ PNGs, use `python3 render.py --png --sharp-module /path/to/sharp` when Quick Loo
 is unavailable. The shared signature effects use short vector animations only
 when triggered; Koi's three sleep bubbles animate while the view is visible.
 The new companions have no sprite atlas and always resolve to vector style.
+
+## Round 5: Robot, dances and holiday moments
+
+`r5/robot.svg.png` shows Robot awake and asleep on both backgrounds, and
+`r5/robot-seasons.svg.png` shows its four seasonal costumes. The six move strips
+in `r5/` show six phases of `robot`, `fanShake`, and `floss` for Girl and Robot.
+`r5/holidays/` contains one PNG per requested holiday gesture or detail; the
+complete path and caption list is in `r5/preview-paths.txt`. The preview command
+above regenerates them from the current rig tables. Robot uses the vector style
+and has no sprite atlas. New holiday reactions use lazy vector props in the cell.
+
+For the round-five sheets alone, run `python3 render.py --r5-only --png
+--sharp-module /path/to/sharp` from this directory when Quick Look is unavailable.

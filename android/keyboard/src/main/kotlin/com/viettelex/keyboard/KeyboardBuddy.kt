@@ -84,7 +84,8 @@ enum class BuddyCharacter(val id: String, val viTitle: String) {
     PANDA("panda", "Gấu trúc"),
     PIG("pig", "Heo con"),
     DRAGON("dragon", "Rồng con"),
-    EAGLE("eagle", "Đại bàng"); // l10n-key
+    EAGLE("eagle", "Đại bàng"), // l10n-key
+    ROBOT("robot", "Robot"); // l10n-key
 
     val title: String get() = tr(viTitle)
     /** Mèo dùng miễn phí (Phil 27/10/2026); các nhân vật khác thuộc Plus. */
@@ -366,16 +367,27 @@ object BuddyDance {
     data class Style(val armL: Double, val armR: Double, val armAmp: Double, val alternate: Boolean,
                      val kick: Double, val bounce: Double, val step: Double)
 
-    enum class Move { BOUNCE, HIP_SWAY, WAVE, CLAP, DAB, SKIP, FLOSS_LITE, SPIN, CHICKEN }
+    enum class Move {
+        BOUNCE, HIP_SWAY, WAVE, CLAP, DAB, SKIP, FLOSS_LITE, SPIN, CHICKEN, ROBOT, FAN_SHAKE, FLOSS;
+        val title: String get() = when (this) {
+            ROBOT -> tr("Nhảy robot")
+            FAN_SHAKE -> tr("Múa quạt")
+            FLOSS -> tr("Floss")
+            else -> name
+        }
+    }
     private val calm = listOf(Move.BOUNCE, Move.HIP_SWAY, Move.WAVE, Move.CLAP)
-    private val lively = listOf(Move.SKIP, Move.FLOSS_LITE, Move.DAB, Move.CHICKEN)
-    private val energetic = lively + Move.SPIN
+    private val lively = listOf(Move.SKIP, Move.FLOSS_LITE, Move.DAB, Move.CHICKEN, Move.ROBOT, Move.FAN_SHAKE)
+    private val energetic = lively + listOf(Move.SPIN, Move.FLOSS)
     fun moves(tier: Int): List<Move> = if (clamp(tier) < 2) calm else if (clamp(tier) == 2) lively else energetic
-    fun move(character: BuddyCharacter, tier: Int, loopIndex: Int, seed: Int): Move {
-        val pool = if (character == BuddyCharacter.KOI || character == BuddyCharacter.EAGLE)
+    fun move(character: BuddyCharacter, tier: Int, loopIndex: Int, seed: Int, season: BuddySeason? = null): Move {
+        val base = if (character == BuddyCharacter.ROBOT && clamp(tier) >= 2)
+            listOf(Move.ROBOT, Move.FAN_SHAKE, Move.ROBOT, Move.FLOSS, Move.WAVE)
+        else if (character == BuddyCharacter.KOI || character == BuddyCharacter.EAGLE)
             if (clamp(tier) < 2) listOf(Move.WAVE, Move.CHICKEN, Move.BOUNCE, Move.CLAP)
-            else listOf(Move.CHICKEN, Move.WAVE, Move.SKIP, Move.SPIN, Move.DAB)
+            else listOf(Move.CHICKEN, Move.WAVE, Move.SKIP, Move.SPIN, Move.DAB, Move.ROBOT, Move.FAN_SHAKE, Move.FLOSS)
         else moves(tier)
+        val pool = if (season == BuddySeason.TET && clamp(tier) >= 2) base.toMutableList().apply { add(if (character == BuddyCharacter.ROBOT) 4 else 1, Move.FAN_SHAKE) } else base
         val n = pool.size
         val offset = abs(seed % 997) + character.ordinal * 17
         val group = max(0, loopIndex) / 2 % n
@@ -446,13 +458,39 @@ object BuddyDance {
                 out.head = 0.25 * e * hop
                 out.tail = 0.3 * e * fast
             }
+            Move.ROBOT -> {
+                val step = floor(pp * 16).toInt() % 8
+                out.dx = s.step * 0.3 * e * intArrayOf(-1, -1, 0, 0, 1, 1, 0, 0)[step]
+                out.dy = -s.bounce * 0.12 * e * (if (step == 2 || step == 6) 1 else 0)
+                out.armL = e * intArrayOf(0, 1, 1, 0, 0, -1, -1, 0)[step] * 1.35
+                out.armR = e * intArrayOf(0, 0, -1, -1, 0, 0, 1, 1)[step] * 1.35
+                out.head = e * intArrayOf(-1, -1, 0, 0, 1, 1, 0, 0)[step] * 0.16
+            }
+            Move.FAN_SHAKE -> {
+                out.dy = -s.bounce * 0.22 * e * hop
+                out.rot = 0.09 * e * fast
+                out.head = 0.22 * e * sin(two * pp * 2)
+                out.armL = (1.7 + 0.35 * fast) * e
+                out.armR = -(1.7 - 0.35 * fast) * e
+            }
+            Move.FLOSS -> {
+                val swing = sin(two * pp * 4)
+                out.dx = -s.step * 0.45 * e * swing
+                out.rot = -0.18 * e * swing
+                out.armL = 1.2 * e * swing
+                out.armR = 1.2 * e * swing
+                out.legL = -0.35 * e * swing
+                out.legR = 0.35 * e * swing
+            }
         }
         if (character == BuddyCharacter.BOY && move == Move.SPIN && tier == 3) {
             if (pp < 0.65) { out.head = 2 * Math.PI * pp / 0.65; out.rot = -0.22 * gate; out.dy -= s.bounce * 0.4 * gate }
             else { out.head = 0.0; out.rot = -0.55 * gate; out.armL = 1.9 * gate; out.armR = -1.9 * gate; out.sx = 1.0 }
         }
-        out.dx *= gate; out.dy *= gate; out.rot *= gate; out.head *= gate
-        out.armL *= gate; out.armR *= gate; out.legL *= gate; out.legR *= gate; out.tail *= gate
+        if (move != Move.ROBOT) {
+            out.dx *= gate; out.dy *= gate; out.rot *= gate; out.head *= gate
+            out.armL *= gate; out.armR *= gate; out.legL *= gate; out.legR *= gate; out.tail *= gate
+        }
         return out
     }
 
@@ -465,6 +503,9 @@ object BuddyDance {
     fun flossLite(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.FLOSS_LITE)
     fun spin(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.SPIN)
     fun chicken(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.CHICKEN)
+    fun robot(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.ROBOT)
+    fun fanShake(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.FAN_SHAKE)
+    fun floss(s: Style, tier: Int, p: Double): BuddyPose = pose(s, tier, p, move = Move.FLOSS)
     private fun bounceBase(s: Style, tier: Int, p: Double, out: BuddyPose = BuddyPose()): BuddyPose {
         val t = clamp(tier)
         val e = ENERGY[t]
@@ -507,7 +548,8 @@ object BuddyDance {
         val a = if (r == BuddyReaction.PANIC) min(1.0, ff / 0.15 + 1) else minOf(1.0, ff / 0.15, (1 - ff) / 0.15)
         out.reset()
         when (r) {
-            BuddyReaction.LOVE, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE, BuddyReaction.CAKE -> {
+            BuddyReaction.LOVE, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE, BuddyReaction.CAKE,
+            BuddyReaction.BOUQUET, BuddyReaction.BANH_CHUNG, BuddyReaction.MOON_GAZE, BuddyReaction.BELL, BuddyReaction.ROSE, BuddyReaction.BALLOON -> {
                 out.dy = -s.bounce * 0.5 * a * abs(sin(3 * pi * ff))
                 out.armL = -0.55 * a; out.armR = 0.55 * a
                 out.head = 0.18 * a * sin(2 * pi * ff)
@@ -562,7 +604,22 @@ object BuddyDance {
                 out.head = 0.08 * a * sin(20 * pi * ff)
                 out.dy = -s.bounce * 0.15 * a * abs(sin(10 * pi * ff))
             }
+            BuddyReaction.TET_WISH -> {
+                out.head = 0.35 * a * abs(sin(2 * pi * ff))
+                out.armL = -0.9 * a; out.armR = 0.9 * a
+            }
+            BuddyReaction.LION_DANCE -> {
+                out.head = 0.3 * a * sin(8 * pi * ff)
+                out.dy = -s.bounce * 0.5 * a * abs(sin(8 * pi * ff))
+            }
+            BuddyReaction.BOO -> {
+                out.dy = if (ff < 0.5) s.bounce * 0.5 * a else -s.bounce * 0.8 * a
+                out.head = if (ff < 0.5) 0.3 * a else -0.2 * a
+            }
         }
+        if (r == BuddyReaction.MOON_GAZE) { out.dy = s.bounce * 0.7 * a; out.head = -0.3 * a; out.armL = -0.3 * a; out.armR = 0.3 * a }
+        if (r == BuddyReaction.BELL) out.armR = (-1.5 + 0.35 * sin(16 * pi * ff)) * a
+        if (r == BuddyReaction.BOUQUET) { out.armL = -0.8 * a; out.armR = 0.8 * a }
         if (character == BuddyCharacter.PANDA && r == BuddyReaction.LAUGH) { out.rot = 2 * pi * ff * a; out.dy -= s.bounce * 0.4 * a }
         if (character == BuddyCharacter.PIG && r == BuddyReaction.LAUGH) { out.rot = 2 * pi * ff * a; out.dx += 4 * sin(2 * pi * ff) * a }
         if (character == BuddyCharacter.GIRL && r == BuddyReaction.LOVE) { out.head = -0.25 * a; out.armR = -1.0 * a }
@@ -575,7 +632,7 @@ object BuddyDance {
 
 /** Pure seeded signature selection; equals the Swift BuddySignature table. */
 enum class BuddySignature {
-    KISS, BREAKDANCE, YARN, EGG, BONE, SPLASH, BAMBOO, MUD, SNORT, FIRE, LASER;
+    KISS, BREAKDANCE, YARN, EGG, BONE, SPLASH, BAMBOO, MUD, SNORT, FIRE, LASER, BEEP;
     companion object {
         fun cheer(c: BuddyCharacter, seed: Int): BuddySignature? = when (c) {
             BuddyCharacter.GIRL -> KISS
@@ -584,6 +641,7 @@ enum class BuddySignature {
             BuddyCharacter.KOI -> SPLASH
             BuddyCharacter.DRAGON -> FIRE
             BuddyCharacter.EAGLE -> LASER
+            BuddyCharacter.ROBOT -> BEEP
             else -> null
         }
         fun reaction(c: BuddyCharacter, r: BuddyReaction): BuddySignature? = when (c to r) {
@@ -594,6 +652,7 @@ enum class BuddySignature {
             BuddyCharacter.PIG to BuddyReaction.ANGRY -> SNORT
             BuddyCharacter.DRAGON to BuddyReaction.ANGRY, BuddyCharacter.DRAGON to BuddyReaction.LAUGH -> FIRE
             BuddyCharacter.EAGLE to BuddyReaction.ANGRY, BuddyCharacter.EAGLE to BuddyReaction.SURPRISED -> LASER
+            BuddyCharacter.ROBOT to BuddyReaction.SURPRISED -> BEEP
             else -> null
         }
         fun idle(c: BuddyCharacter): BuddySignature? = if (c == BuddyCharacter.PANDA) BAMBOO else null
@@ -608,6 +667,7 @@ enum class BuddySignature {
             if (BuddyWords.signatureEmoji(word, c)) return when (c) {
                 BuddyCharacter.SHIBA -> BONE; BuddyCharacter.KOI -> SPLASH; BuddyCharacter.PANDA -> BAMBOO
                 BuddyCharacter.PIG -> SNORT; BuddyCharacter.DRAGON -> FIRE; BuddyCharacter.EAGLE -> LASER
+                BuddyCharacter.ROBOT -> BEEP
                 else -> null
             }
             if (c != BuddyCharacter.SHIBA) return null
@@ -621,8 +681,12 @@ enum class BuddySignature {
 
 /** Thứ tự = ƯU TIÊN khi một từ khớp nhiều bảng: giận > thả tim > cười > ngạc nhiên > buồn. = iOS BuddyReaction. */
 enum class BuddyReaction(val duration: Double) {
-    ANGRY(1.2), LOVE(1.2), LAUGH(1.3), SURPRISED(1.0), SAD(1.5), GREET(1.2), PANIC(0.8), LUCKY_MONEY(1.5), GIFT(1.5), CANDY(1.5), MOONCAKE(1.5), TICKLE(0.85), YAWN(1.0), CAKE(1.5);
-    val isHoliday: Boolean get() = this == LUCKY_MONEY || this == GIFT || this == CANDY || this == MOONCAKE
+    ANGRY(1.2), LOVE(1.2), LAUGH(1.3), SURPRISED(1.0), SAD(1.5), GREET(1.2), PANIC(0.8), LUCKY_MONEY(1.5), GIFT(1.5), CANDY(1.5), MOONCAKE(1.5), TICKLE(0.85), YAWN(1.0), CAKE(1.5),
+    TET_WISH(1.5), LION_DANCE(1.5), BOUQUET(1.5), BANH_CHUNG(1.5), MOON_GAZE(1.5), BELL(1.5), BOO(1.5), ROSE(1.5), BALLOON(1.5);
+    val isHoliday: Boolean get() = when (this) {
+        LUCKY_MONEY, GIFT, CANDY, MOONCAKE, LION_DANCE, BOUQUET, BANH_CHUNG, MOON_GAZE, BELL, BOO, ROSE, BALLOON -> true
+        else -> false
+    }
 }
 
 /** = iOS BuddyWords: cùng bảng, cùng luật strict / gộp chữ lặp / mẫu cười-buồn. */
@@ -698,6 +762,7 @@ object BuddyWords {
         BuddyCharacter.SHIBA to setOf("🐶", "🐕", "🦴"), BuddyCharacter.PANDA to setOf("🐼", "🎋"),
         BuddyCharacter.PIG to setOf("🐷", "🐖"), BuddyCharacter.KOI to setOf("🐟", "🎏"),
         BuddyCharacter.DRAGON to setOf("🐉", "🐲", "🔥"), BuddyCharacter.EAGLE to setOf("🦅"),
+        BuddyCharacter.ROBOT to setOf("🤖", "⚙", "🔋"),
     )
     fun signatureEmoji(text: String, character: BuddyCharacter): Boolean {
         val symbols = signatureSymbols[character] ?: return false
@@ -780,6 +845,28 @@ object BuddyWords {
         Holiday(BuddyReaction.MOONCAKE, BuddySeason.MID_AUTUMN, Table(listOf(e("trung thu", false), e("bánh trung thu", false), e("rước đèn", false), e("đèn ông sao", false), e("chị hằng", false))), Table(listOf(e("cuội", true)))),
     ) }
 
+    fun newHoliday(word: String, prev: String?, prev2: String?, prev3: String?, season: BuddySeason?): BuddyReaction? {
+        if (season == null) return null
+        val w = clean(word)
+        val phrase = fold(listOfNotNull(prev3, prev2, prev, w).map(::clean).joinToString(" "))
+        fun has(term: String) = phrase.endsWith(fold(term))
+        return when (season) {
+            BuddySeason.TET -> when {
+                word == "🦁" || word == "🥁" -> BuddyReaction.LION_DANCE
+                has("bánh chưng") -> BuddyReaction.BANH_CHUNG
+                listOf("chúc mừng năm mới", "năm mới vui vẻ", "an khang thịnh vượng", "vạn sự như ý", "phát tài", "happy new year").any(::has) -> BuddyReaction.TET_WISH
+                else -> null
+            }
+            BuddySeason.WOMENS_DAY, BuddySeason.VIETNAMESE_WOMENS_DAY ->
+                if (word in listOf("💐", "🌷", "🌹") || listOf("chúc mừng 8/3", "chúc mừng 20/10", "mùng 8 tháng 3", "ngày phụ nữ").any(::has)) BuddyReaction.BOUQUET else null
+            BuddySeason.MID_AUTUMN -> if (word == "🌕" || listOf("chị Hằng", "chú Cuội", "ngắm trăng").any(::has)) BuddyReaction.MOON_GAZE else null
+            BuddySeason.CHRISTMAS -> if (listOf("merry christmas", "giáng sinh", "noel").any(::has)) BuddyReaction.BELL else null
+            BuddySeason.HALLOWEEN -> if (word == "👻" || has("boo") || has("trick or treat") || w == "ma") BuddyReaction.BOO else null
+            BuddySeason.VALENTINE -> if (has("valentine") || has("lễ tình nhân")) BuddyReaction.ROSE else null
+            BuddySeason.CHILDRENS_DAY -> null
+        }
+    }
+
     fun holiday(word: String, prev: String?, prev2: String? = null, prev3: String? = null,
                 season: BuddySeason? = null): BuddyReaction? {
         val w = clean(word)
@@ -797,12 +884,15 @@ object BuddyWords {
 
     fun reaction(word: String, prev: String?, prev2: String? = null, prev3: String? = null, season: BuddySeason? = null): BuddyReaction? {
         if (BuddyBirthday.trigger(word, prev)) return BuddyReaction.CAKE
+        if (word in listOf("🦁", "🥁", "💐", "🌷", "🌹", "🌕", "👻")) newHoliday(word, prev, prev2, prev3, season)?.let { return it }
+        if (word == "🌕" || word == "👻") return null
         emoji(word)?.let { return it }
         val w = clean(word)
         if (w.isEmpty() || w.length > 24) return null
         val p = prev?.let(::clean)?.ifEmpty { null }
         val p2 = prev2?.let(::clean)?.ifEmpty { null }
         if (w in SensitiveWords.set || SensitiveWords.isPair(p, w) || SensitiveWords.isTriple(p2, p, w)) return BuddyReaction.ANGRY
+        newHoliday(w, p, p2, prev3, season)?.let { return it }
         holiday(w, p, p2, prev3, season)?.let { return it }
         val f = fold(w)
         for ((r, t) in tables) {
@@ -848,11 +938,13 @@ object BuddyFX {
 
     fun count(r: BuddyReaction): Int = when (r) {
         BuddyReaction.LOVE -> 5
+        BuddyReaction.BOUQUET, BuddyReaction.ROSE -> 4
         BuddyReaction.LAUGH -> 4
         BuddyReaction.SAD -> 3
         BuddyReaction.PANIC, BuddyReaction.TICKLE -> 3
         BuddyReaction.CAKE -> 8
-        BuddyReaction.ANGRY, BuddyReaction.GREET, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE, BuddyReaction.YAWN -> 0
+        BuddyReaction.ANGRY, BuddyReaction.GREET, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE, BuddyReaction.YAWN,
+        BuddyReaction.TET_WISH, BuddyReaction.LION_DANCE, BuddyReaction.BANH_CHUNG, BuddyReaction.MOON_GAZE, BuddyReaction.BELL, BuddyReaction.BOO, BuddyReaction.BALLOON -> 0
     }
 
     fun particle(r: BuddyReaction, i: Int, w: Double, h: Double): Particle {
@@ -861,7 +953,7 @@ object BuddyFX {
         val t = if (n > 1) i.toDouble() / (n - 1) else 0.5
         val x0: Double; val y0: Double; val x1: Double; val y1: Double; val delay: Double
         when (r) {
-            BuddyReaction.LOVE -> {
+            BuddyReaction.LOVE, BuddyReaction.BOUQUET, BuddyReaction.ROSE -> {
                 x0 = w / 2 + (t - 0.5) * w * 0.3; y0 = h * 0.55
                 x1 = rad + (w - 2 * rad) * (0.1 + 0.8 * t); y1 = rad + (h * 0.35) * ((i * 7) % 3) / 2.0
                 delay = i * 0.08
@@ -878,7 +970,8 @@ object BuddyFX {
             BuddyReaction.PANIC, BuddyReaction.TICKLE, BuddyReaction.CAKE -> {
                 x0 = w / 2; y0 = h * 0.6; x1 = rad + (w - 2 * rad) * t; y1 = rad + h * 0.1 * (i % 2); delay = i * 0.1
             }
-            BuddyReaction.ANGRY, BuddyReaction.GREET, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE, BuddyReaction.YAWN -> { x0 = w / 2; y0 = h / 2; x1 = x0; y1 = y0; delay = 0.0 }
+            BuddyReaction.ANGRY, BuddyReaction.GREET, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE, BuddyReaction.YAWN,
+            BuddyReaction.TET_WISH, BuddyReaction.LION_DANCE, BuddyReaction.BANH_CHUNG, BuddyReaction.MOON_GAZE, BuddyReaction.BELL, BuddyReaction.BOO, BuddyReaction.BALLOON -> { x0 = w / 2; y0 = h / 2; x1 = x0; y1 = y0; delay = 0.0 }
         }
         fun cx(x: Double) = min(max(x, rad), w - rad)
         fun cy(y: Double) = min(max(y, rad), h - rad)
@@ -889,7 +982,7 @@ object BuddyFX {
         BuddyReaction.ANGRY -> BuddyRect(0.0, 0.0, w, min(13.0, h * 0.32))
         BuddyReaction.SURPRISED -> BuddyRect(w - 9, 1.0, 8.0, min(14.0, h * 0.36))
         BuddyReaction.SAD -> BuddyRect(w * 0.18, 0.0, w * 0.64, min(10.0, h * 0.24))
-        BuddyReaction.GREET -> BuddyRect(0.0, 0.0, w, min(15.0, h * 0.32))
+        BuddyReaction.GREET, BuddyReaction.TET_WISH -> BuddyRect(0.0, 0.0, w, min(15.0, h * 0.32))
         else -> null
     }
 
@@ -1024,6 +1117,7 @@ class BuddyRig(
             BuddyCharacter.PIG -> PIG
             BuddyCharacter.DRAGON -> DRAGON
             BuddyCharacter.EAGLE -> EAGLE
+            BuddyCharacter.ROBOT -> ROBOT
         }
 
         /** = iOS BuddyRig.checksum (cùng công thức) — sửa hình một bên mà quên bên kia thì test đỏ. */
@@ -1520,6 +1614,52 @@ class BuddyRig(
                 heart = P3(0, 65, 12), face = P4(0, 5, 29, 21), brows = "M-23 -15 L-11 -11 M23 -15 L11 -11",
                 hat = P3(0, -47, 27), sleepHat = P3(-30, -11, 25), neck = P2(0, 38), hand = P2(42, 69))
         }
+        val ROBOT: BuddyRig = run {
+            val p = listOf(
+            P(BuddyPart.LEG_L, "M-22 80 L-8 80 L-8 106 Q-8 112 -16 112 L-27 112 Q-31 108 -27 103 Z", fill = 0xAEB9C5, stroke = Stroke.Outline, width = 3.2),
+            P(BuddyPart.LEG_R, "M22 80 L8 80 L8 106 Q8 112 16 112 L27 112 Q31 108 27 103 Z", fill = 0xAEB9C5, stroke = Stroke.Outline, width = 3.2),
+            P(BuddyPart.LEG_L, "M-25 103 L-11 103 L-11 108 L-27 108 Z", fill = 0x7B91A4, stroke = Stroke.None, width = 0),
+            P(BuddyPart.LEG_R, "M25 103 L11 103 L11 108 L27 108 Z", fill = 0x7B91A4, stroke = Stroke.None, width = 0),
+            P(BuddyPart.BODY, "M-29 34 Q-35 34 -37 44 L-35 85 Q-33 96 -22 99 L22 99 Q33 96 35 85 L37 44 Q35 34 29 34 Z", fill = 0xD9E2EA, stroke = Stroke.Outline, width = 3.2),
+            P(BuddyPart.BODY, "M22 37 L33 45 L31 84 Q27 95 13 96 L-18 96 Q14 87 22 37 Z", fill = 0xAABBC9, stroke = Stroke.None, width = 0),
+            P(BuddyPart.BODY, "M-23 45 Q0 49 23 45", stroke = Stroke.Color(0xF5FAFC), width = 2),
+            E(BuddyPart.BODY, 0, 66, 13, 13, fill = 0x7B91A4, stroke = Stroke.Outline),
+            E(BuddyPart.BODY, 0, 66, 8, 8, fill = 0x62D8EB, stroke = Stroke.None),
+            E(BuddyPart.BODY, -3, 63, 2, 2, fill = 0xE8FFFF, stroke = Stroke.None),
+            P(BuddyPart.ARM_L, "M-34 45 Q-49 42 -51 52 L-49 72 Q-47 80 -39 78 L-31 73 L-32 53 Z", fill = 0xBFCBD5, stroke = Stroke.Outline, width = 3.2),
+            P(BuddyPart.ARM_R, "M34 45 Q49 42 51 52 L49 72 Q47 80 39 78 L31 73 L32 53 Z", fill = 0xBFCBD5, stroke = Stroke.Outline, width = 3.2),
+            E(BuddyPart.ARM_L, -44, 76, 8, 6, fill = 0x7B91A4, stroke = Stroke.Outline),
+            E(BuddyPart.ARM_R, 44, 76, 8, 6, fill = 0x7B91A4, stroke = Stroke.Outline),
+            P(BuddyPart.HEAD, "M-2 -43 L-2 -57 L2 -57 L2 -43", stroke = Stroke.Color(0x7B91A4), width = 4),
+            E(BuddyPart.HEAD, 0, -60, 6, 6, fill = 0x62D8EB, stroke = Stroke.Outline),
+            P(BuddyPart.HEAD, "M-32 -43 Q-41 -43 -41 -34 L-41 19 Q-41 30 -29 32 L29 32 Q41 30 41 19 L41 -34 Q41 -43 32 -43 Z", fill = 0xE4ECF1, stroke = Stroke.Outline, width = 3.2),
+            P(BuddyPart.HEAD, "M25 -40 Q38 -38 38 -27 L38 18 Q37 28 27 29 L-20 29 Q22 18 25 -40 Z", fill = 0xBDCBD5, stroke = Stroke.None, width = 0),
+            P(BuddyPart.HEAD, "M-31 -29 Q-31 -34 -25 -34 L25 -34 Q31 -34 31 -29 L31 17 Q31 23 25 23 L-25 23 Q-31 23 -31 17 Z", fill = 0x344957, stroke = Stroke.Outline, width = 2),
+            E(BuddyPart.HEAD, -14, -7, 5, 7, fill = 0x62D8EB, stroke = Stroke.None),
+            E(BuddyPart.HEAD, 14, -7, 5, 7, fill = 0x62D8EB, stroke = Stroke.None),
+            P(BuddyPart.HEAD, "M-19 -8 Q-14 1 -9 -8 M9 -8 Q14 1 19 -8", stroke = Stroke.Color(0x62D8EB), width = 3, show = Show.DANCE),
+            P(BuddyPart.HEAD, "M-18 0 L-10 0 M10 0 L18 0", stroke = Stroke.Color(0x62D8EB), width = 2.5, show = Show.REST),
+            P(BuddyPart.HEAD, "M-6 10 L6 10", stroke = Stroke.Color(0x62D8EB), width = 3),
+            E(BuddyPart.HEAD, 35, 3, 3, 3, fill = 0xF5A65B, stroke = Stroke.None),
+            P(BuddyPart.SLEEP, "M-36 26 Q-36 16 -24 16 L40 16 Q53 17 55 30 L55 55 Q55 66 43 68 L-30 68 Q-43 67 -43 56 Z", fill = 0xD9E2EA, stroke = Stroke.Outline, width = 3.2),
+            P(BuddyPart.SLEEP, "M16 19 Q51 18 51 32 L51 53 Q50 65 39 65 L-18 65 Q12 52 16 19 Z", fill = 0xAABBC9, stroke = Stroke.None, width = 0),
+            P(BuddyPart.SLEEP, "M-58 6 Q-58 -3 -48 -5 L-2 -5 Q8 -3 8 7 L8 44 Q7 54 -3 54 L-48 54 Q-58 52 -58 43 Z", fill = 0xE4ECF1, stroke = Stroke.Outline, width = 3.2),
+            P(BuddyPart.SLEEP, "M-51 12 Q-50 7 -45 7 L-5 7 Q0 7 0 12 L0 41 Q0 46 -5 46 L-45 46 Q-51 46 -51 41 Z", fill = 0x344957, stroke = Stroke.None, width = 0),
+            P(BuddyPart.SLEEP, "M-43 26 L-33 26 M-18 26 L-8 26", stroke = Stroke.Color(0x62D8EB), width = 2.5),
+            P(BuddyPart.SLEEP, "M-30 37 L-22 37", stroke = Stroke.Color(0x62D8EB), width = 2),
+            P(BuddyPart.SLEEP, "M-28 -5 L-28 -17", stroke = Stroke.Color(0x7B91A4), width = 3),
+            E(BuddyPart.SLEEP, -28, -18, 5, 5, fill = 0x7B91A4, stroke = Stroke.Outline),
+        )
+            BuddyRig(
+            pieces = p,
+            pivots = mapOf(BuddyPart.LEG_L to P2(-16, 83), BuddyPart.LEG_R to P2(16, 83), BuddyPart.BODY to P2(0, 94), BuddyPart.ARM_L to P2(-34, 49), BuddyPart.ARM_R to P2(34, 49), BuddyPart.HEAD to P2(0, 32)),
+            full = BuddyRect(-80, -72, 160, 194), barBottom = null, feet = P2(0, 112), sleepBottom = 68,
+            zzz = listOf(P3(0, -34, 12), P3(16, -50, 15), P3(36, -68, 19)),
+            style = BuddyDance.Style(armL = 1.0, armR = 1.0, armAmp = 0.5, alternate = true, kick = 0.15, bounce = 7.0, step = 7.0),
+            heart = P3(0, 67, 12), face = P4(0, -6, 28, 18), brows = "M-20 -20 L-9 -17 M20 -20 L9 -17",
+            hat = P3(0, -43, 31), sleepHat = P3(-29, -5, 26), neck = P2(0, 37), hand = P2(44, 76))
+
+        }
         val EAGLE: BuddyRig = run {
             val p = listOf(
                 P(BuddyPart.TAIL, "M-20 80 L-28 105 L-9 96 L0 112 L9 96 L28 105 L20 80 Z", fill = 0x815D48, stroke = Stroke.Outline, width = 3.2),
@@ -1659,7 +1799,7 @@ class BuddySprites(val sleep: String, val rest: String, val dance: List<List<Str
 
 /** = iOS BuddySeason: theme lễ thắng, không thì cửa sổ ngày (âm lịch tra bảng nhúng 2026–2035, không mạng). */
 enum class BuddySeason {
-    TET, CHRISTMAS, HALLOWEEN, MID_AUTUMN;
+    TET, CHRISTMAS, HALLOWEEN, MID_AUTUMN, WOMENS_DAY, VIETNAMESE_WOMENS_DAY, VALENTINE, CHILDRENS_DAY;
 
     companion object {
         fun ofTheme(themeId: String?): BuddySeason? = when (themeId) {
@@ -1699,6 +1839,10 @@ enum class BuddySeason {
             if (m == 12 && d in 15..26) return CHRISTMAS
             if ((m == 10 && d >= 25) || (m == 11 && d == 1)) return HALLOWEEN
             MID_AUTUMN_DAY[y]?.let { t -> if (abs(today - dayNumber(y, t.first, t.second)) <= 5) return MID_AUTUMN }
+            if (m == 3 && d in 7..8) return WOMENS_DAY
+            if (m == 10 && d in 19..20) return VIETNAMESE_WOMENS_DAY
+            if (m == 2 && d in 13..14) return VALENTINE
+            if (m == 6 && d == 1) return CHILDRENS_DAY
             return null
         }
 
@@ -1706,8 +1850,50 @@ enum class BuddySeason {
     }
 }
 
+object BuddyHolidayClock {
+    fun fireworks(year: Int, month: Int, day: Int, hour: Int, minute: Int): Boolean {
+        if (hour != 0 || minute !in 0..15) return false
+        if (month == 1 && day == 1) return true
+        val tet = BuddySeason.LUNAR_NEW_YEAR[year] ?: return false
+        return month == tet.first && day == tet.second
+    }
+    fun countdown(month: Int, day: Int, hour: Int, minute: Int, second: Int): Int? =
+        if (month == 12 && day == 31 && hour == 23 && minute == 59 && second in 57..59) 60 - second else null
+}
+
 /** = iOS BuddyOutfit: mảnh thêm + đổi màu. */
 object BuddyAccessory {
+    val lionHead: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-25 9 Q-31 -3 -22 -15 Q-14 -27 0 -23 Q14 -27 22 -15 Q31 -3 25 9 L18 15 L-18 15 Z"), 0xDE5263, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-23 8 Q-26 17 -19 19 L-12 11 L-5 20 L2 11 L9 20 L16 11 L23 19 Q28 17 23 8"), 0xF8D77B, 1.0, Stroke.Outline, 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Ellipse(-11.0, -5.0, 7.0, 8.0), 0xFFF7ED, 1.0, Stroke.Ink, 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Ellipse(11.0, -5.0, 7.0, 8.0), 0xFFF7ED, 1.0, Stroke.Ink, 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-13 -5 L-9 -5 M9 -5 L13 -5 M-5 8 Q0 13 5 8"), null, 1.0, Stroke.Color(0xF8D77B), 2.5),
+    ) }
+    val bouquet: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-14 0 L0 21 L14 0 Z"), 0xF2C8A2, 1.0, Stroke.Outline, 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-10 0 L0 15 L10 0"), null, 1.0, Stroke.Color(0x72A376), 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Ellipse(-10.0, -8.0, 7.0, 7.0), 0xF7A7B9, 1.0, Stroke.Outline, 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Ellipse(0.0, -13.0, 7.0, 7.0), 0xDE5263, 1.0, Stroke.Outline, 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Ellipse(10.0, -8.0, 7.0, 7.0), 0xF8D77B, 1.0, Stroke.Outline, 2.0),
+    ) }
+    val banhChung: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-16 -15 L16 -15 L16 17 L-16 17 Z"), 0x679A62, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-16 -15 L16 17 M16 -15 L-16 17"), null, 1.0, Stroke.Color(0xDDE3A4), 2.0),
+    ) }
+    val moon: List<BuddyPiece> by lazy { listOf(BuddyPiece(BuddyPart.BODY, Shape.Ellipse(0.0, 0.0, 17.0, 17.0), 0xF8D77B, 1.0, Stroke.Outline, 2.0)) }
+    val bell: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-13 8 Q-10 2 -10 -6 Q-10 -17 0 -17 Q10 -17 10 -6 Q10 2 13 8 Z"), 0xF8D77B, 1.0, Stroke.Outline, 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Ellipse(0.0, 11.0, 4.0, 4.0), 0xF5A65B, 1.0, Stroke.Outline, 2.0),
+    ) }
+    val rose: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M0 16 L0 -7 M0 5 L-9 -1 M0 8 L9 1"), null, 1.0, Stroke.Color(0x679A62), 3.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M0 -3 Q-16 -9 -9 -18 Q-3 -24 0 -16 Q3 -24 9 -18 Q16 -9 0 -3 Z"), 0xDE5263, 1.0, Stroke.Outline, 2.0),
+    ) }
+    val balloon: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M0 19 Q3 0 0 -8"), null, 1.0, Stroke.Color(0x7B91A4), 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Ellipse(0.0, -16.0, 11.0, 15.0), 0xF7A7B9, 1.0, Stroke.Outline, 2.0),
+    ) }
     val nightcap: List<BuddyPiece> by lazy { listOf(
         BuddyPiece(BuddyPart.BODY, Shape.Path("M-19 1 Q-10 -13 -2 -24 Q3 -29 9 -20 Q12 -13 22 -14 Q15 -7 13 1 Z"), 0x697FA7, 1.0, Stroke.Outline, 3.2),
         BuddyPiece(BuddyPart.BODY, Shape.Path("M-18 -1 Q0 4 17 -1 L18 5 Q0 10 -19 5 Z"), 0xFFF7ED, 1.0, Stroke.Outline, 3.2),
@@ -1850,6 +2036,7 @@ class BuddyOutfit(val pieces: List<BuddyPiece> = emptyList(), val recolor: Map<I
                         BuddyPiece(BuddyPart.SLEEP, it.shape, it.fill, it.alpha, it.stroke, it.width, turn = Triple(-70.0, x, y))
                     })
                 }
+                BuddySeason.WOMENS_DAY, BuddySeason.VIETNAMESE_WOMENS_DAY, BuddySeason.VALENTINE, BuddySeason.CHILDRENS_DAY -> BuddyOutfit()
             }
         }
         fun santa(part: BuddyPart, a: P3) = BuddyAccessory.place(BuddyAccessory.santa, part, a.x, a.y, a.size)
@@ -1869,6 +2056,14 @@ object BuddyProp {
             BuddyReaction.CANDY -> BuddyAccessory.candy
             BuddyReaction.MOONCAKE -> BuddyAccessory.mooncake
             BuddyReaction.CAKE -> BuddyAccessory.cake
+            BuddyReaction.LION_DANCE -> return BuddyAccessory.place(BuddyAccessory.lionHead, BuddyPart.HEAD, r.hat.x, r.hat.y - 4, r.hat.size * 1.8)
+            BuddyReaction.BOUQUET -> BuddyAccessory.bouquet
+            BuddyReaction.BANH_CHUNG -> BuddyAccessory.banhChung
+            BuddyReaction.MOON_GAZE -> BuddyAccessory.moon
+            BuddyReaction.BELL -> BuddyAccessory.bell
+            BuddyReaction.BOO -> BuddyAccessory.pumpkin
+            BuddyReaction.ROSE -> BuddyAccessory.rose
+            BuddyReaction.BALLOON -> BuddyAccessory.balloon
             else -> return emptyList()
         }
         return BuddyAccessory.place(art, BuddyPart.BODY, r.heart.x, r.heart.y, r.heart.size * 2)
@@ -1966,6 +2161,7 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
         BuddyRig.SHIBA -> BuddyCharacter.SHIBA; BuddyRig.KOI -> BuddyCharacter.KOI
         BuddyRig.PANDA -> BuddyCharacter.PANDA; BuddyRig.PIG -> BuddyCharacter.PIG
         BuddyRig.DRAGON -> BuddyCharacter.DRAGON; BuddyRig.EAGLE -> BuddyCharacter.EAGLE
+        BuddyRig.ROBOT -> BuddyCharacter.ROBOT
         else -> BuddyCharacter.CAT
     }
     var danceSeed: Int = 0
@@ -2022,7 +2218,7 @@ class BuddyDriver(val rig: BuddyRig, var lowPower: Boolean = false) {
             is BuddyPhase.Dancing -> {
                 val p = if (prev is BuddyPhase.Dancing) loopPhase(t) else 0.0
                 danceLoopBase = if (prev is BuddyPhase.Dancing) danceLoopIndex(t) else 0
-                danceMove = BuddyDance.move(character, v.tier, danceLoopBase, danceSeed)
+                danceMove = BuddyDance.move(character, v.tier, danceLoopBase, danceSeed, season)
                 loopLen = BuddyDance.loopLength(v.tier)
                 loopEpoch = t - p * loopLen
                 nextMoveAt = loopEpoch + ((danceLoopBase / 2 + 1) * 2 - danceLoopBase) * loopLen

@@ -62,8 +62,13 @@
       "after_pieces": 30,
       "checksum": "16368.4397",
       "parity": "exact"
+    },
+    "robot": {
+      "after_pieces": 33,
+      "checksum": "14471.9114",
+      "parity": "exact"
     }
   },
   "move_numeric_constants": "exact Swift/Kotlin parity",
-  "accessories": "11 exact Swift/Kotlin tables; <=8 pieces per pose/prop"
+  "accessories": "13 exact Swift/Kotlin tables; <=8 pieces per pose/prop"
 }

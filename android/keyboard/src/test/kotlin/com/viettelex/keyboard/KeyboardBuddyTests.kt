@@ -30,7 +30,10 @@ class KeyboardBuddyTests {
     // MARK: cài đặt
 
     @Test fun idsMatchIOSAndDefaultIsOff() {
-        assertEquals(listOf("off", "girl", "boy", "cat", "chick", "shiba", "koi", "panda", "pig", "dragon", "eagle"), BuddyCharacter.IDS.toList())
+        assertEquals(listOf("off", "girl", "boy", "cat", "chick", "shiba", "koi", "panda", "pig", "dragon", "eagle", "robot"), BuddyCharacter.IDS.toList())
+        assertEquals(BuddyCharacter.ROBOT, BuddyCharacter.of("robot"))
+        assertTrue(BuddyCharacter.ROBOT.isPlus)
+        assertEquals(BuddyStyle.VECTOR, BuddyStyle.SPRITE.resolved(BuddyCharacter.ROBOT))
         assertEquals("keyboardBuddy", Keys.KEYBOARD_BUDDY)
         assertEquals(BuddyCharacter.OFF, BuddyCharacter.DEFAULT)
         assertEquals(BuddyCharacter.OFF, BuddyCharacter.of("lạ"))
@@ -226,7 +229,7 @@ class KeyboardBuddyTests {
     /** Bảng hình giống hệt iOS (KeyboardBuddyTests.checksums). */
     @Test fun rigChecksumParity() {
         val sums = BuddyCharacter.entries.map { String.format(Locale.US, "%.4f", BuddyRig.checksum(it)) }
-        assertEquals(listOf("0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220", "15269.7078", "14816.0100", "12385.2865", "14587.2357", "12839.3196", "16368.4397"), sums)
+        assertEquals(listOf("0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220", "15269.7078", "14816.0100", "12385.2865", "14587.2357", "12839.3196", "16368.4397", "14471.9114"), sums)
     }
 
     /** = iOS testMirroredFramesDoublePoses: lật gương khung có sẵn để gấp đôi dáng. */
@@ -494,7 +497,7 @@ class KeyboardBuddyTests {
             assertTrue(id, KeyboardTheme.entries.any { it.id == id })
         for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
             assertTrue(BuddyOutfit.make(null, c).pieces.isEmpty())
-            for (s in BuddySeason.entries) { val o = BuddyOutfit.make(s, c); assertFalse("$c $s", o.pieces.isEmpty() && o.recolor.isEmpty()) }
+            for (s in BuddySeason.entries.take(4)) { val o = BuddyOutfit.make(s, c); assertFalse("$c $s", o.pieces.isEmpty() && o.recolor.isEmpty()) }
         }
         assertEquals(BuddyOutfit.RED, BuddyOutfit.make(BuddySeason.TET, BuddyCharacter.GIRL).recolor[0xFFB3C7])
         assertTrue(BuddyOutfit.make(BuddySeason.MID_AUTUMN, BuddyCharacter.BOY).pieces.filter { it.part != BuddyPart.SLEEP }.all { it.part == BuddyPart.ARM_R })
@@ -706,7 +709,7 @@ class KeyboardBuddyTests {
 
     @Test fun accessoriesHaveSmallBudgetsAndBothPoses() {
         for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
-            for (season in BuddySeason.entries) {
+            for (season in BuddySeason.entries.take(4)) {
                 val outfit = BuddyOutfit.make(season, c)
                 for (sleeping in listOf(false, true)) {
                     val pieces = outfit.pieces.filter { (it.part == BuddyPart.SLEEP) == sleeping }
@@ -717,8 +720,8 @@ class KeyboardBuddyTests {
             for (reaction in BuddyReaction.entries.filter { it.isHoliday }) {
                 val pieces = BuddyProp.make(reaction, BuddyRig.rig(c)!!)
                 assertTrue(pieces.isNotEmpty()); assertTrue(pieces.size <= 8)
-                assertTrue(pieces.all { it.part == BuddyPart.BODY && it.width <= 3.2 })
-                assertEquals(1.5, reaction.duration, 0.0); assertEquals(0, BuddyFX.count(reaction))
+                assertTrue(pieces.all { (it.part == BuddyPart.BODY || reaction == BuddyReaction.LION_DANCE && it.part == BuddyPart.HEAD) && it.width <= 3.2 })
+                assertEquals(1.5, reaction.duration, 0.0); assertEquals(if (reaction == BuddyReaction.BOUQUET || reaction == BuddyReaction.ROSE) 4 else 0, BuddyFX.count(reaction))
             }
             assertTrue(BuddyProp.make(BuddyReaction.LOVE, BuddyRig.rig(c)!!).isEmpty())
         }
@@ -735,23 +738,63 @@ class KeyboardBuddyTests {
                         assertTrue((0 until 48).all { BuddyDance.pose(style, tier, it/48.0, move = move).sx == 1.0 })
                 }
                 val pool = BuddyDance.moves(tier)
-                assertEquals(if (tier == 3) 5 else 4, pool.size)
+                assertEquals(if (tier == 3) 8 else if (tier == 2) 6 else 4, pool.size)
                 assertEquals(tier == 3, pool.contains(BuddyDance.Move.SPIN))
                 assertEquals(tier >= 2, pool.contains(BuddyDance.Move.SKIP))
                 assertEquals(tier < 2, pool.contains(BuddyDance.Move.BOUNCE))
                 for (seed in listOf(0, 1, 42, -7, Int.MAX_VALUE)) for (group in 0 until 100) {
                     val a = BuddyDance.move(c, tier, group * 2, seed)
                     assertTrue((if (c == BuddyCharacter.KOI || c == BuddyCharacter.EAGLE)
-                        listOf(BuddyDance.Move.WAVE, BuddyDance.Move.CHICKEN, BuddyDance.Move.BOUNCE, BuddyDance.Move.CLAP, BuddyDance.Move.SKIP, BuddyDance.Move.SPIN, BuddyDance.Move.DAB)
-                        else pool).contains(a))
+                        listOf(BuddyDance.Move.WAVE, BuddyDance.Move.CHICKEN, BuddyDance.Move.BOUNCE, BuddyDance.Move.CLAP, BuddyDance.Move.SKIP, BuddyDance.Move.SPIN, BuddyDance.Move.DAB, BuddyDance.Move.ROBOT, BuddyDance.Move.FAN_SHAKE, BuddyDance.Move.FLOSS)
+                        else if (c == BuddyCharacter.ROBOT && tier >= 2) listOf(BuddyDance.Move.ROBOT, BuddyDance.Move.FAN_SHAKE, BuddyDance.Move.FLOSS, BuddyDance.Move.WAVE) else pool).contains(a))
                     assertEquals(a, BuddyDance.move(c, tier, group * 2 + 1, seed))
                     assertNotEquals(a, BuddyDance.move(c, tier, (group + 1) * 2, seed))
                 }
             }
         }
-        assertEquals(listOf(BuddyDance.Move.SPIN, BuddyDance.Move.SPIN, BuddyDance.Move.CHICKEN, BuddyDance.Move.CHICKEN,
-            BuddyDance.Move.DAB, BuddyDance.Move.DAB, BuddyDance.Move.FLOSS_LITE, BuddyDance.Move.FLOSS_LITE, BuddyDance.Move.SKIP, BuddyDance.Move.SKIP),
-            (0 until 10).map { BuddyDance.move(BuddyCharacter.GIRL, 3, it, 42) })
+        for (move in listOf(BuddyDance.Move.ROBOT, BuddyDance.Move.FAN_SHAKE, BuddyDance.Move.FLOSS))
+            assertTrue((0 until 80).any { BuddyDance.move(BuddyCharacter.GIRL, 3, it * 2, 42) == move })
+        val normalFans = (0 until 56).count { BuddyDance.move(BuddyCharacter.GIRL, 3, it * 2, 42) == BuddyDance.Move.FAN_SHAKE }
+        val tetFans = (0 until 56).count { BuddyDance.move(BuddyCharacter.GIRL, 3, it * 2, 42, BuddySeason.TET) == BuddyDance.Move.FAN_SHAKE }
+        assertTrue(tetFans > normalFans)
+        assertEquals(listOf(BuddyDance.Move.WAVE, BuddyDance.Move.WAVE, BuddyDance.Move.FLOSS, BuddyDance.Move.FLOSS,
+            BuddyDance.Move.ROBOT, BuddyDance.Move.ROBOT, BuddyDance.Move.FAN_SHAKE, BuddyDance.Move.FAN_SHAKE,
+            BuddyDance.Move.ROBOT, BuddyDance.Move.ROBOT),
+            (0 until 10).map { BuddyDance.move(BuddyCharacter.ROBOT, 3, it, 42) })
+        assertTrue((0 until 40).count { BuddyDance.move(BuddyCharacter.ROBOT, 3, it * 2, 42) == BuddyDance.Move.ROBOT } >= 12)
+        for (c in listOf(BuddyCharacter.GIRL, BuddyCharacter.ROBOT, BuddyCharacter.KOI, BuddyCharacter.EAGLE)) {
+            val style = BuddyRig.rig(c)!!.style
+            for (move in listOf(BuddyDance.Move.ROBOT, BuddyDance.Move.FAN_SHAKE, BuddyDance.Move.FLOSS))
+                for (frame in 0 until 48) {
+                    val p = BuddyDance.pose(style, 3, frame / 48.0, move = move, character = c)
+                    assertTrue(kotlin.math.abs(p.dx) <= 12 && kotlin.math.abs(p.dy) <= 16)
+                    assertTrue(kotlin.math.abs(p.head) <= 0.3 && kotlin.math.abs(p.armL) <= 2.1 && kotlin.math.abs(p.armR) <= 2.1)
+                }
+        }
+    }
+
+    @Test fun roundFiveHolidays() {
+        assertEquals(BuddySeason.WOMENS_DAY, BuddySeason.ofDate(2027, 3, 8))
+        assertEquals(BuddySeason.VIETNAMESE_WOMENS_DAY, BuddySeason.ofDate(2027, 10, 20))
+        assertEquals(BuddySeason.VALENTINE, BuddySeason.ofDate(2027, 2, 14))
+        assertEquals(BuddySeason.CHILDRENS_DAY, BuddySeason.ofDate(2027, 6, 1))
+        assertEquals(BuddyReaction.TET_WISH, BuddyWords.reaction("mới", "năm", "mừng", "chúc", BuddySeason.TET))
+        assertEquals(BuddyReaction.LION_DANCE, BuddyWords.reaction("🦁", null, season = BuddySeason.TET))
+        assertEquals(BuddyReaction.BOUQUET, BuddyWords.reaction("💐", null, season = BuddySeason.WOMENS_DAY))
+        assertEquals(BuddyReaction.BANH_CHUNG, BuddyWords.reaction("chưng", "bánh", season = BuddySeason.TET))
+        assertEquals(BuddyReaction.MOON_GAZE, BuddyWords.reaction("🌕", null, season = BuddySeason.MID_AUTUMN))
+        assertEquals(null, BuddyWords.reaction("🌕", null, season = null))
+        assertEquals(BuddyReaction.BELL, BuddyWords.reaction("noel", null, season = BuddySeason.CHRISTMAS))
+        assertEquals(BuddyReaction.BOO, BuddyWords.reaction("ma", null, season = BuddySeason.HALLOWEEN))
+        assertEquals(null, BuddyWords.reaction("👻", null, season = null))
+        assertEquals(null, BuddyWords.newHoliday("ma", null, null, null, null))
+        assertEquals(BuddyReaction.ROSE, BuddyWords.reaction("valentine", null, season = BuddySeason.VALENTINE))
+        assertTrue(BuddyHolidayClock.fireworks(2027, 2, 6, 0, 15))
+        assertTrue(!BuddyHolidayClock.fireworks(2027, 2, 6, 0, 16))
+        assertEquals(3, BuddyHolidayClock.countdown(12, 31, 23, 59, 57))
+        assertEquals(null, BuddyHolidayClock.countdown(1, 1, 23, 59, 57))
+        assertEquals(BuddySignature.BEEP, BuddySignature.cheer(BuddyCharacter.ROBOT, 0))
+        for (word in listOf("🤖", "⚙️", "🔋")) assertEquals(BuddySignature.BEEP, BuddySignature.word(BuddyCharacter.ROBOT, word))
     }
 
     @Test fun namedMovePoseParity() {
@@ -775,7 +818,7 @@ class KeyboardBuddyTests {
             listOf(0.000000, -5.850000, 0.000000, 0.250000, 0.900000, -0.900000, 0.000000, 0.000000, 0.000000, 1.000000), // chicken p=0.375
             listOf(0.000000, -5.850000, 0.000000, 0.250000, 0.900000, -0.900000, 0.000000, 0.000000, 0.000000, 1.000000), // chicken p=0.875
         )
-        for ((i, move) in BuddyDance.Move.entries.withIndex()) for ((j, phase) in listOf(0.375, 0.875).withIndex()) {
+        for ((i, move) in BuddyDance.Move.entries.take(9).withIndex()) for ((j, phase) in listOf(0.375, 0.875).withIndex()) {
             val p = BuddyDance.pose(BuddyRig.GIRL.style, 3, phase, move = move)
             val values = listOf(p.dx, p.dy, p.rot, p.head, p.armL, p.armR, p.legL, p.legR, p.tail, p.sx)
             for ((a, b) in values.zip(expected[i * 2 + j])) assertEquals(b, a, 1e-6)

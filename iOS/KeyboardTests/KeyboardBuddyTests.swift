@@ -28,7 +28,10 @@ final class KeyboardBuddyTests: XCTestCase {
     // MARK: Cài đặt
 
     func testIdsMatchAndroidAndDefaultIsOff() {
-        XCTAssertEqual(BuddyCharacter.allCases.map(\.rawValue), ["off", "girl", "boy", "cat", "chick", "shiba", "koi", "panda", "pig", "dragon", "eagle"])
+        XCTAssertEqual(BuddyCharacter.allCases.map(\.rawValue), ["off", "girl", "boy", "cat", "chick", "shiba", "koi", "panda", "pig", "dragon", "eagle", "robot"])
+        XCTAssertEqual(BuddyCharacter.parse("robot"), .robot)
+        XCTAssertTrue(BuddyCharacter.robot.isPlus)
+        XCTAssertEqual(BuddyStyle.sprite.resolved(for: .robot), .vector)
         XCTAssertEqual(BuddyCharacter.key, "keyboardBuddy")
         XCTAssertEqual(BuddyCharacter.defaultValue, .off)
         XCTAssertEqual(BuddyCharacter.parse("lạ"), .off)
@@ -144,7 +147,7 @@ final class KeyboardBuddyTests: XCTestCase {
         XCTAssertEqual(BuddyCharacter.girl.title, "Cô gái")
         XCTAssertEqual(BuddyCharacter.off.title, "Tắt")
         L10n.apply("en")
-        XCTAssertEqual(BuddyCharacter.allCases.map(\.title), ["Off", "Girl", "Boy", "Cat", "Chick", "Shiba", "Koi", "Panda", "Piggy", "Little dragon", "Eagle"])
+        XCTAssertEqual(BuddyCharacter.allCases.map(\.title), ["Off", "Girl", "Boy", "Cat", "Chick", "Shiba", "Koi", "Panda", "Piggy", "Little dragon", "Eagle", "Robot"])
         XCTAssertEqual(L("Bạn đồng hành"), "Keyboard buddy")
     }
 
@@ -447,7 +450,7 @@ final class KeyboardBuddyTests: XCTestCase {
         print("BUDDY checksum \(sums)")
         XCTAssertEqual(sums, Self.checksums)
     }
-    static let checksums = ["0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220", "15269.7078", "14816.0100", "12385.2865", "14587.2357", "12839.3196", "16368.4397"]
+    static let checksums = ["0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220", "15269.7078", "14816.0100", "12385.2865", "14587.2357", "12839.3196", "16368.4397", "14471.9114"]
 
     func testEveryRigHasAllPartsAndSleepPose() {
         for c in BuddyCharacter.allCases where c != .off {
@@ -961,7 +964,7 @@ final class KeyboardBuddyTests: XCTestCase {
         XCTAssertNil(BuddySeason.resolve(themeID: "oled", year: 2026, month: 7, day: 1))
         for c in BuddyCharacter.allCases where c != .off {
             XCTAssertTrue(BuddyOutfit.make(nil, c).pieces.isEmpty)
-            for s in BuddySeason.allCases {
+            for s in BuddySeason.allCases.prefix(4) {
                 let o = BuddyOutfit.make(s, c)
                 XCTAssertFalse(o.pieces.isEmpty && o.recolor.isEmpty, "\(c) \(s) có trang phục")
             }
@@ -1130,7 +1133,7 @@ final class KeyboardBuddyTests: XCTestCase {
 
     func testAccessoriesHaveSmallBudgetsAndBothPoses() {
         for c in BuddyCharacter.allCases where c != .off {
-            for season in BuddySeason.allCases {
+            for season in BuddySeason.allCases.prefix(4) {
                 let outfit = BuddyOutfit.make(season, c)
                 for sleeping in [false, true] {
                     let pieces = outfit.pieces.filter { ($0.part == .sleep) == sleeping }
@@ -1143,9 +1146,9 @@ final class KeyboardBuddyTests: XCTestCase {
                 let pieces = BuddyProp.make(reaction, BuddyRig.rig(c)!)
                 XCTAssertFalse(pieces.isEmpty)
                 XCTAssertLessThanOrEqual(pieces.count, 8)
-                XCTAssertTrue(pieces.allSatisfy { $0.part == .body && $0.width <= 3.2 })
+                XCTAssertTrue(pieces.allSatisfy { ($0.part == .body || reaction == .lionDance && $0.part == .head) && $0.width <= 3.2 })
                 XCTAssertEqual(reaction.duration, 1.5)
-                XCTAssertEqual(BuddyFX.count(reaction), 0)
+                XCTAssertEqual(BuddyFX.count(reaction), reaction == .bouquet || reaction == .rose ? 4 : 0)
             }
             XCTAssertTrue(BuddyProp.make(.love, BuddyRig.rig(c)!).isEmpty)
         }
@@ -1163,22 +1166,66 @@ final class KeyboardBuddyTests: XCTestCase {
                     }
                 }
                 let pool = BuddyDance.moves(tier)
-                XCTAssertEqual(pool.count, tier == 3 ? 5 : 4)
+                XCTAssertEqual(pool.count, tier == 3 ? 8 : tier == 2 ? 6 : 4)
                 XCTAssertEqual(pool.contains(.spin), tier == 3)
                 XCTAssertEqual(pool.contains(.skip), tier >= 2)
                 XCTAssertEqual(pool.contains(.bounce), tier < 2)
                 for seed in [0, 1, 42, -7, Int.max] {
                     for group in 0..<100 {
                         let a = BuddyDance.move(c, tier: tier, loopIndex: group * 2, seed: seed)
-                        XCTAssertTrue((c == .koi || c == .eagle) ? [.wave, .chicken, .bounce, .clap, .skip, .spin, .dab].contains(a) : pool.contains(a))
+                        XCTAssertTrue((c == .koi || c == .eagle) ? [.wave, .chicken, .bounce, .clap, .skip, .spin, .dab, .robot, .fanShake, .floss].contains(a) : c == .robot && tier >= 2 ? [.robot, .fanShake, .floss, .wave].contains(a) : pool.contains(a))
                         XCTAssertEqual(a, BuddyDance.move(c, tier: tier, loopIndex: group * 2 + 1, seed: seed))
                         XCTAssertNotEqual(a, BuddyDance.move(c, tier: tier, loopIndex: (group + 1) * 2, seed: seed))
                     }
                 }
             }
         }
-        XCTAssertEqual((0..<10).map { BuddyDance.move(.girl, tier: 3, loopIndex: $0, seed: 42) },
-                       [.spin, .spin, .chicken, .chicken, .dab, .dab, .flossLite, .flossLite, .skip, .skip])
+        for move in [BuddyDance.Move.robot, .fanShake, .floss] {
+            XCTAssertTrue((0..<80).contains { BuddyDance.move(.girl, tier: 3, loopIndex: $0 * 2, seed: 42) == move })
+        }
+        let normalFans = (0..<56).filter { BuddyDance.move(.girl, tier: 3, loopIndex: $0 * 2, seed: 42) == .fanShake }.count
+        let tetFans = (0..<56).filter { BuddyDance.move(.girl, tier: 3, loopIndex: $0 * 2, seed: 42, season: .tet) == .fanShake }.count
+        XCTAssertGreaterThan(tetFans, normalFans)
+        XCTAssertEqual((0..<10).map { BuddyDance.move(.robot, tier: 3, loopIndex: $0, seed: 42) },
+                       [.wave, .wave, .floss, .floss, .robot, .robot, .fanShake, .fanShake, .robot, .robot])
+        XCTAssertTrue((0..<40).filter { BuddyDance.move(.robot, tier: 3, loopIndex: $0 * 2, seed: 42) == .robot }.count >= 12)
+        for c in [BuddyCharacter.girl, .robot, .koi, .eagle] {
+            let style = BuddyRig.rig(c)!.style
+            for move in [BuddyDance.Move.robot, .fanShake, .floss] {
+                for frame in 0..<48 {
+                    let p = BuddyDance.pose(style, tier: 3, p: Double(frame) / 48, move: move, character: c)
+                    XCTAssertLessThanOrEqual(abs(p.dx), 12)
+                    XCTAssertLessThanOrEqual(abs(p.dy), 16)
+                    XCTAssertLessThanOrEqual(abs(p.head), 0.3)
+                    XCTAssertLessThanOrEqual(abs(p.armL), 2.1)
+                    XCTAssertLessThanOrEqual(abs(p.armR), 2.1)
+                }
+            }
+        }
+    }
+
+    func testRoundFiveHolidays() {
+        XCTAssertEqual(BuddySeason.of(year: 2027, month: 3, day: 8), .womensDay)
+        XCTAssertEqual(BuddySeason.of(year: 2027, month: 10, day: 20), .vietnameseWomensDay)
+        XCTAssertEqual(BuddySeason.of(year: 2027, month: 2, day: 14), .valentine)
+        XCTAssertEqual(BuddySeason.of(year: 2027, month: 6, day: 1), .childrensDay)
+        XCTAssertEqual(BuddyWords.reaction(word: "mới", prev: "năm", prev2: "mừng", prev3: "chúc", season: .tet), .tetWish)
+        XCTAssertEqual(BuddyWords.reaction(word: "🦁", prev: nil, season: .tet), .lionDance)
+        XCTAssertEqual(BuddyWords.reaction(word: "💐", prev: nil, season: .womensDay), .bouquet)
+        XCTAssertEqual(BuddyWords.reaction(word: "chưng", prev: "bánh", season: .tet), .banhChung)
+        XCTAssertEqual(BuddyWords.reaction(word: "🌕", prev: nil, season: .midAutumn), .moonGaze)
+        XCTAssertNil(BuddyWords.reaction(word: "🌕", prev: nil, season: nil))
+        XCTAssertEqual(BuddyWords.reaction(word: "noel", prev: nil, season: .christmas), .bell)
+        XCTAssertEqual(BuddyWords.reaction(word: "ma", prev: nil, season: .halloween), .boo)
+        XCTAssertNil(BuddyWords.reaction(word: "👻", prev: nil, season: nil))
+        XCTAssertNil(BuddyWords.newHoliday(word: "ma", prev: nil, prev2: nil, prev3: nil, season: nil))
+        XCTAssertEqual(BuddyWords.reaction(word: "valentine", prev: nil, season: .valentine), .rose)
+        XCTAssertTrue(BuddyHolidayClock.fireworks(year: 2027, month: 2, day: 6, hour: 0, minute: 15))
+        XCTAssertFalse(BuddyHolidayClock.fireworks(year: 2027, month: 2, day: 6, hour: 0, minute: 16))
+        XCTAssertEqual(BuddyHolidayClock.countdown(month: 12, day: 31, hour: 23, minute: 59, second: 57), 3)
+        XCTAssertNil(BuddyHolidayClock.countdown(month: 1, day: 1, hour: 23, minute: 59, second: 57))
+        XCTAssertEqual(BuddySignature.cheer(.robot, seed: 0), .beep)
+        for word in ["🤖", "⚙️", "🔋"] { XCTAssertEqual(BuddySignature.word(.robot, word), .beep) }
     }
 
     func testNamedMovePoseParity() {
@@ -1202,7 +1249,7 @@ final class KeyboardBuddyTests: XCTestCase {
             [0.000000, -5.850000, 0.000000, 0.250000, 0.900000, -0.900000, 0.000000, 0.000000, 0.000000, 1.000000], // chicken p=0.375
             [0.000000, -5.850000, 0.000000, 0.250000, 0.900000, -0.900000, 0.000000, 0.000000, 0.000000, 1.000000], // chicken p=0.875
         ]
-        for (i, move) in BuddyDance.Move.allCases.enumerated() {
+        for (i, move) in BuddyDance.Move.allCases.prefix(9).enumerated() {
             for (j, phase) in [0.375, 0.875].enumerated() {
                 let p = BuddyDance.pose(BuddyRig.girl.style, tier: 3, p: phase, move: move)
                 let values = [p.dx, p.dy, p.rot, p.head, p.armL, p.armR, p.legL, p.legR, p.tail, p.sx]

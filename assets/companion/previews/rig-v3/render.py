@@ -23,7 +23,7 @@ KOTLIN = 'android/keyboard/src/main/kotlin/com/viettelex/keyboard/KeyboardBuddy.
 BEFORE = '111c61f44a9d87e51f0abebb37b5dda7ff201b8f'
 SHARP = None
 OLD_NAMES = ('girl', 'boy', 'cat', 'chick')
-NEW_NAMES = ('shiba', 'koi', 'panda', 'pig', 'dragon', 'eagle')
+NEW_NAMES = ('shiba', 'koi', 'panda', 'pig', 'dragon', 'eagle', 'robot')
 NAMES = OLD_NAMES + NEW_NAMES
 PARTS = ('tail', 'legL', 'legR', 'body', 'armL', 'armR', 'head', 'sleep')
 NUM = r'-?(?:\d*\.)?\d+'
@@ -142,7 +142,7 @@ def parse(source, name):
 
 def kotlin_as_swift(source):
     """Normalize only the four declarative tables, then use the same parser."""
-    source = re.sub(r'val (GIRL|BOY|CAT|CHICK|SHIBA|KOI|PANDA|PIG|DRAGON|EAGLE): BuddyRig = run \{', lambda m: f'static let {m[1].lower()}: BuddyRig = {{', source)
+    source = re.sub(r'val (GIRL|BOY|CAT|CHICK|SHIBA|KOI|PANDA|PIG|DRAGON|EAGLE|ROBOT): BuddyRig = run \{', lambda m: f'static let {m[1].lower()}: BuddyRig = {{', source)
     for swift, kt in zip(PARTS, ('TAIL', 'LEG_L', 'LEG_R', 'BODY', 'ARM_L', 'ARM_R', 'HEAD', 'SLEEP')):
         source = source.replace('BuddyPart.' + kt, '.' + swift)
     for a, b in [('Stroke.None', '.none'), ('Stroke.Outline', '.outline'), ('Stroke.Ink', '.ink'),
@@ -261,7 +261,7 @@ def render(name, before, after):
 
 SEASONS = ('tet', 'christmas', 'halloween', 'midAutumn')
 PROPS = ('luckyMoney', 'gift', 'candy', 'mooncake')
-MOVES = ('bounce', 'hipSway', 'wave', 'clap', 'dab', 'skip', 'flossLite', 'spin', 'chicken')
+MOVES = ('bounce', 'hipSway', 'wave', 'clap', 'dab', 'skip', 'flossLite', 'spin', 'chicken', 'robot', 'fanShake', 'floss')
 
 
 def accessories(source, kotlin=False):
@@ -274,6 +274,9 @@ def accessories(source, kotlin=False):
         block = block.replace('Stroke.Outline', '.outline').replace('Stroke.None', '.none').replace('Stroke.Color', '.color')
     out = {}
     for name, rows in re.findall(r'static let (\w+): \[BuddyPiece\] = \[(.*?)\n    \]', block, re.S):
+        if name not in ('nightcap', 'cake', 'santa', 'witch', 'pumpkin', 'khanDong', 'bow', 'pattern',
+                        'lantern', 'luckyMoney', 'gift', 'candy', 'mooncake'):
+            continue
         ps = []
         for kind, args in calls(rows):
             assert kind == 'BuddyPiece'
@@ -368,8 +371,21 @@ def move_pose(style, move, phase, tier=3):
         legL=.9 * e * max(0, wave), legR=-.9 * e * max(0, -wave), armL=.6 * e * wave, armR=.6 * e * wave, rot=.08 * e * wave)
     elif move == 'flossLite': o.update(dx=-s['step'] * e * wave, rot=-.14 * e * wave, armL=.85 * e * wave, armR=.85 * e * wave, head=.12 * e * wave)
     elif move == 'chicken': o.update(dy=-s['bounce'] * .65 * e * hop, armL=(.9 + .55 * fast) * e, armR=-(.9 + .55 * fast) * e, head=.25 * e * hop, tail=.3 * e * fast)
+    elif move == 'robot':
+        step = int(math.floor(p * 16)) % 8
+        o.update(dx=s['step'] * .3 * e * [-1,-1,0,0,1,1,0,0][step],
+                 dy=-s['bounce'] * .12 * e * int(step in (2,6)),
+                 armL=e * [0,1,1,0,0,-1,-1,0][step] * 1.35,
+                 armR=e * [0,0,-1,-1,0,0,1,1][step] * 1.35,
+                 head=e * [-1,-1,0,0,1,1,0,0][step] * .16)
+    elif move == 'fanShake': o.update(dy=-s['bounce'] * .22 * e * hop, rot=.09 * e * fast,
+        head=.22 * e * math.sin(two * p * 2), armL=(1.7 + .35 * fast) * e, armR=-(1.7 - .35 * fast) * e)
+    elif move == 'floss':
+        swing = math.sin(two * p * 4)
+        o.update(dx=-s['step'] * .45 * e * swing, rot=-.18 * e * swing,
+                 armL=1.2 * e * swing, armR=1.2 * e * swing, legL=-.35 * e * swing, legR=.35 * e * swing)
     for key in o:
-        if key != 'sx': o[key] *= gate
+        if key != 'sx' and move != 'robot': o[key] *= gate
     return o
 
 
@@ -387,7 +403,7 @@ def sheet(path, r, label, sleeps=True, motion=None):
 
 
 def move_sheet(path, r, name):
-    w, h = 1440, 2080
+    w, h = 1440, len(MOVES) * 230
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
            f'<rect width="{w}" height="{h}" fill="#1C1C1E"/>']
     for row, move in enumerate(MOVES):
@@ -486,14 +502,115 @@ def new_previews(name, rig, art, make_png):
         target.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="520" height="350"><rect width="520" height="350" fill="#1C1C1E"/>' + pose(rig, True, False, 240, 35, 250, 280) + effect + '</svg>')
         if make_png: png(target)
 
+
+def r5_previews(swift, make_png):
+    folder = OUT / 'r5'
+    holidays = folder / 'holidays'
+    holidays.mkdir(parents=True, exist_ok=True)
+    robot, girl = parse(swift, 'robot'), parse(swift, 'girl')
+    art = accessories(swift)
+    output = []
+    def runtime_prop(name):
+        start = swift.index(f'static let {name}: [BuddyPiece] = [', swift.index('enum BuddyAccessory'))
+        body = start + len(f'static let {name}: [BuddyPiece] = [')
+        rows = swift[body:swift.index(']', body)]
+        pieces = []
+        for kind, args in calls(rows):
+            if kind != 'BuddyPiece': continue
+            sh = args[1]
+            if sh.startswith('.path('):
+                shape_type, shape_args = 'path', [sh[7:-2]]
+            elif sh.startswith('.ellipse('):
+                shape_type, shape_args = 'ellipse', numbers(sh)
+            else: continue
+            opts = dict(a.split(': ', 1) for a in args[2:] if ': ' in a)
+            st = opts['stroke']
+            stroke = int(st[7:-1], 16) if st.startswith('.color(') else st[1:]
+            pieces.append(dict(part='body', shape=shape_type, args=shape_args,
+                               fill=None if opts['fill'] == 'nil' else int(opts['fill'], 16),
+                               alpha=float(opts['alpha']), stroke=stroke, width=float(opts['width']),
+                               show='always', turn=None))
+        return pieces
+    def placed_prop(name, head=False):
+        vx, vy, vw, vh = robot['full']
+        scale = min((200 - 30) / vw, (235 - 30) / vh)
+        tx, ty = (200 - vw * scale) / 2 - vx * scale, 35 + (235 - vh * scale) / 2 - vy * scale
+        if head:
+            x, y, size = robot['hat']; y -= 4; size *= 1.8
+        else:
+            x, y, size = robot['heart']; size *= 2
+        return (f'<g transform="translate({tx:g} {ty:g}) scale({scale:g}) '
+                f'translate({x:g} {y:g}) scale({size/32:g})">' +
+                ''.join(shape(p, True) for p in runtime_prop(name)) + '</g>')
+    def save(path, svg, summary, size=1200):
+        path.write_text(svg + '\n')
+        if make_png:
+            png(path, size)
+            output.append((path.with_suffix('.svg.png'), summary))
+    # Both themes contain awake and sleeping robot poses.
+    path = folder / 'robot.svg'
+    sheet(path, robot, 'Robot · awake / sleep')
+    if make_png: png(path); output.append((path.with_suffix('.svg.png'), 'Robot awake and asleep on dark and light backgrounds'))
+    tiles = []
+    for i, season in enumerate(SEASONS):
+        dressed = costume(robot, 'robot', season, art)
+        for dark in (True, False):
+            x, y = i * 260, 0 if dark else 300
+            tiles += [f'<rect x="{x}" y="{y}" width="260" height="300" fill="{"#1C1C1E" if dark else "#F2F2F7"}"/>',
+                      pose(dressed, dark, False, x+5, y+22, 250, 250)]
+    save(folder/'robot-seasons.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="600">\n' + '\n'.join(tiles) + '\n</svg>',
+         'Robot with all four seasonal costumes on both backgrounds')
+    for name, rig in (('girl', girl), ('robot', robot)):
+        for move in ('robot', 'fanShake', 'floss'):
+            frames = ['<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="255">',
+                      '<rect width="1080" height="255" fill="#1C1C1E"/>']
+            for i, phase in enumerate((.0625, .21875, .375, .53125, .6875, .84375)):
+                frames.append(pose(rig, True, False, i*180, 20, 180, 205, True, move_pose(rig['style'], move, phase)))
+                frames.append(f'<text x="{i*180+90}" y="248" text-anchor="middle" fill="#F2F2F7" font-size="13">{move} · {phase:g}</text>')
+            save(folder/f'{name}-{move}.svg', '\n'.join(frames + ['</svg>']), f'{name}: six frames of {move}', 1800)
+    labels = (
+        ('tet-wish', 'Tết · vái chúc Tết'), ('tet-lion', 'Tết · múa lân'),
+        ('fireworks', 'Giao thừa · fireworks'), ('womens-days', '8/3 & 20/10 · bouquet'),
+        ('tet-extras', 'Tết · petals & bánh chưng'), ('mid-autumn', 'Trung Thu · lantern & moon'),
+        ('christmas', 'Christmas · snow & bell'), ('halloween', 'Halloween · boo'),
+        ('valentine', 'Valentine · rose'), ('childrens-day', '1/6 · balloon'))
+    overlays = {
+        'tet-wish': '<text x="100" y="42" text-anchor="middle" font-size="13" fill="#F8D77B">Chúc mừng năm mới!</text>',
+        'tet-lion': '<path d="M78 79 Q100 53 122 79 L119 96 Q100 108 81 96Z" fill="#DE5263" stroke="#F8D77B" stroke-width="4"/><circle cx="88" cy="86" r="5" fill="white"/><circle cx="112" cy="86" r="5" fill="white"/>',
+        'fireworks': '<path d="M40 60 l-12 -15 m12 15 l12 -15 m-12 15 l-18 2 m18 -2 l18 2 M160 56 l-12 -15 m12 15 l12 -15 m-12 15 l-18 2 m18 -2 l18 2" stroke="#F8D77B" stroke-width="3"/>',
+        'womens-days': '<circle cx="99" cy="183" r="13" fill="#F7A7B9"/><circle cx="89" cy="179" r="7" fill="#DE5263"/><circle cx="109" cy="179" r="7" fill="#F8D77B"/>',
+        'tet-extras': '<path d="M85 175 L115 175 L115 205 L85 205Z" fill="#679A62" stroke="#F8D77B" stroke-width="3"/><circle cx="43" cy="72" r="4" fill="#F7A7B9"/><circle cx="155" cy="128" r="4" fill="#F8D77B"/>',
+        'mid-autumn': '<circle cx="160" cy="60" r="21" fill="#F8D77B"/><path d="M35 147 l8 -20 8 20 -20 -13 h24Z" fill="#DE5263" stroke="#F8D77B" stroke-width="3"/>',
+        'christmas': '<path d="M85 185 Q89 166 100 166 Q111 166 115 185Z" fill="#F8D77B"/><circle cx="100" cy="190" r="4" fill="#F5A65B"/><circle cx="40" cy="70" r="3" fill="white"/><circle cx="154" cy="98" r="3" fill="white"/>',
+        'halloween': '<circle cx="100" cy="190" r="21" fill="#F5A65B"/><path d="M90 184 l5 5 5 -5 m3 0 l5 5 5 -5" fill="none" stroke="#563D3C" stroke-width="3"/>',
+        'valentine': '<path d="M100 205 L100 172" stroke="#679A62" stroke-width="4"/><circle cx="100" cy="169" r="11" fill="#DE5263"/>',
+        'childrens-day': '<path d="M100 202 L100 163" stroke="#7B91A4" stroke-width="2"/><ellipse cx="100" cy="147" rx="13" ry="18" fill="#F7A7B9"/>',
+    }
+    for key, label in labels:
+        prop_names = {'tet-lion': 'lionHead', 'womens-days': 'bouquet', 'tet-extras': 'banhChung',
+                      'mid-autumn': 'moon', 'christmas': 'bell', 'halloween': 'pumpkin',
+                      'valentine': 'rose', 'childrens-day': 'balloon'}
+        extra = placed_prop(prop_names[key], head=key == 'tet-lion') if key in prop_names else overlays[key]
+        if key == 'tet-extras': extra += '<circle cx="43" cy="72" r="4" fill="#F7A7B9"/><circle cx="155" cy="128" r="4" fill="#F8D77B"/>'
+        if key == 'christmas': extra += '<circle cx="40" cy="70" r="3" fill="white"/><circle cx="154" cy="98" r="3" fill="white"/>'
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="310"><rect width="200" height="310" fill="#1C1C1E"/>' + pose(robot, True, False, 0, 35, 200, 235) + extra + f'<text x="100" y="295" text-anchor="middle" fill="#F2F2F7" font-size="12">{html.escape(label)}</text></svg>'
+        save(holidays/f'{key}.svg', svg, label)
+    if make_png:
+        (folder/'preview-paths.txt').write_text('\n'.join(f'{path} — {summary}' for path, summary in output) + '\n')
+    for path, summary in output: print(path, '—', summary)
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--before', default=BEFORE, help='git revision for the original Swift tables')
     ap.add_argument('--png', action='store_true', help='also ask qlmanage for 1200 px PNGs')
+    ap.add_argument('--r5-only', action='store_true', help='render only round-five preview sheets')
     ap.add_argument('--sharp-module', help='optional installed Sharp module fallback if Quick Look is sandbox-blocked')
     args = ap.parse_args()
     global SHARP
     SHARP = args.sharp_module
+    if args.r5_only:
+        r5_previews((ROOT / SWIFT).read_text(), args.png)
+        return
     original = subprocess.check_output(['git', 'show', f'{args.before}:{SWIFT}'], cwd=ROOT, text=True)
     swift = (ROOT / SWIFT).read_text()
     kotlin = kotlin_as_swift((ROOT / KOTLIN).read_text())
@@ -525,9 +642,10 @@ def main():
     for fixture in ('iOS/KeyboardTests/KeyboardBuddyTests.swift',
                     'android/keyboard/src/test/kotlin/com/viettelex/keyboard/KeyboardBuddyTests.kt'):
         text = (ROOT / fixture).read_text()
-        actual = re.search(r'\"0\.0000\"(?:, \"[0-9.]+\"){10}', text)
+        actual = re.search(r'\"0\.0000\"(?:, \"[0-9.]+\"){11}', text)
         assert actual and re.findall(r'\"([0-9.]+)\"', actual[0]) == expected, f'{fixture}: stale checksums'
     extras(swift, (ROOT / KOTLIN).read_text(), args.png)
+    r5_previews(swift, args.png)
     report['move_numeric_constants'] = 'exact Swift/Kotlin parity'
     report['accessories'] = '13 exact Swift/Kotlin tables; <=8 pieces per pose/prop'
     (OUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
