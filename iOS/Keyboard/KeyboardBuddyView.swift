@@ -35,7 +35,8 @@ final class BuddyView: UIView {
     let outfitClockPart: BuddyClock.Part
     let appearanceDay: Int
     var onTimeChanged: (() -> Void)?
-    private var clockPart: BuddyClock.Part
+    /// Buổi trong ngày (ngáp sáng / mũ ngủ đêm) — đọc lại mỗi phút khi trong cửa sổ; test đặt cố định.
+    var clockPart: BuddyClock.Part
     private var lastClockRead = -Double.infinity
     private var lastTickle = -Double.infinity
     private var lastNightYawn = -Double.infinity

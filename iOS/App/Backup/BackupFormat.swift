@@ -109,6 +109,7 @@ enum BackupSettings {
         Spec(key: BuddyName.key(.pig), kind: .buddyName),
         Spec(key: BuddyName.key(.dragon), kind: .buddyName),
         Spec(key: BuddyName.key(.eagle), kind: .buddyName),
+        Spec(key: BuddyName.key(.robot), kind: .buddyName),
         // Kiểu vẽ riêng từng nhân vật (BuddyStyle: Hoạt hình / Vẽ nét) — cùng khoá + id Android; lạ ⇒ bỏ qua.
         Spec(key: BuddyStyle.key(.girl), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
         Spec(key: BuddyStyle.key(.boy), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
@@ -120,6 +121,7 @@ enum BackupSettings {
         Spec(key: BuddyStyle.key(.pig), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
         Spec(key: BuddyStyle.key(.dragon), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
         Spec(key: BuddyStyle.key(.eagle), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
+        Spec(key: BuddyStyle.key(.robot), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
         // Vị trí & cỡ (BuddyPlacement, chung mọi nhân vật) — cùng khoá + miền Android.
         Spec(key: BuddyPlacement.sizeKey, kind: .int(BuddyPlacement.defaultSize, BuddyPlacement.sizeRange)),
         Spec(key: BuddyPlacement.padRightKey, kind: .int(0, BuddyPlacement.padRange)),

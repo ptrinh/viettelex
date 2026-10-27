@@ -939,7 +939,7 @@ enum BuddyWords {
         if BuddyBirthday.trigger(word: word, prev: prev) { return .cake }
         if ["🦁", "🥁", "💐", "🌷", "🌹", "🌕", "👻"].contains(word),
            let r = newHoliday(word: word, prev: prev, prev2: prev2, prev3: prev3, season: season) { return r }
-        if word == "🌕" || word == "👻" { return nil }
+        // Ngoài mùa: 🌕 / 👻 vẫn là emoji bánh trung thu / kẹo (nhóm BuddyWords.emoji) như các emoji lễ khác.
         if let direct = emoji(word) { return direct }
         let w = clean(word)
         guard !w.isEmpty, w.count <= 24 else { return nil }
@@ -1338,8 +1338,8 @@ extension BuddyRig {
     }
     private static func E(_ part: BuddyPart, _ cx: Double, _ cy: Double, _ rx: Double, _ ry: Double, fill: UInt32,
                           stroke: BuddyPiece.Stroke = .outline, alpha: Double = 1,
-                          turn: (Double, Double, Double)? = nil) -> BuddyPiece {
-        BuddyPiece(part, .ellipse(cx, cy, rx, ry), fill: fill, alpha: alpha, stroke: stroke, turn: turn)
+                          show: BuddyPiece.Show = .always, turn: (Double, Double, Double)? = nil) -> BuddyPiece {
+        BuddyPiece(part, .ellipse(cx, cy, rx, ry), fill: fill, alpha: alpha, stroke: stroke, show: show, turn: turn)
     }
     private static func R(_ part: BuddyPart, _ x: Double, _ y: Double, _ w: Double, _ h: Double, _ r: Double,
                           fill: UInt32, turn: (Double, Double, Double)? = nil) -> BuddyPiece {
@@ -1613,10 +1613,10 @@ extension BuddyRig {
             P(.head, "M-36 -15 L-37 -55 Q-23 -53 -12 -34 Q0 -39 12 -34 Q23 -53 37 -55 L36 -15 Q44 3 33 22 Q19 40 0 40 Q-20 40 -34 22 Q-44 2 -36 -15 Z", fill: 0xE99B58, stroke: .outline, width: 3.2),
             P(.head, "M-34 15 Q-28 38 0 40 Q28 39 34 15 Q19 23 13 14 Q0 24 -13 14 Q-19 23 -34 15 Z", fill: 0xFFF2D7, stroke: .none, width: 0),
             P(.head, "M-33 -48 L-29 -22 Q-24 -30 -20 -36 Z M33 -48 L29 -22 Q24 -30 20 -36 Z", fill: 0xD87570, stroke: .none, width: 0),
-            E(.head, -15, -5, 5, 7, fill: 0x352B2B, stroke: .ink),
-            E(.head, 15, -5, 5, 7, fill: 0x352B2B, stroke: .ink),
-            E(.head, -16, -8, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
-            E(.head, 14, -8, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            E(.head, -15, -5, 5, 7, fill: 0x352B2B, stroke: .ink, show: .rest),
+            E(.head, 15, -5, 5, 7, fill: 0x352B2B, stroke: .ink, show: .rest),
+            E(.head, -16, -8, 1.8, 2, fill: 0xFFFFFF, stroke: .none, show: .rest),
+            E(.head, 14, -8, 1.8, 2, fill: 0xFFFFFF, stroke: .none, show: .rest),
             P(.head, "M-20 -5 q5 -7 10 0 M10 -5 q5 -7 10 0", stroke: .ink, width: 2.6, show: .dance),
             E(.head, -29, 17, 7, 3, fill: 0xF2A1A1, stroke: .none),
             E(.head, 29, 17, 7, 3, fill: 0xF2A1A1, stroke: .none),
@@ -1654,10 +1654,10 @@ extension BuddyRig {
             P(.head, "M-37 17 Q-44 -10 -27 -29 Q-11 -47 9 -42 Q34 -37 40 -10 Q46 17 26 34 Q0 47 -28 32 Q-35 27 -37 17 Z", fill: 0xFFF8EE, stroke: .outline, width: 3.2),
             P(.head, "M-28 -31 Q-9 -53 12 -41 Q27 -36 30 -22 Q14 -28 11 -16 Q-7 -12 -16 -22 Z", fill: 0xED7450, stroke: .none, width: 0),
             P(.head, "M20 30 Q35 21 40 4 Q45 33 17 38 Q-8 47 -28 32 Q0 40 20 30 Z", fill: 0xE9E0DB, stroke: .none, width: 0),
-            E(.head, -19, -4, 5, 7, fill: 0x352B2B, stroke: .ink),
-            E(.head, 19, -4, 5, 7, fill: 0x352B2B, stroke: .ink),
-            E(.head, -20, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
-            E(.head, 18, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            E(.head, -19, -4, 5, 7, fill: 0x352B2B, stroke: .ink, show: .rest),
+            E(.head, 19, -4, 5, 7, fill: 0x352B2B, stroke: .ink, show: .rest),
+            E(.head, -20, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none, show: .rest),
+            E(.head, 18, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none, show: .rest),
             P(.head, "M-24 -4 q5 -7 10 0 M14 -4 q5 -7 10 0", stroke: .ink, width: 2.6, show: .dance),
             E(.head, -31, 13, 6, 3, fill: 0xF4ABA4, stroke: .none),
             E(.head, 31, 13, 6, 3, fill: 0xF4ABA4, stroke: .none),
@@ -1695,11 +1695,11 @@ extension BuddyRig {
             P(.head, "M25 17 Q12 37 -12 34 Q-30 29 -37 11 Q-32 37 0 40 Q32 37 36 10 Z", fill: 0xE6E1DF, stroke: .none, width: 0),
             E(.head, -17, -2, 13, 16, fill: 0x333238, stroke: .none),
             E(.head, 17, -2, 13, 16, fill: 0x333238, stroke: .none),
-            E(.head, -17, -1, 5, 7, fill: 0x352B2B, stroke: .ink),
-            E(.head, 17, -1, 5, 7, fill: 0x352B2B, stroke: .ink),
-            E(.head, -18, -4, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
-            E(.head, 16, -4, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
-            P(.head, "M-22 -1 q5 -7 10 0 M12 -1 q5 -7 10 0", stroke: .ink, width: 2.6, show: .dance),
+            E(.head, -17, -1, 5, 7, fill: 0x352B2B, stroke: .ink, show: .rest),
+            E(.head, 17, -1, 5, 7, fill: 0x352B2B, stroke: .ink, show: .rest),
+            E(.head, -18, -4, 1.8, 2, fill: 0xFFFFFF, stroke: .none, show: .rest),
+            E(.head, 16, -4, 1.8, 2, fill: 0xFFFFFF, stroke: .none, show: .rest),
+            P(.head, "M-22 -1 q5 -7 10 0 M12 -1 q5 -7 10 0", stroke: .color(0xFFFFFF), width: 2.6, show: .dance),
             E(.head, -30, 19, 6, 3, fill: 0xF4B6B8, stroke: .none),
             E(.head, 30, 19, 6, 3, fill: 0xF4B6B8, stroke: .none),
             P(.head, "M-7 16 Q0 12 7 16 Q5 23 0 23 Q-5 23 -7 16 Z", fill: 0x333238, stroke: .ink, width: 1.5),
@@ -1736,10 +1736,10 @@ extension BuddyRig {
             P(.head, "M-37 -19 L-45 -45 Q-32 -50 -20 -32 Q0 -43 20 -32 Q32 -50 45 -45 L37 -19 Q44 10 29 30 Q0 47 -29 30 Q-44 10 -37 -19 Z", fill: 0xFFC5CF, stroke: .outline, width: 3.2),
             P(.head, "M-41 -42 Q-30 -44 -25 -30 L-35 -27 Z M41 -42 Q30 -44 25 -30 L35 -27 Z", fill: 0xF08FA6, stroke: .none, width: 0),
             P(.head, "M29 18 Q13 36 -12 34 Q-31 30 -37 13 Q-33 39 0 41 Q32 39 37 13 Z", fill: 0xF2A6B7, stroke: .none, width: 0),
-            E(.head, -15, -8, 5, 7, fill: 0x352B2B, stroke: .ink),
-            E(.head, 15, -8, 5, 7, fill: 0x352B2B, stroke: .ink),
-            E(.head, -16, -11, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
-            E(.head, 14, -11, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            E(.head, -15, -8, 5, 7, fill: 0x352B2B, stroke: .ink, show: .rest),
+            E(.head, 15, -8, 5, 7, fill: 0x352B2B, stroke: .ink, show: .rest),
+            E(.head, -16, -11, 1.8, 2, fill: 0xFFFFFF, stroke: .none, show: .rest),
+            E(.head, 14, -11, 1.8, 2, fill: 0xFFFFFF, stroke: .none, show: .rest),
             P(.head, "M-20 -8 q5 -7 10 0 M10 -8 q5 -7 10 0", stroke: .ink, width: 2.6, show: .dance),
             E(.head, -29, 13, 7, 3, fill: 0xEF8EA5, stroke: .none),
             E(.head, 29, 13, 7, 3, fill: 0xEF8EA5, stroke: .none),
@@ -1780,10 +1780,10 @@ extension BuddyRig {
             P(.head, "M-28 -39 L-31 -58 Q-23 -63 -16 -39 M28 -39 L31 -58 Q23 -63 16 -39", fill: 0xFFE4A1, stroke: .outline, width: 3.2),
             P(.head, "M-17 -42 L-12 -51 L-5 -42 L0 -55 L7 -42 L13 -48 L18 -38", fill: 0xF5CE80, stroke: .none, width: 0),
             P(.head, "M30 15 Q12 36 -10 33 Q-29 30 -38 14 Q-31 40 0 40 Q32 38 38 12 Z", fill: 0x329B93, stroke: .none, width: 0),
-            E(.head, -15, -4, 5, 7, fill: 0x352B2B, stroke: .ink),
-            E(.head, 15, -4, 5, 7, fill: 0x352B2B, stroke: .ink),
-            E(.head, -16, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
-            E(.head, 14, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            E(.head, -15, -4, 5, 7, fill: 0x352B2B, stroke: .ink, show: .rest),
+            E(.head, 15, -4, 5, 7, fill: 0x352B2B, stroke: .ink, show: .rest),
+            E(.head, -16, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none, show: .rest),
+            E(.head, 14, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none, show: .rest),
             P(.head, "M-20 -4 q5 -7 10 0 M10 -4 q5 -7 10 0", stroke: .ink, width: 2.6, show: .dance),
             E(.head, -28, 15, 6, 3, fill: 0xF0A6A0, stroke: .none),
             E(.head, 28, 15, 6, 3, fill: 0xF0A6A0, stroke: .none),
@@ -1866,10 +1866,10 @@ extension BuddyRig {
             P(.head, "M-39 -12 Q-37 -43 0 -43 Q37 -43 39 -12 Q42 18 25 32 Q0 45 -25 32 Q-42 18 -39 -12 Z", fill: 0xFFF7ED, stroke: .outline, width: 3.2),
             P(.head, "M-37 8 Q-27 33 0 39 Q27 33 37 8 Q33 37 0 40 Q-33 37 -37 8 Z", fill: 0xE5DCD5, stroke: .none, width: 0),
             P(.head, "M-34 -22 Q-28 -43 0 -43 Q26 -43 34 -22 Q15 -34 4 -25 Q-10 -37 -34 -22 Z", fill: 0xFFFFFF, stroke: .none, width: 0),
-            E(.head, -17, -4, 5, 7, fill: 0x352B2B, stroke: .ink),
-            E(.head, 17, -4, 5, 7, fill: 0x352B2B, stroke: .ink),
-            E(.head, -18, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
-            E(.head, 16, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none),
+            E(.head, -17, -4, 5, 7, fill: 0x352B2B, stroke: .ink, show: .rest),
+            E(.head, 17, -4, 5, 7, fill: 0x352B2B, stroke: .ink, show: .rest),
+            E(.head, -18, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none, show: .rest),
+            E(.head, 16, -7, 1.8, 2, fill: 0xFFFFFF, stroke: .none, show: .rest),
             P(.head, "M-22 -4 q5 -7 10 0 M12 -4 q5 -7 10 0", stroke: .ink, width: 2.6, show: .dance),
             E(.head, -30, 15, 6, 3, fill: 0xEAB0A0, stroke: .none),
             E(.head, 30, 15, 6, 3, fill: 0xEAB0A0, stroke: .none),
@@ -2107,6 +2107,16 @@ enum BuddyAccessory {
         let k = size / 32
         func f(_ v: Double) -> String { String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), v) }
         return art.map { p in
+            // Hình cơ bản (tròn / elip / chữ nhật bo) cũng dời + co theo neo — trước đây giữ nguyên ⇒ nằm sai chỗ.
+            switch p.shape {
+            case .circle(let cx, let cy, let r):
+                return BuddyPiece(part, .circle(x + cx * k, y + cy * k, r * k), fill: p.fill, alpha: p.alpha, stroke: p.stroke, width: p.width)
+            case .ellipse(let cx, let cy, let rx, let ry):
+                return BuddyPiece(part, .ellipse(x + cx * k, y + cy * k, rx * k, ry * k), fill: p.fill, alpha: p.alpha, stroke: p.stroke, width: p.width)
+            case .rrect(let rx, let ry, let w, let h, let r):
+                return BuddyPiece(part, .rrect(x + rx * k, y + ry * k, w * k, h * k, r * k), fill: p.fill, alpha: p.alpha, stroke: p.stroke, width: p.width)
+            case .path: break
+            }
             guard case .path(let d) = p.shape else { return p }
             let path = BuddySVG.parse(d).map { cmd -> String in
                 switch cmd {

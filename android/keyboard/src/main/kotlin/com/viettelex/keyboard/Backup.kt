@@ -106,6 +106,7 @@ object BackupSettings {
         Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.PIG), SettingKind.BuddyName),
         Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.DRAGON), SettingKind.BuddyName),
         Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.EAGLE), SettingKind.BuddyName),
+        Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.ROBOT), SettingKind.BuddyName),
         // Kiểu vẽ riêng từng nhân vật ([BuddyStyle]: Hoạt hình / Vẽ nét) — cùng khoá + id iOS; lạ ⇒ bỏ qua.
         Spec(BuddyStyle.key(BuddyCharacter.GIRL), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
         Spec(BuddyStyle.key(BuddyCharacter.BOY), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
@@ -117,6 +118,7 @@ object BackupSettings {
         Spec(BuddyStyle.key(BuddyCharacter.PIG), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
         Spec(BuddyStyle.key(BuddyCharacter.DRAGON), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
         Spec(BuddyStyle.key(BuddyCharacter.EAGLE), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
+        Spec(BuddyStyle.key(BuddyCharacter.ROBOT), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
         // Vị trí & cỡ ([BuddyPlacement], chung mọi nhân vật) — cùng khoá + miền iOS.
         Spec(Keys.BUDDY_SIZE, SettingKind.IntRange(BuddyPlacement.DEFAULT_SIZE, BuddyPlacement.SIZE_RANGE)),
         Spec(Keys.BUDDY_PAD_RIGHT, SettingKind.IntRange(0, BuddyPlacement.PAD_RANGE)),

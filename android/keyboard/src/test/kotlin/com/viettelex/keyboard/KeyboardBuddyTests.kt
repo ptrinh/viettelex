@@ -119,10 +119,11 @@ class KeyboardBuddyTests {
         // Bật thu phí, chưa mua ⇒ khoá; mua ⇒ mở.
         PlusGate.paywallEnabled = true
         PlusGate.install({ null }, debugBuild = false)
-        assertFalse(BuddyGate.allows(BuddyCharacter.CAT))
-        assertEquals(BuddyCharacter.OFF, BuddyPolicy.active(BuddyCharacter.CAT, BuddyGate.allows(BuddyCharacter.CAT)))
+        assertFalse(BuddyGate.allows(BuddyCharacter.GIRL))
+        assertEquals(BuddyCharacter.OFF, BuddyPolicy.active(BuddyCharacter.GIRL, BuddyGate.allows(BuddyCharacter.GIRL)))
+        assertTrue("Mèo miễn phí", BuddyGate.allows(BuddyCharacter.CAT))
         PlusGate.install({ if (it == Keys.PLUS_UNLOCKED) true else null }, debugBuild = false)
-        assertTrue(BuddyGate.allows(BuddyCharacter.CAT))
+        assertTrue(BuddyGate.allows(BuddyCharacter.GIRL))
     }
 
     // MARK: bậc
@@ -229,7 +230,7 @@ class KeyboardBuddyTests {
     /** Bảng hình giống hệt iOS (KeyboardBuddyTests.checksums). */
     @Test fun rigChecksumParity() {
         val sums = BuddyCharacter.entries.map { String.format(Locale.US, "%.4f", BuddyRig.checksum(it)) }
-        assertEquals(listOf("0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220", "15269.7078", "14816.0100", "12385.2865", "14587.2357", "12839.3196", "16368.4397", "14471.9114"), sums)
+        assertEquals(listOf("0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220", "15289.7078", "14836.0100", "12662.2864", "14607.2357", "12859.3196", "16388.4397", "14471.9114"), sums)
     }
 
     /** = iOS testMirroredFramesDoublePoses: lật gương khung có sẵn để gấp đôi dáng. */
@@ -629,13 +630,15 @@ class KeyboardBuddyTests {
         assertEquals(0x808080, BuddyHalo.opaque(0x00808080, false).let { BuddyHalo.opaque(0xFF808080.toInt(), false) })
     }
 
-    /** = iOS testLimbsAreFilledAndThickEnough: chi là hình tô (viền + ruột màu), ≥ 2,5 dp ở cỡ thanh ~38 dp. */
+    /** = iOS testLimbsAreFilledAndThickEnough: chi là hình tô (viền + ruột màu), ống tô + viền ≥ 1,8 dp ở cỡ thanh ~38 dp (khung v3: chân cô gái thon ≈ 1,9 dp); koi không chân. */
     @Test fun limbsAreFilledAndThickEnough() {
         for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
             val r = BuddyRig.rig(c)!!
             val pt = 38 / r.full.h
             for (part in listOf(BuddyPart.LEG_L, BuddyPart.LEG_R, BuddyPart.ARM_L, BuddyPart.ARM_R)) {
                 val ps = r.pieces.filter { it.part == part }
+                if (c == BuddyCharacter.KOI && (part == BuddyPart.LEG_L || part == BuddyPart.LEG_R)) { assertTrue(ps.isEmpty()); continue }
+                assertTrue("$c thiếu $part", ps.isNotEmpty())
                 for (p in ps) if (p.fill == null && p.stroke === Stroke.Outline) {
                     val d = (p.shape as? Shape.Path)?.d ?: continue
                     assertTrue("$c $part: nét đậm trơn $d", ps.any { q -> (q.shape as? Shape.Path)?.d == d && q.stroke is Stroke.Color })
@@ -646,10 +649,12 @@ class KeyboardBuddyTests {
                     else (p.shape as? Shape.Path)?.let { sh ->
                         val n = BuddySVG.numbers(sh.d)
                         val xs = n.filterIndexed { i, _ -> i % 2 == 0 }; val ys = n.filterIndexed { i, _ -> i % 2 == 1 }
-                        if (ys.max() - ys.min() > 30) thick = max(thick, min(xs.max() - xs.min(), ys.max() - ys.min()) * 0.6)
+                        // ống quần: bề ngang trung bình ≈ 0,6 hộp, + viền nếu có
+                        if (ys.max() - ys.min() > 20) thick = max(thick, min(xs.max() - xs.min(), ys.max() - ys.min()) * 0.6 +
+                            (if (p.stroke === Stroke.None) 0.0 else p.width))
                     }
                 }
-                assertTrue("$c $part: ${thick * pt} dp", thick * pt >= 2.5)
+                assertTrue("$c $part: ${thick * pt} dp", thick * pt >= 1.8)
             }
         }
     }
@@ -783,10 +788,10 @@ class KeyboardBuddyTests {
         assertEquals(BuddyReaction.BOUQUET, BuddyWords.reaction("💐", null, season = BuddySeason.WOMENS_DAY))
         assertEquals(BuddyReaction.BANH_CHUNG, BuddyWords.reaction("chưng", "bánh", season = BuddySeason.TET))
         assertEquals(BuddyReaction.MOON_GAZE, BuddyWords.reaction("🌕", null, season = BuddySeason.MID_AUTUMN))
-        assertEquals(null, BuddyWords.reaction("🌕", null, season = null))
+        assertEquals(BuddyReaction.MOONCAKE, BuddyWords.reaction("🌕", null, season = null))
         assertEquals(BuddyReaction.BELL, BuddyWords.reaction("noel", null, season = BuddySeason.CHRISTMAS))
         assertEquals(BuddyReaction.BOO, BuddyWords.reaction("ma", null, season = BuddySeason.HALLOWEEN))
-        assertEquals(null, BuddyWords.reaction("👻", null, season = null))
+        assertEquals(BuddyReaction.CANDY, BuddyWords.reaction("👻", null, season = null))
         assertEquals(null, BuddyWords.newHoliday("ma", null, null, null, null))
         assertEquals(BuddyReaction.ROSE, BuddyWords.reaction("valentine", null, season = BuddySeason.VALENTINE))
         assertTrue(BuddyHolidayClock.fireworks(2027, 2, 6, 0, 15))
