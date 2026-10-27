@@ -9,8 +9,12 @@
 //   trục vượt ngưỡng nhiều hơn, trục kia giữ tích luỹ, phát ở sự kiện sau.
 //   (Bản cũ khoá trục: mỗi bước ngang xoá dy tích luỹ ⇒ kéo chéo / kéo dọc hơi lệch
 //   gần như không bao giờ lên xuống dòng.)
-// • Tăng tốc: tốc độ (EMA, pt/s) theo trục; ≤ slow ⇒ ×1 (chính xác từng ký tự/dòng),
-//   ≥ fast ⇒ ×max, giữa nội suy tuyến tính. Ngang 300→1500 pt/s, ×5; dọc 200→1000, ×3.
+// • Tăng tốc (như con trỏ chuột / trackpad Apple): QUÃNG kéo nhân hệ số theo tốc độ (EMA,
+//   pt/s) TRƯỚC khi cộng dồn — ≤ slow ⇒ ×1 (chính xác từng ký tự/dòng), ≥ fast ⇒ ×max, giữa
+//   nội suy tuyến tính. Ngang 120→900 pt/s, ×5; dọc 120→700, ×3.
+//   (Bản cũ nhân SỐ BƯỚC đã làm tròn: bước thường chỉ 1 ô ⇒ hệ số < 1,5 làm tròn về ×1 — dưới
+//   ~430 pt/s, tức gần như mọi cú kéo thường, không hề tăng tốc; ngưỡng 300 pt/s cũng quá cao.
+//   Tester 28/10/2026: "tốc độ trỏ vẫn chưa nhanh lắm".)
 import Foundation
 
 struct TrackpadGesture {
@@ -23,8 +27,8 @@ struct TrackpadGesture {
     static let offAxis = 0.4
     /// Trọng số sự kiện mới trong EMA hướng kéo.
     static let dirAlpha = 0.3
-    static let hSlow = 300.0, hFast = 1500.0, hMax = 5.0
-    static let vSlow = 200.0, vFast = 1000.0, vMax = 3.0
+    static let hSlow = 120.0, hFast = 900.0, hMax = 5.0
+    static let vSlow = 120.0, vFast = 700.0, vMax = 3.0
     static let ema = 0.5, minDt = 1.0 / 240, pause = 0.1
 
     private var accX = 0.0, accY = 0.0
@@ -52,8 +56,13 @@ struct TrackpadGesture {
         dirX = Self.dirAlpha * dx + (1 - Self.dirAlpha) * dirX
         dirY = Self.dirAlpha * dy + (1 - Self.dirAlpha) * dirY
         let hx = abs(dirX), hy = abs(dirY)
-        if hy >= Self.offAxis * hx { accY += dy }            // không gần-ngang ⇒ tính dọc
-        if hx >= Self.offAxis * hy { accX += dx }            // không gần-dọc ⇒ tính ngang
+        // Quãng đã tăng tốc (giữ phần lẻ giữa các sự kiện — không mất tốc độ vì làm tròn).
+        if hy >= Self.offAxis * hx {                         // không gần-ngang ⇒ tính dọc
+            accY += dy * Self.gain(speedY, slow: Self.vSlow, fast: Self.vFast, max: Self.vMax)
+        }
+        if hx >= Self.offAxis * hy {                         // không gần-dọc ⇒ tính ngang
+            accX += dx * Self.gain(speedX, slow: Self.hSlow, fast: Self.hFast, max: Self.hMax)
+        }
         let rx = abs(accX) / Self.hStep, ry = abs(accY) / Self.vStep
         if rx < 1 && ry < 1 { return nil }
         return ry >= rx ? emitV() : emitH()
@@ -62,26 +71,30 @@ struct TrackpadGesture {
     private mutating func emitH() -> Step {
         let units = Int(accX / Self.hStep)
         accX -= Double(units) * Self.hStep
-        return Step(axis: .horizontal,
-                    count: Self.accelerate(units, speed: speedX, slow: Self.hSlow, fast: Self.hFast, max: Self.hMax))
+        return Step(axis: .horizontal, count: units)
     }
 
     private mutating func emitV() -> Step {
         let lines = Int(accY / Self.vStep)
         accY -= Double(lines) * Self.vStep
-        return Step(axis: .vertical,
-                    count: Self.accelerate(lines, speed: speedY, slow: Self.vSlow, fast: Self.vFast, max: Self.vMax))
+        return Step(axis: .vertical, count: lines)
     }
 
-    /// `units` bước thô ⇒ bước đã tăng tốc theo `speed`. Chậm ⇒ nguyên `units`.
-    static func accelerate(_ units: Int, speed: Double, slow: Double, fast: Double, max m: Double) -> Int {
-        guard units != 0 else { return 0 }
-        let f: Double
-        if speed <= slow { f = 1 }
-        else if speed >= fast { f = m }
-        else { f = 1 + (m - 1) * (speed - slow) / (fast - slow) }
-        let n = Swift.max(1, Int((Double(abs(units)) * f).rounded()))
-        return units < 0 ? -n : n
+    /// Hệ số nhân quãng kéo theo tốc độ: ≤ slow ⇒ 1, ≥ fast ⇒ max, giữa tuyến tính.
+    static func gain(_ speed: Double, slow: Double, fast: Double, max m: Double) -> Double {
+        if speed <= slow { return 1 }
+        if speed >= fast { return m }
+        return 1 + (m - 1) * (speed - slow) / (fast - slow)
+    }
+}
+
+/// Ngón chạm thêm trong lúc trackpad (THUẦN — cùng luật với Android `TrackpadTouch`).
+/// Bàn phím Apple: ngón thứ hai ⇒ chọn chữ. Android làm được (InputConnection.setSelection);
+/// iOS thì không (UITextDocumentProxy không có API đặt vùng chọn) ⇒ chỉ nuốt ngón đó.
+enum TrackpadTouch {
+    /// true ⇒ ngón mới thuộc trackpad: không gõ phím dưới ngón đó.
+    static func swallows(trackpadActive: Bool, isTrackpadFinger: Bool) -> Bool {
+        trackpadActive && !isTrackpadFinger
     }
 }
 

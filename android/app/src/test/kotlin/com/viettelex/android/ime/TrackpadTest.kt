@@ -23,10 +23,10 @@ class TrackpadTest {
     }
 
     @Test fun fastHorizontalAccelerates() {
-        // 30 dp mỗi 16 ms ≈ 1875 dp/s ⇒ ×5.
+        // 30 dp mỗi 16 ms ≈ 1875 dp/s ⇒ ×5 (EMA ≥ 900 ngay sự kiện đầu): 150 dp = 25 ô mỗi sự kiện.
         val steps = drag((1..6).map { it * 30f to 0f }, 16)
         assertEquals(Axis.H, steps.last().axis)
-        assertEquals(25, steps.last().count)            // 5 ô (30 dp / 6) × 5
+        assertEquals(25, steps.last().count)
         assertTrue(steps.sumOf { it.count } > 180 / 6)
     }
 
@@ -57,9 +57,8 @@ class TrackpadTest {
     @Test fun upIsNegativeAndFastVerticalAccelerates() {
         val slow = drag((1..6).map { 0f to -it * 4f }, 60)
         assertEquals(-1, slow.sumOf { it.count })
-        val fast = drag((1..4).map { 0f to it * 30f }, 16)   // ~1875 dp/s ⇒ ×3
-        assertEquals(Axis.V, fast.last().axis)
-        assertEquals(6, fast.last().count)                    // 2 dòng (dư cộng dồn) × 3
+        val fast = drag((1..4).map { 0f to it * 30f }, 16)   // ~1875 dp/s ⇒ ×3: 90 dp/sự kiện
+        assertEquals(listOf(3, 4, 4, 4), fast.map { it.count })   // 360 dp ⇒ 15 dòng
     }
 
     private fun List<TrackpadGesture.Step>.sum(axis: Axis) = filter { it.axis == axis }.sumOf { it.count }
@@ -98,12 +97,42 @@ class TrackpadTest {
         assertEquals(TrackpadGesture.Step(Axis.H, 1), g.move(16f, 30f, 500))
     }
 
-    @Test fun accelerateCurve() {
-        assertEquals(3, TrackpadGesture.accelerate(3, 100.0, 300.0, 1500.0, 5.0))
-        assertEquals(-2, TrackpadGesture.accelerate(-2, 300.0, 300.0, 1500.0, 5.0))
-        assertEquals(3, TrackpadGesture.accelerate(1, 900.0, 300.0, 1500.0, 5.0))   // ×3 giữa đường
-        assertEquals(-5, TrackpadGesture.accelerate(-1, 9999.0, 300.0, 1500.0, 5.0))
-        assertEquals(0, TrackpadGesture.accelerate(0, 9999.0, 300.0, 1500.0, 5.0))
+    /** Ngón thứ hai lúc trackpad ⇒ chọn chữ, không gõ phím; ngoài trackpad / chính ngón trackpad ⇒ không. */
+    @Test fun secondFingerDuringTrackpadSelects() {
+        assertTrue(TrackpadTouch.swallows(trackpadActive = true, isTrackpadFinger = false))
+        assertTrue(!TrackpadTouch.swallows(trackpadActive = true, isTrackpadFinger = true))
+        assertTrue(!TrackpadTouch.swallows(trackpadActive = false, isTrackpadFinger = false))
+    }
+
+    @Test fun gainCurve() {
+        val g = { v: Double -> TrackpadGesture.gain(v, 120.0, 900.0, 5.0) }
+        assertEquals(1.0, g(60.0), 0.0)
+        assertEquals(1.0, g(120.0), 0.0)
+        assertEquals(3.0, g(510.0), 1e-9)
+        assertEquals(5.0, g(900.0), 0.0)
+        assertEquals(5.0, g(9999.0), 0.0)
+    }
+
+    /**
+     * Hồi quy "tốc độ trỏ vẫn chưa nhanh" (28/10/2026): kéo VỪA (~400 dp/s) phải nhanh hơn
+     * 6 dp/ký tự. Bản cũ nhân số bước đã làm tròn ⇒ 1 ô × 1,3 = 1 ⇒ không tăng tốc.
+     */
+    @Test fun moderateSpeedAccelerates() {
+        val n = drag((1..20).map { it * 8f to 0f }, 20).sum(Axis.H)   // 400 dp/s, 160 dp
+        assertTrue("≥ ×2 ở tốc độ kéo thường: $n", n > 160 / 6 * 2)
+        assertTrue(n < 160 / 6 * 5)
+    }
+
+    /** Chậm sau nhanh vẫn chính xác: dưới 120 dp/s đúng 6 dp/ký tự. */
+    @Test fun slowAfterFastIsPreciseAgain() {
+        val g = TrackpadGesture()
+        g.begin(0f, 0f, 0)
+        var x = 0f; var t = 0L
+        repeat(10) { x += 30f; t += 16; g.move(x, 0f, t) }
+        t += 300
+        var slow = 0
+        repeat(20) { x += 3f; t += 50; slow += g.move(x, 0f, t)?.count ?: 0 }
+        assertTrue("$slow", slow in 9..11)
     }
 
     // --- VerticalMove.offset ---
