@@ -31,6 +31,8 @@ enum AppFlavor {
     static let vietnameseInput = true
     /// Bàn phím đếm số phím đã gõ vào App Group (`KeystrokeCounter`) — chỉ con số, không nội dung.
     static let countsKeystrokes = false
+    /// Logo của app mờ ở góc phải phím cách (ảnh SpaceLogo*, người dùng tắt được bằng `showSpaceLogo`).
+    static let spaceBarLogo = true
 
     // Bạn đồng hành (KeyboardBuddy.swift). Id = BuddyCharacter.rawValue.
     /// Nhân vật khi người dùng chưa chọn ("off" = tắt).

@@ -4878,8 +4878,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // PNG 2x/3x render từ MenuIcon.pdf nên sắc nét, tint theo appearance.
         // Ẩn được qua Settings của app (showSpaceLogo, App Group).
         // Bật vuốt đổi ngôn ngữ ⇒ mã "VI"/"EN" nhỏ góc dưới-phải như stock (SpaceMark).
-        let showLogo = UserDefaultsProvider.shared?.object(forKey: "showSpaceLogo") == nil
-            || UserDefaultsProvider.shared?.bool(forKey: "showSpaceLogo") == true
+        let showLogo = AppFlavor.spaceBarLogo && (UserDefaultsProvider.shared?.object(forKey: "showSpaceLogo") == nil
+            || UserDefaultsProvider.shared?.bool(forKey: "showSpaceLogo") == true)
         if spaceLogo?.superview === space { spaceLogo?.removeFromSuperview() }
         if spaceCode?.superview === space { spaceCode?.removeFromSuperview() }
         spaceLogo = nil; spaceCode = nil
