@@ -1,0 +1,18 @@
+assets/companion/previews/rig-v3/r5/robot.svg.png — Robot awake and asleep on dark and light backgrounds
+assets/companion/previews/rig-v3/r5/robot-seasons.svg.png — Robot with all four seasonal costumes on both backgrounds
+assets/companion/previews/rig-v3/r5/girl-robot.svg.png — girl: six frames of robot
+assets/companion/previews/rig-v3/r5/girl-fanShake.svg.png — girl: six frames of fanShake
+assets/companion/previews/rig-v3/r5/girl-floss.svg.png — girl: six frames of floss
+assets/companion/previews/rig-v3/r5/robot-robot.svg.png — robot: six frames of robot
+assets/companion/previews/rig-v3/r5/robot-fanShake.svg.png — robot: six frames of fanShake
+assets/companion/previews/rig-v3/r5/robot-floss.svg.png — robot: six frames of floss
+assets/companion/previews/rig-v3/r5/holidays/tet-wish.svg.png — Tết · vái chúc Tết
+assets/companion/previews/rig-v3/r5/holidays/tet-lion.svg.png — Tết · múa lân
+assets/companion/previews/rig-v3/r5/holidays/fireworks.svg.png — Giao thừa · fireworks
+assets/companion/previews/rig-v3/r5/holidays/womens-days.svg.png — 8/3 & 20/10 · bouquet
+assets/companion/previews/rig-v3/r5/holidays/tet-extras.svg.png — Tết · petals & bánh chưng
+assets/companion/previews/rig-v3/r5/holidays/mid-autumn.svg.png — Trung Thu · lantern & moon
+assets/companion/previews/rig-v3/r5/holidays/christmas.svg.png — Christmas · snow & bell
+assets/companion/previews/rig-v3/r5/holidays/halloween.svg.png — Halloween · boo
+assets/companion/previews/rig-v3/r5/holidays/valentine.svg.png — Valentine · rose
+assets/companion/previews/rig-v3/r5/holidays/childrens-day.svg.png — 1/6 · balloon

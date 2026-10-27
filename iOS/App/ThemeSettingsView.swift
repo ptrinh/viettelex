@@ -47,6 +47,9 @@ struct ThemeSettingsView: View {
     @AppStorage(KeyEffect.key, store: groupDefaults) private var keyEffectRaw = KeyEffect.defaultValue.rawValue
     /// "Bạn đồng hành" (Plus, BuddyCharacter) — trang con BuddyPickerView.
     @AppStorage(BuddyCharacter.key, store: groupDefaults) private var buddyRaw = BuddyCharacter.defaultValue.rawValue
+    @State private var buddyNameSummary = ""
+    /// Đã mở trang "Bạn đồng hành" ⇒ nhãn HOT thôi nhún (vẫn hiện).
+    @AppStorage("buddyPageSeen") private var buddyPageSeen = false
     /// Thống kê Đập chuột (bàn phím ghi) — đọc lại mỗi lần trang hiện.
     @State private var moleStats = MoleStats.load(groupDefaults)
 
@@ -161,15 +164,20 @@ struct ThemeSettingsView: View {
                 }
                 // "Bạn đồng hành" (Plus, KeyboardBuddy) — mục riêng, mặc định Tắt.
                 NavigationLink {
-                    BuddyPickerView()
+                    BuddyPickerView().onAppear { buddyPageSeen = true }
+                        .onDisappear { buddyNameSummary = BuddyName.clean(groupDefaults?.string(forKey: BuddyName.key(BuddyCharacter.parse(buddyRaw))) ?? "") }
                 } label: {
                     HStack(spacing: 6) {
                         Text(L("Bạn đồng hành"))
+                        HotBadge(animated: !buddyPageSeen)
                         if !BuddyGate.allows { plusBadge }
                         Spacer()
-                        Text(BuddyGate.allows ? BuddyCharacter.parse(buddyRaw).title : BuddyCharacter.off.title)
+                        Text(BuddyPolicy.active(setting: BuddyCharacter.parse(buddyRaw),
+                                                plus: BuddyGate.allows(BuddyCharacter.parse(buddyRaw))).title
+                             + (buddyNameSummary.isEmpty ? "" : " · " + buddyNameSummary))
                             .foregroundStyle(.secondary).lineLimit(1)
                     }
+                    .onAppear { buddyNameSummary = BuddyName.clean(groupDefaults?.string(forKey: BuddyName.key(BuddyCharacter.parse(buddyRaw))) ?? "") }
                 }
             }
 
@@ -767,5 +775,28 @@ struct MoleStatsCard: View {
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Nhãn "HOT" (mục mới cần gây chú ý): viên đỏ-cam, nhún + loé sáng nhẹ tới khi user mở trang lần đầu;
+/// Giảm chuyển động ⇒ đứng yên.
+struct HotBadge: View {
+    var animated = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
+
+    var body: some View {
+        let on = animated && !reduceMotion
+        Text("HOT").font(.caption2.weight(.heavy))
+            .padding(.horizontal, 5).padding(.vertical, 1)
+            .background(Capsule().fill(LinearGradient(colors: [Color(red: 1, green: 0.23, blue: 0.19), .orange],
+                                                      startPoint: .leading, endPoint: .trailing)))
+            .foregroundStyle(.white)
+            .shadow(color: .orange.opacity(on && pulse ? 0.8 : 0), radius: on && pulse ? 4 : 0)
+            .scaleEffect(on && pulse ? 1.12 : 1)
+            .animation(on ? .easeInOut(duration: 0.7).repeatForever(autoreverses: true) : .default, value: pulse)
+            .onAppear { pulse = on }
+            .onChange(of: on) { v in pulse = v }
+            .accessibilityLabel(L("Mới"))
     }
 }

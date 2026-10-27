@@ -30,12 +30,16 @@ class KeyboardBuddyTests {
     // MARK: cài đặt
 
     @Test fun idsMatchIOSAndDefaultIsOff() {
-        assertEquals(listOf("off", "girl", "boy", "cat", "chick"), BuddyCharacter.IDS.toList())
+        assertEquals(listOf("off", "girl", "boy", "cat", "chick", "shiba", "koi", "panda", "pig", "dragon", "eagle", "robot"), BuddyCharacter.IDS.toList())
+        assertEquals(BuddyCharacter.ROBOT, BuddyCharacter.of("robot"))
+        assertTrue(BuddyCharacter.ROBOT.isPlus)
+        assertEquals(BuddyStyle.VECTOR, BuddyStyle.SPRITE.resolved(BuddyCharacter.ROBOT))
         assertEquals("keyboardBuddy", Keys.KEYBOARD_BUDDY)
         assertEquals(BuddyCharacter.OFF, BuddyCharacter.DEFAULT)
         assertEquals(BuddyCharacter.OFF, BuddyCharacter.of("lạ"))
         assertEquals(BuddyCharacter.OFF, BuddyCharacter.of(null))
         assertEquals(BuddyCharacter.CHICK, BuddyCharacter.of("chick"))
+        for (c in BuddyCharacter.entries.drop(5)) assertEquals(c, BuddyCharacter.of(c.id))
         assertTrue(BackupSettings.all.any { it.key == Keys.KEYBOARD_BUDDY })
     }
 
@@ -44,20 +48,82 @@ class KeyboardBuddyTests {
         assertEquals(BuddyCharacter.CAT, KeyboardSettings.load { if (it == Keys.KEYBOARD_BUDDY) "cat" else null }.buddy)
     }
 
+    /** = iOS testStyleKeysAndDefault: kiểu vẽ riêng từng nhân vật, mặc định Hoạt hình, khoá `buddyStyle.<id>`. */
+    @Test fun styleKeysAndDefault() {
+        assertEquals(listOf("sprite", "vector"), BuddyStyle.IDS.toList())
+        assertEquals(BuddyStyle.SPRITE, BuddyStyle.DEFAULT)
+        assertEquals("buddyStyle.girl", BuddyStyle.key(BuddyCharacter.GIRL))
+        assertEquals("buddyStyle.chick", BuddyStyle.key(BuddyCharacter.CHICK))
+        assertEquals(BuddyStyle.SPRITE, BuddyStyle.of(null))
+        assertEquals(BuddyStyle.SPRITE, BuddyStyle.of("lạ"))
+        assertEquals(BuddyStyle.VECTOR, BuddyStyle.of("vector"))
+        assertEquals(BuddyStyle.SPRITE, KeyboardSettings.load { if (it == Keys.KEYBOARD_BUDDY) "cat" else null }.buddyStyle)
+        val prefs = mapOf(Keys.KEYBOARD_BUDDY to "cat", "buddyStyle.cat" to "vector", "buddyStyle.boy" to "sprite")
+        assertEquals(BuddyStyle.VECTOR, KeyboardSettings.load { prefs[it] }.buddyStyle)
+        assertEquals("riêng từng nhân vật", BuddyStyle.SPRITE,
+            KeyboardSettings.load { (prefs + (Keys.KEYBOARD_BUDDY to "boy"))[it] }.buddyStyle)
+        assertEquals(BuddyStyle.VECTOR, BuddyStyle.SPRITE.resolved(BuddyCharacter.EAGLE))
+        assertEquals(BuddyStyle.VECTOR, KeyboardSettings.load { if (it == Keys.KEYBOARD_BUDDY) "dragon" else null }.buddyStyle)
+        assertTrue(BuddyStyle.hasAtlas(BuddyCharacter.CAT))
+        assertFalse(BuddyStyle.hasAtlas(BuddyCharacter.KOI))
+        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF })
+            assertTrue("sao lưu kiểu vẽ $c", BackupSettings.all.any { it.key == BuddyStyle.key(c) })
+    }
+
+    /** Hoạt hình + mùa lễ ⇒ không trang phục; Vẽ nét + mùa lễ ⇒ trang phục; ngoài mùa ⇒ không. */
+    @Test fun styleSeasonResolution() {
+        assertNull(BuddyStyle.SPRITE.season(BuddySeason.TET))
+        assertNull(BuddyStyle.SPRITE.season(null))
+        assertSame(BuddySeason.CHRISTMAS, BuddyStyle.VECTOR.season(BuddySeason.CHRISTMAS))
+        assertNull(BuddyStyle.VECTOR.season(null))
+        assertTrue(BuddyOutfit.make(BuddyStyle.SPRITE.season(BuddySeason.CHRISTMAS), BuddyCharacter.GIRL).pieces.isEmpty())
+        assertFalse(BuddyOutfit.make(BuddyStyle.VECTOR.season(BuddySeason.CHRISTMAS), BuddyCharacter.GIRL).pieces.isEmpty())
+    }
+
+    /** = iOS testPlacementMath: cỡ 5 = khung cũ; hệ số 0,68…1,40; neo đáy-phải; to thì lớn xuống; lề dời đúng chiều. */
+    @Test fun placementMath() {
+        fun eq(e: BuddyRect, a: BuddyRect) { assertEquals(e.x, a.x, 1e-9); assertEquals(e.y, a.y, 1e-9); assertEquals(e.w, a.w, 1e-9); assertEquals(e.h, a.h, 1e-9) }
+        assertEquals(1.0, BuddyPlacement.STANDARD.scale(4.0), 1e-9)
+        assertEquals(0.68, BuddyPlacement(size = 1).scale(4.0), 1e-9)
+        assertEquals(4.0, BuddyPlacement(size = 20).scale(4.0), 1e-9)
+        assertEquals(Math.pow(4.0, 1.0 / 3), BuddyPlacement(size = 10).scale(4.0), 1e-9)
+        assertEquals(1.0, BuddyPlacement(size = 20).scale(0.5), 1e-9)
+        val base = BuddyRect(324, 0, 66, 66)
+        eq(base, BuddyPlacement.STANDARD.frame(base, 34.0))
+        eq(BuddyRect(345, 21, 45, 45), BuddyPlacement(size = 1).frame(base, 34.0))
+        eq(BuddyRect(304, 0, 86, 86), BuddyPlacement(size = 10).frame(base, 34.0))
+        eq(BuddyRect(126, 0, 264, 264), BuddyPlacement(size = 20).frame(base, 34.0, fullHeight = 264.0))
+        eq(BuddyRect(314, -4, 66, 66), BuddyPlacement(padRight = 10, padTop = -4).frame(base, 34.0))
+        assertEquals(334.0, BuddyPlacement(padRight = -10).frame(base, 34.0).x, 1e-9)
+        assertEquals(6.0, BuddyPlacement(padTop = 3).frame(base, 34.0, unit = 2.0).y, 1e-9)
+        assertEquals(34.0, BuddyPlacement.STANDARD.zoneWidth(34.0), 1e-9)
+        assertEquals(48.0, BuddyPlacement(size = 10).zoneWidth(34.0), 1e-9)
+        assertEquals(29.0, BuddyPlacement(size = 1, padRight = 6).zoneWidth(34.0), 1e-9)
+        assertEquals(34.0, BuddyPlacement(padRight = -6).zoneWidth(34.0), 1e-9)
+        assertEquals(BuddyPlacement.STANDARD, KeyboardSettings.load { null }.buddyPlacement)
+        val prefs = mapOf(Keys.BUDDY_SIZE to 42, Keys.BUDDY_PAD_RIGHT to -300, Keys.BUDDY_PAD_TOP to 7)
+        assertEquals(44.0, BuddyPlacement(padRight = 100).zoneWidth(34.0), 1e-9)
+        assertEquals(BuddyPlacement(20, -100, 7), KeyboardSettings.load { prefs[it] }.buddyPlacement)
+        assertEquals(listOf("buddySize", "buddyPadRight", "buddyPadTop"), listOf(Keys.BUDDY_SIZE, Keys.BUDDY_PAD_RIGHT, Keys.BUDDY_PAD_TOP))
+        for (k in prefs.keys) assertTrue("sao lưu $k", BackupSettings.all.any { it.key == k })
+    }
+
     @Test fun plusFallback() {
-        assertEquals(BuddyCharacter.OFF, BuddyPolicy.active(BuddyCharacter.CAT, plus = false))
-        assertEquals(BuddyCharacter.CAT, BuddyPolicy.active(BuddyCharacter.CAT, plus = true))
+        assertEquals(BuddyCharacter.OFF, BuddyPolicy.active(BuddyCharacter.GIRL, plus = false))
+        assertEquals(BuddyCharacter.GIRL, BuddyPolicy.active(BuddyCharacter.GIRL, plus = true))
         assertEquals(BuddyCharacter.OFF, BuddyPolicy.active(BuddyCharacter.OFF, plus = true))
         assertFalse(BuddyCharacter.OFF.isPlus)
-        assertTrue(BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }.all { it.isPlus })
+        assertFalse(BuddyCharacter.CAT.isPlus)
+        assertTrue(BuddyCharacter.entries.filter { it != BuddyCharacter.OFF && it != BuddyCharacter.CAT }.all { it.isPlus })
         assertTrue(BuddyGate.allows(BuddyCharacter.OFF))
         // Bật thu phí, chưa mua ⇒ khoá; mua ⇒ mở.
         PlusGate.paywallEnabled = true
         PlusGate.install({ null }, debugBuild = false)
-        assertFalse(BuddyGate.allows(BuddyCharacter.CAT))
-        assertEquals(BuddyCharacter.OFF, BuddyPolicy.active(BuddyCharacter.CAT, BuddyGate.allows(BuddyCharacter.CAT)))
+        assertFalse(BuddyGate.allows(BuddyCharacter.GIRL))
+        assertEquals(BuddyCharacter.OFF, BuddyPolicy.active(BuddyCharacter.GIRL, BuddyGate.allows(BuddyCharacter.GIRL)))
+        assertTrue("Mèo miễn phí", BuddyGate.allows(BuddyCharacter.CAT))
         PlusGate.install({ if (it == Keys.PLUS_UNLOCKED) true else null }, debugBuild = false)
-        assertTrue(BuddyGate.allows(BuddyCharacter.CAT))
+        assertTrue(BuddyGate.allows(BuddyCharacter.GIRL))
     }
 
     // MARK: bậc
@@ -92,19 +158,35 @@ class KeyboardBuddyTests {
         assertEquals(listOf(0, 1, 2, 3), seen)
         val last = t
         assertSame(BuddyPhase.Dancing.of(3), b.phase(last + 0.59))
-        assertSame(BuddyPhase.Awake, b.phase(last + 0.61))
-        assertEquals(last + 3, b.nextDeadline(last + 0.61)!!, 1e-9)
-        assertSame(BuddyPhase.Awake, b.phase(last + 2.99))
-        assertSame(BuddyPhase.Asleep.ZZZ, b.phase(last + 3.01))
-        assertEquals(last + 5, b.nextDeadline(last + 3.01)!!, 1e-9)
-        assertSame(BuddyPhase.Asleep.QUIET, b.phase(last + 5.01))
-        assertNull(b.nextDeadline(last + 5.01))
+        assertEquals(8.6, BuddyBrain.SLEEP_AFTER, 1e-9)
+        assertSame(BuddyPhase.Idle, b.phase(last + 0.61))   // hết đuôi nhảy ⇒ lắc nhẹ
+        assertEquals(last + 8.6, b.nextDeadline(last + 0.61)!!, 1e-9)
+        assertSame(BuddyPhase.Idle, b.phase(last + 8.59))
+        assertSame(BuddyPhase.Asleep.ZZZ, b.phase(last + 8.61))
+        assertEquals(last + 10.6, b.nextDeadline(last + 8.61)!!, 1e-9)
+        assertSame(BuddyPhase.Asleep.QUIET, b.phase(last + 10.61))
+        assertNull(b.nextDeadline(last + 10.61))
         b.press(last + 20)
         assertSame(BuddyPhase.Dancing.of(0), b.phase(last + 20))
     }
 
+    /** = iOS testIdleSwayBeforeSleep: ngừng gõ + 5 s vẫn lắc nhẹ, + 9 s đã ngủ. */
+    @Test fun idleSwayBeforeSleep() {
+        val b = BuddyBrain()
+        b.press(10.0)
+        assertSame(BuddyPhase.Idle, b.phase(15.0))
+        assertSame(BuddyPhase.Asleep.ZZZ, b.phase(19.0))
+        assertSame(BuddyPhase.Awake, BuddyPolicy.visual(BuddyPhase.Idle, true))
+        assertTrue(BuddyPolicy.animates(BuddyPhase.Idle))
+        val s = BuddyRig.GIRL.style
+        assertTrue(BuddyDance.idle(s, 0.0).isRest())
+        assertEquals(BuddyDance.pose(s, 0, 0.375, move = BuddyDance.Move.HIP_SWAY), BuddyDance.idle(s, 0.375))
+        assertTrue(BuddyDance.IDLE_LOOP > BuddyDance.loopLength(0))
+        assertEquals(listOf(5, 6), BuddySprites.IDLE.toList())
+    }
+
     @Test fun lowPowerStaticOnly() {
-        for (p in listOf(BuddyPhase.Dancing.of(3), BuddyPhase.Cheering, BuddyPhase.Awake, BuddyPhase.React.of(BuddyReaction.LOVE)))
+        for (p in listOf(BuddyPhase.Dancing.of(3), BuddyPhase.Idle, BuddyPhase.Cheering, BuddyPhase.Awake, BuddyPhase.React.of(BuddyReaction.LOVE)))
             assertSame(BuddyPhase.Awake, BuddyPolicy.visual(p, true))
         assertSame(BuddyPhase.Asleep.QUIET, BuddyPolicy.visual(BuddyPhase.Asleep.ZZZ, true))
         assertFalse(BuddyPolicy.animates(BuddyPhase.Awake)); assertFalse(BuddyPolicy.animates(BuddyPhase.Asleep.QUIET))
@@ -121,7 +203,7 @@ class KeyboardBuddyTests {
             }
             assertEquals(peaks.sorted(), peaks)
             assertTrue((0 until 100).all { BuddyDance.pose(s, 2, it / 100.0).sx == 1.0 })
-            assertTrue((0 until 100).any { BuddyDance.pose(s, 3, it / 100.0).sx < 0 })
+            assertTrue((0 until 100).any { BuddyDance.pose(s, 3, it / 100.0, move = BuddyDance.Move.SPIN).sx < 0 })
             assertTrue(BuddyDance.cheer(s, 0.0).isRest())
         }
         assertEquals(2.48, BuddyDance.loopLength(0), 1e-9)
@@ -148,7 +230,7 @@ class KeyboardBuddyTests {
     /** Bảng hình giống hệt iOS (KeyboardBuddyTests.checksums). */
     @Test fun rigChecksumParity() {
         val sums = BuddyCharacter.entries.map { String.format(Locale.US, "%.4f", BuddyRig.checksum(it)) }
-        assertEquals(listOf("0.0000", "13803.1358", "12756.7491", "15286.2573", "12025.5890"), sums)
+        assertEquals(listOf("0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220", "15289.7078", "14836.0100", "12662.2864", "14607.2357", "12859.3196", "16388.4397", "14471.9114"), sums)
     }
 
     /** = iOS testMirroredFramesDoublePoses: lật gương khung có sẵn để gấp đôi dáng. */
@@ -195,7 +277,9 @@ class KeyboardBuddyTests {
     @Test fun everyRigComplete() {
         for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
             val r = BuddyRig.rig(c)!!
-            for (p in listOf(BuddyPart.LEG_L, BuddyPart.LEG_R, BuddyPart.BODY, BuddyPart.ARM_L, BuddyPart.ARM_R, BuddyPart.HEAD, BuddyPart.SLEEP))
+            val required = if (c == BuddyCharacter.KOI) listOf(BuddyPart.TAIL, BuddyPart.BODY, BuddyPart.ARM_L, BuddyPart.ARM_R, BuddyPart.HEAD, BuddyPart.SLEEP)
+                else listOf(BuddyPart.LEG_L, BuddyPart.LEG_R, BuddyPart.BODY, BuddyPart.ARM_L, BuddyPart.ARM_R, BuddyPart.HEAD, BuddyPart.SLEEP)
+            for (p in required)
                 assertTrue("$c thiếu $p", r.pieces.any { it.part == p })
             for (p in r.pieces) if (p.part != BuddyPart.SLEEP) assertNotNull("$c ${p.part}", r.pivots[p.part])
         }
@@ -222,6 +306,48 @@ class KeyboardBuddyTests {
         for (w in listOf("nho", "nhỏ", "cung", "thom", "chan", "a", "o", "ha", "an", "anh", "bàn", "trời", "k", "kk", "hah", ""))
             assertNull(w, BuddyWords.reaction(w, null))
         assertNull(BuddyWords.reaction("a".repeat(30), null))
+    }
+
+    @Test fun greetingEmojiAndSignatures() {
+        for (w in listOf("hi", "hello", "hey", "hế lô", "hê lô", "helo", "chào", "alo", "yo", "sup", "hiii", "heyyy"))
+            assertEquals(w, BuddyReaction.GREET, BuddyWords.reaction(w, null))
+        assertEquals(BuddyReaction.GREET, BuddyWords.reaction("chào", "xin"))
+        assertEquals(BuddyReaction.GREET, BuddyWords.reaction("morning", "good"))
+        assertEquals(BuddyReaction.GREET, BuddyWords.reaction("sáng", "buổi", "chào"))
+        for (w in listOf("chao", "they", "hockey")) assertNull(w, BuddyWords.reaction(w, null))
+        assertNull(BuddyWords.reaction("chao", "xin"))
+        for (w in listOf("haha", "hihi", "hehe", "hoho", "kkkk", "=)))", ":)))"))
+            assertEquals(w, BuddyReaction.LAUGH, BuddyWords.reaction(w, null))
+        assertEquals(BuddyReaction.SAD, BuddyWords.reaction("huhu", null))
+        val groups = listOf(
+            BuddyReaction.GREET to "👋 🙋 🙋‍♀️ 🙋‍♂️ 🤗", BuddyReaction.LOVE to "❤️ ♥️ 💕 💖 💗 😍 🥰 😘 😻 💋",
+            BuddyReaction.LAUGH to "😂 🤣 😆 😄 😁 😹 😅 😝 😜", BuddyReaction.SURPRISED to "😮 😲 😱 🤯 😳 ‼️ ⁉️",
+            BuddyReaction.SAD to "😢 😭 😞 😔 🥺 💔 😿", BuddyReaction.ANGRY to "😡 🤬 😠 👿 💢",
+            BuddyReaction.LUCKY_MONEY to "🧧 🧨", BuddyReaction.GIFT to "🎁 🎄 🎅 🤶 ⛄",
+            BuddyReaction.CANDY to "🎃 🍬 🍭 👻 🦇", BuddyReaction.MOONCAKE to "🥮 🏮 🌕")
+        for ((reaction, group) in groups) for (emoji in group.split(" ")) {
+            assertEquals(emoji, reaction, BuddyWords.emoji(emoji))
+            assertEquals(emoji, reaction, BuddyWords.reaction(emoji, null))
+        }
+        assertEquals(BuddyReaction.GREET, BuddyWords.emoji("👋🏽"))
+        assertEquals(BuddyReaction.GREET, BuddyWords.emoji("🙋🏽‍♀️"))
+        assertEquals(BuddyReaction.GREET, BuddyWords.emoji("a🙋🏽‍♀️b"))
+        assertEquals(BuddyReaction.LAUGH, BuddyWords.reaction("abc😂x", null))
+        assertEquals(BuddyWords.emoji("❤️"), BuddyWords.emoji("❤"))
+        assertEquals(BuddySignature.FIRE, BuddySignature.cheer(BuddyCharacter.DRAGON, 1))
+        assertEquals(BuddySignature.LASER, BuddySignature.cheer(BuddyCharacter.EAGLE, 1))
+        assertEquals(BuddySignature.EGG, BuddySignature.cheer(BuddyCharacter.CHICK, 3))
+        assertNull(BuddySignature.cheer(BuddyCharacter.CHICK, 2))
+        assertEquals(BuddySignature.YARN, BuddySignature.reaction(BuddyCharacter.CAT, BuddyReaction.PANIC))
+        assertEquals(BuddySignature.SNORT, BuddySignature.reaction(BuddyCharacter.PIG, BuddyReaction.ANGRY))
+        assertEquals(BuddySignature.BONE, BuddySignature.word(BuddyCharacter.SHIBA, "good dog"))
+        assertEquals(BuddySignature.FIRE, BuddySignature.word(BuddyCharacter.DRAGON, "🐉"))
+        for ((character, emojis) in listOf(BuddyCharacter.SHIBA to "🐶 🐕 🦴", BuddyCharacter.KOI to "🐟 🎏",
+            BuddyCharacter.PANDA to "🐼 🎋", BuddyCharacter.PIG to "🐷 🐖", BuddyCharacter.DRAGON to "🐉 🐲 🔥",
+            BuddyCharacter.EAGLE to "🦅")) for (emoji in emojis.split(" "))
+            assertTrue(BuddyWords.signatureEmoji(emoji, character))
+        assertEquals(BuddySignature.BAMBOO, BuddySignature.idle(BuddyCharacter.PANDA))
+        assertEquals(BuddySignature.BREAKDANCE, BuddySignature.dance(BuddyCharacter.BOY, 3, 0, 0))
     }
 
     /** Giận dùng ĐÚNG bảng của bộ lọc gợi ý (từ / cặp / bộ ba), không phụ thuộc công tắc lọc. */
@@ -260,7 +386,7 @@ class KeyboardBuddyTests {
 
     @Test fun reactionStateMachine() {
         val b = BuddyBrain()
-        b.press(0.0)
+        b.press(-5.0)
         assertSame(BuddyPhase.Asleep.QUIET, b.phase(10.0))
         b.react(BuddyReaction.LOVE, 10.0)
         assertSame(BuddyPhase.React.of(BuddyReaction.LOVE), b.phase(10.5))
@@ -372,10 +498,10 @@ class KeyboardBuddyTests {
             assertTrue(id, KeyboardTheme.entries.any { it.id == id })
         for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
             assertTrue(BuddyOutfit.make(null, c).pieces.isEmpty())
-            for (s in BuddySeason.entries) { val o = BuddyOutfit.make(s, c); assertFalse("$c $s", o.pieces.isEmpty() && o.recolor.isEmpty()) }
+            for (s in BuddySeason.entries.take(4)) { val o = BuddyOutfit.make(s, c); assertFalse("$c $s", o.pieces.isEmpty() && o.recolor.isEmpty()) }
         }
         assertEquals(BuddyOutfit.RED, BuddyOutfit.make(BuddySeason.TET, BuddyCharacter.GIRL).recolor[0xFFB3C7])
-        assertTrue(BuddyOutfit.make(BuddySeason.MID_AUTUMN, BuddyCharacter.BOY).pieces.all { it.part == BuddyPart.ARM_R })
+        assertTrue(BuddyOutfit.make(BuddySeason.MID_AUTUMN, BuddyCharacter.BOY).pieces.filter { it.part != BuddyPart.SLEEP }.all { it.part == BuddyPart.ARM_R })
     }
 
     // MARK: driver (logic view Android)
@@ -393,9 +519,10 @@ class KeyboardBuddyTests {
             assertTrue(d.animating(t))
             assertNotNull(d.poseAt(t, BuddyPose()))
             t += 1; d.update(t)
-            assertSame(BuddyPhase.Awake, d.shown)
-            assertFalse("$c đứng yên sau nối", d.animating(t + BuddyDance.BLEND + 0.01))
-            t += 2.5; d.update(t)
+            assertSame(BuddyPhase.Idle, d.shown)
+            assertTrue("$c lắc nhẹ", d.animating(t + BuddyDance.BLEND + 0.01))
+            assertNotNull(d.poseAt(t, BuddyPose()))
+            t += 8; d.update(t)
             assertSame(BuddyPhase.Asleep.ZZZ, d.shown)
             assertTrue(d.animating(t))
             t += 2.1; d.update(t)
@@ -412,7 +539,7 @@ class KeyboardBuddyTests {
         assertSame(BuddyPhase.Awake, d.shown)
         d.wordCommitted("yêu", null, null, t); d.update(t)
         assertSame(BuddyPhase.Awake, d.shown)
-        t += 3.5; d.update(t)
+        t += 9; d.update(t)
         assertSame(BuddyPhase.Asleep.QUIET, d.shown)
         assertFalse(d.animating(t))
     }
@@ -503,13 +630,15 @@ class KeyboardBuddyTests {
         assertEquals(0x808080, BuddyHalo.opaque(0x00808080, false).let { BuddyHalo.opaque(0xFF808080.toInt(), false) })
     }
 
-    /** = iOS testLimbsAreFilledAndThickEnough: chi là hình tô (viền + ruột màu), ≥ 2,5 dp ở cỡ thanh ~38 dp. */
+    /** = iOS testLimbsAreFilledAndThickEnough: chi là hình tô (viền + ruột màu), ống tô + viền ≥ 1,8 dp ở cỡ thanh ~38 dp (khung v3: chân cô gái thon ≈ 1,9 dp); koi không chân. */
     @Test fun limbsAreFilledAndThickEnough() {
         for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
             val r = BuddyRig.rig(c)!!
             val pt = 38 / r.full.h
             for (part in listOf(BuddyPart.LEG_L, BuddyPart.LEG_R, BuddyPart.ARM_L, BuddyPart.ARM_R)) {
                 val ps = r.pieces.filter { it.part == part }
+                if (c == BuddyCharacter.KOI && (part == BuddyPart.LEG_L || part == BuddyPart.LEG_R)) { assertTrue(ps.isEmpty()); continue }
+                assertTrue("$c thiếu $part", ps.isNotEmpty())
                 for (p in ps) if (p.fill == null && p.stroke === Stroke.Outline) {
                     val d = (p.shape as? Shape.Path)?.d ?: continue
                     assertTrue("$c $part: nét đậm trơn $d", ps.any { q -> (q.shape as? Shape.Path)?.d == d && q.stroke is Stroke.Color })
@@ -520,11 +649,184 @@ class KeyboardBuddyTests {
                     else (p.shape as? Shape.Path)?.let { sh ->
                         val n = BuddySVG.numbers(sh.d)
                         val xs = n.filterIndexed { i, _ -> i % 2 == 0 }; val ys = n.filterIndexed { i, _ -> i % 2 == 1 }
-                        if (ys.max() - ys.min() > 30) thick = max(thick, min(xs.max() - xs.min(), ys.max() - ys.min()) * 0.6)
+                        // ống quần: bề ngang trung bình ≈ 0,6 hộp, + viền nếu có
+                        if (ys.max() - ys.min() > 20) thick = max(thick, min(xs.max() - xs.min(), ys.max() - ys.min()) * 0.6 +
+                            (if (p.stroke === Stroke.None) 0.0 else p.width))
                     }
                 }
-                assertTrue("$c $part: ${thick * pt} dp", thick * pt >= 2.5)
+                assertTrue("$c $part: ${thick * pt} dp", thick * pt >= 1.8)
             }
+        }
+    }
+
+    @Test fun holidayNamesWorkYearRoundAndFold() {
+        val cases = listOf(
+            "lì xì" to BuddyReaction.LUCKY_MONEY,
+            "mừng tuổi" to BuddyReaction.LUCKY_MONEY,
+            "tết" to BuddyReaction.LUCKY_MONEY,
+            "năm mới" to BuddyReaction.LUCKY_MONEY,
+            "chúc mừng năm mới" to BuddyReaction.LUCKY_MONEY,
+            "vạn sự như ý" to BuddyReaction.LUCKY_MONEY,
+            "happy new year" to BuddyReaction.LUCKY_MONEY,
+            "giáng sinh" to BuddyReaction.GIFT,
+            "noel" to BuddyReaction.GIFT,
+            "merry christmas" to BuddyReaction.GIFT,
+            "xmas" to BuddyReaction.GIFT,
+            "ông già noel" to BuddyReaction.GIFT,
+            "halloween" to BuddyReaction.CANDY,
+            "trick or treat" to BuddyReaction.CANDY,
+            "trung thu" to BuddyReaction.MOONCAKE,
+            "bánh trung thu" to BuddyReaction.MOONCAKE,
+            "rước đèn" to BuddyReaction.MOONCAKE,
+            "đèn ông sao" to BuddyReaction.MOONCAKE,
+            "chị hằng" to BuddyReaction.MOONCAKE,
+        )
+        for ((phrase, reaction) in cases) for (text in listOf(phrase, BuddyWords.fold(phrase).uppercase())) {
+            val tokens = text.split(" ").reversed()
+            assertEquals(text, reaction, BuddyWords.reaction(tokens[0] + "!", tokens.getOrNull(1), tokens.getOrNull(2), tokens.getOrNull(3)))
+        }
+        assertNull(BuddyWords.holiday("ý", "như", "sự"))
+        assertNull(BuddyWords.holiday("christmas", null))
+        assertNull(BuddyWords.holiday("noelish", null))
+        assertNull(BuddyWords.holiday("", "noel"))
+    }
+
+    @Test fun holidayGenericSeasonGatesAndAccents() {
+        data class Case(val phrase: String, val season: BuddySeason, val reaction: BuddyReaction, val strict: Boolean)
+        val cases = listOf(
+            Case("quà", BuddySeason.CHRISTMAS, BuddyReaction.GIFT, true),
+            Case("kẹo", BuddySeason.HALLOWEEN, BuddyReaction.CANDY, true),
+            Case("bí ngô", BuddySeason.HALLOWEEN, BuddyReaction.CANDY, false),
+            Case("cuội", BuddySeason.MID_AUTUMN, BuddyReaction.MOONCAKE, true),
+            Case("an khang", BuddySeason.TET, BuddyReaction.LUCKY_MONEY, false),
+            Case("phát tài", BuddySeason.TET, BuddyReaction.LUCKY_MONEY, false),
+        )
+        for ((phrase, active, reaction, strict) in cases) {
+            val tokens = phrase.split(" ").reversed(); val word = tokens[0]; val prev = tokens.getOrNull(1)
+            assertNull(BuddyWords.holiday(word, prev))
+            for (season in BuddySeason.entries) assertEquals(if (season == active) reaction else null, BuddyWords.holiday(word, prev, season = season))
+            assertEquals(if (strict) null else reaction, BuddyWords.holiday(BuddyWords.fold(word), prev?.let(BuddyWords::fold), season = active))
+        }
+        assertNull(BuddyWords.reaction("qua", null, season = BuddySeason.CHRISTMAS))
+        assertNull(BuddyWords.reaction("keo", null, season = BuddySeason.HALLOWEEN))
+        assertEquals(BuddyReaction.GIFT, BuddyWords.reaction("noelll", null))
+    }
+
+    @Test fun accessoriesHaveSmallBudgetsAndBothPoses() {
+        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
+            for (season in BuddySeason.entries.take(4)) {
+                val outfit = BuddyOutfit.make(season, c)
+                for (sleeping in listOf(false, true)) {
+                    val pieces = outfit.pieces.filter { (it.part == BuddyPart.SLEEP) == sleeping }
+                    assertTrue(pieces.isNotEmpty()); assertTrue(pieces.size <= 8)
+                    assertTrue(pieces.all { it.width <= 3.2 })
+                }
+            }
+            for (reaction in BuddyReaction.entries.filter { it.isHoliday }) {
+                val pieces = BuddyProp.make(reaction, BuddyRig.rig(c)!!)
+                assertTrue(pieces.isNotEmpty()); assertTrue(pieces.size <= 8)
+                assertTrue(pieces.all { (it.part == BuddyPart.BODY || reaction == BuddyReaction.LION_DANCE && it.part == BuddyPart.HEAD) && it.width <= 3.2 })
+                assertEquals(1.5, reaction.duration, 0.0); assertEquals(if (reaction == BuddyReaction.BOUQUET || reaction == BuddyReaction.ROSE) 4 else 0, BuddyFX.count(reaction))
+            }
+            assertTrue(BuddyProp.make(BuddyReaction.LOVE, BuddyRig.rig(c)!!).isEmpty())
+        }
+    }
+
+    @Test fun namedMovesNeutralAndSelection() {
+        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
+            val style = BuddyRig.rig(c)!!.style
+            for (tier in 0..3) {
+                for (move in BuddyDance.Move.entries) {
+                    assertTrue(BuddyDance.pose(style, tier, 0.0, move = move).isRest())
+                    assertTrue(BuddyDance.pose(style, tier, 1.0, move = move).isRest())
+                    if (tier < 3 || move != BuddyDance.Move.SPIN)
+                        assertTrue((0 until 48).all { BuddyDance.pose(style, tier, it/48.0, move = move).sx == 1.0 })
+                }
+                val pool = BuddyDance.moves(tier)
+                assertEquals(if (tier == 3) 8 else if (tier == 2) 6 else 4, pool.size)
+                assertEquals(tier == 3, pool.contains(BuddyDance.Move.SPIN))
+                assertEquals(tier >= 2, pool.contains(BuddyDance.Move.SKIP))
+                assertEquals(tier < 2, pool.contains(BuddyDance.Move.BOUNCE))
+                for (seed in listOf(0, 1, 42, -7, Int.MAX_VALUE)) for (group in 0 until 100) {
+                    val a = BuddyDance.move(c, tier, group * 2, seed)
+                    assertTrue((if (c == BuddyCharacter.KOI || c == BuddyCharacter.EAGLE)
+                        listOf(BuddyDance.Move.WAVE, BuddyDance.Move.CHICKEN, BuddyDance.Move.BOUNCE, BuddyDance.Move.CLAP, BuddyDance.Move.SKIP, BuddyDance.Move.SPIN, BuddyDance.Move.DAB, BuddyDance.Move.ROBOT, BuddyDance.Move.FAN_SHAKE, BuddyDance.Move.FLOSS)
+                        else if (c == BuddyCharacter.ROBOT && tier >= 2) listOf(BuddyDance.Move.ROBOT, BuddyDance.Move.FAN_SHAKE, BuddyDance.Move.FLOSS, BuddyDance.Move.WAVE) else pool).contains(a))
+                    assertEquals(a, BuddyDance.move(c, tier, group * 2 + 1, seed))
+                    assertNotEquals(a, BuddyDance.move(c, tier, (group + 1) * 2, seed))
+                }
+            }
+        }
+        for (move in listOf(BuddyDance.Move.ROBOT, BuddyDance.Move.FAN_SHAKE, BuddyDance.Move.FLOSS))
+            assertTrue((0 until 80).any { BuddyDance.move(BuddyCharacter.GIRL, 3, it * 2, 42) == move })
+        val normalFans = (0 until 56).count { BuddyDance.move(BuddyCharacter.GIRL, 3, it * 2, 42) == BuddyDance.Move.FAN_SHAKE }
+        val tetFans = (0 until 56).count { BuddyDance.move(BuddyCharacter.GIRL, 3, it * 2, 42, BuddySeason.TET) == BuddyDance.Move.FAN_SHAKE }
+        assertTrue(tetFans > normalFans)
+        assertEquals(listOf(BuddyDance.Move.WAVE, BuddyDance.Move.WAVE, BuddyDance.Move.FLOSS, BuddyDance.Move.FLOSS,
+            BuddyDance.Move.ROBOT, BuddyDance.Move.ROBOT, BuddyDance.Move.FAN_SHAKE, BuddyDance.Move.FAN_SHAKE,
+            BuddyDance.Move.ROBOT, BuddyDance.Move.ROBOT),
+            (0 until 10).map { BuddyDance.move(BuddyCharacter.ROBOT, 3, it, 42) })
+        assertTrue((0 until 40).count { BuddyDance.move(BuddyCharacter.ROBOT, 3, it * 2, 42) == BuddyDance.Move.ROBOT } >= 12)
+        for (c in listOf(BuddyCharacter.GIRL, BuddyCharacter.ROBOT, BuddyCharacter.KOI, BuddyCharacter.EAGLE)) {
+            val style = BuddyRig.rig(c)!!.style
+            for (move in listOf(BuddyDance.Move.ROBOT, BuddyDance.Move.FAN_SHAKE, BuddyDance.Move.FLOSS))
+                for (frame in 0 until 48) {
+                    val p = BuddyDance.pose(style, 3, frame / 48.0, move = move, character = c)
+                    assertTrue(kotlin.math.abs(p.dx) <= 12 && kotlin.math.abs(p.dy) <= 16)
+                    assertTrue(kotlin.math.abs(p.head) <= 0.3 && kotlin.math.abs(p.armL) <= 2.1 && kotlin.math.abs(p.armR) <= 2.1)
+                }
+        }
+    }
+
+    @Test fun roundFiveHolidays() {
+        assertEquals(BuddySeason.WOMENS_DAY, BuddySeason.ofDate(2027, 3, 8))
+        assertEquals(BuddySeason.VIETNAMESE_WOMENS_DAY, BuddySeason.ofDate(2027, 10, 20))
+        assertEquals(BuddySeason.VALENTINE, BuddySeason.ofDate(2027, 2, 14))
+        assertEquals(BuddySeason.CHILDRENS_DAY, BuddySeason.ofDate(2027, 6, 1))
+        assertEquals(BuddyReaction.TET_WISH, BuddyWords.reaction("mới", "năm", "mừng", "chúc", BuddySeason.TET))
+        assertEquals(BuddyReaction.LION_DANCE, BuddyWords.reaction("🦁", null, season = BuddySeason.TET))
+        assertEquals(BuddyReaction.BOUQUET, BuddyWords.reaction("💐", null, season = BuddySeason.WOMENS_DAY))
+        assertEquals(BuddyReaction.BANH_CHUNG, BuddyWords.reaction("chưng", "bánh", season = BuddySeason.TET))
+        assertEquals(BuddyReaction.MOON_GAZE, BuddyWords.reaction("🌕", null, season = BuddySeason.MID_AUTUMN))
+        assertEquals(BuddyReaction.MOONCAKE, BuddyWords.reaction("🌕", null, season = null))
+        assertEquals(BuddyReaction.BELL, BuddyWords.reaction("noel", null, season = BuddySeason.CHRISTMAS))
+        assertEquals(BuddyReaction.BOO, BuddyWords.reaction("ma", null, season = BuddySeason.HALLOWEEN))
+        assertEquals(BuddyReaction.CANDY, BuddyWords.reaction("👻", null, season = null))
+        assertEquals(null, BuddyWords.newHoliday("ma", null, null, null, null))
+        assertEquals(BuddyReaction.ROSE, BuddyWords.reaction("valentine", null, season = BuddySeason.VALENTINE))
+        assertTrue(BuddyHolidayClock.fireworks(2027, 2, 6, 0, 15))
+        assertTrue(!BuddyHolidayClock.fireworks(2027, 2, 6, 0, 16))
+        assertEquals(3, BuddyHolidayClock.countdown(12, 31, 23, 59, 57))
+        assertEquals(null, BuddyHolidayClock.countdown(1, 1, 23, 59, 57))
+        assertEquals(BuddySignature.BEEP, BuddySignature.cheer(BuddyCharacter.ROBOT, 0))
+        for (word in listOf("🤖", "⚙️", "🔋")) assertEquals(BuddySignature.BEEP, BuddySignature.word(BuddyCharacter.ROBOT, word))
+    }
+
+    @Test fun namedMovePoseParity() {
+        val expected = listOf(
+            listOf(5.656854, -9.000000, -0.100000, -0.120000, 2.000000, -2.600000, 0.000000, -0.600000, 0.000000, 1.000000), // bounce p=0.375
+            listOf(-5.656854, -9.000000, -0.100000, -0.120000, 2.000000, -2.600000, 0.000000, -0.600000, 0.000000, 1.000000), // bounce p=0.875
+            listOf(5.656854, 0.000000, 0.127279, -0.070711, -0.450000, 0.450000, 0.000000, 0.000000, 0.000000, 1.000000), // hipSway p=0.375
+            listOf(-5.656854, 0.000000, -0.127279, 0.070711, -0.450000, 0.450000, 0.000000, 0.000000, 0.000000, 1.000000), // hipSway p=0.875
+            listOf(0.000000, -3.150000, 0.000000, 0.084853, 0.250000, -2.100000, 0.000000, 0.000000, 0.000000, 1.000000), // wave p=0.375
+            listOf(0.000000, -3.150000, 0.000000, -0.084853, 0.250000, -2.100000, 0.000000, 0.000000, 0.000000, 1.000000), // wave p=0.875
+            listOf(0.000000, -2.250000, 0.000000, 0.080000, -1.050000, 1.050000, 0.000000, 0.000000, 0.000000, 1.000000), // clap p=0.375
+            listOf(0.000000, -2.250000, 0.000000, 0.080000, -1.050000, 1.050000, 0.000000, 0.000000, 0.000000, 1.000000), // clap p=0.875
+            listOf(0.000000, -2.700000, -0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 1.000000), // dab p=0.375
+            listOf(0.000000, -2.700000, -0.180000, 0.650000, 2.500000, 0.900000, 0.000000, 0.000000, 0.000000, 1.000000), // dab p=0.875
+            listOf(3.394113, -13.500000, 0.056569, 0.000000, 0.424264, 0.424264, 0.636396, -0.000000, 0.000000, 1.000000), // skip p=0.375
+            listOf(-3.394113, -13.500000, -0.056569, 0.000000, -0.424264, -0.424264, 0.000000, -0.636396, 0.000000, 1.000000), // skip p=0.875
+            listOf(-5.656854, 0.000000, -0.098995, 0.084853, 0.601041, 0.601041, 0.000000, 0.000000, 0.000000, 1.000000), // flossLite p=0.375
+            listOf(5.656854, 0.000000, 0.098995, -0.084853, -0.601041, -0.601041, 0.000000, 0.000000, 0.000000, 1.000000), // flossLite p=0.875
+            listOf(5.656854, -9.000000, -0.100000, -0.120000, 2.000000, -2.600000, 0.000000, -0.600000, 0.000000, 1.000000), // spin p=0.375
+            listOf(-5.656854, -9.000000, -0.100000, -0.120000, 2.000000, -2.600000, 0.000000, -0.600000, 0.000000, -1.000000), // spin p=0.875
+            listOf(0.000000, -5.850000, 0.000000, 0.250000, 0.900000, -0.900000, 0.000000, 0.000000, 0.000000, 1.000000), // chicken p=0.375
+            listOf(0.000000, -5.850000, 0.000000, 0.250000, 0.900000, -0.900000, 0.000000, 0.000000, 0.000000, 1.000000), // chicken p=0.875
+        )
+        for ((i, move) in BuddyDance.Move.entries.take(9).withIndex()) for ((j, phase) in listOf(0.375, 0.875).withIndex()) {
+            val p = BuddyDance.pose(BuddyRig.GIRL.style, 3, phase, move = move)
+            val values = listOf(p.dx, p.dy, p.rot, p.head, p.armL, p.armR, p.legL, p.legR, p.tail, p.sx)
+            for ((a, b) in values.zip(expected[i * 2 + j])) assertEquals(b, a, 1e-6)
         }
     }
 }

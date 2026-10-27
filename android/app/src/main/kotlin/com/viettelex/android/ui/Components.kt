@@ -135,17 +135,17 @@ fun IosSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
     }
 }
 
-/** UIStepper: viên thuốc "− | +". */
+/** UIStepper: viên thuốc "− | +" (mỗi nấc [step], kẹp trong [range]). */
 @Composable
-fun IosStepper(value: Int, range: IntRange, onChange: (Int) -> Unit) {
+fun IosStepper(value: Int, range: IntRange, step: Int = 1, onChange: (Int) -> Unit) {
     val c = LocalVT.current
     Row(
         Modifier.size(94.dp, 32.dp).clip(RoundedCornerShape(8.dp)).background(c.fill),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        StepperHalf("−", value > range.first) { onChange(value - 1) }
+        StepperHalf("−", value > range.first) { onChange((value - step).coerceIn(range)) }
         Box(Modifier.width(1.dp).height(18.dp).background(c.separator))
-        StepperHalf("+", value < range.last) { onChange(value + 1) }
+        StepperHalf("+", value < range.last) { onChange((value + step).coerceIn(range)) }
     }
 }
 

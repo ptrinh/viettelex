@@ -380,7 +380,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
      * "Bạn đồng hành" (Plus): nhân vật + cổng Plus + Trình tiết kiệm pin + mùa lễ (theme lễ / ngày) — đọc MỘT lần
      * mỗi lần hiện. Tắt ⇒ gỡ view, strip không chừa ô (0 chi phí mỗi phím).
      */
-    private fun applyBuddy(setting: com.viettelex.keyboard.BuddyCharacter, th: ImeTheme, st: StripView) {
+    private fun applyBuddy(setting: com.viettelex.keyboard.BuddyCharacter, style: com.viettelex.keyboard.BuddyStyle,
+                           placement: com.viettelex.keyboard.BuddyPlacement, th: ImeTheme, st: StripView) {
         val r = root ?: return
         val c = com.viettelex.keyboard.BuddyPolicy.active(setting, com.viettelex.keyboard.BuddyGate.allows(setting))
         if (c == com.viettelex.keyboard.BuddyCharacter.OFF) {
@@ -393,12 +394,18 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val season = com.viettelex.keyboard.BuddySeason.resolve(th.settings.effectiveTheme.id,
             cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH))
         val old = r.buddy
-        if (old != null && old.character == c && old.season == season) {
+        // Kiểu vẽ riêng nhân vật (Hoạt hình mặc định / Vẽ nét) — đổi ⇒ dựng view mới, chỉ nạp tài nguyên kiểu đó.
+        val stamp = cal.get(java.util.Calendar.YEAR) * 10000 + (cal.get(java.util.Calendar.MONTH) + 1) * 100 + cal.get(java.util.Calendar.DAY_OF_MONTH)
+        val part = com.viettelex.keyboard.BuddyClock.part(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
+        if (old != null && old.character == c && old.season == season && old.artStyle == style && old.appearanceDay == stamp &&
+            (style != com.viettelex.keyboard.BuddyStyle.VECTOR || season != null || old.outfitClockPart == part)) {
             old.lowPower = low; old.setBar(com.viettelex.keyboard.BuddyHalo.opaque(th.bg, th.dark))
         } else {
-            r.buddy = BuddyView(this, c, th.density, com.viettelex.keyboard.BuddyHalo.opaque(th.bg, th.dark), low, season)
+            r.buddy = BuddyView(this, c, th.density, com.viettelex.keyboard.BuddyHalo.opaque(th.bg, th.dark), low, season,
+                artStyle = style).apply { onTimeChanged = { this@VietTelexIME.applyBuddy(setting, style, placement, th, st) } }
         }
-        st.buddyDp = StripGeometry.BUDDY_W
+        r.buddyPlacement = placement
+        st.buddyDp = placement.zoneWidth(StripGeometry.BUDDY_W.toDouble()).toFloat()
         session.trackBoundaryWord = true
     }
 
@@ -539,7 +546,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         kb.keyPreview = settings.keyPreview
         kb.keyPressHighlight = settings.keyPressHighlight
         applyKeyEffect(settings.keyEffect, th, kb)
-        applyBuddy(settings.buddy, th, st)
+        applyBuddy(settings.buddy, settings.buddyStyle, settings.buddyPlacement, th, st)
         applySwipeTrail(settings.swipeTrail, th, kb)
         applyMole(th, kb)
         kb.configureSpaceFlick(settings.spaceSwipeLanguage, session.language)
@@ -902,7 +909,10 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         if (!proxy.begin()) return
         val out = try { session.handle(key, proxy, touch) } finally { proxy.end() }
         if (session.trackBoundaryWord) fxBoundaryEmoji()
-        root?.buddy?.let { if (key == Key.Backspace) it.deletePressed() else it.keyPressed() }
+        root?.buddy?.let { buddy ->
+            if (key == Key.Backspace) buddy.deletePressed() else buddy.keyPressed()
+            if (key is Key.Text) buddy.emojiInserted(key.text)
+        }
         if (key is Key.MoveCursor) {
             if (key.vertical) proxy.moveCursorVertical(key.delta) else proxy.moveCursor(key.delta)
         }
@@ -1367,6 +1377,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         syncShift()
         try { session.acceptSuggestion(item, proxy) } finally { proxy.end() }
         root?.buddy?.cheer()
+        root?.buddy?.emojiInserted(item)
         resetIfEditFailed()
         // Chọn gợi ý = gõ một từ: Shift một-lần nhả (session đã hạ keyboardShift), Caps giữ.
         if (session.keyboardShift == SuggestionCase.Shift.OFF) keyboard?.setAutoShift(false)
@@ -1486,6 +1497,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     // --- nút 😊 trên strip ("Nút emoji" = Thanh trên) ---
     override fun onEmojiButton() { keyboard?.setPlane(Plane.EMOJI) }
+    override fun onBuddyTickle() { root?.buddy?.tickle() }
 
     /** Toạ độ StripView → KeyboardView (cùng cha ImeRootView, kể cả thả nổi). */
     private fun stripToKbDy(): Float {

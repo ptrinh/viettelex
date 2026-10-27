@@ -35,6 +35,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -245,6 +249,8 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     val keyEffectRaw by rememberStringPref(Keys.KEY_EFFECT, com.viettelex.keyboard.KeyEffect.DEFAULT.id)
     /** Trang con "Bạn đồng hành" (Plus) đang mở. */
     var pickingBuddy by remember { mutableStateOf(false) }
+    /** Đã mở trang "Bạn đồng hành" ⇒ nhãn HOT thôi nhún (vẫn hiện). */
+    var buddyPageSeen by rememberBoolPref("buddyPageSeen", false)
     val buddyRaw by rememberStringPref(Keys.KEYBOARD_BUDDY, com.viettelex.keyboard.BuddyCharacter.DEFAULT.id)
     // Ảnh đưa vào trình chỉnh (mới chọn: chưa ghi gì — Huỷ thì ảnh nền cũ còn nguyên).
     var editor by remember { mutableStateOf<EditorInput?>(null) }
@@ -300,7 +306,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     }
 
     if (pickingBuddy) {
-        BuddyPage(s.styledCurrent(s.basePalette(dark) ?: previewPalette(KeyboardTheme.SYSTEM, dark), dark),
+        BuddyPage(s.styledCurrent(s.basePalette(dark) ?: previewPalette(KeyboardTheme.SYSTEM, dark), dark), s.effectiveTheme.id,
             onOpenPlus = onOpenPlus, onBack = { pickingBuddy = false })
         return
     }
@@ -345,11 +351,15 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
         }
         // "Bạn đồng hành" (Plus) — mục riêng, mặc định Tắt.
         RowDivider()
-        VTRow(onClick = { pickingBuddy = true }) {
+        VTRow(onClick = { pickingBuddy = true; buddyPageSeen = true }) {
             val on = com.viettelex.keyboard.BuddyGate.allows
-            Text(tr("Bạn đồng hành") + if (on) "" else " · Plus", style = VTType.body, color = c.label,
-                modifier = Modifier.weight(1f))
-            Text("${(if (on) com.viettelex.keyboard.BuddyCharacter.of(buddyRaw) else com.viettelex.keyboard.BuddyCharacter.OFF).title} ›",
+            Text(tr("Bạn đồng hành") + if (on) "" else " · Plus", style = VTType.body, color = c.label)
+            HotBadge(animated = !buddyPageSeen, modifier = Modifier.padding(start = 6.dp))
+            Spacer(Modifier.weight(1f))
+            val ch = com.viettelex.keyboard.BuddyCharacter.of(buddyRaw)
+            val shown = if (com.viettelex.keyboard.BuddyGate.allows(ch)) ch else com.viettelex.keyboard.BuddyCharacter.OFF
+            val name by rememberStringPref(com.viettelex.keyboard.BuddyName.key(shown), "")
+            Text("${shown.title}${if (name.isEmpty()) "" else " · $name"} ›",
                 style = VTType.body, color = c.secondary, maxLines = 1)
         }
     }
@@ -645,4 +655,20 @@ private fun rememberPreviewLabelPaint(style: KeyStyle): android.graphics.Paint {
                 ?: android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         }
     }
+}
+
+/** Nhãn "HOT" (mục mới cần gây chú ý) = iOS HotBadge: viên đỏ-cam, nhún nhẹ tới khi user mở trang lần đầu. */
+@Composable
+internal fun HotBadge(animated: Boolean, modifier: Modifier = Modifier) {
+    val scale = if (animated) {
+        val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "hot")
+        t.animateFloat(1f, 1.12f, androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(700, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            androidx.compose.animation.core.RepeatMode.Reverse), label = "hotScale").value
+    } else 1f
+    Text("HOT", style = VTType.caption2, color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+        modifier = modifier.graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(RoundedCornerShape(50))
+            .background(Brush.horizontalGradient(listOf(Color(0xFFFF3B30), Color(0xFFFF9500))))
+            .padding(horizontal = 5.dp, vertical = 1.dp))
 }
