@@ -132,6 +132,11 @@ void TypingSession::setCompositionOnlyContext(bool on) {
     if (vtx_is_empty(engine_)) wordMode_ = effectiveMode();
 }
 
+void TypingSession::setHostDropsPassedKeys(bool on) {
+    dropsPassedKeys_ = on;
+    if (on) reopenArmed_ = false;
+}
+
 void TypingSession::setPreferComposition(bool on) {
     preferComposition_ = on;
     if (vtx_is_empty(engine_)) wordMode_ = effectiveMode();
@@ -181,6 +186,7 @@ void TypingSession::resetContext() {
     compositionOnly_ = false;
     preferComposition_ = false;
     asyncStore_ = false;
+    dropsPassedKeys_ = false;
     if (engine_) vtx_reset_context(engine_);
 }
 
@@ -316,11 +322,20 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
                 return false;
             }
             // NOTHING before the caret although we just let letters through: the store
-            // does not show the app's text (IMM/CUAS hosts like mintty, xterm.js'
-            // hidden textarea, consoles not flagged as such). In-place can never work
-            // in this field — use composition for the rest of it (this word is lost).
-            if (stale && before.empty() && !shown_.empty())
+            // does not show the app's text. In-place can never work in this field — use
+            // composition for the rest of it. (An async store — xterm.js' hidden
+            // textarea — returned above.) This is an IMM32 app through CUAS (WinForms:
+            // MISA SME, mintty): the letters we let through were claimed in
+            // OnTestKeyDown, so the app never got them (#134: "first letter lost").
+            // Keep the word and compose all of it, from this key on.
+            if (stale && before.empty() && !shown_.empty()) {
                 fallBack("in-place: the field shows none of the typed text -> composition for this field");
+                if (!dropsPassedKeys_ && opt_.log)
+                    opt_.log("in-place: letters let through never reached the app (IMM host) -> composing them");
+                setHostDropsPassedKeys(true);
+                wordMode_ = OutputMode::Composition;
+                stale = false;
+            }
         }
         if (stale) reset();
     }
@@ -616,14 +631,19 @@ bool TypingSession::tryRetroUndo(const retro::Undo& u, TextSink& sink) {
 }
 
 bool TypingSession::commitWord(TextSink& sink, KeyKind kind, char32_t ch) {
-    const bool r = commitWordInner(sink, kind);
+    const bool r = commitWordInner(sink, kind, ch);
     if (retroOn()) finishRetro(sink, kind, ch);
     return r;
 }
 
-bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind) {
+bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind, char32_t ch) {
     const bool comp = wordMode_ == OutputMode::Composition;
     const bool printable = kind == KeyKind::Char;
+    // #134: a host that drops claimed keys gets the printable boundary inside the result
+    // string ("word␣", one WM_IME_COMPOSITION) and the key is eaten — no retyped key that
+    // could land after keys already queued behind it.
+    const bool boundaryInResult = comp && dropsPassedKeys_ && printable && ch != 0 && ch <= 0xFFFF;
+    const std::u16string boundary = boundaryInResult ? std::u16string(1, static_cast<char16_t>(ch)) : std::u16string();
     if (overflow_) {
         vtx_action a;
         vtx_commit_boundary(engine_, 0, &a);
@@ -661,10 +681,10 @@ bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind) {
         const std::u16string raw = rawOf(engine_);
         if (const std::u16string* exp = findShortcut(*opt_.shortcuts, shown_, raw, before)) {
             std::u16string expansion = *exp;
-            if (comp) sink.endComposition(expansion);
+            if (comp) sink.endComposition(expansion + boundary);
             else sink.replaceBeforeCaret(shown_, expansion);
             reset();
-            return false;
+            return boundaryInResult;
         }
     }
 
@@ -675,7 +695,7 @@ bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind) {
         uint16_t buf[VTX_MAX_TEXT + 1];
         int32_t n = vtx_commit_text(engine_, opt_.autoRestore ? 1 : 0, buf, VTX_MAX_TEXT + 1);
         finalText = toU16(buf, n);
-        sink.endComposition(finalText);
+        sink.endComposition(finalText + boundary);
     } else {
         vtx_action a;
         vtx_commit_boundary(engine_, opt_.autoRestore ? 1 : 0, &a);
@@ -697,9 +717,11 @@ bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind) {
     }
     if (committed && (printable || kind == KeyKind::Boundary)) lastWord_ = finalText;
     shown_.clear();
-    reopenArmed_ = printable;
+    // ⌫ re-open reads "<word><boundary>" back: impossible where keys are dropped (nothing
+    // readable), and claiming the next key there would lose it.
+    reopenArmed_ = printable && !dropsPassedKeys_;
     if (!printable) vtx_forget_last_commit(engine_);
-    return false;
+    return boundaryInResult;
 }
 
 }  // namespace vtx

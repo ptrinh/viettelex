@@ -94,6 +94,8 @@ private:
     bool appRunning() const;
     bool directServesHere() const;
     bool requestDirect(const char* why);
+    bool hookReachesHere(HWND app) const;  // UIPI: app integrity >= this process's
+    bool retypeClaimedKey(const KeyInput& k, WPARAM wp, LPARAM lp);  // #134 IMM hosts
     void publishLangProp();  // kTipLangProp on the focus root (hook / tray read it)
     void clearLangProp();
     void notifyAppState(bool on);
@@ -183,6 +185,8 @@ private:
     bool parentFailed_ = false;         // parent refused edit sessions for this focus
     bool directActive_ = false;         // this field is typed by the app's hook (Direct)
     bool directWanted_ = false;         // this field asked the app's hook to type (1.1.5)
+    bool directBlockedLogged_ = false;  // "not requested: UIPI" logged for this field (#134)
+    bool retypeLogged_ = false;         // "claimed key retyped" logged for this field (#134)
     HWND langPropWnd_ = nullptr;        // where kTipLangProp is set
     uint32_t suspendPosted_ = 0;        // game_ipc.h kSuspendFullscreen (from VietTelex.exe)
     LayoutMatchCache layoutMatch_;      // retypeAsUs: what the thread's layout types per key

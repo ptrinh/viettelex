@@ -75,7 +75,8 @@ In-place is the default and needs a document that really contains the text befor
 
 Also:
 - **Terminal rules:** built-in composition rules for terminals (conhost, openconsole, windowsterminal, mintty, alacritty, wezterm, ConEmu, PuTTY, KiTTY, Tabby) and off rules for VM and remote viewers.
-- **Unrecognised hosts:** if a field shows none of the typed text, composition from the second key.
+- **Unrecognised hosts:** if a field shows none of the typed text, composition from the second key. The letters let through before that are composed too (#134: in an IMM32 app they never arrived).
+- **IMM32 hosts (#134):** a key `OnTestKeyDown` claims there becomes `VK_PROCESSKEY`, so a claimed key `OnKeyDown` lets through is lost (MISA SME 2022: first letter, Space and digits after a word). In such fields (CUAS-emulated, or shown none of the typed text) a Space/punctuation ending a word goes out with the word in the result string, ⌫ never re-opens, and any other claimed key the TIP does not eat is retyped by the TIP (`SendInput`, `kInjectedMagic`).
 - **Emptied composition:** a composition the app empties (Excel autocomplete) ends the word.
 - **WebView2:** `msedgewebview2.exe` takes its per-app rules and memory from the root-owner exe (new Teams, new Outlook).
 - **Hook mode:** it warns once, non-modally, when the foreground app is elevated. UIPI blocks SendInput there.
@@ -96,7 +97,7 @@ The goal is no underline anywhere possible.
 
 Direct stays on only where it provably works; otherwise that one field goes back to composition (`TF_LS_NONE`, done by the TIP in-process).
 
-- **Integrity (UIPI):** if the target process runs at a higher integrity than VietTelex.exe, or its token cannot be read, the hook does not type for it and the TIP composes. This replaces the old balloon-only warning.
+- **Integrity (UIPI):** if the target process runs at a higher integrity than VietTelex.exe, or its token cannot be read, the hook does not type for it and the TIP composes. This replaces the old balloon-only warning. Since #134 the TIP does not even request the handover there.
 - **Echo check:** after each Direct edit a background thread (not on the key path, ~80 ms later, latest edit only) reads what the host really shows before the caret. For conhost it uses `AttachConsole` + `ReadConsoleOutputCharacter`; for Windows Terminal and other hosts it uses UIA `TextPattern`, else `ValuePattern` (Qt/Java/Adobe). Two mismatches in the same field (focus hwnd + control id) mark it `VietTelex.NoDirect` for the rest of the focus, and the event is logged (debug logging). Hosts that expose nothing stay on Direct.
 - **Send failures:** if `SendInput` sends fewer events than requested, that field switches to composition at once.
 - **Races:** if the foreground changes between the key and the injection, or the secure desktop is up, the edit is dropped and the word resets.
@@ -362,7 +363,7 @@ Checklist and listing text: [installer/STORE.md](installer/STORE.md). Package ma
 
 ## Needs a real Windows machine
 
-- Everything in the TSF layer: activation, composition behaviour, OnEndEdit caret tracking, input scopes, the taskbar V/E button, and hotkey semantics. In particular, confirm that a key which `OnTestKeyDown` claims and `OnKeyDown` then does not eat still reaches the app.
+- Everything in the TSF layer: activation, composition behaviour, OnEndEdit caret tracking, input scopes, the taskbar V/E button, and hotkey semantics. In particular, confirm that a key which `OnTestKeyDown` claims and `OnKeyDown` then does not eat still reaches the app. (#134: in IMM32/CUAS apps it does not — handled for the fields the TIP recognises as such; still to confirm on TSF-native hosts.)
 - The spec §5.2 app matrix.
 - **MSI install and uninstall on Windows.** Export `HKLM\SOFTWARE\Microsoft\CTF\TIP\{CLSID}` after `regsvr32 VietTelexTIP.dll` and after an MSI install, then diff the two. The values to confirm are `SubstituteLayout` (stored as a DWORD) and the `Enable` values.
 - **Chrome underline.** Check that Chrome and Edge now show no underline. The display-attribute provider is registered (its category row is unit-tested and diffed against the MSI), and the attribute is `TF_LS_NONE`. If they still underline, set `chrome.exe` to "Sửa trực tiếp" on the Ứng dụng page to test in-place mode. It is not the default for browsers, because the omnibox's inline autocomplete keeps a selection that in-place editing resets on.

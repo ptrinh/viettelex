@@ -89,6 +89,15 @@ enum class HostText : uint8_t {
 };
 HostText classifyContext(const ContextInfo& c);
 
+// Can VietTelex.exe's hook (SendInput) type into THIS process? UIPI drops input from a
+// LOWER-integrity sender, so not when this process runs above the app (an app started
+// "as administrator": MISA SME, #134), nor when the app's integrity cannot be read.
+// Integrity = mandatory-label RID (0x1000 low, 0x2000 medium, 0x3000 high, 0x4000 system).
+// The TIP itself runs inside the process, so it is never blocked: there it composes.
+inline bool hookReachesThisProcess(bool appIntegrityKnown, uint32_t appIntegrity, uint32_t ownIntegrity) {
+    return appIntegrityKnown && ownIntegrity <= appIntegrity;
+}
+
 // Input-scope policy (spec §4.2). Values are InputScope enum numbers from InputScope.h.
 enum class FieldPolicy : uint8_t { Normal, Literal };
 FieldPolicy classifyInputScopes(const int* scopes, size_t count);
