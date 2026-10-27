@@ -5928,6 +5928,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         fxRect = nil
         if handleSearchKey(key) { return }
         onKey(key)
+        KeystrokeCounter.tick()                  // tắt (mặc định) ⇒ đọc một hằng số
         if let fx, let o = keyEffects { o.emit(key: fx) }
         rainbow?.poke()                          // Gaming RGB: theme khác ⇒ nil, chỉ đọc một optional
         if let b = buddy {                       // Bạn đồng hành: tắt ⇒ nil, chỉ đọc một optional

@@ -26,4 +26,9 @@ enum AppFlavor {
 
     /// Ngôn ngữ giao diện khi người dùng chưa chọn ("vi" | "en").
     static let defaultUILanguage = "vi"
+    /// Có gõ tiếng Việt không. `false`: bàn phím luôn ở chế độ Tiếng Anh, không vuốt phím cách đổi ngôn ngữ,
+    /// không nạp dữ liệu tiếng Việt cho gõ vuốt (vnlexicon / vnlm) — app đó có thể không đóng gói chúng.
+    static let vietnameseInput = true
+    /// Bàn phím đếm số phím đã gõ vào App Group (`KeystrokeCounter`) — chỉ con số, không nội dung.
+    static let countsKeystrokes = false
 }

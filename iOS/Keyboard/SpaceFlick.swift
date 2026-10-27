@@ -22,8 +22,10 @@ enum KeyboardLanguage: String, Equatable {
     /// Lưu ở UserDefaults riêng của bàn phím (ghi được cả khi không có Toàn quyền).
     static let storageKey = "keyboardLanguage"
 
-    /// Công tắc tắt ⇒ luôn Tiếng Việt (không với tới EN); giá trị lạ ⇒ Tiếng Việt.
+    /// Công tắc tắt ⇒ luôn Tiếng Việt (không với tới EN); giá trị lạ ⇒ Tiếng Việt. App không gõ tiếng
+    /// Việt (`AppFlavor.vietnameseInput`) ⇒ luôn Tiếng Anh.
     static func effective(stored: String?, flickEnabled: Bool) -> KeyboardLanguage {
+        guard AppFlavor.vietnameseInput else { return .en }
         guard flickEnabled, let s = stored, let l = KeyboardLanguage(rawValue: s) else { return .vi }
         return l
     }

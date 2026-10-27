@@ -320,7 +320,7 @@ final class KeyboardViewController: UIInputViewController {
         emojiSuggestSetting = settings.emojiSuggest
         slotWant = SuggestionCount.resolved(settings.suggestionCount)
         pasteButtonSetting = settings.pasteButton
-        spaceFlickSetting = settings.spaceSwipeLanguage
+        spaceFlickSetting = settings.spaceSwipeLanguage && AppFlavor.vietnameseInput
         keyCommandsSetting = settings.swipeKeyCommands
         language = KeyboardLanguage.effective(
             stored: UserDefaults.standard.string(forKey: KeyboardLanguage.storageKey),
@@ -438,6 +438,7 @@ final class KeyboardViewController: UIInputViewController {
             NSLog("VTKB perf willDisappear body %.2f ms", (CACurrentMediaTime() - perfStart) * 1000)
         }
         #endif
+        KeystrokeCounter.flush()                 // số phím đã gõ → App Group (tắt ⇒ không làm gì)
         super.viewWillDisappear(animated)
         appearance.willDisappear()
         postFrame.cancel()
@@ -482,7 +483,8 @@ final class KeyboardViewController: UIInputViewController {
         let wantsLM = showSuggestionsSetting || swipeSetting || addTonesSetting
         if wantsLM { _ = langModel }
         let swipeOn = swipeSetting
-        if showSuggestionsSetting || swipeOn {
+        // Dữ liệu vuốt / âm tiết tiếng Việt: app chỉ tiếng Anh không nạp (có thể không đóng gói).
+        if (showSuggestionsSetting || swipeOn) && AppFlavor.vietnameseInput {
             Self.suggestQueue.async {
                 _ = SyllableLM.shared
                 if swipeOn { _ = SwipeLexicon.forms }
