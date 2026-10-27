@@ -302,6 +302,7 @@
 		A502757FCDB7FBD09FE8CD1D /* ClipboardPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B42E3B1AEEBA29C8D4693932 /* ClipboardPanel.swift */; };
 		A5D63AF8B31BCC530FDD52B0 /* SuggestTrigramTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61FEE31733E89BE49DAF48E /* SuggestTrigramTests.swift */; };
 		A612DF363A05FED5AFB1C7B4 /* PlusConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0F66BB47D978962BA91434 /* PlusConfig.swift */; };
+		A6E141B35CAAB29FD01AC1DF /* KeyboardBuddyExtrasTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A477E94A632702FD5B83824 /* KeyboardBuddyExtrasTests.swift */; };
 		A755E9F920E0111F7E89F9DC /* SuggestionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A392056B54E623933F9CD3 /* SuggestionSupport.swift */; };
 		A7D0016FA22EF6C3EE8E20CB /* TextToolRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EAE46AEF3EF71266329303C /* TextToolRunner.swift */; };
 		A8202055F6F4248A5DF3B02C /* ClipboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A7C16DB3F7238439276C90B /* ClipboardTests.swift */; };
@@ -577,6 +578,7 @@
 		38966B5E3DF4C19B07287B0C /* swipe-paths-en.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "swipe-paths-en.txt"; sourceTree = "<group>"; };
 		3994C0C17115101811283049 /* SwipeLexicon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeLexicon.swift; sourceTree = "<group>"; };
 		3A1DB988579CAEA0FC0453E7 /* futoswipe.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = futoswipe.bin; sourceTree = "<group>"; };
+		3A477E94A632702FD5B83824 /* KeyboardBuddyExtrasTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardBuddyExtrasTests.swift; sourceTree = "<group>"; };
 		3B258DEED17434ED054B29D7 /* LetterUndoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LetterUndoTests.swift; sourceTree = "<group>"; };
 		3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSuggest.swift; sourceTree = "<group>"; };
 		3CD9AC3759F73AB2A6C0BC1B /* ClipboardFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardFeature.swift; sourceTree = "<group>"; };
@@ -1034,6 +1036,7 @@
 				27D10BA36AFF204B214098B2 /* HostRewriteCompositionTests.swift */,
 				D20B596D225BB513FA414DB3 /* KeyAlternatesTests.swift */,
 				5143281A235F9FF66DF0ABAE /* KeyboardBenchTests.swift */,
+				3A477E94A632702FD5B83824 /* KeyboardBuddyExtrasTests.swift */,
 				1912918744F1F9CEBC4B8526 /* KeyboardBuddyTests.swift */,
 				0DBDDC2765D27AF7C83556EE /* KeyboardHeightTests.swift */,
 				6CFAD5C6AC4A874128E68CF8 /* KeyboardStartupTests.swift */,
@@ -1784,6 +1787,7 @@
 				8ECAE0FEE3CD0AD5D5A6F10D /* KeyVariantsTests.swift in Sources */,
 				38B4DF4EC6EAD2BC87B560CE /* KeyboardBenchTests.swift in Sources */,
 				1366ECCBD61E79FD075A17E0 /* KeyboardBuddy.swift in Sources */,
+				A6E141B35CAAB29FD01AC1DF /* KeyboardBuddyExtrasTests.swift in Sources */,
 				EB9F471C2D36A7B6AC4C733D /* KeyboardBuddyTests.swift in Sources */,
 				190CF5484AD04F180D055523 /* KeyboardBuddyView.swift in Sources */,
 				3F0366EF5CE5E712413ECA83 /* KeyboardHeightTests.swift in Sources */,
@@ -2049,7 +2053,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 84T567KMYD;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -2069,7 +2073,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.2.21;
+				MARKETING_VERSION = 1.2.22;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -2163,7 +2167,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DEVELOPMENT_TEAM = 84T567KMYD;
@@ -2179,7 +2183,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LLVM_LTO = YES_THIN;
-				MARKETING_VERSION = 1.2.21;
+				MARKETING_VERSION = 1.2.22;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
