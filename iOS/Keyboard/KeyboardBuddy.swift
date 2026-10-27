@@ -14,6 +14,59 @@
 // chừa sẵn đường cho bộ khung hình vẽ sẵn (hoạ sĩ) sau này.
 import Foundation
 
+/// Quy tắc độc lập giao diện, dùng chung với Android.
+enum BuddyClock {
+    enum Part { case morning, day, night }
+    static func part(hour: Int, minute: Int) -> Part {
+        guard (0...23).contains(hour), (0...59).contains(minute) else { return .day }
+        if hour >= 23 || hour < 5 { return .night }
+        return hour < 9 ? .morning : .day
+    }
+}
+
+enum BuddyBirthday {
+    static let monthKey = "buddyBirthdayMonth", dayKey = "buddyBirthdayDay"
+    static func valid(month: Int, day: Int) -> Bool {
+        guard (1...12).contains(month), day > 0 else { return false }
+        return day <= [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]
+    }
+    static func matches(month: Int, day: Int, year: Int, todayMonth: Int, todayDay: Int) -> Bool {
+        guard valid(month: month, day: day) else { return false }
+        let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+        return todayMonth == month && todayDay == (month == 2 && day == 29 && !leap ? 28 : day)
+    }
+    static func trigger(word: String, prev: String?) -> Bool {
+        if word == "🎂" || word == "🎉" || word == "🥳" || word == "🎈" { return true }
+        let w = BuddyWords.fold(BuddyWords.clean(word))
+        let p = BuddyWords.fold(BuddyWords.clean(prev ?? ""))
+        return w == "hpbd" || w == "hbd" || w == "sinh nhat" || w == "happy birthday" ||
+            (p == "sinh" && w == "nhat") || (p == "happy" && w == "birthday")
+    }
+}
+
+enum BuddyName {
+    static func key(_ c: BuddyCharacter) -> String { "buddyName.\(c.rawValue)" }
+    static func clean(_ raw: String) -> String {
+        let trimmed = raw.replacingOccurrences(of: "[\\r\\n]+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.unicodeScalars.prefix(20).map(String.init).joined().trimmingCharacters(in: .whitespaces)
+    }
+    static func bubble(_ raw: String?, english: Bool, maxCharacters: Int) -> String? {
+        guard let raw, !clean(raw).isEmpty, maxCharacters > 1 else { return nil }
+        let full = english ? "\(clean(raw)) says hi!" : "\(clean(raw)) chào bạn!"
+        return full.unicodeScalars.count <= maxCharacters ? full :
+            full.unicodeScalars.prefix(maxCharacters - 1).map(String.init).joined() + "…"
+    }
+}
+
+enum BuddyTap {
+    static func tickles(x: Double, y: Double, zone: BuddyRect, stripHeight: Double, figure: BuddyRect? = nil) -> Bool {
+        x >= zone.x && x < zone.x + zone.w && y >= max(0, zone.y) &&
+            y < min(stripHeight, zone.y + zone.h) &&
+            (figure.map { x >= $0.x && x < $0.x + $0.w && y >= $0.y && y < $0.y + $0.h } ?? true)
+    }
+}
+
 // MARK: - Cài đặt
 
 /// Nhân vật (giá trị lưu App Group / sao lưu = rawValue — CHỈ thêm cuối).
@@ -491,7 +544,7 @@ enum BuddyDance {
         let a = r == .panic ? min(1, ff / 0.15 + 1) : min(1, ff / 0.15, (1 - ff) / 0.15)
         var o = BuddyPose()
         switch r {
-        case .love, .luckyMoney, .gift, .candy, .mooncake:       // tay khép ôm trái tim trước ngực, nhún ba nhịp, nghiêng đầu
+        case .love, .luckyMoney, .gift, .candy, .mooncake, .cake:       // tay khép ôm đạo cụ trước ngực
             o.dy = -s.bounce * 0.5 * a * abs(sin(3 * pi * ff))
             o.armL = -0.55 * a; o.armR = 0.55 * a
             o.head = 0.18 * a * sin(2 * pi * ff)
@@ -508,6 +561,15 @@ enum BuddyDance {
             o.dy = -s.bounce * 0.2 * a * abs(sin(8 * pi * ff))
             o.armL = -0.7 * a; o.armR = 0.7 * a
             o.head = 0.1 * a * sin(8 * pi * ff)
+        case .tickle:
+            o.dx = 2.5 * a * sin(20 * pi * ff)
+            o.dy = -s.bounce * 0.2 * a * abs(sin(10 * pi * ff))
+            o.armL = -0.9 * a; o.armR = 0.9 * a
+            o.head = 0.16 * a * sin(12 * pi * ff)
+        case .yawn:
+            o.armL = -1.5 * a; o.armR = 1.5 * a
+            o.head = -0.2 * a
+            o.dy = -s.bounce * 0.25 * a
             o.tail = 0.3 * a * sin(8 * pi * ff)
         case .greet:
             o.dy = -s.bounce * 0.45 * a * abs(sin(3 * pi * ff))
@@ -599,7 +661,7 @@ enum BuddySignature: String {
 /// khớp nhiều bảng = thứ tự case: tục (giận) > yêu thương > cười > ngạc nhiên > buồn ("wtf" = giận).
 /// `panic` (xoá dồn) không theo từ — bộ đếm phím ⌫ trong BuddyBrain.
 enum BuddyReaction: Int, CaseIterable {
-    case angry, love, laugh, surprised, sad, greet, panic, luckyMoney, gift, candy, mooncake
+    case angry, love, laugh, surprised, sad, greet, panic, luckyMoney, gift, candy, mooncake, tickle, yawn, cake
 
     var isHoliday: Bool { self == .luckyMoney || self == .gift || self == .candy || self == .mooncake }
 
@@ -608,10 +670,12 @@ enum BuddyReaction: Int, CaseIterable {
         switch self {
         case .angry, .love: return 1.2
         case .laugh: return 1.3
-        case .surprised, .greet: return 1.0
+        case .surprised, .yawn: return 1.0
+        case .greet: return 1.2
+        case .tickle: return 0.85
         case .sad: return 1.5
         case .panic: return 0.8
-        case .luckyMoney, .gift, .candy, .mooncake: return 1.5
+        case .luckyMoney, .gift, .candy, .mooncake, .cake: return 1.5
         }
     }
 }
@@ -663,6 +727,7 @@ enum BuddyWords {
             (BuddyReaction.gift, "🎁 🎄 🎅 🤶 ⛄"),
             (BuddyReaction.candy, "🎃 🍬 🍭 👻 🦇"),
             (BuddyReaction.mooncake, "🥮 🏮 🌕"),
+            (BuddyReaction.cake, "🎂 🎉 🥳 🎈"),
         ] { for symbol in group.split(separator: " ") { out[normalizeEmoji(String(symbol))] = reaction } }
         return out
     }()
@@ -785,6 +850,7 @@ enum BuddyWords {
     }
 
     static func reaction(word: String, prev: String?, prev2: String? = nil, prev3: String? = nil, season: BuddySeason? = nil) -> BuddyReaction? {
+        if BuddyBirthday.trigger(word: word, prev: prev) { return .cake }
         if let direct = emoji(word) { return direct }
         let w = clean(word)
         guard !w.isEmpty, w.count <= 24 else { return nil }
@@ -846,8 +912,9 @@ enum BuddyFX {
         case .love: return 5
         case .laugh: return 4
         case .sad: return 3
-        case .panic: return 3
-        case .angry, .greet, .surprised, .luckyMoney, .gift, .candy, .mooncake: return 0
+        case .panic, .tickle: return 3
+        case .cake: return 8
+        case .angry, .greet, .surprised, .luckyMoney, .gift, .candy, .mooncake, .yawn: return 0
         }
     }
 
@@ -870,10 +937,10 @@ enum BuddyFX {
         case .sad:       // giọt mưa rơi từ mây trên đầu
             p = Particle(x0: w * (0.3 + 0.2 * Double(i)), y0: h * 0.18, x1: w * (0.3 + 0.2 * Double(i)), y1: h * 0.5,
                          delay: Double(i) * 0.3)
-        case .panic:     // chữ bay khỏi người, lên + ra hai bên
+        case .panic, .tickle, .cake:     // hạt bay khỏi người
             p = Particle(x0: w / 2, y0: h * 0.6, x1: rad + (w - 2 * rad) * t, y1: rad + h * 0.1 * Double(i % 2),
                          delay: Double(i) * 0.1)
-        case .angry, .greet, .surprised, .luckyMoney, .gift, .candy, .mooncake:
+        case .angry, .greet, .surprised, .luckyMoney, .gift, .candy, .mooncake, .yawn:
             p = Particle(x0: w / 2, y0: h / 2, x1: w / 2, y1: h / 2, delay: 0)
         }
         func cx(_ x: Double) -> Double { min(max(x, rad), w - rad) }
@@ -887,6 +954,7 @@ enum BuddyFX {
         case .angry: return BuddyRect(x: 0, y: 0, w: w, h: min(13, h * 0.32))
         case .surprised: return BuddyRect(x: w - 9, y: 1, w: 8, h: min(14, h * 0.36))
         case .sad: return BuddyRect(x: w * 0.18, y: 0, w: w * 0.64, h: min(10, h * 0.24))
+        case .greet: return BuddyRect(x: 0, y: 0, w: w, h: min(15, h * 0.32))
         default: return nil
         }
     }
@@ -1754,6 +1822,17 @@ enum BuddySeason: String, CaseIterable {
 
 /// Trang phục: mảnh thêm (mũ, nơ, lồng đèn…) + đổi màu (áo dài đỏ ngày Tết). Hình là DỮ LIỆU như BuddyRig.
 enum BuddyAccessory {
+    static let nightcap: [BuddyPiece] = [
+        BuddyPiece(.body, .path("M-19 1 Q-10 -13 -2 -24 Q3 -29 9 -20 Q12 -13 22 -14 Q15 -7 13 1 Z"), fill: 0x697FA7, alpha: 1, stroke: .outline, width: 3.2),
+        BuddyPiece(.body, .path("M-18 -1 Q0 4 17 -1 L18 5 Q0 10 -19 5 Z"), fill: 0xFFF7ED, alpha: 1, stroke: .outline, width: 3.2),
+        BuddyPiece(.body, .path("M20 -17 Q25 -20 27 -15 Q28 -10 23 -9 Q18 -10 20 -17 Z"), fill: 0xFFF7ED, alpha: 1, stroke: .outline, width: 2),
+    ]
+    static let cake: [BuddyPiece] = [
+        BuddyPiece(.body, .path("M-15 -3 L15 -3 L13 15 Q0 19 -13 15 Z"), fill: 0xF7A7B9, alpha: 1, stroke: .outline, width: 3.2),
+        BuddyPiece(.body, .path("M-16 -9 Q-8 -14 0 -9 Q8 -14 16 -9 L16 -3 Q10 0 6 -5 Q1 1 -3 -5 Q-9 1 -16 -3 Z"), fill: 0xFFF7ED, alpha: 1, stroke: .outline, width: 2),
+        BuddyPiece(.body, .path("M-2 -10 L-2 -23 L2 -23 L2 -10 Z"), fill: 0xF8D77B, alpha: 1, stroke: .outline, width: 1.5),
+        BuddyPiece(.body, .path("M0 -26 Q-5 -31 0 -35 Q5 -31 0 -26 Z"), fill: 0xF5A65B, alpha: 1, stroke: .none, width: 0),
+    ]
     static let santa: [BuddyPiece] = [
         BuddyPiece(.body, .path("M-17 0 Q-17 -16 -5 -22 Q10 -29 19 -14 Q11 -18 9 -8 L15 0 Z"), fill: 0xDE5263, alpha: 1, stroke: .outline, width: 3.2),
         BuddyPiece(.body, .path("M2 -22 Q10 -25 19 -14 Q11 -18 9 -8 L15 0 L4 0 Q8 -12 2 -22 Z"), fill: 0xB93650, alpha: 1, stroke: .none, width: 3.2),
@@ -1860,8 +1939,13 @@ struct BuddyOutfit {
     var recolor: [UInt32: UInt32] = [:]
     static let red: UInt32 = 0xDE5263, gold: UInt32 = 0xF8D77B, white: UInt32 = 0xFFF7ED
 
-    static func make(_ s: BuddySeason?, _ c: BuddyCharacter) -> BuddyOutfit {
-        guard let s, let r = BuddyRig.rig(c) else { return BuddyOutfit() }
+    static func make(_ s: BuddySeason?, _ c: BuddyCharacter, night: Bool = false) -> BuddyOutfit {
+        guard let r = BuddyRig.rig(c) else { return BuddyOutfit() }
+        if s == nil && night {
+            return BuddyOutfit(pieces: BuddyAccessory.place(BuddyAccessory.nightcap, .head, x: r.hat.x, y: r.hat.y, size: r.hat.size)
+                + BuddyAccessory.place(BuddyAccessory.nightcap, .sleep, x: r.sleepHat.x, y: r.sleepHat.y, size: r.sleepHat.size))
+        }
+        guard let s else { return BuddyOutfit() }
         var o = BuddyOutfit()
         let h = r.hat, sh = r.sleepHat
         // Sleep accessories use the sleep head's scale and stay in its local coordinate space.
@@ -1920,6 +2004,7 @@ enum BuddyProp {
         case .gift: art = BuddyAccessory.gift
         case .candy: art = BuddyAccessory.candy
         case .mooncake: art = BuddyAccessory.mooncake
+        case .cake: art = BuddyAccessory.cake
         default: return []
         }
         return BuddyAccessory.place(art, .body, x: r.heart.x, y: r.heart.y, size: r.heart.size * 2)

@@ -40,6 +40,8 @@ final class BackupStore: SyncLocal {
             case .string(let def, let allowed):
                 let v = raw as? String
                 out[spec.key] = .string(v.map { allowed.contains($0) } == true ? v! : def)
+            case .buddyName:
+                out[spec.key] = .string(BuddyName.clean((raw as? String) ?? ""))
             case .styleMap:
                 out[spec.key] = .string((raw as? String).flatMap(KeyStyleStore.normalize) ?? KeyStyleStore.empty)
             case .themeMap:

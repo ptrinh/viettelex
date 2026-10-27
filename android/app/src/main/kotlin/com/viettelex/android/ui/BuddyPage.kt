@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -32,6 +33,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.viettelex.android.ime.BuddyView
 import com.viettelex.keyboard.BuddyCharacter
+import com.viettelex.keyboard.BuddyBirthday
+import com.viettelex.keyboard.BuddyName
 import com.viettelex.keyboard.BuddyFraming
 import com.viettelex.keyboard.BuddyGate
 import com.viettelex.keyboard.BuddyPlacement
@@ -67,6 +70,8 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
     var size by rememberIntPref(Keys.BUDDY_SIZE, BuddyPlacement.DEFAULT_SIZE)
     var padRight by rememberIntPref(Keys.BUDDY_PAD_RIGHT, 0)
     var padTop by rememberIntPref(Keys.BUDDY_PAD_TOP, 0)
+    var birthdayMonth by rememberIntPref(BuddyBirthday.MONTH_KEY, 0)
+    var birthdayDay by rememberIntPref(BuddyBirthday.DAY_KEY, 0)
     // Vẽ nét xem thử mặc trang phục mùa lễ như trên bàn phím (theme lễ / ngày).
     val season = remember(themeId) {
         val cal = java.util.Calendar.getInstance()
@@ -85,6 +90,7 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
         BuddyCharacter.entries.chunked(3).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { ch ->
+                    val name by rememberStringPref(BuddyName.key(ch), "")
                     val locked = !BuddyGate.allows(ch)
                     val selected = current == ch
                     val style = (styles[ch] ?: BuddyStyle.DEFAULT).resolved(ch)
@@ -102,7 +108,7 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
                                 modifier = Modifier.align(Alignment.TopEnd).padding(6.dp))
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(ch.title, style = VTType.footnote, color = if (locked) c.secondary else c.label, maxLines = 1,
+                            Text(name.ifEmpty { ch.title }, style = VTType.footnote, color = if (locked) c.secondary else c.label, maxLines = 1,
                                 modifier = Modifier.weight(1f, fill = false))
                             if (locked && ch.isPlus) Text("Plus", style = VTType.caption2, color = Color.White,
                                 modifier = Modifier.padding(start = 4.dp).background(Color(0xFFF5A623), RoundedCornerShape(50))
@@ -115,6 +121,10 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
         }
     }
     if (current != BuddyCharacter.OFF && BuddyGate.allows(current)) {
+        var name by rememberStringPref(BuddyName.key(current), "")
+        VTSection(header = tr("Đặt tên") + " · " + current.title) {
+            VTRow { VTTextField(name, { name = BuddyName.clean(it) }, tr("Đặt tên"), maxLines = 1) }
+        }
         val style = styles[current] ?: BuddyStyle.DEFAULT
         if (BuddyStyle.hasAtlas(current)) VTSection(header = tr("Kiểu vẽ") + " · " + current.title,
             footer = tr("Hoạt hình: hình vẽ sẵn, giữ nguyên quanh năm. Vẽ nét: mặc trang phục mùa lễ (Tết, Trung Thu, Halloween, Giáng sinh) và có thêm điệu nhảy.")) {
@@ -154,6 +164,20 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
             VTRow(onClick = if (standard) null else ({ size = BuddyPlacement.DEFAULT_SIZE; padRight = 0; padTop = 0 })) {
                 Text(tr("Mặc định"), style = VTType.body, color = if (standard) c.tertiary else c.accent)
             }
+        }
+    }
+    VTSection(header = tr("Sinh nhật của bạn"), footer = tr("Chỉ lưu trên thiết bị và trong bản sao lưu.")) {
+        VTRow(onClick = { if (birthdayMonth == 0) { birthdayMonth = 1; birthdayDay = 1 } else { birthdayMonth = 0; birthdayDay = 0 } }) {
+            Text(tr("Sinh nhật của bạn"), style = VTType.body, color = c.label)
+            Spacer(Modifier.weight(1f))
+            Text(if (birthdayMonth == 0) tr("Tắt") else "$birthdayDay/$birthdayMonth", style = VTType.body, color = c.secondary)
+        }
+        if (birthdayMonth > 0) {
+            PlacementRow(tr("Tháng"), "$birthdayMonth", birthdayMonth, 1..12) {
+                birthdayMonth = it; birthdayDay = minOf(birthdayDay, intArrayOf(31,29,31,30,31,30,31,31,30,31,30,31)[it - 1])
+            }
+            PlacementRow(tr("Ngày"), "$birthdayDay", birthdayDay,
+                1..intArrayOf(31,29,31,30,31,30,31,31,30,31,30,31)[birthdayMonth - 1]) { birthdayDay = it }
         }
     }
 }

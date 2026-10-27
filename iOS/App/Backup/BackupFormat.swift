@@ -25,6 +25,7 @@ enum BackupSettingKind: Equatable {
     case bool(Bool), int(Int, ClosedRange<Int>)
     /// Chuỗi trong tập giá trị cho phép (mặc định, cho phép) — giá trị lạ bị bỏ qua.
     case string(String, [String])
+    case buddyName
     /// Chuỗi JSON "Tuỳ chỉnh nâng cao" theo theme (KeyStyleStore) — chuẩn hoá khi đọc/ghi, mặc định "{}".
     case styleMap
     /// Chuỗi JSON kho theme tự tạo (CustomThemeStore) — chuẩn hoá (kiểm chặt) khi đọc/ghi, mặc định "{}".
@@ -96,6 +97,18 @@ enum BackupSettings {
         Spec(key: KeyEffect.key, kind: .string(KeyEffect.defaultValue.rawValue, KeyEffect.allCases.map(\.rawValue))),
         // "Bạn đồng hành" (Plus, BuddyCharacter) — cùng khoá + id Android; lạ ⇒ bỏ qua (máy giữ Tắt).
         Spec(key: BuddyCharacter.key, kind: .string(BuddyCharacter.defaultValue.rawValue, BuddyCharacter.allCases.map(\.rawValue))),
+        Spec(key: BuddyBirthday.monthKey, kind: .int(0, 0...12)),
+        Spec(key: BuddyBirthday.dayKey, kind: .int(0, 0...31)),
+        Spec(key: BuddyName.key(.girl), kind: .buddyName),
+        Spec(key: BuddyName.key(.boy), kind: .buddyName),
+        Spec(key: BuddyName.key(.cat), kind: .buddyName),
+        Spec(key: BuddyName.key(.chick), kind: .buddyName),
+        Spec(key: BuddyName.key(.shiba), kind: .buddyName),
+        Spec(key: BuddyName.key(.koi), kind: .buddyName),
+        Spec(key: BuddyName.key(.panda), kind: .buddyName),
+        Spec(key: BuddyName.key(.pig), kind: .buddyName),
+        Spec(key: BuddyName.key(.dragon), kind: .buddyName),
+        Spec(key: BuddyName.key(.eagle), kind: .buddyName),
         // Kiểu vẽ riêng từng nhân vật (BuddyStyle: Hoạt hình / Vẽ nét) — cùng khoá + id Android; lạ ⇒ bỏ qua.
         Spec(key: BuddyStyle.key(.girl), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
         Spec(key: BuddyStyle.key(.boy), kind: .string(BuddyStyle.defaultValue.rawValue, BuddyStyle.allCases.map(\.rawValue))),
@@ -206,6 +219,7 @@ enum SettingValue: Equatable {
         case .bool: return s == "true" ? .bool(true) : s == "false" ? .bool(false) : nil
         case .int(_, let r): return Int(s).map { .int(min(max($0, r.lowerBound), r.upperBound)) }
         case .string(_, let allowed): return allowed.contains(s) ? .string(s) : nil
+        case .buddyName: return .string(BuddyName.clean(s))
         case .styleMap: return KeyStyleStore.normalize(s).map(SettingValue.string)
         case .themeMap: return CustomThemeStore.normalize(s).map(SettingValue.string)
         }
@@ -322,6 +336,8 @@ enum BackupCodec {
                     if let i = intValue(raw) { out[k] = .int(min(max(i, r.lowerBound), r.upperBound)) }
                 case .string(_, let allowed):
                     if let t = raw as? String, allowed.contains(t) { out[k] = .string(t) }
+                case .buddyName:
+                    if let t = raw as? String { out[k] = .string(BuddyName.clean(t)) }
                 case .styleMap:
                     if let t = raw as? String, let n = KeyStyleStore.normalize(t) { out[k] = .string(n) }
                 case .themeMap:

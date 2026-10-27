@@ -8,6 +8,56 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
+/** Quy tắc độc lập giao diện, giống iOS. */
+object BuddyClock {
+    enum class Part { MORNING, DAY, NIGHT }
+    fun part(hour: Int, minute: Int): Part = when {
+        hour !in 0..23 || minute !in 0..59 -> Part.DAY
+        hour >= 23 || hour < 5 -> Part.NIGHT
+        hour < 9 -> Part.MORNING
+        else -> Part.DAY
+    }
+}
+
+object BuddyBirthday {
+    const val MONTH_KEY = "buddyBirthdayMonth"
+    const val DAY_KEY = "buddyBirthdayDay"
+    fun valid(month: Int, day: Int): Boolean = month in 1..12 && day in 1..intArrayOf(31,29,31,30,31,30,31,31,30,31,30,31)[month-1]
+    fun matches(month: Int, day: Int, year: Int, todayMonth: Int, todayDay: Int): Boolean {
+        if (!valid(month, day)) return false
+        val leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+        return todayMonth == month && todayDay == if (month == 2 && day == 29 && !leap) 28 else day
+    }
+    fun trigger(word: String, prev: String?): Boolean {
+        if (word == "🎂" || word == "🎉" || word == "🥳" || word == "🎈") return true
+        val w = BuddyWords.fold(BuddyWords.clean(word))
+        val p = BuddyWords.fold(BuddyWords.clean(prev ?: ""))
+        return w == "hpbd" || w == "hbd" || w == "sinh nhat" || w == "happy birthday" ||
+            (p == "sinh" && w == "nhat") || (p == "happy" && w == "birthday")
+    }
+}
+
+object BuddyName {
+    fun key(c: BuddyCharacter) = "buddyName.${c.id}"
+    fun clean(raw: String): String {
+        val s = raw.replace(Regex("[\\r\\n]+"), " ").trim()
+        return s.substring(0, s.offsetByCodePoints(0, minOf(20, s.codePointCount(0, s.length)))).trim()
+    }
+    fun bubble(raw: String?, english: Boolean, maxCharacters: Int): String? {
+        val name = raw?.let(::clean)?.takeIf { it.isNotEmpty() } ?: return null
+        if (maxCharacters <= 1) return null
+        val full = if (english) "$name says hi!" else "$name chào bạn!"
+        return if (full.codePointCount(0, full.length) <= maxCharacters) full
+            else full.substring(0, full.offsetByCodePoints(0, maxCharacters - 1)) + "…"
+    }
+}
+
+object BuddyTap {
+    fun tickles(x: Double, y: Double, zone: BuddyRect, stripHeight: Double, figure: BuddyRect? = null): Boolean =
+        x >= zone.x && x < zone.x + zone.w && y >= maxOf(0.0, zone.y) && y < minOf(stripHeight, zone.y + zone.h) &&
+        (figure == null || x >= figure.x && x < figure.x + figure.w && y >= figure.y && y < figure.y + figure.h)
+}
+
 /*
  * "Bạn đồng hành" (Keyboard buddy, Plus, Phil 19/10/2026): nhân vật nhỏ ở góc phải thanh gợi ý — gõ thì
  * nhảy (gõ càng nhanh càng sung), ngừng gõ thì lắc nhẹ ~8 s rồi ngủ; phản ứng theo từ vừa chốt (giận / thả tim / cười /
@@ -457,7 +507,7 @@ object BuddyDance {
         val a = if (r == BuddyReaction.PANIC) min(1.0, ff / 0.15 + 1) else minOf(1.0, ff / 0.15, (1 - ff) / 0.15)
         out.reset()
         when (r) {
-            BuddyReaction.LOVE, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE -> {
+            BuddyReaction.LOVE, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE, BuddyReaction.CAKE -> {
                 out.dy = -s.bounce * 0.5 * a * abs(sin(3 * pi * ff))
                 out.armL = -0.55 * a; out.armR = 0.55 * a
                 out.head = 0.18 * a * sin(2 * pi * ff)
@@ -477,6 +527,17 @@ object BuddyDance {
                 out.armL = -0.7 * a; out.armR = 0.7 * a
                 out.head = 0.1 * a * sin(8 * pi * ff)
                 out.tail = 0.3 * a * sin(8 * pi * ff)
+            }
+            BuddyReaction.TICKLE -> {
+                out.dx = 2.5 * a * sin(20 * pi * ff)
+                out.dy = -s.bounce * 0.2 * a * abs(sin(10 * pi * ff))
+                out.armL = -0.9 * a; out.armR = 0.9 * a
+                out.head = 0.16 * a * sin(12 * pi * ff)
+            }
+            BuddyReaction.YAWN -> {
+                out.armL = -1.5 * a; out.armR = 1.5 * a
+                out.head = -0.2 * a
+                out.dy = -s.bounce * 0.25 * a
             }
             BuddyReaction.GREET -> {
                 out.dy = -s.bounce * 0.45 * a * abs(sin(3 * pi * ff))
@@ -560,7 +621,7 @@ enum class BuddySignature {
 
 /** Thứ tự = ƯU TIÊN khi một từ khớp nhiều bảng: giận > thả tim > cười > ngạc nhiên > buồn. = iOS BuddyReaction. */
 enum class BuddyReaction(val duration: Double) {
-    ANGRY(1.2), LOVE(1.2), LAUGH(1.3), SURPRISED(1.0), SAD(1.5), GREET(1.0), PANIC(0.8), LUCKY_MONEY(1.5), GIFT(1.5), CANDY(1.5), MOONCAKE(1.5);
+    ANGRY(1.2), LOVE(1.2), LAUGH(1.3), SURPRISED(1.0), SAD(1.5), GREET(1.2), PANIC(0.8), LUCKY_MONEY(1.5), GIFT(1.5), CANDY(1.5), MOONCAKE(1.5), TICKLE(0.85), YAWN(1.0), CAKE(1.5);
     val isHoliday: Boolean get() = this == LUCKY_MONEY || this == GIFT || this == CANDY || this == MOONCAKE
 }
 
@@ -611,6 +672,7 @@ object BuddyWords {
             for (symbol in "🎁 🎄 🎅 🤶 ⛄".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.GIFT)
             for (symbol in "🎃 🍬 🍭 👻 🦇".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.CANDY)
             for (symbol in "🥮 🏮 🌕".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.MOONCAKE)
+            for (symbol in "🎂 🎉 🥳 🎈".split(" ")) put(normalizeEmoji(symbol), BuddyReaction.CAKE)
         }
     }
     fun emoji(text: String): BuddyReaction? {
@@ -734,6 +796,7 @@ object BuddyWords {
     }
 
     fun reaction(word: String, prev: String?, prev2: String? = null, prev3: String? = null, season: BuddySeason? = null): BuddyReaction? {
+        if (BuddyBirthday.trigger(word, prev)) return BuddyReaction.CAKE
         emoji(word)?.let { return it }
         val w = clean(word)
         if (w.isEmpty() || w.length > 24) return null
@@ -787,8 +850,9 @@ object BuddyFX {
         BuddyReaction.LOVE -> 5
         BuddyReaction.LAUGH -> 4
         BuddyReaction.SAD -> 3
-        BuddyReaction.PANIC -> 3
-        BuddyReaction.ANGRY, BuddyReaction.GREET, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE -> 0
+        BuddyReaction.PANIC, BuddyReaction.TICKLE -> 3
+        BuddyReaction.CAKE -> 8
+        BuddyReaction.ANGRY, BuddyReaction.GREET, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE, BuddyReaction.YAWN -> 0
     }
 
     fun particle(r: BuddyReaction, i: Int, w: Double, h: Double): Particle {
@@ -811,10 +875,10 @@ object BuddyFX {
             BuddyReaction.SAD -> {
                 x0 = w * (0.3 + 0.2 * i); y0 = h * 0.18; x1 = x0; y1 = h * 0.5; delay = i * 0.3
             }
-            BuddyReaction.PANIC -> {
+            BuddyReaction.PANIC, BuddyReaction.TICKLE, BuddyReaction.CAKE -> {
                 x0 = w / 2; y0 = h * 0.6; x1 = rad + (w - 2 * rad) * t; y1 = rad + h * 0.1 * (i % 2); delay = i * 0.1
             }
-            BuddyReaction.ANGRY, BuddyReaction.GREET, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE -> { x0 = w / 2; y0 = h / 2; x1 = x0; y1 = y0; delay = 0.0 }
+            BuddyReaction.ANGRY, BuddyReaction.GREET, BuddyReaction.SURPRISED, BuddyReaction.LUCKY_MONEY, BuddyReaction.GIFT, BuddyReaction.CANDY, BuddyReaction.MOONCAKE, BuddyReaction.YAWN -> { x0 = w / 2; y0 = h / 2; x1 = x0; y1 = y0; delay = 0.0 }
         }
         fun cx(x: Double) = min(max(x, rad), w - rad)
         fun cy(y: Double) = min(max(y, rad), h - rad)
@@ -825,6 +889,7 @@ object BuddyFX {
         BuddyReaction.ANGRY -> BuddyRect(0.0, 0.0, w, min(13.0, h * 0.32))
         BuddyReaction.SURPRISED -> BuddyRect(w - 9, 1.0, 8.0, min(14.0, h * 0.36))
         BuddyReaction.SAD -> BuddyRect(w * 0.18, 0.0, w * 0.64, min(10.0, h * 0.24))
+        BuddyReaction.GREET -> BuddyRect(0.0, 0.0, w, min(15.0, h * 0.32))
         else -> null
     }
 
@@ -1643,6 +1708,17 @@ enum class BuddySeason {
 
 /** = iOS BuddyOutfit: mảnh thêm + đổi màu. */
 object BuddyAccessory {
+    val nightcap: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-19 1 Q-10 -13 -2 -24 Q3 -29 9 -20 Q12 -13 22 -14 Q15 -7 13 1 Z"), 0x697FA7, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-18 -1 Q0 4 17 -1 L18 5 Q0 10 -19 5 Z"), 0xFFF7ED, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M20 -17 Q25 -20 27 -15 Q28 -10 23 -9 Q18 -10 20 -17 Z"), 0xFFF7ED, 1.0, Stroke.Outline, 2.0),
+    ) }
+    val cake: List<BuddyPiece> by lazy { listOf(
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-15 -3 L15 -3 L13 15 Q0 19 -13 15 Z"), 0xF7A7B9, 1.0, Stroke.Outline, 3.2),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-16 -9 Q-8 -14 0 -9 Q8 -14 16 -9 L16 -3 Q10 0 6 -5 Q1 1 -3 -5 Q-9 1 -16 -3 Z"), 0xFFF7ED, 1.0, Stroke.Outline, 2.0),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M-2 -10 L-2 -23 L2 -23 L2 -10 Z"), 0xF8D77B, 1.0, Stroke.Outline, 1.5),
+        BuddyPiece(BuddyPart.BODY, Shape.Path("M0 -26 Q-5 -31 0 -35 Q5 -31 0 -26 Z"), 0xF5A65B, 1.0, Stroke.None, 0.0),
+    ) }
     val santa: List<BuddyPiece> by lazy { listOf(
         BuddyPiece(BuddyPart.BODY, Shape.Path("M-17 0 Q-17 -16 -5 -22 Q10 -29 19 -14 Q11 -18 9 -8 L15 0 Z"), 0xDE5263, 1.0, Stroke.Outline, 3.2),
         BuddyPiece(BuddyPart.BODY, Shape.Path("M2 -22 Q10 -25 19 -14 Q11 -18 9 -8 L15 0 L4 0 Q8 -12 2 -22 Z"), 0xB93650, 1.0, Stroke.None, 3.2),
@@ -1746,8 +1822,10 @@ class BuddyOutfit(val pieces: List<BuddyPiece> = emptyList(), val recolor: Map<I
         const val RED = 0xDE5263
         const val GOLD = 0xF8D77B
         const val WHITE = 0xFFF7ED
-        fun make(s: BuddySeason?, c: BuddyCharacter): BuddyOutfit {
+        fun make(s: BuddySeason?, c: BuddyCharacter, night: Boolean = false): BuddyOutfit {
             val r = BuddyRig.rig(c) ?: return BuddyOutfit()
+            if (s == null && night) return BuddyOutfit(BuddyAccessory.place(BuddyAccessory.nightcap, BuddyPart.HEAD, r.hat.x, r.hat.y, r.hat.size) +
+                BuddyAccessory.place(BuddyAccessory.nightcap, BuddyPart.SLEEP, r.sleepHat.x, r.sleepHat.y, r.sleepHat.size))
             if (s == null) return BuddyOutfit()
             val h = r.hat; val sh = r.sleepHat
             val sn = P2(sh.x + sh.size * 1.15, sh.y + sh.size * 1.8)
@@ -1790,6 +1868,7 @@ object BuddyProp {
             BuddyReaction.GIFT -> BuddyAccessory.gift
             BuddyReaction.CANDY -> BuddyAccessory.candy
             BuddyReaction.MOONCAKE -> BuddyAccessory.mooncake
+            BuddyReaction.CAKE -> BuddyAccessory.cake
             else -> return emptyList()
         }
         return BuddyAccessory.place(art, BuddyPart.BODY, r.heart.x, r.heart.y, r.heart.size * 2)

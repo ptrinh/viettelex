@@ -285,7 +285,7 @@ def accessories(source, kotlin=False):
                            stroke=stroke, width=float(width), show='always', turn=None))
         assert 0 < len(ps) <= 8, name
         out[name] = ps
-    assert len(out) == 11
+    assert len(out) == 13
     return out
 
 
@@ -529,7 +529,7 @@ def main():
         assert actual and re.findall(r'\"([0-9.]+)\"', actual[0]) == expected, f'{fixture}: stale checksums'
     extras(swift, (ROOT / KOTLIN).read_text(), args.png)
     report['move_numeric_constants'] = 'exact Swift/Kotlin parity'
-    report['accessories'] = '11 exact Swift/Kotlin tables; <=8 pieces per pose/prop'
+    report['accessories'] = '13 exact Swift/Kotlin tables; <=8 pieces per pose/prop'
     (OUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
 
 

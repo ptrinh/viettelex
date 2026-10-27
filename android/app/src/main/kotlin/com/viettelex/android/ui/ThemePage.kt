@@ -357,7 +357,9 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
             HotBadge(animated = !buddyPageSeen, modifier = Modifier.padding(start = 6.dp))
             Spacer(Modifier.weight(1f))
             val ch = com.viettelex.keyboard.BuddyCharacter.of(buddyRaw)
-            Text("${(if (com.viettelex.keyboard.BuddyGate.allows(ch)) ch else com.viettelex.keyboard.BuddyCharacter.OFF).title} ›",
+            val shown = if (com.viettelex.keyboard.BuddyGate.allows(ch)) ch else com.viettelex.keyboard.BuddyCharacter.OFF
+            val name by rememberStringPref(com.viettelex.keyboard.BuddyName.key(shown), "")
+            Text("${shown.title}${if (name.isEmpty()) "" else " · $name"} ›",
                 style = VTType.body, color = c.secondary, maxLines = 1)
         }
     }

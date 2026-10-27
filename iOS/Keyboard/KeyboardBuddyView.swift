@@ -30,6 +30,16 @@ final class BuddyView: UIView {
     /// Màu quầng + viền theo nền thanh (BuddyHalo) — đổi theme mới tính lại.
     private var tones: BuddyHalo.Colors
     private let outfit: BuddyOutfit
+    private let petName: String
+    private let birthdayToday: Bool
+    let outfitClockPart: BuddyClock.Part
+    let appearanceDay: Int
+    var onTimeChanged: (() -> Void)?
+    private var clockPart: BuddyClock.Part
+    private var lastClockRead = -Double.infinity
+    private var lastTickle = -Double.infinity
+    private var lastNightYawn = -Double.infinity
+    private var tickleAfterYawn: DispatchWorkItem?
 
     private let stage = CALayer()      // khung nhân vật (cắt theo bounds view)
     private let sprite = CALayer()
@@ -113,7 +123,18 @@ final class BuddyView: UIView {
         self.framing = framing
         self.season = season
         self.artStyle = artStyle.resolved(for: character)
-        self.outfit = BuddyOutfit.make(artStyle.resolved(for: character).season(season), character)
+        let date = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day, .hour, .minute], from: Date())
+        let part = BuddyClock.part(hour: date.hour ?? 12, minute: date.minute ?? 0)
+        self.clockPart = part
+        self.outfitClockPart = part
+        self.appearanceDay = (date.year ?? 0) * 10_000 + (date.month ?? 0) * 100 + (date.day ?? 0)
+        self.outfit = BuddyOutfit.make(artStyle.resolved(for: character).season(season), character,
+                                      night: artStyle.resolved(for: character) == .vector && part == .night)
+        let prefs = UserDefaults(suiteName: "group.com.viettelex")
+        self.petName = BuddyName.clean(prefs?.string(forKey: BuddyName.key(character)) ?? "")
+        self.birthdayToday = BuddyBirthday.matches(month: prefs?.integer(forKey: BuddyBirthday.monthKey) ?? 0,
+            day: prefs?.integer(forKey: BuddyBirthday.dayKey) ?? 0, year: date.year ?? 0,
+            todayMonth: date.month ?? 0, todayDay: date.day ?? 0)
         self.tones = BuddyHalo.colors(bar: bar)
         self.lowPower = lowPower
         super.init(frame: .zero)
@@ -191,6 +212,18 @@ final class BuddyView: UIView {
     override func didMoveToWindow() {
         super.didMoveToWindow()
         if window != nil {
+            lastClockRead = clock()
+            lastNightYawn = lastClockRead
+            let date = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day, .hour, .minute], from: Date())
+            clockPart = BuddyClock.part(hour: date.hour ?? 12, minute: date.minute ?? 0)
+            if birthdayToday {
+                let key = "buddyBirthdaySeenDay"
+                let stamp = (date.year ?? 0) * 10_000 + (date.month ?? 0) * 100 + (date.day ?? 0)
+                if UserDefaults(suiteName: "group.com.viettelex")?.integer(forKey: key) != stamp {
+                    UserDefaults(suiteName: "group.com.viettelex")?.set(stamp, forKey: key)
+                    react(.cake)
+                }
+            }
             danceSeed = Int.random(in: 0...1_000_000)
             forceApply(); schedule(clock())
         }
@@ -202,7 +235,10 @@ final class BuddyView: UIView {
     /// Một phím vừa gõ. Chỉ ghi giờ + so trạng thái; đổi trạng thái thì áp ở lượt runloop sau.
     func keyPressed() {
         let now = clock()
+        let woke: Bool
+        if case .asleep = shown { woke = true } else { woke = false }
         brain.press(at: now)
+        if woke && clockPart == .morning && !lowPower { brain.react(.yawn, at: now) }
         afterInput(now)
     }
 
@@ -219,6 +255,7 @@ final class BuddyView: UIView {
     func cheer() {
         let now = clock()
         brain.cheer(at: now)
+        if birthdayToday && !lowPower { brain.react(.cake, at: now) }
         cheerSerial &+= 1
         if let signature = BuddySignature.cheer(character, seed: cheerSerial) { showSignature(signature) }
         afterInput(now)
@@ -229,9 +266,8 @@ final class BuddyView: UIView {
         let prev3 = wordHistory.flatMap { $0.word == prev && $0.prev == prev2 ? $0.prev2 : nil }
         wordHistory = (word, prev, prev2)
         if let signature = BuddySignature.word(character, word) ?? prev.flatMap({ BuddySignature.word(character, $0 + " " + word) }) { showSignature(signature) }
-        let date = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-        let active = season ?? BuddySeason.of(year: date.year ?? 0, month: date.month ?? 0, day: date.day ?? 0)
-        guard let r = BuddyWords.reaction(word: word, prev: prev, prev2: prev2, prev3: prev3, season: active) else { return }
+        // Mùa đã chốt lúc bàn phím hiện; đổi ngày được kiểm tra tối đa mỗi phút khi còn thấy.
+        guard let r = BuddyWords.reaction(word: word, prev: prev, prev2: prev2, prev3: prev3, season: season) else { return }
         react(r)
     }
 
@@ -245,6 +281,18 @@ final class BuddyView: UIView {
         brain.react(r, at: now)
         if let signature = BuddySignature.reaction(character, r) { showSignature(signature) }
         afterInput(now)
+    }
+
+    func tickle() {
+        let now = clock()
+        guard now - lastTickle >= 0.6, window != nil else { return }
+        lastTickle = now
+        if case .asleep = shown, !lowPower {
+            react(.yawn)
+            let item = DispatchWorkItem { [weak self] in if self?.window != nil { self?.react(.tickle) } }
+            tickleAfterYawn?.cancel(); tickleAfterYawn = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9, execute: item)
+        } else { react(.tickle) }
     }
 
     @inline(__always) private func afterInput(_ now: Double) {
@@ -271,13 +319,31 @@ final class BuddyView: UIView {
     /// Áp trạng thái hiện tại + hẹn lần đổi kế.
     func tick() {
         let now = clock()
+        if window != nil && now - lastClockRead >= 60 {
+            lastClockRead = now
+            let date = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day, .hour, .minute], from: Date())
+            let oldPart = clockPart
+            clockPart = BuddyClock.part(hour: date.hour ?? 12, minute: date.minute ?? 0)
+            let day = (date.year ?? 0) * 10_000 + (date.month ?? 0) * 100 + (date.day ?? 0)
+            if oldPart != clockPart || day != appearanceDay { DispatchQueue.main.async { [weak self] in self?.onTimeChanged?() } }
+        }
+        if clockPart == .night, !lowPower, now - lastNightYawn >= 5,
+           case .idle = shown {
+            lastNightYawn = now; react(.yawn); return
+        }
         apply(brain.phase(at: now), now: now)
         schedule(now)
     }
 
     private func schedule(_ now: Double) {
         timer?.invalidate(); timer = nil
+        guard window != nil && !isHidden else { return }
         var deadline = brain.nextDeadline(after: now)
+        deadline = min(deadline ?? lastClockRead + 60, lastClockRead + 60)
+        if clockPart == .night, !lowPower, case .idle = shown {
+            let yawn = lastNightYawn + 5
+            deadline = min(deadline ?? yawn, yawn)
+        }
         if spriteAtlas == nil, case .dancing = shown {
             let index = danceLoopIndex(now)
             let boundary = loopEpoch + Double((index / 2 + 1) * 2 - danceLoopBase) * loopLen
@@ -295,6 +361,7 @@ final class BuddyView: UIView {
     /// Ẩn bàn phím / gỡ: dừng hẹn giờ + gỡ hoạt ảnh.
     func halt() {
         timer?.invalidate(); timer = nil
+        tickleAfterYawn?.cancel(); tickleAfterYawn = nil
         sprite.removeAllAnimations()
         removeAllAnimations()
     }
@@ -814,7 +881,7 @@ final class BuddyView: UIView {
         guard w > 0, h > 0 else { return }
         let dur = r.duration
         switch r {
-        case .luckyMoney, .gift, .candy, .mooncake:
+        case .luckyMoney, .gift, .candy, .mooncake, .cake:
             let group = holidayProp(r)
             group.isHidden = false
             let pulse = CAKeyframeAnimation(keyPath: "transform.scale")
@@ -841,7 +908,11 @@ final class BuddyView: UIView {
             showBadge(r, w: w, h: h, text: "!", dur: dur)
         case .sad:
             showBadge(r, w: w, h: h, text: nil, dur: dur)
-        case .laugh, .greet, .panic:
+        case .greet:
+            if let bubble = BuddyName.bubble(petName, english: L("chào bạn!") == "says hi!", maxCharacters: Int(w / 5.2)) {
+                showBadge(r, w: w, h: h, text: bubble, dur: dur)
+            }
+        case .laugh, .panic, .tickle, .yawn:
             break
         }
         let n = min(BuddyFX.count(r), BuddyFX.maxParticles)
@@ -850,16 +921,16 @@ final class BuddyView: UIView {
         for i in 0..<n {
             let p = BuddyFX.particle(r, i, width: w, height: h)
             let l: CALayer
-            if r == .panic {
+            if r == .panic || r == .tickle {
                 let t = fxText(i)
-                t.string = BuddyFX.panicGlyphs[i % BuddyFX.panicGlyphs.count]
+                t.string = r == .tickle ? (i % 2 == 0 ? "✦" : "hi") : BuddyFX.panicGlyphs[i % BuddyFX.panicGlyphs.count]
                 t.foregroundColor = Self.cg(tones.halo)
                 l = t
             } else {
                 let s = fxShape(i)
-                let d = r == .love ? BuddyFX.heartPath(cx: k, cy: k, k: k * 0.85) : BuddyFX.dropPath(cx: k, cy: k, k: k * 0.8)
+                let d = r == .love ? BuddyFX.heartPath(cx: k, cy: k, k: k * 0.85) : r == .cake ? "M0 0 L7 0 L7 7 L0 7 Z" : BuddyFX.dropPath(cx: k, cy: k, k: k * 0.8)
                 s.path = Self.svg(d, origin: (0, 0), scale: 1)
-                s.fillColor = Self.cg(r == .love ? BuddyFX.heartColor : r == .sad ? BuddyFX.rainColor : BuddyFX.tearColor)
+                s.fillColor = Self.cg(r == .cake ? [UInt32(0xF8D77B), 0xF7A7B9, 0x83B9A4, 0xA48AC0][i % 4] : r == .love ? BuddyFX.heartColor : r == .sad ? BuddyFX.rainColor : BuddyFX.tearColor)
                 l = s
             }
             l.isHidden = false
@@ -890,6 +961,7 @@ final class BuddyView: UIView {
         let t = badgeText ?? {
             let x = CATextLayer()
             x.alignmentMode = .center
+            x.truncationMode = .end
             x.contentsScale = traitCollection.displayScale > 0 ? traitCollection.displayScale : 3
             x.font = "HelveticaNeue-Bold" as CFString
             layer.addSublayer(x)
@@ -909,6 +981,11 @@ final class BuddyView: UIView {
             b.path = Self.svg(BuddyFX.cloudPath(BuddyRect(x: 0, y: 0, w: rect.w, h: rect.h)), origin: (0, 0), scale: 1)
             b.fillColor = Self.cg(BuddyFX.cloudColor)
             b.strokeColor = nil
+        case .greet:
+            b.path = UIBezierPath(roundedRect: local.insetBy(dx: 0.5, dy: 0.5), cornerRadius: 5).cgPath
+            b.fillColor = Self.cg(0xFFF7ED)
+            b.strokeColor = Self.cg(tones.outline)
+            b.lineWidth = 1
         default:
             b.path = nil
         }
@@ -916,8 +993,8 @@ final class BuddyView: UIView {
         if let text {
             t.isHidden = false
             t.string = text
-            t.fontSize = r == .surprised ? frame.height * 0.95 : frame.height * 0.72
-            t.foregroundColor = Self.cg(BuddyFX.angryRed)
+            t.fontSize = r == .greet ? min(7, frame.height * 0.55) : r == .surprised ? frame.height * 0.95 : frame.height * 0.72
+            t.foregroundColor = Self.cg(r == .greet ? BuddyRig.ink : BuddyFX.angryRed)
             t.frame = CGRect(x: frame.minX, y: frame.minY + (r == .surprised ? -1 : frame.height * 0.06),
                              width: frame.width, height: frame.height + 2)
         } else {
@@ -967,6 +1044,7 @@ final class BuddyView: UIView {
 
     private func stopFX() {
         for (group, _) in holidayProps.values { group.removeAllAnimations(); group.isHidden = true }
+        if birthdayToday { holidayProps[.cake]?.0.isHidden = false }
         for l in [prop, flush, brows] as [CALayer] { l.removeAllAnimations(); l.isHidden = true }
         for l in fxShapes as [CALayer] + fxTexts { l.removeAllAnimations(); l.opacity = 0 }
         for l in [badge, badgeText].compactMap({ $0 }) as [CALayer] { l.removeAllAnimations(); l.opacity = 0; l.isHidden = true }
@@ -979,6 +1057,7 @@ final class BuddyView: UIView {
         guard bounds.size != builtFor, bounds.width > 0, bounds.height > 0 else { return }
         builtFor = bounds.size
         build()
+        if birthdayToday { holidayProp(.cake).isHidden = false }
         if character == .koi, !lowPower, case .asleep = shown { stopBubbles(); startBubbles() }
     }
 

@@ -25,6 +25,7 @@ sealed class SettingKind {
     data class IntRange(val default: Int, val range: kotlin.ranges.IntRange) : SettingKind()
     /** Chuỗi thuộc tập [allowed] (vd uiLanguage "vi"/"en"); giá trị lạ bỏ qua. */
     data class Choice(val default: String, val allowed: Set<String>) : SettingKind()
+    object BuddyName : SettingKind()
     /** Chuỗi JSON "Tuỳ chỉnh nâng cao" theo theme ([KeyStyleStore]) — chuẩn hoá khi đọc/ghi, mặc định "{}". */
     object StyleMap : SettingKind()
     /** Chuỗi JSON kho theme tự tạo ([CustomThemeStore]) — chuẩn hoá (kiểm chặt) khi đọc/ghi, mặc định "{}". */
@@ -93,6 +94,18 @@ object BackupSettings {
         Spec(Keys.KEY_EFFECT, SettingKind.Choice(KeyEffect.DEFAULT.id, KeyEffect.IDS)),
         // "Bạn đồng hành" (Plus, [BuddyCharacter]) — cùng khoá + id iOS; lạ ⇒ bỏ qua (máy giữ Tắt).
         Spec(Keys.KEYBOARD_BUDDY, SettingKind.Choice(BuddyCharacter.DEFAULT.id, BuddyCharacter.IDS)),
+        Spec(BuddyBirthday.MONTH_KEY, SettingKind.IntRange(0, 0..12)),
+        Spec(BuddyBirthday.DAY_KEY, SettingKind.IntRange(0, 0..31)),
+        Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.GIRL), SettingKind.BuddyName),
+        Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.BOY), SettingKind.BuddyName),
+        Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.CAT), SettingKind.BuddyName),
+        Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.CHICK), SettingKind.BuddyName),
+        Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.SHIBA), SettingKind.BuddyName),
+        Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.KOI), SettingKind.BuddyName),
+        Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.PANDA), SettingKind.BuddyName),
+        Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.PIG), SettingKind.BuddyName),
+        Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.DRAGON), SettingKind.BuddyName),
+        Spec(com.viettelex.keyboard.BuddyName.key(BuddyCharacter.EAGLE), SettingKind.BuddyName),
         // Kiểu vẽ riêng từng nhân vật ([BuddyStyle]: Hoạt hình / Vẽ nét) — cùng khoá + id iOS; lạ ⇒ bỏ qua.
         Spec(BuddyStyle.key(BuddyCharacter.GIRL), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
         Spec(BuddyStyle.key(BuddyCharacter.BOY), SettingKind.Choice(BuddyStyle.DEFAULT.id, BuddyStyle.IDS)),
@@ -240,6 +253,7 @@ object BackupCodec {
                     is SettingKind.Bool -> (raw as? Boolean)?.let { out[k] = it }
                     is SettingKind.IntRange -> intValue(raw)?.let { out[k] = it.coerceIn(kind.range) }
                     is SettingKind.Choice -> (raw as? String)?.takeIf { it in kind.allowed }?.let { out[k] = it }
+                    SettingKind.BuddyName -> (raw as? String)?.let { out[k] = com.viettelex.keyboard.BuddyName.clean(it) }
                     SettingKind.StyleMap -> (raw as? String)?.let(KeyStyleStore::normalize)?.let { out[k] = it }
                     SettingKind.ThemeMap -> (raw as? String)?.let(CustomThemeStore::normalize)?.let { out[k] = it }
                 }
@@ -340,6 +354,7 @@ object BackupPrefs {
             is SettingKind.Bool -> out[spec.key] = (read(spec.key) as? Boolean) ?: k.default
             is SettingKind.IntRange -> out[spec.key] = ((read(spec.key) as? Number)?.toInt() ?: k.default).coerceIn(k.range)
             is SettingKind.Choice -> out[spec.key] = (read(spec.key) as? String)?.takeIf { it in k.allowed } ?: k.default
+            SettingKind.BuddyName -> out[spec.key] = com.viettelex.keyboard.BuddyName.clean((read(spec.key) as? String) ?: "")
             SettingKind.StyleMap -> out[spec.key] = (read(spec.key) as? String)?.let(KeyStyleStore::normalize) ?: KeyStyleStore.EMPTY
             SettingKind.ThemeMap -> out[spec.key] = (read(spec.key) as? String)?.let(CustomThemeStore::normalize) ?: "{}"
         }

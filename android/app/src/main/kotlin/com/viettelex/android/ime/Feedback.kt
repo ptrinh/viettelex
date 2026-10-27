@@ -370,6 +370,9 @@ class Feedback(private val ctx: Context) {
         }
     }
 
+    /** Cù nhân vật: chỉ click hệ thống (tự tắt theo cài đặt âm bàn phím), không phát mẫu riêng/rung. */
+    fun buddyClick() { audio.playSoundEffect(AudioManager.FX_KEYPRESS_STANDARD) }
+
     /** Nấc nhẹ (vuốt ⌫ thêm/bớt một từ): chỉ rung, không âm. */
     fun tick(view: View) {
         if (hapticsEnabled && !vibrate(tick = true)) view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK,

@@ -5073,6 +5073,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
 
     private func routedHitTest(_ point: CGPoint, with event: UIEvent?, time: TimeInterval?) -> UIView? {
+        // Chỉ ô chừa trong strip được vuốt ve; phần hình tràn xuống vẫn thuộc phím.
+        if let buddy, !buddy.isHidden, !suggestionBar.isHidden, bounds.contains(point) {
+            let strip = max(rowsTopConstraint?.constant ?? openStripNow, openStripNow)
+            let zone = Self.buddyZoneFrame(width: bounds.width, strip: strip, placement: buddyPlacement)
+            if BuddyTap.tickles(x: Double(point.x), y: Double(point.y),
+                                zone: BuddyRect(x: Double(zone.minX), y: Double(zone.minY), w: Double(zone.width), h: Double(zone.height)),
+                                stripHeight: Double(strip), figure: BuddyRect(x: Double(buddy.frame.minX), y: Double(buddy.frame.minY), w: Double(buddy.frame.width), h: Double(buddy.frame.height))) { return buddyTickleZone }
+        }
         let v = super.hitTest(point, with: event)
         if let p = overlayPanel, !p.isHidden, p.frame.contains(point) { return v }
         // Phím chữ ưu tiên trong FOOTPRINT thật của nó, kể cả khi hit-area nở của
@@ -5930,6 +5938,18 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     // MARK: Bạn đồng hành (KeyboardBuddy*.swift) — Tắt / chưa Plus ⇒ nil: không view, không layer, 0 chi phí.
     private(set) var buddy: BuddyView?
+    private var buddyTickleZoneMade = false
+    private lazy var buddyTickleZone: UIControl = {
+        buddyTickleZoneMade = true
+        let v = UIControl(frame: .zero)
+        v.accessibilityLabel = L("Cù bạn đồng hành")
+        v.addAction(UIAction { [weak self] _ in
+            self?.buddy?.tickle()
+            UIDevice.current.playInputClick()  // iOS tự im lặng khi tiếng click hệ thống tắt.
+        }, for: .touchUpInside)
+        addSubview(v)
+        return v
+    }()
     /// Ô nhân vật sát MÉP PHẢI (thanh gợi ý co lại đúng bấy nhiêu, 📋 / 😊 dời trái) — không đè chip gợi ý.
     static let buddyZoneWidth: CGFloat = 34
     private var buddyZone: CGFloat { buddy == nil ? 0 : CGFloat(buddyPlacement.zoneWidth(Double(Self.buddyZoneWidth))) }
@@ -5965,6 +5985,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let low = ProcessInfo.processInfo.isLowPowerModeEnabled
         if c == .off {
             buddy?.halt(); buddy?.removeFromSuperview(); buddy = nil
+            if buddyTickleZoneMade { buddyTickleZone.isHidden = true }
             return
         }
         // Trang phục mùa lễ: theme lễ đang dùng, không thì theo ngày (một lần lúc hiện, không mỗi phím).
@@ -5976,13 +5997,18 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if placement != buddyPlacement { buddyPlacement = placement; setNeedsLayout() }
         // Kiểu vẽ riêng nhân vật (Hoạt hình mặc định / Vẽ nét) — đổi ⇒ dựng view mới, chỉ nạp tài nguyên kiểu đó.
         let style = BuddyStyle.load(UserDefaultsProvider.shared, c)
-        if let b = buddy, b.character == c, b.season == season, b.artStyle == style {
+        let stamp = (today.year ?? 0) * 10_000 + (today.month ?? 0) * 100 + (today.day ?? 0)
+        let hour = Calendar(identifier: .gregorian).component(.hour, from: Date())
+        let part = BuddyClock.part(hour: hour, minute: 0)
+        if let b = buddy, b.character == c, b.season == season, b.artStyle == style,
+           b.appearanceDay == stamp, (style != .vector || season != nil || b.outfitClockPart == part) {
             b.lowPower = low
             b.setBar(palette.buddyBar)
             return
         }
         buddy?.halt(); buddy?.removeFromSuperview()
         let b = BuddyView(character: c, bar: palette.buddyBar, lowPower: low, season: season, artStyle: style)
+        b.onTimeChanged = { [weak self] in self?.configureBuddy() }
         addSubview(b)
         buddy = b
         setNeedsLayout()
@@ -5990,9 +6016,15 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     private func layoutBuddy(stripOpen: Bool) {
         guard let b = buddy else { return }
+        let wasHidden = b.isHidden
+        let zone = Self.buddyZoneFrame(width: bounds.width, strip: max(rowsTopConstraint?.constant ?? openStripNow, openStripNow), placement: buddyPlacement)
+        buddyTickleZone.isHidden = !stripOpen
+        buddyTickleZone.frame = zone
+        bringSubviewToFront(buddyTickleZone)
         let show = stripOpen && bounds.width > 0
         b.isHidden = !show
-        guard show else { return }
+        guard show else { b.halt(); return }
+        if wasHidden { b.tick() }
         // Strip thật (rowsContainer bắt đầu ngay dưới); ô nhân vật tràn xuống hàng phím đầu (không nhận chạm).
         let strip = min(max(rowsTopConstraint?.constant ?? openStripNow, openStripNow),
                         rowsContainer.frame.height > 0 ? rowsContainer.frame.minY : .greatestFiniteMagnitude)

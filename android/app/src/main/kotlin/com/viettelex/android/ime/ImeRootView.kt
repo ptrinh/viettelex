@@ -443,6 +443,7 @@ class ImeRootView(
         val fw = Math.round(f.w).toInt(); val fh = Math.round(f.h).toInt()
         b.measure(MeasureSpec.makeMeasureSpec(fw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(fh, MeasureSpec.EXACTLY))
         b.layout(fl, ft, fl + fw, ft + fh)
+        strip.buddyFigure = com.viettelex.keyboard.BuddyRect((fl - strip.left).toDouble(), (ft - strip.top).toDouble(), fw.toDouble(), fh.toDouble())
         b.shownInSlot = strip.buddySlotShown() && s > 0
     }
 

@@ -41,6 +41,7 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         fun onToggleClipboard()
         /** Nút 😊 ("Nút emoji" = Thanh trên): chạm = bảng emoji. */
         fun onEmojiButton() {}
+        fun onBuddyTickle() {}
         /**
          * Giữ nút 😊 strip: menu như giữ phím 😊 (đổi bàn phím, giọng nói, một tay…). Toạ độ px của
          * StripView; IME đổi sang toạ độ bàn phím. true = menu đã mở (nhận [onEmojiButtonHoldMove]).
@@ -179,6 +180,7 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         set(v) { if (field != v) { field = v; lastSet?.let { layoutSlots(it) }; layoutPaste(); onBuddySlot?.invoke(); invalidate() } }
     /** Ô nhân vật đang hiện (bar mở, plane chữ/số). */
     fun buddySlotShown(): Boolean = buddyDp > 0f && barVisible
+    var buddyFigure: com.viettelex.keyboard.BuddyRect? = null
     /** Gọi khi [buddySlotShown] có thể đổi (plane, cấu hình). */
     var onBuddySlot: (() -> Unit)? = null
     /** Lề mỗi bên cho pill căn giữa: zone ☰ + phần lớn hơn giữa icon con trỏ (trái) và 😊/📋/nhân vật (phải). */
@@ -544,7 +546,9 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         val tools = tools()
         if (tools && x < zone + theme.dp(STRIP_TOOL_W)) return T_EDIT
         val bd = theme.dp(buddyDp)
-        if (x >= w - bd) return T_NONE        // ô nhân vật: không nhận chạm
+        if (bd > 0f && com.viettelex.keyboard.BuddyTap.tickles(x.toDouble(), y.toDouble(),
+                com.viettelex.keyboard.BuddyRect((w - bd).toDouble(), 0.0, bd.toDouble(), strip.toDouble()), strip.toDouble(), buddyFigure))
+            return T_BUDDY
         val em = if (emojiButton) theme.dp(StripGeometry.EMOJI_W) else 0f
         if (emojiButton && x >= w - bd - em) return T_EMOJI_BTN
         if (clipButton && tools && x >= w - bd - em - theme.dp(CLIP_W)) return T_CLIP
@@ -565,6 +569,7 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
             T_EDIT -> { feedback.click(Feedback.MODIFIER, this); listener?.onToggleEditPanel() }
             T_CLIP -> { feedback.click(Feedback.MODIFIER, this); listener?.onToggleClipboard() }
             T_EMOJI_BTN -> { feedback.click(Feedback.MODIFIER, this); listener?.onEmojiButton() }
+            T_BUDDY -> { feedback.buddyClick(); listener?.onBuddyTickle() }
             T_PASTE -> { feedback.click(Feedback.MODIFIER, this); listener?.onSuggestion(SuggestionSet.PASTE_TOKEN) }
             T_RESTORE -> { feedback.click(Feedback.MODIFIER, this); listener?.onRestoreDeleted() }
             T_PILL -> tap.up()?.let { feedback.click(Feedback.MODIFIER, this); listener?.onSuggestion(it) }
@@ -611,6 +616,7 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         private const val T_CLIP = 8
         private const val T_PILL = 9
         private const val T_EMOJI_BTN = 10
+        private const val T_BUDDY = 11
         /** Bề ngang ô icon con trỏ (sau ô mẫu câu), dp. */
         const val STRIP_TOOL_W = StripGeometry.TOOL_W
         private const val LONG_MS = 450L

@@ -47,6 +47,7 @@ struct ThemeSettingsView: View {
     @AppStorage(KeyEffect.key, store: groupDefaults) private var keyEffectRaw = KeyEffect.defaultValue.rawValue
     /// "Bạn đồng hành" (Plus, BuddyCharacter) — trang con BuddyPickerView.
     @AppStorage(BuddyCharacter.key, store: groupDefaults) private var buddyRaw = BuddyCharacter.defaultValue.rawValue
+    @State private var buddyNameSummary = ""
     /// Đã mở trang "Bạn đồng hành" ⇒ nhãn HOT thôi nhún (vẫn hiện).
     @AppStorage("buddyPageSeen") private var buddyPageSeen = false
     /// Thống kê Đập chuột (bàn phím ghi) — đọc lại mỗi lần trang hiện.
@@ -164,6 +165,7 @@ struct ThemeSettingsView: View {
                 // "Bạn đồng hành" (Plus, KeyboardBuddy) — mục riêng, mặc định Tắt.
                 NavigationLink {
                     BuddyPickerView().onAppear { buddyPageSeen = true }
+                        .onDisappear { buddyNameSummary = BuddyName.clean(groupDefaults?.string(forKey: BuddyName.key(BuddyCharacter.parse(buddyRaw))) ?? "") }
                 } label: {
                     HStack(spacing: 6) {
                         Text(L("Bạn đồng hành"))
@@ -171,9 +173,11 @@ struct ThemeSettingsView: View {
                         if !BuddyGate.allows { plusBadge }
                         Spacer()
                         Text(BuddyPolicy.active(setting: BuddyCharacter.parse(buddyRaw),
-                                                plus: BuddyGate.allows(BuddyCharacter.parse(buddyRaw))).title)
+                                                plus: BuddyGate.allows(BuddyCharacter.parse(buddyRaw))).title
+                             + (buddyNameSummary.isEmpty ? "" : " · " + buddyNameSummary))
                             .foregroundStyle(.secondary).lineLimit(1)
                     }
+                    .onAppear { buddyNameSummary = BuddyName.clean(groupDefaults?.string(forKey: BuddyName.key(BuddyCharacter.parse(buddyRaw))) ?? "") }
                 }
             }
 

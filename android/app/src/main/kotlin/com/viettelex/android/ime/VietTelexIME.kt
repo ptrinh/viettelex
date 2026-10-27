@@ -395,11 +395,14 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH))
         val old = r.buddy
         // Kiểu vẽ riêng nhân vật (Hoạt hình mặc định / Vẽ nét) — đổi ⇒ dựng view mới, chỉ nạp tài nguyên kiểu đó.
-        if (old != null && old.character == c && old.season == season && old.artStyle == style) {
+        val stamp = cal.get(java.util.Calendar.YEAR) * 10000 + (cal.get(java.util.Calendar.MONTH) + 1) * 100 + cal.get(java.util.Calendar.DAY_OF_MONTH)
+        val part = com.viettelex.keyboard.BuddyClock.part(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
+        if (old != null && old.character == c && old.season == season && old.artStyle == style && old.appearanceDay == stamp &&
+            (style != com.viettelex.keyboard.BuddyStyle.VECTOR || season != null || old.outfitClockPart == part)) {
             old.lowPower = low; old.setBar(com.viettelex.keyboard.BuddyHalo.opaque(th.bg, th.dark))
         } else {
             r.buddy = BuddyView(this, c, th.density, com.viettelex.keyboard.BuddyHalo.opaque(th.bg, th.dark), low, season,
-                artStyle = style)
+                artStyle = style).apply { onTimeChanged = { this@VietTelexIME.applyBuddy(setting, style, placement, th, st) } }
         }
         r.buddyPlacement = placement
         st.buddyDp = placement.zoneWidth(StripGeometry.BUDDY_W.toDouble()).toFloat()
@@ -1494,6 +1497,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     // --- nút 😊 trên strip ("Nút emoji" = Thanh trên) ---
     override fun onEmojiButton() { keyboard?.setPlane(Plane.EMOJI) }
+    override fun onBuddyTickle() { root?.buddy?.tickle() }
 
     /** Toạ độ StripView → KeyboardView (cùng cha ImeRootView, kể cả thả nổi). */
     private fun stripToKbDy(): Float {

@@ -18,6 +18,10 @@ struct BuddyPickerView: View {
     /// Kiểu vẽ từng nhân vật (BuddyStyle.key) — đọc một lần lúc mở trang, ghi thẳng App Group khi đổi.
     @State private var styles: [BuddyCharacter: BuddyStyle] =
         Dictionary(uniqueKeysWithValues: BuddyCharacter.allCases.map { ($0, BuddyStyle.load(buddyDefaults, $0)) })
+    @State private var names: [BuddyCharacter: String] =
+        Dictionary(uniqueKeysWithValues: BuddyCharacter.allCases.map { ($0, buddyDefaults?.string(forKey: BuddyName.key($0)) ?? "") })
+    @AppStorage(BuddyBirthday.monthKey, store: buddyDefaults) private var birthdayMonth = 0
+    @AppStorage(BuddyBirthday.dayKey, store: buddyDefaults) private var birthdayDay = 0
 
     @AppStorage(BuddyPlacement.sizeKey, store: buddyDefaults) private var size = BuddyPlacement.defaultSize
     @AppStorage(BuddyPlacement.padRightKey, store: buddyDefaults) private var padRight = 0
@@ -54,6 +58,12 @@ struct BuddyPickerView: View {
                 Text(L("Nhân vật nhỏ ở góc phải thanh gợi ý: gõ thì nhảy — gõ càng nhanh nhảy càng sung — ngừng gõ thì cuộn tròn ngủ. Chỉ chuyển động khi đang gõ; Chế độ nguồn điện thấp chỉ hiện dáng đứng yên."))
             }
             if current != .off && BuddyGate.allows(current) {
+                Section {
+                    TextField(L("Đặt tên"), text: Binding(
+                        get: { names[current, default: ""] },
+                        set: { let v = BuddyName.clean($0); names[current] = v; buddyDefaults?.set(v, forKey: BuddyName.key(current)) }))
+                        .textInputAutocapitalization(.words)
+                } header: { Text(L("Đặt tên") + " · " + current.title) }
                 if BuddyStyle.hasAtlas(current) {
                     Section {
                         Picker(L("Kiểu vẽ"), selection: Binding(
@@ -91,6 +101,24 @@ struct BuddyPickerView: View {
                     Text(L("Chung cho mọi nhân vật. Lề phải dương: dời sang trái; lề trên dương: dời xuống. Bàn phím áp dụng lần hiện kế."))
                 }
             }
+            Section {
+                Toggle(L("Sinh nhật của bạn"), isOn: Binding(
+                    get: { birthdayMonth > 0 && birthdayDay > 0 },
+                    set: { if $0 { birthdayMonth = 1; birthdayDay = 1 } else { birthdayMonth = 0; birthdayDay = 0 } }))
+                if birthdayMonth > 0 {
+                    Picker(L("Tháng"), selection: $birthdayMonth) {
+                        ForEach(1...12, id: \.self) { Text("\($0)").tag($0) }
+                    }
+                    Picker(L("Ngày"), selection: $birthdayDay) {
+                        ForEach(1...([31,29,31,30,31,30,31,31,30,31,30,31][birthdayMonth - 1]), id: \.self) {
+                            Text("\($0)").tag($0)
+                        }
+                    }
+                    .onChange(of: birthdayMonth) { v in
+                        if (1...12).contains(v) { birthdayDay = min(birthdayDay, [31,29,31,30,31,30,31,31,30,31,30,31][v - 1]) }
+                    }
+                }
+            } footer: { Text(L("Chỉ lưu trên thiết bị và trong bản sao lưu.")) }
         }
         .bottomBarScrollMargin()
         .navigationTitle(L("Bạn đồng hành"))
@@ -130,7 +158,7 @@ struct BuddyPickerView: View {
             .accessibilityLabel(c.title + (selected ? L(", đang chọn") : "") + (locked ? " · Plus" : ""))
             .accessibilityAddTraits(selected ? .isSelected : [])
             HStack(spacing: 4) {
-                Text(c.title).font(.footnote).lineLimit(1)
+                Text(names[c].flatMap { $0.isEmpty ? nil : $0 } ?? c.title).font(.footnote).lineLimit(1)
                 if locked { plusBadge }
                 Spacer(minLength: 0)
             }

@@ -349,6 +349,13 @@ enum L10n {
         "Hiệu ứng khi bấm phím": "Key press effect",
         // Bạn đồng hành (KeyboardBuddy.swift)
         "Bạn đồng hành": "Keyboard buddy",
+        "Cù bạn đồng hành": "Tickle buddy",
+        "Đặt tên": "Name",
+        "chào bạn!": "says hi!",
+        "Sinh nhật của bạn": "Your birthday",
+        "Tháng": "Month",
+        "Ngày": "Day",
+        "Chỉ lưu trên thiết bị và trong bản sao lưu.": "Stored only on this device and in your backup.",
         "Mới": "New",
         "Cô gái": "Girl",
         "Chàng trai": "Boy",

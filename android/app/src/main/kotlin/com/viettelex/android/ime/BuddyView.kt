@@ -31,6 +31,9 @@ import com.viettelex.keyboard.BuddySeason
 import com.viettelex.keyboard.BuddySprites
 import com.viettelex.keyboard.BuddyStyle
 import com.viettelex.keyboard.BuddyWords
+import com.viettelex.keyboard.BuddyBirthday
+import com.viettelex.keyboard.BuddyClock
+import com.viettelex.keyboard.BuddyName
 import com.viettelex.keyboard.Shape
 import com.viettelex.keyboard.Show
 import com.viettelex.keyboard.Stroke
@@ -90,6 +93,22 @@ class BuddyView(
     private var signatureStart = 0.0
     private var signatureUntil = 0.0
     private var cheerSerial = 0
+    private val prefs = context.getSharedPreferences(com.viettelex.keyboard.Keys.PREFS, Context.MODE_PRIVATE)
+    private val petName = BuddyName.clean(prefs.getString(BuddyName.key(character), "") ?: "")
+    private val birthdayToday: Boolean = java.util.Calendar.getInstance().let { cal ->
+        BuddyBirthday.matches(prefs.getInt(BuddyBirthday.MONTH_KEY, 0), prefs.getInt(BuddyBirthday.DAY_KEY, 0),
+            cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH))
+    }
+    private var clockPart = java.util.Calendar.getInstance().let { BuddyClock.part(it.get(java.util.Calendar.HOUR_OF_DAY), it.get(java.util.Calendar.MINUTE)) }
+    val outfitClockPart = clockPart
+    val appearanceDay = java.util.Calendar.getInstance().let {
+        it.get(java.util.Calendar.YEAR) * 10000 + (it.get(java.util.Calendar.MONTH) + 1) * 100 + it.get(java.util.Calendar.DAY_OF_MONTH)
+    }
+    var onTimeChanged: (() -> Unit)? = null
+    private var lastClockRead = Double.NEGATIVE_INFINITY
+    private var lastTickle = Double.NEGATIVE_INFINITY
+    private var lastNightYawn = Double.NEGATIVE_INFINITY
+    private val tickleAfterYawn = Runnable { if (isAttachedToWindow) react(BuddyReaction.TICKLE) }
     private var flamePath: Path? = null
     val rig: BuddyRig = BuddyRig.rig(character) ?: BuddyRig.CAT
     val driver = BuddyDriver(rig, lowPower).apply {
@@ -97,7 +116,8 @@ class BuddyView(
         danceSeed = kotlin.random.Random.nextInt(1_000_001)
         vectorDance = spriteAtlas == null
     }
-    private val outfit = BuddyOutfit.make(artStyle.season(season), character)
+    private val outfit = BuddyOutfit.make(artStyle.season(season), character,
+        artStyle == BuddyStyle.VECTOR && clockPart == BuddyClock.Part.NIGHT)
     private val pieces: List<BuddyPiece> = rig.pieces + outfit.pieces
     private val paths = Array(pieces.size) { Path() }
     private val fills = Array(pieces.size) { Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL } }
@@ -179,7 +199,7 @@ class BuddyView(
 
     /** Ô nhân vật đang hiện (bar mở) — root đặt; ẩn ⇒ không vẽ gì. */
     var shownInSlot = true
-        set(v) { if (field != v) { field = v; invalidate() } }
+        set(v) { if (field != v) { field = v; if (!v) halt(); invalidate() } }
     var maxFigureDp = 200f
         set(v) { field = v; invalidate() }
     /** Đồng hồ (giây) — test thay. */
@@ -228,16 +248,18 @@ class BuddyView(
 
     // MARK: đầu vào (đường phím — chỉ ghi giờ; đổi trạng thái ⇒ một invalidate, vẽ ở khung kế)
 
-    fun keyPressed() { val t = clock(); driver.keyPressed(t); afterInput(t) }
+    fun keyPressed() { val t = clock(); val woke = driver.shown is BuddyPhase.Asleep; driver.keyPressed(t)
+        if (woke && clockPart == BuddyClock.Part.MORNING && !driver.lowPower) driver.react(BuddyReaction.YAWN, t)
+        afterInput(t) }
     fun deletePressed() { val t = clock(); val serial = driver.brain.reactSerial; driver.deletePressed(t)
         if (driver.brain.reactSerial != serial) BuddySignature.reaction(character, BuddyReaction.PANIC)?.let { showSignature(it, t) }
         afterInput(t) }
-    fun cheer() { val t = clock(); driver.cheer(t); cheerSerial++; BuddySignature.cheer(character, cheerSerial)?.let { showSignature(it, t) }; afterInput(t) }
+    fun cheer() { val t = clock(); driver.cheer(t); if (birthdayToday && !driver.lowPower) driver.react(BuddyReaction.CAKE, t)
+        cheerSerial++; BuddySignature.cheer(character, cheerSerial)?.let { showSignature(it, t) }; afterInput(t) }
     fun wordCommitted(word: String, prev: String?, prev2: String?) {
         val t = clock()
-        val date = java.util.Calendar.getInstance()
-        driver.season = season ?: BuddySeason.ofDate(date.get(java.util.Calendar.YEAR),
-            date.get(java.util.Calendar.MONTH) + 1, date.get(java.util.Calendar.DAY_OF_MONTH))
+        // Mùa chốt lúc bàn phím hiện; đổi ngày được kiểm tra tối đa mỗi phút khi còn thấy.
+        driver.season = season
         BuddySignature.word(character, word)?.let { showSignature(it, t) }
             ?: prev?.let { BuddySignature.word(character, "$it $word") }?.let { showSignature(it, t) }
         if (driver.wordCommitted(word, prev, prev2, t)) {
@@ -251,6 +273,15 @@ class BuddyView(
         BuddyWords.emoji(text)?.let { react(it) }
     }
     fun react(r: BuddyReaction) { val t = clock(); driver.react(r, t); BuddySignature.reaction(character, r)?.let { showSignature(it, t) }; afterInput(t) }
+    fun tickle() {
+        val t = clock()
+        if (t - lastTickle < 0.6 || !isAttachedToWindow) return
+        lastTickle = t
+        if (driver.shown is BuddyPhase.Asleep && !driver.lowPower) {
+            react(BuddyReaction.YAWN)
+            removeCallbacks(tickleAfterYawn); postDelayed(tickleAfterYawn, 900)
+        } else react(BuddyReaction.TICKLE)
+    }
 
     private fun showSignature(value: BuddySignature, t: Double) {
         if (driver.lowPower) return
@@ -264,7 +295,14 @@ class BuddyView(
     }
 
     private fun schedule(t: Double) {
-        val d = driver.nextDeadline(t)
+        if (!isAttachedToWindow || !shownInSlot) { halt(); return }
+        var d = driver.nextDeadline(t)
+        val minute = lastClockRead + 60.0
+        d = if (d == null) minute else minOf(d, minute)
+        if (clockPart == BuddyClock.Part.NIGHT && !driver.lowPower && driver.shown is BuddyPhase.Idle) {
+            val yawn = lastNightYawn + 5.0
+            d = if (d == null) yawn else minOf(d, yawn)
+        }
         if (d == null) { if (!tickAt.isNaN()) { removeCallbacks(tick); tickAt = Double.NaN }; return }
         if (tickAt == d) return
         removeCallbacks(tick)
@@ -273,11 +311,21 @@ class BuddyView(
     }
 
     /** Ẩn bàn phím: dừng hẹn giờ (không còn khung hình). */
-    fun halt() { removeCallbacks(tick); tickAt = Double.NaN }
+    fun halt() { removeCallbacks(tick); removeCallbacks(tickleAfterYawn); tickAt = Double.NaN }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        lastClockRead = clock(); lastNightYawn = lastClockRead
+        val cal = java.util.Calendar.getInstance()
+        clockPart = BuddyClock.part(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
         driver.beginAppearance(kotlin.random.Random.nextInt(1_000_001))
+        if (birthdayToday) {
+            val stamp = cal.get(java.util.Calendar.YEAR) * 10000 + (cal.get(java.util.Calendar.MONTH) + 1) * 100 + cal.get(java.util.Calendar.DAY_OF_MONTH)
+            if (prefs.getInt("buddyBirthdaySeenDay", 0) != stamp) {
+                prefs.edit().putInt("buddyBirthdaySeenDay", stamp).apply()
+                react(BuddyReaction.CAKE)
+            }
+        }
     }
 
     override fun onDetachedFromWindow() { halt(); super.onDetachedFromWindow() }
@@ -298,18 +346,30 @@ class BuddyView(
 
     override fun onDraw(c: Canvas) {
         val t = clock()
+        if (isAttachedToWindow && shownInSlot && t - lastClockRead >= 60) {
+            lastClockRead = t
+            val cal = java.util.Calendar.getInstance()
+            val oldPart = clockPart
+            clockPart = BuddyClock.part(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
+            val day = cal.get(java.util.Calendar.YEAR) * 10000 + (cal.get(java.util.Calendar.MONTH) + 1) * 100 + cal.get(java.util.Calendar.DAY_OF_MONTH)
+            if (oldPart != clockPart || day != appearanceDay) post { if (isAttachedToWindow) onTimeChanged?.invoke() }
+        }
+        if (clockPart == BuddyClock.Part.NIGHT && !driver.lowPower && t - lastNightYawn >= 5 && driver.shown is BuddyPhase.Idle) {
+            lastNightYawn = t; react(BuddyReaction.YAWN)
+        }
         driver.update(t)
         tickAt = Double.NaN
         if (!shownInSlot || width <= 0 || height <= 0) { schedule(t); return }
         spriteAtlas?.let {
             drawSprite(c, it, t)
             val reaction = driver.shown as? BuddyPhase.React
-            if (reaction != null && reaction.reaction.isHoliday) {
+            if (birthdayToday || reaction?.reaction == BuddyReaction.CAKE || reaction?.reaction?.isHoliday == true) {
                 c.save()
                 val s = spriteTarget.height() * 0.18f / (rig.heart.size * 2).toFloat()
                 c.translate(width / 2f, spriteTarget.top + spriteTarget.height() * 0.54f)
                 c.scale(s, s); c.translate(-rig.heart.x.toFloat(), -rig.heart.y.toFloat())
-                drawHoliday(c, reaction.reaction, ((t - driver.phaseStart) / reaction.reaction.duration).toFloat())
+                val prop = if (birthdayToday) BuddyReaction.CAKE else reaction!!.reaction
+                drawHoliday(c, prop, if (reaction?.reaction == prop) ((t - driver.phaseStart) / prop.duration).toFloat() else 0.5f)
                 c.restore()
             }
             drawFX(c, t)
@@ -329,7 +389,10 @@ class BuddyView(
         }
         c.save()
         c.translate(ox, oy); c.scale(s, s); c.translate(-vp.x.toFloat(), -vp.y.toFloat())
-        if (p == null) drawSleep(c, t) else drawRig(c, p, t)
+        if (p == null) {
+            drawSleep(c, t)
+            if (birthdayToday) drawHoliday(c, BuddyReaction.CAKE, 0.5f)
+        } else drawRig(c, p, t)
         c.restore()
         drawFX(c, t)
         if (animating(t)) {
@@ -427,7 +490,8 @@ class BuddyView(
                 c.drawPath(browsPath, fxStroke)
             }
             c.restoreToCount(save)
-            if (part == BuddyPart.ARM_R && react?.isHoliday == true) drawHoliday(c, react, f)
+            if (part == BuddyPart.ARM_R && (birthdayToday || react?.isHoliday == true || react == BuddyReaction.CAKE))
+                drawHoliday(c, if (birthdayToday) BuddyReaction.CAKE else react!!, if (react == BuddyReaction.CAKE) f else 0.5f)
             if (part == BuddyPart.BODY && react == BuddyReaction.LOVE) {
                 val sc = pulse(f)
                 val save2 = c.save()
@@ -529,6 +593,21 @@ class BuddyView(
                     fxFill.color = argb(BuddyFX.CLOUD_COLOR, al.toDouble())
                     c.save(); c.translate(rect.left, rect.top); c.drawPath(cloud, fxFill); c.restore()
                 }
+                BuddyReaction.GREET -> {
+                    val bubble = BuddyName.bubble(petName, com.viettelex.keyboard.tr("chào bạn!") == "says hi!", (b.w / 5.2).toInt())
+                    if (bubble != null) {
+                        fxFill.color = argb(0xFFF7ED, al.toDouble())
+                        c.drawRoundRect(rect, 5f, 5f, fxFill)
+                        fxStroke.color = argb(tones.outline, al.toDouble()); fxStroke.strokeWidth = 1f
+                        c.drawRoundRect(rect, 5f, 5f, fxStroke)
+                        fxText.color = argb(BuddyRig.INK, al.toDouble()); fxText.textSize = min(7f, rect.height() * 0.55f)
+                        var fitted: String = bubble
+                        while (fitted.length > 1 && fxText.measureText(fitted) > rect.width() - 4f)
+                            fitted = fitted.dropLast(if (fitted.endsWith("…")) 2 else 1) + "…"
+                        if (fxText.measureText(fitted) <= rect.width() - 4f)
+                            c.drawText(fitted, rect.centerX(), rect.centerY() + fxText.textSize * 0.35f, fxText)
+                    }
+                }
                 else -> {}
             }
             c.restore()
@@ -547,6 +626,14 @@ class BuddyView(
                 BuddyReaction.PANIC -> {
                     fxText.color = argb(tones.halo, al.toDouble()); fxText.textSize = 8f
                     c.drawText(BuddyFX.PANIC_GLYPHS[i % BuddyFX.PANIC_GLYPHS.size], 0f, 3f, fxText)
+                }
+                BuddyReaction.TICKLE -> {
+                    fxText.color = argb(tones.halo, al.toDouble()); fxText.textSize = 8f
+                    c.drawText(if (i % 2 == 0) "✦" else "hi", 0f, 3f, fxText)
+                }
+                BuddyReaction.CAKE -> {
+                    fxFill.color = argb(intArrayOf(0xF8D77B, 0xF7A7B9, 0x83B9A4, 0xA48AC0)[i % 4], al.toDouble())
+                    c.drawRect(-3f, -3f, 3f, 3f, fxFill)
                 }
                 else -> {
                     fxFill.color = argb(when (r) { BuddyReaction.LOVE -> BuddyFX.HEART_COLOR; BuddyReaction.SAD -> BuddyFX.RAIN_COLOR; else -> BuddyFX.TEAR_COLOR }, al.toDouble())
