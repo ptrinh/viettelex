@@ -11,22 +11,18 @@ enum PlusConfig {
     static let paywallEnabled = true
 
     /// Giá gợi ý (chỉ để hiển thị khi StoreKit chưa tải được giá thật).
-    static let plusPriceHint = "69.000đ"
+    static let plusPriceHint = AppFlavor.plusPriceHint
 
     /// Non-consumable: mở khoá VietTelex Plus vĩnh viễn.
-    static let plusProductID = "com.viettelex.ios.plus"
+    static let plusProductID = AppFlavor.plusProductID
 
     /// Consumable: ủng hộ (tip), không mở khoá gì — 25.000đ / 49.000đ / 99.000đ.
-    static let tipProductIDs = [
-        "com.viettelex.ios.tip.small",
-        "com.viettelex.ios.tip.medium",
-        "com.viettelex.ios.tip.large",
-    ]
+    static let tipProductIDs = AppFlavor.tipProductIDs
 
     static var allProductIDs: [String] { [plusProductID] + tipProductIDs }
 
     /// App Group chung app ↔ bàn phím.
-    static let appGroup = "group.com.viettelex"
+    static let appGroup = AppFlavor.appGroup
 
     /// Key trong App Group. App ghi, bàn phím chỉ đọc.
     static let unlockedKey = "plusUnlocked"

@@ -456,7 +456,7 @@ enum KeySoundCustom {
     /// File âm tự chọn trong App Group (app ghi, bàn phím đọc — cần Full Access mới đọc được).
     /// KHÔNG nằm trong file sao lưu VietTelex (chỉ key `keySoundStyle` đi theo).
     static var fileURL: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.viettelex")?
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppFlavor.appGroup)?
             .appendingPathComponent(fileName)
     }
 

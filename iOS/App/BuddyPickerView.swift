@@ -7,7 +7,7 @@
 import SwiftUI
 import UIKit
 
-private let buddyDefaults = UserDefaults(suiteName: "group.com.viettelex")
+private let buddyDefaults = UserDefaults(suiteName: AppFlavor.appGroup)
 
 struct BuddyPickerView: View {
     @AppStorage(BuddyCharacter.key, store: buddyDefaults) private var raw = BuddyCharacter.defaultValue.rawValue

@@ -31,7 +31,7 @@ enum TouchLog {
 
     static let fileName = "touchlog.txt"
     static var fileURL: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.viettelex")?
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppFlavor.appGroup)?
             .appendingPathComponent(fileName)
     }
     private static let queue = DispatchQueue(label: "com.viettelex.touchlog", qos: .utility)

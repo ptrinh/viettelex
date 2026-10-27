@@ -5,7 +5,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum ShortcutStore {
-    static let store = UserDefaults(suiteName: "group.com.viettelex")
+    static let store = UserDefaults(suiteName: AppFlavor.appGroup)
     static func load() -> [String: String] {
         (store?.dictionary(forKey: ShortcutFile.storeKey) as? [String: String]) ?? [:]
     }
@@ -18,10 +18,10 @@ enum ShortcutStore {
 
 /// Dòng trong Tính Năng: bật/tắt + mở trang quản lý.
 struct ShortcutsSection: View {
-    @AppStorage(ShortcutFile.enabledKey, store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage(ShortcutFile.enabledKey, store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var enabled = true
     @State private var count = ShortcutStore.load().count
-    @AppStorage(SystemTextReplacement.enabledKey, store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage(SystemTextReplacement.enabledKey, store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var useSystem = true
     @State private var systemSnapshot = SystemTextReplacement.readSnapshot(ShortcutStore.store)
 

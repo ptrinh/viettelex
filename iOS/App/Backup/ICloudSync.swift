@@ -77,7 +77,7 @@ final class ICloudSync: ObservableObject {
 }
 
 extension BackupStore {
-    static let appGroupID = "group.com.viettelex"
+    static let appGroupID = AppFlavor.appGroup
     static let appGroup = BackupStore(
         defaults: UserDefaults(suiteName: appGroupID) ?? .standard,
         containerURL: FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID),

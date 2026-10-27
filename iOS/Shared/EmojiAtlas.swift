@@ -24,7 +24,7 @@ import ImageIO
 import UIKit
 
 enum EmojiAtlas {
-    static let appGroup = "group.com.viettelex"
+    static let appGroup = AppFlavor.appGroup
     static let format = 1
     /// Ô vuông / trang: 8 × 4 = 32 emoji/trang — trang nhỏ ⇒ giải mã một trang ~1 ms và Recents
     /// (rải nhiều trang) không phải giữ nhiều trang to.

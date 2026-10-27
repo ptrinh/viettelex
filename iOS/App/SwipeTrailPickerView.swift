@@ -5,7 +5,7 @@
 import SwiftUI
 import UIKit
 
-private let trailDefaults = UserDefaults(suiteName: "group.com.viettelex")
+private let trailDefaults = UserDefaults(suiteName: AppFlavor.appGroup)
 
 struct SwipeTrailPickerView: View {
     @AppStorage(SwipeTrailStyle.key, store: trailDefaults) private var raw = SwipeTrailStyle.defaultValue.rawValue

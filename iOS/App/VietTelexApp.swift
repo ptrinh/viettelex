@@ -12,26 +12,26 @@ struct VietTelexApp: App {
         // phím iPhone" #119). Chuyển đổi MỘT lần giá trị cũ để người dùng cũ không thấy đổi
         // (KeyGeometry.RowAdjust) — bàn phím tự tính trong bộ nhớ nếu app chưa chạy.
         let screen = UIScreen.main.bounds.size
-        KeyGeometry.RowAdjust.migrateIfNeeded(UserDefaults(suiteName: "group.com.viettelex"),
+        KeyGeometry.RowAdjust.migrateIfNeeded(UserDefaults(suiteName: AppFlavor.appGroup),
                                               pad: UIDevice.current.userInterfaceIdiom == .pad,
                                               portraitWidth: min(screen.width, screen.height),
                                               extraStateKeys: BackupSettings.all.map(\.key) + KeyStyleStore.legacyKeys)
         // "Tuỳ chỉnh nâng cao" chung cũ → riêng theme đang chọn; "Trắng hồng" (đã bỏ) → Hệ thống +
         // màu nhấn hồng. Một lần, lặp lại vô hại (ThemeSettings.migrateStored) — bàn phím tự chuyển
         // trong bộ nhớ nếu app chưa chạy.
-        ThemeSettings.migrateStored(UserDefaults(suiteName: "group.com.viettelex"))
-        ThemeSettings.refreshCustom(UserDefaults(suiteName: "group.com.viettelex"))   // Giao diện JSON
+        ThemeSettings.migrateStored(UserDefaults(suiteName: AppFlavor.appGroup))
+        ThemeSettings.refreshCustom(UserDefaults(suiteName: AppFlavor.appGroup))   // Giao diện JSON
         // Tệp tải về (phông / ảnh) không theme nào còn dùng (xoá trên máy khác qua iCloud…) ⇒ dọn, nền.
         DispatchQueue.global(qos: .utility).async {
             ThemeAssetStore.collectGarbage(dir: ThemeAssetStore.defaultDir, referenced: ThemeAssetStore.referencedKeys(
-                specs: Array(CustomThemeStore.load(UserDefaults(suiteName: "group.com.viettelex")).values),
-                styles: Array(KeyStyleStore.parse(UserDefaults(suiteName: "group.com.viettelex")?
+                specs: Array(CustomThemeStore.load(UserDefaults(suiteName: AppFlavor.appGroup)).values),
+                styles: Array(KeyStyleStore.parse(UserDefaults(suiteName: AppFlavor.appGroup)?
                     .string(forKey: KeyStyleStore.key)).values)))
         }
         // Ảnh emoji vẽ sẵn cho bàn phím (RAM-AUDIT.md §4b): dựng nền nếu thiếu/cũ.
         EmojiAtlasBuilder.ensureFresh()
         #if DEBUG
-        let g = UserDefaults(suiteName: "group.com.viettelex")
+        let g = UserDefaults(suiteName: AppFlavor.appGroup)
         NSLog("DBG kbFullAccess=%d kbLastSeen=%f",
               g?.bool(forKey: "kbFullAccess") ?? false ? 1 : 0,
               g?.double(forKey: "kbLastSeen") ?? -1)
@@ -55,7 +55,7 @@ let accentBlue = Color(UIColor { trait in
 func isKeyboardEnabled() -> Bool {
     UITextInputMode.activeInputModes.contains {
         ($0.value(forKey: "identifier") as? String)?
-            .hasPrefix("com.viettelex.ios.keyboard") == true
+            .hasPrefix(AppFlavor.keyboardBundleID) == true
     }
 }
 
@@ -88,7 +88,7 @@ struct RootView: View {
     /// Đọc thẳng App Group (bàn phím ghi từ process khác — @AppStorage không chắc
     /// nhận thay đổi chéo process), làm mới mỗi lần app active.
     static func readPasteReady() -> Bool {
-        let d = UserDefaults(suiteName: "group.com.viettelex")
+        let d = UserDefaults(suiteName: AppFlavor.appGroup)
         return d?.bool(forKey: "kbFullAccess") == true && d?.bool(forKey: "pasteNoPrompt") == true
     }
     @State private var tryItText = ""
@@ -113,11 +113,11 @@ struct RootView: View {
     @State private var keyboardShown = false
     /// viettelex://dich → trang Dịch trên máy (chọn ngôn ngữ, tải gói).
     @State private var showTranslate = false
-    @AppStorage("templatesEnabled", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("templatesEnabled", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var templatesEnabled = true
     /// Ngôn ngữ giao diện ("vi" | "en", mặc định "vi" — KHÔNG theo máy). Đổi ở Tính Năng
     /// → dựng lại toàn bộ cây view (id bên dưới) nên áp dụng ngay, không cần mở lại app.
-    @AppStorage(L10n.defaultsKey, store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage(L10n.defaultsKey, store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var uiLanguage = "vi"
 
     private var visibleTabs: [AppTab] {
@@ -190,7 +190,7 @@ struct RootView: View {
         }
         // Bubble ⚙️ trên bàn phím → viettelex://maucau → nhảy thẳng tab Mẫu Câu.
         .onOpenURL { url in
-            guard url.scheme == "viettelex" else { return }
+            guard url.scheme == AppFlavor.urlScheme else { return }
             if url.host == "maucau" {
                 templatesEnabled = true   // user chủ động mở từ keyboard
                 tab = .mauCau
@@ -442,7 +442,7 @@ extension View {
 /// Tab Mẫu Câu — quản lý câu soạn sẵn cho nút ☰ trên bàn phím
 /// (App Group key "userTemplates", mỗi entry ["label": …, "text": …]).
 struct MauCauSections: View {
-    private static let store = UserDefaults(suiteName: "group.com.viettelex")
+    private static let store = UserDefaults(suiteName: AppFlavor.appGroup)
     /// Mặc định từ ios-mau-cau.yml bundle theo build — cùng file với keyboard.
     static let bundledDefaults: [TemplateItem] = {
         guard let url = Bundle.main.url(forResource: "ios-mau-cau", withExtension: "yml"),
@@ -782,7 +782,7 @@ struct FullAccessNotice: View {
     /// kbSeen: bàn phím đã chạy bản có heartbeat ít nhất một lần chưa —
     /// chưa chạy thì cờ granted không có ý nghĩa.
     static func check() -> (granted: Bool, kbSeen: Bool) {
-        guard let g = UserDefaults(suiteName: "group.com.viettelex") else {
+        guard let g = UserDefaults(suiteName: AppFlavor.appGroup) else {
             return (false, false)
         }
         return (g.bool(forKey: "kbFullAccess"),
@@ -854,25 +854,25 @@ func settingToggle(_ title: String, _ caption: String, isOn: Binding<Bool>) -> s
 
 /// Tab Kiểu Gõ — các tuỳ chọn Telex core (EngineBridge đọc cùng key qua App Group).
 struct KieuGoSection: View {
-    @AppStorage("freeMarking", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("freeMarking", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var freeMarking = true
-    @AppStorage("simpleTelex", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("simpleTelex", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var simpleTelex = true
-    @AppStorage("quickTelex", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("quickTelex", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var quickTelex = false
-    @AppStorage("modernTone", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("modernTone", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var modernTone = false
-    @AppStorage("contextualEnglish", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("contextualEnglish", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var contextualEnglish = true
-    @AppStorage(RetroEnglishUI.autoKey, store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage(RetroEnglishUI.autoKey, store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var retroEnglishAuto = false
-    @AppStorage("teencode", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("teencode", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var teencode = false
-    @AppStorage("vniMode", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("vniMode", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var vniMode = false
-    @AppStorage("numberRow", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("numberRow", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var numberRow = false
-    @AppStorage("autoCapitalize", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("autoCapitalize", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var autoCapitalize = true
 
     var body: some View {
@@ -922,14 +922,14 @@ struct KieuGoSection: View {
 /// section qua một Toggle — Button mở sheet / present UIKit đều "không hiện ra gì"
 /// trên máy user (25/09/2026); Toggle trong cùng Form thì chạy chắc chắn.
 struct DebugSection: View {
-    @AppStorage("debugTouchLog", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("debugTouchLog", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var debugTouchLog = false
     @State private var showLog = false
     @State private var logText = ""
     @State private var clearLog = false
 
     static var logURL: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.viettelex")?
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppFlavor.appGroup)?
             .appendingPathComponent("touchlog.txt")
     }
     private func reload() {

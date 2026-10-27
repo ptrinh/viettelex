@@ -401,7 +401,7 @@ final class KeyboardViewController: UIInputViewController {
     /// đã học" ⇒ mốc đổi ⇒ bỏ bảng trong RAM, nạp lại file app vừa ghi (không ghi đè nó).
     private var seenDictResetAt: Double?
     private func checkExternalDictEdit() {
-        let v = UserDefaults(suiteName: "group.com.viettelex")?.double(forKey: "userlmResetAt") ?? 0
+        let v = UserDefaults(suiteName: AppFlavor.appGroup)?.double(forKey: "userlmResetAt") ?? 0
         if let seen = seenDictResetAt, seen != v {
             langModelStorage?.reloadAfterExternalEdit()
             ctxCacheKey = nil
@@ -416,7 +416,7 @@ final class KeyboardViewController: UIInputViewController {
         let now = Date().timeIntervalSince1970
         let heartbeatDue = now - Self.lastHeartbeatAttempt > 3600
         guard Self.reportedFullAccess != fa || heartbeatDue else { return }
-        guard let group = UserDefaults(suiteName: "group.com.viettelex") else { return }
+        guard let group = UserDefaults(suiteName: AppFlavor.appGroup) else { return }
         if Self.reportedFullAccess != fa {
             if group.object(forKey: "kbFullAccess") as? Bool != fa {
                 group.set(fa, forKey: "kbFullAccess")
@@ -1459,7 +1459,7 @@ final class KeyboardViewController: UIInputViewController {
     /// LƯU Ý: mở app chứa từ keyboard extension CHỈ chạy khi đã cấp Toàn quyền
     /// Truy cập (Full Access) — iOS chặn hoàn toàn nếu chưa cấp.
     private func openTemplatesInApp(_ host: String = "maucau") {
-        guard let url = URL(string: "viettelex://\(host)") else { return }
+        guard let url = URL(string: "\(AppFlavor.urlScheme)://\(host)") else { return }
         let sel = NSSelectorFromString("openURL:")
         var responder: UIResponder? = self
         while let r = responder {
@@ -2022,7 +2022,7 @@ final class KeyboardViewController: UIInputViewController {
         let t0 = CACurrentMediaTime()
         let str = pb.string
         let noPrompt = str != nil && CACurrentMediaTime() - t0 < 0.25
-        UserDefaults(suiteName: "group.com.viettelex")?.set(noPrompt, forKey: "pasteNoPrompt")
+        UserDefaults(suiteName: AppFlavor.appGroup)?.set(noPrompt, forKey: "pasteNoPrompt")
         var pasted: String?
         if let s = str, !s.isEmpty {
             textDocumentProxy.insertText(s)
@@ -2258,7 +2258,7 @@ extension KeyboardViewController {
         let t0 = CACurrentMediaTime()
         let str = pb.string
         if CACurrentMediaTime() - t0 >= 0.25 {
-            UserDefaults(suiteName: "group.com.viettelex")?.set(false, forKey: "pasteNoPrompt")
+            UserDefaults(suiteName: AppFlavor.appGroup)?.set(false, forKey: "pasteNoPrompt")
         }
         guard let s = str else { return }
         clip.captured(s, change: change, now: Date().timeIntervalSince1970,
@@ -2289,7 +2289,7 @@ extension KeyboardViewController {
             guard let self else { return }
             if self.clip.togglePin(t) { self.reloadClipboardPanel(); return }
             let limit = self.clip.pinLimit() ?? 0
-            self.reloadClipboardPanel(notice: L("Tối đa %@ mục ghim — VietTelex Plus ghim không giới hạn.", limit))
+            self.reloadClipboardPanel(notice: L("Tối đa %1$@ mục ghim — %2$@ Plus ghim không giới hạn.", limit, AppFlavor.displayName))
         }
         p.onDelete = { [weak self] t in self?.clip.remove(t); self?.reloadClipboardPanel() }
         p.onClearAll = { [weak self] in self?.clip.clearUnpinned(); self?.reloadClipboardPanel() }
@@ -2317,7 +2317,7 @@ extension KeyboardViewController {
         let t0 = CACurrentMediaTime()
         let str = pb.string
         let noPrompt = str != nil && CACurrentMediaTime() - t0 < 0.25
-        UserDefaults(suiteName: "group.com.viettelex")?.set(noPrompt, forKey: "pasteNoPrompt")
+        UserDefaults(suiteName: AppFlavor.appGroup)?.set(noPrompt, forKey: "pasteNoPrompt")
         guard let s = str else { return }
         clip.captured(s, change: cc, now: Date().timeIntervalSince1970, secureField: secure, concealed: concealed)
         pasteSeenChange = cc; pasteSeenAt = Date()
@@ -2974,7 +2974,7 @@ extension KeyboardViewController {
             bridge.reset()
             lastWord = nil; lastWord2 = nil
         case .failure(.notInstalled):
-            showTranslateNotice(L("Mở app VietTelex để tải gói dịch"), opensApp: true, refresh: false)
+            showTranslateNotice(L("Mở app %@ để tải gói dịch", AppFlavor.displayName), opensApp: true, refresh: false)
         case .failure(.unsupported):
             showTranslateNotice(L("Máy chưa dịch được cặp ngôn ngữ này"), opensApp: true, refresh: false)
         case .failure(.unknownLanguage):

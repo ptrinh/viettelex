@@ -4,7 +4,7 @@ import SwiftUI
 import PhotosUI
 import CoreText
 
-private let groupDefaults = UserDefaults(suiteName: "group.com.viettelex")
+private let groupDefaults = UserDefaults(suiteName: AppFlavor.appGroup)
 
 /// Bản ảnh GỐC chưa mờ, chưa cắt (≤ Wallpaper.sourceMaxEdge; ảnh chọn trước bản có trình
 /// chỉnh ≤1080) giữ trong container riêng của app — KHÔNG vào App Group (extension không

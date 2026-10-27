@@ -17,7 +17,7 @@ enum Wallpaper {
     static let sourceMaxEdge = 2048
 
     static var url: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.viettelex")?
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppFlavor.appGroup)?
             .appendingPathComponent(fileName)
     }
 

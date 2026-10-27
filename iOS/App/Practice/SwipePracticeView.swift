@@ -107,7 +107,7 @@ final class SwipePracticeModel: ObservableObject {
 struct SwipePracticeView: View {
     @StateObject private var m = SwipePracticeModel()
     @AppStorage("swipePracticeSave") private var save = false
-    @AppStorage("rowHeightAdjust", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("rowHeightAdjust", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var rowHeightAdjust = 0
     /// Bước hàng như bàn phím thật (KeyGeometry.rowSpec): iPhone = bước stock theo cỡ máy + chỉnh tay.
     private var practiceRowHeight: CGFloat {

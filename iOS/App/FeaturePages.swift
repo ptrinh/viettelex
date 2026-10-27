@@ -6,7 +6,7 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-private let featureDefaults = UserDefaults(suiteName: "group.com.viettelex")
+private let featureDefaults = UserDefaults(suiteName: AppFlavor.appGroup)
 
 /// Các nhóm của tab Tính Năng — cùng thứ tự/tên với Android (FeaturePage.kt).
 enum FeaturePage: String, CaseIterable, Identifiable {

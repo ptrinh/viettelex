@@ -135,7 +135,7 @@ final class BuddyView: UIView {
         self.appearanceDay = (date.year ?? 0) * 10_000 + (date.month ?? 0) * 100 + (date.day ?? 0)
         self.outfit = BuddyOutfit.make(artStyle.resolved(for: character).season(season), character,
                                       night: artStyle.resolved(for: character) == .vector && part == .night)
-        let prefs = UserDefaults(suiteName: "group.com.viettelex")
+        let prefs = UserDefaults(suiteName: AppFlavor.appGroup)
         self.petName = BuddyName.clean(prefs?.string(forKey: BuddyName.key(character)) ?? "")
         self.birthdayToday = BuddyBirthday.matches(month: prefs?.integer(forKey: BuddyBirthday.monthKey) ?? 0,
             day: prefs?.integer(forKey: BuddyBirthday.dayKey) ?? 0, year: date.year ?? 0,
@@ -226,8 +226,8 @@ final class BuddyView: UIView {
             if birthdayToday {
                 let key = "buddyBirthdaySeenDay"
                 let stamp = (date.year ?? 0) * 10_000 + (date.month ?? 0) * 100 + (date.day ?? 0)
-                if UserDefaults(suiteName: "group.com.viettelex")?.integer(forKey: key) != stamp {
-                    UserDefaults(suiteName: "group.com.viettelex")?.set(stamp, forKey: key)
+                if UserDefaults(suiteName: AppFlavor.appGroup)?.integer(forKey: key) != stamp {
+                    UserDefaults(suiteName: AppFlavor.appGroup)?.set(stamp, forKey: key)
                     react(.cake)
                 }
             }

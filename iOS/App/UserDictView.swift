@@ -9,7 +9,7 @@
 import SwiftUI
 
 enum UserDictStore {
-    static let group = UserDefaults(suiteName: "group.com.viettelex")
+    static let group = UserDefaults(suiteName: AppFlavor.appGroup)
 
     static func signalKeyboard() {
         group?.set(Date().timeIntervalSince1970, forKey: "userlmResetAt")
@@ -17,7 +17,7 @@ enum UserDictStore {
 
     static func eraseAll() {
         if let dir = FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: "group.com.viettelex") {
+            .containerURL(forSecurityApplicationGroupIdentifier: AppFlavor.appGroup) {
             UserLangModel.removeStore(at: dir.appendingPathComponent(UserLangModel.legacyFileName))
         }
         signalKeyboard()

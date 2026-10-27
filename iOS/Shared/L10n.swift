@@ -10,7 +10,7 @@ import Foundation
 
 enum L10n {
     static let defaultsKey = "uiLanguage"
-    static let suiteName = "group.com.viettelex"
+    static let suiteName = AppFlavor.appGroup
     static let supported = ["vi", "en"]
 
     /// Ngôn ngữ đang dùng — cache trong RAM, chỉ đổi qua `apply`/`reload`.
@@ -23,7 +23,7 @@ enum L10n {
         normalized(d?.string(forKey: defaultsKey))
     }
 
-    static func normalized(_ v: String?) -> String { v == "en" ? "en" : "vi" }
+    static func normalized(_ v: String?) -> String { v == "en" || v == "vi" ? v! : AppFlavor.defaultUILanguage }
 
     /// Đọc lại từ App Group (bàn phím: mỗi lần hiện).
     static func reload(_ d: UserDefaults? = UserDefaults(suiteName: suiteName)) { lang = stored(d) }
@@ -768,7 +768,7 @@ enum L10n {
         "\u{21A9}\u{FE0E} Khôi phục": "\u{21A9}\u{FE0E} Restore",
         "\u{21A9}\u{FE0E} Hoàn tác": "\u{21A9}\u{FE0E} Undo",
         "Thêm dấu": "Add tones",
-        "Tối đa %@ mục ghim — VietTelex Plus ghim không giới hạn.": "Up to %@ pinned items — VietTelex Plus pins without limit.",
+        "Tối đa %1$@ mục ghim — %2$@ Plus ghim không giới hạn.": "Up to %1$@ pinned items — %2$@ Plus pins without limit.",
         "thường": "lower",
         "Hoa Đầu Từ": "Title Case",
         "Hoa đầu câu": "Sentence case",
@@ -779,7 +779,7 @@ enum L10n {
         "Chỉ dịch đoạn đang gõ — chọn hết văn bản để dịch toàn bộ": "Only the current paragraph was translated — select all the text to translate everything",
         "Đang dịch…": "Translating…",
         "Chữ đã đổi — bấm Dịch lại": "Text changed — tap Translate again",
-        "Mở app VietTelex để tải gói dịch": "Open VietTelex to download the language pack",
+        "Mở app %@ để tải gói dịch": "Open %@ to download the language pack",
         "Máy chưa dịch được cặp ngôn ngữ này": "This device can’t translate this language pair",
         "Không nhận ra ngôn ngữ": "Couldn’t recognize the language",
         "Không dịch được": "Translation failed",

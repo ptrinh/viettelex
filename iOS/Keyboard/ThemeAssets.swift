@@ -249,7 +249,7 @@ enum ThemeAssetStore {
 
     static var defaultDir: URL? {
         if let dirOverride { return dirOverride }
-        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.viettelex")?
+        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppFlavor.appGroup)?
             .appendingPathComponent(dirName, isDirectory: true)
     }
 

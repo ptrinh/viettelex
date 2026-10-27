@@ -5,7 +5,7 @@
 import SwiftUI
 import UIKit
 
-private let effectDefaults = UserDefaults(suiteName: "group.com.viettelex")
+private let effectDefaults = UserDefaults(suiteName: AppFlavor.appGroup)
 
 struct KeyEffectPickerView: View {
     @AppStorage(KeyEffect.key, store: effectDefaults) private var raw = KeyEffect.defaultValue.rawValue

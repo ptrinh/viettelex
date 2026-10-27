@@ -89,7 +89,7 @@ final class UserLangModel {
     static let legacyFileName = "userlm.plist"
 
     /// Store thật trong App Group; truyền nil cho tests (in-memory).
-    init(appGroup: String? = "group.com.viettelex") {
+    init(appGroup: String? = AppFlavor.appGroup) {
         if let g = appGroup,
            let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: g) {
             fileURL = dir.appendingPathComponent(Self.legacyFileName)
@@ -115,7 +115,7 @@ final class UserLangModel {
     }
 
     /// Store App Group mở đồng bộ cho app chứa (màn Từ điển cá nhân); nil nếu không có App Group.
-    static func openSharedForEditing(appGroup: String = "group.com.viettelex") -> UserLangModel? {
+    static func openSharedForEditing(appGroup: String = AppFlavor.appGroup) -> UserLangModel? {
         guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
         else { return nil }
         return UserLangModel(fileURL: dir.appendingPathComponent(legacyFileName), synchronous: true)

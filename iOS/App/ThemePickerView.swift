@@ -6,7 +6,7 @@
 import SwiftUI
 import UIKit
 
-private let pickerDefaults = UserDefaults(suiteName: "group.com.viettelex")
+private let pickerDefaults = UserDefaults(suiteName: AppFlavor.appGroup)
 
 struct ThemePickerView: View {
     @Binding var settings: ThemeSettings

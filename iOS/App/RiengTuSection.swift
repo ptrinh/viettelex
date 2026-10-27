@@ -3,13 +3,13 @@ import SwiftUI
 /// Tính Năng → "Riêng tư & clipboard": Lịch sử clipboard + Chế độ ẩn danh. Bàn phím đọc
 /// cùng key qua App Group (ClipboardFeature.historyKey / incognitoKey).
 struct RiengTuSection: View {
-    @AppStorage("clipboardHistory", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("clipboardHistory", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var clipboardHistory = false
-    @AppStorage("incognitoMode", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("incognitoMode", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var incognitoMode = false
     /// "Giữ lịch sử clipboard": "1h" (mặc định) / "24h" / "7d" — bàn phím đọc khi hiện
     /// (Keyboard/ClipboardHistory.swift `ClipboardTTL`; cùng khoá + id Android).
-    @AppStorage("clipboardTTL", store: UserDefaults(suiteName: "group.com.viettelex"))
+    @AppStorage("clipboardTTL", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var clipboardTTL = "1h"
 
     var body: some View {

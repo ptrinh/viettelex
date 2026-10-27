@@ -183,7 +183,7 @@ struct KeyboardSettings {
 /// Indirection so tests never touch the real App Group.
 enum UserDefaultsProvider {
     nonisolated(unsafe) static var shared: UserDefaults? =
-        UserDefaults(suiteName: "group.com.viettelex")
+        UserDefaults(suiteName: AppFlavor.appGroup)
 }
 
 final class EngineBridge {
