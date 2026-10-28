@@ -329,6 +329,9 @@ def upgrade_order_problems(cas, seq, binaries, conds=None):
         if '--max-version' not in (cas['ReleaseTip']['Target'] or ''):
             problems.append('ReleaseTip needs --max-version <this version>: an old package being removed '
                             'must never move a newer version\'s DLLs')
+        if '--remove=[REMOVE]' not in (cas['ReleaseTip']['Target'] or ''):
+            problems.append('ReleaseTip needs --remove=[REMOVE]: on uninstall it must stop a VietTelex.exe '
+                            'still running, or the install folder survives the uninstall (Store 10.2.7)')
         for before in ('RemoveFiles', 'InstallFiles', 'RemoveExistingProducts'):
             b = seq.get(before)
             if r is not None and b is not None and r >= b:

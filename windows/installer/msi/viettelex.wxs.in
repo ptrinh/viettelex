@@ -42,8 +42,8 @@
          (all apps with a text field). QuitApp closes VietTelex.exe itself instead, and the
          version-named TIP files never collide with loaded ones. -->
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
-    <!-- Never prompt for a reboot: a TIP DLL still mapped by running apps is renamed and
-         deleted at the next boot silently; nothing else needs one. -->
+    <!-- Never prompt for a reboot: a TIP DLL still mapped by running apps is moved to TEMP
+         and deleted at the next boot silently; nothing else needs one. -->
     <Property Id="REBOOT" Value="ReallySuppress" />
     <!-- MSI-only helper (not installed): runs before any file of this package exists. -->
     <Binary Id="SetupHelper" SourceFile="@BIN_NATIVE@/VietTelexSetupHelper.exe" />
@@ -129,8 +129,13 @@
            QuitApp    immediate, as the user, before InstallValidate: WM_CLOSE to every
                       VietTelex.exe, wait 3 s, terminate only VietTelex.exe images.
            ReleaseTip deferred as SYSTEM, before RemoveFiles/InstallFiles (so only
-                      the OLD files exist): move in-use VietTelexTIP*.dll aside (deleted at
-                      next boot, silently). The old product's removal (late REP) then
+                      the OLD files exist): move in-use VietTelexTIP*.dll into SYSTEM's
+                      TEMP folder on the same volume (deleted at next boot, silently) — NOT
+                      next to the original: a parked "*.old" in Program Files kept the
+                      install folder alive after uninstall (Store policy 10.2.7).
+                      On a real uninstall (REMOVE=ALL) it also terminates a VietTelex.exe
+                      still running from the install folder (another session, hung), so
+                      RemoveFiles empties both folders and Windows Installer deletes them. The old product's removal (late REP) then
                       finds nothing in use; neither does an uninstall. Two guards keep an OLD
                       package (removed by a newer one) off the NEWER files: the condition
                       NOT UPGRADINGPRODUCTCODE, and max-version (only DLLs of this version or
@@ -140,7 +145,7 @@
     <CustomAction Id="QuitApp" Property="VTXHELPER" ExeCommand="--quit-app"
                   Execute="immediate" Return="ignore" />
     <CustomAction Id="ReleaseTip" Property="VTXHELPER"
-                  ExeCommand="--max-version @VERSION@ --release-tip &quot;[INSTALLFOLDER].&quot; &quot;[INSTALLFOLDER86].&quot;"
+                  ExeCommand="--max-version @VERSION@ --remove=[REMOVE] --release-tip &quot;[INSTALLFOLDER].&quot; &quot;[INSTALLFOLDER86].&quot;"
                   Execute="deferred" Impersonate="no" Return="ignore" />
     <CustomAction Id="SetupUser" Property="VTXEXE" ExeCommand="--setup-user"
                   Execute="immediate" Return="ignore" />
