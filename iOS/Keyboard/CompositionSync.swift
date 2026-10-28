@@ -126,3 +126,65 @@ enum CompositionSync {
         return (ctx.count, !composed.isEmpty && ctx.hasSuffix(composed))
     }
 }
+
+/// Tiếng vọng TRỄ của host (web view — Gmail, WKWebView). Host báo text/selection đổi sau MỖI
+/// lệnh sửa của bàn phím, có khi tới SAU khi phím kế đã áp cục bộ: lúc đó context đọc được là
+/// trạng thái CŨ của chính mình (thiếu phím vừa gõ). Trước đây đối chiếu thấy lệch ⇒ reset từ
+/// đang gõ giữa chừng ⇒ phím dấu sau đó đi đường với lại từ (đọc context, xoá + gõ lại cả từ —
+/// thêm lệnh host, thêm tiếng vọng) hoặc ra sai ("vieejt" ⇒ "vieẹt"). Đo 28/10/2026
+/// (Feedback1028Tests, tiếng vọng trễ một phím): chuỗi phím dấu hỏng gần hết, 3,4 lượt đọc
+/// context/phím.
+///
+/// Cách giữ: chụp context sau mỗi edit của mình (chỉ khi host đã lộ là vọng trễ — `armed`;
+/// host thường: không chụp gì). Context host báo mà khớp một ảnh chụp CŨ (không phải ảnh mới
+/// nhất) trong `window` giây sau edit ⇒ tiếng vọng trễ của chính mình: coi context là ảnh mới
+/// nhất (trạng thái host sẽ tới khi xử lý xong các lệnh đã gửi). Thuần, pinned by tests.
+struct EchoGuard {
+    static let capacity = 8
+    static let window: Double = 1.0
+    /// So khớp phần đuôi tối đa này (ký tự) — context host có thể cắt đầu khác nhau.
+    static let tail = 48
+
+    /// Host đã lộ là vọng trễ (đối chiếu lệch ngay sau edit của mình) ⇒ bắt đầu chụp.
+    private(set) var armed = false
+    private var snaps: [String] = []
+    private var lastEdit = -Double.infinity
+
+    /// Callback host tới trong `window` giây sau edit của mình?
+    func recentEdit(now: Double) -> Bool { now - lastEdit <= Self.window }
+
+    mutating func arm() { armed = true }
+
+    /// Bỏ mọi ảnh chụp. (Đối chiếu lệch KHÔNG gọi: ảnh cũ vô hại — chỉ khớp khi host hiện lại
+    /// đúng trạng thái cũ của mình trong `window` giây, tức chính là tiếng vọng trễ.)
+    mutating func clear() { snaps.removeAll() }
+
+    /// Sau mỗi edit của mình: context cục bộ (đã áp). Chưa `armed` ⇒ chỉ ghi giờ.
+    mutating func record(_ ctx: String?, now: Double) {
+        lastEdit = now
+        guard armed else { return }
+        guard let ctx else { snaps.removeAll(); return }
+        if snaps.last == ctx { return }
+        snaps.append(ctx)
+        if snaps.count > Self.capacity { snaps.removeFirst() }
+    }
+
+    /// Context host báo ⇒ context dự kiến (ảnh mới nhất) nếu đây là trạng thái cũ của chính
+    /// mình; nil ⇒ không phải (dùng context thật).
+    func settled(_ ctx: String?, now: Double) -> String? {
+        guard armed, let ctx, let cur = snaps.last, snaps.count > 1, recentEdit(now: now) else { return nil }
+        if Self.matches(ctx, cur) { return nil }                 // đã cập nhật
+        for old in snaps.dropLast().reversed() where Self.matches(ctx, old) { return cur }
+        return nil
+    }
+
+    /// `ctx` là trạng thái `snap`: so ≤ `tail` ký tự cuối (≥ 8 — chuỗi ngắn hơn chỉ khớp khi
+    /// bằng hẳn, kẻo khớp nhầm); host cắt context ngắn hơn ảnh chụp ⇒ ảnh chụp kết thúc bằng nó.
+    static func matches(_ ctx: String, _ snap: String) -> Bool {
+        if snap.isEmpty { return false }                         // ô trống: host xoá ô là thay đổi thật
+        if ctx == snap { return true }
+        let n = min(tail, snap.count)
+        if ctx.count >= n { return n >= 8 && ctx.hasSuffix(String(snap.suffix(n))) }
+        return ctx.count >= 8 && snap.hasSuffix(ctx)
+    }
+}

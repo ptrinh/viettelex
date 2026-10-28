@@ -1342,6 +1342,9 @@ class KeyboardView(
 
     private fun down(pid: Int, x: Float, y: Float, e: MotionEvent) {
         if (pid !in 0 until MAX_PTR) return
+        // Trackpad (giữ phím cách): ngón THỨ HAI chạm bất kỳ đâu ⇒ chuyển sang chọn chữ như bàn
+        // phím Apple — không gõ phím dưới ngón đó. Ngoài trackpad: một phép so bool.
+        if (TrackpadTouch.swallows(trackpad, pid == spacePtr)) { beginTrackpadSelect(); return }
         // Đang vuốt: ngón khác bỏ qua (không gõ chữ lạc); đang chờ phân loại: khoá là chạm.
         if (swiping) return
         if (swipePid >= 0 && pid != swipePid) { classifier.pointerAdded(); stopSwipeTracking() }
@@ -2169,6 +2172,18 @@ class KeyboardView(
         if (trackpadSelect) listener?.onTrackpadSelect(s.count, s.axis == TrackpadGesture.Axis.V)
         else listener?.onTrackpadMove(s.count, s.axis == TrackpadGesture.Axis.V)
     }
+
+    /** Ngón thứ hai lúc trackpad: phần dời đã gom gửi như dời con trỏ, từ đây kéo = mở rộng vùng
+     *  chọn từ vị trí con trỏ (neo) tới khi nhả trackpad. */
+    private fun beginTrackpadSelect() {
+        if (trackpadSelect || plane == Plane.EMOJI_SEARCH) return
+        trackpadBatch.drain()?.let { sendTrackpadStep(it) }
+        trackpadSelect = true
+        feedback.tick(this)
+    }
+
+    /** Test: trackpad đang ở chế độ chọn chữ. */
+    internal val trackpadSelecting: Boolean get() = trackpadSelect
 
     private fun endTrackpad() {
         trackpad = false

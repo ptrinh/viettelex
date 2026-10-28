@@ -36,6 +36,18 @@ struct AppearanceCycle: Equatable {
         return true
     }
 
+    /// Hiện lại LẶNG LẼ: view đã bị xé (didDisappear) nhưng đang nằm trong window mà không có
+    /// willAppear/didAppear nào (host gắn lại input view cũ — Zalo mở lại / dựng lại màn chat,
+    /// 28/10/2026 vẫn còn "lần đầu không hiện"). Người dùng chạm vào bàn phím trống ⇒ true:
+    /// controller dựng + cấu hình lại như một lần hiện.
+    static func needsHeal(tornDown: Bool, inWindow: Bool) -> Bool { tornDown && inWindow }
+
+    /// Đã tự dựng lại (needsHeal) ⇒ coi như một lần hiện đã cấu hình.
+    mutating func healed() {
+        showing = true
+        configured = true
+    }
+
     /// viewDidAppear: true ⇒ controller phải chạy phần cấu hình của viewWillAppear ngay
     /// (willAppear bị bỏ qua, hoặc view đã bị xé dù đang hiện).
     mutating func didAppear(tornDown: Bool) -> Bool {

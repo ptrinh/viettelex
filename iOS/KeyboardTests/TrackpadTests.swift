@@ -25,7 +25,7 @@ final class TrackpadGestureTests: XCTestCase {
     }
 
     func testFastHorizontalAccelerates() {
-        // 30pt / 16ms ≈ 1875 pt/s ⇒ ×5; bước cuối 5 ô (30pt / 6) × 5.
+        // 30pt / 16ms ≈ 1875 pt/s ⇒ ×5 (EMA ≥ 900 ngay sự kiện đầu): 150pt = 25 ô mỗi sự kiện.
         let steps = drag((1...6).map { (Double($0) * 30, 0) }, dt: 0.016)
         XCTAssertEqual(steps.last, .init(axis: .horizontal, count: 25))
         XCTAssertGreaterThan(steps.reduce(0) { $0 + $1.count }, 180 / 6)
@@ -97,17 +97,41 @@ final class TrackpadGestureTests: XCTestCase {
     func testUpIsNegativeAndFastVerticalAccelerates() {
         let slow = drag((1...6).map { (0, -Double($0) * 4) }, dt: 0.06)
         XCTAssertEqual(slow.reduce(0) { $0 + $1.count }, -1)
-        let fast = drag((1...4).map { (0, Double($0) * 30) }, dt: 0.016)   // ×3
-        XCTAssertEqual(fast.last, .init(axis: .vertical, count: 6))           // 2 dòng × 3
+        let fast = drag((1...4).map { (0, Double($0) * 30) }, dt: 0.016)   // ×3: 90pt/sự kiện
+        XCTAssertEqual(fast.map(\.count), [3, 4, 4, 4])                      // 360pt ⇒ 15 dòng
     }
 
-    func testAccelerateCurve() {
-        let a = { (u: Int, v: Double) in TrackpadGesture.accelerate(u, speed: v, slow: 300, fast: 1500, max: 5) }
-        XCTAssertEqual(a(3, 100), 3)
-        XCTAssertEqual(a(-2, 300), -2)
-        XCTAssertEqual(a(1, 900), 3)
-        XCTAssertEqual(a(-1, 9999), -5)
-        XCTAssertEqual(a(0, 9999), 0)
+    func testGainCurve() {
+        let g = { (v: Double) in TrackpadGesture.gain(v, slow: 120, fast: 900, max: 5) }
+        XCTAssertEqual(g(60), 1)
+        XCTAssertEqual(g(120), 1)
+        XCTAssertEqual(g(510), 3, accuracy: 1e-9)
+        XCTAssertEqual(g(900), 5)
+        XCTAssertEqual(g(9999), 5)
+    }
+
+    /// Hồi quy "tốc độ trỏ vẫn chưa nhanh" (28/10/2026): kéo VỪA (~400 pt/s, cú kéo thường)
+    /// phải nhanh hơn 6pt/ký tự. Bản cũ nhân số bước đã làm tròn ⇒ bước 1 ô × 1,3 = 1 ⇒ không
+    /// tăng tốc chút nào dưới ~430 pt/s.
+    func testModerateSpeedAccelerates() {
+        // 8pt / 20ms = 400 pt/s, 160pt.
+        let steps = drag((1...20).map { (Double($0) * 8, 0) }, dt: 0.02)
+        let n = sum(steps, .horizontal)
+        XCTAssertGreaterThan(n, 160 / 6 * 2, "≥ ×2 ở tốc độ kéo thường")
+        XCTAssertLessThan(n, 160 / 6 * 5)
+    }
+
+    /// Chậm vẫn chính xác: dưới 120 pt/s đúng 6pt/ký tự, không trôi thêm phần lẻ.
+    func testSlowAfterFastIsPreciseAgain() {
+        var g = TrackpadGesture()
+        g.begin(x: 0, y: 0, t: 0)
+        var x = 0.0, t = 0.0
+        for _ in 0..<10 { x += 30; t += 0.016; _ = g.move(x: x, y: 0, t: t) }   // nhanh
+        t += 0.3                                                                // dừng tay
+        var slow = 0
+        for _ in 0..<20 { x += 3; t += 0.05; slow += g.move(x: x, y: 0, t: t)?.count ?? 0 }
+        XCTAssertGreaterThanOrEqual(slow, 9)                                    // 60pt ⇒ 10 ± phần lẻ cũ
+        XCTAssertLessThanOrEqual(slow, 11)
     }
 }
 

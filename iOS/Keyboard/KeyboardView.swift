@@ -4752,8 +4752,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         TouchLog.buttonDown("space", touchTimestamp: event.allTouches?.first(where: { $0.view === sender })?.timestamp)
     }
 
-    /// Space-hold = trackpad mode: kéo ngang dời con trỏ ~9pt/ký tự (stock), kéo dọc
-    /// ~24pt/dòng; kéo nhanh thì tăng tốc. Trục + tăng tốc: TrackpadGesture (thuần).
+    /// Space-hold = trackpad mode: kéo ngang dời con trỏ 6pt/ký tự, kéo dọc ~24pt/dòng; kéo
+    /// nhanh thì quãng kéo nhân hệ số (tăng tốc). Trục + tăng tốc: TrackpadGesture (thuần).
     @objc private func spaceHold(_ g: UILongPressGestureRecognizer) {
         let p = g.location(in: self)
         let t = CACurrentMediaTime()
@@ -4811,8 +4811,17 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
     }
 
+    /// Ngón thứ hai chạm lúc trackpad: rung nhẹ một lần mỗi lượt kéo (báo đã nhận, không gõ).
+    private var trackpadExtraFingerSeen = false
+    private func trackpadExtraFinger() {
+        guard !trackpadExtraFingerSeen else { return }
+        trackpadExtraFingerSeen = true
+        Self.flickFeedback()
+    }
+
     private func trackpadEnded() {
         guard trackpadActive else { return }
+        trackpadExtraFingerSeen = false
         trackpadFrame()                    // bước cuối chưa xả
         trackpadLink?.invalidate(); trackpadLink = nil
         trackpadActive = false
@@ -5073,6 +5082,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
 
     private func routedHitTest(_ point: CGPoint, with event: UIEvent?, time: TimeInterval?) -> UIView? {
+        // Trackpad đang chạy: mọi ngón MỚI (phím chữ lẫn nút thật) về router để nuốt — xem routeDown.
+        if trackpadActive, bounds.contains(point) { return self }
         // Chỉ ô chừa trong strip được vuốt ve; phần hình tràn xuống vẫn thuộc phím.
         if let buddy, !buddy.isHidden, !suggestionBar.isHidden, bounds.contains(point) {
             let strip = max(rowsTopConstraint?.constant ?? openStripNow, openStripNow)
@@ -5241,6 +5252,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Chạm xuống vùng chữ: gán phím gần nhất và chèn NGAY (touchDown). Gõ vuốt bật ⇒
     /// touch duy nhất được route bắt đầu phân loại chạm/vuốt (GestureClassifier).
     private func routeDown(_ id: ObjectIdentifier, at raw: CGPoint, time: TimeInterval, batch: Int) {
+        // Ngón thứ hai lúc trackpad (bàn phím Apple: chuyển sang chọn chữ). iOS không cho bàn phím
+        // bên thứ ba đặt vùng chọn (UITextDocumentProxy chỉ có adjustTextPosition) ⇒ nuốt ngón đó:
+        // KHÔNG gõ phím dưới ngón (trước đây ra một chữ lạc giữa lúc di con trỏ).
+        if TrackpadTouch.swallows(trackpadActive: trackpadActive, isTrackpadFinger: false) {
+            trackpadExtraFinger()
+            return
+        }
         let p = TouchGeometry.keySelectionPoint(raw, top: rowsContainer.frame.minY)
         var b = swipeActive ? nil : nearestLetterButton(at: p)
         // Giữ ⇧ + phím có ký tự phụ ⇒ gõ ký tự phụ (không chọn phím theo ngữ cảnh chữ).
@@ -6225,6 +6243,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         trackpadEnded()
     }
     var debugTrackpadDimmed: Bool { trackpadDimmed }
+    /// Test hook: giữ phím cách vào trackpad / nhả (không kéo).
+    func debugTrackpadBegin() { trackpadBegan(.zero, t: CACurrentMediaTime()) }
+    func debugTrackpadEnd() { trackpadEnded() }
     func debugSetKeyPreview(_ on: Bool) { keyPreviewEnabled = on }
     func debugShowEmojiPlane() { plane = .emoji; rebuild() }
     /// Test hook: chạm ABC của plane emoji (đường onABC thật).

@@ -240,6 +240,35 @@ final class KeyboardViewController: UIInputViewController {
 
     /// Chuỗi callback hiện/ẩn (AppearanceCycle): chặn xé muộn + bù willAppear bị nuốt.
     private var appearance = AppearanceCycle()
+
+    /// Chạm vào bàn phím mà cây phím đã bị xé (AppearanceCycle.needsHeal): host gắn lại input view
+    /// cũ mà không gọi willAppear/didAppear ⇒ bàn phím TRỐNG trên màn hình. Chạm rơi vào view gốc
+    /// (nền touchableClear) rồi lên controller qua responder chain ⇒ dựng + cấu hình lại ngay —
+    /// chạm là bằng chứng chắc chắn bàn phím đang hiện (layout/callback host thì không: host có thể
+    /// gọi chúng cả lúc ẩn, dựng lại lúc ẩn là mất tác dụng xé chống rò RAM).
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if healIfShownTornDown("touch") { return }
+        super.touchesBegan(touches, with: event)
+    }
+
+    /// true ⇒ đã dựng lại.
+    @discardableResult
+    private func healIfShownTornDown(_ reason: String) -> Bool {
+        guard isViewLoaded,
+              AppearanceCycle.needsHeal(tornDown: keyboard?.isTornDown ?? true, inWindow: view.window != nil)
+        else { return false }
+        TouchLog.write("appear: touched while torn down (\(reason)) → rebuild")
+        appearance.healed()
+        configureForAppearance()
+        view.setNeedsLayout()
+        view.layoutIfNeeded()
+        return true
+    }
+    #if DEBUG
+    /// Test: chạm vào view gốc (đường responder chain khi cây phím đã xé).
+    func debugTouchRoot() { healIfShownTornDown("touch") }
+    #endif
+
     /// Việc của lần hiện không cần cho khung đầu — chạy ngay sau commit khung đầu (StartupTrace.swift).
     private let postFrame = PostFrameWork()
     #if DEBUG
@@ -263,6 +292,7 @@ final class KeyboardViewController: UIInputViewController {
         let settings = KeyboardSettings.load()
         bridge = EngineBridge(settings: settings)  // fresh settings + buffer
         externalChangePending = false
+        echoGuard = EchoGuard()                    // ô / host mới: chưa biết có vọng trễ không
         lastKeyWasEmailTrigger = false
         restoreUndo = nil; undoOfferActive = false
         textToolUndo = nil
@@ -697,11 +727,24 @@ final class KeyboardViewController: UIInputViewController {
     @discardableResult
     private func syncComposition(_ event: String) -> CompositionSync.Verdict {
         externalChangePending = false
-        let ctx = textDocumentProxy.documentContextBeforeInput
+        var ctx = textDocumentProxy.documentContextBeforeInput
         let composed = bridge.composedWord
+        let now = CACurrentMediaTime()
+        // Tiếng vọng TRỄ của chính mình (host web view): context là trạng thái cũ ⇒ coi như mới.
+        if echoGuard.armed, let fixed = echoGuard.settled(ctx, now: now) {
+            ctx = fixed
+            if TouchLog.enabled { TouchLog.write("echo: stale own state (\(event)) → keep") }
+        }
         var selected: String?
         if #available(iOS 16.0, *) { selected = textDocumentProxy.selectedText }
         let verdict = CompositionSync.verdict(context: ctx, composed: composed, selectedText: selected)
+        if verdict != .keep, !echoGuard.armed, !composed.isEmpty, (selected ?? "").isEmpty,
+           echoGuard.recentEdit(now: now) {
+            // Lệch NGAY sau edit của mình: host vọng trễ (web view) ⇒ từ giờ chụp context sau mỗi
+            // edit. Lần này chưa có ảnh chụp để đối chiếu ⇒ reset như cũ.
+            echoGuard.arm()
+            TouchLog.write("echo: host echoes late → guard on")
+        }
         if TouchLog.enabled {
             let d = CompositionSync.diagnostic(context: ctx, composed: composed)
             TouchLog.sync("\(event) \(verdict)", ctxLen: d.len, suffix: d.suffix,
@@ -790,14 +833,33 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.configureOneHand(side)
     }
 
-    private var applyingEdit = false
+    private var applyingEdit = false {
+        // Hết một edit của mình: ghi giờ (+ chụp context nếu host vọng trễ — EchoGuard).
+        didSet { if oldValue, !applyingEdit { recordOwnEdit() } }
+    }
+
+    /// Tiếng vọng trễ của host web view (Gmail): xem EchoGuard. Host thường: chỉ ghi giờ.
+    private var echoGuard = EchoGuard()
+    private func recordOwnEdit() {
+        let now = CACurrentMediaTime()
+        echoGuard.record(echoGuard.armed ? textDocumentProxy.documentContextBeforeInput : nil, now: now)
+    }
+    /// Context trước con trỏ đã bù tiếng vọng trễ (host vọng trễ ⇒ trạng thái cũ của mình đổi
+    /// thành trạng thái dự kiến). Host thường: đọc thẳng.
+    private func settledContextBefore() -> String? {
+        let ctx = textDocumentProxy.documentContextBeforeInput
+        guard echoGuard.armed else { return ctx }
+        return echoGuard.settled(ctx, now: CACurrentMediaTime()) ?? ctx
+    }
 
     private struct Proxy: TextProxyLike {
         let p: UITextDocumentProxy
+        /// Bù tiếng vọng trễ (EchoGuard) — nil ⇒ đọc thẳng (host thường).
+        var settle: (() -> String?)? = nil
         func insertText(_ text: String) { p.insertText(text) }
         func deleteBackward() { p.deleteBackward() }
         var isSecure: Bool { vtSafe(false) { (p as UITextInputTraits).isSecureTextEntry == true } }
-        var contextBeforeInput: String? { p.documentContextBeforeInput }
+        var contextBeforeInput: String? { settle?() ?? p.documentContextBeforeInput }
         var contextAfterInput: String? { p.documentContextAfterInput }
         var hasSelection: Bool {
             if #available(iOS 16.0, *) { return p.selectedText?.isEmpty == false }
@@ -809,7 +871,7 @@ final class KeyboardViewController: UIInputViewController {
     /// Lệch → false và ghi log (không nội dung).
     private func canDeleteBefore(_ expected: String, what: String) -> Bool {
         let ok = CompositionSync.canDelete(expected.count, expected: expected,
-                                           context: { textDocumentProxy.documentContextBeforeInput })
+                                           context: { settledContextBefore() })
         if !ok { TouchLog.write("failsafe: \(what) expectedLen=\(expected.count) → skip delete") }
         return ok
     }
@@ -823,7 +885,8 @@ final class KeyboardViewController: UIInputViewController {
             return
         }
         addTonesUndo = nil
-        let proxy = Proxy(p: textDocumentProxy)
+        var proxy = Proxy(p: textDocumentProxy)
+        if echoGuard.armed { proxy.settle = { [unowned self] in self.settledContextBefore() } }
         // textWillChange tới mà textDidChange chưa kịp → đối chiếu ngay trước phím.
         if externalChangePending, !trackpadActive { syncComposition("key") }
         // Tự thêm dấu cách sau dấu câu: phím ngay sau quyết định số phận dấu cách đó.

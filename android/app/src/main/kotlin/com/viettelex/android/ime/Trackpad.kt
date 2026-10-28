@@ -18,8 +18,10 @@ import kotlin.math.roundToInt
  *   ⇒ phát trục vượt ngưỡng nhiều hơn, trục kia giữ tích luỹ, phát ở sự kiện sau.
  *   (Bản cũ khoá trục: mỗi bước ngang xoá dy tích luỹ ⇒ kéo chéo / kéo dọc hơi lệch gần
  *   như không bao giờ lên xuống dòng.)
- * - Tăng tốc: tốc độ (EMA, dp/s) theo trục của bước; ≤ slow ⇒ ×1 (chính xác từng ký
- *   tự/dòng), ≥ fast ⇒ ×max, giữa nội suy tuyến tính. Xem [accelerate].
+ * - Tăng tốc (như con trỏ chuột / trackpad Apple): QUÃNG kéo nhân hệ số [gain] theo tốc độ
+ *   (EMA, dp/s) TRƯỚC khi cộng dồn — ≤ slow ⇒ ×1 (chính xác từng ký tự/dòng), ≥ fast ⇒ ×max,
+ *   giữa nội suy tuyến tính. (Bản cũ nhân SỐ BƯỚC đã làm tròn: bước thường 1 ô ⇒ hệ số < 1,5
+ *   về ×1 — dưới ~430 dp/s gần như không tăng tốc. Tester 28/10/2026: "chưa nhanh lắm".)
  *
  * Pinned by TrackpadTest.
  */
@@ -59,8 +61,9 @@ class TrackpadGesture {
         dirX = DIR_ALPHA * dx + (1 - DIR_ALPHA) * dirX
         dirY = DIR_ALPHA * dy + (1 - DIR_ALPHA) * dirY
         val hx = abs(dirX); val hy = abs(dirY)
-        if (hy >= OFF_AXIS * hx) accY += dy            // không gần-ngang ⇒ tính dọc
-        if (hx >= OFF_AXIS * hy) accX += dx            // không gần-dọc ⇒ tính ngang
+        // Quãng đã tăng tốc (giữ phần lẻ giữa các sự kiện — không mất tốc độ vì làm tròn).
+        if (hy >= OFF_AXIS * hx) accY += (dy * gain(speedY, V_SLOW, V_FAST, V_MAX)).toFloat()   // không gần-ngang ⇒ dọc
+        if (hx >= OFF_AXIS * hy) accX += (dx * gain(speedX, H_SLOW, H_FAST, H_MAX)).toFloat()   // không gần-dọc ⇒ ngang
         val rx = abs(accX) / H_STEP; val ry = abs(accY) / V_STEP
         if (rx < 1f && ry < 1f) return null
         return if (ry >= rx) emitV() else emitH()
@@ -69,13 +72,13 @@ class TrackpadGesture {
     private fun emitH(): Step {
         val units = (accX / H_STEP).toInt()
         accX -= units * H_STEP
-        return Step(Axis.H, accelerate(units, speedX, H_SLOW, H_FAST, H_MAX))
+        return Step(Axis.H, units)
     }
 
     private fun emitV(): Step {
         val lines = (accY / V_STEP).toInt()
         accY -= lines * V_STEP
-        return Step(Axis.V, accelerate(lines, speedY, V_SLOW, V_FAST, V_MAX))
+        return Step(Axis.V, lines)
     }
 
     companion object {
@@ -85,30 +88,35 @@ class TrackpadGesture {
         const val OFF_AXIS = 0.4
         /** Trọng số sự kiện mới trong EMA hướng kéo. */
         const val DIR_ALPHA = 0.3
-        /** Ngang: ≤300 dp/s ×1, ≥1500 dp/s ×5. */
-        const val H_SLOW = 300.0
-        const val H_FAST = 1500.0
+        /** Ngang: ≤120 dp/s ×1, ≥900 dp/s ×5. */
+        const val H_SLOW = 120.0
+        const val H_FAST = 900.0
         const val H_MAX = 5.0
-        /** Dọc: ≤200 dp/s ×1, ≥1000 dp/s ×3. */
-        const val V_SLOW = 200.0
-        const val V_FAST = 1000.0
+        /** Dọc: ≤120 dp/s ×1, ≥700 dp/s ×3. */
+        const val V_SLOW = 120.0
+        const val V_FAST = 700.0
         const val V_MAX = 3.0
         const val EMA = 0.5
         const val MIN_DT = 1.0 / 240
         const val PAUSE_S = 0.1
 
-        /** [units] bước thô ⇒ bước đã tăng tốc theo [speed]. Chậm ⇒ nguyên [units]. */
-        fun accelerate(units: Int, speed: Double, slow: Double, fast: Double, max: Double): Int {
-            if (units == 0) return 0
-            val f = when {
-                speed <= slow -> 1.0
-                speed >= fast -> max
-                else -> 1.0 + (max - 1.0) * (speed - slow) / (fast - slow)
-            }
-            val n = maxOf(1, (abs(units) * f).roundToInt())
-            return if (units < 0) -n else n
+        /** Hệ số nhân quãng kéo theo [speed]: ≤ slow ⇒ 1, ≥ fast ⇒ max, giữa tuyến tính. */
+        fun gain(speed: Double, slow: Double, fast: Double, max: Double): Double = when {
+            speed <= slow -> 1.0
+            speed >= fast -> max
+            else -> 1.0 + (max - 1.0) * (speed - slow) / (fast - slow)
         }
     }
+}
+
+/**
+ * Ngón chạm thêm trong lúc trackpad (THUẦN — cùng luật với iOS `TrackpadTouch`). Như bàn phím
+ * Apple: ngón thứ hai ⇒ chuyển sang chọn chữ (kéo tiếp mở rộng vùng chọn từ con trỏ); ngón đó
+ * không gõ phím. iOS không đặt được vùng chọn ⇒ bên đó chỉ nuốt ngón.
+ */
+object TrackpadTouch {
+    /** true ⇒ ngón mới thuộc trackpad: không gõ phím, bật chọn chữ. */
+    fun swallows(trackpadActive: Boolean, isTrackpadFinger: Boolean): Boolean = trackpadActive && !isTrackpadFinger
 }
 
 /**
