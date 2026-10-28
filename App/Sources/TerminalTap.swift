@@ -501,6 +501,28 @@ struct FocusAnchor {
     }
 }
 
+/// Issue #135 (Zalo, 28/10/2026): bấm "Trả lời" một tin nhắn cũ rồi gõ "w" → ra "ưng"
+/// thay vì "ư". Click xoá cờ ranh giới (re-arm re-edit) nhưng KHÔNG gây activateServer
+/// (nút Trả lời nằm trong cùng web view Electron — FocusAnchor #111 không thấy gì), rồi
+/// re-edit(tap) đọc AX chữ trước con trỏ: Electron trả chữ CŨ (ô soạn đã gửi/xoá hoặc
+/// được dựng lại, ví dụ còn "...dung") ⇒ seed "dung", "w" ra ⌫×3 + "ưng"; ô thật đang
+/// trống nên ⌫ không xoá gì và màn hình còn "ưng". Cùng lớp: bấm nút Gửi rồi gõ dấu.
+/// Luật: click chỉ re-arm re-edit khi nó rơi TRONG khung của ô đang focus (ca chính —
+/// click cuối một từ trong ô rồi gõ dấu — luôn thoả). Click ra ngoài (nút Trả lời/Gửi,
+/// danh sách tin nhắn) hoặc không đọc được khung ⇒ phím dấu đầu tiên KHÔNG seed từ AX
+/// (fail-closed). Pure để test: toạ độ CG (gốc trên-trái) cho cả click lẫn khung AX.
+enum ReEditClickCheck {
+    /// Dung sai viền (pt): caret ở mép trái/phải ô vẫn là click trong ô.
+    static let slop: CGFloat = 4
+    /// `click`: vị trí click gần nhất kể từ phím chữ/ranh giới gần nhất (nil = không có
+    /// click ⇒ không áp luật này). `fieldFrame`: khung AX của ô đang focus lúc gõ phím.
+    static func allows(click: CGPoint?, fieldFrame: CGRect?) -> Bool {
+        guard let click else { return true }
+        guard let f = fieldFrame, f.width > 0, f.height > 0 else { return false }
+        return f.insetBy(dx: -slop, dy: -slop).contains(click)
+    }
+}
+
 /// Spotlight is a system overlay, not the frontmost APP — its bundle id never shows
 /// up in NSWorkspace.frontmostApplication. Detect it by scanning the
 /// on-screen window list for a window owned by the "Spotlight" process.
@@ -1542,6 +1564,21 @@ enum AXTextEdit {
     /// System-wide focused element with the 50ms messaging timeout applied (the
     /// DEFAULT is seconds; these calls run on key paths, so a hung target must time
     /// out fast). Shared by the read/write helpers above.
+    /// Khung (kAXPosition + kAXSize) của ô đang focus, toạ độ CG (gốc trên-trái — cùng
+    /// hệ với CGEvent.location). Chỉ đọc ở nhánh re-edit sau click (#135), không mỗi phím.
+    static func focusedFrameCG() -> CGRect? {
+        guard AXIsProcessTrusted(), let element = focusedElement() else { return nil }
+        var posRef: CFTypeRef?, sizeRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success,
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef) == .success,
+              let pv = posRef, CFGetTypeID(pv) == AXValueGetTypeID(),
+              let sv = sizeRef, CFGetTypeID(sv) == AXValueGetTypeID() else { return nil }
+        var p = CGPoint.zero, sz = CGSize.zero
+        guard AXValueGetValue(pv as! AXValue, .cgPoint, &p),
+              AXValueGetValue(sv as! AXValue, .cgSize, &sz) else { return nil }
+        return CGRect(origin: p, size: sz)
+    }
+
     private static func focusedElement() -> AXUIElement? {
         let systemWide = AXUIElementCreateSystemWide()
         AXUIElementSetMessagingTimeout(systemWide, 0.05)
@@ -2683,6 +2720,9 @@ final class TerminalTapController {
     /// TAP-thread confined.
     private var reEditFocus = FocusAnchor()
     private var reEditFocusStable = true
+    /// Vị trí click gần nhất chưa bị một phím chữ tiêu thụ (#135, xem ReEditClickCheck).
+    /// TAP-thread confined.
+    private var reEditClickPoint: CGPoint?
     /// TapHandoff (#110): số phím vật lý kể từ lần chụp gần nhất, -1 = không có ảnh
     /// chụp. Phím thứ 2 (hoặc click) xoá ảnh chụp — chỉ phím NGAY SAU lần chèn mới có
     /// thể là phím đầu IMK nhận trong launcher. Không có ảnh chụp: một phép so Int.
@@ -3074,6 +3114,7 @@ final class TerminalTapController {
             // chỗ khác). Click TRÊN ô ứng viên hệ thống thì để nó chọn (candidateSelected).
             CaretHint.shared.dismissForClick(at: event.location)
             lastTapKeyWasBoundary = false   // click at a word's end re-arms re-edit
+            reEditClickPoint = event.location   // …nhưng chỉ khi click trong ô (#135)
             _ = reEditFocus.observe(ClientFocus.epoch)   // click = neo focus mới (#111)
             if handoffKeys >= 0 { TapHandoff.clear(); handoffKeys = -1 }   // #110
             lastTapKeyWasDigit = false
@@ -3650,13 +3691,17 @@ final class TerminalTapController {
                                lastKeyWasBoundary: lastTapKeyWasBoundary,
                                queueDrained: SyntheticKeyboard.queueDrained(),
                                msSinceDelete: (DispatchTime.now().uptimeNanoseconds &- lastDeleteNs) / 1_000_000) {
-            if reEditFocusStable {
-                tryReEditWordTap(id: id)
-            } else {
+            if !reEditFocusStable {
                 DebugLog.log("re-edit(tap) \(id ?? "?"): skipped (focus changed since last key/click)")
+            } else if let click = reEditClickPoint,
+                      !ReEditClickCheck.allows(click: click, fieldFrame: AXTextEdit.focusedFrameCG()) {
+                DebugLog.log("re-edit(tap) \(id ?? "?"): skipped (click outside focused field)")
+            } else {
+                tryReEditWordTap(id: id)
             }
         }
         lastTapKeyWasBoundary = false   // this key is a word key
+        reEditClickPoint = nil          // phím chữ: click trước đó đã "tiêu" (#135)
 
         // Viết hoa đầu câu (cài đặt macOS): chữ đầu từ đưa vào engine dạng HOA — không
         // còn là phím gốc nên không đi đường native bên dưới.
