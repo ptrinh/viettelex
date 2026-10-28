@@ -170,6 +170,7 @@
 		59184856DB1424FEC29F3781 /* TouchLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73661E1643A0CAA02517C00 /* TouchLog.swift */; };
 		593AA8DEA7AFB11D6005F173 /* EngineBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD709650C25830CA926EBCF /* EngineBridge.swift */; };
 		5996B5BAD4D3204CEF8FE6CC /* KeySoundSynth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F98B87CC6DBF96F8D09A899 /* KeySoundSynth.swift */; };
+		59C66E8A96CED913A07EA832 /* sample-shortcuts.yml in Resources */ = {isa = PBXBuildFile; fileRef = 24A08F7D2F73879EBEC99BEB /* sample-shortcuts.yml */; };
 		5A5A4CFF71EA497935A2961D /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */; };
 		5A863B519CEB4DFF869913D0 /* SwipeEnglishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC4C7AA642979C79BA435C61 /* SwipeEnglishTests.swift */; };
 		5B52F74F525D2FE790784DEB /* AdjacentKeyFixer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A25C830B85508BCD22F38A /* AdjacentKeyFixer.swift */; };
@@ -243,6 +244,7 @@
 		83667F4BE07F378F1DD8EDEA /* BackupFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02937CC02BE49C39A5A7933D /* BackupFormat.swift */; };
 		836B0B912D65DF647EF4087D /* AppearanceCycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = E611B5D3668D99B02D1AAE35 /* AppearanceCycle.swift */; };
 		83E46F7A9330C715C3C78F49 /* BackupSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20D4C3E7DAFC3853FBEF994 /* BackupSection.swift */; };
+		8433BF4EE05A88F175CA5007 /* Feedback1028Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 455CE7543F3290A1B95FA3F9 /* Feedback1028Tests.swift */; };
 		8449FB3FD11D06D38549212A /* BuddyFlavorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F3118CEF485547C4673DAB /* BuddyFlavorTests.swift */; };
 		84AD98AB1FBA988A228232FA /* SwipeTrailStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ACB739F614F962C3F8A7B62 /* SwipeTrailStyles.swift */; };
 		86F0427F07FF1F06CA5ABDF9 /* ThemeAssets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF4C6DB15FA5F4E400E8FC58 /* ThemeAssets.swift */; };
@@ -416,7 +418,6 @@
 		E318F2FD0A91CFD018E4BC65 /* Wallpaper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A12BC49EB45298684CF97D /* Wallpaper.swift */; };
 		E36CA3CB7199842336DF87EB /* UserLMTables.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B560D6CFFCE1B0B57742E3 /* UserLMTables.swift */; };
 		E373E5A2EFC2168C0356254B /* KeyEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = D464912521BAEE32297B4D44 /* KeyEffects.swift */; };
-		E574BB45DB5B6DE63F4AFE14 /* sample-shortcuts.yml in Resources */ = {isa = PBXBuildFile; fileRef = DFF724AC43F417D57C37047A /* sample-shortcuts.yml */; };
 		E6D596FF4699916EC99C811C /* KeyGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 491E9FDC24E9CC711FC62BD8 /* KeyGeometryTests.swift */; };
 		E74F85FA5D7275FFA0E8F759 /* NumberRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8993F83A60C653C26799EC /* NumberRowTests.swift */; };
 		E8DB9BE35A9F0D3CE0E869E6 /* FutoSwipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76444B4521814651DA2C026A /* FutoSwipe.swift */; };
@@ -563,6 +564,7 @@
 		222EF2EE5A6F795385492BEA /* playfair-display.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "playfair-display.ttf"; sourceTree = "<group>"; };
 		22BDEAB6EAD0F1EA689B388A /* CompositionSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositionSync.swift; sourceTree = "<group>"; };
 		23D9F4828FBAE93DCCEB2271 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		24A08F7D2F73879EBEC99BEB /* sample-shortcuts.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = "sample-shortcuts.yml"; sourceTree = "<group>"; };
 		27D10BA36AFF204B214098B2 /* HostRewriteCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRewriteCompositionTests.swift; sourceTree = "<group>"; };
 		283B18B560C805EFBE10D839 /* backup-too-new.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "backup-too-new.json"; sourceTree = "<group>"; };
 		2A5ACFCC85098E199869C169 /* MainDebouncer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainDebouncer.swift; sourceTree = "<group>"; };
@@ -594,6 +596,7 @@
 		41BD0E4DE3C769A2EDE19180 /* ThemeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeSettingsView.swift; sourceTree = "<group>"; };
 		45174CB35A9FB727F1BF5F4F /* RetroEnglishUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroEnglishUI.swift; sourceTree = "<group>"; };
 		451B2112B13ABD917EEE3D9A /* WordDelete.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordDelete.swift; sourceTree = "<group>"; };
+		455CE7543F3290A1B95FA3F9 /* Feedback1028Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Feedback1028Tests.swift; sourceTree = "<group>"; };
 		46501A28188D32863452971E /* MathResultsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathResultsTests.swift; sourceTree = "<group>"; };
 		47B731DCA56D699168C41DAC /* FutoSwipeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FutoSwipeModel.swift; sourceTree = "<group>"; };
 		480410FD8F2A324AF6A742C1 /* FieldPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldPolicy.swift; sourceTree = "<group>"; };
@@ -775,7 +778,6 @@
 		DDE1C36F67801FE8C7E0AA33 /* retro-english-eval.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "retro-english-eval.txt"; sourceTree = "<group>"; };
 		DE524268FAF6BB053C5C7D98 /* EnglishAssistTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnglishAssistTests.swift; sourceTree = "<group>"; };
 		DF447D2ACACB4E96B9438498 /* key-alternates.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "key-alternates.txt"; sourceTree = "<group>"; };
-		DFF724AC43F417D57C37047A /* sample-shortcuts.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = "sample-shortcuts.yml"; sourceTree = "<group>"; };
 		E0343317988BCCDF53A97142 /* safety-cases.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "safety-cases.txt"; sourceTree = "<group>"; };
 		E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = "ios-mau-cau.yml"; sourceTree = "<group>"; };
 		E20D4C3E7DAFC3853FBEF994 /* BackupSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupSection.swift; sourceTree = "<group>"; };
@@ -889,7 +891,7 @@
 				DF35FD668408A625226DFE82 /* Packages */,
 				7D398E9EE329A73C8620EBFB /* Shared */,
 				FAFFB2CAD61DDABA741DAA0D /* StoreKit */,
-				FCEF50E2784287040A81B4FD /* VietTelex-flavor */,
+				968E2C214A1AF99C3F83F278 /* VietTelex */,
 				D1587473BF6CB453210A7CCB /* VTTranslate */,
 				01272B6532043F67ED824A91 /* Frameworks */,
 				ACA2EF74601F7B3D920485DD /* Products */,
@@ -1013,6 +1015,15 @@
 			path = Backup;
 			sourceTree = "<group>";
 		};
+		968E2C214A1AF99C3F83F278 /* VietTelex */ = {
+			isa = PBXGroup;
+			children = (
+				24A08F7D2F73879EBEC99BEB /* sample-shortcuts.yml */,
+			);
+			name = VietTelex;
+			path = ..;
+			sourceTree = "<group>";
+		};
 		9F75E32DB55D92888E77DE61 /* KeyboardTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -1034,6 +1045,7 @@
 				DE524268FAF6BB053C5C7D98 /* EnglishAssistTests.swift */,
 				D93CDC9D2CEA8A91A576B183 /* FeatureRegressionTests.swift */,
 				6A33CAADFA0E1E99239C0C8D /* Feedback1016Tests.swift */,
+				455CE7543F3290A1B95FA3F9 /* Feedback1028Tests.swift */,
 				4B68AFA53C7C54443DAB2DA2 /* FieldPolicyTests.swift */,
 				E85DE7FE9317FE348701314F /* FoldableLayoutTests.swift */,
 				D188EC4E6781410050CABC5D /* FullPackSnapshotTests.swift */,
@@ -1304,15 +1316,6 @@
 			path = StoreKit;
 			sourceTree = "<group>";
 		};
-		FCEF50E2784287040A81B4FD /* VietTelex-flavor */ = {
-			isa = PBXGroup;
-			children = (
-				DFF724AC43F417D57C37047A /* sample-shortcuts.yml */,
-			);
-			name = "VietTelex-flavor";
-			path = ..;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -1497,7 +1500,7 @@
 				DF225D04D7CF81C8C54070B8 /* number-chips.txt in Resources */,
 				2CD73C63D0A8516C1B298E55 /* retro-english-eval.txt in Resources */,
 				B6C7B7E478B6AEAF66C2D94B /* safety-cases.txt in Resources */,
-				E574BB45DB5B6DE63F4AFE14 /* sample-shortcuts.yml in Resources */,
+				59C66E8A96CED913A07EA832 /* sample-shortcuts.yml in Resources */,
 				93E768311710062913552601 /* suggest-dev.txt in Resources */,
 				B92E282E8D0ABE8BEBD693E7 /* suggest-trigram-parity.txt in Resources */,
 				2ADC518FE5C55961C93038B7 /* swipe-lang-sentences.txt in Resources */,
@@ -1777,6 +1780,7 @@
 				97F9637DFB81CD5F1E03CF30 /* EnglishAssistTests.swift in Sources */,
 				F1691715B050F1B3A42B4C84 /* FeatureRegressionTests.swift in Sources */,
 				DFE5ADC7F71888FB35E130B3 /* Feedback1016Tests.swift in Sources */,
+				8433BF4EE05A88F175CA5007 /* Feedback1028Tests.swift in Sources */,
 				64BE6CE8C0FDE071DE06E625 /* FieldPolicy.swift in Sources */,
 				09A81E2FCFEC3C9A20CE84AD /* FieldPolicyTests.swift in Sources */,
 				C672009CA9A75C96AC55BFFF /* FoldableLayoutTests.swift in Sources */,
@@ -2077,7 +2081,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 41;
+				CURRENT_PROJECT_VERSION = 42;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 84T567KMYD;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -2097,7 +2101,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.2.22;
+				MARKETING_VERSION = 1.2.23;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -2191,7 +2195,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 41;
+				CURRENT_PROJECT_VERSION = 42;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DEVELOPMENT_TEAM = 84T567KMYD;
@@ -2207,7 +2211,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LLVM_LTO = YES_THIN;
-				MARKETING_VERSION = 1.2.22;
+				MARKETING_VERSION = 1.2.23;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
