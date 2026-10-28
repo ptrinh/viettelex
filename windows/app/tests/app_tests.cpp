@@ -204,6 +204,41 @@ TEST(helper_release_never_touches_newer_dlls) {
     CHECK_EQ(a.dirs.size(), size_t(1));
 }
 
+// Store policy 10.2.7 (1.3.x failed it): an in-use TIP DLL parked as "*.old" NEXT TO the
+// original kept C:\Program Files\VietTelex after uninstall. It is parked in TEMP now.
+TEST(helper_uninstall_leaves_no_folder) {
+    // x64 and x86 folders both hold VietTelexTIP_1_3_5.dll: parked names must differ
+    const std::wstring a = parkedName(L"VietTelexTIP_1_3_5.dll", 0, 42);
+    const std::wstring b = parkedName(L"VietTelexTIP_1_3_5.dll", 1, 42);
+    CHECK(a == std::wstring(L"VietTelexTIP_1_3_5.dll.0.42.old"));
+    CHECK(a != b);
+    CHECK(isReleasedLeftover(a));
+    CHECK(!isTipDllName(a));  // never mistaken for a live TIP DLL
+    // rename only within a volume
+    CHECK(sameVolumeRoot(L"C:\\", L"c:"));
+    CHECK(sameVolumeRoot(L"C:\\", L"C:\\"));
+    CHECK(!sameVolumeRoot(L"C:\\", L"D:\\"));
+    CHECK(!sameVolumeRoot(L"", L""));  // unknown volume: never "same"
+    // --remove=[REMOVE]: "ALL" on uninstall, empty on install / upgrade / repair
+    HelperArgs h = parseHelperArgs({L"--max-version", L"1.3.6", L"--remove=ALL", L"--release-tip",
+                                    L"C:\\Program Files\\VietTelex\\.", L"C:\\Program Files (x86)\\VietTelex\\."});
+    CHECK(h.uninstall && h.releaseTip);
+    CHECK_EQ(h.dirs.size(), size_t(2));
+    CHECK(!parseHelperArgs({L"--remove=", L"--release-tip", L"C:\\x\\."}).uninstall);
+    CHECK(!parseHelperArgs({L"--release-tip", L"C:\\x\\."}).uninstall);
+    CHECK(parseHelperArgs({L"--remove=all"}).uninstall);
+    CHECK_EQ(parseHelperArgs({L"--remove=ALL", L"--release-tip", L"C:\\x\\."}).dirs.size(), size_t(1));
+    // terminate on uninstall: only the installed VietTelex.exe
+    const std::vector<std::wstring> dirs = {L"C:\\Program Files\\VietTelex", L"C:\\Program Files (x86)\\VietTelex"};
+    CHECK(isInstalledAppImage(L"C:\\Program Files\\VietTelex\\VietTelex.exe", dirs));
+    CHECK(isInstalledAppImage(L"c:\\program files\\viettelex\\VIETTELEX.EXE", dirs));
+    CHECK(!isInstalledAppImage(L"C:\\Users\\a\\Downloads\\VietTelex.exe", dirs));  // portable copy
+    CHECK(!isInstalledAppImage(L"C:\\Program Files\\VietTelex\\other.exe", dirs));
+    CHECK(!isInstalledAppImage(L"C:\\Program Files\\VietTelex\\sub\\VietTelex.exe", dirs));
+    CHECK(!isInstalledAppImage(L"VietTelex.exe", dirs));
+    CHECK(!isInstalledAppImage(L"C:\\Program Files\\VietTelex\\VietTelex.exe", {}));
+}
+
 TEST(hook_elevated_foreground_warning) {
     CHECK(hookNeedsElevationWarning(true, true, 0x3000, 0x2000, false));   // admin app
     CHECK(hookNeedsElevationWarning(true, false, 0, 0x2000, false));       // token unreadable

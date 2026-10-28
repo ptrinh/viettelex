@@ -56,6 +56,30 @@ std::wstring releaseName(const std::wstring& fileName, unsigned long long stamp)
     return fileName + L"." + std::to_wstring(stamp) + L".old";
 }
 
+std::wstring parkedName(const std::wstring& fileName, unsigned tag, unsigned long long stamp) {
+    return fileName + L"." + std::to_wstring(tag) + L"." + std::to_wstring(stamp) + L".old";
+}
+
+bool sameVolumeRoot(const std::wstring& a, const std::wstring& b) {
+    std::wstring x = lower(a), y = lower(b);
+    while (!x.empty() && (x.back() == L'\\' || x.back() == L'/')) x.pop_back();
+    while (!y.empty() && (y.back() == L'\\' || y.back() == L'/')) y.pop_back();
+    return !x.empty() && x == y;
+}
+
+bool isInstalledAppImage(const std::wstring& imagePath, const std::vector<std::wstring>& installDirs) {
+    if (!isAppImage(imagePath)) return false;
+    const size_t s = imagePath.find_last_of(L"\\/");
+    if (s == std::wstring::npos) return false;
+    const std::wstring dir = lower(imagePath.substr(0, s));
+    for (std::wstring d : installDirs) {
+        d = lower(d);
+        while (!d.empty() && (d.back() == L'\\' || d.back() == L'/')) d.pop_back();
+        if (!d.empty() && d == dir) return true;
+    }
+    return false;
+}
+
 std::string versionSuffix(const std::string& v) {
     std::string out = "_";
     for (char c : v) out.push_back(c == '.' ? '_' : c);
@@ -84,6 +108,7 @@ HelperArgs parseHelperArgs(const std::vector<std::wstring>& argv) {
     HelperArgs a;
     for (size_t i = 0; i < argv.size(); ++i) {
         if (argv[i] == L"--quit-app") a.quitApp = true;
+        else if (argv[i].compare(0, 9, L"--remove=") == 0) a.uninstall = lower(argv[i].substr(9)) == L"all";
         else if (argv[i] == L"--max-version" && i + 1 < argv.size()) {
             for (wchar_t c : argv[++i]) a.maxVersion.push_back(static_cast<char>(c));
         }

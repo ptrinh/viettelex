@@ -34,6 +34,21 @@ bool isReleasedLeftover(const std::wstring& fileName);
 // "VietTelexTIP_1_0_6.dll" + stamp -> "VietTelexTIP_1_0_6.dll.<stamp>.old"
 std::wstring releaseName(const std::wstring& fileName, unsigned long long stamp);
 
+// Name of a released DLL parked in the TEMP folder until it can be deleted. `tag` keeps
+// same-named DLLs of different install folders (x64 + x86 both hold
+// VietTelexTIP_1_3_5.dll) apart: "VietTelexTIP_1_3_5.dll" + 1 + 42 ->
+// "VietTelexTIP_1_3_5.dll.1.42.old". Still matches isReleasedLeftover().
+std::wstring parkedName(const std::wstring& fileName, unsigned tag, unsigned long long stamp);
+
+// Compares two volume roots as GetVolumePathNameW returns them ("C:\" vs "c:" -> true;
+// case-insensitive, trailing separators ignored) for the TEMP folder and an install
+// folder: a rename only works within one volume, so a different one means "park in place".
+bool sameVolumeRoot(const std::wstring& rootA, const std::wstring& rootB);
+
+// Uninstall: is this running image the app from one of the install folders? (Never any
+// other process, and never a VietTelex.exe somewhere else, e.g. a portable copy.)
+bool isInstalledAppImage(const std::wstring& imagePath, const std::vector<std::wstring>& installDirs);
+
 // Version-stamped DLL base names for a release ("1.0.6" -> "_1_0_6"). Dots would break
 // the ARM64X forwarder's module references, so they become underscores.
 std::string versionSuffix(const std::string& version);
@@ -51,6 +66,7 @@ bool shouldRelease(const std::wstring& fileName, const std::string& maxVersion);
 struct HelperArgs {
     bool quitApp = false;
     bool releaseTip = false;
+    bool uninstall = false;          // --remove=ALL (a real uninstall, not an upgrade)
     std::string maxVersion;          // --max-version X.Y.Z (empty = no limit)
     std::vector<std::wstring> dirs;  // --release-tip targets
 };

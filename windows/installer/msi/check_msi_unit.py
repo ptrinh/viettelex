@@ -19,7 +19,7 @@ GOOD_CAS = {
     'CleanupUser': {'Type': 1138, 'Source': 'VTXEXE', 'Target': '--cleanup-user'},
     'QuitApp': {'Type': 66, 'Source': 'SetupHelper', 'Target': '--quit-app'},
     'ReleaseTip': {'Type': 3138, 'Source': 'SetupHelper',
-                   'Target': '--max-version 1.0.7 --release-tip "[INSTALLFOLDER]." "[INSTALLFOLDER86]."'},
+                   'Target': '--max-version 1.0.7 --remove=[REMOVE] --release-tip "[INSTALLFOLDER]." "[INSTALLFOLDER86]."'},
 }
 BINARIES = {'SetupHelper'}
 FILES = {'VietTelexExe'}
@@ -97,6 +97,11 @@ class UpgradeInPlace(unittest.TestCase):  # 1.0.6: upgrade must not leave the ol
         cas = dict(GOOD_CAS, ReleaseTip={'Type': 3138, 'Source': 'SetupHelper',
                                          'Target': '--release-tip "[INSTALLFOLDER]."'})
         self.assertTrue(any('--max-version' in x for x in run(cas)))
+
+    def test_release_without_remove_flag_rejected(self):  # Store 10.2.7: folder left after uninstall
+        cas = dict(GOOD_CAS, ReleaseTip={'Type': 3138, 'Source': 'SetupHelper',
+                                         'Target': '--max-version 1.0.7 --release-tip "[INSTALLFOLDER]."'})
+        self.assertTrue(any('--remove=[REMOVE]' in x for x in run(cas)))
 
     def test_missing_binary_rejected(self):
         self.assertTrue(any('Binary source' in x for x in run(binaries=set())))
