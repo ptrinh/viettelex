@@ -100,4 +100,20 @@ bool shouldRetypeAsUs(const KeyInput& k, uintptr_t hkl, LayoutMatch m) {
     return k.kind == KeyKind::Char && k.ch != 0 && isVietnameseHkl(hkl) && m == LayoutMatch::Differs;
 }
 
+PassedKeyRetype passedKeyRetype(const KeyInput& k) {
+    switch (k.kind) {
+        case KeyKind::Char:
+            return k.ch != 0 && k.ch <= 0xFFFF ? PassedKeyRetype::Unicode : PassedKeyRetype::None;
+        case KeyKind::Backspace:
+        case KeyKind::Boundary:
+        case KeyKind::Navigation:
+        case KeyKind::Chord:
+            return PassedKeyRetype::VirtualKey;
+        case KeyKind::Modifier:
+        case KeyKind::Other:
+            return PassedKeyRetype::None;
+    }
+    return PassedKeyRetype::None;
+}
+
 }  // namespace vtx

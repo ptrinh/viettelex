@@ -85,6 +85,32 @@ TEST(retype_number_row_under_vietnamese_layout) {
     CHECK(isVietnameseHkl(kHklVietnamese) && isVietnameseHkl(kHklViSubstUs) && !isVietnameseHkl(kHklUs));
 }
 
+TEST(passed_key_retype_kinds) {
+    // #134: what the TIP retypes for a claimed key it let through in an IMM32 host.
+    Modifiers m;
+    CHECK(passedKeyRetype(classifyKey(vk::Space, m)) == PassedKeyRetype::Unicode);
+    CHECK(passedKeyRetype(classifyKey('1', m)) == PassedKeyRetype::Unicode);
+    CHECK(passedKeyRetype(classifyKey(vk::OemPeriod, m)) == PassedKeyRetype::Unicode);
+    CHECK(passedKeyRetype(classifyKey(vk::Return, m)) == PassedKeyRetype::VirtualKey);
+    CHECK(passedKeyRetype(classifyKey(vk::Back, m)) == PassedKeyRetype::VirtualKey);
+    CHECK(passedKeyRetype(classifyKey(vk::Left, m)) == PassedKeyRetype::VirtualKey);
+    Modifiers ctrl;
+    ctrl.ctrl = true;
+    CHECK(passedKeyRetype(classifyKey('V', ctrl)) == PassedKeyRetype::VirtualKey);  // Ctrl+V stays a chord
+    CHECK(passedKeyRetype(classifyKey(vk::Shift, m)) == PassedKeyRetype::None);
+    CHECK(passedKeyRetype(classifyKey(0x70, m)) == PassedKeyRetype::None);  // F1
+}
+
+TEST(hook_reaches_this_process_uipi) {
+    // #134: MISA SME run as administrator (0x3000) with VietTelex.exe at medium (0x2000):
+    // the hook cannot type there, so the TIP never asks for a Direct handover.
+    CHECK(!hookReachesThisProcess(true, 0x2000, 0x3000));
+    CHECK(hookReachesThisProcess(true, 0x2000, 0x2000));
+    CHECK(hookReachesThisProcess(true, 0x2000, 0x1000));  // low-IL host (AppContainer)
+    CHECK(hookReachesThisProcess(true, 0x3000, 0x3000));  // both elevated
+    CHECK(!hookReachesThisProcess(false, 0x3000, 0x2000)); // unreadable token: assume blocked
+}
+
 TEST(layout_match_cache) {
     LayoutMatchCache c;
     CHECK(c.get(kHklVietnamese, '1', false, false) == LayoutMatch::Unknown);

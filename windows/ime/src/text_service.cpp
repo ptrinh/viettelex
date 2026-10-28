@@ -391,6 +391,12 @@ bool TextService::directServesHere() const {
     // Handover ack (1.1.5): the hook confirmed it types in this window. Without it the TIP
     // composes (no underline) — a rule or a request alone left words raw (cmd, 1.1.4).
     if (!root || !GetPropW(root, kDirectOnProp)) return false;
+    return hookReachesHere(app);
+}
+
+// UIPI: VietTelex.exe's SendInput cannot reach this process when it runs at a HIGHER
+// integrity than the app (started "as administrator") or the app's token is unreadable.
+bool TextService::hookReachesHere(HWND app) const {
     DWORD appPid = 0, own = 0x2000, theirs = 0;
     GetWindowThreadProcessId(app, &appPid);
     tokenIntegrity(GetCurrentProcess(), own);
@@ -399,7 +405,7 @@ bool TextService::directServesHere() const {
         known = tokenIntegrity(p, theirs);
         CloseHandle(p);
     }
-    return known && own <= theirs;
+    return hookReachesThisProcess(known, theirs, own);
 }
 
 bool TextService::typingEnabled() const {
@@ -425,6 +431,16 @@ bool TextService::requestDirect(const char* why) {
     if (!app) return false;
     HWND f = GetFocus();
     if (f && GetPropW(f, kNoDirectProp)) return false;  // proved unusable here: compose
+    // #134 (MISA SME run as administrator): the hook can never type in an elevated app.
+    // Asking anyway only left the field "composing until the hook acks" with the app
+    // logging "no hook (UIPI)". Compose here and do not ask.
+    if (!directWanted_ && !hookReachesHere(app)) {
+        if (!directBlockedLogged_) {
+            directBlockedLogged_ = true;
+            config::log(std::string(why) + " -> not requested: this app runs above VietTelex.exe (UIPI), composition");
+        }
+        return false;
+    }
     if (!directWanted_) {
         directWanted_ = true;
         PostMessageW(app, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode), 1);
@@ -652,6 +668,9 @@ void TextService::evaluateHost(ITfContext* ctx) {
     if (dm) dm->Release();
     host_ = classifyContext(c);
     if (host_ != HostText::NormalViaParent) SafeRelease(targetCtx_);
+    // IMM32 app through CUAS: a key claimed in OnTestKeyDown and let through is lost there
+    // (#134) — the session eats boundaries into the result string, OnKeyDown retypes the rest.
+    if (c.cuasEmulated && host_ == HostText::CompositionOnly) session_.setHostDropsPassedKeys(true);
     // Chromium & co (transitory, readable): the store mirrors the page asynchronously
     // (session.h setAsyncStore — 2026-10 Messenger/Facebook "mất chữ" report).
     session_.setAsyncStore(c.transitory && host_ == HostText::Normal);
@@ -730,6 +749,8 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     parentFailed_ = false;
     SafeRelease(targetCtx_);
     host_ = HostText::Normal;
+    directBlockedLogged_ = false;
+    retypeLogged_ = false;
     if (directActive_ || directWanted_) {  // the new field is evaluated afresh
         directActive_ = false;
         directWanted_ = false;
@@ -937,6 +958,46 @@ bool TextService::retypeAsUs(ITfContext* ctx, WPARAM wp, bool inject) {
     return SendInput(2, in, sizeof(INPUT)) == 2;
 }
 
+// #134: type a key OnTestKeyDown claimed and the session let through, in a host that
+// drops such keys (session.h hostDropsPassedKeys). Marked kInjectedMagic: this TIP and the
+// hook let it through untouched. SendInput into our own process: UIPI never applies.
+bool TextService::retypeClaimedKey(const KeyInput& k, WPARAM wp, LPARAM lp) {
+    INPUT in[2] = {};
+    switch (passedKeyRetype(k)) {
+        case PassedKeyRetype::None:
+            return false;
+        case PassedKeyRetype::Unicode:
+            for (int i = 0; i < 2; ++i) {
+                in[i].type = INPUT_KEYBOARD;
+                in[i].ki.wScan = static_cast<WORD>(k.ch);
+                in[i].ki.dwFlags = KEYEVENTF_UNICODE | (i ? KEYEVENTF_KEYUP : 0);
+                in[i].ki.dwExtraInfo = kInjectedMagic;
+            }
+            break;
+        case PassedKeyRetype::VirtualKey: {
+            const WORD vkey = static_cast<WORD>(wp);
+            WORD scan = static_cast<WORD>((static_cast<uintptr_t>(lp) >> 16) & 0xFF);
+            if (!scan) scan = static_cast<WORD>(MapVirtualKeyW(vkey, MAPVK_VK_TO_VSC));
+            const DWORD ext = (static_cast<uintptr_t>(lp) & (1u << 24)) ? KEYEVENTF_EXTENDEDKEY : 0;
+            for (int i = 0; i < 2; ++i) {
+                in[i].type = INPUT_KEYBOARD;
+                in[i].ki.wVk = vkey;
+                in[i].ki.wScan = scan;
+                in[i].ki.dwFlags = ext | (i ? KEYEVENTF_KEYUP : 0);
+                in[i].ki.dwExtraInfo = kInjectedMagic;
+            }
+            break;
+        }
+    }
+    const bool ok = SendInput(2, in, sizeof(INPUT)) == 2;
+    if (!retypeLogged_) {
+        retypeLogged_ = true;
+        config::log(ok ? "IMM host: claimed key let through -> retyped (#134)"
+                       : "IMM host: retyping a claimed key failed (SendInput)");
+    }
+    return ok;
+}
+
 STDMETHODIMP TextService::OnSetFocus(BOOL foreground) {
     if (!foreground) {
         ++keyGen_;
@@ -999,7 +1060,7 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL
     return S_OK;
 }
 
-STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* eaten) {
+STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL* eaten) {
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
     if (isOwnInjected(static_cast<uintptr_t>(GetMessageExtraInfo()))) return S_OK;
@@ -1083,6 +1144,9 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* ea
         requestDirect("in-place failed in this field -> direct (hook)");
     // A digit / punctuation that ended the word goes to the app: in US, not via the layout (#121).
     if (!result && retypeAsUs(ctx, wp, true)) result = TRUE;
+    // #134: an IMM32 host (CUAS) already turned this claimed key into VK_PROCESSKEY: letting
+    // it through loses it (Enter / Tab / arrows after a word, a key past an overflow).
+    if (!result && session_.hostDropsPassedKeys() && retypeClaimedKey(k, wp, lp)) result = TRUE;
     *eaten = result;
     noteHintKey(k, keyTarget(ctx), hr == S_OK);  // (target may be released by the fallback)
     return S_OK;

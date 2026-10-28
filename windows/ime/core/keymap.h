@@ -98,4 +98,16 @@ inline bool isVietnameseHkl(uintptr_t hkl) { return (hkl & 0xFFFF) == 0x042A; }
 // layout is never second-guessed); only when that layout would type something else.
 bool shouldRetypeAsUs(const KeyInput& k, uintptr_t hkl, LayoutMatch m);
 
+// ---- Keys claimed, then let through, in an IMM32 host (#134) -----------------------
+// In an IMM32 app reached through CUAS (WinForms: MISA SME), a key OnTestKeyDown claims is
+// turned into VK_PROCESSKEY before the app sees it; if OnKeyDown then does not eat it, no
+// WM_CHAR / WM_KEYDOWN for it ever arrives: the key is gone (first letter lost, Space
+// after a word lost). In such a host the TIP retypes the key itself:
+//   Unicode     printable character -> KEYEVENTF_UNICODE (VK_PACKET -> WM_CHAR)
+//   VirtualKey  Backspace / Enter / Tab / Esc / navigation / chord -> the same VK again
+//               (modifiers still held physically: Ctrl+V stays Ctrl+V)
+//   None        modifiers and keys the session never claims
+enum class PassedKeyRetype : uint8_t { None, Unicode, VirtualKey };
+PassedKeyRetype passedKeyRetype(const KeyInput& k);
+
 }  // namespace vtx

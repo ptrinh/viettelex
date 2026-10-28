@@ -137,6 +137,17 @@ public:
     // the TIP at each word start; cleared by resetContext().
     void setAsyncStore(bool on) { asyncStore_ = on; }
     bool asyncStore() const { return asyncStore_; }
+    // The host DROPS a key the TIP claimed (OnTestKeyDown) and then let through: an IMM32
+    // app reached through CUAS (WinForms — MISA SME, #134; the TIP sets it for CUAS-emulated
+    // contexts), where a claimed key has already become VK_PROCESSKEY. Set by the session
+    // itself when in-place finds the field shows none of the letters it let through (they
+    // never arrived): those letters are composed instead of lost. In such a field the
+    // session eats what it can — a printable boundary goes out WITH the committed word
+    // (one result string, "word␣"), ⌫ never re-opens (nothing readable) — and the TIP
+    // retypes any other claimed key it did not eat (keymap.h passedKeyRetype). Cleared by
+    // resetContext().
+    void setHostDropsPassedKeys(bool on);
+    bool hostDropsPassedKeys() const { return dropsPassedKeys_; }
     // In-place word in progress, something changed the field (OnEndEdit): keep the word
     // only if the text before the caret still ends with it. Recognises the "deletion
     // dropped" signature (screen = word before the replace + inserted text) and switches
@@ -173,7 +184,7 @@ private:
     bool handleBackspace(TextSink& sink);
     // kind: Char (printable boundary), Boundary (Enter/Tab/Esc), Navigation/Chord.
     bool commitWord(TextSink& sink, KeyKind kind, char32_t ch = 0);
-    bool commitWordInner(TextSink& sink, KeyKind kind);
+    bool commitWordInner(TextSink& sink, KeyKind kind, char32_t ch);
     // Retro English: on with the engine flag (Settings: contextualEnglish + the switch).
     bool retroOn() const;
     retro::Field retroField(TextSink& sink) const;
@@ -195,6 +206,7 @@ private:
     bool compositionOnly_ = false;
     bool preferComposition_ = false;
     bool asyncStore_ = false;
+    bool dropsPassedKeys_ = false;  // see hostDropsPassedKeys()
     // After an in-place replace: what the screen shows if the app inserted our text but
     // dropped the deletion (Chromium omnibox, 2026-10 field report "theêz"). Empty = none.
     std::u16string droppedSig_;
@@ -205,7 +217,7 @@ private:
     // dropped-deletion signature on the way (-> setPreferComposition).
     bool screenStale(const std::u16string& before);
     void noteReplace(const std::u16string& oldShown, const std::u16string& expect, const std::u16string& insert);
-    bool mayReadBack() const { return opt_.reEditWord && !compositionOnly_; }
+    bool mayReadBack() const { return opt_.reEditWord && !compositionOnly_ && !dropsPassedKeys_; }
     // Re-edit seeds a word from the text before the caret; an async store may show it
     // without the keys still in flight (model of the 2026-10 report: "tuwf" -> "tuưf").
     bool mayReEdit() const { return mayReadBack() && !asyncStore_; }

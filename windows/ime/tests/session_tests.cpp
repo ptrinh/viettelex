@@ -498,22 +498,93 @@ TEST(console_cmd_types_vietnamese_via_composition) {
     CHECK(s.wordMode() == OutputMode::Composition);
 }
 
-TEST(console_unflagged_host_recovers_after_first_word) {
-    // A console-like host we did NOT recognise (e.g. mintty via IMM): at the 2nd key the
-    // field shows none of the typed text -> composition for the rest of the field. The
-    // first letter was already passed through, so only a word whose FIRST two keys form
-    // one letter ("dd" -> đ) can come out as typed. Never "thuưr" garbage, never the rest
-    // of the line raw.
+namespace {
+// IMM32 app through CUAS (WinForms: MISA SME 2022, #134). The TSF document holds only the
+// composition, like a console — but a key the TIP CLAIMED in OnTestKeyDown has already
+// become VK_PROCESSKEY: if OnKeyDown lets it through, the app never gets it. A key the
+// TIP does not claim reaches the app normally. The rig retypes a claimed, uneaten key the
+// way TextService::OnKeyDown does (keymap.h passedKeyRetype) — only when the session says
+// the host drops such keys; otherwise the key is lost, as on the reporter's machine.
+// '\n' = Enter.
+std::string typeImm(TypingSession& s, ConsoleDoc& d, const char* keys, int* lost = nullptr) {
+    for (const char* p = keys; *p; ++p) {
+        KeyInput k;
+        if (*p == '\n') {
+            k.kind = KeyKind::Boundary;
+        } else {
+            k.kind = KeyKind::Char;
+            k.ch = static_cast<unsigned char>(*p);
+        }
+        const bool claimed = s.wantsKey(k);
+        const bool eaten = claimed && s.handleKey(k, d);
+        if (eaten) continue;
+        if (claimed && !(s.hostDropsPassedKeys() && passedKeyRetype(k) != PassedKeyRetype::None)) {
+            if (lost) ++*lost;  // VK_PROCESSKEY: gone
+            continue;
+        }
+        d.shell += static_cast<char16_t>(*p);  // WM_CHAR (native or retyped)
+    }
+    return utf16ToUtf8(d.shell);
+}
+}  // namespace
+
+TEST(imm_host_in_place_keeps_first_letter_spaces_and_digits) {
+    // #134, MISA SME 2022 (WinForms field), app default in-place: the 1st letter was let
+    // through (lost), at the 2nd the field "shows none of the typed text" -> composition;
+    // then every Space / digit after a word was claimed, let through and lost:
+    // "Lươngnhânviênthống", digits missing. Now: the 1st letter is composed with the rest,
+    // the boundary goes out with the word, nothing is lost.
     Settings st;
     TypingSession s;
     configureDefaults(s, st);
     ConsoleDoc d;
-    CHECK_EQ(typeConsole(s, d, "thuwr gox tieengs vieetj "), std::string("thử gõ tiếng việt "));
+    // (The rig counts the 1st letter as lost when it is let through; the session composes
+    // it again at the 2nd key, so the text is what proves nothing went missing.)
+    CHECK_EQ(typeImm(s, d, "Luwowng nhaan vieen thangs 10 nawm 2026."),
+             std::string("Lương nhân viên tháng 10 năm 2026."));
     CHECK(s.contextFellBack());
+    CHECK(s.hostDropsPassedKeys());
+    CHECK(s.wordMode() == OutputMode::Composition);
+    // One-letter-first words too ("dd" -> đ is a single letter on screen).
     TypingSession s2;
     configureDefaults(s2, st);
     ConsoleDoc d2;
-    CHECK_EQ(typeConsole(s2, d2, "ddi dduwowngf "), std::string("ddi đường "));
+    CHECK_EQ(typeImm(s2, d2, "ddi dduwowngf "), std::string("đi đường "));
+}
+
+TEST(imm_host_cuas_flagged_composes_and_never_loses_boundaries) {
+    // The TIP saw a CUAS-emulated context (session.h setHostDropsPassedKeys): composition
+    // from the first key, Space/punctuation inside the result string, Enter retyped.
+    Settings st;
+    TypingSession s;
+    configureDefaults(s, st);
+    s.setCompositionOnlyContext(true);
+    s.setHostDropsPassedKeys(true);
+    ConsoleDoc d;
+    int lost = 0;
+    CHECK_EQ(typeImm(s, d, "chaof 2026, banj\nok 1 2", &lost), std::string("chào 2026, bạn\nok 1 2"));
+    CHECK_EQ(lost, 0);
+    // ⌫ right after "word␣" is never claimed for a re-open here (it would be lost).
+    typeImm(s, d, "thays ");
+    KeyInput bs;
+    bs.kind = KeyKind::Backspace;
+    CHECK(!s.wantsKey(bs));
+    // A new field starts over (the TIP re-flags it if it is CUAS too).
+    s.resetContext();
+    CHECK(!s.hostDropsPassedKeys());
+}
+
+TEST(imm_host_without_the_fix_loses_keys) {
+    // The pre-#134 model, kept as a guard on the rig itself: a session that never learns
+    // the host drops claimed keys loses a key after every word.
+    Settings st;
+    TypingSession s;
+    configureDefaults(s, st);
+    s.setCompositionOnlyContext(true);  // composition, but no hostDropsPassedKeys
+    ConsoleDoc d;
+    int lost = 0;
+    CHECK_EQ(typeImm(s, d, "nhaan vieen ", &lost), std::string("nhânviên"));
+    CHECK_EQ(lost, 2);
 }
 
 TEST(console_never_reads_back_for_reedit_or_reopen) {
