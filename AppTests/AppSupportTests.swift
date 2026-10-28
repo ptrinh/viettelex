@@ -1154,6 +1154,55 @@ final class ReEditWordTapGateTests: XCTestCase {
             lastKeyWasBoundary: false))
     }
 
+    /// Issue #135 (Zalo, 28/10/2026): bấm "Trả lời" tin nhắn cũ (nút NGOÀI ô soạn, không
+    /// activateServer) rồi gõ "w" → re-edit seed chữ cũ "dung" từ AX → ⌫×3 + "ưng" vào ô
+    /// trống. Click ngoài khung ô đang focus không được re-arm re-edit.
+    func testClickOutsideFocusedFieldDoesNotArmReEdit() {
+        let composer = CGRect(x: 300, y: 800, width: 600, height: 40)   // CG, gốc trên-trái
+        let replyButton = CGPoint(x: 700, y: 420)                        // trên bong bóng tin nhắn
+        XCTAssertFalse(ReEditClickCheck.allows(click: replyButton, fieldFrame: composer))
+        let sendButton = CGPoint(x: 930, y: 820)                         // nút Gửi bên phải ô
+        XCTAssertFalse(ReEditClickCheck.allows(click: sendButton, fieldFrame: composer))
+    }
+
+    /// Ca chính của re-edit giữ nguyên: click ở cuối một từ TRONG ô rồi gõ dấu.
+    func testClickInsideFocusedFieldStillArmsReEdit() {
+        let composer = CGRect(x: 300, y: 800, width: 600, height: 40)
+        XCTAssertTrue(ReEditClickCheck.allows(click: CGPoint(x: 420, y: 815), fieldFrame: composer))
+        // Mép ô (caret sát viền) vẫn tính là trong ô.
+        XCTAssertTrue(ReEditClickCheck.allows(click: CGPoint(x: 298, y: 801), fieldFrame: composer))
+    }
+
+    /// Không có click kể từ phím trước ⇒ luật không áp dụng (gõ ⌫ rồi thêm dấu như cũ).
+    func testNoClickMeansNoClickRestriction() {
+        XCTAssertTrue(ReEditClickCheck.allows(click: nil, fieldFrame: nil))
+    }
+
+    /// Có click nhưng không đọc được khung ô (AX mù/timeout) ⇒ fail-closed: không seed.
+    func testUnknownFieldFrameAfterClickFailsClosed() {
+        XCTAssertFalse(ReEditClickCheck.allows(click: CGPoint(x: 10, y: 10), fieldFrame: nil))
+        XCTAssertFalse(ReEditClickCheck.allows(click: CGPoint(x: 0, y: 0), fieldFrame: .zero))
+    }
+
+    /// Cơ chế ra "ưng" của #135: seed "dung" (chữ cũ AX báo trước con trỏ) rồi "w" ⇒
+    /// engine thay 3 ký tự cuối bằng "ưng". Ô thật đang trống nên 3 ⌫ không xoá gì và
+    /// màn hình còn đúng "ưng". Engine trống thì "w" ra "ư" — cái user mong.
+    func testStaleSeedExplainsUngSymptom() {
+        var seeded = TelexEngine()
+        seeded.freeMarking = true   // mặc định của app (AppState.freeMarking)
+        XCTAssertTrue(seeded.seed("dung"))
+        let action = seeded.feed("w")
+        guard case let .replace(bs, insert) = action else {
+            return XCTFail("seed + w phải là một phép thay, được \(action)")
+        }
+        XCTAssertEqual(bs, 3)
+        XCTAssertEqual(insert, "ưng")
+        var fresh = TelexEngine()
+        fresh.freeMarking = true
+        _ = fresh.feed("w")
+        XCTAssertEqual(fresh.composed, "ư")
+    }
+
     func testRequiresEmptyEngineEnabledSettingAndDiacriticKey() {
         XCTAssertTrue(TerminalTapController.reEditGateOpen(
             engineIsEmpty: true, reEditEnabled: true, isDiacriticKey: true, emitMode: .backspace,
