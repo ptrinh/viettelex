@@ -550,6 +550,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         applySwipeTrail(settings.swipeTrail, th, kb)
         applyMole(th, kb)
         kb.configureSpaceFlick(settings.spaceSwipeLanguage, session.language)
+        kb.trackpadSpeed = settings.trackpadSpeed
         if (session.language == com.viettelex.keyboard.KeyboardLanguage.EN) warmEnglish()
         // Plus + công tắc "Công cụ văn bản" (mặc định bật) + không phải ô mật khẩu.
         kb.textToolsEnabled = settings.textToolsActive(PlusGate.isUnlocked(PlusFeature.TEXT_TOOLS), field.isSecure)

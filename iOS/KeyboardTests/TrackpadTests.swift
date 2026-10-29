@@ -6,9 +6,11 @@ import XCTest
 
 final class TrackpadGestureTests: XCTestCase {
 
-    /// Kéo từ (0,0) qua các điểm, mỗi điểm cách `dt` giây; trả mọi bước.
-    private func drag(_ pts: [(Double, Double)], dt: Double) -> [TrackpadGesture.Step] {
-        var g = TrackpadGesture()
+    /// Kéo từ (0,0) qua các điểm, mỗi điểm cách `dt` giây; trả mọi bước. Mặc định mức Nhanh
+    /// (= đường cong 15bed4b2 mà các ca dưới ghim số); mức khác: testSpeedLevels….
+    private func drag(_ pts: [(Double, Double)], dt: Double,
+                      speed: TrackpadSpeed = .fast) -> [TrackpadGesture.Step] {
+        var g = TrackpadGesture(speed: speed)
         g.begin(x: 0, y: 0, t: 0)
         var t = 0.0
         return pts.compactMap { p in t += dt; return g.move(x: p.0, y: p.1, t: t) }
@@ -123,7 +125,7 @@ final class TrackpadGestureTests: XCTestCase {
 
     /// Chậm vẫn chính xác: dưới 120 pt/s đúng 6pt/ký tự, không trôi thêm phần lẻ.
     func testSlowAfterFastIsPreciseAgain() {
-        var g = TrackpadGesture()
+        var g = TrackpadGesture(speed: .fast)
         g.begin(x: 0, y: 0, t: 0)
         var x = 0.0, t = 0.0
         for _ in 0..<10 { x += 30; t += 0.016; _ = g.move(x: x, y: 0, t: t) }   // nhanh
@@ -132,6 +134,88 @@ final class TrackpadGestureTests: XCTestCase {
         for _ in 0..<20 { x += 3; t += 0.05; slow += g.move(x: x, y: 0, t: t)?.count ?? 0 }
         XCTAssertGreaterThanOrEqual(slow, 9)                                    // 60pt ⇒ 10 ± phần lẻ cũ
         XCTAssertLessThanOrEqual(slow, 11)
+    }
+}
+
+extension TrackpadGestureTests {
+    // MARK: "Độ nhạy con trỏ" (tester 29/10/2026: "nhạy quá, có vẻ hơi lag")
+
+    func testSpeedSettingParseAndDefault() {
+        XCTAssertEqual(TrackpadSpeed.defaultValue, .medium)
+        XCTAssertEqual(TrackpadSpeed.parse(nil), .medium)
+        XCTAssertEqual(TrackpadSpeed.parse("slow"), .slow)
+        XCTAssertEqual(TrackpadSpeed.parse("fast"), .fast)
+        XCTAssertEqual(TrackpadSpeed.parse("turbo"), .medium, "lạ ⇒ Vừa")
+        XCTAssertEqual(TrackpadSpeed.parse(2), .medium, "sai kiểu ⇒ Vừa")
+        XCTAssertEqual(TrackpadSpeed.allCases.map(\.rawValue), ["slow", "medium", "fast"])   // cùng id Android
+        XCTAssertEqual(TrackpadGesture().curve, TrackpadSpeed.medium.curve, "mặc định Vừa")
+        XCTAssertEqual(KeyboardSettings().trackpadSpeed, .medium)
+        // Nhanh = đường cong 15bed4b2.
+        XCTAssertEqual(TrackpadSpeed.fast.curve,
+                       .init(hSlow: 120, hFast: 900, hMax: 5, vSlow: 120, vFast: 700, vMax: 3))
+    }
+
+    /// Cú kéo thường (400 pt/s): Chậm < Vừa < Nhanh; Vừa (mặc định) dịu hơn Nhanh rõ rệt
+    /// (≈ nửa đường giữa bản trước 15bed4b2 — ×1 — và Nhanh).
+    func testSpeedLevelsOrderedAndDefaultGentler() {
+        let pts = (1...20).map { (Double($0) * 8, 0.0) }        // 8pt / 20ms = 400 pt/s, 160pt
+        let n = TrackpadSpeed.allCases.map { sum(drag(pts, dt: 0.02, speed: $0), .horizontal) }
+        XCTAssertLessThan(n[0], n[1]); XCTAssertLessThan(n[1], n[2])
+        let raw = 160 / 6                                         // ×1 (bản cũ ở tốc độ này)
+        XCTAssertGreaterThan(n[1], raw, "Vừa vẫn tăng tốc chút ít")
+        XCTAssertLessThanOrEqual(abs(Double(n[1]) - Double(raw + n[2]) / 2), Double(raw) * 0.35,
+                                 "Vừa ≈ giữa ×1 và Nhanh: \(n)")
+        // Mọi mức: chậm (< 120 pt/s) vẫn đúng 6pt/ký tự.
+        for sp in TrackpadSpeed.allCases {
+            let steps = drag((1...30).map { (Double($0) * 3, 0) }, dt: 0.05, speed: sp)
+            XCTAssertEqual(sum(steps, .horizontal), 15, "\(sp)")
+        }
+        // Dọc cũng theo mức.
+        let v = (1...10).map { (0.0, Double($0) * 10) }          // 10pt / 20ms = 500 pt/s
+        let lines = TrackpadSpeed.allCases.map { sum(drag(v, dt: 0.02, speed: $0), .vertical) }
+        XCTAssertLessThanOrEqual(lines[0], lines[1]); XCTAssertLessThan(lines[1], lines[2])
+    }
+
+    /// Hồi quy "có vẻ hơi lag": quay lại sửa chỗ vượt. Phần lẻ tích luỹ theo chiều cũ phải trả
+    /// lại trước ⇒ bản cũ cần ~11pt kéo ngược mới nhích một ký tự (vùng chết). Giờ đảo chiều bỏ
+    /// phần lẻ: ≤ 8pt (vài pt để hướng lọc đổi dấu + 6pt một ký tự).
+    func testReversalHasNoDeadZone() {
+        for sp in TrackpadSpeed.allCases {
+            var g = TrackpadGesture(speed: sp)
+            g.begin(x: 0, y: 0, t: 0)
+            var x = 0.0, t = 0.0
+            for _ in 0..<5 { x += 1; t += 0.05; XCTAssertNil(g.move(x: x, y: 0, t: t)) }  // phần lẻ 5pt
+            var back = 0.0
+            var first: TrackpadGesture.Step?
+            while first == nil, back < 20 { x -= 1; back += 1; t += 0.05; first = g.move(x: x, y: 0, t: t) }
+            XCTAssertEqual(first, .init(axis: .horizontal, count: -1), "\(sp)")
+            XCTAssertLessThanOrEqual(back, 8, "\(sp): kéo ngược \(back)pt mới nhích")
+        }
+    }
+
+    /// Đảo chiều không mang đà: vuốt nhanh sang phải rồi kéo ngược CHẬM ⇒ đi từng ký tự, không
+    /// nhân hệ số của cú nhanh trước (bản cũ: EMA tốc độ còn cao ⇒ vọt ngược quá đà).
+    func testReversalDropsSpeedMomentum() {
+        var g = TrackpadGesture(speed: .fast)
+        g.begin(x: 0, y: 0, t: 0)
+        var x = 0.0, t = 0.0
+        for _ in 0..<6 { x += 30; t += 0.016; _ = g.move(x: x, y: 0, t: t) }   // ~1875 pt/s
+        var back = 0
+        for _ in 0..<15 { x -= 1.6; t += 0.016; back += g.move(x: x, y: 0, t: t)?.count ?? 0 }  // 100 pt/s, 24pt
+        XCTAssertLessThanOrEqual(-back, 4, "24pt chậm ⇒ ≤ 4 ký tự, được \(-back)")
+        XCTAssertGreaterThanOrEqual(-back, 2)
+    }
+
+    /// Rung tay lẻ một sự kiện ngược chiều không xoá tiến độ (hướng lọc EMA không đổi dấu).
+    func testSingleJitterKeepsProgress() {
+        var g = TrackpadGesture()
+        g.begin(x: 0, y: 0, t: 0)
+        var t = 0.0
+        var total = 0
+        for x in [1.0, 2, 3, 4, 5, 4.7, 5.7, 6.7, 7.7] {        // 0.3pt lùi giữa chừng
+            t += 0.05; total += g.move(x: x, y: 0, t: t)?.count ?? 0
+        }
+        XCTAssertEqual(total, 1, "7.7pt − 0.3 rung ⇒ vẫn một ký tự")
     }
 }
 

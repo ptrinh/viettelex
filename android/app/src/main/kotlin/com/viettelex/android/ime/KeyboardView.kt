@@ -401,7 +401,9 @@ class KeyboardView(
     private var spaceKey: LaidKey? = null
     /** Phím cách ngón [spacePtr] đang giữ (tách đôi: một trong hai phím cách). */
     private var spaceDownKey: LaidKey? = null
-    private val trackpadGesture = TrackpadGesture()
+    private var trackpadGesture = TrackpadGesture()
+    /** "Độ nhạy con trỏ" — IME đặt lúc dựng bàn phím (KeyboardSettings); áp khi bắt đầu kéo. */
+    var trackpadSpeed = com.viettelex.keyboard.TrackpadSpeed.DEFAULT
     /** Gom bước theo frame: ≤ 1 lệnh dời con trỏ (IPC) mỗi vsync. */
     private val trackpadBatch = TrackpadBatcher()
     private var trackpadFramePosted = false
@@ -2147,6 +2149,7 @@ class KeyboardView(
         trackpad = true
         if (carouselOn) { flickAnim?.cancel(); carouselOn = false }
         trackpadBatch.clear()
+        if (trackpadGesture.curve != trackpadSpeed.curve) trackpadGesture = TrackpadGesture(trackpadSpeed)
         trackpadGesture.begin(lastX[spacePtr] / d, lastY[spacePtr] / d, SystemClock.uptimeMillis())
         balloon.hide(); balloonOwner = null
         // Nhả ra KHÔNG có dấu cách (stock), kể cả khi chưa di con trỏ.

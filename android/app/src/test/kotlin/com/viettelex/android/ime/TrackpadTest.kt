@@ -1,15 +1,22 @@
 package com.viettelex.android.ime
 
 import com.viettelex.android.ime.TrackpadGesture.Axis
+import com.viettelex.keyboard.KeyboardSettings
+import com.viettelex.keyboard.Keys
+import com.viettelex.keyboard.TrackpadSpeed
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TrackpadTest {
-    /** Kéo từ (0,0) theo các điểm, mỗi điểm cách [dtMs]; trả mọi bước phát ra. */
-    private fun drag(points: List<Pair<Float, Float>>, dtMs: Long): List<TrackpadGesture.Step> {
-        val g = TrackpadGesture()
+    /**
+     * Kéo từ (0,0) theo các điểm, mỗi điểm cách [dtMs]; trả mọi bước phát ra. Mặc định mức Nhanh
+     * (= đường cong cũ mà các ca dưới ghim số); mức khác: speedLevels….
+     */
+    private fun drag(points: List<Pair<Float, Float>>, dtMs: Long,
+                     speed: TrackpadSpeed = TrackpadSpeed.FAST): List<TrackpadGesture.Step> {
+        val g = TrackpadGesture(speed)
         g.begin(0f, 0f, 0)
         var t = 0L
         return points.mapNotNull { (x, y) -> t += dtMs; g.move(x, y, t) }
@@ -125,7 +132,7 @@ class TrackpadTest {
 
     /** Chậm sau nhanh vẫn chính xác: dưới 120 dp/s đúng 6 dp/ký tự. */
     @Test fun slowAfterFastIsPreciseAgain() {
-        val g = TrackpadGesture()
+        val g = TrackpadGesture(TrackpadSpeed.FAST)
         g.begin(0f, 0f, 0)
         var x = 0f; var t = 0L
         repeat(10) { x += 30f; t += 16; g.move(x, 0f, t) }
@@ -133,6 +140,78 @@ class TrackpadTest {
         var slow = 0
         repeat(20) { x += 3f; t += 50; slow += g.move(x, 0f, t)?.count ?: 0 }
         assertTrue("$slow", slow in 9..11)
+    }
+
+    // --- "Độ nhạy con trỏ" (tester 29/10/2026: "nhạy quá, có vẻ hơi lag") — song sinh iOS ---
+
+    @Test fun speedSettingParseAndDefault() {
+        assertEquals(TrackpadSpeed.MEDIUM, TrackpadSpeed.DEFAULT)
+        assertEquals(TrackpadSpeed.MEDIUM, TrackpadSpeed.of(null))
+        assertEquals(TrackpadSpeed.SLOW, TrackpadSpeed.of("slow"))
+        assertEquals(TrackpadSpeed.FAST, TrackpadSpeed.of("fast"))
+        assertEquals(TrackpadSpeed.MEDIUM, TrackpadSpeed.of("turbo"))   // lạ ⇒ Vừa
+        assertEquals(TrackpadSpeed.MEDIUM, TrackpadSpeed.of(2))
+        assertEquals(listOf("slow", "medium", "fast"), TrackpadSpeed.entries.map { it.id })   // cùng id iOS
+        assertEquals(TrackpadSpeed.MEDIUM.curve, TrackpadGesture().curve)   // mặc định Vừa
+        assertEquals(TrackpadSpeed.MEDIUM, KeyboardSettings.load { null }.trackpadSpeed)
+        assertEquals(TrackpadSpeed.SLOW, KeyboardSettings.load { if (it == Keys.TRACKPAD_SPEED) "slow" else null }.trackpadSpeed)
+        // Nhanh = đường cong cũ.
+        assertEquals(TrackpadSpeed.Curve(120.0, 900.0, 5.0, 120.0, 700.0, 3.0), TrackpadSpeed.FAST.curve)
+    }
+
+    /** Cú kéo thường (400 dp/s): Chậm < Vừa < Nhanh; Vừa ≈ giữa ×1 (bản trước) và Nhanh. */
+    @Test fun speedLevelsOrderedAndDefaultGentler() {
+        val pts = (1..20).map { it * 8f to 0f }                         // 400 dp/s, 160 dp
+        val n = TrackpadSpeed.entries.map { drag(pts, 20, it).sum(Axis.H) }
+        assertTrue("$n", n[0] < n[1] && n[1] < n[2])
+        val raw = 160 / 6
+        assertTrue("Vừa vẫn tăng tốc: $n", n[1] > raw)
+        assertTrue("Vừa ≈ giữa ×1 và Nhanh: $n", kotlin.math.abs(n[1] - (raw + n[2]) / 2.0) <= raw * 0.35)
+        for (sp in TrackpadSpeed.entries) {                             // chậm: đúng 6 dp/ký tự
+            assertEquals("$sp", 15, drag((1..30).map { it * 3f to 0f }, 50, sp).sum(Axis.H))
+        }
+        val v = (1..10).map { 0f to it * 10f }                          // 500 dp/s dọc
+        val lines = TrackpadSpeed.entries.map { drag(v, 20, it).sum(Axis.V) }
+        assertTrue("$lines", lines[0] <= lines[1] && lines[1] < lines[2])
+    }
+
+    /**
+     * Hồi quy "có vẻ hơi lag": quay lại sửa chỗ vượt. Phần lẻ chiều cũ phải trả lại trước ⇒ bản cũ
+     * cần ~11 dp kéo ngược mới nhích. Giờ đảo chiều bỏ phần lẻ: ≤ 8 dp.
+     */
+    @Test fun reversalHasNoDeadZone() {
+        for (sp in TrackpadSpeed.entries) {
+            val g = TrackpadGesture(sp)
+            g.begin(0f, 0f, 0)
+            var x = 0f; var t = 0L
+            repeat(5) { x += 1f; t += 50; assertNull(g.move(x, 0f, t)) }   // phần lẻ 5 dp
+            var back = 0
+            var first: TrackpadGesture.Step? = null
+            while (first == null && back < 20) { x -= 1f; back++; t += 50; first = g.move(x, 0f, t) }
+            assertEquals("$sp", TrackpadGesture.Step(Axis.H, -1), first)
+            assertTrue("$sp: kéo ngược $back dp mới nhích", back <= 8)
+        }
+    }
+
+    /** Đảo chiều không mang đà: vuốt nhanh phải rồi kéo ngược CHẬM ⇒ đi từng ký tự. */
+    @Test fun reversalDropsSpeedMomentum() {
+        val g = TrackpadGesture(TrackpadSpeed.FAST)
+        g.begin(0f, 0f, 0)
+        var x = 0f; var t = 0L
+        repeat(6) { x += 30f; t += 16; g.move(x, 0f, t) }               // ~1875 dp/s
+        var back = 0
+        repeat(15) { x -= 1.6f; t += 16; back += g.move(x, 0f, t)?.count ?: 0 }   // 100 dp/s, 24 dp
+        assertTrue("24 dp chậm ⇒ ≤ 4 ký tự, được ${-back}", -back in 2..4)
+    }
+
+    /** Rung tay lẻ một sự kiện ngược chiều không xoá tiến độ. */
+    @Test fun singleJitterKeepsProgress() {
+        val g = TrackpadGesture()
+        g.begin(0f, 0f, 0)
+        var t = 0L
+        var total = 0
+        for (x in listOf(1f, 2f, 3f, 4f, 5f, 4.7f, 5.7f, 6.7f, 7.7f)) { t += 50; total += g.move(x, 0f, t)?.count ?: 0 }
+        assertEquals(1, total)
     }
 
     // --- VerticalMove.offset ---

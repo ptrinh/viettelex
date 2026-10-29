@@ -203,6 +203,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Phím nhấc-mới-chốt đang đè — xem KeyCommitQueue (thứ tự khi gõ chồng ngón).
     private let commits = KeyCommitQueue()
     private var trackpadGesture = TrackpadGesture()
+    /// "Độ nhạy con trỏ" — controller đặt lúc hiện (KeyboardSettings); áp khi bắt đầu kéo.
+    var trackpadSpeed = TrackpadSpeed.defaultValue
     private var backspaceHoldStart: TimeInterval = 0
 
     // Màu lấy từ theme (KeyboardTheme.swift — token tập trung một chỗ). Theme
@@ -500,16 +502,29 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Bar là HÀNG NỘI DUNG ghim đỉnh, cao barRowNow (20 ở mức Thấp, + delta "Chiều cao thanh
     /// gợi ý"), thụt mép trái chừa burgerZone, mép phải chừa 📋 / 😊 / nhân vật (không còn ⌄) —
     /// không chồng lên nút mép. Frame thường không đổi ⇒ SuggestionBar không layout lại.
+    /// Đỉnh hàng nội dung bar với `strip` đang dùng: canh giữa dải đỉnh bàn phím → đỉnh phím
+    /// hàng đầu (SuggestionBarHeight.rowTop, pinned by SuggestionBarHeightTests). Bar, ☰, 📋,
+    /// 😊 và vùng chạm đều lấy từ đây ⇒ luôn cùng tâm.
+    private func barRowTop(strip: CGFloat) -> CGFloat {
+        SuggestionBarHeight.rowTop(strip: strip, capGap: rowSpec.gap, row: barRowNow, topPad: Self.barTopPad)
+    }
+    /// Đệm nội dung cho nút mép (☰ / 📋 / 😊) cao trọn strip: icon canh giữa hàng nội dung bar.
+    private func barContentInsets(strip: CGFloat) -> UIEdgeInsets {
+        let top = barRowTop(strip: strip)
+        return UIEdgeInsets(top: top, left: 0, bottom: max(strip - barRowNow - top, 0), right: 0)
+    }
+
     private func layoutSuggestionBar() {
         let w = Self.stripZoneWidth
         let right = barRightExtras
         // Host cấp thiếu chiều cao ⇒ strip co (phím giữ nguyên): bar Vừa/Cao co về chỗ còn lại
         // trước (sàn 20 = mức Thấp), hết chỗ mới dời lên VỪA đủ để không đè hàng đầu.
-        let room = rowsContainer.frame.height > 0 ? rowsContainer.frame.minY - Self.barTopPad : .greatestFiniteMagnitude
+        let top = barRowTop(strip: max(rowsTopConstraint?.constant ?? openStripNow, openStripNow))
+        let room = rowsContainer.frame.height > 0 ? rowsContainer.frame.minY - top : .greatestFiniteMagnitude
         let h = max(min(barRowNow, room), min(barRowNow, SuggestionBarHeight.baseRow))
         let squeeze = rowsContainer.frame.height > 0
-            ? min(0, rowsContainer.frame.minY - (Self.barTopPad + h)) : 0
-        let f = CGRect(x: w, y: Self.barTopPad + squeeze, width: max(bounds.width - w - right, 0), height: h)
+            ? min(0, rowsContainer.frame.minY - (top + h)) : 0
+        let f = CGRect(x: w, y: top + squeeze, width: max(bounds.width - w - right, 0), height: h)
         if suggestionBar.frame != f { suggestionBar.frame = f }
     }
 
@@ -527,7 +542,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let strip = max(rowsTopConstraint?.constant ?? openStripNow, openStripNow)
         // layoutSubviews chạy cả khi gõ (shift/balloon) — trạng thái không đổi thì khỏi
         // dựng lại ảnh SF Symbol + insets mỗi lượt.
-        let key = StripZonesKey(width: bounds.width, strip: strip, templates: templatesActive, ink: palette.barInk,
+        let key = StripZonesKey(width: bounds.width, strip: strip, rowTop: barRowTop(strip: strip),
+                                templates: templatesActive, ink: palette.barInk,
                                 zone: zone, oneHand: oneHand, lastSide: lastOneHandSide)
         defer { bringSubviewToFront(burgerZone) }
         guard key != stripZonesKey else { return }
@@ -539,13 +555,12 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let lit = zone == .oneHand ? oneHand != .off : templatesActive
         burgerZone.tintColor = ink.withAlphaComponent(lit ? 0.9 : 0.45)
         applyLeftZoneAccessibility(burgerZone)
-        // Icon canh giữa trong vùng 20pt TRÊN CÙNG (tâm y≈10) để khớp chữ gợi ý,
-        // thay vì canh giữa cả strip 36 (tâm y≈18 → icon thấp hơn chữ, user 2026-07-25).
-        let bottomInset = max(strip - barRowNow - Self.barTopPad, 0)
-        burgerZone.contentEdgeInsets = UIEdgeInsets(top: Self.barTopPad, left: 0, bottom: bottomInset, right: 0)
+        // Icon canh giữa HÀNG NỘI DUNG bar (cùng tâm chữ gợi ý), không phải cả strip
+        // (tâm strip thấp hơn chữ, user 2026-07-25) — barContentInsets.
+        burgerZone.contentEdgeInsets = barContentInsets(strip: strip)
     }
     private struct StripZonesKey: Equatable {
-        let width: CGFloat, strip: CGFloat, templates: Bool, ink: RGBA
+        let width: CGFloat, strip: CGFloat, rowTop: CGFloat, templates: Bool, ink: RGBA
         let zone: LeftZone, oneHand: OneHandSide, lastSide: OneHandSide
     }
     private var stripZonesKey: StripZonesKey?
@@ -1117,7 +1132,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let strip = openStripNow
         guard strip != barHitStrip else { return }
         barHitStrip = strip
-        let barHit = UIEdgeInsets(top: -8, left: -3, bottom: -max(strip - barRowNow - Self.barTopPad, 0), right: -3)
+        let barHit = UIEdgeInsets(top: -8, left: -3, bottom: -barContentInsets(strip: strip).bottom, right: -3)
         suggestionBar.hitInsets = UIEdgeInsets(top: barHit.top, left: 0, bottom: barHit.bottom, right: 0)
         for b in slotButtons + emojiButtons { b.hitInsets = barHit }
     }
@@ -1506,9 +1521,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .regular)),
             for: .normal)
         emojiZone.tintColor = palette.barInk.ui.withAlphaComponent(0.6)
-        // Icon canh hàng chữ gợi ý (tâm y≈10) như 📋.
-        let bottomInset = max(strip - barRowNow - Self.barTopPad, 0)
-        emojiZone.contentEdgeInsets = UIEdgeInsets(top: Self.barTopPad, left: 0, bottom: bottomInset, right: 0)
+        // Icon canh hàng chữ gợi ý như 📋 / ☰.
+        emojiZone.contentEdgeInsets = barContentInsets(strip: strip)
     }
     private struct EmojiZoneKey: Equatable { let frame: CGRect; let ink: RGBA }
     private var emojiZoneKey: EmojiZoneKey?
@@ -1527,8 +1541,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             clipZone.setImage(UIImage(systemName: "doc.on.clipboard",
                 withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .regular)), for: .normal)
             clipZone.tintColor = palette.barInk.ui.withAlphaComponent(overlayPanel == nil ? 0.45 : 0.9)
-            let bottomInset = max(strip - barRowNow - Self.barTopPad, 0)
-            clipZone.contentEdgeInsets = UIEdgeInsets(top: Self.barTopPad, left: 0, bottom: bottomInset, right: 0)
+            clipZone.contentEdgeInsets = barContentInsets(strip: strip)
             bringSubviewToFront(clipZone)
         }
     }
@@ -4783,6 +4796,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private(set) var trackpadActive = false
 
     private func trackpadBegan(_ p: CGPoint, t: CFTimeInterval) {
+        if trackpadGesture.curve != trackpadSpeed.curve { trackpadGesture = TrackpadGesture(speed: trackpadSpeed) }
         trackpadGesture.begin(x: Double(p.x), y: Double(p.y), t: t)
         _ = trackpadCoalescer.drain()
         trackpadActive = true
@@ -6226,6 +6240,17 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 suggestionBar.cellFrames.map { convert($0, from: suggestionBar) },
                 slotButtons.filter { !$0.isHidden }.map { convert($0.bounds, from: $0) },
                 slotDividers.filter { !$0.isHidden }.map { convert($0.bounds, from: $0) })
+    }
+    /// Test hook căn dọc thanh gợi ý: tâm y (toạ độ view) vùng nội dung ☰ / 📋 / 😊 đang hiện,
+    /// tâm hàng bar, và đỉnh phím hàng đầu (dải người dùng thấy = 0…capTop).
+    func debugBarVerticalCenters() -> (bar: CGFloat, icons: [String: CGFloat], capTop: CGFloat) {
+        layoutIfNeeded()
+        func mid(_ b: UIButton) -> CGFloat { b.frame.minY + b.bounds.inset(by: b.contentEdgeInsets).midY }
+        var icons: [String: CGFloat] = [:]
+        if !burgerZone.isHidden { icons["burger"] = mid(burgerZone) }
+        if clipZoneMade, !clipZone.isHidden { icons["clip"] = mid(clipZone) }
+        if emojiZoneMade, !emojiZone.isHidden { icons["emoji"] = mid(emojiZone) }
+        return (suggestionBar.frame.midY, icons, rowsContainer.frame.minY + rowSpec.gap)
     }
     /// Test hook: mô phỏng rebuild (đổi plane / xoay) — đường từng đặt lại alpha bar.
     func debugRefreshChrome() { updateSuggestionChrome() }

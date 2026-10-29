@@ -52,6 +52,8 @@ object Keys {
     const val PASTE_OFFERED_ID = "pasteOfferedId"
     /** Vuốt phím cách đổi Tiếng Việt ↔ Tiếng Anh — mặc định TẮT (tắt ⇒ luôn Tiếng Việt). */
     const val SPACE_SWIPE_LANGUAGE = "spaceSwipeLanguage"
+    /** String "slow" | "medium" | "fast" — độ nhạy con trỏ khi giữ phím cách ([TrackpadSpeed]), mặc định "medium". Tên như iOS App Group. */
+    const val TRACKPAD_SPEED = "trackpadSpeed"
     /** Vuốt phím chữ thẳng lên ra lệnh sao chép/cắt/dán… ([KeyCommandGesture]) — mặc định TẮT. Giống iOS. */
     const val SWIPE_KEY_COMMANDS = "swipeKeyCommands"
     /** Tự thêm dấu cách sau . , ? ! ; : ([AutoSpace]) — mặc định TẮT. Giống iOS. */

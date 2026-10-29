@@ -125,6 +125,7 @@ internal data class FeatureSearchEntry(val viTitle: String, val keywords: String
             FeatureSearchEntry("Giữ phím hàng 2, 3 để ra ký tự đặc biệt", "ký hiệu symbol @ # giữ lâu long press", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Giữ Shift để gõ số và ký hiệu", "shift giữ hold số number ký hiệu symbol 123", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Vuốt phím cách đổi Tiếng Việt / Tiếng Anh", "space ngôn ngữ english language", FeaturePage.Phim), // l10n-key
+            FeatureSearchEntry("Độ nhạy con trỏ", "trackpad con trỏ cursor phím cách space kéo tốc độ nhạy sensitivity speed", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Vuốt phím để sao chép/dán", "copy paste cut undo redo select sao chép dán cắt hoàn tác chọn hết clipboard vuốt lên swipe", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Chế độ một tay", "one hand một tay", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Bàn phím thả nổi", "floating nổi kéo di chuyển float", FeaturePage.Phim), // l10n-key
@@ -685,6 +686,15 @@ private fun PhimPage(onBack: () -> Unit) {
     VTSection(header = tr("Cử chỉ")) {
         BoolToggle(Keys.SPACE_SWIPE_LANGUAGE, Prefs.D.spaceSwipeLanguage, tr("Vuốt phím cách đổi Tiếng Việt / Tiếng Anh"),
             tr("Vuốt nhanh phím cách sang trái/phải. Góc phím cách hiện VI / EN. Tiếng Anh gõ nguyên văn. Giữ rồi kéo vẫn là di con trỏ."))
+        RowDivider()
+        // "Độ nhạy con trỏ" Chậm / Vừa (mặc định) / Nhanh — TrackpadSpeed, cùng khoá iOS.
+        ChoiceRow(Keys.TRACKPAD_SPEED, Prefs.D.trackpadSpeed.id, tr("Độ nhạy con trỏ"),
+            tr("Giữ phím cách rồi kéo để di con trỏ. Kéo chậm luôn đi từng ký tự; mức này chỉnh độ tăng tốc khi kéo nhanh."),
+            listOf(com.viettelex.keyboard.TrackpadSpeed.SLOW.id to tr("Chậm"),
+                com.viettelex.keyboard.TrackpadSpeed.MEDIUM.id to tr("Vừa"),
+                com.viettelex.keyboard.TrackpadSpeed.FAST.id to tr("Nhanh"))) {
+            com.viettelex.keyboard.TrackpadSpeed.of(it).id
+        }
         RowDivider()
         BoolToggle(Keys.SWIPE_KEY_COMMANDS, Prefs.D.swipeKeyCommands, tr("Vuốt phím để sao chép/dán"),
             tr("Chạm phím rồi vuốt thẳng lên quá hàng phím trên cùng và nhấc tay: C sao chép, X cắt, V dán, A chọn hết, Z hoàn tác, Y làm lại. Kéo ngón trở xuống để huỷ. Giữ ⇧ rồi kéo phím cách để chọn chữ."))
