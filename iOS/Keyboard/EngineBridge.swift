@@ -37,8 +37,8 @@ struct KeyboardSettings {
     var learnWords = true      // đi theo showSuggestions (không còn toggle riêng)
     var filterSensitive = true
     var hapticFeedback = false // rung phím — chỉ hoạt động khi có Full Access
-    /// Độ mạnh rung 10…100 (%), mặc định 45 (Phil 28/09 thấy "vừa").
-    var hapticStrength = 45
+    /// Độ mạnh rung 10…100 (%), mặc định KeyHaptics.defaultPercent (30; trước 45) khi key vắng.
+    var hapticStrength = KeyHaptics.defaultPercent
     /// Âm thanh phím riêng (KeySound) — mặc định TẮT (= click hệ thống như cũ). Cần Full Access.
     var keySound = false
     /// Âm lượng âm phím 0…100 (%), mặc định 50.

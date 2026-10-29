@@ -379,6 +379,7 @@ final class KeyboardViewController: UIInputViewController {
         KeyboardView.hapticsEnabled = settings.hapticFeedback && appliedFullAccess
         KeyHaptics.log = { TouchLog.write($0) }
         KeyHaptics.shared.setStrength(settings.hapticStrength)
+        KeyHaptics.shared.resetFailures()   // lần hiện mới: thử Core Haptics lại dù lần trước lỗi
         TouchLog.write("haptics setting=\(settings.hapticFeedback ? 1 : 0) strength=\(settings.hapticStrength) fullAccess=\(hasFullAccess ? 1 : 0)")
         StartupTrace.span("keySound") { applyKeySound(settings) }
         // Báo trạng thái Full Access cho app chứa (ẩn banner nhắc cấp quyền).

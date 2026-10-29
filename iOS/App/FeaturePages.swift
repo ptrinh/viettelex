@@ -649,7 +649,7 @@ struct PhimPage: View {
     /// Phím sẫm khi bấm (KeyboardView.keyPressHighlightKey) — mặc định = keyPressHighlightDefault.
     @AppStorage("keyPressHighlight", store: featureDefaults) private var keyPressHighlight = true
     @AppStorage("hapticFeedback", store: featureDefaults) private var hapticFeedback = false
-    @AppStorage("hapticStrength", store: featureDefaults) private var hapticStrength = 45
+    @AppStorage("hapticStrength", store: featureDefaults) private var hapticStrength = KeyHaptics.defaultPercent
     @AppStorage("keySound", store: featureDefaults) private var keySound = false
     @AppStorage("keySoundStyle", store: featureDefaults) private var keySoundStyle = KeySoundStyle.defaultStyle.rawValue
     /// Rung thử khi kéo thanh trượt: ≤ 1 lần / 120 ms + lúc thả.
