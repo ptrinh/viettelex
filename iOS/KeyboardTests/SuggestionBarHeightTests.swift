@@ -55,6 +55,58 @@ final class SuggestionBarHeightTests: XCTestCase {
         }
     }
 
+    /// Tester 29/10/2026 ("chữ hơi cao lên phía trên, cả icon clipboard nữa"): hàng nội dung bar
+    /// ghim ở y=4 ⇒ tâm cao hơn tâm dải thấy được (đỉnh bàn phím → đỉnh phím hàng đầu) ~6pt.
+    /// rowTop canh giữa dải đó, không thò xuống dưới strip, không cao hơn đệm trên.
+    func testRowTopCentersInVisibleBand() {
+        let gap: CGFloat = 11, pad = KeyboardView.barTopPad
+        for h in H.allCases {
+            let row = h.rowHeight(landscape: false), strip = 29 + h.delta
+            let top = H.rowTop(strip: strip, capGap: gap, row: row, topPad: pad)
+            XCTAssertLessThanOrEqual(top + row, strip, "\(h): không lấn xuống phím")
+            XCTAssertGreaterThanOrEqual(top, pad, "\(h)")
+            XCTAssertEqual(top + row / 2, (strip + gap) / 2, accuracy: 1.5, "\(h): tâm hàng ≈ tâm dải thấy được")
+            XCTAssertGreaterThan(top, pad, "\(h): bản cũ ghim ở đệm trên ⇒ cao quá")
+        }
+        // Không có khe trên phím: canh giữa strip.
+        XCTAssertEqual(H.rowTop(strip: 40, capGap: 0, row: 20, topPad: 4), 10)
+        // Strip chật: không cao hơn đệm trên.
+        XCTAssertEqual(H.rowTop(strip: 22, capGap: 0, row: 20, topPad: 4), 4)
+    }
+
+    /// Chữ gợi ý (tâm bar), ☰, 📋, 😊 cùng một tâm, và tâm đó ≈ tâm dải đỉnh bàn phím → đỉnh phím
+    /// hàng đầu — có / không hàng số, mọi mức chiều cao.
+    @MainActor func testTextAndIconsCenteredInVisibleBand() throws {
+        let d = try XCTUnwrap(UserDefaultsProvider.shared)
+        let saved = (d.object(forKey: "numberRow"), d.object(forKey: "emojiKeyPlacement"))
+        defer {
+            d.set(saved.0, forKey: "numberRow"); d.set(saved.1, forKey: "emojiKeyPlacement")
+        }
+        d.set("top", forKey: "emojiKeyPlacement")
+        for numberRow in [false, true] {
+            d.set(numberRow, forKey: "numberRow")
+            let (kb, host) = makeKeyboard(width: isPad ? 834 : 402)
+            _ = host
+            kb.applyAppearance(.dark, style: .dark)
+            kb.setClipboardButton(visible: true)
+            kb.showSuggestions(.init(nextWords: ["Có", "Không", "Nó"]))
+            for h in H.allCases {
+                kb.debugSetBarHeight(h); settle(kb)
+                let tag = "\(h) numberRow=\(numberRow)"
+                let c = kb.debugBarVerticalCenters()
+                XCTAssertNotNil(c.icons["burger"], tag)
+                XCTAssertNotNil(c.icons["clip"], tag)
+                if !isPad { XCTAssertNotNil(c.icons["emoji"], tag) }
+                for (name, y) in c.icons { XCTAssertEqual(y, c.bar, accuracy: 0.5, "\(tag): \(name) lệch tâm chữ") }
+                for dv in kb.debugStripLayout().dividers {
+                    XCTAssertEqual(dv.midY, c.bar, accuracy: 0.5, "\(tag): vạch ngăn")
+                }
+                XCTAssertEqual(c.bar, c.capTop / 2, accuracy: 1.5, "\(tag): tâm dải thấy được")
+            }
+            withExtendedLifetime(kb) {}
+        }
+    }
+
     // MARK: View thật
 
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
@@ -101,7 +153,8 @@ final class SuggestionBarHeightTests: XCTestCase {
                 XCTAssertEqual(try qHeight(kb), q0, accuracy: 0.5, "hàng phím giữ nguyên — \(tag)")
                 XCTAssertEqual(kb.debugBarRow, 20 + d, tag)
                 let bar = kb.debugStripLayout().bar
-                XCTAssertEqual(bar.minY, KeyboardView.barTopPad, accuracy: 0.01, tag)
+                XCTAssertEqual(bar.minY, H.rowTop(strip: kb.debugOpenStrip, capGap: kb.rowSpec.gap,
+                                                  row: 20 + d, topPad: KeyboardView.barTopPad), accuracy: 0.01, tag)
                 XCTAssertEqual(bar.height, 20 + d, accuracy: 0.01, tag)
                 let hit = kb.debugSlotHitRect
                 XCTAssertLessThanOrEqual(hit.minY, bar.minY, tag)

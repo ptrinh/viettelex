@@ -83,6 +83,8 @@ object BackupSettings {
         Spec(Keys.AUTO_CORRECT, SettingKind.Bool(false)),
         Spec(Keys.AUTO_CAPITALIZE, SettingKind.Bool(true)),
         Spec(Keys.SPACE_SWIPE_LANGUAGE, SettingKind.Bool(false)),
+        // "Độ nhạy con trỏ" ([TrackpadSpeed]) — cùng khoá + id iOS.
+        Spec(Keys.TRACKPAD_SPEED, SettingKind.Choice(TrackpadSpeed.DEFAULT.id, TrackpadSpeed.IDS)),
         Spec(Keys.SWIPE_KEY_COMMANDS, SettingKind.Bool(false)),
         Spec(Keys.LONG_PRESS_NUMBERS, SettingKind.Bool(true)),
         Spec(Keys.LONG_PRESS_SYMBOLS, SettingKind.Bool(false)),

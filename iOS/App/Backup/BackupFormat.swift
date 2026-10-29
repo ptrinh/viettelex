@@ -86,6 +86,8 @@ enum BackupSettings {
         Spec(key: "autoCorrect", kind: .bool(false)),
         Spec(key: "autoCapitalize", kind: .bool(true)),
         Spec(key: "spaceSwipeLanguage", kind: .bool(false)),
+        // "Độ nhạy con trỏ" (TrackpadSpeed) — cùng khoá + id Android; lạ ⇒ bỏ qua (máy giữ Vừa).
+        Spec(key: TrackpadSpeed.key, kind: .string(TrackpadSpeed.defaultValue.rawValue, TrackpadSpeed.allCases.map(\.rawValue))),
         Spec(key: "swipeKeyCommands", kind: .bool(false)),   // "Vuốt phím để sao chép/dán"
         Spec(key: "longPressNumbers", kind: .bool(true)),
         Spec(key: "longPressSymbols", kind: .bool(false)),

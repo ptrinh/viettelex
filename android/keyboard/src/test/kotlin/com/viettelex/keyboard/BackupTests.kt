@@ -142,7 +142,7 @@ class BackupTests {
             "keyboardTransparency" to 250, "keyLabelTransparency" to 35,
             BackupPrefs.SHORTCUTS_KEY to "# VietTelex — bảng gõ tắt\nko: không\n")
         val p = BackupPrefs.snapshot({ prefs[it] }, listOf(TemplateItem("", "a")), null)
-        assertEquals(86, p.settings!!.size)   // +27 Bạn đồng hành: sinh nhật 2, tên 11, kiểu vẽ 11, vị trí & cỡ 3 (27/10); +retroactiveEnglish (23/10); +splitKeyboard; 6 khoá KeyStyle chung → 1 keyStyles (18/10/2026); +keyEffect, +holdShiftSymbols, +swipeTrail, +keyboardBuddy (19/10)
+        assertEquals(87, p.settings!!.size)   // +trackpadSpeed (29/10); +27 Bạn đồng hành: sinh nhật 2, tên 11, kiểu vẽ 11, vị trí & cỡ 3 (27/10); +retroactiveEnglish (23/10); +splitKeyboard; 6 khoá KeyStyle chung → 1 keyStyles (18/10/2026); +keyEffect, +holdShiftSymbols, +swipeTrail, +keyboardBuddy (19/10)
         assertEquals("simple", p.settings!![Keys.SWIPE_TRAIL])   // hiệu ứng nét vuốt: mặc định Đơn giản
         assertEquals("off", p.settings!![Keys.KEYBOARD_BUDDY])   // bạn đồng hành: mặc định Tắt
         assertEquals(true, p.settings!![Keys.HOLD_SHIFT_SYMBOLS])   // giữ Shift ra số/ký hiệu: mặc định bật
@@ -165,6 +165,7 @@ class BackupTests {
         assertEquals(false, p.settings!!["autoCorrect"])
         assertEquals(true, p.settings!!["autoCapitalize"])
         assertEquals(false, p.settings!!["spaceSwipeLanguage"])
+        assertEquals("medium", p.settings!![Keys.TRACKPAD_SPEED])   // độ nhạy con trỏ: mặc định Vừa
         assertEquals(false, p.settings!![Keys.SWIPE_KEY_COMMANDS])   // vuốt phím sao chép/dán: mặc định tắt
         assertEquals(false, p.settings!!["autoSpaceAfterPunct"])
         assertEquals(true, p.settings!!["quickTelex"])

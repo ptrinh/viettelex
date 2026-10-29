@@ -1,5 +1,6 @@
 package com.viettelex.android.ime
 
+import com.viettelex.keyboard.TrackpadSpeed
 import java.text.BreakIterator
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -22,10 +23,20 @@ import kotlin.math.roundToInt
  *   (EMA, dp/s) TRƯỚC khi cộng dồn — ≤ slow ⇒ ×1 (chính xác từng ký tự/dòng), ≥ fast ⇒ ×max,
  *   giữa nội suy tuyến tính. (Bản cũ nhân SỐ BƯỚC đã làm tròn: bước thường 1 ô ⇒ hệ số < 1,5
  *   về ×1 — dưới ~430 dp/s gần như không tăng tốc. Tester 28/10/2026: "chưa nhanh lắm".)
+ *   Đường cong theo "Độ nhạy con trỏ" ([TrackpadSpeed]: Chậm / Vừa — mặc định / Nhanh = đường
+ *   cong cũ 120→900 ×5, 120→700 ×3) — tester 29/10/2026: "nhạy quá, có vẻ hơi lag".
+ * - Đảo chiều (tester 29/10/2026 "hơi lag" — quay lại sửa chỗ vượt): sự kiện NGƯỢC hướng lọc
+ *   không tăng tốc (×1); ngược hai sự kiện liền ⇒ bỏ phần lẻ của chiều cũ + đà tốc độ, chỉ giữ
+ *   quãng ngược vừa kéo. Trước đây phần lẻ (< 1 bước) phải "trả lại" trước ⇒ kéo ngược tới
+ *   ~11dp mới nhích (vùng chết = cảm giác trễ), đà của cú nhanh trước còn nhân hệ số lớn vào
+ *   cú kéo ngược ⇒ lại vượt. Rung tay lẻ MỘT sự kiện ngược không xoá tiến độ.
  *
  * Pinned by TrackpadTest.
  */
-class TrackpadGesture {
+class TrackpadGesture(speed: TrackpadSpeed = TrackpadSpeed.DEFAULT) {
+    /** Đường cong tăng tốc ("Độ nhạy con trỏ"). */
+    val curve: TrackpadSpeed.Curve = speed.curve
+
     enum class Axis { H, V }
     /** [count] có dấu: ngang âm = trái; dọc âm = lên. */
     data class Step(val axis: Axis, val count: Int)
@@ -39,11 +50,15 @@ class TrackpadGesture {
     private var lastT = 0L
     private var speedX = 0.0
     private var speedY = 0.0
+    /** Số sự kiện ngược hướng liên tiếp + quãng (đã cộng vào acc) của chúng, theo trục. */
+    private val rev = IntArray(2)
+    private val revSum = DoubleArray(2)
 
     fun begin(x: Float, y: Float, tMs: Long) {
         accX = 0f; accY = 0f; dirX = 0.0; dirY = 0.0
         lastX = x; lastY = y; lastT = tMs
         speedX = 0.0; speedY = 0.0
+        rev.fill(0); revSum.fill(0.0)
     }
 
     fun move(x: Float, y: Float, tMs: Long): Step? {
@@ -58,15 +73,27 @@ class TrackpadGesture {
         val iy = abs(dy) / dt
         if (dtRaw > PAUSE_S) { speedX = ix; speedY = iy }
         else { speedX = EMA * ix + (1 - EMA) * speedX; speedY = EMA * iy + (1 - EMA) * speedY }
+        val oppX = opposes(dx.toDouble(), dirX); val oppY = opposes(dy.toDouble(), dirY)   // so hướng TRƯỚC sự kiện
         dirX = DIR_ALPHA * dx + (1 - DIR_ALPHA) * dirX
         dirY = DIR_ALPHA * dy + (1 - DIR_ALPHA) * dirY
         val hx = abs(dirX); val hy = abs(dirY)
+        val c = curve
         // Quãng đã tăng tốc (giữ phần lẻ giữa các sự kiện — không mất tốc độ vì làm tròn).
-        if (hy >= OFF_AXIS * hx) accY += (dy * gain(speedY, V_SLOW, V_FAST, V_MAX)).toFloat()   // không gần-ngang ⇒ dọc
-        if (hx >= OFF_AXIS * hy) accX += (dx * gain(speedX, H_SLOW, H_FAST, H_MAX)).toFloat()   // không gần-dọc ⇒ ngang
+        val addY = if (hy >= OFF_AXIS * hx) dy * (if (oppY) 1.0 else gain(speedY, c.vSlow, c.vFast, c.vMax)) else 0.0   // không gần-ngang ⇒ dọc
+        val addX = if (hx >= OFF_AXIS * hy) dx * (if (oppX) 1.0 else gain(speedX, c.hSlow, c.hFast, c.hMax)) else 0.0   // không gần-dọc ⇒ ngang
+        // Ngược hướng lần thứ HAI liên tiếp ⇒ đảo chiều thật: acc chỉ còn quãng ngược đã kéo,
+        // tốc độ bắt đầu lại (không mang đà).
+        if (track(0, addX, oppX, dx != 0f)) { accX = revSum[0].toFloat(); speedX = ix } else accX += addX.toFloat()
+        if (track(1, addY, oppY, dy != 0f)) { accY = revSum[1].toFloat(); speedY = iy } else accY += addY.toFloat()
         val rx = abs(accX) / H_STEP; val ry = abs(accY) / V_STEP
         if (rx < 1f && ry < 1f) return null
         return if (ry >= rx) emitV() else emitH()
+    }
+
+    /** Đếm sự kiện ngược hướng trục [a]; true ⇒ vừa đủ hai sự kiện ngược liên tiếp (đảo chiều). */
+    private fun track(a: Int, add: Double, opposite: Boolean, moved: Boolean): Boolean {
+        if (opposite) { rev[a]++; revSum[a] += add } else if (moved) { rev[a] = 0; revSum[a] = 0.0 }
+        return rev[a] == 2
     }
 
     private fun emitH(): Step {
@@ -88,17 +115,12 @@ class TrackpadGesture {
         const val OFF_AXIS = 0.4
         /** Trọng số sự kiện mới trong EMA hướng kéo. */
         const val DIR_ALPHA = 0.3
-        /** Ngang: ≤120 dp/s ×1, ≥900 dp/s ×5. */
-        const val H_SLOW = 120.0
-        const val H_FAST = 900.0
-        const val H_MAX = 5.0
-        /** Dọc: ≤120 dp/s ×1, ≥700 dp/s ×3. */
-        const val V_SLOW = 120.0
-        const val V_FAST = 700.0
-        const val V_MAX = 3.0
         const val EMA = 0.5
         const val MIN_DT = 1.0 / 240
         const val PAUSE_S = 0.1
+
+        /** [d] ngược dấu hướng lọc [dir] (hướng 0 — mới bắt đầu — không tính). */
+        fun opposes(d: Double, dir: Double): Boolean = d != 0.0 && dir != 0.0 && (d > 0) != (dir > 0)
 
         /** Hệ số nhân quãng kéo theo [speed]: ≤ slow ⇒ 1, ≥ fast ⇒ max, giữa tuyến tính. */
         fun gain(speed: Double, slow: Double, fast: Double, max: Double): Double = when {

@@ -15,6 +15,14 @@
 //   (Bản cũ nhân SỐ BƯỚC đã làm tròn: bước thường chỉ 1 ô ⇒ hệ số < 1,5 làm tròn về ×1 — dưới
 //   ~430 pt/s, tức gần như mọi cú kéo thường, không hề tăng tốc; ngưỡng 300 pt/s cũng quá cao.
 //   Tester 28/10/2026: "tốc độ trỏ vẫn chưa nhanh lắm".)
+//   Đường cong theo cài đặt "Độ nhạy con trỏ" (TrackpadSpeed: Chậm / Vừa — mặc định / Nhanh =
+//   đường cong trên), chọn một lần lúc tạo — tester 29/10/2026: "nhạy quá, có vẻ hơi lag".
+// • Đảo chiều (tester 29/10/2026 "có vẻ hơi lag" — quay lại sửa chỗ vượt): sự kiện NGƯỢC hướng
+//   lọc không tăng tốc (×1); ngược hai sự kiện liền ⇒ bỏ phần lẻ của chiều cũ + đà tốc độ, chỉ
+//   giữ quãng ngược vừa kéo. Trước đây phần lẻ (< 1 bước) phải "trả lại" trước khi đi ngược ⇒
+//   kéo ngược tới ~11pt mới nhích một ký tự (vùng chết = cảm giác trễ), còn đà tốc độ của cú
+//   nhanh trước nhân hệ số lớn vào cú kéo ngược ⇒ lại vượt. Rung tay lẻ MỘT sự kiện ngược
+//   không xoá tiến độ.
 import Foundation
 
 struct TrackpadGesture {
@@ -27,19 +35,25 @@ struct TrackpadGesture {
     static let offAxis = 0.4
     /// Trọng số sự kiện mới trong EMA hướng kéo.
     static let dirAlpha = 0.3
-    static let hSlow = 120.0, hFast = 900.0, hMax = 5.0
-    static let vSlow = 120.0, vFast = 700.0, vMax = 3.0
     static let ema = 0.5, minDt = 1.0 / 240, pause = 0.1
 
     private var accX = 0.0, accY = 0.0
     private var dirX = 0.0, dirY = 0.0
     private var lastX = 0.0, lastY = 0.0, lastT = 0.0
     private var speedX = 0.0, speedY = 0.0
+    /// Số sự kiện ngược hướng liên tiếp + quãng (đã cộng vào acc) của chúng, theo trục.
+    private var revX = 0, revY = 0
+    private var revSumX = 0.0, revSumY = 0.0
+    /// Đường cong tăng tốc ("Độ nhạy con trỏ").
+    let curve: TrackpadSpeed.Curve
+
+    init(speed: TrackpadSpeed = .defaultValue) { curve = speed.curve }
 
     mutating func begin(x: Double, y: Double, t: Double) {
         accX = 0; accY = 0; dirX = 0; dirY = 0
         lastX = x; lastY = y; lastT = t
         speedX = 0; speedY = 0
+        revX = 0; revY = 0; revSumX = 0; revSumY = 0
     }
 
     mutating func move(x: Double, y: Double, t: Double) -> Step? {
@@ -53,16 +67,23 @@ struct TrackpadGesture {
             speedX = Self.ema * ix + (1 - Self.ema) * speedX
             speedY = Self.ema * iy + (1 - Self.ema) * speedY
         }
+        let oppX = Self.opposes(dx, dirX), oppY = Self.opposes(dy, dirY)   // so hướng TRƯỚC sự kiện
         dirX = Self.dirAlpha * dx + (1 - Self.dirAlpha) * dirX
         dirY = Self.dirAlpha * dy + (1 - Self.dirAlpha) * dirY
         let hx = abs(dirX), hy = abs(dirY)
+        let c = curve
         // Quãng đã tăng tốc (giữ phần lẻ giữa các sự kiện — không mất tốc độ vì làm tròn).
+        var addX = 0.0, addY = 0.0
         if hy >= Self.offAxis * hx {                         // không gần-ngang ⇒ tính dọc
-            accY += dy * Self.gain(speedY, slow: Self.vSlow, fast: Self.vFast, max: Self.vMax)
+            addY = dy * (oppY ? 1 : Self.gain(speedY, slow: c.vSlow, fast: c.vFast, max: c.vMax))
         }
         if hx >= Self.offAxis * hy {                         // không gần-dọc ⇒ tính ngang
-            accX += dx * Self.gain(speedX, slow: Self.hSlow, fast: Self.hFast, max: Self.hMax)
+            addX = dx * (oppX ? 1 : Self.gain(speedX, slow: c.hSlow, fast: c.hFast, max: c.hMax))
         }
+        Self.accumulate(addX, opposite: oppX, moved: dx != 0, instant: ix,
+                        acc: &accX, rev: &revX, revSum: &revSumX, speed: &speedX)
+        Self.accumulate(addY, opposite: oppY, moved: dy != 0, instant: iy,
+                        acc: &accY, rev: &revY, revSum: &revSumY, speed: &speedY)
         let rx = abs(accX) / Self.hStep, ry = abs(accY) / Self.vStep
         if rx < 1 && ry < 1 { return nil }
         return ry >= rx ? emitV() : emitH()
@@ -78,6 +99,19 @@ struct TrackpadGesture {
         let lines = Int(accY / Self.vStep)
         accY -= Double(lines) * Self.vStep
         return Step(axis: .vertical, count: lines)
+    }
+
+    /// `d` ngược dấu hướng lọc `dir` (hướng 0 — mới bắt đầu — không tính).
+    static func opposes(_ d: Double, _ dir: Double) -> Bool {
+        d != 0 && dir != 0 && (d > 0) != (dir > 0)
+    }
+
+    /// Cộng quãng `add` vào `acc`. Ngược hướng lần thứ HAI liên tiếp ⇒ đảo chiều thật: acc chỉ
+    /// còn quãng ngược đã kéo (bỏ phần lẻ chiều cũ), tốc độ bắt đầu lại (không mang đà).
+    static func accumulate(_ add: Double, opposite: Bool, moved: Bool, instant: Double,
+                           acc: inout Double, rev: inout Int, revSum: inout Double, speed: inout Double) {
+        if opposite { rev += 1; revSum += add } else if moved { rev = 0; revSum = 0 }
+        if rev == 2 { acc = revSum; speed = instant } else { acc += add }
     }
 
     /// Hệ số nhân quãng kéo theo tốc độ: ≤ slow ⇒ 1, ≥ fast ⇒ max, giữa tuyến tính.

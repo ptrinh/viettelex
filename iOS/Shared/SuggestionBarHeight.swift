@@ -9,7 +9,8 @@
 //  • hàng nội dung bar (chữ gợi ý, chip, icon ☰/📋/😊) cao `rowHeight` = 20 + delta ⇒ vùng chạm
 //    mỗi ô phủ trọn chiều cao bar (cộng phần hit nở xuống như cũ);
 //  • iPhone NGANG: delta kẹp ở mức Vừa (+6) — màn ngang thấp, Cao (+14) làm bàn phím chiếm quá nhiều;
-//  • cỡ chữ gợi ý nhích nhẹ theo mức (17/18/19, chip 14/15/15) — có trần.
+//  • cỡ chữ gợi ý nhích nhẹ theo mức (17/18/19, chip 14/15/15) — có trần;
+//  • hàng nội dung canh giữa dải đỉnh bàn phím → đỉnh phím hàng đầu (`rowTop`, 29/10/2026).
 // Đọc lúc hiện bàn phím (applyAppearance) — 0 chi phí mỗi phím.
 import CoreGraphics
 import Foundation
@@ -36,6 +37,20 @@ enum SuggestionBarHeight: String, CaseIterable {
     static let baseRow: CGFloat = 20
     /// Hàng nội dung bar (chữ / chip / icon canh giữa hàng này).
     func rowHeight(landscape: Bool) -> CGFloat { Self.baseRow + delta(landscape: landscape) }
+
+    /// Đỉnh (y, toạ độ bàn phím) của hàng nội dung bar — chữ gợi ý, vạch ngăn, ☰ / 📋 / 😊 đều
+    /// canh giữa hàng này, nên chỉ một con số quyết định chúng thẳng hàng.
+    ///
+    /// Dải người dùng THẤY là thanh gợi ý chạy từ đỉnh bàn phím tới ĐỈNH PHÍM hàng đầu =
+    /// `strip` + `capGap` (khe trên phím hàng đầu, RowSpec.gap ≈ 11), không phải tới mép strip.
+    /// Bản cũ ghim hàng ở `topPad` (4) ⇒ tâm chữ/icon cao hơn tâm dải ~6pt (tester 29/10/2026:
+    /// "chữ hơi cao lên phía trên, cả icon clipboard nữa"; đo ảnh: Vừa + hàng số, tâm nội dung
+    /// y≈16.5, tâm dải 23). Giờ: canh giữa dải, nhưng không thò xuống dưới strip (vùng chạm ô
+    /// gợi ý không lấn phím) và không cao hơn `topPad` (host không vẽ khung — Telegram).
+    static func rowTop(strip: CGFloat, capGap: CGFloat, row: CGFloat, topPad: CGFloat) -> CGFloat {
+        let centered = ((strip + max(capGap, 0) - row) / 2).rounded()
+        return max(topPad, min(centered, strip - row))
+    }
 
     /// Cỡ chữ ô gợi ý / chip theo mức (trần 19 / 15).
     func slotFontSize(landscape: Bool) -> CGFloat {

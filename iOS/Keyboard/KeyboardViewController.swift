@@ -357,6 +357,7 @@ final class KeyboardViewController: UIInputViewController {
             flickEnabled: spaceFlickSetting)
         if language == .en { bridge.setEnglish(true, proxy: Proxy(p: textDocumentProxy)); warmUpEnglish() }
         keyboard.configureSpaceFlick(enabled: spaceFlickSetting, language: language)
+        keyboard.trackpadSpeed = settings.trackpadSpeed
         keyboard.configureKeyAlternates(numbers: settings.longPressNumbers, symbols: settings.longPressSymbols,
                                         holdShift: settings.holdShiftSymbols)
         // Model cá nhân + mô hình âm tiết: sau khung đầu (getter langModel vẫn tạo lười nếu phím

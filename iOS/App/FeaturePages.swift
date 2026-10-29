@@ -123,6 +123,7 @@ struct FeatureSearchEntry: Identifiable {
             .init(viTitle: LK("Phím cạnh dấu cách"), keywords: "dấu phẩy dấu chấm comma period key next to space", page: .phim),
             .init(viTitle: LK("Giữ phím ra ký tự đặc biệt"), keywords: "ký hiệu symbol @ # giữ lâu", page: .phim),
             .init(viTitle: LK("Vuốt phím cách đổi Tiếng Việt / Tiếng Anh"), keywords: "space ngôn ngữ english language", page: .phim),
+            .init(viTitle: LK("Độ nhạy con trỏ"), keywords: "trackpad con trỏ cursor phím cách space kéo tốc độ nhạy sensitivity speed", page: .phim),
             .init(viTitle: LK("Vuốt phím để sao chép/dán"), keywords: "copy paste cut sao chép dán cắt clipboard vuốt lên swipe", page: .phim),
             .init(viTitle: LK("Phóng to chữ khi bấm"), keywords: "key preview popup", page: .phim),
             .init(viTitle: LK("Phím sẫm khi bấm"), keywords: "pressed key highlight", page: .phim),
@@ -633,6 +634,8 @@ struct PhimPage: View {
     @AppStorage("spaceSwipeLanguage", store: featureDefaults) private var spaceSwipeLanguage = false
     /// Vuốt phím C / X / V lên ra lệnh sao chép / cắt / dán — mặc định TẮT (KeyCommandGesture).
     @AppStorage("swipeKeyCommands", store: featureDefaults) private var swipeKeyCommands = false
+    /// "Độ nhạy con trỏ" khi giữ phím cách: "slow" | "medium" (mặc định) | "fast" (TrackpadSpeed).
+    @AppStorage(TrackpadSpeed.key, store: featureDefaults) private var trackpadSpeed = TrackpadSpeed.defaultValue.rawValue
     /// Tự thêm dấu cách sau . , ? ! ; : — mặc định TẮT (KeyboardSettings.autoSpaceAfterPunct).
     @AppStorage("autoSpaceAfterPunct", store: featureDefaults) private var autoSpaceAfterPunct = false
     /// "off" | "left" | "right" — bàn phím đọc lúc hiện (OneHand.resolve).
@@ -701,6 +704,20 @@ struct PhimPage: View {
             } header: { Text(L("Phím")) }
             Section {
                 settingToggle(L("Vuốt phím cách đổi Tiếng Việt / Tiếng Anh"), L("Vuốt nhanh phím cách sang trái/phải. Góc phím cách hiện VI / EN. Tiếng Anh gõ nguyên văn. Giữ rồi kéo vẫn là di con trỏ."), isOn: $spaceSwipeLanguage)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L("Độ nhạy con trỏ"))
+                    Picker(L("Độ nhạy con trỏ"), selection: Binding(
+                        get: { TrackpadSpeed.parse(trackpadSpeed).rawValue },
+                        set: { trackpadSpeed = $0 })) {
+                        Text(L("Chậm")).tag(TrackpadSpeed.slow.rawValue)
+                        Text(L("Vừa")).tag(TrackpadSpeed.medium.rawValue)
+                        Text(L("Nhanh")).tag(TrackpadSpeed.fast.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    Text(L("Giữ phím cách rồi kéo để di con trỏ. Kéo chậm luôn đi từng ký tự; mức này chỉnh độ tăng tốc khi kéo nhanh."))
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 settingToggle(L("Vuốt phím để sao chép/dán"), L("Chạm C, X hoặc V rồi vuốt thẳng lên quá hàng phím trên cùng và nhấc tay: C sao chép, X cắt, V dán. Kéo ngón trở xuống để huỷ. iOS không cho bàn phím chọn chữ, chọn hết hay hoàn tác/làm lại; sao chép, cắt và dán cần bật Truy cập đầy đủ."), isOn: $swipeKeyCommands)
                 if isPhone {
                     VStack(alignment: .leading, spacing: 6) {

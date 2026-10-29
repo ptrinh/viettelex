@@ -168,6 +168,20 @@ final class BackupTests: XCTestCase {
         XCTAssertNil(try BackupCodec.decode(bad).settings?[SuggestionBarHeight.key])
     }
 
+    /// "Độ nhạy con trỏ" (trackpadSpeed) đi theo sao lưu; mặc định "medium"; lạ ⇒ bỏ qua.
+    func testSnapshotIncludesTrackpadSpeed() throws {
+        let (s, _) = makeStore()
+        XCTAssertEqual(s.snapshot(includeLearned: false).settings?[TrackpadSpeed.key], .string("medium"))
+        s.defaults.set("slow", forKey: TrackpadSpeed.key)
+        let snap = s.snapshot(includeLearned: false)
+        XCTAssertEqual(snap.settings?[TrackpadSpeed.key], .string("slow"))
+        let (t, _) = makeStore()
+        _ = t.apply(try BackupCodec.decode(BackupCodec.encode(snap)))
+        XCTAssertEqual(TrackpadSpeed.load(t.defaults), .slow)
+        let bad = Data(#"{"format":"viettelex-backup","version":1,"settings":{"trackpadSpeed":"turbo"}}"#.utf8)
+        XCTAssertNil(try BackupCodec.decode(bad).settings?[TrackpadSpeed.key])
+    }
+
     /// Ngôn ngữ giao diện (uiLanguage, kiểu chuỗi) đi theo sao lưu; mặc định "vi";
     /// giá trị lạ bị bỏ qua cả khi nhập file lẫn khi đồng bộ.
     func testUILanguageBackupRoundTrip() throws {

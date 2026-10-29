@@ -112,6 +112,8 @@ struct KeyboardSettings {
     var autoCapitalize = true
     /// Vuốt phím cách đổi Tiếng Việt ↔ Tiếng Anh (mặc định TẮT ⇒ luôn Tiếng Việt).
     var spaceSwipeLanguage = false
+    /// "Độ nhạy con trỏ" khi giữ phím cách (TrackpadSpeed, mặc định Vừa). Song sinh Android.
+    var trackpadSpeed = TrackpadSpeed.defaultValue
     /// Tự thêm dấu cách sau . , ? ! ; : (AutoSpace) — mặc định TẮT; tắt ⇒ không đọc context.
     var autoSpaceAfterPunct = false
     /// "Vuốt phím để sao chép/dán" (KeyCommandGesture) — mặc định TẮT ⇒ router không theo dõi gì thêm.
@@ -170,6 +172,7 @@ struct KeyboardSettings {
             ("swipeKeyCommands", \.swipeKeyCommands)]
         for (k, kp) in flags where d.object(forKey: k) != nil { s[keyPath: kp] = d.bool(forKey: k) }
         s.suggestionCount = SuggestionCount.load(d)
+        s.trackpadSpeed = TrackpadSpeed.load(d)
         s.learnWords = s.showSuggestions   // bật gợi ý = bật học (quyết định 2026-07-24)
         return s
     }
