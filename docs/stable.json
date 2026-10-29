@@ -74,8 +74,8 @@
     "notes": "Thử nghiệm Tự sửa từ phía trước; từ Anh trùng từ Việt không còn lật từ phía sau."
   },
   "android": {
-    "version": "1.5.20",
-    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.20/VietTelex-android-1.5.20.apk",
+    "version": "1.5.21",
+    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.21/VietTelex-android-1.5.21.apk",
     "play": "https://play.google.com/store/apps/details?id=com.viettelex.android"
   }
 }
