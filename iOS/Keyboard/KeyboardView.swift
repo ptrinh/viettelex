@@ -685,11 +685,23 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Tổng key area = base + rowHeightAdjust × 4 hàng — heightConstraint và
     /// rowsContainer cùng đi qua đây nên tổng luôn khớp từng hàng.
     private var landscapeCache: (size: CGSize, landscape: Bool)?
+    /// Bề ngang + màn hình ĐOÁN cho lúc CHƯA layout (bounds 0) — controller đặt ở viewWillAppear
+    /// trước khi cấu hình. Chiều cao xin host lúc đó phải là chiều cao cuối (KeyLayout.layoutWidth:
+    /// Zalo chỉ dùng chiều cao đầu). Đã layout thì bề ngang thật thắng.
+    struct LayoutHint: Equatable {
+        var width: CGFloat
+        var screen: CGSize?
+    }
+    var layoutHint: LayoutHint? {
+        didSet { if layoutHint != oldValue { phoneFormCache = nil; landscapeCache = nil } }
+    }
+    /// Bề ngang cho hình học / chiều cao: bounds thật, chưa layout thì layoutHint.
+    private var layoutWidth: CGFloat { KeyLayout.layoutWidth(bounds: bounds.width, hint: layoutHint?.width) }
     private var isLandscapeNow: Bool {
         // iPhone: theo bề ngang (KeyLayout.isPhoneLandscape) — orientation scene extension
         // có lúc lệch host ⇒ xin chiều cao ngang 162pt khi đang dọc (phím lùn ngẫu nhiên).
         // Máy gập mở (.unfolded) cũng dùng hình học "ngang": không cắt hàng đáy, khe trên 10.
-        if !Self.isPad, bounds.width > 0 { return phoneForm != .portrait }
+        if !Self.isPad, layoutWidth > 0 { return phoneForm != .portrait }
         // interfaceOrientation chép cả bộ scene settings mỗi lần đọc; xoay/Split View luôn
         // đổi bounds ⇒ cache theo kích thước (chỉ khi đã gắn window).
         if let c = landscapeCache, c.size == bounds.size, window != nil { return c.landscape }
@@ -697,7 +709,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             landscapeCache = (bounds.size, o.isLandscape)
             return o.isLandscape
         }
-        return UIDevice.current.userInterfaceIdiom == .phone && bounds.width > 500
+        return UIDevice.current.userInterfaceIdiom == .phone && layoutWidth > 500
     }
     /// Dạng bàn phím iPhone (KeyLayout.phoneForm) — cache theo kích thước view: đọc màn hình
     /// + trait chỉ khi bounds đổi (xoay / gập-mở), không phải mỗi lần tính chiều cao.
@@ -705,13 +717,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var phoneForm: KeyLayout.PhoneForm {
         if let c = phoneFormCache, c.size == bounds.size { return c.form }
         let t = traitCollection
-        var screen = window?.windowScene?.screen.bounds.size
+        var screen = window?.windowScene?.screen.bounds.size ?? layoutHint?.screen
         #if DEBUG
         if let s = debugScreenSize { screen = s }
         #endif
-        let f = KeyLayout.phoneForm(viewWidth: bounds.width, screenSize: screen,
+        let f = KeyLayout.phoneForm(viewWidth: layoutWidth, screenSize: screen,
                                     regularBoth: t.horizontalSizeClass == .regular && t.verticalSizeClass == .regular)
-        if window != nil { phoneFormCache = (bounds.size, f) }
+        // Chỉ cache khi đã có bề ngang thật (bounds 0 = đang dùng hint, rẻ, không cache).
+        if window != nil, bounds.width > 0 { phoneFormCache = (bounds.size, f) }
         return f
     }
     /// Safe area đáy hàng phím phải tránh (KeyLayout.keyboardSafeBottom): 0 trên iPhone thường
@@ -739,7 +752,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var rowSpec: KeyGeometry.RowSpec {
         let pad = Self.isPad
         let landscape = isLandscapeNow
-        let form: KeyLayout.PhoneForm? = (!pad && bounds.width > 0) ? phoneForm : nil
+        let width = layoutWidth
+        let form: KeyLayout.PhoneForm? = (!pad && width > 0) ? phoneForm : nil
         let base: CGFloat
         if pad {
             base = landscape ? 300 : 240
@@ -753,7 +767,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             base = form.map(KeyLayout.phoneKeyAreaBase) ?? (landscape ? 162 : KeyGeometry.phonePortraitBase)
         }
         return KeyGeometry.rowSpec(pad: pad, landscape: landscape, unfolded: form == .unfolded,
-                                   width: bounds.width, base: base, adjust: rowHeightAdjust,
+                                   width: width, base: base, adjust: rowHeightAdjust,
                                    homeButton: !pad && needsGlobe)
     }
     /// iPhone dọc: hàng đáy thấp hơn 4pt để 3 hàng chữ nằm đúng chỗ stock (KeyGeometry).
@@ -795,7 +809,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var openStripNow: CGFloat {
         let spec = rowSpec
         let base = spec.stock
-            ? KeyGeometry.StockSize.openStrip(width: bounds.width, landscape: isLandscapeNow,
+            ? KeyGeometry.StockSize.openStrip(width: layoutWidth, landscape: isLandscapeNow,
                                               homeButton: needsGlobe) ?? Self.openStrip
             : Self.openStrip
         return base + barHeight.delta(landscape: barLandscapeCap)
@@ -803,7 +817,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// "Chiều cao thanh gợi ý" (SuggestionBarHeight, mặc định Vừa) — đọc mỗi lần hiện (applyAppearance).
     private var barHeight = SuggestionBarHeight.defaultValue
     /// iPhone xoay ngang: mức Cao kẹp về Vừa (màn thấp). Máy gập mở / iPad: không kẹp.
-    private var barLandscapeCap: Bool { !Self.isPad && bounds.width > 0 && phoneForm == .landscape }
+    private var barLandscapeCap: Bool { !Self.isPad && layoutWidth > 0 && phoneForm == .landscape }
     /// Hàng nội dung bar (chữ gợi ý + icon ☰/📋/😊): 20 ở mức Thấp, + delta ở Vừa/Cao.
     private var barRowNow: CGFloat { barHeight.rowHeight(landscape: barLandscapeCap) }
     /// Headroom balloon phía trên hàng đầu (KeyLayout.headroom): chỉ chừa khi có thứ cần vẽ
@@ -869,10 +883,17 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Lưới emoji chiếm luôn dải strip (thanh tìm nằm đúng chỗ thanh gợi ý như stock):
         // chỉ dời vùng hàng phím, tổng chiều cao GIỮ NGUYÊN → host không relayout.
         // Tìm emoji: ô tìm thế chỗ strip, phím chữ giữ đủ keyArea (KeyLayout.chrome).
-        let c = KeyLayout.chrome(keyArea: keyAreaHeight(), strip: strip, mode: chromeMode,
-                                 headroom: headroomNow)
+        let spec = rowSpec
+        let headroom = headroomNow
+        let c = KeyLayout.chrome(keyArea: spec.keyArea(numberRow: numberRowEnabled, fullHeight: numberRowFullHeight),
+                                 strip: strip, mode: chromeMode, headroom: headroom)
         if rowsTopConstraint?.constant != c.rowsTop { rowsTopConstraint?.constant = c.rowsTop }
-        baseRequestedHeight = c.total + bottomInset
+        // Một nguồn (KeyLayout.requestedHeight). Lúc viewWillAppear (bounds 0) rowSpec dùng
+        // layoutHint ⇒ chiều cao này đã là chiều cao cuối — host đo ở đây.
+        baseRequestedHeight = KeyLayout.requestedHeight(spec: spec, numberRow: numberRowEnabled,
+                                                        numberRowFullHeight: numberRowFullHeight,
+                                                        strip: strip, headroom: headroom, mode: chromeMode,
+                                                        bottomInset: bottomInset)
         let total = baseRequestedHeight + hostFillExtra
         if heightConstraint?.constant != total { heightConstraint?.constant = total }
         if rowsBottomConstraint?.constant != -bottomInset { rowsBottomConstraint?.constant = -bottomInset }

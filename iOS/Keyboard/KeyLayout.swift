@@ -144,6 +144,33 @@ enum KeyLayout {
         reserved ? open : 0
     }
 
+    // MARK: Chiều cao xin host — phải ĐÚNG ngay lần đầu (tester 29/10/2026, Zalo)
+    // Zalo (và host kiểu đó) đặt thanh nhập theo chiều cao bàn phím xin LẦN ĐẦU, bỏ qua lần đổi
+    // sau ⇒ thanh nhập nằm sau thanh gợi ý. Lúc viewWillAppear KeyboardView chưa layout (bounds
+    // 0) mà hình học iPhone (StockSize) theo bề ngang: máy ≥ 420pt (Air / Plus / Pro Max) xin
+    // thấp hơn ~20pt rồi mới tăng ở lượt layout. Controller đưa bề ngang + màn hình ĐOÁN trước.
+
+    /// Chiều cao bàn phím tự xin (CHƯA cộng HostFill) — KeyboardView.updateSuggestionChrome.
+    static func requestedHeight(spec: KeyGeometry.RowSpec, numberRow: Bool, numberRowFullHeight: Bool,
+                                strip: CGFloat, headroom: CGFloat, mode: ChromeMode = .keys,
+                                bottomInset: CGFloat = 0) -> CGFloat {
+        chrome(keyArea: spec.keyArea(numberRow: numberRow, fullHeight: numberRowFullHeight),
+               strip: strip, mode: mode, headroom: headroom).total + bottomInset
+    }
+
+    /// Bề ngang dùng cho hình học: bề ngang thật khi đã layout, trước đó bề ngang đoán (hint).
+    static func layoutWidth(bounds: CGFloat, hint: CGFloat?) -> CGFloat {
+        bounds > 0 ? bounds : max(hint ?? 0, 0)
+    }
+
+    /// iPhone có nút Home (SE 2/3, 8, 8 Plus): cạnh dài màn hình < 812 (mọi iPhone Face ID ≥ 812).
+    /// Đoán `needsInputModeSwitchKey` (chỉ đáng tin ở didAppear) để hình học + chiều cao lúc
+    /// viewWillAppear đã đúng (homeButton đổi bước hàng / đệm đáy ⇒ đổi chiều cao).
+    static func phoneHasHomeButton(screen: CGSize) -> Bool {
+        let long = max(screen.width, screen.height)
+        return long > 0 && long < 812
+    }
+
     /// iPhone ngang theo BỀ NGANG view (dọc ≤ 440pt, ngang ≥ 568pt) — không tin
     /// interfaceOrientation của scene extension (có lúc lệch với host ⇒ xin 162pt ngang
     /// khi đang dọc = phím lùn). width 0 (chưa layout) thì mới dùng orientation.

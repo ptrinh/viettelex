@@ -275,6 +275,14 @@ final class KeyboardViewController: UIInputViewController {
     var debugPostFramePending: Bool { postFrame.isPending }
     #endif
 
+    /// Bề ngang + màn hình cho hình học lúc KeyboardView chưa layout: view gốc nếu host đã đặt
+    /// khung, không thì màn hình (UIScreen theo hướng hiện tại — như applyAppearance đọc).
+    private func appearanceLayoutHint() -> KeyboardView.LayoutHint {
+        let screen = view.window?.windowScene?.screen.bounds.size ?? UIScreen.main.bounds.size
+        let w = view.bounds.width > 0 ? view.bounds.width : screen.width
+        return KeyboardView.LayoutHint(width: w, screen: screen.width > 0 ? screen : nil)
+    }
+
     /// Toàn bộ cấu hình của một lần hiện (đọc cài đặt, trait ô, thanh gợi ý…). Chạy ở
     /// viewWillAppear; viewDidAppear chạy lại nếu lần hiện này chưa được cấu hình (willAppear
     /// không tới) hoặc cây view đã bị xé (didDisappear muộn) — Zalo vừa mở lại sau khi kill.
@@ -284,6 +292,14 @@ final class KeyboardViewController: UIInputViewController {
         if keyboard.isTornDown { installKeyboard() }
         // Mọi rebuild() tới hết trait ô / theme / một tay gom thành MỘT lần dựng phím (kiểu cuối).
         keyboard.beginBatch()
+        // Chiều cao xin host phải là chiều cao CUỐI ngay từ đây (host đo trước lượt layout đầu;
+        // Zalo không dời thanh nhập theo lần đổi sau — tester 29/10/2026): bề ngang/màn hình đoán
+        // cho lúc KeyboardView chưa layout + đoán phím 🌐 (iPhone nút Home) — didAppear sửa nếu sai.
+        let hint = appearanceLayoutHint()
+        keyboard.layoutHint = hint
+        if UIDevice.current.userInterfaceIdiom == .phone, let s = hint.screen {
+            keyboard.setNeedsGlobe(KeyLayout.phoneHasHomeButton(screen: s))
+        }
         L10n.reload()   // ngôn ngữ giao diện app (uiLanguage) — một lần mỗi lần hiện
         TouchLog.loadSetting()
         // Lần hiện mới: không mang phần xin thêm (HostFill) của lần trước sang.
