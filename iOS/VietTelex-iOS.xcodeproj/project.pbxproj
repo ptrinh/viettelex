@@ -352,6 +352,7 @@
 		C06C5CECDA39AC0698E3B1B6 /* ThemeJSONTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D3E94A29FB7A57CAC324FC /* ThemeJSONTests.swift */; };
 		C0F883065272FE06DAE56D0E /* WordDeleteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0599154D3A43772DC7456968 /* WordDeleteTests.swift */; };
 		C1206085EB6077DC29ECB44C /* FutoSwipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76444B4521814651DA2C026A /* FutoSwipe.swift */; };
+		C2BC314022F47A1E837DB106 /* FirstLayoutHeightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C82227CC9DC2209E6FFB1FF /* FirstLayoutHeightTests.swift */; };
 		C31A1027B7B30D20C5429A3E /* ThemeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41BD0E4DE3C769A2EDE19180 /* ThemeSettingsView.swift */; };
 		C369B25A2E4F67F28AA9088B /* ShortcutsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BFF48078EDB3236A1B9C795 /* ShortcutsView.swift */; };
 		C432D76ABEF98EE7C97F3A48 /* StockSizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 939D0D4BB91E134BA501CBFF /* StockSizeTests.swift */; };
@@ -624,6 +625,7 @@
 		58D98494210ACD4B0ED51A92 /* Trackpad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Trackpad.swift; sourceTree = "<group>"; };
 		5934AB6CE713D08F46A5E0C1 /* SwipeReviseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeReviseTests.swift; sourceTree = "<group>"; };
 		5A0609A6319273F70D4F03A6 /* futo-swipe-fixture.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "futo-swipe-fixture.txt"; sourceTree = "<group>"; };
+		5C82227CC9DC2209E6FFB1FF /* FirstLayoutHeightTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstLayoutHeightTests.swift; sourceTree = "<group>"; };
 		5C9D789536A5CAC8C4A014DF /* StartupTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupTrace.swift; sourceTree = "<group>"; };
 		5D0B60123ABBD5FE60D9234A /* KeyCommitQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCommitQueueTests.swift; sourceTree = "<group>"; };
 		5D0C7CC44A57FCB3E41047D7 /* SwipePracticeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipePracticeTests.swift; sourceTree = "<group>"; };
@@ -1052,6 +1054,7 @@
 				6A33CAADFA0E1E99239C0C8D /* Feedback1016Tests.swift */,
 				455CE7543F3290A1B95FA3F9 /* Feedback1028Tests.swift */,
 				4B68AFA53C7C54443DAB2DA2 /* FieldPolicyTests.swift */,
+				5C82227CC9DC2209E6FFB1FF /* FirstLayoutHeightTests.swift */,
 				E85DE7FE9317FE348701314F /* FoldableLayoutTests.swift */,
 				D188EC4E6781410050CABC5D /* FullPackSnapshotTests.swift */,
 				8FA4464DCB74D34A8A55E14B /* FutoSwipeTests.swift */,
@@ -1790,6 +1793,7 @@
 				8433BF4EE05A88F175CA5007 /* Feedback1028Tests.swift in Sources */,
 				64BE6CE8C0FDE071DE06E625 /* FieldPolicy.swift in Sources */,
 				09A81E2FCFEC3C9A20CE84AD /* FieldPolicyTests.swift in Sources */,
+				C2BC314022F47A1E837DB106 /* FirstLayoutHeightTests.swift in Sources */,
 				C672009CA9A75C96AC55BFFF /* FoldableLayoutTests.swift in Sources */,
 				4CD19AC18B15C6AE6C859141 /* FullPackSnapshotTests.swift in Sources */,
 				C1206085EB6077DC29ECB44C /* FutoSwipe.swift in Sources */,
