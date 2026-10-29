@@ -97,7 +97,7 @@ object Keys {
     /** Bool — "Phím sẫm khi bấm": phím chữ/số/ký hiệu đổi nền khi đè; tên như iOS App Group. Mặc định BẬT. */
     const val KEY_PRESS_HIGHLIGHT = "keyPressHighlight"
     const val HAPTIC_FEEDBACK = "hapticFeedback"
-    /** Độ mạnh rung 10…100 % (mặc định 45, [HapticStrength]) — giống iOS. */
+    /** Độ mạnh rung 10…100 % (mặc định 30, [HapticStrength]) — giống iOS. */
     const val HAPTIC_STRENGTH = "hapticStrength"
     /** Bool — âm thanh phím riêng ([KeySoundSynth]), mặc định TẮT (= tiếng hệ thống như cũ). */
     const val KEY_SOUND = "keySound"

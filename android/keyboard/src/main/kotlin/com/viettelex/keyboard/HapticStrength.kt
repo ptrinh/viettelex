@@ -2,7 +2,8 @@ package com.viettelex.keyboard
 
 /**
  * Độ mạnh rung phím 10…100 % (thanh trượt "Độ mạnh rung", key [Keys.HAPTIC_STRENGTH],
- * mặc định 45 — giống iOS KeyHaptics). Hàm thuần để test: IME đổi % ra VibrationEffect theo
+ * mặc định 30 — giống iOS KeyHaptics.defaultPercent; trước 29/10/2026 là 45,
+ * tester thấy quá mạnh — ai đã lưu giá trị thì giữ). Hàm thuần để test: IME đổi % ra VibrationEffect theo
  * [plan].
  *
  * PIN (Phil 28/09 "chọn kiểu rung subtle nào mà đỡ tốn pin nhất"). Năng lượng motor ≈ tỉ lệ
@@ -12,12 +13,13 @@ package com.viettelex.keyboard
  *     rẻ nhất mà vẫn chỉnh được độ mạnh. 45 % = TICK scale ≈ 0.71 (nhịp "tách" nhẹ).
  *  2. Có điều chỉnh biên độ (không primitive): one-shot ngắn 7…16 ms, biên độ 26…255
  *     (45 % ≈ 10 ms × 115 ⇒ ~20 % năng lượng nhịp 100 %).
- *  3. API 29+ không điều chỉnh biên độ (motor ERM cũ): createPredefined EFFECT_TICK
- *     (≤ 55 %) / EFFECT_CLICK (≤ 85 %) / EFFECT_HEAVY_CLICK — OEM tinh chỉnh sẵn.
- *  4. Còn lại: one-shot chỉ theo độ dài 5…30 ms.
+ *  3. Không điều chỉnh biên độ (motor ERM cũ, mọi API): one-shot chỉ theo độ dài 5…30 ms.
+ *     (29/10/2026: trước đây API 29+ dùng createPredefined TICK ≤ 55 % / CLICK ≤ 85 % / HEAVY —
+ *     chỉ 3 nấc, OEM thường cho TICK ≈ CLICK ⇒ kéo 10…85 % cảm như nhau. Độ dài là núm duy nhất
+ *     chắc chắn đổi cảm giác trên ERM.)
  */
 object HapticStrength {
-    const val DEFAULT = 45
+    const val DEFAULT = 30
     val RANGE = 10..100
 
     fun clamp(percent: Int): Int = percent.coerceIn(RANGE)
@@ -51,7 +53,6 @@ object HapticStrength {
         return when {
             sdk >= 30 && primitivesSupported -> primitiveScale(p).let { (t, s) -> Plan.Primitive(t, s) }
             amplitudeControl -> Plan.OneShot(amplitudeDurationMs(p), amplitude(p))
-            sdk >= 29 -> Plan.Predefined(when { p <= 55 -> Predef.TICK; p <= 85 -> Predef.CLICK; else -> Predef.HEAVY_CLICK })
             else -> Plan.OneShot(durationOnlyMs(p), -1)
         }
     }

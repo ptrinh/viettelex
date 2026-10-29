@@ -4058,7 +4058,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// phụ thuộc trạng thái app, không phát tiếng.
     private static func impact() {
         if KeyHaptics.shared.play() { return }
-        AudioServicesPlaySystemSound(1519)   // dự phòng: Core Haptics không chạy được
+        // Dự phòng (không Core Haptics / đang lùi sau lỗi): vẫn theo thanh trượt (1519 nhẹ / 1520 mạnh).
+        AudioServicesPlaySystemSound(KeyHaptics.fallbackSoundID(forPercent: KeyHaptics.shared.percent))
     }
     /// Phím ký tự; `key` = nhãn phím (Piano chọn nốt theo vị trí). Kiểu khác bỏ qua `key`.
     /// `sentenceEnd`: phím không nhãn nhưng là dấu kết câu ("." hàng đáy) — vòng hợp âm cách về đầu.

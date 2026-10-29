@@ -47,25 +47,37 @@ class HapticStrengthTests {
         // primitive có mà API < 30 ⇒ không dùng
         assertEquals(HapticStrength.Plan.OneShot(10, 115), HapticStrength.plan(45, 29, true, true))
         assertEquals(HapticStrength.Plan.OneShot(10, 115), HapticStrength.plan(45, 33, false, true))
-        assertEquals(HapticStrength.Plan.Predefined(HapticStrength.Predef.TICK), HapticStrength.plan(45, 29, false, false))
-        assertEquals(HapticStrength.Plan.Predefined(HapticStrength.Predef.CLICK), HapticStrength.plan(70, 29, false, false))
-        assertEquals(HapticStrength.Plan.Predefined(HapticStrength.Predef.HEAVY_CLICK), HapticStrength.plan(100, 29, false, false))
         assertEquals(HapticStrength.Plan.OneShot(15, -1), HapticStrength.plan(45, 28, false, false))
     }
 
+    /** Hồi quy 29/10/2026: máy không điều chỉnh biên độ (API 29+) từng dùng predefined 3 nấc ⇒
+     *  10…55 % CÙNG một EFFECT_TICK, kéo thanh trượt không đổi gì. Nay theo độ dài, tăng dần. */
+    @Test fun noAmplitudeControlStillScalesWithSlider() {
+        for (sdk in listOf(28, 29, 33)) {
+            val plans = (10..100 step 5).map { HapticStrength.plan(it, sdk, false, false) }
+            assertTrue(plans.all { it is HapticStrength.Plan.OneShot && it.amplitude == -1 })
+            val ms = plans.map { (it as HapticStrength.Plan.OneShot).ms }
+            assertTrue(ms.zipWithNext().all { (a, b) -> a <= b })
+            assertTrue(ms.first() < ms.last())
+            assertTrue(HapticStrength.plan(10, sdk, false, false) != HapticStrength.plan(45, sdk, false, false))
+        }
+    }
+
     @Test fun settingsLoadDefaultAndClamp() {
-        assertEquals(45, KeyboardSettings.load { null }.hapticStrength)
+        assertEquals(30, HapticStrength.DEFAULT)
+        assertEquals(30, KeyboardSettings.load { null }.hapticStrength)
+        assertEquals(45, KeyboardSettings.load { if (it == Keys.HAPTIC_STRENGTH) 45 else null }.hapticStrength)
         assertEquals(70, KeyboardSettings.load { if (it == Keys.HAPTIC_STRENGTH) 70 else null }.hapticStrength)
         assertEquals(100, KeyboardSettings.load { if (it == Keys.HAPTIC_STRENGTH) 300 else null }.hapticStrength)
         assertEquals(10, KeyboardSettings.load { if (it == Keys.HAPTIC_STRENGTH) 3 else null }.hapticStrength)
-        assertEquals(45, KeyboardSettings.load { if (it == Keys.HAPTIC_STRENGTH) "x" else null }.hapticStrength)
+        assertEquals(30, KeyboardSettings.load { if (it == Keys.HAPTIC_STRENGTH) "x" else null }.hapticStrength)
     }
 
     @Test fun backupSpecAndSnapshot() {
         val kind = BackupSettings.byKey[Keys.HAPTIC_STRENGTH]!!.kind as SettingKind.IntRange
-        assertEquals(45, kind.default); assertEquals(10..100, kind.range)
+        assertEquals(30, kind.default); assertEquals(10..100, kind.range)
         val prefs = mapOf<String, Any?>(Keys.HAPTIC_STRENGTH to 250)
         assertEquals(100, BackupPrefs.snapshot({ prefs[it] }, emptyList(), null).settings!![Keys.HAPTIC_STRENGTH])
-        assertEquals(45, BackupPrefs.snapshot({ null }, emptyList(), null).settings!![Keys.HAPTIC_STRENGTH])
+        assertEquals(30, BackupPrefs.snapshot({ null }, emptyList(), null).settings!![Keys.HAPTIC_STRENGTH])
     }
 }

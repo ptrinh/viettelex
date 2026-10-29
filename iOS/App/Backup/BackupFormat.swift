@@ -56,7 +56,7 @@ enum BackupSettings {
         Spec(key: "templatesEnabled", kind: .bool(true)),
         Spec(key: "showSpaceLogo", kind: .bool(true)),
         Spec(key: "hapticFeedback", kind: .bool(false)),
-        Spec(key: "hapticStrength", kind: .int(45, 10...100)),
+        Spec(key: "hapticStrength", kind: .int(KeyHaptics.defaultPercent, 10...100)),
         Spec(key: "keySound", kind: .bool(false)),
         Spec(key: "keySoundVolume", kind: .int(50, 0...100)),
         // Kiểu âm phím; "custom" đi theo nhưng FILE âm không — máy mới thiếu file ⇒ bàn phím dùng mặc định.
