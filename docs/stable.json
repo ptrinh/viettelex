@@ -1,12 +1,12 @@
 {
-  "version": "1.8.33",
-  "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.8.33",
-  "build": 142,
+  "version": "1.8.34",
+  "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.8.34",
+  "build": 143,
   "windows": {
-    "version": "1.3.6",
-    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.6/VietTelex-1.3.6-x64.msi",
-    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.6/VietTelex-1.3.6-arm64.msi",
-    "notes": "Gõ được trong app chạy quyền Admin như MISA SME (#134); gỡ cài đặt sạch."
+    "version": "1.3.7",
+    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.7/VietTelex-1.3.7-x64.msi",
+    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.7/VietTelex-1.3.7-arm64.msi",
+    "notes": "Tên + viết tắt HOA dính liền giữ dấu (PhươngTH, #138), viết tắt HOA, chống gõ sai một chữ, ranh giới _ = số, ⌫ sau khôi phục tiếng Anh trả lại chữ Việt."
   },
   "linux": {
     "version": "1.0.18",
@@ -74,8 +74,8 @@
     "notes": "Thử nghiệm Tự sửa từ phía trước; từ Anh trùng từ Việt không còn lật từ phía sau."
   },
   "android": {
-    "version": "1.5.21",
-    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.21/VietTelex-android-1.5.21.apk",
+    "version": "1.5.22",
+    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.22/VietTelex-android-1.5.22.apk",
     "play": "https://play.google.com/store/apps/details?id=com.viettelex.android"
   }
 }
