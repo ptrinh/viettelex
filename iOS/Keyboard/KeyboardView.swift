@@ -1004,6 +1004,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if chipFont.pointSize != c { chipFont = .systemFont(ofSize: c, weight: .regular) }
     }
     private var barInkApplied: UIColor?
+    private var barLabelInkApplied: UIColor?
+    /// "Màu chữ gợi ý" (SuggestionInk, mặc định Xám) — đọc mỗi lần hiện (applyAppearance).
+    private var suggestionInk = SuggestionInk.defaultValue
     private var barWired = false
 
     /// Thanh gợi ý theo KHUNG CỐ ĐỊNH (27/09/2026): `slotCount` ô bằng nhau (cài đặt "Số từ
@@ -1756,13 +1759,23 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func applyBarInk() {
         guard !suggestionBar.labels.isEmpty else { return }   // thanh chưa dựng: lần dựng đầu tự áp
         let ink = palette.barInk.ui
-        guard barInkApplied != ink else { return }
+        // "Màu chữ gợi ý" (SuggestionInk, mặc định Xám như stock): chỉ chữ ô gợi ý; vạch ngăn theo barInk.
+        let label = SuggestionInk.color(barInk: palette.barInk,
+                                        behind: SuggestionInk.behindBar(palette, systemDark: systemDark,
+                                                                        wallpaper: wallpaperActive),
+                                        mode: suggestionInk).ui
+        guard barInkApplied != ink || barLabelInkApplied != label else { return }
         barInkApplied = ink
+        barLabelInkApplied = label
         for d in slotDividers { d.backgroundColor = ink.withAlphaComponent(0.18) }
-        for l in suggestionBar.labels { l.textColor = ink }   // cả ô đang ẩn
+        for l in suggestionBar.labels { l.textColor = label }   // cả ô đang ẩn
     }
-    /// Test: màu chữ thanh gợi ý đang áp (nil = chưa dựng thanh).
+    /// Test: màu thanh gợi ý (vạch ngăn) đang áp (nil = chưa dựng thanh).
     var debugBarInkApplied: UIColor? { barInkApplied }
+    /// Test: màu chữ ô gợi ý đang áp (nil = chưa dựng thanh).
+    var debugSuggestionLabelInk: UIColor? { barLabelInkApplied }
+    /// Test hook "Màu chữ gợi ý" (như applyAppearance đọc từ App Group).
+    func debugSetSuggestionInk(_ m: SuggestionInk) { suggestionInk = m; applyBarInk() }
 
     /// Kiểu ô phóng to / popup đã đổi sang UIColor (KeyPopupStyle) — dựng lại khi palette đổi.
     struct PopupUI {
@@ -2000,6 +2013,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             themeAssets = ThemeAssetLoader.load(ThemeAssetPlan.make(assetSpec))
         }
         applyKeyStyle(themeSettings.effectiveKeyStyle)
+        suggestionInk = SuggestionInk.load(UserDefaultsProvider.shared)   // "Màu chữ gợi ý" — resolvePalette áp
         resolvePalette()
         configureKeyEffects()
         configureSwipeTrail()

@@ -72,6 +72,9 @@ enum BackupSettings {
         // "Chiều cao thanh gợi ý" (SuggestionBarHeight) — cùng khoá + id Android; lạ ⇒ bỏ qua (máy giữ Vừa).
         Spec(key: SuggestionBarHeight.key, kind: .string(SuggestionBarHeight.defaultValue.rawValue,
                                                         SuggestionBarHeight.allCases.map(\.rawValue))),
+        // "Màu chữ gợi ý" (SuggestionInk) — cùng khoá + id Android; lạ ⇒ bỏ qua (máy giữ Xám).
+        Spec(key: SuggestionInk.key, kind: .string(SuggestionInk.defaultValue.rawValue,
+                                                  SuggestionInk.allCases.map(\.rawValue))),
         Spec(key: "shortcutsEnabled", kind: .bool(true)),
         Spec(key: "addTonesChip", kind: .bool(false)),
         Spec(key: "numberChips", kind: .bool(true)),

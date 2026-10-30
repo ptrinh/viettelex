@@ -116,6 +116,8 @@ data class KeyboardSettings(
     var keyboardRaise: Int = 0,
     /** "Chiều cao thanh gợi ý": Thấp / Vừa (mặc định) / Cao ([SuggestionBarHeight]). */
     var suggestionBarHeight: SuggestionBarHeight = SuggestionBarHeight.DEFAULT,
+    /** "Màu chữ gợi ý": Xám (mặc định, như bàn phím Apple) / Sáng ([SuggestionInk]). */
+    var suggestionInk: SuggestionInk = SuggestionInk.DEFAULT,
     /** Giữ q…p ra 1…0 (chỉ khi hàng số tắt) — mặc định BẬT. Giống iOS. */
     var longPressNumbers: Boolean = true,
     /** Giữ a–l, z–m ra ký hiệu — mặc định TẮT. Giống iOS. */
@@ -225,6 +227,7 @@ data class KeyboardSettings(
             s.holdShiftSymbols = b(Keys.HOLD_SHIFT_SYMBOLS, s.holdShiftSymbols)
             s.spaceSideKey = SpaceSideKey.of(get(Keys.SPACE_SIDE_KEY))
             s.suggestionBarHeight = SuggestionBarHeight.of(get(Keys.SUGGESTION_BAR_HEIGHT))
+            s.suggestionInk = SuggestionInk.of(get(Keys.SUGGESTION_INK))
             s.emojiKeyPlacement = EmojiKeyPlacement.of(get(Keys.EMOJI_KEY_PLACEMENT))
             s.keyLabelSize = KeyLabelSize.of(get(Keys.KEY_LABEL_SIZE))
             s.oneHandMode = (get(Keys.ONE_HAND_MODE) as? String)?.takeIf { it == "left" || it == "right" } ?: "off"

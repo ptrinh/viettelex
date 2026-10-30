@@ -69,6 +69,8 @@ object BackupSettings {
         Spec(Keys.KEYBOARD_RAISE, SettingKind.IntRange(0, 0..KeyboardSettings.KEYBOARD_RAISE_MAX)),
         // "Chiều cao thanh gợi ý" ([SuggestionBarHeight]) — cùng khoá + id iOS.
         Spec(Keys.SUGGESTION_BAR_HEIGHT, SettingKind.Choice(SuggestionBarHeight.DEFAULT.id, SuggestionBarHeight.IDS)),
+        // "Màu chữ gợi ý" ([SuggestionInk]) — cùng khoá + id iOS.
+        Spec(Keys.SUGGESTION_INK, SettingKind.Choice(SuggestionInk.DEFAULT.id, SuggestionInk.IDS)),
         Spec(Keys.FLOATING_KEYBOARD, SettingKind.Bool(false)),
         Spec(Keys.SPLIT_KEYBOARD, SettingKind.Bool(false)),
         Spec(Keys.SHORTCUTS_ENABLED, SettingKind.Bool(true)),

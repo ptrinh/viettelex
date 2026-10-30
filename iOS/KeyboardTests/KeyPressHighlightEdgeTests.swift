@@ -282,6 +282,12 @@ final class KeyPressHighlightEdgeTests: XCTestCase {
                 XCTAssertEqual(kb.debugKeyColors(key).normal, p.keyFill.ui, "\(ctx): nền phím")
                 XCTAssertEqual(key.titleColor(for: .normal) ?? key.tintColor, p.keyInk.ui, "\(ctx): chữ phím")
                 if let ink = kb.debugBarInkApplied { XCTAssertEqual(ink, p.barInk.ui, "\(ctx): chữ thanh gợi ý") }
+                if let label = kb.debugSuggestionLabelInk {
+                    let want = SuggestionInk.color(barInk: p.barInk,
+                                                   behind: SuggestionInk.behindBar(p, systemDark: dark, wallpaper: false),
+                                                   mode: .muted)
+                    XCTAssertEqual(label, want.ui, "\(ctx): chữ ô gợi ý (Xám mặc định)")
+                }
                 XCTAssertEqual(kb.debugPopupStyle, KeyPopupStyle.make(p, style: .default, systemDark: dark, wallpaper: false), ctx)
             }
             try check(false, "sáng, chữ")

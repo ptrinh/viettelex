@@ -146,6 +146,7 @@ internal data class FeatureSearchEntry(val viTitle: String, val keywords: String
             FeatureSearchEntry("Màu nhấn", "accent color colour nhập enter return shift tuỳ chỉnh nâng cao", FeaturePage.GiaoDien), // l10n-key
             FeatureSearchEntry("Khôi phục giao diện gốc", "reset mặc định default", FeaturePage.GiaoDien), // l10n-key
             FeatureSearchEntry("Chiều cao hàng phím", "height cao thấp", FeaturePage.GiaoDien), // l10n-key
+            FeatureSearchEntry("Màu chữ gợi ý", "suggestion text color colour xám grey gray sáng bright thanh gợi ý chữ mờ dịu", FeaturePage.GiaoDien), // l10n-key
             FeatureSearchEntry("Hiện logo Vᴛ", "logo phím cách space", FeaturePage.GiaoDien), // l10n-key
             FeatureSearchEntry("Bàn phím tách đôi", "split tách chia hai nửa gập ngang fold foldable tablet máy tính bảng", FeaturePage.GiaoDien), // l10n-key
             FeatureSearchEntry("Lịch sử clipboard", "copy dán clipboard paste giữ lịch sử 24 giờ 7 ngày keep history", FeaturePage.RiengTu), // l10n-key

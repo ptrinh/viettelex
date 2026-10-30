@@ -168,6 +168,20 @@ final class BackupTests: XCTestCase {
         XCTAssertNil(try BackupCodec.decode(bad).settings?[SuggestionBarHeight.key])
     }
 
+    /// "Màu chữ gợi ý" (suggestionInk) đi theo sao lưu; mặc định "muted" (Xám); lạ ⇒ bỏ qua.
+    func testSnapshotIncludesSuggestionInk() throws {
+        let (s, _) = makeStore()
+        XCTAssertEqual(s.snapshot(includeLearned: false).settings?[SuggestionInk.key], .string("muted"))
+        s.defaults.set("bright", forKey: SuggestionInk.key)
+        let snap = s.snapshot(includeLearned: false)
+        XCTAssertEqual(snap.settings?[SuggestionInk.key], .string("bright"))
+        let (t, _) = makeStore()
+        _ = t.apply(try BackupCodec.decode(BackupCodec.encode(snap)))
+        XCTAssertEqual(SuggestionInk.load(t.defaults), .bright)
+        let bad = Data(#"{"format":"viettelex-backup","version":1,"settings":{"suggestionInk":"neon"}}"#.utf8)
+        XCTAssertNil(try BackupCodec.decode(bad).settings?[SuggestionInk.key])
+    }
+
     /// "Độ nhạy con trỏ" (trackpadSpeed) đi theo sao lưu; mặc định "medium"; lạ ⇒ bỏ qua.
     func testSnapshotIncludesTrackpadSpeed() throws {
         let (s, _) = makeStore()

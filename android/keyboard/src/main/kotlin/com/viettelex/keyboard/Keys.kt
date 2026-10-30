@@ -131,6 +131,8 @@ object Keys {
     const val KEYBOARD_RAISE = "keyboardRaise"
     /** String "low" | "medium" | "high" — chiều cao thanh gợi ý ([SuggestionBarHeight]), mặc định "medium". Tên như iOS App Group. */
     const val SUGGESTION_BAR_HEIGHT = "suggestionBarHeight"
+    /** String "muted" | "bright" — màu chữ gợi ý ([SuggestionInk]), mặc định "muted" (Xám). Tên như iOS App Group. */
+    const val SUGGESTION_INK = "suggestionInk"
     /** Bool — giữ q…p ra 1…0 (chỉ khi hàng số tắt), mặc định BẬT — [KeyAlternates]. */
     const val LONG_PRESS_NUMBERS = "longPressNumbers"
     /** Bool — giữ a–l, z–m ra ký hiệu, mặc định TẮT — [KeyAlternates]. */
