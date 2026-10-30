@@ -11,7 +11,7 @@ const mod = await loadModule();
 
 // GenGolden: configure() SETS letters on a fresh engine (engine defaults = teencode + englishWordRestore).
 const LETTER = { F: 'freeMarking', M: 'modernTone', L: 'liveSpellCheck', S: 'simpleTelex', t: 'teencode', Q: 'quickTelex',
-  B: 'bracketVowels', V: 'vni', C: 'contextualEnglish', e: 'englishWordRestore', P: 'collisionPrefersVietnamese' };
+  B: 'bracketVowels', V: 'vni', C: 'contextualEnglish', e: 'englishWordRestore', P: 'collisionPrefersVietnamese', E: 'eagerEnglishRestore' };
 const ENGINE_DEFAULT = Flags.teencode | Flags.englishWordRestore;
 
 function makeEngine(flagsField) {
@@ -25,6 +25,9 @@ function makeEngine(flagsField) {
   }
   return { e, f, auto };
 }
+// "~<vietnamese>" when the commit left a restore-undo record (GenGolden format).
+const undoToken = E => { const u = E.takeRestoreUndo(); return u ? '~' + u.vietnamese : ''; };
+const BOUNDARY = new Set([' ', '.', ',', '_', '/', '=']);
 const tok = a => a.kind === PASSTHROUGH ? 'P' : a.kind === NONE ? 'N' : `R${a.backspaces},${a.insert}`;
 
 function replay(flagsField, ops) {
@@ -40,16 +43,20 @@ function replay(flagsField, ops) {
   } else {
     for (let i = 0; i < cps.length; i++) {
       const c = cps[i];
-      if (c === ' ' || c === '.' || c === ',') {
+      if (BOUNDARY.has(c)) {
+        const ins = c === '=' ? '1' : c;   // '=' = a DIGIT boundary
         const p = E.peekCommitText(); const a = E.commitBoundary();
-        if (a.kind === REPLACE) applyR(a); screen.push(c); trace.push(`${p}=>${tok(a)}`);
+        if (a.kind === REPLACE) applyR(a); screen.push(ins);
+        const t = `${p}=>${tok(a)}${undoToken(E)}`;
+        E.noteBoundary(ins);
+        trace.push(t);
       } else if (c === '<') {
         const a = E.backspace(); if (a.kind === REPLACE) applyR(a); else screen.pop(); trace.push(tok(a));
       } else if (c === '^') {
         const w = E.reopenLastCommit(); if (w != null) { screen.pop(); trace.push('o:' + w); } else trace.push('o~');
       } else if (c === '#') { E.reset(); trace.push('N'); }
       else if (c === '!') { E.resetContext(); trace.push('N'); }
-      else if (c === '%') trace.push('c:' + E.commitText());
+      else if (c === '%') { const t = 'c:' + E.commitText(); trace.push(t + undoToken(E)); }
       else if (c === '`') {
         const x = cps[i + 1];
         if (x !== undefined) {

@@ -29,6 +29,7 @@ export const Flags = Object.freeze({
   contextualEnglish: 1 << 8,
   englishWordRestore: 1 << 9,
   collisionPrefersVietnamese: 1 << 10,
+  eagerEnglishRestore: 1 << 11,   // apps: = autoRestore (flagsFromOptions follows autoRestore unless set)
 });
 
 /** Defaults of the VietTelex apps (macOS 1.7.12 / iOS / Android). */
@@ -50,6 +51,9 @@ export const DEFAULT_OPTIONS = Object.freeze({
 export const PASSTHROUGH = 0, REPLACE = 1, NONE = 2;
 const MAX_TEXT = 64;
 const ACTION_BYTES = 12 + MAX_TEXT * 2;
+// struct vtx_restore_undo: int32 restored_len, int32 vietnamese_len, uint16 restored[64], uint16 vietnamese[64].
+const UNDO_MAX = 64;
+const UNDO_BYTES = 8 + UNDO_MAX * 4;
 
 /**
  * Flags that need the English dictionaries. The lite build has no dictionaries, so these
@@ -61,10 +65,11 @@ export function flagsFromOptions(opts) {
   const o = { ...DEFAULT_OPTIONS, ...opts };
   let f = 0;
   for (const [k, bit] of Object.entries(Flags)) {
-    if (k === 'vni') continue;
+    if (k === 'vni' || k === 'eagerEnglishRestore') continue;
     if (o[k]) f |= bit;
   }
   if (o.inputMethod === 'vni') f |= Flags.vni;
+  if (o.eagerEnglishRestore ?? o.autoRestore) f |= Flags.eagerEnglishRestore;
   return f;
 }
 
@@ -74,7 +79,7 @@ export function flagsFromOptions(opts) {
  * before the caret and insert `insert`.
  */
 export class VietTelexEngine {
-  #m; #e; #act; #buf; #autoRestore;
+  #m; #e; #act; #buf; #undo; #autoRestore;
 
   constructor(module, options = {}) {
     this.#m = module;
@@ -84,6 +89,7 @@ export class VietTelexEngine {
     if (!this.#e) throw new Error('VietTelex: out of memory');
     this.#act = module._malloc(ACTION_BYTES);
     this.#buf = module._malloc(MAX_TEXT * 2 + 2);
+    this.#undo = module._malloc(UNDO_BYTES);
     this.setOptions(options);
   }
 
@@ -155,10 +161,39 @@ export class VietTelexEngine {
     for (let i = 0; i < n; i++) this.#m.HEAPU16[o + i] = word.charCodeAt(i);
     return !!this.#m._vtx_seed(this.#e, this.#buf, n);
   }
+  /**
+   * Report EVERY boundary character you inserted (space, punctuation, digit, "_", "/", "\n"
+   * for Enter/Tab…), after commitBoundary() / takeRestoreUndo(). The engine uses it for
+   * glued separators ("my_var", "os.path", "100W").
+   */
+  noteBoundary(ch) {
+    const cp = typeof ch === 'number' ? ch : ch.codePointAt(0);
+    this.#m._vtx_note_boundary(this.#e, cp >>> 0);
+  }
+  /**
+   * Right after a commit: `{ restored, vietnamese }` when the commit restored a word to its
+   * raw keys although its Vietnamese composition was a real syllable ("hí" → "his"), else
+   * null. The screen shows `restored` + boundary; an IMMEDIATE ⌫ may replace it with
+   * `vietnamese` + boundary (verify the text first), then call restoreUndoApplied().
+   * Any other engine call (except noteBoundary) drops the record.
+   */
+  takeRestoreUndo() {
+    if (!this.#m._vtx_take_restore_undo(this.#e, this.#undo)) return null;
+    const H32 = this.#m.HEAP32, H16 = this.#m.HEAPU16;
+    const i32 = this.#undo >> 2;
+    const rl = Math.min(H32[i32], UNDO_MAX - 1), vl = Math.min(H32[i32 + 1], UNDO_MAX - 1);
+    const r = (this.#undo + 8) >> 1, v = (this.#undo + 8 + UNDO_MAX * 2) >> 1;
+    return {
+      restored: String.fromCharCode(...H16.subarray(r, r + rl)),
+      vietnamese: String.fromCharCode(...H16.subarray(v, v + vl)),
+    };
+  }
+  /** The ⌫-undo of a restore was applied: the committed word is Vietnamese again. */
+  restoreUndoApplied() { this.#m._vtx_restore_undo_applied(this.#e); }
   /** Free the native memory. The engine is unusable afterwards. */
   destroy() {
     if (!this.#e) return;
-    this.#m._vtx_destroy(this.#e); this.#m._free(this.#act); this.#m._free(this.#buf);
+    this.#m._vtx_destroy(this.#e); this.#m._free(this.#act); this.#m._free(this.#buf); this.#m._free(this.#undo);
     this.#e = 0;
   }
 }
@@ -231,6 +266,7 @@ async function attachWith(createEngine, el, options) {
   const toggleKey = options.toggleKey === undefined ? 'ctrl+space' : options.toggleKey;
   const isField = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
   let expectedCaret = -1;       // caret we left after our own edit
+  let restoreUndo = null;       // { applied, original, caret }: ⌫ right after a restore-to-English
   let composingIME = false;
   const yieldToSystem = options.yieldToSystemIme ?? true;
   let manualOverride = false;   // user bật lại bằng tay → thôi tự nhường
@@ -251,6 +287,17 @@ async function attachWith(createEngine, el, options) {
     if (!isField) return false;
     const t = (el.getAttribute('type') || 'text').toLowerCase();
     return ['password', 'email', 'number', 'tel'].includes(t);
+  };
+
+  /** Up to `n` UTF-16 units before the caret, or null when the field can't be read. */
+  const textBeforeCaret = (n) => {
+    if (isField) {
+      const end = el.selectionEnd;
+      return el.value.slice(Math.max(0, end - n), end);
+    }
+    const s = el.ownerDocument.getSelection();
+    if (!s || !s.isCollapsed || !el.contains(s.anchorNode) || s.anchorNode.nodeType !== 3) return null;
+    return s.anchorNode.data.slice(Math.max(0, s.anchorOffset - n), s.anchorOffset);
   };
 
   const caret = () => {
@@ -284,6 +331,8 @@ async function attachWith(createEngine, el, options) {
     if (toggleKey && ev.key === ' ' && ev.ctrlKey && toggleKey === 'ctrl+space') {
       ev.preventDefault(); manualOverride = true; handle.setEnabled(!enabled); return;
     }
+    // The restore undo lives for exactly one key.
+    const undo = restoreUndo; restoreUndo = null;
     if (!enabled || composingIME || literalField()) return;
     const foreign = detectForeignIme(ev);
     if (foreign) { yieldTo(foreign); return; }   // để phím cho bộ gõ của máy, không đụng
@@ -292,6 +341,14 @@ async function attachWith(createEngine, el, options) {
     if (expectedCaret >= 0 && caret() !== expectedCaret) engine.reset();
 
     if (ev.key === 'Backspace') {
+      // ⌫ right after a boundary that restored a Vietnamese syllable to English ("hí" → "his "):
+      // put the Vietnamese word back, keep the boundary char.
+      if (undo && engine.isEmpty && caret() === undo.caret && textBeforeCaret(undo.applied.length) === undo.applied) {
+        ev.preventDefault();
+        replace(undo.applied.length, undo.original);
+        engine.restoreUndoApplied();
+        return;
+      }
       if (engine.isEmpty && engine.canReopenLastCommit) {
         // Let the field delete the boundary char, then reopen the word.
         setTimeout(() => { if (engine.reopenLastCommit() != null) expectedCaret = caret(); }, 0);
@@ -303,7 +360,13 @@ async function attachWith(createEngine, el, options) {
       else if (a.kind === PASSTHROUGH) replace(1, '');
       return;
     }
-    if (ev.key.length !== 1) { if (/^(Arrow|Home|End|Page|Enter|Tab|Escape)/.test(ev.key)) engine.reset(); return; }
+    if (ev.key.length !== 1) {
+      if (/^(Arrow|Home|End|Page|Enter|Tab|Escape)/.test(ev.key)) {
+        engine.reset();
+        if (ev.key === 'Enter' || ev.key === 'Tab') engine.noteBoundary('\n');   // ends the phrase
+      }
+      return;
+    }
 
     const ch = ev.key;
     const composes = COMPOSING.test(ch) || (engine.options.inputMethod === 'vni' && /\d/.test(ch))
@@ -320,12 +383,19 @@ async function attachWith(createEngine, el, options) {
     // Boundary: finish the word (auto-restore), then insert the char ourselves so the
     // restore and the char land in one edit.
     const a = engine.commitBoundary();
+    const u = engine.takeRestoreUndo();
     ev.preventDefault();
     if (a.kind === REPLACE) replace(a.backspaces, a.insert + ch); else replace(0, ch);
+    // Every boundary char goes to the engine (glued separators "my_var", "os.path", "100W").
+    engine.noteBoundary(ch);
+    if (u) {
+      const applied = u.restored + ch;
+      if (textBeforeCaret(applied.length) === applied) restoreUndo = { applied, original: u.vietnamese + ch, caret: caret() };
+    }
   }
 
-  const onReset = () => { engine.reset(); expectedCaret = -1; };
-  const onBlur = () => { engine.resetContext(); expectedCaret = -1; };
+  const onReset = () => { engine.reset(); expectedCaret = -1; restoreUndo = null; };
+  const onBlur = () => { engine.resetContext(); expectedCaret = -1; restoreUndo = null; };
   const onCompStart = () => { composingIME = true; engine.reset(); yieldTo('composition'); };
   const onInput = (ev) => {
     if (!ownEdit && enabled && isForeignVietnameseInput(ev.inputType, ev.data)) yieldTo('injected');

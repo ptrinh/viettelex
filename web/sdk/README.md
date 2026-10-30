@@ -70,6 +70,13 @@ Quy ước giống hệt các app VietTelex: với `REPLACE` xoá `backspaces` k
 `insert`; với `PASSTHROUGH` tự chèn ký tự vừa gõ. Ký tự không phải chữ cái (space, dấu câu…) là
 ranh giới từ — gọi `commitBoundary()` trước rồi chèn ký tự đó.
 
+Sau mỗi ranh giới: gọi `takeRestoreUndo()` ngay sau `commitBoundary()` — trả
+`{ restored, vietnamese }` khi từ vừa bị khôi phục tiếng Anh dù là âm tiết Việt thật ("hí" → "his");
+nếu phím kế tiếp là ⌫ và trước con trỏ đúng là `restored` + ranh giới, thay bằng `vietnamese` +
+ranh giới rồi gọi `restoreUndoApplied()`. Sau đó **luôn** gọi `noteBoundary(ch)` với ký tự ranh
+giới vừa chèn (`"\n"` cho Enter/Tab) — engine cần nó cho dấu nối kiểu `my_var`, `os.path`, `100W`.
+`attach()` đã làm sẵn cả hai.
+
 ## Tuỳ chọn (mặc định = app VietTelex)
 
 | Tuỳ chọn | Mặc định | |
@@ -83,6 +90,7 @@ ranh giới từ — gọi `commitBoundary()` trước rồi chèn ký tự đó
 | `teencode` | `false` | Chính tả teencode |
 | `contextualEnglish` | `true` | Quyết định theo ngữ cảnh ("he is" → he is) |
 | `autoRestore` | `true` | Tự khôi phục từ tiếng Anh |
+| `eagerEnglishRestore` | `= autoRestore` | Khôi phục tiếng Anh sớm ngay trong từ (như app) |
 | `bracketVowels` | `false` | `[ ]` → ơ ư |
 
 Bản lite bỏ qua (không báo lỗi) `contextualEnglish`, `englishWordRestore` và
@@ -228,6 +236,7 @@ engines with the dictionary flags off: 358,004 identical, 13 differ only on Engl
 - Syllable validator and spell-check while typing: no invalid tone placement.
 - Free tone placement, modern/traditional tone style, Quick Telex, VNI, teencode, simple Telex.
 - Backspace and re-editing a word (reopen the last word); reset on caret moves.
+- ⌫ right after a boundary that restored a Vietnamese syllable to English ("hí" → "his ") puts the Vietnamese word back (`takeRestoreUndo()` / `restoreUndoApplied()`); every boundary character is reported with `noteBoundary(ch)` (glued `my_var`, `os.path`, `100W`).
 - Yields automatically to the OS or another Vietnamese IME.
 - `input`, `textarea`, `contenteditable`; password/email/number/tel fields stay literal; Ctrl+Space toggle.
 - WebAssembly hot path: ~70 ns per keystroke including the JS wrapper (Node, Apple Silicon); zero dependencies,

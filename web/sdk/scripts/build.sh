@@ -10,7 +10,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$(cd ../.. && pwd)"
 IMAGE="${EMSDK_IMAGE:-emscripten/emsdk:latest}"
-FUNCS='["_vtx_create","_vtx_destroy","_vtx_set_flags","_vtx_get_flags","_vtx_feed","_vtx_backspace","_vtx_commit_boundary","_vtx_commit_text","_vtx_peek_commit_text","_vtx_composed","_vtx_raw_keystrokes","_vtx_is_empty","_vtx_is_overflowed","_vtx_reset","_vtx_reset_context","_vtx_previous_word_english","_vtx_can_reopen_last_commit","_vtx_reopen_last_commit","_vtx_forget_last_commit","_vtx_seed","_malloc","_free"]'
+FUNCS='["_vtx_create","_vtx_destroy","_vtx_set_flags","_vtx_get_flags","_vtx_feed","_vtx_backspace","_vtx_commit_boundary","_vtx_commit_text","_vtx_peek_commit_text","_vtx_composed","_vtx_raw_keystrokes","_vtx_is_empty","_vtx_is_overflowed","_vtx_reset","_vtx_reset_context","_vtx_previous_word_english","_vtx_can_reopen_last_commit","_vtx_reopen_last_commit","_vtx_forget_last_commit","_vtx_seed","_vtx_note_boundary","_vtx_take_restore_undo","_vtx_restore_undo_applied","_malloc","_free"]'
 mkdir -p dist
 rm -f dist/viettelex*.mjs dist/viettelex*.wasm
 
