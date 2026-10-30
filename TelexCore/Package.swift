@@ -9,7 +9,9 @@ let package = Package(
         .executable(name: "gen-lessons", targets: ["GenLessons"]),
         .executable(name: "gen-english", targets: ["GenEnglish"]),
         .executable(name: "gen-golden", targets: ["GenGolden"]),
-        .executable(name: "gen-freeze-prefixes", targets: ["GenFreezePrefixes"])
+        .executable(name: "gen-freeze-prefixes", targets: ["GenFreezePrefixes"]),
+        // Mô phỏng gõ câu trộn Việt–Anh (docs/REGRESSION.md "Mô phỏng gõ câu trộn").
+        .executable(name: "mixed-eval", targets: ["MixedEval"])
     ],
     targets: [
         .target(
@@ -34,6 +36,20 @@ let package = Package(
         .executableTarget(
             name: "GenFreezePrefixes",
             dependencies: ["TelexCore"]
+        ),
+        // Người gõ mô phỏng + chấm điểm trên TelexCore/Corpus/mixed-typing.tsv. Không nằm
+        // trong product TelexCore (app/bàn phím không link) — chỉ lệnh đo và test dùng.
+        .target(
+            name: "MixedTyping",
+            dependencies: ["TelexCore"]
+        ),
+        .executableTarget(
+            name: "MixedEval",
+            dependencies: ["MixedTyping"]
+        ),
+        .testTarget(
+            name: "MixedTypingTests",
+            dependencies: ["MixedTyping"]
         ),
         .testTarget(
             name: "TelexCoreTests",
