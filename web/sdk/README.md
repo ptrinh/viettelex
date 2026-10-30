@@ -100,21 +100,25 @@ Bản lite bỏ qua (không báo lỗi) `contextualEnglish`, `englishWordRestore
 
 | Bản | `import` | File chứa WASM | Raw (byte) | gzip -9 (byte) |
 |---|---|---|---:|---:|
-| full, inline (mặc định) | `@viettelex/core` | `viettelex-wasm.mjs` | 124.647 | 28.110 |
-| lite, inline | `@viettelex/core/lite` | `viettelex-lite-wasm.mjs` | 97.763 | 16.962 |
-| full, .wasm riêng | `@viettelex/core/external` | `viettelex-core.mjs` + `viettelex-core.wasm` | 3.618 + 90.908 | 1.759 + 20.257 |
-| lite, .wasm riêng | `@viettelex/core/lite/external` | `viettelex-lite-core.mjs` + `viettelex-lite-core.wasm` | 3.633 + 70.744 | 1.770 + 11.210 |
+| full, inline (mặc định) | `@viettelex/core` | `viettelex-wasm.mjs` | 159.956 | 45.689 |
+| lite, inline | `@viettelex/core/lite` | `viettelex-lite-wasm.mjs` | 136.860 | 33.887 |
+| full, .wasm riêng | `@viettelex/core/external` | `viettelex-core.mjs` + `viettelex-core.wasm` | 3.719 + 117.320 | 1.802 + 33.892 |
+| lite, .wasm riêng | `@viettelex/core/lite/external` | `viettelex-lite-core.mjs` + `viettelex-lite-core.wasm` | 3.734 + 99.998 | 1.810 + 24.779 |
 
-Mọi bản cộng thêm phần JS của SDK (`core.mjs` 16.072 / 5.861 gzip, entry ~0,7 KB / 0,4 KB) — `attach()`,
+Mọi bản cộng thêm phần JS của SDK (`core.mjs` 19.673 / 6.942 gzip, entry ~0,7 KB / 0,4 KB) — `attach()`,
 phát hiện bộ gõ khác… Bản cũ (−O3) là 170.378 / 29.730: build `-Oz` + closure + emmalloc hiện tại nhỏ hơn
 27% raw mà hành vi không đổi (golden vẫn 100%).
 
-**Vì sao WASM lại cỡ này?** Đo từng phần của file `.wasm` bản full (~91 KB):
+**Vì sao WASM lại cỡ này?** Đo từng phần của file `.wasm` bản full (~117 KB):
 - **~49 KB — bảng kiểm tra âm tiết** (trie phụ âm đầu / vần, có và không teencode). Đây là phần lớn nhất,
   phần lớn là ô trống nên gzip nén rất tốt. Nó cho engine biết từ nào *có thể* là tiếng Việt: chặn bỏ dấu
   sai, ngừng bỏ dấu khi gõ tiếng Anh, và tự khôi phục theo luật.
-- **~20 KB — mã máy**: toàn bộ logic Telex/VNI, đặt dấu, sửa từ, API.
-- **~19 KB — từ điển tiếng Anh** (va chạm Anh/Việt ~770 từ, từ ngữ cảnh ~400, restore-only, loanword).
+- **~30 KB — mã máy**: toàn bộ logic Telex/VNI, đặt dấu, sửa từ, API.
+- **~20 KB — 3.788 âm tiết thông dụng** (khoá Telex, cho luật viết tắt in hoa và giữ lỗi gõ tiếng Việt); có cả
+  trong bản lite.
+- **~16 KB — từ điển tiếng Anh** (va chạm Anh/Việt ~770 từ, từ ngữ cảnh ~400, ~1.000 tiền tố khôi phục sớm,
+  restore-only, loanword). Các danh sách từ lưu dạng chữ dồn theo độ dài (~1 byte/chữ cái), không phải mảng
+  `std::string_view` (8 byte/từ + chữ + NUL — từng làm file phình gần gấp đôi).
   Bản lite bỏ đúng phần này. (Trước đây tưởng phần này chiếm đa số; đo thực tế thì bảng âm tiết mới lớn nhất.)
 - **Inline base64 thêm 33%** so với file .wasm, và base64 nén gzip kém hơn nhị phân. Base64 được giữ vì chạy
   đúng ở mọi server/bundler (cách mã hoá UTF-8 của emscripten nhỏ hơn nhưng hỏng nếu JS không được phục vụ dạng UTF-8).
@@ -124,7 +128,7 @@ tự khôi phục tiếng Anh hay xử lý ngữ cảnh — xem mục dưới.
 
 **Chọn bản nào?**
 - Mặc định `@viettelex/core`: một file, không cấu hình, giống app 100%.
-- Trang cần nhẹ: **`@viettelex/core/lite/external`** (11,2 + 1,8 KB gzip, .wasm cache được lâu dài). Nếu cần
+- Trang cần nhẹ: **`@viettelex/core/lite/external`** (24,8 + 1,8 KB gzip, .wasm cache được lâu dài). Nếu cần
   một file duy nhất: `@viettelex/core/lite`.
 - Đã có CDN/bundler và muốn cache: `@viettelex/core/external`. File `.wasm` mặc định tải cạnh file JS
   (`new URL(..., import.meta.url)`, Vite/webpack tự copy); đổi chỗ bằng `createEngine({ wasmUrl })`
@@ -199,24 +203,26 @@ itself for that field, calls `onForeignIme(reason)` and remembers it in `localSt
 
 | Build | `import` | Raw | gzip -9 |
 |---|---|---:|---:|
-| full, inline (default) | `@viettelex/core` | 124,647 | 28,110 |
-| lite, inline | `@viettelex/core/lite` | 97,763 | 16,962 |
-| full, separate .wasm | `@viettelex/core/external` | 3,618 + 90,908 | 1,759 + 20,257 |
-| lite, separate .wasm | `@viettelex/core/lite/external` | 3,633 + 70,744 | 1,770 + 11,210 |
+| full, inline (default) | `@viettelex/core` | 159,956 | 45,689 |
+| lite, inline | `@viettelex/core/lite` | 136,860 | 33,887 |
+| full, separate .wasm | `@viettelex/core/external` | 3,719 + 117,320 | 1,802 + 33,892 |
+| lite, separate .wasm | `@viettelex/core/lite/external` | 3,734 + 99,998 | 1,810 + 24,779 |
 
-Plus the SDK's JS (`core.mjs`, 16,072 / 5,861 gzip) in every build. The old -O3 build was 170,378 / 29,730; the
+Plus the SDK's JS (`core.mjs`, 19,673 / 6,942 gzip) in every build. The old -O3 build was 170,378 / 29,730; the
 current `-Oz` + closure + emmalloc build is 27% smaller raw with identical behaviour (golden still 100%).
 
-Why the WASM is this big (full `.wasm`, ~91 KB): **~49 KB syllable-validator tables** (onset/rime tries, mostly
+Why the WASM is this big (full `.wasm`, ~117 KB): **~49 KB syllable-validator tables** (onset/rime tries, mostly
 empty cells that gzip well; they tell the engine what can be Vietnamese — no misplaced tones, stop marking on
-English, rule-based auto-restore), **~20 KB code** (all of the Telex/VNI logic and API), **~19 KB English
-dictionaries** (~770 collisions, ~400 context words, restore-only, loanwords), which power auto-restore of
+English, rule-based auto-restore), **~30 KB code** (all of the Telex/VNI logic and API), **~20 KB common
+syllables** (3,788 Telex keys for the all-caps acronym rule and typo keep; in lite too), **~16 KB English
+dictionaries** (~770 collisions, ~400 context words, ~1,000 eager-restore prefixes, restore-only, loanwords; word
+lists are stored as length-bucketed packed text, ~1 byte per letter), which power auto-restore of
 dictionary words, contextual English and collision handling. The lite build drops exactly those dictionaries.
 (The dictionaries were initially assumed to be most of the size; measured, the syllable tables are the largest
 part.) Base64 inlining adds 33% and compresses worse than binary; it is kept because it works with any server or
 bundler. Rule-based JS IMEs of ~10 KB only do character substitution, without validation, auto-restore or context.
 
-Which build: the default for simplicity; **`@viettelex/core/lite/external`** (11.2 + 1.8 KB gzip, cacheable) for
+Which build: the default for simplicity; **`@viettelex/core/lite/external`** (24.8 + 1.8 KB gzip, cacheable) for
 size-sensitive sites, or `@viettelex/core/lite` for a single file; `@viettelex/core/external` to cache the full
 engine. The `.wasm` loads next to the JS (`new URL(..., import.meta.url)`, picked up by Vite/webpack); override with
 `createEngine({ wasmUrl })` or pass bytes with `createEngine({ wasmBinary })`.

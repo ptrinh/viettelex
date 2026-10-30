@@ -16,13 +16,12 @@ namespace {
 // lookup misses, so the lists are dropped by the linker. Dictionary features become
 // no-ops; Telex/VNI, tones, the syllable validator and validator-based auto-restore are
 // untouched. The default build is unchanged.
-template <size_t N>
-inline bool inEnglishList(const std::string_view (&set)[N], const char* w, int len) {
+inline bool inEnglishList(const WordSet& set, const char* w, int len) {
 #ifdef VTX_NO_ENGLISH_TABLES
     (void)set; (void)w; (void)len;
     return false;
 #else
-    return contains(set, w, len);
+    return set.contains(w, len);
 #endif
 }
 

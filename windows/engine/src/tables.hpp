@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string_view>
 #include "viettelex/telex_engine.hpp"
+#include "word_set.hpp"
 
 namespace vtx { namespace tables {
 
@@ -159,5 +160,8 @@ inline bool contains(const std::string_view (&set)[N], const char* w, int len) {
     }
     return false;
 }
+
+/// Same, for a packed generated word set (word_set.hpp).
+inline bool contains(const WordSet& set, const char* w, int len) { return set.contains(w, len); }
 
 }} // namespace vtx::tables
