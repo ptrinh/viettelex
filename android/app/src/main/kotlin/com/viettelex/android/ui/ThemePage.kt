@@ -433,7 +433,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     }
 
     VTSection(header = tr("Độ trong suốt"),
-        footer = tr("Phím: nền và viền phím (cả nền bàn phím khi không dùng ảnh nền) — 100% chỉ còn chữ (thấy app phía sau), ảnh nền vẫn giữ nguyên. Ký tự: chữ và biểu tượng trên phím — 100% là phím trơn không chữ.")) {
+        footer = tr("Phím: nền và viền phím (cả nền bàn phím khi không dùng ảnh nền) — 100% chỉ còn chữ, ảnh nền vẫn giữ nguyên. Ký tự: chữ và biểu tượng trên phím — 100% là phím trơn không chữ.")) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Text(tr("Độ trong suốt phím: %s%%", s.keyboardTransparency), style = VTType.body, color = c.label)
             Slider(value = s.keyboardTransparency.toFloat(), valueRange = 0f..100f,
@@ -441,6 +441,9 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
             Text(tr("Độ trong suốt ký tự: %s%%", s.labelTransparency), style = VTType.body, color = c.label)
             Slider(value = s.labelTransparency.toFloat(), valueRange = 0f..100f,
                 onValueChange = { update(s.copy(labelTransparency = Math.round(it / 5) * 5)) })
+            // #137: nền trong suốt chỉ "xuyên" được ở app vẽ nội dung dưới bàn phím — nói rõ thay vì hứa.
+            if (KeyboardTransparency.revealsHostApp(s.keyboardTransparency, opaqueBackdrop = active))
+                Text(tr("Phía sau bàn phím là gì do từng app quyết định. Trình duyệt và một số app vẽ nội dung dưới bàn phím nên thấy xuyên qua; phần lớn app thu màn hình lên trên bàn phím, phía sau chỉ còn nền trơn của app (trắng hoặc đen), nên bàn phím chỉ nhạt đi. Muốn trong giống nhau ở mọi app: dùng ảnh nền, độ trong suốt khi đó chỉ áp lên phím."), style = VTType.footnote, color = c.secondary)
         }
     }
 
