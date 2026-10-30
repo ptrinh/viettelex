@@ -1113,7 +1113,14 @@ class TelexEngine {
             if (!vniMode && i == 1 && c == 'D'.code && raw[0] == 'D'.code) continue
             return -1
         }
-        return if (hasLower) s else -1
+        return if (hasLower && !runIsCodeAcronym(s)) s else -1
+    }
+
+    /** raw[s until rawCount] is a code acronym ("MaxID"), not initials (EnglishContextWords.codeAcronyms). */
+    private fun runIsCodeAcronym(s: Int): Boolean {
+        val n = rawCount - s
+        for (i in 0 until n) wordBuf[i] = raw[s + i] or 0x20
+        return EnglishContextWords.codeAcronyms.contains(wordBuf, n)
     }
 
     /** raw[0 until s] alone: valid, transformed, uncancelled, non-English syllable (in-place re-parse). */

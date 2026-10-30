@@ -1270,7 +1270,16 @@ int TelexEngine::initialsSplitPoint() const {
         if (!vniMode && i == 1 && c == 'D' && raw_[0] == 'D') continue;
         return -1;
     }
-    return hasLower ? s : -1;
+    return hasLower && !runIsCodeAcronym(s) ? s : -1;
+}
+
+// raw[s..<rawCount] is a code acronym ("MaxID"), not initials. A shape rule: probed
+// directly (not inEnglishList), so the lite build keeps it too.
+bool TelexEngine::runIsCodeAcronym(int s) const {
+    char w[kCapacity];
+    const int n = rawCount_ - s;
+    for (int i = 0; i < n; ++i) w[i] = static_cast<char>(raw_[s + i] | 0x20);
+    return gen::kCodeAcronyms.contains(w, n);
 }
 
 bool TelexEngine::headIsInitialsSyllable(int s) {

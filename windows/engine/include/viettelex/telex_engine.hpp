@@ -310,6 +310,7 @@ private:
     int initialsSplitPoint() const;
     bool headIsInitialsSyllable(int s);
     bool rawHeadIsEnglish(int s) const;
+    bool runIsCodeAcronym(int s) const;
     bool applyInitialsSplit();
     void resetWord();
     bool prefixIsValid(int n);

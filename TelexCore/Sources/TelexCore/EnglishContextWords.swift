@@ -124,6 +124,20 @@ enum EnglishContextWords {
         terms texts town tree trust var verse virus war wars
         """)
 
+    /// CODE ACRONYMS — an uppercase run that is one of these is NOT a name's initials
+    /// (issue #138 guard): "MaxID", "TaxID", "PosID", "BoxURL" keep the whole-word path
+    /// instead of splitting into "MãID"/"TãID". Stored lowercase; matched against the
+    /// lowercased trailing run of exactly that length (2–4 letters).
+    /// Vetted against Vietnamese name initials (surname + middle-name initials): left
+    /// OUT on purpose because they read as real initials — DB (Đỗ/Đặng Bá), PK (Phạm
+    /// Khắc/Kim), TS (Trần Sỹ), VM (Võ/Vũ Minh), KB (Kiều Bá), MB (Mai Bá), MS (Mai Sỹ),
+    /// PX (Phạm/Phan Xuân), ML (Mai Lệ/Lan). Kept entries start with a letter no common
+    /// surname starts with (I, U, J, F, X, E, Q…) or pair letters no name pairs.
+    static let codeAcronyms: Set<String> = parse("""
+        id ids url uri api ui ux ok ip io os fk sql json xml html css js pdf csv
+        uuid guid dto dao gb en vi us uk ai qr nft faq
+        """)
+
     private static func parseGates(_ list: String) -> [(word: String, predecessors: Set<String>)] {
         var rules: [(word: String, predecessors: Set<String>)] = []
         for line in list.split(separator: "\n") {

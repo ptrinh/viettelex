@@ -135,7 +135,8 @@ restore = [w for b in blocks(section(ctx, "private static let restoreOnlyList", 
 maxlen = int(re.search(r"static let maxLength = (\d+)", ctx).group(1))
 function = [w for b in blocks(section(ctx, "static let functionWords", "static let predecessorGates")) for w in words(b)]
 tails = [w for b in blocks(section(ctx, "static let contractionTails", "static let runKeepers")) for w in words(b)]
-keepers = [w for b in blocks(section(ctx, "static let runKeepers", "private static func parseGates")) for w in words(b)]
+keepers = [w for b in blocks(section(ctx, "static let runKeepers", "static let codeAcronyms")) for w in words(b)]
+acronyms = [w for b in blocks(section(ctx, "static let codeAcronyms", "private static func parseGates")) for w in words(b)]
 gates = []
 for b in blocks(section(ctx, "static let predecessorGates", "static let contractionTails")):
     for line in b.split("\n"):
@@ -159,7 +160,8 @@ for gw, ps in gates:
     assert re.fullmatch(r"[a-z]+", gw) and ps and all(re.fullmatch(r"[a-z]+", p) for p in ps), (gw, ps)
 
 for name, ws in (("collisions", collisions), ("neutral", neutral), ("ctx", ctxwords), ("restore", restore),
-                 ("function", function), ("tails", tails), ("keepers", keepers)):
+                 ("function", function), ("tails", tails), ("keepers", keepers),
+                 ("acronyms", acronyms)):
     assert ws, name
     for w in ws:
         assert re.fullmatch(r"[a-z]+", w), (name, w)
@@ -226,6 +228,9 @@ with open(out, "w", encoding="utf-8") as f:
     emit_wordset(f, "kFunctionWords", function)
     emit_wordset(f, "kContractionTails", tails)
     emit_wordset(f, "kRunKeepers", keepers)
+    f.write("// Code acronyms (EnglishContextWords.codeAcronyms): an uppercase run that is not a\n")
+    f.write("// name's initials (\"MaxID\" stays whole). Shape rule: also in the lite build.\n")
+    emit_wordset(f, "kCodeAcronyms", acronyms)
     f.write("// Eager English restore (EnglishFreezePrefixes.swift): raw prefixes at which an English\n")
     f.write("// word freezes with marks on screen; probed once per word at the freeze moment.\n")
     f.write(f"constexpr int kFreezePrefixMinLength = {freeze_min};\n")

@@ -129,7 +129,10 @@ final class SuiteRegressionTests: XCTestCase {
         // 30/10/2026: +10 hàng — viết tắt toàn chữ HOA đọc ra âm tiết hiếm (NAS, AWS, OS…),
         // từ dính sau "_" / "." của từ mã (my_var, self.bar), đơn vị sau số (100W, 10kW);
         // harness báo ký tự ranh giới cho engine như controller thật. 7136 → 7146.
-        XCTAssertGreaterThanOrEqual(pass["restore_raw"] ?? 0, 7146,
+        // 30/10/2026 (issue #138, guard từ viết tắt code): +15 hàng định danh code
+        // (MaxID, TaxURL, PosAPI, hasID, OrderID…) — chuỗi HOA là từ viết tắt code
+        // (EnglishContextWords.codeAcronyms) thì không tách viết tắt tên. 7146 → 7161.
+        XCTAssertGreaterThanOrEqual(pass["restore_raw"] ?? 0, 7161,
                                     "English-restore coverage regressed")
         // Trailing-cancel screen-truth (2026-07-31): the escape gesture commits the
         // rendered text even when raw is a real English word — EXACT, no floor.

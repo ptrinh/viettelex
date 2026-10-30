@@ -329,6 +329,15 @@ void initialsSuffix() {
         {"PhD", "PhD"}, {"JavaScript", "JavaScript"}, {"GitHub", "GitHub"},
         {"AsJSON", "AsJSON"}, {"HasID", "HasID"}, {"VIEETJ", "VIỆT"}, {"HDDND", "HĐND"},
         {"PhuwowngTHa", "PhuwowngTHa"},
+        // code acronym runs are not initials (MaxID used to give MãID)
+        {"MaxID", "MaxID"}, {"ResID", "ResID"}, {"PosID", "PosID"}, {"RowID", "RowID"},
+        {"TaxID", "TaxID"}, {"BoxID", "BoxID"}, {"LasID", "LasID"}, {"MaxIDS", "MaxIDS"},
+        {"TaxURL", "TaxURL"}, {"PosAPI", "PosAPI"}, {"BoxUI", "BoxUI"}, {"RowJSON", "RowJSON"},
+        {"ResAPI", "ResAPI"}, {"MaxCSV", "MaxCSV"}, {"hasID", "hasID"}, {"userID", "userID"},
+        {"getURL", "getURL"}, {"SetID", "SetID"}, {"DocID", "DocID"}, {"GetURL", "GetURL"},
+        {"OrderID", "OrderID"}, {"DataDB", "DataDB"},
+        // runs left out of the acronym list (plausible initials) still split
+        {"HungfVM", "HùngVM"}, {"TuaansPX", "TuấnPX"}, {"HungfDB", "HùngDB"},
     };
     for (int live = 0; live < 2; ++live) {
         for (const auto& c : cases) {

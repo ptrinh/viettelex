@@ -1004,6 +1004,19 @@ constexpr const char* const kRunKeepersBuckets[7] = {
 constexpr uint16_t kRunKeepersCounts[7] = {0,0,0,24,31,14,3};
 constexpr WordSet kRunKeepers{6, kRunKeepersBuckets, kRunKeepersCounts};
 
+// Code acronyms (EnglishContextWords.codeAcronyms): an uppercase run that is not a
+// name's initials ("MaxID" stays whole). Shape rule: also in the lite build.
+// 33 words
+constexpr const char* const kCodeAcronymsBuckets[5] = {
+  "",
+  "",
+  "aienfkgbidioipjsokosqruiukusuxvi",
+  "apicsscsvdaodtofaqidsnftpdfsqluriurlxml",
+  "guidhtmljsonuuid",
+};
+constexpr uint16_t kCodeAcronymsCounts[5] = {0,0,16,13,4};
+constexpr WordSet kCodeAcronyms{4, kCodeAcronymsBuckets, kCodeAcronymsCounts};
+
 // Eager English restore (EnglishFreezePrefixes.swift): raw prefixes at which an English
 // word freezes with marks on screen; probed once per word at the freeze moment.
 constexpr int kFreezePrefixMinLength = 4;
