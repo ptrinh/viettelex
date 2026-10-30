@@ -48,6 +48,8 @@ targets:
       - Keyboard/MoleGame.swift
       - Keyboard/Shortcuts.swift
       - Shared
+      # Apple Intelligence: màn cài đặt hỏi trạng thái model (cùng file với framework bàn phím dlopen).
+      - VTIntelligence/IntelligenceEngine.swift
       # Từ điển cá nhân: app đọc/sửa userlm.plist bằng chính model của bàn phím.
       - Keyboard/UserLangModel.swift
       - Keyboard/UserLMTables.swift
@@ -101,6 +103,12 @@ targets:
       - target: VTTranslate
         embed: true
         link: false
+      # Apple Intelligence (Sửa lỗi, Plus): nhúng cho bàn phím dlopen — app KHÔNG link framework này.
+      - target: VTIntelligence
+        embed: true
+        link: false
+      - sdk: FoundationModels.framework
+        weak: true
       # Dịch trên máy (iOS 26+; deployment 16) — weak để máy cũ vẫn chạy. App (màn chọn
       # ngôn ngữ/tải gói) dùng trực tiếp.
       - sdk: Translation.framework
@@ -160,6 +168,24 @@ targets:
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VT_TRANSLATE_FRAMEWORK"
     dependencies:
       - sdk: Translation.framework
+        weak: true
+  # Framework nhỏ chỉ chứa phần gọi Apple Intelligence — xem iOS/VTIntelligence/IntelligenceEngine.swift.
+  # Bàn phím KHÔNG link FoundationModels (dlopen framework này khi công tắc bật + có vùng chọn).
+  VTIntelligence:
+    type: framework
+    platform: iOS
+    sources:
+      - VTIntelligence
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.viettelex.ios.intelligence
+        GENERATE_INFOPLIST_FILE: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+        DEFINES_MODULE: NO
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VT_AI_FRAMEWORK"
+    dependencies:
+      - sdk: FoundationModels.framework
         weak: true
   VietTelexKeyboardTests:
     type: bundle.unit-test
@@ -244,6 +270,10 @@ targets:
       - Keyboard/TextTools.swift
       - Keyboard/TextToolRunner.swift
       - Keyboard/Translate.swift
+      - Keyboard/AIProofread.swift
+      - Keyboard/AIAssistLoader.swift
+      - Keyboard/AIAssist.swift
+      - Keyboard/AIProofreadPanel.swift
       - Keyboard/MainDebouncer.swift
       - Keyboard/StartupTrace.swift
       # bảng gõ tắt mẫu ở gốc repo — test khứ hồi parse/export cùng định dạng macOS

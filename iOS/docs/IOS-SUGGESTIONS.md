@@ -288,6 +288,30 @@ thay: chip **"↩︎ Hoàn tác"** (và ⌫ ngay sau) trả bản gốc, đoạn
   Xoá dấu (từ lưới mẫu câu), trả lại văn bản cũ.
 - Cả hai (và "Hoàn tác" thêm dấu) sống tới phím kế tiếp; hành động mới xoá lời mời cũ.
 
+### 12. "Sửa lỗi bằng Apple Intelligence" (Plus, iOS 26+, mặc định TẮT — 30/10/2026)
+
+Công tắc `aiProofread` (Tính Năng → Gợi ý & từ điển, màn Plus; sao lưu). App hiện công tắc theo
+trạng thái model (`AISettingUI`, Shared/PlusConfig.swift): máy không hỗ trợ ⇒ ẩn; chưa bật Apple
+Intelligence / mô hình đang tải ⇒ hiện nhưng khoá + một dòng hướng dẫn. Trên máy hết — không mạng.
+
+- **Không link FoundationModels vào bàn phím**: phần gọi model ở `VTIntelligence.framework` (app chủ,
+  `iOS/VTIntelligence/IntelligenceEngine.swift`), bàn phím `dlopen` lần đầu cần (`AIAssistLoader`,
+  cùng mẫu VTTranslate). Tắt ⇒ controller giữ `ai = nil`: không đọc vùng chọn, không dlopen, không
+  prewarm. Bật mà model không dùng được lúc chạy ⇒ không có chip ✨ (không báo lỗi).
+- **Vùng chọn ≥ 2 từ** (≤ 1000 ký tự) hoặc **không chọn gì** (cả ô ≤ 500 ký tự, ≥ 2 từ, chỉ sau khi
+  ngừng gõ 0,8 s và ô khác lần sửa trước) ⇒ chip **"✨ Sửa lỗi"** ở slot đầu. Model chỉ chạy khi chạm
+  (session mới mỗi lần, greedy, `@Generable` — mỗi dòng một mục, ráp lại đúng xuống dòng gốc), hạn
+  10 s, chạy nền (chip "✨ Đang sửa…", chạm để huỷ). Kết quả qua kiểm (`AIText.assembleProofread`:
+  độ dài/số từ không lệch quá đà, giữ số dòng + emoji) rồi mới hiện **bảng xem trước** phủ vùng phím
+  (không đổi chiều cao), từ đã sửa được tô (`WordDiff`, LCS theo từ). **Áp dụng**: vùng chọn phải
+  còn đúng chữ gốc; cả ô ⇒ dời con trỏ cuối/đầu/cuối để chắc ô CHỈ chứa bản gốc (`AIField`), xoá
+  `deleteCount` (= số scalar) rồi chèn, đọc lại kiểm. Sau đó **"↩︎ Hoàn tác"** tới phím kế.
+- **Chọn đúng 1 từ** ⇒ sau 0,35 s đứng yên, hỏi ≤ 3 từ thay thế theo ngữ cảnh quanh từ (≤ 160 ký
+  tự mỗi phía, trong đoạn) — hiện như từ kế tiếp; chạm = thay (giữ dấu câu dính quanh từ).
+- Đo trên simulator (Xcode 27.1, máy chủ có Apple Intelligence): lần đầu 5–8 s (prewarm còn ~5 s),
+  sau đó 1,3–2,8 s; RAM tiến trình +~4 MB sau yêu cầu đầu (model chạy ở tiến trình hệ thống). Debug
+  log ghi RAM trước/sau mỗi yêu cầu.
+
 ## Thứ tự ưu tiên slot
 
 Mọi loại chip cùng tranh các slot (mặc định 3 — xem "Số từ gợi ý" bên dưới). Hàm THUẦN `SuggestionSlots.arrange` (Swift) ≡
