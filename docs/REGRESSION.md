@@ -35,6 +35,7 @@ thì nâng sàn ngay trong test.
 | 2026-07-25 | 1.4.16-dev | 400/400 | 362/362 | 6.803/7.282 (93,4%) | 632/1.047 | fix free-marking bóp méo dù có cancel (`excess` → êcs) |
 | 2026-07-26 | 1.4.16-dev | 400/400 | 362/362 | 7.212/7.282 (99,0%) | 632/1.047 | luật hình dạng tone-cancel + refresh bảng collision (438 → 498 từ) |
 | 2026-07-26 | 1.4.16-dev | **400/400** | **362/362** | **7.201/7.282 (98,9%)** | **632/1.047** | **bỏ luật restore cho phím-đôi-kề-nhau (field report `tessted`), bù bằng từ điển sinh từ chính suite (498 → 757 từ)** |
+| 2026-10-30 | dev | 410/410 | 371/371 | 7.136/7.218 | 626/1.047 | issue #138: tên + viết tắt in hoa dính liền (`PhuwowngTH` → PhươngTH); +21 hàng (10 VN, 9 giữ nguyên, 2 restore: `AsJSON`/`HasID`). Bucket `cancel_keep_composed` (66) tách ra từ 31/07 nên mẫu số restore_raw nhỏ hơn các dòng trên |
 
 Latency không đổi qua đợt 2026-07-26 (release build, cùng máy): **0,138 µs/phím**
 (Việt) / 0,150 (Anh) / 0,007 (passthrough) — nằm trong dao động run-to-run của

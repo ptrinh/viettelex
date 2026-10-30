@@ -305,9 +305,43 @@ void backspaceEqualsRetypeWithoutLastKey() {
     CHECK(checked > 20000);
 }
 
+// Issue #138: Vietnamese name + glued uppercase initials ("PhuwowngTH" → PhươngTH).
+// Twin of TelexCore InitialsSuffixTests.swift; the golden corpus covers the rest.
+void initialsSuffix() {
+    struct Case { const char* keys; const char* want; };
+    const Case cases[] = {
+        {"PhuwowngTH", "PhươngTH"}, {"KieenTV", "KiênTV"}, {"HungfNV", "HùngNV"},
+        {"LinhPTT", "LinhPTT"}, {"KieenSV", "KiênSV"}, {"NguyeenXJ", "NguyênXJ"},
+        {"DDinhNV", "ĐinhNV"},
+        // guards: unchanged behaviour
+        {"KieenS", "KieenS"}, {"SaaS", "SaaS"}, {"iOS", "iOS"}, {"macOS", "macOS"},
+        {"PhD", "PhD"}, {"JavaScript", "JavaScript"}, {"GitHub", "GitHub"},
+        {"AsJSON", "AsJSON"}, {"HasID", "HasID"}, {"VIEETJ", "VIỆT"}, {"HDDND", "HĐND"},
+        {"PhuwowngTHa", "PhuwowngTHa"},
+    };
+    for (int live = 0; live < 2; ++live) {
+        for (const auto& c : cases) {
+            vtx::TelexEngine e;
+            e.liveSpellCheck = live != 0;
+            feedStr(e, c.keys);
+            CHECK_EQ(peek(e, true), std::string(c.want));
+            CHECK_EQ(commitText(e, true), std::string(c.want));
+        }
+        vtx::TelexEngine e;
+        e.liveSpellCheck = live != 0;
+        vtx::Action a;
+        feedStr(e, "KieenSV");
+        e.backspace(a);
+        CHECK_EQ(composed(e), std::string("KieenS"));
+        e.feed(U'V', a);
+        CHECK_EQ(composed(e), std::string("KiênSV"));
+    }
+}
+
 } // namespace
 
 int runUnit() {
+    initialsSuffix();
     screenAlwaysEqualsComposed();
     peekMatchesCommitOnCopy();
     reopenIssue40();

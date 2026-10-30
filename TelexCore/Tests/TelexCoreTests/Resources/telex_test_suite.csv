@@ -9092,3 +9092,24 @@ en_top10k,neon,9823,neon,neon,keep_as_typed,collision_unchanged,low,n_a,"khong b
 en_top10k,cho,9867,cho,cho,keep_as_typed,collision_unchanged,low,n_a,"khong bien dang nhung trung tu tieng Viet ""cho"""
 en_top10k,qui,9900,qui,qui,keep_as_typed,collision_unchanged,low,n_a,"khong bien dang nhung trung tu tieng Viet ""qui"""
 en_top10k,theta,9983,theta,theta,keep_as_typed,collision_unchanged,low,n_a,"khong bien dang nhung trung tu tieng Viet ""theta"""
+vn_positive,PhuwowngTH,,PhươngTH,PhươngTH,transform,vn_name_initials,high,never,issue #138: ten + viet tat ho/dem in hoa
+vn_positive,KieenTV,,KiênTV,KiênTV,transform,vn_name_initials,high,never,issue #138
+vn_positive,HungfNV,,HùngNV,HùngNV,transform,vn_name_initials,high,never,issue #138
+vn_positive,LinhPTT,,LinhPTT,LinhPTT,transform,vn_name_initials,high,never,issue #138: dau khong bien doi
+vn_positive,KieenSV,,KiênSV,KiênSV,transform,vn_name_initials,high,never,issue #138: S hoa trong chuoi viet tat la chu, khong phai dau sac
+vn_positive,NguyeenXJ,,NguyênXJ,NguyênXJ,transform,vn_name_initials,high,never,issue #138: X J hoa la chu
+vn_positive,DDinhNV,,ĐinhNV,ĐinhNV,transform,vn_name_initials,high,never,issue #138: Dd dau ten
+vn_positive,TraanfTH,,TrầnTH,TrầnTH,transform,vn_name_initials,high,never,issue #138
+vn_positive,VIEETJ,,VIỆT,VIỆT,transform,vn_all_caps,high,never,issue #138 guard: chu HOA toan bo van go dau
+vn_positive,HDDND,,HĐND,HĐND,transform,vn_all_caps,high,never,issue #138 guard
+en_dev_brand,iOS,,iOS,iOS,keep_as_typed,mixed_case_identifier,high,never,issue #138 guard
+en_dev_brand,macOS,,macOS,macOS,keep_as_typed,mixed_case_identifier,high,never,issue #138 guard
+en_dev_brand,PhD,,PhD,PhD,keep_as_typed,mixed_case_identifier,high,never,issue #138 guard: 1 chu hoa cuoi giu hanh vi cu
+en_dev_brand,McDonald,,McDonald,McDonald,keep_as_typed,mixed_case_identifier,high,never,issue #138 guard
+en_dev_brand,JavaScript,,JavaScript,JavaScript,keep_as_typed,mixed_case_identifier,high,never,issue #138 guard
+en_dev_brand,TypeScript,,TypeScript,TypeScript,keep_as_typed,mixed_case_identifier,high,never,issue #138 guard
+en_dev_brand,GitHub,,GitHub,GitHub,keep_as_typed,mixed_case_identifier,high,never,issue #138 guard
+en_dev_brand,MySQL,,MySQL,MySQL,keep_as_typed,mixed_case_identifier,high,never,issue #138 guard
+en_dev_brand,NodeJS,,NodeJS,NodeJS,keep_as_typed,mixed_case_identifier,high,never,issue #138 guard
+en_dev_brand,AsJSON,,AsJSON,AsJSON,restore_raw,mixed_case_identifier,high,never,issue #138 guard: dau la tu tieng Anh -> khong tach viet tat
+en_dev_brand,HasID,,HasID,HasID,restore_raw,mixed_case_identifier,high,never,issue #138 guard: dau la tu tieng Anh -> khong tach viet tat

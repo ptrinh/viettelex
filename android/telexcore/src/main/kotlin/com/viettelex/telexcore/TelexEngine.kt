@@ -135,6 +135,8 @@ class TelexEngine {
     private var upperToneKey = false
     // Word frozen by feed()'s upper-case tone rule (disabledAtCount = 0) — see Swift.
     private var upperToneFrozen = false
+    // Raw index of the initials suffix ("PhuwowngTH" → PhươngTH, issue #138), -1 none — see Swift.
+    private var initialsSplitAt = -1
 
     // Re-open snapshot.
     private val reopenRaw = IntArray(CAPACITY)
@@ -176,7 +178,7 @@ class TelexEngine {
         e.pLiveSpellCheck = pLiveSpellCheck; e.disabledAtCount = disabledAtCount
         e.markCancelled = markCancelled; e.toneCancelAt = toneCancelAt; e.toneCancelSpan = toneCancelSpan
         e.pFoldTones = pFoldTones; e.tonesFolded = tonesFolded; e.lastEffTone = lastEffTone; e.upperToneKey = upperToneKey
-        e.upperToneFrozen = upperToneFrozen
+        e.upperToneFrozen = upperToneFrozen; e.initialsSplitAt = initialsSplitAt
         e.freezeKeepsTone = freezeKeepsTone; e.pFreezeLetters = pFreezeLetters
         reopenRaw.copyInto(e.reopenRaw); reopenOut.copyInto(e.reopenOut)
         e.reopenRawCount = reopenRawCount; e.reopenOutCount = reopenOutCount
@@ -289,6 +291,12 @@ class TelexEngine {
             snapshotCancel()
         }
 
+        // Initials suffix (issue #138), decided last — see Swift.
+        if (applyInitialsSplit()) {
+            newCount = render()
+            snapshotCancel()
+        }
+
         if (newCount == outCount + 1 && scratch[newCount - 1] == ascii &&
             commonPrefixLength(outCount) == outCount
         ) {
@@ -332,6 +340,7 @@ class TelexEngine {
 
         recomputeFreeze()
         rebuildFrozenAware()
+        applyInitialsSplit()
         val newCount = render()
         snapshotCancel()
         val action = diff(newCount)
@@ -424,6 +433,7 @@ class TelexEngine {
     }
 
     private fun shouldRestoreRaw(): Boolean {
+        if (initialsSplitAt >= 0) return false   // "PhươngTH" (issue #138) — see Swift
         if (markCancelled) {
             if (composedIsValidSyllable()) return false
             if (toneCancelSpan > 1) {
@@ -929,6 +939,90 @@ class TelexEngine {
         return false
     }
 
+    // MARK: - Initials suffix ("PhươngTH", "KiênTV", "HùngNV" — issue #138; see Swift)
+
+    /** Raw index where the word splits into Title-case HEAD + 2–4 uppercase INITIALS, or -1. */
+    private fun initialsSplitPoint(): Int {
+        if (rawCount < 1 + INITIALS_MIN || !isUpperAscii(raw[0]) || !isUpperAscii(raw[rawCount - 1])) return -1
+        var s = rawCount
+        while (s > 0 && isUpperAscii(raw[s - 1])) s--
+        val n = rawCount - s
+        if (s < 2 || n < INITIALS_MIN || n > INITIALS_MAX) return -1
+        var hasLower = false
+        for (i in 1 until s) {
+            val c = raw[i]
+            if (c >= 'a'.code && c <= 'z'.code) { hasLower = true; continue }
+            if (vniMode && isDigit(c)) continue
+            if (!vniMode && i == 1 && c == 'D'.code && raw[0] == 'D'.code) continue
+            return -1
+        }
+        return if (hasLower) s else -1
+    }
+
+    /** raw[0 until s] alone: valid, transformed, uncancelled, non-English syllable (in-place re-parse). */
+    private fun headIsInitialsSyllable(s: Int): Boolean {
+        val full = rawCount
+        val savedDisabled = disabledAtCount
+        val savedKeep = freezeKeepsTone
+        rawCount = s
+        disabledAtCount = Int.MAX_VALUE
+        freezeKeepsTone = false
+        rebuildParseState()
+        render()
+        var ok = !pCancelled
+        if (ok) {
+            var transformed = lastEffTone != T.NONE
+            for (k in 0 until pCount) if (rMark[k] != Mark.NONE) { transformed = true; break }
+            ok = transformed && composedIsValidSyllable() && !rawHeadIsEnglish(s)
+        }
+        rawCount = full
+        disabledAtCount = savedDisabled
+        freezeKeepsTone = savedKeep
+        if (!ok) rebuildFrozenAware()
+        return ok
+    }
+
+    private fun rawHeadIsEnglish(s: Int): Boolean {
+        if (!englishWordRestore) return false
+        val n = lowerAsciiInto(raw, s, EnglishContextWords.maxLength)
+        if (n <= 0) return false
+        if (EnglishCollisions.words.contains(wordBuf, n) || EnglishContextWords.words.contains(wordBuf, n)) return true
+        outer@ for (word in ENGLISH_EXCEPTIONS) {
+            if (word.size != n) continue
+            for (i in 0 until n) if (wordBuf[i] != word[i]) continue@outer
+            return true
+        }
+        return false
+    }
+
+    /** Take / keep / lift the initials split; true when the caller must re-render. */
+    private fun applyInitialsSplit(): Boolean {
+        val s = initialsSplitPoint()
+        if (s >= 0) {
+            if (initialsSplitAt == s && disabledAtCount == s && freezeKeepsTone) return false
+            if (headIsInitialsSyllable(s)) {
+                initialsSplitAt = s
+                disabledAtCount = s
+                freezeKeepsTone = true
+                upperToneFrozen = false
+                rebuildParseState()
+                tonesFolded = false
+                return true
+            }
+            if (initialsSplitAt >= 0) {
+                recomputeFreeze()
+                rebuildFrozenAware()
+            }
+            return true
+        }
+        if (initialsSplitAt >= 0) {
+            recomputeFreeze()
+            rebuildFrozenAware()
+            return true
+        }
+        return false
+    }
+
     /** Drop the current word AND the re-open snapshot. */
     fun reset() {
         if (rawCount > 0) clearEnglishContext()
@@ -946,6 +1040,7 @@ class TelexEngine {
         toneCancelSpan = 0
         upperToneKey = false
         upperToneFrozen = false
+        initialsSplitAt = -1
         overflowed = false
         disabledAtCount = Int.MAX_VALUE
         tonesFolded = false
@@ -1100,6 +1195,7 @@ class TelexEngine {
         disabledAtCount = Int.MAX_VALUE
         freezeKeepsTone = false
         upperToneFrozen = false
+        initialsSplitAt = -1
         var r = 1
         while (r <= full) {
             rawCount = r
@@ -1587,6 +1683,9 @@ class TelexEngine {
         private const val CTX_ENGLISH_FUNCTION = 3
 
         private val EMPTY_REPLACE = TelexAction.Replace(0, "")
+
+        private const val INITIALS_MIN = 2
+        private const val INITIALS_MAX = 4
 
         private val ENGLISH_EXCEPTIONS: Array<IntArray> = arrayOf(
             "was".map { it.code }.toIntArray(),
