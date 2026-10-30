@@ -149,6 +149,15 @@ class KeyboardThemeTests {
         }
     }
 
+    @Test fun revealsHostAppOnlyWithoutOpaqueBackdrop() {
+        // #137: 0% không lộ gì; có ảnh nền (đục) ⇒ độ trong suốt chỉ đụng phím, giống nhau mọi app.
+        assertFalse(KeyboardTransparency.revealsHostApp(0, opaqueBackdrop = false))
+        assertFalse(KeyboardTransparency.revealsHostApp(-10, opaqueBackdrop = false))
+        assertTrue(KeyboardTransparency.revealsHostApp(5, opaqueBackdrop = false))
+        assertTrue(KeyboardTransparency.revealsHostApp(250, opaqueBackdrop = false))
+        assertFalse(KeyboardTransparency.revealsHostApp(100, opaqueBackdrop = true))
+    }
+
     @Test fun transparencyMapping() {
         assertEquals(1f, KeyboardTransparency.alpha(0))
         assertEquals(0.6f, KeyboardTransparency.alpha(40), 1e-6f)

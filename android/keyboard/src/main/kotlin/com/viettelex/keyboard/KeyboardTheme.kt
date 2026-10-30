@@ -170,6 +170,15 @@ object KeyboardTransparency {
      */
     fun systemBackdrop(dark: Boolean) = if (dark) ThemeColor.rgb(0x121212) else ThemeColor.rgb(0xFFFFFF)
 
+    /**
+     * Nền bàn phím có lộ cửa sổ app phía sau không (#137) — tức kết quả TUỲ APP: chỉ app vẽ nội dung dưới
+     * bàn phím (trình duyệt, app adjustPan / edge-to-edge) mới thấy nội dung xuyên qua; phần lớn app co
+     * lại (adjustResize) nên phía sau chỉ là nền trơn của app (trắng/đen) ⇒ bàn phím chỉ nhạt đi.
+     * Ảnh nền (ảnh tự đặt hoặc ảnh nền theme) luôn đục ⇒ [keyboard] chỉ đụng phím, giống nhau ở mọi app.
+     * Cài đặt dùng để hiện lời giải thích đúng lúc.
+     */
+    fun revealsHostApp(keyboard: Int, opaqueBackdrop: Boolean): Boolean = clamp(keyboard) > 0 && !opaqueBackdrop
+
     /** Giữ [ink] nếu còn đọc được trên [bg]; không thì đen/trắng (cái tương phản hơn). */
     fun readable(ink: Int, bg: Int): Int {
         val c = ThemeColor
