@@ -51,6 +51,21 @@ class InitialsSuffixTest {
         }
     }
 
+    /** Code identifiers: an acronym run (codeAcronyms) is not initials — "MaxID" was "MãID". */
+    @Test fun codeAcronymRunIsNotInitials() {
+        val same = listOf(
+            "MaxID", "ResID", "PosID", "RowID", "TaxID", "BoxID", "LasID",
+            "MaxIDS", "TaxURL", "PosAPI", "BoxUI", "RowJSON", "ResAPI", "MaxCSV",
+            "hasID", "userID", "getURL", "HasID", "SetID", "DocID", "GetURL", "OrderID", "DataDB",
+        )
+        for (cfg in configs) {
+            for (w in same) assertEquals(w, w, type(w, cfg).second)
+            assertEquals("HùngVM", type("HungfVM", cfg).second)
+            assertEquals("TuấnPX", type("TuaansPX", cfg).second)
+            assertEquals("HùngDB", type("HungfDB", cfg).second)
+        }
+    }
+
     @Test fun backspaceAcrossTheSplit() {
         for (cfg in configs) {
             val e = engineWith(cfg)

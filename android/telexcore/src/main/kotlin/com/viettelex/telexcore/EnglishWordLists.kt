@@ -92,6 +92,8 @@ internal object EnglishContextWords {
     val contractionTails = WordSet(parseWords(CONTRACTION_TAILS))
     /** Run keepers (box→bõ, car→cả): stay Vietnamese but do not end an English run. */
     val runKeepers = WordSet(parseWords(RUN_KEEPERS))
+    /** Code acronyms (MaxID, TaxURL): an uppercase run that is NOT a name's initials. */
+    val codeAcronyms = WordSet(parseWords(CODE_ACRONYMS))
     /** Predecessor gates: gateWords[i] restores in a run only right after gatePredecessors[i]. */
     val gateWords: Array<String> = arrayOf("been")
     val gatePredecessors: Array<WordSet> = arrayOf(
@@ -156,6 +158,10 @@ arms arts axis bar bars bee beef bees boom bow box burns burst bus car cars char
 chef cheers corps cow cows dawn gas keen lawn lee max mix moon nor own par parts per queen
 rams rats reef refer refers reset rest roof room roots row rows rust sets sex sir six sofa
 sorts suns surf tar tax tee teen terms texts town tree trust var verse virus war wars
+"""
+    private const val CODE_ACRONYMS = """
+id ids url uri api ui ux ok ip io os fk sql json xml html css js pdf csv uuid guid dto dao
+gb en vi us uk ai qr nft faq
 """
     private const val NEUTRAL = """
 app apps email mail wifi web blog file files link links game games chat team teams fan

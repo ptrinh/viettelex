@@ -99,6 +99,23 @@ final class InitialsSuffixTests: XCTestCase {
         }
     }
 
+    /// Code identifiers: a head whose tone/mark key forms an English word (max, res, pos,
+    /// row, tax, box, las) + a code acronym is NOT a name with initials — "MaxID" used to
+    /// split into "MãID". The acronym run (EnglishContextWords.codeAcronyms) blocks it.
+    func testCodeAcronymRunIsNotInitials() {
+        let same = ["MaxID", "ResID", "PosID", "RowID", "TaxID", "BoxID", "LasID",
+                    "MaxIDS", "TaxURL", "PosAPI", "BoxUI", "RowJSON", "ResAPI", "MaxCSV",
+                    "hasID", "userID", "getURL",
+                    "HasID", "SetID", "DocID", "GetURL", "OrderID", "DataDB"]
+        for c in Cfg.allCases {
+            for w in same { XCTAssertEqual(type(w, c).commit, w, "\(w) [\(c)]") }
+            // Runs left OUT of the list because they read as real initials still split.
+            XCTAssertEqual(type("HungfVM", c).commit, "HùngVM", "\(c)")
+            XCTAssertEqual(type("TuaansPX", c).commit, "TuấnPX", "\(c)")
+            XCTAssertEqual(type("HungfDB", c).commit, "HùngDB", "\(c)")
+        }
+    }
+
     /// ⌫ must land on exactly what forward typing of the shorter word shows.
     func testBackspaceAcrossTheSplit() {
         for c in Cfg.allCases {

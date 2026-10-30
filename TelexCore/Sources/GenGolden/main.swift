@@ -461,6 +461,16 @@ for w in ["NAS", "OS", "AWS", "TOAS", "SAS", "RAS", "IFS", "BOOT", "AS", "AA", "
     }
 }
 
+// Initials guard (issue #138 follow-up, 30/10/2026): a code-acronym run is not initials
+// ("MaxID" was "MãID"); runs that read as real initials still split ("HungfVM").
+for w in ["MaxID", "ResID", "PosID", "RowID", "TaxID", "BoxID", "LasID", "MaxIDS", "TaxURL",
+          "PosAPI", "BoxUI", "RowJSON", "MaxCSV", "hasID", "userID", "getURL", "SetID", "DocID",
+          "GetURL", "OrderID", "DataDB", "HungfVM", "TuaansPX", "HungfDB"] {
+    for cfg in ["", "A", "AL", "ALE", "AFL", iosDefault, macEager] {
+        run(cfg, w + " "); run(cfg, w + "<" + " "); run(cfg, w + " ^"); run(cfg, w + "%")
+    }
+}
+
 // MARK: - Write (gzip)
 
 let body = lines.joined(separator: "\n") + "\n"

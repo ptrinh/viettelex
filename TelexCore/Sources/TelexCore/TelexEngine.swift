@@ -1942,7 +1942,8 @@ public struct TelexEngine {
     /// (VNI: or digits; Telex: the second D of a "DD" Đ) — and the word ENDS with a run
     /// of `initialsMin...initialsMax` uppercase letters right after a lowercase key.
     /// ALL-CAPS words ("VIEETJ", "HDDND"), lowercase-initial identifiers ("iOS",
-    /// "macOS") and anything ending lowercase ("JavaScript", "McDonald") never match.
+    /// "macOS") and anything ending lowercase ("JavaScript", "McDonald") never match,
+    /// nor does a run that is a code acronym ("MaxID", "PosURL": `runIsCodeAcronym`).
     /// O(1) exit on the common case (first key lowercase, or last key lowercase).
     private func initialsSplitPoint() -> Int {
         guard rawCount >= 1 + Self.initialsMin, isUpperAscii(raw[0]),
@@ -1959,7 +1960,17 @@ public struct TelexEngine {
             if !vniMode, i == 1, c == UInt8(ascii: "D"), raw[0] == UInt8(ascii: "D") { continue }
             return -1
         }
-        return hasLower ? s : -1
+        guard hasLower, !runIsCodeAcronym(s) else { return -1 }
+        return s
+    }
+
+    /// raw[s..<rawCount] (uppercase, 2–4 keys) is a code acronym ("MaxID", "TaxURL"),
+    /// not a name's initials — EnglishContextWords.codeAcronyms. Shape-level: applies
+    /// whatever the English-restore settings. ≤4 letters: a small string, no heap.
+    private func runIsCodeAcronym(_ s: Int) -> Bool {
+        var v = String.UnicodeScalarView()
+        for i in s..<rawCount { v.append(Unicode.Scalar(lowercased(raw[i]))) }
+        return EnglishContextWords.codeAcronyms.contains(String(v))
     }
 
     /// Is raw[0..<s], typed ALONE, a Vietnamese syllable the boundary would keep?

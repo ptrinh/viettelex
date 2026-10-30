@@ -35,6 +35,7 @@ thì nâng sàn ngay trong test.
 | 2026-07-25 | 1.4.16-dev | 400/400 | 362/362 | 6.803/7.282 (93,4%) | 632/1.047 | fix free-marking bóp méo dù có cancel (`excess` → êcs) |
 | 2026-07-26 | 1.4.16-dev | 400/400 | 362/362 | 7.212/7.282 (99,0%) | 632/1.047 | luật hình dạng tone-cancel + refresh bảng collision (438 → 498 từ) |
 | 2026-07-26 | 1.4.16-dev | **400/400** | **362/362** | **7.201/7.282 (98,9%)** | **632/1.047** | **bỏ luật restore cho phím-đôi-kề-nhau (field report `tessted`), bù bằng từ điển sinh từ chính suite (498 → 757 từ)** |
+| 2026-10-30 | dev | 424/424 | 373/373 | 7.161/7.243 | 684/1.047 | issue #138 guard: chuỗi HOA là từ viết tắt code (`ID`, `URL`, `API`…) không tách viết tắt tên (`MaxID` hết thành MãID); +19 hàng (15 restore, 2 giữ nguyên, 2 VN: `HungfVM`/`TuaansPX` vẫn tách) |
 | 2026-10-30 | dev | 422/422 | 371/371 | 7.146/7.228 | 684/1.047 | viết tắt toàn chữ HOA đọc ra âm tiết hiếm (`NAS`, `AWS`) khôi phục; gõ sai một chữ của âm tiết Việt có dấu (`tieengsm` → tiếngm) giữ; từ dính sau `_` / `.`,`/` của từ mã và đơn vị sau số (`my_var`, `100W`) không bỏ dấu thanh; harness báo ký tự ranh giới cho engine (`noteBoundaryCharacter`) như controller thật; +22 hàng |
 | 2026-10-30 | dev | 410/410 | 371/371 | 7.136/7.218 | 626/1.047 | issue #138: tên + viết tắt in hoa dính liền (`PhuwowngTH` → PhươngTH); +21 hàng (10 VN, 9 giữ nguyên, 2 restore: `AsJSON`/`HasID`). Bucket `cancel_keep_composed` (66) tách ra từ 31/07 nên mẫu số restore_raw nhỏ hơn các dòng trên |
 

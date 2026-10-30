@@ -9135,3 +9135,22 @@ en_dev_brand,my_var,,my_vả,my_var,restore_raw,code_separator,high,never,30/10/
 en_dev_brand,self.bar,,self.bả,self.bar,restore_raw,code_separator,high,never,30/10/2026: tu dinh sau . cua tu ma
 en_dev_brand,100W,,100Ư,100W,restore_raw,unit_after_digit,high,never,30/10/2026: don vi sau so
 en_dev_brand,10kW,,10kư,10kW,restore_raw,unit_after_digit,high,never,30/10/2026: don vi sau so
+en_dev_brand,MaxID,,MãID,MaxID,restore_raw,mixed_case_identifier,high,never,issue #138 guard: ID la tu viet tat code -> khong tach viet tat ten
+en_dev_brand,ResID,,RéID,ResID,restore_raw,mixed_case_identifier,high,never,issue #138 guard: ID la tu viet tat code
+en_dev_brand,PosID,,PóID,PosID,restore_raw,mixed_case_identifier,high,never,issue #138 guard: ID la tu viet tat code
+en_dev_brand,RowID,,RơID,RowID,restore_raw,mixed_case_identifier,high,never,issue #138 guard: ID la tu viet tat code
+en_dev_brand,TaxID,,TãID,TaxID,restore_raw,mixed_case_identifier,high,never,issue #138 guard: ID la tu viet tat code
+en_dev_brand,BoxID,,BõID,BoxID,restore_raw,mixed_case_identifier,high,never,issue #138 guard: ID la tu viet tat code
+en_dev_brand,LasID,,LáID,LasID,restore_raw,mixed_case_identifier,high,never,issue #138 guard: ID la tu viet tat code
+en_dev_brand,TaxURL,,TãURL,TaxURL,restore_raw,mixed_case_identifier,high,never,issue #138 guard: URL la tu viet tat code
+en_dev_brand,PosAPI,,PóAPI,PosAPI,restore_raw,mixed_case_identifier,high,never,issue #138 guard: API la tu viet tat code
+en_dev_brand,hasID,,hasID,hasID,restore_raw,mixed_case_identifier,high,never,issue #138 guard: dau chu thuong khong bao gio tach
+en_dev_brand,userID,,userID,userID,restore_raw,mixed_case_identifier,high,never,issue #138 guard: dau chu thuong khong bao gio tach
+en_dev_brand,getURL,,getURL,getURL,restore_raw,mixed_case_identifier,high,never,issue #138 guard: dau chu thuong khong bao gio tach
+en_dev_brand,SetID,,SetID,SetID,restore_raw,mixed_case_identifier,high,never,issue #138 guard: dau la tu tieng Anh
+en_dev_brand,DocID,,DocID,DocID,keep_as_typed,mixed_case_identifier,high,never,issue #138 guard: dau khong bien doi
+en_dev_brand,GetURL,,GetURL,GetURL,restore_raw,mixed_case_identifier,high,never,issue #138 guard: dau la tu tieng Anh
+en_dev_brand,OrderID,,OrderID,OrderID,restore_raw,mixed_case_identifier,high,never,issue #138 guard: dau la tu tieng Anh
+en_dev_brand,DataDB,,DataDB,DataDB,keep_as_typed,mixed_case_identifier,high,never,issue #138 guard: dau khong bien doi
+vn_positive,HungfVM,,HùngVM,HùngVM,transform,vn_name_initials,high,never,issue #138: VM (Vo/Vu Minh) la viet tat ten, khong nam trong danh sach viet tat code
+vn_positive,TuaansPX,,TuấnPX,TuấnPX,transform,vn_name_initials,high,never,issue #138: PX (Pham/Phan Xuan) la viet tat ten
