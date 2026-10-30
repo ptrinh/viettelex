@@ -27,6 +27,19 @@ public enum TelexAction: Equatable {
     case none
 }
 
+/// A boundary that restored a word to its raw keys although its Vietnamese composition
+/// was a real syllable ("hí" → "his", "NÁ" → "NAS"). An immediate ⌫ may put `vietnamese`
+/// back in place of `restored` (both exactly as the screen shows / showed them; the
+/// boundary character the caller inserted follows `restored`). Like macOS autocorrect undo.
+public struct RestoreUndo: Equatable {
+    public let restored: String
+    public let vietnamese: String
+    public init(restored: String, vietnamese: String) {
+        self.restored = restored
+        self.vietnamese = vietnamese
+    }
+}
+
 /// One output letter before tone placement.
 private struct LetterUnit {
     var base: UInt8 = 0     // lowercase ascii
@@ -333,6 +346,29 @@ public struct TelexEngine {
     private var reopenCandidate = false
     private var reopenGateBits: UInt8 = 0
 
+    // MARK: Undo of a boundary restore-to-English (⌫ right after the commit)
+    //
+    // Set by the commit that restored a word to its raw keys while its Vietnamese
+    // composition was a real alternative (valid syllable): "his"→"hí" restored to "his",
+    // "NAS"→"NÁ" restored to "NAS". The caller takes it right after the commit
+    // (`takeRestoreUndo`) and arms its own ⌫-undo with it; any other engine call drops it.
+    private var restoreUndo: RestoreUndo?
+
+    // MARK: Glued separators (".", "/", "_", digits right before a word)
+    //
+    // Fed by `noteBoundaryCharacter` (callers report every boundary character they insert).
+    // `lastWordKind`: how the last committed word reads for a following "." / "/":
+    // 0 = unknown (no word yet / text changed), 1 = Vietnamese or capitalized (TP.Hồ,
+    // và/hoặc, anh/chị), 2 = anything else (code-like: os, file, user, src).
+    // `noteSinceWord`: a boundary character was already reported after that word, so the
+    // next one is not glued to it. `pendingGlue` is what the NEXT word starts glued to, and
+    // `wordGlue` the snapshot the current word took at its first key: 0 none, 1 separator,
+    // 2 digit. Cross-word state (survives resetWord), wiped by reset().
+    private var lastWordKind: UInt8 = 0
+    private var noteSinceWord = true
+    private var pendingGlue: UInt8 = 0
+    private var wordGlue: UInt8 = 0
+
     public init() {
         raw = [UInt8](repeating: 0, count: Self.capacity)
         reopenRaw = [UInt8](repeating: 0, count: Self.capacity)
@@ -448,6 +484,7 @@ public struct TelexEngine {
     /// Feed one typed character. Only ascii letters compose; other characters
     /// should be routed through `commitBoundary` by the caller.
     public mutating func feed(_ ch: Character) -> TelexAction {
+        if restoreUndo != nil { restoreUndo = nil }
         guard let ascii = ch.asciiValue,
               isLetter(ascii) || (vniMode && isDigit(ascii))
                 || (bracketVowels && Self.bracketVowel(ascii) != nil) else {
@@ -461,6 +498,8 @@ public struct TelexEngine {
         if rawCount == 0 {
             reopenRawCount = 0; reopenOutCount = 0
             if retroPending != nil { retroPending = nil }
+            wordGlue = pendingGlue
+            pendingGlue = 0
         }
 
         raw[rawCount] = ascii
@@ -629,6 +668,7 @@ public struct TelexEngine {
     /// backspace gives "kh", not "kho". Achieved by dropping every raw key that
     /// produced the last displayed letter (tracked via `rawLetter` provenance).
     public mutating func backspace() -> TelexAction {
+        if restoreUndo != nil { restoreUndo = nil }
         guard rawCount > 0 else {
             // The app deletes committed text: the retro history no longer matches the screen.
             if !retroHistory.isEmpty || retroPending != nil { retroClear() }
@@ -693,6 +733,7 @@ public struct TelexEngine {
     /// The caller inserts the boundary character itself afterwards.
     public mutating func commitBoundary(autoRestore: Bool) -> TelexAction {
         defer { resetWord() }
+        restoreUndo = nil
         guard rawCount > 0 else { reopenRawCount = 0; reopenOutCount = 0; return .none }
         // Overflowed: the 32-char view is stale vs. the screen, so `outCount`
         // backspaces would hit the wrong characters. No restore, no rewrite.
@@ -731,6 +772,7 @@ public struct TelexEngine {
         // The screen no longer shows `composed` (and no keystrokes re-compose "dạa"), so a
         // ⌫ on the boundary must not re-open it — same as a restored word.
         captureReopen(restored: wantsRestore || elongate)
+        noteCommittedWord(restored: wantsRestore)
         if retroactiveEnglish || !retroHistory.isEmpty { retroRecord(restored: wantsRestore, elongated: elongate) }
         updateContext(restored: wantsRestore)
         return action
@@ -822,6 +864,8 @@ public struct TelexEngine {
     public mutating func forgetLastCommit() {
         reopenRawCount = 0
         reopenOutCount = 0
+        restoreUndo = nil
+        clearGlue()
         if !retroHistory.isEmpty || retroPending != nil { retroClear() }   // text changed under us
     }
 
@@ -938,13 +982,22 @@ public struct TelexEngine {
         // Đuôi -k (ák/ták/rík: rime Tây Nguyên Đắk/Lắk + teencode ik) KHÔNG phải từ Việt
         // thường dùng ⇒ không được "thắng" bảng collision: "task"→ták, "ask"→ák, "risk"→rík
         // (issue #127, 19/10/2026).
+        // Glued to a code separator or a number (see `noteGlue`): "my_var" must not
+        // commit "my_vả", "100W" not "100Ư".
+        if wordGlue != 0, glueRestores() { return true }
         if rawIsEnglishCollision(),
            !(collisionPrefersVietnamese && composedIsValidSyllable() && !composedEndsWithK()) { return true }
         // `isTeencodeKeep()` runs AFTER the English table above on purpose: the dictionary
         // still wins ("google" restores), and only a word that no dictionary claims gets
         // kept as "valid syllable + repeated tail" ("hôngggg", "vângggg", "đẹpppp").
+        // A Vietnamese TYPO (one vowel group carrying a mark the user typed, no English
+        // reading: "lanwm" → "lănm") keeps what the screen shows, so the user sees and
+        // fixes the typo instead of getting raw keys back.
         if forceRestoreUpperTone || rawIsEnglishException()
-            || (!composedIsValidSyllable() && !isTeencodeKeep()) { return true }
+            || (!composedIsValidSyllable() && !isTeencodeKeep() && !isVietnameseTypoKeep()) { return true }
+        // ALL-CAPS acronym whose Telex reading is a RARE syllable: "NAS" → "NÁ", "OS" → "Ó"
+        // restore; "VIỆT", "ĐÀ NẴNG", "CÓ" (common) stay.
+        if isRareAllCapsAcronym() { return true }
         // Context-based (experimental): after an English word, an ambiguous word whose raw
         // keys spell an English word is restored to English ("he is" → "is", not "í").
         // Gated so vniMode/default typing pays nothing (the String build only runs when the
@@ -956,6 +1009,133 @@ public struct TelexEngine {
                || (collisionPrefersVietnamese && rawIsEnglishCollision()),
            predecessorGateAllows() { return true }
         return false
+    }
+
+    /// Glue rule (boundary-only, non-mutating):
+    ///  • separator-glued ("_", or "." / "/" right after a code-like word): a TONE-ONLY
+    ///    composition goes back to the raw keys ("my_var" not "my_vả", "self.bar" not
+    ///    "self.bả"). A composition carrying a letter mark (â ê ô ă ơ ư đ) stays — those
+    ///    keys were typed on purpose and code rarely spells them ("ok.ddi" → "ok.đi").
+    ///  • digit-glued: a standalone-w ư (no u typed) is a unit, not Vietnamese ("100W",
+    ///    "10kW", "5w"). Everything else composes ("5trăm", "2tiếng", "100đ"); a lone
+    ///    tone letter has nothing to transform ("5s").
+    private func glueRestores() -> Bool {
+        guard !vniMode, pCount > 0, compositionHasDiacritic() else { return false }
+        if wordGlue == 1 {
+            for k in 0..<pCount where renderLetters[k].mark != .none { return false }
+            return true
+        }
+        for k in 0..<pCount where renderLetters[k].base == UInt8(ascii: "u")
+            && renderLetters[k].mark == .horn && letterCreatedByW(k) { return true }
+        return false
+    }
+
+    /// Vietnamese typo keep (boundary-only, non-mutating): the composition is not a valid
+    /// syllable, but it is ONE slip away from one that carries a Vietnamese-only letter the
+    /// user produced (â ê ô ă ơ ư đ): a valid marked syllable plus a single stray plain
+    /// consonant of the same case ("lanwm" → "lăn"+"m", "vieetk" → "viêt"+"k",
+    /// "tieengsm" → "tiếng"+"m"), and the raw keys have no English reading. Such a word is
+    /// Vietnamese with a typo — keep what the screen shows. Anything else (two vowel groups
+    /// "deepseek"/"teamwork", two stray letters "thơzz", a capital after lowercase
+    /// "PhươngT", a stray đ) still restores every raw key.
+    private func isVietnameseTypoKeep() -> Bool {
+        guard !vniMode, pCount >= 3, rawCount >= 3 else { return false }
+        let last = renderLetters[pCount - 1]
+        let prev = renderLetters[pCount - 2]
+        guard last.mark == .none, !isVowelAscii(last.base), last.upper == prev.upper else { return false }
+        // ONE vowel group in the KEYS typed, not just on screen: free marking can fold two
+        // groups into one ("casual" → "cấul", "tester" → "tếtr") — that is English.
+        var groups = 0
+        var inVowel = false
+        for i in 0..<rawCount {
+            let v = isVowelAscii(lowercased(raw[i]))
+            if v, !inVowel { groups += 1 }
+            inVowel = v
+        }
+        guard groups == 1 else { return false }
+        // The mark must be one the user built on a typed vowel (aa ee oo aw ow uw dd); a
+        // standalone-w ư is English-leaning ("wal" → "ưal", "wan").
+        var hasMark = false
+        for k in 0..<(pCount - 1) where renderLetters[k].mark != .none {
+            if renderLetters[k].mark == .horn, renderLetters[k].base == UInt8(ascii: "u"),
+               letterCreatedByW(k) { return false }
+            hasMark = true
+        }
+        // The head must be a REAL common syllable, not merely one the (permissive) validator
+        // accepts: "đă"+"k", "ghơ"+"b", "ưi"+"n" are not typos of anything.
+        guard hasMark, lettersAreCommonSyllable(pCount - 1) else { return false }
+        // A stray letter that still reads as a coda waiting for its tone ("kêp", "mêt",
+        // "rôt" — keep/meet/root) is English double-vowel spelling, not a slip.
+        if SyllableValidator.isValidPrefix(composed.lowercased(), teencode: teencode) { return false }
+        return !rawHasEnglishReading()
+    }
+
+    /// The raw keys spell, or begin like, a known English word: any dictionary the engine
+    /// carries, or a freeze prefix of the English lexicon ("seed…", "good…"). Boundary-only.
+    private func rawHasEnglishReading() -> Bool {
+        if rawIsEnglishContextWord(includingRestoreOnly: true) || rawIsNeutralLoanword() { return true }
+        if let w = rawLowerWord(), EnglishCollisions.words.contains(w) { return true }
+        let top = min(rawCount, EnglishFreezePrefixes.maxLength)
+        guard top >= EnglishFreezePrefixes.minLength else { return false }
+        for n in EnglishFreezePrefixes.minLength...top
+        where raw.withUnsafeBufferPointer({ EnglishFreezePrefixes.contains($0, count: n) }) { return true }
+        return false
+    }
+
+    /// ALL-CAPS token with two or more capitals (a DD→Đ pair counts as one) whose Telex
+    /// reading is a valid but RARE syllable: an acronym ("NAS"→NÁ, "OS"→Ó, "AWS"→Ắ).
+    /// Common syllables (`CommonSyllables`) stay Vietnamese ("VIỆT", "CÓ", "ĐÀ NẴNG");
+    /// vowel-less initialisms are the đ-abbreviation's business ("HĐND", "VNĐ").
+    /// Boundary-only, non-mutating, allocation-free.
+    private func isRareAllCapsAcronym() -> Bool {
+        guard !vniMode, rawIsAllCapsToken() else { return false }
+        var hasVowel = false
+        for k in 0..<pCount where isVowelAscii(renderLetters[k].base) { hasVowel = true; break }
+        guard hasVowel, compositionHasDiacritic(), composedIsValidSyllable() else { return false }
+        // An acronym's tone letter is its LAST letter ("NAS", "AWS"); a tone key typed
+        // mid-word is Vietnamese spelling ("DAJA" → "DẠA", "DDAFN"), not an acronym.
+        if lastEffTone != .none, !isToneKey(rawCount - 1) { return false }
+        return !composedIsCommonSyllable()
+    }
+
+    /// Every raw key is an uppercase letter and the token has at least two capitals:
+    /// letters on screen plus a tone key ("OS" → Ó = 2, "NAS" = 3). A mark doubler is part
+    /// of its letter (DD→Đ, AA→Â count once), so "AA"→Â / "DD"→Đ are single letters, not
+    /// acronyms. Boundary-only.
+    private func rawIsAllCapsToken() -> Bool {
+        guard rawCount >= 2 else { return false }
+        for i in 0..<rawCount where !isUpperAscii(raw[i]) { return false }
+        return pCount + (lastEffTone == .none ? 0 : 1) >= 2
+    }
+
+    /// True when the composition (letters + tone) is in `CommonSyllables`. The key is the
+    /// Telex spelling with the tone last, so old/new tone placement read the same.
+    private func composedIsCommonSyllable() -> Bool { lettersAreCommonSyllable(pCount) }
+
+    /// `renderLetters[0..<count]` + the word's effective tone is a common syllable.
+    private func lettersAreCommonSyllable(_ count: Int) -> Bool {
+        withUnsafeTemporaryAllocation(of: UInt8.self, capacity: 2 * Self.capacity + 1) { buf in
+            var n = 0
+            for k in 0..<count {
+                let l = renderLetters[k]
+                buf[n] = l.base; n += 1
+                switch l.mark {
+                case .none: break
+                case .circumflex: buf[n] = l.base; n += 1
+                case .breve, .horn: buf[n] = UInt8(ascii: "w"); n += 1
+                case .bar: buf[n] = UInt8(ascii: "d"); n += 1
+                }
+            }
+            switch lastEffTone {
+            case .none: break
+            case .acute: buf[n] = UInt8(ascii: "s"); n += 1
+            case .grave: buf[n] = UInt8(ascii: "f"); n += 1
+            case .hook: buf[n] = UInt8(ascii: "r"); n += 1
+            case .tilde: buf[n] = UInt8(ascii: "x"); n += 1
+            case .dot: buf[n] = UInt8(ascii: "j"); n += 1
+            }
+            return CommonSyllables.contains(buf, count: n)
+        }
     }
 
     /// `EnglishContextWords.predecessorGates`: true unless the raw word is gated and the
@@ -1077,6 +1257,10 @@ public struct TelexEngine {
         // and was classified above, so the structural English fallback below only
         // ever caught abbreviations here. Neutral: preserve context, never open a run.
         if rawCount <= 2 { return .neutral }
+        // An unknown ALL-CAPS token is an acronym ("ASL", "NAS" restored): neither English
+        // nor Vietnamese — it must not open an English run (and so never flips the word
+        // before it: "bên ASL" keeps "bên").
+        if rawIsAllCapsToken() { return .neutral }
         // Everything left is a word NO Vietnamese syllable can be — untouched
         // ("github") or restored-to-raw ("position", whose restore is a textual
         // no-op) — and that structure is as strong an English-run signal as a
@@ -1175,6 +1359,7 @@ public struct TelexEngine {
     /// starts a new one. A pending correction is extended to cover `ch`, so it stays
     /// relative to the caret. No-op while the feature is inactive.
     public mutating func noteBoundaryCharacter(_ ch: Character) {
+        noteGlue(ch)
         guard retroactiveEnglish || !retroHistory.isEmpty || retroPending != nil else { return }
         // One BMP scalar only: the edit counts characters as UTF-16 units on every platform.
         guard retroactiveEnglishActive, rawCount == 0, ch.unicodeScalars.count == 1,
@@ -1191,6 +1376,73 @@ public struct TelexEngine {
             retroPendingPicks.removeAll()
             retroGap = 0
         }
+    }
+
+    /// Glued-separator bookkeeping for `noteBoundaryCharacter` (always on, a few byte
+    /// compares). What the NEXT word starts glued to:
+    ///  • "_" — always a code identifier ("my_var", "MAX_SIZE").
+    ///  • "." / "/" — only when it is the FIRST character right after a code-like word
+    ///    ("os.path", "user/repo", "self.var"); after Vietnamese or a capitalized word it
+    ///    is ordinary text ("và/hoặc", "anh/chị", "TP.Hồ", "Ừ...thôi").
+    ///  • a digit — the word is glued to a number ("100W", "4G", "5trăm").
+    /// Anything else (space, newline, other punctuation) ends the glue.
+    private mutating func noteGlue(_ ch: Character) {
+        let first = !noteSinceWord
+        noteSinceWord = true
+        guard let a = ch.asciiValue else { pendingGlue = 0; return }
+        switch a {
+        case UInt8(ascii: "_"):
+            pendingGlue = 1
+        case UInt8(ascii: "."), UInt8(ascii: "/"):
+            pendingGlue = first && lastWordKind == 2 ? 1 : 0
+        case UInt8(ascii: "0")...UInt8(ascii: "9"):
+            pendingGlue = 2
+        default:
+            pendingGlue = 0
+        }
+    }
+
+    private mutating func clearGlue() {
+        lastWordKind = 0
+        noteSinceWord = true
+        pendingGlue = 0
+    }
+
+    /// Commit bookkeeping shared by both commit paths (before resetWord): what the word
+    /// left on screen for the glue rule, and the ⌫-undo record when a REAL Vietnamese
+    /// alternative was restored to raw keys. Boundary-only.
+    private mutating func noteCommittedWord(restored: Bool) {
+        guard rawCount > 0 else { return }
+        let keptVietnamese = !restored && (compositionHasDiacritic() || composedIsValidSyllable())
+        lastWordKind = keptVietnamese || isUpperAscii(raw[0]) ? 1 : 2
+        noteSinceWord = false
+        pendingGlue = 0
+        // Not for a word glued to code/number ("self.bar", "100W"): a ⌫ there is editing.
+        if restored, wordGlue == 0, compositionDiffersFromRaw(), compositionHasDiacritic(),
+           composedIsValidSyllable() || isTeencodeKeep() {
+            restoreUndo = RestoreUndo(restored: rawKeystrokes, vietnamese: composed)
+        }
+    }
+
+    /// The ⌫-undo record of the commit that JUST happened (nil = it restored nothing a
+    /// Vietnamese reader would want back). Taking it consumes it. Valid only right after
+    /// `commitBoundary` / `commitText` (and `noteBoundaryCharacter`); any key, ⌫, reset or
+    /// the next commit drops it.
+    public mutating func takeRestoreUndo() -> RestoreUndo? {
+        let u = restoreUndo
+        restoreUndo = nil
+        return u
+    }
+
+    /// Non-consuming look at `takeRestoreUndo`.
+    public var pendingRestoreUndo: RestoreUndo? { restoreUndo }
+
+    /// The caller put the Vietnamese word back on screen (⌫ right after a restore): the
+    /// committed word is now Vietnamese. Drop the composition, re-open snapshot and retro
+    /// history (the text changed under them) and end any English run.
+    public mutating func restoreUndoApplied() {
+        reset()
+        clearEnglishContext()
     }
 
     /// The edit the LAST commit decided (nil = nothing to rewrite). Taking it means the
@@ -1286,6 +1538,7 @@ public struct TelexEngine {
     /// Used by the marked-text controller path.
     public mutating func commitText(autoRestore: Bool) -> String {
         defer { resetWord() }
+        restoreUndo = nil
         // Overflowed: never restore to `rawKeystrokes` (only the first 32 keys) —
         // return the composed prefix unchanged; the caller keeps the rest on screen.
         if overflowed {
@@ -1301,6 +1554,7 @@ public struct TelexEngine {
         let elongate = !wantsRestore && outCount > 0 && isToneThenATail()
         let text = wantsRestore ? rawKeystrokes : (elongate ? composedElongated() : composed)
         captureReopen(restored: wantsRestore || elongate)
+        noteCommittedWord(restored: wantsRestore)
         if retroactiveEnglish || !retroHistory.isEmpty { retroRecord(restored: wantsRestore, elongated: elongate) }
         updateContext(restored: wantsRestore)
         return text
@@ -1802,6 +2056,8 @@ public struct TelexEngine {
         resetWord()
         reopenRawCount = 0
         reopenOutCount = 0
+        restoreUndo = nil
+        clearGlue()
         if !retroHistory.isEmpty || retroPending != nil { retroClear() }   // caret moved / text unknown
     }
 
@@ -1817,6 +2073,7 @@ public struct TelexEngine {
         upperToneKey = false
         upperToneFrozen = false
         initialsSplitAt = -1
+        wordGlue = 0
         overflowed = false
         disabledAtCount = Int.max
         tonesFolded = false

@@ -14,11 +14,13 @@
 //   S simpleTelex, t teencode OFF, Q quickTelex, B bracketVowels, V vniMode,
 //   C contextualEnglish, e englishWordRestore OFF, P collisionPrefersVietnamese,
 //   E eagerEnglishRestore; "-" = none.
-// ops: each char is fed, except  ' ' '.' ','  boundary (commitBoundary + insert char),
+// ops: each char is fed, except  ' ' '.' ',' '_' '/'  boundary (commitBoundary + insert char,
+//   then noteBoundaryCharacter), '=' a DIGIT boundary (same, inserting '1'),
 //   '<' backspace, '^' reopenLastCommit, '#' reset, '!' resetContext,
 //   '%' commitText, '`X' toggle flag X mid-stream, and a leading '@' = seed(rest).
 // trace: one token per op joined by '|': P passthrough, N none, R<bs>,<insert>;
 //   boundary = <peek>=><action>; '^' = o:<word>|o~ (nil); '%' = c:<text>; toggle = t.
+//   A boundary / '%' whose commit left a restore-undo record appends ~<vietnamese>.
 import Foundation
 import TelexCore
 
@@ -123,14 +125,17 @@ var seen = Set<String>()
         while i < it.count {
             let c = it[i]
             switch c {
-            case " ", ".", ",":
+            case " ", ".", ",", "_", "/", "=":
+                let ins: Character = c == "=" ? "1" : c
                 let peek = e.peekCommitText(autoRestore: auto)
                 let a = e.commitBoundary(autoRestore: auto)
                 if case .replace(let bs, let ins) = a {
                     screen.removeLast(min(bs, screen.count)); screen.append(contentsOf: ins)
                 }
-                screen.append(c)
-                trace.append(peek + "=>" + tok(a))
+                screen.append(ins)
+                let undo = e.takeRestoreUndo().map { "~" + $0.vietnamese } ?? ""
+                e.noteBoundaryCharacter(ins)
+                trace.append(peek + "=>" + tok(a) + undo)
             case "<":
                 let a = e.backspace()
                 applyScreen(&screen, a, literal: nil)
@@ -144,7 +149,8 @@ var seen = Set<String>()
             case "!": e.resetContext(); trace.append("N")
             case "%":
                 let t = e.commitText(autoRestore: auto)
-                trace.append("c:" + t)
+                let undo = e.takeRestoreUndo().map { "~" + $0.vietnamese } ?? ""
+                trace.append("c:" + t + undo)
             case "`":
                 if i + 1 < it.count { toggle(&e, it[i + 1], &auto); i += 1 }
                 trace.append("t")
@@ -440,6 +446,20 @@ for w in ["PhuwowngTH", "KieenTV", "HungfNV", "LinhPTT", "KieenSV", "NguyeenXJ",
     }
 }
 for w in ["Phu7o7ngTH", "Hu2ngNV", "Tu1NV"] { for cfg in ["AV", "AVL"] { run(cfg, w + " "); run(cfg, w + "< ") } }
+
+// Acronyms, Vietnamese typos, glued separators/digits, restore-undo (30/10/2026).
+for w in ["NAS", "OS", "AWS", "TOAS", "SAS", "RAS", "IFS", "BOOT", "AS", "AA", "DDA", "DDAS", "COS", "VIEEJT",
+          "DDAF NAWXNG", "HDDND", "VNDD", "DAJA", "NHOOM", "GUWNFG", "NGUOWIF", "QUYEETS", "Nas", "nas",
+          "lanwm", "tieengsm", "vieetk", "keep", "deep", "casual", "tester", "wal", "thuowngf", "hoongfx",
+          "bene ASL", "his NAS", "cas ASL USB", "he is", "his", "car", "the list", "AWS is",
+          "my_var", "os.path", "self.bar", "ok.ddi", "haha.thooi", "Uwf...thooi", "TP.Hoof", "vaf/hoawcj",
+          "anh/chij", "user/repo", "kms/h", "a/bas", "/bas", "_vaf", "x_y_bas",
+          "100W", "1w", "10kW", "4G", "5s", "5trawm", "2tieengs", "100dd", "5tuw", "1 W"] {
+    let ops = String(w.map { $0.isNumber ? "=" : $0 })     // a digit = digit boundary op
+    for cfg in ["", "A", "AL", "AFL", "ALC", "AFLCPtE", iosDefault, "AV"] {
+        run(cfg, ops + " "); run(cfg, ops + "%"); run(cfg, ops + " <"); run(cfg, ops + " a ")
+    }
+}
 
 // MARK: - Write (gzip)
 

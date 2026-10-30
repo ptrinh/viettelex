@@ -35,6 +35,7 @@ thì nâng sàn ngay trong test.
 | 2026-07-25 | 1.4.16-dev | 400/400 | 362/362 | 6.803/7.282 (93,4%) | 632/1.047 | fix free-marking bóp méo dù có cancel (`excess` → êcs) |
 | 2026-07-26 | 1.4.16-dev | 400/400 | 362/362 | 7.212/7.282 (99,0%) | 632/1.047 | luật hình dạng tone-cancel + refresh bảng collision (438 → 498 từ) |
 | 2026-07-26 | 1.4.16-dev | **400/400** | **362/362** | **7.201/7.282 (98,9%)** | **632/1.047** | **bỏ luật restore cho phím-đôi-kề-nhau (field report `tessted`), bù bằng từ điển sinh từ chính suite (498 → 757 từ)** |
+| 2026-10-30 | dev | 422/422 | 371/371 | 7.146/7.228 | 684/1.047 | viết tắt toàn chữ HOA đọc ra âm tiết hiếm (`NAS`, `AWS`) khôi phục; gõ sai một chữ của âm tiết Việt có dấu (`tieengsm` → tiếngm) giữ; từ dính sau `_` / `.`,`/` của từ mã và đơn vị sau số (`my_var`, `100W`) không bỏ dấu thanh; harness báo ký tự ranh giới cho engine (`noteBoundaryCharacter`) như controller thật; +22 hàng |
 | 2026-10-30 | dev | 410/410 | 371/371 | 7.136/7.218 | 626/1.047 | issue #138: tên + viết tắt in hoa dính liền (`PhuwowngTH` → PhươngTH); +21 hàng (10 VN, 9 giữ nguyên, 2 restore: `AsJSON`/`HasID`). Bucket `cancel_keep_composed` (66) tách ra từ 31/07 nên mẫu số restore_raw nhỏ hơn các dòng trên |
 
 Latency không đổi qua đợt 2026-07-26 (release build, cùng máy): **0,138 µs/phím**
@@ -220,6 +221,9 @@ và thêm một dòng vào bảng dưới.
 | 2026-10-30 | `default` | 5,72 / 5,60 | 1,14 / 1,07 | 8,73 / 8,85 | 3,43 / 3,02 | 0,92 / 0,85 |
 | 2026-10-30 | `retro` (tự sửa từ phía trước BẬT) | **3,76 / 3,37** | 1,14 / 1,07 | **5,52 / 5,00** | **2,20 / 1,69** | 0,93 / 0,85 |
 | 2026-10-30 | `no-context` | 8,80 / 8,32 | 1,13 / 1,07 | 13,71 / 13,65 | 5,50 / 4,44 | 0,92 / 0,85 |
+| 2026-10-30 (viết tắt HOA, gõ sai một chữ, từ dính "_"/"."/số) | `default` | 5,72 / 5,57 | 1,14 / 1,07 | 8,73 / 8,72 | 3,43 / 2,97 | 0,92 / 0,85 |
+| 2026-10-30 (như trên) | `retro` | 3,76 / 3,35 | 1,14 / 1,07 | 5,52 / 4,87 | 2,20 / 1,63 | 0,93 / 0,85 |
+| 2026-10-30 (như trên) | `no-context` | 8,80 / 8,29 | 1,13 / 1,07 | 13,71 / 13,52 | 5,50 / 4,39 | 0,92 / 0,85 |
 
 Theo nhóm (val, `default` → `retro`): `vi` 0 / 0 (3.385 từ Việt, kể cả lỗi gõ + ⌫, không từ nào sai);
 `en` 4,33 → 1,86; `mix` 1,74 → 0,99; `tech` 1,41 → 1,41; `collide` 21,31 → 12,78; `teen` 5,50 → 5,50.

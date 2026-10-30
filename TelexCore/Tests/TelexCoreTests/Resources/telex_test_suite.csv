@@ -9113,3 +9113,25 @@ en_dev_brand,MySQL,,MySQL,MySQL,keep_as_typed,mixed_case_identifier,high,never,i
 en_dev_brand,NodeJS,,NodeJS,NodeJS,keep_as_typed,mixed_case_identifier,high,never,issue #138 guard
 en_dev_brand,AsJSON,,AsJSON,AsJSON,restore_raw,mixed_case_identifier,high,never,issue #138 guard: dau la tu tieng Anh -> khong tach viet tat
 en_dev_brand,HasID,,HasID,HasID,restore_raw,mixed_case_identifier,high,never,issue #138 guard: dau la tu tieng Anh -> khong tach viet tat
+en_dev_brand,NAS,,NÁ,NAS,restore_raw,acronym_all_caps,high,never,30/10/2026: viet tat toan chu HOA doc ra am tiet hiem -> khoi phuc
+en_dev_brand,AWS,,Ắ,AWS,restore_raw,acronym_all_caps,high,never,30/10/2026: viet tat toan chu HOA
+en_dev_brand,OS,,Ó,OS,restore_raw,acronym_all_caps,high,never,30/10/2026: viet tat toan chu HOA
+en_dev_brand,SAS,,SÁ,SAS,restore_raw,acronym_all_caps,high,never,30/10/2026: viet tat toan chu HOA
+en_dev_brand,RAS,,RÁ,RAS,restore_raw,acronym_all_caps,high,never,30/10/2026: viet tat toan chu HOA
+en_dev_brand,TOAS,,TÓA,TOAS,restore_raw,acronym_all_caps,high,never,30/10/2026: viet tat toan chu HOA
+vn_positive,DDAF,,ĐÀ,ĐÀ,transform,vn_all_caps,high,never,30/10/2026 guard: am tiet HOA thuong gap giu tieng Viet
+vn_positive,NAWXNG,,NẴNG,NẴNG,transform,vn_all_caps,high,never,30/10/2026 guard
+vn_positive,CHUWS,,CHỨ,CHỨ,transform,vn_all_caps,high,never,30/10/2026 guard
+vn_positive,QUYEETS,,QUYẾT,QUYẾT,transform,vn_all_caps,high,never,30/10/2026 guard
+vn_positive,NHOOM,,NHÔM,NHÔM,transform,vn_all_caps,high,never,30/10/2026 guard: am tiet dai it gap van giu
+vn_positive,GUWNFG,,GỪNG,GỪNG,transform,vn_all_caps,high,never,30/10/2026 guard
+vn_positive,COS,,CÓ,CÓ,transform,vn_all_caps,high,never,30/10/2026 guard
+vn_positive,AA,,Â,Â,transform,vn_all_caps,high,never,30/10/2026 guard: AA la mot chu
+vn_positive,tieengsm,,tiếngm,tiếngm,transform,vn_typo_keep,high,never,30/10/2026: go sai mot chu cuoi giu tieng Viet
+vn_positive,5trawm,,5trăm,5trăm,transform,vn_digit_glued,high,never,30/10/2026: so dinh lien chu
+vn_positive,vaf/hoawcj,,và/hoặc,và/hoặc,transform,vn_separator,high,never,30/10/2026 guard: / sau tu Viet
+vn_positive,anh/chij,,anh/chị,anh/chị,transform,vn_separator,high,never,30/10/2026 guard
+en_dev_brand,my_var,,my_vả,my_var,restore_raw,code_separator,high,never,30/10/2026: tu dinh sau _ khong bo dau thanh
+en_dev_brand,self.bar,,self.bả,self.bar,restore_raw,code_separator,high,never,30/10/2026: tu dinh sau . cua tu ma
+en_dev_brand,100W,,100Ư,100W,restore_raw,unit_after_digit,high,never,30/10/2026: don vi sau so
+en_dev_brand,10kW,,10kư,10kW,restore_raw,unit_after_digit,high,never,30/10/2026: don vi sau so

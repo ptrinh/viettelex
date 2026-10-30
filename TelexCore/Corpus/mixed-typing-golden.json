@@ -25,17 +25,17 @@
         },
         "overall" : {
           "ideal_wrong" : 0.855,
-          "lazy_en_wrong" : 8.849,
+          "lazy_en_wrong" : 8.722,
           "lazy_vi_wrong" : 1.067,
-          "lazy_wrong" : 5.601,
-          "toggles_per_100" : 3.022
+          "lazy_wrong" : 5.574,
+          "toggles_per_100" : 2.968
         },
         "tech" : {
           "ideal_wrong" : 0,
-          "lazy_en_wrong" : 4.43,
+          "lazy_en_wrong" : 3.797,
           "lazy_vi_wrong" : 0,
-          "lazy_wrong" : 1.136,
-          "toggles_per_100" : 1.948
+          "lazy_wrong" : 0.974,
+          "toggles_per_100" : 1.623
         },
         "teen" : {
           "ideal_wrong" : 5.128,
@@ -125,17 +125,17 @@
         },
         "overall" : {
           "ideal_wrong" : 0.855,
-          "lazy_en_wrong" : 13.646,
+          "lazy_en_wrong" : 13.519,
           "lazy_vi_wrong" : 1.067,
-          "lazy_wrong" : 8.32,
-          "toggles_per_100" : 4.441
+          "lazy_wrong" : 8.293,
+          "toggles_per_100" : 4.387
         },
         "tech" : {
           "ideal_wrong" : 0,
-          "lazy_en_wrong" : 4.43,
+          "lazy_en_wrong" : 3.797,
           "lazy_vi_wrong" : 0,
-          "lazy_wrong" : 1.136,
-          "toggles_per_100" : 1.948
+          "lazy_wrong" : 0.974,
+          "toggles_per_100" : 1.623
         },
         "teen" : {
           "ideal_wrong" : 5.128,
@@ -225,17 +225,17 @@
         },
         "overall" : {
           "ideal_wrong" : 0.855,
-          "lazy_en_wrong" : 4.995,
+          "lazy_en_wrong" : 4.869,
           "lazy_vi_wrong" : 1.067,
-          "lazy_wrong" : 3.372,
-          "toggles_per_100" : 1.686
+          "lazy_wrong" : 3.345,
+          "toggles_per_100" : 1.632
         },
         "tech" : {
           "ideal_wrong" : 0,
-          "lazy_en_wrong" : 4.43,
+          "lazy_en_wrong" : 3.797,
           "lazy_vi_wrong" : 0,
-          "lazy_wrong" : 1.136,
-          "toggles_per_100" : 1.948
+          "lazy_wrong" : 0.974,
+          "toggles_per_100" : 1.623
         },
         "teen" : {
           "ideal_wrong" : 5.128,
