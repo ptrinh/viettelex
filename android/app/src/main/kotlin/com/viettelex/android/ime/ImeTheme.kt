@@ -49,19 +49,9 @@ class ImeTheme(ctx: Context, val settings: ThemeSettings = ThemeSettings(), wall
     val assets: LoadedThemeAssets? by lazy { assetPlan?.let { ThemeAssetLoader.load(it, assetDir, assetStamp) } }
 
     private val basePalette: ThemePalette = run {
-        // Theme tự tạo ("Giao diện JSON") hoặc có sẵn; Hệ thống = màu resource.
-        val base = settings.basePalette(systemDark) ?: ThemePalette(
-            bg = ContextCompat.getColor(ctx, R.color.ime_bg),
-            keyFill = ContextCompat.getColor(ctx, R.color.ime_key),
-            specialFill = ContextCompat.getColor(ctx, R.color.ime_key_special),
-            ink = ContextCompat.getColor(ctx, R.color.ime_ink),
-            trail = ContextCompat.getColor(ctx, R.color.ime_action),
-            balloon = ContextCompat.getColor(ctx, R.color.ime_balloon),
-            popup = ContextCompat.getColor(ctx, R.color.ime_popup),
-            action = ContextCompat.getColor(ctx, R.color.ime_action),
-            actionInk = ContextCompat.getColor(ctx, R.color.ime_action_ink),
-            chip = ContextCompat.getColor(ctx, R.color.ime_chip),
-            isDark = systemDark)
+        // Theme tự tạo ("Giao diện JSON") hoặc có sẵn; Hệ thống = màu resource (Material You) hoặc bảng tĩnh
+        // khi tắt "Dùng màu hình nền (Material You)" ([com.viettelex.keyboard.SystemColors]).
+        val base = settings.basePalette(systemDark, android.os.Build.VERSION.SDK_INT) ?: imeResourcePalette(ctx, systemDark)
         // Tuỳ chỉnh nâng cao (Plus): màu chữ / nền phím — trước ảnh nền và độ trong suốt.
         // Vá chế độ + màu chữ/phím + Màu nhấn (Nhập, ⇧ bật/Caps, vệt vuốt) — riêng theme đang dùng, giải MỘT lần ở đây.
         val styled = settings.styledCurrent(base, systemDark)
@@ -116,7 +106,7 @@ class ImeTheme(ctx: Context, val settings: ThemeSettings = ThemeSettings(), wall
     /** Viền phím (tương phản cao / kính) — null = không viền. */
     val keyBorder = palette.keyBorder
     /** Nhận diện theme để IME biết khi nào phải dựng lại input view. */
-    val signature = "${settings.effectiveTheme.id}|$systemDark|${palette.wallpaper}|${settings.dim}|${settings.version}" +
+    val signature = "${settings.effectiveTheme.id}|${settings.materialYou}|$systemDark|${palette.wallpaper}|${settings.dim}|${settings.version}" +
         "|${settings.keyboardTransparency}|${settings.labelTransparency}|$keyStyle|${settings.effectiveCustom?.canonical?.hashCode()}" +
         "|$assetStamp"
 
@@ -172,6 +162,23 @@ class ImeTheme(ctx: Context, val settings: ThemeSettings = ThemeSettings(), wall
         return -(fm.ascent + fm.descent) / 2f
     }
 }
+
+/**
+ * Màu Hệ thống từ resource ime_colors.xml (API 31+: Material You theo hình nền; máy cũ: bảng tĩnh). Dùng chung IME
+ * và bản xem trước trong app (cùng [ctx] cấu hình sáng/tối ⇒ [dark] khớp).
+ */
+fun imeResourcePalette(ctx: Context, dark: Boolean): ThemePalette = ThemePalette(
+    bg = ContextCompat.getColor(ctx, R.color.ime_bg),
+    keyFill = ContextCompat.getColor(ctx, R.color.ime_key),
+    specialFill = ContextCompat.getColor(ctx, R.color.ime_key_special),
+    ink = ContextCompat.getColor(ctx, R.color.ime_ink),
+    trail = ContextCompat.getColor(ctx, R.color.ime_action),
+    balloon = ContextCompat.getColor(ctx, R.color.ime_balloon),
+    popup = ContextCompat.getColor(ctx, R.color.ime_popup),
+    action = ContextCompat.getColor(ctx, R.color.ime_action),
+    actionInk = ContextCompat.getColor(ctx, R.color.ime_action_ink),
+    chip = ContextCompat.getColor(ctx, R.color.ime_chip),
+    isDark = dark)
 
 /**
  * Typeface nhãn phím theo Tuỳ chỉnh nâng cao — DÙNG CHUNG bàn phím ([ImeTheme.keyTypeface]) và ô xem trước trong app

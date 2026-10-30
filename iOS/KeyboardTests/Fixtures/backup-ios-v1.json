@@ -76,6 +76,7 @@
     "systemBackdropMint" : false,
     "systemBackdropMole" : false,
     "systemBackdropNeon" : false,
+    "systemBackdropNeutral" : false,
     "systemBackdropOled" : false,
     "systemBackdropPeach" : false,
     "systemBackdropPiano" : false,

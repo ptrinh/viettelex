@@ -81,7 +81,7 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
 
     SubPageHeader(tr("Bạn đồng hành"), onBack)
     if (!BuddyGate.allows) {
-        VTSection(footer = tr("Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus (Giới Thiệu → VietTelex Plus). Hệ thống, Tối OLED và Tương phản cao luôn miễn phí.")) {
+        VTSection(footer = tr("Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus (Giới Thiệu → VietTelex Plus). Hệ thống, Tối OLED, Tương phản cao và Xám trung tính luôn miễn phí.")) {
             VTRow(onClick = onOpenPlus) { Text("VietTelex Plus ›", color = c.accent) }
         }
     }

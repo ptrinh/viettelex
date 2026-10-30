@@ -199,7 +199,7 @@ final class MoleGameTests: XCTestCase {
         XCTAssertEqual(spec.game, "mole"); XCTAssertEqual(spec.sound, "bop"); XCTAssertNil(spec.effect)
         XCTAssertEqual(spec.nameEn, "Whack-a-mole")
         XCTAssertTrue(t.isPlus)
-        XCTAssertEqual(KeyboardTheme.allCases.last, .mole, "thêm CUỐI")
+        XCTAssertEqual(KeyboardTheme.allCases[KeyboardTheme.allCases.firstIndex(of: .neutral)! - 1], .mole, "thêm CUỐI (sau đó: Xám trung tính)")
         XCTAssertEqual(ThemeSettings(theme: .mole).effectiveKeyStyle.game, "mole")
         for o in KeyboardTheme.allCases where o != .mole {
             XCTAssertNil(ThemeSettings(theme: o).effectiveKeyStyle.game, o.rawValue)

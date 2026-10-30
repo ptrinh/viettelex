@@ -271,7 +271,10 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     // âm ghi-ta mộc + hiệu ứng rung dây) — id trùng iOS.
     GUITAR("guitar", "Ghi-ta", true), // l10n-key
     // Trò chơi khi gõ 10/2026: Đập chuột (bãi cỏ + phím hang đất; "game":"mole" — [MoleGame]). Id trùng iOS.
-    MOLE("mole", "Đập chuột", true); // l10n-key
+    MOLE("mole", "Đập chuột", true), // l10n-key
+    // Xám trung tính (issue #137, 30/10/2026): miễn phí, kiểu Gboard xám — cho người không thích tím Material You của
+    // Hệ thống. Theo sáng/tối hệ thống. Id trùng iOS; THÊM CUỐI (id lưu, không đổi thứ tự).
+    NEUTRAL("neutral", "Xám trung tính", false); // l10n-key
 
     /** Bo góc mặc định (% như [KeyStyle.corner]) khi người dùng chưa chỉnh — null = bo stock. iOS cùng giá trị. */
     val defaultCorner: Int? get() = spec?.corner
@@ -619,10 +622,34 @@ object ThemeExtras {
     const val HINT = "Giao diện này có âm thanh riêng — bật Âm thanh phím để nghe." // l10n-key
 }
 
+/**
+ * Màu Hệ thống (Android): Material You (values-v31 / values-night-v31, theo hình nền) hay bảng tĩnh xám + nhấn xanh
+ * (values/ + values-night/ ime_colors.xml — [static] y hệt, test khoá). Công tắc "Dùng màu hình nền (Material You)"
+ * chỉ có nghĩa từ Android 12 (API 31); máy cũ vốn đã dùng bảng tĩnh.
+ */
+object SystemColors {
+    const val DYNAMIC_MIN_SDK = 31
+
+    /** Máy có màu động (Material You) ⇒ mới hiện công tắc. */
+    fun dynamicAvailable(sdk: Int) = sdk >= DYNAMIC_MIN_SDK
+
+    /** true ⇒ IME đọc màu resource (Material You); false ⇒ dùng [static]. */
+    fun useDynamic(materialYou: Boolean, sdk: Int) = materialYou && dynamicAvailable(sdk)
+
+    /** Bảng tĩnh = values/ime_colors.xml (sáng) / values-night/ime_colors.xml (tối). */
+    fun static(dark: Boolean): ThemePalette = if (dark)
+        ThemePalette(bg = 0xFF1F1F1F.toInt(), keyFill = 0xFF3C3C3F.toInt(), specialFill = 0xFF2B2F36.toInt(),
+            ink = 0xFFE3E3E3.toInt(), trail = 0xFFA8C7FA.toInt(), balloon = 0xFF4A4A4E.toInt(), popup = 0xFF3C3C3F.toInt(),
+            action = 0xFFA8C7FA.toInt(), actionInk = 0xFF062E6F.toInt(), chip = 0xFF004A77.toInt(), isDark = true)
+    else ThemePalette(bg = 0xFFEEF0F4.toInt(), keyFill = 0xFFFFFFFF.toInt(), specialFill = 0xFFD6DBE3.toInt(),
+        ink = 0xFF1F1F1F.toInt(), trail = 0xFF0B57D0.toInt(), balloon = 0xFFFFFFFF.toInt(), popup = 0xFFFFFFFF.toInt(),
+        action = 0xFF0B57D0.toInt(), actionInk = 0xFFFFFFFF.toInt(), chip = 0xFFD3E3FD.toInt(), isDark = false)
+}
+
 /** Trang "Chọn giao diện" (logic thuần — test JVM; iOS: ThemePicker trong KeyboardTheme.swift). */
 object ThemePicker {
     data class Section(val title: String, val themes: List<KeyboardTheme>)
-    /** "Miễn phí" (Hệ thống, OLED, Tương phản cao) rồi "Plus" (còn lại), giữ thứ tự khai báo. */
+    /** "Miễn phí" (Hệ thống, OLED, Tương phản cao, Xám trung tính) rồi "Plus" (còn lại), giữ thứ tự khai báo. */
     val sections: List<Section> get() = listOf(
         Section("Miễn phí", KeyboardTheme.entries.filter { !it.isPlus }),
         Section("Plus", KeyboardTheme.entries.filter { it.isPlus }))
@@ -636,7 +663,7 @@ object ThemePicker {
 
 /**
  * Cổng Plus cho theme — dùng [PlusGate] thật: [PlusFeature.PREMIUM_THEMES] gồm theme
- * cao cấp + ảnh nền. Hệ thống/OLED/tương phản cao luôn miễn phí.
+ * cao cấp + ảnh nền. Hệ thống/OLED/tương phản cao/xám trung tính luôn miễn phí.
  */
 object ThemeGate {
     fun allows(t: KeyboardTheme) = !t.isPlus || PlusGate.isUnlocked(PlusFeature.PREMIUM_THEMES)
@@ -675,6 +702,11 @@ data class ThemeSettings(
      * phòng). IME chỉ đọc theme này ([CustomThemeStore.ACTIVE_KEY]), không đọc cả kho.
      */
     val custom: ThemeSpec? = null,
+    /**
+     * Hệ thống: "Dùng màu hình nền (Material You)" (Android 12+, mặc định bật = như cũ). Tắt ⇒ bảng tĩnh
+     * [SystemColors.static] (xám, nhấn xanh) thay màu theo hình nền ([basePalette] với sdk).
+     */
+    val materialYou: Boolean = true,
 ) {
     /** Id theme đang chọn (có sẵn hoặc tự tạo) — khoá của [keyStyles]. */
     val themeId: String get() = custom?.id ?: theme.id
@@ -727,6 +759,13 @@ data class ThemeSettings(
     /** Palette gốc thực dùng (theme tự tạo hoặc có sẵn); null = Hệ thống (màu resource — app/IME cấp). */
     fun basePalette(dark: Boolean): ThemePalette? = effectiveCustom?.palette(dark) ?: effectiveTheme.palette(dark)
 
+    /**
+     * Như [basePalette] nhưng giải luôn Hệ thống theo [materialYou] trên máy API [sdk]: null CHỈ khi Hệ thống dùng màu
+     * Material You (IME/app đọc resource v31); Hệ thống tắt Material You (hoặc máy < 12) ⇒ [SystemColors.static].
+     */
+    fun basePalette(dark: Boolean, sdk: Int): ThemePalette? = basePalette(dark)
+        ?: if (SystemColors.useDynamic(materialYou, sdk)) null else SystemColors.static(dark)
+
     /** Theme + tuỳ chỉnh RIÊNG của nó (vá chế độ → màu chữ/phím → màu nhấn), trước ảnh nền / độ trong suốt. */
     fun styled(t: KeyboardTheme, base: ThemePalette, dark: Boolean): ThemePalette = styled(effectiveStyleFor(t), base, dark)
     fun styledCustom(c: ThemeSpec, dark: Boolean): ThemePalette =
@@ -744,6 +783,7 @@ data class ThemeSettings(
     fun toMap(): Map<String, Any> = mapOf(Keys.KEYBOARD_THEME to themeId, Keys.WALLPAPER_ENABLED to wallpaper,
         Keys.WALLPAPER_DIM to dim, Keys.WALLPAPER_BLUR to blur, Keys.WALLPAPER_VERSION to version,
         Keys.KEYBOARD_TRANSPARENCY to keyboardTransparency, Keys.KEY_LABEL_TRANSPARENCY to labelTransparency,
+        Keys.SYSTEM_MATERIAL_YOU to materialYou,
         Keys.KEY_STYLES to KeyStyleStore.serialize(keyStyles),
         // IME chỉ đọc theme tự tạo đang chọn — bản chuẩn hoá ở khoá riêng ("" = không có).
         Keys.ACTIVE_THEME_SPEC to (custom?.canonical ?: "")) +
@@ -786,6 +826,7 @@ data class ThemeSettings(
                 keyboardTransparency = KeyboardTransparency.clamp((get(Keys.KEYBOARD_TRANSPARENCY) as? Number)?.toInt() ?: 0),
                 labelTransparency = KeyboardTransparency.clamp((get(Keys.KEY_LABEL_TRANSPARENCY) as? Number)?.toInt() ?: 0),
                 crop = WallpaperCrop.parse(get(Keys.WALLPAPER_CROP) as? String),
+                materialYou = get(Keys.SYSTEM_MATERIAL_YOU) as? Boolean ?: true,
             )
         }
 

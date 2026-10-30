@@ -35,7 +35,7 @@ class KeyboardThemeTests {
     @Test fun sameIdsAsIOS() {
         assertEquals(listOf("system", "oled", "contrast", "peach", "mint", "sky", "lavender", "glass",
             "blackHeart", "greenFloral", "sage", "neon", "pink", "tet", "tetMai", "xmas", "xmasSnow", "piano", "sen",
-            "typewriter", "rgb", "space", "trungthu", "valentine", "halloween", "guitar", "mole"),
+            "typewriter", "rgb", "space", "trungthu", "valentine", "halloween", "guitar", "mole", "neutral"),
             KeyboardTheme.entries.map { it.id })
     }
 
@@ -104,6 +104,7 @@ class KeyboardThemeTests {
         assertTrue(ThemeGate.allows(KeyboardTheme.SYSTEM))
         assertTrue(ThemeGate.allows(KeyboardTheme.OLED))
         assertTrue(ThemeGate.allows(KeyboardTheme.CONTRAST))
+        assertTrue(ThemeGate.allows(KeyboardTheme.NEUTRAL))
         assertFalse(ThemeGate.allows(KeyboardTheme.MINT))
         assertFalse(ThemeGate.allowsWallpaper)
         val s = ThemeSettings(theme = KeyboardTheme.GLASS, wallpaper = true)

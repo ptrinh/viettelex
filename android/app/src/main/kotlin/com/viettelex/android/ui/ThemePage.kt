@@ -64,6 +64,7 @@ import com.viettelex.keyboard.ThemeGate
 import com.viettelex.keyboard.ThemePicker
 import com.viettelex.keyboard.ThemePalette
 import com.viettelex.keyboard.ThemeSettings
+import com.viettelex.keyboard.SystemColors
 import com.viettelex.keyboard.WallpaperCrop
 import com.viettelex.keyboard.WallpaperMath
 import com.viettelex.keyboard.withTransparency
@@ -200,6 +201,7 @@ internal fun saveThemeSettings(ctx: Context, s: ThemeSettings) {
         s.crop?.let { putString(Keys.WALLPAPER_CROP, it.serialize()) } ?: remove(Keys.WALLPAPER_CROP)
         putInt(Keys.KEYBOARD_TRANSPARENCY, s.keyboardTransparency)
         putInt(Keys.KEY_LABEL_TRANSPARENCY, s.labelTransparency)
+        putBoolean(Keys.SYSTEM_MATERIAL_YOU, s.materialYou)
         // Tuỳ chỉnh nâng cao theo theme: một chuỗi JSON chuẩn; khoá chung cũ bỏ (đã chuyển vào chuỗi).
         putString(Keys.KEY_STYLES, KeyStyleStore.serialize(s.keyStyles))
         // IME chỉ đọc theme tự tạo đang chọn — bản chuẩn hoá ở khoá riêng.
@@ -220,14 +222,16 @@ fun ThemeRow(onOpen: () -> Unit) {
     }
 }
 
-/** Palette để xem trước trong app: SYSTEM mô phỏng màu sáng/tối mặc định. */
-internal fun previewPalette(t: KeyboardTheme, dark: Boolean): ThemePalette = t.palette(dark) ?: if (dark)
-    ThemePalette(bg = 0xFF1F1F1F.toInt(), keyFill = 0xFF3C3C3F.toInt(), specialFill = 0xFF2B2F36.toInt(),
-        ink = 0xFFE3E3E3.toInt(), trail = 0xFFA8C7FA.toInt(), balloon = 0xFF4A4A4E.toInt(), popup = 0xFF3C3C3F.toInt(),
-        action = 0xFFA8C7FA.toInt(), actionInk = 0xFF062E6F.toInt(), chip = 0xFF004A77.toInt(), isDark = true)
-else ThemePalette(bg = 0xFFEEF0F4.toInt(), keyFill = 0xFFFFFFFF.toInt(), specialFill = 0xFFD6DBE3.toInt(),
-    ink = 0xFF1F1F1F.toInt(), trail = 0xFF0B57D0.toInt(), balloon = 0xFFFFFFFF.toInt(), popup = 0xFFFFFFFF.toInt(),
-    action = 0xFF0B57D0.toInt(), actionInk = 0xFFFFFFFF.toInt(), chip = 0xFFD3E3FD.toInt(), isDark = false)
+/** Palette để xem trước trong app: SYSTEM = bảng tĩnh (values/ + values-night/, [SystemColors.static]). */
+internal fun previewPalette(t: KeyboardTheme, dark: Boolean): ThemePalette = t.palette(dark) ?: SystemColors.static(dark)
+
+/**
+ * Hệ thống như IME vẽ: Material You (resource v31, theo hình nền) khi bật và máy hỗ trợ, không thì bảng tĩnh —
+ * công tắc "Dùng màu hình nền (Material You)" đổi bản xem trước ngay.
+ */
+internal fun systemPreviewPalette(ctx: Context, s: ThemeSettings, dark: Boolean): ThemePalette =
+    if (SystemColors.useDynamic(s.materialYou, android.os.Build.VERSION.SDK_INT))
+        com.viettelex.android.ime.imeResourcePalette(ctx, dark) else SystemColors.static(dark)
 
 @Composable
 fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
@@ -277,7 +281,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
 
     editor?.let { input ->
         WallpaperEditorDialog(input.image, input.crop, remember(input) { KeyboardFrame.portrait(ctx) },
-            palette = s.styledCurrent(s.basePalette(dark) ?: previewPalette(KeyboardTheme.SYSTEM, dark), dark).overWallpaper()
+            palette = s.styledCurrent(s.basePalette(dark) ?: systemPreviewPalette(ctx, s, dark), dark).overWallpaper()
                 .withTransparency(s.keyboardTransparency, s.labelTransparency, dark),
             initialDim = s.dim, initialBlur = s.blur,
             onCancel = { editor = null },
@@ -300,13 +304,13 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     }
 
     if (pickingEffect) {
-        KeyEffectPage(s.styledCurrent(s.basePalette(dark) ?: previewPalette(KeyboardTheme.SYSTEM, dark), dark),
+        KeyEffectPage(s.styledCurrent(s.basePalette(dark) ?: systemPreviewPalette(ctx, s, dark), dark),
             onOpenPlus = onOpenPlus, onBack = { pickingEffect = false })
         return
     }
 
     if (pickingBuddy) {
-        BuddyPage(s.styledCurrent(s.basePalette(dark) ?: previewPalette(KeyboardTheme.SYSTEM, dark), dark), s.effectiveTheme.id,
+        BuddyPage(s.styledCurrent(s.basePalette(dark) ?: systemPreviewPalette(ctx, s, dark), dark), s.effectiveTheme.id,
             onOpenPlus = onOpenPlus, onBack = { pickingBuddy = false })
         return
     }
@@ -314,7 +318,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     SubPageHeader(FeaturePage.GiaoDien.title, onBack)
 
     val active = s.wallpaperActive(wall != null)
-    val pal = s.styledCurrent(s.basePalette(dark) ?: previewPalette(KeyboardTheme.SYSTEM, dark), dark)
+    val pal = s.styledCurrent(s.basePalette(dark) ?: systemPreviewPalette(ctx, s, dark), dark)
         .let { if (active) it.overWallpaper() else it }
         .withTransparency(s.keyboardTransparency, s.labelTransparency, dark)
     val raise by rememberIntPref(Keys.KEYBOARD_RAISE, Prefs.D.keyboardRaise)
@@ -327,19 +331,29 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     }
 
     if (!ThemeGate.allowsWallpaper) {
-        VTSection(footer = tr("Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus (Giới Thiệu → VietTelex Plus). Hệ thống, Tối OLED và Tương phản cao luôn miễn phí.")) {}
+        VTSection(footer = tr("Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus (Giới Thiệu → VietTelex Plus). Hệ thống, Tối OLED, Tương phản cao và Xám trung tính luôn miễn phí.")) {}
     }
 
     // Bộ theme dài (14) ⇒ chọn ở trang con "Chọn giao diện"; ở đây một dòng tóm tắt.
     VTSection(header = "Theme") {
         VTRow(onClick = { picking = true }) {
-            KeyboardPreview(s.custom?.let { s.styledCustom(it, dark) } ?: s.styled(s.theme, previewPalette(s.theme, dark), dark), null, 0,
+            KeyboardPreview(s.custom?.let { s.styledCustom(it, dark) }
+                ?: s.styled(s.theme, s.theme.palette(dark) ?: systemPreviewPalette(ctx, s, dark), dark), null, 0,
                 large = false, keyStyle = s.custom?.let { s.effectiveStyleFor(it.id ?: "", it.typography) } ?: s.effectiveStyleFor(s.theme),
                 modifier = Modifier.width(56.dp).height(36.dp).clip(RoundedCornerShape(6.dp))
                     .border(1.dp, c.separator, RoundedCornerShape(6.dp)))
             Text(tr("Giao diện bàn phím"), style = VTType.body, color = c.label,
                 modifier = Modifier.weight(1f).padding(start = 12.dp))
             Text("${s.effectiveCustom?.name ?: s.effectiveTheme.title} ›", style = VTType.body, color = c.secondary, maxLines = 1)
+        }
+        // Hệ thống (Android 12+): tắt ⇒ xám trung tính + nhấn xanh thay màu theo hình nền (issue #137: tím).
+        if (s.effectiveCustom == null && s.effectiveTheme == KeyboardTheme.SYSTEM &&
+            SystemColors.dynamicAvailable(android.os.Build.VERSION.SDK_INT)) {
+            RowDivider()
+            SettingToggle(tr("Dùng màu hình nền (Material You)"),
+                tr("Tắt để bàn phím dùng màu xám trung tính, không đổi theo hình nền."), s.materialYou) {
+                update(s.copy(materialYou = it))
+            }
         }
         RowDivider()
         VTRow(onClick = { pickingEffect = true }) {

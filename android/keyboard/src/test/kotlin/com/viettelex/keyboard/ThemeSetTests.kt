@@ -47,7 +47,7 @@ class ThemeSetTests {
         assertEquals(lines.first { it[0] == "order" }[1].split(','), KeyboardTheme.entries.map { it.id })
         assertEquals(lines.first { it[0] == "plus" }[1].split(','), KeyboardTheme.entries.filter { it.isPlus }.map { it.id })
         val rows = lines.filter { it[0] != "order" && it[0] != "plus" }
-        assertEquals(50, rows.size)
+        assertEquals(52, rows.size)
         for (r in rows) {
             val t = KeyboardTheme.entries.first { it.id == r[0] }
             val p = t.palette(r[1] == "1")!!
@@ -72,7 +72,8 @@ class ThemeSetTests {
             // (isDark) trên mặt đàn sáng ⇒ surfaceDark = false.
             assertFalse("$t", light.surfaceDark ?: light.isDark)
             assertTrue("$t bản tối", dark.surfaceDark ?: dark.isDark)
-            if (t != KeyboardTheme.GLASS) assertEquals("$t giữ màu nhấn", light.action, dark.action)
+            // Kính, Xám trung tính (kiểu Gboard): nhấn xám đậm ở bản sáng, xám nhạt ở bản tối — cố ý khác.
+            if (t != KeyboardTheme.GLASS && t != KeyboardTheme.NEUTRAL) assertEquals("$t giữ màu nhấn", light.action, dark.action)
         }
     }
 
@@ -352,7 +353,7 @@ class ThemeSetTests {
     @Test fun pickerSectionsFreeThenPlus() {
         val secs = ThemePicker.sections
         assertEquals(listOf("Miễn phí", "Plus"), secs.map { it.title })
-        assertEquals(listOf(KeyboardTheme.SYSTEM, KeyboardTheme.OLED, KeyboardTheme.CONTRAST), secs[0].themes)
+        assertEquals(listOf(KeyboardTheme.SYSTEM, KeyboardTheme.OLED, KeyboardTheme.CONTRAST, KeyboardTheme.NEUTRAL), secs[0].themes)
         assertEquals(KeyboardTheme.entries.toSet(), (secs[0].themes + secs[1].themes).toSet())
         assertTrue(secs[1].themes.all { it.isPlus })
         for ((vi, en) in listOf("Miễn phí" to "Free", "Chọn giao diện" to "Choose theme", "Giao diện bàn phím" to "Keyboard theme"))

@@ -184,6 +184,8 @@ object Keys {
     /** Độ trong suốt phím (nền + phím) / ký tự trên phím, 0…100. */
     const val KEYBOARD_TRANSPARENCY = "keyboardTransparency"
     const val KEY_LABEL_TRANSPARENCY = "keyLabelTransparency"
+    /** Bool — theme Hệ thống dùng màu hình nền Material You (Android 12+); mặc định true ([SystemColors]). */
+    const val SYSTEM_MATERIAL_YOU = "systemMaterialYou"
     /**
      * "Tuỳ chỉnh nâng cao" (Plus, [KeyStyle]) — cùng khoá iOS. Màu Int 0xRRGGBB (-1 = theo theme);
      * bo góc 0…100 % nửa cạnh ngắn (-1 = mặc định); cỡ chữ 80…150 % (0 = mặc định);
