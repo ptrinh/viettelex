@@ -77,6 +77,7 @@ enum BackupSettings {
         Spec(key: "numberChips", kind: .bool(true)),
         Spec(key: "mathResults", kind: .bool(true)),
         Spec(key: "textToolsEnabled", kind: .bool(true)),   // công tắc Công cụ văn bản (Plus)
+        Spec(key: "aiProofread", kind: .bool(false)),   // "Sửa lỗi bằng Apple Intelligence" (Plus, chỉ iOS)
         Spec(key: "suggestInNoSuggestFields", kind: .bool(true)),
         Spec(key: "emojiSuggest", kind: .bool(true)),    // chỉ iOS dùng
         // "Số từ gợi ý" (SuggestionCount): 0 = Tự động, 1…5 — cùng khoá Android.

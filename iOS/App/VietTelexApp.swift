@@ -8,6 +8,8 @@ import UniformTypeIdentifiers
 @main
 struct VietTelexApp: App {
     init() {
+        // Apple Intelligence (Sửa lỗi, Plus): màn Plus / Tính Năng hỏi model có dùng được không.
+        AIAvailability.probe = { IntelligenceEngine.status() }
         // "Chiều cao hàng phím": mức 0 = bàn phím iPhone gốc (bỏ công tắc "Kích thước như bàn
         // phím iPhone" #119). Chuyển đổi MỘT lần giá trị cũ để người dùng cũ không thấy đổi
         // (KeyGeometry.RowAdjust) — bàn phím tự tính trong bộ nhớ nếu app chưa chạy.

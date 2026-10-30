@@ -41,6 +41,8 @@ final class KeyboardViewController: UIInputViewController {
     /// Dịch trên máy: chip thông báo ở slot đầu (tới phím kế) + lượt dịch đang chờ.
     private var translateNotice: (text: String, opensApp: Bool)?
     private var translateTask: Task<Void, Never>?
+    /// "Sửa lỗi bằng Apple Intelligence" (Plus, AIAssist.swift): nil khi công tắc tắt ⇒ 0 chi phí.
+    private var ai: AIAssist?
     private var filterSensitive = true
     /// Gõ vuốt (thử nghiệm): công tắc trong app; `swipe` chỉ tạo khi bật (0 RAM khi tắt).
     private var swipeSetting = false
@@ -198,6 +200,8 @@ final class KeyboardViewController: UIInputViewController {
     var debugClipTexts: [String] { clip.items(now: Date().timeIntervalSince1970).map(\.text) }
     func debugToggleClipboardPanel() { toggleClipboardPanel() }
     var debugClipboardPanelOpen: Bool { clipPanel != nil }
+    /// Test: "Sửa lỗi bằng Apple Intelligence" đang có AIAssist (tắt ⇒ nil, 0 chi phí).
+    var debugAIActive: Bool { ai != nil }
     /// Test: tính lại thanh gợi ý (đường thật của mỗi phím).
     func debugUpdateSuggestions() { updateSuggestions() }
     func debugViewDidAppear() { viewDidAppear(false) }
@@ -298,6 +302,7 @@ final class KeyboardViewController: UIInputViewController {
         textToolUndo = nil
         keyboard.textToolsEnabled = settings.textToolsActive()   // Plus + công tắc người dùng
         translateTask?.cancel(); translateTask = nil; translateNotice = nil
+        ai?.close(); ai = settings.aiProofread && PlusGate.isUnlocked(.aiProofread) ? makeAIAssist() : nil
         // Chip Dịch nằm trong danh sách Công cụ ⇒ tắt Công cụ là ẩn luôn.
         keyboard.translateChipLabel = TranslateText.isSupportedOS && PlusGate.isUnlocked(.translate)
             ? L("Dịch ↔ %@", TranslatePrefs.displayName(TranslatePrefs.target(UserDefaultsProvider.shared)))
@@ -389,6 +394,7 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.onShiftChange = { [weak self] in self?.shiftChanged() }
         keyboard.onSuggestion = { [weak self] item in
             guard let self else { return }
+            if let ai = self.ai, ai.handleTap(item) { return }
             if item == KeyboardView.toolUndoToken { self.undoTextTool(); return }
             if item == KeyboardView.translateNoticeToken { self.tapTranslateNotice(); return }
             if let c = self.emailChips.first(where: { $0.label == item }) { self.acceptEmailChip(c); return }
@@ -476,6 +482,7 @@ final class KeyboardViewController: UIInputViewController {
         postFrame.cancel()
         pasteOnce.ended()   // ẩn bàn phím: lời mời dán đang hiện coi như đã bỏ qua
         closeClipboardPanel()
+        ai?.close()
         learnSettledSwipe()
         swipe?.releaseFuto()  // FUTO Swipe (thử nghiệm): nhả ~2.5 MB khi ẩn
         KeySound.shared.shutdown()   // âm phím riêng: dừng engine khi ẩn (dựng lại lần hiện sau)
@@ -815,6 +822,7 @@ final class KeyboardViewController: UIInputViewController {
         if externalChangePending { syncComposition("selectionDidChange") }
         if hostChangeIsOwnEcho { return }
         refreshFieldTraits()
+        if ai != nil { scheduleContextRefresh() }   // vùng chọn đổi ⇒ chip ✨ (chỉ khi bật)
     }
 
     // MARK: chế độ một tay
@@ -887,6 +895,7 @@ final class KeyboardViewController: UIInputViewController {
             return
         }
         addTonesUndo = nil
+        ai?.keyPressed()
         var proxy = Proxy(p: textDocumentProxy)
         if echoGuard.armed { proxy.settle = { [unowned self] in self.settledContextBefore() } }
         // textWillChange tới mà textDidChange chưa kịp → đối chiếu ngay trước phím.
@@ -1858,6 +1867,7 @@ final class KeyboardViewController: UIInputViewController {
             set.actionLabel = n.text; set.actionPayload = KeyboardView.translateNoticeToken
             set.literal = nil; set.paste = false; set.clipChips = []
         }
+        if composed.isEmpty, translateNotice == nil, let ai { ai.decorate(&set) }   // Apple Intelligence (tắt ⇒ nil)
         keyboard.showSuggestions(set)
     }
 
@@ -3064,6 +3074,30 @@ extension KeyboardViewController {
         translateNotice = nil
         if opens { openTemplatesInApp("dich") }   // app mở trang Dịch trên máy (cần Toàn quyền)
         updateSuggestions()
+    }
+}
+
+// MARK: Apple Intelligence (Plus, iOS 26+) — logic: AIAssist.swift / AIProofread.swift.
+extension KeyboardViewController {
+    fileprivate func makeAIAssist() -> AIAssist? {
+        guard #available(iOS 26.0, *) else { return nil }
+        return AIAssist(host: .init(
+            proxy: { [unowned self] in self.textDocumentProxy },
+            keyboard: { [weak self] in self?.keyboard },
+            edit: { [weak self] body in
+                guard let self else { return }
+                self.applyingEdit = true
+                defer { self.applyingEdit = false }
+                self.bridge.reset()
+                self.lastWord = nil; self.lastWord2 = nil
+                self.restoreUndo = nil; self.undoOfferActive = false
+                self.wordSwipeRestore = nil; self.textToolUndo = nil
+                body()
+            },
+            refresh: { [weak self] in
+                guard let self else { return }
+                self.updateAutoShift(); self.updateSuggestions()
+            }))
     }
 }
 

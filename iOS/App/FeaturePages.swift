@@ -156,6 +156,9 @@ struct FeatureSearchEntry: Identifiable {
         if PlusGate.isUnlocked(.sentenceDiacritics) {
             e.append(.init(viTitle: LK("Chip “Thêm dấu”"), keywords: "thêm dấu câu không dấu plus", page: .goiY))
         }
+        if PlusGate.isUnlocked(.aiProofread), PlusFeature.aiProofread.isAvailableOnDevice {
+            e.append(.init(viTitle: LK("Sửa lỗi bằng Apple Intelligence"), keywords: "apple intelligence ai trí tuệ nhân tạo sửa lỗi chính tả ngữ pháp proofread grammar spelling từ thay thế đồng nghĩa synonym plus", page: .goiY))
+        }
         if PlusGate.isUnlocked(.textTools) {
             e.append(.init(viTitle: LK("Công cụ văn bản"), keywords: "text tools hoa thường bỏ dấu dịch translate plus", page: .goTat))
         }
@@ -440,8 +443,19 @@ struct GoiYPage: View {
     @AppStorage("suggestInNoSuggestFields", store: featureDefaults) private var suggestInNoSuggestFields = true
     @AppStorage("pasteButton", store: featureDefaults) private var pasteButton = true
     @AppStorage("addTonesChip", store: featureDefaults) private var addTonesChip = false
+    /// Plus, iOS 26+, mặc định TẮT — KeyboardSettings.aiProofread.
+    @AppStorage(PlusFeature.aiProofreadKey, store: featureDefaults) private var aiProofread = false
     @State private var confirmErase = false
     @State private var erased = false
+
+    /// Mô tả + ghi chú khi model chưa hỗ trợ tiếng Việt / cần Toàn quyền.
+    private var aiProofreadNote: String {
+        var t = L("Chọn vài từ → chip “✨ Sửa lỗi”: sửa chính tả, dấu tiếng Việt, ngữ pháp, xem trước rồi mới áp dụng. Chọn một từ → gợi ý từ thay thế. Chạy trên máy, chữ không gửi đi đâu. Tắt mặc định.")
+        if !IntelligenceEngine.supportsVietnamese() {
+            t += " " + L("Apple Intelligence trên máy này chưa hỗ trợ tiếng Việt — sửa tiếng Việt có thể kém.")
+        }
+        return t
+    }
 
     var body: some View {
         FeaturePageList(page: .goiY) {
@@ -457,6 +471,14 @@ struct GoiYPage: View {
                     settingToggle(L("Nút Dán"), L("Vừa copy xong thì hiện nút Dán (cần Toàn quyền)."), isOn: $pasteButton)
                     if PlusGate.isUnlocked(.sentenceDiacritics) {
                         settingToggle(L("Chip “Thêm dấu”"), L("Gõ không dấu cả câu (hom nay troi dep), gõ dấu cách → chip “Thêm dấu” hiện ở đầu thanh gợi ý, chạm để thành “hôm nay trời đẹp”; chạm “Hoàn tác” để trả lại. Tắt mặc định cho nhẹ máy."), isOn: $addTonesChip)
+                    }
+                    // Theo trạng thái model (AISettingUI): máy không hỗ trợ ⇒ ẩn; chưa bật Apple
+                    // Intelligence / mô hình đang tải ⇒ hiện nhưng khoá + hướng dẫn.
+                    let aiUI = AISettingUI.current
+                    if PlusGate.isUnlocked(.aiProofread), aiUI.isShown {
+                        settingToggle(L("Sửa lỗi bằng Apple Intelligence"),
+                                      aiUI.hint.map { aiProofreadNote + "\n" + $0 } ?? aiProofreadNote, isOn: $aiProofread)
+                            .disabled(!aiUI.isEnabled)
                     }
                 }
                 settingToggle(L("Lọc từ nhạy cảm"), L("Không chủ động gợi ý từ tục — gõ tay vẫn bình thường."), isOn: $filterSensitive)

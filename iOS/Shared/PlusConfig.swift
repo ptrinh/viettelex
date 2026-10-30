@@ -53,6 +53,9 @@ enum PlusFeature: String, CaseIterable, Identifiable {
     /// Dịch trên máy (Apple Translation, iOS 26+): Việt ↔ ngôn ngữ chọn trong app
     /// (Shared/TranslatePrefs.swift, Keyboard/Translate.swift).
     case translate
+    /// Sửa lỗi bằng Apple Intelligence (FoundationModels trên máy, iOS 26+): chọn đoạn ⇒ chip
+    /// "✨ Sửa lỗi"; chọn một từ ⇒ từ thay thế (Keyboard/AIAssist.swift). Mặc định TẮT.
+    case aiProofread
     /// Huy hiệu cảm ơn người ủng hộ.
     case thanksBadge
 
@@ -66,6 +69,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
         case .iCloudSync: return L("Đồng bộ iCloud")
         case .textTools: return L("Công cụ văn bản")
         case .translate: return L("Dịch trên máy")
+        case .aiProofread: return L("Sửa lỗi bằng Apple Intelligence")
         case .thanksBadge: return L("Huy hiệu cảm ơn")
         }
     }
@@ -78,6 +82,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
         case .iCloudSync: return L("Cài đặt, gõ tắt và từ đã học theo bạn sang máy khác.")
         case .textTools: return L("Đổi HOA/thường, hoa đầu từ/đầu câu, xoá dấu tiếng Việt.")
         case .translate: return L("Dịch giữa tiếng Việt và ngôn ngữ bạn chọn ngay trên máy — chữ không gửi đi đâu.")
+        case .aiProofread: return L("Sửa chính tả, dấu tiếng Việt, ngữ pháp cho đoạn đang chọn; gợi ý từ thay thế — chạy ngay trên máy, chữ không gửi đi đâu.")
         case .thanksBadge: return L("Dấu ★ nhỏ trong app — lời cảm ơn vì đã ủng hộ.")
         }
     }
@@ -92,6 +97,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
         case .iCloudSync: return L("Cách dùng: Tính Năng → Sao lưu & đồng bộ → bật Đồng bộ iCloud.")
         case .textTools: return L("Cách dùng: chạm ☰ trên thanh gợi ý → chip “⚒️ Công cụ” đầu lưới mẫu câu. Áp lên đoạn đang chọn hoặc câu trước con trỏ.")
         case .translate: return L("Cách dùng: chạm ☰ trên thanh gợi ý → “⚒️ Công cụ” → “Dịch ↔ …”. Chọn ngôn ngữ và tải gói dịch ngay bên dưới (cần iOS 26).")
+        case .aiProofread: return L("Cách dùng: bật công tắc bên dưới, rồi chọn vài từ trong ô gõ → chip “✨ Sửa lỗi” trên thanh gợi ý. Chọn một từ → gợi ý từ thay thế.")
         case .thanksBadge: return L("Tự hiện sau khi mua.")
         }
     }
@@ -102,21 +108,32 @@ enum PlusFeature: String, CaseIterable, Identifiable {
         switch self {
         case .sentenceDiacritics: return PlusOnboarding.addTonesKey
         case .textTools: return Self.textToolsKey
+        case .aiProofread: return Self.aiProofreadKey
         default: return nil
         }
     }
     /// Key App Group công tắc "Công cụ văn bản" (KeyboardSettings.textToolsEnabled).
     static let textToolsKey = "textToolsEnabled"
+    /// Key App Group công tắc "Sửa lỗi bằng Apple Intelligence" (KeyboardSettings.aiProofread).
+    static let aiProofreadKey = "aiProofread"
 
     /// Giá trị khi chưa từng đặt — phải khớp mặc định KeyboardSettings.
     var settingDefault: Bool { self == .textTools }
 
     /// Nhãn + một dòng mô tả của công tắc trên màn Plus.
     var settingTitle: String {
-        self == .textTools ? L("Công cụ văn bản") : L("Bật chip “Thêm dấu”")
+        switch self {
+        case .textTools: return L("Công cụ văn bản")
+        case .aiProofread: return L("Sửa lỗi bằng Apple Intelligence")
+        default: return L("Bật chip “Thêm dấu”")
+        }
     }
     var settingSubtitle: String? {
-        self == .textTools ? L("Chip ⚒️ Công cụ trong lưới mẫu câu: đổi HOA/thường, bỏ dấu, dịch…") : nil
+        switch self {
+        case .textTools: return L("Chip ⚒️ Công cụ trong lưới mẫu câu: đổi HOA/thường, bỏ dấu, dịch…")
+        case .aiProofread: return L("Tắt mặc định. Chỉ chạy khi bạn chọn chữ.")
+        default: return nil
+        }
     }
 
     /// Máy dùng được tính năng này (màn Plus ẩn dòng không dùng được).
@@ -125,6 +142,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
             if #available(iOS 26.0, *) { return true }
             return false
         }
+        if self == .aiProofread { return AISettingUI.current.isShown }
         return true
     }
 
@@ -136,6 +154,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
         case .iCloudSync: return "icloud"
         case .textTools: return "wand.and.stars"
         case .translate: return "character.bubble"
+        case .aiProofread: return "apple.intelligence"
         case .thanksBadge: return "star"
         }
     }
@@ -155,4 +174,45 @@ struct PlusOnboarding {
     }
     func markOffered() { defaults?.set(true, forKey: Self.offeredKey) }
     func enableAddTones() { defaults?.set(true, forKey: Self.addTonesKey) }
+}
+
+/// Trạng thái model Apple Intelligence — mã khớp `IntelligenceStatus` (VTIntelligence/
+/// IntelligenceEngine.swift) và `vt_ai_status` mà bàn phím đọc qua dlopen.
+enum AIModelState: Int32, Equatable {
+    case available = 0, deviceNotEligible = 1, notEnabled = 2, notReady = 3, unsupportedOS = 4
+}
+
+/// Apple Intelligence (FoundationModels) dùng được trên máy không. Shared không link
+/// FoundationModels (bàn phím không được nạp nó lúc khởi động): app chủ gắn `probe`
+/// (VTIntelligence/IntelligenceEngine.swift) lúc chạy; chưa gắn ⇒ unsupportedOS (ẩn tính năng).
+enum AIAvailability {
+    nonisolated(unsafe) static var probe: (() -> Int32)?
+    static var state: AIModelState {
+        guard #available(iOS 26.0, *), let raw = probe?() else { return .unsupportedOS }
+        return AIModelState(rawValue: raw) ?? .notReady
+    }
+    static var isAvailable: Bool { state == .available }
+}
+
+/// Công tắc "Sửa lỗi bằng Apple Intelligence" trong app theo trạng thái model — hàm THUẦN:
+/// máy không hỗ trợ / OS cũ ⇒ ẩn hẳn; chưa bật Apple Intelligence / mô hình đang tải ⇒ hiện
+/// nhưng khoá, kèm một dòng hướng dẫn; dùng được ⇒ bật/tắt bình thường.
+enum AISettingUI: Equatable {
+    case hidden
+    case enabled
+    case disabled(hint: String)
+
+    static func of(_ s: AIModelState) -> AISettingUI {
+        switch s {
+        case .available: return .enabled
+        case .notEnabled: return .disabled(hint: L("Bật Apple Intelligence trong Cài đặt → Apple Intelligence & Siri"))
+        case .notReady: return .disabled(hint: L("Mô hình đang tải, thử lại sau"))
+        case .deviceNotEligible, .unsupportedOS: return .hidden
+        }
+    }
+
+    static var current: AISettingUI { of(AIAvailability.state) }
+    var isShown: Bool { self != .hidden }
+    var isEnabled: Bool { self == .enabled }
+    var hint: String? { if case .disabled(let h) = self { return h }; return nil }
 }
