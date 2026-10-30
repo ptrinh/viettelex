@@ -199,6 +199,36 @@ enum SystemAutoText {
         return .capitalize
     }
 
+    /// Dòng phím (`recent`) dùng làm ngữ cảnh viết hoa được không. nil = không biết ⇒ đọc
+    /// màn hình. Sau phím Return chưa xác nhận (`returnUnverified`), nếu đuôi `recent` chỉ
+    /// là "\n" + khoảng trắng thì KHÔNG tin "\n" đó: Enter chọn mention/emoji/lệnh hay gửi
+    /// tin không chèn xuống dòng (Discord "@Tuấn" + Enter + "sao" từng ra "Sao").
+    static func autoCapKnownText(recent: String, returnUnverified: Bool) -> String? {
+        if recent.isEmpty { return nil }
+        guard returnUnverified else { return recent }
+        var s = Substring(recent)
+        while let c = s.last, c == " " || c == "\t" { s = s.dropLast() }
+        return s.last?.isNewline == true ? nil : recent
+    }
+
+    /// Quyết định viết hoa chữ đầu từ. `known` = ngữ cảnh dòng phím (nil = không biết);
+    /// không biết ⇒ `caret` (nil = không đọc được): 0 ⇒ đầu văn bản, chỉ viết hoa ở ô nhiều
+    /// dòng (`multiline`); > 0 ⇒ đọc tối đa 24 ký tự trước con trỏ (`readBefore(n)`, nil =
+    /// AX mù). Vẫn không biết ⇒ không viết hoa (viết hoa nhầm tệ hơn bỏ sót).
+    static func resolveCapitalization(known: String?, caret: Int?,
+                                      readBefore: (Int) -> String?,
+                                      multiline: () -> Bool) -> CapContext {
+        var ctx = capitalization(before: known, atTextStart: false)
+        if ctx == .unknown, let loc = caret {
+            if loc == 0 {
+                ctx = capitalization(before: nil, atTextStart: multiline())
+            } else {
+                ctx = capitalization(before: readBefore(min(loc, 24)), atTextStart: false)
+            }
+        }
+        return ctx
+    }
+
     /// Chữ ASCII thường → hoa (chỉ phím chữ; số / ngoặc giữ nguyên).
     static func capitalized(_ ch: Character) -> Character {
         guard let a = ch.asciiValue, a >= 97, a <= 122 else { return ch }

@@ -218,10 +218,27 @@ struct ShortcutTail: Equatable {
     private(set) var recent = ""
     private(set) var recentWhole = false
     private var recentCount = 0          // = recent.count (String.count là O(n) — phím nóng)
+    /// "\n" cuối `recent` (chỉ khoảng trắng theo sau) đến từ PHÍM Return, chưa chắc là xuống
+    /// dòng thật: Enter chọn gợi ý (mention Discord/Slack, emoji, lệnh /) hay gửi tin không
+    /// chèn "\n". Gõ tắt / ⌫-gõ-lại / dấu chấm nhấn đúp vẫn dùng `recent` như cũ; chỉ viết
+    /// hoa đầu câu coi ngữ cảnh là không biết (`autoCapKnownText`) để đọc lại màn hình.
+    private(set) var returnUnverified = false
 
     mutating func reset() {
         run = ""; runCount = 0; anchored = false; afterJump = false
         recent = ""; recentCount = 0; recentWhole = false
+        returnUnverified = false
+    }
+
+    /// Phím Return/Enter đi qua: như append("\n") nhưng đánh dấu chưa xác nhận.
+    mutating func appendReturn() {
+        append("\n")
+        returnUnverified = true
+    }
+
+    /// Ngữ cảnh dòng phím cho viết hoa đầu câu — xem SystemAutoText.autoCapKnownText.
+    var autoCapKnownText: String? {
+        SystemAutoText.autoCapKnownText(recent: recent, returnUnverified: returnUnverified)
     }
 
     /// Con trỏ vừa dời (click, phím điều hướng, ⌘/⌃-tổ hợp, Tab đổi ô): bỏ cụm, đánh
@@ -231,6 +248,7 @@ struct ShortcutTail: Equatable {
     /// Văn bản vừa hiện ra trước con trỏ (từ đã chốt, ký tự ranh giới, nội dung nở).
     mutating func append(_ s: String) {
         for ch in s {
+            if !(ch == " " || ch == "\t") { returnUnverified = false }
             if ch.isWhitespace || ch.isNewline {
                 run = ""; runCount = 0; anchored = true; afterJump = false
             } else if runCount >= Self.maxRun {

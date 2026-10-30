@@ -862,7 +862,9 @@ final class TelexInputController: IMKInputController {
             wordGluedToDigit = false
             // Enter: dòng mới — cụm bắt đầu lại sau xuống dòng. Tab/Esc: có thể dời
             // focus / không chèn gì ⇒ cụm không còn biết.
-            if newlineKey { shortcutTail.append("\n") } else { shortcutTail.reset() }
+            // appendReturn: "\n" chưa chắc có thật (Enter chọn mention / gửi tin) — viết
+            // hoa đầu câu sẽ đọc lại màn hình thay vì tin nó.
+            if newlineKey { shortcutTail.appendReturn() } else { shortcutTail.reset() }
             toneRun.reset()
             // Return/Tab/Esc do not put ONE character after the word the way a space
             // does — Enter sends the message in a chat app, Tab moves focus, Esc
@@ -2387,18 +2389,15 @@ final class TelexInputController: IMKInputController {
         if suppressAutoCap { suppressAutoCap = false; return false }
         guard SystemAutoText.appAllowed(id) else { return false }
         // Dòng phím chỉ đáng tin khi click được báo về (tap chạy ⇔ có quyền Trợ năng).
-        let known = Accessibility.isTrusted && !shortcutTail.recent.isEmpty ? shortcutTail.recent : nil
-        var ctx = SystemAutoText.capitalization(before: known, atTextStart: false)
-        if ctx == .unknown, let loc = caret {
-            if loc == 0 {
-                ctx = SystemAutoText.capitalization(before: nil, atTextStart: FocusedRole.isMultilineText())
-            } else {
-                let n = min(loc, 24)
-                if let sub = client.attributedSubstring(from: NSRange(location: loc - n, length: n)) {
-                    ctx = SystemAutoText.capitalization(before: sub.string, atTextStart: false)
-                }
-            }
-        }
+        // Sau Return chưa xác nhận ⇒ không biết ⇒ đọc màn hình (SystemAutoText.autoCapKnownText).
+        let known = Accessibility.isTrusted ? shortcutTail.autoCapKnownText : nil
+        let ctx = SystemAutoText.resolveCapitalization(
+            known: known, caret: caret,
+            readBefore: { n in
+                guard let loc = caret else { return nil }
+                return client.attributedSubstring(from: NSRange(location: loc - n, length: n))?.string
+            },
+            multiline: { FocusedRole.isMultilineText() })
         if AppState.shared.debugLogging {
             let line = "autocap \(id ?? "?"): known=\(known.map { "\($0.count)ch" } ?? "nil") caret=\(caret.map(String.init) ?? "nil") → \(ctx)"
             DebugLog.log(line)

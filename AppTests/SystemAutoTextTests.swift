@@ -156,6 +156,62 @@ final class SystemAutoTextTests: XCTestCase {
         XCTAssertEqual(S.capitalization(before: "  ", atTextStart: false), .unknown)
     }
 
+    /// Discord: "@Tuấn" + Enter chọn mention (không chèn "\n") + "sao" từng ra "Sao" vì
+    /// dòng phím tin "\n" của phím Return. Return ⇒ ngữ cảnh không biết ⇒ đọc màn hình.
+    func testReturnKeyIsNotAKnownNewlineForAutoCap() {
+        var tail = ShortcutTail()
+        tail.append("hỏi @Tuấn")
+        tail.appendReturn()
+        XCTAssertEqual(tail.recent, "hỏi @Tuấn\n")          // gõ tắt / dấu chấm đúp vẫn thấy "\n"
+        XCTAssertNil(tail.autoCapKnownText)
+        // Khoảng trắng gõ sau Return vẫn chưa xác nhận.
+        tail.append(" ")
+        XCTAssertNil(tail.autoCapKnownText)
+        // Chữ thật sau đó: dòng phím lại đáng tin.
+        tail.append("sao ")
+        XCTAssertEqual(tail.autoCapKnownText, "hỏi @Tuấn\n sao ")
+        // "\n" do mình chèn (gõ tắt nhiều dòng) vẫn là xuống dòng thật.
+        var t2 = ShortcutTail()
+        t2.append("dòng một\n")
+        XCTAssertEqual(t2.autoCapKnownText, "dòng một\n")
+        t2.appendReturn()
+        t2.reset()
+        XCTAssertFalse(t2.returnUnverified)
+        XCTAssertEqual(S.autoCapKnownText(recent: "", returnUnverified: false), nil)
+    }
+
+    func testResolveCapitalizationAfterReturn() {
+        func resolve(_ screen: String?, caret: Int?, multiline: Bool = true) -> S.CapContext {
+            var tail = ShortcutTail()
+            tail.append("hỏi @Tuấn")
+            tail.appendReturn()
+            return S.resolveCapitalization(
+                known: tail.autoCapKnownText, caret: caret,
+                readBefore: { n in screen.map { String($0.suffix(n)) } },
+                multiline: { multiline })
+        }
+        // Enter chọn mention: AX thấy pill + dấu cách ⇒ giữ nguyên.
+        XCTAssertEqual(resolve("hỏi @Tuấn - Tech Lead ", caret: 22), .keep)
+        // Chromium trả U+FFFC cho pill.
+        XCTAssertEqual(resolve("hỏi \u{FFFC} ", caret: 6), .keep)
+        XCTAssertEqual(S.capitalization(before: "\u{FFFC} ", atTextStart: false), .keep)
+        XCTAssertEqual(S.capitalization(before: "\u{FFFC}", atTextStart: false), .keep)
+        // Xuống dòng thật (TextEdit/Notes): AX thấy "\n" ⇒ viết hoa.
+        XCTAssertEqual(resolve("hỏi @Tuấn\n", caret: 10), .capitalize)
+        // Gửi tin xong ô trống: caret 0 ⇒ luật đầu văn bản nhiều dòng như cũ.
+        XCTAssertEqual(resolve(nil, caret: 0, multiline: true), .capitalize)
+        XCTAssertEqual(resolve(nil, caret: 0, multiline: false), .unknown)
+        // AX mù (không đọc được caret / chữ) ⇒ không viết hoa.
+        XCTAssertEqual(resolve(nil, caret: nil), .unknown)
+        XCTAssertEqual(resolve(nil, caret: 12), .unknown)
+        // Ngữ cảnh dòng phím biết chắc thì không đọc màn hình.
+        var read = false
+        XCTAssertEqual(S.resolveCapitalization(known: "Xong. ", caret: 6,
+                                               readBefore: { _ in read = true; return nil },
+                                               multiline: { true }), .capitalize)
+        XCTAssertFalse(read)
+    }
+
     func testCapitalizedOnlyAsciiLowercase() {
         XCTAssertEqual(S.capitalized("d"), "D")
         XCTAssertEqual(S.capitalized("D"), "D")

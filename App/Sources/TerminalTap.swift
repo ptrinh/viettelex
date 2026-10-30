@@ -3500,7 +3500,7 @@ final class TerminalTapController {
             // ⇒ cụm không còn biết.
             let trigger: String? = newlineKey ? "\n" : (keyCode == kTab ? "\t" : nil)
             defer {
-                if newlineKey { shortcutTail.append("\n") }
+                if newlineKey { shortcutTail.appendReturn() }   // "\n" chưa xác nhận (viết hoa)
                 else if keyCode == kTab { shortcutTail.caretMoved() }
                 else { shortcutTail.reset() }
             }
@@ -4095,9 +4095,13 @@ final class TerminalTapController {
         guard SystemAutoTextSettings.shared.current.capitalize else { return false }
         if suppressAutoCap { suppressAutoCap = false; return false }
         guard systemAutoTextAllowed(id) else { return false }
-        let (text, atStart) = textBeforeCaretTap(max: 24)
-        let multiline = atStart && FocusedRole.isMultilineText()
-        return SystemAutoText.capitalization(before: text, atTextStart: multiline) == .capitalize
+        // Dòng phím trước; sau Return chưa xác nhận / trống ⇒ AX (mù ⇒ không viết hoa).
+        let known = shortcutTail.autoCapKnownText
+        let caret = known == nil ? AXTextEdit.readCaret() : nil
+        return SystemAutoText.resolveCapitalization(
+            known: known, caret: caret,
+            readBefore: { n in caret.flatMap { AXTextEdit.readString(at: $0 - n, length: n) } },
+            multiline: { FocusedRole.isMultilineText() }) == .capitalize
     }
 
     /// ⌫ ngay sau khi nở (tap): xoá nội dung + ranh giới, gõ lại chữ đã gõ + ranh giới.
