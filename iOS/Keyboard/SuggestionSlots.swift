@@ -109,10 +109,12 @@ enum SuggestionSlots {
         }
         // 1 (slot) / 3. hoàn tác, "Thêm dấu", "↩︎ từ cũ" (vuốt vừa sửa từ trước) hoặc "↩︎ chữ
         // gốc" (vừa tự sửa) chiếm slot đầu, chữ dời phải theo thứ tự đọc.
+        // + chip Apple Intelligence (AITokens.lead) và thông báo Dịch trên máy.
         let lead = undo ?? action.flatMap {
             [KeyboardView.addTonesToken, KeyboardView.undoReviseToken,
              KeyboardView.undoAutoCorrectToken, KeyboardView.retroOfferToken,
-             KeyboardView.undoRetroToken].contains($0.payload) ? $0 : nil
+             KeyboardView.undoRetroToken, KeyboardView.translateNoticeToken].contains($0.payload)
+                || AITokens.lead.contains($0.payload) ? $0 : nil
         }
         if let lead {
             let words = set.nextWords.isEmpty ? slots.compactMap { $0 }

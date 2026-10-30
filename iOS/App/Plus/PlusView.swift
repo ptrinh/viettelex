@@ -33,6 +33,8 @@ struct PlusView: View {
     private var addTonesChip = false
     @AppStorage(PlusFeature.textToolsKey, store: UserDefaults(suiteName: PlusConfig.appGroup))
     private var textToolsEnabled = true
+    @AppStorage(PlusFeature.aiProofreadKey, store: UserDefaults(suiteName: PlusConfig.appGroup))
+    private var aiProofread = false
 
     var body: some View {
         List {
@@ -68,7 +70,7 @@ struct PlusView: View {
                             Text(f.detail).font(.footnote).foregroundStyle(.secondary)
                             Text(f.howTo).font(.footnote).foregroundStyle(accentBlue)
                             if f.settingKey != nil, PlusGate.isUnlocked(f) {
-                                Toggle(isOn: f == .textTools ? $textToolsEnabled : $addTonesChip) {
+                                Toggle(isOn: f == .textTools ? $textToolsEnabled : f == .aiProofread ? $aiProofread : $addTonesChip) {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(f.settingTitle)
                                         if let sub = f.settingSubtitle {
@@ -77,6 +79,10 @@ struct PlusView: View {
                                     }
                                 }
                                 .font(.subheadline).tint(.green)
+                                .disabled(f == .aiProofread && !AISettingUI.current.isEnabled)
+                                if f == .aiProofread, let hint = AISettingUI.current.hint {
+                                    Text(hint).font(.footnote).foregroundStyle(.secondary)
+                                }
                             }
                             if f == .translate, PlusGate.isUnlocked(f), #available(iOS 26.0, *) {
                                 NavigationLink(L("Ngôn ngữ & gói dịch")) { TranslateSettingsView() }

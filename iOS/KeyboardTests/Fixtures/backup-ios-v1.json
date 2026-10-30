@@ -26,6 +26,7 @@
   "platform" : "ios",
   "settings" : {
     "addTonesChip" : false,
+    "aiProofread" : false,
     "autoCapitalize" : false,
     "autoCorrect" : true,
     "autoFixAdjacent" : true,
