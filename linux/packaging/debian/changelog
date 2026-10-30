@@ -1,3 +1,30 @@
+viettelex (1.0.19) UNRELEASED; urgency=medium
+
+  * Viết tắt toàn chữ HOA hiếm gặp giữ nguyên phím gõ (NAS, AWS, OS);
+    chữ thường gặp vẫn có dấu (VIỆT, ĐÀ NẴNG). Thêm dữ liệu âm tiết
+    thông dụng.
+  * Gõ sai một chữ cuối không làm mất dấu ("tieengsm" → "tiếngm").
+  * Từ dính sau "_", "." và chữ số không bị bỏ dấu (my_var, self.bar,
+    100W, 10kW).
+  * ⌫ ngay sau khi từ được khôi phục về tiếng Anh trả lại chữ Việt.
+  * Tên + viết tắt in hoa dính liền giữ dấu ("PhuwowngTH" → "PhươngTH",
+    #138), nhưng viết tắt trong code ("MaxID", "TaxURL") giữ nguyên.
+  * "được" gõ thêm "u" ra "đượcu" (#133); ⌫ sau "VieeJt" ra "VieeJ".
+  * ---
+  * Rare all-caps acronyms keep their raw keys (NAS, AWS, OS); common
+    syllables still get marks (VIỆT, ĐÀ NẴNG). More common-syllable data.
+  * A wrong final letter no longer drops the marks ("tieengsm" →
+    "tiếngm").
+  * Words glued after "_", "." or digits get no marks (my_var,
+    self.bar, 100W, 10kW).
+  * Backspace right after an English restore brings back the Vietnamese.
+  * A name glued to capital initials keeps its marks ("PhuwowngTH" →
+    "PhươngTH", #138); code acronyms ("MaxID", "TaxURL") are left alone.
+  * "được" + "u" gives "đượcu" (#133); Backspace after "VieeJt" gives
+    "VieeJ".
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Fri, 30 Oct 2026 17:00:00 +0700
+
 viettelex (1.0.18) UNRELEASED; urgency=medium
 
   * Thử nghiệm "Tự sửa từ phía trước" (trong Quyết định theo
