@@ -127,5 +127,17 @@ int vtx_take_retro_correction(vtx_engine* h, vtx_retro_correction* out) {
     for (int i = 0; i <= c.insertLength; ++i) out->insert[i] = static_cast<uint16_t>(c.insert[i]);
     return 1;
 }
+static_assert(VTX_UNDO_MAX == vtx::kMaxText, "vtx_restore_undo buffers mirror vtx::RestoreUndo");
+int vtx_take_restore_undo(vtx_engine* h, vtx_restore_undo* out) {
+    if (!h || !out) return 0;
+    vtx::RestoreUndo u;
+    if (!h->e.takeRestoreUndo(u)) return 0;
+    out->restored_len = u.restoredLength;
+    out->vietnamese_len = u.vietnameseLength;
+    for (int i = 0; i <= u.restoredLength; ++i) out->restored[i] = static_cast<uint16_t>(u.restored[i]);
+    for (int i = 0; i <= u.vietnameseLength; ++i) out->vietnamese[i] = static_cast<uint16_t>(u.vietnamese[i]);
+    return 1;
+}
+void vtx_restore_undo_applied(vtx_engine* h) { if (h) h->e.restoreUndoApplied(); }
 
 } // extern "C"

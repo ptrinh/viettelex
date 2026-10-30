@@ -162,6 +162,15 @@ Notes for the TIP:
 
 App defaults as one mask:
 `VTX_FREE_MARKING | VTX_LIVE_SPELL_CHECK | VTX_CONTEXTUAL_ENGLISH | VTX_COLLISION_PREFERS_VI | VTX_ENGLISH_WORD_RESTORE`.
+Boundary contract (all builds, retro on or off): report EVERY boundary character with
+`vtx_note_boundary` right after the commit — the engine uses it for glued separators
+(`my_var`, `self.bar`, `100W` keep their raw keys). After each commit `vtx_take_restore_undo`
+returns the ⌫-undo record of a restore-to-English whose Vietnamese reading was a real
+syllable (`NAS` ← `NÁ`, `is` ← `í` in an English run): a ⌫ as the very next key may replace
+`restored` + boundary with `vietnamese` + boundary (verify the document first), then call
+`vtx_restore_undo_applied`. The TIP does this in `TypingSession::armRestoreUndo` /
+`tryRetroUndo` (same one-key slot as the retro undo).
+
 Not in the engine (TIP/app layer, as on macOS): shortcuts (gõ tắt), reEditWord policy
 (use `vtx_seed`), per-app modes, hotkey.
 

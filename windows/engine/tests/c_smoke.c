@@ -102,6 +102,22 @@ int main(void) {
         EXPECT(!vtx_take_retro_correction(e, &r));
         vtx_destroy(e);
     }
+    /* restore-undo: all-caps "NAS" restores to raw keys; the record hands back "NÁ" */
+    {
+        const uint16_t na[] = {'N', 0xC1};
+        vtx_restore_undo u;
+        e = vtx_create();
+        vtx_feed(e, 'N', &a); vtx_feed(e, 'A', &a); vtx_feed(e, 'S', &a);
+        vtx_commit_boundary(e, 1, &a);
+        vtx_note_boundary(e, ' ');
+        EXPECT(vtx_take_restore_undo(e, &u));
+        EXPECT(eq16(u.restored, u.restored_len, "NAS", NULL, 0));
+        EXPECT(eq16(u.vietnamese, u.vietnamese_len, NULL, na, 2));
+        EXPECT(!vtx_take_restore_undo(e, &u));
+        vtx_restore_undo_applied(e);
+        EXPECT(vtx_is_empty(e));
+        vtx_destroy(e);
+    }
     printf("c abi smoke: %s\n", fails ? "FAIL" : "ok");
     return fails != 0;
 }

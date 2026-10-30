@@ -224,6 +224,7 @@ bool TelexEngine::composedEquals(const char32_t* word, int length) const {
 }
 
 void TelexEngine::feed(char32_t ch, Action& out) {
+    hasRestoreUndo_ = false;
     if (ch >= 128) { setSimple(out, Action::Passthrough); return; }
     feedAscii(static_cast<uint8_t>(ch), out);
 }
@@ -243,7 +244,11 @@ void TelexEngine::feedAscii(uint8_t ascii, Action& out) {
     }
     if (rawCount_ >= kCapacity) { overflowed_ = true; setSimple(out, Action::Passthrough); return; }
 
-    if (rawCount_ == 0) { reopenRawCount_ = 0; reopenOutCount_ = 0; }
+    if (rawCount_ == 0) {
+        reopenRawCount_ = 0; reopenOutCount_ = 0;
+        wordGlue_ = pendingGlue_;
+        pendingGlue_ = 0;
+    }
 
     raw_[rawCount_] = ascii;
     rawCount_ += 1;
@@ -343,6 +348,7 @@ void TelexEngine::feedAscii(uint8_t ascii, Action& out) {
 }
 
 void TelexEngine::backspace(Action& out) {
+    hasRestoreUndo_ = false;
     if (rawCount_ <= 0) {
         // The app deletes committed text: the retro history no longer matches the screen.
         if (retroCount_ > 0 || retroHasPending_) retroClear();
@@ -375,6 +381,7 @@ void TelexEngine::backspace(Action& out) {
 
 void TelexEngine::commitBoundary(bool autoRestore, Action& out) {
     setSimple(out, Action::None);
+    hasRestoreUndo_ = false;
     if (rawCount_ <= 0) { reopenRawCount_ = 0; reopenOutCount_ = 0; resetWord(); return; }
     if (overflowed_) {
         if (contextualEnglish) clearEnglishContext();
@@ -403,6 +410,7 @@ void TelexEngine::commitBoundary(bool autoRestore, Action& out) {
         setReplace(out, 1, tail, 2);
     }
     captureReopen(wantsRestore || elongate);
+    noteCommittedWord(wantsRestore);
     if (retroactiveEnglish || retroCount_ > 0) retroRecord(wantsRestore, elongate);
     updateContext(wantsRestore);
     resetWord();
@@ -504,10 +512,16 @@ bool TelexEngine::shouldRestoreRaw() const {
         if (toneCancelAt_ < 0 && tonesFolded_) return true;
         return composedHasDiacritic();
     }
+    // Glued to a code separator / number ("my_var", "100W") — see Swift glueRestores.
+    if (wordGlue_ != 0 && glueRestores()) return true;
     // Đuôi -k (ták/ák/rík) không thắng bảng collision (issue #127) — song sinh Swift.
     if (rawIsEnglishCollision() && !(collisionPrefersVietnamese && composedIsValidSyllable() && !composedEndsWithK())) return true;
-    if (upperToneKey_ || rawIsEnglishException() || (!composedIsValidSyllable() && !isTeencodeKeep()))
+    // Vietnamese typo ("lanwm" -> "lănm") keeps the screen — Swift isVietnameseTypoKeep.
+    if (upperToneKey_ || rawIsEnglishException() ||
+        (!composedIsValidSyllable() && !isTeencodeKeep() && !isVietnameseTypoKeep()))
         return true;
+    // ALL-CAPS acronym with a rare reading ("NAS" -> "NÁ") — Swift isRareAllCapsAcronym.
+    if (isRareAllCapsAcronym()) return true;
     if (contextualEnglish && previousWordEnglish_ &&
         (rawIsEnglishContextWord(true) || (collisionPrefersVietnamese && rawIsEnglishCollision())) &&
         predecessorGateAllows())
@@ -613,7 +627,139 @@ TelexEngine::WordContext TelexEngine::classifyWordContext(bool restored) const {
     if (rawIsNeutralLoanword() || rawIsEnglishContextWord(true) || rawIsContractionTail()) return WordContext::Neutral;
     if (!restored && SyllableValidator::isValidSyllable(out_, outCount_, teencode)) return WordContext::Vietnamese;
     if (rawCount_ <= 2) return WordContext::Neutral;
+    if (rawIsAllCapsToken()) return WordContext::Neutral;   // acronym ("ASL"): never opens a run
     return WordContext::English;
+}
+
+// MARK: - Glue / typo keep / acronyms / restore-undo (Swift: same names)
+
+void TelexEngine::noteGlue(char32_t ch) {
+    const bool first = !noteSinceWord_;
+    noteSinceWord_ = true;
+    if (ch >= 128) { pendingGlue_ = 0; return; }
+    if (ch == U'_') pendingGlue_ = 1;
+    else if (ch == U'.' || ch == U'/') pendingGlue_ = (first && lastWordKind_ == 2) ? 1 : 0;
+    else if (ch >= U'0' && ch <= U'9') pendingGlue_ = 2;
+    else pendingGlue_ = 0;
+}
+
+void TelexEngine::noteCommittedWord(bool restored) {
+    if (rawCount_ <= 0) return;
+    const bool keptVietnamese = !restored && (compositionHasDiacritic() || composedIsValidSyllable());
+    lastWordKind_ = (keptVietnamese || isUpperAscii(raw_[0])) ? 1 : 2;
+    noteSinceWord_ = false;
+    pendingGlue_ = 0;
+    if (restored && wordGlue_ == 0 && compositionDiffersFromRaw() && compositionHasDiacritic() &&
+        (composedIsValidSyllable() || isTeencodeKeep())) {
+        RestoreUndo& u = restoreUndo_;
+        u.restoredLength = emitRaw(raw_, rawCount_, u.restored, kMaxText);
+        u.vietnameseLength = emit(out_, outCount_, u.vietnamese, kMaxText);
+        hasRestoreUndo_ = true;
+    }
+}
+
+bool TelexEngine::takeRestoreUndo(RestoreUndo& out) {
+    if (!hasRestoreUndo_) return false;
+    hasRestoreUndo_ = false;
+    out = restoreUndo_;
+    return true;
+}
+
+bool TelexEngine::pendingRestoreUndo(RestoreUndo& out) const {
+    if (!hasRestoreUndo_) return false;
+    out = restoreUndo_;
+    return true;
+}
+
+bool TelexEngine::glueRestores() const {
+    if (vniMode || pCount_ <= 0 || !compositionHasDiacritic()) return false;
+    if (wordGlue_ == 1) {
+        for (int k = 0; k < pCount_; ++k)
+            if (renderLetters_[k].mark != Mark::None) return false;
+        return true;
+    }
+    for (int k = 0; k < pCount_; ++k)
+        if (renderLetters_[k].base == 'u' && renderLetters_[k].mark == Mark::Horn && letterCreatedByW(k)) return true;
+    return false;
+}
+
+bool TelexEngine::isVietnameseTypoKeep() const {
+    if (vniMode || pCount_ < 3 || rawCount_ < 3) return false;
+    const Letter& last = renderLetters_[pCount_ - 1];
+    const Letter& prev = renderLetters_[pCount_ - 2];
+    if (last.mark != Mark::None || isVowelAscii(last.base) || last.upper != prev.upper) return false;
+    int groups = 0;
+    bool inVowel = false;
+    for (int i = 0; i < rawCount_; ++i) {
+        const bool v = isVowelAscii(lowercased(raw_[i]));
+        if (v && !inVowel) ++groups;
+        inVowel = v;
+    }
+    if (groups != 1) return false;
+    bool hasMark = false;
+    for (int k = 0; k < pCount_ - 1; ++k) {
+        if (renderLetters_[k].mark == Mark::None) continue;
+        if (renderLetters_[k].mark == Mark::Horn && renderLetters_[k].base == 'u' && letterCreatedByW(k)) return false;
+        hasMark = true;
+    }
+    if (!hasMark || !lettersAreCommonSyllable(pCount_ - 1)) return false;
+    if (SyllableValidator::isValidPrefix(out_, outCount_, teencode)) return false;
+    return !rawHasEnglishReading();
+}
+
+bool TelexEngine::rawHasEnglishReading() const {
+    if (rawIsEnglishContextWord(true) || rawIsNeutralLoanword()) return true;
+    char w[kCapacity];
+    int n = lowerAsciiInto(raw_, rawCount_, gen::kEnglishContextMaxLength, w);
+    if (n > 0 && inEnglishList(gen::kEnglishCollisions, w, n)) return true;
+    const int top = rawCount_ < gen::kFreezePrefixMaxLength ? rawCount_ : gen::kFreezePrefixMaxLength;
+    if (top < gen::kFreezePrefixMinLength) return false;
+    for (int i = 0; i < top; ++i) w[i] = static_cast<char>(lowercased(raw_[i]));
+    for (int k = gen::kFreezePrefixMinLength; k <= top; ++k)
+        if (inEnglishList(gen::kEnglishFreezePrefixes, w, k)) return true;
+    return false;
+}
+
+bool TelexEngine::isRareAllCapsAcronym() const {
+    if (vniMode || !rawIsAllCapsToken()) return false;
+    bool hasVowel = false;
+    for (int k = 0; k < pCount_; ++k)
+        if (isVowelAscii(renderLetters_[k].base)) { hasVowel = true; break; }
+    if (!hasVowel || !compositionHasDiacritic() || !composedIsValidSyllable()) return false;
+    if (lastEffTone_ != Tone::None && !isToneKeyAt(rawCount_ - 1)) return false;
+    return !lettersAreCommonSyllable(pCount_);
+}
+
+bool TelexEngine::rawIsAllCapsToken() const {
+    if (rawCount_ < 2) return false;
+    for (int i = 0; i < rawCount_; ++i)
+        if (!isUpperAscii(raw_[i])) return false;
+    return pCount_ + (lastEffTone_ == Tone::None ? 0 : 1) >= 2;
+}
+
+bool TelexEngine::lettersAreCommonSyllable(int count) const {
+    char key[2 * kCapacity + 1];
+    int n = 0;
+    for (int k = 0; k < count; ++k) {
+        const Letter& l = renderLetters_[k];
+        key[n++] = static_cast<char>(l.base);
+        switch (l.mark) {
+        case Mark::None: break;
+        case Mark::Circumflex: key[n++] = static_cast<char>(l.base); break;
+        case Mark::Breve: case Mark::Horn: key[n++] = 'w'; break;
+        case Mark::Bar: key[n++] = 'd'; break;
+        }
+    }
+    switch (lastEffTone_) {
+    case Tone::None: break;
+    case Tone::Acute: key[n++] = 's'; break;
+    case Tone::Grave: key[n++] = 'f'; break;
+    case Tone::Hook: key[n++] = 'r'; break;
+    case Tone::Tilde: key[n++] = 'x'; break;
+    case Tone::Dot: key[n++] = 'j'; break;
+    }
+    if (n < 1 || n > gen::kCommonSyllableMaxKey) return false;
+    return contains(gen::kCommonSyllables, key, n);
 }
 
 bool TelexEngine::rawIsNeutralLoanword() const {
@@ -658,6 +804,8 @@ void TelexEngine::reset() {
     resetWord();
     reopenRawCount_ = 0;
     reopenOutCount_ = 0;
+    hasRestoreUndo_ = false;
+    clearGlue();
     if (retroCount_ > 0 || retroHasPending_) retroClear();   // caret moved / text unknown
 }
 
@@ -725,6 +873,7 @@ void TelexEngine::retroClear() {
 }
 
 void TelexEngine::noteBoundaryCharacter(char32_t ch) {
+    noteGlue(ch);
     if (!retroactiveEnglish && retroCount_ == 0 && !retroHasPending_) return;
     if (!retroactiveEnglishActive() || rawCount_ != 0 || ch > 0xFFFF) { retroClear(); return; }
     if (retroHasPending_) {
@@ -903,6 +1052,7 @@ bool TelexEngine::retroBuild(const int* picks, int np) {
 
 int TelexEngine::commitText(bool autoRestore, char16_t* buf, int cap) {
     int n;
+    hasRestoreUndo_ = false;
     if (overflowed_) {
         if (contextualEnglish) clearEnglishContext();
         reopenRawCount_ = 0; reopenOutCount_ = 0;
@@ -917,6 +1067,7 @@ int TelexEngine::commitText(bool autoRestore, char16_t* buf, int cap) {
     n = wantsRestore ? emitRaw(raw_, rawCount_, buf, cap)
         : elongate ? emitElongated(buf, cap) : emit(out_, outCount_, buf, cap);
     captureReopen(wantsRestore || elongate);
+    noteCommittedWord(wantsRestore);
     if (retroactiveEnglish || retroCount_ > 0) retroRecord(wantsRestore, elongate);
     updateContext(wantsRestore);
     resetWord();
@@ -1193,6 +1344,7 @@ void TelexEngine::resetWord() {
     upperToneKey_ = false;
     upperToneFrozen_ = false;
     initialsSplitAt_ = -1;
+    wordGlue_ = 0;
     overflowed_ = false;
     disabledAtCount_ = kNotDisabled;
     tonesFolded_ = false;

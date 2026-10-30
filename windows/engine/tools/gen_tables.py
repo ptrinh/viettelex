@@ -27,6 +27,7 @@ te = read("TelexEngine.swift")
 coll = read("EnglishCollisions.swift")
 ctx = read("EnglishContextWords.swift")
 frz = read("EnglishFreezePrefixes.swift")
+common = read("CommonSyllables.swift")
 
 # ---- letter classes -------------------------------------------------------------
 MARKED = "âăêôơưđ"
@@ -124,6 +125,9 @@ def section(text, start, end):
 collisions = [w for b in blocks(section(coll, "private static let list", None)) for w in words(b)]
 freeze = [w for b in blocks(section(frz, "private static let data", None)) for w in words(b)]
 assert freeze and freeze == sorted(freeze)
+common_keys = [w for b in blocks(section(common, "private static let data", None)) for w in words(b)]
+common_max = int(re.search(r"static let maxKeyLength = (\d+)", common).group(1))
+assert common_keys and common_keys == sorted(common_keys)
 neutral = [w for b in blocks(section(ctx, "static let neutralLoanwords", "static let maxLength")) for w in words(b)]
 ctxwords = [w for b in blocks(section(ctx, "private static let wordList", "private static let restoreOnlyList")) for w in words(b)]
 restore = [w for b in blocks(section(ctx, "private static let restoreOnlyList", None)) for w in words(b)]
@@ -206,6 +210,10 @@ with open(out, "w", encoding="utf-8") as f:
     f.write(f"constexpr int kFreezePrefixMinLength = {freeze_min};\n")
     f.write(f"constexpr int kFreezePrefixMaxLength = {freeze_max};\n")
     emit_words(f, "kEnglishFreezePrefixes", freeze)
+    f.write("// Common Vietnamese syllables (CommonSyllables.swift): Telex keys, tone last (\"vieetj\").\n")
+    f.write("// All-caps acronym rule + Vietnamese typo keep; boundary-only lookups.\n")
+    f.write(f"constexpr int kCommonSyllableMaxKey = {common_max};\n")
+    emit_words(f, "kCommonSyllables", common_keys)
     f.write("// Predecessor gates (EnglishContextWords.predecessorGates): kGateWords[i] restores inside\n")
     f.write("// an English run only right after one of kGatePredecessors<i>. Rule order = bit order.\n")
     for i, (_, ps) in enumerate(gates):

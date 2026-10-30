@@ -22,6 +22,9 @@ def section(text, start, end):
 coll = open(os.path.join(src, "EnglishCollisions.swift")).read()
 frz = open(os.path.join(src, "EnglishFreezePrefixes.swift")).read()
 ctx = open(os.path.join(src, "EnglishContextWords.swift")).read()
+common_src = open(os.path.join(src, "CommonSyllables.swift")).read()
+common = [w for b in blocks(section(common_src, "private static let data", None)) for w in words(b)]
+assert common == sorted(common) and common
 
 collisions = [w for b in blocks(section(coll, "private static let list", None)) for w in words(b)]
 freeze = [w for b in blocks(section(frz, "private static let data", None)) for w in words(b)]
@@ -152,6 +155,14 @@ with open(out, "w") as f:
     f.write("        return false\n")
     f.write("    }\n")
     f.write('    private const val DATA = """\n' + lit(freeze) + '\n"""\n}\n\n')
+    f.write("/**\n")
+    f.write(" * Common Vietnamese syllables (CommonSyllables.swift, Scripts/gen-common-syllables.py):\n")
+    f.write(" * Telex keys, tone last (\"vieetj\", \"hoaf\"). Acronym + typo rules, boundary-only.\n")
+    f.write(" */\n")
+    f.write("internal object CommonSyllables {\n")
+    f.write("    val keys = WordSet(parseWords(DATA))\n")
+    f.write(f"    const val count = {len(common)}\n")
+    f.write('    private const val DATA = """\n' + lit(common) + '\n"""\n}\n\n')
     f.write("internal fun parseWords(list: String): HashSet<String> {\n")
     f.write("    val set = HashSet<String>(1024)\n")
     f.write("    var i = 0\n    val n = list.length\n")

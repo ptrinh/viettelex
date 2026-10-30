@@ -11,6 +11,13 @@
 // independent snapshot.
 package com.viettelex.telexcore
 
+/**
+ * A boundary that restored a word to raw keys although its Vietnamese composition was a
+ * real syllable ("hí" → "his", "NÁ" → "NAS") — Swift `RestoreUndo`. An immediate ⌫ may
+ * put [vietnamese] back in place of [restored] (the caller's boundary char follows both).
+ */
+data class RestoreUndo(val restored: String, val vietnamese: String)
+
 sealed class TelexAction {
     /** Not handled by the engine; let the system insert the character. */
     object Passthrough : TelexAction() { override fun toString() = "Passthrough" }
@@ -147,6 +154,15 @@ class TelexEngine {
     private var reopenCandidate = false
     private var reopenGateBits = 0
 
+    // ⌫-undo of a boundary restore (Swift `restoreUndo`).
+    private var restoreUndo: RestoreUndo? = null
+    // Glued separators / digits (Swift noteGlue): 0 unknown, 1 Vietnamese/capitalized, 2 code-like.
+    private var lastWordKind = 0
+    private var noteSinceWord = true
+    private var pendingGlue = 0   // 0 none, 1 separator, 2 digit
+    private var wordGlue = 0
+    private val keyBuf = IntArray(2 * CAPACITY + 1)   // CommonSyllables probe
+
     val isEmpty: Boolean get() = rawCount == 0
 
     /** Deep copy (Swift value semantics). */
@@ -184,6 +200,8 @@ class TelexEngine {
         e.reopenRawCount = reopenRawCount; e.reopenOutCount = reopenOutCount
         e.reopenPrevEnglish = reopenPrevEnglish
         e.reopenCandidate = reopenCandidate; e.reopenGateBits = reopenGateBits
+        e.restoreUndo = restoreUndo; e.lastWordKind = lastWordKind; e.noteSinceWord = noteSinceWord
+        e.pendingGlue = pendingGlue; e.wordGlue = wordGlue
     }
 
     // MARK: - Public entry points
@@ -201,6 +219,7 @@ class TelexEngine {
 
     /** Feed one typed character. Only ascii letters compose. */
     fun feed(ch: Char): TelexAction {
+        if (restoreUndo != null) restoreUndo = null
         val ascii = ch.code
         if (ascii >= 128 ||
             !(isLetter(ascii) || (vniMode && isDigit(ascii)) || (bracketVowels && bracketBase(ascii) >= 0))
@@ -210,6 +229,8 @@ class TelexEngine {
         if (rawCount == 0) {
             reopenRawCount = 0; reopenOutCount = 0
             if (retroPending != null) retroPending = null
+            wordGlue = pendingGlue
+            pendingGlue = 0
         }
 
         raw[rawCount] = ascii
@@ -317,6 +338,7 @@ class TelexEngine {
 
     /** Backspace: delete the whole last DISPLAYED character, then reconcile. */
     fun backspace(): TelexAction {
+        if (restoreUndo != null) restoreUndo = null
         if (rawCount <= 0) {
             // The app deletes committed text: the retro history no longer matches the screen.
             if (retroHistory.isNotEmpty() || retroPending != null) retroClear()
@@ -350,6 +372,7 @@ class TelexEngine {
 
     /** Word boundary reached. Optionally auto-restore raw keystrokes. Resets the word. */
     fun commitBoundary(autoRestore: Boolean): TelexAction {
+        restoreUndo = null
         try {
             if (rawCount <= 0) { reopenRawCount = 0; reopenOutCount = 0; return TelexAction.None }
             if (overflowed) {
@@ -374,6 +397,7 @@ class TelexEngine {
             val elongate = !wantsRestore && outCount > 0 && isToneThenATail()
             if (elongate) action = TelexAction.Replace(1, elongatedTail())
             captureReopen(wantsRestore || elongate)
+            noteCommittedWord(wantsRestore)
             if (retroactiveEnglish || retroHistory.isNotEmpty()) retroRecord(wantsRestore, elongate)
             updateContext(wantsRestore)
             return action
@@ -397,6 +421,8 @@ class TelexEngine {
     fun forgetLastCommit() {
         reopenRawCount = 0
         reopenOutCount = 0
+        restoreUndo = null
+        clearGlue()
         if (retroHistory.isNotEmpty() || retroPending != null) retroClear()   // text changed under us
     }
 
@@ -445,16 +471,143 @@ class TelexEngine {
             if (toneCancelAt < 0 && tonesFolded) return true
             return composedHasDiacritic()
         }
+        if (wordGlue != 0 && glueRestores()) return true   // "my_var", "100W" — see Swift
         // Đuôi -k (ták/ák/rík) không thắng bảng collision (issue #127) — song sinh Swift.
         if (rawIsEnglishCollision() && !(collisionPrefersVietnamese && composedIsValidSyllable() && !composedEndsWithK())) return true
         if (upperToneKey || rawIsEnglishException() ||
-            (!composedIsValidSyllable() && !isTeencodeKeep())
+            (!composedIsValidSyllable() && !isTeencodeKeep() && !isVietnameseTypoKeep())
         ) return true
+        if (isRareAllCapsAcronym()) return true
         if (contextualEnglish && previousWordEnglish &&
             (rawIsEnglishContextWord(true) || (collisionPrefersVietnamese && rawIsEnglishCollision())) &&
             predecessorGateAllows()
         ) return true
         return false
+    }
+
+    // MARK: - Glue / typo / acronym rules + restore undo (Swift twins, see TelexEngine.swift)
+
+    private fun noteGlue(ch: Char) {
+        val first = !noteSinceWord
+        noteSinceWord = true
+        pendingGlue = when (ch) {
+            '_' -> 1
+            '.', '/' -> if (first && lastWordKind == 2) 1 else 0
+            in '0'..'9' -> 2
+            else -> 0
+        }
+    }
+
+    private fun clearGlue() {
+        lastWordKind = 0
+        noteSinceWord = true
+        pendingGlue = 0
+    }
+
+    private fun noteCommittedWord(restored: Boolean) {
+        if (rawCount <= 0) return
+        val keptVietnamese = !restored && (compositionHasDiacritic() || composedIsValidSyllable())
+        lastWordKind = if (keptVietnamese || isUpperAscii(raw[0])) 1 else 2
+        noteSinceWord = false
+        pendingGlue = 0
+        if (restored && wordGlue == 0 && compositionDiffersFromRaw() && compositionHasDiacritic() &&
+            (composedIsValidSyllable() || isTeencodeKeep())
+        ) restoreUndo = RestoreUndo(rawKeystrokes, composed)
+    }
+
+    /** The ⌫-undo record of the commit that just happened (consumed). See Swift `takeRestoreUndo`. */
+    fun takeRestoreUndo(): RestoreUndo? {
+        val u = restoreUndo
+        restoreUndo = null
+        return u
+    }
+
+    /** Non-consuming look at [takeRestoreUndo]. */
+    val pendingRestoreUndo: RestoreUndo? get() = restoreUndo
+
+    /** The caller put the Vietnamese word back (⌫ right after a restore). See Swift. */
+    fun restoreUndoApplied() {
+        reset()
+        clearEnglishContext()
+    }
+
+    private fun glueRestores(): Boolean {
+        if (vniMode || pCount <= 0 || !compositionHasDiacritic()) return false
+        if (wordGlue == 1) {
+            for (k in 0 until pCount) if (rMark[k] != Mark.NONE) return false
+            return true
+        }
+        for (k in 0 until pCount) {
+            if (rBase[k] == 'u'.code && rMark[k] == Mark.HORN && letterCreatedByW(k)) return true
+        }
+        return false
+    }
+
+    private fun isVietnameseTypoKeep(): Boolean {
+        if (vniMode || pCount < 3 || rawCount < 3) return false
+        val last = pCount - 1
+        if (rMark[last] != Mark.NONE || isVowelAscii(rBase[last]) || rUpper[last] != rUpper[last - 1]) return false
+        var groups = 0
+        var inVowel = false
+        for (i in 0 until rawCount) {
+            val v = isVowelAscii(lowercased(raw[i]))
+            if (v && !inVowel) groups++
+            inVowel = v
+        }
+        if (groups != 1) return false
+        var hasMark = false
+        for (k in 0 until last) {
+            if (rMark[k] == Mark.NONE) continue
+            if (rMark[k] == Mark.HORN && rBase[k] == 'u'.code && letterCreatedByW(k)) return false
+            hasMark = true
+        }
+        if (!hasMark || !lettersAreCommonSyllable(last)) return false
+        if (SyllableValidator.isValidPrefix(composed.lowercase(), teencode)) return false
+        return !rawHasEnglishReading()
+    }
+
+    private fun rawHasEnglishReading(): Boolean {
+        if (rawIsEnglishContextWord(true) || rawIsNeutralLoanword()) return true
+        val n = lowerAsciiInto(raw, rawCount, EnglishContextWords.maxLength)
+        if (n > 0 && EnglishCollisions.words.contains(wordBuf, n)) return true
+        val top = minOf(rawCount, EnglishFreezePrefixes.maxLength)
+        for (k in EnglishFreezePrefixes.minLength..top) if (EnglishFreezePrefixes.contains(raw, k)) return true
+        return false
+    }
+
+    private fun isRareAllCapsAcronym(): Boolean {
+        if (vniMode || !rawIsAllCapsToken()) return false
+        var hasVowel = false
+        for (k in 0 until pCount) if (isVowelAscii(rBase[k])) { hasVowel = true; break }
+        if (!hasVowel || !compositionHasDiacritic() || !composedIsValidSyllable()) return false
+        if (lastEffTone != T.NONE && !isToneKey(rawCount - 1)) return false
+        return !lettersAreCommonSyllable(pCount)
+    }
+
+    private fun rawIsAllCapsToken(): Boolean {
+        if (rawCount < 2) return false
+        for (i in 0 until rawCount) if (!isUpperAscii(raw[i])) return false
+        return pCount + (if (lastEffTone == T.NONE) 0 else 1) >= 2
+    }
+
+    private fun lettersAreCommonSyllable(count: Int): Boolean {
+        var n = 0
+        for (k in 0 until count) {
+            keyBuf[n++] = rBase[k]
+            when (rMark[k]) {
+                Mark.CIRCUMFLEX -> keyBuf[n++] = rBase[k]
+                Mark.BREVE, Mark.HORN -> keyBuf[n++] = 'w'.code
+                Mark.BAR -> keyBuf[n++] = 'd'.code
+            }
+        }
+        when (lastEffTone) {
+            T.ACUTE -> keyBuf[n++] = 's'.code
+            T.GRAVE -> keyBuf[n++] = 'f'.code
+            T.HOOK -> keyBuf[n++] = 'r'.code
+            T.TILDE -> keyBuf[n++] = 'x'.code
+            T.DOT -> keyBuf[n++] = 'j'.code
+        }
+        return CommonSyllables.keys.contains(keyBuf, n)
     }
 
     /** Swift `predecessorGateAllows`: a gated word ("been") needs its predecessor ("has"). */
@@ -553,6 +706,7 @@ class TelexEngine {
         if (rawIsNeutralLoanword() || rawIsEnglishContextWord(true) || rawIsContractionTail()) return CTX_NEUTRAL
         if (!restored && SyllableValidator.isValidSyllableScalars(out, outCount, teencode, valBuf)) return CTX_VIETNAMESE
         if (rawCount <= 2) return CTX_NEUTRAL
+        if (rawIsAllCapsToken()) return CTX_NEUTRAL   // acronym ("ASL"): never opens a run — see Swift
         return CTX_ENGLISH
     }
 
@@ -601,6 +755,7 @@ class TelexEngine {
 
     /** The caller inserted boundary character [ch] after a commit (Swift `noteBoundaryCharacter`). */
     fun noteBoundaryCharacter(ch: Char) {
+        noteGlue(ch)
         if (!retroactiveEnglish && retroHistory.isEmpty() && retroPending == null) return
         if (!retroactiveEnglishActive || rawCount != 0 || ch.isSurrogate()) { retroClear(); return }
         retroPending?.let { p ->
@@ -696,6 +851,7 @@ class TelexEngine {
 
     /** Final text to commit at a word boundary, with auto-restore applied. Resets the word. */
     fun commitText(autoRestore: Boolean): String {
+        restoreUndo = null
         try {
             if (overflowed) {
                 if (contextualEnglish) clearEnglishContext()
@@ -708,6 +864,7 @@ class TelexEngine {
             val elongate = !wantsRestore && outCount > 0 && isToneThenATail()
             val text = if (wantsRestore) rawKeystrokes else if (elongate) composedElongated() else composed
             captureReopen(wantsRestore || elongate)
+            noteCommittedWord(wantsRestore)
             if (retroactiveEnglish || retroHistory.isNotEmpty()) retroRecord(wantsRestore, elongate)
             updateContext(wantsRestore)
             return text
@@ -1029,6 +1186,8 @@ class TelexEngine {
         resetWord()
         reopenRawCount = 0
         reopenOutCount = 0
+        restoreUndo = null
+        clearGlue()
         if (retroHistory.isNotEmpty() || retroPending != null) retroClear()   // caret moved / text unknown
     }
 
@@ -1041,6 +1200,7 @@ class TelexEngine {
         upperToneKey = false
         upperToneFrozen = false
         initialsSplitAt = -1
+        wordGlue = 0
         overflowed = false
         disabledAtCount = Int.MAX_VALUE
         tonesFolded = false

@@ -223,6 +223,31 @@ public func vt_take_retro(_ h: OpaquePointer, _ out: UnsafeMutableRawPointer?) -
     return true
 }
 
+/// vt_restore_undo layout: int32 restored_len @0, vietnamese_len @4,
+/// char restored[160] @8, char vietnamese[160] @168.
+@_cdecl("vt_take_restore_undo")
+public func vt_take_restore_undo(_ h: OpaquePointer, _ out: UnsafeMutableRawPointer?) -> Bool {
+    guard let out, let u = box(h).e.takeRestoreUndo() else { return false }
+    let cap = 160
+    func put(_ s: String, _ at: Int) -> Int32? {
+        var n = 0
+        for b in s.utf8 {
+            if n >= cap - 1 { return nil }
+            out.storeBytes(of: b, toByteOffset: at + n, as: UInt8.self)
+            n += 1
+        }
+        out.storeBytes(of: 0, toByteOffset: at + n, as: UInt8.self)
+        return Int32(n)
+    }
+    guard let rl = put(u.restored, 8), let vl = put(u.vietnamese, 8 + cap) else { return false }
+    out.storeBytes(of: rl, toByteOffset: 0, as: Int32.self)
+    out.storeBytes(of: vl, toByteOffset: 4, as: Int32.self)
+    return true
+}
+
+@_cdecl("vt_restore_undo_applied")
+public func vt_restore_undo_applied(_ h: OpaquePointer) { box(h).e.restoreUndoApplied() }
+
 @_cdecl("vt_reopen")
 public func vt_reopen(_ h: OpaquePointer, _ buf: UnsafeMutablePointer<CChar>?, _ cap: Int) -> Int {
     guard let w = box(h).e.reopenLastCommit() else { return -1 }
