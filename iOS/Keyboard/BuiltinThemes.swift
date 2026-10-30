@@ -167,6 +167,12 @@ enum BuiltinThemesData {
                 "accentInk": "#3B2410", "fn": "#5C3820", "fnInk": "#FFE3A3", "border": "#3A2212",
                 "deco": {"motif": "flowers", "color": "#73245214"}},
       "dark": "same"
+    },
+    {
+      "v": 1, "id": "neutral", "name": {"vi": "Xám trung tính", "en": "Neutral Grey"},
+      "light": {"bg": "#E8EAED", "key": "#FFFFFF", "special": "#D2D5DA", "ink": "#1F1F1F", "accent": "#5F6368"},
+      "dark": {"bg": "#202124", "key": "#3C4043", "special": "#2D2E31", "ink": "#E8EAED", "accent": "#9AA0A6",
+               "accentInk": "#202124"}
     }
   ]
 }

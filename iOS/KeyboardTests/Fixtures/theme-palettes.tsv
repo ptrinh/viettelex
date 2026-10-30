@@ -4,7 +4,7 @@
 # Màu: AARRGGBB (alpha cắt cụt a*255); '-' = không có. fn = nền phím chức năng + phím cách riêng;
 # fnInk = chữ/icon phím chức năng riêng; deco = hoạ tiết nền motif[+alt]:màu (alt = motif thứ hai xen kẽ). Hệ thống / Kính khác nhau theo
 # nền tảng (backdrop) nên không có ở đây.
-order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole
+order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral
 plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole
 #theme	dark	bg	key	special	ink	accent	accentInk	border	fn	fnInk	deco
 oled	0	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
@@ -57,3 +57,5 @@ guitar	0	FFDDA35C	FF4A2A1C	FF6B4030	FFF6EBD5	FFE8A93A	FF2A1606	-	FF351D13	FFF2C4
 guitar	1	FF1A1009	FF4A2A1C	FF6B4030	FFF6EBD5	FFE8A93A	FF2A1606	-	FF351D13	FFF2C46D	strings+inlay:73C9A46A
 mole	0	FF3D7A24	FF7A4A2A	FF5C3820	FFFFF4DC	FFF4C542	FF3B2410	FF3A2212	FF5C3820	FFFFE3A3	flowers:73245214
 mole	1	FF3D7A24	FF7A4A2A	FF5C3820	FFFFF4DC	FFF4C542	FF3B2410	FF3A2212	FF5C3820	FFFFE3A3	flowers:73245214
+neutral	0	FFE8EAED	FFFFFFFF	FFD2D5DA	FF1F1F1F	FF5F6368	FFFFFFFF	-	-	-	-
+neutral	1	FF202124	FF3C4043	FF2D2E31	FFE8EAED	FF9AA0A6	FF202124	-	-	-	-

@@ -105,7 +105,7 @@ struct ThemeSettingsView: View {
                 Section {
                     PlusEntryRow()
                 } footer: {
-                    Text(L("Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus. Hệ thống, Tối OLED và Tương phản cao luôn miễn phí."))
+                    Text(L("Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus. Hệ thống, Tối OLED, Tương phản cao và Xám trung tính luôn miễn phí."))
                 }
             }
 

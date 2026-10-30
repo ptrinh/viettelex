@@ -265,6 +265,9 @@ enum KeyboardTheme: String, CaseIterable {
     case guitar
     // Trò chơi khi gõ 10/2026: Đập chuột (bãi cỏ + phím hang đất; "game":"mole" — MoleGame).
     case mole
+    // Xám trung tính (issue #137, 30/10/2026): miễn phí, kiểu Gboard xám, theo sáng/tối hệ thống. Id trùng Android;
+    // THÊM CUỐI (rawValue lưu, không đổi thứ tự).
+    case neutral
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -297,6 +300,7 @@ enum KeyboardTheme: String, CaseIterable {
         case .halloween: return L("Halloween")
         case .guitar: return L("Ghi-ta")
         case .mole: return L("Đập chuột")
+        case .neutral: return L("Xám trung tính")
         }
     }
 
@@ -318,7 +322,7 @@ enum KeyboardTheme: String, CaseIterable {
     /// Theme cao cấp thuộc gói Plus. Tương phản cao là trợ năng → luôn miễn phí.
     var isPlus: Bool {
         switch self {
-        case .system, .oled, .contrast: return false
+        case .system, .oled, .contrast, .neutral: return false
         case .peach, .mint, .sky, .lavender, .glass,
              .blackHeart, .greenFloral, .sage, .neon, .pink,
              .tet, .tetMai, .xmas, .xmasSnow, .piano,
@@ -721,7 +725,7 @@ enum ThemeExtras {
 /// Trang "Chọn giao diện" (logic thuần — test được; Android: ThemePicker trong KeyboardTheme.kt).
 enum ThemePicker {
     struct Section { let title: String; let themes: [KeyboardTheme] }
-    /// "Miễn phí" (Hệ thống, OLED, Tương phản cao) rồi "Plus" (còn lại), giữ thứ tự khai báo.
+    /// "Miễn phí" (Hệ thống, OLED, Tương phản cao, Xám trung tính) rồi "Plus" (còn lại), giữ thứ tự khai báo.
     static var sections: [Section] {
         [Section(title: LK("Miễn phí"), themes: KeyboardTheme.allCases.filter { !$0.isPlus }),
          Section(title: "Plus", themes: KeyboardTheme.allCases.filter(\.isPlus))]

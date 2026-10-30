@@ -903,7 +903,7 @@ final class ThemeSetTests: XCTestCase {
         let f = try fixture()
         XCTAssertEqual(KeyboardTheme.allCases.map(\.rawValue), f.order, "id + thứ tự phải trùng Android")
         XCTAssertEqual(KeyboardTheme.allCases.filter(\.isPlus).map(\.rawValue), f.plus)
-        XCTAssertEqual(f.rows.count, 50)
+        XCTAssertEqual(f.rows.count, 52)
         for r in f.rows {
             let t = try XCTUnwrap(KeyboardTheme(rawValue: r.theme), r.theme)
             let p = t.palette(systemDark: r.dark)
@@ -1426,12 +1426,39 @@ final class ThemeSetTests: XCTestCase {
     func testPickerSectionsFreeThenPlus() {
         let secs = ThemePicker.sections
         XCTAssertEqual(secs.map(\.title), ["Miễn phí", "Plus"])
-        XCTAssertEqual(secs[0].themes, [.system, .oled, .contrast])
+        XCTAssertEqual(secs[0].themes, [.system, .oled, .contrast, .neutral])
         XCTAssertEqual(Set(secs[0].themes + secs[1].themes), Set(KeyboardTheme.allCases))
         XCTAssertTrue(secs[1].themes.allSatisfy(\.isPlus))
         XCTAssertEqual(L10n.en["Miễn phí"], "Free")
         XCTAssertEqual(L10n.en["Chọn giao diện"], "Choose theme")
         XCTAssertEqual(L10n.en["Giao diện bàn phím"], "Keyboard theme")
+    }
+
+    /// Issue #137 (30/10/2026): "Xám trung tính" miễn phí, thêm cuối, kiểu Gboard, theo sáng/tối hệ thống — ≡ Android
+    /// NeutralThemeTests (palette chung qua theme-palettes.tsv).
+    func testNeutralThemeFreeGreyFollowsSystem() throws {
+        let t = KeyboardTheme.neutral
+        XCTAssertEqual(t.rawValue, "neutral")
+        XCTAssertEqual(KeyboardTheme.allCases.last, t, "thêm CUỐI — rawValue lưu không đổi thứ tự")
+        XCTAssertFalse(t.isPlus)
+        XCTAssertEqual(L10n.en["Xám trung tính"], "Neutral Grey")
+        XCTAssertEqual(t.spec?.nameEn, "Neutral Grey")
+        let l = t.palette(systemDark: false), d = t.palette(systemDark: true)
+        XCTAssertEqual([l.background, l.keyFill, l.specialFill, l.ink, l.accent, l.accentInk].map(Self.hex),
+                       ["FFE8EAED", "FFFFFFFF", "FFD2D5DA", "FF1F1F1F", "FF5F6368", "FFFFFFFF"])
+        XCTAssertEqual([d.background, d.keyFill, d.specialFill, d.ink, d.accent, d.accentInk].map(Self.hex),
+                       ["FF202124", "FF3C4043", "FF2D2E31", "FFE8EAED", "FF9AA0A6", "FF202124"])
+        XCTAssertFalse(l.isDark); XCTAssertTrue(d.isDark)
+        XCTAssertNil(l.keyBorder); XCTAssertNil(l.decoration)
+        // Có nền riêng ⇒ có "Nền theo hệ thống" như theme miễn phí khác, và khoá đó được sao lưu.
+        XCTAssertEqual(t.systemBackdropKey, "systemBackdropNeutral")
+        XCTAssertNotNil(BackupSettings.byKey["systemBackdropNeutral"])
+        // Không bị khoá Plus kể cả khi chưa mua.
+        let saved = PlusGate.paywallEnabled
+        defer { PlusGate.paywallEnabled = saved }
+        PlusGate.paywallEnabled = true
+        XCTAssertTrue(ThemeGate.allows(t))
+        XCTAssertEqual(ThemeSettings(theme: t).effectiveTheme, t)
     }
 
     func testPickerSelectRespectsPlusGate() {

@@ -92,6 +92,8 @@ object BackupSettings {
         Spec(Keys.AUTO_SPACE_AFTER_PUNCT, SettingKind.Bool(false)),
         Spec(Keys.KEYBOARD_TRANSPARENCY, SettingKind.IntRange(0, 0..100)),
         Spec(Keys.KEY_LABEL_TRANSPARENCY, SettingKind.IntRange(0, 0..100)),
+        // Hệ thống: "Dùng màu hình nền (Material You)" — chỉ Android dùng ([SystemColors]).
+        Spec(Keys.SYSTEM_MATERIAL_YOU, SettingKind.Bool(true)),
         // "Hiệu ứng khi bấm phím" (Plus, [KeyEffect]) — cùng khoá + id iOS; lạ ⇒ bỏ qua (máy giữ Không).
         Spec(Keys.KEY_EFFECT, SettingKind.Choice(KeyEffect.DEFAULT.id, KeyEffect.IDS)),
         // "Bạn đồng hành" (Plus, [BuddyCharacter]) — cùng khoá + id iOS; lạ ⇒ bỏ qua (máy giữ Tắt).

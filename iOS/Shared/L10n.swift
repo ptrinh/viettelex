@@ -479,7 +479,7 @@ enum L10n {
 
         // Giao diện
         "Áp dụng lần mở bàn phím kế tiếp.": "Applies the next time the keyboard opens.",
-        "Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus. Hệ thống, Tối OLED và Tương phản cao luôn miễn phí.": "Themes marked Plus and wallpapers are part of VietTelex Plus. System, OLED Dark and High Contrast are always free.",
+        "Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus. Hệ thống, Tối OLED, Tương phản cao và Xám trung tính luôn miễn phí.": "Themes marked Plus and wallpapers are part of VietTelex Plus. System, OLED Dark, High Contrast and Neutral Grey are always free.",
         "Đổi ảnh nền": "Change wallpaper",
         "Chọn ảnh nền từ Thư viện": "Choose wallpaper from Photos",
         "Dùng ảnh nền": "Use wallpaper",
@@ -712,6 +712,7 @@ enum L10n {
         "Không thấy emoji": "No emoji found",
         "Hệ thống": "System",
         "Tối OLED": "OLED Dark",
+        "Xám trung tính": "Neutral Grey",
         "Tương phản cao": "High Contrast",
         "Hồng đào": "Peach",
         "Bạc hà": "Mint",

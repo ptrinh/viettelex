@@ -158,7 +158,7 @@ class MoleGameTests {
         assertEquals("mole", spec.game); assertEquals("bop", spec.sound); assertNull(spec.effect)
         assertEquals("Whack-a-mole", spec.nameEn)
         assertTrue(t.isPlus)
-        assertEquals(KeyboardTheme.MOLE, KeyboardTheme.entries.last())
+        assertEquals(KeyboardTheme.MOLE, KeyboardTheme.entries[KeyboardTheme.entries.indexOf(KeyboardTheme.NEUTRAL) - 1])   // thêm cuối (sau đó: Xám trung tính)
         val c = ThemeColor
         for (dk in listOf(false, true)) {
             val p = t.palette(dk)!!
