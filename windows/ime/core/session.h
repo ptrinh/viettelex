@@ -167,6 +167,11 @@ public:
     // number of words the LAST handleKey rewrote (0 = none), and whether ⌫ next reverts it.
     int lastRetroWords() const { return lastRetroWords_; }
     bool retroUndoArmed() const { return retroUndo_.armed(); }
+    // ⌫ right after a boundary restore-to-English ("hí" -> "his", "NÁ" -> "NAS") puts the
+    // Vietnamese back (engine vtx_take_restore_undo, armed for exactly one key, verified
+    // against the text before the caret). Count of such undos this session (diagnostics).
+    bool restoreUndoArmed() const { return retroUndo_.armed() && retroUndo_.restore; }
+    int restoreUndoCount() const { return restoreUndos_; }
     // Offer mode (SessionOptions::retroOffer): the correction the LAST handleKey verified and
     // did not apply, for the caret hint (empty = none). The TIP shows it once the app has
     // typed the boundary key and applies it on Tab (caret_hints.h Kind::Retro).
@@ -192,6 +197,8 @@ private:
     // character (the app inserts it after this key: it is not on screen yet).
     void finishRetro(TextSink& sink, KeyKind kind, char32_t ch);
     bool tryRetroUndo(const retro::Undo& u, TextSink& sink);
+    // After every commit: arm the one-key ⌫ undo with the engine's restore-undo record.
+    void armRestoreUndo(char16_t boundary);
     bool tryReEdit(char32_t c, TextSink& sink);
     bool tryReopen(TextSink& sink);
     void swapEngine(vtx_engine* e);
@@ -230,6 +237,7 @@ private:
     std::u16string lastWord_;            // see lastCommitWord()
     retro::Undo retroUndo_;              // armed for exactly one key after a rewrite
     int lastRetroWords_ = 0;
+    int restoreUndos_ = 0;               // see restoreUndoCount()
     retro::Offer retroOffer_;            // see retroOffer()
 };
 

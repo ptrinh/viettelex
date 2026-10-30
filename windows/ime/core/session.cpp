@@ -250,7 +250,9 @@ void TypingSession::flush(TextSink& sink) { commitWord(sink, KeyKind::Navigation
 void TypingSession::noteKeyPassedBy(const KeyInput& k) {
     retroOffer_.clear();
     lastRetroWords_ = 0;
-    if (!retroOn()) return;
+    // Any other key drops the one-key undo (retro rewrite or boundary restore), and the
+    // engine hears about every boundary character even with retro off: it also uses them
+    // for glued separators ("my_var", "os.path", "100W").
     retroUndo_.clear();
     switch (k.kind) {
         case KeyKind::Char:
@@ -623,6 +625,14 @@ bool TypingSession::tryRetroUndo(const retro::Undo& u, TextSink& sink) {
                                       ? sink.textBeforeCaret(static_cast<int>(u.applied.size()))
                                       : std::u16string();
     if (!retro::undoApplies(u, f, before) || !sink.replaceBeforeCaret(u.applied, u.original)) return false;
+    if (u.restore) {
+        // ⌫ right after a restore-to-English: the Vietnamese word is back on screen.
+        if (opt_.log) opt_.log("restore undo: Vietnamese put back by backspace");
+        ++restoreUndos_;
+        reset();
+        vtx_restore_undo_applied(engine_);   // the committed word is Vietnamese now
+        return true;
+    }
     if (opt_.log) opt_.log("retro: reverted by backspace");
     // The engine's word history says English; the screen is back to the old text.
     reset();
@@ -632,8 +642,24 @@ bool TypingSession::tryRetroUndo(const retro::Undo& u, TextSink& sink) {
 
 bool TypingSession::commitWord(TextSink& sink, KeyKind kind, char32_t ch) {
     const bool r = commitWordInner(sink, kind, ch);
+    const bool printable = kind == KeyKind::Char && ch != 0 && ch <= 0xFFFF;
     if (retroOn()) finishRetro(sink, kind, ch);
+    else vtx_note_boundary(engine_, printable ? ch : U'\n');   // glue: see noteKeyPassedBy
+    armRestoreUndo(printable ? static_cast<char16_t>(ch) : 0);
     return r;
+}
+
+void TypingSession::armRestoreUndo(char16_t boundary) {
+    vtx_restore_undo u;
+    if (!vtx_take_restore_undo(engine_, &u)) return;
+    // Only after a printable boundary on the same line (Enter / Tab may have sent the
+    // message or left the field), never over a retro rewrite this key already armed, and
+    // only when the screen got the restored word (the commit's own rewrite verified).
+    if (boundary == 0 || boundary == u'\n' || boundary == u'\r' || boundary == u'\t' || retroUndo_.armed()) return;
+    const std::u16string restored = toU16(u.restored, u.restored_len);
+    if (lastText_ != restored) return;
+    retroUndo_ = retro::makeUndo(toU16(u.vietnamese, u.vietnamese_len), restored, boundary);
+    retroUndo_.restore = true;
 }
 
 bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind, char32_t ch) {

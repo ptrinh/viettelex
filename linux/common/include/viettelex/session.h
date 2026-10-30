@@ -187,6 +187,8 @@ public:
     // rewrote (0 = none) and whether ⌫ next reverts the rewrite.
     int lastRetroWords() const { return lastRetroWords_; }
     bool retroUndoArmed() const { return retroUndo_.armed(); }
+    // ⌫ right after a restore-to-English (vt_take_restore_undo) is armed in the same slot.
+    bool restoreUndoArmed() const { return retroUndo_.armed() && undoIsRestore_; }
     bool retroOffering() const { return retroMode_ == retro::Mode::Offer; }
 
 private:
@@ -197,13 +199,17 @@ private:
     // the boundary character (`ch` printable ASCII, else 0 = Enter / Tab / navigation: ends
     // the phrase). The app inserts the key after this event, so it is not on screen yet.
     void finishRetro(InputContext &ic, uint32_t ch);
-    bool tryRetroUndo(const retro::Undo &u, InputContext &ic);
+    bool tryRetroUndo(const retro::Undo &u, InputContext &ic, bool restoreUndo = false);
+    // After every boundary: the engine restored a real Vietnamese syllable to raw keys
+    // ("hí" → "his") ⇒ arm the one-key ⌫ undo (unless a retro rewrite already owns it).
+    void armRestoreUndo(uint32_t ch);
     // Offer mode: Tab on the shown Kind::Retro suggestion.
     bool applyRetroOffer(const CaretSuggestion &s, InputContext &ic);
     bool retroOn_ = false;
     retro::Mode retroMode_ = retro::Mode::Off;
     retro::Offer retroOffer_;        // verified during this key event, shown at its end
     retro::Undo retroUndo_;          // armed for exactly one key after a rewrite
+    bool undoIsRestore_ = false;     // retroUndo_ holds a restore-to-English undo
     int lastRetroWords_ = 0;
     size_t retroInflight_ = 0;       // UTF-8 bytes endWord committed during this key event
     // Surrounding: delete-surrounding + commit. Direct: forwarded BackSpace + text.

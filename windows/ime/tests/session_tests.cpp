@@ -110,6 +110,63 @@ TEST(session_auto_restore) {
     bothModes("windows ", "windows ");
 }
 
+// Acronyms / glued separators reach the engine through every boundary key, retro or not.
+TEST(session_acronym_and_glue) {
+    for (bool contextual : {true, false}) {
+        for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+            Rig r(m);
+            r.settings.contextualEnglish = contextual;   // off: VTX_RETRO_ENGLISH off too
+            r.apply();
+            r.type("NAS VIEEJT my_var 100W 5trawm ");
+            CHECK_EQ(r.text(), std::string("NAS VIỆT my_var 100W 5trăm "));
+        }
+    }
+}
+
+// ⌫ right after a restore-to-English puts the Vietnamese back (one key, verified).
+TEST(session_restore_undo) {
+    for (bool contextual : {true, false}) {
+        for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+            Rig r(m);
+            r.settings.contextualEnglish = contextual;
+            r.apply();
+            r.type("NAS ");
+            CHECK_EQ(r.text(), std::string("NAS "));
+            CHECK(r.s.restoreUndoArmed());
+            r.key('\b');
+            CHECK_EQ(r.text(), std::string("NÁ "));   // boundary kept, like the retro undo
+            CHECK_EQ(r.s.restoreUndoCount(), 1);
+            CHECK(!r.s.restoreUndoArmed());
+            r.key('\b');                               // the next ⌫ is an ordinary one
+            CHECK_EQ(r.text(), std::string("NÁ"));
+
+            Rig k(m);                                  // any other key drops the chance
+            k.settings.contextualEnglish = contextual;
+            k.apply();
+            k.type("NAS a\b\b");
+            CHECK_EQ(k.text(), std::string("NAS"));
+            CHECK_EQ(k.s.restoreUndoCount(), 0);
+
+            Rig e(m);                                  // Enter: no undo (may have sent)
+            e.settings.contextualEnglish = contextual;
+            e.apply();
+            e.type("NAS\n");
+            CHECK(!e.s.restoreUndoArmed());
+
+            Rig g(m);                                  // glued to code: ⌫ is editing
+            g.settings.contextualEnglish = contextual;
+            g.apply();
+            g.type("my_var ");
+            CHECK(!g.s.restoreUndoArmed());
+        }
+    }
+    // Inside an English run: "he is" restores "is"; ⌫ gives "í" back and ends the run.
+    Rig c(OutputMode::InPlace);
+    c.type("he is \b");
+    CHECK_EQ(c.text(), std::string("he í "));
+    CHECK(!c.s.previousWordEnglish());
+}
+
 TEST(session_auto_restore_off_keeps_composed) {
     for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
         Rig r(m);

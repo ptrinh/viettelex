@@ -55,11 +55,16 @@ Apply decideApply(const Field& f, const std::u16string& before, const std::u16st
 // Both strings include the boundary character that ended the word (it reaches the
 // document after the rewrite), so the revert keeps it: "His car is very fast " -> ⌫ ->
 // "Hí cả í very fast ".
+//
+// The same one-key slot also holds the engine's RESTORE undo (vtx_take_restore_undo): the
+// boundary restored "hí" to "his" / "NÁ" to "NAS"; ⌫ next puts the Vietnamese back
+// (`restore` = true: the session then calls vtx_restore_undo_applied).
 struct Undo {
     std::u16string applied;   // what is on screen now, ending at the caret
     std::u16string original;  // what was there before the rewrite
+    bool restore = false;     // a boundary restore-to-English, not a retro rewrite
     bool armed() const { return !applied.empty(); }
-    void clear() { applied.clear(); original.clear(); }
+    void clear() { applied.clear(); original.clear(); restore = false; }
 };
 
 // Arm after a rewrite + its boundary char. `boundary` 0 = none (Enter / Tab / Esc: the key
