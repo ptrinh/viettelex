@@ -360,6 +360,7 @@ enum L10n {
         "Cù bạn đồng hành": "Tickle buddy",
         "Đặt tên": "Name",
         "chào bạn!": "says hi!",
+        "Chúc mừng năm mới!": "Happy New Year!",
         "Sinh nhật của bạn": "Your birthday",
         "Tháng": "Month",
         "Ngày": "Day",

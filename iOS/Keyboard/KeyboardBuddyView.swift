@@ -939,7 +939,7 @@ final class BuddyView: UIView {
                 showBadge(r, w: w, h: h, text: bubble, dur: dur)
             }
         case .tetWish:
-            showBadge(r, w: w, h: h, text: "Chúc mừng năm mới!", dur: dur)
+            showBadge(r, w: w, h: h, text: L("Chúc mừng năm mới!"), dur: dur)
         case .laugh, .panic, .tickle, .yawn:
             break
         }

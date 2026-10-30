@@ -704,7 +704,7 @@ class BuddyView(
                     c.save(); c.translate(rect.left, rect.top); c.drawPath(cloud, fxFill); c.restore()
                 }
                 BuddyReaction.GREET, BuddyReaction.TET_WISH -> {
-                    val bubble = if (r == BuddyReaction.TET_WISH) "Chúc mừng năm mới!" else BuddyName.bubble(petName, com.viettelex.keyboard.tr("chào bạn!") == "says hi!", (b.w / 5.2).toInt())
+                    val bubble = if (r == BuddyReaction.TET_WISH) com.viettelex.keyboard.tr("Chúc mừng năm mới!") else BuddyName.bubble(petName, com.viettelex.keyboard.tr("chào bạn!") == "says hi!", (b.w / 5.2).toInt())
                     if (bubble != null) {
                         fxFill.color = argb(0xFFF7ED, al.toDouble())
                         c.drawRoundRect(rect, 5f, 5f, fxFill)

@@ -191,6 +191,7 @@ object L10nTable {
         put("Cù bạn đồng hành", "Tickle buddy")
         put("Đặt tên", "Name")
         put("chào bạn!", "says hi!")
+        put("Chúc mừng năm mới!", "Happy New Year!")
         put("Sinh nhật của bạn", "Your birthday")
         put("Tháng", "Month")
         put("Ngày", "Day")
