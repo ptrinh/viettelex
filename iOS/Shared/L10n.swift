@@ -273,6 +273,7 @@ enum L10n {
         "Trái": "Left",
         "Phải": "Right",
         "Cử chỉ": "Gestures",
+        "Xuống dòng mà không gửi (ô chat trên web, nơi Return là Gửi): giữ lâu phím Return, hoặc chạm ⇧ rồi chạm Return.": "New line without sending (web chat boxes where Return sends): hold the Return key, or tap ⇧ then Return.",
         "Ô chữ lớn nổi trên phím vừa chạm. Tắt cho gọn, nhẹ máy.": "A large letter pops up above the key you tap. Turn off for a cleaner, lighter keyboard.",
         "Rung nhẹ mỗi lần chạm phím.": "A light vibration on every key tap.",
         "Phản hồi khi chạm": "Tap feedback",

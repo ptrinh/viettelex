@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0028C2A1231D251EAFFFB5BD /* LineBreak.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E72B42E221624B843FECDBB /* LineBreak.swift */; };
 		01B8210D0F9862246491F86C /* PlusConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0F66BB47D978962BA91434 /* PlusConfig.swift */; };
 		0222562F9A662E1780357942 /* EmojiPlane.swift in Sources */ = {isa = PBXBuildFile; fileRef = D705942B9BA084047E7A7EF1 /* EmojiPlane.swift */; };
 		02277DFC3A0CEDD0F1321BC7 /* lobster.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F21C0A79B520C1120988E6BC /* lobster.ttf */; };
@@ -195,6 +196,7 @@
 		655D200C1B8E3D12746C26F2 /* baloo-2.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9DD4CB65047DC812E4E9B04C /* baloo-2.ttf */; };
 		658E42F174DDEEC703E5F454 /* SwipeEnglish.swift in Sources */ = {isa = PBXBuildFile; fileRef = E360BCC27ECE43C8DEB11CC7 /* SwipeEnglish.swift */; };
 		65D82AAE22D437742097F6E1 /* BuiltinFonts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32246E1A2093C068D48B4809 /* BuiltinFonts.swift */; };
+		6644AE50C0BC33D2EC05AB6D /* LineBreak.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E72B42E221624B843FECDBB /* LineBreak.swift */; };
 		665AA760B41DC86808F42E23 /* TouchLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73661E1643A0CAA02517C00 /* TouchLog.swift */; };
 		6689B752583E4AE424F48573 /* EngineBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD709650C25830CA926EBCF /* EngineBridge.swift */; };
 		673B126D70D140C3758BEA30 /* BuiltinThemes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69841F9C38AF675A240AD5A7 /* BuiltinThemes.swift */; };
@@ -230,6 +232,7 @@
 		762A75417D368A04E70970E7 /* TranslateEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD345381A7158ECF3B158383 /* TranslateEngine.swift */; };
 		76E858DA9F6E92C01F7D638B /* KeySound.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AF5F8C17DF806D66D530AA6 /* KeySound.swift */; };
 		777DFD50684EBFD29E6F41C8 /* ios-mau-cau.yml in Resources */ = {isa = PBXBuildFile; fileRef = E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */; };
+		77E204D3C6741B96B65EDCE9 /* LineBreakTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06874DA9C48F5720BD4FCB5 /* LineBreakTests.swift */; };
 		7860D4A1B59605C50D702BAC /* PlusGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D488C3ADF837AC9FCDD9EC1D /* PlusGate.swift */; };
 		7933EDB9373812AE6B96C22A /* SwipeTyping.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BA79FCDFB7209A8D1C65B0 /* SwipeTyping.swift */; };
 		7A17145A9CA2831379306335 /* AppearancePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E14AD387BE2B1A54881E15 /* AppearancePolicy.swift */; };
@@ -641,6 +644,7 @@
 		4C48C500F39CC4B089E84DA5 /* RainbowBorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RainbowBorder.swift; sourceTree = "<group>"; };
 		4D63C37243075CB222618BAE /* KeyEffectPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyEffectPickerView.swift; sourceTree = "<group>"; };
 		4E700B266A47DAAAD5A72343 /* TouchTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchTarget.swift; sourceTree = "<group>"; };
+		4E72B42E221624B843FECDBB /* LineBreak.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineBreak.swift; sourceTree = "<group>"; };
 		4F299BCC57B1DB9FC94AD14A /* RetroEnglishBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroEnglishBridgeTests.swift; sourceTree = "<group>"; };
 		4F35DEB1416616443DB332E0 /* VTCatch.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VTCatch.m; sourceTree = "<group>"; };
 		4F980E450F0B3851CDC5361F /* ClipDetect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipDetect.swift; sourceTree = "<group>"; };
@@ -841,6 +845,7 @@
 		EE8993F83A60C653C26799EC /* NumberRowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberRowTests.swift; sourceTree = "<group>"; };
 		EF30CED4269435719F2F5392 /* PasteOfferOnceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteOfferOnceTests.swift; sourceTree = "<group>"; };
 		F0396F7F4C967F32F6246FFB /* NumericKeypadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumericKeypadTests.swift; sourceTree = "<group>"; };
+		F06874DA9C48F5720BD4FCB5 /* LineBreakTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineBreakTests.swift; sourceTree = "<group>"; };
 		F0FC8F0608409E1FDA1707BD /* suggest-dev.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "suggest-dev.txt"; sourceTree = "<group>"; };
 		F19DD98199410F2E9E9DAE24 /* userlm-vtl2-case.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "userlm-vtl2-case.bin"; sourceTree = "<group>"; };
 		F1AF0B5D15512A88DDB6CFF7 /* KeyHitBiasTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyHitBiasTests.swift; sourceTree = "<group>"; };
@@ -1138,6 +1143,7 @@
 				83172F6D36753303988A9F6B /* LearnedCaseTests.swift */,
 				B77A866D636FA255421EC2DA /* LegacyUserLangModel.swift */,
 				3B258DEED17434ED054B29D7 /* LetterUndoTests.swift */,
+				F06874DA9C48F5720BD4FCB5 /* LineBreakTests.swift */,
 				46501A28188D32863452971E /* MathResultsTests.swift */,
 				B5A005BDE8CE23D127F0AE4A /* MoleGameTests.swift */,
 				A7FCB71A2846557F9B5442F7 /* NumberChipsTests.swift */,
@@ -1311,6 +1317,7 @@
 				0D77A862B4CBC51471E43C21 /* KeyLayout.swift */,
 				8AF5F8C17DF806D66D530AA6 /* KeySound.swift */,
 				7394A70103C67353E530BD3C /* KeyVariants.swift */,
+				4E72B42E221624B843FECDBB /* LineBreak.swift */,
 				2A5ACFCC85098E199869C169 /* MainDebouncer.swift */,
 				A1859475A5F95F02805768CA /* MathResults.swift */,
 				680C638081B910FE0C6D35F3 /* MoleGame.swift */,
@@ -1704,6 +1711,7 @@
 				1D3501D761DFD4F1BED9ED72 /* KeyboardViewController.swift in Sources */,
 				61E03FD579DB9D2880FBB044 /* KeystrokeCounter.swift in Sources */,
 				AAD686F0EFFB0502D1BC32E9 /* L10n.swift in Sources */,
+				0028C2A1231D251EAFFFB5BD /* LineBreak.swift in Sources */,
 				691A8436633BE0A93E74C70A /* MainDebouncer.swift in Sources */,
 				217BFFCE84C84D2083F2A528 /* MathResults.swift in Sources */,
 				E9E2F40F060ACF3421394AA6 /* MoleGame.swift in Sources */,
@@ -1946,6 +1954,8 @@
 				04780C3DBC75360CF8A2FC28 /* LearnedCaseTests.swift in Sources */,
 				2B019DB27C4B5571D08103E7 /* LegacyUserLangModel.swift in Sources */,
 				175CED36E0C29E01403A284F /* LetterUndoTests.swift in Sources */,
+				6644AE50C0BC33D2EC05AB6D /* LineBreak.swift in Sources */,
+				77E204D3C6741B96B65EDCE9 /* LineBreakTests.swift in Sources */,
 				91A901E0BDF972D22FEEF80B /* MainDebouncer.swift in Sources */,
 				3918D6C9CF7ED09C9D68DBEB /* MathResults.swift in Sources */,
 				06A12CC4391529A62752829A /* MathResultsTests.swift in Sources */,

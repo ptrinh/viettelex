@@ -14,6 +14,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         case space
         case doubleSpacePeriod        // "  " fast → ". " (Apple behavior)
         case newline
+        /// Xuống dòng KHÔNG gửi: giữ lâu Return, hoặc ⇧ (bấm tay, một lần) + Return —
+        /// controller chèn "\n" qua LineBreak (ô chat web bắt Return = Gửi).
+        case lineBreak
         case backspace
         case moveCursor(Int)          // space-hold trackpad mode (ký tự, âm = trái)
         case moveLine(Int)            // trackpad lên/xuống (dòng, âm = lên)
@@ -166,6 +169,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Thanh gợi ý theo Shift như Gboard (SuggestionCase) — báo controller khi đổi.
         // Đang vuốt: shift đổi tạm (trả lại/nhả quanh cú vuốt) — swipeEnded tự vẽ lại bar.
         didSet {
+            shiftByHand = false                  // mọi đổi khác phím ⇧ (shiftDown đặt lại sau)
             if shift != oldValue, !swipeActive { onShiftChange?() }
             if oldValue == .caps, shift != .caps { Self.pianoShiftChanged(shift == .on ? .on : .off) }
         }
@@ -637,8 +641,12 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
     private func shiftDown(now: TimeInterval) {
         shift = Self.fromCase(shiftHold.down(Self.toCase(shift), now: now))
+        shiftByHand = shift == .on
         applyShiftAppearance()
     }
+    /// Shift một-lần đang bật DO NGƯỜI DÙNG chạm ⇧ (không phải viết hoa đầu câu tự động —
+    /// tự động thì Return phải gửi như cũ, kẻo "Chào. ⏎" thành xuống dòng).
+    private var shiftByHand = false
     private func shiftUp() {
         let s = Self.fromCase(shiftHold.up(Self.toCase(shift)))
         if s != shift { shift = s; applyShiftAppearance() }
@@ -2922,7 +2930,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         case .space, .doubleSpacePeriod: emojiSearch.space()
         case .backspace: emojiSearch.backspace()
         case .replaceLastLetter(let t): emojiSearch.backspace(); emojiSearch.insert(t)
-        case .newline:
+        case .newline, .lineBreak:
             plane = .emoji
             rebuild()
             return true
@@ -3110,12 +3118,60 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return out
     }
 
+    /// Giữ Return bấy lâu = xuống dòng không gửi (Android RETURN_HOLD_MS = 450).
+    static let returnHoldDuration: TimeInterval = 0.45
+    private var returnHoldFired = false
+
+    /// Ô cho "xuống dòng không gửi": ô chữ thường có Return / Gửi. Ô tìm, URL, email, số,
+    /// Return dạng go/search/next/done/join ⇒ không (giữ lâu / ⇧ + Return = Return thường) —
+    /// iOS không cho biết ô nhiều dòng như Android, "\n" trong ô một dòng vô nghĩa.
+    static func lineBreakAllowed(kind: InputKind, returnTitle: String) -> Bool {
+        kind == .normal && (returnTitle == "return" || returnTitle == "send")
+    }
+    private var lineBreakAllowed: Bool { Self.lineBreakAllowed(kind: inputKind, returnTitle: returnTitle) }
+
+    /// Chạm Return: Shift một-lần DO TAY (không phải viết hoa đầu câu tự động, không Caps Lock)
+    /// ⇒ xuống dòng không gửi (thay Shift+Enter bàn phím bên thứ ba không gửi được).
+    static func returnTapKey(shiftOn: Bool, byHand: Bool, allowed: Bool) -> Key {
+        shiftOn && byHand && allowed ? .lineBreak : .newline
+    }
+
+    @objc private func returnHold(_ g: UILongPressGestureRecognizer) {
+        guard g.state == .began, let v = g.view, lineBreakAllowed else { return }
+        // Ngón khác chạm xuống đã chốt (flush) Return ⇒ không còn là giữ lâu.
+        let id = ObjectIdentifier(v)
+        guard commits.isArmed(id) else { return }
+        commits.disarm(id)                       // nhả tay KHÔNG gửi
+        returnHoldFired = true
+        Self.flickFeedback()
+        showBalloon(over: v, text: "↵", force: true)
+        tapped(.lineBreak)
+    }
+
     /// Phím return theo returnKeyType của ô (xám + icon, hoặc xanh + chữ/mũi tên).
     private func returnButton() -> KeyButton {
         let ret = controlButton(title: returnTitle == "return" ? "" : returnTitle,
                                 armed: true, isReturn: true) { [weak self] in
-            self?.tapped(.newline)
+            guard let self else { return }
+            let key = Self.returnTapKey(shiftOn: self.shift == .on, byHand: self.shiftByHand,
+                                        allowed: self.lineBreakAllowed)
+            // ⇧ + Return dùng hết Shift một-lần (như một chữ); viết hoa dòng mới do auto-shift.
+            if case .lineBreak = key { self.shift = .off; self.applyShiftAppearance() }
+            self.tapped(key)
         }
+        // Giữ lâu = xuống dòng không gửi (như Android giữ lâu Enter): hiện "↵", nhả tay không
+        // gửi. Luôn gắn (nút nằm trong cache plane) — loại ô kiểm lúc giữ (lineBreakAllowed).
+        let hold = UILongPressGestureRecognizer(target: self, action: #selector(returnHold(_:)))
+        hold.minimumPressDuration = Self.returnHoldDuration
+        hold.delaysTouchesBegan = false
+        hold.delaysTouchesEnded = false
+        hold.cancelsTouchesInView = false
+        ret.addGestureRecognizer(hold)
+        ret.addAction(UIAction { [weak self] _ in
+            guard let self, self.returnHoldFired else { return }
+            self.returnHoldFired = false
+            self.hideBalloon()
+        }, for: [.touchUpInside, .touchUpOutside, .touchCancel])
         ret.accessibilityLabel = returnTitle == "return" ? L("Xuống dòng") : returnTitle
         if Self.isPad, returnTitle == "return" { ret.padRole = .icon }
         if returnTitle == "return" {
