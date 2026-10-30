@@ -117,6 +117,8 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
     /** Icon con trỏ + 📋 có hiện không — chỉ đổi khi nội dung rỗng↔có (StripGeometry.toolsShown). */
     private fun tools(): Boolean = StripGeometry.toolsShown(hasContent, plane == Plane.EDIT, clipOpen)
 
+    /** Chữ ô gợi ý ("Màu chữ gợi ý", mặc định Xám) — giải lúc configure, không mỗi lần vẽ. */
+    private var wordInk = theme.suggestionInk(com.viettelex.keyboard.SuggestionInk.DEFAULT)
     private val wordPaint = TextPaint(theme.text(StripGeometry.WORD_SP, color = theme.barInk))
     private var wordOff = theme.centerOffset(wordPaint)
     /** Gboard nhấn mạnh gợi ý giữa (medium). */
@@ -204,8 +206,10 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
     /** [reserved]: giữ chỗ dải dù ô này không có gợi ý (bàn phím không đổi cao giữa các ô). */
     fun configure(enabled: Boolean, templatesEnabled: Boolean, reserved: Boolean = enabled,
                   emojiButton: Boolean = false, slotSetting: Int = SuggestionCount.AUTO,
-                  barHeight: SuggestionBarHeight = SuggestionBarHeight.DEFAULT, landscapeCap: Boolean = false) {
+                  barHeight: SuggestionBarHeight = SuggestionBarHeight.DEFAULT, landscapeCap: Boolean = false,
+                  suggestionInk: com.viettelex.keyboard.SuggestionInk = com.viettelex.keyboard.SuggestionInk.DEFAULT) {
         this.slotSetting = slotSetting
+        wordInk = theme.suggestionInk(suggestionInk)
         applyBarHeight(barHeight, landscapeCap)
         if (emojiButton != this.emojiButton) { this.emojiButton = emojiButton; layoutPaste() }
         this.suggestionsEnabled = enabled
@@ -432,8 +436,10 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
             setChipOpacity(255)
             return
         }
-        wordPaint.color = theme.barInk; wordPaint.alpha = alpha
-        wordCenterPaint.color = theme.barInk; wordCenterPaint.alpha = alpha
+        // alpha hoạt ảnh nhân alpha của màu chữ (Xám = chữ bán trong).
+        val wa = alpha * com.viettelex.keyboard.ThemeColor.alpha(wordInk) / 255
+        wordPaint.color = wordInk; wordPaint.alpha = wa
+        wordCenterPaint.color = wordInk; wordCenterPaint.alpha = wa
         for (i in 0 until slotCount) {
             val s = slotText[i] ?: continue
             if (i == primary) c.drawText(s, (slotL[i] + slotR[i]) / 2, barCy + wordCenterOff, wordCenterPaint)

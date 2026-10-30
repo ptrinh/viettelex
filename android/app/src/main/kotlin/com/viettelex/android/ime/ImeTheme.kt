@@ -88,6 +88,9 @@ class ImeTheme(ctx: Context, val settings: ThemeSettings = ThemeSettings(), wall
      * nền tối phím sáng (Piano) — khi đó đen/trắng đọc được trên nền.
      */
     val barInk = palette.barInk ?: ink
+    /** Chữ ô gợi ý theo "Màu chữ gợi ý" ([com.viettelex.keyboard.SuggestionInk]; Xám = dịu như stock). */
+    fun suggestionInk(mode: com.viettelex.keyboard.SuggestionInk): Int =
+        com.viettelex.keyboard.SuggestionInk.color(barInk, com.viettelex.keyboard.SuggestionInk.behindBar(palette, systemDark), mode)
     /** Chữ balloon/popup — nền balloon không trong suốt nên giữ màu theme gốc. */
     val balloonInk = palette.ink
     /** Alpha chữ/icon trên phím (độ trong suốt ký tự). */

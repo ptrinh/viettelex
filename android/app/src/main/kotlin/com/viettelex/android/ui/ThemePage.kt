@@ -489,6 +489,14 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
             com.viettelex.keyboard.SuggestionBarHeight.of(it).id
         }
         RowDivider()
+        // "Màu chữ gợi ý" Xám (mặc định, như bàn phím Apple) / Sáng — SuggestionInk, cùng khoá iOS.
+        ChoiceRow(Keys.SUGGESTION_INK, Prefs.D.suggestionInk.id, tr("Màu chữ gợi ý"),
+            tr("Xám: chữ gợi ý dịu như bàn phím Apple, đỡ rối mắt khi gõ. Sáng: chữ đậm cùng màu chữ phím."),
+            listOf(com.viettelex.keyboard.SuggestionInk.MUTED.id to tr("Xám"),
+                com.viettelex.keyboard.SuggestionInk.BRIGHT.id to tr("Sáng"))) {
+            com.viettelex.keyboard.SuggestionInk.of(it).id
+        }
+        RowDivider()
         BoolToggle(Keys.SHOW_SPACE_LOGO, Prefs.D.showSpaceLogo, tr("Hiện logo Vᴛ"), tr("Logo mờ ở góc phải phím cách."))
         RowDivider()
         // Bàn phím tách đôi (SplitLayout, cùng khoá iOS) — mặc định TẮT; chỉ tách khi bàn phím ≥ 600 dp.

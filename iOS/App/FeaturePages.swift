@@ -142,6 +142,7 @@ struct FeatureSearchEntry: Identifiable {
             .init(viTitle: LK("Khôi phục giao diện gốc"), keywords: "reset mặc định", page: .giaoDien),
             .init(viTitle: LK("Chiều cao hàng phím"), keywords: "height cao thấp stock gốc apple cỡ phím size như bàn phím iphone", page: .giaoDien),
             .init(viTitle: LK("Nâng bàn phím"), keywords: "raise nâng cao đẩy lên khoảng trống dưới padding bottom", page: .giaoDien),
+            .init(viTitle: LK("Màu chữ gợi ý"), keywords: "suggestion text color colour xám grey gray sáng bright thanh gợi ý chữ mờ dịu apple stock", page: .giaoDien),
             .init(viTitle: LK("Hiện logo Vᴛ"), keywords: "logo phím cách", page: .giaoDien),
             .init(viTitle: LK("Bàn phím tách đôi"), keywords: "split tách chia hai nửa gập ngang", page: .giaoDien),
             .init(viTitle: LK("Lịch sử clipboard"), keywords: "copy dán clipboard giữ lịch sử 24 giờ 7 ngày keep history", page: .riengTu),

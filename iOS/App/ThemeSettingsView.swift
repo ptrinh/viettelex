@@ -37,6 +37,8 @@ struct ThemeSettingsView: View {
     /// "Chiều cao thanh gợi ý" Thấp/Vừa/Cao (SuggestionBarHeight, mặc định Vừa).
     @AppStorage(SuggestionBarHeight.key, store: groupDefaults) private var suggestionBarHeight = SuggestionBarHeight.defaultValue.rawValue
     private var barHeightValue: SuggestionBarHeight { SuggestionBarHeight.parse(suggestionBarHeight) }
+    /// "Màu chữ gợi ý" Xám/Sáng (SuggestionInk, mặc định Xám như bàn phím Apple).
+    @AppStorage(SuggestionInk.key, store: groupDefaults) private var suggestionInk = SuggestionInk.defaultValue.rawValue
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
     @AppStorage("numberRow", store: groupDefaults) private var numberRow = false
     @AppStorage(KeyGeometry.numberRowFullHeightKey, store: groupDefaults) private var numberRowFullHeight = false
@@ -271,6 +273,17 @@ struct ThemeSettingsView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     Text(L("Thanh gợi ý cao hơn thì dễ chạm trúng từ gợi ý hơn; bàn phím cao thêm đúng phần đó. Khi xoay ngang, mức Cao dùng như Vừa."))
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L("Màu chữ gợi ý"))
+                    Picker(L("Màu chữ gợi ý"), selection: $suggestionInk) {
+                        Text(L("Xám")).tag(SuggestionInk.muted.rawValue)
+                        Text(L("Sáng")).tag(SuggestionInk.bright.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    Text(L("Xám: chữ gợi ý dịu như bàn phím Apple, đỡ rối mắt khi gõ. Sáng: chữ đậm cùng màu chữ phím."))
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 settingToggle(L("Hiện logo Vᴛ"), L("Logo mờ ở góc phải phím cách."), isOn: $showSpaceLogo)
