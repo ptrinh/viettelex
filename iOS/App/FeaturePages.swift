@@ -733,7 +733,9 @@ struct PhimPage: View {
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
-            } header: { Text(L("Cử chỉ")) }
+            } header: { Text(L("Cử chỉ")) } footer: {
+                Text(L("Xuống dòng mà không gửi (ô chat trên web, nơi Return là Gửi): giữ lâu phím Return, hoặc chạm ⇧ rồi chạm Return."))
+            }
             Section {
                 settingToggle(L("Phóng to chữ khi bấm"), L("Ô chữ lớn nổi trên phím vừa chạm. Tắt cho gọn, nhẹ máy."), isOn: $keyPreview)
                 settingToggle(L("Phím sẫm khi bấm"), L("Phím đổi màu trong lúc chạm như bàn phím iPhone, kể cả khi tắt phóng to chữ."), isOn: $keyPressHighlight)

@@ -35,7 +35,9 @@ final class KeyboardBenchTests: XCTestCase {
         func setMarkedText(_ markedText: String, selectedRange: NSRange) {}
         func unmarkText() {}
         var hasText: Bool { !text.isEmpty }
-        func insertText(_ s: String) { inserts += 1; text += s }
+        /// Từng chuỗi insertText theo thứ tự (LineBreakTests: newline phải đi kèm chữ trong một lệnh).
+        var insertLog: [String] = []
+        func insertText(_ s: String) { inserts += 1; insertLog.append(s); text += s }
         func deleteBackward() { deletes += 1; if !text.isEmpty { text.removeLast() } }
         var autocapitalizationType: UITextAutocapitalizationType = .sentences
         private var _keyboardType: UIKeyboardType = .default

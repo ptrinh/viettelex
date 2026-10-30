@@ -858,8 +858,29 @@ final class KeyboardViewController: UIInputViewController {
         let p: UITextDocumentProxy
         /// Bù tiếng vọng trễ (EchoGuard) — nil ⇒ đọc thẳng (host thường).
         var settle: (() -> String?)? = nil
-        func insertText(_ text: String) { p.insertText(text) }
-        func deleteBackward() { p.deleteBackward() }
+        /// Phím "xuống dòng không gửi" (KeyboardView.Key.lineBreak): "\n" ranh giới chèn qua
+        /// LineBreak (kèm ký tự trước con trỏ trong cùng một insertText). nil = phím thường.
+        var lineBreak: LineBreakTap? = nil
+        final class LineBreakTap {
+            /// Chuỗi vừa chèn ngay trước trong phím này (đối chiếu context host); nil = không biết.
+            var last: String?
+        }
+        func insertText(_ text: String) {
+            if let lb = lineBreak {
+                if text == "\n" {
+                    var plain = self
+                    plain.lineBreak = nil
+                    let plan = LineBreak.insert(proxy: plain, justInserted: lb.last)
+                    if case .carry(let c) = plan { TouchLog.write("lineBreak: kèm \(c.count) ký tự") }
+                    else { TouchLog.write("lineBreak: \\n trơn") }
+                    lb.last = nil
+                    return
+                }
+                lb.last = text
+            }
+            p.insertText(text)
+        }
+        func deleteBackward() { lineBreak?.last = nil; p.deleteBackward() }
         var isSecure: Bool { vtSafe(false) { (p as UITextInputTraits).isSecureTextEntry == true } }
         var contextBeforeInput: String? { settle?() ?? p.documentContextBeforeInput }
         var contextAfterInput: String? { p.documentContextAfterInput }
@@ -912,7 +933,7 @@ final class KeyboardViewController: UIInputViewController {
                         if self.suggestionsActive { self.updateSuggestions() }
                     }
                     return
-                case .newline:
+                case .newline, .lineBreak:
                     removeAutoSpace()
                 case .text(let s):
                     switch AutoSpace.reaction(toText: s) {
@@ -961,6 +982,7 @@ final class KeyboardViewController: UIInputViewController {
                 case .doubleSpacePeriod: kind = "doubleSpace"
                 case .backspace: kind = "backspace"
                 case .newline: kind = "newline"
+                case .lineBreak: kind = "lineBreak"
                 case .moveCursor: kind = "cursor"
                 case .moveLine: kind = "line"
                 case .clearField: kind = "clear"
@@ -1067,8 +1089,12 @@ final class KeyboardViewController: UIInputViewController {
                 textDocumentProxy.adjustTextPosition(byCharacterOffset: off)
             }
             if !trackpadActive { trackpadContext.reset() }
-        case .newline:
+        case .newline, .lineBreak:
+            // .lineBreak: chốt từ y như Return; chỉ cách chèn "\n" khác (LineBreak — kèm ký tự
+            // trước con trỏ để WebKit không coi là phím Enter = Gửi).
+            if case .lineBreak = key { proxy.lineBreak = Proxy.LineBreakTap() }
             let final = bridge.boundary("\n", proxy: proxy)
+            proxy.lineBreak = nil
             commitAndLearn(final, accepted: openAccepted)
             lastWord = nil; lastWord2 = nil
             typedCommit = (final, "\n")
@@ -1156,7 +1182,7 @@ final class KeyboardViewController: UIInputViewController {
         // cho phím cuối, ký tự không bao giờ chờ. Sound đã phát ở touch-down.
         let needsAutoShift: Bool
         switch key {
-        case .space, .newline, .doubleSpacePeriod, .backspace, .moveCursor, .moveLine, .clearField: needsAutoShift = true
+        case .space, .newline, .lineBreak, .doubleSpacePeriod, .backspace, .moveCursor, .moveLine, .clearField: needsAutoShift = true
         default: needsAutoShift = autoSpacePunct != nil      // ". " tự thêm ⇒ viết hoa chữ kế
         }
         suggestionGen += 1
