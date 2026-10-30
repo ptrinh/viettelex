@@ -67,6 +67,26 @@ final class TouchTargetTests: XCTestCase {
         XCTAssertNil(prior.forRaw(String(repeating: "a", count: TelexKeyPrior.maxRaw + 1)))
     }
 
+    /// Chỉ phím chữ: "." cạnh "m" không bao giờ bị đổi sang chữ (hay ngược lại), kể cả prior cho "." điểm.
+    func testPunctuationNeverRerouted() {
+        let iM = g.index["m"]!, m = g.rects[iM]
+        let dot = CGRect(x: m.maxX + 6, y: m.minY, width: m.width, height: m.height)
+        let rects = g.rects + [dot], iDot = rects.count - 1
+        let keys = g.keys + ["."]
+        let nearDot = CGPoint(x: dot.minX + 0.05 * m.width, y: m.midY)
+        let nearM = CGPoint(x: m.maxX - 0.05 * m.width, y: m.midY)
+        XCTAssertEqual(TouchTarget.choose(nearDot, rects: rects, keys: keys, nearest: iDot,
+                                          prior: { $0 == "m" ? 1 : 0 }), iDot)
+        XCTAssertEqual(TouchTarget.choose(nearM, rects: rects, keys: keys, nearest: iM,
+                                          prior: { $0 == "." ? 1 : 0 }), iM)
+        // đối chứng: cùng hình học, phím đó là CHỮ thì đổi được (test trên không rỗng)
+        let keysZ = g.keys + ["z"]
+        XCTAssertEqual(TouchTarget.choose(nearM, rects: rects, keys: keysZ, nearest: iM,
+                                          prior: { $0 == "z" ? 1 : 0 }), iDot)
+        XCTAssertEqual(TouchTarget.choose(nearDot, rects: rects, keys: keysZ, nearest: iDot,
+                                          prior: { $0 == "m" ? 1 : 0 }), iM)
+    }
+
     func testKeyCenterAlwaysWins() {
         let iQ = g.index["q"]!, iW = g.index["w"]!
         let onlyW: (Character) -> Float? = { $0 == "w" ? 1 : 0 }

@@ -147,6 +147,8 @@ struct TouchTargetParams {
 }
 
 enum TouchTarget {
+    /// σ dò lại 30/10/2026 (TouchSimTests.sigmaSweep, TOUCHSIM_SIGMA=1|test): σy < σx làm tăng lỗi khác hàng
+    /// (σ theo cao phím đã gồm phím cao hơn rộng); σx 0.33–0.35 bớt lỗi Việt nhưng tăng đổi nhầm + lỗi chat ⇒ giữ 0.30/0.30.
     static let defaultParams = TouchTargetParams(
         sigmaX: 0.30, sigmaY: 0.30, coreX: 0.25, coreY: 0.25, reach: 0.45, margin: 1.0, floor: 0.20)
 
@@ -163,11 +165,12 @@ enum TouchTarget {
         guard nearest >= 0, nearest < rects.count, nearest < keys.count else { return nearest }
         let r = rects[nearest]
         let w = Float(r.width), h = Float(r.height)
-        guard w > 0, h > 0, !inCore(p, r, q), let p0 = prior(keys[nearest]) else { return nearest }
+        guard w > 0, h > 0, isLetter(keys[nearest]), !inCore(p, r, q),
+              let p0 = prior(keys[nearest]) else { return nearest }
         var best = nearest
         var bestS = score(p, r, w, h, p0, q) + q.margin
         let lim = CGFloat(q.reach * w)
-        for i in rects.indices where i != nearest && i < keys.count {
+        for i in rects.indices where i != nearest && i < keys.count && isLetter(keys[i]) {
             let f = rects[i]
             let dx = max(f.minX - p.x, 0, p.x - f.maxX), dy = max(f.minY - p.y, 0, p.y - f.maxY)
             if dx > lim || dy > lim || dx * dx + dy * dy > lim * lim { continue }
@@ -176,6 +179,12 @@ enum TouchTarget {
             if s > bestS { best = i; bestS = s }
         }
         return best
+    }
+
+    /// Chỉ phím chữ a–z tham gia: "." "," "'"… KHÔNG bao giờ bị đổi sang chữ (hay ngược lại) dù prior nói gì.
+    @inline(__always) static func isLetter(_ c: Character) -> Bool {
+        guard let a = c.asciiValue else { return false }
+        return (a >= 0x61 && a <= 0x7A) || (a >= 0x41 && a <= 0x5A)
     }
 
     private static func score(_ p: CGPoint, _ f: CGRect, _ w: Float, _ h: Float, _ prior: Float,

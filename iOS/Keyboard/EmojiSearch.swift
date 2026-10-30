@@ -54,10 +54,39 @@ enum EmojiSearch {
     @inline(__always) private static func enFoldOff(_ k: Int) -> Int { EmojiData.u16(enBase + 4 + k * 2) }
     @inline(__always) private static func enIdOff(_ k: Int) -> Int { EmojiData.u16(enBase + 4 + (enKeyCount + 1) * 2 + k * 2) }
 
-    /// Emoji khớp `query` (đã theo thứ tự hạng, không trùng, chỉ emoji vẽ được).
+    /// Emoji khớp `query` (đã theo thứ tự hạng, không trùng, chỉ emoji vẽ được). Câu tìm là
+    /// emoticon ASCII (":)", "<3", "=))"…) ⇒ emoji tương ứng đứng đầu.
     static func search(_ query: String, limit: Int = 60,
                        supported: (Int) -> Bool = EmojiData.isSupported) -> [String] {
-        ids(query, limit: limit, supported: supported).map(EmojiData.emoji)
+        let rest = ids(query, limit: limit, supported: supported).map(EmojiData.emoji)
+        let emo = emoticon(query)
+        guard !emo.isEmpty else { return rest }
+        var seen = Set(emo)
+        return Array((emo + rest.filter { seen.insert($0).inserted }).prefix(limit))
+    }
+
+    /// Emoticon ASCII → emoji (khoá viết thường; bảng thuần, song sinh Android
+    /// EmojiSearch.EMOTICONS). Emoji đều thuộc Emoji ≤ 1.0 ⇒ máy nào cũng vẽ được.
+    static let emoticons: [String: [String]] = [
+        ":)": ["😊", "🙂", "☺️"], ":-)": ["😊", "🙂", "☺️"], "(:": ["🙂", "😊"],
+        ":d": ["😄", "😃", "😁"], ":-d": ["😄", "😃", "😁"],
+        ":(": ["☹️", "🙁", "😞"], ":-(": ["☹️", "🙁", "😞"],
+        ";)": ["😉"], ";-)": ["😉"],
+        ":p": ["😛", "😜", "😝"], ":-p": ["😛", "😜", "😝"],
+        "<3": ["❤️", "😍", "💕"], "</3": ["💔"],
+        "=))": ["😂", "🤣", "😆"], ":))": ["😆", "😂", "😄"], ":)))": ["😂", "🤣", "😆"],
+        "^_^": ["😊", "😄"], "^^": ["😊", "😄"], "^.^": ["😊", "😄"],
+        "-_-": ["😑", "😒"], "-.-": ["😑", "😒"],
+        ":o": ["😮", "😲"], ":-o": ["😮", "😲"],
+        "xd": ["😆", "😂"],
+        ":'(": ["😢", "😭"], "t_t": ["😭", "😢"], "t.t": ["😭", "😢"], ";(": ["😢"],
+        ":*": ["😘"], ":-*": ["😘"], ":|": ["😐"], ":-|": ["😐"], ":/": ["😕"], ":-/": ["😕"],
+        ">:(": ["😠", "😡"], "o.o": ["😳", "😮"], "b)": ["😎"], "8)": ["😎"],
+    ]
+
+    /// Emoji cho câu tìm là MỘT emoticon (bỏ space hai đầu, không phân biệt hoa thường).
+    static func emoticon(_ query: String) -> [String] {
+        emoticons[query.trimmingCharacters(in: .whitespaces).lowercased()] ?? []
     }
 
     static func ids(_ query: String, limit: Int = 60,
