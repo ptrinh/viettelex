@@ -21,9 +21,18 @@ assert.equal(lite.LITE, true);
 const here = p => fileURLToPath(new URL(p, import.meta.url));
 const lines = gunzipSync(readFileSync(here('../../../android/telexcore/src/test/resources/golden.tsv.gz'))).toString('utf8').split('\n');
 
-// English lists = every quoted word in generated_tables.hpp after the tries.
+// English lists = every word in generated_tables.hpp after the tries: packed WordSets
+// (kXBuckets[L] = the length-L words back to back, see word_set.hpp) + the remaining
+// quoted std::string_view entries.
 const gen = readFileSync(here('../../../windows/engine/src/generated_tables.hpp'), 'utf8');
-const english = new Set(gen.slice(gen.indexOf('kEnglishCollisions')).match(/"[a-z]+"/g).map(s => s.slice(1, -1)));
+const english = new Set();
+let rest = gen.slice(gen.indexOf('kEnglishCollisions'));
+for (const m of rest.matchAll(/(\w+)Buckets\[\d+\] = \{([^}]*)\};/g)) {
+  const buckets = m[2].split(/,\s*\n/).map(b => (b.match(/"[a-z]*"/g) || []).map(s => s.slice(1, -1)).join(''));
+  buckets.forEach((b, len) => { for (let i = 0; len && i < b.length; i += len) english.add(b.slice(i, i + len)); });
+}
+rest = rest.replace(/\w+Buckets\[\d+\] = \{[^}]*\};/g, '');
+for (const s of rest.match(/"[a-z]+"/g) || []) english.add(s.slice(1, -1));
 assert.ok(english.size > 1000, 'parsed English lists');
 const touchesEnglish = (...texts) => texts.some(t => t.toLowerCase().split(/[^a-z]+/).some(w => english.has(w)));
 
