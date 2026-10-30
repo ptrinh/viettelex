@@ -639,6 +639,15 @@ một phép thêm vào mảng 3 phần tử mỗi từ chốt khi bật vuốt; 
 Chạy lại: `SWIPE_LANG_TUNE=1 SWIPE_LANG_CFGS='old;base' [SWIPE_TEST=1] ./gradlew --offline
 :keyboard:test --tests '*SwipeLangTuneTests*' --rerun -i | grep LANG`.
 
+## CommonSyllables.swift — âm tiết thường gặp (engine, 30/10/2026)
+
+`TelexCore/Sources/TelexCore/CommonSyllables.swift` (port: `EnglishWordLists.kt`,
+`windows/engine/src/generated_tables.hpp`) = danh sách khoá Telex của 3.788 âm tiết có dấu có
+tần suất `vnlexicon.bin` ≥ 100 (≤ 3 chữ cái) hoặc ≥ 20 (dài hơn). Chỉ là ngưỡng trên số tần suất
+của vnlexicon.bin — không thêm nguồn mới, cùng giấy phép/ghi công với vnlexicon.bin. Sinh bằng
+`python3 Scripts/gen-common-syllables.py`. Dùng cho luật viết tắt toàn chữ HOA và luật giữ từ
+gõ sai một chữ.
+
 ## enlexicon.bin — từ điển tiếng Anh cho gõ vuốt (giai đoạn 3)
 
 - File: `iOS/Keyboard/Resources/enlexicon.bin`, `android/app/src/main/assets/enlexicon.bin`

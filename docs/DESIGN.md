@@ -167,6 +167,7 @@ API cho integrator (giống nhau ở 3 port; đơn vị = ký tự UTF-16, mọi
 | Cờ | `retroactiveEnglish` | `retroactiveEnglish` | `retroactiveEnglish` | `VTX_RETRO_ENGLISH` (1u<<12) | `VT_FLAG_RETRO_ENGLISH` (12) |
 | Đang hiệu lực | `retroactiveEnglishActive` | `retroactiveEnglishActive` | `retroactiveEnglishActive()` | — | — |
 | Báo ký tự ranh giới | `noteBoundaryCharacter(_:)` | `noteBoundaryCharacter(ch)` | `noteBoundaryCharacter(ch)` | `vtx_note_boundary` | `vt_note_boundary` |
+| ⌫ hoàn tác khôi phục phím thô | `takeRestoreUndo() -> RestoreUndo?`, `restoreUndoApplied()` | như Swift | `takeRestoreUndo(out)`, `restoreUndoApplied()` | `vtx_take_restore_undo`, `vtx_restore_undo_applied` | `vt_take_restore_undo`, `vt_restore_undo_applied` |
 | Lấy phép sửa | `takeRetroCorrection() -> RetroCorrection?` | `takeRetroCorrection(): RetroCorrection?` | `takeRetroCorrection(out) -> bool` | `vtx_take_retro_correction` | `vt_take_retro` |
 | Xem không lấy | `pendingRetroCorrection` | `pendingRetroCorrection` | `pendingRetroCorrection(out)` | — | — |
 
@@ -174,10 +175,22 @@ API cho integrator (giống nhau ở 3 port; đơn vị = ký tự UTF-16, mọi
 xoá `backspaces` ký tự ngay trước con trỏ (đúng bằng `expected`), chèn `insert`. Tiền tố
 không đổi đã bỏ ("Hí"→"His" chỉ xoá từ "í").
 
+⌫ hoàn tác khôi phục phím thô (30/10/2026): ranh giới nào KHÔI PHỤC phím thô trong khi chữ Việt
+là âm tiết thật ("NÁ" → "NAS", "í" → "is" trong mạch Anh) để lại `RestoreUndo { restored,
+vietnamese }`; caller lấy ngay sau commit (`takeRestoreUndo`), và nếu phím kế là ⌫ và màn hình
+còn đúng `restored + ranh giới` thì thay bằng `vietnamese + ranh giới`, rồi gọi
+`restoreUndoApplied()` (từ vừa chốt lại là chữ Việt, hết mạch Anh). Phím/click khác = hết cơ hội.
+Từ khôi phục mà không phải âm tiết ("gôgle") hay dính mã/số thì không có bản ghi. macOS, Windows,
+Linux dùng chung khe ⌫-hoàn-tác của sửa ngược; iOS/Android giữ thiết kế riêng có sẵn (⌫ xoá dấu
+cách, thanh gợi ý mời lại chữ Việt).
+
 Luồng tích hợp (mỗi ranh giới từ):
 1. `commitBoundary`/`commitText` như cũ, áp action của từ hiện tại.
 2. Chèn ký tự ranh giới như cũ rồi gọi `noteBoundaryCharacter(ch)` — BẮT BUỘC cho mọi ký tự
-   ranh giới; thiếu báo cáo = hai từ không liền nhau = không bao giờ sửa (an toàn).
+   ranh giới; thiếu báo cáo = hai từ không liền nhau = không bao giờ sửa (an toàn). Từ
+   30/10/2026 gọi cả khi sửa ngược TẮT: engine dùng nó để biết từ kế tiếp dính sau `_`, sau
+   `.`/`/` của một từ mã ("my_var", "self.bar" không bỏ dấu thanh) hay sau số ("100W" không
+   thành "100Ư"). Không báo = hành vi cũ.
 3. `takeRetroCorrection()` (trước hay sau bước 2 đều được — phép sửa luôn tính từ con trỏ
    hiện tại, ký tự ranh giới đã báo được nối vào cả `expected` lẫn `insert`). Nếu đọc được
    văn bản trước con trỏ (AX, `getTextBeforeCursor`, `ITfRange`), so với `expected`, lệch thì

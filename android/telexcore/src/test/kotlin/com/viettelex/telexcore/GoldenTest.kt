@@ -80,12 +80,15 @@ class GoldenTest {
             while (i < ops.length) {
                 val c = ops[i]
                 when (c) {
-                    ' ', '.', ',' -> {
+                    ' ', '.', ',', '_', '/', '=' -> {
+                        val ins = if (c == '=') '1' else c   // '=' = digit boundary
                         val peek = e.peekCommitText(auto)
                         val a = e.commitBoundary(auto)
                         if (a is TelexAction.Replace) { removeLast(screen, a.backspaces); screen.append(a.insert) }
-                        screen.append(c)
-                        trace.add(peek + "=>" + tok(a))
+                        screen.append(ins)
+                        val undo = e.takeRestoreUndo()?.let { "~" + it.vietnamese } ?: ""
+                        e.noteBoundaryCharacter(ins)
+                        trace.add(peek + "=>" + tok(a) + undo)
                     }
                     '<' -> {
                         val a = e.backspace()
@@ -101,7 +104,10 @@ class GoldenTest {
                     }
                     '#' -> { e.reset(); trace.add("N") }
                     '!' -> { e.resetContext(); trace.add("N") }
-                    '%' -> trace.add("c:" + e.commitText(auto))
+                    '%' -> {
+                        val t = e.commitText(auto)
+                        trace.add("c:" + t + (e.takeRestoreUndo()?.let { "~" + it.vietnamese } ?: ""))
+                    }
                     '`' -> {
                         if (i + 1 < ops.length) { auto = toggle(e, ops[i + 1], auto); i++ }
                         trace.add("t")

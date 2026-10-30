@@ -35,6 +35,34 @@ final class EngineBridgeTests: XCTestCase {
         return proxy.text
     }
 
+    /// Ranh giới là mọi phím không phải chữ (số, "_", "/"…), như bàn phím thật.
+    private func typeAll(_ keys: String, settings: KeyboardSettings = KeyboardSettings()) -> String {
+        let proxy = MockProxy()
+        let bridge = EngineBridge(settings: settings)
+        for ch in keys {
+            if ch == "⌫" { bridge.backspace(proxy: proxy) }
+            else if ch.isLetter { bridge.letter(ch, proxy: proxy) }
+            else { bridge.boundary(String(ch), proxy: proxy) }
+        }
+        return proxy.text
+    }
+
+    /// Viết tắt toàn chữ HOA, từ dính "_"/số (30/10/2026; = TelexCore) — có hay không sửa ngược.
+    func testAcronymAndGluedWords() {
+        for retro in [false, true] {
+            var st = KeyboardSettings()
+            st.contextualEnglish = retro
+            st.retroEnglishAuto = retro
+            XCTAssertEqual(typeAll("NAS ", settings: st), "NAS ")             // "NÁ" hiếm ⇒ viết tắt
+            XCTAssertEqual(typeAll("VIEEJT NAM ", settings: st), "VIỆT NAM ")
+            XCTAssertEqual(typeAll("DDAF NAWXNG ", settings: st), "ĐÀ NẴNG ")
+            XCTAssertEqual(typeAll("my_var ", settings: st), "my_var ")       // không "my_vả"
+            XCTAssertEqual(typeAll("vaf/hoawcj ", settings: st), "và/hoặc ")
+            XCTAssertEqual(typeAll("100W ", settings: st), "100W ")           // không "100Ư"
+            XCTAssertEqual(typeAll("5trawm ", settings: st), "5trăm ")
+        }
+    }
+
     func testBasicVietnamese() {
         XCTAssertEqual(type("vieetj "), "việt ")
         XCTAssertEqual(type("Tieengs Vieetj raats hay "), "Tiếng Việt rất hay ")

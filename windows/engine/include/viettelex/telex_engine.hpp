@@ -43,6 +43,16 @@ struct RetroCorrection {
     char16_t insert[kMax] = {};     // NUL-terminated
 };
 
+/// Swift `RestoreUndo`: the commit restored a word to its raw keys although its Vietnamese
+/// composition was a real syllable ("hí" -> "his", "NÁ" -> "NAS"). An immediate ⌫ may put
+/// `vietnamese` back in place of `restored` (the caller's boundary character follows it).
+struct RestoreUndo {
+    int32_t restoredLength = 0;
+    int32_t vietnameseLength = 0;
+    char16_t restored[kMaxText] = {};     // NUL-terminated
+    char16_t vietnamese[kMaxText] = {};   // NUL-terminated
+};
+
 class TelexEngine {
 public:
     static constexpr int kCapacity = 32;
@@ -108,9 +118,22 @@ public:
     /// Non-consuming look at the pending edit.
     bool pendingRetroCorrection(RetroCorrection& out) const;
 
+    // ---- Undo of a boundary restore-to-English (Swift takeRestoreUndo) --------------
+    /// The ⌫-undo record of the commit that JUST happened; true = `out` filled (consumed).
+    /// Valid right after commitBoundary / commitText (and noteBoundaryCharacter); any key,
+    /// ⌫, reset or the next commit drops it.
+    bool takeRestoreUndo(RestoreUndo& out);
+    /// Non-consuming look.
+    bool pendingRestoreUndo(RestoreUndo& out) const;
+    /// The caller put the Vietnamese word back (⌫ right after a restore): reset + end any
+    /// English run.
+    void restoreUndoApplied() { reset(); clearEnglishContext(); }
+
     // ---- Re-open / re-edit -------------------------------------------------------
     void forgetLastCommit() {
         reopenRawCount_ = 0; reopenOutCount_ = 0;
+        hasRestoreUndo_ = false;
+        clearGlue();
         if (retroCount_ > 0 || retroHasPending_) retroClear();   // text changed under us
     }
     bool canReopenLastCommit() const { return rawCount_ == 0 && reopenRawCount_ > 0; }
@@ -193,6 +216,26 @@ private:
     bool reopenPrevEnglish_ = false;
     bool reopenCandidate_ = false;
     uint8_t reopenGateBits_ = 0;
+
+    // ⌫-undo of a boundary restore (Swift restoreUndo).
+    bool hasRestoreUndo_ = false;
+    RestoreUndo restoreUndo_;
+
+    // Glued separators (Swift lastWordKind / noteSinceWord / pendingGlue / wordGlue):
+    // 0 none, 1 separator, 2 digit; lastWordKind 0 unknown, 1 VN/capitalized, 2 code-like.
+    uint8_t lastWordKind_ = 0;
+    bool noteSinceWord_ = true;
+    uint8_t pendingGlue_ = 0;
+    uint8_t wordGlue_ = 0;
+    void noteGlue(char32_t ch);
+    void clearGlue() { lastWordKind_ = 0; noteSinceWord_ = true; pendingGlue_ = 0; }
+    void noteCommittedWord(bool restored);
+    bool glueRestores() const;
+    bool isVietnameseTypoKeep() const;
+    bool rawHasEnglishReading() const;
+    bool isRareAllCapsAcronym() const;
+    bool rawIsAllCapsToken() const;
+    bool lettersAreCommonSyllable(int count) const;
 
     // retroactive English: history ring (oldest first), spaces since the last commit,
     // the pending edit and the history indices it rewrites.

@@ -99,6 +99,7 @@
 "Save debug log…" = "Lưu nhật ký gỡ lỗi…";
 "Clear" = "Xoá";
 "Copied — paste it into your bug report." = "Đã sao chép. Bạn có thể dán nhật ký vào báo lỗi.";
+"Undo after English restore: %d used / %d offered (this session)" = "Hoàn tác khôi phục tiếng Anh bằng ⌫: đã dùng %d / %d lần mời (phiên này)";
 "Saved to %@" = "Đã lưu vào %@";
 "Couldn’t save the file." = "Không lưu được tệp.";
 

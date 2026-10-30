@@ -45,6 +45,9 @@ struct RetroUndo: Equatable {
     /// Văn bản lần sửa để lại + ký tự ranh giới ("is car is very fast " …) — màn hình phải
     /// kết thúc ĐÚNG bằng chuỗi này ngay trước con trỏ thì mới hoàn tác.
     let current: String
+    /// Hoàn tác một lần KHÔI PHỤC PHÍM THÔ ở ranh giới ("NÁ" → "NAS", engine `RestoreUndo`),
+    /// không phải một lần sửa ngược: ⌫ trả lại chữ Việt rồi báo engine `restoreUndoApplied`.
+    var restore = false
 }
 
 enum RetroApply {
@@ -130,6 +133,15 @@ enum RetroApply {
         guard let b = boundary, b.count == 1, let c = b.first, !c.isNewline, c != "\t",
               !expected.isEmpty, expected != insert else { return nil }
         return RetroUndo(previous: expected + b, current: insert + b)
+    }
+
+    /// Bản ghi hoàn tác cho lần ranh giới vừa KHÔI PHỤC PHÍM THÔ dù chữ Việt là âm tiết thật
+    /// ("NÁ" → "NAS", "hí" → "his" — engine `takeRestoreUndo`): ⌫ ngay sau trả lại chữ Việt,
+    /// giữ ranh giới, như hoàn tác tự sửa của macOS. Cùng điều kiện ranh giới với `undo`.
+    static func restoreUndo(_ u: RestoreUndo, boundary: String?) -> RetroUndo? {
+        guard let b = boundary, b.count == 1, let c = b.first, !c.isNewline, c != "\t",
+              !u.restored.isEmpty, u.restored != u.vietnamese else { return nil }
+        return RetroUndo(previous: u.vietnamese + b, current: u.restored + b, restore: true)
     }
 
     /// ⌫ ngay sau lần sửa: range cần thay bằng `undo.previous`, hoặc nil (⌫ thường) khi

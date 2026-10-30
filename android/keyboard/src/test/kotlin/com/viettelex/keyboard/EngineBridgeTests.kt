@@ -29,6 +29,34 @@ class EngineBridgeTests {
         assertEquals("tên tác giả: trinh không dấu", "Phil trinh ", type("Phil trinh "))
     }
 
+    /** Ranh giới là mọi phím không phải chữ (số, "_", "."…), như bàn phím thật. */
+    private fun typeAll(keys: String, settings: KeyboardSettings = KeyboardSettings()): Pair<String, EngineBridge> {
+        val proxy = MockProxy(false)
+        val bridge = EngineBridge(settings)
+        for (ch in keys) when {
+            ch == '⌫' -> bridge.backspace(proxy)
+            ch.isLetter() -> bridge.letter(ch, proxy)
+            else -> bridge.boundary(ch.toString(), proxy)
+        }
+        return proxy.text to bridge
+    }
+
+    /** Viết tắt toàn chữ HOA, từ dính "_"/số (30/10/2026; = TelexCore) — có hay không sửa ngược. */
+    @Test fun testAcronymAndGluedWords() {
+        for (retro in listOf(false, true)) {
+            val st = KeyboardSettings(contextualEnglish = retro, retroEnglishAuto = retro)
+            assertEquals("NAS ", typeAll("NAS ", st).first)            // "NÁ" hiếm ⇒ viết tắt
+            assertEquals("VIỆT NAM ", typeAll("VIEEJT NAM ", st).first)
+            assertEquals("ĐÀ NẴNG ", typeAll("DDAF NAWXNG ", st).first)
+            assertEquals("my_var ", typeAll("my_var ", st).first)      // không "my_vả"
+            assertEquals("và/hoặc ", typeAll("vaf/hoawcj ", st).first)
+            assertEquals("100W ", typeAll("100W ", st).first)          // không "100Ư"
+            assertEquals("5trăm ", typeAll("5trawm ", st).first)
+            // ⌫ ngay sau khôi phục: bridge xoá dấu cách như thường; session mời "NÁ" trên thanh gợi ý.
+            assertEquals("NAS", typeAll("NAS ⌫", st).first)
+        }
+    }
+
     /**
      * composeTrial dùng lại MỘT engine mỗi luồng (RAM-AUDIT #8): kết quả phải y hệt engine mới
      * tinh, bất kể lượt trước để lại gì (từ dài tràn, VNI, hủy dấu, chữ hoa…).

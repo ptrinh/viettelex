@@ -190,6 +190,17 @@ void hotPathDoesNotAllocate() {
             gSink += e.hasSpellingError(true) ? 1 : 0;   // opt-in underline: per-key, no heap
         }
         e.commitText(true, buf, vtx::kMaxText);
+        // Acronym / typo keep / glue / restore-undo paths (boundary-only, fixed buffers).
+        for (const char* p = "NAS lanwm his my_var 100W "; *p; ++p) {
+            if (*p == ' ' || *p == '_' || (*p >= '0' && *p <= '9')) {
+                e.commitBoundary(true, a);
+                vtx::RestoreUndo u;
+                gSink += e.takeRestoreUndo(u) ? u.vietnameseLength : 0;
+                e.noteBoundaryCharacter(static_cast<char32_t>(*p));
+            } else {
+                e.feed(static_cast<char32_t>(*p), a);
+            }
+        }
         e.feed(U'x', a); e.commitBoundary(true, a);
         e.backspace(a); e.reopenLastCommit(buf, vtx::kMaxText); e.reset();
         e.seed(u"thấy", 4); e.reset();
@@ -338,9 +349,109 @@ void initialsSuffix() {
     }
 }
 
+// Controller-style replay (Swift ZZ harness / platform sessions): letters compose; any other
+// character commits the word, is inserted, and is reported with noteBoundaryCharacter.
+// Restore-undo records are appended as "{restored>vietnamese}".
+std::string typeLikeController(vtx::TelexEngine& e, const std::string& text) {
+    std::u32string in = fromUtf8(text);
+    std::string out;
+    auto commit = [&] {
+        out += commitText(e, true);
+    };
+    std::string undos;
+    auto takeUndo = [&] {
+        vtx::RestoreUndo u;
+        if (e.takeRestoreUndo(u))
+            undos += "{" + toUtf8(u.restored, u.restoredLength) + ">" + toUtf8(u.vietnamese, u.vietnameseLength) + "}";
+    };
+    vtx::Action a;
+    for (char32_t c : in) {
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) { e.feed(c, a); continue; }
+        commit();
+        takeUndo();
+        std::u32string one(1, c);
+        out += toUtf8(one);
+        e.noteBoundaryCharacter(c);
+    }
+    commit();
+    takeUndo();
+    return out + undos;
+}
+
+// Acronyms, Vietnamese typo keep, glued separators/digits, restore-undo (Swift parity:
+// TelexCore AcronymTypoGlueTests).
+void acronymTypoGlueUndo() {
+    struct Case { const char* in; const char* want; };
+    const Case suite[] = {   // liveSpellCheck on, everything else engine default
+        {"NAS", "NAS{NAS>NÁ}"}, {"OS", "OS{OS>Ó}"}, {"AWS", "AWS{AWS>Ắ}"}, {"TOAS", "TOAS{TOAS>TÓA}"},
+        {"VIEEJT", "VIỆT"}, {"DDAF NAWXNG", "ĐÀ NẴNG"}, {"HDDND", "HĐND"}, {"VNDD", "VNĐ"},
+        {"AA", "Â"}, {"COS", "CÓ"}, {"QUYEETS DDINHJ", "QUYẾT ĐỊNH"},
+        {"deepseek", "deepseek"}, {"casual", "casual"}, {"tester", "tester"}, {"keep", "keep"},
+        {"tieengsm", "tiếngm"},
+        {"my_var", "my_var"}, {"MAX_SIZE", "MÃ_SIZE"}, {"ok.ddi", "ok.đi"}, {"haha.thooi", "haha.thôi"},
+        {"vaf/hoawcj", "và/hoặc"}, {"anh/chij", "anh/chị"}, {"TP.Hoof", "TP.Hồ"},
+        {"100W", "100W"}, {"10kW", "10kW"}, {"5trawm", "5trăm"}, {"2tieengs", "2tiếng"},
+        {"100dd", "100đ"}, {"5s", "5s"}, {"4G", "4G"}, {"5tuw", "5tư"},
+        {"bene NAS", "bene NAS{NAS>NÁ}"},
+    };
+    for (const Case& c : suite) {
+        vtx::TelexEngine e;
+        e.liveSpellCheck = true;
+        CHECK_EQ(typeLikeController(e, c.in), std::string(c.want));
+    }
+    {   // free marking: the typo stays on screen; "lanwm" without it has two vowel groups
+        vtx::TelexEngine e;
+        e.liveSpellCheck = true; e.freeMarking = true;
+        CHECK_EQ(typeLikeController(e, "lanwm"), std::string("lănm"));
+        vtx::TelexEngine s;
+        s.liveSpellCheck = true;
+        CHECK_EQ(typeLikeController(s, "lanwm"), std::string("lanwm"));
+    }
+    {   // teencode elongation keeps its own rule (all caps too)
+        vtx::TelexEngine e;
+        CHECK_EQ(typeLikeController(e, "DAJA"), std::string("DẠA"));
+    }
+    {   // English collision restore offers ⌫-undo; the acronym never opens an English run
+        vtx::TelexEngine e;
+        e.liveSpellCheck = true; e.contextualEnglish = true;
+        CHECK_EQ(typeLikeController(e, "he is"), std::string("he is{is>í}"));
+        vtx::TelexEngine r;
+        r.liveSpellCheck = true; r.freeMarking = true; r.contextualEnglish = true; r.retroactiveEnglish = true;
+        CHECK_EQ(typeLikeController(r, "bene ASL USB"), std::string("bên ASL USB"));
+    }
+    {   // the record is dropped by the next key, and restoreUndoApplied ends the English run
+        vtx::TelexEngine e;
+        e.contextualEnglish = true;
+        vtx::Action a;
+        feedStr(e, "the");
+        e.commitBoundary(true, a);
+        e.noteBoundaryCharacter(U' ');
+        feedStr(e, "NAS");
+        e.commitBoundary(true, a);
+        vtx::RestoreUndo u;
+        CHECK(e.pendingRestoreUndo(u));
+        e.feed(U'x', a);
+        CHECK(!e.takeRestoreUndo(u));
+        e.reset();
+        feedStr(e, "he");
+        e.commitBoundary(true, a);
+        e.noteBoundaryCharacter(U' ');
+        feedStr(e, "is");
+        e.commitBoundary(true, a);
+        CHECK(e.takeRestoreUndo(u));
+        CHECK_EQ(toUtf8(u.restored, u.restoredLength), std::string("is"));
+        CHECK_EQ(toUtf8(u.vietnamese, u.vietnameseLength), std::string("í"));
+        CHECK(e.previousWordEnglish());
+        e.restoreUndoApplied();
+        CHECK(!e.previousWordEnglish());
+        CHECK(!e.takeRestoreUndo(u));
+    }
+}
+
 } // namespace
 
 int runUnit() {
+    acronymTypoGlueUndo();
     initialsSuffix();
     screenAlwaysEqualsComposed();
     peekMatchesCommitOnCopy();

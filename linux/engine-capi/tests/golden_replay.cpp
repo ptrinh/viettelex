@@ -118,7 +118,8 @@ std::string run(const std::string &flags, const std::string &opsUtf8) {
         for (size_t i = 0; i < it.size(); ++i) {
             uint32_t c = it[i];
             switch (c) {
-            case ' ': case '.': case ',': {
+            case ' ': case '.': case ',': case '_': case '/': case '=': {
+                const uint32_t bch = c == '=' ? uint32_t('1') : c;   // '=' = digit boundary
                 size_t n = vt_peek(e, autoRestore, buf, sizeof buf);
                 std::string peek(buf, n);
                 vt_commit(e, autoRestore, &a);
@@ -127,8 +128,12 @@ std::string run(const std::string &flags, const std::string &opsUtf8) {
                     auto ins = decode(std::string(a.insert, a.insert_len));
                     screen.insert(screen.end(), ins.begin(), ins.end());
                 }
-                screen.push_back(c);
-                trace.push_back(peek + "=>" + tok(a));
+                screen.push_back(bch);
+                std::string undo;
+                vt_restore_undo u;
+                if (vt_take_restore_undo(e, &u)) undo = "~" + std::string(u.vietnamese, size_t(u.vietnamese_len));
+                vt_note_boundary(e, bch);
+                trace.push_back(peek + "=>" + tok(a) + undo);
                 break;
             }
             case '<':
@@ -148,7 +153,10 @@ std::string run(const std::string &flags, const std::string &opsUtf8) {
             case '!': vt_reset_context(e); trace.push_back("N"); break;
             case '%': {
                 size_t n = vt_commit_text(e, autoRestore, buf, sizeof buf);
-                trace.push_back("c:" + std::string(buf, n));
+                std::string undo;
+                vt_restore_undo u;
+                if (vt_take_restore_undo(e, &u)) undo = "~" + std::string(u.vietnamese, size_t(u.vietnamese_len));
+                trace.push_back("c:" + std::string(buf, n) + undo);
                 break;
             }
             case '`':

@@ -1034,6 +1034,15 @@ final class TelexInputController: IMKInputController {
             if let r = retroApplied {
                 retroUndo = RetroApply.undo(expected: r.expected, insert: r.insert, boundary: smartQuote ?? inserted)
             }
+            // ⌫ ngay sau khi tự khôi phục tiếng Anh ("NÁ" → "NAS"): trả lại chữ Việt (như hoàn tác
+            // tự sửa của macOS). Chỉ app in-place đã chứng minh thay được chữ đã chốt, không
+            // terminal / app mã nguồn; sửa ngược đang giữ ⌫ thì nhường.
+            if let u = engine.takeRestoreUndo(), retroUndo == nil, !markedNow, !wasEdge,
+               SystemAutoText.appAllowed(id), Self.replacesCommittedText(id),
+               let ru = RetroApply.restoreUndo(u, boundary: smartQuote ?? inserted) {
+                retroUndo = ru
+                DebugLog.noteRestoreUndoOffered()
+            }
             if let c = retroOffer, let o = RetroApply.offer(expected: c.expected, insert: c.insert, boundary: smartQuote ?? inserted) {
                 CaretHint.shared.offerRetro(o, client: client, controller: self)
             }
@@ -2249,10 +2258,15 @@ final class TelexInputController: IMKInputController {
             return false
         }
         client.insertText(u.previous, replacementRange: range)
-        engine.reset()               // xoá lịch sử sửa ngược + re-open: ⌫ sau đó là ⌫ thường
+        if u.restore {
+            engine.restoreUndoApplied()   // từ vừa chốt lại là chữ Việt: hết mạch tiếng Anh
+            DebugLog.noteRestoreUndoUsed()
+        } else {
+            engine.reset()               // xoá lịch sử sửa ngược + re-open: ⌫ sau đó là ⌫ thường
+        }
         tracking = false; onLen = 0
         shortcutTail.replaceSuffix(u.current, with: u.previous)
-        logDecision("retro undo \(id ?? "?"): -\(range.length) +\((u.previous as NSString).length)")
+        logDecision("\(u.restore ? "restore" : "retro") undo \(id ?? "?"): -\(range.length) +\((u.previous as NSString).length)")
         return true
     }
 

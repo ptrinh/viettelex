@@ -1054,7 +1054,15 @@ void Session::finishRetro(InputContext &ic, uint32_t ch) {
     vt_note_boundary(e_, ch ? ch : '\n');
 }
 
-bool Session::tryRetroUndo(const retro::Undo &u, InputContext &ic) {
+void Session::armRestoreUndo(uint32_t ch) {
+    vt_restore_undo u;
+    if (!vt_take_restore_undo(e_, &u) || retroUndo_.armed()) return;
+    retroUndo_ = retro::makeUndo(std::string(u.vietnamese, size_t(u.vietnamese_len)),
+                                 std::string(u.restored, size_t(u.restored_len)), char(ch));
+    undoIsRestore_ = retroUndo_.armed();
+}
+
+bool Session::tryRetroUndo(const retro::Undo &u, InputContext &ic, bool restoreUndo) {
     const bool edits = surroundingEdits_ && !passthrough_ && mode_ != DisplayMode::Direct;
     std::string before;
     const bool have = edits && ic.textBeforeCursorTail(utf8Chars(u.applied), before);
@@ -1066,7 +1074,9 @@ bool Session::tryRetroUndo(const retro::Undo &u, InputContext &ic) {
         ic.deleteBeforeCursor(int(utf8Chars(u.applied)));
         ic.commit(u.original);
     }
-    vt_reset(e_);  // the word history says English; the screen holds the old text again
+    // Restore undo: the word is Vietnamese again (ends the English run too).
+    if (restoreUndo) vt_restore_undo_applied(e_);
+    else vt_reset(e_);  // the word history says English; the screen holds the old text again
     if (hintsOn_) tailReset();
     return true;
 }
@@ -1179,7 +1189,9 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     selectionMemo_ = -1;
     // A retro rewrite can be reverted by the very next key only.
     const retro::Undo undo = std::move(retroUndo_);
+    const bool undoIsRestore = undoIsRestore_;
     retroUndo_.clear();
+    undoIsRestore_ = false;
     lastRetroWords_ = 0;
     retroInflight_ = 0;
     retroOffer_ = retro::Offer();
@@ -1270,7 +1282,7 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     }
 
     if (ev.keysym == ks::BackSpace) {
-        if (undo.armed() && vt_is_empty(e_) && tryRetroUndo(undo, ic)) {
+        if (undo.armed() && vt_is_empty(e_) && tryRetroUndo(undo, ic, undoIsRestore)) {
             lastWasBoundaryChar_ = false;
             return true;
         }
@@ -1309,7 +1321,10 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
         return true;
     }
     endWord(ic, printable && isBracket(ch), !gluedToDigit_);
+    // The engine needs EVERY boundary character (glued "my_var" / "100W"), retro or not.
     if (retroOn_) finishRetro(ic, printable ? ch : 0);
+    else vt_note_boundary(e_, printable ? ch : '\n');
+    armRestoreUndo(printable ? ch : 0);
     if (newline) vt_reset_context(e_);   // a new line has no preceding word
     // Smart quotes: “ ” ‘ ’ instead of the key (inserted, nothing replaced).
     std::string quoted;

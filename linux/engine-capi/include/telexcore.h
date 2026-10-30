@@ -136,6 +136,23 @@ typedef struct vt_retro {
 } vt_retro;
 void vt_note_boundary(vt_engine *h, uint32_t ch);
 bool vt_take_retro(vt_engine *h, vt_retro *out);
+
+/* ⌫ right after a restore-to-English (TelexEngine.takeRestoreUndo / restoreUndoApplied).
+ * vt_note_boundary is needed for EVERY boundary character even with retro English off:
+ * the engine also uses it for glued separators ("my_var", "100W").
+ * Right after a commit, vt_take_restore_undo: true = the commit restored `restored` (now on
+ * screen, followed by the boundary char) although `vietnamese` was a real syllable. If the
+ * very next key is ⌫ and the text before the caret is still restored + boundary, replace it
+ * with vietnamese + boundary, then call vt_restore_undo_applied. Any other key drops it. */
+#define VT_UNDO_CAP 160     /* bytes of UTF-8 incl. NUL (32 chars x 4 + room) */
+typedef struct vt_restore_undo {
+    int32_t restored_len;     /* bytes (excluding NUL) */
+    int32_t vietnamese_len;
+    char restored[VT_UNDO_CAP];
+    char vietnamese[VT_UNDO_CAP];
+} vt_restore_undo;
+bool vt_take_restore_undo(vt_engine *h, vt_restore_undo *out);
+void vt_restore_undo_applied(vt_engine *h);
 bool vt_is_spelling_error(const char *utf8_word, bool teencode);
 
 #ifdef __cplusplus

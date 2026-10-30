@@ -3654,6 +3654,13 @@ final class TerminalTapController {
             if let r = retroApplied {
                 retroUndo = RetroApply.undo(expected: r.expected, insert: r.insert, boundary: smartQuote ?? boundaryText)
             }
+            // ⌫ ngay sau khi tự khôi phục tiếng Anh: trả lại chữ Việt (⌫-gõ-lại, AX xác nhận lúc ⌫).
+            if let u = engine.takeRestoreUndo(), retroUndo == nil, emitMode == .backspace,
+               SystemAutoText.appAllowed(id),
+               let ru = RetroApply.restoreUndo(u, boundary: smartQuote ?? boundaryText) {
+                retroUndo = ru
+                DebugLog.noteRestoreUndoOffered()
+            }
             if let c = retroOffer, let o = RetroApply.offer(expected: c.expected, insert: c.insert, boundary: smartQuote ?? boundaryText) {
                 CaretHint.shared.offerRetro(o, client: nil, controller: nil)
             }
@@ -4187,10 +4194,15 @@ final class TerminalTapController {
             DebugLog.log("retro undo(tap) \(id ?? "?"): screen disagrees → plain ⌫")
             return false
         }
-        engine.reset()
+        if u.restore {
+            engine.restoreUndoApplied()   // từ vừa chốt lại là chữ Việt: hết mạch tiếng Anh
+            DebugLog.noteRestoreUndoUsed()
+        } else {
+            engine.reset()
+        }
         SyntheticKeyboard.apply(backspaces: u.current.count, insert: u.previous, mode: emitMode)
         shortcutTail.replaceSuffix(u.current, with: u.previous)
-        DebugLog.log("retro undo(tap) \(id ?? "?"): bs=\(u.current.count) ins=\(u.previous.count)")
+        DebugLog.log("\(u.restore ? "restore" : "retro") undo(tap) \(id ?? "?"): bs=\(u.current.count) ins=\(u.previous.count)")
         return true
     }
 

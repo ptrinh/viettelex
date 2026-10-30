@@ -179,6 +179,17 @@ class KeyboardSessionTests {
         assertEquals("$composed ", p.text)
     }
 
+    /** Viết tắt "NAS" (NÁ hiếm ⇒ khôi phục): ⌫ ngay sau mời lại "NÁ" như mọi lần khôi phục. */
+    @Test fun testBackspaceUndoAfterAcronymRestore() {
+        val s = session(traits = FieldTraits()); val p = MockProxy()
+        s.typeKeys(p, "NAS ")
+        assertEquals("NAS ", p.text)
+        s.handle(Key.Backspace, p)
+        assertEquals("NÁ", s.suggestionsNow(p)!!.literal)
+        s.acceptSuggestion("NÁ", p)
+        assertEquals("NÁ ", p.text)
+    }
+
     @Test fun testPasteOfferConditions() {
         val s = session(traits = FieldTraits()); val p = MockProxy()
         assertFalse(s.suggestionsNow(p)!!.paste)       // clipboard trống

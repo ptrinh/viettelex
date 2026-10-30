@@ -52,6 +52,19 @@ enum DebugLog {
 
     static func clear() { lock.lock(); lines = []; head = 0; lock.unlock() }
 
+    // "⌫ undo after English restore" counters — local, in memory, this app session only;
+    // counts, never text. Always on (two integer bumps per event, not per keystroke).
+    private static var restoreUndoOffered = 0
+    private static var restoreUndoUsed = 0
+    /// A boundary restored a real Vietnamese syllable to raw keys and armed the ⌫ undo.
+    static func noteRestoreUndoOffered() { lock.lock(); restoreUndoOffered += 1; lock.unlock() }
+    /// The ⌫ undo put the Vietnamese word back.
+    static func noteRestoreUndoUsed() { lock.lock(); restoreUndoUsed += 1; lock.unlock() }
+    static var restoreUndoStats: (offered: Int, used: Int) {
+        lock.lock(); defer { lock.unlock() }
+        return (restoreUndoOffered, restoreUndoUsed)
+    }
+
     /// `header` (current runtime state) followed by the ring buffer, ready to copy.
     static func snapshot(header: [String]) -> String {
         lock.lock(); let ring = lines, h = head; lock.unlock()

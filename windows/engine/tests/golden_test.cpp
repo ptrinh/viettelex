@@ -19,6 +19,13 @@ std::string tok(const vtx::Action& a) {
     return "R" + std::to_string(a.backspaces) + "," + text(a);
 }
 
+// "~<vietnamese>" when the commit left a restore-undo record (GenGolden format).
+std::string undoToken(vtx::TelexEngine& e) {
+    vtx::RestoreUndo u;
+    if (!e.takeRestoreUndo(u)) return "";
+    return "~" + toUtf8(u.vietnamese, u.vietnameseLength);
+}
+
 void removeLast(std::u32string& s, int n) {
     size_t k = static_cast<size_t>(n) < s.size() ? static_cast<size_t>(n) : s.size();
     s.resize(s.size() - k);
@@ -45,12 +52,15 @@ std::string replay(const std::string& flagsField, const std::string& opsUtf8) {
         for (size_t i = 0; i < ops.size(); ++i) {
             char32_t c = ops[i];
             switch (c) {
-            case U' ': case U'.': case U',': {
+            case U' ': case U'.': case U',': case U'_': case U'/': case U'=': {
+                const char32_t ins = c == U'=' ? U'1' : c;   // '=' = a DIGIT boundary
                 std::string p = peek(e, autoRestore);
                 e.commitBoundary(autoRestore, a);
                 if (a.kind == vtx::Action::Replace) applyReplace(screen, a);
-                screen.push_back(c);
-                add(p + "=>" + tok(a));
+                screen.push_back(ins);
+                std::string t = p + "=>" + tok(a) + undoToken(e);
+                e.noteBoundaryCharacter(ins);
+                add(t);
                 break;
             }
             case U'<':
@@ -66,7 +76,7 @@ std::string replay(const std::string& flagsField, const std::string& opsUtf8) {
             }
             case U'#': e.reset(); add("N"); break;
             case U'!': e.resetContext(); add("N"); break;
-            case U'%': add("c:" + commitText(e, autoRestore)); break;
+            case U'%': { std::string t = "c:" + commitText(e, autoRestore); add(t + undoToken(e)); break; }
             case U'`':
                 if (i + 1 < ops.size()) { autoRestore = toggleFlag(e, static_cast<char>(ops[i + 1]), autoRestore); ++i; }
                 add("t");

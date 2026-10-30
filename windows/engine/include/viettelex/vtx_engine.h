@@ -121,6 +121,24 @@ typedef struct vtx_retro_correction {
 void vtx_note_boundary(vtx_engine* e, uint32_t ch);
 int  vtx_take_retro_correction(vtx_engine* e, vtx_retro_correction* out);
 
+/* Undo of a boundary restore-to-English (Swift TelexEngine.takeRestoreUndo). Report EVERY
+   boundary character with vtx_note_boundary even with VTX_RETRO_ENGLISH off: the engine
+   also uses it for glued separators ("my_var", "os.path", "100W"). Right after a commit,
+   vtx_take_restore_undo = 1 when the commit restored a word to its raw keys although its
+   Vietnamese composition was a real syllable ("hí" -> "his", "NÁ" -> "NAS"): the screen
+   now shows `restored` + the boundary char; an IMMEDIATE ⌫ may replace that with
+   `vietnamese` + the boundary char (verify the document first), then call
+   vtx_restore_undo_applied. Any other engine call drops the record. */
+#define VTX_UNDO_MAX 64            /* UTF-16 units incl. NUL */
+typedef struct vtx_restore_undo {
+    int32_t  restored_len;               /* UTF-16 units */
+    int32_t  vietnamese_len;             /* UTF-16 units */
+    uint16_t restored[VTX_UNDO_MAX];     /* NUL-terminated */
+    uint16_t vietnamese[VTX_UNDO_MAX];   /* NUL-terminated */
+} vtx_restore_undo;
+int  vtx_take_restore_undo(vtx_engine* e, vtx_restore_undo* out);
+void vtx_restore_undo_applied(vtx_engine* e);
+
 #ifdef __cplusplus
 }
 #endif

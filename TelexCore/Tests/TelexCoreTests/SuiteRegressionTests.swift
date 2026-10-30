@@ -67,6 +67,7 @@ final class SuiteRegressionTests: XCTestCase {
             } else {
                 out += e.commitText(autoRestore: true)
                 out.append(ch)
+                e.noteBoundaryCharacter(ch)   // controllers report every boundary char (glue rules)
             }
         }
         out += e.commitText(autoRestore: true)
@@ -125,7 +126,10 @@ final class SuiteRegressionTests: XCTestCase {
         // thắng như thus≡thú. 7135 → 7134.
         // 30/10/2026 (issue #138): +2 hàng guard AsJSON/HasID (đầu là từ Anh ⇒ không
         // tách viết tắt, cả từ vẫn về raw). 7134 → 7136.
-        XCTAssertGreaterThanOrEqual(pass["restore_raw"] ?? 0, 7136,
+        // 30/10/2026: +10 hàng — viết tắt toàn chữ HOA đọc ra âm tiết hiếm (NAS, AWS, OS…),
+        // từ dính sau "_" / "." của từ mã (my_var, self.bar), đơn vị sau số (100W, 10kW);
+        // harness báo ký tự ranh giới cho engine như controller thật. 7136 → 7146.
+        XCTAssertGreaterThanOrEqual(pass["restore_raw"] ?? 0, 7146,
                                     "English-restore coverage regressed")
         // Trailing-cancel screen-truth (2026-07-31): the escape gesture commits the
         // rendered text even when raw is a real English word — EXACT, no floor.

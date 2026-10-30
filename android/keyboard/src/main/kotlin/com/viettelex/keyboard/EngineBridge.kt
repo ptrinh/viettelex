@@ -311,7 +311,10 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         if (action is TelexAction.Replace) final = Cp.dropLast(before, action.backspaces) + action.insert
         apply(action, "", proxy)
         put(text)
+        // Engine cần MỌI ký tự ranh giới (dính "my_var" / "100W"), có sửa ngược hay không.
+        // (⌫ sau khôi phục phím thô: session mời chữ Việt trên thanh gợi ý — restoreUndoRaw.)
         if (engine.retroactiveEnglish) retroAfterBoundary(text, proxy)
+        else for (ch in text) engine.noteBoundaryCharacter(ch)
         return final
     }
 

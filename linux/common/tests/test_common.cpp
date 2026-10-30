@@ -2754,6 +2754,35 @@ void testRetroBackspaceReverts() {
     }
 }
 
+// ⌫ right after a restore-to-English puts the Vietnamese rendering back (one key only),
+// with retro English on or off; acronyms / glued tokens never compose (30/10/2026).
+void testRestoreUndoBackspace() {
+    for (bool retro : {false, true}) {
+        Settings st = retroSettings(retro);
+        bothModes("NAS ", "NAS ", st);           // rare syllable "NÁ": an acronym
+        bothModes("NAS <", "NÁ ", st);           // ⌫ = undo the restore, boundary kept
+        bothModes("NAS <<", "NÁ", st);           // the 2nd ⌫ is an ordinary one
+        bothModes("NAS x<", "NAS ", st);         // any other key drops the chance
+        bothModes("NAS <a ", "NÁ a ", st);
+        bothModes("google <", "google", st);     // "gôgle" is no Vietnamese: ordinary ⌫
+        bothModes("VIEEJT NAM ", "VIỆT NAM ", st);
+        bothModes("my_var ", "my_var ", st);     // glued to "_": no Vietnamese tone
+        bothModes("100W ", "100W ", st);         // a unit, not "100Ư"
+        bothModes("5trawm ", "5trăm ", st);
+    }
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        Session s;
+        Mock m;
+        s.applySettings(defaults());
+        s.setDisplayMode(mode, m);
+        type(s, m, "NAS ");
+        CHECK(s.restoreUndoArmed());
+        m.doc += "!";  // something the Session did not see
+        type(s, m, "<");
+        CHECK_EQ(m.screen(), std::string("NAS "));
+    }
+}
+
 void testRetroSkippedWhenUnverifiable() {
     for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
         // No surrounding text: never rewrite blindly.
@@ -2990,6 +3019,7 @@ int main() {
     testRetroSettingsGate();
     testRetroAutoApplies();
     testRetroBackspaceReverts();
+    testRestoreUndoBackspace();
     testRetroSkippedWhenUnverifiable();
     testRetroHostLagsBehindTheLastWord();
     testRetroDecisions();
