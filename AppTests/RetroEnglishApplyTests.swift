@@ -92,6 +92,34 @@ final class RetroEnglishApplyTests: XCTestCase {
         XCTAssertNil(R.undo(expected: "is", insert: "is", boundary: " "))
     }
 
+    /// ⌫ sau khi tự khôi phục tiếng Anh ("NÁ" → "NAS"): bản ghi từ engine, cùng luật ranh giới,
+    /// và màn hình phải còn đúng "NAS " thì ⌫ mới trả lại "NÁ ".
+    func testRestoreUndoFromEngineRecord() {
+        var e = TelexEngine()
+        for ch in "NAS" { _ = e.feed(ch) }
+        _ = e.commitBoundary(autoRestore: true)
+        let rec = try? XCTUnwrap(e.takeRestoreUndo())
+        XCTAssertEqual(rec, RestoreUndo(restored: "NAS", vietnamese: "NÁ"))
+        guard let rec else { return }
+        let u = R.restoreUndo(rec, boundary: " ")
+        XCTAssertEqual(u, RetroUndo(previous: "NÁ ", current: "NAS ", restore: true))
+        XCTAssertNil(R.restoreUndo(rec, boundary: "\n"))
+        XCTAssertNil(R.restoreUndo(rec, boundary: nil))
+        let screen = "ok NAS "
+        let caret = (screen as NSString).length
+        XCTAssertEqual(R.revertRange(u!, caret: caret, read: reader(screen)), NSRange(location: 3, length: 4))
+        XCTAssertNil(R.revertRange(u!, caret: caret, read: reader("ok NAS!")))
+        // Restored garbage ("gôgle" → "google") offers nothing; any next key drops the record.
+        var g = TelexEngine(); g.liveSpellCheck = true
+        for ch in "google" { _ = g.feed(ch) }
+        _ = g.commitBoundary(autoRestore: true)
+        XCTAssertNil(g.takeRestoreUndo())
+        for ch in "NAS" { _ = g.feed(ch) }
+        _ = g.commitBoundary(autoRestore: true)
+        _ = g.feed("x")
+        XCTAssertNil(g.takeRestoreUndo())
+    }
+
     func testRevertOnlyWhenScreenStillEndsWithTheRewrite() {
         let u = RetroUndo(previous: "í cả í very fast ", current: "is car is very fast ")
         let screen = "His car is very fast "

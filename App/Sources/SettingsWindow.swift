@@ -1244,6 +1244,11 @@ struct DiagnosticsSection: View {
             if let saveResult {
                 Text(saveResult).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }
+            // Đếm cục bộ (chỉ số lần, không bao giờ chữ): ⌫ trả lại chữ Việt sau khi tự khôi phục tiếng Anh.
+            let undo = DebugLog.restoreUndoStats
+            Text(String(format: model.loc("Undo after English restore: %d used / %d offered (this session)"),
+                        undo.used, undo.offered))
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -1307,6 +1312,7 @@ enum DebugHeader {
             "macOS: \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)",
             "accessibility: \(Accessibility.isTrusted ? "granted" : "MISSING")",
             "tap running: \(TerminalTapController.shared.isRunning)",
+            "undo after English restore: \(DebugLog.restoreUndoStats.used) used / \(DebugLog.restoreUndoStats.offered) offered (this session)",
             // Activity Monitor's "Memory" for this process + its high-water mark: a large
             // gap = a transient peak (Settings) whose pages malloc still holds.
             "memory: \(MemoryFootprint.megabytes(mem.current)) (peak \(MemoryFootprint.megabytes(mem.peak)))",
