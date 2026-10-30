@@ -77,6 +77,33 @@ class EmojiBinTests {
         assertTrue(EmojiSearch.keyCount > 5000)
     }
 
+    @Test fun testEmoticonSearch() {
+        val want = listOf(":)" to "😊", ":D" to "😄", ":(" to "☹️", ";)" to "😉", ":P" to "😛", "<3" to "❤️",
+            "=))" to "😂", ":))" to "😆", "^_^" to "😊", "-_-" to "😑", ":o" to "😮", "xD" to "😆", ":'(" to "😢")
+        for ((q, e) in want) assertEquals(q, e, EmojiSearch.search(q).firstOrNull())
+        // hoa thường / space hai đầu như nhau; không trùng
+        assertEquals(EmojiSearch.search(":p"), EmojiSearch.search(" :P "))
+        assertEquals("😆", EmojiSearch.search("XD").first())
+        val r = EmojiSearch.search("xd")
+        assertEquals(r.size, r.toSet().size)
+        assertEquals(2, EmojiSearch.search(":)", limit = 2).size)
+        // mọi emoji trong bảng có trong emoji.bin (đúng dạng, kể cả FE0F)
+        val all = (0 until EmojiData.count).map(EmojiData::emoji).toSet()
+        for ((k, v) in EmojiSearch.EMOTICONS) {
+            assertEquals("khoá viết thường: $k", k.lowercase(), k)
+            for (e in v) assertTrue("$k → $e", e in all)
+        }
+        // câu tìm thường không đổi
+        assertEquals(EmojiSearch.ids("tim").map(EmojiData::emoji), EmojiSearch.search("tim"))
+        assertTrue(EmojiSearch.emoticon("tim").isEmpty())
+        // gõ emoticon qua ô tìm (Telex) ra đúng khoá
+        for (q in listOf(":D", "xD", ":o", ":P", "^_^", ":'(")) {
+            val s = EmojiSearchSession()
+            for (c in q) s.type(c)
+            assertTrue("$q → ${s.query}", EmojiSearch.emoticon(s.query).isNotEmpty())
+        }
+    }
+
     @Test fun testSessionTelex() {
         val s = EmojiSearchSession()
         for (c in "chos") s.type(c)

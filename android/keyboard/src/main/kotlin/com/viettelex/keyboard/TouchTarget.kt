@@ -261,6 +261,8 @@ data class TouchTargetParams(
 )
 
 object TouchTarget {
+    // σ dò lại 30/10/2026 (TouchSimTests.sigmaSweep, TOUCHSIM_SIGMA=1|test): σy < σx làm tăng lỗi khác hàng
+    // (σ theo cao phím đã gồm phím cao hơn rộng); σx 0.33–0.35 bớt lỗi Việt nhưng tăng đổi nhầm + lỗi chat ⇒ giữ 0.30/0.30.
     val DEFAULT = TouchTargetParams(
         sigmaX = 0.30f, sigmaY = 0.30f, coreX = 0.25f, coreY = 0.25f,
         reach = 0.45f, margin = 1.0f, floor = 0.20f,
@@ -278,13 +280,13 @@ object TouchTarget {
         if (nearest < 0 || nearest >= rects.size) return nearest
         val r = rects[nearest]
         val w = r.right - r.left; val h = r.bottom - r.top
-        if (w <= 0f || h <= 0f || inCore(p, r, params)) return nearest
+        if (w <= 0f || h <= 0f || nearest >= keys.size || !isLetter(keys[nearest]) || inCore(p, r, params)) return nearest
         val p0 = prior(keys[nearest]) ?: return nearest
         val s0 = score(p, r, w, h, p0, params)
         var best = nearest; var bestS = s0 + params.margin
         val lim = params.reach * w
         for (i in rects.indices) {
-            if (i == nearest) continue
+            if (i == nearest || i >= keys.size || !isLetter(keys[i])) continue
             val f = rects[i]
             val dx = maxOf(f.left - p.x, 0f, p.x - f.right)
             val dy = maxOf(f.top - p.y, 0f, p.y - f.bottom)
@@ -296,6 +298,9 @@ object TouchTarget {
         }
         return best
     }
+
+    /** Chỉ phím chữ a–z tham gia: "." "," "'"… KHÔNG bao giờ bị đổi sang chữ (hay ngược lại) dù prior nói gì. */
+    private fun isLetter(c: Char) = c in 'a'..'z' || c in 'A'..'Z'
 
     /** [p] trong LÕI mặt phím [r] (cách mọi mép > core) ⇒ phím đó thắng, khỏi tính gì thêm. */
     fun inCore(p: KPoint, r: KRect, params: TouchTargetParams = DEFAULT): Boolean {

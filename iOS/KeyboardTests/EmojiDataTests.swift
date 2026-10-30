@@ -97,6 +97,34 @@ final class EmojiDataTests: XCTestCase {
         XCTAssertTrue(EmojiSearch.search("zzqxj").isEmpty)
     }
 
+    func testEmoticonSearch() {
+        let want: [(String, String)] = [(":)", "😊"), (":D", "😄"), (":(", "☹️"), (";)", "😉"), (":P", "😛"),
+            ("<3", "❤️"), ("=))", "😂"), (":))", "😆"), ("^_^", "😊"), ("-_-", "😑"), (":o", "😮"),
+            ("xD", "😆"), (":'(", "😢")]
+        for (q, e) in want { XCTAssertEqual(EmojiSearch.search(q).first, e, q) }
+        // hoa thường / space hai đầu như nhau; không trùng
+        XCTAssertEqual(EmojiSearch.search(":p"), EmojiSearch.search(" :P "))
+        XCTAssertEqual(EmojiSearch.search("XD").first, "😆")
+        let r = EmojiSearch.search("xd")
+        XCTAssertEqual(Set(r).count, r.count)
+        XCTAssertEqual(EmojiSearch.search(":)", limit: 2).count, 2)
+        // mọi emoji trong bảng có trong emoji.bin (đúng dạng, kể cả FE0F)
+        let all = Set((0..<EmojiData.count).map(EmojiData.emoji))
+        for (k, v) in EmojiSearch.emoticons {
+            XCTAssertEqual(k.lowercased(), k, "khoá viết thường")
+            for e in v { XCTAssertTrue(all.contains(e), "\(k) → \(e)") }
+        }
+        // câu tìm thường không đổi
+        XCTAssertEqual(EmojiSearch.search("tim"), EmojiSearch.ids("tim").map(EmojiData.emoji))
+        XCTAssertTrue(EmojiSearch.emoticon("tim").isEmpty)
+        // gõ emoticon qua ô tìm (Telex) ra đúng khoá
+        for q in [":D", "xD", ":o", ":P", "^_^", ":'("] {
+            var s = EmojiSearchSession()
+            for c in q { s.type(c) }
+            XCTAssertFalse(EmojiSearch.emoticon(s.query).isEmpty, "\(q) → \(s.query)")
+        }
+    }
+
     func testSearchResultsUniqueAndFiltered() {
         let r = EmojiSearch.search("mặt", limit: 200)
         XCTAssertEqual(Set(r).count, r.count)

@@ -78,6 +78,24 @@ class TouchSimTests {
         assertEquals(iQ, TouchTarget.choose(edge, g.rects, g.keys, iQ, { 1f / 26 }))
     }
 
+    /** Chỉ phím chữ: "." cạnh "m" không bao giờ bị đổi sang chữ (hay ngược lại), kể cả prior cho '.' điểm. */
+    @Test fun punctuationNeverRerouted() {
+        val iM = g.index['m' - 'a']; val m = g.rects[iM]; val w = m.right - m.left
+        val dot = KRect(m.right + 6f, m.top, m.right + 6f + w, m.bottom)
+        val rects = g.rects + dot; val iDot = rects.size - 1
+        val keys = g.keys + '.'
+        val nearDot = KPoint(dot.left + 0.05f * w, (m.top + m.bottom) / 2)
+        val nearM = KPoint(m.right - 0.05f * w, (m.top + m.bottom) / 2)
+        // nearest = "." + prior chỉ cho m ⇒ vẫn "."
+        assertEquals(iDot, TouchTarget.choose(nearDot, rects, keys, iDot, { if (it == 'm') 1f else 0f }))
+        // nearest = m + prior chỉ cho "." ⇒ vẫn m
+        assertEquals(iM, TouchTarget.choose(nearM, rects, keys, iM, { if (it == '.') 1f else 0f }))
+        // đối chứng: cùng hình học, phím đó là CHỮ thì đổi được (test trên không rỗng)
+        val keysZ = g.keys + 'z'
+        assertEquals(iDot, TouchTarget.choose(nearM, rects, keysZ, iM, { if (it == 'z') 1f else 0f }))
+        assertEquals(iM, TouchTarget.choose(nearDot, rects, keysZ, iDot, { if (it == 'm') 1f else 0f }))
+    }
+
     /** Độ trễ lúc touchDown (forRaw + choose, chạm vùng biên) và cỡ trie. */
     @Test fun latencyAndSize() {
         SlowTests.assume()
@@ -195,6 +213,32 @@ class TouchSimTests {
                 val st = merge(seeds.map { TouchSim.run(test, g, pr, it, router, suggester = TouchSim.vnFixer(g, tau, onlyValid = true)) })
                 println("${pr.name} | router $rn | τ=$tau | ${st.sugString()}")
             }
+        }
+    }
+
+    /**
+     * Dò σ ngang/dọc của mô hình chạm (TOUCHSIM_SIGMA=1): người thật lệch dọc ít hơn ngang
+     * (theo bề cao phím) ⇒ thử σy nhỏ hơn. In tap / khác-hàng / từ / đổi-nhầm, gộp 5 người gõ.
+     */
+    @Test fun sigmaSweep() {
+        if (System.getenv("TOUCHSIM_SIGMA") == null) return
+        val split = if (System.getenv("TOUCHSIM_SIGMA") == "test") test else dev
+        val seeds = listOf(11L, 22L)
+        val en = TouchSim.englishWords(3000, Random(7))
+        val chat = TouchSim.chatWords(3000, Random(8))
+        fun row(name: String, m: (KPoint, String) -> Int) {
+            val per = TouchSim.PROFILES.map { pr -> merge(seeds.map { TouchSim.run(split, g, pr, it, m) }) }
+            val tot = merge(per)
+            val e = merge(listOf(careful, mid).flatMap { pr -> seeds.map { TouchSim.run(en, g, pr, it, m, english = true) } })
+            val c = merge(listOf(careful, mid).flatMap { pr -> seeds.map { TouchSim.run(chat, g, pr, it, m, english = true) } })
+            fun f(st: TouchSim.Stats) = "%.3f/%.3f/%.2f".format(ter(st), 100.0 * st.crossRow / st.taps, wer(st))
+            println("SIGMA $name | gộp tap/khác-hàng/từ ${f(tot)} đổi-nhầm ${"%.3f".format(100.0 * tot.badOverride / tot.taps)} | " +
+                per.joinToString(" | ") { f(it) } + " | EN từ ${"%.2f".format(wer(e))} chat từ ${"%.2f".format(wer(c))}")
+        }
+        println("SIGMA split=${split.size} câu × ${seeds.size} seed; cột người gõ: ${TouchSim.PROFILES.joinToString { it.name.trim() }}")
+        row("gần nhất     ", TouchSim.baseline(g))
+        for (sx in listOf(0.30f, 0.33f, 0.35f)) for (sy in listOf(0.30f, 0.27f, 0.25f, 0.22f)) {
+            row("sx=$sx sy=$sy", TouchSim.bayes(g, prior, TouchTarget.DEFAULT.copy(sigmaX = sx, sigmaY = sy)))
         }
     }
 

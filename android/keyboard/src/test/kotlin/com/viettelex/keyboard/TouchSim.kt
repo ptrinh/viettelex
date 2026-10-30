@@ -173,6 +173,8 @@ object TouchSim {
         var taps = 0; var tapErr = 0; var words = 0; var wordErr = 0
         var badOverride = 0; var goodOverride = 0; var markErr = 0
         var lost = 0
+        /** Chạm ra phím ở HÀNG KHÁC phím định gõ (lỗi dọc). */
+        var crossRow = 0
         // (d) gợi ý sửa trên thanh: từ sai có bản sửa ĐÚNG ở slot 1 / sai gợi ý sai / từ đúng bị gợi ý
         var wrongVn = 0; var sugHit = 0; var sugWrong = 0; var sugFalse = 0
         fun pct(a: Int, b: Int) = if (b == 0) "-" else "%.2f".format(100.0 * a / b)
@@ -181,6 +183,7 @@ object TouchSim {
         fun add(x: Stats) {
             taps += x.taps; tapErr += x.tapErr; words += x.words; wordErr += x.wordErr
             badOverride += x.badOverride; goodOverride += x.goodOverride; markErr += x.markErr; lost += x.lost
+            crossRow += x.crossRow
             wrongVn += x.wrongVn; sugHit += x.sugHit; sugWrong += x.sugWrong; sugFalse += x.sugFalse
         }
     }
@@ -216,6 +219,7 @@ object TouchSim {
                     st.taps++
                     if (m != k) st.tapErr++
                     if (m < 0) st.lost++
+                    if (m >= 0 && m != k && g.rowOf[m] != g.rowOf[k]) st.crossRow++
                     if (b0 == k && m != k) st.badOverride++
                     if (b0 != k && m == k) st.goodOverride++
                     if (m != k && (ch in "sfrxjw" || (m >= 0 && g.keys[m] in "sfrxjw"))) markBad = true

@@ -69,8 +69,39 @@ object EmojiSearch {
 
     val keyCount: Int get() = index.count
 
-    fun search(query: String, limit: Int = 60, supported: (Int) -> Boolean = EmojiData::isSupported): List<String> =
-        ids(query, limit, supported).map(EmojiData::emoji)
+    /** Emoji khớp [query]; câu tìm là emoticon ASCII (":)", "<3", "=))"…) ⇒ emoji tương ứng đứng đầu. */
+    fun search(query: String, limit: Int = 60, supported: (Int) -> Boolean = EmojiData::isSupported): List<String> {
+        val rest = ids(query, limit, supported).map(EmojiData::emoji)
+        val emo = emoticon(query)
+        if (emo.isEmpty()) return rest
+        val seen = emo.toHashSet()
+        return (emo + rest.filter { seen.add(it) }).take(limit)
+    }
+
+    /**
+     * Emoticon ASCII → emoji (khoá viết thường; bảng thuần, song sinh iOS
+     * EmojiSearch.emoticons). Emoji đều thuộc Emoji ≤ 1.0 ⇒ máy nào cũng vẽ được.
+     */
+    val EMOTICONS: Map<String, List<String>> = mapOf(
+        ":)" to listOf("😊", "🙂", "☺️"), ":-)" to listOf("😊", "🙂", "☺️"), "(:" to listOf("🙂", "😊"),
+        ":d" to listOf("😄", "😃", "😁"), ":-d" to listOf("😄", "😃", "😁"),
+        ":(" to listOf("☹️", "🙁", "😞"), ":-(" to listOf("☹️", "🙁", "😞"),
+        ";)" to listOf("😉"), ";-)" to listOf("😉"),
+        ":p" to listOf("😛", "😜", "😝"), ":-p" to listOf("😛", "😜", "😝"),
+        "<3" to listOf("❤️", "😍", "💕"), "</3" to listOf("💔"),
+        "=))" to listOf("😂", "🤣", "😆"), ":))" to listOf("😆", "😂", "😄"), ":)))" to listOf("😂", "🤣", "😆"),
+        "^_^" to listOf("😊", "😄"), "^^" to listOf("😊", "😄"), "^.^" to listOf("😊", "😄"),
+        "-_-" to listOf("😑", "😒"), "-.-" to listOf("😑", "😒"),
+        ":o" to listOf("😮", "😲"), ":-o" to listOf("😮", "😲"),
+        "xd" to listOf("😆", "😂"),
+        ":'(" to listOf("😢", "😭"), "t_t" to listOf("😭", "😢"), "t.t" to listOf("😭", "😢"), ";(" to listOf("😢"),
+        ":*" to listOf("😘"), ":-*" to listOf("😘"), ":|" to listOf("😐"), ":-|" to listOf("😐"),
+        ":/" to listOf("😕"), ":-/" to listOf("😕"),
+        ">:(" to listOf("😠", "😡"), "o.o" to listOf("😳", "😮"), "b)" to listOf("😎"), "8)" to listOf("😎"),
+    )
+
+    /** Emoji cho câu tìm là MỘT emoticon (bỏ space hai đầu, không phân biệt hoa thường). */
+    fun emoticon(query: String): List<String> = EMOTICONS[query.trim(' ', '\t').lowercase()].orEmpty()
 
     fun ids(query: String, limit: Int = 60, supported: (Int) -> Boolean = EmojiData::isSupported): List<Int> {
         val q = clean(query)
