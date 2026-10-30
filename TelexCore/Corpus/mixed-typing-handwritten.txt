@@ -1,0 +1,474 @@
+# mixed-typing-handwritten v1 — câu tự soạn cho dự án (MIT, cùng giấy phép mã nguồn VietTelex).
+# Nguồn của TelexCore/Corpus/mixed-typing.tsv (sinh bởi Scripts/gen-mixed-typing-corpus.py).
+# Mỗi dòng: <nhóm>\t<câu>. Từ tiếng Anh viết hậu tố "/e" (check/e, logs/e,), còn lại là từ Việt
+# (kể cả viết tắt chat không dấu: ko, dc, đc, k). Nhóm:
+#   tech     chat công việc / lập trình trộn Việt–Anh (Slack, Zalo nhóm dev)
+#   collide  câu có từ Anh mà phím gõ trùng âm tiết Việt (his=hí, car=cả, is=í, test=tét…)
+#            hoặc câu Việt có từ Việt trùng phím từ Anh đứng sát cạnh tiếng Anh
+#   teen     chat teencode (wá, zô, thík, bíe, gòy…) + viết tắt không dấu
+tech	Anh check/e giúp em cái PR/e này với.
+tech	em vừa push/e code/e lên branch/e dev/e rồi
+tech	build/e trên CI/e đang fail/e, ai xem giúp với
+tech	bug/e này chỉ xảy ra trên production/e thôi
+tech	mai mình demo/e cho khách lúc 10 giờ nhé
+tech	em đã fix/e xong cái crash/e hôm qua
+tech	anh merge/e PR/e của em chưa?
+tech	server/e staging/e bị down/e từ sáng
+tech	cho em xin quyền access/e vào repo/e nhé
+tech	cái API/e này trả về lỗi 500
+tech	nhớ viết unit/e test/e trước khi merge/e
+tech	hôm nay standup/e lúc 9 giờ rưỡi
+tech	em đang debug/e cái timeout/e bên payment/e
+tech	ai đang giữ ticket/e này vậy?
+tech	sprint/e này mình làm xong feature/e login/e nhé
+tech	anh review/e lại code/e giúp em
+tech	database/e đầy rồi, phải dọn bớt log/e
+tech	cache/e bị stale/e nên user/e thấy dữ liệu cũ
+tech	em rebase/e lại branch/e cho sạch history/e
+tech	cái test/e này flaky/e quá, chạy lại là pass/e
+tech	release/e tối nay hay để mai?
+tech	mình cần thêm một cái endpoint/e mới
+tech	deploy/e xong nhớ báo trong channel/e nhé
+tech	app/e bị crash/e khi mở camera/e
+tech	có ai biết password/e của wifi/e phòng họp không
+tech	em gửi link/e figma/e cho anh rồi đó
+tech	design/e mới đẹp hơn nhiều
+tech	font/e này hơi nhỏ trên mobile/e
+tech	sếp muốn thêm dark/e mode/e cho app/e
+tech	tuần sau mình bắt đầu migration/e sang Postgres/e
+tech	query/e này chạy chậm quá, thêm index/e đi
+tech	anh có thể rollback/e bản release/e được không
+tech	hotfix/e đã lên production/e lúc 3 giờ
+tech	em mới join/e team/e hôm qua
+tech	cho em hỏi cái config/e này để ở đâu ạ
+tech	file/e env/e nằm trong thư mục gốc
+tech	token/e hết hạn sau 24 giờ
+tech	mình dùng Redis/e làm queue/e
+tech	log/e không ghi gì cả, lạ thật
+tech	em đang viết document/e cho API/e mới
+tech	cái ticket/e đó để backlog/e đi
+tech	khách báo bug/e trên Safari/e
+tech	trên Chrome/e thì chạy bình thường
+tech	em update/e version/e mới rồi, anh thử lại xem
+tech	anh có rảnh pair/e với em một chút không
+tech	meeting/e dời sang 3 giờ chiều nhé
+tech	mình họp online/e qua Zoom/e
+tech	slide/e em gửi trong email/e rồi
+tech	deadline/e là thứ sáu tuần này
+tech	em xin nghỉ chiều nay, có việc gia đình
+tech	ai làm on/e call/e tuần này?
+tech	alert/e kêu suốt đêm qua
+tech	CPU/e lên 90% từ lúc deploy/e
+tech	memory/e leak/e ở service/e upload/e
+tech	em tăng timeout/e lên 30 giây rồi
+tech	cái job/e cron/e chạy lúc nửa đêm
+tech	backup/e database/e mỗi ngày một lần
+tech	repo/e này private/e hay public/e vậy anh
+tech	anh tạo giúp em cái account/e test/e
+tech	email/e xác nhận không gửi tới user/e
+tech	em check/e spam/e rồi mà không thấy
+tech	webhook/e bị lỗi signature/e
+tech	mình nên viết thêm integration/e test/e
+tech	coverage/e đang ở mức 70%
+tech	refactor/e cái module/e này tốn thời gian lắm
+tech	code/e cũ khó đọc quá
+tech	đặt tên biến cho rõ ràng nhé
+tech	comment/e trong code/e hơi ít
+tech	em tách function/e này ra cho dễ test/e
+tech	anh thấy cách này ổn không?
+tech	approve/e rồi, merge/e đi em
+tech	conflict/e nhiều quá, em resolve/e mất cả buổi
+tech	pipeline/e chạy mất 20 phút
+tech	mình nên cache/e dependency/e cho nhanh
+tech	Docker/e image/e nặng gần 2 GB
+tech	em đang build/e lại image/e
+tech	container/e bị restart/e liên tục
+tech	cluster/e mới chạy ổn định rồi
+tech	ai có quyền admin/e trên AWS/e không
+tech	bill/e cloud/e tháng này tăng nhiều
+tech	mình tắt bớt mấy instance/e không dùng
+tech	domain/e mới trỏ về server/e chưa?
+tech	SSL/e sắp hết hạn, nhớ gia hạn nhé
+tech	DNS/e cập nhật chậm, đợi thêm chút
+tech	user/e phàn nàn app/e chậm
+tech	em đo latency/e thấy tăng gấp đôi
+tech	bản beta/e gửi tester/e chưa anh
+tech	tester/e báo thêm ba bug/e mới
+tech	crash/e rate/e giảm còn 0.1%
+tech	review/e trên store/e toàn khen
+tech	có một review/e chê giao diện
+tech	mình cần thêm icon/e cho màn hình setting/e
+tech	nút back/e bị lệch sang trái
+tech	layout/e vỡ trên iPad/e
+tech	em fix/e CSS/e xong rồi
+tech	animation/e hơi giật trên máy cũ
+tech	thêm loading/e state/e cho đỡ trống
+tech	text/e tiếng Việt bị cắt mất dấu
+tech	font/e không hiển thị đúng chữ ư và ơ
+tech	cái input/e này không gõ được tiếng Việt
+tech	bàn phím nhảy chữ khi gõ nhanh
+tech	em đang viết script/e để migrate/e dữ liệu
+tech	script/e chạy xong mất 2 tiếng
+tech	dữ liệu cũ có vài record/e bị trùng
+tech	mình xoá duplicate/e trước khi import/e
+tech	export/e ra file/e CSV/e giúp chị nhé
+tech	chị cần report/e doanh thu tháng này
+tech	dashboard/e mới có thêm biểu đồ
+tech	số liệu trên dashboard/e lệch với Excel/e
+tech	em check/e lại công thức rồi
+tech	anh share/e quyền edit/e file/e này nhé
+tech	cho em xin link/e Google/e Sheet/e
+tech	chị gửi lại invoice/e cho khách giúp em
+tech	khách muốn đổi scope/e dự án
+tech	mình cần estimate/e lại timeline/e
+tech	em nghĩ phải thêm hai sprint/e nữa
+tech	PM/e bảo ưu tiên feature/e thanh toán
+tech	stakeholder/e chưa duyệt design/e
+tech	mình chờ feedback/e của khách
+tech	em note/e lại mấy điểm cần sửa
+tech	họp retro/e cuối sprint/e nhé mọi người
+tech	cảm ơn anh đã support/e em
+tech	em mới đọc tài liệu onboarding/e
+tech	laptop/e mới chưa cài được VPN/e
+tech	VPN/e công ty chậm quá
+tech	em làm remote/e hôm nay nhé
+tech	mạng nhà em bị lag/e
+tech	anh nghe rõ không, em bị mất tiếng
+tech	share/e màn hình đi anh
+tech	em đang present/e slide/e thứ ba
+tech	record/e lại buổi họp giúp em nhé
+tech	link/e record/e em để trong channel/e
+tech	chiều nay có workshop/e về security/e
+tech	nhớ bật two/e factor/e cho account/e
+tech	đừng commit/e secret/e lên git/e nhé
+tech	key/e cũ bị lộ, phải rotate/e ngay
+tech	em revoke/e token/e cũ rồi
+tech	phân quyền theo role/e cho dễ quản lý
+tech	user/e thường không được xoá dữ liệu
+tech	mình log/e lại mọi thao tác của admin/e
+tech	em thêm rate/e limit/e cho API/e login/e
+tech	có người spam/e request/e từ một IP/e
+tech	em chặn IP/e đó rồi
+tech	server/e quá tải lúc 8 giờ tối
+tech	mình nên scale/e thêm node/e
+tech	load/e balancer/e phân tải chưa đều
+tech	health/e check/e trả về OK/e
+tech	em viết thêm monitor/e cho queue/e
+tech	queue/e đang bị nghẽn hơn nghìn message/e
+tech	worker/e xử lý không kịp
+tech	retry/e ba lần rồi vẫn fail/e
+tech	em đặt backoff/e cho mấy lần retry/e
+tech	thư viện này hết được maintain/e rồi
+tech	mình nên đổi sang thư viện khác
+tech	license/e của nó có dùng thương mại được không
+tech	em đọc kỹ license/e rồi, MIT/e nhé
+tech	bản open/e source/e có ít tính năng hơn
+tech	anh star/e repo/e giúp em với
+tech	issue/e này mở từ năm ngoái
+tech	em gửi pull/e request/e sửa typo/e trong README/e
+tech	maintainer/e trả lời nhanh lắm
+tech	app/e Android/e build/e lỗi Gradle/e
+tech	em xoá cache/e Gradle/e rồi build/e lại
+tech	Xcode/e mới bị lỗi signing/e
+tech	certificate/e hết hạn tuần trước
+tech	profile/e phải tạo lại
+tech	em upload/e bản build/e lên TestFlight/e rồi
+tech	Apple/e duyệt app/e mất hai ngày
+tech	app/e bị reject/e vì thiếu privacy/e policy/e
+tech	mình bổ sung privacy/e policy/e rồi gửi lại
+tech	bản mới đã lên store/e
+tech	nhớ viết release/e note/e bằng tiếng Việt
+tech	user/e hỏi sao không có bản Windows/e
+tech	bản Linux/e đang trong kế hoạch
+tech	em test/e trên Ubuntu/e thấy ổn
+tech	terminal/e bị lỗi khi gõ tiếng Việt
+tech	gõ trong Slack/e bị nhảy dấu
+tech	trong Word/e thì không sao
+tech	em bật log/e để bắt lỗi nhé
+tech	log/e cho thấy event/e bị gửi hai lần
+tech	race/e condition/e giữa hai thread/e
+tech	em thêm lock/e cho chắc
+tech	performance/e tốt hơn sau khi bỏ lock/e
+tech	benchmark/e cho thấy nhanh gấp ba
+tech	em profile/e thấy hàm này tốn CPU/e nhất
+tech	tối ưu xong giảm được một nửa thời gian
+tech	ảnh nén lại cho nhẹ trang
+tech	trang chủ load/e mất 5 giây
+tech	SEO/e kém vì thiếu meta/e tag/e
+tech	marketing/e muốn thêm banner/e khuyến mãi
+tech	campaign/e chạy từ thứ hai
+tech	chi phí ads/e tăng mà conversion/e giảm
+tech	mình xem lại landing/e page/e nhé
+tech	A/e B/e test/e cho thấy bản mới tốt hơn
+tech	khách hàng thích màu xanh hơn
+tech	em thử đổi copy/e của nút đăng ký
+tech	tỷ lệ đăng ký tăng 12%
+tech	team/e sales/e cần demo/e cho đối tác
+tech	em chuẩn bị account/e demo/e rồi
+tech	dữ liệu demo/e nhìn cho thật một chút
+tech	anh gửi agenda/e cho buổi họp nhé
+tech	note/e cuộc họp em để trên Notion/e
+tech	action/e item/e: em sửa bug/e, anh review/e
+tech	mai em làm tiếp phần còn lại
+tech	ok/e anh, em hiểu rồi
+tech	thanks/e anh nhiều nha
+tech	sorry/e em trả lời muộn
+tech	em đang bận, lát em call/e lại
+tech	anh online/e chưa?
+tech	em offline/e từ 6 giờ nhé
+tech	ai rảnh thì vào call/e với khách
+tech	khách đang chờ trong meeting/e room/e
+tech	cho em năm phút, em vào ngay
+tech	mic/e của anh bị rè
+tech	camera/e em hỏng rồi
+tech	em đặt lịch qua calendar/e rồi
+tech	invite/e em vào sự kiện với
+tech	mình đổi giờ họp sang sáng thứ ba
+tech	công ty mình dùng Jira/e hay Linear/e?
+tech	em tạo board/e mới cho dự án
+tech	mỗi task/e nhớ gắn label/e
+tech	ticket/e này priority/e cao
+tech	bug/e blocker/e phải sửa trước release/e
+tech	cái này để phase/e hai làm sau
+tech	scope/e phase/e một chốt rồi
+tech	em tính effort/e khoảng ba ngày
+tech	anh estimate/e giúp em task/e này
+tech	em làm xong rồi, chờ QA/e test/e
+tech	QA/e báo pass/e hết rồi
+tech	UAT/e với khách thứ năm này
+tech	khách sign/e off/e rồi, mình release/e thôi
+tech	go/e live/e lúc 10 giờ tối nay
+tech	mọi người trực đến 12 giờ nhé
+tech	release/e thành công, cảm ơn cả team/e
+tech	tối nay team/e đi ăn mừng
+tech	quán lẩu gần công ty nhé
+tech	ai đặt bàn giúp với
+tech	em book/e bàn cho 12 người rồi
+tech	nhớ mang laptop/e về nhà nhé, mai làm remote/e
+tech	mai công ty cắt điện bảo trì
+tech	em ship/e bản fix/e trong hôm nay
+tech	user/e Windows/e cài không được
+tech	bộ cài thiếu file/e DLL/e
+tech	em đóng gói lại installer/e
+tech	antivirus/e chặn file/e cài đặt
+tech	mình cần ký code/e cho bản Windows/e
+tech	chi phí certificate/e hơi đắt
+tech	em so sánh mấy nhà cung cấp rồi
+tech	bên này rẻ hơn mà support/e tốt
+tech	hợp đồng gửi pháp chế xem trước
+tech	anh ký hợp đồng chưa?
+tech	em scan/e rồi gửi qua email/e
+tech	file/e PDF/e bị lỗi font/e
+tech	em convert/e lại sang PDF/e khác
+tech	in giúp em hai bản nhé
+tech	máy in hết mực rồi
+tech	ticket/e IT/e em tạo rồi
+tech	bên IT/e bảo chiều mới xử lý
+tech	em reset/e password/e mãi không được
+tech	account/e bị khoá sau năm lần sai
+tech	gọi helpdesk/e đi em
+tech	em cài lại macOS/e cho sạch
+tech	máy chậm do ổ đĩa đầy
+tech	xoá bớt cache/e với file/e tạm đi
+tech	em dọn được 30 GB/e rồi
+tech	Spotlight/e tìm file/e không ra
+tech	Finder/e bị treo khi mở thư mục mạng
+tech	em restart/e máy là hết
+tech	update/e hệ điều hành xong thì lỗi bàn phím
+tech	bộ gõ không hiện trên menu/e bar/e
+tech	em bật lại trong System/e Settings/e là được
+tech	Telex/e gõ nhanh hơn VNI/e nhiều
+tech	em quen gõ Telex/e từ hồi cấp hai
+tech	gõ tiếng Anh xen tiếng Việt hay bị sai
+tech	gõ chữ "test/e" toàn ra chữ khác
+tech	mỗi lần gõ "his/e" lại thành "hí"
+tech	em tắt bộ gõ khi viết code/e
+tech	chuyển qua lại mệt quá
+tech	có cách nào tự nhận tiếng Anh không nhỉ
+tech	bản mới tự sửa từ tiếng Anh rồi đó
+tech	em thử bật tính năng đó xem
+tech	gõ "the/e list/e" giờ không bị đổi nữa
+tech	tuyệt, đỡ phải bấm chuyển ngôn ngữ
+tech	em viết tiếp phần test/e cho module/e này
+tech	mock/e data/e cho test/e nằm trong fixtures/e
+tech	test/e chạy local/e pass/e mà lên CI/e fail/e
+tech	chắc do timezone/e khác nhau
+tech	em set/e timezone/e về UTC/e rồi
+tech	giờ test/e pass/e cả hai nơi
+tech	cảm ơn anh, em merge/e nhé
+tech	nhớ squash/e commit/e trước khi merge/e
+tech	commit/e message/e viết rõ ràng một chút
+tech	em tag/e version/e mới là 2.3.0
+tech	changelog/e cập nhật chưa em?
+tech	em quên mất, để em thêm ngay
+tech	bản này có breaking/e change/e không
+tech	có, đổi tên một hàm public/e
+tech	vậy phải bump/e major/e version/e
+tech	thông báo cho mấy team/e đang dùng nhé
+tech	em viết hướng dẫn nâng cấp rồi
+tech	đọc xong em hỏi lại nếu chưa rõ
+tech	thế thôi, mọi người làm việc tiếp nhé
+tech	chúc cả team/e cuối tuần vui vẻ
+tech	weekend/e này ai đi team/e building/e?
+tech	em đăng ký đi rồi
+tech	nhớ mang theo kem chống nắng
+collide	His car is very fast.
+collide	His car is in the garage.
+collide	My car is here now.
+collide	This list is very long.
+collide	Its time to go home.
+collide	Of course not.
+collide	Of course I will.
+collide	As far as I know.
+collide	If you want to come with us.
+collide	Or we can go there tomorrow.
+collide	His box is on the table.
+collide	The max value is ten.
+collide	His test results are good.
+collide	Its last page is missing.
+collide	His best friend is here.
+collide	This test is very hard.
+collide	Is this the right way?
+collide	His list of books is long.
+collide	This car is not mine.
+collide	Its roof is red.
+collide	Her car is not here.
+collide	His cost is too high.
+collide	This town is very small.
+collide	His past is a mystery.
+collide	Her list is on the desk.
+collide	This box is too heavy.
+collide	His room is very clean.
+collide	This rest area is closed.
+collide	the test is done
+collide	the bus is late again
+collide	is it done yet
+collide	so far so good
+collide	as soon as possible
+collide	or maybe next week
+collide	he has his own car
+collide	the bar is open till late
+collide	the moon is bright tonight
+collide	last time it was fine
+collide	this is the last test
+collide	the cost of living is high
+collide	the box was empty
+collide	the queen was here
+collide	the fix is in
+collide	his team won the game
+collide	the main issue is cost
+collide	is this your bag
+collide	those boxes are heavy
+collide	the cat sat on the mat
+collide	we lost the match
+collide	run the tests again
+collide	the cars are parked outside
+collide	his mother is a doctor
+collide	turn off the fan
+collide	the fans love him
+collide	the toast was burnt
+collide	the tax is too high
+collide	hold the door please
+collide	the boss is angry
+collide	Mai cả team/e họp
+collide	Gửi file/e cho cả nhà
+collide	cả team/e meeting/e
+collide	cái này á the/e best/e
+collide	check/e cả deploy/e build/e
+collide	Mình biết ít people/e like/e this/e
+collide	làm cả review/e code/e
+collide	hôm nay họp cả buổi with/e the/e team/e
+collide	em sẽ check/e the/e logs/e
+collide	anh ấy bảo ò the/e end/e
+collide	có cả the/e best/e of/e both/e
+collide	mã code/e is/e wrong/e
+collide	thí sinh this/e year/e
+collide	ít khi go/e to/e the/e gym/e
+collide	sao í the/e deadline/e is/e today/e
+collide	đẹp á the/e best/e
+collide	cái áo này mã số is/e wrong/e
+collide	cả nhà đi Đà Lạt for/e the/e weekend/e
+collide	gửi cho em lít nước is/e enough/e
+collide	ok/e cả nhóm join/e the/e call/e nhé
+collide	mai họp cả ngày with/e the/e client/e
+collide	bạn có biết ò the/e song/e không
+collide	tối nay xem cả game/e of/e thrones/e
+collide	mua cả set/e of/e tools/e
+collide	có tét không, the/e test/e is/e hard/e
+collide	mình mất cả buổi to/e fix/e this/e bug/e
+collide	cả lớp is/e waiting/e
+collide	merge/e đi this/e PR/e is/e ready/e
+collide	push/e code/e bên this/e repo/e nhé
+collide	check/e đi the/e logs/e are/e here/e
+collide	commit/e bên this/e branch/e is/e fine/e
+collide	test/e thế này the/e build/e is/e green/e
+collide	Thế the/e deadline/e is/e when/e
+collide	Như thế is/e fine/e
+collide	deploy/e đi it/e is/e ready/e
+collide	fix/e bug/e đi you/e know/e
+collide	the/e list/e đây anh
+collide	his/e idea/e hay đấy
+collide	mình thích bài this/e is/e it/e
+collide	nó nói is/e it/e true/e à
+collide	cả nhà ơi, ăn cơm thôi
+collide	bé mới ba tuổi
+collide	mình cũng thấy thế
+collide	ông bà khoẻ không ạ
+collide	có lẽ mai trời mưa
+collide	cái này mua ở đâu vậy
+collide	bố đi công tác rồi
+collide	mẹ nấu canh chua
+collide	thú thật là mình quên
+collide	lít xăng bao nhiêu tiền
+collide	mã giảm giá hết hạn rồi
+collide	tôi cũng có một cái xe như thế
+teen	wá trời lun
+teen	zô đây chơi nè
+teen	thík wá đi mất
+teen	bíe gì đâu
+teen	mai đi hok
+teen	ko bít nữa
+teen	đc ko bạn
+teen	j zậy trời
+teen	gòy, đi ngủ thui
+teen	ừk, mai gặp nha
+teen	nhìu wá ko đếm nổi
+teen	ok/e lun
+teen	ak, hỉu gòy
+teen	thui kệ đi
+teen	z thì thui
+teen	bít gòi khổ lắm
+teen	ko sao đâu mà
+teen	dc gòy, cảm ơn nha
+teen	mún đi ăn kem wá
+teen	kó ai đi chơi hok
+teen	zui wá trời zui
+teen	nhớ bạn nhìu lắm
+teen	thík bạn ghê
+teen	chán wá đi
+teen	ngủ ngon nha
+teen	hum nay mệt wá
+teen	j cũng đc
+teen	ko có j đâu
+teen	bạn ăn j chưa
+teen	đi đâu z
+teen	có ai on/e hok
+teen	ib/e mình nha
+teen	rep/e tin nhắn đi
+teen	sr/e nha, mình quên
+teen	mình đang zìa nhà
+teen	chờ chút xíu nha
+teen	đẹp wá trời
+teen	iu bạn nhìu
+teen	thôi mà, đừng giận nữa
+teen	kệ nó đi bạn ơi
+teen	bùn wá à
+teen	mai thi gòy mà chưa học j hết
+teen	lười wá ko mún học
+teen	ừ, ok/e luôn
+teen	nhanh lên trễ gòy
+teen	có cần mua j hok
+teen	tui bít mà
+teen	ai bít đâu
+teen	sao z bạn
+teen	chắc z gòy

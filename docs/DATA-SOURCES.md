@@ -989,3 +989,22 @@ Unicode License v3 cho phép dùng, sửa, phân phối (kể cả thương mạ
 bản quyền "Copyright © 1991-2025 Unicode, Inc." và điều khoản giấy phép
 (https://www.unicode.org/license.txt). emoji.bin là dữ liệu biến đổi (lọc, gộp, fold không
 dấu, đóng gói nhị phân) từ các file trên.
+
+## mixed-typing.tsv — corpus mô phỏng gõ câu trộn Việt–Anh (30/10/2026)
+
+`TelexCore/Corpus/mixed-typing.tsv` (~120 KB, 2.333 câu, 15.543 từ) sinh bởi
+`Scripts/gen-mixed-typing-corpus.py` (stdlib, tất định). Chỉ dùng để ĐO engine
+(`mixed-eval`, `MixedTypingGoldenTests` — docs/REGRESSION.md mục "Mô phỏng gõ câu trộn");
+**không đóng gói vào app**. Mỗi dòng mang nhãn ngôn ngữ từng từ (e/v).
+
+| Nhóm | Nguồn | Giấy phép |
+|---|---|---|
+| `vi` | câu tiếng Việt [Tatoeba](https://tatoeba.org) đã có trong repo (`iOS/KeyboardTests/Fixtures/bigram-heldout.txt`, lấy 1/3 theo hash) + câu chat có dấu tự soạn (`chat-cases.txt` cột phải) | [CC BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/) (Tatoeba) / MIT (tự soạn) |
+| `en` | câu tiếng Anh Tatoeba (`swipe-lang-sentences.txt` loại `en`, lấy 1/2 theo hash) | CC BY 2.0 FR |
+| `mix` | câu trộn của `swipe-lang-sentences.txt` loại `mix`: tự soạn + ghép câu Tatoeba Việt/Anh + chèn một từ Anh vào câu Tatoeba Việt | CC BY 2.0 FR (phần Tatoeba) / MIT |
+| `tech`, `collide`, `teen` | tự soạn cho dự án: `TelexCore/Corpus/mixed-typing-handwritten.txt` (306 câu chat công việc/lập trình, 110 câu có từ Anh trùng phím âm tiết Việt — gồm các câu cur± của `gen-retro-english-eval.py`, 50 câu teencode) | MIT (cùng mã nguồn) |
+
+Ghi công Tatoeba: "Câu từ Tatoeba (https://tatoeba.org), © các thành viên Tatoeba, CC BY 2.0 FR" —
+có trong dòng đầu file corpus. CC BY 2.0 FR cho phép sửa/ghép (ghép câu, chuyển chữ thường) và dùng
+thương mại khi ghi công; không có ShareAlike. Tách `val`/`test` theo `sha1(câu) % 3` (test = 0, ~1/3),
+**tập test khoá**: chỉnh luật engine chỉ nhìn val; diff từng từ của test chỉ in khi thêm `--unlock-test`.

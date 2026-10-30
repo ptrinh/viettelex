@@ -1,0 +1,306 @@
+{
+  "_doc" : "Golden của mô phỏng gõ câu trộn (docs\/REGRESSION.md). Mọi số càng thấp càng tốt; MixedTypingGoldenTests fail khi số đo hiện tại > golden + tolerance_pp. Cập nhật: cd TelexCore && swift run -c release mixed-eval --write-golden",
+  "configs" : {
+    "default" : {
+      "test" : {
+        "collide" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 30.769,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 20.561,
+          "toggles_per_100" : 10.28
+        },
+        "en" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 5.415,
+          "lazy_wrong" : 5.415,
+          "toggles_per_100" : 3.922
+        },
+        "mix" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 3.63,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 1.367,
+          "toggles_per_100" : 1.982
+        },
+        "overall" : {
+          "ideal_wrong" : 0.855,
+          "lazy_en_wrong" : 8.849,
+          "lazy_vi_wrong" : 1.067,
+          "lazy_wrong" : 5.601,
+          "toggles_per_100" : 3.022
+        },
+        "tech" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 4.43,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 1.136,
+          "toggles_per_100" : 1.948
+        },
+        "teen" : {
+          "ideal_wrong" : 5.128,
+          "lazy_en_wrong" : 0,
+          "lazy_vi_wrong" : 5.333,
+          "lazy_wrong" : 5.128,
+          "toggles_per_100" : 0
+        },
+        "vi" : {
+          "ideal_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        }
+      },
+      "val" : {
+        "collide" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 29.183,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 21.307,
+          "toggles_per_100" : 12.5
+        },
+        "en" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 4.334,
+          "lazy_wrong" : 4.334,
+          "toggles_per_100" : 3.494
+        },
+        "mix" : {
+          "ideal_wrong" : 0.034,
+          "lazy_en_wrong" : 4.329,
+          "lazy_vi_wrong" : 0.056,
+          "lazy_wrong" : 1.743,
+          "toggles_per_100" : 2.358
+        },
+        "overall" : {
+          "ideal_wrong" : 0.923,
+          "lazy_en_wrong" : 8.735,
+          "lazy_vi_wrong" : 1.143,
+          "lazy_wrong" : 5.717,
+          "toggles_per_100" : 3.43
+        },
+        "tech" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 5.828,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 1.412,
+          "toggles_per_100" : 2.229
+        },
+        "teen" : {
+          "ideal_wrong" : 5.505,
+          "lazy_en_wrong" : 0,
+          "lazy_vi_wrong" : 5.66,
+          "lazy_wrong" : 5.505,
+          "toggles_per_100" : 0
+        },
+        "vi" : {
+          "ideal_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        }
+      }
+    },
+    "no-context" : {
+      "test" : {
+        "collide" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 41.958,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 28.037,
+          "toggles_per_100" : 12.617
+        },
+        "en" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 11.858,
+          "lazy_wrong" : 11.858,
+          "toggles_per_100" : 7.843
+        },
+        "mix" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 9.982,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 3.759,
+          "toggles_per_100" : 4.238
+        },
+        "overall" : {
+          "ideal_wrong" : 0.855,
+          "lazy_en_wrong" : 13.646,
+          "lazy_vi_wrong" : 1.067,
+          "lazy_wrong" : 8.32,
+          "toggles_per_100" : 4.441
+        },
+        "tech" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 4.43,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 1.136,
+          "toggles_per_100" : 1.948
+        },
+        "teen" : {
+          "ideal_wrong" : 5.128,
+          "lazy_en_wrong" : 0,
+          "lazy_vi_wrong" : 5.333,
+          "lazy_wrong" : 5.128,
+          "toggles_per_100" : 0
+        },
+        "vi" : {
+          "ideal_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        }
+      },
+      "val" : {
+        "collide" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 39.689,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 28.977,
+          "toggles_per_100" : 16.761
+        },
+        "en" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 12.959,
+          "lazy_wrong" : 12.959,
+          "toggles_per_100" : 9.023
+        },
+        "mix" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 9.784,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 3.862,
+          "toggles_per_100" : 4.819
+        },
+        "overall" : {
+          "ideal_wrong" : 0.917,
+          "lazy_en_wrong" : 13.713,
+          "lazy_vi_wrong" : 1.132,
+          "lazy_wrong" : 8.798,
+          "toggles_per_100" : 5.497
+        },
+        "tech" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 6.135,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 1.486,
+          "toggles_per_100" : 2.377
+        },
+        "teen" : {
+          "ideal_wrong" : 5.505,
+          "lazy_en_wrong" : 0,
+          "lazy_vi_wrong" : 5.66,
+          "lazy_wrong" : 5.505,
+          "toggles_per_100" : 0
+        },
+        "vi" : {
+          "ideal_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        }
+      }
+    },
+    "retro" : {
+      "test" : {
+        "collide" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 15.385,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 10.28,
+          "toggles_per_100" : 5.14
+        },
+        "en" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 2.801,
+          "lazy_wrong" : 2.801,
+          "toggles_per_100" : 1.867
+        },
+        "mix" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 2.359,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0.889,
+          "toggles_per_100" : 1.162
+        },
+        "overall" : {
+          "ideal_wrong" : 0.855,
+          "lazy_en_wrong" : 4.995,
+          "lazy_vi_wrong" : 1.067,
+          "lazy_wrong" : 3.372,
+          "toggles_per_100" : 1.686
+        },
+        "tech" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 4.43,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 1.136,
+          "toggles_per_100" : 1.948
+        },
+        "teen" : {
+          "ideal_wrong" : 5.128,
+          "lazy_en_wrong" : 0,
+          "lazy_vi_wrong" : 5.333,
+          "lazy_wrong" : 5.128,
+          "toggles_per_100" : 0
+        },
+        "vi" : {
+          "ideal_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        }
+      },
+      "val" : {
+        "collide" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 17.51,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 12.784,
+          "toggles_per_100" : 7.955
+        },
+        "en" : {
+          "ideal_wrong" : 0.044,
+          "lazy_en_wrong" : 1.858,
+          "lazy_wrong" : 1.858,
+          "toggles_per_100" : 1.548
+        },
+        "mix" : {
+          "ideal_wrong" : 0.034,
+          "lazy_en_wrong" : 2.424,
+          "lazy_vi_wrong" : 0.056,
+          "lazy_wrong" : 0.991,
+          "toggles_per_100" : 1.47
+        },
+        "overall" : {
+          "ideal_wrong" : 0.93,
+          "lazy_en_wrong" : 5.524,
+          "lazy_vi_wrong" : 1.143,
+          "lazy_wrong" : 3.758,
+          "toggles_per_100" : 2.2
+        },
+        "tech" : {
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 5.828,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 1.412,
+          "toggles_per_100" : 2.229
+        },
+        "teen" : {
+          "ideal_wrong" : 5.505,
+          "lazy_en_wrong" : 0,
+          "lazy_vi_wrong" : 5.66,
+          "lazy_wrong" : 5.505,
+          "toggles_per_100" : 0
+        },
+        "vi" : {
+          "ideal_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        }
+      }
+    }
+  },
+  "tolerance_pp" : 0.050000000000000003
+}

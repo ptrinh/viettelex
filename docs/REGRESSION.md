@@ -165,3 +165,86 @@ chuỗi phím. Từ nay `isValidSyllable` thử MỌI cách đọc rồi mới k
   token hai âm tiết (`đôla`) — nhờ vậy bucket `transform` mới chốt được exact 100%.
 - Suite gán mỗi biến thể hoa/thường là một dòng riêng (`ROSS` / `Ross` / `ross`),
   nên số dòng luôn lớn hơn số từ distinct khoảng 3×.
+
+## Mô phỏng gõ câu trộn Việt–Anh (từ 30/10/2026)
+
+Suite trên đo từng TỪ đứng riêng. Bộ này đo cả CÂU, gõ từng phím như người thật, để mọi thay
+đổi luật (ngữ cảnh tiếng Anh, bảng collision, "Tự sửa từ phía trước", teencode) được chấm bằng số.
+
+```bash
+cd TelexCore && swift run -c release mixed-eval            # số đo 3 cấu hình + mẫu lỗi + diff (val)
+swift run -c release mixed-eval --trace "this is"          # vết từng phím của câu chứa đoạn đó
+swift run -c release mixed-eval --check                    # so golden, exit 1 nếu tụt
+swift run -c release mixed-eval --write-golden             # chốt số mới (sau khi cải thiện)
+swift test --filter MixedTypingTests                       # test golden (~6 s debug)
+```
+Tuỳ chọn khác: `--config default|retro|no-context`, `--diff-config`, `--lines N` (-1 = tất cả),
+`--top N`, `--unlock-test`. Chạy cả corpus ~0,5 s (release).
+
+**Corpus** — `TelexCore/Corpus/mixed-typing.tsv`, 2.333 câu / 15.543 từ, 6 nhóm: `vi` (Tatoeba +
+chat có dấu), `en` (Tatoeba), `mix` (câu trộn), `tech` (chat dev tự soạn), `collide` (từ Anh trùng
+phím âm tiết Việt), `teen` (teencode). Nguồn + giấy phép: [DATA-SOURCES.md](DATA-SOURCES.md) mục
+"mixed-typing.tsv". Tách val/test theo hash câu; **test khoá** — chỉ chỉnh trên val (lệnh chỉ in
+diff của val), test chỉ để báo số, golden giữ cả hai.
+
+**Người gõ mô phỏng** (`TelexCore/Sources/MixedTyping/Typist.swift`, seed theo câu ⇒ tất định):
+từ Việt gõ Telex (ươ = `uow` 55% / `uwow`; ư riêng đôi khi một phím `w`; chữ w thật = `ww`); phím
+thanh cuối từ 75%, sau nguyên âm cuối của vần 13%, ngay sau nguyên âm mang dấu 12%; từ Anh gõ
+nguyên văn; ~3% số từ có lỗi gõ (phím kề / chèn / đảo / lặp) — người gõ nhìn màn hình, thấy lệch
+thì ⌫ tới khi khớp một tiền tố đúng rồi gõ lại (đi qua đường ⌫ của engine). Phím đi qua đúng API
+controller macOS dùng (feed / backspace / commitText ở ranh giới / pendingRetroCorrection +
+takeRetroCorrection trước ký tự ranh giới / noteBoundaryCharacter; hết câu = Enter → resetContext).
+So từ không phân biệt VỊ TRÍ dấu thanh (hoà ≡ hòa — là cài đặt, không phải lỗi).
+
+**Số đo** (càng thấp càng tốt; "overall" = trung bình KHÔNG trọng số của 6 nhóm):
+- `lazy` — người gõ lười, không bao giờ bật/tắt bộ gõ: % từ sai, tách % từ Việt sai / % từ Anh sai.
+- `toggle/100` — người gõ lý tưởng: trước mỗi từ, nếu gõ tiếp sẽ ra sai thì bật/tắt bộ gõ (tắt =
+  phím đi thẳng, bật lại = resetContext). Khi tự sửa từ phía trước bật, "ra sai" xét sau tối đa 5 từ
+  gõ tiếp (phép sửa ngược có thể chữa muộn). `ideal%` = từ vẫn sai ở cả hai chế độ.
+- Latency từng lệnh engine trên cả corpus (chỉ có nghĩa ở `-c release`; máy bận thì dao động).
+
+**Cấu hình**: `default` = mặc định app macOS (bỏ dấu tự do, kiểm tra chính tả, auto-restore + khôi
+phục sớm, ngữ cảnh tiếng Anh BẬT, collision ưu tiên tiếng Việt, teencode TẮT — riêng nhóm `teen` bật,
+"Tự sửa từ phía trước" TẮT = chỉ đề xuất, người gõ lười không bấm Tab); `retro` = như trên + tự sửa
+từ phía trước BẬT (tự áp); `no-context` = "Quyết định theo ngữ cảnh" TẮT.
+
+**Golden**: `TelexCore/Corpus/mixed-typing-golden.json` — mọi số đo × nhóm × split × cấu hình;
+`MixedTypingGoldenTests` fail khi bất kỳ số nào tệ hơn golden quá 0,05 điểm % (nhỏ hơn một từ ở
+mọi nhóm — mô phỏng tất định nên đổi một từ là thấy). Cải thiện ⇒ test in ra, chạy `--write-golden`
+và thêm một dòng vào bảng dưới.
+
+### Kết quả (val / test, overall = trung bình nhóm)
+
+| Ngày | Cấu hình | lazy % | lazy VI % | lazy EN % | toggle/100 | ideal % |
+|---|---|---|---|---|---|---|
+| 2026-10-30 | `default` | 5,72 / 5,60 | 1,14 / 1,07 | 8,73 / 8,85 | 3,43 / 3,02 | 0,92 / 0,85 |
+| 2026-10-30 | `retro` (tự sửa từ phía trước BẬT) | **3,76 / 3,37** | 1,14 / 1,07 | **5,52 / 5,00** | **2,20 / 1,69** | 0,93 / 0,85 |
+| 2026-10-30 | `no-context` | 8,80 / 8,32 | 1,13 / 1,07 | 13,71 / 13,65 | 5,50 / 4,44 | 0,92 / 0,85 |
+
+Theo nhóm (val, `default` → `retro`): `vi` 0 / 0 (3.385 từ Việt, kể cả lỗi gõ + ⌫, không từ nào sai);
+`en` 4,33 → 1,86; `mix` 1,74 → 0,99; `tech` 1,41 → 1,41; `collide` 21,31 → 12,78; `teen` 5,50 → 5,50.
+`lazy VI` ≠ 0 chỉ do nhóm `teen` ("wá" — xem dưới) và một câu ghép "… late ò ó o o" (ò → of sau mạch Anh).
+
+Latency (release, M-series, máy đang chạy việc khác): phím chữ ~120 ns mean / ~1,2 µs p99.9 ở cả ba cấu
+hình; phím RANH GIỚI ~1,1–1,2 µs mean / ~7,5–9 µs p99.9 khi ngữ cảnh + sửa ngược bật, so với ~0,4 µs /
+~0,85 µs khi tắt — phần đắt là `retroRecord` (vài String mỗi lần chốt từ), vẫn xa ngưỡng cảm nhận.
+
+### Mẫu lỗi hay gặp (val, `default`, người gõ lười) — định hướng việc tiếp
+
+| # | Mẫu | Lần | Ghi chú (`retro` còn) |
+|---|---|---|---|
+| 1 | is → í | 46 | đầu câu / trước khi mạch Anh mở (18) |
+| 2 | this → thí | 26 | như trên (14) |
+| 3 | test → tét | 17 | từ mượn trong câu VIỆT — ngữ cảnh không cứu được (15) |
+| 4 | did → đi | 15 | (2) |
+| 5 | his → hí | 13 | (4) |
+| 6 | how → hơ | 11 | (2) |
+| 7 | there → thể | 9 | (1) |
+| 8 | car → cả · wá → was | 6 · 6 | `wá` (teencode, nhóm teen): Telex chuẩn gõ `ww`+`as` nhưng escape `ww` đóng băng từ ⇒ không gõ ra được (chỉ Simple Telex) (4 · 6) |
+| 9 | of → ò | 5 | (2) |
+| 10 | borrowed → borowed · bus → bú · has → há · off → of · pass → pas · post → pót | 4 mỗi mẫu | phụ âm đôi bị huỷ dấu (rr/ff/ss) + từ nội dung trùng âm tiết (car/bus/box/bar/queen/post/must/busy) |
+
+Nhóm lỗi: (a) từ chức năng Anh ở ĐẦU mạch (is/this/his/how/did/there/its/has/as/of) — sửa ngược
+cứu được phần lớn; (b) từ mượn công nghệ trong câu Việt (test, post, down, pair) — cần chính sách
+riêng, ngữ cảnh hai phía là Việt; (c) phụ âm đôi tiếng Anh bị nuốt (pass/off/boss/chess/kissed/
+borrowed) — chỉ từ điển cứu được; (d) teencode chữ w không gõ được ở Telex chuẩn.
