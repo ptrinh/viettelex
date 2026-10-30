@@ -123,7 +123,9 @@ final class SuiteRegressionTests: XCTestCase {
         // KHÔNG được cộng dồn với rime "ie") nâng sàn 7133 → 7135.
         // 18/10/2026 (maintainer): "gets"≡gét (gét gô) vào protect list — tiếng Việt
         // thắng như thus≡thú. 7135 → 7134.
-        XCTAssertGreaterThanOrEqual(pass["restore_raw"] ?? 0, 7134,
+        // 30/10/2026 (issue #138): +2 hàng guard AsJSON/HasID (đầu là từ Anh ⇒ không
+        // tách viết tắt, cả từ vẫn về raw). 7134 → 7136.
+        XCTAssertGreaterThanOrEqual(pass["restore_raw"] ?? 0, 7136,
                                     "English-restore coverage regressed")
         // Trailing-cancel screen-truth (2026-07-31): the escape gesture commits the
         // rendered text even when raw is a real English word — EXACT, no floor.

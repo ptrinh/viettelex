@@ -415,6 +415,32 @@ for n in 0..<8000 {
     run(flags, ops + " ")
 }
 
+// Initials suffix (issue #138, 30/10/2026): Title-case syllable + uppercase run
+// ("PhuwowngTH" → PhươngTH), with ⌫ across the split, lowercase after the run,
+// mid-word flips and reopen. Own PRNG so the streams above stay byte-identical.
+var rngI = XorShift(s: 0x1381_2026_1030_0001)
+let capsPool = Array("ABCDHKLMNPQSTVXJFRWDDGY")
+for n in 0..<6000 {
+    let k = syllableKeys[rngI.int(syllableKeys.count)]
+    var ops = k.prefix(1).uppercased() + k.dropFirst()
+    for _ in 0..<(1 + rngI.int(5)) { ops.append(capsPool[rngI.int(capsPool.count)]) }
+    let tail = rngI.int(10)
+    if tail == 0 { ops += "<" } else if tail == 1 { ops += "<<" } else if tail == 2 { ops += "a" }
+    else if tail == 3 { ops += "<" + String(capsPool[rngI.int(capsPool.count)]) }
+    else if tail == 4 { ops += " ^" + String(capsPool[rngI.int(capsPool.count)]) }
+    else if tail == 5 { ops.append("`"); ops.append(flagLetters[rngI.int(flagLetters.count)]) }
+    let cfgs = [iosDefault, "A", "", "AL", "AFL", "ALV", "AFSLCtP", iosEager, macEager]
+    run(cfgs[n % cfgs.count], ops + " ")
+}
+for w in ["PhuwowngTH", "KieenTV", "HungfNV", "LinhPTT", "KieenSV", "NguyeenXJ", "DDinhNV",
+          "TraanfTH", "HungfNVJ", "AsJSON", "HasID", "MySQL", "NodeJS", "iOS", "macOS", "PhD"] {
+    for cfg in ["", "A", "AL", "ALE", "AFL", iosDefault, macEager] {
+        run(cfg, w + " "); run(cfg, w + "<" + " "); run(cfg, w + "<<" + " ")
+        run(cfg, w + " ^"); run(cfg, w + "a "); run(cfg, w + "%")
+    }
+}
+for w in ["Phu7o7ngTH", "Hu2ngNV", "Tu1NV"] { for cfg in ["AV", "AVL"] { run(cfg, w + " "); run(cfg, w + "< ") } }
+
 // MARK: - Write (gzip)
 
 let body = lines.joined(separator: "\n") + "\n"

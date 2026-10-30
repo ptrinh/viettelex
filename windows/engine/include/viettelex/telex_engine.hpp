@@ -177,6 +177,7 @@ private:
     Tone lastEffTone_ = Tone::None;
     bool upperToneKey_ = false;
     bool upperToneFrozen_ = false;   // word frozen by feed()'s upper-case tone rule — see Swift
+    int initialsSplitAt_ = -1;       // initials suffix start ("PhuwowngTH", issue #138) — see Swift
 
     // English RUN open (function word, or 2nd English word in a row); a lone content
     // word is only a candidate; gate bits = predecessorGates the previous word satisfies.
@@ -263,6 +264,10 @@ private:
     bool letterCreatedByW(int idx) const;
     bool uaUuPredecessorAllowsRetarget(int pred) const;
     bool hasLowercaseBefore(int at) const;
+    int initialsSplitPoint() const;
+    bool headIsInitialsSyllable(int s);
+    bool rawHeadIsEnglish(int s) const;
+    bool applyInitialsSplit();
     void resetWord();
     bool prefixIsValid(int n);
     bool eagerRestoreApplies(int n) const;

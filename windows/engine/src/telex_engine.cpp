@@ -324,6 +324,12 @@ void TelexEngine::feedAscii(uint8_t ascii, Action& out) {
         takeSnapshots();
     }
 
+    // Initials suffix (issue #138), decided last — see Swift.
+    if (applyInitialsSplit()) {
+        newCount = render();
+        takeSnapshots();
+    }
+
     // No-transform fast path.
     if (newCount == outCount_ + 1 && scratch_[newCount - 1] == static_cast<char32_t>(ascii) &&
         commonPrefixLength(scratch_, out_, outCount_) == outCount_) {
@@ -360,6 +366,7 @@ void TelexEngine::backspace(Action& out) {
 
     recomputeFreeze();
     rebuildFrozenAware();
+    (void)applyInitialsSplit();
     int newCount = render();
     takeSnapshots();
     diff(newCount, out);
@@ -487,6 +494,7 @@ bool TelexEngine::needsStandaloneWRunRestore() const {
 }
 
 bool TelexEngine::shouldRestoreRaw() const {
+    if (initialsSplitAt_ >= 0) return false;   // "PhươngTH" (issue #138) — see Swift
     if (markCancelled_) {
         if (composedIsValidSyllable()) return false;
         if (toneCancelSpan_ > 1) return !composedIsRecognizedEnglish() || rawIsEnglishContextWord();
@@ -1091,6 +1099,91 @@ bool TelexEngine::hasLowercaseBefore(int at) const {
     return false;
 }
 
+// ---- Initials suffix ("PhươngTH", "KiênTV", "HùngNV" — issue #138; see Swift) -----
+
+namespace {
+constexpr int kInitialsMin = 2;
+constexpr int kInitialsMax = 4;
+}
+
+int TelexEngine::initialsSplitPoint() const {
+    if (rawCount_ < 1 + kInitialsMin || !isUpperAscii(raw_[0]) || !isUpperAscii(raw_[rawCount_ - 1])) return -1;
+    int s = rawCount_;
+    while (s > 0 && isUpperAscii(raw_[s - 1])) --s;
+    const int n = rawCount_ - s;
+    if (s < 2 || n < kInitialsMin || n > kInitialsMax) return -1;
+    bool hasLower = false;
+    for (int i = 1; i < s; ++i) {
+        const uint8_t c = raw_[i];
+        if (c >= 'a' && c <= 'z') { hasLower = true; continue; }
+        if (vniMode && isDigit(c)) continue;
+        if (!vniMode && i == 1 && c == 'D' && raw_[0] == 'D') continue;
+        return -1;
+    }
+    return hasLower ? s : -1;
+}
+
+bool TelexEngine::headIsInitialsSyllable(int s) {
+    const int full = rawCount_;
+    const int savedDisabled = disabledAtCount_;
+    const bool savedKeep = freezeKeepsTone_;
+    rawCount_ = s;
+    disabledAtCount_ = kNotDisabled;
+    freezeKeepsTone_ = false;
+    rebuildParseState();
+    (void)render();
+    bool ok = !pCancelled_;
+    if (ok) {
+        bool transformed = lastEffTone_ != Tone::None;
+        for (int k = 0; k < pCount_; ++k)
+            if (renderLetters_[k].mark != Mark::None) { transformed = true; break; }
+        ok = transformed && composedIsValidSyllable() && !rawHeadIsEnglish(s);
+    }
+    rawCount_ = full;
+    disabledAtCount_ = savedDisabled;
+    freezeKeepsTone_ = savedKeep;
+    if (!ok) rebuildFrozenAware();
+    return ok;
+}
+
+bool TelexEngine::rawHeadIsEnglish(int s) const {
+    if (!englishWordRestore) return false;
+    char w[kCapacity];
+    const int n = lowerAsciiInto(raw_, s, gen::kEnglishContextMaxLength, w);
+    if (n <= 0) return false;
+    if (inEnglishList(gen::kEnglishCollisions, w, n) || inEnglishList(gen::kEnglishContextWords, w, n)) return true;
+    std::string_view key(w, static_cast<size_t>(n));
+    for (const auto& x : kEnglishExceptions) if (x == key) return true;
+    return false;
+}
+
+bool TelexEngine::applyInitialsSplit() {
+    const int s = initialsSplitPoint();
+    if (s >= 0) {
+        if (initialsSplitAt_ == s && disabledAtCount_ == s && freezeKeepsTone_) return false;
+        if (headIsInitialsSyllable(s)) {
+            initialsSplitAt_ = s;
+            disabledAtCount_ = s;
+            freezeKeepsTone_ = true;
+            upperToneFrozen_ = false;
+            rebuildParseState();
+            tonesFolded_ = false;
+            return true;
+        }
+        if (initialsSplitAt_ >= 0) {
+            recomputeFreeze();
+            rebuildFrozenAware();
+        }
+        return true;   // the head's render overwrote scratch — caller re-renders
+    }
+    if (initialsSplitAt_ >= 0) {
+        recomputeFreeze();
+        rebuildFrozenAware();
+        return true;
+    }
+    return false;
+}
+
 void TelexEngine::resetWord() {
     rawCount_ = 0;
     outCount_ = 0;
@@ -1099,6 +1192,7 @@ void TelexEngine::resetWord() {
     toneCancelSpan_ = 0;
     upperToneKey_ = false;
     upperToneFrozen_ = false;
+    initialsSplitAt_ = -1;
     overflowed_ = false;
     disabledAtCount_ = kNotDisabled;
     tonesFolded_ = false;
@@ -1242,6 +1336,7 @@ void TelexEngine::recomputeFreeze() {
     disabledAtCount_ = kNotDisabled;
     freezeKeepsTone_ = false;
     upperToneFrozen_ = false;
+    initialsSplitAt_ = -1;
     for (int r = 1; r <= full; ++r) {
         rawCount_ = r;
         rebuildParseState();

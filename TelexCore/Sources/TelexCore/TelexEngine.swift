@@ -307,6 +307,12 @@ public struct TelexEngine {
     // Reset per word; recomputed by `recomputeFreeze`.
     private var upperToneFrozen = false
 
+    // Raw index where an INITIALS suffix starts ("Phuwowng"+"TH" → PhươngTH, issue
+    // #138), -1 = none. While set, the word is frozen there with the head's tone kept
+    // (`disabledAtCount` = this, `freezeKeepsTone`) and the boundary keeps the
+    // composition. See `applyInitialsSplit`. Reset per word; cleared by recomputeFreeze.
+    private var initialsSplitAt = -1
+
     // MARK: Re-open snapshot (⌫ right after a word boundary — issue #40)
     //
     // The keystrokes of the word the LAST boundary committed, kept only while that
@@ -594,6 +600,16 @@ public struct TelexEngine {
             toneCancelSpan = pToneCancelSpan
         }
 
+        // Initials suffix ("PhuwowngTH" → PhươngTH, issue #138): decided LAST so it
+        // overrides whatever freeze the keys above settled on, and lifted again the
+        // moment the shape breaks ("PhươngTH" + a). Cheap exit on ordinary keys.
+        if applyInitialsSplit() {
+            newCount = render()
+            markCancelled = pCancelled
+            toneCancelAt = pToneCancelAt
+            toneCancelSpan = pToneCancelSpan
+        }
+
         // No-transform fast path: render is exactly the previous output plus this
         // character. Let the system insert it (cheapest, no flicker).
         if newCount == outCount + 1,
@@ -654,6 +670,7 @@ public struct TelexEngine {
         // and runs only on ⌫.
         recomputeFreeze()
         rebuildFrozenAware()
+        _ = applyInitialsSplit()                 // "LinhPTTx" ⌫ → LinhPTT split again
         let newCount = render()
         markCancelled = pCancelled
         toneCancelAt = pToneCancelAt
@@ -859,6 +876,10 @@ public struct TelexEngine {
     /// Only then do the standard validity/exception rules decide.
     /// NON-mutating (scratch-free) so `peekCommitText` can share it verbatim.
     private func shouldRestoreRaw() -> Bool {
+        // Vietnamese syllable + literal initials ("PhươngTH", issue #138): the head was
+        // vetted when the split was taken (valid syllable, no cancel, not an English
+        // word) and the suffix is exactly what was typed — keep the screen.
+        if initialsSplitAt >= 0 { return false }
         // ORDER IS THE POLICY. The cancel branch comes FIRST: a TRAILING escape
         // gesture (adjacent double modifier as the word's final keystroke — the user
         // is LOOKING at the screen and said "no diacritic, keep the letter") outranks
@@ -1654,6 +1675,119 @@ public struct TelexEngine {
         return false
     }
 
+    // MARK: - Initials suffix ("PhươngTH", "KiênTV", "HùngNV" — issue #138)
+
+    /// Shortest / longest initials run glued after the name. ONE trailing capital keeps
+    /// the historical behaviour on purpose: "SaaS"/"OmS"/"PhD" are camelCase English, and
+    /// a lone capital is indistinguishable from them. Two or more are initials.
+    static let initialsMin = 2
+    static let initialsMax = 4
+
+    /// Raw index where the word splits into HEAD + INITIALS, or -1. Shape only (no
+    /// parse): the head is Title-case — an uppercase first key, then lowercase keys
+    /// (VNI: or digits; Telex: the second D of a "DD" Đ) — and the word ENDS with a run
+    /// of `initialsMin...initialsMax` uppercase letters right after a lowercase key.
+    /// ALL-CAPS words ("VIEETJ", "HDDND"), lowercase-initial identifiers ("iOS",
+    /// "macOS") and anything ending lowercase ("JavaScript", "McDonald") never match.
+    /// O(1) exit on the common case (first key lowercase, or last key lowercase).
+    private func initialsSplitPoint() -> Int {
+        guard rawCount >= 1 + Self.initialsMin, isUpperAscii(raw[0]),
+              isUpperAscii(raw[rawCount - 1]) else { return -1 }
+        var s = rawCount
+        while s > 0, isUpperAscii(raw[s - 1]) { s -= 1 }
+        let n = rawCount - s
+        guard s >= 2, n >= Self.initialsMin, n <= Self.initialsMax else { return -1 }
+        var hasLower = false
+        for i in 1..<s {
+            let c = raw[i]
+            if c >= UInt8(ascii: "a"), c <= UInt8(ascii: "z") { hasLower = true; continue }
+            if vniMode, isDigit(c) { continue }
+            if !vniMode, i == 1, c == UInt8(ascii: "D"), raw[0] == UInt8(ascii: "D") { continue }
+            return -1
+        }
+        return hasLower ? s : -1
+    }
+
+    /// Is raw[0..<s], typed ALONE, a Vietnamese syllable the boundary would keep?
+    /// Valid syllable, actually transformed (a mark or a tone — an untouched head
+    /// commits the same either way, "AnhNT"), no cancel gesture, and not an English
+    /// word (collision / context / exception tables: "AsJSON", "HasID" keep the old
+    /// whole-word restore). Re-parses the head in place, then restores the word's parse
+    /// state. Runs only for a split CANDIDATE that is not yet applied — rare.
+    private mutating func headIsInitialsSyllable(_ s: Int) -> Bool {
+        let full = rawCount
+        let savedDisabled = disabledAtCount
+        let savedKeep = freezeKeepsTone
+        rawCount = s
+        disabledAtCount = Int.max
+        freezeKeepsTone = false
+        rebuildParseState()
+        _ = render()
+        var ok = !pCancelled
+        if ok {
+            var transformed = lastEffTone != .none
+            for k in 0..<pCount where renderLetters[k].mark != .none { transformed = true; break }
+            ok = transformed && composedIsValidSyllable() && !rawHeadIsEnglish(s)
+        }
+        rawCount = full
+        disabledAtCount = savedDisabled
+        freezeKeepsTone = savedKeep
+        if !ok { rebuildFrozenAware() }      // the caller rebuilds itself when it splits
+        return ok
+    }
+
+    private func rawHeadIsEnglish(_ s: Int) -> Bool {
+        guard englishWordRestore, s <= EnglishContextWords.maxLength else { return false }
+        var v = String.UnicodeScalarView()
+        v.reserveCapacity(s)
+        for i in 0..<s {
+            let b = lowercased(raw[i])
+            guard b >= UInt8(ascii: "a"), b <= UInt8(ascii: "z") else { return false }
+            v.append(Unicode.Scalar(b))
+        }
+        let w = String(v)
+        if EnglishCollisions.words.contains(w) || EnglishContextWords.words.contains(w) { return true }
+        for e in Self.englishExceptions where e.count == s && String(decoding: e, as: UTF8.self) == w {
+            return true
+        }
+        return false
+    }
+
+    /// Take, keep or lift the initials split for the CURRENT raw keys. Taking it freezes
+    /// the word at the split with the head's tone kept (the PR #133 kept-tone freeze),
+    /// so the initials are literal letters — an uppercase S/F/R/X/J/W/D there is a
+    /// letter, never a tone/mark ("KieenSV" → KiênSV) — and the boundary keeps it.
+    /// Lifting replays the freeze from scratch (what forward typing would have had).
+    /// Returns true when the parse state changed (caller re-renders).
+    private mutating func applyInitialsSplit() -> Bool {
+        let s = initialsSplitPoint()
+        if s >= 0 {
+            if initialsSplitAt == s, disabledAtCount == s, freezeKeepsTone { return false }
+            if headIsInitialsSyllable(s) {
+                initialsSplitAt = s
+                disabledAtCount = s
+                freezeKeepsTone = true
+                upperToneFrozen = false
+                rebuildParseState()
+                tonesFolded = false
+                return true
+            }
+            // Rejected head: the parse state is back, but the head's render overwrote
+            // the scratch buffers — fall through so the caller re-renders either way.
+            if initialsSplitAt >= 0 {
+                recomputeFreeze()
+                rebuildFrozenAware()
+            }
+            return true
+        }
+        if initialsSplitAt >= 0 {
+            recomputeFreeze()                    // clears initialsSplitAt
+            rebuildFrozenAware()
+            return true
+        }
+        return false
+    }
+
     /// Drop the current word AND the re-open snapshot. What callers use when the
     /// composition is abandoned (focus change, app switch, caret moved): after this
     /// no ⌫ may re-open anything, because the text before the caret is unknown.
@@ -1682,6 +1816,7 @@ public struct TelexEngine {
         toneCancelSpan = 0
         upperToneKey = false
         upperToneFrozen = false
+        initialsSplitAt = -1
         overflowed = false
         disabledAtCount = Int.max
         tonesFolded = false
@@ -1927,6 +2062,7 @@ public struct TelexEngine {
         disabledAtCount = Int.max
         freezeKeepsTone = false
         upperToneFrozen = false
+        initialsSplitAt = -1
         var r = 1
         while r <= full {
             rawCount = r
