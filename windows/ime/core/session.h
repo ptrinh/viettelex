@@ -135,8 +135,15 @@ public:
     // through as typed and the field composes), failures never hand the field to the hook
     // (fallBack -> preferComposition), and re-edit (seeded from the view) is off. Set by
     // the TIP at each word start; cleared by resetContext().
-    void setAsyncStore(bool on) { asyncStore_ = on; }
+    //   Once such a store has failed an in-place edit (lag, unverifiable text), every
+    //   async field the session sees later — after any number of focus changes — composes
+    //   from its first letter (#139: Canva in Brave, "OOngs" -> "OOngs"/"Ôngs": the web
+    //   editor re-focuses its input often, and each new field paid one unaccented word
+    //   before it fell back again). One TIP instance serves one UI thread of one app, so
+    //   the latch is per app; resetContext() keeps it.
+    void setAsyncStore(bool on);
     bool asyncStore() const { return asyncStore_; }
+    bool asyncStoreLagged() const { return asyncLagged_; }
     // The host DROPS a key the TIP claimed (OnTestKeyDown) and then let through: an IMM32
     // app reached through CUAS (WinForms — MISA SME, #134; the TIP sets it for CUAS-emulated
     // contexts), where a claimed key has already become VK_PROCESSKEY. Set by the session
@@ -213,6 +220,7 @@ private:
     bool compositionOnly_ = false;
     bool preferComposition_ = false;
     bool asyncStore_ = false;
+    bool asyncLagged_ = false;      // see setAsyncStore(): survives resetContext()
     bool dropsPassedKeys_ = false;  // see hostDropsPassedKeys()
     // After an in-place replace: what the screen shows if the app inserted our text but
     // dropped the deletion (Chromium omnibox, 2026-10 field report "theêz"). Empty = none.

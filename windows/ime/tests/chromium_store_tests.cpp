@@ -217,3 +217,76 @@ TEST(chromium_store_turns_reedit_off) {
     r.s.resetContext();
     CHECK(!r.s.asyncStore());  // a new field is evaluated afresh by the TIP
 }
+
+// #139 (Canva in Brave): Telex "OOngs" ("Ống"). Typed fast, the second O came before the
+// store showed the first one ("OOngs"); typed slowly, "OO" -> "Ô" worked but "s" came
+// before the store showed "ng" ("Ôngs"). Each failure switched only THAT field to
+// composition, and the web editor re-focuses its input often (OnSetFocus ->
+// resetContext), so nearly every word was a "first word" again. Once a store of this app
+// has lagged, later async fields compose from the first letter.
+namespace {
+// What the TIP does on a focus change followed by a word start (OnSetFocus ->
+// resetContext; evaluateHostAtWordStart -> setAsyncStore for a Chromium context).
+void refocus(ChromeRig& r) {
+    r.s.resetContext();
+    r.s.setAsyncStore(true);
+}
+}  // namespace
+
+TEST(chromium_store_issue139_fast_first_word_then_refocused_fields_compose) {
+    ChromeRig r(1000);  // the store never catches up while typing fast
+    r.type("OOngs");
+    // The first word in this app still goes through as typed (no letter lost).
+    CHECK_EQ(utf16ToUtf8(r.doc.page.text), std::string("OOngs"));
+    CHECK(r.s.asyncStoreLagged());
+    r.type(" ");
+    for (int i = 0; i < 3; ++i) {
+        refocus(r);
+        CHECK(r.s.prefersComposition());
+        r.type("OOngs ");
+    }
+    CHECK_EQ(utf16ToUtf8(r.doc.page.text), std::string("OOngs Ống Ống Ống "));
+    CHECK(!r.s.contextFellBack());  // never handed to the hook
+}
+
+TEST(chromium_store_issue139_slow_typing_tone_key_then_refocused_fields_compose) {
+    ChromeRig r(1000);
+    auto settle = [&] {
+        r.doc.catchUp();
+        if (!r.doc.comp) r.s.verifyScreen(r.doc);
+    };
+    r.key('O');
+    settle();
+    r.key('O');  // the store shows the first O: in place
+    settle();
+    CHECK_EQ(utf16ToUtf8(r.doc.page.text), std::string("Ô"));
+    r.key('n');
+    r.key('g');
+    r.key('s');  // the store does not show "ng" yet
+    CHECK_EQ(utf16ToUtf8(r.doc.page.text), std::string("Ôngs"));
+    r.key(' ');
+    settle();
+    refocus(r);
+    r.type("OOngs ");
+    CHECK_EQ(utf16ToUtf8(r.doc.page.text), std::string("Ôngs Ống "));
+}
+
+TEST(chromium_store_lag_latch_survives_focus_changes_but_not_for_sync_stores) {
+    // A store that never lagged keeps typing in place after a focus change.
+    ChromeRig fine(0);
+    fine.type("OOngs ");
+    refocus(fine);
+    CHECK(!fine.s.prefersComposition());
+    CHECK(!fine.s.asyncStoreLagged());
+    fine.type("OOngs ");
+    CHECK_EQ(utf16ToUtf8(fine.doc.page.text), std::string("Ống Ống "));
+    CHECK(fine.s.wordMode() == OutputMode::InPlace);
+    // The latch only steers async (Chromium) fields: a classic store in the same app
+    // (a native dialog, setAsyncStore(false)) keeps in-place.
+    ChromeRig r(1000);
+    r.type("OOngs ");
+    CHECK(r.s.asyncStoreLagged());
+    r.s.resetContext();
+    r.s.setAsyncStore(false);
+    CHECK(!r.s.prefersComposition());
+}

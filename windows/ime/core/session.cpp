@@ -86,6 +86,9 @@ void TypingSession::fallBack(const char* why) {
         // hook — blind backspace+retype into a web editor is what loses letters there.
         if (!preferComposition_ && opt_.log) opt_.log(why);
         preferComposition_ = true;
+        if (!asyncLagged_ && opt_.log)
+            opt_.log("in-place: this app's web store lags -> its web fields compose from now on");
+        asyncLagged_ = true;
         return;
     }
     if (!contextFallback_ && opt_.log) opt_.log(why);
@@ -135,6 +138,13 @@ void TypingSession::setCompositionOnlyContext(bool on) {
 void TypingSession::setHostDropsPassedKeys(bool on) {
     dropsPassedKeys_ = on;
     if (on) reopenArmed_ = false;
+}
+
+void TypingSession::setAsyncStore(bool on) {
+    asyncStore_ = on;
+    // A store of this app already lagged in another field (#139): do not pay the first
+    // word again, compose from the first letter.
+    if (on && asyncLagged_ && !preferComposition_) setPreferComposition(true);
 }
 
 void TypingSession::setPreferComposition(bool on) {
