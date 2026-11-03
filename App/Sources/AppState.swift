@@ -984,6 +984,18 @@ final class AppState: @unchecked Sendable {
     /// path DOUBLES it there.
     static let offset0AppendApps: Set<String> = ["com.hnc.Discord"]
 
+    /// In-place clients that ACCEPT insertText but apply it to their text model
+    /// ASYNCHRONOUSLY, and while an edit is still pending treat a replacementRange
+    /// that reaches past the not-yet-updated text as "no range" — the edit is
+    /// APPENDED at the caret instead of replacing. Typing slowly hides it (each
+    /// edit lands before the next key); fast typing turns "looix" into "loôiỗi"
+    /// (field report 03/11/2026, WhatsApp desktop). For these the controller waits
+    /// (bounded) for the caret to reach the tracked end before any range-targeted
+    /// rewrite, and sends plain letters to the app's own caret — see
+    /// TelexInputController.awaitClientCatchUp / insertsAtCaret. NOT a routing
+    /// rule: the app stays in-place.
+    static let asyncApplyApps: Set<String> = ["net.whatsapp.WhatsApp"]
+
     /// Terminals proper — byte-pipe apps with their own controller semantics.
     /// Stays in CODE (not the plist): it is behavior classification, not a rule
     /// users should move an app in or out of.

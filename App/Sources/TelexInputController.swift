@@ -81,6 +81,9 @@ final class TelexInputController: IMKInputController {
     private var tracking = false  // is anchor/onLen valid for the current word?
     private var selToClear = 0    // selection length to overwrite on the first insert
     private var anchorVerified = false  // one-shot re-anchor done for this word?
+    /// Consecutive catch-up waits that hit the budget (async-apply clients only) —
+    /// see awaitAsyncClient. Reset on any catch-up and on activateServer.
+    private var catchUpTimeouts = 0
     /// Timestamp of the last activateServer(Spotlight) — set on EVERY Spotlight
     /// activation, whatever the client was before it. Distinct from
     /// SpotlightDetector's visibility cache, which answers "is the overlay open
@@ -742,9 +745,16 @@ final class TelexInputController: IMKInputController {
             // text orphaned on screen, every later ⌫/space dead until a click —
             // reporter's "không thể xoá cũng như bấm space để thoát khỏi từ".
             if tracking, Self.backspaceFreshnessGuardApplies(marked: markedNow) {
-                let sel = client.selectedRange()
                 let expected = anchor + onLen
-                if !Self.trackedWindowIsFresh(caret: sel.location == NSNotFound ? nil : sel.location,
+                // Async-apply client (WhatsApp): the ⌫-rewrite below is range-targeted,
+                // and while our previous edits are still pending there it gets
+                // APPENDED — the "letters jumped" after delete in the 03/11 report.
+                // The Chromium lag tolerance in trackedWindowIsFresh is exactly the
+                // window where that happens, so wait for the app first; if it never
+                // catches up, the ⌫ goes native (ordered in the app's own queue).
+                let caughtUp = awaitAsyncClient(client, expected: expected, why: "backspace")
+                let sel = client.selectedRange()
+                if !caughtUp || !Self.trackedWindowIsFresh(caret: sel.location == NSNotFound ? nil : sel.location,
                                               selectionLength: sel.length, expected: expected) {
                     // host: DIAGNOSTIC ONLY (FocusedFieldDetector.debugLastHost, never
                     // routing) — names the site for a future report on a lag this deep
@@ -1203,7 +1213,15 @@ final class TelexInputController: IMKInputController {
                 if selToClear > 0 {
                     DebugLog.log("selection fold (letter) \(id ?? "?"): range=(\(anchor + onLen),\(selToClear))")
                 }
-                client.insertText(String(ch), replacementRange: NSRange(location: anchor + onLen, length: selToClear))
+                // Async-apply client (WhatsApp): our word-start anchor came from a
+                // caret read that can predate edits still pending there (the previous
+                // word, its space) — a ranged insert at that stale offset lands the
+                // letter INSIDE earlier text ("letters jumped", 03/11/2026). A plain
+                // letter (nothing to fold) goes to the app's own caret, which is
+                // always right once it applies; the first replace re-anchors.
+                let range = (selToClear == 0 && Self.insertsAtCaret(bundleID: id))
+                    ? kNoRange : NSRange(location: anchor + onLen, length: selToClear)
+                client.insertText(String(ch), replacementRange: range)
                 selToClear = 0
                 onLen += 1
             } else {
@@ -1525,6 +1543,14 @@ final class TelexInputController: IMKInputController {
         // `onLen += insert.length - bs` stays correct after the removal.
         var clear = 0
         if tracking {
+            // Async-apply client (WhatsApp): a range-targeted rewrite sent while our
+            // previous edits are still pending there is APPENDED, not applied as a
+            // replace ("looix" → "loôiỗi"). Let it catch up first — BEFORE the
+            // re-anchor read below, so that read sees the settled caret. A pure
+            // insert (bs == 0, nothing to clear) lands at the caret either way.
+            if bs + selToClear > 0 {
+                awaitAsyncClient(client, expected: anchor + onLen, why: "replace")
+            }
             // One-shot RE-ANCHOR at the word's first replace. Right after a newline
             // (Discord/Slate-class editors) the word-start selectedRange read is
             // STALE — it still reports the pre-newline caret, so the anchor is short
@@ -1612,6 +1638,95 @@ final class TelexInputController: IMKInputController {
         }
     }
 
+
+    // MARK: - Async-apply clients (WhatsApp)
+
+    /// Upper bound on one catch-up wait. A fast typist's key gap is ~80–150 ms; the
+    /// app normally settles within a few ms of its run loop turning over.
+    static let catchUpBudgetNs: UInt64 = 40_000_000
+    /// After this many CONSECUTIVE budget-exhausting waits the client is evidently
+    /// not going to report a caret we can wait on (or is wedged) — stop paying the
+    /// budget on every rewrite until it catches up once or focus changes.
+    static let catchUpMaxTimeouts = 3
+
+    #if DEBUG
+    /// Test seam: called between catch-up polls INSTEAD of sleeping — the harness's
+    /// async client applies its queued edits here (= its run loop turning over).
+    static var _testCatchUpSettleHook: (() -> Void)?
+    #endif
+
+    /// Plain letter inserts go to the client's own caret (kNoRange), never to our
+    /// tracked offset — async-apply clients only (see the .passthrough branch).
+    static func insertsAtCaret(bundleID: String?) -> Bool {
+        guard let id = bundleID else { return false }
+        return AppState.asyncApplyApps.contains(id)
+    }
+
+    /// Should a rewrite wait for this client to apply our pending edits first?
+    static func shouldAwaitCatchUp(bundleID: String?, consecutiveTimeouts: Int) -> Bool {
+        guard let id = bundleID, AppState.asyncApplyApps.contains(id) else { return false }
+        return consecutiveTimeouts < catchUpMaxTimeouts
+    }
+
+    /// Poll the client's caret until it reaches `expected` (the end of what we have
+    /// composed) or the budget runs out, calling `settle` between polls. A missing
+    /// caret (NotFound) is no witness to wait on — returns at once, caughtUp=true,
+    /// and the caller's own checks decide.
+    ///
+    /// `requireStable`: the word's anchor is still the word-start read, which can be
+    /// STALE-SMALL on these clients (taken while the previous word/space was still
+    /// pending) — then `expected` is too small and "caret ≥ expected" can fire while
+    /// the app is half-way through its queue. Also demand the same caret on two
+    /// consecutive polls (one settle apart) so the re-anchor read sees the settled
+    /// end. If the budget runs out after reaching `expected` but before a stable
+    /// pair, that still counts as caught up (no worse than not waiting).
+    /// Pure (all I/O injected) so the loop's exits are pinned by tests.
+    static func awaitClientCatchUp(expected: Int, budgetNs: UInt64, requireStable: Bool = false,
+                                   readCaret: () -> Int?, settle: () -> Void,
+                                   now: () -> UInt64) -> (caughtUp: Bool, polls: Int, caret: Int?) {
+        let deadline = now() &+ budgetNs
+        var polls = 0
+        var previous: Int?
+        while true {
+            polls += 1
+            guard let caret = readCaret() else { return (true, polls, nil) }
+            if caret >= expected, !requireStable || caret == previous { return (true, polls, caret) }
+            if now() >= deadline { return (caret >= expected, polls, caret) }
+            previous = caret
+            settle()
+        }
+    }
+
+    /// Wait (bounded) for an async-apply client to catch up with our tracked window.
+    /// No-op (true) for every other client. Returns false when the budget ran out
+    /// with the client still behind.
+    @discardableResult
+    private func awaitAsyncClient(_ client: IMKTextInput, expected: Int, why: String) -> Bool {
+        let id = AppState.shared.currentBundleID
+        guard Self.shouldAwaitCatchUp(bundleID: id, consecutiveTimeouts: catchUpTimeouts) else { return true }
+        let r = Self.awaitClientCatchUp(
+            expected: expected, budgetNs: Self.catchUpBudgetNs, requireStable: !anchorVerified,
+            readCaret: {
+                let s = client.selectedRange()
+                return s.location == NSNotFound ? nil : s.location
+            },
+            settle: {
+                #if DEBUG
+                if let hook = Self._testCatchUpSettleHook { hook(); return }
+                #endif
+                usleep(1000)
+            },
+            now: { DispatchTime.now().uptimeNanoseconds })
+        if r.caughtUp {
+            catchUpTimeouts = 0
+            if r.polls > 1 { logDecision("async catch-up \(why) \(id ?? "?"): polls=\(r.polls) expected=\(expected)") }
+        } else {
+            catchUpTimeouts += 1
+            DebugLog.log("async catch-up TIMEOUT \(why) \(id ?? "?"): caret=\(r.caret.map(String.init) ?? "NotFound") "
+                + "expected=\(expected) polls=\(r.polls) strike=\(catchUpTimeouts)")
+        }
+        return r.caughtUp
+    }
 
     /// Drop the composition, LOGGING the cause when it wasn't empty. A silent mid-word
     /// drop is what turns a VNI word into its raw tail: the tone DIGIT then lands on an
@@ -2644,6 +2759,7 @@ final class TelexInputController: IMKInputController {
         // New field: both AX verdicts (is it a password field? does it want selection-
         // replace?) describe the PREVIOUS one until their scans re-run.
         SecureFieldDetector.invalidate()
+        catchUpTimeouts = 0
         FocusedFieldDetector.invalidate()
         dropComposition(cause: "activateServer")
         // A nav-key stamp left by the previous client must not drop the first word
