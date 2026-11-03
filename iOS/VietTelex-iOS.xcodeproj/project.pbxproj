@@ -212,6 +212,7 @@
 		69CFB39387EBD51220B02EE6 /* KeyEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = D464912521BAEE32297B4D44 /* KeyEffects.swift */; };
 		6B50BDCB45FD66E510DE5BC3 /* KeyCommandGestureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C737100000EEDE34E2CBC1 /* KeyCommandGestureTests.swift */; };
 		6CEF83B7DF0599D2A422B7F5 /* StartupTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C9D789536A5CAC8C4A014DF /* StartupTrace.swift */; };
+		47B3336E8C043E3C3D54A3EA /* HostDesyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B8BA028EDFB549CE5595AC /* HostDesyncTests.swift */; };
 		6D6F9E75269F8D8410CB106F /* HostRewriteCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27D10BA36AFF204B214098B2 /* HostRewriteCompositionTests.swift */; };
 		6E288C02E8191203ECFB80E3 /* TouchTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E700B266A47DAAAD5A72343 /* TouchTarget.swift */; };
 		6F42E1D0D97E7C5C8855A854 /* SwipeTrailPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE8354468306FC0BF399DB2 /* SwipeTrailPickerView.swift */; };
@@ -599,6 +600,7 @@
 		22BDEAB6EAD0F1EA689B388A /* CompositionSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositionSync.swift; sourceTree = "<group>"; };
 		23D9F4828FBAE93DCCEB2271 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		24A08F7D2F73879EBEC99BEB /* sample-shortcuts.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = "sample-shortcuts.yml"; sourceTree = "<group>"; };
+		11B8BA028EDFB549CE5595AC /* HostDesyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostDesyncTests.swift; sourceTree = "<group>"; };
 		27D10BA36AFF204B214098B2 /* HostRewriteCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRewriteCompositionTests.swift; sourceTree = "<group>"; };
 		283B18B560C805EFBE10D839 /* backup-too-new.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "backup-too-new.json"; sourceTree = "<group>"; };
 		2A5ACFCC85098E199869C169 /* MainDebouncer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainDebouncer.swift; sourceTree = "<group>"; };
@@ -1121,6 +1123,7 @@
 				D188EC4E6781410050CABC5D /* FullPackSnapshotTests.swift */,
 				8FA4464DCB74D34A8A55E14B /* FutoSwipeTests.swift */,
 				6C79C970EC7D5AB3D9A9C662 /* HapticTests.swift */,
+				11B8BA028EDFB549CE5595AC /* HostDesyncTests.swift */,
 				27D10BA36AFF204B214098B2 /* HostRewriteCompositionTests.swift */,
 				D20B596D225BB513FA414DB3 /* KeyAlternatesTests.swift */,
 				5143281A235F9FF66DF0ABAE /* KeyboardBenchTests.swift */,
@@ -1914,6 +1917,7 @@
 				21EDE1994F70EBB3F1415A4C /* FutoSwipeModel.swift in Sources */,
 				A3ACE14C8F0F55490A23732E /* FutoSwipeTests.swift in Sources */,
 				622B106FC86E5387CEA108B4 /* HapticTests.swift in Sources */,
+				47B3336E8C043E3C3D54A3EA /* HostDesyncTests.swift in Sources */,
 				6D6F9E75269F8D8410CB106F /* HostRewriteCompositionTests.swift in Sources */,
 				944A23F2D0860BD58E042D08 /* KeyAlternates.swift in Sources */,
 				A9B5CB329E25C3281FFDE6CC /* KeyAlternatesTests.swift in Sources */,

@@ -127,55 +127,122 @@ enum CompositionSync {
     }
 }
 
-/// Tiếng vọng TRỄ của host (web view — Gmail, WKWebView). Host báo text/selection đổi sau MỖI
-/// lệnh sửa của bàn phím, có khi tới SAU khi phím kế đã áp cục bộ: lúc đó context đọc được là
-/// trạng thái CŨ của chính mình (thiếu phím vừa gõ). Trước đây đối chiếu thấy lệch ⇒ reset từ
-/// đang gõ giữa chừng ⇒ phím dấu sau đó đi đường với lại từ (đọc context, xoá + gõ lại cả từ —
-/// thêm lệnh host, thêm tiếng vọng) hoặc ra sai ("vieejt" ⇒ "vieẹt"). Đo 28/10/2026
-/// (Feedback1028Tests, tiếng vọng trễ một phím): chuỗi phím dấu hỏng gần hết, 3,4 lượt đọc
-/// context/phím.
+/// Bản sao phía bàn phím của chữ trước con trỏ — bù tiếng vọng TRỄ của host.
 ///
-/// Cách giữ: chụp context sau mỗi edit của mình (chỉ khi host đã lộ là vọng trễ — `armed`;
-/// host thường: không chụp gì). Context host báo mà khớp một ảnh chụp CŨ (không phải ảnh mới
-/// nhất) trong `window` giây sau edit ⇒ tiếng vọng trễ của chính mình: coi context là ảnh mới
-/// nhất (trạng thái host sẽ tới khi xử lý xong các lệnh đã gửi). Thuần, pinned by tests.
-struct EchoGuard {
-    static let capacity = 8
+/// Proxy của iOS cập nhật context LẠC QUAN ngay khi bàn phím gửi lệnh, nhưng host (web view —
+/// Gmail, ô có gợi ý/autocomplete…) xử lý lệnh trễ rồi đẩy trạng thái CỦA NÓ về, đè lên bản lạc
+/// quan: context đọc được thiếu các phím chưa xử lý. Phím kế áp lệnh lạc quan lên nền cũ đó ⇒ cả
+/// context lẫn mọi phép kiểm fail-safe đều dựa trên chữ SAI. Hậu quả (góp ý tester 03/11/2026 —
+/// "gõ nhanh chữ nhảy lung tung", "looix" ⇒ "lôõ", "xin chào" ⇒ "xin chaò", ⌫ rồi gõ lại ⇒ chữ
+/// nhảy sang chữ khác): từ đang gõ bị reset giữa chừng, nạp lại từ trước con trỏ từ context cũ
+/// rồi xoá N ký tự của chữ THẬT (khác hẳn) ⇒ rác. Trước đây EchoGuard chụp context đọc NGAY sau
+/// edit (chính là nền cũ + lệnh lạc quan ⇒ ảnh chụp sai) và chỉ bật sau lần lệch đầu tiên.
+///
+/// Ở đây bàn phím tự TÍNH `belief` = chữ host sẽ có khi xử lý hết lệnh của mình (đọc nền một lần
+/// lúc chưa biết, rồi áp từng insert/⌫ — không đọc proxy mỗi phím), giữ ảnh `belief` sau mỗi lệnh
+/// gần đây. Host đẩy context về:
+///   • khớp `belief`                   ⇒ đồng bộ;
+///   • khớp một ảnh CŨ (≤ `window` s)  ⇒ tiếng vọng trễ của chính mình: `lagging`, đọc context
+///                                        trả `belief` cho tới khi host đuổi kịp;
+///   • khác hết                        ⇒ thay đổi thật (chạm chỗ khác, host xoá ô, host nuốt lệnh):
+///                                        nhận context host làm `belief` mới.
+/// Ô trống chỉ coi là tiếng vọng khi chính ⌫ của mình làm trống (host xoá ô khi gửi tin là thay
+/// đổi thật). Thuần.
+struct HostMirror {
+    static let capacity = 32
     static let window: Double = 1.0
     /// So khớp phần đuôi tối đa này (ký tự) — context host có thể cắt đầu khác nhau.
     static let tail = 48
+    /// Giữ tối đa chừng này ký tự cuối của `belief`.
+    static let cap = 512
 
-    /// Host đã lộ là vọng trễ (đối chiếu lệch ngay sau edit của mình) ⇒ bắt đầu chụp.
-    private(set) var armed = false
-    private var snaps: [String] = []
+    /// Chữ trước con trỏ khi host xử lý xong mọi lệnh của mình; nil = không biết.
+    private(set) var belief: String?
+    /// Đã thử đọc nền mà host trả nil ⇒ không đọc lại mỗi lệnh (tới lần invalidate / host đẩy).
+    private var unknownHost = false
+    /// `belief` sau các lệnh gần đây (cũ trước), phần tử cuối == `belief`. `emptied`: ô trống do
+    /// chính ⌫ của mình (khác ô trống host báo — host xoá ô khi gửi tin là thay đổi thật).
+    private var snaps: [(text: String, emptied: Bool)] = []
     private var lastEdit = -Double.infinity
+    /// Lần đẩy gần nhất của host là trạng thái CŨ của chính mình (host chưa đuổi kịp).
+    private(set) var lagging = false
 
-    /// Callback host tới trong `window` giây sau edit của mình?
+    /// Đang trong `window` giây sau lệnh của mình.
     func recentEdit(now: Double) -> Bool { now - lastEdit <= Self.window }
 
-    mutating func arm() { armed = true }
-
-    /// Bỏ mọi ảnh chụp. (Đối chiếu lệch KHÔNG gọi: ảnh cũ vô hại — chỉ khớp khi host hiện lại
-    /// đúng trạng thái cũ của mình trong `window` giây, tức chính là tiếng vọng trễ.)
-    mutating func clear() { snaps.removeAll() }
-
-    /// Sau mỗi edit của mình: context cục bộ (đã áp). Chưa `armed` ⇒ chỉ ghi giờ.
-    mutating func record(_ ctx: String?, now: Double) {
-        lastEdit = now
-        guard armed else { return }
-        guard let ctx else { snaps.removeAll(); return }
-        if snaps.last == ctx { return }
-        snaps.append(ctx)
-        if snaps.count > Self.capacity { snaps.removeFirst() }
+    /// Context nên dùng thay cho context proxy: `belief` khi host đang trễ (và mới có lệnh),
+    /// nil = đọc proxy như thường.
+    func override(now: Double) -> String? {
+        guard lagging, recentEdit(now: now) else { return nil }
+        return belief
     }
 
-    /// Context host báo ⇒ context dự kiến (ảnh mới nhất) nếu đây là trạng thái cũ của chính
-    /// mình; nil ⇒ không phải (dùng context thật).
-    func settled(_ ctx: String?, now: Double) -> String? {
-        guard armed, let ctx, let cur = snaps.last, snaps.count > 1, recentEdit(now: now) else { return nil }
-        if Self.matches(ctx, cur) { return nil }                 // đã cập nhật
-        for old in snaps.dropLast().reversed() where Self.matches(ctx, old) { return cur }
-        return nil
+    /// Không còn biết chữ trước con trỏ (dời con trỏ, đổi ô, marked text).
+    mutating func invalidate() {
+        belief = nil; unknownHost = false; snaps.removeAll(); lagging = false
+    }
+
+    /// Ngay TRƯỚC một lệnh của mình: chưa biết nền ⇒ đọc một lần.
+    mutating func willEdit(read: () -> String?) {
+        guard belief == nil, !unknownHost else { return }
+        if let ctx = read() { adopt(ctx) } else { unknownHost = true }
+    }
+
+    mutating func inserted(_ text: String, now: Double) {
+        lastEdit = now
+        guard var b = belief else { return }
+        b += text
+        if b.count > Self.cap { b = String(b.suffix(Self.cap)) }
+        belief = b
+        snap(b)
+    }
+
+    mutating func deletedBackward(now: Double) {
+        lastEdit = now
+        guard var b = belief else { return }
+        // Cửa sổ context có thể giấu chữ phía trước: xoá quá phần đã biết ⇒ không biết nữa.
+        guard !b.isEmpty else { belief = nil; snaps.removeAll(); lagging = false; return }
+        b.removeLast()
+        belief = b
+        snap(b, emptied: b.isEmpty)
+    }
+
+    /// Host đẩy context `ctx` về (callback textDidChange/selectionDidChange…). Trả context hiệu
+    /// lực (đã bù tiếng vọng trễ).
+    mutating func hostReported(_ ctx: String?, now: Double) -> String? {
+        unknownHost = false
+        guard let ctx else { belief = nil; snaps.removeAll(); lagging = false; return nil }
+        guard let b = belief else { adopt(ctx); return ctx }
+        if recentEdit(now: now) {
+            // Ảnh SỚM nhất khớp: một trạng thái có thể lặp lại (⌫ dấu cách vừa gõ ⇒ lại đúng chữ
+            // lúc trước; "l" trước "lo" và sau khi xoá "o") — khớp ảnh mới nhất chưa chắc host đã
+            // đuổi kịp, và bỏ nhầm các ảnh ở giữa thì tiếng vọng kế không nhận ra.
+            if let i = snaps.firstIndex(where: { Self.matches(ctx, $0.text) || ($0.emptied && ctx.isEmpty) }) {
+                if i == snaps.count - 1 { adopt(ctx); return ctx }        // đã đuổi kịp
+                snaps.removeFirst(i)                                      // host đã qua các ảnh cũ hơn
+                lagging = true
+                return b
+            }
+            // Khác hết ngay sau lệnh của mình: có thể host còn lệnh chưa xử lý (hoặc vừa đổi
+            // thật) ⇒ không đoán; lệnh kế đọc lại nền từ proxy.
+            belief = nil; snaps.removeAll(); lagging = false
+            return ctx
+        }
+        adopt(ctx)                                                        // thay đổi thật
+        return ctx
+    }
+
+    private mutating func adopt(_ ctx: String) {
+        let c = ctx.count > Self.cap ? String(ctx.suffix(Self.cap)) : ctx
+        belief = c
+        snaps = [(c, false)]
+        lagging = false
+    }
+
+    private mutating func snap(_ b: String, emptied: Bool = false) {
+        if snaps.last?.text == b { return }
+        snaps.append((b, emptied))
+        if snaps.count > Self.capacity { snaps.removeFirst() }
     }
 
     /// `ctx` là trạng thái `snap`: so ≤ `tail` ký tự cuối (≥ 8 — chuỗi ngắn hơn chỉ khớp khi

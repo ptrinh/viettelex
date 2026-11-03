@@ -181,6 +181,12 @@ final class KeyboardViewController: UIInputViewController {
     /// anchor → KeyboardView cũ sống tiếp).
     private var keyboardEdges: [NSLayoutConstraint] = []
 
+    /// Proxy cho MỌI lần đọc/sửa văn bản của bàn phím: chuyển thẳng tới textDocumentProxy, kèm
+    /// bản sao chữ trước con trỏ (HostMirror) để bù tiếng vọng trễ của host — xem MirroredProxy.
+    private lazy var mirrored = MirroredProxy { [unowned self] in self.textDocumentProxy }
+    /// Kiểu existential (không phải MirroredProxy) để đọc được trait optional (keyboardType…).
+    private var textProxy: UITextDocumentProxy { mirrored }
+
     #if DEBUG
     /// Test/bench (KeyboardBenchTests, CompositionSync…): proxy giả thay host. Release không có.
     var debugProxy: UITextDocumentProxy?
@@ -312,7 +318,7 @@ final class KeyboardViewController: UIInputViewController {
         let settings = KeyboardSettings.load()
         bridge = EngineBridge(settings: settings)  // fresh settings + buffer
         externalChangePending = false
-        echoGuard = EchoGuard()                    // ô / host mới: chưa biết có vọng trễ không
+        mirrored.invalidateMirror()               // ô / host mới: chưa biết chữ trước con trỏ
         lastKeyWasEmailTrigger = false
         restoreUndo = nil; undoOfferActive = false
         textToolUndo = nil
@@ -376,7 +382,7 @@ final class KeyboardViewController: UIInputViewController {
         language = KeyboardLanguage.effective(
             stored: UserDefaults.standard.string(forKey: KeyboardLanguage.storageKey),
             flickEnabled: spaceFlickSetting)
-        if language == .en { bridge.setEnglish(true, proxy: Proxy(p: textDocumentProxy)); warmUpEnglish() }
+        if language == .en { bridge.setEnglish(true, proxy: Proxy(p: textProxy)); warmUpEnglish() }
         keyboard.configureSpaceFlick(enabled: spaceFlickSetting, language: language)
         keyboard.trackpadSpeed = settings.trackpadSpeed
         keyboard.configureKeyAlternates(numbers: settings.longPressNumbers, symbols: settings.longPressSymbols,
@@ -434,8 +440,8 @@ final class KeyboardViewController: UIInputViewController {
             guard let self else { return nil }
             return FieldPolicy.autoShift(
                 enabled: self.autoCapitalizeSetting,
-                autocap: vtSafe(nil) { self.textDocumentProxy.autocapitalizationType ?? nil },
-                before: { self.textDocumentProxy.documentContextBeforeInput ?? "" })
+                autocap: vtSafe(nil) { self.textProxy.autocapitalizationType ?? nil },
+                before: { self.textProxy.documentContextBeforeInput ?? "" })
         }
         updateAutoShift()
         // Thanh gợi ý mở đầu (field trống → gợi ý từ đầu câu, nút Dán): ngay SAU khung đầu —
@@ -602,8 +608,8 @@ final class KeyboardViewController: UIInputViewController {
         if !autoCapitalizeSetting, autoShiftOn { autoShiftOn = false; keyboard.setAutoShift(false) }
         guard let auto = FieldPolicy.autoShift(
             enabled: autoCapitalizeSetting,
-            autocap: vtSafe(nil) { self.textDocumentProxy.autocapitalizationType ?? nil },
-            before: { textDocumentProxy.documentContextBeforeInput ?? "" }) else { return }
+            autocap: vtSafe(nil) { self.textProxy.autocapitalizationType ?? nil },
+            before: { textProxy.documentContextBeforeInput ?? "" }) else { return }
         autoShiftOn = auto
         keyboard.setAutoShift(auto)
     }
@@ -622,13 +628,13 @@ final class KeyboardViewController: UIInputViewController {
 
     /// Dấu cách tự thêm sau `p` còn nằm ngay trước con trỏ (host/người dùng chưa đổi gì)?
     private func autoSpaceStillThere(_ p: Character) -> Bool {
-        (textDocumentProxy.documentContextBeforeInput ?? "").hasSuffix(String(p) + " ")
+        (textProxy.documentContextBeforeInput ?? "").hasSuffix(String(p) + " ")
     }
 
     private func removeAutoSpace() {
         let was = applyingEdit
         applyingEdit = true
-        textDocumentProxy.deleteBackward()
+        textProxy.deleteBackward()
         applyingEdit = was
     }
 
@@ -638,12 +644,12 @@ final class KeyboardViewController: UIInputViewController {
         guard autoSpaceSetting, s.count == 1, let c = s.first,
               carry || AutoSpace.triggers.contains(c) else { return }
         guard fieldTraits?.allowsAutoSpace ?? true, !bridge.passthrough,
-              vtSafe(false, { (self.textDocumentProxy as UITextInputTraits).isSecureTextEntry == true }) != true else { return }
+              vtSafe(false, { (self.textProxy as UITextInputTraits).isSecureTextEntry == true }) != true else { return }
         if !carry {
-            guard AutoSpace.shouldAdd(punct: s, before: textDocumentProxy.documentContextBeforeInput ?? "",
-                                      after: textDocumentProxy.documentContextAfterInput) else { return }
+            guard AutoSpace.shouldAdd(punct: s, before: textProxy.documentContextBeforeInput ?? "",
+                                      after: textProxy.documentContextAfterInput) else { return }
         }
-        textDocumentProxy.insertText(" ")
+        textProxy.insertText(" ")
         autoSpacePunct = c
     }
 
@@ -657,7 +663,7 @@ final class KeyboardViewController: UIInputViewController {
         // (willAppear không tới / đọc trait lỗi) thì trait y hệt ⇒ không bao giờ bật thanh gợi
         // ý lại — mất cả phiên (Zalo mở lại sau khi kill, 16/10/2026).
         let force = forced || (keyboard.map { $0.suggestionsShownState != suggestionsActive } ?? false)
-        let p = textDocumentProxy
+        let p = textProxy
         // iOS 27.0: đọc trait lúc proxy chưa sẵn sàng làm UIKit NÉM NSException
         // (_controllerState unrecognized selector) → bàn phím chết. Bắt lỗi, giữ trait
         // cũ và đọc lại sau một nhịp (crash thật 28/09/2026, build 1.2(7)).
@@ -752,24 +758,14 @@ final class KeyboardViewController: UIInputViewController {
     @discardableResult
     private func syncComposition(_ event: String) -> CompositionSync.Verdict {
         externalChangePending = false
-        var ctx = textDocumentProxy.documentContextBeforeInput
+        // Tiếng vọng TRỄ của chính mình (host web view): context là trạng thái cũ ⇒ HostMirror
+        // trả chữ host sẽ có khi xử lý xong lệnh của mình.
+        let ctx = mirrored.hostReported()
+        if TouchLog.enabled, mirrored.hostLagging { TouchLog.write("echo: stale own state (\(event)) → keep") }
         let composed = bridge.composedWord
-        let now = CACurrentMediaTime()
-        // Tiếng vọng TRỄ của chính mình (host web view): context là trạng thái cũ ⇒ coi như mới.
-        if echoGuard.armed, let fixed = echoGuard.settled(ctx, now: now) {
-            ctx = fixed
-            if TouchLog.enabled { TouchLog.write("echo: stale own state (\(event)) → keep") }
-        }
         var selected: String?
-        if #available(iOS 16.0, *) { selected = textDocumentProxy.selectedText }
+        if #available(iOS 16.0, *) { selected = textProxy.selectedText }
         let verdict = CompositionSync.verdict(context: ctx, composed: composed, selectedText: selected)
-        if verdict != .keep, !echoGuard.armed, !composed.isEmpty, (selected ?? "").isEmpty,
-           echoGuard.recentEdit(now: now) {
-            // Lệch NGAY sau edit của mình: host vọng trễ (web view) ⇒ từ giờ chụp context sau mỗi
-            // edit. Lần này chưa có ảnh chụp để đối chiếu ⇒ reset như cũ.
-            echoGuard.arm()
-            TouchLog.write("echo: host echoes late → guard on")
-        }
         if TouchLog.enabled {
             let d = CompositionSync.diagnostic(context: ctx, composed: composed)
             TouchLog.sync("\(event) \(verdict)", ctxLen: d.len, suffix: d.suffix,
@@ -859,29 +855,10 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.configureOneHand(side)
     }
 
-    private var applyingEdit = false {
-        // Hết một edit của mình: ghi giờ (+ chụp context nếu host vọng trễ — EchoGuard).
-        didSet { if oldValue, !applyingEdit { recordOwnEdit() } }
-    }
-
-    /// Tiếng vọng trễ của host web view (Gmail): xem EchoGuard. Host thường: chỉ ghi giờ.
-    private var echoGuard = EchoGuard()
-    private func recordOwnEdit() {
-        let now = CACurrentMediaTime()
-        echoGuard.record(echoGuard.armed ? textDocumentProxy.documentContextBeforeInput : nil, now: now)
-    }
-    /// Context trước con trỏ đã bù tiếng vọng trễ (host vọng trễ ⇒ trạng thái cũ của mình đổi
-    /// thành trạng thái dự kiến). Host thường: đọc thẳng.
-    private func settledContextBefore() -> String? {
-        let ctx = textDocumentProxy.documentContextBeforeInput
-        guard echoGuard.armed else { return ctx }
-        return echoGuard.settled(ctx, now: CACurrentMediaTime()) ?? ctx
-    }
+    private var applyingEdit = false
 
     private struct Proxy: TextProxyLike {
         let p: UITextDocumentProxy
-        /// Bù tiếng vọng trễ (EchoGuard) — nil ⇒ đọc thẳng (host thường).
-        var settle: (() -> String?)? = nil
         /// Phím "xuống dòng không gửi" (KeyboardView.Key.lineBreak): "\n" ranh giới chèn qua
         /// LineBreak (kèm ký tự trước con trỏ trong cùng một insertText). nil = phím thường.
         var lineBreak: LineBreakTap? = nil
@@ -906,7 +883,7 @@ final class KeyboardViewController: UIInputViewController {
         }
         func deleteBackward() { lineBreak?.last = nil; p.deleteBackward() }
         var isSecure: Bool { vtSafe(false) { (p as UITextInputTraits).isSecureTextEntry == true } }
-        var contextBeforeInput: String? { settle?() ?? p.documentContextBeforeInput }
+        var contextBeforeInput: String? { p.documentContextBeforeInput }
         var contextAfterInput: String? { p.documentContextAfterInput }
         var hasSelection: Bool {
             if #available(iOS 16.0, *) { return p.selectedText?.isEmpty == false }
@@ -918,7 +895,7 @@ final class KeyboardViewController: UIInputViewController {
     /// Lệch → false và ghi log (không nội dung).
     private func canDeleteBefore(_ expected: String, what: String) -> Bool {
         let ok = CompositionSync.canDelete(expected.count, expected: expected,
-                                           context: { settledContextBefore() })
+                                           context: { textProxy.documentContextBeforeInput })
         if !ok { TouchLog.write("failsafe: \(what) expectedLen=\(expected.count) → skip delete") }
         return ok
     }
@@ -933,8 +910,7 @@ final class KeyboardViewController: UIInputViewController {
         }
         addTonesUndo = nil
         ai?.keyPressed()
-        var proxy = Proxy(p: textDocumentProxy)
-        if echoGuard.armed { proxy.settle = { [unowned self] in self.settledContextBefore() } }
+        var proxy = Proxy(p: textProxy)
         // textWillChange tới mà textDidChange chưa kịp → đối chiếu ngay trước phím.
         if externalChangePending, !trackpadActive { syncComposition("key") }
         // Tự thêm dấu cách sau dấu câu: phím ngay sau quyết định số phận dấu cách đó.
@@ -1019,7 +995,7 @@ final class KeyboardViewController: UIInputViewController {
                 // (bắt host gán lại text / nuốt edit). Chỉ khi Debug mode bật.
                 let composed = bridge.composedWord
                 let d = CompositionSync.diagnostic(
-                    context: textDocumentProxy.documentContextBeforeInput, composed: composed)
+                    context: textProxy.documentContextBeforeInput, composed: composed)
                 TouchLog.sync("after-\(kind)", ctxLen: d.len, suffix: d.suffix,
                               composingLen: composed.count)
             }
@@ -1078,10 +1054,10 @@ final class KeyboardViewController: UIInputViewController {
             // (không phải hot path — gesture hiếm): điều kiện = đang có đúng " "
             // ở cuối và trước nó là ký tự chữ/số. State cũ (lastSpaceAfterText)
             // sai khi từ đã commit sớm → "đôi lúc không ra dấu chấm" (user).
-            let ctx = textDocumentProxy.documentContextBeforeInput ?? ""
+            let ctx = textProxy.documentContextBeforeInput ?? ""
             if TypingHeuristics.doubleSpaceMakesPeriod(context: ctx, lastWasSpace: lastInsertWasSpace) {
-                textDocumentProxy.deleteBackward()
-                textDocumentProxy.insertText(". ")
+                textProxy.deleteBackward()
+                textProxy.insertText(". ")
                 bridge.forgetLastCommit()         // space đã thành ". " → ⌫ không mở lại từ
                 lastWord = nil; lastWord2 = nil
             } else {
@@ -1094,24 +1070,24 @@ final class KeyboardViewController: UIInputViewController {
             restoreUndo = nil; undoOfferActive = false
             if trackpadActive {
                 // Giữ view context khớp chỗ con trỏ cho bước dọc sau (host trả context trễ).
-                _ = trackpadContext.resolve(before: textDocumentProxy.documentContextBeforeInput ?? "",
-                                            after: textDocumentProxy.documentContextAfterInput ?? "")
+                _ = trackpadContext.resolve(before: textProxy.documentContextBeforeInput ?? "",
+                                            after: textProxy.documentContextAfterInput ?? "")
                 trackpadContext.moved(by: delta)
             }
-            textDocumentProxy.adjustTextPosition(byCharacterOffset: delta)
+            textProxy.adjustTextPosition(byCharacterOffset: delta)
         case .moveLine(let lines):
             // Gần đúng: proxy không biết bố cục host — VerticalMove dựng lại dòng hiển thị
             // (ngắt cứng + tự ngắt theo ký tự/dòng ước lượng), giữ cột grapheme.
             bridge.reset()
             lastWord = nil; lastWord2 = nil
             restoreUndo = nil; undoOfferActive = false
-            let ctx = trackpadContext.resolve(before: textDocumentProxy.documentContextBeforeInput ?? "",
-                                              after: textDocumentProxy.documentContextAfterInput ?? "")
+            let ctx = trackpadContext.resolve(before: textProxy.documentContextBeforeInput ?? "",
+                                              after: textProxy.documentContextAfterInput ?? "")
             if trackpadCharsPerLine == 0 { trackpadCharsPerLine = estimateCharsPerLine() }
             if let off = VerticalMove.offset(before: ctx.before, after: ctx.after, lines: lines,
                                              charsPerLine: trackpadCharsPerLine), off != 0 {
                 trackpadContext.moved(by: off)
-                textDocumentProxy.adjustTextPosition(byCharacterOffset: off)
+                textProxy.adjustTextPosition(byCharacterOffset: off)
             }
             if !trackpadActive { trackpadContext.reset() }
         case .newline, .lineBreak:
@@ -1258,7 +1234,7 @@ final class KeyboardViewController: UIInputViewController {
     /// "↩︎ Khôi phục" trả lại chữ trước lần tự sửa. Bridge kiểm chữ trước con trỏ, lệch ⇒ không sửa.
     private func retroChip(apply: Bool) {
         applyingEdit = true
-        let proxy = Proxy(p: textDocumentProxy)
+        let proxy = Proxy(p: textProxy)
         _ = apply ? bridge.applyRetroOffer(proxy: proxy) : bridge.revertRetro(proxy: proxy)
         applyingEdit = false
         bridge.revertedRetro = false
@@ -1272,7 +1248,7 @@ final class KeyboardViewController: UIInputViewController {
     private func revertAutoCorrect() {
         let fixed = bridge.autoCorrectUndo?.fixed
         applyingEdit = true
-        let ok = bridge.revertAutoCorrect(proxy: Proxy(p: textDocumentProxy))
+        let ok = bridge.revertAutoCorrect(proxy: Proxy(p: textProxy))
         applyingEdit = false
         if ok, let orig = bridge.revertedAutoCorrect {
             bridge.revertedAutoCorrect = nil
@@ -1547,9 +1523,9 @@ final class KeyboardViewController: UIInputViewController {
         // Lệch (con trỏ đã dời) → không xoá gì, chỉ chèn mẫu tại con trỏ.
         let composed = bridge.composedWord
         if canDeleteBefore(composed, what: "template") {
-            for _ in 0..<composed.count { textDocumentProxy.deleteBackward() }
+            for _ in 0..<composed.count { textProxy.deleteBackward() }
         }
-        textDocumentProxy.insertText(s)
+        textProxy.insertText(s)
         bridge.reset()
         lastWord = nil; lastWord2 = nil
         restoreUndo = nil; undoOfferActive = false
@@ -1564,7 +1540,7 @@ final class KeyboardViewController: UIInputViewController {
     /// Fail-safe (CompositionSync): lượt nào context không đổi sau khi xoá/dời
     /// (host không cập nhật đồng bộ) thì dừng — không xoá mù 20k lần.
     private func clearAllText() {
-        let p = textDocumentProxy
+        let p = textProxy
         CompositionSync.moveToEnd(contextAfter: { p.documentContextAfterInput },
                                   adjust: { p.adjustTextPosition(byCharacterOffset: $0) })
         CompositionSync.clearBefore(context: { p.documentContextBeforeInput },
@@ -1604,10 +1580,10 @@ final class KeyboardViewController: UIInputViewController {
         bridge.reset()
         lastWord = nil; lastWord2 = nil
         restoreUndo = nil; undoOfferActive = false
-        let before = textDocumentProxy.documentContextBeforeInput ?? ""
+        let before = textProxy.documentContextBeforeInput ?? ""
         guard !before.isEmpty else { return }
         let count = WordDelete.charsToDelete(context: before, words: 1)
-        for _ in 0..<max(count, 1) { textDocumentProxy.deleteBackward() }
+        for _ in 0..<max(count, 1) { textProxy.deleteBackward() }
         updateAutoShift()
         updateSuggestions()
     }
@@ -1656,7 +1632,7 @@ final class KeyboardViewController: UIInputViewController {
     private func casingEvidence(_ word: String) -> Bool {
         guard DisplayCase.casingEvidence(word, prev: lastWord) else { return false }
         guard word.contains(where: { $0.isUppercase }) else { return true }
-        let autocap = vtSafe(nil) { self.textDocumentProxy.autocapitalizationType ?? nil }
+        let autocap = vtSafe(nil) { self.textProxy.autocapitalizationType ?? nil }
         return autocap != .words && autocap != .allCharacters
     }
 
@@ -1749,7 +1725,7 @@ final class KeyboardViewController: UIInputViewController {
         // Ô URL / tìm kiếm ở chế độ đầy đủ (gợi ý bất chấp app, #113): chip URL chỉ ở "vị trí
         // tên miền" (ô trống / token có "." hoặc "://"), còn lại gợi ý chữ.
         if fieldTraits?.wantsURLChips == true {
-            let p = textDocumentProxy
+            let p = textProxy
             let before = p.documentContextBeforeInput ?? "", after = p.documentContextAfterInput ?? ""
             if StripMode.prefersURLChips(before: before, after: after),
                !URLChips.chips(before: before, after: after).isEmpty {
@@ -1760,7 +1736,7 @@ final class KeyboardViewController: UIInputViewController {
         // Ô email (literal): thanh chỉ hiện chip đuôi mail sau "@" ("@gmail.com" trước) —
         // đọc context mỗi phím CHỈ ở ô email; ô khác không qua nhánh này.
         if fieldTraits?.inputKind == .email {
-            emailChips = textDocumentProxy.documentContextBeforeInput
+            emailChips = textProxy.documentContextBeforeInput
                 .map { EmailDomains.chips(before: $0) } ?? []
             keyboard.showSuggestions(.init(nextWords: emailChips.map(\.label)))
             return
@@ -1793,7 +1769,7 @@ final class KeyboardViewController: UIInputViewController {
         // Ngữ cảnh email/domain: "phuc@" → gợi đuôi mail; "github." → gợi TLD.
         // Đọc proxy (XPC) chỉ khi phím vừa gõ là @/. — không phải mọi boundary.
         if composed.isEmpty, lastKeyWasEmailTrigger,
-           let before = textDocumentProxy.documentContextBeforeInput,
+           let before = textProxy.documentContextBeforeInput,
            let last = before.split(separator: " ").last {
             if last.hasSuffix("@"), last.count > 1 {
                 keyboard.showSuggestions(.init(nextWords: Self.emailSuffixes))
@@ -1892,7 +1868,7 @@ final class KeyboardViewController: UIInputViewController {
         // Sửa ngược tiếng Anh (docs/DESIGN.md): công tắc tắt ⇒ chip mời "His car is"; bật và
         // vừa tự sửa ⇒ chip "↩︎ Khôi phục". Bridge xoá cả hai ở phím kế.
         if composed.isEmpty, let c = bridge.retroOffer {
-            set.actionLabel = EngineBridge.retroLabel(c, context: textDocumentProxy.documentContextBeforeInput)
+            set.actionLabel = EngineBridge.retroLabel(c, context: textProxy.documentContextBeforeInput)
             set.actionPayload = KeyboardView.retroOfferToken
             set.literal = nil; set.paste = false; set.clipChips = []
         } else if composed.isEmpty, bridge.retroUndoAvailable {
@@ -1917,7 +1893,7 @@ final class KeyboardViewController: UIInputViewController {
     private func refreshNumberChip() -> String? {
         numberChip = nil
         guard numberChipsSetting, numberSpaces <= 1,
-              let before = textDocumentProxy.documentContextBeforeInput else { return nil }
+              let before = textProxy.documentContextBeforeInput else { return nil }
         numberChip = NumberChips.chip(before: before)
         // Không còn chữ số gần con trỏ (vd ⌫ chỉ xoá chữ) ⇒ ngưng đọc context mỗi phím
         // tới khi gõ số / ký hiệu mới (trước đây: sau ⌫ mọi phím chữ tới 2 dấu cách).
@@ -1930,7 +1906,7 @@ final class KeyboardViewController: UIInputViewController {
     /// Đọc lại mỗi lượt (không cache) ⇒ con trỏ dời đi chỗ khác thì chip tự mất.
     private func refreshMathChip() -> String? {
         mathChip = nil
-        guard mathArmed, let before = textDocumentProxy.documentContextBeforeInput else { return nil }
+        guard mathArmed, let before = textProxy.documentContextBeforeInput else { return nil }
         mathChip = MathResults.chipAtCaret(before: before)
         return mathChip?.display
     }
@@ -2089,7 +2065,7 @@ final class KeyboardViewController: UIInputViewController {
         // Chỉ MỜI dán ở "đầu chỗ gõ": ô trống, hoặc ngay trước con trỏ là khoảng trắng/xuống
         // dòng. Bàn phím vừa hiện lại sau "Đang viết" thì engine rỗng nhưng vẫn là gõ dở chữ
         // (user 25/09/2026). documentContextBeforeInput là bản host đẩy sẵn — đọc rẻ.
-        if let last = textDocumentProxy.documentContextBeforeInput?.last,
+        if let last = textProxy.documentContextBeforeInput?.last,
            !last.isWhitespace { return false }
         return pasteCached && pasteOnce.canOffer(pasteSeenChange)
     }
@@ -2144,7 +2120,7 @@ final class KeyboardViewController: UIInputViewController {
         UserDefaults(suiteName: AppFlavor.appGroup)?.set(noPrompt, forKey: "pasteNoPrompt")
         var pasted: String?
         if let s = str, !s.isEmpty {
-            textDocumentProxy.insertText(s)
+            textProxy.insertText(s)
             clip.captured(s, change: pb.changeCount, now: Date().timeIntervalSince1970,
                           secureField: fieldTraits?.secure == true,
                           concealed: Self.isConcealed(pb))
@@ -2198,8 +2174,8 @@ final class KeyboardViewController: UIInputViewController {
                 updateSuggestions()
                 return
             }
-            for _ in 0..<u.raw.count { textDocumentProxy.deleteBackward() }
-            textDocumentProxy.insertText(u.composed + " ")
+            for _ in 0..<u.raw.count { textProxy.deleteBackward() }
+            textProxy.insertText(u.composed + " ")
             restoreUndo = nil; undoOfferActive = false
             bridge.reset()
             commitAndLearn(u.composed, accepted: true)
@@ -2220,8 +2196,8 @@ final class KeyboardViewController: UIInputViewController {
             updateSuggestions()
             return
         }
-        for _ in 0..<composed.count { textDocumentProxy.deleteBackward() }
-        textDocumentProxy.insertText(isWord ? item + " " : item)
+        for _ in 0..<composed.count { textProxy.deleteBackward() }
+        textProxy.insertText(isWord ? item + " " : item)
         keyboard?.buddy?.emojiInserted(item)
         bridge.reset()
         // Chèn đúng dạng đang hiện ("Bên" khi Shift); học dạng thường (record lowercased).
@@ -2254,13 +2230,13 @@ extension KeyboardViewController {
             KeyboardView.clickModifier()
             updateSuggestions()
         }
-        let before = textDocumentProxy.documentContextBeforeInput ?? ""
+        let before = textProxy.documentContextBeforeInput ?? ""
         guard EmailDomains.chips(before: before, limit: EmailDomains.providers.count).contains(c) else {
             TouchLog.write("failsafe: email chip context mismatch → skip")
             return
         }
         // Qua bridge: ô email đang soạn ("dduc") ⇒ trả về phím thô trước khi chèn "@gmail.com".
-        _ = bridge.boundary(c.insert, proxy: Proxy(p: textDocumentProxy))
+        _ = bridge.boundary(c.insert, proxy: Proxy(p: textProxy))
         bridge.reset()
         lastWord = nil; lastWord2 = nil
     }
@@ -2278,7 +2254,7 @@ extension KeyboardViewController {
             set.clipChips = chips.map { ($0.label, KeyboardView.clipTokenPrefix + $0.value) }
         }
         if fieldTraits?.wantsURLChips == true {
-            let p = textDocumentProxy
+            let p = textProxy
             urlChips = URLChips.chips(before: p.documentContextBeforeInput ?? "",
                                       after: p.documentContextAfterInput ?? "")
             set.nextWords = urlChips.map(\.label)
@@ -2296,7 +2272,7 @@ extension KeyboardViewController {
             KeyboardView.clickModifier()
             updateSuggestions()
         }
-        let p = textDocumentProxy
+        let p = textProxy
         let now = URLChips.chips(before: p.documentContextBeforeInput ?? "",
                                  after: p.documentContextAfterInput ?? "")
         guard let c = now.first(where: { $0.label == label }) else {
@@ -2316,13 +2292,13 @@ extension KeyboardViewController {
         }
         guard let c = numberChip else { return }
         numberChip = nil
-        let before = textDocumentProxy.documentContextBeforeInput ?? ""
+        let before = textProxy.documentContextBeforeInput ?? ""
         guard before.hasSuffix(c.replace) else {
             TouchLog.write("failsafe: number chip context mismatch → skip")
             return
         }
-        for _ in 0..<c.replace.count { textDocumentProxy.deleteBackward() }
-        textDocumentProxy.insertText(c.insert)
+        for _ in 0..<c.replace.count { textProxy.deleteBackward() }
+        textProxy.insertText(c.insert)
         bridge.reset()
         lastWord = nil; lastWord2 = nil
         restoreUndo = nil; undoOfferActive = false
@@ -2341,12 +2317,12 @@ extension KeyboardViewController {
         }
         guard let c = mathChip else { return }
         mathChip = nil; mathArmed = false
-        let before = textDocumentProxy.documentContextBeforeInput ?? ""
+        let before = textProxy.documentContextBeforeInput ?? ""
         guard MathResults.chipAtCaret(before: before) == c else {
             TouchLog.write("failsafe: math chip context mismatch → skip")
             return
         }
-        textDocumentProxy.insertText(c.insert)
+        textProxy.insertText(c.insert)
         bridge.reset()
         lastWord = nil; lastWord2 = nil
         restoreUndo = nil; undoOfferActive = false
@@ -2391,7 +2367,7 @@ extension KeyboardViewController {
         applyingEdit = true
         defer { applyingEdit = false }
         learnSettledSwipe()
-        textDocumentProxy.insertText(text)
+        textProxy.insertText(text)
         if chip { pasteUsedChange = pasteSeenChange; pasteOnce.used(pasteSeenChange); pasteCached = false }
         bridge.reset(); lastWord = nil; lastWord2 = nil
         KeyboardView.clickModifier()
@@ -2477,11 +2453,11 @@ extension KeyboardViewController {
     fileprivate func wireKeyCommands() {
         keyboard.keyCommandHasSelection = { [weak self] in
             guard let self else { return false }
-            return self.textDocumentProxy.selectedText?.isEmpty == false
+            return self.textProxy.selectedText?.isEmpty == false
         }
         keyboard.keyCommandLabel = { [weak self] cmd in
             guard let self else { return L(cmd.viLabel) }
-            let sel = cmd == .paste ? nil : self.textDocumentProxy.selectedText
+            let sel = cmd == .paste ? nil : self.textProxy.selectedText
             let blocked = KeyCommandRunner.precheck(cmd, selectedText: sel, fullAccess: self.hasFullAccess)
             return L(blocked.flatMap(KeyCommandRunner.hint) ?? cmd.viLabel)
         }
@@ -2493,14 +2469,14 @@ extension KeyboardViewController {
         if externalChangePending { syncComposition("keycmd") }
         applyingEdit = true
         defer { applyingEdit = false }
-        let proxy = Proxy(p: textDocumentProxy)
+        let proxy = Proxy(p: textProxy)
         if !letterDeferred, !bridge.undoLastLetter(proxy: proxy) { bridge.backspace(proxy: proxy) }
         // Chốt từ đang gõ như nút Dán / mục menu: chữ đã nằm trên màn hình, engine quên từ dở.
         learnSettledSwipe()
         bridge.reset(); lastWord = nil; lastWord2 = nil
         restoreUndo = nil; undoOfferActive = false
         swipeTyped = nil; swipeTypedUndo = nil
-        let outcome = KeyCommandRunner.run(cmd, host: CommandHost(textDocumentProxy), clipboard: SystemClipboard(),
+        let outcome = KeyCommandRunner.run(cmd, host: CommandHost(textProxy), clipboard: SystemClipboard(),
                                            fullAccess: hasFullAccess,
                                            paste: { [weak self] in self?.pasteFromClipboard() })
         if TouchLog.enabled { TouchLog.write("keycmd \(cmd.rawValue) → \(KeyCommandRunner.logKind(outcome))") }   // không ghi nội dung
@@ -2688,7 +2664,7 @@ extension KeyboardViewController {
         let accepted = bridge.openWordAccepted
         language = language.toggled
         UserDefaults.standard.set(language.rawValue, forKey: KeyboardLanguage.storageKey)
-        commitAndLearn(bridge.setEnglish(language == .en, proxy: Proxy(p: textDocumentProxy)),
+        commitAndLearn(bridge.setEnglish(language == .en, proxy: Proxy(p: textProxy)),
                        accepted: accepted)
         if language == .en { warmUpEnglish() }
         keyboard.spaceLanguage = language
@@ -2714,7 +2690,7 @@ extension KeyboardViewController {
         if externalChangePending { syncComposition("swipe") }
         applyingEdit = true
         defer { applyingEdit = false }
-        swipe.begin(bridge: bridge, proxy: Proxy(p: textDocumentProxy))
+        swipe.begin(bridge: bridge, proxy: Proxy(p: textProxy))
         restoreUndo = nil; undoOfferActive = false
         swipeSuggest = nil
         swipeReviseUndo = nil
@@ -2754,7 +2730,7 @@ extension KeyboardViewController {
                                previous: previous,
                                nextWords: { lm.nextWords(after: $0, prev2: $1, limit: 24) },
                                learnedCase: { lm.learnedCase($0) }, properNouns: !lowercaseSuggestions,
-                               bridge: bridge, proxy: Proxy(p: textDocumentProxy))
+                               bridge: bridge, proxy: Proxy(p: textProxy))
         if let out {
             if let c = out.committed { commitAndLearn(c.word, accepted: c.accepted) }
             keyboard.swipeCommitted()          // "Pháo hoa cuối nét" (kiểu khác: 0 việc)
@@ -2785,7 +2761,7 @@ extension KeyboardViewController {
         let wasEnglish = bridge.isLiteralSwipeWordOpen
         let itemEnglish = s.english.contains(item)
         guard bridge.replaceSwipeWord(with: item, literal: itemEnglish,
-                                      proxy: Proxy(p: textDocumentProxy)) else {
+                                      proxy: Proxy(p: textProxy)) else {
             swipeSuggest = nil
             return false
         }
@@ -2816,7 +2792,7 @@ extension KeyboardViewController {
         applyingEdit = true
         defer { applyingEdit = false }
         swipeRevisable = nil                  // như Android: ứng viên từ đang mở chấm theo từ mới
-        if bridge.restoreRevisedWord(old: u.old, new: u.new, proxy: Proxy(p: textDocumentProxy)),
+        if bridge.restoreRevisedWord(old: u.old, new: u.new, proxy: Proxy(p: textProxy)),
            lastWord == u.new {
             // rút lượt học từ mới (như Android KeyboardSession.undoRevise), học lại từ cũ
             if let l = lastLearned, l.word == u.new {
@@ -2883,7 +2859,7 @@ extension KeyboardViewController {
     fileprivate func undoTypedRevision(_ u: (edit: SwipeRevise.TypedEdit, newLearned: Learned?, sentenceBreak: Bool)) {
         applyingEdit = true
         defer { applyingEdit = false }
-        if SwipeRevise.apply(u.edit, undo: true, proxy: Proxy(p: textDocumentProxy)) {
+        if SwipeRevise.apply(u.edit, undo: true, proxy: Proxy(p: textProxy)) {
             _ = relearnPair(before: u.newLearned, first: u.edit.old, typed: u.edit.typed, accepted: true)
             if u.sentenceBreak { lastWord = nil; lastWord2 = nil }
             KeyboardView.clickModifier()
@@ -2906,7 +2882,7 @@ extension KeyboardViewController {
         keyboard.onBackspaceTouchDown = { [weak self] in
             guard let self else { return }
             // documentContextBeforeInput là bản host đẩy sẵn — đọc rẻ (xem pasteOffer).
-            self.wordSwipeSnapshot = (self.textDocumentProxy.documentContextBeforeInput,
+            self.wordSwipeSnapshot = (self.textProxy.documentContextBeforeInput,
                                       self.bridge.composedWord)
         }
         keyboard.wordSwipeLimit = { [weak self] in
@@ -2953,7 +2929,7 @@ extension KeyboardViewController {
         addTonesUndo = nil
         applyingEdit = true
         defer { applyingEdit = false }
-        let current = textDocumentProxy.documentContextBeforeInput
+        let current = textProxy.documentContextBeforeInput
         guard let plan = WordDelete.plan(snapshot: snap.context, composed: snap.composed,
                                          current: current, words: words) else {
             TouchLog.write("failsafe: word-swipe words=\(words) ctx=\(current == nil ? "nil" : "mismatch") → skip")
@@ -2963,8 +2939,8 @@ extension KeyboardViewController {
         bridge.reset()
         lastWord = nil; lastWord2 = nil
         restoreUndo = nil; undoOfferActive = false
-        for _ in 0..<plan.deleteNow { textDocumentProxy.deleteBackward() }
-        if !plan.reinsert.isEmpty { textDocumentProxy.insertText(plan.reinsert) }
+        for _ in 0..<plan.deleteNow { textProxy.deleteBackward() }
+        if !plan.reinsert.isEmpty { textProxy.insertText(plan.reinsert) }
         wordSwipeRestore = plan.removed.isEmpty ? nil
             : (text: plan.removed, tail: WordDelete.restoreTail(plan.remaining))
         if TouchLog.enabled {
@@ -2978,7 +2954,7 @@ extension KeyboardViewController {
         wordSwipeRestore = nil
         applyingEdit = true
         defer { applyingEdit = false }
-        guard WordDelete.canRestore(context: textDocumentProxy.documentContextBeforeInput,
+        guard WordDelete.canRestore(context: textProxy.documentContextBeforeInput,
                                     tail: r.tail) else {
             TouchLog.write("failsafe: word-swipe restore context moved → skip")
             updateAutoShift(); updateSuggestions()
@@ -2987,7 +2963,7 @@ extension KeyboardViewController {
         bridge.reset()
         lastWord = nil; lastWord2 = nil
         restoreUndo = nil; undoOfferActive = false
-        textDocumentProxy.insertText(r.text)
+        textProxy.insertText(r.text)
         KeyboardView.clickModifier()
         updateAutoShift(); updateSuggestions()
     }
@@ -3007,8 +2983,8 @@ extension KeyboardViewController {
         wordSwipeRestore = nil
         textToolUndo = nil
         var selected: String?
-        if #available(iOS 16.0, *) { selected = textDocumentProxy.selectedText }
-        let outcome = TextToolRunner.apply(tool, proxy: Proxy(p: textDocumentProxy), selectedText: selected)
+        if #available(iOS 16.0, *) { selected = textProxy.selectedText }
+        let outcome = TextToolRunner.apply(tool, proxy: Proxy(p: textProxy), selectedText: selected)
         switch outcome {
         case .applied(let u): textToolUndo = u
         case .failsafe: TouchLog.write("failsafe: text tool \(tool.rawValue) context mismatch/NFD → skip")
@@ -3022,7 +2998,7 @@ extension KeyboardViewController {
         textToolUndo = nil
         applyingEdit = true
         defer { applyingEdit = false }
-        if !TextToolRunner.undo(u, proxy: Proxy(p: textDocumentProxy)) {
+        if !TextToolRunner.undo(u, proxy: Proxy(p: textProxy)) {
             TouchLog.write("failsafe: text tool undo context moved → skip")
         }
         bridge.reset()
@@ -3044,8 +3020,8 @@ extension KeyboardViewController {
         restoreUndo = nil; undoOfferActive = false
         wordSwipeRestore = nil
         textToolUndo = nil
-        let selected = textDocumentProxy.selectedText
-        let before = textDocumentProxy.documentContextBeforeInput
+        let selected = textProxy.selectedText
+        let before = textProxy.documentContextBeforeInput
         guard let src = TextTools.source(selected: selected, before: before) else {
             showTranslateNotice(L("Chọn hoặc gõ chữ cần dịch"))
             return
@@ -3053,7 +3029,7 @@ extension KeyboardViewController {
         // Không chọn ⇒ chỉ đoạn đang gõ (iOS không đưa bàn phím cả văn bản): ô còn chữ khác
         // thì nói rõ thay vì lặng lẽ dịch một phần (tester Plus 15/10/2026).
         let partial = TranslateText.coversOnlyPart(isSelection: src.isSelection, source: src.text, before: before,
-                                                   after: src.isSelection ? nil : textDocumentProxy.documentContextAfterInput)
+                                                   after: src.isSelection ? nil : textProxy.documentContextAfterInput)
         let target = TranslatePrefs.target(UserDefaultsProvider.shared)
         showTranslateNotice(L("Đang dịch…"))
         translateTask = Task { @MainActor [weak self] in
@@ -3078,8 +3054,8 @@ extension KeyboardViewController {
             applyingEdit = true
             defer { applyingEdit = false }
             var selected: String?
-            if #available(iOS 16.0, *) { selected = textDocumentProxy.selectedText }
-            switch TextToolRunner.replace(src, with: out, proxy: Proxy(p: textDocumentProxy),
+            if #available(iOS 16.0, *) { selected = textProxy.selectedText }
+            switch TextToolRunner.replace(src, with: out, proxy: Proxy(p: textProxy),
                                           strict: true, currentSelection: selected) {
             case .applied(let u):
                 textToolUndo = u
@@ -3124,7 +3100,7 @@ extension KeyboardViewController {
     fileprivate func makeAIAssist() -> AIAssist? {
         guard #available(iOS 26.0, *) else { return nil }
         return AIAssist(host: .init(
-            proxy: { [unowned self] in self.textDocumentProxy },
+            proxy: { [unowned self] in self.textProxy },
             keyboard: { [weak self] in self?.keyboard },
             edit: { [weak self] body in
                 guard let self else { return }
@@ -3149,7 +3125,7 @@ extension KeyboardViewController {
     /// documentContextBeforeInput là bản host đẩy sẵn — đọc rẻ (xem pasteOffer).
     fileprivate func addTonesPlan() -> AddTones.Plan? {
         guard addTonesSetting, bridge.composedWord.isEmpty,
-              let before = textDocumentProxy.documentContextBeforeInput, !before.isEmpty else { return nil }
+              let before = textProxy.documentContextBeforeInput, !before.isEmpty else { return nil }
         if let c = addTonesCache, c.before == before { return c.plan }
         let lm = langModel
         // Lọc bật: cặp nhạy cảm (SensitiveWords.pairs, có trong seed) không thưởng khi chọn dấu.
@@ -3171,8 +3147,8 @@ extension KeyboardViewController {
         applyingEdit = true
         defer { applyingEdit = false }
         guard canDeleteBefore(plan.original, what: "add-tones") else { updateSuggestions(); return }
-        for _ in 0..<plan.original.count { textDocumentProxy.deleteBackward() }
-        textDocumentProxy.insertText(plan.replacement)
+        for _ in 0..<plan.original.count { textProxy.deleteBackward() }
+        textProxy.insertText(plan.replacement)
         bridge.reset()
         lastWord = nil; lastWord2 = nil
         restoreUndo = nil; undoOfferActive = false
@@ -3189,9 +3165,9 @@ extension KeyboardViewController {
         applyingEdit = true
         defer { applyingEdit = false }
         // Luôn đối chiếu (kể cả đuôi 1 ký tự): lệch / không đọc được ⇒ bỏ, không xoá mù.
-        if textDocumentProxy.documentContextBeforeInput?.hasSuffix(u.replacement) == true {
-            for _ in 0..<u.replacement.count { textDocumentProxy.deleteBackward() }
-            textDocumentProxy.insertText(u.original)
+        if textProxy.documentContextBeforeInput?.hasSuffix(u.replacement) == true {
+            for _ in 0..<u.replacement.count { textProxy.deleteBackward() }
+            textProxy.insertText(u.original)
             addTonesDismissed = u.original
             bridge.reset()
             lastWord = nil; lastWord2 = nil
@@ -3211,4 +3187,73 @@ func vtSafe<T>(_ fallback: T, _ read: () -> T) -> T {
     var value = fallback
     if VTCatchException({ value = read() }) != nil { return fallback }
     return value
+}
+
+/// textDocumentProxy + bản sao chữ trước con trỏ (HostMirror). Mọi lệnh sửa của bàn phím đi qua
+/// đây ⇒ HostMirror biết chính xác chữ host SẼ có; host vọng trễ (đẩy trạng thái cũ của chính
+/// mình, đè bản lạc quan của proxy) ⇒ đọc context trả bản đó thay vì chữ cũ. Host thường (đồng
+/// bộ): đọc thẳng proxy như trước, không thêm lượt đọc nào mỗi phím (chỉ một lần đọc nền khi
+/// chưa biết). Thuộc tính trait (keyboardType, isSecureTextEntry…) chuyển tiếp nguyên trạng.
+final class MirroredProxy: NSObject, UITextDocumentProxy {
+    private let base: () -> UITextDocumentProxy
+    private(set) var mirror = HostMirror()
+    /// Đồng hồ (test thay được).
+    var now: () -> Double = { CACurrentMediaTime() }
+
+    init(base: @escaping () -> UITextDocumentProxy) { self.base = base }
+
+    /// Host đẩy trạng thái (callback ngoài edit của mình): đọc context THẬT, đối chiếu với bản
+    /// sao — trả context hiệu lực (trạng thái cũ của mình ⇒ chữ host sẽ có).
+    func hostReported() -> String? {
+        mirror.hostReported(base().documentContextBeforeInput, now: now())
+    }
+    /// Lần đẩy gần nhất của host là trạng thái cũ của chính mình.
+    var hostLagging: Bool { mirror.lagging }
+    func invalidateMirror() { mirror.invalidate() }
+
+    // MARK: UITextDocumentProxy
+
+    var documentContextBeforeInput: String? {
+        mirror.override(now: now()) ?? base().documentContextBeforeInput
+    }
+    var documentContextAfterInput: String? { base().documentContextAfterInput }
+    var selectedText: String? { base().selectedText }
+    var documentInputMode: UITextInputMode? { base().documentInputMode }
+    var documentIdentifier: UUID { base().documentIdentifier }
+    var hasText: Bool { base().hasText }
+
+    func insertText(_ text: String) {
+        let p = base()
+        mirror.willEdit(read: { p.documentContextBeforeInput })
+        p.insertText(text)
+        mirror.inserted(text, now: now())
+    }
+
+    func deleteBackward() {
+        let p = base()
+        mirror.willEdit(read: { p.documentContextBeforeInput })
+        p.deleteBackward()
+        mirror.deletedBackward(now: now())
+    }
+
+    func adjustTextPosition(byCharacterOffset offset: Int) {
+        mirror.invalidate()
+        base().adjustTextPosition(byCharacterOffset: offset)
+    }
+
+    func setMarkedText(_ markedText: String, selectedRange: NSRange) {
+        mirror.invalidate()
+        base().setMarkedText(markedText, selectedRange: selectedRange)
+    }
+
+    func unmarkText() {
+        mirror.invalidate()
+        base().unmarkText()
+    }
+
+    // Trait (thành viên optional của UITextInputTraits) + mọi selector khác: chuyển tiếp.
+    override func responds(to aSelector: Selector!) -> Bool {
+        super.responds(to: aSelector) || (base() as AnyObject).responds(to: aSelector)
+    }
+    override func forwardingTarget(for aSelector: Selector!) -> Any? { base() }
 }
