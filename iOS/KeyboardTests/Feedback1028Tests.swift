@@ -54,36 +54,64 @@ final class Feedback1028Tests: XCTestCase {
         XCTAssertLessThanOrEqual(late.passes, fresh.passes + 0.15, "không tính lại thanh gợi ý thêm")
     }
 
-    func testEchoGuardPure() {
-        var g = EchoGuard()
-        g.record("xin chào bạn ơi hôm nay", now: 0)
-        XCTAssertNil(g.settled("xin chào bạn ơi hôm na", now: 0.1), "chưa armed ⇒ không đụng")
-        g.arm()
-        g.record("xin chào bạn ơi hôm nay t", now: 1)
-        g.record("xin chào bạn ơi hôm nay tr", now: 1.05)
-        g.record("xin chào bạn ơi hôm nay trờ", now: 1.1)
-        XCTAssertEqual(g.settled("xin chào bạn ơi hôm nay tr", now: 1.2), "xin chào bạn ơi hôm nay trờ",
+    func testHostMirrorPure() {
+        var g = HostMirror()
+        g.willEdit(read: { "xin chào bạn ơi hôm nay " })
+        g.inserted("t", now: 1)
+        g.inserted("r", now: 1.05)
+        g.deletedBackward(now: 1.1)
+        g.inserted("rờ", now: 1.1)
+        XCTAssertEqual(g.belief, "xin chào bạn ơi hôm nay trờ")
+        XCTAssertNil(g.override(now: 1.2), "chưa thấy host trễ ⇒ đọc proxy")
+        XCTAssertEqual(g.hostReported("xin chào bạn ơi hôm nay tr", now: 1.2), "xin chào bạn ơi hôm nay trờ",
                        "trạng thái cũ của mình ⇒ trạng thái mới nhất")
-        XCTAssertNil(g.settled("xin chào bạn ơi hôm nay trờ", now: 1.2), "đã cập nhật")
-        XCTAssertNil(g.settled("đoạn khác hẳn", now: 1.2), "thay đổi thật")
-        XCTAssertNil(g.settled("xin chào bạn ơi hôm nay tr", now: 3), "quá cửa sổ thời gian")
-        XCTAssertNil(g.settled(nil, now: 1.2))
+        XCTAssertTrue(g.lagging)
+        XCTAssertEqual(g.override(now: 1.3), "xin chào bạn ơi hôm nay trờ")
+        XCTAssertNil(g.override(now: 3), "quá cửa sổ thời gian ⇒ đọc proxy")
+        XCTAssertEqual(g.hostReported("xin chào bạn ơi hôm nay trờ", now: 1.3), "xin chào bạn ơi hôm nay trờ")
+        XCTAssertFalse(g.lagging, "host đuổi kịp")
+        XCTAssertEqual(g.hostReported("xin chào bạn ơi hôm nay tr", now: 1.35), "xin chào bạn ơi hôm nay tr",
+                       "ảnh đã qua (host đã đuổi kịp) ⇒ thay đổi thật")
+        XCTAssertEqual(g.hostReported("đoạn khác hẳn", now: 1.4), "đoạn khác hẳn", "thay đổi thật")
+        XCTAssertEqual(g.belief, "đoạn khác hẳn")
         // Context host cắt đầu khác (cửa sổ trượt) vẫn khớp theo đuôi.
-        XCTAssertEqual(g.settled("ào bạn ơi hôm nay tr", now: 1.2), "xin chào bạn ơi hôm nay trờ")
-        g.clear()
-        XCTAssertNil(g.settled("xin chào bạn ơi hôm nay tr", now: 1.2))
+        g.inserted(" x", now: 2)
+        XCTAssertEqual(g.hostReported("oạn khác hẳn", now: 2.1), "đoạn khác hẳn x")
+        XCTAssertNil(g.hostReported(nil, now: 2.1))
+        XCTAssertNil(g.belief, "host không cho biết ⇒ không biết")
     }
 
     /// Ô trống / đầu ô: host xoá ô (gửi tin) là thay đổi THẬT, không phải tiếng vọng.
-    func testEchoGuardEmptyFieldIsRealChange() {
-        var g = EchoGuard()
-        g.arm()
-        g.record("", now: 0)
-        g.record("A", now: 0.05)
-        g.record("Ab", now: 0.1)
-        XCTAssertNil(g.settled("", now: 0.2))
-        XCTAssertEqual(g.settled("A", now: 0.2), "Ab", "đầu ô: khớp hẳn chuỗi")
-        XCTAssertNil(g.settled("xA", now: 0.2), "ảnh chụp ngắn chỉ khớp bằng hẳn")
+    func testHostMirrorEmptyFieldIsRealChange() {
+        var g = HostMirror()
+        g.willEdit(read: { "" })
+        g.inserted("A", now: 0.05)
+        g.inserted("b", now: 0.1)
+        XCTAssertEqual(g.hostReported("", now: 0.2), "")
+        XCTAssertFalse(g.lagging)
+        XCTAssertNil(g.belief, "khác hết ngay sau lệnh của mình ⇒ lệnh kế đọc lại nền")
+        g.willEdit(read: { "" })
+        g.inserted("A", now: 0.3)
+        g.inserted("b", now: 0.35)
+        XCTAssertEqual(g.hostReported("A", now: 0.4), "Ab", "đầu ô: khớp hẳn chuỗi")
+        XCTAssertEqual(g.hostReported("xA", now: 0.4), "xA", "ảnh chụp ngắn chỉ khớp bằng hẳn")
+        XCTAssertEqual(g.hostReported("xA", now: 5), "xA")
+        XCTAssertEqual(g.belief, "xA", "lâu sau lệnh của mình ⇒ nhận context host")
+    }
+
+    /// Xoá quá phần đã biết (cửa sổ context giấu chữ phía trước) ⇒ không biết; đọc nền lại.
+    func testHostMirrorDeletePastKnownTail() {
+        var g = HostMirror()
+        g.willEdit(read: { "a" })
+        g.deletedBackward(now: 0)
+        XCTAssertEqual(g.belief, "")
+        g.deletedBackward(now: 0)
+        XCTAssertNil(g.belief)
+        var reads = 0
+        g.willEdit(read: { reads += 1; return "xyz" })
+        g.willEdit(read: { reads += 1; return "xyz" })
+        XCTAssertEqual(reads, 1, "đọc nền một lần")
+        XCTAssertEqual(g.belief, "xyz")
     }
 
     // MARK: 1. bàn phím trống sau khi xé
