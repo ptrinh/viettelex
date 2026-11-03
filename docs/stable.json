@@ -3,9 +3,9 @@
   "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.8.34",
   "build": 143,
   "windows": {
-    "version": "1.3.7",
-    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.7/VietTelex-1.3.7-x64.msi",
-    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.7/VietTelex-1.3.7-arm64.msi",
+    "version": "1.3.8",
+    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.8/VietTelex-1.3.8-x64.msi",
+    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.8/VietTelex-1.3.8-arm64.msi",
     "notes": "Tên + viết tắt HOA dính liền giữ dấu (PhươngTH, #138), viết tắt HOA, chống gõ sai một chữ, ranh giới _ = số, ⌫ sau khôi phục tiếng Anh trả lại chữ Việt."
   },
   "linux": {
