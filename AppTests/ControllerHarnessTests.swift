@@ -23,8 +23,44 @@ final class FakeIMKClient: NSObject, IMKTextInput {
 
     var string: String { text as String }
 
+    /// Mô phỏng app áp insertText BẤT ĐỒNG BỘ (WhatsApp desktop, field 03/11/2026):
+    /// mỗi lệnh được NHẬN ngay nhưng chỉ áp vào văn bản khi `settle()` (run loop của
+    /// app quay một vòng); selectedRange/đọc màn hình trả trạng thái ĐÃ ÁP (cũ). Lúc
+    /// nhận, một replacementRange vượt quá văn bản đã áp bị coi như "không có range"
+    /// ⇒ chèn tại con trỏ (APPEND) — đúng dạng hỏng "looix" → "loôiỗi".
+    var asyncApply = false
+    private var pending: [() -> Void] = []
+    var pendingCount: Int { pending.count }
+
+    /// App áp hết các lệnh đang chờ, đúng thứ tự nhận.
+    func settle() {
+        let ops = pending
+        pending.removeAll()
+        for op in ops { op() }
+    }
+
     func insertText(_ string: Any!, replacementRange: NSRange) {
         let s = (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
+        if asyncApply {
+            var r: NSRange? = replacementRange.location == NSNotFound ? nil : replacementRange
+            if let rr = r, rr.location + rr.length > text.length {
+                log.append("range ignored (pending edits) @\(rr.location)+\(rr.length) len=\(text.length)")
+                r = nil
+            }
+            log.append("queue \(s.debugDescription)" + (r.map { " @\($0.location)+\($0.length)" } ?? " @caret"))
+            pending.append { [unowned self] in
+                if s == "\u{7f}" {                 // ⌫ native
+                    guard self.caret > 0 else { return }
+                    self.text.deleteCharacters(in: NSRange(location: self.caret - 1, length: 1))
+                    self.caret -= 1
+                    return
+                }
+                let rr = r ?? NSRange(location: self.caret, length: 0)
+                self.text.replaceCharacters(in: rr, with: s)
+                self.caret = rr.location + (s as NSString).length
+            }
+            return
+        }
         var r = replacementRange
         if r.location == NSNotFound {
             r = marked.location != NSNotFound ? marked : NSRange(location: caret, length: 0)
@@ -46,7 +82,15 @@ final class FakeIMKClient: NSObject, IMKTextInput {
     }
 
     /// AppKit gõ ký tự của phím mà IME trả lại.
-    func typeNatively(_ s: String) { insertText(s, replacementRange: NSRange(location: NSNotFound, length: 0)) }
+    /// "\u{7f}" = ⌫ native (xoá một ký tự trước con trỏ).
+    func typeNatively(_ s: String) {
+        if s == "\u{7f}", !asyncApply {
+            log.append("native ⌫")
+            if caret > 0 { text.deleteCharacters(in: NSRange(location: caret - 1, length: 1)); caret -= 1 }
+            return
+        }
+        insertText(s, replacementRange: NSRange(location: NSNotFound, length: 0))
+    }
 
     func selectedRange() -> NSRange { NSRange(location: caret, length: 0) }
     func markedRange() -> NSRange { marked }

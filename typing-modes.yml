@@ -33,7 +33,9 @@
 #   edit trễ) dù giữa dòng trông ổn — field-test 21/07/2026.
 # - Excel: KHÔNG chuyển sang marked — nó tự vẽ gạch chân đậm bất chấp style.
 # - Spotlight: inPlace sạch trên macOS 26 (race autocomplete lịch sử đã hết).
-# - WhatsApp: bản native mới tôn trọng replacementRange.
+# - WhatsApp: bản native mới tôn trọng replacementRange, nhưng áp insertText BẤT
+#   ĐỒNG BỘ — gõ nhanh thì lệnh thay bị nối thêm ("looix" → "loôiỗi", 03/11/2026);
+#   controller chờ app đuổi kịp trước mỗi lần thay (AppState.asyncApplyApps).
 
 # Terminals — lời hứa cốt lõi, hỏng in-place theo thiết kế
 com.apple.Terminal: tap
