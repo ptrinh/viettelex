@@ -152,6 +152,15 @@ enum KeyGeometry {
     /// Lưu: app chạy `migrateIfNeeded` lúc khởi động (ghi cờ trước rồi giá trị). Bàn phím KHÔNG
     /// ghi (không có Toàn quyền thì App Group chỉ đọc) — đọc qua `effectiveAdjust`: chưa có cờ
     /// thì tính chuyển đổi trong bộ nhớ, cùng hàm thuần ⇒ kết quả trùng với app ghi sau đó.
+    ///
+    /// Sửa 03/11/2026 (tester iPhone: "bàn phím mặc định nhỏ quá, phải tăng mấy nấc mới bằng bàn
+    /// phím Apple"): chuyển đổi 12/10 coi người dùng cũ CHƯA từng chỉnh (không có khoá
+    /// `rowHeightAdjust`, không có công tắc) như đã chọn bố cục cũ ⇒ máy lớn 420+ (Air / Plus /
+    /// Pro Max) bị ghi −2: bước hàng 54 / phím 43 thay stock 56 / 45, cả khối phím thấp hơn stock
+    /// 8pt. Giờ: chưa từng chỉnh ⇒ 0 (= bàn phím iPhone, như cài mới). Ai đã chuyển đổi xong:
+    /// một lần (`defaultFixKey`) đưa đúng giá trị chuyển đổi đó (−2 trên máy lớn) về 0. Giá trị
+    /// khác giữ nguyên. Không phân biệt được −2 do chuyển đổi với −2 tự chọn sau 12/10 trên máy
+    /// lớn — trường hợp đó về 0 một lần, chỉnh lại được.
     enum RowAdjust {
         static let key = "rowHeightAdjust"
         static let range: ClosedRange<Int> = -10...10
@@ -159,6 +168,8 @@ enum KeyGeometry {
         static let migratedKey = "rowAdjustStockBase"
         /// Công tắc cũ "Kích thước như bàn phím iPhone" (#119) — chỉ còn đọc để chuyển đổi.
         static let legacyStockKey = "stockKeySize"
+        /// Cờ đã sửa mặc định người dùng cũ chưa từng chỉnh (03/11/2026).
+        static let defaultFixKey = "rowAdjustDefaultFix"
 
         /// "Nâng bàn phím" (như Android #112, cùng khoá sao lưu): 0…48pt bước 4, đệm trống
         /// dưới hàng phím đáy.
@@ -177,13 +188,18 @@ enum KeyGeometry {
         /// không biết cỡ máy khi gập, giữ nguyên giá trị.
         static let maxPhonePortraitWidth: CGFloat = 500
 
-        /// Giá trị mới (thuần). `legacyStock` = khoá công tắc cũ (nil = chưa có); `fresh` = App
-        /// Group chưa có cài đặt nào của người dùng (StockSize.initialValue) — cài mới coi như bật.
-        static func migrated(oldAdjust: Int, legacyStock: Bool?, fresh: Bool,
+        /// Giá trị mới (thuần). `oldAdjust` nil = chưa từng chỉnh (không có khoá) ⇒ 0 trên iPhone
+        /// (mặc định = bàn phím iPhone, 03/11/2026). `legacyStock` = khoá công tắc cũ (nil = chưa
+        /// có); `fresh` = App Group chưa có cài đặt nào của người dùng (StockSize.initialValue) —
+        /// cài mới coi như bật.
+        static func migrated(oldAdjust: Int?, legacyStock: Bool?, fresh: Bool,
                              pad: Bool, portraitWidth: CGFloat) -> Int {
-            let a = clamp(oldAdjust)
+            let a = clamp(oldAdjust ?? 0)
             if pad { return a }
             if legacyStock ?? fresh { return 0 }
+            // Chưa từng chỉnh và chưa từng tắt công tắc stock ⇒ mặc định mới (bàn phím iPhone).
+            // Tắt công tắc một cách tường minh (false) ⇒ đã chọn bố cục cũ, giữ như trước.
+            if oldAdjust == nil, legacyStock == nil { return 0 }
             guard portraitWidth > 0, portraitWidth <= maxPhonePortraitWidth,
                   let m = StockSize.metrics(width: portraitWidth, landscape: false) else { return a }
             return clamp(a + Int((phonePortraitBase / 4 - m.pitch).rounded()))
@@ -196,14 +212,30 @@ enum KeyGeometry {
             let fresh = legacy == nil && StockSize.initialValue(
                 existingKeys: Set(d.dictionaryRepresentation().keys),
                 stateKeys: StockSize.userStateKeys.union(extraStateKeys))
-            return migrated(oldAdjust: d.integer(forKey: key), legacyStock: legacy, fresh: fresh,
+            let old: Int? = d.object(forKey: key) != nil ? d.integer(forKey: key) : nil
+            return migrated(oldAdjust: old, legacyStock: legacy, fresh: fresh,
                             pad: pad, portraitWidth: portraitWidth)
         }
 
-        /// Giá trị dùng để vẽ (bàn phím): đã chuyển ⇒ đọc thẳng; chưa ⇒ tính trong bộ nhớ.
+        /// Sửa một lần cho người đã qua chuyển đổi 12/10 (thuần): giá trị ĐÚNG BẰNG kết quả chuyển
+        /// đổi của bố cục mặc định cũ (máy lớn: −2) ⇒ 0; mọi giá trị khác, iPad, máy thường
+        /// (chuyển đổi cho 0 sẵn), máy gập mở ⇒ giữ nguyên.
+        static func defaultFixed(_ value: Int, pad: Bool, portraitWidth: CGFloat) -> Int {
+            let v = clamp(value)
+            if pad || v == 0 { return v }
+            let legacyDefault = migrated(oldAdjust: 0, legacyStock: false, fresh: false,
+                                         pad: false, portraitWidth: portraitWidth)
+            return v == legacyDefault ? 0 : v
+        }
+
+        /// Giá trị dùng để vẽ (bàn phím): đã chuyển ⇒ đọc thẳng (+ sửa mặc định nếu app chưa
+        /// ghi cờ sửa); chưa ⇒ tính trong bộ nhớ.
         static func effectiveAdjust(_ d: UserDefaults?, pad: Bool, portraitWidth: CGFloat) -> Int {
             guard let d else { return 0 }
-            if d.bool(forKey: migratedKey) { return clamp(d.integer(forKey: key)) }
+            if d.bool(forKey: migratedKey) {
+                let v = clamp(d.integer(forKey: key))
+                return d.bool(forKey: defaultFixKey) ? v : defaultFixed(v, pad: pad, portraitWidth: portraitWidth)
+            }
             return migrated(d, pad: pad, portraitWidth: portraitWidth)
         }
 
@@ -212,10 +244,18 @@ enum KeyGeometry {
         static func migrateIfNeeded(_ d: UserDefaults?, pad: Bool, portraitWidth: CGFloat,
                                     extraStateKeys: [String] = []) -> Int {
             guard let d else { return 0 }
-            if d.bool(forKey: migratedKey) { return clamp(d.integer(forKey: key)) }
+            if d.bool(forKey: migratedKey) {
+                let v = clamp(d.integer(forKey: key))
+                if d.bool(forKey: defaultFixKey) { return v }
+                let fixed = defaultFixed(v, pad: pad, portraitWidth: portraitWidth)
+                d.set(true, forKey: defaultFixKey)
+                if fixed != v { d.set(fixed, forKey: key) }
+                return fixed
+            }
             let v = migrated(d, pad: pad, portraitWidth: portraitWidth, extraStateKeys: extraStateKeys)
             // Cờ trước: tiến trình kia (bàn phím) thấy cờ thì không chuyển lần hai.
             d.set(true, forKey: migratedKey)
+            d.set(true, forKey: defaultFixKey)
             if v != 0 || d.object(forKey: key) != nil { d.set(v, forKey: key) }
             d.removeObject(forKey: legacyStockKey)
             return v

@@ -195,6 +195,91 @@ final class StockSizeTests: XCTestCase {
         try XCTUnwrap(UserDefaults(suiteName: "vt.rowadj.\(UUID().uuidString)"))
     }
 
+    // MARK: Mặc định = bàn phím iPhone cho người chưa từng chỉnh (tester 03/11/2026)
+
+    /// Chuyển đổi 12/10 (thuần): không có khoá chiều cao hàng + không có công tắc ⇒ 0 mọi máy.
+    /// Công tắc stock đã TẮT tường minh hoặc đã có giá trị ⇒ giữ bước hàng cũ như trước.
+    func testUntouchedOldUserMigratesToStock() {
+        for w: CGFloat in [375, 390, 402, 420, 430, 440] {
+            XCTAssertEqual(RA.migrated(oldAdjust: nil, legacyStock: nil, fresh: false, pad: false, portraitWidth: w), 0, "\(w)")
+        }
+        XCTAssertEqual(RA.migrated(oldAdjust: nil, legacyStock: false, fresh: false, pad: false, portraitWidth: 440), -2,
+                       "tắt công tắc stock = chọn bố cục cũ")
+        XCTAssertEqual(RA.migrated(oldAdjust: 0, legacyStock: nil, fresh: false, pad: false, portraitWidth: 440), -2,
+                       "đã có khoá (chỉnh rồi về 0) = chọn bố cục cũ")
+        XCTAssertEqual(RA.migrated(oldAdjust: nil, legacyStock: nil, fresh: false, pad: true, portraitWidth: 834), 0)
+    }
+
+    /// Sửa một lần (thuần): chỉ đúng giá trị chuyển đổi của bố cục mặc định cũ (máy lớn −2) về 0.
+    func testDefaultFixedPure() {
+        for w: CGFloat in [420, 430, 440] {
+            XCTAssertEqual(RA.defaultFixed(-2, pad: false, portraitWidth: w), 0, "\(w)")
+            for v in [-10, -5, -3, -1, 0, 1, 2, 4, 10] {
+                XCTAssertEqual(RA.defaultFixed(v, pad: false, portraitWidth: w), v, "\(w) \(v)")
+            }
+        }
+        for v in -10...10 {
+            // Máy thường: chuyển đổi cũ cho 0 sẵn ⇒ không có gì để sửa.
+            for w: CGFloat in [375, 390, 402] {
+                XCTAssertEqual(RA.defaultFixed(v, pad: false, portraitWidth: w), v, "\(w) \(v)")
+            }
+            XCTAssertEqual(RA.defaultFixed(v, pad: true, portraitWidth: 834), v, "iPad \(v)")
+            XCTAssertEqual(RA.defaultFixed(v, pad: false, portraitWidth: 700), v, "máy gập mở \(v)")
+            XCTAssertEqual(RA.defaultFixed(v, pad: false, portraitWidth: 0), v, "chưa biết bề ngang \(v)")
+        }
+    }
+
+    /// Máy lớn đã qua chuyển đổi 12/10 với −2: bàn phím (chỉ đọc) vẽ 0 ngay; app ghi 0 + cờ một
+    /// lần; sau đó người dùng tự chọn −2 thì giữ.
+    func testAlreadyMigratedLargeDefaultFixedOnce() throws {
+        let d = try suite()
+        d.set(true, forKey: RA.migratedKey); d.set(-2, forKey: RA.key)
+        XCTAssertEqual(RA.effectiveAdjust(d, pad: false, portraitWidth: 440), 0)
+        XCTAssertEqual(d.object(forKey: RA.key) as? Int, -2, "bàn phím không ghi")
+        XCTAssertEqual(RA.migrateIfNeeded(d, pad: false, portraitWidth: 440), 0)
+        XCTAssertEqual(d.object(forKey: RA.key) as? Int, 0)
+        XCTAssertTrue(d.bool(forKey: RA.defaultFixKey))
+        XCTAssertEqual(RA.effectiveAdjust(d, pad: false, portraitWidth: 440), 0)
+        // Tự chọn −2 sau khi sửa ⇒ giữ (cả app lẫn bàn phím).
+        d.set(-2, forKey: RA.key)
+        XCTAssertEqual(RA.migrateIfNeeded(d, pad: false, portraitWidth: 440), -2)
+        XCTAssertEqual(RA.effectiveAdjust(d, pad: false, portraitWidth: 440), -2)
+    }
+
+    /// Đã qua chuyển đổi với giá trị khác (tự chọn) / máy thường / iPad: không đổi, chỉ ghi cờ.
+    func testAlreadyMigratedExplicitValuesKept() throws {
+        for (v, w, pad): (Int, CGFloat, Bool) in [(3, 440, false), (-5, 430, false), (-2, 402, false),
+                                                  (-2, 375, false), (-2, 834, true), (4, 402, false)] {
+            let d = try suite()
+            d.set(true, forKey: RA.migratedKey); d.set(v, forKey: RA.key)
+            XCTAssertEqual(RA.effectiveAdjust(d, pad: pad, portraitWidth: w), v, "\(v) \(w)")
+            XCTAssertEqual(RA.migrateIfNeeded(d, pad: pad, portraitWidth: w), v, "\(v) \(w)")
+            XCTAssertEqual(d.object(forKey: RA.key) as? Int, v)
+            XCTAssertTrue(d.bool(forKey: RA.defaultFixKey))
+        }
+        // Đã chuyển đổi, chưa từng chỉnh (không khoá): vẫn 0, không ghi giá trị.
+        let none = try suite()
+        none.set(true, forKey: RA.migratedKey)
+        XCTAssertEqual(RA.migrateIfNeeded(none, pad: false, portraitWidth: 440), 0)
+        XCTAssertNil(none.object(forKey: RA.key))
+    }
+
+    /// Hình học người dùng cũ chưa từng chỉnh, máy lớn (Air / Plus / Pro Max), trước / sau sửa:
+    /// trước bước 54 phím 43 (stock 56 / 45), vùng phím thấp hơn stock 8pt; sau = đúng stock.
+    func testUntouchedLargePhoneMatchesStockAfterFix() throws {
+        let d = try suite()
+        d.set(true, forKey: "numberRow")    // người dùng cũ, chưa từng chỉnh chiều cao hàng
+        let a = CGFloat(RA.migrateIfNeeded(d, pad: false, portraitWidth: 440))
+        let s = KeyGeometry.rowSpec(pad: false, landscape: false, unfolded: false, width: 440, base: 216, adjust: a)
+        let m = SS.largePortrait
+        XCTAssertEqual(s.unit, m.pitch); XCTAssertEqual(s.letterKeyHeight, m.keyHeight)
+        XCTAssertEqual(s.bottomKeyHeight, m.keyHeight)
+        XCTAssertEqual(s.keyArea(numberRow: false), 4 * 56 + 7)
+        let before = KeyGeometry.rowSpec(pad: false, landscape: false, unfolded: false, width: 440, base: 216, adjust: -2)
+        XCTAssertEqual(before.letterKeyHeight, 43)
+        XCTAssertEqual(s.keyArea(numberRow: false) - before.keyArea(numberRow: false), 8)
+    }
+
     func testMigrateIfNeededFreshInstall() throws {
         let d = try suite()
         XCTAssertEqual(RA.effectiveAdjust(d, pad: false, portraitWidth: 440), 0)
@@ -235,15 +320,21 @@ final class StockSizeTests: XCTestCase {
         std.set(false, forKey: RA.legacyStockKey); std.set(-3, forKey: RA.key)
         XCTAssertEqual(RA.migrateIfNeeded(std, pad: false, portraitWidth: 402), -3)
         // Người dùng từ bản trước #119 chưa mở app (không có khoá công tắc) + có cài đặt.
+        // Chưa từng chỉnh chiều cao hàng ⇒ mặc định mới = bàn phím iPhone (0), kể cả máy lớn
+        // (03/11/2026 — trước đó −2: nhỏ hơn stock).
         let pre = try suite()
         pre.set(true, forKey: "numberRow")
-        XCTAssertEqual(RA.migrateIfNeeded(pre, pad: false, portraitWidth: 440), -2,
-                       "bố cục mặc định cũ (bước 54) trên máy lớn")
-        XCTAssertEqual(pre.object(forKey: RA.key) as? Int, -2)
+        XCTAssertEqual(RA.migrateIfNeeded(pre, pad: false, portraitWidth: 440), 0,
+                       "chưa từng chỉnh ⇒ như bàn phím iPhone")
+        XCTAssertNil(pre.object(forKey: RA.key))
+        // Đã chỉnh (có khoá) ⇒ giữ bước hàng cũ như trước.
+        let preSet = try suite()
+        preSet.set(3, forKey: RA.key)
+        XCTAssertEqual(RA.migrateIfNeeded(preSet, pad: false, portraitWidth: 440), 1)
         // Khoá chỉ có trong bản sao lưu (app truyền thêm) cũng tính là người dùng cũ.
         let extra = try suite()
-        extra.set(true, forKey: "autoCorrect")
-        XCTAssertEqual(RA.migrateIfNeeded(extra, pad: false, portraitWidth: 440, extraStateKeys: ["autoCorrect"]), -2)
+        extra.set(true, forKey: "autoCorrect"); extra.set(2, forKey: RA.key)
+        XCTAssertEqual(RA.migrateIfNeeded(extra, pad: false, portraitWidth: 440, extraStateKeys: ["autoCorrect"]), 0)
         // iPad: không đổi.
         let pad = try suite()
         pad.set(false, forKey: RA.legacyStockKey); pad.set(5, forKey: RA.key)
