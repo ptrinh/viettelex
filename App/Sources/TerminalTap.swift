@@ -829,6 +829,13 @@ enum FocusedFieldDetector {
     /// vùng chọn thay vì ký tự → lệch mô hình. Cần U+202F dance (.emptyReset) như
     /// omnibox Chromium/Excel. Cache-only như `cachedMarked`.
     private static var cachedEmptyReset = false
+    /// Ô đang focus nằm DƯỚI một AXWebArea (bất kỳ app nào, không chỉ browser). Dùng
+    /// cho app Office native có panel web view (Copilot M365, task pane add-in — issue
+    /// #141): bundle id vẫn là Excel/Word/PowerPoint nên rule per-app của lưới/thân văn
+    /// bản rơi nhầm vào panel. Mặc định false (= ô native) sau invalidate — một phím
+    /// đi theo rule app là lỗi nhẹ; ép marked vào lưới Excel (gạch chân đậm) thì không.
+    /// Cache-only, refresh đi kèm `wantsSelection` (xem `inWebArea`).
+    private static var cachedWebArea = false
 
     /// First web-area host seen by the last scan — DIAGNOSTIC ONLY, never read by any
     /// routing decision. Lets a debug log line name the actual site when something
@@ -863,6 +870,7 @@ enum FocusedFieldDetector {
             // is milder than passthrough-ing the first key of every Chrome tab.
             cachedPassthrough = false
             cachedEmptyReset = false
+            cachedWebArea = false
             cachedHost = nil
             lastCheckNs = 0
             stableRuns = 0
@@ -922,6 +930,13 @@ enum FocusedFieldDetector {
             lastCheckNs = DispatchTime.now().uptimeNanoseconds
         }
     }
+    /// Same seam for the "focused field sits in a web area" verdict (issue #141).
+    static func _testSetWebArea(_ value: Bool) {
+        lock.withLock {
+            cachedWebArea = value
+            lastCheckNs = DispatchTime.now().uptimeNanoseconds
+        }
+    }
     /// Same seam for the diagnostic-only host string.
     static func _testSetHost(_ value: String?) {
         lock.withLock {
@@ -944,6 +959,14 @@ enum FocusedFieldDetector {
     /// U+202F dance. Cache-only: refresh đi kèm `wantsSelection`.
     static var wantsEmptyResetField: Bool { lock.withLock { cachedEmptyReset } }
 
+    /// True → ô đang focus nằm trong một AXWebArea (web view). KHÁC các verdict
+    /// cache-only ở trên: app Office không phải browser nên không có phím nào khác đọc
+    /// `wantsSelection` để kéo refresh — đọc này tự kick (cùng TTL/backoff/dedup).
+    static var inWebArea: Bool {
+        _ = wantsSelection
+        return lock.withLock { cachedWebArea }
+    }
+
 
     /// Diagnostic-only: the host last seen for the focused field, or nil (not a web
     /// area, or the AX read failed). Never consulted by routing — see `cachedHost`.
@@ -961,7 +984,7 @@ enum FocusedFieldDetector {
         if stale {
             scanQueue.async {
                 pokeChromiumAX()
-                let (wants, marked, passthrough, emptyReset, host) = scan()
+                let (wants, marked, passthrough, emptyReset, webArea, host) = scan()
                 // Diagnostic (debug logging only, and off the keystroke path): WHY this
                 // verdict. A browser whose AX tree we cannot read falls back to
                 // selection-replace for EVERY field — including page content, where each
@@ -972,16 +995,18 @@ enum FocusedFieldDetector {
                 // the site for a future report on an unrecognized editor (2026-08-06).
                 if AppState.shared.debugLogging {
                     let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?"
-                    DebugLog.log("field-scan \(front): wantsSelection=\(wants) marked=\(marked) passthrough=\(passthrough) emptyReset=\(emptyReset) host=\(host ?? "?") roles=[\(roleChain())]")
+                    DebugLog.log("field-scan \(front): wantsSelection=\(wants) marked=\(marked) passthrough=\(passthrough) emptyReset=\(emptyReset) webArea=\(webArea) host=\(host ?? "?") roles=[\(roleChain())]")
                 }
                 lock.withLock {
                     stableRuns = (wants == cached && marked == cachedMarked
                                   && passthrough == cachedPassthrough
-                                  && emptyReset == cachedEmptyReset) ? stableRuns + 1 : 0
+                                  && emptyReset == cachedEmptyReset
+                                  && webArea == cachedWebArea) ? stableRuns + 1 : 0
                     cached = wants
                     cachedMarked = marked
                     cachedPassthrough = passthrough
                     cachedEmptyReset = emptyReset
+                    cachedWebArea = webArea
                     cachedHost = host
                     lastCheckNs = DispatchTime.now().uptimeNanoseconds
                     refreshing = false
@@ -1135,9 +1160,10 @@ enum FocusedFieldDetector {
     }
 
     private static func scan() -> (selection: Bool, marked: Bool, passthrough: Bool,
-                                   emptyReset: Bool, host: String?) {
+                                   emptyReset: Bool, webArea: Bool, host: String?) {
         guard let focused = focusedElementForScan() else {
-            return (selection: true, marked: false, passthrough: false, emptyReset: false, host: nil)
+            return (selection: true, marked: false, passthrough: false, emptyReset: false,
+                    webArea: false, host: nil)
         }
         // NO role short-circuit on the focused element: an AXComboBox/AXSearchField
         // rule used to run BEFORE the ancestor walk ("a search box inside a web area
@@ -1192,7 +1218,7 @@ enum FocusedFieldDetector {
                     // inside page content — above one, it's just browser chrome).
                     if !sawWebArea {
                         return (selection: true, marked: false, passthrough: false,
-                                emptyReset: false, host: nil)
+                                emptyReset: false, webArea: false, host: nil)
                     }
                 } else {
                     sawWebArea = true
@@ -1217,13 +1243,13 @@ enum FocusedFieldDetector {
         }
         if sawWebArea {
             return (selection: false, marked: marked, passthrough: passthrough,
-                    emptyReset: emptyReset, host: host)
+                    emptyReset: emptyReset, webArea: true, host: host)
         }
         // No decisive ancestor. A walk that DIED ON THE HOP BUDGET is page content, not
         // chrome (see exhaustedMeansPageContent); one that reached the top without a
         // web area is genuinely unknown → selection, the historical safe default.
         return (selection: !Self.exhaustedMeansPageContent(hops: hops),
-                marked: false, passthrough: false, emptyReset: false, host: nil)
+                marked: false, passthrough: false, emptyReset: false, webArea: false, host: nil)
     }
 
     /// Pure: does this web-area URL host an editor that must be typed with marked

@@ -224,9 +224,13 @@ final class TelexInputController: IMKInputController {
     /// consistent caret, so the verify probe never fires there while the canvas
     /// renders appended garbage; field report 2026-07-30 "Quoocs" → "Quoôcốc").
     /// Gated on usesAxDetect so a browser field verdict can never leak into other apps.
+    /// Panel web view trong Excel/Word/PowerPoint (M365 Copilot — issue #141) cũng ép
+    /// marked: rule per-app của lưới/thân văn bản không áp vào editor web (xem
+    /// AppState.officeWebPanelHosts).
     private func usesMarkedNow(_ id: String?) -> Bool {
         fieldForcedMarked || AppState.shared.usesMarkedText(id)
             || (AppState.shared.usesAxDetect(id) && FocusedFieldDetector.wantsMarkedField)
+            || AppState.shared.isOfficeWebPanel(id)
     }
 
     #if DEBUG
@@ -916,7 +920,8 @@ final class TelexInputController: IMKInputController {
                 let key = CGKeyCode(cg.getIntegerValueField(.keyboardEventKeycode))
                 let flags = cg.flags
                 if let ms = Self.boundaryRepostDelayMs(markedWebField: markedNow
-                                                        && FocusedFieldDetector.wantsMarkedField) {
+                                                        && (FocusedFieldDetector.wantsMarkedField
+                                                            || AppState.shared.isOfficeWebPanel(id))) {
                     logDecision("boundary re-post hoãn \(ms)ms (marked web editor)")
                     repostOrder.expect(.boundary(event.keyCode), nowNs: DispatchTime.now().uptimeNanoseconds)
                     repostHeld = repostHeld ?? []
@@ -2823,7 +2828,10 @@ final class TelexInputController: IMKInputController {
                 // first keystroke — issue #32 round 3 (see prefetch's doc): the
                 // first word after refocus otherwise runs on the stale "page
                 // content" default and a tone key bare-⌫'s the omnibox.
-                if AppState.shared.usesAxDetect(AppState.shared.currentBundleID) {
+                // Office (issue #141): cùng lý do — Copilot panel vs lưới Excel phải
+                // có verdict trước phím đầu tiên của ô mới.
+                if AppState.shared.usesAxDetect(AppState.shared.currentBundleID)
+                    || AppState.officeWebPanelHosts.contains(AppState.shared.currentBundleID ?? "") {
                     FocusedFieldDetector.prefetch()
                 }
             }
@@ -3588,6 +3596,7 @@ final class TelexInputController: IMKInputController {
             "Field verdict: selection=\(FocusedFieldDetector.wantsSelection ? "yes" : "no")"
                 + " marked=\(FocusedFieldDetector.wantsMarkedField ? "yes" : "no")"
                 + " passthrough=\(FocusedFieldDetector.wantsPassthroughField ? "yes" : "no")"
+                + " officeWebPanel=\(AppState.shared.isOfficeWebPanel(id) ? "yes" : "no")"
                 + " forcedMarked=\(fieldForcedMarked ? "yes" : "no")",
             "Web host: \(FocusedFieldDetector.debugLastHost ?? "—")",
             "AX role chain: [\(FocusedFieldDetector.debugRoleChain())]",

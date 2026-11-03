@@ -201,6 +201,9 @@ ai.perplexity.comet: inPlace
 # dồn cục"). Selection chỉ đúng cho EDITOR, sai cho terminal cùng app — mode
 # per-app không tách được 2 vùng này, nên selection chỉ nên là pin thủ công.
 # Grid app: cell autocomplete đua backspace, Shift+← chọn ô kề
+# Rule này chỉ cho lưới/thanh công thức: panel WEB VIEW cùng bundle id (M365
+# Copilot, task pane add-in) của Excel/Word/PowerPoint được dò theo ô (AXWebArea)
+# và gõ marked — issue #141, xem AppState.officeWebPanelHosts.
 com.microsoft.Excel: emptyReset
 # Remote desktop / VM / screen sharing — scancode thô sang máy khách.
 # Chrome Remote Desktop trong Chrome/Safari/Edge: passthrough theo URL

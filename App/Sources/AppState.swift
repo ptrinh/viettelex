@@ -792,7 +792,8 @@ final class AppState: @unchecked Sendable {
                             wantsMarkedField: () -> Bool,
                             wantsPassthroughField: () -> Bool = { false },
                             wantsEmptyResetField: () -> Bool = { false },
-                            pageContentInPlace: Bool = false) -> TapRouting {
+                            pageContentInPlace: Bool = false,
+                            officeWebPanel: () -> Bool = { false }) -> TapRouting {
         guard wants.any else { return TapRouting() }
         guard trusted() else {
             // Chromium page content is the tap's job. With Accessibility off the
@@ -830,6 +831,11 @@ final class AppState: @unchecked Sendable {
         // content routes back to in-place (`pageContentInPlace`); the marked-class
         // fallthrough (Google Docs in Safari) stays. CRD in Safari is still
         // passthrough — in-place into a scancode tunnel is the same fight.
+        // Panel WEB VIEW trong app Office native (Copilot M365, task pane add-in —
+        // issue #141): rule per-app (Excel: emptyReset cho lưới/thanh công thức) KHÔNG
+        // áp vào đây — editor web hoàn tác chuỗi ⌫+U+202F+gõ-lại tổng hợp, chữ có dấu
+        // hiện vài ms rồi biến mất. Nhường IMKit; usesMarkedNow ép marked cho ô này.
+        if officeWebPanel() { return TapRouting() }
         let perField = wants.sel == .perField
         let pageContent = perField && !wantsSelection()
         if pageContent && wantsPassthroughField() { return TapRouting() }
@@ -891,7 +897,35 @@ final class AppState: @unchecked Sendable {
                                 wantsEmptyResetField: { FocusedFieldDetector.wantsEmptyResetField },
                                 // The per-field verdict belongs to the focused CLIENT —
                                 // a cheap Set lookup, no laziness needed.
-                                pageContentInPlace: Self.webKitBrowsers.contains(bundleID ?? front ?? ""))
+                                pageContentInPlace: Self.webKitBrowsers.contains(bundleID ?? front ?? ""),
+                                officeWebPanel: { self.isOfficeWebPanel(bundleID ?? front) })
+    }
+
+    /// App Office native mà cửa sổ có thể chứa panel WEB VIEW (M365 Copilot, task pane
+    /// add-in). Issue #141 (03/11/2026, 1.8.32, macOS 27.2): gõ trong Copilot của
+    /// Excel/Word/PowerPoint thì chữ có dấu hiện vài ms rồi biến mất ("Gox tieengs
+    /// Vieetj trong Exxcel Copilot" → "Go tieng Viet trong E cel Copilot") — panel
+    /// cùng bundle id nên ăn rule của lưới (Excel emptyReset) / thân văn bản. Trong
+    /// panel: marked (hợp đồng composition mà editor web nào cũng hiểu — cùng lớp
+    /// Docs/TikTok trong Safari). Lưới/thanh công thức/thân văn bản giữ rule cũ.
+    /// Outlook KHÔNG có ở đây: compose của nó vốn là WKWebView và in-place đã được
+    /// field-verify (14/08/2026) — đưa vào sẽ gạch chân cả thân email.
+    static let officeWebPanelHosts: Set<String> = [
+        "com.microsoft.Excel", "com.microsoft.Word", "com.microsoft.Powerpoint",
+    ]
+
+    /// Pure: ô đang focus là panel web view của app Office? `inWebArea` lazy — app
+    /// khác không bao giờ trả giá đọc detector. Ép tay (Bảng cơ chế gõ) thắng: user
+    /// đã chọn mode cho app thì không đoán thay.
+    static func officeWebPanel(_ id: String?, manualPin: AppMode?, inWebArea: () -> Bool) -> Bool {
+        guard let id, officeWebPanelHosts.contains(id), manualPin == nil else { return false }
+        return inWebArea()
+    }
+
+    func isOfficeWebPanel(_ bundleID: String?) -> Bool {
+        guard let id = bundleID, Self.officeWebPanelHosts.contains(id) else { return false }
+        return Self.officeWebPanel(id, manualPin: manualMode(id),
+                                   inWebArea: { FocusedFieldDetector.inWebArea })
     }
 
     // MARK: - Built-in typing-mode rules (typing-modes.yml)
