@@ -192,6 +192,8 @@ final class KeyboardViewController: UIInputViewController {
     var debugProxy: UITextDocumentProxy?
     override var textDocumentProxy: UITextDocumentProxy { debugProxy ?? super.textDocumentProxy }
     var debugKeyboard: KeyboardView { keyboard }
+    /// Test: trạng thái lấp dải container hệ thống (HostFill).
+    var debugHostFill: HostFill { hostFill }
     /// Test: số lần dựng KeyboardView (viewDidLoad + mỗi lần hiện lại sau khi xé).
     static var debugKeyboardInstalls = 0
     /// Test: gửi thẳng một phím vào handle() (dấu câu, ⌫…) như KeyboardView gửi.

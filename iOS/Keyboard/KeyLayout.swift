@@ -437,8 +437,15 @@ enum SplitLayout {
 // container (superview/window) hệ thống cấp cho bàn phím cao hơn input view, view mình neo
 // đáy. Sửa: xin cao thêm ĐÚNG phần hệ thống đã cấp (phím hấp thụ như khi host cấp dư) —
 // không bao giờ xin hơn mức đã cấp, chờ một lượt layout xác nhận (bỏ khung tạm lúc xoay /
-// animation hiện), và nếu container lại cao vượt mức đã xin (dấu hiệu vòng lặp "xin thêm →
-// cấp thêm → …") thì trả về 0 và khoá tới lần hiện sau.
+// animation hiện), và nếu container lại cao vượt mức đã xin TRƯỚC KHI phần xin thêm kịp có
+// hiệu lực (dấu hiệu vòng lặp "xin thêm → cấp thêm → …") thì trả về 0 và khoá tới lần hiện sau.
+//
+// Tắt/mở màn hình khi bàn phím đang hiện (Facebook / Messenger / Telegram, 11/2026, ảnh nền):
+// hệ thống dựng lại container một lần theo mức xin HIỆN TẠI (đã gồm phần xin thêm) + dải kính
+// ⇒ trước đây bị coi là vòng lặp ngay lập tức: khoá, trả về 0 ⇒ dải xám lộ phía trên ảnh nền
+// tới lần hiện sau. Giờ: phần xin thêm đã CÓ HIỆU LỰC (view = container ít nhất một lượt) mà
+// container lại cao hơn ⇒ hệ thống cấp lại (không phải vòng lặp) ⇒ đo lại và lấp tiếp (vẫn
+// xác nhận một lượt, vẫn ≤ maxExtra). Khung tạm lúc animation không bao giờ dẫn tới khoá.
 
 /// Quyết định thuần (unit-test được) cho việc lấp dải container hệ thống phía trên view.
 struct HostFill {
@@ -458,6 +465,8 @@ struct HostFill {
     private(set) var locked = false
     private var pending: CGFloat?
     private var width: CGFloat = 0
+    /// Phần xin thêm hiện tại đã có hiệu lực (thấy view = container ít nhất một lượt).
+    private(set) var settled = false
 
     /// Lần hiện mới: về trạng thái gốc (không xin thêm).
     mutating func reset() { self = HostFill() }
@@ -479,28 +488,36 @@ struct HostFill {
         if width != self.width {
             // Xoay / Split View: hình học mới hoàn toàn — bỏ phần xin thêm cũ.
             let had = extra
-            self.width = width; pending = nil; extra = 0
+            self.width = width; pending = nil; extra = 0; settled = false
             if had != 0 { return .apply(0) }
         }
         guard !locked, let allocated, base > 0, viewHeight > 0 else { pending = nil; return .none }
         let band = allocated - viewHeight
-        guard band >= Self.tolerance else { pending = nil; return .none }   // không hở: giữ nguyên
-        if extra > 0 {
+        guard band >= Self.tolerance else {                                 // không hở: giữ nguyên
             pending = nil
-            // Container cao HƠN cả mức đã xin ⇒ nó chạy theo mức xin (vòng lặp) — trả về
-            // như cũ, khoá. Còn trong mức đã xin = hệ thống chưa kịp cấp lại view: chờ.
-            guard allocated - (base + extra) >= Self.tolerance else { return .none }
+            if extra > 0 { settled = true }
+            return .none
+        }
+        // Còn trong mức đã xin = hệ thống chưa kịp cấp lại view: chờ.
+        if extra > 0, allocated - (base + extra) < Self.tolerance { pending = nil; return .none }
+        if animating { pending = nil; return .wait }
+        let target = (allocated - base).rounded()
+        // Container cao HƠN cả mức đã xin trong khi phần xin thêm chưa từng có hiệu lực ⇒ nó
+        // chạy theo mức xin (vòng lặp) — xác nhận một lượt rồi trả về như cũ, khoá.
+        let loop = extra > 0 && !settled
+        if !loop, !(target > 0 && target <= Self.maxExtra) { pending = nil; return .none }
+        guard let p = pending, abs(p - allocated) < Self.tolerance else {
+            pending = allocated
+            return .wait
+        }
+        pending = nil
+        if loop {
             locked = true; extra = 0
             return .apply(0)
         }
-        if animating { pending = nil; return .wait }
-        let target = (allocated - base).rounded()
-        guard target > 0, target <= Self.maxExtra else { pending = nil; return .none }
-        if let p = pending, abs(p - allocated) < Self.tolerance {
-            pending = nil; extra = target
-            return .apply(target)
-        }
-        pending = allocated
-        return .wait
+        // Lần đầu, hoặc hệ thống cấp lại container sau khi phần xin thêm đã có hiệu lực
+        // (tắt/mở màn hình): xin đúng phần đã cấp.
+        extra = target; settled = false
+        return .apply(target)
     }
 }
