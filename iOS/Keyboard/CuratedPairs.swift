@@ -28,9 +28,10 @@ enum CuratedPairs {
     ]
     /// "a b": chỉ cho vuốt / gợi ý đang gõ (`next`), không cho Thêm dấu.
     static let nextOnly: Set<String> = [
-        "chú rể", "cô dâu", "dâu chú", "mò cu",
-        "ngu vl", "sờ cu", "vãi lồn", "xịn sò",
-        "đám cưới",
+        "check var", "chú rể", "cô dâu", "dâu chú",
+        "hay fake", "mò cu", "ngu vl", "out trình",
+        "real hay", "sờ cu", "vãi lồn", "xịn sò",
+        "đu trend", "đám cưới",
     ]
     /// "x a" của mọi bộ ba — lọc nhanh trước khi ghép khoá đủ.
     static let tripleHeads: Set<String> = Set(triples.map { k in

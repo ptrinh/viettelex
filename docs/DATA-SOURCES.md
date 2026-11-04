@@ -668,6 +668,11 @@ gõ sai một chữ.
   stablecoin, paracetamol…) — như từ mượn của repo, nằm NGOÀI 20.000 ⇒ bảng chỉ thêm (20.051 từ). Sinh lại cũng
   kéo theo "ll"/"ve" (đuôi rút gọn đã có trong EnglishContextWords từ trước, bảng cũ chưa sinh lại) và bỏ
   "landlords" (đuôi lấp Wikipedia). Từ nhạy cảm chỉ đọc khối `set` của SensitiveWords.swift.
+- 04/11/2026: thêm vào `SUPPLEMENT` 8 từ lóng / thương mại người Việt hay chen (flex, cringe, slay, rizz,
+  simp, skincare, freeship, livestream) ⇒ 20.059 từ, 183.941 byte (+64). enlexicon.bin được VÁ chỉ 8 từ
+  này (tần suất đúng như script tính: 40–75) chứ không sinh lại cả bảng: sinh lại đầy đủ lúc này còn kéo
+  theo ~25 từ khác (EnglishContextWords đổi từ 18/10: thêm ai, json, url, sql…; bớt từ đuôi Wikipedia như
+  acetate, azure) — để dành một lần sinh lại có chủ đích. EnglishFreezePrefixes CHƯA sinh lại.
 
 ### Nguồn
 
@@ -705,6 +710,36 @@ gõ sai một chữ.
   corpus OpenSubtitles tiếng Việt ~26,4 triệu token) để decoder so hai từ điển trên một thang. (Số đó là
   của hermitdave 2018; vnlexicon thật dùng bản 2016 — chênh ~5 byte, GIỮ vì ngưỡng đã chỉnh trên thang
   này, xem mục vnlexicon.)
+
+## EnglishNext — từ kế tiếp tiếng Anh phổ biến (04/11/2026, #146)
+
+- File: `iOS/Keyboard/EnglishNext.swift` + `android/keyboard/src/main/kotlin/com/viettelex/keyboard/EnglishNext.kt`
+  (sinh bởi `Scripts/gen-english-next.py` từ `Scripts/english-next.tsv` — phần đếm, có số đếm để duyệt
+  tay — rồi áp `Scripts/english-next-overrides.tsv`; `--check` so file đã commit). 462 từ đầu, 1.273 cặp
+  (≤ 3 từ theo sau / từ đầu), một hằng chuỗi ~7,6 KB trong binary, tách lười ở lần tra đầu tiên, tra nhị phân.
+- **Chọn tay** (`Scripts/english-next-overrides.tsv`, Phil duyệt 04/11/2026): 65 dòng thay/thêm danh sách
+  từ theo sau + 3 dòng bỏ từ đầu (himself, herself, themselves). Không có số đếm (không bịa tần suất), chỉ
+  thứ tự. Thêm cặp chat/email thiếu hoặc yếu (thank → you, good → morning / night / luck, best → regards…),
+  cụm người Việt hay dùng (red → flag, check → in / out / var, sale → off, team → building, self → care…)
+  và sửa lệch văn sách của Tatoeba (do → that đứng đầu, my → father / mother, his / himself). Mọi từ qua
+  cùng bộ lọc (có trong enlexicon.bin trừ a / i, không nhạy cảm) — script kiểm.
+- Dùng cho: ô "từ kế tiếp" sau một từ tiếng Anh (chế độ Tiếng Anh, hoặc từ Anh không phải âm tiết Việt
+  giữa câu Việt — `SuggestRank.padsWithTopWords` = false): cặp cá nhân trước, rồi bảng này; KHÔNG đệm top
+  unigram (the / of / and). Âm tiết Việt và đầu ô không đổi.
+- Nguồn: câu tiếng Anh của **Tatoeba** (`downloads.tatoeba.org/exports/per_language/eng/eng_sentences.tsv.bz2`,
+  bản xuất 31/10/2026, 2.039.727 câu sau khi bỏ trùng), © các thành viên Tatoeba,
+  [CC BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/) — cùng nguồn/giấy phép với phần Tatoeba
+  của vnlm.bin. Chỉ chứa số liệu thống kê (cặp từ liền nhau phổ biến nhất), không chứa câu nào.
+- Đã biến đổi: tách câu/từ, bỏ token có dấu nháy và mọi dấu câu (chỗ ngắt), chữ thường, chỉ từ có trong
+  enlexicon.bin (+ "a", "I"), bỏ tên riêng (viết hoa giữa câu ≥ viết thường) và từ nhạy cảm, ngưỡng số đếm
+  cặp ≥ 12 và P(sau | đầu) ≥ 2 %, ưu tiên từ nội dung khi gần ngang từ chức năng (the/a/an/and/of/to).
+  Chi tiết: docstring `Scripts/gen-english-next.py`.
+- **Ghi công**: "Bảng từ kế tiếp tiếng Anh suy ra từ câu tiếng Anh của Tatoeba (https://tatoeba.org),
+  © các thành viên Tatoeba, CC BY 2.0 FR; đã biến đổi (đếm cặp từ, lọc)." — dòng ghi công Tatoeba trong
+  mục "Giới thiệu" của app trỏ về trang này.
+- Tái tạo: `curl -sO https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences.tsv.bz2` vào thư
+  mục tạm, `python3 -I Scripts/gen-english-next.py --build <tạm>/eng_sentences.tsv.bz2`, rồi
+  `python3 Scripts/gen-english-next.py`. Tatoeba chỉ giữ bản xuất mới nhất ⇒ số đếm có thể lệch nhẹ.
 
 ## FUTO Swipe
 

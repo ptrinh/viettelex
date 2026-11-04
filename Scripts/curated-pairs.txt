@@ -114,3 +114,12 @@ bóc phốt
 #    chat) kéo lệch.
 ví dụ
 cố gắng
+
+# 8. Trộn Việt–Anh hay gặp (Phil 04/11/2026) — chỉ vuốt / xếp gợi ý đang gõ dở (~): "out trình",
+#    "real hay fake" thưởng âm tiết Việt khi đang gõ dở sau từ Anh; "đu trend", "check var" chỉ có tác
+#    dụng ở vuốt (từ Anh không nằm trong pool gợi ý đang gõ tiếng Việt). KHÔNG đẩy lên thanh từ kế tiếp
+#    sau dấu cách (xem đầu file) — "check → var" ở đó do bảng EnglishNext (english-next-overrides.tsv).
+~ out trình
+~ real hay fake
+~ đu trend
+~ check var

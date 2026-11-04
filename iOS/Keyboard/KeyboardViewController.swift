@@ -1699,12 +1699,18 @@ final class KeyboardViewController: UIInputViewController {
     /// Đệm danh sách gợi ý cho ĐỦ `need` phần tử bằng từ hay dùng nhất (loại
     /// trùng + từ đang gõ) — bar luôn đủ 3, không bao giờ trống/khuyết
     /// (user 2026-07-25). Model đã seed nên topWords luôn đủ.
-    /// `afterWord` = ô "từ kế tiếp" sau `lastWord`: từ trước tiếng Anh ⇒ không đệm topWords
-    /// (#146, `SuggestRank.padsWithTopWords`).
+    /// `afterWord` = ô "từ kế tiếp" sau `lastWord`: từ trước tiếng Anh ⇒ không đệm topWords mà lấp
+    /// bằng bảng từ kế tiếp tiếng Anh `EnglishNext` (#146, `SuggestRank.padsWithTopWords` /
+    /// `englishNextFill`).
     private func padWords(_ base: [String], need: Int, typed: String = "", afterWord: Bool = false) -> [String] {
         guard base.count < need else { return Array(base.prefix(need)) }
-        if afterWord, !SuggestRank.padsWithTopWords(lastWord, english: bridge.englishMode,
-                                                    isEnglish: { SwipeEnglish.contains($0) }) { return base }
+        if afterWord, let prev = lastWord, !SuggestRank.padsWithTopWords(prev, english: bridge.englishMode,
+                                                                         isEnglish: { SwipeEnglish.contains($0) }) {
+            let p2 = lastWord2, fs = filterSensitive
+            return SuggestRank.englishNextFill(base, table: EnglishNext.next(after: prev), need: need, typed: typed,
+                                               filter: { SensitiveWords.filter($0, after: prev, prev2: p2, enabled: fs) },
+                                               display: { caseForContext(properCase($0), typed: typed) })
+        }
         let top = bridge.englishMode ? SwipeEnglish.top : langModel.topWords(limit: need + 12)
         let candidates = SensitiveWords.filter(top, after: lastWord, prev2: lastWord2, enabled: filterSensitive)
             .map { caseForContext(properCase($0), typed: typed) }

@@ -71,7 +71,11 @@ mainnet testnet vc
 cloudflare golang vpn agentic debug kotlin npm repo
 keto detox paracetamol panadol aspirin whey
 viettelex telex phil
+flex cringe slay rizz simp skincare freeship livestream
 """.split())
+# ↑ dòng cuối: tiếng lóng / từ thương mại người Việt hay chen (Phil 04/11/2026). enlexicon.bin lúc thêm được
+# VÁ CHỈ 8 từ này (cùng tần suất script tính) thay vì sinh lại cả bảng — sinh lại đầy đủ lúc đó còn kéo theo
+# ~25 từ khác do EnglishContextWords đổi từ 18/10 (thêm ai/json/url…, bớt từ đuôi Wikipedia).
 
 ROMAN = set("ii iii iv vi vii viii ix xi xii xiii xiv xv xvi xvii xviii xix xx xxi".split())
 
