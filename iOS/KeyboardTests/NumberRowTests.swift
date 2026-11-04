@@ -272,4 +272,72 @@ final class NumberRowTests: XCTestCase {
         XCTAssertEqual(CGFloat(layout.centers[2 * qi]), q.midX, accuracy: 0.5)
         XCTAssertEqual(CGFloat(layout.centers[2 * qi + 1]), q.midY, accuracy: 0.5)
     }
+
+    // MARK: issue #143 — "Không tự tắt viết hoa sau khi sài hàng phím số": viết hoa đầu câu
+    // bật + hàng số bật, chạm "1" đầu câu / sau ". " ⇒ chữ kế vẫn HOA. Phím số trên plane chữ
+    // phải nhả Shift một-lần như phím chữ (controller không đánh giá lại viết hoa sau .text).
+
+    @MainActor private func tapKey(_ kb: KeyboardView, _ title: String,
+                                   file: StaticString = #filePath, line: UInt = #line) throws {
+        let b = try XCTUnwrap(kb.debugKeyButton(title), "phím \(title)", file: file, line: line)
+        b.sendActions(for: .touchDown)
+        b.sendActions(for: .touchUpInside)
+    }
+
+    @MainActor func testNumberRowDigitConsumesSentenceStartShift() throws {
+        var got: [KeyboardView.Key] = []
+        let (kb, host) = makeKeyboard(numberRow: true, onKey: { got.append($0) })
+        kb.setAutoShift(true)                                 // đầu câu (ô trống / sau ". ")
+        XCTAssertTrue(kb.debugShiftOn)
+        try tapKey(kb, "1")
+        guard case .text("1")? = got.last else { return XCTFail("\(got)") }
+        XCTAssertFalse(kb.debugShiftOn, "số đầu câu nhả viết hoa tự động")
+        kb.debugTapLetter("a", at: 100)
+        guard case .letter("a")? = got.last else { return XCTFail("chữ kế phải thường: \(got)") }
+        withExtendedLifetime(host) {}
+    }
+
+    @MainActor func testNumberRowDigitConsumesManualShiftButKeepsCapsLock() throws {
+        try XCTSkipIf(isPad, "iPad: ⇧ chạm-giữ khác, xem test chung bên dưới")
+        var got: [KeyboardView.Key] = []
+        let (kb, host) = makeKeyboard(numberRow: true, onKey: { got.append($0) })
+        kb.setAutoShift(false)
+        // ⇧ tay (một lần) ⇒ số nhả như sau một chữ.
+        kb.debugShiftDown(at: 100); kb.debugShiftUp()
+        XCTAssertTrue(kb.debugShiftOn); XCTAssertFalse(kb.debugShiftCaps)
+        try tapKey(kb, "5")
+        XCTAssertFalse(kb.debugShiftOn, "⇧ tay cũng nhả sau số")
+        // Caps Lock (chạm đúp ⇧) ⇒ số KHÔNG tắt Caps.
+        kb.debugShiftDown(at: 200); kb.debugShiftUp()
+        kb.debugShiftDown(at: 200.1); kb.debugShiftUp()
+        XCTAssertTrue(kb.debugShiftCaps)
+        try tapKey(kb, "7")
+        XCTAssertTrue(kb.debugShiftCaps, "Caps Lock giữ nguyên sau số")
+        kb.debugTapLetter("a", at: 201)
+        guard case .letter("A")? = got.last else { return XCTFail("\(got)") }
+        withExtendedLifetime(host) {}
+    }
+
+    /// Bàn phím tách đôi (iPhone ngang rộng): hàng số dựng riêng (buildSplitLetters) — cùng luật.
+    @MainActor func testSplitNumberRowDigitConsumesShift() throws {
+        try XCTSkipIf(isPad)
+        var got: [KeyboardView.Key] = []
+        let kb = KeyboardView(needsGlobe: false, inputController: nil, onKey: { got.append($0) })
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 801, height: 500))
+        host.addSubview(kb)
+        kb.frame = CGRect(x: 0, y: 0, width: 801, height: 300)
+        kb.debugScreenSize = CGSize(width: 951, height: 669)
+        kb.configureInputKind(.normal)
+        kb.numberRowEnabled = true
+        kb.layoutIfNeeded()
+        kb.debugSetSplit(true)
+        kb.frame.size.height = kb.debugRequestedHeight
+        kb.setNeedsLayout(); kb.layoutIfNeeded()
+        XCTAssertTrue(kb.debugIsSplit)
+        kb.setAutoShift(true)
+        try tapKey(kb, "8")
+        guard case .text("8")? = got.last else { return XCTFail("\(got)") }
+        XCTAssertFalse(kb.debugShiftOn, "hàng số bàn tách cũng nhả viết hoa đầu câu")
+        withExtendedLifetime(host) {}
+    }
 }
