@@ -46,6 +46,30 @@ class SpaceFlickTests {
         assertEquals(0f, SpaceFlick.progress(20f, 30f, 100, span), 0f)
     }
 
+    /** #147: kéo chậm sau khi đã trượt quá slop (trackpad không thể bật) vẫn đổi ngôn ngữ. */
+    @Test fun slowDragAfterSlopToggles() {
+        // 1,2 s, 50 dp ⇒ trước đây null (quá giờ + chậm)
+        assertNull(SpaceFlick.classify(50f, 4f, 1200, 37f))
+        assertEquals(SpaceFlick.Direction.RIGHT, SpaceFlick.classify(50f, 4f, 1200, 37f, trackpadPossible = false))
+        assertEquals(SpaceFlick.Direction.LEFT, SpaceFlick.classify(-40f, 10f, 800, 37f, trackpadPossible = false))
+        assertEquals(SpaceFlick.Direction.RIGHT, SpaceFlick.classify(25f, 0f, 290, 10f, trackpadPossible = false))
+        // vẫn cần đủ quãng + chủ yếu ngang
+        assertNull(SpaceFlick.classify(30f, 0f, 1200, 37f, trackpadPossible = false))
+        assertNull(SpaceFlick.classify(60f, 31f, 1200, 37f, trackpadPossible = false))
+        assertNull(SpaceFlick.classify(0f, 0f, 1200, 37f, trackpadPossible = false))
+        // nhanh: không đổi hành vi
+        assertEquals(SpaceFlick.Direction.RIGHT, SpaceFlick.classify(50f, 4f, 150, 37f, trackpadPossible = false))
+    }
+
+    @Test fun slowDragPreviewKeepsTracking() {
+        val span = SpaceFlick.previewSpan(37f)
+        assertEquals(0f, SpaceFlick.progress(37f, 0f, 1000, span), 0f)
+        assertEquals(0.5f, SpaceFlick.progress(37f, 0f, 1000, span, trackpadPossible = false), 0f)
+        assertEquals(-1f, SpaceFlick.progress(-200f, 0f, 2000, span, trackpadPossible = false), 0f)
+        assertEquals(0f, SpaceFlick.progress(5f, 0f, 1000, span, trackpadPossible = false), 0f)
+        assertEquals(0f, SpaceFlick.progress(20f, 30f, 1000, span, trackpadPossible = false), 0f)
+    }
+
     // MARK: trạng thái ngôn ngữ
 
     @Test fun languageStateForcedVietnameseWhenOff() {

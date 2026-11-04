@@ -38,6 +38,29 @@ final class SpaceFlickTests: XCTestCase {
         XCTAssertEqual(SpaceFlick.progress(dx: 20, dy: 30, elapsed: 0.1, span: span), 0)    // kéo dọc
     }
 
+    /// #147: kéo chậm sau khi đã trượt quá ngưỡng (trackpad không thể bật) vẫn đổi ngôn ngữ.
+    func testSlowDragAfterSlopToggles() {
+        XCTAssertNil(SpaceFlick.classify(dx: 50, dy: 4, duration: 1.2, keyWidth: 37))   // trước đây: quá giờ
+        XCTAssertEqual(SpaceFlick.classify(dx: 50, dy: 4, duration: 1.2, keyWidth: 37, trackpadPossible: false), .right)
+        XCTAssertEqual(SpaceFlick.classify(dx: -40, dy: 10, duration: 0.8, keyWidth: 37, trackpadPossible: false), .left)
+        XCTAssertEqual(SpaceFlick.classify(dx: 25, dy: 0, duration: 0.29, keyWidth: 10, trackpadPossible: false), .right)
+        // vẫn cần đủ quãng + chủ yếu ngang
+        XCTAssertNil(SpaceFlick.classify(dx: 30, dy: 0, duration: 1.2, keyWidth: 37, trackpadPossible: false))
+        XCTAssertNil(SpaceFlick.classify(dx: 60, dy: 31, duration: 1.2, keyWidth: 37, trackpadPossible: false))
+        XCTAssertNil(SpaceFlick.classify(dx: 0, dy: 0, duration: 1.2, keyWidth: 37, trackpadPossible: false))
+        // nhanh: không đổi hành vi
+        XCTAssertEqual(SpaceFlick.classify(dx: 50, dy: 4, duration: 0.15, keyWidth: 37, trackpadPossible: false), .right)
+    }
+
+    func testSlowDragPreviewKeepsTracking() {
+        let span = SpaceFlick.previewSpan(keyWidth: 37)
+        XCTAssertEqual(SpaceFlick.progress(dx: 37, dy: 0, elapsed: 1, span: span), 0)
+        XCTAssertEqual(SpaceFlick.progress(dx: 37, dy: 0, elapsed: 1, span: span, trackpadPossible: false), 0.5)
+        XCTAssertEqual(SpaceFlick.progress(dx: -200, dy: 0, elapsed: 2, span: span, trackpadPossible: false), -1)
+        XCTAssertEqual(SpaceFlick.progress(dx: 5, dy: 0, elapsed: 1, span: span, trackpadPossible: false), 0)
+        XCTAssertEqual(SpaceFlick.progress(dx: 20, dy: 30, elapsed: 1, span: span, trackpadPossible: false), 0)
+    }
+
     // MARK: trạng thái ngôn ngữ
 
     func testLanguageStateForcedVietnameseWhenOff() {

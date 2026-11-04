@@ -11,6 +11,9 @@ import kotlin.math.min
  *
  * Không đụng trackpad: flick phải NHẤC TAY trước ngưỡng giữ trackpad (SPACE_HOLD_MS của
  * KeyboardView = 300 ms). Giữ rồi mới kéo vẫn là trackpad; chạm thường vẫn ra dấu cách.
+ *
+ * Kéo chậm (#147): ngón đã trượt quá slop TRƯỚC khi giữ đủ lâu ⇒ trackpad không thể bật nữa
+ * (`trackpadPossible = false`) ⇒ bỏ giới hạn thời gian/tốc độ, chỉ còn quãng + độ dốc.
  */
 enum class KeyboardLanguage(val id: String, val displayName: String) {
     VI("vi", "Tiếng Việt"), EN("en", "English");
@@ -62,19 +65,31 @@ object SpaceFlick {
         val previewSlop: Float = 8f,
     )
 
-    /** Nhấc tay: có phải flick đổi ngôn ngữ không (null = chạm/kéo thường). */
-    fun classify(dx: Float, dy: Float, durationMs: Long, keyWidth: Float, p: Params = Params()): Direction? {
+    /**
+     * Nhấc tay: có phải flick đổi ngôn ngữ không (null = chạm/kéo thường).
+     * [trackpadPossible] = false khi ngón đã trượt quá slop trước ngưỡng giữ (trackpad không thể
+     * bật) ⇒ kéo chậm bao lâu cũng được, miễn đủ quãng và chủ yếu ngang (#147).
+     */
+    fun classify(dx: Float, dy: Float, durationMs: Long, keyWidth: Float,
+                 trackpadPossible: Boolean = true, p: Params = Params()): Direction? {
         val ax = abs(dx)
-        if (durationMs < 0 || durationMs >= p.maxDurationMs) return null
         if (ax < max(p.minDistance, keyWidth * p.minDistanceKeys) || abs(dy) > ax * p.maxSlope) return null
-        if (ax / max(durationMs, 1L).toFloat() < p.minSpeed) return null
+        if (trackpadPossible) {
+            if (durationMs < 0 || durationMs >= p.maxDurationMs) return null
+            if (ax / max(durationMs, 1L).toFloat() < p.minSpeed) return null
+        }
         return if (dx < 0) Direction.LEFT else Direction.RIGHT
     }
 
-    /** Đang kéo: tiến độ trượt nhãn -1…1 (±1 ở quãng [span]); 0 = dưới slop / quá giờ / kéo dọc. */
-    fun progress(dx: Float, dy: Float, elapsedMs: Long, span: Float, p: Params = Params()): Float {
+    /**
+     * Đang kéo: tiến độ trượt nhãn -1…1 (±1 ở quãng [span]); 0 = dưới slop / quá giờ / kéo dọc.
+     * [trackpadPossible] = false ⇒ không "quá giờ": nhãn theo ngón suốt lúc kéo chậm (#147).
+     */
+    fun progress(dx: Float, dy: Float, elapsedMs: Long, span: Float,
+                 trackpadPossible: Boolean = true, p: Params = Params()): Float {
         val ax = abs(dx)
-        if (span <= 0f || elapsedMs >= p.maxDurationMs || ax < p.previewSlop || abs(dy) > ax * p.maxSlope * 2) return 0f
+        if (span <= 0f || (trackpadPossible && elapsedMs >= p.maxDurationMs) ||
+            ax < p.previewSlop || abs(dy) > ax * p.maxSlope * 2) return 0f
         return max(-1f, min(1f, dx / span))
     }
 

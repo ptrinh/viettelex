@@ -1157,6 +1157,9 @@ class KeyboardView(
     var spaceLanguage = KeyboardLanguage.VI
         set(v) { if (field != v) { field = v; invalidateSpace() } }
     private var flickDownT = 0L
+    /** Ngón đã trượt quá slop trước khi giữ đủ SPACE_HOLD_MS ⇒ trackpad không thể bật trong lần
+     *  chạm này ⇒ kéo chậm vẫn đổi ngôn ngữ (#147). */
+    private var spaceHoldGone = false
     private var carouselOn = false
     private var carouselFrom = KeyboardLanguage.VI
     private var carQ = 0f
@@ -1179,7 +1182,7 @@ class KeyboardView(
 
     private fun moveFlick(dx: Float, dy: Float) {
         val q = SpaceFlick.progress(dx / d, dy / d, SystemClock.uptimeMillis() - flickDownT,
-            SpaceFlick.previewSpan(flickKeyWidthDp()))
+            SpaceFlick.previewSpan(flickKeyWidthDp()), trackpadPossible = !spaceHoldGone)
         if (q == 0f) { if (carouselOn && flickAnim == null) retractCarousel(); return }
         if (!carouselOn || flickAnim != null) { flickAnim?.cancel(); flickAnim = null; carouselOn = true; carouselFrom = spaceLanguage }
         setCarousel(q)
@@ -1192,7 +1195,7 @@ class KeyboardView(
 
     private fun endFlick(k: LaidKey, dx: Float, dy: Float, t: Long, cancelled: Boolean) {
         val dir = if (cancelled || !commits.isArmed(k) || plane == Plane.EMOJI_SEARCH) null
-            else SpaceFlick.classify(dx / d, dy / d, t - flickDownT, flickKeyWidthDp())
+            else SpaceFlick.classify(dx / d, dy / d, t - flickDownT, flickKeyWidthDp(), trackpadPossible = !spaceHoldGone)
         if (dir == null) { if (carouselOn) retractCarousel(); return }
         commits.disarm(k)                 // flick không ra dấu cách
         feedback.tick(this)
@@ -1475,6 +1478,7 @@ class KeyboardView(
                 spacePtr = pid
                 spaceDownKey = k
                 flickDownT = e.eventTime
+                spaceHoldGone = false
                 removeCallbacks(spaceHoldRun)
                 postDelayed(spaceHoldRun, SPACE_HOLD_MS)
             }
@@ -1562,7 +1566,7 @@ class KeyboardView(
                         }
                     }
                 } else {
-                    if (movedFar) removeCallbacks(spaceHoldRun)
+                    if (movedFar) { removeCallbacks(spaceHoldRun); spaceHoldGone = true }
                     if (spaceFlickEnabled && plane != Plane.EMOJI_SEARCH) moveFlick(x - ptrDownX[pid], y - ptrDownY[pid])
                 }
             }
