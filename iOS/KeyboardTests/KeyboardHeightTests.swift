@@ -216,6 +216,65 @@ final class HostFillTests: XCTestCase {
         XCTAssertFalse(f.locked)
     }
 
+    /// Regression (11/2026, Facebook / Messenger / Telegram, ảnh nền): tắt/mở màn hình khi bàn
+    /// phím đang hiện ⇒ hệ thống dựng lại container theo mức xin HIỆN TẠI + dải kính. Phần xin
+    /// thêm đã có hiệu lực ⇒ đó là cấp lại, KHÔNG phải vòng lặp: lấp tiếp, không khoá về 0.
+    func testReallocationAfterSettledFillRefills() {
+        var f = HostFill()
+        _ = f.observe(base: base, viewHeight: base, allocated: base + 18, width: width, animating: false)
+        XCTAssertEqual(f.observe(base: base, viewHeight: base, allocated: base + 18, width: width, animating: false), .apply(18))
+        XCTAssertEqual(f.observe(base: base, viewHeight: base + 18, allocated: base + 18, width: width, animating: false), .none)
+        XCTAssertTrue(f.settled)
+        // Mở màn hình: container = mức xin (base+18) + 18, view vẫn base+18.
+        XCTAssertEqual(f.observe(base: base, viewHeight: base + 18, allocated: base + 36, width: width, animating: false), .wait)
+        XCTAssertEqual(f.observe(base: base, viewHeight: base + 18, allocated: base + 36, width: width, animating: false), .apply(36))
+        XCTAssertFalse(f.locked)
+        XCTAssertEqual(f.observe(base: base, viewHeight: base + 36, allocated: base + 36, width: width, animating: false), .none)
+        XCTAssertEqual(f.extra, 36)
+        // Lần cấp lại kế mà vượt trần ⇒ giữ nguyên (không kéo cao vô hạn, không khoá).
+        for _ in 0..<3 {
+            XCTAssertEqual(f.observe(base: base, viewHeight: base + 36, allocated: base + 54, width: width, animating: false), .none)
+        }
+        XCTAssertEqual(f.extra, 36)
+        XCTAssertLessThanOrEqual(f.extra, HostFill.maxExtra)
+    }
+
+    /// Khung tạm lúc animation (mở màn hình / hiện lại) khi đã có phần xin thêm: chỉ chờ, không khoá.
+    func testTransientTallerContainerWhileAnimatingDoesNotLock() {
+        var f = HostFill()
+        _ = f.observe(base: base, viewHeight: base, allocated: base + 18, width: width, animating: false)
+        XCTAssertEqual(f.observe(base: base, viewHeight: base, allocated: base + 18, width: width, animating: false), .apply(18))
+        for _ in 0..<3 {
+            XCTAssertEqual(f.observe(base: base, viewHeight: base, allocated: base + 40, width: width, animating: true), .wait)
+        }
+        XCTAssertFalse(f.locked)
+        XCTAssertEqual(f.extra, 18)
+        // Khung tạm chưa xác nhận (lượt sau đã khác) cũng không khoá.
+        XCTAssertEqual(f.observe(base: base, viewHeight: base, allocated: base + 40, width: width, animating: false), .wait)
+        XCTAssertEqual(f.observe(base: base, viewHeight: base + 18, allocated: base + 18, width: width, animating: false), .none)
+        XCTAssertFalse(f.locked)
+        XCTAssertEqual(f.extra, 18)
+    }
+
+    /// Sau một lần lấp có hiệu lực, vòng lặp thật (container đuổi theo mức xin, phần thêm mới
+    /// chưa từng có hiệu lực) vẫn bị khoá về 0.
+    func testLoopAfterSettledFillStillLocks() {
+        var f = HostFill()
+        _ = f.observe(base: base, viewHeight: base, allocated: base + 10, width: width, animating: false)
+        XCTAssertEqual(f.observe(base: base, viewHeight: base, allocated: base + 10, width: width, animating: false), .apply(10))
+        _ = f.observe(base: base, viewHeight: base + 10, allocated: base + 10, width: width, animating: false)
+        var requested = base + 10
+        for _ in 0..<20 {
+            switch f.observe(base: base, viewHeight: requested, allocated: requested + 10, width: width, animating: false) {
+            case .apply(let x): requested = base + x
+            case .wait, .none: break
+            }
+        }
+        XCTAssertTrue(f.locked)
+        XCTAssertEqual(f.extra, 0)
+        XCTAssertEqual(requested, base)
+    }
+
     /// Phần xin thêm cộng vào mức xin; strip / headroom balloon giữ nguyên, phím hấp thụ.
     @MainActor func testExtraRaisesRequestKeepsStrip() throws {
         let kb = KeyboardView(needsGlobe: false, inputController: nil) { _ in }
@@ -302,5 +361,131 @@ final class BalloonHeadroomTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(c.rowsTop, KeyLayout.balloonHeadroom)
             XCTAssertGreaterThanOrEqual(c.minTop, KeyLayout.balloonHeadroom)
         }
+    }
+}
+
+/// Regression (11/2026, iPhone, Facebook / Messenger / Telegram, ảnh nền phím): tắt rồi mở màn
+/// hình khi bàn phím đang hiện ⇒ dải xám lộ phía trên ảnh nền (vùng thanh gợi ý). Ảnh nền luôn
+/// = bounds KeyboardView, KeyboardView = view gốc; dải xám là container hệ thống CAO HƠN view
+/// (HostFill). Controller THẬT: lấp dải lần đầu → container dựng lại cao hơn (mở màn hình) →
+/// bàn phím phải phủ trọn container lần nữa, ảnh nền / nền theme = trọn bàn phím.
+@MainActor
+final class HostFillResumeTests: XCTestCase {
+    private let suite = "vt-hostfill-resume-tests"
+
+    final class Host: UIViewController {
+        override var shouldAutomaticallyForwardAppearanceMethods: Bool { false }
+    }
+
+    private struct Rig {
+        let win: UIWindow, container: UIView, vc: KeyboardViewController
+        var kb: KeyboardView { vc.debugKeyboard }
+        /// Một lượt layout hệ thống (viewDidLayoutSubviews → checkHostFill).
+        func pass() { vc.view.setNeedsLayout(); vc.view.layoutIfNeeded() }
+        /// Container (dải kính hệ thống) cao `h`, view neo đáy cao `v`.
+        func host(container h: CGFloat, view v: CGFloat) {
+            let H = win.bounds.height
+            container.frame = CGRect(x: 0, y: H - h, width: win.bounds.width, height: h)
+            vc.view.frame = CGRect(x: 0, y: h - v, width: win.bounds.width, height: v)
+        }
+        /// Hệ thống cấp cho view đúng mức xin; container giữ nguyên (không thấp hơn mức xin).
+        func grantRequest() {
+            let req = kb.debugRequestedHeight
+            host(container: max(container.bounds.height, req), view: req)
+            pass()
+        }
+    }
+
+    private func makeRig() -> Rig {
+        let w: CGFloat = 402, H: CGFloat = 874
+        let win = UIWindow(frame: CGRect(x: 0, y: 0, width: w, height: H))
+        let hostVC = Host()
+        win.rootViewController = hostVC
+        win.isHidden = false
+        hostVC.view.layoutIfNeeded()
+        let container = UIView()
+        hostVC.view.addSubview(container)
+        let vc = KeyboardViewController()
+        vc.debugProxy = KeyboardBenchTests.BenchProxy()
+        vc.debugFullAccess = false
+        vc.loadViewIfNeeded()
+        hostVC.addChild(vc)
+        container.addSubview(vc.view)
+        vc.didMove(toParent: hostVC)
+        vc.debugKeyboard.debugScreenSize = CGSize(width: w, height: H)
+        vc.debugKeyboard.debugSetSafeBottom(0)
+        return Rig(win: win, container: container, vc: vc)
+    }
+
+    private func assertCoversContainer(_ r: Rig, _ what: String, file: StaticString = #filePath, line: UInt = #line) {
+        let kbInContainer = r.kb.convert(r.kb.bounds, to: r.container)
+        XCTAssertEqual(kbInContainer.minY, 0, accuracy: 0.5, "\(what): dải hệ thống lộ phía trên bàn phím", file: file, line: line)
+        XCTAssertEqual(kbInContainer.height, r.container.bounds.height, accuracy: 0.5, what, file: file, line: line)
+        for f in r.kb.debugBackdrop.frames {
+            XCTAssertEqual(f, r.kb.bounds, "\(what): nền / ảnh nền không phủ trọn bàn phím", file: file, line: line)
+        }
+    }
+
+    func testBandAfterScreenOffOnIsFilledAgain() throws {
+        guard UIDevice.current.userInterfaceIdiom == .phone,
+              ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26 else {
+            throw XCTSkip("HostFill chỉ chạy trên iPhone iOS 26+")
+        }
+        let saved = UserDefaultsProvider.shared
+        defer {
+            UserDefaultsProvider.shared = saved
+            UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        }
+        let d = UserDefaults(suiteName: suite)!
+        d.removePersistentDomain(forName: suite)
+        d.set(true, forKey: "showSuggestions")
+        d.set(KeyboardTheme.oled.rawValue, forKey: ThemeSettings.themeKey)   // nền đục (như ảnh nền)
+        UserDefaultsProvider.shared = d
+
+        let r = makeRig()
+        defer {
+            r.vc.beginAppearanceTransition(false, animated: false)
+            r.vc.endAppearanceTransition()
+            r.vc.willMove(toParent: nil); r.vc.view.removeFromSuperview(); r.vc.removeFromParent()
+            r.win.isHidden = true
+        }
+        r.vc.beginAppearanceTransition(true, animated: false)
+        let base = r.kb.debugRequestedHeight
+        XCTAssertGreaterThan(base, 0)
+        r.vc.endAppearanceTransition()
+        XCTAssertTrue(r.kb.paintsBackdrop)
+
+        // Hiện lần đầu: container cao hơn view 18pt ⇒ xác nhận một lượt rồi xin thêm đúng 18.
+        r.host(container: base + 18, view: base)
+        r.pass(); r.pass()
+        XCTAssertEqual(r.kb.debugRequestedHeight, base + 18)
+        r.grantRequest()
+        assertCoversContainer(r, "lần đầu")
+        XCTAssertTrue(r.vc.debugHostFill.settled)
+
+        // Tắt / mở màn hình: hệ thống dựng lại container = mức xin hiện tại + dải kính.
+        r.host(container: base + 18 + 18, view: base + 18)
+        r.pass(); r.pass()
+        XCTAssertFalse(r.vc.debugHostFill.locked, "cấp lại sau mở màn hình không phải vòng lặp")
+        XCTAssertEqual(r.kb.debugRequestedHeight, base + 36)
+        r.grantRequest()
+        assertCoversContainer(r, "sau mở màn hình")
+
+        // Đổi sáng/tối lúc mở khoá (trait) + vài lượt layout nữa: vẫn phủ trọn.
+        r.kb.updateDark(true); r.pass()
+        r.kb.updateDark(false); r.pass()
+        assertCoversContainer(r, "sau đổi sáng/tối")
+
+        // Chu kỳ ẩn/hiện đầy đủ (xé + dựng lại), container giữ cỡ cũ: lần hiện mới lấp lại.
+        r.vc.beginAppearanceTransition(false, animated: false)
+        r.vc.endAppearanceTransition()
+        r.vc.beginAppearanceTransition(true, animated: false)
+        r.vc.endAppearanceTransition()
+        let base2 = r.kb.debugRequestedHeight
+        XCTAssertEqual(base2, base)
+        r.host(container: base + 36, view: base2)
+        r.pass(); r.pass()
+        r.grantRequest()
+        assertCoversContainer(r, "sau ẩn/hiện")
     }
 }
