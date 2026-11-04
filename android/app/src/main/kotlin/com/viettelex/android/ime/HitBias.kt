@@ -1,5 +1,7 @@
 package com.viettelex.android.ime
 
+import com.viettelex.keyboard.Key
+
 /**
  * Ưu tiên phím ở MÉP CHUNG (THUẦN — pinned by HitBiasTest; song sinh iOS KeyHitBias trong
  * TouchGeometry.swift, sửa cả hai). Phil 06/10/2026. Hình phím KHÔNG đổi; chỉ đường chia
@@ -52,5 +54,36 @@ object HitBias {
         val band = spaceBand(sinceLetterMs)
         for (k in keys) if (k.kind == KeyKind.SPACE && intrudes(x, y, hit, k, band, gap)) return k
         return hit
+    }
+}
+
+/**
+ * Issue #145 (THUẦN — pinned by StolenSpaceTest): [HitBias] cho space lấy dải mép "," / "."
+ * (gõ cuộn: 40 % bề rộng). Chạm "," nhanh sau một chữ mà rơi vào dải đó ⇒ ra DẤU CÁCH; dấu
+ * cách thật ngay sau (< DOUBLE_SPACE_MS) ⇒ double-space ⇒ ". " — người gõ "chữ, " thấy
+ * "chữ. " ("," thành "."). Space đôi mà lần đầu là chạm nằm TRONG khung thật của "," / "."
+ * ⇒ lần đầu chính là phím dấu đó: thay dấu cách trước bằng "<dấu> " ([Key.DoubleSpacePunct]).
+ */
+object StolenSpace {
+    /**
+     * Nhãn "," / "." nếu điểm chạm (toạ độ như [KeyLayout.hit]) nằm trong khung THẬT của phím
+     * dấu đó nhưng router chọn [hit] = space (dải mép HitBias); khác ⇒ null. Khe giữa hai phím
+     * không tính (thật sự mơ hồ).
+     */
+    fun punct(keys: List<LaidKey>, hit: LaidKey, x: Float, y: Float): String? {
+        if (hit.kind != KeyKind.SPACE) return null
+        for (k in keys) if (k.kind == KeyKind.PUNCT && (k.label == "," || k.label == ".") && k.contains(x, y))
+            return k.insert
+        return null
+    }
+
+    /**
+     * Phím phát ra khi space chốt: [sinceLastSpaceMs] từ lần space trước, [pad] = bàn số (space
+     * luôn literal), [prevStolen] = lần space trước là chạm "," / "." bị space lấy ([punct]).
+     */
+    fun key(sinceLastSpaceMs: Long, doubleSpaceMs: Long, pad: Boolean, prevStolen: String?): Key = when {
+        pad || sinceLastSpaceMs >= doubleSpaceMs -> Key.Space
+        prevStolen != null -> Key.DoubleSpacePunct(prevStolen)
+        else -> Key.DoubleSpacePeriod
     }
 }

@@ -15,6 +15,11 @@ sealed class Key {
     object Space : Key()
     /** Space thứ 2 trong < 0.35 s (IME đo nhịp). */
     object DoubleSpacePeriod : Key()
+    /**
+     * Space thứ 2 trong < 0.35 s mà space TRƯỚC là chạm trong khung "," / "." bị space lấy
+     * (ưu tiên mép, issue #145): thay dấu cách trước bằng "[punct] " thay vì ". ".
+     */
+    data class DoubleSpacePunct(val punct: String) : Key()
     object Newline : Key()
     /**
      * Giữ lâu Enter: chèn "\n" THẬT (commitText) — không performEditorAction, không
@@ -675,7 +680,7 @@ class KeyboardSession(
         var autoSpaceCarry = false
         val sp = pendingSpace ?: underLetter?.takeIf { key is Key.Text && key.replacesLetter }
         if (sp != null && autoSpaceStillThere(sp, proxy)) when (key) {
-            Key.Space, Key.DoubleSpacePeriod -> {          // đã có dấu cách: nuốt, không thành 2
+            Key.Space, Key.DoubleSpacePeriod, is Key.DoubleSpacePunct -> {   // đã có dấu cách: nuốt, không thành 2
                 generation++
                 return KeyOutcome(false, generation)
             }
@@ -717,7 +722,7 @@ class KeyboardSession(
         // Từ tiếng Anh vuốt ra đang mở: phím chữ/ranh giới chốt nó (học), phím chữ thêm dấu
         // cách treo trước (không dính "mailx"; huỷ được nếu phím đó là đầu cú vuốt mới).
         if (literal != null && (key is Key.Letter || key is Key.Text || key == Key.Space ||
-                key == Key.DoubleSpacePeriod || key == Key.Newline || key == Key.LineBreak)) {
+                key == Key.DoubleSpacePeriod || key is Key.DoubleSpacePunct || key == Key.Newline || key == Key.LineBreak)) {
             settleLiteral(literal)
             if (key is Key.Letter) bridge.boundary(" ", proxy, expand = false)
         }
@@ -761,14 +766,15 @@ class KeyboardSession(
                         lastCommit?.takeIf { it.word == committed })
                 typedCommit = committed to " "
             }
-            Key.DoubleSpacePeriod -> {
+            Key.DoubleSpacePeriod, is Key.DoubleSpacePunct -> {
                 val ctx = proxy.contextBeforeInput() ?: ""
                 if (TypingHeuristics.doubleSpaceMakesPeriod(ctx, lastInsertWasSpace)) {
                     // Xoá space bằng deleteSurroundingText (qua deleteCodePoints), KHÔNG
                     // deleteBackward: KEYCODE_DEL đi đường key event bất đồng bộ (ViewRootImpl
                     // post Message) nên có thể tới SAU commitText(". ") → "chữ ." thay vì "chữ. ".
+                    // #145: space trước là chạm "," bị space lấy ⇒ "chữ, " (không ". ").
                     proxy.deleteCodePoints(1)
-                    proxy.insertText(". ")
+                    proxy.insertText((if (key is Key.DoubleSpacePunct) key.punct else ".") + " ")
                     lastWord = null; lastWord2 = null
                 } else {
                     commitAndLearn(bridge.boundary(" ", proxy, expand = expand))
@@ -828,7 +834,7 @@ class KeyboardSession(
         // Chip số: chỉ đọc context khi token này / token ngay trước có chữ số/phép tính.
         numberSpaces = when (key) {
             is Key.Text -> if (key.text.firstOrNull()?.let { it.isDigit() || it in "=+-*/×÷:%().," } == true) 0 else 99
-            Key.Space, Key.DoubleSpacePeriod -> numberSpaces + 1
+            Key.Space, Key.DoubleSpacePeriod, is Key.DoubleSpacePunct -> numberSpaces + 1
             Key.Backspace -> 0
             is Key.Letter -> numberSpaces
             else -> 99
@@ -840,11 +846,11 @@ class KeyboardSession(
             Key.Backspace -> true
             else -> false
         }
-        lastInsertWasSpace = key == Key.Space || key == Key.DoubleSpacePeriod
+        lastInsertWasSpace = key == Key.Space || key == Key.DoubleSpacePeriod || key is Key.DoubleSpacePunct
         lastKeyWasEmailTrigger = key is Key.Text && (key.text == "@" || key.text == ".")
         initialCapsPending = false
         val needsAutoShift = autoCapitalize && when (key) {
-            Key.Space, Key.Newline, Key.LineBreak, Key.DoubleSpacePeriod, Key.Backspace, is Key.MoveCursor, Key.ClearField -> true
+            Key.Space, Key.Newline, Key.LineBreak, Key.DoubleSpacePeriod, is Key.DoubleSpacePunct, Key.Backspace, is Key.MoveCursor, Key.ClearField -> true
             // CAP_CHARACTERS: shift ON bị bàn phím hạ sau mỗi chữ → bật lại. ". " tự thêm ⇒ tính lại.
             else -> traits.capCharacters || autoSpacePunct != null
         }
@@ -854,6 +860,7 @@ class KeyboardSession(
                 is Key.Text -> "text" to key.text
                 Key.Space -> "space" to null
                 Key.DoubleSpacePeriod -> "doubleSpace" to null
+                is Key.DoubleSpacePunct -> "doubleSpacePunct" to key.punct
                 Key.Backspace -> "backspace" to null
                 Key.Newline -> "newline" to null
                 Key.LineBreak -> "linebreak" to null
