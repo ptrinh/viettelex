@@ -56,6 +56,48 @@ class PlanePolicyTest {
         assertTrue(off.updateAutoShift(q) != true)
     }
 
+    // Issue #143 (song sinh iOS NumberRowTests): viết hoa đầu câu + hàng số, chạm "1" đầu câu
+    // ⇒ chữ kế vẫn HOA. Phím số trên plane chữ phải nhả Shift một-lần như phím chữ.
+
+    /** Luật thuần: plane chữ nhả ON, giữ CAPS/OFF; plane khác không đụng shift. */
+    @Test fun numberRowDigitReleasesOneShotShift() {
+        assertEquals(KeyboardView.Shift.OFF, PlanePolicy.shiftAfterCharKey(Plane.LETTERS, KeyboardView.Shift.ON))
+        assertEquals(KeyboardView.Shift.CAPS, PlanePolicy.shiftAfterCharKey(Plane.LETTERS, KeyboardView.Shift.CAPS))
+        assertEquals(KeyboardView.Shift.OFF, PlanePolicy.shiftAfterCharKey(Plane.LETTERS, KeyboardView.Shift.OFF))
+        for (p in Plane.entries.filter { it != Plane.LETTERS }) for (sh in KeyboardView.Shift.entries)
+            assertEquals("${p.name} $sh", sh, PlanePolicy.shiftAfterCharKey(p, sh))
+    }
+
+    /**
+     * Nguyên nhân gốc: session không đánh giá lại viết hoa sau Key.Text ("1" từ hàng số) ⇒
+     * IME không hạ shift; bàn phím phải tự nhả. Đầu câu shift = true, sau "1" needsAutoShift = false.
+     */
+    @Test fun sessionDoesNotReevaluateShiftAfterDigit() {
+        val s = com.viettelex.keyboard.KeyboardSession(com.viettelex.keyboard.UserLangModel(), null) { 0L }
+        s.startInput(com.viettelex.keyboard.KeyboardSettings(showSuggestions = false),
+            com.viettelex.keyboard.FieldTraits(capSentences = true))
+        val p = Proxy()
+        assertEquals(true, s.updateAutoShift(p))                          // ô trống: đầu câu
+        val out = s.handle(com.viettelex.keyboard.Key.Text("1"), p)
+        assertEquals("1", p.sb.toString())
+        assertFalse("session không đánh giá lại ⇒ KeyboardView phải tự nhả shift", out.needsAutoShift)
+    }
+
+    /**
+     * Nối dây: mọi phím CHAR (hàng số thường / tách / một tay / tablet đều là KeyKind.CHAR)
+     * arm trên plane chữ dùng lettersCharFire — nhả shift lúc CHỐT (KeyCommitQueue), không lúc chạm.
+     */
+    @Test fun charKeyOnLettersPlaneWiredToShiftRelease() {
+        val src = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
+            .resolve("com/viettelex/android/ime/KeyboardView.kt").readText()
+        val charDown = src.substringAfter("override fun onTouchEvent(").substringAfter("KeyKind.CHAR -> {")
+            .substringBefore("KeyKind.PAD -> {")
+        assertTrue(charDown, "commits.arm(k, if (plane == Plane.LETTERS) lettersCharFire(k.insert) else textFire(k.insert))" in charDown)
+        val fire = src.substringAfter("private fun lettersCharFire(").substringBefore("\n    }\n")
+        assertTrue(fire, "emit(k)" in fire && "PlanePolicy.shiftAfterCharKey(Plane.LETTERS, shift)" in fire)
+        assertTrue("nhả sau khi chèn", fire.indexOf("emit(k)") < fire.indexOf("shiftAfterCharKey"))
+    }
+
     private class Proxy : com.viettelex.keyboard.TextProxy {
         val sb = StringBuilder()
         override val isSecure = false
