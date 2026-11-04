@@ -121,6 +121,23 @@ enum SuggestRank {
         return SuggestionFill.pad(base, with: filter(tri?.words ?? bigramNext(prev, limit: limit, lm: lm, p)), need: need)
     }
 
+    /// #146: có đệm ô trống của "từ kế tiếp" bằng từ phổ biến nhất (topWords / SwipeEnglish.top)
+    /// không. Đệm chung chung chỉ hợp lý khi chưa có từ trước (`prev` nil — đầu ô) hoặc từ trước
+    /// là âm tiết Việt. Từ trước là tiếng Anh (`english` = đang ở chế độ Tiếng Anh, hoặc từ Anh
+    /// không phải âm tiết Việt giữa câu Việt — "they") ⇒ KHÔNG đệm: "they" → "the of and" (top
+    /// unigram) là gợi ý sai; chỉ còn bằng chứng ngữ cảnh thật (cặp cá nhân / seed).
+    /// `isEnglish`/`isVietSyllable` nhận từ chữ thường; chỉ gọi khi cần (ít ô hơn cần). Android y hệt.
+    /// Không mặc định `SwipeEnglish.contains`: file này còn biên dịch ở chỗ không có SwipeEnglish
+    /// (windows/app/tools/gen_prediction_golden.sh) — caller truyền vào.
+    static func padsWithTopWords(_ prev: String?, english: Bool,
+                                 isEnglish: (String) -> Bool,
+                                 isVietSyllable: (String) -> Bool = { VNSuggest.lexiconId(of: $0) != nil }) -> Bool {
+        guard let prev else { return true }
+        if english { return false }
+        let low = prev.lowercased()
+        return !isEnglish(low) || isVietSyllable(low)
+    }
+
     /// Kết quả `topNext`: id (điểm giảm dần) + điểm; `trigram` = chấm bằng dòng trigram.
     struct Top {
         var ids: [Int], scores: [Double]

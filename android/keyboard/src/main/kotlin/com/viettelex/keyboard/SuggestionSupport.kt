@@ -120,6 +120,23 @@ object SuggestRank {
         return SuggestionFill.pad(base, filter(st), need)
     }
 
+    /**
+     * #146: có đệm ô trống của "từ kế tiếp" bằng từ phổ biến nhất (topWords / SwipeEnglish.top)
+     * không. Đệm chung chung chỉ hợp lý khi chưa có từ trước ([prev] null — đầu ô) hoặc từ
+     * trước là âm tiết Việt. Từ trước là tiếng Anh ([english] = đang ở chế độ Tiếng Anh, hoặc
+     * từ Anh không phải âm tiết Việt giữa câu Việt — "they") ⇒ KHÔNG đệm: "they" → "the of and"
+     * (top unigram) là gợi ý sai; chỉ còn bằng chứng ngữ cảnh thật (cặp cá nhân / seed).
+     * [isEnglish]/[isVietSyllable] nhận từ chữ thường; chỉ gọi khi cần (ít ô hơn cần). iOS y hệt.
+     */
+    fun padsWithTopWords(prev: String?, english: Boolean,
+                         isEnglish: (String) -> Boolean = { SwipeEnglish.containsIfLoaded(it) },
+                         isVietSyllable: (String) -> Boolean = { VNSuggest.lexiconId(it) >= 0 }): Boolean {
+        if (prev == null) return true
+        if (english) return false
+        val low = prev.lowercase()
+        return !isEnglish(low) || isVietSyllable(low)
+    }
+
     /** Kết quả [topNext]: [n] id đầu (điểm giảm dần) + điểm; [trigram] = chấm bằng dòng trigram. */
     class Top(@JvmField val ids: IntArray, @JvmField val scores: DoubleArray, @JvmField var n: Int,
               @JvmField val trigram: Boolean) {
