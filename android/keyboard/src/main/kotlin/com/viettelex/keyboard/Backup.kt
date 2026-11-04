@@ -63,6 +63,7 @@ object BackupSettings {
         Spec(Keys.NUMBER_ROW_FULL_HEIGHT, SettingKind.Bool(false)),
         Spec(Keys.SPACE_SIDE_KEY, SettingKind.Choice(SpaceSideKey.DEFAULT.id, SpaceSideKey.IDS)),
         Spec(Keys.EMOJI_KEY_PLACEMENT, SettingKind.Choice(EmojiKeyPlacement.DEFAULT.id, EmojiKeyPlacement.IDS)),
+        Spec(Keys.LARGE_KEYS, SettingKind.Bool(false)),   // "Phím to" — cùng khoá iOS
         Spec(Keys.CLIPBOARD_TTL, SettingKind.Choice(ClipboardTTL.DEFAULT.id, ClipboardTTL.IDS)),   // "Giữ lịch sử clipboard"
         Spec(Keys.KEY_LABEL_SIZE, SettingKind.Choice(KeyLabelSize.DEFAULT.id, KeyLabelSize.IDS)),
         Spec(Keys.ROW_HEIGHT_ADJUST, SettingKind.IntRange(0, KeyboardSettings.ROW_HEIGHT_MIN..KeyboardSettings.ROW_HEIGHT_MAX)),
