@@ -198,6 +198,16 @@ final class NumberRowTests: XCTestCase {
         XCTAssertTrue(off.isSubset(of: on))
     }
 
+    /// #142: bật hàng số, plane 123 vẫn để hàng - / : ; ( ) … ở vị trí thứ 3 từ dưới lên (ngay trên
+    /// hàng . , ? ! ') như bàn phím gốc; plane #+= giữ hàng _ \ | … ở vị trí đó.
+    func testNumberPlaneKeepsStockPunctuationRowPosition() {
+        let num = KeyLayout.phoneSymbolicRows(numbers: true, numberRow: true)
+        XCTAssertEqual(num.last, KeyLayout.phoneNumberRows.last)
+        XCTAssertEqual(num[1], KeyLayout.phoneSymbolRows.first)
+        let sym = KeyLayout.phoneSymbolicRows(numbers: false, numberRow: true)
+        XCTAssertEqual(sym.last, KeyLayout.phoneSymbolRows.last)
+    }
+
     /// Chuyển ABC ↔ 123 ↔ #+= khi bật hàng số: cùng 5 hàng, cùng chiều cao từng hàng, hàng 1…0
     /// đứng YÊN (cùng khung) — trước đây plane số 4 hàng giãn ra cả vùng ⇒ mọi phím nhảy dọc.
     @MainActor func testNumbersPlaneKeepsLettersRowGeometry() throws {

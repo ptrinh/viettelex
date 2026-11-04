@@ -42,10 +42,11 @@ enum KeyLayout {
     /// ~1,2×, hàng 1…0 nhảy chỗ, mọi phím dời dọc khi chạm 123/ABC. Giờ plane số / ký hiệu có
     /// ĐÚNG hàng số của plane chữ (1…0, cùng khung) + 2 hàng ký hiệu + hàng 3 + hàng đáy ⇒ 5 hàng
     /// cao y hệt plane chữ. Hàng ký hiệu thêm của plane 123 = hàng đầu plane #+= (không lặp ký tự
-    /// trong một plane).
+    /// trong một plane). Hàng thêm nằm NGAY DƯỚI hàng số (#142): hàng - / : ; ( ) … giữ đúng vị trí
+    /// thứ 3 từ dưới lên như plane 123 của bàn phím gốc.
     static func phoneSymbolicRows(numbers: Bool, numberRow: Bool) -> [[String]] {
         guard numberRow else { return numbers ? phoneNumberRows : phoneSymbolRows }
-        return numbers ? [digits, phoneNumberRows[1], phoneSymbolRows[0]]
+        return numbers ? [digits, phoneSymbolRows[0], phoneNumberRows[1]]
                        : [digits, phoneSymbolRows[0], phoneSymbolRows[1]]
     }
 
