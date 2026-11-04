@@ -75,14 +75,14 @@ class BuddyView(
                 context.assets.open(name).use { BitmapFactory.decodeStream(it, null, options) }
                 options.inJustDecodeBounds = false
                 options.inScaled = false
-                val maxEdge = 512
-                while (max(options.outWidth, options.outHeight) / options.inSampleSize > maxEdge) {
-                    options.inSampleSize *= 2
-                }
+                // #144: Options.inSampleSize mặc định 0 — tính bằng hàm thuần (bắt đầu từ 1), không chia cho field.
+                options.inSampleSize = BuddySprites.sampleSize(options.outWidth, options.outHeight) ?: return null
                 context.assets.open(name).use {
                     BitmapFactory.decodeStream(it, null, options)
                 }.also { if (it != null) cache.put(name, it) }
             } catch (_: java.io.IOException) { null } // Keep vector fallback for missing assets.
+            catch (_: RuntimeException) { null } // Ảnh hỏng / decoder lỗi ⇒ vector, không văng trang cài đặt hay IME.
+            catch (_: OutOfMemoryError) { null } // Máy ít RAM ⇒ vector.
         }
     }
     // Hoạt hình: chỉ nạp ảnh atlas; thiếu ảnh ⇒ lùi về vector. Vẽ nét: không nạp ảnh.
