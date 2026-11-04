@@ -137,6 +137,18 @@ object SuggestRank {
         return !isEnglish(low) || isVietSyllable(low)
     }
 
+    /**
+     * Ô "từ kế tiếp" sau từ tiếng Anh khi [padsWithTopWords] = false: [base] (cặp cá nhân) trước,
+     * rồi [table] (= EnglishNext.next(prev), bảng Tatoeba) chưa có — KHÔNG đệm top unigram
+     * (the/of/and). [filter] = SensitiveWords, [display] = hoa/thường hiển thị. iOS y hệt.
+     */
+    fun englishNextFill(base: List<String>, table: List<String>, need: Int, typed: String = "",
+                        filter: (List<String>) -> List<String> = { it },
+                        display: (String) -> String = { it }): List<String> {
+        if (base.size >= need || table.isEmpty()) return base.take(need)
+        return SuggestionFill.pad(base, filter(table).map(display), need, typed)
+    }
+
     /** Kết quả [topNext]: [n] id đầu (điểm giảm dần) + điểm; [trigram] = chấm bằng dòng trigram. */
     class Top(@JvmField val ids: IntArray, @JvmField val scores: DoubleArray, @JvmField var n: Int,
               @JvmField val trigram: Boolean) {

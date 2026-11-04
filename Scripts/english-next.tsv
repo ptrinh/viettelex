@@ -1,0 +1,457 @@
+# english-next.tsv — từ kế tiếp tiếng Anh phổ biến: <từ đầu> TAB <từ theo sau>:<số đếm> …
+# SINH bởi Scripts/gen-english-next.py --build (quy tắc lọc ở docstring script); sửa tay được (xoá dòng /
+# từ), rồi chạy Scripts/gen-english-next.py để sinh EnglishNext.swift + EnglishNext.kt.
+# Nguồn: câu tiếng Anh của Tatoeba (https://tatoeba.org), © các thành viên Tatoeba,
+# CC BY 2.0 FR (https://creativecommons.org/licenses/by/2.0/fr/). Đã biến đổi: tách từ, lọc, đếm cặp từ
+# liền nhau; chỉ chứa số liệu thống kê, không chứa câu nào. Ghi công: docs/DATA-SOURCES.md.
+# Bản xuất Tatoeba eng_sentences.tsv.bz2: 2039727 câu (sau khi bỏ trùng). Thứ tự dòng: tần suất từ đầu.
+to	do:73584 be:35425 go:18402
+i	think:20895 know:19701 was:18005
+a	lot:14827 good:9183 little:7051
+that	he:21369 i:11382 you:9348
+you	have:11333 know:9610 think:9080
+is	a:31384 the:17261 not:7438
+in	the:52997 a:14216 his:6852
+of	the:39322 his:6450 my:4720
+and	i:7842 the:5448
+he	was:20228 is:9246 has:6054
+was	a:12709 in:5075 going:4605
+do	that:75565 you:34584 it:5718
+it	was:12871 is:9053 would:2949
+for	a:11757 the:11729 you:5880
+have	to:18768 you:8752 a:14343
+be	able:6687 a:6355 here:3310
+me	that:7983 to:8556 he:2667
+this	is:13579 morning:2077
+she	was:10107 is:4324 said:3750
+his	own:2286
+are	you:17134 not:2031 the:2784
+with	you:4990 his:4720 the:7208
+on	the:24646 his:4623 a:5210
+my	father:2393 life:1775 mother:1774
+we	have:6312 need:4328 were:3758
+they	were:7418 said:3799 are:3692
+what	i:4701 he:4470 you:4463
+not	to:6185 going:2589 be:2176
+know	that:13927 what:6603 how:5038
+her	to:2433
+at	the:16751 home:3617 all:3256
+said	that:23272 he:9475 she:5389
+has	been:8097 a:9112 to:4126
+think	that:15072 i:2915 you:2246
+like	to:9133 that:3431 a:5004
+as	a:6204 i:3051 well:2513
+can	you:6252 do:4207 i:3719
+did	you:17638 that:6673 not:2376
+want	to:32848 you:2173 me:1649
+him	to:4096 a:1224
+will	be:9840 you:2702 do:1749
+had	a:9294 to:6971 no:2415
+about	that:4007 it:3760 the:3934
+all	the:7227 day:1953 of:2753
+how	to:8952 many:4359 much:4200
+from	the:8818 his:1521 a:1905
+there	are:6127 is:5397 was:3902
+go	to:13524 out:1750 there:1670
+going	to:32829 on:1910
+by	the:6426 himself:3268 herself:2255
+were	you:2258 in:1240 going:1232
+if	you:10699 i:5158 he:3074
+one	who:5956 of:6921 is:889
+time	to:4405 for:1452 i:1129
+out	of:11558 with:1428 the:1897
+an	hour:1565 old:1299
+up	with:2468 in:1875 to:2979
+very	good:2634 well:1885 much:1464
+told	me:16501 you:2229 him:1420
+get	a:2300 out:1337 to:1834
+would	be:8280 you:5106 have:2143
+here	for:1173 in:923 to:1224
+when	i:5508 he:3956 you:2816
+been	in:1023 to:1600 a:1531
+but	i:4669 he:2682 it:1273
+who	did:1820 was:1427 is:1392
+why	are:2558 do:2508 did:2404
+no	one:5244 idea:1765 longer:1674
+so	much:2822 i:1598 many:932
+just	a:2071 want:885 like:723
+us	to:2345 a:705
+really	think:1353 want:1114 like:866
+never	been:1351 seen:975 do:725
+good	at:2706 idea:1019 time:862
+should	be:3616 have:3135 do:2582
+need	to:15761 a:1947
+thought	that:8877 you:1859 i:1275
+more	than:4524 time:1140 money:669
+could	you:2898 do:2876 be:1735
+got	a:3260 to:2508 married:727
+help	you:2643 me:2508 us:2171
+than	i:1881 you:1278 me:990
+doing	that:13046 this:1236 it:613
+tell	me:5149 you:2950 him:1336
+now	i:470
+them	to:1875
+people	are:1588 who:1362 in:842
+some	people:1190 of:1439 money:823
+their	own:1067
+see	you:2271 the:1934 what:1032
+back	to:4919 in:1150 home:957
+still	in:968 have:818 be:608
+much	as:1136 money:1047 time:964
+our	house:469 team:406
+only	one:3613 person:597 a:918
+come	back:1876 to:3057 here:1041
+where	did:2314 is:1305 he:1169
+wanted	to:13356 me:616 a:384
+too	much:2643 late:768 many:591
+take	care:1935 a:2853 it:847
+or	not:3208 a:731 later:363
+home	by:572 on:471 from:454
+into	the:6059 a:2166 his:874
+any	more:1558 of:1075 other:612
+say	that:3010 they:1810 anything:995
+something	to:1948 that:836 like:774
+does	that:1907 not:1896 it:1112
+day	after:343 of:503
+make	it:1503 sure:1474 a:2310
+many	people:1836 times:944 years:552
+work	in:777 for:667 on:594
+went	to:7092 out:899 back:838
+way	to:2958 home:516 you:492
+today	is:607
+lot	of:8581 about:457 more:410
+always	been:756 wanted:427 be:426
+right	now:3405 away:1086 to:1028
+last	night:2821 time:1719 week:1456
+knew	that:4159 what:732 he:700
+house	is:1140 in:563 was:536
+new	car:585 job:361
+made	a:2588 me:855 it:797
+anything	about:1107 to:1305 else:740
+money	to:1391 from:415 on:413
+well	as:1382 with:324
+life	is:1244 in:633
+over	the:2569 there:1262 to:869
+off	the:2704 his:794 at:382
+three	years:2087 hours:1090 days:1046
+car	is:695 was:335 in:301
+long	time:2660 as:965 have:466
+asked	me:2432 him:964 for:824
+let	me:4026 you:1020 him:815
+done	that:4338 it:590 this:411
+before	you:835 he:696 i:681
+school	today:399 in:263
+other	people:618 side:423 day:411
+love	with:1550 you:943 to:808
+better	than:2523 at:534 not:389
+left	the:1696 his:602 early:362
+please	tell:908 give:390 let:292
+down	the:1986 on:701 to:728
+sure	that:2127 you:877 what:587
+first	time:2143 one:525 met:286
+after	the:1587 a:742 all:437
+everything	is:690 that:654 he:644
+am	i:1645 not:888 going:413
+able	to:11702
+find	out:1737 a:1472 it:698
+eat	lunch:405 anything:304 meat:290
+two	years:592 hours:391 days:282
+look	at:2238 like:1655 for:523
+room	is:473 for:332 was:321
+knows	that:1883 what:1165 how:1143
+every	day:3325 morning:712 time:567
+things	that:729 are:531 to:659
+used	to:8038 in:310 for:223
+give	me:2446 you:1306 up:1009
+years	ago:1694 old:1570 in:300
+wants	to:7438 me:390 you:230
+saw	a:1496 him:633 the:1011
+put	on:1266 the:1615 his:888
+might	be:2828 not:2297 have:925
+little	bit:826 more:537 girl:306
+talk	to:5179 about:2264 with:561
+ever	seen:755 been:654 do:449
+next	week:1484 to:1577 year:818
+leave	the:1103 early:542 me:417
+away	from:2162 with:429
+even	though:1235 if:937 know:719
+buy	a:2124 that:704 some:564
+says	he:2509 she:1815 that:1385
+old	man:662 enough:400 as:277
+took	a:1983 the:1264 off:658
+man	is:743 who:552 in:380
+himself	in:527 to:423 a:354
+speak	to:1084 with:407 in:229
+came	to:2630 back:794 out:580
+tomorrow	morning:515 afternoon:234
+stay	in:1931 here:1212 with:673
+already	told:503 been:433 know:377
+these	are:822 days:507 things:315
+found	a:1483 out:887 the:905
+night	in:215
+needs	to:6270 a:805
+because	i:1232 he:1229 of:1872
+live	in:3741 with:550 on:472
+which	is:914 one:509 he:331
+being	a:629 so:235 in:187
+may	be:1571 i:1134 not:963
+must	be:2604 have:1143 not:372
+started	to:1786 talking:212 a:229
+book	is:776 about:294 in:285
+both	of:793 know:199
+without	a:847 you:427 any:368
+around	the:2223 here:793 for:192
+children	are:622 to:539 were:283
+hope	that:1720 you:848 i:359
+feel	like:1710 better:254 that:237
+nothing	to:1295 but:526 is:407
+heard	that:934 the:1002 a:934
+dog	is:689 was:338 to:181
+most	of:1447 people:571 beautiful:453
+job	is:323 in:249 to:201
+friends	with:460 in:346 are:276
+everyone	is:493 was:388 else:366
+probably	be:686 not:667 tell:491
+world	is:580 war:273
+believe	that:1760 in:1069 it:499
+gave	me:1433 him:714 her:453
+tried	to:5682 doing:278
+yet	know:229 been:197
+same	thing:1048 time:645 way:407
+ask	you:907 me:589 for:571
+often	do:575 as:295 go:215
+happy	to:979 with:434 here:363
+stop	doing:467 talking:186 smoking:167
+hard	to:2336 for:484 time:388
+door	open:400 was:292 and:369
+water	is:404 in:294 and:252
+looked	like:1602 at:1455 around:323
+try	to:3721 doing:498 it:368
+those	who:1242 people:283 are:265
+happened	to:1553 in:254 here:162
+its	own:407
+enough	to:1851 money:1058 time:646
+thing	that:465 to:583 i:313
+own	way:305 business:169 life:165
+read	the:1578 this:489 it:376
+looking	for:3582 at:1233 forward:611
+understand	what:811 why:690 that:365
+father	is:782 was:386 and:166
+best	friend:616 to:625 way:299
+soon	as:1960 be:199
+together	in:204 for:174
+call	me:1025 you:594 him:390
+person	who:813 i:332 in:330
+yesterday	i:230 was:205 afternoon:177
+through	the:2738 a:523 doing:235
+keep	your:552 it:387 the:543
+bad	for:308 idea:220 news:187
+while	i:506 he:375 you:276
+name	is:992 of:683 was:322
+each	other:4567 of:278 day:152
+wonder	if:2086 whether:1985 why:851
+called	the:796 me:380 his:217
+play	the:1290 tennis:550 with:489
+place	to:913 in:414 is:259
+bought	a:2080 this:347 some:344
+alone	in:516 with:166 at:144
+language	is:611 in:192 that:152
+late	for:714 at:293 to:354
+seen	him:323 a:469 you:273
+use	the:784 a:617 this:341
+anyone	else:554 who:419 in:243
+wrong	with:735 way:179 to:149
+party	was:238 for:155 last:145
+someone	else:679 who:499 to:610
+problem	is:600 with:502 was:140
+lost	his:922 my:474 her:382
+great	deal:265 time:171
+felt	like:677 a:423 that:235
+needed	to:3507 a:309 help:167
+another	chance:215 one:206 way:164
+care	of:2739 about:649 what:432
+mother	is:523 was:261 tongue:146
+few	days:745 minutes:550 years:404
+happen	to:675 again:372 in:189
+food	is:303 for:265 in:180
+afraid	of:2170 that:628 to:1034
+trying	to:5287
+getting	married:395 ready:354 better:194
+looks	like:2609 as:180 very:160
+kind	of:4629 to:273
+until	he:400 the:658 i:390
+idea	what:687 that:348 how:272
+family	is:296 in:140 to:142
+such	a:3024 as:765 an:301
+pretty	sure:863 good:852 well:191
+big	deal:206 mistake:157
+then	i:225 he:217 you:176
+wait	for:1636 until:621 here:278
+else	to:474 in:188 is:181
+learn	how:791 to:752 from:184
+remember	what:517 that:370 the:568
+talking	about:2071 to:1742 with:288
+parents	are:511 were:298 to:130
+days	ago:306 in:156 are:143
+herself	in:239 a:189 to:166
+win	the:450
+plan	to:1932 on:740 is:197
+friend	of:618 is:254 in:149
+mind	if:427 to:310 that:131
+since	i:682 he:425 the:543
+wish	i:1660 that:679 you:531
+teacher	is:253 was:184
+coming	back:580 to:779 from:405
+having	a:1439 fun:422 trouble:211
+hear	that:562 you:358 the:593
+open	the:1052 your:159 to:214
+beautiful	woman:178 than:114 girl:110
+almost	every:439 never:362 always:252
+ready	to:2335 for:875 by:110
+country	is:302 in:241 has:111
+working	on:590 in:402 for:364
+change	his:301 the:487 your:279
+busy	as:203 today:201 to:235
+supposed	to:5152
+likes	to:1206 you:176 doing:123
+decided	to:3506 not:502 that:303
+drink	coffee:192 a:228 beer:130
+phone	number:562 call:193 is:156
+early	in:288 today:233 tomorrow:177
+seems	to:2438 that:446 like:393
+seem	to:3240 very:207 surprised:201
+married	to:568 in:201 a:198
+planning	to:2981 on:1676
+whether	or:661 you:271 i:269
+lives	in:2101 on:188 with:170
+likely	to:2585 be:612 that:171
+cold	in:164 water:161 weather:118
+also	a:278 be:128 have:123
+met	him:400 her:338 a:333
+bed	early:197 with:116 and:176
+myself	in:174 to:225 a:191
+living	in:1615 room:631 with:242
+young	people:427 man:404 to:410
+quite	a:731 well:230 often:126
+tired	of:1068 to:338 when:112
+high	school:1760 in:97
+times	a:517 as:156 have:141
+once	a:590 in:268 again:218
+sleep	in:260 on:223 with:166
+police	officer:264 are:201 station:163
+study	in:171 harder:138 for:105
+waiting	for:2878 in:226 to:202
+face	was:198 of:216 with:123
+hand	in:262 on:156 me:133
+city	is:270 in:237 of:348
+girl	is:221 in:207 was:139
+yourself	in:132 to:189 a:147
+eyes	are:201 were:185 and:284
+important	to:877 for:217 than:167
+bit	of:705 more:205 longer:120
+truth	is:286 about:106
+show	me:760 you:694 up:403
+nice	to:662 guy:180 person:112
+different	from:475 things:97
+meet	you:605 him:351 her:274
+far	from:840 as:595 away:499
+pay	for:751 attention:329 the:358
+wife	is:407 and:304 was:140
+true	that:557 love:87
+small	town:242 for:114 house:93
+thinks	that:1306 he:281 she:161
+become	a:1656 an:261 more:102
+walk	home:311 in:269 to:344
+woman	is:273 in:165 who:137
+sorry	for:677 that:464 i:373
+under	the:1731 his:268 a:299
+fun	of:482 to:310 doing:121
+coffee	is:148 with:130 shop:127
+gone	to:863 by:180 out:148
+end	of:1520 up:414 in:93
+books	in:256 are:234 on:159
+difficult	to:1555 for:401 than:100
+between	the:767 us:228 them:157
+turned	out:534 off:388 on:348
+hours	to:338 ago:156 a:224
+easy	to:1503 for:379 as:102
+died	in:635 of:304 from:148
+became	a:1135 very:165 more:120
+longer	than:381 a:101
+chance	to:1078 that:518 of:308
+seemed	to:1885 surprised:216 like:166
+bus	stop:323 to:200 driver:108
+brother	is:376 and:143
+word	for:226 is:177 in:171
+watch	the:411 out:185 a:202
+answer	is:189 that:174 the:282
+start	a:255 with:119 doing:113
+ran	out:490 away:468 into:417
+office	is:219 on:124 in:107
+meeting	was:163 with:139 will:104
+makes	you:692 me:560 it:194
+hurt	you:295 me:186 his:159
+train	station:255 is:172 was:152
+nobody	knows:247 can:227 was:183
+behind	the:899 him:306 his:167
+usually	do:209 eat:169 go:166
+outside	the:476 of:210 and:103
+against	the:1124 it:140 his:115
+making	a:603 it:149 me:135
+lived	in:1842 here:180 with:157
+head	of:249 in:120 on:106
+themselves	in:144 to:112
+dinner	with:261 tonight:151 for:133
+cat	is:465 was:106 in:92
+surprised	when:745 that:451 by:259
+whole	life:285 day:233 world:233
+everybody	knows:194 else:176 was:170
+question	is:286 of:133 that:79
+son	is:276 of:252 was:103
+class	is:124
+turn	off:466 on:276 the:384
+wearing	a:1529 the:252 his:138
+visit	us:184 you:135 the:222
+music	is:242
+maybe	you:464 we:401 i:378
+walked	into:397 out:245 away:210
+part	of:2299 in:371
+hair	is:262 cut:140 was:110
+matter	what:509 how:421 of:394
+playing	with:401 the:471 in:220
+write	a:468 to:303 in:159
+child	is:214 was:121 in:73
+words	are:171 in:150 that:90
+spent	the:879 all:346 a:457
+five	years:486 minutes:392 days:123
+sick	of:287 in:132 and:163
+light	on:175 switch:135 is:130
+table	is:140 for:101 in:93
+eating	a:217 lunch:112 dinner:82
+fell	asleep:646 in:490 into:285
+boy	is:226 in:141 was:135
+four	years:400 days:156 times:137
+free	time:389 to:309 from:113
+story	is:246 was:104 about:98
+finished	doing:595 his:241 reading:171
+interested	in:2619
+drive	a:295 you:121 me:107
+death	is:214 of:247 was:112
+number	of:1129 is:117 one:83
+ate	a:467 the:379 all:156
+kept	his:215 the:226 on:130
+doctor	told:176 advised:100 is:84
+cannot	be:529 do:95 have:79
+forget	to:956 that:288 about:205
+park	street:397 is:103 with:81
+later	than:74
+front	of:2261 door:316
+town	in:145 is:144 of:98
+glad	that:793 to:683 you:402
+reason	why:502 for:324 to:476
+angry	with:416 at:219 when:82
+during	the:1832 his:142 my:117
+heart	attack:218 is:154 was:131
+men	are:351 were:126 and:196
+summer	vacation:235 is:98 in:75
+hands	are:174 on:156 with:147

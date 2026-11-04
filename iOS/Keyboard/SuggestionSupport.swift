@@ -138,6 +138,17 @@ enum SuggestRank {
         return !isEnglish(low) || isVietSyllable(low)
     }
 
+    /// Ô "từ kế tiếp" sau từ tiếng Anh khi `padsWithTopWords` = false: `base` (cặp cá nhân) trước,
+    /// rồi `table` (= EnglishNext.next(after: prev), bảng Tatoeba) chưa có — KHÔNG đệm top unigram
+    /// (the/of/and). `filter` = SensitiveWords, `display` = hoa/thường hiển thị. Android y hệt.
+    /// Bảng truyền vào (không gọi EnglishNext ở đây): file này còn biên dịch ở chỗ không có nó.
+    static func englishNextFill(_ base: [String], table: [String], need: Int, typed: String = "",
+                                filter: ([String]) -> [String] = { $0 },
+                                display: (String) -> String = { $0 }) -> [String] {
+        if base.count >= need || table.isEmpty { return Array(base.prefix(need)) }
+        return SuggestionFill.pad(base, with: filter(table).map(display), need: need, excluding: typed)
+    }
+
     /// Kết quả `topNext`: id (điểm giảm dần) + điểm; `trigram` = chấm bằng dòng trigram.
     struct Top {
         var ids: [Int], scores: [Double]

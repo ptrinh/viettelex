@@ -1144,10 +1144,15 @@ class KeyboardSession(
     private fun displayCase(w: String, after: String? = null) =
         if (traits.lowercaseSuggestions) w.lowercase() else DisplayCase.resolve(w, after) { langModel.learnedCase(it) }
 
-    /** [afterWord] = ô "từ kế tiếp" sau [lastWord]: từ trước tiếng Anh ⇒ không đệm topWords (#146, [SuggestRank.padsWithTopWords]). */
+    /** [afterWord] = ô "từ kế tiếp" sau [lastWord]: từ trước tiếng Anh ⇒ không đệm topWords mà lấp bằng bảng
+     *  từ kế tiếp tiếng Anh [EnglishNext] (#146, [SuggestRank.padsWithTopWords] / [SuggestRank.englishNextFill]). */
     private fun padWords(base: List<String>, need: Int, typed: String = "", afterWord: Boolean = false): List<String> {
         if (base.size >= need) return base.take(need)
-        if (afterWord && !SuggestRank.padsWithTopWords(lastWord, bridge.englishMode)) return base
+        val prev = lastWord
+        if (afterWord && prev != null && !SuggestRank.padsWithTopWords(prev, bridge.englishMode))
+            return SuggestRank.englishNextFill(base, EnglishNext.next(prev), need, typed,
+                { SensitiveWords.filter(it, filterSensitive, after = prev, prev2 = lastWord2) },
+                { caseForContext(displayCase(it), typed) })
         // Tiếng Anh: không chặn main chờ nạp/sắp từ điển (IME hâm nóng nền khi vào EN) — chưa có ⇒ không đệm.
         val top = if (bridge.englishMode) SwipeEnglish.topIfReady ?: emptyList() else langModel.topWords(need + 12)
         val cands = SensitiveWords.filter(top, filterSensitive, after = lastWord, prev2 = lastWord2)

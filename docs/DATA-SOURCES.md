@@ -706,6 +706,30 @@ gõ sai một chữ.
   của hermitdave 2018; vnlexicon thật dùng bản 2016 — chênh ~5 byte, GIỮ vì ngưỡng đã chỉnh trên thang
   này, xem mục vnlexicon.)
 
+## EnglishNext — từ kế tiếp tiếng Anh phổ biến (04/11/2026, #146)
+
+- File: `iOS/Keyboard/EnglishNext.swift` + `android/keyboard/src/main/kotlin/com/viettelex/keyboard/EnglishNext.kt`
+  (sinh bởi `Scripts/gen-english-next.py` từ `Scripts/english-next.tsv` — nguồn duy nhất, có số đếm để duyệt
+  tay; `--check` so file đã commit). 450 từ đầu, 1.282 cặp (≤ 3 từ theo sau / từ đầu), một hằng chuỗi
+  ~7,6 KB trong binary, tách lười ở lần tra đầu tiên, tra nhị phân.
+- Dùng cho: ô "từ kế tiếp" sau một từ tiếng Anh (chế độ Tiếng Anh, hoặc từ Anh không phải âm tiết Việt
+  giữa câu Việt — `SuggestRank.padsWithTopWords` = false): cặp cá nhân trước, rồi bảng này; KHÔNG đệm top
+  unigram (the / of / and). Âm tiết Việt và đầu ô không đổi.
+- Nguồn: câu tiếng Anh của **Tatoeba** (`downloads.tatoeba.org/exports/per_language/eng/eng_sentences.tsv.bz2`,
+  bản xuất 31/10/2026, 2.039.727 câu sau khi bỏ trùng), © các thành viên Tatoeba,
+  [CC BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/) — cùng nguồn/giấy phép với phần Tatoeba
+  của vnlm.bin. Chỉ chứa số liệu thống kê (cặp từ liền nhau phổ biến nhất), không chứa câu nào.
+- Đã biến đổi: tách câu/từ, bỏ token có dấu nháy và mọi dấu câu (chỗ ngắt), chữ thường, chỉ từ có trong
+  enlexicon.bin (+ "a", "I"), bỏ tên riêng (viết hoa giữa câu ≥ viết thường) và từ nhạy cảm, ngưỡng số đếm
+  cặp ≥ 12 và P(sau | đầu) ≥ 2 %, ưu tiên từ nội dung khi gần ngang từ chức năng (the/a/an/and/of/to).
+  Chi tiết: docstring `Scripts/gen-english-next.py`.
+- **Ghi công**: "Bảng từ kế tiếp tiếng Anh suy ra từ câu tiếng Anh của Tatoeba (https://tatoeba.org),
+  © các thành viên Tatoeba, CC BY 2.0 FR; đã biến đổi (đếm cặp từ, lọc)." — dòng ghi công Tatoeba trong
+  mục "Giới thiệu" của app trỏ về trang này.
+- Tái tạo: `curl -sO https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences.tsv.bz2` vào thư
+  mục tạm, `python3 -I Scripts/gen-english-next.py --build <tạm>/eng_sentences.tsv.bz2`, rồi
+  `python3 Scripts/gen-english-next.py`. Tatoeba chỉ giữ bản xuất mới nhất ⇒ số đếm có thể lệch nhẹ.
+
 ## FUTO Swipe
 
 **futoswipe.bin — encoder FUTO Swipe cho gõ vuốt (THỬ NGHIỆM, mặc định tắt).**
