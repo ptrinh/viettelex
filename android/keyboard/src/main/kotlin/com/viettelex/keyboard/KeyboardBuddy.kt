@@ -1793,6 +1793,21 @@ class BuddySprites(val sleep: String, val rest: String, val dance: List<List<Str
             val pp = p - floor(p)
             return min((pp * count).toInt(), count - 1)
         }
+
+        /** Cạnh dài tối đa của atlas sau khi nạp (Android BitmapFactory). */
+        const val MAX_DECODE_EDGE = 512
+
+        /**
+         * inSampleSize (lũy thừa 2, ≥ 1) để atlas [width]×[height] nạp xuống cạnh dài ≤ [maxEdge]; null = kích thước
+         * không đọc được (ảnh hỏng) ⇒ lùi về vector. #144: trước đây vòng lặp chia cho `Options.inSampleSize` mặc
+         * định = 0 ⇒ ArithmeticException, mở trang "Bạn đồng hành" (ô Hoạt hình) là văng app.
+         */
+        fun sampleSize(width: Int, height: Int, maxEdge: Int = MAX_DECODE_EDGE): Int? {
+            if (width <= 0 || height <= 0 || maxEdge <= 0) return null
+            var s = 1
+            while (max(width, height) / s > maxEdge) s *= 2
+            return s
+        }
     }
 }
 
