@@ -4883,6 +4883,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
            let touch = event.allTouches?.first(where: { $0.view === sender }) {
             flickStart = (touch.location(in: self), CACurrentMediaTime())
             flickLast = flickStart?.p
+            flickHoldGone = false
         } else {
             flickStart = nil
         }
@@ -5004,6 +5005,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
     private var flickStart: (p: CGPoint, t: CFTimeInterval)?
     private var flickLast: CGPoint?
+    /// Ngón đã trượt quá allowableMovement của recognizer giữ (spacePan) trước khi giữ đủ
+    /// 0,3 s ⇒ recognizer fail, trackpad không thể bật trong lần chạm này ⇒ kéo chậm vẫn đổi
+    /// ngôn ngữ (#147).
+    private var flickHoldGone = false
     private var flickCarousel: (box: UIView, cur: UILabel, next: UILabel)?
 
     func configureSpaceFlick(enabled: Bool, language: KeyboardLanguage) {
@@ -5081,8 +5086,16 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         flickLast = p
         guard touch.phase == .moved, let space = spaceBar else { return }
         let dx = p.x - start.p.x, dy = p.y - start.p.y
-        let q = SpaceFlick.progress(dx: dx, dy: dy, elapsed: CACurrentMediaTime() - start.t,
-                                    span: SpaceFlick.previewSpan(keyWidth: flickKeyWidth))
+        let elapsed = CACurrentMediaTime() - start.t
+        if !flickHoldGone, !trackpadActive,
+           let hold = sender.gestureRecognizers?.lazy.compactMap({ $0 as? UILongPressGestureRecognizer }).first,
+           hold.state == .failed
+            || (elapsed < hold.minimumPressDuration && hypot(dx, dy) > hold.allowableMovement) {
+            flickHoldGone = true
+        }
+        let q = SpaceFlick.progress(dx: dx, dy: dy, elapsed: elapsed,
+                                    span: SpaceFlick.previewSpan(keyWidth: flickKeyWidth),
+                                    trackpadPossible: !flickHoldGone)
         if q == 0 {
             if flickCarousel != nil { endFlickPreview(committed: false, animated: true) }
             return
@@ -5097,7 +5110,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         flickStart = nil
         let p = flickLast ?? start.p
         let dir = SpaceFlick.classify(dx: p.x - start.p.x, dy: p.y - start.p.y,
-                                      duration: CACurrentMediaTime() - start.t, keyWidth: flickKeyWidth)
+                                      duration: CACurrentMediaTime() - start.t, keyWidth: flickKeyWidth,
+                                      trackpadPossible: !flickHoldGone)
         guard let dir, spaceFlickEnabled else {
             if flickCarousel != nil { endFlickPreview(committed: false, animated: true) }
             return false

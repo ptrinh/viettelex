@@ -6,6 +6,10 @@
 // Không đụng trackpad: flick phải NHẤC TAY trước ngưỡng giữ trackpad (0,3 s — iOS
 // UILongPressGestureRecognizer trên space, Android SPACE_HOLD_MS). Giữ rồi mới kéo vẫn là
 // trackpad; chạm thường vẫn ra dấu cách.
+//
+// Kéo chậm (#147): ngón đã trượt quá ngưỡng (allowableMovement của recognizer giữ) TRƯỚC khi
+// giữ đủ lâu ⇒ trackpad không thể bật nữa (`trackpadPossible = false`) ⇒ bỏ giới hạn thời
+// gian/tốc độ, chỉ còn quãng + độ dốc.
 import CoreGraphics
 import Foundation
 
@@ -50,23 +54,28 @@ enum SpaceFlick {
     }
 
     /// Nhấc tay: có phải flick đổi ngôn ngữ không (nil = chạm/kéo thường).
+    /// `trackpadPossible` = false khi ngón đã trượt quá ngưỡng trước khi giữ đủ lâu (trackpad
+    /// không thể bật) ⇒ kéo chậm bao lâu cũng được, miễn đủ quãng và chủ yếu ngang (#147).
     static func classify(dx: CGFloat, dy: CGFloat, duration: TimeInterval, keyWidth: CGFloat,
-                         _ p: Params = Params()) -> Direction? {
+                         trackpadPossible: Bool = true, _ p: Params = Params()) -> Direction? {
         let ax = abs(dx)
-        guard duration >= 0, duration < p.maxDuration,
-              ax >= max(p.minDistance, keyWidth * p.minDistanceKeys),
+        guard ax >= max(p.minDistance, keyWidth * p.minDistanceKeys),
               abs(dy) <= ax * p.maxSlope else { return nil }
-        let ms = max(duration * 1000, 1)
-        guard ax / CGFloat(ms) >= p.minSpeed else { return nil }
+        if trackpadPossible {
+            guard duration >= 0, duration < p.maxDuration else { return nil }
+            let ms = max(duration * 1000, 1)
+            guard ax / CGFloat(ms) >= p.minSpeed else { return nil }
+        }
         return dx < 0 ? .left : .right
     }
 
     /// Đang kéo (chưa nhấc): tiến độ trượt nhãn -1…1 (±1 ở quãng `span`), 0 = chưa đủ slop /
-    /// quá giờ (sắp thành trackpad) / kéo dọc.
+    /// quá giờ (sắp thành trackpad) / kéo dọc. `trackpadPossible` = false ⇒ không "quá giờ":
+    /// nhãn theo ngón suốt lúc kéo chậm (#147).
     static func progress(dx: CGFloat, dy: CGFloat, elapsed: TimeInterval, span: CGFloat,
-                         _ p: Params = Params()) -> CGFloat {
+                         trackpadPossible: Bool = true, _ p: Params = Params()) -> CGFloat {
         let ax = abs(dx)
-        guard span > 0, elapsed < p.maxDuration, ax >= p.previewSlop,
+        guard span > 0, !trackpadPossible || elapsed < p.maxDuration, ax >= p.previewSlop,
               abs(dy) <= ax * p.maxSlope * 2 else { return 0 }
         return max(-1, min(1, dx / span))
     }
