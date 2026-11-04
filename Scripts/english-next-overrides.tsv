@@ -1,0 +1,81 @@
+# english-next-overrides.tsv — CHỌN TAY, áp lên Scripts/english-next.tsv (số đếm Tatoeba) khi chạy
+# Scripts/gen-english-next.py. KHÔNG có số đếm: chỉ là thứ tự mong muốn (đầu tiên = ô đầu).
+#   <từ đầu> TAB <từ theo sau 1> <2> <3>   thay HẲN danh sách của bảng (hoặc thêm từ đầu mới)
+#   <từ đầu> TAB -                          bỏ từ đầu khỏi bảng
+# Chữ thường ("i" hiển thị "I"); ≤ 3 từ theo sau; mọi từ phải có trong enlexicon.bin (trừ a / i) và
+# không thuộc từ nhạy cảm — script kiểm, sai ⇒ dừng. Mục đích: tiếng Anh chat / email hằng ngày thay
+# cho lệch văn sách giáo khoa của Tatoeba (his/himself, "do that", "my father"…).
+
+# 1. Cặp chat / cơ bản thiếu hoặc yếu trong bảng đếm
+thank	you
+thanks	for a
+welcome	to
+of	course the
+see	you
+nice	to
+good	morning night luck
+how	are about much
+what	is are do
+i	am think have
+you	are can have
+can	you i we
+let	me us
+talk	to
+happy	birthday new
+best	regards seller wishes
+sorry	for i
+please	let send check
+looking	forward for
+on	top the my
+at	the home
+all	the right
+right	now
+just	a
+so	much
+no	problem hope
+do	you not it
+this	is morning week
+my	bad name friend
+me	know to a
+have	a to you
+would	be like you
+
+# 2. Cụm chat / công sở / mua bán người Việt hay dùng (Phil 04/11/2026); ưu tiên hơn số đếm khi trùng
+get	go a out
+red	flag
+green	flag
+low	key
+check	in out var
+sold	out
+sale	off
+full	option
+work	from in for
+team	building
+self	care
+make	up sure it
+real	quick
+trust	me
+deal	with
+feel	free like better
+
+# 3. Lệch văn sách (Tatoeba): his / himself / herself, cặp kiểu bài học
+by	the my a
+her	name to
+one	of more day
+here	is are for
+love	you it to
+put	on it the
+because	of i it
+lost	my his the
+kept	the it on
+change	the your it
+during	the my
+with	you me the
+from	the my a
+off	the to at
+in	the a my
+thing	is that to
+where	are is did
+himself	-
+herself	-
+themselves	-

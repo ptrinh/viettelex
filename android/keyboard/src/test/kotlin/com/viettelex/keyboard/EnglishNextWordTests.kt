@@ -139,4 +139,29 @@ class EnglishNextWordTests {
         assertTrue(SuggestRank.bigramNext("xin", 6).isNotEmpty())
         assertEquals(3, SuggestRank.nextFill("xin", null, emptyList(), { 0 }).size)
     }
+
+    /** Cụm người Việt hay dùng (chọn tay): "check" giữa câu Việt ⇒ seed trước, lấp bằng bảng. */
+    @Test fun vietnameseModeCheckUsesTable() {
+        SwipeEnglish.top
+        val s = session(); val p = MockProxy()
+        s.type(p, "check ")
+        val next = s.suggestionsNow(p)!!.nextWords.map { it.lowercase() }
+        // cặp cá nhân / seed (check lại…) đứng trước, phần còn lại lấp từ bảng, không the/of/and
+        assertEquals(3, next.size)
+        assertTrue("$next", next.any { it in tableNext("check") })
+        assertTrue("$next", next.none { it in generic && it !in tableNext("check") })
+    }
+
+    /** Từ lóng / thương mại thêm vào enlexicon 04/11/2026 (SUPPLEMENT) — gợi ý hoàn thành từ được. */
+    @Test fun slangInEnglishLexicon() {
+        for (w in listOf("flex", "cringe", "slay", "rizz", "simp", "skincare", "freeship", "livestream", "chill", "vibe"))
+            assertTrue(w, SwipeEnglish.contains(w))
+    }
+
+    /** Cặp trộn Việt–Anh chỉ cho vuốt / gợi ý đang gõ (CuratedPairs.nextOnly), không phải từ kế tiếp. */
+    @Test fun mixedCuratedPairsAreSwipeOnly() {
+        assertTrue("trình" in CuratedPairs.next("out", null))
+        assertTrue(CuratedPairs.swipe(null, "đu", "trend"))
+        assertFalse("không cho Thêm dấu", CuratedPairs.has(null, "out", "trình"))
+    }
 }

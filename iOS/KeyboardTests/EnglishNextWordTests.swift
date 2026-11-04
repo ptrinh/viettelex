@@ -93,4 +93,20 @@ final class EnglishNextWordTests: XCTestCase {
         XCTAssertEqual(next.count, 3)
         XCTAssertTrue(SuggestRank.padsWithTopWords("xin", english: false, isEnglish: { SwipeEnglish.contains($0) }))
     }
+
+    func testSlangInEnglishLexicon() {
+        for w in ["flex", "cringe", "slay", "rizz", "simp", "skincare", "freeship", "livestream", "chill", "vibe"] {
+            XCTAssertTrue(SwipeEnglish.contains(w), w)
+        }
+    }
+
+    func testCheckMidVietnameseUsesTable() {
+        XCTAssertEqual(fill([], prev: "check", english: false), tableNext("check"))
+    }
+
+    func testMixedCuratedPairsAreSwipeOnly() {
+        XCTAssertTrue(CuratedPairs.next(after: "out", prev2: nil).contains("trình"))
+        XCTAssertTrue(CuratedPairs.swipe(nil, "đu", "trend"))
+        XCTAssertFalse(CuratedPairs.has(nil, "out", "trình"), "không cho Thêm dấu")
+    }
 }
