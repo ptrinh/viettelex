@@ -115,6 +115,11 @@ data class LayoutConfig(
      * ([KeyLayout.splitActive]) và ở plane chữ / ?123 / =\< ([KeyLayout.splitPlane]).
      */
     val split: Boolean = false,
+    /**
+     * "Phím to" (Settings, mặc định TẮT — [KeyLayout.largeKeysActive]): "," "." hàng đáy điện thoại
+     * rộng bằng phím 😊, space co lại (không dưới [KeyLayout.LARGE_MIN_SPACE_DP]). Tablet bỏ qua.
+     */
+    val largeKeys: Boolean = false,
 )
 
 object KeyLayout {
@@ -275,11 +280,13 @@ object KeyLayout {
      * Hàng ký tự (10 phím) TRÊN hàng 3 của plane ?123 / =\<. Tắt hàng số: [NUM1, NUM2] / [SYM1, SYM2]
      * như cũ. Bật hàng số: hàng đầu là ĐÚNG hàng số plane chữ (1…0) + 2 hàng ký hiệu ⇒ 5 hàng cùng khung
      * plane chữ; plane ?123 mượn hàng đầu plane =\< (SYM1) — không ký tự nào lặp trong một plane.
+     * Hàng mượn nằm NGAY DƯỚI hàng số (#142, cùng iOS): hàng @ # ₫ _ & - + ( ) / giữ đúng vị trí thứ 3
+     * từ dưới lên như khi tắt hàng số (và như plane 123 bàn phím gốc).
      */
     fun symbolicRows(numbers: Boolean, numberRow: Boolean): List<List<String>> = when {
         !numberRow && numbers -> listOf(NUM1, NUM2)
         !numberRow -> listOf(SYM1, SYM2)
-        numbers -> listOf(NUM1, NUM2, SYM1)
+        numbers -> listOf(NUM1, SYM1, NUM2)
         else -> listOf(NUM1, SYM1, SYM2)
     }
 
@@ -458,7 +465,8 @@ object KeyLayout {
         if (c.tablet) slots += Slot(KeyKind.DISMISS, "", "", 0.07f)
         var fixed = 0f
         for (s in slots) if (s.mult > 0) fixed += s.mult * W
-        val space = (W - 2 * m - fixed - gap * (slots.size - 1)).coerceAtLeast(gap)
+        var space = (W - 2 * m - fixed - gap * (slots.size - 1)).coerceAtLeast(gap)
+        if (largeKeysActive(c)) space = widenPuncts(slots, space, LARGE_PUNCT * W, d, scale = W)
         var x = m
         for (s in slots) {
             val w = if (s.mult > 0) s.mult * W else space
@@ -468,6 +476,47 @@ object KeyLayout {
     }
 
     private data class Slot(val kind: Int, val label: String, val insert: String, val mult: Float)
+
+    // MARK: "Phím to" (LargeKeys — song sinh iOS KeyGeometry.LargeKeys; Settings → Phím, mặc định TẮT)
+    // Tắt ⇒ một phép AND lúc dựng, không phím / số nào đổi. Bật (chỉ điện thoại): "," / "." cạnh space
+    // rộng bằng phím 😊 ([LARGE_PUNCT] — plane số / ký hiệu / mẫu câu, ô email / URL vốn đã bằng),
+    // space co lại đúng phần đó nhưng không dưới [LARGE_MIN_SPACE_DP] (không bao giờ hẹp hơn lúc tắt);
+    // bàn tách đôi: "," "." = phím 😊 nửa trái (keyWidth). Hàng Z không đổi: ⇧ / ⌫ Android vốn sát
+    // z / m đúng một khe phím (không có khe rộng như iPhone).
+
+    /** "Phím to" có hiệu lực: công tắc bật + không phải tablet. */
+    fun largeKeysActive(c: LayoutConfig): Boolean = c.largeKeys && !c.tablet
+
+    /** Bề rộng "," / "." khi bật (tỉ lệ hàng) = phím 😊 hàng đáy điện thoại. */
+    const val LARGE_PUNCT = 0.10f
+    /** Space không co dưới chừng này (dp) — đủ giữ-kéo con trỏ, vuốt đổi ngôn ngữ, logo. */
+    const val LARGE_MIN_SPACE_DP = 80f
+
+    /** Phím hàng đáy được nở khi bật. */
+    fun largeWidens(label: String) = label == "," || label == "."
+
+    /**
+     * Nở các slot "," / "." trong [slots] (mult × [scale] = bề rộng px) tới [target] px, lấy chỗ từ
+     * space đang rộng [space] px; space giữ ≥ [LARGE_MIN_SPACE_DP] (đã hẹp hơn thì không nở). Trả bề
+     * rộng space mới. THUẦN — chỉ chạy lúc dựng layout.
+     */
+    private fun widenPuncts(slots: MutableList<Slot>, space: Float, target: Float, d: Float, scale: Float): Float {
+        var n = 0
+        for (s in slots) if (s.kind == KeyKind.PUNCT && largeWidens(s.label) && s.mult * scale < target) n++
+        if (n == 0) return space
+        val spare = (space - LARGE_MIN_SPACE_DP * d).coerceAtLeast(0f)
+        var used = 0f
+        for (i in slots.indices) {
+            val s = slots[i]
+            if (s.kind != KeyKind.PUNCT || !largeWidens(s.label)) continue
+            val w = s.mult * scale
+            if (w >= target) continue
+            val grow = minOf(target - w, spare / n)
+            slots[i] = s.copy(mult = (w + grow) / scale)
+            used += grow
+        }
+        return space - used
+    }
 
     /** Tablet bàn chữ: bề rộng phím (đơn vị = BƯỚC phím hàng 10 chữ, phím + khe). */
     const val TABLET_PLANE_U = 1.25f
@@ -727,10 +776,13 @@ object KeyLayout {
         for (s in puncts) right += Slot(KeyKind.PUNCT, s, s, 0.9f * kw)
         right += Slot(KeyKind.RETURN, c.returnLabel, "\n", 1.9f * kw)
         if (c.tablet) right += Slot(KeyKind.DISMISS, "", "", kw)
-        fun half(slots: List<Slot>, x0: Float) {
+        val large = largeKeysActive(c)
+        fun half(slots: MutableList<Slot>, x0: Float) {
             var fixed = 0f
             for (s in slots) if (s.mult > 0) fixed += s.mult
-            val space = (m.half - fixed - gap * (slots.size - 1)).coerceAtLeast(gap)
+            var space = (m.half - fixed - gap * (slots.size - 1)).coerceAtLeast(gap)
+            // "Phím to": "," / "." = phím 😊 nửa trái (kw), space nửa này co lại (có sàn).
+            if (large) space = widenPuncts(slots, space, kw, d, scale = 1f)
             var x = x0
             for (s in slots) {
                 val w = if (s.mult > 0) s.mult else space

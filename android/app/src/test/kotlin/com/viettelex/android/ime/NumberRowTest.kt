@@ -173,6 +173,30 @@ class NumberRowTest {
                 assertEquals(k.label, k.upper)
     }
 
+    /**
+     * #142 (cùng iOS): bật hàng số, plane ?123 giữ thứ tự hàng như khi tắt / bàn phím gốc — hàng
+     * @ # ₫ _ & - + ( ) / nằm NGAY TRÊN hàng 3 (thứ 3 từ dưới lên, sát trên hàng ". , ? !" của plane),
+     * hàng ký hiệu mượn thêm (~ ` | …) nằm ngay dưới hàng số. Cả bàn tách đôi.
+     */
+    @Test fun numbersPlaneKeepsStockRowOrder() {
+        assertEquals(listOf(KeyLayout.NUM1, KeyLayout.SYM1, KeyLayout.NUM2), KeyLayout.symbolicRows(true, true))
+        for ((w, split) in listOf(W to false, 801f to true)) {
+            val h = KeyLayout.keyAreaDp(false, split, 0, numberRow = true)
+            val keys = KeyLayout.build(LayoutConfig(Plane.NUMBERS, w, h, d, numberRow = true, split = split))
+            val rows = keys.groupBy { Math.round(it.top * 100) }.toSortedMap().values
+                .map { r -> r.sortedBy { it.left }.filter { it.kind == KeyKind.CHAR }.map { it.label } }
+            assertEquals("split=$split", 5, rows.size)
+            assertEquals("split=$split", KeyLayout.NUM1, rows[0])
+            assertEquals("split=$split", KeyLayout.SYM1, rows[1])
+            assertEquals("split=$split thứ 3 từ dưới", KeyLayout.NUM2, rows[2])
+            assertEquals("split=$split", KeyLayout.NUM3, rows[3])
+            // Tắt hàng số: NUM2 cũng là hàng thứ 3 từ dưới.
+            val off = KeyLayout.build(LayoutConfig(Plane.NUMBERS, w, KeyLayout.keyAreaDp(false, split, 0), d, split = split))
+            val offRows = off.groupBy { Math.round(it.top * 100) }.toSortedMap().values.toList()
+            assertEquals(KeyLayout.NUM2, offRows[offRows.size - 3].sortedBy { it.left }.map { it.label })
+        }
+    }
+
     @Test fun symbolicRowsWithNumberRow() {
         val all = (KeyLayout.NUM1 + KeyLayout.NUM2 + KeyLayout.NUM3 + KeyLayout.SYM1 + KeyLayout.SYM2 + KeyLayout.SYM3).toSet()
         val on = mutableSetOf<String>()

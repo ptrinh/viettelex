@@ -709,8 +709,9 @@ class KeyboardView(
                   numberSigned: Boolean = false, numberDecimal: Boolean = false, numberRow: Boolean = false,
                   numberRowFull: Boolean = false, spaceSideKey: SpaceSideKey = SpaceSideKey.DEFAULT,
                   emojiInStrip: Boolean = false, labelSize: KeyLabelSize = KeyLabelSize.DEFAULT,
-                  split: Boolean = false) {
+                  split: Boolean = false, largeKeys: Boolean = false) {
         this.splitSetting = split
+        this.largeKeys = largeKeys
         this.numberRow = numberRow
         this.spaceSideKey = spaceSideKey
         this.emojiInStrip = emojiInStrip
@@ -815,6 +816,8 @@ class KeyboardView(
     private var periodSideKey = false
     /** "Nút emoji" = Thanh trên và strip hiện ⇒ bàn chữ không có 😊 (nút ở StripView). Trong chữ ký layout. */
     private var emojiInStrip = false
+    /** "Phím to" (Settings, mặc định TẮT — [KeyLayout.largeKeysActive]). Trong chữ ký layout, chỉ đọc lúc dựng. */
+    private var largeKeys = false
     /** Chế độ một tay (IME chỉ đặt khác OFF trên điện thoại). */
     var oneHand = OneHandSide.OFF; private set
     /**
@@ -831,7 +834,7 @@ class KeyboardView(
     val splitActive: Boolean get() = splitNow
     /** Một tay thực dùng: tách đôi đã chia hai bên ⇒ một tay vô nghĩa (như iOS). */
     private val oneHandNow: OneHandSide get() = if (splitNow) OneHandSide.OFF else oneHand
-    private fun signature() = "$returnLabel|$inputKind|$needsGlobe|$width|$keyAreaPx|$numberSigned|$numberDecimal|$numberRow|$numberRowFull|$spaceSideKey|$emojiInStrip|$oneHand|$textToolsEnabled|$translateEnabled|$splitNow"
+    private fun signature() = "$returnLabel|$inputKind|$needsGlobe|$width|$keyAreaPx|$numberSigned|$numberDecimal|$numberRow|$numberRowFull|$spaceSideKey|$emojiInStrip|$oneHand|$textToolsEnabled|$translateEnabled|$splitNow|$largeKeys"
 
     private fun rebuild() {
         if (width == 0) return
@@ -844,7 +847,7 @@ class KeyboardView(
         val cfg = LayoutConfig(plane, width.toFloat(), keyAreaPx, d, inputKind, needsGlobe,
             theme.tablet, returnLabel, numberSigned, numberDecimal, numberRow, oneHandNow,
             editTools = textToolsEnabled, numberRowFull = numberRowFull, editTranslate = translateEnabled,
-            spaceSideKey = spaceSideKey, emojiInStrip = emojiInStrip, split = splitNow)
+            spaceSideKey = spaceSideKey, emojiInStrip = emojiInStrip, split = splitNow, largeKeys = largeKeys)
         keys = planeCache.getOrPut(plane) { KeyLayout.build(cfg) }
         fitLetterLabels()
         periodSideKey = KeyLayout.sideKey(cfg) == SpaceSideKey.PERIOD

@@ -543,7 +543,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             th.dp(KeyLayout.keyAreaDp(th.tablet, th.landscape, settings.rowHeightAdjust, settings.numberRow,
                 settings.numberRowFullHeight, resources.configuration.screenHeightDp.toFloat())),
             field.numberSigned, field.numberDecimal, settings.numberRow, settings.numberRowFullHeight,
-            settings.spaceSideKey, emojiInStrip, settings.keyLabelSize, settings.splitKeyboard)
+            settings.spaceSideKey, emojiInStrip, settings.keyLabelSize, settings.splitKeyboard, settings.largeKeys)
         kb.keyPreview = settings.keyPreview
         kb.keyPressHighlight = settings.keyPressHighlight
         applyKeyEffect(settings.keyEffect, th, kb)

@@ -126,6 +126,8 @@ data class KeyboardSettings(
     var holdShiftSymbols: Boolean = true,
     /** Phím cạnh dấu cách (bàn chữ ô thường; tablet: có / không "," "." hai bên space) — mặc định "," ([SpaceSideKey]). */
     var spaceSideKey: SpaceSideKey = SpaceSideKey.DEFAULT,
+    /** "Phím to" (điện thoại): "," "." cạnh space rộng bằng phím 😊 — mặc định TẮT. Giống iOS (LargeKeys). */
+    var largeKeys: Boolean = false,
     /** Nút 😊: hàng đáy (mặc định) / thanh gợi ý ([EmojiKeyPlacement]). */
     var emojiKeyPlacement: EmojiKeyPlacement = EmojiKeyPlacement.DEFAULT,
     /** Cỡ chữ trên phím: Vừa (mặc định) / Lớn ([KeyLabelSize]). */
@@ -226,6 +228,7 @@ data class KeyboardSettings(
             s.longPressSymbols = b(Keys.LONG_PRESS_SYMBOLS, s.longPressSymbols)
             s.holdShiftSymbols = b(Keys.HOLD_SHIFT_SYMBOLS, s.holdShiftSymbols)
             s.spaceSideKey = SpaceSideKey.of(get(Keys.SPACE_SIDE_KEY))
+            s.largeKeys = b(Keys.LARGE_KEYS, s.largeKeys)
             s.suggestionBarHeight = SuggestionBarHeight.of(get(Keys.SUGGESTION_BAR_HEIGHT))
             s.suggestionInk = SuggestionInk.of(get(Keys.SUGGESTION_INK))
             s.emojiKeyPlacement = EmojiKeyPlacement.of(get(Keys.EMOJI_KEY_PLACEMENT))

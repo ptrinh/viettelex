@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -119,6 +120,7 @@ internal data class FeatureSearchEntry(val viTitle: String, val keywords: String
             FeatureSearchEntry("Hàng phím số", "number row số", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Hàng số cao bằng hàng chữ", "number row tall height cao số", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Phím cạnh dấu cách", "dấu phẩy dấu chấm cả hai comma period both key next to space", FeaturePage.Phim), // l10n-key
+            FeatureSearchEntry("Phím to", "larger keys phím lớn dấu phẩy dấu chấm comma period bấm nhầm phím cách", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Nút emoji", "emoji biểu tượng cảm xúc thanh trên top bar toolbar", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Cỡ chữ trên phím", "cỡ chữ to lớn font size label large key", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Giữ phím hàng trên để ra số", "số giữ lâu number long press", FeaturePage.Phim), // l10n-key
@@ -317,6 +319,8 @@ private fun FeatureHome(onOpen: (FeaturePage) -> Unit) {
     val keySound by rememberBoolPref(Keys.KEY_SOUND, Prefs.D.keySound)
     val oneHand by rememberStringPref(Keys.ONE_HAND_MODE, Prefs.D.oneHandMode)
     val sideKey by rememberStringPref(Keys.SPACE_SIDE_KEY, Prefs.D.spaceSideKey.id)
+    val largeKeys by rememberBoolPref(Keys.LARGE_KEYS, Prefs.D.largeKeys)
+    val phone = LocalConfiguration.current.smallestScreenWidthDp < 600
     val emojiPlace by rememberStringPref(Keys.EMOJI_KEY_PLACEMENT, Prefs.D.emojiKeyPlacement.id)
     val labelSize by rememberStringPref(Keys.KEY_LABEL_SIZE, Prefs.D.keyLabelSize.id)
     val floating by rememberBoolPref(Keys.FLOATING_KEYBOARD, Prefs.D.floatingKeyboard)
@@ -340,6 +344,7 @@ private fun FeatureHome(onOpen: (FeaturePage) -> Unit) {
             " · " + if (templatesOn) tr("Mẫu câu bật") else tr("Mẫu câu tắt")
         FeaturePage.Phim -> join(numberRow to tr("Hàng số"),
             (SpaceSideKey.of(sideKey) != SpaceSideKey.DEFAULT) to tr("Phím cạnh dấu cách"),
+            (largeKeys && phone) to tr("Phím to"),
             (EmojiKeyPlacement.of(emojiPlace) != EmojiKeyPlacement.DEFAULT) to tr("Nút emoji"),
             (KeyLabelSize.of(labelSize) != KeyLabelSize.DEFAULT) to tr("Cỡ chữ trên phím"), spaceSwipe to tr("Vuốt phím cách"),
             keyCmds to tr("Vuốt sao chép/dán"),
@@ -666,6 +671,12 @@ private fun PhimPage(onBack: () -> Unit) {
         }
         SpaceSideKeyRow()
         RowDivider()
+        // "Phím to" — chỉ điện thoại (tablet: bàn phím bỏ qua, KeyLayout.largeKeysActive). Miễn phí.
+        if (LocalConfiguration.current.smallestScreenWidthDp < 600) {
+            BoolToggle(Keys.LARGE_KEYS, Prefs.D.largeKeys, tr("Phím to"),
+                tr("Dấu phẩy, dấu chấm cạnh phím cách rộng bằng phím emoji, đỡ chạm nhầm phím cách. Phím cách hẹp lại một chút. Chỉ điện thoại."))
+            RowDivider()
+        }
         EmojiPlacementRow()
         RowDivider()
         KeyLabelSizeRow()
