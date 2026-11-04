@@ -59,7 +59,7 @@ git -C "\$WP" push -u origin $BRANCH
 # 3. open the PR against microsoft/winget-pkgs
 gh pr create -R microsoft/winget-pkgs --head "\$GHUSER:$BRANCH" --base master \\
   --title "$TITLE" \\
-  --body "$TITLE. Signed per-machine MSI (x64 + arm64) from the GitHub release windows-v$VERSION; manifests generated and schema-validated (1.12.0) by windows/installer/winget/gen_manifests.py in ptrinh/viettelex."
+  --body "$TITLE. Signed per-machine MSI (x64 + arm64) from the GitHub release windows-v$VERSION; manifests generated and schema-validated (1.28.0) by windows/installer/winget/gen_manifests.py in ptrinh/viettelex."
 
 # 4. afterwards: rm -rf "\$WP"
 EOF

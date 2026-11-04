@@ -11,7 +11,7 @@
 * ProductCode/UpgradeCode are read from each MSI with `msiinfo` (msitools) when it is
   installed; otherwise they are left out (winget then matches by ARP DisplayName/version).
 * Output: <out>/manifests/p/ptrinh/VietTelex/<V>/ (version, installer, defaultLocale en-US,
-  locale vi-VN), schema 1.12.0.
+  locale vi-VN), schema 1.28.0.
 * Validation: every manifest is validated against the official winget JSON schema
   (fetched from github.com/microsoft/winget-cli). `jsonschema` is used if importable;
   otherwise a built-in validator covering every keyword those schemas use. Unknown keys
@@ -37,7 +37,7 @@ STABLE = os.path.join(ROOT, "docs", "stable.json")
 
 PKG_ID = "ptrinh.VietTelex"
 PKG_PATH = ("manifests", "p", "ptrinh", "VietTelex")
-SCHEMA_VER = "1.12.0"
+SCHEMA_VER = "1.28.0"
 SCHEMA_URL = ("https://raw.githubusercontent.com/microsoft/winget-cli/master/schemas/JSON/"
               "manifests/v{v}/manifest.{t}.{v}.json")
 REPO = "https://github.com/ptrinh/viettelex"
@@ -324,7 +324,7 @@ def main():
             inst = {"Architecture": a, "InstallerUrl": urls[a], "InstallerSha256": sha}
             if props.get("ProductCode"):
                 inst["ProductCode"] = props["ProductCode"]
-                arp = {"DisplayName": "VietTelex", "Publisher": "VietTelex", "DisplayVersion": version,
+                arp = {"DisplayName": "VietTelex", "Publisher": "VietTelex",
                        "ProductCode": props["ProductCode"]}
                 if props.get("UpgradeCode"):
                     arp["UpgradeCode"] = props["UpgradeCode"]
