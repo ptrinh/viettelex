@@ -60,6 +60,7 @@
 		1F4FDF0380687782A44AFAD3 /* KeyAlternates.swift in Sources */ = {isa = PBXBuildFile; fileRef = A34BA298D30DC3B98633F154 /* KeyAlternates.swift */; };
 		1F6E9A2879AD9C13534250F0 /* KeystrokeCounterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94C9F04D07CC6FFCEC184E2 /* KeystrokeCounterTests.swift */; };
 		1FE0301F7BA4765FA3C922D5 /* UserLangModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F316CA910C58A9377DC754A0 /* UserLangModel.swift */; };
+		1FEB0742B8060FF550D50313 /* EnglishNextWordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EA22D6AB6051AC7BED783B1 /* EnglishNextWordTests.swift */; };
 		1FF871030AE86A2D91C9B81E /* ShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121671DAC21692CEBCF9B296 /* ShortcutTests.swift */; };
 		20F63EA1CEB8F35CCDFB7724 /* emoji.bin in Resources */ = {isa = PBXBuildFile; fileRef = 0EBD4D68E1E032F0E0FBB27B /* emoji.bin */; };
 		21079B460094A0461A80E0FC /* EmojiAtlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B235B84E86F71BBBB10E836 /* EmojiAtlas.swift */; };
@@ -632,6 +633,7 @@
 		3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSuggest.swift; sourceTree = "<group>"; };
 		3CD9AC3759F73AB2A6C0BC1B /* ClipboardFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardFeature.swift; sourceTree = "<group>"; };
 		3DF8BE49B914D1B4B31116F3 /* NumberChips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberChips.swift; sourceTree = "<group>"; };
+		3EA22D6AB6051AC7BED783B1 /* EnglishNextWordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnglishNextWordTests.swift; sourceTree = "<group>"; };
 		3EDBA5B57FBEDAF80717B58A /* SplitKeyboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitKeyboardTests.swift; sourceTree = "<group>"; };
 		41BD0E4DE3C769A2EDE19180 /* ThemeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeSettingsView.swift; sourceTree = "<group>"; };
 		45174CB35A9FB727F1BF5F4F /* RetroEnglishUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroEnglishUI.swift; sourceTree = "<group>"; };
@@ -1116,6 +1118,7 @@
 				AC1AFC01B017992B476A591C /* EmojiEnglishTests.swift */,
 				E5AE58D76A8127D641A2AF62 /* EngineBridgeTests.swift */,
 				DE524268FAF6BB053C5C7D98 /* EnglishAssistTests.swift */,
+				3EA22D6AB6051AC7BED783B1 /* EnglishNextWordTests.swift */,
 				D93CDC9D2CEA8A91A576B183 /* FeatureRegressionTests.swift */,
 				6A33CAADFA0E1E99239C0C8D /* Feedback1016Tests.swift */,
 				455CE7543F3290A1B95FA3F9 /* Feedback1028Tests.swift */,
@@ -1908,6 +1911,7 @@
 				D4DEA988483DB59F683B8407 /* EngineBridgeTests.swift in Sources */,
 				7110C4E467E4CDBC2631B08B /* EnglishAssist.swift in Sources */,
 				97F9637DFB81CD5F1E03CF30 /* EnglishAssistTests.swift in Sources */,
+				1FEB0742B8060FF550D50313 /* EnglishNextWordTests.swift in Sources */,
 				F1691715B050F1B3A42B4C84 /* FeatureRegressionTests.swift in Sources */,
 				DFE5ADC7F71888FB35E130B3 /* Feedback1016Tests.swift in Sources */,
 				8433BF4EE05A88F175CA5007 /* Feedback1028Tests.swift in Sources */,

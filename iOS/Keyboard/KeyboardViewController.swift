@@ -1699,8 +1699,12 @@ final class KeyboardViewController: UIInputViewController {
     /// Đệm danh sách gợi ý cho ĐỦ `need` phần tử bằng từ hay dùng nhất (loại
     /// trùng + từ đang gõ) — bar luôn đủ 3, không bao giờ trống/khuyết
     /// (user 2026-07-25). Model đã seed nên topWords luôn đủ.
-    private func padWords(_ base: [String], need: Int, typed: String = "") -> [String] {
+    /// `afterWord` = ô "từ kế tiếp" sau `lastWord`: từ trước tiếng Anh ⇒ không đệm topWords
+    /// (#146, `SuggestRank.padsWithTopWords`).
+    private func padWords(_ base: [String], need: Int, typed: String = "", afterWord: Bool = false) -> [String] {
         guard base.count < need else { return Array(base.prefix(need)) }
+        if afterWord, !SuggestRank.padsWithTopWords(lastWord, english: bridge.englishMode,
+                                                    isEnglish: { SwipeEnglish.contains($0) }) { return base }
         let top = bridge.englishMode ? SwipeEnglish.top : langModel.topWords(limit: need + 12)
         let candidates = SensitiveWords.filter(top, after: lastWord, prev2: lastWord2, enabled: filterSensitive)
             .map { caseForContext(properCase($0), typed: typed) }
@@ -1818,11 +1822,12 @@ final class KeyboardViewController: UIInputViewController {
             }
             return
         } else if bridge.englishMode {
-            // Tiếng Anh: từ kế tiếp cá nhân chỉ giữ từ tiếng Anh; đệm bằng từ Anh phổ biến
+            // Tiếng Anh: từ kế tiếp cá nhân chỉ giữ từ tiếng Anh; đầu ô đệm bằng từ Anh phổ biến,
+            // sau một từ thì KHÔNG (#146: "they" → "the of and" là top unigram, không phải ngữ cảnh)
             let personal = lastWord.map { langModel.nextWords(after: $0, prev2: lastWord2, limit: 12) } ?? []
             let en = SensitiveWords.filter(personal.filter { SwipeEnglish.contains($0.lowercased()) },
                                            after: lastWord, prev2: lastWord2, enabled: filterSensitive).prefix(slotWant)
-            set.nextWords = padWords(en.map { caseForContext($0) }, need: slotWant)
+            set.nextWords = padWords(en.map { caseForContext($0) }, need: slotWant, afterWord: true)
         } else if let prev = lastWord {
             // vừa space sau một từ → gợi từ KẾ TIẾP (SuggestRank.nextFill): có trigram tĩnh
             // (prev2, prev) ⇒ bộ ba người dùng đã gõ, rồi trigram, rồi cá nhân/seed; không ⇒
@@ -1835,7 +1840,7 @@ final class KeyboardViewController: UIInputViewController {
                                             triCount: { w in p2.map { lm.trigramCount($0, prev, w) } ?? 0 },
                                             filter: { SensitiveWords.filter($0, after: prev, prev2: p2, enabled: fs) },
                                             need: slotWant, chain: chain)
-            set.nextWords = padWords(next.map { caseForContext(properCase($0, after: prev)) }, need: slotWant)
+            set.nextWords = padWords(next.map { caseForContext(properCase($0, after: prev)) }, need: slotWant, afterWord: true)
         } else {
             // field trống chưa gõ gì → từ user hay mở đầu nhất
             let top = SensitiveWords.filter(langModel.topWords(limit: max(6, slotWant + 3)),

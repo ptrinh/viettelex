@@ -1144,8 +1144,10 @@ class KeyboardSession(
     private fun displayCase(w: String, after: String? = null) =
         if (traits.lowercaseSuggestions) w.lowercase() else DisplayCase.resolve(w, after) { langModel.learnedCase(it) }
 
-    private fun padWords(base: List<String>, need: Int, typed: String = ""): List<String> {
+    /** [afterWord] = ô "từ kế tiếp" sau [lastWord]: từ trước tiếng Anh ⇒ không đệm topWords (#146, [SuggestRank.padsWithTopWords]). */
+    private fun padWords(base: List<String>, need: Int, typed: String = "", afterWord: Boolean = false): List<String> {
         if (base.size >= need) return base.take(need)
+        if (afterWord && !SuggestRank.padsWithTopWords(lastWord, bridge.englishMode)) return base
         // Tiếng Anh: không chặn main chờ nạp/sắp từ điển (IME hâm nóng nền khi vào EN) — chưa có ⇒ không đệm.
         val top = if (bridge.englishMode) SwipeEnglish.topIfReady ?: emptyList() else langModel.topWords(need + 12)
         val cands = SensitiveWords.filter(top, filterSensitive, after = lastWord, prev2 = lastWord2)
@@ -1189,10 +1191,11 @@ class KeyboardSession(
         }
         val prev = lastWord
         val next: List<String> = if (bridge.englishMode) {
-            // Tiếng Anh: từ kế tiếp cá nhân chỉ giữ từ tiếng Anh; đệm bằng từ Anh phổ biến
+            // Tiếng Anh: từ kế tiếp cá nhân chỉ giữ từ tiếng Anh; đầu ô đệm bằng từ Anh phổ biến,
+            // sau một từ thì KHÔNG (#146: "they" → "the of and" là top unigram, không phải ngữ cảnh)
             val personal = if (prev != null) langModel.nextWords(prev, lastWord2, 12) else emptyList()
             padWords(SensitiveWords.filter(personal.filter { SwipeEnglish.containsIfLoaded(it.lowercase()) }, filterSensitive, after = prev, prev2 = lastWord2)
-                .take(slotWant).map { caseForContext(it) }, slotWant)
+                .take(slotWant).map { caseForContext(it) }, slotWant, afterWord = true)
         } else if (prev != null) {
             // SuggestRank.nextFill: có trigram tĩnh (prev2, prev) ⇒ bộ ba người dùng đã gõ, rồi trigram,
             // rồi cá nhân/seed; không ⇒ cá nhân/seed trước, lấp bằng bigram tĩnh; rồi mới topWords
@@ -1202,7 +1205,7 @@ class KeyboardSession(
             val chain = SensitiveWords.filter(SensitiveWords.chain(prev, p2), filterSensitive, after = prev, prev2 = p2)
             val n = SuggestRank.nextFill(prev, p2, personal, { w -> if (p2 == null) 0 else langModel.trigramCount(p2, prev, w) },
                 { SensitiveWords.filter(it, filterSensitive, after = prev, prev2 = p2) }, need = slotWant, chain = chain)
-            padWords(n.map { caseForContext(displayCase(it, prev)) }, slotWant)
+            padWords(n.map { caseForContext(displayCase(it, prev)) }, slotWant, afterWord = true)
         } else {
             val top = SensitiveWords.filter(langModel.topWords(maxOf(6, slotWant + 3)), filterSensitive)
                 .take(slotWant).map { caseForContext(displayCase(it)) }
