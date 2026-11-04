@@ -142,6 +142,8 @@ enum L10n {
         "Hàng phím số": "Number row",
         "Hàng số cao bằng hàng chữ": "Number row as tall as letter rows",
         "Phím cạnh dấu cách": "Key next to space",
+        "Phím to": "Larger keys",
+        "Dấu phẩy, dấu chấm cạnh phím cách rộng bằng phím emoji (đỡ chạm nhầm phím cách); ⇧ và ⌫ nở ra lấp khe cạnh hàng chữ. Phím cách hẹp lại một chút. Tắt: bố cục như bàn phím iPhone.": "Comma and period next to the space bar become as wide as the emoji key (fewer accidental space taps); ⇧ and ⌫ widen to fill the gap beside the letters. The space bar gets a little narrower. Off: the same layout as the iPhone keyboard.",
         "Dấu phẩy": "Comma",
         "Dấu chấm": "Period",
         "Cả hai": "Both",

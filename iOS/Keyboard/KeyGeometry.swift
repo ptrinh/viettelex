@@ -559,6 +559,85 @@ enum SpaceSideKey: String, CaseIterable {
     static func load(_ d: UserDefaults?) -> SpaceSideKey { parse(d?.object(forKey: key)) }
 }
 
+/// "Phím to" (Tính năng → Phím & cử chỉ; khoá App Group `largeKeys`, mặc định TẮT ⇒ bố cục y
+/// hệt bàn phím iPhone). Góp ý người dùng 04/11/2026: "," "." cạnh phím cách nhỏ quá — hay chạm
+/// nhầm phím cách; ⇧ / ⌫ hàng Z chừa khe trống mỗi bên. Bật (chỉ iPhone — iPad không đổi):
+///  • Hàng đáy iPhone (plane chữ / số / ký hiệu / mẫu câu, cả bàn tách đôi): phím "," / "."
+///    rộng bằng phím emoji (= phím 123, 0.108 bề ngang hàng). Phím cách co lại đúng phần đó
+///    nhưng phần của nó (kể cả khe) không dưới `minSpaceUnits` — chỉ chạm tới khi SE có 🌐
+///    + "Cả hai" ("," và "."): khi đó hai phím rộng ít hơn, không bao giờ hẹp hơn lúc tắt.
+///    Phím "@" (ô email), "/" (ô URL) giữ nguyên.
+///  • Hàng Z plane chữ iPhone: khe ⇧↔z và m↔⌫ = khe giữa chữ (6 thay 12) ⇒ ⇧ / ⌫ mỗi phím
+///    rộng thêm đúng phần khe đó; z…m giữ nguyên cỡ và vị trí (hàng đối xứng).
+/// Đọc lúc dựng hàng (applyAppearance → rebuild) — chỉ đổi hằng số constraint, 0 chi phí mỗi
+/// phím; tắt = đúng các số cũ (test).
+enum LargeKeys {
+    static let key = "largeKeys"
+    static let defaultValue = false
+    static func load(_ d: UserDefaults?) -> Bool { d?.bool(forKey: key) ?? defaultValue }
+
+    /// Bề rộng "," / "." khi bật = phím emoji / 123 của hàng đáy iPhone (KeyLayout.phoneBottom).
+    static let punctUnits: CGFloat = 0.108
+    /// Phần tối thiểu của hàng (phím cách + khe/lề quanh nó) dành cho phím cách: ≈ 86pt phím
+    /// cách trên SE 375 có 🌐 + "Cả hai" (trường hợp chật nhất) — đủ chỗ giữ-kéo con trỏ, vuốt
+    /// đổi ngôn ngữ và logo Vᴛ / VI·EN.
+    static let minSpaceUnits: CGFloat = 0.36
+
+    /// Phím hàng đáy được nở khi bật.
+    static func widens(_ title: String) -> Bool { title == "," || title == "." }
+
+    /// Tỉ lệ bề rộng (phần bề ngang hàng) của các phím dấu câu hàng đáy theo thứ tự `puncts`.
+    /// `otherUnits` = tổng phần các phím cố định khác (123, 🌐, 😊, return). Tắt ⇒ trả nguyên.
+    static func punctUnits(_ puncts: [(title: String, units: CGFloat)], otherUnits: CGFloat,
+                           on: Bool) -> [CGFloat] {
+        let off = puncts.map(\.units)
+        guard on else { return off }
+        let grow = puncts.filter { widens($0.title) }.count
+        guard grow > 0 else { return off }
+        let fixed = otherUnits + puncts.filter { !widens($0.title) }.reduce(0) { $0 + $1.units }
+        let target = min(punctUnits, (1 - minSpaceUnits - fixed) / CGFloat(grow))
+        return puncts.map { widens($0.title) ? max($0.units, target) : $0.units }
+    }
+
+    /// Khe ⇧↔z, m↔⌫ hàng Z iPhone: bật ⇒ bằng khe giữa chữ.
+    static func shiftGap(on: Bool, standard: CGFloat, keyGap: CGFloat) -> CGFloat {
+        on ? keyGap : standard
+    }
+
+    // MARK: Mô hình hàng phím (test) — như UIStackView .fill: phím có `units` = units × bề
+    // ngang hàng (constraint multiplier theo stack.widthAnchor), đúng MỘT phím co giãn (nil)
+    // ăn phần còn lại sau lề hai bên và khe.
+
+    struct Span: Equatable { var x: CGFloat; var width: CGFloat; var maxX: CGFloat { x + width } }
+
+    static func rowSpans(width: CGFloat, margin: CGFloat, gaps: [CGFloat], units: [CGFloat?]) -> [Span] {
+        precondition(gaps.count == max(units.count - 1, 0))
+        let fixed = units.compactMap { $0 }.reduce(0, +) * width
+        let flex = width - 2 * margin - gaps.reduce(0, +) - fixed
+        var x = margin, out: [Span] = []
+        for (i, u) in units.enumerated() {
+            let w = u.map { $0 * width } ?? flex
+            out.append(Span(x: x, width: w))
+            x += w + (i < gaps.count ? gaps[i] : 0)
+        }
+        return out
+    }
+
+    /// Hàng Z iPhone (KeyboardView.buildLetters): [⇧] khe sg [z … m] khe sg [⌫]; phím chữ =
+    /// phím q hàng 1 ((W − 2·lề − 9·khe)/10), ⇧ = ⌫ ăn phần còn lại.
+    static func zRowSpans(width: CGFloat, margin: CGFloat, keyGap: CGFloat, standardShiftGap: CGFloat,
+                          on: Bool) -> [Span] {
+        let letter = (width - 2 * margin - 9 * keyGap) / 10
+        let sg = shiftGap(on: on, standard: standardShiftGap, keyGap: keyGap)
+        let side = (width - 2 * margin - 7 * letter - 6 * keyGap - 2 * sg) / 2
+        var x = margin, out = [Span(x: x, width: side)]
+        x += side + sg
+        for i in 0..<7 { out.append(Span(x: x, width: letter)); x += letter + (i < 6 ? keyGap : sg) }
+        out.append(Span(x: x, width: side))
+        return out
+    }
+}
+
 /// "Nút emoji" (Tính năng → Phím & cử chỉ; khoá App Group `emojiKeyPlacement`, cùng chuỗi với
 /// Android Keys.EMOJI_KEY_PLACEMENT):
 ///  • `.bottom` (mặc định): phím 😊 ở hàng đáy bàn chữ như cũ.

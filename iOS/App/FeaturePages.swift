@@ -121,6 +121,7 @@ struct FeatureSearchEntry: Identifiable {
             .init(viTitle: LK("Hàng phím số"), keywords: "number row số", page: .phim),
             .init(viTitle: LK("Hàng số cao bằng hàng chữ"), keywords: "number row height cao số", page: .phim),
             .init(viTitle: LK("Phím cạnh dấu cách"), keywords: "dấu phẩy dấu chấm comma period key next to space", page: .phim),
+            .init(viTitle: LK("Phím to"), keywords: "larger keys phím lớn dấu phẩy dấu chấm shift xoá comma period backspace bấm nhầm", page: .phim),
             .init(viTitle: LK("Giữ phím ra ký tự đặc biệt"), keywords: "ký hiệu symbol @ # giữ lâu", page: .phim),
             .init(viTitle: LK("Vuốt phím cách đổi Tiếng Việt / Tiếng Anh"), keywords: "space ngôn ngữ english language", page: .phim),
             .init(viTitle: LK("Độ nhạy con trỏ"), keywords: "trackpad con trỏ cursor phím cách space kéo tốc độ nhạy sensitivity speed", page: .phim),
@@ -286,6 +287,7 @@ struct TinhNangSections: View {
     @AppStorage("oneHandMode", store: featureDefaults) private var oneHandMode = "off"
     @AppStorage(SpaceSideKey.key, store: featureDefaults) private var spaceSideKey = SpaceSideKey.defaultValue.rawValue
     @AppStorage(EmojiKeyPlacement.key, store: featureDefaults) private var emojiKeyPlacement = EmojiKeyPlacement.defaultValue.rawValue
+    @AppStorage(LargeKeys.key, store: featureDefaults) private var largeKeys = LargeKeys.defaultValue
     @AppStorage("clipboardHistory", store: featureDefaults) private var clipboardHistory = false
     @AppStorage("incognitoMode", store: featureDefaults) private var incognitoMode = false
     @AppStorage(ICloudSync.enabledKey, store: featureDefaults) private var iCloudSync = false
@@ -316,6 +318,7 @@ struct TinhNangSections: View {
             return Self.join([(numberRow, numberRowFullHeight ? L("Hàng số cao") : L("Hàng số")),
                               (SpaceSideKey.parse(spaceSideKey) != .defaultValue, L("Phím cạnh dấu cách")),
                               (EmojiKeyPlacement.parse(emojiKeyPlacement) != .defaultValue, L("Nút emoji")),
+                              (largeKeys && UIDevice.current.userInterfaceIdiom == .phone, L("Phím to")),
                               (spaceSwipeLanguage, L("Vuốt phím cách")),
                               (swipeKeyCommands, L("Vuốt sao chép/dán")),
                               (autoSpaceAfterPunct, L("Cách sau dấu câu")),
@@ -667,6 +670,8 @@ struct PhimPage: View {
     @AppStorage(SpaceSideKey.key, store: featureDefaults) private var spaceSideKey = SpaceSideKey.defaultValue.rawValue
     /// "Nút emoji": "bottom" (mặc định) | "top" — bàn phím đọc lúc hiện (EmojiKeyPlacement).
     @AppStorage(EmojiKeyPlacement.key, store: featureDefaults) private var emojiKeyPlacement = EmojiKeyPlacement.defaultValue.rawValue
+    /// "Phím to" — mặc định TẮT (LargeKeys): "," "." hàng đáy và ⇧ / ⌫ hàng Z rộng hơn. Miễn phí.
+    @AppStorage(LargeKeys.key, store: featureDefaults) private var largeKeys = LargeKeys.defaultValue
     /// Ô phóng to chữ khi bấm phím — mặc định BẬT (KeyboardView.keyPreviewKey).
     @AppStorage("keyPreviewEnabled", store: featureDefaults) private var keyPreview = true
     /// Phím sẫm khi bấm (KeyboardView.keyPressHighlightKey) — mặc định = keyPressHighlightDefault.
@@ -704,6 +709,7 @@ struct PhimPage: View {
                         Text(L("Phím hẹp bên phải phím cách trên bàn chữ (ô email, đường dẫn giữ nguyên). Dấu chấm: giữ phím ra dấu phẩy (khi bật giữ phím ra ký tự đặc biệt). Cả hai: dấu phẩy bên trái, dấu chấm bên phải phím cách. Tắt: phím cách rộng hơn; chạm phím cách hai lần vẫn ra dấu chấm."))
                             .font(.footnote).foregroundStyle(.secondary)
                     }
+                    settingToggle(L("Phím to"), L("Dấu phẩy, dấu chấm cạnh phím cách rộng bằng phím emoji (đỡ chạm nhầm phím cách); ⇧ và ⌫ nở ra lấp khe cạnh hàng chữ. Phím cách hẹp lại một chút. Tắt: bố cục như bàn phím iPhone."), isOn: $largeKeys)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(L("Nút emoji"))
                         Picker(L("Nút emoji"), selection: Binding(

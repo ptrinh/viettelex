@@ -45,6 +45,7 @@
     "keySoundVolume" : 70,
     "keyStyles" : "{\"pink\":{\"accent\":\"#D6336C\",\"corner\":70},\"system\":{\"fill\":\"#102030\",\"font\":\"mono\",\"label\":\"#FF2D55\",\"weight\":\"heavy\"}}",
     "keyboardTransparency" : 40,
+    "largeKeys" : false,
     "liveSpellCheck" : true,
     "longPressNumbers" : true,
     "longPressSymbols" : false,
