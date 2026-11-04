@@ -74,8 +74,8 @@
     "notes": "Viết tắt HOA hiếm giữ nguyên phím gõ; gõ sai một chữ cuối không mất dấu; từ dính sau _ . và số không bỏ dấu; ⌫ sau khôi phục tiếng Anh trả lại chữ Việt; tên + viết tắt in hoa giữ dấu (#138)."
   },
   "android": {
-    "version": "1.5.23",
-    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.23/VietTelex-android-1.5.23.apk",
+    "version": "1.5.24",
+    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.24/VietTelex-android-1.5.24.apk",
     "play": "https://play.google.com/store/apps/details?id=com.viettelex.android"
   }
 }
