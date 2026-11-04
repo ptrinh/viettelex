@@ -275,11 +275,13 @@ object KeyLayout {
      * Hàng ký tự (10 phím) TRÊN hàng 3 của plane ?123 / =\<. Tắt hàng số: [NUM1, NUM2] / [SYM1, SYM2]
      * như cũ. Bật hàng số: hàng đầu là ĐÚNG hàng số plane chữ (1…0) + 2 hàng ký hiệu ⇒ 5 hàng cùng khung
      * plane chữ; plane ?123 mượn hàng đầu plane =\< (SYM1) — không ký tự nào lặp trong một plane.
+     * Hàng mượn nằm NGAY DƯỚI hàng số (#142, cùng iOS): hàng @ # ₫ _ & - + ( ) / giữ đúng vị trí thứ 3
+     * từ dưới lên như khi tắt hàng số (và như plane 123 bàn phím gốc).
      */
     fun symbolicRows(numbers: Boolean, numberRow: Boolean): List<List<String>> = when {
         !numberRow && numbers -> listOf(NUM1, NUM2)
         !numberRow -> listOf(SYM1, SYM2)
-        numbers -> listOf(NUM1, NUM2, SYM1)
+        numbers -> listOf(NUM1, SYM1, NUM2)
         else -> listOf(NUM1, SYM1, SYM2)
     }
 
