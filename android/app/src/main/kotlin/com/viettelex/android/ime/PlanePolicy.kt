@@ -21,4 +21,15 @@ object PlanePolicy {
      */
     fun clearsShiftLeavingLetters(to: Plane): Boolean =
         to == Plane.NUMBERS || to == Plane.SYMBOLS || to == Plane.EMOJI || to == Plane.EMOJI_SEARCH
+
+    /**
+     * Shift sau khi phím CHAR (hàng số 1…0 trên plane chữ — thường, tách đôi, một tay, tablet)
+     * vừa CHỐT ký tự: như phím chữ — nhả Shift một-lần (đầu câu hay ⇧ tay), Caps Lock giữ.
+     * Issue #143 (song sinh iOS): viết hoa đầu câu + hàng số, gõ "1" đầu câu ⇒ chữ kế vẫn
+     * hoa, vì phím số gửi Key.Text mà session không đánh giá lại viết hoa sau Key.Text.
+     * Plane 123 / ký hiệu không đổi (rời plane chữ đã tắt shift; về ABC thì đánh giá lại).
+     * [armedOn] = plane lúc phím được arm (chốt có thể trễ tới lúc nhấc / ngón kế chạm).
+     */
+    fun shiftAfterCharKey(armedOn: Plane, shift: KeyboardView.Shift): KeyboardView.Shift =
+        if (armedOn == Plane.LETTERS && shift == KeyboardView.Shift.ON) KeyboardView.Shift.OFF else shift
 }

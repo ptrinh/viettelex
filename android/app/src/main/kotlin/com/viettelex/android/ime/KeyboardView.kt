@@ -523,6 +523,17 @@ class KeyboardView(
     private val newlineFire: () -> Unit = { emit(Key.Newline) }
     private val textFires = HashMap<String, () -> Unit>()
     private fun textFire(s: String) = textFires.getOrPut(s) { val k = Key.Text(s); { emit(k) } }
+    private val lettersCharFires = HashMap<String, () -> Unit>()
+    /** Phím CHAR arm trên plane chữ (hàng số): chèn rồi nhả Shift một-lần như phím chữ (#143). */
+    private fun lettersCharFire(s: String) = lettersCharFires.getOrPut(s) {
+        val k = Key.Text(s)
+        val fire: () -> Unit = {
+            emit(k)
+            val next = PlanePolicy.shiftAfterCharKey(Plane.LETTERS, shift)
+            if (next != shift) { shift = next; invalidate() }
+        }
+        fire
+    }
 
     /**
      * "Hiệu ứng khi bấm phím" ([KeyEffectView], Plus) — null = tắt (mặc định): đường phím chỉ đọc một
@@ -1433,7 +1444,8 @@ class KeyboardView(
                 feedback.clickKey(k.label, Feedback.LETTER, this)
                 pressDown(pid, k)
                 if (keyPreview) showBalloon(k, k.label)
-                commits.arm(k, textFire(k.insert))
+                // Hàng số trên plane chữ: chốt xong nhả Shift một-lần (#143) — lúc CHỐT, không lúc chạm.
+                commits.arm(k, if (plane == Plane.LETTERS) lettersCharFire(k.insert) else textFire(k.insert))
                 armPopover(pid, k, x, y)
             }
             KeyKind.PAD -> {
