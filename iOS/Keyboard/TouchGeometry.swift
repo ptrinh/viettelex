@@ -20,6 +20,8 @@ enum TouchGeometry {
 /// vào phía phím dấu câu một dải = `band` × bề rộng phím dấu câu — như stock iOS (hàng đáy
 /// [123][😊][space][,][↵] hay chạm nhầm ","). Gõ cuộn (chạm ngay sau một chữ) ⇒ dải rộng
 /// hơn. Dải luôn < 0.5 ⇒ TÂM "," vẫn là của nó.
+/// 04/11/2026 (#145): dải chỉ áp NGOÀI khung nhìn thấy của phím dấu (khe / vùng nở) — trong
+/// khung luôn là phím dấu (`spaceClaims`).
 ///
 /// ĐÃ BỎ (10/10/2026, bug tester 1.2.6/1.2.7 "bấm ⌫ hay thành chữ m hoặc l"): nhánh "phím
 /// chữ thắng mép ⇧ / ⌫" — m lấn 20 % (gõ nhanh 35 %) mép trái ⌫, l lấn 20–35 % ĐỈNH ⌫ và
@@ -54,6 +56,20 @@ enum KeyHitBias {
             return p.x <= w.minX && p.x > l.maxX - band * l.width
         }
         return false
+    }
+
+    /// Space có được lấy điểm `p` đang trúng phím dấu câu `punct` không (Phil 04/11/2026, #145
+    /// "bấm , toàn trượt sang space"): KHÔNG BAO GIỜ trong khung nhìn thấy của phím dấu — chạm
+    /// trong "," luôn ra ",", kể cả sát mép space, kể cả gõ cuộn. Dải chỉ còn ở khe giữa hai
+    /// phím và phần nở ngoài khung (trên / dưới).
+    static func spaceClaims(_ p: CGPoint, punct: CGRect, space: CGRect, band: CGFloat) -> Bool {
+        !insidePunct(p, punct: punct) && intrudes(p, loser: punct, winner: space, band: band)
+    }
+
+    /// `p` nằm trong khung nhìn thấy của phím dấu câu (mép phải / dưới tính vào, như ngón chạm
+    /// đúng nét viền) — vùng nở của space không được lấn vào đây.
+    static func insidePunct(_ p: CGPoint, punct r: CGRect) -> Bool {
+        p.x >= r.minX && p.x <= r.maxX && p.y >= r.minY && p.y <= r.maxY
     }
 }
 

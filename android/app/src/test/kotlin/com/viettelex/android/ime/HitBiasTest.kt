@@ -10,6 +10,8 @@ import com.viettelex.keyboard.SpaceSideKey
 /**
  * Ưu tiên phím ở mép chung (HitBias, Phil 06/10/2026) — song sinh iOS KeyHitBiasTests:
  * space thắng "," / "." kề trong dải 30% (gõ cuộn < 150 ms: 40%); tâm mọi phím không đổi.
+ * 04/11/2026 (#145): dải chỉ áp ở khe / phần nở NGOÀI khung — trong khung thật của phím dấu
+ * câu luôn ra phím dấu đó (xem insidePunctNeverSpace).
  * 10/10/2026 (bug "bấm ⌫ hay thành m / l"): phím chữ KHÔNG còn lấn ⇧ / ⌫; khe quanh phím
  * chức năng thuộc nó (KeyLayout.gutterOwner) — xem backspaceAndShiftNeverStolenByLetters.
  */
@@ -52,10 +54,12 @@ class HitBiasTest {
         // (x, since, mong đợi)
         val table = listOf(
             Triple((space.right + comma.left) / 2 + 0.5f, slow, space),   // khe, phía ","
-            Triple(comma.left + 0.5f, slow, space),
-            Triple(comma.left + 0.29f * w, slow, space),
+            Triple(comma.left - 0.5f, 100L, space),                        // khe sát ",": space
+            Triple(comma.left + 0.5f, slow, comma),                        // trong khung: luôn ","
+            Triple(comma.left + 0.29f * w, slow, comma),
             Triple(comma.left + 0.31f * w, slow, comma),
-            Triple(comma.left + 0.38f * w, 100L, space),                   // gõ cuộn
+            Triple(comma.left + 0.38f * w, 100L, comma),                   // gõ cuộn
+            Triple(comma.left + 0.01f, 10L, comma),
             Triple(comma.left + 0.38f * w, 300L, comma),
             Triple(comma.left + 0.42f * w, 100L, comma),
             Triple(comma.right - 1f, 50L, comma),
@@ -76,14 +80,16 @@ class HitBiasTest {
         val ret = keys.first { it.kind == KeyKind.RETURN }
         assertTrue(comma.right < space.left && dot.left > space.right)
         val y = space.centerY
-        assertSame(space, hit(keys, comma.right - 0.2f * comma.width, y))
+        assertSame(comma, hit(keys, comma.right - 0.2f * comma.width, y))
         assertSame(comma, hit(keys, comma.right - 0.35f * comma.width, y))
-        assertSame(space, hit(keys, comma.right - 0.35f * comma.width, y, 50L))   // gõ cuộn
+        assertSame(comma, hit(keys, comma.right - 0.35f * comma.width, y, 50L))   // gõ cuộn
+        assertSame(comma, hit(keys, comma.right - 0.01f, y, 50L))                 // sát mép space
         assertSame(comma, hit(keys, comma.centerX, y, 50L))
         assertSame(comma, hit(keys, comma.left + 1f, y, 50L))                    // mép 😊 không phải space
         assertSame(emoji, hit(keys, emoji.right - 1f, y, 50L))
-        assertSame(space, hit(keys, dot.left + 0.2f * dot.width, y))
+        assertSame(dot, hit(keys, dot.left + 0.2f * dot.width, y))
         assertSame(dot, hit(keys, dot.left + 0.35f * dot.width, y))
+        assertSame(dot, hit(keys, dot.left, y, 50L))
         assertSame(dot, hit(keys, dot.centerX, y, 50L))
         assertSame(dot, hit(keys, dot.right - 1f, y, 50L))
         assertSame(ret, hit(keys, ret.left + 1f, y, 50L))
@@ -97,7 +103,8 @@ class HitBiasTest {
         val keys = build(Plane.NUMBERS)
         val space = keys.first { it.kind == KeyKind.SPACE }
         val dot = keys.first { it.kind == KeyKind.PUNCT && it.label == "." }
-        assertSame(space, hit(keys, dot.left + 0.2f * dot.width, dot.centerY, plane = Plane.NUMBERS))
+        assertSame(dot, hit(keys, dot.left + 0.2f * dot.width, dot.centerY, 10L, plane = Plane.NUMBERS))
+        assertSame(space, hit(keys, dot.left - 0.5f, dot.centerY, 10L, plane = Plane.NUMBERS))   // khe
         assertSame(dot, hit(keys, dot.centerX, dot.centerY, plane = Plane.NUMBERS))
         // Pure: "," bên TRÁI space cũng đúng chiều.
         val l = LaidKey(KeyKind.PUNCT, ",", ",", ",", 60f, 0f, 90f, 40f)
@@ -175,9 +182,9 @@ class HitBiasTest {
         val dotKeys = KeyLayout.build(LayoutConfig(Plane.LETTERS, W, H, d, spaceSideKey = SpaceSideKey.PERIOD))
         val space = dotKeys.first { it.kind == KeyKind.SPACE }
         val dot = dotKeys.first { it.kind == KeyKind.PUNCT && it.label == "." }
-        assertSame(space, hit(dotKeys, dot.left + 0.29f * dot.width, dot.centerY))
-        assertSame(dot, hit(dotKeys, dot.left + 0.31f * dot.width, dot.centerY))
-        assertSame(space, hit(dotKeys, dot.left + 0.38f * dot.width, dot.centerY, 100L))
+        assertSame(dot, hit(dotKeys, dot.left + 0.29f * dot.width, dot.centerY))
+        assertSame(dot, hit(dotKeys, dot.left + 0.38f * dot.width, dot.centerY, 100L))
+        assertSame(space, hit(dotKeys, dot.left - 0.5f, dot.centerY, 100L))       // khe
         assertSame(dot, hit(dotKeys, dot.centerX, dot.centerY, 50L))
         val off = KeyLayout.build(LayoutConfig(Plane.LETTERS, W, H, d, spaceSideKey = SpaceSideKey.OFF))
         val offSpace = off.first { it.kind == KeyKind.SPACE }
@@ -194,13 +201,13 @@ class HitBiasTest {
         val comma = keys.first { it.kind == KeyKind.PUNCT && it.label == "," }
         val dot = keys.first { it.kind == KeyKind.PUNCT && it.label == "." }
         assertTrue(comma.right <= space.left && dot.left >= space.right)
-        // "," bên trái space: dải tính từ mép PHẢI của ",".
-        assertSame(space, hit(keys, comma.right - 0.29f * comma.width, comma.centerY))
-        assertSame(comma, hit(keys, comma.right - 0.31f * comma.width, comma.centerY))
-        assertSame(space, hit(keys, comma.right - 0.38f * comma.width, comma.centerY, 100L))
+        // "," bên trái space (#145: chạm mép phải "," gõ nhanh từng ra space ⇒ space đôi ". ").
+        assertSame(comma, hit(keys, comma.right - 0.29f * comma.width, comma.centerY))
+        assertSame(comma, hit(keys, comma.right - 0.35f * comma.width, comma.centerY, 100L))
+        assertSame(comma, hit(keys, comma.right - 0.01f, comma.centerY, 10L))
         assertSame(comma, hit(keys, comma.centerX, comma.centerY, 50L))
         // "." bên phải space: như Dấu chấm.
-        assertSame(space, hit(keys, dot.left + 0.29f * dot.width, dot.centerY))
+        assertSame(dot, hit(keys, dot.left + 0.29f * dot.width, dot.centerY))
         assertSame(dot, hit(keys, dot.left + 0.31f * dot.width, dot.centerY))
         assertSame(dot, hit(keys, dot.centerX, dot.centerY, 50L))
         // Khe giữa "," và space ⇒ space.
@@ -209,6 +216,71 @@ class HitBiasTest {
         val top = KeyLayout.build(LayoutConfig(Plane.LETTERS, W, H, d, spaceSideKey = SpaceSideKey.BOTH, emojiInStrip = true))
         val c2 = top.first { it.kind == KeyKind.PUNCT && it.label == "," }
         assertSame(c2, hit(top, c2.left + 1f, c2.centerY, 50L))
-        assertSame(top.first { it.kind == KeyKind.SPACE }, hit(top, c2.right - 1f, c2.centerY))
+        assertSame(c2, hit(top, c2.right - 1f, c2.centerY))
+        assertSame(top.first { it.kind == KeyKind.SPACE }, hit(top, c2.right + 1f, c2.centerY))
+    }
+
+    /**
+     * Phil 04/11/2026 (#145, "bấm , toàn trượt sang space"): MỌI điểm trong khung nhìn thấy của
+     * phím dấu câu kề space (lưới 9×9 tới sát mép, gồm mép phía space) ra đúng phím đó — gõ chậm
+     * lẫn gõ cuộn 10 / 100 ms sau chữ — ở mọi bố cục: điện thoại / tablet, ",", ".", Cả hai, ô
+     * email / URL, tách đôi, một tay, phím to, hàng số, plane 123 / #+=. Khe giữa phím dấu và space
+     * (ngoài khung) vẫn ra space.
+     */
+    @Test fun insidePunctNeverSpace() {
+        val fr = listOf(0f, 0.01f, 0.1f, 0.3f, 0.35f, 0.4f, 0.5f, 0.9f, 0.999f)
+        val configs = ArrayList<LayoutConfig>()
+        for ((w, h, tablet) in listOf(Triple(360f, 218f, false), Triple(390f, 218f, false), Triple(430f, 230f, false),
+                Triple(915f, 170f, false), Triple(800f, 300f, true), Triple(1280f, 360f, true))) {
+            for (plane in listOf(Plane.LETTERS, Plane.NUMBERS, Plane.SYMBOLS)) {
+                for (kind in listOf(InputKind.NORMAL, InputKind.EMAIL, InputKind.URL)) {
+                    for (side in SpaceSideKey.values()) {
+                        configs += LayoutConfig(plane, w, h, d, kind = kind, tablet = tablet, spaceSideKey = side)
+                    }
+                }
+                configs += LayoutConfig(plane, w, h, d, tablet = tablet, split = true)
+                configs += LayoutConfig(plane, w, h, d, tablet = tablet, largeKeys = true, spaceSideKey = SpaceSideKey.BOTH)
+                configs += LayoutConfig(plane, w, h, d, tablet = tablet, emojiInStrip = true, spaceSideKey = SpaceSideKey.BOTH)
+                if (!tablet) for (oh in OneHandSide.values())
+                    configs += LayoutConfig(plane, w, h, d, oneHand = oh, spaceSideKey = SpaceSideKey.BOTH)
+            }
+            configs += LayoutConfig(Plane.LETTERS, w, h * 1.2f, d, tablet = tablet, numberRow = true)
+        }
+        var checked = 0
+        for (cfg in configs) {
+            val keys = KeyLayout.build(cfg)
+            val spaces = keys.filter { it.kind == KeyKind.SPACE }
+            for (p in keys.filter { it.kind == KeyKind.PUNCT }) {
+                val adj = spaces.firstOrNull { s ->
+                    minOf(s.bottom, p.bottom) - maxOf(s.top, p.top) > 0.5f * minOf(s.height, p.height) &&
+                        (s.left - p.right in 0f..HitBias.MAX_GAP_DP * d || p.left - s.right in 0f..HitBias.MAX_GAP_DP * d)
+                } ?: continue
+                val tag = "$cfg '${p.label}'"
+                for (fx in fr) for (fy in fr) {
+                    val x = p.left + fx * p.width; val y = p.top + fy * p.height
+                    for (since in listOf(slow, 10L, 100L))
+                        assertSame("$tag ($x,$y) since=$since", p, KeyLayout.hit(keys, cfg.plane, x, y, 4f * d, d, since))
+                }
+                // Khe giữa (ngoài khung) ⇒ space như trước.
+                val gx = if (adj.left >= p.right) (p.right + adj.left) / 2 else (adj.right + p.left) / 2
+                assertSame("$tag khe", adj, KeyLayout.hit(keys, cfg.plane, gx, p.centerY, 4f * d, d, 100L))
+                checked++
+            }
+        }
+        assertTrue("không phím dấu nào được kiểm: $checked", checked > 50)
+    }
+
+    @Test fun refineGivesInsidePunctBackFromSpace() {
+        // Khe hẹp (1 dp < vùng nở 3 dp của space): router có thể chọn space trong khung "," ⇒ trả lại.
+        val comma = LaidKey(KeyKind.PUNCT, ",", ",", ",", 60f, 0f, 90f, 40f)
+        val space = LaidKey(KeyKind.SPACE, "", "", " ", 91f, 0f, 300f, 40f)
+        val keys = listOf(comma, space)
+        assertSame(comma, HitBias.refine(keys, space, 89f, 20f, 10L, d))
+        assertSame(comma, HitBias.refine(keys, comma, 89.9f, 20f, 10L, d))
+        assertSame(space, HitBias.refine(keys, comma, 90.5f, 20f, 10L, d))      // khe
+        assertSame(space, HitBias.refine(keys, space, 150f, 20f, 10L, d))
+        // Phần nở NGOÀI khung (dưới ",", trong dải) vẫn theo dải cũ.
+        assertSame(space, HitBias.refine(keys, comma, 85f, 42f, 10L, d))
+        assertSame(comma, HitBias.refine(keys, comma, 65f, 42f, 10L, d))
     }
 }

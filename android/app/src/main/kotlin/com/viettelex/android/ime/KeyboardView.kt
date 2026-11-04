@@ -511,18 +511,14 @@ class KeyboardView(
     private var badgeAnim: ValueAnimator? = null
     private val badgeText = context.getString(R.string.ime_badge)
 
-    private val spaceFire: () -> Unit = { fireSpace(null) }
-    /** Space vừa chốt là chạm trong khung "," / "." bị space lấy (HitBias) — #145, [StolenSpace]. */
-    private var lastSpaceStolen: String? = null
-    private fun fireSpace(stolen: String?) {
+    private val spaceFire: () -> Unit = {
         val now = SystemClock.uptimeMillis()
         // Bàn số: space luôn literal (không double-space → ". ").
         val pad = plane == Plane.PHONE || plane == Plane.NUMPAD
-        val key = StolenSpace.key(now - lastSpaceTap, DOUBLE_SPACE_MS, pad, lastSpaceStolen)
-        if (key == Key.DoubleSpacePeriod) feedback.sentenceEnd()   // ". " tự chèn = kết câu ⇒ vòng hợp âm cách (Piano / Ghi-ta) về đầu
-        emit(key)
+        val dbl = !pad && now - lastSpaceTap < DOUBLE_SPACE_MS
+        if (dbl) feedback.sentenceEnd()           // ". " tự chèn = kết câu ⇒ vòng hợp âm cách (Piano / Ghi-ta) về đầu
+        emit(if (dbl) Key.DoubleSpacePeriod else Key.Space)
         lastSpaceTap = now
-        lastSpaceStolen = stolen
     }
     private val newlineFire: () -> Unit = { emit(Key.Newline) }
     private val textFires = HashMap<String, () -> Unit>()
@@ -569,7 +565,7 @@ class KeyboardView(
         if (!fxPending) return
         fxPending = false
         val fx = effects ?: return
-        if (k is Key.Letter || k is Key.Text || k == Key.Space || k == Key.DoubleSpacePeriod || k is Key.DoubleSpacePunct) fx.burst(fxX, fxY, fxW, fxH)
+        if (k is Key.Letter || k is Key.Text || k == Key.Space || k == Key.DoubleSpacePeriod) fx.burst(fxX, fxY, fxW, fxH)
     }
 
     /** Đập chuột (theme "game":"mole", [MoleView]) — null = theme khác: đường phím chỉ đọc một biến null. */
@@ -619,7 +615,7 @@ class KeyboardView(
         when (k) {
             is Key.Letter -> search.type(k.ch)
             is Key.Text -> { if (k.replacesLetter) search.backspace(); search.insert(k.text) }
-            Key.Space, Key.DoubleSpacePeriod, is Key.DoubleSpacePunct -> search.space()
+            Key.Space, Key.DoubleSpacePeriod -> search.space()
             Key.Backspace -> search.backspace()
             Key.Newline, Key.LineBreak -> { setPlane(Plane.EMOJI); return }
             else -> return
@@ -1475,10 +1471,7 @@ class KeyboardView(
             KeyKind.SPACE -> {
                 feedback.click(Feedback.SPACE, this)
                 press(k)
-                // #145: chạm trong khung "," / "." mà ưu tiên mép cho space ⇒ nhớ để space đôi kế
-                // ra "<dấu> " thay vì ". " (lambda riêng chỉ khi bị lấy — thường 0 cấp phát).
-                val stolen = if (forced == null) StolenSpace.punct(keys, k, x, y) else null
-                commits.arm(k, if (stolen == null) spaceFire else ({ fireSpace(stolen) }))
+                commits.arm(k, spaceFire)
                 spacePtr = pid
                 spaceDownKey = k
                 flickDownT = e.eventTime
