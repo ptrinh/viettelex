@@ -109,6 +109,7 @@ object SensitiveWords {
         "mặt lồn" to listOf("ra"),
         "mẹ kiếp" to listOf("mày"),
         "ngu như" to listOf("chó", "lợn"),
+        "real hay" to listOf("fake"),
         "thằng ất" to listOf("ơ"),
         "tiên sư" to listOf("bố"),
         "tổ cha" to listOf("mày"),

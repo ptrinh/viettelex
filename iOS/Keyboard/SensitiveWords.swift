@@ -137,6 +137,7 @@ enum SensitiveWords {
         "mặt lồn": ["ra"],
         "mẹ kiếp": ["mày"],
         "ngu như": ["chó", "lợn"],
+        "real hay": ["fake"],
         "thằng ất": ["ơ"],
         "tiên sư": ["bố"],
         "tổ cha": ["mày"],

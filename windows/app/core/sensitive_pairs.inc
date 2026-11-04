@@ -87,7 +87,7 @@ const char* const kSensitiveTriples[] = {
     "đồ mất dạy",
     "đồ ăn hại",
 };
-// SeedChains: 26 "prev2 prev word" rows, grouped by UTF-8-sorted "prev2 prev", heaviest first
+// SeedChains: 27 "prev2 prev word" rows, grouped by UTF-8-sorted "prev2 prev", heaviest first
 // within a group — the next word leads after exactly (prev2, prev) (seedChain; SensitiveWords.chains).
 const char* const kSeedChains[] = {
     "bố mày đây",
@@ -102,6 +102,7 @@ const char* const kSeedChains[] = {
     "mẹ kiếp mày",
     "ngu như chó",
     "ngu như lợn",
+    "real hay fake",
     "thằng ất ơ",
     "tiên sư bố",
     "tổ cha mày",

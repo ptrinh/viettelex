@@ -272,7 +272,7 @@ class SeedDataTests {
     @Test fun testSeedSizesMatchIOS() {
         val s = SeedData.load()
         assertEquals(1222, s.unigrams.size)
-        assertEquals(1276, s.bigrams.size)
+        assertEquals(1277, s.bigrams.size)
     }
 }
 

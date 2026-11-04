@@ -82,7 +82,8 @@ inc += "};\n"
 try! inc.write(toFile: CommandLine.arguments[2], atomically: true, encoding: .utf8)
 SWIFT
 swiftc -O -o "$TMP/gen" "$TMP/main.swift" "$TMP/UserLangModel.swift" "$KB/UserLMTables.swift" "$KB/SeedData.swift" \
-  "$KB/VNSuggest.swift" "$KB/VNLexicon2.swift" "$KB/SyllableLM.swift" "$KB/SwipeLexicon.swift"
+  "$KB/VNSuggest.swift" "$KB/VNLexicon2.swift" "$KB/SyllableLM.swift" "$KB/SwipeLexicon.swift" \
+  "$ROOT/iOS/Shared/AppFlavor.swift"
 # VNLexicon2Data đọc vnlexicon.bin cạnh executable (Bundle.main của công cụ dòng lệnh).
 cp "$KB/Resources/vnlexicon.bin" "$TMP/"
 "$TMP/gen" "$TMP/SeedNextData.swift" "$TMP/seed_next.inc"

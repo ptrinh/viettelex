@@ -669,10 +669,22 @@ gõ sai một chữ.
   kéo theo "ll"/"ve" (đuôi rút gọn đã có trong EnglishContextWords từ trước, bảng cũ chưa sinh lại) và bỏ
   "landlords" (đuôi lấp Wikipedia). Từ nhạy cảm chỉ đọc khối `set` của SensitiveWords.swift.
 - 04/11/2026: thêm vào `SUPPLEMENT` 8 từ lóng / thương mại người Việt hay chen (flex, cringe, slay, rizz,
-  simp, skincare, freeship, livestream) ⇒ 20.059 từ, 183.941 byte (+64). enlexicon.bin được VÁ chỉ 8 từ
-  này (tần suất đúng như script tính: 40–75) chứ không sinh lại cả bảng: sinh lại đầy đủ lúc này còn kéo
-  theo ~25 từ khác (EnglishContextWords đổi từ 18/10: thêm ai, json, url, sql…; bớt từ đuôi Wikipedia như
-  acetate, azure) — để dành một lần sinh lại có chủ đích. EnglishFreezePrefixes CHƯA sinh lại.
+  simp, skincare, freeship, livestream) + "azure" (Microsoft Azure — lần sinh lại này đẩy nó ra khỏi đuôi
+  Wikipedia).
+- 04/11/2026: **sinh lại đầy đủ** từ dữ liệu thô ghim commit (không còn bản vá tay): 20.059 từ, 183.941 →
+  183.826 byte. Đổi so với bản trước (tần suất các từ còn lại không đổi): THÊM 25 từ của EnglishContextWords
+  (đổi từ 18/10) — ai, char, css, csv, dao, dto, en, faq, fk, gb, guid, ids, io, ip, js, json, os, qr, reset,
+  sql, ui, url, uuid, ux, vi; BỚT 25 từ đuôi Wikipedia (byte 83) — acetate, blending, childbirth, davey, farmed,
+  federations, guitarists, heartland, jaya, karlsruhe, moray, nawab, nitrate, partridge, paving, pdc,
+  pedestrians, provence, rolf, southport, stardom, terminates, tian, turnbull, undergoes. Kéo theo:
+  EnglishFreezePrefixes 1.001 → 1.014 tiền tố (8.884 → 8.985 byte nguồn): bớt nawa / partr (từ bị bớt), thêm 15 do
+  engine đổi từ 18/10 (asian, axial, casual, defend, orion, refused, varian…). gen-freeze-prefixes sửa: PR #133
+  (từ đã có dấu chữ giữ nguyên, đóng băng ở phím TRƯỚC — `at == r − 1`) làm generator bỏ sót ~220 tiền tố engine
+  vẫn tra (parag, parame, resea…; golden Android bắt được) — nay nhận cả trường hợp đó. Rồi `gen-wordlists.py` /
+  `gen_tables.py` + `swift run gen-golden` (8 dòng golden đổi: casual / defend khôi phục sớm); Android keyprior.bin 570.455 → 570.104 byte (trie 63.380 → 63.341 nút, TouchSimTests /
+  TouchTargetTests); bảng EnglishNext không đổi (`--check` qua, không từ nào bị bớt nằm trong bảng).
+  Windows đọc thẳng `iOS/Keyboard/Resources/enlexicon.bin` (VietTelex.rc), Linux đóng gói cùng file. Web SDK
+  (`web/sdk/dist`, wasm có bảng tiền tố) CHƯA dựng lại — cần Docker (`web/sdk/scripts/build.sh`).
 
 ### Nguồn
 
@@ -972,6 +984,12 @@ WordPrediction / Predict.swift / word_prediction.cpp); chuỗi cũng vào tập 
 từ, phương án vuốt, ngữ cảnh vuốt) — cặp cuối là cụm thường nên vẫn hiện ("như chó", "mất dạy", "bã đậu", "khốn nạn").
 "như chó" vì thế bỏ khỏi [sensitive-bigram] và khỏi seed (⇒ 1.276 bigram). Thêm dấu không đổi (chỉ cặp). `--check`
 so cả hai bảng.
+
+04/11/2026 (#146): cặp trộn Việt–Anh cho thanh TỪ KẾ TIẾP sau dấu cách — "đu trend", "out trình", "check var" đã có
+từ 18/10; thêm `[bigram]` "real hay" và `[trigram]` "real hay fake" (chuỗi, không thành cặp "hay fake" vì sau "hay"
+thường là không / quá / là) ⇒ 1.277 bigram. Chỉ seed: có ở người dùng mới / sau "Xoá từ đã học". seed.tsv 33.020 →
+33.033 B; SeedNextData / seed_next.inc thêm dòng "real hay". `Scripts/gen-seed-next.sh` nay biên dịch kèm
+`iOS/Shared/AppFlavor.swift` (UserLangModel dùng AppFlavor.appGroup).
 
 ### Đo trước / sau giai đoạn 2 (tập KIỂM THỬ, JVM; "trước" = main 18/10/2026 sau giai đoạn 1)
 

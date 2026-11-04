@@ -68,14 +68,13 @@ chatgpt anthropic openai grok ubuntu deadlock bool boolean llm copilot cursor ku
 typescript github
 crypto blockchain stablecoin defi nft staking etf ipo fintech usdt forex bullish bearish altcoin airdrop
 mainnet testnet vc
-cloudflare golang vpn agentic debug kotlin npm repo
+cloudflare golang vpn agentic debug kotlin npm repo azure
 keto detox paracetamol panadol aspirin whey
 viettelex telex phil
 flex cringe slay rizz simp skincare freeship livestream
 """.split())
-# ↑ dòng cuối: tiếng lóng / từ thương mại người Việt hay chen (Phil 04/11/2026). enlexicon.bin lúc thêm được
-# VÁ CHỈ 8 từ này (cùng tần suất script tính) thay vì sinh lại cả bảng — sinh lại đầy đủ lúc đó còn kéo theo
-# ~25 từ khác do EnglishContextWords đổi từ 18/10 (thêm ai/json/url…, bớt từ đuôi Wikipedia).
+# ↑ dòng cuối: tiếng lóng / từ thương mại người Việt hay chen (Phil 04/11/2026). "azure" (Microsoft Azure): sinh
+# lại đầy đủ 04/11/2026 đẩy nó ra khỏi đuôi Wikipedia (EnglishContextWords thêm ai/json/url…) — giữ ở đây.
 
 ROMAN = set("ii iii iv vi vii viii ix xi xii xiii xiv xv xvi xvii xviii xix xx xxi".split())
 

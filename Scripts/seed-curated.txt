@@ -1384,6 +1384,11 @@ tiền sản 3
 # NEO
 hậu quả 4
 
+# bổ sung 04/11/2026 (Phil, #146 trộn Việt–Anh) — thanh TỪ KẾ TIẾP sau dấu cách (chỉ seed: cài mới / Xoá từ đã
+# học). Đã có từ 18/10: đu trend, out trình, check var. "hay → fake" KHÔNG thành cặp (sau "hay" thường là
+# không/quá/là) — chỉ là chuỗi ba từ "real hay fake" ở [trigram].
+real hay 3
+
 # tác giả: Phil Trinh
 phil trinh 5
 
@@ -1503,3 +1508,5 @@ bố mày đây 3
 [trigram]
 # Chuỗi seed ba từ HIỆN cho mọi người (lóng nhẹ, vui). "não cá vàng" đã đoán sẵn — không cần dòng.
 vãi cả chưởng 3
+# 04/11/2026 (Phil, #146): sau đúng "real hay" ⇒ fake đứng đầu
+real hay fake 3
