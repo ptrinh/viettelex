@@ -592,6 +592,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var spaceSideKey: SpaceSideKey = .defaultValue {
         didSet { if spaceSideKey != oldValue { rebuild() } }
     }
+    /// "Phím to" (Phím & cử chỉ, mặc định TẮT — LargeKeys): "," "." hàng đáy rộng bằng phím
+    /// emoji, ⇧ / ⌫ hàng Z lấp khe. Trong chữ ký rebuild; chỉ đổi constraint lúc dựng hàng.
+    var largeKeys = LargeKeys.defaultValue {
+        didSet { if largeKeys != oldValue { rebuild() } }
+    }
+    /// Phím to chỉ áp iPhone (iPad giữ hàng stock).
+    private var largeKeysActive: Bool { largeKeys && !Self.isPad }
     /// "Nút emoji" (Phím & cử chỉ, mặc định Hàng dưới — EmojiKeyPlacement). Trong chữ ký rebuild
     /// qua [emojiInBar]; đọc ở applyAppearance, không tốn gì mỗi phím.
     var emojiKeyPlacement: EmojiKeyPlacement = .defaultValue {
@@ -2038,6 +2045,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         numberRowEnabled = UserDefaultsProvider.shared?.bool(forKey: Self.numberRowKey) ?? false
         numberRowFullHeight = UserDefaultsProvider.shared?.bool(forKey: KeyGeometry.numberRowFullHeightKey) ?? false
         spaceSideKey = SpaceSideKey.load(UserDefaultsProvider.shared)
+        largeKeys = LargeKeys.load(UserDefaultsProvider.shared)
         emojiKeyPlacement = EmojiKeyPlacement.load(UserDefaultsProvider.shared)
         suggestionBar.setting = SuggestionCount.load(UserDefaultsProvider.shared)   // "Số từ gợi ý"
         barHeight = SuggestionBarHeight.load(UserDefaultsProvider.shared)   // "Chiều cao thanh gợi ý" — rebuild() cuối hàm áp
@@ -2235,6 +2243,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var builtNumberRow = false
     private var builtNumberRowFull = false
     private var builtSpaceSide: SpaceSideKey = .defaultValue
+    private var builtLargeKeys = LargeKeys.defaultValue
     private var builtEmojiInBar = false
     private var builtPressHighlight = KeyboardView.keyPressHighlightDefault
     /// Khe/lề dựng vào constraint lúc build (preset stock: dọc ≠ ngang) — đổi là dựng lại.
@@ -2300,6 +2309,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             || builtNumberRow != numberRowEnabled
             || builtNumberRowFull != numberRowFullHeight
             || builtSpaceSide != spaceSideKey
+            || builtLargeKeys != largeKeys
             || builtEmojiInBar != emojiInBar
             || builtPressHighlight != keyPressHighlightEnabled
             || builtAlts != activeAlts
@@ -2348,6 +2358,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         builtNumberRow = numberRowEnabled
         builtNumberRowFull = numberRowFullHeight
         builtSpaceSide = spaceSideKey
+        builtLargeKeys = largeKeys
         builtEmojiInBar = emojiInBar
         builtPressHighlight = keyPressHighlightEnabled
         builtAlts = activeAlts
@@ -2604,9 +2615,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Khe là vùng chết với UIButton nhưng router trả về phím gần nhất.
         if let z = r3btns.first, let q = r1btns.first, let stack = thirdRow as? UIStackView {
             // Chỉ iPhone: iPad stock giữ khe đều giữa shift và chữ.
+            // "Phím to": khe = khe chữ ⇒ ⇧ / ⌫ nở lấp khe, chữ giữ chỗ (LargeKeys).
             if UIDevice.current.userInterfaceIdiom == .phone {
-                stack.setCustomSpacing(Self.shiftGap, after: shiftBtn)
-                if let m = r3btns.last { stack.setCustomSpacing(Self.shiftGap, after: m) }
+                let sg = LargeKeys.shiftGap(on: largeKeysActive, standard: Self.shiftGap, keyGap: keyGapNow)
+                stack.setCustomSpacing(sg, after: shiftBtn)
+                if let m = r3btns.last { stack.setCustomSpacing(sg, after: m) }
             }
             crossRow(z.widthAnchor.constraint(equalTo: q.widthAnchor))
             shiftBtn.widthAnchor.constraint(equalTo: backBtn.widthAnchor).isActive = true
@@ -3042,8 +3055,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let l3 = splitHalf([shiftBtn] + keys(r3.left), left: 0, right: 0)
         let rk = keys(r3.right)
         let r3s = splitHalf(rk + [backBtn], left: 0, right: 0)
-        l3.setCustomSpacing(Self.shiftGap, after: shiftBtn)
-        if let last = rk.last { r3s.setCustomSpacing(Self.shiftGap, after: last) }
+        let sg = LargeKeys.shiftGap(on: largeKeysActive, standard: Self.shiftGap, keyGap: keyGapNow)
+        l3.setCustomSpacing(sg, after: shiftBtn)
+        if let last = rk.last { r3s.setCustomSpacing(sg, after: last) }
         rowsContainer.addArrangedSubview(splitRow(l3, r3s, half: m.half))
         rowsContainer.addArrangedSubview(splitBottomRow(planeKey: "123", m: m))
         applyRowHeights()
@@ -3095,7 +3109,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         default: puncts = [(",", ",", 0)]
         }
         for p in makePunctKeys(puncts, planeKey: planeKey) {
-            fixWidth(p.btn, m.keyWidth * 0.9)
+            // "Phím to": "," / "." rộng bằng 😊 / 123 bên trái (m.keyWidth).
+            let big = largeKeysActive && LargeKeys.widens(p.btn.currentTitle ?? "")
+            fixWidth(p.btn, m.keyWidth * (big ? 1 : 0.9))
             right.append(p.btn)
         }
         let ret = returnButton()
@@ -3491,12 +3507,21 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // bóp globe còn bề ngang icon và chia lại mỗi lần phím đổi trạng thái —
         // hàng đáy iPad nhảy size khi bấm (feedback 26/09/2026). Chỉ space co giãn.
         globeBtn?.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: frac("globe")).isActive = true
-        for pk in punctKeys {
-            // iPhone plane chữ: "," hẹp hơn stock (KeyLayout.phoneLettersComma), phần dư cho
-            // space — chạm space hay lẹm sang "," (Phil 06/10/2026; thêm KeyHitBias).
-            let lettersComma = !padStock && planeKey == "123" && !clearInsteadOfEmoji
-            let m = pk.btn.currentTitle != "," ? pk.mult
+        // iPhone plane chữ: "," hẹp hơn stock (KeyLayout.phoneLettersComma), phần dư cho
+        // space — chạm space hay lẹm sang "," (Phil 06/10/2026; thêm KeyHitBias).
+        let lettersComma = !padStock && planeKey == "123" && !clearInsteadOfEmoji
+        let punctUnits: [(title: String, units: CGFloat)] = punctKeys.map { pk in
+            let t = pk.btn.currentTitle ?? ""
+            let m = t != "," ? pk.mult
                 : lettersComma ? KeyLayout.phoneLettersComma : (KeyLayout.units("comma", in: spec) ?? pk.mult)
+            return (t, m)
+        }
+        // "Phím to" (iPhone): "," / "." rộng bằng phím emoji, space co lại (LargeKeys).
+        let large = largeKeysActive && !padStock
+        let others = frac("plane") + (globeBtn != nil ? frac("globe") : 0)
+            + (emojiBtn != nil ? frac("emoji") : 0) + (ret != nil ? frac("return") : 0)
+        let widths = LargeKeys.punctUnits(punctUnits, otherUnits: others, on: large)
+        for (pk, m) in zip(punctKeys, widths) {
             pk.btn.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: m).isActive = true
         }
         ret?.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: frac("return")).isActive = true

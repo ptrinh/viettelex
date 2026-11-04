@@ -159,6 +159,7 @@
 		4CD19AC18B15C6AE6C859141 /* FullPackSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D188EC4E6781410050CABC5D /* FullPackSnapshotTests.swift */; };
 		4D16B4C7A816CF7B417D47E5 /* RetroEnglishUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45174CB35A9FB727F1BF5F4F /* RetroEnglishUI.swift */; };
 		4DD222306E0ED8EAA1F4DD6C /* swipe-shortcuts.tsv in Resources */ = {isa = PBXBuildFile; fileRef = 1F5F701EEDA1A9A65CB97DCF /* swipe-shortcuts.tsv */; };
+		4E38DB41FF87ACBFBBF2D600 /* sample-shortcuts.yml in Resources */ = {isa = PBXBuildFile; fileRef = 58B88ADBF3CCFDB6C1235449 /* sample-shortcuts.yml */; };
 		4E60808450DA80CBC7DEF891 /* ios-mau-cau.yml in Resources */ = {isa = PBXBuildFile; fileRef = E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */; };
 		4E871644F8FD8B5DEF5D18C5 /* CompositionSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BDEAB6EAD0F1EA689B388A /* CompositionSync.swift */; };
 		4F177B14857E493A92E95B00 /* PlaneCacheLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EAFABBBF6544841D633BFD9 /* PlaneCacheLayoutTests.swift */; };
@@ -175,7 +176,6 @@
 		59184856DB1424FEC29F3781 /* TouchLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73661E1643A0CAA02517C00 /* TouchLog.swift */; };
 		593AA8DEA7AFB11D6005F173 /* EngineBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD709650C25830CA926EBCF /* EngineBridge.swift */; };
 		5996B5BAD4D3204CEF8FE6CC /* KeySoundSynth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F98B87CC6DBF96F8D09A899 /* KeySoundSynth.swift */; };
-		59C66E8A96CED913A07EA832 /* sample-shortcuts.yml in Resources */ = {isa = PBXBuildFile; fileRef = 24A08F7D2F73879EBEC99BEB /* sample-shortcuts.yml */; };
 		5A5A4CFF71EA497935A2961D /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */; };
 		5A863B519CEB4DFF869913D0 /* SwipeEnglishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC4C7AA642979C79BA435C61 /* SwipeEnglishTests.swift */; };
 		5B52F74F525D2FE790784DEB /* AdjacentKeyFixer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A25C830B85508BCD22F38A /* AdjacentKeyFixer.swift */; };
@@ -250,6 +250,7 @@
 		81C0F52CD34495D609EC6D0B /* NumericKeypad.swift in Sources */ = {isa = PBXBuildFile; fileRef = C007A36B32C0446F5DA0D89F /* NumericKeypad.swift */; };
 		8223496B8AEF51A27BFA7AD9 /* SuggestionInk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6152562FF50F2AE0026EE23A /* SuggestionInk.swift */; };
 		8230AC1E2000E3632E55037B /* swipe-traces-sample.json in Resources */ = {isa = PBXBuildFile; fileRef = 5E8B28C264666A6160445981 /* swipe-traces-sample.json */; };
+		829A609AE267EEBD04466DB0 /* LargeKeysTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA68B0A44030FC4DBC9F9F80 /* LargeKeysTests.swift */; };
 		82AF205821C99C760466EB34 /* userlm-vtl2-case.bin in Resources */ = {isa = PBXBuildFile; fileRef = F19DD98199410F2E9E9DAE24 /* userlm-vtl2-case.bin */; };
 		83667F4BE07F378F1DD8EDEA /* BackupFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02937CC02BE49C39A5A7933D /* BackupFormat.swift */; };
 		836B0B912D65DF647EF4087D /* AppearanceCycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = E611B5D3668D99B02D1AAE35 /* AppearanceCycle.swift */; };
@@ -600,7 +601,6 @@
 		222EF2EE5A6F795385492BEA /* playfair-display.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "playfair-display.ttf"; sourceTree = "<group>"; };
 		22BDEAB6EAD0F1EA689B388A /* CompositionSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositionSync.swift; sourceTree = "<group>"; };
 		23D9F4828FBAE93DCCEB2271 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		24A08F7D2F73879EBEC99BEB /* sample-shortcuts.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = "sample-shortcuts.yml"; sourceTree = "<group>"; };
 		27D10BA36AFF204B214098B2 /* HostRewriteCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRewriteCompositionTests.swift; sourceTree = "<group>"; };
 		283B18B560C805EFBE10D839 /* backup-too-new.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "backup-too-new.json"; sourceTree = "<group>"; };
 		2A5ACFCC85098E199869C169 /* MainDebouncer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainDebouncer.swift; sourceTree = "<group>"; };
@@ -658,6 +658,7 @@
 		56F3118CEF485547C4673DAB /* BuddyFlavorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuddyFlavorTests.swift; sourceTree = "<group>"; };
 		575059AED927C97A7E6E33CD /* Translation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Translation.framework; path = System/Library/Frameworks/Translation.framework; sourceTree = SDKROOT; };
 		580B8F2122EE28753CB78353 /* KeyEffectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyEffectTests.swift; sourceTree = "<group>"; };
+		58B88ADBF3CCFDB6C1235449 /* sample-shortcuts.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = "sample-shortcuts.yml"; sourceTree = "<group>"; };
 		58D98494210ACD4B0ED51A92 /* Trackpad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Trackpad.swift; sourceTree = "<group>"; };
 		5934AB6CE713D08F46A5E0C1 /* SwipeReviseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeReviseTests.swift; sourceTree = "<group>"; };
 		5A0609A6319273F70D4F03A6 /* futo-swipe-fixture.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "futo-swipe-fixture.txt"; sourceTree = "<group>"; };
@@ -841,6 +842,7 @@
 		E7BF9D54E0DFCE9D7395F598 /* swipe-paths.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "swipe-paths.txt"; sourceTree = "<group>"; };
 		E85DE7FE9317FE348701314F /* FoldableLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoldableLayoutTests.swift; sourceTree = "<group>"; };
 		E8E2E27B46842AE6F5EB0A74 /* SyncMerge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncMerge.swift; sourceTree = "<group>"; };
+		EA68B0A44030FC4DBC9F9F80 /* LargeKeysTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LargeKeysTests.swift; sourceTree = "<group>"; };
 		EBB757354715E62384994C56 /* RamFixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RamFixTests.swift; sourceTree = "<group>"; };
 		ED375EC0A76A9B50C92DE443 /* lexend.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = lexend.ttf; sourceTree = "<group>"; };
 		EE4C2C271F18A006B9967589 /* SwipePractice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipePractice.swift; sourceTree = "<group>"; };
@@ -944,13 +946,13 @@
 			isa = PBXGroup;
 			children = (
 				E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */,
+				E12797B18D4D12489DA2D3FB /* agent-a74ead28788975ace */,
 				C9D01CBA8ACF33359DB0C0BD /* App */,
 				D31F988D110CA9E478B35C27 /* Keyboard */,
 				9F75E32DB55D92888E77DE61 /* KeyboardTests */,
 				DF35FD668408A625226DFE82 /* Packages */,
 				7D398E9EE329A73C8620EBFB /* Shared */,
 				FAFFB2CAD61DDABA741DAA0D /* StoreKit */,
-				968E2C214A1AF99C3F83F278 /* VietTelex */,
 				33667695AC2B28EDA68E0C24 /* VTIntelligence */,
 				D1587473BF6CB453210A7CCB /* VTTranslate */,
 				01272B6532043F67ED824A91 /* Frameworks */,
@@ -1085,15 +1087,6 @@
 			path = Backup;
 			sourceTree = "<group>";
 		};
-		968E2C214A1AF99C3F83F278 /* VietTelex */ = {
-			isa = PBXGroup;
-			children = (
-				24A08F7D2F73879EBEC99BEB /* sample-shortcuts.yml */,
-			);
-			name = VietTelex;
-			path = ..;
-			sourceTree = "<group>";
-		};
 		9F75E32DB55D92888E77DE61 /* KeyboardTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -1143,6 +1136,7 @@
 				B94C9F04D07CC6FFCEC184E2 /* KeystrokeCounterTests.swift */,
 				6AFA2F7162222243B187E853 /* KeyVariantsTests.swift */,
 				C38772D47D6B779FA5C58271 /* L10nTests.swift */,
+				EA68B0A44030FC4DBC9F9F80 /* LargeKeysTests.swift */,
 				83172F6D36753303988A9F6B /* LearnedCaseTests.swift */,
 				B77A866D636FA255421EC2DA /* LegacyUserLangModel.swift */,
 				3B258DEED17434ED054B29D7 /* LetterUndoTests.swift */,
@@ -1380,6 +1374,15 @@
 			name = Packages;
 			sourceTree = "<group>";
 		};
+		E12797B18D4D12489DA2D3FB /* agent-a74ead28788975ace */ = {
+			isa = PBXGroup;
+			children = (
+				58B88ADBF3CCFDB6C1235449 /* sample-shortcuts.yml */,
+			);
+			name = "agent-a74ead28788975ace";
+			path = ..;
+			sourceTree = "<group>";
+		};
 		E3465DA8FF0BC03D9F14941A /* Practice */ = {
 			isa = PBXGroup;
 			children = (
@@ -1604,7 +1607,7 @@
 				DF225D04D7CF81C8C54070B8 /* number-chips.txt in Resources */,
 				2CD73C63D0A8516C1B298E55 /* retro-english-eval.txt in Resources */,
 				B6C7B7E478B6AEAF66C2D94B /* safety-cases.txt in Resources */,
-				59C66E8A96CED913A07EA832 /* sample-shortcuts.yml in Resources */,
+				4E38DB41FF87ACBFBBF2D600 /* sample-shortcuts.yml in Resources */,
 				93E768311710062913552601 /* suggest-dev.txt in Resources */,
 				B92E282E8D0ABE8BEBD693E7 /* suggest-trigram-parity.txt in Resources */,
 				2ADC518FE5C55961C93038B7 /* swipe-lang-sentences.txt in Resources */,
@@ -1955,6 +1958,7 @@
 				1F6E9A2879AD9C13534250F0 /* KeystrokeCounterTests.swift in Sources */,
 				FB860CBFB131AA4028FD0DCC /* L10n.swift in Sources */,
 				277D00FD560ECE145713C213 /* L10nTests.swift in Sources */,
+				829A609AE267EEBD04466DB0 /* LargeKeysTests.swift in Sources */,
 				04780C3DBC75360CF8A2FC28 /* LearnedCaseTests.swift in Sources */,
 				2B019DB27C4B5571D08103E7 /* LegacyUserLangModel.swift in Sources */,
 				175CED36E0C29E01403A284F /* LetterUndoTests.swift in Sources */,
