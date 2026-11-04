@@ -4545,8 +4545,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         b.addAction(UIAction { [weak self] _ in self?.hideBalloonAfterTap() },
                     for: [.touchUpInside, .touchUpOutside, .touchCancel])
         armCommit(b) { [weak self, weak b] in
-            self?.typedInSymbolPlane = true
-            self?.tapped(.text(b?.takePadAlt() == true ? (hint ?? s) : s))
+            guard let self else { return }
+            self.typedInSymbolPlane = true
+            self.tapped(.text(b?.takePadAlt() == true ? (hint ?? s) : s))
+            // Phím số/ký hiệu NGAY TRÊN plane chữ (hàng số, iPad "-" "="): như phím chữ —
+            // nhả Shift một-lần (đầu câu hay ⇧ tay), Caps Lock giữ (issue #143: "1" đầu câu
+            // rồi chữ kế vẫn hoa). Controller không đánh giá lại viết hoa sau .text.
+            if self.plane == .letters { self.releaseOneShotShift() }
         }
         // Giữ ra hàng biến thể như stock (KeyVariants) — chỉ bàn số/ký hiệu, phím KHÔNG có
         // nhãn phụ iPad (nhãn phụ đã dùng cử chỉ giữ). Chạm thường vẫn chèn ký tự gốc.
