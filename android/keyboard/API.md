@@ -68,8 +68,6 @@ handler.postDelayed({ if (out.generation == session.generation) refreshBar() }, 
 ```
 - Double-space: IME đo 2 space < `TypingTimings.DOUBLE_SPACE_S` (0.35 s) ⇒ gửi
   `Key.DoubleSpacePeriod` thay `Key.Space`; session tự kiểm `TypingHeuristics`.
-  Space trước là chạm trong khung "," / "." mà ưu tiên mép giao cho space (#145) ⇒
-  `Key.DoubleSpacePunct(",")` thay vì `DoubleSpacePeriod` ("chữ, " chứ không "chữ. ").
 - Giữ ⌫ > 3 s ⇒ `session.deleteWordBackward(proxy)` mỗi nhịp thứ 4.
 - Con trỏ dời từ ngoài (`onUpdateSelection` ≠ expected, không `applyingEdit`) ⇒
   `session.externalSelectionChange()` rồi `updateAutoShift` + `refreshBar()`.

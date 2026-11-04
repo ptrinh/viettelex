@@ -1,13 +1,17 @@
 package com.viettelex.android.ime
 
-import com.viettelex.keyboard.Key
-
 /**
  * Ưu tiên phím ở MÉP CHUNG (THUẦN — pinned by HitBiasTest; song sinh iOS KeyHitBias trong
  * TouchGeometry.swift, sửa cả hai). Phil 06/10/2026. Hình phím KHÔNG đổi; chỉ đường chia
  * vùng chạm giữa 2 phím kề dời vào phía phím "thua" một dải = band × bề rộng (cao) phím thua:
  *  - space thắng "," / "." kề bên (hàng đáy [?123][😊][space][,][↵] hay chạm nhầm ",").
  * Gõ cuộn (chạm ngay sau một chữ) ⇒ dải rộng hơn. Dải luôn < 0.5 ⇒ TÂM "," vẫn là của nó.
+ *
+ * 04/11/2026 (Phil, #145 "bấm , toàn trượt sang space"): space KHÔNG BAO GIỜ lấy điểm nằm
+ * TRONG khung nhìn thấy của phím dấu câu (mọi bố cục: Cả hai, email/URL, split, một tay,
+ * phím to). Dải chỉ còn tác dụng ở khe giữa hai phím và phần nở NGOÀI khung (trên/dưới) —
+ * chạm trong "," luôn ra ",", kể cả sát mép space, kể cả gõ cuộn. (Bỏ luôn vá StolenSpace /
+ * Key.DoubleSpacePunct: không còn "," bị lấy thì space đôi chỉ đến từ space thật.)
  *
  * ĐÃ BỎ (10/10/2026, bug tester iOS 1.2.6/1.2.7 "bấm ⌫ hay thành chữ m hoặc l", cùng logic
  * ở đây): nhánh "phím chữ thắng mép ⇧ / ⌫" (m lấn 20–35 % mép trái ⌫, l lấn 20–35 % đỉnh ⌫).
@@ -45,45 +49,24 @@ object HitBias {
     }
 
     /**
-     * Router chọn `hit` (theo vùng nở) ⇒ ưu tiên mép: space thay "," / "." kề. ⇧ / ⌫
+     * Router chọn `hit` (theo vùng nở) ⇒ ưu tiên mép: space thay "," / "." kề — CHỈ ngoài khung
+     * thật của phím dấu (khe / phần nở); trong khung ⇒ luôn phím dấu, kể cả khi `hit` = space. ⇧ / ⌫
      * KHÔNG BAO GIỜ nhường cho phím chữ. Không đổi ⇒ trả `hit`.
      */
     fun refine(keys: List<LaidKey>, hit: LaidKey, x: Float, y: Float, sinceLetterMs: Long, d: Float): LaidKey {
+        // Vùng nở của space (3 dp) có thể chạm vào khung dấu câu khi khe hẹp ⇒ trả lại.
+        if (hit.kind == KeyKind.SPACE) return punctAt(keys, x, y) ?: hit
         if (hit.kind != KeyKind.PUNCT || (hit.label != "," && hit.label != ".")) return hit
+        if (hit.contains(x, y)) return hit             // trong khung thật: luôn là dấu câu
         val gap = MAX_GAP_DP * d
         val band = spaceBand(sinceLetterMs)
         for (k in keys) if (k.kind == KeyKind.SPACE && intrudes(x, y, hit, k, band, gap)) return k
         return hit
     }
-}
 
-/**
- * Issue #145 (THUẦN — pinned by StolenSpaceTest): [HitBias] cho space lấy dải mép "," / "."
- * (gõ cuộn: 40 % bề rộng). Chạm "," nhanh sau một chữ mà rơi vào dải đó ⇒ ra DẤU CÁCH; dấu
- * cách thật ngay sau (< DOUBLE_SPACE_MS) ⇒ double-space ⇒ ". " — người gõ "chữ, " thấy
- * "chữ. " ("," thành "."). Space đôi mà lần đầu là chạm nằm TRONG khung thật của "," / "."
- * ⇒ lần đầu chính là phím dấu đó: thay dấu cách trước bằng "<dấu> " ([Key.DoubleSpacePunct]).
- */
-object StolenSpace {
-    /**
-     * Nhãn "," / "." nếu điểm chạm (toạ độ như [KeyLayout.hit]) nằm trong khung THẬT của phím
-     * dấu đó nhưng router chọn [hit] = space (dải mép HitBias); khác ⇒ null. Khe giữa hai phím
-     * không tính (thật sự mơ hồ).
-     */
-    fun punct(keys: List<LaidKey>, hit: LaidKey, x: Float, y: Float): String? {
-        if (hit.kind != KeyKind.SPACE) return null
-        for (k in keys) if (k.kind == KeyKind.PUNCT && (k.label == "," || k.label == ".") && k.contains(x, y))
-            return k.insert
+    /** Phím dấu câu (PUNCT) có khung THẬT chứa điểm — null nếu không có. */
+    fun punctAt(keys: List<LaidKey>, x: Float, y: Float): LaidKey? {
+        for (k in keys) if (k.kind == KeyKind.PUNCT && k.contains(x, y)) return k
         return null
-    }
-
-    /**
-     * Phím phát ra khi space chốt: [sinceLastSpaceMs] từ lần space trước, [pad] = bàn số (space
-     * luôn literal), [prevStolen] = lần space trước là chạm "," / "." bị space lấy ([punct]).
-     */
-    fun key(sinceLastSpaceMs: Long, doubleSpaceMs: Long, pad: Boolean, prevStolen: String?): Key = when {
-        pad || sinceLastSpaceMs >= doubleSpaceMs -> Key.Space
-        prevStolen != null -> Key.DoubleSpacePunct(prevStolen)
-        else -> Key.DoubleSpacePeriod
     }
 }

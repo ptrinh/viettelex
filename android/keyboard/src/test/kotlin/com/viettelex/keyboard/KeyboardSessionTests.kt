@@ -154,20 +154,6 @@ class KeyboardSessionTests {
         assertEquals("  ", p2.text)
     }
 
-    /** #145: space trước là chạm "," bị ưu tiên mép cho space ⇒ space đôi ra ", " (không ". "). */
-    @Test fun testDoubleSpaceAfterStolenComma() {
-        val s = session(traits = FieldTraits()); val p = MockProxy()
-        s.typeKeys(p, "xin ")
-        s.handle(Key.DoubleSpacePunct(","), p)
-        assertEquals("xin, ", p.text)
-        s.typeKeys(p, "ban")
-        assertEquals("xin, ban", p.text)
-        // đầu ô / sau dấu câu: như DoubleSpacePeriod — chỉ là dấu cách
-        val p2 = MockProxy(); val s2 = session(traits = FieldTraits())
-        s2.handle(Key.Space, p2); s2.handle(Key.DoubleSpacePunct(","), p2)
-        assertEquals("  ", p2.text)
-    }
-
     @Test fun testAutoShiftRules() {
         assertTrue(KeyboardSession.autoShiftFor(""))
         assertTrue(KeyboardSession.autoShiftFor("Xong. "))

@@ -1,5 +1,6 @@
 // Ưu tiên phím ở mép chung (KeyHitBias, Phil 06/10/2026) — song sinh Android HitBiasTest.kt.
-//  1. space thắng "," / "." kề trong dải 30% (gõ cuộn < 150 ms sau chữ: 40%);
+//  1. space thắng "," / "." kề trong dải 30% (gõ cuộn < 150 ms sau chữ: 40%) — từ 04/11/2026
+//     (#145) CHỈ ngoài khung nhìn thấy của phím dấu (khe / vùng nở): trong khung luôn là phím dấu;
 //  2. (BỎ 10/10/2026 — bug "bấm ⌫ thành m / l") phím chữ KHÔNG lấn ⇧ / ⌫ nữa: phím chức
 //     năng có vùng chạm ổn định + khe cùng hàng (SpecialKeyGutter) — xem test cuối file;
 //  3. Caps Lock tắt khi rời plane chữ (123 / emoji), về ABC vẫn đánh giá lại viết hoa đầu câu.
@@ -52,6 +53,35 @@ final class KeyHitBiasTests: XCTestCase {
         XCTAssertFalse(B.intrudes(CGPoint(x: 361, y: y), loser: far, winner: space, band: 0.45))
     }
 
+    /// #145 (Phil 04/11/2026, "bấm , toàn trượt sang space"): space KHÔNG lấy điểm nào trong
+    /// khung nhìn thấy của "," / "." — kể cả sát mép space, kể cả gõ cuộn; khe + vùng nở ngoài
+    /// khung (dưới phím) vẫn theo dải cũ.
+    func testSpaceNeverClaimsInsidePunct() {
+        let y = comma.midY
+        let bands = [B.spaceBand(sinceLetter: nil), B.spaceBand(sinceLetter: 0.01), B.spaceBand(sinceLetter: 0.10)]
+        for band in bands {
+            for fx in stride(from: 0.0, through: 1.0, by: 0.05) {
+                for fy in [0.0, 0.5, 1.0] {
+                    let p = CGPoint(x: comma.minX + fx * comma.width, y: comma.minY + fy * comma.height)
+                    XCTAssertFalse(B.spaceClaims(p, punct: comma, space: space, band: band), "\(p) band=\(band)")
+                }
+            }
+            // Khe (ngoài khung) ⇒ space như trước.
+            XCTAssertTrue(B.spaceClaims(CGPoint(x: 307, y: y), punct: comma, space: space, band: band))
+            XCTAssertTrue(B.spaceClaims(CGPoint(x: 309.9, y: y), punct: comma, space: space, band: band))
+            // Vùng nở dưới "," (ngoài khung), trong dải ⇒ space; ngoài dải ⇒ ",".
+            XCTAssertTrue(B.spaceClaims(CGPoint(x: 312, y: comma.maxY + 2), punct: comma, space: space, band: band))
+            XCTAssertFalse(B.spaceClaims(CGPoint(x: comma.midX, y: comma.maxY + 2), punct: comma, space: space, band: band))
+        }
+        // "." BÊN TRÁI space: mép phải "." (sát space) vẫn là ".".
+        let dot = CGRect(x: 62, y: 162, width: 30, height: 43)
+        XCTAssertFalse(B.spaceClaims(CGPoint(x: dot.maxX, y: y), punct: dot, space: space, band: 0.4))
+        XCTAssertFalse(B.spaceClaims(CGPoint(x: 85, y: y), punct: dot, space: space, band: 0.4))
+        XCTAssertTrue(B.spaceClaims(CGPoint(x: 95, y: y), punct: dot, space: space, band: 0.4))
+        XCTAssertTrue(B.insidePunct(CGPoint(x: dot.maxX, y: dot.maxY), punct: dot))
+        XCTAssertFalse(B.insidePunct(CGPoint(x: dot.maxX + 0.1, y: y), punct: dot))
+    }
+
     // MARK: KeyboardView thật (iPhone 402pt) — đường hitTest / router
 
     @MainActor private func makeKeyboard(side: SpaceSideKey = .comma,
@@ -82,7 +112,8 @@ final class KeyHitBiasTests: XCTestCase {
         XCTAssertEqual(cf.width, 402 * KeyLayout.phoneLettersComma, accuracy: 1)
         XCTAssertTrue(kb.hitTest(CGPoint(x: sf.midX, y: sf.midY), with: nil) === space)
         XCTAssertTrue(kb.hitTest(CGPoint(x: cf.midX, y: cf.midY), with: nil) === comma)
-        XCTAssertTrue(kb.hitTest(CGPoint(x: cf.minX + 0.2 * cf.width, y: cf.midY), with: nil) === space)
+        XCTAssertTrue(kb.hitTest(CGPoint(x: cf.minX + 0.2 * cf.width, y: cf.midY), with: nil) === comma)
+        XCTAssertTrue(kb.hitTest(CGPoint(x: cf.minX + 0.5, y: cf.midY), with: nil) === comma)
         XCTAssertTrue(kb.hitTest(CGPoint(x: cf.minX - 1, y: cf.midY), with: nil) === space, "khe")
         XCTAssertTrue(kb.hitTest(CGPoint(x: cf.minX + 0.4 * cf.width, y: cf.midY), with: nil) === comma)
     }
@@ -102,14 +133,83 @@ final class KeyHitBiasTests: XCTestCase {
         XCTAssertEqual(df.width, cf.width, accuracy: 0.5)
         XCTAssertTrue(kb.hitTest(CGPoint(x: cf.midX, y: cf.midY), with: nil) === comma)
         XCTAssertTrue(kb.hitTest(CGPoint(x: df.midX, y: df.midY), with: nil) === dot)
-        // "," bên TRÁI space: mép PHẢI của "," thuộc space.
-        XCTAssertTrue(kb.hitTest(CGPoint(x: cf.maxX - 0.2 * cf.width, y: cf.midY), with: nil) === space)
+        // "," bên TRÁI space: mép PHẢI của "," vẫn là "," (#145); khe mới là space.
+        XCTAssertTrue(kb.hitTest(CGPoint(x: cf.maxX - 0.2 * cf.width, y: cf.midY), with: nil) === comma)
+        XCTAssertTrue(kb.hitTest(CGPoint(x: cf.maxX - 0.5, y: cf.midY), with: nil) === comma)
         XCTAssertTrue(kb.hitTest(CGPoint(x: cf.maxX + 1, y: cf.midY), with: nil) === space, "khe")
         XCTAssertTrue(kb.hitTest(CGPoint(x: cf.maxX - 0.4 * cf.width, y: cf.midY), with: nil) === comma)
-        // "." bên PHẢI space: mép TRÁI của "." thuộc space.
-        XCTAssertTrue(kb.hitTest(CGPoint(x: df.minX + 0.2 * df.width, y: df.midY), with: nil) === space)
+        // "." bên PHẢI space: mép TRÁI của "." vẫn là "."; khe mới là space.
+        XCTAssertTrue(kb.hitTest(CGPoint(x: df.minX + 0.2 * df.width, y: df.midY), with: nil) === dot)
+        XCTAssertTrue(kb.hitTest(CGPoint(x: df.minX + 0.5, y: df.midY), with: nil) === dot)
         XCTAssertTrue(kb.hitTest(CGPoint(x: df.minX - 1, y: df.midY), with: nil) === space, "khe")
         XCTAssertTrue(kb.hitTest(CGPoint(x: df.minX + 0.4 * df.width, y: df.midY), with: nil) === dot)
+    }
+
+    /// #145 (Phil 04/11/2026): MỌI điểm trong khung nhìn thấy của phím dấu câu kề space (lưới
+    /// 9×9 tới sát mép) ra đúng phím đó — gõ chậm lẫn gõ cuộn (10 / 100 ms sau một chữ) — ở mọi
+    /// bố cục: ",", ".", Cả hai, ô email / URL, phím to, một tay, tách đôi, plane 123. Khe giữa
+    /// phím dấu và space vẫn là space.
+    @MainActor func testInsidePunctNeverSpaceAllLayouts() throws {
+        try XCTSkipIf(isPad)
+        struct Cfg { var side: SpaceSideKey; var kind: KeyboardView.InputKind = .normal
+                     var large = false; var oneHand: OneHandSide = .off; var split = false; var numbers = false }
+        var cfgs: [Cfg] = []
+        for side in SpaceSideKey.allCases {
+            for kind in [KeyboardView.InputKind.normal, .email, .url, .search] { cfgs.append(Cfg(side: side, kind: kind)) }
+            cfgs.append(Cfg(side: side, large: true))
+            cfgs.append(Cfg(side: side, numbers: true))
+            cfgs.append(Cfg(side: side, split: true))
+        }
+        for oh in [OneHandSide.left, .right] { cfgs.append(Cfg(side: .both, oneHand: oh)) }
+        cfgs.append(Cfg(side: .both, large: true, oneHand: .left))
+        let puncts: Set<String> = [",", ".", "@", "/", ".com", "-", "_", ":"]
+        let fr: [CGFloat] = [0, 0.01, 0.1, 0.3, 0.35, 0.4, 0.5, 0.9, 0.999]
+        var checked = 0
+        for c in cfgs {
+            let width: CGFloat = c.split ? 801 : 402
+            let kb = KeyboardView(needsGlobe: false, inputController: nil, onKey: { _ in })
+            kb.spaceSideKey = c.side
+            kb.largeKeys = c.large
+            let host = UIView(frame: CGRect(x: 0, y: 0, width: width, height: 500))
+            host.addSubview(kb)
+            kb.frame = CGRect(x: 0, y: 0, width: width, height: 260)
+            if c.split { kb.debugScreenSize = CGSize(width: 951, height: 669) }
+            kb.configureInputKind(c.kind)
+            kb.layoutIfNeeded()
+            if c.split { kb.debugSetSplit(true) }
+            if c.numbers { kb.debugSetPlane(numbers: true) }
+            kb.configureOneHand(c.oneHand)
+            kb.frame.size.height = kb.debugRequestedHeight
+            kb.setNeedsLayout(); kb.layoutIfNeeded()
+            let all = kb.debugAllKeyButtons().filter { !$0.isHidden }
+            let spaces = all.filter { $0.accessibilityLabel == "Dấu cách" }.map { ($0, kb.convert($0.bounds, from: $0)) }
+            let letter = kb.debugLetterFrame("a") ?? kb.debugLetterFrame("1")
+            var t: TimeInterval = 1000
+            for b in all {
+                guard let title = b.currentTitle, puncts.contains(title) else { continue }
+                let f = kb.convert(b.bounds, from: b)
+                guard let (sp, sf) = spaces.first(where: { _, s in
+                    min(s.maxY, f.maxY) - max(s.minY, f.minY) > 0.5 * min(s.height, f.height) &&
+                        ((s.minX - f.maxX >= 0 && s.minX - f.maxX <= B.maxGap) || (f.minX - s.maxX >= 0 && f.minX - s.maxX <= B.maxGap))
+                }) else { continue }
+                let tag = "side=\(c.side) kind=\(c.kind) large=\(c.large) oneHand=\(c.oneHand) split=\(c.split) numbers=\(c.numbers) '\(title)'"
+                for fx in fr { for fy in fr {
+                    let p = CGPoint(x: f.minX + fx * f.width, y: f.minY + fy * f.height)
+                    XCTAssertTrue(kb.hitTest(p, with: nil) === b, "\(tag) \(p) chậm")
+                    for dt in [0.01, 0.10] {
+                        if let l = letter { kb.benchTap(at: CGPoint(x: l.midX, y: l.midY), time: t) }
+                        XCTAssertTrue(kb.debugHitTest(p, time: t + dt) === b, "\(tag) \(p) cuộn \(dt)")
+                        t += 1
+                    }
+                } }
+                // Khe giữa phím dấu và space ⇒ space.
+                let gx = sf.minX >= f.maxX ? (f.maxX + sf.minX) / 2 : (sf.maxX + f.minX) / 2
+                XCTAssertTrue(kb.hitTest(CGPoint(x: gx, y: f.midY), with: nil) === sp, "\(tag) khe")
+                checked += 1
+            }
+            withExtendedLifetime(host) {}
+        }
+        XCTAssertGreaterThan(checked, 30)
     }
 
     // MARK: Caps Lock tắt khi đổi plane
@@ -347,7 +447,8 @@ final class KeyHitBiasTests: XCTestCase {
         XCTAssertEqual(keys, ["m", "⌫"])
     }
 
-    /// "Phím cạnh dấu cách" = Dấu chấm: "." được space lấn mép y như ","; Tắt: không phím để lấn.
+    /// "Phím cạnh dấu cách" = Dấu chấm: "." như "," — trong khung luôn là "." (#145), khe là
+    /// space; Tắt: không phím để lấn.
     @MainActor func testSpaceBarStealsPeriodSideKeyEdge() throws {
         try XCTSkipIf(isPad)
         let (kb, host) = makeKeyboard(side: .period)
@@ -357,7 +458,8 @@ final class KeyHitBiasTests: XCTestCase {
         let df = kb.convert(dot.bounds, from: dot)
         XCTAssertEqual(df.width, 402 * KeyLayout.phoneLettersComma, accuracy: 1)
         XCTAssertTrue(kb.hitTest(CGPoint(x: df.midX, y: df.midY), with: nil) === dot)
-        XCTAssertTrue(kb.hitTest(CGPoint(x: df.minX + 0.2 * df.width, y: df.midY), with: nil) === space)
+        XCTAssertTrue(kb.hitTest(CGPoint(x: df.minX + 0.2 * df.width, y: df.midY), with: nil) === dot)
+        XCTAssertTrue(kb.hitTest(CGPoint(x: df.minX - 1, y: df.midY), with: nil) === space, "khe")
         XCTAssertTrue(kb.hitTest(CGPoint(x: df.minX + 0.4 * df.width, y: df.midY), with: nil) === dot)
         let (kbO, hostO) = makeKeyboard(side: .off)
         XCTAssertNil(kbO.debugKeyButton("."))

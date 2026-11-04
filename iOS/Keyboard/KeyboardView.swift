@@ -3283,6 +3283,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         applySkin(space, role: "space")
         space.pressedBackground = specialFill      // space sẫm lại khi đè
         space.accessibilityLabel = L("Dấu cách")
+        space.isSpaceKey = true
         if primary { spaceBar = space; installSpaceMark(on: space) }
         if palette.spaceSoundhole {   // Ghi-ta: lỗ thoát âm + vành hoa văn (vẽ một lần, theo cỡ phím)
             space.setSoundhole(ring: palette.accent.alpha(0.85 * palette.surfaceAlpha).ui, inner: spaceInk.alpha(0.45).ui)
@@ -3709,6 +3710,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     private final class KeyButton: UIButton {
         var isSpecial = false
+        /// Phím cách (chính hoặc phụ bàn tách đôi) — vùng nở của nó không được lấn khung phím dấu câu.
+        var isSpaceKey = false
         var payload: String?    // suggestion slot: nội dung sẽ chèn khi bấm
         var downPayload: String? // payload chốt lúc chạm xuống (slot gợi ý)
         var normalBackground: UIColor?
@@ -5256,17 +5259,27 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
 
     /// Ưu tiên ở mép chung (KeyHitBias, iPhone): điểm rơi vào "," / "." nhưng trong dải sát
-    /// space ⇒ space. ⇧ / ⌫ không bao giờ nhường cho phím chữ (SpecialKeyGutter).
-    /// nil = giữ `c`. Chỉ chạy khi điểm chạm trúng "," / "." (rẻ).
+    /// space ⇒ space — CHỈ ngoài khung nhìn thấy của phím dấu (khe / phần nở); trong khung
+    /// ⇒ luôn phím dấu (Phil 04/11/2026, #145 "bấm , toàn trượt sang space"). Ngược lại vùng
+    /// nở của space lỡ phủ vào khung phím dấu kề (khe hẹp) ⇒ trả về phím dấu.
+    /// ⇧ / ⌫ không bao giờ nhường cho phím chữ (SpecialKeyGutter).
+    /// nil = giữ `c`. Chỉ chạy khi điểm chạm trúng "," / "." hoặc space (rẻ).
     private func biasedHit(_ c: UIControl, at point: CGPoint, time: TimeInterval?) -> UIView? {
+        if let s = c as? KeyButton, s.isSpaceKey, let row = s.superview {
+            for case let k as KeyButton in row.subviews
+            where k !== s && !k.isSpecial && !k.isHidden && k.isUserInteractionEnabled {
+                if KeyHitBias.insidePunct(point, punct: convert(k.bounds, from: k)) { return k }
+            }
+            return nil
+        }
         guard !Self.isPad else { return nil }
         let since = time.flatMap { t in lastLetterDownTime.map { t - $0 } }
         if let space = spaceBar, c !== space, let b = c as? UIButton,
            let t = b.currentTitle, t == "," || t == ".",
            b.superview != nil, b.superview === space.superview {
             let band = KeyHitBias.spaceBand(sinceLetter: since)
-            if KeyHitBias.intrudes(point, loser: convert(b.bounds, from: b),
-                                   winner: convert(space.bounds, from: space), band: band) {
+            if KeyHitBias.spaceClaims(point, punct: convert(b.bounds, from: b),
+                                      space: convert(space.bounds, from: space), band: band) {
                 return space
             }
         }
