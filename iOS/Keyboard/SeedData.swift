@@ -2,7 +2,7 @@
 // Scripts/seed-curated.txt rồi chạy lại). Seed ban đầu cho UserLangModel (lần đầu chạy / sau khi
 // user bấm "Xoá từ đã học"). 797 âm tiết + 600 cặp từ corpus hội thoại
 // (OpenSubtitles v2024 + lát diễn đàn FineWeb-2 + Tatoeba — docs/DATA-SOURCES.md mục "SeedData") +
-// lớp chọn tay 422 từ / 676 cặp (chat/teencode, từ tiếng Anh cap ≤ 18, tên riêng, từ nhạy cảm).
+// lớp chọn tay 422 từ / 677 cặp (chat/teencode, từ tiếng Anh cap ≤ 18, tên riêng, từ nhạy cảm).
 // Weight log-scale 50·(c/c_max)^0.3, max 50 — user gõ thật (+1/lần, accepted +2) sẽ vượt seed sau
 // vài ngày; decay tuần làm seed mờ dần.
 import Foundation
@@ -434,7 +434,7 @@ enum SeedData {
         ("call", "margin", 3), ("sàn", "coin", 3), ("đào", "coin", 3), ("vàng", "bạc", 4), ("khối", "lượng", 4),
         ("giảm", "cân", 4), ("tăng", "cường", 4), ("ví", "dụ", 5), ("chụp", "x", 3), ("x", "quang", 3),
         ("ăn", "gián", 3), ("tập", "gym", 3), ("hậu", "covid", 3), ("test", "nhanh", 3), ("sinh", "thường", 3),
-        ("tiền", "sản", 3), ("hậu", "quả", 4), ("phil", "trinh", 5),
+        ("tiền", "sản", 3), ("hậu", "quả", 4), ("real", "hay", 3), ("phil", "trinh", 5),
         // — cặp chửi / tục ghép từ thường (chỉ hiện khi TẮT lọc) —
         ("bố", "mày", 7), ("thằng", "mặt", 4), ("má", "mày", 4), ("vãi", "đái", 3), ("thằng", "chó", 3),
         ("đồ", "chó", 3), ("chó", "chết", 3), ("chó", "má", 3), ("thằng", "ngu", 4), ("đồ", "ngu", 4),

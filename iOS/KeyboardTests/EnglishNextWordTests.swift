@@ -109,4 +109,33 @@ final class EnglishNextWordTests: XCTestCase {
         XCTAssertTrue(CuratedPairs.swipe(nil, "đu", "trend"))
         XCTAssertFalse(CuratedPairs.has(nil, "out", "trình"), "không cho Thêm dấu")
     }
+
+    /// Mô phỏng nhánh "vừa space sau một từ" (chế độ Tiếng Việt) của KeyboardViewController với
+    /// người dùng MỚI (UserLangModel chỉ có seed).
+    private func stripAfter(_ prev: String, prev2: String? = nil, _ m: UserLangModel) -> [String] {
+        let personal = SensitiveWords.filter(m.nextWords(after: prev, prev2: prev2, limit: 6),
+                                             after: prev, prev2: prev2, enabled: true)
+        let chain = SensitiveWords.filter(SensitiveWords.chain(after: prev, prev2: prev2),
+                                          after: prev, prev2: prev2, enabled: true)
+        let next = SuggestRank.nextFill(prev, prev2: prev2, personal: personal,
+                                        triCount: { w in prev2.map { m.trigramCount($0, prev, w) } ?? 0 },
+                                        filter: { SensitiveWords.filter($0, after: prev, prev2: prev2, enabled: true) },
+                                        need: 3, chain: chain)
+        return fill(next, prev: prev, english: false)
+    }
+
+    /// 04/11/2026 (#146): cặp trộn Việt–Anh trên thanh TỪ KẾ TIẾP sau dấu cách — đến từ SeedData
+    /// (Scripts/seed-curated.txt), nên chỉ có ở người dùng mới / sau "Xoá từ đã học".
+    func testMixedPairsOnNextWordStripAfterSeed() {
+        let m = UserLangModel(appGroup: nil)
+        m.isKnownWord = { VNSuggest.contains($0) }
+        m.seedIfEmpty(unigrams: SeedData.unigrams, bigrams: SeedData.bigrams)
+        for (prev, want) in [("đu", "trend"), ("out", "trình"), ("check", "var"), ("real", "hay")] {
+            let next = stripAfter(prev, m)
+            XCTAssertTrue(next.contains(want), "\(prev) → \(next)")
+        }
+        XCTAssertEqual(stripAfter("real", m).first, "hay")
+        XCTAssertEqual(stripAfter("hay", prev2: "real", m).first, "fake", "chuỗi seed ba từ real hay fake")
+        XCTAssertFalse(stripAfter("hay", m).contains("fake"), "\"hay\" một mình không gợi fake")
+    }
 }

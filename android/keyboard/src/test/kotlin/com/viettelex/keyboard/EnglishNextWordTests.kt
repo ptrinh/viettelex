@@ -164,4 +164,26 @@ class EnglishNextWordTests {
         assertTrue(CuratedPairs.swipe(null, "đu", "trend"))
         assertFalse("không cho Thêm dấu", CuratedPairs.has(null, "out", "trình"))
     }
+
+    /**
+     * 04/11/2026 (#146): cặp trộn Việt–Anh trên thanh TỪ KẾ TIẾP sau dấu cách — đến từ seed.tsv
+     * (Scripts/seed-curated.txt), nên chỉ có ở người dùng mới / sau "Xoá từ đã học" (session() mới = seed).
+     */
+    @Test fun mixedPairsOnNextWordStripAfterSeed() {
+        SwipeEnglish.top
+        fun after(keys: String, shown: String): List<String> {
+            val s = session(); val p = MockProxy()
+            s.type(p, keys)
+            assertEquals(shown, p.text)
+            return s.suggestionsNow(p)!!.nextWords.map { it.lowercase() }
+        }
+        for ((keys, prev, want) in listOf(Triple("ddu ", "đu", "trend"), Triple("out ", "out", "trình"),
+                Triple("check ", "check", "var"), Triple("real ", "real", "hay"))) {
+            val next = after(keys, "$prev ")
+            assertTrue("$prev → $next", want in next)
+        }
+        assertEquals("hay", after("real ", "real ").first())
+        assertEquals("chuỗi seed ba từ real hay fake", "fake", after("real hay ", "real hay ").first())
+        assertFalse("\"hay\" một mình không gợi fake", "fake" in after("hay ", "hay "))
+    }
 }

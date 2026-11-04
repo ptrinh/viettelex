@@ -69,7 +69,10 @@ for w in words where w.count >= minLength && w.utf8.allSatisfy({ $0 >= 0x61 && $
             _ = e.feed(ch); r += 1
             guard let at = e.spellCheckFreezeAt else { continue }
             if r < minLength { continue }               // frozen early: wait for key 4
-            if at == r || (at < minLength && r == minLength), e.composed != e.rawKeystrokes {
+            // at == r − 1: froze at THIS key but kept the tone of the word shown before it
+            // ("pẩ"+g, PR #133 freezeKeepsTone) — eager restore is checked first there, so
+            // the prefix is still needed ("parag" → "parag", not "pẩg").
+            if at == r || at == r - 1 || (at < minLength && r == minLength), e.composed != e.rawKeystrokes {
                 let pre = String(w.prefix(r))
                 if !protected.contains(pre) { prefixes.insert(pre); hit = true }
             }

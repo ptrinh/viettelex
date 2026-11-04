@@ -269,7 +269,7 @@ class TouchSimTests {
     }
 
     private companion object {
-        const val PARITY_NODES = 63380
+        const val PARITY_NODES = 63341
         val PARITY_P = floatArrayOf(0.16052505f, 2.420141e-5f, 0.25838506f, 0.49238884f, 0.002160288f, 0.99860436f, 0.17761526f, 0.17500657f)
     }
 
