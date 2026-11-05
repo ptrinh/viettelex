@@ -88,6 +88,20 @@ class ClipboardHistory(
     fun latestFresh(now: Long, windowMs: Long = 180_000): Item? =
         list.firstOrNull()?.takeIf { now - it.at in 0 until windowMs }
 
+    /**
+     * Gộp các mục của [newer] (bản RAM tạm, ghi trong lúc bản này còn đang đọc từ file trên nền)
+     * lên trên, cũ → mới theo thời gian, giữ ghim. Trả true nếu có mục được gộp (cần ghi lại file).
+     */
+    fun absorb(newer: ClipboardHistory): Boolean {
+        if (newer.list.isEmpty()) return false
+        for (item in newer.list.sortedBy { it.at }) {
+            add(item.text, item.at, item.sensitive)
+            if (item.pinned) list.indexOfFirst { it.text == item.text }
+                .takeIf { it >= 0 && !list[it].pinned }?.let { list[it] = list[it].copy(pinned = true, sensitive = false) }
+        }
+        return true
+    }
+
     /** Mỗi dòng: `at\tpinned\tsensitive\ttext` (text escape `\\`, `\n`, `\t`, `\r`). */
     fun serialize(): String = buildString {
         for (it in list) {

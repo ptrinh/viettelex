@@ -9,6 +9,19 @@ import org.junit.Test
 class ClipboardHistoryTests {
     private val min = 60_000L
 
+    /** IME đọc file nền: mục chép trong lúc chờ (bản tạm) gộp lên trên bản đọc được, đúng thứ tự. */
+    @Test fun absorbNewerKeepsLoadedHistory() {
+        val loaded = ClipboardHistory.deserialize(ClipboardHistory().apply {
+            add("cũ 1", 1_000); add("cũ 2", 2_000); togglePin("cũ 1")
+        }.serialize())
+        val tmp = ClipboardHistory()
+        assertFalse(loaded.absorb(tmp))                  // bản tạm rỗng: không cần ghi lại
+        tmp.add("mới 1", 3_000); tmp.add("cũ 2", 4_000); tmp.add("mới 2", 5_000)
+        assertTrue(loaded.absorb(tmp))
+        assertEquals(listOf("cũ 1", "mới 2", "cũ 2", "mới 1"), loaded.items(6_000).map { it.text })
+        assertTrue(loaded.items(6_000).first().pinned)  // ghim của bản đọc giữ nguyên
+    }
+
     @Test fun pinLimitFromPlusGate() {
         val h = ClipboardHistory()
         for (i in 1..7) h.add("mục $i", i.toLong())

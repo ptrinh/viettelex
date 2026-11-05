@@ -7,11 +7,18 @@ import TelexCore
 
 final class KeyboardViewController: UIInputViewController {
 
-    private var bridge = EngineBridge()
+    /// LƯỜI: init controller KHÔNG đọc cài đặt (~45 key App Group). configureForAppearance gán
+    /// EngineBridge(settings:) với lần đọc DUY NHẤT của lần hiện; getter chỉ tự nạp nếu có gì chạm
+    /// bridge trước đó (willAppear bị nuốt…) — vẫn đúng, chỉ đọc thêm một lần.
+    private lazy var bridge = EngineBridge()
     private var keyboard: KeyboardView!
     /// Lấp dải container hệ thống lộ phía trên view (checkHostFill) + dedupe log hình học.
     fileprivate var hostFill = HostFill()
     fileprivate var hostFillRecheckScheduled = false
+    /// Lần hiện mới (iPhone iOS 26+, nền đục): nội dung alpha 0 tới khi chiều cao host ổn định
+    /// (HeightSettleGuard, trần 0,3 s) — không hiện rồi mới cao thêm.
+    fileprivate var settleGuard = HeightSettleGuard()
+    fileprivate var settleArmedAt: CFTimeInterval = 0
     fileprivate var lastHostGeomKey = ""
     /// Model học từ cá nhân — tạo LƯỜI khi tính năng cần (thanh gợi ý / gõ vuốt / Thêm dấu).
     /// Tắt hết ⇒ không đọc userlm.plist, không seed, không giữ bảng trong RAM.
@@ -248,6 +255,7 @@ final class KeyboardViewController: UIInputViewController {
         StartupTrace.event("viewWillAppear")
         appearance.willAppear()
         StartupTrace.span("willAppear") { configureForAppearance() }
+        armSettleGuard()
     }
 
     /// Chuỗi callback hiện/ẩn (AppearanceCycle): chặn xé muộn + bù willAppear bị nuốt.
@@ -259,6 +267,7 @@ final class KeyboardViewController: UIInputViewController {
     /// chạm là bằng chứng chắc chắn bàn phím đang hiện (layout/callback host thì không: host có thể
     /// gọi chúng cả lúc ẩn, dựng lại lúc ẩn là mất tác dụng xé chống rò RAM).
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        revealContent(force: true)   // chạm lúc còn giữ ẩn (chờ chiều cao): hiện ngay
         if healIfShownTornDown("touch") { return }
         super.touchesBegan(touches, with: event)
     }
@@ -331,7 +340,10 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.translateChipLabel = TranslateText.isSupportedOS && PlusGate.isUnlocked(.translate)
             ? L("Dịch ↔ %@", TranslatePrefs.displayName(TranslatePrefs.target(UserDefaultsProvider.shared)))
             : nil
-        checkExternalDictEdit()
+        // App sửa Từ điển cá nhân: chỉ ảnh hưởng model cá nhân (tạo lười / nạp sau khung đầu) ⇒
+        // đối chiếu sau khung đầu, TRƯỚC warmUpData (cùng hàng PostFrameWork, theo thứ tự).
+        postFrame.schedule { [weak self] in self?.checkExternalDictEdit() }
+        // Lịch sử clipboard: chỉ đọc công tắc; file JSON đọc lười lần đầu cần (ClipboardHistory.raw).
         clip.load(from: UserDefaultsProvider.shared)
         pasteOnce.reload(offeredID: Self.loadPasteOffered())
         // Ẩn danh (thủ công, trong app): không học từ, không lưu clipboard.
@@ -504,6 +516,7 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillDisappear(animated)
         appearance.willDisappear()
         postFrame.cancel()
+        revealContent(force: true)
         pasteOnce.ended()   // ẩn bàn phím: lời mời dán đang hiện coi như đã bỏ qua
         closeClipboardPanel()
         ai?.close()
@@ -573,6 +586,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func tearDownKeyboard() {
         postFrame.cancel()
+        revealContent(force: true)
         closeClipboardPanel()
         NSLayoutConstraint.deactivate(keyboardEdges)
         keyboardEdges = []
@@ -2597,19 +2611,62 @@ extension KeyboardViewController {
     private func checkHostFill() {
         guard let kb = keyboard, !kb.isTornDown else { return }
         if TouchLog.enabled { logHostGeometry("layout") }
-        guard Self.hostFillEligible, kb.paintsBackdrop else { return }
+        guard Self.hostFillEligible, kb.paintsBackdrop else { revealContent(force: true); return }
         let animating = UIView.inheritedAnimationDuration > 0
             || !(view.layer.animationKeys()?.isEmpty ?? true)
-        switch hostFill.observe(base: kb.baseRequestedHeight, viewHeight: view.bounds.height,
-                                allocated: hostAllocatedHeight(), width: view.bounds.width,
-                                animating: animating) {
+        let decision = hostFill.observe(base: kb.baseRequestedHeight, viewHeight: view.bounds.height,
+                                        allocated: hostAllocatedHeight(), width: view.bounds.width,
+                                        animating: animating)
+        switch decision {
         case .none: break
         case .wait: scheduleHostFillRecheck()
         case .apply(let x):
             kb.hostFillExtra = x
             TouchLog.write("hostFill extra=\(x) locked=\(hostFill.locked)")
         }
+        if settleGuard.shouldReveal(decision: decision, base: kb.baseRequestedHeight, extra: hostFill.extra,
+                                    viewHeight: view.bounds.height, inWindow: view.window != nil,
+                                    now: CACurrentMediaTime()) {
+            showContent()
+        }
     }
+
+    /// willAppear: chỉ iPhone iOS 26+ với nền đục (nơi HostFill có thể đổi chiều cao) — giữ nội dung
+    /// ẩn tới khi chiều cao ổn định; hẹn giờ trần luôn hiện lại (không bao giờ vô hình quá `cap`).
+    private func armSettleGuard() {
+        guard Self.hostFillEligible, let kb = keyboard, !kb.isTornDown, kb.paintsBackdrop else { return }
+        let now = CACurrentMediaTime()
+        settleGuard.arm(now: now)
+        settleArmedAt = now
+        kb.alpha = 0
+        view.setNeedsLayout()   // chắc chắn có lượt layout đánh giá (controller hiện lại không xé)
+        DispatchQueue.main.asyncAfter(deadline: .now() + HeightSettleGuard.cap) { [weak self] in
+            guard let self, self.settleGuard.reveal(now: CACurrentMediaTime()) else { return }
+            TouchLog.write("settle: cap reached → show")
+            self.showContent()
+        }
+    }
+
+    /// Hiện nội dung đang giữ ẩn (force: bỏ qua trần — chạm / ẩn / xé / không đủ điều kiện).
+    private func revealContent(force: Bool) {
+        if settleGuard.reveal(now: CACurrentMediaTime(), force: force) { showContent() }
+    }
+
+    private func showContent() {
+        guard let kb = keyboard, kb.alpha < 1 else { return }
+        // Còn trong lượt dựng khung đầu ⇒ hiện thẳng (chưa từng vẽ alpha 0); muộn hơn ⇒ mờ vào nhẹ.
+        if CACurrentMediaTime() - settleArmedAt < 0.05 {
+            kb.alpha = 1
+        } else {
+            UIView.animate(withDuration: 0.12, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+                kb.alpha = 1
+            }
+        }
+    }
+    #if DEBUG
+    /// Test: nội dung đang giữ ẩn chờ chiều cao host.
+    var debugContentHeld: Bool { settleGuard.hidden }
+    #endif
 
     /// Xác nhận ở lượt layout SAU (không hành động trên khung tạm của cùng một pass).
     private func scheduleHostFillRecheck() {
