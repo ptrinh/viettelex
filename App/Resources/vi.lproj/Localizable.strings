@@ -388,7 +388,7 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Advanced / Debugging" = "Nâng cao / Gỡ lỗi";
 "Simple Telex, free tone placement, quick consonants, modern tone placement, teencode, bracket keys, keyboard layout…" = "Telex đơn giản, bỏ dấu tự do, gõ tắt phụ âm, bỏ dấu kiểu mới, teencode, phím ngoặc, bố cục bàn phím…";
 "Restore English words, context, colliding words, fixing earlier words…" = "Khôi phục từ tiếng Anh, ngữ cảnh, khi trùng từ, sửa từ phía trước…";
-"Keep VietTelex when macOS switches, per-app input source, macOS shortcut…" = "Giữ VietTelex khi macOS tự đổi bộ gõ, bộ gõ theo ứng dụng, phím tắt của macOS…";
+"Keep VietTelex when macOS switches, macOS shortcut…" = "Giữ VietTelex khi macOS tự đổi bộ gõ, phím tắt của macOS…";
 "Only applies to Telex." = "Chỉ áp dụng cho Telex.";
 "Needs Context-based decision turned on." = "Cần bật Quyết định theo ngữ cảnh.";
 "Quick consonants (cc→ch, gg→gi…)" = "Gõ tắt phụ âm nhanh (cc→ch, gg→gi…)";
@@ -401,3 +401,29 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Switching Vietnamese/English" = "Chuyển Việt/Anh";
 "To remember Vietnamese or English per app, turn on “Automatically switch to a document's input source” in the macOS Input Sources settings (link at the bottom of this page)." = "Muốn macOS nhớ tiếng Việt hay tiếng Anh theo từng ứng dụng, hãy bật “Automatically switch to a document's input source” trong cài đặt nguồn nhập liệu của macOS (dòng cuối trang này).";
 "Capitalization, word suggestions, period on double space, smart quotes: set in macOS." = "Viết hoa, gợi ý chữ, dấu chấm khi gõ hai dấu cách, ngoặc kép thông minh: chỉnh trong cài đặt của macOS.";
+
+/* Chú thích ngắn một dòng (06/11/2026) */
+"Expanded" = "Mở rộng";
+"Collapsed" = "Thu gọn";
+"Open…" = "Mở…";
+"Word that is both English and Vietnamese" = "Từ vừa Anh vừa Việt";
+"macOS input source shortcut" = "Phím tắt chuyển bộ gõ của macOS";
+"Tones with digits: 1–5 sắc/huyền/hỏi/ngã/nặng, 6 â ê ô, 7 ơ ư, 8 ă, 9 đ, 0 clears." = "Dấu bằng số: 1–5 sắc/huyền/hỏi/ngã/nặng, 6 â ê ô, 7 ơ ư, 8 ă, 9 đ, 0 xoá dấu.";
+"A lone w stays w (type uw for ư)." = "w đứng riêng vẫn là w (gõ uw ra ư).";
+"Put the tone anywhere in the word (ama → âm). Off: stricter, better for English/code." = "Đặt dấu ở đâu trong từ cũng được (ama → âm). Tắt: chặt hơn, hợp gõ tiếng Anh/code.";
+"Double the first consonant: kk → kh, nn → ng, pp → ph, tt → th…" = "Gõ đúp phụ âm đầu: kk → kh, nn → ng, pp → ph, tt → th…";
+"hoà, thuý, khoẻ instead of hòa, thủy, khỏe." = "hoà, thuý, khoẻ thay vì hòa, thủy, khỏe.";
+"Accept chat spellings: wá, zui zẻ, kó. Off: was, zoo stay as typed." = "Nhận kiểu viết chat: wá, zui zẻ, kó. Tắt: was, zoo giữ nguyên.";
+"[ types ơ, ] types ư (th[ → thơ). Leave off if you write code." = "[ ra ơ, ] ra ư (th[ → thơ). Nên tắt nếu bạn viết code.";
+"Add a tone to a word already typed: toan + s → toán." = "Thêm dấu cho từ đã gõ: toan + s → toán.";
+"Physical layout Telex reads (Colemak, Dvorak…)." = "Bố cục phím Telex đọc (Colemak, Dvorak…).";
+"Words that aren’t Vietnamese go back to what you typed (google, github)." = "Từ không phải tiếng Việt trả về đúng như đã gõ (google, github).";
+"e.g. list → lít. To keep English, double the tone key: lisst → list." = "Vd. list → lít. Muốn giữ tiếng Anh, gõ đúp phím dấu: lisst → list.";
+"e.g. list stays list. For Vietnamese, type the tone last: lits → lít." = "Vd. list giữ nguyên. Muốn ra tiếng Việt, gõ dấu cuối từ: lits → lít.";
+"After an English word, the next stays English: “he is”, not “he í”." = "Sau một từ tiếng Anh, từ kế giữ tiếng Anh: “he is”, không thành “he í”.";
+"Fixes mis-toned words once the sentence turns out English: “Hí cả í” → “His car is”." = "Sửa từ bị bỏ dấu nhầm khi câu hoá ra tiếng Anh: “Hí cả í” → “His car is”.";
+"At the start, “his” stays English, not “hí”; switches back if the sentence is Vietnamese." = "Đầu câu, “his” giữ tiếng Anh thay vì “hí”; tự đổi lại nếu câu là tiếng Việt.";
+"Press and release just these keys to switch input source. Needs {PANE} permission." = "Nhấn rồi thả riêng các phím này để chuyển bộ gõ. Cần quyền {PANE}.";
+"When macOS switches input source on a new field (e.g. Word comments), switch back." = "Khi macOS tự đổi bộ gõ lúc sang ô mới (vd. bình luận trong Word), chuyển lại VietTelex.";
+"Set in macOS Keyboard Shortcuts → Input Sources." = "Đặt trong Phím tắt bàn phím → Nguồn nhập liệu của macOS.";
+"Stop adding tones once a word can’t be Vietnamese (google, github)." = "Ngừng thêm dấu ngay khi từ không thể là tiếng Việt (google, github).";
