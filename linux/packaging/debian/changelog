@@ -1,3 +1,21 @@
+viettelex (1.0.21) UNRELEASED; urgency=medium
+
+  * Cài đặt gọn hơn: nhóm "Gõ lẫn tiếng Anh" (trước là "Gõ mixed
+    Việt/Anh") chỉ hỏi bạn gõ thế nào; công tắc chi tiết nằm trong
+    Nâng cao. Nhóm mới "Chuyển Việt/Anh".
+  * Mỗi cài đặt chỉ còn tên và một dòng chú thích ngắn có ví dụ; trang
+    cài đặt sắp lại: Gõ phím, Gợi ý & công cụ, Gõ tắt, Ứng dụng, Chung.
+  * Tuỳ chọn chỉ dành cho Telex hiện mờ kèm lý do khi chọn VNI.
+  * ---
+  * Cleaner settings: the "Mixed Vietnamese/English typing" group just
+    asks how you type; detailed switches live under Advanced. New
+    "Switching Vietnamese/English" group.
+  * Every setting is now a title plus one short caption; pages are
+    Typing, Suggestions & tools, Shortcuts, Apps, General.
+  * Telex-only options are dimmed with a reason when VNI is selected.
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Fri, 06 Nov 2026 02:00:00 +0700
+
 viettelex (1.0.20) UNRELEASED; urgency=medium
 
   * Nhóm cài đặt "Gõ mixed Việt/Anh" trong tab Kiểu gõ, kèm bộ chọn
