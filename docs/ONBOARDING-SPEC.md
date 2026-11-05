@@ -158,3 +158,23 @@ Khi từ đang soạn **không hợp lệ** (không phải âm tiết Việt, kh
 - Phím tắt đổi ngôn ngữ trên macOS/Windows: nhóm "Chuyển ngôn ngữ" chỉ hiện mục nào nền tảng đó có; kiểm tra lúc làm.
 - `englishByFrequency` BẬT trong hồ sơ `mixed` và `en`.
 - Dữ liệu tần suất tiếng Anh nguồn CC BY-SA 4.0 dùng trong engine (MIT) — chấp nhận, ghi nguồn ở docs/DATA-SOURCES.md.
+
+## 11. Trạng thái triển khai (desktop) — 05/11/2026
+
+Đã làm §2/§3/§4/§5 cho macOS, Windows, Linux (Linux có sẵn cửa sổ hướng dẫn bật bộ gõ + cửa sổ Cài đặt nên làm cùng đợt). Bộ chọn nhanh hồ sơ ở đầu nhóm (§4 "Chưa làm") vẫn **chưa làm** trên desktop.
+
+| | macOS | Windows | Linux |
+|---|---|---|---|
+| Màn chào | Chưa từng có ⇒ cửa sổ mới, hiện lần đầu VietTelex được chọn làm nguồn nhập (`App/Sources/Onboarding.swift`) | Cửa sổ chào sẵn có: trang cài đặt cũ → **Tiếp** → 2 trang mới (`windows/app/src/welcome.cpp`) | Cửa sổ hướng dẫn sẵn có: (bước bật bộ gõ nếu chưa xong) → 2 trang mới (`linux/settings/viettelex_settings/app.py`, phần thuần `onboarding.py`) |
+| Hồ sơ `en` | = `mixed` (macOS không có chế độ tiếng Anh trong VietTelex; tiếng Anh = đổi nguồn nhập) | `mixed` + `startEnglish` mới (app chưa từng đổi Việt/Anh bắt đầu ở tiếng Anh) | `mixed` + `default_vietnamese = false` (key có sẵn) |
+| Lưu trạng thái | `onboardingDone`, `onboardingProfile`, `mixedTypingCardPending` trong suite cài đặt | `onboardingDone`, `onboardingProfile`, `mixedCardPending` trong HKCU\Software\VietTelex | `$XDG_STATE_HOME/viettelex/onboarding` (`done`, `profile`, `card`) — không đụng hợp đồng `config.toml` |
+| Nhận ra người dùng cũ | Suite đã có dữ liệu lúc process khởi động (mọi bản cũ ghi ít nhất `probeV2Reset`) và chưa có `onboardingDone` | Đã cài đặt người dùng từ bản trước (`decideWelcome` = MarkShown/Nothing) và chưa có `onboardingDone` | Đã có `config.toml` hoặc `app-state` và chưa có tệp trạng thái |
+| Thẻ người dùng cũ | Đầu tab Gõ phím: "Xem" (cuộn tới nhóm) / "Đóng" | Thẻ đầu trang Kiểu gõ, nút "Xem" (cuộn tới mục) | Đầu trang Kiểu gõ, "Xem" / đóng |
+| Nhóm "Gõ mixed Việt/Anh" | Mục ngay dưới Kiểu gõ (không thu gọn): tự khôi phục, ưu tiên khi trùng, ngữ cảnh, tự sửa, tần suất (từ Chính tả) + phím chuyển bộ gõ (từ tab Chung) | Mục ngay dưới Kiểu gõ: 5 công tắc trên (từ trang Chính tả) + phím chuyển + bắt đầu bằng tiếng Anh | "Gõ mixed Việt/Anh" + "Chuyển ngôn ngữ" ngay dưới Kiểu gõ (từ Tuỳ chỉnh): 5 công tắc + phím chuyển, nhớ theo app, app mới bắt đầu bằng tiếng Việt |
+
+Chung cả ba: người mới bị đóng app giữa chừng ⇒ lần sau vẫn hiện (ghi `done = 0` ngay khi bắt đầu); "Bỏ qua" ở màn 1 = giữ mặc định, ở màn 2 = giữ hồ sơ vừa chọn; đóng cửa sổ = xong. Nhóm desktop là mục thường (không thu gọn) để thẻ cuộn tới được. Không vuốt phím cách / gõ vuốt trên desktop ⇒ nhóm chỉ có công tắc nền tảng đó có (§10).
+
+Kiểm chứng:
+- macOS: build + `OnboardingTests` (16) + `SettingsModelTests`, `PrivacyPaneTests`, `SettingsReloadCostTests`, `InfoPlistStringsTests`, `MemoryFootprintTests`, `AppSupportTests` đạt. **Chưa chạy thử thật** (quy tắc không đụng bộ gõ trên máy Phil): cửa sổ onboarding, việc gõ VietTelex vào ô gõ thử của chính process IME, cuộn tới nhóm.
+- Windows: `ctest` máy chủ (10/10, `vtx_app_tests` 111 test gồm 5 test mới) + biên dịch chéo x64 (llvm-mingw) VietTelex.exe + TIP không lỗi/cảnh báo. **Chưa chạy trên Windows**: trang mới của cửa sổ chào, command link, thẻ/cuộn trong Cài đặt, `startEnglish` trong TIP.
+- Linux: `make check` (162 test, gồm 16 test mới). **Chưa chạy GTK** (máy không có PyGObject).
