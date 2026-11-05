@@ -198,7 +198,9 @@ private:
     // Retro English: after every boundary take + apply the engine's correction, then report
     // the boundary character (`ch` printable ASCII, else 0 = Enter / Tab / navigation: ends
     // the phrase). The app inserts the key after this event, so it is not on screen yet.
-    void finishRetro(InputContext &ic, uint32_t ch);
+    // `lineEnd` (Enter / Tab / Esc, ch = 0): only a flip-back ("Đoán từ trùng theo tần
+    // suất") is applied there — before the key goes through.
+    void finishRetro(InputContext &ic, uint32_t ch, bool lineEnd = false);
     bool tryRetroUndo(const retro::Undo &u, InputContext &ic, bool restoreUndo = false);
     // After every boundary: the engine restored a real Vietnamese syllable to raw keys
     // ("hí" → "his") ⇒ arm the one-key ⌫ undo (unless a retro rewrite already owns it).

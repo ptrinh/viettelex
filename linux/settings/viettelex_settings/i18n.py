@@ -127,6 +127,14 @@ EN = {
     "→ “His car is very fast”).":
         "When you go on typing an English sentence, words that were wrongly given Vietnamese "
         "tones are fixed (e.g. “Hí cả í very fast” → “His car is very fast”).",
+    "Đoán từ trùng theo tần suất (thử nghiệm)": "Guess colliding words by frequency (experimental)",
+    "Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his → hí) thì chọn tiếng "
+    "Anh; từ kế cho thấy là tiếng Việt (hí hửng, hí hí) thì tự đổi lại. Cần bật Quyết định "
+    "theo ngữ cảnh.":
+        "At the start of a phrase, a word that is both a common English word and a rare "
+        "Vietnamese syllable (his → hí) becomes English; if the next word shows the phrase is "
+        "Vietnamese (hí hửng, hí hí), it is switched back automatically. Needs context-based "
+        "decisions.",
     "Gõ thêm dấu cho từ ngay trước con trỏ": "Add marks to the word before the cursor",
     "Đặt con trỏ ngay sau một từ đã gõ rồi gõ phím dấu để sửa dấu từ đó (toan + s → toán).":
         "Put the cursor right after a typed word and press a mark key to fix its marks "

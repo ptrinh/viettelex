@@ -364,8 +364,16 @@ class SettingsWindow(Adw.PreferencesWindow):
                                 _("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm "
                                 "(vd. “Hí cả í very fast” → “His car is very fast”)."))
 
+        # Thử nghiệm: ngay dưới "Tự sửa từ phía trước", cùng điều kiện hiện.
+        freq_row = self.switch(g, "typing", "english_by_frequency",
+                               _("Đoán từ trùng theo tần suất (thử nghiệm)"),
+                               _("Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm "
+                               "(his → hí) thì chọn tiếng Anh; từ kế cho thấy là tiếng Việt (hí hửng, "
+                               "hí hí) thì tự đổi lại. Cần bật Quyết định theo ngữ cảnh."))
+
         def retro_visibility(*_a):
             retro_row.set_visible(config.retro_english_visible(self.cfg.get))
+            freq_row.set_visible(config.retro_english_visible(self.cfg.get))
         retro_visibility()
         ctx_row.get_activatable_widget().connect("notify::active", retro_visibility)
         self.refreshers.append(retro_visibility)

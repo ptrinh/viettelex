@@ -348,6 +348,8 @@ void Session::applySettings(const Settings &s) {
     retroMode_ = retro::modeFor(s.contextualEnglish, s.retroactiveEnglish);
     retroOn_ = retroMode_ != retro::Mode::Off;
     vt_engine_set_flag(e_, VT_FLAG_RETRO_ENGLISH, retroOn_);
+    // "Đoán từ trùng theo tần suất": only with the retro flag (inert without it).
+    vt_engine_set_flag(e_, VT_FLAG_ENGLISH_BY_FREQUENCY, retroOn_ && s.englishByFrequency);
     if (retroMode_ != retro::Mode::Auto) retroUndo_.clear();
     vt_engine_set_flag(e_, VT_FLAG_COLLISION_PREFERS_VIETNAMESE, s.collisionPrefersVietnamese);
     // "goog" not "gôg" mid-word — only with auto-restore (else the boundary keeps "gôgle").
@@ -1011,18 +1013,24 @@ bool Session::isWordKey(uint32_t ch) const {
     return isAsciiLetter(ch) || (vni_ && isDigit(ch)) || (bracketVowels_ && isBracketVowelKey(ch));
 }
 
-void Session::finishRetro(InputContext &ic, uint32_t ch) {
+void Session::finishRetro(InputContext &ic, uint32_t ch, bool lineEnd) {
     vt_retro r;
     if (vt_take_retro(e_, &r)) {
         const std::string expected(r.expected, size_t(r.expected_len > 0 && r.expected_len < VT_RETRO_CAP ? r.expected_len : 0));
         const std::string insert(r.insert, size_t(r.insert_len > 0 && r.insert_len < VT_RETRO_CAP ? r.insert_len : 0));
+        // Flip-back ("Đoán từ trùng theo tần suất": "His hửng" → "hí hửng") undoes the
+        // engine's own guess: applied automatically even in offer mode, and also at Enter /
+        // Tab / Esc (`lineEnd`) — before the key goes through.
+        const bool flip = r.flip_back != 0;
         // Only where the Session may reach back into committed text (never Direct /
         // terminals / distrusted fields) and only after a printable boundary (Enter / Tab may
-        // send the message or leave the field: no rewrite behind the user's back).
-        const bool edits = surroundingEdits_ && !passthrough_ && mode_ != DisplayMode::Direct && ch != 0 &&
-                           r.backspaces == int(utf8Chars(expected)) && !insert.empty();
+        // send the message or leave the field: no rewrite behind the user's back — except a
+        // flip-back, see above).
+        const bool edits = surroundingEdits_ && !passthrough_ && mode_ != DisplayMode::Direct &&
+                           (ch != 0 || (flip && lineEnd)) && r.backspaces == int(utf8Chars(expected)) &&
+                           !insert.empty();
         std::string before;
-        const bool offer = retroMode_ == retro::Mode::Offer;
+        const bool offer = retroMode_ == retro::Mode::Offer && !flip;
         // Offer: a few more characters, for the start of the first word ("H" of "Hí").
         const bool have = edits && ic.textBeforeCursorTail(utf8Chars(expected) + (offer ? 24 : 0), before);
         const bool sel = edits && have && (ic.hasSelection() || selectionAtCaret(ic));
@@ -1322,7 +1330,10 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     }
     endWord(ic, printable && isBracket(ch), !gluedToDigit_);
     // The engine needs EVERY boundary character (glued "my_var" / "100W"), retro or not.
-    if (retroOn_) finishRetro(ic, printable ? ch : 0);
+    if (retroOn_)
+        finishRetro(ic, printable ? ch : 0,
+                    !printable && (newline || ev.keysym == ks::Tab || ev.keysym == ks::ISO_Left_Tab ||
+                                   ev.keysym == ks::Escape));
     else vt_note_boundary(e_, printable ? ch : '\n');
     armRestoreUndo(printable ? ch : 0);
     if (newline) vt_reset_context(e_);   // a new line has no preceding word

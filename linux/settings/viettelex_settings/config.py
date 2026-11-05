@@ -25,6 +25,8 @@ DEFAULTS = {
         "contextual_english": True,
         # "Tự sửa từ phía trước" (thử nghiệm): chỉ hiện / chỉ có tác dụng khi contextual_english bật.
         "retroactive_english": False,
+        # "Đoán từ trùng theo tần suất" (thử nghiệm): cùng điều kiện hiện như retroactive_english.
+        "english_by_frequency": False,
         "collision_prefers_vietnamese": True,
         "bracket_vowels": False,
         "re_edit_word": True,
