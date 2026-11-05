@@ -1,3 +1,30 @@
+viettelex (1.0.20) UNRELEASED; urgency=medium
+
+  * Nhóm cài đặt "Gõ mixed Việt/Anh" trong tab Kiểu gõ, kèm bộ chọn
+    nhanh hồ sơ gõ (Chủ yếu tiếng Việt / Việt + Anh nhiều / Chủ yếu
+    tiếng Anh).
+  * Người dùng mới: hướng dẫn cài đặt có thêm bước chọn cách gõ và gõ
+    thử. Người dùng cũ giữ nguyên mọi cài đặt.
+  * Thử nghiệm "Đoán từ trùng theo tần suất" cho từ vừa là tiếng Anh
+    vừa là âm tiết Việt.
+  * Đổi dấu linh hoạt: "cấm" + w → "cắm", "tôi" + w → "tơi" và ngược
+    lại; VNI tương tự (#149).
+  * Nhận diện Anh/Việt tốt hơn: một từ tiếng Anh rõ ràng đủ để sửa lại
+    cả cụm phía trước.
+  * ---
+  * New "Mixed Vietnamese/English typing" group in the Input style tab,
+    with a quick typing-profile picker.
+  * New users: the setup guide asks how you type and lets you try it.
+    Existing settings are left unchanged.
+  * Experimental "Guess shared words by frequency" for words that are
+    both English and a Vietnamese syllable.
+  * Flexible marks: "cấm" + w → "cắm", "tôi" + w → "tơi" and back;
+    same in VNI (#149).
+  * Better English/Vietnamese detection: one clearly English word is
+    enough to fix the words before it.
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Thu, 05 Nov 2026 22:00:00 +0700
+
 viettelex (1.0.19) UNRELEASED; urgency=medium
 
   * Viết tắt toàn chữ HOA hiếm gặp giữ nguyên phím gõ (NAS, AWS, OS);
