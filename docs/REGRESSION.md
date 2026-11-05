@@ -180,7 +180,7 @@ swift run -c release mixed-eval --check                    # so golden, exit 1 n
 swift run -c release mixed-eval --write-golden             # chốt số mới (sau khi cải thiện)
 swift test --filter MixedTypingTests                       # test golden (~6 s debug)
 ```
-Tuỳ chọn khác: `--config default|retro|no-context`, `--diff-config`, `--lines N` (-1 = tất cả),
+Tuỳ chọn khác: `--config default|retro|no-context|freq|retro-freq`, `--diff-config`, `--lines N` (-1 = tất cả),
 `--top N`, `--unlock-test`. Chạy cả corpus ~0,5 s (release).
 
 **Corpus** — `TelexCore/Corpus/mixed-typing.tsv`, 2.333 câu / 15.543 từ, 6 nhóm: `vi` (Tatoeba +
@@ -210,6 +210,12 @@ phục sớm, ngữ cảnh tiếng Anh BẬT, collision ưu tiên tiếng Việt
 "Tự sửa từ phía trước" TẮT = chỉ đề xuất, người gõ lười không bấm Tab); `retro` = như trên + tự sửa
 từ phía trước BẬT (tự áp); `no-context` = "Quyết định theo ngữ cảnh" TẮT.
 
+Thêm 05/11/2026: nhóm `vcollide` (chat Việt có âm tiết trùng phím từ Anh: hí hửng, hí hí, Hí Hí, cái
+nơ đỏ, cho con bú, sao í, ít nhất, lát nữa… — luật tần suất không được làm hỏng); số đo `fixes_per_100`
+(mỗi đoạn từ sai liền nhau = một lần sửa tay) và `flicker_per_100` (từ hiện sai lúc chốt, cuối câu
+đúng — chỉ để xem, golden không chặn vì tự sửa thêm một từ thì từ đó "nhảy"); cấu hình `freq` (mặc
+định + "Đoán từ trùng theo tần suất") và `retro-freq` (+ tự sửa từ phía trước).
+
 **Golden**: `TelexCore/Corpus/mixed-typing-golden.json` — mọi số đo × nhóm × split × cấu hình;
 `MixedTypingGoldenTests` fail khi bất kỳ số nào tệ hơn golden quá 0,05 điểm % (nhỏ hơn một từ ở
 mọi nhóm — mô phỏng tất định nên đổi một từ là thấy). Cải thiện ⇒ test in ra, chạy `--write-golden`
@@ -233,6 +239,27 @@ Theo nhóm (val, `default` → `retro`): `vi` 0 / 0 (3.385 từ Việt, kể c�
 Latency (release, M-series, máy đang chạy việc khác): phím chữ ~120 ns mean / ~1,2 µs p99.9 ở cả ba cấu
 hình; phím RANH GIỚI ~1,1–1,2 µs mean / ~7,5–9 µs p99.9 khi ngữ cảnh + sửa ngược bật, so với ~0,4 µs /
 ~0,85 µs khi tắt — phần đắt là `retroRecord` (vài String mỗi lần chốt từ), vẫn xa ngưỡng cảm nhận.
+
+#### 05/11/2026 — một từ Anh mạnh (sửa ngược) + "Đoán từ trùng theo tần suất"
+
+Số NỀN đo trên corpus mới (2.377 câu / 15.696 từ, +44 câu tự soạn) TRƯỚC khi đổi engine, rồi sau.
+val / test, overall = trung bình 7 nhóm; "fix/100" = lần sửa tay / 100 từ.
+
+| Cấu hình | lazy % | lazy VI % | lazy EN % | fix/100 | `collide` lazy % | `vi` / `vcollide` lazy % |
+|---|---|---|---|---|---|---|
+| `default` (trước = sau) | 5,24 / 4,99 | 0,95 / 0,89 | 7,70 / 9,06 | 3,87 / 3,55 | 23,71 / 22,07 | 0 / 0 |
+| `retro` trước | 3,64 / 3,07 | 0,95 / 0,89 | 5,19 / 5,24 | 2,81 / 2,38 | 15,72 / 11,71 | 0 / 0 |
+| `retro` sau (từ Anh mạnh) | **3,19 / 2,85** | 0,95 / 0,89 | 4,49 / 4,80 | 2,58 / 2,30 | 12,63 / 10,36 | 0 / 0 |
+| `freq` (mặc định + tần suất) | 2,84 / 2,54 | 0,95 / 0,89 | 3,96 / 4,10 | 2,54 / 2,36 | 9,54 / 8,11 | 0 / 0 |
+| `retro-freq` | **2,08 / 1,96** | 0,95 / 0,89 | 2,76 / 2,98 | 1,89 / 1,82 | 5,67 / 5,41 | 0 / 0 |
+| `no-context` (trước = sau) | 7,89 / 7,35 | 0,94 / 0,89 | 11,82 / 13,87 | 5,87 / 5,39 | 31,44 / 29,73 | 0 / 0 |
+
+`lazy VI` ≠ 0 vẫn chỉ do nhóm `teen` (như trước). Chữ nhảy (`flicker_per_100`, val/test): `retro` 2,06 /
+2,14, `freq` 0,80 / 2,11 (nhóm `vcollide`: "hí hửng" hiện "His" một nhịp rồi lật lại), `retro-freq`
+1,55 / 2,68; nhóm `vi` 0 / 0,06 (một từ trong 1.722). Eval sửa ngược (`RetroEnglishTests`, 5.731 câu):
+precision 1,0, 0 từ Việt bị đổi; recall 269/467 = 0,576.
+Latency ranh giới (release, mean): `retro` ~0,88 µs, `retro-freq` ~0,96 µs; đo trực tiếp engine trước/sau
+cùng tải (scratch, 7 lượt lấy min): sửa ngược bật 936 → 932 ns (cờ tần suất tắt), 1.058 ns khi bật.
 
 ### Mẫu lỗi hay gặp (val, `default`, người gõ lười) — định hướng việc tiếp
 

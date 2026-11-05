@@ -98,6 +98,9 @@ final class RetroEnglishTests: XCTestCase {
     /// run. With the app defaults "His car is here now" has no word committed as English at
     /// all (here→hể: collisionPrefersVietnamese, now→nơ), so nothing triggers; any English
     /// continuation fixes the head. A sentence-initial "Ít" + English is read as "Its".
+    /// (Unchanged by the strong-word rule — here/now are colliding words, not strong. With the
+    /// experimental `englishByFrequency` on, "His car is here now." is fixed from "His" on:
+    /// FrequencyEnglishTests.testHereNowWithFrequencyRule.)
     func testKnownLimits() {
         XCTAssertEqual(typed("His car is here now"), "Hí cả í hể nơ")
         XCTAssertEqual(typed("His car is here now and it is fast"), "Hí cả í hể nơ and it is fast")

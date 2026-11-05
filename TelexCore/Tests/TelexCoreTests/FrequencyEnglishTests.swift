@@ -127,6 +127,13 @@ final class FrequencyEnglishTests: XCTestCase {
         XCTAssertEqual(typed("Tooi ddi. His dog is cute.", auto: false), "Tôi đi. His dog is cute.")
     }
 
+    /// RetroEnglishTests.testKnownLimits' "His car is here now" (no English run without the flag).
+    func testHereNowWithFrequencyRule() {
+        XCTAssertEqual(typed("His car is here now.", auto: true), "His car is here now.")
+        XCTAssertEqual(typed("His car is here now.", auto: false), "His cả is here now.")
+        XCTAssertEqual(typed("His car is here now.", frequency: false, auto: true), "Hí cả í hể nơ.")
+    }
+
     func testFrequencyRuleNeedsNoVietnameseOnTheLeft() {
         XCTAssertEqual(typed("sao is"), "sao í")
         XCTAssertEqual(typed("em is aj"), "em í ạ")
