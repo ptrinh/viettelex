@@ -92,7 +92,7 @@ sudo pacman-key --lsign-key 43ADE236BCC43900B8F146B4F57C885055149990
 sudo pacman -Sy viettelex
 ```
 
-Chuyển Việt/Anh: `Ctrl+Space` (đổi trong Cài đặt → Kiểu gõ → Gõ mixed Việt/Anh). Chi tiết kho APT và cách gỡ:
+Chuyển Việt/Anh: `Ctrl+Space` (đổi trong Cài đặt → Gõ phím → Chuyển Việt/Anh). Chi tiết kho APT và cách gỡ:
 [packaging/APT.md](packaging/APT.md); DNF: [packaging/RPM.md](packaging/RPM.md); pacman:
 [packaging/ARCH.md](packaging/ARCH.md). Trên Fedora/EL/Arch app cài đặt không có nút cập nhật một
 chạm — nó báo lệnh `dnf upgrade` / `rpm-ostree upgrade` / `pacman -Syu`.
@@ -132,13 +132,13 @@ switches between Vietnamese and English.
   Nguồn: `Scripts/make_linux_status_icons.swift` (cùng hình học `make_space_logo.swift`).
   / *Same as the macOS menu bar: Vᴛ in a rounded square for Vietnamese, E for English (the iOS
   space-bar EN logo). With IBus, GNOME Shell shows only the text symbol `Vᴛ` / `E`.*
-- **Ngôn ngữ / Language** — Tuỳ chỉnh → "Ngôn ngữ / Language": Tiếng Việt (mặc định, kể cả máy
+- **Ngôn ngữ / Language** — Chung → "Ngôn ngữ / Language": Tiếng Việt (mặc định, kể cả máy
   cài tiếng Anh) hoặc English; áp dụng ngay cho app cài đặt và menu bộ gõ. / *Settings →
-  Tuỳ chỉnh → "Ngôn ngữ / Language": Vietnamese (default, whatever the system locale) or
+  General → "Ngôn ngữ / Language": Vietnamese (default, whatever the system locale) or
   English; applies at once to the settings app and the input-method menu.*
 - **Công cụ văn bản / Text tools** — bôi đen chữ ở app bất kỳ rồi mở menu bộ gõ → **Công cụ…**:
   Thêm dấu cho vùng chọn (toi di hoc → tôi đi học), HOA, thường, Hoa Đầu Từ, Hoa đầu câu, Xoá
-  dấu. Phím tắt Thêm dấu tuỳ chọn (mặc định tắt) ở Tuỳ chỉnh → Công cụ văn bản. Cần gói
+  dấu. Phím tắt Thêm dấu tuỳ chọn (mặc định tắt) ở Gợi ý & công cụ → Công cụ văn bản. Cần gói
   `viettelex-text-tools` (được cài kèm theo mặc định). Chữ lấy từ surrounding text của app; app
   không báo surrounding thì dùng vùng chọn PRIMARY (Fcitx5 tự đọc; IBus cần `wl-clipboard` hoặc
   `xclip`/`xsel` đã cài sẵn). Không đụng clipboard. Không chạy ở ô mật khẩu và terminal.
@@ -148,8 +148,8 @@ switches between Vietnamese and English.
   comes from the app's surrounding text, else the PRIMARY selection (Fcitx5 built in; IBus via
   an already installed `wl-clipboard` / `xclip` / `xsel`). The clipboard is never touched.
   Disabled in password fields and terminals.*
-- **Gợi ý cạnh con trỏ / Suggestions next to the caret** (như macOS 1.8.2; Tuỳ chỉnh → Công cụ
-  văn bản, mục thu gọn): **kết quả phép tính** `12*3=` → `= 36` (Tab hoặc Enter chèn), **chip số**
+- **Gợi ý cạnh con trỏ / Suggestions next to the caret** (như macOS 1.8.2; Gợi ý & công cụ →
+  Gợi ý cạnh con trỏ): **kết quả phép tính** `12*3=` → `= 36` (Tab hoặc Enter chèn), **chip số**
   `1tr2␣` → `1.200.000 ₫`, **sửa lỗi gõ sai** `tpoi␣` → `tôi`, **ngày giờ** `hôm nay␣` →
   `28/09/2026`, `bây giờ␣` → `21:35` (bật sẵn), **thêm dấu cho câu không dấu** `toi di hoc.` →
   `tôi đi học.` (tắt sẵn). Chỉ Tab áp dụng, phím khác bỏ qua, Esc = bỏ; không bao giờ tự thay,
@@ -158,7 +158,7 @@ switches between Vietnamese and English.
   typo fixes, date/time (on by default) and tones for unaccented sentences (off by default),
   shown in the input method's popup at the caret. Only Tab applies; any other key ignores the
   hint; never automatic, never in password fields. Needs `viettelex-text-tools`.*
-- **Văn bản tự động / Automatic text** (Tuỳ chỉnh → Văn bản tự động; **mặc định tắt hết** — bản
+- **Văn bản tự động / Automatic text** (Gợi ý & công cụ → Văn bản tự động; **mặc định tắt hết** — bản
   macOS theo cài đặt Nhập văn bản của hệ thống, Linux không có nên là công tắc riêng):
   **thêm dấu chấm khi gõ hai dấu cách** (`chào␣␣` → `chào. `, giữ phím cách thì không), **tự viết
   hoa đầu câu** (sau `. ? !` / xuống dòng; chữ hoa đưa thẳng vào Telex: `dduwowcj` → `Được`; bỏ
@@ -240,14 +240,15 @@ to your machine, each with a copy button.
 
 ## App cài đặt (`settings/`)
 
-Tab: Kiểu gõ · Tuỳ chỉnh · Gõ tắt · Bảng cơ chế gõ · Tương thích · Giới thiệu (giao diện tiếng
+Trang: Gõ phím · Gợi ý & công cụ · Gõ tắt · Ứng dụng · Chung (cùng 5 trang với macOS / Windows —
+`docs/SETTINGS-CLEANUP-SPEC.md`; giao diện tiếng
 Việt mặc định, có English — bảng dịch `viettelex_settings/i18n.py`). Ghi
 
 `~/.config/viettelex/config.toml` + `shortcuts.yml` (ghi nguyên tử); frontend nghe inotify
 nên đổi là có hiệu lực ngay. Gõ tắt và bảng cơ chế gõ nhập/xuất cùng định dạng YAML với
 bản macOS (nhận cả JSON / txt `key:value`).
 
-Nút thử nghiệm **"Bỏ gạch chân trong Chrome/Electron"** (tab Tuỳ chỉnh) ghi `[experimental]
+Nút thử nghiệm **"Bỏ gạch chân trong Chrome/Electron"** (trang Ứng dụng → Hiển thị chữ đang gõ → Nâng cao) ghi `[experimental]
 no_underline` và — trên phiên Wayland GNOME/KDE — tự tạo lối tắt `~/.local/share/applications/*.desktop`
 có cờ IME Wayland cho các app Chrome/Electron đã cài (chỉ sửa/xoá file mang dòng
 `X-VietTelex-Generated`; tắt nút là gỡ hết). Người dùng chỉ cần mở lại app. Chi tiết:

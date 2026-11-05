@@ -147,7 +147,7 @@ class StartupTests(unittest.TestCase):
 
 
 class QuickPickerTests(unittest.TestCase):
-    """Bộ chọn nhanh ở đầu nhóm Gõ mixed Việt/Anh (ONBOARDING-SPEC §4) — như iOS/Android."""
+    """Bộ chọn nhanh ở đầu nhóm Gõ lẫn tiếng Anh (ONBOARDING-SPEC §4) — như iOS/Android."""
 
     def test_fresh_config_matches_vi(self):
         cur = onboarding.current_values(config.Config(Paths().cfg))

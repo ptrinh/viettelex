@@ -1,4 +1,4 @@
-"""Onboarding người dùng mới + thẻ "Gõ mixed Việt/Anh" cho người dùng cũ (docs/ONBOARDING-SPEC.md).
+"""Onboarding người dùng mới + thẻ "Gõ lẫn tiếng Anh" cho người dùng cũ (docs/ONBOARDING-SPEC.md).
 
 Hàm thuần (không GTK) để test chạy ở mọi máy.
 
@@ -7,7 +7,7 @@ Hàm thuần (không GTK) để test chạy ở mọi máy.
   $XDG_STATE_HOME/viettelex/onboarding, mỗi dòng "key=value":
     done=0|1      0 = người mới chưa xong (lần mở sau vẫn hiện), 1 = xong / bỏ qua / người cũ
     profile=…     vi | mixed | en — chỉ để hiển thị, không điều khiển hành vi
-    card=0|1      1 = còn hiện thẻ "Gõ mixed Việt/Anh" (người dùng cũ), đóng là 0 mãi mãi
+    card=0|1      1 = còn hiện thẻ "Gõ lẫn tiếng Anh" (người dùng cũ), đóng là 0 mãi mãi
 """
 
 import os
@@ -77,7 +77,7 @@ def turned_on(profile):
 
 
 # ---------------------------------------------------------------- bộ chọn nhanh (§4)
-# Đầu nhóm "Gõ mixed Việt/Anh" trong Cài đặt: ba hồ sơ + "Tuỳ chỉnh" — y như iOS/Android
+# Đầu nhóm "Gõ lẫn tiếng Anh" trong Cài đặt: ba hồ sơ + "Tuỳ chỉnh" — y như iOS/Android
 # (iOS Shared/OnboardingProfile.swift OnboardingSettings, Android ui/MixedTyping.kt).
 
 PROFILE_KEYS = MIXED_KEYS + (START_KEY,)

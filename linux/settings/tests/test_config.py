@@ -30,11 +30,8 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(d["general"]["toggle_hotkey"], "Ctrl+space")
         self.assertEqual(d["app_modes"], {"org.gnome.texteditor": "surrounding", "kitty": "preedit"})
 
-    def test_retro_english_only_visible_with_contextual(self):
-        on = {("typing", "contextual_english"): True}
-        off = {("typing", "contextual_english"): False}
-        self.assertTrue(config.retro_english_visible(lambda s, k: on[(s, k)]))
-        self.assertFalse(config.retro_english_visible(lambda s, k: off[(s, k)]))
+    def test_retro_english_keys_parse(self):
+        # Điều kiện làm mờ (cần Quyết định theo ngữ cảnh) nằm ở layout.py — test_layout.py.
         d = config.parse("[typing]\nretroactive_english = true\n")
         self.assertIs(config.normalize(d)["typing"]["retroactive_english"], True)
         d = config.parse("[typing]\nenglish_by_frequency = true\n")

@@ -13,7 +13,7 @@ PKG = os.path.join(HERE, "..", "viettelex_settings")
 sys.path.insert(0, os.path.join(HERE, ".."))
 from viettelex_settings import compat, config, i18n  # noqa: E402
 
-SOURCES = ("app.py", "compat.py", "config.py", "detect.py", "shortcuts.py", "updater.py")
+SOURCES = ("app.py", "compat.py", "config.py", "detect.py", "layout.py", "shortcuts.py", "updater.py")
 VN_LETTER = re.compile(r"[À-ỹĐđ]")
 PLACEHOLDER = re.compile(r"%(?:\d+\$)?[sd]")
 
@@ -86,7 +86,7 @@ class CompletenessTests(unittest.TestCase):
         allowed = ("Tiếng Việt (VietTelex)", "tôi đi học", "việt", "không", "toán", "ơ", "ư",
                    "â/ê/ô", "ă", "đ", "lát", "lít", "hí", "í", "zẻ", "kó", "bíe", "thík",
                    "gòy", "ừk", "wá", "cư", "âm", "oà", "uý", "hòa", "thủy", "khỏe", "hoà",
-                   "thuý", "khoẻ", "thơ", "ngư", "Gõ Nhanh", "ch", "Ư",
+                   "thuý", "khoẻ", "thơ", "ngư", "ch", "Ư",
                    "tỷ", "tôi", "hôm nay", "ngày mai", "hôm qua", "bây giờ", "hópng", "tòc",
                    "Được", "Hí cả í", "hửng")
         for vi, en in i18n.EN.items():
@@ -129,9 +129,11 @@ class LanguageTests(unittest.TestCase):
         self.assertEqual(i18n._("Gõ tắt"), "Shortcuts")
         self.assertEqual(i18n._("chuỗi lạ"), "chuỗi lạ")    # thiếu bản dịch ⇒ giữ tiếng Việt
         self.assertEqual(i18n.N_("Tự động"), "Tự động")    # N_ không dịch
-        # Cùng chữ Việt, ngữ cảnh khác ⇒ tiếng Anh khác (tab "Options" / hồ sơ "Custom").
-        self.assertEqual(i18n._("Tuỳ chỉnh"), "Options")
+        # Có ngữ cảnh ⇒ khoá riêng: "Tuỳ chỉnh" chỉ còn là hồ sơ "Custom" (trang chung chung
+        # "Tuỳ chỉnh" đã tách thành Gợi ý & công cụ + Ứng dụng — SETTINGS-CLEANUP-SPEC §4).
         self.assertEqual(i18n.C_("profile", "Tuỳ chỉnh"), "Custom")
+        self.assertEqual(i18n._("Tuỳ chỉnh"), "Tuỳ chỉnh")
+        self.assertNotIn("Tuỳ chỉnh", i18n.EN)
         i18n.set_language("xx")
         self.assertEqual(i18n.language(), "vi")
 

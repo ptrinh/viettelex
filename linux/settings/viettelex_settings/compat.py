@@ -269,11 +269,11 @@ def assess(snap):
 
     if snap.get("terminals"):
         out.append({"id": "terminal_preedit", "level": "info",
-                    "title": _("Terminal: gõ thẳng khi được, còn lại preedit"),
+                    "title": _("Terminal: gõ thẳng khi được, còn lại gạch chân chữ đang gõ"),
                     "body": _("Terminal nhận phím qua IBus GTK3 hoặc Fcitx5 (fcitx5-gtk3, fcitx5-qt) — "
-                            "gnome-terminal, tilix, konsole… trên X11 — được gõ thẳng như UniKey "
-                            "(sửa dấu bằng Backspace, không gạch chân). Terminal GTK4 (Ptyxis, "
-                            "Console), phiên Wayland GNOME, kitty/alacritty/foot và terminal của "
-                            "VS Code dùng preedit: ở đó Backspace gửi đi không chắc đến trước chữ "
-                            "mới."), "fix": ""})
+                            "gnome-terminal, tilix, konsole… trên X11 — được gõ thẳng (sửa dấu bằng "
+                            "Backspace, không gạch chân). Terminal GTK4 (Ptyxis, Console), phiên "
+                            "Wayland GNOME, kitty/alacritty/foot và terminal của VS Code gạch chân "
+                            "chữ đang gõ: ở đó Backspace gửi đi không chắc đến trước chữ mới."),
+                    "fix": ""})
     return out

@@ -351,12 +351,6 @@ def atomic_write(path, text):
     os.replace(tmp, path)
 
 
-def retro_english_visible(get):
-    """Công tắc "Tự sửa từ phía trước" chỉ hiện khi "Quyết định theo ngữ cảnh" bật
-    (`get(section, key)` = Config.get)."""
-    return bool(get("typing", "contextual_english"))
-
-
 class Config:
     """Mô hình trong bộ nhớ + lưu ngay (frontend áp tức thì qua inotify)."""
 
