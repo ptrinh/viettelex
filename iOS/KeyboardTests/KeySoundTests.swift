@@ -8,6 +8,9 @@ final class KeySoundTests: XCTestCase {
         KeyboardView.pianoEnabled = false
         KeyboardView.pianoPedal = PianoPedal()
         KeyboardView.debugLastClickRoute = nil
+        // Việc nền còn xếp hàng (dựng nốt ngân sau pedal ~MB, restart sau config change) không được
+        // tràn sang test sau — từng làm playPiano của test sau trượt lock và đo heap UserLM lệch.
+        KeySound.shared.debugDrain()
         super.tearDown()
     }
 
@@ -392,23 +395,19 @@ final class KeySoundTests: XCTestCase {
     func testPianoEngineChord() throws {
         let ks = KeySound.shared
         ks.debugWant(false); ks.stopNow()
-        ks.setStyle("piano")
+        setStyleSettled(ks, "piano")
         ks.debugWant(true)
-        defer { ks.setStyle(KeySoundStyle.defaultStyle.rawValue); ks.debugWant(false); ks.stopNow() }
+        defer { ks.setStyle(KeySoundStyle.defaultStyle.rawValue); ks.debugDrain(); ks.debugWant(false); ks.stopNow() }
         guard ks.startNow() else { throw XCTSkip("không có audio output trên máy test") }
         XCTAssertEqual(ks.activeStyle, .piano)
-        var voices = Set<Int>()
-        for m in [60, 64, 67, 72] {
-            XCTAssertTrue(ks.playPiano(.note(m), sustain: false))
-            voices.insert(ks.lastPianoVoice)
-        }
+        let voices = try XCTUnwrap(playChordWhenSettled(ks, [60, 64, 67, 72]))
         XCTAssertEqual(voices.count, 4)
         XCTAssertEqual(ks.pianoSimultaneous, 4)
         // Rời Piano ⇒ về đường 3 tiếng.
-        ks.setStyle("wood")
+        setStyleSettled(ks, "wood")
         XCTAssertTrue(ks.startNow())
         XCTAssertEqual(ks.activeStyle, .wood)
-        XCTAssertTrue(ks.play(.letter))
+        XCTAssertTrue(whenSettled(ks) { ks.play(.letter) })
         XCTAssertFalse(ks.playPiano(.note(60), sustain: false))
     }
 
@@ -542,25 +541,21 @@ final class KeySoundTests: XCTestCase {
     func testDanTranhEngineChordAndSwitch() throws {
         let ks = KeySound.shared
         ks.debugWant(false); ks.stopNow()
-        ks.setStyle("piano")
+        setStyleSettled(ks, "piano")
         ks.debugWant(true)
-        defer { ks.setStyle(KeySoundStyle.defaultStyle.rawValue); ks.debugWant(false); ks.stopNow() }
+        defer { ks.setStyle(KeySoundStyle.defaultStyle.rawValue); ks.debugDrain(); ks.debugWant(false); ks.stopNow() }
         guard ks.startNow() else { throw XCTSkip("không có audio output trên máy test") }
         XCTAssertEqual(ks.instrument, .piano)
-        ks.setStyle("dantranh")
+        setStyleSettled(ks, "dantranh")
         XCTAssertTrue(ks.startNow())
         XCTAssertEqual(ks.activeStyle, .dantranh)
         XCTAssertEqual(ks.instrument, .dantranh)
-        var voices = Set<Int>()
-        for m in [60, 65, 67, 72] {
-            XCTAssertTrue(ks.playPiano(.note(m), sustain: false))
-            voices.insert(ks.lastPianoVoice)
-        }
+        let voices = try XCTUnwrap(playChordWhenSettled(ks, [60, 65, 67, 72]))
         XCTAssertEqual(voices.count, 4)
         XCTAssertEqual(ks.pianoSimultaneous, 4)
-        XCTAssertTrue(ks.playPiano(.space, sustain: false))
-        XCTAssertTrue(ks.playPiano(.pedal, sustain: false))
-        ks.setStyle("wood")
+        XCTAssertTrue(playWhenSettled(ks, .space))
+        XCTAssertTrue(playWhenSettled(ks, .pedal))
+        setStyleSettled(ks, "wood")
         XCTAssertTrue(ks.startNow())
         XCTAssertEqual(ks.activeStyle, .wood)
         XCTAssertFalse(ks.playPiano(.note(60), sustain: false))
@@ -764,22 +759,64 @@ final class KeySoundTests: XCTestCase {
     }
 
     /// Engine thật (bỏ qua nếu không có audio): Piano / Ghi-ta dựng 4 âm đặc biệt + 4 hợp âm vòng; Đàn tranh chỉ 4.
+    /// `playPiano` chỉ `lock.try()` (cố ý: không bao giờ chặn main) và trả false khi việc nền đang
+    /// giữ lock (dựng lại sau AVAudioEngineConfigurationChange, idle check, dựng nốt ngân do test
+    /// trước đạp pedal) hoặc engine vừa bị dừng (tự dựng lại trên queue). Đó là "bỏ một tiếng" hợp
+    /// lệ, không phải lỗi ⇒ test chờ queue rồi thử lại. Lỗi thật (thiếu buffer / giọng) false mọi lần.
+    private func playWhenSettled(_ ks: KeySound, _ ev: PianoEvent) -> Bool {
+        whenSettled(ks) { ks.playPiano(ev, sustain: false) }
+    }
+    /// Như trên cho mọi lệnh phát `lock.try()` (`play`, `playPiano`).
+    private func whenSettled(_ ks: KeySound, _ play: () -> Bool) -> Bool {
+        for _ in 0..<20 {
+            ks.debugDrain()
+            if play() { return true }
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        return false
+    }
+
+    /// Bấm hợp âm (các nốt liền nhau trong cửa sổ hợp âm). Trượt lock giữa chừng ⇒ đợi quá cửa sổ
+    /// rồi bấm lại CẢ hợp âm (thử lại từng nốt sẽ kéo giãn hợp âm). nil = không lần nào trọn vẹn.
+    private func playChordWhenSettled(_ ks: KeySound, _ notes: [Int]) -> Set<Int>? {
+        for _ in 0..<20 {
+            ks.debugDrain()
+            var voices = Set<Int>()
+            var ok = true
+            for m in notes {
+                guard ks.playPiano(.note(m), sustain: false) else { ok = false; break }
+                voices.insert(ks.lastPianoVoice)
+            }
+            if ok { return voices }
+            Thread.sleep(forTimeInterval: VoicePool.chordWindow + 0.02)
+        }
+        return nil
+    }
+
+    /// Đổi kiểu rồi chờ: `setStyle` xếp hàng lên queue nếu lock đang bận ⇒ phải drain trước
+    /// startNow, không thì startNow dựng lại kiểu CŨ (flaky: pianoExtraCount 8 thay vì 4).
+    private func setStyleSettled(_ ks: KeySound, _ raw: String) {
+        ks.setStyle(raw)
+        ks.debugDrain()
+    }
+
     func testProgressionEngineBuffers() throws {
         let ks = KeySound.shared
+        ks.debugDrain()                    // việc nền còn sót của test trước (nốt ngân, idle…)
         ks.debugWant(false); ks.stopNow()
-        ks.setStyle("guitar")
+        setStyleSettled(ks, "guitar")
         ks.debugWant(true)
-        defer { ks.setStyle(KeySoundStyle.defaultStyle.rawValue); ks.debugWant(false); ks.stopNow() }
+        defer { ks.setStyle(KeySoundStyle.defaultStyle.rawValue); ks.debugDrain(); ks.debugWant(false); ks.stopNow() }
         guard ks.startNow() else { throw XCTSkip("không có audio output trên máy test") }
         XCTAssertEqual(ks.instrument, .guitar)
         XCTAssertEqual(ks.pianoExtraCount, 8)
-        for i in 0..<4 { XCTAssertTrue(ks.playPiano(.chord(i), sustain: false), "hợp âm \(i)") }
-        XCTAssertTrue(ks.playPiano(.chord(9), sustain: false), "chỉ số lạ ⇒ hợp âm cách, không crash")
-        XCTAssertTrue(ks.playPiano(.returnKey, sustain: false))
-        XCTAssertTrue(ks.playPiano(.delete, sustain: false))
-        ks.setStyle("piano"); XCTAssertTrue(ks.startNow()); XCTAssertEqual(ks.pianoExtraCount, 8)
-        ks.setStyle("dantranh"); XCTAssertTrue(ks.startNow()); XCTAssertEqual(ks.pianoExtraCount, 4)
-        XCTAssertTrue(ks.playPiano(.space, sustain: false))
+        for i in 0..<4 { XCTAssertTrue(playWhenSettled(ks, .chord(i)), "hợp âm \(i)") }
+        XCTAssertTrue(playWhenSettled(ks, .chord(9)), "chỉ số lạ ⇒ hợp âm cách, không crash")
+        XCTAssertTrue(playWhenSettled(ks, .returnKey))
+        XCTAssertTrue(playWhenSettled(ks, .delete))
+        setStyleSettled(ks, "piano"); XCTAssertTrue(ks.startNow()); XCTAssertEqual(ks.pianoExtraCount, 8)
+        setStyleSettled(ks, "dantranh"); XCTAssertTrue(ks.startNow()); XCTAssertEqual(ks.pianoExtraCount, 4)
+        XCTAssertTrue(playWhenSettled(ks, .space))
     }
 
     func testStyleResolveAndBankFallback() {

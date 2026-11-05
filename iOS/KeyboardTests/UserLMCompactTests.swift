@@ -256,10 +256,23 @@ final class UserLMCompactTests: XCTestCase {
         let bin = UserLangModel.compactURL(for: url)
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
         try "x".write(to: bin.appendingPathComponent("chặn"), atomically: true, encoding: .utf8)
-        let m = UserLangModel(fileURL: url, synchronous: true)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        let original = try Data(contentsOf: url)
+        // Đồng hồ cố định = lastDecay của fixture: không decay lúc nạp. Trước đây test dùng giờ
+        // thật ⇒ từ 01/09/2026 trở đi decay 0.7^tuần làm count fixture rơi về 0 (test hỏng theo lịch).
+        let fixtureNow = { Date(timeIntervalSince1970: 1_788_220_800) }
+        let m = UserLangModel(fileURL: url, synchronous: true, clock: fixtureNow)
+        // Ghi bản mới thất bại ⇒ bản cũ còn nguyên từng byte, dữ liệu vẫn dùng được trong phiên.
+        XCTAssertEqual(try Data(contentsOf: url), original)
         XCTAssertEqual(m.manual, ["viettelex": "VietTelex"])
-        XCTAssertGreaterThan(m.count(of: "cảm"), 0)
+        XCTAssertEqual(m.count(of: "cảm"), 7)
+        XCTAssertEqual(m.count(of: "ơn"), 6)
+
+        // Gỡ vật cản ⇒ lần nạp sau chuyển đổi thành công, bản cũ mới bị xoá.
+        try FileManager.default.removeItem(at: bin)
+        let again = UserLangModel(fileURL: url, synchronous: true, clock: fixtureNow)
+        XCTAssertEqual(again.count(of: "cảm"), 7)
+        XCTAssertNotNil(UserLMCodec.decode(try Data(contentsOf: bin)))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
     }
 
     /// Fixture VTL2 do bộ mã hoá Python độc lập dựng — Android đọc cùng file (layout chung).

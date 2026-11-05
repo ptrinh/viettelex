@@ -482,7 +482,9 @@ final class ClipboardBarRegressionTests: XCTestCase {
     /// Bàn phím đổi chiều cao khi panel đang mở (xoay / host cấp lại khung): panel phải bám
     /// vùng phím — trước đây cao cố định + neo đáy ⇒ trồi lên đè dải gợi ý.
     /// 18/10/2026 (bar mặc định Vừa 26pt): host cấp thiếu (240) ⇒ bar CO về chỗ còn lại (sàn 20),
-    /// đỉnh bar đứng yên; cấp đủ lại thì về đúng khung cũ.
+    /// co hết mới dời lên VỪA đủ để không đè hàng đầu (không cao hơn đệm trên); cấp đủ lại thì về
+    /// đúng khung cũ. Từ c02fbdb6 (29/10) bar canh giữa dải (đỉnh 9, không còn 4) ⇒ ở 240 bar phải
+    /// dời lên — bất biến cũ "đỉnh bar đứng yên" chỉ đúng khi đỉnh đã ghim sát đệm trên.
     @MainActor func testPanelFollowsKeyAreaWhenKeyboardResizes() {
         let (kb, root, win, h) = makeHosted(height: 290)
         kb.showSuggestions(.init(nextWords: ["Em", "Anh", "Tôi"]))
@@ -495,7 +497,12 @@ final class ClipboardBarRegressionTests: XCTestCase {
             XCTAssertEqual(p.frame, kb.keyAreaFrame, "cao \(height)")
             let now = kb.debugStripLayout().bar
             XCTAssertGreaterThanOrEqual(p.frame.minY, now.maxY, "cao \(height): panel đè bar")
-            XCTAssertEqual(now.minY, bar.minY, "cao \(height): đỉnh bar đứng yên")
+            XCTAssertLessThanOrEqual(now.minY, bar.minY, "cao \(height): bar chỉ dời lên, không tụt xuống")
+            XCTAssertGreaterThanOrEqual(now.minY, KeyboardView.barTopPad, "cao \(height): bar vượt đệm trên")
+            if now.minY < bar.minY {   // đã dời ⇒ phải co hết trước, và dời vừa đủ (chạm hàng đầu)
+                XCTAssertEqual(now.height, SuggestionBarHeight.baseRow, "cao \(height): dời trước khi co hết")
+                XCTAssertEqual(now.maxY, kb.keyAreaFrame.minY, accuracy: 0.5, "cao \(height): dời quá tay")
+            }
             XCTAssertEqual(now.width, bar.width)
             XCTAssertGreaterThanOrEqual(now.height, SuggestionBarHeight.baseRow, "cao \(height)")
             if height >= 290 { XCTAssertEqual(now, bar, "cao \(height)") }

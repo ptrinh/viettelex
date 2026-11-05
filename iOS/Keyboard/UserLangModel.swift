@@ -59,6 +59,8 @@ final class UserLangModel {
 
     /// Đường dẫn "gốc" (userlm.plist — tên cũ, giữ cho API); file thật là `compactURL(for:)`.
     private let fileURL: URL?
+    /// Đồng hồ cho decay lúc nạp — tests tiêm giờ cố định (fixture có lastDecay cố định).
+    private var clock: () -> Date = Date.init
     private var saveWork: DispatchWorkItem?
 
     // Encode/decode/IO nền — mọi đọc/ghi bảng vẫn ở main thread.
@@ -105,8 +107,9 @@ final class UserLangModel {
 
     /// Tests: store thật ở file tuỳ ý (App Group không có trong test hostless).
     /// `synchronous`: đọc file NGAY trên thread gọi (app — màn Từ điển cá nhân).
-    init(fileURL url: URL, synchronous: Bool = false) {
+    init(fileURL url: URL, synchronous: Bool = false, clock: @escaping () -> Date = Date.init) {
         fileURL = url
+        self.clock = clock
         if synchronous {
             finishLoad(Self.readTables(from: url))
         } else {
@@ -150,7 +153,7 @@ final class UserLangModel {
         for r in queued {
             record(word: r.word, after: r.prev1, prev2: r.prev2, weight: r.weight, caseEvidence: r.caseEvidence)
         }
-        decayIfDue()
+        decayIfDue(now: clock())
         onReady?()
     }
 
