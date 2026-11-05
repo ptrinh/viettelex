@@ -2282,6 +2282,20 @@ test	collide	thú thật là mình quên	vvvvv
 val	collide	lít xăng bao nhiêu tiền	vvvvv
 val	collide	mã giảm giá hết hạn rồi	vvvvvv
 test	collide	tôi cũng có một cái xe như thế	vvvvvvvv
+val	collide	His car is fast.	eeee
+val	collide	He is here.	eee
+val	collide	he is	ee
+val	collide	the bus	ee
+test	collide	here now	ee
+val	collide	His car is here now.	eeeee
+val	collide	His dog is cute.	eeee
+val	collide	Is it ok?	eee
+val	collide	How are you?	eee
+test	collide	This is it.	eee
+val	collide	Of course.	ee
+val	collide	His job is hard.	eeee
+test	collide	Is she here?	eee
+val	collide	Test xong rồi nhé	evvv
 val	teen	wá trời lun	vvv
 test	teen	zô đây chơi nè	vvvv
 val	teen	thík wá đi mất	vvvv
@@ -2332,3 +2346,33 @@ val	teen	tui bít mà	vvv
 test	teen	ai bít đâu	vvv
 val	teen	sao z bạn	vvv
 val	teen	chắc z gòy	vvv
+val	vcollide	hí hửng cả ngày	vvvv
+test	vcollide	Hí hửng quá	vvv
+test	vcollide	hí hí	vv
+val	vcollide	Hí Hí	vv
+val	vcollide	hí hí hí vui ghê	vvvvv
+test	vcollide	Hì hì	vv
+test	vcollide	hì hì cảm ơn nha	vvvvv
+test	vcollide	há há buồn cười quá	vvvvv
+val	vcollide	hê hê	vv
+val	vcollide	ừ ừ	vv
+val	vcollide	cái nơ đỏ đẹp ghê	vvvvv
+test	vcollide	thắt nơ cho em	vvvv
+val	vcollide	cho con bú xong rồi	vvvvv
+val	vcollide	sao í	vv
+val	vcollide	em í ạ	vvv
+test	vcollide	ít nhất cũng phải thử	vvvvv
+val	vcollide	Ít nhất là vậy	vvvv
+val	vcollide	lát nữa gọi lại nhé	vvvvv
+val	vcollide	Lát nữa anh về	vvvv
+val	vcollide	Mai cả team họp	vvev
+val	vcollide	bên trên có gì	vvvv
+val	vcollide	Cả nhà ơi	vvv
+val	vcollide	Ít khi gặp lắm	vvvv
+val	vcollide	Bú sữa chưa con	vvvv
+test	vcollide	Thí sinh đến muộn	vvvv
+val	vcollide	Hơ hơ	vv
+val	vcollide	Bể nước đầy rồi	vvvv
+val	vcollide	Bé ngủ chưa	vvv
+test	vcollide	Hí ha hí hửng	vvvv
+val	vcollide	Thể nào cũng mưa	vvvv

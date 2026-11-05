@@ -1,12 +1,16 @@
 // Evaluation.swift — chạy cả corpus cho một cấu hình, tính số đo, đọc/ghi golden.
 //
-// Số đo theo nhóm (vi, en, mix, tech, collide, teen); "overall" = TRUNG BÌNH KHÔNG TRỌNG SỐ của
+// Số đo theo nhóm (vi, en, mix, tech, collide, teen, vcollide); "overall" = TRUNG BÌNH KHÔNG TRỌNG SỐ của
 // các nhóm (nhóm nhỏ như teen nặng ngang nhóm lớn — đúng chủ ý: mỗi kiểu gõ một phiếu).
 //   lazy_wrong       % từ sai, người gõ lười (không bao giờ bật/tắt bộ gõ)
 //   lazy_vi_wrong    % từ VIỆT sai (trên số từ Việt)
 //   lazy_en_wrong    % từ ANH sai (trên số từ Anh; nhóm không có từ Anh thì bỏ)
 //   toggles_per_100  số lần bật/tắt bộ gõ / 100 từ, người gõ lý tưởng
 //   ideal_wrong      % từ vẫn sai dù người gõ lý tưởng (cả hai chế độ đều không ra đúng)
+//   fixes_per_100    số lần SỬA TAY / 100 từ, người gõ lười đọc lại câu: mỗi đoạn từ sai liền nhau
+//                    ("Hí cả í") = một lần sửa (bôi đen + gõ lại)
+//   flicker_per_100  số từ / 100 từ ĐÃ HIỆN SAI ngay khi chốt nhưng cuối câu đúng (tự sửa / lật lại
+//                    sửa giùm — người gõ vẫn thấy chữ nhảy)
 // Mọi số: CÀNG THẤP CÀNG TỐT.
 
 import Foundation
@@ -15,11 +19,13 @@ import TelexCore
 public struct Counts: Sendable {
     public var sentences = 0, words = 0, vi = 0, en = 0
     public var lazyWrongVI = 0, lazyWrongEN = 0, idealWrong = 0, toggles = 0
+    public var fixes = 0, flicker = 0
 
     mutating func add(_ o: Counts) {
         sentences += o.sentences; words += o.words; vi += o.vi; en += o.en
         lazyWrongVI += o.lazyWrongVI; lazyWrongEN += o.lazyWrongEN
         idealWrong += o.idealWrong; toggles += o.toggles
+        fixes += o.fixes; flicker += o.flicker
     }
 
     private func pct(_ a: Int, _ b: Int) -> Double? { b == 0 ? nil : 100 * Double(a) / Double(b) }
@@ -31,12 +37,15 @@ public struct Counts: Sendable {
         m["lazy_en_wrong"] = pct(lazyWrongEN, en)
         m["toggles_per_100"] = pct(toggles, words)
         m["ideal_wrong"] = pct(idealWrong, words)
+        m["fixes_per_100"] = pct(fixes, words)
+        m["flicker_per_100"] = pct(flicker, words)
         return m
     }
 }
 
-public let metricNames = ["lazy_wrong", "lazy_vi_wrong", "lazy_en_wrong", "toggles_per_100", "ideal_wrong"]
-public let categoryOrder = ["vi", "en", "mix", "tech", "collide", "teen"]
+public let metricNames = ["lazy_wrong", "lazy_vi_wrong", "lazy_en_wrong", "toggles_per_100", "ideal_wrong",
+                          "fixes_per_100", "flicker_per_100"]
+public let categoryOrder = ["vi", "en", "mix", "tech", "collide", "teen", "vcollide"]
 
 /// Một từ sai (người gõ lười).
 public struct WrongWord: Sendable {
@@ -91,7 +100,11 @@ public enum Evaluation {
             c.sentences = 1
             c.words = s.words.count
             var wrong: [WrongWord] = []
+            var prevWrong = false
             for (i, eng) in s.english.enumerated() {
+                if !lz.correct[i], !prevWrong { c.fixes += 1 }
+                prevWrong = !lz.correct[i]
+                if lz.correct[i], i < lz.shownWrong.count, lz.shownWrong[i] { c.flicker += 1 }
                 if eng { c.en += 1 } else { c.vi += 1 }
                 if !lz.correct[i] {
                     if eng { c.lazyWrongEN += 1 } else { c.lazyWrongVI += 1 }

@@ -66,12 +66,12 @@ for cfg in configs {
     print("== \(cfg.name): \(cfg.summary)")
     for split in ["val", "test"] {
         let m = r.metrics(split: split)
-        print("  [\(split)]   nhóm     lazy%  lazyVI%  lazyEN%  toggle/100  ideal%   (câu/từ)")
+        print("  [\(split)]   nhóm     lazy%  lazyVI%  lazyEN%  toggle/100  ideal%  fix/100  flick/100  (câu/từ)")
         for c in categoryOrder + ["overall"] {
             guard let x = m[c] else { continue }
             let n = r.counts[split]?[c]
             let size = n.map { "(\($0.sentences)/\($0.words))" } ?? "(trung bình nhóm)"
-            print("           \(c.padding(toLength: 8, withPad: " ", startingAt: 0)) \(f(x["lazy_wrong"]))  \(f(x["lazy_vi_wrong"]))   \(f(x["lazy_en_wrong"]))     \(f(x["toggles_per_100"]))   \(f(x["ideal_wrong"]))   \(size)")
+            print("           \(c.padding(toLength: 8, withPad: " ", startingAt: 0)) \(f(x["lazy_wrong"]))  \(f(x["lazy_vi_wrong"]))   \(f(x["lazy_en_wrong"]))     \(f(x["toggles_per_100"]))   \(f(x["ideal_wrong"]))  \(f(x["fixes_per_100"]))   \(f(x["flicker_per_100"]))   \(size)")
         }
     }
     func latLine(_ label: String, _ xs: [UInt64]) -> String {

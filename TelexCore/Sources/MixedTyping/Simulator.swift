@@ -183,6 +183,8 @@ struct SentenceResult {
     var correct: [Bool]           // theo từ đích
     var outWords: [String?]       // từ ra tương ứng (nil = lệch số từ)
     var toggles = 0
+    /// Theo từ đích: ngay sau ranh giới của chính nó, từ đó đang hiện SAI (chỉ người gõ lười).
+    var shownWrong: [Bool] = []
 }
 
 enum Scorer {
@@ -223,10 +225,14 @@ public enum Runner {
         sim.timing = timing
         if timing { sim.samples.reserveCapacity(128) }
         for ch in s.gaps[0] { sim.boundary(ch) }
-        for i in s.words.indices { sim.typeWordAndGap(s, plans, i) }
+        var shown = [Bool](repeating: false, count: s.words.count)
+        for i in s.words.indices {
+            sim.typeWordAndGap(s, plans, i)
+            shown[i] = !Scorer.wordCorrect(s, i, sim.screen)   // ngoài vùng bấm giờ engine
+        }
         if timing { samples.append(contentsOf: sim.samples); boundarySamples.append(contentsOf: sim.boundarySamples) }
         let (c, o) = Scorer.score(s.words, sim.text)
-        return SentenceResult(output: sim.text, correct: c, outWords: o)
+        return SentenceResult(output: sim.text, correct: c, outWords: o, shownWrong: shown)
     }
 
     /// Người gõ "lý tưởng": trước mỗi từ, nếu gõ tiếp ở chế độ hiện tại từ đó sẽ RA SAI thì
