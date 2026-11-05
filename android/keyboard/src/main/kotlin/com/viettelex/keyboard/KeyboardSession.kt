@@ -521,17 +521,28 @@ class KeyboardSession(
     }
 
     /**
-     * Vuốt phím cách: đổi Tiếng Việt ↔ Tiếng Anh. Chốt từ đang gõ trước (học như ranh giới,
-     * không chèn gì). Trả ngôn ngữ mới (IME lưu + vẽ), null khi công tắc tắt.
+     * Vuốt phím cách: đổi Tiếng Việt ↔ Tiếng Anh. Trả ngôn ngữ mới (IME lưu + vẽ), null khi
+     * công tắc tắt.
+     *
+     * Đang gõ dở một từ (ONBOARDING-SPEC §7) ⇒ CHUYỂN luôn từ đó sang ngôn ngữ đích, từ vẫn mở
+     * ([EngineBridge.convertComposing]: "Hí" ⇄ "His"). Không áp ([convertWord] = false — IME
+     * đang ở bảng số/emoji), từ vuốt còn mở (gõ vuốt: từ từ điển, phím gốc là phím tổng hợp
+     * ⇒ chốt nguyên như cũ), hay không chuyển được ⇒ như cũ: chốt từ (học như ranh giới, không
+     * chèn gì) rồi đổi.
      */
-    fun toggleLanguage(proxy: TextProxy): KeyboardLanguage? {
+    fun toggleLanguage(proxy: TextProxy, convertWord: Boolean = true): KeyboardLanguage? {
         if (!spaceFlickEnabled) return null
-        val literal = if (swipeLiteral) openSwipeWord() else null
+        val swiped = openSwipeWord()
+        val literal = if (swipeLiteral) swiped else null
         clearSwipe(); clearUndo(); tonesUndo = null
         if (literal != null) settleLiteral(literal)
         language = language.toggled
-        val committed = bridge.setEnglish(language == KeyboardLanguage.EN, proxy)
-        if (literal == null) commitAndLearn(committed)
+        val toEnglish = language == KeyboardLanguage.EN
+        val converted = convertWord && swiped == null && bridge.convertComposing(toEnglish, proxy)
+        if (!converted) {
+            val committed = bridge.setEnglish(toEnglish, proxy)
+            if (literal == null) commitAndLearn(committed)
+        }
         lastInsertWasSpace = false
         generation++
         return language

@@ -2723,8 +2723,11 @@ extension KeyboardViewController {
         if recentEnglish.count > 4 { recentEnglish.removeFirst() }
     }
 
-    /// Vuốt phím cách: đổi Tiếng Việt ↔ Tiếng Anh. Chốt từ đang gõ trước (học như ranh
-    /// giới), lưu trạng thái cho lần hiện sau. KeyboardView đã rung + chạy hiệu ứng nhãn.
+    /// Vuốt phím cách: đổi Tiếng Việt ↔ Tiếng Anh, lưu trạng thái cho lần hiện sau.
+    /// KeyboardView đã rung + chạy hiệu ứng nhãn. Đang gõ dở một từ ở bảng chữ ⇒ CHUYỂN luôn
+    /// từ đó sang ngôn ngữ đích, từ vẫn mở (ONBOARDING-SPEC §7, `EngineBridge.convertComposing`);
+    /// bảng số/emoji, từ vuốt còn mở, hay không chuyển được ⇒ như cũ: chốt từ (học như ranh
+    /// giới) rồi đổi.
     fileprivate func toggleLanguage() {
         guard spaceFlickSetting else { return }
         if externalChangePending { syncComposition("flick") }
@@ -2734,7 +2737,9 @@ extension KeyboardViewController {
         let accepted = bridge.openWordAccepted
         language = language.toggled
         UserDefaults.standard.set(language.rawValue, forKey: KeyboardLanguage.storageKey)
-        commitAndLearn(bridge.setEnglish(language == .en, proxy: Proxy(p: textProxy)),
+        commitAndLearn(bridge.flickLanguage(toEnglish: language == .en,
+                                            convertWord: keyboard.spaceFlickConvertsWord,
+                                            proxy: Proxy(p: textProxy)),
                        accepted: accepted)
         if language == .en { warmUpEnglish() }
         keyboard.spaceLanguage = language

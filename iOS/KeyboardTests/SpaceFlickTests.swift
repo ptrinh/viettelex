@@ -177,6 +177,143 @@ final class SpaceFlickTests: XCTestCase {
         XCTAssertFalse(b.englishMode)
     }
 
+    // MARK: §7 vuốt khi đang gõ dở một từ — chuyển luôn từ đó (ONBOARDING-SPEC §7)
+
+    /// Gõ phím; số ⇒ vniDigit (VNI), không xử lý được ⇒ ranh giới như controller.
+    private func typeKeys(_ keys: String, _ b: EngineBridge, _ p: MockProxy) {
+        for ch in keys {
+            if ch.isNumber { if !b.vniDigit(ch, proxy: p) { b.boundary(String(ch), proxy: p) } }
+            else if ch == " " { b.boundary(" ", proxy: p) }
+            else { b.letter(ch, proxy: p) }
+        }
+    }
+
+    private func flickBridge(vni: Bool = false, strict: Bool = true) -> (EngineBridge, MockProxy) {
+        var s = KeyboardSettings()
+        s.vniMode = vni
+        s.autoRestore = strict
+        s.liveSpellCheck = strict
+        return (EngineBridge(settings: s), MockProxy())
+    }
+
+    /// Gõ `keys` ở VI, vuốt EN ⇒ `en`; vuốt VI ⇒ `vi` (khứ hồi). Từ vẫn đang soạn.
+    private func roundTrip(_ keys: String, vi: String, en: String, vni: Bool = false, strict: Bool = true,
+                           file: StaticString = #filePath, line: UInt = #line) {
+        let (b, p) = flickBridge(vni: vni, strict: strict)
+        typeKeys(keys, b, p)
+        XCTAssertEqual(p.text, vi, file: file, line: line)
+        XCTAssertEqual(b.flickLanguage(toEnglish: true, convertWord: true, proxy: p), "", file: file, line: line)
+        XCTAssertEqual(p.text, en, file: file, line: line)
+        XCTAssertTrue(b.englishMode, file: file, line: line)
+        XCTAssertEqual(b.composedWord, en, file: file, line: line)
+        XCTAssertEqual(b.flickLanguage(toEnglish: false, convertWord: true, proxy: p), "", file: file, line: line)
+        XCTAssertEqual(p.text, vi, file: file, line: line)
+        XCTAssertFalse(b.englishMode, file: file, line: line)
+        XCTAssertEqual(b.composedWord, vi, file: file, line: line)
+        XCTAssertEqual(b.rawWord, keys, file: file, line: line)
+    }
+
+    func testConvertHis() { roundTrip("His", vi: "Hí", en: "His") }
+    /// Mặc định (tự khôi phục + kiểm tra chính tả) "very" đã hiện "very" giữa từ; tắt hai công
+    /// tắc đó mới thấy "vẻy" như bảng spec.
+    func testConvertVery() { roundTrip("very", vi: "vẻy", en: "very", strict: false) }
+    func testConvertVeryDefaultSettings() { roundTrip("very", vi: "very", en: "very") }
+    func testConvertKeepsCaps() { roundTrip("HIS", vi: "HÍ", en: "HIS") }
+    func testConvertHornsAndBreve() { roundTrip("dduwowcj", vi: "được", en: "dduwowcj") }
+    func testConvertVNI() { roundTrip("hi1", vi: "hí", en: "hi1", vni: true) }
+
+    func testConvertEnglishFirstThenVietnamese() {
+        let (b, p) = flickBridge()
+        b.flickLanguage(toEnglish: true, convertWord: true, proxy: p)   // EN, chưa có từ
+        typeKeys("His", b, p)
+        XCTAssertEqual(p.text, "His")
+        b.flickLanguage(toEnglish: false, convertWord: true, proxy: p)
+        XCTAssertEqual(p.text, "Hí")
+        XCTAssertEqual(b.boundary(" ", proxy: p), "Hí")                 // chốt như gõ tay
+        XCTAssertEqual(p.text, "Hí ")
+    }
+
+    func testConvertedWordKeepsComposingInTarget() {
+        let (b, p) = flickBridge()
+        typeKeys("vie", b, p)
+        b.flickLanguage(toEnglish: true, convertWord: true, proxy: p)
+        typeKeys("ws", b, p)                                             // EN: không Telex
+        XCTAssertEqual(p.text, "views")
+        b.flickLanguage(toEnglish: false, convertWord: true, proxy: p)   // VI: chạy lại "views"
+        XCTAssertEqual(p.text, b.composeTrial("views"))
+    }
+
+    func testConvertEmptyWordIsOldBehavior() {
+        let (b, p) = flickBridge()
+        XCTAssertFalse(b.convertComposing(toEnglish: true, proxy: p))
+        XCTAssertEqual(b.flickLanguage(toEnglish: true, convertWord: true, proxy: p), "")
+        XCTAssertTrue(b.englishMode)
+        XCTAssertEqual(p.text, "")
+        XCTAssertFalse(b.isComposing)
+    }
+
+    func testConvertAfterSpaceLeavesCommittedWord() {
+        let (b, p) = flickBridge()
+        typeKeys("His ", b, p)
+        let before = p.text
+        b.flickLanguage(toEnglish: true, convertWord: true, proxy: p)
+        XCTAssertEqual(p.text, before)
+        b.flickLanguage(toEnglish: false, convertWord: true, proxy: p)
+        XCTAssertEqual(p.text, before)
+    }
+
+    func testConvertOnlyTouchesComposingWord() {
+        let (b, p) = flickBridge()
+        typeKeys("vieetj His", b, p)
+        b.flickLanguage(toEnglish: true, convertWord: true, proxy: p)
+        XCTAssertEqual(p.text, "việt His")
+        b.flickLanguage(toEnglish: false, convertWord: true, proxy: p)
+        XCTAssertEqual(p.text, "việt Hí")
+    }
+
+    /// Bảng số/emoji ⇒ không chuyển: chốt từ rồi đổi như cũ.
+    func testConvertNotOnNumberOrEmojiPlane() {
+        let (b, p) = flickBridge()
+        typeKeys("His", b, p)
+        XCTAssertEqual(b.flickLanguage(toEnglish: true, convertWord: false, proxy: p), "Hí")
+        XCTAssertEqual(p.text, "Hí")
+        XCTAssertFalse(b.isComposing)
+        XCTAssertTrue(b.englishMode)
+    }
+
+    /// Engine đã đóng băng tiếng Anh giữa từ: sang EN là phím gốc, về VI chạy lại toàn bộ phím.
+    func testConvertEnglishFrozenPrefix() {
+        let (b, p) = flickBridge()
+        typeKeys("google", b, p)
+        let vi = p.text
+        b.flickLanguage(toEnglish: true, convertWord: true, proxy: p)
+        XCTAssertEqual(p.text, "google")
+        b.flickLanguage(toEnglish: false, convertWord: true, proxy: p)
+        XCTAssertEqual(p.text, vi)
+        XCTAssertEqual(b.rawWord, "google")
+    }
+
+    /// Chữ trước con trỏ không còn là từ đang soạn ⇒ không xoá mù, đổi như cũ.
+    func testConvertTailMismatchFallsBack() {
+        let (b, p) = flickBridge()
+        typeKeys("His", b, p)
+        p.fakeContext = .some("Hix")
+        XCTAssertFalse(b.convertComposing(toEnglish: true, proxy: p))
+        XCTAssertEqual(p.text, "Hí")
+        XCTAssertFalse(b.englishMode)
+    }
+
+    /// Gõ vuốt: từ vuốt còn mở là từ từ điển (phím gốc tổng hợp) ⇒ không chuyển, chốt như cũ.
+    func testConvertSkipsOpenSwipeWord() {
+        let (b, p) = flickBridge()
+        _ = b.insertSwipeWord("viết", proxy: p)
+        XCTAssertTrue(b.isSwipeWordOpen)
+        XCTAssertEqual(b.flickLanguage(toEnglish: true, convertWord: true, proxy: p), "viết")
+        XCTAssertEqual(p.text, "viết")
+        XCTAssertFalse(b.isComposing)
+        XCTAssertTrue(b.englishMode)
+    }
+
     // MARK: gợi ý tiếng Anh
 
     private func lexicon(_ entries: [(String, UInt8)]) -> SwipeEnglish.Lexicon {

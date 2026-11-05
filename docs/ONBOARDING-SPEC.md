@@ -112,6 +112,9 @@ Quy tắc:
 - Ngôn ngữ EN đang bật: không áp Telex cho phím tiếp theo của từ (giữ nguyên hành vi EN hiện tại); nếu từ đang soạn có tiền tố đã đóng băng tiếng Anh thì vuốt VI vẫn chạy lại toàn bộ phím gốc qua Telex.
 - Hoàn tác: vuốt ngược lại = trở về như trước (bảng trên); không thêm chip.
 - Phản hồi: rung nhẹ + hoạt ảnh nhãn ngôn ngữ như hiện tại.
+- Từ vuốt (gõ vuốt) còn mở: **không chuyển** — đó là từ từ điển, phím gốc trong engine là phím tổng hợp chứ không phải phím người dùng gõ; vuốt phím cách chốt nguyên từ đó rồi đổi ngôn ngữ như cũ.
+- Chữ trước con trỏ không khớp từ đang soạn / ô email / ô mật khẩu / phím engine không nhận ⇒ không chuyển, hành vi như cũ (chốt rồi đổi).
+- Đã làm (iOS + Android): `EngineBridge.convertComposing(toEnglish:)` (+ iOS `flickLanguage`, Android `KeyboardSession.toggleLanguage(convertWord)`); bảng chữ mới áp (`KeyboardView.spaceFlickConvertsWord` / `Plane.LETTERS`). Mặc định tự khôi phục + kiểm tra chính tả bật thì `very` đã hiện `very` giữa từ (vuốt EN không đổi chữ); `vẻy` chỉ thấy khi tắt hai công tắc đó.
 - macOS/Windows: phím tắt đổi ngôn ngữ (nếu có) áp cùng quy tắc cho từ đang soạn — cân nhắc làm cùng đợt cho đồng bộ.
 
 Test cần có (cả iOS và Android, hàm thuần trong lõi): bảng trên; từ có dấu mũ/móc (`dduwowcj` ⇒ `được` ⇄ `dduwowcj`); VNI (`hi1` ⇄ `hí`); từ rỗng; sau dấu cách không đổi; đổi khi đang ở bảng số/emoji ⇒ không áp.

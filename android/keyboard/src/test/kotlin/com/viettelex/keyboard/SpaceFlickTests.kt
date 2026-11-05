@@ -241,13 +241,147 @@ class SpaceFlickTests {
     @Test fun sessionToggleCommitsAndSwitches() {
         val s = session(true); val p = MockProxy()
         s.restoreLanguage(null, p)
-        for (ch in "vieetj") s.handle(Key.Letter(ch), p)
+        for (ch in "vieetj ") if (ch == ' ') s.handle(Key.Space, p) else s.handle(Key.Letter(ch), p)
         assertEquals(KeyboardLanguage.EN, s.toggleLanguage(p))
-        assertEquals("việt", p.text)
-        for (ch in " hello") if (ch == ' ') s.handle(Key.Space, p) else s.handle(Key.Letter(ch), p)
+        assertEquals("việt ", p.text)
+        for (ch in "hello") s.handle(Key.Letter(ch), p)
         assertEquals("việt hello", p.text)
+        s.handle(Key.Space, p)
         assertEquals(KeyboardLanguage.VI, s.toggleLanguage(p))
         assertFalse(s.bridge.englishMode)
+        assertEquals("việt hello ", p.text)
+    }
+
+    // MARK: §7 vuốt khi đang gõ dở một từ — chuyển luôn từ đó
+
+    private fun typeKeys(s: KeyboardSession, p: MockProxy, keys: String) {
+        for (ch in keys) when (ch) {
+            ' ' -> s.handle(Key.Space, p)
+            in '0'..'9' -> s.handle(Key.Text(ch.toString()), p)
+            else -> s.handle(Key.Letter(ch), p)
+        }
+    }
+
+    private fun flickSession(vni: Boolean = false, strict: Boolean = true): Pair<KeyboardSession, MockProxy> {
+        val s = KeyboardSession(UserLangModel(), null) { 0L }
+        s.startInput(KeyboardSettings(spaceSwipeLanguage = true, vniMode = vni, autoRestore = strict, liveSpellCheck = strict), FieldTraits())
+        val p = MockProxy()
+        s.restoreLanguage(null, p)
+        return s to p
+    }
+
+    /** Gõ [keys] ở VI, vuốt EN ⇒ [en]; vuốt VI ⇒ [vi] (khứ hồi). Từ vẫn đang soạn. */
+    private fun roundTrip(keys: String, vi: String, en: String, vni: Boolean = false, strict: Boolean = true) {
+        val (s, p) = flickSession(vni, strict)
+        typeKeys(s, p, keys)
+        assertEquals(vi, p.text)
+        assertEquals(KeyboardLanguage.EN, s.toggleLanguage(p))
+        assertEquals(en, p.text)
+        assertTrue(s.bridge.englishMode)
+        assertEquals(en, s.bridge.composedWord)
+        assertEquals(KeyboardLanguage.VI, s.toggleLanguage(p))
+        assertEquals(vi, p.text)
+        assertFalse(s.bridge.englishMode)
+        assertEquals(vi, s.bridge.composedWord)
+        assertEquals(keys, s.bridge.rawWord)
+    }
+
+    @Test fun convertHis() = roundTrip("His", "Hí", "His")
+    /**
+     * Mặc định (tự khôi phục + kiểm tra chính tả) "very" đã hiện "very" giữa từ; tắt hai công
+     * tắc đó mới thấy "vẻy" như bảng spec.
+     */
+    @Test fun convertVery() = roundTrip("very", "vẻy", "very", strict = false)
+    @Test fun convertVeryDefaultSettings() = roundTrip("very", "very", "very")
+    @Test fun convertKeepsCaps() = roundTrip("HIS", "HÍ", "HIS")
+    @Test fun convertHornsAndBreve() = roundTrip("dduwowcj", "được", "dduwowcj")
+    @Test fun convertVNI() = roundTrip("hi1", "hí", "hi1", vni = true)
+
+    @Test fun convertEnglishFirstThenVietnamese() {
+        val (s, p) = flickSession()
+        s.toggleLanguage(p)                       // EN, chưa có từ
+        typeKeys(s, p, "His")
+        assertEquals("His", p.text)
+        assertEquals(KeyboardLanguage.VI, s.toggleLanguage(p))
+        assertEquals("Hí", p.text)
+        typeKeys(s, p, " ")                       // từ đã chuyển chốt như gõ tay
+        assertEquals("Hí ", p.text)
+    }
+
+    @Test fun convertedWordKeepsComposingInTarget() {
+        val (s, p) = flickSession()
+        typeKeys(s, p, "vie")
+        s.toggleLanguage(p)                       // "vie" (EN)
+        typeKeys(s, p, "ws")                      // EN: không Telex
+        assertEquals("views", p.text)
+        s.toggleLanguage(p)                       // VI: chạy lại "views"
+        assertEquals(s.bridge.composeTrial("views"), p.text)
+    }
+
+    @Test fun convertEmptyWordIsOldBehavior() {
+        val (s, p) = flickSession()
+        assertEquals(KeyboardLanguage.EN, s.toggleLanguage(p))
+        assertEquals("", p.text)
+        assertFalse(s.bridge.isComposing)
+    }
+
+    @Test fun convertAfterSpaceLeavesCommittedWord() {
+        val (s, p) = flickSession()
+        typeKeys(s, p, "His ")
+        val before = p.text
+        s.toggleLanguage(p)
+        assertEquals(before, p.text)
+        s.toggleLanguage(p)
+        assertEquals(before, p.text)
+    }
+
+    @Test fun convertOnlyTouchesComposingWord() {
+        val (s, p) = flickSession()
+        typeKeys(s, p, "vieetj His")
+        s.toggleLanguage(p)
+        assertEquals("việt His", p.text)
+        s.toggleLanguage(p)
+        assertEquals("việt Hí", p.text)
+    }
+
+    /** IME ở bảng số/emoji ⇒ không chuyển: chốt từ rồi đổi như cũ. */
+    @Test fun convertNotOnNumberOrEmojiPlane() {
+        val (s, p) = flickSession()
+        typeKeys(s, p, "His")
+        assertEquals(KeyboardLanguage.EN, s.toggleLanguage(p, convertWord = false))
+        assertEquals("Hí", p.text)
+        assertFalse(s.bridge.isComposing)
+    }
+
+    /** Engine đã đóng băng tiếng Anh giữa từ: sang EN là phím gốc, về VI chạy lại toàn bộ phím. */
+    @Test fun convertEnglishFrozenPrefix() {
+        val (s, p) = flickSession()
+        typeKeys(s, p, "google")
+        val vi = p.text
+        s.toggleLanguage(p)
+        assertEquals("google", p.text)
+        s.toggleLanguage(p)
+        assertEquals(vi, p.text)
+        assertEquals("google", s.bridge.rawWord)
+    }
+
+    /** Chữ trên màn hình không còn là từ đang soạn ⇒ không xoá mù, đổi như cũ. */
+    @Test fun convertTailMismatchFallsBack() {
+        val (s, p) = flickSession()
+        typeKeys(s, p, "His")
+        p.sb.append("x")
+        s.toggleLanguage(p)
+        assertTrue(p.text.endsWith("x"))
+        assertFalse(s.bridge.isComposing)
+    }
+
+    @Test fun bridgeConvertNoComposingReturnsFalse() {
+        val b = EngineBridge(); val p = MockProxy()
+        assertFalse(b.convertComposing(true, p))
+        run("vieetj ", b, p)
+        assertFalse(b.convertComposing(true, p))
+        assertEquals("việt ", p.text)
+        assertFalse(b.englishMode)
     }
 
     @Test fun sessionRestoresEnglishAndSuggestsEnglish() {
