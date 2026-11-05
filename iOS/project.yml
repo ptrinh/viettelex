@@ -198,6 +198,7 @@ targets:
       - Keyboard/CompositionSync.swift
       - Keyboard/PlanePolicy.swift
       - Keyboard/KeyLayout.swift
+      - Keyboard/KeyGrid.swift
       - Keyboard/KeyboardView.swift
       - Keyboard/KeySound.swift
       - App/KeySoundImport.swift
