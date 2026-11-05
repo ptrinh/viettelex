@@ -3,6 +3,10 @@ package com.viettelex.android.ui
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -59,13 +63,32 @@ object VTType {
     val caption2 = TextStyle(fontSize = 11.sp, lineHeight = 13.sp)
 }
 
+/** Bảng màu Material khớp VTColors: menu thả (DropdownMenu), hộp thoại (AlertDialog)… vẽ nền theo
+ *  surface/surfaceContainer* — thiếu cái này thì ở chế độ tối nền vẫn SÁNG (scheme mặc định) mà chữ
+ *  lại TRẮNG (LocalTextStyle bên dưới) ⇒ không đọc được (#150). */
+internal fun vtColorScheme(c: VTColors): ColorScheme {
+    val base = if (c.dark) darkColorScheme() else lightColorScheme()
+    return base.copy(
+        primary = c.accent, onPrimary = Color.White,
+        background = c.groupedBg, onBackground = c.label,
+        surface = c.card, onSurface = c.label, onSurfaceVariant = c.secondary,
+        surfaceContainerLowest = c.card, surfaceContainerLow = c.card, surfaceContainer = c.card,
+        surfaceContainerHigh = c.card, surfaceContainerHighest = c.card,
+        error = c.red, outline = c.separator, outlineVariant = c.separator,
+    )
+}
+
+internal fun vtColors(dark: Boolean): VTColors = if (dark) Dark else Light
+
 @Composable
 fun VTTheme(content: @Composable () -> Unit) {
-    val c = if (isSystemInDarkTheme()) Dark else Light
-    CompositionLocalProvider(
-        LocalVT provides c,
-        LocalContentColor provides c.label,
-        LocalTextStyle provides VTType.body.copy(color = c.label),
-        content = content,
-    )
+    val c = vtColors(isSystemInDarkTheme())
+    MaterialTheme(colorScheme = vtColorScheme(c)) {
+        CompositionLocalProvider(
+            LocalVT provides c,
+            LocalContentColor provides c.label,
+            LocalTextStyle provides VTType.body.copy(color = c.label),
+            content = content,
+        )
+    }
 }
