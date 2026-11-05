@@ -107,7 +107,7 @@ struct ThemeSettingsView: View {
                 Section {
                     PlusEntryRow()
                 } footer: {
-                    Text(L("Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus. Hệ thống, Tối OLED, Tương phản cao và Xám trung tính luôn miễn phí."))
+                    Text(L(SettingCaption.plusThemes))
                 }
             }
 
@@ -134,7 +134,7 @@ struct ThemeSettingsView: View {
                     Toggle(isOn: systemBackdropBinding) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L("Nền theo hệ thống"))
-                            Text(L("Giữ màu phím của theme, nền dùng lớp kính bàn phím của iOS — liền màu với dải 🌐 🎤 bên dưới."))
+                            Text(L(SettingCaption.systemBackdrop))
                                 .font(.footnote).foregroundStyle(.secondary)
                         }
                     }
@@ -148,7 +148,7 @@ struct ThemeSettingsView: View {
                 Section {
                     MoleStatsCard(stats: moleStats)
                 } footer: {
-                    Text(L("Gõ như thường — chú chuột thò lên ở phím bạn sắp gõ. Gõ trúng lúc nó đang lên là đập được!"))
+                    Text(L(SettingCaption.moleGame))
                 }
             }
 
@@ -218,7 +218,7 @@ struct ThemeSettingsView: View {
             } header: {
                 HStack { Text(L("Ảnh nền")); plusBadge }
             } footer: {
-                Text(L("Ảnh được thu nhỏ và nén ngay trên máy, không gửi đi đâu. Lớp phủ giúp chữ trên phím dễ đọc."))
+                Text(L(SettingCaption.wallpaper))
             }
 
             Section {
@@ -227,7 +227,7 @@ struct ThemeSettingsView: View {
             } header: {
                 Text(L("Độ trong suốt"))
             } footer: {
-                Text(L("Phím: nền và viền phím (cả nền bàn phím khi không dùng ảnh nền) — 100% chỉ còn chữ, ảnh nền vẫn giữ nguyên. Ký tự: chữ và biểu tượng trên phím — 100% là phím trơn không chữ. iOS luôn giữ lớp kính mờ phía sau bàn phím."))
+                Text(L(SettingCaption.transparency))
             }
 
             advancedSection
@@ -244,15 +244,19 @@ struct ThemeSettingsView: View {
                                       Int((Double(rowHeightAdjust) * (numberRow ? 4 + Double(KeyGeometry.numberKeyRatio(fullHeight: numberRowFullHeight)) : 4)).rounded())))
                             .font(.footnote).foregroundStyle(.secondary)
                         if !isPad {
-                            Text(L("0 = phím, khe và vị trí như bàn phím gốc của iPhone (theo cỡ máy) — gõ theo thói quen không lệch phím."))
+                            Text(L(SettingCaption.rowHeightIos))
                                 .font(.footnote).foregroundStyle(.secondary)
                         }
                     }
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(L("Nâng bàn phím"))
-                    Text(keyboardRaise == 0 ? L("Tắt") : String(format: L("Cao hơn %d pt"), keyboardRaise))
-                        .font(.footnote).foregroundStyle(.secondary)
+                    HStack {
+                        Text(L("Nâng bàn phím"))
+                        Spacer()
+                        Text(keyboardRaise == 0 ? L("Tắt") : String(format: L("Cao hơn %d pt"), keyboardRaise))
+                            .foregroundStyle(.secondary).monospacedDigit()
+                    }
+                    Text(L(SettingCaption.keyboardRaise)).font(.footnote).foregroundStyle(.secondary)
                     Slider(value: Binding(get: { Double(keyboardRaise) },
                                           set: { v in
                                               let step = Double(KeyGeometry.RowAdjust.raiseStep)
@@ -260,11 +264,9 @@ struct ThemeSettingsView: View {
                                           }),
                            in: 0...Double(KeyGeometry.RowAdjust.raiseMax),
                            step: Double(KeyGeometry.RowAdjust.raiseStep))
-                    Text(L("Thêm khoảng trống dưới hàng phím cuối để bàn phím nằm cao hơn."))
-                        .font(.footnote).foregroundStyle(.secondary)
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(L("Chiều cao thanh gợi ý"))
+                    settingTitle(L("Chiều cao thanh gợi ý"), L(SettingCaption.suggestionBarHeight))
                     Picker(L("Chiều cao thanh gợi ý"), selection: $suggestionBarHeight) {
                         Text(L("Thấp")).tag(SuggestionBarHeight.low.rawValue)
                         Text(L("Vừa")).tag(SuggestionBarHeight.medium.rawValue)
@@ -272,29 +274,25 @@ struct ThemeSettingsView: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    Text(L("Thanh gợi ý cao hơn thì dễ chạm trúng từ gợi ý hơn; bàn phím cao thêm đúng phần đó. Khi xoay ngang, mức Cao dùng như Vừa."))
-                        .font(.footnote).foregroundStyle(.secondary)
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(L("Màu chữ gợi ý"))
+                    settingTitle(L("Màu chữ gợi ý"), L(SettingCaption.suggestionInk))
                     Picker(L("Màu chữ gợi ý"), selection: $suggestionInk) {
                         Text(L("Xám")).tag(SuggestionInk.muted.rawValue)
                         Text(L("Sáng")).tag(SuggestionInk.bright.rawValue)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    Text(L("Xám: chữ gợi ý dịu như bàn phím Apple, đỡ rối mắt khi gõ. Sáng: chữ đậm cùng màu chữ phím."))
-                        .font(.footnote).foregroundStyle(.secondary)
                 }
-                settingToggle(L("Hiện logo Vᴛ"), L("Logo mờ ở góc phải phím cách."), isOn: $showSpaceLogo)
-                settingToggle(L("Bàn phím tách đôi"), L("Màn hình rộng (iPhone gập khi mở, iPhone xoay ngang, iPad): chia bàn phím làm hai nửa để gõ bằng hai ngón cái. Khi đang tách, gõ vuốt và chế độ một tay tạm tắt."), isOn: $splitKeyboard)
+                settingToggle(L("Hiện logo Vᴛ"), L(SettingCaption.spaceLogo), isOn: $showSpaceLogo)
+                settingToggle(L("Bàn phím tách đôi"), L(SettingCaption.splitKeyboardIos), isOn: $splitKeyboard)
             } header: { Text(L("Bàn phím")) }
 
             Section {
                 Button(L("Khôi phục giao diện gốc"), role: .destructive) { confirmReset = true }
                     .disabled(settings.isDefault)
             } footer: {
-                Text(L("Về theme Hệ thống, tắt ảnh nền (ảnh vẫn giữ để bật lại), độ tối/mờ, độ trong suốt và tuỳ chỉnh nâng cao về mặc định. Chiều cao hàng, nâng bàn phím và logo giữ nguyên."))
+                Text(L(SettingCaption.resetAppearance))
             }
 
             GuideLinkSection(page: .giaoDien)
@@ -351,7 +349,7 @@ struct ThemeSettingsView: View {
                 }
             }
         } footer: {
-            Text(L("Màu chữ, màu nền phím, màu nhấn, độ bo góc, cỡ chữ, phông và độ đậm — lưu riêng cho từng giao diện. Mỗi màu dùng chung cho sáng lẫn tối; “Theo theme” trả về màu của theme."))
+            Text(L(SettingCaption.advancedStyle))
         }
     }
 
@@ -392,7 +390,7 @@ struct ThemeSettingsView: View {
                                   set: { settings.keyStyle.fontScale = KeyStyle.parseFontScale(Int($0)); save() }),
                    in: Double(KeyStyle.fontScaleMin)...Double(KeyStyle.fontScaleMax), step: 5)
                 .accessibilityLabel(L("Cỡ chữ trên phím"))
-            Text(L("Phím hẹp tự thu nhỏ chữ cho vừa, dấu không bị cắt."))
+            Text(L(SettingCaption.fontScaleIos))
                 .font(.footnote).foregroundStyle(.secondary)
         }
         VStack(alignment: .leading, spacing: 6) {

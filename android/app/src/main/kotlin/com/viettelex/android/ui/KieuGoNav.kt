@@ -136,14 +136,14 @@ internal fun TypingAdvancedPage(onBack: () -> Unit) {
             TypingOption.disabledReason(o, vni)?.let { tr(it) }, indent = false)
     }
     VTSection(header = tr("Kiểu gõ"), footer = APPLY_NOTE) {
-        Opt(TypingOption.SimpleTelex, Prefs.D.simpleTelex, tr("Phím w đứng lẻ giữ nguyên là w, không thành ư."))
+        Opt(TypingOption.SimpleTelex, Prefs.D.simpleTelex, tr(SettingCaption.simpleTelex))
         RowDivider()
-        Opt(TypingOption.FreeMarking, Prefs.D.freeMarking, tr("Phím dấu đặt đâu cũng được, không cần đúng thứ tự."))
+        Opt(TypingOption.FreeMarking, Prefs.D.freeMarking, tr(SettingCaption.freeMarking))
         RowDivider()
-        Opt(TypingOption.QuickTelex, Prefs.D.quickTelex, tr("Phụ âm đôi đầu từ thành phụ âm ghép: cc → ch, nn → ng, tt → th…"))
+        Opt(TypingOption.QuickTelex, Prefs.D.quickTelex, tr(SettingCaption.quickTelex))
         RowDivider()
-        Opt(TypingOption.ModernTone, Prefs.D.modernTone, tr("hoà, thuý thay vì hòa, thúy."))
+        Opt(TypingOption.ModernTone, Prefs.D.modernTone, tr(SettingCaption.modernTone))
         RowDivider()
-        Opt(TypingOption.Teencode, Prefs.D.teencode, tr("Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, từ tiếng Anh như was, war, zoo giữ nguyên."))
+        Opt(TypingOption.Teencode, Prefs.D.teencode, tr(SettingCaption.teencode))
     }
 }

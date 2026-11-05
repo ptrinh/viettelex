@@ -115,7 +115,7 @@ fun KieuGoTab(ime: ImeStatus, onOpenImeSettings: () -> Unit, onPickIme: () -> Un
     )
     VTSection(
         header = tr("Thử gõ"),
-        footer = tr("Chọn Tiếng Việt (VietTelex) — bấm biểu tượng bàn phím ở thanh điều hướng — rồi gõ thử: vieejt → việt."),
+        footer = tr(SettingCaption.tryItAndroid),
     ) {
         var text by rememberSaveable { mutableStateOf("") }
         // KHÔNG tắt autoCorrect: bàn phím coi ô "không gợi ý/không sửa" là passthrough (như iOS).
@@ -221,8 +221,12 @@ internal fun BoolToggle(key: String, default: Boolean, title: String, caption: S
 @Composable
 private fun InputMethodPicker(vni: Boolean, onChange: (Boolean) -> Unit) {
     val c = LocalVT.current
+    // Một hàng: tên (+ chú thích VNI ngay dưới, 06/11/2026 — trước là một hàng riêng dài) + nút chọn.
     VTRow {
-        Text(tr("Kiểu gõ"), style = VTType.body, color = c.label, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(tr("Kiểu gõ"), style = VTType.body, color = c.label)
+            if (vni) Text(tr(SettingCaption.vni), style = VTType.footnote, color = c.secondary)
+        }
         Row(Modifier.clip(RoundedCornerShape(9.dp)).background(c.fill).padding(2.dp)) {
             for ((label, isVni) in listOf("Telex" to false, "VNI" to true)) {
                 val sel = vni == isVni
@@ -252,14 +256,8 @@ private fun KieuGoSection() {
             }
         }
         RowDivider()
-        if (vni) {
-            VTRow {
-                Note(tr("Gõ dấu bằng số khi đang gõ một từ: 1 sắc, 2 huyền, 3 hỏi, 4 ngã, 5 nặng, 6 mũ (â ê ô), 7 móc (ơ ư), 8 trăng (ă), 9 đ, 0 xoá dấu — tie6ng1 vie6t5 → tiếng việt. Ngoài từ, phím số vẫn gõ ra số (cả bàn phím cứng). Chọn VNI tự bật Hàng phím số (tắt được ở Tính năng → Phím & cử chỉ)."))
-            }
-            RowDivider()
-        }
         Highlightable(TypingOption.AutoCapitalize.target.id) {
-            BoolToggle(Keys.AUTO_CAPITALIZE, Prefs.D.autoCapitalize, tr("Tự động viết hoa đầu câu"), tr("Bật shift ở đầu ô, sau . ! ? và khi xuống dòng."))
+            BoolToggle(Keys.AUTO_CAPITALIZE, Prefs.D.autoCapitalize, tr("Tự động viết hoa đầu câu"), tr(SettingCaption.autoCapitalize))
         }
         RowDivider()
         NavRow(tr("Nâng cao"), tr(TYPING_ADVANCED_SUMMARY)) { KieuGoNav.page.value = KieuGoPage.TypingAdvanced }
@@ -278,7 +276,7 @@ internal fun OneHandRow() {
     VTRow {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(tr("Chế độ một tay"), style = VTType.body, color = c.label)
-            Text(tr("Thu hẹp bàn phím về một bên cho dễ gõ bằng một tay (chỉ điện thoại). Trên bàn phím: giữ lâu icon con trỏ trên thanh gợi ý để bật/tắt; nút ở dải trống để đổi bên hoặc thoát."),
+            Text(tr(SettingCaption.oneHandAndroid),
                 style = VTType.footnote, color = c.secondary)
         }
     }
@@ -484,12 +482,12 @@ fun GioiThieuTab(plus: com.viettelex.android.plus.PlusController, onOpenPlus: ()
         RowDivider()
         // Ghi công theo giấy phép dữ liệu bigram gõ vuốt (vnlm.bin) — docs/DATA-SOURCES.md
         VTRow(onClick = { openUrl(ctx, "https://github.com/ptrinh/viettelex/blob/main/docs/DATA-SOURCES.md") }) {
-            Text(tr("Dữ liệu gõ vuốt: thống kê từ Wikipedia, Wikisource… tiếng Việt (CC BY-SA 4.0) và Tatoeba (CC BY 2.0 FR)"),
+            Text(tr(SettingCaption.swipeDataCredit),
                 style = VTType.footnote, color = c.secondary)
         }
         RowDivider()
         VTRow {
-            Text(tr("Android hiện cảnh báo \"có thể thu thập mọi văn bản bạn nhập\" khi bật bất kỳ bàn phím bên thứ ba nào. VietTelex chạy hoàn toàn trên máy, không gửi gì đi — quyền mạng chỉ dùng cho Mẫu câu động (https://) do bạn tạo."),
+            Text(tr(SettingCaption.privacyAndroid),
                 style = VTType.footnote, color = c.secondary)
         }
     }
@@ -513,11 +511,11 @@ internal fun DebugSection() {
     val logFile = remember { java.io.File(ctx.filesDir, Keys.TOUCHLOG_FILE) }
     VTSection(header = tr("Gỡ lỗi")) {
         SettingToggle(tr("Debug mode — ghi log chạm phím"),
-            tr("Ghi thời điểm chạm, độ trễ và số phím vào log trong app — KHÔNG ghi nội dung bạn gõ. Tắt + Xoá log khi xong."), debug) { debug = it }
+            tr(SettingCaption.debugLogAndroid), debug) { debug = it }
         if (debug) {
             RowDivider()
             SettingToggle(tr("Hiện log (tự copy vào clipboard)"),
-                tr("Bật để xem log bên dưới và copy toàn bộ — tắt rồi bật lại để tải log mới."), showLog) { on ->
+                tr(SettingCaption.showLog), showLog) { on ->
                 showLog = on
                 if (on) {
                     logText = runCatching { logFile.readText() }.getOrDefault("")
@@ -528,7 +526,7 @@ internal fun DebugSection() {
                 }
             }
             RowDivider()
-            SettingToggle(tr("Xoá log"), tr("Bật để xoá log cũ trước khi thử lại."), false) { on ->
+            SettingToggle(tr("Xoá log"), tr(SettingCaption.clearLog), false) { on ->
                 if (on) { logFile.delete(); logText = "" }
             }
             if (showLog) {

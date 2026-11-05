@@ -54,7 +54,7 @@ internal fun AdvancedStyleSection(style: KeyStyle, palette: ThemePalette, onChan
     val c = LocalVT.current
     val allowed = ThemeGate.allowsAdvanced
     var open by rememberSaveable { mutableStateOf(false) }
-    VTSection(footer = tr("Màu chữ, màu nền phím, màu nhấn, độ bo góc, cỡ chữ, phông và độ đậm — lưu riêng cho từng giao diện. Mỗi màu dùng chung cho sáng lẫn tối; “Theo theme” trả về màu của theme.")) {
+    VTSection(footer = tr(SettingCaption.advancedStyle)) {
         VTRow(onClick = { if (allowed) open = !open else onOpenPlus() }) {
             Text(tr("Tuỳ chỉnh nâng cao"), style = VTType.body, color = c.label)
             Text("Plus", style = VTType.footnote, color = Color.White,
@@ -97,7 +97,7 @@ internal fun AdvancedStyleSection(style: KeyStyle, palette: ThemePalette, onChan
                 valueRange = KeyStyle.FONT_SCALE_MIN.toFloat()..KeyStyle.FONT_SCALE_MAX.toFloat(),
                 steps = (KeyStyle.FONT_SCALE_MAX - KeyStyle.FONT_SCALE_MIN) / 5 - 1,
                 onValueChange = { onChange(style.copy(fontScale = KeyStyle.parseFontScale(Math.round(it / 5) * 5))) })
-            Text(tr("Phím hẹp tự thu nhỏ chữ cho vừa, dấu không bị cắt. Khi đã đặt, thanh này thay cho “Cỡ chữ trên phím” Vừa/Lớn ở trang Phím."),
+            Text(tr(SettingCaption.fontScaleAndroid),
                 style = VTType.footnote, color = c.secondary)
         }
         RowDivider()

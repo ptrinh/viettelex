@@ -113,6 +113,14 @@ struct SubPageRow: View {
     }
 }
 
+/// Tên + MỘT dòng chú thích ngay dưới, cùng một hàng (06/11/2026) — hàng có bộ chọn bên dưới.
+func settingTitle(_ title: String, _ caption: String) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+        Text(caption).font(.footnote).foregroundStyle(.secondary)
+    }
+}
+
 /// Ô icon màu kiểu app Cài đặt.
 struct FeatureIcon: View {
     let page: FeaturePage
@@ -379,7 +387,7 @@ struct SuaLoiPage: View {
 
     /// Mô tả + ghi chú khi model chưa hỗ trợ tiếng Việt / cần Toàn quyền.
     private var aiProofreadNote: String {
-        var t = L("Chọn vài từ → chip “✨ Sửa lỗi”: sửa chính tả, dấu tiếng Việt, ngữ pháp, xem trước rồi mới áp dụng. Chọn một từ → gợi ý từ thay thế. Chạy trên máy, chữ không gửi đi đâu. Tắt mặc định.")
+        var t = L(SettingCaption.aiProofread)
         if !IntelligenceEngine.supportsVietnamese() {
             t += " " + L("Apple Intelligence trên máy này chưa hỗ trợ tiếng Việt — sửa tiếng Việt có thể kém.")
         }
@@ -389,28 +397,28 @@ struct SuaLoiPage: View {
     var body: some View {
         FeaturePageList(page: .suaLoi) {
             Section {
-                settingToggle(L("Kiểm tra chính tả khi gõ"), L("Ngừng bỏ dấu khi từ không thể là tiếng Việt."), isOn: $liveSpellCheck)
-                settingToggle(L(SettingLabel.reEditWord), L("⌫ ngay sau dấu cách để sửa tiếp từ vừa gõ (tháy ␣ ⌫ a → thấy), hoặc đặt con trỏ sau từ rồi gõ phím dấu: viêt + j → việt."), isOn: $reEditWord)
+                settingToggle(L("Kiểm tra chính tả khi gõ"), L(SettingCaption.liveSpellCheck), isOn: $liveSpellCheck)
+                settingToggle(L(SettingLabel.reEditWord), L(SettingCaption.reEditWord), isOn: $reEditWord)
             } header: { Text(L("Chính tả")) }
             Section {
-                experimentalToggle(L("Chọn phím thông minh"), L("Chạm sát mép giữa hai phím thì chọn phím hợp với chữ đang gõ. Chạm giữa phím luôn ra đúng phím đó."), isOn: $smartTouch)
-                experimentalToggle(L("Tự sửa từ gõ sai"), L("Khi gõ dấu cách, sửa từ lỡ chạm phím kề (tpoi → tôi) nếu chắc chắn. ⌫ ngay sau đó để trả lại chữ gốc."), isOn: $autoCorrect)
-                settingToggle(L("Gợi ý sửa lỗi chạm trượt"), L("Khi từ đang gõ không phải tiếng Việt, gợi ý từ đúng nếu bạn lỡ chạm phím bên cạnh: nbjeeuf → nhiều, ohims → phím, cahcs → cách. Chạm gợi ý để thay."), isOn: $autoFixAdjacent)
+                experimentalToggle(L("Chọn phím thông minh"), L(SettingCaption.smartTouch), isOn: $smartTouch)
+                experimentalToggle(L("Tự sửa từ gõ sai"), L(SettingCaption.autoCorrect), isOn: $autoCorrect)
+                settingToggle(L("Gợi ý sửa lỗi chạm trượt"), L(SettingCaption.autoFixAdjacent), isOn: $autoFixAdjacent)
             } header: { Text(L("Chạm trượt")) } footer: {
-                Text(L("Gợi ý sửa lỗi hiện trên thanh gợi ý (cần bật Thanh gợi ý)."))
+                Text(L(SettingCaption.adjacentFooter))
             }
             Section {
                 // Thanh gợi ý bật = tự học từ hay dùng (learnWords đi theo — quyết định 2026-07-24).
-                settingToggle(L("Thanh gợi ý"), L("Gợi ý từ + emoji, tự học từ bạn hay dùng (chỉ trên máy)."), isOn: $showSuggestions)
+                settingToggle(L("Thanh gợi ý"), L(SettingCaption.showSuggestions), isOn: $showSuggestions)
                 if showSuggestions {
                     SuggestionCountRow()
-                    settingToggle(L("Gợi ý cả khi ứng dụng tắt gợi ý"), L("Ô mà ứng dụng tắt gợi ý (vd ô chat, thanh địa chỉ) vẫn gợi ý từ — không tự sửa, không học từ gõ ở đó. Mật khẩu, ẩn danh, ô số không bị ảnh hưởng."), isOn: $suggestInNoSuggestFields)
-                    settingToggle(L("Gợi ý emoji"), L("Emoji hợp với từ đang gõ (yêu → ❤️)."), isOn: $emojiSuggest)
-                    settingToggle(L(SettingLabel.numberChips), L("Đọc số thành chữ, định dạng tiền (1tr2 → 1.200.000 ₫)."), isOn: $numberChips)
-                    settingToggle(L("Hiện kết quả phép tính"), L("Gõ phép tính (12*3, không cần dấu =) → kết quả “= 36” hiện ở đầu thanh gợi ý, chạm để chèn. Dấu = ở bàn 123: giữ phím /."), isOn: $mathResults)
-                    settingToggle(L("Nút Dán"), L("Vừa copy xong thì hiện nút Dán (cần Toàn quyền)."), isOn: $pasteButton)
+                    settingToggle(L("Gợi ý cả khi ứng dụng tắt gợi ý"), L(SettingCaption.suggestInNoSuggestFields), isOn: $suggestInNoSuggestFields)
+                    settingToggle(L("Gợi ý emoji"), L(SettingCaption.emojiSuggest), isOn: $emojiSuggest)
+                    settingToggle(L(SettingLabel.numberChips), L(SettingCaption.numberChips), isOn: $numberChips)
+                    settingToggle(L("Hiện kết quả phép tính"), L(SettingCaption.mathResults), isOn: $mathResults)
+                    settingToggle(L("Nút Dán"), L(SettingCaption.pasteButton), isOn: $pasteButton)
                     if PlusGate.isUnlocked(.sentenceDiacritics) {
-                        settingToggle(L(SettingLabel.addTones), L("Gõ không dấu cả câu (hom nay troi dep), gõ dấu cách → chip “Thêm dấu” hiện ở đầu thanh gợi ý, chạm để thành “hôm nay trời đẹp”; chạm “Hoàn tác” để trả lại. Tắt mặc định cho nhẹ máy."), isOn: $addTonesChip)
+                        settingToggle(L(SettingLabel.addTones), L(SettingCaption.addTones), isOn: $addTonesChip)
                     }
                     // Theo trạng thái model (AISettingUI): máy không hỗ trợ ⇒ ẩn; chưa bật Apple
                     // Intelligence / mô hình đang tải ⇒ hiện nhưng khoá + hướng dẫn.
@@ -421,13 +429,13 @@ struct SuaLoiPage: View {
                             .disabled(!aiUI.isEnabled)
                     }
                 }
-                settingToggle(L("Lọc từ nhạy cảm"), L("Không chủ động gợi ý từ tục — gõ tay vẫn bình thường."), isOn: $filterSensitive)
+                settingToggle(L("Lọc từ nhạy cảm"), L(SettingCaption.filterSensitive), isOn: $filterSensitive)
             } header: { Text(L("Thanh gợi ý")) }
             Section {
                 NavigationLink {
                     UserDictView()
                 } label: {
-                    SubPageRow(title: L("Từ điển cá nhân"), subtitle: L("Xem, tìm, xoá từ đã học; thêm tên riêng."))
+                    SubPageRow(title: L("Từ điển cá nhân"), subtitle: L(SettingCaption.userDictionary))
                 }
                 // Không hoàn tác được ⇒ hỏi lại trước khi xoá, xoá xong báo ngay dưới nút.
                 Button(L("Xoá từ đã học"), role: .destructive) { confirmErase = true }
@@ -462,7 +470,7 @@ struct SuggestionCountRow: View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(L("Số từ gợi ý"))
-                Text(L("Tự động: 3 từ. Máy hẹp có thể hiện ít hơn để ô đủ rộng cho dễ chạm."))
+                Text(L(SettingCaption.suggestionCount))
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Spacer(minLength: 4)
@@ -508,13 +516,13 @@ struct GoVuotPage: View {
     var body: some View {
         FeaturePageList(page: .goVuot) {
             Section {
-                experimentalToggle(L("Gõ vuốt"), L("Vuốt qua các chữ không dấu rồi nhấc tay: v→i→e→t ra “việt”. Gõ phím dấu ngay sau để đổi dấu, ⌫ xoá cả từ. Chỉ trên iPhone."), isOn: $swipeTyping)
+                experimentalToggle(L("Gõ vuốt"), L(SettingCaption.swipeTyping), isOn: $swipeTyping)
                 dependentToggle(L(SettingLabel.swipeEnglish),
-                                L("check, mail, meeting… Nét vừa Việt vừa Anh (the/thế) ưu tiên tiếng Việt, phương án kia ở thanh gợi ý."),
+                                L(SettingCaption.swipeEnglish),
                                 isOn: $swipeEnglish, reason: swipeTyping ? nil : LK("Cần bật Gõ vuốt"))
                     .padding(.leading, 12)
                 if swipeTyping {
-                    settingToggle(L("Mô hình neural gõ vuốt"), L("Mạng neural chạy hoàn toàn trên máy, chấm cùng bộ giải mã. Tốn thêm ~3 MB bộ nhớ."), isOn: $swipeFuto)
+                    settingToggle(L("Mô hình neural gõ vuốt"), L(SettingCaption.swipeFuto), isOn: $swipeFuto)
                     // Ghi công BẮT BUỘC theo FUTO Model Weights License 1.0 ("visible notice …
                     // within the product's settings") — Phil 27/09/2026: chỉ hiện ở đây (dưới công
                     // tắc, khi đã bật Gõ vuốt), chữ nhỏ mờ. KHÔNG xoá. Xem docs/DATA-SOURCES.md.
@@ -524,7 +532,7 @@ struct GoVuotPage: View {
                     .font(.caption2).foregroundStyle(.tertiary)
                 }
             } footer: {
-                Text(L("Tự tắt khi dùng VoiceOver và ở ô email/mật khẩu/URL."))
+                Text(L(SettingCaption.swipeFooterIos))
             }
             Section {
                 NavigationLink {
@@ -546,7 +554,7 @@ struct GoVuotPage: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L("Luyện vuốt"))
-                            Text(L("Vuốt thử từng từ, xem bàn phím đọc đúng bao nhiêu."))
+                            Text(L(SettingCaption.swipePractice))
                                 .font(.footnote).foregroundStyle(.secondary)
                         }
                     }
@@ -564,16 +572,16 @@ struct GoTatPage: View {
         FeaturePageList(page: .goTat) {
             ShortcutsSection()
             Section {
-                settingToggle(L("Mẫu câu"), L("Nút ☰ trên bàn phím chèn câu soạn sẵn — quản lý ở tab Mẫu Câu. Tắt: ẩn tab Mẫu Câu; nút ☰ chỉ còn mở Công cụ văn bản (nếu bật)."), isOn: $templatesEnabled)
+                settingToggle(L("Mẫu câu"), L(SettingCaption.templates), isOn: $templatesEnabled)
                 if PlusGate.isUnlocked(.textTools) {
                     // Mẫu câu tắt ⇒ ☰ vẫn hiện và mở thẳng Công cụ (KeyboardView.LeftZone.tools).
-                    settingToggle(L("Công cụ văn bản"), L("Chip ⚒️ Công cụ trong lưới mẫu câu (Mẫu câu tắt: chạm ☰ mở thẳng): đổi HOA/thường, bỏ dấu, dịch…"), isOn: $textToolsEnabled)
+                    settingToggle(L("Công cụ văn bản"), L(SettingCaption.textTools), isOn: $textToolsEnabled)
                 }
                 if PlusFeature.translate.isAvailableOnDevice, PlusGate.isUnlocked(.translate), #available(iOS 26.0, *) {
                     NavigationLink { TranslateSettingsView() } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L("Dịch trên máy"))
-                            Text(L("Chọn ngôn ngữ dịch + tải gói dịch cho chip “Dịch ↔ …” trong Công cụ."))
+                            Text(L(SettingCaption.translate))
                                 .font(.footnote).foregroundStyle(.secondary)
                         }
                     }
@@ -617,14 +625,14 @@ struct PhimPage: View {
     var body: some View {
         FeaturePageList(page: .phim) {
             Section {
-                settingToggle(L("Hàng phím số"), L("Thêm hàng 1 … 0 trên hàng chữ (bàn phím cao thêm gần một hàng)."), isOn: $numberRow)
+                settingToggle(L("Hàng phím số"), L(SettingCaption.numberRow), isOn: $numberRow)
                 if numberRow {
-                    settingToggle(L("Hàng số cao bằng hàng chữ"), L("Phím số to bằng phím chữ (mặc định thấp hơn một chút). Bàn phím cao thêm đúng một hàng."), isOn: $numberRowFullHeight)
+                    settingToggle(L("Hàng số cao bằng hàng chữ"), L(SettingCaption.numberRowFullHeight), isOn: $numberRowFullHeight)
                 }
                 // iPad có ký tự phụ vuốt xuống riêng ⇒ chỉ iPhone.
                 if isPhone {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(L("Phím cạnh dấu cách"))
+                        settingTitle(L("Phím cạnh dấu cách"), L(SettingCaption.spaceSideKey))
                         Picker(L("Phím cạnh dấu cách"), selection: Binding(
                             get: { SpaceSideKey.parse(spaceSideKey).rawValue },
                             set: { spaceSideKey = $0 })) {
@@ -635,12 +643,10 @@ struct PhimPage: View {
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
-                        Text(L("Phím hẹp bên phải phím cách trên bàn chữ (ô email, đường dẫn giữ nguyên). Dấu chấm: giữ phím ra dấu phẩy (khi bật giữ phím ra ký tự đặc biệt). Cả hai: dấu phẩy bên trái, dấu chấm bên phải phím cách. Tắt: phím cách rộng hơn; chạm phím cách hai lần vẫn ra dấu chấm."))
-                            .font(.footnote).foregroundStyle(.secondary)
                     }
-                    settingToggle(L("Phím to"), L("Dấu phẩy, dấu chấm cạnh phím cách rộng bằng phím emoji (đỡ chạm nhầm phím cách); ⇧ và ⌫ nở ra lấp khe cạnh hàng chữ. Phím cách hẹp lại một chút. Tắt: bố cục như bàn phím iPhone."), isOn: $largeKeys)
+                    settingToggle(L("Phím to"), L(SettingCaption.largeKeys), isOn: $largeKeys)
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(L("Nút emoji"))
+                        settingTitle(L("Nút emoji"), L(SettingCaption.emojiKeyPlacement))
                         Picker(L("Nút emoji"), selection: Binding(
                             get: { EmojiKeyPlacement.parse(emojiKeyPlacement).rawValue },
                             set: { emojiKeyPlacement = $0 })) {
@@ -649,20 +655,18 @@ struct PhimPage: View {
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
-                        Text(L("Thanh trên: nút 😊 lên thanh gợi ý (sát mép phải), phím cách rộng hơn. Khi thanh gợi ý tắt hoặc không hiện ở ô đang gõ, nút 😊 vẫn ở hàng dưới."))
-                            .font(.footnote).foregroundStyle(.secondary)
                     }
                     if !numberRow {
-                        settingToggle(L("Giữ phím hàng trên để ra số"), L("Giữ q … p để gõ 1 … 0 (số nhỏ ở góc phím)."), isOn: $longPressNumbers)
+                        settingToggle(L("Giữ phím hàng trên để ra số"), L(SettingCaption.longPressNumbers), isOn: $longPressNumbers)
                     }
-                    settingToggle(L("Giữ phím hàng 2, 3 để ra ký tự đặc biệt"), L("Giữ a … l, z … m để gõ @ # $ _ & - + ( ) … Giữ , để ra dấu chấm."), isOn: $longPressSymbols)
-                    settingToggle(L("Giữ Shift để gõ số và ký hiệu"), L("Giữ ⇧ rồi chạm phím chữ để gõ ký tự nhỏ ở góc phím (q w e → 1 2 3) thay vì chữ hoa. Chạm ⇧ vẫn viết hoa một chữ, chạm đôi để khoá."), isOn: $holdShiftSymbols)
+                    settingToggle(L("Giữ phím hàng 2, 3 để ra ký tự đặc biệt"), L(SettingCaption.longPressSymbols), isOn: $longPressSymbols)
+                    settingToggle(L("Giữ Shift để gõ số và ký hiệu"), L(SettingCaption.holdShiftSymbols), isOn: $holdShiftSymbols)
                 }
-                settingToggle(L("Tự thêm dấu cách sau dấu câu"), L("Gõ . , ? ! ; : tự có dấu cách phía sau. Không thêm trong số (3.5, 1,000), email, đường dẫn. Gõ dấu cách ngay sau không thành hai dấu cách; ⌫ ngay sau chỉ xoá dấu cách đó."), isOn: $autoSpaceAfterPunct)
+                settingToggle(L("Tự thêm dấu cách sau dấu câu"), L(SettingCaption.autoSpaceAfterPunct), isOn: $autoSpaceAfterPunct)
             } header: { Text(L("Phím")) }
             Section {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(L("Độ nhạy con trỏ"))
+                    settingTitle(L("Độ nhạy con trỏ"), L(SettingCaption.trackpadSpeed))
                     Picker(L("Độ nhạy con trỏ"), selection: Binding(
                         get: { TrackpadSpeed.parse(trackpadSpeed).rawValue },
                         set: { trackpadSpeed = $0 })) {
@@ -672,13 +676,11 @@ struct PhimPage: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    Text(L("Giữ phím cách rồi kéo để di con trỏ. Kéo chậm luôn đi từng ký tự; mức này chỉnh độ tăng tốc khi kéo nhanh."))
-                        .font(.footnote).foregroundStyle(.secondary)
                 }
-                settingToggle(L("Vuốt phím để sao chép/dán"), L("Chạm C, X hoặc V rồi vuốt thẳng lên quá hàng phím trên cùng và nhấc tay: C sao chép, X cắt, V dán. Kéo ngón trở xuống để huỷ. iOS không cho bàn phím chọn chữ, chọn hết hay hoàn tác/làm lại; sao chép, cắt và dán cần bật Truy cập đầy đủ."), isOn: $swipeKeyCommands)
+                settingToggle(L("Vuốt phím để sao chép/dán"), L(SettingCaption.swipeKeyCommandsIos), isOn: $swipeKeyCommands)
                 if isPhone {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(L("Chế độ một tay"))
+                        settingTitle(L("Chế độ một tay"), L(SettingCaption.oneHandIos))
                         Picker(L("Chế độ một tay"), selection: $oneHandMode) {
                             Text(L("Tắt")).tag("off")
                             Text(L("Trái")).tag("left")
@@ -686,12 +688,10 @@ struct PhimPage: View {
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
-                        Text(L("Thu hẹp bàn phím về một bên. Giữ lâu nút ☰ trên thanh gợi ý để bật/tắt nhanh; khi tắt Mẫu câu, nút đó thành nút một tay (chạm để bật/tắt)."))
-                            .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
             } header: { Text(L("Cử chỉ")) } footer: {
-                Text(L("Xuống dòng mà không gửi (ô chat trên web, nơi Return là Gửi): giữ lâu phím Return, hoặc chạm ⇧ rồi chạm Return."))
+                Text(L(SettingCaption.gesturesFooterIos))
             }
             Section {
                 // Rung, âm thanh, phóng to/sẫm phím: trang con riêng (SETTINGS-CLEANUP-SPEC §4).
@@ -724,9 +724,9 @@ struct FeedbackPage: View {
     var body: some View {
         List {
             Section {
-                settingToggle(L("Phóng to chữ khi bấm"), L("Ô chữ lớn nổi trên phím vừa chạm. Tắt cho gọn, nhẹ máy."), isOn: $keyPreview)
-                settingToggle(L("Phím sẫm khi bấm"), L("Phím đổi màu trong lúc chạm như bàn phím iPhone, kể cả khi tắt phóng to chữ."), isOn: $keyPressHighlight)
-                settingToggle(L("Rung phím"), L("Rung nhẹ mỗi lần chạm phím."), isOn: $hapticFeedback)
+                settingToggle(L("Phóng to chữ khi bấm"), L(SettingCaption.keyPreview), isOn: $keyPreview)
+                settingToggle(L("Phím sẫm khi bấm"), L(SettingCaption.keyPressHighlight), isOn: $keyPressHighlight)
+                settingToggle(L("Rung phím"), L(SettingCaption.hapticFeedback), isOn: $hapticFeedback)
                 if hapticFeedback {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -744,7 +744,7 @@ struct FeedbackPage: View {
                     }
                     FullAccessNotice(reason: L("Rung phím"))
                 }
-                settingToggle(L("Âm thanh phím"), L("Tiếng phím riêng của VietTelex: chọn kiểu, chỉnh âm lượng. Tắt: dùng tiếng bấm bàn phím của iOS (Cài đặt → Âm thanh). Im khi gạt chế độ im lặng."), isOn: $keySound)
+                settingToggle(L("Âm thanh phím"), L(SettingCaption.keySound), isOn: $keySound)
                 if keySound {
                     // "Âm thanh gõ" (Phil 19/10/2026): trang con chọn kiểu + âm lượng + âm tự chọn.
                     NavigationLink { KeySoundStylePage() } label: {
@@ -805,7 +805,7 @@ struct KeySoundStylePage: View {
             } header: {
                 Text(L("Chạm một kiểu để chọn và nghe thử."))
             } footer: {
-                Text(L("iOS: tiếng bấm bàn phím của hệ thống — theo Cài đặt → Âm thanh & Cảm ứng → Phản hồi bàn phím, không cần Toàn quyền Truy cập. Các kiểu khác là tiếng riêng của VietTelex (cần Toàn quyền Truy cập)."))
+                Text(L(SettingCaption.keySoundStylesIos))
             }
             if current == .custom || customDuration != nil {
                 Section { customSoundRow }
@@ -825,7 +825,7 @@ struct KeySoundStylePage: View {
                                minimumValueLabel: { Image(systemName: "speaker.fill").font(.caption) },
                                maximumValueLabel: { Image(systemName: "speaker.wave.3.fill").font(.caption) },
                                onEditingChanged: { editing in if !editing { previewSound(final: true) } })
-                        Text(L("Kéo thanh trượt hoặc chọn kiểu để nghe thử. Không nghe thấy? Tắt gạt im lặng (bàn phím cũng im khi gạt)."))
+                        Text(L(SettingCaption.keySoundVolumeIos))
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     FullAccessNotice(reason: L("Âm thanh phím"))
@@ -865,7 +865,7 @@ struct KeySoundStylePage: View {
                 }
             }
             .buttonStyle(.borderless)
-            Text(L("Âm được cắt lặng đầu, giữ tối đa 0,3 giây và chỉnh độ to an toàn. File chỉ nằm trên máy này (không có trong sao lưu)."))
+            Text(L(SettingCaption.customSound))
                 .font(.footnote).foregroundStyle(.secondary)
         }
     }

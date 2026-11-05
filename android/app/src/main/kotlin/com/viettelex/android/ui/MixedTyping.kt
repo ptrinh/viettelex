@@ -138,7 +138,7 @@ internal fun MixedTypingSection() {
         // Cấp 1 vì là cách chuyển ngôn ngữ (SETTINGS-CLEANUP-SPEC §1).
         Highlightable(MixedTypingItem.SpaceSwipeLanguage.target.id) {
             BoolToggle(Keys.SPACE_SWIPE_LANGUAGE, Prefs.D.spaceSwipeLanguage, tr("Vuốt phím cách đổi Tiếng Việt / Tiếng Anh"),
-                tr("Vuốt nhanh phím cách sang trái/phải. Góc phím cách hiện VI / EN. Tiếng Anh gõ nguyên văn. Giữ rồi kéo vẫn là di con trỏ."))
+                tr(SettingCaption.spaceSwipeLanguage))
         }
         RowDivider()
         Highlightable(MixedTypingItem.UserDictionary.target.id) { UserDictRow() }
@@ -155,24 +155,24 @@ internal fun MixedAdvancedPage(onBack: () -> Unit) {
     SubPageHeader(tr("Nâng cao"), onBack, backTitle = "‹ " + AppTab.KieuGo.title)
     VTSection(header = tr(MIXED_TITLE), footer = APPLY_NOTE) {
         Highlightable(MixedTypingItem.AutoRestore.target.id) {
-            BoolToggle(Keys.AUTO_RESTORE, Prefs.D.autoRestore, tr("Tự khôi phục từ tiếng Anh"), tr("Từ không phải tiếng Việt trả về như đã gõ (google, github…)."))
+            BoolToggle(Keys.AUTO_RESTORE, Prefs.D.autoRestore, tr("Tự khôi phục từ tiếng Anh"), tr(SettingCaption.autoRestore))
         }
         RowDivider()
         Highlightable(MixedTypingItem.ContextualEnglish.target.id) {
-            BoolToggle(Keys.CONTEXTUAL_ENGLISH, Prefs.D.contextualEnglish, tr("Quyết định theo ngữ cảnh"), tr("Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → “he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để tiếng Việt — “sao í”."))
+            BoolToggle(Keys.CONTEXTUAL_ENGLISH, Prefs.D.contextualEnglish, tr("Quyết định theo ngữ cảnh"), tr(SettingCaption.contextualEnglish))
         }
         // Hai công tắc thử nghiệm phụ thuộc ngữ cảnh: ngay dưới công tắc cha, thụt vào; chưa đủ
         // điều kiện ⇒ mờ + ghi lý do (không ẩn).
         RowDivider(32.dp)
         Highlightable(MixedTypingItem.RetroEnglish.target.id) {
             DependentToggle(Keys.RETRO_ENGLISH_AUTO, Prefs.D.retroEnglishAuto, tr("Tự sửa từ phía trước"),
-                tr("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm (vd. \"Hí cả í very fast\" → \"His car is very fast\")."),
+                tr(SettingCaption.retroEnglish),
                 MixedTypingUI.disabledReason(MixedTypingItem.RetroEnglish, contextual, vni)?.let { tr(it) }, experimental = true)
         }
         RowDivider(32.dp)
         Highlightable(MixedTypingItem.EnglishByFrequency.target.id) {
             DependentToggle(Keys.ENGLISH_BY_FREQUENCY, Prefs.D.englishByFrequency, tr("Đoán từ trùng theo tần suất"),
-                tr("Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his → hí) thì chọn tiếng Anh; từ kế cho thấy là tiếng Việt (hí hửng, hí hí) thì tự đổi lại."),
+                tr(SettingCaption.englishByFrequency),
                 MixedTypingUI.disabledReason(MixedTypingItem.EnglishByFrequency, contextual, vni)?.let { tr(it) }, experimental = true)
         }
     }
@@ -186,7 +186,7 @@ internal fun UserDictRow() {
     VTRow(onClick = { showDict = true }) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(tr("Từ điển cá nhân"), style = VTType.body, color = c.label)
-            Text(tr("Xem, tìm, xoá từ đã học; thêm tên riêng."), style = VTType.footnote, color = c.secondary)
+            Text(tr(SettingCaption.userDictionary), style = VTType.footnote, color = c.secondary)
         }
         Text("›", style = VTType.title3, color = c.tertiary)
     }
@@ -211,7 +211,7 @@ private fun ProfilePicker(current: Map<String, Boolean>) {
     Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp).semantics { heading() },
         verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(tr("Bạn thường gõ thế nào?"), style = VTType.body, color = c.label)
-        Text(tr("Chọn một — các công tắc bên dưới sẽ tự đặt theo."), style = VTType.footnote, color = c.secondary)
+        Text(tr(SettingCaption.profileHint), style = VTType.footnote, color = c.secondary)
     }
     @Composable
     fun Choice(title: String, caption: String, selected: Boolean, onClick: (() -> Unit)?) {
@@ -236,7 +236,7 @@ private fun ProfilePicker(current: Map<String, Boolean>) {
     // "Tuỳ chỉnh" chỉ hiện (đã chọn, không bấm được) khi công tắc không khớp hồ sơ nào.
     if (matched == null) {
         RowDivider()
-        Choice(tr("Tuỳ chỉnh"), tr("Bạn đã tự chỉnh các công tắc bên dưới."), true, null)
+        Choice(tr("Tuỳ chỉnh"), tr(SettingCaption.customProfile), true, null)
     }
     confirming?.let { p ->
         val lines = OnboardingSettings.changes(current, p).joinToString("\n") { k ->

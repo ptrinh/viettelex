@@ -62,7 +62,7 @@ fun ShortcutsSection(onOpen: () -> Unit) {
     var enabled by rememberBoolPref(Keys.SHORTCUTS_ENABLED, Prefs.D.shortcutsEnabled)
     val count = remember { ShortcutsStore.load(ctx).size }
     VTSection(header = tr("Gõ tắt")) {
-        SettingToggle(tr("Gõ tắt"), tr("Gõ chữ tắt rồi dấu cách/dấu câu để bung: ko → không, Ko → Không, KO → KHÔNG. ⌫ ngay sau đó trả lại chữ đã gõ."), enabled) { enabled = it }
+        SettingToggle(tr("Gõ tắt"), tr(SettingCaption.shortcuts), enabled) { enabled = it }
         RowDivider()
         VTRow(onClick = onOpen) {
             Text(tr("Bảng gõ tắt"), style = VTType.body, color = c.label, modifier = Modifier.weight(1f))

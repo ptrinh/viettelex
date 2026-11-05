@@ -466,35 +466,35 @@ private fun SuaLoiPage(onBack: () -> Unit) {
     val ctx = LocalContext.current
     SubPageHeader(FeaturePage.SuaLoi.title, onBack)
     VTSection(header = tr("Chính tả")) {
-        BoolToggle(Keys.LIVE_SPELL_CHECK, Prefs.D.liveSpellCheck, tr("Kiểm tra chính tả khi gõ"), tr("Ngừng bỏ dấu khi từ không thể là tiếng Việt."))
+        BoolToggle(Keys.LIVE_SPELL_CHECK, Prefs.D.liveSpellCheck, tr("Kiểm tra chính tả khi gõ"), tr(SettingCaption.liveSpellCheck))
         RowDivider()
-        BoolToggle(Keys.RE_EDIT_WORDS, Prefs.D.reEditWords, tr("Sửa dấu từ đã gõ"), tr("⌫ ngay sau dấu cách để sửa tiếp từ vừa gõ (tháy ␣ ⌫ a → thấy), hoặc đặt con trỏ sau từ rồi gõ phím dấu: chao + f → chào."))
+        BoolToggle(Keys.RE_EDIT_WORDS, Prefs.D.reEditWords, tr("Sửa dấu từ đã gõ"), tr(SettingCaption.reEditWord))
     }
-    VTSection(header = tr("Chạm trượt")) {
-        BoolToggle(Keys.AUTO_FIX_ADJACENT, Prefs.D.autoFixAdjacent, tr("Gợi ý sửa lỗi chạm trượt"), tr("Khi từ đang gõ không phải tiếng Việt, gợi ý từ đúng nếu bạn lỡ chạm phím bên cạnh: nbjeeuf → nhiều, ohims → phím, cahcs → cách. Chạm gợi ý để thay."))
+    VTSection(header = tr("Chạm trượt"), footer = tr(SettingCaption.adjacentFooter)) {
+        BoolToggle(Keys.AUTO_FIX_ADJACENT, Prefs.D.autoFixAdjacent, tr("Gợi ý sửa lỗi chạm trượt"), tr(SettingCaption.autoFixAdjacent))
         RowDivider()
         ExperimentalToggle(Keys.SMART_TOUCH, Prefs.D.smartTouch, tr("Chọn phím thông minh"),
-            tr("Chạm sát mép giữa hai phím thì chọn phím hợp với chữ đang gõ. Chạm giữa phím luôn ra đúng phím đó."))
+            tr(SettingCaption.smartTouch))
         RowDivider()
         ExperimentalToggle(Keys.AUTO_CORRECT, Prefs.D.autoCorrect, tr("Tự sửa từ gõ sai"),
-            tr("Khi gõ dấu cách, sửa từ lỡ chạm phím kề (tpoi → tôi) nếu chắc chắn. ⌫ ngay sau đó để trả lại chữ gốc."))
+            tr(SettingCaption.autoCorrect))
     }
     VTSection(header = tr("Thanh gợi ý")) {
-        BoolToggle(Keys.SHOW_SUGGESTIONS, Prefs.D.showSuggestions, tr("Thanh gợi ý"), tr("Gợi ý từ + emoji, tự học từ bạn hay dùng (chỉ trên máy)."))
+        BoolToggle(Keys.SHOW_SUGGESTIONS, Prefs.D.showSuggestions, tr("Thanh gợi ý"), tr(SettingCaption.showSuggestions))
         RowDivider()
         SuggestionCountRow()
         RowDivider()
         BoolToggle(Keys.SUGGEST_IN_NO_SUGGEST_FIELDS, Prefs.D.suggestInNoSuggestFields, tr("Gợi ý cả khi ứng dụng tắt gợi ý"),
-            tr("Ô mà ứng dụng tắt gợi ý (vd ô chat, thanh địa chỉ) vẫn gợi ý từ — không tự sửa, không học từ gõ ở đó. Mật khẩu, ẩn danh, ô số không bị ảnh hưởng."))
+            tr(SettingCaption.suggestInNoSuggestFields))
         RowDivider()
-        BoolToggle(Keys.NUMBER_CHIPS, Prefs.D.numberChips, tr("Gợi ý số tiền"), tr("Đọc số thành chữ, định dạng tiền (1tr2 → 1.200.000 ₫)."))
+        BoolToggle(Keys.NUMBER_CHIPS, Prefs.D.numberChips, tr("Gợi ý số tiền"), tr(SettingCaption.numberChips))
         RowDivider()
-        BoolToggle(Keys.MATH_RESULTS, Prefs.D.mathResults, tr("Hiện kết quả phép tính"), tr("Gõ phép tính (12*3, không cần dấu =) → kết quả “= 36” hiện ở đầu thanh gợi ý, chạm để chèn. Dấu = ở bàn 123: giữ phím /."))
+        BoolToggle(Keys.MATH_RESULTS, Prefs.D.mathResults, tr("Hiện kết quả phép tính"), tr(SettingCaption.mathResults))
         RowDivider()
         BoolToggle(Keys.ADD_TONES_CHIP, Prefs.D.addTonesChip, tr("Thêm dấu"),
-            tr("Gõ không dấu cả câu (hom nay troi dep), gõ dấu cách → chip “Thêm dấu” hiện ở đầu thanh gợi ý, chạm để thành “hôm nay trời đẹp”; chạm “Hoàn tác” để trả lại. Tắt mặc định cho nhẹ máy."))
+            tr(SettingCaption.addTones))
         RowDivider()
-        BoolToggle(Keys.FILTER_SENSITIVE, Prefs.D.filterSensitive, tr("Lọc từ nhạy cảm"), tr("Không chủ động gợi ý từ tục — gõ tay vẫn bình thường."))
+        BoolToggle(Keys.FILTER_SENSITIVE, Prefs.D.filterSensitive, tr("Lọc từ nhạy cảm"), tr(SettingCaption.filterSensitive))
     }
     VTSection(header = tr("Từ đã học")) {
         UserDictRow()
@@ -537,17 +537,17 @@ private fun GoVuotPage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     val swipeOn by rememberBoolPref(Keys.SWIPE_TYPING, Prefs.D.swipeTyping)
     VTSection(footer = tr("Tự tắt khi bật TalkBack và ở ô mật khẩu, email, địa chỉ web.")) {
         ExperimentalToggle(Keys.SWIPE_TYPING, Prefs.D.swipeTyping, tr("Gõ vuốt"),
-            tr("Lướt qua các chữ không dấu rồi nhấc tay: viet → việt. Gõ phím dấu ngay sau để đổi dấu, ⌫ xoá cả từ."))
+            tr(SettingCaption.swipeTyping))
         // "Vuốt từ tiếng Anh" ngay dưới công tắc Gõ vuốt (SETTINGS-CLEANUP-SPEC §1): luôn hiện, Gõ vuốt
         // tắt ⇒ mờ + lý do. Bộ chọn hồ sơ (Kiểu Gõ › Gõ lẫn tiếng Anh) vẫn đặt cùng key.
         RowDivider()
         DependentToggle(Keys.SWIPE_ENGLISH, Prefs.D.swipeEnglish, tr("Vuốt từ tiếng Anh"),
-            tr("check, mail, meeting… Nét vừa Việt vừa Anh (the/thế) ưu tiên tiếng Việt, phương án kia ở thanh gợi ý."),
+            tr(SettingCaption.swipeEnglish),
             if (swipeOn) null else tr(SWIPE_ENGLISH_NEEDS_SWIPE), indent = true)
         if (swipeOn) {
             RowDivider()
             BoolToggle(Keys.SWIPE_FUTO, Prefs.D.swipeFuto, tr("Mô hình neural gõ vuốt"),
-                tr("Mạng neural chạy hoàn toàn trên máy, chấm cùng bộ giải mã. Tốn thêm ~3 MB bộ nhớ."))
+                tr(SettingCaption.swipeFuto))
             // Ghi công BẮT BUỘC theo FUTO Model Weights License 1.0 ("visible notice … within
             // the product's settings") — Phil 27/09/2026: chỉ hiện ở đây (dưới công tắc, khi đã
             // bật Gõ vuốt), chữ nhỏ mờ. KHÔNG xoá. Xem docs/DATA-SOURCES.md.
@@ -571,7 +571,7 @@ private fun GoVuotPage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
             VTRow(onClick = { showPractice = true }) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(tr("Luyện vuốt"), style = VTType.body, color = c.label)
-                    Text(tr("Vuốt thử từng từ, xem bàn phím đọc đúng bao nhiêu."), style = VTType.footnote, color = c.secondary)
+                    Text(tr(SettingCaption.swipePractice), style = VTType.footnote, color = c.secondary)
                 }
                 Text("›", style = VTType.title3, color = c.tertiary)
             }
@@ -589,13 +589,13 @@ private fun GoTatPage(onBack: () -> Unit) {
     SubPageHeader(FeaturePage.GoTat.title, onBack)
     ShortcutsSection { showShortcuts = true }
     VTSection(header = tr("Mẫu câu")) {
-        BoolToggle(Keys.TEMPLATES_ENABLED, Prefs.D.templatesEnabled, tr("Mẫu câu"), tr("Nút ☰ trên bàn phím chèn câu soạn sẵn — quản lý ở tab Mẫu Câu. Tắt: ẩn tab Mẫu Câu; nút ☰ chỉ còn mở Công cụ văn bản (nếu bật)."))
+        BoolToggle(Keys.TEMPLATES_ENABLED, Prefs.D.templatesEnabled, tr("Mẫu câu"), tr(SettingCaption.templates))
         RowDivider()
         // Luôn hiện (tìm "Công cụ văn bản" phải tới được đây); chưa có Plus ⇒ dòng khoá.
         if (PlusGate.isUnlocked(PlusFeature.TEXT_TOOLS)) {
             BoolToggle(Keys.TEXT_TOOLS_ENABLED, Prefs.D.textToolsEnabled, tr("Công cụ văn bản"),
-                tr("Chip ⚒️ Công cụ trong lưới mẫu câu (Mẫu câu tắt: chạm ☰ mở thẳng): đổi HOA/thường, bỏ dấu, dịch…"))
-        } else PlusLockedRow(tr("Công cụ văn bản"), tr("Chip ⚒️ Công cụ trong lưới mẫu câu: đổi HOA/thường, bỏ dấu, dịch…"))
+                tr(SettingCaption.textTools))
+        } else PlusLockedRow(tr("Công cụ văn bản"), tr(SettingCaption.textTools))
     }
     // Dịch trên máy (Plus): cài đặt ở đây (cạnh Công cụ) — APK ngoài Play không tải được module ⇒ ẩn.
     if (com.viettelex.android.translate.TranslateFeature.offered(LocalContext.current)) {
@@ -654,7 +654,7 @@ internal fun ChoiceRow(key: String, default: String, title: String, caption: Str
  */
 @Composable
 private fun SpaceSideKeyRow() = ChoiceRow(Keys.SPACE_SIDE_KEY, Prefs.D.spaceSideKey.id, tr("Phím cạnh dấu cách"),
-    tr("Điện thoại: phím hẹp cạnh phím cách trên bàn chữ; Cả hai: dấu phẩy bên trái, dấu chấm bên phải phím cách. Máy tính bảng: Dấu phẩy, Dấu chấm hay Cả hai đều giữ hai phím , và . hai bên phím cách; Tắt bỏ cả hai. Ô email, đường dẫn giữ nguyên. Giữ dấu phẩy để chọn dấu câu khác. Tắt: phím cách rộng hơn; chạm phím cách hai lần vẫn ra dấu chấm."),
+    tr(SettingCaption.spaceSideKey),
     listOf(SpaceSideKey.COMMA.id to tr("Dấu phẩy"), SpaceSideKey.PERIOD.id to tr("Dấu chấm"),
         SpaceSideKey.BOTH.id to tr("Cả hai"), SpaceSideKey.OFF.id to tr("Tắt"))) { SpaceSideKey.of(it).id }
 
@@ -671,7 +671,7 @@ private fun SuggestionCountRow() {
     VTRow {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(tr("Số từ gợi ý"), style = VTType.body, color = c.label)
-            Text(tr("Tự động: 3 từ. Máy hẹp có thể hiện ít hơn để ô đủ rộng cho dễ chạm."),
+            Text(tr(SettingCaption.suggestionCount),
                 style = VTType.footnote, color = c.secondary)
         }
         Row(Modifier.padding(start = 8.dp).clip(RoundedCornerShape(9.dp)).background(c.fill),
@@ -696,13 +696,13 @@ private fun StepButton(symbol: String, description: String, enabled: Boolean, on
 /** "Nút emoji": Hàng dưới (mặc định) / Thanh trên — [EmojiKeyPlacement]. */
 @Composable
 private fun EmojiPlacementRow() = ChoiceRow(Keys.EMOJI_KEY_PLACEMENT, Prefs.D.emojiKeyPlacement.id, tr("Nút emoji"),
-    tr("Thanh trên: nút emoji lên thanh gợi ý (sát mép phải), phím cách rộng hơn. Giữ nút để đổi bàn phím, gõ giọng nói, một tay… Khi thanh gợi ý không hiện, nút vẫn ở hàng dưới."),
+    tr(SettingCaption.emojiKeyPlacement),
     listOf(EmojiKeyPlacement.BOTTOM.id to tr("Hàng dưới"), EmojiKeyPlacement.TOP.id to tr("Thanh trên"))) { EmojiKeyPlacement.of(it).id }
 
 /** "Cỡ chữ trên phím": Vừa (mặc định) / Lớn — [KeyLabelSize]. */
 @Composable
 private fun KeyLabelSizeRow() = ChoiceRow(Keys.KEY_LABEL_SIZE, Prefs.D.keyLabelSize.id, tr("Cỡ chữ trên phím"),
-    tr("Lớn: chữ, ký hiệu và biểu tượng trên phím to hơn khoảng 20%. Có Plus: thanh “Cỡ chữ trên phím” ở Giao diện → Tuỳ chỉnh nâng cao, khi đã đặt, thay cho lựa chọn này."),
+    tr(SettingCaption.keyLabelSize),
     listOf(KeyLabelSize.MEDIUM.id to tr("Vừa"), KeyLabelSize.LARGE.id to tr("Lớn"))) { KeyLabelSize.of(it).id }
 
 @Composable
@@ -711,12 +711,12 @@ private fun PhimPage(onBack: () -> Unit, feedbackOpen: Boolean, setFeedbackOpen:
     SubPageHeader(FeaturePage.Phim.title, onBack)
     val numberRow by rememberBoolPref(Keys.NUMBER_ROW, Prefs.D.numberRow)
     VTSection(header = tr("Phím")) {
-        BoolToggle(Keys.NUMBER_ROW, Prefs.D.numberRow, tr("Hàng phím số"), tr("Thêm hàng 1 … 0 trên hàng chữ (bàn phím cao thêm gần một hàng)."))
+        BoolToggle(Keys.NUMBER_ROW, Prefs.D.numberRow, tr("Hàng phím số"), tr(SettingCaption.numberRow))
         RowDivider()
         // Chỉ hiện khi hàng số bật (tắt hàng số thì công tắc này vô nghĩa, giá trị vẫn giữ).
         if (numberRow) {
             BoolToggle(Keys.NUMBER_ROW_FULL_HEIGHT, Prefs.D.numberRowFullHeight, tr("Hàng số cao bằng hàng chữ"),
-                tr("Phím số to bằng phím chữ (bàn phím cao thêm đúng một hàng)."))
+                tr(SettingCaption.numberRowFullHeight))
             RowDivider()
         }
         SpaceSideKeyRow()
@@ -724,7 +724,7 @@ private fun PhimPage(onBack: () -> Unit, feedbackOpen: Boolean, setFeedbackOpen:
         // "Phím to" — chỉ điện thoại (tablet: bàn phím bỏ qua, KeyLayout.largeKeysActive). Miễn phí.
         if (LocalConfiguration.current.smallestScreenWidthDp < 600) {
             BoolToggle(Keys.LARGE_KEYS, Prefs.D.largeKeys, tr("Phím to"),
-                tr("Dấu phẩy, dấu chấm cạnh phím cách rộng bằng phím emoji, đỡ chạm nhầm phím cách. Phím cách hẹp lại một chút. Chỉ điện thoại."))
+                tr(SettingCaption.largeKeys))
             RowDivider()
         }
         EmojiPlacementRow()
@@ -733,23 +733,23 @@ private fun PhimPage(onBack: () -> Unit, feedbackOpen: Boolean, setFeedbackOpen:
         RowDivider()
         // Hàng số bật ⇒ giữ q…p ra số vô nghĩa (KeyAlternates.numbersSettingVisible).
         if (KeyAlternates.numbersSettingVisible(numberRow)) {
-            BoolToggle(Keys.LONG_PRESS_NUMBERS, Prefs.D.longPressNumbers, tr("Giữ phím hàng trên để ra số"), tr("Giữ q … p để gõ 1 … 0 (số nhỏ ở góc phím)."))
+            BoolToggle(Keys.LONG_PRESS_NUMBERS, Prefs.D.longPressNumbers, tr("Giữ phím hàng trên để ra số"), tr(SettingCaption.longPressNumbers))
             RowDivider()
         }
         BoolToggle(Keys.LONG_PRESS_SYMBOLS, Prefs.D.longPressSymbols, tr("Giữ phím hàng 2, 3 để ra ký tự đặc biệt"),
-            tr("Giữ a … l, z … m để gõ @ # \$ _ & - + ( ) … Giữ , để chọn dấu câu (. ? ! : ; …); giữ 😊 để đổi bàn phím, gõ giọng nói, một tay, thả nổi."))
+            tr(SettingCaption.longPressSymbols))
         RowDivider()
         BoolToggle(Keys.HOLD_SHIFT_SYMBOLS, Prefs.D.holdShiftSymbols, tr("Giữ Shift để gõ số và ký hiệu"),
-            tr("Giữ ⇧ rồi chạm phím chữ để gõ ký tự nhỏ ở góc phím (q w e → 1 2 3) thay vì chữ hoa. Chạm ⇧ vẫn viết hoa một chữ, chạm đôi để khoá."))
+            tr(SettingCaption.holdShiftSymbols))
         RowDivider()
         BoolToggle(Keys.AUTO_SPACE_AFTER_PUNCT, Prefs.D.autoSpaceAfterPunct, tr("Tự thêm dấu cách sau dấu câu"),
-            tr("Gõ . , ? ! ; : tự có dấu cách phía sau. Không thêm trong số (3.5, 1,000), email, đường dẫn. Gõ dấu cách ngay sau không thành hai dấu cách; ⌫ ngay sau chỉ xoá dấu cách đó."))
+            tr(SettingCaption.autoSpaceAfterPunct))
     }
     // "Vuốt phím cách đổi Tiếng Việt / Tiếng Anh" chuyển sang nhóm "Gõ lẫn tiếng Anh" (tab Kiểu Gõ).
     VTSection(header = tr("Cử chỉ")) {
         // "Độ nhạy con trỏ" Chậm / Vừa (mặc định) / Nhanh — TrackpadSpeed, cùng khoá iOS.
         ChoiceRow(Keys.TRACKPAD_SPEED, Prefs.D.trackpadSpeed.id, tr("Độ nhạy con trỏ"),
-            tr("Giữ phím cách rồi kéo để di con trỏ. Kéo chậm luôn đi từng ký tự; mức này chỉnh độ tăng tốc khi kéo nhanh."),
+            tr(SettingCaption.trackpadSpeed),
             listOf(com.viettelex.keyboard.TrackpadSpeed.SLOW.id to tr("Chậm"),
                 com.viettelex.keyboard.TrackpadSpeed.MEDIUM.id to tr("Vừa"),
                 com.viettelex.keyboard.TrackpadSpeed.FAST.id to tr("Nhanh"))) {
@@ -757,12 +757,12 @@ private fun PhimPage(onBack: () -> Unit, feedbackOpen: Boolean, setFeedbackOpen:
         }
         RowDivider()
         BoolToggle(Keys.SWIPE_KEY_COMMANDS, Prefs.D.swipeKeyCommands, tr("Vuốt phím để sao chép/dán"),
-            tr("Chạm phím rồi vuốt thẳng lên quá hàng phím trên cùng và nhấc tay: C sao chép, X cắt, V dán, A chọn hết, Z hoàn tác, Y làm lại. Kéo ngón trở xuống để huỷ. Giữ ⇧ rồi kéo phím cách để chọn chữ."))
+            tr(SettingCaption.swipeKeyCommandsAndroid))
         RowDivider()
         OneHandRow()
         RowDivider()
         BoolToggle(Keys.FLOATING_KEYBOARD, Prefs.D.floatingKeyboard, tr("Bàn phím thả nổi"),
-            tr("Tách bàn phím khỏi đáy màn hình thành khung nhỏ, kéo thanh dưới cùng để đặt đâu cũng được — app bên dưới vẫn chạm được, không bị che hay co lại. Bật/tắt nhanh: giữ 😊 → 🪟; nút ⤓ trên thanh kéo để gắn lại. Khi thả nổi, chế độ một tay và Nâng bàn phím tạm bỏ qua. Vị trí nhớ riêng cho màn hình dọc và ngang."))
+            tr(SettingCaption.floatingKeyboard))
     }
     // "Phản hồi khi chạm" (rung, âm thanh, phóng to/sẫm phím) tách thành trang con (SETTINGS-CLEANUP-SPEC §4).
     val preview by rememberBoolPref(Keys.KEY_PREVIEW, Prefs.D.keyPreview)
@@ -774,7 +774,7 @@ private fun PhimPage(onBack: () -> Unit, feedbackOpen: Boolean, setFeedbackOpen:
     }
     VTSection(header = tr("Bàn phím cứng")) {
         BoolToggle(Keys.HARDWARE_TELEX, Prefs.D.hardwareTelex, tr("Telex cho bàn phím cứng"),
-            tr("Gõ Telex/VNI bằng bàn phím Bluetooth/USB, Samsung DeX, Chromebook. Phím tắt Ctrl/Alt vẫn tới app. Bàn phím ảo tự ẩn khi có bàn phím cứng (bật lại: Cài đặt hệ thống → Bàn phím vật lý → Hiện bàn phím ảo)."))
+            tr(SettingCaption.hardwareTelex))
     }
     GuideLinkSection(FeaturePage.Phim)
 }
@@ -786,12 +786,12 @@ private fun FeedbackPage(onBack: () -> Unit) {
     if (pickingSound) { KeySoundPage(onBack = { pickingSound = false }); return }
     SubPageHeader(tr(FEEDBACK_TITLE), onBack, backTitle = "‹ " + FeaturePage.Phim.title)
     VTSection(footer = APPLY_NOTE) {
-        BoolToggle(Keys.KEY_PREVIEW, Prefs.D.keyPreview, tr("Phóng to chữ khi bấm"), tr("Ô chữ lớn nổi trên phím vừa chạm. Tắt nếu thấy rối mắt."))
+        BoolToggle(Keys.KEY_PREVIEW, Prefs.D.keyPreview, tr("Phóng to chữ khi bấm"), tr(SettingCaption.keyPreview))
         RowDivider()
         BoolToggle(Keys.KEY_PRESS_HIGHLIGHT, Prefs.D.keyPressHighlight, tr("Phím sẫm khi bấm"),
-            tr("Phím đổi màu trong lúc chạm, kể cả khi tắt phóng to chữ."))
+            tr(SettingCaption.keyPressHighlight))
         RowDivider()
-        BoolToggle(Keys.HAPTIC_FEEDBACK, Prefs.D.hapticFeedback, tr("Rung phím"), tr("Rung nhẹ mỗi lần chạm phím."))
+        BoolToggle(Keys.HAPTIC_FEEDBACK, Prefs.D.hapticFeedback, tr("Rung phím"), tr(SettingCaption.hapticFeedback))
         HapticStrengthRow()
         RowDivider()
         KeySoundRows(onOpenStyles = { pickingSound = true })
@@ -844,7 +844,7 @@ private fun KeySoundRows(onOpenStyles: () -> Unit) {
     val c = LocalVT.current
     val on by rememberBoolPref(Keys.KEY_SOUND, Prefs.D.keySound)
     BoolToggle(Keys.KEY_SOUND, Prefs.D.keySound, tr("Âm thanh phím"),
-        tr("Tiếng phím riêng của VietTelex: chọn kiểu, chỉnh âm lượng. Tắt: dùng âm thanh khi chạm của hệ thống. Im khi máy để Rung hoặc Im lặng."))
+        tr(SettingCaption.keySound))
     if (!on) return
     val style by rememberStringPref(Keys.KEY_SOUND_STYLE, Prefs.D.keySoundStyle)
     RowDivider()
@@ -907,7 +907,7 @@ private fun KeySoundPage(onBack: () -> Unit) {
 
     SubPageHeader(tr("Âm thanh gõ"), onBack)
     VTSection(header = tr("Chạm một kiểu để chọn và nghe thử."),
-        footer = tr("Hệ thống: âm thanh khi chạm của Android — theo Cài đặt → Âm thanh → Âm thanh khi chạm, âm lượng theo hệ thống. Các kiểu khác là tiếng riêng của VietTelex.")) {
+        footer = tr(SettingCaption.keySoundStylesAndroid)) {
         KeySoundStyle.MENU_ORDER.forEachIndexed { i, st ->
             if (i > 0) RowDivider()
             VTRow(onClick = { pick(st.id) }) {
@@ -932,7 +932,7 @@ private fun KeySoundPage(onBack: () -> Unit) {
                             if (style == KeySoundStyle.CUSTOM.id) style = KeySoundStyle.DEFAULT.id
                         })
                 }
-                Text(tr("Âm được cắt lặng đầu, giữ tối đa 0,3 giây và chỉnh độ to an toàn. File chỉ nằm trên máy này (không có trong sao lưu)."),
+                Text(tr(SettingCaption.customSound),
                     style = VTType.footnote, color = c.secondary)
             }
             notice?.let { VTRow { Text(it, style = VTType.footnote, color = c.secondary) } }
@@ -948,7 +948,7 @@ private fun KeySoundPage(onBack: () -> Unit) {
                 Slider(value = vol.toFloat(), valueRange = 0f..100f, steps = 19,
                     onValueChange = { v -> val n = Math.round(v / 5) * 5; if (n != vol) { vol = n; fire(false) } },
                     onValueChangeFinished = { fire(true) })
-                Text(tr("Kéo thanh trượt hoặc chọn kiểu để nghe thử. Không nghe thấy? Tắt chế độ Rung/Im lặng (bàn phím cũng im khi đó)."),
+                Text(tr(SettingCaption.keySoundVolumeAndroid),
                     style = VTType.footnote, color = c.secondary)
             }
         }

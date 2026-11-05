@@ -193,4 +193,38 @@ final class SettingsCleanupTests: XCTestCase {
             XCTAssertFalse(ui.contains(old), old)
         }
     }
+
+    // MARK: chú thích một dòng (06/11/2026, cùng chữ với macOS + Android)
+
+    /// Mỗi chú thích ≤ 95 ký tự (cả tiếng Việt lẫn tiếng Anh), có bản dịch, không trùng.
+    func testCaptionsAreShort() {
+        XCTAssertGreaterThan(SettingCaption.all.count, 60)
+        XCTAssertEqual(Set(SettingCaption.all).count, SettingCaption.all.count, "trùng chú thích")
+        for k in SettingCaption.all {
+            XCTAssertLessThanOrEqual(k.count, 95, k)
+            let en = L10n.en[k]
+            XCTAssertNotNil(en, "thiếu bản dịch: \(k)")
+            XCTAssertLessThanOrEqual(en?.count ?? 0, 95, en ?? k)
+        }
+    }
+
+    /// Trang cài đặt không còn chú thích dài viết thẳng trong L("…") (phải đi qua SettingCaption).
+    func testSettingsPagesUseCaptionTable() throws {
+        let re = try NSRegularExpression(pattern: #"\bL\("((?:[^"\\\n]|\\.)*)"\)"#)
+        // Ngoại lệ có chủ đích: tab Mẫu Câu (không phải trang cài đặt), hộp thoại xác nhận, onboarding.
+        let allowed = ["Bấm ☰ trên bàn phím để chèn nhanh", "Mẫu có nội dung bắt đầu bằng https://", "YAML phẳng",
+                       "Gợi ý sẽ học lại từ đầu", "Toàn quyền Truy cập là tuỳ chọn", "%@ cần Toàn quyền Truy cập",
+                       "Nếu đã bật rồi: mở bàn phím", "Chưa có log.", "Bấm 🌐 dưới bàn phím",
+                       "Nếu chưa thấy mục 2", "Apple Intelligence trên máy này chưa hỗ trợ"]
+        var long: [String] = []
+        for rel in ["App/VietTelexApp.swift", "App/FeaturePages.swift", "App/MixedTypingSection.swift",
+                    "App/RiengTuSection.swift", "App/Backup/BackupSection.swift", "App/ThemeSettingsView.swift"] {
+            let src = try source(rel) as NSString
+            for m in re.matches(in: src as String, range: NSRange(location: 0, length: src.length)) {
+                let lit = src.substring(with: m.range(at: 1))
+                if lit.count > 95 && !allowed.contains(where: { lit.hasPrefix($0) }) { long.append("\(rel): \(lit.prefix(60))…") }
+            }
+        }
+        XCTAssertEqual(long, [], "chú thích dài ngoài bảng SettingCaption")
+    }
 }

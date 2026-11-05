@@ -17,6 +17,11 @@ Trạng thái: đã duyệt 05/11/2026, đang triển khai. Liên quan `docs/ONB
    không thuật ngữ kỹ thuật (preedit, surrounding, composition, hook, chip…) ở nhãn chính.
 6. **Không nhắc tên bộ gõ khác** trong nhãn, chú thích, tuỳ chọn. Gặp thì viết lại theo hành vi.
 7. Không lặp cài đặt hệ thống: chỉ một dòng link "Mở cài đặt … của hệ thống".
+8. **Chú thích một dòng** (06/11/2026): mỗi cài đặt = tên + MỘT dòng chú thích ≤ 95 ký tự (cả vi lẫn
+   en), một ví dụ, nằm ngay dưới tên trong cùng hàng (không thành hàng riêng). Dữ kiện cần thiết (quyền,
+   Plus, riêng tư) viết thật ngắn. Bảng chú thích: macOS `TypingTab.C`, iOS `SettingCaption`
+   (App/SettingsIndex.swift), Android `SettingCaption` (ui/SettingCaptions.kt) — iOS và Android cùng chữ;
+   test độ dài ở mỗi nền tảng.
 
 ## 1. Nhóm "Gõ lẫn tiếng Anh" (trước: "Gõ mixed Việt/Anh"; đổi tên 05/11/2026, key giữ nguyên)
 

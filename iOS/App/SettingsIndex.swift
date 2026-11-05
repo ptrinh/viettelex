@@ -209,3 +209,126 @@ enum SettingsIndex {
     /// Mục có key `k` (test: bộ chọn hồ sơ trỏ đúng chỗ mới).
     static func entry(forKey k: String) -> SettingsIndexEntry? { all.first { $0.key == k } }
 }
+
+/// Chú thích MỘT dòng ngắn của từng cài đặt (06/11/2026, cùng chữ với Android ui/SettingCaptions.kt):
+/// ≤ 95 ký tự cả tiếng Việt lẫn tiếng Anh, một ví dụ — SettingsCleanupTests.testCaptionsAreShort.
+enum SettingCaption {
+    // Kiểu Gõ
+    static let vni = LK("Dấu bằng số: 1–5 sắc/huyền/hỏi/ngã/nặng, 6 â ê ô, 7 ơ ư, 8 ă, 9 đ, 0 xoá dấu.")
+    static let autoCapitalize = LK("Bật shift ở đầu ô, sau . ! ? và khi xuống dòng.")
+    static let simpleTelex = LK("w đứng riêng vẫn là w (gõ uw ra ư).")
+    static let freeMarking = LK("Đặt dấu ở đâu trong từ cũng được (ama → âm). Tắt: chặt hơn, hợp gõ tiếng Anh/code.")
+    static let quickTelex = LK("Gõ đúp phụ âm đầu: kk → kh, nn → ng, pp → ph, tt → th…")
+    static let modernTone = LK("hoà, thuý, khoẻ thay vì hòa, thủy, khỏe.")
+    static let teencode = LK("Nhận kiểu viết chat: wá, zui zẻ, kó. Tắt: was, zoo giữ nguyên.")
+    // Gõ lẫn tiếng Anh
+    static let profileHint = LK("Chọn một — các công tắc bên dưới sẽ tự đặt theo.")
+    static let customProfile = LK("Bạn đã tự chỉnh các công tắc bên dưới.")
+    static let spaceSwipeLanguage = LK("Vuốt nhanh phím cách sang trái/phải; góc phím cách hiện VI / EN.")
+    static let userDictionary = LK("Xem, tìm, xoá từ đã học; thêm tên riêng.")
+    static let autoRestore = LK("Từ không phải tiếng Việt trả về đúng như đã gõ (google, github).")
+    static let contextualEnglish = LK("Sau một từ tiếng Anh, từ kế giữ tiếng Anh: “he is”, không thành “he í”.")
+    static let retroEnglish = LK("Sửa từ bị bỏ dấu nhầm khi câu hoá ra tiếng Anh: “Hí cả í” → “His car is”.")
+    static let englishByFrequency = LK("Đầu câu, “his” giữ tiếng Anh thay vì “hí”; tự đổi lại nếu câu là tiếng Việt.")
+    // Sửa lỗi & gợi ý
+    static let liveSpellCheck = LK("Ngừng thêm dấu ngay khi từ không thể là tiếng Việt (google, github).")
+    static let reEditWord = LK("Thêm dấu cho từ đã gõ: toan + s → toán.")
+    static let autoFixAdjacent = LK("Gợi ý từ đúng khi bạn lỡ chạm phím bên cạnh: ohims → phím.")
+    static let smartTouch = LK("Chạm sát mép hai phím thì chọn phím hợp với chữ đang gõ.")
+    static let autoCorrect = LK("Khi gõ dấu cách, sửa từ chạm nhầm (tpoi → tôi); ⌫ ngay sau để trả lại.")
+    static let adjacentFooter = LK("Gợi ý sửa lỗi hiện trên thanh gợi ý (cần bật Thanh gợi ý).")
+    static let showSuggestions = LK("Gợi ý từ + emoji, tự học từ bạn hay dùng (chỉ trên máy).")
+    static let suggestionCount = LK("Tự động: 3 từ. Máy hẹp có thể hiện ít hơn để ô đủ rộng cho dễ chạm.")
+    static let suggestInNoSuggestFields = LK("Vẫn gợi ý ở ô mà ứng dụng tắt gợi ý (ô chat, thanh địa chỉ); không học từ ở đó.")
+    static let emojiSuggest = LK("Emoji hợp với từ đang gõ (yêu → ❤️).")
+    static let numberChips = LK("Đọc số thành chữ, định dạng tiền (1tr2 → 1.200.000 ₫).")
+    static let mathResults = LK("Gõ phép tính (12*3) → “= 36” hiện trên thanh gợi ý, chạm để chèn.")
+    static let pasteButton = LK("Vừa copy xong thì hiện nút Dán (cần Toàn quyền).")
+    static let addTones = LK("Gõ không dấu cả câu rồi chạm chip “Thêm dấu”: hom nay troi dep → hôm nay trời đẹp.")
+    static let aiProofread = LK("Chọn chữ → chip “✨ Sửa lỗi”: chính tả, dấu, ngữ pháp, xem trước. Chạy trên máy.")
+    static let filterSensitive = LK("Không chủ động gợi ý từ tục — gõ tay vẫn bình thường.")
+    // Gõ vuốt
+    static let swipeTyping = LK("Vuốt qua các chữ không dấu rồi nhấc tay: v→i→e→t ra “việt”.")
+    static let swipeFooterIos = LK("Chỉ trên iPhone. Tự tắt khi dùng VoiceOver và ở ô email/mật khẩu/URL.")
+    static let swipeEnglish = LK("check, mail, meeting… Nét vừa Việt vừa Anh (the/thế) ưu tiên tiếng Việt.")
+    static let swipeFuto = LK("Mạng neural chạy trên máy, chấm cùng bộ giải mã. Tốn thêm ~3 MB bộ nhớ.")
+    static let swipePractice = LK("Vuốt thử từng từ, xem bàn phím đọc đúng bao nhiêu.")
+    // Gõ tắt & mẫu câu
+    static let shortcuts = LK("Gõ chữ tắt rồi dấu cách để bung: ko → không. ⌫ ngay sau để trả lại.")
+    static let systemTextReplacement = LK("Bung cả mục Thay thế văn bản của iOS; trùng chữ tắt thì bảng VietTelex thắng.")
+    static let templates = LK("Nút ☰ chèn câu soạn sẵn (tab Mẫu Câu). Tắt: ẩn tab Mẫu Câu.")
+    static let textTools = LK("Chip ⚒️ Công cụ trong lưới mẫu câu: đổi HOA/thường, bỏ dấu, dịch…")
+    static let translate = LK("Chọn ngôn ngữ dịch + tải gói dịch cho chip “Dịch ↔ …” trong Công cụ.")
+    // Phím & cử chỉ
+    static let numberRow = LK("Thêm hàng 1 … 0 trên hàng chữ (bàn phím cao thêm gần một hàng).")
+    static let numberRowFullHeight = LK("Phím số to bằng phím chữ (bàn phím cao thêm đúng một hàng).")
+    static let spaceSideKey = LK("Phím hẹp cạnh phím cách. Cả hai: dấu phẩy bên trái, dấu chấm bên phải.")
+    static let largeKeys = LK("Dấu phẩy, dấu chấm cạnh phím cách rộng hơn, đỡ chạm nhầm phím cách.")
+    static let emojiKeyPlacement = LK("Thanh trên: nút emoji lên thanh gợi ý, phím cách rộng hơn.")
+    static let longPressNumbers = LK("Giữ q … p để gõ 1 … 0 (số nhỏ ở góc phím).")
+    static let longPressSymbols = LK("Giữ a … l, z … m để gõ @ # $ _ & - + ( ) …")
+    static let holdShiftSymbols = LK("Giữ ⇧ rồi chạm phím chữ để gõ ký tự ở góc phím: q w e → 1 2 3.")
+    static let autoSpaceAfterPunct = LK("Gõ . , ? ! ; : tự thêm dấu cách sau (trừ trong số, email, đường dẫn).")
+    static let trackpadSpeed = LK("Giữ phím cách rồi kéo để di con trỏ; mức này chỉnh độ tăng tốc.")
+    static let swipeKeyCommandsIos = LK("Vuốt C, X, V lên quá hàng trên cùng: sao chép, cắt, dán (cần Toàn quyền).")
+    static let oneHandIos = LK("Thu bàn phím về một bên; giữ lâu nút ☰ trên thanh gợi ý để bật/tắt nhanh.")
+    static let gesturesFooterIos = LK("Xuống dòng không gửi (ô chat trên web): giữ lâu Return, hoặc chạm ⇧ rồi Return.")
+    static let keyPreview = LK("Ô chữ lớn nổi trên phím vừa chạm.")
+    static let keyPressHighlight = LK("Phím đổi màu trong lúc chạm, kể cả khi tắt phóng to chữ.")
+    static let hapticFeedback = LK("Rung nhẹ mỗi lần chạm phím.")
+    static let keySound = LK("Tiếng phím riêng của VietTelex: chọn kiểu, âm lượng. Tắt: dùng tiếng của hệ thống.")
+    // Giao diện
+    static let plusThemes = LK("Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus; các theme khác miễn phí.")
+    static let systemBackdrop = LK("Giữ màu phím của theme, nền dùng lớp kính của iOS (liền với dải 🌐 🎤).")
+    static let moleGame = LK("Gõ như thường — chú chuột thò lên ở phím bạn sắp gõ. Gõ trúng lúc nó lên là đập được!")
+    static let wallpaper = LK("Ảnh được thu nhỏ, nén ngay trên máy, không gửi đi đâu. Lớp phủ giúp chữ dễ đọc.")
+    static let transparency = LK("Phím: 100% chỉ còn chữ, ảnh nền vẫn giữ. Ký tự: 100% là phím trơn không chữ.")
+    static let rowHeightIos = LK("0 = như bàn phím gốc của iPhone, gõ theo thói quen không lệch phím.")
+    static let keyboardRaise = LK("Thêm khoảng trống dưới hàng phím cuối để bàn phím nằm cao hơn.")
+    static let suggestionBarHeight = LK("Cao hơn thì dễ chạm trúng gợi ý; bàn phím cao thêm đúng phần đó.")
+    static let suggestionInk = LK("Xám: dịu như bàn phím Apple, đỡ rối mắt. Sáng: cùng màu chữ phím.")
+    static let spaceLogo = LK("Logo mờ ở góc phải phím cách.")
+    static let splitKeyboardIos = LK("Màn hình rộng (iPad, xoay ngang, máy gập): chia bàn phím làm hai nửa.")
+    static let resetAppearance = LK("Theme, ảnh nền, độ trong suốt, tuỳ chỉnh về mặc định. Ảnh, chiều cao hàng, logo giữ nguyên.")
+    static let advancedStyle = LK("Màu, bo góc, cỡ chữ, phông, độ đậm — lưu riêng cho từng giao diện.")
+    static let fontScaleIos = LK("Phím hẹp tự thu nhỏ chữ cho vừa, dấu không bị cắt.")
+    // Riêng tư & sao lưu
+    static let clipboardHistory = LK("Nút clipboard trên thanh gợi ý mở 20 mục vừa copy; ghim để giữ. Chỉ lưu trên máy.")
+    static let clipboardTTL = LK("Mục trông như mật khẩu/OTP vẫn tự xoá sau 2 phút; ghim để giữ lâu.")
+    static let clipboardPasteAllowIos = LK("Để tự ghi mục mới không bị hỏi: Cài đặt → VietTelex → Dán từ ứng dụng khác → Cho phép.")
+    static let clipboardIosLimit = LK("iOS chỉ cho đọc clipboard khi bàn phím hiện: copy lúc ẩn chỉ ghi được mục cuối.")
+    static let clipboardOffClears = LK("Tắt Lịch sử clipboard sẽ xoá toàn bộ mục đã lưu ở lần mở bàn phím kế tiếp.")
+    static let incognitoIos = LK("Không học từ mới, không lưu clipboard.")
+    static let iCloudSync = LK("Cài đặt, gõ tắt, mẫu câu giống nhau trên mọi máy cùng iCloud (trừ từ đã học).")
+    static let includeLearned = LK("Từ bàn phím đã học (tần suất gõ) — riêng tư, chỉ bật khi file do chính bạn giữ.")
+    static let backupFile = LK("File gồm cài đặt, gõ tắt, mẫu câu; mở được trên iPhone, iPad, Android. Nhập sẽ gộp thêm.")
+    // Nâng cao / Gỡ lỗi
+    static let debugLogIos = LK("Ghi thời điểm chạm, độ trễ, số phím — KHÔNG ghi chữ bạn gõ. Cần Toàn quyền.")
+    static let showLog = LK("Bật để xem log bên dưới và copy toàn bộ — tắt rồi bật lại để tải log mới.")
+    static let clearLog = LK("Bật để xoá log cũ trước khi thử lại.")
+    // Giới thiệu
+    static let swipeDataCredit = LK("Dữ liệu gõ vuốt: Wikipedia, Wikisource… tiếng Việt (CC BY-SA 4.0), Tatoeba (CC BY 2.0 FR)")
+    // Phản hồi khi chạm › Âm thanh gõ
+    static let keySoundStylesIos = LK("iOS: tiếng bấm của hệ thống, không cần Toàn quyền. Kiểu khác: tiếng riêng, cần Toàn quyền.")
+    static let keySoundVolumeIos = LK("Kéo hoặc chọn kiểu để nghe thử. Không nghe thấy? Tắt gạt im lặng.")
+    static let customSound = LK("Cắt lặng đầu, tối đa 0,3 giây, chỉnh độ to an toàn. File chỉ trên máy này (không sao lưu).")
+
+    static let all: [String] = [
+        keySoundStylesIos, keySoundVolumeIos, customSound,
+        vni, autoCapitalize, simpleTelex, freeMarking, quickTelex, modernTone,
+        teencode, profileHint, customProfile, spaceSwipeLanguage, userDictionary, autoRestore,
+        contextualEnglish, retroEnglish, englishByFrequency, liveSpellCheck, reEditWord, autoFixAdjacent,
+        smartTouch, autoCorrect, adjacentFooter, showSuggestions, suggestionCount, suggestInNoSuggestFields,
+        emojiSuggest, numberChips, mathResults, pasteButton, addTones, aiProofread,
+        filterSensitive, swipeTyping, swipeFooterIos, swipeEnglish, swipeFuto, swipePractice,
+        shortcuts, systemTextReplacement, templates, textTools, translate, numberRow,
+        numberRowFullHeight, spaceSideKey, largeKeys, emojiKeyPlacement, longPressNumbers, longPressSymbols,
+        holdShiftSymbols, autoSpaceAfterPunct, trackpadSpeed, swipeKeyCommandsIos, oneHandIos, gesturesFooterIos,
+        keyPreview, keyPressHighlight, hapticFeedback, keySound, plusThemes, systemBackdrop,
+        moleGame, wallpaper, transparency, rowHeightIos, keyboardRaise, suggestionBarHeight,
+        suggestionInk, spaceLogo, splitKeyboardIos, resetAppearance, advancedStyle, fontScaleIos,
+        clipboardHistory, clipboardTTL, clipboardPasteAllowIos, clipboardIosLimit, clipboardOffClears, incognitoIos,
+        iCloudSync, includeLearned, backupFile, debugLogIos, showLog, clearLog,
+        swipeDataCredit,
+    ]
+}
