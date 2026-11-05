@@ -157,7 +157,7 @@ phím). Mặc định tắt; user bật theo app.
 Mặc định lấy từ `App/Sources/AppState.swift` (1.7.12); nếu macOS đổi mặc định thì Windows đổi theo.
 Từ 05/11/2026 (docs/ONBOARDING-SPEC.md §4) Cài đặt gom `autoRestore`, `collisionPrefersVietnamese`,
 `contextualEnglish`, `retroactiveEnglish`, `englishByFrequency`, `switchHotkey`, `startEnglish` vào
-mục "Gõ mixed Việt/Anh" của trang Kiểu gõ (key không đổi).
+nhóm "Gõ lẫn tiếng Anh" (phần Nâng cao) và "Chuyển Việt/Anh" của trang Gõ phím (key không đổi; xem docs/SETTINGS-CLEANUP-SPEC.md).
 
 ## 8. App `VietTelex.exe`
 - Win32 thuần + Common Controls v6, dark mode theo hệ thống (`DwmSetWindowAttribute`,

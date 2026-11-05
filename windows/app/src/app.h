@@ -22,8 +22,8 @@ bool settingsDialogMessage(MSG* msg);
 // Dark mode helpers (settings_window.cpp).
 bool systemUsesDarkApps();
 
-// Shortcut import with a file picker: VietTelex/macOS files and UniKey / OpenKey macro
-// files, UTF-8 or UTF-16 (settings_window.cpp; also the welcome window's "Chuyển từ UniKey").
+// Shortcut import with a file picker: VietTelex/macOS files and other input methods' macro
+// files, UTF-8 or UTF-16 (settings_window.cpp; also the welcome window's import button).
 void importShortcutsDialog(HWND owner);
 
 // First-run welcome window (welcome.cpp). `setupPage`: keyboard, switch key, tray, other
