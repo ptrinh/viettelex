@@ -237,6 +237,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     override fun onCreate() {
         val t0 = SystemClock.elapsedRealtime()
+        if (BuildConfig.DEBUG) perfCreatedAt = t0
         super.onCreate()
         prefs = VTPrefs.of(this)
         com.viettelex.android.plus.PlusPrefs.install(this)   // PlusGate đọc cờ Plus từ prefs chung
@@ -573,7 +574,10 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         if (!restarting) session.pasteOnce.ended()   // ô mới: lời mời dán đang hiện coi như bỏ qua
         applyAutoShift()
         refreshBar()                  // ô trống → gợi mở đầu ngay khi hiện
-        if (BuildConfig.DEBUG) Log.d(TAG, "perf onStartInputView ${SystemClock.elapsedRealtime() - t0} ms")
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "perf onStartInputView ${SystemClock.elapsedRealtime() - t0} ms")
+            logFirstFrame(t0)   // sau setInputView (nếu dựng lại) ⇒ gắn đúng cây view sẽ vẽ
+        }
     }
 
     /** Ô nhập → FieldMapping, IcProxy, tracker, session. Gọi ở onStartInputView (và onStartInput khi có phím cứng). */
@@ -1402,6 +1406,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
      */
     private fun syncClipHistory(enabled: Boolean, ttl: ClipboardTTL) {
         if (!enabled) {
+            clipLoadGen++   // lượt đọc nền còn chờ: bỏ
             if (session.clipHistory != null || clipFile.exists()) { session.clipHistory = null; clipFile.delete() }
             strip?.setExtras(clipButton = false, open = false)
             closeClipboardPane()
@@ -1411,10 +1416,37 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             if (h.ttlMs != ttl.ms) { h.ttlMs = ttl.ms; if (h.prune(System.currentTimeMillis())) saveClipHistory(h) }
             return
         }
-        val text = try { if (clipFile.exists()) clipFile.readText() else null } catch (_: Exception) { null }
-        session.clipHistory = ClipboardHistory.deserialize(text, ttlMs = ttl.ms).also {
-            if (it.prune(System.currentTimeMillis())) saveClipHistory(it)
+        // Đọc + giải file trên worker (onCreate không chờ IO). Cùng HandlerThread với
+        // saveClipHistory ⇒ lượt đọc xếp TRƯỚC mọi lượt ghi của bản tạm — không đọc phải file vừa
+        // bị bản tạm ghi đè.
+        val placeholder = ClipboardHistory(ttlMs = ttl.ms)
+        session.clipHistory = placeholder
+        val gen = ++clipLoadGen
+        val f = clipFile
+        worker().post {
+            val text = try { if (f.exists()) f.readText() else null } catch (_: Exception) { null }
+            val loaded = ClipboardHistory.deserialize(text, ttlMs = ttl.ms)
+            handler.post { finishClipLoad(gen, placeholder, loaded) }
         }
+    }
+    /** Thế hệ lượt đọc lịch sử clipboard nền (đổi ⇒ kết quả cũ bị bỏ). */
+    private var clipLoadGen = 0
+
+    /**
+     * Đọc + giải file lịch sử clipboard đã xong trên worker. [placeholder] = bản RAM rỗng gắn tạm lúc
+     * chờ (nút 📋 / ghi clip vẫn chạy); mục chép trong lúc chờ gộp lên trên bản đọc được (đúng thứ
+     * tự thời gian), rồi ghi lại. Lần sync khác / tắt / onDestroy chen giữa ⇒ bỏ kết quả.
+     */
+    private fun finishClipLoad(gen: Int, placeholder: ClipboardHistory, loaded: ClipboardHistory) {
+        if (gen != clipLoadGen || session.clipHistory !== placeholder) return
+        val now = System.currentTimeMillis()
+        loaded.ttlMs = placeholder.ttlMs
+        var changed = loaded.prune(now)
+        if (loaded.absorb(placeholder)) { loaded.prune(now); changed = true }
+        session.clipHistory = loaded
+        if (changed) saveClipHistory(loaded)
+        if (clipPane?.visibility == View.VISIBLE) refreshClipboardPane()
+        if (inputShown) { session.invalidatePasteCache(); refreshBar() }
     }
 
     /** Ghi nền (file nhỏ ≤ 20 mục × 4000 ký tự); chụp chuỗi trên main trước. */
@@ -1615,6 +1647,29 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val t = HandlerThread("vt-suggest", Process.THREAD_PRIORITY_DEFAULT).also { it.start() }
         workerThread = t
         Handler(t.looper).also { worker = it }
+    }
+
+    /** DEBUG: mốc onCreate (process / service mới) — lần hiện đầu sau đó là "cold". */
+    private var perfCreatedAt = 0L
+    private var perfShownOnce = false
+
+    /**
+     * DEBUG "perf firstFrame": onStartInputView → lượt vẽ đầu của cây view bàn phím (pre-draw);
+     * cold = lần hiện đầu sau onCreate (kèm thời gian tính từ onCreate). Cạnh log perf onCreate/…
+     */
+    private fun logFirstFrame(t0: Long) {
+        val r = root ?: return
+        val cold = !perfShownOnce
+        perfShownOnce = true
+        r.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (r.viewTreeObserver.isAlive) r.viewTreeObserver.removeOnPreDrawListener(this)
+                val now = SystemClock.elapsedRealtime()
+                val tag = if (cold) "cold, since onCreate ${now - perfCreatedAt} ms" else "warm"
+                Log.d(TAG, "perf firstFrame ${now - t0} ms ($tag)")
+                return true
+            }
+        })
     }
 
     private fun logMemory() {

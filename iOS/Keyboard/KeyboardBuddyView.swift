@@ -44,7 +44,12 @@ final class BuddyView: UIView {
 
     private let stage = CALayer()      // khung nhân vật (cắt theo bounds view)
     private let sprite = CALayer()
+    /// Ảnh atlas đã giải (nil khi chưa xong giải nền — `spriteMode` vẫn true, ô trống tới lúc có ảnh).
     private var spriteAtlas: CGImage?
+    /// Hoạt hình (ảnh atlas) thay vì khung vector — quyết định lúc init, không đổi theo việc giải ảnh.
+    private let spriteMode: Bool
+    /// Tỉ lệ rộng/cao cả atlas (pixel) — từ ảnh đã giải; giải nền xong thì đặt lại khung sprite.
+    private var atlasAspect: CGFloat = 1
     // Keep at most 3 MiB cached; visible previews retain only their own image.
     private static let atlasCache: NSCache<NSString, CGImage> = {
         let cache = NSCache<NSString, CGImage>()
@@ -52,20 +57,47 @@ final class BuddyView: UIView {
         return cache
     }()
 
-    private static func atlas(_ character: BuddyCharacter) -> CGImage? {
+    /// Tên + URL atlas (chỉ tra bundle — không chạm ImageIO: lần đầu trong process ImageIO tự khởi
+    /// tạo ~10 ms trên main); nil = không có ảnh ⇒ vector.
+    private struct AtlasRef { let name: String; let url: URL }
+    private static func atlasRef(_ character: BuddyCharacter) -> AtlasRef? {
         guard character != .off else { return nil }
         let name = character.skin?.atlas ?? "buddy-\(character.rawValue)-v2"
-        if let image = atlasCache.object(forKey: name as NSString) { return image }
-        guard let url = VTBundleResource.url(name, "png", anchor: BuddyView.self),
-              let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceThumbnailMaxPixelSize: 512,
-            kCGImageSourceShouldCacheImmediately: true
-        ] as CFDictionary) else { return nil }
-        atlasCache.setObject(image, forKey: name as NSString, cost: image.bytesPerRow * image.height)
+        guard let url = VTBundleResource.url(name, "png", anchor: BuddyView.self) else { return nil }
+        return AtlasRef(name: name, url: url)
+    }
+
+    /// Giải atlas (thumbnail ≤512px, giải ngay) — gọi được từ mọi thread (NSCache an toàn đa luồng).
+    private static func decodeAtlas(_ ref: AtlasRef) -> CGImage? {
+        if let image = atlasCache.object(forKey: ref.name as NSString) { return image }
+        guard let source = CGImageSourceCreateWithURL(ref.url as CFURL, nil),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceThumbnailMaxPixelSize: 512,
+                kCGImageSourceShouldCacheImmediately: true
+              ] as CFDictionary) else { return nil }
+        atlasCache.setObject(image, forKey: ref.name as NSString, cost: image.bytesPerRow * image.height)
         return image
     }
+    /// Hàng đợi NỐI TIẾP giải atlas: hai view cùng nhân vật không giải trùng (lượt sau gặp cache).
+    private static let atlasQueue = DispatchQueue(label: "com.viettelex.buddy.atlas", qos: .userInitiated)
+
+    /// Gắn ảnh atlas vào layer (main). contentsRect / hoạt ảnh khung đã đặt sẵn ⇒ hiện đúng dáng hiện tại.
+    private func attachAtlas(_ image: CGImage) {
+        spriteAtlas = image
+        atlasAspect = CGFloat(image.width) / CGFloat(max(image.height, 1))
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        sprite.contents = image
+        CATransaction.commit()
+        if builtFor != .zero { build() }   // khung sprite theo tỉ lệ thật (chỉ khung, không side effect)
+    }
+
+    #if DEBUG
+    /// Test: ảnh atlas đã gắn (giải nền xong).
+    var atlasReady: Bool { spriteAtlas != nil }
+    /// Test: xoá cache atlas tĩnh (mô phỏng process lạnh).
+    static func debugDropAtlasCache() { atlasCache.removeAllObjects() }
+    #endif
 
     private func spriteRect(_ frame: Int) -> CGRect {
         let index = BuddySprites.cell(frame)
@@ -121,8 +153,10 @@ final class BuddyView: UIView {
     private var badge: CAShapeLayer?
     private var badgeText: CATextLayer?
 
+    /// - asyncAtlas: giải ảnh atlas trên nền (bàn phím: khung đầu không chờ PNG 1–1,6 MB); ô trống tới
+    ///   khi xong, không lóe vector. Cache nóng ⇒ gắn ngay. false (app / test): giải đồng bộ như cũ.
     init(character: BuddyCharacter, bar: UInt32, lowPower: Bool, framing: BuddyFraming = .bar, season: BuddySeason? = nil,
-         artStyle: BuddyStyle = .defaultValue) {
+         artStyle: BuddyStyle = .defaultValue, asyncAtlas: Bool = false) {
         self.character = character
         self.rig = BuddyRig.rig(character) ?? BuddyRig.cat
         self.framing = framing
@@ -142,14 +176,29 @@ final class BuddyView: UIView {
             todayMonth: date.month ?? 0, todayDay: date.day ?? 0)
         self.tones = BuddyHalo.colors(bar: bar)
         self.lowPower = lowPower
+        // Hoạt hình: chỉ nạp ảnh atlas (không dựng cây vector); thiếu ảnh ⇒ lùi về vector. Vẽ nét: không nạp ảnh.
+        let ref = artStyle.resolved(for: character) == .sprite ? Self.atlasRef(character) : nil
+        let syncImage = ref.flatMap { r in
+            asyncAtlas ? Self.atlasCache.object(forKey: r.name as NSString) : Self.decodeAtlas(r)
+        }
+        // Đồng bộ mà giải hỏng ⇒ vector như cũ; nền: có file là Hoạt hình (giải hỏng thì ô trống).
+        self.spriteMode = ref != nil && (asyncAtlas || syncImage != nil)
         super.init(frame: .zero)
         isUserInteractionEnabled = false
         isAccessibilityElement = false
         clipsToBounds = true          // không vẽ ra ngoài ô (ô đã gồm phần tràn xuống hàng phím đầu)
-        // Hoạt hình: chỉ nạp ảnh atlas (không dựng cây vector); thiếu ảnh ⇒ lùi về vector. Vẽ nét: không nạp ảnh.
-        if self.artStyle == .sprite, let atlas = Self.atlas(character) {
-            spriteAtlas = atlas
-            sprite.contents = atlas
+        if spriteMode, let ref {
+            if let syncImage {
+                spriteAtlas = syncImage
+                atlasAspect = CGFloat(syncImage.width) / CGFloat(max(syncImage.height, 1))
+                sprite.contents = syncImage
+            } else {
+                Self.atlasQueue.async { [weak self] in
+                    let image = Self.decodeAtlas(ref)
+                    guard let image else { return }
+                    DispatchQueue.main.async { self?.attachAtlas(image) }
+                }
+            }
             sprite.contentsRect = spriteRect(BuddySprites.sleep(character))
             sprite.magnificationFilter = .linear
             sprite.minificationFilter = .linear
@@ -351,7 +400,7 @@ final class BuddyView: UIView {
             let yawn = lastNightYawn + 5
             deadline = min(deadline ?? yawn, yawn)
         }
-        if spriteAtlas == nil, case .dancing = shown {
+        if !spriteMode, case .dancing = shown {
             let index = danceLoopIndex(now)
             let boundary = loopEpoch + Double((index / 2 + 1) * 2 - danceLoopBase) * loopLen
             deadline = min(deadline ?? boundary, boundary)
@@ -400,7 +449,7 @@ final class BuddyView: UIView {
     func apply(_ phase: BuddyPhase, now: Double) {
         let v = BuddyPolicy.visual(phase, lowPower: lowPower)
         var moveChanged = false
-        if spriteAtlas == nil, case .dancing(let tier) = v, case .dancing = shown {
+        if !spriteMode, case .dancing(let tier) = v, case .dancing = shown {
             moveChanged = BuddyDance.move(character, tier: tier, loopIndex: danceLoopIndex(now), seed: danceSeed, season: season) != danceMove
         }
         guard moveChanged || v != shown || (isReact(v) && brain.reactSerial != shownSerial) else { return }
@@ -418,7 +467,7 @@ final class BuddyView: UIView {
         if case .asleep = v { stopSignature() }
         if case .awake = v { stopSignature() }
         if case .idle = prev, v != .idle, activeSignature == .bamboo { stopSignature() }
-        if spriteAtlas != nil {
+        if spriteMode {
             applySprite(v)
             return
         }
@@ -733,7 +782,7 @@ final class BuddyView: UIView {
             group.addSublayer(l)
             return (l, piece)
         }
-        if spriteAtlas != nil { layer.addSublayer(group) }
+        if spriteMode { layer.addSublayer(group) }
         else { spin.insertSublayer(group, above: parts[reaction == .lionDance ? .head : .armR]) }
         holidayProps[reaction] = (group, shapes)
         layoutHolidayProps()
@@ -743,8 +792,8 @@ final class BuddyView: UIView {
     private func layoutHolidayProps() {
         guard !holidayProps.isEmpty else { return }
         let hp = rig.heart, vp = rig.viewport(framing)
-        let s = spriteAtlas == nil ? scale : prop.bounds.width / CGFloat(hp.size * 2)
-        let center = spriteAtlas == nil
+        let s = !spriteMode ? scale : prop.bounds.width / CGFloat(hp.size * 2)
+        let center = !spriteMode
             ? CGPoint(x: CGFloat(hp.x - vp.x) * s, y: CGFloat(hp.y - vp.y) * s)
             : prop.position
         for (group, shapes) in holidayProps.values {
@@ -1083,7 +1132,7 @@ final class BuddyView: UIView {
     }
 
     private func updateAmbient(active: Bool) {
-        guard !lowPower, spriteAtlas == nil, active,
+        guard !lowPower, !spriteMode, active,
               season == .tet || season == .christmas || season == .midAutumn,
               bounds.width > 0, bounds.height > 0 else {
             for l in ambientLayers { l.removeAllAnimations(); l.isHidden = true }
@@ -1189,10 +1238,10 @@ final class BuddyView: UIView {
 
     /// Dựng path theo cỡ view (chỉ khi cỡ đổi). Nhân vật đứng đáy ô, giữa ngang.
     private func build() {
-        if let atlas = spriteAtlas {
+        if spriteMode {
             let rows = BuddySprites.rows(character)
             let columns = BuddySprites.columns(character)
-            let aspect = CGFloat(atlas.width) / CGFloat(atlas.height) * CGFloat(rows) / CGFloat(columns)
+            let aspect = atlasAspect * CGFloat(rows) / CGFloat(columns)
             // Cao trọn ô (chạm trần strip); ô ảnh rộng hơn ô nhân vật thì cắt lề trong suốt hai bên (clipsToBounds).
             let h = min(bounds.height, maxFigureHeight)
             CATransaction.begin(); CATransaction.setDisableActions(true)
@@ -1370,7 +1419,7 @@ final class BuddyView: UIView {
     }
     var hasPendingTimer: Bool { timer != nil }
     /// Khung nhân vật trong view (pt).
-    var figureFrame: CGRect { spriteAtlas != nil ? sprite.frame : stage.frame }
+    var figureFrame: CGRect { spriteMode ? sprite.frame : stage.frame }
     /// Hạt hiệu ứng đã dựng (pool) + "biển" đang hiện.
     var fxParticles: [CALayer] { fxShapes as [CALayer] + fxTexts }
     var fxBadgeFrame: CGRect? { badge.flatMap { $0.isHidden && badgeText?.isHidden != false ? nil : $0.frame } }
@@ -1386,7 +1435,7 @@ final class BuddyView: UIView {
         CATransaction.begin(); CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
         removeAllAnimations()
-        if spriteAtlas != nil {
+        if spriteMode {
             sprite.contentsRect = spriteRect(pose == nil
                 ? BuddySprites.sleep(character)
                 : (dance ? 1 : BuddySprites.rest(character)))

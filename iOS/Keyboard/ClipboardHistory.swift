@@ -46,7 +46,9 @@ final class ClipboardHistory {
     static let maxTextLength = 10_000
     static let freshWindow: TimeInterval = 180
 
-    private(set) var raw: [ClipItem] = []     // mới nhất trước
+    /// Mới nhất trước. Đọc + giải JSON LƯỜI ở lần dùng đầu (không nằm trong khung hình đầu của
+    /// bàn phím — lần hiện chỉ tạo object; file đọc khi bar / panel / chip cần tới lịch sử).
+    private(set) lazy var raw: [ClipItem] = { loadedFlag = true; return Self.read(fileURL) }()
     private let fileURL: URL?
 
     init(fileURL: URL?, maxItems: Int = 20, ttl: TimeInterval = 3600, sensitiveTTL: TimeInterval = 120) {
@@ -54,10 +56,17 @@ final class ClipboardHistory {
         self.maxItems = maxItems
         self.ttl = ttl
         self.sensitiveTTL = sensitiveTTL
-        if let u = fileURL, let data = try? Data(contentsOf: u),
-           let items = try? JSONDecoder().decode([ClipItem].self, from: data) {
-            raw = items
-        }
+    }
+
+    #if DEBUG
+    /// Test: file đã được đọc chưa (lười).
+    var debugLoaded: Bool { loadedFlag }
+    #endif
+    private var loadedFlag = false
+    private static func read(_ url: URL?) -> [ClipItem] {
+        guard let u = url, let data = try? Data(contentsOf: u),
+              let items = try? JSONDecoder().decode([ClipItem].self, from: data) else { return [] }
+        return items
     }
 
     /// File mặc định: Application Support của extension (container riêng).

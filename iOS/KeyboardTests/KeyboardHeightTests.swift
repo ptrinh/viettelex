@@ -489,3 +489,119 @@ final class HostFillResumeTests: XCTestCase {
         assertCoversContainer(r, "sau ẩn/hiện")
     }
 }
+
+/// Chờ chiều cao host ổn định trước khi hiện (HeightSettleGuard): hiện ngay khi không còn gì chờ,
+/// chờ khi đã xin thêm mà host chưa cấp, và KHÔNG BAO GIỜ giữ ẩn quá trần.
+final class HeightSettleGuardTests: XCTestCase {
+    private let base: CGFloat = 252
+
+    func testRevealsImmediatelyWhenNothingPending() {
+        var g = HeightSettleGuard()
+        g.arm(now: 0)
+        XCTAssertTrue(g.hidden)
+        XCTAssertTrue(g.shouldReveal(decision: .none, base: base, extra: 0, viewHeight: base, inWindow: true, now: 0.001))
+        XCTAssertFalse(g.hidden)
+        XCTAssertFalse(g.shouldReveal(decision: .none, base: base, extra: 0, viewHeight: base, inWindow: true, now: 0.002),
+                       "chỉ báo hiện một lần")
+    }
+
+    func testWaitsForBandConfirmationAndGrant() {
+        var g = HeightSettleGuard()
+        g.arm(now: 0)
+        XCTAssertFalse(g.shouldReveal(decision: .wait, base: base, extra: 0, viewHeight: base, inWindow: true, now: 0.01))
+        XCTAssertFalse(g.shouldReveal(decision: .apply(18), base: base, extra: 18, viewHeight: base, inWindow: true, now: 0.16))
+        // Host chưa cấp phần xin thêm: HostFill .none nhưng view còn thấp ⇒ chờ.
+        XCTAssertFalse(g.shouldReveal(decision: .none, base: base, extra: 18, viewHeight: base, inWindow: true, now: 0.17))
+        XCTAssertTrue(g.shouldReveal(decision: .none, base: base, extra: 18, viewHeight: base + 18, inWindow: true, now: 0.2))
+    }
+
+    func testNotInWindowOrZeroHeightWaits() {
+        var g = HeightSettleGuard()
+        g.arm(now: 0)
+        XCTAssertFalse(g.shouldReveal(decision: .none, base: base, extra: 0, viewHeight: base, inWindow: false, now: 0.01))
+        XCTAssertFalse(g.shouldReveal(decision: .none, base: base, extra: 0, viewHeight: 0, inWindow: true, now: 0.02))
+    }
+
+    func testHostShortfallWithoutExtraIsFinal() {
+        var g = HeightSettleGuard()
+        g.arm(now: 0)
+        XCTAssertTrue(g.shouldReveal(decision: .none, base: base, extra: 0, viewHeight: base - 30, inWindow: true, now: 0.01),
+                      "cấp thiếu (strip co) là chiều cao cuối — không chờ tới trần")
+    }
+
+    func testCapAlwaysReveals() {
+        var g = HeightSettleGuard()
+        g.arm(now: 10)
+        XCTAssertFalse(g.reveal(now: 10.1), "chưa tới trần")
+        XCTAssertTrue(g.hidden)
+        XCTAssertFalse(g.shouldReveal(decision: .wait, base: base, extra: 0, viewHeight: base, inWindow: true, now: 10.2))
+        XCTAssertTrue(g.shouldReveal(decision: .wait, base: base, extra: 0, viewHeight: base, inWindow: true,
+                                     now: 10 + HeightSettleGuard.cap), "quá trần ⇒ hiện bất kể")
+        g.arm(now: 20)
+        XCTAssertTrue(g.reveal(now: 20 + HeightSettleGuard.cap), "hẹn giờ trần")
+        g.arm(now: 30)
+        XCTAssertTrue(g.reveal(now: 30, force: true), "chạm / ẩn: hiện ngay")
+        XCTAssertFalse(g.reveal(now: 31, force: true), "không giữ ẩn ⇒ không làm gì")
+        XCTAssertLessThanOrEqual(HeightSettleGuard.cap, 0.3)
+    }
+
+    /// Controller thật: nền đục (theme đen) trên iPhone iOS 26+ — chưa có lượt layout nào xác nhận
+    /// (view chưa vào cửa sổ) ⇒ giữ ẩn; hẹn giờ trần hiện lại dù không còn lượt layout nào.
+    @MainActor func testControllerNeverStaysInvisible() throws {
+        guard UIDevice.current.userInterfaceIdiom == .phone,
+              ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26 else {
+            throw XCTSkip("HostFill chỉ chạy trên iPhone iOS 26+")
+        }
+        let suite = "vt-settle-guard-tests"
+        let saved = UserDefaultsProvider.shared
+        defer {
+            UserDefaultsProvider.shared = saved
+            UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        }
+        let d = UserDefaults(suiteName: suite)!
+        d.removePersistentDomain(forName: suite)
+        d.set(KeyboardTheme.oled.rawValue, forKey: ThemeSettings.themeKey)
+        UserDefaultsProvider.shared = d
+
+        let vc = KeyboardViewController()
+        vc.debugProxy = KeyboardBenchTests.BenchProxy()
+        vc.debugFullAccess = false
+        vc.loadViewIfNeeded()
+        vc.view.frame = CGRect(x: 0, y: 0, width: 402, height: 300)
+        vc.beginAppearanceTransition(true, animated: false)
+        XCTAssertTrue(vc.debugKeyboard.paintsBackdrop)
+        vc.view.layoutIfNeeded()
+        XCTAssertTrue(vc.debugContentHeld, "chưa vào cửa sổ: hình học chưa đáng tin ⇒ chờ")
+        XCTAssertEqual(vc.debugKeyboard.alpha, 0)
+        RunLoop.main.run(until: Date().addingTimeInterval(HeightSettleGuard.cap + 0.1))
+        XCTAssertFalse(vc.debugContentHeld, "trần cứng: luôn hiện lại")
+        XCTAssertEqual(vc.debugKeyboard.alpha, 1)
+        vc.endAppearanceTransition()
+        vc.beginAppearanceTransition(false, animated: false)
+        vc.endAppearanceTransition()
+    }
+
+    /// Trường hợp thường (không dải hở, view trong cửa sổ): hiện ngay ở lượt layout đầu — không trễ.
+    @MainActor func testControllerRevealsAtFirstLayoutWhenSettled() throws {
+        guard UIDevice.current.userInterfaceIdiom == .phone,
+              ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26 else {
+            throw XCTSkip("HostFill chỉ chạy trên iPhone iOS 26+")
+        }
+        let suite = "vt-settle-guard-tests-2"
+        let saved = UserDefaultsProvider.shared
+        defer {
+            UserDefaultsProvider.shared = saved
+            UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        }
+        let d = UserDefaults(suiteName: suite)!
+        d.removePersistentDomain(forName: suite)
+        d.set(KeyboardTheme.oled.rawValue, forKey: ThemeSettings.themeKey)
+        UserDefaultsProvider.shared = d
+
+        let r = KeyboardStartupTests.Rig(fullAccess: false, appear: false)
+        defer { r.close() }
+        XCTAssertTrue(r.vc.debugKeyboard.paintsBackdrop)
+        XCTAssertFalse(r.vc.debugContentHeld, "khung đầu: đã hiện")
+        XCTAssertEqual(r.vc.debugKeyboard.alpha, 1)
+    }
+}

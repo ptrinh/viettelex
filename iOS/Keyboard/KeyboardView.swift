@@ -434,7 +434,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// một tay, chạm hoặc giữ = bật/tắt) — tester Plus 1.2.8: tắt mẫu câu thì ☰ mất, không còn
     /// lối bật một tay trên bàn phím. Ô này vốn đã chừa chỗ (bar thụt stripZoneWidth) nên
     /// không thêm gì vào thanh gợi ý. iPad / bàn tách đôi: không có một tay ⇒ ẩn như cũ.
+    private var burgerZoneMade = false
     private lazy var burgerZone: UIButton = {
+        burgerZoneMade = true
         let b = UIButton(type: .custom)
         b.addAction(UIAction { [weak self] _ in self?.leftZoneTapped() }, for: .touchUpInside)
         let hold = UILongPressGestureRecognizer(target: self, action: #selector(burgerHold(_:)))
@@ -538,7 +540,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func layoutStripZones() {
         let open = suggestionsEnabled && plane != .emoji && plane != .emojiSearch
         let zone = leftZone
-        burgerZone.isHidden = !open || zone == .none
+        // Ẩn mà chưa từng tạo ⇒ khỏi tạo (dựng lười lần đầu cần hiện).
+        let hideBurger = !open || zone == .none
+        if burgerZoneMade || !hideBurger { burgerZone.isHidden = hideBurger }
         layoutClipboardExtras(stripOpen: open)
         layoutBuddy(stripOpen: open)
         layoutEmojiBarButton()
@@ -549,6 +553,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let key = StripZonesKey(width: bounds.width, strip: strip, rowTop: barRowTop(strip: strip),
                                 templates: templatesActive, ink: palette.barInk,
                                 zone: zone, oneHand: oneHand, lastSide: lastOneHandSide)
+        guard burgerZoneMade || !hideBurger else { stripZonesKey = nil; return }
         defer { bringSubviewToFront(burgerZone) }
         guard key != stripZonesKey else { return }
         stripZonesKey = key
@@ -920,7 +925,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if let h = searchBarHeight, h.constant != barH { h.constant = barH }
         suggestionBar.isHidden = !visible
         suggestionBar.alpha = 1
-        if !visible { pasteCard.isHidden = true; notePasteOffer(false) }   // emoji plane
+        if !visible { if pasteCardMade { pasteCard.isHidden = true }; notePasteOffer(false) }   // emoji plane
         lastSuggestionSig = nil   // chrome đổi → lượt show kế ghi lại (kể cả thẻ Dán)
         if visible { buildSuggestionPoolIfNeeded() }
         refreshBarFonts()
@@ -969,7 +974,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             loadThemeScreensIfNeeded()
         }
         logGeometryIfChanged()
-        if pasteCard.superview != nil, !pasteCard.isHidden {   // xoay màn hình
+        if pasteCardMade, pasteCard.superview != nil, !pasteCard.isHidden {   // xoay màn hình
             let w = Self.stripZoneWidth
             let clipW = barRightExtras   // chừa nút 📋 / 😊
             pasteCard.frame = CGRect(x: w, y: Self.barTopPad, width: max(bounds.width - w - clipW, 0),
@@ -1260,7 +1265,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
     #if DEBUG
     var debugTemplatesLoaded: Bool { userTemplatesCache != nil }
-    var debugBurgerVisible: Bool { burgerZone.superview != nil && !burgerZone.isHidden }
+    var debugBurgerVisible: Bool { burgerZoneMade && burgerZone.superview != nil && !burgerZone.isHidden }
     var debugLeftZone: LeftZone { leftZone }
     /// Test hook: chạm ô mép trái thanh gợi ý (☰ hoặc nút một tay) — đúng action của nút.
     func debugTapLeftZone() { burgerZone.sendActions(for: .touchUpInside) }
@@ -1606,7 +1611,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // Stock hiện nội dung clipboard + "Paste from <App>" — bàn phím bên thứ ba KHÔNG
     // làm vậy được: đọc nội dung = iOS báo/hỏi quyền dán MỖI lần bàn phím hiện, và
     // app nguồn không lộ cho extension. Nên: "Dán" / "Nội dung vừa copy".
+    /// Dựng LƯỜI lần đầu thẻ Dán hiện (khởi động lạnh: không tạo 2 stack + 3 label khi ẩn).
+    private var pasteCardMade = false
     private lazy var pasteCard: KeyButton = {
+        pasteCardMade = true
         let b = KeyButton(type: .custom)
         b.backgroundColor = .clear
         b.hitInsets = UIEdgeInsets(top: -8, left: 0, bottom: 0, right: 0)
@@ -1644,7 +1652,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Đang gõ dở: ẩn thẻ Dán NGAY ở phím (không đợi kết quả gợi ý chạy nền).
     func hidePasteCard() {
         notePasteOffer(false)
-        guard !pasteCard.isHidden else { return }
+        guard pasteCardMade, !pasteCard.isHidden else { return }
         pasteCard.isHidden = true
         lastSuggestionSig = nil
     }
@@ -1669,7 +1677,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             (pasteCard.viewWithTag(93) as? UIImageView)?.tintColor = ink.withAlphaComponent(0.8)
             bringSubviewToFront(pasteCard)
         }
-        pasteCard.isHidden = !visible
+        if visible || pasteCardMade { pasteCard.isHidden = !visible }
         // Thẻ Dán THAY cả bar: ẩn hẳn nội dung slot (trước đây chỉ alpha=0 cho bar — mọi
         // chỗ đặt lại alpha=1 như updateSuggestionChrome khi rebuild/đổi plane làm chữ
         // gợi ý hiện ĐÈ lên thẻ Dán, user 27/09/2026).
@@ -2033,7 +2041,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         configureKeyEffects()
         configureSwipeTrail()
         configureRainbow()
-        configureBuddy()
+        StartupTrace.span("kv.buddy") { configureBuddy() }
         configureMole()
         // Chiều cao hàng phím ±10pt (Settings → Giao diện) — đọc mỗi lần hiện. Bản cũ (có công
         // tắc "Kích thước như bàn phím iPhone") chưa được app chuyển đổi ⇒ tính trong bộ nhớ,
@@ -2891,7 +2899,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // keyArea (29/09/2026: trước chia 5 hàng trong keyArea, phím bị ép). Mọi phím chữ /
     // space / ⌫ đi vào EmojiSearchSession (Telex riêng), không tới ô nhập; chạm kết
     // quả mới chèn emoji thật. return / phím emoji → về lưới emoji; 123 → plane số.
-    private var emojiSearch = EmojiSearchSession()
+    /// Lười: tạo (đọc cài đặt Telex) lần đầu mở ô tìm — không nằm trong khởi động bàn phím.
+    private lazy var emojiSearch = EmojiSearchSession()
     private weak var searchBar: EmojiSearchBar?
     private weak var searchBarHeight: NSLayoutConstraint?
 
@@ -6189,7 +6198,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             return
         }
         buddy?.halt(); buddy?.removeFromSuperview()
-        let b = BuddyView(character: c, bar: palette.buddyBar, lowPower: low, season: season, artStyle: style)
+        // Ảnh atlas (PNG 1–1,6 MB) giải NỀN — khung đầu không chờ; ô trống tới khi xong (không lóe hình sai).
+        let b = BuddyView(character: c, bar: palette.buddyBar, lowPower: low, season: season, artStyle: style,
+                          asyncAtlas: true)
         b.onTimeChanged = { [weak self] in self?.configureBuddy() }
         addSubview(b)
         buddy = b
@@ -6376,7 +6387,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             b.layoutIfNeeded()
             if let l { titles.append(convert(l.bounds, from: l)) }
         }
-        let card = pasteCard.superview != nil && !pasteCard.isHidden ? pasteCard.frame : nil
+        let card = pasteCardMade && pasteCard.superview != nil && !pasteCard.isHidden ? pasteCard.frame : nil
         return (cells, divs, titles, card)
     }
     /// Test hook dải gợi ý: frame bar, nút 📋 (nil = ẩn/chưa tạo), ô slot.
@@ -6396,7 +6407,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         layoutIfNeeded()
         func mid(_ b: UIButton) -> CGFloat { b.frame.minY + b.bounds.inset(by: b.contentEdgeInsets).midY }
         var icons: [String: CGFloat] = [:]
-        if !burgerZone.isHidden { icons["burger"] = mid(burgerZone) }
+        if burgerZoneMade, !burgerZone.isHidden { icons["burger"] = mid(burgerZone) }
         if clipZoneMade, !clipZone.isHidden { icons["clip"] = mid(clipZone) }
         if emojiZoneMade, !emojiZone.isHidden { icons["emoji"] = mid(emojiZone) }
         return (suggestionBar.frame.midY, icons, rowsContainer.frame.minY + rowSpec.gap)

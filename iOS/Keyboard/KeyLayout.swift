@@ -521,3 +521,48 @@ struct HostFill {
         return .apply(target)
     }
 }
+
+// MARK: Chờ chiều cao host ổn định trước khi hiện (iPhone iOS 26+, nền đục: theme / ảnh nền)
+// HostFill xác nhận dải hở ở lượt layout SAU (~0,15 s) rồi mới xin thêm ⇒ trước đây bàn phím đã
+// hiện rồi mới cao thêm (giật). Lần hiện mới: nội dung giữ alpha 0 tới khi lượt layout cho thấy
+// không còn gì chờ (HostFill .none, view đã được cấp đủ phần xin thêm) — TRẦN cứng `cap` rồi hiện
+// bất kể. Trường hợp thường (không có dải hở) hiện ngay ở lượt layout đầu, trước commit khung đầu
+// ⇒ không trễ gì.
+
+/// Quyết định thuần (unit-test được) cho việc giữ ẩn nội dung lúc chiều cao host còn đang ổn định.
+struct HeightSettleGuard {
+    /// Trần thời gian giữ ẩn — quá thì hiện bất kể (không bao giờ để bàn phím vô hình).
+    static let cap: TimeInterval = 0.3
+
+    private(set) var hidden = false
+    private var since: TimeInterval = 0
+
+    /// Lần hiện mới (willAppear): bắt đầu giữ ẩn.
+    mutating func arm(now: TimeInterval) { hidden = true; since = now }
+
+    /// Mỗi lượt layout: true ⇒ hiện NGAY (đã ổn định hoặc quá trần).
+    /// - decision: kết quả HostFill.observe của lượt này.
+    /// - base / extra: mức xin gốc + phần xin thêm hiện tại; viewHeight: chiều cao host đã cấp.
+    /// - inWindow: view đã gắn vào cửa sổ (chưa gắn ⇒ hình học chưa đáng tin).
+    mutating func shouldReveal(decision: HostFill.Decision, base: CGFloat, extra: CGFloat,
+                               viewHeight: CGFloat, inWindow: Bool, now: TimeInterval) -> Bool {
+        guard hidden else { return false }
+        var settled = false
+        if case .none = decision, inWindow, viewHeight > 0 {
+            // Đã xin thêm mà host chưa cấp đủ ⇒ còn chờ; không xin thêm ⇒ mọi chiều cao host cấp đều
+            // là chiều cao cuối (cấp thiếu: strip co, không đổi nữa).
+            settled = extra <= 0 || viewHeight >= base + extra - HostFill.tolerance
+        }
+        if settled || expired(now: now) { hidden = false; return true }
+        return false
+    }
+
+    /// Hẹn giờ trần / chạm vào bàn phím: true ⇒ hiện ngay (`force` bỏ qua trần).
+    mutating func reveal(now: TimeInterval, force: Bool = false) -> Bool {
+        guard hidden, force || expired(now: now) else { return false }
+        hidden = false
+        return true
+    }
+
+    private func expired(now: TimeInterval) -> Bool { now - since >= Self.cap - 0.001 }
+}

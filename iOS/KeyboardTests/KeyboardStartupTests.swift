@@ -199,6 +199,30 @@ final class KeyboardStartupTests: XCTestCase {
         XCTAssertEqual(r.builds, 1, "theme: không dựng kiểu mặc định rồi dựng lại theo theme")
     }
 
+    // MARK: đọc cài đặt một lần
+
+    /// Cài đặt (~45 key App Group) đọc đúng MỘT lần mỗi lần hiện: init controller không đọc
+    /// (bridge lười), viewWillAppear đọc rồi truyền xuống EngineBridge.
+    @MainActor func testSettingsLoadedOncePerAppearance() {
+        let saved = UserDefaultsProvider.shared
+        UserDefaultsProvider.shared = defaults(rich: false)
+        defer { UserDefaultsProvider.shared = saved; UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        KeyboardSettings.debugLoadCount = 0
+        let vc = KeyboardViewController()
+        XCTAssertEqual(KeyboardSettings.debugLoadCount, 0, "init không đọc cài đặt")
+        vc.loadViewIfNeeded()
+        XCTAssertEqual(KeyboardSettings.debugLoadCount, 0, "viewDidLoad không đọc cài đặt")
+        let r = Rig(fullAccess: false)
+        XCTAssertEqual(KeyboardSettings.debugLoadCount, 1, "một lần hiện = một lần đọc")
+        // Cài đặt đổi giữa hai lần hiện (app vừa sửa): lần hiện sau đọc lại, đúng một lần.
+        UserDefaultsProvider.shared?.set(true, forKey: "autoCorrect")
+        r.close()
+        Self.spin(0.1)
+        let r2 = Rig(fullAccess: false)
+        XCTAssertEqual(KeyboardSettings.debugLoadCount, 2)
+        r2.close()
+    }
+
     // MARK: việc hoãn sau khung đầu
 
     /// Gõ NGAY sau khung đầu, trước khi việc hoãn (gợi ý, model cá nhân…) chạy: engine Telex sẵn

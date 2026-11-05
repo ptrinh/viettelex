@@ -425,6 +425,37 @@ final class KeyboardBuddyTests: XCTestCase {
       }
     }
 
+    /// Khởi động lạnh (cache trống): bàn phím giải atlas NỀN — init không chờ, không dựng vector thay
+    /// thế (không lóe hình sai), ô trống tới khi xong rồi hiện đúng dáng đang đặt.
+    @MainActor func testAsyncAtlasDecodeEventuallyShowsSprite() throws {
+        BuddyView.debugDropAtlasCache()
+        let v = BuddyView(character: .cat, bar: 0x222222, lowPower: false, asyncAtlas: true)
+        v.frame = CGRect(x: 0, y: 0, width: 50, height: 44)
+        v.layoutIfNeeded()
+        let sprite = try XCTUnwrap(v.layer.sublayers?.first)
+        XCTAssertNil(sprite.contents, "cache lạnh: chưa có ảnh ngay (giải nền)")
+        XCTAssertFalse(v.atlasReady)
+        v.apply(.asleep(zzz: false), now: 0)
+        let sleepRect = sprite.contentsRect
+        let deadline = Date().addingTimeInterval(3)
+        while !v.atlasReady && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        XCTAssertTrue(v.atlasReady, "giải nền xong ⇒ gắn ảnh")
+        XCTAssertNotNil(sprite.contents)
+        XCTAssertEqual(sprite.contentsRect, sleepRect, "giữ dáng đã đặt lúc chờ ảnh")
+        XCTAssertTrue(v.bounds.contains(sprite.frame), "khung theo tỉ lệ ảnh thật, trong ô")
+        XCTAssertGreaterThan(sprite.frame.width, 0)
+        let sync = BuddyView(character: .cat, bar: 0x222222, lowPower: false)
+        sync.frame = v.frame
+        sync.layoutIfNeeded()
+        XCTAssertEqual(sprite.frame, sync.layer.sublayers?.first?.frame, "cùng khung với bản giải đồng bộ")
+        sync.halt()
+        // Cache nóng (lần hiện sau): gắn ngay, đồng bộ.
+        let warm = BuddyView(character: .cat, bar: 0x222222, lowPower: false, asyncAtlas: true)
+        XCTAssertTrue(warm.atlasReady)
+        XCTAssertNotNil(warm.layer.sublayers?.first?.contents)
+        v.halt(); warm.halt()
+    }
+
     @MainActor func testGirlSleepsImmediatelyLikeBoy() throws {
         let v = BuddyView(character: .girl, bar: 0x222222, lowPower: false)
         v.frame = CGRect(x: 0, y: 0, width: 44, height: 44)

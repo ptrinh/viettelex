@@ -130,7 +130,14 @@ struct KeyboardSettings {
     /// "Giữ Shift để gõ số và ký hiệu" (ShiftHold) — mặc định BẬT. Giống Android.
     var holdShiftSymbols = true
 
+    #if DEBUG
+    /// Test: số lần load() (mỗi lần hiện bàn phím đúng MỘT lần — KeyboardStartupTests).
+    nonisolated(unsafe) static var debugLoadCount = 0
+    #endif
     static func load() -> KeyboardSettings {
+        #if DEBUG
+        debugLoadCount += 1
+        #endif
         var s = KeyboardSettings()
         guard let d = UserDefaultsProvider.shared else { return s }
         if d.object(forKey: "freeMarking") != nil { s.freeMarking = d.bool(forKey: "freeMarking") }

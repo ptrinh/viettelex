@@ -340,3 +340,35 @@ final class ClipboardTTLTests: XCTestCase {
         XCTAssertEqual(allowed, ClipboardTTL.ids)
     }
 }
+
+/// Khởi động lạnh: tạo ClipboardHistory (mỗi lần hiện) KHÔNG đọc / giải file JSON; lần dùng đầu
+/// mới đọc — lịch sử vẫn đầy đủ.
+final class ClipboardLazyLoadTests: XCTestCase {
+    func testHistoryLoadsLazilyOnFirstUse() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("clip-lazy-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let now = Date().timeIntervalSince1970
+        let w = ClipboardHistory(fileURL: url)
+        w.add("mot", now: now - 10)
+        w.add("hai", now: now - 5)
+        XCTAssertTrue(w.togglePin("mot"))
+        w.save()
+
+        let h = ClipboardHistory(fileURL: url)
+        XCTAssertFalse(h.debugLoaded, "init không đọc file")
+        XCTAssertEqual(h.items(now: now).map(\.text), ["mot", "hai"], "ghim trước, rồi mới nhất")
+        XCTAssertTrue(h.debugLoaded)
+        // Thêm mục trước khi từng đọc: vẫn giữ lịch sử cũ (đọc lười rồi mới chèn).
+        let h2 = ClipboardHistory(fileURL: url)
+        h2.add("ba", now: now)
+        XCTAssertEqual(h2.items(now: now).map(\.text), ["mot", "ba", "hai"])
+    }
+
+    func testFeatureLoadDoesNotReadFile() {
+        let f = ClipboardFeature(fileURL: FileManager.default.temporaryDirectory
+            .appendingPathComponent("clip-lazy-\(UUID().uuidString).json"))
+        f.load(historyEnabled: true, incognito: false)
+        XCTAssertEqual(f.history?.debugLoaded, false, "công tắc bật: chỉ tạo object, chưa đọc file")
+    }
+}
