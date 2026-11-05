@@ -140,7 +140,7 @@ final class RoutingDecisionTests: XCTestCase {
 
     // POLICY 2026-08-06 (maintainer): browser PAGE CONTENT routes to the TAP
     // backspace-retype path by default — the only channel every web editor must
-    // handle (the EVKey/OpenKey model). insertText(replacementRange:) has no
+    // handle (the classic backspace-retype model). insertText(replacementRange:) has no
     // contract with JS editors: Docs appended + killed ⌫ (07-30), Discord appended
     // while EVERY self-report said honored (08-05, provably undetectable), Zalo
     // froze with a constant caret (08-06) — three per-host patches in one week.

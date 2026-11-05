@@ -1,9 +1,9 @@
 import XCTest
 @testable import VietTelex
 
-// App-side coverage for the gonhanh-learnings batch: remote-desktop passthrough
+// App-side coverage for the field-hardening batch: remote-desktop passthrough
 // routing (item 3) and tap-lifecycle safety without Accessibility (item 2).
-final class GonhanhHardeningTests: XCTestCase {
+final class RemoteAndTrustHardeningTests: XCTestCase {
 
     override func tearDown() {
         Accessibility.testTrustOverride = nil

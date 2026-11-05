@@ -1023,7 +1023,7 @@ enum FocusedFieldDetector {
     /// editor swallows (issue #26: 1.4.11's AXWebArea fix never got to run;
     /// dev machines passed because test tooling had already poked Chrome).
     /// Setting AXManualAccessibility=true on the app element flips the tree on
-    /// without VoiceOver side effects (the standard EVKey/Electron switch; apps
+    /// without VoiceOver side effects (the standard Electron accessibility switch; apps
     /// that don't know the attribute just return an error). Once per pid, on the
     /// scan queue — never the keystroke path. The tree takes a beat to build, so
     /// the first refresh after the poke may still default to selection; the next
@@ -2536,7 +2536,7 @@ final class TerminalTapController {
     var _testSettingsObserverInstalled: Bool { settingsDeactivateObserver != nil }
     // Exercise the poll's start/stop mechanics directly — NOT through ensureRunning()
     // with testTrustOverride=true, which would reach CGEvent.tapCreate in the test
-    // host (see GonhanhHardeningTests' testEnsureRunningIsSafeWithoutTrust for why
+    // host (see RemoteAndTrustHardeningTests' testEnsureRunningIsSafeWithoutTrust for why
     // that path is only ever exercised untrusted).
     func _testDisarmTrustPoll() { stopTrustPoll() }
     #endif
@@ -2593,7 +2593,7 @@ final class TerminalTapController {
                 && (self.stateLock.withLock({ self.tap }).map { CGEvent.tapIsEnabled(tap: $0) } ?? false)
             // Trusted but the tap silently died: the tapDisabledByTimeout event is
             // NOT guaranteed to arrive (a callback blocked mid-post never sees it —
-            // same field data as gonhanh's watchdog). ensureRunning is a single
+            // same field data as other IMEs' tap watchdogs). ensureRunning is a single
             // tapIsEnabled read when healthy; re-enables or rebuilds when not.
             // Without this a dead tap only healed on the next activateServer
             // (app switch) — typing in the SAME app stayed broken up to that point.

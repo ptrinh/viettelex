@@ -7,9 +7,9 @@ final class ShortcutImporterTests: XCTestCase {
         ShortcutImporter.parse(Data(s.utf8))
     }
 
-    func testGonhanhTxtFormat() {
+    func testSemicolonCommentTxtFormat() {
         let txt = """
-        ;Gõ Nhanh - Bảng gõ tắt
+        ;Bảng gõ tắt xuất từ bộ gõ khác
         vn:Việt Nam
         tphcm:Thành phố Hồ Chí Minh
         đc:được
