@@ -60,10 +60,15 @@ final class RamFixTests: XCTestCase {
         cv.layoutIfNeeded()
         let cells = cv.visibleCells
         XCTAssertFalse(cells.isEmpty)
+        // Ô vẽ ẢNH atlas (khi App Group đã có atlas — máy từng chạy app) hoặc CHỮ: cả hai đều
+        // phải hiện đúng emoji. Trước đây test chỉ nhìn label ⇒ hỏng trên máy đã có atlas.
         for c in cells {
             guard let l = Self.find(UILabel.self, in: c) else { continue }
             XCTAssertFalse(l.adjustsFontSizeToFitWidth)
-            XCTAssertFalse(l.text?.isEmpty ?? true)
+            let image = Self.find(UIImageView.self, in: c)
+            let showsImage = image.map { !$0.isHidden && $0.image != nil } ?? false
+            XCTAssertTrue(showsImage || !(l.text?.isEmpty ?? true), "ô emoji trống")
+            XCTAssertFalse(c.accessibilityLabel?.isEmpty ?? true)
         }
         kb.debugSetPlane(numbers: false)
         XCTAssertEqual(kb.debugPlaneName, "letters")
