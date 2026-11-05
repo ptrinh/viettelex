@@ -1,6 +1,11 @@
 // Port of TelexCore/Sources/TelexCore/RetroEnglish.swift (1:1) — RETROACTIVE English
 // correction (TelexEngine.retroactiveEnglish, EXPERIMENTAL, default OFF, inert unless
 // contextualEnglish is on). See the Swift file and docs/DESIGN.md for the design.
+// ONE STRONG English word also makes the run certain: a frequent English word no Vietnamese
+// syllable reads as (EnglishFrequency, en ≥ strongMin, vn = 0: "very", "fast") right after an
+// anchored span of ≥ 2 rewrite candidates — "His car is fast." is fixed at "fast".
+// Flip-back (TelexEngine.englishByFrequency, experimental): the same edit path rewrites a word
+// the FREQUENCY rule turned English back to Vietnamese ("His hửng" → "hí hửng").
 package com.viettelex.telexcore
 
 /**
@@ -8,8 +13,19 @@ package com.viettelex.telexcore
  * [TelexAction.Replace]: delete [backspaces] chars (UTF-16 units — every character involved
  * is precomposed BMP or ASCII) right before the caret, insert [insert]. [expected] is what
  * those chars are now: compare with the editor text and skip on mismatch.
+ *
+ * [flipBack]: the edit puts a word the frequency rule (`TelexEngine.englishByFrequency`) had
+ * turned English BACK to Vietnamese ("His hửng" → "hí hửng"). It undoes the engine's own
+ * guess, so integrators apply it AUTOMATICALLY even when retroactive English is in offer-only
+ * (chip) mode — still only after the same text-before-caret check.
  */
-data class RetroCorrection(val backspaces: Int, val expected: String, val insert: String, val words: Int)
+data class RetroCorrection(
+    val backspaces: Int,
+    val expected: String,
+    val insert: String,
+    val words: Int,
+    val flipBack: Boolean = false,
+)
 
 /** A committed word as the retroactive check sees it (Swift `RetroWord`). */
 internal data class RetroWord(
@@ -22,6 +38,11 @@ internal data class RetroWord(
     var leftNonEnglish: Boolean,
     var gateBit: Int = 0,
     var predBits: Int = 0,
+    /** Committed as English that is STRONG on its own (EnglishFrequency: en ≥ strongMin, vn = 0). */
+    var strong: Boolean = false,
+    /** Restored to English by the frequency rule; [alt] = the Vietnamese composition it replaced. */
+    var byFrequency: Boolean = false,
+    var alt: String = "",
 )
 
 internal object RetroEnglish {
@@ -54,11 +75,21 @@ internal object RetroEnglish {
         return false
     }
 
+    /** Is lowercased raw [w] a STRONG English word (frequent, no Vietnamese reading)? */
+    fun isStrongRaw(w: String): Boolean {
+        val sc = EnglishFrequency.scores(w)
+        if (sc < 0) return false
+        return EnglishFrequency.vn(sc) == 0 && EnglishFrequency.en(sc) >= EnglishFrequency.strongMin
+    }
+
     /** Swift `RetroEnglish.plan`: history indices to rewrite (ascending), or null. */
     fun plan(h: List<RetroWord>): IntArray? {
         val n = h.size
-        if (n < 2 || !h[n - 1].english || !h[n - 2].english || h[n - 1].gap <= 0) return null
-        var s = n - 2
+        if (n < 2 || !h[n - 1].english || h[n - 1].gap <= 0) return null
+        // A run of ONE strong word ("fast", "very") — needs ≥ 2 rewritten words below.
+        val strongEnd = !h[n - 2].english
+        if (strongEnd && !h[n - 1].strong) return null
+        var s = if (strongEnd) n - 1 else n - 2
         while (s > 0 && h[s].gap > 0 && h[s - 1].english) s--
         var lo = s
         var k = 0
@@ -66,7 +97,7 @@ internal object RetroEnglish {
         if (lo >= s) return null
         for (a in lo until s) {
             val picks = (a until s).filter { h[it].candidate }
-            if (picks.isEmpty() || !anchors(h, a, picks)) continue
+            if (picks.isEmpty() || (strongEnd && picks.size < 2) || !anchors(h, a, picks)) continue
             var ok = true
             for (i in a until s) if (!pairAllowed(h[i].cls, h[i + 1].cls)) { ok = false; break }
             for (i in picks) {
@@ -99,7 +130,7 @@ internal object RetroEnglish {
     }
 
     /** Swift `RetroEnglish.correction`. */
-    fun correction(h: List<RetroWord>, picks: IntArray): RetroCorrection? {
+    fun correction(h: List<RetroWord>, picks: IntArray, flipBack: Boolean = false): RetroCorrection? {
         if (picks.isEmpty()) return null
         val first = picks[0]
         val e = StringBuilder()
@@ -107,10 +138,10 @@ internal object RetroEnglish {
         for (i in first until h.size) {
             if (i > first) repeat(h[i].gap) { e.append(' '); r.append(' ') }
             e.append(h[i].shown)
-            r.append(if (i in picks) h[i].raw else h[i].shown)
+            r.append(if (i in picks) (if (flipBack) h[i].alt else h[i].raw) else h[i].shown)
         }
         var lcp = 0
         while (lcp < e.length && lcp < r.length && e[lcp] == r[lcp]) lcp++
-        return RetroCorrection(e.length - lcp, e.substring(lcp), r.substring(lcp), picks.size)
+        return RetroCorrection(e.length - lcp, e.substring(lcp), r.substring(lcp), picks.size, flipBack)
     }
 }
