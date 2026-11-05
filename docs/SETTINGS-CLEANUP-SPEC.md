@@ -18,10 +18,10 @@ Trạng thái: đã duyệt 05/11/2026, đang triển khai. Liên quan `docs/ONB
 6. **Không nhắc tên bộ gõ khác** trong nhãn, chú thích, tuỳ chọn. Gặp thì viết lại theo hành vi.
 7. Không lặp cài đặt hệ thống: chỉ một dòng link "Mở cài đặt … của hệ thống".
 
-## 1. Nhóm "Gõ mixed Việt/Anh" (tên giữ nguyên — maintainer đặt)
+## 1. Nhóm "Gõ lẫn tiếng Anh" (trước: "Gõ mixed Việt/Anh"; đổi tên 05/11/2026, key giữ nguyên)
 
 ```
-Gõ mixed Việt/Anh                       dòng tóm tắt khi thu gọn (mobile)
+Gõ lẫn tiếng Anh                        dòng tóm tắt khi thu gọn (mobile)
   Bạn thường gõ thế nào?  Chọn một — …   (radio, đã có từ 6df365a7)
   ( ) Chủ yếu tiếng Việt
   ( ) Việt + Anh nhiều
@@ -76,7 +76,7 @@ phím ngoặc… — những mục chỉ-Telex làm mờ khi VNI.
 ## 4. Cấp 1
 
 **Mobile (iOS + Android, giống hệt nhau)** — giữ 4 tab:
-- Tab Kiểu Gõ: Kiểu gõ Telex/VNI · Gõ mixed Việt/Anh · Tự viết hoa đầu câu (nếu đang ở tab này) ·
+- Tab Kiểu Gõ: Kiểu gõ Telex/VNI · Gõ lẫn tiếng Anh · Tự viết hoa đầu câu (nếu đang ở tab này) ·
   › Nâng cao kiểu gõ.
 - Tab Tính Năng: gộp "Chính tả & sửa lỗi" + "Gợi ý & từ điển" → **"Sửa lỗi & gợi ý"** (các mục sửa
   chạm trượt giữ công tắc riêng, xếp liền nhau); "Phím & cử chỉ" tách **"Phản hồi khi chạm"** (rung, âm
@@ -85,7 +85,7 @@ phím ngoặc… — những mục chỉ-Telex làm mờ khi VNI.
 - Ba cách thêm dấu (chip, công cụ, phím tắt) dùng chung tên **"Thêm dấu"**.
 
 **Desktop (macOS / Windows / Linux, cùng 5 tab/trang)**:
-`Gõ phím` (Kiểu gõ + Nâng cao · Gõ mixed Việt/Anh · Chuyển Việt/Anh · Chính tả) ·
+`Gõ phím` (Kiểu gõ + Nâng cao · Gõ lẫn tiếng Anh · Chuyển Việt/Anh · Chính tả) ·
 `Gợi ý & công cụ` · `Gõ tắt` · `Ứng dụng` · `Chung` (ngôn ngữ, biểu tượng, đồng bộ, cập nhật,
 Nâng cao/Gỡ lỗi).
 - macOS: mục "Viết hoa, gợi ý chữ…" (lặp cài đặt hệ thống) → một dòng link cuối trang.
