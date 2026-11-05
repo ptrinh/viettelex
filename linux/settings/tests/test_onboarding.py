@@ -146,5 +146,83 @@ class StartupTests(unittest.TestCase):
         self.upgrade_case(make)
 
 
+class QuickPickerTests(unittest.TestCase):
+    """Bộ chọn nhanh ở đầu nhóm Gõ mixed Việt/Anh (ONBOARDING-SPEC §4) — như iOS/Android."""
+
+    def test_fresh_config_matches_vi(self):
+        cur = onboarding.current_values(config.Config(Paths().cfg))
+        self.assertEqual(onboarding.match(cur), "vi")
+        self.assertEqual(onboarding.match(cur, "mixed"), "vi")
+
+    def test_exact_match_each_profile(self):
+        for prof in onboarding.PROFILES:
+            cur = dict(onboarding.profile_values(prof))
+            self.assertEqual(onboarding.match(cur), prof)
+            # Lần chọn gần nhất không ghi đè khi bộ công tắc khác nhau (Linux: en có default_vietnamese).
+            self.assertEqual(onboarding.match(cur, "vi" if prof != "vi" else "en"), prof)
+
+    def test_custom_when_one_switch_differs(self):
+        for prof in onboarding.PROFILES:
+            for key in onboarding.PROFILE_KEYS:
+                cur = dict(onboarding.profile_values(prof))
+                cur[key] = not cur[key]
+                m = onboarding.match(cur, prof)
+                # Lật đúng công tắc khác nhau giữa mixed/en ⇒ khớp hồ sơ kia, còn lại "Tuỳ chỉnh".
+                if prof in ("mixed", "en") and key == onboarding.START_KEY:
+                    self.assertEqual(m, "en" if prof == "mixed" else "mixed")
+                else:
+                    self.assertIsNone(m, (prof, key))
+
+    def test_identical_profiles_use_last_chosen(self):
+        # Nền tảng không có chế độ tiếng Anh: mixed ≡ en ⇒ tô en chỉ khi en là lần chọn gần nhất.
+        same = dict(onboarding.profile_values("mixed"))
+        orig = onboarding.profile_values
+
+        def patched(p):
+            return orig("mixed") if p == "en" else orig(p)
+        onboarding.profile_values = patched
+        try:
+            self.assertEqual(onboarding.match(same), "mixed")
+            self.assertEqual(onboarding.match(same, "vi"), "mixed")
+            self.assertEqual(onboarding.match(same, "en"), "en")
+        finally:
+            onboarding.profile_values = orig
+
+    def test_changes_and_confirmation(self):
+        vi = dict(onboarding.profile_values("vi"))
+        # Đang khớp một hồ sơ ⇒ đổi thẳng, không hỏi.
+        self.assertEqual(onboarding.changes(vi, "mixed"),
+                         [("typing", "retroactive_english"), ("typing", "english_by_frequency")])
+        self.assertFalse(onboarding.needs_confirmation(vi, "mixed"))
+        # "Tuỳ chỉnh" ⇒ hỏi, liệt kê đúng công tắc sẽ đổi.
+        custom = dict(vi)
+        custom[("typing", "auto_restore")] = False
+        self.assertIsNone(onboarding.match(custom))
+        self.assertTrue(onboarding.needs_confirmation(custom, "en"))
+        self.assertEqual(onboarding.changes(custom, "en"),
+                         [("typing", "auto_restore"), ("typing", "retroactive_english"),
+                          ("typing", "english_by_frequency"), ("general", "default_vietnamese")])
+        # "Tuỳ chỉnh" mà áp không đổi gì — không thể xảy ra (khớp thì đã không phải Tuỳ chỉnh).
+        self.assertEqual(onboarding.changes(vi, "vi"), [])
+
+    def test_pick_profile_writes_values_and_profile_only(self):
+        p = Paths()
+        onboarding.startup(p.cfg, p.state, p.app_state)          # người mới: done=0
+        cfg = config.Config(p.cfg)
+        st = onboarding.pick_profile(cfg, "en", p.state)
+        self.assertEqual(st, {"done": "0", "profile": "en"})     # không đụng done / card
+        self.assertEqual(onboarding.last_profile(st), "en")
+        again = config.Config(p.cfg)
+        self.assertEqual(onboarding.match(onboarding.current_values(again), "en"), "en")
+        self.assertIs(again.get("typing", "teencode"), config.DEFAULTS["typing"]["teencode"])
+        onboarding.pick_profile(again, "vi", p.state)
+        self.assertEqual(onboarding.match(onboarding.current_values(config.Config(p.cfg))), "vi")
+        self.assertEqual(onboarding.last_profile(onboarding.load_state(p.state)), "vi")
+
+    def test_last_profile_ignores_garbage(self):
+        self.assertIsNone(onboarding.last_profile({}))
+        self.assertIsNone(onboarding.last_profile({"profile": "fr"}))
+
+
 if __name__ == "__main__":
     unittest.main()

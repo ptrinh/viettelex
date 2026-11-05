@@ -165,6 +165,75 @@ final class OnboardingTests: XCTestCase {
         XCTAssertFalse(SettingsModel(selected: .typing).mixedCardPending)
     }
 
+    // MARK: bộ chọn nhanh (§4): khớp đúng / Tuỳ chỉnh / xác nhận / áp
+
+    func testPickerExactMatch() {
+        XCTAssertEqual(OnboardingLogic.match(dict(.vi), lastChosen: nil), .vi)
+        XCTAssertEqual(OnboardingLogic.match(dict(.vi), lastChosen: .en), .vi)
+        // macOS: mixed ≡ en ⇒ en chỉ khi en là lần chọn gần nhất.
+        XCTAssertEqual(OnboardingLogic.match(dict(.mixed), lastChosen: nil), .mixed)
+        XCTAssertEqual(OnboardingLogic.match(dict(.mixed), lastChosen: .vi), .mixed)
+        XCTAssertEqual(OnboardingLogic.match(dict(.mixed), lastChosen: .mixed), .mixed)
+        XCTAssertEqual(OnboardingLogic.match(dict(.en), lastChosen: .en), .en)
+    }
+
+    func testPickerCustomWhenAnySwitchDiffers() {
+        for p in TypingProfile.allCases {
+            for k in OnboardingLogic.mixedKeys {
+                var cur = dict(p)
+                cur[k]!.toggle()
+                // vi ↔ mixed khác nhau 2 công tắc ⇒ lật 1 công tắc không bao giờ ra hồ sơ khác.
+                XCTAssertNil(OnboardingLogic.match(cur, lastChosen: p), "\(p) \(k)")
+            }
+        }
+    }
+
+    func testPickerConfirmation() {
+        // Đang khớp hồ sơ ⇒ đổi thẳng.
+        XCTAssertEqual(OnboardingLogic.changes(from: dict(.vi), to: .mixed), ["retroactiveEnglish", "englishByFrequency"])
+        XCTAssertFalse(OnboardingLogic.needsConfirmation(dict(.vi), applying: .mixed, lastChosen: nil))
+        XCTAssertFalse(OnboardingLogic.needsConfirmation(dict(.mixed), applying: .en, lastChosen: .mixed))
+        // Tuỳ chỉnh ⇒ hỏi, liệt kê đúng công tắc đổi.
+        var custom = dict(.vi)
+        custom["autoRestore"] = false
+        XCTAssertTrue(OnboardingLogic.needsConfirmation(custom, applying: .mixed, lastChosen: .vi))
+        XCTAssertEqual(OnboardingLogic.changes(from: custom, to: .mixed),
+                       ["autoRestore", "retroactiveEnglish", "englishByFrequency"])
+        XCTAssertEqual(OnboardingLogic.changes(from: dict(.en), to: .mixed), [])
+    }
+
+    /// Bộ chọn trong Cài đặt: áp qua model (AppState suite test), xác nhận khi Tuỳ chỉnh.
+    func testSettingsModelPicker() {
+        let s = AppState.shared
+        let saved = OnboardingLogic.mixedKeys.map { ($0, s.mixedSetting($0)!) }
+        let savedProfile = s.defaults.object(forKey: OnboardingLogic.profileKey)
+        defer {
+            for (k, v) in saved { s.setMixedSetting(k, v) }
+            s.defaults.set(savedProfile, forKey: OnboardingLogic.profileKey)
+        }
+        OnboardingLogic.apply(.vi, defaults: s.defaults) { s.setMixedSetting($0, $1) }
+        let model = SettingsModel(selected: .typing)
+        XCTAssertEqual(model.matchedProfile, .vi)
+        model.pickProfile(.en)                       // khớp vi ⇒ áp ngay
+        XCTAssertNil(model.confirmingProfile)
+        XCTAssertEqual(model.matchedProfile, .en)
+        XCTAssertTrue(s.retroactiveEnglish && s.englishByFrequency)
+        XCTAssertEqual(s.defaults.string(forKey: OnboardingLogic.profileKey), "en")
+        model.pickProfile(.mixed)                    // mixed ≡ en ⇒ chỉ đổi lần chọn
+        XCTAssertEqual(model.matchedProfile, .mixed)
+        model.autoRestore = false                    // tự chỉnh ⇒ Tuỳ chỉnh
+        XCTAssertNil(model.matchedProfile)
+        model.pickProfile(.vi)
+        XCTAssertEqual(model.confirmingProfile, .vi)
+        XCTAssertFalse(s.autoRestore)                // chưa áp khi chưa xác nhận
+        XCTAssertTrue(model.profileChangeList(.vi).contains("•"))
+        model.applyProfile(.vi)
+        XCTAssertNil(model.confirmingProfile)
+        XCTAssertEqual(model.matchedProfile, .vi)
+        XCTAssertTrue(s.autoRestore)
+        XCTAssertFalse(s.retroactiveEnglish)
+    }
+
     func testSamplesPerProfile() {
         for p in TypingProfile.allCases { XCTAssertGreaterThanOrEqual(OnboardingLogic.samples(for: p).count, 2) }
         XCTAssertTrue(OnboardingLogic.samples(for: .mixed).contains("Mai họp team lúc 9h, nhớ confirm nhé"))
@@ -179,7 +248,11 @@ final class OnboardingTests: XCTestCase {
                       "Mostly English": "Chủ yếu tiếng Anh",
                       "Try typing": "Gõ thử",
                       "Skip": "Bỏ qua",
-                      "Mixed Vietnamese/English typing": "Gõ mixed Việt/Anh"]
+                      "Mixed Vietnamese/English typing": "Gõ mixed Việt/Anh",
+                      "Quick choice": "Chọn nhanh",
+                      "Custom": "Tuỳ chỉnh",
+                      "Apply “%@”?": "Áp dụng “%@”?",
+                      "Switches you changed yourself will change:": "Các công tắc bạn đã tự chỉnh sẽ đổi:"]
         for (k, v) in expect { XCTAssertEqual(vi.localizedString(forKey: k, value: nil, table: nil), v) }
         for key in OnboardingLogic.mixedKeys {
             let en = OnboardingModel.title(key)

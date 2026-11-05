@@ -42,6 +42,7 @@ using std::min;
 #include "icons.h"
 #include "input_switch.h"
 #include "hotkey.h"
+#include "onboarding.h"
 #include "res/icon_ids.h"
 #include "settings_store.h"
 #include "shortcuts.h"
@@ -103,6 +104,7 @@ enum Id : int {
     IdClearLearned,
     IdTextPrediction,
     IdMixedCard,
+    IdProfileRow = 5100,  // + 0..2 (kPickerProfiles), 3 = "Tuỳ chỉnh"
     IdIconTile = 6000,  // + IconChoice
 };
 
@@ -472,12 +474,71 @@ std::vector<FoundConflict> g_conflicts;  // detected when the Kiểu gõ page is
 // onboarding.h decideOnboarding Upgrade): HKCU mixedCardPending, cleared by its button.
 bool mixedCardPending() { return readFlag(L"mixedCardPending"); }
 
+void sync();
+void changed();
+
+// Quick profile picker at the top of "Gõ mixed Việt/Anh" (ONBOARDING-SPEC §4, onboarding.h
+// matchProfile): three profile rows + "Tuỳ chỉnh", like iOS/Android. The row matching the
+// settings EXACTLY shows "✓ Đang dùng"; none matches -> "Tuỳ chỉnh" does.
+constexpr TypingProfile kPickerProfiles[] = {TypingProfile::Vi, TypingProfile::Mixed, TypingProfile::En};
+const S kPickerTitles[] = {S::ProfileVi, S::ProfileMixed, S::ProfileEn};
+const S kPickerExamples[] = {S::ProfileViEx, S::ProfileMixedEx, S::ProfileEnEx};
+
+// 0..2 = index in kPickerProfiles, -1 = "Tuỳ chỉnh".
+int currentPickerRow() {
+    TypingProfile m = TypingProfile::Vi;
+    if (!matchProfile(g_settings, narrow(readString(L"onboardingProfile")), m)) return -1;
+    for (int i = 0; i < 3; ++i)
+        if (kPickerProfiles[i] == m) return i;
+    return -1;
+}
+int g_shownPickerRow = -2;  // what the built page shows (-2 = no picker on the page)
+
+// Rebuild the page (same scroll) when the checked row is stale.
+void refreshPickerIfStale() {
+    if (g_wnd && g_shownPickerRow != -2 && currentPickerRow() != g_shownPickerRow)
+        PostMessageW(g_wnd, WM_APP + 2, 0, 0);
+}
+
+S toggleTitle(bool Settings::*f) {
+    for (const ToggleDef& t : kToggles)
+        if (t.field == f) return t.title;
+    return S::AppName;
+}
+
+void applyPickedProfile(TypingProfile p) {
+    applyProfile(g_settings, p);
+    writeString(L"onboardingProfile", widen(profileName(p)));
+    changed();
+    sync();
+    refreshPickerIfStale();
+}
+
+void onPickProfile(int row) {
+    if (row < 0 || row >= 3 || row == currentPickerRow()) return;
+    const TypingProfile p = kPickerProfiles[row];
+    if (profileNeedsConfirmation(g_settings, p, narrow(readString(L"onboardingProfile")))) {
+        Settings target = g_settings;
+        applyProfile(target, p);
+        std::wstring title = tr(S::ProfileConfirmTitle);
+        const size_t at = title.find(L"%s");
+        if (at != std::wstring::npos) title.replace(at, 2, tr(kPickerTitles[row]));
+        std::wstring body = std::wstring(tr(S::ProfileConfirmBody));
+        for (bool Settings::*f : profileChanges(g_settings, p))
+            body += std::wstring(L"\n• ") + tr(toggleTitle(f)) + L": " + tr(target.*f ? S::On : S::Off);
+        if (MessageBoxW(g_wnd, body.c_str(), title.c_str(), MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES)
+            return;
+    }
+    applyPickedProfile(p);
+}
+
 // "Gợi ý chữ khi gõ" card: the Windows value it shows (read when the Chính tả page is
 // built, and again on WM_ACTIVATE — one RegGetValue, never on the key path).
 bool g_shownTextPrediction = false;
 
 std::vector<Item> pageItems(int tab) {
     std::vector<Item> v;
+    g_shownPickerRow = -2;
     switch (tab) {
         case 0:
             // Another Vietnamese IME running / Microsoft Vietnamese keyboards in the list:
@@ -497,7 +558,18 @@ std::vector<Item> pageItems(int tab) {
                 // English detection (moved from the Chính tả page) + switching language (the
                 // switch key, start new apps in English). Same registry keys as before.
                 const PerAppInput win = readPerAppInput();
-                v.push_back(section(S::SecMixed));
+                Item sec = section(S::SecMixed);
+                sec.desc = S::ProfilePickerIntro;
+                v.push_back(sec);
+                // Quick picker (§4): profile rows, then "Tuỳ chỉnh" (a button only while it is
+                // the current state — it cannot be picked).
+                g_shownPickerRow = currentPickerRow();
+                for (int i = 0; i < 3; ++i) v.push_back(buttonItem(kPickerTitles[i], kPickerExamples[i], IdProfileRow + i));
+                {
+                    Item custom = buttonItem(S::ProfileCustom, S::ProfileCustomDesc, IdProfileRow + 3);
+                    if (g_shownPickerRow != -1) custom.ctl = Ctl::None;
+                    v.push_back(custom);
+                }
                 v.push_back(toggleItem(5));   // Tự khôi phục từ không hợp lệ
                 v.push_back(toggleItem(8));   // Ưu tiên tiếng Việt khi trùng
                 v.push_back(toggleItem(7));   // Quyết định theo ngữ cảnh
@@ -978,6 +1050,14 @@ void createControls() {
                 else if (it.ctlId == IdClearLearned) it.hwnd = makeButton(tr(S::ClearLearnedButton), it.ctlId);
                 else if (it.ctlId == IdTextPrediction) it.hwnd = makeButton(tr(S::TextPredictionButton), it.ctlId);
                 else if (it.ctlId == IdMixedCard) it.hwnd = makeButton(tr(S::MixedCardButton), it.ctlId, kBtnPrimary);
+                else if (it.ctlId >= IdProfileRow && it.ctlId <= IdProfileRow + 3) {
+                    // Current row: "✓ Đang dùng" (accent, not clickable); others: "Chọn".
+                    const int row = it.ctlId - IdProfileRow;
+                    const bool current = row == (g_shownPickerRow < 0 ? 3 : g_shownPickerRow);
+                    it.hwnd = makeButton(tr(current ? S::ProfileInUse : S::ProfileUse), it.ctlId,
+                                         current ? kBtnPrimary : kBtnSecondary);
+                    if (current) EnableWindow(it.hwnd, FALSE);
+                }
                 else it.hwnd = makeButton(tr(it.ctlId == IdCheckNow ? S::CheckButton : it.title), it.ctlId);
             }
         } else if (it.kind == ItemKind::IconPicker) {
@@ -1582,6 +1662,12 @@ void onCommand(int id, int code, HWND ctl) {
         // ngữ cảnh is on.
         if (kToggles[id - IdToggleBase].field == &Settings::contextualEnglish)
             PostMessageW(g_wnd, WM_APP + 2, 0, 0);  // rebuild outside this notification, keep scroll
+        else
+            refreshPickerIfStale();  // a profile switch moved: the checked picker row may change
+        return;
+    }
+    if (id >= IdProfileRow && id < IdProfileRow + 3 && code == BN_CLICKED) {
+        onPickProfile(id - IdProfileRow);
         return;
     }
     const auto sel = [&]() { return static_cast<int>(SendMessageW(ctl, CB_GETCURSEL, 0, 0)); };
@@ -1996,7 +2082,10 @@ void showSettings(Tab tab) {
     SetForegroundWindow(w);
 }
 
-void refreshSettingsWindow() { sync(); }
+void refreshSettingsWindow() {
+    sync();
+    refreshPickerIfStale();  // e.g. the welcome window just applied a profile
+}
 
 bool settingsDialogMessage(MSG* msg) {
     if (!g_wnd) return false;

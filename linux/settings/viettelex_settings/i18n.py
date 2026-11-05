@@ -42,6 +42,14 @@ def N_(vi):
     return vi
 
 
+def C_(context, vi):
+    """Như `_` nhưng có ngữ cảnh — cùng chữ Việt, nghĩa tiếng Anh khác (vd. "Tuỳ chỉnh" là tab
+    "Options" nhưng ở bộ chọn hồ sơ là "Custom"). Khoá EN: "<context>\x04<chữ Việt>"."""
+    if _lang != "en":
+        return vi
+    return EN.get(context + "\x04" + vi, vi)
+
+
 EN = {
     # --- chế độ theo app / hộp thoại chung
     "Tự động": "Automatic",
@@ -679,4 +687,14 @@ EN = {
     "Vừa bật": "Just turned on",
     "Tắt ngay nếu không cần.": "Turn off anything you don’t need.",
     "Bắt đầu bằng tiếng Anh": "Start in English",
+    # Bộ chọn nhanh hồ sơ ở đầu nhóm Gõ mixed Việt/Anh (ONBOARDING-SPEC §4)
+    "Chọn nhanh: bấm một hồ sơ để bật/tắt các công tắc bên dưới cho hợp.":
+        "Quick choice: pick a profile to set the switches below to match.",
+    "profile\x04Tuỳ chỉnh": "Custom",
+    "Cài đặt bên dưới không khớp hồ sơ nào.": "The settings below don’t match any profile.",
+    "Áp dụng “%s”?": "Apply “%s”?",
+    "Áp dụng": "Apply",
+    "Các công tắc bạn đã tự chỉnh sẽ đổi:": "Switches you changed yourself will change:",
+    "bật": "on",
+    "tắt": "off",
 }

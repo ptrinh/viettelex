@@ -33,6 +33,11 @@ def marked_strings():
             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in ("_", "N_"):
                 if n.args and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str):
                     out.setdefault(n.args[0].value, "%s:%d" % (name, n.lineno))
+            # C_("ngữ cảnh", "…") ⇒ khoá "ngữ cảnh\x04…"
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "C_":
+                if len(n.args) == 2 and all(isinstance(a, ast.Constant) and isinstance(a.value, str)
+                                            for a in n.args):
+                    out.setdefault(n.args[0].value + "\x04" + n.args[1].value, "%s:%d" % (name, n.lineno))
     return out
 
 
@@ -42,7 +47,7 @@ def unmarked_vietnamese(name):
     tree = ast.parse(read(path))
     skip = set()
     for n in ast.walk(tree):
-        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in ("_", "N_"):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in ("_", "N_", "C_"):
             skip.update(id(a) for a in n.args)
         if isinstance(n, (ast.Module, ast.FunctionDef, ast.ClassDef)) and n.body and \
                 isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant):
@@ -124,6 +129,9 @@ class LanguageTests(unittest.TestCase):
         self.assertEqual(i18n._("Gõ tắt"), "Shortcuts")
         self.assertEqual(i18n._("chuỗi lạ"), "chuỗi lạ")    # thiếu bản dịch ⇒ giữ tiếng Việt
         self.assertEqual(i18n.N_("Tự động"), "Tự động")    # N_ không dịch
+        # Cùng chữ Việt, ngữ cảnh khác ⇒ tiếng Anh khác (tab "Options" / hồ sơ "Custom").
+        self.assertEqual(i18n._("Tuỳ chỉnh"), "Options")
+        self.assertEqual(i18n.C_("profile", "Tuỳ chỉnh"), "Custom")
         i18n.set_language("xx")
         self.assertEqual(i18n.language(), "vi")
 

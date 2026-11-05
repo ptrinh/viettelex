@@ -91,6 +91,22 @@ void applyProfile(Settings& s, TypingProfile p);
 // The switches the profile turns ON, in the order the "Gõ thử" page lists them.
 std::vector<bool Settings::*> profileTurnedOn(TypingProfile p);
 
+// ---- Quick picker at the top of "Gõ mixed Việt/Anh" (ONBOARDING-SPEC §4) --------------
+// Same behaviour as iOS Shared/OnboardingProfile.swift (OnboardingSettings) and Android
+// ui/MixedTyping.kt: three profile rows + "Tuỳ chỉnh". A profile is checked only when the
+// profile switches match it EXACTLY; none matches -> "Tuỳ chỉnh".
+// The switches a profile writes, in the order of the confirmation list.
+std::vector<bool Settings::*> profileFields();
+// The profile matching `s` exactly (false = "Tuỳ chỉnh"). Two profiles with identical
+// switches (not on Windows: `en` adds startEnglish) -> the last chosen one if it is one of
+// them, else the first (`mixed`). `lastChosen` = HKCU onboardingProfile ("" = none).
+bool matchProfile(const Settings& s, const std::string& lastChosen, TypingProfile& out);
+// The switches applying `p` would change (profileFields() order).
+std::vector<bool Settings::*> profileChanges(const Settings& s, TypingProfile p);
+// Ask first only when the settings are "Tuỳ chỉnh" (the user tuned switches by hand) and
+// applying changes at least one; matching a profile -> switch straight away.
+bool profileNeedsConfirmation(const Settings& s, TypingProfile p, const std::string& lastChosen);
+
 // Who sees the profile pages. `onboardingDone`: -1 = value absent, 0 / 1. New users get a
 // 0 written when the welcome opens, so a run closed half-way (or killed) shows the
 // profile pages again next start even though welcomeShown is already 1.

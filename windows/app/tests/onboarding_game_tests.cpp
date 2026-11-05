@@ -141,6 +141,71 @@ TEST(onboarding_profile_names_and_turned_on) {
     CHECK(en.back() == &Settings::startEnglish);
 }
 
+// ---- Quick picker (ONBOARDING-SPEC §4): exact match / Tuỳ chỉnh / confirm / apply --------
+
+TEST(profile_picker_exact_match) {
+    TypingProfile m = TypingProfile::En;
+    Settings fresh;  // today's defaults = vi
+    CHECK(matchProfile(fresh, "", m) && m == TypingProfile::Vi);
+    CHECK(matchProfile(fresh, "mixed", m) && m == TypingProfile::Vi);
+    for (TypingProfile p : {TypingProfile::Vi, TypingProfile::Mixed, TypingProfile::En}) {
+        Settings s;
+        s.vniMode = true;  // switches outside the profile do not matter
+        s.switchHotkey = "alt-z";
+        applyProfile(s, p);
+        for (const char* last : {"", "vi", "mixed", "en", "junk"}) {
+            CHECK(matchProfile(s, last, m) && m == p);  // mixed and en differ on Windows (startEnglish)
+        }
+    }
+}
+
+TEST(profile_picker_custom_when_any_switch_differs) {
+    for (TypingProfile p : {TypingProfile::Vi, TypingProfile::Mixed, TypingProfile::En})
+        for (bool Settings::*f : profileFields()) {
+            Settings s;
+            applyProfile(s, p);
+            s.*f = !(s.*f);
+            TypingProfile m = TypingProfile::Vi;
+            const bool hit = matchProfile(s, profileName(p), m);
+            if (f == &Settings::startEnglish && p != TypingProfile::Vi) {
+                // Flipping the one switch mixed/en differ on lands exactly on the other profile.
+                CHECK(hit && m == (p == TypingProfile::Mixed ? TypingProfile::En : TypingProfile::Mixed));
+            } else {
+                CHECK(!hit);
+            }
+        }
+}
+
+TEST(profile_picker_confirmation) {
+    Settings vi;
+    // Matching a profile: switch straight away, even though switches change.
+    CHECK_EQ(profileChanges(vi, TypingProfile::Mixed).size(), size_t(2));  // retro + frequency
+    CHECK(!profileNeedsConfirmation(vi, TypingProfile::Mixed, ""));
+    CHECK(!profileNeedsConfirmation(vi, TypingProfile::En, "vi"));
+    // "Tuỳ chỉnh": ask, listing exactly what changes, in profileFields() order.
+    Settings custom;
+    custom.autoRestore = false;
+    const auto ch = profileChanges(custom, TypingProfile::En);
+    CHECK_EQ(ch.size(), size_t(4));
+    CHECK(ch[0] == &Settings::autoRestore && ch[1] == &Settings::retroactiveEnglish &&
+          ch[2] == &Settings::englishByFrequency && ch[3] == &Settings::startEnglish);
+    CHECK(profileNeedsConfirmation(custom, TypingProfile::En, "en"));
+    CHECK(profileNeedsConfirmation(custom, TypingProfile::Vi, ""));
+    CHECK(profileChanges(vi, TypingProfile::Vi).empty());
+}
+
+TEST(profile_picker_apply_then_matches) {
+    Settings s;
+    s.autoRestore = false;
+    s.teencode = true;
+    TypingProfile m = TypingProfile::Vi;
+    CHECK(!matchProfile(s, "", m));
+    applyProfile(s, TypingProfile::En);
+    CHECK(matchProfile(s, "en", m) && m == TypingProfile::En);
+    CHECK(profileChanges(s, TypingProfile::En).empty());
+    CHECK(s.teencode);  // nothing outside the profile moves
+}
+
 TEST(onboarding_decisions) {
     // New user: welcome then the profile pages.
     CHECK(decideOnboarding(-1, WelcomeAction::Show) == OnboardingAction::ShowWelcome);

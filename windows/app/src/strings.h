@@ -139,6 +139,9 @@ enum class S {
     TryTitle, TryIntro, TrySamplesVi, TrySamplesMixed, TrySamplesEn, TryTurnedOn, TryHint,
     SecMixed, StartEnglish, StartEnglishDesc,
     MixedCardTitle, MixedCardDesc, MixedCardButton,
+    // Quick profile picker at the top of "Gõ mixed Việt/Anh" (ONBOARDING-SPEC §4)
+    ProfilePickerIntro, ProfileCustom, ProfileCustomDesc, ProfileInUse, ProfileUse, ProfileConfirmTitle,
+    ProfileConfirmBody,
     Count
 };
 

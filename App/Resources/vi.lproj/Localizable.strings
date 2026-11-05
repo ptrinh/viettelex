@@ -388,3 +388,12 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Mixed Vietnamese/English typing" = "Gõ mixed Việt/Anh";
 "English detection" = "Nhận diện tiếng Anh";
 "Language switching" = "Chuyển ngôn ngữ";
+/* Bộ chọn nhanh hồ sơ ở đầu nhóm "Gõ mixed Việt/Anh" (ONBOARDING-SPEC §4) */
+"Quick choice" = "Chọn nhanh";
+"Custom" = "Tuỳ chỉnh";
+"The settings below don’t match any profile." = "Cài đặt bên dưới không khớp hồ sơ nào.";
+"Apply “%@”?" = "Áp dụng “%@”?";
+"Apply" = "Áp dụng";
+"Switches you changed yourself will change:" = "Các công tắc bạn đã tự chỉnh sẽ đổi:";
+"on" = "bật";
+"off" = "tắt";

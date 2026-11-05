@@ -81,7 +81,7 @@ Nhóm công tắc (chuyển từ chỗ cũ sang):
 
 Các mục khác của mục Kiểu gõ (Telex/VNI, Telex đơn giản, Bỏ dấu tự do, Gõ nhanh, Bỏ dấu kiểu mới, Tự động viết hoa, Chính tả teencode; Android thêm Gợi ý sửa lỗi chạm trượt) không phải gõ trộn ⇒ giữ nguyên.
 
-**Bộ chọn nhanh** (đã làm trên iOS/Android, chưa làm trên desktop): **"Chủ yếu tiếng Việt / Việt + Anh nhiều / Chủ yếu tiếng Anh"** ở đầu nhóm (bấm = áp bộ cài đặt ở §3, có xác nhận nếu sẽ đổi công tắc người dùng đã tự chỉnh; cài đặt khớp đúng một hồ sơ thì tô hồ sơ đó, không khớp thì "Tuỳ chỉnh").
+**Bộ chọn nhanh** (đã làm trên iOS/Android; desktop macOS/Windows/Linux 05/11/2026, xem §11): **"Chủ yếu tiếng Việt / Việt + Anh nhiều / Chủ yếu tiếng Anh"** ở đầu nhóm (bấm = áp bộ cài đặt ở §3, có xác nhận nếu sẽ đổi công tắc người dùng đã tự chỉnh; cài đặt khớp đúng một hồ sơ thì tô hồ sơ đó, không khớp thì "Tuỳ chỉnh").
 
 ## 5. Người dùng cũ
 
@@ -161,7 +161,10 @@ Khi từ đang soạn **không hợp lệ** (không phải âm tiết Việt, kh
 
 ## 11. Trạng thái triển khai (desktop) — 05/11/2026
 
-Đã làm §2/§3/§4/§5 cho macOS, Windows, Linux (Linux có sẵn cửa sổ hướng dẫn bật bộ gõ + cửa sổ Cài đặt nên làm cùng đợt). Bộ chọn nhanh hồ sơ ở đầu nhóm (§4 "Chưa làm") vẫn **chưa làm** trên desktop.
+Đã làm §2/§3/§4/§5 cho macOS, Windows, Linux (Linux có sẵn cửa sổ hướng dẫn bật bộ gõ + cửa sổ Cài đặt nên làm cùng đợt). **Bộ chọn nhanh hồ sơ** ở đầu nhóm (§4) — **đã làm trên cả ba** (cùng hành vi iOS/Android, §12 "Khớp / Tuỳ chỉnh"): ba dòng hồ sơ + dòng "Tuỳ chỉnh" (không bấm được); hồ sơ chỉ được đánh dấu khi các công tắc hồ sơ khớp đúng; hai hồ sơ cùng bộ công tắc ⇒ tô hồ sơ chọn gần nhất (`onboardingProfile`), chỉ xảy ra trên macOS (`mixed` ≡ `en`; Windows/Linux `en` khác `mixed` ở `startEnglish` / `default_vietnamese`); hỏi xác nhận (liệt kê công tắc sẽ đổi) chỉ khi đang "Tuỳ chỉnh". Áp = ghi giá trị §3 + `onboardingProfile`, không đụng `onboardingDone`/thẻ.
+- macOS: `OnboardingLogic.match/changes/needsConfirmation` (`App/Sources/Onboarding.swift`), `SettingsModel.pickProfile/applyProfile` + `TypingTab.profilePicker` (dấu ✓, hộp `.alert`).
+- Windows: `matchProfile/profileChanges/profileNeedsConfirmation` (`windows/app/core/onboarding.*`); trong Cài đặt mỗi hồ sơ là một thẻ có nút "Chọn" / "✓ Đang dùng" (đang dùng = không bấm được), xác nhận bằng MessageBox; trang dựng lại khi công tắc đổi làm đổi dòng đang dùng.
+- Linux: `onboarding.match/changes/needs_confirmation/pick_profile` (`profile` ghi vào tệp trạng thái); dòng có dấu ✓ trong nhóm Gõ mixed, xác nhận bằng hộp `confirm`. Thêm `i18n.C_` (ngữ cảnh) vì "Tuỳ chỉnh" đã là tên tab ("Options"), ở bộ chọn là "Custom".
 
 | | macOS | Windows | Linux |
 |---|---|---|---|
@@ -178,6 +181,7 @@ Kiểm chứng:
 - macOS: build + `OnboardingTests` (16) + `SettingsModelTests`, `PrivacyPaneTests`, `SettingsReloadCostTests`, `InfoPlistStringsTests`, `MemoryFootprintTests`, `AppSupportTests` đạt. **Chưa chạy thử thật** (quy tắc không đụng bộ gõ trên máy Phil): cửa sổ onboarding, việc gõ VietTelex vào ô gõ thử của chính process IME, cuộn tới nhóm.
 - Windows: `ctest` máy chủ (10/10, `vtx_app_tests` 111 test gồm 5 test mới) + biên dịch chéo x64 (llvm-mingw) VietTelex.exe + TIP không lỗi/cảnh báo. **Chưa chạy trên Windows**: trang mới của cửa sổ chào, command link, thẻ/cuộn trong Cài đặt, `startEnglish` trong TIP.
 - Linux: `make check` (162 test, gồm 16 test mới). **Chưa chạy GTK** (máy không có PyGObject).
+- Bộ chọn nhanh (05/11/2026): macOS build + `OnboardingTests` (20, gồm 4 mới: khớp đúng, Tuỳ chỉnh, xác nhận, áp qua `SettingsModel`) + `SettingsModelTests`, `InfoPlistStringsTests` đạt; Windows `ctest` máy chủ 10/10 (`vtx_app_tests` 115, 4 mới) — **chưa biên dịch chéo** `settings_window.cpp` (Docker/OrbStack không chạy) và chưa chạy trên Windows; Linux `make check` 169 test (7 mới), chưa chạy GTK. Chưa mở thử giao diện trên cả ba.
 
 ## 12. Trạng thái triển khai — iOS + Android (05/11/2026)
 
