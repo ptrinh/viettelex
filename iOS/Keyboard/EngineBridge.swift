@@ -221,9 +221,10 @@ final class EngineBridge {
     private var email = EmailTokenGuard()
     private var emailActive: Bool { emailField && !englishMode }
 
-    /// Cho phép "với" lại từ đã chốt trước con trỏ: ⌫ mở lại từ vừa chốt, và phím
-    /// dấu/mũ nạp lại từ ngay trước con trỏ (seed). Controller TẮT ở omnibox
-    /// (keyboardType .webSearch): inline autocomplete tự sửa chữ bên dưới mình.
+    /// Cho phép "với" lại chữ CÓ SẴN trước con trỏ: phím dấu/mũ nạp lại từ ngay trước con
+    /// trỏ (seed), nối tiếp mẩu từ, tự sửa. Controller TẮT ở omnibox (keyboardType
+    /// .webSearch): inline autocomplete tự sửa chữ bên dưới mình. KHÔNG chặn ⌫ mở lại từ
+    /// VỪA CHỐT (#148: thanh địa chỉ "go␣⌫s" phải ra "gó") — xem `canReopen`.
     var reachBackAllowed = true
 
     /// Cho phép gõ tắt ở ô này. Controller TẮT ở omnibox (.webSearch: inline autocomplete
@@ -915,6 +916,11 @@ final class EngineBridge {
 
     /// Với lại từ đã chốt (⌫ mở lại, phím dấu nạp lại từ trước con trỏ): không ở ô email.
     private var canReachBack: Bool { reachBackAllowed && !emailField }
+    /// ⌫ mở lại từ VỪA CHỐT: được cả ở omnibox (.webSearch) — chỉ đụng chữ chính mình vừa
+    /// gõ + ranh giới của mình, context xác nhận trước VÀ sau khi xoá, có vùng chọn (inline
+    /// autocomplete) ⇒ bỏ; sau đó là đường soạn từ thường (safeToApply trước mỗi lần xoá),
+    /// vốn đã chạy ở omnibox (#148). Không ở ô email.
+    private var canReopen: Bool { !emailField }
 
     // MARK: - Ô email (EmailTokenGuard)
 
@@ -1104,11 +1110,11 @@ final class EngineBridge {
     /// của ⌫) và nạp lại từ vào engine để gõ tiếp dấu ("tháy" ␣ ⌫ a → "thấy").
     /// Chỉ khi màn hình XÁC NHẬN: context trước con trỏ = …từ + 1 ký tự không phải chữ,
     /// khớp ĐÚNG từng scalar (NFD / host tự sửa chữ ⇒ lệch ⇒ bỏ). Context nil, có vùng
-    /// chọn, ô omnibox ⇒ quên snapshot, ⌫ thường. Snapshot tiêu thụ 1 lần. Từ bị
+    /// chọn (kể cả inline autocomplete của omnibox), ô email ⇒ quên snapshot, ⌫ thường. Snapshot tiêu thụ 1 lần. Từ bị
     /// auto-restore ("google") engine không capture → không bao giờ tới đây, nên luồng
     /// backspace-undo (restoreUndo) của controller giữ nguyên.
     private func reopenLastCommit(proxy: TextProxyLike) -> Bool {
-        guard settings.reEditWord, canReachBack, !proxy.hasSelection,
+        guard settings.reEditWord, canReopen, !proxy.hasSelection,
               let ctx = proxy.contextBeforeInput,
               let boundaryChar = ctx.last, !boundaryChar.isLetter else {
             engine.forgetLastCommit()

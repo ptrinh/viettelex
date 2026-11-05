@@ -85,15 +85,46 @@ final class ReEditWordTests: XCTestCase {
         XCTAssertFalse(b.isComposing)
     }
 
-    func testReopenSkippedWithSelectionOrOmnibox() {
+    func testReopenSkippedWithSelection() {
         let p = MockProxy(); let b = EngineBridge(settings: KeyboardSettings())
         run("thays ", on: p, bridge: b)
         p.hasSelection = true
         XCTAssertFalse(b.backspace(proxy: p))
+    }
+
+    /// #148: thanh địa chỉ Safari/Chrome (.webSearch ⇒ reachBackAllowed = false): ⌫ mở lại
+    /// từ VỪA CHỐT vẫn chạy — "go␣⌫s" ra "gó", không "gos". Seed (chữ có sẵn) vẫn tắt.
+    func testOmniboxReopensButDoesNotSeed() {
+        let p = MockProxy(); let b = EngineBridge(settings: KeyboardSettings())
+        b.reachBackAllowed = false
+        run("go ⌫s", on: p, bridge: b)
+        XCTAssertEqual(p.text, "gó")
         let p2 = MockProxy(); let b2 = EngineBridge(settings: KeyboardSettings())
         b2.reachBackAllowed = false
         run("thays ⌫a", on: p2, bridge: b2)
-        XCTAssertEqual(p2.text, "tháya")
+        XCTAssertEqual(p2.text, "thấy")
+        let p3 = MockProxy(); p3.text = "go"
+        let b3 = EngineBridge(settings: KeyboardSettings()); b3.reachBackAllowed = false
+        run("s", on: p3, bridge: b3)
+        XCTAssertEqual(p3.text, "gos")
+    }
+
+    /// Omnibox hiện inline autocomplete dạng vùng chọn ngay lúc ⌫ ⇒ không mở lại.
+    func testOmniboxInlineCompletionBlocksReopen() {
+        let p = MockProxy(); let b = EngineBridge(settings: KeyboardSettings())
+        b.reachBackAllowed = false
+        run("go ", on: p, bridge: b)
+        p.hasSelection = true
+        XCTAssertFalse(b.backspace(proxy: p))
+        XCTAssertFalse(b.isComposing)
+    }
+
+    /// Ô email: không mở lại từ đã chốt (giữ luật EmailTokenGuard).
+    func testEmailFieldDoesNotReopen() {
+        let p = MockProxy(); let b = EngineBridge(settings: KeyboardSettings())
+        b.emailField = true; b.reachBackAllowed = false
+        run("go ⌫", on: p, bridge: b)
+        XCTAssertFalse(b.isComposing)
     }
 
     func testReopenForgottenAfterRewrite() {

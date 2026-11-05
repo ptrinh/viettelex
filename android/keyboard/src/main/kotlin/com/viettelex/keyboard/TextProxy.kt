@@ -33,6 +33,13 @@ interface TextProxy {
      * TYPE_NULL, ô URI (omnibox tự hoàn tất chữ), app chỉ nhận key event. Mặc định false.
      */
     val canReEdit: Boolean get() = false
+    /**
+     * Ô cho phép ⌫ MỞ LẠI từ vừa chốt (chỉ từ chính bàn phím vừa gõ + ranh giới của mình,
+     * màn hình đã xác nhận trước khi xoá). Lỏng hơn [canReEdit]: được ở ô URI/omnibox —
+     * sau khi mở lại, trạng thái y hệt đang soạn từ đó (đường soạn vốn chạy ở omnibox, có
+     * confirmTail). Seed/thêm dấu cả câu vẫn theo [canReEdit] (#148). Mặc định = [canReEdit].
+     */
+    val canReopen: Boolean get() = canReEdit
     /** Đang có selection (không rỗng) — sửa lại từ sẽ đè lên nó ⇒ không làm. */
     val hasSelection: Boolean get() = false
     /** Vài ký tự SAU con trỏ; null nếu không đọc được. */

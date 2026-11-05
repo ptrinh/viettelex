@@ -234,7 +234,16 @@ class IcProxy(
      * nhận key event (chữ đọc về luôn trễ, không xác minh được).
      */
     override val canReEdit: Boolean
-        get() = !secure && !rawKeys && !uriField && writeMode == WriteMode.COMMIT
+        get() = canReopen && !uriField
+
+    /**
+     * ⌫ mở lại từ VỪA CHỐT: như [canReEdit] nhưng được ở ô URI (#148: thanh địa chỉ
+     * Chrome/Firefox "go␣⌫s" ra "gos"). Chỉ đụng chữ chính mình vừa gõ, màn hình phải khớp
+     * từ + ranh giới, không selection (tự hoàn tất dạng vùng chọn ⇒ bỏ); sau đó là đường
+     * soạn từ thường — vốn đã chạy ở omnibox với confirmTail trước mỗi lần xoá.
+     */
+    override val canReopen: Boolean
+        get() = !secure && !rawKeys && writeMode == WriteMode.COMMIT
 
     /**
      * Selection đã biết từ onUpdateSelection; chưa chắc con trỏ (app chưa chứng minh báo

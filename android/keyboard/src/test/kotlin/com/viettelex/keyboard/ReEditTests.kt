@@ -91,6 +91,29 @@ class ReEditTests {
         assertEquals("tháya", p.text)
     }
 
+    /** #148: thanh địa chỉ (ô URI — canReEdit false, canReopen true): "go␣⌫s" phải ra "gó". */
+    @Test fun uriFieldReopensButDoesNotSeed() {
+        val s = session(traits = FieldTraits(urlField = true))
+        val p = MockProxy().also { it.reEdit = false; it.reopen = true }
+        s.typeKeys(p, "go <s")
+        assertEquals("gó", p.text)
+        // Seed (phím dấu sau từ có sẵn, không phải từ mình vừa chốt) vẫn TẮT ở ô URI.
+        val s2 = session(traits = FieldTraits(urlField = true))
+        val p2 = MockProxy().also { it.reEdit = false; it.reopen = true; it.sb.append("viet") }
+        s2.typeKeys(p2, "j")
+        assertEquals("vietj", p2.text)
+    }
+
+    /** Ô URI có tự hoàn tất dạng vùng chọn ngay lúc ⌫: không mở lại (⌫ chỉ làm việc của nó). */
+    @Test fun uriFieldSelectionBlocksReopen() {
+        val s = session(traits = FieldTraits(urlField = true))
+        val p = MockProxy().also { it.reEdit = false; it.reopen = true }
+        s.typeKeys(p, "go ")
+        p.selection = true
+        s.typeKeys(p, "<")
+        assertFalse(s.bridge.isComposing)
+    }
+
     @Test fun passthroughFieldIsPlain() {
         val s = session(traits = FieldTraits(passthrough = true)); val p = MockProxy()
         s.typeKeys(p, "thays <a")
