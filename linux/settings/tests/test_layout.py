@@ -1,0 +1,255 @@
+"""Thu gọn cài đặt (docs/SETTINGS-CLEANUP-SPEC.md): 5 trang, công tắc phụ thuộc làm mờ + lý do,
+nhãn chung §3, bộ chọn hồ sơ vẫn phủ đủ key, không nhắc tên bộ gõ khác.
+
+app.py cần GTK nên đọc bằng ast (không import); phần logic nằm ở layout.py (thuần Python).
+"""
+
+import ast
+import codecs
+import io
+import os
+import re
+import sys
+import tokenize
+import unicodedata
+import unittest
+
+HERE = os.path.dirname(__file__)
+PKG = os.path.join(HERE, "..", "viettelex_settings")
+sys.path.insert(0, os.path.join(HERE, ".."))
+from viettelex_settings import config, i18n, layout, onboarding  # noqa: E402
+
+
+def read(name):
+    with open(os.path.join(PKG, name), encoding="utf-8") as f:
+        return f.read()
+
+
+APP = ast.parse(read("app.py"))
+
+
+def const(node):
+    """Literal str / bool / tuple các literal → giá trị Python; khác ⇒ None."""
+    try:
+        return ast.literal_eval(node)
+    except ValueError:
+        return None
+
+
+def calls(tree, attr):
+    """Mọi lời gọi self.<attr>(…) trong app.py."""
+    return [n for n in ast.walk(tree) if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute) and n.func.attr == attr]
+
+
+def method(name):
+    for n in ast.walk(APP):
+        if isinstance(n, ast.FunctionDef) and n.name == name:
+            return n
+    raise AssertionError(name)
+
+
+def getter(values):
+    base = {(s, k): v for s, sec in config.DEFAULTS.items() if isinstance(sec, dict)
+            for k, v in sec.items()}
+    base.update(values)
+    return lambda s, k: base[(s, k)]
+
+
+class PageTests(unittest.TestCase):
+    TITLES = ["Gõ phím", "Gợi ý & công cụ", "Gõ tắt", "Ứng dụng", "Chung"]
+
+    def test_five_pages_in_order(self):
+        init = method("__init__")
+        order = [c.args[0].func.attr for c in calls(init, "add")
+                 if c.args and isinstance(c.args[0], ast.Call)]
+        self.assertEqual(order, ["_page_typing", "_page_suggestions", "_page_shortcuts",
+                                 "_page_apps", "_page_general"])
+        titles = []
+        for name in order:
+            page = [c for c in ast.walk(method(name)) if isinstance(c, ast.Call)
+                    and isinstance(c.func, ast.Attribute) and c.func.attr == "PreferencesPage"]
+            kw = {k.arg: k.value for k in page[0].keywords}
+            titles.append(kw["title"].args[0].value)
+        self.assertEqual(titles, self.TITLES)
+        self.assertEqual(len(layout.PAGES), len(self.TITLES))
+
+    def test_no_generic_options_page(self):
+        self.assertNotIn("Tuỳ chỉnh", self.TITLES)
+        self.assertNotIn("Tuỳ chỉnh", i18n.EN)        # chỉ còn C_("profile", …)
+
+    def test_page_names_and_old_aliases(self):
+        self.assertEqual([layout.page_index(p) for p in layout.PAGES], [0, 1, 2, 3, 4])
+        self.assertEqual(layout.page_index("options"), 1)
+        self.assertEqual(layout.page_index("modes"), 3)
+        self.assertEqual(layout.page_index("compat"), 3)
+        self.assertEqual(layout.page_index("about"), 4)
+        self.assertIsNone(layout.page_index("xyz"))
+        self.assertIsNone(layout.page_index(None))
+
+    def test_typing_page_group_order(self):
+        # Kiểu gõ · Gõ lẫn tiếng Anh · Chuyển Việt/Anh · Chính tả (§4).
+        src = read("app.py")
+        pos = [src.index(s) for s in ('PreferencesGroup(title=_("Kiểu gõ"))',
+                                      'title=_("Gõ lẫn tiếng Anh")',
+                                      'PreferencesGroup(title=_("Chuyển Việt/Anh"))',
+                                      'PreferencesGroup(title=_("Chính tả"))')]
+        self.assertEqual(pos, sorted(pos))
+
+
+class DependentTests(unittest.TestCase):
+    def test_learn_words_needs_word_prediction(self):
+        key = ("general", "learn_words")
+        off = layout.dependent_state(key, getter({("general", "word_prediction"): False}))
+        self.assertEqual(off, (False, layout.REASON_NEEDS_PREDICTION))
+        on = layout.dependent_state(key, getter({("general", "word_prediction"): True}))
+        self.assertEqual(on, (True, None))
+        # Mặc định: Gợi ý từ tắt ⇒ Học từ bạn gõ hiện mờ (giá trị key không đổi: vẫn bật).
+        self.assertFalse(layout.dependent_state(key, getter({}))[0])
+        self.assertIs(config.DEFAULTS["general"]["learn_words"], True)
+
+    def test_learn_words_right_under_word_prediction(self):
+        keys = [k for k, _t, _s in ast.literal_eval(_assigned("PREDICTION_SWITCHES"))]
+        self.assertEqual(keys[:2], ["word_prediction", "learn_words"])
+
+    def test_retro_and_frequency_need_context(self):
+        for k in ("retroactive_english", "english_by_frequency"):
+            ok, why = layout.dependent_state(("typing", k),
+                                             getter({("typing", "contextual_english"): False}))
+            self.assertEqual((ok, why), (False, layout.REASON_NEEDS_CONTEXT))
+            self.assertTrue(layout.dependent_state(
+                ("typing", k), getter({("typing", "contextual_english"): True}))[0])
+
+    def test_telex_only_dimmed_under_vni(self):
+        vni = getter({("typing", "input_method"): "vni"})
+        telex = getter({("typing", "input_method"): "telex"})
+        for key in layout.TELEX_ONLY_KEYS:
+            self.assertEqual(layout.dependent_state(key, vni), (False, layout.REASON_TELEX_ONLY))
+            self.assertEqual(layout.dependent_state(key, telex), (True, None))
+        # Bỏ dấu kiểu mới áp dụng cả VNI.
+        self.assertEqual(layout.dependent_state(("typing", "modern_tone"), vni), (True, None))
+
+    def test_reason_goes_first_original_kept(self):
+        self.assertEqual(layout.dimmed_subtitle("Lý do.", "Mô tả"), "Lý do.\nMô tả")
+        self.assertEqual(layout.dimmed_subtitle(None, "Mô tả"), "Mô tả")
+        self.assertEqual(layout.dimmed_subtitle("Lý do.", ""), "Lý do.")
+
+    def test_every_dependency_is_wired_and_never_hidden(self):
+        wired = {const(c.args[1]) for c in calls(APP, "dependent") if len(c.args) == 2}
+        wired.discard(None)
+        # learn_words đi qua vòng lặp PREDICTION_SWITCHES (khoá ("general", key)).
+        wired.add(("general", "learn_words"))
+        self.assertEqual(set(layout.DEPENDENCIES), wired)
+        src = read("app.py")
+        self.assertFalse("self.telex_only" in src)     # danh sách dòng ẩn khi VNI cũ
+        self.assertFalse("retro_english_visible" in src)
+
+    def test_dependency_reasons_translated(self):
+        for _cond, reason in layout.DEPENDENCIES.values():
+            self.assertIn(reason, i18n.EN)
+
+
+def _assigned(name):
+    for n in APP.body:
+        if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == name:
+            # N_("…") ⇒ "…" để literal_eval được.
+            return re.sub(r'\bN_\(', "(", ast.unparse(n.value))
+    raise AssertionError(name)
+
+
+class LabelTests(unittest.TestCase):
+    """Nhãn chung §3 + không thuật ngữ kỹ thuật ở nhãn."""
+
+    def marked(self):
+        sys.path.insert(0, HERE)
+        import test_i18n
+        return test_i18n.marked_strings()
+
+    def test_shared_labels(self):
+        m = self.marked()
+        for label in ("Bỏ dấu tự do", "Bỏ dấu kiểu mới (oà, uý)", "Sửa dấu từ đã gõ",
+                      "Gợi ý số tiền", "Tự khôi phục từ tiếng Anh", "Học từ bạn gõ",
+                      "Gõ lẫn tiếng Anh", "Chuyển Việt/Anh", "Nâng cao",
+                      "Gõ tắt phụ âm nhanh (cc→ch, gg→gi…)", "Hiện gạch chân chữ đang gõ"):
+            self.assertIn(label, m, label)
+        hints = {k: t for k, t, _s in ast.literal_eval(_assigned("HINT_SWITCHES"))}
+        self.assertEqual(hints["number_chips"], "Gợi ý số tiền")
+        self.assertNotIn("Gõ mixed Việt/Anh", m)
+        self.assertEqual(i18n.EN["Gõ lẫn tiếng Anh"], "Mixed Vietnamese/English typing")
+
+    def test_auto_restore_caption_has_examples(self):
+        sw = [c for c in calls(APP, "switch") if const(c.args[2]) == "auto_restore"]
+        self.assertEqual(len(sw), 1)
+        sub = sw[0].args[4].args[0].value
+        self.assertIn("google", sub)
+        self.assertIn("github", sub)
+
+    def test_no_jargon(self):
+        jargon = re.compile(r"preedit|surrounding|composition|\bchips?\b", re.I)
+        bad = [s for s in self.marked() if jargon.search(s)]
+        bad += [v for v in i18n.EN.values() if jargon.search(v)]
+        self.assertEqual(bad, [])
+
+
+class ProfilePickerTests(unittest.TestCase):
+    """Bộ chọn hồ sơ vẫn phủ ĐỦ key sau khi công tắc dời vào Nâng cao."""
+
+    def test_every_profile_key_has_a_control_that_refreshes_picker(self):
+        controls = {}
+        for c in calls(APP, "switch") + calls(APP, "combo"):
+            key = (const(c.args[1]), const(c.args[2]))
+            controls[key] = c
+        for key in onboarding.profile_values("mixed"):
+            self.assertIn(key, controls, key)
+        src = ast.unparse(method("_mixed_groups"))
+        for name in ("restore_row", "ctx_row", "retro_row", "freq_row", "start_row"):
+            self.assertIn(name, src.split("for r in (")[1].split(")")[0])
+        self.assertIn("collision_row.connect('notify::selected', lambda *_a: "
+                      "self._refresh_picker())", src)
+
+    def test_pick_profile_still_writes_keys(self):
+        import tempfile
+        cfg = config.Config(os.path.join(tempfile.mkdtemp(), "config.toml"))
+        onboarding.apply_profile(cfg, "en")
+        for key, v in onboarding.profile_values("en").items():
+            self.assertEqual(cfg.get(*key), v, key)
+
+
+# Tên các bộ gõ tiếng Việt khác — mã hoá rot13 để chính file test cũng không chứa tên.
+_FORBIDDEN = [codecs.decode(p, "rot13") for p in (
+    r"\ohavxrl\o", r"\orixrl\o", r"\oybghf\o", r"\oonzobb\o", r"\otb\f*aunau\o",
+    r"\obcraxrl\o", r"\ivrgxrl\o", r"\okxrl\o", r"\oynona\f*xrl\o", r"\oivxrl\o")]
+# detect.py phải biết tên gói/đường dẫn để phát hiện xung đột — dữ liệu dò, không hiện ra nhãn.
+_SCANNED = ("app.py", "compat.py", "config.py", "i18n.py", "layout.py", "onboarding.py",
+            "shortcuts.py", "updater.py", "gnome_fcitx5.py", "launchers.py")
+
+
+def _fold(text):
+    text = unicodedata.normalize("NFD", text.replace("đ", "d").replace("Đ", "D"))
+    return "".join(ch for ch in text if not unicodedata.combining(ch)).lower()
+
+
+class NoOtherInputMethodNamesTests(unittest.TestCase):
+    def hits(self, text):
+        t = _fold(text)
+        return [p for p in _FORBIDDEN if re.search(p, t)]
+
+    def test_scanner_works(self):
+        self.assertTrue(self.hits(codecs.decode("Tõ Aunau", "rot13")))
+        self.assertFalse(self.hits("Gõ tắt phụ âm nhanh, hotkey, max key"))
+
+    def test_ui_strings(self):
+        bad = [s[:60] for s in list(i18n.EN) + list(i18n.EN.values()) if self.hits(s)]
+        self.assertEqual(bad, [])
+
+    def test_source_strings_and_comments(self):
+        bad = []
+        for name in _SCANNED:
+            for tok in tokenize.generate_tokens(io.StringIO(read(name)).readline):
+                if tok.type in (tokenize.STRING, tokenize.COMMENT) and self.hits(tok.string):
+                    bad.append("%s:%d %s" % (name, tok.start[0], tok.string[:50]))
+        self.assertEqual(bad, [], "\n".join(bad))
+
+
+if __name__ == "__main__":
+    unittest.main()

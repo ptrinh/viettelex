@@ -179,7 +179,7 @@ hay tra — số cửa sổ / pid dùng lại sẽ mang trạng thái của app 
 
 `"vi"` (mặc định) hoặc `"en"`; thiếu / giá trị lạ → `"vi"`. **Không bao giờ theo locale của
 máy** (quy ước chung với iOS `L10n`): máy tiếng Anh vẫn mở tiếng Việt cho tới khi người dùng
-chọn English ở Tuỳ chỉnh → "Ngôn ngữ / Language". Áp dụng ngay: app cài đặt dựng lại cửa sổ;
+chọn English ở trang Chung → "Ngôn ngữ / Language". Áp dụng ngay: app cài đặt dựng lại cửa sổ;
 frontend (qua inotify) đổi nhãn menu bộ gõ (Tiếng Việt/English, Công cụ…, tên 6 công cụ,
 Cài đặt…). Tên riêng (VietTelex, Fcitx5, IBus, Telex, VNI) giữ nguyên. Hộp cấu hình gốc của
 Fcitx5 (`fcitx5-config-qt`) và tên bộ gõ "Tiếng Việt (VietTelex)" vẫn tiếng Việt.
@@ -293,8 +293,8 @@ mời) và cả ở Enter / Tab / Esc — trước khi phím đi tiếp. Không 
 
 ## 9. Thử nghiệm: không gạch chân ở Chromium/Electron (`[experimental] no_underline`)
 
-`"off"` (mặc định; giá trị lạ cũng là off) hoặc `"forward-keys"`. App cài đặt: tab **Tuỳ chỉnh →
-Hiển thị chữ đang gõ → "Bỏ gạch chân trong Chrome/Electron (thử nghiệm)"** (ghi tại chỗ như mọi
+`"off"` (mặc định; giá trị lạ cũng là off) hoặc `"forward-keys"`. App cài đặt: trang **Ứng dụng →
+Hiển thị chữ đang gõ → Nâng cao → "Bỏ gạch chân trong Chrome/Electron (thử nghiệm)"** (ghi tại chỗ như mọi
 key khác); áp dụng ngay (inotify). Đánh giá đầy đủ + kế hoạch kiểm thử:
 `docs/NO-UNDERLINE-SPIKE.md`.
 

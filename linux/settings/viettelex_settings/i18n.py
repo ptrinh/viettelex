@@ -53,8 +53,6 @@ def C_(context, vi):
 EN = {
     # --- chế độ theo app / hộp thoại chung
     "Tự động": "Automatic",
-    "Chữ đang gõ (preedit)": "Composition (preedit)",
-    "Sửa trực tiếp (surrounding)": "Edit in place (surrounding)",
     "Gõ thẳng, sửa bằng Backspace": "Type directly, fix with Backspace",
     "Tắt tiếng Việt": "Vietnamese off",
     "Huỷ": "Cancel",
@@ -65,8 +63,8 @@ EN = {
     "VietTelex — Cài đặt": "VietTelex — Settings",
     "Đang kiểm tra…": "Checking…",
 
-    # --- Kiểu gõ
-    "Kiểu gõ": "Typing",
+    # --- Gõ phím
+    "Kiểu gõ": "Typing method",
     "Bộ gõ": "Input method",
     "Hướng dẫn bật bộ gõ…": "Setup guide…",
     "Gõ dấu bằng chữ số": "Tones with number keys",
@@ -84,7 +82,6 @@ EN = {
     "ừk. Tắt = chỉ chính tả chuẩn, nên từ tiếng Anh như was, war, worse, zoo giữ nguyên.":
         "Accept chat spellings: w/z/k for qu/d/c (wá, zui zẻ, kó) and bíe, thík, gòy, ừk. "
         "Off = standard spelling only, so English words like was, war, worse, zoo stay as typed.",
-    "Gõ nhanh (Quick Telex)": "Quick Telex",
     "Gõ đúp phụ âm đầu để ra phụ âm ghép: cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th.":
         "Double a first consonant for a digraph: cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th.",
     "Bỏ dấu tự do": "Free tone placement",
@@ -93,10 +90,6 @@ EN = {
         "Off = strict Telex: marks only apply right after a vowel, good for English/code "
         "(data→data). On: marks can be typed anywhere (ama→âm).",
     "Phím ngoặc: [ ra ơ, ] ra ư": "Bracket keys: [ types ơ, ] types ư",
-    "Thói quen UniKey: “th[” → “thơ”, “ng]” → “ngư” ({ và } ra chữ hoa). Nếu bạn gõ code thì "
-    "nên để TẮT — khi bật, [ và ] thuộc về từ đang gõ thay vì kết thúc từ.":
-        "UniKey habit: “th[” → “thơ”, “ng]” → “ngư” ({ and } give capitals). Leave OFF if you "
-        "write code — when on, [ and ] belong to the word being typed instead of ending it.",
     "Bỏ dấu kiểu mới (oà, uý)": "Modern tone placement (oà, uý)",
     "Tắt = kiểu cũ (hòa, thủy, khỏe). Bật = kiểu mới (hoà, thuý, khoẻ). Chỉ đổi vị trí dấu ở "
     "oa/oe/uy.":
@@ -111,14 +104,8 @@ EN = {
     "VietTelex chưa được bật trong %s": "VietTelex is not enabled in %s",
     "Bấm “Hướng dẫn bật bộ gõ…” để làm từng bước.": "Click “Setup guide…” for step-by-step help.",
 
-    # --- Tuỳ chỉnh
-    "Tuỳ chỉnh": "Options",
+    # --- Gợi ý & công cụ
     "Chính tả": "Spelling",
-    "Tự khôi phục từ không hợp lệ": "Restore invalid words",
-    "Từ không phải tiếng Việt hợp lệ sẽ tự trả về đúng phím đã gõ khi kết thúc từ "
-    "(retore → retore).":
-        "A word that isn’t valid Vietnamese goes back to the exact keys typed when the word "
-        "ends (retore → retore).",
     "Kiểm tra chính tả khi gõ": "Spell-check while typing",
     "Ngừng bỏ dấu ngay khi từ không thể là tiếng Việt (google, github…) thay vì đợi hết từ.":
         "Stop adding marks as soon as a word can’t be Vietnamese (google, github…) instead of "
@@ -136,53 +123,19 @@ EN = {
         "When you go on typing an English sentence, words that were wrongly given Vietnamese "
         "tones are fixed (e.g. “Hí cả í very fast” → “His car is very fast”).",
     "Đoán từ trùng theo tần suất (thử nghiệm)": "Guess colliding words by frequency (experimental)",
-    "Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his → hí) thì chọn tiếng "
-    "Anh; từ kế cho thấy là tiếng Việt (hí hửng, hí hí) thì tự đổi lại. Cần bật Quyết định "
-    "theo ngữ cảnh.":
-        "At the start of a phrase, a word that is both a common English word and a rare "
-        "Vietnamese syllable (his → hí) becomes English; if the next word shows the phrase is "
-        "Vietnamese (hí hửng, hí hí), it is switched back automatically. Needs context-based "
-        "decisions.",
-    "Gõ thêm dấu cho từ ngay trước con trỏ": "Add marks to the word before the cursor",
     "Đặt con trỏ ngay sau một từ đã gõ rồi gõ phím dấu để sửa dấu từ đó (toan + s → toán).":
         "Put the cursor right after a typed word and press a mark key to fix its marks "
         "(toan + s → toán).",
     "Gạch đỏ âm tiết sai chính tả khi gõ": "Underline misspelled syllables while typing",
-    "Chữ đang gõ được đánh dấu khi nó không thể thành âm tiết tiếng Việt (đc, hópng, tòc): IBus "
-    "gạch lượn sóng + chữ đỏ, Fcitx5 gạch chân. Chỉ ở chế độ chữ đang gõ (preedit); từ giữ "
-    "nguyên phím gõ hoặc sẽ tự khôi phục (tiếng Anh) không bị đánh dấu.":
-        "The word being typed is marked when it can’t become a Vietnamese syllable (đc, hópng, "
-        "tòc): IBus draws a wavy underline and red text, Fcitx5 an underline. Preedit mode only; "
-        "words left as typed or auto-restored (English) are never marked.",
-    "Khi từ vừa là tiếng Anh vừa là tiếng Việt": "When a word is both English and Vietnamese",
-    "Cho các từ như last/lát, list/lít, his/hí. Ưu tiên tiếng Việt: gõ đúp phím dấu để giữ "
-    "tiếng Anh (lisst → list). Ưu tiên tiếng Anh: đặt dấu ở cuối từ để ra tiếng Việt "
-    "(lits → lít). Trong câu tiếng Anh thì từ vẫn giữ tiếng Anh dù chọn gì.":
-        "For words like last/lát, list/lít, his/hí. Prefer Vietnamese: double the mark key to "
-        "keep English (lisst → list). Prefer English: put the mark at the end for Vietnamese "
-        "(lits → lít). Inside an English sentence the word stays English either way.",
     "Ưu tiên tiếng Việt": "Prefer Vietnamese",
     "Ưu tiên tiếng Anh": "Prefer English",
-    "Hiển thị chữ đang gõ": "Composition display",
-    "Chữ đang gõ (preedit): đúng chữ ở mọi app (GTK, Qt, Chrome, Electron). Sửa trực tiếp: "
-    "giống macOS, chỉ áp dụng ở app hỗ trợ surrounding text — LibreOffice và app không hỗ trợ "
-    "tự về preedit. Chỉnh riêng từng app ở tab Bảng cơ chế gõ.":
-        "Composition (preedit): correct text in every app (GTK, Qt, Chrome, Electron). Edit in "
-        "place: like macOS, only in apps that support surrounding text — LibreOffice and "
-        "unsupported apps fall back to preedit. Set it per app in the App modes tab.",
-    "Cách hiện từ đang gõ": "Show the word being typed as",
+    "Hiển thị chữ đang gõ": "Word being typed",
     "Gạch chân chữ đang gõ": "Underline the word being typed",
     "Tắt = chữ đang gõ trông như chữ thường ở app GTK, Qt, VTE (X11). Chrome/Electron và app "
     "Wayland trên GNOME vẫn tự vẽ gạch chân.":
         "Off = the word being typed looks like normal text in GTK, Qt and VTE apps (X11). "
         "Chrome/Electron and Wayland apps on GNOME still draw their own underline.",
     "Terminal: gõ thẳng, sửa dấu bằng Backspace": "Terminals: type directly, fix marks with Backspace",
-    "Giống UniKey: không gạch chân trong gnome-terminal, tilix, konsole… khi app nhận phím qua "
-    "IBus GTK3 hoặc Fcitx5 (fcitx5-gtk3/fcitx5-qt). Terminal GTK4 (Ptyxis, Console) và phiên "
-    "Wayland GNOME vẫn dùng preedit.":
-        "Like UniKey: no underline in gnome-terminal, tilix, konsole… when the app gets keys "
-        "through IBus GTK3 or Fcitx5 (fcitx5-gtk3/fcitx5-qt). GTK4 terminals (Ptyxis, Console) "
-        "and GNOME Wayland sessions still use preedit.",
     "Bỏ gạch chân trong Chrome/Electron (thử nghiệm)":
         "No underline in Chrome/Electron (experimental)",
     "Chrome, VS Code, Slack, Discord… gõ thẳng như ở app khác; sửa dấu bằng phím Backspace, lỗi "
@@ -231,7 +184,6 @@ EN = {
     "Hiện công cụ văn bản trong menu": "Show text tools in the menu",
     "Menu “Công cụ…” của bộ gõ (khay Fcitx5 / menu IBus) liệt kê 6 công cụ trên.":
         "The input method’s “Tools…” menu (Fcitx5 tray / IBus menu) lists the 6 tools above.",
-    "Công cụ cho vùng chọn": "Tools for the selection",
     "Gợi ý cạnh con trỏ": "Suggestions next to the caret",
     "Hiện ngay cạnh con trỏ khi rất chắc; chỉ Tab mới áp dụng, phím khác bỏ qua, "
     "Esc = bỏ gợi ý. Không bao giờ tự thay, không chạy ở ô mật khẩu. Cần gói "
@@ -244,7 +196,6 @@ EN = {
     "Tab hoặc Enter để chèn.":
         "Type a calculation, then “=” (12*3=, 200+10%=, 125 x (4 + 5.5) =) → the result next "
         "to the caret; Tab or Enter inserts it.",
-    "Chip số dạng tiền": "Money format for numbers",
     "50k, 1tr2, 2 tỷ + dấu cách → 1.200.000 ₫ cạnh con trỏ; Tab để thay.":
         "50k, 1tr2, 2 tỷ + space → 1.200.000 ₫ next to the caret; Tab replaces.",
     "Gợi ý sửa lỗi gõ sai": "Typo fix suggestions",
@@ -266,10 +217,6 @@ EN = {
         "yesterday, now after an English word). Tab replaces.",
     # --- Văn bản tự động
     "Văn bản tự động": "Automatic text",
-    "Mặc định tắt (trừ Lọc từ nhạy cảm). Không chạy trong terminal, trình soạn code, ô địa chỉ web / "
-    "email, ô mật khẩu và khi đang gõ English.":
-        "Off by default (except Filter sensitive words). Never in terminals, code editors, web address / e-mail fields, password "
-        "fields, or while typing English.",
     "Thêm dấu chấm khi gõ hai dấu cách": "Add period with double-space",
     "Gõ hai dấu cách liền nhau sau một chữ → “. ” (giữ phím cách thì không). Chỉ ở app cho bộ gõ "
     "đọc chữ quanh con trỏ.":
@@ -294,12 +241,6 @@ EN = {
         "the punctuation to the word. Needs the viettelex-text-tools package.",
     "Lọc từ nhạy cảm": "Filter sensitive words",
     "Học từ bạn gõ": "Learn from your typing",
-    "Gợi ý từ học các từ và cặp từ bạn hay gõ (không bao giờ ở ô mật khẩu, terminal, trình soạn "
-    "code hay khi gõ English). Chỉ lưu trên máy này — không gửi qua mạng, không đồng bộ. Cần bật "
-    "Gợi ý từ. Mặc định bật.":
-        "Word suggestions learn the words and word pairs you type often (never in password fields, "
-        "terminals, code editors or while typing English). Stored only on this computer — never sent "
-        "over the network or synced. Needs Word suggestions. On by default.",
     "Xoá từ đã học": "Clear learned words",
     "Gợi ý từ quên mọi từ và cặp từ đã học từ những gì bạn gõ trên máy này.":
         "Word suggestions forget every word and word pair learned from your typing on this computer.",
@@ -314,14 +255,6 @@ EN = {
         "usual. On by default.",
     "Kiểu ngoặc kép": "Quote style",
     "“ ” ‘ ’ (mặc định)": "“ ” ‘ ’ (default)",
-    "menu Công cụ…": "Tools… menu",
-    "phép tính": "math",
-    "chip số": "money format",
-    "sửa lỗi gõ": "typo fixes",
-    "thêm dấu": "tones",
-    "ngày giờ": "date/time",
-    "Đang bật: %s": "On: %s",
-    "Đang tắt hết": "All off",
     "Phím tắt Thêm dấu": "Add tones hotkey",
     "Thêm dấu cho đoạn không dấu đang bôi đen (toi di hoc → tôi đi học). Mặc định tắt.":
         "Add tones to the selected unaccented text (toi di hoc → tôi đi học). Off by default.",
@@ -375,10 +308,6 @@ EN = {
     "Xuất ra YAML…": "Export to YAML…",
     "Bảng gõ tắt": "Shortcut list",
     "Chưa có gõ tắt nào": "No shortcuts yet",
-    "Thêm ở trên, hoặc Nhập… file YAML/JSON/TXT (mỗi dòng một cặp key: value — cùng định dạng "
-    "bản macOS, Gõ Nhanh, EVKey…).":
-        "Add one above, or Import… a YAML/JSON/TXT file (one key: value pair per line — same "
-        "format as the macOS version, Gõ Nhanh, EVKey…).",
     "Xoá gõ tắt này": "Delete this shortcut",
     "Từ gõ tắt không được trống hay chứa dấu cách (tối đa 64 ký tự).":
         "A shortcut can’t be empty or contain spaces (up to 64 characters).",
@@ -390,17 +319,7 @@ EN = {
     "Đã lưu %s": "Saved %s",
     "Không lưu được file.": "Couldn’t save the file.",
 
-    # --- Bảng cơ chế gõ
-    "Bảng cơ chế gõ": "App modes",
-    "Ép cơ chế gõ theo app": "Force a typing mode per app",
-    "App gõ sai hoặc hiện gạch chân khó chịu? Chọn riêng cho app đó. Tự động = theo “Cách hiện "
-    "từ đang gõ” ở tab Tuỳ chỉnh. Terminal và LibreOffice mặc định dùng preedit (%s); terminal "
-    "gõ thẳng khi hệ hỗ trợ. “Gõ thẳng” chỉ có tác dụng ở app nhận phím qua IBus GTK3 / Fcitx5 "
-    "GTK3-Qt.":
-        "An app types wrong or shows an annoying underline? Pick a mode just for it. Automatic "
-        "= follows “Show the word being typed as” in the Options tab. Terminals and LibreOffice "
-        "use preedit by default (%s); terminals type directly when the system allows. “Type "
-        "directly” only works in apps that get keys through IBus GTK3 / Fcitx5 GTK3-Qt.",
+    # --- Ứng dụng: cách gõ theo từng app
     "Tên app (vd: org.gnome.texteditor, kitty, code)": "App name (e.g. org.gnome.texteditor, kitty, code)",
     "App đã chỉnh": "Customized apps",
     "Tên app: Fcitx5 dùng tên chương trình; IBus dùng app-id Wayland hoặc WM_CLASS (chữ thường).":
@@ -413,8 +332,7 @@ EN = {
     "Đã nhập %d chế độ app. Mục có chế độ không hợp lệ bị bỏ qua.":
         "Imported %d app modes. Entries with an invalid mode were skipped.",
 
-    # --- Tương thích
-    "Tương thích": "Compatibility",
+    # --- Ứng dụng: tương thích
     "Tương thích ứng dụng": "App compatibility",
     "Chỉ liệt kê lưu ý khớp với máy này.": "Only issues that apply to this computer are listed.",
     "Không phát hiện vấn đề nào với các ứng dụng đã cài.": "No issues found with the installed apps.",
@@ -469,19 +387,8 @@ EN = {
     "QT_IM_MODULES (danh sách thử lần lượt). Đăng nhập lại sau khi thêm.":
         "Native Wayland Qt5 apps have no input method without QT_IM_MODULE. Qt ≥ 6.8.2 reads "
         "QT_IM_MODULES (a list tried in order). Log in again after adding it.",
-    "Terminal: gõ thẳng khi được, còn lại preedit": "Terminals: direct typing when possible, otherwise preedit",
-    "Terminal nhận phím qua IBus GTK3 hoặc Fcitx5 (fcitx5-gtk3, fcitx5-qt) — gnome-terminal, "
-    "tilix, konsole… trên X11 — được gõ thẳng như UniKey (sửa dấu bằng Backspace, không gạch "
-    "chân). Terminal GTK4 (Ptyxis, Console), phiên Wayland GNOME, kitty/alacritty/foot và "
-    "terminal của VS Code dùng preedit: ở đó Backspace gửi đi không chắc đến trước chữ mới.":
-        "Terminals that get keys through IBus GTK3 or Fcitx5 (fcitx5-gtk3, fcitx5-qt) — "
-        "gnome-terminal, tilix, konsole… on X11 — type directly like UniKey (marks fixed with "
-        "Backspace, no underline). GTK4 terminals (Ptyxis, Console), GNOME Wayland sessions, "
-        "kitty/alacritty/foot and the VS Code terminal use preedit: there a sent Backspace "
-        "isn’t guaranteed to arrive before the new text.",
 
-    # --- Giới thiệu
-    "Giới thiệu": "About",
+    # --- Chung
     "Phiên bản %s · Linux": "Version %s · Linux",
     "Học gõ Telex": "Learn Telex",
     "Câu hỏi thường gặp": "FAQ",
@@ -557,11 +464,6 @@ EN = {
     "Bấm “Dùng Fcitx5” ở trên rồi đăng xuất/đăng nhập lại.":
         "Click “Use Fcitx5” above, then log out and back in.",
     "Fcitx5 thay IBus trên GNOME": "Fcitx5 instead of IBus on GNOME",
-    "Với Fcitx5, app GTK (Firefox, Terminal, Text Editor…) không gạch chân chữ đang gõ và thanh "
-    "trên cùng hiện icon VietTelex. Chrome/Electron vẫn có thể gạch chân (xem tab Tương thích).":
-        "With Fcitx5, GTK apps (Firefox, Terminal, Text Editor…) don’t underline the text being "
-        "typed and the top bar shows the VietTelex icon. Chrome/Electron may still underline "
-        "(see the Compatibility tab).",
     "Đã đặt Fcitx5 chạy thay IBus": "Fcitx5 is set to replace IBus",
     "Đang có hiệu lực.": "In effect.",
     "Chưa có hiệu lực — đăng xuất rồi đăng nhập lại.": "Not in effect yet — log out and back in.",
@@ -613,22 +515,10 @@ EN = {
     "(hoặc gỡ gói kia).":
         "Two Vietnamese input methods at once easily double the marks. Keep only one in the "
         "input source list (or remove the other package).",
-    "fcitx5-lotus đang chạy chế độ uinput": "fcitx5-lotus is running in uinput mode",
-    "Lotus ở chế độ uinput gửi phím BackSpace thật: đổi bộ gõ hay cửa sổ giữa chừng một từ có "
-    "thể xoá thừa chữ khi gõ bằng VietTelex. Nên chỉ giữ một bộ gõ tiếng Việt; nếu vẫn dùng "
-    "Lotus, chuyển Lotus sang Preedit hoặc tắt server: %s":
-        "Lotus in uinput mode sends real BackSpace keys: switching input method or window in "
-        "the middle of a word can delete extra characters while typing with VietTelex. Keep "
-        "only one Vietnamese input method; if you keep Lotus, set it to Preedit or stop its "
-        "server: %s",
     "Fcitx5 và IBus cùng chạy": "Fcitx5 and IBus are both running",
     "Nên chỉ dùng một bộ khung gõ: im-config -n fcitx5 (hoặc ibus) rồi đăng nhập lại.":
         "Use only one framework: im-config -n fcitx5 (or ibus), then log in again.",
     "Phiên Wayland: Chrome/Electron (VS Code, Slack…)": "Wayland session: Chrome/Electron (VS Code, Slack…)",
-    "Nếu không gõ được tiếng Việt trong Chrome hay app Electron, chạy app với %s (hoặc %s). "
-    "Lệnh copy sẵn ở tab Tương thích.":
-        "If you can’t type Vietnamese in Chrome or Electron apps, launch them with %s (or %s). "
-        "Ready-to-copy commands are in the Compatibility tab.",
     "Thử gõ": "Try it",
     "Bật VietTelex (%s) rồi gõ: vieejt → việt": "Turn VietTelex on (%s), then type: vieejt → việt",
     "Thử gõ tại đây…": "Type here to try…",
@@ -652,32 +542,17 @@ EN = {
     # --- dòng lệnh
     "Mở hướng dẫn bật bộ gõ": "Open the setup guide",
     "Không tự mở hướng dẫn khi bộ gõ chưa bật": "Don’t open the setup guide automatically",
-    "Mở tab: typing|options|shortcuts|modes|compat|about": "Open a tab: typing|options|shortcuts|modes|compat|about",
 
-    # --- onboarding người dùng mới + nhóm "Gõ mixed Việt/Anh" (docs/ONBOARDING-SPEC.md)
+    # --- onboarding người dùng mới + nhóm "Gõ lẫn tiếng Anh" (docs/ONBOARDING-SPEC.md)
     "Bạn hay gõ trộn Anh/Việt?": "Do you mix English and Vietnamese?",
-    "Xem nhóm Gõ mixed Việt/Anh mới: các công tắc nhận diện tiếng Anh và chuyển "
-    "ngôn ngữ nay nằm chung một chỗ, ngay dưới mục Kiểu gõ.":
-        "See the new Mixed Vietnamese/English typing group: the English-detection and "
-        "language-switch settings now live together, right below Input style.",
     "Xem": "Show me",
     "Đóng": "Close",
-    "Gõ mixed Việt/Anh": "Mixed Vietnamese/English typing",
     "Nhận diện tiếng Anh khi gõ lẫn Việt–Anh.": "English detection when you mix Vietnamese and English.",
-    "Chuyển ngôn ngữ": "Language switching",
-    "Tự khôi phục từ tiếng Anh và quyết định theo ngữ cảnh nằm ở tab Kiểu gõ → "
-    "Gõ mixed Việt/Anh.":
-        "Auto-restore of English words and the context-based decision are in Typing → "
-        "Mixed Vietnamese/English typing.",
     "Chào mừng đến với VietTelex": "Welcome to VietTelex",
     "Tiếp": "Next",
     "Bỏ qua": "Skip",
     "Xong": "Done",
     "Bạn thường gõ thế nào?": "How do you usually type?",
-    "VietTelex bật sẵn các tính năng hợp với cách bạn gõ. Đổi lại lúc nào cũng "
-    "được ở tab Kiểu gõ → Gõ mixed Việt/Anh.":
-        "VietTelex turns on the features that fit how you type. Change them any time in "
-        "Typing → Mixed Vietnamese/English typing.",
     "Chủ yếu tiếng Việt": "Mostly Vietnamese",
     "Việt + Anh nhiều": "Lots of Vietnamese + English",
     "Chủ yếu tiếng Anh": "Mostly English",
@@ -687,14 +562,105 @@ EN = {
     "Vừa bật": "Just turned on",
     "Tắt ngay nếu không cần.": "Turn off anything you don’t need.",
     "Bắt đầu bằng tiếng Anh": "Start in English",
-    # Bộ chọn nhanh hồ sơ ở đầu nhóm Gõ mixed Việt/Anh (ONBOARDING-SPEC §4)
-    "Bạn thường gõ thế nào? Chọn một — các công tắc bên dưới sẽ tự đặt theo.":
-        "How do you usually type? Pick one — the switches below are set to match.",
+    # Bộ chọn nhanh hồ sơ ở đầu nhóm Gõ lẫn tiếng Anh (ONBOARDING-SPEC §4)
     "profile\x04Tuỳ chỉnh": "Custom",
-    "Bạn đã tự chỉnh các công tắc bên dưới.": "You changed the switches below yourself.",
     "Áp dụng “%s”?": "Apply “%s”?",
     "Áp dụng": "Apply",
     "Các công tắc bạn đã tự chỉnh sẽ đổi:": "Switches you changed yourself will change:",
     "bật": "on",
     "tắt": "off",
+
+    # --- thu gọn cài đặt (docs/SETTINGS-CLEANUP-SPEC.md)
+    'Sửa thẳng trong ô':
+        'Edit right in the field',
+    'Gợi ý số tiền':
+        'Money amount suggestions',
+    'Gợi ý từ học các từ và cặp từ bạn hay gõ (không bao giờ ở ô mật khẩu, terminal, trình soạn code hay khi gõ English). Chỉ lưu trên máy này — không gửi qua mạng, không đồng bộ. Mặc định bật.':
+        'Word suggestions learn the words and word pairs you type often (never in password fields, terminals, code editors or while typing English). Stored only on this computer — never sent over the network or synced. On by default.',
+    'Không chạy trong terminal, trình soạn code, ô địa chỉ web / email, ô mật khẩu và khi đang gõ English.':
+        'Never in terminals, code editors, web address / e-mail fields, password fields, or while typing English.',
+    'Telex đơn giản, bỏ dấu tự do, gõ tắt phụ âm, dấu kiểu mới, teencode, phím ngoặc':
+        'Simple Telex, free tone placement, consonant shortcuts, modern tones, teencode, bracket keys',
+    'Xem nhóm Gõ lẫn tiếng Anh mới: chọn cách bạn hay gõ, các công tắc nhận diện tiếng Anh nằm chung một chỗ, ngay dưới mục Kiểu gõ.':
+        'See the new Mixed Vietnamese/English typing group: pick how you usually type; the English-detection switches are all in one place, right below Typing method.',
+    'Khôi phục từ tiếng Anh, ngữ cảnh, khi trùng từ, sửa từ phía trước…':
+        'Restore English words, context, ambiguous words, fixing earlier words…',
+    'Tự khôi phục từ tiếng Anh':
+        'Restore English words automatically',
+    'Từ không phải tiếng Việt hợp lệ tự trả về đúng phím đã gõ khi kết thúc từ (google, github, retore…).':
+        'A word that isn’t valid Vietnamese goes back to exactly the keys you typed when the word ends (google, github, retore…).',
+    'Khi từ vừa Anh vừa Việt':
+        'When a word is both English and Vietnamese',
+    'Nhớ theo từng app, app mới bắt đầu bằng…, quên trạng thái đã nhớ':
+        'Remember per app, what new apps start in, forget remembered states',
+    'Sửa dấu từ đã gõ':
+        'Fix marks on a typed word',
+    'Chữ đang gõ được đánh dấu khi nó không thể thành âm tiết tiếng Việt (đc, hópng, tòc): IBus gạch lượn sóng + chữ đỏ, Fcitx5 gạch chân. Chỉ khi chữ đang gõ hiện gạch chân (không áp dụng khi sửa thẳng trong ô); từ giữ nguyên phím gõ hoặc sẽ tự khôi phục (tiếng Anh) không bị đánh dấu.':
+        'The word being typed is marked when it can’t become a Vietnamese syllable (đc, hópng, tòc): IBus draws a wavy underline and red text, Fcitx5 an underline. Only while the word being typed is underlined (not when editing right in the field); words left as typed or auto-restored (English) are never marked.',
+    'Bạn thường gõ thế nào? Chọn một — các công tắc trong Nâng cao sẽ tự đặt theo.':
+        'How do you usually type? Pick one — the switches under Advanced are set to match.',
+    'Cách hiện chữ đang gõ, gạch chân, terminal, Chrome/Electron':
+        'How the word being typed is shown, underline, terminals, Chrome/Electron',
+    'Cách hiện chữ đang gõ':
+        'How the word being typed is shown',
+    'Hiện gạch chân chữ đang gõ':
+        'Underline the word being typed',
+    'Không gạch chân trong gnome-terminal, tilix, konsole… khi app nhận phím qua IBus GTK3 hoặc Fcitx5 (fcitx5-gtk3/fcitx5-qt). Terminal GTK4 (Ptyxis, Console) và phiên Wayland GNOME vẫn gạch chân chữ đang gõ.':
+        'No underline in gnome-terminal, tilix, konsole… when the app gets keys through IBus GTK3 or Fcitx5 (fcitx5-gtk3/fcitx5-qt). GTK4 terminals (Ptyxis, Console) and GNOME Wayland sessions still underline the word being typed.',
+    'Mở trang: typing|suggestions|shortcuts|apps|general':
+        'Open page: typing|suggestions|shortcuts|apps|general',
+    'Nâng cao':
+        'Advanced',
+    'Gõ phím':
+        'Typing',
+    'Gõ tắt phụ âm nhanh (cc→ch, gg→gi…)':
+        'Quick consonants (cc→ch, gg→gi…)',
+    '“th[” → “thơ”, “ng]” → “ngư” ({ và } ra chữ hoa). Nếu bạn gõ code thì nên để TẮT — khi bật, [ và ] thuộc về từ đang gõ thay vì kết thúc từ.':
+        '“th[” → “thơ”, “ng]” → “ngư” ({ and } give capitals). Leave OFF if you write code — when on, [ and ] belong to the word being typed instead of ending it.',
+    'Gõ lẫn tiếng Anh':
+        'Mixed Vietnamese/English typing',
+    'Cho các từ như last/lát, list/lít, his/hí. Mẹo: gõ đúp phím dấu để giữ tiếng Anh (lisst → list). Ưu tiên tiếng Anh: đặt dấu ở cuối từ để ra tiếng Việt (lits → lít). Trong câu tiếng Anh thì từ vẫn giữ tiếng Anh dù chọn gì.':
+        'For words like last/lát, list/lít, his/hí. Tip: double the mark key to keep English (lisst → list). Prefer English: put the mark at the end for Vietnamese (lits → lít). Inside an English sentence the word stays English either way.',
+    'Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his → hí) thì chọn tiếng Anh; từ kế cho thấy là tiếng Việt (hí hửng, hí hí) thì tự đổi lại.':
+        'At the start of a phrase, a word that is both a common English word and a rare Vietnamese syllable (his → hí) becomes English; if the next word shows the phrase is Vietnamese (hí hửng, hí hí), it is switched back automatically.',
+    'Chuyển Việt/Anh':
+        'Switching Vietnamese/English',
+    'Bạn đã tự chỉnh các công tắc trong Nâng cao.':
+        'You changed the switches under Advanced yourself.',
+    'Gợi ý & công cụ':
+        'Suggestions & tools',
+    'Thêm ở trên, hoặc Nhập… file YAML/JSON/TXT (mỗi dòng một cặp key: value — cùng định dạng bản macOS và file gõ tắt dạng key: value thông dụng).':
+        'Add one above, or Import… a YAML/JSON/TXT file (one key: value pair per line — same format as the macOS version and common key: value shortcut files).',
+    'Ứng dụng':
+        'Apps',
+    'Cách gõ theo từng app':
+        'Typing mode per app',
+    'Gạch chân chữ đang gõ: đúng chữ ở mọi app (GTK, Qt, Chrome, Electron). Sửa thẳng trong ô: giống macOS, chỉ ở app cho bộ gõ đọc chữ quanh con trỏ — LibreOffice và app không hỗ trợ tự về gạch chân.':
+        'Underline the word being typed: correct text in every app (GTK, Qt, Chrome, Electron). Edit right in the field: like macOS, only in apps that let the input method read the text around the cursor — LibreOffice and unsupported apps fall back to underlining.',
+    'Chung':
+        'General',
+    'Với Fcitx5, app GTK (Firefox, Terminal, Text Editor…) không gạch chân chữ đang gõ và thanh trên cùng hiện icon VietTelex. Chrome/Electron vẫn có thể gạch chân (xem trang Ứng dụng → Tương thích ứng dụng).':
+        'With Fcitx5, GTK apps (Firefox, Terminal, Text Editor…) don’t underline the text being typed and the top bar shows the VietTelex icon. Chrome/Electron may still underline (see Apps → App compatibility).',
+    'Một bộ gõ tiếng Việt khác đang gửi phím Backspace thật':
+        'Another Vietnamese input method is sending real Backspace keys',
+    'VietTelex bật sẵn các tính năng hợp với cách bạn gõ. Đổi lại lúc nào cũng được ở trang Gõ phím → Gõ lẫn tiếng Anh.':
+        'VietTelex turns on the features that fit how you type. Change them any time in Typing → Mixed Vietnamese/English typing.',
+    'App gõ sai hoặc hiện gạch chân khó chịu? Chọn riêng cho app đó. Tự động = theo “Cách hiện chữ đang gõ” ở mục Hiển thị chữ đang gõ bên dưới. Terminal và LibreOffice mặc định gạch chân chữ đang gõ (%s); terminal gõ thẳng khi hệ hỗ trợ. “Gõ thẳng” chỉ có tác dụng ở app nhận phím qua IBus GTK3 / Fcitx5 GTK3-Qt.':
+        'An app types wrong or shows an annoying underline? Pick a mode just for it. Automatic = follow “How the word being typed is shown” under Word being typed below. Terminals and LibreOffice underline the word being typed by default (%s); terminals type directly when supported. “Type directly” only works in apps that get keys through IBus GTK3 / Fcitx5 GTK3-Qt.',
+    'Bộ gõ đó sửa chữ bằng phím Backspace giả lập: đổi bộ gõ hay cửa sổ giữa chừng một từ có thể xoá thừa chữ khi gõ bằng VietTelex. Nên chỉ giữ một bộ gõ tiếng Việt; nếu vẫn dùng bộ gõ đó, chuyển nó sang chế độ gạch chân chữ đang gõ hoặc tắt dịch vụ của nó: %s':
+        'That input method fixes text with simulated Backspace keys: switching input method or window in the middle of a word can delete extra characters while typing with VietTelex. Keep only one Vietnamese input method; if you keep that one, switch it to underlining the word being typed or stop its service: %s',
+    'Nếu không gõ được tiếng Việt trong Chrome hay app Electron, chạy app với %s (hoặc %s). Lệnh copy sẵn ở trang Ứng dụng → Tương thích ứng dụng.':
+        'If you can’t type Vietnamese in Chrome or Electron apps, launch them with %s (or %s). Ready-to-copy commands are in Apps → App compatibility.',
+    'Mặc định tắt.':
+        'Off by default.',
+    'Terminal: gõ thẳng khi được, còn lại gạch chân chữ đang gõ':
+        'Terminals: type directly when possible, otherwise underline the word being typed',
+    'Terminal nhận phím qua IBus GTK3 hoặc Fcitx5 (fcitx5-gtk3, fcitx5-qt) — gnome-terminal, tilix, konsole… trên X11 — được gõ thẳng (sửa dấu bằng Backspace, không gạch chân). Terminal GTK4 (Ptyxis, Console), phiên Wayland GNOME, kitty/alacritty/foot và terminal của VS Code gạch chân chữ đang gõ: ở đó Backspace gửi đi không chắc đến trước chữ mới.':
+        'Terminals that get keys through IBus GTK3 or Fcitx5 (fcitx5-gtk3, fcitx5-qt) — gnome-terminal, tilix, konsole… on X11 — type directly (marks fixed with Backspace, no underline). GTK4 terminals (Ptyxis, Console), GNOME Wayland sessions, kitty/alacritty/foot and the VS Code terminal underline the word being typed: there a sent Backspace isn’t guaranteed to arrive before the new text.',
+    'Chỉ áp dụng cho Telex.':
+        'Telex only.',
+    'Cần bật Quyết định theo ngữ cảnh.':
+        'Needs Decide by context.',
+    'Cần bật Gợi ý từ.':
+        'Needs Word suggestions.',
 }
