@@ -1048,6 +1048,8 @@ TEST(session_prediction_english_context) {
 // ---------------------------------------------------------------- Tự sửa từ phía trước
 // (retroactiveEnglish, core/retro_english.h). Desktop: auto-apply at the boundary when the
 // text before the caret verifies, ⌫ next reverts; switch off = nothing.
+// "very" is a STRONG English word (engine, 05/11/2026): "His car is very" already completes
+// the run, so the cases below end there.
 
 namespace {
 struct RetroRig : Rig {
@@ -1081,31 +1083,31 @@ TEST(retro_settings_gate) {
 TEST(retro_auto_applies_both_modes) {
     for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
         RetroRig r(m, true);
-        r.type("His car is very fast ");
-        CHECK_EQ(r.text(), std::string("His car is very fast "));
+        r.type("His car is very ");
+        CHECK_EQ(r.text(), std::string("His car is very "));
         CHECK(r.s.retroUndoArmed());
         CHECK(r.s.retroOffer().empty());  // auto: applied, nothing offered
         RetroRig off(m, false);
-        off.type("His car is very fast ");
-        CHECK_EQ(off.text(), std::string("Hí cả í very fast "));
+        off.type("His car is very ");
+        CHECK_EQ(off.text(), std::string("Hí cả í very "));
         CHECK(!off.s.retroUndoArmed());
         RetroRig noCtx(m, true, false);  // contextualEnglish off: the switch is inert
         RetroRig noCtxOff(m, false, false);
-        noCtx.type("His car is very fast ");
-        noCtxOff.type("His car is very fast ");
+        noCtx.type("His car is very ");
+        noCtxOff.type("His car is very ");
         CHECK_EQ(noCtx.text(), noCtxOff.text());
     }
 }
 
 TEST(retro_punctuation_boundary) {
     RetroRig r(OutputMode::InPlace, true);
-    r.type("His car is very fast.");
-    CHECK_EQ(r.text(), std::string("His car is very fast."));
+    r.type("His car is very.");
+    CHECK_EQ(r.text(), std::string("His car is very."));
     // Enter / Tab only end the phrase: no rewrite behind the user's back, no undo.
     for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
         RetroRig e(m, true);
-        e.type("His car is very fast\n");
-        CHECK_EQ(e.text(), std::string("Hí cả í very fast\n"));
+        e.type("His car is very\n");
+        CHECK_EQ(e.text(), std::string("Hí cả í very\n"));
         CHECK(!e.s.retroUndoArmed());
     }
 }
@@ -1113,15 +1115,15 @@ TEST(retro_punctuation_boundary) {
 TEST(retro_backspace_reverts) {
     for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
         RetroRig r(m, true);
-        r.type("His car is very fast \b");
-        CHECK_EQ(r.text(), std::string("Hí cả í very fast "));  // exact previous text, boundary kept
+        r.type("His car is very \b");
+        CHECK_EQ(r.text(), std::string("Hí cả í very "));  // exact previous text, boundary kept
         CHECK(!r.s.retroUndoArmed());
         r.key('\b');  // a second ⌫ is an ordinary one
-        CHECK_EQ(r.text(), std::string("Hí cả í very fast"));
+        CHECK_EQ(r.text(), std::string("Hí cả í very"));
         // Reverted: the phrase is not rewritten again by the next words.
         RetroRig q(m, true);
-        q.type("His car is very fast \bnow ");
-        CHECK_EQ(q.text(), std::string("Hí cả í very fast now "));
+        q.type("His car is very \bfast ");
+        CHECK_EQ(q.text(), std::string("Hí cả í very fast "));
     }
 }
 
@@ -1144,7 +1146,7 @@ TEST(retro_undo_skipped_when_text_changed) {
 TEST(retro_skipped_when_text_does_not_verify) {
     for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
         RetroRig r(m, true);
-        r.type("His car is very ");
+        r.type("His car is ");
         // The app changed text the engine counts on ("cả" -> "ca"): never rewrite blindly.
         std::u16string t = r.doc.text;
         const size_t at = t.find(u"cả");
@@ -1152,8 +1154,8 @@ TEST(retro_skipped_when_text_does_not_verify) {
         if (at == std::u16string::npos) continue;
         t.replace(at, 2, u"ca");
         r.doc.setText(t);
-        r.type("fast ");
-        CHECK_EQ(r.text(), std::string("Hí ca í very fast "));
+        r.type("very ");
+        CHECK_EQ(r.text(), std::string("Hí ca í very "));
         CHECK(!r.s.retroUndoArmed());
     }
 }
@@ -1220,41 +1222,41 @@ TEST(retro_undo_decision) {
 TEST(retro_offer_vs_auto_vs_none) {
     for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
         RetroRig offer(m, false);
-        offer.type("His car is very fast ");
-        CHECK_EQ(offer.text(), std::string("Hí cả í very fast "));  // nothing changed
+        offer.type("His car is very ");
+        CHECK_EQ(offer.text(), std::string("Hí cả í very "));  // nothing changed
         const retro::Offer& o = offer.s.retroOffer();
         CHECK(!o.empty());
         CHECK(o.display == u"His car is");
-        CHECK(o.replace == u"í cả í very fast ");   // boundary included: the app typed it
-        CHECK(o.insert == u"is car is very fast ");
+        CHECK(o.replace == u"í cả í very ");   // boundary included: the app typed it
+        CHECK(o.insert == u"is car is very ");
         CHECK(!offer.s.retroUndoArmed());
         CHECK_EQ(offer.s.lastRetroWords(), 0);
         RetroRig autoRig(m, true);
-        autoRig.type("His car is very fast ");
-        CHECK_EQ(autoRig.text(), std::string("His car is very fast "));
+        autoRig.type("His car is very ");
+        CHECK_EQ(autoRig.text(), std::string("His car is very "));
         CHECK(autoRig.s.retroOffer().empty());
         RetroRig none(m, false, false);  // contextualEnglish off: nothing at all
-        none.type("His car is very fast ");
-        CHECK_EQ(none.text(), std::string("Hí cả í very fast "));
+        none.type("His car is very ");
+        CHECK_EQ(none.text(), std::string("Hí cả í very "));
         CHECK(none.s.retroOffer().empty());
         RetroRig noneOn(m, true, false);
-        noneOn.type("His car is very fast ");
+        noneOn.type("His car is very ");
         CHECK(noneOn.s.retroOffer().empty());
     }
 }
 
 TEST(retro_offer_lasts_one_key_and_never_on_enter) {
     RetroRig r(OutputMode::InPlace, false);
-    r.type("His car is very fast ");
+    r.type("His car is very ");
     CHECK(!r.s.retroOffer().empty());
     r.key('x');  // the next key: gone (the hint hides with it)
     CHECK(r.s.retroOffer().empty());
     RetroRig e(OutputMode::InPlace, false);
-    e.type("His car is very fast\n");
+    e.type("His car is very\n");
     CHECK(e.s.retroOffer().empty());
     // A key the session lets through (second space) also clears it.
     RetroRig s2(OutputMode::InPlace, false);
-    s2.type("His car is very fast ");
+    s2.type("His car is very ");
     s2.key(' ');
     CHECK(s2.s.retroOffer().empty());
 }
@@ -1262,7 +1264,7 @@ TEST(retro_offer_lasts_one_key_and_never_on_enter) {
 TEST(retro_offer_accept_applies_through_verified_replace) {
     for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
         RetroRig r(m, false);
-        r.type("His car is very fast ");
+        r.type("His car is very ");
         const retro::Offer o = r.s.retroOffer();
         const hints::Suggestion sug = hints::retroHint(o.display, o.replace, o.insert);
         // What the TIP does on Tab (replaceForHint): re-read, check, replace.
@@ -1270,23 +1272,23 @@ TEST(retro_offer_accept_applies_through_verified_replace) {
         CHECK(hints::hintStillValid(sug, hints::toU32(before)));
         CHECK(r.doc.replaceBeforeCaret(sug.replace, sug.insert));
         r.s.reset();  // afterHintApplied
+        CHECK_EQ(r.text(), std::string("His car is very "));
+        r.type("fast ");
         CHECK_EQ(r.text(), std::string("His car is very fast "));
-        r.type("now ");
-        CHECK_EQ(r.text(), std::string("His car is very fast now "));
     }
 }
 
 TEST(retro_offer_mismatch_no_hint) {
     for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
         RetroRig r(m, false);
-        r.type("His car is very ");
+        r.type("His car is ");
         std::u16string t = r.doc.text;
         const size_t at = t.find(u"cả");
         CHECK(at != std::u16string::npos);
         if (at == std::u16string::npos) continue;
         t.replace(at, 2, u"ca");
         r.doc.setText(t);
-        r.type("fast ");
+        r.type("very ");
         CHECK(r.s.retroOffer().empty());  // the text before the caret disagrees: no hint
     }
     // Unreadable / console fields: never offered either.
