@@ -40,7 +40,9 @@ class AutoCorrectEvalTests {
         val cur = compose(typed)
         if (cur != typed && known(cur.lowercase())) return null
         if (freq(cur) != null || hasCompletion(cur)) return null
-        return AdjacentKeyFixer.oneEditCandidates(typed, ::compose, ::freq, ::hasCompletion)
+        // = AutoCorrect.plan: thay phím kề + bỏ phím chạm đúp.
+        return AdjacentKeyFixer.oneEditCandidates(typed, ::compose, ::freq, ::hasCompletion) +
+            AutoCorrect.repeatCandidates(typed, ::compose, ::freq)
     }
 
     /** Gõ [keys] bằng chạm mô phỏng ([pr] null = gõ chuẩn giữa phím). */

@@ -194,6 +194,12 @@ data class SuggestionSet(
     val idle: Boolean = false,
     /** Ứng viên inline thứ 3, 4… (chỉ khi "Số từ gợi ý" > 3 — [SuggestionCount]). */
     val moreWords: List<String> = emptyList(),
+    /**
+     * ONBOARDING-SPEC §8: từ đang soạn gõ sai và [word] là bản tự sửa đủ chắc — ô [word] tô nền
+     * (dấu cách sẽ thay đúng chữ này khi "Tự sửa từ gõ sai" bật), [literal] trong ngoặc kép, chạm
+     * gửi [KEEP_TYPED_PREFIX] + chữ gốc (giữ nguyên + không sửa lại).
+     */
+    val correction: Boolean = false,
 ) {
     val isEmpty: Boolean get() = literal == null && word == null && word2 == null && moreWords.isEmpty() && emojis.isEmpty() &&
         nextWords.isEmpty() && number == null && math == null
@@ -201,7 +207,7 @@ data class SuggestionSet(
     fun signature(): String = listOf(literal, word, word2, emojis.joinToString("\u0002"),
         nextWords.joinToString("\u0002"), paste.toString(), number, math,
         clipChips.joinToString("\u0002") { it.label + "\u0003" + it.value }, action, actionLabel, idle.toString(),
-        moreWords.joinToString("\u0002")).joinToString("\u0001")
+        moreWords.joinToString("\u0002"), correction.toString()).joinToString("\u0001")
 
     companion object {
         /** Payload chạm thẻ Dán → truyền vào acceptSuggestion. */
@@ -224,6 +230,8 @@ data class SuggestionSet(
         const val RETRO_OFFER_TOKEN = "\uE000retroOffer"
         /** Chip "↩︎ Khôi phục" sau khi tự sửa ngược (công tắc BẬT). */
         const val UNDO_RETRO_TOKEN = "\uE000undoRetro"
+        /** Chạm ô ngoặc kép khi có ô tô nền (§8): tiền tố + chữ gốc — giữ nguyên, ghi "từng hoàn tác tự sửa". */
+        const val KEEP_TYPED_PREFIX = "\uE000keep:"
     }
 }
 
@@ -244,12 +252,16 @@ class SuggestJob internal constructor(
     internal val math: String? = null,
     /** Âm tiết trước nữa (trigram tĩnh). */
     private val prev2: String? = null,
+    /** Tô nền gợi ý sửa (§8) bật: từ không khớp gì ⇒ tính luôn [AutoCorrect.plan] ở thread nền. */
+    private val wantPlan: Boolean = false,
 ) {
     class Result(val pool: List<VNSuggest.Match>, val fix: String?, val pmi: FloatArray? = null,
                  /** Trượt vào phím thanh mà vẫn ra từ ("casn" → cân) — slot 3. */
                  val slip: String? = null,
                  /** Từ tiếng Anh giữa câu Việt ([EnglishAssist]) — null khi từ rõ là tiếng Việt. */
-                 val english: EnglishAssist.Result? = null)
+                 val english: EnglishAssist.Result? = null,
+                 /** Phần thuần của tự sửa ([AutoCorrect.plan]) — chỉ khi từ không khớp gì. */
+                 val plan: AutoCorrect.Plan? = null)
     fun compute(): Result {
         // Chế độ Tiếng Anh: hoàn thành từ enlexicon, không sửa chạm trượt / bigram Việt.
         if (bridge.englishMode) return Result(SwipeEnglish.completions(composed, 24), null)
@@ -260,7 +272,10 @@ class SuggestJob internal constructor(
         // null trước khi chạm lexicon tiếng Anh.
         val english = if (EnglishAssist.eligible(raw))
             EnglishAssist.suggest(raw, composed, pool, VNSuggest.frequency(composed)) else null
-        return Result(pool, fix, SuggestRank.inlinePmi(pool, prev, prev2 = prev2), slip, english)
+        val plan = if (wantPlan && pool.isEmpty()) AutoCorrect.plan(raw, compose = { bridge.composeTrial(it) },
+            frequency = { VNSuggest.frequency(it) },
+            hasCompletion = { VNSuggest.matches(it, poolLimit = 1).isNotEmpty() }) else null
+        return Result(pool, fix, SuggestRank.inlinePmi(pool, prev, prev2 = prev2), slip, english, plan)
     }
 }
 
@@ -430,8 +445,15 @@ class KeyboardSession(
     private val wordTouches = ArrayList<AutoCorrect.Touch>(12)
     private var wordTouchesOk = false
     private var autoCorrectOn = false
-    /** IME chỉ cần gửi điểm chạm phím chữ khi tự sửa đang bật ở ô này (tắt ⇒ 0 cấp phát). */
-    val wantsTouches: Boolean get() = autoCorrectOn
+    /**
+     * ONBOARDING-SPEC §8 — tô nền gợi ý sửa: thanh gợi ý chữ đang bật ở ô tự sửa được (không VNI).
+     * Bật cả khi công tắc tự sửa TẮT (ô tô nền chỉ là gợi ý); thanh tắt ⇒ false, 0 việc.
+     */
+    private var correctionHintOn = false
+    /** IME chỉ cần gửi điểm chạm phím chữ khi tự sửa / tô nền gợi ý sửa bật ở ô này (tắt ⇒ 0 cấp phát). */
+    val wantsTouches: Boolean get() = autoCorrectOn || correctionHintOn
+    /** Quyết định tự sửa của từ đang soạn (phím thô → bản sửa) — ô tô nền và dấu cách dùng CHUNG. */
+    private var acMemo: Pair<String, String?>? = null
     /** Từ từng hoàn tác tự sửa — không bao giờ sửa lại (IME nạp/lưu, [onAutoCorrectRejected]). */
     var autoCorrectRejected = AutoCorrect.Rejected()
     /** Vừa thêm một từ vào [autoCorrectRejected] — IME lưu [AutoCorrect.Rejected.encode]. */
@@ -488,23 +510,38 @@ class KeyboardSession(
         autoSpacePunct = null; autoSpaceUnderLetter = null
         // Tự sửa: không ở ô mật khẩu/email/URL/không-gợi-ý (kể cả khi vẫn gợi ý bất chấp app — chỉ gợi ý), ô tên (viết hoa mỗi từ), VNI.
         autoCorrectOn = settings.autoCorrect && !settings.vniMode && AutoCorrect.fieldAllows(field)
-        wordTouches.clear(); wordTouchesOk = false
+        correctionHintOn = suggestionsActive && stripMode == StripMode.FULL && !settings.vniMode && AutoCorrect.fieldAllows(field)
+        wordTouches.clear(); wordTouchesOk = false; acMemo = null
         bridge.autoCorrector = if (autoCorrectOn) ::autoCorrection else null
     }
 
     /** [EngineBridge.autoCorrector]: chỉ khi có đủ điểm chạm cho đúng các phím của từ. */
-    private fun autoCorrection(raw: String): String? {
+    private fun autoCorrection(raw: String): String? = correctionDecision(raw, null)
+
+    /**
+     * Quyết định tự sửa cho từ đang soạn [raw] — MỘT nguồn cho ô tô nền (thanh gợi ý) và dấu cách
+     * (ONBOARDING-SPEC §8): tính một lần cho mỗi bộ (phím thô, điểm chạm), lần sau dùng lại ⇒ dấu
+     * cách không bao giờ ra chữ khác ô đã tô. [plan]: phần thuần thanh gợi ý đã tính ở thread nền.
+     */
+    private fun correctionDecision(raw: String, plan: AutoCorrect.Plan?): String? {
         if (!wordTouchesOk || wordTouches.size != raw.length) return null
+        acMemo?.let { (r, fix) -> if (r == raw) return fix }
         val b = bridge
-        return AutoCorrect.correction(raw, wordTouches, compose = { b.composeTrial(it) },
+        val pl = plan?.takeIf { it.raw == raw } ?: AutoCorrect.plan(raw, compose = { b.composeTrial(it) },
             frequency = { VNSuggest.frequency(it) },
-            hasCompletion = { VNSuggest.matches(it, poolLimit = 1).isNotEmpty() },
-            isKnown = { w -> w in autoCorrectRejected || langModel.isUserWord(w) || AutoCorrect.isEnglish(w) })
+            hasCompletion = { VNSuggest.matches(it, poolLimit = 1).isNotEmpty() })
+        val fix = pl?.let { AutoCorrect.decide(it, wordTouches, ::isKnownForAutoCorrect) }
+        acMemo = raw to fix
+        return fix
     }
+
+    private fun isKnownForAutoCorrect(w: String): Boolean =
+        w in autoCorrectRejected || langModel.isUserWord(w) || AutoCorrect.isEnglish(w)
 
     /** ⌫ / chip vừa trả lại chữ gốc: nhớ để không sửa lại, học chữ gốc thay từ đã sửa. */
     private fun onAutoCorrectReverted(original: String, fixed: String?) {
         if (autoCorrectRejected.add(original)) onAutoCorrectRejected?.invoke()
+        acMemo = null
         val lc = lastCommit
         lastCommit = null
         if (lc != null && lc.word == fixed) {
@@ -641,6 +678,7 @@ class KeyboardSession(
 
     /** Ghi điểm chạm phím chữ vừa gõ; [fresh] = phím đầu của từ mới. */
     private fun noteTouch(fresh: Boolean, touch: AutoCorrect.Touch?) {
+        acMemo = null
         if (fresh) { wordTouches.clear(); wordTouchesOk = true }
         if (touch == null) wordTouchesOk = false else if (wordTouchesOk) wordTouches.add(touch)
         if (wordTouches.size != bridge.rawWord.length) wordTouchesOk = false   // nạp lại từ cũ, phím ngoài engine…
@@ -745,7 +783,7 @@ class KeyboardSession(
             is Key.Letter -> {
                 val fresh = !bridge.isComposing
                 bridge.letter(key.ch, proxy); clearUndo()
-                if (autoCorrectOn) noteTouch(fresh, touch)
+                if (wantsTouches) noteTouch(fresh, touch)
             }
             is Key.Text -> {
                 // VNI: số trong lúc soạn từ (hàng số / plane 123 / phím cứng) mang dấu — phím
@@ -1215,7 +1253,7 @@ class KeyboardSession(
             val b = bridge
             return SuggestionPlan.Background(SuggestJob(suggestReq, generation, b, composed,
                 b.rawWord, b.predictedCommit, b.autoFixAdjacent, lastWord, refreshNumberChip(proxy), refreshMathChip(proxy),
-                lastWord2))
+                lastWord2, wantPlan = correctionHintOn && wordTouchesOk))
         }
         val prev = lastWord
         val next: List<String> = if (bridge.englishMode) {
@@ -1317,19 +1355,35 @@ class KeyboardSession(
         return mathChip?.display
     }
 
-    /** Áp kết quả nền; null nếu đã lỗi thời (phím mới / lượt mới / từ khác / bar tắt). */
-    fun completeSuggestions(job: SuggestJob, result: SuggestJob.Result): SuggestionSet? {
+    /**
+     * Áp kết quả nền; null nếu đã lỗi thời (phím mới / lượt mới / từ khác / bar tắt). [proxy]: để
+     * kiểm điều kiện tự sửa theo chữ trên màn hình (ô tô nền §8) — null ⇒ không tô.
+     */
+    fun completeSuggestions(job: SuggestJob, result: SuggestJob.Result, proxy: TextProxy? = null): SuggestionSet? {
         if (job.req != suggestReq || job.gen != generation || bridge !== job.bridge ||
             job.bridge.composedWord != job.composed || !suggestionsActive || barCollapsed) return null
-        return composingSuggestions(job.composed, job.raw, job.predicted, result.pool, result.fix, result.pmi, result.slip,
+        val set = composingSuggestions(job.composed, job.raw, job.predicted, result.pool, result.fix, result.pmi, result.slip,
             result.english)
             .copy(number = job.number, math = job.math)
+        return withCorrectionHint(set, job.raw, result.plan, proxy)
+    }
+
+    /**
+     * ONBOARDING-SPEC §8 — tô nền gợi ý sửa: từ đang soạn gõ sai + có bản sửa đủ chắc (cùng quyết
+     * định với dấu cách — [correctionDecision]) + dấu cách lúc này sẽ áp được
+     * ([EngineBridge.autoCorrectPreview]) ⇒ [CorrectionHint.apply]. Còn lại: [set] như cũ.
+     */
+    private fun withCorrectionHint(set: SuggestionSet, raw: String, plan: AutoCorrect.Plan?, proxy: TextProxy?): SuggestionSet {
+        if (plan == null || proxy == null || !correctionHintOn) return set
+        val fix = correctionDecision(raw, plan) ?: return set
+        val original = bridge.autoCorrectPreview(fix, proxy) ?: return set
+        return CorrectionHint.apply(set, typed = original, fix = fix, need = slotWant - 1)
     }
 
     /** Đồng bộ (test / debug): tính luôn trên thread gọi. */
     fun suggestionsNow(proxy: TextProxy): SuggestionSet? = when (val p = requestSuggestions(proxy)) {
         is SuggestionPlan.Ready -> p.set
-        is SuggestionPlan.Background -> completeSuggestions(p.job, p.job.compute())
+        is SuggestionPlan.Background -> completeSuggestions(p.job, p.job.compute(), proxy)
     }
 
     private fun composingSuggestions(composed: String, raw: String, predicted: String,
@@ -1506,6 +1560,14 @@ class KeyboardSession(
         if (item == SuggestionSet.RETRO_OFFER_TOKEN) { bridge.applyRetroOffer(proxy); clearUndo(); return }
         if (item == SuggestionSet.UNDO_RETRO_TOKEN) {
             bridge.revertRetro(proxy); bridge.revertedRetro = false; clearUndo(); return
+        }
+        if (item.startsWith(SuggestionSet.KEEP_TYPED_PREFIX)) {
+            // Ô ngoặc kép cạnh ô tô nền (§8): giữ chữ đã gõ + không bao giờ tự sửa lại từ này.
+            val typed = item.substring(SuggestionSet.KEEP_TYPED_PREFIX.length)
+            if (autoCorrectRejected.add(typed)) onAutoCorrectRejected?.invoke()
+            acMemo = null
+            acceptSuggestion(typed, proxy)
+            return
         }
         if (item == SuggestionSet.UNDO_AUTOCORRECT_TOKEN) {
             val fixed = bridge.autoCorrectUndo?.second

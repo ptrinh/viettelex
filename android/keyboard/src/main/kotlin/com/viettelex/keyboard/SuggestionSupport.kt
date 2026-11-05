@@ -261,3 +261,21 @@ object TypingTimings {
     const val TRACKPAD_DP_PER_CHAR = 9f
     const val USERLM_SAVE_COALESCE_MS = 5000L
 }
+
+/**
+ * ONBOARDING-SPEC §8 — tô nền gợi ý sửa khi gõ sai (THUẦN, song sinh iOS CorrectionHint): ô 1 = chữ
+ * gốc [typed] (ngoặc kép — [SuggestionSlots.arrange]), ô giữa = [fix] tô nền (đúng chữ dấu cách sẽ
+ * áp), ô còn lại = ứng viên kế (đang có trên thanh, bỏ trùng). Không emoji: ô cuối dành cho ứng viên.
+ * Chỉ sắp lại ứng viên ĐÃ tính cho thanh gợi ý — không tính thêm gì.
+ */
+object CorrectionHint {
+    /** [need]: số ô ứng viên (= "Số từ gợi ý" − 1, ô nguyên văn đã trừ). */
+    fun apply(set: SuggestionSet, typed: String, fix: String, need: Int): SuggestionSet {
+        val others = (listOfNotNull(set.word, set.word2) + set.moreWords)
+            .filter { !it.equals(fix, ignoreCase = true) && !it.equals(typed, ignoreCase = true) }
+            .distinct()
+        val words = (listOf(fix) + others).take(maxOf(need, 1))
+        return set.copy(literal = typed, word = fix, word2 = words.getOrNull(1), moreWords = words.drop(2),
+            emojis = emptyList(), correction = true)
+    }
+}

@@ -142,8 +142,9 @@ class AutoCorrectTests {
     }
 
     @Test fun sessionOffOrNoTouchDoesNothing() {
+        // Tắt + thanh gợi ý tắt ⇒ không ghi điểm chạm (thanh bật thì vẫn ghi cho ô tô nền §8).
+        assertFalse(session(on = false, settings = KeyboardSettings(showSuggestions = false)).wantsTouches)
         val off = session(on = false); val p = MockProxy()
-        assertFalse(off.wantsTouches)
         off.type(p, "tpoi ", slip = 1)
         assertEquals("tpoi ", p.text)
         val hw = session(); val q = MockProxy()
