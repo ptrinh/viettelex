@@ -14,6 +14,8 @@ final class MixedTypingFocus: ObservableObject {
     @Published var expanded = false
     @Published var request: MixedTypingItem?
     @Published var highlighted: MixedTypingItem?
+    /// Tăng mỗi lần `open` — RootView đang ở sẵn tab Kiểu Gõ thì cuộn ngay (không dựng lại tab).
+    @Published var scrollTick = 0
     /// Dòng chờ cuộn tới khi danh sách tab Kiểu Gõ vừa dựng xong (RootView đổi tab ⇒ dựng lại).
     var pendingScroll: MixedTypingItem?
 
@@ -21,6 +23,7 @@ final class MixedTypingFocus: ObservableObject {
     func open(_ item: MixedTypingItem) {
         expanded = true
         pendingScroll = target(for: item)
+        scrollTick += 1
     }
 
     /// Gọi từ danh sách tab Kiểu Gõ: cuộn tới dòng đang chờ (đợi List dựng hàng) + tô sáng.
@@ -60,6 +63,21 @@ struct MixedTypingSection: View {
     @AppStorage("swipeTyping", store: mixedDefaults) private var swipeTyping = false
     /// Mặc định BẬT, xem KeyboardSettings.swipeEnglish — chỉ có tác dụng khi bật Gõ vuốt.
     @AppStorage("swipeEnglish", store: mixedDefaults) private var swipeEnglish = true
+    /// Hồ sơ chọn gần nhất (onboarding / bộ chọn nhanh) — chỉ để phân biệt "Việt + Anh nhiều" với
+    /// "Chủ yếu tiếng Anh" (cùng bộ công tắc), không điều khiển hành vi.
+    @AppStorage(OnboardingFlow.profileKey, store: mixedDefaults) private var lastProfile = ""
+    /// Hồ sơ chờ xác nhận (sẽ đổi công tắc người dùng tự chỉnh).
+    @State private var confirming: OnboardingProfile?
+
+    private var currentValues: [String: Bool] {
+        ["autoRestore": autoRestore, "contextualEnglish": contextualEnglish, RetroEnglishUI.autoKey: retroEnglishAuto,
+         RetroEnglishUI.frequencyKey: englishByFrequency, "spaceSwipeLanguage": spaceSwipeLanguage, "swipeEnglish": swipeEnglish]
+    }
+
+    /// Hồ sơ khớp đúng cài đặt hiện tại; nil = "Tuỳ chỉnh" (ONBOARDING-SPEC §4).
+    private var matched: OnboardingProfile? {
+        OnboardingSettings.match(currentValues, lastChosen: OnboardingProfile(rawValue: lastProfile))
+    }
 
     private var summary: String {
         let on = [(autoRestore, L("Khôi phục tiếng Anh")), (contextualEnglish, L("Ngữ cảnh")),
@@ -95,6 +113,7 @@ struct MixedTypingSection: View {
             .listRowBackground(rowBackground(.section))
 
             if focus.expanded {
+                profilePicker
                 groupHeader(.recognition)
                 settingToggle(L("Tự khôi phục từ tiếng Anh"), L("Từ không phải tiếng Việt trả về như đã gõ (google, github…)."), isOn: $autoRestore)
                     .row(.autoRestore, rowBackground(.autoRestore))
@@ -132,6 +151,72 @@ struct MixedTypingSection: View {
         } footer: {
             if focus.expanded { Text(L("Cài đặt áp dụng ngay lần mở bàn phím kế tiếp.")) }
         }
+    }
+
+    /// Bộ chọn nhanh ở đầu nhóm: ba hồ sơ + "Tuỳ chỉnh" (không bấm được, sáng khi không khớp).
+    @ViewBuilder private var profilePicker: some View {
+        Text(L("Chọn nhanh").uppercased())
+            .font(.footnote).foregroundStyle(.secondary)
+            .padding(.top, 4)
+            .accessibilityAddTraits(.isHeader)
+        let current = matched
+        ForEach(OnboardingProfile.allCases, id: \.self) { p in
+            Button { pick(p) } label: {
+                profileRow(L(p.titleKey), "“\(p.example)”", selected: current == p)
+            }
+            .buttonStyle(.plain)
+            .id(ProfileRowID.profile(p))
+        }
+        profileRow(L("Tuỳ chỉnh"), L("Cài đặt bên dưới không khớp hồ sơ nào."), selected: current == nil)
+            .opacity(current == nil ? 1 : 0.5)
+            .accessibilityAddTraits(current == nil ? .isSelected : [])
+            .alert(confirming.map { L("Áp dụng “%@”?", L($0.titleKey)) } ?? "",
+                   isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
+                   presenting: confirming) { p in
+                Button(L("Áp dụng")) { apply(p) }
+                Button(L("Huỷ"), role: .cancel) {}
+            } message: { p in
+                Text(changeList(p))
+            }
+    }
+
+    private enum ProfileRowID: Hashable { case profile(OnboardingProfile) }
+
+    private func profileRow(_ title: String, _ caption: String, selected: Bool) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).foregroundStyle(.primary)
+                Text(caption).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "checkmark")
+                .font(.body.weight(.semibold)).foregroundStyle(accentBlue)
+                .opacity(selected ? 1 : 0)
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func pick(_ p: OnboardingProfile) {
+        if OnboardingSettings.needsConfirmation(currentValues, applying: p,
+                                                lastChosen: OnboardingProfile(rawValue: lastProfile)) {
+            confirming = p
+        } else {
+            apply(p)
+        }
+    }
+
+    private func apply(_ p: OnboardingProfile) {
+        withAnimation { OnboardingSettings.apply(p, to: mixedDefaults) }
+    }
+
+    /// "Sẽ đổi: Tự sửa từ phía trước → bật, …" cho hộp xác nhận.
+    private func changeList(_ p: OnboardingProfile) -> String {
+        let lines = OnboardingSettings.changes(from: currentValues, to: p).map { k in
+            "• " + L(OnboardingSettings.titleKey(k)) + ": " + (p.values[k] == true ? L("bật") : L("tắt"))
+        }
+        return L("Các công tắc bạn đã tự chỉnh sẽ đổi:") + "\n" + lines.joined(separator: "\n")
     }
 
     private func groupHeader(_ g: MixedTypingItem.Group) -> some View {

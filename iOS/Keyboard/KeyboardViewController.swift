@@ -405,6 +405,14 @@ final class KeyboardViewController: UIInputViewController {
         pasteButtonSetting = settings.pasteButton
         spaceFlickSetting = settings.spaceSwipeLanguage && AppFlavor.vietnameseInput
         keyCommandsSetting = settings.swipeKeyCommands
+        // Hồ sơ vừa chọn trong app (ONBOARDING-SPEC §3, hồ sơ "Chủ yếu tiếng Anh") ⇒ đặt ngôn ngữ
+        // khởi đầu MỘT lần; sau đó vuốt phím cách đổi như thường. Một lần đọc chuỗi App Group.
+        if let req = UserDefaultsProvider.shared?.string(forKey: KeyboardLanguageRequest.key),
+           let lang = KeyboardLanguageRequest.pending(
+            request: req, applied: UserDefaults.standard.string(forKey: KeyboardLanguageRequest.appliedKey)) {
+            UserDefaults.standard.set(lang, forKey: KeyboardLanguage.storageKey)
+            UserDefaults.standard.set(req, forKey: KeyboardLanguageRequest.appliedKey)
+        }
         language = KeyboardLanguage.effective(
             stored: UserDefaults.standard.string(forKey: KeyboardLanguage.storageKey),
             flickEnabled: spaceFlickSetting)
