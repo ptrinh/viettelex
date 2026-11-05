@@ -158,3 +158,17 @@ Khi từ đang soạn **không hợp lệ** (không phải âm tiết Việt, kh
 - Phím tắt đổi ngôn ngữ trên macOS/Windows: nhóm "Chuyển ngôn ngữ" chỉ hiện mục nào nền tảng đó có; kiểm tra lúc làm.
 - `englishByFrequency` BẬT trong hồ sơ `mixed` và `en`.
 - Dữ liệu tần suất tiếng Anh nguồn CC BY-SA 4.0 dùng trong engine (MIT) — chấp nhận, ghi nguồn ở docs/DATA-SOURCES.md.
+
+## 11. Trạng thái triển khai — iOS + Android (05/11/2026)
+
+**Đã làm §2, §3, §4 (bộ chọn nhanh), §5 trên iOS + Android.** macOS/Windows/Linux do nhánh riêng.
+
+- Mã: phần thuần iOS `Shared/OnboardingProfile.swift` ↔ Android `keyboard/…/Onboarding.kt` (cùng số liệu, `OnboardingTests` / `OnboardingTest`); giao diện iOS `App/OnboardingView.swift` (+ bộ chọn trong `App/MixedTypingSection.swift`), Android `ui/Onboarding.kt` (+ `ui/MixedTyping.kt`).
+- Luồng: lần đầu mở app hiện màn 1 (phủ toàn màn hình, trên thẻ "Bật bàn phím" sẵn có). Chọn hồ sơ ⇒ ghi giá trị ngay; bàn phím đã bật (Android: đã bật trong hệ thống) ⇒ sang màn 2, chưa bật ⇒ đóng, màn 2 tự hiện một lần khi quay lại app mà bàn phím đã bật. Màn 2 có "‹ Chọn lại" khi vừa đi từ màn 1. "Bỏ qua" ở màn 2 = giữ hồ sơ đã chọn, chỉ đóng. Android: chưa chọn VietTelex làm bàn phím ⇒ màn 2 có dòng "Chọn VietTelex…" mở bộ chọn bàn phím.
+- Danh sách "Vừa bật" ở màn 2 = công tắc hồ sơ bật, theo cùng điều kiện hiện của nhóm Gõ mixed (Tự sửa / Đoán tần suất ẩn khi tắt ngữ cảnh hoặc VNI; Vuốt từ tiếng Anh chỉ khi Gõ vuốt bật).
+- Hồ sơ `vi` ghi đúng mặc định hiện tại (ngữ cảnh BẬT, vuốt từ tiếng Anh BẬT). `collisionPrefersVietnamese` chỉ macOS — không có trên mobile.
+- **Ngôn ngữ khởi đầu (`en`)**: ngôn ngữ đang gõ là trạng thái riêng của bàn phím (iOS: UserDefaults của extension, app không ghi được; Android: prefs `ime_state` của IME). App ghi yêu cầu một lần `keyboardLanguageRequest = "en@<mốc ms>"` (hồ sơ khác ghi `"vi@…"`) vào kho chung; bàn phím lần hiện kế tiếp thấy yêu cầu mới (khác `keyboardLanguageRequestApplied` nó nhớ) thì đặt ngôn ngữ một lần. Chọn lại hồ sơ ⇒ áp lại.
+- **Khớp / Tuỳ chỉnh**: so đúng 6 key ở bảng §3. `mixed` và `en` cùng bộ công tắc ⇒ tô `en` khi `onboardingProfile` gần nhất là `en`, còn lại `mixed`. Bộ chọn: ba dòng hồ sơ + dòng "Tuỳ chỉnh" (không bấm được). Hỏi xác nhận khi cài đặt đang "Tuỳ chỉnh" và áp sẽ đổi ≥ 1 công tắc (hộp thoại liệt kê công tắc đổi); đang khớp một hồ sơ thì đổi thẳng.
+- **Người dùng cũ**: chạy ĐẦU TIÊN lúc mở app (trước mọi chuyển đổi khác ghi key), chỉ khi chưa có `onboardingDone`: có bất kỳ key cài đặt nào (danh sách sao lưu + gõ tắt/mẫu câu/theme; iOS thêm cờ app bản cũ `rowAdjustStockBase`) ⇒ `onboardingDone = true` + thẻ một lần; không có ⇒ `onboardingDone = false` ghi tường minh (lần sau không đoán lại). Key bàn phím tự ghi (iOS `kbLastSeen`, `kbFullAccess`, `pasteNoPrompt`; Android emoji gần đây, mục dán đã mời, từ từng hoàn tác tự sửa) không tính — người mới bật bàn phím trước khi mở app vẫn được onboarding. Người dùng cũ chưa từng đổi cài đặt nào (Android; iOS chưa mở app từ 12/10/2026) được coi là người mới — chỉ khác là thấy onboarding, không có gì bị đổi nếu bỏ qua.
+- Key thêm ngoài `onboardingDone` / `onboardingProfile`: `mixedTypingTip` (thẻ một lần), `keyboardLanguageRequest` (+ `…Applied` trong kho riêng bàn phím). Không key nào trong sao lưu / đồng bộ iCloud; Android Auto Backup có mang prefs `viettelex` ⇒ khôi phục máy mới coi như người dùng cũ (đúng ý).
+- Bản Debug: iOS `-onboardingDemo choose|tryIt [-onboardingDemoProfile mixed]`, `-mixedTipDemo 1`; Android `am start … --es onboardingDemo choose|vi|mixed|en`, `--ez mixedTipDemo true`.

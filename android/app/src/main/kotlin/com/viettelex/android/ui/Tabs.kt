@@ -87,6 +87,12 @@ private fun AppLogo(size: Dp, radius: Dp, shadow: Boolean = false) {
 fun KieuGoTab(ime: ImeStatus, onOpenImeSettings: () -> Unit, onPickIme: () -> Unit) {
     val c = LocalVT.current
     VTSection(plain = true) { OnboardingCard(ime, onOpenImeSettings, onPickIme) }
+    // Thẻ một lần cho người dùng cũ (ONBOARDING-SPEC §5): xem hay đóng đều không hiện lại.
+    var mixedTip by rememberBoolPref(com.viettelex.keyboard.OnboardingFlow.TIP_KEY, false)
+    if (mixedTip) MixedTypingTipCard(
+        onOpen = { mixedTip = false; MixedTypingFocus.request.value = MixedTypingItem.Section },
+        onDismiss = { mixedTip = false },
+    )
     VTSection(
         header = tr("Thử gõ"),
         footer = tr("Chọn Tiếng Việt (VietTelex) — bấm biểu tượng bàn phím ở thanh điều hướng — rồi gõ thử: vieejt → việt."),
