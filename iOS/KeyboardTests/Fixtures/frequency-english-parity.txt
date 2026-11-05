@@ -1,0 +1,949 @@
+# frequency-english-parity v1 — SINH bởi TelexCoreTests/FrequencyEnglishParityTests.swift (VT_RECORD_PARITY=1 swift test --filter FrequencyEnglishParity). <phím>\t<retro tự áp>\t<retro mời + tần suất>\t<retro tự áp + tần suất>; \n = Enter. Phím: retro-english-eval.txt (câu Tatoeba CC BY 2.0 FR, https://tatoeba.org + tự soạn MIT) + ca tay.
+His car is very fast	His car is very fast	His cả is very fast	His car is very fast
+His car is in the garage	His car is in the garage	His cả is in the garage	His car is in the garage
+my car is here now	my car is here now	my cả is here now	my car is here now
+This list is very long	This list is very long	This list is very long	This list is very long
+its time to go home	its time to go home	ít time to go home	its time to go home
+of course not	ò course not	of course not	of course not
+Of course I will	Of course I will	Of course I will	Of course I will
+As far as I know	Á far á I know	Á far á I know	Á far á I know
+If you want to come with us	If you want to come with us	If you want to come with us	If you want to come with us
+Or we can go there tomorrow	Or we can go there tomorrow	Or we can go there tomorrow	Or we can go there tomorrow
+His box is on the table	His box is on the table	His bõ is on the table	His box is on the table
+His six cats are cute	Hí sĩ cát are cute	His sĩ cats are cute	His six cats are cute
+the max value is ten	the max value is ten	the mã value is ten	the max value is ten
+His test results are good	His test results are good	His test results are good	His test results are good
+His best friend is here	His best friend í hể	His best friend is here	His best friend is here
+This test is very hard	This test is very hard	This test is very hard	This test is very hard
+Is this the right way	Í thí the right way	Is this the right way	Is this the right way
+His list of books is long	His list of books í long	His list of books is long	His list of books is long
+This car is not mine	Thí cả í not mine	This cả is not mine	This car is not mine
+her car is not here	hẻ cả í not here	her cả is not here	her car is not here
+His cost is too high	Hí cót í tô high	His cost is too high	His cost is too high
+This town is very small	This town is very small	This town is very small	This town is very small
+His past is a mystery	Hí pát í a mystery	His past is a mystery	His past is a mystery
+Her list is on the desk	Her list is on the desk	Her list is on the desk	Her list is on the desk
+This box is too heavy	Thí bõ í tô heavy	This bõ is too heavy	This box is too heavy
+His room is very clean	His room is very clean	His rôm is very clean	His room is very clean
+This rest area is closed	This rest area í closed	This rest area is closed	This rest area is closed
+Mai car team hopj	Mai cả team họp	Mai cả team họp	Mai cả team họp
+Guwir file cho car nhaf	Gửi file cho cả nhà	Gửi file cho cả nhà	Gửi file cho cả nhà
+anh aays baor of the end	anh ấy bảo ò the end	anh ấy bảo ò the end	anh ấy bảo ò the end
+nhaf minhf cos six quan is here	nhà mình có sĩ quan í hể	nhà mình có sĩ quan í hể	nhà mình có sĩ quan í hể
+bes thichs awn banhs sinh nhaatj with the kids	bé thích ăn bánh sinh nhật with the kids	bé thích ăn bánh sinh nhật with the kids	bé thích ăn bánh sinh nhật with the kids
+push code been this repo nhes	push code bên thí repo nhé	push code bên thí repo nhé	push code bên thí repo nhé
+test thees nayf the build is green	tét thế này the build is green	test thế này the build is green	test thế này the build is green
+fix bug ddi you know	fix bug đi you know	fix bug đi you know	fix bug đi you know
+where are your fingers	where are your fingers	where are your fingers	where are your fingers
+her coat was too casual for the occasion	her coat was too casual for the occasion	her coat was too casual for the occasion	her coat was too casual for the occasion
+god how i hate this job	god how i hate this job	god how i hate this job	god how i hate this job
+he works slowly	he works slowly	he works slowly	he works slowly
+this is the captain speaking	this is the captain speaking	this is the captain speaking	this is the captain speaking
+did you find the keys that were missing	did you find the keys that were missing	đi you find the keys that were missing	did you find the keys that were missing
+he put his jacket back on	he put his jacket back on	he put his jacket back on	he put his jacket back on
+this item is currently out of stock	this item is currently out of stock	this item is currently out of stock	this item is currently out of stock
+please write me a note	please write me a note	please write me a note	please write me a note
+where are all the towels	where are all the towels	where are all the towels	where are all the towels
+how early do i have to be there	how early do i have to be there	how early do i have to be there	how early do i have to be there
+these kids are in danger	these kids are in danger	thế kids are in danger	these kids are in danger
+no man is free from sin	no man is free from sin	no man í free from sin	no man is free from sin
+all of us should go	all of us should go	all of us should go	all of us should go
+there was a food fight in the cafeteria	there was a food fight in the cafeteria	thể was a food fight in the cafeteria	there was a food fight in the cafeteria
+how do you use this	how do you use this	how do you use this	how do you use this
+she needed insulin to survive	she needed insulin to survive	she needed insulin to survive	she needed insulin to survive
+keep him inside	keep him inside	keep him inside	keep him inside
+did you cook it	did you cook it	đi you cook it	did you cook it
+the goods were sent out yesterday	the goods were sent out yesterday	the goods were sent out yesterday	the goods were sent out yesterday
+how will that help them	how will that help them	how will that help them	how will that help them
+i was tired after doing that	i was tired after doing that	i was tired after doing that	i was tired after doing that
+i had fish for dinner last night	i had fish for dinner last night	i had fish for dinner last night	i had fish for dinner last night
+where can i shop	where can i shop	where can i shop	where can i shop
+winter is coming on	winter í coming on	winter is coming on	winter is coming on
+i might consider buying a refurbished phone	i might consider buying a refurbished phone	i might consider buying a refurbished phone	i might consider buying a refurbished phone
+there is nothing to prevent us from going	there is nothing to prevent us from going	thể í nothing to prevent us from going	there is nothing to prevent us from going
+this car must go	thí cả mút go	this cả must go	this cả must go
+chocolate is the most beautiful thing there is	chocolate is the most beautiful thing there is	chocolate is the most beautiful thing there is	chocolate is the most beautiful thing there is
+we had our suspicions	we had our suspicions	we had our suspicions	we had our suspicions
+does he have what it takes	does he have what it takes	does he have what it takes	does he have what it takes
+the problem was money	the problem was money	the problem was money	the problem was money
+a lot of things happened there	a lot of things happened there	a lot of things happened there	a lot of things happened there
+he never gives away any of his money	he never gives away any of his money	he never gives away any of his money	he never gives away any of his money
+you never know what will happen	you never know what will happen	you never know what will happen	you never know what will happen
+did you get what we need	did you get what we need	đi you get what we need	did you get what we need
+everything has its time and place	everything há ít time and place	everything has its time and place	everything has its time and place
+all is good	all is good	all is good	all is good
+did you know her	did you know her	đi you know her	did you know her
+this must have cost a small fortune	this must have cost a small fortune	this must have cost a small fortune	this must have cost a small fortune
+this dress is good value	this dress is good value	this dress is good value	this dress is good value
+have you got this jacket in different colours	have you got this jacket in different colours	have you got this jacket in different colours	have you got this jacket in different colours
+this is my final post	this is my final post	this is my final post	this is my final post
+he found it difficult to understand her	he found it difficult to understand her	he found it difficult to understand her	he found it difficult to understand her
+are you still angry with her	are you still angry with her	are you still angry with her	are you still angry with her
+you should do something you enjoy doing	you should do something you enjoy doing	you should do something you enjoy doing	you should do something you enjoy doing
+humility is a forgotten virtue	humility is a forgotten virtue	humility is a forgotten virtue	humility is a forgotten virtue
+their suitcase is too heavy	their suitcase is too heavy	their suitcase is too heavy	their suitcase is too heavy
+these vegetables cook slowly	these vegetables cook slowly	thế vegetables cook slowly	these vegetables cook slowly
+winning is more fun than losing	winning í mỏe fun than losing	winning is more fun than losing	winning is more fun than losing
+there was no one else on the road	thể was no one else on the road	thể was no one else on the road	thể was no one else on the road
+how did you ever do that	how did you ever do that	how did you ever do that	how did you ever do that
+please fill this bucket with water	please fill this bucket with water	please fill this bucket with water	please fill this bucket with water
+i am in a stew	i am in a stew	i am in a stew	i am in a stew
+she never stops complaining	she never stops complaining	she never stops complaining	she never stops complaining
+his funeral will be this weekend	his funeral will be this weekend	his funeral will be this weekend	his funeral will be this weekend
+what was it all about	what was it all about	what was it all about	what was it all about
+there is bad weather in the north	there is bad weather in the north	thể í bad weather in the north	there is bad weather in the north
+is this our flight	í thí our flight	is this our flight	is this our flight
+she likes me more than she likes you	she likes me more than she likes you	she likes me more than she likes you	she likes me more than she likes you
+how did you get your job	how did you get your job	how did you get your job	how did you get your job
+all devices were working properly	all devices were working properly	all devices were working properly	all devices were working properly
+i want to stay home with my family	i want to stay home with my family	i want to stay home with my family	i want to stay home with my family
+how have you been	how have you bên	how have you bên	how have you bên
+i can do it too	i can do it too	i can do it too	i can do it too
+many are against this bill	many are against this bill	many are against this bill	many are against this bill
+did you return the books to the library	did you return the books to the library	đi you return the books to the library	did you return the books to the library
+his successors slowly undid his popular economic reforms	his successors slowly undid his popular economic reforms	his successors slowly undid his popular economic reforms	his successors slowly undid his popular economic reforms
+the laws of physics do not apply here	the laws of physics do not apply here	the laws of physics do not apply here	the laws of physics do not apply here
+his plan might fail	his plan might fail	his plan might fail	his plan might fail
+how many books are on that shelf	how many books are on that shelf	how many books are on that shelf	how many books are on that shelf
+what are you going to take with you	what are you going to take with you	what are you going to take with you	what are you going to take with you
+the mere sight of blood makes him faint	the mere sight of blood makes him faint	the mere sight of blood makes him faint	the mere sight of blood makes him faint
+there is some milk left in the fridge	there is some milk left in the fridge	thể í some milk left in the fridge	there is some milk left in the fridge
+we had a really good time	we had a really good time	we had a really good time	we had a really good time
+did you bring what i need	did you bring what i need	đi you bring what i need	did you bring what i need
+why were you absent	why were you absent	why were you absent	why were you absent
+this should be enough	this should be enough	this should be enough	this should be enough
+a clenched fist may indicate stress	a clenched fist may indicate stress	a clenched fist may indicate stress	a clenched fist may indicate stress
+he said he wants to win	he said he wants to win	he said he wants to win	he said he wants to win
+i hate crowds	i hate crowds	i hate crowds	i hate crowds
+tell her what you heard	tell her what you heard	tell her what you heard	tell her what you heard
+did you feel the earth shake just now	did you feel the earth shake just now	đi you feel the earth shake just now	did you feel the earth shake just now
+everyone has his own treasure	everyone há hí ơn treasure	everyone has his ơn treasure	everyone has his ơn treasure
+they were requested to sing another song	they were requested to sing another song	they were requested to sing another song	they were requested to sing another song
+you should come and see me tomorrow	you should come and see me tomorrow	you should come and see me tomorrow	you should come and see me tomorrow
+his daughter is sick	hí daughter í sick	his daughter is sick	his daughter is sick
+there was a sense of fear	there was a sense of fear	thể was a sense of fear	there was a sense of fear
+your glasses are on the small table	your glasses are on the small table	your glasses are on the small table	your glasses are on the small table
+did you accept her invitation	did you accept her invitation	đi you accept her invitation	did you accept her invitation
+there was a large garden behind the house	there was a large garden behind the house	thể was a large garden behind the house	there was a large garden behind the house
+how much more do we need	how much more do we need	how much more do we need	how much more do we need
+young people nowadays are fools	young people nowadays are fools	young people nowadays are fools	young people nowadays are fools
+red is an aggressive colour	red is an aggressive colour	red is an aggressive colour	red is an aggressive colour
+who would have imagined	who would have imagined	who would have imagined	who would have imagined
+did you see what i got	did you see what i got	đi you see what i got	did you see what i got
+that girl is pretty	that girl is pretty	that girl is pretty	that girl is pretty
+his father is a respected cop	his father is a respected cop	his father is a respected cop	his father is a respected cop
+prepare for it before the time comes	prepare for it before the time comes	prepare for it before the time comes	prepare for it before the time comes
+everyone saw that	everyone să that	everyone saw that	everyone saw that
+these playing cards are marked	these playing cards are marked	thế playing cards are marked	these playing cards are marked
+he sets a goal and sticks to it	he sets a goal and sticks to it	he sét a goal and sticks to it	he sets a goal and sticks to it
+the plank is about two metres long	the plank is about two metres long	the plank is about two metres long	the plank is about two metres long
+how come you say nothing	how come you say nothing	how come you say nothing	how come you say nothing
+some things are sacred	some things are sacred	some things are sacred	some things are sacred
+did you remember to turn the lights off	did you remember to turn the lights of	đi you remember to turn the lights of	did you remember to turn the lights of
+he left his trumpet at school	he left his trumpet at school	he left his trumpet at school	he left his trumpet at school
+want me to show you my collection	want me to show you my collection	want me to show you my collection	want me to show you my collection
+smoking is strictly forbidden	smoking í strictly forbidden	smoking is strictly forbidden	smoking is strictly forbidden
+he has a lot of self confidence	he has a lot of self confidence	he has a lot of self confidence	he has a lot of self confidence
+this library is new	thí library í new	this library is new	this library is new
+this elevator needs to be replaced	this elevator needs to be replaced	this elevator needs to be replaced	this elevator needs to be replaced
+did you have something for me	did you have something for me	đi you have something for me	did you have something for me
+is there hope for humanity	is there hope for humanity	is there hope for humanity	is there hope for humanity
+accidents are a part of life	accidents are a part of life	accidents are a part of life	accidents are a part of life
+love is for everyone	love í for everyone	love is for everyone	love is for everyone
+we have three weeks	we have three weeks	we have three weeks	we have three weeks
+i bring hope to everyone	i bring hope to everyone	i bring hope to everyone	i bring hope to everyone
+did you make all these models	did you make all these models	đi you make all these models	did you make all these models
+is there no bank here	í thể no bank hể	is there no bank hể	is there no bank hể
+did you see the new documentary	did you see the new documentary	đi you see the new documentary	did you see the new documentary
+a button has come off my shirt	a button has come of my shirt	a button has come of my shirt	a button has come of my shirt
+there has never been a balloon here	there has never bên a balloon hể	thể há never bên a balloon hể	there has never bên a balloon hể
+he borrowed a gun from her	he borowed a gun from her	he borowed a gun from her	he borowed a gun from her
+sit here with me	sit hể with me	sit here with me	sit here with me
+he was named after the king	he was named after the king	he was named after the king	he was named after the king
+what are we doing in our world	what are we doing in our world	what are we doing in our world	what are we doing in our world
+how long have you been standing there	how long have you bên standing thể	how long have you bên standing thể	how long have you bên standing thể
+we are in a hurry	we are in a hury	we are in a hury	we are in a hury
+comfort is what matters to me the most	comfort is what matters to me the most	comfort is what matters to me the most	comfort is what matters to me the most
+knowledge is human	knowledge í human	knowledge is human	knowledge is human
+he wore himself out	he wore himself out	he wore himself out	he wore himself out
+how about a cup of tea or coffee	how about a cup of tea or coffee	how about a cup of tea or coffee	how about a cup of tea or coffee
+his sudden appearance surprised us all	his sudden appearance surprised us all	his sudden appearance surprised us all	his sudden appearance surprised us all
+he angrily closed the door	he angrily closed the door	he angrily closed the door	he angrily closed the door
+this should be reverted back to the original	this should be reverted back to the original	this should be reverted back to the original	this should be reverted back to the original
+all i want to do now is sleep	all i want to do now is sleep	all i want to do now is sleep	all i want to do now is sleep
+this group will run	thí group will run	this group will run	this group will run
+they built bigger and better ships	they built bigger and better ships	they built bigger and better ships	they built bigger and better ships
+imagine how stupid that will look	imagine how stupid that will look	imagine how stupid that will look	imagine how stupid that will look
+grace ran swiftly	grace ran swiftly	grace ran swiftly	grace ran swiftly
+how about a second helping	how about a second helping	how about a second helping	how about a second helping
+it is a sheer waste of time	it is a sheer waste of time	it is a sheer waste of time	it is a sheer waste of time
+i think i need a rest	i think i need a rest	i think i need a rest	i think i need a rest
+black boots completed his outfit	black bốt completed hí outfit	black boots completed his outfit	black boots completed his outfit
+bow to no man	bơ to no man	bơ to no man	bơ to no man
+the bus was completely full	the bus was completely full	the bú was completely full	the bus was completely full
+is that near here	is that near here	is that near here	is that near here
+i drank coffee this morning	i drank coffee this morning	i drank coffee this morning	i drank coffee this morning
+you sounded just like them	you sounded just like them	you sounded just like them	you sounded just like them
+everyone does it	everyone dóe it	everyone does it	everyone does it
+i wanted you to have this	i wanted you to have this	i wanted you to have this	i wanted you to have this
+is there anything prohibiting us from doing that	is there anything prohibiting us from doing that	is there anything prohibiting us from doing that	is there anything prohibiting us from doing that
+learning runs in their blood	learning rún in their blood	learning runs in their blood	learning runs in their blood
+i want to avoid unnecessary risks	i want to avoid unnecessary risks	i want to avoid unnecessary risks	i want to avoid unnecessary risks
+there was a hail of protest	there was a hail of protest	thể was a hail of protest	there was a hail of protest
+how long will i need to wait	how long will i need to wait	how long will i need to wait	how long will i need to wait
+compare this genuine jewel with that imitation	compare this genuine jewel with that imitation	compare this genuine jewel with that imitation	compare this genuine jewel with that imitation
+a cat is sitting on the piano keyboard	a cat is sitting on the piano keyboard	a cat is sitting on the piano keyboard	a cat is sitting on the piano keyboard
+he just hung up on her	he just hung up on her	he just hung up on her	he just hung up on her
+how did you become interested in studying languages	how did you become interested in studying languages	how did you become interested in studying languages	how did you become interested in studying languages
+she is living an unhappy life	she is living an unhappy life	she is living an unhappy life	she is living an unhappy life
+here you are among your friends	hể you are among your friends	here you are among your friends	here you are among your friends
+is it pleasing to you	is it pleasing to you	is it pleasing to you	is it pleasing to you
+i hardly recognized him	i hardly recognized him	i hardly recognized him	i hardly recognized him
+that made him smile	that made him smile	that made him smile	that made him smile
+this work must be finished within two years	this work must be finished within two years	this work must be finished within two years	this work must be finished within two years
+education is a gateway to success	education is a gateway to success	education is a gateway to success	education is a gateway to success
+i had sex with your mother	i had sex with your mother	i had sẽ with your mother	i had sex with your mother
+is this happening in real life	is this happening in real life	is this happening in real life	is this happening in real life
+she was pretty busy herself	she was pretty busy herself	she was pretty busy herself	she was pretty busy herself
+did you wash my shirt	did you wash my shirt	đi you wash my shirt	did you wash my shirt
+drag is an ancient art form	drag is an ancient art form	drag is an ancient art form	drag is an ancient art form
+nobody really cares what we do	nobody really cares what we do	nobody really cares what we do	nobody really cares what we do
+why did you ask her	why did you ask her	why did you ask her	why did you ask her
+these towels are beautiful	these towels are beautiful	thế towels are beautiful	these towels are beautiful
+i sell hats	i sell hats	i sell hats	i sell hats
+you and i come from different worlds	you and i come from different worlds	you and i come from different worlds	you and i come from different worlds
+i just fired her	i just fired her	i just fired her	i just fired her
+we ate lunch in a coffee lounge	we ate lunch in a coffee lounge	we ate lunch in a coffee lounge	we ate lunch in a coffee lounge
+please take this medicine before meals	please take this medicine before meals	please take this medicine before meals	please take this medicine before meals
+is there any important news	í thể any important news	is there any important news	is there any important news
+is the soul eternal or fleeting	í the soul eternal or fleeting	is the soul eternal or fleeting	is the soul eternal or fleeting
+he lied deliberately	he lied deliberately	he lied deliberately	he lied deliberately
+did you call someone	did you call someone	đi you call someone	did you call someone
+my head is really cold	my head is really cold	my head is really cold	my head is really cold
+god has not willed it	god has not willed it	god has not willed it	god has not willed it
+she made my life miserable	she made my life miserable	she made my life miserable	she made my life miserable
+where can i meet you	where can i meet you	where can i meet you	where can i meet you
+small things amuse small people	small things amuse small people	small things amuse small people	small things amuse small people
+is it an action film	is it an action film	is it an action film	is it an action film
+i am making a fuss for no reason	i am making a fuss for no reason	i am making a fuss for no reason	i am making a fuss for no reason
+trust only yourself	trút only yourself	trust only yourself	trust only yourself
+this is my favourite book	this is my favourite book	this is my favourite book	this is my favourite book
+lend her a needle	lend hẻ a needle	lend her a needle	lend her a needle
+i hope that you were just joking	i hope that you were just joking	i hope that you were just joking	i hope that you were just joking
+how much more time do i have	how much more time do i have	how much more time do i have	how much more time do i have
+now get lost	nơ get lót	now get lost	now get lost
+did you go to the party together	did you go to the party together	đi you go to the party together	did you go to the party together
+i have a paper bag	i have a paper bag	i have a paper bag	i have a paper bag
+this street leads to the airport	this street leads to the airport	this street leads to the airport	this street leads to the airport
+there is a lack of help among people	there is a lack of help among people	thể í a lack ò help among people	there is a lack of help among people
+is he giving you trouble	is he giving you trouble	is he giving you trouble	is he giving you trouble
+how do you spell your family name	how do you spell your family name	how do you spell your family name	how do you spell your family name
+this old car breaks down constantly	thí old cả breaks dơn constantly	this old cả breaks down constantly	this old car breaks down constantly
+everybody here knows you	everybody hể knows you	everybody here knows you	everybody here knows you
+want to grab a cup of coffee	want to grab a cup of coffee	want to grab a cup of coffee	want to grab a cup of coffee
+no one is safe from a mob	no one is safe from a mob	no one í safe from a mob	no one is safe from a mob
+did he lose consciousness	did he lose consciousness	đi he lose consciousness	did he lose consciousness
+what is the time	what is the time	what is the time	what is the time
+there are many people living in this house	there are many people living in this house	thể are many people living in this house	there are many people living in this house
+how often do you help others	how often do you help others	how often do you help others	how often do you help others
+mother has not cooked dinner yet	mother has not cooked dinner yet	mother has not cooked dinner yet	mother has not cooked dinner yet
+i hope your parents like me	i hope your parents like me	i hope your parents like me	i hope your parents like me
+nature must be protected	nature mút be protected	nature must be protected	nature must be protected
+he should take advantage of the extra times	he should take advantage of the extra times	he should take advantage of the extra times	he should take advantage of the extra times
+there were countless stars in the sky	there were countless stars in the sky	thể were countless stars in the sky	there were countless stars in the sky
+peel this fruit	peel thí fruit	peel this fruit	peel this fruit
+have you bought a car yet	have you bought a cả yet	have you bought a cả yet	have you bought a cả yet
+the bus will arrive in about thirteen minutes	the bus will arrive in about thirteen minutes	the bú will arrive in about thirteen minutes	the bus will arrive in about thirteen minutes
+he hurried to her side as she collapsed	he huried to her side as she collapsed	he huried to her side as she collapsed	he huried to her side as she collapsed
+i waited for him for a long time	i waited for him for a long time	i waited for him for a long time	i waited for him for a long time
+please visit us sometime	please visit ú sometime	please visit us sometime	please visit us sometime
+but i was too late	but i was too late	but i was too late	but i was too late
+does he represent his country alone	does he represent his country alone	does he represent his country alone	does he represent his country alone
+did you like the physics book	did you like the physics book	đi you like the physics book	did you like the physics book
+his family always gave me something to eat	his family always gave me something to eat	his family always gave me something to eat	his family always gave me something to eat
+how often do you buy clothes online	how often do you buy clothes online	how often do you buy clothes online	how often do you buy clothes online
+he built them a house	he built them a house	he built them a house	he built them a house
+i have three grandchildren	i have three grandchildren	i have three grandchildren	i have three grandchildren
+give this to someone else	give thí to someone else	give this to someone else	give this to someone else
+i know that i can make a difference	i know that i can make a difference	i know that i can make a difference	i know that i can make a difference
+they invite me to all their parties	they invite me to all their parties	they invite me to all their parties	they invite me to all their parties
+who cleaned it	who cleaned it	who cleaned it	who cleaned it
+fire cannot be prevented by half measures	fire cannot be prevented by half measures	fire cannot be prevented by half measures	fire cannot be prevented by half measures
+i want a new computer for my birthday	i want a new computer for my birthday	i want a new computer for my birthday	i want a new computer for my birthday
+curiosity is a defining trait of human beings	curiosity is a defining trait of human beings	curiosity is a defining trait of human beings	curiosity is a defining trait of human beings
+fold the towel in half	fold the towel in half	fold the towel in half	fold the towel in half
+this is a film all parents should watch	this is a film all parents should watch	this is a film all parents should watch	this is a film all parents should watch
+is it the right time	is it the right time	is it the right time	is it the right time
+let him cry	let him cry	let him cry	let him cry
+invite us out to dinner in a restaurant	invite ú out to dinner in a restaurant	invite us out to dinner in a restaurant	invite us out to dinner in a restaurant
+do you know someone here	do you know someone here	do you know someone here	do you know someone here
+barley is our main product	barley is our main product	barley is our main product	barley is our main product
+where can i hide	where can i hide	where can i hide	where can i hide
+did you have company	did you have company	đi you have company	did you have company
+nobody else was in the park	nobody else was in the park	nobody else was in the park	nobody else was in the park
+how long will this cold weather go on	how long will this cold weather go on	how long will this cold weather go on	how long will this cold weather go on
+how many people are still there	how many people are still there	how many people are still there	how many people are still there
+people of all ages like this song	people of all ages like this song	people of all ages like this song	people of all ages like this song
+economic conditions point to further inflation	economic conditions point to further inflation	economic conditions point to further inflation	economic conditions point to further inflation
+did he check her	did he check her	đi he check her	did he check her
+how can i suppress these feelings	how can i suppress these feelings	how can i suppress these feelings	how can i suppress these feelings
+his perfect score brought the class average up	his perfect score brought the class average up	his perfect score brought the class average up	his perfect score brought the class average up
+this was so stupid	this was so stupid	this was so stupid	this was so stupid
+i opened the box and it was empty	i opened the box and it was empty	i opened the bõ and it was empty	i opened the box and it was empty
+is it easy to get there	is it easy to get there	is it easy to get there	is it easy to get there
+is that the guy that hit you	is that the guy that hit you	is that the guy that hit you	is that the guy that hit you
+she was in an uncomfortable predicament today	she was in an uncomfortable predicament today	she was in an uncomfortable predicament today	she was in an uncomfortable predicament today
+her mood is always positive	her mood is always positive	her mood is always positive	her mood is always positive
+how many miles are there in a kilometer	how many miles are there in a kilometer	how many miles are there in a kilometer	how many miles are there in a kilometer
+i had to drive myself to the hospital	i had to drive myself to the hospital	i had to drive myself to the hospital	i had to drive myself to the hospital
+and what did you do then	and what did you do then	and what did you do then	and what did you do then
+this one is my suitcase	thí one í my suitcase	this one is my suitcase	this one is my suitcase
+his father was noble	his father was noble	his father was noble	his father was noble
+as usual he brought me nothing	as usual he brought me nothing	á usual he brought me nothing	as usual he brought me nothing
+see you in about an hour	sê you in about an hour	see you in about an hour	see you in about an hour
+lipstick is prohibited by school	lipstick is prohibited by school	lipstick is prohibited by school	lipstick is prohibited by school
+how much is a human life worth	how much is a human life worth	how much is a human life worth	how much is a human life worth
+did you visit him	did you visit him	đi you visit him	did you visit him
+are you still paying attention	are you still paying attention	are you still paying attention	are you still paying attention
+is there more	í thể mỏe	is there more	is there more
+his oldest son is not married	hí oldest son í not married	his oldest son í not married	his oldest son í not married
+that used to be my favorite band	that used to be my favorite band	that used to be my favorite band	that used to be my favorite band
+did you know those gentlemen	did you know those gentlemen	đi you know those gentlemen	did you know those gentlemen
+millions of people lost their jobs	millions ò people lót their jobs	millions of people lost their jobs	millions of people lost their jobs
+why do you keep giving her money	why do you keep giving her money	why do you keep giving her money	why do you keep giving her money
+eight is double that of four	eight is double that of four	eight is double that of four	eight is double that of four
+how many years have you been doing this	how many years have you bên doing thí	how many years have you bên doing thí	how many years have you bên doing thí
+a man always looks for answers	a man always looks for answers	a man always looks for answers	a man always looks for answers
+one of your shoes is dirty	one of your shoes is dirty	one of your shoes is dirty	one of your shoes is dirty
+one does not refuse such an offer	one does not refuse such an offer	one does not refuse such an offer	one does not refuse such an offer
+his paper is far from satisfactory	his paper is far from satisfactory	his paper is far from satisfactory	his paper is far from satisfactory
+please turn the lights on	please tủn the lights on	please turn the lights on	please turn the lights on
+he went blind	he went blind	he went blind	he went blind
+man can be subdued through fear	man can be subdued through fear	man can be subdued through fear	man can be subdued through fear
+this was quite primitive compared to that	this was quite primitive compared to that	this was quite primitive compared to that	this was quite primitive compared to that
+when is your next show	when is your next show	when is your next show	when is your next show
+is this building open to all	is this building open to all	is this building open to all	is this building open to all
+did you listen to classical music yesterday	did you listen to classical music yesterday	đi you listen to classical music yesterday	did you listen to classical music yesterday
+give me something to fix my suitcase with	give me something to fix my suitcase with	give me something to fix my suitcase with	give me something to fix my suitcase with
+this wind announces a storm	this wind announces a storm	this wind announces a storm	this wind announces a storm
+the question is are you willing to help	the question is are you willing to help	the question is are you willing to help	the question is are you willing to help
+we used to go fishing together	we used to go fishing together	we used to go fishing together	we used to go fishing together
+how did he manage that	how did he manage that	how did he manage that	how did he manage that
+there was contempt in his voice	there was contempt in his voice	thể was contempt in his voice	there was contempt in his voice
+billy is good at sports	billy is good at sports	billy is good at sports	billy is good at sports
+his plan leaves much to be desired	his plan leaves much to be desired	his plan leaves much to be desired	his plan leaves much to be desired
+please be seated	please be seated	please be seated	please be seated
+i need a box of this size	i need a box of this size	i need a bõ of this size	i need a box of this size
+i need to finish reading my book	i need to finish reading my book	i need to finish reading my book	i need to finish reading my book
+did you want children	did you want children	đi you want children	did you want children
+did you wear a coat yesterday	did you wear a coat yesterday	đi you wear a coat yesterday	did you wear a coat yesterday
+he got the highest grade in the exam	he got the highest grade in the exam	he got the highest grade in the exam	he got the highest grade in the exam
+cho minhf xin link nhes	cho mình xin link nhé	cho mình xin link nhé	cho mình xin link nhé
+minhf vuwaf post anhr leen	mình vừa pót ảnh lên	mình vừa pót ảnh lên	mình vừa pót ảnh lên
+em caanf support gaaps	em cần support gấp	em cần support gấp	em cần support gấp
+sorry em ddeens muoonj	sorry em đến muộn	sorry em đến muộn	sorry em đến muộn
+minhf ddang busy lawms	mình đang búy lắm	mình đang búy lắm	mình đang búy lắm
+anh ddax approve chuwa	anh đã approve chưa	anh đã approve chưa	anh đã approve chưa
+what do you think anh	what do you think anh	what do you think anh	what do you think anh
+see you tomorrow nhes	sê you tomorrow nhé	see you tomorrow nhé	see you tomorrow nhé
+cuoois tuaanf ddi camping khoong	cuối tuần đi camping không	cuối tuần đi camping không	cuối tuần đi camping không
+sangs mai hopj online nhes	sáng mai họp online nhé	sáng mai họp online nhé	sáng mai họp online nhé
+please guwir laij cho em	please gửi lại cho em	please gửi lại cho em	please gửi lại cho em
+god how i hate this job ra sao thif ra	god how i hate this job ra sao thì ra	god how i hate this job ra sao thì ra	god how i hate this job ra sao thì ra
+tooi chuwa heef giups my flight has been canceled	tôi chưa hề giúp my flight has been canceled	tôi chưa hề giúp my flight has been canceled	tôi chưa hề giúp my flight has been canceled
+this item is currently out of stock nguwowif ddaauf tieen maf tooi gawpj owr	this item is currently out of stock người đầu tiên mà tôi gặp ở	this item is currently out of stock người đầu tiên mà tôi gặp ở	this item is currently out of stock người đầu tiên mà tôi gặp ở
+tooi thaays an toanf hown owr ddaay would they recognize you	tôi thấy an toàn hơn ở đây would they recognize you	tôi thấy an toàn hơn ở đây would they recognize you	tôi thấy an toàn hơn ở đây would they recognize you
+there is nothing to prevent us from going tom khoong thichs baif taapj veef nhaf	there is nothing to prevent us from going tom không thích bài tập về nhà	thể í nothing to prevent us from going tom không thích bài tập về nhà	there is nothing to prevent us from going tom không thích bài tập về nhà
+tom ddax khoong ngacj nhieen khi it was a risky thing to do	tom đã không ngạc nhiên khi it was a risky thing to do	tom đã không ngạc nhiên khi it was a risky thing to do	tom đã không ngạc nhiên khi it was a risky thing to do
+his funeral will be this weekend bieets minhf ddang bieets	his funeral will be this weekend biết mình đang biết	his funeral will be this weekend biết mình đang biết	his funeral will be this weekend biết mình đang biết
+ddax ddongs cuwar ddaij suws quans owr back to my friends i haste	đã đóng cửa đại sứ quán ở back to my friends i haste	đã đóng cửa đại sứ quán ở back to my friends i haste	đã đóng cửa đại sứ quán ở back to my friends i haste
+this should be enough khoong ai tin nos nuwax	this should be enough không ai tin nó nữa	this should be enough không ai tin nó nữa	this should be enough không ai tin nó nữa
+tell her what you heard nhinf vaof guwowng mootj chuts ddi	tell her what you heard nhìn vào gương một chút đi	tell her what you heard nhìn vào gương một chút đi	tell her what you heard nhìn vào gương một chút đi
+bawts ddauf vaof they slit their wrists	bắt đàu vào they slit their wrists	bắt đàu vào they slit their wrists	bắt đàu vào they slit their wrists
+how come you say nothing banj cos ddocj dduwowcj	how come you say nothing bạn có đọc được	how come you say nothing bạn có đọc được	how come you say nothing bạn có đọc được
+smoking is strictly forbidden hoa quar ngon	smoking is strictly forbidden hoa quả ngon	smoking is strictly forbidden hoa quả ngon	smoking is strictly forbidden hoa quả ngon
+chungs tooi sats vachs nhaf anh ta look at the evidence	chúng tôi sát vách nhà anh ta look at the evidence	chúng tôi sát vách nhà anh ta look at the evidence	chúng tôi sát vách nhà anh ta look at the evidence
+chir uoongs traf nhaif she works as a massage therapist	chỉ uống trà nhài she works as a massage therapist	chỉ uống trà nhài she works as a massage therapist	chỉ uống trà nhài she works as a massage therapist
+vis cuar tom mongr vaf troongs roongx did you pay the gas bill	ví của tom mỏng và trống rỗng đi you pay the gá bill	ví của tom mỏng và trống rỗng đi you pay the gá bill	ví của tom mỏng và trống rỗng đi you pay the gá bill
+vaf moij thuws ddeeuf khacs truwowcs the girls are as busy as bees	và mọi thứ đều khác trước the girls are as busy as bế	và mọi thứ đều khác trước the girls are as busy as bế	và mọi thứ đều khác trước the girls are as busy as bế
+laij ddaay ddi please remind me to turn in the paper	lại đây đi please remind me to turn in the paper	lại đây đi please remind me to turn in the paper	lại đây đi please remind me to turn in the paper
+xin vui longf chowf there is bad weather in the north	xin vui lòng chờ there is bad weather in the north	xin vui lòng chờ thể í bad weather in the north	xin vui lòng chờ there is bad weather in the north
+chim hots treen caay i tend to get lost in my feelings	chim hót trên cây i tend to get lost in my feelings	chim hót trên cây i tend to get lost in my feelings	chim hót trên cây i tend to get lost in my feelings
+vaf giam caamf anh towis taanj how much more do we need	và giam cầm anh tới tận hơ much more do we need	và giam cầm anh tới tận hơ much more do we need	và giam cầm anh tới tận hơ much more do we need
+ddos laf vowj banj af his father is a respected cop	đó là vợ bạn à his father is a respected cop	đó là vợ bạn à hí father í a respected cop	đó là vợ bạn à his father is a respected cop
+he sets a goal and sticks to it gioir lawms	he sets a goal and sticks to it giỏi lắm	he sét a goal and sticks to it giỏi lắm	he sets a goal and sticks to it giỏi lắm
+nguwowif ddaauf tieen maf tooi gawpj owr what is his email address	người đầu tiên mà tôi gặp ở what is his email address	người đầu tiên mà tôi gặp ở what is his email address	người đầu tiên mà tôi gặp ở what is his email address
+comfort is what matters to me the most tooi khoong camr thaays	comfort is what matters to me the most tôi không cảm thấy	comfort is what matters to me the most tôi không cảm thấy	comfort is what matters to me the most tôi không cảm thấy
+tom khoong thichs baif taapj veef nhaf imagine how stupid that will look	tom không thích bài tập về nhà imagine how stupid that will look	tom không thích bài tập về nhà imagine hơ stupid that will look	tom không thích bài tập về nhà imagine how stupid that will look
+vaof toois nay he works slowly	vào tối nay he works slowly	vào tối nay he works slowly	vào tối nay he works slowly
+how do you use this tooi bawts ddaauf khocs	how do you use this tôi bắt đầu khóc	how do you use this tôi bắt đầu khóc	how do you use this tôi bắt đầu khóc
+giuwx yeen tay cuar mayf naof like	giữ yên tay của mày nào like	giữ yên tay của mày nào like	giữ yên tay của mày nào like
+suwj download vieecj	sự download việc	sự download việc	sự download việc
+tooi reply chowi bongs roor	tôi reply chơi bóng rổ	tôi reply chơi bóng rổ	tôi reply chơi bóng rổ
+vaof ngayf mai build	vào ngày mai build	vào ngày mai build	vào ngày mai build
+cos code giaacs mow	có code giấc mơ	có code giấc mơ	có code giấc mơ
+nguwowif busy ddaauf tieen maf tooi gawpj owr	người búy đầu tiên mà tôi gặp ở	người búy đầu tiên mà tôi gặp ở	người búy đầu tiên mà tôi gặp ở
+chaof story banj	chào story bạn	chào story bạn	chào story bạn
+nos story cos	nó story có	nó story có	nó story có
+tom khoong muoons trair qua ngayf laptop	tom không muốn trải qua ngày laptop	tom không muốn trải qua ngày laptop	tom không muốn trải qua ngày laptop
+vaf taay ban okay nha	và tây ban okay nha	và tây ban okay nha	và tây ban okay nha
+tom ddax khoong ngacj nhieen office khi	tom đã không ngạc nhiên office khi	tom đã không ngạc nhiên office khi	tom đã không ngạc nhiên office khi
+xin vui longf chowf manager	xin vui lòng chờ manager	xin vui lòng chờ manager	xin vui lòng chờ manager
+xe cuar save mayf raats nhanh	xe của save mày rất nhanh	xe của save mày rất nhanh	xe của save mày rất nhanh
+tooi khoong story camr thaays	tôi không story cảm thấy	tôi không story cảm thấy	tôi không story cảm thấy
+thor cos tai deadline daif vaf dduooi ngawns	thỏ có tai deadline dài và đuôi ngắn	thỏ có tai deadline dài và đuôi ngắn	thỏ có tai deadline dài và đuôi ngắn
+khoong phair toanf booj he can do what he likes	không phải toàn bộ he can do what he likes	không phải toàn bộ he can do what he likes	không phải toàn bộ he can do what he likes
+this work must be finished within two years phair khoong	this work must be finished within two years phải không	this work must be finished within two years phải không	this work must be finished within two years phải không
+tooi thichs mauf vangf my son can already count to one hundred	tôi thích màu vàng my son can already count to one hundred	tôi thích màu vàng my son can already count to one hundred	tôi thích màu vàng my son can already count to one hundred
+neeus caauj thaatj suwj muoons lamf nos that sentence was wrong	nếu cậu thật sự muốn làm nó that sentence was wrong	nếu cậu thật sự muốn làm nó that sentence was wrong	nếu cậu thật sự muốn làm nó that sentence was wrong
+khoong cos giaays ddeer vieets i want to eat something salty	không có giấy để viết i want to eat something salty	không có giấy để viết i want to eat something salty	không có giấy để viết i want to eat something salty
+barley is our main product chungs tooi caanf banj	barley is our main product chúng tôi cần bạn	barley is our main product chúng tôi cần bạn	barley is our main product chúng tôi cần bạn
+tooi caanf mootj thuwr thachs do you want to play cards	tôi cần một thử thách do you want to play cards	tôi cần một thử thách do you want to play cards	tôi cần một thử thách do you want to play cards
+i opened the box and it was empty tooi chawngr nhinf thaays gif car	i opened the box and it was empty tôi chẳng nhìn thấy gì cả	i opened the bõ and it was empty tôi chẳng nhìn thấy gì cả	i opened the box and it was empty tôi chẳng nhìn thấy gì cả
+did you visit him tooi ddinhj hocj tieengs dduwcs	did you visit him tôi định học tiếng đức	đi you visit him tôi định học tiếng đức	did you visit him tôi định học tiếng đức
+tooi cos vieecj phair lamf truwowcs what should i do first	tôi có việc phải làm trước what should i do first	tôi có việc phải làm trước what should i do first	tôi có việc phải làm trước what should i do first
+khoong cos gios hoom nay i sometimes go to the village	không có gió hôm nay i sometimes go to the village	không có gió hôm nay i sometimes go to the village	không có gió hôm nay i sometimes go to the village
+nhuwng sex caanf raats nhieeuf thowif gian did you wash my shirt	nhưng sẽ cần rất nhiều thời gian đi you wash my shirt	nhưng sẽ cần rất nhiều thời gian đi you wash my shirt	nhưng sẽ cần rất nhiều thời gian đi you wash my shirt
+baf ta ddax xif muix which bicycle is yours	bà ta đã xì mũi which bicycle is yours	bà ta đã xì mũi which bicycle is yours	bà ta đã xì mũi which bicycle is yours
+khaanr caaps this is my favourite book	khẩn cấp this is my favourite book	khẩn cấp thí í my favourite book	khẩn cấp this is my favourite book
+dduwngf lamf uwowts nos nature must be protected	đừng làm ướt nó nature mút be protected	đừng làm ướt nó nature mút be protected	đừng làm ướt nó nature mút be protected
+tooi khinh thuwowngf tieenf he is very tall	tôi khinh thường tiền he is very tall	tôi khinh thường tiền he is very tall	tôi khinh thường tiền he is very tall
+tooi thichs truyeenj nayf nhaats this is a film all parents should watch	tôi thích truyện này nhất this is a film all parents should watch	tôi thích truyện này nhất thí í a film all parents should watch	tôi thích truyện này nhất this is a film all parents should watch
+his perfect score brought the class average up ngayf mai trowif sex cos tuyeets	his perfect score brought the class average up ngày mai trời sẽ có tuyết	his perfect score brought the class average up ngày mai trời sẽ có tuyết	his perfect score brought the class average up ngày mai trời sẽ có tuyết
+trais ddaats ddax hoanf toanf troongs roongx do you feel any pain	trái đất đã hoàn toàn trống rỗng do you feel any pain	trái đất đã hoàn toàn trống rỗng do you feel any pain	trái đất đã hoàn toàn trống rỗng do you feel any pain
+please turn the lights on owr phias mays khachs	please tủn the lights on ở phía máy khách	please turn the lights on ở phía máy khách	please turn the lights on ở phía máy khách
+trowif nhuw muoons saapj have you looked everywhere	trời như muốn sập have you looked everywhere	trời như muốn sập have you looked everywhere	trời như muốn sập have you looked everywhere
+tooi tuwowngr laf banj caanf giups ddowx billy is good at sports	tôi tưởng là bạn cần giúp đỡ billy is good at sports	tôi tưởng là bạn cần giúp đỡ billy í good at sports	tôi tưởng là bạn cần giúp đỡ billy is good at sports
+khi naof trowif sex muwa he did everything i told him to	khi nào trời sẽ mưa he did everything i told him to	khi nào trời sẽ mưa he did everything i told him to	khi nào trời sẽ mưa he did everything i told him to
+tooi ddax nois i was just passing by	tôi đã nói i was just passing by	tôi đã nói i was just passing by	tôi đã nói i was just passing by
+nois vaayj time laf ys gif chuws	nói vậy time là ý gì chứ	nói vậy time là ý gì chứ	nói vậy time là ý gì chứ
+khaanr caaps build	khẩn cấp build	khẩn cấp build	khẩn cấp build
+trowif busy nhuw muoons saapj	trời búy như muốn sập	trời búy như muốn sập	trời búy như muốn sập
+baay giowf bug tooi soongs owr ddaay	bây giờ bug tôi sống ở đây	bây giờ bug tôi sống ở đây	bây giờ bug tôi sống ở đây
+anh aays ddeeuf towis cool mootj hieeuj sachs	anh ấy đều tới cool một hiệu sách	anh ấy đều tới cool một hiệu sách	anh ấy đều tới cool một hiệu sách
+neeus caauj thaatj plan suwj muoons lamf nos	nếu cậu thật plan sự muốn làm nó	nếu cậu thật plan sự muốn làm nó	nếu cậu thật plan sự muốn làm nó
+tieenf chawngr laf post gif car	tiền chẳng là pót gì cả	tiền chẳng là pót gì cả	tiền chẳng là pót gì cả
+tooi nois rooif thanks	tôi nói rồi thanks	tôi nói rồi thanks	tôi nói rồi thanks
+tom vaf sorry	tom và sorry	tom và sorry	tom và sorry
+boos em mail lamf ngheef gif thees	bố em mail làm nghề gì thế	bố em mail làm nghề gì thế	bố em mail làm nghề gì thế
+nos thaatj voo office nghiax	nó thật vô office nghĩa	nó thật vô office nghĩa	nó thật vô office nghĩa
+nhaf truwowngf coong boos password tawng hocj phis	nhà trường công bố password tăng học phí	nhà trường công bố password tăng học phí	nhà trường công bố password tăng học phí
+nhuwng sex caanf okay raats nhieeuf thowif gian	nhưng sẽ cần okay rất nhiều thời gian	nhưng sẽ cần okay rất nhiều thời gian	nhưng sẽ cần okay rất nhiều thời gian
+phair khoong team	phải không team	phải không team	phải không team
+chungs tooi caanf video banj	chúng tôi cần video bạn	chúng tôi cần video bạn	chúng tôi cần video bạn
+tooi khoong bieets ys cuar banj laf gif	tôi không biết ý của bạn là gì	tôi không biết ý của bạn là gì	tôi không biết ý của bạn là gì
+been ngoaif trowif raats toois	bên ngoài trời rất tối	bên ngoài trời rất tối	bên ngoài trời rất tối
+vaf anh ta tuwj xuwng minhf laf thuyr thur	và anh ta tự xưng mình là thủy thủ	và anh ta tự xưng mình là thủy thủ	và anh ta tự xưng mình là thủy thủ
+cams own banj ddax nuooi con chos hawngf ngayf	cám ơn bạn đã nuôi con chó hằng ngày	cám ơn bạn đã nuôi con chó hằng ngày	cám ơn bạn đã nuôi con chó hằng ngày
+nuwowcs toois caanf thieets ddoois vowis chungs ta	nước tối cần thiết đối với chúng ta	nước tối cần thiết đối với chúng ta	nước tối cần thiết đối với chúng ta
+sau khi lamf xong anh aays ddeer booj dungj cuj cuar minhf sang mootj been	sau khi làm xong anh ấy để bộ dụng cụ của mình sang một bên	sau khi làm xong anh ấy để bộ dụng cụ của mình sang một bên	sau khi làm xong anh ấy để bộ dụng cụ của mình sang một bên
+boos tooi laf mootj nguwowif cos taams longf vangf	bố tôi là một người có tấm lòng vàng	bố tôi là một người có tấm lòng vàng	bố tôi là một người có tấm lòng vàng
+banj cos tin rawngf anh aays coos tinhf lamf sai	bạn có tin rằng anh ấy cố tình làm sai	bạn có tin rằng anh ấy cố tình làm sai	bạn có tin rằng anh ấy cố tình làm sai
+anh aays ddeeuf towis mootj hieeuj sachs	anh ấy đều tới một hiệu sách	anh ấy đều tới một hiệu sách	anh ấy đều tới một hiệu sách
+oong aays raats khoer manhj	ông ấy rất khỏe mạnh	ông ấy rất khỏe mạnh	ông ấy rất khỏe mạnh
+chij aays khoong	chị ấy không	chị ấy không	chị ấy không
+neeus khoong thif thooi	nếu không thì thôi	nếu không thì thôi	nếu không thì thôi
+banj cos bieets oong	bạn có biết ông	bạn có biết ông	bạn có biết ông
+dduwngf chees gieeux nguwowif giaf car	đừng chế giễu người già cả	đừng chế giễu người già cả	đừng chế giễu người già cả
+tooi chawngr nhinf thaays gif car	tôi chẳng nhìn thấy gì cả	tôi chẳng nhìn thấy gì cả	tôi chẳng nhìn thấy gì cả
+hoj chawngr chus ys nhieeuf ddeens ys kieens cuar tooi	họ chẳng chú ý nhiều đến ý kiến của tôi	họ chẳng chú ý nhiều đến ý kiến của tôi	họ chẳng chú ý nhiều đến ý kiến của tôi
+coo ta quay ngoawts ddi	cô ta quay ngoắt đi	cô ta quay ngoắt đi	cô ta quay ngoắt đi
+trowif nhuw muoons saapj	trời như muốn sập	trời như muốn sập	trời như muốn sập
+laf tooi ddax mua cho coo aays sowij daay chuyeenf vangf tawngj sinh nhaatj cuar coo aays nhes	là tôi đã mua cho cô ấy sợi dây chuyền vàng tặng sinh nhật của cô ấy nhé	là tôi đã mua cho cô ấy sợi dây chuyền vàng tặng sinh nhật của cô ấy nhé	là tôi đã mua cho cô ấy sợi dây chuyền vàng tặng sinh nhật của cô ấy nhé
+tooi sowj laf ddax leen nhaamf toa xe	tôi sợ là đã lên nhầm toa xe	tôi sợ là đã lên nhầm toa xe	tôi sợ là đã lên nhầm toa xe
+hoom nay cos baif kieemr tra ddos nha	hôm nay có bài kiểm tra đó nha	hôm nay có bài kiểm tra đó nha	hôm nay có bài kiểm tra đó nha
+chungs nos yeeu nhau ddawms dduoois lawms	chúng nó yêu nhau đắm đuối lắm	chúng nó yêu nhau đắm đuối lắm	chúng nó yêu nhau đắm đuối lắm
+tooi thaats tieecs vif khoong tham gia cungf banj	tôi thất tiếc vì không tham gia cùng bạn	tôi thất tiếc vì không tham gia cùng bạn	tôi thất tiếc vì không tham gia cùng bạn
+chungs ta chawngr theer naof ddaaus laij chaau as ddaau	chúng ta chẳng thể nào đấu lại châu á đâu	chúng ta chẳng thể nào đấu lại châu á đâu	chúng ta chẳng thể nào đấu lại châu á đâu
+em tooi laf giaos vieen	em tôi là giáo viên	em tôi là giáo viên	em tôi là giáo viên
+caauj bes quyeets ddinhj quan sats vaf ghi nhaanj cacs con ong maatj chi tieets	cậu bé quyết định quan sát và ghi nhận các con ong mật chi tiết	cậu bé quyết định quan sát và ghi nhận các con ong mật chi tiết	cậu bé quyết định quan sát và ghi nhận các con ong mật chi tiết
+nhuwngx nguwowif nawms toanf booj tin tuwcs maatj nayf laf cacs giams ddoocs nhaf mays	những người nắm toàn bộ tin tức mật này là các giám đốc nhà máy	những người nắm toàn bộ tin tức mật này là các giám đốc nhà máy	những người nắm toàn bộ tin tức mật này là các giám đốc nhà máy
+nhinf anh vowis anhs mawts tuwowi cuwowif vaf bieets own	nhìn anh với ánh mắt tươi cười và biết ơn	nhìn anh với ánh mắt tươi cười và biết ơn	nhìn anh với ánh mắt tươi cười và biết ơn
+nos ddax nhaanj tooij truwowcs toaf rawngf nos ddax lieen lacj vowis nhoms choongs chungr toocj	nó đã nhận tội trước tòa rằng nó đã liên lạc với nhóm chống chủng tộc	nó đã nhận tội trước tòa rằng nó đã liên lạc với nhóm chống chủng tộc	nó đã nhận tội trước tòa rằng nó đã liên lạc với nhóm chống chủng tộc
+mootj nguwowif bij ddayf xa quee huwowng	một người bị đày xa quê hương	một người bị đày xa quê hương	một người bị đày xa quê hương
+nos ddax kieems dduwowcj raats nhieeuf tieenf	nó đã kiếm được rất nhiều tiền	nó đã kiếm được rất nhiều tiền	nó đã kiếm được rất nhiều tiền
+tooi sex mua mootj chieecs ddoongf hoof cho con tooi	tôi sẽ mua một chiếc đồng hồ cho con tôi	tôi sẽ mua một chiếc đồng hồ cho con tôi	tôi sẽ mua một chiếc đồng hồ cho con tôi
+khoong cos gios hoom nay	không có gió hôm nay	không có gió hôm nay	không có gió hôm nay
+chaof em	chào em	chào em	chào em
+nos laf chieecs truwcj thawng ngon nhaats owr	nó là chiếc trực thăng ngon nhất ở	nó là chiếc trực thăng ngon nhất ở	nó là chiếc trực thăng ngon nhất ở
+khoong cos giaays ddeer vieets	không có giấy để viết	không có giấy để viết	không có giấy để viết
+trong xax hooij myx	trong xã hội mỹ	trong xã hội mỹ	trong xã hội mỹ
+tooi sex ddi booj	tôi sẽ đi bộ	tôi sẽ đi bộ	tôi sẽ đi bộ
+chungs tooi ddax towis cais hoof	chúng tôi đã tới cái hồ	chúng tôi đã tới cái hồ	chúng tôi đã tới cái hồ
+conf da bocj xuwowng	còn da bọc xương	còn da bọc xương	còn da bọc xương
+anh aays hoois tieecs looix laamf cuar anh ta	anh ấy hối tiếc lỗi lầm của anh ta	anh ấy hối tiếc lỗi lầm của anh ta	anh ấy hối tiếc lỗi lầm của anh ta
+hoom nay banj thaatj ddepj	hôm nay bạn thật đẹp	hôm nay bạn thật đẹp	hôm nay bạn thật đẹp
+oong aays hoir con cos vui khoong	ông ấy hỏi con có vui không	ông ấy hỏi con có vui không	ông ấy hỏi con có vui không
+nguwowif beenhj ddax maats kieen nhaanx	người bệnh đã mất kiên nhẫn	người bệnh đã mất kiên nhẫn	người bệnh đã mất kiên nhẫn
+mayf cungx thua rooif	mày cũng thua rồi	mày cũng thua rồi	mày cũng thua rồi
+coong ty cuar tom ddax leen sanf giao dichj chuwngs khoans	công ty của tom đã lên sàn giao dịch chứng khoán	công ty của tom đã lên sàn giao dịch chứng khoán	công ty của tom đã lên sàn giao dịch chứng khoán
+chungs ta owr truwowcs hanj khas xa	chúng ta ở trước hạn khá xa	chúng ta ở trước hạn khá xa	chúng ta ở trước hạn khá xa
+anh aays tuwngf lamf vieecj owr haf nooij	anh ấy từng làm việc ở hà nội	anh ấy từng làm việc ở hà nội	anh ấy từng làm việc ở hà nội
+anh ta bor ddi tuwf choox ddos	anh ta bỏ đi từ chỗ đó	anh ta bỏ đi từ chỗ đó	anh ta bỏ đi từ chỗ đó
+xe buyts cos duwngf owr ddaay khoong vaayj	xe buýt có dừng ở đây không vậy	xe buýt có dừng ở đây không vậy	xe buýt có dừng ở đây không vậy
+laf nguwowif phuj nuwx vieetj nam teen laf ddaof thij cooi	là người phụ nữ việt nam tên là đào thị côi	là người phụ nữ việt nam tên là đào thị côi	là người phụ nữ việt nam tên là đào thị côi
+giowf hocj soos hocj hoom nay thus vij hown moij ngayf	giờ học số học hôm nay thú vị hơn mọi ngày	giờ học số học hôm nay thú vị hơn mọi ngày	giờ học số học hôm nay thú vị hơn mọi ngày
+vieetj nam laf mootj nuwowcs owr khu vuwcj ddoong nam as	việt nam là một nước ở khu vực đông nam á	việt nam là một nước ở khu vực đông nam á	việt nam là một nước ở khu vực đông nam á
+tooi sex khoong ddeer cho banj lamf chuyeenj ddos	tôi sẽ không để cho bạn làm chuyện đó	tôi sẽ không để cho bạn làm chuyện đó	tôi sẽ không để cho bạn làm chuyện đó
+xin cho tooi ghees khoong huts thuoocs	xin cho tôi ghế không hút thuốc	xin cho tôi ghế không hút thuốc	xin cho tôi ghế không hút thuốc
+banj cos ys naof toots hown khoong	bạn có ý nào tốt hơn không	bạn có ý nào tốt hơn không	bạn có ý nào tốt hơn không
+coo aays raats sungf bais oong ta khoong chiuj lawngs nghe lowif ddanhs gias cuar nguwowif khacs veef oong aays	cô ấy rất sùng bái ông ta không chịu lắng nghe lời đánh giá của người khác về ông ấy	cô ấy rất sùng bái ông ta không chịu lắng nghe lời đánh giá của người khác về ông ấy	cô ấy rất sùng bái ông ta không chịu lắng nghe lời đánh giá của người khác về ông ấy
+ddos laf mootj giar thuyeets thus vij	đó là một giả thuyết thú vị	đó là một giả thuyết thú vị	đó là một giả thuyết thú vị
+banj cos anh	bạn có anh	bạn có anh	bạn có anh
+coor phaanf	cổ phần	cổ phần	cổ phần
+tom quas trer ddeer du lichj mootj minhf	tom quá trẻ để du lịch một mình	tom quá trẻ để du lịch một mình	tom quá trẻ để du lịch một mình
+tom nois laf cos nguwowif muoons gawpj tooi	tom nói là có người muốn gặp tôi	tom nói là có người muốn gặp tôi	tom nói là có người muốn gặp tôi
+tooi baor tom laf anh aays ddax trar lowif sai	tôi bảo tom là anh ấy đã trả lời sai	tôi bảo tom là anh ấy đã trả lời sai	tôi bảo tom là anh ấy đã trả lời sai
+tom leen thanhf phoos rooif ddaays	tom lên thành phố rồi đấy	tom lên thành phố rồi đấy	tom lên thành phố rồi đấy
+vieecj ur phaan bons giups baor veej mooi truwowngf	việc ủ phân bón giúp bảo vệ môi trường	việc ủ phân bón giúp bảo vệ môi trường	việc ủ phân bón giúp bảo vệ môi trường
+mays tinhs laf mootj thieets bij hieenj ddaij	máy tính là một thiết bị hiện đại	máy tính là một thiết bị hiện đại	máy tính là một thiết bị hiện đại
+cho neen tooi sex mua ves cho duf nos ddawts ddeens bao nhieeu ddi nuwax	cho nên tôi sẽ mua vé cho dù nó đắt đến bao nhiêu đi nữa	cho nên tôi sẽ mua vé cho dù nó đắt đến bao nhiêu đi nữa	cho nên tôi sẽ mua vé cho dù nó đắt đến bao nhiêu đi nữa
+toom gioongs mej nhuw dducs	tôm giống mẹ như đúc	tôm giống mẹ như đúc	tôm giống mẹ như đúc
+cais kim trong bocj cungx cos ngayf loif ra	cái kim trong bọc cũng có ngày lòi ra	cái kim trong bọc cũng có ngày lòi ra	cái kim trong bọc cũng có ngày lòi ra
+ao nayf cos cas khoong	ao này có cá không	ao này có cá không	ao này có cá không
+mootj tuaanf sau	một tuần sau	một tuần sau	một tuần sau
+bowi trong cais hoof nayf raats nguy hieemr	bơi trong cái hồ này rất nguy hiểm	bơi trong cái hồ này rất nguy hiểm	bơi trong cái hồ này rất nguy hiểm
+mootj trong hai con dduwowngf nayf sex daanx ddeens nhaf ga	một trong hai con đường này sẽ dẫn đến nhà ga	một trong hai con đường này sẽ dẫn đến nhà ga	một trong hai con đường này sẽ dẫn đến nhà ga
+mua cho tooi mootj cais vays	mua cho tôi một cái váy	mua cho tôi một cái váy	mua cho tôi một cái váy
+ngaif laf nguwowif	ngài là người	ngài là người	ngài là người
+trong bongs toois	trong bóng tối	trong bóng tối	trong bóng tối
+caauj aays laf hocj sinh trung hocj phoor thoong	cậu ấy là học sinh trung học phổ thông	cậu ấy là học sinh trung học phổ thông	cậu ấy là học sinh trung học phổ thông
+nhaf truwowngf coong boos tawng hocj phis	nhà trường công bố tăng học phí	nhà trường công bố tăng học phí	nhà trường công bố tăng học phí
+tooi nghix ngayf mai chij	tôi nghĩ ngày mai chị	tôi nghĩ ngày mai chị	tôi nghĩ ngày mai chị
+khoong ddowif naof	không đời nào	không đời nào	không đời nào
+anh ta ddax lamf goir ddoois thur cuar minhf	anh ta đã làm gỏi đối thủ của mình	anh ta đã làm gỏi đối thủ của mình	anh ta đã làm gỏi đối thủ của mình
+tooi muoons tham gia	tôi muốn tham gia	tôi muốn tham gia	tôi muốn tham gia
+anh aays khoong heef sowj rawns	anh ấy không hề sợ rắn	anh ấy không hề sợ rắn	anh ấy không hề sợ rắn
+khi lamf theem trong sieeu thij	khi làm thêm trong siêu thị	khi làm thêm trong siêu thị	khi làm thêm trong siêu thị
+nos voo cungf cao	nó vô cùng cao	nó vô cùng cao	nó vô cùng cao
+giowf tooi sex cho cacs banj xem thieets bij ddieeuf khieenr	giờ tôi sẽ cho các bạn xem thiết bị điều khiển	giờ tôi sẽ cho các bạn xem thiết bị điều khiển	giờ tôi sẽ cho các bạn xem thiết bị điều khiển
+tieengs mej dder cuar banj laf gif vaayj	tiếng mẹ đẻ của bạn là gì vậy	tiếng mẹ đẻ của bạn là gì vậy	tiếng mẹ đẻ của bạn là gì vậy
+chungs tooi thoong minh hown banj	chúng tôi thông minh hơn bạn	chúng tôi thông minh hơn bạn	chúng tôi thông minh hơn bạn
+tom nayf	tom này	tom này	tom này
+hanhf ddoongj cos ys nghiax hown lowif nois	hành động có ý nghĩa hơn lời nói	hành động có ý nghĩa hơn lời nói	hành động có ý nghĩa hơn lời nói
+mayf lawms moomf vaix chuwowngr	mày lắm mồm vãi chưởng	mày lắm mồm vãi chưởng	mày lắm mồm vãi chưởng
+tooi vaanx thuwowngf mow veef em	tôi vẫn thường mơ về em	tôi vẫn thường mơ về em	tôi vẫn thường mơ về em
+ddaay laf cais hoof ddepj nhaats trong nhuwngx cais hoof maf tooi tuwngf thaays	đây là cái hồ đẹp nhất trong những cái hồ mà tôi từng thấy	đây là cái hồ đẹp nhất trong những cái hồ mà tôi từng thấy	đây là cái hồ đẹp nhất trong những cái hồ mà tôi từng thấy
+nawm muwowi hieepj six dungx camr ddax sawnx sangf cho traanj ddaij chieens	năm mươi hiệp sĩ dũng cảm đã sẵn sàng cho trận đại chiến	năm mươi hiệp sĩ dũng cảm đã sẵn sàng cho trận đại chiến	năm mươi hiệp sĩ dũng cảm đã sẵn sàng cho trận đại chiến
+tooi sex ddi ra ngoaif chowi vowis	tôi sẽ đi ra ngoài chơi với	tôi sẽ đi ra ngoài chơi với	tôi sẽ đi ra ngoài chơi với
+anh aays ddi muoonj nhuw moij khi	anh ấy đi muộn như mọi khi	anh ấy đi muộn như mọi khi	anh ấy đi muộn như mọi khi
+vuwaf lichj suwj laij vuwaf tuwj nhieen hown laf nois	vừa lịch sự lại vừa tự nhiên hơn là nói	vừa lịch sự lại vừa tự nhiên hơn là nói	vừa lịch sự lại vừa tự nhiên hơn là nói
+mayf ddang lamf cais gif owr ddaay thees	mày đang làm cái gì ở đây thế	mày đang làm cái gì ở đây thế	mày đang làm cái gì ở đây thế
+tooi ddinhj hocj tieengs dduwcs	tôi định học tiếng đức	tôi định học tiếng đức	tôi định học tiếng đức
+baats cuws lucs naof banj cos thoong tin gif mowis	bất cứ lúc nào bạn có thông tin gì mới	bất cứ lúc nào bạn có thông tin gì mới	bất cứ lúc nào bạn có thông tin gì mới
+ddos laf mootj trong nhuwngx thanhf phoos ddepj nhaats thees giowis	đó là một trong những thành phố đẹp nhất thế giới	đó là một trong những thành phố đẹp nhất thế giới	đó là một trong những thành phố đẹp nhất thế giới
+ys banj laf tooi ddax gieets tom cos ddungs khoong	ý bạn là tôi đã giết tom có đúng không	ý bạn là tôi đã giết tom có đúng không	ý bạn là tôi đã giết tom có đúng không
+ddax phongs lao thif phair theo lao	đã phóng lao thì phải theo lao	đã phóng lao thì phải theo lao	đã phóng lao thì phải theo lao
+ddax khieens cho nuwar sau cuar buooir leex bij quas giowf	đã khiến cho nửa sau của buổi lễ bị quá giờ	đã khiến cho nửa sau của buổi lễ bị quá giờ	đã khiến cho nửa sau của buổi lễ bị quá giờ
+tooi cos theer ddi booj ddeens truwowngf trong vongf nuwar tieengs	tôi có thể đi bộ đến trường trong vòng nửa tiếng	tôi có thể đi bộ đến trường trong vòng nửa tiếng	tôi có thể đi bộ đến trường trong vòng nửa tiếng
+chieecs xe tair ddos ddang chaats ddaayf nooij thaats	chiếc xe tải đó đang chất đầy nội thất	chiếc xe tải đó đang chất đầy nội thất	chiếc xe tải đó đang chất đầy nội thất
+ddax nhowf tom keos khoas vays leen giups coo aays	đã nhờ tom kéo khóa váy lên giúp cô ấy	đã nhờ tom kéo khóa váy lên giúp cô ấy	đã nhờ tom kéo khóa váy lên giúp cô ấy
+tom khoong phair laf mootj nhaf soanj kichj	tom không phải là một nhà soạn kịch	tom không phải là một nhà soạn kịch	tom không phải là một nhà soạn kịch
+tooi thaatj suwj khoong thichs ddoof awn ys cho lawms	tôi thật sự không thích đồ ăn ý cho lắm	tôi thật sự không thích đồ ăn ý cho lắm	tôi thật sự không thích đồ ăn ý cho lắm
+khoong ai cos theer thoats khoir soos meenhj cuar minhf	không ai có thể thoát khỏi số mệnh của mình	không ai có thể thoát khỏi số mệnh của mình	không ai có thể thoát khỏi số mệnh của mình
+coo aays danhf nhieeuf thowif gian nghix veef coong vieecj hown laf thowif gian ddeer lamf vieecj	cô ấy dành nhiều thời gian nghĩ về công việc hơn là thời gian để làm việc	cô ấy dành nhiều thời gian nghĩ về công việc hơn là thời gian để làm việc	cô ấy dành nhiều thời gian nghĩ về công việc hơn là thời gian để làm việc
+truwngs dduwowcj bans trong sieeu thij	trứng được bán trong siêu thị	trứng được bán trong siêu thị	trứng được bán trong siêu thị
+ddos laf nguwowif quanr lys mowis	đó là người quản lý mới	đó là người quản lý mới	đó là người quản lý mới
+tooi nghix laf anh aays ddax veef nhaf	tôi nghĩ là anh ấy đã về nhà	tôi nghĩ là anh ấy đã về nhà	tôi nghĩ là anh ấy đã về nhà
+ddaay laf buwcs thuw danhf cho banj	đây là bức thư dành cho bạn	đây là bức thư dành cho bạn	đây là bức thư dành cho bạn
+neeus muoons thif banj cos theer dungf cais mays tinhs cuar tooi	nếu muốn thì bạn có thể dùng cái máy tính của tôi	nếu muốn thì bạn có thể dùng cái máy tính của tôi	nếu muốn thì bạn có thể dùng cái máy tính của tôi
+tooi ddax nois	tôi đã nói	tôi đã nói	tôi đã nói
+neeus banj cos gawpj tom	nếu bạn có gặp tom	nếu bạn có gặp tom	nếu bạn có gặp tom
+cao hown hawnr so vowis nhuwngx nguwowif trer hown	cao hơn hẳn so với những người trẻ hơn	cao hơn hẳn so với những người trẻ hơn	cao hơn hẳn so với những người trẻ hơn
+tom ddax muoons taats car moij nguwowif ddeens buwax tieecj cuar caauj ta	tom đã muốn tất cả mọi người đến bữa tiệc của cậu ta	tom đã muốn tất cả mọi người đến bữa tiệc của cậu ta	tom đã muốn tất cả mọi người đến bữa tiệc của cậu ta
+hayx ddungs giowf	hãy đúng giờ	hãy đúng giờ	hãy đúng giờ
+tom bor hocj caaps	tom bỏ học cấp	tom bỏ học cấp	tom bỏ học cấp
+trais ddaats ddax hoanf toanf troongs roongx	trái đất đã hoàn toàn trống rỗng	trái đất đã hoàn toàn trống rỗng	trái đất đã hoàn toàn trống rỗng
+nhuwng chungs ta vaanx chuwa theer veef nhaf	nhưng chúng ta vẫn chưa thể về nhà	nhưng chúng ta vẫn chưa thể về nhà	nhưng chúng ta vẫn chưa thể về nhà
+truwa hoom qua	trưa hôm qua	trưa hôm qua	trưa hôm qua
+tom ddax nghir huwu vaf chuyeenr nhaf towis	tom đã nghỉ hưu và chuyển nhà tới	tom đã nghỉ hưu và chuyển nhà tới	tom đã nghỉ hưu và chuyển nhà tới
+caau chuyeenj bawts ddaauf tuwf raats laau rooif	câu chuyện bắt đầu từ rất lâu rồi	câu chuyện bắt đầu từ rất lâu rồi	câu chuyện bắt đầu từ rất lâu rồi
+chaof buooir toois	chào buổi tối	chào buổi tối	chào buổi tối
+hoj ngooif duwowis bongs raam cuar cais caay to kia	họ ngồi dưới bóng râm của cái cây to kia	họ ngồi dưới bóng râm của cái cây to kia	họ ngồi dưới bóng râm của cái cây to kia
+cuar tooi bij troomj maats rooif	của tôi bị trộm mất rồi	của tôi bị trộm mất rồi	của tôi bị trộm mất rồi
+bieets ddieeuf gif cos theer xayr ra	biết điều gì có thể xảy ra	biết điều gì có thể xảy ra	biết điều gì có thể xảy ra
+baf ta ddax xif muix	bà ta đã xì mũi	bà ta đã xì mũi	bà ta đã xì mũi
+tom khoong muoons	tom không muốn	tom không muốn	tom không muốn
+tooi laf mootj beenhj nhaan	tôi là một bệnh nhân	tôi là một bệnh nhân	tôi là một bệnh nhân
+tooi cos vieecj phair lamf truwowcs	tôi có việc phải làm trước	tôi có việc phải làm trước	tôi có việc phải làm trước
+tom ddang thuee phongf owr gaanf ddaay	tom đang thuê phòng ở gần đây	tom đang thuê phòng ở gần đây	tom đang thuê phòng ở gần đây
+nhuwngx loaif ddoongj vaatj naof awn muooix	những loài động vật nào ăn muỗi	những loài động vật nào ăn muỗi	những loài động vật nào ăn muỗi
+neeus caauj thaatj suwj muoons lamf nos	nếu cậu thật sự muốn làm nó	nếu cậu thật sự muốn làm nó	nếu cậu thật sự muốn làm nó
+tooi mowis cos banj owr	tôi mới có bạn ở	tôi mới có bạn ở	tôi mới có bạn ở
+tom vaf	tom và	tom và	tom và
+camr thaays minhf sawps cheets	cảm thấy mình sắp chết	cảm thấy mình sắp chết	cảm thấy mình sắp chết
+tom bij bawts giuwx vif lais xe trong tinhf trangj say ruwowuj	tom bị bắt giữ vì lái xe trong tình trạng say rượu	tom bị bắt giữ vì lái xe trong tình trạng say rượu	tom bị bắt giữ vì lái xe trong tình trạng say rượu
+nayf raats ddepj	này rất đẹp	này rất đẹp	này rất đẹp
+tooi khoong muoons nois chuyeenj lucs nayf	tôi không muốn nói chuyện lúc này	tôi không muốn nói chuyện lúc này	tôi không muốn nói chuyện lúc này
+cos lex banj quas trer ddeer hieeur vif sao tom ddax buoocj phair rowif ddi	có lẽ bạn quá trẻ để hiểu vì sao tom đã buộc phải rời đi	có lẽ bạn quá trẻ để hiểu vì sao tom đã buộc phải rời đi	có lẽ bạn quá trẻ để hiểu vì sao tom đã buộc phải rời đi
+tooi thaays rawngf thaatj khoong may khi cais ngheef nayf ddax bieens maats	tôi thấy rằng thật không may khi cái nghề này đã biến mất	tôi thấy rằng thật không may khi cái nghề này đã biến mất	tôi thấy rằng thật không may khi cái nghề này đã biến mất
+baay giowf tooi soongs owr ddaay	bây giờ tôi sống ở đây	bây giờ tôi sống ở đây	bây giờ tôi sống ở đây
+ddoof awn owr ddaau	đồ ăn ở đâu	đồ ăn ở đâu	đồ ăn ở đâu
+nguwowif cos tris tueej taangf baacj	người có trí tuệ tầng bậc	người có trí tuệ tầng bậc	người có trí tuệ tầng bậc
+hoanf canhr banr chaats khoong cos vaans ddeef	hoàn cảnh bản chất không có vấn đề	hoàn cảnh bản chất không có vấn đề	hoàn cảnh bản chất không có vấn đề
+khoong cos ai giups ddowx chungs ta	không có ai giúp đỡ chúng ta	không có ai giúp đỡ chúng ta	không có ai giúp đỡ chúng ta
+taams thamr nayf khoong phuf howpj vowis remf cuwar	tấm thảm này không phù hợp với rèm cửa	tấm thảm này không phù hợp với rèm cửa	tấm thảm này không phù hợp với rèm cửa
+cos theer kieems soongs vowis baats kyf nguwowif lamf noong naof	có thể kiếm sống với bất kỳ người làm nông nào	có thể kiếm sống với bất kỳ người làm nông nào	có thể kiếm sống với bất kỳ người làm nông nào
+giowf thif chungs tooi bieets chungs tooi lex ra khoong neen lamf chuyeenj ddos	giờ thì chúng tôi biết chúng tôi lẽ ra không nên làm chuyện đó	giờ thì chúng tôi biết chúng tôi lẽ ra không nên làm chuyện đó	giờ thì chúng tôi biết chúng tôi lẽ ra không nên làm chuyện đó
+ddoongj vaatj sinh soongs owr trong ruwngf	động vật sinh sống ở trong rừng	động vật sinh sống ở trong rừng	động vật sinh sống ở trong rừng
+chieecs mays bay owr treen trowif troong raats nhor	chiếc máy bay ở trên trời trông rất nhỏ	chiếc máy bay ở trên trời trông rất nhỏ	chiếc máy bay ở trên trời trông rất nhỏ
+nos ddax laf mootj chuyeens ddi daif vaf tooi raats bieets own suwj ddoongf hanhf cuar anh aays	nó đã là một chuyến đi dài và tôi rất biết ơn sự đồng hành của anh ấy	nó đã là một chuyến đi dài và tôi rất biết ơn sự đồng hành của anh ấy	nó đã là một chuyến đi dài và tôi rất biết ơn sự đồng hành của anh ấy
+chowi vowis banj bef raats vui	chơi với bạn bè rất vui	chơi với bạn bè rất vui	chơi với bạn bè rất vui
+tooi sex baanj vaof ngayf mai	tôi sẽ bận vào ngày mai	tôi sẽ bận vào ngày mai	tôi sẽ bận vào ngày mai
+tom neen owr ddaay	tom nên ở đây	tom nên ở đây	tom nên ở đây
+ddepj nhuwng banj phair mawcj aos muwa vaof vif trowif bawts ddaauf muwa rooif ddaays	đẹp nhưng bạn phải mặc áo mưa vào vì trời bắt đầu mưa rồi đấy	đẹp nhưng bạn phải mặc áo mưa vào vì trời bắt đầu mưa rồi đấy	đẹp nhưng bạn phải mặc áo mưa vào vì trời bắt đầu mưa rồi đấy
+tooi camr thaays sangr khoais sau khi ddi daoj	tôi cảm thấy sảng khoái sau khi đi dạo	tôi cảm thấy sảng khoái sau khi đi dạo	tôi cảm thấy sảng khoái sau khi đi dạo
+tooi ddax ddeef nghij coo aays neen duwngf laij nhuwng coo aays vaanx tieeps tucj baats chaaps	tôi đã đề nghị cô ấy nên dừng lại nhưng cô ấy vẫn tiếp tục bất chấp	tôi đã đề nghị cô ấy nên dừng lại nhưng cô ấy vẫn tiếp tục bất chấp	tôi đã đề nghị cô ấy nên dừng lại nhưng cô ấy vẫn tiếp tục bất chấp
+tooi ddax hoanf toanf awn heets ddoof awn maf banj ddax chuaanr bij	tôi đã hoàn toàn ăn hết đồ ăn mà bạn đã chuẩn bị	tôi đã hoàn toàn ăn hết đồ ăn mà bạn đã chuẩn bị	tôi đã hoàn toàn ăn hết đồ ăn mà bạn đã chuẩn bị
+banj caanf phair taapj theer ducj mootj chuts	bạn cần phải tập thể dục một chút	bạn cần phải tập thể dục một chút	bạn cần phải tập thể dục một chút
+cos theer tom laf nguwowif ddax laays troomj chieecs vongf coor cuar	có thể tom là người đã lấy trộm chiếc vòng cổ của	có thể tom là người đã lấy trộm chiếc vòng cổ của	có thể tom là người đã lấy trộm chiếc vòng cổ của
+tooi ddax khoong bieets rawngf tom soongs owr ucs	tôi đã không biết rằng tom sống ở úc	tôi đã không biết rằng tom sống ở úc	tôi đã không biết rằng tom sống ở úc
+tom nois caauj aays ddangs ra khoong neen lamf vaayj mootj minhf	tom nói cậu ấy đáng ra không nên làm vậy một mình	tom nói cậu ấy đáng ra không nên làm vậy một mình	tom nói cậu ấy đáng ra không nên làm vậy một mình
+tui khoong hieeur vif sao chuyeenj nayf laij xayr ra vowis tui	tui không hiểu vì sao chuyện này lại xảy ra với tui	tui không hiểu vì sao chuyện này lại xảy ra với tui	tui không hiểu vì sao chuyện này lại xảy ra với tui
+tom chuwa bao giowf ddocj mootj cuoons sachs naof trong ddowif	tom chưa bao giờ đọc một cuốn sách nào trong đời	tom chưa bao giờ đọc một cuốn sách nào trong đời	tom chưa bao giờ đọc một cuốn sách nào trong đời
+baay giowf anh aays ddang vieets thuw cho boos mej	bây giờ anh ấy đang viết thư cho bố mẹ	bây giờ anh ấy đang viết thư cho bố mẹ	bây giờ anh ấy đang viết thư cho bố mẹ
+tinhf hinhf laf thees nayf	tình hình là thế này	tình hình là thế này	tình hình là thế này
+banj cos caanf nhieeuf tieenf khoong	bạn có cần nhiều tiền không	bạn có cần nhiều tiền không	bạn có cần nhiều tiền không
+ddaay laf cuwar hangf nowi tooi lamf vieecj	đây là cửa hàng nơi tôi làm việc	đây là cửa hàng nơi tôi làm việc	đây là cửa hàng nơi tôi làm việc
+banj nois vowis tom chuyeenj ddos khi naof	bạn nói với tom chuyện đó khi nào	bạn nói với tom chuyện đó khi nào	bạn nói với tom chuyện đó khi nào
+tooi lamf vieecj owr mootj hieeuj thuoocs	tôi làm việc ở một hiệu thuốc	tôi làm việc ở một hiệu thuốc	tôi làm việc ở một hiệu thuốc
+banj ddanhs vaanf nos nhuw thees naof	bạn đánh vần nó như thế nào	bạn đánh vần nó như thế nào	bạn đánh vần nó như thế nào
+nhuwng laij cos nhieeuf banj	nhưng lại có nhiều bạn	nhưng lại có nhiều bạn	nhưng lại có nhiều bạn
+coo ddoongf ys trar mootj nuwar soos tieenf thuee nhaf	cô đồng ý trả một nửa số tiền thuê nhà	cô đồng ý trả một nửa số tiền thuê nhà	cô đồng ý trả một nửa số tiền thuê nhà
+tooi bij ddau ddaauf	tôi bị đau đầu	tôi bị đau đầu	tôi bị đau đầu
+nos cos theer lanhj vaof tuaanf towis	nó có thể lạnh vào tuần tới	nó có thể lạnh vào tuần tới	nó có thể lạnh vào tuần tới
+dduwas trer	đứa trẻ	đứa trẻ	đứa trẻ
+chungs tooi cos theer laays gowij ys	chúng tôi có thể lấy gợi ý	chúng tôi có thể lấy gợi ý	chúng tôi có thể lấy gợi ý
+tooi camr thaays minhf queen thuws gif ddos	tôi cảm thấy mình quên thứ gì đó	tôi cảm thấy mình quên thứ gì đó	tôi cảm thấy mình quên thứ gì đó
+banj sex xuaats banr nos af	bạn sẽ xuất bản nó à	bạn sẽ xuất bản nó à	bạn sẽ xuất bản nó à
+mej tooi khoong nois dduwowcj tieengs phaps	mẹ tôi không nói được tiếng pháp	mẹ tôi không nói được tiếng pháp	mẹ tôi không nói được tiếng pháp
+nhuwngx nguwowif ddos ddax phanr booij tooi	những người đó đã phản bội tôi	những người đó đã phản bội tôi	những người đó đã phản bội tôi
+kieemr soats banr thaan ddi	kiểm soát bản thân đi	kiểm soát bản thân đi	kiểm soát bản thân đi
+bocj nos laij ddi aj	bọc nó lại đi ạ	bọc nó lại đi ạ	bọc nó lại đi ạ
+buwowms cos phair coon trungf khoong	bướm có phải côn trùng không	bướm có phải côn trùng không	bướm có phải côn trùng không
+oong giaf	ông già	ông già	ông già
+muooix thichs tooi	muỗi thích tôi	muỗi thích tôi	muỗi thích tôi
+tom dduwowcj moij nguwowif quys meens	tom được mọi người quý mến	tom được mọi người quý mến	tom được mọi người quý mến
+chungs tooi thichs suwj dda dangj	chúng tôi thích sự đa dạng	chúng tôi thích sự đa dạng	chúng tôi thích sự đa dạng
+khi naof trowif sex muwa	khi nào trời sẽ mưa	khi nào trời sẽ mưa	khi nào trời sẽ mưa
+tom veef nhaf lucs nuwar ddeem	tom về nhà lúc nửa đêm	tom về nhà lúc nửa đêm	tom về nhà lúc nửa đêm
+tom ddax lamf xong baif taapj veef nhaf	tom đã làm xong bài tập về nhà	tom đã làm xong bài tập về nhà	tom đã làm xong bài tập về nhà
+tooi khinh thuwowngf tieenf	tôi khinh thường tiền	tôi khinh thường tiền	tôi khinh thường tiền
+hoj thichs thowif tieets cuwcj lanhj owr	họ thích thời tiết cực lạnh ở	họ thích thời tiết cực lạnh ở	họ thích thời tiết cực lạnh ở
+tinhf yeeu thif khoong caanf lys do	tình yêu thì không cần lý do	tình yêu thì không cần lý do	tình yêu thì không cần lý do
+nhuwng sex caanf raats nhieeuf thowif gian	nhưng sẽ cần rất nhiều thời gian	nhưng sẽ cần rất nhiều thời gian	nhưng sẽ cần rất nhiều thời gian
+neeus tooi lamf dduwowcj	nếu tôi làm được	nếu tôi làm được	nếu tôi làm được
+tooi awn truwa owr cawng tin truwowngf hoom nay	tôi ăn trưa ở căng tin trường hôm nay	tôi ăn trưa ở căng tin trường hôm nay	tôi ăn trưa ở căng tin trường hôm nay
+tooi caanf mootj thuwr thachs	tôi cần một thử thách	tôi cần một thử thách	tôi cần một thử thách
+ddos thaatj suwj laf mootj tuwf raats ddepj	đó thật sự là một từ rất đẹp	đó thật sự là một từ rất đẹp	đó thật sự là một từ rất đẹp
+canhr sats giao thoong ddax xuaats hieenj ddeer ddieeuf tieets giao thoong taij mooix ngax tuw	cảnh sát giao thông đã xuất hiện để điều tiết giao thông tại mỗi ngã tư	cảnh sát giao thông đã xuất hiện để điều tiết giao thông tại mỗi ngã tư	cảnh sát giao thông đã xuất hiện để điều tiết giao thông tại mỗi ngã tư
+chi cos tom mowis cos theer giair quyeets vaans ddeef ddos	chi có tom mới có thể giải quyết vấn đề đó	chi có tom mới có thể giải quyết vấn đề đó	chi có tom mới có thể giải quyết vấn đề đó
+tom lamf tooi bij ddau	tom làm tôi bị đau	tom làm tôi bị đau	tom làm tôi bị đau
+neeus moij thuws ddeeuf ddown gianr nhuw banj nois thif sex chawngr cos vaans ddeef gif car	nếu mọi thứ đều đơn giản như bạn nói thì sẽ chẳng có vấn đề gì cả	nếu mọi thứ đều đơn giản như bạn nói thì sẽ chẳng có vấn đề gì cả	nếu mọi thứ đều đơn giản như bạn nói thì sẽ chẳng có vấn đề gì cả
+nos thaatj voo nghiax	nó thật vô nghĩa	nó thật vô nghĩa	nó thật vô nghĩa
+chungs tooi ddax sawnx sangf	chúng tôi đã sẵn sàng	chúng tôi đã sẵn sàng	chúng tôi đã sẵn sàng
+thees laf ddur rooif	thế là đủ rồi	thế là đủ rồi	thế là đủ rồi
+baay giowf chungs tooi ddang lamf vieecj	bây giờ chúng tôi đang làm việc	bây giờ chúng tôi đang làm việc	bây giờ chúng tôi đang làm việc
+tooi muoons chungs ta trowr thanhf mootj gia ddinhf	tôi muốn chúng ta trở thành một gia đình	tôi muốn chúng ta trở thành một gia đình	tôi muốn chúng ta trở thành một gia đình
+nghe theo nhuwngx lowif duj doox	nghe theo những lời dụ dỗ	nghe theo những lời dụ dỗ	nghe theo những lời dụ dỗ
+chuyeenj gif thees	chuyện gì thế	chuyện gì thế	chuyện gì thế
+tooi cos theer trar lowif taats car nhuwngx caau hoir nayf	tôi có thể trả lời tất cả những câu hỏi này	tôi có thể trả lời tất cả những câu hỏi này	tôi có thể trả lời tất cả những câu hỏi này
+cho tooi ba vieen phaans	cho tôi ba viên phấn	cho tôi ba viên phấn	cho tôi ba viên phấn
+tom vaf	tom và	tom và	tom và
+lamf mootj neor	làm một nẻo	làm một nẻo	làm một nẻo
+nhuwngx boong hoa troong khoong vui lawms	những bông hoa trông không vui lắm	những bông hoa trông không vui lắm	những bông hoa trông không vui lắm
+tooi chuwa bao giowf nois vaayj vowis anh ta	tôi chưa bao giờ nói vậy với anh ta	tôi chưa bao giờ nói vậy với anh ta	tôi chưa bao giờ nói vậy với anh ta
+daanx tooi ddeens dduwowngf cutj ddawngf sau nhaf thowf	dẫn tôi đến đường cụt đằng sau nhà thờ	dẫn tôi đến đường cụt đằng sau nhà thờ	dẫn tôi đến đường cụt đằng sau nhà thờ
+quan trongj laf ddawtj mucj tieeu thuwcj tees ddeer khoong bij nanr chis	quan trọng là đặt mục tiêu thực tế để không bị nản chí	quan trọng là đặt mục tiêu thực tế để không bị nản chí	quan trọng là đặt mục tiêu thực tế để không bị nản chí
+neenf vawn minh taan tieens trong dair ngaan haf	nền văn minh tân tiến trong dải ngân hà	nền văn minh tân tiến trong dải ngân hà	nền văn minh tân tiến trong dải ngân hà
+giow tay leen trowif ddi	giơ tay lên trời đi	giơ tay lên trời đi	giơ tay lên trời đi
+tooi chuwa tuwngf ddeems xem minhf cos bao nhieeu sachs	tôi chưa từng đếm xem mình có bao nhiêu sách	tôi chưa từng đếm xem mình có bao nhiêu sách	tôi chưa từng đếm xem mình có bao nhiêu sách
+tooi raats thichs quoocs kif	tôi rất thích quốc kì	tôi rất thích quốc kì	tôi rất thích quốc kì
+ai cungx bieets phats xits laf xaaus truwf ker ngu ra	ai cũng biết phát xít là xấu trừ kẻ ngu ra	ai cũng biết phát xít là xấu trừ kẻ ngu ra	ai cũng biết phát xít là xấu trừ kẻ ngu ra
+tom khoong sowr huwux xe mays	tom không sở hữu xe máy	tom không sở hữu xe máy	tom không sở hữu xe máy
+tieenf chawngr laf gif car	tiền chẳng là gì cả	tiền chẳng là gì cả	tiền chẳng là gì cả
+ddaay laf con soong daif thuws ba thees giowis	đây là con sông dài thứ ba thế giới	đây là con sông dài thứ ba thế giới	đây là con sông dài thứ ba thế giới
+nos sex timf ddur moij lis do ddeer khoong phair ddeens truwowngf	nó sẽ tìm đủ mọi lí do để không phải đến trường	nó sẽ tìm đủ mọi lí do để không phải đến trường	nó sẽ tìm đủ mọi lí do để không phải đến trường
+anh aays bij trungs teen vaf cheets treen dduwowngf	anh ấy bị trúng tên và chết trên đường	anh ấy bị trúng tên và chết trên đường	anh ấy bị trúng tên và chết trên đường
+tieengs trung khi vieets thif khoong cos daaus cachs giuwax cacs chuwx vaf tuwf lieenf nhau	tiếng trung khi viết thì không có dấu cách giữa các chữ và từ liền nhau	tiếng trung khi viết thì không có dấu cách giữa các chữ và từ liền nhau	tiếng trung khi viết thì không có dấu cách giữa các chữ và từ liền nhau
+cacs ddaij dieenj tuwf hai muwowi saus nuwowcs sex tham duwj dieenx ddanf	các đại diện từ hai mươi sáu nước sẽ tham dự diễn đàn	các đại diện từ hai mươi sáu nước sẽ tham dự diễn đàn	các đại diện từ hai mươi sáu nước sẽ tham dự diễn đàn
+owr phias mays khachs	ở phía máy khách	ở phía máy khách	ở phía máy khách
+xin chaof	xin chào	xin chào	xin chào
+tooi caanf mootj chuts khoong gian	tôi cần một chút không gian	tôi cần một chút không gian	tôi cần một chút không gian
+tooi khoong cos gif toots hown ddeer lamf heets	tôi không có gì tốt hơn để làm hết	tôi không có gì tốt hơn để làm hết	tôi không có gì tốt hơn để làm hết
+anh aays thichs tachs bieetj minhf vowis cacs hocj sinh khacs trong lowps	anh ấy thích tách biệt mình với các học sinh khác trong lớp	anh ấy thích tách biệt mình với các học sinh khác trong lớp	anh ấy thích tách biệt mình với các học sinh khác trong lớp
+caauj bes nems ddas con eechs	cậu bé ném đá con ếch	cậu bé ném đá con ếch	cậu bé ném đá con ếch
+khoong theer tin chawcs veef suwj giups ddowx cuar anh ta	không thể tin chắc về sự giúp đỡ của anh ta	không thể tin chắc về sự giúp đỡ của anh ta	không thể tin chắc về sự giúp đỡ của anh ta
+kees hoachj cuar tooi laf hocj owr ucs	kế hoạch của tôi là học ở úc	kế hoạch của tôi là học ở úc	kế hoạch của tôi là học ở úc
+banj cos cho rawngf anh ta gioongs boos anh ta khoong	bạn có cho rằng anh ta giống bố anh ta không	bạn có cho rằng anh ta giống bố anh ta không	bạn có cho rằng anh ta giống bố anh ta không
+anh aays laf mootj nguwowif banj raats gaanf guix	anh ấy là một người bạn rất gần gũi	anh ấy là một người bạn rất gần gũi	anh ấy là một người bạn rất gần gũi
+mawtj ddaats bij tuyeets bao phur	mặt đất bị tuyết bao phủ	mặt đất bị tuyết bao phủ	mặt đất bị tuyết bao phủ
+ba nawm truwowcs ddaay	ba năm trước đây	ba năm trước đây	ba năm trước đây
+moij nguwowif ddeeuf haif longf	mọi người đều hài lòng	mọi người đều hài lòng	mọi người đều hài lòng
+tooi bij buij vaof mawts	tôi bị bụi vào mắt	tôi bị bụi vào mắt	tôi bị bụi vào mắt
+phuwowng thuoocs duy nhaats choongs laij tinhs kieeu cawng laf cais cuwowif	phương thuốc duy nhất chống lại tính kiêu căng là cái cười	phương thuốc duy nhất chống lại tính kiêu căng là cái cười	phương thuốc duy nhất chống lại tính kiêu căng là cái cười
+khoong ddowif naof tooi sex lamf ddieeuf ddos	không đời nào tôi sẽ làm điều đó	không đời nào tôi sẽ làm điều đó	không đời nào tôi sẽ làm điều đó
+cos phair khoong	có phải không	có phải không	có phải không
+cos mootj chuyeenj coor tichs veef con meof ba tuw	có một chuyện cổ tích về con mèo ba tư	có một chuyện cổ tích về con mèo ba tư	có một chuyện cổ tích về con mèo ba tư
+tooi ddax thuyeets phucj boos tooi nguwngf huts thuoocs	tôi đã thuyết phục bố tôi ngừng hút thuốc	tôi đã thuyết phục bố tôi ngừng hút thuốc	tôi đã thuyết phục bố tôi ngừng hút thuốc
+cungx cho chungs ta tuwj do	cũng cho chúng ta tự do	cũng cho chúng ta tự do	cũng cho chúng ta tự do
+hoom nay nhieeuf vaf nhieeuf hown nhuwngx nguwowif ddi towis cacs truwowngf ddaij hocj	hôm nay nhiều và nhiều hơn những người đi tới các trường đại học	hôm nay nhiều và nhiều hơn những người đi tới các trường đại học	hôm nay nhiều và nhiều hơn những người đi tới các trường đại học
+coox mays mowis sex chieems nhieeuf choox	cỗ máy mới sẽ chiếm nhiều chỗ	cỗ máy mới sẽ chiếm nhiều chỗ	cỗ máy mới sẽ chiếm nhiều chỗ
+con meof owr trong cais gieengs	con mèo ở trong cái giếng	con mèo ở trong cái giếng	con mèo ở trong cái giếng
+hayx caanr thaanj khi banj mua sawms	hãy cẩn thận khi bạn mua sắm	hãy cẩn thận khi bạn mua sắm	hãy cẩn thận khi bạn mua sắm
+chungs ta cangf tieens booj	chúng ta càng tiến bộ	chúng ta càng tiến bộ	chúng ta càng tiến bộ
+awn nois phair giuwx ys giuwx tuws nghe con	ăn nói phải giữ ý giữ tứ nghe con	ăn nói phải giữ ý giữ tứ nghe con	ăn nói phải giữ ý giữ tứ nghe con
+tooi khoong theer awn hay uoongs nhuwngx thuwcs awn raats nongs	tôi không thể ăn hay uống những thức ăn rất nóng	tôi không thể ăn hay uống những thức ăn rất nóng	tôi không thể ăn hay uống những thức ăn rất nóng
+banj phair luoon nhows rawngf coo ta nhor tuooir hown banj nhieeuf	bạn phải luôn nhớ rằng cô ta nhỏ tuổi hơn bạn nhiều	bạn phải luôn nhớ rằng cô ta nhỏ tuổi hơn bạn nhiều	bạn phải luôn nhớ rằng cô ta nhỏ tuổi hơn bạn nhiều
+tooi muoons ddi aos ddeer hocj aam nhacj	tôi muốn đi áo để học âm nhạc	tôi muốn đi áo để học âm nhạc	tôi muốn đi áo để học âm nhạc
+sangs nhau trowif nhieeuf maay	sáng nhau trời nhiều mây	sáng nhau trời nhiều mây	sáng nhau trời nhiều mây
+chungs tooi vooij vangf vif sowj treex giowf ddi hocj	chúng tôi vội vàng vì sợ trễ giờ đi học	chúng tôi vội vàng vì sợ trễ giờ đi học	chúng tôi vội vàng vì sợ trễ giờ đi học
+anh ddax cho ddieeuf tra an ninh veef saus nguwowif nayf	anh đã cho điều tra an ninh về sáu người này	anh đã cho điều tra an ninh về sáu người này	anh đã cho điều tra an ninh về sáu người này
+tom ddax bij thuwowng owr ddaauf goois khi nos tes xuoongs	tom đã bị thương ở đầu gối khi nó té xuống	tom đã bị thương ở đầu gối khi nó té xuống	tom đã bị thương ở đầu gối khi nó té xuống
+cos ai ddos khoong	có ai đó không	có ai đó không	có ai đó không
+hoom qua	hôm qua	hôm qua	hôm qua
+bowis beof ra boj	bới bèo ra bọ	bới bèo ra bọ	bới bèo ra bọ
+neeus cos chuyeenj gif	nếu có chuyện gì	nếu có chuyện gì	nếu có chuyện gì
+nos ddax rowif khoir	nó đã rời khỏi	nó đã rời khỏi	nó đã rời khỏi
+coo aays ddax tuwngf soongs vowis hawns	cô ấy đã từng sống với hắn	cô ấy đã từng sống với hắn	cô ấy đã từng sống với hắn
+hawngf nawm	hằng năm	hằng năm	hằng năm
+baif cos khos khoong	bài có khó không	bài có khó không	bài có khó không
+oong aays chir laf laox giaf khoong heef cos mawtj nhuwngx lucs gia ddinhf caanf nhaats	ông ấy chỉ là lão già không hề có mặt những lúc gia đình cần nhất	ông ấy chỉ là lão già không hề có mặt những lúc gia đình cần nhất	ông ấy chỉ là lão già không hề có mặt những lúc gia đình cần nhất
+taats car moij nguwowif ddeeuf muoons tin rawngf nhuwngx giaacs mow cos theer trowr thanhf hieenj thuwcj	tất cả mọi người đều muốn tin rằng những giấc mơ có thể trở thành hiện thực	tất cả mọi người đều muốn tin rằng những giấc mơ có thể trở thành hiện thực	tất cả mọi người đều muốn tin rằng những giấc mơ có thể trở thành hiện thực
+tooi raats thichs bowi	tôi rất thích bơi	tôi rất thích bơi	tôi rất thích bơi
+cos toots khoong	có tốt không	có tốt không	có tốt không
+tooi ddi lamf bawngf xe tauf ddieenj mooix ngayf	tôi đi làm bằng xe tàu điện mỗi ngày	tôi đi làm bằng xe tàu điện mỗi ngày	tôi đi làm bằng xe tàu điện mỗi ngày
+anh ta bungs tanf thuoocs xuoongs ddaats rooif lamf ddieeuj booj lawcs lawcs ddaauf khos chiuj	anh ta búng tàn thuốc xuống đất rồi làm điệu bộ lắc lắc đầu khó chịu	anh ta búng tàn thuốc xuống đất rồi làm điệu bộ lắc lắc đầu khó chịu	anh ta búng tàn thuốc xuống đất rồi làm điệu bộ lắc lắc đầu khó chịu
+taats car nhuwngx gif banj phair lamf laf theo tooi	tất cả những gì bạn phải làm là theo tôi	tất cả những gì bạn phải làm là theo tôi	tất cả những gì bạn phải làm là theo tôi
+muooix owr	muỗi ở	muỗi ở	muỗi ở
+hoj luaan phieen lais xe	họ luân phiên lái xe	họ luân phiên lái xe	họ luân phiên lái xe
+cuar tooi phair khoong	của tôi phải không	của tôi phải không	của tôi phải không
+nois thees naof anh aays cungx khoong chiuj ddi	nói thế nào anh ấy cũng không chịu đi	nói thế nào anh ấy cũng không chịu đi	nói thế nào anh ấy cũng không chịu đi
+nuwowcs sooi boocs thanhf howi	nước sôi bốc thành hơi	nước sôi bốc thành hơi	nước sôi bốc thành hơi
+banj cos chawcs laf khoong muoons ddi	bạn có chắc là không muốn đi	bạn có chắc là không muốn đi	bạn có chắc là không muốn đi
+tom luoon luoon cuwcj kyf caanr thaanj	tom luôn luôn cực kỳ cẩn thận	tom luôn luôn cực kỳ cẩn thận	tom luôn luôn cực kỳ cẩn thận
+trowif ddang muwa	trời đang mưa	trời đang mưa	trời đang mưa
+anh ta quas giaf ddoois vowis coo ta	anh ta quá già đối với cô ta	anh ta quá già đối với cô ta	anh ta quá già đối với cô ta
+veef mons quaf	về món quà	về món quà	về món quà
+banj cos bieets rawngf cos nhuwngx loaif ruaf awn thitj khoong	bạn có biết rằng có những loài rùa ăn thịt không	bạn có biết rằng có những loài rùa ăn thịt không	bạn có biết rằng có những loài rùa ăn thịt không
+tooi sex goij banj ngay khi ddeens saan bay	tôi sẽ gọi bạn ngay khi đến sân bay	tôi sẽ gọi bạn ngay khi đến sân bay	tôi sẽ gọi bạn ngay khi đến sân bay
+tom ddax nois vowis tooi laf banj ddang timf nguwowif giuwx trer	tom đã nói với tôi là bạn đang tìm người giữ trẻ	tom đã nói với tôi là bạn đang tìm người giữ trẻ	tom đã nói với tôi là bạn đang tìm người giữ trẻ
+hoj ddax ddeens	họ đã đến	họ đã đến	họ đã đến
+anh aays baor tooi rawngf cha cuar anh aays laf mootj bacs six	anh ấy bảo tôi rằng cha của anh ấy là một bác sĩ	anh ấy bảo tôi rằng cha của anh ấy là một bác sĩ	anh ấy bảo tôi rằng cha của anh ấy là một bác sĩ
+banj muoons gawpj laij tom	bạn muốn gặp lại tom	bạn muốn gặp lại tom	bạn muốn gặp lại tom
+tom coos tranhs di chuyeenr bawngf dduwowngf hangf khoong	tom cố tránh di chuyển bằng đường hàng không	tom cố tránh di chuyển bằng đường hàng không	tom cố tránh di chuyển bằng đường hàng không
+nhaf baos bij bawts cocs bowir khungr boos	nhà báo bị bắt cóc bởi khủng bố	nhà báo bị bắt cóc bởi khủng bố	nhà báo bị bắt cóc bởi khủng bố
+tieeps theo ddos laf maatj khaaur	tiếp theo đó là mật khẩu	tiếp theo đó là mật khẩu	tiếp theo đó là mật khẩu
+muwowif nguwowif bij nhets vaof mootj cawn phongf nhor	mười người bị nhét vào một căn phòng nhỏ	mười người bị nhét vào một căn phòng nhỏ	mười người bị nhét vào một căn phòng nhỏ
+tom sown cuwar mauf trawngs	tom sơn cửa màu trắng	tom sơn cửa màu trắng	tom sơn cửa màu trắng
+mej tooi sex khoong cho chungs tooi nuooi thus cuwng trong nhaf	mẹ tôi sẽ không cho chúng tôi nuôi thú cưng trong nhà	mẹ tôi sẽ không cho chúng tôi nuôi thú cưng trong nhà	mẹ tôi sẽ không cho chúng tôi nuôi thú cưng trong nhà
+tom sex tham gia cungf minhf sowms thooi	tom sẽ tham gia cùng mình sớm thôi	tom sẽ tham gia cùng mình sớm thôi	tom sẽ tham gia cùng mình sớm thôi
+cuoocj tranh luaanj sex dieenx ra toois nay	cuộc tranh luận sẽ diễn ra tối nay	cuộc tranh luận sẽ diễn ra tối nay	cuộc tranh luận sẽ diễn ra tối nay
+minhf ddang coos gawngs mowr roongj voons tuwf	mình đang cố gắng mở rộng vốn từ	mình đang cố gắng mở rộng vốn từ	mình đang cố gắng mở rộng vốn từ
+da ddaauf tooi raats nguwas	da đầu tôi rất ngứa	da đầu tôi rất ngứa	da đầu tôi rất ngứa
+caauj cos thichs muwa khoong	cậu có thích mưa không	cậu có thích mưa không	cậu có thích mưa không
+tooi khoong bieets tom ddax ddeens tuwf lucs naof	tôi không biết tom đã đến từ lúc nào	tôi không biết tom đã đến từ lúc nào	tôi không biết tom đã đến từ lúc nào
+mej tooi ddang lamf mootj cais banhs cho boos tooi	mẹ tôi đang làm một cái bánh cho bố tôi	mẹ tôi đang làm một cái bánh cho bố tôi	mẹ tôi đang làm một cái bánh cho bố tôi
+tooi cos mang theo	tôi có mang theo	tôi có mang theo	tôi có mang theo
+banj neen ddooij mootj cais mux baor hieemr khi ddi xe mays	bạn nên đội một cái mũ bảo hiểm khi đi xe máy	bạn nên đội một cái mũ bảo hiểm khi đi xe máy	bạn nên đội một cái mũ bảo hiểm khi đi xe máy
+khi ddax ngoaif	khi đã ngoài	khi đã ngoài	khi đã ngoài
+tooi caanf nhuwngx nguwowif banj	tôi cần những người bạn	tôi cần những người bạn	tôi cần những người bạn
+tooi sex luoon owr been canhj banj	tôi sẽ luôn ở bên cạnh bạn	tôi sẽ luôn ở bên cạnh bạn	tôi sẽ luôn ở bên cạnh bạn
+tom laf mootj nguwowif mang tuw tuwowngr cuwcj ddoan	tom là một người mang tư tưởng cực đoan	tom là một người mang tư tưởng cực đoan	tom là một người mang tư tưởng cực đoan
+chungs tooi chaof ddons taats car moij nguwowif muoons tham gia caau lacj booj cuar chungs tooi	chúng tôi chào đón tất cả mọi người muốn tham gia câu lạc bộ của chúng tôi	chúng tôi chào đón tất cả mọi người muốn tham gia câu lạc bộ của chúng tôi	chúng tôi chào đón tất cả mọi người muốn tham gia câu lạc bộ của chúng tôi
+coo aays rowi tuwf treen caay xuoongs	cô ấy rơi từ trên cây xuống	cô ấy rơi từ trên cây xuống	cô ấy rơi từ trên cây xuống
+phucs baats trungf lai	phúc bất trùng lai	phúc bất trùng lai	phúc bất trùng lai
+banj thichs ddi du lichj khoong	bạn thích đi du lịch không	bạn thích đi du lịch không	bạn thích đi du lịch không
+tooi khoong theer timf thaays looix sai trong lys thuyeets cuar anh ta	tôi không thể tìm thấy lỗi sai trong lý thuyết của anh ta	tôi không thể tìm thấy lỗi sai trong lý thuyết của anh ta	tôi không thể tìm thấy lỗi sai trong lý thuyết của anh ta
+hayx ddi cungf chungs tooi	hãy đi cùng chúng tôi	hãy đi cùng chúng tôi	hãy đi cùng chúng tôi
+hayx ddeens gawpj tooi laanf nuwax	hãy đến gặp tôi lần nữa	hãy đến gặp tôi lần nữa	hãy đến gặp tôi lần nữa
+anh aays sown traanf nhaf mauf xanh	anh ấy sơn trần nhà màu xanh	anh ấy sơn trần nhà màu xanh	anh ấy sơn trần nhà màu xanh
+caauj ddax nois chuyeenj mootj cachs thaatj longf vowis tows	cậu đã nói chuyện một cách thật lòng với tớ	cậu đã nói chuyện một cách thật lòng với tớ	cậu đã nói chuyện một cách thật lòng với tớ
+trong nhieeuf nawm	trong nhiều năm	trong nhiều năm	trong nhiều năm
+anh aays sex towis	anh ấy sẽ tới	anh ấy sẽ tới	anh ấy sẽ tới
+oong aays dduwowcj thawng hamf ddaij tas	ông ấy được thăng hàm đại tá	ông ấy được thăng hàm đại tá	ông ấy được thăng hàm đại tá
+cos lex banj neen ddowij thif toots hown ddaays	có lẽ bạn nên đợi thì tốt hơn đấy	có lẽ bạn nên đợi thì tốt hơn đấy	có lẽ bạn nên đợi thì tốt hơn đấy
+chungs tooi khoong nois veef ddieeuf ddos nuwax	chúng tôi không nói về điều đó nữa	chúng tôi không nói về điều đó nữa	chúng tôi không nói về điều đó nữa
+khoong lex ddeens baay giowf mayf vaanx sowj sao	không lẽ đến bây giờ mày vẫn sợ sao	không lẽ đến bây giờ mày vẫn sợ sao	không lẽ đến bây giờ mày vẫn sợ sao
+vowis tom	với tom	với tom	với tom
+banj ddang nois veef tooi ddaays af	bạn đang nói về tôi đấy à	bạn đang nói về tôi đấy à	bạn đang nói về tôi đấy à
+nhuwng tooi nghe nois anh aays laf con lai	nhưng tôi nghe nói anh ấy là con lai	nhưng tôi nghe nói anh ấy là con lai	nhưng tôi nghe nói anh ấy là con lai
+tom nois laf anh ta ddax coos suwar cais ddieeuf hoaf car ngayf	tom nói là anh ta đã cố sửa cái điều hòa cả ngày	tom nói là anh ta đã cố sửa cái điều hòa cả ngày	tom nói là anh ta đã cố sửa cái điều hòa cả ngày
+ddax ngacj nhieen	đã ngạc nhiên	đã ngạc nhiên	đã ngạc nhiên
+coo giaos ddos ddax khoong dowif mawts khoir tooi vif nghix tooi ddang gian laanj	cô giáo đó đã không dời mắt khỏi tôi vì nghĩ tôi đang gian lận	cô giáo đó đã không dời mắt khỏi tôi vì nghĩ tôi đang gian lận	cô giáo đó đã không dời mắt khỏi tôi vì nghĩ tôi đang gian lận
+tom ddax thais mongr quar taos	tom đã thái mỏng quả táo	tom đã thái mỏng quả táo	tom đã thái mỏng quả táo
+teen tooi laf tom	tên tôi là tom	tên tôi là tom	tên tôi là tom
+tooi khoong ddur tieenf ddeer mua mootj chieecs oo too	tôi không đủ tiền để mua một chiếc ô tô	tôi không đủ tiền để mua một chiếc ô tô	tôi không đủ tiền để mua một chiếc ô tô
+cais khawn muif soa nayf cos gias laf bao nhieeu tieenf	cái khăn mùi soa này có giá là bao nhiêu tiền	cái khăn mùi soa này có giá là bao nhiêu tiền	cái khăn mùi soa này có giá là bao nhiêu tiền
+chungs tooi ddax vuwaf ddi booj vuwaf hats	chúng tôi đã vừa đi bộ vừa hát	chúng tôi đã vừa đi bộ vừa hát	chúng tôi đã vừa đi bộ vừa hát
+trawm nghe khoong bawngf mootj thaays	trăm nghe không bằng một thấy	trăm nghe không bằng một thấy	trăm nghe không bằng một thấy
+truyeenj tranh daoj nayf cos quas nhieeuf nongs baoj luwcj	truyện tranh dạo này có quá nhiều nóng bạo lực	truyện tranh dạo này có quá nhiều nóng bạo lực	truyện tranh dạo này có quá nhiều nóng bạo lực
+cuar mootj chaats longr	của một chất lỏng	của một chất lỏng	của một chất lỏng
+hieenj taij	hiện tại	hiện tại	hiện tại
+quan taam	quan tâm	quan tâm	quan tâm
+beenhj ddau daj dayf thuwowngf hay bij nhaamf vowis beenhj ddau bungj	bệnh đau dạ dày thường hay bị nhầm với bệnh đau bụng	bệnh đau dạ dày thường hay bị nhầm với bệnh đau bụng	bệnh đau dạ dày thường hay bị nhầm với bệnh đau bụng
+hoj ddax nhinf tooi mootj cachs kyf laj	họ đã nhìn tôi một cách kỳ lạ	họ đã nhìn tôi một cách kỳ lạ	họ đã nhìn tôi một cách kỳ lạ
+tooi chawcs chawns laf tom sex thawngs	tôi chắc chắn là tom sẽ thắng	tôi chắc chắn là tom sẽ thắng	tôi chắc chắn là tom sẽ thắng
+anh aays than phieenf laf mons sups quas nongs	anh ấy than phiền là món súp quá nóng	anh ấy than phiền là món súp quá nóng	anh ấy than phiền là món súp quá nóng
+ai ddang ngur treen giuwowngf cuar tooi thees	ai đang ngủ trên giường của tôi thế	ai đang ngủ trên giường của tôi thế	ai đang ngủ trên giường của tôi thế
+truwowcs tieen banj caanf phair thanh locj thaan theer	trước tiên bạn cần phải thanh lọc thân thể	trước tiên bạn cần phải thanh lọc thân thể	trước tiên bạn cần phải thanh lọc thân thể
+tooi ddax mua mootj ngooi nhaf bawngf tieenf thuwaf kees cuar oong nooij tooi	tôi đã mua một ngôi nhà bằng tiền thừa kế của ông nội tôi	tôi đã mua một ngôi nhà bằng tiền thừa kế của ông nội tôi	tôi đã mua một ngôi nhà bằng tiền thừa kế của ông nội tôi
+hoj sex khoong bieets laf chungs ta owr ddos	họ sẽ không biết là chúng ta ở đó	họ sẽ không biết là chúng ta ở đó	họ sẽ không biết là chúng ta ở đó
+dduwngf queen mang theo mootj chieecs mays anhr	đừng quên mang theo một chiếc máy ảnh	đừng quên mang theo một chiếc máy ảnh	đừng quên mang theo một chiếc máy ảnh
+cos phair tom ddax keer cho banj nghe veef ddieeuf nayf khoong	có phải tom đã kể cho bạn nghe về điều này không	có phải tom đã kể cho bạn nghe về điều này không	có phải tom đã kể cho bạn nghe về điều này không
+tooi cos theer bawts	tôi có thể bắt	tôi có thể bắt	tôi có thể bắt
+sao banj vaanx conf thuwcs vaayj	sao bạn vẫn còn thức vậy	sao bạn vẫn còn thức vậy	sao bạn vẫn còn thức vậy
+tom laf gia suw cuar	tom là gia sư của	tom là gia sư của	tom là gia sư của
+laf anh ta khoong ddinhj lamf vieecj ddos	là anh ta không định làm việc đó	là anh ta không định làm việc đó	là anh ta không định làm việc đó
+nhuwng anh aays khoong lamf	nhưng anh ấy không làm	nhưng anh ấy không làm	nhưng anh ấy không làm
+hayx ddi vowis chungs tooi	hãy đi với chúng tôi	hãy đi với chúng tôi	hãy đi với chúng tôi
+trong caau lacj booj nayf	trong câu lạc bộ này	trong câu lạc bộ này	trong câu lạc bộ này
+tooi khoong bieets phair lamf gif nuwax	tôi không biết phải làm gì nữa	tôi không biết phải làm gì nữa	tôi không biết phải làm gì nữa
+cos lex chungs tooi neen hoir tom	có lẽ chúng tôi nên hỏi tom	có lẽ chúng tôi nên hỏi tom	có lẽ chúng tôi nên hỏi tom
+binhf thuwowngf ddax trowr neen khos khawn ddoois vowis tooi	bình thường đã trở nên khó khăn đối với tôi	bình thường đã trở nên khó khăn đối với tôi	bình thường đã trở nên khó khăn đối với tôi
+tooi vaanx chuwa bieets gif heets	tôi vẫn chưa biết gì hết	tôi vẫn chưa biết gì hết	tôi vẫn chưa biết gì hết
+ddoois chieeus gias car cuar mooix sanr phaamr ddieenj mays dduwowcj bayf bans owr cacs cuwar hangf khacs nhau	đối chiếu giá cả của mỗi sản phẩm điện máy được bày bán ở các cửa hàng khác nhau	đối chiếu giá cả của mỗi sản phẩm điện máy được bày bán ở các cửa hàng khác nhau	đối chiếu giá cả của mỗi sản phẩm điện máy được bày bán ở các cửa hàng khác nhau
+vaanx nhuw mootj leej thuwowngf	vẫn như một lệ thường	vẫn như một lệ thường	vẫn như một lệ thường
+cuws ddi thawngr thif sex cos mootj cuwar hangf ddaays	cứ đi thẳng thì sẽ có một cửa hàng đấy	cứ đi thẳng thì sẽ có một cửa hàng đấy	cứ đi thẳng thì sẽ có một cửa hàng đấy
+khi ddeens saan bay	khi đến sân bay	khi đến sân bay	khi đến sân bay
+mej vowj tooi toots bungj lawms ddaays	mẹ vợ tôi tốt bụng lắm đấy	mẹ vợ tôi tốt bụng lắm đấy	mẹ vợ tôi tốt bụng lắm đấy
+hayx baams nuts mauf xanh las caay	hãy bấm nút màu xanh lá cây	hãy bấm nút màu xanh lá cây	hãy bấm nút màu xanh lá cây
+anh aays nois tieengs phaps gioir khoong thua ai	anh ấy nói tiếng pháp giỏi không thua ai	anh ấy nói tiếng pháp giỏi không thua ai	anh ấy nói tiếng pháp giỏi không thua ai
+goij xe cuwus thuwowng ddi	gọi xe cứu thương đi	gọi xe cứu thương đi	gọi xe cứu thương đi
+hoj chawcs chawns ddax ngur treen sanf nhaf	họ chắc chắn đã ngủ trên sàn nhà	họ chắc chắn đã ngủ trên sàn nhà	họ chắc chắn đã ngủ trên sàn nhà
+oong aays nois laf tooi khoong dduwowcj low laf chir vif lucs nayf tooi khoong cos trieeuj chuwngs dij uwngs	ông ấy nói là tôi không được lơ là chỉ vì lúc này tôi không có triệu chứng dị ứng	ông ấy nói là tôi không được lơ là chỉ vì lúc này tôi không có triệu chứng dị ứng	ông ấy nói là tôi không được lơ là chỉ vì lúc này tôi không có triệu chứng dị ứng
+cuts ra	cút ra	cút ra	cút ra
+minhf ddang hocj owr aans ddooj	mình đang học ở ấn độ	mình đang học ở ấn độ	mình đang học ở ấn độ
+baor coo aays khoong thichs nois chuyeenj vowis tom	bảo cô ấy không thích nói chuyện với tom	bảo cô ấy không thích nói chuyện với tom	bảo cô ấy không thích nói chuyện với tom
+tooi phair lamf xong coong vieecj nayf truwowcs	tôi phải làm xong công việc này trước	tôi phải làm xong công việc này trước	tôi phải làm xong công việc này trước
+tom vaf	tom và	tom và	tom và
+tooi khoong cos suwcs chiuj dduwngj ddeer lamf ddieeuf ddos	tôi không có sức chịu đựng để làm điều đó	tôi không có sức chịu đựng để làm điều đó	tôi không có sức chịu đựng để làm điều đó
+tooi chuwa bao giowf ddeens	tôi chưa bao giờ đến	tôi chưa bao giờ đến	tôi chưa bao giờ đến
+nhaf cuar tooi khoong cos saan	nhà của tôi không có sân	nhà của tôi không có sân	nhà của tôi không có sân
+tom trer trung vaf tranf ddaayf nawng luwowngj	tom trẻ trung và tràn đầy năng lượng	tom trẻ trung và tràn đầy năng lượng	tom trẻ trung và tràn đầy năng lượng
+cas voi xanh laf loaif ddoongj vaatj to nhaats treen thees giowis	cá voi xanh là loài động vật to nhất trên thế giới	cá voi xanh là loài động vật to nhất trên thế giới	cá voi xanh là loài động vật to nhất trên thế giới
+ddoois ddaix nhaan machj	đối đãi nhân mạch	đối đãi nhân mạch	đối đãi nhân mạch
+taangf baacj	tầng bậc	tầng bậc	tầng bậc
+dduwngf nois vowis ai	đừng nói với ai	đừng nói với ai	đừng nói với ai
+tom ddax ngawn	tom đã ngăn	tom đã ngăn	tom đã ngăn
+tooi ghets awn toois mootj minhf	tôi ghét ăn tối một mình	tôi ghét ăn tối một mình	tôi ghét ăn tối một mình
+anh ta laf con nghieenj nawngj	anh ta là con nghiện nặng	anh ta là con nghiện nặng	anh ta là con nghiện nặng
+cuwar hangf nayf cos theer nguwngf kinh doanh	cửa hàng này có thể ngừng kinh doanh	cửa hàng này có thể ngừng kinh doanh	cửa hàng này có thể ngừng kinh doanh
+coo ta ddax tuwj sats bawngf thuoocs ddoocj ddeer tranhs bij xuwr tramr	cô ta đã tự sát bằng thuốc độc để tránh bị xử trảm	cô ta đã tự sát bằng thuốc độc để tránh bị xử trảm	cô ta đã tự sát bằng thuốc độc để tránh bị xử trảm
+chieecs aos len bao nhieeu tieenf	chiếc áo len bao nhiêu tiền	chiếc áo len bao nhiêu tiền	chiếc áo len bao nhiêu tiền
+nguwowif noong daan ddax xowis ddaats owr canhs ddoongf phias duwowis	người nông dân đã xới đất ở cánh đồng phía dưới	người nông dân đã xới đất ở cánh đồng phía dưới	người nông dân đã xới đất ở cánh đồng phía dưới
+tom bij soir thaanj	tom bị sỏi thận	tom bị sỏi thận	tom bị sỏi thận
+coo aays thuwowngf ddeer tocs ngawns	cô ấy thường để tóc ngắn	cô ấy thường để tóc ngắn	cô ấy thường để tóc ngắn
+tooi ddax cho pheps con nguwaj cuar tooi chayj	tôi đã cho phép con ngựa của tôi chạy	tôi đã cho phép con ngựa của tôi chạy	tôi đã cho phép con ngựa của tôi chạy
+tooi khoong bieets lieeuj anh aays sex ddi chowi hay chowi bongs roor	tôi không biết liệu anh ấy sẽ đi chơi hay chơi bóng rổ	tôi không biết liệu anh ấy sẽ đi chơi hay chơi bóng rổ	tôi không biết liệu anh ấy sẽ đi chơi hay chơi bóng rổ
+tooi ddax ddeef nghij rawngf anh aays neen taapj theer ducj nhieeuf hown	tôi đã đề nghị rằng anh ấy nên tập thể dục nhiều hơn	tôi đã đề nghị rằng anh ấy nên tập thể dục nhiều hơn	tôi đã đề nghị rằng anh ấy nên tập thể dục nhiều hơn
+thif tooi sex owr luaan ddoon rooif	thì tôi sẽ ở luân đôn rồi	thì tôi sẽ ở luân đôn rồi	thì tôi sẽ ở luân đôn rồi
+tooi xin looix vif nhuwngx gif tooi ddax lamf	tôi xin lỗi vì những gì tôi đã làm	tôi xin lỗi vì những gì tôi đã làm	tôi xin lỗi vì những gì tôi đã làm
+nhuwngx con gaf mais beos thif dder its truwngs	những con gà mái béo thì đẻ ít trứng	những con gà mái béo thì đẻ ít trứng	những con gà mái béo thì đẻ ít trứng
+nhaf xuwowngr bij chays rooif	nhà xưởng bị cháy rồi	nhà xưởng bị cháy rồi	nhà xưởng bị cháy rồi
+chungs tooi thichs ddi bowi	chúng tôi thích đi bơi	chúng tôi thích đi bơi	chúng tôi thích đi bơi
+tui khoong nghix	tui không nghĩ	tui không nghĩ	tui không nghĩ
+mua maays cais coong tawcs ddenf nayf ddeer lamf gif	mua mấy cái công tắc đèn này để làm gì	mua mấy cái công tắc đèn này để làm gì	mua mấy cái công tắc đèn này để làm gì
+hooif conf ddi hocj	hồi còn đi học	hồi còn đi học	hồi còn đi học
+anh trar lowis caau hoir	anh trả lới câu hỏi	anh trả lới câu hỏi	anh trả lới câu hỏi
+nois vowis	nói với	nói với	nói với
+ddax nghir ngowi mootj chuts	đã nghỉ ngơi một chút	đã nghỉ ngơi một chút	đã nghỉ ngơi một chút
+nos laf	nó là	nó là	nó là
+coo aays coos gawngs trong voo vongj ddeer lamf haif longf hawns	cô ấy cố gắng trong vô vọng để làm hài lòng hắn	cô ấy cố gắng trong vô vọng để làm hài lòng hắn	cô ấy cố gắng trong vô vọng để làm hài lòng hắn
+ddax ddongs	đã đóng	đã đóng	đã đóng
+nos quas daif	nó quá dài	nó quá dài	nó quá dài
+hoom qua tooi ddax khoong awn	hôm qua tôi đã không ăn	hôm qua tôi đã không ăn	hôm qua tôi đã không ăn
+banj chir ddang chayj thoats khoir cacs vaans ddeef cuar cuoocj soongs	bạn chỉ đang chạy thoát khỏi các vấn đề của cuộc sống	bạn chỉ đang chạy thoát khỏi các vấn đề của cuộc sống	bạn chỉ đang chạy thoát khỏi các vấn đề của cuộc sống
+khoong cos gif maf ddatj dduwowcj maf khoong caanf noox luwcj	không có gì mà đạt được mà không cần nỗ lực	không có gì mà đạt được mà không cần nỗ lực	không có gì mà đạt được mà không cần nỗ lực
+taij sao moij nguwowif ddi xem phim	tại sao mọi người đi xem phim	tại sao mọi người đi xem phim	tại sao mọi người đi xem phim
+banj cos chawcs coo aays nois dduwowcj tieengs boof ddaof nha khoong	bạn có chắc cô ấy nói được tiếng bồ đào nha không	bạn có chắc cô ấy nói được tiếng bồ đào nha không	bạn có chắc cô ấy nói được tiếng bồ đào nha không
+banj hayx nois rawngf banj ddang dduaf	bạn hãy nói rằng bạn đang đùa	bạn hãy nói rằng bạn đang đùa	bạn hãy nói rằng bạn đang đùa
+tooi ddang hocj thif cos mootj con traau chui vaof phongf tooi	tôi đang học thì có một con trâu chui vào phòng tôi	tôi đang học thì có một con trâu chui vào phòng tôi	tôi đang học thì có một con trâu chui vào phòng tôi
+tooi thichs nghe nhacj	tôi thích nghe nhạc	tôi thích nghe nhạc	tôi thích nghe nhạc
+tooi queen mua tuwowng caf	tôi quên mua tương cà	tôi quên mua tương cà	tôi quên mua tương cà
+chungs ta ddax taans coong vaof cow sowr duwx lieeuj cuar chinhs phur	chúng ta đã tấn công vào cơ sở dữ liệu của chính phủ	chúng ta đã tấn công vào cơ sở dữ liệu của chính phủ	chúng ta đã tấn công vào cơ sở dữ liệu của chính phủ
+tooi ddax hieeur laamf	tôi đã hiểu lầm	tôi đã hiểu lầm	tôi đã hiểu lầm
+tom ddax bieens maats	tom đã biến mất	tom đã biến mất	tom đã biến mất
+tooi ddax mua banhs mif	tôi đã mua bánh mì	tôi đã mua bánh mì	tôi đã mua bánh mì
+chungs tooi laf con trai	chúng tôi là con trai	chúng tôi là con trai	chúng tôi là con trai
+tom say ruwowuj	tom say rượu	tom say rượu	tom say rượu
+trowif owr ddaay khoong lanhj nhuw tooi nghix	trời ở đây không lạnh như tôi nghĩ	trời ở đây không lạnh như tôi nghĩ	trời ở đây không lạnh như tôi nghĩ
+nuwowcs laf chaats longr	nước là chất lỏng	nước là chất lỏng	nước là chất lỏng
+ddaay laf mootj vis duj ddown gianr	đây là một ví dụ đơn giản	đây là một ví dụ đơn giản	đây là một ví dụ đơn giản
+khoong tin	không tin	không tin	không tin
+dduwngf ddeer nhuwngx nguwowif khacs xen vaof vieecj cuar banj	đừng để những người khác xen vào việc của bạn	đừng để những người khác xen vào việc của bạn	đừng để những người khác xen vào việc của bạn
+laapj gia ddinhf rooif	lập gia đình rồi	lập gia đình rồi	lập gia đình rồi
+dduwas trer sowj bongs toois	đứa trẻ sợ bóng tối	đứa trẻ sợ bóng tối	đứa trẻ sợ bóng tối
+khi naof thif caauj thuwowngf ddi mua ddoof owr cuwar hangf tapj hoas	khi nào thì cậu thường đi mua đồ ở cửa hàng tạp hóa	khi nào thì cậu thường đi mua đồ ở cửa hàng tạp hóa	khi nào thì cậu thường đi mua đồ ở cửa hàng tạp hóa
+oo too	ô tô	ô tô	ô tô
+chir caanf xin looix thooi	chỉ cần xin lỗi thôi	chỉ cần xin lỗi thôi	chỉ cần xin lỗi thôi
+tooi ddax soongs owr	tôi đã sống ở	tôi đã sống ở	tôi đã sống ở
+rex trais owr ddenf giao thoong thuws hai	rẽ trái ở đèn giao thông thứ hai	rẽ trái ở đèn giao thông thứ hai	rẽ trái ở đèn giao thông thứ hai
+banj bij ddieen af	bạn bị điên à	bạn bị điên à	bạn bị điên à
+ddax taoj ra mootj heej ddieeuf hanhf	đã tạo ra một hệ điều hành	đã tạo ra một hệ điều hành	đã tạo ra một hệ điều hành
+chowi vowis tows ddi	chơi với tớ đi	chơi với tớ đi	chơi với tớ đi
+gaanf muwowif hai giowf rooif	gần mười hai giờ rồi	gần mười hai giờ rồi	gần mười hai giờ rồi
+vaf tooi sex timf ra giair phaps	và tôi sẽ tìm ra giải pháp	và tôi sẽ tìm ra giải pháp	và tôi sẽ tìm ra giải pháp
+hayx ddamr baor	hãy đảm bảo	hãy đảm bảo	hãy đảm bảo
+coo aays vui ver	cô ấy vui vẻ	cô ấy vui vẻ	cô ấy vui vẻ
+tooi ghets trer em	tôi ghét trẻ em	tôi ghét trẻ em	tôi ghét trẻ em
+tooi chir ddang nawmf daif treen ghees	tôi chỉ đang nằm dài trên ghế	tôi chỉ đang nằm dài trên ghế	tôi chỉ đang nằm dài trên ghế
+ddos laf choox ngooif cuar tooi	đó là chỗ ngồi của tôi	đó là chỗ ngồi của tôi	đó là chỗ ngồi của tôi
+thaatj af	thật à	thật à	thật à
+tooi thichs nuwowcs khoangs hown	tôi thích nước khoáng hơn	tôi thích nước khoáng hơn	tôi thích nước khoáng hơn
+taif khoanr cuar tooi bij laays maats rooif	tài khoản của tôi bị lấy mất rồi	tài khoản của tôi bị lấy mất rồi	tài khoản của tôi bị lấy mất rồi
+hayx lamf gif ddos ddi	hãy làm gì đó đi	hãy làm gì đó đi	hãy làm gì đó đi
+tooi cos thoong ddieepj quan trongj muoons guwir ddeens nhuwngx ai ddang owr ddaay	tôi có thông điệp quan trọng muốn gửi đến những ai đang ở đây	tôi có thông điệp quan trọng muốn gửi đến những ai đang ở đây	tôi có thông điệp quan trọng muốn gửi đến những ai đang ở đây
+ddax trowr thanhf mootj nuwx dieenx vieen taif ba duf phair trair qua tuooir thow khos khawn	đã trở thành một nữ diễn viên tài ba dù phải trải qua tuổi thơ khó khăn	đã trở thành một nữ diễn viên tài ba dù phải trải qua tuổi thơ khó khăn	đã trở thành một nữ diễn viên tài ba dù phải trải qua tuổi thơ khó khăn
+tooi ddax quyeets ddinhj suwu taamf tem	tôi đã quyết định sưu tầm tem	tôi đã quyết định sưu tầm tem	tôi đã quyết định sưu tầm tem
+quaan max cos theer nhayr qua quaan khacs trong cowf vua	quân mã có thể nhảy qua quân khác trong cờ vua	quân mã có thể nhảy qua quân khác trong cờ vua	quân mã có thể nhảy qua quân khác trong cờ vua
+camr own	cảm ơn	cảm ơn	cảm ơn
+tooi ddeens tuwf thung lungx	tôi đến từ thung lũng	tôi đến từ thung lũng	tôi đến từ thung lũng
+tooi thuwcj suwj quan taam ddeens tinhf banj cuar chungs ta	tôi thực sự quan tâm đến tình bạn của chúng ta	tôi thực sự quan tâm đến tình bạn của chúng ta	tôi thực sự quan tâm đến tình bạn của chúng ta
+xe mays cuar banj owr ddaau	xe máy của bạn ở đâu	xe máy của bạn ở đâu	xe máy của bạn ở đâu
+vif lis do thaamr mix	vì lí do thẩm mĩ	vì lí do thẩm mĩ	vì lí do thẩm mĩ
+ai ddax vieets lowif tuwaj cho cuoons sachs cuar anh aays	ai đã viết lời tựa cho cuốn sách của anh ấy	ai đã viết lời tựa cho cuốn sách của anh ấy	ai đã viết lời tựa cho cuốn sách của anh ấy
+cuwar soor bij vowx trong cown baox	cửa sổ bị vỡ trong cơn bão	cửa sổ bị vỡ trong cơn bão	cửa sổ bị vỡ trong cơn bão
+khi banj bawts ddaauf troong gioongs nhuw trong hooj chieeus thif banj neen ddi du lichj mootj buwax	khi bạn bắt đầu trông giống như trong hộ chiếu thì bạn nên đi du lịch một bữa	khi bạn bắt đầu trông giống như trong hộ chiếu thì bạn nên đi du lịch một bữa	khi bạn bắt đầu trông giống như trong hộ chiếu thì bạn nên đi du lịch một bữa
+anh aays quas beos	anh ấy quá béo	anh ấy quá béo	anh ấy quá béo
+baay giowf	bây giờ	bây giờ	bây giờ
+bes yeeu	bé yêu	bé yêu	bé yêu
+mootj con thieeur nawng	một con thiểu năng	một con thiểu năng	một con thiểu năng
+tranh sown daauf nayf ddax cos tuwf ddaauf thees kir muwowif saus	tranh sơn dầu này đã có từ đầu thế kỉ mười sáu	tranh sơn dầu này đã có từ đầu thế kỉ mười sáu	tranh sơn dầu này đã có từ đầu thế kỉ mười sáu
+Minh dang go tieng Viet khong dau.	Minh dang go tieng Viet khong dau.	Minh dang go tieng Viet khong dau.	Minh dang go tieng Viet khong dau.
+minh dang ban, ti nua goi lai nhe	minh dang ban, ti nua goi lai nhe	minh dang ban, ti nua goi lai nhe	minh dang ban, ti nua goi lai nhe
+thoi khong sao dau	thoi khong sao dau	thoi khong sao dau	thoi khong sao dau
+anh nho mang theo o nhe, troi sap mua	anh nho mang theo o nhe, troi sap mua	anh nho mang theo o nhe, troi sap mua	anh nho mang theo o nhe, troi sap mua
+nho uong thuoc dung gio nhe	nho uong thuoc dung gio nhe	nho uong thuoc dung gio nhe	nho uong thuoc dung gio nhe
+buon ngu qua, di ngu day	buon ngu qua, di ngu day	buon ngu qua, di ngu day	buon ngu qua, di ngu day
+nho giu gin suc khoe nhe	nho giu gin suc khoe nhe	nho giu gin suc khoe nhe	nho giu gin suc khoe nhe
+His car is fast.	His car is fast.	His cả is fast.	His car is fast.
+His car is very fast	His car is very fast	His cả is very fast	His car is very fast
+his huwngr	hí hửng	hí hửng	hí hửng
+His huwngr quas	Hí hửng quá	Hí hửng quá	Hí hửng quá
+his his	hí hí	hí hí	hí hí
+His His	Hí Hí	Hí Hí	Hí Hí
+his his his vui ghee	hí hí hí vui ghê	hí hí hí vui ghê	hí hí hí vui ghê
+Hif hif	Hì hì	Hì hì	Hì hì
+How how	Hơ hơ	Hơ hơ	Hơ hơ
+His ha his huwngr	Hí ha hí hửng	Hí ha hí hửng	Hí ha hí hửng
+last nuwax	lát nữa	lát nữa	lát nữa
+Last nuwax anh veef	Lát nữa anh về	Lát nữa anh về	Lát nữa anh về
+This sinh ddeens muoonj	Thí sinh đến muộn	Thí sinh đến muộn	Thí sinh đến muộn
+sao is	sao í	sao í	sao í
+em is aj	em í ạ	em í ạ	em í ạ
+cho con bus	cho con bú	cho con bú	cho con bú
+thawts now	thắt nơ	thắt nơ	thắt nơ
+cais now ddor	cái nơ đỏ	cái nơ đỏ	cái nơ đỏ
+its nhaats	ít nhất	ít nhất	ít nhất
+Mai car team hopj	Mai cả team họp	Mai cả team họp	Mai cả team họp
+been treen	bên trên	bên trên	bên trên
+Test xong roofi nhes	Tét xong rồi nhé	Test xong rồi nhé	Test xong rồi nhé
+Is it ok?	Í it ok?	Is it ok?	Is it ok?
+How are you?	How are you?	How are you?	How are you?
+Tooi ddi. His dog is cute.	Tôi đi. Hí dog í cute.	Tôi đi. His dog is cute.	Tôi đi. His dog is cute.
+his huwngr\nHis car is fast.\n	hí hửng\nHis car is fast.\n	hí hửng\nHis cả is fast.\n	hí hửng\nHis car is fast.\n
+He is here.	He is here.	He is here.	He is here.
+the bus	the bú	the bú	the bú
+here now	hể nơ	here now	here now
+His car is here now.	Hí cả í hể nơ.	His cả is here now.	His car is here now.
