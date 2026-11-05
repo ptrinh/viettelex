@@ -17,10 +17,11 @@ import kotlin.test.assertTrue
 class RetroEnglishSessionTests {
     @Before fun setUp() = TestAssets.install()
 
-    private fun settings(contextual: Boolean = true, auto: Boolean) =
-        KeyboardSettings(contextualEnglish = contextual, retroEnglishAuto = auto, simpleTelex = true, freeMarking = true)
+    private fun settings(contextual: Boolean = true, auto: Boolean, frequency: Boolean = false) =
+        KeyboardSettings(contextualEnglish = contextual, retroEnglishAuto = auto, simpleTelex = true, freeMarking = true,
+            englishByFrequency = frequency)
 
-    private fun EngineBridge.type(p: MockProxy, keys: String) {
+    private fun EngineBridge.type(p: TextProxy, keys: String) {
         for (c in keys) when (c) {
             ' ' -> boundary(" ", p)
             '⏎' -> boundary("\n", p)
@@ -29,9 +30,11 @@ class RetroEnglishSessionTests {
         }
     }
 
-    private val sentence = "His car is very fast "
-    private val vietnamese = "Hí cả í very fast "
-    private val english = "His car is very fast "
+    // Từ Anh MẠNH "fast" chốt mạch một mình: phép sửa đến ở chính "fast" (05/11/2026; trước đó
+    // "very fast" — giờ "very" đã bắn sớm một từ nên bỏ khỏi câu mẫu, như iOS).
+    private val sentence = "His car is fast "
+    private val vietnamese = "Hí cả í fast "
+    private val english = "His car is fast "
 
     // MARK: cài đặt
 
@@ -47,6 +50,81 @@ class RetroEnglishSessionTests {
         assertTrue(KeyboardSettings.load { if (it == Keys.RETRO_ENGLISH_AUTO) true else null }.retroEnglishAuto)
         assertTrue(BackupSettings.all.any { it.key == Keys.RETRO_ENGLISH_AUTO })
         assertTrue(Keys.RETRO_ENGLISH_AUTO in Keys.ENGINE_KEYS)
+    }
+
+    @Test fun frequencySettingDefaultOffLoadsAndBacksUp() {
+        assertFalse(KeyboardSettings().englishByFrequency)
+        assertEquals("englishByFrequency", Keys.ENGLISH_BY_FREQUENCY)       // cùng key macOS/iOS
+        assertTrue(KeyboardSettings.load { if (it == Keys.ENGLISH_BY_FREQUENCY) true else null }.englishByFrequency)
+        assertTrue(BackupSettings.all.any { it.key == Keys.ENGLISH_BY_FREQUENCY })
+        assertTrue(Keys.ENGLISH_BY_FREQUENCY in Keys.ENGINE_KEYS)
+    }
+
+    // MARK: đoán từ trùng theo tần suất — lật lại luôn tự áp
+
+    /** Ghi lại chữ trên màn hình ngay lúc "\n" được chèn (lật lại phải xong TRƯỚC Enter). */
+    private class EnterSpy(val inner: MockProxy) : TextProxy by inner {
+        var textAtEnter: String? = null
+        override fun insertText(text: String) {
+            if (text.contains('\n')) textAtEnter = inner.text
+            inner.insertText(text)
+        }
+    }
+
+    @Test fun frequencyFlipAppliesInOfferMode() {
+        val p = MockProxy(); val b = EngineBridge(settings(auto = false, frequency = true))
+        b.type(p, "his ")
+        assertEquals("his ", p.text)                                       // đầu cụm: tiếng Anh
+        b.type(p, "huwngr ")
+        assertEquals("hí hửng ", p.text)                                   // lật lại, không chờ chip
+        assertNull(b.retroOffer)
+        assertFalse(b.retroUndoAvailable)
+    }
+
+    @Test fun frequencyFlipAppliesBeforeEnter() {
+        for (auto in listOf(false, true)) {
+            val spy = EnterSpy(MockProxy()); val b = EngineBridge(settings(auto = auto, frequency = true))
+            b.type(spy, "his huwngr⏎")
+            assertEquals("hí hửng", spy.textAtEnter)
+            assertEquals("hí hửng\n", spy.inner.text)
+            assertNull(b.retroOffer)
+        }
+    }
+
+    @Test fun frequencyFlipSkippedOnMismatch() {
+        val inner = MockProxy()
+        val lying = object : TextProxy by inner {
+            override fun contextBeforeInput(): String = "khác hẳn"
+        }
+        val b = EngineBridge(settings(auto = false, frequency = true))
+        for (c in "his huwngr ") if (c == ' ') b.boundary(" ", lying) else b.letter(c, lying)
+        assertEquals("his hửng ", inner.text)
+        assertNull(b.retroOffer)                                           // lệch: bỏ, không mời
+    }
+
+    @Test fun frequencyOffKeepsVietnamese() {
+        val p = MockProxy(); val b = EngineBridge(settings(auto = false, frequency = false))
+        b.type(p, "his huwngr ")
+        assertEquals("hí hửng ", p.text)
+        val p2 = MockProxy(); val b2 = EngineBridge(settings(auto = false, frequency = false))
+        b2.type(p2, "his ")
+        assertEquals("hí ", p2.text)
+    }
+
+    @Test fun sessionFrequencyFlipInChipMode() {
+        val s = KeyboardSession(UserLangModel(), null)
+            .also { it.startInput(settings(auto = false, frequency = true).also { st -> st.autoCapitalize = false }, FieldTraits()) }
+        val p = MockProxy()
+        s.type(p, "his huwngr ")
+        assertEquals("hí hửng ", p.text)
+        assertFalse(s.suggestionsNow(p)?.action == SuggestionSet.RETRO_OFFER_TOKEN)
+        val s2 = KeyboardSession(UserLangModel(), null)
+            .also { it.startInput(settings(auto = false, frequency = true).also { st -> st.autoCapitalize = false }, FieldTraits()) }
+        val spy = EnterSpy(MockProxy())
+        s2.type(spy, "his huwngr")
+        s2.handle(Key.Newline, spy)
+        assertEquals("hí hửng", spy.textAtEnter)
+        assertEquals("hí hửng\n", spy.inner.text)
     }
 
     // MARK: bridge — công tắc TẮT
@@ -141,8 +219,8 @@ class RetroEnglishSessionTests {
     @Test fun enterNeverRewrites() {
         for (auto in listOf(false, true)) {
             val p = MockProxy(); val b = EngineBridge(settings(auto = auto))
-            b.type(p, "His car is very fast⏎")
-            assertEquals("Hí cả í very fast\n", p.text)
+            b.type(p, "His car is fast⏎")
+            assertEquals("Hí cả í fast\n", p.text)
             assertNull(b.retroOffer)
             assertFalse(b.retroUndoAvailable)
         }

@@ -25,6 +25,11 @@ object Keys {
      * bật): sửa ngược tiếng Anh TỰ ÁP + chip "Khôi phục" thay vì chỉ MỜI qua chip. Như iOS.
      */
     const val RETRO_ENGLISH_AUTO = "retroactiveEnglish"
+    /**
+     * "Đoán từ trùng theo tần suất" (Bool, thử nghiệm, mặc định TẮT; chỉ hiện khi
+     * [CONTEXTUAL_ENGLISH] bật): engine `englishByFrequency`. Cùng tên key với iOS/macOS.
+     */
+    const val ENGLISH_BY_FREQUENCY = "englishByFrequency"
     const val RE_EDIT_WORDS = "reEditWords"
     const val AUTO_FIX_ADJACENT = "autoFixAdjacent"
     const val TEENCODE = "teencode"
@@ -70,7 +75,7 @@ object Keys {
     const val SHORTCUTS_ADDED = "shortcutsAdded"
 
     /** Key ảnh hưởng engine/EngineBridge — đổi lúc bàn phím đang mở thì áp ngay. */
-    val ENGINE_KEYS = setOf(SIMPLE_TELEX, FREE_MARKING, QUICK_TELEX, MODERN_TONE, CONTEXTUAL_ENGLISH, RETRO_ENGLISH_AUTO,
+    val ENGINE_KEYS = setOf(SIMPLE_TELEX, FREE_MARKING, QUICK_TELEX, MODERN_TONE, CONTEXTUAL_ENGLISH, RETRO_ENGLISH_AUTO, ENGLISH_BY_FREQUENCY,
         AUTO_FIX_ADJACENT, TEENCODE, AUTO_RESTORE, LIVE_SPELL_CHECK, SHORTCUTS_ENABLED, SHORTCUTS, VNI_MODE)
     const val SHOW_SUGGESTIONS = "showSuggestions"
     /**

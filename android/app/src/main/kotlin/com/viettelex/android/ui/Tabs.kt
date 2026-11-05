@@ -244,6 +244,9 @@ private fun KieuGoSection() {
             RowDivider()
             ExperimentalToggle(Keys.RETRO_ENGLISH_AUTO, Prefs.D.retroEnglishAuto, tr("Tự sửa từ phía trước"),
                 tr("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm (vd. \"Hí cả í very fast\" → \"His car is very fast\")."))
+            RowDivider()
+            ExperimentalToggle(Keys.ENGLISH_BY_FREQUENCY, Prefs.D.englishByFrequency, tr("Đoán từ trùng theo tần suất"),
+                tr("Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his → hí) thì chọn tiếng Anh; từ kế cho thấy là tiếng Việt (hí hửng, hí hí) thì tự đổi lại. Cần bật Quyết định theo ngữ cảnh."))
         }
 
         // Sửa dấu từ đã gõ chuyển sang Tính Năng → Chính tả & sửa lỗi (giống iOS, 27/09/2026).

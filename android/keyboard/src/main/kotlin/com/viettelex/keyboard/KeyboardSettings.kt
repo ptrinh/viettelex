@@ -57,6 +57,12 @@ data class KeyboardSettings(
      * TỰ ÁP (+ chip "Khôi phục", ⌫ ngay sau trả lại) thay vì chỉ MỜI qua chip. Giống iOS.
      */
     var retroEnglishAuto: Boolean = false,
+    /**
+     * "Đoán từ trùng theo tần suất" (thử nghiệm, mặc định TẮT): engine `englishByFrequency` — đầu
+     * cụm "his" → His khi âm tiết Việt hiếm; từ kế cho thấy tiếng Việt ⇒ LẬT LẠI ("hí hửng"). Phép
+     * lật lại luôn tự áp (kể cả khi [retroEnglishAuto] tắt, kể cả Enter — áp trước khi chèn ký tự).
+     */
+    var englishByFrequency: Boolean = false,
     /** Sửa dấu từ đã gõ xong (⌫ mở lại từ; phím dấu thanh nạp lại từ trước con trỏ) — mặc định BẬT. */
     var reEditWords: Boolean = true,
     /** Gõ vuốt (thử nghiệm) — mặc định TẮT; tắt ⇒ không dựng template, không ghi checkpoint. */
@@ -197,6 +203,7 @@ data class KeyboardSettings(
             s.autoFixAdjacent = b(Keys.AUTO_FIX_ADJACENT, s.autoFixAdjacent)
             s.contextualEnglish = b(Keys.CONTEXTUAL_ENGLISH, s.contextualEnglish)
             s.retroEnglishAuto = b(Keys.RETRO_ENGLISH_AUTO, s.retroEnglishAuto)
+            s.englishByFrequency = b(Keys.ENGLISH_BY_FREQUENCY, s.englishByFrequency)
             s.reEditWords = b(Keys.RE_EDIT_WORDS, s.reEditWords)
             s.swipeTyping = b(Keys.SWIPE_TYPING, s.swipeTyping)
             s.swipeEnglish = b(Keys.SWIPE_ENGLISH, s.swipeEnglish)
