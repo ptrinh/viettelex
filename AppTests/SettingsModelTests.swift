@@ -33,7 +33,7 @@ final class SettingsModelTests: XCTestCase {
         let path = try XCTUnwrap(Bundle.main.path(forResource: "vi", ofType: "lproj"))
         let vi = try XCTUnwrap(Bundle(path: path))
         let expected: [SettingsTab: String] = [
-            .typing: "Gõ phím", .tools: "Công cụ & gợi ý", .shortcuts: "Gõ tắt",
+            .typing: "Gõ phím", .tools: "Gợi ý & công cụ", .shortcuts: "Gõ tắt",
             .apps: "Ứng dụng", .general: "Chung",
         ]
         for tab in SettingsTab.allCases {
@@ -54,7 +54,8 @@ final class SettingsModelTests: XCTestCase {
         let vi = try XCTUnwrap(Bundle(path: path))
         XCTAssertEqual(vi.localizedString(forKey: "Open Input Sources settings…", value: nil, table: nil),
                        "Mở cài đặt nguồn nhập liệu…")
-        let title = vi.localizedString(forKey: "Capitalization, word suggestions, period on double space…", value: nil, table: nil)
+        // Từ 05/11/2026 (spec cleanup §4) mục này chỉ còn một dòng link + chú thích một dòng.
+        let title = vi.localizedString(forKey: TypingTab.systemSettingsCaption, value: nil, table: nil)
         XCTAssertTrue(title.contains("Viết hoa") && title.contains("gợi ý"))
     }
 
@@ -73,9 +74,9 @@ final class SettingsModelTests: XCTestCase {
         let viTabs = SettingsTab.allCases.map { vi.localizedString(forKey: $0.titleKey, value: nil, table: nil) }
 
         let update = "Open Settings → General to install it."
-        let translate = "Translation pack not downloaded — open VietTelex Settings → Tools & suggestions."
+        let translate = "Translation pack not downloaded — open VietTelex Settings → Suggestions & tools."
         XCTAssertEqual(dict[update], "Mở Cài đặt → Chung để cài bản mới.")
-        XCTAssertEqual(dict[translate], "Chưa có gói dịch này. Mở Cài đặt VietTelex → Công cụ & gợi ý để tải về.")
+        XCTAssertEqual(dict[translate], "Chưa có gói dịch này. Mở Cài đặt VietTelex → Gợi ý & công cụ để tải về.")
 
         func tab(after marker: String, in s: String) -> Substring? {
             s.range(of: marker).map { s[$0.upperBound...] }

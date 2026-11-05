@@ -5,7 +5,7 @@
 // after the user opts in. A newer version is announced (notification + General tab);
 // it is downloaded only when the user picks "Update now" (SelfUpdater below).
 // Apple Translation language packs are downloaded by the system, only when the user
-// requests one in Settings → Tools & suggestions. No telemetry.
+// requests one in Settings → Suggestions & tools. No telemetry.
 
 import Foundation
 import AppKit
