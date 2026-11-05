@@ -112,6 +112,42 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         return final
     }
 
+    /**
+     * Vuốt phím cách khi đang gõ dở một từ (ONBOARDING-SPEC §7): đổi chế độ VÀ chuyển luôn từ
+     * đang soạn sang ngôn ngữ đích, từ vẫn mở. Sang EN ⇒ thay bằng đúng phím gốc đã gõ ("Hí" →
+     * "His", "vẻy" → "very"); sang VI ⇒ chạy lại phím gốc qua Telex/VNI ("His" → "Hí") — kể cả
+     * khi engine đã đóng băng tiếng Anh giữa từ. Khứ hồi trả đúng như cũ. Chỉ xoá/chèn đúng từ
+     * đó (confirmTail); không có từ đang soạn / ô email / chữ lệch / phím ngoài engine ⇒ false,
+     * KHÔNG đổi gì (caller dùng [setEnglish] như cũ).
+     */
+    fun convertComposing(toEnglish: Boolean, proxy: TextProxy): Boolean {
+        if (toEnglish == englishMode || !isComposing || proxy.isSecure || passthrough || emailField) return false
+        val shown = typedWord
+        if (!proxy.confirmTail(shown)) return false
+        val target: String
+        if (toEnglish) {
+            target = engine.rawKeystrokes
+            if (target.isEmpty()) return false
+            engine.reset(); engine.forgetLastCommit()
+            enWord = target
+        } else {
+            val raw = enWord
+            for (ch in raw) engine.feed(ch)
+            if (engine.rawKeystrokes != raw) { engine.reset(); return false }   // phím engine không nhận / tràn
+            target = engine.composed
+            enWord = ""
+        }
+        englishMode = toEnglish
+        undo.valid = false; expansionUndo = null; afterOwnBoundary = false
+        email.invalidate()
+        if (target != shown) {
+            proxy.deleteCodePoints(Cp.count(shown))
+            proxy.insertText(target)
+        }
+        TouchLog.write("lang flick: convert word → ${if (toEnglish) "en" else "vi"}")
+        return true
+    }
+
     private fun checkpoint(ownBoundary: Boolean) {
         if (!trackLetterUndo) return
         engine.copyInto(undo.engine)

@@ -406,6 +406,54 @@ final class EngineBridge {
         return final
     }
 
+    /// Vuốt phím cách khi đang gõ dở một từ (ONBOARDING-SPEC §7): đổi chế độ VÀ chuyển luôn
+    /// từ đang soạn sang ngôn ngữ đích, từ vẫn mở. Sang EN ⇒ thay bằng đúng phím gốc đã gõ
+    /// ("Hí" → "His", "vẻy" → "very"); sang VI ⇒ chạy lại phím gốc qua Telex/VNI ("His" →
+    /// "Hí") — kể cả khi engine đã đóng băng tiếng Anh giữa từ. Khứ hồi trả đúng như cũ. Chỉ
+    /// xoá/chèn đúng từ đó (CompositionSync.canDelete). Không có từ gõ tay đang soạn / từ vuốt
+    /// còn mở (từ từ điển, phím gốc là phím tổng hợp) / ô email / chữ lệch / phím ngoài engine
+    /// ⇒ false, KHÔNG đổi gì (caller dùng `setEnglish` như cũ). Port 1:1 Android.
+    func convertComposing(toEnglish: Bool, proxy: TextProxyLike) -> Bool {
+        guard toEnglish != englishMode, swipeOpen == nil, isComposing, !proxy.isSecure,
+              !passthrough, !emailField else { return false }
+        let shown = typedWord
+        // Vuốt hiếm ⇒ luôn đối chiếu chữ trước con trỏ (threshold 1), không như hot path.
+        guard CompositionSync.canDelete(shown.count, expected: shown,
+                                        context: { proxy.contextBeforeInput }, threshold: 1) else { return false }
+        let target: String
+        if toEnglish {
+            target = engine.rawKeystrokes
+            guard !target.isEmpty else { return false }
+            engine.reset(); engine.forgetLastCommit()
+            enWord = target
+        } else {
+            let raw = enWord
+            let snapshot = engine
+            for ch in raw { _ = engine.feed(ch) }
+            guard engine.rawKeystrokes == raw else { engine = snapshot; return false }  // phím engine không nhận / tràn
+            target = engine.composed
+            enWord = ""
+        }
+        englishMode = toEnglish
+        letterUndo = nil; expansionUndo = nil; lastWasOwnBoundary = false
+        email.invalidate()
+        if target != shown {
+            for _ in 0..<shown.count { proxy.deleteBackward() }
+            proxy.insertText(target)
+        }
+        TouchLog.write("lang flick: convert word → \(toEnglish ? "en" : "vi")")
+        return true
+    }
+
+    /// Vuốt phím cách đổi ngôn ngữ: `convertWord` (đang ở bảng chữ) và chuyển được ⇒ từ đang
+    /// soạn đổi sang ngôn ngữ đích, vẫn mở (`convertComposing`); không thì như cũ — chốt từ rồi
+    /// đổi (`setEnglish`). Trả từ đã chốt cho caller học ("" khi đã chuyển / không có từ).
+    @discardableResult
+    func flickLanguage(toEnglish: Bool, convertWord: Bool, proxy: TextProxyLike) -> String {
+        if convertWord, convertComposing(toEnglish: toEnglish, proxy: proxy) { return "" }
+        return setEnglish(toEnglish, proxy: proxy)
+    }
+
     /// Kiểu gõ đang là VNI (controller định tuyến phím số qua `vniDigit`).
     var vniMode: Bool { settings.vniMode }
 

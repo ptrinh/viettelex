@@ -885,11 +885,14 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     /** enlexicon + bảng từ phổ biến nạp nền (lần đầu vào Tiếng Anh), khỏi trễ phím đầu. */
     private fun warmEnglish() { worker().post { com.viettelex.keyboard.SwipeEnglish.top } }
 
-    /** Vuốt phím cách: đổi Tiếng Việt ↔ Tiếng Anh (chốt từ đang gõ, lưu trạng thái). */
+    /** Vuốt phím cách: đổi Tiếng Việt ↔ Tiếng Anh (chuyển/chốt từ đang gõ, lưu trạng thái). */
     override fun onSpaceFlick() {
         clearSwipeUndo()
         if (!proxy.begin()) return
-        val lang = try { session.toggleLanguage(proxy) } finally { proxy.end() }
+        // Từ đang soạn chuyển luôn sang ngôn ngữ đích (ONBOARDING-SPEC §7) — chỉ ở bảng chữ;
+        // bảng số/emoji/… ⇒ như cũ (chốt từ rồi đổi).
+        val convert = keyboard?.plane == Plane.LETTERS
+        val lang = try { session.toggleLanguage(proxy, convert) } finally { proxy.end() }
         resetIfEditFailed()
         if (lang == null) return
         stateStore().edit().putString(Keys.KEYBOARD_LANGUAGE, lang.id).apply()

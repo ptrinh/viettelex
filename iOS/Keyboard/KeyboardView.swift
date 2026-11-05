@@ -5008,6 +5008,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // phía đối diện. Nhấc nhanh (trước ngưỡng trackpad 0,3 s) đủ ~1 phím ⇒ đổi: nhãn mới
     // vào giữa, sáng một nhịp rồi mờ đi, logo Vᴛ/E đổi theo. Không đủ ⇒ trượt về, mờ đi.
     var onSpaceFlick: (() -> Void)?
+    /// Đang ở bảng chữ — vuốt mới chuyển luôn từ đang soạn (ONBOARDING-SPEC §7).
+    var spaceFlickConvertsWord: Bool { plane == .letters }
     private(set) var spaceFlickEnabled = false
     var spaceLanguage: KeyboardLanguage = .vi {
         didSet { if oldValue != spaceLanguage { refreshSpaceMark() } }

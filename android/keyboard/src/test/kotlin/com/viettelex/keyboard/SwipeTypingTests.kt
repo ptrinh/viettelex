@@ -173,6 +173,24 @@ class SwipeTypingTests {
         return choice
     }
 
+    /**
+     * ONBOARDING-SPEC §7 + gõ vuốt: từ vuốt còn mở là từ từ điển (phím gốc là phím tổng hợp,
+     * không phải phím người dùng gõ) ⇒ vuốt phím cách KHÔNG chuyển từ, chốt nguyên như cũ.
+     */
+    @Test fun spaceFlickKeepsOpenSwipeWord() {
+        val s = KeyboardSession(UserLangModel(), null) { 0L }
+        s.startInput(KeyboardSettings(spaceSwipeLanguage = true), FieldTraits())
+        s.setSwipeTyping(true)
+        val p = MockProxy()
+        s.restoreLanguage(null, p)
+        s.swipe(p, "viet")
+        val shown = p.text
+        assertEquals(KeyboardLanguage.EN, s.toggleLanguage(p))
+        assertEquals(shown, p.text)
+        assertFalse(s.bridge.isComposing)
+        assertTrue(s.bridge.englishMode)
+    }
+
     @Test fun swipeInSentenceSpacesAndPunctuation() {
         val s = session(); val p = MockProxy()
         s.type(p, "baif")                         // đang soạn "bài"
