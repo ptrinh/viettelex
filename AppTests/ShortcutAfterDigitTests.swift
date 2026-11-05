@@ -2,7 +2,7 @@ import XCTest
 @testable import VietTelex
 
 /// Issue #82 (16/09/2026): gõ tắt `h→giờ` nở luôn trong "5h" thành "5giờ" vì chữ số
-/// là boundary trong Telex — từ "h" không biết nó dính số. Chuẩn Unikey: "5h" là một
+/// là boundary trong Telex — từ "h" không biết nó dính số. Chuẩn quen thuộc: "5h" là một
 /// token, gõ tắt chỉ nở khi từ đứng riêng ("5 h" → "5 giờ").
 final class ShortcutAfterDigitTests: XCTestCase {
     func testDigitBeforeWordBlocksExpansion() {

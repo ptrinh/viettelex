@@ -214,12 +214,14 @@ final class OnboardingTests: XCTestCase {
         OnboardingLogic.apply(.vi, defaults: s.defaults) { s.setMixedSetting($0, $1) }
         let model = SettingsModel(selected: .typing)
         XCTAssertEqual(model.matchedProfile, .vi)
-        model.pickProfile(.en)                       // khớp vi ⇒ áp ngay
+        model.pickProfile(.mixed)                    // khớp vi ⇒ áp ngay
         XCTAssertNil(model.confirmingProfile)
-        XCTAssertEqual(model.matchedProfile, .en)
+        XCTAssertEqual(model.matchedProfile, .mixed)
         XCTAssertTrue(s.retroactiveEnglish && s.englishByFrequency)
-        XCTAssertEqual(s.defaults.string(forKey: OnboardingLogic.profileKey), "en")
-        model.pickProfile(.mixed)                    // mixed ≡ en ⇒ chỉ đổi lần chọn
+        XCTAssertEqual(s.defaults.string(forKey: OnboardingLogic.profileKey), "mixed")
+        // Người đã chọn "Chủ yếu tiếng Anh" ở onboarding: Cài đặt không có dòng đó (spec cleanup
+        // §1) ⇒ hiện "Việt + Anh nhiều", không rơi về "Tuỳ chỉnh".
+        model.lastProfile = "en"
         XCTAssertEqual(model.matchedProfile, .mixed)
         model.autoRestore = false                    // tự chỉnh ⇒ Tuỳ chỉnh
         XCTAssertNil(model.matchedProfile)
@@ -248,7 +250,7 @@ final class OnboardingTests: XCTestCase {
                       "Mostly English": "Chủ yếu tiếng Anh",
                       "Try typing": "Gõ thử",
                       "Skip": "Bỏ qua",
-                      "Mixed Vietnamese/English typing": "Gõ mixed Việt/Anh",
+                      "Mixed Vietnamese/English typing": "Gõ lẫn tiếng Anh",
                       "Pick one — the switches below are set to match.": "Chọn một — các công tắc bên dưới sẽ tự đặt theo.",
                       "Custom": "Tuỳ chỉnh",
                       "Apply “%@”?": "Áp dụng “%@”?",

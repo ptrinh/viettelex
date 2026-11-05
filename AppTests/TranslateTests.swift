@@ -138,7 +138,7 @@ final class TranslateTests: XCTestCase {
         for k in ["Translate", "Translate ↔ %@", "Translating…", "Translate to", "Vietnamese ↔ %@", "Download",
                   "Downloaded", "Not downloaded", "Not supported on this Mac",
                   "Couldn’t download the translation pack — try again later.",
-                  "Translation pack not downloaded — open VietTelex Settings → Tools & suggestions.",
+                  "Translation pack not downloaded — open VietTelex Settings → Suggestions & tools.",
                   "This Mac can’t translate this language pair.",
                   "Tools… → Translate translates the selection into this language; text already in this language is translated back to Vietnamese. Runs entirely on this Mac with Apple’s translation packs — your text is never sent anywhere."] {
             XCTAssertNotEqual(vi.localizedString(forKey: k, value: "∅", table: nil), "∅", k)

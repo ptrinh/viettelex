@@ -251,7 +251,7 @@ enum TextActionRunner {
             DebugLog.log("text-action translate \(pair.source)→\(pair.target) failed: \(f)")
             switch f {
             case .notInstalled:
-                TranslateToast.show(VTLocalized("Translation pack not downloaded — open VietTelex Settings → Tools & suggestions."),
+                TranslateToast.show(VTLocalized("Translation pack not downloaded — open VietTelex Settings → Suggestions & tools."),
                                     client: client, sticky: false) {
                     SettingsWindowController.shared.show(tab: .tools)
                 }

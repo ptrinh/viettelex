@@ -74,7 +74,7 @@ final class AppState: @unchecked Sendable {
         static let probedApps = "probedApps"          // learned: verified good
         static let manualModes = "manualAppModes"     // user override: bundleID -> AppMode
         static let keyboardLayout = "keyboardLayoutID" // ASCII layout Telex composes on
-        static let bracketVowels = "bracketVowels"    // [ → ơ, ] → ư (UniKey habit)
+        static let bracketVowels = "bracketVowels"    // [ → ơ, ] → ư (bracket-key habit)
     }
 
     /// A user-forced per-app handling strategy (Settings → Bảng chế độ gõ). Overrides
@@ -316,7 +316,7 @@ final class AppState: @unchecked Sendable {
               defaults.set(newValue, forKey: Key.simpleTelex) }
     }
 
-    /// Quick Telex ("gõ nhanh"): word-initial doubled consonant → onset digraph
+    /// Quick Telex ("gõ tắt phụ âm nhanh"): word-initial doubled consonant → onset digraph
     /// (cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th). Default OFF.
     /// See `TelexEngine.quickTelex`.
     private var _quickTelex: Bool
@@ -387,9 +387,9 @@ final class AppState: @unchecked Sendable {
         set { defaults.set(newValue, forKey: "stickyInputSource") }
     }
 
-    /// `[` types ơ and `]` types ư (UniKey / macOS Simple Telex habit), `{`/`}` their
+    /// `[` types ơ and `]` types ư (long-standing Vietnamese typist / macOS Simple Telex habit), `{`/`}` their
     /// uppercase — EXPERIMENTAL, default OFF. Requested on Facebook 2026-08-14 by a
-    /// 15-year UniKey typist; opt-in because with it on the brackets are word KEYS and
+    /// typist with 15 years of that habit; opt-in because with it on the brackets are word KEYS and
     /// stop ending a word, which anyone typing `arr[i]` in code does not want.
     /// Read on the keystroke path via the engine mirror, so it is cached like the other
     /// engine toggles.
@@ -421,7 +421,7 @@ final class AppState: @unchecked Sendable {
     /// Rationale: the probe trusts self-reports (caret/AX), and Discord + Lark
     /// (bundle-id drift) both proved in-place failures can be INVISIBLE to
     /// self-reports — the probe "learns in-place OK" while the screen is wrong.
-    /// Tap (EVKey/OpenKey model) and marked (composition standard) are the two
+    /// Tap (classic backspace-retype model) and marked (composition standard) are the two
     /// channels with a real contract. In-place stays for the curated built-in
     /// list and manual pins. OFF = legacy behavior (in-place default + probe).
     private var _safeUnknownApps: Bool
@@ -833,8 +833,8 @@ final class AppState: @unchecked Sendable {
         }
         // Per-field resolution (browsers, maintainer decision 2026-08-06): PAGE
         // CONTENT defaults to the TAP backspace-retype path — synthetic key events
-        // are the only channel every web editor must handle (the EVKey/OpenKey
-        // model). `insertText(replacementRange:)` has NO contract with JS editors
+        // are the only channel every web editor must handle (the classic
+        // backspace-retype model). `insertText(replacementRange:)` has NO contract with JS editors
         // (Lexical/ProseMirror render from their own model): Docs appended and ⌫
         // died (07-30), Discord appended while EVERY self-report said honored
         // (08-05), Zalo froze with a constant caret (08-06) — three per-host
@@ -1393,7 +1393,7 @@ final class AppState: @unchecked Sendable {
         }
     }
 
-    /// Công tắc nhóm "Gõ mixed Việt/Anh" mà hồ sơ onboarding ghi (OnboardingLogic.values).
+    /// Công tắc nhóm "Gõ lẫn tiếng Anh" mà hồ sơ onboarding ghi (OnboardingLogic.values).
     func mixedSetting(_ key: String) -> Bool? {
         key == Key.collisionPrefersVietnamese ? collisionPrefersVietnamese : syncedSetting(key)
     }

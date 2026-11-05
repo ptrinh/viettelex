@@ -8,17 +8,14 @@
 /* General tab */
 "Input style" = "Kiểu gõ";
 "Simple Telex" = "Telex đơn giản";
-"Quick Telex" = "Gõ nhanh (Quick Telex)";
-"Doubled first consonant expands: cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th." = "Gõ lặp phụ âm đầu để tạo phụ âm ghép: cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th.";
 "Language" = "Ngôn ngữ";
 "System" = "Theo hệ thống";
 "A lone “w” stays “w” (type “uw” for ư). Off = full Telex (cw→cư)." = "Gõ riêng “w” vẫn ra “w” (gõ “uw” để ra ư). Tắt mục này để dùng đầy đủ Telex (cw→cư).";
-"Free tone placement" = "Đặt dấu tự do";
+"Free tone placement" = "Bỏ dấu tự do";
 "Off = strict Telex: tones apply only next to a vowel — good for English/code (data→data). On: free placement (ama→âm)." = "Tắt: phím dấu chỉ có tác dụng ngay sau nguyên âm, phù hợp khi gõ tiếng Anh hoặc mã lệnh (data → data). Bật: có thể đặt dấu ở vị trí tự do (ama → âm).";
-"Modern tone placement (oà, uý)" = "Vị trí dấu kiểu mới (oà, uý)";
+"Modern tone placement (oà, uý)" = "Bỏ dấu kiểu mới (oà, uý)";
 "Off = old style (hòa, thủy, khỏe). On = new style (hoà, thuý, khoẻ). Only oa/oe/uy differ." = "Tắt: dùng cách viết cũ (hòa, thủy, khỏe). Bật: dùng cách viết mới (hoà, thuý, khoẻ). Chỉ khác vị trí dấu trong oa, oe và uy.";
 "Spelling" = "Chính tả";
-"Auto-restore invalid words" = "Tự trả lại chữ gốc khi từ không hợp lệ";
 "Live spell-check" = "Kiểm tra chính tả khi gõ";
 "Stop adding tones as soon as a word can’t be Vietnamese (google, github…) instead of waiting for word end." = "Dừng thêm dấu ngay khi chuỗi phím không thể tạo thành từ tiếng Việt (google, github…), không cần chờ bạn gõ xong từ.";
 "App compatibility" = "Tương thích ứng dụng";
@@ -94,7 +91,6 @@
 "Safety" = "An toàn";
 "Cascade circuit breaker" = "Tự ngắt khi có lỗi";
 "Keep this ON. Stops the terminal tap if it ever floods the keyboard with synthetic events, so a bug can’t freeze typing." = "Nên bật mục này. Nếu bộ gõ gửi quá nhiều phím giả lập, VietTelex sẽ tự dừng để bàn phím không bị treo.";
-"Diagnostics" = "Chẩn đoán";
 "Record debug log" = "Ghi nhật ký gỡ lỗi";
 "Records tap health events in memory (never the text you type). Turn it on, reproduce the problem, then Copy debug log and paste it into your report — or save it as a file." = "Khi bật, VietTelex chỉ lưu tạm trong bộ nhớ trạng thái hoạt động của cơ chế Tap, không lưu nội dung bạn gõ. Hãy làm lại thao tác gây lỗi, rồi chọn Chép nhật ký gỡ lỗi để gửi kèm báo lỗi hoặc Lưu nhật ký gỡ lỗi… để lưu thành tệp.";
 "Copy debug log" = "Chép nhật ký gỡ lỗi";
@@ -151,7 +147,6 @@
 "When a word is both English and Vietnamese" = "Khi từ vừa là tiếng Anh vừa là tiếng Việt";
 "Prefer Vietnamese" = "Ưu tiên tiếng Việt";
 "Prefer English" = "Ưu tiên tiếng Anh";
-"For words like last/lát, list/lít, his/hí. Prefer Vietnamese: double the tone key to keep English (lisst → list). Prefer English: put the tone at the end for Vietnamese (lits → lít). Inside an English sentence the word stays English either way." = "Dùng cho những từ có thể là cả tiếng Anh lẫn tiếng Việt, như last/lát, list/lít, his/hí. Ưu tiên tiếng Việt: gõ đúp phím dấu để giữ từ tiếng Anh (lisst → list). Ưu tiên tiếng Anh: gõ dấu ở cuối từ tiếng Việt (lits → lít). Trong câu tiếng Anh, từ vẫn được giữ nguyên.";
 
 /* UX batch 21/07 pm */
 "Missing {PANE} permission — click to open System Settings" = "Chưa có quyền {PANE} — bấm để mở Cài đặt hệ thống";
@@ -187,7 +182,6 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Restart input method" = "Khởi động lại bộ gõ";
 
 "Open releases page" = "Mở trang phát hành";
-"Supported formats: plist/XML, JSON, YAML, or one key:value per line (GõNhanh, EVKey…)." = "Định dạng hỗ trợ: plist/XML, JSON, YAML, hoặc mỗi dòng một cặp key:value (Gõ Nhanh, EVKey…).";
 "Export to YAML…" = "Xuất ra YAML…";
 
 /* System Settings → Input Sources how-to (AX press failed or not allowed) */
@@ -202,7 +196,6 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "User guide" = "Hướng dẫn sử dụng";
 "How to report a bug" = "Hướng dẫn báo lỗi";
 "Downloading and installing…" = "Đang tải và cài đặt…";
-"Add diacritics to the word before the caret (experimental)" = "Gõ thêm dấu cho từ ngay trước con trỏ (thử nghiệm)";
 "Repair automatically" = "Sửa tự động";
 "Repair started title" = "Đã đặt lại quyền — hãy cấp lại một lần";
 "Repair started body" = "VietTelex đã xoá mục quyền cũ. macOS sẽ hỏi bạn cấp lại quyền {PANE}. Hãy chọn Cho phép, hoặc mở Cài đặt hệ thống → Quyền riêng tư & Bảo mật → {PANE} và bật VietTelex. Bạn có thể gõ lại trong Terminal và Chrome ngay sau đó; không cần khởi động lại máy.";
@@ -210,7 +203,6 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Repair failed body" = "macOS không cho xoá mục này; có thể quyền đang do tổ chức quản lý. Bạn có thể tự sửa: mở Cài đặt hệ thống → Quyền riêng tư & Bảo mật → {PANE}, chọn VietTelex, bấm − để xoá, rồi bấm + và thêm lại VietTelex từ ~/Library/Input Methods.";
 
 /* 1.4.22 — UI/UX audit: captions còn thiếu, banner Trợ năng, kênh cập nhật, nhãn VoiceOver */
-"A word that isn’t valid Vietnamese snaps back to the keys you actually typed when the word ends (retore → retore)." = "Khi kết thúc một từ không có trong tiếng Việt, VietTelex trả lại đúng những phím bạn đã gõ (retore → retore).";
 "Type “toan”, then “s” → “toán” — no need to retype the whole word. Deleting the space after a word re-opens it: “tháy ” + ⌫ + “a” → “thấy”." = "Gõ “toan”, rồi gõ “s” để thành “toán” — không cần gõ lại cả từ. Xoá dấu cách ngay sau một từ để sửa tiếp: “tháy ” + ⌫ + “a” → “thấy”.";
 "No {PANE} permission — typing will be underlined" = "Chưa có quyền {PANE} — một số ứng dụng sẽ gạch chân chữ khi bạn gõ";
 "Tick VietTelex in Privacy & Security → {PANE}. You may need to restart your Mac for the permission to take effect." = "Mở Quyền riêng tư & Bảo mật → {PANE} rồi bật VietTelex. Có thể bạn cần khởi động lại máy để quyền có hiệu lực.";
@@ -222,12 +214,10 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 
 /* Keyboard layout (bố cục bàn phím Telex đọc) */
 "Keyboard layout" = "Bố cục bàn phím";
-"Compose on" = "Gõ theo";
 "Follow the previous input source" = "Theo nguồn nhập trước đó";
 "Which physical keyboard Telex reads. Pick Colemak, Dvorak… to type Vietnamese with that layout. Left on “follow”, the layout is inherited from whichever input source you switched from — so the same keys give different letters depending on where you came from." = "Đây là bố cục bàn phím Telex dùng để đọc phím. Chọn Colemak, Dvorak… nếu bạn muốn gõ tiếng Việt theo bố cục đó. Nếu chọn “Theo nguồn nhập trước đó”, VietTelex dùng bố cục của nguồn nhập bạn vừa rời khỏi; vì vậy cùng một phím có thể cho ra ký tự khác nhau.";
 "FAQ" = "Câu hỏi thường gặp";
 "Bracket vowels: [ types ơ, ] types ư (experimental)" = "Phím ngoặc: [ ra ơ, ] ra ư (thử nghiệm)";
-"The UniKey habit: “th[” → “thơ”, “ng]” → “ngư” ({ and } for uppercase). Leave OFF if you type code — with it on, [ and ] belong to the word instead of ending it." = "Cách gõ quen thuộc với UniKey: “th[” → “thơ”, “ng]” → “ngư” ({ và } để gõ chữ hoa). Nếu thường gõ mã lệnh, bạn nên tắt mục này: khi bật, [ và ] được tính là một phần của từ.";
 
 /* Secure-input monitor (field report 14/08/2026 — "VietTelex tự nhiên bị mờ") */
 "Vietnamese typing is blocked (Secure Input)" = "Gõ tiếng Việt đang bị chặn (Secure Input)";
@@ -304,7 +294,6 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Translate" = "Dịch";
 "Translate ↔ %@" = "Dịch ↔ %@";
 "Translating…" = "Đang dịch…";
-"Translation pack not downloaded — open VietTelex Settings → Tools & suggestions." = "Chưa có gói dịch này. Mở Cài đặt VietTelex → Công cụ & gợi ý để tải về.";
 "This Mac can’t translate this language pair." = "Máy Mac này không dịch được cặp ngôn ngữ này.";
 "Translate to" = "Dịch sang";
 "Vietnamese ↔ %@" = "Tiếng Việt ↔ %@";
@@ -319,7 +308,6 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Show text tools in the VietTelex menu" = "Hiện công cụ văn bản trong menu VietTelex";
 "Show maths results" = "Hiện kết quả phép tính";
 "Type a calculation followed by “=” (12*3=, 200+10%=) — the result shows next to the cursor; press Tab or Enter to insert it." = "Gõ phép tính rồi “=” (12*3=, 200+10%=) — kết quả hiện cạnh con trỏ, bấm Tab hoặc Enter để chèn.";
-"Number chips" = "Gợi ý số tiền";
 "Type an amount with k/tr/tỷ (50k, 1tr2, 2 tỷ) and a space — the money format (1.200.000 ₫) shows next to the cursor; press Tab to replace it." = "Gõ số tiền như 50k, 1tr2 hoặc 2 tỷ rồi nhấn dấu cách. VietTelex sẽ gợi ý cách viết đầy đủ cạnh con trỏ; nhấn Tab để thay thế.";
 "Suggest typo fixes" = "Gợi ý sửa từ gõ nhầm";
 "After a word that isn’t Vietnamese or English (tpoi, nayd, spellnig), a likely fix (tôi, này, spelling) shows next to the cursor; press Tab to replace it. Esc stops suggesting that word." = "Sau một từ không phải tiếng Việt hay tiếng Anh (tpoi, nayd, spellnig), từ nhiều khả năng đúng (tôi, này, spelling) hiện cạnh con trỏ, bấm Tab để thay. Esc: thôi gợi ý từ đó.";
@@ -351,7 +339,6 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 
 /* Settings reorganized (14/10/2026): 5 tabs, Tools panel hotkey, menu order */
 "Typing" = "Gõ phím";
-"Tools & suggestions" = "Công cụ & gợi ý";
 "Apps" = "Ứng dụng";
 "General" = "Chung";
 "Updates" = "Cập nhật";
@@ -364,14 +351,12 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Input Sources…" = "Nguồn nhập liệu…";
 
 /* Cài đặt nguồn nhập liệu của macOS (Phil 18/10/2026) */
-"Capitalization, word suggestions, period on double space…" = "Viết hoa, gợi ý chữ, dấu chấm khi gõ hai dấu cách…";
 "Open Input Sources settings…" = "Mở cài đặt nguồn nhập liệu…";
-"VietTelex follows the macOS input-source settings: Capitalize words automatically, Show inline predictive text (word suggestions next to the cursor), Add period with double-space, smart quotes and dashes, and automatically switching input source per app / document. Turn them on or off there." = "VietTelex làm theo cài đặt nguồn nhập liệu của macOS: Tự động viết hoa từ, Hiển thị văn bản dự đoán (gợi ý chữ cạnh con trỏ), Thêm dấu chấm khi nhấn đúp phím cách, dấu ngoặc kép và gạch ngang thông minh, và tự đổi nguồn nhập liệu theo ứng dụng / tài liệu. Bật hoặc tắt các mục này tại đó.";
 
-/* Onboarding người dùng mới + nhóm "Gõ mixed Việt/Anh" (docs/ONBOARDING-SPEC.md, 05/11/2026) */
+/* Onboarding người dùng mới + nhóm "Gõ lẫn tiếng Anh" (docs/ONBOARDING-SPEC.md, 05/11/2026) */
 "Welcome to VietTelex" = "Chào mừng đến với VietTelex";
 "How do you usually type?" = "Bạn thường gõ thế nào?";
-"Pick the closest one — it only sets a few switches, which you can change any time in Settings → Typing → Mixed Vietnamese/English typing." = "Chọn cách gần nhất — lựa chọn chỉ bật/tắt vài công tắc, đổi lại lúc nào cũng được trong Cài đặt → Gõ phím → Gõ mixed Việt/Anh.";
+"Pick the closest one — it only sets a few switches, which you can change any time in Settings → Typing → Mixed Vietnamese/English typing." = "Chọn cách gần nhất — lựa chọn chỉ bật/tắt vài công tắc, đổi lại lúc nào cũng được trong Cài đặt → Gõ phím → Gõ lẫn tiếng Anh.";
 "Mostly Vietnamese" = "Chủ yếu tiếng Việt";
 "Lots of Vietnamese + English" = "Việt + Anh nhiều";
 "Mostly English" = "Chủ yếu tiếng Anh";
@@ -382,13 +367,11 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Turned on for you — switch off anything you don’t want:" = "Đã bật cho bạn — tắt ngay mục nào bạn không muốn:";
 "Done" = "Xong";
 "Prefer Vietnamese when a word is both English and Vietnamese" = "Ưu tiên tiếng Việt khi từ trùng";
-"Do you often mix English into Vietnamese? See the new Mixed Vietnamese/English typing group." = "Bạn hay gõ trộn Anh/Việt? Xem nhóm Gõ mixed Việt/Anh mới.";
+"Do you often mix English into Vietnamese? See the new Mixed Vietnamese/English typing group." = "Bạn hay gõ trộn Anh/Việt? Xem nhóm Gõ lẫn tiếng Anh mới.";
 "Show me" = "Xem";
 "Dismiss" = "Đóng";
-"Mixed Vietnamese/English typing" = "Gõ mixed Việt/Anh";
-"English detection" = "Nhận diện tiếng Anh";
-"Language switching" = "Chuyển ngôn ngữ";
-/* Bộ chọn nhanh hồ sơ ở đầu nhóm "Gõ mixed Việt/Anh" (ONBOARDING-SPEC §4) */
+"Mixed Vietnamese/English typing" = "Gõ lẫn tiếng Anh";
+/* Bộ chọn nhanh hồ sơ ở đầu nhóm "Gõ lẫn tiếng Anh" (ONBOARDING-SPEC §4) */
 "Pick one — the switches below are set to match." = "Chọn một — các công tắc bên dưới sẽ tự đặt theo.";
 "Custom" = "Tuỳ chỉnh";
 "You changed the switches below yourself." = "Bạn đã tự chỉnh các công tắc bên dưới.";
@@ -397,3 +380,24 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Switches you changed yourself will change:" = "Các công tắc bạn đã tự chỉnh sẽ đổi:";
 "on" = "bật";
 "off" = "tắt";
+
+/* Thu gọn cài đặt (docs/SETTINGS-CLEANUP-SPEC.md, 05/11/2026) */
+"Suggestions & tools" = "Gợi ý & công cụ";
+"Translation pack not downloaded — open VietTelex Settings → Suggestions & tools." = "Chưa có gói dịch này. Mở Cài đặt VietTelex → Gợi ý & công cụ để tải về.";
+"Money amount suggestions" = "Gợi ý số tiền";
+"Advanced / Debugging" = "Nâng cao / Gỡ lỗi";
+"Simple Telex, free tone placement, quick consonants, modern tone placement, teencode, bracket keys, keyboard layout…" = "Telex đơn giản, bỏ dấu tự do, gõ tắt phụ âm, bỏ dấu kiểu mới, teencode, phím ngoặc, bố cục bàn phím…";
+"Restore English words, context, colliding words, fixing earlier words…" = "Khôi phục từ tiếng Anh, ngữ cảnh, khi trùng từ, sửa từ phía trước…";
+"Keep VietTelex when macOS switches, per-app input source, macOS shortcut…" = "Giữ VietTelex khi macOS tự đổi bộ gõ, bộ gõ theo ứng dụng, phím tắt của macOS…";
+"Only applies to Telex." = "Chỉ áp dụng cho Telex.";
+"Needs Context-based decision turned on." = "Cần bật Quyết định theo ngữ cảnh.";
+"Quick consonants (cc→ch, gg→gi…)" = "Gõ tắt phụ âm nhanh (cc→ch, gg→gi…)";
+"Quick Telex: a doubled first consonant expands: cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th." = "Quick Telex: gõ lặp phụ âm đầu để tạo phụ âm ghép: cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th.";
+"Type ơ and ư with the bracket keys: “th[” → “thơ”, “ng]” → “ngư” ({ and } for uppercase). Leave OFF if you type code — with it on, [ and ] belong to the word instead of ending it." = "Gõ ơ, ư bằng phím ngoặc: “th[” → “thơ”, “ng]” → “ngư” ({ và } để gõ chữ hoa). Nếu thường gõ mã lệnh, bạn nên tắt mục này: khi bật, [ và ] được tính là một phần của từ.";
+"Fix tones of typed words" = "Sửa dấu từ đã gõ";
+"Auto-restore English words" = "Tự khôi phục từ tiếng Anh";
+"When a word ends and isn’t valid Vietnamese, it goes back to the keys you typed (google, github, retore…)." = "Khi gõ xong một từ không phải tiếng Việt, VietTelex trả lại đúng những phím bạn đã gõ (google, github, retore…).";
+"For words like last/lát, list/lít, his/hí. Prefer English: put the tone at the end for Vietnamese (lits → lít). Inside an English sentence the word stays English either way. Tip: double the tone key to keep English (lisst → list)." = "Dùng cho những từ có thể là cả tiếng Anh lẫn tiếng Việt, như last/lát, list/lít, his/hí. Ưu tiên tiếng Anh: gõ dấu ở cuối từ tiếng Việt (lits → lít). Trong câu tiếng Anh, từ vẫn được giữ nguyên. Mẹo: gõ đúp phím dấu để giữ tiếng Anh (lisst → list).";
+"Switching Vietnamese/English" = "Chuyển Việt/Anh";
+"To remember Vietnamese or English per app, turn on “Automatically switch to a document's input source” in the macOS Input Sources settings (link at the bottom of this page)." = "Muốn macOS nhớ tiếng Việt hay tiếng Anh theo từng ứng dụng, hãy bật “Automatically switch to a document's input source” trong cài đặt nguồn nhập liệu của macOS (dòng cuối trang này).";
+"Capitalization, word suggestions, period on double space, smart quotes: set in macOS." = "Viết hoa, gợi ý chữ, dấu chấm khi gõ hai dấu cách, ngoặc kép thông minh: chỉnh trong cài đặt của macOS.";

@@ -10,7 +10,7 @@
 //  • "Bỏ qua" ở mọi màn: màn 1 = giữ nguyên mặc định; màn 2 = giữ hồ sơ vừa chọn.
 //  • Người dùng cũ (suite đã có dữ liệu khi process khởi động, AppState.hadPriorSettingsAtLaunch):
 //    không bao giờ thấy onboarding; đặt onboardingDone + bật thẻ một lần trong Cài đặt → Gõ phím
-//    chỉ tới nhóm "Gõ mixed Việt/Anh". Không đổi bất kỳ giá trị nào.
+//    chỉ tới nhóm "Gõ lẫn tiếng Anh". Không đổi bất kỳ giá trị nào.
 //  • Không telemetry: lựa chọn chỉ nằm trong suite cài đặt của máy này.
 // macOS chưa từng có màn chào riêng: cửa sổ này là màn chào, hiện lần đầu VietTelex được chọn
 // làm nguồn nhập (process IME chỉ chạy khi đó). Không bao giờ hiện trong XCTest host.
@@ -30,7 +30,7 @@ enum OnboardingLogic {
     /// Thẻ "Bạn hay gõ trộn Anh/Việt?" cho người dùng cũ: true = còn chờ hiện; đóng ⇒ false.
     static let cardKey = "mixedTypingCardPending"
 
-    /// Công tắc nhóm "Gõ mixed Việt/Anh" mà macOS có, theo thứ tự hiện ở màn Gõ thử.
+    /// Công tắc nhóm "Gõ lẫn tiếng Anh" mà macOS có, theo thứ tự hiện ở màn Gõ thử.
     static let mixedKeys = ["autoRestore", "contextualEnglish", "retroactiveEnglish",
                             "englishByFrequency", "collisionPrefersVietnamese"]
 
@@ -67,7 +67,7 @@ enum OnboardingLogic {
         }
     }
 
-    // MARK: Bộ chọn nhanh ở đầu nhóm "Gõ mixed Việt/Anh" (spec §4) — như iOS/Android
+    // MARK: Bộ chọn nhanh ở đầu nhóm "Gõ lẫn tiếng Anh" (spec §4) — như iOS/Android
     // (iOS Shared/OnboardingProfile.swift OnboardingSettings, Android ui/MixedTyping.kt).
 
     /// Hồ sơ khớp ĐÚNG cài đặt hiện tại (`current`: đủ `mixedKeys`); nil = "Tuỳ chỉnh". macOS:
@@ -77,6 +77,17 @@ enum OnboardingLogic {
         guard let first = hits.first else { return nil }
         if let last = lastChosen, hits.contains(last) { return last }
         return first
+    }
+
+    /// Hồ sơ bộ chọn trong Cài đặt macOS hiện (SETTINGS-CLEANUP-SPEC §1): "Chủ yếu tiếng Anh"
+    /// ẨN vì trên Mac nó ghi đúng bộ công tắc của "Việt + Anh nhiều". Onboarding màn 1 vẫn đủ 3.
+    static let settingsProfiles: [TypingProfile] = [.vi, .mixed]
+
+    /// Hồ sơ tô ở bộ chọn trong Cài đặt: như `match` nhưng `en` hiện thành `mixed` (người đã chọn
+    /// "Chủ yếu tiếng Anh" ở onboarding vẫn thấy một dòng được chọn, không rơi về "Tuỳ chỉnh").
+    static func settingsMatch(_ current: [String: Bool], lastChosen: TypingProfile?) -> TypingProfile? {
+        guard let m = match(current, lastChosen: lastChosen) else { return nil }
+        return m == .en ? .mixed : m
     }
 
     /// Key sẽ đổi nếu áp `p` (theo thứ tự `mixedKeys`).
@@ -269,7 +280,7 @@ final class OnboardingModel: ObservableObject {
     /// Nhãn công tắc — cùng chuỗi với Cài đặt.
     static func title(_ key: String) -> String {
         switch key {
-        case "autoRestore": return "Auto-restore invalid words"
+        case "autoRestore": return "Auto-restore English words"
         case "contextualEnglish": return "Context-based decision"
         case "retroactiveEnglish": return "Fix earlier words (experimental)"
         case "englishByFrequency": return "Guess colliding words by frequency (experimental)"

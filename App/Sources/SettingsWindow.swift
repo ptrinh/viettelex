@@ -1,6 +1,7 @@
 // SettingsWindow.swift
-// SwiftUI settings (5 tabs: Gõ phím, Công cụ & gợi ý, Gõ tắt, Ứng dụng, Chung — sắp xếp
-// lại 14/10/2026, bỏ tab Thử nghiệm + "Ẩn tính năng nâng cao"). The window is created
+// SwiftUI settings (5 tabs: Gõ phím, Gợi ý & công cụ, Gõ tắt, Ứng dụng, Chung — sắp xếp
+// lại 14/10/2026, bỏ tab Thử nghiệm + "Ẩn tính năng nâng cao"; thu gọn theo
+// docs/SETTINGS-CLEANUP-SPEC.md 05/11/2026: mỗi nhóm có "Nâng cao" thu gọn). The window is created
 // only when opened from the IMK menu and released when closed (windowWillClose
 // drops the reference).
 //
@@ -21,7 +22,7 @@ enum SettingsTab: Hashable, CaseIterable {
     var titleKey: String {
         switch self {
         case .typing: return "Typing"
-        case .tools: return "Tools & suggestions"
+        case .tools: return "Suggestions & tools"
         case .shortcuts: return "Shortcuts"
         case .apps: return "Apps"
         case .general: return "General"
@@ -148,6 +149,8 @@ final class SettingsModel: ObservableObject {
     @Published var autoRestore: Bool { didSet { AppState.shared.autoRestore = autoRestore } }
     @Published var freeMarking: Bool { didSet { AppState.shared.freeMarking = freeMarking } }
     @Published var modernOrthography: Bool { didSet { AppState.shared.modernOrthography = modernOrthography } }
+    /// "Sửa dấu từ đã gõ" — key có từ trước (mặc định bật), trước 11/2026 không có UI trên macOS.
+    @Published var reEditWord: Bool { didSet { AppState.shared.reEditWord = reEditWord } }
     @Published var liveSpellCheck: Bool { didSet { AppState.shared.liveSpellCheck = liveSpellCheck } }
     @Published var simpleTelex: Bool { didSet { AppState.shared.simpleTelex = simpleTelex } }
     @Published var teencode: Bool { didSet { AppState.shared.teencode = teencode } }
@@ -164,12 +167,13 @@ final class SettingsModel: ObservableObject {
     @Published var translateTarget: String { didSet { AppState.shared.translateTarget = translateTarget } }
     /// Cuộn tab Chung tới khối cập nhật (xem SettingsWindowController.show).
     @Published var revealUpdate = false
-    /// Thẻ một lần cho người dùng cũ (ONBOARDING-SPEC §5) — chỉ tới nhóm "Gõ mixed Việt/Anh".
+    /// Thẻ một lần cho người dùng cũ (ONBOARDING-SPEC §5) — chỉ tới nhóm "Gõ lẫn tiếng Anh".
     @Published var mixedCardPending: Bool = OnboardingLogic.cardPending(AppState.shared.defaults)
-    /// Cuộn tab Gõ phím tới nhóm "Gõ mixed Việt/Anh".
+    /// Cuộn tab Gõ phím tới nhóm "Gõ lẫn tiếng Anh".
     @Published var revealMixed = false
-    /// Hồ sơ chọn gần nhất (onboarding / bộ chọn nhanh) — chỉ để phân biệt "Việt + Anh nhiều"
-    /// với "Chủ yếu tiếng Anh" (cùng bộ công tắc trên macOS), không điều khiển hành vi.
+    /// Hồ sơ chọn gần nhất (onboarding / bộ chọn nhanh) — chỉ để hiển thị/xác nhận, không điều
+    /// khiển hành vi. Bộ chọn trong Cài đặt không còn dòng "Chủ yếu tiếng Anh" (≡ "Việt + Anh
+    /// nhiều" trên Mac) nên `en` hiện thành `mixed` (OnboardingLogic.settingsMatch).
     @Published var lastProfile: String = AppState.shared.defaults.string(forKey: OnboardingLogic.profileKey) ?? ""
     /// Hồ sơ chờ xác nhận ở bộ chọn nhanh (sẽ đổi công tắc người dùng tự chỉnh).
     @Published var confirmingProfile: TypingProfile?
@@ -247,6 +251,7 @@ final class SettingsModel: ObservableObject {
         autoRestore = AppState.shared.autoRestore
         freeMarking = AppState.shared.freeMarking
         modernOrthography = AppState.shared.modernOrthography
+        reEditWord = AppState.shared.reEditWord
         liveSpellCheck = AppState.shared.liveSpellCheck
         simpleTelex = AppState.shared.simpleTelex
         teencode = AppState.shared.teencode
@@ -305,7 +310,7 @@ final class SettingsModel: ObservableObject {
         if reveal { revealMixed = true }
     }
 
-    // MARK: Bộ chọn nhanh hồ sơ (ONBOARDING-SPEC §4) — đầu nhóm "Gõ mixed Việt/Anh"
+    // MARK: Bộ chọn nhanh hồ sơ (ONBOARDING-SPEC §4) — đầu nhóm "Gõ lẫn tiếng Anh"
 
     /// Công tắc hồ sơ đang có (đúng `OnboardingLogic.mixedKeys`).
     var mixedValues: [String: Bool] {
@@ -314,9 +319,9 @@ final class SettingsModel: ObservableObject {
          "collisionPrefersVietnamese": collisionPrefersVietnamese]
     }
 
-    /// Hồ sơ khớp đúng cài đặt; nil = "Tuỳ chỉnh".
+    /// Hồ sơ khớp đúng cài đặt (trong `OnboardingLogic.settingsProfiles`); nil = "Tuỳ chỉnh".
     var matchedProfile: TypingProfile? {
-        OnboardingLogic.match(mixedValues, lastChosen: TypingProfile(rawValue: lastProfile))
+        OnboardingLogic.settingsMatch(mixedValues, lastChosen: TypingProfile(rawValue: lastProfile))
     }
 
     /// Bấm một hồ sơ: đang "Tuỳ chỉnh" và sẽ đổi công tắc ⇒ chờ xác nhận; còn lại áp ngay.
@@ -805,10 +810,59 @@ struct SettingsView: View {
 struct TypingTab: View {
     @EnvironmentObject var model: SettingsModel
 
-    /// `.id` của nhóm "Gõ mixed Việt/Anh" — đích cuộn của thẻ người dùng cũ.
+    /// `.id` của nhóm "Gõ lẫn tiếng Anh" — đích cuộn của thẻ người dùng cũ.
     static let mixedAnchor = "mixed"
 
-    /// Bộ chọn hồ sơ ở đầu nhóm (ONBOARDING-SPEC §4): câu hỏi + ba nút radio (chọn MỘT).
+    // Ba mục "Nâng cao" (SETTINGS-CLEANUP-SPEC §0.3): thu gọn mặc định, dòng phụ liệt kê bên trong.
+    @State private var styleAdvancedOpen = false
+    @State private var mixedAdvancedOpen = false
+    @State private var switchAdvancedOpen = false
+
+    /// Dòng phụ của từng mục "Nâng cao" (khoá Localizable.strings).
+    static let styleAdvancedSummary = "Simple Telex, free tone placement, quick consonants, modern tone placement, teencode, bracket keys, keyboard layout…"
+    static let mixedAdvancedSummary = "Restore English words, context, colliding words, fixing earlier words…"
+    static let switchAdvancedSummary = "Keep VietTelex when macOS switches, per-app input source, macOS shortcut…"
+    /// Chú thích "Khi từ vừa Anh vừa Việt" — có mẹo gõ đúp phím dấu (spec §1).
+    static let collisionCaption = "For words like last/lát, list/lít, his/hí. Prefer English: put the tone at the end for Vietnamese (lits → lít). Inside an English sentence the word stays English either way. Tip: double the tone key to keep English (lisst → list)."
+    /// Dòng link cài đặt hệ thống cuối trang (thay mục "Viết hoa, gợi ý chữ…" cũ).
+    static let systemSettingsCaption = "Capitalization, word suggestions, period on double space, smart quotes: set in macOS."
+    /// Lý do làm mờ (spec §0.4).
+    static let telexOnlyReason = "Only applies to Telex."
+    static let needsContextReason = "Needs Context-based decision turned on."
+
+    private func caption(_ key: String) -> some View {
+        Text(model.loc(key)).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Nhãn mục "Nâng cao": tên + dòng phụ liệt kê những gì bên trong.
+    private func advancedLabel(_ summaryKey: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(model.loc("Advanced"))
+            Text(model.loc(summaryKey)).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Công tắc phụ thuộc: luôn hiện; khi `enabled` sai thì mờ + lý do đứng đầu chú thích.
+    @ViewBuilder private func dependentToggle(_ titleKey: String, isOn: Binding<Bool>, enabled: Bool,
+                                              reason: String = TypingTab.needsContextReason,
+                                              caption captionKey: String) -> some View {
+        Toggle(model.loc(titleKey), isOn: isOn).disabled(!enabled)
+        Text(enabled ? model.loc(captionKey) : model.loc(reason) + " " + model.loc(captionKey))
+            .font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Tuỳ chọn chỉ-Telex: mờ + "Chỉ áp dụng cho Telex" khi đang chọn VNI (không ẩn).
+    @ViewBuilder private func telexOnlyToggle(_ titleKey: String, isOn: Binding<Bool>,
+                                              caption captionKey: String) -> some View {
+        dependentToggle(titleKey, isOn: isOn, enabled: !model.vniMode,
+                        reason: TypingTab.telexOnlyReason, caption: captionKey)
+    }
+
+    /// Bộ chọn hồ sơ ở đầu nhóm (ONBOARDING-SPEC §4): câu hỏi + nút radio (chọn MỘT) — macOS chỉ
+    /// hai hồ sơ (`OnboardingLogic.settingsProfiles`, spec cleanup §1).
     /// "Tuỳ chỉnh" chỉ hiện — đã chọn sẵn, không bấm được — khi công tắc bên dưới không khớp
     /// hồ sơ nào. Trước đây là danh sách dấu ✓ bên phải: người dùng không nhận ra là chọn một.
     @ViewBuilder private var profilePicker: some View {
@@ -819,7 +873,7 @@ struct TypingTab: View {
         }
         .accessibilityAddTraits(.isHeader)
         let current = model.matchedProfile
-        ForEach(TypingProfile.allCases, id: \.self) { p in
+        ForEach(OnboardingLogic.settingsProfiles, id: \.self) { p in
             Button { model.pickProfile(p) } label: {
                 profileRow(model.loc(OnboardingLogic.title(p)), "“\(OnboardingLogic.example(p))”",
                            selected: current == p)
@@ -894,13 +948,11 @@ struct TypingTab: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+            // SETTINGS-CLEANUP-SPEC (05/11/2026): cấp 1 chỉ còn Telex/VNI; mọi tuỳ chọn kiểu gõ vào
+            // "Nâng cao" (DisclosureGroup). Mục chỉ-Telex KHÔNG ẩn khi chọn VNI nữa: làm mờ + ghi
+            // "Chỉ áp dụng cho Telex" (freeMarking/Simple/Quick/teencode/phím ngoặc chỉ chạy trong
+            // parseStep của Telex); "kiểu cũ/mới" và "Sửa dấu từ đã gõ" áp dụng cho cả hai.
             Section(header: Label(model.loc("Input style"), systemImage: "keyboard")) {
-                // VNI tốt nghiệp từ tab Thử nghiệm (maintainer 17/08/2026), trình bày
-                // dạng radio Telex/VNI cùng dòng (17/08 chiều) — hai kiểu gõ loại trừ
-                // nhau nên radio đúng ngữ nghĩa hơn toggle bật/tắt. Chọn VNI thì các
-                // tuỳ chỉnh THUẦN-TELEX ẩn đi (Simple/Quick/bỏ dấu tự do/phím ngoặc —
-                // freeMarking chỉ chạy trong parseStep của Telex, VNI không đọc);
-                // "kiểu cũ/mới" là quy tắc ĐẶT dấu, áp dụng cho cả hai nên giữ hiện.
                 Picker(model.loc("Typing method"), selection: Binding(
                     get: { model.vniMode ? "vni" : "telex" },
                     set: { model.vniMode = ($0 == "vni") })) {
@@ -910,118 +962,109 @@ struct TypingTab: View {
                 .pickerStyle(.radioGroup)
                 .horizontalRadioGroupLayout()
                 if model.vniMode {
-                    Text(model.loc("Type diacritics with digits instead of Telex letters: 1-5 = sắc/huyền/hỏi/ngã/nặng, 6 = â/ê/ô, 7 = ơ/ư, 8 = ă, 9 = đ, 0 = clear tone. Letters stay literal. Keep Live spell-check on so numbers like “mp3” aren’t turned into tones."))
-                        .font(.caption).foregroundStyle(.secondary)
+                    caption("Type diacritics with digits instead of Telex letters: 1-5 = sắc/huyền/hỏi/ngã/nặng, 6 = â/ê/ô, 7 = ơ/ư, 8 = ă, 9 = đ, 0 = clear tone. Letters stay literal. Keep Live spell-check on so numbers like “mp3” aren’t turned into tones.")
                 }
-                if !model.vniMode {
-                    Toggle(model.loc("Simple Telex"), isOn: $model.simpleTelex)
-                    Text(model.loc("A lone “w” stays “w” (type “uw” for ư). Off = full Telex (cw→cư)."))
-                        .font(.caption).foregroundStyle(.secondary)
-                    Toggle(model.loc("Teencode spelling"), isOn: $model.teencode)
-                    Text(model.loc("Accept chat spellings: w/z/k instead of qu/d/c (wá, zui zẻ, kó) and bíe, thík, gòy, ừk. Off = standard spelling only, so English words like was, war, worse, zoo stay as typed."))
-                        .font(.caption).foregroundStyle(.secondary)
-                    Toggle(model.loc("Quick Telex"), isOn: $model.quickTelex)
-                    Text(model.loc("Doubled first consonant expands: cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th."))
-                        .font(.caption).foregroundStyle(.secondary)
-                    Toggle(model.loc("Free tone placement"), isOn: $model.freeMarking)
-                    Text(model.loc("Off = strict Telex: tones apply only next to a vowel — good for English/code (data→data). On: free placement (ama→âm)."))
-                        .font(.caption).foregroundStyle(.secondary)
-                    Toggle(model.loc("Bracket vowels: [ types ơ, ] types ư"),
-                           isOn: $model.bracketVowels)
-                    Text(model.loc("The UniKey habit: “th[” → “thơ”, “ng]” → “ngư” ({ and } for uppercase). Leave OFF if you type code — with it on, [ and ] belong to the word instead of ending it."))
-                        .font(.caption).foregroundStyle(.secondary)
+                DisclosureGroup(isExpanded: $styleAdvancedOpen) {
+                    telexOnlyToggle("Simple Telex", isOn: $model.simpleTelex,
+                                    caption: "A lone “w” stays “w” (type “uw” for ư). Off = full Telex (cw→cư).")
+                    telexOnlyToggle("Free tone placement", isOn: $model.freeMarking,
+                                    caption: "Off = strict Telex: tones apply only next to a vowel — good for English/code (data→data). On: free placement (ama→âm).")
+                    telexOnlyToggle("Quick consonants (cc→ch, gg→gi…)", isOn: $model.quickTelex,
+                                    caption: "Quick Telex: a doubled first consonant expands: cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th.")
+                    Toggle(model.loc("Modern tone placement (oà, uý)"), isOn: $model.modernOrthography)
+                    caption("Off = old style (hòa, thủy, khỏe). On = new style (hoà, thuý, khoẻ). Only oa/oe/uy differ.")
+                    telexOnlyToggle("Teencode spelling", isOn: $model.teencode,
+                                    caption: "Accept chat spellings: w/z/k instead of qu/d/c (wá, zui zẻ, kó) and bíe, thík, gòy, ừk. Off = standard spelling only, so English words like was, war, worse, zoo stay as typed.")
+                    telexOnlyToggle("Bracket vowels: [ types ơ, ] types ư", isOn: $model.bracketVowels,
+                                    caption: "Type ơ and ư with the bracket keys: “th[” → “thơ”, “ng]” → “ngư” ({ and } for uppercase). Leave OFF if you type code — with it on, [ and ] belong to the word instead of ending it.")
+                    // reEditWord: key có từ lâu (mặc định bật, đọc lúc chạy ở cả IMK lẫn tap) nhưng
+                    // macOS chưa từng có công tắc — spec §3 thêm vào đây, cùng tên với mobile.
+                    Toggle(model.loc("Fix tones of typed words"), isOn: $model.reEditWord)
+                    caption("Type “toan”, then “s” → “toán” — no need to retype the whole word. Deleting the space after a word re-opens it: “tháy ” + ⌫ + “a” → “thấy”.")
+                    // Từ tab Thử nghiệm (14/10/2026), từ 05/11/2026 nằm trong Nâng cao kiểu gõ.
+                    Picker(model.loc("Keyboard layout"), selection: $model.keyboardLayoutID) {
+                        Text(model.loc("Follow the previous input source"))
+                            .tag(KeyboardLayoutOverride.systemDefault)
+                        Divider()
+                        ForEach(model.keyboardLayouts) { layout in
+                            Text(layout.name).tag(layout.id)
+                        }
+                    }
+                    caption("Which physical keyboard Telex reads. Pick Colemak, Dvorak… to type Vietnamese with that layout. Left on “follow”, the layout is inherited from whichever input source you switched from — so the same keys give different letters depending on where you came from.")
+                } label: {
+                    advancedLabel(Self.styleAdvancedSummary)
                 }
-                Toggle(model.loc("Modern tone placement (oà, uý)"), isOn: $model.modernOrthography)
-                Text(model.loc("Off = old style (hòa, thủy, khỏe). On = new style (hoà, thuý, khoẻ). Only oa/oe/uy differ."))
-                    .font(.caption).foregroundStyle(.secondary)
             }
-            // "Gõ mixed Việt/Anh" (ONBOARDING-SPEC §4): mọi công tắc gõ trộn Việt–Anh gom về một
-            // nhóm ngay dưới Kiểu gõ — cùng tên/thứ tự với iOS/Android; key lưu không đổi.
-            // Trước đó: tự khôi phục / ưu tiên khi trùng / ngữ cảnh / tự sửa / tần suất ở mục
-            // Chính tả, phím chuyển bộ gõ ở tab Chung. macOS không có "vuốt phím cách".
+            // "Gõ lẫn tiếng Anh" (ONBOARDING-SPEC §4 + SETTINGS-CLEANUP-SPEC §1): cấp 1 chỉ là bộ
+            // chọn hồ sơ; công tắc nằm trong "Nâng cao". Công tắc phụ thuộc ngữ cảnh làm mờ + lý do
+            // thay vì ẩn. Key lưu không đổi.
             Section(header: Label(model.loc("Mixed Vietnamese/English typing"), systemImage: "globe")) {
                 profilePicker
-                Text(model.loc("English detection")).font(.subheadline.weight(.semibold))
-                    .padding(.top, 4)
-                Toggle(model.loc("Auto-restore invalid words"), isOn: $model.autoRestore)
-                Text(model.loc("A word that isn’t valid Vietnamese snaps back to the keys you actually typed when the word ends (retore → retore)."))
-                    .font(.caption).foregroundStyle(.secondary)
-                // "Ưu tiên khi trùng" (maintainer 12/09/2026, default tiếng Việt): kết
-                // thúc chuỗi tranh cãi từng-từ (#60 last/lát, PR#76 list/lít) — user
-                // chọn. Radio cùng dòng như Telex/VNI: hai lựa chọn loại trừ nhau.
-                Picker(model.loc("When a word is both English and Vietnamese"), selection: Binding(
-                    get: { model.collisionPrefersVietnamese ? "vi" : "en" },
-                    set: { model.collisionPrefersVietnamese = ($0 == "vi") })) {
-                    Text(model.loc("Prefer Vietnamese")).tag("vi")
-                    Text(model.loc("Prefer English")).tag("en")
+                DisclosureGroup(isExpanded: $mixedAdvancedOpen) {
+                    Toggle(model.loc("Auto-restore English words"), isOn: $model.autoRestore)
+                    caption("When a word ends and isn’t valid Vietnamese, it goes back to the keys you typed (google, github, retore…).")
+                    // "Ưu tiên khi trùng" (maintainer 12/09/2026, default tiếng Việt).
+                    Picker(model.loc("When a word is both English and Vietnamese"), selection: Binding(
+                        get: { model.collisionPrefersVietnamese ? "vi" : "en" },
+                        set: { model.collisionPrefersVietnamese = ($0 == "vi") })) {
+                        Text(model.loc("Prefer Vietnamese")).tag("vi")
+                        Text(model.loc("Prefer English")).tag("en")
+                    }
+                    .pickerStyle(.radioGroup)
+                    .horizontalRadioGroupLayout()
+                    caption(Self.collisionCaption)
+                    Toggle(model.loc("Context-based decision"), isOn: $model.contextualEnglish)
+                    caption("After an English word, an ambiguous next word whose keys spell an English word is kept English instead of Vietnamese — “he is” → “he is”, not “he í”. After a Vietnamese or unclear word it stays Vietnamese — “sao í”.")
+                    // Hai mục thử nghiệm chỉ chạy khi ngữ cảnh bật (engine retroactiveEnglishActive).
+                    dependentToggle("Fix earlier words (experimental)", isOn: $model.retroactiveEnglish,
+                                    enabled: model.contextualEnglish,
+                                    caption: "As you keep typing an English sentence, words that just got Vietnamese tones by mistake are fixed (e.g. “Hí cả í very fast” → “His car is very fast”).")
+                    dependentToggle("Guess colliding words by frequency (experimental)", isOn: $model.englishByFrequency,
+                                    enabled: model.contextualEnglish,
+                                    caption: "At the start of a phrase, a word that is both a common English word and a rare Vietnamese syllable (his → hí) becomes English; if the next word shows the phrase is Vietnamese (hí hửng, hí hí), it is switched back automatically.")
+                } label: {
+                    advancedLabel(Self.mixedAdvancedSummary)
                 }
-                .pickerStyle(.radioGroup)
-                .horizontalRadioGroupLayout()
-                Text(model.loc("For words like last/lát, list/lít, his/hí. Prefer Vietnamese: double the tone key to keep English (lisst → list). Prefer English: put the tone at the end for Vietnamese (lits → lít). Inside an English sentence the word stays English either way."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Context-based decision"), isOn: $model.contextualEnglish)
-                Text(model.loc("After an English word, an ambiguous next word whose keys spell an English word is kept English instead of Vietnamese — “he is” → “he is”, not “he í”. After a Vietnamese or unclear word it stays Vietnamese — “sao í”."))
-                    .font(.caption).foregroundStyle(.secondary)
-                // "Tự sửa từ phía trước" (thử nghiệm, 23/10/2026): chỉ có nghĩa khi quyết
-                // định theo ngữ cảnh bật (engine retroactiveEnglishActive) ⇒ chỉ hiện khi đó.
-                if model.contextualEnglish {
-                    Toggle(model.loc("Fix earlier words (experimental)"), isOn: $model.retroactiveEnglish)
-                    Text(model.loc("As you keep typing an English sentence, words that just got Vietnamese tones by mistake are fixed (e.g. “Hí cả í very fast” → “His car is very fast”)."))
-                        .font(.caption).foregroundStyle(.secondary)
-                    // "Đoán từ trùng theo tần suất" (thử nghiệm, 05/11/2026) — cũng cần ngữ cảnh.
-                    Toggle(model.loc("Guess colliding words by frequency (experimental)"), isOn: $model.englishByFrequency)
-                    Text(model.loc("At the start of a phrase, a word that is both a common English word and a rare Vietnamese syllable (his → hí) becomes English; if the next word shows the phrase is Vietnamese (hí hửng, hí hí), it is switched back automatically."))
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Text(model.loc("Language switching")).font(.subheadline.weight(.semibold))
-                    .padding(.top, 4)
+            }
+            .id(Self.mixedAnchor)
+            // "Chuyển Việt/Anh" (spec §1): gom 3 chỗ cũ — phím chuyển (nhóm mixed), "Giữ VietTelex khi
+            // macOS tự đổi bộ gõ" (tab Ứng dụng), nút phím tắt nguồn nhập của macOS (mục cài đặt hệ thống).
+            Section(header: Label(model.loc("Switching Vietnamese/English"), systemImage: "arrow.left.arrow.right")) {
                 Picker(model.loc("Toggle VietTelex with"), selection: $model.switchHotkey) {
                     Text(model.loc("Off — use the macOS shortcut")).tag("off")
                     Text("⌃⇧  Control + Shift").tag("ctrl-shift")
                     Text("⌥⇧  Option + Shift").tag("opt-shift")
                     Text("⌘⇧  Command + Shift").tag("cmd-shift")
                 }
-                Text(model.loc("Press and release the modifiers alone to toggle between VietTelex and your previous input source — the modifier-only combos macOS's own Keyboard Shortcuts can't assign. Ignored if you type a key or click while holding them. Needs {PANE} permission."))
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            .id(Self.mixedAnchor)
-            // Từ tab Thử nghiệm (14/10/2026): bố cục phím thuộc về "gõ phím".
-            Section(header: Label(model.loc("Keyboard layout"), systemImage: "keyboard.badge.ellipsis")) {
-                Picker(model.loc("Compose on"), selection: $model.keyboardLayoutID) {
-                    Text(model.loc("Follow the previous input source"))
-                        .tag(KeyboardLayoutOverride.systemDefault)
-                    Divider()
-                    ForEach(model.keyboardLayouts) { layout in
-                        Text(layout.name).tag(layout.id)
+                caption("Press and release the modifiers alone to toggle between VietTelex and your previous input source — the modifier-only combos macOS's own Keyboard Shortcuts can't assign. Ignored if you type a key or click while holding them. Needs {PANE} permission.")
+                DisclosureGroup(isExpanded: $switchAdvancedOpen) {
+                    Toggle(model.loc("Keep VietTelex when macOS auto-switches the input source"),
+                           isOn: $model.stickyInputSource)
+                    caption("Some apps (Word comments…) make macOS fall back to the default input source for every new field when “Automatically switch to a document's input source” is on. This switches back to VietTelex — only when the change wasn't yours (no ⌃Space, no menu click, same app).")
+                    caption("To remember Vietnamese or English per app, turn on “Automatically switch to a document's input source” in the macOS Input Sources settings (link at the bottom of this page).")
+                    Button {
+                        TelexInputController.openInputSourceHotkeySettings()
+                    } label: {
+                        Label(model.loc("Input source hotkey…"), systemImage: "command")
                     }
+                    caption("Opens Keyboard Shortcuts → Input Sources, where the shortcut for switching between VietTelex and other input sources lives.")
+                } label: {
+                    advancedLabel(Self.switchAdvancedSummary)
                 }
-                Text(model.loc("Which physical keyboard Telex reads. Pick Colemak, Dvorak… to type Vietnamese with that layout. Left on “follow”, the layout is inherited from whichever input source you switched from — so the same keys give different letters depending on where you came from."))
-                    .font(.caption).foregroundStyle(.secondary)
             }
             Section(header: Label(model.loc("Spelling"), systemImage: "textformat.abc.dottedunderline")) {
                 Toggle(model.loc("Live spell-check"), isOn: $model.liveSpellCheck)
-                Text(model.loc("Stop adding tones as soon as a word can’t be Vietnamese (google, github…) instead of waiting for word end."))
-                    .font(.caption).foregroundStyle(.secondary)
+                caption("Stop adding tones as soon as a word can’t be Vietnamese (google, github…) instead of waiting for word end.")
             }
-            // Phil 18/10/2026: các tính năng VietTelex đi theo cài đặt nguồn nhập liệu của macOS
-            // (viết hoa, gợi ý chữ, dấu chấm khi gõ hai dấu cách, ngoặc cong) nằm ngoài cửa sổ này
-            // ⇒ đặt tiêu đề + liệt kê để người dùng biết bấm nút là chỉnh được chúng.
-            Section(header: Label(model.loc("Capitalization, word suggestions, period on double space…"),
-                                  systemImage: "text.cursor")) {
+            // Spec §0.7/§4: không lặp cài đặt hệ thống — chỉ một dòng link cuối trang (trước 05/11 là
+            // cả một mục có tiêu đề + đoạn liệt kê dài).
+            Section {
                 Button {
                     TelexInputController.openKeyboardInputSources()
                 } label: {
                     Label(model.loc("Open Input Sources settings…"), systemImage: "gearshape")
                 }
-                Text(model.loc("VietTelex follows the macOS input-source settings: Capitalize words automatically, Show inline predictive text (word suggestions next to the cursor), Add period with double-space, smart quotes and dashes, and automatically switching input source per app / document. Turn them on or off there."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Button {
-                    TelexInputController.openInputSourceHotkeySettings()
-                } label: {
-                    Label(model.loc("Input source hotkey…"), systemImage: "command")
-                }
-                Text(model.loc("Opens Keyboard Shortcuts → Input Sources, where the shortcut for switching between VietTelex and other input sources lives."))
-                    .font(.caption).foregroundStyle(.secondary)
+                caption(Self.systemSettingsCaption)
             }
         }
         .formStyle(.grouped)
@@ -1062,12 +1105,38 @@ struct TypingTab: View {
 
 // MARK: - Tab: Công cụ & gợi ý
 
-/// Trước 14/10/2026 là một mục thu gọn được trong Tùy chỉnh; giờ phẳng, hai mục.
+/// Trước 14/10/2026 là một mục thu gọn được trong Tùy chỉnh; giờ phẳng, hai mục. Từ 05/11/2026
+/// tên "Gợi ý & công cụ" (spec cleanup §4, cùng tên desktop) ⇒ gợi ý đứng trước.
 struct ToolsTab: View {
     @EnvironmentObject var model: SettingsModel
 
     var body: some View {
         Form {
+            Section(header: Label(model.loc("Suggestions next to the cursor"), systemImage: "text.cursor")) {
+                Toggle(model.loc("Show maths results"), isOn: $model.mathResults)
+                Text(model.loc("Type a calculation followed by “=” (12*3=, 200+10%=) — the result shows next to the cursor; press Tab or Enter to insert it."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle(model.loc("Money amount suggestions"), isOn: $model.numberChips)
+                Text(model.loc("Type an amount with k/tr/tỷ (50k, 1tr2, 2 tỷ) and a space — the money format (1.200.000 ₫) shows next to the cursor; press Tab to replace it."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle(model.loc("Suggest typo fixes"), isOn: $model.typoHints)
+                Text(model.loc("After a word that isn’t Vietnamese or English (tpoi, nayd, spellnig), a likely fix (tôi, này, spelling) shows next to the cursor; press Tab to replace it. Esc stops suggesting that word."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle(model.loc("Suggest tones for unaccented sentences"), isOn: $model.toneHints)
+                Text(model.loc("After 3+ unaccented syllables (toi di hoc), when you type . ! ? or pause after a space, the toned text (tôi đi học) shows next to the cursor; press Tab to replace it."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle(model.loc("Suggest dates and times"), isOn: $model.dateHints)
+                Text(model.loc("Type “hôm nay”, “ngày mai”, “hôm qua” or “bây giờ” (after an English word: today, tomorrow, yesterday, now) and a space — the date (28/09/2026) or time (21:35) shows next to the cursor; press Tab to replace the words with it."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle(model.loc("Filter sensitive words"), isOn: $model.filterSensitive)
+                Text(model.loc("Word suggestions and typo fixes never offer swear words — typing them yourself works as usual."))
+                    .font(.caption).foregroundStyle(.secondary)
+                // Học từ bạn gõ (LearnedWords.swift) — cạnh "Lọc từ nhạy cảm", cùng nhóm gợi ý từ.
+                Toggle(model.loc("Learn from your typing"), isOn: $model.learnWords)
+                Text(model.loc("Word suggestions learn the words and word pairs you type often (never in password fields, terminals or code editors). Stored only on this Mac — never sent over the network or synced with iCloud. Works when macOS “Show inline predictive text” is on."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Button(model.loc("Clear learned words…")) { confirmClearLearned() }
+            }
             Section(header: Label(model.loc("Text tools"), systemImage: "textformat")) {
                 Text(model.loc(SettingsModel.textToolsCaptionKey(toolCount: TextToolsPanelLogic.tools.count)))
                     .font(.caption).foregroundStyle(.secondary)
@@ -1089,31 +1158,6 @@ struct ToolsTab: View {
                 if #available(macOS 26.0, *) {
                     TranslateSettingsRows()
                 }
-            }
-            Section(header: Label(model.loc("Suggestions next to the cursor"), systemImage: "text.cursor")) {
-                Toggle(model.loc("Show maths results"), isOn: $model.mathResults)
-                Text(model.loc("Type a calculation followed by “=” (12*3=, 200+10%=) — the result shows next to the cursor; press Tab or Enter to insert it."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Number chips"), isOn: $model.numberChips)
-                Text(model.loc("Type an amount with k/tr/tỷ (50k, 1tr2, 2 tỷ) and a space — the money format (1.200.000 ₫) shows next to the cursor; press Tab to replace it."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Suggest typo fixes"), isOn: $model.typoHints)
-                Text(model.loc("After a word that isn’t Vietnamese or English (tpoi, nayd, spellnig), a likely fix (tôi, này, spelling) shows next to the cursor; press Tab to replace it. Esc stops suggesting that word."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Suggest tones for unaccented sentences"), isOn: $model.toneHints)
-                Text(model.loc("After 3+ unaccented syllables (toi di hoc), when you type . ! ? or pause after a space, the toned text (tôi đi học) shows next to the cursor; press Tab to replace it."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Suggest dates and times"), isOn: $model.dateHints)
-                Text(model.loc("Type “hôm nay”, “ngày mai”, “hôm qua” or “bây giờ” (after an English word: today, tomorrow, yesterday, now) and a space — the date (28/09/2026) or time (21:35) shows next to the cursor; press Tab to replace the words with it."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Filter sensitive words"), isOn: $model.filterSensitive)
-                Text(model.loc("Word suggestions and typo fixes never offer swear words — typing them yourself works as usual."))
-                    .font(.caption).foregroundStyle(.secondary)
-                // Học từ bạn gõ (LearnedWords.swift) — cạnh "Lọc từ nhạy cảm", cùng nhóm gợi ý từ.
-                Toggle(model.loc("Learn from your typing"), isOn: $model.learnWords)
-                Text(model.loc("Word suggestions learn the words and word pairs you type often (never in password fields, terminals or code editors). Stored only on this Mac — never sent over the network or synced with iCloud. Works when macOS “Show inline predictive text” is on."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Button(model.loc("Clear learned words…")) { confirmClearLearned() }
             }
         }
         .formStyle(.grouped)
@@ -1260,16 +1304,12 @@ struct ModeTableTab: View {
             Text(model.loc("An app types wrong or shows underlines? Pick Tap — real keystrokes, no underline (needs {PANE} permission). Marked text always renders correctly but underlines while typing. The modes below the divider are for special cases — leave them unless you know the app needs one. Clear forgets everything learned; manual picks are kept."))
                 .font(.caption).foregroundStyle(.secondary)
 
-            // Từ tab Thử nghiệm (14/10/2026): cả hai quyết định "app nào gõ thế nào".
+            // Từ tab Thử nghiệm (14/10/2026): "app nào gõ thế nào". "Giữ VietTelex khi macOS tự đổi
+            // bộ gõ" chuyển sang Gõ phím → Chuyển Việt/Anh (spec cleanup §1, 05/11/2026).
             Divider().padding(.vertical, 2)
             Toggle(model.loc("Unknown apps use the safe channel (tap/marked)"),
                    isOn: $model.safeUnknownApps)
             Text(model.loc("Apps without a rule type via backspace-retype (or underlined composition without {PANE} permission) instead of trying direct insertion and guessing. Turn off to restore the old probe-and-learn behavior."))
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Toggle(model.loc("Keep VietTelex when macOS auto-switches the input source"),
-                   isOn: $model.stickyInputSource)
-            Text(model.loc("Some apps (Word comments…) make macOS fall back to the default input source for every new field when “Automatically switch to a document's input source” is on. This switches back to VietTelex — only when the change wasn't yours (no ⌃Space, no menu click, same app)."))
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -1324,8 +1364,8 @@ struct ModeTableTab: View {
 
 // MARK: - Tab: Chung
 
-/// Tab cuối (14/10/2026): icon menu bar (từ Thử nghiệm; phím chuyển bộ gõ đã về Gõ phím), ngôn ngữ,
-/// iCloud, rồi Giới thiệu + cập nhật (gộp tab Giới thiệu cũ), Chẩn đoán ở cuối.
+/// Tab cuối (14/10/2026): ngôn ngữ, icon menu bar, iCloud, cập nhật, Giới thiệu (gộp tab Giới thiệu
+/// cũ), "Nâng cao / Gỡ lỗi" (nhật ký gỡ lỗi) ở cuối.
 struct GeneralTab: View {
     @EnvironmentObject var model: SettingsModel
 
@@ -1335,7 +1375,17 @@ struct GeneralTab: View {
     var body: some View {
         ScrollViewReader { proxy in
             Form {
-                // Phím chuyển bộ gõ: chuyển sang tab Gõ phím → "Gõ mixed Việt/Anh" (05/11/2026).
+                // Thứ tự spec cleanup §4 (05/11/2026): ngôn ngữ, biểu tượng, đồng bộ, cập nhật, (giới
+                // thiệu), Nâng cao / Gỡ lỗi. Phím chuyển bộ gõ ở Gõ phím → Chuyển Việt/Anh.
+                // No Section header: the Picker's own label already says "Language" —
+                // two identical labels stacked read as a bug.
+                Section {
+                    Picker(model.loc("Language"), selection: $model.uiLanguage) {
+                        Text(model.loc("System")).tag("system")
+                        Text("Tiếng Việt").tag("vi")
+                        Text("English").tag("en")
+                    }
+                }
                 Section(header: Label(model.loc("Menu bar icon"), systemImage: "star.square")) {
                     Picker(model.loc("Icon"), selection: $model.menuIcon) {
                         Text("Vᴛ — " + model.loc("default")).tag("vt")
@@ -1347,15 +1397,6 @@ struct GeneralTab: View {
                     if model.menuIconApplied {
                         Text(model.loc("Icon saved — restart your Mac to see it."))
                             .font(.caption).foregroundStyle(.orange)
-                    }
-                }
-                // No Section header: the Picker's own label already says "Language" —
-                // two identical labels stacked read as a bug.
-                Section {
-                    Picker(model.loc("Language"), selection: $model.uiLanguage) {
-                        Text(model.loc("System")).tag("system")
-                        Text("Tiếng Việt").tag("vi")
-                        Text("English").tag("en")
                     }
                 }
                 Section(header: Label(model.loc("iCloud sync"), systemImage: "icloud")) {
@@ -1370,8 +1411,8 @@ struct GeneralTab: View {
                             .font(.caption).foregroundStyle(.orange)
                     }
                 }
-                AboutSection()
                 UpdateSection()
+                AboutSection()
                 DiagnosticsSection()
             }
             .formStyle(.grouped)
@@ -1389,11 +1430,13 @@ struct GeneralTab: View {
 
 /// Chẩn đoán (từ tab Thử nghiệm): nhật ký gỡ lỗi — ghi / chép / lưu / xoá.
 struct DiagnosticsSection: View {
+    /// Tên mục chung desktop (spec cleanup §4): "Nâng cao / Gỡ lỗi".
+    static let headerKey = "Advanced / Debugging"
     @EnvironmentObject var model: SettingsModel
     @State private var saveResult: String?
 
     var body: some View {
-        Section(header: Label(model.loc("Diagnostics"), systemImage: "stethoscope")) {
+        Section(header: Label(model.loc(Self.headerKey), systemImage: "stethoscope")) {
             Toggle(model.loc("Record debug log"), isOn: $model.debugLogging)
             Text(model.loc("Records tap health events in memory (never the text you type). Turn it on, reproduce the problem, then Copy debug log and paste it into your report — or save it as a file."))
                 .font(.caption).foregroundStyle(.secondary)

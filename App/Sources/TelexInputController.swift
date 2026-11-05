@@ -3650,7 +3650,7 @@ func isAsciiLetter(_ c: UInt8) -> Bool {
 /// In VNI the digits carry the diacritics ("a1"→á), so they are word keys; in Telex a
 /// digit ends the word. Extracted so AppTests can pin it — issue #28 (2026-07-27) was
 /// exactly this predicate being letters-only while the engine happily accepted digits.
-/// Numpad digits are NEVER VNI marks (like UniKey): `keypad` = the key came from the
+/// Numpad digits are NEVER VNI marks (common Vietnamese IME behavior): `keypad` = the key came from the
 /// numeric keypad → it ends the word like punctuation and the digit reaches the app (#124).
 @inline(__always)
 func isWordKey(_ c: UInt8, vniMode: Bool, bracketVowels: Bool = false, keypad: Bool = false) -> Bool {

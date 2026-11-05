@@ -998,7 +998,7 @@ final class WordKeyRoutingTests: XCTestCase {
         }
     }
 
-    // #124: numpad digits are never VNI marks (UniKey) — they end the word; the number
+    // #124: numpad digits are never VNI marks (common IME behavior) — they end the word; the number
     // row keeps marking.
     func testKeypadDigitsAreBoundariesEvenInVNI() {
         for c in "0123456789".utf8 {
