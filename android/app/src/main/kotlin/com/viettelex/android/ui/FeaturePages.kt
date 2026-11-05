@@ -89,13 +89,16 @@ enum class FeaturePage(val viTitle: String, val glyph: Glyph, val color: Color, 
  * Chỉ mục ô tìm kiếm: tên cài đặt ([viTitle] = khoá dịch) + từ khoá → trang chứa nó. Tìm khớp
  * CẢ tên tiếng Việt lẫn tên tiếng Anh (bất kể đang chọn ngôn ngữ nào) + từ khoá (Việt/Anh).
  */
-internal data class FeatureSearchEntry(val viTitle: String, val keywords: String, val page: FeaturePage) {
+internal data class FeatureSearchEntry(
+    val viTitle: String, val keywords: String, val page: FeaturePage?,
+    /** Mục của nhóm thu gọn "Gõ mixed Việt/Anh" (tab Kiểu Gõ) — [page] = null. */
+    val mixed: MixedTypingItem? = null,
+) {
     val title: String get() = tr(viTitle)
-    val isPage: Boolean get() = viTitle == page.viTitle
+    val isPage: Boolean get() = page != null && viTitle == page.viTitle
 
     companion object {
         val all = listOf(
-            FeatureSearchEntry("Tự khôi phục từ tiếng Anh", "english google restore", FeaturePage.ChinhTa), // l10n-key
             FeatureSearchEntry("Kiểm tra chính tả khi gõ", "spell check", FeaturePage.ChinhTa), // l10n-key
             FeatureSearchEntry("Sửa dấu từ đã gõ", "sửa dấu con trỏ backspace", FeaturePage.ChinhTa), // l10n-key
             FeatureSearchEntry("Chọn phím thông minh", "chạm trượt smart touch thử nghiệm experimental", FeaturePage.ChinhTa), // l10n-key
@@ -109,7 +112,6 @@ internal data class FeatureSearchEntry(val viTitle: String, val keywords: String
             FeatureSearchEntry("Xóa từ đã học", "xoá học reset", FeaturePage.GoiY), // l10n-key
             FeatureSearchEntry("Gõ vuốt", "swipe vuốt thử nghiệm experimental", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Hiệu ứng nét vuốt", "swipe trail nét vuốt vệt hiệu ứng lửa fire điện electric lightning bút lông brush mực ink cầu vồng rainbow neon bụi sao stardust sparkle pháo hoa firework theo giao diện theme plus", FeaturePage.GoVuot), // l10n-key
-            FeatureSearchEntry("Vuốt từ tiếng Anh", "swipe english", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Mô hình neural gõ vuốt", "futo neural swipe", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Luyện vuốt", "practice swipe", FeaturePage.GoVuot), // l10n-key
             FeatureSearchEntry("Gõ tắt", "shortcut viết tắt", FeaturePage.GoTat), // l10n-key
@@ -126,7 +128,6 @@ internal data class FeatureSearchEntry(val viTitle: String, val keywords: String
             FeatureSearchEntry("Giữ phím hàng trên để ra số", "số giữ lâu number long press", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Giữ phím hàng 2, 3 để ra ký tự đặc biệt", "ký hiệu symbol @ # giữ lâu long press", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Giữ Shift để gõ số và ký hiệu", "shift giữ hold số number ký hiệu symbol 123", FeaturePage.Phim), // l10n-key
-            FeatureSearchEntry("Vuốt phím cách đổi Tiếng Việt / Tiếng Anh", "space ngôn ngữ english language", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Độ nhạy con trỏ", "trackpad con trỏ cursor phím cách space kéo tốc độ nhạy sensitivity speed", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Vuốt phím để sao chép/dán", "copy paste cut undo redo select sao chép dán cắt hoàn tác chọn hết clipboard vuốt lên swipe", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Chế độ một tay", "one hand một tay", FeaturePage.Phim), // l10n-key
@@ -154,7 +155,7 @@ internal data class FeatureSearchEntry(val viTitle: String, val keywords: String
             FeatureSearchEntry("Lịch sử clipboard", "copy dán clipboard paste giữ lịch sử 24 giờ 7 ngày keep history", FeaturePage.RiengTu), // l10n-key
             FeatureSearchEntry("Chế độ ẩn danh", "incognito riêng tư privacy", FeaturePage.RiengTu), // l10n-key
             FeatureSearchEntry("Xuất / nhập file sao lưu", "backup export import restore", FeaturePage.SaoLuu), // l10n-key
-        )
+        ) + MixedTypingItem.entries.map { FeatureSearchEntry(it.viTitle, it.keywords, null, it) }
 
         /** Bỏ dấu + chữ thường ("trong suot" khớp "trong suốt"). */
         fun fold(s: String): String =
@@ -250,6 +251,23 @@ private fun FeatureRow(p: FeaturePage, title: String, subtitle: String, badge: B
     }
 }
 
+/** Kết quả tìm trỏ về nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ). */
+@Composable
+private fun MixedSearchRow(title: String, onClick: () -> Unit) {
+    val c = LocalVT.current
+    VTRow(onClick = onClick) {
+        Box(Modifier.size(29.dp).background(Color(0xFF30B0C7), RoundedCornerShape(7.dp)), contentAlignment = Alignment.Center) {
+            GlyphIcon(Glyph.Globe, Color.White, 18.dp)
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = VTType.body, color = c.label)
+            Text(AppTab.KieuGo.title + " › " + tr(MIXED_TITLE), style = VTType.footnote, color = c.secondary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Text("›", style = VTType.title3, color = c.tertiary)
+    }
+}
+
 /** Đầu trang con: "‹ Tính Năng" + tên nhóm. */
 @Composable
 internal fun SubPageHeader(title: String, onBack: () -> Unit) {
@@ -299,7 +317,6 @@ private fun FeatureHome(onOpen: (FeaturePage) -> Unit) {
     val ctx = LocalContext.current
     var query by rememberSaveable { mutableStateOf("") }
 
-    val autoRestore by rememberBoolPref(Keys.AUTO_RESTORE, Prefs.D.autoRestore)
     val liveSpell by rememberBoolPref(Keys.LIVE_SPELL_CHECK, Prefs.D.liveSpellCheck)
     val reEdit by rememberBoolPref(Keys.RE_EDIT_WORDS, Prefs.D.reEditWords)
     val autoCorrect by rememberBoolPref(Keys.AUTO_CORRECT, Prefs.D.autoCorrect)
@@ -307,12 +324,10 @@ private fun FeatureHome(onOpen: (FeaturePage) -> Unit) {
     val numberChips by rememberBoolPref(Keys.NUMBER_CHIPS, Prefs.D.numberChips)
     val addTones by rememberBoolPref(Keys.ADD_TONES_CHIP, Prefs.D.addTonesChip)
     val swipe by rememberBoolPref(Keys.SWIPE_TYPING, Prefs.D.swipeTyping)
-    val swipeEn by rememberBoolPref(Keys.SWIPE_ENGLISH, Prefs.D.swipeEnglish)
     val swipeFuto by rememberBoolPref(Keys.SWIPE_FUTO, Prefs.D.swipeFuto)
     val shortcutsOn by rememberBoolPref(Keys.SHORTCUTS_ENABLED, Prefs.D.shortcutsEnabled)
     val templatesOn by rememberBoolPref(Keys.TEMPLATES_ENABLED, Prefs.D.templatesEnabled)
     val numberRow by rememberBoolPref(Keys.NUMBER_ROW, Prefs.D.numberRow)
-    val spaceSwipe by rememberBoolPref(Keys.SPACE_SWIPE_LANGUAGE, Prefs.D.spaceSwipeLanguage)
     val keyCmds by rememberBoolPref(Keys.SWIPE_KEY_COMMANDS, Prefs.D.swipeKeyCommands)
     val autoSpace by rememberBoolPref(Keys.AUTO_SPACE_AFTER_PUNCT, Prefs.D.autoSpaceAfterPunct)
     val haptic by rememberBoolPref(Keys.HAPTIC_FEEDBACK, Prefs.D.hapticFeedback)
@@ -335,18 +350,18 @@ private fun FeatureHome(onOpen: (FeaturePage) -> Unit) {
         parts.filter { it.first }.joinToString(" · ") { it.second }.ifEmpty { none }
 
     fun summary(p: FeaturePage): String = when (p) {
-        FeaturePage.ChinhTa -> join(autoRestore to tr("Khôi phục tiếng Anh"), liveSpell to tr("Kiểm tra chính tả"),
+        FeaturePage.ChinhTa -> join(liveSpell to tr("Kiểm tra chính tả"),
             reEdit to tr("Sửa dấu"), autoCorrect to tr("Tự sửa"), none = tr("Đang tắt"))
         FeaturePage.GoiY -> if (!suggestions) tr("Tắt thanh gợi ý")
             else join(true to tr("Thanh gợi ý"), numberChips to tr("Chip số"), addTones to tr("Thêm dấu"), none = "")
-        FeaturePage.GoVuot -> if (!swipe) tr("Đang tắt") else join(true to tr("Bật"), swipeEn to tr("Tiếng Anh"), swipeFuto to "Neural", none = "")
+        FeaturePage.GoVuot -> if (!swipe) tr("Đang tắt") else join(true to tr("Bật"), swipeFuto to "Neural", none = "")
         FeaturePage.GoTat -> (if (!shortcutsOn) tr("Gõ tắt tắt") else if (shortcutCount == 0) tr("Gõ tắt bật") else tr("Gõ tắt: %d mục", shortcutCount)) +
             " · " + if (templatesOn) tr("Mẫu câu bật") else tr("Mẫu câu tắt")
         FeaturePage.Phim -> join(numberRow to tr("Hàng số"),
             (SpaceSideKey.of(sideKey) != SpaceSideKey.DEFAULT) to tr("Phím cạnh dấu cách"),
             (largeKeys && phone) to tr("Phím to"),
             (EmojiKeyPlacement.of(emojiPlace) != EmojiKeyPlacement.DEFAULT) to tr("Nút emoji"),
-            (KeyLabelSize.of(labelSize) != KeyLabelSize.DEFAULT) to tr("Cỡ chữ trên phím"), spaceSwipe to tr("Vuốt phím cách"),
+            (KeyLabelSize.of(labelSize) != KeyLabelSize.DEFAULT) to tr("Cỡ chữ trên phím"),
             keyCmds to tr("Vuốt sao chép/dán"),
             autoSpace to tr("Cách sau dấu câu"), haptic to tr("Rung"), keySound to tr("Âm"),
             (oneHand != "off") to tr("Một tay"), floating to tr("Thả nổi"), hardware to tr("Bàn phím cứng"), none = tr("Mặc định"))
@@ -389,8 +404,14 @@ private fun FeatureHome(onOpen: (FeaturePage) -> Unit) {
             if (hits.isEmpty()) VTRow { Text(tr("Không tìm thấy cài đặt nào."), style = VTType.body, color = c.secondary) }
             hits.forEachIndexed { i, e ->
                 if (i > 0) RowDivider(57.dp)
-                val isPage = e.isPage
-                FeatureRow(e.page, e.title, if (isPage) summary(e.page) else e.page.title, isPage && e.page.experimental) { onOpen(e.page) }
+                val p = e.page
+                if (p != null) {
+                    val isPage = e.isPage
+                    FeatureRow(p, e.title, if (isPage) summary(p) else p.title, isPage && p.experimental) { onOpen(p) }
+                } else if (e.mixed != null) {
+                    // Nhóm "Gõ mixed Việt/Anh" ở tab Kiểu Gõ: RootScreen đổi tab, nhóm mở ra + cuộn tới dòng.
+                    MixedSearchRow(e.title) { MixedTypingFocus.request.value = e.mixed }
+                }
             }
         }
     }
@@ -401,9 +422,8 @@ private fun FeatureHome(onOpen: (FeaturePage) -> Unit) {
 @Composable
 private fun ChinhTaPage(onBack: () -> Unit) {
     SubPageHeader(FeaturePage.ChinhTa.title, onBack)
+    // "Tự khôi phục từ tiếng Anh" chuyển sang nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ, 05/11/2026).
     VTSection(header = tr("Chính tả")) {
-        BoolToggle(Keys.AUTO_RESTORE, Prefs.D.autoRestore, tr("Tự khôi phục từ tiếng Anh"), tr("Từ không phải tiếng Việt trả về như đã gõ (google, github…)."))
-        RowDivider()
         BoolToggle(Keys.LIVE_SPELL_CHECK, Prefs.D.liveSpellCheck, tr("Kiểm tra chính tả khi gõ"), tr("Ngừng bỏ dấu khi từ không thể là tiếng Việt."))
         RowDivider()
         BoolToggle(Keys.RE_EDIT_WORDS, Prefs.D.reEditWords, tr("Sửa dấu từ đã gõ"), tr("⌫ ngay sau dấu cách để sửa tiếp từ vừa gõ (tháy ␣ ⌫ a → thấy), hoặc đặt con trỏ sau từ rồi gõ phím dấu: chao + f → chào."))
@@ -491,9 +511,7 @@ private fun GoVuotPage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
         ExperimentalToggle(Keys.SWIPE_TYPING, Prefs.D.swipeTyping, tr("Gõ vuốt"),
             tr("Lướt qua các chữ không dấu rồi nhấc tay: viet → việt. Gõ phím dấu ngay sau để đổi dấu, ⌫ xoá cả từ."))
         if (swipeOn) {
-            RowDivider()
-            BoolToggle(Keys.SWIPE_ENGLISH, Prefs.D.swipeEnglish, tr("Vuốt từ tiếng Anh"),
-                tr("check, mail, meeting… Nét vừa Việt vừa Anh (the/thế) ưu tiên tiếng Việt, phương án kia ở thanh gợi ý."))
+            // "Vuốt từ tiếng Anh" chuyển sang nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ, 05/11/2026).
             RowDivider()
             BoolToggle(Keys.SWIPE_FUTO, Prefs.D.swipeFuto, tr("Mô hình neural gõ vuốt"),
                 tr("Mạng neural chạy hoàn toàn trên máy, chấm cùng bộ giải mã. Tốn thêm ~3 MB bộ nhớ."))
@@ -695,10 +713,8 @@ private fun PhimPage(onBack: () -> Unit) {
         BoolToggle(Keys.AUTO_SPACE_AFTER_PUNCT, Prefs.D.autoSpaceAfterPunct, tr("Tự thêm dấu cách sau dấu câu"),
             tr("Gõ . , ? ! ; : tự có dấu cách phía sau. Không thêm trong số (3.5, 1,000), email, đường dẫn. Gõ dấu cách ngay sau không thành hai dấu cách; ⌫ ngay sau chỉ xoá dấu cách đó."))
     }
+    // "Vuốt phím cách đổi Tiếng Việt / Tiếng Anh" chuyển sang nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ).
     VTSection(header = tr("Cử chỉ")) {
-        BoolToggle(Keys.SPACE_SWIPE_LANGUAGE, Prefs.D.spaceSwipeLanguage, tr("Vuốt phím cách đổi Tiếng Việt / Tiếng Anh"),
-            tr("Vuốt nhanh phím cách sang trái/phải. Góc phím cách hiện VI / EN. Tiếng Anh gõ nguyên văn. Giữ rồi kéo vẫn là di con trỏ."))
-        RowDivider()
         // "Độ nhạy con trỏ" Chậm / Vừa (mặc định) / Nhanh — TrackpadSpeed, cùng khoá iOS.
         ChoiceRow(Keys.TRACKPAD_SPEED, Prefs.D.trackpadSpeed.id, tr("Độ nhạy con trỏ"),
             tr("Giữ phím cách rồi kéo để di con trỏ. Kéo chậm luôn đi từng ký tự; mức này chỉnh độ tăng tốc khi kéo nhanh."),

@@ -91,12 +91,15 @@ struct FeatureSearchEntry: Identifiable {
     let viTitle: String
     var title: String { L(viTitle) }
     let keywords: String
-    let page: FeaturePage
-    var id: String { page.rawValue + viTitle }
+    /// Trang Tính Năng chứa mục — nil với mục của nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ).
+    let page: FeaturePage?
+    /// Mục thuộc nhóm thu gọn "Gõ mixed Việt/Anh": chọn ⇒ sang tab Kiểu Gõ, mở nhóm, cuộn tới.
+    var mixed: MixedTypingItem? = nil
+    var id: String { (page?.rawValue ?? "mixed") + viTitle }
+    var isPage: Bool { page.map { $0.viTitle == viTitle } ?? false }
 
     static var all: [FeatureSearchEntry] {
         var e: [FeatureSearchEntry] = [
-            .init(viTitle: LK("Tự khôi phục từ tiếng Anh"), keywords: "english google restore", page: .chinhTa),
             .init(viTitle: LK("Kiểm tra chính tả khi gõ"), keywords: "spell check", page: .chinhTa),
             .init(viTitle: LK("Sửa dấu từ đã gõ"), keywords: "sửa dấu con trỏ backspace", page: .chinhTa),
             .init(viTitle: LK("Chọn phím thông minh"), keywords: "chạm trượt smart touch thử nghiệm", page: .chinhTa),
@@ -112,7 +115,6 @@ struct FeatureSearchEntry: Identifiable {
             .init(viTitle: LK("Xoá từ đã học"), keywords: "xoá học reset", page: .goiY),
             .init(viTitle: LK("Gõ vuốt"), keywords: "swipe vuốt thử nghiệm", page: .goVuot),
             .init(viTitle: LK("Hiệu ứng nét vuốt"), keywords: "swipe trail nét vuốt vệt hiệu ứng lửa fire điện electric lightning bút lông brush mực ink cầu vồng rainbow neon bụi sao stardust sparkle pháo hoa firework theo giao diện theme plus", page: .goVuot),
-            .init(viTitle: LK("Vuốt từ tiếng Anh"), keywords: "swipe english", page: .goVuot),
             .init(viTitle: LK("Mô hình neural gõ vuốt"), keywords: "futo neural swipe", page: .goVuot),
             .init(viTitle: LK("Luyện vuốt"), keywords: "practice swipe", page: .goVuot),
             .init(viTitle: LK("Gõ tắt"), keywords: "shortcut viết tắt", page: .goTat),
@@ -123,7 +125,6 @@ struct FeatureSearchEntry: Identifiable {
             .init(viTitle: LK("Phím cạnh dấu cách"), keywords: "dấu phẩy dấu chấm comma period key next to space", page: .phim),
             .init(viTitle: LK("Phím to"), keywords: "larger keys phím lớn dấu phẩy dấu chấm shift xoá comma period backspace bấm nhầm", page: .phim),
             .init(viTitle: LK("Giữ phím ra ký tự đặc biệt"), keywords: "ký hiệu symbol @ # giữ lâu", page: .phim),
-            .init(viTitle: LK("Vuốt phím cách đổi Tiếng Việt / Tiếng Anh"), keywords: "space ngôn ngữ english language", page: .phim),
             .init(viTitle: LK("Độ nhạy con trỏ"), keywords: "trackpad con trỏ cursor phím cách space kéo tốc độ nhạy sensitivity speed", page: .phim),
             .init(viTitle: LK("Vuốt phím để sao chép/dán"), keywords: "copy paste cut sao chép dán cắt clipboard vuốt lên swipe", page: .phim),
             .init(viTitle: LK("Phóng to chữ khi bấm"), keywords: "key preview popup", page: .phim),
@@ -150,6 +151,8 @@ struct FeatureSearchEntry: Identifiable {
             .init(viTitle: LK("Chế độ ẩn danh"), keywords: "incognito riêng tư", page: .riengTu),
             .init(viTitle: LK("Xuất / nhập file sao lưu"), keywords: "backup export import restore", page: .saoLuu),
         ]
+        // Nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ) — tên + từ khoá ở Shared/MixedTypingUI.swift.
+        e += MixedTypingItem.allCases.map { .init(viTitle: $0.viTitle, keywords: $0.keywords, page: nil, mixed: $0) }
         if UIDevice.current.userInterfaceIdiom == .phone {
             e.append(.init(viTitle: LK("Giữ phím hàng trên để ra số"), keywords: "số giữ lâu number", page: .phim))
             e.append(.init(viTitle: LK("Giữ Shift để gõ số và ký hiệu"), keywords: "shift giữ hold số number ký hiệu symbol 123", page: .phim))
@@ -173,22 +176,14 @@ struct FeatureSearchEntry: Identifiable {
         return e
     }
 
-    /// So khớp không phân biệt hoa/thường và dấu (gõ "trong suot" vẫn ra).
-    static func fold(_ s: String) -> String {
-        s.replacingOccurrences(of: "đ", with: "d").replacingOccurrences(of: "Đ", with: "D")
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-    }
-
+    /// So khớp không phân biệt hoa/thường và dấu (gõ "trong suot" vẫn ra) — SettingsSearch (Shared).
     static func search(_ query: String) -> [FeatureSearchEntry] {
-        let words = fold(query).split(separator: " ").map(String.init)
+        let words = SettingsSearch.words(query)
         guard !words.isEmpty else { return [] }
         let pageHits = FeaturePage.allCases.map {
             FeatureSearchEntry(viTitle: $0.viTitle, keywords: "", page: $0)
         }
-        return (pageHits + all).filter { e in
-            let hay = fold(e.viTitle + " " + (L10n.en[e.viTitle] ?? "") + " " + e.keywords)
-            return words.allSatisfy { hay.contains($0) }
-        }
+        return (pageHits + all).filter { SettingsSearch.matches(viTitle: $0.viTitle, keywords: $0.keywords, words: words) }
     }
 }
 
@@ -264,7 +259,6 @@ struct TinhNangSections: View {
     @State private var theme = ThemeSettings.load(featureDefaults)
 
     // Chỉ để dựng dòng tóm tắt — trang con ghi, @AppStorage tự cập nhật.
-    @AppStorage("autoRestore", store: featureDefaults) private var autoRestore = true
     @AppStorage("liveSpellCheck", store: featureDefaults) private var liveSpellCheck = true
     @AppStorage("reEditWord", store: featureDefaults) private var reEditWord = true
     @AppStorage("autoCorrect", store: featureDefaults) private var autoCorrect = false
@@ -272,13 +266,11 @@ struct TinhNangSections: View {
     @AppStorage("emojiSuggest", store: featureDefaults) private var emojiSuggest = true
     @AppStorage("numberChips", store: featureDefaults) private var numberChips = true
     @AppStorage("swipeTyping", store: featureDefaults) private var swipeTyping = false
-    @AppStorage("swipeEnglish", store: featureDefaults) private var swipeEnglish = true
     @AppStorage("swipeFuto", store: featureDefaults) private var swipeFuto = false
     @AppStorage(ShortcutFile.enabledKey, store: featureDefaults) private var shortcutsEnabled = true
     @AppStorage("templatesEnabled", store: featureDefaults) private var templatesEnabled = true
     @AppStorage("numberRow", store: featureDefaults) private var numberRow = false
     @AppStorage(KeyGeometry.numberRowFullHeightKey, store: featureDefaults) private var numberRowFullHeight = false
-    @AppStorage("spaceSwipeLanguage", store: featureDefaults) private var spaceSwipeLanguage = false
     @AppStorage("swipeKeyCommands", store: featureDefaults) private var swipeKeyCommands = false
     @AppStorage("autoSpaceAfterPunct", store: featureDefaults) private var autoSpaceAfterPunct = false
     @AppStorage("hapticFeedback", store: featureDefaults) private var hapticFeedback = false
@@ -301,14 +293,14 @@ struct TinhNangSections: View {
     private func summary(_ p: FeaturePage) -> String {
         switch p {
         case .chinhTa:
-            return Self.join([(autoRestore, L("Khôi phục tiếng Anh")), (liveSpellCheck, L("Kiểm tra chính tả")),
+            return Self.join([(liveSpellCheck, L("Kiểm tra chính tả")),
                               (reEditWord, L("Sửa dấu")), (autoCorrect, L("Tự sửa"))], none: L("Đang tắt"))
         case .goiY:
             guard showSuggestions else { return L("Tắt thanh gợi ý") }
             return Self.join([(true, L("Thanh gợi ý")), (emojiSuggest, "Emoji"), (numberChips, L("Chip số"))], none: "")
         case .goVuot:
             guard swipeTyping else { return L("Đang tắt") }
-            return Self.join([(true, L("Bật")), (swipeEnglish, L("Tiếng Anh")), (swipeFuto, "Neural")], none: "")
+            return Self.join([(true, L("Bật")), (swipeFuto, "Neural")], none: "")
         case .goTat:
             let st = shortcutsEnabled ? (shortcutCount == 0 ? L("Gõ tắt bật") : L("Gõ tắt: %@ mục", shortcutCount)) : L("Gõ tắt tắt")
             let tools = textToolsEnabled && PlusGate.isUnlocked(.textTools)
@@ -319,7 +311,6 @@ struct TinhNangSections: View {
                               (SpaceSideKey.parse(spaceSideKey) != .defaultValue, L("Phím cạnh dấu cách")),
                               (EmojiKeyPlacement.parse(emojiKeyPlacement) != .defaultValue, L("Nút emoji")),
                               (largeKeys && UIDevice.current.userInterfaceIdiom == .phone, L("Phím to")),
-                              (spaceSwipeLanguage, L("Vuốt phím cách")),
                               (swipeKeyCommands, L("Vuốt sao chép/dán")),
                               (autoSpaceAfterPunct, L("Cách sau dấu câu")),
                               (hapticFeedback, L("Rung")), (keySound, L("Âm phím")),
@@ -384,12 +375,36 @@ struct TinhNangSections: View {
                     Text(L("Không tìm thấy cài đặt nào.")).foregroundStyle(.secondary)
                 }
                 ForEach(hits) { e in
-                    NavigationLink { e.page.destination } label: {
-                        row(e.page, title: e.title, subtitle: e.viTitle == e.page.viTitle ? summary(e.page) : e.page.title)
+                    if let p = e.page {
+                        NavigationLink { p.destination } label: {
+                            row(p, title: e.title, subtitle: e.isPage ? summary(p) : p.title)
+                        }
+                    } else if let m = e.mixed {
+                        // Nhóm "Gõ mixed Việt/Anh" ở tab Kiểu Gõ: RootView đổi tab, mở nhóm, cuộn tới dòng.
+                        Button { MixedTypingFocus.shared.request = m } label: { mixedRow(e.title) }
+                            .buttonStyle(.plain)
                     }
                 }
             } header: { Text(L("Kết quả")) }
         }
+    }
+
+    /// Dòng kết quả trỏ về nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ).
+    private func mixedRow(_ title: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "globe")
+                .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+                .frame(width: 29, height: 29)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.teal))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(AppTab.kieuGo.title + " › " + L(MixedTypingUI.titleKey))
+                    .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
     }
 
     private func row(_ p: FeaturePage, title: String? = nil, subtitle: String) -> some View {
@@ -409,7 +424,7 @@ struct TinhNangSections: View {
 // ============================================================== Trang con
 
 struct ChinhTaPage: View {
-    @AppStorage("autoRestore", store: featureDefaults) private var autoRestore = true
+    // "Tự khôi phục từ tiếng Anh" chuyển sang nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ, 05/11/2026).
     @AppStorage("liveSpellCheck", store: featureDefaults) private var liveSpellCheck = true
     @AppStorage("reEditWord", store: featureDefaults) private var reEditWord = true
     /// Thử nghiệm — mặc định BẬT, xem KeyboardSettings.smartTouch.
@@ -423,7 +438,6 @@ struct ChinhTaPage: View {
     var body: some View {
         FeaturePageList(page: .chinhTa) {
             Section {
-                settingToggle(L("Tự khôi phục từ tiếng Anh"), L("Từ không phải tiếng Việt trả về như đã gõ (google, github…)."), isOn: $autoRestore)
                 settingToggle(L("Kiểm tra chính tả khi gõ"), L("Ngừng bỏ dấu khi từ không thể là tiếng Việt."), isOn: $liveSpellCheck)
                 settingToggle(L("Sửa dấu từ đã gõ"), L("⌫ ngay sau dấu cách để sửa tiếp từ vừa gõ (tháy ␣ ⌫ a → thấy), hoặc đặt con trỏ sau từ rồi gõ phím dấu: viêt + j → việt."), isOn: $reEditWord)
             } header: { Text(L("Chính tả")) }
@@ -565,8 +579,7 @@ struct SuggestionCountRow: View {
 
 struct GoVuotPage: View {
     @AppStorage("swipeTyping", store: featureDefaults) private var swipeTyping = false
-    /// Công tắc con — mặc định BẬT, xem KeyboardSettings.swipeEnglish.
-    @AppStorage("swipeEnglish", store: featureDefaults) private var swipeEnglish = true
+    // "Vuốt từ tiếng Anh" (swipeEnglish) chuyển sang nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ, 05/11/2026).
     /// Decoder FUTO Swipe — mặc định TẮT, xem KeyboardSettings.swipeFuto.
     @AppStorage("swipeFuto", store: featureDefaults) private var swipeFuto = false
     /// "Hiệu ứng nét vuốt" (SwipeTrailStyle) — trang con SwipeTrailPickerView.
@@ -577,7 +590,6 @@ struct GoVuotPage: View {
             Section {
                 experimentalToggle(L("Gõ vuốt"), L("Vuốt qua các chữ không dấu rồi nhấc tay: v→i→e→t ra “việt”. Gõ phím dấu ngay sau để đổi dấu, ⌫ xoá cả từ. Chỉ trên iPhone."), isOn: $swipeTyping)
                 if swipeTyping {
-                    settingToggle(L("Vuốt từ tiếng Anh"), L("check, mail, meeting… Nét vừa Việt vừa Anh (the/thế) ưu tiên tiếng Việt, phương án kia ở thanh gợi ý."), isOn: $swipeEnglish)
                     settingToggle(L("Mô hình neural gõ vuốt"), L("Mạng neural chạy hoàn toàn trên máy, chấm cùng bộ giải mã. Tốn thêm ~3 MB bộ nhớ."), isOn: $swipeFuto)
                     // Ghi công BẮT BUỘC theo FUTO Model Weights License 1.0 ("visible notice …
                     // within the product's settings") — Phil 27/09/2026: chỉ hiện ở đây (dưới công
@@ -656,8 +668,7 @@ struct PhimPage: View {
     @AppStorage("longPressSymbols", store: featureDefaults) private var longPressSymbols = false
     /// Giữ ⇧ + phím chữ ra ký tự phụ (ShiftHold) — mặc định BẬT.
     @AppStorage("holdShiftSymbols", store: featureDefaults) private var holdShiftSymbols = true
-    /// Vuốt phím cách đổi Tiếng Việt ↔ Tiếng Anh — mặc định TẮT (KeyboardSettings.spaceSwipeLanguage).
-    @AppStorage("spaceSwipeLanguage", store: featureDefaults) private var spaceSwipeLanguage = false
+    // "Vuốt phím cách đổi Tiếng Việt / Tiếng Anh" chuyển sang nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ).
     /// Vuốt phím C / X / V lên ra lệnh sao chép / cắt / dán — mặc định TẮT (KeyCommandGesture).
     @AppStorage("swipeKeyCommands", store: featureDefaults) private var swipeKeyCommands = false
     /// "Độ nhạy con trỏ" khi giữ phím cách: "slow" | "medium" (mặc định) | "fast" (TrackpadSpeed).
@@ -732,7 +743,6 @@ struct PhimPage: View {
                 settingToggle(L("Tự thêm dấu cách sau dấu câu"), L("Gõ . , ? ! ; : tự có dấu cách phía sau. Không thêm trong số (3.5, 1,000), email, đường dẫn. Gõ dấu cách ngay sau không thành hai dấu cách; ⌫ ngay sau chỉ xoá dấu cách đó."), isOn: $autoSpaceAfterPunct)
             } header: { Text(L("Phím")) }
             Section {
-                settingToggle(L("Vuốt phím cách đổi Tiếng Việt / Tiếng Anh"), L("Vuốt nhanh phím cách sang trái/phải. Góc phím cách hiện VI / EN. Tiếng Anh gõ nguyên văn. Giữ rồi kéo vẫn là di con trỏ."), isOn: $spaceSwipeLanguage)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(L("Độ nhạy con trỏ"))
                     Picker(L("Độ nhạy con trỏ"), selection: Binding(

@@ -1,4 +1,4 @@
-# Spec: Onboarding người dùng mới + mục "Gõ Việt–Anh"
+# Spec: Onboarding người dùng mới + mục "Gõ mixed Việt/Anh"
 
 Trạng thái: **nháp — chờ duyệt** · 05/11/2026
 Phạm vi: iOS, Android, macOS, Windows (Linux theo sau nếu có màn cài đặt tương ứng).
@@ -53,33 +53,40 @@ Hồ sơ `en` = như `mixed`, thêm: ngôn ngữ khởi đầu của bàn phím 
 
 Mọi tính năng còn "thử nghiệm" chỉ được đưa vào hồ sơ `mixed` khi đã qua bộ đo; không hỏi người dùng "có bật tính năng thử nghiệm không".
 
-## 4. Mục cài đặt mới "Gõ Việt–Anh"
+## 4. Nhóm cài đặt "Gõ mixed Việt/Anh"
 
-Một trang riêng, cùng cấp với Kiểu gõ / Chính tả / Gợi ý / Gõ vuốt…, cùng tên và thứ tự trên mọi nền tảng.
+**Đã làm (iOS + Android, 05/11/2026)** — theo yêu cầu Phil: không phải trang riêng mà là **một nhóm thu gọn được nằm trong tab Kiểu Gõ, ngay dưới mục Kiểu gõ**, cùng tên + thứ tự trên mọi nền tảng.
 
-Đầu trang: bộ chọn nhanh **"Chủ yếu tiếng Việt / Việt + Anh nhiều / Chủ yếu tiếng Anh"** — bấm = áp bộ cài đặt ở §3 (có xác nhận nếu sẽ đổi công tắc người dùng đã tự chỉnh). Không có trạng thái "đang ở hồ sơ nào"; nếu cài đặt khớp đúng một hồ sơ thì tô hồ sơ đó, không khớp thì hiện "Tuỳ chỉnh".
+- Dòng tiêu đề "Gõ mixed Việt/Anh" (icon quả địa cầu + tóm tắt công tắc đang bật + mũi tên). Chạm = mở/thu gọn.
+- **Mặc định thu gọn.** Trạng thái mở/thu gọn chỉ nhớ **trong phiên chạy app** (không lưu): mở lại app là thu gọn.
+- Vì vẫn ở cùng tab nên **không** có dòng "Đã chuyển sang …" ở chỗ cũ.
+- Ô tìm cài đặt (FeatureSearch, tab Tính Năng) khớp một mục trong nhóm ⇒ chuyển sang tab Kiểu Gõ, mở nhóm, cuộn tới dòng đó và tô sáng ~1,6 s. Mục con đang ẩn (xem dưới) ⇒ cuộn tới công tắc cha "Quyết định theo ngữ cảnh". Tìm "Gõ mixed" / "mixed" ra chính nhóm.
+- Key lưu không đổi ⇒ hành vi và sao lưu/khôi phục giữ nguyên.
+- Mã: iOS `Shared/MixedTypingUI.swift` (danh mục, thuần, có test) + `App/MixedTypingSection.swift`; Android `ui/MixedTyping.kt`.
 
-Nhóm công tắc (chuyển từ các trang cũ sang, trang cũ giữ một dòng liên kết "Đã chuyển sang Gõ Việt–Anh" trong 1–2 bản):
+Nhóm công tắc (chuyển từ chỗ cũ sang):
 
 1. **Nhận diện tiếng Anh**
-   - Tự khôi phục từ tiếng Anh
-   - Quyết định theo ngữ cảnh
-   - Tự sửa từ phía trước (chỉ hiện khi bật ngữ cảnh)
-   - Đoán theo tần suất cho từ trùng (nhãn "Thử nghiệm" tới khi chốt)
-   - (macOS) Ưu tiên tiếng Việt khi từ trùng
+   - Tự khôi phục từ tiếng Anh (`autoRestore`) — trước ở Tính Năng → Chính tả & sửa lỗi
+   - Quyết định theo ngữ cảnh (`contextualEnglish`) — trước ở mục Kiểu gõ
+   - Tự sửa từ phía trước (`retroactiveEnglish`, chỉ hiện khi bật ngữ cảnh và không VNI) — trước ở mục Kiểu gõ
+   - Đoán từ trùng theo tần suất (`englishByFrequency`, nhãn "Thử nghiệm", cùng điều kiện hiện như trên) — trước ở mục Kiểu gõ
+   - (macOS) Ưu tiên tiếng Việt khi từ trùng — khi làm macOS
 2. **Chuyển ngôn ngữ**
-   - Vuốt phím cách đổi Việt/Anh (iOS/Android)
+   - Vuốt phím cách đổi Tiếng Việt / Tiếng Anh (`spaceSwipeLanguage`, iOS/Android) — trước ở Tính Năng → Phím & cử chỉ
    - Phím tắt đổi ngôn ngữ (macOS/Windows — nếu có)
 3. **Gợi ý & gõ vuốt tiếng Anh**
-   - Vuốt từ tiếng Anh
-   - (liên kết tới Từ điển cá nhân để thêm từ tiếng Anh riêng)
+   - Vuốt từ tiếng Anh (`swipeEnglish`) — trước ở Tính Năng → Gõ vuốt (chỉ hiện khi bật Gõ vuốt); nay luôn hiện, mờ + ghi chú "Cần bật Gõ vuốt" khi Gõ vuốt tắt
+   - Liên kết Từ điển cá nhân (vẫn còn ở Gợi ý & từ điển)
 
-Ô tìm kiếm cài đặt (FeatureSearch) trỏ các mục trên về trang mới. Sao lưu/khôi phục: key không đổi ⇒ không cần đổi định dạng backup.
+Các mục khác của mục Kiểu gõ (Telex/VNI, Telex đơn giản, Bỏ dấu tự do, Gõ nhanh, Bỏ dấu kiểu mới, Tự động viết hoa, Chính tả teencode; Android thêm Gợi ý sửa lỗi chạm trượt) không phải gõ trộn ⇒ giữ nguyên.
+
+**Chưa làm:** bộ chọn nhanh **"Chủ yếu tiếng Việt / Việt + Anh nhiều / Chủ yếu tiếng Anh"** ở đầu nhóm (bấm = áp bộ cài đặt ở §3, có xác nhận nếu sẽ đổi công tắc người dùng đã tự chỉnh; cài đặt khớp đúng một hồ sơ thì tô hồ sơ đó, không khớp thì "Tuỳ chỉnh") — làm cùng onboarding §2/§3.
 
 ## 5. Người dùng cũ
 
 - Không chạy onboarding. `onboardingDone` được đặt `true` khi phát hiện đã có cài đặt cũ (bản nâng cấp).
-- Hiện **một lần** thẻ nhỏ trong app: "Bạn hay gõ trộn Anh/Việt? Xem mục Gõ Việt–Anh mới" → mở trang §4. Đóng là không hiện lại.
+- Hiện **một lần** thẻ nhỏ trong app: "Bạn hay gõ trộn Anh/Việt? Xem nhóm Gõ mixed Việt/Anh mới" → mở tab Kiểu Gõ, mở sẵn nhóm §4. Đóng là không hiện lại.
 - Không đổi bất kỳ giá trị nào của người dùng cũ.
 
 ## 6. Ngưỡng để đưa tính năng thử nghiệm vào hồ sơ `mixed`
@@ -89,7 +96,7 @@ Dùng bộ đo trộn Việt–Anh (đang xây cùng việc cải thiện nhận
 - Câu tiếng Anh và câu trộn: tỉ lệ từ sai **giảm rõ** (mục tiêu ≥ 30% tương đối).
 - Không tăng chi phí gõ khi tắt (perf test hiện có).
 
-Đạt cả ba ⇒ bật trong `mixed`; không đạt ⇒ chỉ để công tắc trong trang §4.
+Đạt cả ba ⇒ bật trong `mixed`; không đạt ⇒ chỉ để công tắc trong nhóm §4.
 
 ## 7. Vuốt phím cách khi đang gõ dở một từ (iOS, Android)
 
@@ -140,7 +147,7 @@ Khi từ đang soạn **không hợp lệ** (không phải âm tiết Việt, kh
 ## 9. Thứ tự làm
 
 1. §7 (vuốt phím cách đổi từ đang soạn) và §8 (tô nền gợi ý sửa) — độc lập, nhỏ.
-2. §4 trang "Gõ Việt–Anh" + di chuyển công tắc + tìm kiếm.
+2. §4 nhóm "Gõ mixed Việt/Anh" + di chuyển công tắc + tìm kiếm — **xong iOS + Android** (macOS/Windows còn lại).
 3. §2/§3 onboarding + hồ sơ; §5 thẻ cho người dùng cũ.
 4. ~~Quyết định flag tần suất có vào hồ sơ `mixed` không~~ — đã chốt: có (§10).
 
