@@ -7,9 +7,17 @@ test files, maps each file's private helper to the Kotlin equivalent (same engin
 flags + same terminal call), and writes SwiftPortedTests.kt — one Kotlin @Test per
 Swift test function. Hand-written expectations, independent of the golden corpus.
 
-Run:  python3 android/telexcore/scripts/port-swift-tests.py
+A full regeneration must always compile: anything the mapping cannot express is SKIPPED
+explicitly (never emitted half-translated) and listed on stdout, grouped by reason —
+helpers with no mapping, helper arguments with no config placeholder, non-literal
+arguments, multi-line / variable assertions, escapes, apostrophe boundaries. A helper
+argument bound to an enclosing `for x in [true, false] {` loop is unrolled (one ported
+assertion per value). `-v` also prints each skipped source line.
+Then regenerate the C++ table: python3 windows/engine/tools/port_tests.py
+
+Run:  python3 android/telexcore/scripts/port-swift-tests.py [-v]
 """
-import os, re
+import os, re, sys
 
 here = os.path.dirname(os.path.abspath(__file__))
 root = os.path.abspath(os.path.join(here, "..", "..", ".."))
@@ -53,7 +61,9 @@ H = {
                                   "collisionPrefersVietnamese = {app|true}"]),
     },
     "TeencodeTests.swift": {
-        "commit": ("commit", [FREE, LIVE]), "screen": ("composed", [FREE, LIVE]),
+        # commit(): TeencodeTests' plain helper, or TeencodeToneThenATests' (teencode:, free:).
+        "commit": ("commit", ["freeMarking = {free|true}", LIVE, "teencode = {teencode|true}"]),
+        "screen": ("composed", [FREE, LIVE]),
         "commitSimple": ("commit", [FREE, LIVE, "simpleTelex = true"]),
         "run": ("commit", [FREE, LIVE]),
         "commitVNI": ("commit", ["vniMode = true", FREE, LIVE]),
@@ -129,45 +139,100 @@ def expr(kind, cfg, keys, args):
         return None if r is None else f"commitWith({k}, autoRestore = {r}) {lam}"
     return None
 
+# `for flag in [true, false] {` around an assertion whose helper argument is `flag`
+# (e.g. typed("…", app: app)) is unrolled: one ported assertion per value.
+loop_re = re.compile(r'^\s*for (\w+) in \[\s*((?:true|false)(?:\s*,\s*(?:true|false))*)\s*\]\s*\{')
+str_re = re.compile(LIT)
+
+def brace_delta(line):
+    code = str_re.sub('""', line.split("//", 1)[0])
+    return code.count("{") - code.count("}")
+
+def expansions(args, loops):
+    """Concrete argument dicts: every non-literal value must name an enclosing Bool loop
+    variable (unrolled); anything else is unsupported → ValueError(reason)."""
+    combos = [{}]
+    for a, v in args.items():
+        if a == "_n" or v in ("true", "false") or v.isdigit() or v in combos[0]:
+            continue
+        vals = next((vs for (var, vs, _) in reversed(loops) if var == v), None)
+        if vals is None:
+            raise ValueError(f"argument `{a}: {v}` is neither a literal nor a Bool loop variable")
+        combos = [dict(c, **{v: x}) for c in combos for x in vals]
+    return [{a: c.get(v, v) for a, v in args.items()} for c in combos]
+
 classes = []
 total = 0
+skipped = []         # (file, test, reason, source line) — assertions in mapped files not ported
+unmapped_count = {}  # file → XCTAssert lines in files without a helper mapping
 for fname in sorted(os.listdir(tests)):
     if not fname.endswith(".swift"): continue
     helpers = H.get(fname, {})
     tests_in_file = {}
     order = []
     cur = None
+    depth = 0
+    loops = []          # (var, [values], brace depth inside the loop body)
+
+    def add(test, stmt):
+        if test not in tests_in_file: tests_in_file[test] = []; order.append(test)
+        tests_in_file[test].append(stmt)
+
     for line in open(os.path.join(tests, fname)):
         fm = func_re.match(line)
         if fm:
-            cur = fm.group(1); continue
-        if cur is None: continue
+            cur = fm.group(1); loops = []
+        depth += brace_delta(line)
+        lm = loop_re.match(line)
+        if lm:
+            loops.append((lm.group(1), [x.strip() for x in lm.group(2).split(",")], depth))
+        if fm or cur is None or "XCTAssert" not in line:
+            loops = [l for l in loops if l[2] <= depth]
+            continue
+        ported, reasons = 0, []
         for m in eq_re.finditer(line):
             neg, helper, keys, extra, member, expected = m.groups()
-            if "\\" in keys or "\\" in expected: continue
-            if kind_of := helpers.get(helper + (member or "")):
-                if kind_of[0] == "sentenceCtx" and "'" in keys: continue
             name = helper + (member or "")
-            if name not in helpers: continue
+            if name not in helpers:
+                reasons.append(f"helper {name}() not mapped"); continue
+            if "\\" in keys or "\\" in expected:
+                reasons.append("escape sequence in a literal"); continue
             kind, cfg = helpers[name]
+            if kind == "sentenceCtx" and "'" in keys:
+                reasons.append("apostrophe boundary (sentenceCtx splits on spaces only)"); continue
             args = {}
             for part in [p.strip() for p in extra.split(",") if p.strip()]:
                 if ":" in part:
                     a, b = [x.strip() for x in part.split(":")]; args[a] = b
                 else: args["_n"] = part
-            c = build_cfg(cfg, args)
-            if c is None: continue
-            e = expr(kind, c, keys, args)
-            if e is None: continue
-            fn = "assertNotEquals" if neg == "NotEqual" else "assertEquals"
-            if cur not in tests_in_file: tests_in_file[cur] = []; order.append(cur)
-            tests_in_file[cur].append(f"        {fn}({kstr(expected)}, {e})")
+            known = set(re.findall(r"\{(\w+)", " ".join(cfg))) | {"_n", "restore"}
+            if unknown := [a for a in args if a not in known]:
+                reasons.append(f"{name}(): argument(s) {', '.join(unknown)} not mapped"); continue
+            try:
+                concrete = expansions(args, loops)
+            except ValueError as err:
+                reasons.append(str(err)); continue
+            for cargs in concrete:
+                c = build_cfg(cfg, cargs)
+                if c is not None and re.search(r"= (?!(?:true|false)\b)", c):
+                    reasons.append(f"{name}(): non-literal flag value ({c})"); continue
+                e = None if c is None else expr(kind, c, keys, cargs)
+                if e is None:
+                    reasons.append(f"{name}(): call shape not supported"); continue
+                fn = "assertNotEquals" if neg == "NotEqual" else "assertEquals"
+                add(cur, f"        {fn}({kstr(expected)}, {e})"); ported += 1
         for m in val_re.finditer(line):
             tf, fn, word, _, tc = m.groups()
-            if "\\" in word: continue
+            if "\\" in word:
+                reasons.append("escape sequence in a literal"); continue
             call = f"SyllableValidator.{fn}({kstr(word)}" + (f", teencode = {tc}" if tc else "") + ")"
-            if cur not in tests_in_file: tests_in_file[cur] = []; order.append(cur)
-            tests_in_file[cur].append(f"        assert{tf}({kstr(fn + ' ' + word)}, {call})")
+            add(cur, f"        assert{tf}({kstr(fn + ' ' + word)}, {call})"); ported += 1
+        if not ported and helpers:
+            why = "; ".join(dict.fromkeys(reasons)) or "not a single-line literal assertion"
+            skipped.append((fname[:-6], cur, why, line.strip()))
+        elif not ported:
+            unmapped_count[fname[:-6]] = unmapped_count.get(fname[:-6], 0) + 1
+        loops = [l for l in loops if l[2] <= depth]
     if tests_in_file:
         cls = fname[:-6].replace("Tests", "") + "PortedTest"
         body = []
@@ -184,3 +249,18 @@ with open(out, "w") as f:
     f.write("import org.junit.Assert.assertNotEquals\nimport org.junit.Assert.assertTrue\nimport org.junit.Test\n\n")
     f.write("\n".join(classes))
 print(f"{total} assertions in {len(classes)} classes")
+if skipped:
+    print(f"\nSkipped {len(skipped)} assertion lines in mapped files (-v: show each line):")
+    by_reason = {}
+    for f_, t, why, src in skipped:
+        by_reason.setdefault(why, {}).setdefault(f"{f_}.{t}", []).append(src)
+    for why, tests_ in by_reason.items():
+        n = sum(len(v) for v in tests_.values())
+        print(f"  [{why}] {n} lines in {len(tests_)} tests:")
+        for t, srcs in tests_.items():
+            print(f"    {t} ({len(srcs)})")
+            if "-v" in sys.argv:
+                for src in srcs: print(f"        {src[:140]}")
+if unmapped_count:
+    print(f"\nNot ported — no helper mapping for these files (XCTAssert lines): "
+          + ", ".join(f"{f_} ({n})" for f_, n in sorted(unmapped_count.items())))
