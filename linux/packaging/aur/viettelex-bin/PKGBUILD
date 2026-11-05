@@ -5,7 +5,7 @@
 # there, not the version/checksums here.
 
 pkgname=viettelex-bin
-pkgver=1.0.19
+pkgver=1.0.20
 pkgrel=1
 _series=noble
 pkgdesc='Vietnamese input method (Telex, VNI) for Fcitx5 and IBus, same engine as VietTelex for macOS'
@@ -49,9 +49,9 @@ source_aarch64=(
   "${_gh}/viettelex-text-tools_${pkgver}.${_series}1_arm64.deb"
 )
 noextract=("${source[@]##*/}" "${source_x86_64[@]##*/}" "${source_aarch64[@]##*/}")
-sha256sums=('5df76e511e98322b44fe87d9bae6b963c0bd10c18cdd91d2c98d6047bb1ee472')
-sha256sums_x86_64=('790a0aeef9822c8c37963dab13a54e8003174ec7b527cbab1c6dcceb778817a4' '9fd5fbb75b1ac52b715d297f75547c0b3c17be225d9b154ecf6bd3c281796c25' 'dc5d7061844674a852e41b545fc59233f3c1638031bb99a79e6e1c6d7d55ab4d' 'a88263945b0a4bde030a6d60bd6bed50fef017af644ad8ac8d8b480bc0a134c0')
-sha256sums_aarch64=('f79a55c32d83f2b687d20a527059f4337ca812add5ade424d3929d7a554aa72c' 'e6e09e14e31080ed1aa1a8fc91dc2270829134dc2e8f717628865aa9c7ed1570' '3e9c5af793a852d4cf08de7839c5a75244385b9eab872d7d477d9636302bcac5' 'b5ed5c34bbd61c1b2067931e4d727236926382814947cbaa7e3108a91aaab9e3')
+sha256sums=('f3b48e13848ed0a816ca63b110fb82d139b07192c5d58ee3e1edbafcb2cd6448')
+sha256sums_x86_64=('eb680e3d07fa70374b2a418040adc6018d33d257ae686ea763f80d47e8c617cb' '08b2edc46475d47b174a872381d6e05405b72977f3b6eb46dccb3842b3ac7329' '90a2d29c0739243a04412fd6a1dea957154f5d2f806240dbd77ae4d7f88570e3' '66e69bcfbe14835217dca1a755a9cbdba6a96c49037d181c86389d35a1865b27')
+sha256sums_aarch64=('7f55773a4a6287e22694ee4d789f20d62af7a09c6513f8ee4229607e7611c065' 'b6e3aa7840a5c061d74a8bf15155541e1a32ed48690ce510b8bc4a979e7e32b8' '37bef707e9b8b76c2d3fe96256a4f7a34a869cd711a7b678c22a86b65e49853f' '7c72e2dc1b200692fd881c9844b6e0a475ca7e7d76e124a3e3a1cac0961f21b4')
 
 package() {
   local deb
