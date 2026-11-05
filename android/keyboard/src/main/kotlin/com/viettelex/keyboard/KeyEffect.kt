@@ -6,7 +6,7 @@ import kotlin.math.exp
 import kotlin.math.sin
 
 /**
- * "Hiệu ứng khi bấm phím" (Plus, Phil 19/10/2026 — kiểu Laban Key) — THUẦN, song sinh
+ * "Hiệu ứng khi bấm phím" (Plus, Phil 19/10/2026) — THUẦN, song sinh
  * iOS/Keyboard/KeyEffects.swift: cùng khoá [Keys.KEY_EFFECT] (`keyEffect`), cùng id, cùng quỹ đạo.
  * "Không" (mặc định) ⇒ IME không tạo overlay (0 chi phí). Bật: chữ chèn TRƯỚC, overlay
  * (app/.../ime/KeyEffectView) vẽ ở lượt sau; ≤ [KeyEffectPool.CAP] hạt, mảng cấp sẵn — không cấp

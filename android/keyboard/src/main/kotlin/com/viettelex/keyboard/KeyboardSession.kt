@@ -9,7 +9,7 @@ sealed class Key {
      * Số / ký hiệu / dấu câu (boundary + ngắt câu). [replacesLetter]: ký tự phụ của cú giữ
      * phím chữ ([KeyAlternates]) — huỷ đúng phím chữ vừa chèn lúc chạm trước khi chèn.
      * [numpad]: số từ bàn phím số (numpad) của phím cứng — KHÔNG BAO GIỜ mang dấu VNI, luôn
-     * là ranh giới như UniKey (#124). Cũng dùng cho ký tự phụ khi giữ ⇧ + phím chữ ([ShiftHold.key]).
+     * là ranh giới như các bộ gõ phổ biến (#124). Cũng dùng cho ký tự phụ khi giữ ⇧ + phím chữ ([ShiftHold.key]).
      */
     data class Text(val text: String, val replacesLetter: Boolean = false, val numpad: Boolean = false) : Key()
     object Space : Key()
@@ -78,7 +78,7 @@ data class FieldTraits(
     /**
      * App tắt gợi ý ở ô CHỮ không nhạy cảm (TYPE_TEXT_FLAG_NO_SUGGESTIONS / VISIBLE_PASSWORD giả ở
      * ô chat — không mật khẩu, không passthrough). Cài đặt "Gợi ý cả khi ứng dụng tắt gợi ý" bật ⇒
-     * vẫn gợi ý chữ đầy đủ (như Gboard/Laban, #113) nhưng KHÔNG tự sửa và KHÔNG học từ.
+     * vẫn gợi ý chữ đầy đủ (như Gboard, #113) nhưng KHÔNG tự sửa và KHÔNG học từ.
      */
     val appNoSuggestions: Boolean = false,
 ) {

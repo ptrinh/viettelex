@@ -30,7 +30,7 @@ data class KeyboardSettings(
     /** Công cụ văn bản (Plus) — mặc định BẬT; hiện thật khi [textToolsActive]. Giống iOS. */
     var textToolsEnabled: Boolean = true,
     /**
-     * "Gợi ý cả khi ứng dụng tắt gợi ý" (#113, như Gboard/Laban) — mặc định BẬT: ô chữ đặt
+     * "Gợi ý cả khi ứng dụng tắt gợi ý" (#113, như Gboard) — mặc định BẬT: ô chữ đặt
      * NO_SUGGESTIONS (không mật khẩu/ẩn danh/số) vẫn gợi ý chữ, nhưng không tự sửa, không học từ.
      * Tắt ⇒ như cũ: chỉ thanh công cụ ([StripMode.TOOLS]).
      */
