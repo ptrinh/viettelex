@@ -41,9 +41,6 @@ APP_MODE_CHOICES = [
 # Chế độ macOS (typing-modes.yml / file xuất từ máy Mac) → gần nhất trên Linux.
 MAC_MODE_MAP = {"marked": "preedit", "inPlace": "surrounding", "passthrough": "off"}
 
-BUILTIN_PREEDIT_APPS = ("gnome-terminal, kgx/ptyxis, konsole, kitty, alacritty, wezterm, "
-                        "foot, xterm, tilix, terminator, LibreOffice")
-
 
 def esc(s):
     return GLib.markup_escape_text(s)
@@ -68,44 +65,33 @@ def open_uri(uri):
 # Gợi ý cạnh con trỏ (trang Gợi ý & công cụ): key config.toml [general], nhãn, mô tả.
 HINT_SWITCHES = (
     ("math_results", N_("Hiện kết quả phép tính"),
-     N_("Gõ phép tính rồi “=” (12*3=, 200+10%=, 125 x (4 + 5.5) =) → kết quả cạnh con trỏ; "
-        "Tab hoặc Enter để chèn.")),
+     N_("Gõ phép tính kết thúc bằng = (12*3=); kết quả hiện cạnh con trỏ, Tab để chèn.")),
     ("number_chips", N_("Gợi ý số tiền"),
      N_("50k, 1tr2, 2 tỷ + dấu cách → 1.200.000 ₫ cạnh con trỏ; Tab để thay.")),
     ("typo_hints", N_("Gợi ý sửa lỗi gõ sai"),
-     N_("Từ vừa gõ không phải tiếng Việt, tiếng Anh hay từ chat → gợi ý từ đúng khi gõ nhầm "
-        "một phím kề hoặc đảo hai phím (tpoi → tôi, spellnig → spelling). Tab để thay, Esc = đừng "
-        "gợi ý từ này nữa.")),
+     N_("Sau từ gõ nhầm (tpoi), từ đúng (tôi) hiện cạnh con trỏ; Tab để thay, Esc để bỏ qua.")),
     ("tone_hints", N_("Gợi ý thêm dấu cho câu không dấu"),
-     N_("Từ 3 âm tiết không dấu, sau . ! ? hoặc khi dừng gõ một chút → câu có dấu "
-        "(toi di hoc → tôi đi học). Tab để thay cả cụm. Mặc định tắt.")),
+     N_("Sau 3+ âm tiết không dấu, toi di hoc → tôi đi học hiện cạnh con trỏ; Tab để thay.")),
     ("date_hints", N_("Gợi ý ngày giờ"),
-     N_("“hôm nay”, “ngày mai”, “hôm qua” → dd/mm/yyyy; “bây giờ” → giờ:phút (today, tomorrow, "
-        "yesterday, now sau một từ tiếng Anh). Tab để thay.")),
+     N_("Gõ hôm nay (hoặc today) + dấu cách → ngày (28/09/2026) hiện ra; Tab để thay.")),
 )
 # Văn bản tự động (trang Gợi ý & công cụ): key config.toml [general], nhãn, mô tả — mặc định tắt.
 AUTO_TEXT_SWITCHES = (
     ("double_space_period", N_("Thêm dấu chấm khi gõ hai dấu cách"),
-     N_("Gõ hai dấu cách liền nhau sau một chữ → “. ” (giữ phím cách thì không). Chỉ ở app cho bộ gõ "
-        "đọc chữ quanh con trỏ.")),
+     N_("Gõ hai dấu cách sau một chữ → “. ”. Chỉ ở app cho bộ gõ đọc chữ quanh con trỏ.")),
     ("auto_capitalize", N_("Tự viết hoa đầu câu"),
-     N_("Chữ đầu câu (sau . ? ! hoặc xuống dòng) tự viết hoa, Telex vẫn ghép đúng (dduwowcj → Được). "
-        "Bỏ qua viết tắt, email, địa chỉ web; xoá chữ hoa đó thì chữ kế giữ thường.")),
+     N_("Tự viết hoa chữ đầu câu (sau . ? ! hoặc xuống dòng): dduwowcj → Được. Bỏ qua email, web.")),
     ("smart_punctuation", N_("Ngoặc kép cong và gạch dài"),
      N_("\" ' → ngoặc cong theo ngữ cảnh (don't → don’t); -- → — (gõ thêm - thì thành ---).")),
 )
 # Gợi ý từ (trang Gợi ý & công cụ): "Học từ bạn gõ" ngay dưới "Gợi ý từ", làm mờ khi nó tắt.
 PREDICTION_SWITCHES = (
     ("word_prediction", N_("Gợi ý từ"),
-     N_("Dừng gõ một chút → một từ gợi ý trong ô gợi ý của bộ gõ: hoàn thành từ đang gõ (cả tiếng "
-        "Anh: keyb → keyboard), hoặc từ kế tiếp (cảm → ơn). Tab hoặc bấm chuột để chọn, Esc bỏ; không "
-        "bao giờ tự thay. Gõ . , ? ! ngay sau đó thì dấu câu dính vào từ. Cần gói viettelex-text-tools.")),
+     N_("Dừng gõ → gợi ý từ (keyb → keyboard, cảm → ơn); Tab để chọn. Cần gói viettelex-text-tools.")),
     ("learn_words", N_("Học từ bạn gõ"),
-     N_("Gợi ý từ học các từ và cặp từ bạn hay gõ (không bao giờ ở ô mật khẩu, terminal, trình soạn "
-        "code hay khi gõ English). Chỉ lưu trên máy này — không gửi qua mạng, không đồng bộ. Mặc "
-        "định bật.")),
+     N_("Học từ bạn hay gõ, chỉ lưu trên máy này; không học ở ô mật khẩu, terminal.")),
     ("filter_sensitive", N_("Lọc từ nhạy cảm"),
-     N_("Gợi ý từ và sửa lỗi gõ không chủ động đưa từ tục — gõ tay vẫn bình thường. Mặc định bật.")),
+     N_("Gợi ý không bao giờ đưa ra từ tục; tự gõ thì vẫn bình thường.")),
 )
 QUOTE_STYLE_CHOICES = (
     ("curly", N_("“ ” ‘ ’ (mặc định)")),
@@ -308,38 +294,28 @@ class SettingsWindow(Adw.PreferencesWindow):
                    [("telex", "Telex"), ("vni", "VNI")],
                    on_change=self._apply_vni_visibility)
         self.vni_help = row(_("Gõ dấu bằng chữ số"),
-                            _("Gõ dấu bằng chữ số thay cho chữ cái Telex: 1-5 = sắc/huyền/hỏi/ngã/nặng, "
-                            "6 = â/ê/ô, 7 = ơ/ư, 8 = ă, 9 = đ, 0 = bỏ dấu. Chữ cái giữ nguyên. Nên bật "
-                            "“Kiểm tra chính tả khi gõ” để số như “mp3” không bị biến thành dấu."))
+                            _("Dấu bằng số: 1–5 sắc/huyền/hỏi/ngã/nặng, 6 â ê ô, 7 ơ ư, 8 ă, 9 đ, 0 xoá dấu."))
         g.add(self.vni_help)
         # Nâng cao kiểu gõ: mục chỉ-Telex làm mờ + "Chỉ áp dụng cho Telex" khi chọn VNI.
         adv = self.advanced(g, _("Telex đơn giản, bỏ dấu tự do, gõ tắt phụ âm, dấu kiểu mới, "
                                  "teencode, phím ngoặc"))
         self.dependent(self.switch(adv, "typing", "simple_telex", _("Telex đơn giản"),
-                                   _("Chữ w đứng một mình luôn là 'w' (gõ 'uw' để ra ư). "
-                                     "Tắt = Telex đầy đủ (cw→cư).")),
+                                   _("w đứng riêng vẫn là w (gõ uw ra ư).")),
                        ("typing", "simple_telex"))
         self.dependent(self.switch(adv, "typing", "free_marking", _("Bỏ dấu tự do"),
-                                   _("Tắt = Telex nghiêm ngặt: dấu chỉ nhận khi gõ sát nguyên âm, hợp "
-                                     "cho English/code (data→data). Bật: dấu đặt tự do (ama→âm).")),
+                                   _("Đặt dấu ở đâu trong từ cũng được (ama → âm). Tắt: chặt hơn, hợp gõ tiếng Anh/code.")),
                        ("typing", "free_marking"))
         self.dependent(self.switch(adv, "typing", "quick_telex",
                                    _("Gõ tắt phụ âm nhanh (cc→ch, gg→gi…)"),
-                                   _("Gõ đúp phụ âm đầu để ra phụ âm ghép: cc→ch, gg→gi, kk→kh, nn→ng, "
-                                     "qq→qu, pp→ph, tt→th.")),
+                                   _("Gõ đúp phụ âm đầu: kk → kh, nn → ng, pp → ph, tt → th…")),
                        ("typing", "quick_telex"))
         self.switch(adv, "typing", "modern_tone", _("Bỏ dấu kiểu mới (oà, uý)"),
-                    _("Tắt = kiểu cũ (hòa, thủy, khỏe). Bật = kiểu mới (hoà, thuý, khoẻ). "
-                      "Chỉ đổi vị trí dấu ở oa/oe/uy."))
+                    _("hoà, thuý, khoẻ thay vì hòa, thủy, khỏe."))
         self.dependent(self.switch(adv, "typing", "teencode", _("Chính tả teencode"),
-                                   _("Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, "
-                                     "kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, nên từ tiếng "
-                                     "Anh như was, war, worse, zoo giữ nguyên.")),
+                                   _("Nhận kiểu viết chat: wá, zui zẻ, kó. Tắt: was, zoo giữ nguyên.")),
                        ("typing", "teencode"))
         self.dependent(self.switch(adv, "typing", "bracket_vowels", _("Phím ngoặc: [ ra ơ, ] ra ư"),
-                                   _("“th[” → “thơ”, “ng]” → “ngư” ({ và } ra chữ hoa). Nếu bạn gõ "
-                                     "code thì nên để TẮT — khi bật, [ và ] thuộc về từ đang gõ thay "
-                                     "vì kết thúc từ.")),
+                                   _("[ ra ơ, ] ra ư (th[ → thơ). Nên tắt nếu bạn viết code.")),
                        ("typing", "bracket_vowels"))
         page.add(g)
         self._mixed_groups(page)
@@ -353,8 +329,7 @@ class SettingsWindow(Adw.PreferencesWindow):
             return
         g = Adw.PreferencesGroup()
         r = row(_("Bạn hay gõ trộn Anh/Việt?"),
-                _("Xem nhóm Gõ lẫn tiếng Anh mới: chọn cách bạn hay gõ, các công tắc nhận diện "
-                  "tiếng Anh nằm chung một chỗ, ngay dưới mục Kiểu gõ."))
+                _("Nhóm Gõ lẫn tiếng Anh mới ở ngay dưới: chọn cách bạn gõ; công tắc chi tiết ở Nâng cao."))
         r.add_prefix(Gtk.Image.new_from_icon_name("dialog-information-symbolic"))
         see = Gtk.Button(label=_("Xem"), valign=Gtk.Align.CENTER)
         see.add_css_class("suggested-action")
@@ -389,29 +364,29 @@ class SettingsWindow(Adw.PreferencesWindow):
         adv = self.advanced(g, _("Khôi phục từ tiếng Anh, ngữ cảnh, khi trùng từ, sửa từ phía trước…"))
         restore_row = self.switch(
             adv, "typing", "auto_restore", _("Tự khôi phục từ tiếng Anh"),
-            _("Từ không phải tiếng Việt hợp lệ tự trả về đúng phím đã gõ khi kết thúc từ (google, "
-              "github, retore…)."))
+            _("Từ không phải tiếng Việt trả về đúng như đã gõ (google, github)."))
         collision_row = self.combo(
             adv, "typing", "collision_prefers_vietnamese", _("Khi từ vừa Anh vừa Việt"),
             [(True, _("Ưu tiên tiếng Việt")), (False, _("Ưu tiên tiếng Anh"))],
-            subtitle=_("Cho các từ như last/lát, list/lít, his/hí. Mẹo: gõ đúp phím dấu để giữ tiếng "
-                       "Anh (lisst → list). Ưu tiên tiếng Anh: đặt dấu ở cuối từ để ra tiếng Việt "
-                       "(lits → lít). Trong câu tiếng Anh thì từ vẫn giữ tiếng Anh dù chọn gì."))
+            subtitle=_("Vd. list → lít. Muốn giữ tiếng Anh, gõ đúp phím dấu: lisst → list."))
+        # Chú thích theo lựa chọn (như macOS): luôn chỉ cách lấy dạng kia.
+        collision_caps = (_("Vd. list → lít. Muốn giữ tiếng Anh, gõ đúp phím dấu: lisst → list."),
+                          _("Vd. list giữ nguyên. Muốn ra tiếng Việt, gõ dấu cuối từ: lits → lít."))
+
+        def collision_caption(*_a):
+            collision_row.set_subtitle(esc(collision_caps[min(collision_row.get_selected(), 1)]))
+        collision_row.connect("notify::selected", collision_caption)
+        collision_caption()
         ctx_row = self.switch(adv, "typing", "contextual_english", _("Quyết định theo ngữ cảnh"),
-                              _("Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành "
-                              "một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → "
-                              "“he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để "
-                              "tiếng Việt — “sao í”."))
+                              _("Sau một từ tiếng Anh, từ kế giữ tiếng Anh: “he is”, không thành “he í”."))
         # Thử nghiệm, ngay dưới "Quyết định theo ngữ cảnh": làm mờ + lý do khi nó tắt (không ẩn).
         retro_row = self.dependent(self.switch(
             adv, "typing", "retroactive_english", _("Tự sửa từ phía trước (thử nghiệm)"),
-            _("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm "
-              "(vd. “Hí cả í very fast” → “His car is very fast”).")),
+            _("Sửa từ bị bỏ dấu nhầm khi câu hoá ra tiếng Anh: “Hí cả í” → “His car is”.")),
             ("typing", "retroactive_english"))
         freq_row = self.dependent(self.switch(
             adv, "typing", "english_by_frequency", _("Đoán từ trùng theo tần suất (thử nghiệm)"),
-            _("Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his → hí) thì chọn "
-              "tiếng Anh; từ kế cho thấy là tiếng Việt (hí hửng, hí hí) thì tự đổi lại.")),
+            _("Đầu câu, “his” giữ tiếng Anh thay vì “hí”; tự đổi lại nếu câu là tiếng Việt.")),
             ("typing", "english_by_frequency"))
         ctx_row.get_activatable_widget().connect("notify::active", self.refresh_dependents)
         page.add(g)
@@ -435,8 +410,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         self._refresh_hotkey()
         adv = self.advanced(g, _("Nhớ theo từng app, app mới bắt đầu bằng…, quên trạng thái đã nhớ"))
         self.switch(adv, "general", "per_app_state", _("Nhớ Việt/Anh theo từng app"),
-                    _("Mỗi app giữ trạng thái Việt/Anh riêng — chuyển sang terminal gõ tiếng Anh "
-                    "không làm mất tiếng Việt ở trình soạn thảo."))
+                    _("Mỗi app giữ Việt/Anh riêng: gõ tiếng Anh ở terminal không làm mất tiếng Việt ở app khác."))
         start_row = self.switch(adv, "general", "default_vietnamese",
                                 _("App mới mở bắt đầu bằng tiếng Việt"),
                                 _("Tắt = app lần đầu gặp bắt đầu ở chế độ tiếng Anh."))
@@ -456,16 +430,11 @@ class SettingsWindow(Adw.PreferencesWindow):
     def _spelling_group(self, page):
         g = Adw.PreferencesGroup(title=_("Chính tả"))
         self.switch(g, "typing", "spell_check", _("Kiểm tra chính tả khi gõ"),
-                    _("Ngừng bỏ dấu ngay khi từ không thể là tiếng Việt (google, github…) thay vì "
-                    "đợi hết từ."))
+                    _("Ngừng thêm dấu ngay khi từ không thể là tiếng Việt (google, github)."))
         self.switch(g, "typing", "re_edit_word", _("Sửa dấu từ đã gõ"),
-                    _("Đặt con trỏ ngay sau một từ đã gõ rồi gõ phím dấu để sửa dấu từ đó "
-                    "(toan + s → toán)."))
+                    _("Thêm dấu cho từ đã gõ: toan + s → toán."))
         self.switch(g, "general", "underline_misspelled", _("Gạch đỏ âm tiết sai chính tả khi gõ"),
-                    _("Chữ đang gõ được đánh dấu khi nó không thể thành âm tiết tiếng Việt (đc, "
-                    "hópng, tòc): IBus gạch lượn sóng + chữ đỏ, Fcitx5 gạch chân. Chỉ khi chữ đang "
-                    "gõ hiện gạch chân (không áp dụng khi sửa thẳng trong ô); từ giữ nguyên phím gõ "
-                    "hoặc sẽ tự khôi phục (tiếng Anh) không bị đánh dấu."))
+                    _("Gạch đỏ chữ đang gõ không thể thành âm tiết Việt (đc, tòc). Chỉ khi chữ có gạch chân."))
         page.add(g)
 
     # --- bộ chọn nhanh hồ sơ (ONBOARDING-SPEC §4) ---------------------------
@@ -574,8 +543,7 @@ class SettingsWindow(Adw.PreferencesWindow):
 
     def _page_suggestions(self):
         page = Adw.PreferencesPage(title=_("Gợi ý & công cụ"), icon_name="preferences-system-symbolic")
-        off_note = _("Không chạy trong terminal, trình soạn code, ô địa chỉ web / email, ô mật khẩu "
-                     "và khi đang gõ English.")
+        off_note = _("Không chạy ở terminal, trình soạn code, ô web/email, ô mật khẩu và khi gõ English.")
 
         g = Adw.PreferencesGroup(title=_("Gợi ý từ"), description=off_note)
         pred = None
@@ -596,18 +564,14 @@ class SettingsWindow(Adw.PreferencesWindow):
 
         g = Adw.PreferencesGroup(
             title=_("Gợi ý cạnh con trỏ"),
-            description=_("Hiện ngay cạnh con trỏ khi rất chắc; chỉ Tab mới áp dụng, phím khác bỏ qua, "
-                          "Esc = bỏ gợi ý. Không bao giờ tự thay, không chạy ở ô mật khẩu. Cần gói "
-                          "viettelex-text-tools."))
+            description=_("Chỉ Tab mới áp dụng, Esc bỏ; không bao giờ tự thay. Cần gói viettelex-text-tools."))
         for key, title, sub in HINT_SWITCHES:
             self.switch(g, "general", key, _(title), _(sub))
         page.add(g)
 
         g = Adw.PreferencesGroup(
             title=_("Công cụ văn bản"),
-            description=_("Bôi đen chữ ở app bất kỳ rồi chọn trong menu bộ gõ → Công cụ…: Thêm dấu "
-                          "cho vùng chọn, HOA, thường, Hoa Đầu Từ, Hoa đầu câu, Xoá dấu. Không bao "
-                          "giờ chạy ở ô mật khẩu."))
+            description=_("Chọn chữ ở app bất kỳ → menu bộ gõ → Công cụ…: thêm dấu, hoa/thường, xoá dấu."))
         self.switch(g, "general", "text_tools_menu", _("Hiện công cụ văn bản trong menu"),
                     _("Menu “Công cụ…” của bộ gõ (khay Fcitx5 / menu IBus) liệt kê 6 công cụ trên."))
         at = row(_("Phím tắt Thêm dấu"),
@@ -757,10 +721,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         session, desktop = self._session()
         fw = (getattr(self, "assessment", None) or {}).get("framework")
         appl = launchers.applicability(session, desktop, fw, self._gnome_major(desktop))
-        parts = [_("Chrome, VS Code, Slack, Discord… gõ thẳng như ở app khác; sửa dấu bằng phím "
-                   "Backspace, lỗi thì tự về gạch chân. Chỉ GNOME Wayland (IBus hoặc Fcitx5) và "
-                   "KDE Wayland (Fcitx5). Bật lên, VietTelex tự thêm cờ IME Wayland vào lối tắt "
-                   "của các app này — mở lại app là xong.")]
+        parts = [_("Chrome, VS Code, Slack… gõ thẳng, sửa bằng Backspace. Chỉ GNOME/KDE Wayland; mở lại app.")]
         status = launchers.session_status(enabled, appl)
         if status == "active":
             parts.insert(0, _("Trạng thái: đang có hiệu lực trong phiên này."))
@@ -769,9 +730,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         if appl == "not_wayland":
             parts.append(_("Phiên này là X11: không áp dụng, Chrome/Electron vẫn gạch chân."))
         elif appl == "gnome_50":
-            parts.append(_("GNOME 50 (Ubuntu 26.04) bỏ mất phím Backspace mà bộ gõ gửi (lỗi GNOME, "
-                           "đã sửa ở GNOME 51): VietTelex tạm giữ gạch chân ở Chrome/Electron để "
-                           "không gõ sai chữ."))
+            parts.append(_("GNOME 50 làm mất phím Backspace của bộ gõ (sửa ở 51): tạm giữ gạch chân ở Chrome/Electron."))
         elif appl == "kde_ibus":
             parts.append(_("KDE cần Fcitx5; IBus trên KDE chưa hỗ trợ."))
         elif appl == "unsupported_desktop":
@@ -960,9 +919,7 @@ class SettingsWindow(Adw.PreferencesWindow):
             self.sc_group.remove(r)
         self.sc_rows = []
         if not self.shortcut_map:
-            r = row(_("Chưa có gõ tắt nào"), _("Thêm ở trên, hoặc Nhập… file YAML/JSON/TXT "
-                    "(mỗi dòng một cặp key: value — cùng định dạng bản macOS và file gõ tắt dạng "
-                    "key: value thông dụng)."))
+            r = row(_("Chưa có gõ tắt nào"), _("Thêm ở trên, hoặc Nhập… file YAML/JSON/TXT (mỗi dòng một cặp key: value)."))
             self.sc_group.add(r)
             self.sc_rows.append(r)
             return
@@ -1033,12 +990,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         page = Adw.PreferencesPage(title=_("Ứng dụng"), icon_name="view-list-symbolic")
         g = Adw.PreferencesGroup(
             title=_("Cách gõ theo từng app"),
-            description=_("App gõ sai hoặc hiện gạch chân khó chịu? Chọn riêng cho app đó. "
-                        "Tự động = theo “Cách hiện chữ đang gõ” ở mục Hiển thị chữ đang gõ bên "
-                        "dưới. Terminal và LibreOffice mặc định gạch chân chữ đang gõ (%s); "
-                        "terminal gõ thẳng khi hệ hỗ trợ. “Gõ thẳng” chỉ có tác dụng ở app nhận "
-                        "phím qua IBus GTK3 / Fcitx5 GTK3-Qt.")
-                        % BUILTIN_PREEDIT_APPS)
+            description=_("App gõ sai hoặc bị gạch chân? Đổi cách gõ cho app đó — không chắc thì để Tự động."))
         box = Gtk.Box(spacing=6, margin_top=6, margin_bottom=6)
         self.mode_app = Gtk.Entry(hexpand=True,
                                   placeholder_text=_("Tên app (vd: org.gnome.texteditor, kitty, code)"))
@@ -1074,19 +1026,14 @@ class SettingsWindow(Adw.PreferencesWindow):
         # Hiển thị chữ đang gõ: nhãn theo triệu chứng, gom trong Nâng cao (SETTINGS-CLEANUP-SPEC §4).
         g = Adw.PreferencesGroup(
             title=_("Hiển thị chữ đang gõ"),
-            description=_("Gạch chân chữ đang gõ: đúng chữ ở mọi app (GTK, Qt, Chrome, Electron). "
-                          "Sửa thẳng trong ô: giống macOS, chỉ ở app cho bộ gõ đọc chữ quanh con "
-                          "trỏ — LibreOffice và app không hỗ trợ tự về gạch chân."))
+            description=_("Gạch chân: đúng chữ ở mọi app. Sửa thẳng trong ô: như macOS, chỉ ở app hỗ trợ."))
         adv = self.advanced(g, _("Cách hiện chữ đang gõ, gạch chân, terminal, Chrome/Electron"))
         self.combo(adv, "general", "display_mode", _("Cách hiện chữ đang gõ"),
                    [("preedit", _("Gạch chân chữ đang gõ")), ("surrounding", _("Sửa thẳng trong ô"))])
         self.switch(adv, "general", "preedit_underline", _("Hiện gạch chân chữ đang gõ"),
-                    _("Tắt = chữ đang gõ trông như chữ thường ở app GTK, Qt, VTE (X11). Chrome/Electron "
-                    "và app Wayland trên GNOME vẫn tự vẽ gạch chân."))
+                    _("Tắt: chữ đang gõ trông như chữ thường (GTK, Qt, VTE X11). Chrome/Electron vẫn tự gạch."))
         self.switch(adv, "general", "terminal_direct", _("Terminal: gõ thẳng, sửa dấu bằng Backspace"),
-                    _("Không gạch chân trong gnome-terminal, tilix, konsole… khi app nhận phím qua "
-                    "IBus GTK3 hoặc Fcitx5 (fcitx5-gtk3/fcitx5-qt). Terminal GTK4 (Ptyxis, Console) "
-                    "và phiên Wayland GNOME vẫn gạch chân chữ đang gõ."))
+                    _("Không gạch chân ở gnome-terminal, konsole… (IBus GTK3/Fcitx5). GTK4 và GNOME Wayland vẫn gạch."))
         self._no_underline_switch(adv)
         page.add(g)
 

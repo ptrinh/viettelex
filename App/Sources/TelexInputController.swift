@@ -3556,14 +3556,14 @@ final class TelexInputController: IMKInputController {
                 || id.map { AppState.isBuiltInPassthrough($0) } == true)
             && !(Accessibility.isTrusted && FocusedFieldDetector.isTextInput)
         if remoteCanvas || (AppState.shared.usesAxDetect(id) && FocusedFieldDetector.wantsPassthroughField) {
-            return localized ? VTLocalized("Passthrough") : "passthrough · remote desktop"
+            return localized ? VTLocalized(ModeNames.passthrough) : "passthrough · remote desktop"
         }
         let routing = AppState.shared.tapRouting(id)
-        if routing.selection { return localized ? VTLocalized("Selection-replace") : "tap · selection-replace (Chromium)" }
-        if routing.tap { return localized ? VTLocalized("Tap (backspace)") : "tap · backspace" }
-        if routing.emptyReset { return localized ? VTLocalized("Empty-reset") : "tap · emptyReset" }
-        if usesMarkedNow(id) { return localized ? VTLocalized("Marked text") : "IMKit · marked text" }
-        return localized ? VTLocalized("In-place") : "IMKit · in-place"
+        if routing.selection { return localized ? VTLocalized(ModeNames.selection) : "tap · selection-replace (Chromium)" }
+        if routing.tap { return localized ? VTLocalized(ModeNames.tap) : "tap · backspace" }
+        if routing.emptyReset { return localized ? VTLocalized(ModeNames.emptyReset) : "tap · emptyReset" }
+        if usesMarkedNow(id) { return localized ? VTLocalized(ModeNames.marked) : "IMKit · marked text" }
+        return localized ? VTLocalized(ModeNames.inPlace) : "IMKit · in-place"
     }
 
     private func showDebugLog(alert: Bool = true) {

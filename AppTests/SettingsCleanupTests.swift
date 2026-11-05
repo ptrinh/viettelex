@@ -121,7 +121,7 @@ final class SettingsCleanupTests: XCTestCase {
         // Khoá của nhãn dựng trong code (tiếng Anh hiện nguyên khoá).
         texts += [TypingTab.styleAdvancedSummary, TypingTab.mixedAdvancedSummary,
                   TypingTab.switchAdvancedSummary,
-                  TypingTab.systemSettingsCaption] + TypingTab.C.all
+                  TypingTab.systemSettingsCaption] + Self.allCaptions + ModeNames.all
         for t in texts {
             let f = Self.fold(t)
             for n in names { XCTAssertFalse(f.contains(n), "chuỗi nhắc bộ gõ khác: \(t)") }
@@ -178,18 +178,38 @@ final class SettingsCleanupTests: XCTestCase {
         for k in [TypingTab.styleAdvancedSummary, TypingTab.switchAdvancedSummary,
                   TypingTab.systemSettingsCaption, "Keyboard layout", "Open…", "Open Input Sources settings…",
                   "Word that is both English and Vietnamese", "macOS input source shortcut",
-                  "Expanded", "Collapsed"] + TypingTab.C.all {
+                  "Expanded", "Collapsed", ModeTableTab.safeTitle] + Self.allCaptions + ModeNames.all {
             XCTAssertNotEqual(vi.localizedString(forKey: k, value: "∅", table: nil), "∅", k)
         }
+    }
+
+    /// Mọi chú thích một dòng của MỌI tab Cài đặt (06/11/2026: Gõ phím trước, các tab còn lại sau).
+    static var allCaptions: [String] {
+        TypingTab.C.all + ToolsTab.C.all + ShortcutsTab.C.all + ModeTableTab.C.all + GeneralTab.C.all
     }
 
     /// Chú thích phải NGẮN (Phil 06/11/2026: "viết hơi dài, rối mắt"): ≤ 95 ký tự cả hai ngôn ngữ.
     func testCaptionsAreShort() throws {
         let vi = try viBundle()
-        for k in TypingTab.C.all {
+        for k in Self.allCaptions + ModeNames.all {
             XCTAssertLessThanOrEqual(k.count, 95, k)
             let v = vi.localizedString(forKey: k, value: "∅", table: nil)
             XCTAssertLessThanOrEqual(v.count, 95, v)
         }
+    }
+
+    /// Tên cách gõ theo app: theo triệu chứng, không còn thuật ngữ (Tap, AX, Passthrough…).
+    func testModeNamesHaveNoJargon() throws {
+        let vi = try viBundle()
+        for k in ModeNames.all {
+            let v = vi.localizedString(forKey: k, value: "∅", table: nil)
+            for t in [k, v] {
+                for jargon in ["Tap", "AX", "Passthrough", "Marked", "In-place", "reset"] {
+                    XCTAssertFalse(t.contains(jargon), t)
+                }
+            }
+        }
+        // Đoạn giới thiệu bảng Ứng dụng: một dòng.
+        XCTAssertFalse(vi.localizedString(forKey: ModeTableTab.C.intro, value: "", table: nil).contains("\n"))
     }
 }

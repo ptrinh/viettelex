@@ -136,10 +136,12 @@ struct TranslateSettingsRows: View {
         // danh sách thật của máy trong .task.
         let ids = languages.isEmpty ? TranslatePrefs.pickerTargets(TranslatePrefs.knownTargets + [target], uiLanguage: lang)
                                     : languages
-        Picker(model.loc("Translate to"), selection: $model.translateTarget) {
+        Picker(selection: $model.translateTarget) {
             ForEach(ids, id: \.self) { id in
                 Text(TranslatePrefs.displayName(id, uiLanguage: lang)).tag(id)
             }
+        } label: {
+            SettingRowLabel(title: model.loc("Translate to"), caption: model.loc(ToolsTab.C.translate))
         }
         .task {
             let found = await LanguageAvailability().supportedLanguages.map(\.minimalIdentifier)
@@ -173,8 +175,6 @@ struct TranslateSettingsRows: View {
             Text(model.loc("Couldn’t download the translation pack — try again later."))
                 .font(.caption).foregroundStyle(.red)
         }
-        Text(model.loc("Tools… → Translate translates the selection into this language; text already in this language is translated back to Vietnamese. Runs entirely on this Mac with Apple’s translation packs — your text is never sent anywhere."))
-            .font(.caption).foregroundStyle(.secondary)
     }
 
     @ViewBuilder private var statusLabel: some View {
