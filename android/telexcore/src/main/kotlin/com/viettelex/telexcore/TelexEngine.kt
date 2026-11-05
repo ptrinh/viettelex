@@ -1775,7 +1775,7 @@ class TelexEngine {
                 if (lBase[pIdx] == lower && lMark[pIdx] == Mark.NONE) {
                     setCircumflex(pIdx); rawLetter[at] = pIdx; return
                 }
-                // `o` on ơ (ươ cluster): hook → hat, UniKey-style ("mơ"+o → mô).
+                // `o` on ơ (ươ cluster): hook → hat, common IME style ("mơ"+o → mô).
                 if (lower == 'o'.code && lBase[pIdx] == lower && lMark[pIdx] == Mark.HORN) {
                     setCircumflex(pIdx); rawLetter[at] = pIdx; return
                 }

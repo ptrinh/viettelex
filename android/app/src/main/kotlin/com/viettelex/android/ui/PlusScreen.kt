@@ -116,7 +116,7 @@ fun PlusScreen(plus: PlusController, onBack: () -> Unit, onOpenFeature: (Feature
     if (s.offerAddTones) AlertDialog(
         onDismissRequest = { plus.dismissAddTonesOffer() },
         title = { Text(tr("Bật chip “Thêm dấu”?")) },
-        text = { Text(tr("Gõ không dấu cả câu, gõ dấu cách rồi chạm chip “Thêm dấu” ở đầu thanh gợi ý. Chip đang tắt — bật ngay? (Đổi lại ở Tính Năng → Gợi ý & từ điển.)")) },
+        text = { Text(tr("Gõ không dấu cả câu, gõ dấu cách rồi chạm chip “Thêm dấu” ở đầu thanh gợi ý. Chip đang tắt — bật ngay? (Đổi lại ở Tính Năng → Sửa lỗi & gợi ý.)")) },
         confirmButton = { TextButton(onClick = { plus.acceptAddTonesOffer() }) { Text(tr("Bật ngay"), color = c.accent) } },
         dismissButton = { TextButton(onClick = { plus.dismissAddTonesOffer() }) { Text(tr("Để sau"), color = c.secondary) } },
     )
@@ -133,9 +133,9 @@ fun PlusScreen(plus: PlusController, onBack: () -> Unit, onOpenFeature: (Feature
 /** Trang Tính Năng chứa cài đặt / lối vào của quyền lợi Plus (null = không có trang riêng). */
 internal fun plusFeaturePage(f: PlusFeature): FeaturePage? = when (f) {
     PlusFeature.PREMIUM_THEMES -> FeaturePage.GiaoDien
-    PlusFeature.SENTENCE_DIACRITICS -> FeaturePage.GoiY
+    PlusFeature.SENTENCE_DIACRITICS -> FeaturePage.SuaLoi
     PlusFeature.ADVANCED_CLIPBOARD -> FeaturePage.RiengTu
-    PlusFeature.CLOUD_SYNC -> FeaturePage.SaoLuu
+    PlusFeature.CLOUD_SYNC -> FeaturePage.RiengTu
     PlusFeature.TEXT_TOOLS, PlusFeature.TRANSLATE -> FeaturePage.GoTat
     PlusFeature.THANKS_BADGE -> null
 }

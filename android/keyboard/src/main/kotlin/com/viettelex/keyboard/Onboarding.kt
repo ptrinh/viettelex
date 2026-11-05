@@ -34,7 +34,7 @@ enum class OnboardingProfile(val id: String, val viTitle: String, val example: S
 }
 
 object OnboardingSettings {
-    /** Key hiện có (KHÔNG đổi tên) mà hồ sơ ghi vào — thứ tự như nhóm "Gõ mixed Việt/Anh". */
+    /** Key hiện có (KHÔNG đổi tên) mà hồ sơ ghi vào — thứ tự như nhóm "Gõ lẫn tiếng Anh". */
     val KEYS = listOf(Keys.AUTO_RESTORE, Keys.CONTEXTUAL_ENGLISH, Keys.RETRO_ENGLISH_AUTO, Keys.ENGLISH_BY_FREQUENCY,
         Keys.SPACE_SWIPE_LANGUAGE, Keys.SWIPE_ENGLISH)
 

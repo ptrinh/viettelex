@@ -53,9 +53,9 @@ enum class PlusFeature(val viTitle: String, val viDetail: String) {
      */
     val howTo: String get() = when (this) {
         PREMIUM_THEMES -> tr("Cách dùng: Tính Năng → Giao diện → chọn theme hoặc ảnh nền.")
-        SENTENCE_DIACRITICS -> tr("Cách dùng: bật chip “Thêm dấu” ở Tính Năng → Gợi ý & từ điển, gõ không dấu cả câu (hom nay troi dep), gõ dấu cách rồi chạm chip ở đầu thanh gợi ý.")
-        ADVANCED_CLIPBOARD -> tr("Cách dùng: bật Lịch sử clipboard (Tính Năng → Riêng tư & clipboard), chạm nút clipboard trên thanh gợi ý. Copy STK/SĐT/OTP → chip “Dán …” hiện trên thanh gợi ý.")
-        CLOUD_SYNC -> tr("Cách dùng: tự động qua Sao lưu của Android (Cài đặt hệ thống → Google → Sao lưu). Chuyển máy: Tính Năng → Sao lưu & đồng bộ → Xuất / nhập file.")
+        SENTENCE_DIACRITICS -> tr("Cách dùng: bật “Thêm dấu” ở Tính Năng → Sửa lỗi & gợi ý, gõ không dấu cả câu (hom nay troi dep), gõ dấu cách rồi chạm chip ở đầu thanh gợi ý.")
+        ADVANCED_CLIPBOARD -> tr("Cách dùng: bật Lịch sử clipboard (Tính Năng → Riêng tư & sao lưu), chạm nút clipboard trên thanh gợi ý. Copy STK/SĐT/OTP → chip “Dán …” hiện trên thanh gợi ý.")
+        CLOUD_SYNC -> tr("Cách dùng: tự động qua Sao lưu của Android (Cài đặt hệ thống → Google → Sao lưu). Chuyển máy: Tính Năng → Riêng tư & sao lưu → Xuất / nhập file.")
         TEXT_TOOLS -> tr("Cách dùng: chạm ☰ trên thanh gợi ý → chip “⚒️ Công cụ”, hoặc hàng cuối bảng sửa văn bản (icon con trỏ trên thanh gợi ý).")
         TRANSLATE -> tr("Cách dùng: Tính Năng → Gõ tắt & mẫu câu → Dịch trên máy: chọn ngôn ngữ đích, tải gói dịch; rồi chạm ☰ trên thanh gợi ý → “⚒️ Công cụ” → “Dịch” (hoặc ô “Dịch” ở hàng cuối bảng sửa văn bản).")
         THANKS_BADGE -> tr("Tự hiện sau khi mua.")

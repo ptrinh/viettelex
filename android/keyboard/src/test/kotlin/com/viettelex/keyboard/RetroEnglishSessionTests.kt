@@ -283,6 +283,29 @@ class RetroEnglishSessionTests {
         assertFalse(s.suggestionsNow(p)?.action == SuggestionSet.UNDO_RETRO_TOKEN)
     }
 
+    /**
+     * SETTINGS-CLEANUP-SPEC §2: chip mời + chip hoàn tác thực sự lên thanh gợi ý — dẫn đầu ô 0 ở mọi
+     * số ô (StripView dùng đúng SuggestionSlots.arrange này), nhãn không rỗng, chạm = payload đúng.
+     */
+    @Test fun retroChipsLeadTheBarAtEverySlotCount() {
+        for (auto in listOf(false, true)) {
+            val s = session(auto = auto); val p = MockProxy()
+            s.type(p, sentence)
+            val set = s.suggestionsNow(p)!!
+            val token = if (auto) SuggestionSet.UNDO_RETRO_TOKEN else SuggestionSet.RETRO_OFFER_TOKEN
+            assertEquals(token, set.action)
+            for (n in 1..5) {
+                val l = SuggestionSlots.arrange(set, undoAsPill = true, bestInMiddle = true, count = n) as BarLayout.Slots
+                assertEquals(n, l.slots.size)
+                val lead = assertNotNull(l.slots[0], "auto=$auto n=$n")
+                assertEquals(token, lead.payload)
+                assertTrue(lead.label.isNotBlank())
+            }
+        }
+        L10n.lang = "en"
+        try { assertEquals("↩︎ Undo", EngineBridge.RETRO_UNDO_LABEL) } finally { L10n.lang = L10n.DEFAULT }
+    }
+
     @Test fun sessionBackspaceRightAfterAutoFixRestores() {
         val s = session(auto = true); val p = MockProxy()
         s.type(p, sentence)

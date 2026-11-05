@@ -84,13 +84,33 @@ private fun AppLogo(size: Dp, radius: Dp, shadow: Boolean = false) {
 // ============================================================== Kiểu Gõ
 
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 fun KieuGoTab(ime: ImeStatus, onOpenImeSettings: () -> Unit, onPickIme: () -> Unit) {
-    val c = LocalVT.current
+    // Ô tìm cài đặt / thẻ gợi ý vừa chọn một dòng của tab: mở đúng trang (+ nhóm), đợi dựng hàng,
+    // cuộn tới + tô sáng ~1,6 s. Đặt TRÊN nhánh trang con để không bị huỷ khi đổi trang.
+    val req = KieuGoNav.request.value
+    LaunchedEffect(req) {
+        if (req == null) return@LaunchedEffect
+        KieuGoNav.request.value = null
+        KieuGoNav.page.value = req.page
+        if (req.expandMixed) MixedTypingFocus.expanded.value = true
+        kotlinx.coroutines.delay(350)
+        runCatching { KieuGoNav.requesters[req.id]?.bringIntoView() }
+        KieuGoNav.highlighted.value = req.id
+        kotlinx.coroutines.delay(1600)
+        if (KieuGoNav.highlighted.value == req.id) KieuGoNav.highlighted.value = null
+    }
+    val back = { KieuGoNav.page.value = null }
+    when (KieuGoNav.page.value) {
+        KieuGoPage.TypingAdvanced -> { TypingAdvancedPage(back); return }
+        KieuGoPage.MixedAdvanced -> { MixedAdvancedPage(back); return }
+        null -> {}
+    }
     VTSection(plain = true) { OnboardingCard(ime, onOpenImeSettings, onPickIme) }
     // Thẻ một lần cho người dùng cũ (ONBOARDING-SPEC §5): xem hay đóng đều không hiện lại.
     var mixedTip by rememberBoolPref(com.viettelex.keyboard.OnboardingFlow.TIP_KEY, false)
     if (mixedTip) MixedTypingTipCard(
-        onOpen = { mixedTip = false; MixedTypingFocus.request.value = MixedTypingItem.Section },
+        onOpen = { mixedTip = false; KieuGoNav.request.value = MixedTypingItem.Section.target },
         onDismiss = { mixedTip = false },
     )
     VTSection(
@@ -221,10 +241,15 @@ private fun InputMethodPicker(vni: Boolean, onChange: (Boolean) -> Unit) {
 private fun KieuGoSection() {
     var vni by rememberBoolPref(Keys.VNI_MODE, Prefs.D.vniMode)
     var numberRow by rememberBoolPref(Keys.NUMBER_ROW, Prefs.D.numberRow)
+    // SETTINGS-CLEANUP-SPEC §3–4: cấp 1 chỉ còn Telex/VNI + Tự viết hoa + "Nâng cao" (Telex đơn giản,
+    // Bỏ dấu tự do, Gõ nhanh, Bỏ dấu kiểu mới, Teencode — mục chỉ-Telex mờ khi VNI). "Gợi ý sửa lỗi
+    // chạm trượt" chuyển sang Tính Năng → Sửa lỗi & gợi ý (gom chung các mục chạm trượt).
     VTSection(header = tr("Kiểu gõ"), footer = APPLY_NOTE) {
-        InputMethodPicker(vni) { v ->
-            if (v && !vni) numberRow = true
-            vni = v
+        Highlightable(TypingOption.InputMethod.target.id) {
+            InputMethodPicker(vni) { v ->
+                if (v && !vni) numberRow = true
+                vni = v
+            }
         }
         RowDivider()
         if (vni) {
@@ -232,27 +257,12 @@ private fun KieuGoSection() {
                 Note(tr("Gõ dấu bằng số khi đang gõ một từ: 1 sắc, 2 huyền, 3 hỏi, 4 ngã, 5 nặng, 6 mũ (â ê ô), 7 móc (ơ ư), 8 trăng (ă), 9 đ, 0 xoá dấu — tie6ng1 vie6t5 → tiếng việt. Ngoài từ, phím số vẫn gõ ra số (cả bàn phím cứng). Chọn VNI tự bật Hàng phím số (tắt được ở Tính năng → Phím & cử chỉ)."))
             }
             RowDivider()
-        } else {
-            BoolToggle(Keys.SIMPLE_TELEX, Prefs.D.simpleTelex, tr("Telex đơn giản"), tr("Phím w đứng lẻ giữ nguyên là w, không thành ư."))
-            RowDivider()
-            BoolToggle(Keys.FREE_MARKING, Prefs.D.freeMarking, tr("Bỏ dấu tự do"), tr("Phím dấu đặt đâu cũng được, không cần đúng thứ tự."))
-            RowDivider()
-            BoolToggle(Keys.QUICK_TELEX, Prefs.D.quickTelex, tr("Gõ nhanh (Quick Telex)"), tr("Phụ âm đôi đầu từ thành phụ âm ghép: cc → ch, nn → ng, tt → th…"))
-            RowDivider()
         }
-        BoolToggle(Keys.MODERN_TONE, Prefs.D.modernTone, tr("Bỏ dấu kiểu mới"), tr("hoà, thuý thay vì hòa, thúy."))
-        RowDivider()
-        BoolToggle(Keys.AUTO_CAPITALIZE, Prefs.D.autoCapitalize, tr("Tự động viết hoa đầu câu"), tr("Bật shift ở đầu ô, sau . ! ? và khi xuống dòng."))
-        // Quyết định theo ngữ cảnh / Tự sửa từ phía trước / Đoán từ trùng theo tần suất: chuyển sang
-        // nhóm "Gõ mixed Việt/Anh" ngay bên dưới (MixedTyping.kt, 05/11/2026).
-
-        // Sửa dấu từ đã gõ chuyển sang Tính Năng → Chính tả & sửa lỗi (giống iOS, 27/09/2026).
-        RowDivider()
-        BoolToggle(Keys.AUTO_FIX_ADJACENT, Prefs.D.autoFixAdjacent, tr("Gợi ý sửa lỗi chạm trượt"), tr("Khi từ đang gõ không phải tiếng Việt, gợi ý từ đúng nếu bạn lỡ chạm phím bên cạnh: nbjeeuf → nhiều, ohims → phím, cahcs → cách. Chạm gợi ý để thay."))
-        if (!vni) {
-            RowDivider()
-            BoolToggle(Keys.TEENCODE, Prefs.D.teencode, tr("Chính tả teencode"), tr("Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, từ tiếng Anh như was, war, zoo giữ nguyên."))
+        Highlightable(TypingOption.AutoCapitalize.target.id) {
+            BoolToggle(Keys.AUTO_CAPITALIZE, Prefs.D.autoCapitalize, tr("Tự động viết hoa đầu câu"), tr("Bật shift ở đầu ô, sau . ! ? và khi xuống dòng."))
         }
+        RowDivider()
+        NavRow(tr("Nâng cao"), tr(TYPING_ADVANCED_SUMMARY)) { KieuGoNav.page.value = KieuGoPage.TypingAdvanced }
     }
 }
 
@@ -483,8 +493,7 @@ fun GioiThieuTab(plus: com.viettelex.android.plus.PlusController, onOpenPlus: ()
                 style = VTType.footnote, color = c.secondary)
         }
     }
-    // Gỡ lỗi ở CUỐI tab (maintainer 14/10/2026) — công cụ cho tester.
-    DebugSection()
+    // Gỡ lỗi chuyển sang Tính Năng → "Nâng cao / Gỡ lỗi" (SETTINGS-CLEANUP-SPEC §4).
 }
 
 /** "1.1 · build dd/MM/yyyy" — Android không có mtime binary ⇒ dùng lần cài/cập nhật. */
@@ -495,7 +504,7 @@ private fun versionLine(ctx: Context): String {
 
 /** Gỡ lỗi: log hiện NGAY trong section qua toggle (như iOS). */
 @Composable
-private fun DebugSection() {
+internal fun DebugSection() {
     val c = LocalVT.current
     val ctx = LocalContext.current
     var debug by rememberBoolPref(Keys.DEBUG_TOUCH_LOG, Prefs.D.debugTouchLog)

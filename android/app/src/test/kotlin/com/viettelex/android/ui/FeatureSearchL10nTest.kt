@@ -20,20 +20,20 @@ class FeatureSearchL10nTest {
             assertTrue(lang, FeaturePage.GoVuot in pages("swipe practice"))
             assertTrue(lang, FeaturePage.Phim in pages("một tay"))
             assertTrue(lang, FeaturePage.Phim in pages("one-handed"))
-            assertTrue(lang, FeaturePage.SaoLuu in pages("backup"))
+            assertTrue(lang, FeaturePage.RiengTu in pages("backup"))
         }
     }
 
     private fun mixed(q: String) = FeatureSearchEntry.search(q).mapNotNull { it.mixed }.toSet()
 
     /**
-     * Mục gõ trộn Việt–Anh chuyển vào nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ): tìm kiếm trỏ về nhóm
+     * Mục gõ trộn Việt–Anh chuyển vào nhóm "Gõ lẫn tiếng Anh" (tab Kiểu Gõ): tìm kiếm trỏ về nhóm
      * đó (không về trang Tính Năng cũ), khớp cả hai ngôn ngữ.
      */
     @Test fun mixedTypingItemsPointToGroup() {
         for (lang in listOf("vi", "en")) {
             L10n.lang = lang
-            assertTrue(lang, MixedTypingItem.Section in mixed("go mixed"))
+            assertTrue(lang, MixedTypingItem.Section in mixed("go lan tieng anh"))
             assertTrue(lang, MixedTypingItem.Section in mixed("mixed vietnamese"))
             assertTrue(lang, MixedTypingItem.AutoRestore in mixed("khoi phuc tieng anh"))
             assertTrue(lang, MixedTypingItem.AutoRestore in mixed("auto-restore english"))
@@ -42,9 +42,11 @@ class FeatureSearchL10nTest {
             assertTrue(lang, MixedTypingItem.EnglishByFrequency in mixed("frequency"))
             assertTrue(lang, MixedTypingItem.RetroEnglish in mixed("fix earlier"))
             assertTrue(lang, MixedTypingItem.SpaceSwipeLanguage in mixed("vuot phim cach"))
-            assertTrue(lang, MixedTypingItem.SwipeEnglish in mixed("swipe english"))
+            assertTrue(lang, MixedTypingItem.Section in mixed("go mixed"))          // tên cũ vẫn tìm được
+            // "Vuốt từ tiếng Anh" về trang Gõ vuốt (SETTINGS-CLEANUP-SPEC §1).
+            assertTrue(lang, FeatureSearchEntry.search("swipe english").any { it.page == FeaturePage.GoVuot && it.viTitle == "Vuốt từ tiếng Anh" })
         }
-        // Không còn kết quả trùng trỏ về trang cũ (Từ điển cá nhân vẫn ở cả Gợi ý & từ điển).
+        // Không còn kết quả trùng trỏ về trang cũ (Từ điển cá nhân vẫn ở cả Sửa lỗi & gợi ý).
         for (item in MixedTypingItem.entries) {
             assertTrue(item.viTitle, FeatureSearchEntry.all.any { it.mixed == item && it.page == null })
             if (item == MixedTypingItem.UserDictionary) continue
@@ -60,7 +62,7 @@ class FeatureSearchL10nTest {
         assertEquals("Features", AppTab.TinhNang.title)
         assertEquals("Swipe typing", FeaturePage.GoVuot.title)
         assertEquals("https://viettelex.com/en/guide/?os=android#swipe", FeaturePage.GoVuot.guideUrl)
-        assertEquals("https://viettelex.com/en/guide/?os=android#backup", FeaturePage.SaoLuu.guideUrl)
+        assertEquals("https://viettelex.com/en/guide/?os=android#backup", FeaturePage.RiengTu.guideUrl)
     }
 
     /**
@@ -85,7 +87,7 @@ class FeatureSearchL10nTest {
             assertTrue(f.name, plusFeaturePage(f) != null)
         }
         assertEquals(FeaturePage.GoTat, plusFeaturePage(com.viettelex.keyboard.PlusFeature.TRANSLATE))
-        assertEquals(FeaturePage.GoiY, plusFeaturePage(com.viettelex.keyboard.PlusFeature.SENTENCE_DIACRITICS))
+        assertEquals(FeaturePage.SuaLoi, plusFeaturePage(com.viettelex.keyboard.PlusFeature.SENTENCE_DIACRITICS))
         // Tìm "dịch" / "translate" tới trang có cài đặt Dịch.
         assertTrue(FeaturePage.GoTat in pages("dich tren may"))
         assertTrue(FeaturePage.GoTat in pages("on-device translation"))

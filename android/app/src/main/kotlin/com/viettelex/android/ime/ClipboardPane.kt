@@ -57,7 +57,7 @@ class ClipboardPane(context: Context, private val theme: ImeTheme) : FrameLayout
         list.removeAllViews()
         if (items.isEmpty()) {
             val msg = when {
-                !enabled -> tr("Lịch sử clipboard đang tắt — bật trong app VietTelex › Tính Năng › Riêng tư & clipboard.")
+                !enabled -> tr("Lịch sử clipboard đang tắt — bật trong app VietTelex › Tính Năng › Riêng tư & sao lưu.")
                 incognito -> tr("Đang ẩn danh — không lưu mục mới.")
                 else -> tr("Chưa có mục nào — copy gì đó rồi mở lại. Ghim để giữ lâu.")
             }

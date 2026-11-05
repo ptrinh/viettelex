@@ -79,14 +79,15 @@ fun RootScreen(
     val tabs = if (templatesEnabled) AppTab.entries else AppTab.entries.filter { it != AppTab.MauCau }
 
     LaunchedEffect(openMauCau) { if (openMauCau > 0) tab = AppTab.MauCau }
-    // Ô tìm cài đặt chọn mục thuộc nhóm "Gõ mixed Việt/Anh" ⇒ sang tab Kiểu Gõ (MixedTypingSection
-    // nhận yêu cầu, mở nhóm, cuộn tới dòng).
-    val mixedRequest = MixedTypingFocus.request.value
-    LaunchedEffect(mixedRequest) { if (mixedRequest != null) { tab = AppTab.KieuGo; showPlus = false; plusReturn = null } }
+    // Ô tìm cài đặt chọn một dòng của tab Kiểu Gõ (kiểu gõ, nhóm gõ lẫn tiếng Anh, trang Nâng cao)
+    // ⇒ sang tab Kiểu Gõ (KieuGoTab nhận yêu cầu, mở đúng trang, cuộn tới dòng).
+    val kieuGoRequest = KieuGoNav.request.value
+    LaunchedEffect(kieuGoRequest) { if (kieuGoRequest != null) { tab = AppTab.KieuGo; showPlus = false; plusReturn = null } }
     LaunchedEffect(templatesEnabled) { if (!templatesEnabled && tab == AppTab.MauCau) tab = AppTab.TinhNang }
 
     // Mỗi tab một vị trí cuộn riêng; bar thu gọn khi cuộn xuống > 40dp.
-    val scroll = remember(tab, showPlus) { ScrollState(0) }
+    // Trang con tab Kiểu Gõ mở từ đầu trang (không kế thừa vị trí cuộn của trang chính).
+    val scroll = remember(tab, showPlus, KieuGoNav.page.value) { ScrollState(0) }
     var barCollapsed by remember { mutableStateOf(false) }
     LaunchedEffect(scroll) {
         var last = scroll.value
@@ -149,7 +150,8 @@ fun RootScreen(
 
         if (!keyboardShown) {
             Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 8.dp)) {
-                FloatingTabBar(tab, tabs, barCollapsed) { tab = it; showPlus = false; plusReturn = null }
+                // Chạm tab ⇒ về trang chính của tab (Tính Năng tự về vì trạng thái nằm trong tab).
+                FloatingTabBar(tab, tabs, barCollapsed) { tab = it; showPlus = false; plusReturn = null; KieuGoNav.page.value = null }
             }
         }
     }
