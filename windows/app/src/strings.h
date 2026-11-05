@@ -108,7 +108,7 @@ enum class S {
     // Welcome (first run)
     WelcomeTitle, WelcomeIntro, WelcomeMethod, WelcomeSwitch, WelcomeTray, WelcomeTrayNote,
     WelcomeImport, WelcomeDone, WelcomeOpenSettings,
-    // Chuyển từ UniKey (import result)
+    // Shortcut import from another input method (import result)
     ImportResult, ImportSkipped, ImportViqr,
     // Ctrl+Shift needs VietTelex active: make it Windows' default input method (Kiểu gõ page)
     DefaultInputTitle, DefaultInputDesc, DefaultInputButton,
@@ -133,15 +133,20 @@ enum class S {
     // Đoán từ trùng theo tần suất (right under Tự sửa từ phía trước, same condition; experimental)
     EnglishByFrequency, EnglishByFrequencyDesc,
     // Onboarding (docs/ONBOARDING-SPEC.md): welcome pages "Bạn thường gõ thế nào?" + "Gõ thử",
-    // the "Gõ mixed Việt/Anh" section, "start new apps in English", the one-time upgrade card
+    // the "Gõ lẫn tiếng Anh" section, "start new apps in English", the one-time upgrade card
     WelcomeNext, WelcomeSkip,
     ProfileTitle, ProfileIntro, ProfileVi, ProfileViEx, ProfileMixed, ProfileMixedEx, ProfileEn, ProfileEnEx,
     TryTitle, TryIntro, TrySamplesVi, TrySamplesMixed, TrySamplesEn, TryTurnedOn, TryHint,
     SecMixed, StartEnglish, StartEnglishDesc,
     MixedCardTitle, MixedCardDesc, MixedCardButton,
-    // Quick profile picker at the top of "Gõ mixed Việt/Anh" (ONBOARDING-SPEC §4)
+    // Quick profile picker at the top of "Gõ lẫn tiếng Anh" (ONBOARDING-SPEC §4)
     ProfilePickerIntro, ProfileCustom, ProfileCustomDesc, ProfileInUse, ProfileUse, ProfileConfirmTitle,
     ProfileConfirmBody,
+    // Settings cleanup (docs/SETTINGS-CLEANUP-SPEC.md): "Nâng cao" expanders + their summaries,
+    // why a switch is dimmed, the shortcut import's file type and format names
+    Advanced, TypingAdvancedSummary, MixedAdvancedSummary, SwitchAdvancedSummary, GamesSummary, AppearanceSummary,
+    DimTelexOnly, DimNeedsContextual,
+    ImportFilterName, ImportFmtOther, ImportFmtText,
     Count
 };
 

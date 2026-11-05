@@ -592,7 +592,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         vtx::decideWelcome(true, readFlag(L"welcomePending"), readFlag(L"welcomeShown"), setupDoneBefore);
     if (welcome == vtx::WelcomeAction::MarkShown) writeFlag(L"welcomeShown", true);
     // Onboarding (docs/ONBOARDING-SPEC.md): new users get the profile pages after the welcome;
-    // users set up by a version without onboarding get the one-time "Gõ mixed Việt/Anh"
+    // users set up by a version without onboarding get the one-time "Gõ lẫn tiếng Anh"
     // card in Settings instead — their values are never touched.
     const vtx::OnboardingAction onboarding = vtx::decideOnboarding(readFlagState(L"onboardingDone"), welcome);
     if (onboarding == vtx::OnboardingAction::Upgrade) {

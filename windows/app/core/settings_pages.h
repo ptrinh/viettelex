@@ -1,0 +1,96 @@
+// settings_pages.h — what each page of the Settings window shows, and in which order
+// (docs/SETTINGS-CLEANUP-SPEC.md §1, §3, §4). Portable and unit-tested; the Win32 side
+// (app/src/settings_window.cpp) turns every row into a card, a section header or an
+// expander. Only WHERE a setting is shown lives here: registry keys, defaults and what a
+// switch does are unchanged (settings.h).
+//
+//   Gõ phím          Kiểu gõ + › Nâng cao · Gõ lẫn tiếng Anh (hồ sơ + › Nâng cao) ·
+//                    Chuyển Việt/Anh (phím chuyển + › Nâng cao) · Chính tả
+//   Gợi ý & công cụ  Gợi ý cạnh con trỏ (+ dòng link tới cài đặt gợi ý của Windows) ·
+//                    › Công cụ văn bản
+//   Gõ tắt           bảng gõ tắt
+//   Ứng dụng         bảng chế độ theo ứng dụng · › Chơi game / toàn màn hình
+//   Chung            giới thiệu · ngôn ngữ · › Giao diện · cập nhật · gỡ lỗi · gỡ cài đặt
+//
+// "›" = an expander (collapsed by default, one level: an expander never holds another).
+// A switch that depends on another is never hidden: it stays right under its parent,
+// dimmed, with the reason (§0.4).
+#pragma once
+#include <vector>
+
+#include "settings.h"
+
+namespace vtx::app {
+
+enum class SettingsPage : int { Typing = 0, Suggestions, Shortcuts, Apps, General, Count };
+
+enum class Expander : int {
+    TypingAdvanced,  // Kiểu gõ → Nâng cao
+    MixedAdvanced,   // Gõ lẫn tiếng Anh → Nâng cao
+    SwitchAdvanced,  // Chuyển Việt/Anh → Nâng cao
+    TextTools,       // Công cụ văn bản
+    Games,           // Chơi game / toàn màn hình
+    Appearance,      // Giao diện
+    Count
+};
+
+enum class PageSection : int { InputStyle, Mixed, Switch, Spelling, Hints, Updates, Diagnostics, Uninstall };
+
+// Everything that is not a plain switch.
+enum class PageControl : int {
+    ConflictCard,        // another Vietnamese input method is running (only when detected)
+    MixedCard,           // one-time card for upgraded users (only while pending)
+    InputMethod,         // Telex / VNI
+    ProfileRows,         // the 3 profile rows (+ "Tuỳ chỉnh" while custom)
+    SwitchHotkey,        // the main control of "Chuyển Việt/Anh"
+    PerAppWin,           // Windows' "input method per app window"
+    DefaultInput,        // make VietTelex Windows' default input method (only when advised)
+    SwitchIndicator,     // V/E indicator when switching
+    TextPredictionLink,  // word prediction is a Windows setting: one link row, no switch
+    ClearLearned,
+    AddTonesHotkey,
+    ShortcutTable,
+    AppTable,
+    GameHotkey,
+    About,
+    UiLanguage,
+    IconPicker,
+    TrayStyle,
+    CheckNow,
+    Uninstall,
+    Links,
+};
+
+// Why a switch is shown dimmed (and cannot be changed) — never hidden.
+enum class DimReason { None, TelexOnly, NeedsContextual };
+
+enum class RowKind { Section, Expander, Toggle, Control };
+
+struct PageRow {
+    RowKind kind = RowKind::Toggle;
+    int id = 0;                          // PageSection / Expander / PageControl value
+    bool Settings::*field = nullptr;     // Toggle
+    int indent = 0;                      // 0 page level, 1 inside an expander, 2 under its parent switch
+    DimReason dim = DimReason::None;     // Toggle
+};
+
+struct PageContext {
+    bool conflicts = false;          // detectConflicts() found something
+    bool mixedCardPending = false;   // HKCU mixedCardPending
+    bool offerDefaultInput = false;  // defaultInputAdvice(...) == MakeVietTelexDefault
+    bool expanded[static_cast<int>(Expander::Count)] = {};
+    bool isExpanded(Expander e) const { return expanded[static_cast<int>(e)]; }
+};
+
+// The rows of one page; children of a collapsed expander are left out.
+std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, const PageContext& ctx);
+
+// Telex-only switches (simple Telex, free tone placement, quick Telex, teencode, bracket
+// vowels): VNI never reads them.
+bool isTelexOnly(bool Settings::*field);
+DimReason dimReason(const Settings& s, bool Settings::*field);
+
+// Where a switch lives: its page and expander (-1 = page level). False if no page shows it.
+bool findToggle(bool Settings::*field, SettingsPage& page, int& expander);
+
+}  // namespace vtx::app

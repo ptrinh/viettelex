@@ -3,13 +3,15 @@
 //   ┌──────────────┬───────────────────────────────────────────┐
 //   │ [icon] Viet… │  Page title (28px)                        │
 //   │              │  Section header                           │
-//   │ ▌Kiểu gõ     │  ┌─────────────────────────────────────┐  │
-//   │  Chính tả    │  │ Title                     Bật (●  ) │  │  setting card
+//   │ ▌Gõ phím     │  ┌─────────────────────────────────────┐  │
+//   │  Gợi ý & c…  │  │ Title                     Bật (●  ) │  │  setting card
 //   │  Gõ tắt      │  │ one-line description                │  │
 //   │  Ứng dụng    │  └─────────────────────────────────────┘  │
-//   │  Giới thiệu  │  ...                          (scrolls)   │
+//   │  Chung       │  ┌ Nâng cao ─────────────────────── v ┐  │  expander (collapsed)
+//   │              │  └ summary of what is inside ──────────┘  │
 //   └──────────────┴───────────────────────────────────────────┘
 //
+// What each page shows, and where, is core/settings_pages.h (docs/SETTINGS-CLEANUP-SPEC.md).
 // Everything visual is painted here (GDI+ for anti-aliased shapes, GDI for ClearType
 // text) on an 8-px grid, in DIPs scaled per monitor (per-monitor v2). Toggles are small
 // custom child windows (focusable, Space toggles). Combos, edits, list views and buttons
@@ -44,6 +46,7 @@ using std::min;
 #include "hotkey.h"
 #include "onboarding.h"
 #include "res/icon_ids.h"
+#include "settings_pages.h"
 #include "settings_store.h"
 #include "shortcuts.h"
 #include "strings.h"
@@ -72,6 +75,7 @@ constexpr int kCardPadX = 16, kCardPadY = 14, kCardGap = 4, kSectionGap = 24;
 constexpr int kControlW = 240;            // every combo is this wide
 constexpr int kToggleW = 40, kToggleH = 20;
 constexpr int kTileW = 96, kTileH = 84;  // icon picker tiles
+constexpr int kIndent = 24;               // inset per nesting level (expander content, dependent switch)
 
 // ---------------------------------------------------------------- ids
 enum Id : int {
@@ -106,6 +110,7 @@ enum Id : int {
     IdMixedCard,
     IdProfileRow = 5100,  // + 0..2 (kPickerProfiles), 3 = "Tuỳ chỉnh"
     IdIconTile = 6000,  // + IconChoice
+    IdExpanderBase = 7000,  // + Expander
 };
 
 struct ToggleDef {
@@ -331,7 +336,9 @@ void applyControlTheme(HWND h, const wchar_t* darkClass) {
 }
 
 // ---------------------------------------------------------------- page model
-enum class ItemKind { Section, Setting, Block, About, Links, IconPicker };
+// Expander: a Win11-style collapsible card (core/settings_pages.h Expander); its header is
+// one owner-drawn button (Tab-focusable, Space/Enter/click open or close it).
+enum class ItemKind { Section, Setting, Block, About, Links, IconPicker, Expander };
 enum class Ctl { None, Toggle, Combo, Button };
 
 struct Item {
@@ -343,7 +350,9 @@ struct Item {
     int toggle = -1;           // index into kToggles
     int ctlId = 0;             // combo / button id
     int blockHeight = 0;       // Block: content height (DIP) below the title
-    bool collapsible = false;  // Section: header toggles its items (chevron, summary when closed)
+    int indent = 0;            // 0 page level, 1 inside an expander, 2 under its parent switch
+    bool dimmed = false;       // Setting: shown greyed with the reason, control disabled
+    bool plain = false;        // Setting: no card (the link row to a Windows setting)
     // layout results (px, page coordinates before scrolling)
     RECT rc = {0, 0, 0, 0};
     HWND hwnd = nullptr;       // the control, if any
@@ -361,10 +370,6 @@ HWND g_wnd = nullptr, g_page = nullptr;
 int g_tab = 0, g_hoverNav = -1;
 std::vector<Item> g_items;
 std::vector<LinkHit> g_links;
-// "Công cụ văn bản" (macOS: collapsible header, collapsed by default, a summary line when
-// closed). Remembered while the app runs.
-bool g_textToolsOpen = false;
-RECT g_collapseHit = {0, 0, 0, 0};  // page coordinates of the clickable header
 int g_scroll = 0, g_contentH = 0;
 bool g_syncing = false;
 HICON g_appIcon = nullptr, g_bigIcon = nullptr;
@@ -477,7 +482,7 @@ bool mixedCardPending() { return readFlag(L"mixedCardPending"); }
 void sync();
 void changed();
 
-// Quick profile picker at the top of "Gõ mixed Việt/Anh" (ONBOARDING-SPEC §4, onboarding.h
+// Quick profile picker at the top of "Gõ lẫn tiếng Anh" (ONBOARDING-SPEC §4, onboarding.h
 // matchProfile): three profile rows + "Tuỳ chỉnh", like iOS/Android. The row matching the
 // settings EXACTLY shows "✓ Đang dùng"; none matches -> "Tuỳ chỉnh" does.
 constexpr TypingProfile kPickerProfiles[] = {TypingProfile::Vi, TypingProfile::Mixed, TypingProfile::En};
@@ -536,141 +541,194 @@ void onPickProfile(int row) {
 // built, and again on WM_ACTIVATE — one RegGetValue, never on the key path).
 bool g_shownTextPrediction = false;
 
+// Expander (Win11-style "Nâng cao" card, one level): open state per Expander, remembered
+// while the app runs; collapsed by default.
+bool g_expanded[static_cast<int>(Expander::Count)] = {};
+
+S expanderTitle(Expander e) {
+    switch (e) {
+        case Expander::TextTools: return S::SecTextTools;
+        case Expander::Games: return S::SecGames;
+        case Expander::Appearance: return S::SecAppearance;
+        default: return S::Advanced;
+    }
+}
+S expanderSummary(Expander e) {
+    switch (e) {
+        case Expander::TypingAdvanced: return S::TypingAdvancedSummary;
+        case Expander::MixedAdvanced: return S::MixedAdvancedSummary;
+        case Expander::SwitchAdvanced: return S::SwitchAdvancedSummary;
+        // With the tray icon off (the default) the Text tools menu does not exist: the
+        // summary says how to reach the tools instead.
+        case Expander::TextTools: return g_settings.showTrayIcon ? S::TextToolsSummary : S::TextToolsNoTray;
+        case Expander::Games: return S::GamesSummary;
+        case Expander::Appearance: return S::AppearanceSummary;
+        default: return S::Count;
+    }
+}
+const S kSectionTitles[] = {S::SecInputStyle, S::SecMixed,   S::SecSwitch,      S::SecSpelling,
+                            S::SecHints,      S::SecUpdates, S::SecDiagnostics, S::SecUninstall};  // PageSection order
+
+int toggleIndex(bool Settings::*f) {
+    for (int i = 0; i < kToggleCount; ++i)
+        if (kToggles[i].field == f) return i;
+    return -1;
+}
+
+// The page plan (core/settings_pages.h) -> cards.
 std::vector<Item> pageItems(int tab) {
     std::vector<Item> v;
     g_shownPickerRow = -2;
-    switch (tab) {
-        case 0:
-            // Another Vietnamese IME running / Microsoft Vietnamese keyboards in the list:
-            // a warning card on top, with actions (never automatic).
-            g_conflicts = detectConflicts();
-            if (!g_conflicts.empty()) {
-                Item c = buttonItem(S::ConflictTitle, S::ConflictDesc, IdConflicts);
-                c.descText = conflictDescription(g_conflicts) + L" (" + conflictNames(g_conflicts) + L")";
-                v.push_back(c);
-            }
-            if (mixedCardPending()) v.push_back(buttonItem(S::MixedCardTitle, S::MixedCardDesc, IdMixedCard));
-            v.push_back(section(S::SecInputStyle));
-            v.push_back(comboItem(S::InputMethod, S::InputMethodDesc, IdComboMethod));
-            for (int i = 0; i <= 4; ++i) v.push_back(toggleItem(i));
-            {
-                // "Gõ mixed Việt/Anh" (ONBOARDING-SPEC §4), right under Kiểu gõ like iOS/Android:
-                // English detection (moved from the Chính tả page) + switching language (the
-                // switch key, start new apps in English). Same registry keys as before.
-                const PerAppInput win = readPerAppInput();
-                Item sec = section(S::SecMixed);
-                sec.desc = S::ProfilePickerIntro;
+    PageContext ctx;
+    for (int i = 0; i < static_cast<int>(Expander::Count); ++i) ctx.expanded[i] = g_expanded[i];
+    PerAppInput win = PerAppInput::Unknown;
+    if (tab == static_cast<int>(SettingsPage::Typing)) {
+        // Another Vietnamese IME running / Microsoft Vietnamese keyboards in the list: a
+        // warning card on top, with actions (never automatic).
+        g_conflicts = detectConflicts();
+        win = readPerAppInput();
+        ctx.conflicts = !g_conflicts.empty();
+        ctx.mixedCardPending = mixedCardPending();
+        // Ctrl+Shift / Alt+Z live in VietTelex: a window that starts on another keyboard
+        // (Windows' default) needs Win+Space first. Offer the fix.
+        ctx.offerDefaultInput = defaultInputAdvice(parseSwitchHotkey(g_settings.switchHotkey), defaultInputLangId()) ==
+                                DefaultInputAdvice::MakeVietTelexDefault;
+    }
+    for (const PageRow& r : settingsPageRows(static_cast<SettingsPage>(tab), g_settings, ctx)) {
+        const size_t first = v.size();
+        switch (r.kind) {
+            case RowKind::Section: {
+                Item sec = section(kSectionTitles[r.id]);
+                if (r.id == static_cast<int>(PageSection::Mixed)) sec.desc = S::ProfilePickerIntro;
                 v.push_back(sec);
-                // Profile picker (§4): one of three rows, each with "Chọn" / "✓ Đang dùng".
-                g_shownPickerRow = currentPickerRow();
-                for (int i = 0; i < 3; ++i) v.push_back(buttonItem(kPickerTitles[i], kPickerExamples[i], IdProfileRow + i));
-                // "Tuỳ chỉnh" only appears while it is the current state (cannot be picked);
-                // always showing it dimmed made the list read like four independent options.
-                if (g_shownPickerRow == -1)
-                    v.push_back(buttonItem(S::ProfileCustom, S::ProfileCustomDesc, IdProfileRow + 3));
-                v.push_back(toggleItem(5));   // Tự khôi phục từ không hợp lệ
-                v.push_back(toggleItem(8));   // Ưu tiên tiếng Việt khi trùng
-                v.push_back(toggleItem(7));   // Quyết định theo ngữ cảnh
-                if (g_settings.contextualEnglish) {
-                    v.push_back(toggleItem(25));  // Tự sửa từ phía trước (needs contextual)
-                    v.push_back(toggleItem(26));  // Đoán từ trùng theo tần suất (experimental)
+                break;
+            }
+            case RowKind::Expander: {
+                Item e;
+                e.kind = ItemKind::Expander;
+                e.title = expanderTitle(static_cast<Expander>(r.id));
+                e.desc = expanderSummary(static_cast<Expander>(r.id));
+                e.ctlId = IdExpanderBase + r.id;
+                v.push_back(e);
+                break;
+            }
+            case RowKind::Toggle: {
+                const int idx = toggleIndex(r.field);
+                if (idx < 0) break;
+                Item t = toggleItem(idx);
+                if (r.dim != DimReason::None) {
+                    // Dimmed with the reason, never hidden (SETTINGS-CLEANUP-SPEC §0.4).
+                    t.dimmed = true;
+                    t.descText = std::wstring(tr(r.dim == DimReason::TelexOnly ? S::DimTelexOnly : S::DimNeedsContextual)) +
+                                 L" " + tr(t.desc);
                 }
-                v.push_back(comboItem(S::SwitchHotkey,
-                                      hotkeyNoteString(hotkeyNote(parseSwitchHotkey(g_settings.switchHotkey), win)),
-                                      IdComboHotkey));
-                v.push_back(toggleItem(27));  // Bắt đầu bằng tiếng Anh trong app mới
-                v.push_back(section(S::SecSwitch));
-                v.push_back(buttonItem(S::PerAppWin,
-                                       win == PerAppInput::On    ? S::PerAppWinOn
-                                       : win == PerAppInput::Off ? S::PerAppWinOff
-                                                                 : S::PerAppWinUnknown,
-                                       IdPerAppWin));
-                // Ctrl+Shift / Alt+Z live in VietTelex: a window that starts on another
-                // keyboard (Windows' default) needs Win+Space first. Offer the fix.
-                if (defaultInputAdvice(parseSwitchHotkey(g_settings.switchHotkey), defaultInputLangId()) ==
-                    DefaultInputAdvice::MakeVietTelexDefault)
-                    v.push_back(buttonItem(S::DefaultInputTitle, S::DefaultInputDesc, IdDefaultInput));
+                v.push_back(t);
+                break;
             }
-            v.push_back(comboItem(S::SwitchIndicator, S::SwitchIndicatorDesc, IdComboIndicator));
-            v.push_back(section(S::SecGames));
-            v.push_back(toggleItem(21));
-            v.push_back(toggleItem(22));
-            v.push_back(comboItem(S::GameModeHotkey, S::GameModeHotkeyDesc, IdComboGameHotkey));
-            v.push_back(section(S::SecAppearance));
-            {
-                Item picker;
-                picker.kind = ItemKind::IconPicker;
-                picker.title = S::MenuIcon;
-                picker.desc = S::MenuIconDesc;
-                v.push_back(picker);
-            }
-            v.push_back(toggleItem(13));
-            v.push_back(comboItem(S::TrayStyle, S::TrayStyleDesc, IdComboTrayStyle));
-            v.push_back(comboItem(S::UiLanguage, S::UiLanguageDesc, IdComboLang));
-            break;
-        case 1:
-            v.push_back(section(S::SecSpelling));
-            // Auto-restore / collisions / context / fix earlier words / frequency moved to
-            // Kiểu gõ → Gõ mixed Việt/Anh (05/11/2026).
-            v.push_back(toggleItem(6));   // Kiểm tra chính tả khi gõ
-            v.push_back(toggleItem(9));   // Teencode
-            v.push_back(toggleItem(10));  // Sửa dấu từ đã gõ
-            v.push_back(toggleItem(20));  // gạch đỏ âm tiết sai chính tả (composition only)
-            // Gợi ý cạnh con trỏ: mostly on by default, so always visible (not collapsed).
-            v.push_back(section(S::SecHints));
-            for (int i = 15; i <= 19; ++i) v.push_back(toggleItem(i));
-            {
-                // Word prediction has no VietTelex switch: show Windows' setting and a way to it.
-                g_shownTextPrediction = readSystemTextPrediction();
-                Item c = buttonItem(S::TextPrediction, S::Count, IdTextPrediction);
-                c.descText = textPredictionDesc(g_shownTextPrediction);
-                v.push_back(c);
-            }
-            v.push_back(toggleItem(23));  // Lọc từ nhạy cảm (gợi ý từ + sửa lỗi gõ)
-            v.push_back(toggleItem(24));  // Học từ bạn gõ
-            v.push_back(buttonItem(S::ClearLearned, S::ClearLearnedDesc, IdClearLearned));
-            // Công cụ văn bản (macOS: same place, after the spelling options; collapsible,
-            // collapsed by default). With the tray icon off (the default) its menu does not
-            // exist: the header says how to reach the tools instead.
-            {
-                Item sec = section(S::SecTextTools);
-                sec.collapsible = true;
-                sec.desc = !g_settings.showTrayIcon ? S::TextToolsNoTray
-                           : g_textToolsOpen        ? S::Count
-                                                    : S::TextToolsSummary;
-                v.push_back(sec);
-            }
-            if (g_textToolsOpen) {
-                v.push_back(toggleItem(14));
-                v.push_back(comboItem(S::AddTonesHotkey, S::AddTonesHotkeyDesc, IdComboAddTones));
-            }
-            break;
-        case 2: v.push_back(blockItem(S::SecShortcuts, S::ShortcutsDesc, 360)); break;
-        case 3: v.push_back(blockItem(S::SecApps, S::AppsDesc, 360)); break;
-        case 4: {
-            Item hero;
-            hero.kind = ItemKind::About;
-            v.push_back(hero);
-            v.push_back(section(S::SecUpdates));
-            v.push_back(buttonItem(S::CheckNow, S::CheckNowDesc, IdCheckNow));
-            v.push_back(toggleItem(11));
-            v.push_back(section(S::SecDiagnostics));
-            v.push_back(toggleItem(12));
-            v.push_back(section(S::SecUninstall));
-            v.push_back(buttonItem(S::Uninstall, S::UninstallDesc, IdUninstall));
-            Item links;
-            links.kind = ItemKind::Links;
-            v.push_back(links);
-            break;
+            case RowKind::Control:
+                switch (static_cast<PageControl>(r.id)) {
+                    case PageControl::ConflictCard: {
+                        Item c = buttonItem(S::ConflictTitle, S::ConflictDesc, IdConflicts);
+                        c.descText = conflictDescription(g_conflicts) + L" (" + conflictNames(g_conflicts) + L")";
+                        v.push_back(c);
+                        break;
+                    }
+                    case PageControl::MixedCard:
+                        v.push_back(buttonItem(S::MixedCardTitle, S::MixedCardDesc, IdMixedCard));
+                        break;
+                    case PageControl::InputMethod:
+                        v.push_back(comboItem(S::InputMethod, S::InputMethodDesc, IdComboMethod));
+                        break;
+                    case PageControl::ProfileRows:
+                        // Profile picker (ONBOARDING-SPEC §4): one of three rows, each with
+                        // "Chọn" / "✓ Đang dùng". "Tuỳ chỉnh" only appears while it is the
+                        // current state (cannot be picked).
+                        g_shownPickerRow = currentPickerRow();
+                        for (int i = 0; i < 3; ++i)
+                            v.push_back(buttonItem(kPickerTitles[i], kPickerExamples[i], IdProfileRow + i));
+                        if (g_shownPickerRow == -1)
+                            v.push_back(buttonItem(S::ProfileCustom, S::ProfileCustomDesc, IdProfileRow + 3));
+                        break;
+                    case PageControl::SwitchHotkey:
+                        v.push_back(comboItem(S::SwitchHotkey,
+                                              hotkeyNoteString(hotkeyNote(parseSwitchHotkey(g_settings.switchHotkey), win)),
+                                              IdComboHotkey));
+                        break;
+                    case PageControl::PerAppWin:
+                        v.push_back(buttonItem(S::PerAppWin,
+                                               win == PerAppInput::On    ? S::PerAppWinOn
+                                               : win == PerAppInput::Off ? S::PerAppWinOff
+                                                                         : S::PerAppWinUnknown,
+                                               IdPerAppWin));
+                        break;
+                    case PageControl::DefaultInput:
+                        v.push_back(buttonItem(S::DefaultInputTitle, S::DefaultInputDesc, IdDefaultInput));
+                        break;
+                    case PageControl::SwitchIndicator:
+                        v.push_back(comboItem(S::SwitchIndicator, S::SwitchIndicatorDesc, IdComboIndicator));
+                        break;
+                    case PageControl::TextPredictionLink: {
+                        // Word prediction is Windows' setting, not VietTelex's: one plain link
+                        // row (state + where to change it), no card, no switch.
+                        g_shownTextPrediction = readSystemTextPrediction();
+                        Item c = buttonItem(S::TextPrediction, S::Count, IdTextPrediction);
+                        c.descText = textPredictionDesc(g_shownTextPrediction);
+                        c.plain = true;
+                        v.push_back(c);
+                        break;
+                    }
+                    case PageControl::ClearLearned:
+                        v.push_back(buttonItem(S::ClearLearned, S::ClearLearnedDesc, IdClearLearned));
+                        break;
+                    case PageControl::AddTonesHotkey:
+                        v.push_back(comboItem(S::AddTonesHotkey, S::AddTonesHotkeyDesc, IdComboAddTones));
+                        break;
+                    case PageControl::ShortcutTable: v.push_back(blockItem(S::SecShortcuts, S::ShortcutsDesc, 360)); break;
+                    case PageControl::AppTable: v.push_back(blockItem(S::SecApps, S::AppsDesc, 360)); break;
+                    case PageControl::GameHotkey:
+                        v.push_back(comboItem(S::GameModeHotkey, S::GameModeHotkeyDesc, IdComboGameHotkey));
+                        break;
+                    case PageControl::About: {
+                        Item hero;
+                        hero.kind = ItemKind::About;
+                        v.push_back(hero);
+                        break;
+                    }
+                    case PageControl::UiLanguage:
+                        v.push_back(comboItem(S::UiLanguage, S::UiLanguageDesc, IdComboLang));
+                        break;
+                    case PageControl::IconPicker: {
+                        Item picker;
+                        picker.kind = ItemKind::IconPicker;
+                        picker.title = S::MenuIcon;
+                        picker.desc = S::MenuIconDesc;
+                        v.push_back(picker);
+                        break;
+                    }
+                    case PageControl::TrayStyle:
+                        v.push_back(comboItem(S::TrayStyle, S::TrayStyleDesc, IdComboTrayStyle));
+                        break;
+                    case PageControl::CheckNow: v.push_back(buttonItem(S::CheckNow, S::CheckNowDesc, IdCheckNow)); break;
+                    case PageControl::Uninstall:
+                        v.push_back(buttonItem(S::Uninstall, S::UninstallDesc, IdUninstall));
+                        break;
+                    case PageControl::Links: {
+                        Item links;
+                        links.kind = ItemKind::Links;
+                        v.push_back(links);
+                        break;
+                    }
+                }
+                break;
         }
-        default: break;
+        for (size_t i = first; i < v.size(); ++i) v[i].indent = r.indent;
     }
     return v;
 }
 
 const S kPageTitles[kPageCount] = {S::TabTyping, S::TabSpelling, S::TabShortcuts, S::TabApps, S::TabAbout};
-// Segoe Fluent Icons / MDL2 glyphs: Keyboard, Font, List, AllApps, Info.
-const wchar_t kNavGlyphs[kPageCount] = {0xE765, 0xE8D2, 0xE8FD, 0xE71D, 0xE946};
+// Segoe Fluent Icons / MDL2 glyphs: Keyboard, Lightbulb, List, AllApps, Settings.
+const wchar_t kNavGlyphs[kPageCount] = {0xE765, 0xEA80, 0xE8FD, 0xE71D, 0xE713};
 
 // ---------------------------------------------------------------- toggle control
 struct ToggleState {
@@ -718,7 +776,8 @@ LRESULT CALLBACK toggleProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             }
             return 0;
         case WM_SETFOCUS:
-        case WM_KILLFOCUS: InvalidateRect(h, nullptr, FALSE); return 0;
+        case WM_KILLFOCUS:
+        case WM_ENABLE: InvalidateRect(h, nullptr, FALSE); return 0;
         case WM_ERASEBKGND: return 1;
         case WM_PAINT: {
             PAINTSTRUCT ps;
@@ -733,12 +792,18 @@ LRESULT CALLBACK toggleProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             {
                 Gdiplus::Graphics g(mem);
                 g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
-                const bool on = st && st->on, hover = st && st->hover;
+                const bool enabled = IsWindowEnabled(h) != FALSE;
+                const bool on = st && st->on, hover = enabled && st && st->hover;
                 const float tw = static_cast<float>(px(kToggleW)), th = static_cast<float>(px(kToggleH));
                 const float x = (w - tw) / 2.0f, y = (hh - th) / 2.0f;
                 Gdiplus::GraphicsPath track;
                 roundRectPath(track, x, y, tw, th, th / 2);
-                if (on) {
+                if (!enabled) {  // dimmed (a parent switch is off / Telex-only under VNI)
+                    Gdiplus::SolidBrush b(gc(on ? g_pal.ctrlBorder : g_pal.card));
+                    g.FillPath(&b, &track);
+                    Gdiplus::Pen pen(gc(g_pal.ctrlBorder), 1.0f);
+                    g.DrawPath(&pen, &track);
+                } else if (on) {
                     Gdiplus::SolidBrush b(gc(hover ? mix(g_pal.accent, g_dark ? RGB(0, 0, 0) : RGB(255, 255, 255), 10)
                                                    : g_pal.accent));
                     g.FillPath(&b, &track);
@@ -750,7 +815,9 @@ LRESULT CALLBACK toggleProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 }
                 const float knob = th - px(hover ? 6 : 8);  // 12px knob, 14px on hover (Win11)
                 const float kx = on ? x + tw - th / 2 - knob / 2 : x + th / 2 - knob / 2;
-                Gdiplus::SolidBrush kb(gc(on ? g_pal.accentText : g_pal.subtext));
+                Gdiplus::SolidBrush kb(gc(!enabled ? (on ? g_pal.card : g_pal.ctrlBorder)
+                                          : on       ? g_pal.accentText
+                                                     : g_pal.subtext));
                 g.FillEllipse(&kb, kx, y + (th - knob) / 2, knob, knob);
                 if (GetFocus() == h) {
                     Gdiplus::GraphicsPath ring;
@@ -788,7 +855,23 @@ HWND makeCombo(int id, const S* labels, int n) {
 }
 
 // ---- one shared set of themed controls for every page (lists, edits, buttons) ----
-enum ButtonKind : LONG_PTR { kBtnSecondary = 0, kBtnPrimary = 1, kBtnDanger = 2, kBtnTile = 10 /* + IconChoice */ };
+enum ButtonKind : LONG_PTR {
+    kBtnSecondary = 0,
+    kBtnPrimary = 1,
+    kBtnDanger = 2,
+    kBtnLink = 3,      // accent text, no frame (link row to a Windows setting)
+    kBtnExpander = 4,  // a whole expander header card (title, summary, chevron)
+    kBtnTile = 10 /* + IconChoice */
+};
+const Item* itemByCtlId(int id) {
+    for (const Item& it : g_items)
+        if (it.ctlId == id) return &it;
+    return nullptr;
+}
+bool isExpanderOpen(int ctlId) {
+    const int e = ctlId - IdExpanderBase;
+    return e >= 0 && e < static_cast<int>(Expander::Count) && g_expanded[e];
+}
 std::vector<HWND> g_edits;  // edits get a painted Fluent frame (see paintPage)
 
 // Owner-drawn Fluent button: identical in light/dark and on every Windows version.
@@ -808,6 +891,55 @@ void drawButton(const DRAWITEMSTRUCT* di) {
     HBITMAP bmp = CreateCompatibleBitmap(di->hDC, w, h);
     HGDIOBJ oldBmp = SelectObject(mem, bmp);
     RECT rc = {0, 0, w, h};
+    if (kind == kBtnExpander || kind == kBtnLink) {
+        FillRect(mem, &rc, g_brBg);
+        Gdiplus::Graphics g(mem);
+        g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+        if (kind == kBtnExpander) {
+            const Item* it = itemByCtlId(static_cast<int>(di->CtlID));
+            const bool open = isExpanderOpen(static_cast<int>(di->CtlID));
+            const float radius = g_win11 ? static_cast<float>(px(6)) : 0.0f;
+            fillRound(g, rc, radius, pressed ? g_pal.navHover : g_pal.card, g_pal.cardBorder, true);
+            const int textW = w - 2 * px(kCardPadX) - px(40);
+            if (it) {
+                const std::wstring title = tr(it->title), desc = hasDesc(*it) ? descOf(*it) : std::wstring();
+                const int th = textHeight(title, textW, g_fBody);
+                const int dh = desc.empty() ? 0 : px(2) + textHeight(desc, textW, g_fCaption);
+                const int ty = (h - th - dh) / 2;
+                RECT t1 = {px(kCardPadX), ty, px(kCardPadX) + textW, ty + th};
+                text(mem, title, t1, g_fBody, g_pal.text, DT_WORDBREAK);
+                if (dh) {
+                    RECT t2 = {t1.left, t1.bottom + px(2), t1.right, t1.bottom + dh};
+                    text(mem, desc, t2, g_fCaption, g_pal.subtext, DT_WORDBREAK);
+                }
+            }
+            // Chevron down (closed) / up (open), like Win11 Settings expanders.
+            RECT cr = {w - px(kCardPadX) - px(32), 0, w - px(kCardPadX), h};
+            if (g_fIcon)
+                text(mem, std::wstring(1, open ? wchar_t(0xE70E) : wchar_t(0xE70D)), cr, g_fIcon, g_pal.text,
+                     DT_SINGLELINE | DT_VCENTER | DT_CENTER);
+            else
+                text(mem, open ? L"\u25B4" : L"\u25BE", cr, g_fBody, g_pal.text, DT_SINGLELINE | DT_VCENTER | DT_CENTER);
+        } else {
+            wchar_t buf[128];
+            GetWindowTextW(di->hwndItem, buf, 128);
+            text(mem, buf, rc, g_fBody, g_pal.accent, DT_SINGLELINE | DT_VCENTER | DT_RIGHT | DT_END_ELLIPSIS);
+        }
+        if (focus) {
+            RECT fr = rc;
+            InflateRect(&fr, -px(2), -px(2));
+            Gdiplus::GraphicsPath p;
+            roundRectPath(p, fr.left + 0.5f, fr.top + 0.5f, static_cast<float>(fr.right - fr.left - 1),
+                          static_cast<float>(fr.bottom - fr.top - 1), static_cast<float>(px(4)));
+            Gdiplus::Pen pen(gc(g_pal.text), 2.0f);
+            g.DrawPath(&pen, &p);
+        }
+        BitBlt(di->hDC, di->rcItem.left, di->rcItem.top, w, h, mem, 0, 0, SRCCOPY);
+        SelectObject(mem, oldBmp);
+        DeleteObject(bmp);
+        DeleteDC(mem);
+        return;
+    }
     FillRect(mem, &rc, g_brCard);
     const bool tile = kind >= kBtnTile;
     const int choice = tile ? static_cast<int>(kind - kBtnTile) : -1;
@@ -990,6 +1122,7 @@ void createControls() {
                                           10, 10, g_page,
                                           reinterpret_cast<HMENU>(static_cast<INT_PTR>(IdToggleBase + it.toggle)),
                                           g_inst, nullptr);
+                if (it.dimmed) EnableWindow(it.hwnd, FALSE);
             } else if (it.ctl == Ctl::Combo) {
                 switch (it.ctlId) {
                     case IdComboMethod: {
@@ -1046,7 +1179,8 @@ void createControls() {
                                                                                                    : S::PerAppOpenButton),
                                          it.ctlId, perAppAction(readPerAppInput()) == PerAppAction::Enable ? kBtnPrimary : kBtnSecondary);
                 else if (it.ctlId == IdClearLearned) it.hwnd = makeButton(tr(S::ClearLearnedButton), it.ctlId);
-                else if (it.ctlId == IdTextPrediction) it.hwnd = makeButton(tr(S::TextPredictionButton), it.ctlId);
+                else if (it.ctlId == IdTextPrediction)
+                    it.hwnd = makeButton(tr(S::TextPredictionButton), it.ctlId, kBtnLink);
                 else if (it.ctlId == IdMixedCard) it.hwnd = makeButton(tr(S::MixedCardButton), it.ctlId, kBtnPrimary);
                 else if (it.ctlId >= IdProfileRow && it.ctlId <= IdProfileRow + 3) {
                     // Current row: "✓ Đang dùng" (accent, not clickable); others: "Chọn".
@@ -1058,6 +1192,8 @@ void createControls() {
                 }
                 else it.hwnd = makeButton(tr(it.ctlId == IdCheckNow ? S::CheckButton : it.title), it.ctlId);
             }
+        } else if (it.kind == ItemKind::Expander) {
+            it.hwnd = makeButton(tr(it.title), it.ctlId, kBtnExpander);
         } else if (it.kind == ItemKind::IconPicker) {
             for (int i = 0; i < kIconChoiceCount; ++i) {
                 HWND t = makeCtl(L"BUTTON", tr(kIconLabels[i]), BS_OWNERDRAW | WS_TABSTOP, IdIconTile + i);
@@ -1086,9 +1222,11 @@ void layout() {
     RECT client;
     GetClientRect(g_page, &client);
     const int x0 = px(kPad), x1 = client.right - px(kPad);
-    const int cardW = x1 - x0;
     int y = px(24) + px(40) + px(16);  // page title block
     for (Item& it : g_items) {
+        // Cards inside an expander (and a dependent switch under its parent) are inset.
+        const int xi = x0 + it.indent * px(kIndent);
+        const int cardW = x1 - xi;
         switch (it.kind) {
             case ItemKind::Section:
                 y += (&it == &g_items.front()) ? 0 : px(kSectionGap - kCardGap);
@@ -1101,8 +1239,17 @@ void layout() {
                 const int textW = cardW - 2 * px(kCardPadX) - ctlW - px(24);
                 int h = textHeight(tr(it.title), textW, g_fBody);
                 if (hasDesc(it)) h += px(2) + textHeight(descOf(it), textW, g_fCaption);
+                h = std::max(h + 2 * px(kCardPadY), px(it.plain ? 48 : 68));
+                it.rc = {xi, y, x1, y + h};
+                y = it.rc.bottom + px(kCardGap);
+                break;
+            }
+            case ItemKind::Expander: {
+                const int textW = cardW - 2 * px(kCardPadX) - px(40);
+                int h = textHeight(tr(it.title), textW, g_fBody);
+                if (hasDesc(it)) h += px(2) + textHeight(descOf(it), textW, g_fCaption);
                 h = std::max(h + 2 * px(kCardPadY), px(68));
-                it.rc = {x0, y, x1, y + h};
+                it.rc = {xi, y, x1, y + h};
                 y = it.rc.bottom + px(kCardGap);
                 break;
             }
@@ -1116,7 +1263,7 @@ void layout() {
             case ItemKind::IconPicker: {
                 const int textW = cardW - 2 * px(kCardPadX);
                 const int head = textHeight(tr(it.title), textW, g_fBody) + px(2) + textHeight(tr(it.desc), textW, g_fCaption);
-                it.rc = {x0, y, x1, y + 2 * px(kCardPadY) + head + px(12) + px(kTileH)};
+                it.rc = {xi, y, x1, y + 2 * px(kCardPadY) + head + px(12) + px(kTileH)};
                 y = it.rc.bottom + px(kCardGap);
                 break;
             }
@@ -1154,6 +1301,8 @@ void placeControls() {
             } else if (it.ctl == Ctl::Button) {
                 put(it.hwnd, r.right - px(kCardPadX) - px(kControlW), midY - px(16), px(kControlW), px(32));
             }
+        } else if (it.kind == ItemKind::Expander && it.hwnd) {
+            put(it.hwnd, r.left, r.top, r.right - r.left, r.bottom - r.top);
         } else if (it.kind == ItemKind::IconPicker) {
             int x = r.left + px(kCardPadX);
             const int y = r.bottom - px(kCardPadY) - px(kTileH);
@@ -1302,7 +1451,6 @@ void paintControlFrames(HDC dc, Gdiplus::Graphics& g);
 void paintPage(HDC dc, const RECT& client) {
     FillRect(dc, &client, g_brBg);
     g_links.clear();
-    g_collapseHit = {0, 0, 0, 0};
     Gdiplus::Graphics g(dc);
     g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
     const float radius = g_win11 ? static_cast<float>(px(6)) : 0.0f;
@@ -1316,17 +1464,6 @@ void paintPage(HDC dc, const RECT& client) {
         switch (it.kind) {
             case ItemKind::Section: {
                 RECT head = {r.left, r.top, r.right, r.top + px(32)};
-                if (it.collapsible) {
-                    // Chevron right (closed) / down (open): Segoe Fluent/MDL2, else a text triangle.
-                    RECT cr = {head.right - px(28), head.top, head.right, head.bottom};
-                    if (g_fIcon)
-                        text(dc, std::wstring(1, g_textToolsOpen ? wchar_t(0xE70D) : wchar_t(0xE76C)), cr, g_fIcon,
-                             g_pal.subtext, DT_SINGLELINE | DT_VCENTER | DT_CENTER);
-                    else
-                        text(dc, g_textToolsOpen ? L"\u25BE" : L"\u25B8", cr, g_fBody, g_pal.subtext,
-                             DT_SINGLELINE | DT_VCENTER | DT_CENTER);
-                    g_collapseHit = it.rc;  // page coordinates (it.rc, not the scrolled r)
-                }
                 text(dc, tr(it.title), head, g_fSection, g_pal.text, DT_SINGLELINE | DT_VCENTER);
                 if (it.desc != S::Count) {
                     RECT dr = {r.left, head.bottom, r.right - px(32), r.bottom};
@@ -1334,15 +1471,16 @@ void paintPage(HDC dc, const RECT& client) {
                 }
                 break;
             }
+            case ItemKind::Expander: break;  // the header button paints the whole card
             case ItemKind::Setting: {
-                fillRound(g, r, radius, g_pal.card, g_pal.cardBorder, true);
+                if (!it.plain) fillRound(g, r, radius, g_pal.card, g_pal.cardBorder, true);
                 const int ctlW = it.ctl == Ctl::Toggle ? px(kToggleW + 56) : it.ctl == Ctl::None ? 0 : px(kControlW);
                 const int textW = (r.right - r.left) - 2 * px(kCardPadX) - ctlW - px(24);
                 const int th = textHeight(tr(it.title), textW, g_fBody);
                 const int dh = hasDesc(it) ? px(2) + textHeight(descOf(it), textW, g_fCaption) : 0;
                 int ty = (r.top + r.bottom - th - dh) / 2;
                 RECT tr1 = {r.left + px(kCardPadX), ty, r.left + px(kCardPadX) + textW, ty + th};
-                text(dc, tr(it.title), tr1, g_fBody, g_pal.text, DT_WORDBREAK);
+                text(dc, tr(it.title), tr1, g_fBody, it.dimmed ? g_pal.subtext : g_pal.text, DT_WORDBREAK);
                 if (dh) {
                     RECT tr2 = {tr1.left, tr1.bottom + px(2), tr1.right, tr1.bottom + dh};
                     text(dc, descOf(it), tr2, g_fCaption, g_pal.subtext, DT_WORDBREAK);
@@ -1351,7 +1489,8 @@ void paintPage(HDC dc, const RECT& client) {
                     const bool on = SendMessageW(it.hwnd, BM_GETCHECK, 0, 0) == BST_CHECKED;
                     RECT lr = {r.right - px(kCardPadX) - px(kToggleW + 8) - px(56), r.top,
                                r.right - px(kCardPadX) - px(kToggleW + 8) - px(8), r.bottom};
-                    text(dc, tr(on ? S::On : S::Off), lr, g_fBody, g_pal.text, DT_SINGLELINE | DT_VCENTER | DT_RIGHT);
+                    text(dc, tr(on ? S::On : S::Off), lr, g_fBody, it.dimmed ? g_pal.subtext : g_pal.text,
+                         DT_SINGLELINE | DT_VCENTER | DT_RIGHT);
                 }
                 break;
             }
@@ -1511,15 +1650,24 @@ bool validShortcutKey(const std::wstring& k) {
 
 }  // namespace
 
-// "Nhập…" and the welcome window's "Chuyển từ UniKey": any shortcut file — VietTelex /
-// macOS JSON or YAML, UniKey, OpenKey, generic text — in UTF-8 or UTF-16 (macro_import.h).
+// "Nhập…" and the welcome window's "Chuyển gõ tắt từ bộ gõ khác": any shortcut file —
+// VietTelex / macOS JSON or YAML, other input methods' macro files, generic text — in
+// UTF-8 or UTF-16 (macro_import.h).
 void importShortcutsDialog(HWND owner) {
     wchar_t file[MAX_PATH] = {};
     OPENFILENAMEW ofn = {};
     ofn.lStructSize = sizeof ofn;
     ofn.hwndOwner = owner;
-    ofn.lpstrFilter =
-        L"Shortcuts / UniKey / OpenKey (*.txt;*.yml;*.yaml;*.json)\0*.txt;*.yml;*.yaml;*.json\0All files\0*.*\0";
+    // "<name> (*.txt;…)\0*.txt;…\0*.*\0*.*\0" — built at run time for the UI language.
+    std::wstring filter = std::wstring(tr(S::ImportFilterName)) + L" (*.txt;*.yml;*.yaml;*.json)";
+    filter.push_back(L'\0');
+    filter += L"*.txt;*.yml;*.yaml;*.json";
+    filter.push_back(L'\0');
+    filter += L"*.*";
+    filter.push_back(L'\0');
+    filter += L"*.*";
+    filter.push_back(L'\0');
+    ofn.lpstrFilter = filter.c_str();
     ofn.lpstrFile = file;
     ofn.nMaxFile = MAX_PATH;
     ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
@@ -1544,7 +1692,7 @@ void importShortcutsDialog(HWND owner) {
     for (const auto& kv : m.entries) g_settings.shortcuts[utf8ToUtf16(kv.first)] = utf8ToUtf16(kv.second);
     settingsChanged();
     refreshSettingsWindow();
-    const wchar_t* fmtName = m.format == MacroFormat::UniKey ? L"UniKey" : m.format == MacroFormat::OpenKey ? L"OpenKey" : L"VietTelex / text";
+    const wchar_t* fmtName = tr(m.format == MacroFormat::Generic ? S::ImportFmtText : S::ImportFmtOther);
     wchar_t line[512];
     swprintf(line, 512, tr(S::ImportResult), static_cast<int>(m.entries.size()), fmtName);
     std::wstring msg = line;
@@ -1656,12 +1804,17 @@ void onCommand(int id, int code, HWND ctl) {
         g_settings.*kToggles[id - IdToggleBase].field = SendMessageW(ctl, BM_GETCHECK, 0, 0) == BST_CHECKED;
         changed();
         InvalidateRect(g_page, nullptr, FALSE);  // "Bật"/"Tắt" label
-        // Tự sửa từ phía trước / Đoán từ trùng theo tần suất show only while Quyết định theo
-        // ngữ cảnh is on.
+        // Tự sửa từ phía trước / Đoán từ trùng theo tần suất are dimmed while Quyết định theo
+        // ngữ cảnh is off.
         if (kToggles[id - IdToggleBase].field == &Settings::contextualEnglish)
             PostMessageW(g_wnd, WM_APP + 2, 0, 0);  // rebuild outside this notification, keep scroll
         else
             refreshPickerIfStale();  // a profile switch moved: the checked picker row may change
+        return;
+    }
+    if (id >= IdExpanderBase && id < IdExpanderBase + static_cast<int>(Expander::Count) && code == BN_CLICKED) {
+        g_expanded[id - IdExpanderBase] = !g_expanded[id - IdExpanderBase];
+        PostMessageW(g_wnd, WM_APP + 2, 0, 0);  // rebuild outside this notification; focus stays on it
         return;
     }
     if (id >= IdProfileRow && id < IdProfileRow + 3 && code == BN_CLICKED) {
@@ -1674,6 +1827,7 @@ void onCommand(int id, int code, HWND ctl) {
             if (code == CBN_SELCHANGE) {
                 g_settings.vniMode = sel() == 1;
                 changed();
+                PostMessageW(g_wnd, WM_APP + 2, 0, 0);  // Telex-only switches dim / undim
             }
             break;
         case IdComboHotkey:
@@ -1856,13 +2010,6 @@ LRESULT CALLBACK pageProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         }
         case WM_LBUTTONUP: {
             POINT pt = {static_cast<short>(LOWORD(lp)), static_cast<short>(HIWORD(lp)) + g_scroll};
-            if (PtInRect(&g_collapseHit, pt)) {
-                g_textToolsOpen = !g_textToolsOpen;
-                const int keep = g_scroll;
-                buildPage();
-                scrollTo(keep);
-                return 0;
-            }
             for (const LinkHit& l : g_links)
                 if (PtInRect(&l.rc, pt)) ShellExecuteW(nullptr, L"open", l.url, nullptr, nullptr, SW_SHOWNORMAL);
             return 0;
@@ -1872,10 +2019,6 @@ LRESULT CALLBACK pageProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             GetCursorPos(&pt);
             ScreenToClient(h, &pt);
             pt.y += g_scroll;
-            if (PtInRect(&g_collapseHit, pt)) {
-                SetCursor(LoadCursorW(nullptr, IDC_HAND));
-                return TRUE;
-            }
             for (const LinkHit& l : g_links)
                 if (PtInRect(&l.rc, pt)) {
                     SetCursor(LoadCursorW(nullptr, IDC_HAND));
@@ -1994,13 +2137,17 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             break;
         case WM_DWMCOLORIZATIONCOLORCHANGED: rebuildAll(); break;
         case WM_APP + 1: rebuildAll(); return 0;
-        case WM_APP + 2: {  // rebuild this page, same scroll position
+        case WM_APP + 2: {  // rebuild this page, same scroll position and keyboard focus
             const int keep = g_scroll;
+            HWND f = GetFocus();
+            const int focusId = f && GetParent(f) == g_page ? GetDlgCtrlID(f) : 0;
             buildPage();
             scrollTo(keep);
+            if (focusId)
+                if (HWND again = GetDlgItem(g_page, focusId)) SetFocus(again);
             return 0;
         }
-        case WM_APP + 3:  // the upgrade card was dismissed: rebuild and bring "Gõ mixed Việt/Anh" up
+        case WM_APP + 3:  // the upgrade card was dismissed: rebuild and bring "Gõ lẫn tiếng Anh" up
             buildPage();
             for (const Item& it : g_items)
                 if (it.kind == ItemKind::Section && it.title == S::SecMixed) {
@@ -2090,6 +2237,16 @@ bool settingsDialogMessage(MSG* msg) {
     if (msg->message == WM_KEYDOWN && msg->wParam == VK_TAB && GetKeyState(VK_CONTROL) < 0) {
         SendMessageW(g_wnd, WM_KEYDOWN, msg->wParam, msg->lParam);
         return true;
+    }
+    // Enter opens/closes the focused expander (Space already does) or follows a link row.
+    if (msg->message == WM_KEYDOWN && msg->wParam == VK_RETURN && msg->hwnd && GetParent(msg->hwnd) == g_page) {
+        const LONG_PTR kind = GetWindowLongPtrW(msg->hwnd, GWLP_USERDATA);
+        wchar_t cls[16] = {};
+        GetClassNameW(msg->hwnd, cls, 16);
+        if (lstrcmpiW(cls, L"Button") == 0 && (kind == kBtnExpander || kind == kBtnLink)) {
+            SendMessageW(msg->hwnd, BM_CLICK, 0, 0);
+            return true;
+        }
     }
     return IsDialogMessageW(g_wnd, msg);
 }

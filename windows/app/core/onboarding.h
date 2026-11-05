@@ -91,7 +91,7 @@ void applyProfile(Settings& s, TypingProfile p);
 // The switches the profile turns ON, in the order the "Gõ thử" page lists them.
 std::vector<bool Settings::*> profileTurnedOn(TypingProfile p);
 
-// ---- Quick picker at the top of "Gõ mixed Việt/Anh" (ONBOARDING-SPEC §4) --------------
+// ---- Quick picker at the top of "Gõ lẫn tiếng Anh" (ONBOARDING-SPEC §4) --------------
 // Same behaviour as iOS Shared/OnboardingProfile.swift (OnboardingSettings) and Android
 // ui/MixedTyping.kt: three profile rows + "Tuỳ chỉnh". A profile is checked only when the
 // profile switches match it EXACTLY; none matches -> "Tuỳ chỉnh".
@@ -115,7 +115,7 @@ bool profileNeedsConfirmation(const Settings& s, TypingProfile p, const std::str
 //   absent + welcome Show           -> ShowWelcome (new user: setup page, then profile)
 //   absent + welcome MarkShown/Nothing (set up by a version without onboarding)
 //                                   -> Upgrade: onboardingDone = 1 + the one-time
-//                                      "Gõ mixed Việt/Anh" card in Settings; no value changes
+//                                      "Gõ lẫn tiếng Anh" card in Settings; no value changes
 enum class OnboardingAction { ShowWelcome, ShowProfile, Upgrade, Nothing };
 OnboardingAction decideOnboarding(int onboardingDone, WelcomeAction welcome);
 

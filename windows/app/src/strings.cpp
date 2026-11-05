@@ -21,11 +21,11 @@ const Pair kStrings[] = {
     {L"Giới thiệu", L"About"},
     {L"Ẩn biểu tượng khay", L"Hide tray icon"},
 
-    {L"Kiểu gõ", L"Typing"},
-    {L"Chính tả", L"Spelling"},
+    {L"Gõ phím", L"Typing"},
+    {L"Gợi ý & công cụ", L"Suggestions & tools"},
     {L"Gõ tắt", L"Shortcuts"},
     {L"Ứng dụng", L"Apps"},
-    {L"Giới thiệu", L"About"},
+    {L"Chung", L"General"},
 
     {L"Kiểu gõ", L"Input style"},
     {L"Chuyển Việt/Anh", L"Vietnamese/English switch"},
@@ -34,7 +34,7 @@ const Pair kStrings[] = {
     {L"Bảng gõ tắt", L"Shortcut table"},
     {L"Chế độ theo ứng dụng", L"Per-app modes"},
     {L"Cập nhật", L"Updates"},
-    {L"Chẩn đoán", L"Diagnostics"},
+    {L"Nâng cao / Gỡ lỗi", L"Advanced / Debugging"},
     {L"Gỡ cài đặt", L"Uninstall"},
 
     {L"Kiểu gõ", L"Typing method"},
@@ -48,37 +48,37 @@ const Pair kStrings[] = {
     {L"Bỏ dấu tự do", L"Free tone placement"},
     {L"Tắt = Telex nghiêm ngặt: dấu chỉ nhận khi gõ sát nguyên âm, hợp cho English/code (data→data). Bật: dấu đặt tự do (ama→âm).",
      L"Off = strict Telex: tones apply only next to a vowel — good for English/code (data→data). On: free placement (ama→âm)."},
-    {L"Gõ nhanh (Quick Telex)", L"Quick Telex"},
+    {L"Gõ tắt phụ âm nhanh (cc→ch, gg→gi…)", L"Quick consonants (cc→ch, gg→gi…)"},
     {L"Gõ đúp phụ âm đầu để ra phụ âm ghép: cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th.",
      L"Doubled first consonant expands: cc→ch, gg→gi, kk→kh, nn→ng, qq→qu, pp→ph, tt→th."},
     {L"Bỏ dấu kiểu mới (oà, uý)", L"Modern tone placement (oà, uý)"},
     {L"Tắt = kiểu cũ (hòa, thủy, khỏe). Bật = kiểu mới (hoà, thuý, khoẻ). Chỉ đổi vị trí dấu ở oa/oe/uy.",
      L"Off = old style (hòa, thủy, khỏe). On = new style (hoà, thuý, khoẻ). Only oa/oe/uy differ."},
     {L"Phím ngoặc: [ ra ơ, ] ra ư", L"Bracket vowels: [ types ơ, ] types ư"},
-    {L"Thói quen UniKey: “th[” → “thơ”, “ng]” → “ngư”. Nếu bạn gõ code thì nên để TẮT.",
-     L"The UniKey habit: “th[” → “thơ”, “ng]” → “ngư”. Leave OFF if you type code."},
-    {L"Tự khôi phục từ không hợp lệ", L"Auto-restore invalid words"},
-    {L"Từ không phải tiếng Việt hợp lệ sẽ tự trả về đúng phím đã gõ khi kết thúc từ (gõ text: “tet” → “text”).",
-     L"A word that isn’t valid Vietnamese snaps back to the keys you typed when the word ends (typing text: “tet” → “text”)."},
+    {L"Gõ ơ/ư bằng phím ngoặc: “th[” → “thơ”, “ng]” → “ngư”. Nếu bạn gõ code thì nên để TẮT.",
+     L"Type ơ/ư with the bracket keys: “th[” → “thơ”, “ng]” → “ngư”. Leave OFF if you type code."},
+    {L"Tự khôi phục từ tiếng Anh", L"Auto-restore English words"},
+    {L"Từ không thể là tiếng Việt (google, github…) tự trả về đúng phím đã gõ khi kết thúc từ (gõ text: “tet” → “text”).",
+     L"A word that can’t be Vietnamese (google, github…) snaps back to the keys you typed when the word ends (typing text: “tet” → “text”)."},
     {L"Kiểm tra chính tả khi gõ", L"Live spell-check"},
     {L"Ngừng bỏ dấu ngay khi từ không thể là tiếng Việt (google, github…) thay vì đợi hết từ.",
      L"Stop adding tones as soon as a word can’t be Vietnamese (google, github…) instead of waiting for word end."},
     {L"Quyết định theo ngữ cảnh", L"Context-based decision"},
     {L"Sau một từ tiếng Anh, từ nhập nhằng kế tiếp được giữ tiếng Anh — “he is” → “he is”, không phải “he í”. Sau từ tiếng Việt thì để tiếng Việt — “sao í”.",
      L"After an English word, an ambiguous next word stays English — “he is”, not “he í”. After a Vietnamese word it stays Vietnamese — “sao í”."},
-    {L"Ưu tiên tiếng Việt khi trùng", L"Prefer Vietnamese on collisions"},
-    {L"Cho các từ như last/lát, list/lít, his/hí: gõ đúp phím dấu để giữ tiếng Anh (lisst → list).",
-     L"For words like last/lát, list/lít, his/hí: double the tone key to keep English (lisst → list)."},
+    {L"Khi từ vừa Anh vừa Việt: ưu tiên tiếng Việt", L"Word is both English and Vietnamese: prefer Vietnamese"},
+    {L"Cho các từ như last/lát, list/lít, his/hí. Mẹo: gõ đúp phím dấu để giữ tiếng Anh (lisst → list).",
+     L"For words like last/lát, list/lít, his/hí. Tip: double the tone key to keep English (lisst → list)."},
     {L"Chính tả teencode", L"Teencode spelling"},
     {L"Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó). Tắt = chỉ chính tả chuẩn.",
      L"Accept chat spellings: w/z/k instead of qu/d/c (wá, zui zẻ, kó). Off = standard spelling only."},
-    {L"Gõ thêm dấu cho từ trước con trỏ", L"Add diacritics to the word before the caret"},
+    {L"Sửa dấu từ đã gõ", L"Fix tones of typed words"},
     {L"Đặt con trỏ ngay sau một từ rồi gõ phím dấu (toan + s → toán); Backspace ngay sau dấu cách sửa tiếp từ vừa gõ.",
      L"Put the caret right after a word and type a tone key (toan + s → toán); Backspace right after a space re-opens the word."},
     {L"Phím chuyển Việt/Anh", L"Switch hotkey"},
     {L"VietTelex nhớ Việt/Anh riêng cho từng ứng dụng khi bạn chuyển bằng phím này. Đổi bộ gõ bằng Win+Space thì theo tuỳ chọn của Windows bên dưới.",
      L"VietTelex remembers Vietnamese/English per app when you switch with this key. Switching the input method with Win+Space follows the Windows option below."},
-    {L"Ctrl+Shift (kiểu UniKey)", L"Ctrl+Shift (UniKey style)"},
+    {L"Ctrl+Shift", L"Ctrl+Shift"},
     {L"Win+Space (của Windows)", L"Win+Space (Windows)"},
     {L"Alt+Z", L"Alt+Z"},
     {L"Tắt", L"Off"},
@@ -115,9 +115,9 @@ const Pair kStrings[] = {
      L"Uninstall VietTelex from this PC? The input method, the app and your settings will be removed."},
 
     {L"Gõ viết tắt rồi gõ dấu cách để bung ra nội dung. Nhập/xuất tệp YAML, JSON hoặc văn bản; “Nhập…” đọc "
-     L"được cả tệp gõ tắt của UniKey, OpenKey (UTF-8 hoặc UTF-16).",
+     L"được cả tệp gõ tắt xuất từ bộ gõ khác (UTF-8 hoặc UTF-16).",
      L"Type an abbreviation then a space to expand it. Import/export YAML, JSON or plain text; “Import…” also "
-     L"reads UniKey and OpenKey macro files (UTF-8 or UTF-16)."},
+     L"reads shortcut files exported by other input methods (UTF-8 or UTF-16)."},
     {L"Viết tắt", L"Abbreviation"},
     {L"Nội dung", L"Expands to"},
     {L"Thêm", L"Add"},
@@ -132,7 +132,7 @@ const Pair kStrings[] = {
     {L"Mặc định (sửa trực tiếp)", L"Default (in-place)"},
     {L"Dự phòng (hook bàn phím)", L"Fallback (keyboard hook)"},
     {L"Luôn tiếng Anh", L"Always English"},
-    {L"Trực tiếp (không gạch chân, kiểu UniKey)", L"Direct (no underline, UniKey style)"},
+    {L"Trực tiếp (không gạch chân)", L"Direct (no underline)"},
     {L"Chưa có gõ tắt nào", L"No shortcuts yet"},
     {L"Chưa có ứng dụng nào", L"No apps yet"},
 
@@ -193,7 +193,7 @@ const Pair kStrings[] = {
     {L"Gõ phép tính rồi “=” (12*3=, 200+10%=) — kết quả hiện cạnh con trỏ, bấm Tab hoặc Enter để chèn.",
      L"Type a calculation followed by “=” (12*3=, 200+10%=) — the result shows next to the cursor; press Tab or "
      L"Enter to insert it."},
-    {L"Chip số", L"Number chips"},
+    {L"Gợi ý số tiền", L"Suggest money amounts"},
     {L"Gõ số tiền có k/tr/tỷ (50k, 1tr2, 2 tỷ) rồi dấu cách — dạng tiền (1.200.000 ₫) hiện cạnh con trỏ, bấm Tab để "
      L"thay.",
      L"Type an amount with k/tr/tỷ (50k, 1tr2, 2 tỷ) and a space — the money format (1.200.000 ₫) shows next to the "
@@ -285,12 +285,12 @@ const Pair kStrings[] = {
      L"Settings."},
     {L"Kiểu gõ", L"Typing method"},
     {L"Phím chuyển Việt/Anh", L"Vietnamese/English switch key"},
-    {L"Hiện biểu tượng V/E ở khay hệ thống (như UniKey)", L"Show a V/E icon in the notification area (like UniKey)"},
+    {L"Hiện biểu tượng V/E ở khay hệ thống", L"Show a V/E icon in the notification area"},
     {L"V đỏ = tiếng Việt, E xanh = tiếng Anh. Windows 11 có thể giấu nó dưới mũi tên ^ cạnh đồng hồ: kéo nó ra "
      L"thanh tác vụ. Không bật thì chỉ có chữ V/E nhỏ hiện thoáng qua khi chuyển.",
      L"Red V = Vietnamese, blue E = English. Windows 11 may hide it under the ^ arrow next to the clock: drag it "
      L"onto the taskbar. Without it, only a brief V/E shows when you switch."},
-    {L"Chuyển gõ tắt từ UniKey / OpenKey…", L"Bring shortcuts from UniKey / OpenKey…"},
+    {L"Chuyển gõ tắt từ bộ gõ khác…", L"Bring shortcuts from another input method…"},
     {L"Bắt đầu gõ", L"Start typing"},
     {L"Mở Cài đặt…", L"Open Settings…"},
 
@@ -298,10 +298,10 @@ const Pair kStrings[] = {
     {L"Đã nhập %d gõ tắt (%s).", L"Imported %d shortcuts (%s)."},
     {L"%d dòng bị bỏ qua (viết tắt có dấu cách, rỗng hoặc dài quá 64 ký tự).",
      L"%d lines skipped (abbreviation with a space, empty or longer than 64 characters)."},
-    {L"Tệp UniKey kiểu cũ (mã VIQR, không có dòng “version=1”): chữ có dấu chưa được chuyển, ví dụ “Vie^.t”. "
-     L"Mở tệp trong UniKey rồi lưu lại để có bản UTF-8.",
-     L"An old UniKey file (VIQR encoding, no “version=1” line): accented letters were not converted, e.g. "
-     L"“Vie^.t”. Open it in UniKey and save it again to get a UTF-8 file."},
+    {L"Tệp gõ tắt kiểu cũ (mã VIQR, không có dòng “version=1”): chữ có dấu chưa được chuyển, ví dụ “Vie^.t”. "
+     L"Mở tệp bằng bộ gõ đã tạo ra nó rồi lưu lại để có bản UTF-8.",
+     L"An old shortcut file (VIQR encoding, no “version=1” line): accented letters were not converted, e.g. "
+     L"“Vie^.t”. Open it in the input method that made it and save it again to get a UTF-8 file."},
 
     // Default input method
     {L"Bộ gõ mặc định của Windows", L"Windows default input method"},
@@ -314,9 +314,9 @@ const Pair kStrings[] = {
     // Spelling page: caret hints; Text tools without the tray icon
     {L"Gợi ý cạnh con trỏ", L"Suggestions next to the cursor"},
     {L"Biểu tượng khay đang ẩn nên không có menu Công cụ văn bản. Dùng phím tắt Thêm dấu (mở mục này để đặt), "
-     L"hoặc bật “Hiện biểu tượng ở khay hệ thống” ở trang Kiểu gõ rồi bấm chuột phải biểu tượng.",
+     L"hoặc bật “Hiện biểu tượng ở khay hệ thống” ở trang Chung → Giao diện rồi bấm chuột phải biểu tượng.",
      L"The tray icon is hidden, so there is no Text tools menu. Use the add-tones hotkey (open this section to set "
-     L"it), or turn on “Show icon in the notification area” on the Typing page and right-click the icon."},
+     L"it), or turn on “Show icon in the notification area” in General → Appearance and right-click the icon."},
     // Tray menu
     {L"Chế độ game", L"Game mode"},
     // Học từ bạn gõ
@@ -348,15 +348,15 @@ const Pair kStrings[] = {
      L"mũi tên ^ ở góc thanh tác vụ: kéo nó ra thanh tác vụ để luôn thấy.",
      L"“V/E letter”: red V = Vietnamese, blue E = English. Windows 11 may hide the icon under the ^ arrow at the "
      L"end of the taskbar: drag it onto the taskbar to always see it."},
-    {L"Chữ V/E (như UniKey)", L"V/E letter (like UniKey)"},
+    {L"Chữ V/E", L"V/E letter"},
     {L"Biểu tượng bàn phím", L"Keyboard icon"},
     {L"Tiếng Việt (V)", L"Vietnamese (V)"},
     {L"Tiếng Anh (E)", L"English (E)"},
     // Welcome: how to start, default input method
     {L"Để gõ: trên thanh tác vụ (góc phải, chữ ENG/VIE) hoặc bằng Win+Space, chọn bàn phím VietTelex. Sau đó "
-     L"phím chuyển bên dưới đổi Việt/Anh. Hãy thoát UniKey/EVKey/OpenKey nếu đang chạy.",
+     L"phím chuyển bên dưới đổi Việt/Anh. Hãy thoát bộ gõ tiếng Việt khác nếu đang chạy.",
      L"To type: pick the VietTelex keyboard on the taskbar (ENG/VIE, bottom right) or with Win+Space. Then the "
-     L"switch key below toggles Vietnamese/English. Quit UniKey/EVKey/OpenKey if they are running."},
+     L"switch key below toggles Vietnamese/English. Quit any other Vietnamese input method that is running."},
     {L"Đặt VietTelex làm bàn phím mặc định (ứng dụng mở ra là gõ được ngay)",
      L"Make VietTelex the default keyboard (apps are ready to type when they open)"},
     // Windows' own Ctrl+Shift hotkey (input_switch.h winHotkeyClash)
@@ -391,8 +391,8 @@ const Pair kStrings[] = {
     {L"Tiếp", L"Next"},
     {L"Bỏ qua", L"Skip"},
     {L"Bạn thường gõ thế nào?", L"How do you usually type?"},
-    {L"Chọn cách gần nhất — lựa chọn chỉ bật/tắt vài công tắc, đổi lại lúc nào cũng được trong Cài đặt → Kiểu gõ "
-     L"→ Gõ mixed Việt/Anh.",
+    {L"Chọn cách gần nhất — lựa chọn chỉ bật/tắt vài công tắc, đổi lại lúc nào cũng được trong Cài đặt → Gõ phím "
+     L"→ Gõ lẫn tiếng Anh.",
      L"Pick the closest one — it only sets a few switches, which you can change any time in Settings → Typing → "
      L"Mixed Vietnamese/English typing."},
     {L"Chủ yếu tiếng Việt", L"Mostly Vietnamese"},
@@ -417,17 +417,17 @@ const Pair kStrings[] = {
     {L"Đã bật cho bạn — bỏ chọn mục nào bạn không muốn:", L"Turned on for you — untick anything you don’t want:"},
     {L"Ô này đang ở tiếng Anh? Đổi Việt/Anh bằng phím chuyển (mặc định Ctrl+Shift).",
      L"Is this box in English? Switch Vietnamese/English with the switch key (Ctrl+Shift by default)."},
-    {L"Gõ mixed Việt/Anh", L"Mixed Vietnamese/English typing"},
+    {L"Gõ lẫn tiếng Anh", L"Mixed Vietnamese/English typing"},
     {L"Bắt đầu bằng tiếng Anh trong app mới", L"Start new apps in English"},
     {L"App chưa từng đổi Việt/Anh bắt đầu ở tiếng Anh; bấm phím chuyển để gõ tiếng Việt. App đã đổi thì vẫn nhớ "
      L"như cũ.",
      L"Apps where you never switched Vietnamese/English start in English; press the switch key to type "
      L"Vietnamese. Apps you already switched keep what they remember."},
     {L"Bạn hay gõ trộn Anh/Việt?", L"Do you often mix English into Vietnamese?"},
-    {L"Xem nhóm Gõ mixed Việt/Anh mới ngay bên dưới: tự khôi phục từ tiếng Anh, quyết định theo ngữ cảnh, phím "
-     L"chuyển Việt/Anh…",
-     L"See the new Mixed Vietnamese/English typing section just below: English auto-restore, context-based "
-     L"decisions, the switch key…"},
+    {L"Xem nhóm Gõ lẫn tiếng Anh mới ngay bên dưới: chọn cách bạn thường gõ; tự khôi phục từ tiếng Anh, quyết "
+     L"định theo ngữ cảnh nằm trong Nâng cao.",
+     L"See the new Mixed Vietnamese/English typing section just below: pick how you usually type; English "
+     L"auto-restore and context-based decisions are under Advanced."},
     {L"Xem", L"Show me"},
     // Quick profile picker (ONBOARDING-SPEC §4)
     {L"Bạn thường gõ thế nào? Chọn một — các công tắc bên dưới sẽ tự đặt theo.",
@@ -438,6 +438,22 @@ const Pair kStrings[] = {
     {L"Chọn", L"Use"},
     {L"Áp dụng “%s”?", L"Apply “%s”?"},
     {L"Các công tắc bạn đã tự chỉnh sẽ đổi:", L"Switches you changed yourself will change:"},
+    // Settings cleanup (docs/SETTINGS-CLEANUP-SPEC.md): expanders, dimmed reasons, import labels
+    {L"Nâng cao", L"Advanced"},
+    {L"Telex đơn giản, bỏ dấu tự do, gõ tắt phụ âm, bỏ dấu kiểu mới, teencode, phím ngoặc, sửa dấu từ đã gõ",
+     L"Simple Telex, free tone placement, quick consonants, modern tones, teencode, bracket vowels, fix typed words"},
+    {L"Khôi phục từ tiếng Anh, ngữ cảnh, khi trùng từ, sửa từ phía trước…",
+     L"English auto-restore, context, colliding words, fixing earlier words…"},
+    {L"Nhớ theo ứng dụng, app mới bắt đầu bằng tiếng Anh, bộ gõ mặc định, báo V/E khi chuyển",
+     L"Per-app memory, new apps start in English, default input method, V/E when switching"},
+    {L"Tự tắt tiếng Việt khi chơi game toàn màn hình, Chế độ game",
+     L"Vietnamese off in fullscreen games, Game mode"},
+    {L"Biểu tượng bàn phím, biểu tượng khay", L"Keyboard icon, tray icon"},
+    {L"Chỉ áp dụng cho Telex.", L"Applies to Telex only."},
+    {L"Cần bật Quyết định theo ngữ cảnh.", L"Needs context-based decision turned on."},
+    {L"Tệp gõ tắt", L"Shortcut files"},
+    {L"tệp gõ tắt của bộ gõ khác", L"another input method’s shortcut file"},
+    {L"VietTelex / văn bản", L"VietTelex / text"},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace
