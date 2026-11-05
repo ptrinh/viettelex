@@ -242,3 +242,44 @@ TEST(settings_strings_no_other_input_method_names) {
     }
     setEnglish(false);
 }
+
+// Every caption the settings window shows is ONE short line (maintainer 06/11/2026: "too wordy,
+// cramped"): <= 95 characters in both languages, same limit as macOS SettingsCleanupTests.
+TEST(settings_captions_are_short) {
+    const S kCaptions[] = {
+        S::InputMethodDesc, S::SimpleTelexDesc, S::FreeMarkingDesc, S::QuickTelexDesc,
+        S::ModernOrthographyDesc, S::BracketVowelsDesc, S::AutoRestoreDesc, S::LiveSpellCheckDesc,
+        S::ContextualEnglishDesc, S::CollisionPrefersViDesc, S::TeencodeDesc, S::ReEditWordDesc,
+        S::SwitchHotkeyDesc, S::MenuIconDesc, S::ShowTrayDesc, S::UiLanguageDesc, S::AutoUpdateCheckDesc,
+        S::DebugLoggingDesc, S::CheckNowDesc, S::UninstallDesc, S::ShortcutsDesc, S::AppsDesc,
+        S::HotkeyNoteWinPerApp, S::HotkeyNoteWinGlobal, S::HotkeyNoteWinUnknown,
+        S::PerAppWinOn, S::PerAppWinOff, S::PerAppWinUnknown,
+        S::TextToolsInMenuDesc, S::AddTonesHotkeyDesc, S::TextToolsSummary,
+        S::MathResultsDesc, S::NumberChipsDesc, S::TypoHintsDesc, S::ToneHintsDesc, S::DateHintsDesc,
+        S::FilterSensitiveDesc, S::UnderlineMisspelledDesc, S::AutoOffFullscreenDesc, S::GameModeDesc,
+        S::GameModeHotkeyDesc, S::SwitchIndicatorDesc, S::ConflictDesc, S::WinHotkeyDesc,
+        S::DefaultInputDesc, S::TextToolsNoTray, S::LearnWordsDesc, S::ClearLearnedDesc, S::TrayStyleDesc,
+        S::RetroEnglishDesc, S::EnglishByFrequencyDesc, S::StartEnglishDesc, S::MixedCardDesc,
+        S::ProfilePickerIntro, S::ProfileCustomDesc, S::ProfileViEx, S::ProfileMixedEx, S::ProfileEnEx,
+        S::TypingAdvancedSummary, S::MixedAdvancedSummary, S::SwitchAdvancedSummary, S::GamesSummary,
+        S::AppearanceSummary, S::DimTelexOnly, S::DimNeedsContextual,
+        S::ModeComposition, S::ModeInPlace, S::ModeHook, S::ModeOff, S::ModeDirect,
+    };
+    for (int en = 0; en < 2; ++en) {
+        setEnglish(en != 0);
+        for (S id : kCaptions) {
+            const size_t n = std::wcslen(tr(id));
+            if (n > 95) {
+                std::printf("  caption %d (%s) is %zu chars\n", static_cast<int>(id), en ? "en" : "vi", n);
+                CHECK(false);
+            }
+        }
+        // The text-prediction row joins the state and its caption.
+        CHECK(textPredictionDesc(true).size() <= 95);
+        CHECK(textPredictionDesc(false).size() <= 95);
+    }
+    setEnglish(false);
+    // Per-app mode names describe the symptom, not the mechanism (same spirit as Linux/macOS).
+    for (S id : {S::ModeComposition, S::ModeInPlace, S::ModeHook, S::ModeDirect})
+        for (const wchar_t* jargon : {L"Composition", L"hook", L"Dự phòng"}) CHECK(std::wcsstr(tr(id), jargon) == nullptr);
+}

@@ -617,10 +617,10 @@ std::vector<Item> pageItems(int tab) {
                 if (idx < 0) break;
                 Item t = toggleItem(idx);
                 if (r.dim != DimReason::None) {
-                    // Dimmed with the reason, never hidden (SETTINGS-CLEANUP-SPEC §0.4).
+                    // Dimmed with the reason, never hidden (SETTINGS-CLEANUP-SPEC §0.4). The reason
+                    // replaces the caption (one short line, as on macOS).
                     t.dimmed = true;
-                    t.descText = std::wstring(tr(r.dim == DimReason::TelexOnly ? S::DimTelexOnly : S::DimNeedsContextual)) +
-                                 L" " + tr(t.desc);
+                    t.descText = tr(r.dim == DimReason::TelexOnly ? S::DimTelexOnly : S::DimNeedsContextual);
                 }
                 v.push_back(t);
                 break;

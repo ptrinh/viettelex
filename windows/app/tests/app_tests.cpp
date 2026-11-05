@@ -862,7 +862,7 @@ TEST(ui_strings_text_prediction_card) {
     CHECK(std::wcscmp(tr(S::TextPredictionButton), L"Mở cài đặt Gõ phím của Windows…") == 0);
     const std::wstring on = textPredictionDesc(true), off = textPredictionDesc(false);
     CHECK(on.rfind(L"Đang bật", 0) == 0);
-    CHECK(off.rfind(L"Đang tắt — bật trong Cài đặt Windows để dùng gợi ý chữ", 0) == 0);
+    CHECK(off.rfind(L"Đang tắt — bật trong Cài đặt Windows", 0) == 0);
     CHECK(on.find(tr(S::TextPredictionCaption)) != std::wstring::npos);  // caption follows the state
     CHECK(off.find(tr(S::TextPredictionCaption)) != std::wstring::npos);
     setEnglish(true);
