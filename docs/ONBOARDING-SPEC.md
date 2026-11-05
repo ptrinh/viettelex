@@ -45,7 +45,7 @@ Chọn hồ sơ **ghi thẳng giá trị** vào từng cài đặt rồi thôi. 
 | Quyết định theo ngữ cảnh (`contextualEnglish`) | mặc định hiện tại | BẬT |
 | Tự sửa từ phía trước (`retroactiveEnglish`) | TẮT (chip mời) | BẬT (tự áp + chip Khôi phục) |
 | Ưu tiên tiếng Việt khi trùng (`collisionPrefersVietnamese`, macOS) | BẬT | BẬT |
-| Đoán theo tần suất cho từ trùng (flag mới, đang làm) | TẮT | **chỉ BẬT nếu bộ đo đạt ngưỡng ở §6**; nếu không: TẮT |
+| Đoán theo tần suất cho từ trùng (`englishByFrequency`) | TẮT | BẬT (đã chốt 05/11/2026: bộ đo đạt — sai 1.96% so với 2.85%, tiếng Việt 0% sai) |
 | Vuốt phím cách đổi Việt/Anh (`spaceSwipeLanguage`, iOS/Android) | TẮT | BẬT |
 | Vuốt từ tiếng Anh (`swipeEnglish`, khi bật gõ vuốt) | mặc định | BẬT |
 
@@ -142,10 +142,12 @@ Khi từ đang soạn **không hợp lệ** (không phải âm tiết Việt, kh
 1. §7 (vuốt phím cách đổi từ đang soạn) và §8 (tô nền gợi ý sửa) — độc lập, nhỏ.
 2. §4 trang "Gõ Việt–Anh" + di chuyển công tắc + tìm kiếm.
 3. §2/§3 onboarding + hồ sơ; §5 thẻ cho người dùng cũ.
-4. Sau khi có kết quả bộ đo (§6): quyết định flag tần suất có vào hồ sơ `mixed` không.
+4. ~~Quyết định flag tần suất có vào hồ sơ `mixed` không~~ — đã chốt: có (§10).
 
 ## 10. Đã chốt (05/11/2026)
 
 - Không có màn chọn Telex/VNI trong onboarding.
 - Có lựa chọn thứ ba "Chủ yếu tiếng Anh" (hồ sơ `en`).
 - Phím tắt đổi ngôn ngữ trên macOS/Windows: nhóm "Chuyển ngôn ngữ" chỉ hiện mục nào nền tảng đó có; kiểm tra lúc làm.
+- `englishByFrequency` BẬT trong hồ sơ `mixed` và `en`.
+- Dữ liệu tần suất tiếng Anh nguồn CC BY-SA 4.0 dùng trong engine (MIT) — chấp nhận, ghi nguồn ở docs/DATA-SOURCES.md.
