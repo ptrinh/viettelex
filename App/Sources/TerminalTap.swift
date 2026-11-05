@@ -3535,9 +3535,14 @@ final class TerminalTapController {
             let tokenPossible = allow.token && !shortcutTail.run.isEmpty   // chưa neo: emitBoundary xác nhận bằng AX
             if engine.isEmpty, !tokenPossible, SyntheticKeyboard.queueDrained() { return pass }
             lastTapKeyWasDigit = false
-            if emitBoundary(suppressAutoRestore: false, allowShortcuts: allow.word, allowToken: allow.token,
-                            allowAlnum: allow.alnum)
-                || !SyntheticKeyboard.queueDrained() {
+            var rewroteKey = emitBoundary(suppressAutoRestore: false, allowShortcuts: allow.word,
+                                          allowToken: allow.token, allowAlnum: allow.alnum)
+            // Lật lại ("Đoán từ trùng theo tần suất") áp cả ở Enter/Tab, TRƯỚC khi phím đi tiếp —
+            // cùng kênh + AX đọc lại như sửa ngược; áp được ⇒ phím phải đi sau burst (re-emit).
+            if engine.pendingRetroCorrection?.flipBack == true, applyRetroCorrectionTap(id: id) != nil {
+                rewroteKey = true
+            }
+            if rewroteKey || !SyntheticKeyboard.queueDrained() {
                 reemit(keyCode: keyCode, string: nil, original: event)
                 return nil
             }

@@ -869,6 +869,12 @@ final class TelexInputController: IMKInputController {
             let committedRun = shortcutTail.run
             let rewrote = boundary(client, allowShortcuts: allow.word, allowTokenShortcuts: allow.token,
                                    allowAlnumShortcuts: allow.alnum, commitSuffix: handling.commitSuffix)
+            // Lật lại ("Đoán từ trùng theo tần suất": "His hửng" → "hí hửng") áp cả ở Enter/Tab,
+            // TRƯỚC khi phím đi tiếp (tin chưa gửi) — cùng kênh + đọc lại như sửa ngược.
+            // Sửa ngược tiếng Anh thì không (Enter không bao giờ sửa/đề xuất).
+            if engine.pendingRetroCorrection?.flipBack == true {
+                _ = applyRetroCorrection(marked: markedNow, edge: wasEdge, client, id: id)
+            }
             boundaryCommitInFlight = false
             // Học từ bạn gõ: Enter/Tab/Esc chốt từ rồi cắt ngữ cảnh (lượt chờ được học).
             learnAtBoundary(word: lastCommitWord, boundary: nil,
