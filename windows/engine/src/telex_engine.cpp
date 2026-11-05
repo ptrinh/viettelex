@@ -143,7 +143,8 @@ inline int commonPrefixLength(const char32_t* a, const char32_t* b, int limit) {
 }
 
 // "queue": "quêu" passes the validator but is no Vietnamese word.
-const std::string_view kEnglishExceptions[] = {"was", "wow", "yes", "queue"};
+// "away": aw+a swaps ă -> â (issue #149), so "away" would commit "ây".
+const std::string_view kEnglishExceptions[] = {"was", "wow", "yes", "queue", "away"};
 
 } // namespace
 
@@ -1884,6 +1885,14 @@ void TelexEngine::parseStep(int at) {
             if (p.mark == Mark::None && (p.base == 'o' || p.base == 'u')) {
                 letters_[tIdx].mark = Mark::Horn; rawLetter_[at] = tIdx; return;
             }
+            // Hat -> hook/breve swap: w on â/ô replaces the hat, tone kept —
+            // "caamw"/"cấmw" -> cắm, "tooiw" -> tơi. Issue #149.
+            if (p.mark == Mark::Circumflex && p.base == 'a') {
+                letters_[tIdx].mark = Mark::Breve; rawLetter_[at] = tIdx; return;
+            }
+            if (p.mark == Mark::Circumflex && p.base == 'o') {
+                letters_[tIdx].mark = Mark::Horn; rawLetter_[at] = tIdx; return;
+            }
             if (p.mark == Mark::Breve && p.base == 'a') {
                 letters_[tIdx].mark = Mark::None;
                 pCancelled_ = true;
@@ -1920,6 +1929,10 @@ void TelexEngine::parseStep(int at) {
             if (lower == 'o' && p.base == lower && p.mark == Mark::Horn) {
                 setCircumflex(pIdx); rawLetter_[at] = pIdx; return;
             }
+            // Same swap for `a` on ă ("awa" -> â). Issue #149.
+            if (lower == 'a' && p.base == lower && p.mark == Mark::Breve) {
+                setCircumflex(pIdx); rawLetter_[at] = pIdx; return;
+            }
             if (p.base == lower && p.mark == Mark::Circumflex) {
                 letters_[pIdx].mark = Mark::None;
                 pCancelled_ = true;
@@ -1934,7 +1947,8 @@ void TelexEngine::parseStep(int at) {
             while (k >= 0 && isVowelAscii(letters_[k].base)) {
                 // "lươn" + o -> "luôn": the reach-back also retargets a horned o.
                 if (letters_[k].base == lower &&
-                    (letters_[k].mark == Mark::None || (lower == 'o' && letters_[k].mark == Mark::Horn))) {
+                    (letters_[k].mark == Mark::None || (lower == 'o' && letters_[k].mark == Mark::Horn) ||
+                     (lower == 'a' && letters_[k].mark == Mark::Breve))) {
                     if (lower == 'o' && nucleusEnd == pCount_ - 1 && k == pCount_ - 2 &&
                         letters_[k + 1].mark == Mark::None &&
                         (letters_[k + 1].base == 'e' || letters_[k + 1].base == 'a'))
@@ -2069,6 +2083,14 @@ void TelexEngine::parseStepVNI(int at, uint8_t key, uint8_t lower, bool upper) {
                     pCancelled_ = true;
                     appendLetter(key, Mark::None, false);
                     rawLetter_[at] = pCount_ - 1;
+                    return;
+                }
+                // Hat <-> hook/breve swap (issue #149): 8 on â -> ă, 6 on ă -> â,
+                // 7 on ô -> ơ, 6 on ơ -> ô (ươ -> uô via setCircumflex). Tone kept.
+                if (letters_[target].mark != Mark::Bar) {
+                    if (mark == Mark::Circumflex) setCircumflex(target);
+                    else letters_[target].mark = mark;
+                    rawLetter_[at] = target;
                     return;
                 }
                 break;   // conflicting mark -> literal digit

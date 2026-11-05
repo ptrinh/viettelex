@@ -1736,6 +1736,14 @@ class TelexEngine {
                 if (pm == Mark.NONE && (pb == 'o'.code || pb == 'u'.code)) {
                     lMark[tIdx] = Mark.HORN; rawLetter[at] = tIdx; return
                 }
+                // Hat → hook/breve swap: w on â/ô replaces the hat, tone kept —
+                // "caamw"/"cấmw"→cắm, "tooiw"→tơi. Issue #149.
+                if (pm == Mark.CIRCUMFLEX && pb == 'a'.code) {
+                    lMark[tIdx] = Mark.BREVE; rawLetter[at] = tIdx; return
+                }
+                if (pm == Mark.CIRCUMFLEX && pb == 'o'.code) {
+                    lMark[tIdx] = Mark.HORN; rawLetter[at] = tIdx; return
+                }
                 if (pm == Mark.BREVE && pb == 'a'.code) {
                     lMark[tIdx] = Mark.NONE
                     pCancelled = true
@@ -1771,6 +1779,10 @@ class TelexEngine {
                 if (lower == 'o'.code && lBase[pIdx] == lower && lMark[pIdx] == Mark.HORN) {
                     setCircumflex(pIdx); rawLetter[at] = pIdx; return
                 }
+                // Same swap for `a` on ă ("awa"→â). Issue #149.
+                if (lower == 'a'.code && lBase[pIdx] == lower && lMark[pIdx] == Mark.BREVE) {
+                    setCircumflex(pIdx); rawLetter[at] = pIdx; return
+                }
                 if (lBase[pIdx] == lower && lMark[pIdx] == Mark.CIRCUMFLEX) {
                     lMark[pIdx] = Mark.NONE
                     pCancelled = true
@@ -1784,7 +1796,8 @@ class TelexEngine {
                 while (k >= 0 && isVowelAscii(lBase[k])) {
                     // "lươn" + o → "luôn": reach-back also retargets a horned o.
                     if (lBase[k] == lower &&
-                        (lMark[k] == Mark.NONE || (lower == 'o'.code && lMark[k] == Mark.HORN))
+                        (lMark[k] == Mark.NONE || (lower == 'o'.code && lMark[k] == Mark.HORN) ||
+                            (lower == 'a'.code && lMark[k] == Mark.BREVE))
                     ) {
                         if (lower == 'o'.code && nucleusEnd == pCount - 1 && k == pCount - 2 &&
                             lMark[k + 1] == Mark.NONE &&
@@ -1904,6 +1917,13 @@ class TelexEngine {
                         lMark[target] = Mark.NONE
                         pCancelled = true
                         literal(at, key, false)
+                        return
+                    }
+                    // Hat ↔ hook/breve swap (issue #149): 8 on â → ă, 6 on ă → â,
+                    // 7 on ô → ơ, 6 on ơ → ô (ươ → uô via setCircumflex). Tone kept.
+                    if (lMark[target] != Mark.BAR) {
+                        if (mark == Mark.CIRCUMFLEX) setCircumflex(target) else lMark[target] = mark
+                        rawLetter[at] = target
                         return
                     }
                     break
@@ -2042,6 +2062,7 @@ class TelexEngine {
             "wow".map { it.code }.toIntArray(),
             "yes".map { it.code }.toIntArray(),
             "queue".map { it.code }.toIntArray(),   // "quêu" passes the validator but is no Vietnamese word
+            "away".map { it.code }.toIntArray(),    // aw+a swaps ă→â (issue #149): "away" would commit "ây"
         )
 
         private val ONSETS_ALLOWING_STANDALONE_U = ClassTrie(

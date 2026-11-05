@@ -1782,6 +1782,7 @@ public struct TelexEngine {
         Array("was".utf8), Array("wow".utf8),
         Array("yes".utf8),   // "ýe" slips through the validator as a syllable
         Array("queue".utf8), // "quêu" passes the validator but is no Vietnamese word
+        Array("away".utf8),  // aw+a swaps ă→â (issue #149): "away" would commit "ây"
     ]
     /// Generated English-collision table (EnglishCollisions.swift, gen-english):
     /// top-frequency English words whose default-Telex transform yields a VALID
@@ -2848,6 +2849,16 @@ public struct TelexEngine {
                 if p.mark == .none && (p.base == UInt8(ascii: "o") || p.base == UInt8(ascii: "u")) {
                     letters[tIdx].mark = .horn; rawLetter[at] = tIdx; return
                 }
+                // Hat → hook/breve swap: w on a circumflexed â/ô REPLACES
+                // the hat instead of typing a literal w — "caamw"/"cấmw"→cắm,
+                // "tooiw"→tơi, "muoonw"→mươn (render mirrors the horn onto the u).
+                // The tone stays where it was. Issue #149 (05/11/2026).
+                if p.mark == .circumflex && p.base == UInt8(ascii: "a") {
+                    letters[tIdx].mark = .breve; rawLetter[at] = tIdx; return
+                }
+                if p.mark == .circumflex && p.base == UInt8(ascii: "o") {
+                    letters[tIdx].mark = .horn; rawLetter[at] = tIdx; return
+                }
                 if p.mark == .breve && p.base == UInt8(ascii: "a") {
                     letters[tIdx].mark = .none
                     pCancelled = true
@@ -2903,6 +2914,10 @@ public struct TelexEngine {
                 if lower == UInt8(ascii: "o"), p.base == lower, p.mark == .horn {
                     setCircumflex(pIdx); rawLetter[at] = pIdx; return
                 }
+                // Same swap for `a` on ă: breve → hat ("awa"→â, "cawsa"→cấ). Issue #149.
+                if lower == UInt8(ascii: "a"), p.base == lower, p.mark == .breve {
+                    setCircumflex(pIdx); rawLetter[at] = pIdx; return
+                }
                 if p.base == lower && p.mark == .circumflex {
                     letters[pIdx].mark = .none
                     pCancelled = true
@@ -2923,12 +2938,13 @@ public struct TelexEngine {
                 while k >= 0 && !isVowelAscii(letters[k].base) { k -= 1 }   // skip coda
                 let nucleusEnd = k
                 while k >= 0, isVowelAscii(letters[k].base) {               // walk nucleus
-                    // "lươn" + o → "luôn" (UniKey): the reach-back also turns a
+                    // "lươn" + o → "luôn": the reach-back also turns a
                     // horned o into ô — same hook→hat retarget as the adjacent case
                     // (and the same oeo/oao guard below).
                     if letters[k].base == lower,
                        letters[k].mark == .none
-                           || (lower == UInt8(ascii: "o") && letters[k].mark == .horn) {
+                           || (lower == UInt8(ascii: "o") && letters[k].mark == .horn)
+                           || (lower == UInt8(ascii: "a") && letters[k].mark == .breve) {
                         // "oeo"/"oao" are REAL rimes (ngoèo, khoèo, ngoáo): an `o`
                         // that would fold ACROSS the middle bare e/a is the user
                         // typing the rime's last vowel, not a circumflex — issue
@@ -3117,6 +3133,15 @@ public struct TelexEngine {
                         pCancelled = true
                         appendLetter(base: key, mark: .none, upper: false)
                         rawLetter[at] = pCount - 1
+                        return
+                    }
+                    // Hat ↔ hook/breve swap (Telex w/aa/oo twin, issue #149): 8 on â →
+                    // ă, 6 on ă → â, 7 on ô → ơ, 6 on ơ → ô (ươ → uô via setCircumflex).
+                    // The tone stays. 7 never targets a, 8 never o, so the scan only
+                    // lands here on a real swap.
+                    if letters[target].mark != .bar {
+                        if mark == .circumflex { setCircumflex(target) } else { letters[target].mark = mark }
+                        rawLetter[at] = target
                         return
                     }
                     break                                // conflicting mark → literal digit

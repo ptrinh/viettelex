@@ -209,7 +209,8 @@ final class CompetitorReviewTests: XCTestCase {
     /// Review: "lươn" + `o` → "luôn" (đổi móc thành mũ, kiểu UniKey) — thêm 26/09/2026.
     /// Nhánh circumflex doubler `o` giờ nhận cả chữ ơ (kề nhau lẫn reach-back
     /// freeMarking); trong cụm ươ thì ư mất móc theo (setCircumflex) → uô. Dấu thanh
-    /// giữ nguyên, nằm trên ô: "lượn" + o → "luộn". Chỉ `o` (ơ→ô); `a` trên ă không đổi.
+    /// giữ nguyên, nằm trên ô: "lượn" + o → "luộn". Từ issue #149 (05/11) `a` trên ă cũng
+    /// đổi (ă→â) và `w` trên â/ô (→ ă/ơ) — xem MarkSwapTests.
     func testLuonRetarget() {
         XCTAssertEqual(out("luwown"), "lươn")
         XCTAssertEqual(out("luwowno"), "luôn")
