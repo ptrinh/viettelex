@@ -133,7 +133,7 @@ private fun OnboardingChoose(selected: OnboardingProfile?, onPick: (OnboardingPr
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(tr("Bạn thường gõ thế nào?"), style = VTType.largeTitle, color = c.label)
-        Text(tr("Chọn một — VietTelex bật sẵn những gì hợp với bạn. Đổi lại lúc nào cũng được ở Kiểu Gõ → Gõ mixed Việt/Anh."),
+        Text(tr("Chọn một — VietTelex bật sẵn những gì hợp với bạn. Đổi lại lúc nào cũng được ở Kiểu Gõ → Gõ lẫn tiếng Anh."),
             style = VTType.subheadline, color = c.secondary, modifier = Modifier.padding(bottom = 6.dp))
         for (p in OnboardingProfile.entries) {
             val sel = selected == p
@@ -221,7 +221,7 @@ private fun OnboardingTry(profile: OnboardingProfile, ime: ImeStatus, onPickIme:
                 }
             }
             if (shown.isNotEmpty()) VTSection(header = tr("Vừa bật"),
-                footer = tr("Tắt ngay ở đây nếu không cần. Chỉnh thêm ở Kiểu Gõ → Gõ mixed Việt/Anh.")) {
+                footer = tr("Tắt ngay ở đây nếu không cần. Chỉnh thêm ở Kiểu Gõ → Gõ lẫn tiếng Anh.")) {
                 shown.forEachIndexed { i, k ->
                     if (i > 0) RowDivider()
                     var v by rememberBoolPref(k, OnboardingSettings.DEFAULTS.getValue(k))
@@ -233,7 +233,7 @@ private fun OnboardingTry(profile: OnboardingProfile, ime: ImeStatus, onPickIme:
     }
 }
 
-/** Thẻ một lần cho người dùng cũ (§5): chạm = mở nhóm "Gõ mixed Việt/Anh"; đóng/xem ⇒ không hiện lại. */
+/** Thẻ một lần cho người dùng cũ (§5): chạm = mở nhóm "Gõ lẫn tiếng Anh"; đóng/xem ⇒ không hiện lại. */
 @Composable
 internal fun MixedTypingTipCard(onOpen: () -> Unit, onDismiss: () -> Unit) {
     val c = LocalVT.current
@@ -245,7 +245,7 @@ internal fun MixedTypingTipCard(onOpen: () -> Unit, onDismiss: () -> Unit) {
             Column(Modifier.weight(1f).clickable(onClick = onOpen).padding(start = 12.dp, end = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(tr("Bạn hay gõ trộn Anh/Việt?"), style = VTType.subheadline.copy(fontWeight = FontWeight.SemiBold), color = c.label)
-                Text(tr("Xem nhóm Gõ mixed Việt/Anh mới") + " ›", style = VTType.footnote, color = c.accent)
+                Text(tr("Xem nhóm Gõ lẫn tiếng Anh mới") + " ›", style = VTType.footnote, color = c.accent)
             }
             Text("✕", style = VTType.body, color = c.secondary,
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onDismiss).padding(10.dp)
