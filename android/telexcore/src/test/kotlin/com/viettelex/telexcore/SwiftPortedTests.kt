@@ -37,6 +37,10 @@ class CollisionPreferencePortedTest {
         assertEquals("hí", sentenceSplit("his") { liveSpellCheck = true; contextualEnglish = true; collisionPrefersVietnamese = false })
     }
 
+    @Test fun testKFinalNeverWinsCollision() {
+        assertEquals("lát", sentenceSplit("last") { liveSpellCheck = true; contextualEnglish = true; collisionPrefersVietnamese = true })
+    }
+
     @Test fun testEnglishWinsIsTheOldBehavior() {
         assertEquals("last", sentenceSplit("last") { liveSpellCheck = true; contextualEnglish = true; collisionPrefersVietnamese = false })
         assertEquals("list", sentenceSplit("list") { liveSpellCheck = true; contextualEnglish = true; collisionPrefersVietnamese = false })
@@ -81,6 +85,15 @@ class CompetitorReviewPortedTest {
 
 /** Ported from TelexCore/Tests/TelexCoreTests/ContextEnglishLoanwordTests.swift. */
 class ContextEnglishLoanwordPortedTest {
+    @Test fun testAppNameStaysLiteral() {
+        assertEquals("viettelex", sentenceCtx("viettelex") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+        assertEquals("bộ gõ viettelex", sentenceCtx("booj gox viettelex") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+        assertEquals("the viettelex app", sentenceCtx("the viettelex app") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+        assertEquals("kiểu telex", sentenceCtx("kieeur telex") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+        assertEquals("viettelex", sentenceCtx("viettelex") { liveSpellCheck = true; contextualEnglish = true; freeMarking = false; collisionPrefersVietnamese = false })
+        assertEquals("Phil trinh", sentenceCtx("Phil trinh") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+    }
+
     @Test fun testFieldReportSuggestionBenTren() {
         assertEquals("suggestion bên trên", sentenceCtx("suggestion been treen") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
         assertEquals("suggestion bên trên", sentenceCtx("suggestion been treen") { liveSpellCheck = true; contextualEnglish = true; freeMarking = false; collisionPrefersVietnamese = false })
@@ -143,6 +156,25 @@ class ContextEnglishLoanwordPortedTest {
         assertEquals("thí í", sentenceCtx("this is") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
         assertEquals("this is", sentenceCtx("thiss is") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
         assertEquals("í it", sentenceCtx("is it") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+    }
+
+    @Test fun testRunKeeperDoesNotEndEnglishRun() {
+        assertEquals("my cả is here", sentenceCtx("my car is here") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+        assertEquals("my cả is here", sentenceCtx("my car is here") { liveSpellCheck = true; contextualEnglish = true; freeMarking = false; collisionPrefersVietnamese = false })
+        assertEquals("it was a mĩ of both", sentenceCtx("it was a mix of both") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+        assertEquals("it was a mĩ of both", sentenceCtx("it was a mix of both") { liveSpellCheck = true; contextualEnglish = true; freeMarking = false; collisionPrefersVietnamese = false })
+        assertEquals("the bõ is in the cả", sentenceCtx("the box is in the car") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+        assertEquals("the bõ is in the cả", sentenceCtx("the box is in the car") { liveSpellCheck = true; contextualEnglish = true; freeMarking = false; collisionPrefersVietnamese = false })
+        assertEquals("bõ í", sentenceCtx("box is") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+        assertEquals("cả nhà ơ", sentenceCtx("car nhaf ow") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+        assertEquals("đi xe bú", sentenceCtx("ddi xe bus") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+    }
+
+    @Test fun testQueueRestores() {
+        assertEquals("queue", sentenceCtx("queue") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+        assertEquals("queue", sentenceCtx("queue") { liveSpellCheck = true; contextualEnglish = true; freeMarking = false; collisionPrefersVietnamese = false })
+        assertEquals("put it in the queue", sentenceCtx("put it in the queue") { liveSpellCheck = true; contextualEnglish = true; freeMarking = true; collisionPrefersVietnamese = true })
+        assertEquals("put it in the queue", sentenceCtx("put it in the queue") { liveSpellCheck = true; contextualEnglish = true; freeMarking = false; collisionPrefersVietnamese = false })
     }
 }
 
@@ -388,6 +420,7 @@ class EnginePortedTest {
         assertEquals("bef", backspaceWith("beffw", 1) { freeMarking = true })
         assertEquals("la", backspaceWith("lass", 1) { freeMarking = true })
         assertEquals("thú", commitWith("thus") { freeMarking = true })
+        assertEquals("gét", commitWith("gets") { freeMarking = true })
         assertEquals("quên", commitWith("queen") { freeMarking = true })
         assertEquals("sóng", commitWith("songs") { freeMarking = true })
         assertEquals("chả", commitWith("char") { freeMarking = true })
@@ -841,6 +874,83 @@ class GonhanhLearningsPortedTest {
     }
 }
 
+/** Ported from TelexCore/Tests/TelexCoreTests/MarkSwapTests.swift. */
+class MarkSwapPortedTest {
+    @Test fun testIssue149CircumflexPlusWGivesBreve() {
+        assertEquals("cắm", composeWith("caasmw") { freeMarking = true })
+        assertEquals("cắm", composeWith("caamsw") { freeMarking = true })
+        assertEquals("căm", composeWith("caamw") { freeMarking = true })
+        assertEquals("cắm", composeWith("caamws") { freeMarking = true })
+        assertEquals("că", composeWith("caaw") {})
+        assertEquals("cắ", composeWith("caasw") {})
+        assertEquals("cắm", commitWith("caasmw") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("Cắm", commitWith("Caasmw") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("CẮM", commitWith("CAASMW") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+    }
+
+    @Test fun testCircumflexOPlusWGivesHorn() {
+        assertEquals("tơi", composeWith("tooiw") {})
+        assertEquals("tới", composeWith("tooiws") {})
+        assertEquals("tới", composeWith("toosiw") {})
+        assertEquals("mươn", composeWith("muoonw") { freeMarking = true })
+        assertEquals("người", composeWith("nguooiwf") { freeMarking = true })
+        assertEquals("tơi", commitWith("tooiw") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("người", commitWith("nguooiwf") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+    }
+
+    @Test fun testBrevePlusAGivesCircumflex() {
+        assertEquals("câ", composeWith("cawa") {})
+        assertEquals("cấ", composeWith("cawsa") {})
+        assertEquals("câm", composeWith("cawma") { freeMarking = true })
+        assertEquals("cấm", composeWith("cawsma") { freeMarking = true })
+        assertEquals("cấm", commitWith("cawsma") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+    }
+
+    @Test fun testSwapsChainBackAndForth() {
+        assertEquals("câ", composeWith("caawa") {})
+        assertEquals("că", composeWith("cawaw") {})
+        assertEquals("tô", composeWith("toowo") {})
+    }
+
+    @Test fun testStrictModeStillAdjacentOnly() {
+        assertEquals("câmw", composeWith("caamw") {})
+        assertEquals("căma", composeWith("cawma") {})
+    }
+
+    @Test fun testSameKeyStillCancels() {
+        assertEquals("caa", composeWith("caaa") {})
+        assertEquals("caw", composeWith("caww") {})
+        assertEquals("caw", composeWith("caaww") {})
+        assertEquals("coo", composeWith("cooo") {})
+    }
+
+    @Test fun testEnglishWordsStillRestore() {
+        assertEquals("away", commitWith("away") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("Away", commitWith("Away") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("aware", commitWith("aware") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("award", commitWith("award") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("awake", commitWith("awake") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("hawaii", commitWith("hawaii") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("ottawa", commitWith("ottawa") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("awareness", commitWith("awareness") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+        assertEquals("kawasaki", commitWith("kawasaki") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
+    }
+
+    @Test fun testVNISwapsHats() {
+        assertEquals("cắm", composeWith("ca61m8") { vniMode = true })
+        assertEquals("cấm", composeWith("ca81m6") { vniMode = true })
+        assertEquals("că", composeWith("ca68") { vniMode = true })
+        assertEquals("câ", composeWith("ca86") { vniMode = true })
+        assertEquals("tơi", composeWith("to6i7") { vniMode = true })
+        assertEquals("tôi", composeWith("to7i6") { vniMode = true })
+        assertEquals("mươn", composeWith("muo6n7") { vniMode = true })
+        assertEquals("luôn", composeWith("luo7n6") { vniMode = true })
+        assertEquals("ca6", composeWith("ca66") { vniMode = true })
+        assertEquals("ca8", composeWith("ca88") { vniMode = true })
+        assertEquals("d9", composeWith("d99") { vniMode = true })
+    }
+}
+
 /** Ported from TelexCore/Tests/TelexCoreTests/PostTonedSyllableReproTests.swift. */
 class PostTonedSyllableReproPortedTest {
     @Test fun testKeptToneScreenTable() {
@@ -869,88 +979,88 @@ class TeencodePortedTest {
     @Test fun testTeencodeOnsetDoesNotStackWithTeencodeRime() {
         assertEquals("wise", commitWith("wise") { freeMarking = true; liveSpellCheck = true; simpleTelex = true })
         assertEquals("wife", commitWith("wife") { freeMarking = true; liveSpellCheck = true; simpleTelex = true })
-        assertEquals("wise", commitWith("wise") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("wife", commitWith("wife") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("wise", commitWith("wise") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("wife", commitWith("wife") { freeMarking = true; liveSpellCheck = true; teencode = true })
         assertEquals("wá", commitWith("was") { freeMarking = true; liveSpellCheck = true; simpleTelex = true })
-        assertEquals("bíe", commitWith("bies") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("mịe", commitWith("miej") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("bíe", commitWith("bies") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("mịe", commitWith("miej") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 
     @Test fun testTeencodeDouIsAWordNotARime() {
-        assertEquals("đou", commitWith("ddou") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("đoi", commitWith("ddoi") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("đou", commitWith("ddou") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("đoi", commitWith("ddoi") { freeMarking = true; liveSpellCheck = true; teencode = true })
         assertEquals("house", commitWith("house") { freeMarking = true; liveSpellCheck = true; simpleTelex = true })
-        assertEquals("ddouj", commitWith("ddouj") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("ddouj", commitWith("ddouj") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 
     @Test fun testTeencodeOyWithOnsetGraveOnly() {
-        assertEquals("gòy", commitWith("goyf") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("ròy", commitWith("royf") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("zòy", commitWith("zoyf") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("dzòy", commitWith("dzoyf") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("chòy", commitWith("choyf") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("òy", commitWith("oyf") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("goyj", commitWith("goyj") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("goyr", commitWith("goyr") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("boyf", commitWith("boyf") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("toyf", commitWith("toyf") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("gòy", commitWith("goyf") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("ròy", commitWith("royf") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("zòy", commitWith("zoyf") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("dzòy", commitWith("dzoyf") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("chòy", commitWith("choyf") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("òy", commitWith("oyf") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("goyj", commitWith("goyj") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("goyr", commitWith("goyr") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("boyf", commitWith("boyf") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("toyf", commitWith("toyf") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 
     @Test fun testTeencodeRimeIk() {
-        assertEquals("thík", commitWith("thiks") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("chík", commitWith("chiks") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("thịk", commitWith("thikj") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("thicks", commitWith("thicks") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("thík", commitWith("thiks") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("chík", commitWith("chiks") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("thịk", commitWith("thikj") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("thicks", commitWith("thicks") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 
     @Test fun testTeencodeHoyJoinsTheGraveWhitelist() {
-        assertEquals("hòy", commitWith("hoyf") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("hoy", commitWith("hoy") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("hoys", commitWith("hoys") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("hòy", commitWith("hoyf") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("hoy", commitWith("hoy") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("hoys", commitWith("hoys") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 
     @Test fun testTeencodeRimeUk() {
-        assertEquals("ừk", commitWith("uwkf") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("hừk", commitWith("huwkf") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("ứk", commitWith("uwks") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("ựk", commitWith("uwkj") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("uwkr", commitWith("uwkr") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("ừk", commitWith("uwkf") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("hừk", commitWith("huwkf") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("ứk", commitWith("uwks") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("ựk", commitWith("uwkj") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("uwkr", commitWith("uwkr") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 
     @Test fun testAllWWordRestoresAtBoundary() {
-        assertEquals("www", commitWith("www") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("wwww", commitWith("wwww") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("www", commitWith("www") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("wwww", commitWith("wwww") { freeMarking = true; liveSpellCheck = true; teencode = true })
         assertEquals("www", commitWith("www") { freeMarking = true; liveSpellCheck = true; simpleTelex = true })
-        assertEquals("w", commitWith("ww") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("w", commitWith("ww") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 
     @Test fun testElongationCommits() {
-        assertEquals("ạaaaaaaaa", commitWith("ajaaaaaaaaa") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("hônggggg", commitWith("hoonggggg") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("vânggggg", commitWith("vaanggggg") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("cóaaaaaa", commitWith("cosaaaaaaa") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("quàaaa", commitWith("quafaaaa") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("đẹppppp", commitWith("ddepjpppp") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("xinnnn", commitWith("xinnnn") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("ạaaaaaaaa", commitWith("ajaaaaaaaaa") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("hônggggg", commitWith("hoonggggg") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("vânggggg", commitWith("vaanggggg") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("cóaaaaaa", commitWith("cosaaaaaaa") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("quàaaa", commitWith("quafaaaa") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("đẹppppp", commitWith("ddepjpppp") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("xinnnn", commitWith("xinnnn") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 
     @Test fun testIeRimeCommits() {
-        assertEquals("bíe", commitWith("bies") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("mịe", commitWith("miej") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("thíe", commitWith("thies") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("mìe", commitWith("mief") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("die", commitWith("die") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("tie", commitWith("tie") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("lie", commitWith("lie") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("diet", commitWith("diet") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("field", commitWith("field") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("client", commitWith("client") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("science", commitWith("science") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("bíe", commitWith("bies") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("mịe", commitWith("miej") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("thíe", commitWith("thies") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("mìe", commitWith("mief") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("die", commitWith("die") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("tie", commitWith("tie") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("lie", commitWith("lie") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("diet", commitWith("diet") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("field", commitWith("field") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("client", commitWith("client") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("science", commitWith("science") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 
     @Test fun testElongatedIeSyllable() {
-        assertEquals("bíeee", commitWith("bieseee") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("bíeeee", commitWith("bieseeee") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("bíeee", commitWith("bieseee") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("bíeeee", commitWith("bieseeee") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 
     @Test fun testFreezeReEvaluatesOnElongation() {
@@ -972,17 +1082,17 @@ class TeencodePortedTest {
     }
 
     @Test fun testEnglishGuards() {
-        assertEquals("retore", commitWith("retore") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("google", commitWith("google") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("hí", commitWith("his") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("excess", commitWith("excess") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("vibes", commitWith("vibes") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("pas", commitWith("pass") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("retore", commitWith("retore") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("google", commitWith("google") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("hí", commitWith("his") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("excess", commitWith("excess") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("vibes", commitWith("vibes") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("pas", commitWith("pass") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 
     @Test fun testIeRimeEnglishWordsAreDictProtected() {
-        assertEquals("bíe", commitWith("bies") { freeMarking = true; liveSpellCheck = true })
-        assertEquals("mịe", commitWith("miej") { freeMarking = true; liveSpellCheck = true })
+        assertEquals("bíe", commitWith("bies") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("mịe", commitWith("miej") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 
     @Test fun testVniTeencode() {
@@ -1051,6 +1161,58 @@ class TeencodePortedTest {
         assertEquals("unwind", commitWith("unwind") { freeMarking = true; liveSpellCheck = true })
         assertEquals("umbrella", commitWith("umbrella") { freeMarking = true; liveSpellCheck = true })
         assertEquals("column", commitWith("column") { freeMarking = true; liveSpellCheck = true })
+    }
+
+    @Test fun testToneThenAElongationCommitsBaseSyllablePlusA() {
+        assertEquals("dạa", commitWith("daja") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("dạa", commitWith("daja") { freeMarking = false; liveSpellCheck = true; teencode = true })
+        assertEquals("Dạa", commitWith("Daja") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("Dạa", commitWith("Daja") { freeMarking = false; liveSpellCheck = true; teencode = true })
+        assertEquals("DẠA", commitWith("DAJA") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("DẠA", commitWith("DAJA") { freeMarking = false; liveSpellCheck = true; teencode = true })
+        assertEquals("màa", commitWith("mafa") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("màa", commitWith("mafa") { freeMarking = false; liveSpellCheck = true; teencode = true })
+        assertEquals("hảa", commitWith("hara") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("hảa", commitWith("hara") { freeMarking = false; liveSpellCheck = true; teencode = true })
+        assertEquals("dáa", commitWith("dasa") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("dáa", commitWith("dasa") { freeMarking = false; liveSpellCheck = true; teencode = true })
+        assertEquals("quạa", commitWith("quaja") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("quạa", commitWith("quaja") { freeMarking = false; liveSpellCheck = true; teencode = true })
+    }
+
+    @Test fun testTeencodeOffKeepsHistoricalCircumflex() {
+        assertEquals("dậ", commitWith("daja") { freeMarking = true; liveSpellCheck = true; teencode = false })
+        assertEquals("Dậ", commitWith("Daja") { freeMarking = true; liveSpellCheck = true; teencode = false })
+        assertEquals("DẬ", commitWith("DAJA") { freeMarking = true; liveSpellCheck = true; teencode = false })
+        assertEquals("mầ", commitWith("mafa") { freeMarking = true; liveSpellCheck = true; teencode = false })
+        assertEquals("hẩ", commitWith("hara") { freeMarking = true; liveSpellCheck = true; teencode = false })
+    }
+
+    @Test fun testRealWordsAndPlainCircumflexUnaffected() {
+        assertEquals("dâ", commitWith("daa") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("dâ", commitWith("daa") { freeMarking = true; liveSpellCheck = true; teencode = false })
+        assertEquals("mâ", commitWith("maa") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("mâ", commitWith("maa") { freeMarking = true; liveSpellCheck = true; teencode = false })
+        assertEquals("dậu", commitWith("dajau") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("dậu", commitWith("dajau") { freeMarking = true; liveSpellCheck = true; teencode = false })
+        assertEquals("dận", commitWith("daajn") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("dận", commitWith("daajn") { freeMarking = true; liveSpellCheck = true; teencode = false })
+        assertEquals("dân", commitWith("daan") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("dân", commitWith("daan") { freeMarking = true; liveSpellCheck = true; teencode = false })
+        assertEquals("dấu", commitWith("daaus") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("dấu", commitWith("daaus") { freeMarking = true; liveSpellCheck = true; teencode = false })
+        assertEquals("mâm", commitWith("maam") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("mâm", commitWith("maam") { freeMarking = true; liveSpellCheck = true; teencode = false })
+        assertEquals("cần", commitWith("caafn") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("cần", commitWith("caafn") { freeMarking = true; liveSpellCheck = true; teencode = false })
+        assertEquals("dấu", commitWith("dasau") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("dấu", commitWith("dasau") { freeMarking = true; liveSpellCheck = true; teencode = false })
+        assertEquals("ấ", commitWith("asa") { freeMarking = true; liveSpellCheck = true; teencode = true })
+        assertEquals("ấ", commitWith("asa") { freeMarking = true; liveSpellCheck = true; teencode = false })
+    }
+
+    @Test fun testEnglishAndCancelsKeepCurrentBehaviour() {
+        assertEquals("para", commitWith("para") { freeMarking = true; liveSpellCheck = true; teencode = true })
     }
 }
 
@@ -1294,82 +1456,5 @@ class ValidatorPortedTest {
         assertTrue("isValidPrefix ", SyllableValidator.isValidPrefix(""))
         assertTrue("isValidPrefix NGƯ", SyllableValidator.isValidPrefix("NGƯ"))
         assertFalse("isValidPrefix a1", SyllableValidator.isValidPrefix("a1"))
-    }
-}
-
-/** Ported from TelexCore/Tests/TelexCoreTests/MarkSwapTests.swift. */
-class MarkSwapPortedTest {
-    @Test fun testIssue149CircumflexPlusWGivesBreve() {
-        assertEquals("cắm", composeWith("caasmw") { freeMarking = true })
-        assertEquals("cắm", composeWith("caamsw") { freeMarking = true })
-        assertEquals("căm", composeWith("caamw") { freeMarking = true })
-        assertEquals("cắm", composeWith("caamws") { freeMarking = true })
-        assertEquals("că", composeWith("caaw") {})
-        assertEquals("cắ", composeWith("caasw") {})
-        assertEquals("cắm", commitWith("caasmw") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-        assertEquals("Cắm", commitWith("Caasmw") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-        assertEquals("CẮM", commitWith("CAASMW") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-    }
-
-    @Test fun testCircumflexOPlusWGivesHorn() {
-        assertEquals("tơi", composeWith("tooiw") {})
-        assertEquals("tới", composeWith("tooiws") {})
-        assertEquals("tới", composeWith("toosiw") {})
-        assertEquals("mươn", composeWith("muoonw") { freeMarking = true })
-        assertEquals("người", composeWith("nguooiwf") { freeMarking = true })
-        assertEquals("tơi", commitWith("tooiw") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-        assertEquals("người", commitWith("nguooiwf") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-    }
-
-    @Test fun testBrevePlusAGivesCircumflex() {
-        assertEquals("câ", composeWith("cawa") {})
-        assertEquals("cấ", composeWith("cawsa") {})
-        assertEquals("câm", composeWith("cawma") { freeMarking = true })
-        assertEquals("cấm", composeWith("cawsma") { freeMarking = true })
-        assertEquals("cấm", commitWith("cawsma") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-    }
-
-    @Test fun testSwapsChainBackAndForth() {
-        assertEquals("câ", composeWith("caawa") {})
-        assertEquals("că", composeWith("cawaw") {})
-        assertEquals("tô", composeWith("toowo") {})
-    }
-
-    @Test fun testStrictModeStillAdjacentOnly() {
-        assertEquals("câmw", composeWith("caamw") {})
-        assertEquals("căma", composeWith("cawma") {})
-    }
-
-    @Test fun testSameKeyStillCancels() {
-        assertEquals("caa", composeWith("caaa") {})
-        assertEquals("caw", composeWith("caww") {})
-        assertEquals("caw", composeWith("caaww") {})
-        assertEquals("coo", composeWith("cooo") {})
-    }
-
-    @Test fun testEnglishWordsStillRestore() {
-        assertEquals("away", commitWith("away") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-        assertEquals("Away", commitWith("Away") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-        assertEquals("aware", commitWith("aware") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-        assertEquals("award", commitWith("award") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-        assertEquals("awake", commitWith("awake") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-        assertEquals("hawaii", commitWith("hawaii") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-        assertEquals("ottawa", commitWith("ottawa") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-        assertEquals("awareness", commitWith("awareness") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-        assertEquals("kawasaki", commitWith("kawasaki") { freeMarking = true; liveSpellCheck = true; teencode = false; contextualEnglish = true; collisionPrefersVietnamese = true })
-    }
-
-    @Test fun testVNISwapsHats() {
-        assertEquals("cắm", composeWith("ca61m8") { vniMode = true })
-        assertEquals("cấm", composeWith("ca81m6") { vniMode = true })
-        assertEquals("că", composeWith("ca68") { vniMode = true })
-        assertEquals("câ", composeWith("ca86") { vniMode = true })
-        assertEquals("tơi", composeWith("to6i7") { vniMode = true })
-        assertEquals("tôi", composeWith("to7i6") { vniMode = true })
-        assertEquals("mươn", composeWith("muo6n7") { vniMode = true })
-        assertEquals("luôn", composeWith("luo7n6") { vniMode = true })
-        assertEquals("ca6", composeWith("ca66") { vniMode = true })
-        assertEquals("ca8", composeWith("ca88") { vniMode = true })
-        assertEquals("d9", composeWith("d99") { vniMode = true })
     }
 }
