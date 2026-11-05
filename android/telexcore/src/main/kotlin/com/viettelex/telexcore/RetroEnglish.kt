@@ -62,7 +62,7 @@ internal object RetroEnglish {
     /** Swift `isCandidateRaw` (lowercase ascii). */
     fun isCandidateRaw(w: String): Boolean =
         EnglishCollisions.words.contains(w) || EnglishContextWords.words.contains(w) ||
-            EnglishContextWords.runKeepers.contains(w) || w == "was" || w == "wow" || w == "yes" || w == "queue"
+            EnglishContextWords.runKeepers.contains(w) || w == "was" || w == "wow" || w == "yes" || w == "queue" || w == "away"
 
     fun classBits(w: String): Int = EnglishContextWords.retroClasses[w] ?: 0
 

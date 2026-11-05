@@ -84,6 +84,12 @@ H = {
         "bs": ("backspace", [FREE, LIVE]), "bsNoSpell": ("backspace", [FREE]),
         "bsSimple": ("backspace", [LIVE, "simpleTelex = true"]), "screen": ("composed", [FREE, LIVE]),
     },
+    "MarkSwapTests.swift": {
+        "compose": ("composed", []), "composeFree": ("composed", [FREE]),
+        "vni": ("composed", ["vniMode = true"]),
+        "commitApp": ("commit", [FREE, LIVE, "teencode = false", "contextualEnglish = true",
+                                 "collisionPrefersVietnamese = true"]),
+    },
     "CompetitorReviewTests.swift": {
         "commitApp": ("commit", [FREE, LIVE, "teencode = false", "contextualEnglish = true",
                                  "collisionPrefersVietnamese = true"]),

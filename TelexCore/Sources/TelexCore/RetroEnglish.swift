@@ -102,7 +102,7 @@ enum RetroEnglish {
     static func isCandidateRaw(_ w: String) -> Bool {
         EnglishCollisions.words.contains(w) || EnglishContextWords.words.contains(w)
             || EnglishContextWords.runKeepers.contains(w)
-            || w == "was" || w == "wow" || w == "yes" || w == "queue"
+            || w == "was" || w == "wow" || w == "yes" || w == "queue" || w == "away"
     }
 
     static func classBits(_ w: String) -> UInt8 { EnglishContextWords.retroClasses[w] ?? 0 }
