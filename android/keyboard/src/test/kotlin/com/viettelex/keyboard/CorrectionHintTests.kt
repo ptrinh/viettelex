@@ -143,4 +143,33 @@ class CorrectionHintTests {
         assertTrue(h.emojis.isEmpty())
         assertTrue(h.correction)
     }
+
+    // MARK: dấu cách = đúng thanh đã hiện
+
+    /**
+     * Thanh đã dựng cho từ này mà KHÔNG tô (hoa giữa câu "gặp Anhh") rồi chữ trước con trỏ đổi trước
+     * dấu cách (app sửa ô): tính lại lúc dấu cách sẽ ra "Anh" — chữ không hề được tô ⇒ không sửa.
+     */
+    @Test fun spaceFollowsRenderedBarEvenIfContextChanges() {
+        val s = session(); val p = MockProxy()
+        p.insertText("gặp ")
+        s.type(p, "Anhh")
+        assertFalse(s.suggestionsNow(p)!!.correction)
+        p.sb.delete(0, "gặp ".length)
+        s.type(p, " ")
+        assertEquals("Anhh ", p.text)
+    }
+
+    /** Phím cuối chạm lệch dần sang j: kết quả nào cũng được, nhưng thanh và dấu cách luôn trùng. */
+    @Test fun spaceNeverDivergesFromHighlightedSlot() {
+        for (dx in listOf(0f, 0.3f, 0.45f, 0.55f, 0.7f, 0.9f)) {
+            val s = session(); val p = MockProxy()
+            for (c in "anh") s.handle(Key.Letter(c), p, center)
+            s.handle(Key.Letter('h'), p, AutoCorrect.Touch(dx, 0f))
+            val sl = slots(s.suggestionsNow(p)!!)
+            s.type(p, " ")
+            val shown = sl.firstOrNull { it?.highlight == true }?.label ?: "anhh"
+            assertEquals("dx=$dx $sl", "$shown ", p.text)
+        }
+    }
 }

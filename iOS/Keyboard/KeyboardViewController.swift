@@ -25,7 +25,7 @@ final class KeyboardViewController: UIInputViewController {
     private var langModelStorage: UserLangModel?
     private var langModel: UserLangModel {
         if let m = langModelStorage { return m }
-        let m = UserLangModel()
+        let m = Self.hermetic ? UserLangModel(appGroup: nil) : UserLangModel()
         m.isKnownWord = { VNSuggest.contains($0) }
         // Datastore trống (lần đầu / vừa reset) → mồi bằng seed corpus để
         // ngày đầu tiên đã có gợi ý hợp lý; dữ liệu học thật vượt seed sau
@@ -90,7 +90,11 @@ final class KeyboardViewController: UIInputViewController {
     /// Từ từng hoàn tác tự sửa — không bao giờ sửa lại (UserDefaults của bàn phím, không sao lưu).
     private static let rejectedKey = "autoCorrectRejected"
     private lazy var autoCorrectRejected = AutoCorrect.Rejected.decode(
-        UserDefaults.standard.string(forKey: Self.rejectedKey))
+        Self.hermetic ? nil : UserDefaults.standard.string(forKey: Self.rejectedKey))
+    /// ONBOARDING-SPEC §8 — thanh gợi ý vừa hiện gì cho từ đang soạn `raw`: `fix` = ô tô nền (nil =
+    /// không tô). Dấu cách dùng ĐÚNG cái này khi thanh đã vẽ cho từ này (autoCorrection) ⇒ không bao
+    /// giờ sửa khác ô tô nền, không tô ⇒ không sửa. Phím chữ mới / đổi ô ⇒ nil.
+    private var shownCorrection: (raw: String, fix: String?)?
     /// Thay thế văn bản + tên danh bạ của người dùng (requestSupplementaryLexicon, nạp một
     /// lần mỗi lần hiện khi tự sửa bật) — coi là từ hợp lệ, không sửa.
     private var lexiconWords: Set<String> = []
@@ -204,6 +208,9 @@ final class KeyboardViewController: UIInputViewController {
     var debugProxy: UITextDocumentProxy?
     override var textDocumentProxy: UITextDocumentProxy { debugProxy ?? super.textDocumentProxy }
     var debugKeyboard: KeyboardView { keyboard }
+    /// Test: không đọc/ghi dữ liệu người dùng thật — model học từ in-memory (không userlm.plist
+    /// App Group), danh sách từ từ chối tự sửa trống, không nạp Thay thế văn bản / danh bạ.
+    static var debugHermetic = false
     /// Test: trạng thái lấp dải container hệ thống (HostFill).
     var debugHostFill: HostFill { hostFill }
     /// Test: số lần dựng KeyboardView (viewDidLoad + mỗi lần hiện lại sau khi xé).
@@ -375,7 +382,7 @@ final class KeyboardViewController: UIInputViewController {
         swipeFutoSetting = settings.swipeFuto
         smartTouchSetting = settings.smartTouch
         autoCorrectSetting = settings.autoCorrect && !settings.vniMode
-        wordTouches.removeAll(); wordTouchesOk = false; pendingTouch = nil
+        wordTouches.removeAll(); wordTouchesOk = false; pendingTouch = nil; shownCorrection = nil
         // Thay thế văn bản iOS / danh bạ (tự sửa): nạp bất đồng bộ — khởi động SAU khung đầu.
         let wantsLexicon = autoCorrectSetting
         postFrame.schedule { [weak self] in
@@ -1241,14 +1248,19 @@ final class KeyboardViewController: UIInputViewController {
 
     /// Ghi điểm chạm phím chữ vừa gõ; `fresh` = phím đầu của từ mới.
     private func noteTouch(fresh: Bool, _ touch: AutoCorrect.Touch?) {
-        acMemo = nil
+        acMemo = nil; shownCorrection = nil
         if fresh { wordTouches.removeAll(keepingCapacity: true); wordTouchesOk = true }
         if let touch { if wordTouchesOk { wordTouches.append(touch) } } else { wordTouchesOk = false }
         if wordTouches.count != bridge.rawWord.count { wordTouchesOk = false }   // nạp lại từ cũ, phím ngoài engine…
     }
 
-    /// `EngineBridge.autoCorrector`: chỉ khi có đủ điểm chạm cho đúng các phím của từ.
-    private func autoCorrection(_ raw: String) -> String? { correctionDecision(raw, plan: nil) }
+    /// `EngineBridge.autoCorrector`: chỉ khi có đủ điểm chạm cho đúng các phím của từ. Thanh gợi ý
+    /// đã vẽ cho đúng từ này ⇒ áp ĐÚNG ô đã tô (không tô ⇒ không sửa); chưa vẽ / thanh tắt ⇒ tính.
+    private func autoCorrection(_ raw: String) -> String? {
+        guard wordTouchesOk, wordTouches.count == raw.count else { return nil }
+        if suggestionsActive, correctionHintActive, let s = shownCorrection, s.raw == raw { return s.fix }
+        return correctionDecision(raw, plan: nil)
+    }
 
     /// Quyết định tự sửa cho từ đang soạn `raw` — MỘT nguồn cho ô tô nền (thanh gợi ý) và dấu cách
     /// (ONBOARDING-SPEC §8): tính một lần cho mỗi bộ (phím thô, điểm chạm), lần sau dùng lại ⇒ dấu
@@ -1323,10 +1335,19 @@ final class KeyboardViewController: UIInputViewController {
         commitAndLearn(original)
     }
 
+    /// Test cô lập (debugHermetic): release luôn false.
+    private static var hermetic: Bool {
+        #if DEBUG
+        debugHermetic
+        #else
+        false
+        #endif
+    }
+
     /// Thay thế văn bản (Cài đặt → Bàn phím) + tên danh bạ: không cần Toàn quyền truy cập;
     /// iOS trả bất đồng bộ — nạp một lần mỗi phiên, chỉ khi tự sửa bật.
     private func loadSupplementaryLexicon() {
-        guard lexiconWords.isEmpty else { return }
+        guard lexiconWords.isEmpty, !Self.hermetic else { return }
         supplementaryLexicon.get { [weak self] pairs in
             var words: Set<String> = []
             for e in pairs {
@@ -2081,10 +2102,13 @@ final class KeyboardViewController: UIInputViewController {
         // Tô nền gợi ý sửa (ONBOARDING-SPEC §8): từ gõ sai + bản sửa đủ chắc (CÙNG quyết định với
         // dấu cách — correctionDecision) + dấu cách lúc này áp được (autoCorrectPreview: chữ hoa đầu
         // câu, không dính URL, không gõ tắt…). Đọc context chỉ khi đã có bản sửa (hiếm).
+        var shown: String?
         if let plan, let fix = correctionDecision(raw, plan: plan),
            let original = bridge.autoCorrectPreview(fix, context: textProxy.documentContextBeforeInput) {
             CorrectionHint.apply(&set, typed: original, fix: fix, need: slotWant - 1)
+            if set.correction { shown = fix }
         }
+        shownCorrection = (raw, shown)
         // Đang gõ đúng một chữ tắt: slot chính hiện nội dung sẽ bung (chạm = bung ngay).
         // (Nội dung nhiều dòng không lên bar — chạm sẽ chèn sai; gõ ranh giới vẫn bung.)
         if let preview = bridge.shortcutPreview, !preview.contains("\n"), set.word != preview {

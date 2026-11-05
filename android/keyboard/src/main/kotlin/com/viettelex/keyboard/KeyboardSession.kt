@@ -454,6 +454,12 @@ class KeyboardSession(
     val wantsTouches: Boolean get() = autoCorrectOn || correctionHintOn
     /** Quyết định tự sửa của từ đang soạn (phím thô → bản sửa) — ô tô nền và dấu cách dùng CHUNG. */
     private var acMemo: Pair<String, String?>? = null
+    /**
+     * ONBOARDING-SPEC §8 — thanh gợi ý vừa hiện gì cho từ đang soạn (phím thô → ô tô nền, null =
+     * không tô). Dấu cách dùng ĐÚNG cái này khi thanh đã dựng cho từ này ([autoCorrection]) ⇒ không
+     * bao giờ sửa khác ô tô nền, không tô ⇒ không sửa. Phím chữ mới / đổi ô ⇒ null.
+     */
+    private var shownCorrection: Pair<String, String?>? = null
     /** Từ từng hoàn tác tự sửa — không bao giờ sửa lại (IME nạp/lưu, [onAutoCorrectRejected]). */
     var autoCorrectRejected = AutoCorrect.Rejected()
     /** Vừa thêm một từ vào [autoCorrectRejected] — IME lưu [AutoCorrect.Rejected.encode]. */
@@ -511,12 +517,19 @@ class KeyboardSession(
         // Tự sửa: không ở ô mật khẩu/email/URL/không-gợi-ý (kể cả khi vẫn gợi ý bất chấp app — chỉ gợi ý), ô tên (viết hoa mỗi từ), VNI.
         autoCorrectOn = settings.autoCorrect && !settings.vniMode && AutoCorrect.fieldAllows(field)
         correctionHintOn = suggestionsActive && stripMode == StripMode.FULL && !settings.vniMode && AutoCorrect.fieldAllows(field)
-        wordTouches.clear(); wordTouchesOk = false; acMemo = null
+        wordTouches.clear(); wordTouchesOk = false; acMemo = null; shownCorrection = null
         bridge.autoCorrector = if (autoCorrectOn) ::autoCorrection else null
     }
 
-    /** [EngineBridge.autoCorrector]: chỉ khi có đủ điểm chạm cho đúng các phím của từ. */
-    private fun autoCorrection(raw: String): String? = correctionDecision(raw, null)
+    /**
+     * [EngineBridge.autoCorrector]: chỉ khi có đủ điểm chạm cho đúng các phím của từ. Thanh gợi ý đã
+     * dựng cho đúng từ này ⇒ áp ĐÚNG ô đã tô (không tô ⇒ không sửa); chưa dựng / thanh tắt ⇒ tính.
+     */
+    private fun autoCorrection(raw: String): String? {
+        if (!wordTouchesOk || wordTouches.size != raw.length) return null
+        if (suggestionsActive && correctionHintOn && !barCollapsed) shownCorrection?.let { (r, fix) -> if (r == raw) return fix }
+        return correctionDecision(raw, null)
+    }
 
     /**
      * Quyết định tự sửa cho từ đang soạn [raw] — MỘT nguồn cho ô tô nền (thanh gợi ý) và dấu cách
@@ -678,7 +691,7 @@ class KeyboardSession(
 
     /** Ghi điểm chạm phím chữ vừa gõ; [fresh] = phím đầu của từ mới. */
     private fun noteTouch(fresh: Boolean, touch: AutoCorrect.Touch?) {
-        acMemo = null
+        acMemo = null; shownCorrection = null
         if (fresh) { wordTouches.clear(); wordTouchesOk = true }
         if (touch == null) wordTouchesOk = false else if (wordTouchesOk) wordTouches.add(touch)
         if (wordTouches.size != bridge.rawWord.length) wordTouchesOk = false   // nạp lại từ cũ, phím ngoài engine…
@@ -1374,10 +1387,13 @@ class KeyboardSession(
      * ([EngineBridge.autoCorrectPreview]) ⇒ [CorrectionHint.apply]. Còn lại: [set] như cũ.
      */
     private fun withCorrectionHint(set: SuggestionSet, raw: String, plan: AutoCorrect.Plan?, proxy: TextProxy?): SuggestionSet {
+        shownCorrection = raw to null
         if (plan == null || proxy == null || !correctionHintOn) return set
         val fix = correctionDecision(raw, plan) ?: return set
         val original = bridge.autoCorrectPreview(fix, proxy) ?: return set
-        return CorrectionHint.apply(set, typed = original, fix = fix, need = slotWant - 1)
+        val hinted = CorrectionHint.apply(set, typed = original, fix = fix, need = slotWant - 1)
+        if (hinted.correction) shownCorrection = raw to fix
+        return hinted
     }
 
     /** Đồng bộ (test / debug): tính luôn trên thread gọi. */
