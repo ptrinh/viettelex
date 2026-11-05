@@ -535,6 +535,87 @@ class SwipeTypingTests {
         assertFalse(SwipeSuggest.needsLeadingSpace("“"))
     }
 
+    // ---- dấu cách treo trước số / ký hiệu sau từ vuốt (bug "mua2") ----
+
+    @Test fun symbolSpaceRule() {
+        assertTrue(SwipeSpacing.spaceBefore("2", true, "mua"))
+        assertTrue(SwipeSpacing.spaceBefore("2", true, null))          // không đọc được: tin trạng thái
+        assertFalse(SwipeSpacing.spaceBefore("2", false, "mua"))        // từ gõ tay: như cũ
+        assertFalse(SwipeSpacing.spaceBefore("2", true, "mua "))        // đã có dấu cách
+        assertFalse(SwipeSpacing.spaceBefore(".", true, "mua"))
+        assertFalse(SwipeSpacing.spaceBefore(",", true, "mua"))
+        assertFalse(SwipeSpacing.spaceBefore("!", true, "mua"))
+        assertFalse(SwipeSpacing.spaceBefore(")", true, "mua"))
+        assertFalse(SwipeSpacing.spaceBefore("\"", true, "mua"))        // nháy thẳng mơ hồ
+        assertFalse(SwipeSpacing.spaceBefore("-", true, "mua"))
+        assertFalse(SwipeSpacing.spaceBefore("%", true, "mua"))
+        assertFalse(SwipeSpacing.spaceBefore("²", true, "m"))
+        assertTrue(SwipeSpacing.spaceBefore("(", true, "mua"))
+        assertTrue(SwipeSpacing.spaceBefore("“", true, "mua"))
+        assertTrue(SwipeSpacing.spaceBefore("$", true, "mua"))
+        assertTrue(SwipeSpacing.spaceBefore("😀", true, "mua"))
+        assertTrue(SwipeSpacing.spaceBefore("❤️", true, "mua"))
+        assertFalse(SwipeSpacing.spaceBefore("", true, "mua"))
+    }
+
+    @Test fun digitAfterSwipeGetsSpace() {
+        val s = session(); val p = MockProxy()
+        s.swipe(p, "viet")
+        s.handle(Key.Text("2"), p)
+        assertEquals("viết 2", p.text)
+        s.handle(Key.Text("0"), p)
+        assertEquals("viết 20", p.text)                 // số kế: không thêm nữa
+        s.handle(Key.Backspace, p)
+        s.handle(Key.Backspace, p)
+        assertEquals("viết ", p.text)                    // ⌫ xoá số trước…
+        s.handle(Key.Backspace, p)
+        assertEquals("viết", p.text)                     // …rồi dấu cách treo
+    }
+
+    @Test fun punctuationAfterSwipeStaysGlued() {
+        val s = session(); val p = MockProxy()
+        s.swipe(p, "viet")
+        s.handle(Key.Text("."), p)
+        assertEquals("viết.", p.text)
+        val s2 = session(); val p2 = MockProxy()
+        s2.swipe(p2, "viet")
+        s2.handle(Key.Text("("), p2)
+        assertEquals("viết (", p2.text)
+        val s3 = session(); val p3 = MockProxy()
+        s3.swipe(p3, "viet")
+        s3.handle(Key.Text("😀"), p3)
+        assertEquals("viết 😀", p3.text)
+    }
+
+    @Test fun digitAfterTypedWordOrSpaceUnchanged() {
+        val s = session(); val p = MockProxy()
+        s.type(p, "mua")
+        s.handle(Key.Text("2"), p)
+        assertEquals("mua2", p.text)                     // từ gõ tay: không đổi
+        val s2 = session(); val p2 = MockProxy()
+        s2.swipe(p2, "viet")
+        s2.type(p2, " ")
+        s2.handle(Key.Text("2"), p2)
+        assertEquals("viết 2", p2.text)                  // đã có dấu cách: không thành 2
+    }
+
+    @Test fun digitAfterEnglishSwipeGetsSpace() {
+        val s = session(); val p = MockProxy()
+        s.type(p, "minhf ddang ")
+        val c = s.swipe(p, "check")
+        assertTrue(c.english)
+        s.handle(Key.Text("2"), p)
+        assertEquals("mình đang check 2", p.text)
+    }
+
+    @Test fun heldDigitAfterSwipeGetsSpace() {
+        val s = session(); val p = MockProxy()
+        s.swipe(p, "viet")
+        s.handle(Key.Letter('w'), p)                     // chạm phím chữ…
+        s.handle(Key.Text("2", replacesLetter = true), p) // …giữ ra số: gỡ phím chữ, như ngay sau vuốt
+        assertEquals("viết 2", p.text)
+    }
+
     @Test fun foldMatchesLexicon() {
         assertEquals("duong", SwipeSuggest.fold("Đường"))
         assertEquals("viet", SwipeSuggest.fold("việt"))

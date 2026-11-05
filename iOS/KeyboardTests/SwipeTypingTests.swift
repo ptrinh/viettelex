@@ -166,6 +166,66 @@ final class SwipeTypingTests: XCTestCase {
         XCTAssertNil(b.takeSettledCommit(), "không được học 'việt' hai lần")
     }
 
+    // MARK: dấu cách treo trước số / ký hiệu sau từ vuốt (bug "mua2")
+
+    func testSymbolSpaceRule() {
+        XCTAssertTrue(SwipeSpacing.spaceBefore("2", afterSwipe: true, before: "mua"))
+        XCTAssertTrue(SwipeSpacing.spaceBefore("2", afterSwipe: true, before: nil))
+        XCTAssertFalse(SwipeSpacing.spaceBefore("2", afterSwipe: false, before: "mua"))
+        XCTAssertFalse(SwipeSpacing.spaceBefore("2", afterSwipe: true, before: "mua "))
+        for p in [".", ",", "!", "?", ")", "\"", "'", "-", "%", "/", "@", "\u{201D}", "²"] {
+            XCTAssertFalse(SwipeSpacing.spaceBefore(p, afterSwipe: true, before: "mua"), p)
+        }
+        for o in ["(", "[", "\u{201C}", "$", "€", "😀", "❤️", "👍🏽"] {
+            XCTAssertTrue(SwipeSpacing.spaceBefore(o, afterSwipe: true, before: "mua"), o)
+        }
+        XCTAssertFalse(SwipeSpacing.spaceBefore("", afterSwipe: true, before: "mua"))
+    }
+
+    func testDigitAfterSwipeGetsSpace() {
+        let (s, b, p) = make()
+        swipe("viet", s, b, p)
+        XCTAssertEqual(p.text, "viết")
+        b.symbolBoundary("2", proxy: p)
+        XCTAssertEqual(p.text, "viết 2")
+        b.symbolBoundary("0", proxy: p)
+        XCTAssertEqual(p.text, "viết 20")                 // số kế: không thêm nữa
+        b.backspace(proxy: p); b.backspace(proxy: p)
+        XCTAssertEqual(p.text, "viết ")                    // ⌫ xoá số trước…
+        b.backspace(proxy: p)
+        XCTAssertEqual(p.text, "viết")                     // …rồi dấu cách treo
+    }
+
+    func testPunctuationAfterSwipeStaysGluedOpenerSpaced() {
+        for (sym, expect) in [(".", "viết."), (",", "viết,"), ("(", "viết ("), ("😀", "viết 😀")] {
+            let (s, b, p) = make()
+            swipe("viet", s, b, p)
+            b.symbolBoundary(sym, proxy: p)
+            XCTAssertEqual(p.text, expect)
+        }
+    }
+
+    func testDigitAfterTypedWordOrSpaceUnchanged() {
+        let (_, b, p) = make()
+        typed("mua", b, p)
+        b.symbolBoundary("2", proxy: p)
+        XCTAssertEqual(p.text, "mua2")                     // từ gõ tay: không đổi
+        let (s2, b2, p2) = make()
+        swipe("viet", s2, b2, p2)
+        b2.boundary(" ", proxy: p2)
+        b2.symbolBoundary("2", proxy: p2)
+        XCTAssertEqual(p2.text, "viết 2")                  // đã có dấu cách: không thành 2
+    }
+
+    func testHeldDigitAfterSwipeGetsSpace() {
+        let (s, b, p) = make()
+        swipe("viet", s, b, p)
+        b.letter("q", proxy: p)                            // chạm phím chữ…
+        XCTAssertTrue(b.undoLastLetter(proxy: p))          // …giữ ra số: gỡ phím chữ
+        b.symbolBoundary("2", proxy: p)
+        XCTAssertEqual(p.text, "viết 2")
+    }
+
     func testTelexFirstLetterUndoneCleanly() {
         for (prefix, first, word, expect) in [
             ("tieng", "s", "sao", "tieng sao"),        // s = dấu sắc lên "tiếng"

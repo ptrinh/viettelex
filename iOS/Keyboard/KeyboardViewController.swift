@@ -1018,7 +1018,7 @@ final class KeyboardViewController: UIInputViewController {
             if let d = Self.singleDigit(s), bridge.vniDigit(d, proxy: proxy) {
                 // VNI: số vuốt xuống (iPad) trong từ = phím dấu
             } else {
-                commitAndLearn(bridge.boundary(s, proxy: proxy), accepted: openAccepted)
+                commitAndLearn(bridge.symbolBoundary(s, proxy: proxy), accepted: openAccepted)
                 lastWord = nil; lastWord2 = nil
                 applyAutoSpace(after: s, carry: autoSpaceCarry)
             }
@@ -1030,7 +1030,7 @@ final class KeyboardViewController: UIInputViewController {
                let d = Self.singleDigit(s), bridge.vniDigit(d, proxy: proxy) {
                 // VNI: số trong lúc soạn từ (hàng số / plane 123) mang dấu — phím của từ
             } else {
-                let final = bridge.boundary(s, proxy: proxy)
+                let final = bridge.symbolBoundary(s, proxy: proxy)
                 fxWordBoundary(final, prev: lastWord)
                 keyboard?.buddy?.emojiInserted(s)
                 commitAndLearn(final, accepted: openAccepted)

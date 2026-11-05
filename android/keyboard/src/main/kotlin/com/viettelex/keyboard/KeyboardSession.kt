@@ -389,6 +389,8 @@ class KeyboardSession(
     private class Revisable(val word: String, val scored: List<SwipeWord>, val case: SwipeSuggest.Case)
     private var revisable: Revisable? = null
     private var revisableAfterLetter: Revisable? = null
+    /** Phím vừa xử lý là phím chữ ĐẦU sau từ vuốt Việt — giữ phím đó ra số thì vẫn là "ngay sau vuốt". */
+    private var letterAfterSwipe = false
     /** Vừa sửa lại từ trước: (từ cũ, từ mới) — chip "↩︎ từ cũ", sống khi từ vuốt kế còn mở. */
     private var reviseUndo: Pair<String, String>? = null
     /**
@@ -559,6 +561,7 @@ class KeyboardSession(
     private fun clearSwipe() {
         swipeWord = null; swipeAlts = emptyList(); swipeLiteral = false; swipeEnglishAlts = emptySet()
         swipeShortcutKey = null
+        letterAfterSwipe = false
         revisable = null; reviseUndo = null
         typedPending = null; typedUndo = null
     }
@@ -670,6 +673,9 @@ class KeyboardSession(
         autoSpaceUnderLetter = null; autoSpacePunct = null
         // Giữ phím ra ký tự phụ: gỡ phím chữ bằng checkpoint (không ⌫ — phím dấu Telex đã đổi
         // từ); không được (ô đổi / thao tác xen) thì ⌫ như iOS.
+        // Phím chữ bị gỡ là phím ĐẦU sau từ vuốt Việt ⇒ ký tự phụ (số giữ phím) coi như ngay sau vuốt.
+        val heldAfterSwipe = letterAfterSwipe && key is Key.Text && key.replacesLetter
+        letterAfterSwipe = false
         if (key is Key.Text && key.replacesLetter && !undoLastLetter(proxy)) bridge.backspace(proxy)
         // Tự thêm dấu cách sau dấu câu: phím ngay sau quyết định số phận dấu cách đó.
         var autoSpaceCarry = false
@@ -714,6 +720,7 @@ class KeyboardSession(
         val prev2Before = lastWord2
         var typedCommit: Pair<String, String>? = null      // (từ gõ đã chốt, ranh giới)
         clearSwipe()
+        letterAfterSwipe = key is Key.Letter && swiped != null && literal == null
         // Từ tiếng Anh vuốt ra đang mở: phím chữ/ranh giới chốt nó (học), phím chữ thêm dấu
         // cách treo trước (không dính "mailx"; huỷ được nếu phím đó là đầu cú vuốt mới).
         if (literal != null && (key is Key.Letter || key is Key.Text || key == Key.Space ||
@@ -722,7 +729,7 @@ class KeyboardSession(
             if (key is Key.Letter) bridge.boundary(" ", proxy, expand = false)
         }
         // Từ vuốt không bao giờ là chữ tắt.
-        val expand = swiped == null
+        val expand = swiped == null && !heldAfterSwipe
         when (key) {
             is Key.Letter -> {
                 val fresh = !bridge.isComposing
@@ -737,7 +744,12 @@ class KeyboardSession(
                     clearUndo()
                     if (typedWait != null && bridge.isComposing) typedPending = typedWait
                 } else {
-                    val committed = bridge.boundary(key.text, proxy, expand = expand)
+                    // Dấu cách treo: số / emoji / ngoặc mở ngay sau từ vuốt ⇒ " " trước ("mua 2").
+                    // ⌫ xoá số rồi dấu cách như gõ tay. Chỉ đọc context khi đúng trường hợp đó.
+                    val afterSwipe = swiped != null || heldAfterSwipe
+                    val text = if (afterSwipe && SwipeSpacing.startsWord(key.text) &&
+                        SwipeSpacing.spaceBefore(key.text, true, proxy.contextBeforeInput())) " " + key.text else key.text
+                    val committed = bridge.boundary(text, proxy, expand = expand)
                     if (trackBoundaryWord) { boundaryWord = committed; boundaryPrev = prevBefore; boundaryPrev2 = prev2Before }
                     commitAndLearn(committed)
                     lastWord = null; lastWord2 = null
