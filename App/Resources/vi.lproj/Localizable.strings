@@ -88,6 +88,8 @@
 "Context-based decision" = "Quyết định theo ngữ cảnh";
 "After an English word, an ambiguous next word whose keys spell an English word is kept English instead of Vietnamese — “he is” → “he is”, not “he í”. After a Vietnamese or unclear word it stays Vietnamese — “sao í”." = "Sau một từ tiếng Anh, nếu từ tiếp theo có thể được hiểu theo cả hai cách, VietTelex sẽ ưu tiên tiếng Anh (“he is” giữ nguyên, không thành “he í”). Sau từ tiếng Việt hoặc khi chưa rõ, VietTelex ưu tiên tiếng Việt (“sao í”).";
 "Fix earlier words (experimental)" = "Tự sửa từ phía trước (thử nghiệm)";
+"Guess colliding words by frequency (experimental)" = "Đoán từ trùng theo tần suất (thử nghiệm)";
+"At the start of a phrase, a word that is both a common English word and a rare Vietnamese syllable (his → hí) becomes English; if the next word shows the phrase is Vietnamese (hí hửng, hí hí), it is switched back automatically." = "Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his → hí) thì chọn tiếng Anh; từ kế cho thấy là tiếng Việt (hí hửng, hí hí) thì tự đổi lại.";
 "As you keep typing an English sentence, words that just got Vietnamese tones by mistake are fixed (e.g. “Hí cả í very fast” → “His car is very fast”)." = "Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm (vd. “Hí cả í very fast” → “His car is very fast”).";
 "Safety" = "An toàn";
 "Cascade circuit breaker" = "Tự ngắt khi có lỗi";

@@ -194,9 +194,10 @@ final class RetroEnglishApplyTests: XCTestCase {
         return (screen, undo, offer, e)
     }
 
+    /// Từ Anh MẠNH "fast" chốt mạch một mình (05/11/2026): phép sửa đến ở chính "fast".
     func testSettingOnRewritesThenBackspaceRestoresExactPreviousText() {
-        let on = typeLikeApp("His car is very fast ", setting: true)
-        XCTAssertEqual(on.screen, "His car is very fast ")
+        let on = typeLikeApp("His car is fast ", setting: true)
+        XCTAssertEqual(on.screen, "His car is fast ")
         let u = try? XCTUnwrap(on.undo)
         XCTAssertNotNil(u)
         guard let u else { return }
@@ -204,7 +205,7 @@ final class RetroEnglishApplyTests: XCTestCase {
         let r = R.revertRange(u, caret: ns.length, read: reader(on.screen))
         XCTAssertNotNil(r)
         if let r {
-            XCTAssertEqual(ns.replacingCharacters(in: r, with: u.previous), "Hí cả í very fast ")
+            XCTAssertEqual(ns.replacingCharacters(in: r, with: u.previous), "Hí cả í fast ")
         }
     }
 
@@ -257,12 +258,12 @@ final class RetroEnglishApplyTests: XCTestCase {
 
     func testOfferModeNeverReadsTheScreenOnTheKeyPath() {
         var reads = 0
-        let run = typeLikeApp("His car is very fast ", setting: false, reads: &reads)
+        let run = typeLikeApp("His car is fast ", setting: false, reads: &reads)
         XCTAssertEqual(reads, 0, "offer mode must not read the screen before the boundary reaches the app")
         XCTAssertEqual(run.offer?.display, "His car is")       // vẫn xác nhận lúc hiện gợi ý
         // Tự áp: đúng MỘT lần đọc (range đúng bằng `expected`) cho cả cụm.
         reads = 0
-        XCTAssertNotNil(typeLikeApp("His car is very fast ", setting: true, reads: &reads).undo)
+        XCTAssertNotNil(typeLikeApp("His car is fast ", setting: true, reads: &reads).undo)
         XCTAssertEqual(reads, 1)
     }
 
@@ -312,6 +313,10 @@ final class RetroEnglishApplyTests: XCTestCase {
         XCTAssertEqual(R.mode(contextualEnglish: true, autoApply: false), .offer)
         XCTAssertEqual(R.mode(contextualEnglish: false, autoApply: true), .none)
         XCTAssertEqual(R.mode(contextualEnglish: false, autoApply: false), .none)
+        // Lật lại ("Đoán từ trùng theo tần suất"): luôn tự áp, kể cả khi công tắc tắt.
+        XCTAssertEqual(R.mode(contextualEnglish: true, autoApply: false, flipBack: true), .autoApply)
+        XCTAssertEqual(R.mode(contextualEnglish: false, autoApply: false, flipBack: true), .none)
+        XCTAssertEqual(R.tapMode(R.mode(contextualEnglish: true, autoApply: false, flipBack: true), words: 1), .autoApply)
         XCTAssertTrue(R.engineFlag(contextualEnglish: true))
         XCTAssertFalse(R.engineFlag(contextualEnglish: false))
     }

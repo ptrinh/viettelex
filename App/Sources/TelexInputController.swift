@@ -991,10 +991,12 @@ final class TelexInputController: IMKInputController {
             // đề xuất bằng gợi ý cạnh con trỏ sau ranh giới.
             // Đề xuất KHÔNG đọc màn hình trên đường phím (chỉ kiểm kênh); gợi ý tự xác nhận lúc
             // hiện. App từng đọc chậm ⇒ tự áp lùi về đề xuất (RetroApply.keyPathMode).
-            let retroMode = engine.pendingRetroCorrection != nil
-                ? RetroApply.keyPathMode(RetroApply.mode(contextualEnglish: engine.contextualEnglish,
-                                                         autoApply: AppState.shared.retroactiveEnglish),
-                                         slowApp: RetroCost.isSlow(id)) : .none
+            let retroMode = engine.pendingRetroCorrection.map { pending in
+                RetroApply.keyPathMode(RetroApply.mode(contextualEnglish: engine.contextualEnglish,
+                                                       autoApply: AppState.shared.retroactiveEnglish,
+                                                       flipBack: pending.flipBack),
+                                       slowApp: RetroCost.isSlow(id))
+            } ?? .none
             let retroApplied = retroMode == .autoApply
                 ? applyRetroCorrection(marked: markedNow, edge: wasEdge, client, id: id) : nil
             let retroOffer = retroMode == .offer

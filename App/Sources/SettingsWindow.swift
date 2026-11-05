@@ -154,6 +154,7 @@ final class SettingsModel: ObservableObject {
     @Published var vniMode: Bool { didSet { AppState.shared.vniMode = vniMode } }
     @Published var contextualEnglish: Bool { didSet { AppState.shared.contextualEnglish = contextualEnglish } }
     @Published var retroactiveEnglish: Bool { didSet { AppState.shared.retroactiveEnglish = retroactiveEnglish } }
+    @Published var englishByFrequency: Bool { didSet { AppState.shared.englishByFrequency = englishByFrequency } }
     @Published var collisionPrefersVietnamese: Bool { didSet { AppState.shared.collisionPrefersVietnamese = collisionPrefersVietnamese } }
     @Published var stickyInputSource: Bool { didSet { AppState.shared.stickyInputSource = stickyInputSource } }
     @Published var switchHotkey: String { didSet { AppState.shared.switchHotkey = switchHotkey } }
@@ -243,6 +244,7 @@ final class SettingsModel: ObservableObject {
         vniMode = AppState.shared.vniMode
         contextualEnglish = AppState.shared.contextualEnglish
         retroactiveEnglish = AppState.shared.retroactiveEnglish
+        englishByFrequency = AppState.shared.englishByFrequency
         collisionPrefersVietnamese = AppState.shared.collisionPrefersVietnamese
         stickyInputSource = AppState.shared.stickyInputSource
         switchHotkey = AppState.shared.switchHotkey
@@ -839,6 +841,10 @@ struct TypingTab: View {
                     Toggle(model.loc("Fix earlier words (experimental)"), isOn: $model.retroactiveEnglish)
                     Text(model.loc("As you keep typing an English sentence, words that just got Vietnamese tones by mistake are fixed (e.g. “Hí cả í very fast” → “His car is very fast”)."))
                         .font(.caption).foregroundStyle(.secondary)
+                    // "Đoán từ trùng theo tần suất" (thử nghiệm, 05/11/2026) — cũng cần ngữ cảnh.
+                    Toggle(model.loc("Guess colliding words by frequency (experimental)"), isOn: $model.englishByFrequency)
+                    Text(model.loc("At the start of a phrase, a word that is both a common English word and a rare Vietnamese syllable (his → hí) becomes English; if the next word shows the phrase is Vietnamese (hí hửng, hí hí), it is switched back automatically."))
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             // Phil 18/10/2026: các tính năng VietTelex đi theo cài đặt nguồn nhập liệu của macOS
@@ -1329,7 +1335,7 @@ enum DebugHeader {
             // from every prior debug log meant a tester's own `defaults write` was invisible
             // evidence ("chỉ mỗi em bị" — 2026-08-05).
             "flags: modifyInPlace=\(s.tapModifyEventInPlace) skipKeyUp=\(s.tapSkipSyntheticKeyUp) axReplace=\(s.axSelectionReplace) breaker=\(s.tapCascadeBreaker) nativeFastPath=\(s.tapNativeFastPath)",
-            "settings: simpleTelex=\(s.simpleTelex) freeMarking=\(s.freeMarking) modern=\(s.modernOrthography) liveSpell=\(s.liveSpellCheck) autoRestore=\(s.autoRestore) vni=\(s.vniMode) quick=\(s.quickTelex) ctxEnglish=\(s.contextualEnglish) retroEnglish=\(s.retroactiveEnglish) teencode=\(s.teencode) collisionVN=\(s.collisionPrefersVietnamese) reEdit=\(s.reEditWord) bracket=\(s.bracketVowels) safeUnknown=\(s.safeUnknownApps)",
+            "settings: simpleTelex=\(s.simpleTelex) freeMarking=\(s.freeMarking) modern=\(s.modernOrthography) liveSpell=\(s.liveSpellCheck) autoRestore=\(s.autoRestore) vni=\(s.vniMode) quick=\(s.quickTelex) ctxEnglish=\(s.contextualEnglish) retroEnglish=\(s.retroactiveEnglish) freqEnglish=\(s.englishByFrequency) teencode=\(s.teencode) collisionVN=\(s.collisionPrefersVietnamese) reEdit=\(s.reEditWord) bracket=\(s.bracketVowels) safeUnknown=\(s.safeUnknownApps)",
             // Count only — the trigger/expansion pairs are USER-TYPED content the log
             // must never carry (same rule as everywhere else here), but a nonzero count
             // is itself diagnostic: a custom gõ tắt entry colliding with a Vietnamese

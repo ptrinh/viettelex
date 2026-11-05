@@ -3636,7 +3636,8 @@ final class TerminalTapController {
             // đọc chậm ⇒ tự áp lùi về đề xuất (RetroApply.keyPathMode).
             let retroMode = engine.pendingRetroCorrection.map { pending in
                 RetroApply.tapMode(RetroApply.keyPathMode(RetroApply.mode(contextualEnglish: engine.contextualEnglish,
-                                                                          autoApply: AppState.shared.retroactiveEnglish),
+                                                                          autoApply: AppState.shared.retroactiveEnglish,
+                                                                          flipBack: pending.flipBack),
                                                           slowApp: RetroCost.isSlow(id)),
                                    words: pending.words)
             } ?? .none
