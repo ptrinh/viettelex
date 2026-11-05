@@ -191,7 +191,8 @@ std::string run(const std::string &flags, const std::string &opsUtf8) {
 }
 
 // Retroactive English through the C ABI (vt_note_boundary / vt_take_retro, the vt_retro
-// layout). Same case as TelexCore RetroEnglishTests.testCorrectionShape.
+// layout). Same case as TelexCore RetroEnglishTests.testCorrectionShape ("very" is a strong
+// English word: the edit comes at "very"), then FrequencyEnglishTests.testFlipCorrectionShape.
 bool retroSmoke() {
     vt_engine *e = vt_engine_new();
     const int on[] = {VT_FLAG_FREE_MARKING, VT_FLAG_LIVE_SPELL_CHECK, VT_FLAG_EAGER_ENGLISH_RESTORE,
@@ -201,19 +202,39 @@ bool retroSmoke() {
     vt_action a;
     vt_retro r;
     bool ok = true;
-    const char *words[] = {"His", "car", "is", "very", "fast"};
-    for (int w = 0; w < 5; ++w) {
+    const char *words[] = {"His", "car", "is", "very"};
+    for (int w = 0; w < 4; ++w) {
         for (const char *p = words[w]; *p; ++p) vt_feed(e, uint32_t(*p), &a);
         vt_commit(e, true, &a);
         vt_note_boundary(e, ' ');
         bool got = vt_take_retro(e, &r);
-        if (got != (w == 4)) ok = false;
+        if (got != (w == 3)) ok = false;
     }
-    ok = ok && r.backspaces == 17 && r.words == 3
-        && std::string(r.expected, size_t(r.expected_len)) == "\xC3\xAD c\xE1\xBA\xA3 \xC3\xAD very fast "
-        && std::string(r.insert, size_t(r.insert_len)) == "is car is very fast ";
+    ok = ok && r.backspaces == 12 && r.words == 3 && r.flip_back == 0
+        && std::string(r.expected, size_t(r.expected_len)) == "\xC3\xAD c\xE1\xBA\xA3 \xC3\xAD very "
+        && std::string(r.insert, size_t(r.insert_len)) == "is car is very ";
+    ok = ok && !vt_engine_get_flag(e, VT_FLAG_ENGLISH_BY_FREQUENCY);
     vt_engine_set_flag(e, VT_FLAG_CONTEXTUAL_ENGLISH, false);   // feature depends on it
     ok = ok && vt_engine_get_flag(e, VT_FLAG_RETRO_ENGLISH);
+    vt_engine_free(e);
+
+    // englishByFrequency: "His " commits as English, "hửng " flips it back (flip_back = 1).
+    e = vt_engine_new();
+    for (int f : on) vt_engine_set_flag(e, f, true);
+    vt_engine_set_flag(e, VT_FLAG_TEENCODE, false);
+    vt_engine_set_flag(e, VT_FLAG_ENGLISH_BY_FREQUENCY, true);
+    ok = ok && vt_engine_get_flag(e, VT_FLAG_ENGLISH_BY_FREQUENCY);
+    const char *flip[] = {"His", "huwngr"};
+    for (int w = 0; w < 2; ++w) {
+        for (const char *p = flip[w]; *p; ++p) vt_feed(e, uint32_t(*p), &a);
+        vt_commit(e, true, &a);
+        vt_note_boundary(e, ' ');
+        bool got = vt_take_retro(e, &r);
+        if (got != (w == 1)) ok = false;
+    }
+    ok = ok && r.backspaces == 8 && r.words == 1 && r.flip_back == 1
+        && std::string(r.expected, size_t(r.expected_len)) == "is h\xE1\xBB\xADng "
+        && std::string(r.insert, size_t(r.insert_len)) == "\xC3\xAD h\xE1\xBB\xADng ";
     vt_engine_free(e);
     return ok;
 }

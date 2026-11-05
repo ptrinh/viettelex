@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#define VT_ABI_VERSION 1
+#define VT_ABI_VERSION 2   /* 2: vt_retro.flip_back, VT_FLAG_ENGLISH_BY_FREQUENCY */
 
 typedef struct vt_engine vt_engine;
 
@@ -56,8 +56,10 @@ enum {
     VT_FLAG_ENGLISH_WORD_RESTORE = 9,         /* default TRUE  */
     VT_FLAG_COLLISION_PREFERS_VIETNAMESE = 10, /* default false */
     VT_FLAG_EAGER_ENGLISH_RESTORE = 11,       /* default false; frontends pass auto-restore */
-    VT_FLAG_RETRO_ENGLISH = 12                /* default false; EXPERIMENTAL retroactiveEnglish,
+    VT_FLAG_RETRO_ENGLISH = 12,               /* default false; EXPERIMENTAL retroactiveEnglish,
                                                  inert unless CONTEXTUAL_ENGLISH is on      */
+    VT_FLAG_ENGLISH_BY_FREQUENCY = 13         /* default false; EXPERIMENTAL englishByFrequency,
+                                                 inert unless RETRO_ENGLISH is in effect    */
 };
 
 /* Lifecycle */
@@ -133,6 +135,12 @@ typedef struct vt_retro {
     int32_t insert_len;       /* bytes in `insert` (excluding NUL) */
     char expected[VT_RETRO_CAP];
     char insert[VT_RETRO_CAP];
+    /* RetroCorrection.flipBack (VT_FLAG_ENGLISH_BY_FREQUENCY): 1 = the edit puts a word the
+     * frequency rule had turned English BACK to Vietnamese ("His hửng" -> "hí hửng"). It
+     * undoes the engine's own guess: apply it AUTOMATICALLY even when retro edits are only
+     * offered, and also when the boundary is Enter (before the Enter goes through) — after
+     * the same surrounding-text check. */
+    int32_t flip_back;
 } vt_retro;
 void vt_note_boundary(vt_engine *h, uint32_t ch);
 bool vt_take_retro(vt_engine *h, vt_retro *out);
