@@ -107,12 +107,12 @@ struct MixedTypingSection: View {
 
             if focus.expanded {
                 profilePicker
-                settingToggle(L(MixedTypingItem.spaceSwipeLanguage.viTitle), L("Vuốt nhanh phím cách sang trái/phải. Góc phím cách hiện VI / EN. Tiếng Anh gõ nguyên văn. Giữ rồi kéo vẫn là di con trỏ."), isOn: $spaceSwipeLanguage)
+                settingToggle(L(MixedTypingItem.spaceSwipeLanguage.viTitle), L(SettingCaption.spaceSwipeLanguage), isOn: $spaceSwipeLanguage)
                     .row(.spaceSwipeLanguage, rowBackground(.spaceSwipeLanguage))
                 NavigationLink {
                     UserDictView()
                 } label: {
-                    SubPageRow(title: L("Từ điển cá nhân"), subtitle: L("Xem, tìm, xoá từ đã học; thêm tên riêng."))
+                    SubPageRow(title: L("Từ điển cá nhân"), subtitle: L(SettingCaption.userDictionary))
                 }
                 .row(.userDictionary, rowBackground(.userDictionary))
                 NavigationLink {
@@ -132,7 +132,7 @@ struct MixedTypingSection: View {
     @ViewBuilder private var profilePicker: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(L("Bạn thường gõ thế nào?")).font(.subheadline.weight(.semibold))
-            Text(L("Chọn một — các công tắc bên dưới sẽ tự đặt theo.")).font(.footnote).foregroundStyle(.secondary)
+            Text(L(SettingCaption.profileHint)).font(.footnote).foregroundStyle(.secondary)
         }
         .padding(.top, 4)
         .accessibilityElement(children: .combine)
@@ -147,7 +147,7 @@ struct MixedTypingSection: View {
         }
         Group {
             if current == nil {
-                profileRow(L("Tuỳ chỉnh"), L("Bạn đã tự chỉnh các công tắc bên dưới."), selected: true)
+                profileRow(L("Tuỳ chỉnh"), L(SettingCaption.customProfile), selected: true)
             }
         }
         .alert(confirming.map { L("Áp dụng “%@”?", L($0.titleKey)) } ?? "",
@@ -231,15 +231,15 @@ struct MixedAdvancedPage: View {
         ScrollViewReader { proxy in
             List {
                 Section {
-                    settingToggle(L(MixedTypingItem.autoRestore.viTitle), L("Từ không phải tiếng Việt trả về như đã gõ (google, github…)."), isOn: $autoRestore)
+                    settingToggle(L(MixedTypingItem.autoRestore.viTitle), L(SettingCaption.autoRestore), isOn: $autoRestore)
                         .row(.autoRestore, background(.autoRestore))
-                    settingToggle(L(MixedTypingItem.contextualEnglish.viTitle), L("Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → “he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để tiếng Việt — “sao í”."), isOn: $contextualEnglish)
+                    settingToggle(L(MixedTypingItem.contextualEnglish.viTitle), L(SettingCaption.contextualEnglish), isOn: $contextualEnglish)
                         .row(.contextualEnglish, background(.contextualEnglish))
-                    dependentToggle(L(MixedTypingItem.retroEnglish.viTitle), L("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm (vd. \"Hí cả í very fast\" → \"His car is very fast\")."),
+                    dependentToggle(L(MixedTypingItem.retroEnglish.viTitle), L(SettingCaption.retroEnglish),
                                     isOn: $retroEnglishAuto, reason: reason(.retroEnglish), experimental: true)
                         .padding(.leading, 12)
                         .row(.retroEnglish, background(.retroEnglish))
-                    dependentToggle(L(MixedTypingItem.englishByFrequency.viTitle), L("Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his → hí) thì chọn tiếng Anh; từ kế cho thấy là tiếng Việt (hí hửng, hí hí) thì tự đổi lại."),
+                    dependentToggle(L(MixedTypingItem.englishByFrequency.viTitle), L(SettingCaption.englishByFrequency),
                                     isOn: $englishByFrequency, reason: reason(.englishByFrequency), experimental: true)
                         .padding(.leading, 12)
                         .row(.englishByFrequency, background(.englishByFrequency))

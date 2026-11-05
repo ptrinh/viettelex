@@ -55,7 +55,7 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
 
     SubPageHeader(tr("Hiệu ứng khi bấm phím"), onBack)
     if (!KeyEffectGate.allows) {
-        VTSection(footer = tr("Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus (Giới Thiệu → VietTelex Plus). Hệ thống, Tối OLED, Tương phản cao và Xám trung tính luôn miễn phí.")) {
+        VTSection(footer = tr(SettingCaption.plusThemes)) {
             VTRow(onClick = onOpenPlus) { Text("VietTelex Plus ›", color = c.accent) }
         }
     }

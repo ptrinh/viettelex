@@ -364,13 +364,13 @@ struct RootView: View {
                 .font(.footnote).foregroundStyle(.secondary)
             // Ghi công theo giấy phép dữ liệu bigram gõ vuốt (vnlm.bin) — docs/DATA-SOURCES.md
             Link(destination: URL(string: "https://github.com/ptrinh/viettelex/blob/main/docs/DATA-SOURCES.md")!) {
-                Text(L("Dữ liệu gõ vuốt: thống kê từ Wikipedia, Wikisource… tiếng Việt (CC BY-SA 4.0) và Tatoeba (CC BY 2.0 FR)"))
+                Text(L(SettingCaption.swipeDataCredit))
                     .multilineTextAlignment(.leading)
             }
             .font(.footnote).foregroundStyle(.secondary)
             // Liệt kê ĐỦ mọi tính năng cần quyền (FullAccessNotice + kiểm hasFullAccess ở bàn phím) —
             // L10nTests.testFullAccessFooterListsEveryGatedFeature giữ danh sách khỏi lệch.
-            Text(L("Toàn quyền Truy cập là tuỳ chọn — chỉ cần cho Rung phím, Âm thanh phím, Nút Dán, Lịch sử clipboard, Mẫu câu động (https://) và lưu từ đã học; VietTelex không dùng quyền này cho bất kỳ việc gì khác."))
+            Text(L("Toàn quyền Truy cập là tuỳ chọn, chỉ dùng cho: Rung phím, Âm thanh phím, Nút Dán, Lịch sử clipboard, Mẫu câu động, lưu từ đã học."))
                 .font(.footnote).foregroundStyle(.secondary)
         } header: { Text(L("Giới thiệu")) }
         // Gỡ lỗi chuyển sang Tính Năng → "Nâng cao / Gỡ lỗi" (SETTINGS-CLEANUP-SPEC §4, 05/11/2026).
@@ -939,23 +939,31 @@ struct KieuGoSection: View {
             // Telex / VNI loại trừ nhau → segmented (như radio macOS). Chọn VNI TỰ BẬT hàng
             // phím số (số là phím dấu — không có hàng số thì mỗi dấu phải chuyển plane 123);
             // tắt lại được ở Tính năng → Phím & cử chỉ.
-            Picker(L("Kiểu gõ"), selection: Binding(
-                get: { vniMode ? "vni" : "telex" },
-                set: { v in
-                    let vni = v == "vni"
-                    if vni, !vniMode { numberRow = true }
-                    vniMode = vni
-                })) {
-                Text("Telex").tag("telex")
-                Text("VNI").tag("vni")
-            }
-            .pickerStyle(.segmented)
-            if vniMode {
-                Text(L("Gõ dấu bằng số khi đang gõ một từ: 1 sắc, 2 huyền, 3 hỏi, 4 ngã, 5 nặng, 6 mũ (â ê ô), 7 móc (ơ ư), 8 trăng (ă), 9 đ, 0 xoá dấu — tie6ng1 vie6t5 → tiếng việt. Ngoài từ, phím số vẫn gõ ra số. Chọn VNI tự bật Hàng phím số (tắt được ở Tính năng → Phím & cử chỉ)."))
-                    .font(.footnote).foregroundStyle(.secondary)
+            // Một hàng: tên (+ chú thích VNI ngay dưới) bên trái, nút chọn bên phải — như Android.
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("Kiểu gõ"))
+                    if vniMode {
+                        Text(L(SettingCaption.vni)).font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 0)
+                Picker(L("Kiểu gõ"), selection: Binding(
+                    get: { vniMode ? "vni" : "telex" },
+                    set: { v in
+                        let vni = v == "vni"
+                        if vni, !vniMode { numberRow = true }
+                        vniMode = vni
+                    })) {
+                    Text("Telex").tag("telex")
+                    Text("VNI").tag("vni")
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
             }
             // iOS không cho bàn phím bên thứ ba đọc công tắc Tự động viết hoa của hệ thống.
-            settingToggle(L(SettingLabel.autoCapitalize), L("Bật shift ở đầu ô, sau . ! ? và khi xuống dòng. Công tắc “Tự động viết hoa” trong Cài đặt → Bàn phím của iOS không áp dụng cho bàn phím bên thứ ba — tắt ở đây."), isOn: $autoCapitalize)
+            settingToggle(L(SettingLabel.autoCapitalize), L(SettingCaption.autoCapitalize), isOn: $autoCapitalize)
             NavigationLink { TypingAdvancedPage() } label: {
                 SubPageRow(title: L(SettingLabel.typingAdvanced), subtitle: L(SettingLabel.typingAdvancedSubtitle))
             }
@@ -985,11 +993,11 @@ struct TypingAdvancedPage: View {
         let telexOnly: String? = vniMode ? TelexOnly.reasonKey : nil
         List {
             Section {
-                dependentToggle(L(SettingLabel.simpleTelex), L("Phím w đứng lẻ giữ nguyên là w, không thành ư."), isOn: $simpleTelex, reason: telexOnly)
-                dependentToggle(L(SettingLabel.freeMarking), L("Phím dấu đặt đâu cũng được, không cần đúng thứ tự."), isOn: $freeMarking, reason: telexOnly)
-                dependentToggle(L(SettingLabel.quickTelex), L("Phụ âm đôi đầu từ thành phụ âm ghép: cc → ch, nn → ng, tt → th…"), isOn: $quickTelex, reason: telexOnly)
-                settingToggle(L(SettingLabel.modernTone), L("hoà, thuý thay vì hòa, thúy."), isOn: $modernTone)
-                dependentToggle(L(SettingLabel.teencode), L("Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, từ tiếng Anh như was, war, zoo giữ nguyên."), isOn: $teencode, reason: telexOnly)
+                dependentToggle(L(SettingLabel.simpleTelex), L(SettingCaption.simpleTelex), isOn: $simpleTelex, reason: telexOnly)
+                dependentToggle(L(SettingLabel.freeMarking), L(SettingCaption.freeMarking), isOn: $freeMarking, reason: telexOnly)
+                dependentToggle(L(SettingLabel.quickTelex), L(SettingCaption.quickTelex), isOn: $quickTelex, reason: telexOnly)
+                settingToggle(L(SettingLabel.modernTone), L(SettingCaption.modernTone), isOn: $modernTone)
+                dependentToggle(L(SettingLabel.teencode), L(SettingCaption.teencode), isOn: $teencode, reason: telexOnly)
             } footer: {
                 Text(L("Cài đặt áp dụng ngay lần mở bàn phím kế tiếp."))
             }
@@ -1024,13 +1032,13 @@ struct DebugSection: View {
     var body: some View {
         Section {
             settingToggle(L("Debug mode — ghi log chạm phím"),
-                          L("Ghi thời điểm chạm, độ trễ và số phím vào log trong app — KHÔNG ghi nội dung bạn gõ. Cần \"Cho phép Toàn quyền\" cho bàn phím. Tắt + Xoá log khi xong."),
+                          L(SettingCaption.debugLogIos),
                           isOn: $debugTouchLog)
             if debugTouchLog {
                 settingToggle(L("Hiện log (tự copy vào clipboard)"),
-                              L("Bật để xem log bên dưới và copy toàn bộ — tắt rồi bật lại để tải log mới."),
+                              L(SettingCaption.showLog),
                               isOn: $showLog)
-                settingToggle(L("Xoá log"), L("Bật để xoá log cũ trước khi thử lại."), isOn: $clearLog)
+                settingToggle(L("Xoá log"), L(SettingCaption.clearLog), isOn: $clearLog)
                 if showLog {
                     Text(logText.isEmpty
                          ? L("Chưa có log. Bật \"Cho phép Toàn quyền\" cho bàn phím VietTelex (Cài đặt → Chung → Bàn phím → Bàn phím → VietTelex), rồi gõ thử.")

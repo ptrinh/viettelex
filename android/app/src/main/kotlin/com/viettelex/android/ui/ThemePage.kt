@@ -34,6 +34,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
@@ -331,7 +332,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     }
 
     if (!ThemeGate.allowsWallpaper) {
-        VTSection(footer = tr("Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus (Giới Thiệu → VietTelex Plus). Hệ thống, Tối OLED, Tương phản cao và Xám trung tính luôn miễn phí.")) {}
+        VTSection(footer = tr(SettingCaption.plusThemes)) {}
     }
 
     // Bộ theme dài (14) ⇒ chọn ở trang con "Chọn giao diện"; ở đây một dòng tóm tắt.
@@ -351,7 +352,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
             SystemColors.dynamicAvailable(android.os.Build.VERSION.SDK_INT)) {
             RowDivider()
             SettingToggle(tr("Dùng màu hình nền (Material You)"),
-                tr("Tắt để bàn phím dùng màu xám trung tính, không đổi theo hình nền."), s.materialYou) {
+                tr(SettingCaption.materialYou), s.materialYou) {
                 update(s.copy(materialYou = it))
             }
         }
@@ -381,7 +382,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     // Đập chuột: thẻ thống kê khi theme đang dùng có trò chơi, hoặc đã từng chơi (IME ghi file thống kê).
     val mole = remember(s) { com.viettelex.android.ime.MoleStatsFile.read(ctx) }
     if (s.effectiveKeyStyle.game == com.viettelex.keyboard.MoleGame.THEME_GAME || mole.total > 0) {
-        VTSection(footer = tr("Gõ như thường — chú chuột thò lên ở phím bạn sắp gõ. Gõ trúng lúc nó đang lên là đập được!")) {
+        VTSection(footer = tr(SettingCaption.moleGame)) {
             VTRow {
                 Text("🐭", style = VTType.body.copy(fontSize = 30.sp))
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
@@ -395,7 +396,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     }
 
     VTSection(header = tr("Ảnh nền · Plus"),
-        footer = tr("Ảnh được thu nhỏ và nén ngay trên máy, không gửi đi đâu. Lớp phủ giúp chữ trên phím dễ đọc.")) {
+        footer = tr(SettingCaption.wallpaper)) {
         VTRow(onClick = if (busy || !ThemeGate.allowsWallpaper) null else {
             { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
         }) {
@@ -447,7 +448,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     }
 
     VTSection(header = tr("Độ trong suốt"),
-        footer = tr("Phím: nền và viền phím (cả nền bàn phím khi không dùng ảnh nền) — 100% chỉ còn chữ, ảnh nền vẫn giữ nguyên. Ký tự: chữ và biểu tượng trên phím — 100% là phím trơn không chữ.")) {
+        footer = tr(SettingCaption.transparency)) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Text(tr("Độ trong suốt phím: %s%%", s.keyboardTransparency), style = VTType.body, color = c.label)
             Slider(value = s.keyboardTransparency.toFloat(), valueRange = 0f..100f,
@@ -457,7 +458,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
                 onValueChange = { update(s.copy(labelTransparency = Math.round(it / 5) * 5)) })
             // #137: nền trong suốt chỉ "xuyên" được ở app vẽ nội dung dưới bàn phím — nói rõ thay vì hứa.
             if (KeyboardTransparency.revealsHostApp(s.keyboardTransparency, opaqueBackdrop = active))
-                Text(tr("Phía sau bàn phím là gì do từng app quyết định. Trình duyệt và một số app vẽ nội dung dưới bàn phím nên thấy xuyên qua; phần lớn app thu màn hình lên trên bàn phím, phía sau chỉ còn nền trơn của app (trắng hoặc đen), nên bàn phím chỉ nhạt đi. Muốn trong giống nhau ở mọi app: dùng ảnh nền, độ trong suốt khi đó chỉ áp lên phím."), style = VTType.footnote, color = c.secondary)
+                Text(tr(SettingCaption.transparencyHostApp), style = VTType.footnote, color = c.secondary)
         }
     }
 
@@ -489,7 +490,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
                 )
                 // Trên trần cũ +10: IME kẹp theo cao màn hình (KeyLayout.effectiveRowAdjust).
                 if (adj > com.viettelex.keyboard.KeyboardSettings.ROW_HEIGHT_UNCLAMPED_MAX)
-                    Text(tr("Màn hình thấp hoặc xoay ngang: tự giới hạn để bàn phím không quá nửa màn hình."),
+                    Text(tr(SettingCaption.rowHeightClamp),
                         style = VTType.footnote, color = c.secondary)
             }
             IosStepper(adj, com.viettelex.keyboard.KeyboardSettings.ROW_HEIGHT_MIN..com.viettelex.keyboard.KeyboardSettings.ROW_HEIGHT_MAX) { adj = it }
@@ -499,7 +500,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
         RowDivider()
         // "Chiều cao thanh gợi ý" Thấp / Vừa (mặc định) / Cao — SuggestionBarHeight, cùng khoá iOS.
         ChoiceRow(Keys.SUGGESTION_BAR_HEIGHT, Prefs.D.suggestionBarHeight.id, tr("Chiều cao thanh gợi ý"),
-            tr("Thanh gợi ý cao hơn thì dễ chạm trúng từ gợi ý hơn; bàn phím cao thêm đúng phần đó. Khi xoay ngang, mức Cao dùng như Vừa."),
+            tr(SettingCaption.suggestionBarHeight),
             listOf(com.viettelex.keyboard.SuggestionBarHeight.LOW.id to tr("Thấp"),
                 com.viettelex.keyboard.SuggestionBarHeight.MEDIUM.id to tr("Vừa"),
                 com.viettelex.keyboard.SuggestionBarHeight.HIGH.id to tr("Cao"))) {
@@ -508,20 +509,20 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
         RowDivider()
         // "Màu chữ gợi ý" Xám (mặc định, như bàn phím Apple) / Sáng — SuggestionInk, cùng khoá iOS.
         ChoiceRow(Keys.SUGGESTION_INK, Prefs.D.suggestionInk.id, tr("Màu chữ gợi ý"),
-            tr("Xám: chữ gợi ý dịu như bàn phím Apple, đỡ rối mắt khi gõ. Sáng: chữ đậm cùng màu chữ phím."),
+            tr(SettingCaption.suggestionInk),
             listOf(com.viettelex.keyboard.SuggestionInk.MUTED.id to tr("Xám"),
                 com.viettelex.keyboard.SuggestionInk.BRIGHT.id to tr("Sáng"))) {
             com.viettelex.keyboard.SuggestionInk.of(it).id
         }
         RowDivider()
-        BoolToggle(Keys.SHOW_SPACE_LOGO, Prefs.D.showSpaceLogo, tr("Hiện logo Vᴛ"), tr("Logo mờ ở góc phải phím cách."))
+        BoolToggle(Keys.SHOW_SPACE_LOGO, Prefs.D.showSpaceLogo, tr("Hiện logo Vᴛ"), tr(SettingCaption.spaceLogo))
         RowDivider()
         // Bàn phím tách đôi (SplitLayout, cùng khoá iOS) — mặc định TẮT; chỉ tách khi bàn phím ≥ 600 dp.
         BoolToggle(Keys.SPLIT_KEYBOARD, Prefs.D.splitKeyboard, tr("Bàn phím tách đôi"),
-            tr("Màn hình rộng (điện thoại gập khi mở, điện thoại xoay ngang, máy tính bảng): chia bàn phím làm hai nửa để gõ bằng hai ngón cái. Khi đang tách, gõ vuốt và chế độ một tay tạm tắt."))
+            tr(SettingCaption.splitKeyboardAndroid))
     }
 
-    VTSection(footer = tr("Về theme Hệ thống, tắt ảnh nền (ảnh vẫn giữ để bật lại), độ tối/mờ, độ trong suốt và tuỳ chỉnh nâng cao về mặc định. Chiều cao hàng và logo giữ nguyên.")) {
+    VTSection(footer = tr(SettingCaption.resetAppearance)) {
         VTRow(onClick = if (s.isDefault || busy) null else { { confirmReset = true } }) {
             Text(tr("Khôi phục giao diện gốc"), style = VTType.body, color = if (s.isDefault) c.secondary else c.red)
         }
@@ -563,12 +564,15 @@ private fun KeyboardRaiseRow() {
     val c = LocalVT.current
     var raise by rememberIntPref(Keys.KEYBOARD_RAISE, Prefs.D.keyboardRaise)
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text(tr("Nâng bàn phím"), style = VTType.body, color = c.label)
-        Text(if (raise == 0) tr("Tắt") else tr("Cao hơn %d dp", raise), style = VTType.footnote, color = c.secondary)
+        // Tên + giá trị một dòng, chú thích ngay dưới, thanh trượt sau cùng (cùng bố cục iOS).
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(tr("Nâng bàn phím"), style = VTType.body, color = c.label, modifier = Modifier.weight(1f))
+            Text(if (raise == 0) tr("Tắt") else tr("Cao hơn %d dp", raise), style = VTType.body, color = c.secondary)
+        }
+        Text(tr(SettingCaption.keyboardRaise), style = VTType.footnote, color = c.secondary)
         Slider(value = raise.toFloat(), valueRange = 0f..KeyboardSettings.KEYBOARD_RAISE_MAX.toFloat(),
             steps = KeyboardSettings.KEYBOARD_RAISE_MAX / 4 - 1,
             onValueChange = { raise = KeyboardSettings.clampRaise(Math.round(it / 4) * 4) })
-        Text(tr("Thêm khoảng trống dưới hàng phím cuối để bàn phím nằm cao hơn."), style = VTType.footnote, color = c.secondary)
     }
 }
 

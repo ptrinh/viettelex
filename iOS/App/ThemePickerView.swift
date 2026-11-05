@@ -39,7 +39,7 @@ struct ThemePickerView: View {
                 Section {
                     PlusEntryRow()
                 } footer: {
-                    Text(L("Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus. Hệ thống, Tối OLED, Tương phản cao và Xám trung tính luôn miễn phí."))
+                    Text(L(SettingCaption.plusThemes))
                 }
             }
             ForEach(ThemePicker.sections, id: \.title) { section in

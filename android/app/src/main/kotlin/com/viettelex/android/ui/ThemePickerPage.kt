@@ -123,7 +123,7 @@ internal fun ThemePickerPage(s: ThemeSettings, dark: Boolean, onSelect: (ThemeSe
 
     SubPageHeader(tr("Chọn giao diện"), onBack)
     if (!ThemeGate.allowsWallpaper) {
-        VTSection(footer = tr("Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus (Giới Thiệu → VietTelex Plus). Hệ thống, Tối OLED, Tương phản cao và Xám trung tính luôn miễn phí.")) {}
+        VTSection(footer = tr(SettingCaption.plusThemes)) {}
     }
     for (section in ThemePicker.sections) {
         VTSection(header = tr(section.title)) {

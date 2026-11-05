@@ -30,7 +30,7 @@ struct ShortcutsSection: View {
             Toggle(isOn: $enabled) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(L("Gõ tắt"))
-                    Text(L("Gõ chữ tắt rồi dấu cách/dấu câu để bung: ko → không, Ko → Không, KO → KHÔNG. ⌫ ngay sau đó trả lại chữ đã gõ."))
+                    Text(L(SettingCaption.shortcuts))
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
@@ -43,7 +43,7 @@ struct ShortcutsSection: View {
                 Toggle(isOn: $useSystem) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L("Dùng Thay thế văn bản của iOS"))
-                        Text(L("Bung cả các mục trong Cài đặt → Cài đặt chung → Bàn phím → Thay thế văn bản. Chỉ đọc — sửa trong Cài đặt iOS; trùng chữ tắt thì bảng của VietTelex thắng."))
+                        Text(L(SettingCaption.systemTextReplacement))
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }

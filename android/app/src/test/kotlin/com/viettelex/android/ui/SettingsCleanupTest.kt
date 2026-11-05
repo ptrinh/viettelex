@@ -119,7 +119,7 @@ class SettingsCleanupTest {
                 "Tự khôi phục từ tiếng Anh", "Thêm dấu", "Phản hồi khi chạm", "Sửa lỗi & gợi ý", "Riêng tư & sao lưu",
                 "Gõ lẫn tiếng Anh", "Nâng cao"))
             assertTrue("thiếu nhãn «$label»", "\"$label\"" in src)
-        assertTrue("chú thích Tự khôi phục phải có ví dụ", "(google, github…)" in src)
+        assertTrue("chú thích Tự khôi phục phải có ví dụ", "(google, github)" in src)
         // Không còn nhãn cũ.
         for (old in listOf("tr(\"Chip số\")", "tr(\"Chip “Thêm dấu”\")", "\"Chính tả & sửa lỗi\"", "\"Gợi ý & từ điển\"",
                 "\"Riêng tư & clipboard\"", "\"Sao lưu & đồng bộ\"", "\"Gõ mixed Việt/Anh\"", "tr(\"Bỏ dấu kiểu mới\")"))
@@ -144,5 +144,35 @@ class SettingsCleanupTest {
             val found = names.filter { it in lower }
             assertTrue("$where nhắc tên bộ gõ khác: ${found.map { it.reversed() }}", found.isEmpty())
         }
+    }
+
+    // MARK: chú thích một dòng (06/11/2026, cùng chữ với macOS + iOS)
+
+    /** Mỗi chú thích ≤ 95 ký tự (cả tiếng Việt lẫn tiếng Anh), có bản dịch, không trùng. */
+    @Test fun captionsAreShort() {
+        assertTrue("bảng chú thích rỗng?", SettingCaption.all.size > 60)
+        assertEquals("trùng chú thích", SettingCaption.all.size, SettingCaption.all.toSet().size)
+        for (k in SettingCaption.all) {
+            assertTrue("dài ${k.length}: $k", k.length <= 95)
+            val en = L10nTable.EN[k]
+            assertTrue("thiếu bản dịch: $k", !en.isNullOrBlank())
+            assertTrue("dài ${en!!.length}: $en", en.length <= 95)
+        }
+    }
+
+    /** Trang cài đặt không còn chú thích dài viết thẳng trong tr("…") (phải đi qua [SettingCaption]). */
+    @Test fun settingsPagesUseCaptionTable() {
+        val files = listOf("KieuGoNav.kt", "MixedTyping.kt", "FeaturePages.kt", "PrivacySection.kt", "BackupSection.kt", "Tabs.kt", "ThemePage.kt")
+        val re = Regex("(?<![\\w.])tr\\(\"((?:[^\"\\\\\\n]|\\\\.)*)\"\\)")
+        val long = ArrayList<String>()
+        for (n in files) {
+            val f = File(appSrc, "com/viettelex/android/ui/$n")
+            for (m in re.findAll(f.readText())) if (m.groupValues[1].length > 95) long.add("$n: ${m.groupValues[1].take(60)}…")
+        }
+        // Ngoại lệ có chủ đích: trang Mẫu Câu (không phải trang cài đặt), hộp thoại xác nhận, onboarding.
+        val allowed = listOf("Bấm ☰ trên bàn phím để chèn nhanh", "Mẫu có nội dung bắt đầu bằng https://", "YAML phẳng",
+            "Cảnh báo này hiện với mọi bàn phím", "Bàn phím quên mọi từ đã học")
+        val rest = long.filterNot { l -> allowed.any { it in l } }
+        assertTrue("chú thích dài ngoài bảng SettingCaption:\n" + rest.joinToString("\n"), rest.isEmpty())
     }
 }

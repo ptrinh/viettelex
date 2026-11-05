@@ -88,9 +88,9 @@ fun SaoLuuSection(onOpenPlus: () -> Unit = {}) {
     }
 
     VTSection(header = tr("File sao lưu"),
-        footer = tr("File gồm cài đặt, gõ tắt, mẫu câu (và từ đã học nếu chọn) — mở được trên Android, iPhone, iPad. Nhập: cài đặt theo file, gõ tắt và mẫu câu được gộp thêm. Android cũng tự sao lưu cài đặt vào Google khi bạn bật Sao lưu của hệ thống.")) {
+        footer = tr(SettingCaption.backupFile)) {
         SettingToggle(tr("Kèm từ đã học khi xuất file"),
-            tr("Từ bàn phím đã học (tần suất gõ) — riêng tư, chỉ bật khi file do chính bạn giữ."), includeLearned) { includeLearned = it }
+            tr(SettingCaption.includeLearned), includeLearned) { includeLearned = it }
         RowDivider()
         LinkRow(Glyph.Export, tr("Xuất file sao lưu…")) {
             val day = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date())

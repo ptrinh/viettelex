@@ -43,7 +43,7 @@ struct SaoLuuSection: View {
                 }
             }
             settingToggle(L("Kèm từ đã học khi xuất file"),
-                          L("Từ bàn phím đã học (tần suất gõ) — riêng tư, chỉ bật khi file do chính bạn giữ."),
+                          L(SettingCaption.includeLearned),
                           isOn: $includeLearned)
             Button {
                 let p = BackupStore.appGroup.snapshot(includeLearned: includeLearned)
@@ -76,13 +76,13 @@ struct SaoLuuSection: View {
             }
             if let notice { Text(notice).font(.footnote).foregroundStyle(.secondary) }
         } header: { Text(L("Sao lưu & đồng bộ")) } footer: {
-            Text(L("File gồm cài đặt, gõ tắt, mẫu câu (và từ đã học nếu chọn) — mở được trên iPhone, iPad và Android. Nhập: cài đặt theo file, gõ tắt và mẫu câu được gộp thêm."))
+            Text(L(SettingCaption.backupFile))
         }
     }
 
     private var syncCaption: String {
         guard syncEnabled else {
-            return L("Cài đặt, gõ tắt, mẫu câu giống nhau trên mọi máy cùng tài khoản iCloud. Không đồng bộ từ đã học.")
+            return L(SettingCaption.iCloudSync)
         }
         if !sync.iCloudAvailable { return L("Máy chưa đăng nhập iCloud — sẽ đồng bộ khi đăng nhập.") }
         guard let d = sync.lastSync else { return L("Đang chờ đồng bộ…") }
