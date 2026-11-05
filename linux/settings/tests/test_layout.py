@@ -190,6 +190,29 @@ class LabelTests(unittest.TestCase):
         bad += [v for v in i18n.EN.values() if jargon.search(v)]
         self.assertEqual(bad, [])
 
+    def test_captions_are_short(self):
+        """Mỗi chú thích trong cửa sổ cài đặt là MỘT dòng ngắn (06/11/2026, cùng giới hạn macOS /
+        Windows): mọi chuỗi _()/N_() của SettingsWindow và hằng cấp module ≤ 95 ký tự, vi lẫn en."""
+        def literals(node):
+            for n in ast.walk(node):
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in ("_", "N_") \
+                        and n.args and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str):
+                    yield n.args[0].value
+        long = []
+        for node in APP.body:
+            if isinstance(node, ast.Assign) or (isinstance(node, ast.ClassDef) and node.name == "SettingsWindow"):
+                for s in literals(node):
+                    for t in (s, i18n.EN.get(s, s)):
+                        if len(t) > 95:
+                            long.append("%d: %s" % (len(t), t))
+        self.assertEqual(long, [])
+
+    def test_collision_caption_follows_choice(self):
+        """Như macOS: chú thích "Khi từ vừa Anh vừa Việt" chỉ cách lấy dạng kia, đổi theo lựa chọn."""
+        m = self.marked()
+        self.assertIn("Vd. list → lít. Muốn giữ tiếng Anh, gõ đúp phím dấu: lisst → list.", m)
+        self.assertIn("Vd. list giữ nguyên. Muốn ra tiếng Việt, gõ dấu cuối từ: lits → lít.", m)
+
 
 class ProfilePickerTests(unittest.TestCase):
     """Bộ chọn hồ sơ vẫn phủ ĐỦ key sau khi công tắc dời vào Nâng cao."""
