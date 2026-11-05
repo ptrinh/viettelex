@@ -146,6 +146,151 @@
         }
       }
     },
+    "freq" : {
+      "test" : {
+        "collide" : {
+          "fixes_per_100" : 7.207,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 11.921,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 8.108,
+          "toggles_per_100" : 6.757
+        },
+        "en" : {
+          "fixes_per_100" : 2.428,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 2.708,
+          "lazy_wrong" : 2.708,
+          "toggles_per_100" : 1.961
+        },
+        "mix" : {
+          "fixes_per_100" : 0.957,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 2.722,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 1.025,
+          "toggles_per_100" : 1.299
+        },
+        "overall" : {
+          "fixes_per_100" : 2.362,
+          "flicker_per_100" : 2.109,
+          "ideal_wrong" : 0.733,
+          "lazy_en_wrong" : 4.103,
+          "lazy_vi_wrong" : 0.889,
+          "lazy_wrong" : 2.54,
+          "toggles_per_100" : 1.616
+        },
+        "tech" : {
+          "fixes_per_100" : 0.812,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 3.165,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0.812,
+          "toggles_per_100" : 1.299
+        },
+        "teen" : {
+          "fixes_per_100" : 5.128,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 5.128,
+          "lazy_en_wrong" : 0,
+          "lazy_vi_wrong" : 5.333,
+          "lazy_wrong" : 5.128,
+          "toggles_per_100" : 0
+        },
+        "vcollide" : {
+          "fixes_per_100" : 0,
+          "flicker_per_100" : 14.706,
+          "ideal_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        },
+        "vi" : {
+          "fixes_per_100" : 0,
+          "flicker_per_100" : 0.058,
+          "ideal_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        }
+      },
+      "val" : {
+        "collide" : {
+          "fixes_per_100" : 7.732,
+          "flicker_per_100" : 0.258,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 12.759,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 9.536,
+          "toggles_per_100" : 7.474
+        },
+        "en" : {
+          "fixes_per_100" : 2.034,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 2.123,
+          "lazy_wrong" : 2.123,
+          "toggles_per_100" : 1.946
+        },
+        "mix" : {
+          "fixes_per_100" : 1.265,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 0.034,
+          "lazy_en_wrong" : 3.377,
+          "lazy_vi_wrong" : 0.056,
+          "lazy_wrong" : 1.367,
+          "toggles_per_100" : 1.743
+        },
+        "overall" : {
+          "fixes_per_100" : 2.543,
+          "flicker_per_100" : 0.799,
+          "ideal_wrong" : 0.791,
+          "lazy_en_wrong" : 3.963,
+          "lazy_vi_wrong" : 0.953,
+          "lazy_wrong" : 2.838,
+          "toggles_per_100" : 1.892
+        },
+        "tech" : {
+          "fixes_per_100" : 1.263,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 5.521,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 1.337,
+          "toggles_per_100" : 2.08
+        },
+        "teen" : {
+          "fixes_per_100" : 5.505,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 5.505,
+          "lazy_en_wrong" : 0,
+          "lazy_vi_wrong" : 5.66,
+          "lazy_wrong" : 5.505,
+          "toggles_per_100" : 0
+        },
+        "vcollide" : {
+          "fixes_per_100" : 0,
+          "flicker_per_100" : 5.333,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        },
+        "vi" : {
+          "fixes_per_100" : 0,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        }
+      }
+    },
     "no-context" : {
       "test" : {
         "collide" : {
@@ -294,20 +439,20 @@
     "retro" : {
       "test" : {
         "collide" : {
-          "fixes_per_100" : 7.207,
-          "flicker_per_100" : 10.36,
+          "fixes_per_100" : 6.757,
+          "flicker_per_100" : 11.712,
           "ideal_wrong" : 0,
-          "lazy_en_wrong" : 17.219,
+          "lazy_en_wrong" : 15.232,
           "lazy_vi_wrong" : 0,
-          "lazy_wrong" : 11.712,
+          "lazy_wrong" : 10.36,
           "toggles_per_100" : 5.856
         },
         "en" : {
-          "fixes_per_100" : 2.428,
-          "flicker_per_100" : 2.614,
+          "fixes_per_100" : 2.334,
+          "flicker_per_100" : 2.801,
           "ideal_wrong" : 0,
-          "lazy_en_wrong" : 2.801,
-          "lazy_wrong" : 2.801,
+          "lazy_en_wrong" : 2.614,
+          "lazy_wrong" : 2.614,
           "toggles_per_100" : 1.867
         },
         "mix" : {
@@ -320,12 +465,12 @@
           "toggles_per_100" : 1.162
         },
         "overall" : {
-          "fixes_per_100" : 2.375,
-          "flicker_per_100" : 1.922,
+          "fixes_per_100" : 2.297,
+          "flicker_per_100" : 2.142,
           "ideal_wrong" : 0.733,
-          "lazy_en_wrong" : 5.235,
+          "lazy_en_wrong" : 4.801,
           "lazy_vi_wrong" : 0.889,
-          "lazy_wrong" : 3.072,
+          "lazy_wrong" : 2.852,
           "toggles_per_100" : 1.501
         },
         "tech" : {
@@ -365,21 +510,21 @@
       },
       "val" : {
         "collide" : {
-          "fixes_per_100" : 10.052,
-          "flicker_per_100" : 7.99,
+          "fixes_per_100" : 8.505,
+          "flicker_per_100" : 11.082,
           "ideal_wrong" : 0,
-          "lazy_en_wrong" : 21.034,
+          "lazy_en_wrong" : 16.897,
           "lazy_vi_wrong" : 0,
-          "lazy_wrong" : 15.722,
-          "toggles_per_100" : 9.536
+          "lazy_wrong" : 12.629,
+          "toggles_per_100" : 8.763
         },
         "en" : {
-          "fixes_per_100" : 1.813,
-          "flicker_per_100" : 2.477,
+          "fixes_per_100" : 1.725,
+          "flicker_per_100" : 2.565,
           "ideal_wrong" : 0.044,
-          "lazy_en_wrong" : 1.858,
-          "lazy_wrong" : 1.858,
-          "toggles_per_100" : 1.548
+          "lazy_en_wrong" : 1.769,
+          "lazy_wrong" : 1.769,
+          "toggles_per_100" : 1.504
         },
         "mix" : {
           "fixes_per_100" : 0.991,
@@ -391,13 +536,13 @@
           "toggles_per_100" : 1.47
         },
         "overall" : {
-          "fixes_per_100" : 2.814,
-          "flicker_per_100" : 1.603,
+          "fixes_per_100" : 2.58,
+          "flicker_per_100" : 2.057,
           "ideal_wrong" : 0.798,
-          "lazy_en_wrong" : 5.191,
+          "lazy_en_wrong" : 4.486,
           "lazy_vi_wrong" : 0.953,
-          "lazy_wrong" : 3.641,
-          "toggles_per_100" : 2.112
+          "lazy_wrong" : 3.186,
+          "toggles_per_100" : 1.995
         },
         "tech" : {
           "fixes_per_100" : 1.337,
@@ -420,6 +565,151 @@
         "vcollide" : {
           "fixes_per_100" : 0,
           "flicker_per_100" : 0,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        },
+        "vi" : {
+          "fixes_per_100" : 0,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        }
+      }
+    },
+    "retro-freq" : {
+      "test" : {
+        "collide" : {
+          "fixes_per_100" : 4.505,
+          "flicker_per_100" : 2.703,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 7.947,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 5.405,
+          "toggles_per_100" : 4.054
+        },
+        "en" : {
+          "fixes_per_100" : 1.494,
+          "flicker_per_100" : 1.12,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 1.587,
+          "lazy_wrong" : 1.587,
+          "toggles_per_100" : 1.307
+        },
+        "mix" : {
+          "fixes_per_100" : 0.82,
+          "flicker_per_100" : 0.205,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 2.178,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0.82,
+          "toggles_per_100" : 1.025
+        },
+        "overall" : {
+          "fixes_per_100" : 1.823,
+          "flicker_per_100" : 2.685,
+          "ideal_wrong" : 0.733,
+          "lazy_en_wrong" : 2.975,
+          "lazy_vi_wrong" : 0.889,
+          "lazy_wrong" : 1.965,
+          "toggles_per_100" : 1.098
+        },
+        "tech" : {
+          "fixes_per_100" : 0.812,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 3.165,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0.812,
+          "toggles_per_100" : 1.299
+        },
+        "teen" : {
+          "fixes_per_100" : 5.128,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 5.128,
+          "lazy_en_wrong" : 0,
+          "lazy_vi_wrong" : 5.333,
+          "lazy_wrong" : 5.128,
+          "toggles_per_100" : 0
+        },
+        "vcollide" : {
+          "fixes_per_100" : 0,
+          "flicker_per_100" : 14.706,
+          "ideal_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        },
+        "vi" : {
+          "fixes_per_100" : 0,
+          "flicker_per_100" : 0.058,
+          "ideal_wrong" : 0,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 0,
+          "toggles_per_100" : 0
+        }
+      },
+      "val" : {
+        "collide" : {
+          "fixes_per_100" : 4.381,
+          "flicker_per_100" : 4.124,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 7.586,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 5.67,
+          "toggles_per_100" : 4.381
+        },
+        "en" : {
+          "fixes_per_100" : 1.106,
+          "flicker_per_100" : 1.017,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 1.106,
+          "lazy_wrong" : 1.106,
+          "toggles_per_100" : 1.017
+        },
+        "mix" : {
+          "fixes_per_100" : 0.957,
+          "flicker_per_100" : 0.41,
+          "ideal_wrong" : 0.034,
+          "lazy_en_wrong" : 2.338,
+          "lazy_vi_wrong" : 0.056,
+          "lazy_wrong" : 0.957,
+          "toggles_per_100" : 1.401
+        },
+        "overall" : {
+          "fixes_per_100" : 1.887,
+          "flicker_per_100" : 1.555,
+          "ideal_wrong" : 0.791,
+          "lazy_en_wrong" : 2.759,
+          "lazy_vi_wrong" : 0.953,
+          "lazy_wrong" : 2.082,
+          "toggles_per_100" : 1.269
+        },
+        "tech" : {
+          "fixes_per_100" : 1.263,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 0,
+          "lazy_en_wrong" : 5.521,
+          "lazy_vi_wrong" : 0,
+          "lazy_wrong" : 1.337,
+          "toggles_per_100" : 2.08
+        },
+        "teen" : {
+          "fixes_per_100" : 5.505,
+          "flicker_per_100" : 0,
+          "ideal_wrong" : 5.505,
+          "lazy_en_wrong" : 0,
+          "lazy_vi_wrong" : 5.66,
+          "lazy_wrong" : 5.505,
+          "toggles_per_100" : 0
+        },
+        "vcollide" : {
+          "fixes_per_100" : 0,
+          "flicker_per_100" : 5.333,
           "ideal_wrong" : 0,
           "lazy_en_wrong" : 0,
           "lazy_vi_wrong" : 0,

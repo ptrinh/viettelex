@@ -10,6 +10,8 @@ let package = Package(
         .executable(name: "gen-english", targets: ["GenEnglish"]),
         .executable(name: "gen-golden", targets: ["GenGolden"]),
         .executable(name: "gen-freeze-prefixes", targets: ["GenFreezePrefixes"]),
+        // Bước 1 của Scripts/gen-english-frequency.py (bảng EnglishFrequency.swift).
+        .executable(name: "gen-english-frequency", targets: ["GenEnglishFrequency"]),
         // Mô phỏng gõ câu trộn Việt–Anh (docs/REGRESSION.md "Mô phỏng gõ câu trộn").
         .executable(name: "mixed-eval", targets: ["MixedEval"])
     ],
@@ -35,6 +37,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "GenFreezePrefixes",
+            dependencies: ["TelexCore"]
+        ),
+        .executableTarget(
+            name: "GenEnglishFrequency",
             dependencies: ["TelexCore"]
         ),
         // Người gõ mô phỏng + chấm điểm trên TelexCore/Corpus/mixed-typing.tsv. Không nằm

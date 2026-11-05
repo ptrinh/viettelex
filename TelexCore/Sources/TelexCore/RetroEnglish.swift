@@ -8,6 +8,14 @@
 // (a) were committed as Vietnamese, (b) whose raw keys are a known English word and
 // (c) read as plausible English together with the run, are rewritten back to their raw
 // keys: "Hí cả í very fast" → "His car is very fast".
+// ONE STRONG English word also makes the run certain (05/11/2026): a frequent English word
+// that no Vietnamese syllable reads as (`EnglishFrequency`, en ≥ strongMin, vn = 0: "very",
+// "fast", "mother") right after an anchored span of ≥ 2 rewrite candidates — "His car is
+// fast." is fixed at "fast", "Hí cả í very fast" one word earlier (at "very").
+//
+// Flip-back (`TelexEngine.englishByFrequency`, experimental): the same edit path rewrites a
+// word the FREQUENCY rule turned English back to its Vietnamese reading when the next word
+// shows the phrase is Vietnamese ("His hửng" → "hí hửng") — `RetroCorrection.flipBack`.
 //
 // This file holds the PURE decision (`RetroEnglish.plan`) over a short per-session
 // history of committed words; the engine records the history and turns the plan into
@@ -27,6 +35,11 @@ public struct RetroCorrection: Equatable {
     public let insert: String
     /// How many words the edit rewrites (for logging / undo UI).
     public let words: Int
+    /// The edit puts a word the frequency rule (`TelexEngine.englishByFrequency`) had turned
+    /// English BACK to Vietnamese ("His hửng" → "hí hửng"). It undoes the engine's own
+    /// guess, so integrators apply it AUTOMATICALLY even when retroactive English is in
+    /// offer-only (chip) mode — still only after the same text-before-caret check.
+    public var flipBack: Bool = false
 }
 
 /// A committed word as the retroactive check sees it. Internal; built by the engine at
@@ -54,6 +67,13 @@ struct RetroWord: Equatable {
     /// not gated), and the rules it satisfies as the preceding word.
     var gateBit: UInt8 = 0
     var predBits: UInt8 = 0
+    /// Committed as English that is STRONG on its own: frequent English word with no
+    /// Vietnamese reading (`EnglishFrequency`: en ≥ strongMin, vn = 0).
+    var strong: Bool = false
+    /// Restored to English by the frequency rule (`englishByFrequency`); `alt` is the
+    /// Vietnamese composition it replaced (what a flip-back puts back).
+    var byFrequency: Bool = false
+    var alt: String = ""
 }
 
 enum RetroEnglish {
@@ -98,13 +118,25 @@ enum RetroEnglish {
         return false
     }
 
+    /// Is lowercased raw `w` a STRONG English word (frequent, no Vietnamese reading)?
+    static func isStrongRaw(_ w: String) -> Bool {
+        var w = w
+        return w.withUTF8 { b in
+            guard let sc = EnglishFrequency.scores(b, count: b.count) else { return false }
+            return sc.vn == 0 && sc.en >= EnglishFrequency.strongMin
+        }
+    }
+
     /// The decision. `h` = committed words, oldest first; the LAST one was just committed.
     /// Returns the history indices to rewrite to their raw keys (ascending), or nil.
     static func plan(_ h: [RetroWord]) -> [Int]? {
         let n = h.count
-        guard n >= 2, h[n - 1].english, h[n - 2].english, h[n - 1].gap > 0 else { return nil }
+        guard n >= 2, h[n - 1].english, h[n - 1].gap > 0 else { return nil }
+        // A run of ONE strong word ("fast", "very") — needs ≥ 2 rewritten words below.
+        let strongEnd = !h[n - 2].english
+        guard !strongEnd || h[n - 1].strong else { return nil }
         // Start of the English run (consecutive English words ending at the last one).
-        var s = n - 2
+        var s = strongEnd ? n - 1 : n - 2
         while s > 0, h[s].gap > 0, h[s - 1].english { s -= 1 }
         // Lookback window: up to 3 contiguous words before the run that are candidates or
         // English; stop at anything else (Vietnamese, neutral loanword, punctuation…).
@@ -119,7 +151,7 @@ enum RetroEnglish {
         for a in lo..<s {
             var picks: [Int] = []
             for i in a..<s where h[i].candidate { picks.append(i) }
-            guard !picks.isEmpty, anchors(h, a, picks) else { continue }
+            guard !picks.isEmpty, !strongEnd || picks.count >= 2, anchors(h, a, picks) else { continue }
             var ok = true
             for i in a..<s where !pairAllowed(h[i].cls, h[i + 1].cls) { ok = false; break }
             // Predecessor gates apply here too: "been" only right after have/has/had/'ve
@@ -170,7 +202,7 @@ enum RetroEnglish {
     /// Turn a plan into one edit: from the first rewritten word to the end of the last
     /// committed word (the caret, before the boundary character of that word), with the
     /// unchanged leading characters ("H" of "Hí"→"His") left alone.
-    static func correction(_ h: [RetroWord], _ picks: [Int]) -> RetroCorrection? {
+    static func correction(_ h: [RetroWord], _ picks: [Int], flipBack: Bool = false) -> RetroCorrection? {
         guard let first = picks.first else { return nil }
         var expected = String.UnicodeScalarView()
         var insert = String.UnicodeScalarView()
@@ -179,7 +211,8 @@ enum RetroEnglish {
                 for _ in 0..<h[i].gap { expected.append(" "); insert.append(" ") }
             }
             expected.append(contentsOf: h[i].shown.unicodeScalars)
-            insert.append(contentsOf: (picks.contains(i) ? h[i].raw : h[i].shown).unicodeScalars)
+            let target = picks.contains(i) ? (flipBack ? h[i].alt : h[i].raw) : h[i].shown
+            insert.append(contentsOf: target.unicodeScalars)
         }
         var e = Array(expected), r = Array(insert)
         var lcp = 0
@@ -188,6 +221,6 @@ enum RetroEnglish {
         var es = String.UnicodeScalarView(), rs = String.UnicodeScalarView()
         es.append(contentsOf: e); rs.append(contentsOf: r)
         return RetroCorrection(backspaces: e.count, expected: String(es), insert: String(rs),
-                               words: picks.count)
+                               words: picks.count, flipBack: flipBack)
     }
 }

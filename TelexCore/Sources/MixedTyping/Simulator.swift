@@ -20,6 +20,9 @@ public struct SimConfig: Sendable {
     public var freeMarking = true, liveSpellCheck = true, teencode = false
     public var contextualEnglish = true, retroactiveEnglish = true
     public var collisionPrefersVietnamese = true, autoRestore = true, modernTone = false
+    /// Thử nghiệm "Từ trùng theo tần suất" (TelexEngine.englishByFrequency). Phép LẬT LẠI
+    /// (RetroCorrection.flipBack) luôn tự áp, kể cả khi `retroApply` tắt — như app.
+    public var englishByFrequency = false
     /// "Tự sửa từ phía trước" BẬT = tự áp phép sửa ngược. Tắt (mặc định app) = chỉ đề xuất
     /// cạnh con trỏ, người gõ "lười" không bấm Tab ⇒ văn bản không đổi.
     public var retroApply = false
@@ -37,7 +40,17 @@ public struct SimConfig: Sendable {
         c.contextualEnglish = false; c.retroactiveEnglish = false
         return c
     }()
-    public static let all = [appDefault, retro, noContext]
+    public static let frequency: SimConfig = {
+        var c = SimConfig(name: "freq", summary: "mặc định + thử nghiệm \"Từ trùng theo tần suất\" BẬT")
+        c.englishByFrequency = true
+        return c
+    }()
+    public static let retroFrequency: SimConfig = {
+        var c = SimConfig(name: "retro-freq", summary: "\"Tự sửa từ phía trước\" BẬT + \"Từ trùng theo tần suất\" BẬT")
+        c.retroApply = true; c.englishByFrequency = true
+        return c
+    }()
+    public static let all = [appDefault, retro, noContext, frequency, retroFrequency]
 
     /// Nhóm `teen`: người gõ teencode bật công tắc Teencode (app mặc định tắt).
     func engine(category: String) -> TelexEngine {
@@ -47,6 +60,7 @@ public struct SimConfig: Sendable {
         e.contextualEnglish = contextualEnglish; e.retroactiveEnglish = retroactiveEnglish
         e.collisionPrefersVietnamese = collisionPrefersVietnamese
         e.eagerEnglishRestore = autoRestore; e.modernTone = modernTone
+        e.englishByFrequency = englishByFrequency
         return e
     }
 }
@@ -116,8 +130,18 @@ struct Sim {
             screen.removeLast(min(onScreen, screen.count))
             screen.append(contentsOf: committed)
         }
+        // Lật lại (flipBack) áp cả ở Enter — TRƯỚC khi Enter đi (app làm vậy: phép sửa của chính
+        // engine, chữ trước con trỏ còn sửa được); sửa ngược tiếng Anh thì không.
+        if ch == nil, let c = engine.pendingRetroCorrection, c.flipBack {
+            let exp = Array(c.expected)
+            if screen.count >= exp.count, Array(screen.suffix(exp.count)) == exp {
+                _ = engine.takeRetroCorrection()
+                screen.removeLast(exp.count)
+                screen.append(contentsOf: c.insert)
+            }
+        }
         if let ch {
-            if retroApply, let c = engine.pendingRetroCorrection {
+            if let c = engine.pendingRetroCorrection, retroApply || c.flipBack {
                 let exp = Array(c.expected)
                 if screen.count >= exp.count, Array(screen.suffix(exp.count)) == exp {
                     _ = engine.takeRetroCorrection()

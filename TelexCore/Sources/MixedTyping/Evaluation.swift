@@ -167,6 +167,9 @@ public enum Evaluation {
                     for (m, g) in gm {
                         let key = "\(r.config.name)/\(split)/\(cat)/\(m)"
                         guard let v = now[cat]?[m] else { cmp.missing.append(key); continue }
+                        // Chữ nhảy chỉ để xem: sửa ngược chữa thêm một từ thì từ đó "nhảy" — số này
+                        // tăng khi số sai giảm. Không chặn (lazy_wrong / fixes_per_100 đã chặn kết quả).
+                        if m == "flicker_per_100" { continue }
                         if v > g + tol { cmp.regressions.append("\(key): \(fmt3(v)) > golden \(fmt3(g))") }
                         else if v < g - tol { cmp.improvements.append("\(key): \(fmt3(v)) < golden \(fmt3(g))") }
                     }

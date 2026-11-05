@@ -1,7 +1,7 @@
 // mixed-eval — mô phỏng gõ câu trộn Việt–Anh, từng phím qua TelexEngine thật.
 //
 //   cd TelexCore && swift run -c release mixed-eval [tuỳ chọn]
-//     --config NAME     chỉ chạy một cấu hình (default | retro | no-context); mặc định: cả ba
+//     --config NAME     chỉ chạy một cấu hình (default | retro | no-context | freq | retro-freq); mặc định: tất cả
 //     --diff-config N   cấu hình in diff từng dòng (mặc định: default)
 //     --lines N         số dòng diff in ra (mặc định 60; 0 = không in; -1 = tất cả)
 //     --top N           số mẫu lỗi hay gặp nhất (mặc định 25)
@@ -110,7 +110,7 @@ if let r = results.first(where: { $0.config.name == diffConfig }) ?? results.fir
 print(String(format: "Thời gian: %.1f s", Date().timeIntervalSince(t0)))
 
 if flag("--write-golden") {
-    guard configs.count == SimConfig.all.count else { print("--write-golden cần chạy cả ba cấu hình"); exit(2) }
+    guard configs.count == SimConfig.all.count else { print("--write-golden cần chạy mọi cấu hình"); exit(2) }
     let data = Evaluation.goldenJSON(results, tolerance: 0.05)
     do { try data.write(to: MixedCorpus.goldenURL); print("Đã ghi \(MixedCorpus.goldenURL.path)") }
     catch { print("ghi golden lỗi: \(error)"); exit(2) }
