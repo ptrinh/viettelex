@@ -153,7 +153,6 @@ EN = {
         "For words like last/lát, list/lít, his/hí. Prefer Vietnamese: double the mark key to "
         "keep English (lisst → list). Prefer English: put the mark at the end for Vietnamese "
         "(lits → lít). Inside an English sentence the word stays English either way.",
-    "Ưu tiên": "Preference",
     "Ưu tiên tiếng Việt": "Prefer Vietnamese",
     "Ưu tiên tiếng Anh": "Prefer English",
     "Hiển thị chữ đang gõ": "Composition display",
@@ -319,7 +318,6 @@ EN = {
     "Thêm dấu cho đoạn không dấu đang bôi đen (toi di hoc → tôi đi học). Mặc định tắt.":
         "Add tones to the selected unaccented text (toi di hoc → tôi đi học). Off by default.",
     "Tắt phím tắt": "Turn hotkey off",
-    "Chuyển Việt/Anh": "Vietnamese/English switch",
     "Phím chuyển Việt/Anh": "Vietnamese/English hotkey",
     "Mặc định Ctrl+Space. Không dùng Super+Space (GNOME dùng để đổi nguồn nhập).":
         "Default Ctrl+Space. Super+Space is not allowed (GNOME uses it to switch input sources).",
@@ -647,4 +645,38 @@ EN = {
     "Mở hướng dẫn bật bộ gõ": "Open the setup guide",
     "Không tự mở hướng dẫn khi bộ gõ chưa bật": "Don’t open the setup guide automatically",
     "Mở tab: typing|options|shortcuts|modes|compat|about": "Open a tab: typing|options|shortcuts|modes|compat|about",
+
+    # --- onboarding người dùng mới + nhóm "Gõ mixed Việt/Anh" (docs/ONBOARDING-SPEC.md)
+    "Bạn hay gõ trộn Anh/Việt?": "Do you mix English and Vietnamese?",
+    "Xem nhóm Gõ mixed Việt/Anh mới: các công tắc nhận diện tiếng Anh và chuyển "
+    "ngôn ngữ nay nằm chung một chỗ, ngay dưới mục Kiểu gõ.":
+        "See the new Mixed Vietnamese/English typing group: the English-detection and "
+        "language-switch settings now live together, right below Input style.",
+    "Xem": "Show me",
+    "Đóng": "Close",
+    "Gõ mixed Việt/Anh": "Mixed Vietnamese/English typing",
+    "Nhận diện tiếng Anh khi gõ lẫn Việt–Anh.": "English detection when you mix Vietnamese and English.",
+    "Chuyển ngôn ngữ": "Language switching",
+    "Tự khôi phục từ tiếng Anh và quyết định theo ngữ cảnh nằm ở tab Kiểu gõ → "
+    "Gõ mixed Việt/Anh.":
+        "Auto-restore of English words and the context-based decision are in Typing → "
+        "Mixed Vietnamese/English typing.",
+    "Chào mừng đến với VietTelex": "Welcome to VietTelex",
+    "Tiếp": "Next",
+    "Bỏ qua": "Skip",
+    "Xong": "Done",
+    "Bạn thường gõ thế nào?": "How do you usually type?",
+    "VietTelex bật sẵn các tính năng hợp với cách bạn gõ. Đổi lại lúc nào cũng "
+    "được ở tab Kiểu gõ → Gõ mixed Việt/Anh.":
+        "VietTelex turns on the features that fit how you type. Change them any time in "
+        "Typing → Mixed Vietnamese/English typing.",
+    "Chủ yếu tiếng Việt": "Mostly Vietnamese",
+    "Việt + Anh nhiều": "Lots of Vietnamese + English",
+    "Chủ yếu tiếng Anh": "Mostly English",
+    "Gõ thử": "Try typing",
+    "Gõ thử các câu dưới đây bằng VietTelex. Chuyển Việt/Anh bằng %s.":
+        "Type the sentences below with VietTelex. Switch Vietnamese/English with %s.",
+    "Vừa bật": "Just turned on",
+    "Tắt ngay nếu không cần.": "Turn off anything you don’t need.",
+    "Bắt đầu bằng tiếng Anh": "Start in English",
 }

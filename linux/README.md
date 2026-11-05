@@ -92,7 +92,7 @@ sudo pacman-key --lsign-key 43ADE236BCC43900B8F146B4F57C885055149990
 sudo pacman -Sy viettelex
 ```
 
-Chuyển Việt/Anh: `Ctrl+Space` (đổi trong Cài đặt → Tuỳ chỉnh). Chi tiết kho APT và cách gỡ:
+Chuyển Việt/Anh: `Ctrl+Space` (đổi trong Cài đặt → Kiểu gõ → Gõ mixed Việt/Anh). Chi tiết kho APT và cách gỡ:
 [packaging/APT.md](packaging/APT.md); DNF: [packaging/RPM.md](packaging/RPM.md); pacman:
 [packaging/ARCH.md](packaging/ARCH.md). Trên Fedora/EL/Arch app cài đặt không có nút cập nhật một
 chạm — nó báo lệnh `dnf upgrade` / `rpm-ostree upgrade` / `pacman -Syu`.
