@@ -1,6 +1,6 @@
-// Nhóm thu gọn "Gõ mixed Việt/Anh" (Shared/MixedTypingUI.swift, docs/ONBOARDING-SPEC.md §4):
-// key lưu không đổi (sao lưu giữ nguyên), tìm kiếm Việt/Anh ra đúng mục, mục con phụ thuộc
-// "Quyết định theo ngữ cảnh" vẫn ẩn/hiện như cũ và tìm tới nó khi ẩn thì cuộn về công tắc cha.
+// Nhóm thu gọn "Gõ lẫn tiếng Anh" (Shared/MixedTypingUI.swift, docs/ONBOARDING-SPEC.md §4,
+// docs/SETTINGS-CLEANUP-SPEC.md §1): key lưu không đổi (sao lưu giữ nguyên), chỗ đặt cấp 1 / Nâng
+// cao, tìm kiếm Việt/Anh ra đúng mục, mục phụ thuộc "Quyết định theo ngữ cảnh" mờ + lý do.
 import XCTest
 
 final class MixedTypingUITests: XCTestCase {
@@ -20,7 +20,7 @@ final class MixedTypingUITests: XCTestCase {
         let expected: [MixedTypingItem: String] = [
             .autoRestore: "autoRestore", .contextualEnglish: "contextualEnglish",
             .retroEnglish: "retroactiveEnglish", .englishByFrequency: "englishByFrequency",
-            .spaceSwipeLanguage: "spaceSwipeLanguage", .swipeEnglish: "swipeEnglish",
+            .spaceSwipeLanguage: "spaceSwipeLanguage",
         ]
         for item in MixedTypingItem.allCases {
             XCTAssertEqual(item.storageKey, expected[item], "\(item)")
@@ -30,17 +30,20 @@ final class MixedTypingUITests: XCTestCase {
         }
     }
 
-    func testGroupsFollowSpecOrder() {
-        let recognition = MixedTypingItem.allCases.filter { $0.group == .recognition }
-        XCTAssertEqual(recognition, [.autoRestore, .contextualEnglish, .retroEnglish, .englishByFrequency])
-        XCTAssertEqual(MixedTypingItem.allCases.filter { $0.group == .language }, [.spaceSwipeLanguage])
-        XCTAssertEqual(MixedTypingItem.allCases.filter { $0.group == .suggest }, [.swipeEnglish, .userDictionary])
-        XCTAssertNil(MixedTypingItem.section.group)
+    /// SETTINGS-CLEANUP-SPEC §1: cấp 1 = tiêu đề, vuốt phím cách, Từ điển cá nhân; "Nâng cao" = bốn
+    /// công tắc nhận diện tiếng Anh, hai mục thử nghiệm ngay dưới "Quyết định theo ngữ cảnh".
+    func testPlacementFollowsSpec() {
+        XCTAssertEqual(MixedTypingItem.allCases.filter { $0.placement == .top }, [.section, .spaceSwipeLanguage, .userDictionary])
+        XCTAssertEqual(MixedTypingUI.advancedItems, [.autoRestore, .contextualEnglish, .retroEnglish, .englishByFrequency])
+        XCTAssertEqual(MixedTypingUI.advancedSubtitleKey, "Khôi phục từ tiếng Anh, ngữ cảnh, khi trùng từ, sửa từ phía trước…")
+        XCTAssertEqual(MixedTypingUI.titleKey, "Gõ lẫn tiếng Anh")
+        XCTAssertEqual(MixedTypingItem.spaceSwipeLanguage.viTitle, "Vuốt phím cách đổi Tiếng Việt / Tiếng Anh")
     }
 
     func testSearchFindsItemsInBothLanguages() {
         for lang in ["vi", "en"] {
             L10n.apply(lang)
+            XCTAssertTrue(hits("go lan tieng anh").contains(.section), lang)
             XCTAssertTrue(hits("go mixed").contains(.section), lang)
             XCTAssertTrue(hits("mixed vietnamese").contains(.section), lang)
             XCTAssertTrue(hits("tan suat").contains(.englishByFrequency), lang)
@@ -51,7 +54,7 @@ final class MixedTypingUITests: XCTestCase {
             XCTAssertTrue(hits("context").contains(.contextualEnglish), lang)
             XCTAssertTrue(hits("khoi phuc tieng anh").contains(.autoRestore), lang)
             XCTAssertTrue(hits("fix earlier").contains(.retroEnglish), lang)
-            XCTAssertTrue(hits("swipe english").contains(.swipeEnglish), lang)
+            XCTAssertTrue(hits("nang cao").contains(.retroEnglish), lang)
         }
         XCTAssertTrue(hits("").isEmpty)
     }
@@ -59,27 +62,28 @@ final class MixedTypingUITests: XCTestCase {
     func testTitlesTranslated() {
         L10n.apply("en")
         XCTAssertEqual(L(MixedTypingUI.titleKey), "Mixed Vietnamese/English typing")
-        for g in MixedTypingItem.Group.allCases {
-            XCTAssertNotEqual(L(MixedTypingUI.groupTitle(g)), MixedTypingUI.groupTitle(g))
-        }
+        XCTAssertEqual(L(MixedTypingUI.advancedTitleKey), "Advanced")
+        XCTAssertNotEqual(L(MixedTypingUI.advancedSubtitleKey), MixedTypingUI.advancedSubtitleKey)
         for item in MixedTypingItem.allCases {
             XCTAssertNotNil(L10n.en[item.viTitle], item.viTitle)
         }
     }
 
-    /// Phụ thuộc cũ giữ nguyên: "Tự sửa từ phía trước" + "Đoán từ trùng theo tần suất" chỉ hiện
-    /// khi ngữ cảnh bật và không VNI; tìm tới khi đang ẩn ⇒ cuộn tới "Quyết định theo ngữ cảnh".
-    func testDependentItemsVisibilityAndScrollTarget() {
+    /// Mục phụ thuộc KHÔNG ẩn mà mờ + lý do (§0.4): VNI ⇒ "Chỉ áp dụng cho Telex" (thắng), ngữ cảnh
+    /// tắt ⇒ "Cần bật Quyết định theo ngữ cảnh"; cùng điều kiện với RetroEnglishUI.switchVisible.
+    func testDependentItemsDimmedWithReason() {
         for item in [MixedTypingItem.retroEnglish, .englishByFrequency] {
-            XCTAssertTrue(MixedTypingUI.isVisible(item, contextualEnglish: true, vniMode: false))
-            XCTAssertFalse(MixedTypingUI.isVisible(item, contextualEnglish: false, vniMode: false))
-            XCTAssertFalse(MixedTypingUI.isVisible(item, contextualEnglish: true, vniMode: true))
-            XCTAssertEqual(MixedTypingUI.scrollTarget(item, contextualEnglish: true, vniMode: false), item)
-            XCTAssertEqual(MixedTypingUI.scrollTarget(item, contextualEnglish: false, vniMode: false), .contextualEnglish)
-            XCTAssertEqual(MixedTypingUI.scrollTarget(item, contextualEnglish: true, vniMode: true), .contextualEnglish)
+            XCTAssertNil(MixedTypingUI.disabledReason(item, contextualEnglish: true, vniMode: false))
+            XCTAssertEqual(MixedTypingUI.disabledReason(item, contextualEnglish: false, vniMode: false), "Cần bật Quyết định theo ngữ cảnh")
+            XCTAssertEqual(MixedTypingUI.disabledReason(item, contextualEnglish: true, vniMode: true), "Chỉ áp dụng cho Telex")
+            XCTAssertEqual(MixedTypingUI.disabledReason(item, contextualEnglish: false, vniMode: true), "Chỉ áp dụng cho Telex")
+            for c in [false, true] { for v in [false, true] {
+                XCTAssertEqual(MixedTypingUI.disabledReason(item, contextualEnglish: c, vniMode: v) == nil,
+                               RetroEnglishUI.switchVisible(contextualEnglish: c, vniMode: v))
+            } }
         }
         for item in MixedTypingItem.allCases where item != .retroEnglish && item != .englishByFrequency {
-            XCTAssertEqual(MixedTypingUI.scrollTarget(item, contextualEnglish: false, vniMode: true), item)
+            XCTAssertNil(MixedTypingUI.disabledReason(item, contextualEnglish: false, vniMode: true), "\(item)")
         }
     }
 }

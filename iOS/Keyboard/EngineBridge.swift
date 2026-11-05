@@ -103,7 +103,7 @@ struct KeyboardSettings {
     /// "Sửa lỗi bằng Apple Intelligence" (Plus, iOS 26+ — AIAssist.swift) — mặc định TẮT; tắt ⇒
     /// không đọc vùng chọn, không nạp VTIntelligence, không prewarm model (0 chi phí).
     var aiProofread = false
-    /// "Gợi ý cả khi ứng dụng tắt gợi ý" (#113, như Gboard/Laban) — mặc định BẬT: ô
+    /// "Gợi ý cả khi ứng dụng tắt gợi ý" (#113, như nhiều bàn phím khác) — mặc định BẬT: ô
     /// autocorrection = .no không nhạy cảm vẫn gợi ý chữ (không tự sửa, không học). Tắt ⇒
     /// như cũ: chỉ thanh công cụ (StripMode.tools). Song sinh Android `suggestInNoSuggestFields`.
     var suggestInNoSuggestFields = true

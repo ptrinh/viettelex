@@ -1,189 +1,64 @@
-// Tab Tính Năng (27/09/2026): trang chính là 8 nhóm (icon + tên + tóm tắt trạng thái),
-// mỗi nhóm mở một trang con — thay cho danh sách dài mọi công tắc. Ô tìm kiếm trên đầu
-// lọc theo tên/từ khoá rồi mở đúng trang. KHÔNG đổi key/mặc định/cổng Plus: các trang con
-// đọc/ghi cùng key App Group như trước. Android dùng cùng cấu trúc (ui/FeaturePages.kt).
+// Tab Tính Năng (27/09/2026, thu gọn 05/11/2026 — docs/SETTINGS-CLEANUP-SPEC.md §4): trang chính là
+// các nhóm (icon + tên + tóm tắt trạng thái), mỗi nhóm mở một trang con. Ô tìm kiếm trên đầu lọc
+// theo tên/từ khoá rồi mở đúng trang (chỉ mục + danh sách trang: SettingsIndex.swift). KHÔNG đổi
+// key/mặc định/cổng Plus: các trang con đọc/ghi cùng key App Group như trước. Android dùng cùng
+// cấu trúc (ui/FeaturePages.kt).
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
 private let featureDefaults = UserDefaults(suiteName: AppFlavor.appGroup)
 
-/// Các nhóm của tab Tính Năng — cùng thứ tự/tên với Android (FeaturePage.kt).
-enum FeaturePage: String, CaseIterable, Identifiable {
-    case chinhTa, goiY, goVuot, goTat, phim, giaoDien, riengTu, saoLuu
-    var id: String { rawValue }
-
-    var title: String { L(viTitle) }
-    /// Tên gốc tiếng Việt — khoá tra L10n và so khớp tìm kiếm.
-    var viTitle: String {
-        switch self {
-        case .chinhTa: return LK("Chính tả & sửa lỗi")
-        case .goiY: return LK("Gợi ý & từ điển")
-        case .goVuot: return LK("Gõ vuốt")
-        case .goTat: return LK("Gõ tắt & mẫu câu")
-        case .phim: return LK("Phím & cử chỉ")
-        case .giaoDien: return LK("Giao diện")
-        case .riengTu: return LK("Riêng tư & clipboard")
-        case .saoLuu: return LK("Sao lưu & đồng bộ")
-        }
-    }
+extension FeaturePage {
     var icon: String {
         switch self {
-        case .chinhTa: return "checkmark.seal"
-        case .goiY: return "lightbulb"
+        case .suaLoi: return "checkmark.seal"
         case .goVuot: return "hand.draw"
         case .goTat: return "text.quote"
         case .phim: return "keyboard"
         case .giaoDien: return "paintpalette"
         case .riengTu: return "lock"
-        case .saoLuu: return "icloud"
+        case .nangCao: return "wrench.and.screwdriver"
         }
     }
     var color: Color {
         switch self {
-        case .chinhTa: return .green
-        case .goiY: return .orange
+        case .suaLoi: return .green
         case .goVuot: return .purple
         case .goTat: return .teal
         case .phim: return .gray
         case .giaoDien: return .pink
         case .riengTu: return .indigo
-        case .saoLuu: return .blue
+        case .nangCao: return .brown
         }
     }
-    /// Cả nhóm đang thử nghiệm → nhãn nhỏ ngay trên dòng.
-    var experimental: Bool { self == .goVuot }
-    /// Mục tương ứng trong Hướng dẫn sử dụng (docs/hdsd/index.html).
-    var guideAnchor: String {
-        switch self {
-        case .chinhTa: return "sua-dau"
-        case .goiY: return "goi-y"
-        case .goVuot: return "go-vuot"
-        case .goTat: return "go-tat"
-        case .phim: return "cu-chi"
-        case .giaoDien: return "giao-dien"
-        case .riengTu: return "clipboard"
-        case .saoLuu: return "sao-luu"
-        }
-    }
-    var guideURL: URL { L10n.guideURL(os: "ios", anchor: guideAnchor) }
+    var guideURL: URL? { guideAnchor.map { L10n.guideURL(os: "ios", anchor: $0) } }
 
     @ViewBuilder var destination: some View {
         switch self {
-        case .chinhTa: ChinhTaPage()
-        case .goiY: GoiYPage()
+        case .suaLoi: SuaLoiPage()
         case .goVuot: GoVuotPage()
         case .goTat: GoTatPage()
         case .phim: PhimPage()
         case .giaoDien: ThemeSettingsView()
-        case .riengTu: FeaturePageList(page: .riengTu) { RiengTuSection() }
-        case .saoLuu: FeaturePageList(page: .saoLuu) { SaoLuuSection() }
+        case .riengTu: FeaturePageList(page: .riengTu) { RiengTuSection(); SaoLuuSection() }
+        case .nangCao: FeaturePageList(page: .nangCao) { DebugSection() }
         }
     }
-
-    /// Các nhóm hiển thị theo 3 khối như app Cài đặt.
-    static let groups: [[FeaturePage]] = [[.chinhTa, .goiY, .goVuot, .goTat], [.phim, .giaoDien], [.riengTu, .saoLuu]]
 }
 
-/// Chỉ mục cho ô tìm kiếm: tên cài đặt + từ khoá → trang chứa nó. `viTitle` là tên
-/// gốc tiếng Việt (khoá L10n); tìm khớp cả tên tiếng Việt lẫn tiếng Anh.
-struct FeatureSearchEntry: Identifiable {
-    let viTitle: String
-    var title: String { L(viTitle) }
-    let keywords: String
-    /// Trang Tính Năng chứa mục — nil với mục của nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ).
-    let page: FeaturePage?
-    /// Mục thuộc nhóm thu gọn "Gõ mixed Việt/Anh": chọn ⇒ sang tab Kiểu Gõ, mở nhóm, cuộn tới.
-    var mixed: MixedTypingItem? = nil
-    var id: String { (page?.rawValue ?? "mixed") + viTitle }
-    var isPage: Bool { page.map { $0.viTitle == viTitle } ?? false }
-
-    static var all: [FeatureSearchEntry] {
-        var e: [FeatureSearchEntry] = [
-            .init(viTitle: LK("Kiểm tra chính tả khi gõ"), keywords: "spell check", page: .chinhTa),
-            .init(viTitle: LK("Sửa dấu từ đã gõ"), keywords: "sửa dấu con trỏ backspace", page: .chinhTa),
-            .init(viTitle: LK("Chọn phím thông minh"), keywords: "chạm trượt smart touch thử nghiệm", page: .chinhTa),
-            .init(viTitle: LK("Tự sửa từ gõ sai"), keywords: "autocorrect sửa lỗi thử nghiệm", page: .chinhTa),
-            .init(viTitle: LK("Gợi ý sửa lỗi chạm trượt"), keywords: "chạm trượt phím bên cạnh adjacent typo gợi ý", page: .chinhTa),
-            .init(viTitle: LK("Thanh gợi ý"), keywords: "suggestion học từ", page: .goiY),
-            .init(viTitle: LK("Gợi ý emoji"), keywords: "emoji biểu tượng", page: .goiY),
-            .init(viTitle: LK("Chip số"), keywords: "số tiền đọc số number", page: .goiY),
-            .init(viTitle: LK("Hiện kết quả phép tính"), keywords: "tính toán máy tính bằng math calculator", page: .goiY),
-            .init(viTitle: LK("Nút Dán"), keywords: "paste dán clipboard", page: .goiY),
-            .init(viTitle: LK("Lọc từ nhạy cảm"), keywords: "tục chửi filter", page: .goiY),
-            .init(viTitle: LK("Từ điển cá nhân"), keywords: "dictionary tên riêng thuật ngữ", page: .goiY),
-            .init(viTitle: LK("Xoá từ đã học"), keywords: "xoá học reset", page: .goiY),
-            .init(viTitle: LK("Gõ vuốt"), keywords: "swipe vuốt thử nghiệm", page: .goVuot),
-            .init(viTitle: LK("Hiệu ứng nét vuốt"), keywords: "swipe trail nét vuốt vệt hiệu ứng lửa fire điện electric lightning bút lông brush mực ink cầu vồng rainbow neon bụi sao stardust sparkle pháo hoa firework theo giao diện theme plus", page: .goVuot),
-            .init(viTitle: LK("Mô hình neural gõ vuốt"), keywords: "futo neural swipe", page: .goVuot),
-            .init(viTitle: LK("Luyện vuốt"), keywords: "practice swipe", page: .goVuot),
-            .init(viTitle: LK("Gõ tắt"), keywords: "shortcut viết tắt", page: .goTat),
-            .init(viTitle: LK("Bảng gõ tắt"), keywords: "shortcut yaml import export", page: .goTat),
-            .init(viTitle: LK("Mẫu câu"), keywords: "template câu soạn sẵn snippets tắt ẩn tab ☰", page: .goTat),
-            .init(viTitle: LK("Hàng phím số"), keywords: "number row số", page: .phim),
-            .init(viTitle: LK("Hàng số cao bằng hàng chữ"), keywords: "number row height cao số", page: .phim),
-            .init(viTitle: LK("Phím cạnh dấu cách"), keywords: "dấu phẩy dấu chấm comma period key next to space", page: .phim),
-            .init(viTitle: LK("Phím to"), keywords: "larger keys phím lớn dấu phẩy dấu chấm shift xoá comma period backspace bấm nhầm", page: .phim),
-            .init(viTitle: LK("Giữ phím ra ký tự đặc biệt"), keywords: "ký hiệu symbol @ # giữ lâu", page: .phim),
-            .init(viTitle: LK("Độ nhạy con trỏ"), keywords: "trackpad con trỏ cursor phím cách space kéo tốc độ nhạy sensitivity speed", page: .phim),
-            .init(viTitle: LK("Vuốt phím để sao chép/dán"), keywords: "copy paste cut sao chép dán cắt clipboard vuốt lên swipe", page: .phim),
-            .init(viTitle: LK("Phóng to chữ khi bấm"), keywords: "key preview popup", page: .phim),
-            .init(viTitle: LK("Phím sẫm khi bấm"), keywords: "pressed key highlight", page: .phim),
-            .init(viTitle: LK("Rung phím"), keywords: "haptic rung vibrate", page: .phim),
-            .init(viTitle: LK("Âm thanh phím"), keywords: "sound click tiếng âm lượng volume kiểu style gỗ cơ máy chữ bong bóng custom", page: .phim),
-            .init(viTitle: LK("Âm thanh gõ"), keywords: "typing sound key sound style kiểu âm iOS system click hệ thống gỗ wood đá rock pop nước water cổ điển vintage pháo firecracker tết chuông jingle bell giáng sinh piano nốt nhạc đàn tranh dan tranh zither việt nam viet nam bàn phím cơ mechanical máy chữ typewriter bong bóng bubble ding sci-fi scifi bíp beep vũ trụ space trống lân lion drum trung thu mid autumn ma quái spooky boo halloween guitar ghi ta ghi-ta đàn ghi-ta acoustic hợp âm chord búa gỗ mallet bop", page: .phim),
-            .init(viTitle: LK("Theme & ảnh nền"), keywords: "theme màu chủ đề wallpaper hình nền tết tet năm mới lunar new year mai đào giáng sinh noel christmas xmas tuyết snow piano đàn dương cầm sen lotus hoa sen sen việt đàn tranh dan tranh zither việt nam viet nam máy chữ cổ typewriter vintage gaming rgb cầu vồng rainbow vũ trụ space sao star outer space trung thu mid autumn đèn lồng lantern trăng moon valentine tình yêu love tim heart halloween bí ngô pumpkin dơi bat guitar ghi ta ghi-ta đàn ghi-ta acoustic dây đàn strings đập chuột whack a mole xám trung tính neutral grey gray xám ghi gboard", page: .giaoDien),
-            .init(viTitle: LK("Độ trong suốt phím"), keywords: "trong suốt transparent", page: .giaoDien),
-            .init(viTitle: LK("Độ trong suốt ký tự"), keywords: "trong suốt transparent chữ", page: .giaoDien),
-            .init(viTitle: LK("Tuỳ chỉnh nâng cao"), keywords: "màu chữ màu phím màu nhấn accent color colour bo góc tròn vuông corner radius cỡ chữ size phông font độ đậm weight bold đặt lại reset mặc định giao diện theme", page: .giaoDien),
-            .init(viTitle: LK("Dán giao diện"), keywords: "json theme giao diện chép copy paste dán sửa edit nhập import tự tạo custom chia sẻ share", page: .giaoDien),
-            .init(viTitle: LK("Bạn đồng hành"), keywords: "bạn đồng hành nhân vật thú cưng mèo gà con cô gái chàng trai buddy keyboard buddy pet character mascot cat chick girl boy nhảy dance ngủ sleep plus", page: .giaoDien),
-            .init(viTitle: LK("Hiệu ứng khi bấm phím"), keywords: "key press effect animation hoạt ảnh trái tim heart bong bóng bubble gợn sóng ripple cánh hoa petal pháo hoa firework nháy sáng flash matrix tia sét lightning emoji theo chữ emoji words hoa đào mai tết blossom lửa combo fire mực loang ink sóng nước water wave tuyết rơi snow giáng sinh christmas sao băng shooting star meteor vũ trụ space plus đèn lồng lantern glow trung thu mid autumn sương ma khói smoke spooky mist halloween rung dây string vibration guitar ghi ta đàn ghi-ta", page: .giaoDien),
-            .init(viTitle: LK("Đập chuột"), keywords: "đập chuột trò chơi game whack a mole chuột mouse theme giao diện vui fun plus", page: .giaoDien),
-            .init(viTitle: LK("Màu nhấn"), keywords: "accent color colour nhập enter return shift tuỳ chỉnh nâng cao", page: .giaoDien),
-            .init(viTitle: LK("Khôi phục giao diện gốc"), keywords: "reset mặc định", page: .giaoDien),
-            .init(viTitle: LK("Chiều cao hàng phím"), keywords: "height cao thấp stock gốc apple cỡ phím size như bàn phím iphone", page: .giaoDien),
-            .init(viTitle: LK("Nâng bàn phím"), keywords: "raise nâng cao đẩy lên khoảng trống dưới padding bottom", page: .giaoDien),
-            .init(viTitle: LK("Màu chữ gợi ý"), keywords: "suggestion text color colour xám grey gray sáng bright thanh gợi ý chữ mờ dịu apple stock", page: .giaoDien),
-            .init(viTitle: LK("Hiện logo Vᴛ"), keywords: "logo phím cách", page: .giaoDien),
-            .init(viTitle: LK("Bàn phím tách đôi"), keywords: "split tách chia hai nửa gập ngang", page: .giaoDien),
-            .init(viTitle: LK("Lịch sử clipboard"), keywords: "copy dán clipboard giữ lịch sử 24 giờ 7 ngày keep history", page: .riengTu),
-            .init(viTitle: LK("Chế độ ẩn danh"), keywords: "incognito riêng tư", page: .riengTu),
-            .init(viTitle: LK("Xuất / nhập file sao lưu"), keywords: "backup export import restore", page: .saoLuu),
-        ]
-        // Nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ) — tên + từ khoá ở Shared/MixedTypingUI.swift.
-        e += MixedTypingItem.allCases.map { .init(viTitle: $0.viTitle, keywords: $0.keywords, page: nil, mixed: $0) }
-        if UIDevice.current.userInterfaceIdiom == .phone {
-            e.append(.init(viTitle: LK("Giữ phím hàng trên để ra số"), keywords: "số giữ lâu number", page: .phim))
-            e.append(.init(viTitle: LK("Giữ Shift để gõ số và ký hiệu"), keywords: "shift giữ hold số number ký hiệu symbol 123", page: .phim))
-            e.append(.init(viTitle: LK("Chế độ một tay"), keywords: "one hand một tay", page: .phim))
+extension SettingsIndexEntry.Condition {
+    /// Mục chỉ hiện trong kết quả khi điều kiện đúng trên máy này.
+    var isMet: Bool {
+        switch self {
+        case .always: return true
+        case .phoneOnly: return UIDevice.current.userInterfaceIdiom == .phone
+        case .addTones: return PlusGate.isUnlocked(.sentenceDiacritics)
+        case .aiProofread: return PlusGate.isUnlocked(.aiProofread) && PlusFeature.aiProofread.isAvailableOnDevice
+        case .textTools: return PlusGate.isUnlocked(.textTools)
+        case .translate: return PlusFeature.translate.isAvailableOnDevice && PlusGate.isUnlocked(.translate)
+        case .iCloud: return ICloudSync.isUnlocked()
         }
-        if PlusGate.isUnlocked(.sentenceDiacritics) {
-            e.append(.init(viTitle: LK("Chip “Thêm dấu”"), keywords: "thêm dấu câu không dấu plus", page: .goiY))
-        }
-        if PlusGate.isUnlocked(.aiProofread), PlusFeature.aiProofread.isAvailableOnDevice {
-            e.append(.init(viTitle: LK("Sửa lỗi bằng Apple Intelligence"), keywords: "apple intelligence ai trí tuệ nhân tạo sửa lỗi chính tả ngữ pháp proofread grammar spelling từ thay thế đồng nghĩa synonym plus", page: .goiY))
-        }
-        if PlusGate.isUnlocked(.textTools) {
-            e.append(.init(viTitle: LK("Công cụ văn bản"), keywords: "text tools hoa thường bỏ dấu dịch translate plus", page: .goTat))
-        }
-        if PlusFeature.translate.isAvailableOnDevice, PlusGate.isUnlocked(.translate) {
-            e.append(.init(viTitle: LK("Dịch trên máy"), keywords: "translate dịch ngôn ngữ language gói dịch plus", page: .goTat))
-        }
-        if ICloudSync.isUnlocked() {
-            e.append(.init(viTitle: LK("Đồng bộ iCloud"), keywords: "sync icloud đồng bộ", page: .saoLuu))
-        }
-        return e
-    }
-
-    /// So khớp không phân biệt hoa/thường và dấu (gõ "trong suot" vẫn ra) — SettingsSearch (Shared).
-    static func search(_ query: String) -> [FeatureSearchEntry] {
-        let words = SettingsSearch.words(query)
-        guard !words.isEmpty else { return [] }
-        let pageHits = FeaturePage.allCases.map {
-            FeatureSearchEntry(viTitle: $0.viTitle, keywords: "", page: $0)
-        }
-        return (pageHits + all).filter { SettingsSearch.matches(viTitle: $0.viTitle, keywords: $0.keywords, words: words) }
     }
 }
 
@@ -209,6 +84,35 @@ func experimentalToggle(_ title: String, _ caption: String, isOn: Binding<Bool>)
     .tint(.green)
 }
 
+/// Công tắc phụ thuộc (SETTINGS-CLEANUP-SPEC §0.4): KHÔNG ẩn — `reason` khác nil thì làm mờ, khoá
+/// và ghi lý do ngay dưới chú thích ("Cần bật …", "Chỉ áp dụng cho Telex").
+func dependentToggle(_ title: String, _ caption: String, isOn: Binding<Bool>,
+                     reason: String?, experimental: Bool = false) -> some View {
+    Toggle(isOn: isOn) {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) { Text(title); if experimental { ExperimentalBadge() } }
+            Text(caption).font(.footnote).foregroundStyle(.secondary)
+            if let reason {
+                Label(L(reason), systemImage: "info.circle").font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+    }
+    .tint(.green)
+    .disabled(reason != nil)
+}
+
+/// Dòng mở trang con: tên + dòng phụ (tóm tắt / những gì bên trong).
+struct SubPageRow: View {
+    let title: String
+    let subtitle: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+            Text(subtitle).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+        }
+    }
+}
+
 /// Ô icon màu kiểu app Cài đặt.
 struct FeatureIcon: View {
     let page: FeaturePage
@@ -221,13 +125,15 @@ struct FeatureIcon: View {
     }
 }
 
-/// Dòng "Tìm hiểu thêm" cuối mỗi trang con.
+/// Dòng "Tìm hiểu thêm" cuối mỗi trang con (trang không có mục Hướng dẫn: chỉ chú thích).
 struct GuideLinkSection: View {
     let page: FeaturePage
     var body: some View {
         Section {
-            Link(destination: page.guideURL) {
-                Label(L("Tìm hiểu thêm trong Hướng dẫn"), systemImage: "book")
+            if let url = page.guideURL {
+                Link(destination: url) {
+                    Label(L("Tìm hiểu thêm trong Hướng dẫn"), systemImage: "book")
+                }
             }
         } footer: {
             Text(L("Cài đặt áp dụng ngay lần mở bàn phím kế tiếp."))
@@ -250,6 +156,17 @@ struct FeaturePageList<Content: View>: View {
     }
 }
 
+/// Trang đích của một kết quả tìm kiếm (mục ở tab Kiểu Gõ cấp 1 đi đường khác — đổi tab).
+@ViewBuilder func searchDestination(_ location: SettingsLocation) -> some View {
+    switch location {
+    case .page(let p): p.destination
+    case .feedback: FeedbackPage()
+    case .typingAdvanced: TypingAdvancedPage()
+    case .mixedAdvanced(let m): MixedAdvancedPage(highlight: m)
+    case .mixed: EmptyView()
+    }
+}
+
 // ============================================================== Trang chính
 
 /// Tab Tính Năng — ô tìm kiếm + các nhóm kèm tóm tắt trạng thái hiện tại.
@@ -260,11 +177,9 @@ struct TinhNangSections: View {
 
     // Chỉ để dựng dòng tóm tắt — trang con ghi, @AppStorage tự cập nhật.
     @AppStorage("liveSpellCheck", store: featureDefaults) private var liveSpellCheck = true
-    @AppStorage("reEditWord", store: featureDefaults) private var reEditWord = true
     @AppStorage("autoCorrect", store: featureDefaults) private var autoCorrect = false
     @AppStorage("showSuggestions", store: featureDefaults) private var showSuggestions = true
     @AppStorage("emojiSuggest", store: featureDefaults) private var emojiSuggest = true
-    @AppStorage("numberChips", store: featureDefaults) private var numberChips = true
     @AppStorage("swipeTyping", store: featureDefaults) private var swipeTyping = false
     @AppStorage("swipeFuto", store: featureDefaults) private var swipeFuto = false
     @AppStorage(ShortcutFile.enabledKey, store: featureDefaults) private var shortcutsEnabled = true
@@ -283,6 +198,7 @@ struct TinhNangSections: View {
     @AppStorage("clipboardHistory", store: featureDefaults) private var clipboardHistory = false
     @AppStorage("incognitoMode", store: featureDefaults) private var incognitoMode = false
     @AppStorage(ICloudSync.enabledKey, store: featureDefaults) private var iCloudSync = false
+    @AppStorage("debugTouchLog", store: featureDefaults) private var debugTouchLog = false
     @AppStorage(L10n.defaultsKey, store: featureDefaults) private var uiLanguage = "vi"
 
     private static func join(_ parts: [(Bool, String)], none: String) -> String {
@@ -292,12 +208,10 @@ struct TinhNangSections: View {
 
     private func summary(_ p: FeaturePage) -> String {
         switch p {
-        case .chinhTa:
-            return Self.join([(liveSpellCheck, L("Kiểm tra chính tả")),
-                              (reEditWord, L("Sửa dấu")), (autoCorrect, L("Tự sửa"))], none: L("Đang tắt"))
-        case .goiY:
-            guard showSuggestions else { return L("Tắt thanh gợi ý") }
-            return Self.join([(true, L("Thanh gợi ý")), (emojiSuggest, "Emoji"), (numberChips, L("Chip số"))], none: "")
+        case .suaLoi:
+            return Self.join([(liveSpellCheck, L("Kiểm tra chính tả")), (autoCorrect, L("Tự sửa")),
+                              (showSuggestions, L("Thanh gợi ý")), (showSuggestions && emojiSuggest, "Emoji")],
+                             none: L("Đang tắt"))
         case .goVuot:
             guard swipeTyping else { return L("Đang tắt") }
             return Self.join([(true, L("Bật")), (swipeFuto, "Neural")], none: "")
@@ -320,9 +234,11 @@ struct TinhNangSections: View {
             return theme.effectiveTheme.title + (wp ? " · " + L("Ảnh nền") : "")
                 + (theme.keyboardTransparency > 0 || theme.labelTransparency > 0 ? " · " + L("Trong suốt") : "")
         case .riengTu:
-            return (clipboardHistory ? L("Lịch sử clipboard bật") : L("Lịch sử clipboard tắt")) + (incognitoMode ? " · " + L("Ẩn danh") : "")
-        case .saoLuu:
-            return iCloudSync && ICloudSync.isUnlocked() ? L("Đồng bộ iCloud bật") : L("Xuất / nhập file")
+            return (clipboardHistory ? L("Lịch sử clipboard bật") : L("Lịch sử clipboard tắt"))
+                + (incognitoMode ? " · " + L("Ẩn danh") : "")
+                + (iCloudSync && ICloudSync.isUnlocked() ? " · " + L("Đồng bộ iCloud bật") : "")
+        case .nangCao:
+            return debugTouchLog ? L("Đang ghi log chạm phím") : L("Log chạm phím cho tester")
         }
     }
 
@@ -369,40 +285,54 @@ struct TinhNangSections: View {
                 }
             }
         } else {
-            let hits = FeatureSearchEntry.search(query)
+            let hits = SettingsIndex.search(query) { $0.isMet }
             Section {
                 if hits.isEmpty {
                     Text(L("Không tìm thấy cài đặt nào.")).foregroundStyle(.secondary)
                 }
-                ForEach(hits) { e in
-                    if let p = e.page {
+                ForEach(hits, id: \.self) { e in
+                    switch e.location {
+                    case .page(let p):
                         NavigationLink { p.destination } label: {
                             row(p, title: e.title, subtitle: e.isPage ? summary(p) : p.title)
                         }
-                    } else if let m = e.mixed {
-                        // Nhóm "Gõ mixed Việt/Anh" ở tab Kiểu Gõ: RootView đổi tab, mở nhóm, cuộn tới dòng.
-                        Button { MixedTypingFocus.shared.request = m } label: { mixedRow(e.title) }
+                    case .mixed(let m):
+                        // Cấp 1 nhóm "Gõ lẫn tiếng Anh" ở tab Kiểu Gõ: RootView đổi tab, mở nhóm, cuộn tới dòng.
+                        Button { MixedTypingFocus.shared.request = m } label: { otherRow(e, chevron: true) }
                             .buttonStyle(.plain)
+                    default:
+                        NavigationLink { searchDestination(e.location) } label: { otherRow(e, chevron: false) }
                     }
                 }
             } header: { Text(L("Kết quả")) }
         }
     }
 
-    /// Dòng kết quả trỏ về nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ).
-    private func mixedRow(_ title: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "globe")
-                .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
-                .frame(width: 29, height: 29)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.teal))
+    /// Dòng kết quả ở trang con / tab Kiểu Gõ: icon theo nơi chứa + đường dẫn.
+    private func otherRow(_ e: SettingsIndexEntry, chevron: Bool) -> some View {
+        let isTyping: Bool
+        switch e.location {
+        case .page, .feedback: isTyping = false
+        default: isTyping = true
+        }
+        return HStack(spacing: 12) {
+            if isTyping {
+                Image(systemName: "keyboard")
+                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+                    .frame(width: 29, height: 29)
+                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.teal))
+            } else {
+                FeatureIcon(page: .phim)
+            }
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                Text(AppTab.kieuGo.title + " › " + L(MixedTypingUI.titleKey))
+                Text(e.title)
+                Text(e.location.pathKeys.map { L($0) }.joined(separator: " › "))
                     .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
             }
-            Spacer(minLength: 4)
-            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            if chevron {
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            }
         }
         .contentShape(Rectangle())
     }
@@ -423,36 +353,17 @@ struct TinhNangSections: View {
 
 // ============================================================== Trang con
 
-struct ChinhTaPage: View {
-    // "Tự khôi phục từ tiếng Anh" chuyển sang nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ, 05/11/2026).
+/// "Sửa lỗi & gợi ý" (gộp "Chính tả & sửa lỗi" + "Gợi ý & từ điển", 05/11/2026): chính tả, các
+/// mục sửa chạm trượt (công tắc riêng, xếp liền nhau), thanh gợi ý, từ đã học.
+struct SuaLoiPage: View {
     @AppStorage("liveSpellCheck", store: featureDefaults) private var liveSpellCheck = true
     @AppStorage("reEditWord", store: featureDefaults) private var reEditWord = true
     /// Thử nghiệm — mặc định BẬT, xem KeyboardSettings.smartTouch.
     @AppStorage("smartTouch", store: featureDefaults) private var smartTouch = true
     /// Thử nghiệm — mặc định TẮT, xem KeyboardSettings.autoCorrect.
     @AppStorage("autoCorrect", store: featureDefaults) private var autoCorrect = false
-    /// Mặc định BẬT (KeyboardSettings.autoFixAdjacent) — trước nằm ở tab Kiểu Gõ, chuyển về đây
-    /// cạnh hai công tắc chạm trượt anh em (14/10/2026).
+    /// Mặc định BẬT (KeyboardSettings.autoFixAdjacent).
     @AppStorage("autoFixAdjacent", store: featureDefaults) private var autoFixAdjacent = true
-
-    var body: some View {
-        FeaturePageList(page: .chinhTa) {
-            Section {
-                settingToggle(L("Kiểm tra chính tả khi gõ"), L("Ngừng bỏ dấu khi từ không thể là tiếng Việt."), isOn: $liveSpellCheck)
-                settingToggle(L("Sửa dấu từ đã gõ"), L("⌫ ngay sau dấu cách để sửa tiếp từ vừa gõ (tháy ␣ ⌫ a → thấy), hoặc đặt con trỏ sau từ rồi gõ phím dấu: viêt + j → việt."), isOn: $reEditWord)
-            } header: { Text(L("Chính tả")) }
-            Section {
-                experimentalToggle(L("Chọn phím thông minh"), L("Chạm sát mép giữa hai phím thì chọn phím hợp với chữ đang gõ. Chạm giữa phím luôn ra đúng phím đó."), isOn: $smartTouch)
-                experimentalToggle(L("Tự sửa từ gõ sai"), L("Khi gõ dấu cách, sửa từ lỡ chạm phím kề (tpoi → tôi) nếu chắc chắn. ⌫ ngay sau đó để trả lại chữ gốc."), isOn: $autoCorrect)
-                settingToggle(L("Gợi ý sửa lỗi chạm trượt"), L("Khi từ đang gõ không phải tiếng Việt, gợi ý từ đúng nếu bạn lỡ chạm phím bên cạnh: nbjeeuf → nhiều, ohims → phím, cahcs → cách. Chạm gợi ý để thay."), isOn: $autoFixAdjacent)
-            } header: { Text(L("Chạm trượt")) } footer: {
-                Text(L("Gợi ý sửa lỗi hiện trên thanh gợi ý (cần bật Thanh gợi ý)."))
-            }
-        }
-    }
-}
-
-struct GoiYPage: View {
     @AppStorage("showSuggestions", store: featureDefaults) private var showSuggestions = true
     @AppStorage("filterSensitive", store: featureDefaults) private var filterSensitive = true
     @AppStorage("emojiSuggest", store: featureDefaults) private var emojiSuggest = true
@@ -476,7 +387,18 @@ struct GoiYPage: View {
     }
 
     var body: some View {
-        FeaturePageList(page: .goiY) {
+        FeaturePageList(page: .suaLoi) {
+            Section {
+                settingToggle(L("Kiểm tra chính tả khi gõ"), L("Ngừng bỏ dấu khi từ không thể là tiếng Việt."), isOn: $liveSpellCheck)
+                settingToggle(L(SettingLabel.reEditWord), L("⌫ ngay sau dấu cách để sửa tiếp từ vừa gõ (tháy ␣ ⌫ a → thấy), hoặc đặt con trỏ sau từ rồi gõ phím dấu: viêt + j → việt."), isOn: $reEditWord)
+            } header: { Text(L("Chính tả")) }
+            Section {
+                experimentalToggle(L("Chọn phím thông minh"), L("Chạm sát mép giữa hai phím thì chọn phím hợp với chữ đang gõ. Chạm giữa phím luôn ra đúng phím đó."), isOn: $smartTouch)
+                experimentalToggle(L("Tự sửa từ gõ sai"), L("Khi gõ dấu cách, sửa từ lỡ chạm phím kề (tpoi → tôi) nếu chắc chắn. ⌫ ngay sau đó để trả lại chữ gốc."), isOn: $autoCorrect)
+                settingToggle(L("Gợi ý sửa lỗi chạm trượt"), L("Khi từ đang gõ không phải tiếng Việt, gợi ý từ đúng nếu bạn lỡ chạm phím bên cạnh: nbjeeuf → nhiều, ohims → phím, cahcs → cách. Chạm gợi ý để thay."), isOn: $autoFixAdjacent)
+            } header: { Text(L("Chạm trượt")) } footer: {
+                Text(L("Gợi ý sửa lỗi hiện trên thanh gợi ý (cần bật Thanh gợi ý)."))
+            }
             Section {
                 // Thanh gợi ý bật = tự học từ hay dùng (learnWords đi theo — quyết định 2026-07-24).
                 settingToggle(L("Thanh gợi ý"), L("Gợi ý từ + emoji, tự học từ bạn hay dùng (chỉ trên máy)."), isOn: $showSuggestions)
@@ -484,11 +406,11 @@ struct GoiYPage: View {
                     SuggestionCountRow()
                     settingToggle(L("Gợi ý cả khi ứng dụng tắt gợi ý"), L("Ô mà ứng dụng tắt gợi ý (vd ô chat, thanh địa chỉ) vẫn gợi ý từ — không tự sửa, không học từ gõ ở đó. Mật khẩu, ẩn danh, ô số không bị ảnh hưởng."), isOn: $suggestInNoSuggestFields)
                     settingToggle(L("Gợi ý emoji"), L("Emoji hợp với từ đang gõ (yêu → ❤️)."), isOn: $emojiSuggest)
-                    settingToggle(L("Chip số"), L("Đọc số thành chữ, định dạng tiền (1tr2 → 1.200.000 ₫)."), isOn: $numberChips)
+                    settingToggle(L(SettingLabel.numberChips), L("Đọc số thành chữ, định dạng tiền (1tr2 → 1.200.000 ₫)."), isOn: $numberChips)
                     settingToggle(L("Hiện kết quả phép tính"), L("Gõ phép tính (12*3, không cần dấu =) → kết quả “= 36” hiện ở đầu thanh gợi ý, chạm để chèn. Dấu = ở bàn 123: giữ phím /."), isOn: $mathResults)
                     settingToggle(L("Nút Dán"), L("Vừa copy xong thì hiện nút Dán (cần Toàn quyền)."), isOn: $pasteButton)
                     if PlusGate.isUnlocked(.sentenceDiacritics) {
-                        settingToggle(L("Chip “Thêm dấu”"), L("Gõ không dấu cả câu (hom nay troi dep), gõ dấu cách → chip “Thêm dấu” hiện ở đầu thanh gợi ý, chạm để thành “hôm nay trời đẹp”; chạm “Hoàn tác” để trả lại. Tắt mặc định cho nhẹ máy."), isOn: $addTonesChip)
+                        settingToggle(L(SettingLabel.addTones), L("Gõ không dấu cả câu (hom nay troi dep), gõ dấu cách → chip “Thêm dấu” hiện ở đầu thanh gợi ý, chạm để thành “hôm nay trời đẹp”; chạm “Hoàn tác” để trả lại. Tắt mặc định cho nhẹ máy."), isOn: $addTonesChip)
                     }
                     // Theo trạng thái model (AISettingUI): máy không hỗ trợ ⇒ ẩn; chưa bật Apple
                     // Intelligence / mô hình đang tải ⇒ hiện nhưng khoá + hướng dẫn.
@@ -505,11 +427,7 @@ struct GoiYPage: View {
                 NavigationLink {
                     UserDictView()
                 } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L("Từ điển cá nhân"))
-                        Text(L("Xem, tìm, xoá từ đã học; thêm tên riêng."))
-                            .font(.footnote).foregroundStyle(.secondary)
-                    }
+                    SubPageRow(title: L("Từ điển cá nhân"), subtitle: L("Xem, tìm, xoá từ đã học; thêm tên riêng."))
                 }
                 // Không hoàn tác được ⇒ hỏi lại trước khi xoá, xoá xong báo ngay dưới nút.
                 Button(L("Xoá từ đã học"), role: .destructive) { confirmErase = true }
@@ -579,7 +497,9 @@ struct SuggestionCountRow: View {
 
 struct GoVuotPage: View {
     @AppStorage("swipeTyping", store: featureDefaults) private var swipeTyping = false
-    // "Vuốt từ tiếng Anh" (swipeEnglish) chuyển sang nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ, 05/11/2026).
+    /// "Vuốt từ tiếng Anh" — mặc định BẬT (KeyboardSettings.swipeEnglish), chỉ có tác dụng khi bật
+    /// Gõ vuốt ⇒ ngay dưới công tắc Gõ vuốt, mờ + lý do khi Gõ vuốt tắt (SETTINGS-CLEANUP-SPEC §1).
+    @AppStorage("swipeEnglish", store: featureDefaults) private var swipeEnglish = true
     /// Decoder FUTO Swipe — mặc định TẮT, xem KeyboardSettings.swipeFuto.
     @AppStorage("swipeFuto", store: featureDefaults) private var swipeFuto = false
     /// "Hiệu ứng nét vuốt" (SwipeTrailStyle) — trang con SwipeTrailPickerView.
@@ -589,6 +509,10 @@ struct GoVuotPage: View {
         FeaturePageList(page: .goVuot) {
             Section {
                 experimentalToggle(L("Gõ vuốt"), L("Vuốt qua các chữ không dấu rồi nhấc tay: v→i→e→t ra “việt”. Gõ phím dấu ngay sau để đổi dấu, ⌫ xoá cả từ. Chỉ trên iPhone."), isOn: $swipeTyping)
+                dependentToggle(L(SettingLabel.swipeEnglish),
+                                L("check, mail, meeting… Nét vừa Việt vừa Anh (the/thế) ưu tiên tiếng Việt, phương án kia ở thanh gợi ý."),
+                                isOn: $swipeEnglish, reason: swipeTyping ? nil : LK("Cần bật Gõ vuốt"))
+                    .padding(.leading, 12)
                 if swipeTyping {
                     settingToggle(L("Mô hình neural gõ vuốt"), L("Mạng neural chạy hoàn toàn trên máy, chấm cùng bộ giải mã. Tốn thêm ~3 MB bộ nhớ."), isOn: $swipeFuto)
                     // Ghi công BẮT BUỘC theo FUTO Model Weights License 1.0 ("visible notice …
@@ -668,7 +592,7 @@ struct PhimPage: View {
     @AppStorage("longPressSymbols", store: featureDefaults) private var longPressSymbols = false
     /// Giữ ⇧ + phím chữ ra ký tự phụ (ShiftHold) — mặc định BẬT.
     @AppStorage("holdShiftSymbols", store: featureDefaults) private var holdShiftSymbols = true
-    // "Vuốt phím cách đổi Tiếng Việt / Tiếng Anh" chuyển sang nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ).
+    // "Vuốt phím cách đổi Tiếng Việt / Tiếng Anh" chuyển sang nhóm "Gõ lẫn tiếng Anh" (tab Kiểu Gõ).
     /// Vuốt phím C / X / V lên ra lệnh sao chép / cắt / dán — mặc định TẮT (KeyCommandGesture).
     @AppStorage("swipeKeyCommands", store: featureDefaults) private var swipeKeyCommands = false
     /// "Độ nhạy con trỏ" khi giữ phím cách: "slow" | "medium" (mặc định) | "fast" (TrackpadSpeed).
@@ -685,14 +609,8 @@ struct PhimPage: View {
     @AppStorage(LargeKeys.key, store: featureDefaults) private var largeKeys = LargeKeys.defaultValue
     /// Ô phóng to chữ khi bấm phím — mặc định BẬT (KeyboardView.keyPreviewKey).
     @AppStorage("keyPreviewEnabled", store: featureDefaults) private var keyPreview = true
-    /// Phím sẫm khi bấm (KeyboardView.keyPressHighlightKey) — mặc định = keyPressHighlightDefault.
-    @AppStorage("keyPressHighlight", store: featureDefaults) private var keyPressHighlight = true
     @AppStorage("hapticFeedback", store: featureDefaults) private var hapticFeedback = false
-    @AppStorage("hapticStrength", store: featureDefaults) private var hapticStrength = KeyHaptics.defaultPercent
     @AppStorage("keySound", store: featureDefaults) private var keySound = false
-    @AppStorage("keySoundStyle", store: featureDefaults) private var keySoundStyle = KeySoundStyle.defaultStyle.rawValue
-    /// Rung thử khi kéo thanh trượt: ≤ 1 lần / 120 ms + lúc thả.
-    @State private var hapticThrottle = PreviewThrottle()
 
     private var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
 
@@ -776,6 +694,36 @@ struct PhimPage: View {
                 Text(L("Xuống dòng mà không gửi (ô chat trên web, nơi Return là Gửi): giữ lâu phím Return, hoặc chạm ⇧ rồi chạm Return."))
             }
             Section {
+                // Rung, âm thanh, phóng to/sẫm phím: trang con riêng (SETTINGS-CLEANUP-SPEC §4).
+                NavigationLink { FeedbackPage() } label: {
+                    SubPageRow(title: L(SettingLabel.feedbackPage), subtitle: feedbackSummary)
+                }
+            }
+        }
+    }
+
+    /// Dòng phụ của "Phản hồi khi chạm": những gì đang bật.
+    private var feedbackSummary: String {
+        let on = [(keyPreview, L("Phóng to chữ")), (hapticFeedback, L("Rung")), (keySound, L("Âm phím"))]
+            .filter(\.0).map(\.1)
+        return on.isEmpty ? L("Rung, âm thanh, phóng to chữ khi bấm") : on.joined(separator: " · ")
+    }
+}
+
+/// Tính Năng › Phím & cử chỉ › "Phản hồi khi chạm": phóng to chữ, phím sẫm, rung, âm thanh phím.
+struct FeedbackPage: View {
+    @AppStorage("keyPreviewEnabled", store: featureDefaults) private var keyPreview = true
+    @AppStorage("keyPressHighlight", store: featureDefaults) private var keyPressHighlight = true
+    @AppStorage("hapticFeedback", store: featureDefaults) private var hapticFeedback = false
+    @AppStorage("hapticStrength", store: featureDefaults) private var hapticStrength = KeyHaptics.defaultPercent
+    @AppStorage("keySound", store: featureDefaults) private var keySound = false
+    @AppStorage("keySoundStyle", store: featureDefaults) private var keySoundStyle = KeySoundStyle.defaultStyle.rawValue
+    /// Rung thử khi kéo thanh trượt: ≤ 1 lần / 120 ms + lúc thả.
+    @State private var hapticThrottle = PreviewThrottle()
+
+    var body: some View {
+        List {
+            Section {
                 settingToggle(L("Phóng to chữ khi bấm"), L("Ô chữ lớn nổi trên phím vừa chạm. Tắt cho gọn, nhẹ máy."), isOn: $keyPreview)
                 settingToggle(L("Phím sẫm khi bấm"), L("Phím đổi màu trong lúc chạm như bàn phím iPhone, kể cả khi tắt phóng to chữ."), isOn: $keyPressHighlight)
                 settingToggle(L("Rung phím"), L("Rung nhẹ mỗi lần chạm phím."), isOn: $hapticFeedback)
@@ -811,8 +759,11 @@ struct PhimPage: View {
                         FullAccessNotice(reason: L("Âm thanh phím"))
                     }
                 }
-            } header: { Text(L("Phản hồi khi chạm")) }
+            }
         }
+        .navigationTitle(L(SettingLabel.feedbackPage))
+        .navigationBarTitleDisplayMode(.inline)
+        .bottomBarScrollMargin()
     }
 
     private func previewHaptic(final: Bool) {

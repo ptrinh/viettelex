@@ -64,7 +64,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .premiumThemes: return L("Theme cao cấp & ảnh nền")
-        case .sentenceDiacritics: return L("Thêm dấu cả câu")
+        case .sentenceDiacritics: return L("Thêm dấu")
         case .advancedClipboard: return L("Clipboard nâng cao")
         case .iCloudSync: return L("Đồng bộ iCloud")
         case .textTools: return L("Công cụ văn bản")
@@ -93,8 +93,8 @@ enum PlusFeature: String, CaseIterable, Identifiable {
         switch self {
         case .premiumThemes: return L("Cách dùng: Tính Năng → Giao diện → chọn theme hoặc ảnh nền.")
         case .sentenceDiacritics: return L("Cách dùng: gõ không dấu cả câu (hom nay troi dep), gõ dấu cách rồi chạm chip “Thêm dấu” ở đầu thanh gợi ý. Cần bật chip bên dưới.")
-        case .advancedClipboard: return L("Cách dùng: bật Lịch sử clipboard (Tính Năng → Riêng tư & clipboard), chạm nút clipboard trên thanh gợi ý. Copy STK/SĐT/OTP → chip “Dán …” hiện trên thanh gợi ý.")
-        case .iCloudSync: return L("Cách dùng: Tính Năng → Sao lưu & đồng bộ → bật Đồng bộ iCloud.")
+        case .advancedClipboard: return L("Cách dùng: bật Lịch sử clipboard (Tính Năng → Riêng tư & sao lưu), chạm nút clipboard trên thanh gợi ý. Copy STK/SĐT/OTP → chip “Dán …” hiện trên thanh gợi ý.")
+        case .iCloudSync: return L("Cách dùng: Tính Năng → Riêng tư & sao lưu → bật Đồng bộ iCloud.")
         case .textTools: return L("Cách dùng: chạm ☰ trên thanh gợi ý → chip “⚒️ Công cụ” đầu lưới mẫu câu. Áp lên đoạn đang chọn hoặc câu trước con trỏ.")
         case .translate: return L("Cách dùng: chạm ☰ trên thanh gợi ý → “⚒️ Công cụ” → “Dịch ↔ …”. Chọn ngôn ngữ và tải gói dịch ngay bên dưới (cần iOS 26).")
         case .aiProofread: return L("Cách dùng: bật công tắc bên dưới, rồi chọn vài từ trong ô gõ → chip “✨ Sửa lỗi” trên thanh gợi ý. Chọn một từ → gợi ý từ thay thế.")
@@ -125,7 +125,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
         switch self {
         case .textTools: return L("Công cụ văn bản")
         case .aiProofread: return L("Sửa lỗi bằng Apple Intelligence")
-        default: return L("Bật chip “Thêm dấu”")
+        default: return L("Thêm dấu")
         }
     }
     var settingSubtitle: String? {

@@ -1,4 +1,4 @@
-// "Hiệu ứng khi bấm phím" (Plus, Phil 19/10/2026 — kiểu Laban Key): Trái tim, Bong bóng, Gợn sóng,
+// "Hiệu ứng khi bấm phím" (Plus, Phil 19/10/2026): Trái tim, Bong bóng, Gợn sóng,
 // Cánh hoa, Pháo hoa, Nháy sáng, Matrix, Tia sét, Emoji theo chữ, Hoa đào / mai, Lửa combo, Mực loang,
 // Sóng nước, Tuyết rơi, Sao băng, Đèn lồng, Sương ma, Rung dây; "Không" = mặc định. Song sinh android/keyboard/.../KeyEffect.kt (cùng khoá
 // `keyEffect`, cùng id, cùng quỹ đạo / cùng hàm thuần: tia sét, mảnh vỡ, combo, nháy sáng, emoji).

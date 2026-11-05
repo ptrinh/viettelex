@@ -173,7 +173,7 @@ struct RootView: View {
                 // Ô "Thử gõ": cuộn là đóng bàn phím. KHÔNG gắn TapGesture lên List —
                 // nó nuốt tap của mọi Button trong row (+, Import, Export, Xoá từ đã học…).
                 .scrollDismissesKeyboard(.immediately)
-                // Tìm cài đặt chọn một mục "Gõ mixed Việt/Anh" ⇒ danh sách Kiểu Gõ vừa dựng cuộn tới đó.
+                // Tìm cài đặt chọn một mục "Gõ lẫn tiếng Anh" ⇒ danh sách Kiểu Gõ vừa dựng cuộn tới đó.
                 .onAppear { if tab == .kieuGo { MixedTypingFocus.shared.scrollIfPending(proxy) } }
                 // Đang ở sẵn tab Kiểu Gõ (thẻ người dùng cũ mở nhóm) ⇒ không dựng lại ⇒ cuộn ở đây.
                 .onReceive(MixedTypingFocus.shared.$scrollTick.dropFirst()) { _ in
@@ -211,7 +211,7 @@ struct RootView: View {
                 ICloudSync.shared.syncNow()        // đẩy thay đổi vừa sửa lên iCloud
             }
         }
-        // Ô tìm cài đặt (Tính Năng) chọn mục thuộc nhóm "Gõ mixed Việt/Anh" ⇒ sang tab Kiểu Gõ.
+        // Ô tìm cài đặt (Tính Năng) chọn mục thuộc nhóm "Gõ lẫn tiếng Anh" ⇒ sang tab Kiểu Gõ.
         .onReceive(MixedTypingFocus.shared.$request.compactMap { $0 }) { item in
             MixedTypingFocus.shared.request = nil
             MixedTypingFocus.shared.open(item)
@@ -373,9 +373,7 @@ struct RootView: View {
             Text(L("Toàn quyền Truy cập là tuỳ chọn — chỉ cần cho Rung phím, Âm thanh phím, Nút Dán, Lịch sử clipboard, Mẫu câu động (https://) và lưu từ đã học; VietTelex không dùng quyền này cho bất kỳ việc gì khác."))
                 .font(.footnote).foregroundStyle(.secondary)
         } header: { Text(L("Giới thiệu")) }
-        // Gỡ lỗi ở CUỐI tab (maintainer 14/10/2026) — công cụ cho tester, không phải
-        // thứ user thấy đầu tiên.
-        DebugSection()
+        // Gỡ lỗi chuyển sang Tính Năng → "Nâng cao / Gỡ lỗi" (SETTINGS-CLEANUP-SPEC §4, 05/11/2026).
     }
 }
 
@@ -926,18 +924,9 @@ func settingToggle(_ title: String, _ caption: String, isOn: Binding<Bool>) -> s
     .tint(.green)   // giữ màu toggle hệ thống — .tint(accentBlue) ở TabView lan xuống
 }
 
-/// Tab Kiểu Gõ — các tuỳ chọn Telex core (EngineBridge đọc cùng key qua App Group).
+/// Tab Kiểu Gõ — mục "Kiểu gõ" (SETTINGS-CLEANUP-SPEC §4): Telex/VNI · Tự động viết hoa đầu câu ·
+/// › Nâng cao (TypingAdvancedPage). EngineBridge đọc cùng key qua App Group.
 struct KieuGoSection: View {
-    @AppStorage("freeMarking", store: UserDefaults(suiteName: AppFlavor.appGroup))
-    private var freeMarking = true
-    @AppStorage("simpleTelex", store: UserDefaults(suiteName: AppFlavor.appGroup))
-    private var simpleTelex = true
-    @AppStorage("quickTelex", store: UserDefaults(suiteName: AppFlavor.appGroup))
-    private var quickTelex = false
-    @AppStorage("modernTone", store: UserDefaults(suiteName: AppFlavor.appGroup))
-    private var modernTone = false
-    @AppStorage("teencode", store: UserDefaults(suiteName: AppFlavor.appGroup))
-    private var teencode = false
     @AppStorage("vniMode", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var vniMode = false
     @AppStorage("numberRow", store: UserDefaults(suiteName: AppFlavor.appGroup))
@@ -964,22 +953,50 @@ struct KieuGoSection: View {
             if vniMode {
                 Text(L("Gõ dấu bằng số khi đang gõ một từ: 1 sắc, 2 huyền, 3 hỏi, 4 ngã, 5 nặng, 6 mũ (â ê ô), 7 móc (ơ ư), 8 trăng (ă), 9 đ, 0 xoá dấu — tie6ng1 vie6t5 → tiếng việt. Ngoài từ, phím số vẫn gõ ra số. Chọn VNI tự bật Hàng phím số (tắt được ở Tính năng → Phím & cử chỉ)."))
                     .font(.footnote).foregroundStyle(.secondary)
-            } else {
-                settingToggle(L("Telex đơn giản"), L("Phím w đứng lẻ giữ nguyên là w, không thành ư."), isOn: $simpleTelex)
-                settingToggle(L("Bỏ dấu tự do"), L("Phím dấu đặt đâu cũng được, không cần đúng thứ tự."), isOn: $freeMarking)
-                settingToggle(L("Gõ nhanh (Quick Telex)"), L("Phụ âm đôi đầu từ thành phụ âm ghép: cc → ch, nn → ng, tt → th…"), isOn: $quickTelex)
             }
-            settingToggle(L("Bỏ dấu kiểu mới"), L("hoà, thuý thay vì hòa, thúy."), isOn: $modernTone)
             // iOS không cho bàn phím bên thứ ba đọc công tắc Tự động viết hoa của hệ thống.
-            settingToggle(L("Tự động viết hoa đầu câu"), L("Bật shift ở đầu ô, sau . ! ? và khi xuống dòng. Công tắc “Tự động viết hoa” trong Cài đặt → Bàn phím của iOS không áp dụng cho bàn phím bên thứ ba — tắt ở đây."), isOn: $autoCapitalize)
-            // Quyết định theo ngữ cảnh / Tự sửa từ phía trước / Đoán từ trùng theo tần suất: chuyển
-            // sang nhóm "Gõ mixed Việt/Anh" ngay bên dưới (MixedTypingSection, 05/11/2026).
-            if !vniMode {
-                settingToggle(L("Chính tả teencode"), L("Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, từ tiếng Anh như was, war, zoo giữ nguyên."), isOn: $teencode)
+            settingToggle(L(SettingLabel.autoCapitalize), L("Bật shift ở đầu ô, sau . ! ? và khi xuống dòng. Công tắc “Tự động viết hoa” trong Cài đặt → Bàn phím của iOS không áp dụng cho bàn phím bên thứ ba — tắt ở đây."), isOn: $autoCapitalize)
+            NavigationLink { TypingAdvancedPage() } label: {
+                SubPageRow(title: L(SettingLabel.typingAdvanced), subtitle: L(SettingLabel.typingAdvancedSubtitle))
             }
         } header: { Text(L("Kiểu gõ")) } footer: {
             Text(L("Cài đặt áp dụng ngay lần mở bàn phím kế tiếp."))
         }
+    }
+}
+
+/// Kiểu Gõ › Kiểu gõ › "Nâng cao": tuỳ chọn ít người cần đổi. Mục chỉ-Telex KHÔNG ẩn khi chọn VNI —
+/// làm mờ + "Chỉ áp dụng cho Telex" (SETTINGS-CLEANUP-SPEC §0.4, §3). Cùng key như trước.
+struct TypingAdvancedPage: View {
+    @AppStorage("freeMarking", store: UserDefaults(suiteName: AppFlavor.appGroup))
+    private var freeMarking = true
+    @AppStorage("simpleTelex", store: UserDefaults(suiteName: AppFlavor.appGroup))
+    private var simpleTelex = true
+    @AppStorage("quickTelex", store: UserDefaults(suiteName: AppFlavor.appGroup))
+    private var quickTelex = false
+    @AppStorage("modernTone", store: UserDefaults(suiteName: AppFlavor.appGroup))
+    private var modernTone = false
+    @AppStorage("teencode", store: UserDefaults(suiteName: AppFlavor.appGroup))
+    private var teencode = false
+    @AppStorage("vniMode", store: UserDefaults(suiteName: AppFlavor.appGroup))
+    private var vniMode = false
+
+    var body: some View {
+        let telexOnly: String? = vniMode ? TelexOnly.reasonKey : nil
+        List {
+            Section {
+                dependentToggle(L(SettingLabel.simpleTelex), L("Phím w đứng lẻ giữ nguyên là w, không thành ư."), isOn: $simpleTelex, reason: telexOnly)
+                dependentToggle(L(SettingLabel.freeMarking), L("Phím dấu đặt đâu cũng được, không cần đúng thứ tự."), isOn: $freeMarking, reason: telexOnly)
+                dependentToggle(L(SettingLabel.quickTelex), L("Phụ âm đôi đầu từ thành phụ âm ghép: cc → ch, nn → ng, tt → th…"), isOn: $quickTelex, reason: telexOnly)
+                settingToggle(L(SettingLabel.modernTone), L("hoà, thuý thay vì hòa, thúy."), isOn: $modernTone)
+                dependentToggle(L(SettingLabel.teencode), L("Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, từ tiếng Anh như was, war, zoo giữ nguyên."), isOn: $teencode, reason: telexOnly)
+            } footer: {
+                Text(L("Cài đặt áp dụng ngay lần mở bàn phím kế tiếp."))
+            }
+        }
+        .navigationTitle(L(SettingLabel.typingAdvanced))
+        .navigationBarTitleDisplayMode(.inline)
+        .bottomBarScrollMargin()
     }
 }
 

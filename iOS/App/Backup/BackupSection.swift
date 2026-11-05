@@ -1,4 +1,4 @@
-// Tính Năng → "Sao lưu & đồng bộ": xuất/nhập file một tệp (JSON, đọc được trên
+// Tính Năng → "Riêng tư & sao lưu", nhóm "Sao lưu & đồng bộ": xuất/nhập file một tệp (JSON, đọc được trên
 // Android) + công tắc đồng bộ iCloud (mặc định tắt).
 import SwiftUI
 import UniformTypeIdentifiers
@@ -75,7 +75,7 @@ struct SaoLuuSection: View {
                 } catch { notice = L("Không đọc được file.") }
             }
             if let notice { Text(notice).font(.footnote).foregroundStyle(.secondary) }
-        } footer: {
+        } header: { Text(L("Sao lưu & đồng bộ")) } footer: {
             Text(L("File gồm cài đặt, gõ tắt, mẫu câu (và từ đã học nếu chọn) — mở được trên iPhone, iPad và Android. Nhập: cài đặt theo file, gõ tắt và mẫu câu được gộp thêm."))
         }
     }

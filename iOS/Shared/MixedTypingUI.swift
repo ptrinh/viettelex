@@ -1,27 +1,26 @@
-// Nhóm "Gõ mixed Việt/Anh" (docs/ONBOARDING-SPEC.md §4): gom mọi công tắc gõ trộn Việt–Anh
-// vào MỘT nhóm thu gọn được trong tab Kiểu Gõ (mặc định thu gọn). Phần thuần (không SwiftUI)
-// để test được: danh mục mục, key lưu (KHÔNG đổi — sao lưu/khôi phục giữ nguyên), từ khoá tìm
-// kiếm, mục đích để cuộn tới khi mục con đang ẩn. Song sinh Android ui/MixedTyping.kt.
+// Nhóm "Gõ lẫn tiếng Anh" (docs/ONBOARDING-SPEC.md §4, docs/SETTINGS-CLEANUP-SPEC.md §1): nhóm
+// thu gọn được trong tab Kiểu Gõ (mặc định thu gọn). Cấp 1 chỉ có bộ chọn hồ sơ, vuốt phím cách
+// và Từ điển cá nhân; các công tắc nhận diện tiếng Anh nằm ở trang con "Nâng cao". "Vuốt từ tiếng
+// Anh" đã về trang Gõ vuốt (tìm kiếm: SettingsIndex). Phần thuần (không SwiftUI) để test được:
+// danh mục mục, key lưu (KHÔNG đổi — sao lưu/khôi phục giữ nguyên), từ khoá tìm kiếm, chỗ đặt, lý
+// do làm mờ mục phụ thuộc. Song sinh Android ui/MixedTyping.kt.
 import Foundation
 
 enum MixedTypingItem: String, CaseIterable, Hashable {
     /// Dòng tiêu đề nhóm (bấm để mở/thu gọn).
     case section
-    // 1. Nhận diện tiếng Anh
+    // Cấp 1 của nhóm
+    case spaceSwipeLanguage, userDictionary
+    // Trang con "Nâng cao"
     case autoRestore, contextualEnglish, retroEnglish, englishByFrequency
-    // 2. Chuyển ngôn ngữ
-    case spaceSwipeLanguage
-    // 3. Gợi ý & gõ vuốt tiếng Anh
-    case swipeEnglish, userDictionary
 
-    enum Group: CaseIterable { case recognition, language, suggest }
+    /// Mục nằm ở cấp 1 của nhóm hay trong trang con "Nâng cao".
+    enum Placement: CaseIterable { case top, advanced }
 
-    var group: Group? {
+    var placement: Placement {
         switch self {
-        case .section: return nil
-        case .autoRestore, .contextualEnglish, .retroEnglish, .englishByFrequency: return .recognition
-        case .spaceSwipeLanguage: return .language
-        case .swipeEnglish, .userDictionary: return .suggest
+        case .section, .spaceSwipeLanguage, .userDictionary: return .top
+        case .autoRestore, .contextualEnglish, .retroEnglish, .englishByFrequency: return .advanced
         }
     }
 
@@ -34,7 +33,6 @@ enum MixedTypingItem: String, CaseIterable, Hashable {
         case .retroEnglish: return LK("Tự sửa từ phía trước")
         case .englishByFrequency: return LK("Đoán từ trùng theo tần suất")
         case .spaceSwipeLanguage: return LK("Vuốt phím cách đổi Tiếng Việt / Tiếng Anh")
-        case .swipeEnglish: return LK("Vuốt từ tiếng Anh")
         case .userDictionary: return LK("Từ điển cá nhân")
         }
     }
@@ -43,12 +41,11 @@ enum MixedTypingItem: String, CaseIterable, Hashable {
     var keywords: String {
         switch self {
         case .section: return "mixed trộn song ngữ bilingual tiếng anh english việt anh"
-        case .autoRestore: return "english google restore khôi phục"
-        case .contextualEnglish: return "context ngữ cảnh english he is"
-        case .retroEnglish: return "sửa ngược retro english thử nghiệm experimental"
-        case .englishByFrequency: return "tần suất frequency his hí từ trùng collision thử nghiệm experimental"
-        case .spaceSwipeLanguage: return "space ngôn ngữ english language vuốt phím cách"
-        case .swipeEnglish: return "swipe english"
+        case .autoRestore: return "english google restore khôi phục nâng cao advanced"
+        case .contextualEnglish: return "context ngữ cảnh english he is nâng cao advanced"
+        case .retroEnglish: return "sửa ngược retro english thử nghiệm experimental nâng cao advanced"
+        case .englishByFrequency: return "tần suất frequency his hí từ trùng collision thử nghiệm experimental nâng cao advanced"
+        case .spaceSwipeLanguage: return "space ngôn ngữ english language vuốt phím cách tiếng việt tiếng anh"
         case .userDictionary: return "dictionary tên riêng thuật ngữ từ tiếng anh"
         }
     }
@@ -62,38 +59,37 @@ enum MixedTypingItem: String, CaseIterable, Hashable {
         case .retroEnglish: return RetroEnglishUI.autoKey
         case .englishByFrequency: return RetroEnglishUI.frequencyKey
         case .spaceSwipeLanguage: return "spaceSwipeLanguage"
-        case .swipeEnglish: return "swipeEnglish"
         }
     }
 }
 
 enum MixedTypingUI {
     /// Tên nhóm — cùng tên/thứ tự trên iOS và Android.
-    static let titleKey = LK("Gõ mixed Việt/Anh")
+    static let titleKey = LK("Gõ lẫn tiếng Anh")
+    /// Dòng "Nâng cao" của nhóm + dòng phụ liệt kê những gì bên trong (SETTINGS-CLEANUP-SPEC §1).
+    static let advancedTitleKey = LK("Nâng cao")
+    static let advancedSubtitleKey = LK("Khôi phục từ tiếng Anh, ngữ cảnh, khi trùng từ, sửa từ phía trước…")
 
-    static func groupTitle(_ g: MixedTypingItem.Group) -> String {
-        switch g {
-        case .recognition: return LK("Nhận diện tiếng Anh")
-        case .language: return LK("Chuyển ngôn ngữ")
-        case .suggest: return LK("Gợi ý & gõ vuốt tiếng Anh")
-        }
-    }
+    /// Thứ tự dòng ở trang con "Nâng cao".
+    static let advancedItems: [MixedTypingItem] = MixedTypingItem.allCases.filter { $0.placement == .advanced }
 
-    /// Mục có đang hiện không: "Tự sửa từ phía trước" + "Đoán từ trùng theo tần suất" chỉ hiện
-    /// khi "Quyết định theo ngữ cảnh" bật và không ở VNI (RetroEnglishUI.switchVisible).
-    static func isVisible(_ item: MixedTypingItem, contextualEnglish: Bool, vniMode: Bool) -> Bool {
+    /// Mục phụ thuộc "Quyết định theo ngữ cảnh": KHÔNG ẩn — làm mờ + lý do (SETTINGS-CLEANUP-SPEC
+    /// §0.4). VNI ⇒ "Chỉ áp dụng cho Telex" (engine chỉ sửa ngược ở Telex); ngữ cảnh tắt ⇒ "Cần
+    /// bật Quyết định theo ngữ cảnh". nil = dùng được. Cùng điều kiện với RetroEnglishUI.switchVisible.
+    static func disabledReason(_ item: MixedTypingItem, contextualEnglish: Bool, vniMode: Bool) -> String? {
         switch item {
         case .retroEnglish, .englishByFrequency:
-            return RetroEnglishUI.switchVisible(contextualEnglish: contextualEnglish, vniMode: vniMode)
-        default: return true
+            if vniMode { return TelexOnly.reasonKey }
+            if !contextualEnglish { return LK("Cần bật Quyết định theo ngữ cảnh") }
+            return nil
+        default: return nil
         }
     }
+}
 
-    /// Ô tìm kiếm chọn một mục: dòng để cuộn tới + tô sáng. Mục con đang ẩn ⇒ cuộn tới công tắc
-    /// cha "Quyết định theo ngữ cảnh" (bật nó lên thì mục con hiện ngay bên dưới).
-    static func scrollTarget(_ item: MixedTypingItem, contextualEnglish: Bool, vniMode: Bool) -> MixedTypingItem {
-        isVisible(item, contextualEnglish: contextualEnglish, vniMode: vniMode) ? item : .contextualEnglish
-    }
+/// Tuỳ chọn chỉ có tác dụng ở Telex: khi chọn VNI thì làm mờ kèm lý do này (không ẩn).
+enum TelexOnly {
+    static let reasonKey = LK("Chỉ áp dụng cho Telex")
 }
 
 /// So khớp ô tìm cài đặt: không phân biệt hoa/thường và dấu ("tan suat" khớp "tần suất"), mọi

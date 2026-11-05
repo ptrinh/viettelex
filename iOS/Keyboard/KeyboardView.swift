@@ -1837,6 +1837,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var debugSuggestionLabelInk: UIColor? { barLabelInkApplied }
     /// Test hook "Màu chữ gợi ý" (như applyAppearance đọc từ App Group).
     func debugSetSuggestionInk(_ m: SuggestionInk) { suggestionInk = m; applyBarInk() }
+    /// Test: bộ gợi ý vừa vẽ + chữ các ô slot đang hiện (chip mời/hoàn tác có thật sự lên thanh không).
+    var debugLastShownSet: SuggestionSet? { lastShownSet }
+    var debugVisibleSlotTexts: [String] {
+        guard !suggestionBar.isHidden, suggestionBar.alpha > 0 else { return [] }
+        return zip(slotButtons, suggestionBar.labels).compactMap { b, l in
+            b.isHidden ? nil : l.text.flatMap { $0.isEmpty ? nil : $0 }
+        }
+    }
 
     /// Kiểu ô phóng to / popup đã đổi sang UIColor (KeyPopupStyle) — dựng lại khi palette đổi.
     struct PopupUI {
