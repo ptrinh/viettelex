@@ -23,6 +23,8 @@ void writeQword(const wchar_t* name, unsigned long long v);
 std::wstring readString(const wchar_t* name);
 void writeString(const wchar_t* name, const std::wstring& v);
 bool readFlag(const wchar_t* name);
+// -1 = value absent, else 0 / 1 (onboardingDone: absent and 0 mean different things).
+int readFlagState(const wchar_t* name);
 void writeFlag(const wchar_t* name, bool v);
 
 // Remove everything under HKCU\Software\VietTelex and %LOCALAPPDATA%\VietTelex

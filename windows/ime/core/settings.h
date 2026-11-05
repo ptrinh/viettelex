@@ -48,6 +48,10 @@ struct Settings {
     // automatically even in offer mode and before Enter (session finishRetro). Off = the
     // engine flag stays off (zero cost).
     bool englishByFrequency = false;
+    // "Bắt đầu bằng tiếng Anh trong app mới" (onboarding profile `en`, default OFF): an app
+    // with no remembered Việt/Anh state (app_language.h) starts in English instead of
+    // Vietnamese. Apps the user already switched keep their memory.
+    bool startEnglish = false;
     // "Gạch đỏ âm tiết sai chính tả khi gõ" (Windows/Linux only, default OFF): the word in
     // a composition gets a red squiggle when it cannot become a Vietnamese syllable.
     // Composition mode only; in-place has no composition to decorate.

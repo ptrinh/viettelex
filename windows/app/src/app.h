@@ -26,8 +26,11 @@ bool systemUsesDarkApps();
 // files, UTF-8 or UTF-16 (settings_window.cpp; also the welcome window's "Chuyển từ UniKey").
 void importShortcutsDialog(HWND owner);
 
-// First-run welcome window (welcome.cpp).
-void showWelcome();
+// First-run welcome window (welcome.cpp). `setupPage`: keyboard, switch key, tray, other
+// input methods; `profilePages`: the onboarding pages after it (onboarding.h
+// decideOnboarding) — both for a new user, profilePages alone when a new user's onboarding
+// was cut short last time.
+void showWelcome(bool setupPage = true, bool profilePages = false);
 bool welcomeDialogMessage(MSG* msg);
 
 }  // namespace vtx::app
