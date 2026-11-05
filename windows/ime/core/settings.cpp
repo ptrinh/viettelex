@@ -38,6 +38,7 @@ const BoolKey kBoolKeys[] = {
     {"filterSensitive", &Settings::filterSensitive},
     {"learnWords", &Settings::learnWords},
     {"retroactiveEnglish", &Settings::retroactiveEnglish},
+    {"englishByFrequency", &Settings::englishByFrequency},
 };
 constexpr size_t kBoolCount = sizeof(kBoolKeys) / sizeof(kBoolKeys[0]);
 constexpr uint32_t kMagic = 0x53585456;  // "VTXS"
@@ -93,7 +94,10 @@ uint32_t Settings::engineFlags() const {
     if (vniMode) f |= VTX_VNI;
     if (contextualEnglish) f |= VTX_CONTEXTUAL_ENGLISH;
     if (collisionPrefersVietnamese) f |= VTX_COLLISION_PREFERS_VI;
-    if (retro::flagWanted(contextualEnglish, retroactiveEnglish)) f |= VTX_RETRO_ENGLISH;
+    if (retro::flagWanted(contextualEnglish, retroactiveEnglish)) {
+        f |= VTX_RETRO_ENGLISH;
+        if (englishByFrequency) f |= VTX_ENGLISH_BY_FREQUENCY;   // inert without the retro flag
+    }
     // "goog" not "gôg" mid-word — only with auto-restore (else the boundary keeps "gôgle").
     if (autoRestore) f |= VTX_EAGER_ENGLISH_RESTORE;
     return f;

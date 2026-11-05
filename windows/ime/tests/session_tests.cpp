@@ -1371,3 +1371,78 @@ TEST(retro_snapshot_bit_roundtrip) {
     CHECK(t.retroactiveEnglish);
     CHECK(t == s);
 }
+
+// ---------------------------------------------------------------- Đoán từ trùng theo tần suất
+// (englishByFrequency, experimental): "His" at the start of a phrase commits as English; the
+// next word showing the phrase is Vietnamese flips it back — AUTOMATICALLY, in offer mode
+// too, and before an Enter goes through.
+
+namespace {
+struct FreqRig : RetroRig {
+    FreqRig(OutputMode m, bool autoApply, bool frequency = true) : RetroRig(m, autoApply) {
+        settings.englishByFrequency = frequency;
+        apply();
+    }
+};
+}  // namespace
+
+TEST(frequency_settings_gate) {
+    Settings s;
+    CHECK(!s.englishByFrequency);  // experimental: default OFF
+    CHECK(!(s.engineFlags() & VTX_ENGLISH_BY_FREQUENCY));
+    s.englishByFrequency = true;
+    CHECK(s.engineFlags() & VTX_ENGLISH_BY_FREQUENCY);  // with the retro flag (contextualEnglish)
+    s.contextualEnglish = false;
+    CHECK(!(s.engineFlags() & VTX_ENGLISH_BY_FREQUENCY));
+    CHECK(!(s.engineFlags() & VTX_RETRO_ENGLISH));
+    Settings t;
+    t.englishByFrequency = true;
+    const std::vector<uint8_t> b = serialize(t);
+    Settings u;
+    CHECK(deserialize(b.data(), b.size(), u));
+    CHECK(u.englishByFrequency);
+    CHECK(!u.retroactiveEnglish);
+    CHECK(u == t);
+}
+
+TEST(frequency_flip_back_applies_in_offer_and_auto_mode) {
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        for (bool autoApply : {false, true}) {
+            FreqRig r(m, autoApply);
+            r.type("His ");
+            CHECK_EQ(r.text(), std::string("His "));   // frequency rule: English at the start
+            r.type("huwngr ");
+            CHECK_EQ(r.text(), std::string("Hí hửng "));   // flipped back, no hint needed
+            FreqRig l(m, autoApply);
+            l.type("his huwngr ");
+            CHECK_EQ(l.text(), std::string("hí hửng "));
+            CHECK(r.s.retroOffer().empty());
+            FreqRig d(m, autoApply);
+            d.type("his his ");
+            CHECK_EQ(d.text(), std::string("hí hí "));
+            // Off: the plain retro behaviour (no frequency rule, nothing to flip).
+            FreqRig off(m, autoApply, false);
+            off.type("His huwngr ");
+            CHECK_EQ(off.text(), std::string("Hí hửng "));
+        }
+    }
+}
+
+TEST(frequency_flip_back_before_enter) {
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        for (bool autoApply : {false, true}) {
+            FreqRig r(m, autoApply);
+            r.type("his huwngr\n");
+            CHECK_EQ(r.text(), std::string("hí hửng\n"));   // the flip lands before the newline
+            CHECK(!r.s.retroUndoArmed());                    // Enter: no ⌫-undo
+        }
+    }
+}
+
+TEST(frequency_flip_back_skipped_when_text_does_not_verify) {
+    FreqRig r(OutputMode::InPlace, false);
+    r.type("His ");
+    r.doc.setText(u"Hiss ");   // something the session did not see
+    r.type("huwngr ");
+    CHECK_EQ(r.text(), std::string("Hiss hửng "));
+}

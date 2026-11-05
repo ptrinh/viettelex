@@ -381,6 +381,12 @@ const Pair kStrings[] = {
      L"very fast”).",
      L"When you go on typing an English sentence, words that were wrongly given Vietnamese tones are fixed "
      L"(e.g. “Hí cả í very fast” → “His car is very fast”)."},
+    {L"Đoán từ trùng theo tần suất (thử nghiệm)", L"Guess colliding words by frequency (experimental)"},
+    {L"Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his → hí) thì chọn tiếng Anh; từ kế cho "
+     L"thấy là tiếng Việt (hí hửng, hí hí) thì tự đổi lại. Cần bật Quyết định theo ngữ cảnh.",
+     L"At the start of a phrase, a word that is both a common English word and a rare Vietnamese syllable "
+     L"(his → hí) becomes English; if the next word shows the phrase is Vietnamese (hí hửng, hí hí), it is "
+     L"switched back automatically. Needs context-based decisions."},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace

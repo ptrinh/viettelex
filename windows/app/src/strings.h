@@ -130,6 +130,8 @@ enum class S {
     // Tự sửa từ phía trước (Chính tả page, right under Quyết định theo ngữ cảnh, shown only
     // while that is on; experimental)
     RetroEnglish, RetroEnglishDesc,
+    // Đoán từ trùng theo tần suất (right under Tự sửa từ phía trước, same condition; experimental)
+    EnglishByFrequency, EnglishByFrequencyDesc,
     Count
 };
 
