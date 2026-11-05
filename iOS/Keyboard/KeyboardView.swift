@@ -974,6 +974,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         var clipChips: [(display: String, insert: String)] = []
         var actionLabel: String? = nil  // chip hành động slot đầu ("Thêm dấu" / "Hoàn tác")…
         var actionPayload: String? = nil // …và payload (addTonesToken / undoTonesToken)
+        /// ONBOARDING-SPEC §8: từ đang soạn gõ sai và `word` là bản tự sửa đủ chắc — ô `word` tô nền
+        /// (dấu cách sẽ thay đúng chữ này khi "Tự sửa từ gõ sai" bật); chạm ô nguyên văn gửi
+        /// `keepTypedPrefix` + chữ gốc (giữ nguyên + không sửa lại). CorrectionHint.apply đặt.
+        var correction = false
         var isEmpty: Bool {
             literal == nil && word == nil && word2 == nil && moreWords.isEmpty && emojis.isEmpty && nextWords.isEmpty
                 && number == nil && math == nil
@@ -1014,6 +1018,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let labels: [UILabel]
         let emojis: [KeyButton]
         let dividers: [UIView]
+        /// Nền ô tô nền (ONBOARDING-SPEC §8) — nằm dưới các ô, không nhận chạm.
+        let pill = UIView()
+        private(set) var pillIndex: Int?
         private(set) var cellFrames: [CGRect] = []
         private var laidOut: CGSize = .zero
         private var emojiCount = 0
@@ -1038,6 +1045,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             emojis = (0..<3).map { _ in makeSlot() }
             dividers = (0..<(Self.poolSize - 1)).map { _ in UIView() }
             super.init(frame: .zero)
+            pill.isUserInteractionEnabled = false
+            pill.isHidden = true
+            pill.layer.cornerCurve = .continuous
+            addSubview(pill)
             for (b, l) in zip(slots, labels) {
                 l.textAlignment = .center
                 l.lineBreakMode = .byTruncatingMiddle   // như titleLabel UIButton cũ
@@ -1097,6 +1108,22 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 let x = i + 1 < n ? CGFloat(i + 1) * cw : i < cellFrames.count ? cellFrames[i].maxX : 0
                 d.frame = CGRect(x: x - 0.5, y: 4, width: 1, height: max(h - 8, 0))
             }
+            layoutPill()
+        }
+
+        /// Ô tô nền `i` (nil = gỡ). Chỉ đổi frame khi ô đổi.
+        func setPill(_ i: Int?) {
+            guard i != pillIndex else { return }
+            pillIndex = i
+            layoutPill()
+        }
+        private func layoutPill() {
+            guard let i = pillIndex, i < slots.count, slots[i].frame != .zero else { pill.isHidden = true; return }
+            // Cao hơn chữ một chút (ô 20pt), bo tròn như phím.
+            let f = slots[i].frame.insetBy(dx: 1, dy: -3)
+            pill.frame = f
+            pill.layer.cornerRadius = min(8, f.height / 2)
+            pill.isHidden = false
         }
         /// Số vạch ngăn dùng được ở chế độ hiện tại (chip: giữa các chip).
         var usableDividers: Int { (chipCount > 0 ? chipCount : slotCount) - 1 }
@@ -1336,6 +1363,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     static let undoReviseToken = "\u{E000}undoRevise"
     /// Payload chip "↩︎ chữ gốc": trả lại chữ đã gõ của lần tự sửa vừa rồi (AutoCorrect).
     static let undoAutoCorrectToken = "\u{E000}undoAutoCorrect"
+    /// Payload ô ngoặc kép cạnh ô tô nền (§8): tiền tố + chữ gốc — giữ nguyên, ghi "từng hoàn tác tự sửa".
+    static let keepTypedPrefix = "\u{E000}keep:"
     /// Payload chip sửa ngược tiếng Anh ("His car is") — công tắc "Tự sửa từ phía trước" TẮT.
     static let retroOfferToken = "\u{E000}retroOffer"
     /// Payload chip "↩︎ Khôi phục" sau khi tự sửa ngược (công tắc BẬT).
@@ -1352,6 +1381,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let slots: [Slot?]
         let emojis: [String]
         let paste: Paste
+        /// Ô tô nền (§8) — nil = không.
+        var pill: Int? = nil
     }
 
     /// Bộ gợi ý vừa vẽ — vẽ lại khi số ô đổi (xoay máy / đổi "Số từ gợi ý").
@@ -1375,10 +1406,12 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         var emojis: [String] = []
         var pasteCardOn = false
         var chipCount = 0
+        var pillIndex: Int?
         switch SuggestionSlots.arrange(set, count: suggestionBar.slotCount) {
         case .slots(let s, let e):
             for (i, x) in s.enumerated() where i < texts.count { texts[i] = x.map { ($0.label, $0.payload) } }
             emojis = e
+            pillIndex = s.firstIndex { $0?.highlight == true }
         case .chips(let c):
             for (i, x) in c.prefix(3).enumerated() { texts[i] = (x.label, x.payload) }
             chipCount = min(c.count, 3)
@@ -1399,7 +1432,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             dark: dark, theme: themeSettings.theme, ink: palette.barInk,
             slots: texts.map { $0.map { .init(display: $0.display, insert: $0.insert) } },
             emojis: emojis,
-            paste: pasteCardOn ? (set.pasteIsImage ? .image : .text) : .none)
+            paste: pasteCardOn ? (set.pasteIsImage ? .image : .text) : .none,
+            pill: pillIndex)
         if sig == lastSuggestionSig { return }
         lastSuggestionSig = sig
 
@@ -1417,6 +1451,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 b.payload = nil
             }
         }
+        // Ô tô nền (§8): nền + chữ theo màu phím của theme.
+        suggestionBar.setPill(pillIndex)
+        applyPillInk()
         // slot emoji (chỉ ở chế độ đang gõ, khi có emoji)
         suggestionBar.setEmojiCount(emojis.count)
         for (i, b) in emojiButtons.enumerated() {
@@ -1764,7 +1801,36 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         barLabelInkApplied = label
         for d in slotDividers { d.backgroundColor = ink.withAlphaComponent(0.18) }
         for l in suggestionBar.labels { l.textColor = label }   // cả ô đang ẩn
+        pillInkApplied = nil
+        applyPillInk()
     }
+
+    /// Màu ô tô nền (ONBOARDING-SPEC §8): nền = mặt phím chữ, chữ = chữ trên phím của theme đang
+    /// dùng ⇒ theo sáng/tối, theme có sẵn, theme tự tạo, độ trong suốt phím.
+    static func pillColors(_ p: KeyboardPalette) -> (fill: RGBA, ink: RGBA) { (p.keyFill, p.keyInk) }
+    private var pillInkApplied: (index: Int, fill: UIColor, ink: UIColor)?
+    private func applyPillInk() {
+        guard let i = suggestionBar.pillIndex, i < suggestionBar.labels.count else {
+            if let old = pillInkApplied, old.index < suggestionBar.labels.count {
+                suggestionBar.labels[old.index].textColor = barLabelInkApplied
+            }
+            pillInkApplied = nil
+            return
+        }
+        let c = Self.pillColors(palette)
+        let fill = c.fill.ui, ink = c.ink.ui
+        if let old = pillInkApplied, old.index == i, old.fill == fill, old.ink == ink { return }
+        if let old = pillInkApplied, old.index != i, old.index < suggestionBar.labels.count {
+            suggestionBar.labels[old.index].textColor = barLabelInkApplied
+        }
+        suggestionBar.pill.backgroundColor = fill
+        suggestionBar.labels[i].textColor = ink
+        pillInkApplied = (i, fill, ink)
+    }
+    /// Test: ô tô nền đang hiện (nil = không) và màu nền / chữ của nó.
+    var debugPillSlot: Int? { suggestionBar.pill.isHidden ? nil : suggestionBar.pillIndex }
+    var debugPillFill: UIColor? { suggestionBar.pill.backgroundColor }
+    var debugPillLabelInk: UIColor? { suggestionBar.pillIndex.map { suggestionBar.labels[$0].textColor } }
     /// Test: màu thanh gợi ý (vạch ngăn) đang áp (nil = chưa dựng thanh).
     var debugBarInkApplied: UIColor? { barInkApplied }
     /// Test: màu chữ ô gợi ý đang áp (nil = chưa dựng thanh).

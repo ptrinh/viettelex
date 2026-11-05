@@ -5,7 +5,9 @@
 // thiếu dấu / tiền tố — người gõ không dấu) và không là từ đã biết (tiếng Anh, từ người
 // dùng, Thay thế văn bản / danh bạ, từng hoàn tác). Ứng viên = thay ĐÚNG MỘT phím bằng
 // phím kề (AdjacentKeyFixer.oneEditCandidates) mà điểm chạm thật nghiêng về phím đó
-// (`evidence`); chỉ sửa khi ứng viên đủ phổ biến VÀ bỏ xa ứng viên thứ hai (`Params`).
+// (`evidence`), hoặc bỏ một phím chạm đúp ("anhh" → anh, `repeatCandidates`); chỉ sửa khi ứng
+// viên đủ phổ biến VÀ bỏ xa ứng viên thứ hai (`Params`). Thanh gợi ý tô nền đúng bản sửa này
+// (ONBOARDING-SPEC §8, `plan` + `decide` dùng chung với dấu cách).
 // Không có điểm chạm (từ vuốt, từ mở lại, bàn phím cứng) ⇒ không sửa. ⌫ ngay sau đó trả
 // lại chữ gốc. Ngưỡng dò bằng Android AutoCorrectEvalTests (mô phỏng chạm TouchSim).
 #if canImport(UIKit)
@@ -117,43 +119,97 @@ enum AutoCorrect {
     }
 
     /// Chọn ứng viên theo `p`; nil = không đủ chắc. `touches`: điểm chạm từng phím của `lower`.
+    /// Ứng viên chạm đúp (`Candidate.deletion`) không cần bằng chứng hướng chạm nhưng chỉ là PHƯƠNG ÁN
+    /// SAU: chỉ xét khi không ứng viên thay phím nào có bằng chứng chạm (trộn chung thì tụt precision:
+    /// P TEST 97.3% → 96.5%, Android AutoCorrectEvalTests 05/11/2026).
     static func pick(lower: String, cands: [AdjacentKeyFixer.Candidate], touches: [Touch],
                      p: Params = defaults) -> AdjacentKeyFixer.Candidate? {
         let chars = Array(lower)
-        var best: [String: AdjacentKeyFixer.Candidate] = [:]     // theo từ (cùng từ ⇒ cùng tần suất)
+        var slips: [String: AdjacentKeyFixer.Candidate] = [:]     // theo từ (cùng từ ⇒ cùng tần suất)
+        var repeats: [String: AdjacentKeyFixer.Candidate] = [:]
         for c in cands {
-            guard c.pos < touches.count, c.pos < chars.count,
-                  evidence(touches[c.pos], from: chars[c.pos], to: c.key) >= p.minEv   // chạm không nghiêng về phím này
-            else { continue }
-            if best[c.word] == nil { best[c.word] = c }
+            guard c.pos < touches.count, c.pos < chars.count else { continue }
+            if c.deletion { if repeats[c.word] == nil { repeats[c.word] = c }; continue }
+            guard evidence(touches[c.pos], from: chars[c.pos], to: c.key) >= p.minEv else { continue }   // chạm không nghiêng về phím này
+            if slips[c.word] == nil { slips[c.word] = c }
         }
-        let sorted = best.values.sorted { $0.freq != $1.freq ? $0.freq > $1.freq : $0.word < $1.word }
+        return confident(Array((slips.isEmpty ? repeats : slips).values), p: p)
+    }
+
+    /// Ứng viên phổ biến nhất nếu đủ phổ biến VÀ bỏ xa ứng viên thứ hai.
+    private static func confident(_ cands: [AdjacentKeyFixer.Candidate], p: Params) -> AdjacentKeyFixer.Candidate? {
+        let sorted = cands.sorted { $0.freq != $1.freq ? $0.freq > $1.freq : $0.word < $1.word }
         guard let top = sorted.first, top.freq >= p.minFreq else { return nil }
         if sorted.count > 1, top.freq - sorted[1].freq < p.margin { return nil }
         return top
     }
 
-    /// Bản sửa cho từ vừa gõ (phím thô `raw`) hoặc nil. `isKnown`: dạng chữ thường (phím thô
-    /// VÀ dạng hiển thị) là từ đã biết — tiếng Anh / từ người dùng / từng hoàn tác ⇒ không sửa.
+    /// Ứng viên CHẠM ĐÚP: một phím bị bấm hai lần liền ("anhh" → anh) — bỏ phím lặp thứ hai. Hai lần
+    /// chạm cùng một phím nên không có hướng lệch để làm bằng chứng; vẫn qua cùng ngưỡng tần suất /
+    /// khoảng cách (`pick`). Bỏ qua phím mà gõ đôi có nghĩa trong Telex (`telexDoubles`: aa ee oo dd
+    /// ww, phím thanh gõ lại để bỏ dấu).
+    static func repeatCandidates(_ lower: String, compose: (String) -> String,
+                                 frequency: (String) -> Int?) -> [AdjacentKeyFixer.Candidate] {
+        let c0 = Array(lower)
+        let current = compose(lower)
+        var out: [AdjacentKeyFixer.Candidate] = []
+        for i in c0.indices.dropFirst() where c0[i] == c0[i - 1] && !telexDoubles.contains(c0[i]) {
+            var c = c0; c.remove(at: i)
+            let w = compose(String(c))
+            guard w != current, let f = frequency(w) else { continue }
+            out.append(.init(word: w, freq: f, pos: i, key: c0[i], deletion: true))
+        }
+        return out
+    }
+    private static let telexDoubles = Set("aeodwsfrxjz")
+
+    /// Phần THUẦN, không cần trạng thái của tự sửa (chạy được ở hàng đợi nền cùng thanh gợi ý): từ
+    /// đang soạn `raw` có phải từ gõ sai không và các ứng viên sửa. nil = không sửa (từ hợp lệ /
+    /// đang gõ dở một từ / quá ngắn / có ký tự không phải chữ).
+    struct Plan {
+        let raw: String
+        let lower: String
+        let current: String
+        let cands: [AdjacentKeyFixer.Candidate]
+    }
+
+    static func plan(raw: String, compose: (String) -> String, frequency: (String) -> Int?,
+                     hasCompletion: (String) -> Bool, p: Params = defaults) -> Plan? {
+        guard (p.minLen...10).contains(raw.count), raw.allSatisfy({ $0.isASCII && $0.isLetter }) else { return nil }
+        let lower = raw.lowercased()
+        let current = compose(lower)
+        if frequency(current) != nil || hasCompletion(current) { return nil }
+        let cands = AdjacentKeyFixer.oneEditCandidates(lower, compose: compose, frequency: frequency,
+                                                       hasCompletion: hasCompletion)
+            + repeatCandidates(lower, compose: compose, frequency: frequency)
+        return Plan(raw: raw, lower: lower, current: current, cands: cands)
+    }
+
+    /// QUYẾT ĐỊNH sửa cho `plan` — dùng CHUNG cho ô tô nền trên thanh gợi ý và dấu cách
+    /// (ONBOARDING-SPEC §8: dấu cách không bao giờ ra chữ khác ô đã tô). `isKnown`: dạng chữ thường
+    /// (phím thô VÀ dạng hiển thị) là từ đã biết — tiếng Anh / từ người dùng / từng hoàn tác ⇒ không sửa.
+    static func decide(_ plan: Plan, touches: [Touch], isKnown: (String) -> Bool,
+                       p: Params = defaults) -> String? {
+        guard touches.count == plan.raw.count else { return nil }
+        if isKnown(plan.lower) { return nil }
+        if plan.current != plan.lower, isKnown(plan.current.lowercased()) { return nil }
+        guard let best = pick(lower: plan.lower, cands: plan.cands, touches: touches, p: p) else { return nil }
+        if plan.raw.first?.isUppercase == true, let f = best.word.first {
+            return f.uppercased() + best.word.dropFirst()
+        }
+        return best.word
+    }
+
+    /// Bản sửa cho từ vừa gõ (phím thô `raw`) hoặc nil — `plan` rồi `decide`.
     static func correction(raw: String, touches: [Touch],
                            compose: (String) -> String,
                            frequency: (String) -> Int?,
                            hasCompletion: (String) -> Bool,
                            isKnown: (String) -> Bool,
                            p: Params = defaults) -> String? {
-        guard (p.minLen...10).contains(raw.count), touches.count == raw.count,
-              raw.allSatisfy({ $0.isASCII && $0.isLetter }) else { return nil }
-        let lower = raw.lowercased()
-        if isKnown(lower) { return nil }
-        let current = compose(lower)
-        if current != lower, isKnown(current.lowercased()) { return nil }
-        if frequency(current) != nil || hasCompletion(current) { return nil }
-        guard let best = pick(lower: lower, cands: AdjacentKeyFixer.oneEditCandidates(
-            lower, compose: compose, frequency: frequency, hasCompletion: hasCompletion),
-            touches: touches, p: p) else { return nil }
-        if raw.first?.isUppercase == true, let f = best.word.first {
-            return f.uppercased() + best.word.dropFirst()
-        }
-        return best.word
+        guard touches.count == raw.count,
+              let plan = plan(raw: raw, compose: compose, frequency: frequency, hasCompletion: hasCompletion, p: p)
+        else { return nil }
+        return decide(plan, touches: touches, isKnown: isKnown, p: p)
     }
 }

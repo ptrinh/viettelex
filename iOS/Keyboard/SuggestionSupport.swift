@@ -254,3 +254,27 @@ enum AutoSpace {
         return parts.allSatisfy { !$0.isEmpty && $0.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" } }
     }
 }
+
+#if canImport(UIKit)
+/// ONBOARDING-SPEC §8 — tô nền gợi ý sửa khi gõ sai (THUẦN, song sinh Android CorrectionHint): ô 1 =
+/// chữ gốc `typed` (ngoặc kép — SuggestionSlots.arrange), ô giữa = `fix` tô nền (đúng chữ dấu cách sẽ
+/// áp), ô còn lại = ứng viên kế (đang có trên thanh, bỏ trùng). Không emoji: ô cuối dành cho ứng viên.
+/// Chỉ sắp lại ứng viên ĐÃ tính cho thanh gợi ý — không tính thêm gì.
+enum CorrectionHint {
+    /// `need`: số ô ứng viên (= "Số từ gợi ý" − 1, ô nguyên văn đã trừ).
+    static func apply(_ set: inout KeyboardView.SuggestionSet, typed: String, fix: String, need: Int) {
+        var seen = Set([fix.lowercased(), typed.lowercased()])
+        var words = [fix]
+        for w in [set.word, set.word2].compactMap({ $0 }) + set.moreWords where seen.insert(w.lowercased()).inserted {
+            words.append(w)
+        }
+        words = Array(words.prefix(max(need, 1)))
+        set.literal = typed
+        set.word = fix
+        set.word2 = words.count > 1 ? words[1] : nil
+        set.moreWords = Array(words.dropFirst(2))
+        set.emojis = []
+        set.correction = true
+    }
+}
+#endif

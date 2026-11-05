@@ -129,6 +129,13 @@ Khi từ đang soạn **không hợp lệ** (không phải âm tiết Việt, kh
 - Từ hợp lệ: thanh gợi ý như hiện tại (không ngoặc kép, không tô nền).
 - Chi phí: ứng viên đã được tính cho thanh gợi ý ⇒ chỉ thêm phần vẽ; không chạy thêm gì khi tắt thanh gợi ý.
 - Test: "Anhh" ⇒ ["\"Anhh\"", **Anh**, …]; từ hợp lệ không tô; dấu cách khi bật AutoCorrect áp đúng ô tô; chạm ô ngoặc kép ⇒ không sửa lần sau.
+- Đã làm (iOS + Android, `CorrectionHintTests` hai nền tảng):
+  - **Một quyết định chung**: `AutoCorrect` tách `plan` (phần thuần: từ có gõ sai không + ứng viên — chạy nền cùng thanh gợi ý, chỉ khi từ không khớp gì) và `decide` (điểm chạm + từ đã biết). Controller (`correctionDecision`) / `KeyboardSession` nhớ kết quả theo (phím thô, điểm chạm); dấu cách (`autoCorrector`) dùng lại đúng kết quả đó. Điều kiện theo chữ trên màn hình (hoa giữa câu, dính URL/email, gõ tắt, chế độ Tiếng Anh, ô email, omnibox…) dùng chung hàm của bridge: `EngineBridge.autoCorrectPreview` ↔ `tryAutoCorrect` ⇒ không tô ở chỗ dấu cách sẽ không sửa.
+  - **Ứng viên chạm đúp** (mới, để có "Anhh" → Anh): bỏ một phím lặp liền nhau (`AutoCorrect.repeatCandidates`) — không cần bằng chứng hướng chạm, vẫn qua cùng ngưỡng tần suất/khoảng cách (`minFreq` 175, `margin` 30). Chỉ là phương án sau (xét khi không có ứng viên thay phím kề nào có bằng chứng chạm) và bỏ qua phím gõ đôi có nghĩa trong Telex (a e o d w + phím thanh): trộn chung thì P TEST tụt 97.3% → 96.5%; bản hiện tại 97.2% (AutoCorrectEvalTests, VT_SLOW_TESTS=1 — mô phỏng chưa có chạm đúp nên chưa đo được recall phần này). Áp cho cả dấu cách khi bật tự sửa ("ddii" → đi; "toii" không sửa vì "toi" không đủ phổ biến).
+  - Ô 1 hiển thị “Anhh” (ngoặc kép cong, như ô nguyên văn iOS; Android bình thường không ngoặc, chỉ có ngoặc khi đang tô). Payload `keepTypedPrefix`/`KEEP_TYPED_PREFIX` + chữ gốc ⇒ chèn chữ gốc + ghi danh sách "từng hoàn tác tự sửa".
+  - Ô tô nền: iOS = màu mặt phím chữ + chữ trên phím của theme (`KeyboardView.pillColors`); Android = màu chip thanh gợi ý của theme (`ImeTheme.chip`/`chipInk`, như pill Khôi phục). Khi tô, bỏ emoji ở ô cuối để ô đó là ứng viên kế.
+  - Chi phí: thanh gợi ý tắt + tự sửa tắt ⇒ không ghi điểm chạm, không tính gì. Thanh bật ⇒ ghi điểm chạm (một struct/phím); `plan` chỉ chạy khi từ không khớp âm tiết nào; đọc context chỉ khi đã có bản sửa.
+  - Cần điểm chạm: từ gõ bằng bàn phím cứng / từ vuốt / từ mở lại để sửa ⇒ không tô (như tự sửa). Thay thế văn bản + danh bạ (iOS) chỉ nạp khi bật tự sửa — tắt tự sửa thì ô tô nền có thể gợi ý cả tên trong danh bạ (chỉ là gợi ý).
 
 ## 9. Thứ tự làm
 

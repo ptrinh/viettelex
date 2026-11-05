@@ -20,6 +20,8 @@ import Foundation
 struct BarChip: Equatable {
     let label: String
     let payload: String
+    /// Ô tô nền — bản tự sửa dấu cách sẽ áp (ONBOARDING-SPEC §8).
+    var highlight = false
 }
 
 enum BarLayout: Equatable {
@@ -99,13 +101,20 @@ enum SuggestionSlots {
                 slots[i] = BarChip(label: w, payload: w)
             }
         } else if n == 1 {
-            if let w = set.word ?? set.literal { slots[0] = BarChip(label: w, payload: w) }
+            if let w = set.word { slots[0] = BarChip(label: w, payload: w, highlight: set.correction) }
+            else if let l = set.literal { slots[0] = BarChip(label: l, payload: l) }
         } else {
-            if let l = set.literal { slots[0] = BarChip(label: "\u{201C}\(l)\u{201D}", payload: l) }
+            // Ô tô nền (§8): chạm nguyên văn = giữ nguyên + không sửa lại (keepTypedPrefix).
+            if let l = set.literal {
+                slots[0] = BarChip(label: "\u{201C}\(l)\u{201D}",
+                                   payload: set.correction ? KeyboardView.keepTypedPrefix + l : l)
+            }
             // ứng viên theo vị trí (word, word2, moreWords…) vào ô 1…; ô cuối nhường emoji
             let words: [String?] = [set.word, set.word2] + set.moreWords.map { $0 }
             let room = n - 1 - (emojis.isEmpty ? 0 : 1)
-            for (i, w) in words.prefix(room).enumerated() { slots[1 + i] = w.map { BarChip(label: $0, payload: $0) } }
+            for (i, w) in words.prefix(room).enumerated() {
+                slots[1 + i] = w.map { BarChip(label: $0, payload: $0, highlight: i == 0 && set.correction) }
+            }
         }
         // 1 (slot) / 3. hoàn tác, "Thêm dấu", "↩︎ từ cũ" (vuốt vừa sửa từ trước) hoặc "↩︎ chữ
         // gốc" (vừa tự sửa) chiếm slot đầu, chữ dời phải theo thứ tự đọc.

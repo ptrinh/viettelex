@@ -77,6 +77,11 @@ final class KeyboardViewController: UIInputViewController {
     private var autoCorrectSetting = false
     /// Tự sửa đang chạy ở ô này (công tắc + AutoCorrect.fieldAllows) — tắt ⇒ 0 việc mỗi phím.
     private var autoCorrectActive = false
+    /// ONBOARDING-SPEC §8 — tô nền gợi ý sửa: thanh gợi ý chữ đang bật ở ô tự sửa được (không VNI).
+    /// Bật cả khi công tắc tự sửa TẮT (ô tô nền chỉ là gợi ý); thanh tắt ⇒ false, 0 việc mỗi phím.
+    private var correctionHintActive = false
+    /// Quyết định tự sửa của từ đang soạn (phím thô → bản sửa) — ô tô nền và dấu cách dùng CHUNG.
+    private var acMemo: (raw: String, fix: String?)?
     /// Điểm chạm từng phím của từ đang gõ; hỏng (ok = false) khi có phím không kèm điểm
     /// chạm, ⌫ giữa từ, từ nạp lại… ⇒ từ đó không tự sửa.
     private var wordTouches: [AutoCorrect.Touch] = []
@@ -444,6 +449,9 @@ final class KeyboardViewController: UIInputViewController {
             else if item == KeyboardView.undoTonesToken { self.undoAddTones() }
             else if item == KeyboardView.undoReviseToken { self.undoSwipeRevision() }
             else if item == KeyboardView.undoAutoCorrectToken { self.revertAutoCorrect() }
+            else if item.hasPrefix(KeyboardView.keepTypedPrefix) {
+                self.keepTyped(String(item.dropFirst(KeyboardView.keepTypedPrefix.count)))
+            }
             else if item == KeyboardView.retroOfferToken { self.retroChip(apply: true) }
             else if item == KeyboardView.undoRetroToken { self.retroChip(apply: false) }
             else if self.acceptSwipeAlternative(item) { return }
@@ -726,7 +734,6 @@ final class KeyboardViewController: UIInputViewController {
         if force || ac != autoCorrectActive {
             autoCorrectActive = ac
             bridge.autoCorrector = ac ? { [weak self] raw in self?.autoCorrection(raw) } : nil
-            keyboard.onLetterTouch = ac ? { [weak self] dx, dy in self?.pendingTouch = AutoCorrect.Touch(dx: dx, dy: dy) } : nil
         }
         // Một lần rebuild cho cả 3 (và 0 lần nếu field giống lần trước).
         keyboard.batchConfigure {
@@ -753,6 +760,13 @@ final class KeyboardViewController: UIInputViewController {
         let active = mode.shown
         let modeChanged = mode != stripMode
         stripMode = mode
+        // Tô nền gợi ý sửa (§8): cần điểm chạm như tự sửa — thanh tắt / ô không tự sửa ⇒ không ghi gì.
+        let hint = active && mode == .full && !bridge.vniMode && AutoCorrect.fieldAllows(t)
+        if force || hint != correctionHintActive || (ac || hint) != (keyboard.onLetterTouch != nil) {
+            correctionHintActive = hint
+            keyboard.onLetterTouch = ac || hint
+                ? { [weak self] dx, dy in self?.pendingTouch = AutoCorrect.Touch(dx: dx, dy: dy) } : nil
+        }
         if force || active != suggestionsActive || modeChanged {
             suggestionsActive = active
             // Strip giữ theo công tắc toàn cục: đổi sang ô không gợi ý không làm bàn phím
@@ -1021,7 +1035,7 @@ final class KeyboardViewController: UIInputViewController {
             let fresh = !bridge.isComposing
             bridge.letter(ch, proxy: proxy)
             restoreUndo = nil; undoOfferActive = false
-            if autoCorrectActive { noteTouch(fresh: fresh, touch) }
+            if autoCorrectActive || correctionHintActive { noteTouch(fresh: fresh, touch) }
         case .replaceLastLetter(let s):
             // Huỷ đúng phím chữ vừa gõ (không được thì ⌫ như cũ) rồi chèn như ký hiệu.
             if !bridge.undoLastLetter(proxy: proxy) { bridge.backspace(proxy: proxy) }
@@ -1227,23 +1241,43 @@ final class KeyboardViewController: UIInputViewController {
 
     /// Ghi điểm chạm phím chữ vừa gõ; `fresh` = phím đầu của từ mới.
     private func noteTouch(fresh: Bool, _ touch: AutoCorrect.Touch?) {
+        acMemo = nil
         if fresh { wordTouches.removeAll(keepingCapacity: true); wordTouchesOk = true }
         if let touch { if wordTouchesOk { wordTouches.append(touch) } } else { wordTouchesOk = false }
         if wordTouches.count != bridge.rawWord.count { wordTouchesOk = false }   // nạp lại từ cũ, phím ngoài engine…
     }
 
     /// `EngineBridge.autoCorrector`: chỉ khi có đủ điểm chạm cho đúng các phím của từ.
-    private func autoCorrection(_ raw: String) -> String? {
+    private func autoCorrection(_ raw: String) -> String? { correctionDecision(raw, plan: nil) }
+
+    /// Quyết định tự sửa cho từ đang soạn `raw` — MỘT nguồn cho ô tô nền (thanh gợi ý) và dấu cách
+    /// (ONBOARDING-SPEC §8): tính một lần cho mỗi bộ (phím thô, điểm chạm), lần sau dùng lại ⇒ dấu
+    /// cách không bao giờ ra chữ khác ô đã tô. `plan`: phần thuần thanh gợi ý đã tính ở hàng đợi nền.
+    private func correctionDecision(_ raw: String, plan: AutoCorrect.Plan?) -> String? {
         guard wordTouchesOk, wordTouches.count == raw.count else { return nil }
+        if let m = acMemo, m.raw == raw { return m.fix }
         let b = bridge
-        return AutoCorrect.correction(
-            raw: raw, touches: wordTouches, compose: { b.composeTrial($0) },
-            frequency: { VNSuggest.frequency(of: $0) },
-            hasCompletion: { !VNSuggest.matches($0, poolLimit: 1).isEmpty },
-            isKnown: { [self] w in
+        let pl = plan.flatMap { $0.raw == raw ? $0 : nil }
+            ?? AutoCorrect.plan(raw: raw, compose: { b.composeTrial($0) },
+                                frequency: { VNSuggest.frequency(of: $0) },
+                                hasCompletion: { !VNSuggest.matches($0, poolLimit: 1).isEmpty })
+        let fix = pl.flatMap {
+            AutoCorrect.decide($0, touches: wordTouches, isKnown: { [self] w in
                 autoCorrectRejected.contains(w) || lexiconWords.contains(w)
                     || langModel.isUserWord(w) || AutoCorrect.isEnglish(w)
             })
+        }
+        acMemo = (raw, fix)
+        return fix
+    }
+
+    /// Chạm ô ngoặc kép cạnh ô tô nền (§8): giữ chữ đã gõ + không bao giờ tự sửa lại từ này.
+    private func keepTyped(_ typed: String) {
+        if autoCorrectRejected.add(typed) {
+            UserDefaults.standard.set(autoCorrectRejected.encode(), forKey: Self.rejectedKey)
+        }
+        acMemo = nil
+        acceptSuggestion(typed)
     }
 
     /// Chip sửa ngược tiếng Anh: `apply` = áp phép sửa đang mời ("His car is"), không thì
@@ -1280,6 +1314,7 @@ final class KeyboardViewController: UIInputViewController {
         if autoCorrectRejected.add(original) {
             UserDefaults.standard.set(autoCorrectRejected.encode(), forKey: Self.rejectedKey)
         }
+        acMemo = nil
         if let l = lastLearned, l.word == fixed {
             if let r = l.receipt { langModel.retract(r) }
             lastWord = l.prev1; lastWord2 = l.prev2
@@ -1816,6 +1851,8 @@ final class KeyboardViewController: UIInputViewController {
             let req = suggestReq, gen = suggestionGen, b = bridge
             let raw = b.rawWord, predicted = b.predictedCommit, wantFix = b.autoFixAdjacent
             let prev = lastWord, prev2 = lastWord2, english = b.englishMode
+            // Tô nền gợi ý sửa (§8): từ không khớp gì ⇒ tính luôn phần thuần của tự sửa ở nền.
+            let wantPlan = correctionHintActive && wordTouchesOk && !english
             Self.suggestQueue.async { [weak self] in
                 // Chế độ Tiếng Anh: hoàn thành từ enlexicon, không sửa chạm trượt / bigram Việt.
                 let pool = english ? SwipeEnglish.completions(composed, limit: 24)
@@ -1831,13 +1868,19 @@ final class KeyboardViewController: UIInputViewController {
                 let en = english || !EnglishAssist.eligible(raw: raw) ? nil
                     : EnglishAssist.suggest(raw: raw, composed: composed, pool: pool,
                                             typedFreq: VNSuggest.frequency(of: composed))
+                let plan = wantPlan && pool.isEmpty
+                    ? AutoCorrect.plan(raw: raw, compose: { b.composeTrial($0) },
+                                       frequency: { VNSuggest.frequency(of: $0) },
+                                       hasCompletion: { !VNSuggest.matches($0, poolLimit: 1).isEmpty })
+                    : nil
                 DispatchQueue.main.async {
                     guard let self, req == self.suggestReq, gen == self.suggestionGen,
                           self.bridge === b, b.composedWord == composed,
                           self.suggestionsActive
                     else { return }
                     self.showComposingSuggestions(composed: composed, raw: raw, predicted: predicted,
-                                                  pool: pool, pmi: pmi, fix: fix, slip: slip, english: en)
+                                                  pool: pool, pmi: pmi, fix: fix, slip: slip, english: en,
+                                                  plan: plan)
                 }
             }
             return
@@ -1941,7 +1984,8 @@ final class KeyboardViewController: UIInputViewController {
     /// Phần main của gợi ý khi đang gõ dở: pool (VNSuggest) + fix đã tính nền.
     private func showComposingSuggestions(composed: String, raw: String, predicted: String,
                                           pool: [VNSuggest.Match], pmi: [Float]?, fix: String?,
-                                          slip: String? = nil, english: EnglishAssist.Result? = nil) {
+                                          slip: String? = nil, english: EnglishAssist.Result? = nil,
+                                          plan: AutoCorrect.Plan? = nil) {
         var set = KeyboardView.SuggestionSet()
         // Slot "nguyên văn" = phương án mà boundary SẼ KHÔNG cho ra —
         // lối thoát cho cả hai chiều collision (user chốt 2026-07-24):
@@ -2033,6 +2077,13 @@ final class KeyboardViewController: UIInputViewController {
             set.word = words.first
             set.word2 = words.count > 1 ? words[1] : nil
             set.moreWords = Array(words.dropFirst(2))
+        }
+        // Tô nền gợi ý sửa (ONBOARDING-SPEC §8): từ gõ sai + bản sửa đủ chắc (CÙNG quyết định với
+        // dấu cách — correctionDecision) + dấu cách lúc này áp được (autoCorrectPreview: chữ hoa đầu
+        // câu, không dính URL, không gõ tắt…). Đọc context chỉ khi đã có bản sửa (hiếm).
+        if let plan, let fix = correctionDecision(raw, plan: plan),
+           let original = bridge.autoCorrectPreview(fix, context: textProxy.documentContextBeforeInput) {
+            CorrectionHint.apply(&set, typed: original, fix: fix, need: slotWant - 1)
         }
         // Đang gõ đúng một chữ tắt: slot chính hiện nội dung sẽ bung (chạm = bung ngay).
         // (Nội dung nhiều dòng không lên bar — chạm sẽ chèn sai; gõ ranh giới vẫn bung.)
