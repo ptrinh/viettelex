@@ -208,13 +208,13 @@ final class NumericKeypadTests: XCTestCase {
         try XCTSkipIf(isPad)
         let (kb, _) = makeKeyboard(.decimal(separator: "."))
         for label in ["5", "."] {
-            let k = try XCTUnwrap(kb.debugKeypadKey(label) as? UIButton)
+            let k = try XCTUnwrap(kb.debugKeypadKey(label) as? KeyboardView.KeyButton)
             XCTAssertNotNil(kb.debugKeyColors(k).pressed, label)
         }
         kb.keyPressHighlightEnabled = false
         kb.layoutIfNeeded()
         for label in ["5", "."] {
-            let k = try XCTUnwrap(kb.debugKeypadKey(label) as? UIButton)
+            let k = try XCTUnwrap(kb.debugKeypadKey(label) as? KeyboardView.KeyButton)
             XCTAssertNil(kb.debugKeyColors(k).pressed, label)
             k.sendActions(for: .touchDown); k.sendActions(for: .touchCancel)
             XCTAssertEqual(kb.debugKeyColors(k).current, kb.debugKeyColors(k).normal, label)

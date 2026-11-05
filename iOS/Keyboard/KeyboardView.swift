@@ -58,8 +58,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let lf = labelFonts
         // Tuỳ chỉnh nâng cao (Plus): phông/độ đậm/cỡ — UIFont cache theo cỡ (KeyLabelFonts).
         if lf.active { return lf.font(size: size * lf.scale) }
-        return compactDescriptor.map { UIFont(descriptor: $0, size: size) } ?? .systemFont(ofSize: size)
+        // Mặc định: cùng một UIFont mỗi cỡ (mỗi phím từng tạo lại từ descriptor).
+        if let f = defaultKeyFonts[size] { return f }
+        let f = compactDescriptor.map { UIFont(descriptor: $0, size: size) } ?? .systemFont(ofSize: size)
+        defaultKeyFonts[size] = f
+        return f
     }
+    nonisolated(unsafe) private static var defaultKeyFonts: [CGFloat: UIFont] = [:]
     /// "Tuỳ chỉnh nâng cao" đang áp (sau cổng Plus) — đặt lại mỗi lần hiện (applyAppearance),
     /// TRƯỚC khi dựng phím. Mặc định = như cũ (không đo, không kẹp, bo 8).
     nonisolated(unsafe) static var labelFonts = KeyLabelFonts(style: .default, compact: compactDescriptor)
@@ -90,8 +95,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func applyKeycapFont(_ b: KeyButton, title: String) {
         guard !Self.isPad else { return }
         let size = KeyGeometry.Typography.size(for: title, compact: Self.hasCompactFont)
-        if b.requestedFontSize != size || !Self.labelFonts.active && b.titleLabel?.font.pointSize != size {
-            b.titleLabel?.font = Self.keyFont(size)
+        if b.requestedFontSize != size || !Self.labelFonts.active && b.titleFont.pointSize != size {
+            b.titleFont = Self.keyFont(size)
             b.requestedFontSize = size
         }
         b.baselineAligned = true
@@ -100,7 +105,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func applyLabelFont(_ b: KeyButton, size: CGFloat) {
         // iPad: nhãn phím đổi plane dạt góc dưới-trái như stock (#+=, 123, ABC).
         guard !Self.isPad else { b.padRole = .corner(left: true); return }
-        b.titleLabel?.font = Self.keyFont(size)
+        b.titleFont = Self.keyFont(size)
         b.baselineAligned = true
     }
     /// Khe shift↔Z, M↔⌫ (khe giữa chữ là 6).
@@ -187,17 +192,19 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var returnTitle = "return"
     private var dark = false
 
-    private var rowsContainer = UIStackView()
-    private var rowsHeightConstraint: NSLayoutConstraint?
-    private var rowsMaxHeightConstraint: NSLayoutConstraint?
-    /// Sàn chiều cao vùng hàng (@999, trên rowsTop @998): host cấp THIẾU thì strip gợi ý
-    /// nhường trước, hàng phím giữ đủ cao (KeyLayout.chrome).
-    private var rowsMinHeightConstraint: NSLayoutConstraint?
-    private var rowsMinTopConstraint: NSLayoutConstraint?
-    private var rowsTopConstraint: NSLayoutConstraint?
-    private var rowsBottomConstraint: NSLayoutConstraint?
-    private var rowsLeftConstraint: NSLayoutConstraint?
-    private var rowsRightConstraint: NSLayoutConstraint?
+    /// Vùng hàng phím — khung tính tay ở layoutRowsArea (KeyRowLayout.rowsArea: cùng thang ưu
+    /// tiên rows↔view như các constraint cũ), không Auto Layout.
+    private let rowsContainer = KeyGridView()
+    /// Đỉnh vùng hàng mong muốn (= strip + headroom, KeyLayout.chrome) — thay rowsTop @997 cũ.
+    private var rowsTopWanted: CGFloat = 0
+    /// Chiều cao vùng hàng mong muốn (sàn @998, đích @900, trần +60 bắt buộc).
+    private var rowsHeightWanted: CGFloat = 212
+    /// Sàn đỉnh (@999): host cấp thiếu thì strip nhường tới đây rồi phím mới co.
+    private var rowsMinTop: CGFloat = KeyLayout.balloonHeadroom
+    /// Đáy vùng hàng cách đáy view (safe area máy gập + "Nâng bàn phím").
+    private var rowsBottomGap: CGFloat = 0
+    /// Lề trái/phải vùng hàng (chế độ một tay).
+    private var rowsSideInsets: (left: CGFloat, right: CGFloat) = (0, 0)
     private var repeatTimer: Timer?
     private var lastSuggestionSig: BarSignature?
     private var wordDeleteTick = 0
@@ -282,59 +289,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // nearest-key router chỉ có tác dụng SAU khi touch đã tới process này.
         // Alpha 0.01: đủ để render server coi là "có nội dung", mắt không thấy.
         backgroundColor = Self.touchableClear
-        rowsContainer.axis = .vertical
-        rowsContainer.distribution = .fillEqually
-        rowsContainer.spacing = 0
-        rowsContainer.isMultipleTouchEnabled = true
-        rowsContainer.translatesAutoresizingMaskIntoConstraints = false
+        // Vùng hàng: khung đặt tay mỗi lượt layout (layoutRowsArea) — thang ưu tiên cũ (rows height
+        // @900 nhường host, trần +60, đỉnh = strip @997, sàn cao @998, sàn đỉnh headroom @999, đỉnh
+        // ≥ 0) giờ là KeyRowLayout.rowsArea; xem lịch sử constraint ở đó.
         addSubview(rowsContainer)
-        // Host thường cấp NHIỀU hơn mức xin (~25pt trên iOS 26) — để phím hấp
-        // thụ phần dư thay vì thành dải trống trên đỉnh (user 2026-07-24):
-        // rows height ưu tiên 900 (nhường host), kèm trần +60pt (required) để
-        // cú áp frame khổng lồ lúc host đang settle không kéo phím giãn vô hạn
-        // (vụ 'flash' cũ) — quá trần thì phần dư mới tràn lên trên.
-        let rowsHeight = rowsContainer.heightAnchor.constraint(equalToConstant: 212)
-        rowsHeight.priority = UILayoutPriority(900)
-        let rowsMax = rowsContainer.heightAnchor.constraint(lessThanOrEqualToConstant: 272)
-        // rows.top = view.top + strip — MỘT constraint quyết định vùng gợi ý,
-        // không còn dây bar↔rows / margin động (nguồn của mọi conflict cũ).
-        // 999: host áp frame khổng lồ lúc settle thì nhả êm, dư tràn lên trên.
-        // 998 (dưới sàn rowsMin 999): host cấp thiếu chiều cao thì strip co trước, phím
-        // không co (bug 1.2.x: phím lùn ở Notes/Facebook). rows.top ≥ view.top (required)
-        // chặn hàng phím tràn khỏi đỉnh khi host cấp thiếu cả keyArea.
-        let rowsTop = rowsContainer.topAnchor.constraint(equalTo: topAnchor, constant: 0)
-        rowsTop.priority = UILayoutPriority(997)
-        let rowsMin = rowsContainer.heightAnchor.constraint(greaterThanOrEqualToConstant: 212)
-        rowsMin.priority = UILayoutPriority(998)
-        // Sàn headroom balloon (999, trên rowsMin): host cấp thiếu thì strip nhường tới sàn
-        // này rồi phím mới co — balloon hàng đầu luôn có chỗ (bug Phil 30/09/2026).
-        let rowsMinTop = rowsContainer.topAnchor.constraint(greaterThanOrEqualTo: topAnchor,
-                                                            constant: KeyLayout.balloonHeadroom)
-        rowsMinTop.priority = UILayoutPriority(999)
-        rowsMinTopConstraint = rowsMinTop
-        // Hai mép là constraint GIỮ LẠI: chế độ một tay thụt vào (applyOneHand).
-        // Đáy hàng phím = đáy view − safeBottom (máy gập mở: tránh vạch home — KeyLayout).
-        let rowsBottom = rowsContainer.bottomAnchor.constraint(equalTo: bottomAnchor, constant: 0)
-        let rowsLeft = rowsContainer.leftAnchor.constraint(equalTo: leftAnchor)
-        let rowsRight = rowsContainer.rightAnchor.constraint(equalTo: rightAnchor)
-        rowsLeftConstraint = rowsLeft
-        rowsRightConstraint = rowsRight
-        NSLayoutConstraint.activate([
-            rowsLeft,
-            rowsRight,
-            rowsHeight,
-            rowsMax,
-            rowsTop,
-            rowsMin,
-            rowsMinTop,
-            rowsContainer.topAnchor.constraint(greaterThanOrEqualTo: topAnchor),
-            rowsBottom,
-        ])
-        rowsBottomConstraint = rowsBottom
-        rowsHeightConstraint = rowsHeight
-        rowsMinHeightConstraint = rowsMin
-        rowsMaxHeightConstraint = rowsMax
-        rowsTopConstraint = rowsTop
         // Suggestion bar sống trong "khoảng trống 2" — chỉ hiện khi bật. KHUNG CỐ ĐỊNH
         // (frame đặt ở layoutSubviews, không constraint): xem SuggestionBar.
         suggestionBar.isHidden = true
@@ -387,6 +345,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     func dropCaches() {
         planeCache.removeAll()
         EmojiData.dropCaches()
+        KeyButton.dropTextSizeCache()
     }
 
     #if DEBUG
@@ -525,7 +484,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let right = barRightExtras
         // Host cấp thiếu chiều cao ⇒ strip co (phím giữ nguyên): bar Vừa/Cao co về chỗ còn lại
         // trước (sàn 20 = mức Thấp), hết chỗ mới dời lên VỪA đủ để không đè hàng đầu.
-        let top = barRowTop(strip: max(rowsTopConstraint?.constant ?? openStripNow, openStripNow))
+        let top = barRowTop(strip: max(rowsTopWanted, openStripNow))
         let room = rowsContainer.frame.height > 0 ? rowsContainer.frame.minY - top : .greatestFiniteMagnitude
         let h = max(min(barRowNow, room), min(barRowNow, SuggestionBarHeight.baseRow))
         let squeeze = rowsContainer.frame.height > 0
@@ -547,7 +506,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         layoutBuddy(stripOpen: open)
         layoutEmojiBarButton()
         guard open, bounds.width > 0 else { stripZonesKey = nil; return }
-        let strip = max(rowsTopConstraint?.constant ?? openStripNow, openStripNow)
+        let strip = max(rowsTopWanted, openStripNow)
         // layoutSubviews chạy cả khi gõ (shift/balloon) — trạng thái không đổi thì khỏi
         // dựng lại ảnh SF Symbol + insets mỗi lượt.
         let key = StripZonesKey(width: bounds.width, strip: strip, rowTop: barRowTop(strip: strip),
@@ -670,7 +629,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         switch s { case .off: return .off; case .once: return .on; case .capsLock: return .caps }
     }
     /// Phím chữ `b` chạm lúc `time` khi đang giữ ⇧: ký tự phụ phải gõ thay chữ (nil ⇒ chữ như cũ).
-    private func shiftSymbol(for b: UIButton, time: TimeInterval) -> String? {
+    private func shiftSymbol(for b: KeyButton, time: TimeInterval) -> String? {
         // Nút ⇧ bị gỡ (rebuild) giữa lúc giữ thì không có touchUp: ⇧ phải thật sự đang bị đè.
         guard shiftKeyTracking else { shiftHold.cancel(); return nil }
         guard let base = letterKeys.first(where: { $0.button === b })?.base.first else { return nil }
@@ -687,7 +646,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var debugShiftTrackingOverride: Bool?
     #endif
     /// Gõ ký tự phụ của giữ ⇧ trên phím `b` (thay cho action chữ của nút).
-    private func typeShiftSymbol(_ sym: String, on b: UIButton) {
+    private func typeShiftSymbol(_ sym: String, on b: KeyButton) {
         Self.clickLetter()
         showBalloon(over: b, text: sym)
         fxMark(b)
@@ -697,7 +656,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
     /// Có phím nào ra ký tự phụ không — controller bật checkpoint huỷ phím chữ theo cờ này.
     var altHoldActive: Bool { !currentAlts().isEmpty }
-    private var altHold: (id: ObjectIdentifier, button: UIButton, hold: KeyAlternates.Hold)?
+    private var altHold: (id: ObjectIdentifier, button: KeyButton, hold: KeyAlternates.Hold)?
     private var altTimer: DispatchWorkItem?
 
     /// iPhone 216pt dọc / 162pt ngang; iPad 240/300 — GỌN hơn stock (264/352)
@@ -907,7 +866,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let headroom = headroomNow
         let c = KeyLayout.chrome(keyArea: spec.keyArea(numberRow: numberRowEnabled, fullHeight: numberRowFullHeight),
                                  strip: strip, mode: chromeMode, headroom: headroom)
-        if rowsTopConstraint?.constant != c.rowsTop { rowsTopConstraint?.constant = c.rowsTop }
+        if rowsTopWanted != c.rowsTop { rowsTopWanted = c.rowsTop; setNeedsLayout() }
         // Một nguồn (KeyLayout.requestedHeight). Lúc viewWillAppear (bounds 0) rowSpec dùng
         // layoutHint ⇒ chiều cao này đã là chiều cao cuối — host đo ở đây.
         baseRequestedHeight = KeyLayout.requestedHeight(spec: spec, numberRow: numberRowEnabled,
@@ -916,13 +875,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                                                         bottomInset: bottomInset)
         let total = baseRequestedHeight + hostFillExtra
         if heightConstraint?.constant != total { heightConstraint?.constant = total }
-        if rowsBottomConstraint?.constant != -bottomInset { rowsBottomConstraint?.constant = -bottomInset }
-        if rowsHeightConstraint?.constant != c.rows { rowsHeightConstraint?.constant = c.rows }
-        if rowsMinHeightConstraint?.constant != c.rows { rowsMinHeightConstraint?.constant = c.rows }
-        if rowsMinTopConstraint?.constant != c.minTop { rowsMinTopConstraint?.constant = c.minTop }
-        if rowsMaxHeightConstraint?.constant != c.rows + 60 { rowsMaxHeightConstraint?.constant = c.rows + 60 }
-        let barH = KeyLayout.emojiSearchBarHeight(strip: strip)
-        if let h = searchBarHeight, h.constant != barH { h.constant = barH }
+        if rowsBottomGap != bottomInset || rowsHeightWanted != c.rows || rowsMinTop != c.minTop {
+            rowsBottomGap = bottomInset; rowsHeightWanted = c.rows; rowsMinTop = c.minTop
+            setNeedsLayout()
+        }
+        if rowsContainer.headerHeight != nil { rowsContainer.headerHeight = KeyLayout.emojiSearchBarHeight(strip: strip) }
         suggestionBar.isHidden = !visible
         suggestionBar.alpha = 1
         if !visible { if pasteCardMade { pasteCard.isHidden = true }; notePasteOffer(false) }   // emoji plane
@@ -955,12 +912,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             else if builtGeom != nil, builtGeom != geomSig { rebuild() }
         }
         applyOneHand()
+        layoutRowsArea()
         if let r = indentedRow {
             // Thụt theo bề ngang VÙNG PHÍM (một tay: hẹp hơn view) — hàng 2 đúng nửa phím.
             let inset = KeyGeometry.indentedMargin(width: keysWidth, margin: sideMarginNow,
                                                    gap: keyGapNow, units: indentedRowInset)
-            if r.layoutMargins.left != inset {
-                r.layoutMargins = UIEdgeInsets(top: rowSpec.gap, left: inset, bottom: 0, right: inset)
+            if r.margins.left != inset {
+                r.margins = UIEdgeInsets(top: rowSpec.gap, left: inset, bottom: 0, right: inset)
             }
         }
         applyBottomTrim()
@@ -980,6 +938,20 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             pasteCard.frame = CGRect(x: w, y: Self.barTopPad, width: max(bounds.width - w - clipW, 0),
                                      height: openStripNow - Self.barTopPad)
         }
+    }
+
+    /// Khung vùng hàng phím (thay các constraint rows↔view cũ): thang ưu tiên tính tay
+    /// (KeyRowLayout.rowsArea), mép làm tròn pixel như Auto Layout; lưới xếp hàng theo toạ độ
+    /// chính xác để mép từng phím cũng làm tròn y như trước.
+    private func layoutRowsArea() {
+        let a = KeyRowLayout.rowsArea(viewHeight: bounds.height, bottomInset: rowsBottomGap, top: rowsTopWanted,
+                                      rows: rowsHeightWanted, minTop: rowsMinTop)
+        let exact = CGRect(x: rowsSideInsets.left, y: a.top,
+                           width: max(bounds.width - rowsSideInsets.left - rowsSideInsets.right, 0), height: a.height)
+        let k = traitCollection.displayScale > 0 ? traitCollection.displayScale : UIScreen.main.scale
+        let f = KeyRowLayout.rounded(x0: exact.minX, x1: exact.maxX, y0: exact.minY, y1: exact.maxY, scale: k)
+        if rowsContainer.exactFrame != exact { rowsContainer.exactFrame = exact; rowsContainer.setNeedsLayout() }
+        if rowsContainer.frame != f { rowsContainer.frame = f }
     }
 
     /// Cập nhật gợi ý theo layout stock: ["nguyên văn"] | từ gợi ý | emoji(≤3),
@@ -1075,13 +1047,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 addSubview(b)
             }
             for b in emojis {
-                b.titleLabel?.font = .systemFont(ofSize: 20)   // vừa content box 22pt
+                b.titleFont = .systemFont(ofSize: 20)   // vừa content box 22pt
                 b.isHidden = true
                 addSubview(b)
             }
             for d in dividers { d.isUserInteractionEnabled = false; addSubview(d) }
         }
-        convenience init() { self.init(makeSlot: { KeyButton(type: .custom) }) }
+        convenience init() { self.init(makeSlot: { KeyButton() }) }
         required init?(coder: NSCoder) { fatalError() }
 
         override func layoutSubviews() {
@@ -1551,7 +1523,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let visible = emojiInBar && suggestionsEnabled && plane != .emoji && plane != .emojiSearch
         if !visible { if emojiZoneMade { emojiZone.isHidden = true }; return }
         guard bounds.width > 0 else { return }
-        let strip = max(rowsTopConstraint?.constant ?? openStripNow, openStripNow)
+        let strip = max(rowsTopWanted, openStripNow)
         let f = Self.emojiBarFrame(width: bounds.width, strip: strip,
                                    clip: clipboardButtonVisible, buddy: buddyZone)
         emojiZone.isHidden = false
@@ -1579,7 +1551,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let showClip = stripOpen && clipboardButtonVisible
         if clipboardButtonVisible || clipZoneMade { clipZone.isHidden = !showClip }
         if showClip, bounds.width > 0 {
-            let strip = max(rowsTopConstraint?.constant ?? openStripNow, openStripNow)
+            let strip = max(rowsTopWanted, openStripNow)
             let cw = Self.clipZoneWidth
             clipZone.frame = CGRect(x: bounds.width - buddyZone - cw, y: 0, width: cw, height: strip)
             clipZone.setImage(UIImage(systemName: "doc.on.clipboard",
@@ -1615,7 +1587,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var pasteCardMade = false
     private lazy var pasteCard: KeyButton = {
         pasteCardMade = true
-        let b = KeyButton(type: .custom)
+        let b = KeyButton()
         b.backgroundColor = .clear
         b.hitInsets = UIEdgeInsets(top: -8, left: 0, bottom: 0, right: 0)
         b.accessibilityLabel = L("Dán nội dung vừa copy")
@@ -2101,15 +2073,15 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // Shift changes must NEVER rebuild: tearing the buttons down mid-typing
     // deallocates the key already under the user's finger, so its touch-up
     // never fires (the missed-keypress bug). Retitle in place instead.
-    private var letterKeys: [(button: UIButton, base: String)] = []
-    private weak var spaceBar: UIButton?
+    private var letterKeys: [(button: KeyButton, base: String)] = []
+    private weak var spaceBar: KeyButton?
     private var spaceBarButton: KeyButton? { spaceBar as? KeyButton }
     private weak var spaceLogo: UIImageView?
     /// Mã "VI"/"EN" góc dưới-phải phím cách (thay logo khi bật vuốt đổi ngôn ngữ — SpaceMark).
     private weak var spaceCode: UILabel?
     /// Logo hoặc mã ngôn ngữ đang trên phím cách (ẩn/hiện khi trượt nhãn, badge).
     private var spaceMarkView: UIView? { spaceCode ?? spaceLogo }
-    private weak var indentedRow: UIStackView?
+    private weak var indentedRow: KeyRow?
     private var indentedRowInset: CGFloat = 0
     private var shiftKeys: [KeyButton] = []   // iPad có 2 shift
     private func applyShiftAppearance() {
@@ -2190,8 +2162,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func applyOneHand() {
         let side: OneHandSide = oneHandActive ? oneHand : .off
         let i = OneHand.insets(width: bounds.width, side: side)
-        if rowsLeftConstraint?.constant != i.left { rowsLeftConstraint?.constant = i.left }
-        if rowsRightConstraint?.constant != -i.right { rowsRightConstraint?.constant = -i.right }
+        if rowsSideInsets != (i.left, i.right) { rowsSideInsets = (i.left, i.right); setNeedsLayout() }
         layoutRail(side)
     }
 
@@ -2219,7 +2190,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 railButtons.append(b)
             }
         }
-        let top = rowsTopConstraint?.constant ?? 0
+        let top = rowsTopWanted
         let h = max(bounds.height - top, 0)
         let size = min(r.width - 12, 44)
         for (i, b) in railButtons.enumerated() {
@@ -2270,17 +2241,19 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // nhãn/màu/inset nên vứt hết.
     private struct CachedPlane {
         let rows: [UIView]
-        let letterKeys: [(button: UIButton, base: String)]
+        let letterKeys: [(button: KeyButton, base: String)]
         let shiftKeys: [KeyButton]
-        let spaceBar: UIButton?
+        let spaceBar: KeyButton?
         let spaceLogo: UIImageView?
         let spaceCode: UILabel?
-        let indentedRow: UIStackView?
+        let indentedRow: KeyRow?
         let indentedRowInset: CGFloat
         let crossRow: [NSLayoutConstraint]
-        let distribution: UIStackView.Distribution   // .fill khi có hàng số (cao khác nhau)
+        let distribution: UIStackView.Distribution   // bàn số lớn (chế độ stack)
+        let mode: KeyGridView.Mode
+        let heights: KeyRowLayout.Heights            // chế độ lưới: chiều cao hàng
     }
-    /// Ràng buộc GIỮA các hàng (phím hàng dưới neo bề rộng theo q hàng 1). UIKit
+    /// Ràng buộc GIỮA các hàng — chỉ còn bàn số lớn (chế độ stack: số 0 rộng bằng số 1). UIKit
     /// tự gỡ chúng khi row rời hierarchy (lúc tráo plane) — lưu lại để bật lại khi
     /// khôi phục từ cache (bug 26/09/2026: về từ mẫu câu, phím lệch cỡ).
     private var crossRowConstraints: [NSLayoutConstraint] = []
@@ -2353,7 +2326,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 shiftKeys: shiftKeys, spaceBar: spaceBar, spaceLogo: spaceLogo, spaceCode: spaceCode,
                 indentedRow: indentedRow, indentedRowInset: indentedRowInset,
                 crossRow: crossRowConstraints,
-                distribution: rowsContainer.distribution)
+                distribution: rowsContainer.distribution,
+                mode: rowsContainer.mode, heights: rowsContainer.heights)
         }
         // Rời lưới emoji / ô tìm emoji: nhả bảng category + trang atlas đã giải mã (lưới không
         // cache, dựng lại lười khi mở lại).
@@ -2378,10 +2352,15 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         letterKeys.removeAll()
         shiftKeys = []
         crossRowConstraints = []
+        indentedRow = nil
         rowsContainer.distribution = .fillEqually
         rowsContainer.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        rowsContainer.heights = .equal
+        rowsContainer.headerHeight = nil
         if let cached = planeCache[plane] {
+            rowsContainer.setMode(cached.mode)
             rowsContainer.distribution = cached.distribution
+            rowsContainer.heights = cached.heights
             cached.rows.forEach { rowsContainer.addArrangedSubview($0) }
             letterKeys = cached.letterKeys
             shiftKeys = cached.shiftKeys
@@ -2403,6 +2382,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         #if DEBUG
         Self.perfFullBuilds += 1
         #endif
+        // Emoji / mẫu câu / bàn số lớn: plane cũ trong UIStackView con; còn lại: lưới xếp tay.
+        let stackPlane = plane == .emoji || plane == .templates || (plane == .keypad && keypadStyle != nil)
+        rowsContainer.setMode(stackPlane ? .stack : .grid)
         switch plane {
         case .letters: buildLetters()
         case .numbers where builtSplit: buildSplitPlane(rows: numberRows, moreKey: "#+=", altKey: "ABC")
@@ -2606,7 +2588,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             rowsContainer.addArrangedSubview(row(KeyLayout.digits.map { textButton($0) }))
         }
         let r1btns = r1.map(letterButton)
-        rowsContainer.addArrangedSubview(row(r1btns))
+        let row1 = row(r1btns)
+        rowsContainer.addArrangedSubview(row1)
         // Apple indents row 2 by half a key on iPhone.
         rowsContainer.addArrangedSubview(row(r2.map(letterButton), sideInset: 0.5))
         let shiftBtn = shiftButton()
@@ -2621,56 +2604,45 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // "bên phải Shift, bên trái Xoá chưa có khoảng trắng"). Chữ hàng 3 = đúng
         // bề rộng hàng 1; shift/⌫ bằng nhau, ăn phần còn lại (~1.4 phím).
         // Khe là vùng chết với UIButton nhưng router trả về phím gần nhất.
-        if let z = r3btns.first, let q = r1btns.first, let stack = thirdRow as? UIStackView {
-            // Chỉ iPhone: iPad stock giữ khe đều giữa shift và chữ.
-            // "Phím to": khe = khe chữ ⇒ ⇧ / ⌫ nở lấp khe, chữ giữ chỗ (LargeKeys).
-            if UIDevice.current.userInterfaceIdiom == .phone {
-                let sg = LargeKeys.shiftGap(on: largeKeysActive, standard: Self.shiftGap, keyGap: keyGapNow)
-                stack.setCustomSpacing(sg, after: shiftBtn)
-                if let m = r3btns.last { stack.setCustomSpacing(sg, after: m) }
-            }
-            crossRow(z.widthAnchor.constraint(equalTo: q.widthAnchor))
-            shiftBtn.widthAnchor.constraint(equalTo: backBtn.widthAnchor).isActive = true
+        // Chỉ iPhone: iPad stock giữ khe đều giữa shift và chữ.
+        // "Phím to": khe = khe chữ ⇒ ⇧ / ⌫ nở lấp khe, chữ giữ chỗ (LargeKeys).
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            let sg = LargeKeys.shiftGap(on: largeKeysActive, standard: Self.shiftGap, keyGap: keyGapNow)
+            thirdRow.setCustomSpacing(sg, after: shiftBtn)
+            if let m = r3btns.last { thirdRow.setCustomSpacing(sg, after: m) }
         }
+        // z…m rộng đúng q (hàng 1 là neo); ⇧ = ⌫ chia đôi phần còn lại (cùng .flex).
+        for b in r3btns { thirdRow.setWidth(.units(1), for: b) }
+        thirdRow.anchor = row1
         rowsContainer.addArrangedSubview(bottomRow(planeKey: "123"))
         applyRowHeights()
     }
 
-    /// Có hàng số / iPhone (hàng đáy cắt bớt): rowsContainer thôi fillEqually — hàng số =
-    /// KeyLayout.numberRowHeight (phím số 0.8× phím chữ, hoặc 1× khi bật "Hàng số cao bằng hàng chữ"), hàng đáy = hàng chữ − bottomTrim, còn lại bằng nhau. Ràng buộc GIỮA
-    /// các hàng → crossRow (sống qua planeCache). iPad không số: fillEqually như cũ.
+    /// Có hàng số / iPhone (hàng đáy cắt bớt): chiều cao hàng theo hàng chuẩn r — hàng số =
+    /// KeyLayout.numberRowHeight (phím số 0.8× phím chữ, hoặc 1× khi bật "Hàng số cao bằng hàng chữ"),
+    /// hàng đáy = r − bottomTrim, còn lại = r (KeyRowLayout.heights; lưu cùng plane trong planeCache).
+    /// iPad không số: các hàng bằng nhau.
     private func applyRowHeights() {
         let rows = rowsContainer.arrangedSubviews
         let numberRow = numberRowEnabled && rows.count == 5
-        guard numberRow || !Self.isPad, rows.count >= 4 else { return }
-        rowsContainer.distribution = .fill
-        let ref = rows[numberRow ? 1 : 0]
-        if numberRow {
-            crossRow(rows[0].heightAnchor.constraint(equalTo: ref.heightAnchor,
-                                                     multiplier: KeyLayout.numberRowMultiplier(fullHeight: numberRowFullHeight),
-                                                     constant: rowSpec.numberRowConstant(fullHeight: numberRowFullHeight)))
-        }
-        for r in rows[(numberRow ? 2 : 1)..<(rows.count - 1)] {
-            crossRow(r.heightAnchor.constraint(equalTo: ref.heightAnchor))
-        }
-        let last = rows[rows.count - 1].heightAnchor.constraint(equalTo: ref.heightAnchor,
-                                                               constant: -bottomTrim)
-        last.identifier = Self.bottomTrimID
-        crossRow(last)
+        guard numberRow || !Self.isPad, rows.count >= 4 else { rowsContainer.heights = .equal; return }
+        let num = numberRow ? KeyRowLayout.Heights.NumberRow(
+            multiplier: KeyLayout.numberRowMultiplier(fullHeight: numberRowFullHeight),
+            constant: rowSpec.numberRowConstant(fullHeight: numberRowFullHeight)) : nil
+        rowsContainer.heights = .ref(numberRow: num, trim: bottomTrim)
     }
-    private static let bottomTrimID = "vt.bottomTrim"
 
     /// Xoay máy không dựng lại plane đang hiện (chỉ đổi bề ngang) → chỉnh phần cắt hàng
     /// đáy + khe trên nó theo hướng mới tại chỗ.
     private func applyBottomTrim() {
-        guard !Self.isPad, let c = crossRowConstraints.first(where: { $0.identifier == Self.bottomTrimID })
-        else { return }
+        guard !Self.isPad, rowsContainer.mode == .grid,
+              case .ref(let num, let oldTrim) = rowsContainer.heights else { return }
         let spec = rowSpec
         let trim = spec.bottomTrim
-        if c.constant != -trim { c.constant = -trim }
-        if let bottom = rowsContainer.arrangedSubviews.last as? UIStackView {
-            if bottom.layoutMargins.top != spec.bottomTop { bottom.layoutMargins.top = spec.bottomTop }
-            if bottom.layoutMargins.bottom != spec.bottomPad { bottom.layoutMargins.bottom = spec.bottomPad }
+        if oldTrim != trim { rowsContainer.heights = .ref(numberRow: num, trim: trim) }
+        if let bottom = rowsContainer.arrangedSubviews.last as? KeyRow {
+            if bottom.margins.top != spec.bottomTop { bottom.margins.top = spec.bottomTop }
+            if bottom.margins.bottom != spec.bottomPad { bottom.margins.bottom = spec.bottomPad }
         }
     }
 
@@ -2775,9 +2747,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             if returnTitle == "return" { padFunction(b, left: false) }
             return b
         case "indent":
-            let v = UIView()
-            v.isUserInteractionEnabled = false
-            return v
+            return KeySpacer(.flex)
         default: return nil
         }
     }
@@ -2785,24 +2755,21 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Dựng các hàng iPad theo id rồi neo bề rộng units × phím `reference` (hàng neo).
     private func buildPadRows(_ layoutRows: [[KeyLayout.Key]], reference: String,
                               make: (String) -> UIView?) {
-        var views: [String: UIView] = [:]
-        var built: [[(KeyLayout.Key, UIView)]] = []
+        var anchor: KeyRow?
+        var rows: [KeyRow] = []
         for keys in layoutRows {
             let pairs = keys.compactMap { k -> (KeyLayout.Key, UIView)? in
                 guard let v = make(k.id) else { return nil }
-                if views[k.id] == nil { views[k.id] = v }
                 return (k, v)
             }
-            built.append(pairs)
-            rowsContainer.addArrangedSubview(row(pairs.map(\.1)))
+            let r = row(pairs.map(\.1))
+            // Bề rộng = units × phím neo `reference`; đúng MỘT phím co giãn mỗi hàng (KeyLayout).
+            for (k, v) in pairs { r.setWidth(k.units.map { .units($0) } ?? .flex, for: v) }
+            if anchor == nil, pairs.contains(where: { $0.0.id == reference }) { anchor = r }
+            rows.append(r)
+            rowsContainer.addArrangedSubview(r)
         }
-        guard let ref = views[reference] else { return }
-        for pairs in built {
-            for (k, v) in pairs where v !== ref {
-                guard let u = k.units else { continue }
-                crossRow(v.widthAnchor.constraint(equalTo: ref.widthAnchor, multiplier: u))
-            }
-        }
+        for r in rows where r !== anchor { r.anchor = anchor }
     }
 
     /// Phím chức năng iPad theo kiểu: full → góc dưới (padCorner), compact → giữa phím.
@@ -2839,13 +2806,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             let l = UILabel()
             l.text = text
             l.textColor = ink
-            l.translatesAutoresizingMaskIntoConstraints = false
             l.isUserInteractionEnabled = false
             l.isAccessibilityElement = false
-            b.addSubview(l)
-            let base = l.firstBaselineAnchor.constraint(equalTo: b.centerYAnchor)
-            NSLayoutConstraint.activate([l.centerXAnchor.constraint(equalTo: b.centerXAnchor), base])
-            b.padPunctLabels.append((l, base))
+            b.addOverlay(l, .centerBaseline(belowCenter: 0))
+            b.padPunctLabels.append(l)
         }
         b.padRole = .punct
         b.accessibilityLabel = lower
@@ -2902,7 +2866,6 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Lười: tạo (đọc cài đặt Telex) lần đầu mở ô tìm — không nằm trong khởi động bàn phím.
     private lazy var emojiSearch = EmojiSearchSession()
     private weak var searchBar: EmojiSearchBar?
-    private weak var searchBarHeight: NSLayoutConstraint?
 
     private func buildEmojiSearch() {
         let bar = EmojiSearchBar(dark: palette.surfaceDark ?? dark)
@@ -2919,20 +2882,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         searchBar = bar
         buildLetters()
-        // iPad (không hàng số) dựng chữ bằng fillEqually → chuyển .fill + hàng bằng nhau,
-        // để ô tìm có chiều cao RIÊNG, không chia phần với hàng chữ.
-        let letterRows = rowsContainer.arrangedSubviews
-        if rowsContainer.distribution != .fill, letterRows.count >= 2 {
-            rowsContainer.distribution = .fill
-            for r in letterRows.dropFirst() { crossRow(r.heightAnchor.constraint(equalTo: letterRows[0].heightAnchor)) }
-        }
+        // iPad (không hàng số): hàng chữ bằng nhau (.equal) — ô tìm có chiều cao RIÊNG (hàng đầu
+        // cố định), không chia phần với hàng chữ.
         rowsContainer.insertArrangedSubview(bar, at: 0)
         // Ô tìm cao cố định = phần bàn phím cao thêm (KeyLayout.chrome .emojiSearch) — trước
         // đây bằng một hàng chữ và CHIA keyArea với 4 hàng chữ ⇒ phím bị ép (bug 1.2.x).
         let strip = KeyLayout.stripHeight(reserved: stripReserved, open: openStripNow)
-        let h = bar.heightAnchor.constraint(equalToConstant: KeyLayout.emojiSearchBarHeight(strip: strip))
-        crossRow(h)
-        searchBarHeight = h
+        rowsContainer.headerHeight = KeyLayout.emojiSearchBarHeight(strip: strip)
         refreshSearchBar()
     }
 
@@ -3008,34 +2964,18 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         SplitLayout.metrics(width: bounds.width, margin: sideMarginNow, gap: keyGapNow)
     }
     private func fixWidth(_ v: UIView, _ w: CGFloat) {
-        v.widthAnchor.constraint(equalToConstant: w).isActive = true
+        if let b = v as? KeyButton { b.rowWidth = .fixed(w) } else if let r = v as? KeyRow { r.rowWidth = .fixed(w) }
     }
     /// Một nửa hàng: phím + lề trong (pt) hai bên.
-    private func splitHalf(_ views: [UIView], left: CGFloat, right: CGFloat) -> UIStackView {
-        let h = UIStackView(arrangedSubviews: views)
-        h.axis = .horizontal
-        h.spacing = keyGapNow
-        h.distribution = .fill
-        h.isLayoutMarginsRelativeArrangement = true
-        h.insetsLayoutMarginsFromSafeArea = false
-        h.layoutMargins = UIEdgeInsets(top: 0, left: left, bottom: 0, right: right)
-        return h
+    private func splitHalf(_ views: [UIView], left: CGFloat, right: CGFloat) -> KeyRow {
+        KeyRow(views, spacing: keyGapNow, margins: UIEdgeInsets(top: 0, left: left, bottom: 0, right: right))
     }
     /// Hàng tách: [nửa trái `half`][khe co giãn, không nhận chạm][nửa phải `half`].
-    private func splitRow(_ l: UIStackView, _ r: UIStackView, half: CGFloat,
-                          top: CGFloat? = nil) -> UIStackView {
-        let gap = UIView()
-        gap.isUserInteractionEnabled = false
-        let row = UIStackView(arrangedSubviews: [l, gap, r])
-        row.axis = .horizontal
-        row.spacing = 0
-        row.distribution = .fill
-        row.isLayoutMarginsRelativeArrangement = true
-        row.insetsLayoutMarginsFromSafeArea = false   // safe area: chỉ qua safeBottom (rowsBottom)
-        row.layoutMargins = UIEdgeInsets(top: top ?? rowSpec.gap, left: sideMarginNow, bottom: 0, right: sideMarginNow)
+    private func splitRow(_ l: KeyRow, _ r: KeyRow, half: CGFloat, top: CGFloat? = nil) -> KeyRow {
         fixWidth(l, half)
         fixWidth(r, half)
-        return row
+        return KeyRow([l, KeySpacer(.flex), r], spacing: 0,
+                      margins: UIEdgeInsets(top: top ?? rowSpec.gap, left: sideMarginNow, bottom: 0, right: sideMarginNow))
     }
 
     private func buildSplitLetters() {
@@ -3095,7 +3035,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     /// Hàng đáy tách: [123][🌐?][☺︎][space] | [space Vᴛ][,][return]. Hai phím cách cùng gõ
     /// dấu cách; phím phải mang logo / vuốt đổi ngôn ngữ và ưu tiên mép với "," (KeyHitBias).
-    private func splitBottomRow(planeKey: String, m: SplitLayout.Metrics) -> UIView {
+    private func splitBottomRow(planeKey: String, m: SplitLayout.Metrics) -> KeyRow {
         var left: [UIView] = []
         let planeBtn = makePlaneKey(planeKey)
         fixWidth(planeBtn, m.keyWidth)
@@ -3133,12 +3073,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     /// Nút thật của một hàng phím — hàng tách đôi lồng thêm một tầng (nửa trái/phải).
     private func rowControls(_ row: UIView) -> [UIControl] {
-        guard let stack = row as? UIStackView else { return [] }
-        guard nestedRows else { return stack.arrangedSubviews.compactMap { $0 as? UIControl } }
+        // Bàn số lớn (chế độ stack) giữ hàng UIStackView cũ.
+        if let stack = row as? UIStackView { return stack.arrangedSubviews.compactMap { $0 as? UIControl } }
+        guard let r = row as? KeyRow else { return [] }
+        guard nestedRows else { return r.arrangedSubviews.compactMap { $0 as? UIControl } }
         var out: [UIControl] = []
-        for v in stack.arrangedSubviews {
+        for v in r.arrangedSubviews {
             if let c = v as? UIControl { out.append(c) }
-            else if let h = v as? UIStackView { out += h.arrangedSubviews.compactMap { $0 as? UIControl } }
+            else if let h = v as? KeyRow { out += h.arrangedSubviews.compactMap { $0 as? UIControl } }
         }
         return out
     }
@@ -3212,7 +3154,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             ret.normalBackground = accent
             ret.pressedBackground = palette.accent.alpha(0.7).ui
             ret.setTitleColor(palette.accentInk.ui, for: .normal)
-            ret.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
+            ret.titleFont = .systemFont(ofSize: 16, weight: .semibold)
             // "go"/"search" (Safari, Gmail…): stock hiện MŨI TÊN → trắng, không chữ.
             if returnTitle == "go" || returnTitle == "search" {
                 ret.setTitle("", for: .normal)
@@ -3372,7 +3314,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return punctKeys
     }
 
-    private func bottomRow(planeKey: String, clearInsteadOfEmoji: Bool = false) -> UIView {
+    private func bottomRow(planeKey: String, clearInsteadOfEmoji: Bool = false) -> KeyRow {
         var views: [UIView] = []
         let planeBtn = makePlaneKey(planeKey)
         views.append(planeBtn)
@@ -3488,11 +3430,6 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             views.append(d)
         }
 
-        let stack = UIStackView(arrangedSubviews: views)
-        stack.axis = .horizontal
-        stack.spacing = keyGapNow
-        stack.distribution = .fill
-        stack.isLayoutMarginsRelativeArrangement = true
         // Hàng đáy SÁT đáy hơn như stock (so ảnh 25/09/2026: stock cách đáy bàn phím
         // 214px, VietTelex 241px): cùng chiều cao phím, dời xuống 3pt (top 8/bottom 2
         // thay 5/5). Vùng globe/mic dưới đó do host vẽ — không dời được.
@@ -3504,19 +3441,19 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Safe area KHÔNG lọt vào lề hàng (mọi máy): đáy hàng phím tránh vạch home DUY NHẤT qua
         // safeBottom (rowsBottom). Trước đây iPhone để true ⇒ xoay/gập máy gập lúc safeBottom chưa
         // kịp đổi thì hàng đáy ăn 18pt vào lề ⇒ phím dẹt (Duo gập + ngang, Phil 06/10/2026).
-        stack.insetsLayoutMarginsFromSafeArea = false
         let bottomTop = rowSpec.bottomTop
-        stack.layoutMargins = UIEdgeInsets(top: bottomTop, left: sideMarginNow,
-                                           bottom: rowSpec.bottomPad, right: sideMarginNow)
+        let stack = KeyRow(views, spacing: keyGapNow,
+                           margins: UIEdgeInsets(top: bottomTop, left: sideMarginNow,
+                                                 bottom: rowSpec.bottomPad, right: sideMarginNow))
         // Tỉ lệ từ KeyLayout (test: đúng một phím co giãn = space).
         let spec = padStock ? KeyLayout.padBottomRow(padStyle, letters: padLetters) : KeyLayout.phoneBottom
         func frac(_ id: String) -> CGFloat { KeyLayout.units(id, in: spec) ?? 0.1 }
-        planeBtn.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: frac("plane")).isActive = true
-        emojiBtn?.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: frac("emoji")).isActive = true
+        stack.setWidth(.fraction(frac("plane")), for: planeBtn)
+        if let e = emojiBtn { stack.setWidth(.fraction(frac("emoji")), for: e) }
         // Globe PHẢI có width cố định: thiếu thì nó và space cùng "tự do", stack
         // bóp globe còn bề ngang icon và chia lại mỗi lần phím đổi trạng thái —
         // hàng đáy iPad nhảy size khi bấm (feedback 26/09/2026). Chỉ space co giãn.
-        globeBtn?.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: frac("globe")).isActive = true
+        if let g = globeBtn { stack.setWidth(.fraction(frac("globe")), for: g) }
         // iPhone plane chữ: "," hẹp hơn stock (KeyLayout.phoneLettersComma), phần dư cho
         // space — chạm space hay lẹm sang "," (Phil 06/10/2026; thêm KeyHitBias).
         let lettersComma = !padStock && planeKey == "123" && !clearInsteadOfEmoji
@@ -3531,13 +3468,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let others = frac("plane") + (globeBtn != nil ? frac("globe") : 0)
             + (emojiBtn != nil ? frac("emoji") : 0) + (ret != nil ? frac("return") : 0)
         let widths = LargeKeys.punctUnits(punctUnits, otherUnits: others, on: large)
-        for (pk, m) in zip(punctKeys, widths) {
-            pk.btn.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: m).isActive = true
-        }
-        ret?.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: frac("return")).isActive = true
-        planeBtn2?.widthAnchor.constraint(equalTo: stack.widthAnchor, multiplier: frac("plane2")).isActive = true
-        dismissBtn?.widthAnchor.constraint(equalTo: stack.widthAnchor,
-                                           multiplier: padStock ? frac("dismiss") : 0.07).isActive = true
+        for (pk, m) in zip(punctKeys, widths) { stack.setWidth(.fraction(m), for: pk.btn) }
+        if let r = ret { stack.setWidth(.fraction(frac("return")), for: r) }
+        if let b = planeBtn2 { stack.setWidth(.fraction(frac("plane2")), for: b) }
+        if let d = dismissBtn { stack.setWidth(.fraction(padStock ? frac("dismiss") : 0.07), for: d) }
         if padStock {
             // Stock: plane chữ full ".?123", compact (mini) "123"; plane số/ký hiệu "ABC".
             let t = padLetters ? (padStyle == .compact ? "123" : ".?123") : planeKey
@@ -3560,29 +3494,27 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// `proportional` chỉ cho hàng 3 plane số/ký hiệu (#+= … ⌫): hàng đó không bao
     /// giờ retitle, giữ nguyên hình học cũ.
     private func row(_ views: [UIView], sideInset: CGFloat = 0,
-                     proportional: Bool = false) -> UIView {
-        let stack = UIStackView(arrangedSubviews: views)
-        stack.axis = .horizontal
-        stack.spacing = keyGapNow
-        stack.distribution = proportional ? .fillProportionally : .fill
-        stack.isLayoutMarginsRelativeArrangement = true
-        stack.insetsLayoutMarginsFromSafeArea = false   // xem bottomRow
+                     proportional: Bool = false) -> KeyRow {
         // bounds.width có thể = 0 lúc init — layoutSubviews chỉnh lại ngay
         // pass đầu (và sau mỗi lần xoay / đổi cỡ Split View)
         // 10/0 thay 5/5 (khe giữa hàng vẫn 10): hàng đáy sát đáy (26/09/2026).
         let side = KeyGeometry.indentedMargin(width: keysWidth, margin: sideMarginNow,
                                               gap: keyGapNow, units: sideInset)
-        stack.layoutMargins = UIEdgeInsets(top: rowSpec.gap, left: side,
-                                           bottom: 0, right: side)
-        if sideInset > 0 { indentedRow = stack; indentedRowInset = sideInset }
-        // equal widths for plain letter keys
-        let letters = views.filter { ($0 as? KeyButton)?.isSpecial == false }
-        if let first = letters.first {
-            for v in letters.dropFirst() {
-                v.widthAnchor.constraint(equalTo: first.widthAnchor).isActive = true
-            }
+        let r = KeyRow(views, spacing: keyGapNow,
+                       margins: UIEdgeInsets(top: rowSpec.gap, left: side, bottom: 0, right: side))
+        if sideInset > 0 { indentedRow = r; indentedRowInset = sideInset }
+        // Phím ký tự thường: bằng nhau (mặc định của KeyRow). Hàng tỉ lệ: như .fillProportionally
+        // của UIStackView — nội dung từng phím, phím ký tự buộc bằng nhau, ⌫ ≥ 42.
+        if proportional {
+            r.proportional = (
+                intrinsic: { ($0 as? KeyButton)?.contentWidth ?? $0.intrinsicContentSize.width },
+                group: { v in
+                    if let b = v as? KeyButton, !b.isSpecial { return -1 }
+                    return views.firstIndex { $0 === v } ?? 0
+                },
+                minimum: { ($0 as? KeyButton)?.minWidth ?? 0 })
         }
-        return stack
+        return r
     }
 
     // MARK: bàn số lớn (NumericKeypad — ô numberPad / decimalPad / OTP, iPhone)
@@ -3674,7 +3606,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Phím ký tự ở ô góc (dấu thập phân, *, #).
     private func keypadSymbol(_ t: String, style: NumericKeypad.Style) -> KeyButton {
         let b = baseButton(title: t, special: false)
-        b.titleLabel?.font = Self.keyFont(24)
+        b.titleFont = Self.keyFont(24)
         keypadPressFeedback(b, preview: t)
         armCommit(b) { [weak self] in self?.tapped(.text(t)) }
         let hold = NumericKeypad.holdChoices(for: t, style: style)
@@ -3717,7 +3649,371 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     // MARK: buttons
 
-    private final class KeyButton: UIButton {
+    /// Phím: UIControl nhẹ thay UIButton (khởi động lạnh — tạo UIButton + bộ máy titleLabel của
+    /// nó ~25–35 ms cho cả lưới). Giữ đúng phần API UIButton bàn phím dùng (một nhãn, một ảnh
+    /// thường/đè, lề nội dung, căn trái/phải/trên/dưới, ảnh sẫm khi đè) — nhãn/ảnh tạo lười
+    /// MỘT lần, khung tính tay ở layoutSubviews theo đúng quy tắc làm tròn của UIButton
+    /// (nhãn: cỡ làm tròn lên điểm nguyên, gốc làm tròn pixel; ảnh: gốc làm tròn xuống pixel).
+    /// Touch / sự kiện vẫn là UIControl (touchDown, drag, up inside/outside, cancel) như cũ.
+    final class KeyButton: UIControl {
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            // UIButton tự là phần tử trợ năng (nhãn = chữ trên phím, vai "nút"); UIControl thì không.
+            isAccessibilityElement = true
+            accessibilityTraits = .button
+        }
+        required init?(coder: NSCoder) { fatalError() }
+
+        // MARK: nội dung kiểu UIButton
+        private var title: String?
+        private var titleColorNormal: UIColor?
+        /// Phông nhãn — giữ riêng để đặt phông KHÔNG tạo nhãn cho phím chỉ có icon.
+        var titleFont: UIFont = .systemFont(ofSize: 15) {
+            didSet { if titleFont !== oldValue { label?.font = titleFont; setNeedsLayout() } }
+        }
+        private var label: UILabel?
+        private var imageNormal: UIImage?
+        private var imageHighlighted: UIImage?
+        private var symbolConfigNormal: UIImage.SymbolConfiguration?
+        private var symbolConfigHighlighted: UIImage.SymbolConfiguration?
+        private var iconView: UIImageView?
+        /// Như UIButton.contentEdgeInsets.
+        var contentEdgeInsets: UIEdgeInsets = .zero {
+            didSet { if contentEdgeInsets != oldValue { setNeedsLayout() } }
+        }
+        override var contentHorizontalAlignment: UIControl.ContentHorizontalAlignment {
+            didSet { if contentHorizontalAlignment != oldValue { setNeedsLayout() } }
+        }
+        override var contentVerticalAlignment: UIControl.ContentVerticalAlignment {
+            didSet { if contentVerticalAlignment != oldValue { setNeedsLayout() } }
+        }
+        /// Như UIButton: không có ảnh "đè" riêng ⇒ icon sẫm lại khi đè.
+        var adjustsImageWhenHighlighted = true
+
+        func setTitle(_ t: String?, for state: UIControl.State) {
+            guard state == .normal, t != title else { return }
+            title = t
+            if let t, !t.isEmpty {
+                let l = titleLabel!
+                if l.text != t { l.text = t }
+                if l.isHidden { l.isHidden = false }
+            } else {
+                label?.isHidden = true
+            }
+            setNeedsLayout()
+        }
+        var currentTitle: String? { title }
+        func title(for state: UIControl.State) -> String? { title }
+
+        func setTitleColor(_ c: UIColor?, for state: UIControl.State) {
+            guard state == .normal else { return }
+            titleColorNormal = c
+            label?.textColor = c ?? .white
+        }
+        func titleColor(for state: UIControl.State) -> UIColor? { titleColorNormal ?? .white }
+
+        /// Nhãn (tạo lười như UIButton.titleLabel). Phím chỉ có icon không bao giờ tạo.
+        var titleLabel: UILabel? {
+            if let label { return label }
+            let l = UILabel()
+            l.font = titleFont
+            l.textColor = titleColorNormal ?? .white
+            l.lineBreakMode = .byTruncatingMiddle    // như UIButton
+            l.isAccessibilityElement = false
+            l.text = title
+            l.isHidden = (title ?? "").isEmpty
+            addSubview(l)
+            label = l
+            return l
+        }
+
+        func setImage(_ img: UIImage?, for state: UIControl.State) {
+            if state == .highlighted { imageHighlighted = img } else if state == .normal { imageNormal = img } else { return }
+            refreshIcon()
+        }
+        func image(for state: UIControl.State) -> UIImage? {
+            state == .highlighted ? (imageHighlighted ?? imageNormal) : imageNormal
+        }
+        var currentImage: UIImage? { isHighlighted ? (imageHighlighted ?? imageNormal) : imageNormal }
+        var imageView: UIImageView? { iconView }
+        func setPreferredSymbolConfiguration(_ c: UIImage.SymbolConfiguration?, forImageIn state: UIControl.State) {
+            if state == .highlighted { symbolConfigHighlighted = c } else if state == .normal { symbolConfigNormal = c } else { return }
+            refreshIcon()
+        }
+
+        override var isHighlighted: Bool {
+            didSet { if isHighlighted != oldValue, iconView != nil { refreshIcon() } }
+        }
+        override func tintColorDidChange() {
+            super.tintColorDidChange()
+            if isHighlighted, iconView != nil { refreshIcon() }
+        }
+        /// Ảnh đang hiện (ảnh đè nếu có khi đè; áp cấu hình SF Symbol ưu tiên) + sẫm khi đè như UIButton.
+        private func refreshIcon() {
+            let useHighlighted = isHighlighted && imageHighlighted != nil
+            var img = useHighlighted ? imageHighlighted : imageNormal
+            let cfg = useHighlighted ? (symbolConfigHighlighted ?? symbolConfigNormal) : symbolConfigNormal
+            if let c = cfg, let i = img, i.isSymbolImage { img = i.applyingSymbolConfiguration(c) ?? i }
+            guard let img else {
+                if let v = iconView, v.image != nil { v.image = nil; v.isHidden = true }
+                return
+            }
+            let v = iconView ?? {
+                let v = UIImageView()
+                v.isAccessibilityElement = false
+                // Dưới nhãn như UIButton (ảnh trước, nhãn sau) — trên lớp skin / lỗ thoát âm (layer).
+                if let l = label { insertSubview(v, belowSubview: l) } else { addSubview(v) }
+                iconView = v
+                return v
+            }()
+            if v.image !== img {
+                if v.image?.size != img.size { setNeedsLayout() }
+                v.image = img
+            }
+            if v.isHidden { v.isHidden = false; setNeedsLayout() }
+            // UIButton (custom) vẽ icon sẫm lại khi đè nếu không có ảnh đè riêng (~0,53 sáng).
+            let dim = isHighlighted && !useHighlighted && adjustsImageWhenHighlighted
+            if dim { v.tintColor = Self.dimmed(tintColor); iconDimmed = true }
+            else if iconDimmed { v.tintColor = nil; iconDimmed = false }
+        }
+        private var iconDimmed = false
+        static func dimmed(_ c: UIColor) -> UIColor {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            guard c.getRed(&r, green: &g, blue: &b, alpha: &a) else { return c }
+            let k: CGFloat = 8 / 15
+            return UIColor(red: r * k, green: g * k, blue: b * k, alpha: a)
+        }
+
+        /// Cỡ chữ đã đo (dùng chung mọi phím, sống cả process): bàn phím dựng lại MỖI lần hiện
+        /// (controller mới) — chữ / phông / bề ngang không đổi thì khỏi đo lại bằng CoreText.
+        private struct TextKey: Hashable {
+            let text: String, font: String, size: CGFloat, width: CGFloat, fit: Bool, minScale: CGFloat
+        }
+        nonisolated(unsafe) private static var textSizes: [TextKey: CGSize] = [:]
+        static func dropTextSizeCache() { textSizes.removeAll() }
+        /// Cỡ tự nhiên của nhãn phụ (UILabel.intrinsicContentSize) — cache như trên.
+        static func labelSize(_ l: UILabel) -> CGSize {
+            guard let t = l.text else { return l.intrinsicContentSize }
+            let key = TextKey(text: t, font: l.font.fontName, size: l.font.pointSize, width: -1, fit: false, minScale: 0)
+            if let s = textSizes[key] { return s }
+            let s = l.intrinsicContentSize
+            textSizes[key] = s
+            return s
+        }
+
+        /// Cỡ nhãn trong bề ngang `width` như UIButton: UILabel.textRect (chữ dài ⇒ cắt / co chữ khi
+        /// adjustsFontSizeToFitWidth), làm tròn lên điểm nguyên.
+        private func titleTextSize(width: CGFloat = .greatestFiniteMagnitude) -> CGSize {
+            guard let t = title, let l = label else { return .zero }
+            let w = max(width, 0), fit = l.adjustsFontSizeToFitWidth
+            let key = TextKey(text: t, font: l.font.fontName, size: l.font.pointSize, width: w, fit: fit,
+                              minScale: fit ? l.minimumScaleFactor : 0)
+            if let s = Self.textSizes[key] { return s }
+            let r = l.textRect(forBounds: CGRect(x: 0, y: 0, width: w, height: CGFloat.greatestFiniteMagnitude),
+                               limitedToNumberOfLines: 1)
+            var size = CGSize(width: ceil(r.width), height: ceil(r.height))
+            if fit, w < .greatestFiniteMagnitude {
+                // Co chữ cho vừa (nhãn góc iPad): UIButton đo hộp theo phông ĐÃ co (thấp hơn).
+                let natural = (t as NSString).size(withAttributes: [.font: l.font as Any])
+                if natural.width > w, natural.width > 0 {
+                    // Co tới đáy (minimumScaleFactor) vẫn không vừa ⇒ hộp = chữ đã cắt giữa ở phông nhỏ nhất.
+                    let k = max(l.minimumScaleFactor, w / natural.width)
+                    let small = l.font.withSize(l.font.pointSize * k)
+                    if natural.width * l.minimumScaleFactor <= w {
+                        let h = (t as NSString).size(withAttributes: [.font: small]).height
+                        size = CGSize(width: ceil(natural.width * k), height: ceil(h))
+                    } else {
+                        let m = Self.measureLabel
+                        m.font = small
+                        m.text = t
+                        let r2 = m.textRect(forBounds: CGRect(x: 0, y: 0, width: w, height: CGFloat.greatestFiniteMagnitude),
+                                            limitedToNumberOfLines: 1)
+                        size = CGSize(width: ceil(r2.width), height: ceil(r2.height))
+                    }
+                }
+            }
+            Self.textSizes[key] = size
+            return size
+        }
+        /// Nhãn nháp đo chữ đã co (chỉ nhãn góc iPad chật — hiếm).
+        private static let measureLabel: UILabel = {
+            let l = UILabel()
+            l.lineBreakMode = .byTruncatingMiddle
+            return l
+        }()
+        private var pixelScale: CGFloat {
+            let s = traitCollection.displayScale
+            return s > 0 ? s : UIScreen.main.scale
+        }
+
+        /// Vùng nội dung = bounds trừ lề, nở ra mép pixel (gốc làm tròn xuống, mép xa làm tròn lên)
+        /// như UIButton — nhãn/icon dạt phải/dưới bám đúng pixel như cũ.
+        private func contentRect() -> CGRect {
+            let i = contentEdgeInsets
+            // Không dùng CGRect.inset: lề lớn hơn phím ⇒ rect âm bị chuẩn hoá thành bề rộng dương.
+            let r = CGRect(x: bounds.minX + i.left, y: bounds.minY + i.top,
+                           width: max(bounds.width - i.left - i.right, 0), height: max(bounds.height - i.top - i.bottom, 0))
+            let k = pixelScale
+            // ±1e-4 px: khung phím đã làm tròn pixel (32.333…·3 = 97.0000001) không nở thêm 1 px.
+            let e: CGFloat = 1e-4
+            let x0 = (r.minX * k + e).rounded(.down) / k, y0 = (r.minY * k + e).rounded(.down) / k
+            let x1 = (r.maxX * k - e).rounded(.up) / k, y1 = (r.maxY * k - e).rounded(.up) / k
+            return CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
+        }
+
+        /// Khung nhãn trong `bounds` như UIButton.titleRect(forContentRect:) (+ baseline stock).
+        private func titleFrame() -> CGRect {
+            let content = contentRect()
+            var size = titleTextSize(width: content.width)
+            var x: CGFloat, y: CGFloat
+            switch contentHorizontalAlignment {
+            case .left, .leading: x = content.minX
+            case .right, .trailing: x = content.maxX - size.width
+            case .fill: x = content.minX; size.width = max(content.width, 0)
+            default: x = content.minX + (content.width - size.width) / 2
+            }
+            switch contentVerticalAlignment {
+            case .top: y = content.minY
+            case .bottom: y = content.maxY - size.height
+            case .fill: y = content.minY; size.height = max(content.height, 0)
+            default: y = content.minY + (content.height - size.height) / 2
+            }
+            let k = pixelScale
+            let r = CGRect(x: (x * k).rounded() / k, y: (y * k).rounded() / k, width: size.width, height: size.height)
+            return baselineAdjusted(r)
+        }
+
+        /// Khung icon như UIButton.imageRect(forContentRect:): cỡ ảnh, gốc làm tròn XUỐNG pixel.
+        private func imageFrame(_ img: UIImage) -> CGRect {
+            let content = contentRect()
+            // Phím thấp/hẹp hơn ảnh: ảnh co theo vùng nội dung (như UIButton).
+            let size = CGSize(width: min(img.size.width, max(content.width, 0)),
+                              height: min(img.size.height, max(content.height, 0)))
+            var x: CGFloat, y: CGFloat
+            switch contentHorizontalAlignment {
+            case .left, .leading: x = content.minX
+            case .right, .trailing: x = content.maxX - size.width
+            default: x = content.minX + (content.width - size.width) / 2
+            }
+            switch contentVerticalAlignment {
+            case .top: y = content.minY
+            case .bottom: y = content.maxY - size.height
+            default: y = content.minY + (content.height - size.height) / 2
+            }
+            let k = pixelScale
+            return CGRect(x: (x * k).rounded(.down) / k, y: (y * k).rounded(.down) / k, width: size.width, height: size.height)
+        }
+
+        private func layoutContent() {
+            if let l = label, !l.isHidden {
+                let f = titleFrame()
+                if l.frame != f { l.frame = f }
+            }
+            if let v = iconView, !v.isHidden, let img = v.image {
+                let f = imageFrame(img)
+                if v.frame != f { v.frame = f }
+            }
+            layoutOverlays()
+        }
+
+        // MARK: nhãn phụ trên phím (ký tự phụ góc trên-phải, mã VI/EN + logo phím cách, nhãn phụ /
+        // nhãn 2 tầng iPad) — đặt khung tay (trước: 2 constraint mỗi nhãn ⇒ Auto Layout cả phím).
+        enum OverlayPin {
+            /// Mép phải cách `right`, đỉnh cách `top` (cỡ = cỡ tự nhiên của nhãn).
+            case topRight(right: CGFloat, top: CGFloat)
+            /// Mép phải cách `right`, đáy cách `bottom`.
+            case bottomRight(right: CGFloat, bottom: CGFloat)
+            /// Cỡ cố định, mép phải cách `right`, giữa theo chiều dọc.
+            case rightCenterY(right: CGFloat, size: CGSize)
+            /// Giữa theo ngang; baseline dòng đầu = tâm phím + `belowCenter` (âm = phía trên).
+            case centerBaseline(belowCenter: CGFloat)
+            /// Giữa phím (cỡ tự nhiên).
+            case center
+        }
+        private var overlays: [(view: UIView, pin: OverlayPin)] = []
+        func addOverlay(_ v: UIView, _ pin: OverlayPin) {
+            addSubview(v)
+            overlays.append((v, pin))
+            setNeedsLayout()
+        }
+        func setOverlayPin(_ v: UIView, _ pin: OverlayPin) {
+            guard let i = overlays.firstIndex(where: { $0.view === v }) else { return }
+            overlays[i].pin = pin
+            setNeedsLayout()
+        }
+        override func willRemoveSubview(_ subview: UIView) {
+            super.willRemoveSubview(subview)
+            overlays.removeAll { $0.view === subview }
+        }
+        /// Khung CHÍNH XÁC của phím (toạ độ gốc lưới, KeyRow đặt) + gốc đã làm tròn — nhãn phụ tính
+        /// theo khung chính xác rồi làm tròn từng mép theo toạ độ gốc như Auto Layout. nil ⇒ bounds.
+        var exactFrame: CGRect?
+        var roundedOrigin: CGPoint = .zero
+        /// Như Auto Layout: cỡ = intrinsicContentSize, từng mép làm tròn về pixel.
+        private func layoutOverlays() {
+            guard !overlays.isEmpty else { return }
+            let k = pixelScale
+            let o = exactFrame == nil ? .zero : roundedOrigin
+            let bounds = exactFrame ?? self.bounds
+            for (v, pin) in overlays {
+                let size: CGSize
+                var x0: CGFloat, y0: CGFloat
+                switch pin {
+                case .topRight(let r, let t):
+                    size = Self.overlaySize(v)
+                    x0 = bounds.maxX - r - size.width; y0 = bounds.minY + t
+                case .bottomRight(let r, let b):
+                    size = Self.overlaySize(v)
+                    x0 = bounds.maxX - r - size.width; y0 = bounds.maxY - b - size.height
+                case .rightCenterY(let r, let s):
+                    size = s
+                    x0 = bounds.maxX - r - s.width; y0 = bounds.midY - s.height / 2
+                case .center:
+                    size = Self.overlaySize(v)
+                    x0 = bounds.midX - size.width / 2; y0 = bounds.midY - size.height / 2
+                case .centerBaseline(let below):
+                    size = Self.overlaySize(v)
+                    x0 = bounds.midX - size.width / 2
+                    let ascent = (v as? UILabel)?.font.ascender ?? size.height
+                    y0 = bounds.midY + below - Self.firstBaselineOffset(size.height, ascent: ascent, label: v as? UILabel)
+                }
+                let f = KeyRowLayout.rounded(x0: x0, x1: x0 + size.width, y0: y0, y1: y0 + size.height, scale: k)
+                    .offsetBy(dx: -o.x, dy: -o.y)
+                if v.frame != f { v.frame = f }
+            }
+        }
+        private static func overlaySize(_ v: UIView) -> CGSize {
+            if let l = v as? UILabel { return labelSize(l) }
+            return v.intrinsicContentSize
+        }
+        /// Khoảng từ đỉnh nhãn một dòng (cỡ tự nhiên) tới baseline dòng đầu.
+        static func firstBaselineOffset(_ height: CGFloat, ascent: CGFloat, label: UILabel?) -> CGFloat {
+            guard let f = label?.font else { return ascent }
+            // UILabel đặt dòng chữ giữa hộp cao `height` (≥ lineHeight): baseline = đỉnh + phần đệm + ascender.
+            return (height - f.lineHeight) / 2 + f.ascender
+        }
+
+        /// Luật bề rộng trong hàng (KeyRow) — nil = phím ký tự thường ⇒ bằng nhau, phím chức năng ⇒ co giãn.
+        var rowWidth: KeyRowLayout.Width?
+        /// Bề rộng tối thiểu (⇧ / ⌫ = 42) — chỉ hàng tỉ lệ (hàng 3 bàn số) dùng, như ràng buộc ≥ 42 cũ.
+        var minWidth: CGFloat = 0
+
+        /// Bề ngang nội dung như UIButton.intrinsicContentSize (nhãn ≥ 30pt, icon = bề ngang ảnh,
+        /// + lề nội dung) — chỉ hàng tỉ lệ (hàng 3 bàn số) dùng. intrinsicContentSize để mặc định
+        /// (không có): phím đặt khung tay, Auto Layout không cần đo chữ từng phím.
+        var contentWidth: CGFloat {
+            var w: CGFloat = 0
+            if let img = currentImage { w = img.size.width }
+            else if let t = title, !t.isEmpty { _ = titleLabel; w = max(titleTextSize().width, 30) }
+            else { w = 30 }
+            return w + contentEdgeInsets.left + contentEdgeInsets.right
+        }
+
+        override var accessibilityLabel: String? {
+            get { super.accessibilityLabel ?? ((title ?? "").isEmpty ? nil : title) }
+            set { super.accessibilityLabel = newValue }
+        }
+
         var isSpecial = false
         /// Phím cách (chính hoặc phụ bàn tách đôi) — vùng nở của nó không được lấn khung phím dấu câu.
         var isSpaceKey = false
@@ -3848,9 +4144,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         var hitInsets: UIEdgeInsets?
         /// Nhãn chữ đặt theo baseline stock (KeyGeometry.Typography) thay vì căn giữa hộp dòng.
         var baselineAligned = false
-        override func titleRect(forContentRect contentRect: CGRect) -> CGRect {
-            let r = super.titleRect(forContentRect: contentRect)
-            guard baselineAligned, let f = titleLabel?.font, bounds.height > 0 else { return r }
+        /// Nhãn chữ: dời hộp nhãn (đang căn giữa) để baseline về đúng chỗ stock.
+        private func baselineAdjusted(_ r: CGRect) -> CGRect {
+            guard baselineAligned, let f = label?.font, bounds.height > 0 else { return r }
             // Hộp nhãn đang căn giữa phím; dời để baseline về đúng chỗ stock.
             let dy: CGFloat
             if let below = padBaselineBelowCenter {
@@ -3885,7 +4181,6 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         private var padApplied: (landscape: Bool, height: CGFloat)?
         private var padBaselineBelowCenter: CGFloat?
         weak var padHint: UILabel?
-        var padHintBaseline: NSLayoutConstraint?
         /// Ký tự phụ iPad của phím thường (plane số, phím 2 tầng) — armPadAlternate.
         var padAlt: String?
         var padAltChosen = false
@@ -3910,7 +4205,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         /// Đọc + xoá lựa chọn ký tự phụ lúc phím chốt (lần chạm sau bắt đầu sạch).
         func takePadAlt() -> Bool { defer { padAltChosen = false }; return padAltChosen }
-        var padPunctLabels: [(label: UILabel, baseline: NSLayoutConstraint)] = []
+        var padPunctLabels: [UILabel] = []
 
         override func layoutSubviews() {
             applyPadTypographyIfNeeded()
@@ -3918,6 +4213,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             layoutSkin()
             layoutSoundhole()
             super.layoutSubviews()
+            layoutContent()
         }
 
         // MARK: lỗ thoát âm (theme Ghi-ta, "spaceDeco":"soundhole") — chỉ phím cách của theme đó; khác ⇒ rỗng (0 chi phí).
@@ -3967,7 +4263,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 if layer.cornerRadius != r { layer.cornerRadius = r }
             }
             let lf = KeyboardView.labelFonts
-            guard lf.active, let f = titleLabel?.font, let t = currentTitle, !t.isEmpty else { return }
+            guard lf.active, let t = currentTitle, !t.isEmpty else { return }
+            let f = titleFont
             let em = lf.em(KeyLabelEm.keySample)
             var fitted = KeyLabelFit.size(want: f.pointSize, em: em, keyWidth: bounds.width, keyHeight: bounds.height)
             if t.count > 1 {   // nhãn nhiều ký tự (123, return…): đo thật bề ngang
@@ -3975,7 +4272,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 let room = bounds.width - 2 * KeyLabelFit.sidePad
                 if w > room, w > 0 { fitted = min(fitted, f.pointSize * room / w) }
             }
-            if fitted < f.pointSize - 0.25 { titleLabel?.font = lf.font(size: fitted.rounded(.down)) }
+            if fitted < f.pointSize - 0.25 { titleFont = lf.font(size: fitted.rounded(.down)) }
         }
         /// Icon SF Symbol cỡ stock iPad (kể cả ảnh đặt lại sau: shift/caps đổi trạng thái).
         private func applyPadSymbolSize(_ m: KeyGeometry.Typography.Pad.Metrics) {
@@ -3999,15 +4296,15 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             let m = KeyGeometry.Typography.Pad.metrics(landscape: land)
             switch role {
             case .letter, .digit:
-                if case .letter = role { titleLabel?.font = KeyboardView.keyFont(m.letterSize) }
-                else { titleLabel?.font = KeyboardView.keyFont(m.digitSize) }
+                if case .letter = role { titleFont = KeyboardView.keyFont(m.letterSize) }
+                else { titleFont = KeyboardView.keyFont(m.digitSize) }
                 contentVerticalAlignment = .center
                 contentEdgeInsets = .zero
                 baselineAligned = true
                 if case .letter = role {
                     padBaselineBelowCenter = m.letterBaselineBelowCenter
                     padHint?.font = KeyboardView.keyFont(m.hintSize)
-                    padHintBaseline?.constant = -m.scaled(m.hintBaselineAboveCenter, keyHeight: h)
+                    if let l = padHint { setOverlayPin(l, .centerBaseline(belowCenter: -m.scaled(m.hintBaselineAboveCenter, keyHeight: h))) }
                 } else {
                     padBaselineBelowCenter = m.digitBaselineBelowCenter
                 }
@@ -4016,7 +4313,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 contentVerticalAlignment = .bottom
                 if let t = currentTitle, !t.isEmpty {
                     let f = KeyboardView.keyFont(m.labelSize)
-                    titleLabel?.font = f
+                    titleFont = f
                     titleLabel?.adjustsFontSizeToFitWidth = true
                     titleLabel?.minimumScaleFactor = 0.7
                     // Đáy hộp nhãn = baseline + descender (descender < 0).
@@ -4039,7 +4336,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 contentEdgeInsets = .zero
                 if let t = currentTitle, !t.isEmpty {
                     let size = t == "#+=" ? m.centerToggleLabelSize : m.centerLabelSize
-                    titleLabel?.font = KeyboardView.keyFont(size)
+                    titleFont = KeyboardView.keyFont(size)
                     titleLabel?.adjustsFontSizeToFitWidth = true
                     titleLabel?.minimumScaleFactor = 0.6
                 }
@@ -4048,10 +4345,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 applyPadSymbolSize(c)
             case .punct:
                 let f = KeyboardView.keyFont(m.punctSize)
-                for (i, p) in padPunctLabels.enumerated() {
-                    p.label.font = f
+                for (i, l) in padPunctLabels.enumerated() {
+                    l.font = f
                     let v = i == 0 ? m.punctUpperBaselineBelowCenter : m.punctLowerBaselineBelowCenter
-                    p.baseline.constant = m.scaled(v, keyHeight: h)
+                    setOverlayPin(l, .centerBaseline(belowCenter: m.scaled(v, keyHeight: h)))
                 }
             }
         }
@@ -4110,7 +4407,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func baseButton(title: String, special: Bool) -> KeyButton {
         // .custom, not .system: system buttons run tint/highlight animations on
         // the main thread per touch — visible latency on a keyboard.
-        let b = KeyButton(type: .custom)
+        let b = KeyButton()
         // ĐẦU TIÊN trong mọi touchDown (kể cả phím chữ qua router sendActions): chốt
         // các phím nhấc-mới-chốt đang đè TRƯỚC khi phím này làm gì — đúng thứ tự
         // khi gõ chồng ngón (KeyCommitQueue).
@@ -4121,7 +4418,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         b.isMultipleTouchEnabled = true
         b.isSpecial = special
         b.setTitle(title, for: .normal)
-        b.titleLabel?.font = .systemFont(ofSize: special ? 16 : 23)
+        b.titleFont = .systemFont(ofSize: special ? 16 : 23)
         if !special { applyKeycapFont(b, title: title) }
         b.layer.cornerRadius = Self.keyRadius
         b.styledKey = true
@@ -4314,14 +4611,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             l.text = alt
             l.font = .systemFont(ofSize: 10, weight: .medium)
             l.textColor = inkFaded(0.45)
-            l.translatesAutoresizingMaskIntoConstraints = false
             l.isUserInteractionEnabled = false
             l.isAccessibilityElement = false
-            b.addSubview(l)
-            NSLayoutConstraint.activate([
-                l.trailingAnchor.constraint(equalTo: b.trailingAnchor, constant: -3),
-                l.topAnchor.constraint(equalTo: b.topAnchor, constant: 2),
-            ])
+            b.addOverlay(l, .topRight(right: 3, top: 2))
         }
         // Chèn NGAY touch-down như stock iOS: chữ lên tức thì, không phụ thuộc
         // vào việc giao touch-up (main thread bận → touch-up trễ → "phím không
@@ -4580,14 +4872,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let l = UILabel()
         l.text = text
         l.textColor = inkFaded(Double(KeyGeometry.Typography.Pad.hintAlpha(dark: dark)))
-        l.translatesAutoresizingMaskIntoConstraints = false
         l.isUserInteractionEnabled = false
         l.isAccessibilityElement = false
-        b.addSubview(l)
-        let base = l.firstBaselineAnchor.constraint(equalTo: b.centerYAnchor)
-        NSLayoutConstraint.activate([l.centerXAnchor.constraint(equalTo: b.centerXAnchor), base])
+        b.addOverlay(l, .centerBaseline(belowCenter: 0))
         b.padHint = l
-        b.padHintBaseline = base
     }
 
     /// Phím (UIButton thường, không qua router chữ) có ký tự phụ iPad: VUỐT XUỐNG quá
@@ -4727,7 +5015,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         b.addAction(UIAction { [weak self] _ in
             self?.shiftUp()   // đã giữ ⇧ gõ ký tự phụ ⇒ không để lại viết hoa một lần
         }, for: [.touchUpInside, .touchUpOutside, .touchCancel])
-        b.widthAnchor.constraint(greaterThanOrEqualToConstant: 42).isActive = true
+        b.minWidth = 42
         return b
     }
 
@@ -4752,7 +5040,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         long.delaysTouchesEnded = false
         long.cancelsTouchesInView = false
         b.addGestureRecognizer(long)
-        b.widthAnchor.constraint(greaterThanOrEqualToConstant: 42).isActive = true
+        b.minWidth = 42
         return b
     }
 
@@ -5037,7 +5325,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     /// Logo Vᴛ hoặc mã VI/EN trên phím cách (SpaceMark). Gọi lúc dựng plane, và tại chỗ khi
     /// công tắc vuốt đổi ngôn ngữ đổi (configureSpaceFlick — không dựng lại cả plane).
-    private func installSpaceMark(on space: UIButton) {
+    private func installSpaceMark(on space: KeyButton) {
         // logo Vᴛ mờ ở mép phải nút space (thay "VI EN" — user 2026-07-23);
         // PNG 2x/3x render từ MenuIcon.pdf nên sắc nét, tint theo appearance.
         // Ẩn được qua Settings của app (showSpaceLogo, App Group).
@@ -5056,26 +5344,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             l.textColor = spaceInk.alpha(0.45).ui     // mờ như stock; theo độ trong suốt ký tự
             l.isUserInteractionEnabled = false
             l.isAccessibilityElement = false
-            l.translatesAutoresizingMaskIntoConstraints = false
             spaceCode = l
-            space.addSubview(l)
-            NSLayoutConstraint.activate([
-                l.rightAnchor.constraint(equalTo: space.rightAnchor, constant: Self.isPad ? -10 : -7),
-                l.bottomAnchor.constraint(equalTo: space.bottomAnchor, constant: Self.isPad ? -6 : -4),
-            ])
+            space.addOverlay(l, .bottomRight(right: Self.isPad ? 10 : 7, bottom: Self.isPad ? 6 : 4))
         case .logo:
             let hint = UIImageView(image: spaceLogoImage())
             hint.tintColor = spaceInk.alpha(0.16).ui
             hint.contentMode = .scaleAspectFit
-            hint.translatesAutoresizingMaskIntoConstraints = false
             spaceLogo = hint
-            space.addSubview(hint)
-            NSLayoutConstraint.activate([
-                hint.rightAnchor.constraint(equalTo: space.rightAnchor, constant: -10),
-                hint.centerYAnchor.constraint(equalTo: space.centerYAnchor),
-                hint.widthAnchor.constraint(equalToConstant: 22),
-                hint.heightAnchor.constraint(equalToConstant: 22),
-            ])
+            space.addOverlay(hint, .rightCenterY(right: 10, size: CGSize(width: 22, height: 22)))
         }
     }
 
@@ -5203,13 +5479,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         l.text = spaceLanguage == .en ? KeyboardLanguage.en.displayName : "ViệtTelex"
         l.font = .systemFont(ofSize: 16, weight: .regular)
         l.textColor = spaceInk.ui
-        l.translatesAutoresizingMaskIntoConstraints = false
         spaceMarkView?.isHidden = true     // logo Vᴛ nhường chỗ, khỏi đè lên badge
-        space.addSubview(l)
-        NSLayoutConstraint.activate([
-            l.centerXAnchor.constraint(equalTo: space.centerXAnchor),
-            l.centerYAnchor.constraint(equalTo: space.centerYAnchor),
-        ])
+        space.addOverlay(l, .center)
         UIView.animate(withDuration: 0.3, delay: 0.7, options: [.curveEaseOut]) {
             l.alpha = 0
         } completion: { [weak self] _ in
@@ -5223,7 +5494,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // hit-test theo z-order thay vì khoảng cách, tracking per-control không
     // rollover được). Phím chữ tắt interaction; touch nổi lên đây và được gán
     // cho phím GẦN NHẤT — mọi điểm chạm trong vùng chữ đều trúng một phím.
-    private var routedTouches: [ObjectIdentifier: UIButton] = [:]
+    private var routedTouches: [ObjectIdentifier: KeyButton] = [:]
 
     // Vùng phím chữ (kể cả khe giữa phím) hit-test về CHÍNH KeyboardView —
     // một mặt touch duy nhất, isMultipleTouchEnabled=true của self có hiệu lực
@@ -5237,7 +5508,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if TouchLog.enabled, let e = event, e.type == .touches {
             let target: String
             if v === self { target = "router" }
-            else if let b = v as? UIButton {
+            else if let b = v as? KeyButton {
+                target = "button[\(b.accessibilityLabel ?? b.currentTitle ?? "?")]"
+            } else if let b = v as? UIButton {
                 target = "button[\(b.accessibilityLabel ?? b.currentTitle ?? "?")]"
             } else { target = v.map { String(describing: type(of: $0)) } ?? "nil" }
             TouchLog.hitTest(target: target, y: Double(point.y), stamp: e.timestamp)
@@ -5250,7 +5523,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if trackpadActive, bounds.contains(point) { return self }
         // Chỉ ô chừa trong strip được vuốt ve; phần hình tràn xuống vẫn thuộc phím.
         if let buddy, !buddy.isHidden, !suggestionBar.isHidden, bounds.contains(point) {
-            let strip = max(rowsTopConstraint?.constant ?? openStripNow, openStripNow)
+            let strip = max(rowsTopWanted, openStripNow)
             let zone = Self.buddyZoneFrame(width: bounds.width, strip: strip, placement: buddyPlacement)
             if BuddyTap.tickles(x: Double(point.x), y: Double(point.y),
                                 zone: BuddyRect(x: Double(zone.minX), y: Double(zone.minY), w: Double(zone.width), h: Double(zone.height)),
@@ -5270,14 +5543,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         // Khe cùng hàng cạnh phím chức năng (m↔⌫, z↔⇧, mép màn hình) ⇒ phím chức năng,
         // trừ 3pt sát mép phím chữ (SpecialKeyGutter) — trước đây router chữ ăn trọn nửa khe.
-        if v != nil, lettersLike, let s = gutterSpecial(at: point) { return s }
+        if v != nil, lettersLike, let s = gutterSpecial(at: point) { return biasedHit(s, at: point, time: time) ?? s }
         // Khe / mép trong vùng phím: nút thật GẦN NHẤT (123, emoji, ⇧, ⌫, số…) hoặc phím chữ
         // gần hơn (router). Trước đây khe trên mỗi hàng nút (4.5pt: nút chỉ nở 5.5 trong khe
         // 10) là vùng CHẾT — chạm cao phím 123/ABC/emoji mất hẳn, chạm cao emoji ra chữ z.
         if v != nil, let b = nearestControl(at: point) {
             if let l = nearestLetterDistance(at: TouchGeometry.keySelectionPoint(point, top: rowsContainer.frame.minY)),
                l < b.distance { return self }
-            return b.button
+            return biasedHit(b.button, at: point, time: time) ?? b.button
         }
         if v != nil, nearestLetterButton(at: point) != nil { return self }
         return v
@@ -5298,8 +5571,18 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             return nil
         }
         guard !Self.isPad else { return nil }
+        // Khe giữa phím dấu bất kỳ và space kề (cùng hàng) ⇒ space. Trước đây chỉ đúng nhờ thứ tự
+        // hit-test + sai số làm tròn khung của Auto Layout ở điểm giữa khe; giờ là luật tường minh.
+        if let space = spaceBar, c !== space, let b = c as? KeyButton, !b.isSpecial,
+           b.superview != nil, b.superview === space.superview {
+            let pf = convert(b.bounds, from: b)
+            if !KeyHitBias.insidePunct(point, punct: pf),
+               KeyHitBias.intrudes(point, loser: pf, winner: convert(space.bounds, from: space), band: 0) {
+                return space
+            }
+        }
         let since = time.flatMap { t in lastLetterDownTime.map { t - $0 } }
-        if let space = spaceBar, c !== space, let b = c as? UIButton,
+        if let space = spaceBar, c !== space, let b = c as? KeyButton,
            let t = b.currentTitle, t == "," || t == ".",
            b.superview != nil, b.superview === space.superview {
             let band = KeyHitBias.spaceBand(sinceLetter: since)
@@ -5367,7 +5650,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return g
     }
 
-    private func nearestLetterButton(at point: CGPoint) -> UIButton? {
+    private func nearestLetterButton(at point: CGPoint) -> KeyButton? {
         // Chỉ route touch TRONG vùng phím — touch ở strip gợi ý phía trên là
         // của chevron/slot, router mà cướp thì chevron "bấm mãi không ăn".
         guard lettersLike, !letterKeys.isEmpty,
@@ -5403,8 +5686,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var onLetterTouch: ((Float, Float) -> Void)?
 
     /// Vùng biên giữa 2 phím ⇒ TouchTarget.choose; lõi phím ⇒ giữ ngay (0 alloc).
-    private func smartPick(_ hit: UIButton, at p: CGPoint,
-                           prior lp: () -> ((Character) -> Float?)?) -> UIButton {
+    private func smartPick(_ hit: KeyButton, at p: CGPoint,
+                           prior lp: () -> ((Character) -> Float?)?) -> KeyButton {
         guard plane == .letters,
               let hi = letterKeys.firstIndex(where: { $0.button === hit }),
               !TouchTarget.inCore(p, letterGeometry().rects[hi]) else { return hit }
@@ -5489,7 +5772,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     /// Chạm phím có ký tự phụ: hẹn giờ `holdDelay`. Chữ đã chèn lúc chạm; hết giờ mà
     /// ngón chưa trôi / chưa thành vuốt ⇒ balloon hiện ký tự phụ, nhấc tay thì thay chữ.
-    private func armAltHold(_ id: ObjectIdentifier, button b: UIButton, at raw: CGPoint) {
+    private func armAltHold(_ id: ObjectIdentifier, button b: KeyButton, at raw: CGPoint) {
         guard let base = letterKeys.first(where: { $0.button === b })?.base.first,
               let alt = activeAlts[base] else { return }
         altHold = (id, b, KeyAlternates.Hold(alt: alt, start: raw))
@@ -5530,14 +5813,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         l.text = alt
         l.font = .systemFont(ofSize: 10, weight: .medium)
         l.textColor = inkFaded(0.45)
-        l.translatesAutoresizingMaskIntoConstraints = false
         l.isUserInteractionEnabled = false
         l.isAccessibilityElement = false
-        b.addSubview(l)
-        NSLayoutConstraint.activate([
-            l.trailingAnchor.constraint(equalTo: b.trailingAnchor, constant: -3),
-            l.topAnchor.constraint(equalTo: b.topAnchor, constant: 2),
-        ])
+        b.addOverlay(l, .topRight(right: 3, top: 2))
         b.addAction(UIAction { [weak self, weak b] _ in
             guard let self, let b else { return }
             self.commaTimer?.cancel()
@@ -5839,13 +6117,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     private var keyCmd: KeyCommandGesture?
     private var keyCmdTouchID: ObjectIdentifier?
-    private weak var keyCmdButton: UIButton?
+    private weak var keyCmdButton: KeyButton?
     private var keyCmdDeferred = false
     /// Đặt trong lúc router gửi touchDown cho phím chữ ⇒ phím đó HOÃN chữ (commits.arm).
     private var deferredLetterID: ObjectIdentifier?
     private var keyCmdPill: UILabel?
 
-    private func beginKeyCommand(_ b: UIButton, at raw: CGPoint) -> KeyCommandGesture? {
+    private func beginKeyCommand(_ b: KeyButton, at raw: CGPoint) -> KeyCommandGesture? {
         guard let base = letterKeys.first(where: { $0.button === b })?.base.first,
               let kw = letterKeyPitch() else { return nil }
         return KeyCommandGesture.begin(enabled: true, key: base, start: raw,
@@ -6212,7 +6490,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func layoutBuddy(stripOpen: Bool) {
         guard let b = buddy else { return }
         let wasHidden = b.isHidden
-        let zone = Self.buddyZoneFrame(width: bounds.width, strip: max(rowsTopConstraint?.constant ?? openStripNow, openStripNow), placement: buddyPlacement)
+        let zone = Self.buddyZoneFrame(width: bounds.width, strip: max(rowsTopWanted, openStripNow), placement: buddyPlacement)
         buddyTickleZone.isHidden = !stripOpen
         buddyTickleZone.frame = zone
         bringSubviewToFront(buddyTickleZone)
@@ -6221,7 +6499,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         guard show else { b.halt(); return }
         if wasHidden { b.tick() }
         // Strip thật (rowsContainer bắt đầu ngay dưới); ô nhân vật tràn xuống hàng phím đầu (không nhận chạm).
-        let strip = min(max(rowsTopConstraint?.constant ?? openStripNow, openStripNow),
+        let strip = min(max(rowsTopWanted, openStripNow),
                         rowsContainer.frame.height > 0 ? rowsContainer.frame.minY : .greatestFiniteMagnitude)
         let f = Self.buddyFrame(width: bounds.width, strip: strip, placement: buddyPlacement, height: bounds.height)
         if b.frame != f { b.frame = f }
@@ -6582,11 +6860,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
     private(set) var debugSafeOverride: CGFloat?
     /// Test hook: mọi stack hàng phím (kể cả nửa tách đôi) — kiểm tra không ăn safe area vào lề.
-    var debugRowStacks: [UIStackView] {
-        var out: [UIStackView] = []
+    var debugRowStacks: [KeyRow] {
+        var out: [KeyRow] = []
         func walk(_ v: UIView, depth: Int) {
             guard depth < 4 else { return }
-            for c in v.subviews { if let st = c as? UIStackView, st.axis == .horizontal { out.append(st) }; walk(c, depth: depth + 1) }
+            for c in v.subviews { if let st = c as? KeyRow { out.append(st) }; walk(c, depth: depth + 1) }
         }
         walk(rowsContainer, depth: 0)
         return out
@@ -6614,8 +6892,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return nil
     }
     /// Test hook: button phím text (hàng số / plane số) theo nhãn, trong plane đang hiện.
-    func debugKeyButton(_ title: String) -> UIButton? {
-        func find(_ v: UIView) -> UIButton? {
+    func debugKeyButton(_ title: String) -> KeyButton? {
+        func find(_ v: UIView) -> KeyButton? {
             if let b = v as? KeyButton, !b.isSpecial, b.currentTitle == title { return b }
             for s in v.subviews { if let r = find(s) { return r } }
             return nil
@@ -6623,8 +6901,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return rowsContainer.arrangedSubviews.lazy.compactMap(find).first
     }
     /// Test hook: mọi nút phím (KeyButton) đang dựng trong plane hiện tại, theo thứ tự cây view.
-    func debugAllKeyButtons() -> [UIButton] {
-        var out: [UIButton] = []
+    func debugAllKeyButtons() -> [KeyButton] {
+        var out: [KeyButton] = []
         func walk(_ v: UIView) {
             if let b = v as? KeyButton { out.append(b); return }
             v.subviews.forEach(walk)
@@ -6633,23 +6911,23 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return out
     }
     /// Test hook: nền hiện tại / nền thường / nền khi đè của một nút phím.
-    func debugKeyColors(_ b: UIButton) -> (current: UIColor?, normal: UIColor?, pressed: UIColor?) {
+    func debugKeyColors(_ b: KeyButton) -> (current: UIColor?, normal: UIColor?, pressed: UIColor?) {
         let k = b as? KeyButton
         return (b.backgroundColor, k?.normalBackground, k?.pressedBackground)
     }
     /// Test hook: lớp skin + ảnh đang hiện của một nút phím (nil = không skin).
-    func debugSkinContents(_ b: UIButton) -> AnyObject? {
+    func debugSkinContents(_ b: KeyButton) -> AnyObject? {
         (b as? KeyButton)?.debugSkinLayer?.contents as AnyObject?
     }
-    func debugSkinLayer(_ b: UIButton) -> CALayer? { (b as? KeyButton)?.debugSkinLayer }
+    func debugSkinLayer(_ b: KeyButton) -> CALayer? { (b as? KeyButton)?.debugSkinLayer }
     /// Test hook: đè / nhả một nút (đường press/release thật).
-    func debugPress(_ b: UIButton, _ on: Bool) {
+    func debugPress(_ b: KeyButton, _ on: Bool) {
         guard let k = b as? KeyButton else { return }
         if on { k.press() } else { k.showPressed(false) }
     }
     /// Test hook: các phím đang hiện nền đè (sẫm), theo thứ tự cây view.
-    func debugPressedKeys() -> [UIButton] {
-        var out: [UIButton] = []
+    func debugPressedKeys() -> [KeyButton] {
+        var out: [KeyButton] = []
         func walk(_ v: UIView) {
             if let b = v as? KeyButton, b.pressShown, b.backgroundColor == b.pressedBackground { out.append(b) }
             v.subviews.forEach(walk)
@@ -6658,9 +6936,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return out
     }
     /// Test hook: phím đang chờ thôi sẫm trễ (touch sát mép giao began + ended một lượt).
-    func debugReleasePending(_ b: UIButton) -> Bool { (b as? KeyButton)?.releasePending ?? false }
+    func debugReleasePending(_ b: KeyButton) -> Bool { (b as? KeyButton)?.releasePending ?? false }
     /// Test hook: nút phím chữ `s` (router điều phối, không nhận touch trực tiếp).
-    func debugLetterButton(_ s: String) -> UIButton? { letterKeys.first { $0.base == s }?.button }
+    func debugLetterButton(_ s: String) -> KeyButton? { letterKeys.first { $0.base == s }?.button }
     /// Test hook: frame balloon đang hiện (toạ độ self), nil nếu ẩn.
     var debugBalloonFrame: CGRect? { debugBalloonVisible ? balloon.frame : nil }
     /// Test hook: frame nút rail một tay đang hiện (toạ độ self).
@@ -6705,7 +6983,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// chức năng, ô trống (thụt hàng) = "␣".
     func debugRowLabels() -> [[String]] {
         rowsContainer.arrangedSubviews.map { r in
-            ((r as? UIStackView)?.arrangedSubviews ?? []).map { v in
+            ((r as? KeyRow)?.arrangedSubviews ?? (r as? UIStackView)?.arrangedSubviews ?? []).map { v in
                 guard let b = v as? KeyButton else { return "␣" }
                 if b.isSpecial || (b.currentTitle ?? "").isEmpty {
                     if let t = b.currentTitle, !t.isEmpty, b.accessibilityLabel == nil { return t }
@@ -6750,7 +7028,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         guard plane == .keypad else { return nil }
         for row in rowsContainer.arrangedSubviews {
             for c in rowControls(row) {
-                if c.accessibilityLabel == label || (c as? UIButton)?.currentTitle == label { return c }
+                if c.accessibilityLabel == label || (c as? KeyButton)?.currentTitle == label { return c }
             }
         }
         return nil
@@ -6798,7 +7076,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
     /// Test hook: chiều cao xin host + vùng hàng (constant constraint).
     var debugRequestedHeight: CGFloat { heightConstraint?.constant ?? 0 }
-    var debugRowsTop: CGFloat { rowsTopConstraint?.constant ?? 0 }
+    var debugRowsTop: CGFloat { rowsTopWanted }
     func debugEnterEmojiSearch() { plane = .emojiSearch; rebuild() }
     /// Test hook: phông + bán kính bo của phím chữ `s` (sau layout).
     func debugLetterStyle(_ s: String) -> (font: UIFont?, radius: CGFloat, size: CGSize)? {

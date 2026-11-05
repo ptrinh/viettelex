@@ -35,7 +35,7 @@ final class KeyPressHighlightEdgeTests: XCTestCase {
         withExtendedLifetime(host) {}
     }
 
-    private func name(_ b: UIButton?) -> String {
+    private func name(_ b: KeyboardView.KeyButton?) -> String {
         guard let b else { return "nil" }
         return b.accessibilityLabel ?? b.currentTitle ?? "?"
     }
@@ -46,8 +46,8 @@ final class KeyPressHighlightEdgeTests: XCTestCase {
                                     expectDeferred: Bool = true, _ ctx: String,
                                     file: StaticString = #filePath, line: UInt = #line) throws {
         let hit = kb.debugHitTest(p, time: 1)
-        var pressed: [UIButton] = []
-        var receiver: UIButton?
+        var pressed: [KeyboardView.KeyButton] = []
+        var receiver: KeyboardView.KeyButton?
         var released: () -> Void = {}
         if hit === kb {
             let token = NSObject(), id = ObjectIdentifier(token)
@@ -58,7 +58,7 @@ final class KeyPressHighlightEdgeTests: XCTestCase {
             }
             receiver = kb.debugLetterButton(String(ch).lowercased())
             released = { kb.debugRouteUp(id, at: p, time: 1); withExtendedLifetime(token) {} }
-        } else if let c = hit as? UIButton {
+        } else if let c = hit as? KeyboardView.KeyButton {
             c.sendActions(for: .touchDown)
             pressed = kb.debugPressedKeys()
             receiver = c
@@ -183,7 +183,7 @@ final class KeyPressHighlightEdgeTests: XCTestCase {
     @MainActor func testShiftKeepsPressedFillWhileHeld() throws {
         try XCTSkipIf(isPad, "bố cục iPhone")
         try withKeyboard(width: 402, numberRow: false) { kb, _ in
-            let shift = try XCTUnwrap(kb.debugControl("Shift") as? UIButton)
+            let shift = try XCTUnwrap(kb.debugControl("Shift") as? KeyboardView.KeyButton)
             // Hai lần: tự viết hoa đầu câu (bật) → tắt, rồi tắt → bật (cách > 0.3s, không thành caps).
             for _ in 0..<2 {
                 let before = kb.debugShiftOn
@@ -256,13 +256,13 @@ final class KeyPressHighlightEdgeTests: XCTestCase {
                 RunLoop.main.run(until: Date().addingTimeInterval(BalloonGeometry.minVisible + 0.05))
                 XCTAssertEqual(kb.debugPlaneName, "letters", ctx)
                 let more = try XCTUnwrap(kb.debugControl(L("Số")), ctx)
-                let col = kb.debugKeyColors(more as! UIButton)
+                let col = kb.debugKeyColors(more as! KeyboardView.KeyButton)
                 let fn = kb.debugPalette.fnFill.ui
                 XCTAssertEqual(col.current, fn, "\(ctx): phím 123 phải có nền phím chức năng")
                 XCTAssertEqual(col.normal, fn, ctx)
                 XCTAssertTrue(kb.debugPressedKeys().isEmpty, ctx)
                 // Phím chức năng khác (emoji / ⌫) cùng nền — đối chiếu.
-                if let bs = kb.debugControl(L("Xoá")) as? UIButton { XCTAssertEqual(kb.debugKeyColors(bs).current, fn, ctx) }
+                if let bs = kb.debugControl(L("Xoá")) as? KeyboardView.KeyButton { XCTAssertEqual(kb.debugKeyColors(bs).current, fn, ctx) }
             }
         } } } } }
     }

@@ -15,7 +15,7 @@ final class ViewTreeLeakTests: XCTestCase {
     }
 
     static func firstButton(in v: UIView) -> UIView? {
-        if v is UIButton { return v }
+        if v is KeyboardView.KeyButton { return v }
         for s in v.subviews { if let b = firstButton(in: s) { return b } }
         return nil
     }
