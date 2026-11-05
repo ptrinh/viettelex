@@ -503,7 +503,7 @@ final class ThemeAssetTests: XCTestCase {
         return spec
     }
 
-    private func letterButton(_ kb: KeyboardView, _ l: String) -> UIButton? {
+    private func letterButton(_ kb: KeyboardView, _ l: String) -> KeyboardView.KeyButton? {
         kb.debugAllKeyButtons().first { $0.currentTitle == l || $0.currentTitle == l.uppercased() }
     }
 

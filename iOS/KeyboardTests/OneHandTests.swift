@@ -138,7 +138,7 @@ final class OneHandTests: XCTestCase {
         for f in frames {
             XCTAssertGreaterThanOrEqual(f.minX, rail.x - 0.5)
             XCTAssertLessThanOrEqual(f.maxX, rail.x + rail.width + 0.5)
-            XCTAssertTrue(kb.hitTest(CGPoint(x: f.midX, y: f.midY), with: nil) is UIButton)
+            XCTAssertTrue(kb.hitTest(CGPoint(x: f.midX, y: f.midY), with: nil) is KeyboardView.KeyButton)
         }
         kb.debugTapRail(0)
         kb.layoutIfNeeded()
