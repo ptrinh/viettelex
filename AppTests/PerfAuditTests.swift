@@ -104,7 +104,7 @@ final class PerfAuditTests: XCTestCase {
         let excel = c.strategyLabel("com.microsoft.Excel", localized: false)
         XCTAssertTrue(excel.contains("emptyReset"), "Excel phải emptyReset: \(excel)")
         // Bản cho menu (localized: true) dùng đúng nhãn người dùng thấy trong Cài đặt.
-        XCTAssertEqual(c.strategyLabel("com.apple.Notes", localized: true), VTLocalized("In-place"))
+        XCTAssertEqual(c.strategyLabel("com.apple.Notes", localized: true), VTLocalized(ModeNames.inPlace))
         // id nil (chưa biết client) không được crash và vẫn trả nhãn dùng được.
         XCTAssertFalse(c.strategyLabel(nil, localized: true).isEmpty)
     }

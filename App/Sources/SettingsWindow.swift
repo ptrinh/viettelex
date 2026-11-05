@@ -365,8 +365,8 @@ final class SettingsModel: ObservableObject {
     /// máy dịch được) — chú thích cũ ghi cứng "1–6" kể cả khi bảng có Dịch ở phím 7.
     static func textToolsCaptionKey(toolCount: Int) -> String {
         toolCount >= 7
-            ? "Select text in any app, then open Tools… (VietTelex menu or the hotkey below) and pick a tool or press its number 1–7: add tones to unaccented text (toi di hoc → tôi đi học), UPPERCASE, lowercase, Title Case, Sentence case, remove tones, translate."
-            : "Select text in any app, then open Tools… (VietTelex menu or the hotkey below) and pick a tool or press its number 1–6: add tones to unaccented text (toi di hoc → tôi đi học), UPPERCASE, lowercase, Title Case, Sentence case, remove tones."
+            ? "Select text, open Tools…, press 1–7: add tones, change case, remove tones, translate."
+            : "Select text, open Tools…, press 1–6: add tones, change case, remove tones."
     }
 
     /// Re-read the Accessibility trust snapshot (see `accessibilityTrusted`).
@@ -514,17 +514,17 @@ final class SettingsModel: ObservableObject {
         let base: String
         var needsAX = false
         switch mode {
-        case .inPlace: base = loc("In-place")
-        case .marked: base = loc("Marked text")
-        case .tap: base = loc("Tap (backspace)"); needsAX = true
-        case .selection: base = loc("Selection-replace"); needsAX = true
-        case .emptyReset: base = loc("Empty-reset"); needsAX = true
-        case .axDetect: base = loc("Per-field (AX)"); needsAX = true
-        case .passthrough: base = loc("Passthrough")
+        case .inPlace: base = loc(ModeNames.inPlace)
+        case .marked: base = loc(ModeNames.marked)
+        case .tap: base = loc(ModeNames.tap); needsAX = true
+        case .selection: base = loc(ModeNames.selection); needsAX = true
+        case .emptyReset: base = loc(ModeNames.emptyReset); needsAX = true
+        case .axDetect: base = loc(ModeNames.axDetect); needsAX = true
+        case .passthrough: base = loc(ModeNames.passthrough)
         case .auto, nil:
             // Not classified: with the permission Auto will probe on first typing;
             // without it the blunt policy runs marked text (no probing).
-            return Accessibility.isTrusted ? loc("not detected yet") : loc("Marked text")
+            return Accessibility.isTrusted ? loc("not detected yet") : loc(ModeNames.marked)
         }
         // Without the permission, show the mode ACTUALLY in effect right now (what
         // the routing degrades to) — "Marked text", not the aspirational
@@ -532,7 +532,7 @@ final class SettingsModel: ObservableObject {
         // Untrusted policy is blunt by decision: everything not positively known
         // in-place-good runs marked text (Spotlight alone is raw passthrough).
         if needsAX && !Accessibility.isTrusted {
-            return mode == .selection ? loc("Passthrough") : loc("Marked text")
+            return mode == .selection ? loc(ModeNames.passthrough) : loc(ModeNames.marked)
         }
         return base
     }
@@ -552,13 +552,13 @@ final class SettingsModel: ObservableObject {
     /// what the filter matches against.
     func manualLabel(_ id: String) -> String {
         switch AppState.AppMode(rawValue: appMode(id)) {
-        case .inPlace: return loc("In-place")
-        case .marked: return loc("Marked text")
-        case .tap: return loc("Tap (backspace)")
-        case .selection: return loc("Selection-replace")
-        case .emptyReset: return loc("Empty-reset")
-        case .axDetect: return loc("Per-field (AX)")
-        case .passthrough: return loc("Passthrough")
+        case .inPlace: return loc(ModeNames.inPlace)
+        case .marked: return loc(ModeNames.marked)
+        case .tap: return loc(ModeNames.tap)
+        case .selection: return loc(ModeNames.selection)
+        case .emptyReset: return loc(ModeNames.emptyReset)
+        case .axDetect: return loc(ModeNames.axDetect)
+        case .passthrough: return loc(ModeNames.passthrough)
         case .auto, nil: return loc("Auto")
         }
     }
@@ -803,6 +803,41 @@ struct SettingsView: View {
         .padding(16)
         .frame(minWidth: 640, minHeight: 500)
     }
+}
+
+// MARK: - Nhãn một hàng (dùng chung các tab)
+
+/// Tên + MỘT dòng chú thích ngắn ngay dưới, cùng một hàng (06/11/2026 — như `TypingTab.rowLabel`).
+/// Nhận chuỗi ĐÃ dịch.
+struct SettingRowLabel: View {
+    let title: String
+    var caption: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+            if let c = caption, !c.isEmpty {
+                Text(c).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+/// Tên cách gõ theo app (bảng Ứng dụng + menu): theo triệu chứng, không thuật ngữ (06/11/2026,
+/// cùng tinh thần bản Linux). Chỉ là nhãn — giá trị lưu (`AppState.AppMode`) không đổi.
+enum ModeNames {
+    static let auto = "Auto"
+    static let inPlace = "Edit in the field"
+    static let marked = "Underline while typing"
+    static let tap = "Real keystrokes (no underline)"
+    static let selection = "Real keystrokes: select and retype"
+    static let emptyReset = "Real keystrokes: Excel style"
+    static let axDetect = "Choose per field"
+    static let passthrough = "Vietnamese off"
+    /// Đuôi cho mục cần quyền khi chưa cấp: "Tên (cần quyền Trợ năng)".
+    static let needsPermission = "needs {PANE}"
+    static let all = [inPlace, marked, tap, selection, emptyReset, axDetect, passthrough, needsPermission]
 }
 
 // MARK: - Tab: Gõ phím
@@ -1141,51 +1176,57 @@ struct TypingTab: View {
 struct ToolsTab: View {
     @EnvironmentObject var model: SettingsModel
 
+    /// Chú thích MỘT dòng ngắn (06/11/2026, như `TypingTab.C`): ≤ 95 ký tự, một ví dụ.
+    enum C {
+        static let math = "Type a sum ending in = (12*3=); the result shows by the cursor, Tab inserts it."
+        static let money = "Type 1tr2 + space → 1.200.000 ₫ shows by the cursor; Tab replaces."
+        static let typo = "After a typo (tpoi), the fix (tôi) shows by the cursor; Tab replaces, Esc ignores."
+        static let tones = "After 3+ unaccented syllables, toi di hoc → tôi đi học shows by the cursor; Tab replaces."
+        static let dates = "Type hôm nay (or today) + space → the date (28/09/2026) shows; Tab replaces."
+        static let filter = "Suggestions never offer swear words; typing them yourself still works."
+        static let learn = "Learns words you type often; stays on this Mac. Needs macOS inline predictive text."
+        static let toolsHotkey = "Opens Tools… by the cursor in any app; press again to close."
+        static let addTones = "Adds tones to the selection in any app. Needs {PANE}; clipboard is restored."
+        static let translate = "Translates the selection, or back to Vietnamese. Runs on this Mac; text is never sent."
+        static let all = [math, money, typo, tones, dates, filter, learn, toolsHotkey, addTones, translate,
+                          SettingsModel.textToolsCaptionKey(toolCount: 6),
+                          SettingsModel.textToolsCaptionKey(toolCount: 7)]
+    }
+
+    private func toggleRow(_ titleKey: String, isOn: Binding<Bool>, caption: String) -> some View {
+        Toggle(isOn: isOn) { SettingRowLabel(title: model.loc(titleKey), caption: model.loc(caption)) }
+    }
+
     var body: some View {
         Form {
             Section(header: Label(model.loc("Suggestions next to the cursor"), systemImage: "text.cursor")) {
-                Toggle(model.loc("Show maths results"), isOn: $model.mathResults)
-                Text(model.loc("Type a calculation followed by “=” (12*3=, 200+10%=) — the result shows next to the cursor; press Tab or Enter to insert it."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Money amount suggestions"), isOn: $model.numberChips)
-                Text(model.loc("Type an amount with k/tr/tỷ (50k, 1tr2, 2 tỷ) and a space — the money format (1.200.000 ₫) shows next to the cursor; press Tab to replace it."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Suggest typo fixes"), isOn: $model.typoHints)
-                Text(model.loc("After a word that isn’t Vietnamese or English (tpoi, nayd, spellnig), a likely fix (tôi, này, spelling) shows next to the cursor; press Tab to replace it. Esc stops suggesting that word."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Suggest tones for unaccented sentences"), isOn: $model.toneHints)
-                Text(model.loc("After 3+ unaccented syllables (toi di hoc), when you type . ! ? or pause after a space, the toned text (tôi đi học) shows next to the cursor; press Tab to replace it."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Suggest dates and times"), isOn: $model.dateHints)
-                Text(model.loc("Type “hôm nay”, “ngày mai”, “hôm qua” or “bây giờ” (after an English word: today, tomorrow, yesterday, now) and a space — the date (28/09/2026) or time (21:35) shows next to the cursor; press Tab to replace the words with it."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Filter sensitive words"), isOn: $model.filterSensitive)
-                Text(model.loc("Word suggestions and typo fixes never offer swear words — typing them yourself works as usual."))
-                    .font(.caption).foregroundStyle(.secondary)
+                toggleRow("Show maths results", isOn: $model.mathResults, caption: C.math)
+                toggleRow("Money amount suggestions", isOn: $model.numberChips, caption: C.money)
+                toggleRow("Suggest typo fixes", isOn: $model.typoHints, caption: C.typo)
+                toggleRow("Suggest tones for unaccented sentences", isOn: $model.toneHints, caption: C.tones)
+                toggleRow("Suggest dates and times", isOn: $model.dateHints, caption: C.dates)
+                toggleRow("Filter sensitive words", isOn: $model.filterSensitive, caption: C.filter)
                 // Học từ bạn gõ (LearnedWords.swift) — cạnh "Lọc từ nhạy cảm", cùng nhóm gợi ý từ.
-                Toggle(model.loc("Learn from your typing"), isOn: $model.learnWords)
-                Text(model.loc("Word suggestions learn the words and word pairs you type often (never in password fields, terminals or code editors). Stored only on this Mac — never sent over the network or synced with iCloud. Works when macOS “Show inline predictive text” is on."))
-                    .font(.caption).foregroundStyle(.secondary)
+                toggleRow("Learn from your typing", isOn: $model.learnWords, caption: C.learn)
                 Button(model.loc("Clear learned words…")) { confirmClearLearned() }
             }
             Section(header: Label(model.loc("Text tools"), systemImage: "textformat")) {
-                Text(model.loc(SettingsModel.textToolsCaptionKey(toolCount: TextToolsPanelLogic.tools.count)))
-                    .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Show text tools in the VietTelex menu"), isOn: $model.textToolsInMenu)
-                Picker(model.loc("Tools panel hotkey"), selection: $model.toolsPanelHotkey) {
+                toggleRow("Show text tools in the VietTelex menu", isOn: $model.textToolsInMenu,
+                          caption: SettingsModel.textToolsCaptionKey(toolCount: TextToolsPanelLogic.tools.count))
+                Picker(selection: $model.toolsPanelHotkey) {
                     ForEach(TextActionHotkey.toolsChoices, id: \.id) { c in
                         Text(c.id == "off" ? model.loc("Off") : c.label).tag(c.id)
                     }
+                } label: {
+                    SettingRowLabel(title: model.loc("Tools panel hotkey"), caption: model.loc(C.toolsHotkey))
                 }
-                Text(model.loc("Opens Tools… next to the cursor from any app, even when another input source is active. Press it again to close."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Picker(model.loc("Add-tones hotkey"), selection: $model.addTonesHotkey) {
+                Picker(selection: $model.addTonesHotkey) {
                     ForEach(TextActionHotkey.choices, id: \.id) { c in
                         Text(c.id == "off" ? model.loc("Off") : c.label).tag(c.id)
                     }
+                } label: {
+                    SettingRowLabel(title: model.loc("Add-tones hotkey"), caption: model.loc(C.addTones))
                 }
-                Text(model.loc("Works in any app, even when another input source is active. Needs {PANE} permission (copies the selection, then pastes the result — your clipboard is restored)."))
-                    .font(.caption).foregroundStyle(.secondary)
                 if #available(macOS 26.0, *) {
                     TranslateSettingsRows()
                 }
@@ -1216,8 +1257,25 @@ struct ToolsTab: View {
 struct ModeTableTab: View {
     @EnvironmentObject var model: SettingsModel
 
+    /// Chú thích ngắn một dòng (06/11/2026: đoạn giải thích dài → một dòng; quyền nằm ở tên cách
+    /// gõ cần nó, "Xoá dữ liệu đã học" giải thích bằng tooltip).
+    enum C {
+        static let intro = "App types wrong or underlines? Change its mode — if unsure, leave it on Auto."
+        static let safe = "Apps not yet recognized: retype with Backspace instead of guessing."
+        static let relearn = "Forgets learned modes; the modes you picked stay."
+        static let all = [intro, safe, relearn]
+    }
+    static let safeTitle = "Safe typing for unrecognized apps"
+
+    /// Tên cách gõ cần quyền: thêm "(cần quyền …)" chỉ khi CHƯA cấp — cấp rồi thì gọn.
+    private func axModeName(_ key: String) -> String {
+        Accessibility.isTrusted ? model.loc(key) : model.loc(key) + " (" + model.loc(ModeNames.needsPermission) + ")"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Text(model.loc(C.intro))
+                .font(.callout).foregroundStyle(.secondary)
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField(model.loc("Filter by app name, bundle id, or mode"), text: $model.modeFilter)
@@ -1267,14 +1325,14 @@ struct ModeTableTab: View {
                     Picker("", selection: Binding(get: { model.appMode(row.id) },
                                                   set: { model.setAppMode(row.id, $0) })) {
                         Text(model.loc("Auto")).tag("auto")
-                        Text(model.loc("In-place")).tag("inPlace")
-                        Text(model.loc("Tap (backspace)")).tag("tap")
-                        Text(model.loc("Marked text")).tag("marked")
+                        Text(model.loc(ModeNames.inPlace)).tag("inPlace")
+                        Text(axModeName(ModeNames.tap)).tag("tap")
+                        Text(model.loc(ModeNames.marked)).tag("marked")
                         Divider()
-                        Text(model.loc("Per-field (AX)")).tag("axDetect")
-                        Text(model.loc("Selection-replace")).tag("selection")
-                        Text(model.loc("Empty-reset")).tag("emptyReset")
-                        Text(model.loc("Passthrough")).tag("passthrough")
+                        Text(axModeName(ModeNames.axDetect)).tag("axDetect")
+                        Text(axModeName(ModeNames.selection)).tag("selection")
+                        Text(axModeName(ModeNames.emptyReset)).tag("emptyReset")
+                        Text(model.loc(ModeNames.passthrough)).tag("passthrough")
                     }
                     .labelsHidden()
                 }.width(min: 150)
@@ -1328,21 +1386,23 @@ struct ModeTableTab: View {
                 Button(role: .destructive) { model.clearLearned() } label: {
                     Label(model.loc("Clear & re-learn"), systemImage: "arrow.counterclockwise.circle").foregroundStyle(.red)
                 }
+                .help(model.loc(C.relearn))
                 Spacer()
                 Button { importModes() } label: { Label(model.loc("Import…"), systemImage: "square.and.arrow.up.on.square") }
                 Button { exportModes() } label: { Label(model.loc("Export to YAML…"), systemImage: "square.and.arrow.up") }
             }
-            Text(model.loc("An app types wrong or shows underlines? Pick Tap — real keystrokes, no underline (needs {PANE} permission). Marked text always renders correctly but underlines while typing. The modes below the divider are for special cases — leave them unless you know the app needs one. Clear forgets everything learned; manual picks are kept."))
-                .font(.caption).foregroundStyle(.secondary)
-
             // Từ tab Thử nghiệm (14/10/2026): "app nào gõ thế nào". "Giữ VietTelex khi macOS tự đổi
             // bộ gõ" chuyển sang Gõ phím → Chuyển Việt/Anh (spec cleanup §1, 05/11/2026).
+            // 06/11/2026: hàng công tắc như tab Gõ phím — tên + một dòng chú thích, công tắc bên phải.
             Divider().padding(.vertical, 2)
-            Toggle(model.loc("Unknown apps use the safe channel (tap/marked)"),
-                   isOn: $model.safeUnknownApps)
-            Text(model.loc("Apps without a rule type via backspace-retype (or underlined composition without {PANE} permission) instead of trying direct insertion and guessing. Turn off to restore the old probe-and-learn behavior."))
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                SettingRowLabel(title: model.loc(Self.safeTitle),
+                                caption: model.loc(C.safe))
+                Spacer()
+                Toggle("", isOn: $model.safeUnknownApps)
+                    .labelsHidden().toggleStyle(.switch)
+                    .accessibilityLabel(model.loc(Self.safeTitle))
+            }
         }
         .onAppear { model.reloadModeTable() }
         // The user's flow is: keep Settings open → type a tone word in the target
@@ -1403,6 +1463,16 @@ struct GeneralTab: View {
     /// `.id` của dòng đầu khối cập nhật — đích cuộn của `revealUpdate`.
     static let updateAnchor = "update"
 
+    /// Chú thích MỘT dòng ngắn của tab Chung (06/11/2026, như `TypingTab.C`): ≤ 95 ký tự.
+    enum C {
+        static let menuIcon = "One color only. Changing it breaks the app’s code seal (it still works). Restart to apply."
+        static let icloud = "Same Apple ID as VietTelex on iPhone. Syncs Telex options and shortcuts; iCloud wins first."
+        static let icloudUnavailable = "Not available in this build (it isn’t signed with iCloud)."
+        static let weekly = "Manual check: the newest release on GitHub. Weekly check: the stable channel."
+        static let debugLog = "Records events in memory, never your text. Reproduce the bug, then copy the log."
+        static let all = [menuIcon, icloud, icloudUnavailable, weekly, debugLog]
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             Form {
@@ -1418,25 +1488,24 @@ struct GeneralTab: View {
                     }
                 }
                 Section(header: Label(model.loc("Menu bar icon"), systemImage: "star.square")) {
-                    Picker(model.loc("Icon"), selection: $model.menuIcon) {
+                    Picker(selection: $model.menuIcon) {
                         Text("Vᴛ — " + model.loc("default")).tag("vt")
                         Text("★ — " + model.loc("five-pointed star")).tag("star")
                         Text("🇻🇳 — " + model.loc("Vietnam flag")).tag("flag")
+                    } label: {
+                        SettingRowLabel(title: model.loc("Icon"), caption: model.loc(C.menuIcon))
                     }
-                    Text(model.loc("Menu bar icons are drawn in a single color that follows the menu bar (no full-color icons — macOS strips the colors). Changing the icon rewrites a file inside the app, which breaks the app's code signature seal (the app keeps working and keeps its permissions). Requires a Mac restart to take effect."))
-                        .font(.caption).foregroundStyle(.secondary)
                     if model.menuIconApplied {
                         Text(model.loc("Icon saved — restart your Mac to see it."))
                             .font(.caption).foregroundStyle(.orange)
                     }
                 }
                 Section(header: Label(model.loc("iCloud sync"), systemImage: "icloud")) {
-                    Toggle(model.loc("Sync typing settings and shortcuts with iPhone/iPad"), isOn: $model.icloudSync)
-                        .disabled(!ICloudSync.hasEntitlement)
-                    Text(model.loc(ICloudSync.hasEntitlement
-                        ? "Same Apple ID as the VietTelex iOS app. Syncs Telex options and the shortcut table (not sentence templates or learned words). On first sync, values already in iCloud win."
-                        : "Not available in this build (it isn’t signed with iCloud)."))
-                        .font(.caption).foregroundStyle(.secondary)
+                    Toggle(isOn: $model.icloudSync) {
+                        SettingRowLabel(title: model.loc("Sync typing settings and shortcuts with iPhone/iPad"),
+                                        caption: model.loc(ICloudSync.hasEntitlement ? C.icloud : C.icloudUnavailable))
+                    }
+                    .disabled(!ICloudSync.hasEntitlement)
                     if model.icloudSync, !ICloudSync.shared.iCloudAvailable {
                         Text("⚠️ " + model.loc("This Mac isn’t signed in to iCloud."))
                             .font(.caption).foregroundStyle(.orange)
@@ -1468,9 +1537,9 @@ struct DiagnosticsSection: View {
 
     var body: some View {
         Section(header: Label(model.loc(Self.headerKey), systemImage: "stethoscope")) {
-            Toggle(model.loc("Record debug log"), isOn: $model.debugLogging)
-            Text(model.loc("Records tap health events in memory (never the text you type). Turn it on, reproduce the problem, then Copy debug log and paste it into your report — or save it as a file."))
-                .font(.caption).foregroundStyle(.secondary)
+            Toggle(isOn: $model.debugLogging) {
+                SettingRowLabel(title: model.loc("Record debug log"), caption: model.loc(GeneralTab.C.debugLog))
+            }
             HStack {
                 Button { copyLog() } label: { Label(model.loc("Copy debug log"), systemImage: "doc.on.doc") }
                 Button { saveLog() } label: { Label(model.loc("Save debug log…"), systemImage: "square.and.arrow.down") }
@@ -1727,13 +1796,13 @@ struct UpdateSection: View {
             .disabled(!AppState.isStableBuild)
             // Opt-in weekly auto-check (default OFF): the toggle IS the user's
             // consent, so the "no network unless you ask" stance holds.
-            Toggle(model.loc("Check weekly and notify me"), isOn: $model.autoUpdateCheck)
-                .disabled(!AppState.isStableBuild)
             // The two checks deliberately follow DIFFERENT channels (Updater.swift) —
             // say so, or "check" finding 1.4.21 right after the weekly notice said
             // 1.4.20 looks broken.
-            Text(model.loc("Manual check: the newest release on GitHub. Weekly check: the stable channel."))
-                .font(.caption).foregroundStyle(.secondary)
+            Toggle(isOn: $model.autoUpdateCheck) {
+                SettingRowLabel(title: model.loc("Check weekly and notify me"), caption: model.loc(GeneralTab.C.weekly))
+            }
+            .disabled(!AppState.isStableBuild)
         }
         .onAppear {
             // Weekly auto-check result, surfaced HERE rather than as a modal that steals
@@ -1826,6 +1895,13 @@ struct UpdateSection: View {
 
 struct ShortcutsTab: View {
     @EnvironmentObject var model: SettingsModel
+
+    /// Chú thích ngắn (06/11/2026): ≤ 95 ký tự.
+    enum C {
+        static let help = "Expands on space/Enter; case follows (ko → không, Ko → Không). ⌥↩ new line."
+        static let conflict = "Chrome/Electron apps expand these via macOS. Short ones (h) can break words: delete in macOS."
+        static let all = [help, conflict]
+    }
     @State private var newKey = ""
     @State private var newValue = ""
     @State private var selection: ShortcutRow.ID?
@@ -1882,7 +1958,7 @@ struct ShortcutsTab: View {
                 Text(model.loc("A shortcut key can’t contain spaces (max 64 characters)."))
                     .font(.caption).foregroundStyle(.red)
             }
-            Text(model.loc("Click a row to edit. Keys may be symbols or digits (->, √√, k2) — they expand on space/Enter. Case follows your typing: ko → không, Ko → Không, KO → KHÔNG. ⌥↩ adds a line break. ⌫ right after an expansion restores what you typed."))
+            Text(model.loc(C.help))
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -1905,7 +1981,7 @@ struct ShortcutsTab: View {
                 c.sameExpansion ? c.key : "\(c.key) (macOS: \(ShortcutRow.oneLine(c.system)))"
             }.joined(separator: ", "))
                 .font(.caption.monospaced())
-            Text(model.loc("Chrome, Edge and Electron apps (Lark, Slack…) apply macOS Text Replacements too, so VietTelex leaves these keys to macOS there to avoid a double expansion. A short macOS replacement (like “h”) can still break Vietnamese words in those apps — delete it from macOS: VietTelex’s shortcut works in every app."))
+            Text(model.loc(C.conflict))
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
