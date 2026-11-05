@@ -128,4 +128,28 @@ enum SwipeSpacing {
         guard let last = ctx?.last else { return false }
         return last.isLetter || last.isNumber || closers.contains(last)
     }
+
+    /// Dấu cách treo cho phím KÝ HIỆU (số, emoji, ngoặc…) ngay sau từ vuốt — chưa phím nào
+    /// xen vào. Số / emoji / ký hiệu tiền tệ / ngoặc-nháy MỞ (mở "từ" mới) cần " " trước:
+    /// vuốt "mua" + 2 → "mua 2", không "mua2". Dấu câu đóng, nháy thẳng, ký hiệu nối
+    /// (- / @ # _ % …) vẫn dính từ. Chữ cái không qua đây (phím chữ sau từ vuốt có luật
+    /// riêng). `before` đọc được ⇒ theo `needsLeadingSpace`; nil ⇒ tin trạng thái (đuôi là
+    /// từ vuốt). = Android SwipeSpacing.spaceBefore.
+    static let openers: Set<Character> = ["(", "[", "{", "\u{201C}", "\u{2018}", "\u{00AB}"]
+
+    static func spaceBefore(_ text: String, afterSwipe: Bool, before: String?) -> Bool {
+        guard afterSwipe, startsWord(text) else { return false }
+        guard let before else { return true }
+        return needsLeadingSpace(before: before)
+    }
+
+    /// Ký tự đầu `text` mở một "từ" mới (cần tách khỏi từ trước bằng dấu cách).
+    static func startsWord(_ text: String) -> Bool {
+        guard let c = text.first, let s = c.unicodeScalars.first else { return false }
+        if c.isASCII { return c.isNumber || openers.contains(c) || c == "$" }
+        if openers.contains(c) || s.properties.generalCategory == .currencySymbol { return true }
+        // emoji: ký hiệu ngoài BMP (😀 👍) hoặc ký hiệu kèm VS16 (❤️)
+        return s.properties.generalCategory == .otherSymbol
+            && (s.value >= 0x10000 || c.unicodeScalars.contains("\u{FE0F}"))
+    }
 }

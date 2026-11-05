@@ -342,3 +342,33 @@ object SwipeSuggest {
 
     private const val OPENERS = "([{\"'“‘«/-@#_–—"
 }
+
+/**
+ * Dấu cách treo cho phím KÝ HIỆU (số, emoji, ngoặc…) ngay sau từ vuốt — chưa phím nào xen
+ * vào. Từ vuốt chèn không kèm dấu cách sau, nên số / emoji / ký hiệu tiền tệ / ngoặc-nháy MỞ
+ * (mở "từ" mới) cần " " trước: vuốt "mua" + 2 → "mua 2", không "mua2". Dấu câu đóng
+ * (. , ! ? ; : ) ” …), nháy thẳng, ký hiệu nối (- / @ # _ % …) vẫn dính từ như cũ. Chữ cái
+ * không qua đây (phím chữ sau từ vuốt có luật riêng: phím dấu Telex sửa từ vuốt).
+ * [before] đọc được ⇒ theo [SwipeSuggest.needsLeadingSpace] (đã có khoảng trắng / ngoặc mở
+ * ⇒ không thêm); null ⇒ tin trạng thái (đuôi là từ vuốt). = iOS SwipeSpacing.spaceBefore.
+ */
+object SwipeSpacing {
+    private const val OPENERS = "([{“‘«"
+
+    fun spaceBefore(text: String, afterSwipe: Boolean, before: String?): Boolean {
+        if (!afterSwipe || text.isEmpty() || !startsWord(text)) return false
+        return before == null || SwipeSuggest.needsLeadingSpace(before)
+    }
+
+    /** Ký tự đầu [text] mở một "từ" mới (cần tách khỏi từ trước bằng dấu cách). */
+    fun startsWord(text: String): Boolean {
+        val cp = text.codePointAt(0)
+        if (cp in '0'.code..'9'.code) return true
+        if (cp < 0x10000 && cp.toChar() in OPENERS) return true
+        val type = Character.getType(cp)
+        if (type == Character.CURRENCY_SYMBOL.toInt()) return true
+        // emoji: ký hiệu ngoài BMP (😀 👍) hoặc ký hiệu kèm VS16 (❤️)
+        return type == Character.OTHER_SYMBOL.toInt() &&
+            (Character.isSupplementaryCodePoint(cp) || text.contains('️'))
+    }
+}

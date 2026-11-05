@@ -625,6 +625,17 @@ final class EngineBridge {
         return true
     }
 
+    /// Phím số/ký hiệu (không phải dấu cách / Enter): ranh giới chèn `text`. Ngay sau từ vuốt
+    /// còn nguyên (chưa phím nào xen vào — kể cả phím chữ vừa bị giữ ra số rồi gỡ) mà `text`
+    /// mở từ mới (số / emoji / ngoặc mở) ⇒ dấu cách treo trước: "mua 2", không "mua2". ⌫ xoá
+    /// số rồi dấu cách như gõ tay. Chỉ đọc context khi đúng trường hợp đó.
+    @discardableResult
+    func symbolBoundary(_ text: String, proxy: TextProxyLike) -> String {
+        let spaced = swipeOpen?.fresh == true && SwipeSpacing.startsWord(text)
+            && SwipeSpacing.spaceBefore(text, afterSwipe: true, before: proxy.contextBeforeInput)
+        return boundary(spaced ? " " + text : text, proxy: proxy)
+    }
+
     /// Space / return / punctuation: word boundary → auto-restore, then the char.
     /// Returns the FINAL committed word (post auto-restore) — the
     /// personalization model must learn what actually landed on screen.
