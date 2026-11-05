@@ -178,11 +178,11 @@
 		59184856DB1424FEC29F3781 /* TouchLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73661E1643A0CAA02517C00 /* TouchLog.swift */; };
 		593AA8DEA7AFB11D6005F173 /* EngineBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD709650C25830CA926EBCF /* EngineBridge.swift */; };
 		5996B5BAD4D3204CEF8FE6CC /* KeySoundSynth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F98B87CC6DBF96F8D09A899 /* KeySoundSynth.swift */; };
+		59C66E8A96CED913A07EA832 /* sample-shortcuts.yml in Resources */ = {isa = PBXBuildFile; fileRef = 24A08F7D2F73879EBEC99BEB /* sample-shortcuts.yml */; };
 		5A5A4CFF71EA497935A2961D /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */; };
 		5A863B519CEB4DFF869913D0 /* SwipeEnglishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC4C7AA642979C79BA435C61 /* SwipeEnglishTests.swift */; };
 		5B52F74F525D2FE790784DEB /* AdjacentKeyFixer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A25C830B85508BCD22F38A /* AdjacentKeyFixer.swift */; };
 		5B648F4E0AD5A746F9788B65 /* AIProofreadPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC97B8AC6D8335D37B6565AD /* AIProofreadPanel.swift */; };
-		5BEE58794584A2259327D181 /* sample-shortcuts.yml in Resources */ = {isa = PBXBuildFile; fileRef = EFDC96D8A36CE14C9C5F2935 /* sample-shortcuts.yml */; };
 		5C1E68D1CE795950C634F366 /* PlanePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C832E4FAF0818129299FF52 /* PlanePolicy.swift */; };
 		5CA3CB101E504E9B3DF8B3A9 /* VietTelexApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03B539001F2CE763F663710B /* VietTelexApp.swift */; };
 		5D4E6E65DD77BBA816CD4938 /* WallpaperEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F537D71E7DF6CC1F3FA95C1B /* WallpaperEditorView.swift */; };
@@ -609,6 +609,7 @@
 		222EF2EE5A6F795385492BEA /* playfair-display.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "playfair-display.ttf"; sourceTree = "<group>"; };
 		22BDEAB6EAD0F1EA689B388A /* CompositionSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositionSync.swift; sourceTree = "<group>"; };
 		23D9F4828FBAE93DCCEB2271 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		24A08F7D2F73879EBEC99BEB /* sample-shortcuts.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = "sample-shortcuts.yml"; sourceTree = "<group>"; };
 		27D10BA36AFF204B214098B2 /* HostRewriteCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRewriteCompositionTests.swift; sourceTree = "<group>"; };
 		283B18B560C805EFBE10D839 /* backup-too-new.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "backup-too-new.json"; sourceTree = "<group>"; };
 		2858993AEE798E0B36D6B495 /* KeyGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyGrid.swift; sourceTree = "<group>"; };
@@ -861,7 +862,6 @@
 		EE4C2C271F18A006B9967589 /* SwipePractice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipePractice.swift; sourceTree = "<group>"; };
 		EE8993F83A60C653C26799EC /* NumberRowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberRowTests.swift; sourceTree = "<group>"; };
 		EF30CED4269435719F2F5392 /* PasteOfferOnceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteOfferOnceTests.swift; sourceTree = "<group>"; };
-		EFDC96D8A36CE14C9C5F2935 /* sample-shortcuts.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = "sample-shortcuts.yml"; sourceTree = "<group>"; };
 		F0396F7F4C967F32F6246FFB /* NumericKeypadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumericKeypadTests.swift; sourceTree = "<group>"; };
 		F06874DA9C48F5720BD4FCB5 /* LineBreakTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineBreakTests.swift; sourceTree = "<group>"; };
 		F0FC8F0608409E1FDA1707BD /* suggest-dev.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "suggest-dev.txt"; sourceTree = "<group>"; };
@@ -960,13 +960,13 @@
 			isa = PBXGroup;
 			children = (
 				E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */,
-				507CD84A18053A3E1202D677 /* agent-a37b3d08724f39b48 */,
 				C9D01CBA8ACF33359DB0C0BD /* App */,
 				D31F988D110CA9E478B35C27 /* Keyboard */,
 				9F75E32DB55D92888E77DE61 /* KeyboardTests */,
 				DF35FD668408A625226DFE82 /* Packages */,
 				7D398E9EE329A73C8620EBFB /* Shared */,
 				FAFFB2CAD61DDABA741DAA0D /* StoreKit */,
+				968E2C214A1AF99C3F83F278 /* VietTelex */,
 				33667695AC2B28EDA68E0C24 /* VTIntelligence */,
 				D1587473BF6CB453210A7CCB /* VTTranslate */,
 				01272B6532043F67ED824A91 /* Frameworks */,
@@ -1047,15 +1047,6 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
-		507CD84A18053A3E1202D677 /* agent-a37b3d08724f39b48 */ = {
-			isa = PBXGroup;
-			children = (
-				EFDC96D8A36CE14C9C5F2935 /* sample-shortcuts.yml */,
-			);
-			name = "agent-a37b3d08724f39b48";
-			path = ..;
-			sourceTree = "<group>";
-		};
 		6DFF8917D9F3EA7178FACE90 /* FontPreviews */ = {
 			isa = PBXGroup;
 			children = (
@@ -1109,6 +1100,15 @@
 				E8E2E27B46842AE6F5EB0A74 /* SyncMerge.swift */,
 			);
 			path = Backup;
+			sourceTree = "<group>";
+		};
+		968E2C214A1AF99C3F83F278 /* VietTelex */ = {
+			isa = PBXGroup;
+			children = (
+				24A08F7D2F73879EBEC99BEB /* sample-shortcuts.yml */,
+			);
+			name = VietTelex;
+			path = ..;
 			sourceTree = "<group>";
 		};
 		9F75E32DB55D92888E77DE61 /* KeyboardTests */ = {
@@ -1628,7 +1628,7 @@
 				DF225D04D7CF81C8C54070B8 /* number-chips.txt in Resources */,
 				2CD73C63D0A8516C1B298E55 /* retro-english-eval.txt in Resources */,
 				B6C7B7E478B6AEAF66C2D94B /* safety-cases.txt in Resources */,
-				5BEE58794584A2259327D181 /* sample-shortcuts.yml in Resources */,
+				59C66E8A96CED913A07EA832 /* sample-shortcuts.yml in Resources */,
 				93E768311710062913552601 /* suggest-dev.txt in Resources */,
 				B92E282E8D0ABE8BEBD693E7 /* suggest-trigram-parity.txt in Resources */,
 				2ADC518FE5C55961C93038B7 /* swipe-lang-sentences.txt in Resources */,
