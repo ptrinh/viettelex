@@ -35,6 +35,7 @@
     "contextualEnglish" : true,
     "customThemes" : "{\"custom\":{\"dark\":\"same\",\"id\":\"custom\",\"light\":{\"accent\":\"#0A84FF\",\"bg\":\"#EEEEEE\",\"ink\":\"#000000\",\"key\":\"#FFFFFF\",\"special\":\"#DDDDDD\"},\"name\":{\"vi\":\"Thử\"},\"v\":1}}",
     "emojiSuggest" : true,
+    "englishByFrequency" : false,
     "filterSensitive" : true,
     "freeMarking" : true,
     "hapticFeedback" : true,

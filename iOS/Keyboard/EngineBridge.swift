@@ -55,6 +55,10 @@ struct KeyboardSettings {
     /// (docs/DESIGN.md "Sửa ngược tiếng Anh"); công tắc này chọn TỰ ÁP (+ chip "Khôi
     /// phục", ⌫ ngay sau trả lại) thay vì chỉ MỜI qua chip trên thanh gợi ý.
     var retroEnglishAuto = false
+    /// "Đoán từ trùng theo tần suất" (thử nghiệm, mặc định TẮT): engine `englishByFrequency`
+    /// (đầu cụm "his" → His khi âm tiết Việt hiếm; từ kế cho thấy tiếng Việt ⇒ LẬT LẠI). Phép lật
+    /// lại luôn tự áp (kể cả công tắc sửa ngược tắt, kể cả Enter — áp trước khi chèn ký tự).
+    var englishByFrequency = false
     /// Sửa dấu từ đã gõ xong (mặc định BẬT, user 26/09/2026): ⌫ ngay sau space/dấu
     /// câu mở lại từ vừa chốt, và phím dấu thanh ngay sau một từ nạp lại từ đó.
     var reEditWord = true
@@ -150,6 +154,7 @@ struct KeyboardSettings {
         if d.object(forKey: "autoFixAdjacent") != nil { s.autoFixAdjacent = d.bool(forKey: "autoFixAdjacent") }
         if d.object(forKey: "contextualEnglish") != nil { s.contextualEnglish = d.bool(forKey: "contextualEnglish") }
         if d.object(forKey: RetroEnglishUI.autoKey) != nil { s.retroEnglishAuto = d.bool(forKey: RetroEnglishUI.autoKey) }
+        if d.object(forKey: RetroEnglishUI.frequencyKey) != nil { s.englishByFrequency = d.bool(forKey: RetroEnglishUI.frequencyKey) }
         if d.object(forKey: "reEditWord") != nil { s.reEditWord = d.bool(forKey: "reEditWord") }
         if d.object(forKey: "swipeTyping") != nil { s.swipeTyping = d.bool(forKey: "swipeTyping") }
         if d.object(forKey: "swipeEnglish") != nil { s.swipeEnglish = d.bool(forKey: "swipeEnglish") }
@@ -350,6 +355,7 @@ final class EngineBridge {
         engine.vniMode = settings.vniMode
         // Cả hai chế độ (mời / tự áp) cần quyết định của engine; contextualEnglish tắt ⇒ không gì cả.
         engine.retroactiveEnglish = settings.contextualEnglish
+        engine.englishByFrequency = settings.englishByFrequency
     }
 
     /// A letter key ("a"…"z", already cased by the shift state).
@@ -662,6 +668,9 @@ final class EngineBridge {
             final = String(before.dropLast(bs)) + insert
         }
         apply(action, literal: "", proxy: proxy)
+        // Lật lại (englishByFrequency): sửa đoán của chính engine ("His hửng" → "hí hửng") ⇒ tự áp
+        // TRƯỚC khi ký tự ranh giới vào — kể cả Enter (chưa gửi) và khi sửa ngược chỉ mời.
+        if let c = engine.pendingRetroCorrection, c.flipBack { applyFlipBack(c, proxy: proxy) }
         if !text.isEmpty { proxy.insertText(text) }
         lastWasOwnBoundary = text.last.map { !$0.isLetter } ?? false
         // Engine cần MỌI ký tự ranh giới (dính "my_var" / "100W"), có sửa ngược hay không.
@@ -688,6 +697,19 @@ final class EngineBridge {
         for _ in 0..<c.backspaces { proxy.deleteBackward() }
         proxy.insertText(c.insert)
         expansionUndo = ExpansionUndo(typed: c.expected, expansion: c.insert, boundary: "", retro: true)
+    }
+
+    /// Áp phép LẬT LẠI ngay sau khi chốt từ (chưa chèn ranh giới): cùng kiểm chữ trước con trỏ
+    /// như sửa ngược; lệch / có vùng chọn ⇒ bỏ (phép sửa hết hạn ở lệnh engine kế tiếp).
+    private func applyFlipBack(_ c: RetroCorrection, proxy: TextProxyLike) {
+        guard !proxy.hasSelection, Self.retroMatches(c.expected, proxy.contextBeforeInput) else {
+            TouchLog.write("flip-back: context lệch → không sửa")
+            return
+        }
+        _ = engine.takeRetroCorrection()
+        TouchLog.edit(bs: c.backspaces, insertLen: c.insert.count, insert: c.insert)
+        for _ in 0..<c.backspaces { proxy.deleteBackward() }
+        proxy.insertText(c.insert)
     }
 
     /// Chữ trước con trỏ kết thúc ĐÚNG (từng scalar) bằng `expected`. nil (host không cho
