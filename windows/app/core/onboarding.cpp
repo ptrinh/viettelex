@@ -64,15 +64,45 @@ void applyProfile(Settings& s, TypingProfile p) {
     s.startEnglish = p == TypingProfile::En;
 }
 
+std::vector<bool Settings::*> profileFields() {
+    return {&Settings::autoRestore,        &Settings::contextualEnglish,          &Settings::retroactiveEnglish,
+            &Settings::englishByFrequency, &Settings::collisionPrefersVietnamese, &Settings::startEnglish};
+}
+
 std::vector<bool Settings::*> profileTurnedOn(TypingProfile p) {
     Settings s;
     applyProfile(s, p);
     std::vector<bool Settings::*> out;
-    for (bool Settings::*f : {&Settings::autoRestore, &Settings::contextualEnglish, &Settings::retroactiveEnglish,
-                              &Settings::englishByFrequency, &Settings::collisionPrefersVietnamese,
-                              &Settings::startEnglish})
+    for (bool Settings::*f : profileFields())
         if (s.*f) out.push_back(f);
     return out;
+}
+
+std::vector<bool Settings::*> profileChanges(const Settings& s, TypingProfile p) {
+    Settings target = s;
+    applyProfile(target, p);
+    std::vector<bool Settings::*> out;
+    for (bool Settings::*f : profileFields())
+        if (s.*f != target.*f) out.push_back(f);
+    return out;
+}
+
+bool matchProfile(const Settings& s, const std::string& lastChosen, TypingProfile& out) {
+    TypingProfile last = TypingProfile::Vi;
+    const bool haveLast = parseProfile(lastChosen, last);
+    bool found = false;
+    for (TypingProfile p : {TypingProfile::Vi, TypingProfile::Mixed, TypingProfile::En}) {
+        if (!profileChanges(s, p).empty()) continue;
+        if (!found) out = p;
+        found = true;
+        if (haveLast && p == last) out = p;
+    }
+    return found;
+}
+
+bool profileNeedsConfirmation(const Settings& s, TypingProfile p, const std::string& lastChosen) {
+    TypingProfile m = TypingProfile::Vi;
+    return !matchProfile(s, lastChosen, m) && !profileChanges(s, p).empty();
 }
 
 OnboardingAction decideOnboarding(int onboardingDone, WelcomeAction welcome) {

@@ -46,6 +46,52 @@ enum OnboardingLogic {
         ]
     }
 
+    static func dict(_ p: TypingProfile) -> [String: Bool] {
+        Dictionary(uniqueKeysWithValues: values(for: p).map { ($0.key, $0.value) })
+    }
+
+    /// Tên hồ sơ (khoá Localizable.strings) + câu ví dụ — màn 1 và bộ chọn nhanh dùng chung.
+    static func title(_ p: TypingProfile) -> String {
+        switch p {
+        case .vi: return "Mostly Vietnamese"
+        case .mixed: return "Lots of Vietnamese + English"
+        case .en: return "Mostly English"
+        }
+    }
+
+    static func example(_ p: TypingProfile) -> String {
+        switch p {
+        case .vi: return "Chiều nay mình đi cà phê nhé"
+        case .mixed: return "Chiều nay họp team, nhớ check mail nha"
+        case .en: return "See you at the meeting, nhớ mang laptop nhé"
+        }
+    }
+
+    // MARK: Bộ chọn nhanh ở đầu nhóm "Gõ mixed Việt/Anh" (spec §4) — như iOS/Android
+    // (iOS Shared/OnboardingProfile.swift OnboardingSettings, Android ui/MixedTyping.kt).
+
+    /// Hồ sơ khớp ĐÚNG cài đặt hiện tại (`current`: đủ `mixedKeys`); nil = "Tuỳ chỉnh". macOS:
+    /// `mixed` ≡ `en` (cùng bộ công tắc) ⇒ tô `en` khi lần chọn gần nhất là `en`, còn lại `mixed`.
+    static func match(_ current: [String: Bool], lastChosen: TypingProfile?) -> TypingProfile? {
+        let hits = TypingProfile.allCases.filter { dict($0) == current }
+        guard let first = hits.first else { return nil }
+        if let last = lastChosen, hits.contains(last) { return last }
+        return first
+    }
+
+    /// Key sẽ đổi nếu áp `p` (theo thứ tự `mixedKeys`).
+    static func changes(from current: [String: Bool], to p: TypingProfile) -> [String] {
+        let target = dict(p)
+        return mixedKeys.filter { current[$0] != target[$0] }
+    }
+
+    /// Hỏi xác nhận khi cài đặt đang "Tuỳ chỉnh" (người dùng đã tự chỉnh) và áp sẽ đổi ≥ 1 công
+    /// tắc; đang khớp một hồ sơ thì đổi thẳng.
+    static func needsConfirmation(_ current: [String: Bool], applying p: TypingProfile,
+                                  lastChosen: TypingProfile?) -> Bool {
+        match(current, lastChosen: lastChosen) == nil && !changes(from: current, to: p).isEmpty
+    }
+
     /// Những công tắc hồ sơ vừa BẬT — danh sách ở màn Gõ thử.
     static func turnedOn(by p: TypingProfile) -> [String] {
         values(for: p).filter(\.value).map(\.key)
@@ -253,9 +299,9 @@ struct OnboardingView: View {
             Text(model.loc("Pick the closest one — it only sets a few switches, which you can change any time in Settings → Typing → Mixed Vietnamese/English typing."))
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            card(.vi, title: "Mostly Vietnamese", example: "Chiều nay mình đi cà phê nhé")
-            card(.mixed, title: "Lots of Vietnamese + English", example: "Chiều nay họp team, nhớ check mail nha")
-            card(.en, title: "Mostly English", example: "See you at the meeting, nhớ mang laptop nhé")
+            ForEach(TypingProfile.allCases, id: \.self) { p in
+                card(p, title: OnboardingLogic.title(p), example: OnboardingLogic.example(p))
+            }
             HStack {
                 Spacer()
                 Button(model.loc("Skip")) { model.close() }

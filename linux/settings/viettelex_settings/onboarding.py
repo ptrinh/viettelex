@@ -76,6 +76,52 @@ def turned_on(profile):
     return out
 
 
+# ---------------------------------------------------------------- bộ chọn nhanh (§4)
+# Đầu nhóm "Gõ mixed Việt/Anh" trong Cài đặt: ba hồ sơ + "Tuỳ chỉnh" — y như iOS/Android
+# (iOS Shared/OnboardingProfile.swift OnboardingSettings, Android ui/MixedTyping.kt).
+
+PROFILE_KEYS = MIXED_KEYS + (START_KEY,)
+
+
+def current_values(cfg):
+    """{(section, key): value} đang có của đúng các key hồ sơ ghi."""
+    return {k: bool(cfg.get(*k)) for k in PROFILE_KEYS}
+
+
+def match(current, last_chosen=None):
+    """Hồ sơ khớp ĐÚNG cài đặt hiện tại; None = "Tuỳ chỉnh". Hai hồ sơ cùng bộ công tắc (nền
+    tảng không có chế độ tiếng Anh) ⇒ tô hồ sơ chọn gần nhất nếu nó là một trong hai, không thì
+    hồ sơ đứng trước (`mixed`)."""
+    hits = [p for p in PROFILES if profile_values(p) == current]
+    if not hits:
+        return None
+    return last_chosen if last_chosen in hits else hits[0]
+
+
+def changes(current, profile):
+    """Key sẽ đổi nếu áp `profile` (theo thứ tự PROFILE_KEYS)."""
+    target = profile_values(profile)
+    return [k for k in PROFILE_KEYS if current.get(k) != target[k]]
+
+
+def needs_confirmation(current, profile, last_chosen=None):
+    """Hỏi xác nhận khi cài đặt đang "Tuỳ chỉnh" (người dùng đã tự chỉnh) và áp sẽ đổi ≥ 1
+    công tắc; đang khớp một hồ sơ thì đổi thẳng."""
+    return match(current, last_chosen) is None and bool(changes(current, profile))
+
+
+def pick_profile(cfg, profile, state_file=None):
+    """Áp hồ sơ từ bộ chọn nhanh: giá trị §3 + ghi `profile` (không đụng `done` / `card`)."""
+    apply_profile(cfg, profile)
+    return update_state(state_file, profile=profile)
+
+
+def last_profile(state=None):
+    st = load_state() if state is None else state
+    p = st.get("profile")
+    return p if p in PROFILES else None
+
+
 # ---------------------------------------------------------------- trạng thái
 
 def state_path():

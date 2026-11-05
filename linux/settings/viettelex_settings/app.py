@@ -22,7 +22,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from . import (APP_ID, VERSION, compat, config, detect, gnome_fcitx5, i18n, launchers,  # noqa: E402
                onboarding, shortcuts, updater)
-from .i18n import N_, _  # noqa: E402
+from .i18n import C_, N_, _  # noqa: E402
 
 WEBSITE = "https://ptrinh.github.io/viettelex/"
 LEARN_URL = "https://ptrinh.github.io/viettelex/learn"
@@ -354,7 +354,8 @@ class SettingsWindow(Adw.PreferencesWindow):
         g = Adw.PreferencesGroup(
             title=_("Gõ mixed Việt/Anh"),
             description=_("Nhận diện tiếng Anh khi gõ lẫn Việt–Anh."))
-        self.mixed_first_row = self.switch(
+        self.mixed_first_row = self._profile_picker(g)
+        restore_row = self.switch(
             g, "typing", "auto_restore", _("Tự khôi phục từ không hợp lệ"),
             _("Từ không phải tiếng Việt hợp lệ sẽ tự trả về đúng phím đã gõ khi kết thúc "
               "từ (retore → retore)."))
@@ -381,7 +382,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         retro_visibility()
         ctx_row.get_activatable_widget().connect("notify::active", retro_visibility)
         self.refreshers.append(retro_visibility)
-        self.combo(g, "typing", "collision_prefers_vietnamese",
+        collision_row = self.combo(g, "typing", "collision_prefers_vietnamese",
                    _("Khi từ vừa là tiếng Anh vừa là tiếng Việt"),
                    [(True, _("Ưu tiên tiếng Việt")), (False, _("Ưu tiên tiếng Anh"))],
                    subtitle=_("Cho các từ như last/lát, list/lít, his/hí. Ưu tiên tiếng Việt: gõ đúp "
@@ -408,8 +409,13 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.switch(g, "general", "per_app_state", _("Nhớ Việt/Anh theo từng app"),
                     _("Mỗi app giữ trạng thái Việt/Anh riêng — chuyển sang terminal gõ tiếng Anh "
                     "không làm mất tiếng Việt ở trình soạn thảo."))
-        self.switch(g, "general", "default_vietnamese", _("App mới mở bắt đầu bằng tiếng Việt"),
-                    _("Tắt = app lần đầu gặp bắt đầu ở chế độ tiếng Anh."))
+        start_row = self.switch(g, "general", "default_vietnamese", _("App mới mở bắt đầu bằng tiếng Việt"),
+                                _("Tắt = app lần đầu gặp bắt đầu ở chế độ tiếng Anh."))
+        # Bộ chọn nhanh theo dõi đúng các công tắc hồ sơ ghi (handler của switch() ghi
+        # config trước — nối sau nên đọc được giá trị mới).
+        for r in (restore_row, ctx_row, retro_row, freq_row, start_row):
+            r.get_activatable_widget().connect("notify::active", lambda *_a: self._refresh_picker())
+        collision_row.connect("notify::selected", lambda *_a: self._refresh_picker())
         forget = row(_("Quên trạng thái Việt/Anh đã nhớ"),
                      _("Xoá trạng thái đã nhớ của mọi app; lần sau mỗi app bắt đầu theo mặc định."))
         fb = Gtk.Button(label=_("Quên tất cả"), valign=Gtk.Align.CENTER)
@@ -417,6 +423,81 @@ class SettingsWindow(Adw.PreferencesWindow):
         forget.add_suffix(fb)
         g.add(forget)
         page.add(g)
+
+    # --- bộ chọn nhanh hồ sơ (ONBOARDING-SPEC §4) ---------------------------
+
+    def _profile_picker(self, g):
+        """Ba hồ sơ + "Tuỳ chỉnh" ở đầu nhóm Gõ mixed — như iOS/Android. Hồ sơ khớp ĐÚNG cài
+        đặt thì có dấu ✓; không khớp hồ sơ nào thì "Tuỳ chỉnh" sáng. Trả dòng đầu tiên."""
+        intro = row(_("Chọn nhanh: bấm một hồ sơ để bật/tắt các công tắc bên dưới cho hợp."))
+        intro.add_css_class("dim-label")
+        g.add(intro)
+        self.picker_checks = {}
+        first = None
+        for profile, title in (("vi", _("Chủ yếu tiếng Việt")), ("mixed", _("Việt + Anh nhiều")),
+                               ("en", _("Chủ yếu tiếng Anh"))):
+            r = row(title, "“%s”" % onboarding.CARD_EXAMPLES[profile])
+            r.set_activatable(True)
+            check = Gtk.Image.new_from_icon_name("object-select-symbolic")
+            r.add_suffix(check)
+            r.connect("activated", lambda _r, p=profile: self._pick_profile(p))
+            self.picker_checks[profile] = check
+            g.add(r)
+            first = first or r
+        self.picker_custom = row(C_("profile", "Tuỳ chỉnh"), _("Cài đặt bên dưới không khớp hồ sơ nào."))
+        check = Gtk.Image.new_from_icon_name("object-select-symbolic")
+        self.picker_custom.add_suffix(check)
+        self.picker_checks[None] = check
+        g.add(self.picker_custom)
+        self.refreshers.append(self._refresh_picker)
+        self._refresh_picker()
+        return first
+
+    def _picker_state(self):
+        current = onboarding.current_values(self.cfg)
+        return current, onboarding.last_profile()
+
+    def _refresh_picker(self):
+        if not getattr(self, "picker_checks", None):
+            return
+        current, last = self._picker_state()
+        m = onboarding.match(current, last)
+        for p, check in self.picker_checks.items():
+            check.set_opacity(1 if p == m else 0)
+        self.picker_custom.set_opacity(1 if m is None else 0.5)
+
+    def _pick_profile(self, profile):
+        current, last = self._picker_state()
+        if onboarding.match(current, last) == profile:
+            return
+        if onboarding.needs_confirmation(current, profile, last):
+            titles = {
+                ("typing", "auto_restore"): _("Tự khôi phục từ không hợp lệ"),
+                ("typing", "contextual_english"): _("Quyết định theo ngữ cảnh"),
+                ("typing", "retroactive_english"): _("Tự sửa từ phía trước (thử nghiệm)"),
+                ("typing", "english_by_frequency"): _("Đoán từ trùng theo tần suất (thử nghiệm)"),
+                ("typing", "collision_prefers_vietnamese"): _("Ưu tiên tiếng Việt"),
+                onboarding.START_KEY: _("App mới mở bắt đầu bằng tiếng Việt"),
+            }
+            target = onboarding.profile_values(profile)
+            lines = ["• %s: %s" % (titles[k], _("bật") if target[k] else _("tắt"))
+                     for k in onboarding.changes(current, profile)]
+            name = {"vi": _("Chủ yếu tiếng Việt"), "mixed": _("Việt + Anh nhiều"),
+                    "en": _("Chủ yếu tiếng Anh")}[profile]
+            confirm(self, _("Áp dụng “%s”?") % name,
+                    _("Các công tắc bạn đã tự chỉnh sẽ đổi:") + "\n" + "\n".join(lines),
+                    _("Áp dụng"), lambda: self._apply_profile(profile))
+            return
+        self._apply_profile(profile)
+
+    def _apply_profile(self, profile):
+        try:
+            onboarding.pick_profile(self.cfg, profile)
+        except OSError:
+            self.toast(_("Không ghi được cấu hình trong ~/.config."))
+            return
+        for f in self.refreshers:
+            f()
 
     def _apply_vni_visibility(self):
         vni = self.cfg.get("typing", "input_method") == "vni"

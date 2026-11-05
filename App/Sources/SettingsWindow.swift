@@ -168,6 +168,11 @@ final class SettingsModel: ObservableObject {
     @Published var mixedCardPending: Bool = OnboardingLogic.cardPending(AppState.shared.defaults)
     /// Cuộn tab Gõ phím tới nhóm "Gõ mixed Việt/Anh".
     @Published var revealMixed = false
+    /// Hồ sơ chọn gần nhất (onboarding / bộ chọn nhanh) — chỉ để phân biệt "Việt + Anh nhiều"
+    /// với "Chủ yếu tiếng Anh" (cùng bộ công tắc trên macOS), không điều khiển hành vi.
+    @Published var lastProfile: String = AppState.shared.defaults.string(forKey: OnboardingLogic.profileKey) ?? ""
+    /// Hồ sơ chờ xác nhận ở bộ chọn nhanh (sẽ đổi công tắc người dùng tự chỉnh).
+    @Published var confirmingProfile: TypingProfile?
     @Published var mathResults: Bool { didSet { AppState.shared.mathResults = mathResults } }
     @Published var numberChips: Bool { didSet { AppState.shared.numberChips = numberChips } }
     @Published var typoHints: Bool { didSet { AppState.shared.typoHints = typoHints } }
@@ -298,6 +303,57 @@ final class SettingsModel: ObservableObject {
         OnboardingLogic.dismissCard(AppState.shared.defaults)
         mixedCardPending = false
         if reveal { revealMixed = true }
+    }
+
+    // MARK: Bộ chọn nhanh hồ sơ (ONBOARDING-SPEC §4) — đầu nhóm "Gõ mixed Việt/Anh"
+
+    /// Công tắc hồ sơ đang có (đúng `OnboardingLogic.mixedKeys`).
+    var mixedValues: [String: Bool] {
+        ["autoRestore": autoRestore, "contextualEnglish": contextualEnglish,
+         "retroactiveEnglish": retroactiveEnglish, "englishByFrequency": englishByFrequency,
+         "collisionPrefersVietnamese": collisionPrefersVietnamese]
+    }
+
+    /// Hồ sơ khớp đúng cài đặt; nil = "Tuỳ chỉnh".
+    var matchedProfile: TypingProfile? {
+        OnboardingLogic.match(mixedValues, lastChosen: TypingProfile(rawValue: lastProfile))
+    }
+
+    /// Bấm một hồ sơ: đang "Tuỳ chỉnh" và sẽ đổi công tắc ⇒ chờ xác nhận; còn lại áp ngay.
+    func pickProfile(_ p: TypingProfile) {
+        guard p != matchedProfile else { return }
+        if OnboardingLogic.needsConfirmation(mixedValues, applying: p, lastChosen: TypingProfile(rawValue: lastProfile)) {
+            confirmingProfile = p
+        } else {
+            applyProfile(p)
+        }
+    }
+
+    /// Ghi hồ sơ qua các thuộc tính của model (didSet ghi AppState ⇒ engine nhận ngay).
+    func applyProfile(_ p: TypingProfile) {
+        confirmingProfile = nil
+        OnboardingLogic.apply(p, defaults: AppState.shared.defaults) { self.setMixed($0, $1) }
+        lastProfile = p.rawValue
+    }
+
+    private func setMixed(_ key: String, _ v: Bool) {
+        switch key {
+        case "autoRestore": autoRestore = v
+        case "contextualEnglish": contextualEnglish = v
+        case "retroactiveEnglish": retroactiveEnglish = v
+        case "englishByFrequency": englishByFrequency = v
+        case "collisionPrefersVietnamese": collisionPrefersVietnamese = v
+        default: AppState.shared.setMixedSetting(key, v)
+        }
+    }
+
+    /// Nội dung hộp xác nhận: "Các công tắc bạn đã tự chỉnh sẽ đổi:" + từng dòng.
+    func profileChangeList(_ p: TypingProfile) -> String {
+        let target = OnboardingLogic.dict(p)
+        let lines = OnboardingLogic.changes(from: mixedValues, to: p).map { k in
+            "• " + loc(OnboardingModel.title(k)) + ": " + loc(target[k] == true ? "on" : "off")
+        }
+        return ([loc("Switches you changed yourself will change:")] + lines).joined(separator: "\n")
     }
 
     /// Khoá chú thích mục Công cụ văn bản theo số công cụ thật của bảng (6, hoặc 7 khi
@@ -752,6 +808,50 @@ struct TypingTab: View {
     /// `.id` của nhóm "Gõ mixed Việt/Anh" — đích cuộn của thẻ người dùng cũ.
     static let mixedAnchor = "mixed"
 
+    /// Bộ chọn nhanh ở đầu nhóm (ONBOARDING-SPEC §4): ba hồ sơ + "Tuỳ chỉnh" (không bấm được,
+    /// sáng khi cài đặt không khớp hồ sơ nào) — như iOS/Android.
+    @ViewBuilder private var profilePicker: some View {
+        Text(model.loc("Quick choice")).font(.subheadline.weight(.semibold))
+        let current = model.matchedProfile
+        ForEach(TypingProfile.allCases, id: \.self) { p in
+            Button { model.pickProfile(p) } label: {
+                profileRow(model.loc(OnboardingLogic.title(p)), "“\(OnboardingLogic.example(p))”",
+                           selected: current == p)
+            }
+            .buttonStyle(.plain)
+        }
+        profileRow(model.loc("Custom"), model.loc("The settings below don’t match any profile."),
+                   selected: current == nil)
+            .opacity(current == nil ? 1 : 0.5)
+            .alert(model.confirmingProfile.map {
+                       String(format: model.loc("Apply “%@”?"), model.loc(OnboardingLogic.title($0)))
+                   } ?? "",
+                   isPresented: Binding(get: { model.confirmingProfile != nil },
+                                        set: { if !$0 { model.confirmingProfile = nil } }),
+                   presenting: model.confirmingProfile) { p in
+                Button(model.loc("Apply")) { model.applyProfile(p) }
+                Button(model.loc("Cancel"), role: .cancel) {}
+            } message: { p in
+                Text(model.profileChangeList(p))
+            }
+    }
+
+    private func profileRow(_ title: String, _ caption: String, selected: Bool) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(caption).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "checkmark")
+                .font(.body.weight(.semibold)).foregroundStyle(Color.accentColor)
+                .opacity(selected ? 1 : 0)
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
         Form {
@@ -830,7 +930,9 @@ struct TypingTab: View {
             // Trước đó: tự khôi phục / ưu tiên khi trùng / ngữ cảnh / tự sửa / tần suất ở mục
             // Chính tả, phím chuyển bộ gõ ở tab Chung. macOS không có "vuốt phím cách".
             Section(header: Label(model.loc("Mixed Vietnamese/English typing"), systemImage: "globe")) {
+                profilePicker
                 Text(model.loc("English detection")).font(.subheadline.weight(.semibold))
+                    .padding(.top, 4)
                 Toggle(model.loc("Auto-restore invalid words"), isOn: $model.autoRestore)
                 Text(model.loc("A word that isn’t valid Vietnamese snaps back to the keys you actually typed when the word ends (retore → retore)."))
                     .font(.caption).foregroundStyle(.secondary)

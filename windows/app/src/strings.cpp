@@ -429,6 +429,15 @@ const Pair kStrings[] = {
      L"See the new Mixed Vietnamese/English typing section just below: English auto-restore, context-based "
      L"decisions, the switch key…"},
     {L"Xem", L"Show me"},
+    // Quick profile picker (ONBOARDING-SPEC §4)
+    {L"Chọn nhanh: bấm một hồ sơ để bật/tắt các công tắc bên dưới cho hợp.",
+     L"Quick choice: pick a profile to set the switches below to match."},
+    {L"Tuỳ chỉnh", L"Custom"},
+    {L"Cài đặt bên dưới không khớp hồ sơ nào.", L"The settings below don’t match any profile."},
+    {L"✓ Đang dùng", L"✓ In use"},
+    {L"Chọn", L"Use"},
+    {L"Áp dụng “%s”?", L"Apply “%s”?"},
+    {L"Các công tắc bạn đã tự chỉnh sẽ đổi:", L"Switches you changed yourself will change:"},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace
