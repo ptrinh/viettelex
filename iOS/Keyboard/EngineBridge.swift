@@ -1030,16 +1030,10 @@ final class EngineBridge {
     /// (AutoCorrect.caseAllows). Thay từ + ranh giới; ⌫ ngay sau trả lại đúng chữ boundary
     /// lẽ ra đã chốt (như hoàn tác gõ tắt).
     private func tryAutoCorrect(_ ac: (String) -> String?, _ text: String, proxy: TextProxyLike) -> String? {
-        guard !engine.isEmpty, AutoCorrect.triggers(text), reachBackAllowed, !proxy.hasSelection else { return nil }
-        let raw = engine.rawKeystrokes
-        guard let fix = ac(raw) else { return nil }
+        guard !engine.isEmpty, AutoCorrect.triggers(text), reachBackAllowed, !proxy.hasSelection,
+              let fix = ac(engine.rawKeystrokes),
+              let original = autoCorrectOriginal(fix, context: proxy.contextBeforeInput) else { return nil }
         let shown = engine.composed
-        guard let ctx = proxy.contextBeforeInput, !ShortcutTable.isGlued(word: shown, context: ctx),
-              CompositionSync.canDelete(shown.count, expected: shown, context: { ctx }),
-              AutoCorrect.caseAllows(raw, sentenceStart: AutoCorrect.isSentenceStart(String(ctx.dropLast(shown.count))))
-        else { return nil }
-        let original = engine.peekCommitText(autoRestore: settings.autoRestore)
-        guard fix != original else { return nil }
         engine.reset()
         engine.forgetLastCommit()
         engine.noteExternalWord(english: false)
@@ -1051,6 +1045,28 @@ final class EngineBridge {
         expandedAtLastBoundary = true
         expansionUndo = ExpansionUndo(typed: original, expansion: fix, boundary: text, autoCorrect: true)
         return fix
+    }
+
+    /// Điều kiện theo CHỮ TRÊN MÀN HÌNH để thay từ đang soạn bằng `fix` ở ranh giới: không dính
+    /// URL/email/số (ShortcutTable.isGlued), chữ trước con trỏ đúng là từ đang soạn, chữ hoa hợp lệ
+    /// (AutoCorrect.caseAllows), `fix` khác chữ ranh giới sẽ chốt. Trả chữ đó (chữ gốc) hoặc nil.
+    private func autoCorrectOriginal(_ fix: String, context: String?) -> String? {
+        let raw = engine.rawKeystrokes, shown = engine.composed
+        guard let ctx = context, !ShortcutTable.isGlued(word: shown, context: ctx),
+              CompositionSync.canDelete(shown.count, expected: shown, context: { ctx }),
+              AutoCorrect.caseAllows(raw, sentenceStart: AutoCorrect.isSentenceStart(String(ctx.dropLast(shown.count))))
+        else { return nil }
+        let original = engine.peekCommitText(autoRestore: settings.autoRestore)
+        return fix == original ? nil : original
+    }
+
+    /// ONBOARDING-SPEC §8 — dấu cách lúc này có thay từ đang soạn bằng `fix` không (cùng điều kiện
+    /// boundary → tryAutoCorrect, không đổi gì). Thanh gợi ý chỉ tô nền ô `fix` khi khác nil; trả chữ
+    /// gốc (ô ngoặc kép). Không xét công tắc tự sửa (tắt: ô tô nền chỉ là gợi ý).
+    func autoCorrectPreview(_ fix: String, context: String?) -> String? {
+        guard !engine.isEmpty, !englishMode, !emailActive, !passthrough, swipeOpen == nil,
+              reachBackAllowed, shortcutPreview == nil else { return nil }
+        return autoCorrectOriginal(fix, context: context)
     }
 
     /// Chip "↩︎ chữ gốc": trả lại chữ gốc của lần tự sửa vừa rồi (như ⌫ ngay sau).

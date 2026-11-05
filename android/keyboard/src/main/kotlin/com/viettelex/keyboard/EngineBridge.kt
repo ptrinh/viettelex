@@ -626,14 +626,9 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
      */
     private fun tryAutoCorrect(ac: (String) -> String?, text: String, proxy: TextProxy, put: (String) -> Unit): String? {
         if (engine.isEmpty || !AutoCorrect.triggers(text) || !proxy.canReEdit || proxy.hasSelection) return null
-        val raw = engine.rawKeystrokes
-        val fix = ac(raw) ?: return null
+        val fix = ac(engine.rawKeystrokes) ?: return null
+        val original = autoCorrectOriginal(fix, proxy) ?: return null
         val shown = engine.composed
-        val ctx = proxy.contextBeforeInput() ?: return null
-        if (ShortcutTable.isGlued(shown, ctx) || !proxy.confirmTail(shown)) return null
-        if (!AutoCorrect.caseAllows(raw, AutoCorrect.isSentenceStart(Cp.dropLast(ctx, Cp.count(shown))))) return null
-        val original = engine.peekCommitText(settings.autoRestore)
-        if (fix == original) return null
         engine.reset()
         engine.forgetLastCommit()
         engine.noteExternalWord(false)
@@ -644,6 +639,32 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         expandedAtLastBoundary = true
         expansionUndo = ExpansionUndo(original, fix, text, autoCorrect = true)
         return fix
+    }
+
+    /**
+     * Điều kiện theo CHỮ TRÊN MÀN HÌNH để thay từ đang soạn bằng [fix] ở ranh giới: không dính
+     * URL/email/số ([ShortcutTable.isGlued]), chữ trước con trỏ đúng là từ đang soạn, chữ hoa hợp lệ
+     * ([AutoCorrect.caseAllows]), [fix] khác chữ ranh giới sẽ chốt. Trả chữ đó (chữ gốc) hoặc null.
+     */
+    private fun autoCorrectOriginal(fix: String, proxy: TextProxy): String? {
+        val raw = engine.rawKeystrokes
+        val shown = engine.composed
+        val ctx = proxy.contextBeforeInput() ?: return null
+        if (ShortcutTable.isGlued(shown, ctx) || !proxy.confirmTail(shown)) return null
+        if (!AutoCorrect.caseAllows(raw, AutoCorrect.isSentenceStart(Cp.dropLast(ctx, Cp.count(shown))))) return null
+        val original = engine.peekCommitText(settings.autoRestore)
+        return if (fix == original) null else original
+    }
+
+    /**
+     * ONBOARDING-SPEC §8 — dấu cách lúc này có thay từ đang soạn bằng [fix] không (cùng điều kiện
+     * [boundary] → [tryAutoCorrect], không đổi gì). Thanh gợi ý chỉ tô nền ô [fix] khi true; trả chữ
+     * gốc (ô ngoặc kép) hoặc null. Không xét công tắc tự sửa (tắt: ô tô nền chỉ là gợi ý).
+     */
+    fun autoCorrectPreview(fix: String, proxy: TextProxy): String? {
+        if (engine.isEmpty || englishMode || emailActive || passthrough || proxy.isSecure) return null
+        if (!proxy.canReEdit || proxy.hasSelection || shortcutPreview != null) return null
+        return autoCorrectOriginal(fix, proxy)
     }
 
     /** Chip "↩︎ chữ gốc": trả lại chữ gốc của lần tự sửa vừa rồi (như ⌫ ngay sau). */

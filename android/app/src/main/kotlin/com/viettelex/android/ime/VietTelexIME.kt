@@ -1640,7 +1640,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
                 val job = plan.job
                 worker().post {
                     val r = job.compute()
-                    handler.post { session.completeSuggestions(job, r)?.let { strip?.show(it) } }
+                    handler.post { session.completeSuggestions(job, r, proxy)?.let { strip?.show(it) } }
                 }
             }
         }

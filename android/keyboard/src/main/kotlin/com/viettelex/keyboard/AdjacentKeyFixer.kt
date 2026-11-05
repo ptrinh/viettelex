@@ -126,8 +126,11 @@ object AdjacentKeyFixer {
         return w
     }
 
-    /** Ứng viên MỘT sửa: thay phím thứ [pos] bằng phím kề [key] ra từ [word]. */
-    data class Candidate(val word: String, val freq: Int, val pos: Int, val key: Char)
+    /**
+     * Ứng viên MỘT sửa: thay phím thứ [pos] bằng phím kề [key] ra từ [word]. [deletion]: bỏ phím
+     * thứ [pos] (chạm đúp — [AutoCorrect.repeatCandidates]); khi đó [key] = chính phím bị bỏ.
+     */
+    data class Candidate(val word: String, val freq: Int, val pos: Int, val key: Char, val deletion: Boolean = false)
 
     /**
      * MỌI cách thay đúng MỘT phím của [lower] (chữ thường) bằng phím kề ra từ hợp lệ (một từ có thể

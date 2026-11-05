@@ -153,12 +153,14 @@ enum AdjacentKeyFixer {
         return w
     }
 
-    /// Ứng viên MỘT sửa: thay phím thứ `pos` bằng phím kề `key` ra từ `word`.
+    /// Ứng viên MỘT sửa: thay phím thứ `pos` bằng phím kề `key` ra từ `word`. `deletion`: bỏ phím
+    /// thứ `pos` (chạm đúp — AutoCorrect.repeatCandidates); khi đó `key` = chính phím bị bỏ.
     struct Candidate: Equatable {
         let word: String
         let freq: Int
         let pos: Int
         let key: Character
+        var deletion = false
     }
 
     /// MỌI cách thay đúng MỘT phím của `lower` (chữ thường) bằng phím kề ra từ hợp lệ (một từ có

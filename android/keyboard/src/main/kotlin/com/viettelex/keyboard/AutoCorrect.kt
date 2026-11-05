@@ -7,7 +7,8 @@ package com.viettelex.keyboard
  * thiếu dấu / tiền tố — người gõ không dấu) và không là từ đã biết (tiếng Anh, từ người
  * dùng, gõ tắt, từng hoàn tác). Ứng viên = thay ĐÚNG MỘT phím bằng phím kề
  * ([AdjacentKeyFixer.oneEditCandidates]) mà điểm chạm thật nghiêng về phím đó ([evidence]);
- * chỉ sửa khi ứng viên đủ phổ biến VÀ bỏ xa ứng viên thứ hai ([Params]). Không có điểm chạm
+ * hoặc bỏ một phím chạm đúp ("anhh" → anh, [repeatCandidates]); chỉ sửa khi ứng viên đủ phổ biến VÀ
+ * bỏ xa ứng viên thứ hai ([Params]). Thanh gợi ý tô nền đúng bản sửa này (ONBOARDING-SPEC §8). Không có điểm chạm
  * (từ vuốt, từ mở lại, bàn phím cứng) ⇒ không sửa. ⌫ ngay sau đó trả lại chữ gốc.
  * Ngưỡng dò bằng AutoCorrectEvalTests (mô phỏng chạm TouchSim trên câu heldout).
  */
@@ -99,15 +100,25 @@ object AutoCorrect {
 
     /**
      * Chọn ứng viên theo [p]; null = không đủ chắc. [touches]: điểm chạm từng phím của [lower].
+     * Ứng viên chạm đúp ([AdjacentKeyFixer.Candidate.deletion]) không cần bằng chứng hướng chạm
+     * nhưng chỉ là PHƯƠNG ÁN SAU: chỉ xét khi không ứng viên thay phím nào có bằng chứng chạm (trộn
+     * chung thì tụt precision: P TEST 97.3% → 96.5%, AutoCorrectEvalTests 05/11/2026).
      */
     fun pick(lower: String, cands: List<AdjacentKeyFixer.Candidate>, touches: List<Touch>, p: Params = DEFAULT): AdjacentKeyFixer.Candidate? {
-        val best = HashMap<String, AdjacentKeyFixer.Candidate>()     // theo từ (cùng từ ⇒ cùng tần suất)
+        val slips = HashMap<String, AdjacentKeyFixer.Candidate>()    // theo từ (cùng từ ⇒ cùng tần suất)
+        val repeats = HashMap<String, AdjacentKeyFixer.Candidate>()
         for (c in cands) {
             val t = touches.getOrNull(c.pos) ?: continue
+            if (c.deletion) { repeats.getOrPut(c.word) { c }; continue }
             if (evidence(t, lower[c.pos], c.key) < p.minEv) continue   // chạm không nghiêng về phím này
-            best.getOrPut(c.word) { c }
+            slips.getOrPut(c.word) { c }
         }
-        val sorted = best.values.sortedWith(compareByDescending<AdjacentKeyFixer.Candidate> { it.freq }.thenBy { it.word })
+        return confident((slips.ifEmpty { repeats }).values, p)
+    }
+
+    /** Ứng viên phổ biến nhất nếu đủ phổ biến VÀ bỏ xa ứng viên thứ hai. */
+    private fun confident(cands: Collection<AdjacentKeyFixer.Candidate>, p: Params): AdjacentKeyFixer.Candidate? {
+        val sorted = cands.sortedWith(compareByDescending<AdjacentKeyFixer.Candidate> { it.freq }.thenBy { it.word })
         val top = sorted.firstOrNull() ?: return null
         if (top.freq < p.minFreq) return null
         if (sorted.size > 1 && top.freq - sorted[1].freq < p.margin) return null
@@ -115,8 +126,58 @@ object AutoCorrect {
     }
 
     /**
-     * Bản sửa cho từ vừa gõ (phím thô [raw]) hoặc null. [isKnown]: dạng chữ thường (phím thô
-     * VÀ dạng hiển thị) là từ đã biết — tiếng Anh / từ người dùng / từng hoàn tác ⇒ không sửa.
+     * Ứng viên CHẠM ĐÚP: một phím bị bấm hai lần liền ("anhh" → anh) — bỏ phím lặp thứ hai. Hai lần
+     * chạm cùng một phím nên không có hướng lệch để làm bằng chứng; vẫn qua cùng ngưỡng tần suất /
+     * khoảng cách ([pick]). Bỏ qua phím mà gõ đôi có nghĩa trong Telex ([TELEX_DOUBLES]: aa ee oo dd
+     * ww, phím thanh gõ lại để bỏ dấu).
+     */
+    fun repeatCandidates(lower: String, compose: (String) -> String, frequency: (String) -> Int?): List<AdjacentKeyFixer.Candidate> {
+        val current = compose(lower)
+        val out = ArrayList<AdjacentKeyFixer.Candidate>()
+        for (i in 1 until lower.length) {
+            if (lower[i] != lower[i - 1] || lower[i] in TELEX_DOUBLES) continue
+            val w = compose(lower.removeRange(i, i + 1))
+            if (w == current) continue
+            val f = frequency(w) ?: continue
+            out.add(AdjacentKeyFixer.Candidate(w, f, i, lower[i], deletion = true))
+        }
+        return out
+    }
+    private const val TELEX_DOUBLES = "aeodwsfrxjz"
+
+    /**
+     * Phần THUẦN, không cần trạng thái của tự sửa (chạy được ở thread nền cùng thanh gợi ý): từ đang
+     * soạn [raw] có phải từ gõ sai không và các ứng viên sửa. null = không sửa (từ hợp lệ / đang gõ
+     * dở một từ / quá ngắn / có ký tự không phải chữ).
+     */
+    class Plan(val raw: String, val lower: String, val current: String, val cands: List<AdjacentKeyFixer.Candidate>)
+
+    fun plan(raw: String, compose: (String) -> String, frequency: (String) -> Int?,
+             hasCompletion: (String) -> Boolean, p: Params = DEFAULT): Plan? {
+        if (raw.length !in p.minLen..10 || !raw.all { it in 'a'..'z' || it in 'A'..'Z' }) return null
+        val lower = raw.lowercase()
+        val current = compose(lower)
+        if (frequency(current) != null || hasCompletion(current)) return null
+        val cands = AdjacentKeyFixer.oneEditCandidates(lower, compose, frequency, hasCompletion) +
+            repeatCandidates(lower, compose, frequency)
+        return Plan(raw, lower, current, cands)
+    }
+
+    /**
+     * QUYẾT ĐỊNH sửa cho [plan] — dùng CHUNG cho ô tô nền trên thanh gợi ý và dấu cách (ONBOARDING-SPEC
+     * §8: dấu cách không bao giờ ra chữ khác ô đã tô). [isKnown]: dạng chữ thường (phím thô VÀ dạng
+     * hiển thị) là từ đã biết — tiếng Anh / từ người dùng / từng hoàn tác ⇒ không sửa.
+     */
+    fun decide(plan: Plan, touches: List<Touch>, isKnown: (String) -> Boolean, p: Params = DEFAULT): String? {
+        if (touches.size != plan.raw.length) return null
+        if (isKnown(plan.lower)) return null
+        if (plan.current != plan.lower && isKnown(plan.current.lowercase())) return null
+        val best = pick(plan.lower, plan.cands, touches, p) ?: return null
+        return if (plan.raw[0].isUpperCase()) Cp.capitalizeFirst(best.word) else best.word
+    }
+
+    /**
+     * Bản sửa cho từ vừa gõ (phím thô [raw]) hoặc null — [plan] rồi [decide].
      */
     fun correction(
         raw: String,
@@ -127,14 +188,8 @@ object AutoCorrect {
         isKnown: (String) -> Boolean,
         p: Params = DEFAULT,
     ): String? {
-        if (raw.length !in p.minLen..10 || !raw.all { it in 'a'..'z' || it in 'A'..'Z' }) return null
         if (touches.size != raw.length) return null
-        val lower = raw.lowercase()
-        if (isKnown(lower)) return null
-        val current = compose(lower)
-        if (current != lower && isKnown(current.lowercase())) return null
-        if (frequency(current) != null || hasCompletion(current)) return null
-        val best = pick(lower, AdjacentKeyFixer.oneEditCandidates(lower, compose, frequency, hasCompletion), touches, p) ?: return null
-        return if (raw[0].isUpperCase()) Cp.capitalizeFirst(best.word) else best.word
+        val plan = plan(raw, compose, frequency, hasCompletion, p) ?: return null
+        return decide(plan, touches, isKnown, p)
     }
 }

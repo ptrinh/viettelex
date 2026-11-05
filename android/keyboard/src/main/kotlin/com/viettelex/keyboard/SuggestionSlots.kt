@@ -19,7 +19,8 @@ package com.viettelex.keyboard
  *  5. **Chữ** — nguyên văn / ứng viên (chip gõ tắt nằm ở ứng viên chính) / emoji, hoặc từ
  *     kế tiếp (bigram, email/TLD, biến thể gõ vuốt).
  */
-data class BarChip(val label: String, val payload: String)
+/** [highlight]: ô tô nền — bản tự sửa dấu cách sẽ áp (ONBOARDING-SPEC §8). */
+data class BarChip(val label: String, val payload: String, val highlight: Boolean = false)
 
 sealed class BarLayout {
     /** Một pill giữa bar (Android: hoàn tác thêm dấu — cùng kiểu ô Khôi phục). */
@@ -96,13 +97,17 @@ object SuggestionSlots {
         if (set.nextWords.isNotEmpty()) {
             nextOrder(n, bestInMiddle).zip(set.nextWords).forEach { (i, w) -> slots[i] = BarChip(w, w) }
         } else if (n == 1) {
-            (set.word ?: set.literal)?.let { slots[0] = BarChip(it, it) }
+            set.word?.let { slots[0] = BarChip(it, it, highlight = set.correction) }
+                ?: set.literal?.let { slots[0] = BarChip(it, it) }
         } else {
-            set.literal?.let { slots[0] = BarChip(it, it) }
+            // Ô tô nền (§8): nguyên văn trong ngoặc kép, chạm = giữ nguyên + không sửa lại.
+            set.literal?.let {
+                slots[0] = if (set.correction) BarChip("\u201C$it\u201D", SuggestionSet.KEEP_TYPED_PREFIX + it) else BarChip(it, it)
+            }
             // ứng viên theo vị trí (word, word2, moreWords…) vào ô 1…; ô cuối nhường emoji
             val words = listOf(set.word, set.word2) + set.moreWords
             val room = n - 1 - (if (emojis.isEmpty()) 0 else 1)
-            words.take(room).forEachIndexed { i, w -> slots[1 + i] = w?.let { BarChip(it, it) } }
+            words.take(room).forEachIndexed { i, w -> slots[1 + i] = w?.let { BarChip(it, it, highlight = i == 0 && set.correction) } }
         }
         // 1 (slot) / 3. hoàn tác (iOS), "Thêm dấu", "↩︎ từ cũ" (vuốt vừa sửa từ trước) hoặc
         // "↩︎ chữ gốc" (vừa tự sửa) chiếm slot đầu, chữ dời phải theo thứ tự đọc.
