@@ -505,7 +505,7 @@ sudo apt install viettelex-fcitx5   # or: sudo apt install viettelex-ibus</pre>
     <div class="card">
       <h3>An app types wrong? The typing modes table</h3>
       <ul>
-        <li><b>Bảng cơ chế gõ</b> tab: VietTelex learns how to type in each app; you can pin a mode by hand — <b>Tap</b> (real keystrokes, no underline, needs Accessibility), <b>Marked text</b> (always renders correctly but underlines while typing), <b>Gõ trực tiếp</b> (in-place), <b>Passthrough</b> (IME off in that app)… A button clears the learned data (manual pins are kept). YAML import/export.</li>
+        <li><b>Apps</b> tab: VietTelex learns how to type in each app; you can pick a mode by hand — <b>Real keystrokes</b> (no underline, needs Accessibility), <b>Underline while typing</b> (always renders correctly), <b>Edit in the field</b>, <b>Vietnamese off</b> (in that app)… A button clears the learned data (manual pins are kept). YAML import/export.</li>
         <li>Per-app details: <a href="../../typing-modes">Typing modes in VietTelex</a> (Vietnamese).</li>
         <li><b>Keep VietTelex when macOS auto-switches the input source</b> (Settings… → <b>Apps</b> tab): some apps (Word comments…) make macOS fall back to the default input source in every new field; this switches back to VietTelex — only when the change wasn't yours.</li>
         <li><b>Ẩn tính năng nâng cao</b> (hide advanced features) hides the Typing modes and Experimental tabs if you don't need them.</li>
@@ -581,7 +581,7 @@ sudo apt install viettelex-fcitx5   # or: sudo apt install viettelex-ibus</pre>
         <li><b>Cách hiện từ đang gõ</b>: <b>preedit</b> (default, works in every app) or <b>surrounding</b> (edit in place), which falls back to preedit in apps that don't support it.</li>
         <li><b>Underline the word being typed</b> is off by default. Chrome/Electron and Wayland apps on GNOME always draw their own underline — it can't be turned off.</li>
         <li><b>Terminals: type directly, fix tones with Backspace</b> (on by default) in GTK3/Qt terminals; other terminals use preedit.</li>
-        <li><b>Bảng cơ chế gõ</b> tab: force a mode per app — Auto, preedit, surrounding, direct (Backspace) or Vietnamese off. YAML import/export.</li>
+        <li><b>Apps</b> tab: pick a mode per app — Auto, Underline while typing, Edit in the field, Direct (fix with Backspace) or Vietnamese off. YAML import/export.</li>
         <li>Remote desktop, virtual machine and Wine apps have Vietnamese off by default (type on the remote side); add the app to the table to type Vietnamese there.</li>
       </ul>
     </div>
@@ -620,7 +620,7 @@ sudo apt install viettelex-fcitx5   # or: sudo apt install viettelex-ibus</pre>
       <ul>
         <li data-os="ios"><b>iOS</b>: the keyboard is fully usable <b>without</b> Full Access. It's only needed for haptics, the custom key sound, live snippets (https://), the Paste button, clipboard history and saving learned words. VietTelex never collects or sends what you type.</li>
         <li data-os="android"><b>Android</b>: network access is used only for live snippets you create. VietTelex never collects or sends what you type.</li>
-        <li data-os="macos"><b>macOS</b>: The <b>Accessibility</b> permission (macOS 27: <b>Device Control and Data Access</b>) is needed for typing in Terminal/Chrome (Tap mode), the switch hotkey and the add-tones hotkey. No data collection.</li>
+        <li data-os="macos"><b>macOS</b>: The <b>Accessibility</b> permission (macOS 27: <b>Device Control and Data Access</b>) is needed for typing in Terminal/Chrome (Real keystrokes mode), the switch hotkey and the add-tones hotkey. No data collection.</li>
         <li data-os="windows"><b>Windows</b>: no data collection; network is used only when you click Check for updates or turn on the automatic check.</li>
         <li data-os="linux"><b>Linux</b>: no data collection; network is used only when you click Check for updates.</li>
         <li data-os="ios android"><b>VietTelex Plus</b> (one-time purchase): premium themes &amp; wallpaper, whole-sentence tones, advanced clipboard, iCloud sync, text tools, a thank-you badge. All typing features are free forever. On iOS, from version 1.2 Plus is a one-time purchase; on Android it is still unlocked for everyone for now. How to use each feature (also shown on the Plus screen):

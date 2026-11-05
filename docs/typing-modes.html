@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chế độ gõ trong ViệtTelex — chọn sao cho đúng?</title>
-<meta name="description" content="Giải thích dễ hiểu các chế độ gõ của ViệtTelex (Gõ trực tiếp, Tap, Marked text…) và cách đổi chế độ khi một app gõ sai.">
+<meta name="description" content="Giải thích dễ hiểu các chế độ gõ của ViệtTelex (Sửa thẳng trong ô, Gõ bằng phím thật, Gạch chân chữ đang gõ…) và cách đổi chế độ khi một app gõ sai.">
 <link rel="canonical" href="https://viettelex.com/typing-modes">
 <link rel="icon" href="assets/VietTelex-logo.png">
 <meta property="og:type" content="article">
@@ -104,26 +104,26 @@
     <p class="lead">Khác nhau ở <b>cách ViệtTelex "sửa" chữ trên màn hình</b> khi bạn bỏ dấu (gõ <code>vieejt</code> → <code>việt</code>).</p>
 
     <div class="modecard">
-      <h3>Gõ trực tiếp <span class="tag good">nhanh nhất</span></h3>
+      <h3>Sửa thẳng trong ô <span class="tag good">nhanh nhất</span></h3>
       <p>Nhờ chính app thay chữ giúp. Không gạch chân, mượt như gõ tiếng Anh. Đa số app dùng chế độ này (Notes, Word, Pages…).</p>
       <p class="when"><b>Dấu hiệu app không hợp:</b> dấu rơi sai chỗ, chữ nhảy lung tung, mất chữ khi gõ nhanh.</p>
     </div>
 
     <div class="modecard">
-      <h3>Tap (backspace)</h3>
+      <h3>Gõ bằng phím thật (không gạch chân)</h3>
       <p>ViệtTelex tự bấm phím xoá rồi gõ lại chữ có dấu — như một người gõ hộ bạn, app không phân biệt được với gõ tay. Không gạch chân. Cần cấp <b>quyền Trợ năng</b> (Accessibility; macOS 27 gọi là <b>Điều khiển thiết bị và truy cập dữ liệu</b>) trong System Settings.</p>
-      <p class="when"><b>Hợp với:</b> Terminal, iTerm, Slack, Discord, VSCode, Zalo… <b>Nếu thiếu quyền Trợ năng</b> thì tự chuyển sang Marked text.</p>
+      <p class="when"><b>Hợp với:</b> Terminal, iTerm, Slack, Discord, VSCode, Zalo… <b>Nếu thiếu quyền Trợ năng</b> thì tự chuyển sang Gạch chân chữ đang gõ.</p>
     </div>
 
     <div class="modecard">
-      <h3>Marked text <span class="tag safe">an toàn nhất</span></h3>
+      <h3>Gạch chân chữ đang gõ <span class="tag safe">an toàn nhất</span></h3>
       <p>Cách gõ chuẩn của macOS: từ đang gõ có <span class="underline-demo">gạch chân</span>, gõ xong dấu cách thì thành chữ thật. Luôn ra đúng chữ, hoạt động ở mọi app — đổi lại là hơi vướng mắt.</p>
       <p class="when"><b>Chọn khi:</b> hai chế độ trên đều gõ sai ở app đó.</p>
     </div>
 
     <details class="extra">
       <summary>Các chế độ đặc biệt (hiếm khi cần chọn tay)</summary>
-      <p><b>Tự dò theo ô (AX)</b> — dành cho trình duyệt: thanh địa chỉ và nội dung trang cần cách gõ khác nhau, ViệtTelex tự dò từng ô. <b>Tap (chọn rồi ghi đè)</b> — cho ô soạn thảo của IDE có autocomplete. <b>Tap (Excel)</b> — riêng cho bảng tính Excel. <b>Passthrough (tắt IME)</b> — tắt hẳn ViệtTelex ở app đó, dành cho app remote desktop / máy ảo (máy bên kia tự bỏ dấu).</p>
+      <p><b>Tự chọn theo từng ô</b> — dành cho trình duyệt: thanh địa chỉ và nội dung trang cần cách gõ khác nhau, ViệtTelex tự dò từng ô. <b>Phím thật: chọn rồi gõ lại</b> — cho ô soạn thảo của IDE có autocomplete. <b>Phím thật: kiểu Excel</b> — riêng cho bảng tính Excel. <b>Tắt tiếng Việt</b> — tắt hẳn ViệtTelex ở app đó, dành cho app remote desktop / máy ảo (máy bên kia tự bỏ dấu).</p>
     </details>
   </div>
 </section>
@@ -133,8 +133,8 @@
     <div class="rule">
       <h2>App gõ sai? Thử theo thứ tự này</h2>
       <ol>
-        <li>Ép app đó sang <b>Tap (backspace)</b> → gõ thử. Đa số trường hợp là xong.</li>
-        <li>Vẫn sai? Ép sang <b>Marked text</b> — luôn đúng chữ, chấp nhận có gạch chân.</li>
+        <li>Chọn cho app đó <b>Gõ bằng phím thật</b> → gõ thử. Đa số trường hợp là xong.</li>
+        <li>Vẫn sai? Chọn <b>Gạch chân chữ đang gõ</b> — luôn đúng chữ, chấp nhận có gạch chân.</li>
         <li>Ổn rồi thì cứ giữ nguyên. Muốn quay về mặc định: chọn lại <b>Tự động</b>.</li>
       </ol>
       <p class="note">Mẹo: bấm biểu tượng ViệtTelex trên thanh menu — dòng "Chế độ gõ: …" cho biết app hiện tại đang dùng chế độ nào. Nếu app vẫn gõ sai sau cả 3 bước, hãy <a style="color:#d4a94a" href="https://github.com/ptrinh/viettelex/issues">báo lỗi</a> kèm tên app.</p>
@@ -147,23 +147,23 @@
     <h2>Cách đổi chế độ gõ cho một app</h2>
     <ol class="steps">
       <li>Bấm biểu tượng <b>ViệtTelex</b> trên thanh menu → <b>Cài đặt…</b></li>
-      <li>Mở tab <b>Bảng cơ chế gõ</b>.</li>
+      <li>Mở tab <b>Ứng dụng</b>.</li>
       <li>Tìm app trong danh sách (gõ tên vào ô lọc). App chưa có trong danh sách? Nhập bundle id vào ô dưới cùng rồi bấm <b>Thêm</b>.</li>
-      <li>Ở cột <b>Ép tay</b>, chọn chế độ muốn thử:</li>
+      <li>Ở cột <b>Bạn chọn</b>, chọn chế độ muốn thử:</li>
     </ol>
 
-    <div class="mock" role="img" aria-label="Cửa sổ Cài đặt ViệtTelex, tab Bảng cơ chế gõ, đang mở menu Ép tay của Microsoft Word">
-      <div class="mocktitle">ViệtTelex — Cài đặt · Bảng cơ chế gõ</div>
+    <div class="mock" role="img" aria-label="Cửa sổ Cài đặt ViệtTelex, tab Ứng dụng, đang mở menu Bạn chọn của Microsoft Word">
+      <div class="mocktitle">ViệtTelex — Cài đặt · Ứng dụng</div>
       <table>
-        <tr><th>Ứng dụng</th><th>Đã nhận diện</th><th>Ép tay</th></tr>
+        <tr><th>Ứng dụng</th><th>Tự nhận diện</th><th>Bạn chọn</th></tr>
         <tr>
           <td><div class="appname">Microsoft Word</div><div class="bundle">com.microsoft.Word</div></td>
-          <td>Gõ trực tiếp</td>
-          <td><span class="select picked">Tap (backspace)</span></td>
+          <td>Sửa thẳng trong ô</td>
+          <td><span class="select picked">Gõ bằng phím thật</span></td>
         </tr>
         <tr>
           <td><div class="appname">Notes</div><div class="bundle">com.apple.Notes</div></td>
-          <td>Gõ trực tiếp</td>
+          <td>Sửa thẳng trong ô</td>
           <td><span class="select">Tự động</span></td>
         </tr>
         <tr>
@@ -172,9 +172,9 @@
           <td><span class="select">Tự động</span></td>
         </tr>
       </table>
-      <div class="hintline">Ép tay = ghi đè lựa chọn tự động, chỉ áp dụng cho app đó. "Tự động" = trả về mặc định.</div>
+      <div class="hintline">Bạn chọn = ghi đè lựa chọn tự động, chỉ áp dụng cho app đó. "Tự động" = trả về mặc định.</div>
     </div>
-    <p class="mockcaption">Cột "Đã nhận diện" là chế độ ViệtTelex đang tự dùng; cột "Ép tay" là lựa chọn của bạn.</p>
+    <p class="mockcaption">Cột "Tự nhận diện" là chế độ ViệtTelex đang tự dùng; cột "Bạn chọn" là lựa chọn của bạn.</p>
 
     <ol class="steps" start="5">
       <li>Quay lại app và <b>gõ thử ngay</b> — thay đổi có hiệu lực tức thì, không cần khởi động lại.</li>

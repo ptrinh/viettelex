@@ -484,7 +484,7 @@ sudo apt install viettelex-fcitx5   # hoặc: sudo apt install viettelex-ibus</p
     <div class="card">
       <h3>Menu Vᴛ trên thanh menu</h3>
       <ul>
-        <li><b>Cơ chế gõ: …</b> của app đang dùng — bấm để mở Bảng cơ chế gõ và chép thông tin gỡ lỗi (dán vào báo lỗi).</li>
+        <li><b>Cơ chế gõ: …</b> của app đang dùng — bấm để mở tab Ứng dụng và chép thông tin gỡ lỗi (dán vào báo lỗi).</li>
         <li><b>Công cụ văn bản</b> (bật ở Tùy chỉnh → “Hiện công cụ văn bản trong menu VietTelex”): bôi đen chữ ở app bất kỳ rồi mở menu VietTelex → <b>Công cụ…</b> (bảng nhỏ hiện cạnh con trỏ; bấm nút hoặc phím 1–6, Esc để đóng) — <b>Thêm dấu cho vùng chọn</b> (<code>toi di hoc</code> → tôi đi học), HOA, thường, Hoa Đầu Từ, Hoa đầu câu, Xoá dấu.</li>
         <li><b>Kết quả phép tính</b> (bật sẵn; tắt ở Tùy chỉnh → “Hiện kết quả phép tính”): gõ phép tính rồi <code>=</code> (<code>12*3=</code>, <code>200+10%=</code>) — gợi ý “= 36” hiện ngay dưới con trỏ (ô ứng viên của macOS, hoặc ô nhỏ “⇥ Tab” ở terminal/trình duyệt), bấm <b>Tab</b> hoặc <b>Enter</b> để chèn kết quả; Esc hoặc phím khác thì tắt.</li>
         <li><b>Chip số</b> (bật sẵn; tắt ở Tùy chỉnh → “Chip số”): gõ số tiền có <code>k</code>/<code>tr</code>/<code>tỷ</code> rồi dấu cách (<code>50k</code>, <code>1tr2</code>, <code>2 tỷ</code>) — gợi ý dạng tiền “1.200.000 ₫” hiện dưới con trỏ, bấm <b>Tab</b> để thay; phím khác thì tắt.</li>
@@ -503,12 +503,11 @@ sudo apt install viettelex-fcitx5   # hoặc: sudo apt install viettelex-ibus</p
       </ul>
     </div>
     <div class="card">
-      <h3>App gõ sai? Bảng cơ chế gõ</h3>
+      <h3>App gõ sai? Tab Ứng dụng</h3>
       <ul>
-        <li>Tab <b>Bảng cơ chế gõ</b>: VietTelex tự học cách gõ cho từng app; bạn có thể ghim tay — <b>Tap</b> (phím thật, không gạch chân, cần Trợ năng), <b>Marked text</b> (luôn hiện đúng nhưng gạch chân khi gõ), <b>Gõ trực tiếp</b>, <b>Passthrough</b> (tắt bộ gõ ở app đó)… Có nút xoá dữ liệu đã học (giữ lựa chọn tay). Nhập/xuất YAML.</li>
+        <li>Tab <b>Ứng dụng</b>: VietTelex tự học cách gõ cho từng app; bạn có thể tự chọn — <b>Gõ bằng phím thật</b> (không gạch chân, cần Trợ năng), <b>Gạch chân chữ đang gõ</b> (luôn hiện đúng), <b>Sửa thẳng trong ô</b>, <b>Tắt tiếng Việt</b> (ở app đó)… Có nút xoá dữ liệu đã học (giữ lựa chọn tay). Nhập/xuất YAML.</li>
         <li>Chi tiết từng app: <a href="../typing-modes">Chế độ gõ trong ViệtTelex</a>.</li>
-        <li><b>Giữ VietTelex khi macOS tự đổi bộ gõ</b> (Cài đặt… → tab <b>Ứng dụng</b>): một số app (bình luận trong Word…) làm macOS trả về bộ gõ mặc định ở mỗi ô mới; tuỳ chọn này chuyển lại VietTelex — chỉ khi không phải do bạn đổi.</li>
-        <li><b>Ẩn tính năng nâng cao</b> ẩn tab Bảng cơ chế gõ và Thử nghiệm nếu bạn không cần.</li>
+        <li><b>Giữ VietTelex khi macOS tự đổi bộ gõ</b> (Cài đặt… → Gõ phím → Chuyển Việt/Anh → Nâng cao): một số app (bình luận trong Word…) làm macOS trả về bộ gõ mặc định ở mỗi ô mới; tuỳ chọn này chuyển lại VietTelex — chỉ khi không phải do bạn đổi.</li>
       </ul>
     </div>
     <div class="card">
@@ -581,8 +580,8 @@ sudo apt install viettelex-fcitx5   # hoặc: sudo apt install viettelex-ibus</p
         <li><b>Cách hiện từ đang gõ</b>: <b>Chữ đang gõ (preedit)</b> — mặc định, chạy ở mọi app — hoặc <b>Sửa trực tiếp (surrounding)</b>, tự quay về preedit ở app không hỗ trợ.</li>
         <li><b>Gạch chân chữ đang gõ</b> mặc định tắt. Chrome/Electron và app Wayland trên GNOME luôn tự gạch chân — không tắt được.</li>
         <li><b>Terminal: gõ thẳng, sửa dấu bằng Backspace</b> (mặc định bật) ở terminal GTK3/Qt; terminal khác dùng preedit.</li>
-        <li>Tab <b>Bảng cơ chế gõ</b>: ép theo app — Tự động, Chữ đang gõ, Sửa trực tiếp, Gõ thẳng (sửa bằng Backspace) hoặc Tắt tiếng Việt. Nhập/xuất YAML.</li>
-        <li>Remote desktop, máy ảo và Wine mặc định tắt tiếng Việt (gõ ở máy bên kia); muốn gõ thì thêm app đó vào Bảng cơ chế gõ.</li>
+        <li>Tab <b>Ứng dụng</b>: chọn theo app — Tự động, Gạch chân chữ đang gõ, Sửa thẳng trong ô, Gõ thẳng, sửa bằng Backspace hoặc Tắt tiếng Việt. Nhập/xuất YAML.</li>
+        <li>Remote desktop, máy ảo và Wine mặc định tắt tiếng Việt (gõ ở máy bên kia); muốn gõ thì thêm app đó vào tab Ứng dụng.</li>
       </ul>
     </div>
     <div class="card">
