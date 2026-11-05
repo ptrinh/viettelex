@@ -39,6 +39,8 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        // Onboarding (ONBOARDING-SPEC §5): nhận diện người dùng cũ TRƯỚC mọi chuyển đổi ghi prefs.
+        OnboardingStore.migrate(this)
         SettingsProcess.install(this)
         PlusPrefs.install(this)
         com.viettelex.android.shared.UiLang.install(this)   // ngôn ngữ giao diện (mặc định Tiếng Việt)
@@ -99,6 +101,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleDeepLink(i: Intent?) {
+        if (com.viettelex.android.BuildConfig.DEBUG) debugOnboarding(i)
         if (i?.action == Intent.ACTION_SEND && i.type == "text/plain") {
             val text = i.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() ?: return
             Prefs.of(this).edit().putBoolean(Keys.TEMPLATES_ENABLED, true).apply()
@@ -112,6 +115,21 @@ class MainActivity : ComponentActivity() {
             Prefs.of(this).edit().putBoolean(Keys.TEMPLATES_ENABLED, true).apply()
             openMauCau.value++
         }
+    }
+
+    /**
+     * Bản Debug — chụp màn hình / thử tay: `am start … --es onboardingDemo choose|mixed|en|vi`
+     * (choose = về màn 1; hồ sơ = áp rồi tới màn 2), `--ez mixedTipDemo true` (thẻ người dùng cũ).
+     */
+    private fun debugOnboarding(i: Intent?) {
+        val p = Prefs.of(this)
+        i?.getStringExtra("onboardingDemo")?.let { d ->
+            p.edit().putBoolean(com.viettelex.keyboard.OnboardingFlow.DONE_KEY, false)
+                .remove(com.viettelex.keyboard.OnboardingFlow.PROFILE_KEY).commit()
+            com.viettelex.keyboard.OnboardingProfile.of(d)?.let { OnboardingStore.apply(this, it) }
+        }
+        if (i?.getBooleanExtra("mixedTipDemo", false) == true)
+            p.edit().putBoolean(com.viettelex.keyboard.OnboardingFlow.TIP_KEY, true).apply()
     }
 
     // MARK: dọn RAM khi rời app (RAM-AUDIT #5)

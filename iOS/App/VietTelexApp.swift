@@ -9,6 +9,9 @@ import UniformTypeIdentifiers
 @main
 struct VietTelexApp: App {
     init() {
+        // Onboarding (docs/ONBOARDING-SPEC.md §5): nhận diện người dùng cũ TRƯỚC mọi chuyển đổi bên
+        // dưới (chúng ghi key vào App Group ngay lần mở đầu của người mới).
+        OnboardingFlow.migrate(UserDefaults(suiteName: AppFlavor.appGroup), settingKeys: Self.onboardingSettingKeys)
         // Apple Intelligence (Sửa lỗi, Plus): màn Plus / Tính Năng hỏi model có dùng được không.
         AIAvailability.probe = { IntelligenceEngine.status() }
         // "Chiều cao hàng phím": mức 0 = bàn phím iPhone gốc (bỏ công tắc "Kích thước như bàn
@@ -42,6 +45,12 @@ struct VietTelexApp: App {
     }
     var body: some Scene {
         WindowGroup { RootView() }
+    }
+
+    /// Key cài đặt người dùng — có bất kỳ key nào ⇒ bản nâng cấp (người dùng cũ).
+    static var onboardingSettingKeys: Set<String> {
+        Set(BackupSettings.all.map(\.key)).union(BackupStore.localKey.values).union(KeyStyleStore.legacyKeys)
+            .union(KeyGeometry.StockSize.userStateKeys).union([BackupStore.templatesKey, BackupStore.shortcutsKey])
     }
 }
 
@@ -107,6 +116,11 @@ struct RootView: View {
         return .kieuGo
     }
     @State private var barCollapsed = false
+    /// Onboarding người dùng mới (ONBOARDING-SPEC §2) — màn đang hiện, nil = không.
+    @State private var onboarding: OnboardingFlow.Screen?
+    /// Thẻ một lần cho người dùng cũ (§5).
+    @AppStorage(OnboardingFlow.tipKey, store: UserDefaults(suiteName: AppFlavor.appGroup))
+    private var mixedTip = false
     /// Trang con có bàn phím mẫu ở đáy (Luyện vuốt) ẩn FloatingTabBar — nó đè hàng
     /// phím dưới (Phil 27/09/2026).
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
@@ -161,6 +175,10 @@ struct RootView: View {
                 .scrollDismissesKeyboard(.immediately)
                 // Tìm cài đặt chọn một mục "Gõ mixed Việt/Anh" ⇒ danh sách Kiểu Gõ vừa dựng cuộn tới đó.
                 .onAppear { if tab == .kieuGo { MixedTypingFocus.shared.scrollIfPending(proxy) } }
+                // Đang ở sẵn tab Kiểu Gõ (thẻ người dùng cũ mở nhóm) ⇒ không dựng lại ⇒ cuộn ở đây.
+                .onReceive(MixedTypingFocus.shared.$scrollTick.dropFirst()) { _ in
+                    if tab == .kieuGo { MixedTypingFocus.shared.scrollIfPending(proxy) }
+                }
             }
         }
         // Đổi tab ⇒ dựng lại stack: trang con đang mở (vd Tính Năng → Giao diện) không
@@ -183,6 +201,7 @@ struct RootView: View {
             // Quay lại từ Cài đặt → cập nhật trạng thái bật bàn phím ngay.
             if phase == .active {
                 keyboardEnabled = isKeyboardEnabled()
+                refreshOnboarding()
                 pasteReady = Self.readPasteReady()
                 // Plus: đọc entitlement đã verify → cờ App Group cho bàn phím.
                 Task { await PlusShared.model.refreshEntitlements() }
@@ -206,6 +225,10 @@ struct RootView: View {
             }
         }
         #endif
+        .onAppear { refreshOnboarding() }
+        .fullScreenCover(isPresented: Binding(get: { onboarding != nil }, set: { if !$0 { onboarding = nil } })) {
+            OnboardingView(start: onboarding ?? .choose, keyboardEnabled: keyboardEnabled) { onboarding = nil }
+        }
         .onChange(of: templatesEnabled) { on in
             if !on && tab == .mauCau { tab = .tinhNang }
         }
@@ -231,11 +254,39 @@ struct RootView: View {
         #endif
     }
 
+    /// Màn onboarding cần hiện (đang hiện thì giữ nguyên — quay lại từ Cài đặt không đổi màn).
+    private func refreshOnboarding() {
+        guard onboarding == nil else { return }
+        #if DEBUG
+        // `-mixedTipDemo 1`: hiện thẻ người dùng cũ (chụp màn hình tự động).
+        if UserDefaults.standard.bool(forKey: "mixedTipDemo") { mixedTip = true }
+        // `-onboardingDemo choose|tryIt [-onboardingDemoProfile mixed]`: chụp màn hình tự động.
+        if let demo = UserDefaults.standard.string(forKey: "onboardingDemo") {
+            if let p = UserDefaults.standard.string(forKey: "onboardingDemoProfile").flatMap(OnboardingProfile.init(rawValue:)) {
+                OnboardingSettings.apply(p, to: UserDefaults(suiteName: AppFlavor.appGroup))
+            }
+            onboarding = demo == "tryIt" ? .tryIt : .choose
+            return
+        }
+        #endif
+        onboarding = OnboardingFlow.screen(UserDefaults(suiteName: AppFlavor.appGroup), keyboardEnabled: keyboardEnabled)
+    }
+
     @ViewBuilder private var kieuGoTab: some View {
         Section {
             OnboardingCard(enabled: keyboardEnabled, pasteReady: pasteReady)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
+        }
+        if mixedTip {
+            Section {
+                MixedTypingTipCard(onOpen: {
+                    mixedTip = false
+                    MixedTypingFocus.shared.request = .section
+                }, onDismiss: {
+                    withAnimation { mixedTip = false }
+                })
+            }
         }
         Section {
             // KHÔNG .autocorrectionDisabled(): bàn phím coi ô autocorrection == .no là

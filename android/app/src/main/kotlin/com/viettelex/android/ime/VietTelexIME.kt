@@ -609,6 +609,16 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             if (dec.layout != null) worker().post { synchronized(swipeLock) { if (swipeDecoder === dec) dec.prepare() } }
         }
         // Ngôn ngữ (vuốt phím cách) lưu riêng: ghi không đụng prefs cài đặt (listener/theme).
+        // Hồ sơ vừa chọn trong app (ONBOARDING-SPEC §3, "Chủ yếu tiếng Anh") ⇒ đặt ngôn ngữ khởi đầu
+        // MỘT lần; sau đó vuốt phím cách đổi như thường.
+        prefs.getString(com.viettelex.keyboard.KeyboardLanguageRequest.KEY, null)?.let { req ->
+            val st = stateStore()
+            com.viettelex.keyboard.KeyboardLanguageRequest.pending(req,
+                st.getString(com.viettelex.keyboard.KeyboardLanguageRequest.APPLIED_KEY, null))?.let { lang ->
+                st.edit().putString(Keys.KEYBOARD_LANGUAGE, lang.id)
+                    .putString(com.viettelex.keyboard.KeyboardLanguageRequest.APPLIED_KEY, req).apply()
+            }
+        }
         session.restoreLanguage(stateStore().getString(Keys.KEYBOARD_LANGUAGE, null), proxy)
         hwSetting = settings.hardwareTelex
         fieldReady = true

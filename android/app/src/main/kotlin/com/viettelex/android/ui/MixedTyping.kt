@@ -31,6 +31,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.viettelex.keyboard.Keys
+import com.viettelex.keyboard.OnboardingFlow
+import com.viettelex.keyboard.OnboardingProfile
+import com.viettelex.keyboard.OnboardingSettings
+import androidx.compose.ui.semantics.selected
 import com.viettelex.keyboard.RetroEnglishUI
 import com.viettelex.keyboard.tr
 import kotlinx.coroutines.delay
@@ -100,6 +104,11 @@ internal fun MixedTypingSection() {
     val spaceSwipe by rememberBoolPref(Keys.SPACE_SWIPE_LANGUAGE, Prefs.D.spaceSwipeLanguage)
     val swipeOn by rememberBoolPref(Keys.SWIPE_TYPING, Prefs.D.swipeTyping)
     var swipeEn by rememberBoolPref(Keys.SWIPE_ENGLISH, Prefs.D.swipeEnglish)
+    val retro by rememberBoolPref(Keys.RETRO_ENGLISH_AUTO, Prefs.D.retroEnglishAuto)
+    val freq by rememberBoolPref(Keys.ENGLISH_BY_FREQUENCY, Prefs.D.englishByFrequency)
+    val currentValues = mapOf(Keys.AUTO_RESTORE to autoRestore, Keys.CONTEXTUAL_ENGLISH to contextual,
+        Keys.RETRO_ENGLISH_AUTO to retro, Keys.ENGLISH_BY_FREQUENCY to freq,
+        Keys.SPACE_SWIPE_LANGUAGE to spaceSwipe, Keys.SWIPE_ENGLISH to swipeEn)
 
     // Ô tìm kiếm vừa chọn một mục: mở nhóm, đợi dựng hàng, cuộn tới + tô sáng ~1.6 s.
     val req = MixedTypingFocus.request.value
@@ -151,6 +160,7 @@ internal fun MixedTypingSection() {
         }
         if (!expanded) return@VTSection
 
+        ProfilePicker(currentValues)
         GroupHeader(MixedTypingItem.Group.Recognition)
         Item(MixedTypingItem.AutoRestore) {
             BoolToggle(Keys.AUTO_RESTORE, Prefs.D.autoRestore, tr("Tự khôi phục từ tiếng Anh"), tr("Từ không phải tiếng Việt trả về như đã gõ (google, github…)."))
@@ -200,5 +210,59 @@ internal fun MixedTypingSection() {
             }
             if (showDict) UserDictDialog { showDict = false }
         }
+    }
+}
+
+/**
+ * Bộ chọn nhanh ở đầu nhóm (ONBOARDING-SPEC §4): ba hồ sơ + "Tuỳ chỉnh" (không bấm được, sáng khi
+ * cài đặt không khớp hồ sơ nào). Đang Tuỳ chỉnh mà áp sẽ đổi công tắc ⇒ hỏi xác nhận. Như iOS.
+ */
+@Composable
+private fun ProfilePicker(current: Map<String, Boolean>) {
+    val c = LocalVT.current
+    val ctx = LocalContext.current
+    val lastProfile by rememberStringPref(OnboardingFlow.PROFILE_KEY, "")
+    val last = OnboardingProfile.of(lastProfile)
+    val matched = OnboardingSettings.match(current, last)
+    var confirming by remember { mutableStateOf<OnboardingProfile?>(null) }
+
+    RowDivider()
+    Text(tr("Chọn nhanh").uppercase(), style = VTType.footnote, color = c.secondary,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 6.dp).semantics { heading() })
+    @Composable
+    fun Choice(title: String, caption: String, selected: Boolean, onClick: (() -> Unit)?) {
+        VTRow(onClick = onClick, modifier = Modifier.semantics { this.selected = selected }) {
+            Column(Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = VTType.body, color = c.label)
+                Text(caption, style = VTType.footnote, color = c.secondary, maxLines = 2)
+            }
+            Box(Modifier.size(20.dp).alpha(if (selected) 1f else 0f)) { GlyphIcon(Glyph.Check, c.accent, 20.dp) }
+        }
+    }
+    for (p in OnboardingProfile.entries) {
+        RowDivider()
+        Choice(p.title, "“${p.example}”", matched == p) {
+            if (OnboardingSettings.needsConfirmation(current, p, last)) confirming = p else OnboardingStore.apply(ctx, p)
+        }
+    }
+    RowDivider()
+    Box(Modifier.alpha(if (matched == null) 1f else 0.5f)) {
+        Choice(tr("Tuỳ chỉnh"), tr("Cài đặt bên dưới không khớp hồ sơ nào."), matched == null, null)
+    }
+    confirming?.let { p ->
+        val lines = OnboardingSettings.changes(current, p).joinToString("\n") { k ->
+            "• " + tr(OnboardingSettings.viTitle(k)) + ": " + (if (p.values[k] == true) tr("bật") else tr("tắt"))
+        }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirming = null },
+            title = { Text(tr("Áp dụng “%s”?", p.title)) },
+            text = { Text(tr("Các công tắc bạn đã tự chỉnh sẽ đổi:") + "\n" + lines) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { confirming = null; OnboardingStore.apply(ctx, p) }) {
+                    Text(tr("Áp dụng"), color = c.accent)
+                }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { confirming = null }) { Text(tr("Huỷ"), color = c.accent) } },
+        )
     }
 }
