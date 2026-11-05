@@ -71,6 +71,8 @@ inputSourceObserver = DistributedNotificationCenter.default().addObserver(
     StickyInputSource.shared.selectionChanged(isVietTelex: isVietTelex)
     // Hotkey chuyển bộ gõ: nhớ source non-VietTelex gần nhất làm đích cho chiều
     // VietTelex → khác (xem SwitchHotkey.toggle).
+    // Onboarding người mới: chờ VietTelex được chọn (ô gõ thử cần nó).
+    if isVietTelex { Onboarding.showIfReady() }
     SwitchHotkey.noteSelection(isVietTelex: isVietTelex,
                                currentID: SwitchHotkey.currentInputSourceID(),
                                latin: isVietTelex || SwitchHotkey.currentInputSourceIsLatin())
@@ -112,6 +114,10 @@ axChangeObserver = DistributedNotificationCenter.default().addObserver(
     // ~1.5s later iff genuinely trusted.
     TerminalTapController.shared.trustChangedExternally()
 }
+
+// Onboarding (docs/ONBOARDING-SPEC.md): người mới → cửa sổ "Bạn thường gõ thế nào?" khi
+// VietTelex đang được chọn; người dùng cũ → chỉ ghi sổ + thẻ một lần trong Cài đặt.
+Onboarding.launch()
 
 }  // end !isTestHost
 

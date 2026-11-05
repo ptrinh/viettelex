@@ -591,6 +591,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     const vtx::WelcomeAction welcome =
         vtx::decideWelcome(true, readFlag(L"welcomePending"), readFlag(L"welcomeShown"), setupDoneBefore);
     if (welcome == vtx::WelcomeAction::MarkShown) writeFlag(L"welcomeShown", true);
+    // Onboarding (docs/ONBOARDING-SPEC.md): new users get the profile pages after the welcome;
+    // users set up by a version without onboarding get the one-time "Gõ mixed Việt/Anh"
+    // card in Settings instead — their values are never touched.
+    const vtx::OnboardingAction onboarding = vtx::decideOnboarding(readFlagState(L"onboardingDone"), welcome);
+    if (onboarding == vtx::OnboardingAction::Upgrade) {
+        writeFlag(L"onboardingDone", true);
+        writeFlag(L"mixedCardPending", true);
+    }
 
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof wc;
@@ -619,8 +627,11 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     mirrorAppLanguage();  // AppContainer hosts read the per-app Việt/Anh memory from here
     appLog("app", std::string("started ") + VTX_VER_STRING);
 
-    if (welcome == vtx::WelcomeAction::Show) {
-        showWelcome();  // first run: instead of Settings (it has an "Open Settings" button)
+    const bool profilePages = onboarding == vtx::OnboardingAction::ShowWelcome ||
+                              onboarding == vtx::OnboardingAction::ShowProfile;
+    if (welcome == vtx::WelcomeAction::Show || onboarding == vtx::OnboardingAction::ShowProfile) {
+        // first run: instead of Settings (it has an "Open Settings" button)
+        showWelcome(welcome == vtx::WelcomeAction::Show, profilePages);
         if (cmd && cmd != static_cast<unsigned>(vtx::AppCommand::OpenSettings)) runCommand(cmd);
     } else if (cmd) {
         runCommand(cmd);

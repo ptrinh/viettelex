@@ -129,7 +129,14 @@ final class AppState: @unchecked Sendable {
         for key in graduatedKeys { defaults.removeObject(forKey: key) }
     }
 
+    /// Onboarding (docs/ONBOARDING-SPEC.md §5): suite ĐÃ có dữ liệu trước khi process này
+    /// ghi bất cứ gì (bản cài trước — mọi bản cũ đều ghi ít nhất `probeV2Reset` ở lần chạy
+    /// đầu). Chụp ở dòng ĐẦU init, trước clearGraduatedKeys / probeV2Reset bên dưới.
+    let hadPriorSettingsAtLaunch: Bool
+
     private init() {
+        hadPriorSettingsAtLaunch = OnboardingLogic.hasPriorSettings(
+            defaults.persistentDomain(forName: AppState.settingsSuiteName))
         // graduatedKeys xoá TRƯỚC mọi lần đọc bên dưới — xoá sau thì cache in-memory
         // của phiên này vẫn giữ giá trị OFF cũ và default-bật chỉ có hiệu lực từ lần
         // khởi động sau.
@@ -1384,6 +1391,15 @@ final class AppState: @unchecked Sendable {
         case "filterSensitive": return filterSensitive
         default: return nil
         }
+    }
+
+    /// Công tắc nhóm "Gõ mixed Việt/Anh" mà hồ sơ onboarding ghi (OnboardingLogic.values).
+    func mixedSetting(_ key: String) -> Bool? {
+        key == Key.collisionPrefersVietnamese ? collisionPrefersVietnamese : syncedSetting(key)
+    }
+
+    func setMixedSetting(_ key: String, _ v: Bool) {
+        if key == Key.collisionPrefersVietnamese { collisionPrefersVietnamese = v } else { setSyncedSetting(key, v) }
     }
 
     func setSyncedSetting(_ key: String, _ v: Bool) {

@@ -367,3 +367,24 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Capitalization, word suggestions, period on double space…" = "Viết hoa, gợi ý chữ, dấu chấm khi gõ hai dấu cách…";
 "Open Input Sources settings…" = "Mở cài đặt nguồn nhập liệu…";
 "VietTelex follows the macOS input-source settings: Capitalize words automatically, Show inline predictive text (word suggestions next to the cursor), Add period with double-space, smart quotes and dashes, and automatically switching input source per app / document. Turn them on or off there." = "VietTelex làm theo cài đặt nguồn nhập liệu của macOS: Tự động viết hoa từ, Hiển thị văn bản dự đoán (gợi ý chữ cạnh con trỏ), Thêm dấu chấm khi nhấn đúp phím cách, dấu ngoặc kép và gạch ngang thông minh, và tự đổi nguồn nhập liệu theo ứng dụng / tài liệu. Bật hoặc tắt các mục này tại đó.";
+
+/* Onboarding người dùng mới + nhóm "Gõ mixed Việt/Anh" (docs/ONBOARDING-SPEC.md, 05/11/2026) */
+"Welcome to VietTelex" = "Chào mừng đến với VietTelex";
+"How do you usually type?" = "Bạn thường gõ thế nào?";
+"Pick the closest one — it only sets a few switches, which you can change any time in Settings → Typing → Mixed Vietnamese/English typing." = "Chọn cách gần nhất — lựa chọn chỉ bật/tắt vài công tắc, đổi lại lúc nào cũng được trong Cài đặt → Gõ phím → Gõ mixed Việt/Anh.";
+"Mostly Vietnamese" = "Chủ yếu tiếng Việt";
+"Lots of Vietnamese + English" = "Việt + Anh nhiều";
+"Mostly English" = "Chủ yếu tiếng Anh";
+"Skip" = "Bỏ qua";
+"Try typing" = "Gõ thử";
+"Type one of these sentences below, using VietTelex as you would in any app:" = "Gõ thử một câu dưới đây bằng VietTelex, như khi gõ trong mọi ứng dụng khác:";
+"Type here…" = "Gõ thử tại đây…";
+"Turned on for you — switch off anything you don’t want:" = "Đã bật cho bạn — tắt ngay mục nào bạn không muốn:";
+"Done" = "Xong";
+"Prefer Vietnamese when a word is both English and Vietnamese" = "Ưu tiên tiếng Việt khi từ trùng";
+"Do you often mix English into Vietnamese? See the new Mixed Vietnamese/English typing group." = "Bạn hay gõ trộn Anh/Việt? Xem nhóm Gõ mixed Việt/Anh mới.";
+"Show me" = "Xem";
+"Dismiss" = "Đóng";
+"Mixed Vietnamese/English typing" = "Gõ mixed Việt/Anh";
+"English detection" = "Nhận diện tiếng Anh";
+"Language switching" = "Chuyển ngôn ngữ";

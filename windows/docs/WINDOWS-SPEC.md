@@ -150,10 +150,14 @@ phím). Mặc định tắt; user bật theo app.
 | | Gõ lại dấu cho từ trước con trỏ (`reEditWord`) | bật |
 | Gõ tắt | Bảng gõ tắt (`shortcuts`), nhập/xuất file như macOS | rỗng |
 | Chuyển | Phím tắt chuyển (`switchHotkey`), nhớ theo app | Ctrl+Shift |
+| | Bắt đầu bằng tiếng Anh trong app mới (`startEnglish`; hồ sơ onboarding `en`) | tắt |
 | Giao diện | Icon khay (`menuIcon`), ngôn ngữ UI vi/en (`uiLanguage`) | Vᴛ, vi |
 | Hệ thống | Tự kiểm tra cập nhật (`autoUpdateCheck`), Debug log (`debugLogging`) | tắt / tắt |
 
 Mặc định lấy từ `App/Sources/AppState.swift` (1.7.12); nếu macOS đổi mặc định thì Windows đổi theo.
+Từ 05/11/2026 (docs/ONBOARDING-SPEC.md §4) Cài đặt gom `autoRestore`, `collisionPrefersVietnamese`,
+`contextualEnglish`, `retroactiveEnglish`, `englishByFrequency`, `switchHotkey`, `startEnglish` vào
+mục "Gõ mixed Việt/Anh" của trang Kiểu gõ (key không đổi).
 
 ## 8. App `VietTelex.exe`
 - Win32 thuần + Common Controls v6, dark mode theo hệ thống (`DwmSetWindowAttribute`,

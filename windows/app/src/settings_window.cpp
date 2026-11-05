@@ -102,6 +102,7 @@ enum Id : int {
     IdDefaultInput,
     IdClearLearned,
     IdTextPrediction,
+    IdMixedCard,
     IdIconTile = 6000,  // + IconChoice
 };
 
@@ -137,6 +138,7 @@ const ToggleDef kToggles[] = {
     {&Settings::learnWords, S::LearnWords, S::LearnWordsDesc},                         // 24
     {&Settings::retroactiveEnglish, S::RetroEnglish, S::RetroEnglishDesc},             // 25
     {&Settings::englishByFrequency, S::EnglishByFrequency, S::EnglishByFrequencyDesc}, // 26
+    {&Settings::startEnglish, S::StartEnglish, S::StartEnglishDesc},                   // 27
 };
 constexpr int kToggleCount = static_cast<int>(sizeof(kToggles) / sizeof(kToggles[0]));
 
@@ -466,6 +468,10 @@ void onDefaultInputButton() {
 
 std::vector<FoundConflict> g_conflicts;  // detected when the Kiểu gõ page is built
 
+// One-time card for users upgraded from a version without onboarding (ONBOARDING-SPEC §5,
+// onboarding.h decideOnboarding Upgrade): HKCU mixedCardPending, cleared by its button.
+bool mixedCardPending() { return readFlag(L"mixedCardPending"); }
+
 // "Gợi ý chữ khi gõ" card: the Windows value it shows (read when the Chính tả page is
 // built, and again on WM_ACTIVATE — one RegGetValue, never on the key path).
 bool g_shownTextPrediction = false;
@@ -482,15 +488,28 @@ std::vector<Item> pageItems(int tab) {
                 c.descText = conflictDescription(g_conflicts) + L" (" + conflictNames(g_conflicts) + L")";
                 v.push_back(c);
             }
+            if (mixedCardPending()) v.push_back(buttonItem(S::MixedCardTitle, S::MixedCardDesc, IdMixedCard));
             v.push_back(section(S::SecInputStyle));
             v.push_back(comboItem(S::InputMethod, S::InputMethodDesc, IdComboMethod));
             for (int i = 0; i <= 4; ++i) v.push_back(toggleItem(i));
-            v.push_back(section(S::SecSwitch));
             {
+                // "Gõ mixed Việt/Anh" (ONBOARDING-SPEC §4), right under Kiểu gõ like iOS/Android:
+                // English detection (moved from the Chính tả page) + switching language (the
+                // switch key, start new apps in English). Same registry keys as before.
                 const PerAppInput win = readPerAppInput();
+                v.push_back(section(S::SecMixed));
+                v.push_back(toggleItem(5));   // Tự khôi phục từ không hợp lệ
+                v.push_back(toggleItem(8));   // Ưu tiên tiếng Việt khi trùng
+                v.push_back(toggleItem(7));   // Quyết định theo ngữ cảnh
+                if (g_settings.contextualEnglish) {
+                    v.push_back(toggleItem(25));  // Tự sửa từ phía trước (needs contextual)
+                    v.push_back(toggleItem(26));  // Đoán từ trùng theo tần suất (experimental)
+                }
                 v.push_back(comboItem(S::SwitchHotkey,
                                       hotkeyNoteString(hotkeyNote(parseSwitchHotkey(g_settings.switchHotkey), win)),
                                       IdComboHotkey));
+                v.push_back(toggleItem(27));  // Bắt đầu bằng tiếng Anh trong app mới
+                v.push_back(section(S::SecSwitch));
                 v.push_back(buttonItem(S::PerAppWin,
                                        win == PerAppInput::On    ? S::PerAppWinOn
                                        : win == PerAppInput::Off ? S::PerAppWinOff
@@ -521,15 +540,11 @@ std::vector<Item> pageItems(int tab) {
             break;
         case 1:
             v.push_back(section(S::SecSpelling));
-            for (int i = 5; i <= 10; ++i) {
-                v.push_back(toggleItem(i));
-                // Tự sửa từ phía trước: only while Quyết định theo ngữ cảnh is on (it
-                // depends on it), right under it.
-                if (i == 7 && g_settings.contextualEnglish) {
-                    v.push_back(toggleItem(25));
-                    v.push_back(toggleItem(26));  // Đoán từ trùng theo tần suất (experimental)
-                }
-            }
+            // Auto-restore / collisions / context / fix earlier words / frequency moved to
+            // Kiểu gõ → Gõ mixed Việt/Anh (05/11/2026).
+            v.push_back(toggleItem(6));   // Kiểm tra chính tả khi gõ
+            v.push_back(toggleItem(9));   // Teencode
+            v.push_back(toggleItem(10));  // Sửa dấu từ đã gõ
             v.push_back(toggleItem(20));  // gạch đỏ âm tiết sai chính tả (composition only)
             // Gợi ý cạnh con trỏ: mostly on by default, so always visible (not collapsed).
             v.push_back(section(S::SecHints));
@@ -962,6 +977,7 @@ void createControls() {
                                          it.ctlId, perAppAction(readPerAppInput()) == PerAppAction::Enable ? kBtnPrimary : kBtnSecondary);
                 else if (it.ctlId == IdClearLearned) it.hwnd = makeButton(tr(S::ClearLearnedButton), it.ctlId);
                 else if (it.ctlId == IdTextPrediction) it.hwnd = makeButton(tr(S::TextPredictionButton), it.ctlId);
+                else if (it.ctlId == IdMixedCard) it.hwnd = makeButton(tr(S::MixedCardButton), it.ctlId, kBtnPrimary);
                 else it.hwnd = makeButton(tr(it.ctlId == IdCheckNow ? S::CheckButton : it.title), it.ctlId);
             }
         } else if (it.kind == ItemKind::IconPicker) {
@@ -1565,7 +1581,7 @@ void onCommand(int id, int code, HWND ctl) {
         // Tự sửa từ phía trước / Đoán từ trùng theo tần suất show only while Quyết định theo
         // ngữ cảnh is on.
         if (kToggles[id - IdToggleBase].field == &Settings::contextualEnglish)
-            PostMessageW(g_wnd, WM_APP + 1, 0, 0);  // rebuild outside this notification
+            PostMessageW(g_wnd, WM_APP + 2, 0, 0);  // rebuild outside this notification, keep scroll
         return;
     }
     const auto sel = [&]() { return static_cast<int>(SendMessageW(ctl, CB_GETCURSEL, 0, 0)); };
@@ -1673,6 +1689,10 @@ void onCommand(int id, int code, HWND ctl) {
         case IdPerAppWin: onPerAppButton(); break;
         case IdDefaultInput: onDefaultInputButton(); break;
         case IdTextPrediction: openTypingSettings(); break;  // ms-settings:typing
+        case IdMixedCard:  // "Xem": never shown again
+            writeFlag(L"mixedCardPending", false);
+            PostMessageW(g_wnd, WM_APP + 3, 0, 0);
+            break;
         default: break;
     }
 }
@@ -1890,6 +1910,20 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             break;
         case WM_DWMCOLORIZATIONCOLORCHANGED: rebuildAll(); break;
         case WM_APP + 1: rebuildAll(); return 0;
+        case WM_APP + 2: {  // rebuild this page, same scroll position
+            const int keep = g_scroll;
+            buildPage();
+            scrollTo(keep);
+            return 0;
+        }
+        case WM_APP + 3:  // the upgrade card was dismissed: rebuild and bring "Gõ mixed Việt/Anh" up
+            buildPage();
+            for (const Item& it : g_items)
+                if (it.kind == ItemKind::Section && it.title == S::SecMixed) {
+                    scrollTo(it.rc.top - px(16));
+                    break;
+                }
+            return 0;
         case WM_ACTIVATE:
             // Back from Windows Settings: refresh the "Gợi ý chữ khi gõ" state if it changed.
             if (LOWORD(wp) != WA_INACTIVE && g_tab == 1 && readSystemTextPrediction() != g_shownTextPrediction) {

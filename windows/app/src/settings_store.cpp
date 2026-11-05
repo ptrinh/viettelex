@@ -244,6 +244,12 @@ bool readFlag(const wchar_t* name) {
     return RegGetValueW(HKEY_CURRENT_USER, kRoot, name, RRF_RT_REG_DWORD, nullptr, &v, &sz) == ERROR_SUCCESS && v;
 }
 
+int readFlagState(const wchar_t* name) {
+    DWORD v = 0, sz = sizeof v;
+    if (RegGetValueW(HKEY_CURRENT_USER, kRoot, name, RRF_RT_REG_DWORD, nullptr, &v, &sz) != ERROR_SUCCESS) return -1;
+    return v ? 1 : 0;
+}
+
 void writeFlag(const wchar_t* name, bool v) {
     if (HKEY k = openRoot(true)) {
         setDword(k, name, v ? 1 : 0);

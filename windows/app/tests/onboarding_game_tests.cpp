@@ -12,6 +12,8 @@
 #include "macro_import.h"
 #include "onboarding.h"
 #include "registration.h"
+#include "settings.h"
+#include <viettelex/vtx_engine.h>
 #include "test.h"
 
 using namespace vtx;
@@ -89,6 +91,95 @@ TEST(welcome_decisions) {
     CHECK(decideWelcome(true, true, true, true) == WelcomeAction::Nothing);     // already shown
     CHECK(decideWelcome(true, false, false, true) == WelcomeAction::MarkShown); // upgrade from pre-onboarding
     CHECK(decideWelcome(false, false, false, true) == WelcomeAction::MarkShown);
+}
+
+// ---- Onboarding profiles (docs/ONBOARDING-SPEC.md §2/§3/§5) ------------------------
+
+TEST(onboarding_profile_vi_is_todays_defaults) {
+    Settings d;
+    Settings s = d;
+    s.retroactiveEnglish = s.englishByFrequency = s.startEnglish = true;  // anything applyProfile owns
+    s.autoRestore = s.contextualEnglish = s.collisionPrefersVietnamese = false;
+    applyProfile(s, TypingProfile::Vi);
+    CHECK(s == d);  // operator== compares every bool key, startEnglish included
+    CHECK(!s.startEnglish && !s.retroactiveEnglish && !s.englishByFrequency);
+}
+
+TEST(onboarding_profile_mixed_and_en) {
+    Settings m;
+    applyProfile(m, TypingProfile::Mixed);
+    CHECK(m.autoRestore && m.contextualEnglish && m.retroactiveEnglish && m.englishByFrequency &&
+          m.collisionPrefersVietnamese);
+    CHECK(!m.startEnglish);
+    // englishByFrequency reaches the engine (needs the retro flag, which contextualEnglish turns on).
+    CHECK((m.engineFlags() & VTX_ENGLISH_BY_FREQUENCY) != 0);
+    Settings e;
+    applyProfile(e, TypingProfile::En);
+    CHECK(e.startEnglish);  // Windows has an English mode: new apps start in it
+    e.startEnglish = false;
+    CHECK(e == m);
+    // Only the mixed-typing switches: nothing else moves.
+    Settings other;
+    other.vniMode = true;
+    other.switchHotkey = "alt-z";
+    other.showTrayIcon = true;
+    applyProfile(other, TypingProfile::Mixed);
+    CHECK(other.vniMode && other.switchHotkey == "alt-z" && other.showTrayIcon);
+}
+
+TEST(onboarding_profile_names_and_turned_on) {
+    for (TypingProfile p : {TypingProfile::Vi, TypingProfile::Mixed, TypingProfile::En}) {
+        TypingProfile back = TypingProfile::Vi;
+        CHECK(parseProfile(profileName(p), back) && back == p);
+    }
+    TypingProfile x = TypingProfile::Mixed;
+    CHECK(!parseProfile("custom", x) && x == TypingProfile::Mixed);
+    CHECK_EQ(profileTurnedOn(TypingProfile::Vi).size(), size_t(3));     // auto-restore, context, collisions
+    CHECK_EQ(profileTurnedOn(TypingProfile::Mixed).size(), size_t(5));
+    const auto en = profileTurnedOn(TypingProfile::En);
+    CHECK_EQ(en.size(), size_t(6));
+    CHECK(en.back() == &Settings::startEnglish);
+}
+
+TEST(onboarding_decisions) {
+    // New user: welcome then the profile pages.
+    CHECK(decideOnboarding(-1, WelcomeAction::Show) == OnboardingAction::ShowWelcome);
+    // Cut short last time (0 written when the welcome opened, welcomeShown already 1).
+    CHECK(decideOnboarding(0, WelcomeAction::Nothing) == OnboardingAction::ShowProfile);
+    CHECK(decideOnboarding(0, WelcomeAction::Show) == OnboardingAction::ShowWelcome);
+    // Upgrades from a version without onboarding: card, no pages, no value changes.
+    CHECK(decideOnboarding(-1, WelcomeAction::MarkShown) == OnboardingAction::Upgrade);
+    CHECK(decideOnboarding(-1, WelcomeAction::Nothing) == OnboardingAction::Upgrade);
+    // Done: never again (even if an installer re-queues the welcome).
+    CHECK(decideOnboarding(1, WelcomeAction::Show) == OnboardingAction::Nothing);
+    CHECK(decideOnboarding(1, WelcomeAction::Nothing) == OnboardingAction::Nothing);
+    // The real upgrade path: set up before, nothing pending -> MarkShown -> Upgrade.
+    CHECK(decideOnboarding(-1, decideWelcome(true, false, false, true)) == OnboardingAction::Upgrade);
+    // The real fresh path: AppStart on a never-set-up user -> Show -> pages.
+    CHECK(decideOnboarding(-1, decideWelcome(true, false, false, false)) == OnboardingAction::ShowWelcome);
+}
+
+TEST(onboarding_start_english_snapshot_bit) {
+    size_t n = 0;
+    const BoolKey* keys = boolKeys(&n);
+    CHECK(n <= 32);
+    CHECK_EQ(std::string(keys[n - 1].name), std::string("startEnglish"));  // appended, never reordered
+    CHECK_EQ(std::string(keys[n - 2].name), std::string("englishByFrequency"));
+    Settings d;
+    CHECK(!d.startEnglish);
+    Settings s;
+    s.startEnglish = true;
+    std::vector<uint8_t> b = serialize(s);
+    Settings r;
+    CHECK(deserialize(b.data(), b.size(), r));
+    CHECK(r.startEnglish);
+    // A snapshot from a version before the bit existed (bool count one lower) reads as
+    // "start in Vietnamese", whatever the stray high bit says.
+    std::vector<uint8_t> ob = serialize(s);
+    ob[6] = static_cast<uint8_t>(n - 1);  // u32 magic, u16 version, u16 bool count (LE)
+    ob[7] = 0;
+    Settings ro;
+    CHECK(deserialize(ob.data(), ob.size(), ro) && !ro.startEnglish);
 }
 
 TEST(active_setup_matches_msi_template) {

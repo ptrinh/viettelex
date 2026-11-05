@@ -32,6 +32,8 @@
 #include <string>
 #include <vector>
 
+#include "settings.h"
+
 namespace vtx {
 
 // Keep in sync with installer/msi/viettelex.wxs.in (app_tests checks the template).
@@ -72,6 +74,34 @@ UserSetupPlan planUserSetup(SetupTrigger trigger, const UserSetupState& s);
 // (set up before, nothing pending) are never shown it: MarkShown records that silently.
 enum class WelcomeAction { Show, MarkShown, Nothing };
 WelcomeAction decideWelcome(bool interactive, bool welcomePending, bool welcomeShown, bool setupDoneBeforeThisRun);
+
+// ---- Typing profile (docs/ONBOARDING-SPEC.md §2/§3/§5) --------------------------------
+// The welcome window asks "Bạn thường gõ thế nào?" (vi / mixed / en), then "Gõ thử". A
+// profile WRITES concrete values into existing settings and is forgotten: only
+// onboardingDone (DWORD) + onboardingProfile (REG_SZ, display only) are stored beside them
+// (HKCU\Software\VietTelex). Windows has an in-TIP English mode, so `en` = `mixed` +
+// startEnglish (apps without a remembered Việt/Anh state start in English).
+enum class TypingProfile { Vi, Mixed, En };
+const char* profileName(TypingProfile p);                     // "vi" | "mixed" | "en"
+bool parseProfile(const std::string& s, TypingProfile& out);
+// §3 table (+ §10: englishByFrequency ON for mixed and en). Touches only the mixed-typing
+// switches (autoRestore, contextualEnglish, retroactiveEnglish, englishByFrequency,
+// collisionPrefersVietnamese, startEnglish); `vi` = today's defaults.
+void applyProfile(Settings& s, TypingProfile p);
+// The switches the profile turns ON, in the order the "Gõ thử" page lists them.
+std::vector<bool Settings::*> profileTurnedOn(TypingProfile p);
+
+// Who sees the profile pages. `onboardingDone`: -1 = value absent, 0 / 1. New users get a
+// 0 written when the welcome opens, so a run closed half-way (or killed) shows the
+// profile pages again next start even though welcomeShown is already 1.
+//   done 1                          -> Nothing
+//   done 0                          -> ShowProfile (welcome Show -> the full welcome)
+//   absent + welcome Show           -> ShowWelcome (new user: setup page, then profile)
+//   absent + welcome MarkShown/Nothing (set up by a version without onboarding)
+//                                   -> Upgrade: onboardingDone = 1 + the one-time
+//                                      "Gõ mixed Việt/Anh" card in Settings; no value changes
+enum class OnboardingAction { ShowWelcome, ShowProfile, Upgrade, Nothing };
+OnboardingAction decideOnboarding(int onboardingDone, WelcomeAction welcome);
 
 // ---- Other Vietnamese input methods --------------------------------------------------
 // Two Vietnamese input methods at once double every tone (both eat the key). Detected,

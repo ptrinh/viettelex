@@ -36,6 +36,52 @@ WelcomeAction decideWelcome(bool interactive, bool welcomePending, bool welcomeS
     return WelcomeAction::MarkShown;  // upgraded from a version without onboarding
 }
 
+const char* profileName(TypingProfile p) {
+    switch (p) {
+        case TypingProfile::Vi: return "vi";
+        case TypingProfile::Mixed: return "mixed";
+        case TypingProfile::En: return "en";
+    }
+    return "vi";
+}
+
+bool parseProfile(const std::string& s, TypingProfile& out) {
+    for (TypingProfile p : {TypingProfile::Vi, TypingProfile::Mixed, TypingProfile::En})
+        if (s == profileName(p)) {
+            out = p;
+            return true;
+        }
+    return false;
+}
+
+void applyProfile(Settings& s, TypingProfile p) {
+    const bool mixed = p != TypingProfile::Vi;
+    s.autoRestore = true;
+    s.contextualEnglish = true;  // vi: today's default (ON)
+    s.retroactiveEnglish = mixed;
+    s.englishByFrequency = mixed;
+    s.collisionPrefersVietnamese = true;
+    s.startEnglish = p == TypingProfile::En;
+}
+
+std::vector<bool Settings::*> profileTurnedOn(TypingProfile p) {
+    Settings s;
+    applyProfile(s, p);
+    std::vector<bool Settings::*> out;
+    for (bool Settings::*f : {&Settings::autoRestore, &Settings::contextualEnglish, &Settings::retroactiveEnglish,
+                              &Settings::englishByFrequency, &Settings::collisionPrefersVietnamese,
+                              &Settings::startEnglish})
+        if (s.*f) out.push_back(f);
+    return out;
+}
+
+OnboardingAction decideOnboarding(int onboardingDone, WelcomeAction welcome) {
+    if (onboardingDone == 1) return OnboardingAction::Nothing;
+    if (welcome == WelcomeAction::Show) return OnboardingAction::ShowWelcome;
+    if (onboardingDone == 0) return OnboardingAction::ShowProfile;
+    return OnboardingAction::Upgrade;
+}
+
 namespace {
 struct ImeExe {
     const char* exe;

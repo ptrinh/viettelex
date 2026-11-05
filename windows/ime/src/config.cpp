@@ -100,7 +100,9 @@ void loadVietnameseLocked() {
     const std::wstring exe = activeExeW();
     const std::string id = narrowLower(exe.c_str());
     const char* source = "default";
-    bool on = true;
+    // No memory for this app yet: Vietnamese, or English with "Bắt đầu bằng tiếng Anh trong
+    // app mới" (settings startEnglish; caller holds g_lock, which guards g_settings).
+    bool on = !g_settings->startEnglish;
     if (g_secure) {
         source = "secure desktop (default)";
     } else if (canUseRegistry()) {
@@ -145,6 +147,7 @@ void loadVietnameseLocked() {
 
 void init(bool secure) {
     AcquireSRWLockExclusive(&g_lock);
+    const bool first = !g_inited;
     if (!g_inited) {
         g_inited = true;
         g_secure = secure;
@@ -152,12 +155,13 @@ void init(bool secure) {
         std::wstring exe = exeNameW();
         g_exe = narrowLower(exe.c_str());
         g_mode = resolveAppMode(g_exe, g_settings->appModes);
-        loadVietnameseLocked();
     } else if (secure) {
         g_secure = true;  // never downgrade from secure within a process
     }
     ReleaseSRWLockExclusive(&g_lock);
     refresh();
+    // After refresh(): the default for an app with no memory reads startEnglish.
+    if (first) reloadVietnamese();
 }
 
 unsigned long refresh() {

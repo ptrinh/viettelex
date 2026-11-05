@@ -387,6 +387,48 @@ const Pair kStrings[] = {
      L"At the start of a phrase, a word that is both a common English word and a rare Vietnamese syllable "
      L"(his → hí) becomes English; if the next word shows the phrase is Vietnamese (hí hửng, hí hí), it is "
      L"switched back automatically. Needs context-based decisions."},
+    // Onboarding
+    {L"Tiếp", L"Next"},
+    {L"Bỏ qua", L"Skip"},
+    {L"Bạn thường gõ thế nào?", L"How do you usually type?"},
+    {L"Chọn cách gần nhất — lựa chọn chỉ bật/tắt vài công tắc, đổi lại lúc nào cũng được trong Cài đặt → Kiểu gõ "
+     L"→ Gõ mixed Việt/Anh.",
+     L"Pick the closest one — it only sets a few switches, which you can change any time in Settings → Typing → "
+     L"Mixed Vietnamese/English typing."},
+    {L"Chủ yếu tiếng Việt", L"Mostly Vietnamese"},
+    {L"“Chiều nay mình đi cà phê nhé”", L"“Chiều nay mình đi cà phê nhé”"},
+    {L"Việt + Anh nhiều", L"Lots of Vietnamese + English"},
+    {L"“Chiều nay họp team, nhớ check mail nha”", L"“Chiều nay họp team, nhớ check mail nha”"},
+    {L"Chủ yếu tiếng Anh", L"Mostly English"},
+    {L"“See you at the meeting, nhớ mang laptop nhé”", L"“See you at the meeting, nhớ mang laptop nhé”"},
+    {L"Gõ thử", L"Try typing"},
+    {L"Gõ thử một câu dưới đây vào ô bên dưới, bằng VietTelex như khi gõ trong mọi ứng dụng khác:",
+     L"Type one of these sentences in the box below, using VietTelex as you would in any app:"},
+    {L"• Chiều nay mình đi cà phê nhé\r\n• Cảm ơn bạn đã giúp đỡ hôm qua",
+     L"• Chiều nay mình đi cà phê nhé\r\n• Cảm ơn bạn đã giúp đỡ hôm qua"},
+    {L"• Mai họp team lúc 9h, nhớ confirm nhé\r\n• Chiều nay họp team, nhớ check mail nha\r\n• File design gửi "
+     L"qua email rồi đó",
+     L"• Mai họp team lúc 9h, nhớ confirm nhé\r\n• Chiều nay họp team, nhớ check mail nha\r\n• File design gửi "
+     L"qua email rồi đó"},
+    {L"• See you at the meeting, nhớ mang laptop nhé\r\n• Please review the report trước thứ Sáu\r\n• Mai họp "
+     L"team lúc 9h, nhớ confirm nhé",
+     L"• See you at the meeting, nhớ mang laptop nhé\r\n• Please review the report trước thứ Sáu\r\n• Mai họp "
+     L"team lúc 9h, nhớ confirm nhé"},
+    {L"Đã bật cho bạn — bỏ chọn mục nào bạn không muốn:", L"Turned on for you — untick anything you don’t want:"},
+    {L"Ô này đang ở tiếng Anh? Đổi Việt/Anh bằng phím chuyển (mặc định Ctrl+Shift).",
+     L"Is this box in English? Switch Vietnamese/English with the switch key (Ctrl+Shift by default)."},
+    {L"Gõ mixed Việt/Anh", L"Mixed Vietnamese/English typing"},
+    {L"Bắt đầu bằng tiếng Anh trong app mới", L"Start new apps in English"},
+    {L"App chưa từng đổi Việt/Anh bắt đầu ở tiếng Anh; bấm phím chuyển để gõ tiếng Việt. App đã đổi thì vẫn nhớ "
+     L"như cũ.",
+     L"Apps where you never switched Vietnamese/English start in English; press the switch key to type "
+     L"Vietnamese. Apps you already switched keep what they remember."},
+    {L"Bạn hay gõ trộn Anh/Việt?", L"Do you often mix English into Vietnamese?"},
+    {L"Xem nhóm Gõ mixed Việt/Anh mới ngay bên dưới: tự khôi phục từ tiếng Anh, quyết định theo ngữ cảnh, phím "
+     L"chuyển Việt/Anh…",
+     L"See the new Mixed Vietnamese/English typing section just below: English auto-restore, context-based "
+     L"decisions, the switch key…"},
+    {L"Xem", L"Show me"},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace

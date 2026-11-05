@@ -132,6 +132,13 @@ enum class S {
     RetroEnglish, RetroEnglishDesc,
     // Đoán từ trùng theo tần suất (right under Tự sửa từ phía trước, same condition; experimental)
     EnglishByFrequency, EnglishByFrequencyDesc,
+    // Onboarding (docs/ONBOARDING-SPEC.md): welcome pages "Bạn thường gõ thế nào?" + "Gõ thử",
+    // the "Gõ mixed Việt/Anh" section, "start new apps in English", the one-time upgrade card
+    WelcomeNext, WelcomeSkip,
+    ProfileTitle, ProfileIntro, ProfileVi, ProfileViEx, ProfileMixed, ProfileMixedEx, ProfileEn, ProfileEnEx,
+    TryTitle, TryIntro, TrySamplesVi, TrySamplesMixed, TrySamplesEn, TryTurnedOn, TryHint,
+    SecMixed, StartEnglish, StartEnglishDesc,
+    MixedCardTitle, MixedCardDesc, MixedCardButton,
     Count
 };
 

@@ -20,7 +20,8 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import APP_ID, VERSION, compat, config, detect, gnome_fcitx5, i18n, launchers, shortcuts, updater  # noqa: E402
+from . import (APP_ID, VERSION, compat, config, detect, gnome_fcitx5, i18n, launchers,  # noqa: E402
+               onboarding, shortcuts, updater)
 from .i18n import N_, _  # noqa: E402
 
 WEBSITE = "https://ptrinh.github.io/viettelex/"
@@ -278,6 +279,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.status_group.add(self.status_row)
         page.add(self.status_group)
         self.refresh_status()
+        self._mixed_card(page)
 
         g = Adw.PreferencesGroup(title=_("Kiểu gõ"))
         self.combo(g, "typing", "input_method", _("Kiểu gõ"),
@@ -311,7 +313,110 @@ class SettingsWindow(Adw.PreferencesWindow):
                     _("Tắt = kiểu cũ (hòa, thủy, khỏe). Bật = kiểu mới (hoà, thuý, khoẻ). "
                     "Chỉ đổi vị trí dấu ở oa/oe/uy."))
         page.add(g)
+        self._mixed_groups(page)
         return page
+
+    def _mixed_card(self, page):
+        """Người dùng cũ (onboarding.card_pending): thẻ một lần trỏ tới nhóm Gõ mixed Việt/Anh.
+        Bấm "Xem" hoặc "Đóng" ⇒ không hiện lại."""
+        if not onboarding.card_pending():
+            return
+        g = Adw.PreferencesGroup()
+        r = row(_("Bạn hay gõ trộn Anh/Việt?"),
+                _("Xem nhóm Gõ mixed Việt/Anh mới: các công tắc nhận diện tiếng Anh và chuyển "
+                  "ngôn ngữ nay nằm chung một chỗ, ngay dưới mục Kiểu gõ."))
+        r.add_prefix(Gtk.Image.new_from_icon_name("dialog-information-symbolic"))
+        see = Gtk.Button(label=_("Xem"), valign=Gtk.Align.CENTER)
+        see.add_css_class("suggested-action")
+        close = Gtk.Button(icon_name="window-close-symbolic", valign=Gtk.Align.CENTER,
+                           tooltip_text=_("Đóng"))
+        close.add_css_class("flat")
+
+        def dismiss(reveal):
+            try:
+                onboarding.dismiss_card()
+            except OSError:
+                pass
+            g.set_visible(False)
+            if reveal and getattr(self, "mixed_first_row", None) is not None:
+                # Viewport của trang cuộn tới widget đang focus (scroll-to-focus).
+                GLib.idle_add(lambda: (self.mixed_first_row.grab_focus(), False)[1])
+        see.connect("clicked", lambda _b: dismiss(True))
+        close.connect("clicked", lambda _b: dismiss(False))
+        r.add_suffix(see)
+        r.add_suffix(close)
+        g.add(r)
+        page.add(g)
+
+    def _mixed_groups(self, page):
+        """Nhóm "Gõ mixed Việt/Anh" (docs/ONBOARDING-SPEC.md §4): mọi công tắc gõ trộn Việt–Anh
+        ngay dưới mục Kiểu gõ — key config.toml không đổi."""
+        g = Adw.PreferencesGroup(
+            title=_("Gõ mixed Việt/Anh"),
+            description=_("Nhận diện tiếng Anh khi gõ lẫn Việt–Anh."))
+        self.mixed_first_row = self.switch(
+            g, "typing", "auto_restore", _("Tự khôi phục từ không hợp lệ"),
+            _("Từ không phải tiếng Việt hợp lệ sẽ tự trả về đúng phím đã gõ khi kết thúc "
+              "từ (retore → retore)."))
+        ctx_row = self.switch(g, "typing", "contextual_english", _("Quyết định theo ngữ cảnh"),
+                              _("Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành "
+                              "một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → "
+                              "“he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để "
+                              "tiếng Việt — “sao í”."))
+        # Thử nghiệm, ngay dưới "Quyết định theo ngữ cảnh" và chỉ hiện khi nó bật.
+        retro_row = self.switch(g, "typing", "retroactive_english", _("Tự sửa từ phía trước (thử nghiệm)"),
+                                _("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm "
+                                "(vd. “Hí cả í very fast” → “His car is very fast”)."))
+
+        # Thử nghiệm: ngay dưới "Tự sửa từ phía trước", cùng điều kiện hiện.
+        freq_row = self.switch(g, "typing", "english_by_frequency",
+                               _("Đoán từ trùng theo tần suất (thử nghiệm)"),
+                               _("Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm "
+                               "(his → hí) thì chọn tiếng Anh; từ kế cho thấy là tiếng Việt (hí hửng, "
+                               "hí hí) thì tự đổi lại. Cần bật Quyết định theo ngữ cảnh."))
+
+        def retro_visibility(*_a):
+            retro_row.set_visible(config.retro_english_visible(self.cfg.get))
+            freq_row.set_visible(config.retro_english_visible(self.cfg.get))
+        retro_visibility()
+        ctx_row.get_activatable_widget().connect("notify::active", retro_visibility)
+        self.refreshers.append(retro_visibility)
+        self.combo(g, "typing", "collision_prefers_vietnamese",
+                   _("Khi từ vừa là tiếng Anh vừa là tiếng Việt"),
+                   [(True, _("Ưu tiên tiếng Việt")), (False, _("Ưu tiên tiếng Anh"))],
+                   subtitle=_("Cho các từ như last/lát, list/lít, his/hí. Ưu tiên tiếng Việt: gõ đúp "
+                              "phím dấu để giữ tiếng Anh (lisst → list). Ưu tiên tiếng Anh: đặt dấu ở "
+                              "cuối từ để ra tiếng Việt (lits → lít). Trong câu tiếng Anh thì từ vẫn "
+                              "giữ tiếng Anh dù chọn gì."))
+        page.add(g)
+        g = Adw.PreferencesGroup(title=_("Chuyển ngôn ngữ"))
+        hk = row(_("Phím chuyển Việt/Anh"),
+                 _("Mặc định Ctrl+Space. Không dùng Super+Space (GNOME dùng để đổi nguồn nhập)."))
+        self.hotkey_btn = Gtk.Button(valign=Gtk.Align.CENTER)
+        self.hotkey_btn.connect("clicked", lambda _b: self.capture_hotkey(
+            _("Phím chuyển Việt/Anh"), _("Esc = huỷ · Backspace = tắt phím chuyển."),
+            self.set_hotkey, "toggle"))
+        reset = Gtk.Button(icon_name="edit-undo-symbolic", valign=Gtk.Align.CENTER,
+                           tooltip_text=_("Về mặc định (Ctrl+Space)"))
+        reset.add_css_class("flat")
+        reset.connect("clicked", lambda _b: self.set_hotkey("Ctrl+space"))
+        hk.add_suffix(self.hotkey_btn)
+        hk.add_suffix(reset)
+        g.add(hk)
+        self.refreshers.append(self._refresh_hotkey)
+        self._refresh_hotkey()
+        self.switch(g, "general", "per_app_state", _("Nhớ Việt/Anh theo từng app"),
+                    _("Mỗi app giữ trạng thái Việt/Anh riêng — chuyển sang terminal gõ tiếng Anh "
+                    "không làm mất tiếng Việt ở trình soạn thảo."))
+        self.switch(g, "general", "default_vietnamese", _("App mới mở bắt đầu bằng tiếng Việt"),
+                    _("Tắt = app lần đầu gặp bắt đầu ở chế độ tiếng Anh."))
+        forget = row(_("Quên trạng thái Việt/Anh đã nhớ"),
+                     _("Xoá trạng thái đã nhớ của mọi app; lần sau mỗi app bắt đầu theo mặc định."))
+        fb = Gtk.Button(label=_("Quên tất cả"), valign=Gtk.Align.CENTER)
+        fb.connect("clicked", lambda _b: self.forget_app_state())
+        forget.add_suffix(fb)
+        g.add(forget)
+        page.add(g)
 
     def _apply_vni_visibility(self):
         vni = self.cfg.get("typing", "input_method") == "vni"
@@ -347,36 +452,13 @@ class SettingsWindow(Adw.PreferencesWindow):
                    on_change=self._language_changed)
         page.add(g)
 
-        g = Adw.PreferencesGroup(title=_("Chính tả"))
-        self.switch(g, "typing", "auto_restore", _("Tự khôi phục từ không hợp lệ"),
-                    _("Từ không phải tiếng Việt hợp lệ sẽ tự trả về đúng phím đã gõ khi kết thúc "
-                    "từ (retore → retore)."))
+        g = Adw.PreferencesGroup(
+            title=_("Chính tả"),
+            description=_("Tự khôi phục từ tiếng Anh và quyết định theo ngữ cảnh nằm ở tab Kiểu gõ → "
+                          "Gõ mixed Việt/Anh."))
         self.switch(g, "typing", "spell_check", _("Kiểm tra chính tả khi gõ"),
                     _("Ngừng bỏ dấu ngay khi từ không thể là tiếng Việt (google, github…) thay vì "
                     "đợi hết từ."))
-        ctx_row = self.switch(g, "typing", "contextual_english", _("Quyết định theo ngữ cảnh"),
-                              _("Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành "
-                              "một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → "
-                              "“he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để "
-                              "tiếng Việt — “sao í”."))
-        # Thử nghiệm, ngay dưới "Quyết định theo ngữ cảnh" và chỉ hiện khi nó bật.
-        retro_row = self.switch(g, "typing", "retroactive_english", _("Tự sửa từ phía trước (thử nghiệm)"),
-                                _("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm "
-                                "(vd. “Hí cả í very fast” → “His car is very fast”)."))
-
-        # Thử nghiệm: ngay dưới "Tự sửa từ phía trước", cùng điều kiện hiện.
-        freq_row = self.switch(g, "typing", "english_by_frequency",
-                               _("Đoán từ trùng theo tần suất (thử nghiệm)"),
-                               _("Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm "
-                               "(his → hí) thì chọn tiếng Anh; từ kế cho thấy là tiếng Việt (hí hửng, "
-                               "hí hí) thì tự đổi lại. Cần bật Quyết định theo ngữ cảnh."))
-
-        def retro_visibility(*_a):
-            retro_row.set_visible(config.retro_english_visible(self.cfg.get))
-            freq_row.set_visible(config.retro_english_visible(self.cfg.get))
-        retro_visibility()
-        ctx_row.get_activatable_widget().connect("notify::active", retro_visibility)
-        self.refreshers.append(retro_visibility)
         self.switch(g, "typing", "re_edit_word", _("Gõ thêm dấu cho từ ngay trước con trỏ"),
                     _("Đặt con trỏ ngay sau một từ đã gõ rồi gõ phím dấu để sửa dấu từ đó "
                     "(toan + s → toán)."))
@@ -385,16 +467,6 @@ class SettingsWindow(Adw.PreferencesWindow):
                     "hópng, tòc): IBus gạch lượn sóng + chữ đỏ, Fcitx5 gạch chân. Chỉ ở chế độ chữ "
                     "đang gõ (preedit); từ giữ nguyên phím gõ hoặc sẽ tự khôi phục (tiếng Anh) "
                     "không bị đánh dấu."))
-        page.add(g)
-
-        g = Adw.PreferencesGroup(
-            title=_("Khi từ vừa là tiếng Anh vừa là tiếng Việt"),
-            description=_("Cho các từ như last/lát, list/lít, his/hí. Ưu tiên tiếng Việt: gõ đúp "
-                        "phím dấu để giữ tiếng Anh (lisst → list). Ưu tiên tiếng Anh: đặt dấu ở "
-                        "cuối từ để ra tiếng Việt (lits → lít). Trong câu tiếng Anh thì từ vẫn "
-                        "giữ tiếng Anh dù chọn gì."))
-        self.combo(g, "typing", "collision_prefers_vietnamese", _("Ưu tiên"),
-                   [(True, _("Ưu tiên tiếng Việt")), (False, _("Ưu tiên tiếng Anh"))])
         page.add(g)
 
         g = Adw.PreferencesGroup(
@@ -480,34 +552,6 @@ class SettingsWindow(Adw.PreferencesWindow):
                    [(v, _(label)) for v, label in QUOTE_STYLE_CHOICES])
         page.add(g)
 
-        g = Adw.PreferencesGroup(title=_("Chuyển Việt/Anh"))
-        hk = row(_("Phím chuyển Việt/Anh"),
-                 _("Mặc định Ctrl+Space. Không dùng Super+Space (GNOME dùng để đổi nguồn nhập)."))
-        self.hotkey_btn = Gtk.Button(valign=Gtk.Align.CENTER)
-        self.hotkey_btn.connect("clicked", lambda _b: self.capture_hotkey(
-            _("Phím chuyển Việt/Anh"), _("Esc = huỷ · Backspace = tắt phím chuyển."),
-            self.set_hotkey, "toggle"))
-        reset = Gtk.Button(icon_name="edit-undo-symbolic", valign=Gtk.Align.CENTER,
-                           tooltip_text=_("Về mặc định (Ctrl+Space)"))
-        reset.add_css_class("flat")
-        reset.connect("clicked", lambda _b: self.set_hotkey("Ctrl+space"))
-        hk.add_suffix(self.hotkey_btn)
-        hk.add_suffix(reset)
-        g.add(hk)
-        self.refreshers.append(self._refresh_hotkey)
-        self._refresh_hotkey()
-        self.switch(g, "general", "per_app_state", _("Nhớ Việt/Anh theo từng app"),
-                    _("Mỗi app giữ trạng thái Việt/Anh riêng — chuyển sang terminal gõ tiếng Anh "
-                    "không làm mất tiếng Việt ở trình soạn thảo."))
-        self.switch(g, "general", "default_vietnamese", _("App mới mở bắt đầu bằng tiếng Việt"),
-                    _("Tắt = app lần đầu gặp bắt đầu ở chế độ tiếng Anh."))
-        forget = row(_("Quên trạng thái Việt/Anh đã nhớ"),
-                     _("Xoá trạng thái đã nhớ của mọi app; lần sau mỗi app bắt đầu theo mặc định."))
-        fb = Gtk.Button(label=_("Quên tất cả"), valign=Gtk.Align.CENTER)
-        fb.connect("clicked", lambda _b: self.forget_app_state())
-        forget.add_suffix(fb)
-        g.add(forget)
-        page.add(g)
         return page
 
     def _refresh_hotkey(self):
@@ -1184,8 +1228,8 @@ class SettingsWindow(Adw.PreferencesWindow):
 
     # --- onboarding -------------------------------------------------------
 
-    def show_onboarding(self):
-        OnboardingWindow(self).present()
+    def show_onboarding(self, flow=False):
+        OnboardingWindow(self, flow=flow).present()
 
     # --- theo dõi file (frontend / Fcitx5 config UI có thể sửa) ------------
 
@@ -1271,10 +1315,21 @@ def gnome_hotkey_conflict(value):
 class OnboardingWindow(Adw.Window):
     """Hướng dẫn bật bộ gõ — dò Fcitx5/IBus, làm hộ những bước làm được an toàn."""
 
-    def __init__(self, parent):
+    def __init__(self, parent, flow=False):
         super().__init__(transient_for=parent, modal=True, default_width=600,
-                         default_height=640, title=_("Bật bộ gõ VietTelex"))
+                         default_height=640,
+                         title=_("Chào mừng đến với VietTelex") if flow else _("Bật bộ gõ VietTelex"))
         self.parent_win = parent
+        # flow = người dùng mới (docs/ONBOARDING-SPEC.md §2): bước bật bộ gõ (nếu chưa xong) →
+        # "Bạn thường gõ thế nào?" → "Gõ thử". Không flow = hướng dẫn bật bộ gõ như trước.
+        self.flow = flow
+        self.profile = None
+        self._finished = False
+        self.stage = "setup"
+        if flow and getattr(parent, "assessment", {}).get("ok"):
+            self.stage = "profile"
+        if flow:
+            self.connect("close-request", lambda _w: (self._finish_flow(), False)[1])
         self.toasts = Adw.ToastOverlay()
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         header = Adw.HeaderBar()
@@ -1304,6 +1359,12 @@ class OnboardingWindow(Adw.Window):
         group.add(r)
 
     def rebuild(self):
+        if self.stage == "profile":
+            self._profile_page()
+            return
+        if self.stage == "try":
+            self._try_page()
+            return
         a = detect.assess(detect.collect())
         snap_env = {k: os.environ.get(k, "") for k in ("XDG_CURRENT_DESKTOP",)}
         gnome = "GNOME" in snap_env["XDG_CURRENT_DESKTOP"].upper()
@@ -1449,6 +1510,11 @@ class OnboardingWindow(Adw.Window):
         if has:
             page.add(warn)
 
+        if self.flow:
+            self._nav(page, [(_("Bỏ qua"), self._skip, False), (_("Tiếp"), self._to_profile, True)])
+            self.scroller.set_child(page)
+            self.parent_win.refresh_status()
+            return
         t = Adw.PreferencesGroup(title=_("Thử gõ"),
                                  description=_("Bật VietTelex (%s) rồi gõ: vieejt → việt") %
                                  (hotkey_label(self.parent_win.cfg.get("general", "toggle_hotkey")) or _("menu bộ gõ")))
@@ -1457,6 +1523,112 @@ class OnboardingWindow(Adw.Window):
         page.add(t)
         self.scroller.set_child(page)
         self.parent_win.refresh_status()
+
+    # --- người dùng mới: hồ sơ + gõ thử (docs/ONBOARDING-SPEC.md §2/§3) -------
+
+    def _nav(self, page, buttons):
+        """Hàng nút cuối trang: [(nhãn, hàm, nút chính?)]."""
+        g = Adw.PreferencesGroup()
+        box = Gtk.Box(spacing=8, halign=Gtk.Align.END, margin_top=12)
+        for label, action, primary in buttons:
+            b = Gtk.Button(label=label)
+            if primary:
+                b.add_css_class("suggested-action")
+            b.connect("clicked", lambda _b, f=action: f())
+            box.append(b)
+        g.add(box)
+        page.add(g)
+
+    def _to_profile(self):
+        self.stage = "profile"
+        self.rebuild()
+
+    def _profile_page(self):
+        page = Adw.PreferencesPage()
+        g = Adw.PreferencesGroup(
+            title=_("Bạn thường gõ thế nào?"),
+            description=_("VietTelex bật sẵn các tính năng hợp với cách bạn gõ. Đổi lại lúc nào cũng "
+                          "được ở tab Kiểu gõ → Gõ mixed Việt/Anh."))
+        for profile, title in (("vi", _("Chủ yếu tiếng Việt")), ("mixed", _("Việt + Anh nhiều")),
+                               ("en", _("Chủ yếu tiếng Anh"))):
+            r = row(title, "“%s”" % onboarding.CARD_EXAMPLES[profile])
+            r.set_activatable(True)
+            r.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
+            r.connect("activated", lambda _r, p=profile: self._choose(p))
+            g.add(r)
+        page.add(g)
+        self._nav(page, [(_("Bỏ qua"), self._skip, False)])
+        self.scroller.set_child(page)
+
+    def _choose(self, profile):
+        try:
+            onboarding.apply_profile(self.parent_win.cfg, profile)
+        except OSError:
+            self.toast(_("Không ghi được cấu hình trong ~/.config."))
+            return
+        self.profile = profile
+        for f in self.parent_win.refreshers:
+            f()
+        self.stage = "try"
+        self.rebuild()
+
+    def _try_page(self):
+        cfg = self.parent_win.cfg
+        page = Adw.PreferencesPage()
+        hotkey = hotkey_label(cfg.get("general", "toggle_hotkey")) or _("menu bộ gõ")
+        t = Adw.PreferencesGroup(
+            title=_("Gõ thử"),
+            description=_("Gõ thử các câu dưới đây bằng VietTelex. Chuyển Việt/Anh bằng %s.") % hotkey)
+        for sample in onboarding.SAMPLES[self.profile or "vi"]:
+            t.add(row(sample))
+        e = Gtk.Entry(placeholder_text=_("Thử gõ tại đây…"), margin_top=6)
+        t.add(e)
+        page.add(t)
+        on = Adw.PreferencesGroup(title=_("Vừa bật"),
+                                  description=_("Tắt ngay nếu không cần."))
+        titles = {
+            ("typing", "auto_restore"): _("Tự khôi phục từ không hợp lệ"),
+            ("typing", "contextual_english"): _("Quyết định theo ngữ cảnh"),
+            ("typing", "retroactive_english"): _("Tự sửa từ phía trước (thử nghiệm)"),
+            ("typing", "english_by_frequency"): _("Đoán từ trùng theo tần suất (thử nghiệm)"),
+            ("typing", "collision_prefers_vietnamese"): _("Ưu tiên tiếng Việt"),
+            onboarding.START_KEY: _("Bắt đầu bằng tiếng Anh"),
+        }
+        for key in onboarding.turned_on(self.profile or "vi"):
+            invert = key == onboarding.START_KEY
+            r = row(titles[key])
+            sw = Gtk.Switch(valign=Gtk.Align.CENTER)
+            v = bool(cfg.get(*key))
+            sw.set_active(not v if invert else v)
+            sw.connect("notify::active", lambda s, _p, k=key, inv=invert: (
+                cfg.set(k[0], k[1], (not s.get_active()) if inv else s.get_active()),
+                [f() for f in self.parent_win.refreshers]))
+            r.add_suffix(sw)
+            r.set_activatable_widget(sw)
+            on.add(r)
+        page.add(on)
+        self._nav(page, [(_("Bỏ qua"), self._done, False), (_("Xong"), self._done, True)])
+        self.scroller.set_child(page)
+        GLib.idle_add(lambda: (e.grab_focus(), False)[1])
+
+    def _finish_flow(self):
+        if self._finished:
+            return
+        self._finished = True
+        try:
+            onboarding.finish(self.profile)
+        except OSError:
+            pass
+
+    def _skip(self):
+        """Bỏ qua ở màn bật bộ gõ / màn hồ sơ: giữ nguyên mặc định, không ghi hồ sơ."""
+        self._finish_flow()
+        self.close()
+
+    def _done(self):
+        """Xong / Bỏ qua ở màn Gõ thử: giữ các giá trị hồ sơ vừa chọn."""
+        self._finish_flow()
+        self.close()
 
     def run_ok(self, argv, msg):
         if spawn(argv):
@@ -1557,12 +1729,24 @@ class App(Adw.Application):
 
     def do_activate(self):
         Gtk.Window.set_default_icon_name(APP_ID)
+        if not hasattr(self, "_first_run"):
+            # Một lần mỗi process, TRƯỚC khi dựng cửa sổ (người cũ: thẻ Gõ mixed phải hiện ngay).
+            try:
+                self._first_run = onboarding.startup()
+            except OSError:
+                self._first_run = "nothing"
         if not self.win:
             self.win = SettingsWindow(self, self.cfg)
         pages = {"typing": 0, "options": 1, "shortcuts": 2, "modes": 3, "compat": 4, "about": 5}
         if getattr(self, "page", None) in pages:
             self._select_page(pages[self.page])
         self.win.present()
+        if self._first_run == "show":
+            # Người dùng mới (onboarding.startup): hướng dẫn + hồ sơ + gõ thử, dù bộ gõ đã bật.
+            self._first_run = "nothing"
+            self.want_onboarding = False
+            GLib.idle_add(lambda: (self.win.show_onboarding(flow=True), False)[1])
+            return
         auto = not self.win.assessment["ok"] and not getattr(self, "no_onboarding", False)
         if self.want_onboarding or auto:
             self.want_onboarding = False

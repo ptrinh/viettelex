@@ -127,7 +127,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         // window is open", not "…for the life of the process").
         SettingsModel.installedCache.removeAll()
         SettingsModel.nameCache.removeAll()
-        NSApp.setActivationPolicy(.accessory) // back to background agent
+        // back to background agent — unless the onboarding window is still up.
+        if !OnboardingWindowController.shared.isOpen { NSApp.setActivationPolicy(.accessory) }
         // Hand the freed pages back to the OS. Dropping the window/model above frees
         // the SwiftUI graph (AttributeGraph nodes, DisplayLists, SF Symbol renders,
         // autolayout constraints — measured ~20 MB), but malloc keeps those pages on
@@ -163,6 +164,10 @@ final class SettingsModel: ObservableObject {
     @Published var translateTarget: String { didSet { AppState.shared.translateTarget = translateTarget } }
     /// Cuộn tab Chung tới khối cập nhật (xem SettingsWindowController.show).
     @Published var revealUpdate = false
+    /// Thẻ một lần cho người dùng cũ (ONBOARDING-SPEC §5) — chỉ tới nhóm "Gõ mixed Việt/Anh".
+    @Published var mixedCardPending: Bool = OnboardingLogic.cardPending(AppState.shared.defaults)
+    /// Cuộn tab Gõ phím tới nhóm "Gõ mixed Việt/Anh".
+    @Published var revealMixed = false
     @Published var mathResults: Bool { didSet { AppState.shared.mathResults = mathResults } }
     @Published var numberChips: Bool { didSet { AppState.shared.numberChips = numberChips } }
     @Published var typoHints: Bool { didSet { AppState.shared.typoHints = typoHints } }
@@ -287,6 +292,13 @@ final class SettingsModel: ObservableObject {
     lazy var keyboardLayouts: [KeyboardLayoutOption] = KeyboardLayoutOverride.installed()
 
     func loc(_ key: String) -> String { VTLocalized(key) }
+
+    /// Đóng thẻ "Bạn hay gõ trộn Anh/Việt?" — không bao giờ hiện lại. `reveal`: cuộn tới nhóm.
+    func dismissMixedCard(reveal: Bool) {
+        OnboardingLogic.dismissCard(AppState.shared.defaults)
+        mixedCardPending = false
+        if reveal { revealMixed = true }
+    }
 
     /// Khoá chú thích mục Công cụ văn bản theo số công cụ thật của bảng (6, hoặc 7 khi
     /// máy dịch được) — chú thích cũ ghi cứng "1–6" kể cả khi bảng có Dịch ở phím 7.
@@ -737,8 +749,24 @@ struct SettingsView: View {
 struct TypingTab: View {
     @EnvironmentObject var model: SettingsModel
 
+    /// `.id` của nhóm "Gõ mixed Việt/Anh" — đích cuộn của thẻ người dùng cũ.
+    static let mixedAnchor = "mixed"
+
     var body: some View {
+        ScrollViewReader { proxy in
         Form {
+            // Thẻ một lần cho người dùng cũ (ONBOARDING-SPEC §5): nhóm mới nằm ngay dưới.
+            if model.mixedCardPending {
+                Section {
+                    Text(model.loc("Do you often mix English into Vietnamese? See the new Mixed Vietnamese/English typing group."))
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Button(model.loc("Show me")) { model.dismissMixedCard(reveal: true) }
+                            .prominentGlass()
+                        Button(model.loc("Dismiss")) { model.dismissMixedCard(reveal: false) }
+                    }
+                }
+            }
             // Recovery path for the single most damaging state the app can be in: no
             // Accessibility permission means Terminal/Chrome silently don't get tones.
             // First tab = what "Settings…" opens, so the warning can't be missed.
@@ -797,28 +825,15 @@ struct TypingTab: View {
                 Text(model.loc("Off = old style (hòa, thủy, khỏe). On = new style (hoà, thuý, khoẻ). Only oa/oe/uy differ."))
                     .font(.caption).foregroundStyle(.secondary)
             }
-            // Từ tab Thử nghiệm (14/10/2026): bố cục phím thuộc về "gõ phím".
-            Section(header: Label(model.loc("Keyboard layout"), systemImage: "keyboard.badge.ellipsis")) {
-                Picker(model.loc("Compose on"), selection: $model.keyboardLayoutID) {
-                    Text(model.loc("Follow the previous input source"))
-                        .tag(KeyboardLayoutOverride.systemDefault)
-                    Divider()
-                    ForEach(model.keyboardLayouts) { layout in
-                        Text(layout.name).tag(layout.id)
-                    }
-                }
-                Text(model.loc("Which physical keyboard Telex reads. Pick Colemak, Dvorak… to type Vietnamese with that layout. Left on “follow”, the layout is inherited from whichever input source you switched from — so the same keys give different letters depending on where you came from."))
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section(header: Label(model.loc("Spelling"), systemImage: "textformat.abc.dottedunderline")) {
+            // "Gõ mixed Việt/Anh" (ONBOARDING-SPEC §4): mọi công tắc gõ trộn Việt–Anh gom về một
+            // nhóm ngay dưới Kiểu gõ — cùng tên/thứ tự với iOS/Android; key lưu không đổi.
+            // Trước đó: tự khôi phục / ưu tiên khi trùng / ngữ cảnh / tự sửa / tần suất ở mục
+            // Chính tả, phím chuyển bộ gõ ở tab Chung. macOS không có "vuốt phím cách".
+            Section(header: Label(model.loc("Mixed Vietnamese/English typing"), systemImage: "globe")) {
+                Text(model.loc("English detection")).font(.subheadline.weight(.semibold))
                 Toggle(model.loc("Auto-restore invalid words"), isOn: $model.autoRestore)
                 Text(model.loc("A word that isn’t valid Vietnamese snaps back to the keys you actually typed when the word ends (retore → retore)."))
                     .font(.caption).foregroundStyle(.secondary)
-                Toggle(model.loc("Live spell-check"), isOn: $model.liveSpellCheck)
-                Text(model.loc("Stop adding tones as soon as a word can’t be Vietnamese (google, github…) instead of waiting for word end."))
-                    .font(.caption).foregroundStyle(.secondary)
-                // Graduated from the Experimental tab (2026-08-03) — shipped ON by
-                // default since 1.4.22 with no field complaints.
                 // "Ưu tiên khi trùng" (maintainer 12/09/2026, default tiếng Việt): kết
                 // thúc chuỗi tranh cãi từng-từ (#60 last/lát, PR#76 list/lít) — user
                 // chọn. Radio cùng dòng như Telex/VNI: hai lựa chọn loại trừ nhau.
@@ -846,6 +861,35 @@ struct TypingTab: View {
                     Text(model.loc("At the start of a phrase, a word that is both a common English word and a rare Vietnamese syllable (his → hí) becomes English; if the next word shows the phrase is Vietnamese (hí hửng, hí hí), it is switched back automatically."))
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                Text(model.loc("Language switching")).font(.subheadline.weight(.semibold))
+                    .padding(.top, 4)
+                Picker(model.loc("Toggle VietTelex with"), selection: $model.switchHotkey) {
+                    Text(model.loc("Off — use the macOS shortcut")).tag("off")
+                    Text("⌃⇧  Control + Shift").tag("ctrl-shift")
+                    Text("⌥⇧  Option + Shift").tag("opt-shift")
+                    Text("⌘⇧  Command + Shift").tag("cmd-shift")
+                }
+                Text(model.loc("Press and release the modifiers alone to toggle between VietTelex and your previous input source — the modifier-only combos macOS's own Keyboard Shortcuts can't assign. Ignored if you type a key or click while holding them. Needs {PANE} permission."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .id(Self.mixedAnchor)
+            // Từ tab Thử nghiệm (14/10/2026): bố cục phím thuộc về "gõ phím".
+            Section(header: Label(model.loc("Keyboard layout"), systemImage: "keyboard.badge.ellipsis")) {
+                Picker(model.loc("Compose on"), selection: $model.keyboardLayoutID) {
+                    Text(model.loc("Follow the previous input source"))
+                        .tag(KeyboardLayoutOverride.systemDefault)
+                    Divider()
+                    ForEach(model.keyboardLayouts) { layout in
+                        Text(layout.name).tag(layout.id)
+                    }
+                }
+                Text(model.loc("Which physical keyboard Telex reads. Pick Colemak, Dvorak… to type Vietnamese with that layout. Left on “follow”, the layout is inherited from whichever input source you switched from — so the same keys give different letters depending on where you came from."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section(header: Label(model.loc("Spelling"), systemImage: "textformat.abc.dottedunderline")) {
+                Toggle(model.loc("Live spell-check"), isOn: $model.liveSpellCheck)
+                Text(model.loc("Stop adding tones as soon as a word can’t be Vietnamese (google, github…) instead of waiting for word end."))
+                    .font(.caption).foregroundStyle(.secondary)
             }
             // Phil 18/10/2026: các tính năng VietTelex đi theo cài đặt nguồn nhập liệu của macOS
             // (viết hoa, gợi ý chữ, dấu chấm khi gõ hai dấu cách, ngoặc cong) nằm ngoài cửa sổ này
@@ -869,6 +913,14 @@ struct TypingTab: View {
             }
         }
         .formStyle(.grouped)
+        .onReceive(model.$revealMixed) { reveal in
+            guard reveal else { return }
+            model.revealMixed = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                withAnimation { proxy.scrollTo(Self.mixedAnchor, anchor: .top) }
+            }
+        }
+        }
         .onAppear { model.refreshAccessibilityStatus() }
         // Event-driven, like the mode table: the user leaves for System Settings and
         // comes back, which makes this window key again.
@@ -1160,7 +1212,7 @@ struct ModeTableTab: View {
 
 // MARK: - Tab: Chung
 
-/// Tab cuối (14/10/2026): phím chuyển bộ gõ + icon menu bar (từ Thử nghiệm), ngôn ngữ,
+/// Tab cuối (14/10/2026): icon menu bar (từ Thử nghiệm; phím chuyển bộ gõ đã về Gõ phím), ngôn ngữ,
 /// iCloud, rồi Giới thiệu + cập nhật (gộp tab Giới thiệu cũ), Chẩn đoán ở cuối.
 struct GeneralTab: View {
     @EnvironmentObject var model: SettingsModel
@@ -1171,16 +1223,7 @@ struct GeneralTab: View {
     var body: some View {
         ScrollViewReader { proxy in
             Form {
-                Section(header: Label(model.loc("Switch hotkey"), systemImage: "keyboard.badge.eye")) {
-                    Picker(model.loc("Toggle VietTelex with"), selection: $model.switchHotkey) {
-                        Text(model.loc("Off — use the macOS shortcut")).tag("off")
-                        Text("⌃⇧  Control + Shift").tag("ctrl-shift")
-                        Text("⌥⇧  Option + Shift").tag("opt-shift")
-                        Text("⌘⇧  Command + Shift").tag("cmd-shift")
-                    }
-                    Text(model.loc("Press and release the modifiers alone to toggle between VietTelex and your previous input source — the modifier-only combos macOS's own Keyboard Shortcuts can't assign. Ignored if you type a key or click while holding them. Needs {PANE} permission."))
-                        .font(.caption).foregroundStyle(.secondary)
-                }
+                // Phím chuyển bộ gõ: chuyển sang tab Gõ phím → "Gõ mixed Việt/Anh" (05/11/2026).
                 Section(header: Label(model.loc("Menu bar icon"), systemImage: "star.square")) {
                     Picker(model.loc("Icon"), selection: $model.menuIcon) {
                         Text("Vᴛ — " + model.loc("default")).tag("vt")
