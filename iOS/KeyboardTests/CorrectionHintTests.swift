@@ -164,22 +164,37 @@ final class CorrectionHintTests: XCTestCase {
                           KeyboardView.pillColors(KeyboardTheme.system.palette(systemDark: true)).fill)
     }
 
-    // MARK: controller thật (chạm phím thật, thanh gợi ý thật)
+    // MARK: controller thật (thanh gợi ý thật, dấu cách thật)
 
-    @MainActor private func runController(autoCorrect: Bool) -> (titles: [String?], pill: Int?, text: String, pillFill: UIColor?) {
+    /// Controller kín (không đọc dữ liệu người dùng của máy chạy test: model học từ App Group —
+    /// lượt chạy trước học "anhh" ⇒ thôi sửa —, từ từng từ chối, Thay thế văn bản), điểm chạm cấp
+    /// thẳng (không phụ thuộc hình học phím của simulator). `lastTouch`: điểm chạm phím cuối.
+    @MainActor private func runController(autoCorrect: Bool, word: String = "anhh",
+                                          lastTouch: (Float, Float) = (0, 0), prefix: String = "",
+                                          beforeSpace: ((KeyboardBenchTests.BenchProxy) -> Void)? = nil)
+        -> (titles: [String?], pill: Int?, text: String, pillFill: UIColor?) {
         let saved = UserDefaultsProvider.shared
         let d = KeyboardBenchTests.makeDefaults("A")
         d.set(autoCorrect, forKey: "autoCorrect")
-        d.set(false, forKey: "smartTouch")                                    // chạm giữa phím = đúng phím đó
+        d.set(false, forKey: "smartTouch")
         UserDefaultsProvider.shared = d
-        defer { UserDefaultsProvider.shared = saved }
+        KeyboardViewController.debugHermetic = true
+        defer { UserDefaultsProvider.shared = saved; KeyboardViewController.debugHermetic = false }
         let rig = KeyboardBenchTests.Rig()
         defer { rig.close() }
         KeyboardBenchTests.spin(0.05)
-        for c in "anhh" { _ = rig.key(c, index: 1, drain: 0.02) }
-        KeyboardBenchTests.spin(0.2)                                          // gợi ý tính nền rồi về main
+        rig.proxy.text = prefix
         let kb = rig.vc.debugKeyboard
+        XCTAssertNotNil(kb.onLetterTouch, "thanh gợi ý bật ⇒ controller nhận điểm chạm")
+        for (i, c) in word.enumerated() {
+            let t = i == word.count - 1 ? lastTouch : (0, 0)
+            kb.onLetterTouch?(t.0, t.1)
+            rig.vc.debugHandle(.letter(c))
+            KeyboardBenchTests.spin(0.02)
+        }
+        KeyboardBenchTests.spin(0.2)                                          // gợi ý tính nền rồi về main
         let titles = kb.debugSlotTitles(), pill = kb.debugPillSlot, fill = kb.debugPillFill
+        beforeSpace?(rig.proxy)
         _ = rig.key(" ", index: 1, drain: 0.05)
         return (titles, pill, rig.proxy.text, fill)
     }
@@ -195,5 +210,29 @@ final class CorrectionHintTests: XCTestCase {
         let off = runController(autoCorrect: false)
         XCTAssertEqual(off.pill, 1, "\(off.titles)")                          // tắt: vẫn tô làm gợi ý
         XCTAssertTrue(off.text.lowercased().hasSuffix("anhh "), off.text)     // …nhưng dấu cách không sửa
+    }
+
+    /// Dấu cách KHÔNG BAO GIỜ ra chữ khác ô tô nền, mọi điểm chạm phím cuối (h chạm lệch dần sang j:
+    /// có thể ra "anh", "ạnh" hay không sửa — nhưng thanh và dấu cách luôn cùng một kết quả).
+    @MainActor func testSpaceNeverDivergesFromHighlightedSlot() {
+        for dx: Float in [0, 0.3, 0.45, 0.55, 0.7, 0.9] {
+            let r = runController(autoCorrect: true, lastTouch: (dx, 0))
+            let typed = String(r.text.dropLast())
+            if let i = r.pill {
+                XCTAssertEqual(typed, r.titles[i] ?? "", "dx=\(dx) \(r.titles)")
+            } else {
+                XCTAssertEqual(typed.lowercased(), "anhh", "dx=\(dx) không tô ⇒ không sửa \(r.titles)")
+            }
+        }
+    }
+
+    /// Thanh đã vẽ cho từ này mà KHÔNG tô (hoa giữa câu "gặp Anhh" ⇒ tên riêng) rồi chữ trước con trỏ
+    /// đổi trước dấu cách (host sửa ô): tính lại lúc dấu cách sẽ sửa thành "Anh" — chữ không hề được
+    /// tô. Dấu cách phải theo đúng thanh đã hiện ⇒ không sửa.
+    @MainActor func testSpaceFollowsRenderedBarEvenIfContextChanges() {
+        let r = runController(autoCorrect: true, word: "Anhh", prefix: "gặp ",
+                              beforeSpace: { $0.text = String($0.text.dropFirst("gặp ".count)) })
+        XCTAssertNil(r.pill, "\(r.titles)")
+        XCTAssertEqual(r.text, "Anhh ")
     }
 }
