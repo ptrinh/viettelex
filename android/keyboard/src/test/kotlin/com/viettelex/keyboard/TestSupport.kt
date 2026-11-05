@@ -50,6 +50,9 @@ class MockProxy(var isSecureField: Boolean = false) : TextProxy {
     var after: String? = ""
     var selection = false
     override val canReEdit: Boolean get() = reEdit
+    /** ⌫ mở lại từ vừa chốt; null = theo [reEdit] (ô URI: reEdit=false, reopen=true — #148). */
+    var reopen: Boolean? = null
+    override val canReopen: Boolean get() = reopen ?: reEdit
     override val hasSelection: Boolean get() = selection
     override fun contextAfterInput(): String? = after
 }

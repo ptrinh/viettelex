@@ -93,8 +93,38 @@ class ReEditIcProxyTest {
         p.writeMode = WriteMode.KEY_ONLY; assertFalse(p.canReEdit)
         p.writeMode = WriteMode.COMMIT
         p.rawKeys = true; assertFalse(p.canReEdit); p.rawKeys = false
-        p.uriField = true; assertFalse(p.canReEdit); p.uriField = false
-        p.secure = true; assertFalse(p.canReEdit)
+        p.uriField = true; assertFalse(p.canReEdit); assertTrue(p.canReopen); p.uriField = false
+        p.secure = true; assertFalse(p.canReEdit); assertFalse(p.canReopen); p.secure = false
+        p.rawKeys = true; assertFalse(p.canReopen); p.rawKeys = false
+        p.writeMode = WriteMode.KEY_ONLY; assertFalse(p.canReopen)
+    }
+
+    /** #148: thanh địa chỉ Chrome/Firefox (TYPE_TEXT_VARIATION_URI): "go␣⌫s" ra "gó", không "gos". */
+    @Test fun uriFieldReopensLastWord() {
+        val ed = FakeEditor(); val p = proxy(ed); p.uriField = true
+        val b = EngineBridge()
+        for (c in "go") assertFalse(key(p, ed) { b.letter(c, p) })
+        assertFalse(key(p, ed) { b.boundary(" ", p) })
+        var reopened = false
+        assertFalse(key(p, ed) { reopened = b.backspace(p) })
+        assertTrue(reopened)
+        assertEquals("go", ed.text)
+        assertFalse(key(p, ed) { b.letter('s', p) })
+        assertEquals("gó", ed.text)
+    }
+
+    /** Ô URI, tự hoàn tất hiện dạng VÙNG CHỌN sau "go␣": không mở lại, ⌫ chỉ bỏ phần tự hoàn tất. */
+    @Test fun uriFieldInlineCompletionSelectionBlocksReopen() {
+        val ed = FakeEditor(); val p = proxy(ed); p.uriField = true
+        val b = EngineBridge()
+        for (c in "go") key(p, ed) { b.letter(c, p) }
+        key(p, ed) { b.boundary(" ", p) }
+        ed.sb.append("ogle"); ed.selEnd = ed.sb.length       // app chèn "go ogle" chọn sẵn
+        tracker.onUpdate(ed.selStart, ed.selEnd)
+        var reopened = true
+        key(p, ed) { reopened = b.backspace(p) }
+        assertFalse(reopened)
+        assertEquals("go ", ed.text)
     }
 
     @Test fun uriFieldTypesLiteral() {

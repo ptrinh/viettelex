@@ -489,7 +489,8 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
     }
 
     private fun tryReopen(proxy: TextProxy): Boolean {
-        if (!proxy.canReEdit || proxy.hasSelection) return false
+        // canReopen (không canReEdit): ô URI/omnibox cũng mở lại được (#148 "go␣⌫s" → "gó").
+        if (!proxy.canReopen || proxy.hasSelection) return false
         val before = proxy.contextBeforeInput() ?: return false
         val word = engine.reopenLastCommit() ?: return false
         if (!ReEdit.endsWithWordThenBoundary(before, word)) {
