@@ -257,6 +257,8 @@ targets:
       - App/Practice/SwipePractice.swift
       - App/Backup/BackupFormat.swift
       - App/TemplateEdit.swift
+      # Cấu trúc cài đặt + chỉ mục tìm kiếm (phần thuần) — SettingsCleanupTests.
+      - App/SettingsIndex.swift
       - App/Backup/SyncMerge.swift
       - App/Backup/SyncCore.swift
       - App/Backup/BackupStore.swift

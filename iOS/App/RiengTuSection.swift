@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Tính Năng → "Riêng tư & clipboard": Lịch sử clipboard + Chế độ ẩn danh. Bàn phím đọc
+/// Tính Năng → "Riêng tư & sao lưu" (phần đầu; SaoLuuSection theo sau): Lịch sử clipboard + Chế độ ẩn danh. Bàn phím đọc
 /// cùng key qua App Group (ClipboardFeature.historyKey / incognitoKey).
 struct RiengTuSection: View {
     @AppStorage("clipboardHistory", store: UserDefaults(suiteName: AppFlavor.appGroup))

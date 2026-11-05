@@ -56,7 +56,7 @@ enum OnboardingProfile: String, CaseIterable, Hashable {
 }
 
 enum OnboardingSettings {
-    /// Key hiện có (KHÔNG đổi tên) mà hồ sơ ghi vào — thứ tự như nhóm "Gõ mixed Việt/Anh".
+    /// Key hiện có (KHÔNG đổi tên) mà hồ sơ ghi vào — thứ tự như nhóm "Gõ lẫn tiếng Anh".
     /// `collisionPrefersVietnamese` chỉ có trên macOS.
     static let keys = ["autoRestore", "contextualEnglish", RetroEnglishUI.autoKey, RetroEnglishUI.frequencyKey,
                        "spaceSwipeLanguage", "swipeEnglish"]

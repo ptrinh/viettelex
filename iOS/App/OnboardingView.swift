@@ -78,7 +78,7 @@ struct OnboardingChooseScreen: View {
                 Text(L("Bạn thường gõ thế nào?"))
                     .font(.largeTitle.bold())
                     .fixedSize(horizontal: false, vertical: true)
-                Text(L("Chọn một — VietTelex bật sẵn những gì hợp với bạn. Đổi lại lúc nào cũng được ở Kiểu Gõ → Gõ mixed Việt/Anh."))
+                Text(L("Chọn một — VietTelex bật sẵn những gì hợp với bạn. Đổi lại lúc nào cũng được ở Kiểu Gõ → Gõ lẫn tiếng Anh."))
                     .font(.subheadline).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 6)
@@ -149,7 +149,7 @@ struct OnboardingTryScreen: View {
     @AppStorage("vniMode", store: onboardingDefaults) private var vniMode = false
 
     /// Công tắc hồ sơ này BẬT (§2 "danh sách ngắn những gì vừa bật"); mục phụ thuộc theo đúng điều
-    /// kiện hiện như nhóm Gõ mixed; "Vuốt từ tiếng Anh" chỉ khi Gõ vuốt đang bật.
+    /// kiện hiện như nhóm Gõ lẫn tiếng Anh; "Vuốt từ tiếng Anh" chỉ khi Gõ vuốt đang bật.
     private var shownKeys: [String] {
         OnboardingSettings.keys.filter { k in
             guard profile.values[k] == true else { return false }
@@ -203,7 +203,7 @@ struct OnboardingTryScreen: View {
                         Toggle(L(OnboardingSettings.titleKey(k)), isOn: binding(k)).tint(.green)
                     }
                 } header: { Text(L("Vừa bật")) } footer: {
-                    Text(L("Tắt ngay ở đây nếu không cần. Chỉnh thêm ở Kiểu Gõ → Gõ mixed Việt/Anh."))
+                    Text(L("Tắt ngay ở đây nếu không cần. Chỉnh thêm ở Kiểu Gõ → Gõ lẫn tiếng Anh."))
                 }
             }
         }
@@ -238,7 +238,7 @@ private struct ProfileSummaryRow: View {
     }
 }
 
-/// Thẻ một lần cho người dùng cũ (§5): chạm = mở nhóm "Gõ mixed Việt/Anh" ngay trong tab Kiểu Gõ;
+/// Thẻ một lần cho người dùng cũ (§5): chạm = mở nhóm "Gõ lẫn tiếng Anh" ngay trong tab Kiểu Gõ;
 /// đóng hay xem đều không hiện lại.
 struct MixedTypingTipCard: View {
     let onOpen: () -> Void
@@ -254,7 +254,7 @@ struct MixedTypingTipCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(L("Bạn hay gõ trộn Anh/Việt?")).font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
-                    Text(L("Xem nhóm Gõ mixed Việt/Anh mới") + " ›").font(.footnote)
+                    Text(L("Xem nhóm Gõ lẫn tiếng Anh mới") + " ›").font(.footnote)
                         .foregroundStyle(accentBlue)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

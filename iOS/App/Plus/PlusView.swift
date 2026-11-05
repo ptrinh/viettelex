@@ -174,7 +174,7 @@ struct PlusView: View {
             Button(L("Bật ngay")) { model.acceptAddTonesOffer() }
             Button(L("Để sau"), role: .cancel) {}
         } message: {
-            Text(L("Gõ không dấu cả câu, gõ dấu cách rồi chạm chip “Thêm dấu” ở đầu thanh gợi ý. Chip đang tắt — bật ngay? (Đổi lại ở Tính Năng → Gợi ý & từ điển.)"))
+            Text(L("Gõ không dấu cả câu, gõ dấu cách rồi chạm chip “Thêm dấu” ở đầu thanh gợi ý. Chip đang tắt — bật ngay? (Đổi lại ở Tính Năng → Sửa lỗi & gợi ý.)"))
         }
     }
 }
