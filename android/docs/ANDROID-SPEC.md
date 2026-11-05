@@ -302,10 +302,10 @@ Toàn bộ thuật toán, trọng số, ngưỡng, hợp đồng seed giữ nguy
 | `freeMarking` | true | Kiểu Gõ · Bỏ dấu tự do | Phím dấu đặt đâu cũng được, không cần đúng thứ tự. |
 | `quickTelex` | false | Kiểu Gõ · Gõ nhanh (Quick Telex) | cc → ch, nn → ng, tt → th… |
 | `modernTone` | false | Kiểu Gõ · Bỏ dấu kiểu mới | hoà, thuý thay vì hòa, thúy. |
-| `contextualEnglish` | true | Kiểu Gõ · Quyết định theo ngữ cảnh | "he is" → he is… "sao í" |
+| `contextualEnglish` | true | Kiểu Gõ › Gõ mixed Việt/Anh · Quyết định theo ngữ cảnh | "he is" → he is… "sao í" |
 | `autoFixAdjacent` | true | Kiểu Gõ · Gợi ý sửa lỗi chạm trượt | nbjeeuf → nhiều, ohims → phím, cahcs → cách… |
 | `teencode` | false | Kiểu Gõ · Chính tả teencode | wá, zui zẻ, kó, bíe, thík, gòy, ừk… |
-| `autoRestore` | true | Tính Năng › Chính tả · Tự khôi phục từ tiếng Anh | |
+| `autoRestore` | true | Kiểu Gõ › Gõ mixed Việt/Anh · Tự khôi phục từ tiếng Anh | |
 | `liveSpellCheck` | true | Tính Năng › Chính tả · Kiểm tra chính tả khi gõ | |
 | `showSuggestions` | true | Tính Năng › Gợi ý · Thanh gợi ý (kéo theo học từ) | |
 | `filterSensitive` | true | Tính Năng › Gợi ý · Lọc từ nhạy cảm khỏi gợi ý | |

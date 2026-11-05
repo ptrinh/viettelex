@@ -57,7 +57,6 @@ import com.viettelex.android.BuildConfig
 import com.viettelex.android.R
 import com.viettelex.keyboard.KeyAlternates
 import com.viettelex.keyboard.Keys
-import com.viettelex.keyboard.RetroEnglishUI
 import com.viettelex.keyboard.TemplateItem
 import com.viettelex.keyboard.Templates
 import java.text.SimpleDateFormat
@@ -98,6 +97,8 @@ fun KieuGoTab(ime: ImeStatus, onOpenImeSettings: () -> Unit, onPickIme: () -> Un
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp))
     }
     KieuGoSection()
+    // Ngay sau Kiểu gõ — nhóm thu gọn (mặc định đóng), docs/ONBOARDING-SPEC.md §4.
+    MixedTypingSection()
 }
 
 /** Ô nhập kiểu iOS (không gạch chân Material). */
@@ -236,18 +237,8 @@ private fun KieuGoSection() {
         BoolToggle(Keys.MODERN_TONE, Prefs.D.modernTone, tr("Bỏ dấu kiểu mới"), tr("hoà, thuý thay vì hòa, thúy."))
         RowDivider()
         BoolToggle(Keys.AUTO_CAPITALIZE, Prefs.D.autoCapitalize, tr("Tự động viết hoa đầu câu"), tr("Bật shift ở đầu ô, sau . ! ? và khi xuống dòng."))
-        RowDivider()
-        BoolToggle(Keys.CONTEXTUAL_ENGLISH, Prefs.D.contextualEnglish, tr("Quyết định theo ngữ cảnh"), tr("Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → “he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để tiếng Việt — “sao í”."))
-        // "Tự sửa từ phía trước" (thử nghiệm): chỉ hiện khi "Quyết định theo ngữ cảnh" bật — như iOS.
-        val contextual by rememberBoolPref(Keys.CONTEXTUAL_ENGLISH, Prefs.D.contextualEnglish)
-        if (RetroEnglishUI.switchVisible(contextual, vni)) {
-            RowDivider()
-            ExperimentalToggle(Keys.RETRO_ENGLISH_AUTO, Prefs.D.retroEnglishAuto, tr("Tự sửa từ phía trước"),
-                tr("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm (vd. \"Hí cả í very fast\" → \"His car is very fast\")."))
-            RowDivider()
-            ExperimentalToggle(Keys.ENGLISH_BY_FREQUENCY, Prefs.D.englishByFrequency, tr("Đoán từ trùng theo tần suất"),
-                tr("Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his → hí) thì chọn tiếng Anh; từ kế cho thấy là tiếng Việt (hí hửng, hí hí) thì tự đổi lại. Cần bật Quyết định theo ngữ cảnh."))
-        }
+        // Quyết định theo ngữ cảnh / Tự sửa từ phía trước / Đoán từ trùng theo tần suất: chuyển sang
+        // nhóm "Gõ mixed Việt/Anh" ngay bên dưới (MixedTyping.kt, 05/11/2026).
 
         // Sửa dấu từ đã gõ chuyển sang Tính Năng → Chính tả & sửa lỗi (giống iOS, 27/09/2026).
         RowDivider()

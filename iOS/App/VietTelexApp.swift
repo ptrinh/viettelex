@@ -3,6 +3,7 @@
 // minimal — no WebView, no third-party dependencies (docs/ios-app.md).
 import SwiftUI
 import UIKit
+import Combine
 import UniformTypeIdentifiers
 
 @main
@@ -143,20 +144,24 @@ struct RootView: View {
         // Đồng bộ bảng tra trước khi con dựng lại (kể cả khi iCloud/sao lưu đổi key).
         let _ = L10n.apply(uiLanguage)
         NavigationStack {
-            List {
-                switch tab {
-                case .kieuGo: kieuGoTab
-                case .tinhNang: TinhNangSections()
-                case .mauCau: MauCauSections()
-                case .gioiThieu: gioiThieuTab
+            ScrollViewReader { proxy in
+                List {
+                    switch tab {
+                    case .kieuGo: kieuGoTab
+                    case .tinhNang: TinhNangSections()
+                    case .mauCau: MauCauSections()
+                    case .gioiThieu: gioiThieuTab
+                    }
                 }
+                .navigationTitle(tab == .kieuGo ? "VietTelex" : tab.title)
+                .bottomBarScrollMargin()
+                .collapseBarOnScroll($barCollapsed)
+                // Ô "Thử gõ": cuộn là đóng bàn phím. KHÔNG gắn TapGesture lên List —
+                // nó nuốt tap của mọi Button trong row (+, Import, Export, Xoá từ đã học…).
+                .scrollDismissesKeyboard(.immediately)
+                // Tìm cài đặt chọn một mục "Gõ mixed Việt/Anh" ⇒ danh sách Kiểu Gõ vừa dựng cuộn tới đó.
+                .onAppear { if tab == .kieuGo { MixedTypingFocus.shared.scrollIfPending(proxy) } }
             }
-            .navigationTitle(tab == .kieuGo ? "VietTelex" : tab.title)
-            .bottomBarScrollMargin()
-            .collapseBarOnScroll($barCollapsed)
-            // Ô "Thử gõ": cuộn là đóng bàn phím. KHÔNG gắn TapGesture lên List —
-            // nó nuốt tap của mọi Button trong row (+, Import, Export, Xoá từ đã học…).
-            .scrollDismissesKeyboard(.immediately)
         }
         // Đổi tab ⇒ dựng lại stack: trang con đang mở (vd Tính Năng → Giao diện) không
         // còn đè lên tab mới.
@@ -187,6 +192,20 @@ struct RootView: View {
                 ICloudSync.shared.syncNow()        // đẩy thay đổi vừa sửa lên iCloud
             }
         }
+        // Ô tìm cài đặt (Tính Năng) chọn mục thuộc nhóm "Gõ mixed Việt/Anh" ⇒ sang tab Kiểu Gõ.
+        .onReceive(MixedTypingFocus.shared.$request.compactMap { $0 }) { item in
+            MixedTypingFocus.shared.request = nil
+            MixedTypingFocus.shared.open(item)
+            tab = .kieuGo
+        }
+        #if DEBUG
+        // `-mixedTypingOpen englishByFrequency`: giả lập chọn kết quả tìm kiếm (chụp màn hình tự động).
+        .onAppear {
+            if let raw = UserDefaults.standard.string(forKey: "mixedTypingOpen"), let item = MixedTypingItem(rawValue: raw) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { MixedTypingFocus.shared.request = item }
+            }
+        }
+        #endif
         .onChange(of: templatesEnabled) { on in
             if !on && tab == .mauCau { tab = .tinhNang }
         }
@@ -239,6 +258,8 @@ struct RootView: View {
             Text(L("Bấm 🌐 dưới bàn phím để chuyển sang Tiếng Việt (VietTelex), rồi gõ thử: vieejt → việt."))
         }
         KieuGoSection()
+        // Ngay sau Kiểu gõ — nhóm thu gọn (mặc định đóng), docs/ONBOARDING-SPEC.md §4.
+        MixedTypingSection()
     }
 
     @ViewBuilder private var gioiThieuTab: some View {
@@ -864,12 +885,6 @@ struct KieuGoSection: View {
     private var quickTelex = false
     @AppStorage("modernTone", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var modernTone = false
-    @AppStorage("contextualEnglish", store: UserDefaults(suiteName: AppFlavor.appGroup))
-    private var contextualEnglish = true
-    @AppStorage(RetroEnglishUI.autoKey, store: UserDefaults(suiteName: AppFlavor.appGroup))
-    private var retroEnglishAuto = false
-    @AppStorage(RetroEnglishUI.frequencyKey, store: UserDefaults(suiteName: AppFlavor.appGroup))
-    private var englishByFrequency = false
     @AppStorage("teencode", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var teencode = false
     @AppStorage("vniMode", store: UserDefaults(suiteName: AppFlavor.appGroup))
@@ -906,11 +921,8 @@ struct KieuGoSection: View {
             settingToggle(L("Bỏ dấu kiểu mới"), L("hoà, thuý thay vì hòa, thúy."), isOn: $modernTone)
             // iOS không cho bàn phím bên thứ ba đọc công tắc Tự động viết hoa của hệ thống.
             settingToggle(L("Tự động viết hoa đầu câu"), L("Bật shift ở đầu ô, sau . ! ? và khi xuống dòng. Công tắc “Tự động viết hoa” trong Cài đặt → Bàn phím của iOS không áp dụng cho bàn phím bên thứ ba — tắt ở đây."), isOn: $autoCapitalize)
-            settingToggle(L("Quyết định theo ngữ cảnh"), L("Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → “he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để tiếng Việt — “sao í”."), isOn: $contextualEnglish)
-            if RetroEnglishUI.switchVisible(contextualEnglish: contextualEnglish, vniMode: vniMode) {
-                experimentalToggle(L("Tự sửa từ phía trước"), L("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm (vd. \"Hí cả í very fast\" → \"His car is very fast\")."), isOn: $retroEnglishAuto)
-                experimentalToggle(L("Đoán từ trùng theo tần suất"), L("Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his → hí) thì chọn tiếng Anh; từ kế cho thấy là tiếng Việt (hí hửng, hí hí) thì tự đổi lại."), isOn: $englishByFrequency)
-            }
+            // Quyết định theo ngữ cảnh / Tự sửa từ phía trước / Đoán từ trùng theo tần suất: chuyển
+            // sang nhóm "Gõ mixed Việt/Anh" ngay bên dưới (MixedTypingSection, 05/11/2026).
             if !vniMode {
                 settingToggle(L("Chính tả teencode"), L("Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, từ tiếng Anh như was, war, zoo giữ nguyên."), isOn: $teencode)
             }

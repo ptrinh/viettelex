@@ -24,6 +24,35 @@ class FeatureSearchL10nTest {
         }
     }
 
+    private fun mixed(q: String) = FeatureSearchEntry.search(q).mapNotNull { it.mixed }.toSet()
+
+    /**
+     * Mục gõ trộn Việt–Anh chuyển vào nhóm "Gõ mixed Việt/Anh" (tab Kiểu Gõ): tìm kiếm trỏ về nhóm
+     * đó (không về trang Tính Năng cũ), khớp cả hai ngôn ngữ.
+     */
+    @Test fun mixedTypingItemsPointToGroup() {
+        for (lang in listOf("vi", "en")) {
+            L10n.lang = lang
+            assertTrue(lang, MixedTypingItem.Section in mixed("go mixed"))
+            assertTrue(lang, MixedTypingItem.Section in mixed("mixed vietnamese"))
+            assertTrue(lang, MixedTypingItem.AutoRestore in mixed("khoi phuc tieng anh"))
+            assertTrue(lang, MixedTypingItem.AutoRestore in mixed("auto-restore english"))
+            assertTrue(lang, MixedTypingItem.ContextualEnglish in mixed("ngu canh"))
+            assertTrue(lang, MixedTypingItem.EnglishByFrequency in mixed("tan suat"))
+            assertTrue(lang, MixedTypingItem.EnglishByFrequency in mixed("frequency"))
+            assertTrue(lang, MixedTypingItem.RetroEnglish in mixed("fix earlier"))
+            assertTrue(lang, MixedTypingItem.SpaceSwipeLanguage in mixed("vuot phim cach"))
+            assertTrue(lang, MixedTypingItem.SwipeEnglish in mixed("swipe english"))
+        }
+        // Không còn kết quả trùng trỏ về trang cũ (Từ điển cá nhân vẫn ở cả Gợi ý & từ điển).
+        for (item in MixedTypingItem.entries) {
+            assertTrue(item.viTitle, FeatureSearchEntry.all.any { it.mixed == item && it.page == null })
+            if (item == MixedTypingItem.UserDictionary) continue
+            val stale = FeatureSearchEntry.all.filter { it.viTitle == item.viTitle && it.mixed == null }
+            assertTrue("${item.viTitle} còn trỏ về trang cũ: $stale", stale.isEmpty())
+        }
+    }
+
     @Test fun titlesAndGuideFollowLanguage() {
         assertEquals("Tính Năng", AppTab.TinhNang.title)
         assertTrue(FeaturePage.GoVuot.guideUrl.endsWith("/hdsd/?os=android#go-vuot"))

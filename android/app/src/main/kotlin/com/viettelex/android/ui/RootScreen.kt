@@ -70,6 +70,10 @@ fun RootScreen(
     val tabs = if (templatesEnabled) AppTab.entries else AppTab.entries.filter { it != AppTab.MauCau }
 
     LaunchedEffect(openMauCau) { if (openMauCau > 0) tab = AppTab.MauCau }
+    // Ô tìm cài đặt chọn mục thuộc nhóm "Gõ mixed Việt/Anh" ⇒ sang tab Kiểu Gõ (MixedTypingSection
+    // nhận yêu cầu, mở nhóm, cuộn tới dòng).
+    val mixedRequest = MixedTypingFocus.request.value
+    LaunchedEffect(mixedRequest) { if (mixedRequest != null) { tab = AppTab.KieuGo; showPlus = false; plusReturn = null } }
     LaunchedEffect(templatesEnabled) { if (!templatesEnabled && tab == AppTab.MauCau) tab = AppTab.TinhNang }
 
     // Mỗi tab một vị trí cuộn riêng; bar thu gọn khi cuộn xuống > 40dp.
