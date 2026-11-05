@@ -240,11 +240,23 @@ class UserLMCompactTests {
         val dir = tmpDir("migfail")
         val f = File(dir, "userlm.bin")
         fixtureFile("userlm-legacy-android-v1.bin").copyTo(f)
-        File(dir, "userlm.bin.tmp").apply { mkdirs(); File(this, "chặn").writeText("x") }
-        val m = UserLangModel(f, ImmediateMainThread(), direct)
-        assertContentEquals("VTLM".toByteArray(), f.readBytes().copyOf(4))
-        assertTrue(m.count("cảm") > 0)
+        val original = f.readBytes()
+        val blocker = File(dir, "userlm.bin.tmp").apply { mkdirs(); File(this, "chặn").writeText("x") }
+        // Đồng hồ cố định = lastDecay của fixture: không decay lúc nạp. Trước đây test dùng giờ
+        // thật ⇒ từ 01/09/2026 trở đi decay 0.7^tuần làm count fixture rơi về 0 (test hỏng theo lịch).
+        val m = UserLangModel(f, ImmediateMainThread(), direct, clock = { FIX_DECAY })
+        // Ghi bản mới thất bại ⇒ file cũ (v1 "VTLM") còn nguyên từng byte, dữ liệu vẫn dùng được.
+        assertContentEquals(original, f.readBytes())
+        assertEquals(7, m.count("cảm"))
+        assertEquals(6, m.count("ơn"))
         assertEquals(listOf("VietTelex"), m.manualCompletions("viet"))
+        m.close()
+
+        // Gỡ vật cản ⇒ lần nạp sau chuyển thành VTL2.
+        blocker.deleteRecursively()
+        val again = UserLangModel(f, ImmediateMainThread(), direct, clock = { FIX_DECAY })
+        assertEquals(7, again.count("cảm"))
+        assertNotNull(UserLMCodec.decode(f.readBytes()))
     }
 
     /** Fixture VTL2 do bộ mã hoá Python độc lập dựng — iOS đọc cùng file (layout chung). */
