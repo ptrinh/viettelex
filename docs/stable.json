@@ -3,10 +3,10 @@
   "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.8.37",
   "build": 146,
   "windows": {
-    "version": "1.3.8",
-    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.8/VietTelex-1.3.8-x64.msi",
-    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.8/VietTelex-1.3.8-arm64.msi",
-    "notes": "Gõ nhanh trong ô web của Chrome, Edge, Brave (vd. Canva) không còn mất dấu hay ra \"OO\" (#139)."
+    "version": "1.3.9",
+    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.9/VietTelex-1.3.9-x64.msi",
+    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.9/VietTelex-1.3.9-arm64.msi",
+    "notes": "Nhóm cài đặt mới \"Gõ mixed Việt/Anh\" với bộ chọn nhanh hồ sơ gõ; đổi dấu linh hoạt (cấm + w → cắm, #149); nhận diện Anh/Việt tốt hơn."
   },
   "linux": {
     "version": "1.0.19",
