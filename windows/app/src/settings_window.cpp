@@ -561,15 +561,13 @@ std::vector<Item> pageItems(int tab) {
                 Item sec = section(S::SecMixed);
                 sec.desc = S::ProfilePickerIntro;
                 v.push_back(sec);
-                // Quick picker (§4): profile rows, then "Tuỳ chỉnh" (a button only while it is
-                // the current state — it cannot be picked).
+                // Profile picker (§4): one of three rows, each with "Chọn" / "✓ Đang dùng".
                 g_shownPickerRow = currentPickerRow();
                 for (int i = 0; i < 3; ++i) v.push_back(buttonItem(kPickerTitles[i], kPickerExamples[i], IdProfileRow + i));
-                {
-                    Item custom = buttonItem(S::ProfileCustom, S::ProfileCustomDesc, IdProfileRow + 3);
-                    if (g_shownPickerRow != -1) custom.ctl = Ctl::None;
-                    v.push_back(custom);
-                }
+                // "Tuỳ chỉnh" only appears while it is the current state (cannot be picked);
+                // always showing it dimmed made the list read like four independent options.
+                if (g_shownPickerRow == -1)
+                    v.push_back(buttonItem(S::ProfileCustom, S::ProfileCustomDesc, IdProfileRow + 3));
                 v.push_back(toggleItem(5));   // Tự khôi phục từ không hợp lệ
                 v.push_back(toggleItem(8));   // Ưu tiên tiếng Việt khi trùng
                 v.push_back(toggleItem(7));   // Quyết định theo ngữ cảnh

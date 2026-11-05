@@ -688,10 +688,10 @@ EN = {
     "Tắt ngay nếu không cần.": "Turn off anything you don’t need.",
     "Bắt đầu bằng tiếng Anh": "Start in English",
     # Bộ chọn nhanh hồ sơ ở đầu nhóm Gõ mixed Việt/Anh (ONBOARDING-SPEC §4)
-    "Chọn nhanh: bấm một hồ sơ để bật/tắt các công tắc bên dưới cho hợp.":
-        "Quick choice: pick a profile to set the switches below to match.",
+    "Bạn thường gõ thế nào? Chọn một — các công tắc bên dưới sẽ tự đặt theo.":
+        "How do you usually type? Pick one — the switches below are set to match.",
     "profile\x04Tuỳ chỉnh": "Custom",
-    "Cài đặt bên dưới không khớp hồ sơ nào.": "The settings below don’t match any profile.",
+    "Bạn đã tự chỉnh các công tắc bên dưới.": "You changed the switches below yourself.",
     "Áp dụng “%s”?": "Apply “%s”?",
     "Áp dụng": "Apply",
     "Các công tắc bạn đã tự chỉnh sẽ đổi:": "Switches you changed yourself will change:",

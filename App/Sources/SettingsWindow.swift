@@ -808,10 +808,16 @@ struct TypingTab: View {
     /// `.id` của nhóm "Gõ mixed Việt/Anh" — đích cuộn của thẻ người dùng cũ.
     static let mixedAnchor = "mixed"
 
-    /// Bộ chọn nhanh ở đầu nhóm (ONBOARDING-SPEC §4): ba hồ sơ + "Tuỳ chỉnh" (không bấm được,
-    /// sáng khi cài đặt không khớp hồ sơ nào) — như iOS/Android.
+    /// Bộ chọn hồ sơ ở đầu nhóm (ONBOARDING-SPEC §4): câu hỏi + ba nút radio (chọn MỘT).
+    /// "Tuỳ chỉnh" chỉ hiện — đã chọn sẵn, không bấm được — khi công tắc bên dưới không khớp
+    /// hồ sơ nào. Trước đây là danh sách dấu ✓ bên phải: người dùng không nhận ra là chọn một.
     @ViewBuilder private var profilePicker: some View {
-        Text(model.loc("Quick choice")).font(.subheadline.weight(.semibold))
+        VStack(alignment: .leading, spacing: 2) {
+            Text(model.loc("How do you usually type?")).font(.subheadline.weight(.semibold))
+            Text(model.loc("Pick one — the switches below are set to match."))
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .accessibilityAddTraits(.isHeader)
         let current = model.matchedProfile
         ForEach(TypingProfile.allCases, id: \.self) { p in
             Button { model.pickProfile(p) } label: {
@@ -820,32 +826,36 @@ struct TypingTab: View {
             }
             .buttonStyle(.plain)
         }
-        profileRow(model.loc("Custom"), model.loc("The settings below don’t match any profile."),
-                   selected: current == nil)
-            .opacity(current == nil ? 1 : 0.5)
-            .alert(model.confirmingProfile.map {
-                       String(format: model.loc("Apply “%@”?"), model.loc(OnboardingLogic.title($0)))
-                   } ?? "",
-                   isPresented: Binding(get: { model.confirmingProfile != nil },
-                                        set: { if !$0 { model.confirmingProfile = nil } }),
-                   presenting: model.confirmingProfile) { p in
-                Button(model.loc("Apply")) { model.applyProfile(p) }
-                Button(model.loc("Cancel"), role: .cancel) {}
-            } message: { p in
-                Text(model.profileChangeList(p))
+        Group {
+            if current == nil {
+                profileRow(model.loc("Custom"), model.loc("You changed the switches below yourself."),
+                           selected: true)
             }
+        }
+        .alert(model.confirmingProfile.map {
+                   String(format: model.loc("Apply “%@”?"), model.loc(OnboardingLogic.title($0)))
+               } ?? "",
+               isPresented: Binding(get: { model.confirmingProfile != nil },
+                                    set: { if !$0 { model.confirmingProfile = nil } }),
+               presenting: model.confirmingProfile) { p in
+            Button(model.loc("Apply")) { model.applyProfile(p) }
+            Button(model.loc("Cancel"), role: .cancel) {}
+        } message: { p in
+            Text(model.profileChangeList(p))
+        }
     }
 
+    /// Dòng radio: vòng tròn bên trái (đặc = đang chọn), tên + câu ví dụ.
     private func profileRow(_ title: String, _ caption: String, selected: Bool) -> some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                .font(.body)
+                .foregroundStyle(selected ? Color.accentColor : Color.secondary)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(title).fontWeight(selected ? .semibold : .regular)
                 Text(caption).font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer(minLength: 4)
-            Image(systemName: "checkmark")
-                .font(.body.weight(.semibold)).foregroundStyle(Color.accentColor)
-                .opacity(selected ? 1 : 0)
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)

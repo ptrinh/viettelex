@@ -249,7 +249,7 @@ final class OnboardingTests: XCTestCase {
                       "Try typing": "Gõ thử",
                       "Skip": "Bỏ qua",
                       "Mixed Vietnamese/English typing": "Gõ mixed Việt/Anh",
-                      "Quick choice": "Chọn nhanh",
+                      "Pick one — the switches below are set to match.": "Chọn một — các công tắc bên dưới sẽ tự đặt theo.",
                       "Custom": "Tuỳ chỉnh",
                       "Apply “%@”?": "Áp dụng “%@”?",
                       "Switches you changed yourself will change:": "Các công tắc bạn đã tự chỉnh sẽ đổi:"]

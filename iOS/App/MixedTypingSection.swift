@@ -153,12 +153,17 @@ struct MixedTypingSection: View {
         }
     }
 
-    /// Bộ chọn nhanh ở đầu nhóm: ba hồ sơ + "Tuỳ chỉnh" (không bấm được, sáng khi không khớp).
+    /// Bộ chọn hồ sơ ở đầu nhóm: câu hỏi + ba nút radio (chọn MỘT). "Tuỳ chỉnh" chỉ hiện — đã chọn
+    /// sẵn, không bấm được — khi công tắc bên dưới không khớp hồ sơ nào. Trước đây là dấu ✓ bên
+    /// phải: người dùng không nhận ra là chọn một.
     @ViewBuilder private var profilePicker: some View {
-        Text(L("Chọn nhanh").uppercased())
-            .font(.footnote).foregroundStyle(.secondary)
-            .padding(.top, 4)
-            .accessibilityAddTraits(.isHeader)
+        VStack(alignment: .leading, spacing: 2) {
+            Text(L("Bạn thường gõ thế nào?")).font(.subheadline.weight(.semibold))
+            Text(L("Chọn một — các công tắc bên dưới sẽ tự đặt theo.")).font(.footnote).foregroundStyle(.secondary)
+        }
+        .padding(.top, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
         let current = matched
         ForEach(OnboardingProfile.allCases, id: \.self) { p in
             Button { pick(p) } label: {
@@ -167,31 +172,33 @@ struct MixedTypingSection: View {
             .buttonStyle(.plain)
             .id(ProfileRowID.profile(p))
         }
-        profileRow(L("Tuỳ chỉnh"), L("Cài đặt bên dưới không khớp hồ sơ nào."), selected: current == nil)
-            .opacity(current == nil ? 1 : 0.5)
-            .accessibilityAddTraits(current == nil ? .isSelected : [])
-            .alert(confirming.map { L("Áp dụng “%@”?", L($0.titleKey)) } ?? "",
-                   isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
-                   presenting: confirming) { p in
-                Button(L("Áp dụng")) { apply(p) }
-                Button(L("Huỷ"), role: .cancel) {}
-            } message: { p in
-                Text(changeList(p))
+        Group {
+            if current == nil {
+                profileRow(L("Tuỳ chỉnh"), L("Bạn đã tự chỉnh các công tắc bên dưới."), selected: true)
             }
+        }
+        .alert(confirming.map { L("Áp dụng “%@”?", L($0.titleKey)) } ?? "",
+               isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
+               presenting: confirming) { p in
+            Button(L("Áp dụng")) { apply(p) }
+            Button(L("Huỷ"), role: .cancel) {}
+        } message: { p in
+            Text(changeList(p))
+        }
     }
 
     private enum ProfileRowID: Hashable { case profile(OnboardingProfile) }
 
+    /// Dòng radio: vòng tròn bên trái (đặc = đang chọn), tên + câu ví dụ.
     private func profileRow(_ title: String, _ caption: String, selected: Bool) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
+            Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                .font(.title3).foregroundStyle(selected ? accentBlue : Color.secondary)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).foregroundStyle(.primary)
+                Text(title).foregroundStyle(.primary).fontWeight(selected ? .semibold : .regular)
                 Text(caption).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer(minLength: 4)
-            Image(systemName: "checkmark")
-                .font(.body.weight(.semibold)).foregroundStyle(accentBlue)
-                .opacity(selected ? 1 : 0)
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)

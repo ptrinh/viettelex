@@ -4,6 +4,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -214,8 +216,8 @@ internal fun MixedTypingSection() {
 }
 
 /**
- * Bộ chọn nhanh ở đầu nhóm (ONBOARDING-SPEC §4): ba hồ sơ + "Tuỳ chỉnh" (không bấm được, sáng khi
- * cài đặt không khớp hồ sơ nào). Đang Tuỳ chỉnh mà áp sẽ đổi công tắc ⇒ hỏi xác nhận. Như iOS.
+ * Bộ chọn hồ sơ ở đầu nhóm (ONBOARDING-SPEC §4): ba nút radio + "Tuỳ chỉnh" (chỉ hiện, đã chọn sẵn,
+ * khi cài đặt không khớp hồ sơ nào). Đang Tuỳ chỉnh mà áp sẽ đổi công tắc ⇒ hỏi xác nhận. Như iOS.
  */
 @Composable
 private fun ProfilePicker(current: Map<String, Boolean>) {
@@ -227,16 +229,24 @@ private fun ProfilePicker(current: Map<String, Boolean>) {
     var confirming by remember { mutableStateOf<OnboardingProfile?>(null) }
 
     RowDivider()
-    Text(tr("Chọn nhanh").uppercase(), style = VTType.footnote, color = c.secondary,
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 6.dp).semantics { heading() })
+    // Câu hỏi + nút radio (chọn MỘT). Trước đây dấu ✓ bên phải ⇒ người dùng không nhận ra là chọn một.
+    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp).semantics { heading() },
+        verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(tr("Bạn thường gõ thế nào?"), style = VTType.body, color = c.label)
+        Text(tr("Chọn một — các công tắc bên dưới sẽ tự đặt theo."), style = VTType.footnote, color = c.secondary)
+    }
     @Composable
     fun Choice(title: String, caption: String, selected: Boolean, onClick: (() -> Unit)?) {
         VTRow(onClick = onClick, modifier = Modifier.semantics { this.selected = selected }) {
-            Column(Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Box(Modifier.padding(end = 12.dp).size(20.dp)
+                .border(2.dp, if (selected) c.accent else c.secondary, CircleShape),
+                contentAlignment = Alignment.Center) {
+                if (selected) Box(Modifier.size(10.dp).background(c.accent, CircleShape))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, style = VTType.body, color = c.label)
                 Text(caption, style = VTType.footnote, color = c.secondary, maxLines = 2)
             }
-            Box(Modifier.size(20.dp).alpha(if (selected) 1f else 0f)) { GlyphIcon(Glyph.Check, c.accent, 20.dp) }
         }
     }
     for (p in OnboardingProfile.entries) {
@@ -245,9 +255,10 @@ private fun ProfilePicker(current: Map<String, Boolean>) {
             if (OnboardingSettings.needsConfirmation(current, p, last)) confirming = p else OnboardingStore.apply(ctx, p)
         }
     }
-    RowDivider()
-    Box(Modifier.alpha(if (matched == null) 1f else 0.5f)) {
-        Choice(tr("Tuỳ chỉnh"), tr("Cài đặt bên dưới không khớp hồ sơ nào."), matched == null, null)
+    // "Tuỳ chỉnh" chỉ hiện (đã chọn, không bấm được) khi công tắc không khớp hồ sơ nào.
+    if (matched == null) {
+        RowDivider()
+        Choice(tr("Tuỳ chỉnh"), tr("Bạn đã tự chỉnh các công tắc bên dưới."), true, null)
     }
     confirming?.let { p ->
         val lines = OnboardingSettings.changes(current, p).joinToString("\n") { k ->

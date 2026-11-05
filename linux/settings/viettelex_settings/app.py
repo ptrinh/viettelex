@@ -427,28 +427,33 @@ class SettingsWindow(Adw.PreferencesWindow):
     # --- bộ chọn nhanh hồ sơ (ONBOARDING-SPEC §4) ---------------------------
 
     def _profile_picker(self, g):
-        """Ba hồ sơ + "Tuỳ chỉnh" ở đầu nhóm Gõ mixed — như iOS/Android. Hồ sơ khớp ĐÚNG cài
-        đặt thì có dấu ✓; không khớp hồ sơ nào thì "Tuỳ chỉnh" sáng. Trả dòng đầu tiên."""
-        intro = row(_("Chọn nhanh: bấm một hồ sơ để bật/tắt các công tắc bên dưới cho hợp."))
+        """Câu hỏi + ba nút radio (chọn MỘT) ở đầu nhóm Gõ mixed — như iOS/Android/macOS. "Tuỳ
+        chỉnh" chỉ hiện (đã chọn, không bấm được) khi cài đặt không khớp hồ sơ nào. Trả dòng đầu."""
+        intro = row(_("Bạn thường gõ thế nào? Chọn một — các công tắc bên dưới sẽ tự đặt theo."))
         intro.add_css_class("dim-label")
         g.add(intro)
-        self.picker_checks = {}
+        self.picker_radios = {}
+        group = None
         first = None
         for profile, title in (("vi", _("Chủ yếu tiếng Việt")), ("mixed", _("Việt + Anh nhiều")),
-                               ("en", _("Chủ yếu tiếng Anh"))):
-            r = row(title, "“%s”" % onboarding.CARD_EXAMPLES[profile])
-            r.set_activatable(True)
-            check = Gtk.Image.new_from_icon_name("object-select-symbolic")
-            r.add_suffix(check)
-            r.connect("activated", lambda _r, p=profile: self._pick_profile(p))
-            self.picker_checks[profile] = check
+                               ("en", _("Chủ yếu tiếng Anh")), (None, C_("profile", "Tuỳ chỉnh"))):
+            sub = (_("Bạn đã tự chỉnh các công tắc bên dưới.") if profile is None
+                   else "“%s”" % onboarding.CARD_EXAMPLES[profile])
+            r = row(title, sub)
+            radio = Gtk.CheckButton(valign=Gtk.Align.CENTER, can_target=False, can_focus=False)
+            if group is None:
+                group = radio
+            else:
+                radio.set_group(group)
+            r.add_prefix(radio)
+            if profile is not None:
+                r.set_activatable(True)
+                r.connect("activated", lambda _r, p=profile: self._pick_profile(p))
+            else:
+                self.picker_custom = r
+            self.picker_radios[profile] = radio
             g.add(r)
             first = first or r
-        self.picker_custom = row(C_("profile", "Tuỳ chỉnh"), _("Cài đặt bên dưới không khớp hồ sơ nào."))
-        check = Gtk.Image.new_from_icon_name("object-select-symbolic")
-        self.picker_custom.add_suffix(check)
-        self.picker_checks[None] = check
-        g.add(self.picker_custom)
         self.refreshers.append(self._refresh_picker)
         self._refresh_picker()
         return first
@@ -458,13 +463,13 @@ class SettingsWindow(Adw.PreferencesWindow):
         return current, onboarding.last_profile()
 
     def _refresh_picker(self):
-        if not getattr(self, "picker_checks", None):
+        if not getattr(self, "picker_radios", None):
             return
         current, last = self._picker_state()
         m = onboarding.match(current, last)
-        for p, check in self.picker_checks.items():
-            check.set_opacity(1 if p == m else 0)
-        self.picker_custom.set_opacity(1 if m is None else 0.5)
+        for p, radio in self.picker_radios.items():
+            radio.set_active(p == m)
+        self.picker_custom.set_visible(m is None)
 
     def _pick_profile(self, profile):
         current, last = self._picker_state()

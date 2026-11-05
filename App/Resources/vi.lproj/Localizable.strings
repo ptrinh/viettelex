@@ -389,9 +389,9 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "English detection" = "Nhận diện tiếng Anh";
 "Language switching" = "Chuyển ngôn ngữ";
 /* Bộ chọn nhanh hồ sơ ở đầu nhóm "Gõ mixed Việt/Anh" (ONBOARDING-SPEC §4) */
-"Quick choice" = "Chọn nhanh";
+"Pick one — the switches below are set to match." = "Chọn một — các công tắc bên dưới sẽ tự đặt theo.";
 "Custom" = "Tuỳ chỉnh";
-"The settings below don’t match any profile." = "Cài đặt bên dưới không khớp hồ sơ nào.";
+"You changed the switches below yourself." = "Bạn đã tự chỉnh các công tắc bên dưới.";
 "Apply “%@”?" = "Áp dụng “%@”?";
 "Apply" = "Áp dụng";
 "Switches you changed yourself will change:" = "Các công tắc bạn đã tự chỉnh sẽ đổi:";

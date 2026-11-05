@@ -430,10 +430,10 @@ const Pair kStrings[] = {
      L"decisions, the switch key…"},
     {L"Xem", L"Show me"},
     // Quick profile picker (ONBOARDING-SPEC §4)
-    {L"Chọn nhanh: bấm một hồ sơ để bật/tắt các công tắc bên dưới cho hợp.",
-     L"Quick choice: pick a profile to set the switches below to match."},
+    {L"Bạn thường gõ thế nào? Chọn một — các công tắc bên dưới sẽ tự đặt theo.",
+     L"How do you usually type? Pick one — the switches below are set to match."},
     {L"Tuỳ chỉnh", L"Custom"},
-    {L"Cài đặt bên dưới không khớp hồ sơ nào.", L"The settings below don’t match any profile."},
+    {L"Bạn đã tự chỉnh các công tắc bên dưới.", L"You changed the switches below yourself."},
     {L"✓ Đang dùng", L"✓ In use"},
     {L"Chọn", L"Use"},
     {L"Áp dụng “%s”?", L"Apply “%s”?"},
