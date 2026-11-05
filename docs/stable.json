@@ -74,8 +74,8 @@
     "notes": "Nhóm cài đặt mới \"Gõ mixed Việt/Anh\" với bộ chọn nhanh hồ sơ gõ; đổi dấu linh hoạt (cấm + w → cắm, #149); nhận diện Anh/Việt tốt hơn."
   },
   "android": {
-    "version": "1.5.25",
-    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.25/VietTelex-android-1.5.25.apk",
+    "version": "1.5.26",
+    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.26/VietTelex-android-1.5.26.apk",
     "play": "https://play.google.com/store/apps/details?id=com.viettelex.android"
   }
 }
