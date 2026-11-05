@@ -454,6 +454,8 @@ object L10nTable {
         put("Bật shift ở đầu ô, sau . ! ? và khi xuống dòng.", "Turns on shift at the start of a field, after . ! ? and on a new line.")
         put("Quyết định theo ngữ cảnh", "Context-aware decisions")
         put("Tự sửa từ phía trước", "Fix earlier words")
+        put("Đoán từ trùng theo tần suất", "Guess colliding words by frequency")
+        put("Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his → hí) thì chọn tiếng Anh; từ kế cho thấy là tiếng Việt (hí hửng, hí hí) thì tự đổi lại. Cần bật Quyết định theo ngữ cảnh.", "At the start of a phrase, a word that is both a common English word and a rare Vietnamese syllable (his → hí) becomes English; if the next word shows the phrase is Vietnamese (hí hửng, hí hí), it is switched back automatically. Needs context-based decisions.")
         put("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm (vd. \"Hí cả í very fast\" → \"His car is very fast\").", "When you go on typing an English sentence, automatically fix the words just before it that got Vietnamese marks by mistake (e.g. \"Hí cả í very fast\" → \"His car is very fast\").")
         put("Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → “he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để tiếng Việt — “sao í”.", "After an English word, an ambiguous next word whose keys spell an English word stays English instead of Vietnamese — “he is” → “he is”, not “he í”. After a Vietnamese or unclear word it stays Vietnamese — “sao í”.")
         put("Gợi ý sửa lỗi chạm trượt", "Mistap correction suggestions")

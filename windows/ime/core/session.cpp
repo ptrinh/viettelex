@@ -586,15 +586,20 @@ void TypingSession::finishRetro(TextSink& sink, KeyKind kind, char32_t ch) {
         const std::u16string insert = toU16(c.insert, c.insert_len < VTX_RETRO_MAX ? c.insert_len : 0);
         const retro::Field f = retroField(sink);
         const bool canRead = !f.blind && !f.compositionOnly && f.canRead;
-        const bool offer = opt_.retroOffer;
+        // Flip-back ("Đoán từ trùng theo tần suất": "His hửng" -> "hí hửng") undoes the
+        // engine's own guess: applied automatically even in offer mode, and also at Enter /
+        // Tab / Esc — before the key goes through (the app gets it after this edit).
+        const bool flip = c.flip_back != 0;
+        const bool offer = opt_.retroOffer && !flip;
         // Offer: a few more units, for the start of the first word in the hint ("H" of "Hí").
         const int want = static_cast<int>(expected.size()) + (offer ? 24 : 0);
         const std::u16string before = canRead ? sink.textBeforeCaret(want) : std::u16string();
         bool applied = false;
         // Only at a typed boundary: Enter / Tab may send the message or leave the field —
         // no rewrite behind the user's back (and no ⌫ to undo it).
-        const retro::Apply d =
-            printable ? retro::decideApply(f, before, expected, c.backspaces) : retro::Apply::Unverifiable;
+        const retro::Apply d = printable || (flip && kind == KeyKind::Boundary)
+                                   ? retro::decideApply(f, before, expected, c.backspaces)
+                                   : retro::Apply::Unverifiable;
         switch (d) {
             case retro::Apply::Apply:
                 if (offer) {
@@ -604,6 +609,7 @@ void TypingSession::finishRetro(TextSink& sink, KeyKind kind, char32_t ch) {
                 }
                 applied = sink.replaceBeforeCaret(expected, insert);
                 if (!applied && opt_.log) opt_.log("retro: the field refused the rewrite");
+                if (applied && flip && opt_.log) opt_.log("retro: flip-back applied");
                 break;
             case retro::Apply::Unverifiable:
                 if (opt_.log) opt_.log("retro: field not verifiable -> skipped");
@@ -651,10 +657,15 @@ bool TypingSession::tryRetroUndo(const retro::Undo& u, TextSink& sink) {
 }
 
 bool TypingSession::commitWord(TextSink& sink, KeyKind kind, char32_t ch) {
+    forgetAfterRetro_ = false;
     const bool r = commitWordInner(sink, kind, ch);
     const bool printable = kind == KeyKind::Char && ch != 0 && ch <= 0xFFFF;
     if (retroOn()) finishRetro(sink, kind, ch);
     else vtx_note_boundary(engine_, printable ? ch : U'\n');   // glue: see noteKeyPassedBy
+    if (forgetAfterRetro_) {
+        forgetAfterRetro_ = false;
+        vtx_forget_last_commit(engine_);
+    }
     armRestoreUndo(printable ? static_cast<char16_t>(ch) : 0);
     return r;
 }
@@ -756,7 +767,11 @@ bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind, char32_t ch) {
     // ⌫ re-open reads "<word><boundary>" back: impossible where keys are dropped (nothing
     // readable), and claiming the next key there would lose it.
     reopenArmed_ = printable && !dropsPassedKeys_;
-    if (!printable) vtx_forget_last_commit(engine_);
+    if (!printable) {
+        // Enter / Tab / Esc: after finishRetro (commitWord) — it may still apply a flip-back.
+        if (kind == KeyKind::Boundary) forgetAfterRetro_ = true;
+        else vtx_forget_last_commit(engine_);
+    }
     return boundaryInResult;
 }
 

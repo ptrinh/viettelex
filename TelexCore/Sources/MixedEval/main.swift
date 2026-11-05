@@ -1,7 +1,7 @@
 // mixed-eval — mô phỏng gõ câu trộn Việt–Anh, từng phím qua TelexEngine thật.
 //
 //   cd TelexCore && swift run -c release mixed-eval [tuỳ chọn]
-//     --config NAME     chỉ chạy một cấu hình (default | retro | no-context); mặc định: cả ba
+//     --config NAME     chỉ chạy một cấu hình (default | retro | no-context | freq | retro-freq); mặc định: tất cả
 //     --diff-config N   cấu hình in diff từng dòng (mặc định: default)
 //     --lines N         số dòng diff in ra (mặc định 60; 0 = không in; -1 = tất cả)
 //     --top N           số mẫu lỗi hay gặp nhất (mặc định 25)
@@ -66,12 +66,12 @@ for cfg in configs {
     print("== \(cfg.name): \(cfg.summary)")
     for split in ["val", "test"] {
         let m = r.metrics(split: split)
-        print("  [\(split)]   nhóm     lazy%  lazyVI%  lazyEN%  toggle/100  ideal%   (câu/từ)")
+        print("  [\(split)]   nhóm     lazy%  lazyVI%  lazyEN%  toggle/100  ideal%  fix/100  flick/100  (câu/từ)")
         for c in categoryOrder + ["overall"] {
             guard let x = m[c] else { continue }
             let n = r.counts[split]?[c]
             let size = n.map { "(\($0.sentences)/\($0.words))" } ?? "(trung bình nhóm)"
-            print("           \(c.padding(toLength: 8, withPad: " ", startingAt: 0)) \(f(x["lazy_wrong"]))  \(f(x["lazy_vi_wrong"]))   \(f(x["lazy_en_wrong"]))     \(f(x["toggles_per_100"]))   \(f(x["ideal_wrong"]))   \(size)")
+            print("           \(c.padding(toLength: 8, withPad: " ", startingAt: 0)) \(f(x["lazy_wrong"]))  \(f(x["lazy_vi_wrong"]))   \(f(x["lazy_en_wrong"]))     \(f(x["toggles_per_100"]))   \(f(x["ideal_wrong"]))  \(f(x["fixes_per_100"]))   \(f(x["flicker_per_100"]))   \(size)")
         }
     }
     func latLine(_ label: String, _ xs: [UInt64]) -> String {
@@ -110,7 +110,7 @@ if let r = results.first(where: { $0.config.name == diffConfig }) ?? results.fir
 print(String(format: "Thời gian: %.1f s", Date().timeIntervalSince(t0)))
 
 if flag("--write-golden") {
-    guard configs.count == SimConfig.all.count else { print("--write-golden cần chạy cả ba cấu hình"); exit(2) }
+    guard configs.count == SimConfig.all.count else { print("--write-golden cần chạy mọi cấu hình"); exit(2) }
     let data = Evaluation.goldenJSON(results, tolerance: 0.05)
     do { try data.write(to: MixedCorpus.goldenURL); print("Đã ghi \(MixedCorpus.goldenURL.path)") }
     catch { print("ghi golden lỗi: \(error)"); exit(2) }

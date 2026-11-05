@@ -40,8 +40,10 @@ enum {
     VTX_ENGLISH_WORD_RESTORE= 1u << 9,   /* englishWordRestore     (ON; keep ON) */
     VTX_COLLISION_PREFERS_VI= 1u << 10,  /* collisionPrefersVietnamese (app default ON) */
     VTX_EAGER_ENGLISH_RESTORE=1u << 11,  /* eagerEnglishRestore (app: = autoRestore)    */
-    VTX_RETRO_ENGLISH       = 1u << 12   /* retroactiveEnglish (EXPERIMENTAL, OFF; needs
+    VTX_RETRO_ENGLISH       = 1u << 12,  /* retroactiveEnglish (EXPERIMENTAL, OFF; needs
                                             CONTEXTUAL_ENGLISH, inert without it)        */
+    VTX_ENGLISH_BY_FREQUENCY= 1u << 13   /* englishByFrequency (EXPERIMENTAL, OFF; inert
+                                            unless RETRO_ENGLISH is in effect)           */
 };
 /* Engine defaults (== Swift TelexEngine()): TEENCODE | ENGLISH_WORD_RESTORE. */
 #define VTX_ENGINE_DEFAULT_FLAGS (VTX_TEENCODE | VTX_ENGLISH_WORD_RESTORE)
@@ -117,6 +119,12 @@ typedef struct vtx_retro_correction {
     int32_t  insert_len;               /* UTF-16 units */
     uint16_t expected[VTX_RETRO_MAX];  /* NUL-terminated */
     uint16_t insert[VTX_RETRO_MAX];    /* NUL-terminated */
+    int32_t  flip_back;                /* 1 = the edit puts a word VTX_ENGLISH_BY_FREQUENCY
+                                          had turned English BACK to Vietnamese ("His hửng"
+                                          -> "hí hửng"): apply it AUTOMATICALLY even when
+                                          retro edits are only offered, and also when the
+                                          boundary is Enter (apply BEFORE the Enter goes
+                                          through) — after the same `expected` check. */
 } vtx_retro_correction;
 void vtx_note_boundary(vtx_engine* e, uint32_t ch);
 int  vtx_take_retro_correction(vtx_engine* e, vtx_retro_correction* out);

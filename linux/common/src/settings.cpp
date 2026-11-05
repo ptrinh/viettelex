@@ -159,6 +159,7 @@ Settings parseConfig(const std::string &toml) {
             else if (key == "teencode") setBool(s.teencode, v);
             else if (key == "contextual_english") setBool(s.contextualEnglish, v);
             else if (key == "retroactive_english") setBool(s.retroactiveEnglish, v);
+            else if (key == "english_by_frequency") setBool(s.englishByFrequency, v);
             else if (key == "collision_prefers_vietnamese") setBool(s.collisionPrefersVietnamese, v);
             else if (key == "bracket_vowels") setBool(s.bracketVowels, v);
             else if (key == "shortcuts_enabled") setBool(s.shortcutsEnabled, v);
@@ -231,6 +232,7 @@ std::string serializeConfig(const Settings &s) {
       << "teencode = " << b(s.teencode) << "\n"
       << "contextual_english = " << b(s.contextualEnglish) << "\n"
       << "retroactive_english = " << b(s.retroactiveEnglish) << "\n"
+      << "english_by_frequency = " << b(s.englishByFrequency) << "\n"
       << "collision_prefers_vietnamese = " << b(s.collisionPrefersVietnamese) << "\n"
       << "bracket_vowels = " << b(s.bracketVowels) << "\n"
       << "shortcuts_enabled = " << b(s.shortcutsEnabled) << "\n"

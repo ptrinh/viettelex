@@ -92,19 +92,24 @@ class RetroEnglishTest {
         assertEquals("His Car is very fast", typed("His Car is very fast"))
     }
 
+    /**
+     * "very" is a STRONG English word (frequent, no Vietnamese reading): with three anchored
+     * candidates before it, it completes the run on its own — the edit comes at "very", one word
+     * earlier than the classic two-English-word trigger.
+     */
     @Test fun correctionShape() {
         val e = appEngine(retro = true)
-        for (k in listOf("His", "car", "is", "very")) {
+        for (k in listOf("His", "car", "is")) {
             for (ch in k) e.feed(ch)
             e.commitText(true)
             e.noteBoundaryCharacter(' ')
             assertNull(e.takeRetroCorrection())
         }
-        for (ch in "fast") e.feed(ch)
-        assertEquals("fast", e.commitText(true))
-        assertEquals(RetroCorrection(16, "í cả í very fast", "is car is very fast", 3), e.pendingRetroCorrection)
+        for (ch in "very") e.feed(ch)
+        assertEquals("very", e.commitText(true))
+        assertEquals(RetroCorrection(11, "í cả í very", "is car is very", 3), e.pendingRetroCorrection)
         e.noteBoundaryCharacter('.')
-        assertEquals(RetroCorrection(17, "í cả í very fast.", "is car is very fast.", 3), e.takeRetroCorrection())
+        assertEquals(RetroCorrection(12, "í cả í very.", "is car is very.", 3), e.takeRetroCorrection())
         assertNull(e.takeRetroCorrection())
     }
 

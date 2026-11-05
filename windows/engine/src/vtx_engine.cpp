@@ -45,6 +45,7 @@ void vtx_set_flags(vtx_engine* h, uint32_t f) {
     e.collisionPrefersVietnamese = (f & VTX_COLLISION_PREFERS_VI) != 0;
     e.eagerEnglishRestore = (f & VTX_EAGER_ENGLISH_RESTORE) != 0;
     e.retroactiveEnglish = (f & VTX_RETRO_ENGLISH) != 0;
+    e.englishByFrequency = (f & VTX_ENGLISH_BY_FREQUENCY) != 0;
 }
 
 uint32_t vtx_get_flags(const vtx_engine* h) {
@@ -64,6 +65,7 @@ uint32_t vtx_get_flags(const vtx_engine* h) {
     if (e.collisionPrefersVietnamese) f |= VTX_COLLISION_PREFERS_VI;
     if (e.eagerEnglishRestore) f |= VTX_EAGER_ENGLISH_RESTORE;
     if (e.retroactiveEnglish) f |= VTX_RETRO_ENGLISH;
+    if (e.englishByFrequency) f |= VTX_ENGLISH_BY_FREQUENCY;
     return f;
 }
 
@@ -125,6 +127,7 @@ int vtx_take_retro_correction(vtx_engine* h, vtx_retro_correction* out) {
     out->insert_len = c.insertLength;
     for (int i = 0; i <= c.expectedLength; ++i) out->expected[i] = static_cast<uint16_t>(c.expected[i]);
     for (int i = 0; i <= c.insertLength; ++i) out->insert[i] = static_cast<uint16_t>(c.insert[i]);
+    out->flip_back = c.flipBack ? 1 : 0;
     return 1;
 }
 static_assert(VTX_UNDO_MAX == vtx::kMaxText, "vtx_restore_undo buffers mirror vtx::RestoreUndo");

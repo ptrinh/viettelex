@@ -501,6 +501,12 @@ bool TelexEngine::needsStandaloneWRunRestore() const {
 }
 
 bool TelexEngine::shouldRestoreRaw() const {
+    if (shouldRestoreRawBase()) return true;
+    return englishByFrequency && frequencyPrefersEnglish();
+}
+
+// Every restore rule except the frequency rule (englishByFrequency).
+bool TelexEngine::shouldRestoreRawBase() const {
     if (initialsSplitAt_ >= 0) return false;   // "PhươngTH" (issue #138) — see Swift
     if (markCancelled_) {
         if (composedIsValidSyllable()) return false;
@@ -511,6 +517,9 @@ bool TelexEngine::shouldRestoreRaw() const {
         if (toneCancelAt_ < 0 && tonesFolded_) return true;
         return composedHasDiacritic();
     }
+    // Flip-back (englishByFrequency): reduplication / known pair with the previous
+    // frequency-restored word keeps Vietnamese, ahead of every English restore rule.
+    if (englishByFrequency && frequencyKeepsVietnamese()) return false;
     // Glued to a code separator / number ("my_var", "100W") — see Swift glueRestores.
     if (wordGlue_ != 0 && glueRestores()) return true;
     // Đuôi -k (ták/ák/rík) không thắng bảng collision (issue #127) — song sinh Swift.
@@ -772,9 +781,10 @@ void TelexEngine::updateContext(bool restored) {
     switch (classifyWordContext(restored)) {
     case WordContext::EnglishFunction: previousWordEnglish_ = true; englishCandidate_ = false; break;
     case WordContext::English: foldEnglishContentWord(); break;
-    case WordContext::Vietnamese: clearEnglishContext(); return;
+    case WordContext::Vietnamese: clearEnglishContext(); previousWordVietnamese_ = true; return;
     case WordContext::Neutral: break;
     }
+    if (previousWordEnglish_) previousWordVietnamese_ = false;   // a run opened (one loanword does not)
     previousGateBits_ = rawPredecessorBits();
 }
 
@@ -799,7 +809,7 @@ bool TelexEngine::rawIsEnglishContextWord(bool includingRestoreOnly) const {
 }
 
 void TelexEngine::reset() {
-    if (rawCount_ > 0) clearEnglishContext();
+    if (rawCount_ > 0) { clearEnglishContext(); previousWordVietnamese_ = true; }
     resetWord();
     reopenRawCount_ = 0;
     reopenOutCount_ = 0;
@@ -810,6 +820,7 @@ void TelexEngine::reset() {
 
 void TelexEngine::resetContext() {
     clearEnglishContext();
+    previousWordVietnamese_ = false;
     if (retroCount_ > 0 || retroHasPending_) retroClear();
 }
 
@@ -847,6 +858,31 @@ bool retroIsCandidateRaw(const char* w, int n) {
     return false;
 }
 
+// EnglishFrequency lookups (lite build: always miss, tables dropped by the linker).
+bool frequencyScores(const char* w, int n, uint8_t& en, uint8_t& vn) {
+#ifdef VTX_NO_ENGLISH_TABLES
+    (void)w; (void)n; (void)en; (void)vn;
+    return false;
+#else
+    return gen::kEnglishFrequency.find(w, n, en, vn);
+#endif
+}
+
+bool frequencyHasPair(const char* p, int n) {
+#ifdef VTX_NO_ENGLISH_TABLES
+    (void)p; (void)n;
+    return false;
+#else
+    return n >= 3 && n <= gen::kFrequencyMaxPairLength && gen::kFrequencyPairs.contains(p, n);
+#endif
+}
+
+// Swift RetroEnglish.isStrongRaw: frequent English word with no Vietnamese reading.
+bool retroIsStrongRaw(const char* w, int n) {
+    uint8_t en, vn;
+    return frequencyScores(w, n, en, vn) && vn == 0 && en >= gen::kFrequencyStrongMin;
+}
+
 bool retroPairAllowed(uint8_t l, uint8_t r) {
     if (l == 0) return true;
     if (l & (kClsO | kClsB | kClsC)) return true;
@@ -873,6 +909,9 @@ void TelexEngine::retroClear() {
 
 void TelexEngine::noteBoundaryCharacter(char32_t ch) {
     noteGlue(ch);
+    // A sentence ends: the next word starts a phrase (frequency rule only reads this).
+    if (previousWordVietnamese_ && (ch == U'.' || ch == U'!' || ch == U'?' || ch == U'\n' || ch == U'\r'))
+        previousWordVietnamese_ = false;
     if (!retroactiveEnglish && retroCount_ == 0 && !retroHasPending_) return;
     if (!retroactiveEnglishActive() || rawCount_ != 0 || ch > 0xFFFF) { retroClear(); return; }
     if (retroHasPending_) {
@@ -900,10 +939,17 @@ bool TelexEngine::takeRetroCorrection(RetroCorrection& out) {
         int i = retroPicks_[k];
         if (i >= retroCount_) continue;
         RetroWord& w = retroHist_[i];
-        for (int j = 0; j < w.rawLen; ++j) w.shown[j] = w.raw[j];
-        w.shownLen = w.rawLen;
-        w.english = true;
-        w.candidate = false;
+        if (out.flipBack) {
+            for (int j = 0; j < w.altLen; ++j) w.shown[j] = w.alt[j];
+            w.shownLen = w.altLen;
+            w.english = false;
+            w.byFrequency = false;
+        } else {
+            for (int j = 0; j < w.rawLen; ++j) w.shown[j] = w.raw[j];
+            w.shownLen = w.rawLen;
+            w.english = true;
+            w.candidate = false;
+        }
     }
     retroPickCount_ = 0;
     return true;
@@ -919,6 +965,16 @@ void TelexEngine::retroRecord(bool restored, bool elongated) {
     retroHasPending_ = false;
     retroPickCount_ = 0;
     if (!retroactiveEnglishActive() || rawCount_ <= 0) { retroClear(); return; }
+    // Frequency rule (englishByFrequency): was THIS word restored only by it, and does it
+    // flip a previous one back? Both read the state the restore decision saw (before the
+    // history shifts).
+    bool byFrequency = false;
+    int flipBack = 0;
+    if (englishByFrequency) {
+        byFrequency = restored && !elongated && !shouldRestoreRawBase() && !needsStandaloneWRunRestore()
+            && frequencyPrefersEnglish();
+        flipBack = elongated ? 0 : frequencyFlipDistance(restored);
+    }
     if (retroCount_ >= kRetroHistory) {
         for (int i = 1; i < retroCount_; ++i) retroHist_[i - 1] = retroHist_[i];
         --retroCount_;
@@ -957,8 +1013,24 @@ void TelexEngine::retroRecord(bool restored, bool elongated) {
             if (gen::kGateWords[i] == key) { w.gateBit = static_cast<uint8_t>(1u << i); break; }
     }
     w.predBits = rawPredecessorBits();
+    w.strong = w.english && kind == WordContext::English && ln > 0 && retroIsStrongRaw(lw, ln);
+    w.byFrequency = byFrequency;
+    w.altLen = 0;
+    if (byFrequency) {
+        for (int i = 0; i < outCount_; ++i) w.alt[i] = out_[i];
+        w.altLen = outCount_;
+    }
     ++retroCount_;
     retroGap_ = 0;
+    if (flipBack > 0 && retroCount_ > flipBack && retroHist_[retroCount_ - 1 - flipBack].byFrequency) {
+        int pick = retroCount_ - 1 - flipBack;
+        if (retroBuild(&pick, 1, true)) {
+            retroHasPending_ = true;
+            retroPicks_[0] = pick;
+            retroPickCount_ = 1;
+        }
+        return;
+    }
     if (!w.english) return;
     int picks[kRetroHistory];
     int np = retroPlan(picks);
@@ -994,8 +1066,11 @@ bool TelexEngine::retroAnchors(int a, const int* picks, int np) const {
 int TelexEngine::retroPlan(int* picks) const {
     const RetroWord* h = retroHist_;
     const int n = retroCount_;
-    if (n < 2 || !h[n - 1].english || !h[n - 2].english || h[n - 1].gap <= 0) return 0;
-    int s = n - 2;
+    if (n < 2 || !h[n - 1].english || h[n - 1].gap <= 0) return 0;
+    // A run of ONE strong word ("fast", "very") — needs >= 2 rewritten words below.
+    const bool strongEnd = !h[n - 2].english;
+    if (strongEnd && !h[n - 1].strong) return 0;
+    int s = strongEnd ? n - 1 : n - 2;
     while (s > 0 && h[s].gap > 0 && h[s - 1].english) --s;
     int lo = s, k = 0;
     while (k < kRetroWindow && lo > 0 && h[lo].gap > 0 && (h[lo - 1].candidate || h[lo - 1].english)) { --lo; ++k; }
@@ -1003,7 +1078,7 @@ int TelexEngine::retroPlan(int* picks) const {
     for (int a = lo; a < s; ++a) {
         int np = 0;
         for (int i = a; i < s; ++i) if (h[i].candidate) picks[np++] = i;
-        if (np == 0 || !retroAnchors(a, picks, np)) continue;
+        if (np == 0 || (strongEnd && np < 2) || !retroAnchors(a, picks, np)) continue;
         bool ok = true;
         for (int i = a; i < s && ok; ++i) if (!retroPairAllowed(h[i].cls, h[i + 1].cls)) ok = false;
         for (int q = 0; q < np && ok; ++q) {
@@ -1019,7 +1094,7 @@ int TelexEngine::retroPlan(int* picks) const {
 }
 
 // Swift RetroEnglish.correction into retroPending_. False if it does not fit.
-bool TelexEngine::retroBuild(const int* picks, int np) {
+bool TelexEngine::retroBuild(const int* picks, int np, bool flipBack) {
     RetroCorrection& c = retroPending_;
     char16_t e[RetroCorrection::kMax], r[RetroCorrection::kMax];
     int32_t el = 0, rl = 0;
@@ -1033,7 +1108,8 @@ bool TelexEngine::retroBuild(const int* picks, int np) {
         const bool pick = q < np && picks[q] == i;
         if (pick) ++q;
         for (int j = 0; j < w.shownLen; ++j) if (!appendU16(e, el, w.shown[j])) return false;
-        if (pick) { for (int j = 0; j < w.rawLen; ++j) if (!appendU16(r, rl, w.raw[j])) return false; }
+        if (pick && flipBack) { for (int j = 0; j < w.altLen; ++j) if (!appendU16(r, rl, w.alt[j])) return false; }
+        else if (pick) { for (int j = 0; j < w.rawLen; ++j) if (!appendU16(r, rl, w.raw[j])) return false; }
         else { for (int j = 0; j < w.shownLen; ++j) if (!appendU16(r, rl, w.shown[j])) return false; }
     }
     int lcp = 0;
@@ -1046,7 +1122,125 @@ bool TelexEngine::retroBuild(const int* picks, int np) {
     c.expected[c.expectedLength] = 0;
     for (int i = lcp; i < rl; ++i) c.insert[i - lcp] = r[i];
     c.insert[c.insertLength] = 0;
+    c.flipBack = flipBack;
     return true;
+}
+
+int TelexEngine::debugRetroShown(int i, char16_t* buf, int cap) const {
+    if (i < 0 || i >= retroCount_) return emit(retroHist_[0].shown, 0, buf, cap);
+    return emit(retroHist_[i].shown, retroHist_[i].shownLen, buf, cap);
+}
+
+// MARK: - Frequency rule + flip-back (Swift englishByFrequency)
+
+namespace {
+constexpr uint8_t kFrequencyVietnameseFloor = 140;
+constexpr uint8_t kFrequencyMargin = 45;
+} // namespace
+
+// EnglishFrequency scores of the raw keys (boundary-only, allocation-free).
+bool TelexEngine::rawFrequencyScores(uint8_t& en, uint8_t& vn) const {
+    char w[kCapacity];
+    int n = lowerAsciiInto(raw_, rawCount_, gen::kFrequencyMaxWordLength, w);
+    return n > 0 && frequencyScores(w, n, en, vn);
+}
+
+// Frequency rule: a word at the START of a phrase (no English run, no Vietnamese word
+// right before), composed as a valid syllable that differs from the keys, whose syllable
+// is rare and whose English word is far more frequent. Off with teencode (see Swift).
+bool TelexEngine::frequencyPrefersEnglish() const {
+    if (!englishByFrequencyActive() || teencode || previousWordEnglish_ || previousWordVietnamese_ ||
+        !compositionDiffersFromRaw() || !composedIsValidSyllable())
+        return false;
+    uint8_t en, vn;
+    if (!rawFrequencyScores(en, vn) || vn == 0) return false;
+    return vn < kFrequencyVietnameseFloor && int(en) >= int(vn) + int(kFrequencyMargin);
+}
+
+// The previous history word, if the frequency rule restored it and only spaces separate it
+// from the word being committed.
+const TelexEngine::RetroWord* TelexEngine::frequencyRestoredPrevious() const {
+    if (!englishByFrequencyActive() || retroGap_ < 1 || retroGap_ > kRetroMaxGap || retroCount_ == 0) return nullptr;
+    const RetroWord& w = retroHist_[retroCount_ - 1];
+    return w.byFrequency ? &w : nullptr;
+}
+
+// The frequency-restored word TWO back with one Vietnamese word between ("hí ha hí").
+const TelexEngine::RetroWord* TelexEngine::frequencyRestoredTwoBack() const {
+    const int n = retroCount_;
+    if (!englishByFrequencyActive() || n < 2 || retroGap_ < 1 || retroGap_ > kRetroMaxGap ||
+        !retroHist_[n - 2].byFrequency || retroHist_[n - 1].gap <= 0 || retroHist_[n - 1].english)
+        return nullptr;
+    return &retroHist_[n - 2];
+}
+
+bool TelexEngine::frequencyKeepsVietnamese() const {
+    const RetroWord* prev = frequencyRestoredPrevious();
+    if (!prev || !composedIsValidSyllable() || !compositionHasDiacritic()) return false;
+    return frequencyPairEvidence(*prev);
+}
+
+// Same raw keys as `prev` (case-insensitive) or, unless reduplicationOnly, the pair
+// (prev raw, this composition's Telex key) is in gen::kFrequencyPairs. Allocation-free.
+bool TelexEngine::frequencyPairEvidence(const RetroWord& prev, bool reduplicationOnly) const {
+    char p[4 * kCapacity + 2];
+    int n = 0;
+    for (int i = 0; i < prev.rawLen; ++i) {
+        if (n >= kCapacity) return false;
+        uint8_t b = prev.raw[i];
+        if (b >= 'A' && b <= 'Z') b |= 0x20;
+        p[n++] = static_cast<char>(b);
+    }
+    if (n == rawCount_) {
+        bool same = true;
+        for (int i = 0; i < rawCount_; ++i) {
+            uint8_t b = raw_[i];
+            if (b >= 'A' && b <= 'Z') b |= 0x20;
+            if (static_cast<char>(b) != p[i]) { same = false; break; }
+        }
+        if (same) return true;
+    }
+    if (reduplicationOnly) return false;
+    p[n++] = '>';
+    n = appendComposedTelexKey(p, n);
+    return frequencyHasPair(p, n);
+}
+
+// The composition's Telex key (letters + mark keys, tone last — CommonSyllables spelling).
+int TelexEngine::appendComposedTelexKey(char* p, int start) const {
+    int n = start;
+    for (int k = 0; k < pCount_; ++k) {
+        const Letter& l = renderLetters_[k];
+        p[n++] = static_cast<char>(l.base);
+        switch (l.mark) {
+        case Mark::None: break;
+        case Mark::Circumflex: p[n++] = static_cast<char>(l.base); break;
+        case Mark::Breve: case Mark::Horn: p[n++] = 'w'; break;
+        case Mark::Bar: p[n++] = 'd'; break;
+        }
+    }
+    switch (lastEffTone_) {
+    case Tone::None: break;
+    case Tone::Acute: p[n++] = 's'; break;
+    case Tone::Grave: p[n++] = 'f'; break;
+    case Tone::Hook: p[n++] = 'r'; break;
+    case Tone::Tilde: p[n++] = 'x'; break;
+    case Tone::Dot: p[n++] = 'j'; break;
+    }
+    return n;
+}
+
+// At a commit that KEPT Vietnamese: how many words back is the frequency-restored word to
+// flip (1 or 2; 0 = none)? Only on evidence — reduplication or a known pair. Two back only
+// for an exact repeat across one Vietnamese word.
+int TelexEngine::frequencyFlipDistance(bool restored) const {
+    if (restored || !composedIsValidSyllable()) return 0;
+    if (const RetroWord* prev = frequencyRestoredPrevious()) return frequencyPairEvidence(*prev) ? 1 : 0;
+    if (compositionHasDiacritic()) {
+        const RetroWord* prev = frequencyRestoredTwoBack();
+        if (prev && frequencyPairEvidence(*prev, true)) return 2;
+    }
+    return 0;
 }
 
 int TelexEngine::commitText(bool autoRestore, char16_t* buf, int cap) {

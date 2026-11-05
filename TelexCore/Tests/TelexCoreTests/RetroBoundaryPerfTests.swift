@@ -17,7 +17,7 @@ final class RetroBoundaryPerfTests: XCTestCase {
         #endif
     }
 
-    private func engine(retro: Bool) -> TelexEngine {
+    private func engine(retro: Bool, frequency: Bool = false) -> TelexEngine {
         var e = TelexEngine()
         e.freeMarking = true
         e.liveSpellCheck = true
@@ -26,19 +26,20 @@ final class RetroBoundaryPerfTests: XCTestCase {
         e.contextualEnglish = true
         e.collisionPrefersVietnamese = true
         e.retroactiveEnglish = retro
+        e.englishByFrequency = frequency
         return e
     }
 
     /// µs per boundary (commit + noteBoundaryCharacter + take) over mixed text that triggers
     /// corrections ("His car is very fast") and text that does not (plain Vietnamese).
-    private func boundaryMicros(retro: Bool) -> (micros: Double, corrections: Int) {
+    private func boundaryMicros(retro: Bool, frequency: Bool = false) -> (micros: Double, corrections: Int) {
         let text = "His car is very fast. Toi di hocj ve muon. of course we can do this "
-                 + "Is this the best way? cai nay la cua toi nhes. "
+                 + "Is this the best way? cai nay la cua toi nhes. his huwngr quas. His His. "
         var boundaries = 0, corrections = 0
         let clock = ContinuousClock()
         let elapsed = clock.measure {
             for _ in 0..<2000 {
-                var e = engine(retro: retro)
+                var e = engine(retro: retro, frequency: frequency)
                 for ch in text {
                     if ch.isASCII, ch.isLetter {
                         _ = e.feed(ch)
@@ -65,6 +66,25 @@ final class RetroBoundaryPerfTests: XCTestCase {
         print(String(format: "RetroBoundaryPerf: us/boundary off=%.3f on=%.3f extra=%.3f corrections=%d",
                      off, on, on - off, fixes))
         XCTAssertGreaterThan(fixes, 0, "workload must actually trigger corrections")
+        XCTAssertLessThanOrEqual(on - off, Self.ceilingExtraMicros)
+    }
+
+    /// "Từ trùng theo tần suất" (englishByFrequency). TẮT = đường chốt chỉ thêm các phép thử
+    /// `if englishByFrequency` (không tra bảng, không dựng chuỗi) — so số "off" ở đây với số của
+    /// testRetroDecisionCostPerBoundary trên commit trước cờ (docs/REGRESSION.md ghi cả hai).
+    /// BẬT = vài tra nhị phân trên StaticString ở ranh giới, không cấp phát.
+    func testFrequencyRuleCostPerBoundary() {
+        var off = Double.greatestFiniteMagnitude
+        var on = Double.greatestFiniteMagnitude, fixesOff = 0, fixesOn = 0
+        for _ in 0..<5 {
+            let a = boundaryMicros(retro: true, frequency: false)
+            off = min(off, a.micros); fixesOff = a.corrections
+            let b = boundaryMicros(retro: true, frequency: true)
+            on = min(on, b.micros); fixesOn = b.corrections
+        }
+        print(String(format: "FrequencyBoundaryPerf: us/boundary freqOff=%.3f freqOn=%.3f extra=%.3f "
+                     + "corrections off=%d on=%d", off, on, on - off, fixesOff, fixesOn))
+        XCTAssertNotEqual(fixesOn, fixesOff, "workload must trigger flips / frequency restores")
         XCTAssertLessThanOrEqual(on - off, Self.ceilingExtraMicros)
     }
 }

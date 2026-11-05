@@ -40,6 +40,14 @@ struct Settings {
     // it; off = the same correction is offered as a caret hint, Tab applies it
     // (core/retro_english.h).
     bool retroactiveEnglish = false;
+    // "Đoán từ trùng theo tần suất" (EXPERIMENTAL, default OFF; engine englishByFrequency):
+    // shown with "Tự sửa từ phía trước" (needs contextualEnglish, which turns the retro engine
+    // flag on). At the start of a phrase a word that is both a common English word and a rare
+    // Vietnamese syllable commits as English ("His car…"); when the next word shows the phrase
+    // is Vietnamese ("hí hửng", "hí hí") the engine flips it back — that edit is applied
+    // automatically even in offer mode and before Enter (session finishRetro). Off = the
+    // engine flag stays off (zero cost).
+    bool englishByFrequency = false;
     // "Gạch đỏ âm tiết sai chính tả khi gõ" (Windows/Linux only, default OFF): the word in
     // a composition gets a red squiggle when it cannot become a Vietnamese syllable.
     // Composition mode only; in-place has no composition to decorate.

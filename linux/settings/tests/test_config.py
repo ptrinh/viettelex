@@ -37,6 +37,8 @@ class ParseTests(unittest.TestCase):
         self.assertFalse(config.retro_english_visible(lambda s, k: off[(s, k)]))
         d = config.parse("[typing]\nretroactive_english = true\n")
         self.assertIs(config.normalize(d)["typing"]["retroactive_english"], True)
+        d = config.parse("[typing]\nenglish_by_frequency = true\n")
+        self.assertIs(config.normalize(d)["typing"]["english_by_frequency"], True)
 
     def test_defaults_match_contract(self):
         n = config.normalize({})
@@ -45,6 +47,7 @@ class ParseTests(unittest.TestCase):
         self.assertFalse(n["typing"]["modern_tone"])
         self.assertTrue(n["typing"]["contextual_english"])
         self.assertIs(n["typing"]["retroactive_english"], False)  # thử nghiệm: mặc định tắt
+        self.assertIs(n["typing"]["english_by_frequency"], False)  # thử nghiệm: mặc định tắt
         self.assertTrue(n["typing"]["collision_prefers_vietnamese"])
         self.assertFalse(n["typing"]["teencode"])
         self.assertEqual(n["general"]["display_mode"], "preedit")

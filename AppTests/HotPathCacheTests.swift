@@ -148,6 +148,8 @@ final class HotPathCacheTests: XCTestCase {
              { s.contextualEnglish }, { s.contextualEnglish = $0 }),
             ("retroactiveEnglish", "retroactiveEnglish",
              { s.retroactiveEnglish }, { s.retroactiveEnglish = $0 }),
+            ("englishByFrequency", "englishByFrequency",
+             { s.englishByFrequency }, { s.englishByFrequency = $0 }),
         ]
         for t in toggles {
             let saved = t.get()

@@ -6,6 +6,9 @@
 #   collide  câu có từ Anh mà phím gõ trùng âm tiết Việt (his=hí, car=cả, is=í, test=tét…)
 #            hoặc câu Việt có từ Việt trùng phím từ Anh đứng sát cạnh tiếng Anh
 #   teen     chat teencode (wá, zô, thík, bíe, gòy…) + viết tắt không dấu
+#   vcollide chat tiếng Việt mà âm tiết trùng phím một từ Anh (hí=his, nơ=now, bú=bus, ít=its,
+#            lát=last, í=is…), kể cả láy / tiếng cười (hí hí, hì hì) — luật tần suất + lật lại
+#            (TelexEngine.englishByFrequency) KHÔNG được làm hỏng các câu này (05/11/2026)
 tech	Anh check/e giúp em cái PR/e này với.
 tech	em vừa push/e code/e lên branch/e dev/e rồi
 tech	build/e trên CI/e đang fail/e, ai xem giúp với
@@ -422,6 +425,20 @@ collide	thú thật là mình quên
 collide	lít xăng bao nhiêu tiền
 collide	mã giảm giá hết hạn rồi
 collide	tôi cũng có một cái xe như thế
+collide	His car is fast.
+collide	He is here.
+collide	he is
+collide	the bus
+collide	here now
+collide	His car is here now.
+collide	His dog is cute.
+collide	Is it ok?
+collide	How are you?
+collide	This is it.
+collide	Of course.
+collide	His job is hard.
+collide	Is she here?
+collide	Test/e xong rồi nhé
 teen	wá trời lun
 teen	zô đây chơi nè
 teen	thík wá đi mất
@@ -472,3 +489,33 @@ teen	tui bít mà
 teen	ai bít đâu
 teen	sao z bạn
 teen	chắc z gòy
+vcollide	hí hửng cả ngày
+vcollide	Hí hửng quá
+vcollide	hí hí
+vcollide	Hí Hí
+vcollide	hí hí hí vui ghê
+vcollide	Hì hì
+vcollide	hì hì cảm ơn nha
+vcollide	há há buồn cười quá
+vcollide	hê hê
+vcollide	ừ ừ
+vcollide	cái nơ đỏ đẹp ghê
+vcollide	thắt nơ cho em
+vcollide	cho con bú xong rồi
+vcollide	sao í
+vcollide	em í ạ
+vcollide	ít nhất cũng phải thử
+vcollide	Ít nhất là vậy
+vcollide	lát nữa gọi lại nhé
+vcollide	Lát nữa anh về
+vcollide	Mai cả team/e họp
+vcollide	bên trên có gì
+vcollide	Cả nhà ơi
+vcollide	Ít khi gặp lắm
+vcollide	Bú sữa chưa con
+vcollide	Thí sinh đến muộn
+vcollide	Hơ hơ
+vcollide	Bể nước đầy rồi
+vcollide	Bé ngủ chưa
+vcollide	Hí ha hí hửng
+vcollide	Thể nào cũng mưa

@@ -648,6 +648,28 @@ của vnlexicon.bin — không thêm nguồn mới, cùng giấy phép/ghi công
 `python3 Scripts/gen-common-syllables.py`. Dùng cho luật viết tắt toàn chữ HOA và luật giữ từ
 gõ sai một chữ.
 
+## EnglishFrequency.swift — từ trùng Anh/Việt + điểm tần suất (engine, 05/11/2026)
+
+`TelexCore/Sources/TelexCore/EnglishFrequency.swift` (port: `android/telexcore/.../EnglishWordLists.kt`
+qua `gen-wordlists.py`, `windows/engine/src/generated_tables.hpp` qua `gen_tables.py`; Linux dùng thẳng
+file Swift) sinh bởi `python3 Scripts/gen-english-frequency.py` (gọi `swift run gen-english-frequency`
+để gõ từng từ của enlexicon.bin qua engine với cấu hình mặc định của app). ~30 KB nguồn, hai bảng:
+
+- WORDS — 1.585 từ: 548 từ tiếng Anh mà Telex giữ thành âm tiết Việt hợp lệ ("his"→hí) kèm tần suất
+  Anh (enlexicon.bin, en ≥ 60) và tần suất Việt của âm tiết đó (vnlexicon.bin, theo khoá Telex), cùng
+  1.037 từ Anh "mạnh" (en ≥ 150, ≥ 3 chữ, không đọc ra âm tiết Việt). Chỉ là số tần suất của hai file đó
+  — cùng nguồn/giấy phép/ghi công với enlexicon.bin (CC BY 3.0 + MIT) và vnlexicon.bin (CC BY-SA 4.0,
+  thông báo ghi công của vnlm.bin). Phần tần suất Việt theo CC BY-SA 4.0 như CommonSyllables.swift.
+- PAIRS — 699 cặp "từ Anh > âm tiết Việt theo sau": với mỗi từ trùng có en − vn ≥ 20, tối đa 32 âm tiết
+  theo sau có PMI hai âm tiết ≥ 1,5 nat trong **vnlm.bin** (điểm bigram + uniAdj, đọc bằng reader V3
+  của gen-syllable-lm.py), bỏ cặp mà âm tiết sau trùng một từ theo sau tiếng Anh phổ biến của từ đầu
+  (`Scripts/english-next.tsv`, Tatoeba CC BY 2.0 FR). Số liệu thống kê suy ra từ vnlm.bin ⇒ **CC BY-SA
+  4.0**, cùng thông báo ghi công của vnlm.bin (mục trên); không chứa câu nào.
+
+Dùng cho: "một từ Anh mạnh chốt mạch" của sửa ngược và thử nghiệm "Đoán từ trùng theo tần suất"
+(docs/DESIGN.md). Sinh lại khi enlexicon / vnlexicon / vnlm / english-next hoặc engine đổi, rồi chạy
+hai script port + `swift test --filter FrequencyEnglishParity` (VT_RECORD_PARITY=1 nếu đổi có chủ ý).
+
 ## enlexicon.bin — từ điển tiếng Anh cho gõ vuốt (giai đoạn 3)
 
 - File: `iOS/Keyboard/Resources/enlexicon.bin`, `android/app/src/main/assets/enlexicon.bin`
@@ -1064,7 +1086,7 @@ dấu, đóng gói nhị phân) từ các file trên.
 | `vi` | câu tiếng Việt [Tatoeba](https://tatoeba.org) đã có trong repo (`iOS/KeyboardTests/Fixtures/bigram-heldout.txt`, lấy 1/3 theo hash) + câu chat có dấu tự soạn (`chat-cases.txt` cột phải) | [CC BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/) (Tatoeba) / MIT (tự soạn) |
 | `en` | câu tiếng Anh Tatoeba (`swipe-lang-sentences.txt` loại `en`, lấy 1/2 theo hash) | CC BY 2.0 FR |
 | `mix` | câu trộn của `swipe-lang-sentences.txt` loại `mix`: tự soạn + ghép câu Tatoeba Việt/Anh + chèn một từ Anh vào câu Tatoeba Việt | CC BY 2.0 FR (phần Tatoeba) / MIT |
-| `tech`, `collide`, `teen` | tự soạn cho dự án: `TelexCore/Corpus/mixed-typing-handwritten.txt` (306 câu chat công việc/lập trình, 110 câu có từ Anh trùng phím âm tiết Việt — gồm các câu cur± của `gen-retro-english-eval.py`, 50 câu teencode) | MIT (cùng mã nguồn) |
+| `tech`, `collide`, `teen`, `vcollide` | tự soạn cho dự án: `TelexCore/Corpus/mixed-typing-handwritten.txt` (306 câu chat công việc/lập trình, 124 câu có từ Anh trùng phím âm tiết Việt — gồm các câu cur± của `gen-retro-english-eval.py`, 50 câu teencode, 30 câu chat Việt có âm tiết trùng phím từ Anh) | MIT (cùng mã nguồn) |
 
 Ghi công Tatoeba: "Câu từ Tatoeba (https://tatoeba.org), © các thành viên Tatoeba, CC BY 2.0 FR" —
 có trong dòng đầu file corpus. CC BY 2.0 FR cho phép sửa/ghép (ghép câu, chuyển chữ thường) và dùng

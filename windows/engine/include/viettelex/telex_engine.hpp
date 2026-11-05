@@ -41,6 +41,12 @@ struct RetroCorrection {
     int32_t insertLength = 0;
     char16_t expected[kMax] = {};   // NUL-terminated
     char16_t insert[kMax] = {};     // NUL-terminated
+    /// Swift `flipBack`: the edit puts a word the frequency rule (englishByFrequency) had
+    /// turned English BACK to Vietnamese ("His hửng" -> "hí hửng"). It undoes the engine's
+    /// own guess: integrators apply it AUTOMATICALLY even when retroactive English is in
+    /// offer-only mode (and before an Enter goes through) — still after the same
+    /// text-before-caret check.
+    bool flipBack = false;
 };
 
 /// Swift `RestoreUndo`: the commit restored a word to its raw keys although its Vietnamese
@@ -78,6 +84,13 @@ public:
     /// raw keys ("Hí cả í very fast" -> "His car is very fast"). Inert unless
     /// contextualEnglish is on (and in VNI). See noteBoundaryCharacter / takeRetroCorrection.
     bool retroactiveEnglish = false;
+    /// Swift `englishByFrequency` (EXPERIMENTAL, default OFF): at the start of a phrase a
+    /// word whose keys are both an English word and a RARE Vietnamese syllable becomes
+    /// English when the English word is far more frequent ("His car…"); a following word
+    /// that shows the phrase is Vietnamese (reduplication / known pair: "hí hí", "hí hửng")
+    /// flips it back through a RetroCorrection with flipBack = true. Inert unless
+    /// retroactiveEnglishActive(). Off = one bool test per commit.
+    bool englishByFrequency = false;
 
     TelexEngine();
 
@@ -111,6 +124,7 @@ public:
 
     // ---- Retroactive English correction (Swift retroactiveEnglish) ------------------
     bool retroactiveEnglishActive() const { return retroactiveEnglish && contextualEnglish && !vniMode; }
+    bool englishByFrequencyActive() const { return englishByFrequency && retroactiveEnglishActive(); }
     /// The caller inserted boundary character `ch` after a commit (space, punctuation…).
     void noteBoundaryCharacter(char32_t ch);
     /// The edit the last commit decided; true = `out` filled and the caller applies it.
@@ -150,6 +164,10 @@ public:
     int debugFreezeAt() const { return disabledAtCount_; }
     /// Swift `spellCheckFreezeAt` (-1 = not frozen; 0 = whole word literal).
     int spellCheckFreezeAt() const { return disabledAtCount_ == kNotDisabled ? -1 : disabledAtCount_; }
+    /// Swift `debugRetroHistory`: number of recorded words, and word i's shown text / english.
+    int debugRetroCount() const { return retroCount_; }
+    int debugRetroShown(int i, char16_t* buf, int cap) const;
+    bool debugRetroEnglish(int i) const { return i >= 0 && i < retroCount_ && retroHist_[i].english; }
 
 private:
     struct Letter { uint8_t base = 0; Mark mark = Mark::None; bool upper = false; };
@@ -207,6 +225,8 @@ private:
     bool previousWordEnglish_ = false;
     bool englishCandidate_ = false;
     uint8_t previousGateBits_ = 0;
+    // The last committed word in the phrase was Vietnamese (frequency rule only).
+    bool previousWordVietnamese_ = false;
 
     // re-open snapshot
     uint8_t reopenRaw_[kCapacity];
@@ -251,6 +271,10 @@ private:
         bool leftNonEnglish = false;
         uint8_t gateBit = 0;
         uint8_t predBits = 0;
+        bool strong = false;        // strong English (EnglishFrequency: en >= strongMin, vn = 0)
+        bool byFrequency = false;   // restored by the frequency rule; alt = its composition
+        char32_t alt[kCapacity + 1];
+        int altLen = 0;
     };
     static constexpr int kRetroHistory = 6;
     RetroWord retroHist_[kRetroHistory];
@@ -265,7 +289,17 @@ private:
     int retroPlan(int* picks) const;
     bool retroAnchors(int a, const int* picks, int np) const;
     bool retroLeftIsNonEnglish(int a) const;
-    bool retroBuild(const int* picks, int np);
+    bool retroBuild(const int* picks, int np, bool flipBack = false);
+    // englishByFrequency (Swift "Frequency rule + flip-back")
+    bool shouldRestoreRawBase() const;
+    bool rawFrequencyScores(uint8_t& en, uint8_t& vn) const;
+    bool frequencyPrefersEnglish() const;
+    const RetroWord* frequencyRestoredPrevious() const;
+    const RetroWord* frequencyRestoredTwoBack() const;
+    bool frequencyKeepsVietnamese() const;
+    bool frequencyPairEvidence(const RetroWord& prev, bool reduplicationOnly = false) const;
+    int appendComposedTelexKey(char* p, int start) const;
+    int frequencyFlipDistance(bool restored) const;
 
     // ---- internals (names follow the Swift source) --------------------------------
     void feedAscii(uint8_t ascii, Action& out);

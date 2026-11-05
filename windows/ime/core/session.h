@@ -241,6 +241,9 @@ private:
     std::u16string shown_;     // what the current word looks like on screen
     bool overflow_ = false;    // engine overflowed: rest of the word passes through raw
     bool reopenArmed_ = false; // last event was a printable boundary after a commit
+    // Enter / Tab / Esc commit: vtx_forget_last_commit waits until finishRetro has taken the
+    // commit's retro edit (a flip-back is applied before the key goes through).
+    bool forgetAfterRetro_ = false;
     std::u16string lastRaw_, lastText_;  // see lastCommitRaw()
     std::u16string lastWord_;            // see lastCommitWord()
     retro::Undo retroUndo_;              // armed for exactly one key after a rewrite

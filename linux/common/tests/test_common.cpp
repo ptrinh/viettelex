@@ -2700,6 +2700,9 @@ void testForwardKeysRandomFaults() {
 }  // namespace
 
 // MARK: - Tự sửa từ phía trước (retroactive_english, retro_english.h)
+// "so fast", not "very fast": "very" is a STRONG English word (engine, 05/11/2026) that already
+// completes the run on its own; with "so" the edit still comes at the last word, as these
+// cases need.
 
 Settings retroSettings(bool on, bool contextual = true) {
     Settings st;
@@ -2724,33 +2727,33 @@ void testRetroSettingsGate() {
     CHECK(parseConfig(serializeConfig(p)).retroactiveEnglish);
     // contextual_english off: the switch is inert (same text as with it off).
     for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding})
-        CHECK_EQ(run("His car is very fast ", mode, retroSettings(true, false)),
-                 run("His car is very fast ", mode, retroSettings(false, false)));
+        CHECK_EQ(run("His car is so fast ", mode, retroSettings(true, false)),
+                 run("His car is so fast ", mode, retroSettings(false, false)));
 }
 
 void testRetroAutoApplies() {
-    bothModes("His car is very fast ", "His car is very fast ", retroSettings(true));
-    bothModes("His car is very fast ", "Hí cả í very fast ", retroSettings(false));
-    bothModes("His car is very fast.", "His car is very fast.", retroSettings(true));
+    bothModes("His car is so fast ", "His car is so fast ", retroSettings(true));
+    bothModes("His car is so fast ", "Hí cả í so fast ", retroSettings(false));
+    bothModes("His car is so fast.", "His car is so fast.", retroSettings(true));
     // Enter / Tab only end the phrase: no rewrite behind the user's back.
-    bothModes("His car is very fast\n", "Hí cả í very fast\n", retroSettings(true));
+    bothModes("His car is so fast\n", "Hí cả í so fast\n", retroSettings(true));
 }
 
 void testRetroBackspaceReverts() {
-    bothModes("His car is very fast <", "Hí cả í very fast ", retroSettings(true));
-    bothModes("His car is very fast <<", "Hí cả í very fast", retroSettings(true));     // 2nd ⌫: plain
-    bothModes("His car is very fast x<", "His car is very fast ", retroSettings(true)); // next key only
-    bothModes("His car is very fast <now ", "Hí cả í very fast now ", retroSettings(true));
+    bothModes("His car is so fast <", "Hí cả í so fast ", retroSettings(true));
+    bothModes("His car is so fast <<", "Hí cả í so fast", retroSettings(true));     // 2nd ⌫: plain
+    bothModes("His car is so fast x<", "His car is so fast ", retroSettings(true)); // next key only
+    bothModes("His car is so fast <now ", "Hí cả í so fast now ", retroSettings(true));
     for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
         Session s;
         Mock m;
         s.applySettings(retroSettings(true));
         s.setDisplayMode(mode, m);
-        type(s, m, "His car is very fast ");
+        type(s, m, "His car is so fast ");
         CHECK(s.retroUndoArmed());
         m.doc += "!";  // something the Session did not see
         type(s, m, "<");
-        CHECK_EQ(m.screen(), std::string("His car is very fast "));  // ordinary ⌫ deleted "!"
+        CHECK_EQ(m.screen(), std::string("His car is so fast "));  // ordinary ⌫ deleted "!"
     }
 }
 
@@ -2786,18 +2789,18 @@ void testRestoreUndoBackspace() {
 void testRetroSkippedWhenUnverifiable() {
     for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
         // No surrounding text: never rewrite blindly.
-        CHECK_EQ(run("His car is very fast ", mode, retroSettings(true), false), std::string("Hí cả í very fast "));
+        CHECK_EQ(run("His car is so fast ", mode, retroSettings(true), false), std::string("Hí cả í so fast "));
         // The app changed a word the engine counts on.
         Session s;
         Mock m;
         s.applySettings(retroSettings(true));
         s.setDisplayMode(mode, m);
-        type(s, m, "His car is very ");
+        type(s, m, "His car is so ");
         const size_t at = m.doc.find("cả");
         CHECK(at != std::string::npos);
         if (at != std::string::npos) m.doc.replace(at, std::string("cả").size(), "ca");
         type(s, m, "fast ");
-        CHECK_EQ(m.screen(), std::string("Hí ca í very fast "));
+        CHECK_EQ(m.screen(), std::string("Hí ca í so fast "));
         CHECK(!s.retroUndoArmed());
         // Policy forbids reaching back into committed text (terminal / generic app id).
         Session t;
@@ -2805,8 +2808,8 @@ void testRetroSkippedWhenUnverifiable() {
         t.applySettings(retroSettings(true));
         t.setDisplayMode(mode, n);
         t.setSurroundingEdits(false);
-        type(t, n, "His car is very fast ");
-        CHECK_EQ(n.screen(), std::string("Hí cả í very fast "));
+        type(t, n, "His car is so fast ");
+        CHECK_EQ(n.screen(), std::string("Hí cả í so fast "));
     }
 }
 
@@ -2816,11 +2819,11 @@ void testRetroHostLagsBehindTheLastWord() {
     Session s;
     Mock m;
     s.applySettings(retroSettings(true));
-    type(s, m, "His car is very ");
+    type(s, m, "His car is so ");
     m.hasReported = true;
     m.reported = m.doc;  // the host has not shown "fast" yet
     type(s, m, "fast ");
-    CHECK_EQ(m.screen(), std::string("His car is very fast "));
+    CHECK_EQ(m.screen(), std::string("His car is so fast "));
     // Lagging further (the rewritten words not shown): skip.
     Session t;
     Mock n;
@@ -2828,8 +2831,8 @@ void testRetroHostLagsBehindTheLastWord() {
     type(t, n, "His car is ");
     n.hasReported = true;
     n.reported = n.doc;
-    type(t, n, "very fast ");
-    CHECK_EQ(n.screen(), std::string("Hí cả í very fast "));
+    type(t, n, "so fast ");
+    CHECK_EQ(n.screen(), std::string("Hí cả í so fast "));
 }
 
 // Offer mode (retroactive_english off, contextual_english on): a caret suggestion, Tab applies.
@@ -2839,39 +2842,39 @@ void testRetroOfferMode() {
         Mock m;
         s.applySettings(retroSettings(false));
         s.setDisplayMode(mode, m);
-        type(s, m, "His car is very fast ");
-        CHECK_EQ(m.screen(), std::string("Hí cả í very fast "));  // nothing changed yet
+        type(s, m, "His car is so fast ");
+        CHECK_EQ(m.screen(), std::string("Hí cả í so fast "));  // nothing changed yet
         CHECK(s.hint() && s.hint()->kind == CaretSuggestion::Kind::Retro);
         if (s.hint()) {
             CHECK_EQ(s.hint()->display, std::string("His car is"));
-            CHECK_EQ(s.hint()->replace, std::string("í cả í very fast "));
-            CHECK_EQ(s.hint()->insert, std::string("is car is very fast "));
+            CHECK_EQ(s.hint()->replace, std::string("í cả í so fast "));
+            CHECK_EQ(s.hint()->insert, std::string("is car is so fast "));
         }
         CHECK_EQ(m.hintShown, std::string("His car is   Tab"));
         CHECK(!s.retroUndoArmed());
         type(s, m, "\t");  // accept: the verified rewrite, the Tab is consumed
-        CHECK_EQ(m.screen(), std::string("His car is very fast "));
+        CHECK_EQ(m.screen(), std::string("His car is so fast "));
         CHECK(!s.hint());
         CHECK(m.hintShown.empty());
         type(s, m, "now ");
-        CHECK_EQ(m.screen(), std::string("His car is very fast now "));
+        CHECK_EQ(m.screen(), std::string("His car is so fast now "));
 
         // Any other key dismisses it and goes on as usual.
         Session t;
         Mock n;
         t.applySettings(retroSettings(false));
         t.setDisplayMode(mode, n);
-        type(t, n, "His car is very fast x");
+        type(t, n, "His car is so fast x");
         CHECK(!t.hint());
         CHECK(n.hintShown.empty());
-        CHECK_EQ(n.screen(), std::string("Hí cả í very fast x"));
+        CHECK_EQ(n.screen(), std::string("Hí cả í so fast x"));
 
         // Auto: applied, nothing offered. contextual_english off: nothing at all.
         Session a;
         Mock am;
         a.applySettings(retroSettings(true));
         a.setDisplayMode(mode, am);
-        type(a, am, "His car is very fast ");
+        type(a, am, "His car is so fast ");
         CHECK(!a.hint());
         CHECK_EQ(am.hintShows, 0);
         for (bool sw : {false, true}) {
@@ -2879,16 +2882,16 @@ void testRetroOfferMode() {
             Mock om;
             o.applySettings(retroSettings(sw, false));
             o.setDisplayMode(mode, om);
-            type(o, om, "His car is very fast ");
+            type(o, om, "His car is so fast ");
             CHECK(!o.hint());
-            CHECK_EQ(om.screen(), std::string("Hí cả í very fast "));
+            CHECK_EQ(om.screen(), std::string("Hí cả í so fast "));
         }
         // Enter never offers (it may have sent the message).
         Session e;
         Mock em;
         e.applySettings(retroSettings(false));
         e.setDisplayMode(mode, em);
-        type(e, em, "His car is very fast\n");
+        type(e, em, "His car is so fast\n");
         CHECK(!e.hint());
     }
 }
@@ -2900,7 +2903,7 @@ void testRetroOfferNeedsVerifiedText() {
         Mock m;
         s.applySettings(retroSettings(false));
         s.setDisplayMode(mode, m);
-        type(s, m, "His car is very ");
+        type(s, m, "His car is so ");
         const size_t at = m.doc.find("cả");
         CHECK(at != std::string::npos);
         if (at != std::string::npos) m.doc.replace(at, std::string("cả").size(), "ca");
@@ -2912,32 +2915,32 @@ void testRetroOfferNeedsVerifiedText() {
         n.surrounding = false;
         t.applySettings(retroSettings(false));
         t.setDisplayMode(mode, n);
-        type(t, n, "His car is very fast ");
+        type(t, n, "His car is so fast ");
         CHECK(!t.hint());
         Session u;
         Mock p;
         u.applySettings(retroSettings(false));
         u.setDisplayMode(mode, p);
         u.setSurroundingEdits(false);
-        type(u, p, "His car is very fast ");
+        type(u, p, "His car is so fast ");
         CHECK(!u.hint());
         // Shown, then the text changed before Tab: not applied, the Tab goes on.
         Session v;
         Mock q;
         v.applySettings(retroSettings(false));
         v.setDisplayMode(mode, q);
-        type(v, q, "His car is very fast ");
+        type(v, q, "His car is so fast ");
         CHECK(v.hint());
         q.doc += "!";
         type(v, q, "\t");
-        CHECK_EQ(q.screen(), std::string("Hí cả í very fast !\t"));
+        CHECK_EQ(q.screen(), std::string("Hí cả í so fast !\t"));
     }
     // The host lags by the word this key committed: offered (the head "H" still found).
     Session s;
     Mock m;
     s.applySettings(retroSettings(false));
     s.setDisplayMode(DisplayMode::Surrounding, m);
-    type(s, m, "His car is very ");
+    type(s, m, "His car is so ");
     m.hasReported = true;
     m.reported = m.doc;
     type(s, m, "fast ");
@@ -2954,7 +2957,7 @@ void testRetroOfferWinsOverOtherSuggestions() {
         s.setHintSink([&reqs](const HintRequest &r) { reqs.push_back(r); });
         s.applySettings(st);
         s.setDisplayMode(DisplayMode::Surrounding, m);
-        type(s, m, "His car is very fast ");
+        type(s, m, "His car is so fast ");
         CHECK(!reqs.empty());  // the next-word request after the space
         if (reqs.empty()) continue;
         CaretSuggestion typo;
@@ -2971,6 +2974,78 @@ void testRetroOfferWinsOverOtherSuggestions() {
         } else {
             CHECK(s.hint()->kind == CaretSuggestion::Kind::Typo);  // control: the path works
         }
+    }
+}
+
+// MARK: - Đoán từ trùng theo tần suất (english_by_frequency, engine englishByFrequency)
+
+Settings frequencySettings(bool retroAuto, bool frequency = true, bool contextual = true) {
+    Settings st = retroSettings(retroAuto, contextual);
+    st.englishByFrequency = frequency;
+    return st;
+}
+
+void testFrequencySettingsGate() {
+    Settings d;
+    CHECK(!d.englishByFrequency);  // experimental: default OFF
+    Settings p = parseConfig("[typing]\nenglish_by_frequency = true\n");
+    CHECK(p.englishByFrequency);
+    CHECK(parseConfig(serializeConfig(p)).englishByFrequency);
+    CHECK(!parseConfig(serializeConfig(d)).englishByFrequency);
+    // contextual_english off: inert (same text as with it off).
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding})
+        CHECK_EQ(run("his huwngr ", mode, frequencySettings(false, true, false)),
+                 run("his huwngr ", mode, frequencySettings(false, false, false)));
+}
+
+// The flip-back is applied AUTOMATICALLY: in offer mode (retroactive_english off) too.
+void testFrequencyFlipBack() {
+    for (bool retroAuto : {false, true}) {
+        Settings st = frequencySettings(retroAuto);
+        bothModes("His ", "His ", st);                 // start of a phrase: English
+        bothModes("his huwngr ", "hí hửng ", st);      // known pair: flipped back
+        bothModes("His huwngr ", "Hí hửng ", st);
+        bothModes("his his ", "hí hí ", st);           // reduplication
+        bothModes("His huwngr ", "Hí hửng ", frequencySettings(retroAuto, false));  // off
+    }
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        Session s;
+        Mock m;
+        s.applySettings(frequencySettings(false));
+        s.setDisplayMode(mode, m);
+        type(s, m, "his huwngr ");
+        CHECK(!s.hint());  // applied, not offered
+        CHECK_EQ(m.screen(), std::string("hí hửng "));
+    }
+}
+
+// Enter: the flip lands BEFORE the newline (a regular retro edit never applies there).
+void testFrequencyFlipBackBeforeEnter() {
+    for (bool retroAuto : {false, true}) {
+        bothModes("his huwngr\n", "hí hửng\n", frequencySettings(retroAuto));
+        for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+            Session s;
+            Mock m;
+            s.applySettings(frequencySettings(retroAuto));
+            s.setDisplayMode(mode, m);
+            type(s, m, "his huwngr\n");
+            CHECK(!s.retroUndoArmed());  // Enter: no ⌫-undo
+        }
+    }
+}
+
+void testFrequencyFlipBackNeedsVerifiedText() {
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        // No surrounding text: never rewrite blindly.
+        CHECK_EQ(run("his huwngr ", mode, frequencySettings(false), false), std::string("his hửng "));
+        Session s;
+        Mock m;
+        s.applySettings(frequencySettings(false));
+        s.setDisplayMode(mode, m);
+        type(s, m, "his ");
+        m.doc = "hiss ";  // something the Session did not see
+        type(s, m, "huwngr ");
+        CHECK_EQ(m.screen(), std::string("hiss hửng "));
     }
 }
 
@@ -3026,6 +3101,10 @@ int main() {
     testRetroOfferMode();
     testRetroOfferNeedsVerifiedText();
     testRetroOfferWinsOverOtherSuggestions();
+    testFrequencySettingsGate();
+    testFrequencyFlipBack();
+    testFrequencyFlipBackBeforeEnter();
+    testFrequencyFlipBackNeedsVerifiedText();
     testRetroOfferDisplay();
     testBasicTyping();
     testPreeditIsUnderlinedComposition();

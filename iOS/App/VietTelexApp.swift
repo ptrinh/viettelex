@@ -868,6 +868,8 @@ struct KieuGoSection: View {
     private var contextualEnglish = true
     @AppStorage(RetroEnglishUI.autoKey, store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var retroEnglishAuto = false
+    @AppStorage(RetroEnglishUI.frequencyKey, store: UserDefaults(suiteName: AppFlavor.appGroup))
+    private var englishByFrequency = false
     @AppStorage("teencode", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var teencode = false
     @AppStorage("vniMode", store: UserDefaults(suiteName: AppFlavor.appGroup))
@@ -907,6 +909,7 @@ struct KieuGoSection: View {
             settingToggle(L("Quyết định theo ngữ cảnh"), L("Sau một từ tiếng Anh, từ nhập nhằng kế tiếp mà chuỗi phím tạo thành một từ tiếng Anh sẽ được giữ tiếng Anh thay vì tiếng Việt — “he is” → “he is”, không phải “he í”. Sau từ tiếng Việt hoặc không rõ thì để tiếng Việt — “sao í”."), isOn: $contextualEnglish)
             if RetroEnglishUI.switchVisible(contextualEnglish: contextualEnglish, vniMode: vniMode) {
                 experimentalToggle(L("Tự sửa từ phía trước"), L("Khi bạn gõ tiếp một câu tiếng Anh, tự sửa các từ vừa bị bỏ dấu nhầm (vd. \"Hí cả í very fast\" → \"His car is very fast\")."), isOn: $retroEnglishAuto)
+                experimentalToggle(L("Đoán từ trùng theo tần suất"), L("Đầu câu, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his → hí) thì chọn tiếng Anh; từ kế cho thấy là tiếng Việt (hí hửng, hí hí) thì tự đổi lại."), isOn: $englishByFrequency)
             }
             if !vniMode {
                 settingToggle(L("Chính tả teencode"), L("Chấp nhận cách viết khi chat: w/z/k thay cho qu/d/c (wá, zui zẻ, kó) và bíe, thík, gòy, ừk. Tắt = chỉ chính tả chuẩn, từ tiếng Anh như was, war, zoo giữ nguyên."), isOn: $teencode)

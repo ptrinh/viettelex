@@ -144,6 +144,7 @@ phím). Mặc định tắt; user bật theo app.
 | | Kiểm tra chính tả khi gõ (`liveSpellCheck`) | bật |
 | | Quyết định theo ngữ cảnh (`contextualEnglish`) | bật |
 | | Tự sửa từ phía trước, thử nghiệm (`retroactiveEnglish`; chỉ hiện khi `contextualEnglish` bật) | tắt |
+| | Đoán từ trùng theo tần suất, thử nghiệm (`englishByFrequency`; chỉ hiện khi `contextualEnglish` bật; phép lật lại tự áp cả ở chế độ mời và trước Enter) | tắt |
 | | Ưu tiên tiếng Việt khi trùng (`collisionPrefersVietnamese`) | bật |
 | | Chính tả teencode (`teencode`) | tắt |
 | | Gõ lại dấu cho từ trước con trỏ (`reEditWord`) | bật |

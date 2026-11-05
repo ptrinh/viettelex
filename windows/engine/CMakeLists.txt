@@ -59,8 +59,10 @@ if(VTX_BUILD_TESTS)
   add_test(NAME golden COMMAND vtx_tests golden "${VTX_GOLDEN_GZ}")
   add_test(NAME unit COMMAND vtx_tests unit)
   # Retroactive English: behaviour + eval over the fixture shared with Swift/Kotlin.
+  # + "Từ trùng theo tần suất" (englishByFrequency) / strong English word parity fixture.
   add_test(NAME retro COMMAND vtx_tests retro
-           "${CMAKE_CURRENT_SOURCE_DIR}/../../iOS/KeyboardTests/Fixtures/retro-english-eval.txt")
+           "${CMAKE_CURRENT_SOURCE_DIR}/../../iOS/KeyboardTests/Fixtures/retro-english-eval.txt"
+           "${CMAKE_CURRENT_SOURCE_DIR}/../../iOS/KeyboardTests/Fixtures/frequency-english-parity.txt")
 
   add_executable(vtx_bench bench/bench.cpp)
   target_link_libraries(vtx_bench PRIVATE viettelex_engine)

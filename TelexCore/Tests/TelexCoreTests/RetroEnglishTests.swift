@@ -98,6 +98,9 @@ final class RetroEnglishTests: XCTestCase {
     /// run. With the app defaults "His car is here now" has no word committed as English at
     /// all (here→hể: collisionPrefersVietnamese, now→nơ), so nothing triggers; any English
     /// continuation fixes the head. A sentence-initial "Ít" + English is read as "Its".
+    /// (Unchanged by the strong-word rule — here/now are colliding words, not strong. With the
+    /// experimental `englishByFrequency` on, "His car is here now." is fixed from "His" on:
+    /// FrequencyEnglishTests.testHereNowWithFrequencyRule.)
     func testKnownLimits() {
         XCTAssertEqual(typed("His car is here now"), "Hí cả í hể nơ")
         XCTAssertEqual(typed("His car is here now and it is fast"), "Hí cả í hể nơ and it is fast")
@@ -116,24 +119,27 @@ final class RetroEnglishTests: XCTestCase {
     }
 
     /// The correction is one replace relative to the caret, unchanged prefix stripped.
+    /// "very" is a STRONG English word (frequent, no Vietnamese reading): with three anchored
+    /// candidates before it, it completes the run on its own — the edit comes at "very",
+    /// one word earlier than the classic two-English-word trigger.
     func testCorrectionShape() {
         var e = appEngine(retro: true)
-        for k in ["His", "car", "is", "very"] {
+        for k in ["His", "car", "is"] {
             for ch in k { _ = e.feed(ch) }
             _ = e.commitText(autoRestore: true)
             e.noteBoundaryCharacter(" ")
             XCTAssertNil(e.takeRetroCorrection())
         }
-        for ch in "fast" { _ = e.feed(ch) }
-        XCTAssertEqual(e.commitText(autoRestore: true), "fast")
-        // Before the boundary char: span "Hí cả í very fast" minus the shared "H".
+        for ch in "very" { _ = e.feed(ch) }
+        XCTAssertEqual(e.commitText(autoRestore: true), "very")
+        // Before the boundary char: span "Hí cả í very" minus the shared "H".
         XCTAssertEqual(e.pendingRetroCorrection,
-                       RetroCorrection(backspaces: 16, expected: "í cả í very fast",
-                                       insert: "is car is very fast", words: 3))
+                       RetroCorrection(backspaces: 11, expected: "í cả í very",
+                                       insert: "is car is very", words: 3))
         e.noteBoundaryCharacter(".")   // reported before taking: the edit grows with it
         XCTAssertEqual(e.takeRetroCorrection(),
-                       RetroCorrection(backspaces: 17, expected: "í cả í very fast.",
-                                       insert: "is car is very fast.", words: 3))
+                       RetroCorrection(backspaces: 12, expected: "í cả í very.",
+                                       insert: "is car is very.", words: 3))
         XCTAssertNil(e.takeRetroCorrection())
     }
 

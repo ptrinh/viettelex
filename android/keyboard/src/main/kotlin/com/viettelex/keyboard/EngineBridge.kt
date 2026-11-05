@@ -199,6 +199,8 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
             e.contextualEnglish = settings.contextualEnglish
             // Cả hai chế độ (mời / tự áp) cần quyết định của engine; contextualEnglish tắt ⇒ không gì cả.
             e.retroactiveEnglish = settings.contextualEnglish
+            // Tắt ⇒ engine chỉ thử một Boolean ở mỗi lần chốt từ.
+            e.englishByFrequency = settings.englishByFrequency
         }
     }
 
@@ -310,6 +312,9 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         var final = before
         if (action is TelexAction.Replace) final = Cp.dropLast(before, action.backspaces) + action.insert
         apply(action, "", proxy)
+        // Lật lại (englishByFrequency): sửa đoán của chính engine ("His hửng" → "hí hửng") ⇒ tự áp
+        // TRƯỚC khi ký tự ranh giới vào — kể cả Enter (chưa gửi) và khi sửa ngược chỉ mời.
+        engine.pendingRetroCorrection?.let { if (it.flipBack) applyFlipBack(it, proxy) }
         put(text)
         // Engine cần MỌI ký tự ranh giới (dính "my_var" / "100W"), có sửa ngược hay không.
         // (⌫ sau khôi phục phím thô: session mời chữ Việt trên thanh gợi ý — restoreUndoRaw.)
@@ -326,7 +331,8 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
     private fun retroAfterBoundary(text: String, proxy: TextProxy) {
         for (ch in text) engine.noteBoundaryCharacter(ch)
         val c = engine.pendingRetroCorrection ?: return
-        if (text.contains('\n') || proxy.hasSelection) return
+        // Lật lại đã thử trước khi chèn ranh giới (applyFlipBack); lệch thì bỏ, không mời.
+        if (c.flipBack || text.contains('\n') || proxy.hasSelection) return
         if (!settings.retroEnglishAuto) { retroOffer = c; return }
         if (!retroMatches(c.expected, proxy.contextBeforeInput())) {
             TouchLog.write("retro: screen disagrees → không sửa")
@@ -337,6 +343,22 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         proxy.deleteCodePoints(c.backspaces)
         proxy.insertText(c.insert)
         expansionUndo = ExpansionUndo(c.expected, c.insert, "", retro = true)
+    }
+
+    /**
+     * Áp phép LẬT LẠI ngay sau khi chốt từ (chưa chèn ranh giới): cùng kiểm chữ trước con trỏ như
+     * sửa ngược; lệch / có vùng chọn ⇒ bỏ (phép sửa hết hạn ở lệnh engine kế tiếp). Không chip
+     * "Khôi phục": phép này chỉ trả lại đúng chữ Việt người dùng gõ.
+     */
+    private fun applyFlipBack(c: RetroCorrection, proxy: TextProxy) {
+        if (proxy.hasSelection || !retroMatches(c.expected, proxy.contextBeforeInput())) {
+            TouchLog.write("flip-back: screen disagrees → không sửa")
+            return
+        }
+        engine.takeRetroCorrection()
+        if (TouchLog.enabled) TouchLog.edit(c.backspaces, Cp.count(c.insert), c.insert)
+        proxy.deleteCodePoints(c.backspaces)
+        proxy.insertText(c.insert)
     }
 
     /** Chạm chip sửa ngược (công tắc tắt): áp phép sửa đang mời. false = hết mời / chữ đã khác ⇒ không sửa. */

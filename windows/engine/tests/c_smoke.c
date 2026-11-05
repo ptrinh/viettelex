@@ -78,10 +78,11 @@ int main(void) {
     EXPECT(!vtx_has_spelling_error(NULL, 1));
     vtx_destroy(e);
 
-    /* retroactive English: "His car is very fast " -> one edit back to the raw keys */
+    /* retroactive English: "His car is very " -> one edit back to the raw keys ("very" is a
+       strong English word: it completes the run on its own) */
     {
-        static const char* words[] = {"His", "car", "is", "very", "fast"};
-        const uint16_t want[] = {0xED, ' ', 'c', 0x1EA3, ' ', 0xED, ' ', 'v', 'e', 'r', 'y', ' ', 'f', 'a', 's', 't', ' '};
+        static const char* words[] = {"His", "car", "is", "very"};
+        const uint16_t want[] = {0xED, ' ', 'c', 0x1EA3, ' ', 0xED, ' ', 'v', 'e', 'r', 'y', ' '};
         vtx_retro_correction r;
         int w, got = 0;
         e = vtx_create();
@@ -89,17 +90,42 @@ int main(void) {
                          VTX_COLLISION_PREFERS_VI | VTX_ENGLISH_WORD_RESTORE | VTX_EAGER_ENGLISH_RESTORE |
                          VTX_RETRO_ENGLISH);
         EXPECT((vtx_get_flags(e) & VTX_RETRO_ENGLISH) != 0);
-        for (w = 0; w < 5; ++w) {
+        EXPECT((vtx_get_flags(e) & VTX_ENGLISH_BY_FREQUENCY) == 0);
+        for (w = 0; w < 4; ++w) {
             for (i = 0; i < strlen(words[w]); ++i) vtx_feed(e, (uint32_t)words[w][i], &a);
             vtx_commit_boundary(e, 1, &a);
             vtx_note_boundary(e, ' ');
             got = vtx_take_retro_correction(e, &r);
-            EXPECT(got == (w == 4));
+            EXPECT(got == (w == 3));
         }
-        EXPECT(got && r.backspaces == 17 && r.words == 3);
-        EXPECT(eq16(r.expected, r.expected_len, NULL, want, 17));
-        EXPECT(eq16(r.insert, r.insert_len, "is car is very fast ", NULL, 0));
+        EXPECT(got && r.backspaces == 12 && r.words == 3 && r.flip_back == 0);
+        EXPECT(eq16(r.expected, r.expected_len, NULL, want, 12));
+        EXPECT(eq16(r.insert, r.insert_len, "is car is very ", NULL, 0));
         EXPECT(!vtx_take_retro_correction(e, &r));
+        vtx_destroy(e);
+    }
+    /* englishByFrequency: "His " commits as English, "hửng " flips it back (flip_back = 1) */
+    {
+        static const char* words[] = {"His", "huwngr"};
+        const uint16_t want[] = {'i', 's', ' ', 'h', 0x1EED, 'n', 'g', ' '};
+        const uint16_t ins[] = {0xED, ' ', 'h', 0x1EED, 'n', 'g', ' '};
+        vtx_retro_correction r;
+        int w, got = 0;
+        e = vtx_create();
+        vtx_set_flags(e, VTX_FREE_MARKING | VTX_LIVE_SPELL_CHECK | VTX_CONTEXTUAL_ENGLISH |
+                         VTX_COLLISION_PREFERS_VI | VTX_ENGLISH_WORD_RESTORE | VTX_EAGER_ENGLISH_RESTORE |
+                         VTX_RETRO_ENGLISH | VTX_ENGLISH_BY_FREQUENCY);
+        EXPECT((vtx_get_flags(e) & VTX_ENGLISH_BY_FREQUENCY) != 0);
+        for (w = 0; w < 2; ++w) {
+            for (i = 0; i < strlen(words[w]); ++i) vtx_feed(e, (uint32_t)words[w][i], &a);
+            vtx_commit_boundary(e, 1, &a);
+            vtx_note_boundary(e, ' ');
+            got = vtx_take_retro_correction(e, &r);
+            EXPECT(got == (w == 1));
+        }
+        EXPECT(got && r.backspaces == 8 && r.words == 1 && r.flip_back == 1);
+        EXPECT(eq16(r.expected, r.expected_len, NULL, want, 8));
+        EXPECT(eq16(r.insert, r.insert_len, NULL, ins, 7));
         vtx_destroy(e);
     }
     /* restore-undo: all-caps "NAS" restores to raw keys; the record hands back "NÁ" */

@@ -88,7 +88,7 @@ public func vt_engine_free(_ h: OpaquePointer?) {
 }
 
 @_cdecl("vt_abi_version")
-public func vt_abi_version() -> Int32 { 1 }
+public func vt_abi_version() -> Int32 { 2 }
 
 // MARK: - Flags
 
@@ -109,6 +109,7 @@ public func vt_engine_set_flag(_ h: OpaquePointer, _ flag: Int32, _ on: Bool) {
     case 10: b.e.collisionPrefersVietnamese = on
     case 11: b.e.eagerEnglishRestore = on
     case 12: b.e.retroactiveEnglish = on
+    case 13: b.e.englishByFrequency = on
     default: break
     }
 }
@@ -130,6 +131,7 @@ public func vt_engine_get_flag(_ h: OpaquePointer, _ flag: Int32) -> Bool {
     case 10: return e.collisionPrefersVietnamese
     case 11: return e.eagerEnglishRestore
     case 12: return e.retroactiveEnglish
+    case 13: return e.englishByFrequency
     default: return false
     }
 }
@@ -200,7 +202,7 @@ public func vt_note_boundary(_ h: OpaquePointer, _ ch: UInt32) {
 }
 
 /// vt_retro layout: int32 backspaces @0, words @4, expected_len @8, insert_len @12,
-/// char expected[1024] @16, char insert[1024] @1040.
+/// char expected[1024] @16, char insert[1024] @1040, int32 flip_back @2064.
 @_cdecl("vt_take_retro")
 public func vt_take_retro(_ h: OpaquePointer, _ out: UnsafeMutableRawPointer?) -> Bool {
     guard let out, let c = box(h).e.takeRetroCorrection() else { return false }
@@ -220,6 +222,7 @@ public func vt_take_retro(_ h: OpaquePointer, _ out: UnsafeMutableRawPointer?) -
     out.storeBytes(of: Int32(c.words), toByteOffset: 4, as: Int32.self)
     out.storeBytes(of: el, toByteOffset: 8, as: Int32.self)
     out.storeBytes(of: il, toByteOffset: 12, as: Int32.self)
+    out.storeBytes(of: Int32(c.flipBack ? 1 : 0), toByteOffset: 16 + 2 * cap, as: Int32.self)
     return true
 }
 

@@ -99,52 +99,53 @@ final class RetroEnglishBridgeTests: XCTestCase {
 
     // MARK: công tắc BẬT — tự áp + Khôi phục
 
+    /// (Từ Anh MẠNH "fast" chốt mạch một mình: phép sửa đến ở chính "fast" — 05/11/2026.)
     func testAutoApplyAndRestoreChip() {
         let p = MockProxy(), b = EngineBridge(settings: settings(auto: true))
-        type("His car is very fast ", b, p)
-        XCTAssertEqual(p.text, "His car is very fast ")
+        type("His car is fast ", b, p)
+        XCTAssertEqual(p.text, "His car is fast ")
         XCTAssertNil(b.retroOffer)
         XCTAssertTrue(b.retroUndoAvailable)
         XCTAssertTrue(b.revertRetro(proxy: p))
-        XCTAssertEqual(p.text, "Hí cả í very fast ")            // đúng chữ trước khi sửa
+        XCTAssertEqual(p.text, "Hí cả í fast ")            // đúng chữ trước khi sửa
         XCTAssertFalse(b.retroUndoAvailable)
         XCTAssertFalse(b.revertRetro(proxy: p))
         // gõ tiếp bình thường sau khi khôi phục
         type("now ", b, p)
-        XCTAssertTrue(p.text.hasPrefix("Hí cả í very fast "), p.text)
+        XCTAssertTrue(p.text.hasPrefix("Hí cả í fast "), p.text)
     }
 
     func testBackspaceRightAfterAutoFixRestores() {
         let p = MockProxy(), b = EngineBridge(settings: settings(auto: true))
-        type("His car is very fast ", b, p)
-        XCTAssertEqual(p.text, "His car is very fast ")
+        type("His car is fast ", b, p)
+        XCTAssertEqual(p.text, "His car is fast ")
         type("⌫", b, p)
-        XCTAssertEqual(p.text, "Hí cả í very fast ")            // ⌫ đầu = Khôi phục, không xoá ký tự
+        XCTAssertEqual(p.text, "Hí cả í fast ")            // ⌫ đầu = Khôi phục, không xoá ký tự
         XCTAssertTrue(b.revertedRetro)
         XCTAssertFalse(b.retroUndoAvailable)
         type("⌫", b, p)                                          // ⌫ kế: xoá thường
-        XCTAssertEqual(p.text, "Hí cả í very fast")
+        XCTAssertEqual(p.text, "Hí cả í fast")
     }
 
     func testRestoreGoneOnNextKey() {
         let p = MockProxy(), b = EngineBridge(settings: settings(auto: true))
-        type("His car is very fast ", b, p)
+        type("His car is fast ", b, p)
         type("n", b, p)
         XCTAssertFalse(b.retroUndoAvailable)
         type("⌫", b, p)                                          // ⌫ thường, không khôi phục
-        XCTAssertEqual(p.text, "His car is very fast ")
+        XCTAssertEqual(p.text, "His car is fast ")
     }
 
     func testBackspaceAfterAutoFixMismatchIsNormalDelete() {
         let p = MockProxy(), b = EngineBridge(settings: settings(auto: true))
-        type("His car is very fast ", b, p)
-        p.text = "His car is very fast  "                       // host thêm chữ
+        type("His car is fast ", b, p)
+        p.text = "His car is fast  "                       // host thêm chữ
         type("⌫", b, p)
-        XCTAssertEqual(p.text, "His car is very fast ")
+        XCTAssertEqual(p.text, "His car is fast ")
         XCTAssertFalse(b.revertedRetro)
         // chip Khôi phục cũng phải kiểm lại
         let p2 = MockProxy(), b2 = EngineBridge(settings: settings(auto: true))
-        type("His car is very fast ", b2, p2)
+        type("His car is fast ", b2, p2)
         p2.text = "x"
         XCTAssertFalse(b2.revertRetro(proxy: p2))
         XCTAssertEqual(p2.text, "x")
@@ -152,24 +153,24 @@ final class RetroEnglishBridgeTests: XCTestCase {
 
     func testAutoApplyMismatchDoesNotEdit() {
         let p = MockProxy(), b = EngineBridge(settings: settings(auto: true))
-        type("His car is very fas", b, p)
-        p.fakeContext = .some("khác hẳn very fas")              // host báo chữ khác
+        type("His car is fas", b, p)
+        p.fakeContext = .some("khác hẳn fas")              // host báo chữ khác
         type("t ", b, p)
-        XCTAssertEqual(p.text, "Hí cả í very fast ")
+        XCTAssertEqual(p.text, "Hí cả í fast ")
         XCTAssertFalse(b.retroUndoAvailable)
         // context nil ⇒ cũng không sửa
         let p2 = MockProxy(), b2 = EngineBridge(settings: settings(auto: true))
-        type("His car is very fas", b2, p2)
+        type("His car is fas", b2, p2)
         p2.fakeContext = .some(nil)
         type("t ", b2, p2)
-        XCTAssertEqual(p2.text, "Hí cả í very fast ")
+        XCTAssertEqual(p2.text, "Hí cả í fast ")
     }
 
     func testEnterNeverRewrites() {
         for auto in [false, true] {
             let p = MockProxy(), b = EngineBridge(settings: settings(auto: auto))
-            type("His car is very fast⏎", b, p)
-            XCTAssertEqual(p.text, "Hí cả í very fast\n")
+            type("His car is fast⏎", b, p)
+            XCTAssertEqual(p.text, "Hí cả í fast\n")
             XCTAssertNil(b.retroOffer)
             XCTAssertFalse(b.retroUndoAvailable)
         }
@@ -211,5 +212,57 @@ final class RetroEnglishBridgeTests: XCTestCase {
         // không đọc được context: chỉ phần chèn, vẫn trọn các từ đổi
         XCTAssertFalse(EngineBridge.retroLabel(c, context: nil).isEmpty)
         XCTAssertTrue("His car is".hasSuffix(EngineBridge.retroLabel(c, context: nil)))
+    }
+
+    // MARK: "Đoán từ trùng theo tần suất" (englishByFrequency) — lật lại luôn tự áp
+
+    private func frequencySettings(auto: Bool) -> KeyboardSettings {
+        var s = settings(auto: auto)
+        s.englishByFrequency = true
+        return s
+    }
+
+    func testFrequencySettingDefaultOffLoadsAndIsBackedUp() {
+        XCTAssertFalse(KeyboardSettings().englishByFrequency)
+        let name = "vt-test-freq"
+        let d = UserDefaults(suiteName: name)!
+        d.removePersistentDomain(forName: name)
+        let saved = UserDefaultsProvider.shared
+        UserDefaultsProvider.shared = d
+        defer { UserDefaultsProvider.shared = saved; d.removePersistentDomain(forName: name) }
+        XCTAssertFalse(KeyboardSettings.load().englishByFrequency)
+        d.set(true, forKey: RetroEnglishUI.frequencyKey)
+        XCTAssertTrue(KeyboardSettings.load().englishByFrequency)
+        XCTAssertTrue(BackupSettings.all.contains { $0.key == RetroEnglishUI.frequencyKey })
+    }
+
+    func testFlipBackAppliedEvenInOfferMode() {
+        let p = MockProxy(), b = EngineBridge(settings: frequencySettings(auto: false))
+        type("his huwngr ", b, p)
+        XCTAssertEqual(p.text, "hí hửng ")
+        XCTAssertNil(b.retroOffer)
+        let p2 = MockProxy(), b2 = EngineBridge(settings: frequencySettings(auto: false))
+        type("His His ", b2, p2)
+        XCTAssertEqual(p2.text, "Hí Hí ")
+        // Tiếng Anh đầu câu: đúng ngay từ đầu.
+        let p3 = MockProxy(), b3 = EngineBridge(settings: frequencySettings(auto: false))
+        type("His dog is cute ", b3, p3)
+        XCTAssertEqual(p3.text, "His dog is cute ")
+    }
+
+    /// Enter: lật lại TRƯỚC khi "\n" vào (chưa gửi); sửa ngược tiếng Anh thì không.
+    func testFlipBackBeforeEnter() {
+        let p = MockProxy(), b = EngineBridge(settings: frequencySettings(auto: false))
+        type("his huwngr⏎", b, p)
+        XCTAssertEqual(p.text, "hí hửng\n")
+    }
+
+    /// Màn hình lệch ⇒ không viết lại.
+    func testFlipBackSkippedOnContextMismatch() {
+        let p = MockProxy(), b = EngineBridge(settings: frequencySettings(auto: false))
+        type("his huwngr", b, p)
+        p.fakeContext = .some("zzz hửng")
+        type(" ", b, p)
+        XCTAssertEqual(p.text, "his hửng ")
     }
 }

@@ -37,6 +37,7 @@ auto_restore = true                 # Tự khôi phục từ không phải tiế
 teencode = false                    # Chấp nhận teencode (wá, zô, kó, thík…)
 contextual_english = true           # Quyết định theo ngữ cảnh (từ trước là tiếng Anh)
 retroactive_english = false         # Tự sửa từ phía trước (thử nghiệm; chỉ khi contextual_english bật)
+english_by_frequency = false        # Đoán từ trùng theo tần suất (thử nghiệm; chỉ khi contextual_english bật)
 collision_prefers_vietnamese = true # last/lát, his/hí: giữ tiếng Việt
 bracket_vowels = false              # [ → ơ, ] → ư
 shortcuts_enabled = true            # Bật bảng gõ tắt (shortcuts.yml)
@@ -82,6 +83,7 @@ vốn rỗng). Map sang cờ engine (`vt_engine_set_flag`):
 `modern_tone→MODERN_TONE`, `quick_telex→QUICK_TELEX`, `spell_check→LIVE_SPELL_CHECK`,
 `teencode→TEENCODE`, `contextual_english→CONTEXTUAL_ENGLISH`,
 `contextual_english→RETRO_ENGLISH` (`retroactive_english` chọn tự áp / mời bằng gợi ý),
+`contextual_english && english_by_frequency→ENGLISH_BY_FREQUENCY`,
 `collision_prefers_vietnamese→COLLISION_PREFERS_VIETNAMESE`, `bracket_vowels→BRACKET_VOWELS`;
 `auto_restore` là tham số của `vt_commit` (không phải cờ).
 
@@ -278,6 +280,16 @@ chậm đúng phần từ vừa commit trong phím này). Enter/Tab chỉ cắt 
 - Công tắc **tắt**: MỜI bằng gợi ý cạnh con trỏ (aux text, `CaretSuggestion::Kind::Retro`):
   "His car is   Tab". Tab đọc lại text rồi áp đúng phép sửa đó; phím khác ẩn gợi ý và đi tiếp.
   Gợi ý này thắng mọi gợi ý khác cùng phím (trả lời của helper bị bỏ khi nó đang hiện).
+
+### 8d. Đoán từ trùng theo tần suất (`[typing] english_by_frequency`, thử nghiệm, mặc định tắt)
+
+App cài đặt hiện công tắc ngay dưới "Tự sửa từ phía trước", cùng điều kiện (`contextual_english`
+bật). Cờ `VT_FLAG_ENGLISH_BY_FREQUENCY` chỉ bật cùng `VT_FLAG_RETRO_ENGLISH` (tắt = engine chỉ thử
+một Bool mỗi lần chốt từ). Đầu cụm, từ vừa là tiếng Anh phổ biến vừa là âm tiết Việt hiếm (his →
+hí) chốt thành tiếng Anh; từ kế cho thấy là tiếng Việt (cặp hay gặp "hí hửng", lặp "hí hí") thì
+engine trả phép sửa có `flip_back = 1`. `Session::finishRetro` áp phép LẬT LẠI đó tự động qua đúng
+đường xoá + chèn có kiểm surrounding text, kể cả khi công tắc "Tự sửa từ phía trước" tắt (chế độ
+mời) và cả ở Enter / Tab / Esc — trước khi phím đi tiếp. Không có ⌫ hoàn tác sau Enter.
 
 ## 9. Thử nghiệm: không gạch chân ở Chromium/Electron (`[experimental] no_underline`)
 

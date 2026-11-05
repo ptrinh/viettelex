@@ -182,6 +182,31 @@ public struct TelexEngine {
     /// `retroactiveEnglish` is actually in effect (needs contextual English, Telex only).
     public var retroactiveEnglishActive: Bool { retroactiveEnglish && contextualEnglish && !vniMode }
 
+    /// TỪ TRÙNG THEO TẦN SUẤT + LẬT LẠI (EXPERIMENTAL, mặc định TẮT — Cài đặt → Thử nghiệm).
+    /// Một từ mà phím gõ vừa là từ tiếng Anh vừa ra âm tiết Việt hợp lệ, ở ĐẦU cụm (không có từ
+    /// Việt ngay trước, chưa có mạch tiếng Anh): chọn tiếng Anh khi âm tiết Việt HIẾM (tần suất <
+    /// `frequencyVietnameseFloor`) và từ Anh phổ biến hơn ≥ ~10 lần (`frequencyMargin` byte trên
+    /// thang log chung — `EnglishFrequency`): "His car is fast." đúng ngay từ "His".
+    /// Từ kế tiếp cho thấy câu là tiếng Việt ⇒ LẬT LẠI từ trước về chữ Việt bằng đúng đường sửa
+    /// ngược (`RetroCorrection.flipBack`, integrator TỰ ÁP kể cả khi sửa ngược chỉ mời): từ kế
+    /// lặp lại y phím (láy / tiếng cười "hí hí", "Hí Hí") hoặc cùng từ trước thành cặp âm tiết
+    /// Việt hay đi liền (`EnglishFrequency` PAIRS: "hí hửng", "lát nữa", "thí sinh"). Cần sửa ngược đang chạy (`retroactiveEnglishActive`: integrator báo
+    /// ký tự ranh giới và nhận phép sửa) — không thì trơ. Tắt = không đổi gì; chi phí khi tắt: một
+    /// phép thử Bool ở mỗi lần chốt từ (RetroBoundaryPerfTests).
+    public var englishByFrequency = false
+
+    /// `englishByFrequency` is actually in effect.
+    public var englishByFrequencyActive: Bool { englishByFrequency && retroactiveEnglishActive }
+
+    /// Ngưỡng luật tần suất (chỉnh trên mô phỏng gõ câu trộn, tập val — docs/REGRESSION.md).
+    static let frequencyVietnameseFloor: UInt8 = 140
+    static let frequencyMargin: UInt8 = 45
+
+    /// The last committed word in the current phrase was Vietnamese (read only by the
+    /// frequency rule: a colliding word right after Vietnamese stays Vietnamese — "sao í",
+    /// "cho con bú"). Sentence punctuation / newline / `resetContext` clear it.
+    private var previousWordVietnamese = false
+
     // Retroactive-English session state: the last committed words (oldest first, at most
     // RetroEnglish.historyCapacity), spaces reported since the last commit, and the edit
     // computed by the last commit until the caller takes it (or anything else happens).
@@ -920,6 +945,12 @@ public struct TelexEngine {
     /// Only then do the standard validity/exception rules decide.
     /// NON-mutating (scratch-free) so `peekCommitText` can share it verbatim.
     private func shouldRestoreRaw() -> Bool {
+        if shouldRestoreRawBase() { return true }
+        return englishByFrequency && frequencyPrefersEnglish()
+    }
+
+    /// Every restore rule except the frequency rule (`englishByFrequency`).
+    private func shouldRestoreRawBase() -> Bool {
         // Vietnamese syllable + literal initials ("PhươngTH", issue #138): the head was
         // vetted when the split was taken (valid syllable, no cancel, not an English
         // word) and the suffix is exactly what was typed — keep the screen.
@@ -976,6 +1007,10 @@ public struct TelexEngine {
             // did NOT clean the word up ("excess"→"êcs", "lenses"→"lêns").
             return composedHasDiacritic()
         }
+        // Lật lại (englishByFrequency): từ trước vừa bị luật tần suất đổi sang tiếng Anh, từ này
+        // lặp lại y phím ("His His" = hí hí) hoặc cùng nó thành cặp âm tiết Việt hay gặp ⇒ GIỮ
+        // tiếng Việt (rồi từ trước được lật lại ở retroRecord), trước mọi luật khôi phục Anh.
+        if englishByFrequency, frequencyKeepsVietnamese() { return false }
         // Ưu tiên tiếng Việt khi trùng (collisionPrefersVietnamese): từ Việt hợp lệ
         // thắng bảng collision khi đứng một mình; trong mạch tiếng Anh xem nhánh
         // context bên dưới (bảng vẫn khôi phục ở đó).
@@ -1009,6 +1044,134 @@ public struct TelexEngine {
                || (collisionPrefersVietnamese && rawIsEnglishCollision()),
            predecessorGateAllows() { return true }
         return false
+    }
+
+    // MARK: - Frequency rule + flip-back (englishByFrequency)
+
+    /// Lowercased raw keys into `buf`; false if not all ascii letters or too long.
+    private func lowerRaw(into buf: UnsafeMutablePointer<UInt8>, limit: Int) -> Bool {
+        guard rawCount > 0, rawCount <= limit else { return false }
+        for i in 0..<rawCount {
+            var b = raw[i]
+            if b >= 0x41, b <= 0x5A { b |= 0x20 }
+            guard b >= 0x61, b <= 0x7A else { return false }
+            buf[i] = b
+        }
+        return true
+    }
+
+    /// `EnglishFrequency` scores of the raw keys (boundary-only, allocation-free).
+    private func rawFrequencyScores() -> (en: UInt8, vn: UInt8)? {
+        withUnsafeTemporaryAllocation(of: UInt8.self, capacity: Self.capacity) { buf in
+            guard let p = buf.baseAddress, lowerRaw(into: p, limit: EnglishFrequency.maxWordLength) else { return nil }
+            return EnglishFrequency.scores(UnsafeBufferPointer(start: p, count: rawCount), count: rawCount)
+        }
+    }
+
+    /// Luật tần suất: từ ĐẦU cụm (không mạch Anh, không từ Việt ngay trước), chữ trên màn hình là
+    /// âm tiết Việt hợp lệ có biến đổi, âm tiết đó hiếm và từ Anh phổ biến hơn hẳn. NON-mutating.
+    /// Không chạy khi bật teencode: tần suất Việt đếm trên corpus đã CHUẨN HOÁ teencode
+    /// (bít → biết), nên "bít", "wá"… trông hiếm oan ("bít gòi" → "bits gòi").
+    private func frequencyPrefersEnglish() -> Bool {
+        guard englishByFrequencyActive, !teencode, !previousWordEnglish, !previousWordVietnamese,
+              compositionDiffersFromRaw(), composedIsValidSyllable(),
+              let sc = rawFrequencyScores(), sc.vn > 0 else { return false }
+        return sc.vn < Self.frequencyVietnameseFloor && Int(sc.en) >= Int(sc.vn) + Int(Self.frequencyMargin)
+    }
+
+    /// The previous history word, if the frequency rule restored it and only spaces separate
+    /// it from the word being committed.
+    private var frequencyRestoredPrevious: RetroWord? {
+        guard englishByFrequencyActive, retroGap >= 1, retroGap <= RetroEnglish.maxGap,
+              let w = retroHistory.last, w.byFrequency else { return nil }
+        return w
+    }
+
+    /// The frequency-restored word TWO back ("His ha" + this word), with a Vietnamese word
+    /// between and only spaces around it — for the laughter pattern "hí ha hí hửng".
+    private var frequencyRestoredTwoBack: RetroWord? {
+        let n = retroHistory.count
+        guard englishByFrequencyActive, n >= 2, retroGap >= 1, retroGap <= RetroEnglish.maxGap,
+              retroHistory[n - 2].byFrequency, retroHistory[n - 1].gap > 0,
+              !retroHistory[n - 1].english else { return nil }
+        return retroHistory[n - 2]
+    }
+
+    /// Reduplication or a known Vietnamese pair with the frequency-restored previous word.
+    private func frequencyKeepsVietnamese() -> Bool {
+        guard let prev = frequencyRestoredPrevious, composedIsValidSyllable(),
+              compositionHasDiacritic() else { return false }
+        return frequencyPairEvidence(prev)
+    }
+
+    /// Same raw keys as `prev` (case-insensitive: "His His", "hí hí") or, unless
+    /// `reduplicationOnly`, (prev, this composition) is in `EnglishFrequency` PAIRS.
+    /// Allocation-free.
+    private func frequencyPairEvidence(_ prev: RetroWord, reduplicationOnly: Bool = false) -> Bool {
+        withUnsafeTemporaryAllocation(of: UInt8.self, capacity: 4 * Self.capacity + 2) { buf in
+            guard let p = buf.baseAddress else { return false }
+            var n = 0
+            for var b in prev.raw.utf8 {
+                guard n < Self.capacity else { return false }
+                if b >= 0x41, b <= 0x5A { b |= 0x20 }
+                p[n] = b; n += 1
+            }
+            // Reduplication: identical raw keys.
+            if n == rawCount {
+                var same = true
+                for i in 0..<rawCount {
+                    var b = raw[i]
+                    if b >= 0x41, b <= 0x5A { b |= 0x20 }
+                    if b != p[i] { same = false; break }
+                }
+                if same { return true }
+            }
+            if reduplicationOnly { return false }
+            p[n] = UInt8(ascii: ">"); n += 1
+            n = appendComposedTelexKey(p, n)
+            return EnglishFrequency.hasPair(UnsafeBufferPointer(start: p, count: n), count: n)
+        }
+    }
+
+    /// Append the composition's Telex key (letters with mark keys, tone last — the
+    /// `CommonSyllables` spelling: "hửng" → "huwngr") at `p[n...]`; returns the new length.
+    private func appendComposedTelexKey(_ p: UnsafeMutablePointer<UInt8>, _ start: Int) -> Int {
+        var n = start
+        for k in 0..<pCount {
+            let l = renderLetters[k]
+            p[n] = l.base; n += 1
+            switch l.mark {
+            case .none: break
+            case .circumflex: p[n] = l.base; n += 1
+            case .breve, .horn: p[n] = UInt8(ascii: "w"); n += 1
+            case .bar: p[n] = UInt8(ascii: "d"); n += 1
+            }
+        }
+        switch lastEffTone {
+        case .none: break
+        case .acute: p[n] = UInt8(ascii: "s"); n += 1
+        case .grave: p[n] = UInt8(ascii: "f"); n += 1
+        case .hook: p[n] = UInt8(ascii: "r"); n += 1
+        case .tilde: p[n] = UInt8(ascii: "x"); n += 1
+        case .dot: p[n] = UInt8(ascii: "j"); n += 1
+        }
+        return n
+    }
+
+    /// At a commit that KEPT Vietnamese: should the frequency-restored previous word flip
+    /// back? Only on EVIDENCE for the Vietnamese reading — reduplication or a known pair.
+    /// "Any clearly-Vietnamese next word" was measured too (05/11/2026, mixed-eval val):
+    /// it also flips a deliberate English loanword at the start of a Vietnamese sentence
+    /// ("test thế này…" → "tét thế này…") and fixes nothing the pair table misses.
+    /// Boundary-only.
+    /// Returns how many words back the flipped word is (1 or 2; 0 = no flip). Two back only
+    /// for an exact repeat across one Vietnamese word ("hí ha hí").
+    private func frequencyFlipDistance(restored: Bool) -> Int {
+        guard !restored, composedIsValidSyllable() else { return 0 }
+        if let prev = frequencyRestoredPrevious { return frequencyPairEvidence(prev) ? 1 : 0 }
+        if compositionHasDiacritic(), let prev = frequencyRestoredTwoBack,
+           frequencyPairEvidence(prev, reduplicationOnly: true) { return 2 }
+        return 0
     }
 
     /// Glue rule (boundary-only, non-mutating):
@@ -1312,9 +1475,10 @@ public struct TelexEngine {
         switch classifyWordContext(restored: restored) {
         case .englishFunction: previousWordEnglish = true; englishCandidate = false
         case .english:         foldEnglishContentWord()
-        case .vietnamese:      clearEnglishContext(); return
+        case .vietnamese:      clearEnglishContext(); previousWordVietnamese = true; return
         case .neutral:         break                  // loanword/foreign: preserve
         }
+        if previousWordEnglish { previousWordVietnamese = false }     // a run opened (one loanword does not)
         previousGateBits = rawLowerWord().map(EnglishContextWords.predecessorBits(of:)) ?? 0
     }
 
@@ -1349,6 +1513,7 @@ public struct TelexEngine {
     /// typing context doesn't inherit the previous field's last word.
     public mutating func resetContext() {
         clearEnglishContext()
+        previousWordVietnamese = false
         if !retroHistory.isEmpty || retroPending != nil { retroClear() }
     }
 
@@ -1360,6 +1525,10 @@ public struct TelexEngine {
     /// relative to the caret. No-op while the feature is inactive.
     public mutating func noteBoundaryCharacter(_ ch: Character) {
         noteGlue(ch)
+        // A sentence ends: the next word starts a phrase (frequency rule only reads this).
+        if previousWordVietnamese, ch == "." || ch == "!" || ch == "?" || ch == "\n" || ch == "\r" {
+            previousWordVietnamese = false
+        }
         guard retroactiveEnglish || !retroHistory.isEmpty || retroPending != nil else { return }
         // One BMP scalar only: the edit counts characters as UTF-16 units on every platform.
         guard retroactiveEnglishActive, rawCount == 0, ch.unicodeScalars.count == 1,
@@ -1367,7 +1536,8 @@ public struct TelexEngine {
         if let p = retroPending {
             retroPending = RetroCorrection(backspaces: p.backspaces + 1,
                                            expected: p.expected + String(ch),
-                                           insert: p.insert + String(ch), words: p.words)
+                                           insert: p.insert + String(ch), words: p.words,
+                                           flipBack: p.flipBack)
         }
         if ch == " " {
             retroGap += 1
@@ -1453,9 +1623,15 @@ public struct TelexEngine {
         guard let c = retroPending else { return nil }
         retroPending = nil
         for i in retroPendingPicks where i < retroHistory.count {
-            retroHistory[i].shown = retroHistory[i].raw
-            retroHistory[i].english = true
-            retroHistory[i].candidate = false
+            if c.flipBack {
+                retroHistory[i].shown = retroHistory[i].alt
+                retroHistory[i].english = false
+                retroHistory[i].byFrequency = false
+            } else {
+                retroHistory[i].shown = retroHistory[i].raw
+                retroHistory[i].english = true
+                retroHistory[i].candidate = false
+            }
         }
         retroPendingPicks.removeAll()
         return c
@@ -1479,6 +1655,14 @@ public struct TelexEngine {
         guard retroactiveEnglishActive, rawCount > 0 else { retroClear(); return }
         let rawText = rawKeystrokes
         let shown = restored ? rawText : (elongated ? composedElongated() : composed)
+        // Frequency rule (englishByFrequency): was THIS word restored only by it, and does it
+        // flip the previous one back? Both read the state the restore decision saw.
+        var byFrequency = false, flipBack = 0
+        if englishByFrequency {
+            byFrequency = restored && !elongated && !shouldRestoreRawBase() && !needsStandaloneWRunRestore()
+                && frequencyPrefersEnglish()
+            flipBack = elongated ? 0 : frequencyFlipDistance(restored: restored)
+        }
         let ascii = shown.unicodeScalars.allSatisfy { $0.isASCII }
         let kind = classifyWordContext(restored: restored)
         let lower = rawLowerWord()
@@ -1492,11 +1676,22 @@ public struct TelexEngine {
         let leftNonEnglish = gap > 0 && !(retroHistory.last?.english ?? true)
         if retroHistory.count >= RetroEnglish.historyCapacity { retroHistory.removeFirst() }
         let gateBit: UInt8 = lower.flatMap(EnglishContextWords.gateIndex(of:)).map { UInt8(1) << UInt8($0) } ?? 0
+        let strong = english && kind == .english && (lower.map(RetroEnglish.isStrongRaw) ?? false)
         retroHistory.append(RetroWord(raw: rawText, shown: shown, english: english, candidate: candidate,
                                       cls: lower.map(RetroEnglish.classBits) ?? 0, gap: gap,
                                       leftNonEnglish: leftNonEnglish, gateBit: gateBit,
-                                      predBits: lower.map(EnglishContextWords.predecessorBits(of:)) ?? 0))
+                                      predBits: lower.map(EnglishContextWords.predecessorBits(of:)) ?? 0,
+                                      strong: strong, byFrequency: byFrequency,
+                                      alt: byFrequency ? composed : ""))
         retroGap = 0
+        if flipBack > 0, retroHistory.count > flipBack, retroHistory[retroHistory.count - 1 - flipBack].byFrequency {
+            let picks = [retroHistory.count - 1 - flipBack]
+            if let c = RetroEnglish.correction(retroHistory, picks, flipBack: true) {
+                retroPending = c
+                retroPendingPicks = picks
+            }
+            return
+        }
         guard english, let picks = RetroEnglish.plan(retroHistory),
               let c = RetroEnglish.correction(retroHistory, picks) else { return }
         retroPending = c
@@ -2063,7 +2258,7 @@ public struct TelexEngine {
         // "done rồi as" → "rồi" dropped between its last key and the space → "as"
         // decided on "done" → restored to English. Previous word is now unknown →
         // Vietnamese default, same call the ⌫-into-committed-text path makes.
-        if rawCount > 0 { clearEnglishContext() }
+        if rawCount > 0 { clearEnglishContext(); previousWordVietnamese = true }
         resetWord()
         reopenRawCount = 0
         reopenOutCount = 0

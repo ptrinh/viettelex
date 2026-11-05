@@ -61,9 +61,11 @@ enum RetroApply {
         case offer
     }
 
-    static func mode(contextualEnglish: Bool, autoApply: Bool) -> Mode {
+    /// `flipBack`: phép LẬT LẠI của "Đoán từ trùng theo tần suất" (engine tự sửa đoán của
+    /// chính nó: "His hửng" → "hí hửng") ⇒ luôn tự áp, kể cả khi công tắc tắt và ở Enter.
+    static func mode(contextualEnglish: Bool, autoApply: Bool, flipBack: Bool = false) -> Mode {
         guard contextualEnglish else { return .none }
-        return autoApply ? .autoApply : .offer
+        return autoApply || flipBack ? .autoApply : .offer
     }
 
     /// Chế độ THỰC TẾ trên phím ranh giới. Chi phí trên đường phím (đo 23/10/2026, xem

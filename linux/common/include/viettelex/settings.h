@@ -39,6 +39,11 @@ struct Settings {
     // contextual_english): on = "Hí cả í very fast" → "His car is very fast" at the boundary,
     // ⌫ next reverts it; off = offered as a caret suggestion, Tab applies (retro_english.h).
     bool retroactiveEnglish = false;
+    // "Đoán từ trùng theo tần suất" (english_by_frequency, EXPERIMENTAL, default OFF; engine
+    // englishByFrequency; needs contextual_english like retroactive_english): his → "His" at
+    // the start of a phrase, flipped back automatically when the next word shows Vietnamese
+    // ("hí hửng", "hí hí") — also in offer mode and before Enter.
+    bool englishByFrequency = false;
     bool collisionPrefersVietnamese = true;
     bool bracketVowels = false;
     bool shortcutsEnabled = true;

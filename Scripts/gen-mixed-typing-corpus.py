@@ -18,6 +18,7 @@ Nhóm và nguồn (giấy phép ở docs/DATA-SOURCES.md mục "mixed-typing.tsv
   tech     chat công việc/lập trình tự soạn       — TelexCore/Corpus/mixed-typing-handwritten.txt
   collide  câu có từ Anh trùng phím âm tiết Việt   — như trên (+ câu cur± của gen-retro-english-eval.py)
   teen     chat teencode tự soạn                  — như trên
+  vcollide chat Việt có âm tiết trùng phím từ Anh (hí hửng, nơ, bú, ít nhất, hí hí) — như trên
 
 Trong file tự soạn: từ Anh có hậu tố "/e". Dòng KHÔNG có "/e" mà toàn ASCII ⇒ cả câu tiếng Anh
 (nhóm collide). Chạy:  python3 Scripts/gen-mixed-typing-corpus.py

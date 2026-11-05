@@ -7,6 +7,10 @@ import Foundation
 enum RetroEnglishUI {
     /// Key App Group (Bool, mặc định false).
     static let autoKey = "retroactiveEnglish"
+    /// "Đoán từ trùng theo tần suất" (thử nghiệm, mặc định TẮT — TelexEngine.englishByFrequency).
+    /// Key App Group + backup (Bool). Song sinh Android Keys.ENGLISH_BY_FREQUENCY, macOS
+    /// AppState.Key.englishByFrequency. Cùng điều kiện hiện với công tắc sửa ngược.
+    static let frequencyKey = "englishByFrequency"
 
     /// Công tắc chỉ hiện khi "Quyết định theo ngữ cảnh" bật (engine chỉ sửa ngược khi đó),
     /// và không ở VNI (engine chỉ sửa ngược ở Telex — như teencode).

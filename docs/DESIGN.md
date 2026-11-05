@@ -159,6 +159,45 @@ Kotlin `android/telexcore/.../RetroEnglish.kt`, C++ `TelexEngine::retroPlan`):
 4. Cặp kề nhau phải hợp lý (P→B|mở, D→mở, R→D|P|O|mở, còn lại tự do); cổng tiền tố
    (`predecessorGates`: "been" chỉ sau have/has/had/'ve) áp dụng.
 5. Giữa câu sau một từ Việt, cần ≥ 2 từ viết lại ("cái này á the best" giữ "á").
+6. MỘT TỪ ANH MẠNH đủ chốt mạch (05/11/2026): từ vừa chốt là tiếng Anh phổ biến KHÔNG đọc ra
+   âm tiết Việt (`EnglishFrequency`: en ≥ 150, vn = 0 — "very", "fast", "mother") thì mạch một
+   từ đó cũng kích hoạt, nhưng đoạn viết lại phải có ≥ 2 từ (và vẫn phải neo). "His car is
+   fast." nay sửa được; "Hí cả í very fast" sửa ngay ở "very" (sớm một từ). Câu Việt có MỘT từ
+   trùng trước từ Anh ("Mai cả team họp", "làm cả review code") không đổi: chỉ một ứng viên.
+   Đo: mô phỏng gõ câu trộn — `retro` val lazy 3,64 → 3,19 %, nhóm `vi` / `vcollide` 0 từ sai;
+   eval sửa ngược (`retro-english-eval.txt`) 0 từ Việt bị đổi.
+
+### Đoán từ trùng theo tần suất + lật lại (`englishByFrequency`, THỬ NGHIỆM, mặc định TẮT, 05/11/2026)
+
+Cài đặt "Đoán từ trùng theo tần suất" (Thử nghiệm, mọi nền tảng, hiện cùng chỗ công tắc sửa
+ngược). Cần sửa ngược đang chạy (`englishByFrequencyActive` = cờ ∧ `retroactiveEnglishActive`):
+phép lật lại đi đúng đường sửa ngược. Tắt = không đổi gì; chi phí: các phép thử
+`if englishByFrequency` ở ranh giới (đo: 932 vs 936 ns/ranh giới trước/sau, trong nhiễu).
+
+- **Luật tần suất** (ở ranh giới, sau mọi luật khôi phục khác): từ ĐẦU cụm — chưa có mạch Anh,
+  từ ngay trước không phải tiếng Việt (`previousWordVietnamese`; dấu . ! ? / xuống dòng /
+  `resetContext` xoá) — mà chữ trên màn hình là âm tiết Việt hợp lệ có biến đổi, phím thô là từ
+  tiếng Anh trong `EnglishFrequency`: chọn tiếng Anh khi tần suất Việt < 140 VÀ tần suất Anh ≥
+  Việt + 45 (thang log chung 0–255 của enlexicon/vnlexicon; 45 byte ≈ gấp 10 lần). "His car is
+  fast." đúng từ "His" (his 237 / hí 87); "Ít nhất" (its 194 / ít 175), "Cả nhà" (car 173 / cả
+  209), "sao í" (sau từ Việt) không đổi. Teencode bật ⇒ luật tắt (tần suất Việt đếm trên corpus
+  đã chuẩn hoá teencode: "bít gòi" thành "bits gòi"). Ngưỡng chọn trên tập val của mô phỏng
+  (lưới sàn 100–180 × biên 30–60: biên gần như không đổi gì, sàn 140 tốt nhất).
+- **Lật lại**: từ vừa đổi sang Anh bởi luật trên được trả về chữ Việt khi từ kế là BẰNG CHỨNG
+  tiếng Việt: (a) lặp y phím, không phân biệt hoa thường ("hí hí", "Hí Hí", "hì hì") — từ kế
+  khi đó cũng GIỮ tiếng Việt dù mạch Anh vừa mở; (b) cặp âm tiết Việt hay đi liền trong bảng
+  PAIRS (`EnglishFrequency`, từ vnlm.bin: "hí hửng", "lát nữa", "thí sinh") — kể cả khi từ kế
+  là từ trùng; (c) lặp y phím cách một từ Việt ("hí ha hí hửng"). Đã đo phương án "từ kế rõ là
+  tiếng Việt (có dấu, không đọc ra tiếng Anh) là đủ": nó lật cả từ mượn Anh chủ ý đầu câu Việt
+  ("test thế này…" → "tét thế này…") mà không cứu thêm câu nào ⇒ bỏ.
+- Phép lật lại là `RetroCorrection` có `flipBack = true` (C: `flip_back`), dựng như sửa ngược
+  (một lần xoá + chèn, tiền tố chung bỏ). Integrator **luôn tự áp** nó — kể cả khi sửa ngược chỉ
+  mời (chip / gợi ý cạnh con trỏ), và **cả ở Enter**: áp ngay sau commit, TRƯỚC khi ký tự ranh
+  giới / Enter đi — với cùng phép kiểm chữ trước con trỏ (lệch / có vùng chọn ⇒ bỏ). Nhận phép
+  sửa ⇒ lịch sử ghi từ đó là tiếng Việt. Còn lại: chữ "His" vẫn hiện ra giữa hai ranh giới
+  ("hí hửng" nhảy một nhịp) — mô phỏng đo bằng `flicker_per_100`.
+- Cờ: Swift/Kotlin/C++ `englishByFrequency`, C ABI Windows `VTX_ENGLISH_BY_FREQUENCY` (1u<<13),
+  Linux `VT_FLAG_ENGLISH_BY_FREQUENCY`; khoá cài đặt / backup / iCloud: `englishByFrequency`.
 
 API cho integrator (giống nhau ở 3 port; đơn vị = ký tự UTF-16, mọi ký tự liên quan đều BMP):
 
