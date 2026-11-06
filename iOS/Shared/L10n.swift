@@ -140,7 +140,7 @@ enum L10n {
         "Hàng phím số": "Number row",
         "Hàng số cao bằng hàng chữ": "Number row as tall as letter rows",
         "Phím cạnh dấu cách": "Key next to space",
-        "Phím to": "Larger keys",
+        "Cỡ phím chấm và phẩy": "Period & comma key size",
         "Dấu phẩy": "Comma",
         "Dấu chấm": "Period",
         "Cả hai": "Both",

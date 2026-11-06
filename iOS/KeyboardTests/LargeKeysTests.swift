@@ -286,4 +286,10 @@ final class LargeKeysTests: XCTestCase {
             }
         }
     }
+
+    /// "Cỡ phím chấm và phẩy" ẩn khi "Phím cạnh dấu cách" = Tắt (06/11/2026).
+    func testSettingHiddenWhenSideKeyOff() {
+        XCTAssertFalse(LargeKeys.settingVisible(.off))
+        for s in [SpaceSideKey.comma, .period, .both] { XCTAssertTrue(LargeKeys.settingVisible(s)) }
+    }
 }

@@ -91,7 +91,7 @@ object L10nTable {
         put("Hàng số cao bằng hàng chữ", "Number row as tall as letter rows")
         put("Phím số to bằng phím chữ (bàn phím cao thêm đúng một hàng).", "Digit keys as big as letter keys (keyboard gets exactly one row taller).")
         put("Phím cạnh dấu cách", "Key next to space")
-        put("Phím to", "Larger keys")
+        put("Cỡ phím chấm và phẩy", "Period & comma key size")
         put("Dấu phẩy", "Comma")
         put("Dấu chấm", "Period")
         put("Cả hai", "Both")

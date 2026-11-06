@@ -151,7 +151,7 @@ internal data class FeatureSearchEntry(
             FeatureSearchEntry("Hàng phím số", "number row số", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Hàng số cao bằng hàng chữ", "number row tall height cao số", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Phím cạnh dấu cách", "dấu phẩy dấu chấm cả hai comma period both key next to space", FeaturePage.Phim), // l10n-key
-            FeatureSearchEntry("Phím to", "larger keys phím lớn dấu phẩy dấu chấm comma period bấm nhầm phím cách", FeaturePage.Phim), // l10n-key
+            FeatureSearchEntry("Cỡ phím chấm và phẩy", "larger keys phím lớn dấu phẩy dấu chấm comma period bấm nhầm phím cách", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Nút emoji", "emoji biểu tượng cảm xúc thanh trên top bar toolbar", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Cỡ chữ trên phím", "cỡ chữ to lớn font size label large key", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Giữ phím hàng trên để ra số", "số giữ lâu number long press", FeaturePage.Phim), // l10n-key
@@ -394,7 +394,7 @@ private fun FeatureHome(onOpen: (FeaturePage, Boolean) -> Unit) {
             " · " + if (templatesOn) tr("Mẫu câu bật") else tr("Mẫu câu tắt")
         FeaturePage.Phim -> join(numberRow to tr("Hàng số"),
             (SpaceSideKey.of(sideKey) != SpaceSideKey.DEFAULT) to tr("Phím cạnh dấu cách"),
-            (largeKeys && phone) to tr("Phím to"),
+            (largeKeys && phone && SpaceSideKey.of(sideKey).showsLargeKeysSetting) to tr("Cỡ phím chấm và phẩy"),
             (EmojiKeyPlacement.of(emojiPlace) != EmojiKeyPlacement.DEFAULT) to tr("Nút emoji"),
             (KeyLabelSize.of(labelSize) != KeyLabelSize.DEFAULT) to tr("Cỡ chữ trên phím"),
             keyCmds to tr("Vuốt sao chép/dán"),
@@ -722,8 +722,9 @@ private fun PhimPage(onBack: () -> Unit, feedbackOpen: Boolean, setFeedbackOpen:
         SpaceSideKeyRow()
         RowDivider()
         // "Phím to" — chỉ điện thoại (tablet: bàn phím bỏ qua, KeyLayout.largeKeysActive). Miễn phí.
-        if (LocalConfiguration.current.smallestScreenWidthDp < 600) {
-            BoolToggle(Keys.LARGE_KEYS, Prefs.D.largeKeys, tr("Phím to"),
+        val sideKeyId by rememberStringPref(Keys.SPACE_SIDE_KEY, Prefs.D.spaceSideKey.id)
+        if (LocalConfiguration.current.smallestScreenWidthDp < 600 && SpaceSideKey.of(sideKeyId).showsLargeKeysSetting) {
+            BoolToggle(Keys.LARGE_KEYS, Prefs.D.largeKeys, tr("Cỡ phím chấm và phẩy"),
                 tr(SettingCaption.largeKeys))
             RowDivider()
         }

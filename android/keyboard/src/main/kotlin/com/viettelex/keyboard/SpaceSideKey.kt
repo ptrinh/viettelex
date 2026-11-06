@@ -21,6 +21,9 @@ enum class SpaceSideKey(val id: String) {
     /** Phím hẹp bên TRÁI space (chỉ [BOTH]). */
     val left: String? get() = if (this == BOTH) "," else null
 
+    /** Dòng cài đặt "Cỡ phím chấm và phẩy" chỉ hiện khi có phím cạnh dấu cách (OFF ⇒ ẩn; giá trị giữ nguyên). */
+    val showsLargeKeysSetting: Boolean get() = this != OFF
+
     companion object {
         val DEFAULT = COMMA
         val IDS: Set<String> = entries.map { it.id }.toSet()

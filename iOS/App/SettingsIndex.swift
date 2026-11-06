@@ -146,7 +146,7 @@ enum SettingsIndex {
             E(viTitle: LK("Hàng phím số"), keywords: "number row số", location: .page(.phim), key: "numberRow"),
             E(viTitle: LK("Hàng số cao bằng hàng chữ"), keywords: "number row height cao số", location: .page(.phim)),
             E(viTitle: LK("Phím cạnh dấu cách"), keywords: "dấu phẩy dấu chấm comma period key next to space", location: .page(.phim)),
-            E(viTitle: LK("Phím to"), keywords: "larger keys phím lớn dấu phẩy dấu chấm shift xoá comma period backspace bấm nhầm", location: .page(.phim)),
+            E(viTitle: LK("Cỡ phím chấm và phẩy"), keywords: "larger keys phím lớn dấu phẩy dấu chấm shift xoá comma period backspace bấm nhầm", location: .page(.phim)),
             E(viTitle: LK("Giữ phím ra ký tự đặc biệt"), keywords: "ký hiệu symbol @ # giữ lâu", location: .page(.phim)),
             E(viTitle: LK("Giữ phím hàng trên để ra số"), keywords: "số giữ lâu number", location: .page(.phim), condition: .phoneOnly),
             E(viTitle: LK("Giữ Shift để gõ số và ký hiệu"), keywords: "shift giữ hold số number ký hiệu symbol 123", location: .page(.phim), condition: .phoneOnly),

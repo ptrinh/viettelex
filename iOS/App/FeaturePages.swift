@@ -232,7 +232,8 @@ struct TinhNangSections: View {
             return Self.join([(numberRow, numberRowFullHeight ? L("Hàng số cao") : L("Hàng số")),
                               (SpaceSideKey.parse(spaceSideKey) != .defaultValue, L("Phím cạnh dấu cách")),
                               (EmojiKeyPlacement.parse(emojiKeyPlacement) != .defaultValue, L("Nút emoji")),
-                              (largeKeys && UIDevice.current.userInterfaceIdiom == .phone, L("Phím to")),
+                              (largeKeys && UIDevice.current.userInterfaceIdiom == .phone
+                                && LargeKeys.settingVisible(SpaceSideKey.parse(spaceSideKey)), L("Cỡ phím chấm và phẩy")),
                               (swipeKeyCommands, L("Vuốt sao chép/dán")),
                               (autoSpaceAfterPunct, L("Cách sau dấu câu")),
                               (hapticFeedback, L("Rung")), (keySound, L("Âm phím")),
@@ -644,7 +645,9 @@ struct PhimPage: View {
                         .pickerStyle(.segmented)
                         .labelsHidden()
                     }
-                    settingToggle(L("Phím to"), L(SettingCaption.largeKeys), isOn: $largeKeys)
+                    if LargeKeys.settingVisible(SpaceSideKey.parse(spaceSideKey)) {
+                        settingToggle(L("Cỡ phím chấm và phẩy"), L(SettingCaption.largeKeys), isOn: $largeKeys)
+                    }
                     VStack(alignment: .leading, spacing: 6) {
                         settingTitle(L("Nút emoji"), L(SettingCaption.emojiKeyPlacement))
                         Picker(L("Nút emoji"), selection: Binding(

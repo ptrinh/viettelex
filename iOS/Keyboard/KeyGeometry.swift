@@ -576,6 +576,9 @@ enum LargeKeys {
     static let defaultValue = false
     static func load(_ d: UserDefaults?) -> Bool { d?.bool(forKey: key) ?? defaultValue }
 
+    /// Dòng cài đặt "Cỡ phím chấm và phẩy" chỉ hiện khi có phím cạnh dấu cách (Tắt ⇒ ẩn; giá trị giữ nguyên).
+    static func settingVisible(_ side: SpaceSideKey) -> Bool { side != .off }
+
     /// Bề rộng "," / "." khi bật = phím emoji / 123 của hàng đáy iPhone (KeyLayout.phoneBottom).
     static let punctUnits: CGFloat = 0.108
     /// Phần tối thiểu của hàng (phím cách + khe/lề quanh nó) dành cho phím cách: ≈ 86pt phím

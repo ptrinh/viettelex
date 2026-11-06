@@ -188,4 +188,10 @@ class LargeKeysTest {
         val x = comma.left + 0.35f * comma.width   // ngoài dải space (0.30)
         assertEquals(",", KeyLayout.hit(on, Plane.LETTERS, x, y, 4f, 1f)?.label)
     }
+
+    /** "Cỡ phím chấm và phẩy" ẩn khi "Phím cạnh dấu cách" = Tắt (06/11/2026). */
+    @Test fun settingHiddenWhenSideKeyOff() {
+        assertEquals(false, SpaceSideKey.OFF.showsLargeKeysSetting)
+        for (s in listOf(SpaceSideKey.COMMA, SpaceSideKey.PERIOD, SpaceSideKey.BOTH)) assertTrue(s.showsLargeKeysSetting)
+    }
 }
