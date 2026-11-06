@@ -2706,6 +2706,18 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 label.textColor = ink
                 contentView.backgroundColor = fill
                 contentView.layer.shadowOpacity = dark ? 0.30 : 0.35
+                setNeedsLayout()
+            }
+            /// Bóng theo hình chip có sẵn (shadowPath) — không thì Core Animation phải vẽ offscreen
+            /// để lấy hình bóng từ alpha nội dung, mỗi chip một lần. Chỉ khi nền ĐỤC: nền trong
+            /// suốt (theme trong suốt) thì bóng theo alpha nhạt hơn bóng theo path ⇒ giữ như cũ.
+            override func layoutSubviews() {
+                super.layoutSubviews()
+                let l = contentView.layer
+                let opaque = (contentView.backgroundColor?.cgColor.alpha ?? 0) >= 1
+                let path: CGPath? = opaque
+                    ? UIBezierPath(roundedRect: l.bounds, cornerRadius: l.cornerRadius).cgPath : nil
+                if l.shadowPath != path { l.shadowPath = path }
             }
         }
     }

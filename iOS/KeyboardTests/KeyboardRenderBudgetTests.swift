@@ -300,6 +300,30 @@ final class KeyboardRenderBudgetTests: XCTestCase {
         }
     }
 
+    /// Plane mẫu câu: mỗi chip có bóng ⇒ phải có shadowPath (nền đục), không vẽ offscreen.
+    func testTemplatesPlaneNoOffscreenShadows() {
+        let restore = useDefaults(rich: false)
+        defer { restore() }
+        UserDefaultsProvider.shared?.set([["label": "👋", "text": "Chào"], ["label": "Cảm ơn", "text": "Cảm ơn bạn"]],
+                                         forKey: "userTemplates")
+        let kb = KeyboardView(needsGlobe: false, inputController: nil) { _ in }
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 320))
+        host.addSubview(kb)
+        kb.frame = host.bounds
+        kb.applyAppearance(.light, style: .light)
+        kb.setSuggestionsEnabled(true)
+        kb.layoutIfNeeded()
+        kb.debugTapBurger()
+        XCTAssertTrue(kb.debugInTemplates)
+        kb.layoutIfNeeded()
+        Self.spin(0.1)
+        kb.layoutIfNeeded()
+        let hazards = Self.offscreenHazards(kb)
+        line("offscreen templates count=\(hazards.count) \(hazards.joined(separator: "; "))")
+        XCTAssertLessThanOrEqual(hazards.count, Budget.offscreenLayers, "\(hazards) " + Self.howToUpdate)
+        kb.tearDown()
+    }
+
     // MARK: đo giờ (phụ — bộ CHẬM, VT_SLOW_TESTS=1)
 
     /// Thời gian (đồng hồ + CPU) mở bàn phím tới khung đầu rồi đóng, và đổi mặt phím. Số giờ dao

@@ -60,9 +60,14 @@ def main():
     open_ = {}
     out = {}
     timeline = []
+    seen = set()   # bản ghi có thể chứa cùng một sự kiện hai lần (khác scope) — bỏ trùng
     for r in rows(args[0]):
         if r.get("subsystem") != sub or (proc and proc not in (r.get("process") or "")):
             continue
+        dedup = (r["time"], r["process"], r["name"], r["identifier"], r["event-type"])
+        if dedup in seen:
+            continue
+        seen.add(dedup)
         key = (r["process"], r["name"], r["identifier"])
         et = r["event-type"]
         if et == "Begin":

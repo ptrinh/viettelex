@@ -585,6 +585,8 @@ final class EmojiPlane: UIView, UICollectionViewDataSource, UICollectionViewDele
         let x = min(max(cf.midX - w / 2, 4), bounds.width - w - 4)
         let y = max(cf.minY - h - 6, 2)
         pop.frame = CGRect(x: x, y: y, width: w, height: h)
+        // Nền đục bo góc ⇒ bóng theo đúng hình đó, không cần vẽ offscreen.
+        pop.layer.shadowPath = UIBezierPath(roundedRect: pop.bounds, cornerRadius: pop.layer.cornerRadius).cgPath
         addSubview(pop)
         tonePopup = pop
     }
