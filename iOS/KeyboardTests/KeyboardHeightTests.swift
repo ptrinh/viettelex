@@ -605,3 +605,153 @@ final class HeightSettleGuardTests: XCTestCase {
         XCTAssertEqual(r.vc.debugKeyboard.alpha, 1)
     }
 }
+
+/// Regression #151 (iOS 1.2.29, Telegram): hiện bàn phím / đổi sang bằng 🌐, thỉnh thoảng bàn phím
+/// CAO hơn hẳn — thanh gợi ý trên đỉnh, dải trống ~150–350pt, hàng phím (đã giãn +60) dưới đáy; kẹt
+/// tới lần hiện sau. Hệ thống chỉ đo lại chiều cao extension khi cỡ fitting của view đổi
+/// (systemLayoutFittingSizeDidChange lên controller cha); khung tạm cao mà không còn lượt đổi cỡ nào
+/// ⇒ kẹt. Quy tắc: view cao hơn mức xin quá phần phím hấp thụ ⇒ bàn phím phải xin host đo lại
+/// (có giới hạn số lần); host cấp dư bình thường (~25pt) ⇒ không làm gì.
+final class HostOversizeTests: XCTestCase {
+    private let req: CGFloat = 255
+
+    func testThresholdMatchesRowsAbsorbCap() {
+        XCTAssertEqual(HostOversize.threshold, KeyRowLayout.absorbMax)
+        // Đúng ngưỡng: phím hấp thụ hết, chưa có dải trống.
+        let a = KeyRowLayout.rowsArea(viewHeight: req + HostOversize.threshold, bottomInset: 0, top: 45,
+                                      rows: req - 45, minTop: 10)
+        XCTAssertEqual(a.top, 45, accuracy: 0.001)
+    }
+
+    func testNormalOversupplyIsIgnored() {
+        var o = HostOversize()
+        for _ in 0..<5 {
+            XCTAssertEqual(o.observe(requested: req, viewHeight: req + 25, inWindow: true, animating: false), .none)
+            XCTAssertEqual(o.observe(requested: req, viewHeight: req, inWindow: true, animating: false), .none)
+            XCTAssertEqual(o.observe(requested: req, viewHeight: req - 30, inWindow: true, animating: false), .none)
+        }
+        XCTAssertEqual(o.nudges, 0)
+    }
+
+    func testStuckTallFrameRemeasuresThenBumpsThenStops() {
+        var o = HostOversize()
+        let tall = req + 195
+        XCTAssertEqual(o.observe(requested: req, viewHeight: tall, inWindow: true, animating: false), .wait,
+                       "lượt đầu: có thể là khung tạm — chờ xác nhận")
+        XCTAssertEqual(o.observe(requested: req, viewHeight: tall, inWindow: true, animating: false), .remeasure)
+        XCTAssertEqual(o.observe(requested: req, viewHeight: tall, inWindow: true, animating: false), .wait)
+        XCTAssertEqual(o.observe(requested: req, viewHeight: tall, inWindow: true, animating: false), .bump)
+        for _ in 0..<5 {
+            XCTAssertEqual(o.observe(requested: req, viewHeight: tall, inWindow: true, animating: false), .none,
+                           "host cố ý cấp dư: thôi, không lặp")
+        }
+        o.reset()
+        XCTAssertEqual(o.nudges, 0)
+        XCTAssertEqual(o.observe(requested: req, viewHeight: tall, inWindow: true, animating: false), .wait)
+    }
+
+    func testTransientFramesAndAnimationOnlyWait() {
+        var o = HostOversize()
+        XCTAssertEqual(o.observe(requested: req, viewHeight: req + 300, inWindow: true, animating: false), .wait)
+        XCTAssertEqual(o.observe(requested: req, viewHeight: req + 200, inWindow: true, animating: false), .wait,
+                       "khung đổi giữa hai lượt = đang settle")
+        XCTAssertEqual(o.observe(requested: req, viewHeight: req + 200, inWindow: true, animating: true), .wait)
+        XCTAssertEqual(o.observe(requested: req, viewHeight: req + 200, inWindow: true, animating: false), .wait,
+                       "animation xoá xác nhận cũ")
+        XCTAssertEqual(o.observe(requested: req, viewHeight: req, inWindow: true, animating: false), .none,
+                       "host tự cấp lại đúng: hết")
+        XCTAssertEqual(o.observe(requested: req, viewHeight: req + 200, inWindow: false, animating: false), .none)
+        XCTAssertEqual(o.nudges, 0)
+    }
+}
+
+/// #151 ở mức controller thật: host giữ view cao hơn mức xin ~195pt qua nhiều lượt layout ⇒ controller
+/// báo controller cha (đúng đường UIKit dùng khi cỡ fitting đổi) — trước bản sửa: 0 lần báo, kẹt mãi.
+final class HostOversizeControllerTests: XCTestCase {
+    private let suite = "vt-host-oversize-tests"
+
+    final class Host: UIViewController {
+        var fittingChanges = 0
+        override var shouldAutomaticallyForwardAppearanceMethods: Bool { false }
+        override func systemLayoutFittingSizeDidChange(forChildContentContainer container: UIContentContainer) {
+            fittingChanges += 1
+            super.systemLayoutFittingSizeDidChange(forChildContentContainer: container)
+        }
+    }
+
+    @MainActor func testStuckTallHostFrameAsksHostToRemeasure() {
+        let saved = UserDefaultsProvider.shared
+        let savedPaywall = PlusGate.paywallEnabled
+        defer {
+            UserDefaultsProvider.shared = saved
+            PlusGate.paywallEnabled = savedPaywall
+            UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        }
+        let d = UserDefaults(suiteName: suite)!
+        d.removePersistentDomain(forName: suite)
+        d.set(true, forKey: "showSuggestions")
+        PlusGate.paywallEnabled = false
+        d.set(BuddyCharacter.cat.rawValue, forKey: BuddyCharacter.key)          // như máy reporter
+        d.set(KeyboardTheme.oled.rawValue, forKey: ThemeSettings.themeKey)     // nền đục
+        UserDefaultsProvider.shared = d
+
+        let w: CGFloat = 402, H: CGFloat = 874
+        let win = UIWindow(frame: CGRect(x: 0, y: 0, width: w, height: H))
+        let host = Host()
+        win.rootViewController = host
+        win.isHidden = false
+        host.view.layoutIfNeeded()
+        let vc = KeyboardViewController()
+        vc.debugProxy = KeyboardBenchTests.BenchProxy()
+        vc.debugFullAccess = false
+        vc.loadViewIfNeeded()
+        host.addChild(vc)
+        host.view.addSubview(vc.view)
+        vc.didMove(toParent: host)
+        vc.debugKeyboard.debugScreenSize = CGSize(width: w, height: H)
+        vc.debugKeyboard.debugSetSafeBottom(0)
+        defer {
+            vc.beginAppearanceTransition(false, animated: false)
+            vc.endAppearanceTransition()
+            vc.willMove(toParent: nil); vc.view.removeFromSuperview(); vc.removeFromParent()
+            win.isHidden = true
+        }
+        func pass(_ wait: TimeInterval = 0.2) {
+            vc.view.setNeedsLayout(); vc.view.layoutIfNeeded()
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: wait))   // recheck hẹn giờ / trả lệch 1px
+            vc.view.layoutIfNeeded()
+        }
+
+        vc.beginAppearanceTransition(true, animated: false)
+        let req = vc.debugKeyboard.debugRequestedHeight
+        XCTAssertGreaterThan(req, 0)
+        vc.endAppearanceTransition()
+
+        // Host cấp dư bình thường (~25pt): không xin gì.
+        vc.view.frame = CGRect(x: 0, y: H - req - 25, width: w, height: req + 25)
+        pass(); pass()
+        XCTAssertEqual(host.fittingChanges, 0, "cấp dư bình thường: không đụng host")
+
+        // Khung tạm cao (ảnh issue: ~195pt) kẹt lại.
+        let tall = req + 195
+        vc.view.frame = CGRect(x: 0, y: H - tall, width: w, height: tall)
+        for _ in 0..<6 { pass() }
+        XCTAssertGreaterThanOrEqual(host.fittingChanges, 1, "kẹt khung cao: phải xin host đo lại")
+        XCTAssertLessThanOrEqual(host.fittingChanges, 3, "giới hạn: báo lại + 1px đi/về, không lặp")
+        XCTAssertEqual(vc.debugKeyboard.debugRequestedHeight, req, "lệch 1px đã trả về")
+        XCTAssertEqual(vc.view.systemLayoutSizeFitting(CGSize(width: w, height: 0),
+                                                       withHorizontalFittingPriority: .required,
+                                                       verticalFittingPriority: .fittingSizeLevel).height,
+                       req, accuracy: 0.5, "đo lại ra đúng mức xin")
+
+        // Lần hiện mới: đếm lại từ đầu.
+        vc.beginAppearanceTransition(false, animated: false); vc.endAppearanceTransition()
+        vc.beginAppearanceTransition(true, animated: false); vc.endAppearanceTransition()
+        vc.view.frame = CGRect(x: 0, y: H - req, width: w, height: req)
+        pass()
+        let before = host.fittingChanges
+        vc.view.frame = CGRect(x: 0, y: H - tall, width: w, height: tall)
+        for _ in 0..<3 { pass() }
+        XCTAssertGreaterThan(host.fittingChanges, before, "lần hiện mới lại được xin đo lại")
+    }
+}

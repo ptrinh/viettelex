@@ -18,6 +18,8 @@ final class KeyboardViewController: UIInputViewController {
     /// Lần hiện mới (iPhone iOS 26+, nền đục): nội dung alpha 0 tới khi chiều cao host ổn định
     /// (HeightSettleGuard, trần 0,3 s) — không hiện rồi mới cao thêm.
     fileprivate var settleGuard = HeightSettleGuard()
+    /// Host giữ khung cao hơn hẳn mức xin (#151): xin đo lại, tối đa HostOversize.maxNudges lần mỗi lần hiện.
+    fileprivate var hostOversize = HostOversize()
     fileprivate var settleArmedAt: CFTimeInterval = 0
     fileprivate var lastHostGeomKey = ""
     /// Model học từ cá nhân — tạo LƯỜI khi tính năng cần (thanh gợi ý / gõ vuốt / Thêm dấu).
@@ -337,6 +339,7 @@ final class KeyboardViewController: UIInputViewController {
         TouchLog.loadSetting()
         // Lần hiện mới: không mang phần xin thêm (HostFill) của lần trước sang.
         hostFill.reset(); keyboard.hostFillExtra = 0; lastHostGeomKey = ""
+        hostOversize.reset(); keyboard.heightNudge = 0
         // Đọc settings MỘT lần mỗi lần hiện (trước đây EngineBridge() tự load lần hai).
         let settings = KeyboardSettings.load()
         bridge = EngineBridge(settings: settings)  // fresh settings + buffer
@@ -2665,7 +2668,36 @@ extension KeyboardViewController {
         // lần layout so lại với trait hiện tại (chỉ so 2 giá trị đã có — không đọc proxy);
         // updateDark tự bỏ qua khi không đổi.
         keyboard?.updateDark(presentationDark)
+        checkHostOversize()
         checkHostFill()
+    }
+
+    /// #151: host giữ khung cao hơn hẳn mức xin (khung tạm lúc hiện / đổi bàn phím không được đo
+    /// lại) ⇒ xin hệ thống đo lại chiều cao. Mọi máy, mọi theme; thường chỉ một phép so sánh.
+    private func checkHostOversize() {
+        guard let kb = keyboard, !kb.isTornDown else { return }
+        let animating = UIView.inheritedAnimationDuration > 0
+            || !(view.layer.animationKeys()?.isEmpty ?? true)
+        switch hostOversize.observe(requested: kb.requestedHeight, viewHeight: view.bounds.height,
+                                    inWindow: view.window != nil, animating: animating) {
+        case .none: break
+        case .wait: scheduleHostFillRecheck()
+        case .remeasure:
+            TouchLog.write("oversize view=\(view.bounds.height) req=\(kb.requestedHeight) → remeasure")
+            // Đúng lời báo UIKit gửi khi cỡ fitting đổi — cha đo lại view (mức xin) và đặt lại khung.
+            parent?.systemLayoutFittingSizeDidChange(forChildContentContainer: self)
+            view.setNeedsUpdateConstraints()
+            scheduleHostFillRecheck()   // lượt sau: còn dư ⇒ .bump
+        case .bump:
+            TouchLog.write("oversize view=\(view.bounds.height) req=\(kb.requestedHeight) → bump")
+            // Đổi cỡ thật (1 pixel) ⇒ UIKit tự báo cha; trả về ở lượt runloop sau (lại báo lần nữa).
+            let px = 1 / max(view.traitCollection.displayScale, 1)
+            kb.heightNudge = px
+            DispatchQueue.main.async { [weak self] in
+                guard let kb = self?.keyboard, !kb.isTornDown else { return }
+                kb.heightNudge = 0
+            }
+        }
     }
 
     // MARK: Dải container hệ thống lộ phía trên view (HostFill — Phil 05/10/2026, iOS 27 thật)
