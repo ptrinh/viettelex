@@ -185,6 +185,8 @@ struct TinhNangSections: View {
 
     // Chỉ để dựng dòng tóm tắt — trang con ghi, @AppStorage tự cập nhật.
     @AppStorage("liveSpellCheck", store: featureDefaults) private var liveSpellCheck = true
+    /// Chọn VNI ⇒ kết quả "Nâng cao" của Gõ lẫn tiếng Anh mở nhóm (dòng ghi chú) — SettingsLocation.resolved.
+    @AppStorage("vniMode", store: featureDefaults) private var vniMode = false
     @AppStorage("autoCorrect", store: featureDefaults) private var autoCorrect = false
     @AppStorage("showSuggestions", store: featureDefaults) private var showSuggestions = true
     @AppStorage("emojiSuggest", store: featureDefaults) private var emojiSuggest = true
@@ -300,7 +302,7 @@ struct TinhNangSections: View {
                     Text(L("Không tìm thấy cài đặt nào.")).foregroundStyle(.secondary)
                 }
                 ForEach(hits, id: \.self) { e in
-                    switch e.location {
+                    switch e.location.resolved(vniMode: vniMode) {
                     case .page(let p):
                         NavigationLink { p.destination } label: {
                             row(p, title: e.title, subtitle: e.isPage ? summary(p) : p.title)
@@ -309,8 +311,8 @@ struct TinhNangSections: View {
                         // Cấp 1 nhóm "Gõ lẫn tiếng Anh" ở tab Kiểu Gõ: RootView đổi tab, mở nhóm, cuộn tới dòng.
                         Button { MixedTypingFocus.shared.request = m } label: { otherRow(e, chevron: true) }
                             .buttonStyle(.plain)
-                    default:
-                        NavigationLink { searchDestination(e.location) } label: { otherRow(e, chevron: false) }
+                    case let loc:
+                        NavigationLink { searchDestination(loc) } label: { otherRow(e, chevron: false) }
                     }
                 }
             } header: { Text(L("Kết quả")) }

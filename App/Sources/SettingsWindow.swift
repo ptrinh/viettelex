@@ -882,9 +882,11 @@ struct TypingTab: View {
         static let sticky = "When macOS switches input source on a new field (e.g. Word comments), switch back."
         static let osShortcut = "Set in macOS Keyboard Shortcuts → Input Sources."
         static let liveSpell = "Stop adding tones once a word can’t be Vietnamese (google, github)."
+        /// Thay cả nhóm "Gõ lẫn tiếng Anh" khi chọn VNI (spec §1) — cùng chữ iOS/Android.
+        static let vniMixedNote = "VNI leaves English words as typed, so there is nothing to set here."
         static let all = [vni, simpleTelex, freeMarking, quickTelex, modern, teencode, bracket, reEdit, layout,
                           autoRestore, collisionVi, collisionEn, context, retro, frequency, hotkey, sticky,
-                          osShortcut, liveSpell]
+                          osShortcut, liveSpell, vniMixedNote]
     }
     /// Lý do làm mờ (spec §0.4).
     static let telexOnlyReason = "Only applies to Telex."
@@ -1005,7 +1007,8 @@ struct TypingTab: View {
         ScrollViewReader { proxy in
         Form {
             // Thẻ một lần cho người dùng cũ (ONBOARDING-SPEC §5): nhóm mới nằm ngay dưới.
-            if model.mixedCardPending {
+            // VNI: nhóm đích bị ẩn ⇒ chưa hiện thẻ (cờ giữ nguyên, đổi lại Telex thì hiện).
+            if model.mixedCardPending, !OnboardingLogic.mixedGroupHidden(vniMode: model.vniMode) {
                 Section {
                     Text(model.loc("Do you often mix English into Vietnamese? See the new Mixed Vietnamese/English typing group."))
                         .fixedSize(horizontal: false, vertical: true)
@@ -1071,11 +1074,20 @@ struct TypingTab: View {
                 }
             }
             // "Gõ lẫn tiếng Anh" (ONBOARDING-SPEC §4 + SETTINGS-CLEANUP-SPEC §1): cấp 1 chỉ là bộ
-            // chọn hồ sơ; công tắc nằm trong "Nâng cao". Key lưu không đổi.
+            // chọn hồ sơ; công tắc nằm trong "Nâng cao". Key lưu không đổi. Chọn VNI ⇒ cả nhóm vô
+            // tác dụng: chỉ một dòng ghi chú (OnboardingLogic.mixedRows).
             Section(header: Label(model.loc("Mixed Vietnamese/English typing"), systemImage: "globe")) {
-                profilePicker
-                advancedRow($mixedAdvancedOpen, summary: Self.mixedAdvancedSummary)
-                if mixedAdvancedOpen {
+                let rows = OnboardingLogic.mixedRows(vniMode: model.vniMode)
+                if rows.contains(.vniNote) {
+                    caption(C.vniMixedNote)
+                }
+                if rows.contains(.profilePicker) {
+                    profilePicker
+                }
+                if rows.contains(.advanced) {
+                    advancedRow($mixedAdvancedOpen, summary: Self.mixedAdvancedSummary)
+                }
+                if rows.contains(.advanced) && mixedAdvancedOpen {
                     toggleRow("Auto-restore English words", isOn: $model.autoRestore, caption: C.autoRestore)
                     // "Ưu tiên khi trùng" (maintainer 12/09/2026, default tiếng Việt). Chú thích đổi theo
                     // lựa chọn: luôn chỉ cách lấy dạng KIA (spec §1: mẹo gõ đúp phím dấu).

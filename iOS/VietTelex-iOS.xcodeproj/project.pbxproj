@@ -471,6 +471,7 @@
 		E9A5FC1B28D2683637E9A42D /* ClipboardHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = C23B10293CBF99CC16B1E908 /* ClipboardHistory.swift */; };
 		E9E2F40F060ACF3421394AA6 /* MoleGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 680C638081B910FE0C6D35F3 /* MoleGame.swift */; };
 		EA30B87C4D7AE6B3A7AFFCB7 /* PasteOfferOnceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF30CED4269435719F2F5392 /* PasteOfferOnceTests.swift */; };
+		EB4B8B1753D9CA6AD26B06CB /* VniMixedHiddenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4F88B734B9569A1C514B47 /* VniMixedHiddenTests.swift */; };
 		EB9F471C2D36A7B6AC4C733D /* KeyboardBuddyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1912918744F1F9CEBC4B8526 /* KeyboardBuddyTests.swift */; };
 		EBE45A06B3E66585C2076D02 /* AutoCorrect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80AB0C87154897C583AEB2AE /* AutoCorrect.swift */; };
 		EC7DB6C7411C3F49A17437F2 /* OnboardingProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB9F0ADEE3855891E61D1DC /* OnboardingProfile.swift */; };
@@ -836,6 +837,7 @@
 		CBD24780DBDAEB07E6645C3E /* ScrollEdgeEffectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollEdgeEffectTests.swift; sourceTree = "<group>"; };
 		CC97B8AC6D8335D37B6565AD /* AIProofreadPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIProofreadPanel.swift; sourceTree = "<group>"; };
 		CCEDEE554C73498F36146A9D /* VietTelexApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = VietTelexApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CD4F88B734B9569A1C514B47 /* VniMixedHiddenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VniMixedHiddenTests.swift; sourceTree = "<group>"; };
 		CE0588321F07A1A67271DE4E /* VTTranslate.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = VTTranslate.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		CEE8354468306FC0BF399DB2 /* SwipeTrailPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeTrailPickerView.swift; sourceTree = "<group>"; };
 		CFEF10E3C02C542D5C49792E /* swipe-lang-sentences.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "swipe-lang-sentences.txt"; sourceTree = "<group>"; };
@@ -1255,6 +1257,7 @@
 				B4C8682721439F0EE47DDC34 /* UXSnapshotTests.swift */,
 				C9822723B0DBD958953953CF /* ViewTreeLeakTests.swift */,
 				031628D00865BDD8F533A0B7 /* VNIBridgeTests.swift */,
+				CD4F88B734B9569A1C514B47 /* VniMixedHiddenTests.swift */,
 				8B3578841CEB4885B61BD148 /* VTCatchTests.swift */,
 				36C728D6BE87D4E515070B03 /* WallpaperCropTests.swift */,
 				0599154D3A43772DC7456968 /* WordDeleteTests.swift */,
@@ -2151,6 +2154,7 @@
 				925E9207BD1E9E7D10D7310B /* VTCatch.m in Sources */,
 				9B5CDAC8B9C8C2BC664BE68A /* VTCatchTests.swift in Sources */,
 				E1A8B31E80F18094634EF943 /* ViewTreeLeakTests.swift in Sources */,
+				EB4B8B1753D9CA6AD26B06CB /* VniMixedHiddenTests.swift in Sources */,
 				9838BAAFDE2D5FDA55AE5EAF /* Wallpaper.swift in Sources */,
 				DE66F26425D4405AA5861CC8 /* WallpaperCropTests.swift in Sources */,
 				DC996CC66C628B133BA2BCDD /* WordDelete.swift in Sources */,

@@ -87,6 +87,17 @@ enum SettingsLocation: Hashable {
     }
 }
 
+extension SettingsLocation {
+    /// Chỗ thật sự mở khi chọn kết quả tìm kiếm: chọn VNI ⇒ mục "Nâng cao" của nhóm Gõ lẫn tiếng
+    /// Anh bị ẩn (MixedTypingUI.groupHidden) — vẫn tìm thấy, nhưng mở ra nhóm đang hiện dòng ghi chú.
+    func resolved(vniMode: Bool) -> SettingsLocation {
+        if case .mixedAdvanced(let m) = self, !MixedTypingUI.isVisible(m, vniMode: vniMode) {
+            return .mixed(.section)
+        }
+        return self
+    }
+}
+
 /// Một dòng của chỉ mục tìm kiếm.
 struct SettingsIndexEntry: Hashable {
     /// Điều kiện hiện (tính năng Plus / chỉ iPhone…) — app đánh giá lúc tìm.
@@ -230,6 +241,8 @@ enum SettingCaption {
     static let contextualEnglish = LK("Sau một từ tiếng Anh, từ kế giữ tiếng Anh: “he is”, không thành “he í”.")
     static let retroEnglish = LK("Sửa từ bị bỏ dấu nhầm khi câu hoá ra tiếng Anh: “Hí cả í” → “His car is”.")
     static let englishByFrequency = LK("Đầu câu, “his” giữ tiếng Anh thay vì “hí”; tự đổi lại nếu câu là tiếng Việt.")
+    /// Thay cả nhóm khi chọn VNI (SETTINGS-CLEANUP-SPEC §1).
+    static let vniMixedNote = MixedTypingUI.vniNoteKey
     // Sửa lỗi & gợi ý
     static let liveSpellCheck = LK("Ngừng thêm dấu ngay khi từ không thể là tiếng Việt (google, github).")
     static let reEditWord = LK("Thêm dấu cho từ đã gõ: toan + s → toán.")
@@ -317,7 +330,7 @@ enum SettingCaption {
         keySoundStylesIos, keySoundVolumeIos, customSound,
         vni, autoCapitalize, simpleTelex, freeMarking, quickTelex, modernTone,
         teencode, profileHint, customProfile, spaceSwipeLanguage, userDictionary, autoRestore,
-        contextualEnglish, retroEnglish, englishByFrequency, liveSpellCheck, reEditWord, autoFixAdjacent,
+        contextualEnglish, retroEnglish, englishByFrequency, vniMixedNote, liveSpellCheck, reEditWord, autoFixAdjacent,
         smartTouch, autoCorrect, adjacentFooter, showSuggestions, suggestionCount, suggestInNoSuggestFields,
         emojiSuggest, numberChips, mathResults, pasteButton, addTones, aiProofread,
         filterSensitive, swipeTyping, swipeFooterIos, swipeEnglish, swipeFuto, swipePractice,

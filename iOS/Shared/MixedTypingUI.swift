@@ -73,6 +73,32 @@ enum MixedTypingUI {
     /// Thứ tự dòng ở trang con "Nâng cao".
     static let advancedItems: [MixedTypingItem] = MixedTypingItem.allCases.filter { $0.placement == .advanced }
 
+    // MARK: Chọn VNI ⇒ ẩn nhóm (SETTINGS-CLEANUP-SPEC §1, 06/11/2026)
+
+    /// Dòng duy nhất thay cho bộ chọn hồ sơ + "Nâng cao" khi chọn VNI (cùng chữ Android/macOS).
+    static let vniNoteKey = LK("Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này.")
+
+    /// VNI đặt dấu bằng phím số nên từ tiếng Anh gõ ra nguyên vẹn: mọi công tắc nhận diện tiếng Anh
+    /// vô tác dụng ⇒ ẩn bộ chọn hồ sơ + "Nâng cao" (ngoại lệ có chủ đích của §0.4). Chỉ đổi hiển thị:
+    /// key/giá trị giữ nguyên, đổi lại Telex thấy y như cũ.
+    static func groupHidden(vniMode: Bool) -> Bool { vniMode }
+
+    /// Các dòng cấp 1 của nhóm khi mở (theo thứ tự hiện).
+    enum Row: Hashable { case profilePicker, vniNote, spaceSwipeLanguage, userDictionary, advanced }
+
+    /// Vuốt phím cách (cách chuyển ngôn ngữ) và Từ điển cá nhân (từ đã học cho thanh gợi ý, tên
+    /// riêng — không chỉ phục vụ khôi phục tiếng Anh) luôn hiện.
+    static func rows(vniMode: Bool) -> [Row] {
+        groupHidden(vniMode: vniMode)
+            ? [.vniNote, .spaceSwipeLanguage, .userDictionary]
+            : [.profilePicker, .spaceSwipeLanguage, .userDictionary, .advanced]
+    }
+
+    /// Mục có đang hiện (cấp 1 hoặc trong "Nâng cao") hay bị ẩn vì chọn VNI.
+    static func isVisible(_ item: MixedTypingItem, vniMode: Bool) -> Bool {
+        !(groupHidden(vniMode: vniMode) && item.placement == .advanced)
+    }
+
     /// Mục phụ thuộc "Quyết định theo ngữ cảnh": KHÔNG ẩn — làm mờ + lý do (SETTINGS-CLEANUP-SPEC
     /// §0.4). VNI ⇒ "Chỉ áp dụng cho Telex" (engine chỉ sửa ngược ở Telex); ngữ cảnh tắt ⇒ "Cần
     /// bật Quyết định theo ngữ cảnh". nil = dùng được. Cùng điều kiện với RetroEnglishUI.switchVisible.
