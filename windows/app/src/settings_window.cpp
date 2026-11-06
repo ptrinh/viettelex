@@ -619,7 +619,10 @@ std::vector<Item> pageItems(int tab) {
                 const int idx = toggleIndex(r.field);
                 if (idx < 0) break;
                 // A switch its parent makes useless is not in the plan at all (§0.4, §6).
-                v.push_back(toggleItem(idx));
+                Item t = toggleItem(idx);
+                // Portable: no reading back, so a word is fixed by ⌫ into it (hook_reopen.h).
+                if (ctx.portable && r.field == &Settings::reEditWord) t.desc = S::ReEditWordPortableDesc;
+                v.push_back(t);
                 break;
             }
             case RowKind::Control:
@@ -714,6 +717,14 @@ std::vector<Item> pageItems(int tab) {
                         // the one line that stands in for the hidden group (no card, no control).
                         if (!v.empty() && v.back().kind == ItemKind::Section) v.back().desc = S::MixedVniNote;
                         break;
+                    case PageControl::PortableHintsNote: {
+                        // Portable: one plain line where the "Gợi ý cạnh con trỏ" group would be.
+                        Item note;
+                        note.title = S::PortableHintsNote;
+                        note.plain = true;
+                        v.push_back(note);
+                        break;
+                    }
                     case PageControl::Links: {
                         Item links;
                         links.kind = ItemKind::Links;

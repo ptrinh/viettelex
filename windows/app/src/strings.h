@@ -152,6 +152,9 @@ enum class S {
     MenuExit, MenuAutostart, TrayStateOff, TrayStatePortableOff, TrayTipPortable,
     ReadyTitle, ReadySwitchLine, ReadyPortableNote, ResolveOtherIme, ResolveWindowsKb,
     PortableInstalledRunning, PortableUpdateAvailable,
+    // Portable (no TIP): the line instead of the "Gợi ý cạnh con trỏ" group, and the caption of
+    // "Sửa dấu từ đã gõ" (the hook reopens a word by ⌫ only)
+    PortableHintsNote, ReEditWordPortableDesc,
     Count
 };
 

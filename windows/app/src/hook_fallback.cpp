@@ -13,6 +13,7 @@
 #include "direct_verify.h"
 #include "foreground.h"
 #include "hook_watchdog.h"
+#include "hook_reopen.h"
 #include "hotkey.h"
 #include "input_switch.h"
 #include "keymap.h"
@@ -78,6 +79,9 @@ struct HookState {
     // while the chord is armed (hookNeeds).
     bool watchChord = false;
     ModifierChord chord;
+    // ⌫ back into the word just typed (hook_reopen.h): what the hook saw typed since the
+    // caret was last certain. Dropped on anything it cannot account for.
+    ReopenTrail trail;
 };
 HookState* h = nullptr;        // hook thread only
 DWORD g_hookTid = 0;
@@ -158,6 +162,12 @@ bool foregroundVietnamese() { return fgVietnamese(h->fgHwnd, h->app); }
 
 void markNoDirect(DWORD tid, const char* why);
 
+// The caret may have moved / the text is unknown: forget the word and the ⌫ trail.
+void dropWord() {
+    h->session.reset();
+    h->trail.invalidate();
+}
+
 LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     if (code != HC_ACTION || !h) return CallNextHookEx(nullptr, code, wp, lp);
     const auto* kb = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lp);
@@ -185,11 +195,13 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
             PostThreadMessageW(g_hookTid, kCmdSyncHooks, 0, 0);
         }
     }
-    if (!h->wanted) return CallNextHookEx(nullptr, code, wp, lp);  // watching only
     if (!down) return CallNextHookEx(nullptr, code, wp, lp);
-    if (h->suspended) return CallNextHookEx(nullptr, code, wp, lp);  // game / fullscreen
+    if (!h->wanted || h->suspended) {  // watching only / game / fullscreen: typing unseen
+        h->trail.invalidate();
+        return CallNextHookEx(nullptr, code, wp, lp);
+    }
     if (kb->flags & LLKHF_INJECTED) {  // someone else's synthetic input: do not compose over it
-        h->session.reset();
+        dropWord();
         return CallNextHookEx(nullptr, code, wp, lp);
     }
     Modifiers m;
@@ -199,22 +211,41 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     m.win = GetAsyncKeyState(VK_LWIN) < 0 || GetAsyncKeyState(VK_RWIN) < 0;
     m.capsLock = (GetKeyState(VK_CAPITAL) & 1) != 0;
     KeyInput k = classifyKey(kb->vkCode, m);
-    if (k.kind == KeyKind::Modifier || k.kind == KeyKind::Other) return CallNextHookEx(nullptr, code, wp, lp);
+    if (k.kind == KeyKind::Modifier || k.kind == KeyKind::Other) {
+        // Alt alone (menu bar), Win (Start, Win+Space), F-keys & co: the ⌫ trail is unsure.
+        if (k.kind == KeyKind::Other || modifierDropsTrail(kb->vkCode)) h->trail.invalidate();
+        return CallNextHookEx(nullptr, code, wp, lp);
+    }
     // Engaged mid-focus: the TIP may be composing this word — start at the next boundary.
     const bool boundary = k.kind == KeyKind::Boundary || k.kind == KeyKind::Navigation || k.kind == KeyKind::Chord ||
                           (k.kind == KeyKind::Char && k.ch == U' ');
-    if (!h->arming.key(boundary)) return CallNextHookEx(nullptr, code, wp, lp);
-    if (!h->session.wordActive() && !foregroundVietnamese()) return CallNextHookEx(nullptr, code, wp, lp);
+    if (!h->arming.key(boundary) || (!h->session.wordActive() && !foregroundVietnamese())) {
+        h->trail.invalidate();  // not typed by us (English, yielding, password field...)
+        return CallNextHookEx(nullptr, code, wp, lp);
+    }
+    switch (h->trail.before(k, h->session)) {
+        case ReopenTrail::Before::Reopened:
+            // ⌫ deletes the separator after the last word, which is back in the engine: the
+            // app deletes it, the next keys edit the word. Nothing injected.
+            if (appLogging()) appLog("hook", "backspace: last word reopened");
+            return CallNextHookEx(nullptr, code, wp, lp);
+        case ReopenTrail::Before::Popped: h->session.noteKeyPassedBy(k); return CallNextHookEx(nullptr, code, wp, lp);
+        case ReopenTrail::Before::Normal: break;
+    }
     if (!h->session.wantsKey(k)) {
         // Like the TIP: the session still hears a key it lets through ("=" ">" of a "=>"
         // shortcut key, boundaries for the engine's glued separators).
         h->session.noteKeyPassedBy(k);
+        h->trail.after(k, h->session, false, false, false);
         return CallNextHookEx(nullptr, code, wp, lp);
     }
 
     HookSink sink;
     bool eaten = h->session.handleKey(k, sink);
-    if (sink.inputs.empty()) return eaten ? 1 : CallNextHookEx(nullptr, code, wp, lp);
+    if (sink.inputs.empty()) {
+        h->trail.after(k, h->session, true, eaten, false);
+        return eaten ? 1 : CallNextHookEx(nullptr, code, wp, lp);
+    }
     // Edits + a key that should still reach the app: the key must come AFTER our
     // edits, so swallow it and replay it at the end of the batch.
     if (!eaten) {
@@ -222,14 +253,14 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
         else sink.addVk(static_cast<WORD>(kb->vkCode));
     }
     if (!h->breaker.allow(GetTickCount64(), static_cast<uint32_t>(sink.inputs.size()))) {
-        h->session.reset();
+        dropWord();
         return CallNextHookEx(nullptr, code, wp, lp);
     }
     // Focus moved between the key and the injection: the edit belongs to another
     // window now — drop it, reset the word, let the key go.
     if (!injectionAllowed(reinterpret_cast<uintptr_t>(GetForegroundWindow()), reinterpret_cast<uintptr_t>(h->fgHwnd),
                           false)) {
-        h->session.reset();
+        dropWord();
         appLog("hook", "foreground changed before injection: edit dropped, word reset");
         return CallNextHookEx(nullptr, code, wp, lp);
     }
@@ -237,7 +268,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     // (BS 0x08 in terminals, delete-word elsewhere) / Alt+Backspace: drop the edit instead.
     if (!injectionModifiersSafe(GetAsyncKeyState(VK_CONTROL) < 0, GetAsyncKeyState(VK_MENU) < 0,
                                 GetAsyncKeyState(VK_LWIN) < 0 || GetAsyncKeyState(VK_RWIN) < 0)) {
-        h->session.reset();
+        dropWord();
         appLog("hook", "modifier held at injection: edit dropped, word reset");
         return CallNextHookEx(nullptr, code, wp, lp);
     }
@@ -251,11 +282,12 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     if (out != SendOutcome::Ok) {
         // Blocked (UIPI, secure input) or cut short: the screen is unknown. This field
         // goes to composition (TIP) for the rest of the focus.
-        h->session.reset();
+        dropWord();
         markNoDirect(h->fgThread, "SendInput refused");
         PostThreadMessageW(g_hookTid, kCmdDisableHere, 0, 0);
         return out == SendOutcome::NothingSent ? CallNextHookEx(nullptr, code, wp, lp) : 1;
     }
+    h->trail.after(k, h->session, true, eaten, true);
     if (h->direct && h->session.wordActive())
         directVerifyAfterEdit(h->fgHwnd, h->fgThread, h->session.shown(), ++h->editSeq);
     return 1;
@@ -267,7 +299,7 @@ LRESULT CALLBACK mouseProc(int code, WPARAM wp, LPARAM lp) {
             h->chord.disarm();  // a click between press and release is not a toggle
             PostThreadMessageW(g_hookTid, kCmdSyncHooks, 0, 0);  // watcher only: drop this hook
         }
-        h->session.reset();  // caret probably moved
+        dropWord();  // caret probably moved
         h->arming.click();
     }
     return CallNextHookEx(nullptr, code, wp, lp);
@@ -337,12 +369,14 @@ void syncHooks() {
 
 // The watchdog saw Windows drop the keyboard hook (LowLevelHooksTimeout): reinstall.
 void reinstallHooks() {
+    h->trail.invalidate();  // keys typed while the hook was gone were not seen
     removeHooks();
     syncHooks();
     h->watchdog.hookInstalled(GetTickCount64());
 }
 
 void applyWanted(bool on) {
+    h->trail.invalidate();
     if (on == h->wanted && (!hooksNeeded() || h->kbHook)) return;
     h->wanted = on;
     syncHooks();
@@ -355,9 +389,13 @@ void configureSession(const Settings& s) {
     // "Tự sửa từ phía trước" needs to read the text back (never blind): off here.
     o.engineFlags = s.engineFlags() & ~static_cast<uint32_t>(VTX_RETRO_ENGLISH);
     o.autoRestore = s.autoRestore;
-    o.reEditWord = false;  // cannot read the app's text from here
+    // Re-edit / re-open by reading the text back: impossible from here. "Sửa dấu từ đã gõ"
+    // works by ⌫ only, from the hook's own trail (hook_reopen.h).
+    o.reEditWord = false;
     o.shortcuts = &h->settings.shortcuts;
     h->session.configure(o);
+    h->trail.setEnabled(s.reEditWord);
+    h->trail.invalidate();
     h->session.setOutputMode(OutputMode::InPlace);
     const bool watch = chordWatcherWanted(parseSwitchHotkey(s.switchHotkey));
     if (watch != h->watchChord) {
@@ -420,6 +458,7 @@ DWORD WINAPI hookThreadMain(void*) {
                     break;
                 }
                 case kCmdDisableHere:
+                    h->trail.invalidate();
                     applyWanted(false);
                     setAck(nullptr);
                     h->arming.disengaged();
@@ -429,6 +468,7 @@ DWORD WINAPI hookThreadMain(void*) {
                     const bool on = msg.wParam != 0;
                     if (on == h->suspended) break;
                     h->suspended = on;
+                    h->trail.invalidate();
                     h->chord.disarm();
                     h->session.resetContext();
                     // Unhooked while suspended (nothing to type, the chord is ignored). A

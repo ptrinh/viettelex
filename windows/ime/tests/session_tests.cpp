@@ -217,6 +217,41 @@ TEST(session_reopen_needs_fresh_boundary) {
     }
 }
 
+// The hook's ⌫ re-open (app/core/hook_reopen.h): the caller vouches for the screen; the
+// session only takes a word back that its keys compose to exactly, in place, between words.
+TEST(session_reopen_committed_blind) {
+    Rig r(OutputMode::InPlace);
+    r.type("toans ");
+    const std::u16string raw = r.s.lastCommitRaw(), text = r.s.lastCommitText();
+    CHECK_EQ(text, std::u16string(u"toán"));
+    r.doc.appBackspace();  // the ⌫ the app deletes the space with
+    CHECK(r.s.reopenCommitted(raw.data(), int(raw.size()), text.data(), int(text.size())));
+    CHECK(r.s.wordActive());
+    CHECK_EQ(r.s.shown(), text);
+    CHECK_EQ(r.s.rawKeys(), raw);
+    r.type("f");
+    CHECK_EQ(r.text(), std::string("toàn"));
+    // A word in progress: refused.
+    CHECK(!r.s.reopenCommitted(raw.data(), int(raw.size()), text.data(), int(text.size())));
+    // An older word (not the engine's last commit) is replayed from its keys.
+    Rig o(OutputMode::InPlace);
+    o.type("toan viet ");
+    const char16_t k1[] = u"toan";
+    CHECK(o.s.reopenCommitted(k1, 4, k1, 4));
+    CHECK_EQ(o.s.shown(), std::u16string(u"toan"));
+    // Keys that do not compose to the text (restored English, a mismatch): refused, no word.
+    Rig m(OutputMode::InPlace);
+    const char16_t keys[] = u"toans", restored[] = u"toans";
+    CHECK(!m.s.reopenCommitted(keys, 5, restored, 5));
+    CHECK(!m.s.wordActive());
+    CHECK(!m.s.reopenCommitted(keys, 0, restored, 0));
+    // Composition: the word is not plain text on screen — never.
+    Rig c(OutputMode::Composition);
+    const char16_t t[] = u"toán";
+    CHECK(!c.s.reopenCommitted(keys, 5, t, 4));
+    CHECK(!c.s.wordActive());
+}
+
 TEST(session_reedit_word_before_caret) {
     for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
         Rig r(m);

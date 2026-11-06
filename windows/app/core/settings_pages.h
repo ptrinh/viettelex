@@ -66,6 +66,7 @@ enum class PageControl : int {
     Uninstall,
     Links,
     MixedVniNote,        // VNI: the one line shown instead of the "Gõ lẫn tiếng Anh" group
+    PortableHintsNote,   // portable: the one line shown instead of the "Gợi ý cạnh con trỏ" group
 };
 
 enum class RowKind { Section, Expander, Toggle, Control };
@@ -83,7 +84,8 @@ struct PageContext {
     bool offerDefaultInput = false;  // defaultInputAdvice(...) == MakeVietTelexDefault
     // Portable build (core/portable.h): no Windows keyboard to manage — no per-app input
     // method card, no default-keyboard card, no keyboard icon (an HKLM profile value), no
-    // uninstaller (delete the folder).
+    // uninstaller (delete the folder). And no TIP: what only the TIP does is hidden too
+    // (hiddenInPortable, the whole "Gợi ý cạnh con trỏ" group -> PortableHintsNote).
     bool portable = false;
     bool expanded[static_cast<int>(Expander::Count)] = {};
     bool isExpanded(Expander e) const { return expanded[static_cast<int>(e)]; }
@@ -104,6 +106,13 @@ bool showsTrayStyle(const Settings& s);
 // The one-time "Bạn hay gõ trộn Anh/Việt?" card: hidden under VNI (its "Xem" points at the
 // hidden group); the HKCU flag is kept, so it shows again after switching back to Telex.
 bool showsMixedCard(const Settings& s, const PageContext& ctx);
+// Portable (keyboard hook, no TIP): switches that do nothing there. "Tự sửa từ phía trước"
+// and "Đoán từ trùng theo tần suất" need to read the text back (the hook strips the retro
+// engine flag, which the frequency guess depends on); "Gạch đỏ âm tiết sai chính tả" decorates
+// a composition (the hook types in place); every caret hint, word prediction, typo fix,
+// "Lọc từ nhạy cảm" and "Học từ bạn gõ" are shown / fed by the TIP only. Hidden in place
+// (§0.4: same group as the switches that stay), values kept.
+bool hiddenInPortable(bool Settings::*field);
 // Changing this switch shows/hides other rows: the window rebuilds the page at once.
 bool affectsLayout(bool Settings::*field);
 

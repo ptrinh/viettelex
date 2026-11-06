@@ -315,6 +315,80 @@ TEST(settings_pages_mixed_card_follows_vni) {
     CHECK(!showsMixedCard(telex, c));
 }
 
+// Portable (keyboard hook, no TIP): every switch that only the TIP makes work is hidden,
+// the "Gợi ý cạnh con trỏ" group as a whole (one line instead), the installed build shows
+// everything as before. Display only: no value changes.
+TEST(settings_pages_portable_hides_tip_only_rows) {
+    const Field kTipOnly[] = {&Settings::retroactiveEnglish, &Settings::englishByFrequency,
+                              &Settings::underlineMisspelled, &Settings::mathResults,
+                              &Settings::numberChips,        &Settings::typoHints,
+                              &Settings::toneHints,          &Settings::dateHints,
+                              &Settings::filterSensitive,    &Settings::learnWords};
+    auto tipOnly = [&](Field f) {
+        for (Field t : kTipOnly)
+            if (t == f) return true;
+        return false;
+    };
+    PageContext installed = allOpen(), portable = allOpen();
+    portable.portable = true;
+    const Settings s = allParentsOn();
+    const std::vector<PageRow> a = allRows(s, installed), b = allRows(s, portable);
+    for (Field f : kAllToggles) {
+        CHECK(rowOf(a, f) != nullptr);
+        CHECK((rowOf(b, f) == nullptr) == tipOnly(f));
+        CHECK(hiddenInPortable(f) == tipOnly(f));
+    }
+    // "Sửa dấu từ đã gõ" works in portable (⌫ back into the word, hook_reopen.h): it stays.
+    CHECK(rowOf(b, &Settings::reEditWord) != nullptr);
+    // Their groups keep the switches that do work: Quyết định theo ngữ cảnh, Chính tả.
+    CHECK(rowOf(b, &Settings::contextualEnglish) != nullptr);
+    CHECK(rowOf(b, &Settings::liveSpellCheck) != nullptr);
+
+    // Gợi ý & công cụ: the hints group is gone (header, learned-words reset, Windows' prediction
+    // link), one note line stands in, Công cụ văn bản stays.
+    for (const PageContext& base : {PageContext(), allOpen()}) {
+        PageContext pc = base, ic = base;
+        pc.portable = true;
+        const std::vector<PageRow> p = settingsPageRows(SettingsPage::Suggestions, s, pc);
+        const std::vector<PageRow> i = settingsPageRows(SettingsPage::Suggestions, s, ic);
+        bool pHints = false, iHints = false;
+        for (const PageRow& r : p)
+            if (r.kind == RowKind::Section && r.id == static_cast<int>(PageSection::Hints)) pHints = true;
+        for (const PageRow& r : i)
+            if (r.kind == RowKind::Section && r.id == static_cast<int>(PageSection::Hints)) iHints = true;
+        CHECK(!pHints && iHints);
+        CHECK(hasControl(p, PageControl::PortableHintsNote));
+        CHECK(!hasControl(i, PageControl::PortableHintsNote));
+        CHECK(!hasControl(p, PageControl::ClearLearned) && hasControl(i, PageControl::ClearLearned));
+        CHECK(!hasControl(p, PageControl::TextPredictionLink) && hasControl(i, PageControl::TextPredictionLink));
+        CHECK(!p.empty() && p.front().kind == RowKind::Control &&
+              p.front().id == static_cast<int>(PageControl::PortableHintsNote) && p.front().indent == 0);
+        bool tools = false;
+        for (const PageRow& r : p)
+            if (r.kind == RowKind::Expander && r.id == static_cast<int>(Expander::TextTools)) tools = true;
+        CHECK(tools);
+        if (base.isExpanded(Expander::TextTools)) {
+            CHECK(hasControl(p, PageControl::AddTonesHotkey));
+            CHECK(rowOf(p, &Settings::textToolsInMenu) != nullptr);
+        }
+    }
+    // Where a switch lives is unchanged (findToggle uses the installed plan).
+    for (Field f : kTipOnly) {
+        SettingsPage pg = SettingsPage::Count;
+        int e = -2;
+        CHECK(findToggle(f, pg, e));
+    }
+    // The note line and the portable caption of "Sửa dấu từ đã gõ", both languages.
+    setEnglish(false);
+    CHECK(std::wcscmp(tr(S::PortableHintsNote), L"Bản portable không có gợi ý từ — dùng bản cài để có gợi ý.") == 0);
+    CHECK(std::wcsstr(tr(S::ReEditWordPortableDesc), L"toán") != nullptr);
+    setEnglish(true);
+    CHECK(std::wcscmp(tr(S::PortableHintsNote),
+                      L"The portable version has no suggestions — use the installed version for them.") == 0);
+    CHECK(std::wcsstr(tr(S::ReEditWordPortableDesc), L"Backspace") != nullptr);
+    setEnglish(false);
+}
+
 // (a) The profile picker writes the same keys as before, and each one is on the page that
 // holds the picker.
 TEST(settings_pages_profile_switches_reachable) {
@@ -406,7 +480,7 @@ TEST(settings_captions_are_short) {
         S::RetroEnglishDesc, S::EnglishByFrequencyDesc, S::StartEnglishDesc, S::MixedCardDesc,
         S::ProfilePickerIntro, S::ProfileCustomDesc, S::ProfileViEx, S::ProfileMixedEx, S::ProfileEnEx,
         S::TypingAdvancedSummary, S::MixedAdvancedSummary, S::SwitchAdvancedSummary, S::GamesSummary,
-        S::AppearanceSummary, S::MixedVniNote,
+        S::AppearanceSummary, S::MixedVniNote, S::PortableHintsNote, S::ReEditWordPortableDesc,
         S::ModeComposition, S::ModeInPlace, S::ModeHook, S::ModeOff, S::ModeDirect,
     };
     for (int en = 0; en < 2; ++en) {
