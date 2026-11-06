@@ -149,10 +149,13 @@ enum KeyRowLayout {
     ///   • sàn đỉnh = headroom balloon: strip nhường tới đó rồi phím mới co — balloon hàng đầu
     ///     luôn có chỗ (bug 30/09/2026);
     ///   • đáy = đáy view − safe area máy gập (tránh vạch home) − "Nâng bàn phím".
+    /// Phần host cấp dư mà hàng phím hấp thụ tối đa — quá mức này phần dư thành dải trống trên đỉnh.
+    static let absorbMax: CGFloat = 60   // = HostOversize.threshold
+
     static func rowsArea(viewHeight: CGFloat, bottomInset: CGFloat, top: CGFloat, rows: CGFloat,
                          minTop: CGFloat) -> (top: CGFloat, height: CGFloat) {
         let b = viewHeight - bottomInset
-        let upper = max(min(rows + 60, b, b - minTop), 0)
+        let upper = max(min(rows + absorbMax, b, b - minTop), 0)
         let lower = min(rows, upper)
         let h = min(max(b - top, lower), upper)
         return (b - h, h)

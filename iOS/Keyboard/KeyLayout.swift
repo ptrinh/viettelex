@@ -566,3 +566,48 @@ struct HeightSettleGuard {
 
     private func expired(now: TimeInterval) -> Bool { now - since >= Self.cap - 0.001 }
 }
+
+// MARK: Host giữ khung CAO HƠN hẳn mức xin (#151, iOS 1.2.29 Telegram: hiện / đổi bàn phím bằng 🌐)
+// Hệ thống chỉ đo lại chiều cao bàn phím extension khi cỡ "fitting" của view đổi (UIKit chuyển
+// systemLayoutFittingSizeDidChange lên controller cha — kiểm trên simulator: đổi constant chiều cao
+// ⇒ chuyển 1 lần; thêm constraint không đổi cỡ ⇒ 0). Khung tạm cao lúc host đang dựng mà KHÔNG có
+// lượt đổi cỡ nào sau đó ⇒ kẹt tới lần hiện sau: phím hấp thụ +absorbMax rồi phần dư thành dải trống
+// giữa thanh gợi ý và hàng phím (ảnh issue: ~190pt; có lần đáy bàn phím tràn khỏi màn hình).
+// Gỡ: view cao hơn mức xin quá phần phím hấp thụ được, ở hai lượt layout liên tiếp không animation
+// ⇒ báo cha đo lại (không đổi gì trên màn hình); vẫn kẹt ⇒ lượt sau đổi constant 1 pixel rồi trả về
+// (UIKit tự chuyển cả hai lần). Tối đa `maxNudges` lần mỗi lần hiện — host cố ý cấp dư thì thôi.
+
+/// Quyết định thuần (unit-test được): khi nào xin host đo lại chiều cao bàn phím.
+struct HostOversize {
+    enum Decision: Equatable {
+        case none        // không làm gì
+        case wait        // thấy dư — chờ lượt layout sau xác nhận (khung tạm / animation)
+        case remeasure   // báo controller cha cỡ fitting đã đổi (không đổi constraint)
+        case bump        // đổi constant chiều cao 1 pixel rồi trả về (đổi cỡ thật ⇒ UIKit tự báo)
+    }
+    /// Dư quá mức này mới là lỗi: host iOS 26 thường cấp dư ~25pt (phím hấp thụ, không dải trống).
+    /// = KeyRowLayout.absorbMax (test giữ hai số bằng nhau; file này không phụ thuộc UIKit).
+    static let threshold: CGFloat = 60
+    static let maxNudges = 2
+
+    private(set) var nudges = 0
+    private var pending: CGFloat?
+
+    /// Lần hiện mới.
+    mutating func reset() { self = HostOversize() }
+
+    /// - requested: constant chiều cao đang xin (base + HostFill extra).
+    /// - viewHeight: chiều cao view gốc hệ thống đang cấp.
+    mutating func observe(requested: CGFloat, viewHeight: CGFloat, inWindow: Bool, animating: Bool) -> Decision {
+        guard inWindow, requested > 0, viewHeight - requested > Self.threshold else { pending = nil; return .none }
+        guard nudges < Self.maxNudges else { return .none }
+        if animating { pending = nil; return .wait }
+        guard let p = pending, abs(p - viewHeight) < HostFill.tolerance else {
+            pending = viewHeight
+            return .wait
+        }
+        pending = nil
+        nudges += 1
+        return nudges == 1 ? .remeasure : .bump
+    }
+}

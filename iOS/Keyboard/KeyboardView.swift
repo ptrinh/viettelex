@@ -135,6 +135,17 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var hostFillExtra: CGFloat = 0 {
         didSet { if hostFillExtra != oldValue { updateSuggestionChrome() } }
     }
+    /// Lệch tạm (1 pixel) cộng vào constraint chiều cao để host đo lại (HostOversize .bump, #151);
+    /// controller trả về 0 ngay sau. Không đụng hình học hàng phím.
+    var heightNudge: CGFloat = 0 {
+        didSet {
+            guard heightNudge != oldValue else { return }
+            let total = baseRequestedHeight + hostFillExtra + heightNudge
+            if heightConstraint?.constant != total { heightConstraint?.constant = total }
+        }
+    }
+    /// Chiều cao đang xin host (constant constraint, gồm phần xin thêm, không gồm lệch tạm).
+    var requestedHeight: CGFloat { baseRequestedHeight + hostFillExtra }
     /// Nền theme đục / ảnh nền đang vẽ (dải kính hệ thống lộ ra mới thấy khác màu).
     var paintsBackdrop: Bool { !themeBackdrop.isHidden || wallpaperActive }
     /// Debug log: constant + priority của constraint chiều cao xin host.
@@ -873,7 +884,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                                                         numberRowFullHeight: numberRowFullHeight,
                                                         strip: strip, headroom: headroom, mode: chromeMode,
                                                         bottomInset: bottomInset)
-        let total = baseRequestedHeight + hostFillExtra
+        let total = baseRequestedHeight + hostFillExtra + heightNudge
         if heightConstraint?.constant != total { heightConstraint?.constant = total }
         if rowsBottomGap != bottomInset || rowsHeightWanted != c.rows || rowsMinTop != c.minTop {
             rowsBottomGap = bottomInset; rowsHeightWanted = c.rows; rowsMinTop = c.minTop
