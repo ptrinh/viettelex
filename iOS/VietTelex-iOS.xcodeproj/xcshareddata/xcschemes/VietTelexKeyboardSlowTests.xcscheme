@@ -91,6 +91,12 @@
                   Identifier = "SwipeDecoderTests/testBenchmark">
                </Test>
                <Test
+                  Identifier = "KeyboardRenderBudgetTests/testTimingOpenToFirstFrame">
+               </Test>
+               <Test
+                  Identifier = "KeyboardRenderBudgetTests/testTimingPlaneSwitch">
+               </Test>
+               <Test
                   Identifier = "TouchTargetTests/testLatency">
                </Test>
                <Test

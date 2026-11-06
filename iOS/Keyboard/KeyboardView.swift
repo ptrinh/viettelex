@@ -904,7 +904,22 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // Rotation / Split View: indent hàng 2 và chiều cao tính theo bounds THẬT,
     // không dùng UIScreen.main (deprecated, sai trong Split View).
     private var lastLayoutWidth: CGFloat = 0
+    #if DEBUG
+    /// Chẩn đoán (KeyboardRenderBudgetTests): != nil ⇒ ghi call stack mỗi lần layer của
+    /// KeyboardView bị đánh dấu cần layout (cả từ UIKit/CA, vd sublayer đổi cỡ). Chỉ DEBUG.
+    static var debugNeedsLayoutLog: [String]?
+    final class TraceLayer: CALayer {
+        override func setNeedsLayout() {
+            if KeyboardView.debugNeedsLayoutLog != nil { KeyboardView.debugNeedsLayoutLog!.append(Thread.callStackSymbols.prefix(12).joined(separator: "\n")) }
+            super.setNeedsLayout()
+        }
+    }
+    override class var layerClass: AnyClass { TraceLayer.self }
+    #endif
     override func layoutSubviews() {
+        #if DEBUG
+        Self.perfLayoutPasses += 1
+        #endif
         StartupTrace.span("kv.layout") { layoutSubviewsBody() }
     }
     private func layoutSubviewsBody() {
@@ -938,6 +953,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         layoutStripZones()
         layoutOverlayPanel()
         layoutBackdrop()
+        if balloonMade, balloonHost.frame != bounds { balloonHost.frame = bounds }
         StartupTrace.span("kv.wallpaper+screens") {
             loadWallpaperIfNeeded()
             loadThemeScreensIfNeeded()
@@ -2377,6 +2393,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     #if DEBUG
     static var perfFullBuilds = 0   // xé + dựng mới cả plane (đắt)
     static var perfCacheSwaps = 0   // tráo rows từ planeCache (rẻ)
+    /// Lượt layoutSubviews của KeyboardView / của mọi KeyButton (KeyboardRenderBudgetTests).
+    static var perfLayoutPasses = 0
+    static var perfKeyLayoutPasses = 0
     #endif
 
     private func rebuild() {
@@ -2384,6 +2403,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         StartupTrace.span("kv.rebuild") { rebuildBody() }
     }
     private func rebuildBody() {
+        if builtPlane != nil, builtPlane != plane { FrameTrace.untilCommit("plane") }   // Instruments: đổi mặt phím → commit
         initialBuildPending = false
         letterGeometryCache = nil
         // Hoạ tiết nền (chỉ theme có hoạ tiết): hàng phím mới ⇒ lượt layout kế đo lại khe giữa hàng
@@ -4043,6 +4063,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             case center
         }
         private var overlays: [(view: UIView, pin: OverlayPin)] = []
+        var hasOverlays: Bool { !overlays.isEmpty }
         func addOverlay(_ v: UIView, _ pin: OverlayPin) {
             addSubview(v)
             overlays.append((v, pin))
@@ -4320,6 +4341,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         var padPunctLabels: [UILabel] = []
 
         override func layoutSubviews() {
+            #if DEBUG
+            KeyboardView.perfKeyLayoutPasses += 1
+            #endif
             applyPadTypographyIfNeeded()
             applyKeyStyleIfNeeded()
             layoutSkin()
@@ -4893,6 +4917,17 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
     private var balloonMade = false
     private lazy var balloon: BalloonView = { balloonMade = true; return BalloonView() }()
+    /// Lớp chứa ô phóng to: khung = bounds KeyboardView (toạ độ trùng nhau). Ô phóng to đổi cỡ
+    /// theo phím ⇒ Core Animation đánh dấu SUPERLAYER cần layout; nằm thẳng trong KeyboardView thì
+    /// MỖI phím chạy cả layoutSubviews của bàn phím (KeyboardRenderBudgetTests.testKeypressBudget).
+    /// Lớp chứa rỗng: layout của nó không làm gì.
+    private lazy var balloonHost: UIView = {
+        let v = UIView(frame: bounds)
+        v.isUserInteractionEnabled = false
+        v.backgroundColor = nil
+        v.layer.zPosition = 10   // như ô phóng to cũ: trên phím / hiệu ứng / tiền cảnh
+        return v
+    }()
     var debugBalloonMade: Bool { balloonMade }
     #if DEBUG
     /// Test: tệp tải về đang nạp + view ảnh nền / tiền cảnh theme + skin ô phóng to.
@@ -4904,7 +4939,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Thứ tự (chỉ số subview) của hàng phím / tiền cảnh / ô phóng to.
     var debugZOrder: (rows: Int?, foreground: Int?, balloon: Int?) {
         (subviews.firstIndex(of: rowsContainer), subviews.firstIndex(of: foregroundView),
-         balloonMade ? subviews.firstIndex(of: balloon) : nil)
+         balloonMade ? subviews.firstIndex(of: balloonHost) : nil)
     }
     #endif
     private func showBalloon(over key: UIView, text: String, force: Bool = false) {
@@ -4913,7 +4948,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Không bao giờ vượt mép trên view (extension bị cắt ở đó) — headroom luôn có
         // (KeyLayout.balloonHeadroom); bubble thấp thì chữ co cho vừa.
         let topLimit: CGFloat = 0
-        if balloon.superview == nil { addSubview(balloon) }
+        if balloonHost.superview !== self {
+            balloonHost.frame = bounds
+            addSubview(balloonHost)
+        }
+        if balloon.superview !== balloonHost { balloonHost.addSubview(balloon) }
         if balloonHidePending {               // balloon chạm trước đang chờ ẩn trễ — huỷ
             balloonHidePending = false
             NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(hideBalloonDeferred), object: nil)
@@ -6837,7 +6876,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
     /// Test hook: frame phím emoji (toạ độ self) ở hàng đáy plane đang hiện.
     var debugEmojiKeyFrame: CGRect? { debugControl("Emoji").map { convert($0.bounds, from: $0) } }
-    var debugBalloonVisible: Bool { balloonMade && !balloon.isHidden && balloon.superview != nil }
+    var debugBalloonVisible: Bool { balloonMade && !balloon.isHidden && balloon.superview?.superview != nil }
     /// Test hook: một touch chữ chạm tại `p0`, kéo qua `points` (cách nhau `dt` giây),
     /// nhấc tay ở điểm cuối — đi đúng đường router (routeDown → swipeMoved → routeUp).
     /// Trả true nếu touch thành vuốt.
@@ -6934,6 +6973,21 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if !keepOpen { b.sendActions(for: .touchUpInside) }
         return armed
     }
+    #if DEBUG
+    /// Test (KeyboardRenderBudgetTests): bấm phím đổi mặt phím (123 ⇄ ABC) như ngón thật.
+    @discardableResult
+    func debugTapPlaneKey() -> Bool {
+        func find(_ v: UIView) -> KeyButton? {
+            if let b = v as? KeyButton, b.accessibilityLabel == L("Số") || b.accessibilityLabel == L("Chữ") { return b }
+            for s in v.subviews { if let b = find(s) { return b } }
+            return nil
+        }
+        guard let b = find(rowsContainer) else { return false }
+        b.sendActions(for: .touchDown)
+        b.sendActions(for: .touchUpInside)
+        return true
+    }
+    #endif
     private func debugButton(_ title: String) -> KeyButton? {
         func find(_ v: UIView) -> KeyButton? {
             if let b = v as? KeyButton, b.currentTitle == title { return b }

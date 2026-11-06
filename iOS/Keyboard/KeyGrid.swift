@@ -305,7 +305,9 @@ final class KeyRow: UIView {
                 }
             } else if let b = v as? KeyboardView.KeyButton, b.exactFrame != exact || b.roundedOrigin != r.origin {
                 b.exactFrame = exact; b.roundedOrigin = r.origin
-                b.setNeedsLayout()
+                // Khung chính xác chỉ dùng cho nhãn phụ (layoutOverlays); phím không có nhãn phụ mà
+                // chỉ dời chỗ (host đổi chiều cao lúc hiện) ⇒ khỏi layout lại (đổi cỡ thì UIKit tự gọi).
+                if b.hasOverlays { b.setNeedsLayout() }
             }
             if v.frame != f { v.frame = f }
             x += w + (customSpacing[ObjectIdentifier(v)] ?? spacing)
