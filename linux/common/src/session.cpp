@@ -148,12 +148,30 @@ void Session::distrust() {
     }
 }
 
-bool Session::inPlaceAllowed(InputContext &ic, const std::string &expected) {
+int clampDeleteToReport(int requested, long reportedBefore) {
+    if (requested <= 0) return 0;
+    if (reportedBefore < 0) return requested;  // no surrounding text: no limit known
+    return reportedBefore < long(requested) ? int(reportedBefore) : requested;
+}
+
+bool Session::deleteFitsReport(InputContext &ic, int n) {
+    return n <= 0 || clampDeleteToReport(n, ic.reportedCharsBeforeCursor()) == n;
+}
+
+bool Session::inPlaceAllowed(InputContext &ic, const std::string &expected, int deletes) {
     if (mode_ != DisplayMode::Surrounding || expected.empty()) return true;
     // Key edits not shown yet, but everything the host shows is one of the states our
     // ordered operations pass through (checkKeyEdit, this key event): BackSpaces sent now
     // land after them.
     if (deleteWithKeys_ && ackLagging_) return true;
+    // Delete-surrounding: never reach past the start of what the client last reported (GNOME
+    // Wayland aborts the shell). A report still lagging behind our commits at the start of
+    // the field ("" while "vie" is on its way) is the usual case: Stale below would let it
+    // through. The field goes to preedit; this key is typed as is (the caller).
+    if (!deleteWithKeys_ && !deleteFitsReport(ic, deletes < 0 ? int(utf8Chars(expected)) : deletes)) {
+        distrust();
+        return false;
+    }
     // Key edits keep a trail of what was typed before the word too: a host still behind the
     // boundary ("việt" shown, "việt l" typed) is then recognised as lagging, not as wrong.
     const std::string &want = deleteWithKeys_ && endsWithBytes(ackTrail_, expected) ? ackTrail_ : expected;
@@ -184,6 +202,12 @@ void Session::replaceBeforeCursor(InputContext &ic, int backspaces, const std::s
         if (!insert.empty()) ic.commit(insert);
         if (backspaces > 0) ackArm(base, backspaces, insert);
         else if (!insert.empty()) ackAppend(insert);
+        return;
+    }
+    if (!deleteFitsReport(ic, backspaces)) {
+        // Callers check inPlaceAllowed / read the text back first: this is the last line for
+        // the rest (no read possible). No delete (crash guard), and no half edit either.
+        distrust();
         return;
     }
     if (backspaces > 0) ic.deleteBeforeCursor(backspaces);
@@ -1177,7 +1201,7 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
         // Auto-restore deletes the word: with a selection at the caret the delete would hit
         // the selection — leave the word as typed.
         if (mode_ == DisplayMode::Surrounding && a.kind == VT_ACTION_REPLACE && a.backspaces > 0 &&
-            (selectionAtCaret(ic) || !inPlaceAllowed(ic, word))) {
+            (selectionAtCaret(ic) || !inPlaceAllowed(ic, word, a.backspaces))) {
             vt_reset(e_);
             ended(word, rawWord);
             return;
@@ -1502,7 +1526,7 @@ bool Session::handleLetter(uint32_t ch, InputContext &ic) {
         ackAppend(encode(ch));
         break;
     case VT_ACTION_REPLACE:
-        if (a.backspaces > 0 && (ic.hasSelection() || !inPlaceAllowed(ic, shown))) {
+        if (a.backspaces > 0 && (ic.hasSelection() || !inPlaceAllowed(ic, shown, a.backspaces))) {
             // Never delete into a selection, nor text that is not what we typed (the Session
             // then composes in preedit): type the key literally, start a new word.
             vt_reset(e_);
@@ -1582,7 +1606,7 @@ bool Session::handleBackspace(InputContext &ic) {
     if (a.kind != VT_ACTION_REPLACE) return false;
     if (a.insert_len == 0 && a.backspaces == 1) return false;
     if (mode_ == DisplayMode::Surrounding && a.backspaces > 0 &&
-        (ic.hasSelection() || !inPlaceAllowed(ic, shown))) {
+        (ic.hasSelection() || !inPlaceAllowed(ic, shown, a.backspaces))) {
         vt_reset(e_);  // the app's own ⌫ removes the selection / one character
         applyPendingMode();
         return false;
@@ -1678,7 +1702,7 @@ bool Session::tryTokenShortcut(InputContext &ic) {
     auto it = shortcuts_->find(token);
     if (it == shortcuts_->end()) return false;
     if (ic.hasSelection() || selectionAtCaret(ic)) return false;
-    if (!preedit && !inPlaceAllowed(ic, word)) return false;
+    if (!preedit && !inPlaceAllowed(ic, word, int(utf8Chars(token)))) return false;
     const std::string expansion = it->second;
     // Committed part of the run ("=>" / ":" of ":D"); in Surrounding the word goes too.
     const std::string onScreen = preedit ? token.substr(0, token.size() - word.size()) : token;

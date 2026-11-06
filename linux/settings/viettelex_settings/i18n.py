@@ -447,6 +447,12 @@ EN = {
     "Mở IBus Preferences → Input Method → Add → Vietnamese → VietTelex.":
         "Open IBus Preferences → Input Method → Add → Vietnamese → VietTelex.",
     "Khởi động lại IBus": "Restart IBus",
+    "IBus chưa nạp VietTelex — đang tự khởi động lại IBus…":
+        "IBus hasn’t loaded VietTelex yet — restarting IBus…",
+    "IBus chưa nạp VietTelex — bấm “ibus restart” bên dưới.":
+        "IBus hasn’t loaded VietTelex yet — click “ibus restart” below.",
+    "IBus vẫn chưa nạp VietTelex — bấm “ibus restart” bên dưới, hoặc đăng xuất rồi đăng nhập lại.":
+        "IBus still hasn’t loaded VietTelex — click “ibus restart” below, or log out and back in.",
     "Cần sau khi cài/cập nhật gói viettelex-ibus.": "Needed after installing/updating viettelex-ibus.",
     "Mở Cài đặt Bàn phím…": "Open Keyboard Settings…",
     "Nơi thêm/bớt và sắp xếp nguồn nhập của GNOME.": "Where GNOME input sources are added, removed and ordered.",

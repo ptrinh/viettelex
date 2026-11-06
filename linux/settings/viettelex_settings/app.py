@@ -1403,6 +1403,7 @@ class OnboardingWindow(Adw.Window):
         self.flow = flow
         self.profile = None
         self._finished = False
+        self._ibus_restarted = False     # tự `ibus restart` tối đa một lần mỗi cửa sổ
         self.stage = "setup"
         if flow and getattr(parent, "assessment", {}).get("ok"):
             self.stage = "profile"
@@ -1500,6 +1501,8 @@ class OnboardingWindow(Adw.Window):
                        "Hoặc bấm Thêm để làm hộ.") if gnome else
                        _("Mở IBus Preferences → Input Method → Add → Vietnamese → VietTelex.")),
                       _("Thêm") if a["installed"]["ibus"] else None, lambda: self.add_ibus(gnome))
+            self._ibus_loaded_status(g, a)
+            # Nút tay giữ lại: tự khởi động lại chỉ một lần, và không biết được mọi trường hợp.
             r = row(_("Khởi động lại IBus"), _("Cần sau khi cài/cập nhật gói viettelex-ibus."))
             b = Gtk.Button(label="ibus restart", valign=Gtk.Align.CENTER)
             b.connect("clicked", lambda _b: self.run_ok(["ibus", "restart"], _("Đã khởi động lại IBus.")))
@@ -1513,6 +1516,29 @@ class OnboardingWindow(Adw.Window):
                 g.add(r)
         page.add(g)
         self._finish(page, a)
+
+    def _ibus_loaded_status(self, group, a):
+        """ibus-daemon chạy mà chưa nạp VietTelex (vừa cài gói, hoặc "Thêm" vào nguồn nhập của
+        GNOME trong khi daemon chưa biết engine — nguồn đó gõ không ra gì): tự `ibus restart`
+        một lần, kèm một dòng trạng thái. `ibus write-cache` không giúp daemon đang chạy."""
+        action = detect.ibus_restart_action(a, self._ibus_restarted)
+        if action == "restart":
+            self._ibus_restarted = True
+            if spawn(["ibus", "restart"]):
+                text = _("IBus chưa nạp VietTelex — đang tự khởi động lại IBus…")
+                GLib.timeout_add(2500, lambda: (self.rebuild(), False)[1])
+            else:
+                text = _("IBus chưa nạp VietTelex — bấm “ibus restart” bên dưới.")
+        elif action == "still_missing":
+            text = _("IBus vẫn chưa nạp VietTelex — bấm “ibus restart” bên dưới, hoặc đăng xuất "
+                     "rồi đăng nhập lại.")
+        else:
+            return
+        r = row(text, None)
+        icon = Gtk.Image.new_from_icon_name("dialog-warning-symbolic")
+        icon.add_css_class("warning")
+        r.add_prefix(icon)
+        group.add(r)
 
     def _gnome_choice(self, page, a, fw):
         """GNOME: im-config không có tác dụng ⇒ nút đổi hẳn sang Fcitx5 / quay về IBus."""

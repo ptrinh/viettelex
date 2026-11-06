@@ -87,6 +87,59 @@ class DetectTests(unittest.TestCase):
         self.assertIn("lotus_uinput", a["warnings"])
 
 
+GNOME_IBUS = dict(env={"GTK_IM_MODULE": "ibus"}, ibus_running=True, ibus_component=True,
+                  gnome_sources="[('xkb', 'us'), ('ibus', 'viettelex')]")
+
+
+class IBusLoadedTests(unittest.TestCase):
+    """Daemon IBus đang chạy đã nạp engine VietTelex chưa (`ibus list-engine --name-only`)."""
+
+    def test_parse_name_only(self):
+        self.assertEqual(detect.ibus_engine_names("xkb:us::eng\nviettelex\n\nanthy\n"),
+                         {"xkb:us::eng", "viettelex", "anthy"})
+
+    def test_parse_long_form(self):
+        out = "language: English\n  xkb:us::eng - English (US)\nlanguage: Vietnamese\n  viettelex - VietTelex\n"
+        self.assertEqual(detect.ibus_engine_names(out), {"xkb:us::eng", "viettelex"})
+
+    def test_name_must_match_exactly(self):
+        self.assertNotIn("viettelex", detect.ibus_engine_names("viettelex-old\nxviettelex\n"))
+
+    def test_loaded(self):
+        a = detect.assess(snap(ibus_engines="xkb:us::eng\nviettelex\n", **GNOME_IBUS))
+        self.assertTrue(a["ibus_loaded"])
+        self.assertTrue(a["ok"])
+        self.assertIsNone(detect.ibus_restart_action(a, False))
+
+    def test_running_but_missing(self):
+        # Vừa cài gói: component có, nguồn nhập GNOME có, nhưng daemon chưa biết engine.
+        a = detect.assess(snap(ibus_engines="xkb:us::eng\n", **GNOME_IBUS))
+        self.assertIs(a["ibus_loaded"], False)
+        self.assertFalse(a["ok"])
+        self.assertEqual(detect.ibus_restart_action(a, False), "restart")
+        self.assertEqual(detect.ibus_restart_action(a, True), "still_missing")  # chỉ một lần
+
+    def test_unknown_when_not_asked(self):
+        for kw in ({}, {"ibus_engines": None}):
+            a = detect.assess(snap(**dict(GNOME_IBUS, **kw)))
+            self.assertIsNone(a["ibus_loaded"])
+            self.assertTrue(a["ok"])
+            self.assertIsNone(detect.ibus_restart_action(a, False))
+
+    def test_unknown_when_daemon_not_running(self):
+        a = detect.assess(snap(env={"GTK_IM_MODULE": "ibus"}, ibus_component=True, ibus_engines=""))
+        self.assertIsNone(a["ibus_loaded"])
+        self.assertIsNone(detect.ibus_restart_action(a, False))
+
+    def test_no_restart_without_package_or_on_fcitx5(self):
+        a = detect.assess(snap(**dict(GNOME_IBUS, ibus_component=False, ibus_engines="xkb:us::eng\n")))
+        self.assertIsNone(detect.ibus_restart_action(a, False))
+        a = detect.assess(snap(env={"GTK_IM_MODULE": "fcitx"}, fcitx5_running=True, fcitx5_addon=True,
+                               fcitx5_profile=PROFILE))
+        self.assertIsNone(a["ibus_loaded"])
+        self.assertIsNone(detect.ibus_restart_action(a, False))
+
+
 DEVICES_WITH_LOTUS = """I: Bus=0011 Vendor=0001 Product=0001 Version=ab41
 N: Name="AT Translated Set 2 keyboard"
 H: Handlers=sysrq kbd event0 leds

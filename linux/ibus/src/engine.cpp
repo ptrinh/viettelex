@@ -130,8 +130,21 @@ public:
     void commit(const std::string &s) override {
         ibus_engine_commit_text(e_, ibus_text_new_from_string(s.c_str()));
     }
+    // Never more than the client last reported (GNOME Wayland: mutter g_assert()s it, see
+    // vt::InputContext::reportedCharsBeforeCursor); nothing at all when 0 is allowed.
     void deleteBeforeCursor(int n) override {
+        n = vt::clampDeleteToReport(n, reportedCharsBeforeCursor());
         if (n > 0) ibus_engine_delete_surrounding_text(e_, -n, guint(n));
+    }
+    // The engine's copy of the last report (whether proven or not: an empty field reports "").
+    long reportedCharsBeforeCursor() override {
+        if (!(e_->client_capabilities & IBUS_CAP_SURROUNDING_TEXT)) return -1;
+        IBusText *text = nullptr;
+        guint cursor = 0, anchor = 0;
+        ibus_engine_get_surrounding_text(e_, &text, &cursor, &anchor);
+        if (!text) return 0;
+        guint len = ibus_text_get_length(text);
+        return long(cursor < len ? cursor : len);
     }
     // Direct (terminals on the GTK2/3 IBus module, see vt::ClientHost): BackSpace and the new
     // text all go out as ForwardKeyEvent. The module gdk_event_put()s each one, so they reach
