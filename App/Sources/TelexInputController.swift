@@ -1341,7 +1341,8 @@ final class TelexInputController: IMKInputController {
     private func effectiveCharacters(_ event: NSEvent) -> String? {
         guard let translator = KeyboardLayoutOverride.translator,
               let ch = translator.character(keyCode: event.keyCode,
-                                            shift: event.modifierFlags.contains(.shift))
+                                            shift: event.modifierFlags.contains(.shift),
+                                            capsLock: event.modifierFlags.contains(.capsLock))
         else { return event.characters }
         return String(ch)
     }

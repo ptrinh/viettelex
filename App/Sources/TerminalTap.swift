@@ -3600,7 +3600,8 @@ final class TerminalTapController {
         if let translator = KeyboardLayoutOverride.translator,
            flags.intersection([.maskCommand, .maskControl, .maskAlternate]).isEmpty,
            let remapped = translator.character(keyCode: UInt16(keyCode),
-                                               shift: flags.contains(.maskShift)) {
+                                               shift: flags.contains(.maskShift),
+                                               capsLock: flags.contains(.maskAlphaShift)) {
             ch = remapped
         }
         // VNI: digits carry the diacritics, so they belong to the WORD, not the boundary

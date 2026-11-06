@@ -209,6 +209,7 @@ private:
     bool ownKeyEdit_ = false;           // inside OnKeyDown's synchronous edit session
     SwitchHotkey hotkey_ = SwitchHotkey::CtrlShift;
     ModifierChord chord_;
+    PressLatch altZLatch_;              // Alt+Z: one toggle per press, not per auto-repeat
 
     HWND toolWnd_ = nullptr;
     struct ToolPending {

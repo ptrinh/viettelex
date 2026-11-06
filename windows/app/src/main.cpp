@@ -231,6 +231,10 @@ void showTrayMenu() {
     GetCursorPos(&pt);
     SetForegroundWindow(g_mainWnd);
     UINT cmd = TrackPopupMenu(m, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY, pt.x, pt.y, 0, g_mainWnd, nullptr);
+    // TrackPopupMenu docs (KB135788): after a notification-icon menu, post a benign message
+    // to the owner — together with SetForegroundWindow above, this is what makes a click
+    // outside the menu close it instead of leaving it open until the next click.
+    PostMessageW(g_mainWnd, WM_NULL, 0, 0);
     DestroyMenu(m);
     switch (cmd) {
         case kTraySettings: showSettings(Tab::Typing); break;

@@ -158,6 +158,26 @@ TEST(hotkey_parse_and_default) {
     CHECK_EQ(std::string(switchHotkeyName(SwitchHotkey::WinSpace)), std::string("win-space"));
 }
 
+TEST(hotkey_altz_latch_one_toggle_per_press) {
+    PressLatch l;
+    CHECK(l.fire());   // Alt+Z: toggle
+    CHECK(!l.fire());  // auto-repeat: ignored
+    l.noteKey('Z', true);  // a repeat that also reached the key sink keeps the latch
+    CHECK(!l.fire());
+    l.noteKey('Z', false);  // Z released
+    CHECK(l.fire());        // Alt still held, Z pressed again: toggles once more
+    CHECK(!l.fire());
+    l.noteKey(0x12, false);  // Alt (VK_MENU) released
+    CHECK(l.fire());
+    CHECK(!l.fire());
+    l.noteKey(0xA4, true);  // missed key-up, but a fresh Alt (VK_LMENU) press re-arms
+    CHECK(l.fire());
+    l.noteKey('A', true);  // any other key re-arms too
+    CHECK(l.fire());
+    l.reset();
+    CHECK(!l.latched());
+}
+
 TEST(hotkey_chord_clean_press_release) {
     ModifierChord c;
     CHECK(!c.note(kModCtrl));

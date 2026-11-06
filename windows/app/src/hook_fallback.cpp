@@ -30,6 +30,10 @@
 // (hook_watchdog.h). The UI thread only posts commands (install/uninstall, settings,
 // foreground app) to the hook thread; all typing state is owned by the hook thread.
 
+// direct_policy.h mirrors these so replayKeyInjection is testable off Windows.
+static_assert(vtx::kKeyeventfExtendedKey == KEYEVENTF_EXTENDEDKEY && vtx::kKeyeventfKeyUp == KEYEVENTF_KEYUP &&
+              vtx::kLlkhfExtended == LLKHF_EXTENDED);
+
 namespace vtx::app {
 
 namespace {
@@ -133,15 +137,24 @@ public:
     void endCompositionAsIs() override {}
 
     void addVk(WORD vkey) {
-        INPUT in[2] = {};
-        for (int i = 0; i < 2; ++i) {
-            in[i].type = INPUT_KEYBOARD;
-            in[i].ki.wVk = vkey;
-            // A real key event: scan code included (console readers look at it).
-            in[i].ki.wScan = static_cast<WORD>(MapVirtualKeyW(vkey, MAPVK_VK_TO_VSC));
-            in[i].ki.dwFlags = i ? KEYEVENTF_KEYUP : 0;
-            in[i].ki.dwExtraInfo = kInjectedMagic;
-            inputs.push_back(in[i]);
+        // A real key event: scan code included (console readers look at it).
+        addKeys(replayKeyInjection(vkey, 0, 0, static_cast<uint16_t>(MapVirtualKeyW(vkey, MAPVK_VK_TO_VSC))));
+    }
+    // The user's own key, replayed after our edits: its scan code and extended bit kept,
+    // or an arrow / Home / End / Del / numpad Enter would arrive as its numpad twin.
+    void addUserKey(const KBDLLHOOKSTRUCT& kb) {
+        addKeys(replayKeyInjection(kb.vkCode, kb.scanCode, kb.flags,
+                                   static_cast<uint16_t>(MapVirtualKeyW(kb.vkCode, MAPVK_VK_TO_VSC))));
+    }
+    void addKeys(const std::array<KeyInjection, 2>& keys) {
+        for (const KeyInjection& k : keys) {
+            INPUT in = {};
+            in.type = INPUT_KEYBOARD;
+            in.ki.wVk = k.vk;
+            in.ki.wScan = k.scan;
+            in.ki.dwFlags = k.flags;
+            in.ki.dwExtraInfo = kInjectedMagic;
+            inputs.push_back(in);
         }
     }
     void addUnicode(char16_t c) {
@@ -250,7 +263,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     // edits, so swallow it and replay it at the end of the batch.
     if (!eaten) {
         if (k.kind == KeyKind::Char) sink.addUnicode(static_cast<char16_t>(k.ch));
-        else sink.addVk(static_cast<WORD>(kb->vkCode));
+        else sink.addUserKey(*kb);
     }
     if (!h->breaker.allow(GetTickCount64(), static_cast<uint32_t>(sink.inputs.size()))) {
         dropWord();

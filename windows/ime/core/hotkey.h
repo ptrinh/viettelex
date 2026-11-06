@@ -46,4 +46,31 @@ private:
     bool armed_ = false;
 };
 
+// Alt+Z held down: the keyboard auto-repeats Z and TSF calls OnPreservedKey for every
+// repeat, which used to flip Viet/Anh several times a second. One toggle per press: the
+// first call latches, repeats are swallowed, and any other key event (Z or Alt released,
+// another key or a fresh Alt pressed) re-arms it. Re-arming on more than Z/Alt key-up
+// means a key-up the TIP never saw (focus moved mid-press) cannot block the next press.
+class PressLatch {
+public:
+    explicit PressLatch(uint32_t vk = 'Z') : vk_(vk) {}
+    // The preserved key fired. True = act on it (first of this press).
+    bool fire() {
+        if (latched_) return false;
+        latched_ = true;
+        return true;
+    }
+    // Every key event the TIP's key sinks see (test and real, down and up). Only a
+    // key-down of the latched key itself (auto-repeat) keeps the latch.
+    void noteKey(uint32_t vk, bool down) {
+        if (!(down && vk == vk_)) latched_ = false;
+    }
+    void reset() { latched_ = false; }
+    bool latched() const { return latched_; }
+
+private:
+    uint32_t vk_;
+    bool latched_ = false;
+};
+
 }  // namespace vtx

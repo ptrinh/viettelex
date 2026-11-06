@@ -117,6 +117,33 @@ final class KeyboardLayoutOverrideTests: XCTestCase {
         XCTAssertNil(qwerty.character(keyCode: 9999, shift: false))  // out of range
     }
 
+    /// Caps Lock with a pinned layout used to be dropped: the table was read with the
+    /// Shift flag alone, so Caps Lock typed lowercase. Letters capitalise; digits and
+    /// punctuation keep their plain symbol; Shift on top still gives a capital (macOS
+    /// semantics, unlike Windows).
+    func testCapsLockCapitalisesLettersOnly() {
+        let a = UInt8(ascii: "a"), one = UInt8(ascii: "1"), semi = UInt8(ascii: ";")
+        XCTAssertFalse(KeyboardLayoutTranslator.effectiveShift(shift: false, capsLock: false, plainASCII: a))
+        XCTAssertTrue(KeyboardLayoutTranslator.effectiveShift(shift: false, capsLock: true, plainASCII: a))
+        XCTAssertTrue(KeyboardLayoutTranslator.effectiveShift(shift: true, capsLock: true, plainASCII: a))
+        XCTAssertTrue(KeyboardLayoutTranslator.effectiveShift(shift: true, capsLock: false, plainASCII: a))
+        XCTAssertFalse(KeyboardLayoutTranslator.effectiveShift(shift: false, capsLock: true, plainASCII: one))
+        XCTAssertFalse(KeyboardLayoutTranslator.effectiveShift(shift: false, capsLock: true, plainASCII: semi))
+        XCTAssertTrue(KeyboardLayoutTranslator.effectiveShift(shift: true, capsLock: true, plainASCII: one))
+        XCTAssertFalse(KeyboardLayoutTranslator.effectiveShift(shift: false, capsLock: true, plainASCII: nil))
+    }
+
+    /// End to end through a real layout table: Colemak keyCode 1 is "r".
+    func testTranslatorHonoursCapsLock() throws {
+        let colemak = try XCTUnwrap(layoutSource("com.apple.keylayout.Colemak"))
+        let cole = try XCTUnwrap(KeyboardLayoutTranslator(layoutID: "cole", source: colemak))
+        XCTAssertEqual(cole.character(keyCode: 1, shift: false, capsLock: true), "R")
+        XCTAssertEqual(cole.character(keyCode: 1, shift: true, capsLock: true), "R")
+        XCTAssertEqual(cole.character(keyCode: 1, shift: false, capsLock: false), "r")
+        XCTAssertEqual(cole.character(keyCode: 18, shift: false, capsLock: true), "1")   // digit row
+        XCTAssertEqual(cole.character(keyCode: 18, shift: true, capsLock: true), "!")
+    }
+
     private func layoutSource(_ id: String) -> TISInputSource? {
         let filter = [kTISPropertyInputSourceID as String: id] as CFDictionary
         return (TISCreateInputSourceList(filter, true)?.takeRetainedValue()
