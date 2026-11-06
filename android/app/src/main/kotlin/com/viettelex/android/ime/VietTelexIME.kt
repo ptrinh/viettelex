@@ -1317,6 +1317,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         if (!voice.launch()) { voice.refresh(); keyboard?.setVoiceAvailable(voice.available && !field.isSecure) }
     }
 
+    /** "." "," ":" ở plane ?123: ngay sau chữ số thì ở lại ("2.5"). Shadow tin được ⇒ không IPC. */
+    override fun charBeforeCursor(): Char? = proxy.contextBeforeInput()?.lastOrNull()
+
     override fun onPlaneChanged(plane: Plane) {
         strip?.setPlane(plane)
         // Về chữ: viết hoa đầu câu theo context lúc đó (". " tự thêm ở plane 123 ⇒ hoa) —

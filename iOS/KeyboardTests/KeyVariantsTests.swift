@@ -75,21 +75,29 @@ final class KeyVariantsTests: XCTestCase {
         kb.layoutIfNeeded()
         XCTAssertTrue(kb.debugDomainHold("\"", fire: false))
         XCTAssertEqual(out, ["T\""], "chạm thường vẫn ra ký tự gốc")
+        XCTAssertEqual(kb.debugPlaneName, "letters", "\" = dấu kết vế ⇒ về chữ ngay (06/11/2026)")
         out = []
+        kb.debugSetPlane(numbers: true); kb.layoutIfNeeded()
         kb.debugDomainHold("\"")                                   // giữ rồi nhấc tại chỗ
         XCTAssertEqual(out, ["T\""], "mặc định chọn ký tự gốc như stock")
+        XCTAssertEqual(kb.debugPlaneName, "letters", "chọn từ popup theo cùng luật chạm")
         let l = try XCTUnwrap(kb.debugLastDomainLayout)
         XCTAssertEqual(l.count, 6)
         XCTAssertGreaterThanOrEqual(l.originX, 0)
         XCTAssertLessThanOrEqual(l.originX + l.width, kb.bounds.width)
         out = []
+        kb.debugSetPlane(numbers: true); kb.layoutIfNeeded()
         kb.debugDomainHold("\"", dx: l.mirrored ? -l.itemWidth : l.itemWidth)
         XCTAssertEqual(out, ["T”"])
+        XCTAssertEqual(kb.debugPlaneName, "letters", "” đóng ⇒ về chữ")
         out = []
+        kb.debugSetPlane(numbers: true); kb.layoutIfNeeded()
         kb.debugDomainHold("\"", dy: -300)
         XCTAssertEqual(out, [], "trượt xa ⇒ huỷ")
+        XCTAssertEqual(kb.debugPlaneName, "numbers", "huỷ ⇒ không chèn, không đổi plane")
         out = []
         kb.debugDomainHold("$")
+        XCTAssertEqual(kb.debugPlaneName, "numbers", "$ giữ plane")
         let d = try XCTUnwrap(kb.debugLastDomainLayout)
         out = []
         kb.debugDomainHold("$", dx: d.mirrored ? -d.itemWidth : d.itemWidth)
