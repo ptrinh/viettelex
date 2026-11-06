@@ -92,7 +92,7 @@ class SettingsCleanupTest {
         assertEquals("Tính Năng › Gõ vuốt", path("Vuốt từ tiếng Anh"))
     }
 
-    // MARK: kiểu gõ — key không đổi, chỉ-Telex mờ khi VNI
+    // MARK: kiểu gõ — key không đổi, chỉ-Telex ẩn khi VNI
 
     @Test fun typingOptionsKeysAndTelexOnly() {
         val keys = mapOf(TypingOption.InputMethod to "vniMode", TypingOption.AutoCapitalize to "autoCapitalize",
@@ -100,12 +100,13 @@ class SettingsCleanupTest {
             TypingOption.QuickTelex to "quickTelex", TypingOption.ModernTone to "modernTone",
             TypingOption.Teencode to "teencode")
         for (o in TypingOption.entries) assertEquals(o.name, keys[o], o.prefKey)
+        // VNI ⇒ ẨN Telex đơn giản / Bỏ dấu tự do / Gõ nhanh (§6); teencode chạy cả ở VNI ⇒ luôn hiện.
+        val telexOnly = setOf(TypingOption.SimpleTelex, TypingOption.FreeMarking, TypingOption.QuickTelex)
         for (o in TypingOption.entries) {
-            assertNull(TypingOption.disabledReason(o, vniMode = false))
-            val expected = if (o in setOf(TypingOption.SimpleTelex, TypingOption.FreeMarking, TypingOption.QuickTelex,
-                    TypingOption.Teencode)) MixedTypingUI.TELEX_ONLY else null
-            assertEquals(o.name, expected, TypingOption.disabledReason(o, vniMode = true))
+            assertFalse(o.name, TypingOption.hidden(o, vniMode = false))
+            assertEquals(o.name, o in telexOnly, TypingOption.hidden(o, vniMode = true))
         }
+        assertFalse(TypingOption.Teencode.hiddenInVni)
         assertEquals("Chỉ áp dụng cho Telex", MixedTypingUI.TELEX_ONLY)
         // Cấp 1 tab Kiểu Gõ chỉ còn Telex/VNI + Tự viết hoa; còn lại ở Nâng cao.
         assertEquals(listOf(TypingOption.InputMethod, TypingOption.AutoCapitalize), TypingOption.entries.filter { !it.advanced })
@@ -162,6 +163,54 @@ class SettingsCleanupTest {
         assertEquals("Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này.", SettingCaption.vniMixedNote)
         assertEquals("VNI leaves English words as typed, so there is nothing to set here.", L10nTable.EN[SettingCaption.vniMixedNote])
         assertTrue(SettingCaption.vniMixedNote in SettingCaption.all)
+    }
+
+    // MARK: §0.4 + §6 bảng ẩn theo mục cha (06/11/2026)
+
+    @Test fun typingAdvancedRowsVni() {
+        assertEquals(listOf(TypingOption.SimpleTelex, TypingOption.FreeMarking, TypingOption.QuickTelex,
+            TypingOption.ModernTone, TypingOption.Teencode), TypingOption.advancedRows(false))
+        assertEquals(listOf(TypingOption.ModernTone, TypingOption.Teencode), TypingOption.advancedRows(true))
+        assertEquals(TYPING_ADVANCED_SUMMARY, TypingOption.advancedSummary(false))
+        assertEquals(TYPING_ADVANCED_SUMMARY_VNI, TypingOption.advancedSummary(true))
+        assertEquals("Modern tones, teencode", L10nTable.EN[TYPING_ADVANCED_SUMMARY_VNI])
+        // Tìm tới mục đang ẩn (VNI) ⇒ tô sáng bộ chọn Telex/VNI; mục còn hiện giữ đích.
+        for (o in TypingOption.entries) {
+            val expected = if (TypingOption.hidden(o, true)) TypingOption.InputMethod.target else o.target
+            assertEquals(o.name, expected, TypingOption.resolve(o.target, vniMode = true))
+            assertEquals(o.name, o.target, TypingOption.resolve(o.target, vniMode = false))
+        }
+        // Đích không phải kiểu gõ: không đụng.
+        val mixed = MixedTypingItem.AutoRestore.target
+        assertEquals(mixed, TypingOption.resolve(mixed, vniMode = true))
+    }
+
+    @Test fun suggestionBarHidesChildren() {
+        assertEquals(SettingDeps.SuggestionRow.entries, SettingDeps.suggestionRows(true))
+        // Thanh tắt ⇒ chỉ còn công tắc + Lọc từ nhạy cảm (không phụ thuộc).
+        assertEquals(listOf(SettingDeps.SuggestionRow.Toggle, SettingDeps.SuggestionRow.FilterSensitive),
+            SettingDeps.suggestionRows(false))
+        // Chạm trượt (nhóm khác) ⇒ mờ + lý do.
+        assertNull(SettingDeps.autoFixAdjacentReason(true))
+        assertEquals("Cần bật Thanh gợi ý", SettingDeps.autoFixAdjacentReason(false))
+        assertEquals("Needs Suggestion bar", L10nTable.EN[SettingDeps.NEEDS_SUGGESTIONS])
+    }
+
+    @Test fun vniDimsTelexOnlyFeatures() {
+        assertNull(SettingDeps.telexOnlyReason(false))
+        assertEquals(MixedTypingUI.TELEX_ONLY, SettingDeps.telexOnlyReason(true))
+    }
+
+    @Test fun swipeOffHidesChildren() {
+        assertEquals(SettingDeps.SwipeRow.entries, SettingDeps.swipeRows(true))
+        assertEquals(listOf(SettingDeps.SwipeRow.Toggle), SettingDeps.swipeRows(false))
+    }
+
+    /** Nguồn trang Sửa lỗi & gợi ý: "Thêm dấu" (Plus) có dòng khoá khi chưa mở khoá. */
+    @Test fun addTonesPlusLocked() {
+        val src = File(appSrc, "com/viettelex/android/ui/FeaturePages.kt").readText()
+        assertTrue("PlusGate.isUnlocked(PlusFeature.SENTENCE_DIACRITICS)" in src)
+        assertTrue("PlusLockedRow(tr(\"Thêm dấu\")" in src)
     }
 
     // MARK: §5(d) nhãn bảng §3 (chuỗi vi trong mã nguồn)

@@ -68,8 +68,6 @@ internal val APPLY_NOTE get() = tr("Cài đặt áp dụng ngay lần mở bàn 
 
 /** Trang con của "Phím & cử chỉ": rung, âm thanh, phóng to/sẫm phím khi bấm. */
 internal const val FEEDBACK_TITLE = "Phản hồi khi chạm" // l10n-key
-/** Lý do làm mờ "Vuốt từ tiếng Anh" khi Gõ vuốt tắt. */
-internal const val SWIPE_ENGLISH_NEEDS_SWIPE = "Cần bật Gõ vuốt" // l10n-key
 
 /** [viTitle] = khoá dịch; hiển thị qua [title] (theo ngôn ngữ giao diện). [anchor] rỗng = không có mục Hướng dẫn. */
 enum class FeaturePage(val viTitle: String, val glyph: Glyph, val color: Color, val anchor: String, val enAnchor: String, val experimental: Boolean = false) {
@@ -355,6 +353,7 @@ private fun FeatureHome(onOpen: (FeaturePage, Boolean) -> Unit) {
     val liveSpell by rememberBoolPref(Keys.LIVE_SPELL_CHECK, Prefs.D.liveSpellCheck)
     val reEdit by rememberBoolPref(Keys.RE_EDIT_WORDS, Prefs.D.reEditWords)
     val autoCorrect by rememberBoolPref(Keys.AUTO_CORRECT, Prefs.D.autoCorrect)
+    val vniHome by rememberBoolPref(Keys.VNI_MODE, Prefs.D.vniMode)
     val suggestions by rememberBoolPref(Keys.SHOW_SUGGESTIONS, Prefs.D.showSuggestions)
     val numberChips by rememberBoolPref(Keys.NUMBER_CHIPS, Prefs.D.numberChips)
     val addTones by rememberBoolPref(Keys.ADD_TONES_CHIP, Prefs.D.addTonesChip)
@@ -387,8 +386,8 @@ private fun FeatureHome(onOpen: (FeaturePage, Boolean) -> Unit) {
 
     fun summary(p: FeaturePage): String = when (p) {
         FeaturePage.SuaLoi -> join(liveSpell to tr("Kiểm tra chính tả"), reEdit to tr("Sửa dấu"),
-            autoCorrect to tr("Tự sửa"), suggestions to tr("Thanh gợi ý"), (suggestions && numberChips) to tr("Số tiền"),
-            (suggestions && addTones) to tr("Thêm dấu"), none = tr("Đang tắt"))
+            (autoCorrect && !vniHome) to tr("Tự sửa"), suggestions to tr("Thanh gợi ý"), (suggestions && numberChips) to tr("Số tiền"),
+            (suggestions && addTones && PlusGate.isUnlocked(PlusFeature.SENTENCE_DIACRITICS)) to tr("Thêm dấu"), none = tr("Đang tắt"))
         FeaturePage.GoVuot -> if (!swipe) tr("Đang tắt") else join(true to tr("Bật"), swipeFuto to "Neural", none = "")
         FeaturePage.GoTat -> (if (!shortcutsOn) tr("Gõ tắt tắt") else if (shortcutCount == 0) tr("Gõ tắt bật") else tr("Gõ tắt: %d mục", shortcutCount)) +
             " · " + if (templatesOn) tr("Mẫu câu bật") else tr("Mẫu câu tắt")
@@ -470,31 +469,42 @@ private fun SuaLoiPage(onBack: () -> Unit) {
         RowDivider()
         BoolToggle(Keys.RE_EDIT_WORDS, Prefs.D.reEditWords, tr("Sửa dấu từ đã gõ"), tr(SettingCaption.reEditWord))
     }
+    // Phụ thuộc (SETTINGS-CLEANUP-SPEC §6): mục cha ở nhóm/trang khác ⇒ mờ + lý do; cùng nhóm ⇒ ẩn.
+    val vni by rememberBoolPref(Keys.VNI_MODE, Prefs.D.vniMode)
+    val suggestions by rememberBoolPref(Keys.SHOW_SUGGESTIONS, Prefs.D.showSuggestions)
     VTSection(header = tr("Chạm trượt"), footer = tr(SettingCaption.adjacentFooter)) {
-        BoolToggle(Keys.AUTO_FIX_ADJACENT, Prefs.D.autoFixAdjacent, tr("Gợi ý sửa lỗi chạm trượt"), tr(SettingCaption.autoFixAdjacent))
+        DependentToggle(Keys.AUTO_FIX_ADJACENT, Prefs.D.autoFixAdjacent, tr("Gợi ý sửa lỗi chạm trượt"),
+            tr(SettingCaption.autoFixAdjacent), SettingDeps.autoFixAdjacentReason(suggestions)?.let { tr(it) })
         RowDivider()
-        ExperimentalToggle(Keys.SMART_TOUCH, Prefs.D.smartTouch, tr("Chọn phím thông minh"),
-            tr(SettingCaption.smartTouch))
+        DependentToggle(Keys.SMART_TOUCH, Prefs.D.smartTouch, tr("Chọn phím thông minh"), tr(SettingCaption.smartTouch),
+            SettingDeps.telexOnlyReason(vni)?.let { tr(it) }, experimental = true, indent = false)
         RowDivider()
-        ExperimentalToggle(Keys.AUTO_CORRECT, Prefs.D.autoCorrect, tr("Tự sửa từ gõ sai"),
-            tr(SettingCaption.autoCorrect))
+        DependentToggle(Keys.AUTO_CORRECT, Prefs.D.autoCorrect, tr("Tự sửa từ gõ sai"), tr(SettingCaption.autoCorrect),
+            SettingDeps.telexOnlyReason(vni)?.let { tr(it) }, experimental = true, indent = false)
     }
     VTSection(header = tr("Thanh gợi ý")) {
-        BoolToggle(Keys.SHOW_SUGGESTIONS, Prefs.D.showSuggestions, tr("Thanh gợi ý"), tr(SettingCaption.showSuggestions))
-        RowDivider()
-        SuggestionCountRow()
-        RowDivider()
-        BoolToggle(Keys.SUGGEST_IN_NO_SUGGEST_FIELDS, Prefs.D.suggestInNoSuggestFields, tr("Gợi ý cả khi ứng dụng tắt gợi ý"),
-            tr(SettingCaption.suggestInNoSuggestFields))
-        RowDivider()
-        BoolToggle(Keys.NUMBER_CHIPS, Prefs.D.numberChips, tr("Gợi ý số tiền"), tr(SettingCaption.numberChips))
-        RowDivider()
-        BoolToggle(Keys.MATH_RESULTS, Prefs.D.mathResults, tr("Hiện kết quả phép tính"), tr(SettingCaption.mathResults))
-        RowDivider()
-        BoolToggle(Keys.ADD_TONES_CHIP, Prefs.D.addTonesChip, tr("Thêm dấu"),
-            tr(SettingCaption.addTones))
-        RowDivider()
-        BoolToggle(Keys.FILTER_SENSITIVE, Prefs.D.filterSensitive, tr("Lọc từ nhạy cảm"), tr(SettingCaption.filterSensitive))
+        SettingDeps.suggestionRows(suggestions).forEachIndexed { i, row ->
+            if (i > 0) RowDivider()
+            when (row) {
+                SettingDeps.SuggestionRow.Toggle ->
+                    BoolToggle(Keys.SHOW_SUGGESTIONS, Prefs.D.showSuggestions, tr("Thanh gợi ý"), tr(SettingCaption.showSuggestions))
+                SettingDeps.SuggestionRow.Count -> SuggestionCountRow()
+                SettingDeps.SuggestionRow.InNoSuggestFields ->
+                    BoolToggle(Keys.SUGGEST_IN_NO_SUGGEST_FIELDS, Prefs.D.suggestInNoSuggestFields, tr("Gợi ý cả khi ứng dụng tắt gợi ý"),
+                        tr(SettingCaption.suggestInNoSuggestFields))
+                SettingDeps.SuggestionRow.NumberChips ->
+                    BoolToggle(Keys.NUMBER_CHIPS, Prefs.D.numberChips, tr("Gợi ý số tiền"), tr(SettingCaption.numberChips))
+                SettingDeps.SuggestionRow.MathResults ->
+                    BoolToggle(Keys.MATH_RESULTS, Prefs.D.mathResults, tr("Hiện kết quả phép tính"), tr(SettingCaption.mathResults))
+                // Plus: chưa mở khoá ⇒ dòng khoá (không là công tắc bật được), như Công cụ văn bản.
+                SettingDeps.SuggestionRow.AddTones ->
+                    if (PlusGate.isUnlocked(PlusFeature.SENTENCE_DIACRITICS))
+                        BoolToggle(Keys.ADD_TONES_CHIP, Prefs.D.addTonesChip, tr("Thêm dấu"), tr(SettingCaption.addTones))
+                    else PlusLockedRow(tr("Thêm dấu"), tr(SettingCaption.addTones))
+                SettingDeps.SuggestionRow.FilterSensitive ->
+                    BoolToggle(Keys.FILTER_SENSITIVE, Prefs.D.filterSensitive, tr("Lọc từ nhạy cảm"), tr(SettingCaption.filterSensitive))
+            }
+        }
     }
     VTSection(header = tr("Từ đã học")) {
         UserDictRow()
@@ -535,16 +545,19 @@ private fun GoVuotPage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     val trailRaw by rememberStringPref(Keys.SWIPE_TRAIL, com.viettelex.keyboard.SwipeTrailStyle.DEFAULT.id)
     SubPageHeader(FeaturePage.GoVuot.title, onBack)
     val swipeOn by rememberBoolPref(Keys.SWIPE_TYPING, Prefs.D.swipeTyping)
+    // Gõ vuốt tắt ⇒ ẩn mọi mục con của trang (SETTINGS-CLEANUP-SPEC §6), bật lại là hiện tại chỗ.
+    val rows = SettingDeps.swipeRows(swipeOn)
     VTSection(footer = tr("Tự tắt khi bật TalkBack và ở ô mật khẩu, email, địa chỉ web.")) {
         ExperimentalToggle(Keys.SWIPE_TYPING, Prefs.D.swipeTyping, tr("Gõ vuốt"),
             tr(SettingCaption.swipeTyping))
-        // "Vuốt từ tiếng Anh" ngay dưới công tắc Gõ vuốt (SETTINGS-CLEANUP-SPEC §1): luôn hiện, Gõ vuốt
-        // tắt ⇒ mờ + lý do. Bộ chọn hồ sơ (Kiểu Gõ › Gõ lẫn tiếng Anh) vẫn đặt cùng key.
-        RowDivider()
-        DependentToggle(Keys.SWIPE_ENGLISH, Prefs.D.swipeEnglish, tr("Vuốt từ tiếng Anh"),
-            tr(SettingCaption.swipeEnglish),
-            if (swipeOn) null else tr(SWIPE_ENGLISH_NEEDS_SWIPE), indent = true)
-        if (swipeOn) {
+        // "Vuốt từ tiếng Anh" ngay dưới công tắc Gõ vuốt (SETTINGS-CLEANUP-SPEC §1). Bộ chọn hồ sơ
+        // (Kiểu Gõ › Gõ lẫn tiếng Anh) vẫn đặt cùng key.
+        if (SettingDeps.SwipeRow.SwipeEnglish in rows) {
+            RowDivider()
+            DependentToggle(Keys.SWIPE_ENGLISH, Prefs.D.swipeEnglish, tr("Vuốt từ tiếng Anh"),
+                tr(SettingCaption.swipeEnglish), null, indent = true)
+        }
+        if (SettingDeps.SwipeRow.NeuralModel in rows) {
             RowDivider()
             BoolToggle(Keys.SWIPE_FUTO, Prefs.D.swipeFuto, tr("Mô hình neural gõ vuốt"),
                 tr(SettingCaption.swipeFuto))
@@ -556,7 +569,7 @@ private fun GoVuotPage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
             }
         }
     }
-    VTSection {
+    if (SettingDeps.SwipeRow.Trail in rows) VTSection {
         VTRow(onClick = { pickingTrail = true }) {
             val plus = com.viettelex.keyboard.SwipeTrailGate.allows
             Text(tr("Hiệu ứng nét vuốt") + if (plus) "" else " · Plus", style = VTType.body, color = c.label,
@@ -565,7 +578,7 @@ private fun GoVuotPage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
                 color = c.secondary, maxLines = 1)
         }
     }
-    if (swipeOn) {
+    if (SettingDeps.SwipeRow.Practice in rows) {
         VTSection {
             var showPractice by remember { mutableStateOf(false) }
             VTRow(onClick = { showPractice = true }) {

@@ -67,24 +67,8 @@ internal const val MIXED_TITLE = "Gõ lẫn tiếng Anh" // l10n-key
 internal const val MIXED_ADVANCED_SUMMARY = "Khôi phục từ tiếng Anh, ngữ cảnh, khi trùng từ, sửa từ phía trước…" // l10n-key
 
 internal object MixedTypingUI {
-    /** Lý do làm mờ hai công tắc thử nghiệm khi ngữ cảnh tắt. */
-    const val NEEDS_CONTEXTUAL = "Cần bật Quyết định theo ngữ cảnh" // l10n-key
     /** Tuỳ chọn chỉ-Telex khi đang chọn VNI (SETTINGS-CLEANUP-SPEC §0.4). */
     const val TELEX_ONLY = "Chỉ áp dụng cho Telex" // l10n-key
-
-    /**
-     * Lý do (khoá dịch) dòng đang bị làm mờ, null = dùng được. "Tự sửa từ phía trước" + "Đoán từ
-     * trùng theo tần suất" cần ngữ cảnh bật và không VNI ([RetroEnglishUI.switchVisible]) — luôn
-     * HIỆN (mờ + lý do), không ẩn như trước.
-     */
-    fun disabledReason(item: MixedTypingItem, contextualEnglish: Boolean, vniMode: Boolean): String? = when (item) {
-        MixedTypingItem.RetroEnglish, MixedTypingItem.EnglishByFrequency -> when {
-            RetroEnglishUI.switchVisible(contextualEnglish, vniMode) -> null
-            vniMode -> TELEX_ONLY
-            else -> NEEDS_CONTEXTUAL
-        }
-        else -> null
-    }
 
     /** Dòng của nhóm khi mở (thứ tự hiển thị). */
     enum class Row { VniNote, ProfilePicker, SpaceSwipeLanguage, UserDictionary, Advanced }
@@ -102,14 +86,28 @@ internal object MixedTypingUI {
         if (vniMode) listOf(Row.VniNote, Row.SpaceSwipeLanguage, Row.UserDictionary)
         else listOf(Row.ProfilePicker, Row.SpaceSwipeLanguage, Row.UserDictionary, Row.Advanced)
 
-    /** Mục bị ẩn khi đang chọn VNI (mọi mục của trang "Nâng cao" nhóm). */
-    fun hidden(item: MixedTypingItem, vniMode: Boolean): Boolean =
-        vniMode && item.placement == MixedTypingItem.Placement.Advanced
+    /**
+     * Mục bị ẩn: VNI ⇒ mọi mục của trang "Nâng cao" nhóm; "Quyết định theo ngữ cảnh" tắt ⇒ hai công
+     * tắc con ngay dưới nó (Tự sửa từ phía trước, Đoán từ trùng theo tần suất — SETTINGS-CLEANUP-SPEC §6,
+     * [RetroEnglishUI.switchVisible]). Giá trị đã lưu giữ nguyên.
+     */
+    fun hidden(item: MixedTypingItem, vniMode: Boolean, contextualEnglish: Boolean = true): Boolean = when {
+        vniMode && item.placement == MixedTypingItem.Placement.Advanced -> true
+        item == MixedTypingItem.RetroEnglish || item == MixedTypingItem.EnglishByFrequency ->
+            !RetroEnglishUI.switchVisible(contextualEnglish, vniMode)
+        else -> false
+    }
 
-    /** Đích tìm kiếm thực sự: mục bị ẩn khi VNI ⇒ mở nhóm, cuộn tới dòng ghi chú. */
-    fun resolve(target: KieuGoTarget, vniMode: Boolean): KieuGoTarget =
-        if (vniMode && target.page == KieuGoPage.MixedAdvanced) KieuGoTarget(VNI_NOTE_ID, null, expandMixed = true)
-        else target
+    /**
+     * Đích tìm kiếm thực sự: mục bị ẩn khi VNI ⇒ mở nhóm, cuộn tới dòng ghi chú; công tắc con bị ẩn vì
+     * ngữ cảnh tắt ⇒ tô sáng "Quyết định theo ngữ cảnh" (nơi bật lại).
+     */
+    fun resolve(target: KieuGoTarget, vniMode: Boolean, contextualEnglish: Boolean = true): KieuGoTarget = when {
+        vniMode && target.page == KieuGoPage.MixedAdvanced -> KieuGoTarget(VNI_NOTE_ID, null, expandMixed = true)
+        MixedTypingItem.entries.any { it.target == target && hidden(it, vniMode, contextualEnglish) } ->
+            MixedTypingItem.ContextualEnglish.target
+        else -> target
+    }
 
     /** Trang con được phép mở: trang "Nâng cao" của nhóm không mở được khi VNI. */
     fun page(page: KieuGoPage?, vniMode: Boolean): KieuGoPage? =
@@ -210,19 +208,16 @@ internal fun MixedAdvancedPage(onBack: () -> Unit) {
         Highlightable(MixedTypingItem.ContextualEnglish.target.id) {
             BoolToggle(Keys.CONTEXTUAL_ENGLISH, Prefs.D.contextualEnglish, tr("Quyết định theo ngữ cảnh"), tr(SettingCaption.contextualEnglish))
         }
-        // Hai công tắc thử nghiệm phụ thuộc ngữ cảnh: ngay dưới công tắc cha, thụt vào; chưa đủ
-        // điều kiện ⇒ mờ + ghi lý do (không ẩn).
-        RowDivider(32.dp)
-        Highlightable(MixedTypingItem.RetroEnglish.target.id) {
-            DependentToggle(Keys.RETRO_ENGLISH_AUTO, Prefs.D.retroEnglishAuto, tr("Tự sửa từ phía trước"),
-                tr(SettingCaption.retroEnglish),
-                MixedTypingUI.disabledReason(MixedTypingItem.RetroEnglish, contextual, vni)?.let { tr(it) }, experimental = true)
-        }
-        RowDivider(32.dp)
-        Highlightable(MixedTypingItem.EnglishByFrequency.target.id) {
-            DependentToggle(Keys.ENGLISH_BY_FREQUENCY, Prefs.D.englishByFrequency, tr("Đoán từ trùng theo tần suất"),
-                tr(SettingCaption.englishByFrequency),
-                MixedTypingUI.disabledReason(MixedTypingItem.EnglishByFrequency, contextual, vni)?.let { tr(it) }, experimental = true)
+        // Hai công tắc thử nghiệm phụ thuộc ngữ cảnh: ngay dưới công tắc cha, thụt vào; ngữ cảnh tắt ⇒
+        // ẨN (SETTINGS-CLEANUP-SPEC §6), bật lại là hiện tại chỗ.
+        for (item in listOf(MixedTypingItem.RetroEnglish, MixedTypingItem.EnglishByFrequency)) {
+            if (MixedTypingUI.hidden(item, vni, contextual)) continue
+            val (default, caption) = if (item == MixedTypingItem.RetroEnglish) Prefs.D.retroEnglishAuto to SettingCaption.retroEnglish
+                else Prefs.D.englishByFrequency to SettingCaption.englishByFrequency
+            RowDivider(32.dp)
+            Highlightable(item.target.id) {
+                DependentToggle(item.prefKey!!, default, tr(item.viTitle), tr(caption), null, experimental = true)
+            }
         }
     }
 }

@@ -47,31 +47,43 @@ internal object KieuGoNav {
 
 /**
  * Cài đặt kiểu gõ (không thuộc nhóm gõ lẫn tiếng Anh). [advanced] = nằm ở trang "Nâng cao";
- * [telexOnly] = làm mờ + "Chỉ áp dụng cho Telex" khi chọn VNI. Key lưu KHÔNG đổi.
+ * [hiddenInVni] = chỉ-Telex, nằm cùng nhóm "Kiểu gõ" với bộ chọn Telex/VNI ⇒ ẨN khi chọn VNI
+ * (SETTINGS-CLEANUP-SPEC §0.4, §6). Teencode chạy cả ở VNI ⇒ luôn hiện. Key lưu KHÔNG đổi.
  */
 internal enum class TypingOption(val viTitle: String, val keywords: String, val prefKey: String,
-                                 val advanced: Boolean, val telexOnly: Boolean) {
+                                 val advanced: Boolean, val hiddenInVni: Boolean) {
     InputMethod("Kiểu gõ", "telex vni input method kiểu gõ", Keys.VNI_MODE, false, false), // l10n-key
     AutoCapitalize("Tự động viết hoa đầu câu", "viết hoa capital shift đầu câu", Keys.AUTO_CAPITALIZE, false, false), // l10n-key
     SimpleTelex("Telex đơn giản", "simple telex w ư nâng cao advanced", Keys.SIMPLE_TELEX, true, true), // l10n-key
     FreeMarking("Bỏ dấu tự do", "free marking đặt dấu thứ tự nâng cao advanced", Keys.FREE_MARKING, true, true), // l10n-key
     QuickTelex("Gõ nhanh (Quick Telex)", "quick telex cc ch gg gi phụ âm nâng cao advanced", Keys.QUICK_TELEX, true, true), // l10n-key
     ModernTone("Bỏ dấu kiểu mới (oà, uý)", "modern tone hoà thuý dấu mới cũ nâng cao advanced", Keys.MODERN_TONE, true, false), // l10n-key
-    Teencode("Chính tả teencode", "teencode chat wá zui kó nâng cao advanced", Keys.TEENCODE, true, true); // l10n-key
+    Teencode("Chính tả teencode", "teencode chat wá zui kó nâng cao advanced", Keys.TEENCODE, true, false); // l10n-key
 
     val title: String get() = tr(viTitle)
 
     val target: KieuGoTarget get() = KieuGoTarget("typing:$name", if (advanced) KieuGoPage.TypingAdvanced else null)
 
     companion object {
-        /** Lý do (khoá dịch) làm mờ, null = dùng được. */
-        fun disabledReason(o: TypingOption, vniMode: Boolean): String? =
-            if (o.telexOnly && vniMode) MixedTypingUI.TELEX_ONLY else null
+        /** Mục bị ẩn (VNI ⇒ ẩn mục chỉ-Telex). Chỉ hiển thị: giá trị đã lưu giữ nguyên. */
+        fun hidden(o: TypingOption, vniMode: Boolean): Boolean = vniMode && o.hiddenInVni
+
+        /** Mục của trang "Nâng cao" đang hiện, theo thứ tự. */
+        fun advancedRows(vniMode: Boolean): List<TypingOption> = entries.filter { it.advanced && !hidden(it, vniMode) }
+
+        /** Dòng phụ (khoá dịch) của mục "Nâng cao": chỉ liệt kê mục đang hiện. */
+        fun advancedSummary(vniMode: Boolean): String = if (vniMode) TYPING_ADVANCED_SUMMARY_VNI else TYPING_ADVANCED_SUMMARY
+
+        /** Đích tìm kiếm thực sự: mục đang ẩn (VNI) ⇒ tô sáng bộ chọn Telex/VNI (nơi bật lại). */
+        fun resolve(target: KieuGoTarget, vniMode: Boolean): KieuGoTarget =
+            entries.firstOrNull { it.target.id == target.id }?.takeIf { hidden(it, vniMode) }?.let { InputMethod.target } ?: target
     }
 }
 
 /** Dòng phụ của mục "Nâng cao" trong mục Kiểu gõ — liệt kê những gì bên trong. */
 internal const val TYPING_ADVANCED_SUMMARY = "Telex đơn giản, bỏ dấu tự do, gõ nhanh, bỏ dấu kiểu mới, teencode…" // l10n-key
+/** Như trên khi chọn VNI (ba mục chỉ-Telex đã ẩn). */
+internal const val TYPING_ADVANCED_SUMMARY_VNI = "Bỏ dấu kiểu mới, teencode" // l10n-key
 
 /** Bọc một dòng để ô tìm kiếm cuộn tới + tô sáng (~1,6 s). */
 @OptIn(ExperimentalFoundationApi::class)
@@ -125,25 +137,23 @@ internal fun DependentToggle(key: String, default: Boolean, title: String, capti
     }
 }
 
-/** Trang "Nâng cao" của mục Kiểu gõ (SETTINGS-CLEANUP-SPEC §3): mục chỉ-Telex mờ khi chọn VNI. */
+/** Trang "Nâng cao" của mục Kiểu gõ (SETTINGS-CLEANUP-SPEC §3, §6): mục chỉ-Telex ẨN khi chọn VNI. */
 @Composable
 internal fun TypingAdvancedPage(onBack: () -> Unit) {
     val vni by rememberBoolPref(Keys.VNI_MODE, Prefs.D.vniMode)
     SubPageHeader(tr("Nâng cao"), onBack, backTitle = "‹ " + AppTab.KieuGo.title)
-    @Composable
-    fun Opt(o: TypingOption, default: Boolean, caption: String) = Highlightable(o.target.id) {
-        DependentToggle(o.prefKey, default, tr(o.viTitle), caption,
-            TypingOption.disabledReason(o, vni)?.let { tr(it) }, indent = false)
-    }
     VTSection(header = tr("Kiểu gõ"), footer = APPLY_NOTE) {
-        Opt(TypingOption.SimpleTelex, Prefs.D.simpleTelex, tr(SettingCaption.simpleTelex))
-        RowDivider()
-        Opt(TypingOption.FreeMarking, Prefs.D.freeMarking, tr(SettingCaption.freeMarking))
-        RowDivider()
-        Opt(TypingOption.QuickTelex, Prefs.D.quickTelex, tr(SettingCaption.quickTelex))
-        RowDivider()
-        Opt(TypingOption.ModernTone, Prefs.D.modernTone, tr(SettingCaption.modernTone))
-        RowDivider()
-        Opt(TypingOption.Teencode, Prefs.D.teencode, tr(SettingCaption.teencode))
+        TypingOption.advancedRows(vni).forEachIndexed { i, o ->
+            if (i > 0) RowDivider()
+            val (default, caption) = when (o) {
+                TypingOption.SimpleTelex -> Prefs.D.simpleTelex to SettingCaption.simpleTelex
+                TypingOption.FreeMarking -> Prefs.D.freeMarking to SettingCaption.freeMarking
+                TypingOption.QuickTelex -> Prefs.D.quickTelex to SettingCaption.quickTelex
+                TypingOption.ModernTone -> Prefs.D.modernTone to SettingCaption.modernTone
+                TypingOption.Teencode -> Prefs.D.teencode to SettingCaption.teencode
+                TypingOption.InputMethod, TypingOption.AutoCapitalize -> return@forEachIndexed
+            }
+            Highlightable(o.target.id) { BoolToggle(o.prefKey, default, tr(o.viTitle), tr(caption)) }
+        }
     }
 }

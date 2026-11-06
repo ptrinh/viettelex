@@ -63,21 +63,24 @@ class MixedTypingTest {
         L10n.lang = "en"
         assertEquals("Mixed Vietnamese/English typing", MixedTypingItem.Section.title)
         for (item in MixedTypingItem.entries) assertNotEquals(item.viTitle, item.title)
-        for (k in listOf(MIXED_ADVANCED_SUMMARY, MixedTypingUI.NEEDS_CONTEXTUAL, MixedTypingUI.TELEX_ONLY))
+        for (k in listOf(MIXED_ADVANCED_SUMMARY, MixedTypingUI.TELEX_ONLY))
             assertNotEquals(k, tr(k))
     }
 
-    /** Công tắc phụ thuộc: luôn hiện, mờ + lý do (VNI ⇒ "Chỉ áp dụng cho Telex"; ngữ cảnh tắt ⇒ "Cần bật…"). */
-    @Test fun dependentItemsDimmedWithReason() {
+    /** Công tắc con ngay dưới "Quyết định theo ngữ cảnh": ngữ cảnh tắt ⇒ ẨN (SETTINGS-CLEANUP-SPEC §6). */
+    @Test fun dependentItemsHiddenUnderContextual() {
         for (item in listOf(MixedTypingItem.RetroEnglish, MixedTypingItem.EnglishByFrequency)) {
-            assertNull(MixedTypingUI.disabledReason(item, contextualEnglish = true, vniMode = false))
-            assertEquals(MixedTypingUI.NEEDS_CONTEXTUAL, MixedTypingUI.disabledReason(item, contextualEnglish = false, vniMode = false))
-            assertEquals(MixedTypingUI.TELEX_ONLY, MixedTypingUI.disabledReason(item, contextualEnglish = true, vniMode = true))
-            assertEquals(MixedTypingUI.TELEX_ONLY, MixedTypingUI.disabledReason(item, contextualEnglish = false, vniMode = true))
+            assertFalse(MixedTypingUI.hidden(item, vniMode = false, contextualEnglish = true))
+            assertTrue(MixedTypingUI.hidden(item, vniMode = false, contextualEnglish = false))
+            assertTrue(MixedTypingUI.hidden(item, vniMode = true, contextualEnglish = true))
+            // Tìm kiếm tới mục đang ẩn ⇒ tô sáng công tắc cha.
+            assertEquals(MixedTypingItem.ContextualEnglish.target, MixedTypingUI.resolve(item.target, false, contextualEnglish = false))
+            assertEquals(item.target, MixedTypingUI.resolve(item.target, false, contextualEnglish = true))
         }
-        assertEquals("Cần bật Quyết định theo ngữ cảnh", MixedTypingUI.NEEDS_CONTEXTUAL)
-        for (item in MixedTypingItem.entries - setOf(MixedTypingItem.RetroEnglish, MixedTypingItem.EnglishByFrequency))
-            assertNull(MixedTypingUI.disabledReason(item, false, true))
+        for (item in MixedTypingItem.entries - setOf(MixedTypingItem.RetroEnglish, MixedTypingItem.EnglishByFrequency)) {
+            assertFalse(item.name, MixedTypingUI.hidden(item, vniMode = false, contextualEnglish = false))
+            assertEquals(item.name, item.target, MixedTypingUI.resolve(item.target, false, contextualEnglish = false))
+        }
     }
 
     /** Bộ chọn hồ sơ vẫn áp đúng các key (kể cả "Vuốt từ tiếng Anh" đã dời sang trang Gõ vuốt). */

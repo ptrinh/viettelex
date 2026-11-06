@@ -89,12 +89,14 @@ fun KieuGoTab(ime: ImeStatus, onOpenImeSettings: () -> Unit, onPickIme: () -> Un
     // Ô tìm cài đặt / thẻ gợi ý vừa chọn một dòng của tab: mở đúng trang (+ nhóm), đợi dựng hàng,
     // cuộn tới + tô sáng ~1,6 s. Đặt TRÊN nhánh trang con để không bị huỷ khi đổi trang.
     val vni by rememberBoolPref(Keys.VNI_MODE, Prefs.D.vniMode)
+    val contextual by rememberBoolPref(Keys.CONTEXTUAL_ENGLISH, Prefs.D.contextualEnglish)
     val rawReq = KieuGoNav.request.value
     LaunchedEffect(rawReq) {
         if (rawReq == null) return@LaunchedEffect
         KieuGoNav.request.value = null
-        // VNI: mục "Nâng cao" của nhóm Gõ lẫn tiếng Anh bị ẩn ⇒ mở nhóm, tô sáng dòng ghi chú.
-        val req = MixedTypingUI.resolve(rawReq, vni)
+        // Mục đang ẩn (SETTINGS-CLEANUP-SPEC §6) ⇒ tô sáng chỗ bật lại: VNI ⇒ dòng ghi chú nhóm Gõ lẫn
+        // tiếng Anh / bộ chọn Telex-VNI; ngữ cảnh tắt ⇒ "Quyết định theo ngữ cảnh".
+        val req = TypingOption.resolve(MixedTypingUI.resolve(rawReq, vni, contextual), vni)
         KieuGoNav.page.value = req.page
         if (req.expandMixed) MixedTypingFocus.expanded.value = true
         kotlinx.coroutines.delay(350)
@@ -249,7 +251,7 @@ private fun KieuGoSection() {
     var vni by rememberBoolPref(Keys.VNI_MODE, Prefs.D.vniMode)
     var numberRow by rememberBoolPref(Keys.NUMBER_ROW, Prefs.D.numberRow)
     // SETTINGS-CLEANUP-SPEC §3–4: cấp 1 chỉ còn Telex/VNI + Tự viết hoa + "Nâng cao" (Telex đơn giản,
-    // Bỏ dấu tự do, Gõ nhanh, Bỏ dấu kiểu mới, Teencode — mục chỉ-Telex mờ khi VNI). "Gợi ý sửa lỗi
+    // Bỏ dấu tự do, Gõ nhanh, Bỏ dấu kiểu mới, Teencode — mục chỉ-Telex ẩn khi VNI, §6). "Gợi ý sửa lỗi
     // chạm trượt" chuyển sang Tính Năng → Sửa lỗi & gợi ý (gom chung các mục chạm trượt).
     VTSection(header = tr("Kiểu gõ"), footer = APPLY_NOTE) {
         Highlightable(TypingOption.InputMethod.target.id) {
@@ -263,7 +265,7 @@ private fun KieuGoSection() {
             BoolToggle(Keys.AUTO_CAPITALIZE, Prefs.D.autoCapitalize, tr("Tự động viết hoa đầu câu"), tr(SettingCaption.autoCapitalize))
         }
         RowDivider()
-        NavRow(tr("Nâng cao"), tr(TYPING_ADVANCED_SUMMARY)) { KieuGoNav.page.value = KieuGoPage.TypingAdvanced }
+        NavRow(tr("Nâng cao"), tr(TypingOption.advancedSummary(vni))) { KieuGoNav.page.value = KieuGoPage.TypingAdvanced }
     }
 }
 
