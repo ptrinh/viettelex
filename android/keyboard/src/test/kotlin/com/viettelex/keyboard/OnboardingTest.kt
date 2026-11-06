@@ -102,6 +102,11 @@ class OnboardingTest {
         assertEquals(OnboardingFlow.Screen.TRY_IT, OnboardingFlow.screen(false, OnboardingProfile.MIXED, true))
         assertNull(OnboardingFlow.screen(true, null, true))
         assertNull(OnboardingFlow.screen(true, OnboardingProfile.EN, true))
+        // VNI: bỏ màn hỏi hồ sơ gõ lẫn tiếng Anh (SETTINGS-CLEANUP-SPEC §1).
+        assertEquals(OnboardingFlow.Screen.TRY_IT, OnboardingFlow.screen(false, null, true, vniMode = true))
+        assertNull(OnboardingFlow.screen(false, null, false, vniMode = true))
+        assertNull(OnboardingFlow.screen(true, null, true, vniMode = true))
+        assertEquals(OnboardingFlow.Screen.CHOOSE, OnboardingFlow.screen(false, null, true, vniMode = false))
     }
 
     @Test fun newUserSkipKeepsDefaults() {

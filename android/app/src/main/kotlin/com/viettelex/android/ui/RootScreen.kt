@@ -54,8 +54,9 @@ fun RootScreen(
     // Onboarding người dùng mới (ONBOARDING-SPEC §2): phủ toàn màn hình thay nội dung app.
     val onboardingDone by rememberBoolPref(com.viettelex.keyboard.OnboardingFlow.DONE_KEY, true)
     val onboardingProfile by rememberStringPref(com.viettelex.keyboard.OnboardingFlow.PROFILE_KEY, "")
+    val onboardingVni by rememberBoolPref(com.viettelex.keyboard.Keys.VNI_MODE, Prefs.D.vniMode)
     val onboarding = com.viettelex.keyboard.OnboardingFlow.screen(onboardingDone,
-        com.viettelex.keyboard.OnboardingProfile.of(onboardingProfile), ime.enabled)
+        com.viettelex.keyboard.OnboardingProfile.of(onboardingProfile), ime.enabled, onboardingVni)
     if (onboarding != null) {
         OnboardingOverlay(onboarding, ime, onPickIme)
         return

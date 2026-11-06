@@ -88,10 +88,13 @@ private fun AppLogo(size: Dp, radius: Dp, shadow: Boolean = false) {
 fun KieuGoTab(ime: ImeStatus, onOpenImeSettings: () -> Unit, onPickIme: () -> Unit) {
     // Ô tìm cài đặt / thẻ gợi ý vừa chọn một dòng của tab: mở đúng trang (+ nhóm), đợi dựng hàng,
     // cuộn tới + tô sáng ~1,6 s. Đặt TRÊN nhánh trang con để không bị huỷ khi đổi trang.
-    val req = KieuGoNav.request.value
-    LaunchedEffect(req) {
-        if (req == null) return@LaunchedEffect
+    val vni by rememberBoolPref(Keys.VNI_MODE, Prefs.D.vniMode)
+    val rawReq = KieuGoNav.request.value
+    LaunchedEffect(rawReq) {
+        if (rawReq == null) return@LaunchedEffect
         KieuGoNav.request.value = null
+        // VNI: mục "Nâng cao" của nhóm Gõ lẫn tiếng Anh bị ẩn ⇒ mở nhóm, tô sáng dòng ghi chú.
+        val req = MixedTypingUI.resolve(rawReq, vni)
         KieuGoNav.page.value = req.page
         if (req.expandMixed) MixedTypingFocus.expanded.value = true
         kotlinx.coroutines.delay(350)
@@ -101,7 +104,7 @@ fun KieuGoTab(ime: ImeStatus, onOpenImeSettings: () -> Unit, onPickIme: () -> Un
         if (KieuGoNav.highlighted.value == req.id) KieuGoNav.highlighted.value = null
     }
     val back = { KieuGoNav.page.value = null }
-    when (KieuGoNav.page.value) {
+    when (MixedTypingUI.page(KieuGoNav.page.value, vni)) {
         KieuGoPage.TypingAdvanced -> { TypingAdvancedPage(back); return }
         KieuGoPage.MixedAdvanced -> { MixedAdvancedPage(back); return }
         null -> {}

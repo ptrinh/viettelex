@@ -22,6 +22,8 @@ internal object SettingCaption {
     const val autoRestore = "Từ không phải tiếng Việt trả về đúng như đã gõ (google, github)." // l10n-key
     const val contextualEnglish = "Sau một từ tiếng Anh, từ kế giữ tiếng Anh: “he is”, không thành “he í”." // l10n-key
     const val retroEnglish = "Sửa từ bị bỏ dấu nhầm khi câu hoá ra tiếng Anh: “Hí cả í” → “His car is”." // l10n-key
+    /** Thay cả nhóm khi chọn VNI (SETTINGS-CLEANUP-SPEC §1) — cùng chữ với iOS. */
+    const val vniMixedNote = "Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này." // l10n-key
     const val englishByFrequency = "Đầu câu, “his” giữ tiếng Anh thay vì “hí”; tự đổi lại nếu câu là tiếng Việt." // l10n-key
     // Sửa lỗi & gợi ý
     const val liveSpellCheck = "Ngừng thêm dấu ngay khi từ không thể là tiếng Việt (google, github)." // l10n-key
@@ -105,7 +107,7 @@ internal object SettingCaption {
         keySoundStylesAndroid, keySoundVolumeAndroid, customSound,
         vni, autoCapitalize, simpleTelex, freeMarking, quickTelex, modernTone,
         teencode, profileHint, customProfile, spaceSwipeLanguage, userDictionary, autoRestore,
-        contextualEnglish, retroEnglish, englishByFrequency, liveSpellCheck, reEditWord, autoFixAdjacent,
+        contextualEnglish, retroEnglish, englishByFrequency, vniMixedNote, liveSpellCheck, reEditWord, autoFixAdjacent,
         smartTouch, autoCorrect, adjacentFooter, showSuggestions, suggestionCount, suggestInNoSuggestFields, numberChips,
         mathResults, addTones, filterSensitive, swipeTyping, swipeEnglish, swipeFuto,
         swipePractice, shortcuts, templates, textTools, numberRow, numberRowFullHeight,

@@ -91,10 +91,13 @@ object OnboardingFlow {
 
     enum class Screen { CHOOSE, TRY_IT }
 
-    /** Đã xong ⇒ không gì; chưa chọn hồ sơ ⇒ màn 1; đã chọn ⇒ màn 2 khi bàn phím đã bật. */
-    fun screen(done: Boolean, profile: OnboardingProfile?, keyboardEnabled: Boolean): Screen? = when {
+    /**
+     * Đã xong ⇒ không gì; chưa chọn hồ sơ ⇒ màn 1; đã chọn ⇒ màn 2 khi bàn phím đã bật. Đang chọn VNI
+     * ⇒ bỏ màn 1 (hỏi hồ sơ gõ lẫn tiếng Anh — vô tác dụng với VNI, SETTINGS-CLEANUP-SPEC §1).
+     */
+    fun screen(done: Boolean, profile: OnboardingProfile?, keyboardEnabled: Boolean, vniMode: Boolean = false): Screen? = when {
         done -> null
-        profile == null -> Screen.CHOOSE
+        profile == null && !vniMode -> Screen.CHOOSE
         keyboardEnabled -> Screen.TRY_IT
         else -> null
     }
