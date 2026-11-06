@@ -42,6 +42,8 @@ bool isTelexOnly(bool Settings::*field) {
            field == &Settings::teencode || field == &Settings::bracketVowels;
 }
 
+bool hidesMixedGroup(const Settings& s) { return s.vniMode; }
+
 DimReason dimReason(const Settings& s, bool Settings::*field) {
     if (s.vniMode && isTelexOnly(field)) return DimReason::TelexOnly;
     if (!s.contextualEnglish && (field == &Settings::retroactiveEnglish || field == &Settings::englishByFrequency))
@@ -69,14 +71,19 @@ std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, cons
             // Gõ lẫn tiếng Anh (ONBOARDING-SPEC §4): the profile rows, English detection in
             // "Nâng cao". The two experiments sit under "Quyết định theo ngữ cảnh".
             b.section(PageSection::Mixed);
-            b.control(PageControl::ProfileRows);
-            b.expander(Expander::MixedAdvanced);
-            b.toggle(&Settings::autoRestore);
-            b.toggle(&Settings::collisionPrefersVietnamese);
-            b.toggle(&Settings::contextualEnglish);
-            b.toggle(&Settings::retroactiveEnglish, 1);
-            b.toggle(&Settings::englishByFrequency, 1);
-            b.endExpander();
+            if (hidesMixedGroup(s)) {
+                // VNI: nothing in this group changes what is typed — one line instead.
+                b.control(PageControl::MixedVniNote);
+            } else {
+                b.control(PageControl::ProfileRows);
+                b.expander(Expander::MixedAdvanced);
+                b.toggle(&Settings::autoRestore);
+                b.toggle(&Settings::collisionPrefersVietnamese);
+                b.toggle(&Settings::contextualEnglish);
+                b.toggle(&Settings::retroactiveEnglish, 1);
+                b.toggle(&Settings::englishByFrequency, 1);
+                b.endExpander();
+            }
             // Chuyển Việt/Anh: the switch key; how apps remember and start in "Nâng cao".
             b.section(PageSection::Switch);
             b.control(PageControl::SwitchHotkey);

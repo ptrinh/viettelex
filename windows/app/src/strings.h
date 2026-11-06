@@ -146,6 +146,7 @@ enum class S {
     // why a switch is dimmed, the shortcut import's file type and format names
     Advanced, TypingAdvancedSummary, MixedAdvancedSummary, SwitchAdvancedSummary, GamesSummary, AppearanceSummary,
     DimTelexOnly, DimNeedsContextual,
+    MixedVniNote,  // VNI: replaces the whole "Gõ lẫn tiếng Anh" group (one line)
     ImportFilterName, ImportFmtOther, ImportFmtText,
     Count
 };

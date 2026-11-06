@@ -392,6 +392,8 @@ const Pair kStrings[] = {
     {L"Biểu tượng bàn phím, biểu tượng khay", L"Keyboard icon, tray icon"},
     {L"Chỉ áp dụng cho Telex.", L"Applies to Telex only."},
     {L"Cần bật Quyết định theo ngữ cảnh.", L"Needs context-based decision turned on."},
+    {L"Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này.",
+     L"VNI leaves English words as typed, so there is nothing to set here."},
     {L"Tệp gõ tắt", L"Shortcut files"},
     {L"tệp gõ tắt của bộ gõ khác", L"another input method’s shortcut file"},
     {L"VietTelex / văn bản", L"VietTelex / text"},

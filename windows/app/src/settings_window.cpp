@@ -712,6 +712,11 @@ std::vector<Item> pageItems(int tab) {
                     case PageControl::Uninstall:
                         v.push_back(buttonItem(S::Uninstall, S::UninstallDesc, IdUninstall));
                         break;
+                    case PageControl::MixedVniNote:
+                        // VNI: the "Gõ lẫn tiếng Anh" header keeps its place; its caption becomes
+                        // the one line that stands in for the hidden group (no card, no control).
+                        if (!v.empty() && v.back().kind == ItemKind::Section) v.back().desc = S::MixedVniNote;
+                        break;
                     case PageControl::Links: {
                         Item links;
                         links.kind = ItemKind::Links;
@@ -1827,7 +1832,7 @@ void onCommand(int id, int code, HWND ctl) {
             if (code == CBN_SELCHANGE) {
                 g_settings.vniMode = sel() == 1;
                 changed();
-                PostMessageW(g_wnd, WM_APP + 2, 0, 0);  // Telex-only switches dim / undim
+                PostMessageW(g_wnd, WM_APP + 2, 0, 0);  // Telex-only switches dim; mixed group hides / shows
             }
             break;
         case IdComboHotkey:

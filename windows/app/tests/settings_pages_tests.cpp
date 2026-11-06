@@ -127,14 +127,24 @@ TEST(settings_pages_structure) {
         if (r.kind == RowKind::Expander) CHECK_EQ(r.indent, 0);
 }
 
+// The "Gõ lẫn tiếng Anh" group: hidden as a whole under VNI (SETTINGS-CLEANUP-SPEC §1).
+static const Field kMixedToggles[] = {&Settings::autoRestore, &Settings::collisionPrefersVietnamese,
+                               &Settings::contextualEnglish, &Settings::retroactiveEnglish,
+                               &Settings::englishByFrequency};
+static bool isMixedToggle(Field f) {
+    for (Field m : kMixedToggles)
+        if (m == f) return true;
+    return false;
+}
+
 // Telex-only switches under VNI: still shown, dimmed with "Chỉ áp dụng cho Telex".
 TEST(settings_pages_vni_dims_telex_only) {
     Settings telex, vni;
     vni.vniMode = true;
     const std::vector<PageRow> a = allRows(telex, allOpen()), b = allRows(vni, allOpen());
-    CHECK_EQ(a.size(), b.size());  // nothing hidden
     int dimmed = 0;
     for (Field f : kAllToggles) {
+        if (isMixedToggle(f)) continue;  // the whole group is hidden under VNI (next test)
         const PageRow* r = rowOf(b, f);
         CHECK(r != nullptr);
         if (!r) continue;
@@ -145,6 +155,62 @@ TEST(settings_pages_vni_dims_telex_only) {
     CHECK_EQ(dimmed, 5);
     CHECK(isTelexOnly(&Settings::teencode) && isTelexOnly(&Settings::bracketVowels));
     CHECK(!isTelexOnly(&Settings::modernOrthography));  // tone placement applies to VNI too
+}
+
+// VNI hides the whole "Gõ lẫn tiếng Anh" group (profile rows + Nâng cao) and shows one
+// line in its place; "Chuyển Việt/Anh" stays. Switching back to Telex brings it back as it
+// was, and the page plan never writes a setting.
+TEST(settings_pages_vni_hides_mixed_group) {
+    Settings telex, vni;
+    vni.vniMode = true;
+    vni.autoRestore = true;  // whatever the stored values, nothing of the group shows
+    vni.contextualEnglish = true;
+    CHECK(!hidesMixedGroup(telex));
+    CHECK(hidesMixedGroup(vni));
+    for (const PageContext& c : {PageContext(), allOpen()}) {
+        const std::vector<PageRow> v = settingsPageRows(SettingsPage::Typing, vni, c);
+        const std::vector<PageRow> t = settingsPageRows(SettingsPage::Typing, telex, c);
+        auto has = [](const std::vector<PageRow>& rows, RowKind k, int id) {
+            for (const PageRow& r : rows)
+                if (r.kind == k && r.id == id) return true;
+            return false;
+        };
+        const int note = static_cast<int>(PageControl::MixedVniNote);
+        const int profiles = static_cast<int>(PageControl::ProfileRows);
+        const int mixedAdv = static_cast<int>(Expander::MixedAdvanced);
+        CHECK(has(v, RowKind::Control, note));
+        CHECK(!has(v, RowKind::Control, profiles));
+        CHECK(!has(v, RowKind::Expander, mixedAdv));
+        CHECK(!has(t, RowKind::Control, note));
+        CHECK(has(t, RowKind::Control, profiles));
+        CHECK(has(t, RowKind::Expander, mixedAdv));
+        for (Field f : kMixedToggles) {
+            CHECK(rowOf(v, f) == nullptr);
+            if (c.isExpanded(Expander::MixedAdvanced)) CHECK(rowOf(t, f) != nullptr);
+        }
+        // The note sits right under the "Gõ lẫn tiếng Anh" header, at page level, and the
+        // next row is the "Chuyển Việt/Anh" header with its switch key.
+        size_t at = v.size();
+        for (size_t i = 0; i < v.size(); ++i)
+            if (v[i].kind == RowKind::Control && v[i].id == note) at = i;
+        CHECK(at > 0 && at + 2 < v.size());
+        if (at > 0 && at + 2 < v.size()) {
+            CHECK(v[at - 1].kind == RowKind::Section && v[at - 1].id == static_cast<int>(PageSection::Mixed));
+            CHECK_EQ(v[at].indent, 0);
+            CHECK(v[at + 1].kind == RowKind::Section && v[at + 1].id == static_cast<int>(PageSection::Switch));
+            CHECK(v[at + 2].kind == RowKind::Control && v[at + 2].id == static_cast<int>(PageControl::SwitchHotkey));
+        }
+        CHECK(rowOf(v, &Settings::startEnglish) != nullptr || !c.isExpanded(Expander::SwitchAdvanced));
+    }
+    // Stored values untouched by building the page.
+    CHECK(vni.autoRestore && vni.contextualEnglish && vni.vniMode);
+    // The line itself (both languages, one short caption, no other input method named:
+    // covered by the generic string tests below).
+    setEnglish(false);
+    CHECK(std::wcscmp(tr(S::MixedVniNote), L"Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này.") == 0);
+    setEnglish(true);
+    CHECK(std::wcscmp(tr(S::MixedVniNote), L"VNI leaves English words as typed, so there is nothing to set here.") == 0);
+    setEnglish(false);
 }
 
 // "Tự sửa từ phía trước" / "Đoán từ trùng theo tần suất": right under "Quyết định theo ngữ
@@ -262,7 +328,7 @@ TEST(settings_captions_are_short) {
         S::RetroEnglishDesc, S::EnglishByFrequencyDesc, S::StartEnglishDesc, S::MixedCardDesc,
         S::ProfilePickerIntro, S::ProfileCustomDesc, S::ProfileViEx, S::ProfileMixedEx, S::ProfileEnEx,
         S::TypingAdvancedSummary, S::MixedAdvancedSummary, S::SwitchAdvancedSummary, S::GamesSummary,
-        S::AppearanceSummary, S::DimTelexOnly, S::DimNeedsContextual,
+        S::AppearanceSummary, S::DimTelexOnly, S::DimNeedsContextual, S::MixedVniNote,
         S::ModeComposition, S::ModeInPlace, S::ModeHook, S::ModeOff, S::ModeDirect,
     };
     for (int en = 0; en < 2; ++en) {

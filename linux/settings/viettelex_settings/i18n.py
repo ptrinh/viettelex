@@ -602,6 +602,8 @@ EN = {
         'Terminals that get keys through IBus GTK3 or Fcitx5 (fcitx5-gtk3, fcitx5-qt) — gnome-terminal, tilix, konsole… on X11 — type directly (marks fixed with Backspace, no underline). GTK4 terminals (Ptyxis, Console), GNOME Wayland sessions, kitty/alacritty/foot and the VS Code terminal underline the word being typed: there a sent Backspace isn’t guaranteed to arrive before the new text.',
     'Chỉ áp dụng cho Telex.':
         'Telex only.',
+    'Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này.':
+        'VNI leaves English words as typed, so there is nothing to set here.',
     'Cần bật Quyết định theo ngữ cảnh.':
         'Needs Decide by context.',
     'Cần bật Gợi ý từ.':

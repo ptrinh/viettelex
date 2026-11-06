@@ -357,11 +357,13 @@ class SettingsWindow(Adw.PreferencesWindow):
         """Nhóm "Gõ lẫn tiếng Anh" (ONBOARDING-SPEC §4, SETTINGS-CLEANUP-SPEC §1): bộ chọn hồ sơ
         ở cấp 1, mọi công tắc nhận diện tiếng Anh trong "Nâng cao"; rồi nhóm "Chuyển Việt/Anh".
         Key config.toml không đổi."""
-        g = Adw.PreferencesGroup(
-            title=_("Gõ lẫn tiếng Anh"),
-            description=_("Nhận diện tiếng Anh khi gõ lẫn Việt–Anh."))
-        self.mixed_first_row = self._profile_picker(g)
-        adv = self.advanced(g, _("Khôi phục từ tiếng Anh, ngữ cảnh, khi trùng từ, sửa từ phía trước…"))
+        g = Adw.PreferencesGroup(title=_("Gõ lẫn tiếng Anh"))
+        self.mixed_group = g
+        # Mọi dòng của nhóm: VNI ẩn hết, chỉ còn dòng mô tả = ghi chú VNI (_apply_mixed_visibility).
+        self.mixed_rows = []
+        rec = SimpleNamespace(add=lambda w: (g.add(w), self.mixed_rows.append(w)))
+        self.mixed_first_row = self._profile_picker(rec)
+        adv = self.advanced(rec, _("Khôi phục từ tiếng Anh, ngữ cảnh, khi trùng từ, sửa từ phía trước…"))
         restore_row = self.switch(
             adv, "typing", "auto_restore", _("Tự khôi phục từ tiếng Anh"),
             _("Từ không phải tiếng Việt trả về đúng như đã gõ (google, github)."))
@@ -390,6 +392,7 @@ class SettingsWindow(Adw.PreferencesWindow):
             ("typing", "english_by_frequency"))
         ctx_row.get_activatable_widget().connect("notify::active", self.refresh_dependents)
         page.add(g)
+        self._apply_mixed_visibility()
 
         # Chuyển Việt/Anh: phím chuyển ở cấp 1, phần còn lại trong Nâng cao (§1).
         g = Adw.PreferencesGroup(title=_("Chuyển Việt/Anh"))
@@ -482,7 +485,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         m = onboarding.match(current, last)
         for p, radio in self.picker_radios.items():
             radio.set_active(p == m)
-        self.picker_custom.set_visible(m is None)
+        self.picker_custom.set_visible(m is None and not layout.mixed_group_hidden(self.cfg.get))
 
     def _pick_profile(self, profile):
         current, last = self._picker_state()
@@ -518,9 +521,22 @@ class SettingsWindow(Adw.PreferencesWindow):
             f()
 
     def _apply_vni_visibility(self):
-        """VNI: hiện dòng hướng dẫn gõ số; mục chỉ-Telex làm mờ + lý do (không ẩn)."""
+        """VNI: hiện dòng hướng dẫn gõ số; mục chỉ-Telex làm mờ + lý do (không ẩn); nhóm Gõ lẫn
+        tiếng Anh ẩn, thay bằng một dòng."""
         self.vni_help.set_visible(not layout.telex_only_enabled(self.cfg.get))
         self.refresh_dependents()
+        self._apply_mixed_visibility()
+
+    def _apply_mixed_visibility(self):
+        """Nhóm "Gõ lẫn tiếng Anh" theo kiểu gõ (layout.mixed_group_hidden): VNI ẩn bộ chọn hồ sơ
+        + Nâng cao, mô tả nhóm thành dòng ghi chú; Telex hiện lại y như cũ. Chỉ đổi hiển thị."""
+        if getattr(self, "mixed_group", None) is None:
+            return
+        hidden = layout.mixed_group_hidden(self.cfg.get)
+        self.mixed_group.set_description(esc(_(layout.mixed_group_description(self.cfg.get))))
+        for w in self.mixed_rows:
+            w.set_visible(not hidden)
+        self._refresh_picker()           # "Tuỳ chỉnh" chỉ hiện khi không khớp hồ sơ nào
 
     def refresh_status(self):
         a = detect.assess(detect.collect())
