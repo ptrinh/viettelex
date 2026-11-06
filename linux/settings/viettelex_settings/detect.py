@@ -115,6 +115,55 @@ def lotus_uinput_active(root="", systemd_active=None, user=None):
     return bool(user) and check(LOTUS_SERVER_UNIT % user)
 
 
+def ibus_engine_names(output):
+    """Tên engine trong output của `ibus list-engine --name-only` (mỗi dòng một tên).
+
+    Nhận cả dạng không có --name-only ("language: English" rồi "  tên - Tên dài"). Tên engine
+    không có ": " (vd "xkb:us::eng") nên dòng tiêu đề nhận ra được."""
+    names = set()
+    for line in output.splitlines():
+        if not line.strip() or (not line[:1].isspace() and ": " in line):
+            continue          # dòng trống / tiêu đề ngôn ngữ
+        name = line.strip().split(" - ", 1)[0].strip()
+        if name:
+            names.add(name)
+    return names
+
+
+def _ibus_engines():
+    """Output của `ibus list-engine --name-only` từ daemon đang chạy; None = không hỏi được."""
+    if not shutil.which("ibus"):
+        return None
+    try:
+        r = subprocess.run(["ibus", "list-engine", "--name-only"], capture_output=True,
+                           text=True, timeout=3)
+        return r.stdout if r.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def ibus_loaded(snap):
+    """ibus-daemon đang chạy đã nạp engine VietTelex chưa: True / False / None (không biết:
+    IBus không chạy, hoặc không hỏi được daemon)."""
+    if not snap.get("ibus_running"):
+        return None
+    out = snap.get("ibus_engines")
+    if out is None:
+        return None
+    return IBUS_ENGINE in ibus_engine_names(out)
+
+
+def ibus_restart_action(a, already_restarted):
+    """Hướng dẫn tự `ibus restart` MỘT lần khi daemon chạy mà chưa thấy VietTelex (vừa cài gói;
+    `ibus write-cache` không giúp daemon đang chạy). 'restart' = khởi động lại ngay;
+    'still_missing' = đã thử rồi mà vẫn chưa thấy (còn nút tay); None = không cần."""
+    if a.get("framework") != "ibus" or not a.get("installed", {}).get("ibus"):
+        return None
+    if a.get("ibus_loaded") is not False:
+        return None
+    return "still_missing" if already_restarted else "restart"
+
+
 def fcitx5_profile_path():
     base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
     return os.path.join(base, "fcitx5", "profile")
@@ -124,13 +173,16 @@ def collect():
     """Ảnh chụp môi trường (chỉ đọc, không sửa gì)."""
     running = _running({"fcitx5", "ibus-daemon"})
     xinputrc = _read(os.path.expanduser("~/.xinputrc"))
+    ibus_component = any(os.path.exists(p) for p in IBUS_COMPONENT_FILES)
     return {
         "fcitx5_installed": bool(shutil.which("fcitx5")),
         "ibus_installed": bool(shutil.which("ibus-daemon") or shutil.which("ibus")),
         "fcitx5_running": "fcitx5" in running,
         "ibus_running": "ibus-daemon" in running,
         "fcitx5_addon": any(os.path.exists(p) for p in FCITX5_ADDON_FILES),
-        "ibus_component": any(os.path.exists(p) for p in IBUS_COMPONENT_FILES),
+        "ibus_component": ibus_component,
+        # Chỉ hỏi daemon khi nó chạy và gói VietTelex đã cài (một lệnh ngắn, chỉ trong app cài đặt).
+        "ibus_engines": _ibus_engines() if "ibus-daemon" in running and ibus_component else None,
         "fcitx5_profile": _read(fcitx5_profile_path()),
         "ibus_preload": _gsettings("org.freedesktop.ibus.general", "preload-engines"),
         "gnome_sources": _gsettings("org.gnome.desktop.input-sources", "sources"),
@@ -221,12 +273,16 @@ def assess(snap):
         warnings.append("wayland_chromium")
     if fw == "ibus" and snap.get("fcitx5_running") and snap.get("ibus_running"):
         warnings.append("both_running")
+    loaded = ibus_loaded(snap)
     ok = bool(fw) and installed.get(fw, False) and running.get(fw, False) and enabled.get(fw, False)
+    if fw == "ibus" and loaded is False:
+        ok = False        # nguồn nhập có VietTelex nhưng daemon chưa biết nó: gõ không ra gì
     return {
         "framework": fw,
         "installed": installed,
         "enabled": enabled,
         "running": running,
+        "ibus_loaded": loaded,
         "ok": ok,
         "warnings": warnings,
         "other_vn": snap.get("other_vn", []),
