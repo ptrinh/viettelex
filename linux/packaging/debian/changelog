@@ -1,3 +1,13 @@
+viettelex (1.0.23) UNRELEASED; urgency=medium
+
+  * Gõ tắt bằng ký hiệu (=> → ⟶, <> → ⟷) chạy được khi đứng riêng
+    (sau dấu cách hoặc đầu dòng).
+  * ---
+  * Symbol shortcuts (=> → ⟶, <> → ⟷) now expand when they stand alone
+    (after a space or at the start of a line).
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Fri, 06 Nov 2026 23:00:00 +0700
+
 viettelex (1.0.22) UNRELEASED; urgency=medium
 
   * Cài đặt gọn hơn: tắt một mục thì các tuỳ chọn con của nó tự ẩn
