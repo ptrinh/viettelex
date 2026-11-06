@@ -394,6 +394,7 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
     // MARK: vẽ
 
     override fun onDraw(c: Canvas) {
+        ImeTrace.drew(keys = false)
         if (!barVisible) return
         val w = width.toFloat()
         val cyOpen = theme.dp(barCyDp())

@@ -257,7 +257,8 @@ class PlanePolicyTest {
         assertTrue(emit, onKey in 0 until space)
         assertTrue(emit, "if (sym) typedInSymbolPlane = true" in emit)
         assertTrue(emit, "k == Key.Space || k == Key.DoubleSpacePeriod" in emit)
-        val setPlane = src.substringAfter("fun setPlane(p: Plane) {").substringBefore("\n    }\n")
+        // setPlane bọc mốc trace quanh switchPlane (thân thật).
+        val setPlane = src.substringAfter("private fun switchPlane(p: Plane) {").substringBefore("\n    }\n")
         assertTrue(setPlane, "typedInSymbolPlane = false" in setPlane)
         // IME đặt chế độ lúc hiện (cùng chỗ các cài đặt bố cục khác).
         val ime = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }

@@ -199,8 +199,8 @@ object SettingsProcess {
         if (installed) return
         installed = true
         val app = ctx.applicationContext
-        // androidx.startup (InitializationProvider) chỉ chạy ở process chính ⇒ tự khởi tạo ở đây
-        // những gì UI Compose dùng như trước khi tách process (emoji màu mới, ProcessLifecycleOwner).
+        // androidx.startup (InitializationProvider) nay khai process ":settings" (manifest) ⇒ đã tự chạy;
+        // gọi lại là no-op — giữ phòng khi provider bị tắt (emoji màu mới cho UI Compose).
         runCatching {
             androidx.startup.AppInitializer.getInstance(app)
                 .initializeComponent(androidx.emoji2.text.EmojiCompatInitializer::class.java)

@@ -31,17 +31,40 @@ android {
     buildTypes { release {
         if (keystoreProps.isNotEmpty()) signingConfig = signingConfigs.getByName("upload")
         isMinifyEnabled = true; isShrinkResources = true
-        proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro") } }
+        proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro") }
+        // Đo hiệu năng (docs/PERF-IME-SHOW.md): y như release (R8, không debuggable) nhưng ký khoá
+        // debug ⇒ cài được lên emulator mà không cần keystore. KHÔNG phát hành bản này.
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            isDebuggable = false
+        }
+        // Sinh Baseline Profile (benchmark/ImeBaselineProfile): như "benchmark" nhưng KHÔNG R8 ⇒ luật
+        // profile mang tên lớp/hàm gốc (R8 tự đổi tên khi đóng bản release).
+        create("benchmarkProfile") {
+            initWith(getByName("benchmark"))
+            isMinifyEnabled = false
+            isShrinkResources = false
+            matchingFallbacks += listOf("release")
+        }
+    }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
     androidResources { noCompress += listOf("bin") }
+    testOptions { unitTests { isIncludeAndroidResources = true } }
     // Module Play Feature Delivery (on-demand) — chỉ vào AAB; assembleRelease (APK GitHub) không có.
     dynamicFeatures += setOf(":translate")
 }
 dependencies {
     implementation(project(":telexcore")); implementation(project(":keyboard"))
     implementation("androidx.core:core-ktx:1.13.1")
+    // Mốc Perfetto "VT.*" (ImeTrace) — gần 0 chi phí khi không ghi trace.
+    implementation("androidx.tracing:tracing:1.2.0")
+    // Cài Baseline Profile (app/src/main/baseline-prof.txt) cho bản APK ngoài Play. Bản kéo theo qua
+    // Compose (1.3.1) không hỗ trợ API 34+ ⇒ Android 14+ cài từ APK không bao giờ được biên dịch trước.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     // ExploreByTouchHelper (TalkBack cho từng phím) — đã có sẵn qua phụ thuộc bắc cầu, khai rõ.
     implementation("androidx.customview:customview:1.0.0")
     // Process ":settings" tự khởi tạo EmojiCompat (androidx.startup chỉ chạy ở process chính) —
@@ -67,6 +90,9 @@ dependencies {
         implementation("androidx.fragment:fragment:1.5.4")
     }
     testImplementation("junit:junit:4.13.2")
+    // Test chi phí hiện bàn phím (ImeRenderBudgetTest): chạy VietTelexIME thật trên JVM.
+    testImplementation("org.robolectric:robolectric:4.16")
+    testImplementation("androidx.test:core:1.6.1")
 }
 // Bộ test chậm (benchmark ImePerfBenchTest): VT_SLOW_TESTS=1 bật; là input để đổi giá trị thì chạy lại.
 tasks.withType<Test>().configureEach {

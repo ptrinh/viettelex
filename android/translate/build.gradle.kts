@@ -8,7 +8,11 @@ android {
     namespace = "com.viettelex.android.translate"
     compileSdk = 36
     defaultConfig { minSdk = 26 }
-    buildTypes { release { proguardFiles("proguard-rules.pro") } }
+    buildTypes {
+        release { proguardFiles("proguard-rules.pro") }
+        create("benchmark") { initWith(getByName("release")); matchingFallbacks += listOf("release") }
+        create("benchmarkProfile") { initWith(getByName("release")); matchingFallbacks += listOf("release") }
+    }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
 }

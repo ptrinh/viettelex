@@ -260,8 +260,8 @@ class UserLangModel(
         isLoaded = true
         topCache = null
         val seed = pendingSeed
-        if (t.uniN == 0 && seed != null) applySeed(seed())
         pendingSeed = null
+        if (seed != null) seedIfEmpty(seed)
         val queued = pendingRecords.toList()
         pendingRecords.clear()
         for (r in queued) r.replayed = record(r.word, r.prev1, r.prev2, r.weight, r.caseEvidence)
@@ -564,18 +564,40 @@ class UserLangModel(
     fun seedIfEmpty(seed: () -> SeedData.Seed = SeedData::load) {
         seedSource = seed
         if (!isLoaded) { pendingSeed = seed; return }
-        if (t.uniN != 0) return
-        applySeed(seed())
+        if (t.uniN != 0 || seeding) return
+        if (file == null) { applySeed(seed()); return }   // in-memory (test): đồng bộ như cũ
+        // Có file (IME thật, người dùng mới / vừa xoá dữ liệu học): parse seed.tsv (~vài nghìn dòng) trên
+        // io, áp trên main SAU — không chặn onStartInputView / khung đầu. Từ gõ chen giữa giữ nguyên.
+        seeding = true
+        val gen = loadGeneration
+        io.execute {
+            val s = try { seed() } catch (_: Exception) { null }
+            main.post {
+                if (loadGeneration != gen) return@post   // đã xoá / nạp lại: lượt mới tự seed
+                seeding = false
+                if (s != null && !closed) applySeed(s)
+            }
+        }
     }
+    /** Đang parse seed trên io (áp lên main khi xong). */
+    private var seeding = false
 
     /** Tiện cho test: seed từ map/list trực tiếp. */
     fun seedIfEmpty(unigrams: Map<String, Int>, bigrams: List<Triple<String, String, Int>>) =
         seedIfEmpty { SeedData.Seed(unigrams, bigrams) }
 
     private fun applySeed(s: SeedData.Seed) {
-        // uni đang rỗng (điều kiện gọi) — như `uni = HashMap(s.unigrams)` bản cũ.
-        for ((w, c) in s.unigrams) if (c > 0) t.setUni(t.intern(w), c)
-        for ((a, b, c) in s.bigrams) if (c > 0) t.setBi(t.intern(a), t.intern(b), c)
+        // uni rỗng ⇒ như `uni = HashMap(s.unigrams)` bản cũ (đè). Seed nền áp muộn mà người dùng đã gõ
+        // vài từ trong lúc chờ ⇒ gộp: giữ số lớn hơn (không hạ đếm từ vừa gõ).
+        val merge = t.uniN != 0
+        for ((w, c) in s.unigrams) if (c > 0) {
+            val id = t.intern(w)
+            if (!merge || t.uni(id) < c) t.setUni(id, c)
+        }
+        for ((a, b, c) in s.bigrams) if (c > 0) {
+            val ia = t.intern(a); val ib = t.intern(b)
+            if (!merge || t.biCount(ia, ib) < c) t.setBi(ia, ib, c)
+        }
         topCache = null
         save()
     }
@@ -651,7 +673,7 @@ class UserLangModel(
         volatileGen++
         saveWork?.cancel(); saveWork = null
         t = UserLMTables(); manual = LinkedHashMap(); cases = CaseTable()
-        pendingRecords.clear(); pendingSeed = null
+        pendingRecords.clear(); pendingSeed = null; seeding = false
         topCache = null
         knownCache.clear()
     }
