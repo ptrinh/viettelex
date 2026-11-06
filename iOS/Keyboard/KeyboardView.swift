@@ -6002,7 +6002,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         commits.disarm(id)
         commits.arm(id) { [weak self] in
             guard let self else { return }
-            let s = self.domainHold.flatMap { h in h.sel.map { h.choices[$0] } }
+            let s = self.domainHold.flatMap { h in h.track.selection.map { h.choices[$0] } }
             self.closeDomainPopup()
             if let s {
                 if variants {                                    // như chạm thường (space / dấu kết vế về chữ)
@@ -6015,14 +6015,18 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         let key = convert(b.bounds, from: b)
         let itemW: CGFloat = variants ? (Self.isPad ? 56 : 38) : (Self.isPad ? 68 : 56)
-        let l = DomainPopup.layout(keyMidX: key.midX, itemWidth: itemW, count: choices.count,
-                                   containerWidth: bounds.width)
         let panelH: CGFloat = Self.isPad ? 52 : 46
-        let top = max(key.minY - 8 - panelH, 0)       // không vượt mép trên (bị cắt)
+        // Chật một hàng ⇒ hai hàng chồng lên (#154) — chỉ khi phía trên đủ chỗ cho cả hai.
+        let l = DomainPopup.layout(keyMidX: key.midX, itemWidth: itemW, count: choices.count,
+                                   containerWidth: bounds.width, rowHeight: panelH,
+                                   maxRows: key.minY - 8 - 2 * panelH >= 0 ? 2 : 1)
+        let top = max(key.minY - 8 - panelH * CGFloat(l.rows), 0)       // không vượt mép trên (bị cắt)
         let p = domainLastPoint ?? CGPoint(x: key.midX, y: key.midY)
-        let sel = DomainPopup.index(at: p, startX: p.x, layout: l, top: top, bottom: key.maxY)
-        domainHold = (b, choices, l, p.x, top, key.maxY, sel)
+        let track = DomainPopup.Track(layout: l, top: top, bottom: key.maxY, start: p)
+        let sel = track.selection
+        domainHold = (b, choices, track)
         debugLastDomainLayout = l
+        debugLastDomainTop = top
         hideBalloon()
         domainPopupMade = true
         if domainPopup == nil { domainPopup = DomainPopupView() }
@@ -6036,10 +6040,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
 
     private func domainMoved(to p: CGPoint) {
-        guard var h = domainHold else { return }
-        let sel = DomainPopup.index(at: p, startX: h.startX, layout: h.layout, top: h.top, bottom: h.bottom)
-        guard sel != h.sel else { return }
-        h.sel = sel
+        guard var h = domainHold, h.track.move(to: p) else { return }
+        let sel = h.track.selection
         domainHold = h
         domainPopup?.select(sel)
         if sel != nil { Self.flickFeedback() }
@@ -6053,14 +6055,16 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     private var domainTimer: DispatchWorkItem?
     private var domainLastPoint: CGPoint?
-    private var domainHold: (button: KeyButton, choices: [String], layout: DomainPopup.Layout,
-                             startX: CGFloat, top: CGFloat, bottom: CGFloat, sel: Int?)?
+    private var domainHold: (button: KeyButton, choices: [String], track: DomainPopup.Track)?
     private var domainPopup: DomainPopupView?
     private var domainPopupMade = false
     var debugDomainPopupMade: Bool { domainPopupMade }
     private(set) var debugLastDomainLayout: DomainPopup.Layout?
+    private(set) var debugLastDomainTop: CGFloat?
+    /// Khung phím `title` theo toạ độ view (test popup).
+    func debugDomainKeyFrame(_ title: String) -> CGRect? { debugButton(title).map { convert($0.bounds, from: $0) } }
     /// Đuôi đang chọn khi popup mở (nil = đóng / không chọn).
-    var debugDomainSelection: String? { domainHold.flatMap { h in h.sel.map { h.choices[$0] } } }
+    var debugDomainSelection: String? { domainHold.flatMap { h in h.track.selection.map { h.choices[$0] } } }
     var debugDomainPopupVisible: Bool { domainPopup.map { !$0.isHidden && $0.superview != nil } ?? false }
 
     /// Popup đuôi tên miền: panel bo góc liền khối với phím (cùng nền balloon, bóng như
@@ -6092,7 +6096,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         func present(layout l: DomainPopup.Layout, key: CGRect, top: CGFloat, panelH: CGFloat,
                      choices: [String], popup: PopupUI, fontSize: CGFloat) {
             let inset: CGFloat = 4
-            let panel = CGRect(x: l.originX - inset, y: top, width: l.width + inset * 2, height: panelH)
+            let panel = CGRect(x: l.originX - inset, y: top, width: l.width + inset * 2,
+                               height: panelH * CGFloat(l.rows))
             let f = panel.union(key)
             frame = f
             let lp = panel.offsetBy(dx: -f.minX, dy: -f.minY)
@@ -6123,7 +6128,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             slots = []
             for (i, lb) in labels.enumerated() {
                 guard i < choices.count else { lb.isHidden = true; continue }
-                let r = CGRect(x: l.slotMinX(i) - f.minX, y: lp.minY + inset,
+                // Hai hàng: hàng 0 (ô đầu) dưới cùng, sát phím; hàng 1 ở trên.
+                let rowTop = lp.minY + panelH * CGFloat(l.rows - 1 - l.rowOf(i))
+                let r = CGRect(x: l.slotMinX(i) - f.minX, y: rowTop + inset,
                                width: l.itemWidth, height: panelH - inset * 2)
                 slots.append(r)
                 lb.isHidden = false

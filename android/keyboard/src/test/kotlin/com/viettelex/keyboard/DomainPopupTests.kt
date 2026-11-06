@@ -27,8 +27,10 @@ class DomainPopupTests {
 
     // MARK: bố cục + chỉ số dưới ngón
 
+    /** Ô dưới ngón (tuyệt đối, #154). `startX` chỉ để đọc test: chỗ mở không còn ảnh hưởng. */
+    @Suppress("UNUSED_PARAMETER")
     private fun idx(l: DomainPopup.Layout, x: Float, y: Float = 20f, startX: Float) =
-        DomainPopup.index(x, y, startX, l, top = 0f, bottom = 60f)
+        DomainPopup.index(x, y, l, top = 0f, bottom = 60f)
 
     @Test fun layoutLeftToRightWhenRoomOnRight() {
         val l = DomainPopup.layout(keyMidX = 60f, itemWidth = 56f, count = 6, containerWidth = 390f)
@@ -57,16 +59,94 @@ class DomainPopupTests {
         assertEquals(5, idx(l, 350f - 56 * 5, startX = 350f))
     }
 
-    @Test fun layoutClampedInsideNarrowContainer() {
-        val l = DomainPopup.layout(keyMidX = 150f, itemWidth = 56f, count = 5, containerWidth = 300f)
+    @Test fun layoutClampedInsideNarrowContainerWrapsToTwoRows() {
+        // 5 ô 56 vừa bề ngang 300 nhưng phải kẹp, ô đầu lệch > 1 ô khỏi phím ⇒ hai hàng (3 + 2).
+        val l = DomainPopup.layout(keyMidX = 150f, itemWidth = 56f, count = 5, containerWidth = 300f, rowHeight = 30f)
+        assertEquals(2, l.rows)
+        assertEquals(3, l.perRow)
         assertTrue(l.originX >= 2f)
         assertTrue(l.originX + l.width <= 298f)
-        val dir = if (l.mirrored) -1 else 1
-        assertEquals("hàng bị kẹp: lúc mở vẫn là ô 0", 0, idx(l, 150f, startX = 150f))
-        assertEquals(1, idx(l, 150f + dir * 56, startX = 150f))
-        assertEquals("dời chưa nửa ô: giữ nguyên", 0, idx(l, 150f + dir * 20, startX = 150f))
-        // đúng nửa ô: làm tròn xa 0 như Swift .rounded() (cả hai chiều)
-        assertEquals(1, idx(l, 150f + dir * 28, startX = 150f))
+        assertTrue("ô 0 ngay trên phím", l.slotMinX(0) <= 150f && 150f <= l.slotMinX(0) + 56f)
+        assertEquals("ô 3 ngay trên ô 0", l.slotMinX(0), l.slotMinX(3), 0.001f)
+        assertEquals(0, l.rowOf(2)); assertEquals(1, l.rowOf(3))
+        // hàng 0 dưới ranh giới top + rowHeight, hàng 1 trên
+        assertEquals(0, DomainPopup.index(150f, 45f, l, top = 0f, bottom = 100f))
+        assertEquals(3, DomainPopup.index(150f, 15f, l, top = 0f, bottom = 100f))
+        assertEquals("ngón trên phím (dưới popup) ⇒ hàng 0", 0, DomainPopup.index(150f, 90f, l, top = 0f, bottom = 100f))
+        val far = if (l.mirrored) l.originX + 1 else l.originX + l.width - 1
+        assertEquals("hàng trên thiếu ô ⇒ kẹp ô cuối", 4, DomainPopup.index(far, 15f, l, top = 0f, bottom = 100f))
+    }
+
+    @Test fun oneRowUnchangedWhenItFits() {
+        val l = DomainPopup.layout(keyMidX = 60f, itemWidth = 56f, count = 6, containerWidth = 390f, rowHeight = 46f)
+        assertEquals(1, l.rows); assertEquals(6, l.perRow)
+        val m = DomainPopup.layout(keyMidX = 350f, itemWidth = 56f, count = 6, containerWidth = 390f, rowHeight = 46f)
+        assertEquals(1, m.rows)
+        assertEquals(1, DomainPopup.layout(150f, 56f, 5, 300f, maxRows = 1).rows)
+    }
+
+    @Test fun tooWideForOneRowWraps() {
+        // 10 ô × 34 = 340 > 316 (một tay / máy hẹp) ⇒ hai hàng 5 ô, bề rộng ô giữ nguyên.
+        val l = DomainPopup.layout(keyMidX = 250f, itemWidth = 34f, count = 10, containerWidth = 320f)
+        assertEquals(2, l.rows)
+        assertEquals(34f, l.itemWidth, 0.001f)
+        // maxRows = 1 (không có chỗ phía trên): một hàng, ô co lại cho vừa
+        val one = DomainPopup.layout(keyMidX = 250f, itemWidth = 34f, count = 10, containerWidth = 320f, maxRows = 1)
+        assertEquals(1, one.rows)
+        assertTrue(one.originX >= 2f && one.originX + one.width <= 318.001f)
+    }
+
+    /**
+     * #154: MỌI ô với tới được ở MỌI chỗ đặt phím (kể cả hàng bị kẹp mép): mở ở tâm phím, quét
+     * ngón ngang trong màn hình (chừa 1 dp mép) trên từng hàng ⇒ chọn được đủ mọi ô.
+     */
+    @Test fun everyCellReachableAnywhere() {
+        val rowH = 46f
+        for (w in listOf(280f, 320f, 360f, 390f, 430f, 600f))
+            for (n in 1..12)
+                for (iw in listOf(34f, 38f, 48f, 56f))
+                    for (maxRows in 1..2) {
+                        var kx = 10f
+                        while (kx < w - 10f) {
+                            val l = DomainPopup.layout(kx, iw, n, w, rowHeight = rowH, maxRows = maxRows)
+                            val keyY = rowH * l.rows + 28f; val bottom = keyY + 20f
+                            val h = DomainPopup.Hold(List(n) { "$it" })
+                            assertTrue(h.open(l, 0f, bottom, kx, keyY))
+                            assertEquals(0, h.selection)
+                            val got = HashSet<Int>()
+                            for (r in 0 until l.rows) {
+                                val cy = (l.rows - 1 - r) * rowH + rowH / 2
+                                var x = 1f
+                                while (x <= w - 1f) { h.move(x, cy); h.selection?.let { got += it }; x += 1f }
+                            }
+                            assertEquals("w=$w n=$n iw=$iw kx=$kx rows=${l.rows}", (0 until n).toSet(), got)
+                            kx += 7f
+                        }
+                    }
+    }
+
+    /** Hàng một dòng kẹp mép trái ⇒ bù kéo ≤ nửa ô (trước #154 bù trọn ⇒ ô xa ngoài màn hình). */
+    @Test fun dragOffsetCappedAtHalfCell() {
+        val l = DomainPopup.layout(keyMidX = 127f, itemWidth = 34f, count = 10, containerWidth = 390f, maxRows = 1)
+        assertEquals(17f, kotlin.math.abs(DomainPopup.dragOffset(127f, l)), 0.001f)
+        val h = DomainPopup.Hold(CommaPopup.choices)
+        h.open(l, 0f, 100f, 127f, 80f)
+        assertEquals(48f, l.originX, 0.001f)     // kẹp: ô 0 (trái) lệch 62 dp khỏi phím
+        h.move(40f, 20f)
+        val farLeft = h.selection
+        h.move(388f, 20f)
+        assertEquals("hai đầu hàng đều chọn được", setOf(0, 9), setOf(farLeft, h.selection))
+    }
+
+    @Test fun jitterKeepsPreselectUntilEngaged() {
+        // hàng kẹp mép: ô 0 không nằm dưới ngón — run tay nhẹ vẫn giữ ô 0
+        val l = DomainPopup.layout(keyMidX = 300f, itemWidth = 34f, count = 10, containerWidth = 360f, maxRows = 1)
+        val h = DomainPopup.Hold(CommaPopup.choices)
+        h.open(l, 0f, 100f, 300f, 80f)
+        assertFalse(h.move(303f, 82f))
+        assertEquals(0, h.selection)
+        assertTrue(h.move(300f - 3 * 34f, 80f))
+        assertTrue(h.selection != 0)
     }
 
     // MARK: lượt giữ (KeyCommitQueue) — chạm thường / giữ / trượt / huỷ / ngón khác

@@ -154,6 +154,9 @@ class BalloonView(context: Context, private val theme: ImeTheme) : View(context)
         var size = FloatArray(0)
         var itemW = 0f
         var sel = -1
+        /** Hàng (0 = trên cùng) từng ô khi popup hai hàng (#154); null = một hàng. */
+        var slotRow: IntArray? = null
+        var rowH = 0f
         /** Icon [ImeIcons] từng ô (menu giữ 😊); null = ô chữ. */
         var icons: IntArray? = null
         var iconSize = 0f
@@ -170,17 +173,20 @@ class BalloonView(context: Context, private val theme: ImeTheme) : View(context)
     /**
      * Hiện hàng [choices] trong khung panel (toạ độ view gốc); [slotLefts] mép trái từng ô,
      * [itemW] bề rộng ô, [textSp] cỡ chữ (tự thu nhỏ cho vừa ô, vd ".com.vn"), [sel] ô chọn sẵn.
+     * Hai hàng: [slotRows] hàng từng ô (0 = trên cùng), [rowH] cao một hàng; null ⇒ một hàng.
      */
     fun showPopup(l: Float, t: Float, r: Float, b: Float, slotLefts: FloatArray, itemW: Float,
-                  choices: List<String>, textSp: Float, sel: Int, icons: IntArray? = null) {
+                  choices: List<String>, textSp: Float, sel: Int, icons: IntArray? = null,
+                  rowH: Float = b - t, slotRows: IntArray? = null) {
         val p = pop ?: Pop(theme).also { pop = it }
         p.rect.set(l, t, r, b)
         p.choices = choices; p.slotL = slotLefts; p.itemW = itemW; p.sel = sel
+        p.slotRow = slotRows; p.rowH = rowH
         p.icons = icons; p.iconSize = theme.dp(24f)
         val inset = theme.dp(4f)
-        p.radius = popupRadius(itemW, b - t, r - l, b - t, theme.dp(10f))
+        p.radius = popupRadius(itemW, rowH, r - l, rowH, theme.dp(10f))
         val want = theme.sp(textSp) * ps.labelScale
-        val full = if (styled) fitCentered(p.text, want, b - t - 2 * inset) else want
+        val full = if (styled) fitCentered(p.text, want, rowH - 2 * inset) else want
         p.text.textSize = full
         val room = itemW - theme.dp(6f)
         p.size = FloatArray(choices.size) { i ->
@@ -209,8 +215,9 @@ class BalloonView(context: Context, private val theme: ImeTheme) : View(context)
         c.drawRoundRect(p.rect, r, r, p.panel)
         borderPaint?.let { c.drawRoundRect(p.rect, r, r, it) }
         val inset = theme.dp(4f)
-        val top = p.rect.top + inset; val bot = p.rect.bottom - inset
         for (i in p.choices.indices) {
+            val rowTop = p.rect.top + (p.slotRow?.getOrNull(i) ?: 0) * p.rowH
+            val top = rowTop + inset; val bot = rowTop + p.rowH - inset
             val x0 = p.slotL[i]
             if (i == p.sel) c.drawRoundRect(x0 + theme.dp(1f), top, x0 + p.itemW - theme.dp(1f), bot, theme.dp(7f), theme.dp(7f), p.hi)
             val icon = p.icons?.getOrNull(i) ?: -1

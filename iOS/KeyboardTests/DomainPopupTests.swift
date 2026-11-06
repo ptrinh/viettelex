@@ -74,7 +74,7 @@ final class DomainPopupTests: XCTestCase {
         XCTAssertEqual(l.originX, 32)
         XCTAssertEqual(l.slotMinX(0), 32)
         func idx(_ x: CGFloat, _ yy: CGFloat = 20) -> Int? {
-            DomainPopup.index(at: CGPoint(x: x, y: yy), startX: 60, layout: l, top: 0, bottom: 60)
+            DomainPopup.index(at: CGPoint(x: x, y: yy), layout: l, top: 0, bottom: 60)
         }
         XCTAssertEqual(idx(60), 0, "ô dưới ngón lúc mở = .com")
         XCTAssertEqual(idx(60 + 56), 1)
@@ -93,25 +93,132 @@ final class DomainPopupTests: XCTestCase {
         XCTAssertTrue(l.mirrored)
         XCTAssertEqual(l.slotMinX(0), 350 - 28, ".com vẫn ngay trên phím")
         XCTAssertGreaterThanOrEqual(l.originX, 2)
-        let i = { (x: CGFloat) in DomainPopup.index(at: CGPoint(x: x, y: 10), startX: 350, layout: l, top: 0, bottom: 60) }
+        let i = { (x: CGFloat) in DomainPopup.index(at: CGPoint(x: x, y: 10), layout: l, top: 0, bottom: 60) }
         XCTAssertEqual(i(350), 0)
         XCTAssertEqual(i(350 - 56), 1, "loe sang trái: trượt trái ra .vn")
         XCTAssertEqual(i(350 - 56 * 5), 5)
     }
 
-    func testLayoutClampedInsideNarrowContainer() {
-        let l = DomainPopup.layout(keyMidX: 150, itemWidth: 56, count: 5, containerWidth: 300)
+    func testLayoutClampedInsideNarrowContainerWrapsToTwoRows() {
+        // 5 ô 56 vừa bề ngang 300 nhưng phải kẹp, ô đầu lệch > 1 ô khỏi phím ⇒ hai hàng (3 + 2).
+        let l = DomainPopup.layout(keyMidX: 150, itemWidth: 56, count: 5, containerWidth: 300, rowHeight: 30)
+        XCTAssertEqual(l.rows, 2)
+        XCTAssertEqual(l.perRow, 3)
         XCTAssertGreaterThanOrEqual(l.originX, 2)
         XCTAssertLessThanOrEqual(l.originX + l.width, 298)
-        let i = { (x: CGFloat) in DomainPopup.index(at: CGPoint(x: x, y: 10), startX: 150, layout: l, top: 0, bottom: 60) }
-        XCTAssertEqual(i(150), 0, "hàng bị kẹp: lúc mở vẫn là .com")
-        XCTAssertEqual(i(150 + (l.mirrored ? -56 : 56)), 1)
-        XCTAssertEqual(i(150 + (l.mirrored ? -20 : 20)), 0, "dời chưa nửa ô: giữ nguyên")
+        XCTAssertTrue(l.slotMinX(0) <= 150 && 150 <= l.slotMinX(0) + 56, "ô 0 ngay trên phím")
+        XCTAssertEqual(l.slotMinX(3), l.slotMinX(0), "ô 3 ngay trên ô 0")
+        XCTAssertEqual(l.rowOf(2), 0); XCTAssertEqual(l.rowOf(3), 1)
+        let i = { (x: CGFloat, y: CGFloat) in DomainPopup.index(at: CGPoint(x: x, y: y), layout: l, top: 0, bottom: 100) }
+        XCTAssertEqual(i(150, 45), 0)
+        XCTAssertEqual(i(150, 15), 3)
+        XCTAssertEqual(i(150, 90), 0, "ngón trên phím (dưới popup) ⇒ hàng 0")
+        let far = l.mirrored ? l.originX + 1 : l.originX + l.width - 1
+        XCTAssertEqual(i(far, 15), 4, "hàng trên thiếu ô ⇒ kẹp ô cuối")
+    }
+
+    func testOneRowUnchangedWhenItFits() {
+        XCTAssertEqual(DomainPopup.layout(keyMidX: 60, itemWidth: 56, count: 6, containerWidth: 390, rowHeight: 46).rows, 1)
+        XCTAssertEqual(DomainPopup.layout(keyMidX: 350, itemWidth: 56, count: 6, containerWidth: 390, rowHeight: 46).rows, 1)
+        XCTAssertEqual(DomainPopup.layout(keyMidX: 150, itemWidth: 56, count: 5, containerWidth: 300, maxRows: 1).rows, 1)
+    }
+
+    func testTooWideForOneRowWraps() {
+        let l = DomainPopup.layout(keyMidX: 250, itemWidth: 34, count: 10, containerWidth: 320)
+        XCTAssertEqual(l.rows, 2)
+        XCTAssertEqual(l.itemWidth, 34)
+        let one = DomainPopup.layout(keyMidX: 250, itemWidth: 34, count: 10, containerWidth: 320, maxRows: 1)
+        XCTAssertEqual(one.rows, 1)
+        XCTAssertTrue(one.originX >= 2 && one.originX + one.width <= 318.001)
+    }
+
+    /// #154: MỌI ô với tới được ở MỌI chỗ đặt phím (kể cả hàng bị kẹp mép): mở ở tâm phím,
+    /// quét ngón ngang trong màn hình (chừa 1 pt mép) trên từng hàng ⇒ chọn được đủ mọi ô.
+    func testEveryCellReachableAnywhere() {
+        let rowH: CGFloat = 46
+        for w: CGFloat in [280, 320, 360, 390, 430, 600] {
+            for n in 1...12 {
+                for iw: CGFloat in [34, 38, 48, 56] {
+                    for maxRows in 1...2 {
+                        var kx: CGFloat = 10
+                        while kx < w - 10 {
+                            let l = DomainPopup.layout(keyMidX: kx, itemWidth: iw, count: n, containerWidth: w,
+                                                       rowHeight: rowH, maxRows: maxRows)
+                            let keyY = rowH * CGFloat(l.rows) + 28, bottom = keyY + 20
+                            var t = DomainPopup.Track(layout: l, top: 0, bottom: bottom, start: CGPoint(x: kx, y: keyY))
+                            XCTAssertEqual(t.selection, 0)
+                            var got = Set<Int>()
+                            for r in 0..<l.rows {
+                                let cy = CGFloat(l.rows - 1 - r) * rowH + rowH / 2
+                                var x: CGFloat = 1
+                                while x <= w - 1 {
+                                    t.move(to: CGPoint(x: x, y: cy))
+                                    if let s = t.selection { got.insert(s) }
+                                    x += 1
+                                }
+                            }
+                            XCTAssertEqual(got, Set(0..<n), "w=\(w) n=\(n) iw=\(iw) kx=\(kx) rows=\(l.rows)")
+                            kx += 7
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Hàng một dòng kẹp mép trái ⇒ bù kéo ≤ nửa ô (trước #154 bù trọn ⇒ ô xa ngoài màn hình).
+    func testDragOffsetCappedAtHalfCell() {
+        let l = DomainPopup.layout(keyMidX: 127, itemWidth: 34, count: 10, containerWidth: 390, maxRows: 1)
+        XCTAssertEqual(l.originX, 48, accuracy: 0.001)
+        XCTAssertEqual(abs(DomainPopup.dragOffset(startX: 127, layout: l)), 17, accuracy: 0.001)
+        var t = DomainPopup.Track(layout: l, top: 0, bottom: 100, start: CGPoint(x: 127, y: 80))
+        t.move(to: CGPoint(x: 40, y: 20))
+        let farLeft = t.selection
+        t.move(to: CGPoint(x: 388, y: 20))
+        XCTAssertEqual(Set([farLeft, t.selection]), Set([0, 9]), "hai đầu hàng đều chọn được")
+    }
+
+    func testJitterKeepsPreselectUntilEngaged() {
+        let l = DomainPopup.layout(keyMidX: 300, itemWidth: 34, count: 10, containerWidth: 360, maxRows: 1)
+        var t = DomainPopup.Track(layout: l, top: 0, bottom: 100, start: CGPoint(x: 300, y: 80))
+        XCTAssertFalse(t.move(to: CGPoint(x: 303, y: 82)))
+        XCTAssertEqual(t.selection, 0)
+        XCTAssertTrue(t.move(to: CGPoint(x: 300 - 3 * 34, y: 80)))
+        XCTAssertNotEqual(t.selection, 0)
+    }
+
+    /// iPhone thật: giữ "$" bàn 123 (9 biến thể) — ô xa nhất ("¢") trước đây cần ngón ra ngoài
+    /// màn hình (hàng kẹp mép, chọn theo độ dời). Mọi biến thể chọn được bằng cách trượt tới ô
+    /// của nó, ngón luôn trong màn hình.
+    @MainActor func testEveryDollarVariantReachableOnPhone() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom == .pad)
+        for width: CGFloat in [320, 375, 390, 430] {
+            var out: [String] = []
+            let (kb, host) = makeKeyboard(.normal, width: width) { out.append($0) }
+            kb.debugSetPlane(numbers: true); kb.layoutIfNeeded()
+            let choices = KeyVariants.variants(for: "$", symbolPlane: true)
+            XCTAssertEqual(choices.count, 9)
+            kb.debugDomainHold("$")
+            let l = try XCTUnwrap(kb.debugLastDomainLayout)
+            let key = try XCTUnwrap(kb.debugDomainKeyFrame("$"))
+            let top = try XCTUnwrap(kb.debugLastDomainTop)
+            let dx = DomainPopup.dragOffset(startX: key.midX, layout: l)
+            for i in 0..<choices.count {
+                out = []
+                kb.debugSetPlane(numbers: true); kb.layoutIfNeeded()
+                let cx = l.slotMinX(i) + l.itemWidth / 2 - dx
+                let cy = top + 46 * CGFloat(l.rows - 1 - l.rowOf(i)) + 23
+                XCTAssertTrue(cx > 0 && cx < width)
+                kb.debugDomainHold("$", dx: cx - key.midX, dy: cy - key.midY)
+                XCTAssertEqual(out, ["T" + choices[i]], "w=\(width) ô \(i) rows=\(l.rows)")
+            }
+            withExtendedLifetime(host) {}
+        }
     }
 
     // MARK: KeyboardView (iPhone) — đường action thật
 
-    @MainActor private func makeKeyboard(_ kind: KeyboardView.InputKind,
+    @MainActor private func makeKeyboard(_ kind: KeyboardView.InputKind, width: CGFloat = 390,
                                          log: @escaping (String) -> Void) -> (KeyboardView, UIView) {
         let kb = KeyboardView(needsGlobe: false, inputController: nil) { k in
             switch k {
@@ -120,7 +227,7 @@ final class DomainPopupTests: XCTestCase {
             default: log("?")
             }
         }
-        let host = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 320))
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: width, height: 320))
         host.addSubview(kb)
         kb.frame = host.bounds
         kb.configureInputKind(kind)
