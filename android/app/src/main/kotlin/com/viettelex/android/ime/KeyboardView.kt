@@ -2030,22 +2030,24 @@ class KeyboardView(
         val wDp = width / d
         // "," bàn chữ: 10 ô ⇒ ô hẹp hơn để hàng loe từ phím (cạnh phải space) sang trái gọn.
         val comma = plane == Plane.LETTERS && (k.label == "," || isPeriodPopup(k))
-        val itemW = minOf(if (comma) CommaPopup.itemWidthDp(theme.tablet)
-            else if (popVariants) (if (theme.tablet) 56f else 38f) else (if (theme.tablet) 68f else 56f),
-            (wDp - 4f) / n)
-        val l = DomainPopup.layout(k.centerX / d, itemW, n, wDp)
+        val itemW = if (comma) CommaPopup.itemWidthDp(theme.tablet)
+            else if (popVariants) (if (theme.tablet) 56f else 38f) else (if (theme.tablet) 68f else 56f)
         // Toạ độ dp theo overlay (strip + phím): popup được phép lấn lên strip, kẹp ở 0.
         val off = top / d
         val panelH = if (theme.tablet) 52f else 46f
-        val popTop = maxOf((k.top / d + off) - 8f - panelH, 0f)
+        val keyTop = k.top / d + off
+        // Chật một hàng ⇒ hai hàng chồng lên (#154) — chỉ khi phía trên đủ chỗ cho cả hai.
+        val l = DomainPopup.layout(k.centerX / d, itemW, n, wDp, rowHeight = panelH,
+            maxRows = if (keyTop - 8f - 2 * panelH >= 0f) 2 else 1)
+        val popTop = maxOf(keyTop - 8f - panelH * l.rows, 0f)
         val ok = h.fire(commits, k, l, popTop, k.bottom / d + off, popX / d, popY / d + off) { s -> emit(Key.Text(s)) }
         if (!ok) { dropPopover(); return }
         hideBalloon(k)
         val inset = 4f
-        balloon.showPopup((l.originX - inset) * d, popTop * d, (l.originX + l.width + inset) * d, (popTop + panelH) * d,
-            FloatArray(n) { l.slotMinX(it) * d }, itemW * d, h.choices,
+        balloon.showPopup((l.originX - inset) * d, popTop * d, (l.originX + l.width + inset) * d, (popTop + panelH * l.rows) * d,
+            FloatArray(n) { l.slotMinX(it) * d }, l.itemWidth * d, h.choices,
             if (popVariants) (if (theme.tablet) 26f else 24f) else (if (theme.tablet) 20f else 18f),
-            h.selection ?: -1)
+            h.selection ?: -1, rowH = panelH * d, slotRows = IntArray(n) { l.rows - 1 - l.rowOf(it) })
         feedback.tick(this)
     }
 
@@ -2109,8 +2111,8 @@ class KeyboardView(
         val h = DomainPopup.Hold(acts.map { EmojiKeyMenu.label(it, oneHand != OneHandSide.OFF, floatingOn) })
         val n = acts.size
         val wDp = width / d
-        val itemW = minOf(if (theme.tablet) 56f else 48f, (wDp - 4f) / n)
-        val l = DomainPopup.layout(anchorCx / d, itemW, n, wDp)
+        val itemW = if (theme.tablet) 56f else 48f
+        val l = DomainPopup.layout(anchorCx / d, itemW, n, wDp, maxRows = 1)   // ≤ 5 ô: một hàng
         val off = top / d
         val panelH = if (theme.tablet) 52f else 46f
         val popTop = if (below) maxOf(anchorBottom / d + off + 4f, 0f)
@@ -2121,7 +2123,7 @@ class KeyboardView(
         menuHold = h; menuActions = acts
         val inset = 4f
         balloon.showPopup((l.originX - inset) * d, popTop * d, (l.originX + l.width + inset) * d, (popTop + panelH) * d,
-            FloatArray(n) { l.slotMinX(it) * d }, itemW * d, h.choices, 18f, h.selection ?: -1,
+            FloatArray(n) { l.slotMinX(it) * d }, l.itemWidth * d, h.choices, 18f, h.selection ?: -1,
             icons = IntArray(n) { menuIcon(acts[it]) })
         feedback.longPress(this)
         return true

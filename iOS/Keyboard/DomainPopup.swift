@@ -2,6 +2,7 @@
 // iOS (issue #113: ô URL bỏ phím ".com" riêng — space rộng như stock, đuôi gom vào giữ "."). Phần THUẦN (không UIKit): danh sách lựa chọn theo loại ô, bố cục hàng ô, chỉ số ô
 // dưới ngón theo toạ độ x, luật huỷ khi trượt xa. View chỉ dựng popup khi hết giờ giữ.
 import CoreGraphics
+import Foundation
 
 enum DomainPopup {
     /// Đuôi tên miền — .com mặc định như stock, .vn / .com.vn kế tiếp cho người dùng Việt
@@ -20,49 +21,137 @@ enum DomainPopup {
         }
     }
 
-    /// Bố cục hàng ô (toạ độ vùng chứa). Ô đầu (mặc định) nằm ngay trên tâm phím; không đủ
-    /// chỗ bên phải thì lật ngược (ô đầu ở bên phải, hàng loe sang trái) như stock, rồi kẹp
-    /// trong [margin, width − margin].
+    /// Bố cục ô (toạ độ vùng chứa). Ô đầu (mặc định) nằm ngay trên tâm phím; hàng loe về phía
+    /// còn chỗ (không đủ chỗ bên phải thì lật ngược — ô đầu ở bên phải, hàng loe sang trái —
+    /// như stock), rồi kẹp trong [margin, width − margin].
+    ///
+    /// HAI HÀNG (issue #154): khi một hàng không vừa bề ngang với bề rộng ô mong muốn, HOẶC
+    /// phải kẹp mép đẩy ô đầu lệch khỏi tâm phím quá nửa ô ⇒ `perRow` = ⌈n/2⌉ ô mỗi hàng, hàng 0
+    /// (ô 0…perRow−1) sát phím, hàng 1 chồng LÊN trên; ô i+perRow ngay trên ô i. Vừa một hàng
+    /// mà ô đầu vẫn trên phím ⇒ y như cũ. Bản Kotlin song sinh: android/keyboard/…/DomainPopup.kt.
     struct Layout: Equatable {
         let originX: CGFloat
         let itemWidth: CGFloat
         let count: Int
         /// true ⇒ ô 0 ở bên PHẢI (hàng đọc từ phải sang trái).
         let mirrored: Bool
-        var width: CGFloat { itemWidth * CGFloat(count) }
+        /// Số ô mỗi hàng (= `count` khi một hàng).
+        var perRow: Int
+        /// Cao một hàng — ranh giới hai hàng khi chọn theo y; một hàng thì không dùng.
+        var rowHeight: CGFloat = 0
 
-        /// Khung x của lựa chọn `index` (toạ độ vùng chứa).
+        init(originX: CGFloat, itemWidth: CGFloat, count: Int, mirrored: Bool,
+             perRow: Int? = nil, rowHeight: CGFloat = 0) {
+            self.originX = originX; self.itemWidth = itemWidth; self.count = count
+            self.mirrored = mirrored; self.perRow = perRow ?? count; self.rowHeight = rowHeight
+        }
+
+        /// Bề ngang một hàng.
+        var width: CGFloat { itemWidth * CGFloat(perRow) }
+        /// 1 hoặc 2.
+        var rows: Int { perRow > 0 ? (count + perRow - 1) / perRow : 0 }
+        /// Hàng của lựa chọn `index`: 0 = sát phím, 1 = phía trên.
+        func rowOf(_ index: Int) -> Int { perRow > 0 ? index / perRow : 0 }
+
+        /// Mép trái ô của lựa chọn `index` (toạ độ vùng chứa).
         func slotMinX(_ index: Int) -> CGFloat {
-            let slot = mirrored ? count - 1 - index : index
+            let col = perRow > 0 ? index % perRow : 0
+            let slot = mirrored ? perRow - 1 - col : col
             return originX + CGFloat(slot) * itemWidth
         }
     }
 
+    /// `itemWidth` = bề rộng ô mong muốn (co lại nếu không vừa); `rowHeight` = cao một hàng;
+    /// `maxRows` = 1 khi không có chỗ phía trên cho hàng thứ hai (view tự quyết).
     static func layout(keyMidX: CGFloat, itemWidth: CGFloat, count: Int,
-                       containerWidth: CGFloat, margin: CGFloat = 2) -> Layout {
-        let w = itemWidth * CGFloat(count)
-        let rightFits = keyMidX - itemWidth / 2 + w <= containerWidth - margin
-        let raw = rightFits ? keyMidX - itemWidth / 2 : keyMidX + itemWidth / 2 - w
-        let x = min(max(raw, margin), max(margin, containerWidth - margin - w))
-        return Layout(originX: x, itemWidth: itemWidth, count: count, mirrored: !rightFits)
+                       containerWidth: CGFloat, margin: CGFloat = 2,
+                       rowHeight: CGFloat = 0, maxRows: Int = 2) -> Layout {
+        let avail = max(containerWidth - 2 * margin, 1)
+        let oneW = min(itemWidth, avail / CGFloat(max(count, 1)))
+        let one = place(keyMidX: keyMidX, w: oneW, count: count, perRow: count,
+                        containerWidth: containerWidth, margin: margin, rowHeight: rowHeight)
+        guard maxRows >= 2, count >= 2 else { return one.layout }
+        let crowded = itemWidth * CGFloat(count) > avail || one.shift > oneW / 2
+        guard crowded else { return one.layout }
+        let perRow = (count + 1) / 2
+        return place(keyMidX: keyMidX, w: min(itemWidth, avail / CGFloat(perRow)), count: count, perRow: perRow,
+                     containerWidth: containerWidth, margin: margin, rowHeight: rowHeight).layout
+    }
+
+    /// Đặt hàng `perRow` ô rộng `w`; kèm độ dời do kẹp mép (ô đầu lệch khỏi tâm phím bao nhiêu).
+    private static func place(keyMidX: CGFloat, w: CGFloat, count: Int, perRow: Int,
+                              containerWidth: CGFloat, margin: CGFloat,
+                              rowHeight: CGFloat) -> (layout: Layout, shift: CGFloat) {
+        let rowW = w * CGFloat(perRow)
+        let rightFits = keyMidX - w / 2 + rowW <= containerWidth - margin
+        let leftFits = keyMidX + w / 2 - rowW >= margin
+        // Không bên nào vừa ⇒ loe về bên nhiều chỗ hơn (ô đầu bớt lệch khi kẹp).
+        let roomRight = containerWidth - margin - (keyMidX - w / 2)
+        let roomLeft = keyMidX + w / 2 - margin
+        let mirrored = !rightFits && (leftFits || roomLeft > roomRight)
+        let raw = mirrored ? keyMidX + w / 2 - rowW : keyMidX - w / 2
+        let x = min(max(raw, margin), max(margin, containerWidth - margin - rowW))
+        return (Layout(originX: x, itemWidth: w, count: count, mirrored: mirrored,
+                       perRow: perRow, rowHeight: rowHeight), abs(x - raw))
     }
 
     /// Ngón trượt ra ngoài hàng quá ngần này (ngang) ⇒ huỷ.
     static let cancelSlackX: CGFloat = 30
     /// Ngón trượt lên trên đỉnh popup / xuống dưới đáy phím quá ngần này ⇒ huỷ.
     static let cancelSlackY: CGFloat = 40
+    /// Lúc mở luôn chọn ô 0; ngón phải dời quá ngần này mới đổi ô — run tay không đổi ô.
+    static let engageDistance: CGFloat = 8
 
-    /// Lựa chọn theo độ dời ngang của ngón so với lúc mở (`startX`): lúc mở luôn là ô 0
-    /// (.com) — kể cả khi hàng bị kẹp mép không nằm đúng dưới ngón; mỗi bề rộng ô trượt
-    /// theo hướng hàng loe ⇒ sang ô kế. nil = huỷ (ra ngoài hàng/phím quá ngần slack).
-    /// `top` = đỉnh popup, `bottom` = đáy phím. Quay lại gần hàng thì chọn lại được (như stock).
-    static func index(at p: CGPoint, startX: CGFloat, layout l: Layout, top: CGFloat, bottom: CGFloat) -> Int? {
-        guard l.count > 0,
+    /// Độ bù ngang của một lượt kéo: chỗ mở coi như tâm ô 0 (ngón chạm lệch trong phím vẫn là
+    /// ô 0, trượt một ô ra ô kế — cảm giác cũ), nhưng bù tối đa NỬA Ô. Issue #154: trước đây bù
+    /// trọn độ lệch; hàng bị kẹp mép (ô 0 lệch xa phím) thì ô ở đầu kia cần ngón ra ngoài màn
+    /// hình. Bù ≤ nửa ô ⇒ ô đầu/cuối luôn với tới trong nửa ô tính từ mép popup.
+    static func dragOffset(startX: CGFloat, layout l: Layout) -> CGFloat {
+        let half = l.itemWidth / 2
+        return min(max(l.slotMinX(0) + half - startX, -half), half)
+    }
+
+    /// Ô dưới điểm (x đã cộng `dragOffset`). Lố hai đầu hàng trong ngần slack ⇒ kẹp ô đầu /
+    /// cuối. Hai hàng: cao hơn `top + rowHeight` ⇒ hàng trên; hàng trên thiếu ô ⇒ ô cuối.
+    /// nil = huỷ (ra ngoài quá slack). `top` = đỉnh popup, `bottom` = đáy phím.
+    static func index(at p: CGPoint, layout l: Layout, top: CGFloat, bottom: CGFloat) -> Int? {
+        guard l.count > 0, l.perRow > 0,
               p.x >= l.originX - cancelSlackX, p.x <= l.originX + l.width + cancelSlackX,
               p.y >= top - cancelSlackY, p.y <= bottom + cancelSlackY else { return nil }
-        let step = Int(((p.x - startX) / l.itemWidth).rounded())
-        let i = l.mirrored ? -step : step
-        return min(max(i, 0), l.count - 1)
+        let slot = min(max(Int(((p.x - l.originX) / l.itemWidth).rounded(.down)), 0), l.perRow - 1)
+        let col = l.mirrored ? l.perRow - 1 - slot : slot
+        let row = l.rows > 1 && p.y < top + l.rowHeight ? 1 : 0
+        return min(row * l.perRow + col, l.count - 1)
+    }
+
+    /// Một lượt kéo trên popup đang mở: lúc mở chọn ô 0; ngón dời quá `engageDistance` ⇒
+    /// chọn ô dưới ngón + `dragOffset`. Thuần — view giữ một bản, gọi `move` mỗi lần ngón đi.
+    struct Track: Equatable {
+        let layout: Layout
+        let top: CGFloat
+        let bottom: CGFloat
+        let start: CGPoint
+        let dx: CGFloat
+        private(set) var engaged = false
+        private(set) var selection: Int?
+
+        init(layout: Layout, top: CGFloat, bottom: CGFloat, start: CGPoint) {
+            self.layout = layout; self.top = top; self.bottom = bottom; self.start = start
+            dx = DomainPopup.dragOffset(startX: start.x, layout: layout)
+            selection = DomainPopup.index(at: CGPoint(x: start.x + dx, y: start.y), layout: layout,
+                                          top: top, bottom: bottom) != nil ? 0 : nil
+        }
+
+        /// true nếu ô chọn đổi.
+        @discardableResult
+        mutating func move(to p: CGPoint) -> Bool {
+            if !engaged, hypot(p.x - start.x, p.y - start.y) < DomainPopup.engageDistance { return false }
+            engaged = true
+            let s = DomainPopup.index(at: CGPoint(x: p.x + dx, y: p.y), layout: layout, top: top, bottom: bottom)
+            guard s != selection else { return false }
+            selection = s
+            return true
+        }
     }
 }
 
