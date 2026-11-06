@@ -16,8 +16,11 @@
 // VNI hides the whole "Gõ lẫn tiếng Anh" group (profile rows + its › Nâng cao): VNI puts
 // tones on digit keys so English words come out as typed and none of those switches does
 // anything. One line (MixedVniNote) stands in for it; the keys keep their values (§1).
-// A switch that depends on another is never hidden: it stays right under its parent,
-// dimmed, with the reason (§0.4).
+// A row that depends on a switch right above it in the same group is HIDDEN while that
+// parent makes it do nothing, and comes back in place as soon as the parent changes (§0.4,
+// table §6). The one cross-page case — "Hiện công cụ văn bản trong menu" (tray menu) under
+// the tray switch on Chung — is hidden too; the Công cụ văn bản expander's summary then
+// says to turn the tray icon on in Chung (S::TextToolsNoTray). Display only: no key changes.
 #pragma once
 #include <vector>
 
@@ -65,9 +68,6 @@ enum class PageControl : int {
     MixedVniNote,        // VNI: the one line shown instead of the "Gõ lẫn tiếng Anh" group
 };
 
-// Why a switch is shown dimmed (and cannot be changed) — never hidden.
-enum class DimReason { None, TelexOnly, NeedsContextual };
-
 enum class RowKind { Section, Expander, Toggle, Control };
 
 struct PageRow {
@@ -75,7 +75,6 @@ struct PageRow {
     int id = 0;                          // PageSection / Expander / PageControl value
     bool Settings::*field = nullptr;     // Toggle
     int indent = 0;                      // 0 page level, 1 inside an expander, 2 under its parent switch
-    DimReason dim = DimReason::None;     // Toggle
 };
 
 struct PageContext {
@@ -89,12 +88,20 @@ struct PageContext {
 // The rows of one page; children of a collapsed expander are left out.
 std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, const PageContext& ctx);
 
-// Telex-only switches (simple Telex, free tone placement, quick Telex, teencode, bracket
-// vowels): VNI never reads them.
+// Telex-only switches (simple Telex, free tone placement, quick Telex): VNI never reads
+// them. Teencode and bracket vowels are NOT here — both work in VNI too.
 bool isTelexOnly(bool Settings::*field);
 // VNI: the "Gõ lẫn tiếng Anh" group is replaced by one line (SETTINGS-CLEANUP-SPEC §1).
 bool hidesMixedGroup(const Settings& s);
-DimReason dimReason(const Settings& s, bool Settings::*field);
+// §6: the switch is left out because the parent right above it makes it do nothing.
+bool hiddenByParent(const Settings& s, bool Settings::*field);
+// "Kiểu biểu tượng khay": only with the tray icon on.
+bool showsTrayStyle(const Settings& s);
+// The one-time "Bạn hay gõ trộn Anh/Việt?" card: hidden under VNI (its "Xem" points at the
+// hidden group); the HKCU flag is kept, so it shows again after switching back to Telex.
+bool showsMixedCard(const Settings& s, const PageContext& ctx);
+// Changing this switch shows/hides other rows: the window rebuilds the page at once.
+bool affectsLayout(bool Settings::*field);
 
 // Where a switch lives: its page and expander (-1 = page level). False if no page shows it.
 bool findToggle(bool Settings::*field, SettingsPage& page, int& expander);

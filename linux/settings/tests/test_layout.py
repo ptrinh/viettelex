@@ -1,4 +1,4 @@
-"""Thu gọn cài đặt (docs/SETTINGS-CLEANUP-SPEC.md): 5 trang, công tắc phụ thuộc làm mờ + lý do,
+"""Thu gọn cài đặt (docs/SETTINGS-CLEANUP-SPEC.md): 5 trang, công tắc phụ thuộc ẩn theo mục cha,
 nhãn chung §3, bộ chọn hồ sơ vẫn phủ đủ key, không nhắc tên bộ gõ khác.
 
 app.py cần GTK nên đọc bằng ast (không import); phần logic nằm ở layout.py (thuần Python).
@@ -98,36 +98,75 @@ class PageTests(unittest.TestCase):
 
 
 class DependentTests(unittest.TestCase):
-    def test_learn_words_needs_word_prediction(self):
+    """§0.4 + bảng §6: dòng con ngay dưới dòng cha cùng nhóm ⇒ ẨN khi cha làm nó vô tác dụng."""
+
+    def test_learn_words_hidden_without_word_prediction(self):
         key = ("general", "learn_words")
-        off = layout.dependent_state(key, getter({("general", "word_prediction"): False}))
-        self.assertEqual(off, (False, layout.REASON_NEEDS_PREDICTION))
-        on = layout.dependent_state(key, getter({("general", "word_prediction"): True}))
-        self.assertEqual(on, (True, None))
-        # Mặc định: Gợi ý từ tắt ⇒ Học từ bạn gõ hiện mờ (giá trị key không đổi: vẫn bật).
-        self.assertFalse(layout.dependent_state(key, getter({}))[0])
+        self.assertFalse(layout.row_visible(key, getter({("general", "word_prediction"): False})))
+        self.assertTrue(layout.row_visible(key, getter({("general", "word_prediction"): True})))
+        # Mặc định: Gợi ý từ tắt ⇒ Học từ bạn gõ ẩn (giá trị key không đổi: vẫn bật).
+        self.assertFalse(layout.row_visible(key, getter({})))
         self.assertIs(config.DEFAULTS["general"]["learn_words"], True)
 
     def test_learn_words_right_under_word_prediction(self):
         keys = [k for k, _t, _s in ast.literal_eval(_assigned("PREDICTION_SWITCHES"))]
         self.assertEqual(keys[:2], ["word_prediction", "learn_words"])
 
-    def test_retro_and_frequency_need_context(self):
-        for k in ("retroactive_english", "english_by_frequency"):
-            ok, why = layout.dependent_state(("typing", k),
-                                             getter({("typing", "contextual_english"): False}))
-            self.assertEqual((ok, why), (False, layout.REASON_NEEDS_CONTEXT))
-            self.assertTrue(layout.dependent_state(
-                ("typing", k), getter({("typing", "contextual_english"): True}))[0])
+    def test_quote_style_hidden_without_smart_punctuation(self):
+        key = ("general", "quote_style")
+        self.assertFalse(layout.row_visible(key, getter({("general", "smart_punctuation"): False})))
+        self.assertTrue(layout.row_visible(key, getter({("general", "smart_punctuation"): True})))
+        # Ngay dưới công tắc cha: smart_punctuation là dòng cuối của AUTO_TEXT_SWITCHES.
+        keys = [k for k, _t, _s in ast.literal_eval(_assigned("AUTO_TEXT_SWITCHES"))]
+        self.assertEqual(keys[-1], "smart_punctuation")
 
-    def test_telex_only_dimmed_under_vni(self):
+    def test_retro_hidden_without_context(self):
+        key = ("typing", "retroactive_english")
+        self.assertFalse(layout.row_visible(key, getter({("typing", "contextual_english"): False})))
+        self.assertTrue(layout.row_visible(key, getter({("typing", "contextual_english"): True})))
+
+    def test_collision_and_frequency_hidden_without_auto_restore(self):
+        off = getter({("typing", "auto_restore"): False, ("typing", "contextual_english"): True})
+        on = getter({("typing", "auto_restore"): True, ("typing", "contextual_english"): True})
+        for k in ("collision_prefers_vietnamese", "english_by_frequency"):
+            self.assertFalse(layout.row_visible(("typing", k), off), k)
+            self.assertTrue(layout.row_visible(("typing", k), on), k)
+        # Tần suất cần CẢ hai cha.
+        self.assertFalse(layout.row_visible(("typing", "english_by_frequency"), getter(
+            {("typing", "auto_restore"): True, ("typing", "contextual_english"): False})))
+        # Tắt ngữ cảnh không ẩn "Khi từ vừa Anh vừa Việt".
+        self.assertTrue(layout.row_visible(("typing", "collision_prefers_vietnamese"), getter(
+            {("typing", "auto_restore"): True, ("typing", "contextual_english"): False})))
+
+    def test_telex_only_hidden_under_vni(self):
         vni = getter({("typing", "input_method"): "vni"})
         telex = getter({("typing", "input_method"): "telex"})
-        for key in layout.TELEX_ONLY_KEYS:
-            self.assertEqual(layout.dependent_state(key, vni), (False, layout.REASON_TELEX_ONLY))
-            self.assertEqual(layout.dependent_state(key, telex), (True, None))
-        # Bỏ dấu kiểu mới áp dụng cả VNI.
-        self.assertEqual(layout.dependent_state(("typing", "modern_tone"), vni), (True, None))
+        for k in ("simple_telex", "free_marking", "quick_telex"):
+            self.assertFalse(layout.row_visible(("typing", k), vni), k)
+            self.assertTrue(layout.row_visible(("typing", k), telex), k)
+        # Teencode, phím ngoặc (chạy cả ở VNI) và Bỏ dấu kiểu mới: luôn hiện.
+        for k in ("teencode", "bracket_vowels", "modern_tone"):
+            self.assertNotIn(("typing", k), layout.VISIBLE_WHEN)
+            self.assertTrue(layout.row_visible(("typing", k), vni), k)
+
+    def test_mixed_card_hidden_under_vni_flag_kept(self):
+        vni = getter({("typing", "input_method"): "vni"})
+        telex = getter({("typing", "input_method"): "telex"})
+        self.assertFalse(layout.mixed_card_visible(True, vni))
+        self.assertTrue(layout.mixed_card_visible(True, telex))
+        self.assertFalse(layout.mixed_card_visible(False, telex))
+        # Ẩn vì VNI không xoá cờ: chỉ "Xem"/"Đóng" mới gọi dismiss_card.
+        src = ast.unparse(method("_mixed_card"))
+        self.assertEqual(src.count("dismiss_card"), 1)
+        self.assertIn("mixed_card_visible", ast.unparse(method("_apply_mixed_visibility")))
+
+    def test_parent_change_refreshes_layout_live(self):
+        for name in ("switch", "combo"):
+            self.assertIn("self.refresh_dependents()", ast.unparse(method(name)), name)
+        dep = ast.unparse(method("dependent"))
+        self.assertIn("set_visible", dep)
+        self.assertNotIn("set_sensitive", dep)
+        self.assertNotIn(".set(", dep)
 
     def test_vni_hides_mixed_group(self):
         """VNI: cả nhóm "Gõ lẫn tiếng Anh" (bộ chọn hồ sơ + Nâng cao) ẩn, thay bằng MỘT dòng
@@ -158,24 +197,15 @@ class DependentTests(unittest.TestCase):
         # "Tuỳ chỉnh" không lộ ra khi nhóm đang ẩn.
         self.assertIn("mixed_group_hidden", ast.unparse(method("_refresh_picker")))
 
-    def test_reason_goes_first_original_kept(self):
-        self.assertEqual(layout.dimmed_subtitle("Lý do.", "Mô tả"), "Lý do.\nMô tả")
-        self.assertEqual(layout.dimmed_subtitle(None, "Mô tả"), "Mô tả")
-        self.assertEqual(layout.dimmed_subtitle("Lý do.", ""), "Lý do.")
-
-    def test_every_dependency_is_wired_and_never_hidden(self):
+    def test_every_rule_is_wired(self):
         wired = {const(c.args[1]) for c in calls(APP, "dependent") if len(c.args) == 2}
         wired.discard(None)
         # learn_words đi qua vòng lặp PREDICTION_SWITCHES (khoá ("general", key)).
         wired.add(("general", "learn_words"))
-        self.assertEqual(set(layout.DEPENDENCIES), wired)
+        self.assertEqual(set(layout.VISIBLE_WHEN), wired)
         src = read("app.py")
-        self.assertFalse("self.telex_only" in src)     # danh sách dòng ẩn khi VNI cũ
-        self.assertFalse("retro_english_visible" in src)
-
-    def test_dependency_reasons_translated(self):
-        for _cond, reason in layout.DEPENDENCIES.values():
-            self.assertIn(reason, i18n.EN)
+        self.assertFalse("self.telex_only" in src)
+        self.assertFalse("set_sensitive(ok)" in src)
 
 
 def _assigned(name):

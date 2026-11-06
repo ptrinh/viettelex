@@ -84,7 +84,7 @@ AUTO_TEXT_SWITCHES = (
     ("smart_punctuation", N_("Ngoặc kép cong và gạch dài"),
      N_("\" ' → ngoặc cong theo ngữ cảnh (don't → don’t); -- → — (gõ thêm - thì thành ---).")),
 )
-# Gợi ý từ (trang Gợi ý & công cụ): "Học từ bạn gõ" ngay dưới "Gợi ý từ", làm mờ khi nó tắt.
+# Gợi ý từ (trang Gợi ý & công cụ): "Học từ bạn gõ" ngay dưới "Gợi ý từ", ẩn khi nó tắt.
 PREDICTION_SWITCHES = (
     ("word_prediction", N_("Gợi ý từ"),
      N_("Dừng gõ → gợi ý từ (keyb → keyboard, cảm → ơn); Tab để chọn. Cần gói viettelex-text-tools.")),
@@ -185,7 +185,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.set_title(_("VietTelex — Cài đặt"))
         self.set_default_size(760, 700)
         self.refreshers = []          # hàm cập nhật widget khi file đổi từ bên ngoài
-        self.dependents = []          # dòng làm mờ + lý do khi công tắc cha tắt (layout.py)
+        self.dependents = []          # dòng ẩn khi mục cha làm nó vô tác dụng (layout.VISIBLE_WHEN)
         self.shortcut_map = shortcuts.load()
         self._last_written = None
 
@@ -215,9 +215,10 @@ class SettingsWindow(Adw.PreferencesWindow):
             v = bool(self.cfg.get(section, key))
             sw.set_active(not v if invert else v)
         refresh()
-        sw.connect("notify::active",
-                   lambda s, _p: self.cfg.set(section, key, (not s.get_active()) if invert
-                                               else s.get_active()))
+        def toggled(s, _p):
+            self.cfg.set(section, key, (not s.get_active()) if invert else s.get_active())
+            self.refresh_dependents()        # dòng con ngay dưới hiện/ẩn ngay (§0.4)
+        sw.connect("notify::active", toggled)
         self.refreshers.append(refresh)
         group.add(r)
         return r
@@ -239,6 +240,7 @@ class SettingsWindow(Adw.PreferencesWindow):
             i = rr.get_selected()
             if 0 <= i < len(values):
                 self.cfg.set(section, key, values[i])
+                self.refresh_dependents()
                 if on_change:
                     on_change()
         r.connect("notify::selected", changed)
@@ -256,14 +258,11 @@ class SettingsWindow(Adw.PreferencesWindow):
         return SimpleNamespace(add=exp.add_row, row=exp)
 
     def dependent(self, r, key):
-        """Công tắc phụ thuộc (layout.DEPENDENCIES): làm mờ + ghi lý do lên đầu chú thích, KHÔNG
-        ẩn. Theo dõi qua refreshers — nơi đổi công tắc cha phải gọi self.refresh_dependents()."""
-        base = r.get_subtitle() or ""      # đã escape lúc tạo dòng
-
+        """Dòng con ngay dưới mục cha cùng nhóm (layout.VISIBLE_WHEN, SETTINGS-CLEANUP-SPEC §0.4/§6):
+        ẨN khi cha làm nó vô tác dụng, hiện lại ngay khi đổi cha (switch()/combo() gọi
+        refresh_dependents). Chỉ đổi hiển thị — không ghi config."""
         def refresh():
-            ok, reason = layout.dependent_state(key, self.cfg.get)
-            r.set_sensitive(ok)
-            r.set_subtitle(layout.dimmed_subtitle(esc(_(reason)) if reason else None, base))
+            r.set_visible(layout.row_visible(key, self.cfg.get))
         refresh()
         self.dependents.append(refresh)
         self.refreshers.append(refresh)
@@ -296,7 +295,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.vni_help = row(_("Gõ dấu bằng chữ số"),
                             _("Dấu bằng số: 1–5 sắc/huyền/hỏi/ngã/nặng, 6 â ê ô, 7 ơ ư, 8 ă, 9 đ, 0 xoá dấu."))
         g.add(self.vni_help)
-        # Nâng cao kiểu gõ: mục chỉ-Telex làm mờ + "Chỉ áp dụng cho Telex" khi chọn VNI.
+        # Nâng cao kiểu gõ: mục chỉ-Telex ẩn khi chọn VNI; teencode, phím ngoặc chạy cả VNI.
         adv = self.advanced(g, _("Telex đơn giản, bỏ dấu tự do, gõ tắt phụ âm, dấu kiểu mới, "
                                  "teencode, phím ngoặc"))
         self.dependent(self.switch(adv, "typing", "simple_telex", _("Telex đơn giản"),
@@ -311,12 +310,10 @@ class SettingsWindow(Adw.PreferencesWindow):
                        ("typing", "quick_telex"))
         self.switch(adv, "typing", "modern_tone", _("Bỏ dấu kiểu mới (oà, uý)"),
                     _("hoà, thuý, khoẻ thay vì hòa, thủy, khỏe."))
-        self.dependent(self.switch(adv, "typing", "teencode", _("Chính tả teencode"),
-                                   _("Nhận kiểu viết chat: wá, zui zẻ, kó. Tắt: was, zoo giữ nguyên.")),
-                       ("typing", "teencode"))
-        self.dependent(self.switch(adv, "typing", "bracket_vowels", _("Phím ngoặc: [ ra ơ, ] ra ư"),
-                                   _("[ ra ơ, ] ra ư (th[ → thơ). Nên tắt nếu bạn viết code.")),
-                       ("typing", "bracket_vowels"))
+        self.switch(adv, "typing", "teencode", _("Chính tả teencode"),
+                    _("Nhận kiểu viết chat: wá, zui zẻ, kó. Tắt: was, zoo giữ nguyên."))
+        self.switch(adv, "typing", "bracket_vowels", _("Phím ngoặc: [ ra ơ, ] ra ư"),
+                    _("[ ra ơ, ] ra ư (th[ → thơ). Nên tắt nếu bạn viết code."))
         page.add(g)
         self._mixed_groups(page)
         self._spelling_group(page)
@@ -324,10 +321,13 @@ class SettingsWindow(Adw.PreferencesWindow):
 
     def _mixed_card(self, page):
         """Người dùng cũ (onboarding.card_pending): thẻ một lần trỏ tới nhóm Gõ lẫn tiếng Anh.
-        Bấm "Xem" hoặc "Đóng" ⇒ không hiện lại."""
-        if not onboarding.card_pending():
+        Bấm "Xem" hoặc "Đóng" ⇒ không hiện lại. VNI ⇒ ẩn (nhóm đang ẩn), giữ cờ để hiện lại khi
+        đổi về Telex (layout.mixed_card_visible, _apply_mixed_visibility)."""
+        self.mixed_card_pending = onboarding.card_pending()
+        if not self.mixed_card_pending:
             return
         g = Adw.PreferencesGroup()
+        self.mixed_card_group = g
         r = row(_("Bạn hay gõ trộn Anh/Việt?"),
                 _("Nhóm Gõ lẫn tiếng Anh mới ở ngay dưới: chọn cách bạn gõ; công tắc chi tiết ở Nâng cao."))
         r.add_prefix(Gtk.Image.new_from_icon_name("dialog-information-symbolic"))
@@ -342,6 +342,7 @@ class SettingsWindow(Adw.PreferencesWindow):
                 onboarding.dismiss_card()
             except OSError:
                 pass
+            self.mixed_card_pending = False
             g.set_visible(False)
             if reveal and getattr(self, "mixed_first_row", None) is not None:
                 # Viewport của trang cuộn tới widget đang focus (scroll-to-focus).
@@ -367,10 +368,11 @@ class SettingsWindow(Adw.PreferencesWindow):
         restore_row = self.switch(
             adv, "typing", "auto_restore", _("Tự khôi phục từ tiếng Anh"),
             _("Từ không phải tiếng Việt trả về đúng như đã gõ (google, github)."))
-        collision_row = self.combo(
+        collision_row = self.dependent(self.combo(
             adv, "typing", "collision_prefers_vietnamese", _("Khi từ vừa Anh vừa Việt"),
             [(True, _("Ưu tiên tiếng Việt")), (False, _("Ưu tiên tiếng Anh"))],
-            subtitle=_("Vd. list → lít. Muốn giữ tiếng Anh, gõ đúp phím dấu: lisst → list."))
+            subtitle=_("Vd. list → lít. Muốn giữ tiếng Anh, gõ đúp phím dấu: lisst → list.")),
+            ("typing", "collision_prefers_vietnamese"))
         # Chú thích theo lựa chọn (như macOS): luôn chỉ cách lấy dạng kia.
         collision_caps = (_("Vd. list → lít. Muốn giữ tiếng Anh, gõ đúp phím dấu: lisst → list."),
                           _("Vd. list giữ nguyên. Muốn ra tiếng Việt, gõ dấu cuối từ: lits → lít."))
@@ -381,7 +383,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         collision_caption()
         ctx_row = self.switch(adv, "typing", "contextual_english", _("Quyết định theo ngữ cảnh"),
                               _("Sau một từ tiếng Anh, từ kế giữ tiếng Anh: “he is”, không thành “he í”."))
-        # Thử nghiệm, ngay dưới "Quyết định theo ngữ cảnh": làm mờ + lý do khi nó tắt (không ẩn).
+        # Thử nghiệm, ngay dưới "Quyết định theo ngữ cảnh": ẩn khi nó tắt (§6).
         retro_row = self.dependent(self.switch(
             adv, "typing", "retroactive_english", _("Tự sửa từ phía trước (thử nghiệm)"),
             _("Sửa từ bị bỏ dấu nhầm khi câu hoá ra tiếng Anh: “Hí cả í” → “His car is”.")),
@@ -390,7 +392,6 @@ class SettingsWindow(Adw.PreferencesWindow):
             adv, "typing", "english_by_frequency", _("Đoán từ trùng theo tần suất (thử nghiệm)"),
             _("Đầu câu, “his” giữ tiếng Anh thay vì “hí”; tự đổi lại nếu câu là tiếng Việt.")),
             ("typing", "english_by_frequency"))
-        ctx_row.get_activatable_widget().connect("notify::active", self.refresh_dependents)
         page.add(g)
         self._apply_mixed_visibility()
 
@@ -521,9 +522,9 @@ class SettingsWindow(Adw.PreferencesWindow):
             f()
 
     def _apply_vni_visibility(self):
-        """VNI: hiện dòng hướng dẫn gõ số; mục chỉ-Telex làm mờ + lý do (không ẩn); nhóm Gõ lẫn
-        tiếng Anh ẩn, thay bằng một dòng."""
-        self.vni_help.set_visible(not layout.telex_only_enabled(self.cfg.get))
+        """VNI: hiện dòng hướng dẫn gõ số; mục chỉ-Telex ẩn; nhóm Gõ lẫn tiếng Anh ẩn, thay bằng
+        một dòng."""
+        self.vni_help.set_visible(layout.is_vni(self.cfg.get))
         self.refresh_dependents()
         self._apply_mixed_visibility()
 
@@ -536,6 +537,9 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.mixed_group.set_description(esc(_(layout.mixed_group_description(self.cfg.get))))
         for w in self.mixed_rows:
             w.set_visible(not hidden)
+        card = getattr(self, "mixed_card_group", None)
+        if card is not None:
+            card.set_visible(layout.mixed_card_visible(self.mixed_card_pending, self.cfg.get))
         self._refresh_picker()           # "Tuỳ chỉnh" chỉ hiện khi không khớp hồ sơ nào
 
     def refresh_status(self):
@@ -562,14 +566,10 @@ class SettingsWindow(Adw.PreferencesWindow):
         off_note = _("Không chạy ở terminal, trình soạn code, ô web/email, ô mật khẩu và khi gõ English.")
 
         g = Adw.PreferencesGroup(title=_("Gợi ý từ"), description=off_note)
-        pred = None
         for key, title, sub in PREDICTION_SWITCHES:
             r = self.switch(g, "general", key, _(title), _(sub))
-            if key == "word_prediction":
-                pred = r
-            elif ("general", key) in layout.DEPENDENCIES:
+            if ("general", key) in layout.VISIBLE_WHEN:
                 self.dependent(r, ("general", key))
-        pred.get_activatable_widget().connect("notify::active", self.refresh_dependents)
         learned = row(_("Xoá từ đã học"),
                       _("Gợi ý từ quên mọi từ và cặp từ đã học từ những gì bạn gõ trên máy này."))
         lb = Gtk.Button(label=_("Xoá…"), valign=Gtk.Align.CENTER)
@@ -613,8 +613,10 @@ class SettingsWindow(Adw.PreferencesWindow):
                                  description=_("Mặc định tắt.") + " " + off_note)
         for key, title, sub in AUTO_TEXT_SWITCHES:
             self.switch(g, "general", key, _(title), _(sub))
-        self.combo(g, "general", "quote_style", _("Kiểu ngoặc kép"),
-                   [(v, _(label)) for v, label in QUOTE_STYLE_CHOICES])
+        # Ngay dưới "Ngoặc kép cong và gạch dài" (cuối AUTO_TEXT_SWITCHES): ẩn khi nó tắt.
+        self.dependent(self.combo(g, "general", "quote_style", _("Kiểu ngoặc kép"),
+                                  [(v, _(label)) for v, label in QUOTE_STYLE_CHOICES]),
+                       ("general", "quote_style"))
         page.add(g)
         return page
 

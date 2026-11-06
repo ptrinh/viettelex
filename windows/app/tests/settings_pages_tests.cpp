@@ -1,5 +1,5 @@
 // Settings window page plan (core/settings_pages.h, docs/SETTINGS-CLEANUP-SPEC.md) and the
-// UI strings it relies on: where every switch lives, dimmed-not-hidden dependents, the
+// UI strings it relies on: where every switch lives, dependents hidden under their parent, the
 // profile picker still reaching its switches, the §3 labels, and no other input method
 // named in any string.
 #include <cstdio>
@@ -47,6 +47,20 @@ std::vector<PageRow> allRows(const Settings& s, const PageContext& c) {
     return out;
 }
 
+// Every parent on (and Telex): no dependent row is left out.
+Settings allParentsOn() {
+    Settings s;
+    s.vniMode = false;
+    s.autoRestore = s.contextualEnglish = s.showTrayIcon = true;
+    return s;
+}
+
+bool hasControl(const std::vector<PageRow>& rows, PageControl c) {
+    for (const PageRow& r : rows)
+        if (r.kind == RowKind::Control && r.id == static_cast<int>(c)) return true;
+    return false;
+}
+
 const PageRow* rowOf(const std::vector<PageRow>& rows, Field f) {
     for (const PageRow& r : rows)
         if (r.kind == RowKind::Toggle && r.field == f) return &r;
@@ -62,7 +76,7 @@ int ex(Expander e) { return static_cast<int>(e); }
 }  // namespace
 
 TEST(settings_pages_every_switch_once) {
-    const std::vector<PageRow> rows = allRows(Settings(), allOpen());
+    const std::vector<PageRow> rows = allRows(allParentsOn(), allOpen());
     for (Field f : kAllToggles) {
         int n = 0;
         for (const PageRow& r : rows)
@@ -137,24 +151,31 @@ static bool isMixedToggle(Field f) {
     return false;
 }
 
-// Telex-only switches under VNI: still shown, dimmed with "Chỉ áp dụng cho Telex".
-TEST(settings_pages_vni_dims_telex_only) {
-    Settings telex, vni;
+// Telex-only switches under VNI are hidden (they sit in Kiểu gõ → Nâng cao, right under
+// the Telex/VNI choice); teencode and bracket vowels work in VNI too and always show.
+TEST(settings_pages_vni_hides_telex_only) {
+    Settings telex = allParentsOn(), vni = allParentsOn();
     vni.vniMode = true;
     const std::vector<PageRow> a = allRows(telex, allOpen()), b = allRows(vni, allOpen());
-    int dimmed = 0;
+    int hidden = 0;
     for (Field f : kAllToggles) {
         if (isMixedToggle(f)) continue;  // the whole group is hidden under VNI (next test)
-        const PageRow* r = rowOf(b, f);
-        CHECK(r != nullptr);
-        if (!r) continue;
-        CHECK(rowOf(a, f)->dim == DimReason::None);
-        if (r->dim == DimReason::TelexOnly) ++dimmed;
-        CHECK((r->dim == DimReason::TelexOnly) == isTelexOnly(f));
+        CHECK(rowOf(a, f) != nullptr);
+        const bool gone = rowOf(b, f) == nullptr;
+        if (gone) ++hidden;
+        CHECK(gone == isTelexOnly(f));
     }
-    CHECK_EQ(dimmed, 5);
-    CHECK(isTelexOnly(&Settings::teencode) && isTelexOnly(&Settings::bracketVowels));
+    CHECK_EQ(hidden, 3);
+    CHECK(isTelexOnly(&Settings::simpleTelex) && isTelexOnly(&Settings::freeMarking) &&
+          isTelexOnly(&Settings::quickTelex));
+    CHECK(!isTelexOnly(&Settings::teencode) && !isTelexOnly(&Settings::bracketVowels));
     CHECK(!isTelexOnly(&Settings::modernOrthography));  // tone placement applies to VNI too
+    for (Field f : {&Settings::teencode, &Settings::bracketVowels, &Settings::modernOrthography})
+        CHECK(!hiddenByParent(vni, f));
+    // Display only: the stored values stay.
+    vni.simpleTelex = vni.quickTelex = true;
+    (void)allRows(vni, allOpen());
+    CHECK(vni.simpleTelex && vni.quickTelex && vni.vniMode);
 }
 
 // VNI hides the whole "Gõ lẫn tiếng Anh" group (profile rows + Nâng cao) and shows one
@@ -214,11 +235,11 @@ TEST(settings_pages_vni_hides_mixed_group) {
 }
 
 // "Tự sửa từ phía trước" / "Đoán từ trùng theo tần suất": right under "Quyết định theo ngữ
-// cảnh", dimmed (not hidden) while it is off.
-TEST(settings_pages_contextual_dependents) {
-    Settings s;
-    s.contextualEnglish = false;
-    const std::vector<PageRow> rows = settingsPageRows(SettingsPage::Typing, s, allOpen());
+// cảnh", hidden while it is off; "Khi từ vừa Anh vừa Việt" and the frequency guess hidden
+// while "Tự khôi phục từ tiếng Anh" is off (§6).
+TEST(settings_pages_mixed_dependents_hidden) {
+    Settings s = allParentsOn();
+    std::vector<PageRow> rows = settingsPageRows(SettingsPage::Typing, s, allOpen());
     size_t parent = rows.size();
     for (size_t i = 0; i < rows.size(); ++i)
         if (rows[i].kind == RowKind::Toggle && rows[i].field == &Settings::contextualEnglish) parent = i;
@@ -226,13 +247,72 @@ TEST(settings_pages_contextual_dependents) {
     if (parent + 2 < rows.size()) {
         CHECK(rows[parent + 1].field == &Settings::retroactiveEnglish);
         CHECK(rows[parent + 2].field == &Settings::englishByFrequency);
-        CHECK(rows[parent + 1].dim == DimReason::NeedsContextual);
-        CHECK(rows[parent + 2].dim == DimReason::NeedsContextual);
         CHECK(rows[parent + 1].indent > rows[parent].indent);
     }
-    s.contextualEnglish = true;
-    CHECK(dimReason(s, &Settings::retroactiveEnglish) == DimReason::None);
-    CHECK(dimReason(s, &Settings::englishByFrequency) == DimReason::None);
+    // Collision choice sits right under auto-restore.
+    for (size_t i = 0; i + 1 < rows.size(); ++i)
+        if (rows[i].kind == RowKind::Toggle && rows[i].field == &Settings::autoRestore)
+            CHECK(rows[i + 1].field == &Settings::collisionPrefersVietnamese);
+
+    s.contextualEnglish = false;
+    rows = settingsPageRows(SettingsPage::Typing, s, allOpen());
+    CHECK(rowOf(rows, &Settings::contextualEnglish) != nullptr);
+    CHECK(rowOf(rows, &Settings::retroactiveEnglish) == nullptr);
+    CHECK(rowOf(rows, &Settings::englishByFrequency) == nullptr);
+    CHECK(rowOf(rows, &Settings::collisionPrefersVietnamese) != nullptr);
+
+    s = allParentsOn();
+    s.autoRestore = false;
+    rows = settingsPageRows(SettingsPage::Typing, s, allOpen());
+    CHECK(rowOf(rows, &Settings::autoRestore) != nullptr);
+    CHECK(rowOf(rows, &Settings::collisionPrefersVietnamese) == nullptr);
+    CHECK(rowOf(rows, &Settings::englishByFrequency) == nullptr);
+    CHECK(rowOf(rows, &Settings::contextualEnglish) != nullptr);
+    CHECK(rowOf(rows, &Settings::retroactiveEnglish) != nullptr);
+    CHECK(!s.autoRestore && s.collisionPrefersVietnamese == Settings().collisionPrefersVietnamese);
+
+    // These parents rebuild the page as soon as they change; plain switches do not.
+    CHECK(affectsLayout(&Settings::autoRestore) && affectsLayout(&Settings::contextualEnglish) &&
+          affectsLayout(&Settings::showTrayIcon));
+    CHECK(!affectsLayout(&Settings::teencode) && !affectsLayout(&Settings::learnWords));
+}
+
+// Tray icon off: "Kiểu biểu tượng khay" and the tray menu's "Hiện công cụ văn bản trong menu"
+// are hidden (main.cpp builds no tray, so no menu).
+TEST(settings_pages_tray_dependents_hidden) {
+    Settings on = allParentsOn(), off = allParentsOn();
+    off.showTrayIcon = false;
+    const std::vector<PageRow> gOn = settingsPageRows(SettingsPage::General, on, allOpen());
+    const std::vector<PageRow> gOff = settingsPageRows(SettingsPage::General, off, allOpen());
+    CHECK(hasControl(gOn, PageControl::TrayStyle));
+    CHECK(!hasControl(gOff, PageControl::TrayStyle));
+    CHECK(rowOf(gOff, &Settings::showTrayIcon) != nullptr);
+    // Right under the tray switch.
+    for (size_t i = 0; i + 1 < gOn.size(); ++i)
+        if (gOn[i].kind == RowKind::Toggle && gOn[i].field == &Settings::showTrayIcon)
+            CHECK(gOn[i + 1].kind == RowKind::Control && gOn[i + 1].id == static_cast<int>(PageControl::TrayStyle));
+    CHECK(rowOf(settingsPageRows(SettingsPage::Suggestions, on, allOpen()), &Settings::textToolsInMenu) != nullptr);
+    const std::vector<PageRow> sOff = settingsPageRows(SettingsPage::Suggestions, off, allOpen());
+    CHECK(rowOf(sOff, &Settings::textToolsInMenu) == nullptr);
+    CHECK(hasControl(sOff, PageControl::AddTonesHotkey));  // the hotkey works without the tray
+    // Default (tray off since 1.0.5): hidden.
+    CHECK(hiddenByParent(Settings(), &Settings::textToolsInMenu));
+}
+
+// The one-time upgrade card: hidden under VNI (its "Xem" points at the hidden group), back
+// after switching to Telex — the page plan never clears the flag.
+TEST(settings_pages_mixed_card_follows_vni) {
+    Settings telex, vni;
+    vni.vniMode = true;
+    PageContext c;
+    c.mixedCardPending = true;
+    CHECK(showsMixedCard(telex, c));
+    CHECK(!showsMixedCard(vni, c));
+    CHECK(hasControl(settingsPageRows(SettingsPage::Typing, telex, c), PageControl::MixedCard));
+    CHECK(!hasControl(settingsPageRows(SettingsPage::Typing, vni, c), PageControl::MixedCard));
+    CHECK(c.mixedCardPending);
+    c.mixedCardPending = false;
+    CHECK(!showsMixedCard(telex, c));
 }
 
 // (a) The profile picker writes the same keys as before, and each one is on the page that
@@ -268,8 +348,6 @@ TEST(settings_strings_labels) {
     CHECK(std::wcscmp(tr(S::SecMixed), L"Gõ lẫn tiếng Anh") == 0);
     CHECK(std::wcscmp(tr(S::SecSwitch), L"Chuyển Việt/Anh") == 0);
     CHECK(std::wcscmp(tr(S::Advanced), L"Nâng cao") == 0);
-    CHECK(std::wcsstr(tr(S::DimTelexOnly), L"Chỉ áp dụng cho Telex") != nullptr);
-    CHECK(std::wcsstr(tr(S::DimNeedsContextual), L"Cần bật Quyết định theo ngữ cảnh") != nullptr);
     CHECK(std::wcsstr(tr(S::CollisionPrefersViDesc), L"lisst → list") != nullptr);
     CHECK(std::wcscmp(tr(S::TabTyping), L"Gõ phím") == 0);
     CHECK(std::wcscmp(tr(S::TabSpelling), L"Gợi ý & công cụ") == 0);
@@ -328,7 +406,7 @@ TEST(settings_captions_are_short) {
         S::RetroEnglishDesc, S::EnglishByFrequencyDesc, S::StartEnglishDesc, S::MixedCardDesc,
         S::ProfilePickerIntro, S::ProfileCustomDesc, S::ProfileViEx, S::ProfileMixedEx, S::ProfileEnEx,
         S::TypingAdvancedSummary, S::MixedAdvancedSummary, S::SwitchAdvancedSummary, S::GamesSummary,
-        S::AppearanceSummary, S::DimTelexOnly, S::DimNeedsContextual, S::MixedVniNote,
+        S::AppearanceSummary, S::MixedVniNote,
         S::ModeComposition, S::ModeInPlace, S::ModeHook, S::ModeOff, S::ModeDirect,
     };
     for (int en = 0; en < 2; ++en) {
