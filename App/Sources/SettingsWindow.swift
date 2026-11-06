@@ -888,9 +888,6 @@ struct TypingTab: View {
                           autoRestore, collisionVi, collisionEn, context, retro, frequency, hotkey, sticky,
                           osShortcut, liveSpell, vniMixedNote]
     }
-    /// Lý do làm mờ (spec §0.4).
-    static let telexOnlyReason = "Only applies to Telex."
-    static let needsContextReason = "Needs Context-based decision turned on."
 
     private func caption(_ key: String) -> some View {
         Text(model.loc(key)).font(.caption).foregroundStyle(.secondary)
@@ -933,19 +930,63 @@ struct TypingTab: View {
         .accessibilityValue(model.loc(isOpen.wrappedValue ? "Expanded" : "Collapsed"))
     }
 
-    /// Công tắc phụ thuộc: luôn hiện; khi `enabled` sai thì mờ + chú thích là LÝ DO (spec §0.4).
-    private func dependentToggle(_ titleKey: String, isOn: Binding<Bool>, enabled: Bool,
-                                 reason: String = TypingTab.needsContextReason,
-                                 caption captionKey: String) -> some View {
-        Toggle(isOn: isOn) { rowLabel(titleKey, model.loc(enabled ? captionKey : reason)) }
-            .disabled(!enabled)
+    /// Một dòng "Kiểu gõ › Nâng cao" (thứ tự + ẩn/hiện: SettingsDeps.styleRows).
+    @ViewBuilder private func styleRow(_ r: SettingsDeps.StyleRow) -> some View {
+        switch r {
+        case .simpleTelex:
+            toggleRow("Simple Telex", isOn: $model.simpleTelex, caption: C.simpleTelex)
+        case .freeMarking:
+            toggleRow("Free tone placement", isOn: $model.freeMarking, caption: C.freeMarking)
+        case .quickTelex:
+            toggleRow("Quick consonants (cc→ch, gg→gi…)", isOn: $model.quickTelex, caption: C.quickTelex)
+        case .modern:
+            toggleRow("Modern tone placement (oà, uý)", isOn: $model.modernOrthography, caption: C.modern)
+        case .teencode:
+            toggleRow("Teencode spelling", isOn: $model.teencode, caption: C.teencode)
+        case .bracket:
+            toggleRow("Bracket vowels: [ types ơ, ] types ư", isOn: $model.bracketVowels, caption: C.bracket)
+        case .reEdit:
+            // reEditWord: key có từ lâu (mặc định bật), spec §3 thêm công tắc, cùng tên mobile.
+            toggleRow("Fix tones of typed words", isOn: $model.reEditWord, caption: C.reEdit)
+        case .layout:
+            Picker(selection: $model.keyboardLayoutID) {
+                Text(model.loc("Follow the previous input source"))
+                    .tag(KeyboardLayoutOverride.systemDefault)
+                Divider()
+                ForEach(model.keyboardLayouts) { layout in
+                    Text(layout.name).tag(layout.id)
+                }
+            } label: {
+                rowLabel("Keyboard layout", model.loc(C.layout))
+            }
+        }
     }
 
-    /// Tuỳ chọn chỉ-Telex: mờ + "Chỉ áp dụng cho Telex" khi đang chọn VNI (không ẩn).
-    private func telexOnlyToggle(_ titleKey: String, isOn: Binding<Bool>,
-                                 caption captionKey: String) -> some View {
-        dependentToggle(titleKey, isOn: isOn, enabled: !model.vniMode,
-                        reason: TypingTab.telexOnlyReason, caption: captionKey)
+    /// Một dòng "Gõ lẫn tiếng Anh › Nâng cao" (ẩn/hiện: SettingsDeps.mixedAdvancedRows).
+    @ViewBuilder private func mixedAdvancedRow(_ r: SettingsDeps.MixedAdvancedRow) -> some View {
+        switch r {
+        case .autoRestore:
+            toggleRow("Auto-restore English words", isOn: $model.autoRestore, caption: C.autoRestore)
+        case .collision:
+            // "Ưu tiên khi trùng" (maintainer 12/09/2026, default tiếng Việt). Chú thích đổi theo
+            // lựa chọn: luôn chỉ cách lấy dạng KIA (spec §1: mẹo gõ đúp phím dấu).
+            Picker(selection: Binding(
+                get: { model.collisionPrefersVietnamese ? "vi" : "en" },
+                set: { model.collisionPrefersVietnamese = ($0 == "vi") })) {
+                Text(model.loc("Prefer Vietnamese")).tag("vi")
+                Text(model.loc("Prefer English")).tag("en")
+            } label: {
+                rowLabel("Word that is both English and Vietnamese",
+                         model.loc(model.collisionPrefersVietnamese ? C.collisionVi : C.collisionEn))
+            }
+        case .context:
+            toggleRow("Context-based decision", isOn: $model.contextualEnglish, caption: C.context)
+        case .retro:
+            toggleRow("Fix earlier words (experimental)", isOn: $model.retroactiveEnglish, caption: C.retro)
+        case .frequency:
+            toggleRow("Guess colliding words by frequency (experimental)", isOn: $model.englishByFrequency,
+                      caption: C.frequency)
+        }
     }
 
     /// Bộ chọn hồ sơ ở đầu nhóm (ONBOARDING-SPEC §4): câu hỏi + nút radio (chọn MỘT) — macOS chỉ
@@ -1037,9 +1078,9 @@ struct TypingTab: View {
                 }
             }
             // SETTINGS-CLEANUP-SPEC (05/11/2026): cấp 1 chỉ còn Telex/VNI; mọi tuỳ chọn kiểu gõ vào
-            // "Nâng cao" (DisclosureGroup). Mục chỉ-Telex KHÔNG ẩn khi chọn VNI nữa: làm mờ + ghi
-            // "Chỉ áp dụng cho Telex" (freeMarking/Simple/Quick/teencode/phím ngoặc chỉ chạy trong
-            // parseStep của Telex); "kiểu cũ/mới" và "Sửa dấu từ đã gõ" áp dụng cho cả hai.
+            // "Nâng cao". §0.4/§6 (06/11/2026): nằm ngay dưới bộ chọn ⇒ mục chỉ-Telex (Simple/Bỏ dấu
+            // tự do/Gõ nhanh) ẨN khi chọn VNI (SettingsDeps.styleRows); teencode, phím ngoặc, kiểu
+            // mới, sửa dấu từ đã gõ áp dụng cả hai.
             Section(header: Label(model.loc("Input style"), systemImage: "keyboard")) {
                 Picker(selection: Binding(
                     get: { model.vniMode ? "vni" : "telex" },
@@ -1053,23 +1094,8 @@ struct TypingTab: View {
                 .horizontalRadioGroupLayout()
                 advancedRow($styleAdvancedOpen, summary: Self.styleAdvancedSummary)
                 if styleAdvancedOpen {
-                    telexOnlyToggle("Simple Telex", isOn: $model.simpleTelex, caption: C.simpleTelex)
-                    telexOnlyToggle("Free tone placement", isOn: $model.freeMarking, caption: C.freeMarking)
-                    telexOnlyToggle("Quick consonants (cc→ch, gg→gi…)", isOn: $model.quickTelex, caption: C.quickTelex)
-                    toggleRow("Modern tone placement (oà, uý)", isOn: $model.modernOrthography, caption: C.modern)
-                    telexOnlyToggle("Teencode spelling", isOn: $model.teencode, caption: C.teencode)
-                    telexOnlyToggle("Bracket vowels: [ types ơ, ] types ư", isOn: $model.bracketVowels, caption: C.bracket)
-                    // reEditWord: key có từ lâu (mặc định bật), spec §3 thêm công tắc, cùng tên mobile.
-                    toggleRow("Fix tones of typed words", isOn: $model.reEditWord, caption: C.reEdit)
-                    Picker(selection: $model.keyboardLayoutID) {
-                        Text(model.loc("Follow the previous input source"))
-                            .tag(KeyboardLayoutOverride.systemDefault)
-                        Divider()
-                        ForEach(model.keyboardLayouts) { layout in
-                            Text(layout.name).tag(layout.id)
-                        }
-                    } label: {
-                        rowLabel("Keyboard layout", model.loc(C.layout))
+                    ForEach(SettingsDeps.styleRows(vniMode: model.vniMode), id: \.self) { r in
+                        styleRow(r)
                     }
                 }
             }
@@ -1088,24 +1114,12 @@ struct TypingTab: View {
                     advancedRow($mixedAdvancedOpen, summary: Self.mixedAdvancedSummary)
                 }
                 if rows.contains(.advanced) && mixedAdvancedOpen {
-                    toggleRow("Auto-restore English words", isOn: $model.autoRestore, caption: C.autoRestore)
-                    // "Ưu tiên khi trùng" (maintainer 12/09/2026, default tiếng Việt). Chú thích đổi theo
-                    // lựa chọn: luôn chỉ cách lấy dạng KIA (spec §1: mẹo gõ đúp phím dấu).
-                    Picker(selection: Binding(
-                        get: { model.collisionPrefersVietnamese ? "vi" : "en" },
-                        set: { model.collisionPrefersVietnamese = ($0 == "vi") })) {
-                        Text(model.loc("Prefer Vietnamese")).tag("vi")
-                        Text(model.loc("Prefer English")).tag("en")
-                    } label: {
-                        rowLabel("Word that is both English and Vietnamese",
-                                 model.loc(model.collisionPrefersVietnamese ? C.collisionVi : C.collisionEn))
+                    // §0.4/§6: mục con ngay dưới cha ⇒ ẩn khi cha tắt (SettingsDeps.mixedAdvancedRows).
+                    ForEach(SettingsDeps.mixedAdvancedRows(autoRestore: model.autoRestore,
+                                                           contextualEnglish: model.contextualEnglish),
+                            id: \.self) { r in
+                        mixedAdvancedRow(r)
                     }
-                    toggleRow("Context-based decision", isOn: $model.contextualEnglish, caption: C.context)
-                    // Hai mục thử nghiệm chỉ chạy khi ngữ cảnh bật (engine retroactiveEnglishActive).
-                    dependentToggle("Fix earlier words (experimental)", isOn: $model.retroactiveEnglish,
-                                    enabled: model.contextualEnglish, caption: C.retro)
-                    dependentToggle("Guess colliding words by frequency (experimental)", isOn: $model.englishByFrequency,
-                                    enabled: model.contextualEnglish, caption: C.frequency)
                 }
             }
             .id(Self.mixedAnchor)

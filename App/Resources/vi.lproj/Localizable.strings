@@ -345,8 +345,6 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Simple Telex, free tone placement, quick consonants, modern tone placement, teencode, bracket keys, keyboard layout…" = "Telex đơn giản, bỏ dấu tự do, gõ tắt phụ âm, bỏ dấu kiểu mới, teencode, phím ngoặc, bố cục bàn phím…";
 "Restore English words, context, colliding words, fixing earlier words…" = "Khôi phục từ tiếng Anh, ngữ cảnh, khi trùng từ, sửa từ phía trước…";
 "Keep VietTelex when macOS switches, macOS shortcut…" = "Giữ VietTelex khi macOS tự đổi bộ gõ, phím tắt của macOS…";
-"Only applies to Telex." = "Chỉ áp dụng cho Telex.";
-"Needs Context-based decision turned on." = "Cần bật Quyết định theo ngữ cảnh.";
 "Quick consonants (cc→ch, gg→gi…)" = "Gõ tắt phụ âm nhanh (cc→ch, gg→gi…)";
 "Fix tones of typed words" = "Sửa dấu từ đã gõ";
 "Auto-restore English words" = "Tự khôi phục từ tiếng Anh";

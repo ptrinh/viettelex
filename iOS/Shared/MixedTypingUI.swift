@@ -99,23 +99,64 @@ enum MixedTypingUI {
         !(groupHidden(vniMode: vniMode) && item.placement == .advanced)
     }
 
-    /// Mục phụ thuộc "Quyết định theo ngữ cảnh": KHÔNG ẩn — làm mờ + lý do (SETTINGS-CLEANUP-SPEC
-    /// §0.4). VNI ⇒ "Chỉ áp dụng cho Telex" (engine chỉ sửa ngược ở Telex); ngữ cảnh tắt ⇒ "Cần
-    /// bật Quyết định theo ngữ cảnh". nil = dùng được. Cùng điều kiện với RetroEnglishUI.switchVisible.
-    static func disabledReason(_ item: MixedTypingItem, contextualEnglish: Bool, vniMode: Bool) -> String? {
-        switch item {
-        case .retroEnglish, .englishByFrequency:
-            if vniMode { return TelexOnly.reasonKey }
-            if !contextualEnglish { return LK("Cần bật Quyết định theo ngữ cảnh") }
-            return nil
-        default: return nil
-        }
+    /// Dòng của trang con "Nâng cao" theo thứ tự hiện (SETTINGS-CLEANUP-SPEC §0.4, §6 — 06/11/2026):
+    /// hai mục thử nghiệm nằm NGAY DƯỚI "Quyết định theo ngữ cảnh" (cùng nhóm) ⇒ ẨN khi nó tắt
+    /// (engine retroactiveEnglishActive = retro && ngữ cảnh), bật lại hiện ngay. VNI ⇒ cả trang chỉ
+    /// còn dòng ghi chú (groupHidden). Chỉ hiển thị: key/giá trị giữ nguyên.
+    static func advancedRows(contextualEnglish: Bool, vniMode: Bool) -> [MixedTypingItem] {
+        if groupHidden(vniMode: vniMode) { return [] }
+        return contextualEnglish ? advancedItems : advancedItems.filter { !$0.dependsOnContext }
     }
 }
 
-/// Tuỳ chọn chỉ có tác dụng ở Telex: khi chọn VNI thì làm mờ kèm lý do này (không ẩn).
+extension MixedTypingItem {
+    /// Chỉ có tác dụng khi "Quyết định theo ngữ cảnh" bật.
+    var dependsOnContext: Bool { self == .retroEnglish || self == .englishByFrequency }
+}
+
+/// Tuỳ chọn chỉ có tác dụng ở Telex. Ở TRANG KHÁC với bộ chọn Telex/VNI ⇒ làm mờ kèm lý do này;
+/// ngay dưới bộ chọn (Kiểu gõ › Nâng cao) ⇒ ẩn (SettingsDeps.typingAdvancedRows).
 enum TelexOnly {
     static let reasonKey = LK("Chỉ áp dụng cho Telex")
+}
+
+/// Ẩn / làm mờ theo mục cha (SETTINGS-CLEANUP-SPEC §0.4, bảng §6 — 06/11/2026). Mục con cùng nhóm,
+/// ngay dưới mục cha ⇒ ẨN khi cha làm nó vô tác dụng; mục cha ở trang/nhóm khác ⇒ làm mờ + lý do.
+/// Chỉ hiển thị: không đổi key, không đổi giá trị đã lưu, engine không đổi. Song sinh macOS
+/// SettingsDeps (App/Sources/SettingsDeps.swift).
+enum SettingsDeps {
+    static let needsSuggestionsKey = LK("Cần bật Thanh gợi ý")
+
+    // MARK: Kiểu gõ › Nâng cao (dưới bộ chọn Telex/VNI)
+
+    enum TypingAdvancedRow: CaseIterable, Hashable { case simpleTelex, freeMarking, quickTelex, modernTone, teencode }
+
+    /// VNI ⇒ ẩn Telex đơn giản, Bỏ dấu tự do, Gõ nhanh (chỉ chạy trong parseStep của Telex).
+    /// Teencode chạy cả ở VNI (bộ kiểm âm tiết) ⇒ luôn hiện; Bỏ dấu kiểu mới áp dụng cả hai.
+    static func typingAdvancedRows(vniMode: Bool) -> [TypingAdvancedRow] {
+        vniMode ? [.modernTone, .teencode] : TypingAdvancedRow.allCases
+    }
+
+    // MARK: Gõ vuốt
+
+    enum SwipeRow: CaseIterable, Hashable { case swipeEnglish, neuralModel, trailEffect, practice }
+
+    /// Tắt Gõ vuốt ⇒ ẩn mọi dòng bên dưới công tắc (cùng trang): Vuốt từ tiếng Anh, Mô hình neural +
+    /// ghi công, Hiệu ứng nét vuốt, Luyện vuốt.
+    static func swipeRows(swipeTyping: Bool) -> [SwipeRow] {
+        swipeTyping ? SwipeRow.allCases : []
+    }
+
+    // MARK: Sửa lỗi & gợi ý (trang khác với bộ chọn Telex/VNI)
+
+    /// "Chọn phím thông minh" và "Tự sửa từ gõ sai": bàn phím tắt ngầm ở VNI
+    /// (KeyboardViewController autoCorrectSetting, TelexKeyPrior.forTyping) ⇒ mờ + lý do.
+    static func telexOnlyReason(vniMode: Bool) -> String? { vniMode ? TelexOnly.reasonKey : nil }
+
+    /// "Gợi ý sửa lỗi chạm trượt" hiện trên thanh gợi ý nhưng nằm ở nhóm "Chạm trượt" ⇒ mờ + lý do.
+    static func autoFixAdjacentReason(showSuggestions: Bool) -> String? {
+        showSuggestions ? nil : needsSuggestionsKey
+    }
 }
 
 /// So khớp ô tìm cài đặt: không phân biệt hoa/thường và dấu ("tan suat" khớp "tần suất"), mọi
