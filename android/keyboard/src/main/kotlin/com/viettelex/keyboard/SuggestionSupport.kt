@@ -238,6 +238,23 @@ object AutoSpace {
         return !looksLikeDomain(token)
     }
 
+    /** Dấu hút dấu cách của gợi ý vừa nhận: kết câu, ngoặc đóng, nháy đóng. Không ":" ";". */
+    const val SUGGESTION_SNAPPERS = ".,?!)\"”’»"
+
+    /**
+     * Vừa nhận gợi ý (chèn [inserted] = "từ " — dấu cách là của CHÍNH gợi ý): phím kế chèn [s] có
+     * xoá dấu cách đó không ("từ ." → "từ."), như bàn phím iOS gốc. [before] = chữ trước con trỏ,
+     * phải còn kết thúc bằng [inserted] (con trỏ chưa dời; null ⇒ không). `"` thẳng chỉ khi là
+     * nháy ĐÓNG (số `"` trong dòng đang lẻ). Song sinh iOS AutoSpace.snapsSuggestionSpace.
+     */
+    fun snapsSuggestionSpace(s: String, before: String?, inserted: String): Boolean {
+        val c = s.singleOrNull() ?: return false
+        if (c !in SUGGESTION_SNAPPERS || inserted.length < 2 || !inserted.endsWith(' ')) return false
+        if (before == null || !before.endsWith(inserted)) return false
+        if (c == '"') return before.substringAfterLast('\n').count { it == '"' } % 2 == 1
+        return true
+    }
+
     /** "www.google", "vnexpress.net", "a.b-c.io": đoạn cuối sau dấu chấm ≥ 2 ký tự. "e.g", "hi.." thì không. */
     fun looksLikeDomain(token: String): Boolean {
         if (token.lowercase().startsWith("www")) return true

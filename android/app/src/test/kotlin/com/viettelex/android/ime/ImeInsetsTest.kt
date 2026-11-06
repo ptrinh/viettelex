@@ -10,6 +10,18 @@ class ImeInsetsTest {
         assertEquals(126, ImeInsets.bottomPad(36, 126, 63, 132, insetsKnown = true))
     }
 
+    @Test fun android15CaptionBarStripCoversImeButtons() {
+        // API 36 điều hướng cử chỉ (báo cáo thật): navigationBars 63, captionBar 126 ⇒ đệm 126, không 189.
+        assertEquals(126, ImeInsets.bottomPad(36, 63, 0, 132, insetsKnown = true, captionBottom = 126))
+        assertEquals(126, ImeInsets.bottomPad(35, 63, 63, 132, insetsKnown = true, captionBottom = 126))
+        // caption thấp hơn nav / bằng nhau: giữ phần lớn hơn, không cộng dồn
+        assertEquals(126, ImeInsets.bottomPad(36, 126, 0, 132, insetsKnown = true, captionBottom = 63))
+        assertEquals(126, ImeInsets.bottomPad(36, 126, 126, 132, insetsKnown = true, captionBottom = 126))
+        // chỉ caption báo ⇒ vẫn chừa dải; âm bỏ qua
+        assertEquals(126, ImeInsets.bottomPad(36, 0, 0, 132, insetsKnown = true, captionBottom = 126))
+        assertEquals(0, ImeInsets.bottomPad(36, 0, 0, 132, insetsKnown = true, captionBottom = -4))
+    }
+
     @Test fun threeButtonNav() {
         assertEquals(126, ImeInsets.bottomPad(35, 126, 126, 132, insetsKnown = true))
         assertEquals(126, ImeInsets.bottomPad(30, 126, 126, 132, insetsKnown = true))

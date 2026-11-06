@@ -245,6 +245,25 @@ enum AutoSpace {
         return !looksLikeDomain(token)
     }
 
+    /// Dấu hút dấu cách của gợi ý vừa nhận: kết câu, ngoặc đóng, nháy đóng. Không ":" ";".
+    static let suggestionSnappers: Set<Character> = [".", ",", "?", "!", ")", "\"", "”", "’", "»"]
+
+    /// Vừa nhận gợi ý (chèn `inserted` = "từ " — dấu cách là của CHÍNH gợi ý): phím kế chèn `s`
+    /// có xoá dấu cách đó không ("từ ." → "từ."), như bàn phím iOS gốc. `before` = chữ trước con
+    /// trỏ, phải còn kết thúc bằng `inserted` (con trỏ chưa dời; nil ⇒ không). `"` thẳng chỉ khi
+    /// là nháy ĐÓNG (số `"` trong dòng đang lẻ). Song sinh Android AutoSpace.snapsSuggestionSpace.
+    static func snapsSuggestionSpace(_ s: String, before: String?, inserted: String) -> Bool {
+        guard s.count == 1, let c = s.first, suggestionSnappers.contains(c),
+              inserted.count > 1, inserted.last == " ",
+              let b = before, b.unicodeScalars.reversed().starts(with: inserted.unicodeScalars.reversed())
+        else { return false }
+        if c == "\"" {
+            let line = b.split(omittingEmptySubsequences: false, whereSeparator: { $0 == "\n" }).last ?? ""
+            return line.filter { $0 == "\"" }.count % 2 == 1
+        }
+        return true
+    }
+
     /// "www.google", "vnexpress.net", "a.b-c.io": các đoạn giữa dấu chấm đều là chữ/số/-,
     /// đoạn cuối ≥ 2 ký tự. "e.g", "U.S", "hi.." thì không.
     static func looksLikeDomain(_ token: Substring) -> Bool {

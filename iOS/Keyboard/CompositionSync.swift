@@ -38,6 +38,16 @@ enum CompositionSync {
         return ctx.hasSuffix(composed) ? .keep : .reset
     }
 
+    /// Lời mời "⌫ ngay sau = hoàn tác" (Thêm dấu / công cụ văn bản) còn sống sau một thay đổi
+    /// từ NGOÀI handle()? Chỉ khi chữ vừa thay (`result`) vẫn nằm ngay trước con trỏ và không
+    /// có vùng chọn — tiếng vọng trễ của chính edit đó giữ; chạm chỗ khác ⇒ bỏ, nên chạm quay
+    /// lại sau đó rồi ⌫ là xoá một ký tự, không hoàn tác chuyện cũ.
+    static func keepsUndo(context: String?, result: String, selectedText: String? = nil) -> Bool {
+        if let sel = selectedText, !sel.isEmpty { return false }
+        guard let ctx = context, !result.isEmpty else { return false }
+        return ctx.unicodeScalars.reversed().starts(with: result.unicodeScalars.reversed())
+    }
+
     /// Xoá dưới ngưỡng này không đọc context (hot path: mỗi phím). 1 ký tự lệch
     /// thì hại tối đa 1 ký tự; từ 2 trở lên mới đáng trả giá đọc proxy.
     static let verifyThreshold = 2

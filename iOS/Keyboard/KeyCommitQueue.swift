@@ -34,6 +34,16 @@ final class KeyCommitQueue {
         for p in fired { p.fire() }
     }
 
+    /// `flush(except:)`, then report whether `state` (the plane) changed while committing.
+    /// A held space / clause-ending symbol on 123/#+= can return to ABC when it commits
+    /// (PlanePolicy) — a new touch UIKit already bound to a button of the OLD plane must
+    /// then be re-resolved against the new plane.
+    func flush<S: Equatable>(except id: ObjectIdentifier?, changes state: () -> S) -> Bool {
+        let before = state()
+        flush(except: id)
+        return state() != before
+    }
+
     /// Commit `id` if it is still pending (touch up / cancelled).
     func release(_ id: ObjectIdentifier) {
         guard let i = pending.firstIndex(where: { $0.id == id }) else { return }

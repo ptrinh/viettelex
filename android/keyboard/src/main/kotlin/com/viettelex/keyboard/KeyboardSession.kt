@@ -356,6 +356,11 @@ class KeyboardSession(
     private var ctxCache: Set<String> = emptySet()
     /** Thêm dấu vừa áp (chip "Hoàn tác" / ⌫ ngay sau) — sống tới phím kế. */
     private var tonesUndo: AddTones.Plan? = null
+    /**
+     * Gợi ý vừa nhận đã chèn chuỗi này ("từ "): phím kế là . , ? ! ) hay nháy đóng ⇒ xoá dấu
+     * cách đó (AutoSpace.snapsSuggestionSpace). Mọi phím / đổi con trỏ khác bỏ.
+     */
+    private var suggestionSnap: String? = null
     /** Đoạn vừa hoàn tác — không mời lại đúng đoạn đó. */
     private var tonesDismissed: String? = null
     private var tonesCacheBefore: String? = null
@@ -505,6 +510,7 @@ class KeyboardSession(
         clearSwipe()
         setSwipeTyping(false)
         tonesUndo = null; tonesDismissed = null; tonesCacheBefore = null; tonesCachePlan = null
+        suggestionSnap = null
         addTonesChip = settings.addTonesChip
         numberChipsOn = settings.numberChips
         slotWant = SuggestionCount.resolved(settings.suggestionCount)
@@ -650,6 +656,7 @@ class KeyboardSession(
         lastCommit = null
         clearSwipe()
         tonesUndo = null
+        suggestionSnap = null
         autoSpacePunct = null; autoSpaceUnderLetter = null
     }
 
@@ -733,6 +740,18 @@ class KeyboardSession(
         val underLetter = autoSpaceUnderLetter
         val pendingSpace = autoSpacePunct
         autoSpaceUnderLetter = null; autoSpacePunct = null
+        val snap = suggestionSnap               // chỉ phím NGAY sau khi nhận gợi ý
+        suggestionSnap = null
+        // Gợi ý vừa chèn "từ " + phím . , ? ! ) / nháy đóng ⇒ "từ." như bàn phím iOS gốc: xoá THẲNG
+        // dấu cách của gợi ý (không ⌫ qua engine — ⌫ là mở lại từ / hoàn tác), rồi quên lần chốt.
+        if (snap != null && key is Key.Text && !key.replacesLetter &&
+            AutoSpace.snapsSuggestionSpace(key.text, proxy.contextBeforeInput(), snap)) {
+            proxy.deleteCodePoints(1)
+            bridge.forgetLastCommit()
+            lastCommit = null
+            clearUndo()
+            lastInsertWasSpace = false
+        }
         // Giữ phím ra ký tự phụ: gỡ phím chữ bằng checkpoint (không ⌫ — phím dấu Telex đã đổi
         // từ); không được (ô đổi / thao tác xen) thì ⌫ như iOS.
         // Phím chữ bị gỡ là phím ĐẦU sau từ vuốt Việt ⇒ ký tự phụ (số giữ phím) coi như ngay sau vuốt.
@@ -1564,6 +1583,7 @@ class KeyboardSession(
      * Sau đó IME gọi updateAutoShift + refresh bar, phát click.
      */
     fun acceptSuggestion(item: String, proxy: TextProxy) {
+        suggestionSnap = null
         if (emailBar) { acceptEmailChip(item, proxy); return }
         if (item == SuggestionSet.PASTE_IMAGE_TOKEN) {
             pasteUsedChange = clipboard?.changeCount ?: -1; pasteCached = false
@@ -1641,6 +1661,7 @@ class KeyboardSession(
             }
             proxy.deleteCodePoints(Cp.count(uRaw))
             proxy.insertText("$uComposed ")
+            suggestionSnap = "$uComposed "
             clearUndo()
             bridge.reset()
             commitAndLearn(uComposed, accepted = true)
@@ -1653,6 +1674,7 @@ class KeyboardSession(
         // Fail-safe: từ đang soạn không còn trước con trỏ ⇒ chèn, không xoá mù.
         if (n > 0 && proxy.confirmTail(bridge.composedWord)) proxy.deleteCodePoints(n)
         proxy.insertText(if (isWord) "$item " else item)
+        if (isWord) suggestionSnap = "$item "
         bridge.reset()
         // Chèn đúng dạng đang hiện ("Bên" khi Shift); học dạng thường (record lowercase).
         if (isWord) commitAndLearn(item, accepted = true) else { lastWord = null; lastWord2 = null }

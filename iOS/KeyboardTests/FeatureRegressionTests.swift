@@ -225,7 +225,70 @@ final class DoubleSpacePeriodTests: XCTestCase {
 }
 
 /// "Tự thêm dấu cách sau dấu câu" (AutoSpace) — số liệu y hệt Android AutoSpaceTests.
+/// Nhận gợi ý rồi gõ dấu câu (luồng controller thật, BenchProxy).
+final class SuggestionSnapFlowTests: XCTestCase {
+    @MainActor private func accept(_ word: String, typing keys: String, then punct: String) -> KeyboardBenchTests.Rig {
+        let rig = KeyboardBenchTests.Rig()
+        for c in keys { rig.vc.debugHandle(.letter(c)) }
+        rig.vc.debugAcceptSuggestion(word)
+        rig.vc.debugHandle(.text(punct))
+        return rig
+    }
+
+    @MainActor func testPeriodAfterAcceptedSuggestionSnapsSpaceAndBackspaceDeletesOnlyIt() {
+        let saved = UserDefaultsProvider.shared
+        UserDefaultsProvider.shared = KeyboardBenchTests.makeDefaults("snap")
+        defer { UserDefaultsProvider.shared = saved }
+        let rig = accept("người", typing: "nguoi", then: ".")
+        defer { rig.close() }
+        var t = rig.proxy.text
+        while t.hasSuffix(" ") { rig.vc.debugHandle(.backspace); t = rig.proxy.text }   // dấu cách tự thêm (nếu bật)
+        XCTAssertEqual(t, "người.")
+        rig.vc.debugHandle(.backspace)
+        XCTAssertEqual(rig.proxy.text, "người")
+    }
+
+    @MainActor func testColonKeepsSuggestionSpace() {
+        let saved = UserDefaultsProvider.shared
+        UserDefaultsProvider.shared = KeyboardBenchTests.makeDefaults("snap")
+        defer { UserDefaultsProvider.shared = saved }
+        let rig = accept("người", typing: "nguoi", then: ":")
+        defer { rig.close() }
+        XCTAssertTrue(rig.proxy.text.hasPrefix("người :"), rig.proxy.text)
+    }
+
+    @MainActor func testUserTypedSpaceIsNotSnapped() {
+        let saved = UserDefaultsProvider.shared
+        UserDefaultsProvider.shared = KeyboardBenchTests.makeDefaults("snap")
+        defer { UserDefaultsProvider.shared = saved }
+        let rig = KeyboardBenchTests.Rig()
+        defer { rig.close() }
+        for c in "nguowif" { rig.vc.debugHandle(.letter(c)) }
+        rig.vc.debugHandle(.space)
+        rig.vc.debugHandle(.text("."))
+        XCTAssertTrue(rig.proxy.text.hasPrefix("người ."), rig.proxy.text)
+    }
+}
+
 final class AutoSpaceTests: XCTestCase {
+
+    /// Gợi ý vừa chèn "từ " + . , ? ! ) / nháy đóng ⇒ hút dấu cách ("từ ." → "từ.").
+    func testSuggestionSpaceSnapsBeforeClosingPunctuation() {
+        for p in [".", ",", "?", "!", ")", "\u{201D}", "\u{2019}", "\u{00BB}"] {
+            XCTAssertTrue(AutoSpace.snapsSuggestionSpace(p, before: "xin chào ", inserted: "chào "), p)
+        }
+        XCTAssertFalse(AutoSpace.snapsSuggestionSpace(":", before: "xin chào ", inserted: "chào "))
+        XCTAssertFalse(AutoSpace.snapsSuggestionSpace(";", before: "xin chào ", inserted: "chào "))
+        XCTAssertFalse(AutoSpace.snapsSuggestionSpace("(", before: "xin chào ", inserted: "chào "))
+        XCTAssertFalse(AutoSpace.snapsSuggestionSpace("a", before: "xin chào ", inserted: "chào "))
+        // con trỏ đã dời / không đọc được
+        XCTAssertFalse(AutoSpace.snapsSuggestionSpace(".", before: "xin chào", inserted: "chào "))
+        XCTAssertFalse(AutoSpace.snapsSuggestionSpace(".", before: nil, inserted: "chào "))
+        // " thẳng chỉ khi là nháy ĐÓNG
+        XCTAssertTrue(AutoSpace.snapsSuggestionSpace("\"", before: "nói \"xin chào ", inserted: "chào "))
+        XCTAssertFalse(AutoSpace.snapsSuggestionSpace("\"", before: "nói xin chào ", inserted: "chào "))
+        XCTAssertFalse(AutoSpace.snapsSuggestionSpace("\"", before: "\"a\nnói chào ", inserted: "chào "))
+    }
 
     func testAddsAfterWord() {
         for p in [".", ",", "?", "!", ";", ":"] {

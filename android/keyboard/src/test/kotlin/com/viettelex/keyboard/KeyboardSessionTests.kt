@@ -119,6 +119,65 @@ class KeyboardSessionTests {
     }
 
     /** Bug 27/09: gõ "casn" bar chỉ có "casn" | cánh | cắn — không có "cân" để chạm. */
+    // MARK: gợi ý + dấu câu ⇒ hút dấu cách của gợi ý ("người ." → "người.")
+
+    @Test fun testPunctuationAfterAcceptedSuggestionSnapsItsSpace() {
+        for (punct in listOf(".", ",", "?", "!", ")", "”", "’", "»")) {
+            val s = session(traits = FieldTraits()); val p = MockProxy()
+            s.typeKeys(p, "nguoi")
+            s.acceptSuggestion("người", p)
+            s.handle(Key.Text(punct), p)
+            assertEquals(punct, "người$punct", p.text.trimEnd())
+            // ⌫ kế tiếp chỉ xoá dấu câu, không mở lại / hoàn tác gì
+            while (p.text.endsWith(" ")) s.handle(Key.Backspace, p)
+            s.handle(Key.Backspace, p)
+            assertEquals(punct, "người", p.text)
+        }
+    }
+
+    @Test fun testNoSnapForColonSemicolonOrUserSpace() {
+        for (punct in listOf(":", ";")) {
+            val s = session(traits = FieldTraits()); val p = MockProxy()
+            s.typeKeys(p, "nguoi"); s.acceptSuggestion("người", p)
+            s.handle(Key.Text(punct), p)
+            assertEquals("người $punct", p.text.trimEnd())
+        }
+        // dấu cách người dùng tự gõ: không hút
+        val s = session(traits = FieldTraits()); val p = MockProxy()
+        s.typeKeys(p, "nguowif"); s.handle(Key.Space, p)
+        s.handle(Key.Text("."), p)
+        assertTrue(p.text, p.text.trimEnd().endsWith(" ."))
+    }
+
+    @Test fun testOtherActionCancelsPendingSnap() {
+        // phím khác chen giữa
+        val s = session(traits = FieldTraits()); val p = MockProxy()
+        s.typeKeys(p, "nguoi"); s.acceptSuggestion("người", p)
+        s.handle(Key.Space, p)
+        s.handle(Key.Text("."), p)
+        assertTrue(p.text, p.text.startsWith("người  ."))
+        // con trỏ dời từ ngoài
+        val s2 = session(traits = FieldTraits()); val p2 = MockProxy()
+        s2.typeKeys(p2, "nguoi"); s2.acceptSuggestion("người", p2)
+        s2.externalSelectionChange()
+        s2.handle(Key.Text("."), p2)
+        assertTrue(p2.text.startsWith("người ."))
+    }
+
+    @Test fun testSnapsSuggestionSpacePure() {
+        assertTrue(AutoSpace.snapsSuggestionSpace(".", "xin chào ", "chào "))
+        assertFalse(AutoSpace.snapsSuggestionSpace(".", "xin chào", "chào "))      // con trỏ đã dời
+        assertFalse(AutoSpace.snapsSuggestionSpace(".", null, "chào "))
+        assertFalse(AutoSpace.snapsSuggestionSpace(":", "xin chào ", "chào "))
+        assertFalse(AutoSpace.snapsSuggestionSpace(";", "xin chào ", "chào "))
+        assertFalse(AutoSpace.snapsSuggestionSpace("a", "xin chào ", "chào "))
+        assertFalse(AutoSpace.snapsSuggestionSpace("(", "xin chào ", "chào "))
+        // " thẳng: chỉ khi là nháy ĐÓNG (số " trong dòng lẻ)
+        assertTrue(AutoSpace.snapsSuggestionSpace("\"", "nói \"xin chào ", "chào "))
+        assertFalse(AutoSpace.snapsSuggestionSpace("\"", "nói xin chào ", "chào "))
+        assertFalse(AutoSpace.snapsSuggestionSpace("\"", "\"a\nnói chào ", "chào "))
+    }
+
     @Test fun testToneSlipOffersIntendedWord() {
         val s = session(traits = FieldTraits()); val p = MockProxy()
         s.typeKeys(p, "casn")
