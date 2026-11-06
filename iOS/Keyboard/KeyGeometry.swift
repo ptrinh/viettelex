@@ -559,6 +559,24 @@ enum SpaceSideKey: String, CaseIterable {
     static func load(_ d: UserDefaults?) -> SpaceSideKey { parse(d?.object(forKey: key)) }
 }
 
+/// "Về bàn chữ sau ký hiệu" (Tính năng → Phím & cử chỉ; khoá App Group `symbolReturn`, cùng chuỗi
+/// với Android Keys.SYMBOL_RETURN; 06/11/2026). Chạm một ký tự ở plane 123/#+= rồi:
+///  • `.auto` (mặc định, "Tự động"): dấu kết vế . , ? ! ) " ' : ; (… ” ’ ») về chữ ngay; ký hiệu khác ở lại.
+///  • `.always` ("Luôn"): MỌI ký hiệu về chữ ngay; chữ số ở lại.
+///  • `.off` ("Tắt"): không về sau ký hiệu — chỉ dấu cách đưa về chữ.
+/// Ngay sau chữ số thì . , : ở lại (2.5, 1,000, 10:30); ô số không bao giờ về. Dấu cách vẫn đưa
+/// về chữ ở cả ba chế độ (PlanePolicy.returnToLettersOnSpace). Đọc lúc hiện — 0 chi phí mỗi phím.
+enum SymbolReturn: String, CaseIterable {
+    case auto, always, off
+    static let key = "symbolReturn"
+    static let defaultValue: SymbolReturn = .auto
+    /// Giá trị lạ / thiếu ⇒ mặc định.
+    static func parse(_ raw: Any?) -> SymbolReturn {
+        (raw as? String).flatMap(SymbolReturn.init(rawValue:)) ?? defaultValue
+    }
+    static func load(_ d: UserDefaults?) -> SymbolReturn { parse(d?.object(forKey: key)) }
+}
+
 /// "Phím to" (Tính năng → Phím & cử chỉ; khoá App Group `largeKeys`, mặc định TẮT ⇒ bố cục y
 /// hệt bàn phím iPhone). Góp ý người dùng 04/11/2026: "," "." cạnh phím cách nhỏ quá — hay chạm
 /// nhầm phím cách; ⇧ / ⌫ hàng Z chừa khe trống mỗi bên. Bật (chỉ iPhone — iPad không đổi):

@@ -40,6 +40,7 @@ import android.os.SystemClock
 import com.viettelex.keyboard.KeyAlternates
 import com.viettelex.keyboard.Keys
 import com.viettelex.keyboard.SpaceSideKey
+import com.viettelex.keyboard.SymbolReturn
 import com.viettelex.keyboard.EmojiKeyPlacement
 import com.viettelex.keyboard.KeyLabelSize
 import com.viettelex.keyboard.PlusFeature
@@ -149,6 +150,7 @@ internal data class FeatureSearchEntry(
             FeatureSearchEntry("Hàng phím số", "number row số", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Hàng số cao bằng hàng chữ", "number row tall height cao số", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Phím cạnh dấu cách", "dấu phẩy dấu chấm cả hai comma period both key next to space", FeaturePage.Phim), // l10n-key
+            FeatureSearchEntry("Về bàn chữ sau ký hiệu", "123 ký hiệu symbols bàn số quay về chữ letters tự động luôn tắt auto always", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Cỡ phím chấm và phẩy", "larger keys phím lớn dấu phẩy dấu chấm comma period bấm nhầm phím cách", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Nút emoji", "emoji biểu tượng cảm xúc thanh trên top bar toolbar", FeaturePage.Phim), // l10n-key
             FeatureSearchEntry("Cỡ chữ trên phím", "cỡ chữ to lớn font size label large key", FeaturePage.Phim), // l10n-key
@@ -368,6 +370,7 @@ private fun FeatureHome(onOpen: (FeaturePage, Boolean) -> Unit) {
     val keySound by rememberBoolPref(Keys.KEY_SOUND, Prefs.D.keySound)
     val oneHand by rememberStringPref(Keys.ONE_HAND_MODE, Prefs.D.oneHandMode)
     val sideKey by rememberStringPref(Keys.SPACE_SIDE_KEY, Prefs.D.spaceSideKey.id)
+    val symbolReturn by rememberStringPref(Keys.SYMBOL_RETURN, Prefs.D.symbolReturn.id)
     val largeKeys by rememberBoolPref(Keys.LARGE_KEYS, Prefs.D.largeKeys)
     val phone = LocalConfiguration.current.smallestScreenWidthDp < 600
     val emojiPlace by rememberStringPref(Keys.EMOJI_KEY_PLACEMENT, Prefs.D.emojiKeyPlacement.id)
@@ -397,7 +400,9 @@ private fun FeatureHome(onOpen: (FeaturePage, Boolean) -> Unit) {
             (EmojiKeyPlacement.of(emojiPlace) != EmojiKeyPlacement.DEFAULT) to tr("Nút emoji"),
             (KeyLabelSize.of(labelSize) != KeyLabelSize.DEFAULT) to tr("Cỡ chữ trên phím"),
             keyCmds to tr("Vuốt sao chép/dán"),
-            autoSpace to tr("Cách sau dấu câu"), haptic to tr("Rung"), keySound to tr("Âm"),
+            autoSpace to tr("Cách sau dấu câu"),
+            (SymbolReturn.of(symbolReturn) != SymbolReturn.DEFAULT) to tr("Về bàn chữ sau ký hiệu"),
+            haptic to tr("Rung"), keySound to tr("Âm"),
             (oneHand != "off") to tr("Một tay"), floating to tr("Thả nổi"), hardware to tr("Bàn phím cứng"), none = tr("Mặc định"))
         FeaturePage.GiaoDien -> theme.effectiveTheme.title + (if (wallpaperOn) " · " + tr("Ảnh nền") else "") +
             if (theme.keyboardTransparency > 0 || theme.labelTransparency > 0) " · " + tr("Trong suốt") else ""
@@ -672,6 +677,15 @@ private fun SpaceSideKeyRow() = ChoiceRow(Keys.SPACE_SIDE_KEY, Prefs.D.spaceSide
         SpaceSideKey.BOTH.id to tr("Cả hai"), SpaceSideKey.OFF.id to tr("Tắt"))) { SpaceSideKey.of(it).id }
 
 /**
+ * "Về bàn chữ sau ký hiệu": Tự động (mặc định) / Luôn / Tắt — [SymbolReturn]. Cùng khoá + giá trị iOS.
+ */
+@Composable
+private fun SymbolReturnRow() = ChoiceRow(Keys.SYMBOL_RETURN, Prefs.D.symbolReturn.id, tr("Về bàn chữ sau ký hiệu"),
+    tr(SettingCaption.symbolReturn),
+    listOf(SymbolReturn.AUTO.id to tr("Tự động"), SymbolReturn.ALWAYS.id to tr("Luôn"),
+        SymbolReturn.OFF.id to tr("Tắt"))) { SymbolReturn.of(it).id }
+
+/**
  * "Số từ gợi ý" ([SuggestionCount]): một hàng gọn − [giá trị] +, Tự động → 1 → … → 5 (− ở 1 về
  * Tự động; hai đầu thì nút mờ). Cùng khoá + giá trị iOS.
  */
@@ -758,6 +772,8 @@ private fun PhimPage(onBack: () -> Unit, feedbackOpen: Boolean, setFeedbackOpen:
         RowDivider()
         BoolToggle(Keys.AUTO_SPACE_AFTER_PUNCT, Prefs.D.autoSpaceAfterPunct, tr("Tự thêm dấu cách sau dấu câu"),
             tr(SettingCaption.autoSpaceAfterPunct))
+        RowDivider()
+        SymbolReturnRow()
     }
     // "Vuốt phím cách đổi Tiếng Việt / Tiếng Anh" chuyển sang nhóm "Gõ lẫn tiếng Anh" (tab Kiểu Gõ).
     VTSection(header = tr("Cử chỉ")) {

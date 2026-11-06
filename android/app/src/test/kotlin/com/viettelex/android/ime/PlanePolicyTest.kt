@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.viettelex.keyboard.SymbolReturn
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.channels.FileChannel
@@ -169,8 +170,99 @@ class PlanePolicyTest {
         val onKey = emit.indexOf("listener?.onKey(k)")
         val rule = emit.indexOf("PlanePolicy.returnToLettersAfterSymbol(")
         assertTrue(emit, probe in 0 until onKey && onKey < rule)
-        assertTrue(emit, "PlanePolicy.DIGIT_SEPARATORS" in emit.substring(0, onKey))
+        assertTrue(emit, "PlanePolicy.needsBefore(" in emit.substring(0, onKey))
+        assertTrue(emit, "mode = symbolReturn" in emit.substring(rule))
         assertTrue(emit, "setPlane(Plane.LETTERS)" in emit.substring(rule))
+    }
+
+    // "Về bàn chữ sau ký hiệu" — Tự động / Luôn / Tắt (06/11/2026). Song sinh iOS modeTable.
+
+    /** (trước con trỏ, ký tự chạm ĐẦU ở plane số, về chữ khi Tự động, khi Luôn; Tắt luôn ở lại). */
+    private data class ModeCase(val before: String, val key: String, val auto: Boolean, val always: Boolean, val why: String)
+    private val modeTable = listOf(
+        ModeCase("wow", "!", true, true, "!!! — ! đầu đã về chữ"),
+        ModeCase("hi ", ":", true, true, ":)) — : về chữ (Tự động / Luôn)"),
+        ModeCase("abc", "@", false, true, "@gmail — Luôn về chữ ngay"),
+        ModeCase("", "#", false, true, "#tag — Luôn về chữ ngay"),
+        ModeCase("2", ".", false, false, "2.5 — . sau số ở lại cả Luôn"),
+        ModeCase("10", ":", false, false, "10:30 — : sau số ở lại cả Luôn"),
+        ModeCase("1", ",", false, false, "1,000"),
+        ModeCase("ok", "5", false, false, "chữ số luôn ở lại"),
+        ModeCase("ok", "0", false, false, "chữ số luôn ở lại"),
+        ModeCase("ok", "½", false, false, "½ (biến thể số) ở lại"),
+        ModeCase("ok", "(", false, true, "( — Luôn về chữ"),
+        ModeCase("ok", "-", false, true, "- — Luôn về chữ"),
+        ModeCase("ok", "$", false, true, "$"),
+        ModeCase("ok", "₫", false, true, "₫"),
+        ModeCase("ok", ".", true, true, "ok."),
+        ModeCase("2", "!", true, true, "! sau số vẫn về chữ"),
+    )
+
+    @Test fun symbolReturnModeTable() {
+        for (c in modeTable) for (p in listOf(Plane.NUMBERS, Plane.SYMBOLS))
+            for ((mode, want) in listOf(SymbolReturn.AUTO to c.auto, SymbolReturn.ALWAYS to c.always, SymbolReturn.OFF to false))
+                assertEquals("$mode $p ${c.why}", want,
+                    PlanePolicy.returnToLettersAfterSymbol(c.key, p, false, c.before.lastOrNull(), mode))
+        // "!!!" / ":))" Tắt: mọi ký tự ở lại plane số.
+        for ((before, k) in listOf("wow" to "!", "!" to "!", "hi " to ":", ":" to ")", ")" to ")"))
+            assertFalse(PlanePolicy.returnToLettersAfterSymbol(k, Plane.NUMBERS, false, before.lastOrNull(), SymbolReturn.OFF))
+    }
+
+    @Test fun symbolReturnDefaultsAndParsing() {
+        assertEquals(SymbolReturn.AUTO, SymbolReturn.DEFAULT)
+        assertEquals("symbolReturn", com.viettelex.keyboard.Keys.SYMBOL_RETURN)
+        assertEquals(SymbolReturn.AUTO, SymbolReturn.of(null))
+        assertEquals(SymbolReturn.AUTO, SymbolReturn.of("turbo"))
+        assertEquals(SymbolReturn.ALWAYS, SymbolReturn.of("always"))
+        assertEquals(SymbolReturn.OFF, SymbolReturn.of("off"))
+        assertEquals(listOf("auto", "always", "off"), SymbolReturn.entries.map { it.id })
+        assertEquals(SymbolReturn.ALWAYS, com.viettelex.keyboard.KeyboardSettings.load {
+            if (it == com.viettelex.keyboard.Keys.SYMBOL_RETURN) "always" else null }.symbolReturn)
+        assertEquals(SymbolReturn.AUTO, com.viettelex.keyboard.KeyboardSettings.load { null }.symbolReturn)
+    }
+
+    @Test fun symbolReturnModesNeverInNumericFieldOrOtherPlanes() {
+        for (mode in SymbolReturn.entries) for (k in listOf("!", "@", ".", "#")) {
+            assertFalse("$mode $k ô số", PlanePolicy.returnToLettersAfterSymbol(k, Plane.NUMBERS, true, 'a', mode))
+            for (p in Plane.entries.filter { it != Plane.NUMBERS && it != Plane.SYMBOLS })
+                assertFalse("$mode $k $p", PlanePolicy.returnToLettersAfterSymbol(k, p, false, 'a', mode))
+        }
+    }
+
+    @Test fun needsBeforeOnlyForSeparators() {
+        assertTrue(PlanePolicy.needsBefore(".", SymbolReturn.AUTO))
+        assertTrue(PlanePolicy.needsBefore(":", SymbolReturn.ALWAYS))
+        assertFalse(PlanePolicy.needsBefore(".", SymbolReturn.OFF))
+        assertFalse(PlanePolicy.needsBefore("@", SymbolReturn.ALWAYS))
+    }
+
+    /** Space ở ?123 / =\< sau khi đã gõ ở đó ⇒ về chữ, như iOS (port PlanePolicyTests iOS). */
+    @Test fun spaceAfterTypingInSymbolPlaneReturns() {
+        for (p in listOf(Plane.NUMBERS, Plane.SYMBOLS)) {
+            assertTrue(p.name, PlanePolicy.returnToLettersOnSpace(p, typedInPlane = true, numericField = false))
+            assertFalse("chưa gõ gì", PlanePolicy.returnToLettersOnSpace(p, typedInPlane = false, numericField = false))
+            assertFalse("ô số", PlanePolicy.returnToLettersOnSpace(p, typedInPlane = true, numericField = true))
+        }
+        for (p in Plane.entries.filter { it != Plane.NUMBERS && it != Plane.SYMBOLS })
+            assertFalse(p.name, PlanePolicy.returnToLettersOnSpace(p, typedInPlane = true, numericField = false))
+    }
+
+    /** Nối dây: emit đánh dấu đã gõ ở plane số, space gọi returnToLettersOnSpace; vào plane số thì xoá dấu. */
+    @Test fun spaceReturnWiredInEmit() {
+        val src = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
+            .resolve("com/viettelex/android/ime/KeyboardView.kt").readText()
+        val emit = src.substringAfter("private fun emit(k: Key) {").substringBefore("\n    }\n")
+        val onKey = emit.indexOf("listener?.onKey(k)")
+        val space = emit.indexOf("PlanePolicy.returnToLettersOnSpace(")
+        assertTrue(emit, onKey in 0 until space)
+        assertTrue(emit, "if (sym) typedInSymbolPlane = true" in emit)
+        assertTrue(emit, "k == Key.Space || k == Key.DoubleSpacePeriod" in emit)
+        val setPlane = src.substringAfter("fun setPlane(p: Plane) {").substringBefore("\n    }\n")
+        assertTrue(setPlane, "typedInSymbolPlane = false" in setPlane)
+        // IME đặt chế độ lúc hiện (cùng chỗ các cài đặt bố cục khác).
+        val ime = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
+            .resolve("com/viettelex/android/ime/VietTelexIME.kt").readText()
+        assertTrue("kb.symbolReturn = settings.symbolReturn" in ime)
     }
 
     private class Proxy : com.viettelex.keyboard.TextProxy {

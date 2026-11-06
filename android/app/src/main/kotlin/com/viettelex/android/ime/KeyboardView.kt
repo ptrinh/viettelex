@@ -14,6 +14,7 @@ import com.viettelex.android.R
 import com.viettelex.keyboard.CommaPopup
 import com.viettelex.keyboard.Soundhole
 import com.viettelex.keyboard.SpaceSideKey
+import com.viettelex.keyboard.SymbolReturn
 import com.viettelex.keyboard.KeyLabelSize
 import com.viettelex.keyboard.KeyLabelFitter
 import com.viettelex.keyboard.DomainPopup
@@ -611,12 +612,16 @@ class KeyboardView(
         if (plane != Plane.EMOJI_SEARCH) {
             // Plane ?123 / =\<: "." "," ":" cần ký tự TRƯỚC khi chèn ("2.5" ở lại) — chỉ đọc cho ba phím đó.
             val sym = k is Key.Text && (plane == Plane.NUMBERS || plane == Plane.SYMBOLS)
-            val before = if (sym && (k as Key.Text).text in PlanePolicy.DIGIT_SEPARATORS) listener?.charBeforeCursor() else null
+            val before = if (sym && PlanePolicy.needsBefore((k as Key.Text).text, symbolReturn)) listener?.charBeforeCursor() else null
             listener?.onKey(k); fxAfter(k); rainbow?.poke()
             mole?.typed(moleLetter(k), android.os.SystemClock.uptimeMillis() / 1000.0)   // Đập chuột: theme khác ⇒ null
-            // Dấu kết vế ⇒ về chữ ngay (IME đánh giá lại viết hoa ở onPlaneChanged, như chạm ABC).
+            if (sym) typedInSymbolPlane = true
+            // Ký hiệu ⇒ về chữ ngay theo "Về bàn chữ sau ký hiệu" (IME đánh giá lại viết hoa ở onPlaneChanged, như chạm ABC).
             if (sym && PlanePolicy.returnToLettersAfterSymbol((k as Key.Text).text, plane,
-                    numericField = inputKind.padPlane != null, before = before)) setPlane(Plane.LETTERS)
+                    numericField = inputKind.padPlane != null, before = before, mode = symbolReturn)) setPlane(Plane.LETTERS)
+            // Space sau khi đã gõ ở ?123 / =\< ⇒ về chữ như iOS (mọi chế độ; ô số ở lại).
+            else if ((k == Key.Space || k == Key.DoubleSpacePeriod) && PlanePolicy.returnToLettersOnSpace(plane,
+                    typedInSymbolPlane, numericField = inputKind.padPlane != null)) setPlane(Plane.LETTERS)
             return
         }
         fxPending = false
@@ -761,6 +766,8 @@ class KeyboardView(
     fun setPlane(p: Plane) {
         if (p == Plane.TEMPLATES && leftZone == TemplatesMenu.LeftZone.NONE) return
         if (plane == p) return
+        // Vào ?123 / =\< từ plane khác: chưa gõ gì ở đó (space chưa về chữ) — như iOS typedInSymbolPlane.
+        if (plane != Plane.NUMBERS && plane != Plane.SYMBOLS) typedInSymbolPlane = false
         // Rời plane chữ sang ?123 / =\< / emoji: tắt Caps Lock + shift một-lần (như iOS stock;
         // Phil 06/10/2026). Về chữ IME đánh giá lại viết hoa đầu câu (onPlaneChanged).
         if (plane == Plane.LETTERS && PlanePolicy.clearsShiftLeavingLetters(p)) shift = Shift.OFF
@@ -820,6 +827,10 @@ class KeyboardView(
     private var numberRowFull = false
     /** "Phím cạnh dấu cách" (Settings) — trong chữ ký layout, đọc lúc dựng (0 chi phí mỗi phím). */
     private var spaceSideKey = SpaceSideKey.DEFAULT
+    /** "Về bàn chữ sau ký hiệu" (IME đặt lúc hiện, như [trackpadSpeed]) — không đổi bố cục. */
+    var symbolReturn: SymbolReturn = SymbolReturn.DEFAULT
+    /** Đã gõ ít nhất một ký tự ở ?123 / =\< kể từ lúc vào plane đó — space mới về chữ. */
+    private var typedInSymbolPlane = false
     /** Layout đang hiện có phím "." cạnh space thay "," (Dấu chấm) ⇒ giữ "." ra popup dấu câu. */
     private var periodSideKey = false
     /** "Nút emoji" = Thanh trên và strip hiện ⇒ bàn chữ không có 😊 (nút ở StripView). Trong chữ ký layout. */

@@ -8,8 +8,9 @@ enum PlanePolicy {
     }
 
     /// Dấu KẾT VẾ: chạm ở plane 123/#+= ⇒ về plane chữ NGAY, không cần dấu cách (Phil
-    /// 06/11/2026, không công tắc). Gồm dạng in ấn trong hàng biến thể (… ” ’ »). Ngoặc /
-    /// nháy MỞ (( “ ‘ «), @ / # $ % & * - _ + = [ { < > \ |, số, tiền tệ, toán: giữ plane.
+    /// 06/11/2026; chế độ "Tự động" của SymbolReturn). Gồm dạng in ấn trong hàng biến thể
+    /// (… ” ’ »). Ngoặc / nháy MỞ (( “ ‘ «), @ / # $ % & * - _ + = [ { < > \ |, số, tiền tệ,
+    /// toán: giữ plane.
     static let clauseEnders: Set<String> = [".", ",", "?", "!", ")", "\"", "'", ":", ";",
                                             "\u{2026}", "\u{201D}", "\u{2019}", "\u{00BB}"]
     /// Dấu nằm GIỮA số: ngay sau chữ số thì ở lại plane số ("2.5", "1,000", "10:30").
@@ -18,12 +19,35 @@ enum PlanePolicy {
     /// Vừa chèn `inserted` ở plane 123/#+= (chạm, giữ chọn biến thể — mọi đường chèn ký tự
     /// của plane). `before` = ký tự ngay trước con trỏ TRƯỚC khi chèn (chỉ cần khi `inserted`
     /// thuộc digitSeparators). Ô số (keyboardType số) ở lại như luật space.
-    /// Song sinh Android PlanePolicy.returnToLettersAfterSymbol.
-    static func returnToLettersAfterSymbol(_ inserted: String, inSymbolPlane: Bool,
-                                           numericField: Bool, before: Character?) -> Bool {
-        guard inSymbolPlane, !numericField, clauseEnders.contains(inserted) else { return false }
+    /// `mode` = "Về bàn chữ sau ký hiệu": `.auto` chỉ dấu kết vế, `.always` mọi ký hiệu (chữ số
+    /// ở lại), `.off` không bao giờ. Song sinh Android PlanePolicy.returnToLettersAfterSymbol.
+    static func returnToLettersAfterSymbol(_ inserted: String, mode: SymbolReturn = .auto,
+                                           inSymbolPlane: Bool, numericField: Bool,
+                                           before: Character?) -> Bool {
+        guard inSymbolPlane, !numericField, !inserted.isEmpty else { return false }
+        switch mode {
+        case .off: return false
+        case .auto: guard clauseEnders.contains(inserted) else { return false }
+        case .always: guard !isNumeral(inserted) else { return false }
+        }
         if digitSeparators.contains(inserted), let b = before, b.isASCII, b.isNumber { return false }
         return true
+    }
+
+    /// Chữ số (0–9 và dạng số khác trong hàng biến thể: ½ ¹ …) — "Luôn" vẫn ở lại plane số.
+    static func isNumeral(_ s: String) -> Bool {
+        !s.isEmpty && s.unicodeScalars.allSatisfy {
+            switch $0.properties.generalCategory {
+            case .decimalNumber, .letterNumber, .otherNumber: return true
+            default: return false
+            }
+        }
+    }
+
+    /// Có cần đọc ký tự trước con trỏ cho `inserted` không (chỉ . , : và chế độ khác Tắt) —
+    /// tránh đọc proxy mỗi phím.
+    static func needsBefore(_ inserted: String, mode: SymbolReturn) -> Bool {
+        mode != .off && digitSeparators.contains(inserted)
     }
 
     /// Chạm ABC (123/#+= → chữ): shift bật hay tắt. `autoShift` = viết hoa đầu câu

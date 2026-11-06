@@ -196,6 +196,20 @@ final class BackupTests: XCTestCase {
         XCTAssertNil(try BackupCodec.decode(bad).settings?[TrackpadSpeed.key])
     }
 
+    /// "Về bàn chữ sau ký hiệu" (symbolReturn) đi theo sao lưu; mặc định "auto"; lạ ⇒ bỏ qua.
+    func testSnapshotIncludesSymbolReturn() throws {
+        let (s, _) = makeStore()
+        XCTAssertEqual(s.snapshot(includeLearned: false).settings?[SymbolReturn.key], .string("auto"))
+        s.defaults.set("always", forKey: SymbolReturn.key)
+        let snap = s.snapshot(includeLearned: false)
+        XCTAssertEqual(snap.settings?[SymbolReturn.key], .string("always"))
+        let (t, _) = makeStore()
+        _ = t.apply(try BackupCodec.decode(BackupCodec.encode(snap)))
+        XCTAssertEqual(SymbolReturn.load(t.defaults), .always)
+        let bad = Data(#"{"format":"viettelex-backup","version":1,"settings":{"symbolReturn":"sometimes"}}"#.utf8)
+        XCTAssertNil(try BackupCodec.decode(bad).settings?[SymbolReturn.key])
+    }
+
     /// Ngôn ngữ giao diện (uiLanguage, kiểu chuỗi) đi theo sao lưu; mặc định "vi";
     /// giá trị lạ bị bỏ qua cả khi nhập file lẫn khi đồng bộ.
     func testUILanguageBackupRoundTrip() throws {

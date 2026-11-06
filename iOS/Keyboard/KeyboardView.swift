@@ -2099,6 +2099,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         numberRowEnabled = UserDefaultsProvider.shared?.bool(forKey: Self.numberRowKey) ?? false
         numberRowFullHeight = UserDefaultsProvider.shared?.bool(forKey: KeyGeometry.numberRowFullHeightKey) ?? false
         spaceSideKey = SpaceSideKey.load(UserDefaultsProvider.shared)
+        symbolReturn = SymbolReturn.load(UserDefaultsProvider.shared)
         largeKeys = LargeKeys.load(UserDefaultsProvider.shared)
         emojiKeyPlacement = EmojiKeyPlacement.load(UserDefaultsProvider.shared)
         suggestionBar.setting = SuggestionCount.load(UserDefaultsProvider.shared)   // "Số từ gợi ý"
@@ -2136,6 +2137,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         shift = PlanePolicy.shiftOnReturnToLetters(autoShift: autoShiftProbe?()) ? .on : .off
     }
 
+    /// "Về bàn chữ sau ký hiệu" (Phím & cử chỉ, mặc định Tự động — SymbolReturn). Đọc lúc hiện
+    /// (applyAppearance); không đổi bố cục ⇒ không rebuild.
+    var symbolReturn: SymbolReturn = .defaultValue
+
     /// Ký tự ngay trước con trỏ (controller đọc proxy) — chỉ hỏi khi chạm "." "," ":" ở 123/#+=.
     var contextBeforeProbe: (() -> Character?)?
 
@@ -2143,10 +2148,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// (PlanePolicy.returnToLettersAfterSymbol), đánh giá lại viết hoa như chạm ABC.
     private func tapSymbol(_ s: String) {
         let inPlane = plane == .numbers || plane == .symbols
-        let before = inPlane && PlanePolicy.digitSeparators.contains(s) ? contextBeforeProbe?() : nil
+        let before = inPlane && PlanePolicy.needsBefore(s, mode: symbolReturn) ? contextBeforeProbe?() : nil
         tapped(.text(s))
         guard inPlane, plane == .numbers || plane == .symbols,
-              PlanePolicy.returnToLettersAfterSymbol(s, inSymbolPlane: true,
+              PlanePolicy.returnToLettersAfterSymbol(s, mode: symbolReturn, inSymbolPlane: true,
                                                       numericField: inputKind == .number, before: before)
         else { return }
         plane = .letters

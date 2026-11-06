@@ -72,6 +72,93 @@ final class ClauseEndReturnTests: XCTestCase {
         }
     }
 
+    // MARK: "Về bàn chữ sau ký hiệu" — Tự động / Luôn / Tắt (06/11/2026)
+
+    /// (trước con trỏ, ký tự chạm ĐẦU ở plane số, về chữ theo Tự động / Luôn; Tắt luôn ở lại).
+    /// Về chữ thì ký tự sau gõ ở plane chữ ("!!!" Tự động: về sau "!" đầu). Song sinh Android modeTable.
+    static let modeTable: [(before: String, key: String, auto: Bool, always: Bool, why: String)] = [
+        ("wow", "!", true, true, "!!! — ! đầu đã về chữ"),
+        ("hi ", ":", true, true, ":)) — : về chữ (Tự động / Luôn)"),
+        ("abc", "@", false, true, "@gmail — Luôn về chữ ngay"),
+        ("", "#", false, true, "#tag — Luôn về chữ ngay"),
+        ("2", ".", false, false, "2.5 — . sau số ở lại cả Luôn"),
+        ("10", ":", false, false, "10:30 — : sau số ở lại cả Luôn"),
+        ("1", ",", false, false, "1,000"),
+        ("ok", "5", false, false, "chữ số luôn ở lại"),
+        ("ok", "0", false, false, "chữ số luôn ở lại"),
+        ("ok", "\u{00BD}", false, false, "½ (biến thể số) ở lại"),
+        ("ok", "(", false, true, "( — Luôn về chữ"),
+        ("ok", "-", false, true, "- — Luôn về chữ"),
+        ("ok", "$", false, true, "$"),
+        ("ok", "\u{20AB}", false, true, "₫"),
+        ("ok", ".", true, true, "ok."),
+        ("2", "!", true, true, "! sau số vẫn về chữ"),
+    ]
+
+    func testModeTable() {
+        for c in Self.modeTable {
+            for (mode, want) in [(SymbolReturn.auto, c.auto), (.always, c.always), (.off, false)] {
+                let got = PlanePolicy.returnToLettersAfterSymbol(c.key, mode: mode, inSymbolPlane: true,
+                                                                 numericField: false, before: c.before.last)
+                XCTAssertEqual(got, want, "\(mode) \(c.why)")
+            }
+        }
+        // "!!!" Tắt: cả ba "!" ở lại plane số; ":))" Tắt: cả ba ở lại.
+        for (before, k) in [("wow", "!"), ("!", "!"), ("hi ", ":"), (":", ")"), (")", ")")] {
+            XCTAssertFalse(PlanePolicy.returnToLettersAfterSymbol(k, mode: .off, inSymbolPlane: true,
+                                                                  numericField: false, before: before.last))
+        }
+    }
+
+    /// Mặc định = Tự động; bảng cũ (mode mặc định) không đổi nghĩa.
+    func testDefaultIsAuto() {
+        XCTAssertEqual(SymbolReturn.defaultValue, .auto)
+        XCTAssertEqual(SymbolReturn.key, "symbolReturn")
+        XCTAssertEqual(SymbolReturn.parse(nil), .auto)
+        XCTAssertEqual(SymbolReturn.parse("turbo"), .auto)
+        XCTAssertEqual(SymbolReturn.parse("always"), .always)
+        XCTAssertEqual(SymbolReturn.parse("off"), .off)
+        XCTAssertEqual(SymbolReturn.allCases.map(\.rawValue), ["auto", "always", "off"])
+    }
+
+    /// Ô số / plane chữ: không chế độ nào về chữ.
+    func testModesNeverReturnInNumericFieldOrLetters() {
+        for mode in SymbolReturn.allCases {
+            for k in ["!", "@", ".", "#"] {
+                XCTAssertFalse(PlanePolicy.returnToLettersAfterSymbol(k, mode: mode, inSymbolPlane: true,
+                                                                      numericField: true, before: "a"))
+                XCTAssertFalse(PlanePolicy.returnToLettersAfterSymbol(k, mode: mode, inSymbolPlane: false,
+                                                                      numericField: false, before: "a"))
+            }
+        }
+    }
+
+    /// Ký tự trước con trỏ chỉ đọc cho . , : và khi chế độ khác Tắt.
+    func testNeedsBefore() {
+        XCTAssertTrue(PlanePolicy.needsBefore(".", mode: .auto))
+        XCTAssertTrue(PlanePolicy.needsBefore(":", mode: .always))
+        XCTAssertFalse(PlanePolicy.needsBefore(".", mode: .off))
+        XCTAssertFalse(PlanePolicy.needsBefore("@", mode: .always))
+    }
+
+    /// Đường thật: Luôn ⇒ "@" về chữ; Tắt ⇒ "." ở lại, dấu cách vẫn về chữ.
+    @MainActor func testViewFollowsMode() {
+        let (kb, host) = makeKeyboard()
+        _ = host
+        kb.contextBeforeProbe = { "a" }
+        kb.symbolReturn = .always
+        kb.debugSetPlane(numbers: true)
+        kb.debugTapSymbol("@")
+        XCTAssertEqual(kb.debugPlaneName, "letters", "Luôn: @ về chữ")
+        kb.symbolReturn = .off
+        kb.debugSetPlane(numbers: true)
+        kb.debugTapSymbol(".")
+        XCTAssertEqual(kb.debugPlaneName, "numbers", "Tắt: . ở lại")
+        kb.symbolReturn = .auto
+        kb.debugTapSymbol("@")
+        XCTAssertEqual(kb.debugPlaneName, "numbers", "Tự động: @ ở lại")
+    }
+
     @MainActor private func makeKeyboard(_ kind: KeyboardView.InputKind = .normal) -> (KeyboardView, UIView) {
         let kb = KeyboardView(needsGlobe: false, inputController: nil) { _ in }
         let host = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 320))

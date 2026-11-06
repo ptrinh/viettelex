@@ -203,6 +203,7 @@ struct TinhNangSections: View {
     @AppStorage(PlusFeature.textToolsKey, store: featureDefaults) private var textToolsEnabled = true
     @AppStorage("oneHandMode", store: featureDefaults) private var oneHandMode = "off"
     @AppStorage(SpaceSideKey.key, store: featureDefaults) private var spaceSideKey = SpaceSideKey.defaultValue.rawValue
+    @AppStorage(SymbolReturn.key, store: featureDefaults) private var symbolReturn = SymbolReturn.defaultValue.rawValue
     @AppStorage(EmojiKeyPlacement.key, store: featureDefaults) private var emojiKeyPlacement = EmojiKeyPlacement.defaultValue.rawValue
     @AppStorage(LargeKeys.key, store: featureDefaults) private var largeKeys = LargeKeys.defaultValue
     @AppStorage("clipboardHistory", store: featureDefaults) private var clipboardHistory = false
@@ -238,6 +239,7 @@ struct TinhNangSections: View {
                                 && LargeKeys.settingVisible(SpaceSideKey.parse(spaceSideKey)), L("Cỡ phím chấm và phẩy")),
                               (swipeKeyCommands, L("Vuốt sao chép/dán")),
                               (autoSpaceAfterPunct, L("Cách sau dấu câu")),
+                              (SymbolReturn.parse(symbolReturn) != .defaultValue, L("Về bàn chữ sau ký hiệu")),
                               (hapticFeedback, L("Rung")), (keySound, L("Âm phím")),
                               (oneHandMode != "off", L("Một tay"))], none: L("Mặc định"))
         case .giaoDien:
@@ -626,6 +628,8 @@ struct PhimPage: View {
     @AppStorage("oneHandMode", store: featureDefaults) private var oneHandMode = "off"
     /// "Phím cạnh dấu cách": "comma" (mặc định) | "period" | "both" | "off" — bàn phím đọc lúc hiện (SpaceSideKey).
     @AppStorage(SpaceSideKey.key, store: featureDefaults) private var spaceSideKey = SpaceSideKey.defaultValue.rawValue
+    /// "Về bàn chữ sau ký hiệu": "auto" (mặc định) | "always" | "off" — bàn phím đọc lúc hiện (SymbolReturn).
+    @AppStorage(SymbolReturn.key, store: featureDefaults) private var symbolReturn = SymbolReturn.defaultValue.rawValue
     /// "Nút emoji": "bottom" (mặc định) | "top" — bàn phím đọc lúc hiện (EmojiKeyPlacement).
     @AppStorage(EmojiKeyPlacement.key, store: featureDefaults) private var emojiKeyPlacement = EmojiKeyPlacement.defaultValue.rawValue
     /// "Phím to" — mặc định TẮT (LargeKeys): "," "." hàng đáy và ⇧ / ⌫ hàng Z rộng hơn. Miễn phí.
@@ -680,6 +684,18 @@ struct PhimPage: View {
                     settingToggle(L("Giữ Shift để gõ số và ký hiệu"), L(SettingCaption.holdShiftSymbols), isOn: $holdShiftSymbols)
                 }
                 settingToggle(L("Tự thêm dấu cách sau dấu câu"), L(SettingCaption.autoSpaceAfterPunct), isOn: $autoSpaceAfterPunct)
+                VStack(alignment: .leading, spacing: 6) {
+                    settingTitle(L("Về bàn chữ sau ký hiệu"), L(SettingCaption.symbolReturn))
+                    Picker(L("Về bàn chữ sau ký hiệu"), selection: Binding(
+                        get: { SymbolReturn.parse(symbolReturn).rawValue },
+                        set: { symbolReturn = $0 })) {
+                        Text(L("Tự động")).tag(SymbolReturn.auto.rawValue)
+                        Text(L("Luôn")).tag(SymbolReturn.always.rawValue)
+                        Text(L("Tắt")).tag(SymbolReturn.off.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
             } header: { Text(L("Phím")) }
             Section {
                 VStack(alignment: .leading, spacing: 6) {

@@ -65,6 +65,7 @@ enum BackupSettings {
         Spec(key: "numberRow", kind: .bool(false)),
         Spec(key: "numberRowFullHeight", kind: .bool(false)),   // chỉ iOS dùng
         Spec(key: "spaceSideKey", kind: .string("comma", ["comma", "period", "both", "off"])),   // "Phím cạnh dấu cách" (SpaceSideKey)
+        Spec(key: "symbolReturn", kind: .string("auto", ["auto", "always", "off"])),   // "Về bàn chữ sau ký hiệu" (SymbolReturn)
         Spec(key: "emojiKeyPlacement", kind: .string("bottom", ["bottom", "top"])),   // "Nút emoji" (EmojiKeyPlacement)
         Spec(key: "largeKeys", kind: .bool(false)),   // "Phím to" (LargeKeys) — chỉ iOS dùng
         // "Giữ lịch sử clipboard" (ClipboardTTL) — cùng khoá + id Android.

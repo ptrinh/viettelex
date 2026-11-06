@@ -144,7 +144,7 @@ class BackupTests {
             "keyboardTransparency" to 250, "keyLabelTransparency" to 35,
             BackupPrefs.SHORTCUTS_KEY to "# VietTelex — bảng gõ tắt\nko: không\n")
         val p = BackupPrefs.snapshot({ prefs[it] }, listOf(TemplateItem("", "a")), null)
-        assertEquals(91, p.settings!!.size)   // +englishByFrequency (05/11); +largeKeys (04/11); +systemMaterialYou, +suggestionInk (30/10); +trackpadSpeed (29/10); +27 Bạn đồng hành: sinh nhật 2, tên 11, kiểu vẽ 11, vị trí & cỡ 3 (27/10); +retroactiveEnglish (23/10); +splitKeyboard; 6 khoá KeyStyle chung → 1 keyStyles (18/10/2026); +keyEffect, +holdShiftSymbols, +swipeTrail, +keyboardBuddy (19/10)
+        assertEquals(92, p.settings!!.size)   // +symbolReturn (06/11); +englishByFrequency (05/11); +largeKeys (04/11); +systemMaterialYou, +suggestionInk (30/10); +trackpadSpeed (29/10); +27 Bạn đồng hành: sinh nhật 2, tên 11, kiểu vẽ 11, vị trí & cỡ 3 (27/10); +retroactiveEnglish (23/10); +splitKeyboard; 6 khoá KeyStyle chung → 1 keyStyles (18/10/2026); +keyEffect, +holdShiftSymbols, +swipeTrail, +keyboardBuddy (19/10)
         assertEquals("simple", p.settings!![Keys.SWIPE_TRAIL])   // hiệu ứng nét vuốt: mặc định Đơn giản
         assertEquals("off", p.settings!![Keys.KEYBOARD_BUDDY])   // bạn đồng hành: mặc định Tắt
         assertEquals(true, p.settings!![Keys.HOLD_SHIFT_SYMBOLS])   // giữ Shift ra số/ký hiệu: mặc định bật
@@ -156,6 +156,7 @@ class BackupTests {
         assertEquals("muted", p.settings!![Keys.SUGGESTION_INK])   // màu chữ gợi ý: mặc định Xám
         assertEquals("1h", p.settings!![Keys.CLIPBOARD_TTL])   // giữ lịch sử clipboard: mặc định 1 giờ
         assertEquals("comma", p.settings!![Keys.SPACE_SIDE_KEY])   // phím cạnh dấu cách: mặc định ","
+        assertEquals("auto", p.settings!![Keys.SYMBOL_RETURN])   // về bàn chữ sau ký hiệu: mặc định Tự động
         assertEquals("bottom", p.settings!![Keys.EMOJI_KEY_PLACEMENT])   // nút emoji: mặc định hàng dưới
         assertEquals("medium", p.settings!![Keys.KEY_LABEL_SIZE])   // cỡ chữ trên phím: mặc định Vừa
         assertEquals("en", p.settings!![Keys.TRANSLATE_TARGET])   // Dịch trên máy: mặc định English
@@ -258,6 +259,19 @@ class BackupTests {
         assertEquals(BackupPrefs.settings { a[it] }, BackupPrefs.settings { b[it] })
         assertEquals(mapOf("vn" to "Việt Nam"), BackupPrefs.shortcutsFromPref(b[BackupPrefs.SHORTCUTS_KEY]))
         assertEquals(listOf(TemplateItem("x", "một")), plan.templates)
+    }
+
+    /** "Về bàn chữ sau ký hiệu" (symbolReturn, cùng khoá iOS): khứ hồi qua file; giá trị lạ bị bỏ qua. */
+    @Test fun symbolReturnBackupRoundTrip() {
+        val a = mapOf<String, Any?>(Keys.SYMBOL_RETURN to "off")
+        val p = BackupCodec.decode(BackupCodec.encode(BackupPrefs.snapshot({ a[it] }, emptyList(), null)))
+        assertEquals("off", p.settings!![Keys.SYMBOL_RETURN])
+        val b = HashMap<String, Any?>()
+        b.putAll(BackupPrefs.plan(p, { b[it] }, emptyList()).writes)
+        assertEquals("off", b[Keys.SYMBOL_RETURN])
+        assertEquals(SymbolReturn.OFF, KeyboardSettings.load { b[it] }.symbolReturn)
+        val bad = BackupCodec.decode("""{"format":"viettelex-backup","version":1,"settings":{"symbolReturn":"sometimes"}}""")
+        assertNull(bad.settings!![Keys.SYMBOL_RETURN])
     }
 
     /** uiLanguage: khứ hồi qua file; giá trị lạ / sai kiểu bị bỏ qua khi nhập, pref lạ ⇒ "vi". */
