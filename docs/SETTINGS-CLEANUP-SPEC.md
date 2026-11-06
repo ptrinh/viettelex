@@ -41,7 +41,7 @@ Gõ lẫn tiếng Anh                        dòng tóm tắt khi thu gọn (mob
       Khi từ vừa Anh vừa Việt: Ưu tiên tiếng Việt / tiếng Anh   (radio; nơi đang có)
          chú thích có mẹo: "Gõ đúp phím dấu để giữ tiếng Anh (lisst → list)."
       Quyết định theo ngữ cảnh
-        Tự sửa từ phía trước (thử nghiệm)      ← mờ + "Cần bật Quyết định theo ngữ cảnh"
+        Tự sửa từ phía trước (thử nghiệm)      ← ẨN khi tắt Quyết định theo ngữ cảnh (§6)
         Đoán từ trùng theo tần suất (thử nghiệm) ← như trên
 ```
 
