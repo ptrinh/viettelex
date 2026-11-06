@@ -2,6 +2,7 @@
 // field falls back to composition. Pure; unit-tested. See hook_fallback.cpp and
 // direct_verify.cpp for the Win32 side.
 #pragma once
+#include <array>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -125,6 +126,31 @@ struct DirectKeyEvent {
 constexpr uint16_t kVkBack = 0x08;
 // N backspaces then `text`, as the SendInput batch HookSink builds (scan codes added there).
 std::vector<DirectKeyEvent> directEditEvents(unsigned backspaces, const std::u16string& text);
+// One SendInput keyboard event (KEYBDINPUT without time / extra info), portable so the
+// events HookSink builds are unit-tested. Flag values are the Win32 ones (checked by
+// static_assert in hook_fallback.cpp).
+struct KeyInjection {
+    uint16_t vk = 0;
+    uint16_t scan = 0;
+    uint32_t flags = 0;  // KEYEVENTF_*
+};
+constexpr uint32_t kKeyeventfExtendedKey = 0x0001;  // KEYEVENTF_EXTENDEDKEY
+constexpr uint32_t kKeyeventfKeyUp = 0x0002;        // KEYEVENTF_KEYUP
+constexpr uint32_t kLlkhfExtended = 0x01;           // KBDLLHOOKSTRUCT::flags LLKHF_EXTENDED
+// Down + up replaying a user key the hook swallowed (it must land after our edits), from
+// its KBDLLHOOKSTRUCT: the key's own scan code and extended bit. Without the extended bit
+// an arrow / Home / End / PgUp / PgDn / Ins / Del / numpad Enter / right Ctrl+Alt is
+// injected as its numpad / left twin (Del becomes numpad "." with Num Lock on).
+// `mappedScan` (MapVirtualKeyW) is used only when the hook reported no scan code.
+std::array<KeyInjection, 2> replayKeyInjection(uint32_t vk, uint32_t scanCode, uint32_t llFlags,
+                                               uint16_t mappedScan);
+
+// UI Automation timeouts for the echo check (direct_verify.cpp, IUIAutomation2). The
+// defaults are 20 s each: a hung target app would stall the verify worker that long, and
+// a result that late is useless (the user has typed on).
+constexpr unsigned long kUiaConnectionTimeoutMs = 1000;
+constexpr unsigned long kUiaTransactionTimeoutMs = 2000;
+
 // A Direct batch may only be injected while no modifier that changes Backspace is held.
 inline bool injectionModifiersSafe(bool ctrlDown, bool altDown, bool winDown) {
     return !ctrlDown && !altDown && !winDown;

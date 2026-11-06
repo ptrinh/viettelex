@@ -63,9 +63,22 @@ Echo readConsole(HWND fg, const std::u16string& expected) {
 
 IUIAutomation* uia() {
     static IUIAutomation* a = nullptr;
+    static bool configured = false;
     if (!a && FAILED(CoCreateInstance(CLSID_CUIAutomation, nullptr, CLSCTX_INPROC_SERVER, IID_IUIAutomation,
                                       reinterpret_cast<void**>(&a))))
         a = nullptr;
+    if (a && !configured) {
+        configured = true;
+        // The defaults (20 s connection / 20 s transaction) would let one hung app park this
+        // verify worker for 20 s. IUIAutomation2 (Windows 8+) lets us cap them; without it
+        // (older UIA) the defaults stay — verification is best-effort anyway.
+        IUIAutomation2* a2 = nullptr;
+        if (SUCCEEDED(a->QueryInterface(IID_PPV_ARGS(&a2))) && a2) {
+            a2->put_ConnectionTimeout(kUiaConnectionTimeoutMs);
+            a2->put_TransactionTimeout(kUiaTransactionTimeoutMs);
+            a2->Release();
+        }
+    }
     return a;
 }
 

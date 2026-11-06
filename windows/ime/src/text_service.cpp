@@ -756,6 +756,7 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     if (composition_) endCompositionAsync();
     session_.resetContext();
     chord_.disarm();
+    altZLatch_.reset();
     parentFailed_ = false;
     SafeRelease(targetCtx_);
     host_ = HostText::Normal;
@@ -1026,6 +1027,7 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
     if (isOwnInjected(static_cast<uintptr_t>(GetMessageExtraInfo()))) return S_OK;  // typed by our hook
+    altZLatch_.noteKey(static_cast<uint32_t>(wp), true);  // any key but a Z repeat re-arms Alt+Z
     if (!isModifierVk(static_cast<uint32_t>(wp))) ++keyGen_;  // background hint work: "typing on cancels"
     passNoted_ = false;
     if (hint_ && hintKeyTest(wp, eaten)) return S_OK;         // Tab / Esc while a caret hint shows
@@ -1075,6 +1077,7 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL*
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
     if (isOwnInjected(static_cast<uintptr_t>(GetMessageExtraInfo()))) return S_OK;
+    altZLatch_.noteKey(static_cast<uint32_t>(wp), true);  // hosts that skip OnTestKeyDown
     if (hintKeyAct_ >= 0 || hint_) {
         int act = hintKeyAct_;
         hintKeyAct_ = -1;
@@ -1175,13 +1178,15 @@ STDMETHODIMP TextService::OnTestKeyUp(ITfContext*, WPARAM wp, LPARAM, BOOL* eate
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
     const uint32_t vkey = static_cast<uint32_t>(wp);
+    altZLatch_.noteKey(vkey, false);  // Z / Alt released: the next Alt+Z toggles again
     if (isModifierVk(vkey)) onModifierEvent(vkey, false);
     return S_OK;
 }
 
-STDMETHODIMP TextService::OnKeyUp(ITfContext*, WPARAM, LPARAM, BOOL* eaten) {
+STDMETHODIMP TextService::OnKeyUp(ITfContext*, WPARAM wp, LPARAM, BOOL* eaten) {
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
+    altZLatch_.noteKey(static_cast<uint32_t>(wp), false);  // hosts that skip OnTestKeyUp
     return S_OK;
 }
 
@@ -1190,7 +1195,8 @@ STDMETHODIMP TextService::OnPreservedKey(ITfContext*, REFGUID guid, BOOL* eaten)
     *eaten = FALSE;
     if (IsEqualGUID(guid, GUID_PreservedKeyToggle)) {
         if (suspended()) return S_OK;  // Alt+Z goes to the game
-        toggleVietnamese();
+        // Held Alt+Z auto-repeats: toggle on the first call only, still eat the repeats.
+        if (altZLatch_.fire()) toggleVietnamese();
         *eaten = TRUE;
     }
     return S_OK;

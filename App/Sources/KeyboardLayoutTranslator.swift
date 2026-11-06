@@ -101,6 +101,26 @@ struct KeyboardLayoutTranslator {
         return Character(UnicodeScalar(ascii))
     }
 
+    /// Same lookup with Caps Lock taken into account. The table only holds the plain
+    /// and Shift planes, so Caps Lock has to be folded into the shift bit here —
+    /// otherwise a pinned layout types lowercase with Caps Lock on.
+    func character(keyCode: UInt16, shift: Bool, capsLock: Bool) -> Character? {
+        let effective = Self.effectiveShift(
+            shift: shift, capsLock: capsLock, plainASCII: ascii(keyCode: keyCode, shift: false))
+        return character(keyCode: keyCode, shift: effective)
+    }
+
+    /// Which plane a key reads from. macOS Caps Lock capitalises LETTERS only (digits
+    /// and punctuation keep their unshifted symbol), and on a Mac Shift does not undo
+    /// it: Caps Lock + Shift + a still types "A". So it is an OR restricted to keys
+    /// whose plain character is a letter, not an XOR. Pure so the rule is pinned by
+    /// tests.
+    static func effectiveShift(shift: Bool, capsLock: Bool, plainASCII: UInt8?) -> Bool {
+        if shift { return true }
+        guard capsLock, let plain = plainASCII else { return false }
+        return (plain >= 0x61 && plain <= 0x7A) || (plain >= 0x41 && plain <= 0x5A)
+    }
+
     /// Same lookup, undecoded — the chord remap compares and re-looks-up raw bytes and
     /// has no use for a Character.
     func ascii(keyCode: UInt16, shift: Bool) -> UInt8? {

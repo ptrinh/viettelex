@@ -542,6 +542,31 @@ TEST(direct_backspace_is_a_virtual_key_never_unicode_bs) {
     CHECK(directEditEvents(0, u"").empty());
 }
 
+// A key the hook swallowed and replays after its edits keeps its scan code and extended
+// bit: an arrow (VK_LEFT 0x25, scan 0x4B, LLKHF_EXTENDED) must not arrive as numpad 4.
+TEST(direct_replay_key_keeps_extended_flag_and_scan) {
+    const auto arrow = replayKeyInjection(0x25, 0x4B, kLlkhfExtended, 0x4B);
+    CHECK_EQ(arrow[0].vk, uint16_t{0x25});
+    CHECK_EQ(arrow[0].scan, uint16_t{0x4B});
+    CHECK_EQ(arrow[0].flags, kKeyeventfExtendedKey);
+    CHECK_EQ(arrow[1].flags, kKeyeventfExtendedKey | kKeyeventfKeyUp);
+    CHECK_EQ(arrow[1].scan, uint16_t{0x4B});
+    // Numpad Enter: VK_RETURN + extended; main Enter: no extended bit.
+    CHECK_EQ(uint32_t{replayKeyInjection(0x0D, 0x1C, kLlkhfExtended, 0x1C)[0].flags}, kKeyeventfExtendedKey);
+    CHECK_EQ(uint32_t{replayKeyInjection(0x0D, 0x1C, 0, 0x1C)[0].flags}, uint32_t{0});
+    // Other LLKHF bits (injected 0x10, alt 0x20, up 0x80) never leak into KEYEVENTF.
+    CHECK_EQ(uint32_t{replayKeyInjection(0x0D, 0x1C, 0x10 | 0x20, 0x1C)[0].flags}, uint32_t{0});
+    // The hook's own scan code wins over the mapped one; the mapped one only fills a 0.
+    CHECK_EQ(uint16_t{replayKeyInjection(0x2E, 0x53, kLlkhfExtended, 0x99)[0].scan}, uint16_t{0x53});
+    CHECK_EQ(uint16_t{replayKeyInjection(0x2E, 0, kLlkhfExtended, 0x53)[1].scan}, uint16_t{0x53});
+}
+
+// The echo check must give up on a hung app in seconds, not UIA's 20 s default.
+TEST(direct_uia_timeouts_are_short) {
+    CHECK(kUiaConnectionTimeoutMs > 0 && kUiaConnectionTimeoutMs <= 2000);
+    CHECK(kUiaTransactionTimeoutMs >= kUiaConnectionTimeoutMs && kUiaTransactionTimeoutMs <= 3000);
+}
+
 TEST(direct_injection_modifier_guard) {
     // Ctrl+Backspace = BS 0x08 in terminals / delete-word in GUI apps; Alt+Backspace =
     // ESC DEL (readline: delete word). Never inject while those are held.
