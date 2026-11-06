@@ -379,7 +379,7 @@ const Pair kStrings[] = {
     {L"Chọn", L"Use"},
     {L"Áp dụng “%s”?", L"Apply “%s”?"},
     {L"Các công tắc bạn đã tự chỉnh sẽ đổi:", L"Switches you changed yourself will change:"},
-    // Settings cleanup (docs/SETTINGS-CLEANUP-SPEC.md): expanders, dimmed reasons, import labels
+    // Settings cleanup (docs/SETTINGS-CLEANUP-SPEC.md): expanders, import labels
     {L"Nâng cao", L"Advanced"},
     {L"Telex đơn giản, bỏ dấu tự do, gõ tắt phụ âm, dấu kiểu mới, teencode, phím ngoặc, sửa dấu",
      L"Simple Telex, free tones, quick consonants, modern tones, teencode, brackets, fix typed words"},
@@ -390,8 +390,6 @@ const Pair kStrings[] = {
     {L"Tự tắt tiếng Việt khi chơi game toàn màn hình, Chế độ game",
      L"Vietnamese off in fullscreen games, Game mode"},
     {L"Biểu tượng bàn phím, biểu tượng khay", L"Keyboard icon, tray icon"},
-    {L"Chỉ áp dụng cho Telex.", L"Applies to Telex only."},
-    {L"Cần bật Quyết định theo ngữ cảnh.", L"Needs context-based decision turned on."},
     {L"Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này.",
      L"VNI leaves English words as typed, so there is nothing to set here."},
     {L"Tệp gõ tắt", L"Shortcut files"},

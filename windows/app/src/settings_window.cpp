@@ -351,7 +351,7 @@ struct Item {
     int ctlId = 0;             // combo / button id
     int blockHeight = 0;       // Block: content height (DIP) below the title
     int indent = 0;            // 0 page level, 1 inside an expander, 2 under its parent switch
-    bool dimmed = false;       // Setting: shown greyed with the reason, control disabled
+    bool dimmed = false;       // Setting: greyed, control disabled (§0.4 cross-page parent; none today)
     bool plain = false;        // Setting: no card (the link row to a Windows setting)
     // layout results (px, page coordinates before scrolling)
     RECT rc = {0, 0, 0, 0};
@@ -615,14 +615,8 @@ std::vector<Item> pageItems(int tab) {
             case RowKind::Toggle: {
                 const int idx = toggleIndex(r.field);
                 if (idx < 0) break;
-                Item t = toggleItem(idx);
-                if (r.dim != DimReason::None) {
-                    // Dimmed with the reason, never hidden (SETTINGS-CLEANUP-SPEC §0.4). The reason
-                    // replaces the caption (one short line, as on macOS).
-                    t.dimmed = true;
-                    t.descText = tr(r.dim == DimReason::TelexOnly ? S::DimTelexOnly : S::DimNeedsContextual);
-                }
-                v.push_back(t);
+                // A switch its parent makes useless is not in the plan at all (§0.4, §6).
+                v.push_back(toggleItem(idx));
                 break;
             }
             case RowKind::Control:
@@ -803,7 +797,7 @@ LRESULT CALLBACK toggleProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 const float x = (w - tw) / 2.0f, y = (hh - th) / 2.0f;
                 Gdiplus::GraphicsPath track;
                 roundRectPath(track, x, y, tw, th, th / 2);
-                if (!enabled) {  // dimmed (a parent switch is off / Telex-only under VNI)
+                if (!enabled) {  // disabled switch
                     Gdiplus::SolidBrush b(gc(on ? g_pal.ctrlBorder : g_pal.card));
                     g.FillPath(&b, &track);
                     Gdiplus::Pen pen(gc(g_pal.ctrlBorder), 1.0f);
@@ -1809,9 +1803,9 @@ void onCommand(int id, int code, HWND ctl) {
         g_settings.*kToggles[id - IdToggleBase].field = SendMessageW(ctl, BM_GETCHECK, 0, 0) == BST_CHECKED;
         changed();
         InvalidateRect(g_page, nullptr, FALSE);  // "Bật"/"Tắt" label
-        // Tự sửa từ phía trước / Đoán từ trùng theo tần suất are dimmed while Quyết định theo
-        // ngữ cảnh is off.
-        if (kToggles[id - IdToggleBase].field == &Settings::contextualEnglish)
+        // A parent switch (Tự khôi phục từ tiếng Anh, Quyết định theo ngữ cảnh, biểu tượng khay):
+        // the rows right under it show/hide at once (SETTINGS-CLEANUP-SPEC §0.4, §6).
+        if (affectsLayout(kToggles[id - IdToggleBase].field))
             PostMessageW(g_wnd, WM_APP + 2, 0, 0);  // rebuild outside this notification, keep scroll
         else
             refreshPickerIfStale();  // a profile switch moved: the checked picker row may change

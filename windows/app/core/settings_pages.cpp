@@ -16,10 +16,10 @@ struct Builder {
     void section(PageSection id) {
         level = 0;
         open = true;
-        rows.push_back({RowKind::Section, static_cast<int>(id), nullptr, 0, DimReason::None});
+        rows.push_back({RowKind::Section, static_cast<int>(id), nullptr, 0});
     }
     void expander(Expander e) {
-        rows.push_back({RowKind::Expander, static_cast<int>(e), nullptr, 0, DimReason::None});
+        rows.push_back({RowKind::Expander, static_cast<int>(e), nullptr, 0});
         level = 1;
         open = ctx.isExpanded(e);
     }
@@ -28,27 +28,42 @@ struct Builder {
         open = true;
     }
     void toggle(Field f, int extraIndent = 0) {
-        if (open) rows.push_back({RowKind::Toggle, 0, f, level + extraIndent, dimReason(s, f)});
+        if (open && !hiddenByParent(s, f)) rows.push_back({RowKind::Toggle, 0, f, level + extraIndent});
     }
     void control(PageControl c) {
-        if (open) rows.push_back({RowKind::Control, static_cast<int>(c), nullptr, level, DimReason::None});
+        if (open) rows.push_back({RowKind::Control, static_cast<int>(c), nullptr, level});
     }
 };
 
 }  // namespace
 
 bool isTelexOnly(bool Settings::*field) {
-    return field == &Settings::simpleTelex || field == &Settings::freeMarking || field == &Settings::quickTelex ||
-           field == &Settings::teencode || field == &Settings::bracketVowels;
+    return field == &Settings::simpleTelex || field == &Settings::freeMarking || field == &Settings::quickTelex;
 }
 
 bool hidesMixedGroup(const Settings& s) { return s.vniMode; }
 
-DimReason dimReason(const Settings& s, bool Settings::*field) {
-    if (s.vniMode && isTelexOnly(field)) return DimReason::TelexOnly;
+bool hiddenByParent(const Settings& s, bool Settings::*field) {
+    if (s.vniMode && isTelexOnly(field)) return true;
+    // Tự khôi phục từ tiếng Anh off: no English restore ⇒ nothing to prefer on a collision,
+    // nothing to guess by frequency.
+    if (!s.autoRestore && (field == &Settings::collisionPrefersVietnamese || field == &Settings::englishByFrequency))
+        return true;
+    // Quyết định theo ngữ cảnh off: both experiments build on the context decision.
     if (!s.contextualEnglish && (field == &Settings::retroactiveEnglish || field == &Settings::englishByFrequency))
-        return DimReason::NeedsContextual;
-    return DimReason::None;
+        return true;
+    // The tray menu only exists with the tray icon (main.cpp).
+    if (!s.showTrayIcon && field == &Settings::textToolsInMenu) return true;
+    return false;
+}
+
+bool showsTrayStyle(const Settings& s) { return s.showTrayIcon; }
+
+bool showsMixedCard(const Settings& s, const PageContext& ctx) { return ctx.mixedCardPending && !hidesMixedGroup(s); }
+
+bool affectsLayout(bool Settings::*field) {
+    return field == &Settings::autoRestore || field == &Settings::contextualEnglish ||
+           field == &Settings::showTrayIcon;
 }
 
 std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, const PageContext& ctx) {
@@ -56,7 +71,7 @@ std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, cons
     switch (page) {
         case SettingsPage::Typing:
             if (ctx.conflicts) b.control(PageControl::ConflictCard);
-            if (ctx.mixedCardPending) b.control(PageControl::MixedCard);
+            if (showsMixedCard(s, ctx)) b.control(PageControl::MixedCard);
             b.section(PageSection::InputStyle);
             b.control(PageControl::InputMethod);
             b.expander(Expander::TypingAdvanced);
@@ -128,7 +143,7 @@ std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, cons
             b.expander(Expander::Appearance);
             b.control(PageControl::IconPicker);
             b.toggle(&Settings::showTrayIcon);
-            b.control(PageControl::TrayStyle);
+            if (showsTrayStyle(s)) b.control(PageControl::TrayStyle);
             b.endExpander();
             b.section(PageSection::Updates);
             b.control(PageControl::CheckNow);
@@ -147,7 +162,9 @@ std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, cons
 bool findToggle(bool Settings::*field, SettingsPage& page, int& expander) {
     PageContext all;
     for (bool& e : all.expanded) e = true;
-    const Settings s;
+    Settings s;  // every parent on, so no dependent row is left out
+    s.vniMode = false;
+    s.autoRestore = s.contextualEnglish = s.showTrayIcon = true;
     for (int p = 0; p < static_cast<int>(SettingsPage::Count); ++p) {
         int current = -1;
         for (const PageRow& r : settingsPageRows(static_cast<SettingsPage>(p), s, all)) {

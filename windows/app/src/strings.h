@@ -143,9 +143,8 @@ enum class S {
     ProfilePickerIntro, ProfileCustom, ProfileCustomDesc, ProfileInUse, ProfileUse, ProfileConfirmTitle,
     ProfileConfirmBody,
     // Settings cleanup (docs/SETTINGS-CLEANUP-SPEC.md): "Nâng cao" expanders + their summaries,
-    // why a switch is dimmed, the shortcut import's file type and format names
+    // the shortcut import's file type and format names
     Advanced, TypingAdvancedSummary, MixedAdvancedSummary, SwitchAdvancedSummary, GamesSummary, AppearanceSummary,
-    DimTelexOnly, DimNeedsContextual,
     MixedVniNote,  // VNI: replaces the whole "Gõ lẫn tiếng Anh" group (one line)
     ImportFilterName, ImportFmtOther, ImportFmtText,
     Count

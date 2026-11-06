@@ -600,12 +600,6 @@ EN = {
         'Terminals: type directly when possible, otherwise underline the word being typed',
     'Terminal nhận phím qua IBus GTK3 hoặc Fcitx5 (fcitx5-gtk3, fcitx5-qt) — gnome-terminal, tilix, konsole… trên X11 — được gõ thẳng (sửa dấu bằng Backspace, không gạch chân). Terminal GTK4 (Ptyxis, Console), phiên Wayland GNOME, kitty/alacritty/foot và terminal của VS Code gạch chân chữ đang gõ: ở đó Backspace gửi đi không chắc đến trước chữ mới.':
         'Terminals that get keys through IBus GTK3 or Fcitx5 (fcitx5-gtk3, fcitx5-qt) — gnome-terminal, tilix, konsole… on X11 — type directly (marks fixed with Backspace, no underline). GTK4 terminals (Ptyxis, Console), GNOME Wayland sessions, kitty/alacritty/foot and the VS Code terminal underline the word being typed: there a sent Backspace isn’t guaranteed to arrive before the new text.',
-    'Chỉ áp dụng cho Telex.':
-        'Telex only.',
     'Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này.':
         'VNI leaves English words as typed, so there is nothing to set here.',
-    'Cần bật Quyết định theo ngữ cảnh.':
-        'Needs Decide by context.',
-    'Cần bật Gợi ý từ.':
-        'Needs Word suggestions.',
 }
