@@ -37,6 +37,23 @@ def telex_only_enabled(get):
     return get("typing", "input_method") != "vni"
 
 
+# Nhóm "Gõ lẫn tiếng Anh" (bộ chọn hồ sơ + Nâng cao): VNI đặt dấu bằng phím số nên từ tiếng Anh
+# gõ ra nguyên vẹn — cả nhóm vô tác dụng ⇒ ẨN cả nhóm, thay bằng MỘT dòng (SETTINGS-CLEANUP-SPEC
+# §1, ngoại lệ có chủ đích của §0.4). Không đổi key/giá trị: đổi lại Telex thấy y như cũ.
+MIXED_DESCRIPTION = N_("Nhận diện tiếng Anh khi gõ lẫn Việt–Anh.")
+MIXED_VNI_NOTE = N_("Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này.")
+
+
+def mixed_group_hidden(get):
+    """True ⇒ ẩn bộ chọn hồ sơ + Nâng cao của "Gõ lẫn tiếng Anh" (đang chọn VNI)."""
+    return get("typing", "input_method") == "vni"
+
+
+def mixed_group_description(get):
+    """Dòng mô tả dưới tiêu đề nhóm: khi ẩn thì là dòng ghi chú VNI thay cho cả nhóm."""
+    return MIXED_VNI_NOTE if mixed_group_hidden(get) else MIXED_DESCRIPTION
+
+
 def retro_english_enabled(get):
     """"Tự sửa từ phía trước" / "Đoán từ trùng theo tần suất" cần "Quyết định theo ngữ cảnh"."""
     return bool(get("typing", "contextual_english"))

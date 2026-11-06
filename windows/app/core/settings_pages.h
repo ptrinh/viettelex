@@ -13,6 +13,9 @@
 //   Chung            giới thiệu · ngôn ngữ · › Giao diện · cập nhật · gỡ lỗi · gỡ cài đặt
 //
 // "›" = an expander (collapsed by default, one level: an expander never holds another).
+// VNI hides the whole "Gõ lẫn tiếng Anh" group (profile rows + its › Nâng cao): VNI puts
+// tones on digit keys so English words come out as typed and none of those switches does
+// anything. One line (MixedVniNote) stands in for it; the keys keep their values (§1).
 // A switch that depends on another is never hidden: it stays right under its parent,
 // dimmed, with the reason (§0.4).
 #pragma once
@@ -59,6 +62,7 @@ enum class PageControl : int {
     CheckNow,
     Uninstall,
     Links,
+    MixedVniNote,        // VNI: the one line shown instead of the "Gõ lẫn tiếng Anh" group
 };
 
 // Why a switch is shown dimmed (and cannot be changed) — never hidden.
@@ -88,6 +92,8 @@ std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, cons
 // Telex-only switches (simple Telex, free tone placement, quick Telex, teencode, bracket
 // vowels): VNI never reads them.
 bool isTelexOnly(bool Settings::*field);
+// VNI: the "Gõ lẫn tiếng Anh" group is replaced by one line (SETTINGS-CLEANUP-SPEC §1).
+bool hidesMixedGroup(const Settings& s);
 DimReason dimReason(const Settings& s, bool Settings::*field);
 
 // Where a switch lives: its page and expander (-1 = page level). False if no page shows it.

@@ -129,6 +129,35 @@ class DependentTests(unittest.TestCase):
         # Bỏ dấu kiểu mới áp dụng cả VNI.
         self.assertEqual(layout.dependent_state(("typing", "modern_tone"), vni), (True, None))
 
+    def test_vni_hides_mixed_group(self):
+        """VNI: cả nhóm "Gõ lẫn tiếng Anh" (bộ chọn hồ sơ + Nâng cao) ẩn, thay bằng MỘT dòng
+        (SETTINGS-CLEANUP-SPEC §1); Telex hiện lại y như cũ; "Chuyển Việt/Anh" vẫn hiện."""
+        vni = getter({("typing", "input_method"): "vni"})
+        telex = getter({("typing", "input_method"): "telex"})
+        self.assertTrue(layout.mixed_group_hidden(vni))
+        self.assertFalse(layout.mixed_group_hidden(telex))
+        self.assertFalse(layout.mixed_group_hidden(getter({})))       # mặc định Telex
+        self.assertEqual(layout.mixed_group_description(vni), layout.MIXED_VNI_NOTE)
+        self.assertEqual(layout.mixed_group_description(telex), layout.MIXED_DESCRIPTION)
+        self.assertEqual(layout.MIXED_VNI_NOTE,
+                         "Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này.")
+        self.assertEqual(i18n.EN[layout.MIXED_VNI_NOTE],
+                         "VNI leaves English words as typed, so there is nothing to set here.")
+        # Chỉ đổi hiển thị: không ghi config.
+        src = ast.unparse(method("_apply_mixed_visibility"))
+        self.assertNotIn(".set(", src)
+        self.assertIn("mixed_group_hidden", src)
+        # Bộ chọn hồ sơ và Nâng cao của nhóm đều đi qua bộ ghi dòng (ẩn được); nhóm Chuyển
+        # Việt/Anh thì không.
+        mixed = ast.unparse(method("_mixed_groups"))
+        self.assertIn("self._profile_picker(rec)", mixed)
+        self.assertIn("self.advanced(rec,", mixed)
+        self.assertEqual(mixed.count("(rec"), 2)
+        # Đổi Telex/VNI trong cửa sổ ⇒ bố cục cập nhật ngay.
+        self.assertIn("self._apply_mixed_visibility()", ast.unparse(method("_apply_vni_visibility")))
+        # "Tuỳ chỉnh" không lộ ra khi nhóm đang ẩn.
+        self.assertIn("mixed_group_hidden", ast.unparse(method("_refresh_picker")))
+
     def test_reason_goes_first_original_kept(self):
         self.assertEqual(layout.dimmed_subtitle("Lý do.", "Mô tả"), "Lý do.\nMô tả")
         self.assertEqual(layout.dimmed_subtitle(None, "Mô tả"), "Mô tả")
