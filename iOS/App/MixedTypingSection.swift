@@ -227,8 +227,8 @@ private extension View {
 }
 
 /// Kiểu Gõ › Gõ lẫn tiếng Anh › "Nâng cao": các công tắc nhận diện tiếng Anh. Hai mục thử nghiệm
-/// phụ thuộc "Quyết định theo ngữ cảnh" đặt ngay dưới nó, mờ + lý do khi không dùng được
-/// (MixedTypingUI.disabledReason) — không ẩn. Ô tìm kiếm mở trang này kèm `highlight` (cuộn + tô sáng).
+/// phụ thuộc "Quyết định theo ngữ cảnh" đặt ngay dưới nó, ẨN khi nó tắt (MixedTypingUI.advancedRows,
+/// SETTINGS-CLEANUP-SPEC §0.4/§6). Ô tìm kiếm mở trang này kèm `highlight` (cuộn + tô sáng).
 struct MixedAdvancedPage: View {
     var highlight: MixedTypingItem? = nil
     @AppStorage("autoRestore", store: mixedDefaults) private var autoRestore = true
@@ -238,8 +238,8 @@ struct MixedAdvancedPage: View {
     @AppStorage("vniMode", store: mixedDefaults) private var vniMode = false
     @State private var highlighted: MixedTypingItem?
 
-    private func reason(_ item: MixedTypingItem) -> String? {
-        MixedTypingUI.disabledReason(item, contextualEnglish: contextualEnglish, vniMode: vniMode)
+    private var rows: [MixedTypingItem] {
+        MixedTypingUI.advancedRows(contextualEnglish: contextualEnglish, vniMode: vniMode)
     }
 
     var body: some View {
@@ -254,14 +254,18 @@ struct MixedAdvancedPage: View {
                         .row(.autoRestore, background(.autoRestore))
                     settingToggle(L(MixedTypingItem.contextualEnglish.viTitle), L(SettingCaption.contextualEnglish), isOn: $contextualEnglish)
                         .row(.contextualEnglish, background(.contextualEnglish))
-                    dependentToggle(L(MixedTypingItem.retroEnglish.viTitle), L(SettingCaption.retroEnglish),
-                                    isOn: $retroEnglishAuto, reason: reason(.retroEnglish), experimental: true)
-                        .padding(.leading, 12)
-                        .row(.retroEnglish, background(.retroEnglish))
-                    dependentToggle(L(MixedTypingItem.englishByFrequency.viTitle), L(SettingCaption.englishByFrequency),
-                                    isOn: $englishByFrequency, reason: reason(.englishByFrequency), experimental: true)
-                        .padding(.leading, 12)
-                        .row(.englishByFrequency, background(.englishByFrequency))
+                    if rows.contains(.retroEnglish) {
+                        dependentToggle(L(MixedTypingItem.retroEnglish.viTitle), L(SettingCaption.retroEnglish),
+                                        isOn: $retroEnglishAuto, reason: nil, experimental: true)
+                            .padding(.leading, 12)
+                            .row(.retroEnglish, background(.retroEnglish))
+                    }
+                    if rows.contains(.englishByFrequency) {
+                        dependentToggle(L(MixedTypingItem.englishByFrequency.viTitle), L(SettingCaption.englishByFrequency),
+                                        isOn: $englishByFrequency, reason: nil, experimental: true)
+                            .padding(.leading, 12)
+                            .row(.englishByFrequency, background(.englishByFrequency))
+                    }
                 } footer: {
                     Text(L("Cài đặt áp dụng ngay lần mở bàn phím kế tiếp."))
                 }

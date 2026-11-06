@@ -976,8 +976,9 @@ struct KieuGoSection: View {
     }
 }
 
-/// Kiểu Gõ › Kiểu gõ › "Nâng cao": tuỳ chọn ít người cần đổi. Mục chỉ-Telex KHÔNG ẩn khi chọn VNI —
-/// làm mờ + "Chỉ áp dụng cho Telex" (SETTINGS-CLEANUP-SPEC §0.4, §3). Cùng key như trước.
+/// Kiểu Gõ › Kiểu gõ › "Nâng cao": tuỳ chọn ít người cần đổi. Nằm ngay dưới bộ chọn Telex/VNI ⇒
+/// mục chỉ-Telex ẨN khi chọn VNI (SettingsDeps.typingAdvancedRows, SETTINGS-CLEANUP-SPEC §0.4/§6).
+/// Teencode chạy cả ở VNI ⇒ luôn hiện. Cùng key như trước; đổi lại Telex thấy y như cũ.
 struct TypingAdvancedPage: View {
     @AppStorage("freeMarking", store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var freeMarking = true
@@ -993,14 +994,23 @@ struct TypingAdvancedPage: View {
     private var vniMode = false
 
     var body: some View {
-        let telexOnly: String? = vniMode ? TelexOnly.reasonKey : nil
+        let rows = SettingsDeps.typingAdvancedRows(vniMode: vniMode)
         List {
             Section {
-                dependentToggle(L(SettingLabel.simpleTelex), L(SettingCaption.simpleTelex), isOn: $simpleTelex, reason: telexOnly)
-                dependentToggle(L(SettingLabel.freeMarking), L(SettingCaption.freeMarking), isOn: $freeMarking, reason: telexOnly)
-                dependentToggle(L(SettingLabel.quickTelex), L(SettingCaption.quickTelex), isOn: $quickTelex, reason: telexOnly)
-                settingToggle(L(SettingLabel.modernTone), L(SettingCaption.modernTone), isOn: $modernTone)
-                dependentToggle(L(SettingLabel.teencode), L(SettingCaption.teencode), isOn: $teencode, reason: telexOnly)
+                ForEach(rows, id: \.self) { r in
+                    switch r {
+                    case .simpleTelex:
+                        settingToggle(L(SettingLabel.simpleTelex), L(SettingCaption.simpleTelex), isOn: $simpleTelex)
+                    case .freeMarking:
+                        settingToggle(L(SettingLabel.freeMarking), L(SettingCaption.freeMarking), isOn: $freeMarking)
+                    case .quickTelex:
+                        settingToggle(L(SettingLabel.quickTelex), L(SettingCaption.quickTelex), isOn: $quickTelex)
+                    case .modernTone:
+                        settingToggle(L(SettingLabel.modernTone), L(SettingCaption.modernTone), isOn: $modernTone)
+                    case .teencode:
+                        settingToggle(L(SettingLabel.teencode), L(SettingCaption.teencode), isOn: $teencode)
+                    }
+                }
             } footer: {
                 Text(L("Cài đặt áp dụng ngay lần mở bàn phím kế tiếp."))
             }

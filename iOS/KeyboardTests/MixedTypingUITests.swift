@@ -1,6 +1,6 @@
 // Nhóm thu gọn "Gõ lẫn tiếng Anh" (Shared/MixedTypingUI.swift, docs/ONBOARDING-SPEC.md §4,
 // docs/SETTINGS-CLEANUP-SPEC.md §1): key lưu không đổi (sao lưu giữ nguyên), chỗ đặt cấp 1 / Nâng
-// cao, tìm kiếm Việt/Anh ra đúng mục, mục phụ thuộc "Quyết định theo ngữ cảnh" mờ + lý do.
+// cao, tìm kiếm Việt/Anh ra đúng mục, mục phụ thuộc "Quyết định theo ngữ cảnh" ẩn khi nó tắt.
 import XCTest
 
 final class MixedTypingUITests: XCTestCase {
@@ -69,21 +69,64 @@ final class MixedTypingUITests: XCTestCase {
         }
     }
 
-    /// Mục phụ thuộc KHÔNG ẩn mà mờ + lý do (§0.4): VNI ⇒ "Chỉ áp dụng cho Telex" (thắng), ngữ cảnh
-    /// tắt ⇒ "Cần bật Quyết định theo ngữ cảnh"; cùng điều kiện với RetroEnglishUI.switchVisible.
-    func testDependentItemsDimmedWithReason() {
+    /// §0.4/§6 (06/11/2026): hai mục thử nghiệm ngay dưới "Quyết định theo ngữ cảnh" ⇒ ẨN khi nó
+    /// tắt; VNI ⇒ trang chỉ còn dòng ghi chú. Cùng điều kiện với RetroEnglishUI.switchVisible.
+    func testContextChildrenHiddenWhenContextOff() {
+        XCTAssertEqual(MixedTypingUI.advancedRows(contextualEnglish: true, vniMode: false),
+                       [.autoRestore, .contextualEnglish, .retroEnglish, .englishByFrequency])
+        XCTAssertEqual(MixedTypingUI.advancedRows(contextualEnglish: false, vniMode: false),
+                       [.autoRestore, .contextualEnglish])
+        XCTAssertEqual(MixedTypingUI.advancedRows(contextualEnglish: true, vniMode: true), [])
         for item in [MixedTypingItem.retroEnglish, .englishByFrequency] {
-            XCTAssertNil(MixedTypingUI.disabledReason(item, contextualEnglish: true, vniMode: false))
-            XCTAssertEqual(MixedTypingUI.disabledReason(item, contextualEnglish: false, vniMode: false), "Cần bật Quyết định theo ngữ cảnh")
-            XCTAssertEqual(MixedTypingUI.disabledReason(item, contextualEnglish: true, vniMode: true), "Chỉ áp dụng cho Telex")
-            XCTAssertEqual(MixedTypingUI.disabledReason(item, contextualEnglish: false, vniMode: true), "Chỉ áp dụng cho Telex")
             for c in [false, true] { for v in [false, true] {
-                XCTAssertEqual(MixedTypingUI.disabledReason(item, contextualEnglish: c, vniMode: v) == nil,
+                XCTAssertEqual(MixedTypingUI.advancedRows(contextualEnglish: c, vniMode: v).contains(item),
                                RetroEnglishUI.switchVisible(contextualEnglish: c, vniMode: v))
             } }
         }
-        for item in MixedTypingItem.allCases where item != .retroEnglish && item != .englishByFrequency {
-            XCTAssertNil(MixedTypingUI.disabledReason(item, contextualEnglish: false, vniMode: true), "\(item)")
+    }
+}
+
+/// SETTINGS-CLEANUP-SPEC §0.4 + bảng §6 (06/11/2026): mục con cùng nhóm ngay dưới cha ⇒ ẩn; cha ở
+/// trang/nhóm khác ⇒ mờ + lý do. Chỉ hiển thị — không đổi key/giá trị.
+final class SettingsDepsTests: XCTestCase {
+
+    func testVniHidesTelexOnlyTypingOptions() {
+        XCTAssertEqual(SettingsDeps.typingAdvancedRows(vniMode: false),
+                       [.simpleTelex, .freeMarking, .quickTelex, .modernTone, .teencode])
+        XCTAssertEqual(SettingsDeps.typingAdvancedRows(vniMode: true), [.modernTone, .teencode])
+    }
+
+    /// Teencode chạy cả ở VNI (trước đây làm mờ nhầm "Chỉ áp dụng cho Telex").
+    func testTeencodeAlwaysShown() {
+        for v in [false, true] {
+            XCTAssertTrue(SettingsDeps.typingAdvancedRows(vniMode: v).contains(.teencode))
         }
+    }
+
+    func testSwipeOffHidesEverySwipeChild() {
+        XCTAssertEqual(SettingsDeps.swipeRows(swipeTyping: true),
+                       [.swipeEnglish, .neuralModel, .trailEffect, .practice])
+        XCTAssertEqual(SettingsDeps.swipeRows(swipeTyping: false), [])
+    }
+
+    /// Tự sửa từ gõ sai / Chọn phím thông minh: bàn phím tắt ngầm ở VNI, trang khác ⇒ mờ + lý do.
+    func testTelexOnlyReasonOnOtherPage() {
+        XCTAssertNil(SettingsDeps.telexOnlyReason(vniMode: false))
+        XCTAssertEqual(SettingsDeps.telexOnlyReason(vniMode: true), "Chỉ áp dụng cho Telex")
+    }
+
+    func testAutoFixAdjacentNeedsSuggestionBar() {
+        XCTAssertNil(SettingsDeps.autoFixAdjacentReason(showSuggestions: true))
+        XCTAssertEqual(SettingsDeps.autoFixAdjacentReason(showSuggestions: false), "Cần bật Thanh gợi ý")
+    }
+
+    func testReasonsTranslatedAndShort() {
+        for k in [TelexOnly.reasonKey, SettingsDeps.needsSuggestionsKey] {
+            let en = L10n.en[k]
+            XCTAssertNotNil(en, k)
+            XCTAssertLessThanOrEqual(k.count, 95, k)
+            XCTAssertLessThanOrEqual(en?.count ?? 0, 95, k)
+        }
+        XCTAssertEqual(L10n.en[SettingsDeps.needsSuggestionsKey], "Needs Suggestion bar")
     }
 }

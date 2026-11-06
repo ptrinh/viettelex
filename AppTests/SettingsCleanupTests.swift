@@ -153,8 +153,6 @@ final class SettingsCleanupTests: XCTestCase {
             "Suggestions & tools": "Gợi ý & công cụ",
             "Advanced": "Nâng cao",
             DiagnosticsSection.headerKey: "Nâng cao / Gỡ lỗi",
-            TypingTab.telexOnlyReason: "Chỉ áp dụng cho Telex.",
-            TypingTab.needsContextReason: "Cần bật Quyết định theo ngữ cảnh.",
             TypingTab.mixedAdvancedSummary: "Khôi phục từ tiếng Anh, ngữ cảnh, khi trùng từ, sửa từ phía trước…",
         ]
         for (k, v) in expect { XCTAssertEqual(vi.localizedString(forKey: k, value: nil, table: nil), v, k) }

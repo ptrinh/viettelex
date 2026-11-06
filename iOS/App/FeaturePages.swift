@@ -385,6 +385,8 @@ struct SuaLoiPage: View {
     @AppStorage("addTonesChip", store: featureDefaults) private var addTonesChip = false
     /// Plus, iOS 26+, mặc định TẮT — KeyboardSettings.aiProofread.
     @AppStorage(PlusFeature.aiProofreadKey, store: featureDefaults) private var aiProofread = false
+    /// Bộ chọn Telex/VNI ở trang khác ⇒ mục chỉ-Telex làm mờ + lý do (SettingsDeps, spec §6).
+    @AppStorage("vniMode", store: featureDefaults) private var vniMode = false
     @State private var confirmErase = false
     @State private var erased = false
 
@@ -404,9 +406,15 @@ struct SuaLoiPage: View {
                 settingToggle(L(SettingLabel.reEditWord), L(SettingCaption.reEditWord), isOn: $reEditWord)
             } header: { Text(L("Chính tả")) }
             Section {
-                experimentalToggle(L("Chọn phím thông minh"), L(SettingCaption.smartTouch), isOn: $smartTouch)
-                experimentalToggle(L("Tự sửa từ gõ sai"), L(SettingCaption.autoCorrect), isOn: $autoCorrect)
-                settingToggle(L("Gợi ý sửa lỗi chạm trượt"), L(SettingCaption.autoFixAdjacent), isOn: $autoFixAdjacent)
+                // Mục cha ở trang/nhóm khác ⇒ mờ + lý do (SETTINGS-CLEANUP-SPEC §0.4/§6): bàn phím
+                // tắt ngầm hai mục đầu ở VNI; gợi ý chạm trượt hiện trên Thanh gợi ý (nhóm dưới).
+                let telexOnly = SettingsDeps.telexOnlyReason(vniMode: vniMode)
+                dependentToggle(L("Chọn phím thông minh"), L(SettingCaption.smartTouch), isOn: $smartTouch,
+                                reason: telexOnly, experimental: true)
+                dependentToggle(L("Tự sửa từ gõ sai"), L(SettingCaption.autoCorrect), isOn: $autoCorrect,
+                                reason: telexOnly, experimental: true)
+                dependentToggle(L("Gợi ý sửa lỗi chạm trượt"), L(SettingCaption.autoFixAdjacent), isOn: $autoFixAdjacent,
+                                reason: SettingsDeps.autoFixAdjacentReason(showSuggestions: showSuggestions))
             } header: { Text(L("Chạm trượt")) } footer: {
                 Text(L(SettingCaption.adjacentFooter))
             }
@@ -509,7 +517,7 @@ struct SuggestionCountRow: View {
 struct GoVuotPage: View {
     @AppStorage("swipeTyping", store: featureDefaults) private var swipeTyping = false
     /// "Vuốt từ tiếng Anh" — mặc định BẬT (KeyboardSettings.swipeEnglish), chỉ có tác dụng khi bật
-    /// Gõ vuốt ⇒ ngay dưới công tắc Gõ vuốt, mờ + lý do khi Gõ vuốt tắt (SETTINGS-CLEANUP-SPEC §1).
+    /// Gõ vuốt ⇒ ngay dưới công tắc Gõ vuốt, ẨN khi Gõ vuốt tắt (SETTINGS-CLEANUP-SPEC §1, §0.4/§6).
     @AppStorage("swipeEnglish", store: featureDefaults) private var swipeEnglish = true
     /// Decoder FUTO Swipe — mặc định TẮT, xem KeyboardSettings.swipeFuto.
     @AppStorage("swipeFuto", store: featureDefaults) private var swipeFuto = false
@@ -517,14 +525,16 @@ struct GoVuotPage: View {
     @AppStorage(SwipeTrailStyle.key, store: featureDefaults) private var swipeTrailRaw = SwipeTrailStyle.defaultValue.rawValue
 
     var body: some View {
+        // Tắt Gõ vuốt ⇒ ẩn mọi dòng phụ thuộc trên trang này (SettingsDeps.swipeRows, spec §6).
+        let rows = SettingsDeps.swipeRows(swipeTyping: swipeTyping)
         FeaturePageList(page: .goVuot) {
             Section {
                 experimentalToggle(L("Gõ vuốt"), L(SettingCaption.swipeTyping), isOn: $swipeTyping)
-                dependentToggle(L(SettingLabel.swipeEnglish),
-                                L(SettingCaption.swipeEnglish),
-                                isOn: $swipeEnglish, reason: swipeTyping ? nil : LK("Cần bật Gõ vuốt"))
-                    .padding(.leading, 12)
-                if swipeTyping {
+                if rows.contains(.swipeEnglish) {
+                    settingToggle(L(SettingLabel.swipeEnglish), L(SettingCaption.swipeEnglish), isOn: $swipeEnglish)
+                        .padding(.leading, 12)
+                }
+                if rows.contains(.neuralModel) {
                     settingToggle(L("Mô hình neural gõ vuốt"), L(SettingCaption.swipeFuto), isOn: $swipeFuto)
                     // Ghi công BẮT BUỘC theo FUTO Model Weights License 1.0 ("visible notice …
                     // within the product's settings") — Phil 27/09/2026: chỉ hiện ở đây (dưới công
@@ -537,20 +547,22 @@ struct GoVuotPage: View {
             } footer: {
                 Text(L(SettingCaption.swipeFooterIos))
             }
-            Section {
-                NavigationLink {
-                    SwipeTrailPickerView()
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(L("Hiệu ứng nét vuốt"))
-                        if !SwipeTrailGate.allows { SwipeTrailPlusBadge() }
-                        Spacer()
-                        Text(SwipeTrailStyle.displayed(swipeTrailRaw).title)
-                            .foregroundStyle(.secondary).lineLimit(1)
+            if rows.contains(.trailEffect) {
+                Section {
+                    NavigationLink {
+                        SwipeTrailPickerView()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(L("Hiệu ứng nét vuốt"))
+                            if !SwipeTrailGate.allows { SwipeTrailPlusBadge() }
+                            Spacer()
+                            Text(SwipeTrailStyle.displayed(swipeTrailRaw).title)
+                                .foregroundStyle(.secondary).lineLimit(1)
+                        }
                     }
                 }
             }
-            if swipeTyping {
+            if rows.contains(.practice) {
                 Section {
                     NavigationLink {
                         SwipePracticeView()
