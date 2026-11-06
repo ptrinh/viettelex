@@ -43,6 +43,16 @@ Gõ lẫn tiếng Anh                        dòng tóm tắt khi thu gọn (mob
         Đoán từ trùng theo tần suất (thử nghiệm) ← như trên
 ```
 
+- **Khi chọn VNI (06/11/2026): ẨN nhóm "Gõ lẫn tiếng Anh"** (bộ chọn hồ sơ + Nâng cao). VNI đặt dấu
+  bằng phím số nên từ tiếng Anh gõ ra nguyên vẹn — đo 06/11/2026: google/the/his/pass/case1 cho cùng
+  kết quả dù bật hay tắt Tự khôi phục; khi trùng từ, ngữ cảnh, tần suất, sửa từ phía trước đều chỉ-Telex.
+  Thay nhóm bằng MỘT dòng: "Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này." /
+  "VNI leaves English words as typed, so there is nothing to set here." Ngoại lệ có chủ đích của §0.4:
+  cả nhóm vô tác dụng ⇒ ẩn gọn hơn làm mờ cả chục dòng. **Giữ nguyên hiện**: Chuyển Việt/Anh (desktop),
+  Vuốt phím cách đổi Tiếng Việt/Anh (mobile), Từ điển cá nhân nếu nó còn phục vụ gợi ý/khác ngoài khôi
+  phục tiếng Anh. Không đổi key/giá trị (đổi lại Telex thấy y như cũ); engine không đổi. Tìm kiếm cài
+  đặt (mobile): mục bị ẩn vẫn tìm được và mở ra thấy dòng ghi chú. Onboarding: chọn VNI ⇒ bỏ qua bước
+  hỏi hồ sơ gõ lẫn (nếu có).
 - **"Vuốt từ tiếng Anh"** (mobile) chuyển về trang **Gõ vuốt**, ngay dưới công tắc Gõ vuốt (nó phụ
   thuộc Gõ vuốt). Bộ chọn hồ sơ vẫn đặt giá trị của nó như cũ; tìm kiếm cài đặt trỏ tới chỗ mới.
 - Desktop: **"Chuyển Việt/Anh"** là nhóm riêng, ngay dưới nhóm mixed: phím chuyển (control chính) +
