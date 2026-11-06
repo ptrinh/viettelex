@@ -198,6 +198,19 @@ final class FieldTraitsTests: XCTestCase {
         XCTAssertTrue(FieldTraits().allowsSuggestions)
     }
 
+    /// Thêm dấu / công cụ văn bản rồi chạm chỗ khác, chạm lại, ⌫ ⇒ xoá một ký tự, không hoàn tác cũ.
+    func testUndoOfferDiesWhenCursorLeavesReplacedText() {
+        // tiếng vọng trễ của chính edit: chữ vừa thay vẫn trước con trỏ ⇒ giữ
+        XCTAssertTrue(CompositionSync.keepsUndo(context: "xin chào các bạn", result: "các bạn"))
+        // chạm chỗ khác: chữ trước con trỏ khác ⇒ bỏ (lần chạm quay lại không hồi sinh vì đã bỏ)
+        XCTAssertFalse(CompositionSync.keepsUndo(context: "xin ch", result: "các bạn"))
+        XCTAssertFalse(CompositionSync.keepsUndo(context: "", result: "các bạn"))
+        XCTAssertFalse(CompositionSync.keepsUndo(context: nil, result: "các bạn"))
+        // có vùng chọn ⇒ bỏ
+        XCTAssertFalse(CompositionSync.keepsUndo(context: "xin chào các bạn", result: "các bạn", selectedText: "xin"))
+        XCTAssertFalse(CompositionSync.keepsUndo(context: "abc", result: ""))
+    }
+
     func testLogDescriptionHasTraitKeys() {
         let d = FieldTraits(keyboardType: .webSearch, returnKeyType: .search).logDescription
         XCTAssertTrue(d.contains("keyboardType=\(UIKeyboardType.webSearch.rawValue)"))

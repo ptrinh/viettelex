@@ -4299,6 +4299,49 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         var padAltStart: CGPoint?
         var padAltTimer: DispatchWorkItem?
         var onPadAltChoose: (() -> Void)?
+        // MARK: chạm mới khi phím đang đè chốt rồi đổi plane (KeyCommitQueue.flush(except:changes:))
+        /// Gọi TRƯỚC touchDown của UIControl: chốt phím đang đè. true ⇒ plane đã đổi và chạm đã
+        /// chuyển sang plane mới — nút này (plane cũ, không còn hiện) bỏ qua mọi sự kiện của chạm đó.
+        var preTouchDown: ((KeyButton, UITouch, UIEvent?) -> Bool)?
+        /// Sự kiện tiếp theo (moved / ended / cancelled) của chạm đã chuyển.
+        var onForwardedTouches: ((UITouch.Phase, Set<UITouch>, UIEvent?) -> Void)?
+        private var forwardedTouches: Set<ObjectIdentifier> = []
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+            guard let pre = preTouchDown else { return super.touchesBegan(touches, with: event) }
+            var keep = touches
+            for t in touches where pre(self, t, event) {
+                keep.remove(t)
+                forwardedTouches.insert(ObjectIdentifier(t))
+                // Giữ space cũ (trackpad) không được nhận diện trên nút đã bỏ.
+                gestureRecognizers?.forEach { $0.isEnabled = false; $0.isEnabled = true }
+            }
+            if !keep.isEmpty { super.touchesBegan(keep, with: event) }
+        }
+        private func splitForwarded(_ touches: Set<UITouch>, _ phase: UITouch.Phase, _ event: UIEvent?) -> Set<UITouch> {
+            guard !forwardedTouches.isEmpty else { return touches }
+            var fwd = Set<UITouch>(), rest = Set<UITouch>()
+            for t in touches {
+                let id = ObjectIdentifier(t)
+                guard forwardedTouches.contains(id) else { rest.insert(t); continue }
+                fwd.insert(t)
+                if phase != .moved { forwardedTouches.remove(id) }
+            }
+            if !fwd.isEmpty { onForwardedTouches?(phase, fwd, event) }
+            return rest
+        }
+        override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+            let rest = splitForwarded(touches, .moved, event)
+            if !rest.isEmpty { super.touchesMoved(rest, with: event) }
+        }
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+            let rest = splitForwarded(touches, .ended, event)
+            if !rest.isEmpty { super.touchesEnded(rest, with: event) }
+        }
+        override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+            let rest = splitForwarded(touches, .cancelled, event)
+            if !rest.isEmpty { super.touchesCancelled(rest, with: event) }
+        }
+
         override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
             if padAlt != nil { padAltStart = touch.location(in: self) }
             return super.beginTracking(touch, with: event)
@@ -4527,6 +4570,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             self?.settleAltHold()                 // ký tự phụ đang giữ chốt TRƯỚC phím mới
             self?.commits.flush(except: b.map(ObjectIdentifier.init))
         }, for: .touchDown)
+        // Chạm thật trên nút (không qua router): chốt TRƯỚC khi UIControl bắt đầu theo dõi — chốt
+        // đổi plane (space / dấu ở 123 về ABC) ⇒ chạm chuyển sang plane mới (flushBeforeButtonDown).
+        b.preTouchDown = { [weak self] b, t, e in self?.flushBeforeButtonDown(b, touch: t, event: e) ?? false }
+        b.onForwardedTouches = { [weak self] phase, ts, e in self?.reroutedTouchEvents(phase, ts, e) }
         b.isMultipleTouchEnabled = true
         b.isSpecial = special
         b.setTitle(title, for: .normal)
@@ -5813,7 +5860,67 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return letterKeys[TouchTarget.choose(p, rects: g.rects, keys: g.chars, nearest: idx, prior: prior)].button
     }
 
+    // MARK: chạm mới đã gán cho nút của plane CŨ (UIKit hit-test trước khi phím đang đè chốt)
+
+    /// Chạm đã chuyển sang plane mới: router chữ (routedTouches) hoặc nút thật (reroutedControls).
+    /// Giữ UITouch để dọn nếu nút cũ (đã gỡ) không còn nhận sự kiện nhấc.
+    private var reroutedTouches: [ObjectIdentifier: UITouch] = [:]
+    private var reroutedControls: [ObjectIdentifier: UIControl] = [:]
+
+    /// KeyButton.preTouchDown: chốt phím đang đè (như hook touchDown của baseButton). Space /
+    /// dấu kết vế ở 123/#+= có thể về ABC lúc chốt — nút `b` (plane cũ) không còn hiện ⇒ tra lại
+    /// điểm chạm ở plane mới: vùng chữ ⇒ routeDown, nút thật ⇒ gửi touchDown cho nút đó.
+    private func flushBeforeButtonDown(_ b: KeyButton, touch t: UITouch, event: UIEvent?) -> Bool {
+        sweepReroutedTouches()
+        settleAltHold()
+        guard commits.flush(except: ObjectIdentifier(b), changes: { plane }),
+              !b.isDescendant(of: self) else { return false }
+        layoutIfNeeded()                         // plane mới vừa dựng: khung phím cho router
+        let id = ObjectIdentifier(t), raw = t.location(in: self)
+        let target = bounds.contains(raw) ? routedHitTest(raw, with: event, time: t.timestamp) : nil
+        if target === self {
+            reroutedTouches[id] = t
+            routeDown(id, at: raw, time: t.timestamp, batch: 1)
+        } else if let c = target as? UIControl, c !== b {
+            reroutedTouches[id] = t
+            reroutedControls[id] = c
+            c.sendActions(for: .touchDown)
+        }
+        return true
+    }
+
+    private func reroutedTouchEvents(_ phase: UITouch.Phase, _ touches: Set<UITouch>, _ event: UIEvent?) {
+        for t in touches {
+            let id = ObjectIdentifier(t)
+            guard reroutedTouches[id] != nil else { continue }
+            if phase == .moved {
+                if reroutedControls[id] == nil { touchesMoved([t], with: event) }
+                continue
+            }
+            endRerouted(id, touch: t, cancelled: phase == .cancelled)
+        }
+    }
+
+    private func endRerouted(_ id: ObjectIdentifier, touch t: UITouch, cancelled: Bool) {
+        reroutedTouches[id] = nil
+        if let c = reroutedControls.removeValue(forKey: id) {
+            let inside = c.bounds.contains(t.location(in: c))
+            c.sendActions(for: cancelled ? .touchCancel : inside ? .touchUpInside : .touchUpOutside)
+        } else {
+            routeUp(id, at: t.location(in: self), time: t.timestamp, cancelled: cancelled)
+        }
+    }
+
+    /// Nút cũ đã gỡ có thể không nhận nhấc ⇒ chạm đã kết thúc mà chưa dọn: chốt như huỷ.
+    private func sweepReroutedTouches() {
+        guard !reroutedTouches.isEmpty else { return }
+        for (id, t) in reroutedTouches where t.phase == .ended || t.phase == .cancelled {
+            endRerouted(id, touch: t, cancelled: true)
+        }
+    }
+
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        sweepReroutedTouches()
         for t in touches {
             routeDown(ObjectIdentifier(t), at: t.location(in: self), time: t.timestamp,
                       batch: touches.count)

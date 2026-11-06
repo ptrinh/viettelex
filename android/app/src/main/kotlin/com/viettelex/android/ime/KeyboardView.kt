@@ -1407,7 +1407,11 @@ class KeyboardView(
             }
         }
         val forced = a11yKey
-        val hit = forced ?: KeyLayout.hit(keys, plane, x, y, TouchGeometry.yOffset * d, d, e.eventTime - lastLetterDownT)
+        // ĐẦU TIÊN: chốt các phím nhấc-mới-chốt đang đè (thứ tự khi gõ chồng ngón). Chốt space /
+        // dấu ở ?123 có thể về ABC ⇒ tra lại phím ở bố cục mới (FlushRoute).
+        val hit = FlushRoute.resolve(
+            { forced ?: KeyLayout.hit(keys, plane, x, y, TouchGeometry.yOffset * d, d, e.eventTime - lastLetterDownT) },
+            { commits.flush(it) }, { keys })
         cancelCommaHold()                 // ngón khác chạm ⇒ "," đang giữ là gõ thường
         if (TouchLog.enabled) {
             val lag = (SystemClock.uptimeMillis() - e.eventTime).toDouble()
@@ -1415,8 +1419,6 @@ class KeyboardView(
                 hit?.let { if (it.kind == KeyKind.LETTER) it.label else null })
         }
         if (hit == null) return
-        // ĐẦU TIÊN: chốt các phím nhấc-mới-chốt đang đè (thứ tự khi gõ chồng ngón).
-        commits.flush(hit)
         // Chọn phím theo ngữ cảnh (thử nghiệm) — SAU flush để prior thấy từ đang gõ mới nhất.
         // Giữ ⇧ + phím có ký tự phụ ⇒ gõ ký tự phụ: không chọn phím theo ngữ cảnh chữ.
         val shiftSym = if (shiftPtr >= 0 && hit.kind == KeyKind.LETTER && shiftAlts.isNotEmpty())

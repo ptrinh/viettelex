@@ -558,10 +558,13 @@ class ImeRootView(
         val nav: Int
         val tap: Int
         val top: Int
+        var cap = 0
         if (Build.VERSION.SDK_INT >= 30) {
             nav = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
             tap = insets.getInsets(WindowInsets.Type.tappableElement()).bottom
-            top = insets.getInsets(WindowInsets.Type.statusBars() or WindowInsets.Type.displayCutout()).top
+            // API 35+ điều hướng cử chỉ: dải nút ⌄/🌐 của IME báo qua captionBar (ImeInsets.bottomPad).
+            cap = insets.getInsets(WindowInsets.Type.captionBar()).bottom
+            top =insets.getInsets(WindowInsets.Type.statusBars() or WindowInsets.Type.displayCutout()).top
         } else {
             nav = insets.systemWindowInsetBottom
             tap = if (Build.VERSION.SDK_INT >= 29) insets.tappableElementInsets.bottom else 0
@@ -570,11 +573,11 @@ class ImeRootView(
         // Thả nổi: khung không chui dưới thanh trạng thái (cửa sổ tràn lên đỉnh màn hình).
         if (top != statusTop) { statusTop = maxOf(top, 0); if (floating) requestLayout() }
         insetsKnown = true
-        update(nav, tap)
+        update(nav, tap, cap)
     }
 
-    private fun update(nav: Int, tap: Int) {
-        val pad = ImeInsets.bottomPad(Build.VERSION.SDK_INT, nav, tap, systemNavBarHeight(), insetsKnown)
+    private fun update(nav: Int, tap: Int, cap: Int = 0) {
+        val pad = ImeInsets.bottomPad(Build.VERSION.SDK_INT, nav, tap, systemNavBarHeight(), insetsKnown, cap)
         if (pad != navInset) { navInset = pad; requestLayout() }
     }
 

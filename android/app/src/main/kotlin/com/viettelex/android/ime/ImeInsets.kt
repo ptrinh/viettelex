@@ -9,12 +9,16 @@ object ImeInsets {
     /**
      * @param navBottom      WindowInsets navigationBars().bottom (px)
      * @param tappableBottom WindowInsets tappableElement().bottom (px)
+     * @param captionBottom  WindowInsets captionBar().bottom (px) — API 35+ (điều hướng cử chỉ)
+     *                       báo dải nút ⌄/🌐 của IME qua captionBar, có thể cao hơn navigationBars
+     *                       (API 36: nav 63, caption 126). Lấy max, không cộng dồn.
      * @param fallbackNavBar chiều cao nav bar IME của hệ thống (px, từ dimen android) —
      *                       chỉ dùng khi API ≥ 35 mà insets không tới view (bị ancestor nuốt).
      * @param insetsKnown    đã nhận được WindowInsets thật hay chưa
      */
-    fun bottomPad(sdk: Int, navBottom: Int, tappableBottom: Int, fallbackNavBar: Int, insetsKnown: Boolean): Int {
-        val reported = maxOf(navBottom, tappableBottom, 0)
+    fun bottomPad(sdk: Int, navBottom: Int, tappableBottom: Int, fallbackNavBar: Int, insetsKnown: Boolean,
+                  captionBottom: Int = 0): Int {
+        val reported = maxOf(maxOf(navBottom, tappableBottom), captionBottom, 0)
         if (reported > 0) return reported
         // API < 35: hệ thống tự đặt cửa sổ IME TRÊN nav bar ⇒ không đệm (tránh đệm đôi).
         if (sdk < 35) return 0

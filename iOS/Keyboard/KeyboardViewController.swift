@@ -124,6 +124,9 @@ final class KeyboardViewController: UIInputViewController {
     /// Thêm dấu (AddTones): kế hoạch vừa áp — chip "Hoàn tác" / ⌫ ngay sau (tới phím kế);
     /// đoạn vừa hoàn tác (không mời lại); cache kế hoạch theo văn bản trước con trỏ.
     private var addTonesUndo: AddTones.Plan?
+    /// Gợi ý vừa nhận đã chèn chuỗi này ("từ "): phím kế là . , ? ! ) hay nháy đóng ⇒ xoá dấu
+    /// cách đó (AutoSpace.snapsSuggestionSpace). Mọi phím / đổi con trỏ khác bỏ.
+    private var suggestionSnap: String?
     private var addTonesDismissed: String?
     private var addTonesCache: (before: String, plan: AddTones.Plan?)?
     /// Vuốt phím cách đổi Tiếng Việt ↔ Tiếng Anh (công tắc trong app; tắt ⇒ luôn .vi).
@@ -430,6 +433,7 @@ final class KeyboardViewController: UIInputViewController {
         swipeSuggest = nil
         recentEnglish = []; langRecent = []
         addTonesUndo = nil; addTonesDismissed = nil; addTonesCache = nil
+        suggestionSnap = nil
         // Trait ô (layout, return key, passthrough, bar) — force: mỗi lần hiện áp lại
         // appearance/mẫu câu dù trait y hệt (batchConfigure tự dedupe rebuild).
         StartupTrace.span("fieldTraits") { refreshFieldTraits(force: true) }
@@ -827,6 +831,17 @@ final class KeyboardViewController: UIInputViewController {
             restoreUndo = nil; undoOfferActive = false
             swipeTyped = nil; swipeTypedUndo = nil
         }
+        // Con trỏ rời chữ vừa thay ⇒ bỏ "⌫ = hoàn tác" (chạm quay lại không hồi sinh).
+        if let u = addTonesUndo, !CompositionSync.keepsUndo(context: ctx, result: u.replacement, selectedText: selected) {
+            addTonesUndo = nil
+        }
+        if let u = textToolUndo, !CompositionSync.keepsUndo(context: ctx, result: u.result, selectedText: selected) {
+            textToolUndo = nil
+        }
+        // Con trỏ rời "từ " của gợi ý vừa nhận ⇒ không hút dấu cách nữa (tiếng vọng trễ thì giữ).
+        if let s = suggestionSnap, !CompositionSync.keepsUndo(context: ctx, result: s, selectedText: selected) {
+            suggestionSnap = nil
+        }
         return verdict
     }
 
@@ -955,6 +970,7 @@ final class KeyboardViewController: UIInputViewController {
         pendingTouch = nil
         // ⌫ NGAY SAU khi thêm dấu = hoàn tác (một lần); phím khác bỏ lời mời hoàn tác.
         if case .backspace = key, addTonesUndo != nil, !bridge.isComposing, swipeSuggest == nil {
+            suggestionSnap = nil
             undoAddTones()
             return
         }
@@ -963,6 +979,16 @@ final class KeyboardViewController: UIInputViewController {
         var proxy = Proxy(p: textProxy)
         // textWillChange tới mà textDidChange chưa kịp → đối chiếu ngay trước phím.
         if externalChangePending, !trackpadActive { syncComposition("key") }
+        let snap = suggestionSnap          // chỉ phím NGAY sau khi nhận gợi ý (sync đã bỏ nếu con trỏ dời)
+        suggestionSnap = nil
+        // Gợi ý vừa chèn "từ " + phím . , ? ! ) / nháy đóng ⇒ "từ." như bàn phím gốc: xoá THẲNG dấu
+        // cách của gợi ý (không ⌫ qua engine — ⌫ là mở lại từ / hoàn tác), rồi quên lần chốt.
+        if let ins = snap, case .text(let s) = key,
+           AutoSpace.snapsSuggestionSpace(s, before: textProxy.documentContextBeforeInput, inserted: ins) {
+            removeAutoSpace()
+            bridge.forgetLastCommit()
+            restoreUndo = nil; undoOfferActive = false
+        }
         // Tự thêm dấu cách sau dấu câu: phím ngay sau quyết định số phận dấu cách đó.
         var autoSpaceCarry = false
         let underLetter = autoSpaceUnderLetter
@@ -1603,6 +1629,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func rawInsert(_ s: String) {
         addTonesUndo = nil
+        suggestionSnap = nil
         applyingEdit = true
         defer { applyingEdit = false }
         // Lệch (con trỏ đã dời) → không xoá gì, chỉ chèn mẫu tại con trỏ.
@@ -2255,6 +2282,7 @@ final class KeyboardViewController: UIInputViewController {
         defer { applyingEdit = false }
         learnSettledSwipe()
         addTonesUndo = nil
+        suggestionSnap = nil
         swipeTyped = nil; swipeTypedUndo = nil
         if item == KeyboardView.pasteImageToken {       // chỉ hướng dẫn → ẩn thẻ
             pasteUsedChange = pasteboard.changeCount
@@ -2291,6 +2319,7 @@ final class KeyboardViewController: UIInputViewController {
             }
             for _ in 0..<u.raw.count { textProxy.deleteBackward() }
             textProxy.insertText(u.composed + " ")
+            suggestionSnap = u.composed + " "
             restoreUndo = nil; undoOfferActive = false
             bridge.reset()
             commitAndLearn(u.composed, accepted: true)
@@ -2313,6 +2342,7 @@ final class KeyboardViewController: UIInputViewController {
         }
         for _ in 0..<composed.count { textProxy.deleteBackward() }
         textProxy.insertText(isWord ? item + " " : item)
+        if isWord { suggestionSnap = item + " " }
         keyboard?.buddy?.emojiInserted(item)
         bridge.reset()
         // Chèn đúng dạng đang hiện ("Bên" khi Shift); học dạng thường (record lowercased).
@@ -3166,6 +3196,7 @@ extension KeyboardViewController {
     /// Nguồn: selectedText (iOS 16+) nếu có, không thì đoạn trước con trỏ (tới xuống dòng).
     fileprivate func applyTextTool(_ tool: TextTool) {
         guard keyboard.textToolsEnabled else { return }   // Plus + công tắc (viewWillAppear)
+        suggestionSnap = nil
         applyingEdit = true
         defer { applyingEdit = false }
         // Từ đang soạn đã nằm trong ô (iOS chèn thẳng) — engine bỏ nó như sau khi dán.
@@ -3334,6 +3365,7 @@ extension KeyboardViewController {
     /// (chữ trước con trỏ phải đúng là bản gốc), không xoá mù.
     fileprivate func applyAddTones() {
         addTonesCache = nil
+        suggestionSnap = nil
         guard let plan = addTonesPlan() else { updateSuggestions(); return }
         addTonesCache = nil
         applyingEdit = true
