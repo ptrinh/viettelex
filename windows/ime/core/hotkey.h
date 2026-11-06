@@ -7,7 +7,7 @@
 //                            the user flips between VietTelex and an English keyboard
 //                            with Win+Space (Windows remembers it per app window if the
 //                            user enables that in Settings > Time & language > Typing).
-//   "alt-z"                   UniKey habit: Alt+Z toggles inside the TIP (PreserveKey).
+//   "alt-z"                   common habit: Alt+Z toggles inside the TIP (PreserveKey).
 //   "off"                     no hotkey; the tray / language-bar button still toggles.
 // Unknown / corrupt values fall back to the default rather than disabling switching.
 #pragma once
