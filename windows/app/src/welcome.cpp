@@ -147,6 +147,7 @@ LRESULT CALLBACK welcomeProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             if (g_font) DeleteObject(g_font);
             if (g_title) DeleteObject(g_title);
             g_font = g_title = nullptr;
+            requestIdleTrim();
             return 0;
         default: break;
     }
@@ -189,5 +190,6 @@ void showWelcome() {
 }
 
 bool welcomeDialogMessage(MSG* msg) { return g_wnd && IsDialogMessageW(g_wnd, msg); }
+bool welcomeWindowOpen() { return g_wnd != nullptr; }
 
 }  // namespace vtx::app

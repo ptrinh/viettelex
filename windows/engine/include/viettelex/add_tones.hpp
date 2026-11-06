@@ -34,7 +34,7 @@ public:
     int formIndex(std::string_view folded) const;
     int formFirstId(int f) const { return formStart_[static_cast<size_t>(f)]; }
     int formEndId(int f) const { return formStart_[static_cast<size_t>(f) + 1]; }
-    int formCount() const { return static_cast<int>(forms_.size()); }
+    int formCount() const { return formStart_.empty() ? 0 : static_cast<int>(formStart_.size()) - 1; }
     /// Folded key (lowercase a–z bases) of syllable `id`, and the per-letter attribute
     /// byte (quality << 3 | tone, VNSuggest.decompose) of its letter `i`.
     std::string_view folded(int id) const;
@@ -47,7 +47,8 @@ private:
     int count_ = 0;
     uint32_t hash_ = 0;
     size_t folded_ = 0, display_ = 0, attrs_ = 0, offsets_ = 0, dispOffsets_ = 0, freqs_ = 0;
-    std::vector<std::string_view> forms_;
+    // First id of each form (+ count_ at the end); the form's key is folded(formStart_[f]).
+    // 4 bytes per form, no string_view copy of the keys (heap: ~7 KB, not ~40 KB).
     std::vector<int> formStart_;
 };
 
@@ -56,15 +57,20 @@ class EnglishLexicon {
 public:
     bool load(const uint8_t* data, size_t size);
     bool contains(std::string_view word) const;
-    size_t size() const { return words_.size(); }
+    size_t size() const { return offs_.size(); }
     /// Word `i` (file order = sorted) and its frequency byte (0–255).
-    std::string_view word(size_t i) const { return words_[i]; }
-    int freq(size_t i) const { return static_cast<uint8_t>(words_[i].data()[-1]); }
+    std::string_view word(size_t i) const {
+        return std::string_view(reinterpret_cast<const char*>(data_ + offs_[i] + 2), data_[offs_[i]]);
+    }
+    int freq(size_t i) const { return data_[offs_[i] + 1]; }
     /// Index of the first word not less than `w` (byte order).
     size_t lowerBound(std::string_view w) const;
 
 private:
-    std::vector<std::string_view> words_;
+    // Offset of each record ([len][freq][a–z]…) in the caller's bytes: 4 bytes per word
+    // (20k words ⇒ ~80 KB of heap, not the ~320 KB a string_view per word took).
+    const uint8_t* data_ = nullptr;
+    std::vector<uint32_t> offs_;
 };
 
 /// vnlm.bin v3 — Kneser–Ney trigram syllable LM, Elias–Fano, read in place.

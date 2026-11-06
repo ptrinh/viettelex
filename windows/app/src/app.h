@@ -18,6 +18,7 @@ enum class Tab : int { Typing = 0, Spelling, Shortcuts, Apps, About };
 void showSettings(Tab tab = Tab::Typing);
 void refreshSettingsWindow();  // settings changed elsewhere (e.g. TIP menu)
 bool settingsDialogMessage(MSG* msg);
+bool settingsWindowOpen();
 
 // Dark mode helpers (settings_window.cpp).
 bool systemUsesDarkApps();
@@ -31,5 +32,11 @@ void importShortcutsDialog(HWND owner);
 // input method / Windows' own Vietnamese keyboard is found (app_feel.h welcomeResolveRow).
 void showWelcome();
 bool welcomeDialogMessage(MSG* msg);
+bool welcomeWindowOpen();
+
+// Hand the idle working set back to Windows a few seconds from now, once no window is open
+// and the user is not typing (core/idle_trim.h; main.cpp). Called after start and whenever
+// Settings / the welcome window closes.
+void requestIdleTrim();
 
 }  // namespace vtx::app

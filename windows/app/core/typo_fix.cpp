@@ -559,14 +559,23 @@ HintJobs::~HintJobs() {
     delete model_;
 }
 
+const addtones::LanguageData* HintJobs::data() {
+    if (!loaded_) {
+        loaded_ = true;
+        if (load_) data_ = load_();
+        load_ = nullptr;
+    }
+    return data_;
+}
+
 bool HintJobs::knownWord(const std::string& w) {
-    if (!data_ || !data_->ok()) return false;
+    if (!data() || !data_->ok()) return false;
     if (!model_) model_ = new (std::nothrow) predict::Model(*data_);
     return model_ && model_->knownWord(w);
 }
 
 std::u16string HintJobs::answer(const HintMessage& m) {
-    if (!data_ || !data_->ok() || m.text.empty()) return {};
+    if (m.text.empty() || !data() || !data_->ok()) return {};
     if (m.job == static_cast<uint32_t>(HintJob::Typo)) {
         if (!source_ || flags_ != m.flags) {
             delete source_;

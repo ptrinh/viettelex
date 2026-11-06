@@ -233,6 +233,57 @@ void addTonesFixture(const std::string& dir, const Data& d) {
     CHECK(addtones::restore(U"toi di hoc", none).text == U"toi di hoc");
 }
 
+// The compact indexes (4 bytes per form / per English word, keys read from the file) answer
+// exactly what a plain scan of the files says.
+void compactIndexes(const Data& d) {
+    const addtones::Lexicon& lx = d.lang.lexicon;
+    // forms: consecutive ids with one folded key; every form found at its own index
+    int forms = 0, bad = 0;
+    for (int id = 0; id < lx.count(); ++id) {
+        if (id > 0 && lx.folded(id) == lx.folded(id - 1)) continue;
+        if (lx.formIndex(lx.folded(id)) != forms || lx.formFirstId(forms) != id) ++bad;
+        ++forms;
+    }
+    CHECK(forms == lx.formCount());
+    CHECK(bad == 0);
+    CHECK(lx.formEndId(lx.formCount() - 1) == lx.count());
+    CHECK(lx.formIndex("") == -1);
+    CHECK(lx.formIndex("zzzzzz") == -1);
+    CHECK(lx.formIndex("toi") >= 0 && lx.folded(lx.formFirstId(lx.formIndex("toi"))) == "toi");
+
+    // English: record order, words, frequencies; contains / lowerBound
+    const addtones::EnglishLexicon& en = d.lang.english;
+    const std::vector<uint8_t>& b = d.enlex;
+    size_t p = 8, i = 0;
+    std::vector<std::string> words;
+    bad = 0;
+    for (; p + 2 <= b.size() && i < en.size(); ++i) {
+        const std::string w(reinterpret_cast<const char*>(&b[p + 2]), b[p]);
+        if (en.word(i) != w || en.freq(i) != b[p + 1] || !en.contains(w) || en.lowerBound(w) != i) ++bad;
+        words.push_back(w);
+        p += 2 + b[p];
+    }
+    CHECK(i == en.size() && p == b.size());
+    CHECK(bad == 0);
+    CHECK(!en.contains("") && !en.contains("zzzzzzzzq") && !en.contains("keyboardx"));
+    CHECK(en.lowerBound("") == 0);
+    CHECK(en.lowerBound("zzzzzzzzz") == en.size());
+    CHECK(en.lowerBound("keyb") < en.size() && en.word(en.lowerBound("keyb")).substr(0, 4) >= "keyb");
+
+    // an unsorted file is sorted at load (same as before: sorted word order)
+    const uint8_t unsorted[] = {'V', 'T', 'E', '1', 3, 0, 0, 0, 3, 9, 'c', 'a', 't', 2, 7, 'a', 'n', 3, 5, 'b', 'e', 'e'};
+    addtones::EnglishLexicon u;
+    CHECK(u.load(unsorted, sizeof unsorted));
+    CHECK(u.size() == 3 && u.word(0) == "an" && u.word(1) == "bee" && u.word(2) == "cat");
+    CHECK(u.freq(0) == 7 && u.freq(1) == 5 && u.freq(2) == 9);
+    CHECK(u.contains("bee") && !u.contains("be"));
+    // corrupt: a non a–z byte, a count past the end
+    const uint8_t badChar[] = {'V', 'T', 'E', '1', 1, 0, 0, 0, 2, 1, 'a', 'B'};
+    CHECK(!u.load(badChar, sizeof badChar) && u.size() == 0 && !u.contains("ab"));
+    const uint8_t badCount[] = {'V', 'T', 'E', '1', 0xFF, 0xFF, 0xFF, 0x7F, 2, 1, 'a', 'b'};
+    CHECK(!u.load(badCount, sizeof badCount) && u.size() == 0);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -250,6 +301,7 @@ int main(int argc, char** argv) {
     if (loaded) {
         lmParity(fixtures, d);
         addTonesFixture(fixtures, d);
+        compactIndexes(d);
     }
     std::printf("text tests: %d passed, %d failed\n", gPass, gFail);
     return gFail ? 1 : 0;

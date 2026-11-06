@@ -11,6 +11,7 @@
 // same eval runs here (app_tests typo_eval_precision_floor).
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -171,14 +172,21 @@ namespace vtx::app {
 // candidates joined by kPredictSep). "" = nothing to suggest (also without language data).
 // The lexicon source is rebuilt only when the engine flags change; the prediction model is
 // built on the first Predict job (the Windows setting is off ⇒ never).
+// Memory: with a loader, the language data itself is loaded on the first job that needs it
+// (a non-empty answer() / knownWord()), never by construction or the setters — the app's
+// start sequence touches this object, and a portable copy (no TIP) never sends a job.
 class HintJobs {
 public:
-    explicit HintJobs(const addtones::LanguageData* data) : data_(data) {}
+    using DataLoader = std::function<const addtones::LanguageData*()>;
+    explicit HintJobs(const addtones::LanguageData* data) : data_(data), loaded_(true) {}
+    explicit HintJobs(DataLoader load) : load_(std::move(load)) {}
     ~HintJobs();
     HintJobs(const HintJobs&) = delete;
     HintJobs& operator=(const HintJobs&) = delete;
     std::u16string answer(const HintMessage& m);
     bool predictionLoaded() const { return model_ != nullptr; }
+    // The loader ran (or data was given at construction).
+    bool dataLoaded() const { return loaded_; }
     // "Lọc từ nhạy cảm" (Settings::filterSensitive) for the next answers.
     void setFilterSensitive(bool on) { filterSensitive_ = on; }
     // "Học từ bạn gõ" (learned_words.h) for the next Predict answers; nullptr = off.
@@ -187,7 +195,10 @@ public:
     bool knownWord(const std::string& lowerUtf8);
 
 private:
-    const addtones::LanguageData* data_;
+    const addtones::LanguageData* data();  // runs the loader once
+    const addtones::LanguageData* data_ = nullptr;
+    DataLoader load_;
+    bool loaded_ = false;
     typo::LexiconSource* source_ = nullptr;
     predict::Model* model_ = nullptr;
     const learn::Model* learned_ = nullptr;
