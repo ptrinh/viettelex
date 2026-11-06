@@ -227,6 +227,7 @@ class BalloonView(context: Context, private val theme: ImeTheme) : View(context)
     }
 
     override fun onDraw(c: Canvas) {
+        ImeTrace.drew(keys = false)
         if (press.count > 0) drawPress(c)      // dưới popup / bubble (bubble hàng dưới đè phím hàng trên)
         if (popVisible) pop?.let { drawPopup(c, it) }
         if (!visible) return

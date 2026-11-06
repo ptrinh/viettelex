@@ -11,6 +11,12 @@ object KeyboardData {
     @Volatile private var provider: ((String) -> ByteBuffer)? = null
     private val cache = HashMap<String, ByteBuffer>()
 
+    /**
+     * Test ngân sách hiện bàn phím: gọi mỗi lần một blob được map lần đầu ([buffer]) hoặc giải
+     * thành chuỗi ([text]) — biết dữ liệu nào bị nạp trên main trước khung đầu. null ở app thật.
+     */
+    @Volatile var onLoad: ((name: String, decode: Boolean) -> Unit)? = null
+
     /** Đã có nguồn blob (IME hoặc app đã install) — app gọi install chỉ khi chưa. */
     val installed: Boolean get() = provider != null
 
@@ -23,12 +29,14 @@ object KeyboardData {
     fun buffer(name: String): ByteBuffer = synchronized(cache) {
         cache.getOrPut(name) {
             val p = provider ?: error("KeyboardData.install chưa được gọi ($name)")
+            onLoad?.invoke(name, false)
             p(name).duplicate().order(ByteOrder.LITTLE_ENDIAN)
         }
     }
 
     /** Asset văn bản UTF-8 (seed, emoji data, yaml) — chỉ đọc khi cần. */
     fun text(name: String): String {
+        onLoad?.invoke(name, true)
         val b = buffer(name).duplicate()
         b.position(0)
         val bytes = ByteArray(b.remaining())

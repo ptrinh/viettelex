@@ -271,7 +271,16 @@ class KeyboardView(
 
     private var keys: List<LaidKey> = emptyList()
     private var builtSig = ""
-    private val planeCache = HashMap<Plane, List<LaidKey>>()
+    private var planeCache = HashMap<Plane, List<LaidKey>>()
+    /**
+     * Cache bố cục HAI TẦNG: chữ ký (loại ô, nhãn Enter, bề ngang, …) → plane → phím đã xếp. Giữ
+     * [LAYOUT_SIGS] chữ ký gần nhất (LRU) ⇒ qua lại giữa các ô quen (chat ↔ tìm kiếm ↔ URL) hay xoay
+     * máy rồi xoay lại không dựng lại bố cục. Vài chục LaidKey mỗi plane — RAM không đáng kể.
+     */
+    private val layoutCache = object : LinkedHashMap<String, HashMap<Plane, List<LaidKey>>>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, HashMap<Plane, List<LaidKey>>>) =
+            size > LAYOUT_SIGS
+    }
 
     private val commits = KeyCommitQueue()
     /** Chạm / chạm đôi / GIỮ ⇧ (THUẦN, ShiftHoldTests). */
@@ -766,6 +775,11 @@ class KeyboardView(
     fun setPlane(p: Plane) {
         if (p == Plane.TEMPLATES && leftZone == TemplatesMenu.LeftZone.NONE) return
         if (plane == p) return
+        ImeTrace.begin(ImeTrace.PLANE_SWITCH)
+        try { switchPlane(p) } finally { ImeTrace.end() }
+    }
+
+    private fun switchPlane(p: Plane) {
         // Vào ?123 / =\< từ plane khác: chưa gõ gì ở đó (space chưa về chữ) — như iOS typedInSymbolPlane.
         if (plane != Plane.NUMBERS && plane != Plane.SYMBOLS) typedInSymbolPlane = false
         // Rời plane chữ sang ?123 / =\< / emoji: tắt Caps Lock + shift một-lần (như iOS stock;
@@ -862,12 +876,16 @@ class KeyboardView(
         balloon.clearPress()              // khung phím sẫm cũ không còn đúng
         splitNow = splitSetting && KeyLayout.splitActive(true, width.toFloat(), d)
         val sig = signature()
-        if (sig != builtSig) { planeCache.clear(); builtSig = sig }
+        if (sig != builtSig) { planeCache = layoutCache.getOrPut(sig) { HashMap() }; builtSig = sig }
         val cfg = LayoutConfig(plane, width.toFloat(), keyAreaPx, d, inputKind, needsGlobe,
             theme.tablet, returnLabel, numberSigned, numberDecimal, numberRow, oneHandNow,
             editTools = textToolsEnabled, numberRowFull = numberRowFull, editTranslate = translateEnabled,
             spaceSideKey = spaceSideKey, emojiInStrip = emojiInStrip, split = splitNow, largeKeys = largeKeys)
-        keys = planeCache.getOrPut(plane) { KeyLayout.build(cfg) }
+        keys = planeCache.getOrPut(plane) {
+            ImeCost.layoutBuilds++
+            ImeTrace.begin(ImeTrace.LAYOUT_BUILD)
+            try { KeyLayout.build(cfg) } finally { ImeTrace.end() }
+        }
         fitLetterLabels()
         periodSideKey = KeyLayout.sideKey(cfg) == SpaceSideKey.PERIOD
         railSpan = if (OneHand.appliesTo(plane)) OneHand.rail(width.toFloat(), oneHandNow) else null
@@ -929,10 +947,46 @@ class KeyboardView(
         invalidateSpace()
     }
 
+    /**
+     * Nội dung phím cách (badge / logo / nhãn vuốt đổi ngôn ngữ) đổi: CHỈ ghi lại lớp động — lưới
+     * phím tĩnh ([gridNode]) giữ nguyên. Badge hiện mỗi lần mở bàn phím (~1 s, ~20 khung).
+     */
     private fun invalidateSpace() {
-        val k = spaceKey ?: return
-        @Suppress("DEPRECATION")
-        invalidate(k.left.toInt(), k.top.toInt(), k.right.toInt() + 1, k.bottom.toInt() + 1)
+        if (spaceKey == null) return
+        super.invalidate()
+    }
+
+    // MARK: lưới phím tĩnh (RenderNode, API 29+)
+
+    /**
+     * Lưới phím (nền + nhãn mọi phím, trừ nội dung phím cách) ghi một lần vào RenderNode riêng; mỗi
+     * khung KeyboardView chỉ phát lại node + vẽ lớp động (nội dung phím cách, rail một tay). Mọi
+     * [invalidate] khác (shift, plane, phím chức năng nhấn, theme, …) đánh dấu lưới bẩn ⇒ ghi lại —
+     * mặc định an toàn: chỉ [invalidateSpace] được bỏ qua lưới. Canvas phần mềm / API < 29: vẽ thẳng.
+     */
+    private val gridNode: android.graphics.RenderNode? =
+        if (android.os.Build.VERSION.SDK_INT >= 29) android.graphics.RenderNode("vt-key-grid") else null
+    private var gridDirty = true
+    /** Test: lưới cần ghi lại ở lượt vẽ kế. */
+    internal val gridStale: Boolean get() = gridDirty
+
+    override fun invalidate() { gridDirty = true; super.invalidate() }
+    @Deprecated("Deprecated in Java")
+    @Suppress("DEPRECATION")
+    override fun invalidate(l: Int, t: Int, r: Int, b: Int) { gridDirty = true; super.invalidate(l, t, r, b) }
+    @Deprecated("Deprecated in Java")
+    @Suppress("DEPRECATION")
+    override fun invalidate(dirty: android.graphics.Rect) { gridDirty = true; super.invalidate(dirty) }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        gridNode?.discardDisplayList(); gridDirty = true
+    }
+
+    private fun drawGrid(c: Canvas) {
+        ImeCost.gridRecords++
+        val ks = keys
+        for (i in ks.indices) drawKey(c, ks[i])
     }
 
     @Suppress("DEPRECATION")
@@ -942,14 +996,30 @@ class KeyboardView(
     // MARK: vẽ
 
     override fun onDraw(c: Canvas) {
+        ImeCost.keyboardDraws++
+        ImeTrace.begin(ImeTrace.KEYBOARD_DRAW)
+        try { drawKeys(c) } finally { ImeTrace.end() }
+        ImeTrace.drew(keys = true)
+    }
+
+    private fun drawKeys(c: Canvas) {
         when (plane) {
             Plane.EMOJI -> { emojiPane.draw(c); return }
             Plane.TEMPLATES -> templatesPane.draw(c)
             Plane.EMOJI_SEARCH -> searchBar.draw(c)
             else -> Unit
         }
-        val ks = keys
-        for (i in ks.indices) drawKey(c, ks[i])
+        val node = gridNode
+        if (node != null && c.isHardwareAccelerated) {
+            if (gridDirty || !node.hasDisplayList()) {
+                node.setPosition(0, 0, width, height)
+                val rc = node.beginRecording(width, height)
+                try { drawGrid(rc) } finally { node.endRecording() }
+            }
+            c.drawRenderNode(node)
+        } else drawGrid(c)
+        gridDirty = false
+        drawSpaceContent(c)
         railSpan?.let { drawRail(c, it) }
     }
 
@@ -1040,6 +1110,10 @@ class KeyboardView(
 
     /** Test: phím cách có lỗ thoát âm (theme Ghi-ta). */
     internal val hasSoundhole: Boolean get() = soundholePaint != null
+
+    /** Test: tâm phím có nhãn [label] (chữ thường) ở plane hiện tại, null nếu không có. */
+    internal fun keyCenter(label: String): android.graphics.PointF? =
+        keys.firstOrNull { it.label == label }?.let { android.graphics.PointF(it.centerX, it.centerY) }
 
     private fun drawKey(c: Canvas, k: LaidKey) {
         // Gboard: phím phẳng bo góc, KHÔNG bóng; phím chức năng tô màu phụ (secondary
@@ -1139,30 +1213,40 @@ class KeyboardView(
                 }
                 icon(c, id, cx, cy, 22f, theme.actionInk, contentAlpha)
             }
-            KeyKind.SPACE -> if (k === spaceKey) {
-                // Badge "ViệtTelex" lúc hiện rồi mờ dần về logo Vᴛ (như iOS).
-                if (badgeAlpha > 0f) {
-                    badgePaint.alpha = (badgeAlpha * contentAlpha).toInt()
-                    c.drawText(if (spaceLanguage == KeyboardLanguage.EN) KeyboardLanguage.EN.displayName else badgeText,
-                        cx, cy + badgeOff, badgePaint)
-                }
-                if (carouselOn) { drawCarousel(c, k, contentAlpha); return }
-                if (badgeAlpha < 1f) when (val m = SpaceMark.choose(spaceFlickEnabled, showLogo, spaceLanguage)) {
-                    is SpaceMark.Code -> {
-                        codePaint.alpha = (android.graphics.Color.alpha(codeColor) * (1f - badgeAlpha) * contentAlpha / 255f).toInt()
-                        c.drawText(m.text, k.right - theme.dp(if (theme.tablet) 10f else 7f),
-                            k.bottom - theme.dp(if (theme.tablet) 7f else 5f), codePaint)
-                    }
-                    is SpaceMark.Logo -> {
-                        val bmp = if (m.language == KeyboardLanguage.EN) logoEn else logo
-                        if (bmp != null) {
-                            logoPaint.alpha = ((1f - badgeAlpha) * contentAlpha).toInt()
-                            c.drawBitmap(bmp, null, logoRect, logoPaint)
-                        }
-                    }
-                    SpaceMark.None -> {}
+            KeyKind.SPACE -> Unit   // nội dung: [drawSpaceContent] (lớp động, ngoài lưới tĩnh)
+        }
+    }
+
+    /** Badge "ViệtTelex" / nhãn vuốt đổi ngôn ngữ / logo trên phím cách — vẽ SAU lưới phím, mỗi khung. */
+    private fun drawSpaceContent(c: Canvas) {
+        val k = spaceKey ?: return
+        if (plane == Plane.EMOJI) return
+        val contentAlpha = ((if (trackpad) 51 else 255) * theme.labelAlpha).toInt()
+        val cx = k.centerX; val cy = k.centerY
+        // Badge "ViệtTelex" lúc hiện rồi mờ dần về logo Vᴛ (như iOS). Kẹp trong phím (vẽ sau phím kề).
+        if (badgeAlpha > 0f) {
+            badgePaint.alpha = (badgeAlpha * contentAlpha).toInt()
+            c.save()
+            c.clipRect(k.left, k.top, k.right, k.bottom)
+            c.drawText(if (spaceLanguage == KeyboardLanguage.EN) KeyboardLanguage.EN.displayName else badgeText,
+                cx, cy + badgeOff, badgePaint)
+            c.restore()
+        }
+        if (carouselOn) { drawCarousel(c, k, contentAlpha); return }
+        if (badgeAlpha < 1f) when (val m = SpaceMark.choose(spaceFlickEnabled, showLogo, spaceLanguage)) {
+            is SpaceMark.Code -> {
+                codePaint.alpha = (android.graphics.Color.alpha(codeColor) * (1f - badgeAlpha) * contentAlpha / 255f).toInt()
+                c.drawText(m.text, k.right - theme.dp(if (theme.tablet) 10f else 7f),
+                    k.bottom - theme.dp(if (theme.tablet) 7f else 5f), codePaint)
+            }
+            is SpaceMark.Logo -> {
+                val bmp = if (m.language == KeyboardLanguage.EN) logoEn else logo
+                if (bmp != null) {
+                    logoPaint.alpha = ((1f - badgeAlpha) * contentAlpha).toInt()
+                    c.drawBitmap(bmp, null, logoRect, logoPaint)
                 }
             }
+            SpaceMark.None -> {}
         }
     }
 
@@ -1359,6 +1443,7 @@ class KeyboardView(
         if (plane == Plane.EMOJI) emojiPane.track(e) else if (plane == Plane.TEMPLATES) templatesPane.track(e)
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                ImeTrace.keyDown()
                 val i = e.actionIndex
                 down(e.getPointerId(i), e.getX(i), e.getY(i), e)
             }
@@ -2288,6 +2373,8 @@ class KeyboardView(
 
     companion object {
         private const val MAX_PTR = 32
+        /** Số chữ ký bố cục giữ trong [layoutCache]. */
+        private const val LAYOUT_SIGS = 4
         /** Cỡ nhãn phím chuẩn (sp, "Cỡ chữ trên phím" = Vừa) — Lớn nhân [KeyLabelSize]. */
         const val LETTER_SP = 22f
         const val CONTROL_SP = 14f

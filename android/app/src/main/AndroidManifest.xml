@@ -22,6 +22,8 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         tools:targetApi="31"
         android:supportsRtl="false">
+        <!-- Perfetto/Macrobenchmark đọc được mốc "VT.*" trên bản release (API 29+), không cần debuggable. -->
+        <profileable android:shell="true" tools:targetApi="29" />
         <!-- App cài đặt (Compose) chạy process riêng ":settings" — không để ~15 MB Compose/HWUI nằm
              lại mãi trong process bàn phím (RAM-AUDIT #5). Prefs đồng bộ qua shared/PrefSync. -->
         <activity
@@ -67,6 +69,15 @@
             android:process=":settings" tools:node="merge" />
         <activity android:name="com.google.android.gms.common.api.GoogleApiActivity"
             android:process=":settings" tools:node="merge" />
+        <!-- androidx.startup (emoji2, ProcessLifecycleOwner, ProfileInstaller) chỉ chạy ở process
+             cài đặt: process chính là process BÀN PHÍM — mở lạnh không nạp provider + 3 initializer
+             trước IME.onCreate (docs/PERF-IME-SHOW.md). Bàn phím không dùng EmojiCompat/lifecycle. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:process=":settings"
+            android:exported="false"
+            tools:node="merge" />
         <service
             android:name=".ime.VietTelexIME"
             android:label="@string/ime_name"

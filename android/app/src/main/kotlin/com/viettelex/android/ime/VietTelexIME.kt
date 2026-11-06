@@ -236,9 +236,16 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     }
 
     override fun onCreate() {
+        ImeTrace.serviceCreated()
+        ImeTrace.begin(ImeTrace.ON_CREATE)
+        try { createService() } finally { ImeTrace.end() }
+    }
+
+    private fun createService() {
         val t0 = SystemClock.elapsedRealtime()
         if (BuildConfig.DEBUG) perfCreatedAt = t0
         super.onCreate()
+        ImeTrace.begin("VT.onCreate.data")
         prefs = VTPrefs.of(this)
         com.viettelex.android.plus.PlusPrefs.install(this)   // PlusGate đọc cờ Plus từ prefs chung
         KeyboardData.install(AssetBlobs.provider(assets))
@@ -247,9 +254,13 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val glyphPaint = android.graphics.Paint()
         EmojiData.glyphCheck = { e -> synchronized(glyphPaint) { glyphPaint.hasGlyph(e) } }
         DebugLog.configure(this, prefs.getBoolean(Keys.DEBUG_TOUCH_LOG, false))
+        ImeTrace.end()
+        ImeTrace.begin("VT.onCreate.session")
         model = UserLangModel(File(filesDir, Keys.USERLM_FILE), mainThread)
         clipboard = AndroidClipboard(this)
         session = KeyboardSession(model, clipboard)
+        ImeTrace.end()
+        ImeTrace.begin("VT.onCreate.state")
         // Tự sửa: từ từng hoàn tác (không sửa lại) — trạng thái bàn phím, không sao lưu.
         session.autoCorrectRejected = AutoCorrect.Rejected.decode(stateStore().getString(Keys.AUTO_CORRECT_REJECTED, null))
         session.onAutoCorrectRejected = {
@@ -261,6 +272,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         session.pasteOnce.reload(stateStore().getLong(Keys.PASTE_OFFERED_ID, Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE })
         session.pasteOnce.persist = { stateStore().edit().putLong(Keys.PASTE_OFFERED_ID, it).apply() }
         model.onReady = { refreshBar() }
+        ImeTrace.end()
+        ImeTrace.begin("VT.onCreate.listeners")
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
         userLmResetSeen = prefs.getLong(Keys.USERLM_RESET_AT, 0L)
         prefStamp.changed()                                  // ghi nhận mốc ban đầu
@@ -269,6 +282,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         accessibility = (getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager)?.also {
             it.addTouchExplorationStateChangeListener(touchExplorationListener)
         }
+        ImeTrace.end()
         if (BuildConfig.DEBUG) Log.d(TAG, "perf onCreate ${SystemClock.elapsedRealtime() - t0} ms")
     }
 
@@ -314,9 +328,20 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     override fun onEvaluateFullscreenMode() = false
 
     override fun onCreateInputView(): View {
+        ImeTrace.begin(ImeTrace.ON_CREATE_INPUT_VIEW)
+        try { return createInputView() } finally { ImeTrace.end() }
+    }
+
+    private fun createInputView(): View {
+        ImeCost.inputViews++
         val t0 = SystemClock.elapsedRealtime()
+        // Ngôn ngữ giao diện TRƯỚC khi dựng view (chữ dựng sẵn): process mới có L10n.lang = mặc định ⇒
+        // nếu để onStartInputView mới đọc thì người dùng giao diện tiếng Anh bị dựng cả cây view HAI lần.
+        L10n.load { prefs.getString(it, null) }
         val th = freshTheme()
         theme = th
+        // Theme vừa dựng từ prefs hiện tại ⇒ onStartInputView ngay sau không cần dựng lại để so chữ ký.
+        themeStale = false; themeUiMode = resources.configuration.uiMode
         val balloon = BalloonView(this, th)
         val trail = SwipeTrailView(this, th)
         val kb = KeyboardView(this, th, balloon, feedback, trail)
@@ -461,6 +486,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     /** Theme từ cài đặt hiện tại (rẻ: vài lần đọc màu resource, không giải ảnh). */
     private fun freshTheme(): ImeTheme {
+        ImeCost.themes++
         val all = prefs.all
         return ImeTheme(this, ThemeSettings.load { all[it] }, File(filesDir, Keys.WALLPAPER_FILE).exists())
     }
@@ -475,6 +501,12 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     }
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
+        ImeTrace.showStarted()
+        ImeTrace.begin(ImeTrace.ON_START_INPUT_VIEW)
+        try { startInputView(info, restarting) } finally { ImeTrace.end() }
+    }
+
+    private fun startInputView(info: EditorInfo, restarting: Boolean) {
         val t0 = SystemClock.elapsedRealtime()
         super.onStartInputView(info, restarting)
         handler.removeCallbacks(idleRelease)
@@ -497,7 +529,10 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         DebugLog.configure(this, settings.debugTouchLog)
         // Đã gõ phím cứng trên ô này (onStartInput đã dựng ô, tracker/engine đang sống):
         // KHÔNG dựng lại từ EditorInfo cũ (initialSel đã lỗi thời) — chỉ lo phần giao diện.
-        if (!hwTyped) configureField(info, settings)
+        if (!hwTyped) {
+            ImeTrace.begin("VT.startInput.field")
+            try { configureField(info, settings) } finally { ImeTrace.end() }
+        }
         kb.holdNewline = field.holdNewline   // giữ lâu Enter = xuống dòng (ô nhiều dòng)
         feedback.hapticsEnabled = settings.hapticFeedback
         feedback.hapticStrength = settings.hapticStrength
@@ -539,12 +574,14 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         st.setExtras(clipButton = settings.clipboardHistory, open = false)
         val templates = if (settings.templatesEnabled)
             templatesCache ?: VTPrefs.templates(this, prefs).also { templatesCache = it } else emptyList()
+        ImeTrace.begin("VT.startInput.kbConfigure")
         kb.configure(field.returnLabel, field.kind, needsGlobe(), settings.showSpaceLogo,
             settings.templatesEnabled, templates,
             th.dp(KeyLayout.keyAreaDp(th.tablet, th.landscape, settings.rowHeightAdjust, settings.numberRow,
                 settings.numberRowFullHeight, resources.configuration.screenHeightDp.toFloat())),
             field.numberSigned, field.numberDecimal, settings.numberRow, settings.numberRowFullHeight,
             settings.spaceSideKey, emojiInStrip, settings.keyLabelSize, settings.splitKeyboard, settings.largeKeys)
+        ImeTrace.end()
         kb.keyPreview = settings.keyPreview
         kb.keyPressHighlight = settings.keyPressHighlight
         applyKeyEffect(settings.keyEffect, th, kb)
@@ -574,7 +611,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         session.invalidatePasteCache()
         if (!restarting) session.pasteOnce.ended()   // ô mới: lời mời dán đang hiện coi như bỏ qua
         applyAutoShift()
+        ImeTrace.begin("VT.startInput.refreshBar")
         refreshBar()                  // ô trống → gợi mở đầu ngay khi hiện
+        ImeTrace.end()
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "perf onStartInputView ${SystemClock.elapsedRealtime() - t0} ms")
             logFirstFrame(t0)   // sau setInputView (nếu dựng lại) ⇒ gắn đúng cây view sẽ vẽ
@@ -922,6 +961,11 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     }
 
     override fun onKey(key: Key) {
+        ImeTrace.begin(ImeTrace.ON_KEY)
+        try { handleKey(key) } finally { ImeTrace.end() }
+    }
+
+    private fun handleKey(key: Key) {
         val touch = if (key is Key.Letter) pendingTouch else null
         pendingTouch = null
         if (key == Key.Backspace && toolUndo != null) { undoTextTool(); return }   // ⌫ ngay sau = hoàn tác
