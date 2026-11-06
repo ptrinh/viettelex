@@ -11,8 +11,10 @@ Trạng thái: đã duyệt 05/11/2026, đang triển khai. Liên quan `docs/ONB
    phí). Thu gọn = đổi chỗ / gộp hiển thị, **không đổi hành vi, không đổi key lưu, không đổi mặc định**
    (sao lưu, đồng bộ iCloud, người dùng cũ giữ nguyên).
 3. **Tối đa 2 tầng** (trang → Nâng cao). Mục "Nâng cao" có dòng phụ liệt kê những gì bên trong.
-4. **Công tắc phụ thuộc: làm mờ + ghi lý do, không ẩn**, đặt ngay dưới công tắc cha (Android/Microsoft
-   guidelines). Ngoại lệ: tuỳ chọn chỉ-Telex khi chọn VNI được làm mờ kèm "Chỉ áp dụng cho Telex".
+4. **Công tắc phụ thuộc (đổi 06/11/2026, xem §6):** mục con nằm NGAY DƯỚI mục cha (cùng trang/nhóm)
+   ⇒ **ẨN** khi cha tắt / chọn giá trị làm nó vô tác dụng; bật lại cha là hiện ngay tại chỗ. Mục cha ở
+   TRANG KHÁC ⇒ **làm mờ + ghi lý do** ("Cần bật Thanh gợi ý", "Chỉ áp dụng cho Telex") để người dùng
+   biết bật ở đâu. Ẩn/mờ chỉ là hiển thị: không đổi key, không đổi giá trị đã lưu.
 5. **Cùng tên, cùng chỗ trên 5 nền tảng** (bảng §3). Nhãn bắt đầu bằng từ quan trọng, mô tả triệu chứng,
    không thuật ngữ kỹ thuật (preedit, surrounding, composition, hook, chip…) ở nhãn chính.
 6. **Không nhắc tên bộ gõ khác** trong nhãn, chú thích, tuỳ chọn. Gặp thì viết lại theo hành vi.
@@ -113,3 +115,23 @@ Nâng cao/Gỡ lỗi).
 Mỗi nền tảng: test hiện có xanh; test mới cho (a) bộ chọn hồ sơ vẫn áp đúng key sau khi mục đổi chỗ,
 (b) tìm kiếm cài đặt mobile trỏ đúng chỗ mới, (c) không còn chuỗi nhắc bộ gõ khác (test quét chuỗi),
 (d) nhãn bảng §3 khớp (test chuỗi vi). Không đổi key ⇒ test sao lưu/khôi phục phải xanh nguyên.
+
+## 6. Bảng ẩn theo mục cha (đã duyệt 06/11/2026; mỗi dòng đã kiểm trong code là vô tác dụng)
+
+| Khi… | Ẩn (cùng nhóm) | Làm mờ + lý do (trang khác) |
+|---|---|---|
+| Chọn VNI | Telex đơn giản, Bỏ dấu tự do, Gõ nhanh (cc→ch); nhóm Gõ lẫn tiếng Anh (§1) | Mobile: Tự sửa từ gõ sai, Chọn phím thông minh — "Chỉ áp dụng cho Telex" |
+| Tắt Gõ vuốt (mobile) | Vuốt từ tiếng Anh, Mô hình neural + ghi công, Luyện vuốt, Hiệu ứng nét vuốt | |
+| Tắt Thanh gợi ý (mobile) | Số từ gợi ý, Gợi ý cả khi app tắt gợi ý, Gợi ý số tiền, Kết quả phép tính, Gợi ý emoji, Nút Dán, Thêm dấu, Sửa lỗi bằng Apple Intelligence | Gợi ý sửa lỗi chạm trượt — "Cần bật Thanh gợi ý" |
+| Tắt Tự khôi phục từ tiếng Anh (desktop) | Khi từ vừa Anh vừa Việt, Đoán từ trùng theo tần suất | |
+| Tắt Quyết định theo ngữ cảnh | Tự sửa từ phía trước, Đoán từ trùng theo tần suất | |
+| Windows: tắt Hiện biểu tượng ở khay | Kiểu biểu tượng khay, Công cụ văn bản trong menu | |
+| Linux: tắt Ngoặc kép cong và gạch dài | Kiểu ngoặc kép | |
+| Linux: tắt Gợi ý từ | Học từ bạn gõ | |
+| Phím cạnh dấu cách = Tắt (mobile) | Cỡ phím chấm và phẩy | |
+
+**KHÔNG phụ thuộc — luôn hiện:** Chính tả teencode và Phím ngoặc [→ơ ]→ư (chạy cả ở VNI — trước đây
+làm mờ nhầm), Bỏ dấu kiểu mới, Sửa dấu từ đã gõ, Lọc từ nhạy cảm, App mới mở bắt đầu bằng tiếng Việt,
+phím tắt chế độ game, các nút log gỡ lỗi.
+
+Plus: mục Plus chưa mở khoá phải hiện khoá (không là công tắc bật được) — Android "Thêm dấu" đang thiếu.
