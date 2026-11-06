@@ -3,12 +3,12 @@
   "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.9.0",
   "build": 148,
   "windows": {
-    "version": "1.3.13",
-    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.13/VietTelex-1.3.13-x64.msi",
-    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.13/VietTelex-1.3.13-arm64.msi",
-    "notes": "Nhẹ hơn: dùng ít RAM hơn, nhất là bản portable (từ điển chỉ nạp khi cần, trả bớt bộ nhớ khi rảnh).",
-    "portable_x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.13/VietTelex-1.3.13-portable-x64.zip",
-    "portable_arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.13/VietTelex-1.3.13-portable-arm64.zip"
+    "version": "1.3.14",
+    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.14/VietTelex-1.3.14-x64.msi",
+    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.14/VietTelex-1.3.14-arm64.msi",
+    "notes": "Bản portable: ẩn mục gợi ý không có tác dụng; Backspace về từ vừa gõ để sửa tiếp (toan + Backspace + s → toán).",
+    "portable_x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.14/VietTelex-1.3.14-portable-x64.zip",
+    "portable_arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.14/VietTelex-1.3.14-portable-arm64.zip"
   },
   "linux": {
     "version": "1.0.23",
