@@ -668,7 +668,7 @@ internal fun ChoiceRow(key: String, default: String, title: String, caption: Str
 @Composable
 private fun SpaceSideKeyRow() = ChoiceRow(Keys.SPACE_SIDE_KEY, Prefs.D.spaceSideKey.id, tr("Phím cạnh dấu cách"),
     tr(SettingCaption.spaceSideKey),
-    listOf(SpaceSideKey.COMMA.id to tr("Dấu phẩy"), SpaceSideKey.PERIOD.id to tr("Dấu chấm"),
+    listOf(SpaceSideKey.COMMA.id to tr("Phẩy"), SpaceSideKey.PERIOD.id to tr("Chấm"),
         SpaceSideKey.BOTH.id to tr("Cả hai"), SpaceSideKey.OFF.id to tr("Tắt"))) { SpaceSideKey.of(it).id }
 
 /**

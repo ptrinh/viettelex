@@ -651,8 +651,8 @@ struct PhimPage: View {
                         Picker(L("Phím cạnh dấu cách"), selection: Binding(
                             get: { SpaceSideKey.parse(spaceSideKey).rawValue },
                             set: { spaceSideKey = $0 })) {
-                            Text(L("Dấu phẩy")).tag(SpaceSideKey.comma.rawValue)
-                            Text(L("Dấu chấm")).tag(SpaceSideKey.period.rawValue)
+                            Text(L("Phẩy")).tag(SpaceSideKey.comma.rawValue)
+                            Text(L("Chấm")).tag(SpaceSideKey.period.rawValue)
                             Text(L("Cả hai")).tag(SpaceSideKey.both.rawValue)
                             Text(L("Tắt")).tag(SpaceSideKey.off.rawValue)
                         }
