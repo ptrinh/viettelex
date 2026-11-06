@@ -128,6 +128,7 @@ void TypingSession::reset() {
     reopenArmed_ = false;
     retroUndo_.clear();
     retroOffer_.clear();
+    runBreak();  // the caret may have moved: the text before it is unknown
 }
 
 void TypingSession::setCompositionOnlyContext(bool on) {
@@ -197,6 +198,9 @@ void TypingSession::resetContext() {
     preferComposition_ = false;
     asyncStore_ = false;
     dropsPassedKeys_ = false;
+    passedKeysReachApp_ = false;
+    notTextField_ = false;
+    emptyStoreHits_ = 0;
     if (engine_) vtx_reset_context(engine_);
 }
 
@@ -206,12 +210,13 @@ void TypingSession::swapEngine(vtx_engine* e) {
 }
 
 bool TypingSession::wantsKey(const KeyInput& k) const {
-    if (!engine_) return false;
+    if (!engine_ || notTextField_) return false;
     switch (k.kind) {
         case KeyKind::Char:
             // Retro English: boundary characters declined here reach the engine through
             // noteKeyPassedBy() (no edit session for them).
-            return isWordKey(k) || wordActive() || reopenArmed_;
+            // A space right after a symbol key ("=>␣"): no word, but an expansion.
+            return isWordKey(k) || wordActive() || reopenArmed_ || (isShortcutSpace(k.ch) && tokenCandidate());
         case KeyKind::Backspace:
             return wordActive() || retroUndo_.armed() ||
                    (opt_.reEditWord && reopenArmed_ && vtx_can_reopen_last_commit(engine_));
@@ -219,7 +224,8 @@ bool TypingSession::wantsKey(const KeyInput& k) const {
         case KeyKind::Navigation:
         case KeyKind::Chord:
             // reopenArmed_ / retro undo: so the key disarms it
-            return wordActive() || reopenArmed_ || retroUndo_.armed();
+            return wordActive() || reopenArmed_ || retroUndo_.armed() ||
+                   (k.kind == KeyKind::Boundary && tokenCandidate());
         case KeyKind::Modifier:
         case KeyKind::Other:
             return false;
@@ -236,12 +242,13 @@ bool TypingSession::handleKey(const KeyInput& k, TextSink& sink) {
     // A rewrite can be reverted by the very next key only.
     const retro::Undo undo = std::move(retroUndo_);
     retroUndo_.clear();
-    if (!engine_) return false;
+    if (!engine_ || notTextField_) return false;
     switch (k.kind) {
         case KeyKind::Char:
             if (isWordKey(k)) return handleWordKey(k.ch, sink);
             return commitWord(sink, KeyKind::Char, k.ch);
         case KeyKind::Backspace:
+            runBreak();
             if (undo.armed() && vtx_is_empty(engine_) && tryRetroUndo(undo, sink)) return true;
             return handleBackspace(sink);
         case KeyKind::Boundary:
@@ -267,12 +274,14 @@ void TypingSession::noteKeyPassedBy(const KeyInput& k) {
     switch (k.kind) {
         case KeyKind::Char:
             vtx_note_boundary(engine_, k.ch != 0 && k.ch <= 0xFFFF ? k.ch : U'\n');
+            runAppend(k.ch);  // "=" ">" of "=>": the app types them
             break;
         case KeyKind::Backspace:
         case KeyKind::Boundary:
         case KeyKind::Navigation:
         case KeyKind::Chord:
             vtx_note_boundary(engine_, U'\n');  // ends the phrase (the text may change)
+            runBreak();
             break;
         case KeyKind::Modifier:
         case KeyKind::Other:
@@ -301,6 +310,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
             const size_t want = shown_.size() > droppedSig_.size() ? shown_.size() : droppedSig_.size();
             const std::u16string before = sink.textBeforeCaret(static_cast<int>(want));
             stale = screenStale(before);
+            if (!stale) emptyStoreHits_ = 0;  // the store shows our word: a text field after all
             if (stale && asyncStore_) {
                 // The store has not caught up with the page (or the page changed): an edit
                 // computed from it lands at the PAGE's caret, not where we checked — letters
@@ -340,6 +350,20 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
             // MISA SME, mintty): the letters we let through were claimed in
             // OnTestKeyDown, so the app never got them (#134: "first letter lost").
             // Keep the word and compose all of it, from this key on.
+            if (stale && before.empty() && !shown_.empty() && passedKeysReachApp_ && !dropsPassedKeys_) {
+                // The app got the letters (a TSF-native store never drops them) but its store
+                // shows none: the store is not this element's text. Composing would type into
+                // nothing (WPF type-to-filter list: "markdown" -> nothing at all). This word
+                // goes on as typed; a second such word in this focus = not a text field.
+                if (++emptyStoreHits_ >= 2) {
+                    notTextField_ = true;
+                    if (opt_.log) opt_.log("in-place: the store never shows the keys the app gets -> not a text field, keys pass through");
+                } else if (opt_.log) {
+                    opt_.log("in-place: the store shows none of the typed keys although the app got them -> word as typed");
+                }
+                reset();
+                return false;
+            }
             if (stale && before.empty() && !shown_.empty()) {
                 fallBack("in-place: the field shows none of the typed text -> composition for this field");
                 if (!dropsPassedKeys_ && opt_.log)
@@ -660,6 +684,9 @@ bool TypingSession::commitWord(TextSink& sink, KeyKind kind, char32_t ch) {
     forgetAfterRetro_ = false;
     const bool r = commitWordInner(sink, kind, ch);
     const bool printable = kind == KeyKind::Char && ch != 0 && ch <= 0xFFFF;
+    // The boundary character lands after the word (or after the expansion).
+    if (printable) runAppend(ch);
+    else runBreak();
     if (retroOn()) finishRetro(sink, kind, ch);
     else vtx_note_boundary(engine_, printable ? ch : U'\n');   // glue: see noteKeyPassedBy
     if (forgetAfterRetro_) {
@@ -683,6 +710,76 @@ void TypingSession::armRestoreUndo(char16_t boundary) {
     retroUndo_.restore = true;
 }
 
+void TypingSession::runAppend(char32_t c) {
+    if (c == 0 || c > 0xFFFF) {
+        runBreak();
+        return;
+    }
+    runAppendText(std::u16string(1, static_cast<char16_t>(c)));
+}
+
+void TypingSession::runAppendText(const std::u16string& t) {
+    for (char16_t c : t) {
+        if (isShortcutSpace(c)) {  // an expansion / restored word may hold spaces too
+            tokenRun_.clear();
+            tokenAnchored_ = true;
+        } else {
+            tokenRun_.push_back(c);
+        }
+    }
+    // Longer than any key (64): keep the tail, but where it starts is no longer known.
+    constexpr size_t kMaxRun = 64;
+    if (tokenRun_.size() > kMaxRun) {
+        tokenRun_.erase(0, tokenRun_.size() - kMaxRun);
+        tokenAnchored_ = false;
+    }
+}
+
+bool TypingSession::tokenCandidate() const {
+    return opt_.shortcuts && !tokenRun_.empty() && findTokenShortcut(*opt_.shortcuts, tokenRun_) != nullptr;
+}
+
+bool TypingSession::tryTokenShortcut(TextSink& sink) {
+    if (!opt_.shortcuts || tokenRun_.empty()) return false;
+    const bool word = !vtx_is_empty(engine_) && !overflow_;
+    const std::u16string token = tokenRun_ + (word ? shown_ : std::u16string());
+    const std::u16string* exp = findTokenShortcut(*opt_.shortcuts, token);
+    if (!exp) return false;
+    const bool comp = word && wordMode_ == OutputMode::Composition;
+    if (sink.blind()) {
+        // Nothing can be read back (the hook): only a run that provably starts after a
+        // whitespace this session saw — never the tail of "x=>".
+        if (!tokenAnchored_ || comp) return false;
+    } else {
+        // Read back: the run (and an in-place word) must be right before the caret, standing
+        // alone (start of the text, or after whitespace) — "a->b", "x=>" never expand.
+        if (compositionOnly_ || dropsPassedKeys_ || !sink.canReadContext() || sink.hasSelection()) return false;
+        if (comp && !sink.compositionActive()) return false;
+        const std::u16string& onScreen = comp ? tokenRun_ : token;
+        const std::u16string before = sink.textBeforeCaret(static_cast<int>(onScreen.size()) + 1);
+        if (before.size() < onScreen.size() ||
+            before.compare(before.size() - onScreen.size(), onScreen.size(), onScreen) != 0)
+            return false;
+        if (before.size() > onScreen.size() && !isShortcutSpace(before.front())) return false;
+    }
+    const std::u16string expansion = *exp;
+    if (comp) {
+        // Commit the word as typed, then replace the whole run (committed text only).
+        sink.endComposition(shown_);
+        const bool ok = sink.replaceBeforeCaret(token, expansion);
+        if (opt_.log) opt_.log(ok ? "shortcut: symbol key expanded" : "shortcut: the field refused the symbol key");
+        reset();
+        return true;  // the word is committed either way
+    }
+    if (!sink.replaceBeforeCaret(token, expansion)) {
+        if (opt_.log) opt_.log("shortcut: the field refused the symbol key");
+        return false;
+    }
+    if (opt_.log) opt_.log("shortcut: symbol key expanded");
+    reset();
+    return true;
+}
+
 bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind, char32_t ch) {
     const bool comp = wordMode_ == OutputMode::Composition;
     const bool printable = kind == KeyKind::Char;
@@ -691,6 +788,8 @@ bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind, char32_t ch) {
     // could land after keys already queued behind it.
     const bool boundaryInResult = comp && dropsPassedKeys_ && printable && ch != 0 && ch <= 0xFFFF;
     const std::u16string boundary = boundaryInResult ? std::u16string(1, static_cast<char16_t>(ch)) : std::u16string();
+    // Symbol / digit shortcut keys expand at whitespace only (space, Enter, Tab).
+    const bool tokenTrigger = (printable && isShortcutSpace(ch)) || kind == KeyKind::Boundary;
     if (overflow_) {
         vtx_action a;
         vtx_commit_boundary(engine_, 0, &a);
@@ -698,11 +797,14 @@ bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind, char32_t ch) {
         overflow_ = false;
         shown_.clear();
         reopenArmed_ = false;
+        runBreak();  // the raw rest of the word: not tracked
         return false;
     }
     if (vtx_is_empty(engine_)) {
         if (comp && sink.compositionActive()) sink.endCompositionAsIs();
         reopenArmed_ = false;
+        // "=>␣": no word at all — only the run of symbols before the caret.
+        if (tokenTrigger) tryTokenShortcut(sink);
         return false;
     }
     if (kind == KeyKind::Chord && !comp) {
@@ -734,6 +836,8 @@ bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind, char32_t ch) {
             return boundaryInResult;
         }
     }
+    // A symbol key ending in the word in progress (":D", "->a" — run + word).
+    if (tokenTrigger && tryTokenShortcut(sink)) return false;
 
     const std::u16string raw = printable ? rawOf(engine_) : std::u16string();
     std::u16string finalText;
@@ -762,6 +866,8 @@ bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind, char32_t ch) {
         lastRaw_ = raw;
         lastText_ = finalText;
     }
+    if (committed) runAppendText(finalText);
+    else runBreak();
     if (committed && (printable || kind == KeyKind::Boundary)) lastWord_ = finalText;
     shown_.clear();
     // ⌫ re-open reads "<word><boundary>" back: impossible where keys are dropped (nothing

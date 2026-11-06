@@ -6,6 +6,7 @@
 #include "fake_document.h"
 #include "session.h"
 #include "settings.h"
+#include "shortcuts.h"
 #include "app_policy.h"
 #include "test.h"
 
@@ -1445,4 +1446,235 @@ TEST(frequency_flip_back_skipped_when_text_does_not_verify) {
     r.doc.setText(u"Hiss ");   // something the session did not see
     r.type("huwngr ");
     CHECK_EQ(r.text(), std::string("Hiss hửng "));
+}
+
+// ---- Gõ tắt with symbol keys ("=>" -> "⟶", "<>" -> "⟷"; Windows field report 1.3.x) ----
+// Before: '=' '<' '>' are not word keys, so "=>" never became a word and the space after
+// it was not even claimed: such keys never expanded anywhere on Windows.
+
+TEST(shortcut_symbol_keys_expand_at_whitespace) {
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        Rig r(m);
+        r.settings.shortcuts[u"=>"] = u"⟶";
+        r.settings.shortcuts[u"<>"] = u"⟷";
+        r.apply();
+        r.type("=> a <> b");
+        CHECK_EQ(r.text(), std::string("⟶ a ⟷ b"));
+        r.type(" <>\n=>");
+        CHECK_EQ(r.text(), std::string("⟶ a ⟷ b ⟷\n=>"));  // Enter triggers too
+        r.key('\n');
+        CHECK_EQ(r.text(), std::string("⟶ a ⟷ b ⟷\n⟶\n"));
+    }
+}
+
+TEST(shortcut_symbol_keys_only_standalone_and_at_whitespace) {
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        Rig r(m);
+        r.settings.shortcuts[u"=>"] = u"⟶";
+        r.settings.shortcuts[u"->"] = u"→";
+        r.apply();
+        r.type("x=> a->b =>. =>> ");
+        CHECK_EQ(r.text(), std::string("x=> a->b =>. =>> "));
+        // Text the session never saw before the caret: re-read, still has to stand alone.
+        Rig r2(m);
+        r2.settings = r.settings;
+        r2.apply();
+        r2.doc.setText(u"abc");
+        r2.type("=> ");
+        CHECK_EQ(r2.text(), std::string("abc=> "));
+        r2.doc.setText(u"abc ");
+        r2.type("=> ");
+        CHECK_EQ(r2.text(), std::string("abc ⟶ "));
+    }
+}
+
+TEST(shortcut_symbol_key_ending_in_a_word) {
+    // ":D" / "k2": the run before the caret + the word in progress.
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        Rig r(m);
+        r.settings.shortcuts[u":D"] = u"😀";
+        r.settings.shortcuts[u"k2"] = u"khối 2";
+        r.settings.shortcuts[u"ko"] = u"không";
+        r.apply();
+        r.type(":D k2 ko ");
+        CHECK_EQ(r.text(), std::string("😀 khối 2 không "));
+        CHECK(!r.doc.comp);
+    }
+}
+
+TEST(shortcut_symbol_key_space_claimed_only_for_a_match) {
+    Rig r(OutputMode::InPlace);
+    r.settings.shortcuts[u"=>"] = u"⟶";
+    r.apply();
+    KeyInput sp;
+    sp.kind = KeyKind::Char;
+    sp.ch = U' ';
+    r.type("=");
+    CHECK(!r.s.wantsKey(sp));   // "=" is no key: the space is not even claimed
+    r.type(">");
+    CHECK(r.s.wantsKey(sp));
+    r.type("> ");
+    CHECK(!r.s.wantsKey(sp));
+    CHECK_EQ(r.text(), std::string("=>> "));
+}
+
+namespace {
+// The hook (Direct mode): nothing can be read back.
+struct BlindDoc : test::FakeDocument {
+    bool blind() override { return true; }
+    std::u16string textBeforeCaret(int) override { return {}; }
+};
+
+void feed(TypingSession& s, test::FakeDocument& d, const char* keys) {
+    for (const char* p = keys; *p; ++p) {
+        KeyInput k;
+        if (*p == '\n') {
+            k.kind = KeyKind::Boundary;
+        } else {
+            k.kind = KeyKind::Char;
+            k.ch = static_cast<unsigned char>(*p);
+        }
+        const bool wanted = s.wantsKey(k);
+        if (!wanted) s.noteKeyPassedBy(k);
+        if (wanted && s.handleKey(k, d)) continue;
+        d.appInsert(static_cast<char16_t>(*p));
+    }
+}
+}  // namespace
+
+TEST(shortcut_symbol_keys_blind_needs_a_seen_space) {
+    Settings st;
+    st.shortcuts[u"=>"] = u"⟶";
+    TypingSession s;
+    configureDefaults(s, st);
+    BlindDoc d;
+    d.setText(u"abc");
+    feed(s, d, "=> ");               // what stands before "=>" is unknown: left alone
+    CHECK_EQ(utf16ToUtf8(d.text), std::string("abc=> "));
+    feed(s, d, "=> x=> ");           // after a space it saw: expanded; glued: not
+    CHECK_EQ(utf16ToUtf8(d.text), std::string("abc=> ⟶ x=> "));
+    s.reset();                        // a click: the run is unknown again
+    feed(s, d, "=> ");
+    CHECK_EQ(utf16ToUtf8(d.text), std::string("abc=> ⟶ x=> => "));
+}
+
+TEST(shortcut_token_key_classification) {
+    CHECK(isTokenShortcutKey(u"=>"));
+    CHECK(isTokenShortcutKey(u"<>"));
+    CHECK(isTokenShortcutKey(u"k2"));
+    CHECK(isTokenShortcutKey(u":D"));
+    CHECK(!isTokenShortcutKey(u"ko"));
+    CHECK(!isTokenShortcutKey(u"đc"));
+    CHECK(!isTokenShortcutKey(u""));
+    std::map<std::u16string, std::u16string> t{{u"=>", u"⟶"}, {u"ko", u"không"}};
+    CHECK(findTokenShortcut(t, u"=>") != nullptr);
+    CHECK(findTokenShortcut(t, u"ko") == nullptr);  // letter keys: the word lookup only
+    CHECK(findTokenShortcut(t, u"=>>") == nullptr);
+}
+
+// ---- Not a text field: a WPF list with type-to-filter (Windows field report 1.3.x) ----
+namespace {
+// The focused element is a file list. Its TSF store (WPF's default one) never holds text;
+// keys the TIP does not eat reach the app as text input and filter the list ("Contains:
+// mar"). Whatever the TIP composes or writes into the store goes nowhere.
+struct ListStore : TextSink {
+    std::u16string filter;     // what the app received
+    int lostKeys = 0;          // keys the TIP ate (composed into nothing)
+    bool comp = false;
+    std::u16string textBeforeCaret(int) override { return {}; }
+    char16_t charAfterCaret() override { return 0; }
+    bool hasSelection() override { return false; }
+    bool replaceBeforeCaret(const std::u16string& expect, const std::u16string&) override { return expect.empty(); }
+    bool compositionActive() override { return comp; }
+    bool setComposition(const std::u16string&, int, bool) override { return comp = true; }
+    void endComposition(const std::u16string&) override { comp = false; }
+    void endCompositionAsIs() override { comp = false; }
+};
+
+std::string typeList(TypingSession& s, ListStore& d, const char* keys) {
+    for (const char* p = keys; *p; ++p) {
+        KeyInput k;
+        k.kind = KeyKind::Char;
+        k.ch = static_cast<unsigned char>(*p);
+        const bool wanted = s.wantsKey(k);
+        if (!wanted) s.noteKeyPassedBy(k);
+        if (wanted && s.handleKey(k, d)) {
+            ++d.lostKeys;
+            continue;
+        }
+        d.filter += static_cast<char16_t>(*p);  // TSF-native: an uneaten key reaches the app
+    }
+    return utf16ToUtf8(d.filter);
+}
+}  // namespace
+
+TEST(not_a_text_field_keys_pass_through) {
+    Settings st;
+    TypingSession s;
+    configureDefaults(s, st);
+    s.setPassedKeysReachApp(true);  // the TIP: TSF-native store (app_policy passedKeysReachApp)
+    ListStore d;
+    CHECK_EQ(typeList(s, d, "markdown"), std::string("markdown"));
+    CHECK_EQ(d.lostKeys, 0);
+    CHECK(s.notTextField());
+    CHECK(!d.comp);
+    // From now on nothing is even claimed — Vietnamese keys included.
+    CHECK_EQ(typeList(s, d, " vieetj"), std::string("markdown vieetj"));
+    CHECK_EQ(d.lostKeys, 0);
+    // A new field (focus change) is evaluated afresh.
+    s.resetContext();
+    CHECK(!s.notTextField());
+}
+
+TEST(not_a_text_field_without_the_fix_loses_keys) {
+    // Guard on the rig: the old answer to "the store shows none of the typed text" (compose,
+    // #134's IMM32 path) eats every key after the first into a store nobody reads.
+    Settings st;
+    TypingSession s;
+    configureDefaults(s, st);
+    ListStore d;
+    CHECK_EQ(typeList(s, d, "markdown"), std::string("m"));
+    CHECK_EQ(d.lostKeys, 7);
+}
+
+TEST(not_a_text_field_needs_two_words_of_evidence) {
+    // A real field whose store is one update late once (first word in an empty field): that
+    // word goes on as typed, the field is not given up.
+    Rig r(OutputMode::InPlace);
+    r.s.setPassedKeysReachApp(true);
+    r.type("t");
+    r.doc.blankReads = 1;
+    r.type("ieengs vieetj ");
+    CHECK(!r.s.notTextField());
+    r.type("dduwowngf ");
+    CHECK(!r.s.notTextField());
+    const std::string t = r.text();
+    CHECK(t.size() >= std::string("việt đường ").size() &&
+          t.compare(t.size() - std::string("việt đường ").size(), std::string::npos, "việt đường ") == 0);
+}
+
+TEST(passed_keys_reach_app_policy) {
+    CHECK(isEditControlClass(u"Edit", u"WindowsForms10.EDIT.app.0.141b42a_r6_ad1"));
+    CHECK(isEditControlClass(u"Edit", u"ThunderRT6TextBox"));
+    CHECK(isEditControlClass(u"RichEdit20W", u"RichEdit20W"));
+    CHECK(isEditControlClass(u"RICHEDIT50W", u"RICHEDIT50W"));
+    CHECK(isEditControlClass(u"TMemo", u"TMemo"));
+    CHECK(!isEditControlClass(u"HwndWrapper[App;;1]", u"HwndWrapper[App;;1]"));
+    ContextInfo c;  // not transitory: Word, WPF (a TextBox, or the default store behind a list)
+    CHECK(passedKeysReachApp(c, classifyContext(c)));
+    c.transitory = true;  // Chromium & co: async store, never "not a text field"
+    CHECK(!passedKeysReachApp(c, classifyContext(c)));
+    c.hasParent = true;   // transitory-extension parent...
+    c.parentTransitory = false;
+    c.editControl = true;  // ...of a classic Edit in an IMM32 app (MISA, #134): keys may be dropped
+    CHECK(!passedKeysReachApp(c, classifyContext(c)));
+    c.editControl = false;  // ...that is no Edit's mirror (WPF's default text store)
+    CHECK(passedKeysReachApp(c, classifyContext(c)));
+    ContextInfo cuas;
+    cuas.transitory = true;
+    cuas.cuasEmulated = true;
+    CHECK(!passedKeysReachApp(cuas, classifyContext(cuas)));
+    ContextInfo con;
+    con.console = true;
+    CHECK(!passedKeysReachApp(con, classifyContext(con)));
 }

@@ -114,6 +114,33 @@ HostText classifyContext(const ContextInfo& c) {
     return HostText::Normal;  // Chromium & co: transitory by convention, fully readable
 }
 
+bool isEditControlClass(const std::u16string& realClass, const std::u16string& className) {
+    auto has = [](const std::u16string& s, const char* needle) {
+        const size_t n = std::strlen(needle);
+        if (s.size() < n) return false;
+        for (size_t i = 0; i + n <= s.size(); ++i) {
+            size_t j = 0;
+            for (; j < n; ++j) {
+                char16_t c = s[i + j];
+                if (c >= u'A' && c <= u'Z') c = static_cast<char16_t>(c - u'A' + u'a');
+                if (c != static_cast<char16_t>(needle[j])) break;
+            }
+            if (j == n) return true;
+        }
+        return false;
+    };
+    return has(realClass, "edit") || has(className, "edit") || has(realClass, "memo") || has(className, "memo");
+}
+
+bool passedKeysReachApp(const ContextInfo& c, HostText host) {
+    if (c.console || c.cuasEmulated) return false;
+    switch (host) {
+        case HostText::Normal: return !c.transitory;
+        case HostText::NormalViaParent: return !c.editControl;
+        default: return false;
+    }
+}
+
 FieldPolicy classifyInputScopes(const int* scopes, size_t count) {
     for (size_t i = 0; i < count; ++i) {
         switch (scopes[i]) {

@@ -207,6 +207,56 @@ void testShortcuts() {
     bothModes("ko ", "ko ", st);
 }
 
+// Gõ tắt with symbol keys ("=>" → "⟶", "<>" → "⟷"; Windows field report 1.3.x, same gap
+// here): '=' '<' '>' end a word, so such keys never reached the word lookup. Typed
+// literally ('<' / '>' are NOT BackSpace / Right here; '\n' = Return).
+void typeLiteral(Session &s, Mock &m, const std::string &keys) {
+    for (char c : keys) {
+        if (c == '\n') press(s, m, ks::Return, '\r');
+        else press(s, m, uint32_t((unsigned char)c), uint32_t((unsigned char)c));
+    }
+}
+
+void testSymbolShortcuts() {
+    Settings st;
+    auto t = std::make_shared<ShortcutTable>();
+    (*t)["=>"] = "⟶";
+    (*t)["<>"] = "⟷";
+    (*t)["->"] = "→";
+    (*t)[":D"] = "😀";
+    (*t)["ko"] = "không";
+    st.shortcuts = t;
+    for (auto mode : {DisplayMode::Preedit, DisplayMode::Surrounding}) {
+        auto runLit = [&](const std::string &keys, const std::string &already = std::string()) {
+            Session s;
+            Mock m;
+            m.doc = already;
+            s.applySettings(st);
+            s.setDisplayMode(mode, m);
+            typeLiteral(s, m, keys);
+            return m.screen();
+        };
+        CHECK_EQ(runLit("=> a <> b"), std::string("⟶ a ⟷ b"));
+        CHECK_EQ(runLit("<>\n"), std::string("⟷\n"));                 // Enter triggers too
+        CHECK_EQ(runLit(":D ko "), std::string("😀 không "));          // run + word in progress
+        CHECK_EQ(runLit("x=> a->b =>. =>> "), std::string("x=> a->b =>. =>> "));  // glued / not whitespace
+        CHECK_EQ(runLit("=> ", "abc"), std::string("abc=> "));         // text before: not standalone
+        CHECK_EQ(runLit("=> ", "abc "), std::string("abc ⟶ "));
+        // No surrounding text: nothing can be checked, nothing is replaced.
+        Session s;
+        Mock m;
+        m.surrounding = false;
+        s.applySettings(st);
+        s.setDisplayMode(mode, m);
+        typeLiteral(s, m, "=> ");
+        CHECK_EQ(m.screen(), std::string("=> "));
+    }
+    CHECK(isTokenShortcutKey("=>"));
+    CHECK(isTokenShortcutKey("k2"));
+    CHECK(!isTokenShortcutKey("ko"));
+    CHECK(!isTokenShortcutKey("đc"));
+}
+
 void testCtrlChordCommits() {
     Session s;
     Mock m;
@@ -3110,6 +3160,7 @@ int main() {
     testPreeditIsUnderlinedComposition();
     testSurroundingHasNoPreedit();
     testShortcuts();
+    testSymbolShortcuts();
     testCtrlChordCommits();
     testToggleHotkey();
     testPasswordLiteral();
