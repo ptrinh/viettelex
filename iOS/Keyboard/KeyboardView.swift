@@ -6061,8 +6061,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var debugDomainPopupMade: Bool { domainPopupMade }
     private(set) var debugLastDomainLayout: DomainPopup.Layout?
     private(set) var debugLastDomainTop: CGFloat?
+    #if DEBUG
     /// Khung phím `title` theo toạ độ view (test popup).
     func debugDomainKeyFrame(_ title: String) -> CGRect? { debugButton(title).map { convert($0.bounds, from: $0) } }
+    #endif
     /// Đuôi đang chọn khi popup mở (nil = đóng / không chọn).
     var debugDomainSelection: String? { domainHold.flatMap { h in h.track.selection.map { h.choices[$0] } } }
     var debugDomainPopupVisible: Bool { domainPopup.map { !$0.isHidden && $0.superview != nil } ?? false }
