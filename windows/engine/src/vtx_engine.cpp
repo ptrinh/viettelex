@@ -88,6 +88,15 @@ void vtx_commit_boundary(vtx_engine* h, int auto_restore, vtx_action* out) {
 int32_t vtx_commit_text(vtx_engine* h, int auto_restore, uint16_t* buf, int32_t cap) {
     return h ? h->e.commitText(auto_restore != 0, u16(buf), cap) : 0;
 }
+void vtx_commit_boundary_before(vtx_engine* h, int auto_restore, uint32_t boundary, vtx_action* out) {
+    vtx::Action a;
+    a.kind = vtx::Action::None;
+    if (h) h->e.commitBoundary(auto_restore != 0, a, static_cast<char32_t>(boundary));
+    toC(a, out);
+}
+int32_t vtx_commit_text_before(vtx_engine* h, int auto_restore, uint32_t boundary, uint16_t* buf, int32_t cap) {
+    return h ? h->e.commitText(auto_restore != 0, u16(buf), cap, static_cast<char32_t>(boundary)) : 0;
+}
 int32_t vtx_peek_commit_text(const vtx_engine* h, int auto_restore, uint16_t* buf, int32_t cap) {
     return h ? h->e.peekCommitText(auto_restore != 0, u16(buf), cap) : 0;
 }

@@ -52,10 +52,13 @@ std::string replay(const std::string& flagsField, const std::string& opsUtf8) {
         for (size_t i = 0; i < ops.size(); ++i) {
             char32_t c = ops[i];
             switch (c) {
-            case U' ': case U'.': case U',': case U'_': case U'/': case U'=': {
+            case U' ': case U'.': case U',': case U'_': case U'/': case U'=': case U'\'': {
                 const char32_t ins = c == U'=' ? U'1' : c;   // '=' = a DIGIT boundary
-                std::string p = peek(e, autoRestore);
-                e.commitBoundary(autoRestore, a);
+                // The apostrophe is passed as the word's boundary (contractions).
+                const char32_t b = c == U'\'' ? U'\'' : 0;
+                char16_t pb[vtx::kMaxText];
+                std::string p = toUtf8(pb, e.peekCommitText(autoRestore, pb, vtx::kMaxText, b));
+                e.commitBoundary(autoRestore, a, b);
                 if (a.kind == vtx::Action::Replace) applyReplace(screen, a);
                 screen.push_back(ins);
                 std::string t = p + "=>" + tok(a) + undoToken(e);

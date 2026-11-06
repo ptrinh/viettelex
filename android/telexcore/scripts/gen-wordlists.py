@@ -38,8 +38,11 @@ maxlen = re.search(r"static let maxLength = (\d+)", ctx).group(1)
 function = [w for b in blocks(section(ctx, "static let functionWords", "static let predecessorGates")) for w in words(b)]
 tails = [w for b in blocks(section(ctx, "static let contractionTails", "static let runKeepers")) for w in words(b)]
 keepers = [w for b in blocks(section(ctx, "static let runKeepers", "static let codeAcronyms")) for w in words(b)]
-acronyms = [w for b in blocks(section(ctx, "static let codeAcronyms", "private static func parseGates")) for w in words(b)]
+acronyms = [w for b in blocks(section(ctx, "static let codeAcronyms", "static let contractionStems")) for w in words(b)]
 assert acronyms and all(re.fullmatch(r"[a-z]{2,4}", w) for w in acronyms)
+stems = [w for b in blocks(section(ctx, "static let contractionStems", "static let capsAcronyms")) for w in words(b)]
+caps = [w for b in blocks(section(ctx, "static let capsAcronyms", "private static func parseGates")) for w in words(b)]
+assert stems and caps and all(re.fullmatch(r"[a-z]{3,5}", w) for w in caps)
 gates = []
 for b in blocks(section(ctx, "static let predecessorGates", "static let contractionTails")):
     for line in b.split("\n"):
@@ -103,6 +106,10 @@ with open(out, "w") as f:
     f.write("    val runKeepers = WordSet(parseWords(RUN_KEEPERS))\n")
     f.write("    /** Code acronyms (MaxID, TaxURL): an uppercase run that is NOT a name's initials. */\n")
     f.write("    val codeAcronyms = WordSet(parseWords(CODE_ACRONYMS))\n")
+    f.write("    /** Contraction stems (does n't, is n't, there 's): restored right before an apostrophe. */\n")
+    f.write("    val contractionStems = WordSet(parseWords(CONTRACTION_STEMS))\n")
+    f.write("    /** All-caps acronyms Telex mangles (ASAP → ẤP, WWDC → WDC): committed as typed. */\n")
+    f.write("    val capsAcronyms = WordSet(parseWords(CAPS_ACRONYMS))\n")
     f.write("    /** Predecessor gates: gateWords[i] restores in a run only right after gatePredecessors[i]. */\n")
     f.write("    val gateWords: Array<String> = arrayOf(" + ", ".join('"%s"' % w for w, _ in gates) + ")\n")
     f.write("    val gatePredecessors: Array<WordSet> = arrayOf(\n")
@@ -121,6 +128,8 @@ with open(out, "w") as f:
     f.write('    private const val CONTRACTION_TAILS = """\n' + lit(tails) + '\n"""\n')
     f.write('    private const val RUN_KEEPERS = """\n' + lit(keepers) + '\n"""\n')
     f.write('    private const val CODE_ACRONYMS = """\n' + lit(acronyms) + '\n"""\n')
+    f.write('    private const val CONTRACTION_STEMS = """\n' + lit(stems) + '\n"""\n')
+    f.write('    private const val CAPS_ACRONYMS = """\n' + lit(caps) + '\n"""\n')
     f.write('    private const val NEUTRAL = """\n' + lit(neutral) + '\n"""\n}\n\n')
     f.write("/**\n")
     f.write(" * API công khai (bàn phím — gõ vuốt, giai đoạn 3): phân loại MỘT từ đã chốt theo cùng\n")

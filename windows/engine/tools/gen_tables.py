@@ -139,7 +139,10 @@ maxlen = int(re.search(r"static let maxLength = (\d+)", ctx).group(1))
 function = [w for b in blocks(section(ctx, "static let functionWords", "static let predecessorGates")) for w in words(b)]
 tails = [w for b in blocks(section(ctx, "static let contractionTails", "static let runKeepers")) for w in words(b)]
 keepers = [w for b in blocks(section(ctx, "static let runKeepers", "static let codeAcronyms")) for w in words(b)]
-acronyms = [w for b in blocks(section(ctx, "static let codeAcronyms", "private static func parseGates")) for w in words(b)]
+acronyms = [w for b in blocks(section(ctx, "static let codeAcronyms", "static let contractionStems")) for w in words(b)]
+stems = [w for b in blocks(section(ctx, "static let contractionStems", "static let capsAcronyms")) for w in words(b)]
+caps = [w for b in blocks(section(ctx, "static let capsAcronyms", "private static func parseGates")) for w in words(b)]
+assert acronyms and stems and caps
 gates = []
 for b in blocks(section(ctx, "static let predecessorGates", "static let contractionTails")):
     for line in b.split("\n"):
@@ -252,6 +255,11 @@ with open(out, "w", encoding="utf-8") as f:
     f.write("// Code acronyms (EnglishContextWords.codeAcronyms): an uppercase run that is not a\n")
     f.write("// name's initials (\"MaxID\" stays whole). Shape rule: also in the lite build.\n")
     emit_wordset(f, "kCodeAcronyms", acronyms)
+    f.write("// Contraction stems (EnglishContextWords.contractionStems): raw keys restored right\n")
+    f.write("// before an apostrophe (\"doesn\" 't, \"there\" 's).\n")
+    emit_wordset(f, "kContractionStems", stems)
+    f.write("// All-caps acronyms Telex mangles (EnglishContextWords.capsAcronyms): ASAP, WWDC.\n")
+    emit_wordset(f, "kCapsAcronyms", caps)
     f.write("// Eager English restore (EnglishFreezePrefixes.swift): raw prefixes at which an English\n")
     f.write("// word freezes with marks on screen; probed once per word at the freeze moment.\n")
     f.write(f"constexpr int kFreezePrefixMinLength = {freeze_min};\n")

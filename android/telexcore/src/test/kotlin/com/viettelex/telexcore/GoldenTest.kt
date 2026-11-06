@@ -80,10 +80,12 @@ class GoldenTest {
             while (i < ops.length) {
                 val c = ops[i]
                 when (c) {
-                    ' ', '.', ',', '_', '/', '=' -> {
+                    ' ', '.', ',', '_', '/', '=', '\'' -> {
                         val ins = if (c == '=') '1' else c   // '=' = digit boundary
-                        val peek = e.peekCommitText(auto)
-                        val a = e.commitBoundary(auto)
+                        // The apostrophe is passed as the word's boundary (contractions).
+                        val b = if (c == '\'') '\'' else '\u0000'
+                        val peek = e.peekCommitText(auto, b)
+                        val a = e.commitBoundary(auto, b)
                         if (a is TelexAction.Replace) { removeLast(screen, a.backspaces); screen.append(a.insert) }
                         screen.append(ins)
                         val undo = e.takeRestoreUndo()?.let { "~" + it.vietnamese } ?: ""

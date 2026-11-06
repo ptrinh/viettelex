@@ -125,10 +125,13 @@ var seen = Set<String>()
         while i < it.count {
             let c = it[i]
             switch c {
-            case " ", ".", ",", "_", "/", "=":
+            case " ", ".", ",", "_", "/", "=", "'":
                 let ins: Character = c == "=" ? "1" : c
-                let peek = e.peekCommitText(autoRestore: auto)
-                let a = e.commitBoundary(autoRestore: auto)
+                // The apostrophe is handed to the engine as the word's boundary (contractions);
+                // the other ops keep the historical boundary-less calls.
+                let b: Character? = c == "'" ? "'" : nil
+                let peek = e.peekCommitText(autoRestore: auto, boundary: b)
+                let a = e.commitBoundary(autoRestore: auto, boundary: b)
                 if case .replace(let bs, let ins) = a {
                     screen.removeLast(min(bs, screen.count)); screen.append(contentsOf: ins)
                 }
@@ -468,6 +471,23 @@ for w in ["MaxID", "ResID", "PosID", "RowID", "TaxID", "BoxID", "LasID", "MaxIDS
           "GetURL", "OrderID", "DataDB", "HungfVM", "TuaansPX", "HungfDB"] {
     for cfg in ["", "A", "AL", "ALE", "AFL", iosDefault, macEager] {
         run(cfg, w + " "); run(cfg, w + "<" + " "); run(cfg, w + " ^"); run(cfg, w + "%")
+    }
+}
+
+// Contractions at the apostrophe, reach-back vowel cancel, all-caps acronyms with a mid-word
+// tone key, ⌫-reopen of a no-op restore (07/11/2026).
+for w in ["doesn't", "isn't", "hasn't", "didn't", "won't", "there's", "can't", "I'll", "we're",
+          "DOESN'T", "Isn't", "'tieesng'", "'ooong'", "ddi'", "cas'", "hoc'", "tieengs'", "he's",
+          "seemed", "deemed", "needed", "deeper", "theme", "themee", "Deffault", "iss", "messs",
+          "NASA", "ASAP", "USA", "WWDC", "USSR", "WWF", "ISP", "HDD", "HW", "nasa", "Nasa", "DAJA",
+          "VDDV", "HDDND", "BDDS", "THOONG", "DDaf Nawngx", "TIEESNG VIEETJ", "MUST", "CAS"] {
+    for cfg in ["", "A", "AL", "AFL", "ALC", macEager, iosDefault, iosEager] {
+        run(cfg, w + " "); run(cfg, w + "%"); run(cfg, w + " <"); run(cfg, w + " ^j ")
+    }
+}
+for w in ["tien", "hoc", "nguoi", "viet", "mot", "github", "google"] {
+    for cfg in ["", "A", "AL", "AFL", macEager, iosDefault] {
+        run(cfg, w + " ^"); run(cfg, w + " ^j "); run(cfg, w + " ^s%"); run(cfg, w + ".^j ")
     }
 }
 

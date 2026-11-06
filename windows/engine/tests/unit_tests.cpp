@@ -6,6 +6,7 @@
 #include <new>
 #include <string>
 #include "support.hpp"
+#include "viettelex/vtx_engine.h"
 
 // ---- allocation counter (whole test binary) ----------------------------------------
 static std::atomic<long> gAllocs{0};
@@ -127,6 +128,185 @@ void reopenBackspaceThroughWord() {
     for (const char* s : steps) { e.backspace(a); CHECK_EQ(composed(e), std::string(s)); }
     CHECK(!e.canReopenLastCommit());
     CHECK(e.reopenLastCommit(b, vtx::kMaxText) == -1);
+}
+
+// ---- Twin of Swift ContractionCapsReopenTests (07/11/2026) ---------------------------
+
+void macFlags(vtx::TelexEngine& e) {   // AppState.EngineFlags
+    e.freeMarking = true; e.liveSpellCheck = true; e.contextualEnglish = true;
+    e.collisionPrefersVietnamese = true; e.teencode = false; e.eagerEnglishRestore = true;
+}
+void defaultFlags(vtx::TelexEngine& e) { e.liveSpellCheck = true; }
+
+bool isAsciiLetter(char32_t c) { return (c >= U'a' && c <= U'z') || (c >= U'A' && c <= U'Z'); }
+
+// Host-like replay: a non-letter is the word's boundary (passed to commitBoundary), then inserted.
+std::string typedWith(const std::string& s, void (*cfg)(vtx::TelexEngine&), bool passBoundary = true) {
+    vtx::TelexEngine e;
+    cfg(e);
+    std::u32string screen;
+    vtx::Action a;
+    bool ok = true;
+    for (char32_t c : fromUtf8(s)) {
+        if (isAsciiLetter(c)) {
+            e.feed(c, a);
+            applyScreen(screen, a, c, false, ok);
+        } else {
+            e.commitBoundary(true, a, passBoundary ? c : 0);
+            applyScreen(screen, a, 0, false, ok);
+            screen.push_back(c);
+            e.noteBoundaryCharacter(c);
+        }
+    }
+    e.commitBoundary(true, a);
+    applyScreen(screen, a, 0, false, ok);
+    return ok ? toUtf8(screen) : std::string("<desync>");
+}
+std::string typedMac(const std::string& s) { return typedWith(s, macFlags); }
+
+// Marked-text path: commitText(boundary) and peekCommitText(boundary) must agree.
+std::string typedMarked(const std::string& s) {
+    vtx::TelexEngine e;
+    macFlags(e);
+    std::string out;
+    vtx::Action a;
+    char16_t b[vtx::kMaxText];
+    for (char32_t c : fromUtf8(s)) {
+        if (isAsciiLetter(c)) { e.feed(c, a); continue; }
+        std::string p = toUtf8(b, e.peekCommitText(true, b, vtx::kMaxText, c));
+        std::string t = toUtf8(b, e.commitText(true, b, vtx::kMaxText, c));
+        CHECK_EQ(p, t);
+        out += t;
+        appendUtf8(out, c);
+        e.noteBoundaryCharacter(c);
+    }
+    return out + commitText(e, true);
+}
+
+void contractionsAtApostrophe() {
+    const char* cases[] = {"doesn't", "isn't", "hasn't", "didn't", "won't", "there's", "can't", "aren't",
+                           "weren't", "wasn't", "haven't", "couldn't", "shouldn't", "wouldn't", "we're",
+                           "I'll", "here's", "what's", "who's", "it's", "that's", "let's", "you're", "they've"};
+    for (const char* w : cases) {
+        CHECK_EQ(typedMac(w), std::string(w));
+        CHECK_EQ(typedWith(w, defaultFlags), std::string(w));
+        CHECK_EQ(typedMarked(w), std::string(w));
+    }
+    CHECK_EQ(typedMac("DOESN'T"), std::string("DOESN'T"));
+    CHECK_EQ(typedMac("Isn't it"), std::string("Isn't it"));
+    CHECK_EQ(typedMac("it doesn’t"), std::string("it doesn’t"));
+    // No boundary passed = old behaviour.
+    CHECK_EQ(typedWith("doesn't", macFlags, false), std::string("doén't"));
+    CHECK_EQ(typedWith("won't", macFlags, false), std::string("ươn't"));
+    // Vietnamese in single quotes stays Vietnamese.
+    CHECK_EQ(typedMac("'tieesng'"), std::string("'tiếng'"));
+    CHECK_EQ(typedMac("'Vieejt Nam'"), std::string("'Việt Nam'"));
+    CHECK_EQ(typedMac("'ddi'"), std::string("'đi'"));
+    CHECK_EQ(typedMac("cas'"), std::string("cá'"));
+    CHECK_EQ(typedMarked("'tieesng'"), std::string("'tiếng'"));
+    // Auto-restore off keeps the composition.
+    vtx::TelexEngine e;
+    macFlags(e);
+    feedStr(e, "doesn");
+    char16_t b[vtx::kMaxText];
+    CHECK_EQ(toUtf8(b, e.commitText(false, b, vtx::kMaxText, U'\'')), std::string("doén"));
+    // C ABI entry point.
+    vtx_engine* h = vtx_create();
+    vtx_set_flags(h, VTX_ENGINE_DEFAULT_FLAGS | VTX_LIVE_SPELL_CHECK);
+    vtx_action ca;
+    for (char c : std::string("isn")) vtx_feed(h, static_cast<uint32_t>(c), &ca);
+    vtx_commit_boundary_before(h, 1, U'\'', &ca);
+    CHECK(ca.kind == VTX_REPLACE);
+    CHECK_EQ(toUtf8(reinterpret_cast<const char16_t*>(ca.insert), ca.insert_len), std::string("isn"));
+    for (char c : std::string("won")) vtx_feed(h, static_cast<uint32_t>(c), &ca);
+    uint16_t tb[VTX_MAX_TEXT];
+    int32_t tn = vtx_commit_text_before(h, 1, 0x2019, tb, VTX_MAX_TEXT);
+    CHECK_EQ(toUtf8(reinterpret_cast<const char16_t*>(tb), tn), std::string("won"));
+    vtx_destroy(h);
+}
+
+void reachBackVowelCancel() {
+    for (const char* w : {"seemed", "deemed", "needed", "deeper", "Seemed"}) CHECK_EQ(typedMac(w), std::string(w));
+    CHECK_EQ(typedMac("Deffault"), std::string("Default"));
+    CHECK_EQ(typedMac("iss"), std::string("is"));
+    CHECK_EQ(typedMac("messs"), std::string("mess"));
+    CHECK_EQ(typedMac("themee"), std::string("theme"));
+    CHECK_EQ(typedMac("gooogle"), std::string("google"));
+    CHECK_EQ(typedWith("Deffault", defaultFlags), std::string("Default"));
+    CHECK_EQ(typedWith("iss", defaultFlags), std::string("is"));
+    CHECK_EQ(typedWith("messs", defaultFlags), std::string("mess"));
+}
+
+void allCapsAcronyms() {
+    for (const char* w : {"NASA", "ASAP", "USA", "WWDC", "USSR", "WWF", "ISP", "VISA", "MUST"}) {
+        CHECK_EQ(typedMac(w), std::string(w));
+        CHECK_EQ(typedWith(w, defaultFlags), std::string(w));
+    }
+    CHECK_EQ(typedMac("NASA and ASAP"), std::string("NASA and ASAP"));
+    CHECK_EQ(typedMac("VDDV"), std::string("VĐV"));
+    CHECK_EQ(typedMac("HDDND"), std::string("HĐND"));
+    CHECK_EQ(typedMac("BDDS"), std::string("BĐS"));
+    CHECK_EQ(typedMac("THOONG"), std::string("THÔNG"));
+    CHECK_EQ(typedMac("DDaf Nawngx"), std::string("Đà Nẵng"));
+    CHECK_EQ(typedMac("TIEESNG VIEETJ"), std::string("TIẾNG VIỆT"));
+    CHECK_EQ(typedMac("CAS"), std::string("CÁ"));
+    CHECK_EQ(typedWith("DAJA", defaultFlags), std::string("DẠA"));
+    CHECK_EQ(typedMac("HDD"), std::string("HĐ"));
+    CHECK_EQ(typedMac("HW"), std::string("HƯ"));
+    CHECK_EQ(typedMac("nasa"), std::string("nấ"));
+    CHECK_EQ(typedWith("nasa", defaultFlags), std::string("nasa"));
+}
+
+void reopenAfterNoOpRestore() {
+    struct C { const char* w; char32_t tone; const char* expected; };
+    const C cases[] = {{"hoc", U'j', "học"}, {"tien", U's', "tién"}, {"nguoi", U'f', "nguòi"},
+                       {"viet", U'j', "viẹt"}, {"mot", U'j', "mọt"}};
+    char16_t b[vtx::kMaxText];
+    vtx::Action a;
+    for (const C& c : cases) {
+        for (int cfg = 0; cfg < 2; ++cfg) {
+            vtx::TelexEngine e;
+            if (cfg == 0) macFlags(e); else defaultFlags(e);
+            feedStr(e, c.w);
+            e.commitBoundary(true, a);
+            CHECK(a.kind == vtx::Action::None);
+            CHECK(e.canReopenLastCommit());
+            int n = e.reopenLastCommit(b, vtx::kMaxText);
+            CHECK_EQ(toUtf8(b, n > 0 ? n : 0), std::string(c.w));
+            e.feed(c.tone, a);
+            CHECK_EQ(composed(e), std::string(c.expected));
+        }
+    }
+    {   // marked-text commit
+        vtx::TelexEngine e;
+        macFlags(e);
+        feedStr(e, "hoc");
+        CHECK_EQ(commitText(e, true), std::string("hoc"));
+        int n = e.reopenLastCommit(b, vtx::kMaxText);
+        CHECK_EQ(toUtf8(b, n > 0 ? n : 0), std::string("hoc"));
+        e.feed(U'j', a);
+        CHECK_EQ(composed(e), std::string("học"));
+    }
+    for (const char* w : {"paper", "windows", "after", "github"}) {   // frozen English, no-op restore
+        vtx::TelexEngine e;
+        e.freeMarking = true; e.simpleTelex = true; e.liveSpellCheck = true;
+        feedStr(e, w);
+        e.commitBoundary(true, a);
+        CHECK(a.kind == vtx::Action::None);
+        CHECK(e.canReopenLastCommit());
+        int n = e.reopenLastCommit(b, vtx::kMaxText);
+        CHECK_EQ(toUtf8(b, n > 0 ? n : 0), std::string(w));
+        e.feed(U's', a);
+        CHECK_EQ(composed(e), std::string(w) + "s");
+        CHECK_EQ(commitText(e, true), std::string(w) + "s");
+    }
+    {   // a visible restore still drops the snapshot
+        vtx::TelexEngine e;
+        macFlags(e);
+        feedStr(e, "doesn");
+        e.commitBoundary(true, a, U'\'');
+        CHECK(!e.canReopenLastCommit());
+    }
 }
 
 void seedRoundTrips() {
@@ -466,6 +646,10 @@ int runUnit() {
     peekMatchesCommitOnCopy();
     reopenIssue40();
     reopenBackspaceThroughWord();
+    contractionsAtApostrophe();
+    reachBackVowelCancel();
+    allCapsAcronyms();
+    reopenAfterNoOpRestore();
     seedRoundTrips();
     overflowPassesThrough();
     nonLetterPassesThrough();

@@ -65,7 +65,8 @@ final class SuiteRegressionTests: XCTestCase {
             if let a = ch.asciiValue, isLetter(a) {
                 _ = e.feed(ch)
             } else {
-                out += e.commitText(autoRestore: true)
+                // Hosts hand the word-ending character to the engine (contractions: "won't").
+                out += e.commitText(autoRestore: true, boundary: ch)
                 out.append(ch)
                 e.noteBoundaryCharacter(ch)   // controllers report every boundary char (glue rules)
             }
@@ -132,7 +133,10 @@ final class SuiteRegressionTests: XCTestCase {
         // 30/10/2026 (issue #138, guard từ viết tắt code): +15 hàng định danh code
         // (MaxID, TaxURL, PosAPI, hasID, OrderID…) — chuỗi HOA là từ viết tắt code
         // (EnglishContextWords.codeAcronyms) thì không tách viết tắt tên. 7146 → 7161.
-        XCTAssertGreaterThanOrEqual(pass["restore_raw"] ?? 0, 7161,
+        // 07/11/2026: harness passes the boundary character like the hosts do; contraction
+        // stems before the apostrophe restore (won't, + 5 new rows doesn't/isn't/hasn't/
+        // didn't/there's) and listed all-caps acronyms (+3 rows ASAP/WWDC/USSR). 7161 → 7170.
+        XCTAssertGreaterThanOrEqual(pass["restore_raw"] ?? 0, 7170,
                                     "English-restore coverage regressed")
         // Trailing-cancel screen-truth (2026-07-31): the escape gesture commits the
         // rendered text even when raw is a real English word — EXACT, no floor.

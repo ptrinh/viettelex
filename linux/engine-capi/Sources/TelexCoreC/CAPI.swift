@@ -170,6 +170,32 @@ public func vt_peek(_ h: OpaquePointer, _ autoRestore: Bool,
     copyOut(box(h).e.peekCommitText(autoRestore: autoRestore), buf, cap)
 }
 
+/// The word-ending character as a Character (0 / invalid = unknown).
+private func boundaryChar(_ ch: UInt32) -> Character? {
+    guard ch != 0, let s = Unicode.Scalar(ch) else { return nil }
+    return Character(s)
+}
+
+@_cdecl("vt_commit_before")
+public func vt_commit_before(_ h: OpaquePointer, _ autoRestore: Bool, _ ch: UInt32,
+                             _ out: UnsafeMutableRawPointer?) {
+    let b = box(h)
+    write(b.e.commitBoundary(autoRestore: autoRestore, boundary: boundaryChar(ch)), out)
+}
+
+@_cdecl("vt_commit_text_before")
+public func vt_commit_text_before(_ h: OpaquePointer, _ autoRestore: Bool, _ ch: UInt32,
+                                  _ buf: UnsafeMutablePointer<CChar>?, _ cap: Int) -> Int {
+    let b = box(h)
+    return copyOut(b.e.commitText(autoRestore: autoRestore, boundary: boundaryChar(ch)), buf, cap)
+}
+
+@_cdecl("vt_peek_before")
+public func vt_peek_before(_ h: OpaquePointer, _ autoRestore: Bool, _ ch: UInt32,
+                           _ buf: UnsafeMutablePointer<CChar>?, _ cap: Int) -> Int {
+    copyOut(box(h).e.peekCommitText(autoRestore: autoRestore, boundary: boundaryChar(ch)), buf, cap)
+}
+
 @_cdecl("vt_composed")
 public func vt_composed(_ h: OpaquePointer, _ buf: UnsafeMutablePointer<CChar>?, _ cap: Int) -> Int {
     copyOut(box(h).e.composed, buf, cap)

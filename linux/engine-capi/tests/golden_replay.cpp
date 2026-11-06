@@ -118,11 +118,13 @@ std::string run(const std::string &flags, const std::string &opsUtf8) {
         for (size_t i = 0; i < it.size(); ++i) {
             uint32_t c = it[i];
             switch (c) {
-            case ' ': case '.': case ',': case '_': case '/': case '=': {
+            case ' ': case '.': case ',': case '_': case '/': case '=': case '\'': {
                 const uint32_t bch = c == '=' ? uint32_t('1') : c;   // '=' = digit boundary
-                size_t n = vt_peek(e, autoRestore, buf, sizeof buf);
+                // The apostrophe is passed as the word's boundary (contractions).
+                const uint32_t ends = c == '\'' ? uint32_t('\'') : 0;
+                size_t n = vt_peek_before(e, autoRestore, ends, buf, sizeof buf);
                 std::string peek(buf, n);
-                vt_commit(e, autoRestore, &a);
+                vt_commit_before(e, autoRestore, ends, &a);
                 if (a.kind == VT_ACTION_REPLACE) {
                     dropLast(screen, size_t(a.backspaces));
                     auto ins = decode(std::string(a.insert, a.insert_len));

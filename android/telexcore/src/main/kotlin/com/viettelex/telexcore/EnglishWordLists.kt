@@ -95,6 +95,10 @@ internal object EnglishContextWords {
     val runKeepers = WordSet(parseWords(RUN_KEEPERS))
     /** Code acronyms (MaxID, TaxURL): an uppercase run that is NOT a name's initials. */
     val codeAcronyms = WordSet(parseWords(CODE_ACRONYMS))
+    /** Contraction stems (does n't, is n't, there 's): restored right before an apostrophe. */
+    val contractionStems = WordSet(parseWords(CONTRACTION_STEMS))
+    /** All-caps acronyms Telex mangles (ASAP → ẤP, WWDC → WDC): committed as typed. */
+    val capsAcronyms = WordSet(parseWords(CAPS_ACRONYMS))
     /** Predecessor gates: gateWords[i] restores in a run only right after gatePredecessors[i]. */
     val gateWords: Array<String> = arrayOf("been")
     val gatePredecessors: Array<WordSet> = arrayOf(
@@ -163,6 +167,13 @@ sorts suns surf tar tax tee teen terms texts town tree trust var verse virus war
     private const val CODE_ACRONYMS = """
 id ids url uri api ui ux ok ip io os fk sql json xml html css js pdf csv uuid guid dto dao
 gb en vi us uk ai qr nft faq
+"""
+    private const val CONTRACTION_STEMS = """
+do does did is are was were has have had wo ca could should would might must need dare sha
+ai may there here where what who how why when that this it let i you we they he she
+"""
+    private const val CAPS_ACRONYMS = """
+asap isp ussr wwdc wwf
 """
     private const val NEUTRAL = """
 app apps email mail wifi web blog file files link links game games chat team teams fan

@@ -142,6 +142,8 @@ class TelexEngine {
     private var pCancelled = false
     private var pToneCancelSpan = 0
     private var pToneCancelAt = -1
+    /** A circumflex doubler cancelled a hat it reached back to across letters ("seem" + e). */
+    private var pMarkCancelReachedBack = false
     private var pProcessed = 0
     private var pFreeMarking = false
     private var pSimpleTelex = false
@@ -395,8 +397,13 @@ class TelexEngine {
         return action
     }
 
-    /** Word boundary reached. Optionally auto-restore raw keystrokes. Resets the word. */
-    fun commitBoundary(autoRestore: Boolean): TelexAction {
+    /**
+     * Word boundary reached. Optionally auto-restore raw keystrokes. Resets the word.
+     * [boundary] = the character ending the word when the caller knows it (Swift
+     * `commitBoundary(autoRestore:boundary:)`): an apostrophe restores an English
+     * contraction stem ("doesn" before 't). 0 = unknown (old behaviour).
+     */
+    fun commitBoundary(autoRestore: Boolean, boundary: Char = '\u0000'): TelexAction {
         restoreUndo = null
         try {
             if (rawCount <= 0) { reopenRawCount = 0; reopenOutCount = 0; return TelexAction.None }
@@ -407,7 +414,7 @@ class TelexEngine {
                 return TelexAction.None
             }
             val wantsRestore = outCount > 0 &&
-                (needsStandaloneWRunRestore() || (autoRestore && shouldRestoreRaw()))
+                (needsStandaloneWRunRestore() || (autoRestore && shouldRestoreRaw(boundary)))
             var action: TelexAction = TelexAction.None
             if (wantsRestore && compositionDiffersFromRaw()) {
                 val limit = minOf(rawCount, outCount)
@@ -421,7 +428,8 @@ class TelexEngine {
             // Teencode "Dạa" (Swift isToneThenATail): rewrite only the last character.
             val elongate = !wantsRestore && outCount > 0 && isToneThenATail()
             if (elongate) action = TelexAction.Replace(1, elongatedTail())
-            captureReopen(wantsRestore || elongate)
+            // A restore that changed nothing on screen ("hoc", "tien") keeps its snapshot.
+            captureReopen((wantsRestore && compositionDiffersFromRaw()) || elongate)
             noteCommittedWord(wantsRestore)
             if (retroactiveEnglish || retroHistory.isNotEmpty()) retroRecord(wantsRestore, elongate)
             updateContext(wantsRestore)
@@ -483,20 +491,37 @@ class TelexEngine {
         return true
     }
 
-    private fun shouldRestoreRaw(): Boolean {
+    private fun shouldRestoreRaw(boundary: Char = '\u0000'): Boolean {
         if (shouldRestoreRawBase()) return true
+        if (isApostrophe(boundary) && isContractionStemBeforeApostrophe()) return true
         return englishByFrequency && frequencyPrefersEnglish()
+    }
+
+    /** ' typed, or ’ (smart quote). */
+    private fun isApostrophe(c: Char): Boolean = c == '\'' || c == '’'
+
+    /** English contraction stem right before an apostrophe (Swift twin): raw keys, or raw
+     *  minus a final `n` (n't), on EnglishContextWords.contractionStems. Boundary-only. */
+    private fun isContractionStemBeforeApostrophe(): Boolean {
+        if (!compositionDiffersFromRaw()) return false
+        val n = lowerAsciiInto(raw, rawCount, EnglishContextWords.maxLength)
+        if (n <= 0) return false
+        if (EnglishContextWords.contractionStems.contains(wordBuf, n)) return true
+        return n >= 2 && wordBuf[n - 1] == 'n'.code && EnglishContextWords.contractionStems.contains(wordBuf, n - 1)
     }
 
     /** Every restore rule except the frequency rule ([englishByFrequency]). */
     private fun shouldRestoreRawBase(): Boolean {
         if (initialsSplitAt >= 0) return false   // "PhươngTH" (issue #138) — see Swift
+        if (isListedCapsAcronym()) return true     // "ASAP", "WWDC" — see Swift
         if (markCancelled) {
             if (composedIsValidSyllable()) return false
             if (toneCancelSpan > 1) {
                 return !composedIsRecognizedEnglish() || rawIsEnglishContextWord(false)
             }
             if (toneCancelAt >= 0 && toneCancelAt < rawCount - 1 && rawIsEnglishCollision()) return true
+            // Vowel-doubler cancel that reached back ("seemed" → "semed"): dictionary wins.
+            if (pMarkCancelReachedBack && rawIsEnglishCollision()) return true
             if (isTeencodeKeep()) return false
             // Mark doubler + tone folded at the freeze ("cheese" → "chese"): restore raw.
             if (toneCancelAt < 0 && tonesFolded) return true
@@ -730,8 +755,25 @@ class TelexEngine {
         var hasVowel = false
         for (k in 0 until pCount) if (isVowelAscii(rBase[k])) { hasVowel = true; break }
         if (!hasVowel || !compositionHasDiacritic() || !composedIsValidSyllable()) return false
-        if (lastEffTone != T.NONE && !isToneKey(rawCount - 1)) return false
+        // Mid-word tone key = Vietnamese spelling ("DAJA"), unless 3+ raw keys spell a
+        // dictionary English word ("NASA" → NẤ, "USA" → ÚA).
+        if (lastEffTone != T.NONE && !isToneKey(rawCount - 1) && !(rawCount >= 3 && rawIsDictionaryWord())) return false
         return !lettersAreCommonSyllable(pCount)
+    }
+
+    /** Raw keys are in the collision table or the context dictionary (Swift rawIsDictionaryWord). */
+    private fun rawIsDictionaryWord(): Boolean {
+        val n = lowerAsciiInto(raw, rawCount, EnglishContextWords.maxLength)
+        return n > 0 && (EnglishCollisions.words.contains(wordBuf, n) || EnglishContextWords.words.contains(wordBuf, n))
+    }
+
+    /** ALL-CAPS 3–5 keys on EnglishContextWords.capsAcronyms, changed by Telex (Swift twin). */
+    private fun isListedCapsAcronym(): Boolean {
+        if (vniMode || rawCount < 3 || rawCount > 5 || !isUpperAscii(raw[0]) || !rawIsAllCapsToken() ||
+            !compositionDiffersFromRaw()
+        ) return false
+        val n = lowerAsciiInto(raw, rawCount, EnglishContextWords.maxLength)
+        return n > 0 && EnglishContextWords.capsAcronyms.contains(wordBuf, n)
     }
 
     private fun rawIsAllCapsToken(): Boolean {
@@ -1030,7 +1072,7 @@ class TelexEngine {
     }
 
     /** Final text to commit at a word boundary, with auto-restore applied. Resets the word. */
-    fun commitText(autoRestore: Boolean): String {
+    fun commitText(autoRestore: Boolean, boundary: Char = '\u0000'): String {
         restoreUndo = null
         try {
             if (overflowed) {
@@ -1040,10 +1082,10 @@ class TelexEngine {
                 return composed
             }
             val wantsRestore = outCount > 0 &&
-                (needsStandaloneWRunRestore() || (autoRestore && shouldRestoreRaw()))
+                (needsStandaloneWRunRestore() || (autoRestore && shouldRestoreRaw(boundary)))
             val elongate = !wantsRestore && outCount > 0 && isToneThenATail()
             val text = if (wantsRestore) rawKeystrokes else if (elongate) composedElongated() else composed
-            captureReopen(wantsRestore || elongate)
+            captureReopen((wantsRestore && compositionDiffersFromRaw()) || elongate)
             noteCommittedWord(wantsRestore)
             if (retroactiveEnglish || retroHistory.isNotEmpty()) retroRecord(wantsRestore, elongate)
             updateContext(wantsRestore)
@@ -1054,10 +1096,10 @@ class TelexEngine {
     }
 
     /** Non-mutating twin of `commitText`: what the boundary WILL commit. */
-    fun peekCommitText(autoRestore: Boolean): String {
+    fun peekCommitText(autoRestore: Boolean, boundary: Char = '\u0000'): String {
         if (overflowed) return composed
         if (outCount > 0 && needsStandaloneWRunRestore()) return rawKeystrokes
-        if (autoRestore && outCount > 0 && shouldRestoreRaw()) return rawKeystrokes
+        if (autoRestore && outCount > 0 && shouldRestoreRaw(boundary)) return rawKeystrokes
         if (outCount > 0 && isToneThenATail()) return composedElongated()
         return composed
     }
@@ -1399,6 +1441,7 @@ class TelexEngine {
         pCancelled = false
         pToneCancelAt = -1
         pToneCancelSpan = 0
+        pMarkCancelReachedBack = false
         pProcessed = 0
     }
 
@@ -1627,6 +1670,7 @@ class TelexEngine {
         pCancelled = false
         pToneCancelAt = -1
         pToneCancelSpan = 0
+        pMarkCancelReachedBack = false
         upperToneKey = false
         pFreeMarking = freeMarking
         pSimpleTelex = simpleTelex
@@ -1808,6 +1852,7 @@ class TelexEngine {
                     if (lBase[k] == lower && lMark[k] == Mark.CIRCUMFLEX) {
                         lMark[k] = Mark.NONE
                         pCancelled = true
+                        pMarkCancelReachedBack = true
                         literal(at, lower, upper); return
                     }
                     k--
