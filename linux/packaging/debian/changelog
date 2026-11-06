@@ -1,3 +1,22 @@
+viettelex (1.0.22) UNRELEASED; urgency=medium
+
+  * Cài đặt gọn hơn: tắt một mục thì các tuỳ chọn con của nó tự ẩn
+    (vd tắt Gợi ý từ thì ẩn Học từ bạn gõ; tắt Ngoặc kép cong thì ẩn
+    Kiểu ngoặc kép).
+  * Gõ VNI: ẩn nhóm "Gõ lẫn tiếng Anh" (VNI không làm đổi từ tiếng
+    Anh) và các tuỳ chọn chỉ dành cho Telex.
+  * Teencode và phím ngoặc [ ] dùng được cả với VNI, không còn bị làm
+    mờ nhầm.
+  * ---
+  * Cleaner settings: turning a setting off hides its sub-options
+    (e.g. Word suggestions off hides Learn from your typing).
+  * VNI: the "Mixed Vietnamese/English typing" group and Telex-only
+    options are hidden (VNI leaves English words as typed).
+  * Teencode and the [ ] bracket keys work with VNI too and are no
+    longer greyed out.
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Fri, 06 Nov 2026 20:00:00 +0700
+
 viettelex (1.0.21) UNRELEASED; urgency=medium
 
   * Cài đặt gọn hơn: nhóm "Gõ lẫn tiếng Anh" (trước là "Gõ mixed
