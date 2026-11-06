@@ -221,12 +221,32 @@ window.vtxDetectOS = function (ua, plat, touch) {
       </ul>
     </div>
     <div class="card" data-os="windows">
-      <h3>Windows</h3>
+      <h3>Windows — install in 3 steps</h3>
+      <ol style="margin:6px 0 0 20px">
+        <li><b>Download</b>: Microsoft Store, or the Windows button on the <a href="/en/download/?os=windows">download page</a> (it picks x64 or ARM64 for your PC). Requires Windows 10 1903 or later; the installer is code-signed.</li>
+        <li><b>Run the installer</b> — no restart, nothing to pick in the keyboard list: VietTelex adds itself, becomes the default keyboard and is switched on right away.</li>
+        <li><b>See the V in the notification area</b> (right end of the taskbar, maybe under the ^ arrow) and the <b>Ready</b> window: try <code>vieejt</code> → <code>việt</code>. Switch Vietnamese/English with <kbd>Ctrl</kbd><kbd>Shift</kbd> or a click on the V/E icon.</li>
+      </ol>
+      <p><b>VietTelex, not Windows' “Vietnamese Telex”.</b> Windows ships its own keyboard called “Vietnamese Telex” — a different keyboard without VietTelex's features. When switching with <kbd>Win</kbd><kbd>Space</kbd>, pick the <b>VietTelex</b> entry. If the list has both, the welcome window and Settings offer <b>Resolve…</b> to remove the look-alike from the list (only from the list; you can add it back).</p>
+      <p style="margin-top:10px"><b>Can't type?</b></p>
+        <ul>
+          <li>A faded tray icon means VietTelex is off because another keyboard is selected: <b>click it</b> to turn VietTelex back on.</li>
+          <li>No icon at all: open <b>VietTelex</b> from the Start menu — opening the app turns the input method on. <b>Quit VietTelex</b> (right-click the tray icon) returns to the keyboard you used before.</li>
+          <li>It shows E: you're in English — press <kbd>Ctrl</kbd><kbd>Shift</kbd> (press and release) or click the icon.</li>
+          <li>Every tone added twice (<code>vieejt</code> → <code>viêệt</code>): another Vietnamese input method is running at the same time — quit it from its own tray icon, or click <b>Resolve…</b> in Settings → Kiểu gõ.</li>
+          <li>Apps run as administrator still get typing with the installed version; the portable version can't type there.</li>
+        </ul>
+      <p>Upgrading: the Microsoft Store updates by itself; for the <code>.msi</code>, install the new one over the old one, or use <b>Check for updates</b> in the app.</p>
+    </div>
+    <div class="card" data-os="windows" id="portable">
+      <h3>Windows — portable version (no install)</h3>
+      <p>For PCs where you can't install software, or a quick try. Download <code>VietTelex-…-portable-x64.zip</code> (or <code>-arm64</code>) from the <a href="/en/download/?os=windows#portable">download page</a>, unzip the whole folder and run <code>VietTelex.exe</code>. No administrator rights; delete the folder to remove it.</p>
       <ul>
-        <li>Download the <code>.msi</code> from the <a href="/en/download/?os=windows">download page</a> (or <a href="https://github.com/ptrinh/viettelex/releases?q=windows&amp;expanded=true" rel="noopener">GitHub Releases</a>): <code>…-x64.msi</code> for Intel/AMD PCs, <code>…-arm64.msi</code> for ARM (Snapdragon). Requires Windows 10 1903 or later. The installer is code-signed.</li>
-        <li>Run it — no restart needed. When it finishes, the VietTelex <b>Settings</b> window opens; later, open it from <b>VietTelex</b> in the Start menu.</li>
-        <li>VietTelex is a system Vietnamese keyboard: pick it with <kbd>Win</kbd><kbd>Space</kbd>. Not in the list? Open VietTelex once from the Start menu, or add it under Settings → Time &amp; language → Language → Vietnamese → Keyboards.</li>
-        <li>Upgrading: install the new MSI over the old one, or use <b>Check for updates</b> in the app.</li>
+        <li>Tray icon, <kbd>Ctrl</kbd><kbd>Shift</kbd> and the welcome window work as in the installed version. Settings are saved in <code>settings.ini</code> next to <code>VietTelex.exe</code> (in <code>%APPDATA%\VietTelex</code> if that folder is read-only). Windows' keyboard list is never touched.</li>
+        <li>Trade-offs: the portable version types by listening to keys system-wide (a keyboard hook) — direct, no underline, but less smooth in browsers and Word than the installed version; it can't type into apps running as administrator or some games; browser password boxes can't be detected (switch to E for passwords).</li>
+        <li><b>Start with Windows</b>: an option in the tray icon's right-click menu (off by default).</li>
+        <li>No self-update: <b>Check for updates</b> opens the download page for the new zip.</li>
+        <li>If VietTelex is installed on the PC, the portable copy steps aside (no double typing).</li>
       </ul>
     </div>
     <div class="card" data-os="linux">
@@ -264,7 +284,7 @@ sudo apt install viettelex-fcitx5   # or: sudo apt install viettelex-ibus</pre>
         <li><b>Free tone placement</b> (Bỏ dấu tự do) — tone keys can go anywhere in the word.</li>
         <li><b>Quick Telex</b> — doubled initial consonants: <code>cc</code> → ch, <code>nn</code> → ng, <code>tt</code> → th…</li>
         <li><b>New-style tones</b> (Bỏ dấu kiểu mới) — hoà, thuý instead of hòa, thúy.</li>
-        <li data-os="macos windows linux"><b>Bracket vowels: [ types ơ, ] types ư</b> (off by default) — the UniKey habit: <code>th[</code> → thơ. Leave it off if you write code. <span class="tag t-mac p">macOS</span> <span class="tag t-win p">Windows</span> <span class="tag t-lin p">Linux</span></li>
+        <li data-os="macos windows linux"><b>Bracket vowels: [ types ơ, ] types ư</b> (off by default) — for those used to bracket keys typing ơ/ư: <code>th[</code> → thơ. Leave it off if you write code. <span class="tag t-mac p">macOS</span> <span class="tag t-win p">Windows</span> <span class="tag t-lin p">Linux</span></li>
         <li data-os="ios android"><b>Auto-capitalise sentences</b> (Tự động viết hoa đầu câu; on by default) — shift turns on at the start of a field, after . ! ? and on a new line.<span data-os="ios"> On iPhone the system Auto-Capitalisation switch in Settings → Keyboards doesn't apply to third-party keyboards — turn it off here.</span> <span class="tag t-ios p">iOS</span> <span class="tag t-and p">Android</span></li>
         <li><b>Context-aware</b> (Quyết định theo ngữ cảnh) — after an English word, an ambiguous next word stays English: “he is”, not “he í”.</li>
         <li data-os="macos windows linux"><b>Words that are both English and Vietnamese</b> (last/lát, list/lít, his/hí): Vietnamese wins by default — double the tone key to keep English (<code>lisst</code> → list). <span class="tag t-mac p">macOS</span> <span class="tag t-win p">Windows</span> <span class="tag t-lin p">Linux</span></li>
@@ -530,7 +550,9 @@ sudo apt install viettelex-fcitx5   # or: sudo apt install viettelex-ibus</pre>
     <div class="card">
       <h3>Switching Vietnamese/English</h3>
       <ul>
-        <li>Kiểu gõ tab → <b>Phím chuyển Việt/Anh</b> (switch hotkey): <kbd>Ctrl</kbd><kbd>Shift</kbd> (UniKey style, default — press and release), <kbd>Alt</kbd><kbd>Z</kbd>, <kbd>Win</kbd><kbd>Space</kbd> (switches the Windows input method, VietTelex ↔ ENG) or Off.</li>
+        <li><b>Tray icon</b> (on by default for new users): <b>V</b> = Vietnamese, <b>E</b> = English, for the app you're using. <b>Left-click</b> = switch Vietnamese/English; double-click = Settings; <b>right-click</b> = menu (Text tools, Settings, Quit VietTelex…). A faded icon = another keyboard is selected; click it to turn VietTelex back on.</li>
+        <li>Kiểu gõ tab → <b>Phím chuyển Việt/Anh</b> (switch hotkey): <kbd>Ctrl</kbd><kbd>Shift</kbd> (default — press and release, no other key in between), <kbd>Alt</kbd><kbd>Z</kbd>, <kbd>Win</kbd><kbd>Space</kbd> (switches the Windows input method, VietTelex ↔ ENG) or Off.</li>
+        <li><b>Quit VietTelex</b> from the tray turns the input method off: Windows goes back to the keyboard you used before (or English). Opening VietTelex from the Start menu turns it on again.</li>
         <li>With <kbd>Ctrl</kbd><kbd>Shift</kbd> / <kbd>Alt</kbd><kbd>Z</kbd>, VietTelex <b>remembers Vietnamese/English per app</b>.</li>
         <li>With <kbd>Win</kbd><kbd>Space</kbd>, per-app memory depends on Windows' own option “Let me use a different input method for each app window” — VietTelex settings show its state and offer a button to turn it on.</li>
       </ul>
@@ -539,9 +561,9 @@ sudo apt install viettelex-fcitx5   # or: sudo apt install viettelex-ibus</pre>
       <h3>No underline, types everywhere</h3>
       <ul>
         <li>By default VietTelex edits text in place — the word being typed is not underlined.</li>
-        <li>Terminals (Command Prompt, PowerShell, Windows Terminal, PuTTY…) and Qt/Java/Adobe apps (Telegram, JetBrains…) are typed <b>directly, UniKey style</b>, while VietTelex is running.</li>
+        <li>Terminals (Command Prompt, PowerShell, Windows Terminal, PuTTY…) and Qt/Java/Adobe apps (Telegram, JetBrains…) are typed <b>directly, no underline</b> (erase and retype with the tone), while VietTelex is running.</li>
         <li>Password, PIN, number, phone and email fields get the raw keys, no tones.</li>
-        <li><b>Ứng dụng</b> (Apps) tab — change only when an app types wrong: enter the executable (e.g. <code>notepad.exe</code>) and pick Mặc định (default, in-place), Composition, Trực tiếp (direct, no underline, UniKey style), Dự phòng (fallback keyboard hook) or Luôn tiếng Anh (always English). “Dự phòng” needs VietTelex running.</li>
+        <li><b>Ứng dụng</b> (Apps) tab — change only when an app types wrong: enter the executable (e.g. <code>notepad.exe</code>) and pick Mặc định (default, in-place), Composition, Trực tiếp (direct, no underline), Dự phòng (fallback keyboard hook) or Luôn tiếng Anh (always English). “Dự phòng” needs VietTelex running.</li>
       </ul>
     </div>
     <div class="card">
@@ -556,7 +578,7 @@ sudo apt install viettelex-fcitx5   # or: sudo apt install viettelex-ibus</pre>
       <h3>Icons, updates, other</h3>
       <ul>
         <li><b>Keyboard icon</b> (taskbar and the <kbd>Win</kbd><kbd>Space</kbd> list): Vᴛ, Star, Vietnam flag, Logo or “VI” text — changing it needs administrator rights.</li>
-        <li><b>Notification-area (tray) icon</b> (off by default): shows the current app's Vietnamese/English state (dimmed = English).</li>
+        <li><b>Notification-area (tray) icon</b> (on for new users; existing users keep their saved choice): the current app's V/E, faded while VietTelex is off.</li>
         <li><b>Ngôn ngữ / Language</b> of the settings window and tray menu: Tiếng Việt (the default, whatever the Windows display language) or English — applies immediately.</li>
         <li><b>Updates</b>: click Check now, or turn on the automatic check (once a day). A downloaded installer is only run if it's validly signed.</li>
         <li><b>Debug log</b>: records events to <code>%LOCALAPPDATA%\VietTelex\debug.log</code>, never what you type.</li>

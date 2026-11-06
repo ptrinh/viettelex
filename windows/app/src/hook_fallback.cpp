@@ -16,6 +16,7 @@
 #include "hotkey.h"
 #include "input_switch.h"
 #include "keymap.h"
+#include "portable.h"
 #include "session.h"
 #include <viettelex/vtx_engine.h>
 #include "settings_store.h"
@@ -494,7 +495,43 @@ bool processIntegrity(DWORD pid, DWORD& rid) {
     return known;
 }
 
+// Portable build (core/portable.h): no TIP behind the hook, so the hook types in EVERY app
+// except "Luôn tiếng Anh" apps and password boxes, and stays out wherever the installed
+// VietTelex keyboard (or another Vietnamese keyboard) is active. fgVietnamese re-checks the
+// yield and the password box at each word start (Win+Space / Tab within one window).
+void publishForegroundPortable(bool fresh) {
+    const AppMode mode = resolveAppMode(narrow(u->fgExe), u->settings.appModes);
+    HWND fg = GetForegroundWindow();
+    DWORD pid = 0, fgRid = 0, ourRid = 0x2000;
+    if (fg) GetWindowThreadProcessId(fg, &pid);
+    const bool known = processIntegrity(pid, fgRid);
+    integrityOf(GetCurrentProcess(), ourRid);
+    const bool yieldHere = portable::yields(fgTipProp(fg), fgLangId(u->fgApp));
+    const bool password = focusedPasswordField(u->fgThread);
+    const portable::HookPlan plan = portable::hookPlan(mode, password, yieldHere);
+    bool hookOn = plan.install;
+    const char* why = hookOn ? "portable" : yieldHere ? "Vietnamese keyboard active (yield)"
+                                          : password  ? "password field"
+                                                      : "always English";
+    if (hookOn && !directUsable(known, fgRid, ourRid)) {
+        hookOn = false;
+        why = known ? "target integrity higher (UIPI)" : "target integrity unreadable";
+        if (g_elevationNotify && !u->fgExe.empty() && !g_warnedExes.count(u->fgExe)) {
+            g_warnedExes.insert(u->fgExe);
+            g_elevationNotify(u->fgExe);
+        }
+    }
+    if (appLogging())
+        appLog("hook", "portable foreground " + narrowAscii(u->fgExe) + " class " + u->fgApp.windowClass + " -> " +
+                           (hookOn ? "hook" : "no hook") + " (" + why + ")" + (fresh ? "" : " [mid-focus]"));
+    if (!hookOn && !g_hookThread) return;
+    ensureHookThread();
+    auto* f = new Foreground{u->fgApp, u->fgExe, u->fgThread, fg, hookOn, plan.direct, fresh};
+    if (!PostThreadMessageW(g_hookTid, kCmdForeground, 0, reinterpret_cast<LPARAM>(f))) delete f;
+}
+
 void publishForeground(bool fresh) {
+    if (portableMode()) return publishForegroundPortable(fresh);
     const AppMode mode = resolveAppMode(narrow(u->fgExe), u->settings.appModes);
     HWND fg = GetForegroundWindow();
     DWORD pid = 0, fgRid = 0, ourRid = 0x2000;
@@ -565,9 +602,11 @@ void hookConfigure(const Settings& s) {
         ensureHookThread();  // posts these settings
     }
     // Always watch the foreground: built-in Direct rules (consoles, terminals) exist.
+    // Portable: our own windows too (the welcome's try box, Settings' fields) — there is no
+    // TIP to type in them.
     if (!u->fgHook)
         u->fgHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr, winEventProc, 0, 0,
-                                    WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+                                    WINEVENT_OUTOFCONTEXT | (portableMode() ? 0 : WINEVENT_SKIPOWNPROCESS));
     onForeground(GetForegroundWindow());
 }
 

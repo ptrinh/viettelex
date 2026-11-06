@@ -8,6 +8,8 @@
 #include "debug_file.h"
 #include "direct_policy.h"
 #include "input_switch.h"
+#include "portable.h"
+#include "settings_store.h"
 
 namespace vtx::app {
 
@@ -15,6 +17,7 @@ namespace {
 constexpr wchar_t kRegAppLang[] = L"Software\\VietTelex\\AppLanguage";
 constexpr unsigned kViVN = 0x042A;
 std::atomic<bool> g_logging{false};
+std::atomic<bool> g_portableDefaultVi{true};  // portable: !Settings::startEnglish
 }  // namespace
 
 std::string narrowAscii(const std::wstring& w) {
@@ -49,14 +52,42 @@ FgApp describeWindow(HWND hwnd) {
     return a;
 }
 
-bool fgVietnamese(HWND fg, const FgApp& app) {
+int fgTipProp(HWND fg) {
     HWND root = fg ? GetAncestor(fg, GA_ROOT) : nullptr;
-    const int prop = root ? static_cast<int>(reinterpret_cast<INT_PTR>(GetPropW(root, kTipLangProp))) : 0;
-    const bool hkl = LOWORD(reinterpret_cast<ULONG_PTR>(GetKeyboardLayout(app.tid))) == kViVN;
-    return foregroundLanguage(prop, app.console, hkl, storedVietnamese(app.identity));
+    return root ? static_cast<int>(reinterpret_cast<INT_PTR>(GetPropW(root, kTipLangProp))) : 0;
+}
+
+unsigned fgLangId(const FgApp& app) {
+    return app.tid ? LOWORD(reinterpret_cast<ULONG_PTR>(GetKeyboardLayout(app.tid))) : 0;
+}
+
+bool fgVietnamese(HWND fg, const FgApp& app) {
+    const int prop = fgTipProp(fg);
+    const unsigned lang = fgLangId(app);
+    // Portable: no TIP of its own. Vietnamese = not yielding to a Vietnamese keyboard there
+    // (core/portable.h yields) + this app's remembered state.
+    if (portableMode())
+        return !portable::yields(prop, lang) && !focusedPasswordField(app.tid) && storedVietnamese(app.identity);
+    return foregroundLanguage(prop, app.console, lang == kViVN, storedVietnamese(app.identity));
+}
+
+void setPortableDefaultVietnamese(bool on) { g_portableDefaultVi.store(on); }
+
+bool focusedPasswordField(DWORD tid) {
+    GUITHREADINFO gi = {};
+    gi.cbSize = sizeof gi;
+    if (!tid || !GetGUIThreadInfo(tid, &gi) || !gi.hwndFocus) return false;
+    char cls[64] = {};
+    GetClassNameA(gi.hwndFocus, cls, sizeof cls);
+    return portable::isPasswordField(cls, static_cast<uint32_t>(GetWindowLongW(gi.hwndFocus, GWL_STYLE)));
 }
 
 bool storedVietnamese(const std::wstring& identity) {
+    if (portableMode()) {
+        bool on = g_portableDefaultVi.load();
+        portableAppLanguage(identity, on);
+        return on;
+    }
     DWORD v = 1, sz = sizeof v;
     if (!identity.empty())
         RegGetValueW(HKEY_CURRENT_USER, kRegAppLang, identity.c_str(), RRF_RT_REG_DWORD, nullptr, &v, &sz);
@@ -65,6 +96,7 @@ bool storedVietnamese(const std::wstring& identity) {
 
 void storeVietnamese(const std::wstring& identity, bool on) {
     if (identity.empty()) return;
+    if (portableMode()) return setPortableAppLanguage(identity, on);
     HKEY k;
     if (RegCreateKeyExW(HKEY_CURRENT_USER, kRegAppLang, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &k, nullptr) !=
         ERROR_SUCCESS)
@@ -75,6 +107,7 @@ void storeVietnamese(const std::wstring& identity, bool on) {
 }
 
 void mirrorAppLanguage() {
+    if (portableMode()) return;  // no TIP reads it; never overwrite the installed build's mirror
     AppLanguageStore store;
     HKEY k;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, kRegAppLang, 0, KEY_QUERY_VALUE, &k) == ERROR_SUCCESS) {

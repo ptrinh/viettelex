@@ -13,8 +13,11 @@
 #     structurally (installer/msi/check_msi.py: row order, string refs, schemas). ARM64 MSI =
 #     x64-shaped database with Template "Arm64;1033" (msibuild), as RelayKey does.
 #  4. Sign the MSIs, verify every signature with osslsigncode against the Microsoft
-#     root in installer/, write SHA256SUMS.
-#  5. Stop. Nothing is uploaded or published.
+#     root in installer/.
+#  5. Portable zips (scripts/make-portable.sh): the SIGNED VietTelex.exe + portable.ini +
+#     README.txt per architecture -> VietTelex-<ver>-portable-{x64,arm64}.zip; write
+#     SHA256SUMS (MSIs, zips, loose binaries).
+#  6. Stop. Nothing is uploaded or published.
 #
 # Host tools: docker (OrbStack), cmake + clang++ (host regtable tool), wixl/msibuild/
 # msiinfo (msitools), jsign, osslsigncode, az (or CI client credentials).
@@ -44,7 +47,7 @@ done
 V="_${VERSION//./_}"   # version-named TIP DLLs: VietTelexTIP_1_0_6.dll (cross-build.sh)
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing tool: $1" >&2; exit 1; }; }
-for t in docker cmake wixl msibuild msiinfo shasum; do need "$t"; done
+for t in docker cmake wixl msibuild msiinfo shasum zip unzip; do need "$t"; done
 if [ "$UNSIGNED" = 0 ]; then for t in jsign osslsigncode; do need "$t"; done; fi
 
 echo "== VietTelex for Windows $VERSION"
@@ -257,17 +260,29 @@ MSIS=("$OUT/VietTelex-$VERSION-x64.msi" "$OUT/VietTelex-$VERSION-arm64.msi")
 echo "-- signing MSIs"
 sign "${MSIS[@]}"
 verify "${MSIS[@]}" "${BINS[@]}"
+# ------------------------------------------------------------------ 5. portable zips
+# From the signed binaries (signed in step 2, verified again just above): the exe inside
+# each zip is byte-identical to the one in the MSI.
+echo "-- portable zips"
+bash "$WIN/scripts/make-portable.sh" "$VERSION" "$DIST/bin" "$OUT"
+ZIPS=("$OUT/VietTelex-$VERSION-portable-x64.zip" "$OUT/VietTelex-$VERSION-portable-arm64.zip")
+for z in "${ZIPS[@]}"; do
+  [ -f "$z" ] || { echo "missing $z" >&2; exit 1; }
+  a="$(basename "$z" .zip)"; a="${a##*-}"
+  unzip -p "$z" "$(basename "$z" .zip)/VietTelex.exe" | cmp -s - "$DIST/bin/$a/VietTelex.exe" \
+    || { echo "$z does not hold the signed bin/$a/VietTelex.exe" >&2; exit 1; }
+done
 # Loose signed binaries next to the MSIs (for inspection / winget portable use later).
 for arch in x86 x64 arm64; do
   mkdir -p "$OUT/bin-$arch"
   cp "$DIST/bin/$arch/"*.dll "$DIST/bin/$arch/"*.exe "$OUT/bin-$arch/" 2>/dev/null || true
 done
-( cd "$OUT" && find . -type f \( -name '*.msi' -o -name '*.dll' -o -name '*.exe' \) | sed 's|^\./||' | sort \
+( cd "$OUT" && find . -type f \( -name '*.msi' -o -name '*.zip' -o -name '*.dll' -o -name '*.exe' \) | sed 's|^\./||' | sort \
     | xargs shasum -a 256 > SHA256SUMS )
 if [ "$UNSIGNED" = 1 ]; then
   echo "== done (UNSIGNED): $OUT"
 else
-  echo "== done: $OUT — ${#BINS[@]} binaries + ${#MSIS[@]} MSIs signed, timestamped and verified"
+  echo "== done: $OUT — ${#BINS[@]} binaries + ${#MSIS[@]} MSIs signed, timestamped and verified; ${#ZIPS[@]} portable zips"
 fi
 echo "   Nothing was uploaded. Publishing is a separate, deliberate step."
 # Publishing checklist (printed only; every step is manual). Tag and URL layout must match
@@ -275,13 +290,16 @@ echo "   Nothing was uploaded. Publishing is a separate, deliberate step."
 cat <<EOF
 
 -- publish checklist for $VERSION (manual, in order):
-   1. GitHub release, tag windows-v$VERSION (assets = the two MSIs + SHA256SUMS):
-        gh release create windows-v$VERSION "$OUT/VietTelex-$VERSION-x64.msi" "$OUT/VietTelex-$VERSION-arm64.msi" "$OUT/SHA256SUMS" ...
+   1. GitHub release, tag windows-v$VERSION (assets = the two MSIs + the two portable zips + SHA256SUMS):
+        gh release create windows-v$VERSION "$OUT/VietTelex-$VERSION-x64.msi" "$OUT/VietTelex-$VERSION-arm64.msi" \\
+          "$OUT/VietTelex-$VERSION-portable-x64.zip" "$OUT/VietTelex-$VERSION-portable-arm64.zip" "$OUT/SHA256SUMS" ...
    2. Store mirror (no-redirect URL Partner Center fetches):
         docs/download/windows/$VERSION/VietTelex-$VERSION-{x64,arm64}.msi
       then upload to R2 (the Store downloads in byte ranges; GitHub Pages gzip breaks them):
         windows/installer/download-worker/upload.sh $VERSION
-   3. docs/stable.json "windows" -> $VERSION (GitHub windows-v$VERSION URLs); Partner Center package URLs -> step 2.
+   3. docs/stable.json "windows" -> $VERSION (GitHub windows-v$VERSION URLs), incl. "portable_x64" / "portable_arm64"
+      (…/VietTelex-$VERSION-portable-{x64,arm64}.zip — the download page shows them only when present);
+      Partner Center package URLs -> step 2.
    4. Update winget manifest:     windows/installer/winget/submit.sh $VERSION   (prints the winget-pkgs PR commands)
    5. Update Chocolatey package:  windows/installer/chocolatey/update.sh $VERSION (prints pack/push commands)
 EOF

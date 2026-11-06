@@ -581,6 +581,7 @@ std::vector<Item> pageItems(int tab) {
     g_shownPickerRow = -2;
     PageContext ctx;
     for (int i = 0; i < static_cast<int>(Expander::Count); ++i) ctx.expanded[i] = g_expanded[i];
+    ctx.portable = portableMode();
     PerAppInput win = PerAppInput::Unknown;
     if (tab == static_cast<int>(SettingsPage::Typing)) {
         // Another Vietnamese IME running / Microsoft Vietnamese keyboards in the list: a

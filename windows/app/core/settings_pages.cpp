@@ -103,9 +103,9 @@ std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, cons
             b.section(PageSection::Switch);
             b.control(PageControl::SwitchHotkey);
             b.expander(Expander::SwitchAdvanced);
-            b.control(PageControl::PerAppWin);
+            if (!ctx.portable) b.control(PageControl::PerAppWin);
             b.toggle(&Settings::startEnglish);
-            if (ctx.offerDefaultInput) b.control(PageControl::DefaultInput);
+            if (ctx.offerDefaultInput && !ctx.portable) b.control(PageControl::DefaultInput);
             b.control(PageControl::SwitchIndicator);
             b.endExpander();
             b.section(PageSection::Spelling);
@@ -141,7 +141,7 @@ std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, cons
             b.control(PageControl::About);
             b.control(PageControl::UiLanguage);
             b.expander(Expander::Appearance);
-            b.control(PageControl::IconPicker);
+            if (!ctx.portable) b.control(PageControl::IconPicker);
             b.toggle(&Settings::showTrayIcon);
             if (showsTrayStyle(s)) b.control(PageControl::TrayStyle);
             b.endExpander();
@@ -150,8 +150,10 @@ std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, cons
             b.toggle(&Settings::autoUpdateCheck);
             b.section(PageSection::Diagnostics);
             b.toggle(&Settings::debugLogging);
-            b.section(PageSection::Uninstall);
-            b.control(PageControl::Uninstall);
+            if (!ctx.portable) {
+                b.section(PageSection::Uninstall);
+                b.control(PageControl::Uninstall);
+            }
             b.control(PageControl::Links);
             break;
         default: break;

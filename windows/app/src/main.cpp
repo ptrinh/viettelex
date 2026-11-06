@@ -1,6 +1,14 @@
 // main.cpp — VietTelex.exe: tray icon, settings window, updater, hook fallback, and
-// the per-user setup/cleanup the MSI delegates to it. Typing itself lives in the TIP:
-// quitting this app never stops Vietnamese input (spec §8).
+// the per-user setup/cleanup the MSI delegates to it. Typing itself lives in the TIP.
+//
+// App feel (docs/WINDOWS-APP-FEEL-SPEC.md, core/app_feel.h): every start makes sure the
+// VietTelex keyboard is in the user's list (added + default + selected when missing / on
+// the first run); the tray V/E icon is on for new users, a left click toggles Việt/Anh,
+// it shows "off" while another keyboard is selected; tray "Thoát" switches the session
+// back to the keyboard used before (or English) — "tắt app là tắt bộ gõ".
+//
+// Portable build (core/portable.h): a marker file next to the exe. No TIP, no HKLM, no
+// keyboard list changes; the hook types in every app; settings.ini next to the exe.
 //
 // Command line:
 //   (none)          open Settings (starting the tray app if needed)
@@ -20,7 +28,10 @@
 #include <vector>
 
 #include "app.h"
+#include "app_feel.h"
 #include "app_quit.h"
+#include "portable.h"
+#include "text_action_logic.h"
 #include "setup_helper_logic.h"
 #include "icons.h"
 #include "registration.h"
@@ -28,6 +39,7 @@
 #include "foreground.h"
 #include "game_logic.h"
 #include "game_mode.h"
+#include "input_switch.h"
 #include "onboarding.h"
 #include "switch_toast.h"
 #include "hook_fallback.h"
@@ -62,29 +74,47 @@ enum TrayCmd : UINT {
     kTrayAbout,
     kTrayHideTray,  // "Ẩn biểu tượng khay" (the app keeps running)
     kTrayGameMode,
+    kTrayExit,       // "Thoát VietTelex": back to the previous keyboard, then quit
+    kTrayAutostart,  // portable only: "Khởi động cùng Windows" (HKCU Run -> this copy)
     kTrayToolBase = 100 /* +6 text tools */
 };
 
+const wchar_t* appWindowClass() { return portableMode() ? vtx::portable::kWindowClass : kAppWindowClass; }
 
 // Tray glyph = the keyboard icon chosen in settings, for the current taskbar theme.
 // Việt/Anh state of the app in the foreground — the tray icon is the only state indicator
 // (1.0.8: the taskbar shows just the keyboard-profile icon). Fed by the TIP
-// (AppCommand::StateChanged) and by foreground changes (fgWinEvent).
-bool g_stateVietnamese = true;
+// (AppCommand::StateChanged) and by foreground changes (fgWinEvent). Off = another
+// keyboard is selected there (installed) / portable yields there (app_feel.h).
+vtx::TrayState g_trayState = vtx::TrayState::Vietnamese;
+bool g_stateVietnamese = true;  // == (g_trayState == Vietnamese)
+HWND g_lastAppWnd = nullptr;    // last foreground window that was not a shell surface
 HWINEVENTHOOK g_fgHook = nullptr;
 void CALLBACK fgWinEvent(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD);
 
 // Default style: the V/E badge (icon_ids.h trayBadge); "keyboard" = the chosen glyph.
+// Off: the V glyph, faded.
 HICON trayIcon() {
-    if (parseTrayStyle(g_settings.trayIconStyle) == TrayStyle::Letter) return tip::CreateBadgeIcon(g_stateVietnamese);
-    return tip::CreateStateIcon(g_inst, g_settings.menuIcon, g_stateVietnamese);
+    const bool off = g_trayState == vtx::TrayState::Off;
+    const bool vi = off || g_stateVietnamese;
+    HICON base = parseTrayStyle(g_settings.trayIconStyle) == TrayStyle::Letter
+                     ? tip::CreateBadgeIcon(vi)
+                     : tip::CreateStateIcon(g_inst, g_settings.menuIcon, vi);
+    if (!off || !base) return base;
+    HICON dim = tip::CreateDimmedIcon(base, GetSystemMetrics(SM_CXSMICON), 0.35f);
+    DestroyIcon(base);
+    return dim;
 }
 
 bool g_trayShown = false;
+bool g_trayV4 = false;  // NIM_SETVERSION 4 accepted: clicks arrive as NIN_SELECT
 
 // Tooltip: "VietTelex — bộ gõ tiếng Việt: Tiếng Việt (V)" — the state in words too.
 void setTrayTip(NOTIFYICONDATAW& nid) {
-    const std::wstring tip = std::wstring(tr(S::TrayTip)) + L": " + tr(g_stateVietnamese ? S::TrayStateVi : S::TrayStateEn);
+    const S state = g_trayState == vtx::TrayState::Off
+                        ? (portableMode() ? S::TrayStatePortableOff : S::TrayStateOff)
+                        : (g_stateVietnamese ? S::TrayStateVi : S::TrayStateEn);
+    const std::wstring tip = std::wstring(tr(portableMode() ? S::TrayTipPortable : S::TrayTip)) + L": " + tr(state);
     lstrcpynW(nid.szTip, tip.c_str(), ARRAYSIZE(nid.szTip));
 }
 
@@ -99,7 +129,7 @@ void addTrayIcon() {
     setTrayTip(nid);
     g_trayShown = Shell_NotifyIconW(NIM_ADD, &nid) != FALSE;
     nid.uVersion = NOTIFYICON_VERSION_4;
-    Shell_NotifyIconW(NIM_SETVERSION, &nid);
+    g_trayV4 = Shell_NotifyIconW(NIM_SETVERSION, &nid) != FALSE;
     if (nid.hIcon) DestroyIcon(nid.hIcon);
 }
 
@@ -112,9 +142,9 @@ void removeTrayIcon() {
     g_trayShown = false;
 }
 
-// The tray icon is OPTIONAL (settings showTrayIcon, default off since 1.0.5; the welcome
-// window pre-ticks it): it is the only lasting Việt/Anh indicator — the taskbar shows the
-// static keyboard icon. Start menu -> VietTelex opens Settings.
+// The tray icon (settings showTrayIcon): ON for new users (app_feel.h applyNewUserDefaults),
+// existing users keep their saved choice. It is the only lasting Việt/Anh indicator — the
+// taskbar shows the static keyboard icon. Start menu -> VietTelex opens Settings.
 void syncTrayIcon() {
     if (!g_mainWnd) return;
     if (!g_settings.showTrayIcon) {
@@ -143,6 +173,8 @@ void syncTrayIcon() {
     if (nid.hIcon) DestroyIcon(nid.hIcon);
 }
 
+void quitFromTray();
+
 void showTrayMenu() {
     HMENU m = CreatePopupMenu();
     // Công cụ văn bản first (settings textToolsInMenu): the menu's most frequent action.
@@ -155,8 +187,13 @@ void showTrayMenu() {
     AppendMenuW(m, MF_STRING, kTraySettings, tr(S::MenuSettings));
     AppendMenuW(m, MF_STRING, kTrayUpdate, tr(S::MenuCheckUpdate));
     AppendMenuW(m, MF_STRING, kTrayAbout, tr(S::MenuAbout));
+    if (portableMode()) {
+        const bool here = vtx::portable::autostartPointsHere(autostartValue(), selfExePath());
+        AppendMenuW(m, MF_STRING | (here ? MF_CHECKED : MF_UNCHECKED), kTrayAutostart, tr(S::MenuAutostart));
+    }
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(m, MF_STRING, kTrayHideTray, tr(S::MenuHideTray));
+    AppendMenuW(m, MF_STRING, kTrayExit, tr(S::MenuExit));
     POINT pt;
     GetCursorPos(&pt);
     SetForegroundWindow(g_mainWnd);
@@ -172,6 +209,13 @@ void showTrayMenu() {
             settingsChanged();
             refreshSettingsWindow();
             break;
+        case kTrayAutostart: {  // portable: point HKCU Run at this copy, or remove it
+            const bool here = vtx::portable::autostartPointsHere(autostartValue(), selfExePath());
+            setAutostart(!here);
+            appLog("app", std::string("portable autostart ") + (here ? "off" : "on"));
+            break;
+        }
+        case kTrayExit: quitFromTray(); break;
         default: runTextToolMenuCommand(cmd, kTrayToolBase); break;  // (DestroyMenu freed the submenu too)
     }
 }
@@ -195,24 +239,149 @@ void showElevationNotice(const std::wstring& exe) {
     if (!g_trayShown) SetTimer(g_mainWnd, 77, 15000, nullptr);  // drop the temporary icon
 }
 
-void setTrayState(bool vietnamese) {
-    if (vietnamese == g_stateVietnamese) return;
-    g_stateVietnamese = vietnamese;
+void setTrayStateEx(vtx::TrayState s) {
+    if (s == g_trayState) return;
+    g_trayState = s;
+    g_stateVietnamese = s == vtx::TrayState::Vietnamese;
     syncTrayIcon();
 }
 
+void setTrayState(bool vietnamese) {
+    setTrayStateEx(vietnamese ? vtx::TrayState::Vietnamese : vtx::TrayState::English);
+}
+
+bool isShellSurface(HWND hwnd) {
+    char cls[64] = {};
+    GetClassNameA(hwnd, cls, sizeof cls);
+    return vtx::isShellSurfaceClass(cls);
+}
+
+// The tray state of a window (app_feel.h trayStateFor).
+vtx::TrayState trayStateOf(HWND hwnd) {
+    const FgApp app = describeWindow(hwnd);
+    const vtx::AppMode mode = vtx::resolveAppMode(narrow(app.identity), g_settings.appModes);
+    return vtx::trayStateFor(portableMode(), fgTipProp(hwnd), app.console, fgLangId(app),
+                             storedVietnamese(app.identity), mode == vtx::AppMode::Off);
+}
+
 // Foreground app changed: its Việt/Anh state. The TIP's kTipLangProp on the window when
-// present (the only truth for consoles, whose reported thread is cmd's), else the
-// VietTelex keyboard on that thread plus the remembered per-app state (foreground.h).
+// present (the only truth for consoles, whose reported thread is cmd's), else whether the
+// VietTelex keyboard is selected on that thread plus the remembered per-app state
+// (foreground.h). Shell surfaces (the taskbar itself, when the tray icon is clicked) keep
+// the state of the app the user came from.
 void CALLBACK fgWinEvent(HWINEVENTHOOK, DWORD, HWND hwnd, LONG idObject, LONG, DWORD, DWORD) {
     if (idObject != OBJID_WINDOW || !hwnd) return;
-    const FgApp app = describeWindow(hwnd);
-    const bool on = fgVietnamese(hwnd, app);
     textActionsNoteForeground(hwnd);  // tray text tools act on the app the user came from
+    if (isShellSurface(hwnd)) return;
+    g_lastAppWnd = hwnd;
+    const vtx::TrayState s = trayStateOf(hwnd);
     if (appLogging())
-        appLog("app", "tray state for " + narrowAscii(app.identity) + " (class " + app.windowClass + "): " +
-                          (on ? "vi" : "en"));
+        appLog("app", std::string("tray state: ") +
+                          (s == vtx::TrayState::Off ? "off" : s == vtx::TrayState::Vietnamese ? "vi" : "en"));
+    setTrayStateEx(s);
+}
+
+// The keyboard in use before VietTelex is selected (Thoát goes back to it).
+void rememberPreviousKeyboard() {
+    const uintptr_t hkl = g_lastAppWnd ? static_cast<uintptr_t>(reinterpret_cast<ULONG_PTR>(GetKeyboardLayout(
+                                             GetWindowThreadProcessId(g_lastAppWnd, nullptr))))
+                                       : defaultInputHkl();
+    if (vtx::rememberableLayout(hkl)) writeQword(L"previousKeyboard", hkl);
+}
+
+// Installed: make VietTelex the input method of the session and of `wnd`'s thread (the
+// window the user came from), in Việt for that app. Not run on real Windows yet.
+void selectVietTelexNow(HWND wnd) {
+    bool registered = false;
+    if (!vietTelexInUserList(registered) && registered) addKeyboardForUser();
+    rememberPreviousKeyboard();
+    const bool session = selectVietTelexForSession();
+    bool posted = false;
+    if (wnd) {
+        const FgApp app = describeWindow(wnd);
+        storeVietnamese(app.identity, true);
+        mirrorAppLanguage();
+        const std::vector<uintptr_t> hkls = keyboardLayouts();
+        const uintptr_t vi = vtx::pickVietnameseHkl(hkls.data(), hkls.size());
+        posted = requestInputLanguage(wnd, vi);
+    }
+    appLog("app", std::string("select VietTelex: session ") + (session ? "ok" : "failed") + ", window " +
+                      (posted ? "asked" : "not asked"));
+}
+
+// Left click on the tray icon (app_feel.h trayClickAction). The click made the taskbar
+// the foreground: act on the app the user came from, then give it the focus back (the
+// TIP re-reads the per-app Việt/Anh memory on that focus change).
+void trayLeftClick() {
+    HWND wnd = g_lastAppWnd && IsWindow(g_lastAppWnd) ? g_lastAppWnd : nullptr;
+    const vtx::TrayState state = wnd ? trayStateOf(wnd) : g_trayState;
+    switch (vtx::trayClickAction(state, portableMode())) {
+        case vtx::TrayClick::ToggleLanguage: {
+            if (!wnd) {
+                showSettings(Tab::Typing);  // no app to switch: open Settings as before
+                return;
+            }
+            const FgApp app = describeWindow(wnd);
+            const bool on = state != vtx::TrayState::Vietnamese;
+            storeVietnamese(app.identity, on);
+            mirrorAppLanguage();
+            setTrayState(on);
+            appLog("app", std::string("tray click: ") + (on ? "vi" : "en"));
+            break;
+        }
+        case vtx::TrayClick::SelectVietTelex:
+            selectVietTelexNow(wnd);
+            setTrayState(true);
+            break;
+        case vtx::TrayClick::SwitchToEnglishKeys: {
+            // Portable, yielding: give that window a non-Vietnamese layout so the hook types.
+            const std::vector<uintptr_t> hkls = keyboardLayouts();
+            const uintptr_t en = vtx::pickExitLayout(hkls.data(), hkls.size(), 0);
+            const bool ok = requestInputLanguage(wnd, en);
+            appLog("app", std::string("portable tray click: English layout ") + (ok ? "requested" : "unavailable"));
+            if (ok) setTrayState(storedVietnamese(describeWindow(wnd).identity));
+            break;
+        }
+    }
+    if (wnd) SetForegroundWindow(wnd);
+    if (showSwitchToast(parseSwitchIndicator(g_settings.switchIndicator), g_trayShown, gameSuspendedNow(),
+                        currentNotificationState()) &&
+        g_trayState != vtx::TrayState::Off)
+        toastShow(g_stateVietnamese ? L"V" : L"E");
+}
+
+// Tray "Thoát VietTelex" (§5): installed -> the session goes back to the keyboard used
+// before VietTelex (else English) and the next start selects VietTelex again; then quit.
+void quitFromTray() {
+    if (!portableMode()) {
+        const std::vector<uintptr_t> hkls = keyboardLayouts();
+        const uintptr_t back = vtx::pickExitLayout(hkls.data(), hkls.size(),
+                                                   static_cast<uintptr_t>(readQword(L"previousKeyboard", 0)));
+        bool ok = false;
+        if (back) {
+            ok = activateLayoutForSession(back);
+            if (g_lastAppWnd && IsWindow(g_lastAppWnd)) requestInputLanguage(g_lastAppWnd, back);
+        }
+        writeFlag(L"reselectOnStart", true);
+        appLog("app", std::string("quit from tray: previous keyboard ") + (back ? (ok ? "selected" : "failed") : "none"));
+    }
+    PostMessageW(g_mainWnd, WM_CLOSE, 0, 0);
+}
+
+// Portable Ctrl+Shift (the observe-only watcher saw the chord): toggle the foreground
+// app's own memory — unless a Vietnamese keyboard is active there (it switches itself).
+void portableChord() {
+    HWND fg = GetForegroundWindow();
+    if (!fg || gameSuspendedNow()) return;
+    const FgApp app = describeWindow(fg);
+    if (vtx::portable::yields(fgTipProp(fg), fgLangId(app))) return;
+    const bool on = !storedVietnamese(app.identity);
+    storeVietnamese(app.identity, on);
     setTrayState(on);
+    appLog("app", std::string("portable Ctrl+Shift: ") + (on ? "vi" : "en"));
+    if (showSwitchToast(parseSwitchIndicator(g_settings.switchIndicator), g_trayShown, gameSuspendedNow(),
+                        currentNotificationState()))
+        toastShow(on ? L"V" : L"E");
 }
 
 // In-TIP Việt/Anh switch (Ctrl+Shift, Alt+Z): store it for hosts that cannot (bit 1:
@@ -258,7 +427,17 @@ wchar_t g_pendingVersion[32] = {};  // version being installed (names the msiexe
 
 void onUpdateChecked(UpdateInfo* info) {
     if (!info->interactive) markAutoChecked();
-    if (info->available) {
+    if (info->available && portableMode()) {
+        // Portable: no self-update — the download page has the new zip.
+        const bool show = info->interactive || readString(L"lastNotifiedUpdateVersion") != info->version;
+        if (show) {
+            writeString(L"lastNotifiedUpdateVersion", info->version);
+            wchar_t msg[256];
+            wsprintfW(msg, tr(S::PortableUpdateAvailable), info->version);
+            if (MessageBoxW(nullptr, msg, tr(S::AppName), MB_YESNO | MB_ICONINFORMATION | MB_SETFOREGROUND) == IDYES)
+                ShellExecuteW(nullptr, L"open", vtx::portable::kDownloadPageUrl, nullptr, nullptr, SW_SHOWNORMAL);
+        }
+    } else if (info->available) {
         wchar_t msg[256];
         wsprintfW(msg, tr(S::UpdateAvailable), info->version);
         // Auto-check notifies once per version (lastNotifiedUpdateVersion, as macOS).
@@ -303,6 +482,11 @@ LRESULT CALLBACK mainProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         case kMsgSwitchChord:
             // Ctrl+Shift seen by the watcher. Inside VietTelex the TIP toggles by itself;
             // on another keyboard, bring VietTelex in (in Việt) for this window.
+            // Portable: the chord IS the switch (no TIP) — never touch the keyboard list.
+            if (portableMode()) {
+                portableChord();
+                return 0;
+            }
             if (activateVietTelexForChord(parseSwitchHotkey(g_settings.switchHotkey), gameSuspendedNow())) {
                 setTrayState(true);
                 if (showSwitchToast(parseSwitchIndicator(g_settings.switchIndicator), g_trayShown, gameSuspendedNow(),
@@ -328,10 +512,17 @@ LRESULT CALLBACK mainProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         case WM_CLOSE: DestroyWindow(h); return 0;
         case kTrayMsg:
+            // Left click / Enter: toggle Việt/Anh (or turn VietTelex back on); double click:
+            // Settings. NOTIFYICON_VERSION_4 sends NIN_SELECT after WM_LBUTTONUP: handle one.
             switch (LOWORD(lp)) {
                 case WM_LBUTTONUP:
+                    if (!g_trayV4) trayLeftClick();
+                    break;
                 case NIN_SELECT:
-                case NIN_KEYSELECT: showSettings(Tab::Typing); break;
+                case NIN_KEYSELECT:
+                    if (g_trayV4) trayLeftClick();
+                    break;
+                case WM_LBUTTONDBLCLK: showSettings(Tab::Typing); break;
                 case WM_CONTEXTMENU:
                 case WM_RBUTTONUP: showTrayMenu(); break;
                 default: break;
@@ -493,6 +684,7 @@ unsigned parseCommandArg(const wchar_t* cmdLine, bool& background, int& oneShot)
 
 void settingsChanged() {
     saveSettings(g_settings);
+    setPortableDefaultVietnamese(!g_settings.startEnglish);
     syncTrayIcon();
     setEnglish(g_settings.uiLanguage == "en");
     hookConfigure(g_settings);
@@ -519,6 +711,64 @@ void runUserSetup(SetupTrigger trigger) {
     if (plan.welcomePending) writeFlag(L"welcomePending", true);
 }
 
+namespace {
+
+// A folder we can create files in (portable settings.ini next to the exe).
+bool dirWritable(const std::wstring& dir) {
+    if (dir.empty()) return false;
+    const std::wstring probe = vtx::portable::joinPath(dir, L".viettelex-write-test");
+    HANDLE f = CreateFileW(probe.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+                           FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return false;
+    CloseHandle(f);
+    return true;
+}
+
+std::wstring envDir(const wchar_t* name) {
+    wchar_t buf[MAX_PATH];
+    const DWORD n = GetEnvironmentVariableW(name, buf, MAX_PATH);
+    return (n == 0 || n >= MAX_PATH) ? std::wstring() : std::wstring(buf, n);
+}
+
+// Portable mode (core/portable.h): decided before anything reads or writes settings.
+bool setUpPortable() {
+    const std::wstring dir = vtx::portable::exeDirOf(selfExePath());
+    const bool on = vtx::portable::detectPortable(
+        dir, [](const std::wstring& p) { return GetFileAttributesW(p.c_str()) != INVALID_FILE_ATTRIBUTES; });
+    initStorage(on, on ? vtx::portable::settingsPath(dir, dirWritable(dir), envDir(L"APPDATA")) : std::wstring());
+    return on;
+}
+
+// §1: VietTelex in the list, default and selected when it was missing / on the first run /
+// after tray Thoát (app_feel.h planKeyboardAtStart). Installed build only.
+void ensureKeyboardAtStart(bool firstRun) {
+    vtx::KeyboardStatus ks;
+    ks.portable = portableMode();
+    if (!ks.portable) {
+        ks.systemAccount = runningAsSystem();
+        bool registered = false;
+        ks.inUserList = vietTelexInUserList(registered);
+        ks.tipRegistered = registered;
+    }
+    ks.firstRun = firstRun;
+    ks.reselectPending = readFlag(L"reselectOnStart");
+    const vtx::KeyboardPlan p = vtx::planKeyboardAtStart(ks);
+    if (p.rememberPrevious) rememberPreviousKeyboard();
+    bool added = false, made = false, selected = false;
+    if (p.add) added = addKeyboardForUser();
+    if (p.makeDefault) made = setDefaultKeyboardForUser();
+    if (p.select) selected = selectVietTelexForSession();
+    if (ks.reselectPending) writeFlag(L"reselectOnStart", false);
+    appLog("app", std::string("keyboard at start: ") + (ks.portable ? "portable, untouched"
+                                                       : !ks.tipRegistered ? "TIP not registered"
+                                                       : ks.inUserList ? "in list" : "missing") +
+                      (p.add ? (added ? ", added" : ", add failed") : "") +
+                      (p.makeDefault ? (made ? ", default" : ", default failed") : "") +
+                      (p.select ? (selected ? ", selected" : ", select failed") : ""));
+}
+
+}  // namespace
+
 }  // namespace vtx::app
 
 using namespace vtx::app;
@@ -528,10 +778,25 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     bool background = false;
     int oneShot = 0;
     unsigned cmd = parseCommandArg(GetCommandLineW(), background, oneShot);
+    const bool isPortable = setUpPortable();
+    // Installer / uninstaller / elevated helpers / update watcher: never for a portable copy
+    // (no MSI, no HKLM, no keyboard list).
+    if (isPortable && oneShot != 0) return 0;
+    if (isPortable &&
+        vtx::portable::decideStart(FindWindowW(kAppWindowClass, nullptr) != nullptr) ==
+            vtx::portable::StartAction::ExitInstalledRunning) {
+        g_settings = loadSettings();
+        setEnglish(g_settings.uiLanguage == "en");
+        MessageBoxW(nullptr, tr(S::PortableInstalledRunning), tr(S::AppName), MB_OK | MB_ICONINFORMATION);
+        return 0;
+    }
 
     if (oneShot == 1) {  // installer (as the installing user, or SYSTEM) / Active Setup at logon
         if (runningAsSystem()) return 0;  // HKCU of SYSTEM: nobody's; Active Setup reaches the users
+        // A brand-new user starts with the tray icon on (app_feel.h); existing users keep theirs.
+        const bool newUser = vtx::isNewUser(settingsStored(), readFlag(L"userSetupDone"), readFlag(L"welcomeShown"));
         g_settings = loadSettings();
+        if (newUser) vtx::applyNewUserDefaults(g_settings);
         appSetLogging(g_settings.debugLogging);
         saveSettings(g_settings);  // publish the snapshot for the TIP
         runUserSetup(g_setupTrigger);
@@ -554,19 +819,22 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     // Single instance: a second launch hands its request to the first and leaves
     // ("yield, not kill" — macOS SingleInstance) — unless the running one is OLDER (an
     // upgrade just replaced the files): then it is asked to quit and this one takes over.
-    HANDLE mutex = CreateMutexW(nullptr, TRUE, L"Local\\VietTelex.App");
+    // Portable copies use their own mutex + window class: the installed TIP never finds them.
+    HANDLE mutex = CreateMutexW(nullptr, TRUE, isPortable ? vtx::portable::kMutexName : L"Local\\VietTelex.App");
     if (mutex && GetLastError() == ERROR_ALREADY_EXISTS) {
-        HWND h = FindWindowW(kAppWindowClass, nullptr);
+        HWND h = FindWindowW(appWindowClass(), nullptr);
         wchar_t title[64] = {};
         if (h) GetWindowTextW(h, title, 64);
-        if (h && vtx::decideHandoff(title, vtx::versionForDisplay(VTX_VER_STRING)) == vtx::Handoff::PassToRunning) {
+        // Portable: always hand off (no upgrade replaces files under a running copy).
+        if (h && (isPortable ||
+                  vtx::decideHandoff(title, vtx::versionForDisplay(VTX_VER_STRING)) == vtx::Handoff::PassToRunning)) {
             AllowSetForegroundWindow(ASFW_ANY);
             PostMessageW(h, kAppCommandMsg,
                          cmd ? cmd : (background ? 0 : static_cast<unsigned>(vtx::AppCommand::OpenSettings)), 0);
             CloseHandle(mutex);
             return 0;
         }
-        closeRunningApps(GetCurrentProcessId(), vtx::kQuitGraceMs);  // older instance: replace it
+        if (!isPortable) closeRunningApps(GetCurrentProcessId(), vtx::kQuitGraceMs);  // older instance: replace it
     }
 
     INITCOMMONCONTROLSEX icc = {sizeof icc, ICC_TAB_CLASSES | ICC_LISTVIEW_CLASSES | ICC_LINK_CLASS |
@@ -574,9 +842,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     InitCommonControlsEx(&icc);
     allowDarkMenus();
 
+    // A brand-new user (nothing stored yet: Store / per-machine install this user never set
+    // up, or a fresh portable copy) starts with the tray icon on (app_feel.h).
+    const bool newUser = vtx::isNewUser(settingsStored(), readFlag(L"userSetupDone"), readFlag(L"welcomeShown"));
     g_settings = loadSettings();
+    if (newUser) vtx::applyNewUserDefaults(g_settings);
     appSetLogging(g_settings.debugLogging);
     setEnglish(g_settings.uiLanguage == "en");
+    setPortableDefaultVietnamese(!g_settings.startEnglish);
     // Chế độ game never survives a restart (or a reboot): a forgotten "every key passes
     // through" would look like a broken keyboard.
     const bool staleGameMode = g_settings.gameMode;
@@ -584,32 +857,38 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     // Windows' text-suggestion setting (word prediction) may have changed while we were not
     // running: republish the snapshot then.
     const bool predictionStale = readFlag(L"systemTextPredictionPublished") != g_settings.systemTextPrediction;
-    if (snapshotMissing() || staleGameMode || predictionStale) saveSettings(g_settings);
+    if (newUser || (!isPortable && snapshotMissing()) || staleGameMode || predictionStale) saveSettings(g_settings);
     // Another user on a per-machine install (Store / SYSTEM install before their next logon).
     const bool setupDoneBefore = readFlag(L"userSetupDone");
-    runUserSetup(vtx::SetupTrigger::AppStart);
+    if (isPortable) writeFlag(L"userSetupDone", true);  // nothing to set up: no keyboard, no autostart
+    else runUserSetup(vtx::SetupTrigger::AppStart);
     const vtx::WelcomeAction welcome =
         vtx::decideWelcome(true, readFlag(L"welcomePending"), readFlag(L"welcomeShown"), setupDoneBefore);
     if (welcome == vtx::WelcomeAction::MarkShown) writeFlag(L"welcomeShown", true);
-    // Onboarding (docs/ONBOARDING-SPEC.md): new users get the profile pages after the welcome;
-    // users set up by a version without onboarding get the one-time "Gõ lẫn tiếng Anh"
-    // card in Settings instead — their values are never touched.
+    // Onboarding (docs/ONBOARDING-SPEC.md): users set up by a version without onboarding get
+    // the one-time "Gõ lẫn tiếng Anh" card in Settings — their values are never touched. New
+    // users no longer get the profile pages (WINDOWS-APP-FEEL-SPEC §4: the welcome is one
+    // page; the profile stays in Settings): they start with the defaults (= profile `vi`).
     const vtx::OnboardingAction onboarding = vtx::decideOnboarding(readFlagState(L"onboardingDone"), welcome);
     if (onboarding == vtx::OnboardingAction::Upgrade) {
         writeFlag(L"onboardingDone", true);
         writeFlag(L"mixedCardPending", true);
+    } else if (onboarding == vtx::OnboardingAction::ShowWelcome || onboarding == vtx::OnboardingAction::ShowProfile) {
+        writeFlag(L"onboardingDone", true);
     }
+    // §1: the keyboard is there, the default and selected — before any window shows.
+    ensureKeyboardAtStart(welcome == vtx::WelcomeAction::Show);
 
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof wc;
     wc.lpfnWndProc = mainProc;
     wc.hInstance = inst;
-    wc.lpszClassName = kAppWindowClass;
+    wc.lpszClassName = appWindowClass();
     RegisterClassExW(&wc);
     // Hidden top-level window (not HWND_MESSAGE: those are invisible to FindWindow,
     // which is how the TIP and a second instance reach us).
     const std::wstring mainTitle = vtx::mainWindowTitle(vtx::versionForDisplay(VTX_VER_STRING));  // version for handoff
-    g_mainWnd = CreateWindowExW(WS_EX_TOOLWINDOW, kAppWindowClass, mainTitle.c_str(), WS_POPUP, 0, 0, 0, 0, nullptr,
+    g_mainWnd = CreateWindowExW(WS_EX_TOOLWINDOW, appWindowClass(), mainTitle.c_str(), WS_POPUP, 0, 0, 0, 0, nullptr,
                                 nullptr, inst, nullptr);
     if (!g_mainWnd) return 1;
     // The TIP posts from inside other apps, some at lower integrity (UIPI).
@@ -617,6 +896,16 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     // Công cụ văn bản: the TIP hands over the selection with WM_COPYDATA (text_tool_ipc.h).
     ChangeWindowMessageFilterEx(g_mainWnd, WM_COPYDATA, MSGFLT_ALLOW, nullptr);
     g_taskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
+    // The tray's first state: the app in front now (it may be on another keyboard: "off").
+    if (HWND fg = GetForegroundWindow(); fg && !isShellSurface(fg)) {
+        DWORD pid = 0;
+        GetWindowThreadProcessId(fg, &pid);
+        if (pid != GetCurrentProcessId()) {
+            g_lastAppWnd = fg;
+            g_trayState = trayStateOf(fg);
+            g_stateVietnamese = g_trayState == vtx::TrayState::Vietnamese;
+        }
+    }
     syncTrayIcon();
     hookSetElevationNotifier(showElevationNotice);
     hookSetChordTarget(g_mainWnd, kMsgSwitchChord);
@@ -627,11 +916,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     mirrorAppLanguage();  // AppContainer hosts read the per-app Việt/Anh memory from here
     appLog("app", std::string("started ") + VTX_VER_STRING);
 
-    const bool profilePages = onboarding == vtx::OnboardingAction::ShowWelcome ||
-                              onboarding == vtx::OnboardingAction::ShowProfile;
-    if (welcome == vtx::WelcomeAction::Show || onboarding == vtx::OnboardingAction::ShowProfile) {
+    if (welcome == vtx::WelcomeAction::Show) {
         // first run: instead of Settings (it has an "Open Settings" button)
-        showWelcome(welcome == vtx::WelcomeAction::Show, profilePages);
+        showWelcome();
         if (cmd && cmd != static_cast<unsigned>(vtx::AppCommand::OpenSettings)) runCommand(cmd);
     } else if (cmd) {
         runCommand(cmd);

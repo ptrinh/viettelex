@@ -118,29 +118,38 @@
     <!-- Windows -->
     <section class="panel" id="p-windows" role="tabpanel" aria-labelledby="t-windows" tabindex="0" hidden>
       <div class="panel-head"><h2>ViệtTelex cho Windows</h2><span class="pill">phiên bản <span data-ver="win">…</span></span></div>
-      <p class="sub">Bàn phím tiếng Việt của hệ thống (TSF) — chọn bằng <code>Win</code>+<code>Space</code>.</p>
+      <p class="sub">Cài xong là gõ được: VietTelex tự thêm vào bàn phím của Windows, hiện chữ V ở khay; đổi Việt/Anh bằng <code>Ctrl</code>+<code>Shift</code>.</p>
       <div class="primary">
         <a class="badge-link" href="https://apps.microsoft.com/detail/xp9cbqk2f77356?hl=vi-vn" rel="noopener"><img class="badge-app" src="/download/badges/ms-store-dark-vi-vn.svg" alt="Tải xuống từ Microsoft Store" width="176" height="48"></a>
       </div>
       <p class="sub">Hoặc tải bộ cài <code>.msi</code> trực tiếp:</p>
+      <!-- Một nút tự chọn x64/ARM64 theo máy (download.js); không nhận ra máy thì hiện cả hai. -->
       <div class="primary">
+        <a class="btn" id="winMsi" href="https://github.com/ptrinh/viettelex/releases?q=windows&amp;expanded=true" rel="noopener" hidden>⬇︎ <span class="lbl">Tải bộ cài Windows (.msi)</span></a>
         <a class="btn ghost" id="winX64" href="https://github.com/ptrinh/viettelex/releases?q=windows&amp;expanded=true" rel="noopener">⬇︎ <span class="lbl">Tải bản x64 (.msi)</span></a>
         <a class="btn ghost" id="winArm" href="https://github.com/ptrinh/viettelex/releases?q=windows&amp;expanded=true" rel="noopener">⬇︎ <span class="lbl">Tải bản ARM64 (.msi)</span></a>
       </div>
+      <p class="note" id="winOther" hidden><span id="winPicked"></span> <a href="#" id="winShowBoth">Chọn bản khác</a></p>
       <ul class="facts"><li>Windows 10 (1903) hoặc 11</li><li>Tự cập nhật qua Microsoft Store</li><li>Bộ cài đã ký số</li><li>Không cần khởi động lại</li></ul>
       <p class="note" id="winNotes"></p>
       <div class="block">
-        <h3>Tải .msi: chọn bản nào?</h3>
-        <p>Microsoft Store tự chọn đúng bản. Nếu tải .msi: <b>x64</b> cho máy Intel/AMD (đa số). <b>ARM64</b> cho máy Snapdragon/ARM. Không chắc: Cài đặt → Hệ thống → Giới thiệu → <b>Loại hệ thống</b>.</p>
-      </div>
-      <div class="block">
         <h3>Sau khi cài</h3>
         <ol class="steps">
-          <li>Bấm <b>Tải</b> trong Microsoft Store (hoặc chạy file <code>.msi</code>); cửa sổ Cài đặt của VietTelex tự mở.</li>
-          <li>Chọn VietTelex bằng <code>Win</code>+<code>Space</code>. Không thấy? Mở VietTelex một lần từ menu Start.</li>
+          <li>Bấm <b>Tải</b> trong Microsoft Store (hoặc chạy file <code>.msi</code>) — không cần chọn bàn phím: VietTelex tự bật.</li>
+          <li>Thấy chữ <b>V</b> ở khay và cửa sổ <b>Đã sẵn sàng</b>: gõ thử <code>vieejt</code> → <code>việt</code>. Biểu tượng mờ = đang chọn bàn phím khác, bấm vào để bật lại.</li>
+          <li>Chọn <b>VietTelex</b>, không phải “Vietnamese Telex” có sẵn của Windows.</li>
           <li>Nâng cấp: Microsoft Store tự cập nhật; bản .msi thì cài bản mới đè lên, hoặc bấm <b>Kiểm tra cập nhật</b> trong app.</li>
         </ol>
         <p class="note"><a href="/hdsd/?os=windows#bat-dau">Hướng dẫn chi tiết cho Windows →</a></p>
+      </div>
+      <div class="block" id="portable">
+        <h3>Không cài được? Dùng bản portable</h3>
+        <p>Không cần quyền quản trị, không cài gì: giải nén file <code>.zip</code> rồi chạy <code>VietTelex.exe</code>. Gõ bằng hook bàn phím cho mọi ứng dụng — trình duyệt/Word không mượt bằng bản cài, không gõ được vào app chạy quyền quản trị; không tự cập nhật.</p>
+        <div class="primary links">
+          <a class="btn ghost" id="winPortX64" href="https://github.com/ptrinh/viettelex/releases?q=windows&amp;expanded=true" rel="noopener">⬇︎ <span class="lbl">Portable x64 (.zip)</span></a>
+          <a class="btn ghost" id="winPortArm" href="https://github.com/ptrinh/viettelex/releases?q=windows&amp;expanded=true" rel="noopener">⬇︎ <span class="lbl">Portable ARM64 (.zip)</span></a>
+        </div>
+        <p class="note"><a href="/hdsd/?os=windows#portable">Bản portable khác bản cài thế nào →</a></p>
       </div>
     </section>
 
@@ -229,7 +238,7 @@ sudo pacman -Sy viettelex</pre><button type="button" data-copy="#pacmancmd">Ché
   const vt = await attach(document.getElementById('note'));
   // vt.setEnabled(false) · vt.setOptions({ inputMethod: 'vni' }) · vt() để gỡ
 &lt;/script&gt;</pre><button type="button" data-copy="#sdkSnippet">Chép</button></div>
-        <p class="note">Có bundler: <code>import { attach } from '@viettelex/core'</code>. <code>Ctrl+Space</code> chuyển Việt/Anh; ô password/email/number/tel luôn gõ thường; SDK tự nhường khi máy đã có bộ gõ tiếng Việt khác (UniKey, EVKey, bộ gõ hệ thống…). Editor riêng, canvas, game: dùng <code>createEngine()</code>.</p>
+        <p class="note">Có bundler: <code>import { attach } from '@viettelex/core'</code>. <code>Ctrl+Space</code> chuyển Việt/Anh; ô password/email/number/tel luôn gõ thường; SDK tự nhường khi máy đã có bộ gõ tiếng Việt khác (bộ gõ chạy nền, bộ gõ của hệ điều hành…). Editor riêng, canvas, game: dùng <code>createEngine()</code>.</p>
       </div>
       <div class="block">
         <h3>Chọn bản</h3>

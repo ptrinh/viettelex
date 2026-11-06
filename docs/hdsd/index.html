@@ -221,12 +221,32 @@ window.vtxDetectOS = function (ua, plat, touch) {
       </ul>
     </div>
     <div class="card" data-os="windows">
-      <h3>Windows</h3>
+      <h3>Windows — cài trong 3 bước</h3>
+      <ol style="margin:6px 0 0 20px">
+        <li><b>Tải</b>: Microsoft Store, hoặc nút tải Windows ở <a href="/download/?os=windows">trang tải</a> (tự chọn đúng bản x64 hay ARM64 cho máy bạn). Cần Windows 10 1903 trở lên; file cài đã ký số.</li>
+        <li><b>Chạy file cài</b> — không cần khởi động lại, không cần chọn gì trong danh sách bàn phím: VietTelex tự thêm mình, đặt làm bàn phím mặc định và bật ngay.</li>
+        <li><b>Thấy chữ V ở khay</b> (góc phải thanh tác vụ, có thể nằm dưới mũi tên ^) và cửa sổ <b>Đã sẵn sàng</b> mở ra: gõ thử <code>vieejt</code> → <code>việt</code>. Đổi Việt/Anh bằng <kbd>Ctrl</kbd><kbd>Shift</kbd> hoặc bấm vào chữ V/E.</li>
+      </ol>
+      <p><b>VietTelex, không phải “Vietnamese Telex” của Windows.</b> Windows có sẵn một bàn phím tên “Vietnamese Telex” — đó là bàn phím khác, không có các tính năng của VietTelex. Khi chuyển bằng <kbd>Win</kbd><kbd>Space</kbd>, hãy chọn dòng <b>VietTelex</b>. Nếu danh sách có cả hai, màn chào và Cài đặt có nút <b>Xử lý…</b> để gỡ bàn phím trùng tên khỏi danh sách (chỉ gỡ khỏi danh sách, thêm lại được).</p>
+      <p style="margin-top:10px"><b>Không gõ được?</b></p>
+        <ul>
+          <li>Biểu tượng khay mờ = VietTelex đang tắt vì bàn phím khác đang được chọn: <b>bấm vào nó</b> để bật lại.</li>
+          <li>Không thấy biểu tượng: mở <b>VietTelex</b> từ menu Start — mở app là bật bộ gõ. <b>Thoát VietTelex</b> (chuột phải biểu tượng khay) trả về bàn phím bạn dùng trước đó.</li>
+          <li>Thấy E: đang ở tiếng Anh, bấm <kbd>Ctrl</kbd><kbd>Shift</kbd> (bấm rồi nhả) hoặc bấm biểu tượng.</li>
+          <li>Mỗi dấu bị bỏ hai lần (<code>vieejt</code> → <code>viêệt</code>): đang có một bộ gõ tiếng Việt khác chạy cùng lúc — thoát nó từ khay của nó, hoặc bấm <b>Xử lý…</b> trong Cài đặt → Kiểu gõ.</li>
+          <li>App chạy bằng quyền quản trị (Run as administrator) vẫn gõ được với bản cài; riêng bản portable thì không.</li>
+        </ul>
+      <p>Nâng cấp: Microsoft Store tự cập nhật; bản <code>.msi</code> thì cài bản mới đè lên bản cũ, hoặc bấm <b>Kiểm tra cập nhật</b> trong app.</p>
+    </div>
+    <div class="card" data-os="windows" id="portable">
+      <h3>Windows — bản portable (không cần cài)</h3>
+      <p>Cho máy không có quyền cài đặt hoặc muốn thử nhanh. Tải file <code>VietTelex-…-portable-x64.zip</code> (hoặc <code>-arm64</code>) ở <a href="/download/?os=windows#portable">trang tải</a>, giải nén cả thư mục rồi chạy <code>VietTelex.exe</code>. Không cần quyền quản trị; xoá thư mục là gỡ xong.</p>
       <ul>
-        <li>Tải file <code>.msi</code> ở <a href="/download/?os=windows">trang tải</a> (hoặc <a href="https://github.com/ptrinh/viettelex/releases?q=windows&amp;expanded=true" rel="noopener">GitHub Releases</a>): <code>…-x64.msi</code> cho máy Intel/AMD, <code>…-arm64.msi</code> cho máy ARM (Snapdragon). Cần Windows 10 1903 trở lên. File cài đã ký số.</li>
-        <li>Chạy file cài — không cần khởi động lại. Cài xong, cửa sổ <b>Cài đặt</b> của VietTelex tự mở; lần sau mở lại bằng <b>VietTelex</b> trong menu Start.</li>
-        <li>VietTelex là một bàn phím Tiếng Việt của hệ thống: chọn nó bằng <kbd>Win</kbd><kbd>Space</kbd>. Không thấy trong danh sách? Mở VietTelex một lần từ menu Start, hoặc thêm ở Cài đặt → Thời gian &amp; ngôn ngữ → Ngôn ngữ → Tiếng Việt → Bàn phím.</li>
-        <li>Nâng cấp: cài bản mới đè lên bản cũ, hoặc dùng <b>Kiểm tra cập nhật</b> trong app.</li>
+        <li>Khay, <kbd>Ctrl</kbd><kbd>Shift</kbd> và màn chào giống bản cài. Cài đặt lưu trong <code>settings.ini</code> cạnh <code>VietTelex.exe</code> (thư mục chỉ đọc thì lưu ở <code>%APPDATA%\VietTelex</code>). Không đụng tới danh sách bàn phím của Windows.</li>
+        <li>Đánh đổi: bản portable gõ bằng cách nghe phím toàn hệ thống (hook bàn phím) — gõ trực tiếp, không gạch chân, nhưng trong trình duyệt và Word không mượt bằng bản cài; không gõ được vào app chạy quyền quản trị và một số game; ô mật khẩu của trình duyệt không nhận ra được (hãy chuyển sang E khi gõ mật khẩu).</li>
+        <li><b>Khởi động cùng Windows</b>: tuỳ chọn trong menu chuột phải ở khay (mặc định tắt).</li>
+        <li>Không tự cập nhật: <b>Kiểm tra cập nhật</b> mở trang tải để lấy file zip mới.</li>
+        <li>Máy đã cài VietTelex: bản portable nhường cho bản cài (không gõ chồng lên nhau).</li>
       </ul>
     </div>
     <div class="card" data-os="linux">
@@ -264,7 +284,7 @@ sudo apt install viettelex-fcitx5   # hoặc: sudo apt install viettelex-ibus</p
         <li><b>Bỏ dấu tự do</b> — phím dấu đặt đâu trong từ cũng được.</li>
         <li><b>Gõ nhanh (Quick Telex)</b> — phụ âm đôi đầu từ: <code>cc</code> → ch, <code>nn</code> → ng, <code>tt</code> → th…</li>
         <li><b>Bỏ dấu kiểu mới</b> — hoà, thuý thay vì hòa, thúy.</li>
-        <li data-os="macos windows linux"><b>Phím ngoặc: [ ra ơ, ] ra ư</b> (mặc định tắt) — thói quen UniKey: <code>th[</code> → thơ. Nếu gõ code nên để tắt. <span class="tag t-mac p">macOS</span> <span class="tag t-win p">Windows</span> <span class="tag t-lin p">Linux</span></li>
+        <li data-os="macos windows linux"><b>Phím ngoặc: [ ra ơ, ] ra ư</b> (mặc định tắt) — cho ai quen gõ phím ngoặc ra ơ/ư: <code>th[</code> → thơ. Nếu gõ code nên để tắt. <span class="tag t-mac p">macOS</span> <span class="tag t-win p">Windows</span> <span class="tag t-lin p">Linux</span></li>
         <li data-os="ios android"><b>Tự động viết hoa đầu câu</b> (mặc định bật) — shift tự bật ở đầu ô, sau . ! ? và khi xuống dòng.<span data-os="ios"> Trên iPhone, công tắc “Tự động viết hoa” trong Cài đặt → Bàn phím không áp dụng cho bàn phím bên thứ ba — tắt ở đây.</span> <span class="tag t-ios p">iOS</span> <span class="tag t-and p">Android</span></li>
         <li><b>Quyết định theo ngữ cảnh</b> — sau một từ tiếng Anh, từ nhập nhằng kế tiếp giữ tiếng Anh: “he is” không thành “he í”.</li>
         <li data-os="macos windows linux"><b>Khi từ vừa là tiếng Anh vừa là tiếng Việt</b> (last/lát, list/lít, his/hí): mặc định ưu tiên tiếng Việt — gõ đúp phím dấu để giữ tiếng Anh (<code>lisst</code> → list). <span class="tag t-mac p">macOS</span> <span class="tag t-win p">Windows</span> <span class="tag t-lin p">Linux</span></li>
@@ -529,7 +549,9 @@ sudo apt install viettelex-fcitx5   # hoặc: sudo apt install viettelex-ibus</p
     <div class="card">
       <h3>Chuyển Việt/Anh</h3>
       <ul>
-        <li>Tab Kiểu gõ → <b>Phím chuyển Việt/Anh</b>: <kbd>Ctrl</kbd><kbd>Shift</kbd> (kiểu UniKey, mặc định — bấm rồi nhả), <kbd>Alt</kbd><kbd>Z</kbd>, <kbd>Win</kbd><kbd>Space</kbd> (đổi bộ gõ của Windows, VietTelex ↔ ENG) hoặc Tắt.</li>
+        <li><b>Biểu tượng khay</b> (mặc định bật với người dùng mới): <b>V</b> = tiếng Việt, <b>E</b> = tiếng Anh, theo app đang dùng. <b>Bấm trái</b> = đổi Việt/Anh; bấm đúp = mở Cài đặt; <b>bấm phải</b> = menu (Công cụ văn bản, Cài đặt, Thoát VietTelex…). Biểu tượng mờ = đang chọn bàn phím khác, bấm để bật lại VietTelex.</li>
+        <li>Tab Kiểu gõ → <b>Phím chuyển Việt/Anh</b>: <kbd>Ctrl</kbd><kbd>Shift</kbd> (mặc định — bấm rồi nhả, không gõ phím nào khác), <kbd>Alt</kbd><kbd>Z</kbd>, <kbd>Win</kbd><kbd>Space</kbd> (đổi bộ gõ của Windows, VietTelex ↔ ENG) hoặc Tắt.</li>
+        <li><b>Thoát VietTelex</b> ở khay = tắt bộ gõ: Windows quay về bàn phím bạn dùng trước đó (hoặc tiếng Anh). Mở lại VietTelex từ menu Start là bật lại.</li>
         <li>Chuyển bằng <kbd>Ctrl</kbd><kbd>Shift</kbd> / <kbd>Alt</kbd><kbd>Z</kbd>: VietTelex <b>nhớ Việt/Anh riêng cho từng ứng dụng</b>.</li>
         <li>Chuyển bằng <kbd>Win</kbd><kbd>Space</kbd>: nhớ theo app hay không là tuỳ chọn “Cho phép dùng bộ gõ khác nhau cho từng cửa sổ ứng dụng” của Windows — Cài đặt VietTelex hiện trạng thái và có nút bật.</li>
       </ul>
@@ -538,9 +560,9 @@ sudo apt install viettelex-fcitx5   # hoặc: sudo apt install viettelex-ibus</p
       <h3>Không gạch chân, gõ được mọi nơi</h3>
       <ul>
         <li>Mặc định VietTelex sửa chữ trực tiếp trong ô nhập — không gạch chân từ đang gõ.</li>
-        <li>Terminal (Command Prompt, PowerShell, Windows Terminal, PuTTY…) và app Qt/Java/Adobe (Telegram, JetBrains…) được gõ <b>trực tiếp kiểu UniKey</b> khi VietTelex đang chạy.</li>
+        <li>Terminal (Command Prompt, PowerShell, Windows Terminal, PuTTY…) và app Qt/Java/Adobe (Telegram, JetBrains…) được <b>gõ trực tiếp, không gạch chân</b> (xoá rồi gõ lại chữ có dấu) khi VietTelex đang chạy.</li>
         <li>Ô mật khẩu, PIN, số, số điện thoại, email: gõ nguyên phím, không bỏ dấu.</li>
-        <li>Tab <b>Ứng dụng</b> — chỉ đổi khi một app gõ sai: nhập tên tệp chạy (vd <code>notepad.exe</code>) rồi chọn Mặc định (sửa trực tiếp), Composition, Trực tiếp (không gạch chân, kiểu UniKey), Dự phòng (hook bàn phím) hoặc Luôn tiếng Anh. “Dự phòng” cần VietTelex đang chạy.</li>
+        <li>Tab <b>Ứng dụng</b> — chỉ đổi khi một app gõ sai: nhập tên tệp chạy (vd <code>notepad.exe</code>) rồi chọn Mặc định (sửa trực tiếp), Composition, Trực tiếp (gõ trực tiếp, không gạch chân), Dự phòng (hook bàn phím) hoặc Luôn tiếng Anh. “Dự phòng” cần VietTelex đang chạy.</li>
       </ul>
     </div>
     <div class="card">
@@ -555,7 +577,7 @@ sudo apt install viettelex-fcitx5   # hoặc: sudo apt install viettelex-ibus</p
       <h3>Biểu tượng, cập nhật, khác</h3>
       <ul>
         <li><b>Biểu tượng bàn phím</b> (thanh tác vụ và danh sách <kbd>Win</kbd><kbd>Space</kbd>): Vᴛ, Ngôi sao, Cờ Việt Nam, Logo hoặc Chữ VI — đổi cần quyền quản trị.</li>
-        <li><b>Hiện biểu tượng ở khay hệ thống</b> (mặc định tắt): hiện Việt/Anh của app đang dùng (mờ = tiếng Anh).</li>
+        <li><b>Hiện biểu tượng ở khay hệ thống</b> (bật sẵn cho người dùng mới; người dùng cũ giữ lựa chọn đã lưu): chữ V/E của app đang dùng, mờ khi VietTelex đang tắt.</li>
         <li><b>Ngôn ngữ / Language</b> của cửa sổ cài đặt và menu khay: Tiếng Việt (mặc định, dù Windows đặt ngôn ngữ nào) hoặc English — đổi là áp dụng ngay.</li>
         <li><b>Cập nhật</b>: bấm Kiểm tra ngay, hoặc bật tự kiểm tra (mỗi ngày một lần). Bản tải về phải có chữ ký hợp lệ mới được cài.</li>
         <li><b>Ghi nhật ký gỡ lỗi</b>: ghi sự kiện vào <code>%LOCALAPPDATA%\VietTelex\debug.log</code>, không ghi nội dung bạn gõ.</li>

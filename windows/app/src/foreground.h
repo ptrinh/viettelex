@@ -19,10 +19,19 @@ struct FgApp {
 };
 FgApp describeWindow(HWND hwnd);
 
-// Vietnamese for the hook / tray (TIP prop first; see foregroundLanguage()).
+// Vietnamese for the hook / tray (TIP prop first; see foregroundLanguage()). Portable:
+// the app's own memory unless it yields there (core/portable.h).
 bool fgVietnamese(HWND fg, const FgApp& app);
+// kTipLangProp on the window's root (1 VI, 2 EN, 0 none) and its thread's input language
+// (LOWORD of GetKeyboardLayout, 0 unknown).
+int fgTipProp(HWND fg);
+unsigned fgLangId(const FgApp& app);
+// Portable: the state of an app with no memory yet (!Settings::startEnglish).
+void setPortableDefaultVietnamese(bool on);
+// The thread's focused control is a classic Win32 password box (core/portable.h).
+bool focusedPasswordField(DWORD tid);
 
-// HKCU\Software\VietTelex\AppLanguage\<identity>, default true.
+// HKCU\Software\VietTelex\AppLanguage\<identity>, default true (portable: settings.ini).
 bool storedVietnamese(const std::wstring& identity);
 void storeVietnamese(const std::wstring& identity, bool on);
 // Rewrites %LOCALAPPDATA%\VietTelex\applang.txt from HKCU (AppContainers read it).

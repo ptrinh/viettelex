@@ -6,6 +6,7 @@
 
 #include <vector>
 
+#include "portable.h"
 #include "shortcuts.h"
 #include "word_prediction.h"
 #include "utf.h"
@@ -27,13 +28,13 @@ HKEY openRoot(bool write) {
     return k;
 }
 
-bool getDword(HKEY k, const wchar_t* name, DWORD& v) {
+bool regDword(HKEY k, const wchar_t* name, DWORD& v) {
     DWORD sz = sizeof v, type = 0;
     return RegQueryValueExW(k, name, nullptr, &type, reinterpret_cast<BYTE*>(&v), &sz) == ERROR_SUCCESS &&
            type == REG_DWORD;
 }
 
-bool getString(HKEY k, const wchar_t* name, std::wstring& out) {
+bool regString(HKEY k, const wchar_t* name, std::wstring& out) {
     DWORD type = 0, sz = 0;
     if (RegQueryValueExW(k, name, nullptr, &type, nullptr, &sz) != ERROR_SUCCESS || type != REG_SZ) return false;
     std::wstring buf(sz / sizeof(wchar_t) + 1, L'\0');
@@ -44,7 +45,7 @@ bool getString(HKEY k, const wchar_t* name, std::wstring& out) {
     return true;
 }
 
-bool getBinary(HKEY k, const wchar_t* name, std::string& out) {
+bool regBinary(HKEY k, const wchar_t* name, std::string& out) {
     DWORD type = 0, sz = 0;
     if (RegQueryValueExW(k, name, nullptr, &type, nullptr, &sz) != ERROR_SUCCESS || type != REG_BINARY) return false;
     out.assign(sz, '\0');
@@ -52,16 +53,149 @@ bool getBinary(HKEY k, const wchar_t* name, std::string& out) {
            RegQueryValueExW(k, name, nullptr, &type, reinterpret_cast<BYTE*>(&out[0]), &sz) == ERROR_SUCCESS;
 }
 
-void setDword(HKEY k, const wchar_t* name, DWORD v) {
-    RegSetValueExW(k, name, 0, REG_DWORD, reinterpret_cast<const BYTE*>(&v), sizeof v);
+// ---- backend: HKCU (installed) or settings.ini (portable, core/portable.h) --------------
+bool g_portable = false;
+std::wstring g_iniPath;
+portable::KeyValueFile g_kv;
+SRWLOCK g_kvLock = SRWLOCK_INIT;
+
+std::string kvName(const wchar_t* name) {
+    std::string s;
+    for (const wchar_t* p = name; *p; ++p) s.push_back(*p < 0x80 ? static_cast<char>(*p) : '_');
+    return s;
 }
-void setString(HKEY k, const wchar_t* name, const std::wstring& v) {
-    RegSetValueExW(k, name, 0, REG_SZ, reinterpret_cast<const BYTE*>(v.c_str()),
-                   static_cast<DWORD>((v.size() + 1) * sizeof(wchar_t)));
+
+void kvLoadLocked() {
+    g_kv.clear();
+    HANDLE f = CreateFileW(g_iniPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return;
+    LARGE_INTEGER size = {};
+    if (GetFileSizeEx(f, &size) && size.QuadPart > 0 && size.QuadPart < 16 * 1024 * 1024) {
+        std::string text(static_cast<size_t>(size.QuadPart), '\0');
+        DWORD got = 0;
+        if (ReadFile(f, &text[0], static_cast<DWORD>(text.size()), &got, nullptr)) {
+            text.resize(got);
+            g_kv.parse(text);
+        }
+    }
+    CloseHandle(f);
 }
-void setBinary(HKEY k, const wchar_t* name, const void* data, size_t len) {
-    RegSetValueExW(k, name, 0, REG_BINARY, static_cast<const BYTE*>(data), static_cast<DWORD>(len));
+
+// Atomic replace (temp file + MoveFileEx), like the installed build's snapshot.
+void kvSaveLocked() {
+    if (g_iniPath.empty()) return;
+    const size_t slash = g_iniPath.find_last_of(L'\\');
+    if (slash != std::wstring::npos) CreateDirectoryW(g_iniPath.substr(0, slash).c_str(), nullptr);
+    const std::string text = g_kv.serialize();
+    const std::wstring tmp = g_iniPath + L".tmp";
+    HANDLE f = CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return;
+    DWORD wrote = 0;
+    const bool ok = WriteFile(f, text.data(), static_cast<DWORD>(text.size()), &wrote, nullptr) && wrote == text.size();
+    CloseHandle(f);
+    if (ok) MoveFileExW(tmp.c_str(), g_iniPath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+    else DeleteFileW(tmp.c_str());
 }
+
+// One open of the store: the HKCU key, or the settings.ini map under its lock (written back
+// when closed if anything changed).
+class Store {
+public:
+    explicit Store(bool write) : write_(write) {
+        if (g_portable) {
+            if (write) AcquireSRWLockExclusive(&g_kvLock);
+            else AcquireSRWLockShared(&g_kvLock);
+            ok_ = true;
+        } else {
+            k_ = openRoot(write);
+            ok_ = k_ != nullptr;
+        }
+    }
+    ~Store() {
+        if (g_portable) {
+            if (write_) {
+                if (dirty_) kvSaveLocked();
+                ReleaseSRWLockExclusive(&g_kvLock);
+            } else {
+                ReleaseSRWLockShared(&g_kvLock);
+            }
+        } else if (k_) {
+            RegCloseKey(k_);
+        }
+    }
+    Store(const Store&) = delete;
+    Store& operator=(const Store&) = delete;
+    bool ok() const { return ok_; }
+
+    bool dword(const wchar_t* n, DWORD& v) const {
+        if (!g_portable) return regDword(k_, n, v);
+        uint32_t x = 0;
+        if (!g_kv.getDword(kvName(n), x)) return false;
+        v = x;
+        return true;
+    }
+    bool qword(const wchar_t* n, unsigned long long& v) const {
+        if (!g_portable) {
+            DWORD type = 0, sz = sizeof v;
+            return RegQueryValueExW(k_, n, nullptr, &type, reinterpret_cast<BYTE*>(&v), &sz) == ERROR_SUCCESS &&
+                   type == REG_QWORD;
+        }
+        uint64_t x = 0;
+        if (!g_kv.getQword(kvName(n), x)) return false;
+        v = x;
+        return true;
+    }
+    bool string(const wchar_t* n, std::wstring& out) const {
+        if (!g_portable) return regString(k_, n, out);
+        std::string u;
+        if (!g_kv.getString(kvName(n), u)) return false;
+        out = widen(u);
+        return true;
+    }
+    bool binary(const wchar_t* n, std::string& out) const {
+        if (!g_portable) return regBinary(k_, n, out);
+        return g_kv.getBinary(kvName(n), out);
+    }
+    void setDword(const wchar_t* n, DWORD v) {
+        if (!g_portable) {
+            RegSetValueExW(k_, n, 0, REG_DWORD, reinterpret_cast<const BYTE*>(&v), sizeof v);
+            return;
+        }
+        g_kv.setDword(kvName(n), v);
+        dirty_ = true;
+    }
+    void setQword(const wchar_t* n, unsigned long long v) {
+        if (!g_portable) {
+            RegSetValueExW(k_, n, 0, REG_QWORD, reinterpret_cast<const BYTE*>(&v), sizeof v);
+            return;
+        }
+        g_kv.setQword(kvName(n), v);
+        dirty_ = true;
+    }
+    void setString(const wchar_t* n, const std::wstring& v) {
+        if (!g_portable) {
+            RegSetValueExW(k_, n, 0, REG_SZ, reinterpret_cast<const BYTE*>(v.c_str()),
+                           static_cast<DWORD>((v.size() + 1) * sizeof(wchar_t)));
+            return;
+        }
+        g_kv.setString(kvName(n), narrow(v));
+        dirty_ = true;
+    }
+    void setBinary(const wchar_t* n, const void* data, size_t len) {
+        if (!g_portable) {
+            RegSetValueExW(k_, n, 0, REG_BINARY, static_cast<const BYTE*>(data), static_cast<DWORD>(len));
+            return;
+        }
+        g_kv.setBinary(kvName(n), std::string(static_cast<const char*>(data), len));
+        dirty_ = true;
+    }
+
+private:
+    bool write_;
+    bool ok_ = false;
+    bool dirty_ = false;
+    HKEY k_ = nullptr;
+};
 
 std::wstring localAppDataDir() {
     wchar_t buf[MAX_PATH];
@@ -120,7 +254,42 @@ bool writeSnapshotFile(const std::vector<uint8_t>& bytes) {
     return ok && MoveFileExW(tmp.c_str(), dst.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
 }
 
+constexpr char kAppLangPrefix[] = "AppLanguage\\";
+
 }  // namespace
+
+void initStorage(bool portableMode, const std::wstring& portableIni) {
+    AcquireSRWLockExclusive(&g_kvLock);
+    g_portable = portableMode;
+    g_iniPath = portableMode ? portableIni : std::wstring();
+    if (portableMode) kvLoadLocked();
+    ReleaseSRWLockExclusive(&g_kvLock);
+}
+
+bool portableMode() { return g_portable; }
+
+bool settingsStored() {
+    Store st(false);
+    if (!st.ok()) return false;
+    std::wstring v;
+    return st.string(L"switchHotkey", v);  // every saveSettings() of every version writes it
+}
+
+bool portableAppLanguage(const std::wstring& identity, bool& vietnamese) {
+    if (!g_portable || identity.empty()) return false;
+    Store st(false);
+    uint32_t v = 0;
+    if (!g_kv.getDword(kAppLangPrefix + narrow(identity), v)) return false;
+    vietnamese = v != 0;
+    return true;
+}
+
+void setPortableAppLanguage(const std::wstring& identity, bool vietnamese) {
+    if (!g_portable || identity.empty()) return;
+    const std::wstring name = widen(kAppLangPrefix) + identity;
+    Store st(true);
+    st.setDword(name.c_str(), vietnamese ? 1 : 0);
+}
 
 std::wstring widen(const std::string& s) {
     if (s.empty()) return L"";
@@ -148,116 +317,119 @@ bool readSystemTextPrediction() {
 Settings loadSettings() {
     Settings s;
     s.systemTextPrediction = readSystemTextPrediction();  // Windows' own setting, not ours
-    HKEY k = openRoot(false);
-    if (!k) return s;
+    Store st(false);
+    if (!st.ok()) return s;
     size_t count = 0;
     const BoolKey* keys = boolKeys(&count);
     for (size_t i = 0; i < count; ++i) {
         DWORD v;
-        if (!isSystemMirror(keys[i]) && getDword(k, widen(keys[i].name).c_str(), v)) s.*keys[i].field = v != 0;
+        if (!isSystemMirror(keys[i]) && st.dword(widen(keys[i].name).c_str(), v)) s.*keys[i].field = v != 0;
     }
     std::wstring str;
-    if (getString(k, L"switchHotkey", str)) s.switchHotkey = narrow(str);
-    if (getString(k, L"menuIcon", str)) s.menuIcon = narrow(str);
-    if (getString(k, L"uiLanguage", str)) s.uiLanguage = narrow(str);
-    if (getString(k, L"addTonesHotkey", str)) s.addTonesHotkey = narrow(str);
-    if (getString(k, L"gameModeHotkey", str)) s.gameModeHotkey = narrow(str);
-    if (getString(k, L"switchIndicator", str)) s.switchIndicator = narrow(str);
-    if (getString(k, L"trayIconStyle", str)) s.trayIconStyle = narrow(str);
+    if (st.string(L"switchHotkey", str)) s.switchHotkey = narrow(str);
+    if (st.string(L"menuIcon", str)) s.menuIcon = narrow(str);
+    if (st.string(L"uiLanguage", str)) s.uiLanguage = narrow(str);
+    if (st.string(L"addTonesHotkey", str)) s.addTonesHotkey = narrow(str);
+    if (st.string(L"gameModeHotkey", str)) s.gameModeHotkey = narrow(str);
+    if (st.string(L"switchIndicator", str)) s.switchIndicator = narrow(str);
+    if (st.string(L"trayIconStyle", str)) s.trayIconStyle = narrow(str);
     std::string json;
     StringMap m;
-    if (getBinary(k, L"shortcuts", json) && parseFlatJson(json, m))
+    if (st.binary(L"shortcuts", json) && parseFlatJson(json, m))
         for (const auto& kv : m) s.shortcuts[utf8ToUtf16(kv.first)] = utf8ToUtf16(kv.second);
-    if (getBinary(k, L"appModes", json) && parseFlatJson(json, m)) {
+    if (st.binary(L"appModes", json) && parseFlatJson(json, m)) {
         for (const auto& kv : m) {
             AppMode mode;
             if (parseAppMode(kv.second, mode)) s.appModes[normalizeExeName(kv.first)] = mode;
         }
     }
-    RegCloseKey(k);
     return s;
 }
 
 bool saveSettings(const Settings& s) {
-    HKEY k = openRoot(true);
-    if (!k) return false;
-    size_t count = 0;
-    const BoolKey* keys = boolKeys(&count);
-    for (size_t i = 0; i < count; ++i)
-        if (!isSystemMirror(keys[i])) setDword(k, widen(keys[i].name).c_str(), (s.*keys[i].field) ? 1 : 0);
-    // Bookkeeping only (not a setting): what the snapshot says about Windows' text
-    // suggestions, so a start-up after the Windows toggle changed republishes it.
-    setDword(k, L"systemTextPredictionPublished", s.systemTextPrediction ? 1 : 0);
-    setString(k, L"switchHotkey", widen(s.switchHotkey));
-    setString(k, L"menuIcon", widen(s.menuIcon));
-    setString(k, L"uiLanguage", widen(s.uiLanguage));
-    setString(k, L"addTonesHotkey", widen(s.addTonesHotkey));
-    setString(k, L"gameModeHotkey", widen(s.gameModeHotkey));
-    setString(k, L"switchIndicator", widen(s.switchIndicator));
-    setString(k, L"trayIconStyle", widen(s.trayIconStyle));
-    StringMap sc;
-    for (const auto& kv : s.shortcuts) sc[utf16ToUtf8(kv.first)] = utf16ToUtf8(kv.second);
-    std::string j = toFlatJson(sc);
-    setBinary(k, L"shortcuts", j.data(), j.size());
-    StringMap am;
-    for (const auto& kv : s.appModes) am[kv.first] = appModeName(kv.second);
-    j = toFlatJson(am);
-    setBinary(k, L"appModes", j.data(), j.size());
-    std::vector<uint8_t> snap = serialize(s);
-    setBinary(k, L"snapshot", snap.data(), snap.size());
-    RegCloseKey(k);
+    std::vector<uint8_t> snap;
+    {
+        Store st(true);
+        if (!st.ok()) return false;
+        size_t count = 0;
+        const BoolKey* keys = boolKeys(&count);
+        for (size_t i = 0; i < count; ++i)
+            if (!isSystemMirror(keys[i])) st.setDword(widen(keys[i].name).c_str(), (s.*keys[i].field) ? 1 : 0);
+        // Bookkeeping only (not a setting): what the snapshot says about Windows' text
+        // suggestions, so a start-up after the Windows toggle changed republishes it.
+        st.setDword(L"systemTextPredictionPublished", s.systemTextPrediction ? 1 : 0);
+        st.setString(L"switchHotkey", widen(s.switchHotkey));
+        st.setString(L"menuIcon", widen(s.menuIcon));
+        st.setString(L"uiLanguage", widen(s.uiLanguage));
+        st.setString(L"addTonesHotkey", widen(s.addTonesHotkey));
+        st.setString(L"gameModeHotkey", widen(s.gameModeHotkey));
+        st.setString(L"switchIndicator", widen(s.switchIndicator));
+        st.setString(L"trayIconStyle", widen(s.trayIconStyle));
+        StringMap sc;
+        for (const auto& kv : s.shortcuts) sc[utf16ToUtf8(kv.first)] = utf16ToUtf8(kv.second);
+        std::string j = toFlatJson(sc);
+        st.setBinary(L"shortcuts", j.data(), j.size());
+        StringMap am;
+        for (const auto& kv : s.appModes) am[kv.first] = appModeName(kv.second);
+        j = toFlatJson(am);
+        st.setBinary(L"appModes", j.data(), j.size());
+        if (g_portable) return true;  // no TIP to publish to (see settings_store.h)
+        snap = serialize(s);
+        st.setBinary(L"snapshot", snap.data(), snap.size());
+    }
     return writeSnapshotFile(snap);
 }
 
 unsigned long long readQword(const wchar_t* name, unsigned long long def) {
     unsigned long long v = def;
-    DWORD sz = sizeof v;
-    if (RegGetValueW(HKEY_CURRENT_USER, kRoot, name, RRF_RT_REG_QWORD, nullptr, &v, &sz) != ERROR_SUCCESS) v = def;
+    Store st(false);
+    if (!st.ok() || !st.qword(name, v)) v = def;
     return v;
 }
 
 void writeQword(const wchar_t* name, unsigned long long v) {
-    if (HKEY k = openRoot(true)) {
-        RegSetValueExW(k, name, 0, REG_QWORD, reinterpret_cast<const BYTE*>(&v), sizeof v);
-        RegCloseKey(k);
-    }
+    Store st(true);
+    if (st.ok()) st.setQword(name, v);
 }
 
 std::wstring readString(const wchar_t* name) {
     std::wstring out;
-    if (HKEY k = openRoot(false)) {
-        getString(k, name, out);
-        RegCloseKey(k);
-    }
+    Store st(false);
+    if (st.ok()) st.string(name, out);
     return out;
 }
 
 void writeString(const wchar_t* name, const std::wstring& v) {
-    if (HKEY k = openRoot(true)) {
-        setString(k, name, v);
-        RegCloseKey(k);
-    }
+    Store st(true);
+    if (st.ok()) st.setString(name, v);
 }
 
 bool readFlag(const wchar_t* name) {
-    DWORD v = 0, sz = sizeof v;
-    return RegGetValueW(HKEY_CURRENT_USER, kRoot, name, RRF_RT_REG_DWORD, nullptr, &v, &sz) == ERROR_SUCCESS && v;
+    DWORD v = 0;
+    Store st(false);
+    return st.ok() && st.dword(name, v) && v;
 }
 
 int readFlagState(const wchar_t* name) {
-    DWORD v = 0, sz = sizeof v;
-    if (RegGetValueW(HKEY_CURRENT_USER, kRoot, name, RRF_RT_REG_DWORD, nullptr, &v, &sz) != ERROR_SUCCESS) return -1;
+    DWORD v = 0;
+    Store st(false);
+    if (!st.ok() || !st.dword(name, v)) return -1;
     return v ? 1 : 0;
 }
 
 void writeFlag(const wchar_t* name, bool v) {
-    if (HKEY k = openRoot(true)) {
-        setDword(k, name, v ? 1 : 0);
-        RegCloseKey(k);
-    }
+    Store st(true);
+    if (st.ok()) st.setDword(name, v ? 1 : 0);
 }
 
 void eraseUserData() {
+    if (g_portable) {  // never reached from the UI (no uninstaller in portable); kept total
+        AcquireSRWLockExclusive(&g_kvLock);
+        g_kv.clear();
+        if (!g_iniPath.empty()) DeleteFileW(g_iniPath.c_str());
+        ReleaseSRWLockExclusive(&g_kvLock);
+        return;
+    }
     RegDeleteTreeW(HKEY_CURRENT_USER, kRoot);
     std::wstring dir = localAppDataDir();
     if (dir.empty()) return;
