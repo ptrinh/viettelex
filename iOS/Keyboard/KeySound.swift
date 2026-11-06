@@ -167,6 +167,8 @@ final class KeySound {
     func debugDrain() { queue.sync {} }
     var debugStyleRaw: String { lock.lock(); defer { lock.unlock() }; return styleRaw }
     var debugGain: Float { lock.lock(); defer { lock.unlock() }; return gain }
+    /// prepare() đã được gọi (engine được xin dựng) — KeyboardRenderBudgetTests.
+    var debugWanted: Bool { lock.lock(); defer { lock.unlock() }; return wanted }
     #endif
 
     /// Phát ngay (gọi ở touch-down trên main). false = engine chưa sẵn sàng (bỏ tiếng này,

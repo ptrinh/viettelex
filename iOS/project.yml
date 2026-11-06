@@ -368,6 +368,8 @@ schemes:
             - SuggestTrigramTests/testHeldoutBeforeAfter
             - SuggestTrigramTests/testLatency
             - SwipeDecoderTests/testBenchmark
+            - KeyboardRenderBudgetTests/testTimingOpenToFirstFrame
+            - KeyboardRenderBudgetTests/testTimingPlaneSwitch
             - TouchTargetTests/testLatency
             - KeyboardBenchTests/testHotPathBench
             - RamBreakdownTests/testComponentBreakdown

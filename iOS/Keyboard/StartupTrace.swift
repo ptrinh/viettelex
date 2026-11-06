@@ -53,6 +53,65 @@ enum StartupTrace {
     #endif
 }
 
+/// Khoảng thời gian "tới khung hình": mở ngay, đóng ở observer chạy NGAY SAU commit Core
+/// Animation của lượt runloop hiện tại (cùng order với PostFrameWork) — tức lúc cây layer đã
+/// gửi cho render server. Không gồm phần render server / màn hình (xem iOS/docs/KEYBOARD-STARTUP.md).
+///
+/// Category `.dynamicTracing`: signpost TẮT mặc định, chỉ bật khi Instruments / xctrace đang
+/// ghi ⇒ khi không ghi, mỗi lời gọi chỉ là một lần đọc cờ `isEnabled` (không observer, không
+/// cấp phát) — dùng được ở đường mỗi phím.
+///
+/// Khoảng (tên trong Instruments → os_signpost, subsystem com.viettelex.ios.keyboard):
+///  • `appear`  — init controller (hoặc viewWillAppear khi CÙNG controller hiện lại) → commit
+///    của khung đầu có phím (bounds > 0). Thông điệp mở: "cold" (controller đầu tiên của process)
+///    / "warm" / "reshow"; thông điệp đóng: kích thước view lúc đó.
+///  • `key`     — controller nhận phím (handle) → commit khung có kết quả phím đó.
+///  • `plane`   — đổi mặt phím (chữ/123/#+=/emoji…) → commit.
+/// Mốc (event): `vc.init`, `viewDidLoad`, `viewWillAppear`, `didLayout`, `viewDidAppear`,
+/// `height` (mỗi lần chiều cao view gốc đổi — thấy chuỗi 0 → … → chiều cao cuối của host).
+enum FrameTrace {
+    static let signposter = OSSignposter(logHandle: OSLog(subsystem: "com.viettelex.ios.keyboard",
+                                                          category: .dynamicTracing))
+    @inline(__always) static var isEnabled: Bool { signposter.isEnabled }
+
+    /// Khoảng đang chờ commit (main thread).
+    nonisolated(unsafe) private static var open: [(name: StaticString, state: OSSignpostIntervalState)] = []
+    nonisolated(unsafe) private static var observer: CFRunLoopObserver?
+
+    /// Mở khoảng `name` và đóng nó ở commit kế tiếp. Không ghi ⇒ no-op.
+    @inline(__always)
+    static func untilCommit(_ name: StaticString) {
+        guard signposter.isEnabled else { return }
+        endAtCommit(name, signposter.beginInterval(name, id: signposter.makeSignpostID()))
+    }
+
+    /// Đóng khoảng đã mở ở commit kế tiếp (main thread).
+    static func endAtCommit(_ name: StaticString, _ state: OSSignpostIntervalState) {
+        open.append((name, state))
+        guard observer == nil else { return }
+        let o = CFRunLoopObserverCreateWithHandler(
+            kCFAllocatorDefault, CFRunLoopActivity.beforeWaiting.rawValue | CFRunLoopActivity.exit.rawValue,
+            false, PostFrameWork.observerOrder) { _, _ in committed() }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), o, .commonModes)
+        observer = o
+    }
+
+    private static func committed() {
+        if let o = observer { CFRunLoopObserverInvalidate(o); observer = nil }
+        let done = open
+        open = []
+        for (name, state) in done { signposter.endInterval(name, state) }
+    }
+
+    @inline(__always)
+    static func event(_ name: StaticString) {
+        if signposter.isEnabled { signposter.emitEvent(name) }
+    }
+
+    /// Số controller đã tạo trong process (cold = 1).
+    nonisolated(unsafe) static var controllersCreated = 0
+}
+
 /// Việc KHÔNG cần cho khung hình đầu (gợi ý mở đầu, model cá nhân, báo trạng thái App Group,
 /// nạp Thay thế văn bản…) — chạy NGAY SAU khi khung đầu đã commit: observer beforeWaiting của
 /// runloop main, order sau observer commit của Core Animation (2_000_000), rồi main.async (đánh

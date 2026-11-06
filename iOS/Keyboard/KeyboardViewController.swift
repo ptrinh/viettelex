@@ -135,7 +135,43 @@ final class KeyboardViewController: UIInputViewController {
     private var keyCommandsSetting = false
     private var language: KeyboardLanguage = .vi
 
+    override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
+        super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
+        FrameTrace.controllersCreated += 1
+        if FrameTrace.isEnabled { beginAppearTrace(FrameTrace.controllersCreated == 1 ? .cold : .warm) }
+    }
+    required init?(coder: NSCoder) { super.init(coder: coder) }
+
+    // MARK: signpost hiện bàn phím (FrameTrace, StartupTrace.swift) — chỉ chạy khi Instruments ghi.
+    private var appearTrace: OSSignpostIntervalState?
+    private var tracedHeight: CGFloat = -1
+    private enum AppearKind { case cold, warm, reshow }
+    private func beginAppearTrace(_ kind: AppearKind) {
+        let s = FrameTrace.signposter
+        switch kind {
+        case .cold: appearTrace = s.beginInterval("appear", id: s.makeSignpostID(), "cold")
+        case .warm: appearTrace = s.beginInterval("appear", id: s.makeSignpostID(), "warm")
+        case .reshow: appearTrace = s.beginInterval("appear", id: s.makeSignpostID(), "reshow")
+        }
+        s.emitEvent("vc.init")
+    }
+    /// viewDidLayoutSubviews: mốc mỗi lần chiều cao đổi; khung đầu có phím ⇒ đóng `appear` ở commit.
+    private func traceLayout() {
+        let s = FrameTrace.signposter
+        let h = view.bounds.height
+        if h != tracedHeight {
+            tracedHeight = h
+            let w = Int(view.bounds.width), hh = Int(h)
+            s.emitEvent("height", "\(w)x\(hh)")
+        }
+        if let st = appearTrace, h > 0, let kb = keyboard, !kb.isTornDown, !kb.initialBuildPending {
+            appearTrace = nil
+            FrameTrace.endAtCommit("appear", st)
+        }
+    }
+
     override func viewDidLoad() {
+        FrameTrace.event("viewDidLoad")
         StartupPrewarm.start()   // nền: SF Symbols / phông của phím — song song với dựng UIKit
         super.viewDidLoad()
         if #available(iOS 17.0, *) {
@@ -240,6 +276,9 @@ final class KeyboardViewController: UIInputViewController {
     /// Test: số lượt updateSuggestions (mỗi lượt = tính lại cả thanh gợi ý trên main).
     var debugSuggestionPasses = 0
     var debugClipboardButtonVisible: Bool { keyboard.debugClipboardButtonVisible }
+    /// Test (KeyboardRenderBudgetTests): model cá nhân đã tạo / layout vuốt đã gửi xuống decoder.
+    var debugLangModelLoaded: Bool { langModelStorage != nil }
+    var debugSwipeLayoutPushed: Bool { swipe?.layout != nil }
     #endif
 
     /// Clipboard hệ thống (test thay bằng clipboard giả).
@@ -270,6 +309,10 @@ final class KeyboardViewController: UIInputViewController {
         #endif
         super.viewWillAppear(animated)
         StartupTrace.event("viewWillAppear")
+        if FrameTrace.isEnabled {
+            if appearTrace == nil, keyboard?.isTornDown ?? true { beginAppearTrace(.reshow) }
+            FrameTrace.event("viewWillAppear")
+        }
         appearance.willAppear()
         StartupTrace.span("willAppear") { configureForAppearance() }
         armSettleGuard()
@@ -309,6 +352,13 @@ final class KeyboardViewController: UIInputViewController {
 
     /// Việc của lần hiện không cần cho khung đầu — chạy ngay sau commit khung đầu (StartupTrace.swift).
     private let postFrame = PostFrameWork()
+    /// Lần hiện đang chờ khung đầu commit: warm-up nền (template vuốt, mô hình chạm, âm phím…)
+    /// xin lúc này dời ra sau khung đầu (PostFrameWork) — main + lõi CPU dành cho dựng phím.
+    fileprivate(set) var warmupsDeferred = false
+    /// Chạy `work` ngay, hoặc sau commit khung đầu nếu lần hiện này chưa tới khung đầu.
+    fileprivate func afterFirstFrame(_ work: @escaping () -> Void) {
+        if warmupsDeferred { postFrame.schedule(work) } else { work() }
+    }
     #if DEBUG
     var debugPostFramePending: Bool { postFrame.isPending }
     #endif
@@ -328,6 +378,10 @@ final class KeyboardViewController: UIInputViewController {
         // Cùng controller hiện lại sau viewDidDisappear (cây view đã xé) → dựng mới, rồi phần
         // dưới áp lại toàn bộ cấu hình như lần hiện đầu.
         if keyboard.isTornDown { installKeyboard() }
+        // Warm-up nền xin từ đây tới khung đầu ⇒ chạy sau khung đầu (afterFirstFrame). Việc này
+        // xếp ĐẦU hàng PostFrameWork: mọi warm-up xếp sau vẫn chạy trong cùng lượt flush.
+        warmupsDeferred = true
+        postFrame.schedule { [weak self] in self?.warmupsDeferred = false }
         // Mọi rebuild() tới hết trait ô / theme / một tay gom thành MỘT lần dựng phím (kiểu cuối).
         keyboard.beginBatch()
         // Chiều cao xin host phải là chiều cao CUỐI ngay từ đây (host đo trước lượt layout đầu;
@@ -400,7 +454,7 @@ final class KeyboardViewController: UIInputViewController {
         }
         // Tắt ⇒ router không gọi prior (không closure, không cấp phát ở vùng biên phím).
         keyboard.letterPrior = smartTouchSetting ? { [weak self] in self?.smartTouchPrior() } : nil
-        if smartTouchSetting { TelexKeyPrior.warmUpInBackground() }
+        if smartTouchSetting { afterFirstFrame { TelexKeyPrior.warmUpInBackground() } }
         if !swipeSetting { swipe = nil }              // tắt ⇒ bỏ template (RAM)
         addTonesSetting = settings.addTonesChip && PlusGate.isUnlocked(.sentenceDiacritics)
         numberChipsSetting = settings.numberChips
@@ -547,7 +601,7 @@ final class KeyboardViewController: UIInputViewController {
         KeystrokeCounter.flush()                 // số phím đã gõ → App Group (tắt ⇒ không làm gì)
         super.viewWillDisappear(animated)
         appearance.willDisappear()
-        postFrame.cancel()
+        postFrame.cancel(); warmupsDeferred = false
         revealContent(force: true)
         pasteOnce.ended()   // ẩn bàn phím: lời mời dán đang hiện coi như đã bỏ qua
         closeClipboardPanel()
@@ -577,7 +631,9 @@ final class KeyboardViewController: UIInputViewController {
         KeyboardView.chordProgression = ChordProgression(count: instrument?.map.progression.count ?? 0)
         KeySound.shared.setVolume(percent: settings.keySoundVolume)
         KeySound.shared.setStyle(settings.keySoundStyle)
-        if on && settings.keySoundVolume > 0 { KeySound.shared.prepare() } else { KeySound.shared.shutdown() }
+        // Engine âm dựng nền SAU khung đầu (phím tới trước đó: play() trả false — im một tiếng,
+        // không chặn, không ảnh hưởng chữ).
+        if on && settings.keySoundVolume > 0 { afterFirstFrame { KeySound.shared.prepare() } } else { KeySound.shared.shutdown() }
         if settings.keySound {
             TouchLog.write("keysound setting=1 style=\(settings.keySoundStyle) volume=\(settings.keySoundVolume) fullAccess=\(hasFullAccess ? 1 : 0)")
         }
@@ -617,7 +673,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func tearDownKeyboard() {
-        postFrame.cancel()
+        postFrame.cancel(); warmupsDeferred = false
         revealContent(force: true)
         closeClipboardPanel()
         NSLayoutConstraint.deactivate(keyboardEdges)
@@ -966,6 +1022,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func handle(_ key: KeyboardView.Key) {
+        FrameTrace.untilCommit("key")      // Instruments: phím → commit khung có kết quả
         let touch = pendingTouch           // điểm chạm của phím chữ này (tự sửa), dùng một lần
         pendingTouch = nil
         // ⌫ NGAY SAU khi thêm dấu = hoàn tác (một lần); phím khác bỏ lời mời hoàn tác.
@@ -1520,6 +1577,7 @@ final class KeyboardViewController: UIInputViewController {
         #endif
         super.viewDidAppear(animated)
         StartupTrace.event("viewDidAppear")
+        FrameTrace.event("viewDidAppear")
         StartupTrace.span("didAppear") { didAppearBody() }
     }
 
@@ -2679,10 +2737,18 @@ extension KeyboardViewController {
         bridge.letterUndoEnabled = on || UIDevice.current.userInterfaceIdiom == .pad
             || keyboard.altHoldActive || keyCmds
         if on, swipe == nil { swipe = SwipeTyping() }
-        if on { pushSwipeLayout(prepare: true) }
-        if on, swipeEnglishSetting { swipe?.preloadEnglish() }
-        if let swipe, on || swipe.futoActive { swipe.setFuto(enabled: on && swipeFutoSetting) }
+        // Template vuốt / từ điển Anh / FUTO / vnlm dựng NỀN — nhưng không tranh CPU với khung
+        // đầu: xin trước khung đầu ⇒ dời ra sau commit (cú vuốt tới trước vẫn đúng: decode chờ
+        // trên hàng đợi của SwipeTyping, template dựng lười).
+        afterFirstFrame { [weak self] in
+            guard let self, let swipe = self.swipe else { return }
+            if on { self.pushSwipeLayout(prepare: true) }
+            if on, self.swipeEnglishSetting { swipe.preloadEnglish() }
+            if on || swipe.futoActive { swipe.setFuto(enabled: on && self.swipeFutoSetting) }
+        }
     }
+
+
 
     /// Tâm phím thật → decoder (đổi layout khi xoay/đổi cỡ; trùng thì no-op).
     fileprivate func pushSwipeLayout(prepare: Bool) {
@@ -2694,7 +2760,8 @@ extension KeyboardViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         StartupTrace.event("didLayout")
-        pushSwipeLayout(prepare: true)
+        if FrameTrace.isEnabled { traceLayout() }
+        if !warmupsDeferred { pushSwipeLayout(prepare: true) }   // trước khung đầu: postFrame đẩy
         // Sáng/tối: iOS 27 đôi khi báo trait SÁNG lúc viewWillAppear/viewDidAppear dù máy
         // tối ⇒ phím trắng trên backdrop tối, chữ gợi ý đen khó đọc (Phil 28/09/2026). Mỗi
         // lần layout so lại với trait hiện tại (chỉ so 2 giá trị đã có — không đọc proxy);

@@ -1,0 +1,6 @@
+{
+  "os_signpost" : {
+    "dynamicTracingEnabledSubsystems" : [ "com.viettelex.ios.keyboard" ],
+    "recordAllProcessesInSingleProcessMode" : false
+  }
+}
