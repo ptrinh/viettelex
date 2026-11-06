@@ -480,6 +480,8 @@ final class KeyboardViewController: UIInputViewController {
                 autocap: vtSafe(nil) { self.textProxy.autocapitalizationType ?? nil },
                 before: { self.textProxy.documentContextBeforeInput ?? "" })
         }
+        // "." "," ":" ở plane 123: ngay sau chữ số thì ở lại plane số ("2.5") — chỉ đọc lúc chạm ba phím đó.
+        keyboard.contextBeforeProbe = { [weak self] in self?.textProxy.documentContextBeforeInput?.last }
         updateAutoShift()
         // Thanh gợi ý mở đầu (field trống → gợi ý từ đầu câu, nút Dán): ngay SAU khung đầu —
         // phím hiện trước, chữ trên thanh tới trong lúc bàn phím còn đang trượt lên.

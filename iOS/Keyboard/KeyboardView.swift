@@ -2136,6 +2136,28 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         shift = PlanePolicy.shiftOnReturnToLetters(autoShift: autoShiftProbe?()) ? .on : .off
     }
 
+    /// Ký tự ngay trước con trỏ (controller đọc proxy) — chỉ hỏi khi chạm "." "," ":" ở 123/#+=.
+    var contextBeforeProbe: (() -> Character?)?
+
+    /// Chèn ký tự của phím số/ký hiệu; ở plane 123/#+= mà là dấu kết vế ⇒ về chữ ngay
+    /// (PlanePolicy.returnToLettersAfterSymbol), đánh giá lại viết hoa như chạm ABC.
+    private func tapSymbol(_ s: String) {
+        let inPlane = plane == .numbers || plane == .symbols
+        let before = inPlane && PlanePolicy.digitSeparators.contains(s) ? contextBeforeProbe?() : nil
+        tapped(.text(s))
+        guard inPlane, plane == .numbers || plane == .symbols,
+              PlanePolicy.returnToLettersAfterSymbol(s, inSymbolPlane: true,
+                                                      numericField: inputKind == .number, before: before)
+        else { return }
+        plane = .letters
+        reevaluateShiftForLetters()
+        rebuild()
+    }
+    #if DEBUG
+    /// Test: chạm phím ký tự `s` ở plane hiện tại (đường chốt của textButton).
+    func debugTapSymbol(_ s: String) { typedInSymbolPlane = true; tapSymbol(s) }
+    #endif
+
     /// Sentence-start auto-shift (only upgrades OFF→ON; never downgrades CAPS).
     func setAutoShift(_ on: Bool) {
         guard shift != .caps, plane != .emojiSearch else { return }
@@ -3373,7 +3395,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             }, for: .touchDown)
             b.addAction(UIAction { [weak self] _ in self?.hideBalloonAfterTap() },
                         for: [.touchUpInside, .touchUpOutside, .touchCancel])
-            armCommit(b) { [weak self] in self?.tapped(.text(p.insert)) }
+            armCommit(b) { [weak self] in self?.tapSymbol(p.insert) }
             // Bàn chữ iPhone: giữ "," ra "." / giữ "." ra "," (phím cạnh space — KeyAlternates.commaHold:
             // bảng ký tự phụ không rỗng; VoiceOver đã rỗng sẵn; iPad có phím ",/." 2 tầng riêng).
             if !Self.isPad, let side = sideKey, p.title == side.char, let alt = side.holdAlt, planeKey == "123",
@@ -4925,11 +4947,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         armCommit(b) { [weak self, weak b] in
             guard let self else { return }
             self.typedInSymbolPlane = true
-            self.tapped(.text(b?.takePadAlt() == true ? (hint ?? s) : s))
+            // Plane lúc CHẠM: dấu kết vế có thể đưa về chữ (tapSymbol) — không nhả shift vừa đánh giá lại.
+            let onLetters = self.plane == .letters
+            self.tapSymbol(b?.takePadAlt() == true ? (hint ?? s) : s)
             // Phím số/ký hiệu NGAY TRÊN plane chữ (hàng số, iPad "-" "="): như phím chữ —
             // nhả Shift một-lần (đầu câu hay ⇧ tay), Caps Lock giữ (issue #143: "1" đầu câu
             // rồi chữ kế vẫn hoa). Controller không đánh giá lại viết hoa sau .text.
-            if self.plane == .letters { self.releaseOneShotShift() }
+            if onLetters { self.releaseOneShotShift() }
         }
         // Giữ ra hàng biến thể như stock (KeyVariants) — chỉ bàn số/ký hiệu, phím KHÔNG có
         // nhãn phụ iPad (nhãn phụ đã dùng cử chỉ giữ). Chạm thường vẫn chèn ký tự gốc.
@@ -5965,8 +5989,12 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             let s = self.domainHold.flatMap { h in h.sel.map { h.choices[$0] } }
             self.closeDomainPopup()
             if let s {
-                if variants { self.typedInSymbolPlane = true }   // như chạm thường (space về chữ)
-                self.tapped(.text(s))
+                if variants {                                    // như chạm thường (space / dấu kết vế về chữ)
+                    self.typedInSymbolPlane = true
+                    self.tapSymbol(s)
+                } else {
+                    self.tapped(.text(s))
+                }
             }
         }
         let key = convert(b.bounds, from: b)

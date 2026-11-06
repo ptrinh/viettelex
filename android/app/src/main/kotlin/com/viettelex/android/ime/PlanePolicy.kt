@@ -32,4 +32,26 @@ object PlanePolicy {
      */
     fun shiftAfterCharKey(armedOn: Plane, shift: KeyboardView.Shift): KeyboardView.Shift =
         if (armedOn == Plane.LETTERS && shift == KeyboardView.Shift.ON) KeyboardView.Shift.OFF else shift
+
+    /**
+     * Dấu KẾT VẾ: chạm ở plane ?123 / =\< ⇒ về plane chữ NGAY, không cần dấu cách (Phil
+     * 06/11/2026, không công tắc). Gồm dạng in ấn trong hàng biến thể (… ” ’ »). Ngoặc / nháy
+     * MỞ (( “ ‘ «), @ / # $ % & * - _ + = [ { < > \ |, số, tiền tệ, toán: giữ plane.
+     */
+    val CLAUSE_ENDERS: Set<String> = setOf(".", ",", "?", "!", ")", "\"", "'", ":", ";",
+        "…", "”", "’", "»")
+    /** Dấu nằm GIỮA số: ngay sau chữ số thì ở lại plane số ("2.5", "1,000", "10:30"). */
+    val DIGIT_SEPARATORS: Set<String> = setOf(".", ",", ":")
+
+    /**
+     * Vừa chèn [inserted] trên plane [on] (chạm, giữ chọn biến thể — mọi Key.Text của plane).
+     * [before] = ký tự ngay trước con trỏ TRƯỚC khi chèn (chỉ cần khi [inserted] thuộc
+     * [DIGIT_SEPARATORS]). Ô số (bàn số riêng — [InputKind.padPlane]) ở lại plane số.
+     * Song sinh iOS PlanePolicy.returnToLettersAfterSymbol.
+     */
+    fun returnToLettersAfterSymbol(inserted: String, on: Plane, numericField: Boolean, before: Char?): Boolean {
+        if (on != Plane.NUMBERS && on != Plane.SYMBOLS) return false
+        if (numericField || inserted !in CLAUSE_ENDERS) return false
+        return !(inserted in DIGIT_SEPARATORS && before != null && before in '0'..'9')
+    }
 }

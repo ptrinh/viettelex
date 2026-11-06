@@ -98,6 +98,81 @@ class PlanePolicyTest {
         assertTrue("nhả sau khi chèn", fire.indexOf("emit(k)") < fire.indexOf("shiftAfterCharKey"))
     }
 
+    // Dấu kết vế ở plane ?123 / =\< về chữ ngay, không cần dấu cách (Phil 06/11/2026).
+    // Song sinh iOS ClauseEndReturnTests.
+
+    /** (văn bản trước con trỏ, ký tự vừa chạm, về chữ?) */
+    private val clauseTable: List<Triple<String, String, Boolean>> = listOf(
+        Triple("2", ".", false),          // 2.5 — thập phân
+        Triple("1", ",", false),          // 1,000 — hàng nghìn
+        Triple("10", ":", false),         // 10:30 — giờ
+        Triple("ok", ".", true),
+        Triple("ok", ",", true),
+        Triple("hi", "!", true),
+        Triple("hi", "?", true),
+        Triple("", "(", false),           // ( mở giữ plane
+        Triple("(a", ")", true),          // ) về chữ
+        Triple("(1", ")", true),          // ) sau số vẫn về chữ
+        Triple("say", "\"", true),
+        Triple("it", "'", true),
+        Triple("note", ":", true),
+        Triple("a", ";", true),
+        Triple("2", ";", true),
+        Triple("2", "!", true),
+        Triple("wait", "…", true),
+        Triple("2", "…", true),
+        Triple("x", "”", true),
+        Triple("x", "’", true),
+        Triple("x", "»", true),
+        Triple("", "“", false),      // nháy / ngoặc kép MỞ giữ plane
+        Triple("", "‘", false),
+        Triple("", "«", false),
+        Triple("", ".", true),            // đầu ô
+        Triple("a ", ".", true),          // sau dấu cách
+    ) + listOf("@", "/", "#", "$", "%", "&", "*", "-", "_", "+", "=", "[", "{", "<", ">", "\\", "|",
+        "1", "0", "₫", "€", "×", "÷", "]", "}", "~").map { Triple("ok", it, false) }
+
+    @Test fun clauseEnderTable() {
+        for ((before, key, want) in clauseTable) for (p in listOf(Plane.NUMBERS, Plane.SYMBOLS))
+            assertEquals("'$before' + '$key' on $p", want,
+                PlanePolicy.returnToLettersAfterSymbol(key, p, numericField = false, before = before.lastOrNull()))
+    }
+
+    @Test fun clauseEnderOtherPlanesAndNumericFieldUnaffected() {
+        for (key in PlanePolicy.CLAUSE_ENDERS) {
+            for (p in Plane.entries.filter { it != Plane.NUMBERS && it != Plane.SYMBOLS })
+                assertFalse("$key on $p", PlanePolicy.returnToLettersAfterSymbol(key, p, false, 'a'))
+            assertFalse("$key ô số", PlanePolicy.returnToLettersAfterSymbol(key, Plane.NUMBERS, true, 'a'))
+        }
+    }
+
+    /** Biến thể in ấn ĐÓNG có trong bàn ?123 / =\< đều thuộc bảng. */
+    @Test fun clauseEnderTypographicVariantsCovered() {
+        val all = listOf(".", "'", "\"", ">", "?", "!").flatMap {
+            com.viettelex.keyboard.KeyVariants.variants(it, symbolPlane = true)
+        }.toSet()
+        for (v in listOf("…", "”", "’", "»")) {
+            assertTrue(v, v in all)
+            assertTrue(v, v in PlanePolicy.CLAUSE_ENDERS)
+        }
+    }
+
+    /**
+     * Nối dây: mọi Key.Text của plane ?123 / =\< (chạm CHAR / PUNCT, chọn biến thể) đi qua emit ⇒
+     * luật đặt ở emit; ký tự trước con trỏ đọc TRƯỚC onKey và chỉ cho "." "," ":".
+     */
+    @Test fun clauseEnderWiredInEmit() {
+        val src = listOf(File("src/main/kotlin"), File("app/src/main/kotlin")).first { it.isDirectory }
+            .resolve("com/viettelex/android/ime/KeyboardView.kt").readText()
+        val emit = src.substringAfter("private fun emit(k: Key) {").substringBefore("\n    }\n")
+        val probe = emit.indexOf("listener?.charBeforeCursor()")
+        val onKey = emit.indexOf("listener?.onKey(k)")
+        val rule = emit.indexOf("PlanePolicy.returnToLettersAfterSymbol(")
+        assertTrue(emit, probe in 0 until onKey && onKey < rule)
+        assertTrue(emit, "PlanePolicy.DIGIT_SEPARATORS" in emit.substring(0, onKey))
+        assertTrue(emit, "setPlane(Plane.LETTERS)" in emit.substring(rule))
+    }
+
     private class Proxy : com.viettelex.keyboard.TextProxy {
         val sb = StringBuilder()
         override val isSecure = false

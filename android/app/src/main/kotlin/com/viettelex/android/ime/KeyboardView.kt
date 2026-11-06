@@ -65,6 +65,8 @@ class KeyboardView(
 
     interface Listener {
         fun onKey(key: Key)
+        /** Ký tự ngay trước con trỏ — chỉ hỏi khi chạm "." "," ":" ở plane ?123 / =\< (PlanePolicy). */
+        fun charBeforeCursor(): Char? = null
         /** Điểm chạm của phím chữ sắp [onKey] (lệch so với tâm phím, theo cỡ phím) — cho tự sửa. */
         fun onLetterTouch(dx: Float, dy: Float) {}
         /**
@@ -607,8 +609,14 @@ class KeyboardView(
     /** Mọi phím đi qua đây: plane tìm emoji giữ phím cho ô tìm, còn lại tới IME. */
     private fun emit(k: Key) {
         if (plane != Plane.EMOJI_SEARCH) {
+            // Plane ?123 / =\<: "." "," ":" cần ký tự TRƯỚC khi chèn ("2.5" ở lại) — chỉ đọc cho ba phím đó.
+            val sym = k is Key.Text && (plane == Plane.NUMBERS || plane == Plane.SYMBOLS)
+            val before = if (sym && (k as Key.Text).text in PlanePolicy.DIGIT_SEPARATORS) listener?.charBeforeCursor() else null
             listener?.onKey(k); fxAfter(k); rainbow?.poke()
             mole?.typed(moleLetter(k), android.os.SystemClock.uptimeMillis() / 1000.0)   // Đập chuột: theme khác ⇒ null
+            // Dấu kết vế ⇒ về chữ ngay (IME đánh giá lại viết hoa ở onPlaneChanged, như chạm ABC).
+            if (sym && PlanePolicy.returnToLettersAfterSymbol((k as Key.Text).text, plane,
+                    numericField = inputKind.padPlane != null, before = before)) setPlane(Plane.LETTERS)
             return
         }
         fxPending = false
