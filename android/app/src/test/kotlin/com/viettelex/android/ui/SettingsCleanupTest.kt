@@ -111,6 +111,59 @@ class SettingsCleanupTest {
         assertEquals(listOf(TypingOption.InputMethod, TypingOption.AutoCapitalize), TypingOption.entries.filter { !it.advanced })
     }
 
+    // MARK: §1 VNI ẩn nhóm Gõ lẫn tiếng Anh (06/11/2026)
+
+    @Test fun vniHidesMixedGroup() {
+        // Telex: như cũ.
+        assertEquals(listOf(MixedTypingUI.Row.ProfilePicker, MixedTypingUI.Row.SpaceSwipeLanguage, MixedTypingUI.Row.UserDictionary, MixedTypingUI.Row.Advanced), MixedTypingUI.rows(false))
+        // VNI: bộ chọn hồ sơ + Nâng cao thay bằng MỘT dòng ghi chú; giữ Vuốt phím cách + Từ điển cá nhân.
+        assertEquals(listOf(MixedTypingUI.Row.VniNote, MixedTypingUI.Row.SpaceSwipeLanguage, MixedTypingUI.Row.UserDictionary), MixedTypingUI.rows(true))
+        val advanced = setOf(MixedTypingItem.AutoRestore, MixedTypingItem.ContextualEnglish,
+            MixedTypingItem.RetroEnglish, MixedTypingItem.EnglishByFrequency)
+        for (item in MixedTypingItem.entries) {
+            assertFalse(item.name, MixedTypingUI.hidden(item, vniMode = false))
+            assertEquals(item.name, item in advanced, MixedTypingUI.hidden(item, vniMode = true))
+        }
+        // Key lưu không đổi.
+        assertEquals(mapOf(MixedTypingItem.AutoRestore to Keys.AUTO_RESTORE, MixedTypingItem.ContextualEnglish to Keys.CONTEXTUAL_ENGLISH,
+            MixedTypingItem.RetroEnglish to Keys.RETRO_ENGLISH_AUTO, MixedTypingItem.EnglishByFrequency to Keys.ENGLISH_BY_FREQUENCY,
+            MixedTypingItem.SpaceSwipeLanguage to Keys.SPACE_SWIPE_LANGUAGE),
+            MixedTypingItem.entries.filter { it.prefKey != null }.associateWith { it.prefKey })
+        // Tóm tắt khi thu gọn: VNI bỏ hai mục nhận diện tiếng Anh.
+        assertEquals(listOf("Khôi phục tiếng Anh", "Ngữ cảnh", "Vuốt phím cách"),
+            MixedTypingUI.summaryParts(false, true, true, true, false))
+        assertEquals(listOf("Vuốt phím cách"), MixedTypingUI.summaryParts(true, true, true, true, false))
+        assertEquals(emptyList<String>(), MixedTypingUI.summaryParts(true, true, true, false, false))
+        // Trang Nâng cao của nhóm không mở khi VNI; trang khác giữ nguyên.
+        assertNull(MixedTypingUI.page(KieuGoPage.MixedAdvanced, true))
+        assertEquals(KieuGoPage.MixedAdvanced, MixedTypingUI.page(KieuGoPage.MixedAdvanced, false))
+        assertEquals(KieuGoPage.TypingAdvanced, MixedTypingUI.page(KieuGoPage.TypingAdvanced, true))
+    }
+
+    @Test fun vniSearchLandsOnNote() {
+        for (lang in listOf("vi", "en")) {
+            L10n.lang = lang
+            // Mục ẩn vẫn tìm được…
+            for (t in listOf("Tự khôi phục từ tiếng Anh", "Quyết định theo ngữ cảnh", "Tự sửa từ phía trước", "Đoán từ trùng theo tần suất")) {
+                val target = FeatureSearchEntry.all.single { it.viTitle == t }.kieuGoTarget!!
+                assertEquals(t, target, MixedTypingUI.resolve(target, vniMode = false))
+                // …và mở ra thì ở nhóm, tô sáng dòng ghi chú.
+                assertEquals(t, KieuGoTarget(MixedTypingUI.VNI_NOTE_ID, null, expandMixed = true), MixedTypingUI.resolve(target, vniMode = true))
+            }
+            // Mục còn hiện: đích không đổi.
+            val space = hit("vuot phim cach", "Vuốt phím cách đổi Tiếng Việt / Tiếng Anh").kieuGoTarget!!
+            assertEquals(space, MixedTypingUI.resolve(space, vniMode = true))
+            val teen = hit("teencode", "Chính tả teencode").kieuGoTarget!!
+            assertEquals(teen, MixedTypingUI.resolve(teen, vniMode = true))
+        }
+    }
+
+    @Test fun vniNoteText() {
+        assertEquals("Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này.", SettingCaption.vniMixedNote)
+        assertEquals("VNI leaves English words as typed, so there is nothing to set here.", L10nTable.EN[SettingCaption.vniMixedNote])
+        assertTrue(SettingCaption.vniMixedNote in SettingCaption.all)
+    }
+
     // MARK: §5(d) nhãn bảng §3 (chuỗi vi trong mã nguồn)
 
     @Test fun section3Labels() {

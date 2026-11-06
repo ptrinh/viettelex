@@ -436,6 +436,8 @@ object L10nTable {
         put("Khôi phục từ tiếng Anh, ngữ cảnh, khi trùng từ, sửa từ phía trước…", "English auto-restore, context, ambiguous words, fixing earlier words…")
         put("Cần bật Quyết định theo ngữ cảnh", "Needs Context-aware decisions")
         put("Chỉ áp dụng cho Telex", "Telex only")
+        put("Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này.", "VNI leaves English words as typed, so there is nothing to set here.")
+        put("VNI: vie65t → việt. Từ tiếng Anh gõ ra nguyên vẹn.", "VNI: vie65t → việt. English words stay as typed.")
         put("Ngữ cảnh", "Context")
         put("Cần bật Gõ vuốt", "Needs Swipe typing")
         put("Mở rộng", "Expanded")

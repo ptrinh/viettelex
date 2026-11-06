@@ -178,14 +178,15 @@ private fun OnboardingTry(profile: OnboardingProfile, ime: ImeStatus, onPickIme:
     val vni by rememberBoolPref(Keys.VNI_MODE, Prefs.D.vniMode)
     val swipeOn by rememberBoolPref(Keys.SWIPE_TYPING, Prefs.D.swipeTyping)
     // Công tắc hồ sơ này BẬT; mục phụ thuộc theo đúng điều kiện hiện như nhóm Gõ mixed.
-    val shown = OnboardingSettings.KEYS.filter { k ->
+    // VNI: công tắc gõ lẫn tiếng Anh bị ẩn ở Kiểu Gõ (SETTINGS-CLEANUP-SPEC §1) ⇒ không liệt kê ở đây.
+    val shown = if (vni) emptyList() else OnboardingSettings.KEYS.filter { k ->
         profile.values[k] == true && when (k) {
             Keys.RETRO_ENGLISH_AUTO, Keys.ENGLISH_BY_FREQUENCY -> RetroEnglishUI.switchVisible(contextual, vni)
             Keys.SWIPE_ENGLISH -> swipeOn
             else -> true
         }
     }
-    val hint = when (profile) {
+    val hint = if (vni) tr("VNI: vie65t → việt. Từ tiếng Anh gõ ra nguyên vẹn.") else when (profile) {
         OnboardingProfile.EN -> tr("Bàn phím bắt đầu ở Tiếng Anh — vuốt nhanh phím cách sang trái/phải để gõ tiếng Việt.")
         OnboardingProfile.MIXED -> tr("Cứ gõ lẫn Anh và Việt: check, mail, team giữ nguyên. Vuốt nhanh phím cách để đổi hẳn sang Tiếng Anh.")
         OnboardingProfile.VI -> tr("Telex: vieejt → việt. Từ tiếng Anh như google, github vẫn giữ nguyên.")

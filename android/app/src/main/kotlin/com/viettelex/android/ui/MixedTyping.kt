@@ -85,6 +85,44 @@ internal object MixedTypingUI {
         }
         else -> null
     }
+
+    /** Dòng của nhóm khi mở (thứ tự hiển thị). */
+    enum class Row { VniNote, ProfilePicker, SpaceSwipeLanguage, UserDictionary, Advanced }
+
+    /** id cuộn tới / tô sáng của dòng ghi chú VNI. */
+    const val VNI_NOTE_ID = "mixed:VniNote"
+
+    /**
+     * Dòng hiện trong nhóm (SETTINGS-CLEANUP-SPEC §1, 06/11/2026). VNI đặt dấu bằng số nên từ tiếng Anh
+     * gõ ra nguyên vẹn ⇒ ẩn bộ chọn hồ sơ + "Nâng cao", thay bằng MỘT dòng ghi chú. Giữ Vuốt phím cách
+     * (cách chuyển ngôn ngữ) + Từ điển cá nhân (từ đã học phục vụ cả gợi ý, không chỉ khôi phục).
+     * Chỉ là hiển thị: key/giá trị đã lưu giữ nguyên, đổi lại Telex thấy y như cũ.
+     */
+    fun rows(vniMode: Boolean): List<Row> =
+        if (vniMode) listOf(Row.VniNote, Row.SpaceSwipeLanguage, Row.UserDictionary)
+        else listOf(Row.ProfilePicker, Row.SpaceSwipeLanguage, Row.UserDictionary, Row.Advanced)
+
+    /** Mục bị ẩn khi đang chọn VNI (mọi mục của trang "Nâng cao" nhóm). */
+    fun hidden(item: MixedTypingItem, vniMode: Boolean): Boolean =
+        vniMode && item.placement == MixedTypingItem.Placement.Advanced
+
+    /** Đích tìm kiếm thực sự: mục bị ẩn khi VNI ⇒ mở nhóm, cuộn tới dòng ghi chú. */
+    fun resolve(target: KieuGoTarget, vniMode: Boolean): KieuGoTarget =
+        if (vniMode && target.page == KieuGoPage.MixedAdvanced) KieuGoTarget(VNI_NOTE_ID, null, expandMixed = true)
+        else target
+
+    /** Trang con được phép mở: trang "Nâng cao" của nhóm không mở được khi VNI. */
+    fun page(page: KieuGoPage?, vniMode: Boolean): KieuGoPage? =
+        if (vniMode && page == KieuGoPage.MixedAdvanced) null else page
+
+    /** Phần (khoá dịch) của dòng tóm tắt khi thu gọn — VNI bỏ hai mục nhận diện tiếng Anh đã ẩn. */
+    fun summaryParts(vniMode: Boolean, autoRestore: Boolean, contextual: Boolean, spaceSwipe: Boolean,
+                     swipeEnglish: Boolean): List<String> = buildList {
+        if (!vniMode && autoRestore) add("Khôi phục tiếng Anh") // l10n-key
+        if (!vniMode && contextual) add("Ngữ cảnh") // l10n-key
+        if (spaceSwipe) add("Vuốt phím cách") // l10n-key
+        if (swipeEnglish) add("Vuốt từ tiếng Anh") // l10n-key — ở trang Gõ vuốt, không bị ẩn
+    }
 }
 
 /**
@@ -112,9 +150,9 @@ internal fun MixedTypingSection() {
         Keys.RETRO_ENGLISH_AUTO to retro, Keys.ENGLISH_BY_FREQUENCY to freq,
         Keys.SPACE_SWIPE_LANGUAGE to spaceSwipe, Keys.SWIPE_ENGLISH to swipeEn)
 
-    val summary = listOf(autoRestore to tr("Khôi phục tiếng Anh"), contextual to tr("Ngữ cảnh"),
-        spaceSwipe to tr("Vuốt phím cách"), (swipeOn && swipeEn) to tr("Vuốt từ tiếng Anh"))
-        .filter { it.first }.joinToString(" · ") { it.second }.ifEmpty { tr("Đang tắt") }
+    val vni by rememberBoolPref(Keys.VNI_MODE, Prefs.D.vniMode)
+    val summary = MixedTypingUI.summaryParts(vni, autoRestore, contextual, spaceSwipe, swipeOn && swipeEn)
+        .joinToString(" · ") { tr(it) }.ifEmpty { tr("Đang tắt") }
 
     VTSection(footer = if (expanded) APPLY_NOTE else null) {
         Highlightable(MixedTypingItem.Section.target.id) {
@@ -133,17 +171,28 @@ internal fun MixedTypingSection() {
         }
         if (!expanded) return@VTSection
 
-        ProfilePicker(currentValues)
-        RowDivider()
-        // Cấp 1 vì là cách chuyển ngôn ngữ (SETTINGS-CLEANUP-SPEC §1).
-        Highlightable(MixedTypingItem.SpaceSwipeLanguage.target.id) {
-            BoolToggle(Keys.SPACE_SWIPE_LANGUAGE, Prefs.D.spaceSwipeLanguage, tr("Vuốt phím cách đổi Tiếng Việt / Tiếng Anh"),
-                tr(SettingCaption.spaceSwipeLanguage))
+        MixedTypingUI.rows(vni).forEachIndexed { i, row ->
+            if (i > 0) RowDivider()
+            when (row) {
+                // VNI: thay cả bộ chọn hồ sơ + Nâng cao bằng một dòng (SETTINGS-CLEANUP-SPEC §1).
+                MixedTypingUI.Row.VniNote -> {
+                    RowDivider()
+                    Highlightable(MixedTypingUI.VNI_NOTE_ID) {
+                        Text(tr(SettingCaption.vniMixedNote), style = VTType.footnote, color = c.secondary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
+                    }
+                }
+                MixedTypingUI.Row.ProfilePicker -> ProfilePicker(currentValues)
+                // Cấp 1 vì là cách chuyển ngôn ngữ (SETTINGS-CLEANUP-SPEC §1).
+                MixedTypingUI.Row.SpaceSwipeLanguage -> Highlightable(MixedTypingItem.SpaceSwipeLanguage.target.id) {
+                    BoolToggle(Keys.SPACE_SWIPE_LANGUAGE, Prefs.D.spaceSwipeLanguage, tr("Vuốt phím cách đổi Tiếng Việt / Tiếng Anh"),
+                        tr(SettingCaption.spaceSwipeLanguage))
+                }
+                MixedTypingUI.Row.UserDictionary -> Highlightable(MixedTypingItem.UserDictionary.target.id) { UserDictRow() }
+                MixedTypingUI.Row.Advanced ->
+                    NavRow(tr("Nâng cao"), tr(MIXED_ADVANCED_SUMMARY)) { KieuGoNav.page.value = KieuGoPage.MixedAdvanced }
+            }
         }
-        RowDivider()
-        Highlightable(MixedTypingItem.UserDictionary.target.id) { UserDictRow() }
-        RowDivider()
-        NavRow(tr("Nâng cao"), tr(MIXED_ADVANCED_SUMMARY)) { KieuGoNav.page.value = KieuGoPage.MixedAdvanced }
     }
 }
 
