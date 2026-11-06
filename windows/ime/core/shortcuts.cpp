@@ -213,4 +213,26 @@ const std::u16string* findShortcut(const std::map<std::u16string, std::u16string
     return nullptr;
 }
 
+bool isShortcutLetter(char16_t c) {
+    if ((c >= u'a' && c <= u'z') || (c >= u'A' && c <= u'Z')) return true;
+    if (c >= 0x00C0 && c <= 0x024F && c != 0x00D7 && c != 0x00F7) return true;  // Latin-1 / Ext-A/B
+    if (c >= 0x0300 && c <= 0x036F) return true;                                // combining marks
+    if (c >= 0x1E00 && c <= 0x1EFF) return true;                                // Latin Ext. Additional
+    return false;
+}
+
+bool isTokenShortcutKey(const std::u16string& key) {
+    if (key.empty()) return false;
+    for (char16_t c : key)
+        if (!isShortcutLetter(c)) return true;
+    return false;
+}
+
+const std::u16string* findTokenShortcut(const std::map<std::u16string, std::u16string>& table,
+                                        const std::u16string& token) {
+    if (table.empty() || !isTokenShortcutKey(token)) return nullptr;
+    auto it = table.find(token);
+    return it == table.end() ? nullptr : &it->second;
+}
+
 }  // namespace vtx

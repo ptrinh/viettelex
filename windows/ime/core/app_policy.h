@@ -78,6 +78,7 @@ struct ContextInfo {
     bool hasParent = false;       // GUID_COMPARTMENT_TRANSITORYEXTENSION_PARENT document
     bool parentTransitory = true; // that parent's context status
     bool unicodeWindow = true;    // IsWindowUnicode(focus); ANSI windows mangle Unicode
+    bool editControl = true;      // focus window is an Edit / RichEdit (isEditControlClass)
 };
 
 enum class HostText : uint8_t {
@@ -88,6 +89,24 @@ enum class HostText : uint8_t {
     Ignore,           // no context at all: do not eat keys
 };
 HostText classifyContext(const ContextInfo& c);
+
+// Focus window is a classic Edit / RichEdit control or a superclass of one (WinForms
+// "WindowsForms10.EDIT…", "RichEdit20W", "RICHEDIT50W", Delphi "TEdit" / "TMemo"…):
+// `realClass` = RealGetWindowClassW (the system class a superclass derives from),
+// `className` = GetClassNameW. Case-insensitive "edit" / "memo" in either.
+bool isEditControlClass(const std::u16string& realClass, const std::u16string& className);
+
+// Does a key the TIP claims (OnTestKeyDown) and then lets through still reach the app in
+// this context? Decides what "the store shows none of the letters let through" means
+// (session.h setPassedKeysReachApp):
+//   Normal, not transitory      a TSF-native app's own store (Word, WPF, Firefox): the app
+//                               always gets an uneaten key -> the store is not the focused
+//                               element's text (WPF: the default store behind a list).
+//   NormalViaParent, no Edit    a transitory-extension parent that is not a classic Edit's
+//                               mirror (WPF's default text store keeps that extension) -> same.
+//   everything else             IMM32 hosts through CUAS (transitory): the claimed key may
+//                               have become VK_PROCESSKEY and be gone (#134) -> compose.
+bool passedKeysReachApp(const ContextInfo& c, HostText host);
 
 // Can VietTelex.exe's hook (SendInput) type into THIS process? UIPI drops input from a
 // LOWER-integrity sender, so not when this process runs above the app (an app started

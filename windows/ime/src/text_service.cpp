@@ -664,6 +664,13 @@ void TextService::evaluateHost(ITfContext* ctx) {
         }
         HWND focus = GetFocus();
         c.unicodeWindow = !focus || IsWindowUnicode(focus);
+        if (focus) {
+            WCHAR real[64] = {}, cls[128] = {};
+            RealGetWindowClassW(focus, real, 64);
+            GetClassNameW(focus, cls, 128);
+            c.editControl = isEditControlClass(reinterpret_cast<const char16_t*>(real),
+                                               reinterpret_cast<const char16_t*>(cls));
+        }
     }
     if (dm) dm->Release();
     host_ = classifyContext(c);
@@ -674,6 +681,9 @@ void TextService::evaluateHost(ITfContext* ctx) {
     // Chromium & co (transitory, readable): the store mirrors the page asynchronously
     // (session.h setAsyncStore — 2026-10 Messenger/Facebook "mất chữ" report).
     session_.setAsyncStore(c.transitory && host_ == HostText::Normal);
+    // A store that never shows the keys the app got is no text field (a WPF file list with
+    // type-to-filter): the session stops claiming keys there instead of composing into nothing.
+    session_.setPassedKeysReachApp(passedKeysReachApp(c, host_));
     // No usable text store: prefer Direct (the hook types, no underline) over composition.
     if (host_ == HostText::CompositionOnly && requestDirect("context without surrounding text -> direct (hook)")) return;
     session_.setCompositionOnlyContext(host_ == HostText::CompositionOnly);
@@ -751,6 +761,7 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     host_ = HostText::Normal;
     directBlockedLogged_ = false;
     retypeLogged_ = false;
+    notTextFieldLogged_ = false;
     if (directActive_ || directWanted_) {  // the new field is evaluated afresh
         directActive_ = false;
         directWanted_ = false;
@@ -1142,6 +1153,14 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL*
     // lagging the page, and the hook's blind backspace+retype loses letters in web editors.
     if (session_.contextFellBack() && !result && !session_.asyncStore())
         requestDirect("in-place failed in this field -> direct (hook)");
+    // Not a text field (session.h notTextField): keys pass through untouched from now on;
+    // the hook, if it can, types there with plain Unicode keys the element does take.
+    if (session_.notTextField() && !notTextFieldLogged_) {
+        notTextFieldLogged_ = true;
+        config::log(std::string("not a text field (host ") + std::to_string(static_cast<int>(host_)) +
+                    ") -> keys pass through");
+        requestDirect("not a text field -> direct (hook)");
+    }
     // A digit / punctuation that ended the word goes to the app: in US, not via the layout (#121).
     if (!result && retypeAsUs(ctx, wp, true)) result = TRUE;
     // #134: an IMM32 host (CUAS) already turned this claimed key into VK_PROCESSKEY: letting

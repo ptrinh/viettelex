@@ -361,6 +361,9 @@ void Session::applySettings(const Settings &s) {
     vni_ = s.vni;
     bracketVowels_ = s.bracketVowels;
     shortcuts_ = s.shortcuts ? s.shortcuts : std::make_shared<ShortcutTable>();
+    hasTokenKeys_ = false;
+    for (const auto &kv : *shortcuts_)
+        if (isTokenShortcutKey(kv.first)) { hasTokenKeys_ = true; break; }
     Hotkey hk;
     hotkeyValid_ = parseHotkey(s.toggleHotkey, hk);
     hotkeySym_ = hk.keysym;
@@ -1328,6 +1331,9 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
         caretMoved_ = false;
         return true;
     }
+    // Symbol / digit shortcut keys ("=>" → "⟶"): only at whitespace (space, Enter, Tab) —
+    // before the word path, which never sees them as a word.
+    if ((ch == ' ' || newline || ev.keysym == ks::Tab) && tryTokenShortcut(ic)) gluedToDigit_ = false;
     endWord(ic, printable && isBracket(ch), !gluedToDigit_);
     // The engine needs EVERY boundary character (glued "my_var" / "100W"), retro or not.
     if (retroOn_)
@@ -1650,6 +1656,42 @@ bool Session::smartQuoteFor(uint32_t ch, InputContext &ic, std::string &out) {
 
 // Second space → ". " / second "-" → "—" / "—" + "-" → "---" (engine empty). Decided from the
 // typed tail; the characters to replace are read back from the screen and must match.
+bool Session::tryTokenShortcut(InputContext &ic) {
+    constexpr size_t kMaxKeyChars = 64;  // longest key (parseShortcuts)
+    if (!hasTokenKeys_ || !shortcutsEnabled_ || !shortcuts_ || !surroundingEdits_) return false;
+    if (mode_ == DisplayMode::Direct) return false;  // nothing can be read back
+    const std::string word = vt_is_empty(e_) ? std::string() : composed();
+    const bool preedit = mode_ == DisplayMode::Preedit;
+    std::string before;
+    if (!ic.textBeforeCursorTail(kMaxKeyChars + 1, before)) return false;
+    // Surrounding: the word in progress is already on screen; Preedit: it is not.
+    if (!preedit && !endsWithBytes(before, word)) return false;
+    const std::string screen = preedit ? before + word : before;
+    size_t start = screen.size();
+    while (start > 0 && screen[start - 1] != ' ' && screen[start - 1] != '\t' && screen[start - 1] != '\n' &&
+           screen[start - 1] != '\r')
+        --start;
+    // No whitespace in what was read and more than a key's length: where the run starts is unknown.
+    if (start == 0 && utf8Chars(before) > kMaxKeyChars) return false;
+    const std::string token = screen.substr(start);
+    if (token.size() <= word.size() || !isTokenShortcutKey(token)) return false;  // the word path's
+    auto it = shortcuts_->find(token);
+    if (it == shortcuts_->end()) return false;
+    if (ic.hasSelection() || selectionAtCaret(ic)) return false;
+    if (!preedit && !inPlaceAllowed(ic, word)) return false;
+    const std::string expansion = it->second;
+    // Committed part of the run ("=>" / ":" of ":D"); in Surrounding the word goes too.
+    const std::string onScreen = preedit ? token.substr(0, token.size() - word.size()) : token;
+    vt_reset(e_);
+    if (preedit) hidePreedit(ic);
+    replace(ic, int(utf8Chars(onScreen)), expansion, onScreen);
+    if (hintsOn_) tailReset();
+    learn_.discard();
+    lastEnded_ = EndedWord();
+    lastWasBoundaryChar_ = false;
+    return true;
+}
+
 bool Session::tryAutoReplace(bool space, int64_t prevSpaceMs, bool spaceHeld, bool prevEmDashOurs,
                              InputContext &ic) {
     if (!autoTextHere() || !surroundingEdits_) return false;

@@ -204,7 +204,12 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
                           (k.kind == KeyKind::Char && k.ch == U' ');
     if (!h->arming.key(boundary)) return CallNextHookEx(nullptr, code, wp, lp);
     if (!h->session.wordActive() && !foregroundVietnamese()) return CallNextHookEx(nullptr, code, wp, lp);
-    if (!h->session.wantsKey(k)) return CallNextHookEx(nullptr, code, wp, lp);
+    if (!h->session.wantsKey(k)) {
+        // Like the TIP: the session still hears a key it lets through ("=" ">" of a "=>"
+        // shortcut key, boundaries for the engine's glued separators).
+        h->session.noteKeyPassedBy(k);
+        return CallNextHookEx(nullptr, code, wp, lp);
+    }
 
     HookSink sink;
     bool eaten = h->session.handleKey(k, sink);

@@ -26,8 +26,13 @@ public:
     bool refuseReplace = false;  // in-place edits refused (verification-style failure)
     bool canReadContext() override { return !unreadable; }
 
+    int blankReads = 0;          // the next N reads see nothing (a store one update behind)
     std::u16string textBeforeCaret(int max) override {
         if (unreadable) return {};
+        if (blankReads > 0) {
+            --blankReads;
+            return {};
+        }
         size_t end = comp ? compStart : lo();
         size_t n = static_cast<size_t>(max) < end ? static_cast<size_t>(max) : end;
         return text.substr(end - n, n);

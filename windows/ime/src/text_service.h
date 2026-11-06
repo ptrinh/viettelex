@@ -187,6 +187,7 @@ private:
     bool directWanted_ = false;         // this field asked the app's hook to type (1.1.5)
     bool directBlockedLogged_ = false;  // "not requested: UIPI" logged for this field (#134)
     bool retypeLogged_ = false;         // "claimed key retyped" logged for this field (#134)
+    bool notTextFieldLogged_ = false;   // "not a text field" logged + Direct asked for this focus
     HWND langPropWnd_ = nullptr;        // where kTipLangProp is set
     uint32_t suspendPosted_ = 0;        // game_ipc.h kSuspendFullscreen (from VietTelex.exe)
     LayoutMatchCache layoutMatch_;      // retypeAsUs: what the thread's layout types per key

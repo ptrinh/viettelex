@@ -99,6 +99,12 @@ std::string serializeConfig(const Settings &s);
 // shortcuts.yml (flat YAML, same rules as macOS ShortcutImporter line parser).
 ShortcutTable parseShortcuts(const std::string &yaml);
 std::string exportShortcuts(const ShortcutTable &t);
+// Symbol / digit keys ("=>", "<>", "->", ":D", "k2"): not letters only (ASCII, Latin-1 /
+// Extended-A/B, combining marks, the Vietnamese block). The engine never composes them as
+// one word (Telex: = < > - : and digits end a word), so they are matched against the run of
+// non-whitespace text before the caret at a whitespace boundary (Session::tryTokenShortcut,
+// macOS ShortcutTable.tokenExpansion).
+bool isTokenShortcutKey(const std::string &utf8Key);
 
 // Hotkey "Ctrl+Shift+space". Returns false for an empty/invalid string.
 struct Hotkey {

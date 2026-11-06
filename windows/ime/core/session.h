@@ -155,6 +155,18 @@ public:
     // resetContext().
     void setHostDropsPassedKeys(bool on);
     bool hostDropsPassedKeys() const { return dropsPassedKeys_; }
+    // The opposite case: a key the TIP claims (OnTestKeyDown) and then lets through still
+    // reaches the app here (a TSF-native store — app_policy.h passedKeysReachApp). If such a
+    // store keeps showing none of the letters let through, it is not the focused element's
+    // text: the element is no text field at all (a WPF file list with type-to-filter — the
+    // app takes the keys as text input, its default TSF store stays empty). Composing there
+    // types into nothing: every key would be eaten and lost. Set by the TIP at each word
+    // start; the evidence is kept until resetContext().
+    void setPassedKeysReachApp(bool on) { passedKeysReachApp_ = on; }
+    // Latched after that evidence (two words in a row, so one late store update in a real
+    // field never trips it): every key passes through untouched, nothing is claimed, until
+    // resetContext() (new field / app). The TIP may hand the field to the hook (Direct).
+    bool notTextField() const { return notTextField_; }
     // In-place word in progress, something changed the field (OnEndEdit): keep the word
     // only if the text before the caret still ends with it. Recognises the "deletion
     // dropped" signature (screen = word before the replace + inserted text) and switches
@@ -250,6 +262,27 @@ private:
     int lastRetroWords_ = 0;
     int restoreUndos_ = 0;               // see restoreUndoCount()
     retro::Offer retroOffer_;            // see retroOffer()
+    bool passedKeysReachApp_ = false;    // see setPassedKeysReachApp()
+    bool notTextField_ = false;          // see notTextField()
+    int emptyStoreHits_ = 0;             // words whose letters the store never showed
+    // Gõ tắt with symbol / digit keys ("=>", "<>", "->": shortcuts.h findTokenShortcut).
+    // The run of non-whitespace text this session saw typed right before the caret since the
+    // last whitespace: committed words and the boundary characters it handled or let through
+    // — not the word in progress (shown_). `tokenAnchored_`: the run starts right after a
+    // whitespace the session saw (all a blind sink can go by; a readable one re-reads).
+    std::u16string tokenRun_;
+    bool tokenAnchored_ = false;
+    void runAppend(char32_t c);
+    void runAppendText(const std::u16string& t);
+    void runBreak() {
+        tokenRun_.clear();
+        tokenAnchored_ = false;
+    }
+    // The run alone is a token key (decides whether a space / Enter / Tab is claimed).
+    bool tokenCandidate() const;
+    // At a whitespace boundary: run + word in progress is a token key, verified on screen ->
+    // replaced by its expansion (the boundary key itself still goes to the app).
+    bool tryTokenShortcut(TextSink& sink);
 };
 
 // Characters that may belong to a word already on screen (ASCII letters + Latin

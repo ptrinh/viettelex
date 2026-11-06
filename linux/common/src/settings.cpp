@@ -326,6 +326,26 @@ std::string setConfigValue(const std::string &toml, const std::string &section, 
 
 // MARK: - shortcuts.yml
 
+bool isTokenShortcutKey(const std::string &k) {
+    if (k.empty()) return false;
+    for (size_t i = 0; i < k.size();) {
+        const unsigned char b = static_cast<unsigned char>(k[i]);
+        uint32_t cp;
+        size_t n;
+        if (b < 0x80) { cp = b; n = 1; }
+        else if ((b >> 5) == 6) { cp = b & 0x1f; n = 2; }
+        else if ((b >> 4) == 14) { cp = b & 0x0f; n = 3; }
+        else { cp = b & 0x07; n = 4; }
+        for (size_t j = 1; j < n && i + j < k.size(); ++j) cp = (cp << 6) | (static_cast<unsigned char>(k[i + j]) & 0x3f);
+        i += n;
+        const bool letter = (cp >= 'a' && cp <= 'z') || (cp >= 'A' && cp <= 'Z') ||
+                            (cp >= 0xc0 && cp <= 0x24f && cp != 0xd7 && cp != 0xf7) ||
+                            (cp >= 0x300 && cp <= 0x36f) || (cp >= 0x1e00 && cp <= 0x1eff);
+        if (!letter) return true;
+    }
+    return false;
+}
+
 ShortcutTable parseShortcuts(const std::string &yaml) {
     ShortcutTable out;
     std::istringstream in(yaml);

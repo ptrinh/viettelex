@@ -359,6 +359,11 @@ private:
     std::string carriedSpace_;    // ". " after the punctuation moved our space: next space swallowed
     int acceptedSpaceKey(const KeyEvent &ev, InputContext &ic);
     bool tryAutoReplace(bool space, int64_t prevSpaceMs, bool spaceHeld, bool prevEmDashOurs, InputContext &ic);
+    // Gõ tắt with a symbol / digit key ("=>" → "⟶") at a whitespace boundary: the run of
+    // non-whitespace text before the caret (+ the word in progress) is read back and, when it
+    // stands alone and is such a key, replaced. True = replaced (engine reset).
+    bool tryTokenShortcut(InputContext &ic);
+    bool hasTokenKeys_ = false;  // the table holds such keys (else no read-back at all)
     bool smartQuoteFor(uint32_t ch, InputContext &ic, std::string &out);
     bool shouldCapitalize(InputContext &ic);
     void schedulePrediction(const std::string &typed, const std::string &rawKeys);
