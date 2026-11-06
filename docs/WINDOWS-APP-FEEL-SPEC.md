@@ -48,3 +48,25 @@ không ép bật khay, không hiện lại màn chào.
 Logic quyết định thuần (core, test chạy trên host): khi nào thêm/đặt mặc định/chọn VietTelex; trạng thái
 khay (V / E / tắt) theo (bàn phím đang chọn, Việt/Anh); mặc định khay cho người mới vs người cũ; luồng
 màn chào (khi nào hiện dòng Xử lý). Phần gọi Win32/TSF giữ mỏng, ghi rõ chưa thử trên máy thật.
+
+## Bản portable (duyệt 06/11/2026)
+
+Lựa chọn phụ cho máy không có quyền cài / muốn thử nhanh. Bản cài (TSF) vẫn là bản chính.
+
+- **Gói:** `VietTelex-<ver>-portable-{x64,arm64}.zip` (exe đã ký) — giải nén, chạy `VietTelex.exe`.
+  Không cần quyền quản trị, không ghi HKLM, không đăng ký COM/TSF.
+- **Cách gõ:** hook bàn phím toàn hệ thống (đường "Dự phòng" đã có, `hook_fallback.cpp`) cho MỌI app.
+  Ô mật khẩu / terminal / per-app "Luôn tiếng Anh" giữ nguyên quy tắc. App chạy quyền quản trị: không
+  gõ được (UIPI) — báo rõ trong tooltip/HDSD.
+- **Nhận diện chế độ:** có file `portable.ini` (hoặc `VietTelex.portable`) cạnh exe ⇒ chế độ portable.
+  Cài đặt lưu cạnh exe (`settings.ini`/json); fallback `%APPDATA%\VietTelex` nếu thư mục chỉ đọc.
+  Không bao giờ đụng TSF/registry hệ thống; không tự khởi động cùng Windows trừ khi người dùng bật
+  (HKCU Run, trỏ đúng đường dẫn exe hiện tại).
+- **Gặp bản cài sẵn:** nếu VietTelex (TSF) đã cài và đang chọn, bản portable không chạy hook song
+  song (tránh bỏ dấu hai lần) — báo và thoát hoặc nhường.
+- **Cập nhật:** không tự cập nhật; "Kiểm tra cập nhật" mở trang tải zip mới.
+- **Khay + Ctrl+Shift + màn chào:** giống bản cài (mục 2–5), bỏ phần chọn bàn phím Windows.
+- **Phát hành:** `release.sh` đóng thêm 2 zip (exe ký + `portable.ini` + README ngắn) + SHA256SUMS;
+  trang tải: dòng "Không cài được? Dùng bản portable". HDSD: mục portable + đánh đổi (trình duyệt/
+  Word kém hơn bản cài, app quyền quản trị, một số game).
+- **Test:** logic thuần (nhận diện chế độ, đường dẫn cài đặt, quyết định nhường bản cài) trên host.
