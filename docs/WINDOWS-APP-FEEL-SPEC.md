@@ -70,6 +70,18 @@ Lựa chọn phụ cho máy không có quyền cài / muốn thử nhanh. Bản 
   trang tải: dòng "Không cài được? Dùng bản portable". HDSD: mục portable + đánh đổi (trình duyệt/
   Word kém hơn bản cài, app quyền quản trị, một số game).
 - **Test:** logic thuần (nhận diện chế độ, đường dẫn cài đặt, quyết định nhường bản cài) trên host.
+- **Cài đặt chỉ hiện thứ có tác dụng (issue #153):** bản portable không có TIP ⇒ ẩn các mục chỉ TIP
+  làm được: cả nhóm "Gợi ý cạnh con trỏ" (kết quả phép tính, số tiền, sửa lỗi gõ sai, thêm dấu cho câu,
+  ngày giờ, lọc từ nhạy cảm, học từ bạn gõ, xoá từ đã học, link "Gợi ý chữ khi gõ" của Windows) thay
+  bằng một dòng "Bản portable không có gợi ý từ — dùng bản cài để có gợi ý."; "Tự sửa từ phía trước",
+  "Đoán từ trùng theo tần suất" (cần đọc lại văn bản), "Gạch đỏ âm tiết sai chính tả" (chỉ có khi gõ
+  composition). Chỉ ẩn, không đổi giá trị (`settings_pages.h hiddenInPortable`).
+- **⌫ sửa từ vừa gõ (issue #153):** hook không đọc được văn bản nên tự ghi lại 3 từ cuối nó gõ + các
+  dấu ngăn cách gõ sau chúng (cách `. , ; : ! ?`); ⌫ xoá dấu ngăn cách cuối ⇒ từ quay lại engine, gõ
+  tiếp sửa được dấu ("toan␣ ⌫ s" → "toán"), ⌫ tiếp đi lùi sang từ trước. Bất cứ gì không chắc (bấm
+  chuột, phím mũi tên/Home/End/Delete, Enter/Tab/Esc, tổ hợp Ctrl/Alt/Win, Alt/Win đơn, đổi cửa sổ,
+  phím giả lập của app khác, chế độ tiếng Anh, đổi cài đặt) ⇒ quên hết. Theo công tắc "Sửa dấu từ đã
+  gõ" (`app/core/hook_reopen.h`).
 - **Bộ nhớ (issue #153, 06/11/2026):** dữ liệu ngôn ngữ (vnlexicon/enlexicon/vnlm, đọc tại chỗ từ
   RCDATA) chỉ nạp ở việc đầu tiên cần nó (Thêm dấu, gợi ý từ TIP) — không còn nạp lúc khởi động;
   bản portable không có TIP nên chỉ nạp khi dùng Thêm dấu. Chỉ mục gọn: 4 byte/từ tiếng Anh, 4 byte/dạng

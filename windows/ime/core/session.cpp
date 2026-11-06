@@ -586,6 +586,55 @@ bool TypingSession::tryReopen(TextSink& sink) {
     return true;
 }
 
+bool TypingSession::reopenCommitted(const char16_t* raw, int rawLen, const char16_t* text, int textLen) {
+    if (!engine_ || notTextField_ || overflow_ || !vtx_is_empty(engine_)) return false;
+    if (rawLen <= 0 || textLen <= 0 || rawLen > VTX_MAX_TEXT || textLen > VTX_MAX_TEXT) return false;
+    if (effectiveMode() != OutputMode::InPlace) return false;  // the word must be plain text on screen
+    auto same = [](const uint16_t* a, int32_t n, const char16_t* b, int m) {
+        if (n != m) return false;
+        for (int i = 0; i < m; ++i)
+            if (a[i] != static_cast<uint16_t>(b[i])) return false;
+        return true;
+    };
+    uint16_t buf[VTX_MAX_TEXT + 1];
+    uint16_t keys[VTX_MAX_TEXT + 1];
+    vtx_engine* t = vtx_clone(engine_);
+    if (!t) return false;
+    bool ok = false;
+    // The engine's own record of its last word also brings back that word's English context.
+    if (vtx_can_reopen_last_commit(t)) {
+        const int32_t n = vtx_reopen_last_commit(t, buf, VTX_MAX_TEXT + 1);
+        ok = n > 0 && same(buf, n, text, textLen) &&
+             same(keys, vtx_raw_keystrokes(t, keys, VTX_MAX_TEXT + 1), raw, rawLen);
+        if (!ok) {
+            vtx_destroy(t);
+            t = vtx_clone(engine_);
+            if (!t) return false;
+        }
+    }
+    if (!ok) {
+        // An older word (or the record is gone): replay its keys into a fresh word.
+        vtx_reset(t);
+        vtx_action a;
+        for (int i = 0; i < rawLen && !vtx_is_overflowed(t); ++i) vtx_feed(t, raw[i], &a);
+        ok = !vtx_is_overflowed(t) && same(buf, vtx_composed(t, buf, VTX_MAX_TEXT + 1), text, textLen) &&
+             same(keys, vtx_raw_keystrokes(t, keys, VTX_MAX_TEXT + 1), raw, rawLen);
+    }
+    if (!ok) {
+        vtx_destroy(t);
+        return false;
+    }
+    swapEngine(t);
+    shown_.assign(text, static_cast<size_t>(textLen));
+    wordMode_ = OutputMode::InPlace;
+    droppedSig_.clear();
+    reopenArmed_ = false;
+    retroUndo_.clear();
+    retroOffer_.clear();
+    runBreak();
+    return true;
+}
+
 bool TypingSession::retroOn() const { return engine_ && (opt_.engineFlags & VTX_RETRO_ENGLISH) != 0; }
 
 retro::Field TypingSession::retroField(TextSink& sink) const {

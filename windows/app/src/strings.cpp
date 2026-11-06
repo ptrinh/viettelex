@@ -418,6 +418,10 @@ const Pair kStrings[] = {
      L"The installed VietTelex is running on this PC. The portable copy will quit so tones are not added twice."},
     {L"Đã có VietTelex %s. Mở trang tải để lấy bản portable mới?",
      L"VietTelex %s is available. Open the download page for the new portable version?"},
+    {L"Bản portable không có gợi ý từ — dùng bản cài để có gợi ý.",
+     L"The portable version has no suggestions — use the installed version for them."},
+    {L"Xoá lùi về từ vừa gõ rồi thêm dấu: “toan ” + Backspace + s → toán.",
+     L"Backspace into the word you just typed to add a tone: “toan ” + Backspace + s → toán."},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace

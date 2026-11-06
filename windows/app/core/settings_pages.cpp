@@ -28,7 +28,8 @@ struct Builder {
         open = true;
     }
     void toggle(Field f, int extraIndent = 0) {
-        if (open && !hiddenByParent(s, f)) rows.push_back({RowKind::Toggle, 0, f, level + extraIndent});
+        if (open && !hiddenByParent(s, f) && !(ctx.portable && hiddenInPortable(f)))
+            rows.push_back({RowKind::Toggle, 0, f, level + extraIndent});
     }
     void control(PageControl c) {
         if (open) rows.push_back({RowKind::Control, static_cast<int>(c), nullptr, level});
@@ -55,6 +56,13 @@ bool hiddenByParent(const Settings& s, bool Settings::*field) {
     // The tray menu only exists with the tray icon (main.cpp).
     if (!s.showTrayIcon && field == &Settings::textToolsInMenu) return true;
     return false;
+}
+
+bool hiddenInPortable(bool Settings::*field) {
+    return field == &Settings::retroactiveEnglish || field == &Settings::englishByFrequency ||
+           field == &Settings::underlineMisspelled || field == &Settings::mathResults ||
+           field == &Settings::numberChips || field == &Settings::typoHints || field == &Settings::toneHints ||
+           field == &Settings::dateHints || field == &Settings::filterSensitive || field == &Settings::learnWords;
 }
 
 bool showsTrayStyle(const Settings& s) { return s.showTrayIcon; }
@@ -113,16 +121,23 @@ std::vector<PageRow> settingsPageRows(SettingsPage page, const Settings& s, cons
             b.toggle(&Settings::underlineMisspelled);
             break;
         case SettingsPage::Suggestions:
-            b.section(PageSection::Hints);
-            b.toggle(&Settings::mathResults);
-            b.toggle(&Settings::numberChips);
-            b.toggle(&Settings::typoHints);
-            b.toggle(&Settings::toneHints);
-            b.toggle(&Settings::dateHints);
-            b.toggle(&Settings::filterSensitive);
-            b.toggle(&Settings::learnWords);
-            b.control(PageControl::ClearLearned);
-            b.control(PageControl::TextPredictionLink);
+            if (ctx.portable) {
+                // Every row of "Gợi ý cạnh con trỏ" is the TIP's (hiddenInPortable, plus the
+                // learned-words reset and Windows' word-prediction link): the group goes, one
+                // line says why. Công cụ văn bản (VietTelex.exe itself) stays.
+                b.control(PageControl::PortableHintsNote);
+            } else {
+                b.section(PageSection::Hints);
+                b.toggle(&Settings::mathResults);
+                b.toggle(&Settings::numberChips);
+                b.toggle(&Settings::typoHints);
+                b.toggle(&Settings::toneHints);
+                b.toggle(&Settings::dateHints);
+                b.toggle(&Settings::filterSensitive);
+                b.toggle(&Settings::learnWords);
+                b.control(PageControl::ClearLearned);
+                b.control(PageControl::TextPredictionLink);
+            }
             b.expander(Expander::TextTools);
             b.toggle(&Settings::textToolsInMenu);
             b.control(PageControl::AddTonesHotkey);

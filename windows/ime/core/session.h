@@ -199,6 +199,13 @@ public:
     // retro flag on, the engine still has to hear about it — a boundary character keeps or
     // ends the English phrase, anything else ends it. One engine call, no document access.
     void noteKeyPassedBy(const KeyInput& k);
+    // ⌫ re-open for a BLIND sink (the hook, which cannot read the text back): the caller's own
+    // record says this ⌫ deletes the only character left after a word this session committed
+    // in place from the keys `raw` as `text` (app/core/hook_reopen.h decides when). Puts the
+    // word back in the engine so the next keys edit it; sends nothing (the ⌫ itself goes to
+    // the app). False = no word in progress is possible here, or replaying `raw` does not
+    // give `text` back exactly (English restore, other context): nothing changed.
+    bool reopenCommitted(const char16_t* raw, int rawLen, const char16_t* text, int textLen);
 
 private:
     bool isWordKey(char32_t c) const;
