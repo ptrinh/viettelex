@@ -131,8 +131,12 @@ enum OnboardingFlow {
 
     /// Màn cần hiện: xong rồi ⇒ không gì; chưa chọn hồ sơ ⇒ màn 1; đã chọn ⇒ màn 2 khi bàn phím
     /// đã bật (chưa bật thì chờ — hiện một lần sau khi bật).
-    static func screen(done: Bool, profile: OnboardingProfile?, keyboardEnabled: Bool) -> Screen? {
-        if done { return nil }
+    /// Chọn VNI ⇒ bỏ qua (cả câu hỏi hồ sơ lẫn màn Gõ thử các công tắc tiếng Anh): VNI không làm đổi
+    /// từ tiếng Anh nên các công tắc đó vô tác dụng (SETTINGS-CLEANUP-SPEC §1). Không ghi gì ⇒ đổi
+    /// lại Telex thì onboarding hiện như thường.
+    static func screen(done: Bool, profile: OnboardingProfile?, keyboardEnabled: Bool,
+                       vniMode: Bool = false) -> Screen? {
+        if done || vniMode { return nil }
         guard profile != nil else { return .choose }
         return keyboardEnabled ? .tryIt : nil
     }
@@ -140,7 +144,8 @@ enum OnboardingFlow {
     static func screen(_ d: UserDefaults?, keyboardEnabled: Bool) -> Screen? {
         screen(done: d?.bool(forKey: doneKey) ?? true,
                profile: d?.string(forKey: profileKey).flatMap(OnboardingProfile.init(rawValue:)),
-               keyboardEnabled: keyboardEnabled)
+               keyboardEnabled: keyboardEnabled,
+               vniMode: d?.bool(forKey: "vniMode") ?? false)
     }
 
     /// Key chỉ bàn phím tự ghi khi chạy (không phải người dùng chỉnh) — KHÔNG tính là "đã có cài

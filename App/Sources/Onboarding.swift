@@ -79,6 +79,21 @@ enum OnboardingLogic {
         return first
     }
 
+    // MARK: Chọn VNI ⇒ ẩn nhóm "Gõ lẫn tiếng Anh" (SETTINGS-CLEANUP-SPEC §1, 06/11/2026)
+
+    /// VNI đặt dấu bằng phím số nên từ tiếng Anh gõ ra nguyên vẹn: mọi công tắc nhận diện tiếng Anh
+    /// vô tác dụng ⇒ ẩn bộ chọn hồ sơ + Nâng cao, thay bằng một dòng ghi chú. Chỉ đổi hiển thị — key
+    /// và giá trị giữ nguyên, đổi lại Telex thấy y như cũ. Onboarding (toàn bộ là câu hỏi hồ sơ +
+    /// gõ thử các công tắc đó) cũng bỏ qua.
+    static func mixedGroupHidden(vniMode: Bool) -> Bool { vniMode }
+
+    /// Các dòng của nhóm theo thứ tự hiện.
+    enum MixedRow: Equatable { case profilePicker, vniNote, advanced }
+
+    static func mixedRows(vniMode: Bool) -> [MixedRow] {
+        mixedGroupHidden(vniMode: vniMode) ? [.vniNote] : [.profilePicker, .advanced]
+    }
+
     /// Hồ sơ bộ chọn trong Cài đặt macOS hiện (SETTINGS-CLEANUP-SPEC §1): "Chủ yếu tiếng Anh"
     /// ẨN vì trên Mac nó ghi đúng bộ công tắc của "Việt + Anh nhiều". Onboarding màn 1 vẫn đủ 3.
     static let settingsProfiles: [TypingProfile] = [.vi, .mixed]
@@ -198,6 +213,9 @@ enum Onboarding {
 
     static func showIfReady() {
         guard pending, TelexInputController.isVietTelexSelected() else { return }
+        // VNI: câu hỏi hồ sơ gõ lẫn vô tác dụng ⇒ không hiện; không ghi gì (đổi lại Telex, lần
+        // khởi động sau vẫn hiện).
+        guard !OnboardingLogic.mixedGroupHidden(vniMode: AppState.shared.vniMode) else { return }
         pending = false
         OnboardingWindowController.shared.show()
     }

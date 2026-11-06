@@ -624,6 +624,7 @@ enum L10n {
         "Nâng cao": "Advanced",
         "Telex đơn giản, bỏ dấu tự do, gõ nhanh, bỏ dấu kiểu mới, teencode…": "Simple Telex, free tone marking, Quick Telex, modern tone placement, teencode…",
         "Chỉ áp dụng cho Telex": "Telex only",
+        "Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này.": "VNI leaves English words as typed, so there is nothing to set here.",
         "Bỏ dấu kiểu mới (oà, uý)": "Modern tone placement (oà, uý)",
         "Tự động viết hoa đầu câu": "Auto-capitalize sentences",
         "Quyết định theo ngữ cảnh": "Context-aware decisions",

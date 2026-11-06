@@ -121,6 +121,8 @@ struct RootView: View {
     /// Thẻ một lần cho người dùng cũ (§5).
     @AppStorage(OnboardingFlow.tipKey, store: UserDefaults(suiteName: AppFlavor.appGroup))
     private var mixedTip = false
+    @AppStorage("vniMode", store: UserDefaults(suiteName: AppFlavor.appGroup))
+    private var tipVniMode = false
     /// Trang con có bàn phím mẫu ở đáy (Luyện vuốt) ẩn FloatingTabBar — nó đè hàng
     /// phím dưới (Phil 27/09/2026).
     @ObservedObject private var tabBarVisibility = TabBarVisibility.shared
@@ -278,7 +280,8 @@ struct RootView: View {
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
         }
-        if mixedTip {
+        // Thẻ chỉ tới nhóm Gõ lẫn tiếng Anh: chọn VNI thì nhóm ẩn ⇒ chưa hiện thẻ (giữ cờ cho Telex).
+        if mixedTip, !MixedTypingUI.groupHidden(vniMode: tipVniMode) {
             Section {
                 MixedTypingTipCard(onOpen: {
                     mixedTip = false

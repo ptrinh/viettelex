@@ -53,6 +53,8 @@ struct MixedTypingSection: View {
     @AppStorage(RetroEnglishUI.autoKey, store: mixedDefaults) private var retroEnglishAuto = false
     @AppStorage(RetroEnglishUI.frequencyKey, store: mixedDefaults) private var englishByFrequency = false
     @AppStorage("spaceSwipeLanguage", store: mixedDefaults) private var spaceSwipeLanguage = false
+    /// VNI ⇒ ẩn bộ chọn hồ sơ + "Nâng cao", hiện một dòng ghi chú (MixedTypingUI.rows).
+    @AppStorage("vniMode", store: mixedDefaults) private var vniMode = false
     /// Mặc định BẬT, xem KeyboardSettings.swipeEnglish. Công tắc ở trang Gõ vuốt; ở đây chỉ để
     /// so khớp hồ sơ (bộ chọn vẫn đặt giá trị của nó như cũ).
     @AppStorage("swipeEnglish", store: mixedDefaults) private var swipeEnglish = true
@@ -73,6 +75,7 @@ struct MixedTypingSection: View {
     }
 
     private var summary: String {
+        if MixedTypingUI.groupHidden(vniMode: vniMode) { return L(MixedTypingUI.vniNoteKey) }
         let on = [(autoRestore, L("Khôi phục tiếng Anh")), (contextualEnglish, L("Ngữ cảnh")),
                   (spaceSwipeLanguage, L("Vuốt phím cách"))]
             .filter(\.0).map(\.1)
@@ -106,19 +109,31 @@ struct MixedTypingSection: View {
             .listRowBackground(rowBackground(.section))
 
             if focus.expanded {
-                profilePicker
-                settingToggle(L(MixedTypingItem.spaceSwipeLanguage.viTitle), L(SettingCaption.spaceSwipeLanguage), isOn: $spaceSwipeLanguage)
-                    .row(.spaceSwipeLanguage, rowBackground(.spaceSwipeLanguage))
-                NavigationLink {
-                    UserDictView()
-                } label: {
-                    SubPageRow(title: L("Từ điển cá nhân"), subtitle: L(SettingCaption.userDictionary))
-                }
-                .row(.userDictionary, rowBackground(.userDictionary))
-                NavigationLink {
-                    MixedAdvancedPage()
-                } label: {
-                    SubPageRow(title: L(MixedTypingUI.advancedTitleKey), subtitle: L(MixedTypingUI.advancedSubtitleKey))
+                ForEach(MixedTypingUI.rows(vniMode: vniMode), id: \.self) { r in
+                    switch r {
+                    case .profilePicker:
+                        profilePicker
+                    case .vniNote:
+                        Text(L(MixedTypingUI.vniNoteKey))
+                            .font(.footnote).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    case .spaceSwipeLanguage:
+                        settingToggle(L(MixedTypingItem.spaceSwipeLanguage.viTitle), L(SettingCaption.spaceSwipeLanguage), isOn: $spaceSwipeLanguage)
+                            .row(.spaceSwipeLanguage, rowBackground(.spaceSwipeLanguage))
+                    case .userDictionary:
+                        NavigationLink {
+                            UserDictView()
+                        } label: {
+                            SubPageRow(title: L("Từ điển cá nhân"), subtitle: L(SettingCaption.userDictionary))
+                        }
+                        .row(.userDictionary, rowBackground(.userDictionary))
+                    case .advanced:
+                        NavigationLink {
+                            MixedAdvancedPage()
+                        } label: {
+                            SubPageRow(title: L(MixedTypingUI.advancedTitleKey), subtitle: L(MixedTypingUI.advancedSubtitleKey))
+                        }
+                    }
                 }
             }
         } footer: {
@@ -230,6 +245,10 @@ struct MixedAdvancedPage: View {
     var body: some View {
         ScrollViewReader { proxy in
             List {
+                // Tới đây khi đang chọn VNI (lối vào cũ còn mở): chỉ dòng ghi chú, không công tắc.
+                if MixedTypingUI.groupHidden(vniMode: vniMode) {
+                    Section { Text(L(MixedTypingUI.vniNoteKey)).foregroundStyle(.secondary) }
+                } else {
                 Section {
                     settingToggle(L(MixedTypingItem.autoRestore.viTitle), L(SettingCaption.autoRestore), isOn: $autoRestore)
                         .row(.autoRestore, background(.autoRestore))
@@ -245,6 +264,7 @@ struct MixedAdvancedPage: View {
                         .row(.englishByFrequency, background(.englishByFrequency))
                 } footer: {
                     Text(L("Cài đặt áp dụng ngay lần mở bàn phím kế tiếp."))
+                }
                 }
             }
             .navigationTitle(L(MixedTypingUI.advancedTitleKey))

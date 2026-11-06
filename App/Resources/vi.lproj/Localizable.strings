@@ -409,3 +409,6 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Records events in memory, never your text. Reproduce the bug, then copy the log." = "Ghi sự kiện trong bộ nhớ, không ghi chữ bạn gõ. Tái hiện lỗi rồi chép nhật ký.";
 "Expands on space/Enter; case follows (ko → không, Ko → Không). ⌥↩ new line." = "Bung ra khi gõ dấu cách/Enter; hoa thường theo bạn (ko → không, Ko → Không). ⌥↩ xuống dòng.";
 "Chrome/Electron apps expand these via macOS. Short ones (h) can break words: delete in macOS." = "App Chrome/Electron dùng bản của macOS. Mục ngắn (h) có thể làm hỏng chữ: hãy xoá trong macOS.";
+
+/* Gõ lẫn tiếng Anh: chọn VNI ⇒ ẩn nhóm (SETTINGS-CLEANUP-SPEC §1) */
+"VNI leaves English words as typed, so there is nothing to set here." = "Gõ VNI không làm đổi từ tiếng Anh nên không cần chỉnh phần này.";
