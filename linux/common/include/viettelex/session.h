@@ -31,8 +31,16 @@ public:
     virtual void setPreedit(const std::string &utf8, bool misspelled) = 0;
     // Insert committed text at the caret (preedit already hidden by the Session).
     virtual void commit(const std::string &utf8) = 0;
-    // Delete `nchars` Unicode characters immediately before the caret.
+    // Delete `nchars` Unicode characters immediately before the caret. Frontends clamp it to
+    // reportedCharsBeforeCursor() (clampDeleteToReport): a last line, the Session checks first.
     virtual void deleteBeforeCursor(int nchars) = 0;
+    // Characters before the caret in the client's LAST surrounding-text report — the most a
+    // delete-surrounding may remove. GNOME Wayland: mutter checks delete_surrounding_text
+    // against the text the app last reported and g_assert()s it stays inside; reaching past
+    // its start aborts gnome-shell (the user is logged out). 0 when the client takes
+    // surrounding text but has reported none (yet); -1 = the client has no surrounding text
+    // at all (nothing checks the delete there): no limit known.
+    virtual long reportedCharsBeforeCursor() { return -1; }
     // Text before the caret (UTF-8), when the client reports surrounding text.
     virtual bool textBeforeCursor(std::string &out) { (void)out; return false; }
     // Only the last `maxChars` characters of textBeforeCursor (fewer at the start of the
@@ -76,6 +84,12 @@ public:
     // Hides the hint AND the candidate list.
     virtual void hideHint() {}
 };
+
+// Crash guard for delete-surrounding: how many of `requested` characters a delete before the
+// caret may remove when the client's last report holds `reportedBefore` characters before the
+// caret (InputContext::reportedCharsBeforeCursor; < 0 = no limit known). Never more than
+// reported, never negative.
+int clampDeleteToReport(int requested, long reportedBefore);
 
 class Session {
 public:
@@ -220,7 +234,11 @@ private:
     void replace(InputContext &ic, int backspaces, const std::string &insert, const std::string &base);
     // Surrounding edit: delete-surrounding (+ empty commit), or forwarded BackSpaces when
     // deleteWithKeys_ (then the result is tracked until the host confirms it).
+    // A delete-surrounding of more characters than the client last reported (deleteFitsReport
+    // false) is never sent: distrust() and no edit at all (callers check inPlaceAllowed first).
     void replaceBeforeCursor(InputContext &ic, int backspaces, const std::string &insert, const std::string &base);
+    // May a delete-surrounding of `n` characters go out (clampDeleteToReport cuts nothing)?
+    static bool deleteFitsReport(InputContext &ic, int n);
     // Key-edit confirmation (deleteWithKeys_). ackTrail_: what this Session typed before the
     // caret since it last moved (last 48 characters) — where the host must end up.
     // ackStates_: every earlier value of it since the host last showed the trail, oldest
@@ -262,8 +280,12 @@ private:
     // ic.selectionAtCaret(), asked at most once per key event.
     bool selectionAtCaret(InputContext &ic);
     // Verify-before-delete (Surrounding in-place edits): may the Session delete `expected`,
-    // the text it put right before the caret? Mismatch → distrust() and false.
-    bool inPlaceAllowed(InputContext &ic, const std::string &expected);
+    // the text it put right before the caret? Mismatch → distrust() and false. `deletes`: the
+    // characters the edit removes (-1 = all of `expected`); on the delete-surrounding path the
+    // client's last report must hold at least that many before the caret, else distrust() and
+    // false too — a report lagging at the start of a field (fast typing) would otherwise let
+    // the delete reach past its start (reportedCharsBeforeCursor).
+    bool inPlaceAllowed(InputContext &ic, const std::string &expected, int deletes = -1);
     void distrust();
     int selectionMemo_ = -1;  // -1 = not asked during this key event
     std::string composed() const;

@@ -144,8 +144,21 @@ public:
         ic_->updateUserInterface(fcitx::UserInterfaceComponent::InputPanel);
     }
     void commit(const std::string &s) override { ic_->commitString(s); }
+    // Never more than the client last reported (GNOME Wayland: mutter g_assert()s it, see
+    // vt::InputContext::reportedCharsBeforeCursor); nothing at all when 0 is allowed.
     void deleteBeforeCursor(int n) override {
+        n = vt::clampDeleteToReport(n, reportedCharsBeforeCursor());
         if (n > 0) ic_->deleteSurroundingText(-n, unsigned(n));
+    }
+    // Capability without a valid text yet = nothing reported: 0.
+    long reportedCharsBeforeCursor() override {
+        if (!ic_->capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText)) return -1;
+        const auto &st = ic_->surroundingText();
+        if (!st.isValid()) return 0;
+        long len = 0;
+        for (unsigned char c : st.text()) len += (c & 0xc0) != 0x80;
+        const long cursor = long(st.cursor());  // in characters
+        return cursor < len ? cursor : len;
     }
     // Direct (terminals on a D-Bus client with KeyEventOrderFix: fcitx5-gtk2/3, fcitx5-qt; see
     // vt::ClientHost). BackSpace AND the new text are forwarded keys: the client queues them

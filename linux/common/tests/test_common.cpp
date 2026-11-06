@@ -74,8 +74,13 @@ struct Mock : InputContext {
     // Stale / lying host: textBeforeCursor reports `reported` instead of `doc`.
     bool hasReported = false;
     std::string reported;
+    // GNOME Wayland's check (mutter g_assert): a delete reaching past the start of the last
+    // report would abort the shell. Counted here instead.
+    int overDeletes = 0;
     void deleteBeforeCursor(int n) override {
         ++deletes;
+        long r = reportedCharsBeforeCursor();
+        if (r >= 0 && long(n) > r) ++overDeletes;
         popChars(doc, n);
         log.push_back("del:" + std::to_string(n));
     }
@@ -83,6 +88,12 @@ struct Mock : InputContext {
         if (!surrounding) return false;
         out = hasReported ? reported : doc;
         return true;
+    }
+    long reportedCharsBeforeCursor() override {
+        if (!surrounding) return -1;
+        long n = 0;
+        for (unsigned char c : hasReported ? reported : doc) n += (c & 0xc0) != 0x80;
+        return n;
     }
     bool hasSelection() override { return selection; }
     // GTK3: the cheap check sees nothing, only the thorough one (PRIMARY at the caret) does.
@@ -351,11 +362,13 @@ void testVerifyBeforeDelete() {
         m.reported = "toa";
         type(s, m, "s");
         CHECK_EQ(m.screen(), std::string("toán"));
-        m.reported = "";  // nothing applied yet at all
+        m.reported = "toán v";  // only the first letter of the next word applied yet
         type(s, m, " vie");
         type(s, m, "e");
         CHECK_EQ(m.screen(), std::string("toán viê"));
         CHECK(!s.surroundingDistrusted());
+        CHECK_EQ(m.overDeletes, 0);
+        // (A report holding fewer characters than the delete: testDeleteNeverPastReport.)
     }
     // Stale reopen: the boundary was not applied yet → plain ⌫ (never block, never guess),
     // no distrust; once the host catches up, reopen works again.
@@ -906,6 +919,7 @@ void testHotkeyParse() {
 // an empty one, and cannot delete before the caret (a delete request is simply dropped).
 struct TerminalStore : Mock {
     bool textBeforeCursor(std::string &out) override { out.clear(); return true; }
+    long reportedCharsBeforeCursor() override { return 0; }
     void deleteBeforeCursor(int) override { ++deletes; }
 };
 
@@ -2747,6 +2761,123 @@ void testForwardKeysRandomFaults() {
     CHECK(detected > stressRounds() / 10);  // the faults do fire and get caught
 }
 
+// MARK: - Crash guard: never delete more than the client last reported
+
+void testClampDeleteToReport() {
+    CHECK_EQ(clampDeleteToReport(3, 5), 3);
+    CHECK_EQ(clampDeleteToReport(3, 3), 3);
+    CHECK_EQ(clampDeleteToReport(3, 2), 2);   // cut to what was reported
+    CHECK_EQ(clampDeleteToReport(3, 0), 0);   // empty report: no delete at all
+    CHECK_EQ(clampDeleteToReport(3, -1), 3);  // no surrounding text: no limit known
+    CHECK_EQ(clampDeleteToReport(0, 5), 0);
+    CHECK_EQ(clampDeleteToReport(-2, 5), 0);
+}
+
+// GNOME Wayland, "Sửa thẳng trong ô" (Surrounding), typing fast at the very start of an empty
+// field: the app's report still says "" while "vie" is on its way. A delete then would reach
+// past the start of the report (mutter g_assert → gnome-shell aborts, the user is logged out).
+void testDeleteNeverPastReport() {
+    {
+        Session s;
+        Mock m;
+        s.setDisplayMode(DisplayMode::Surrounding, m);
+        m.hasReported = true;
+        m.reported = "";  // the client lags: nothing of ours reported yet
+        type(s, m, "vie");
+        type(s, m, "e");  // "ê" would delete 1 character, the report holds 0
+        CHECK_EQ(m.deletes, 0);
+        CHECK_EQ(m.overDeletes, 0);
+        CHECK(s.surroundingDistrusted());
+        CHECK(s.displayMode() == DisplayMode::Preedit);
+        CHECK_EQ(m.screen(), std::string("viee"));  // the key as typed, never a half edit
+        type(s, m, "tj ");  // the field goes on in preedit: no delete ever
+        CHECK_EQ(m.deletes, 0);
+        CHECK_EQ(m.screen(), std::string("vieetj "));
+        type(s, m, "vieejt ");
+        CHECK_EQ(m.screen(), std::string("vieetj việt "));
+        CHECK_EQ(m.deletes, 0);
+        s.focusIn();  // a new focus gets a new chance
+        CHECK(!s.surroundingDistrusted());
+    }
+    // A report lagging but holding enough characters (start of the field, "v" of "vie"
+    // applied): the delete fits, typed in place as before.
+    {
+        Session s;
+        Mock m;
+        s.setDisplayMode(DisplayMode::Surrounding, m);
+        type(s, m, "vie");
+        m.hasReported = true;
+        m.reported = "v";
+        type(s, m, "e");
+        CHECK_EQ(m.screen(), std::string("viê"));
+        CHECK_EQ(m.overDeletes, 0);
+        CHECK(!s.surroundingDistrusted());
+    }
+    // The client takes surrounding text but reports nothing readable (IBus before the field
+    // is proven): the Session cannot read, the frontend's limit is 0 — no delete.
+    struct Unread : Mock {
+        bool textBeforeCursor(std::string &) override { return false; }
+        long reportedCharsBeforeCursor() override { return 0; }
+    };
+    {
+        Session s;
+        Unread m;
+        s.setDisplayMode(DisplayMode::Surrounding, m);
+        type(s, m, "toan");
+        type(s, m, "s");
+        CHECK_EQ(m.deletes, 0);
+        CHECK(s.surroundingDistrusted());
+        CHECK_EQ(m.screen(), std::string("toans"));
+    }
+    // No surrounding text at all (-1): nothing limits the delete — unchanged.
+    {
+        Session s;
+        Mock m;
+        s.setDisplayMode(DisplayMode::Surrounding, m);
+        m.surrounding = false;
+        type(s, m, "toans");
+        CHECK_EQ(m.screen(), std::string("toán"));
+        CHECK(!s.surroundingDistrusted());
+    }
+}
+
+// Random typing in Surrounding with a client whose report lags 0–3 keys behind: never a delete
+// past the report; whenever the field was not distrusted, the text is the honest-host text.
+void testDeleteNeverPastReportStress() {
+    std::mt19937 rng(23);
+    const std::string alphabet = "aeiouydwsfrxjzcnghtq <";
+    int fellBack = 0;
+    for (int round = 0, rounds = stressRounds(); round < rounds; ++round) {
+        std::string keys;
+        int len = 2 + int(rng() % 14);
+        for (int i = 0; i < len; ++i) keys += alphabet[rng() % alphabet.size()];
+        std::string prefix = kFieldPrefixes[rng() % (sizeof kFieldPrefixes / sizeof *kFieldPrefixes)];
+        Session s;
+        Mock m;
+        m.doc = prefix;
+        s.setDisplayMode(DisplayMode::Surrounding, m);
+        s.setSurroundingEdits(false);
+        m.hasReported = true;
+        std::vector<std::string> states{m.doc};
+        for (char c : keys) {
+            size_t lag = rng() % 4;
+            m.reported = states[states.size() > lag ? states.size() - 1 - lag : 0];
+            type(s, m, std::string(1, c));
+            states.push_back(m.doc);
+        }
+        if (s.surroundingDistrusted()) ++fellBack;
+        bool ok = m.overDeletes == 0 && (s.surroundingDistrusted() || m.screen() == surroundingNoEdits(keys, prefix));
+        if (ok) {
+            ++g_pass;
+            continue;
+        }
+        ++g_fail;
+        std::fprintf(stderr, "lagging report [%s%s]: got [%s] overDeletes=%d\n", prefix.c_str(), keys.c_str(),
+                     m.screen().c_str(), m.overDeletes);
+    }
+    CHECK(fellBack > 0);  // the start-of-field case does come up
+}
+
 }  // namespace
 
 // MARK: - Tự sửa từ phía trước (retroactive_english, retro_english.h)
@@ -3230,6 +3361,9 @@ int main() {
     testForwardKeysConfig();
     testForwardKeysAgreesWithSurrounding();
     testForwardKeysRandomFaults();
+    testClampDeleteToReport();
+    testDeleteNeverPastReport();
+    testDeleteNeverPastReportStress();
     std::printf("common tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }
