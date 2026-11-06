@@ -70,3 +70,26 @@ Lựa chọn phụ cho máy không có quyền cài / muốn thử nhanh. Bản 
   trang tải: dòng "Không cài được? Dùng bản portable". HDSD: mục portable + đánh đổi (trình duyệt/
   Word kém hơn bản cài, app quyền quản trị, một số game).
 - **Test:** logic thuần (nhận diện chế độ, đường dẫn cài đặt, quyết định nhường bản cài) trên host.
+
+## Trạng thái triển khai (06/11/2026)
+
+Đã làm toàn bộ mục 1–6 + bản portable. Quyết định nằm trong lõi thuần, test trên host
+(`windows/app/tests/app_feel_tests.cpp`, `portable_zip_test.sh`); phần Win32/TSF giữ mỏng.
+
+| Mục | Lõi (test host) | Win32 |
+|---|---|---|
+| 1. Cài xong là gõ được | `app_feel.h planKeyboardAtStart`: thiếu trong danh sách / lần đầu ⇒ thêm + mặc định + chọn; sau "Thoát" ⇒ chọn lại; người cũ đã có VietTelex ⇒ không đụng | `main.cpp ensureKeyboardAtStart`, `tip_control.cpp` (`vietTelexInUserList`, `selectVietTelexForSession` = `ActivateProfile(TF_IPPMF_FORSESSION)`) |
+| 2. Khay mặc định bật cho người mới, chữ V/E, bấm trái đổi Việt/Anh | `isNewUser` / `applyNewUserDefaults`; `trayClickAction` | `main.cpp trayLeftClick` (bấm đúp = Cài đặt); menu thêm "Thoát VietTelex" |
+| 3. Trạng thái "đang tắt" | `trayStateFor` (V / E / Off) | biểu tượng mờ (`CreateDimmedIcon`), tooltip; bấm trái = chọn lại VietTelex. Không thông báo |
+| 4. Màn chào một trang | `welcomeResolveRow` (chỉ bộ gõ khác đang chạy / "Vietnamese Telex" của Windows) | `welcome.cpp` viết lại; "Xử lý…" mở hộp xung đột sẵn có. Hồ sơ gõ không còn trong luồng chào (người mới = mặc định, chỉnh trong Cài đặt) |
+| 5. Thoát từ khay | `pickExitLayout` (bàn phím trước đó ⇒ US ⇒ không phải tiếng Việt) | `quitFromTray`: chọn lại cho phiên + cờ `reselectOnStart` |
+| 6. Tài liệu + trang tải | test: HDSD/trang tải không nêu tên bộ gõ khác | `docs/hdsd`, `docs/en/guide`, trang tải: một nút tự chọn x64/ARM64 (`userAgentData`), không chắc ⇒ hiện cả hai; khối "Không cài được? Dùng bản portable" (link zip lấy từ `stable.json` `windows.portable_x64/arm64`, chưa có ⇒ trang Releases) |
+| Portable | `portable.h`: marker, đường dẫn `settings.ini`, `KeyValueFile`, nhường bản cài (`yields`), `hookPlan`, ô mật khẩu Win32, autostart | `settings_store.cpp` (kho `settings.ini`, không snapshot), `foreground.cpp`, `hook_fallback.cpp publishForegroundPortable`, mutex/lớp cửa sổ riêng, Ctrl+Shift tự đổi, "Khởi động cùng Windows" trong menu khay, cập nhật = mở trang tải; `scripts/make-portable.sh` + `release.sh` (zip từ exe đã ký, kiểm exe trong zip = exe đã ký, SHA256SUMS) |
+
+**Chưa chạy trên Windows thật** (chỉ ctest host + biên dịch chéo llvm-mingw x86/x64/ARM64, TIP
+498 KB < 520 KB): chọn bàn phím cho phiên/cửa sổ (`ActivateProfile`, `WM_INPUTLANGCHANGEREQUEST`)
+và Thoát trả bàn phím cũ; bấm trái khay đổi Việt/Anh (TIP đọc lại trạng thái khi app lấy lại focus);
+biểu tượng mờ; màn chào mới; toàn bộ bản portable (hook mọi app, gõ trong cửa sổ của chính nó,
+`settings.ini` cạnh exe / `%APPDATA%`, nhường bản cài, autostart). Ô mật khẩu của trình duyệt/UWP
+không thấy được từ hook — bản portable chỉ nhận ra ô mật khẩu Win32 (ghi trong HDSD). Đổi phím
+chuyển sang Alt+Z không có tác dụng ở bản portable (chỉ Ctrl+Shift và bấm khay).

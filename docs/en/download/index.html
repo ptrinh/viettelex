@@ -118,29 +118,38 @@
     <!-- Windows -->
     <section class="panel" id="p-windows" role="tabpanel" aria-labelledby="t-windows" tabindex="0" hidden>
       <div class="panel-head"><h2>ViệtTelex for Windows</h2><span class="pill">version <span data-ver="win">…</span></span></div>
-      <p class="sub">A system Vietnamese keyboard (TSF) — pick it with <code>Win</code>+<code>Space</code>.</p>
+      <p class="sub">Install and type: VietTelex adds itself to Windows' keyboards and shows a V in the notification area; switch Vietnamese/English with <code>Ctrl</code>+<code>Shift</code>.</p>
       <div class="primary">
         <a class="badge-link" href="https://apps.microsoft.com/detail/xp9cbqk2f77356?hl=en-us" rel="noopener"><img class="badge-app" src="/download/badges/ms-store-dark-en-us.svg" alt="Download from the Microsoft Store" width="176" height="48"></a>
       </div>
       <p class="sub">Or download the <code>.msi</code> installer directly:</p>
+      <!-- One button picking x64/ARM64 for this PC (download.js); both when the PC can't be told. -->
       <div class="primary">
+        <a class="btn" id="winMsi" href="https://github.com/ptrinh/viettelex/releases?q=windows&amp;expanded=true" rel="noopener" hidden>⬇︎ <span class="lbl">Download the Windows installer (.msi)</span></a>
         <a class="btn ghost" id="winX64" href="https://github.com/ptrinh/viettelex/releases?q=windows&amp;expanded=true" rel="noopener">⬇︎ <span class="lbl">Download x64 (.msi)</span></a>
         <a class="btn ghost" id="winArm" href="https://github.com/ptrinh/viettelex/releases?q=windows&amp;expanded=true" rel="noopener">⬇︎ <span class="lbl">Download ARM64 (.msi)</span></a>
       </div>
+      <p class="note" id="winOther" hidden><span id="winPicked"></span> <a href="#" id="winShowBoth">Pick another build</a></p>
       <ul class="facts"><li>Windows 10 (1903) or 11</li><li>Auto-updates via Microsoft Store</li><li>Signed installer</li><li>No restart needed</li></ul>
       <p class="note" id="winNotes"></p>
       <div class="block">
-        <h3>Downloading the .msi: which one?</h3>
-        <p>Microsoft Store picks the right build for you. For the .msi: <b>x64</b> for Intel/AMD PCs (most). <b>ARM64</b> for Snapdragon/ARM PCs. Not sure: Settings → System → About → <b>System type</b>.</p>
-      </div>
-      <div class="block">
         <h3>After installing</h3>
         <ol class="steps">
-          <li>Click <b>Get</b> in Microsoft Store (or run the <code>.msi</code>); VietTelex's Settings window opens when it's done.</li>
-          <li>Pick VietTelex with <code>Win</code>+<code>Space</code>. Not listed? Open VietTelex once from the Start menu.</li>
+          <li>Click <b>Get</b> in Microsoft Store (or run the <code>.msi</code>) — nothing to pick in the keyboard list: VietTelex switches itself on.</li>
+          <li>See the <b>V</b> in the notification area and the <b>Ready</b> window: try <code>vieejt</code> → <code>việt</code>. A faded icon = another keyboard is selected; click it to turn VietTelex back on.</li>
+          <li>Pick <b>VietTelex</b>, not Windows' built-in “Vietnamese Telex”.</li>
           <li>Upgrading: Microsoft Store updates it automatically; with the .msi, install the new version over the old one, or click <b>Check for updates</b> in the app.</li>
         </ol>
         <p class="note"><a href="/en/guide/?os=windows#setup">Full Windows guide →</a></p>
+      </div>
+      <div class="block" id="portable">
+        <h3>Can't install? Use the portable version</h3>
+        <p>No administrator rights, nothing installed: unzip the <code>.zip</code> and run <code>VietTelex.exe</code>. It types with a keyboard hook in every app — less smooth in browsers/Word than the installer, can't type into apps running as administrator; no self-update.</p>
+        <div class="primary links">
+          <a class="btn ghost" id="winPortX64" href="https://github.com/ptrinh/viettelex/releases?q=windows&amp;expanded=true" rel="noopener">⬇︎ <span class="lbl">Portable x64 (.zip)</span></a>
+          <a class="btn ghost" id="winPortArm" href="https://github.com/ptrinh/viettelex/releases?q=windows&amp;expanded=true" rel="noopener">⬇︎ <span class="lbl">Portable ARM64 (.zip)</span></a>
+        </div>
+        <p class="note"><a href="/en/guide/?os=windows#portable">How the portable version differs →</a></p>
       </div>
     </section>
 
@@ -229,7 +238,7 @@ sudo pacman -Sy viettelex</pre><button type="button" data-copy="#pacmancmd">Copy
   const vt = await attach(document.getElementById('note'));
   // vt.setEnabled(false) · vt.setOptions({ inputMethod: 'vni' }) · vt() to detach
 &lt;/script&gt;</pre><button type="button" data-copy="#sdkSnippet">Copy</button></div>
-        <p class="note">With a bundler: <code>import { attach } from '@viettelex/core'</code>. <code>Ctrl+Space</code> toggles Vietnamese/English; password/email/number/tel fields stay literal; the SDK steps aside when the device already has a Vietnamese input method (UniKey, EVKey, the OS IME…). Custom editors, canvas, games: use <code>createEngine()</code>.</p>
+        <p class="note">With a bundler: <code>import { attach } from '@viettelex/core'</code>. <code>Ctrl+Space</code> toggles Vietnamese/English; password/email/number/tel fields stay literal; the SDK steps aside when the device already has a Vietnamese input method (one running in the background, the OS IME…). Custom editors, canvas, games: use <code>createEngine()</code>.</p>
       </div>
       <div class="block">
         <h3>Pick a build</h3>

@@ -98,18 +98,32 @@
     });
   });
 
-  // --- Windows ARM: đưa nút ARM64 lên trước ------------------------------------
-  function preferArm() {
-    var a = document.getElementById("winX64"), b = document.getElementById("winArm");
-    if (!a || !b) return;
-    // Cả hai là nút phụ (Microsoft Store là cách chính) — chỉ đổi thứ tự.
-    a.parentNode.insertBefore(b, a);
+  // --- Windows: MỘT nút .msi tự chọn x64/ARM64 theo máy; không biết chắc thì hiện cả hai --
+  // Chỉ tin userAgentData (Edge/Chrome báo đúng "arm"/"x86"+64); Firefox trên máy ARM vẫn
+  // tự xưng "Win64; x64" nên không đoán theo chuỗi UA, trừ khi chuỗi ghi rõ ARM.
+  var winArch = null, winVer = "";
+  function show(id, on) { var el = document.getElementById(id); if (el) el.hidden = !on; }
+  function winPick() {
+    var one = document.getElementById("winMsi"), src = document.getElementById(winArch === "arm64" ? "winArm" : "winX64");
+    if (!one || !src) return;
+    if (!winArch) { show("winMsi", false); show("winX64", true); show("winArm", true); show("winOther", false); return; }
+    var name = winArch === "arm64" ? "ARM64" : "x64";
+    one.href = src.href;
+    one.querySelector(".lbl").textContent = (EN ? "Download for Windows " : "Tải cho Windows ") + (winVer ? winVer + " · " : "") + name + " (.msi)";
+    show("winMsi", true); show("winX64", false); show("winArm", false); show("winOther", true);
+    setText("#winPicked", EN ? "Picked for your PC: " + name + "." : "Đã chọn theo máy bạn: " + name + ".");
   }
+  var both = document.getElementById("winShowBoth");
+  if (both) both.addEventListener("click", function (e) { e.preventDefault(); winArch = null; winPick(); });
   try {
     var uad = navigator.userAgentData;
     if (uad && uad.getHighEntropyValues && /Win/i.test(uad.platform || "")) {
-      uad.getHighEntropyValues(["architecture"]).then(function (v) { if (v.architecture === "arm") preferArm(); }, function () {});
-    } else if (/Windows.*ARM/i.test(navigator.userAgent || "")) preferArm();
+      uad.getHighEntropyValues(["architecture", "bitness"]).then(function (v) {
+        if (v.architecture === "arm") winArch = "arm64";
+        else if (v.architecture === "x86" && v.bitness === "64") winArch = "x64";
+        winPick();
+      }, function () {});
+    } else if (/Windows.*ARM/i.test(navigator.userAgent || "")) { winArch = "arm64"; winPick(); }
   } catch (e) {}
 
   // --- phiên bản + link theo stable.json -------------------------------------------------
@@ -135,6 +149,12 @@
     setText('[data-ver="win"]', w.version || S.latest);
     if (w.x64) link("winX64", w.x64, (EN ? "Download " : "Tải ") + w.version + " · x64 (.msi)");
     if (w.arm64) link("winArm", w.arm64, (EN ? "Download " : "Tải ") + w.version + " · ARM64 (.msi)");
+    winVer = w.version || "";
+    winPick();
+    // Bản portable: chỉ khi stable.json có link zip (release.sh in checklist); chưa có thì nút
+    // giữ link trang Releases — không tự dựng URL cho một phiên bản chưa phát hành.
+    if (w.portable_x64) link("winPortX64", w.portable_x64, "Portable " + w.version + " · x64 (.zip)");
+    if (w.portable_arm64) link("winPortArm", w.portable_arm64, "Portable " + w.version + " · ARM64 (.zip)");
     if (w.notes && !EN) setText("#winNotes", w.notes);
 
     // Android: huy hiệu Google Play đã viết sẵn trong HTML; stable.json.android {version, apk} (nếu có) cập nhật nút APK.
