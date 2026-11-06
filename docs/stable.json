@@ -74,8 +74,8 @@
     "notes": "Cài đặt gọn hơn: nhóm \"Gõ lẫn tiếng Anh\" chọn một kiểu gõ, nhóm \"Chuyển Việt/Anh\" riêng, mỗi mục một dòng chú thích ngắn."
   },
   "android": {
-    "version": "1.5.26",
-    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.26/VietTelex-android-1.5.26.apk",
+    "version": "1.5.27",
+    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.27/VietTelex-android-1.5.27.apk",
     "play": "https://play.google.com/store/apps/details?id=com.viettelex.android"
   }
 }
