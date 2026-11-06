@@ -1,0 +1,352 @@
+// docs/WINDOWS-APP-FEEL-SPEC.md — the portable decisions behind "cài xong là gõ được, dùng
+// như một app" (core/app_feel.h) and the portable build (core/portable.h), plus the two
+// guide pages it rewrites (no other input method named there).
+#include <cstdio>
+#include <fstream>
+#include <iterator>
+#include <set>
+#include <string>
+#include <vector>
+
+#include "app_feel.h"
+#include "onboarding.h"
+#include "portable.h"
+#include "settings.h"
+#include "settings_pages.h"
+#include "strings.h"
+#include "test.h"
+
+using namespace vtx;
+
+namespace {
+constexpr unsigned kVi = 0x042A;
+constexpr uintptr_t kUs = 0x04090409, kUk = 0x08090809, kFr = 0x040C040C, kViHkl = 0x042A042A;
+
+std::string readFile(const std::string& path) {
+    std::ifstream f(path, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
+}
+}  // namespace
+
+// ---------------------------------------------------------------- §1 keyboard at start
+
+TEST(feel_keyboard_nothing_for_portable_system_or_unregistered) {
+    KeyboardStatus s;
+    s.inUserList = false;
+    s.firstRun = true;
+    s.reselectPending = true;
+    for (int i = 0; i < 3; ++i) {
+        KeyboardStatus t = s;
+        if (i == 0) t.portable = true;
+        if (i == 1) t.systemAccount = true;
+        if (i == 2) t.tipRegistered = false;
+        const KeyboardPlan p = planKeyboardAtStart(t);
+        CHECK(!p.add && !p.makeDefault && !p.select && !p.rememberPrevious);
+    }
+}
+
+TEST(feel_keyboard_missing_is_added_made_default_and_selected) {
+    KeyboardStatus s;
+    s.inUserList = false;  // removed by hand, or never reached this user
+    const KeyboardPlan p = planKeyboardAtStart(s);
+    CHECK(p.add && p.makeDefault && p.select && p.rememberPrevious);
+}
+
+TEST(feel_keyboard_first_run_selects_even_when_listed) {
+    KeyboardStatus s;
+    s.inUserList = true;  // the MSI's SetupUser already added it
+    s.firstRun = true;
+    const KeyboardPlan p = planKeyboardAtStart(s);
+    CHECK(p.add && p.makeDefault && p.select);
+}
+
+TEST(feel_keyboard_existing_user_untouched) {
+    KeyboardStatus s;
+    s.inUserList = true;
+    const KeyboardPlan p = planKeyboardAtStart(s);
+    CHECK(!p.add && !p.makeDefault && !p.select && !p.rememberPrevious);
+}
+
+TEST(feel_keyboard_reopen_after_tray_exit_selects_again) {
+    KeyboardStatus s;
+    s.inUserList = true;
+    s.reselectPending = true;
+    const KeyboardPlan p = planKeyboardAtStart(s);
+    CHECK(p.select && p.rememberPrevious);
+    CHECK(!p.add && !p.makeDefault);  // the default stays whatever the user has
+}
+
+// ---------------------------------------------------------------- §2 new vs existing users
+
+TEST(feel_new_user_gets_tray_existing_keeps_choice) {
+    CHECK(isNewUser(false, false, false));
+    CHECK(!isNewUser(true, false, false));   // settings stored by an older version
+    CHECK(!isNewUser(false, true, false));   // set up before
+    CHECK(!isNewUser(false, false, true));   // saw the welcome before
+    Settings s;
+    CHECK(!s.showTrayIcon);  // the shared default (TIP snapshot) is unchanged
+    applyNewUserDefaults(s);
+    CHECK(s.showTrayIcon);
+    CHECK(s.trayIconStyle == "letter");  // V/E letter by default
+    // Nothing else moves.
+    Settings d, n;
+    applyNewUserDefaults(n);
+    n.showTrayIcon = d.showTrayIcon;
+    CHECK(n == d);
+}
+
+// ---------------------------------------------------------------- §2/§3 tray state
+
+TEST(feel_tray_state_installed) {
+    // The TIP's own word wins.
+    CHECK(trayStateFor(false, 1, false, 0x0409, false, false) == TrayState::Vietnamese);
+    CHECK(trayStateFor(false, 2, false, kVi, true, false) == TrayState::English);
+    // VietTelex selected, per-app memory.
+    CHECK(trayStateFor(false, 0, false, kVi, true, false) == TrayState::Vietnamese);
+    CHECK(trayStateFor(false, 0, false, kVi, false, false) == TrayState::English);
+    CHECK(trayStateFor(false, 0, false, kVi, true, true) == TrayState::English);  // Luôn tiếng Anh
+    // Another keyboard selected (Win+Space by mistake): off.
+    CHECK(trayStateFor(false, 0, false, 0x0409, true, false) == TrayState::Off);
+    CHECK(trayStateFor(false, 0, false, 0x0411, false, false) == TrayState::Off);
+    // Unknown layout: no claim of "off".
+    CHECK(trayStateFor(false, 0, false, 0, true, false) == TrayState::Vietnamese);
+    // Console without the prop: its thread layout is cmd's — English, never "off".
+    CHECK(trayStateFor(false, 0, true, 0x0409, true, false) == TrayState::English);
+}
+
+TEST(feel_tray_state_portable) {
+    CHECK(trayStateFor(true, 0, false, 0x0409, true, false) == TrayState::Vietnamese);
+    CHECK(trayStateFor(true, 0, false, 0x0409, false, false) == TrayState::English);
+    CHECK(trayStateFor(true, 0, false, 0x0409, true, true) == TrayState::English);
+    // The installed TIP or another Vietnamese keyboard there: portable yields -> off.
+    CHECK(trayStateFor(true, 1, false, kVi, true, false) == TrayState::Off);
+    CHECK(trayStateFor(true, 2, false, 0x0409, true, false) == TrayState::Off);
+    CHECK(trayStateFor(true, 0, false, kVi, true, false) == TrayState::Off);
+    // Consoles are typed by the portable hook like any app.
+    CHECK(trayStateFor(true, 0, true, 0x0409, true, false) == TrayState::Vietnamese);
+}
+
+TEST(feel_tray_left_click) {
+    CHECK(trayClickAction(TrayState::Vietnamese, false) == TrayClick::ToggleLanguage);
+    CHECK(trayClickAction(TrayState::English, false) == TrayClick::ToggleLanguage);
+    CHECK(trayClickAction(TrayState::Off, false) == TrayClick::SelectVietTelex);
+    CHECK(trayClickAction(TrayState::English, true) == TrayClick::ToggleLanguage);
+    CHECK(trayClickAction(TrayState::Off, true) == TrayClick::SwitchToEnglishKeys);
+}
+
+// ---------------------------------------------------------------- §4 welcome "Xử lý" row
+
+TEST(feel_welcome_resolve_row) {
+    // Third-party kinds by property, not by name (this file names no other input method).
+    std::vector<ConflictKind> others;
+    for (int i = 0; i <= static_cast<int>(ConflictKind::WindowsHotkey); ++i)
+        if (isThirdPartyIme(static_cast<ConflictKind>(i))) others.push_back(static_cast<ConflictKind>(i));
+    CHECK(others.size() >= 2);
+    CHECK(welcomeResolveRow({}) == ResolveRow::None);
+    CHECK(welcomeResolveRow({ConflictKind::WindowsHotkey}) == ResolveRow::None);  // Kiểu gõ card covers it
+    CHECK(welcomeResolveRow({ConflictKind::MicrosoftVietnamese}) == ResolveRow::WindowsKeyboard);
+    for (ConflictKind k : others) {
+        CHECK(welcomeResolveRow({k}) == ResolveRow::OtherInputMethod);
+        CHECK(welcomeResolveRow({k, ConflictKind::WindowsHotkey}) == ResolveRow::OtherInputMethod);
+        CHECK(welcomeResolveRow({ConflictKind::MicrosoftVietnamese, k}) == ResolveRow::Both);
+    }
+}
+
+// ---------------------------------------------------------------- §5 tray Thoát
+
+TEST(feel_exit_layout) {
+    const uintptr_t list[] = {kViHkl, kFr, kUk, kUs};
+    CHECK(pickExitLayout(list, 4, kUk) == kUk);      // the one used before VietTelex
+    CHECK(pickExitLayout(list, 4, 0) == kUs);        // nothing saved: US English
+    CHECK(pickExitLayout(list, 4, 0x04070407) == kUs);  // saved one no longer installed
+    CHECK(pickExitLayout(list, 4, kViHkl) == kUs);   // never "back" to a Vietnamese one
+    const uintptr_t noUs[] = {kViHkl, kFr};
+    CHECK(pickExitLayout(noUs, 2, 0) == kFr);        // first non-Vietnamese
+    const uintptr_t onlyVi[] = {kViHkl};
+    CHECK(pickExitLayout(onlyVi, 1, kUs) == 0);      // nothing to switch to
+    CHECK(pickExitLayout(nullptr, 0, kUs) == 0);
+    CHECK(rememberableLayout(kUs) && !rememberableLayout(kViHkl) && !rememberableLayout(0));
+}
+
+// ---------------------------------------------------------------- portable: mode + paths
+
+TEST(portable_marker_detection) {
+    std::set<std::wstring> files;
+    auto exists = [&files](const std::wstring& p) { return files.count(p) != 0; };
+    CHECK(!portable::detectPortable(L"D:\\Tools\\VietTelex", exists));
+    files.insert(L"D:\\Tools\\VietTelex\\portable.ini");
+    CHECK(portable::detectPortable(L"D:\\Tools\\VietTelex", exists));
+    CHECK(portable::detectPortable(L"D:\\Tools\\VietTelex\\", exists));  // trailing separator
+    files = {L"E:\\VietTelex.portable"};
+    CHECK(portable::detectPortable(L"E:\\", exists));
+    CHECK(!portable::detectPortable(L"", exists));
+    CHECK(portable::exeDirOf(L"C:\\Program Files\\VietTelex\\VietTelex.exe") == L"C:\\Program Files\\VietTelex");
+    CHECK(portable::exeDirOf(L"VietTelex.exe") == L"");
+}
+
+TEST(portable_settings_path) {
+    CHECK(portable::settingsPath(L"D:\\VT", true, L"C:\\Users\\a\\AppData\\Roaming") == L"D:\\VT\\settings.ini");
+    CHECK(portable::settingsPath(L"D:\\VT", false, L"C:\\Users\\a\\AppData\\Roaming") ==
+          L"C:\\Users\\a\\AppData\\Roaming\\VietTelex\\settings.ini");  // read-only folder / CD / share
+    CHECK(portable::settingsPath(L"D:\\VT", false, L"") == L"");
+    CHECK(portable::settingsPath(L"", true, L"C:\\R\\") == L"C:\\R\\VietTelex\\settings.ini");
+}
+
+TEST(portable_start_and_yield) {
+    CHECK(portable::decideStart(false) == portable::StartAction::Run);
+    CHECK(portable::decideStart(true) == portable::StartAction::ExitInstalledRunning);
+    CHECK(!portable::yields(0, 0x0409));
+    CHECK(!portable::yields(0, 0));
+    CHECK(portable::yields(1, 0x0409));   // installed TIP active, Vietnamese
+    CHECK(portable::yields(2, 0x0409));   // installed TIP active, English: still its window
+    CHECK(portable::yields(0, kVi));      // a Vietnamese keyboard selected
+    // Names that keep the installed TIP from ever talking to a portable copy.
+    CHECK(std::wstring(portable::kWindowClass) != L"VietTelexAppWindow");
+    CHECK(std::wstring(portable::kMutexName) != L"Local\\VietTelex.App");
+}
+
+TEST(portable_hook_plan) {
+    for (AppMode m : {AppMode::InPlace, AppMode::Composition, AppMode::HookFallback, AppMode::Direct}) {
+        const portable::HookPlan p = portable::hookPlan(m, false, false);
+        CHECK(p.install && !p.direct);  // no TIP to fall back to: plain hook typing everywhere
+        CHECK(!portable::hookPlan(m, true, false).install);   // password box
+        CHECK(!portable::hookPlan(m, false, true).install);   // yields
+    }
+    CHECK(!portable::hookPlan(AppMode::Off, false, false).install);  // Luôn tiếng Anh
+    CHECK(portable::isPasswordField("Edit", 0x20));
+    CHECK(portable::isPasswordField("RichEdit20W", 0x50010020));
+    CHECK(!portable::isPasswordField("Edit", 0x50010000));
+    CHECK(!portable::isPasswordField("Chrome_RenderWidgetHostHWND", 0x20));
+}
+
+TEST(portable_autostart_points_at_this_copy) {
+    const std::wstring exe = L"D:\\Tools\\VietTelex\\VietTelex.exe";
+    CHECK(portable::autostartCommand(exe) == L"\"D:\\Tools\\VietTelex\\VietTelex.exe\" --background");
+    CHECK(portable::autostartPointsHere(L"\"d:\\tools\\viettelex\\VIETTELEX.EXE\" --background", exe));
+    CHECK(!portable::autostartPointsHere(L"\"C:\\Program Files\\VietTelex\\VietTelex.exe\" --background", exe));
+    CHECK(!portable::autostartPointsHere(L"", exe));
+}
+
+// ---------------------------------------------------------------- portable: settings.ini
+
+TEST(portable_kv_round_trip) {
+    portable::KeyValueFile f;
+    f.setDword("vniMode", 1);
+    f.setDword("showTrayIcon", 0);
+    f.setQword("lastUpdateCheck", 13412345678901234567ull);
+    f.setString("switchHotkey", "ctrl-shift");
+    f.setString("note", "dòng 1\nline\t2 \\ end\r");
+    static const char kBin[] = "{\"ko\":\"kh\xC3\xB4ng\"}\0\xFF";
+    const std::string bin(kBin, sizeof kBin - 1);
+    f.setBinary("shortcuts", bin);
+    f.setDword("AppLanguage\\notepad.exe", 0);
+    f.setDword("AppLanguage\\chrome.exe", 1);
+    const std::string text = f.serialize();
+    portable::KeyValueFile g;
+    g.parse(text);
+    uint32_t d = 9;
+    uint64_t q = 0;
+    std::string s;
+    CHECK(g.getDword("vniMode", d) && d == 1);
+    CHECK(g.getDword("showTrayIcon", d) && d == 0);
+    CHECK(g.getQword("lastUpdateCheck", q) && q == 13412345678901234567ull);
+    CHECK(g.getString("switchHotkey", s) && s == "ctrl-shift");
+    CHECK(g.getString("note", s) && s == "dòng 1\nline\t2 \\ end\r");
+    CHECK(g.getBinary("shortcuts", s) && s == bin);
+    CHECK(!g.getString("vniMode", s));  // typed: a DWORD is not a string
+    const auto langs = g.dwordsWithPrefix("AppLanguage\\");
+    CHECK(langs.size() == 2 && langs.at("notepad.exe") == 0 && langs.at("chrome.exe") == 1);
+    CHECK(g.serialize() == text);
+    CHECK(text.find('\n') != std::string::npos && text.find("[VietTelex]") != std::string::npos);
+}
+
+TEST(portable_kv_tolerates_hand_edits_and_garbage) {
+    portable::KeyValueFile f;
+    f.parse("\xEF\xBB\xBF; comment\r\n# other\r\n[VietTelex]\r\n\r\nvniMode=dword:1\nbad line\n=dword:1\n"
+            "x=dword:-1\ny=dword:99999999999\nz=hex:abc\nw=sz:a\\q\nv=what:1\nok=sz:yes\nhx=hex:00FF\n");
+    uint32_t d = 0;
+    std::string s;
+    CHECK(f.getDword("vniMode", d) && d == 1);
+    CHECK(!f.getDword("x", d) && !f.getDword("y", d));
+    CHECK(!f.getBinary("z", s) && !f.getString("w", s));
+    CHECK(f.getString("ok", s) && s == "yes");
+    CHECK(f.getBinary("hx", s) && s == std::string("\0\xFF", 2));
+    CHECK(f.entries().size() == 3);
+    // Invalid names are never written.
+    portable::KeyValueFile g;
+    g.setDword("", 1);
+    g.setDword("a=b", 1);
+    g.setDword("a\nb", 1);
+    g.setDword(";x", 1);
+    CHECK(g.entries().empty());
+}
+
+// ---------------------------------------------------------------- portable: Settings pages
+
+TEST(portable_settings_pages_hide_keyboard_rows) {
+    Settings s;
+    s.showTrayIcon = true;
+    app::PageContext c;
+    for (bool& e : c.expanded) e = true;
+    c.offerDefaultInput = true;
+    auto has = [](const std::vector<app::PageRow>& rows, app::PageControl pc) {
+        for (const app::PageRow& r : rows)
+            if (r.kind == app::RowKind::Control && r.id == static_cast<int>(pc)) return true;
+        return false;
+    };
+    auto all = [&](const app::PageContext& ctx) {
+        std::vector<app::PageRow> out;
+        for (int p = 0; p < static_cast<int>(app::SettingsPage::Count); ++p)
+            for (const app::PageRow& r : app::settingsPageRows(static_cast<app::SettingsPage>(p), s, ctx))
+                out.push_back(r);
+        return out;
+    };
+    const auto installed = all(c);
+    c.portable = true;
+    const auto port = all(c);
+    for (app::PageControl pc : {app::PageControl::PerAppWin, app::PageControl::DefaultInput,
+                                app::PageControl::IconPicker, app::PageControl::Uninstall}) {
+        CHECK(has(installed, pc));
+        CHECK(!has(port, pc));
+    }
+    // Everything else stays: the switch key, tray, updates check, links.
+    for (app::PageControl pc : {app::PageControl::SwitchHotkey, app::PageControl::CheckNow,
+                                app::PageControl::Links, app::PageControl::TrayStyle})
+        CHECK(has(port, pc));
+}
+
+// ---------------------------------------------------------------- strings + guide pages
+
+TEST(feel_new_strings) {
+    app::setEnglish(false);
+    CHECK(std::wstring(app::tr(app::S::ReadyTitle)).find(L"Đã sẵn sàng") == 0);
+    CHECK(std::wstring(app::tr(app::S::ReadySwitchLine)).find(L"Ctrl+Shift") != std::wstring::npos);
+    CHECK(std::wstring(app::tr(app::S::MenuExit)).find(L"Thoát") == 0);
+    app::setEnglish(true);
+    CHECK(std::wstring(app::tr(app::S::ReadySwitchLine)).find(L"Ctrl+Shift") != std::wstring::npos);
+    app::setEnglish(false);
+}
+
+// The rewritten Windows guide pages (spec item 6) never name another Vietnamese input
+// method: behaviour is described instead. Names stored ROT13 (as settings_pages_tests).
+TEST(feel_guide_pages_name_no_other_input_method) {
+    const char* const kRot13[] = {"havxrl", "bcraxrl", "rixrl", "ivrgxrl", "tbgvrativrg", "ynonaxrl", "onzobb", "kxrl"};
+    std::vector<std::string> names;
+    for (const char* r : kRot13) {
+        std::string n;
+        for (const char* c = r; *c; ++c) n.push_back(static_cast<char>((*c - 'a' + 13) % 26 + 'a'));
+        names.push_back(n);
+    }
+    for (const char* page : {"/hdsd/index.html", "/en/guide/index.html", "/download/index.html",
+                             "/en/download/index.html"}) {
+        std::string text = readFile(std::string(VTX_DOCS_DIR) + page);
+        CHECK(!text.empty());
+        for (char& c : text)
+            if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+        for (const std::string& n : names)
+            if (text.find(n) != std::string::npos) {
+                std::printf("  %s names another input method\n", page);
+                CHECK(false);
+            }
+    }
+}

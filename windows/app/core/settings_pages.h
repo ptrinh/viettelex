@@ -81,6 +81,10 @@ struct PageContext {
     bool conflicts = false;          // detectConflicts() found something
     bool mixedCardPending = false;   // HKCU mixedCardPending
     bool offerDefaultInput = false;  // defaultInputAdvice(...) == MakeVietTelexDefault
+    // Portable build (core/portable.h): no Windows keyboard to manage — no per-app input
+    // method card, no default-keyboard card, no keyboard icon (an HKLM profile value), no
+    // uninstaller (delete the folder).
+    bool portable = false;
     bool expanded[static_cast<int>(Expander::Count)] = {};
     bool isExpanded(Expander e) const { return expanded[static_cast<int>(e)]; }
 };

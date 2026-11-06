@@ -395,6 +395,29 @@ const Pair kStrings[] = {
     {L"Tệp gõ tắt", L"Shortcut files"},
     {L"tệp gõ tắt của bộ gõ khác", L"another input method’s shortcut file"},
     {L"VietTelex / văn bản", L"VietTelex / text"},
+    // App feel (docs/WINDOWS-APP-FEEL-SPEC.md)
+    {L"Thoát VietTelex", L"Quit VietTelex"},
+    {L"Khởi động cùng Windows", L"Start with Windows"},
+    {L"VietTelex đang tắt (đang chọn bàn phím khác) — bấm để bật",
+     L"VietTelex is off (another keyboard is selected) — click to turn it on"},
+    {L"Đang dùng bàn phím tiếng Việt khác — bấm để VietTelex gõ",
+     L"Another Vietnamese keyboard is in use — click to type with VietTelex"},
+    {L"VietTelex portable", L"VietTelex portable"},
+    {L"Đã sẵn sàng — gõ thử ở đây", L"Ready — try typing here"},
+    {L"Đổi Việt/Anh: Ctrl+Shift hoặc bấm biểu tượng V/E ở khay.",
+     L"Switch Vietnamese/English: Ctrl+Shift, or click the V/E icon in the notification area."},
+    {L"Bản portable không gõ được vào ứng dụng chạy quyền quản trị.",
+     L"The portable version cannot type into apps running as administrator."},
+    {L"Một bộ gõ tiếng Việt khác đang chạy: hai bộ gõ cùng lúc sẽ bỏ dấu hai lần.",
+     L"Another Vietnamese input method is running: two at once add every tone twice."},
+    {L"Danh sách bàn phím có “Vietnamese Telex” của Windows — đó không phải VietTelex. Gỡ khỏi danh sách để "
+     L"khỏi nhầm (thêm lại được).",
+     L"Your keyboard list has Windows' own “Vietnamese Telex” — that is not VietTelex. Remove it from the list "
+     L"to avoid mix-ups (you can add it back)."},
+    {L"VietTelex (bản cài) đang chạy trên máy này. Bản portable sẽ thoát để không bỏ dấu hai lần.",
+     L"The installed VietTelex is running on this PC. The portable copy will quit so tones are not added twice."},
+    {L"Đã có VietTelex %s. Mở trang tải để lấy bản portable mới?",
+     L"VietTelex %s is available. Open the download page for the new portable version?"},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace

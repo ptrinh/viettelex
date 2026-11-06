@@ -1,7 +1,11 @@
 // tip_control.h — per-user setup the per-machine MSI cannot do: add the VietTelex
 // keyboard to the current user's language list, autostart, and clean removal.
 #pragma once
+#include <windows.h>
+
+#include <cstdint>
 #include <string>
+#include <vector>
 
 namespace vtx::app {
 
@@ -19,5 +23,20 @@ bool removeLayoutOrTipForUser(const std::wstring& spec);
 bool runningAsSystem();
 void setAutostart(bool on);    // HKCU\...\Run "VietTelex" = "<exe>" --background
 bool autostartEnabled();
+std::wstring autostartValue();  // the Run value ("" = none)
+std::wstring selfExePath();
+
+// ---- app feel (core/app_feel.h; not yet run on real Windows, see tip_control.cpp) -------
+// VietTelex enabled in this user's list; `registered` = the TIP's profile exists at all.
+bool vietTelexInUserList(bool& registered);
+// ITfInputProcessorProfileMgr::ActivateProfile(TF_IPPMF_FORSESSION): VietTelex / a layout
+// becomes the session's current input method.
+bool selectVietTelexForSession();
+bool activateLayoutForSession(uintptr_t hkl);
+uintptr_t defaultInputHkl();               // SPI_GETDEFAULTINPUTLANG (0 = unknown)
+std::vector<uintptr_t> keyboardLayouts();  // GetKeyboardLayoutList
+// WM_INPUTLANGCHANGEREQUEST to the window's focused control (what the taskbar language
+// button does); per thread, so it also works with "different input method per app window".
+bool requestInputLanguage(HWND window, uintptr_t hkl);
 
 }  // namespace vtx::app

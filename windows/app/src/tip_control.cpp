@@ -1,6 +1,7 @@
 #include "tip_control.h"
 
 #include <windows.h>
+#include <msctf.h>
 
 #include <cstdio>
 
@@ -8,6 +9,23 @@
 
 #include "input_switch.h"
 #include "registration.h"
+
+// Windows SDK msctf.h values (older mingw-w64 headers lack some).
+#ifndef TF_IPP_FLAG_ENABLED
+#define TF_IPP_FLAG_ENABLED 0x00000002
+#endif
+#ifndef TF_PROFILETYPE_INPUTPROCESSOR
+#define TF_PROFILETYPE_INPUTPROCESSOR 0x0001
+#endif
+#ifndef TF_PROFILETYPE_KEYBOARDLAYOUT
+#define TF_PROFILETYPE_KEYBOARDLAYOUT 0x0002
+#endif
+#ifndef TF_IPPMF_FORSESSION
+#define TF_IPPMF_FORSESSION 0x00000001
+#endif
+#ifndef TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE
+#define TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE 0x00000004
+#endif
 
 namespace vtx::app {
 
@@ -100,6 +118,110 @@ void setAutostart(bool on) {
 bool autostartEnabled() {
     DWORD sz = 0;
     return RegGetValueW(HKEY_CURRENT_USER, kRunKey, kRunValue, RRF_RT_REG_SZ, nullptr, nullptr, &sz) == ERROR_SUCCESS;
+}
+
+std::wstring autostartValue() {
+    wchar_t buf[1024] = {};
+    DWORD sz = sizeof buf;
+    if (RegGetValueW(HKEY_CURRENT_USER, kRunKey, kRunValue, RRF_RT_REG_SZ, nullptr, buf, &sz) != ERROR_SUCCESS)
+        return L"";
+    return buf;
+}
+
+std::wstring selfExePath() { return selfPath(); }
+
+// ---------------------------------------------------------------- app feel (core/app_feel.h)
+// Thin glue. NOT exercised on a real Windows machine yet (host unit tests + cross-build
+// only): ActivateProfile(TF_IPPMF_FORSESSION) and WM_INPUTLANGCHANGEREQUEST are the
+// documented ways; whether every window follows the session switch at once still needs a
+// check on Windows 10 and 11.
+namespace {
+bool guidFrom(const char* s, GUID& out) {
+    wchar_t w[64] = {};
+    for (int i = 0; s[i] && i < 63; ++i) w[i] = static_cast<wchar_t>(s[i]);
+    return SUCCEEDED(CLSIDFromString(w, &out));
+}
+
+// `fn(mgr)` with the profile manager, COM initialised on this (UI) thread.
+template <class Fn>
+bool withProfileMgr(Fn fn) {
+    const HRESULT init = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    ITfInputProcessorProfileMgr* mgr = nullptr;
+    bool ok = false;
+    if (SUCCEEDED(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr, CLSCTX_INPROC_SERVER,
+                                   IID_ITfInputProcessorProfileMgr, reinterpret_cast<void**>(&mgr))) &&
+        mgr) {
+        ok = fn(mgr);
+        mgr->Release();
+    }
+    if (SUCCEEDED(init)) CoUninitialize();
+    return ok;
+}
+}  // namespace
+
+bool vietTelexInUserList(bool& registered) {
+    registered = false;
+    GUID clsid, profile;
+    if (!guidFrom(vtx::reg::kClsid, clsid) || !guidFrom(vtx::reg::kProfile, profile)) return false;
+    bool enabled = false;
+    withProfileMgr([&](ITfInputProcessorProfileMgr* mgr) {
+        IEnumTfInputProcessorProfiles* en = nullptr;
+        if (FAILED(mgr->EnumProfiles(static_cast<LANGID>(vtx::reg::kLangId), &en)) || !en) return false;
+        TF_INPUTPROCESSORPROFILE pr;
+        ULONG got = 0;
+        while (en->Next(1, &pr, &got) == S_OK && got == 1) {
+            if (pr.dwProfileType != TF_PROFILETYPE_INPUTPROCESSOR || !IsEqualGUID(pr.clsid, clsid) ||
+                !IsEqualGUID(pr.guidProfile, profile))
+                continue;
+            registered = true;
+            enabled = enabled || (pr.dwFlags & TF_IPP_FLAG_ENABLED) != 0;
+        }
+        en->Release();
+        return true;
+    });
+    return enabled;
+}
+
+bool selectVietTelexForSession() {
+    GUID clsid, profile;
+    if (!guidFrom(vtx::reg::kClsid, clsid) || !guidFrom(vtx::reg::kProfile, profile)) return false;
+    return withProfileMgr([&](ITfInputProcessorProfileMgr* mgr) {
+        return SUCCEEDED(mgr->ActivateProfile(TF_PROFILETYPE_INPUTPROCESSOR, static_cast<LANGID>(vtx::reg::kLangId),
+                                              clsid, profile, nullptr,
+                                              TF_IPPMF_FORSESSION | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE));
+    });
+}
+
+bool activateLayoutForSession(uintptr_t hkl) {
+    if (!hkl) return false;
+    return withProfileMgr([&](ITfInputProcessorProfileMgr* mgr) {
+        return SUCCEEDED(mgr->ActivateProfile(TF_PROFILETYPE_KEYBOARDLAYOUT, static_cast<LANGID>(hkl & 0xFFFF),
+                                              GUID_NULL, GUID_NULL, reinterpret_cast<HKL>(hkl),
+                                              TF_IPPMF_FORSESSION | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE));
+    });
+}
+
+uintptr_t defaultInputHkl() {
+    HKL hkl = nullptr;
+    if (!SystemParametersInfoW(SPI_GETDEFAULTINPUTLANG, 0, &hkl, 0)) return 0;
+    return reinterpret_cast<uintptr_t>(hkl);
+}
+
+std::vector<uintptr_t> keyboardLayouts() {
+    HKL list[64];
+    const int n = GetKeyboardLayoutList(64, list);
+    std::vector<uintptr_t> out;
+    for (int i = 0; i < n; ++i) out.push_back(reinterpret_cast<uintptr_t>(list[i]));
+    return out;
+}
+
+bool requestInputLanguage(HWND window, uintptr_t hkl) {
+    if (!window || !hkl) return false;
+    const DWORD tid = GetWindowThreadProcessId(window, nullptr);
+    GUITHREADINFO gi = {};
+    gi.cbSize = sizeof gi;
+    HWND target = (tid && GetGUIThreadInfo(tid, &gi) && gi.hwndFocus) ? gi.hwndFocus : window;
+    return PostMessageW(target, WM_INPUTLANGCHANGEREQUEST, 0, static_cast<LPARAM>(hkl)) != FALSE;
 }
 
 }  // namespace vtx::app

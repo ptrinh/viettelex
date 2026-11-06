@@ -2,7 +2,8 @@
 # portable core (unit-tested on any OS).
 
 add_library(vtx_app_core STATIC core/update_check.cpp core/uninstall.cpp core/setup_helper_logic.cpp core/direct_policy.cpp core/input_switch.cpp
-            core/text_action_logic.cpp core/typo_fix.cpp core/word_prediction.cpp core/learned_words.cpp core/onboarding.cpp core/game_logic.cpp core/macro_import.cpp core/settings_pages.cpp)
+            core/text_action_logic.cpp core/typo_fix.cpp core/word_prediction.cpp core/learned_words.cpp core/onboarding.cpp core/game_logic.cpp core/macro_import.cpp core/settings_pages.cpp
+            core/app_feel.cpp core/portable.cpp)
 target_include_directories(vtx_app_core PUBLIC core)
 target_link_libraries(vtx_app_core PUBLIC vtx_ime_core viettelex_text)
 if(MSVC)
@@ -12,18 +13,29 @@ endif()
 
 if(VTX_IME_TESTS)
   add_executable(vtx_app_tests ../ime/tests/test_main.cpp tests/app_tests.cpp tests/typo_fix_tests.cpp
-                 tests/onboarding_game_tests.cpp tests/word_prediction_tests.cpp tests/settings_pages_tests.cpp src/strings.cpp)  # strings.cpp: portable UI text
+                 tests/onboarding_game_tests.cpp tests/word_prediction_tests.cpp tests/settings_pages_tests.cpp
+                 tests/app_feel_tests.cpp src/strings.cpp)  # strings.cpp: portable UI text
   target_include_directories(vtx_app_tests PRIVATE ../ime/tests src)
   target_link_libraries(vtx_app_tests PRIVATE vtx_app_core)
   target_compile_definitions(vtx_app_tests PRIVATE
                              VTX_KB_RESOURCES="${CMAKE_CURRENT_SOURCE_DIR}/../../iOS/Keyboard/Resources"
                              VTX_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/../../iOS/KeyboardTests/Fixtures"
                              VTX_APP_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
-                             VTX_WXS_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/../installer/msi/viettelex.wxs.in")
+                             VTX_WXS_TEMPLATE="${CMAKE_CURRENT_SOURCE_DIR}/../installer/msi/viettelex.wxs.in"
+                             VTX_DOCS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../docs")
   if(MSVC)
     target_compile_options(vtx_app_tests PRIVATE /utf-8)
   endif()
   add_test(NAME vtx_app_tests COMMAND vtx_app_tests)
+  # Portable zips (scripts/make-portable.sh, called by release.sh): needs bash + zip/unzip.
+  find_program(VTX_BASH bash)
+  find_program(VTX_ZIP zip)
+  find_program(VTX_UNZIP unzip)
+  if(VTX_BASH AND VTX_ZIP AND VTX_UNZIP AND NOT WIN32)
+    add_test(NAME portable_zip_test
+             COMMAND ${VTX_BASH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/portable_zip_test.sh
+                     ${CMAKE_CURRENT_SOURCE_DIR}/.. ${CMAKE_CURRENT_BINARY_DIR})
+  endif()
 endif()
 
 if(WIN32)

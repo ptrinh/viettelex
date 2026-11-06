@@ -147,6 +147,11 @@ enum class S {
     Advanced, TypingAdvancedSummary, MixedAdvancedSummary, SwitchAdvancedSummary, GamesSummary, AppearanceSummary,
     MixedVniNote,  // VNI: replaces the whole "Gõ lẫn tiếng Anh" group (one line)
     ImportFilterName, ImportFmtOther, ImportFmtText,
+    // App feel (docs/WINDOWS-APP-FEEL-SPEC.md): tray Thoát / off state, minimal welcome,
+    // the portable build
+    MenuExit, MenuAutostart, TrayStateOff, TrayStatePortableOff, TrayTipPortable,
+    ReadyTitle, ReadySwitchLine, ReadyPortableNote, ResolveOtherIme, ResolveWindowsKb,
+    PortableInstalledRunning, PortableUpdateAvailable,
     Count
 };
 

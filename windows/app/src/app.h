@@ -26,11 +26,10 @@ bool systemUsesDarkApps();
 // files, UTF-8 or UTF-16 (settings_window.cpp; also the welcome window's import button).
 void importShortcutsDialog(HWND owner);
 
-// First-run welcome window (welcome.cpp). `setupPage`: keyboard, switch key, tray, other
-// input methods; `profilePages`: the onboarding pages after it (onboarding.h
-// decideOnboarding) — both for a new user, profilePages alone when a new user's onboarding
-// was cut short last time.
-void showWelcome(bool setupPage = true, bool profilePages = false);
+// First-run welcome window (welcome.cpp, WINDOWS-APP-FEEL-SPEC §4): one page — "Đã sẵn
+// sàng — gõ thử ở đây", how to switch, and a "Xử lý" row only when another Vietnamese
+// input method / Windows' own Vietnamese keyboard is found (app_feel.h welcomeResolveRow).
+void showWelcome();
 bool welcomeDialogMessage(MSG* msg);
 
 }  // namespace vtx::app

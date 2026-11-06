@@ -65,8 +65,9 @@ struct UserSetupPlan {
 //   SYSTEM                -> nothing (Active Setup reaches the real users).
 //   Installer             -> always ensure keyboard + autostart (an explicit install by
 //                            this user); the welcome only the first time.
-//   ActiveSetup/AppStart  -> only when this user was never set up: a later run must not
-//                            re-add a keyboard the user removed from the language list.
+//   ActiveSetup/AppStart  -> only when this user was never set up (autostart included).
+// Since WINDOWS-APP-FEEL-SPEC §1 the KEYBOARD itself is also re-added by every app start
+// that finds it missing (app_feel.h planKeyboardAtStart): the running app means "on".
 UserSetupPlan planUserSetup(SetupTrigger trigger, const UserSetupState& s);
 
 // Show the welcome window now? `interactive` = a start where a window is fine (not the
