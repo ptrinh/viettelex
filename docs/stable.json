@@ -3,10 +3,12 @@
   "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.9.0",
   "build": 148,
   "windows": {
-    "version": "1.3.11",
-    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.11/VietTelex-1.3.11-x64.msi",
-    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.11/VietTelex-1.3.11-arm64.msi",
-    "notes": "Cài đặt gọn hơn: tắt một mục thì tuỳ chọn con tự ẩn; gõ VNI ẩn nhóm \"Gõ lẫn tiếng Anh\" và tuỳ chọn chỉ dành cho Telex; teencode và phím ngoặc dùng được với VNI."
+    "version": "1.3.12",
+    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.12/VietTelex-1.3.12-x64.msi",
+    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.12/VietTelex-1.3.12-arm64.msi",
+    "notes": "Cài xong là gõ được: tự chọn VietTelex, biểu tượng V/E ở khay; bản portable không cần cài. Gõ tắt bằng ký hiệu (=> → ⟶) chạy được; ô lọc danh sách file không còn nuốt phím.",
+    "portable_x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.12/VietTelex-1.3.12-portable-x64.zip",
+    "portable_arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.12/VietTelex-1.3.12-portable-arm64.zip"
   },
   "linux": {
     "version": "1.0.22",
