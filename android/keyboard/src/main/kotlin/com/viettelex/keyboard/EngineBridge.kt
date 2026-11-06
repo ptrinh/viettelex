@@ -337,7 +337,8 @@ class EngineBridge(settings: KeyboardSettings = KeyboardSettings()) {
         }
         if (expand) autoCorrector?.let { ac -> tryAutoCorrect(ac, text, proxy, ::put)?.let { return it } }
         val before = engine.composed
-        val action = engine.commitBoundary(settings.autoRestore)
+        // Ký tự kết thúc từ: dấu nháy giữ gốc từ viết tắt tiếng Anh ("doesn't").
+        val action = engine.commitBoundary(settings.autoRestore, text.firstOrNull() ?: '\u0000')
         if (action is TelexAction.Replace && action.backspaces > 0 && !proxy.confirmTail(before)) {
             // Auto-restore cần xoá nhưng chữ trước con trỏ không khớp: bỏ restore, không học.
             TouchLog.write("tail mismatch (boundary) → reset")

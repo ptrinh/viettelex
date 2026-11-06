@@ -891,14 +891,17 @@ bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind, char32_t ch) {
     const std::u16string raw = printable ? rawOf(engine_) : std::u16string();
     std::u16string finalText;
     bool committed = true;
+    // The character ending the word: an apostrophe keeps an English contraction stem
+    // ("doesn't", not "doén't"). 0 = not a typed character.
+    const uint32_t endChar = printable ? static_cast<uint32_t>(ch) : 0;
     if (comp) {
         uint16_t buf[VTX_MAX_TEXT + 1];
-        int32_t n = vtx_commit_text(engine_, opt_.autoRestore ? 1 : 0, buf, VTX_MAX_TEXT + 1);
+        int32_t n = vtx_commit_text_before(engine_, opt_.autoRestore ? 1 : 0, endChar, buf, VTX_MAX_TEXT + 1);
         finalText = toU16(buf, n);
         sink.endComposition(finalText + boundary);
     } else {
         vtx_action a;
-        vtx_commit_boundary(engine_, opt_.autoRestore ? 1 : 0, &a);
+        vtx_commit_boundary_before(engine_, opt_.autoRestore ? 1 : 0, endChar, &a);
         finalText = shown_;
         if (a.kind == VTX_REPLACE) {
             std::u16string expect;

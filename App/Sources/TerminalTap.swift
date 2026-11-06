@@ -3633,7 +3633,7 @@ final class TerminalTapController {
             let allow = ShortcutMatch.triggers(boundary: boundaryText, glued: lastTapKeyWasDigit)
             var rewrote = emitBoundary(suppressAutoRestore: isBracketUnichar(ch.utf16.first ?? unit),
                                        allowShortcuts: allow.word, allowToken: allow.token,
-                                       allowAlnum: allow.alnum)
+                                       allowAlnum: allow.alnum, boundaryKey: ch)
             // "Tự sửa từ phía trước" (thử nghiệm): không có phép sửa ⇒ một phép so nil. Công
             // tắc bật: áp TRƯỚC ký tự ranh giới; áp được ⇒ phím ranh giới phải đi sau burst
             // (re-emit bên dưới). Tắt: chỉ xác nhận kênh + AX, đề xuất sau ranh giới.
@@ -3939,7 +3939,8 @@ final class TerminalTapController {
     /// true if anything was rewritten (caller then re-emits the boundary key after it).
     @discardableResult
     private func emitBoundary(suppressAutoRestore: Bool, allowShortcuts: Bool = true,
-                              allowToken: Bool = false, allowAlnum: Bool = false) -> Bool {
+                              allowToken: Bool = false, allowAlnum: Bool = false,
+                              boundaryKey: Character? = nil) -> Bool {
         tapExpanded = nil
         lastCommitRaw = ""
         let table = (allowShortcuts || allowToken || allowAlnum) ? AppState.shared.shortcutTable : ShortcutTable()
@@ -4009,7 +4010,8 @@ final class TerminalTapController {
         guard !engine.isEmpty else { engine.reset(); return false }
         let restore = AppState.shared.autoRestore && !suppressAutoRestore
         lastCommitRaw = rawWord
-        if case let .replace(bs, insert) = engine.commitBoundary(autoRestore: restore) {
+        // The key that ends the word: an apostrophe keeps an English contraction stem ("doesn't").
+        if case let .replace(bs, insert) = engine.commitBoundary(autoRestore: restore, boundary: boundaryKey) {
             SyntheticKeyboard.apply(backspaces: bs, insert: insert, mode: emitMode)
             shortcutTail.append(String(String.UnicodeScalarView(word.unicodeScalars.dropLast(bs))) + insert)
             return true
