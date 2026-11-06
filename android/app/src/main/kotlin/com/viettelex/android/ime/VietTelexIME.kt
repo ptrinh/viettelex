@@ -243,7 +243,12 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     private fun createService() {
         val t0 = SystemClock.elapsedRealtime()
-        if (BuildConfig.DEBUG) perfCreatedAt = t0
+        if (BuildConfig.DEBUG) {
+            perfCreatedAt = t0
+            // Bản debug: log mọi đọc/ghi đĩa trên main (logcat "StrictMode") — bắt IO lọt vào đường hiện bàn phím.
+            android.os.StrictMode.setThreadPolicy(android.os.StrictMode.ThreadPolicy.Builder()
+                .detectDiskReads().detectDiskWrites().penaltyLog().build())
+        }
         super.onCreate()
         ImeTrace.begin("VT.onCreate.data")
         prefs = VTPrefs.of(this)

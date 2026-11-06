@@ -139,6 +139,7 @@ class ImeRenderBudgetTest {
         assertEquals("onCreateInputView", 1, ImeCost.inputViews)
         assertEquals("ImeTheme dựng (onCreateInputView, không dựng lại ở onStartInputView)", 1, ImeCost.themes)
         assertEquals("KeyLayout.build — chỉ bảng chữ đang hiện", 1, ImeCost.layoutBuilds)
+        println("BUDGET views = ${count(r)}")
         assertTrue(fail("Số view trong cây bàn phím", count(r), Budget.VIEWS), count(r) <= Budget.VIEWS)
     }
 
