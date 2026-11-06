@@ -70,6 +70,13 @@ Lựa chọn phụ cho máy không có quyền cài / muốn thử nhanh. Bản 
   trang tải: dòng "Không cài được? Dùng bản portable". HDSD: mục portable + đánh đổi (trình duyệt/
   Word kém hơn bản cài, app quyền quản trị, một số game).
 - **Test:** logic thuần (nhận diện chế độ, đường dẫn cài đặt, quyết định nhường bản cài) trên host.
+- **Bộ nhớ (issue #153, 06/11/2026):** dữ liệu ngôn ngữ (vnlexicon/enlexicon/vnlm, đọc tại chỗ từ
+  RCDATA) chỉ nạp ở việc đầu tiên cần nó (Thêm dấu, gợi ý từ TIP) — không còn nạp lúc khởi động;
+  bản portable không có TIP nên chỉ nạp khi dùng Thêm dấu. Chỉ mục gọn: 4 byte/từ tiếng Anh, 4 byte/dạng
+  (heap ~87 KB thay ~362 KB). GDI+ chỉ chạy khi cửa sổ Cài đặt mở; gdiplus/dwmapi/msi/comdlg32/winhttp/
+  wintrust/crypt32 nạp trễ (delay-load). Không cửa sổ nào mở + người dùng ngừng gõ ≥ 2 s ⇒ trả working
+  set cho Windows (`core/idle_trim.h`). Đo heap trên host: `ctest -R memory_report -V`. Working set
+  thật trên Windows: chưa đo.
 
 ## Trạng thái triển khai (06/11/2026)
 

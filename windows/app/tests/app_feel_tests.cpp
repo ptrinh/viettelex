@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "app_feel.h"
+#include "idle_trim.h"
 #include "onboarding.h"
 #include "portable.h"
 #include "settings.h"
@@ -349,4 +350,36 @@ TEST(feel_guide_pages_name_no_other_input_method) {
                 CHECK(false);
             }
     }
+}
+
+// ---- idle working-set trim (core/idle_trim.h, GitHub #153) ---------------------------------
+TEST(idle_trim_only_when_nothing_is_on_screen_and_the_user_is_quiet) {
+    using namespace vtx::idletrim;
+    State s;
+    s.idleMs = kQuietMs;
+    CHECK(decide(s) == Decision::Trim);
+    s.idleMs = 60000;
+    CHECK(decide(s) == Decision::Trim);
+    // a window on screen: never (its closing asks again), whatever the idle time
+    s.windowOpen = true;
+    CHECK(decide(s) == Decision::Drop);
+    s.windowOpen = false;
+    // typing / clicking just now, or a text tool mid-job: wait, then try again
+    s.idleMs = kQuietMs - 1;
+    CHECK(decide(s) == Decision::Wait);
+    s.idleMs = 0;
+    CHECK(decide(s) == Decision::Wait);
+    s.idleMs = 60000;
+    s.textJobBusy = true;
+    CHECK(decide(s) == Decision::Wait);
+    // non-stop typing: give up after kMaxRetries waits (no timer forever)
+    s.retries = kMaxRetries - 1;
+    CHECK(decide(s) == Decision::Wait);
+    s.retries = kMaxRetries;
+    CHECK(decide(s) == Decision::Drop);
+    s.textJobBusy = false;
+    CHECK(decide(s) == Decision::Trim);
+    // the quiet gap is shorter than the first delay: a trim right after a window closes is
+    // never the reason a keystroke stalls (the user had stopped typing for ≥ kQuietMs)
+    CHECK(kQuietMs < kDelayMs && kRetryMs >= kQuietMs);
 }

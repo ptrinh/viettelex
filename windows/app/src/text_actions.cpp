@@ -116,7 +116,9 @@ bool isTipWindow(HWND h) {
 }
 
 HintJobs& hintJobs() {
-    static HintJobs jobs(languageData());
+    // The loader runs on the first job that needs data (never at start: textActionsConfigure
+    // only clears the learned model here; a portable copy has no TIP, so no job ever comes).
+    static HintJobs jobs(HintJobs::DataLoader([] { return languageData(); }));
     return jobs;
 }
 
@@ -624,6 +626,8 @@ void onWork() {
 }
 
 }  // namespace
+
+bool textActionsBusy() { return g_job.stage != Stage::Idle; }
 
 void textActionsConfigure() {
     learnedSettingsChanged();

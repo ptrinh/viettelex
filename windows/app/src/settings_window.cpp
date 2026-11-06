@@ -170,6 +170,8 @@ UINT g_dpi = 96;
 HFONT g_fBody = nullptr, g_fCaption = nullptr, g_fTitle = nullptr, g_fSection = nullptr, g_fIcon = nullptr,
       g_fHeader = nullptr;
 HBRUSH g_brBg = nullptr, g_brCard = nullptr, g_brCtrl = nullptr;
+// GDI+ runs only while the window exists (started in showSettings, shut down at
+// WM_NCDESTROY): its background thread and heaps are not kept for the app's whole life.
 ULONG_PTR g_gdiplusToken = 0;
 
 int px(int dip) { return MulDiv(dip, static_cast<int>(g_dpi), 96); }
@@ -2169,18 +2171,26 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             g_items.clear();
             g_list = g_edit1 = g_edit2 = g_combo = nullptr;
             g_blockButtons.clear();
+            std::vector<Item>().swap(g_items);  // give the page's memory back, not just its size
             return 0;
+        case WM_NCDESTROY:  // every child is gone: nothing paints with GDI+ any more
+            if (g_gdiplusToken) Gdiplus::GdiplusShutdown(g_gdiplusToken);
+            g_gdiplusToken = 0;
+            requestIdleTrim();
+            break;
         default: break;
     }
     return DefWindowProcW(h, msg, wp, lp);
 }
 
 void registerClasses() {
+    if (!g_gdiplusToken) {
+        Gdiplus::GdiplusStartupInput in;
+        if (Gdiplus::GdiplusStartup(&g_gdiplusToken, &in, nullptr) != Gdiplus::Ok) g_gdiplusToken = 0;
+    }
     static bool done = false;
     if (done) return;
     done = true;
-    Gdiplus::GdiplusStartupInput in;
-    Gdiplus::GdiplusStartup(&g_gdiplusToken, &in, nullptr);
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof wc;
     wc.lpfnWndProc = wndProc;
@@ -2231,6 +2241,8 @@ void refreshSettingsWindow() {
     sync();
     refreshPickerIfStale();  // e.g. the welcome window just applied a profile
 }
+
+bool settingsWindowOpen() { return g_wnd != nullptr; }
 
 bool settingsDialogMessage(MSG* msg) {
     if (!g_wnd) return false;

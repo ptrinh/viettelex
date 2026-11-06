@@ -143,6 +143,44 @@ TEST(hint_jobs_answer_typo_and_tones) {
     CHECK(none.answer(m).empty());
 }
 
+// Memory (GitHub #153): the language data is loaded by the first job that needs it, never by the
+// app's start sequence (construction + setLearned / setFilterSensitive), so a portable copy — no
+// TIP, no job — never loads it; and the loader runs once.
+TEST(hint_jobs_load_language_data_on_first_job_only) {
+    int loads = 0;
+    HintJobs jobs([&]() -> const addtones::LanguageData* {
+        ++loads;
+        return &data().d;
+    });
+    jobs.setLearned(nullptr);  // = textActionsConfigure -> learnedSettingsChanged at start
+    jobs.setFilterSensitive(false);
+    jobs.setFilterSensitive(true);
+    CHECK(loads == 0 && !jobs.dataLoaded() && !jobs.predictionLoaded());
+    HintMessage m;
+    m.job = static_cast<uint32_t>(HintJob::Typo);
+    m.flags = macDefaultFlags();
+    CHECK(jobs.answer(m).empty());  // empty text: nothing to do, nothing loaded
+    CHECK(loads == 0 && !jobs.dataLoaded());
+    m.text = u"tpoi";
+    CHECK(jobs.answer(m) == u"tôi");
+    CHECK(loads == 1 && jobs.dataLoaded() && !jobs.predictionLoaded());
+    m.job = static_cast<uint32_t>(HintJob::Tones);
+    m.text = u"toi di hoc ";
+    CHECK(jobs.answer(m) == u"tôi đi học ");
+    CHECK(jobs.knownWord("tôi"));
+    CHECK(loads == 1 && jobs.predictionLoaded());
+
+    // knownWord (the learned model's test) loads too; a failed load is not retried per job
+    int tries = 0;
+    HintJobs missing([&]() -> const addtones::LanguageData* {
+        ++tries;
+        return nullptr;
+    });
+    CHECK(!missing.knownWord("tôi"));
+    CHECK(missing.answer(m).empty());
+    CHECK(tries == 1 && missing.dataLoaded());
+}
+
 // ---------------------------------------------------------------- TypoFixEvalTests (precision floor)
 
 namespace {

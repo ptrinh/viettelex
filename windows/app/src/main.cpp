@@ -43,6 +43,7 @@
 #include "onboarding.h"
 #include "switch_toast.h"
 #include "hook_fallback.h"
+#include "idle_trim.h"
 #include "ipc.h"
 #include "settings_store.h"
 #include "strings.h"
@@ -59,6 +60,16 @@ HWND g_mainWnd = nullptr;
 Settings g_settings;
 
 namespace {
+constexpr UINT_PTR kTimerIdleTrim = 0x5601;  // core/idle_trim.h
+int g_trimRetries = 0;
+}  // namespace
+
+void requestIdleTrim() {
+    g_trimRetries = 0;
+    if (g_mainWnd) SetTimer(g_mainWnd, kTimerIdleTrim, vtx::idletrim::kDelayMs, nullptr);
+}
+
+namespace {
 
 // Keep in sync with ime/src/globals.h (kAppWindowClass, kAppCommandMsg).
 constexpr wchar_t kAppWindowClass[] = L"VietTelexAppWindow";
@@ -67,6 +78,28 @@ constexpr UINT kTrayMsg = WM_APP + 0x57;
 static_assert(kAppCommandMsg == kAppCommand && kTrayMsg == kTrayCallback, "app_messages.h is the list");
 constexpr UINT kTrayId = 1;
 UINT g_taskbarCreated = 0;
+
+// ---- idle working-set trim (core/idle_trim.h) -----------------------------------------
+void onIdleTrimTimer(HWND h) {
+    KillTimer(h, kTimerIdleTrim);
+    vtx::idletrim::State s;
+    s.windowOpen = settingsWindowOpen() || welcomeWindowOpen();
+    s.textJobBusy = textActionsBusy();
+    LASTINPUTINFO li = {sizeof li, 0};
+    s.idleMs = GetLastInputInfo(&li) ? GetTickCount() - li.dwTime : vtx::idletrim::kQuietMs;
+    s.retries = g_trimRetries;
+    switch (vtx::idletrim::decide(s)) {
+        case vtx::idletrim::Decision::Trim:
+            g_trimRetries = 0;
+            SetProcessWorkingSetSize(GetCurrentProcess(), static_cast<SIZE_T>(-1), static_cast<SIZE_T>(-1));
+            break;
+        case vtx::idletrim::Decision::Wait:
+            ++g_trimRetries;
+            SetTimer(h, kTimerIdleTrim, vtx::idletrim::kRetryMs, nullptr);
+            break;
+        case vtx::idletrim::Decision::Drop: g_trimRetries = 0; break;
+    }
+}
 
 enum TrayCmd : UINT {
     kTraySettings = 1,
@@ -497,6 +530,10 @@ LRESULT CALLBACK mainProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         // Restart Manager / logoff / an upgrade closing us: agree, then exit cleanly
         // (settings are saved on every change, so there is nothing left to flush).
         case WM_TIMER:
+            if (wp == kTimerIdleTrim) {
+                onIdleTrimTimer(h);
+                return 0;
+            }
             if (wp == 77) {
                 KillTimer(h, 77);
                 NOTIFYICONDATAW nid = {};
@@ -926,6 +963,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         showSettings(Tab::Typing);
     }
     if (g_settings.autoUpdateCheck && autoCheckDue()) startUpdateCheck(g_mainWnd, false);
+    requestIdleTrim();  // a window shown above drops it; its closing asks again
 
     MSG msg;
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {

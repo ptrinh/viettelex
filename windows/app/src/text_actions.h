@@ -30,6 +30,9 @@ void predictionWatchStop();
 void learnedClear();          // "Xoá từ đã học" (settings window): RAM + file
 void learnedSettingsChanged();  // switch / Windows setting off: save, drop from RAM
 
+// A text tool is running (between the hotkey / menu and its result).
+bool textActionsBusy();
+
 // Main-window messages owned by this module (WM_HOTKEY, WM_COPYDATA from the TIP, timers).
 bool textActionsMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT& result);
 // AppCommand::TextToolReply from the TIP.

@@ -120,13 +120,16 @@ bool Lexicon::load(const uint8_t* d, size_t n) {
     hash_ = fnv1a(d, n);
     // SwipeLexicon.forms: consecutive ids with the same folded key form one form
     std::string_view prev;
-    for (int id = 0; id < count_; ++id) {
-        const uint32_t a = u32(offsets_ + static_cast<size_t>(id) * 4), b = u32(offsets_ + static_cast<size_t>(id + 1) * 4);
-        std::string_view f(reinterpret_cast<const char*>(data_ + folded_ + a), b - a);
-        if (id > 0 && f == prev) continue;
-        prev = f;
-        forms_.push_back(f);
-        formStart_.push_back(id);
+    size_t forms = 0;
+    for (int pass = 0; pass < 2; ++pass) {  // count, then fill an exactly sized vector
+        if (pass == 1) formStart_.reserve(forms + 1);
+        for (int id = 0; id < count_; ++id) {
+            const std::string_view f = folded(id);
+            if (id > 0 && f == prev) continue;
+            prev = f;
+            if (pass == 0) ++forms;
+            else formStart_.push_back(id);
+        }
     }
     formStart_.push_back(count_);
     return true;
@@ -152,36 +155,61 @@ uint8_t Lexicon::attr(int id, int i) const {
     return data_[attrs_ + a + static_cast<uint32_t>(i)];
 }
 
-int Lexicon::formIndex(std::string_view folded) const {
-    auto it = std::lower_bound(forms_.begin(), forms_.end(), folded);
-    return (it != forms_.end() && *it == folded) ? static_cast<int>(it - forms_.begin()) : -1;
+int Lexicon::formIndex(std::string_view key) const {
+    int lo = 0, hi = formCount();  // forms are sorted (the file is sorted by folded key)
+    while (lo < hi) {
+        const int mid = lo + (hi - lo) / 2;
+        if (folded(formStart_[static_cast<size_t>(mid)]) < key) lo = mid + 1;
+        else hi = mid;
+    }
+    return (lo < formCount() && folded(formStart_[static_cast<size_t>(lo)]) == key) ? lo : -1;
 }
 
 // ================================================================ English (enlexicon.bin)
 
 bool EnglishLexicon::load(const uint8_t* b, size_t n) {
-    words_.clear();
-    if (!b || n < 8 || std::memcmp(b, "VTE1", 4) != 0) return false;
+    data_ = nullptr;
+    offs_ = std::vector<uint32_t>();
+    if (!b || n < 8 || n > 0xFFFFFFFFu || std::memcmp(b, "VTE1", 4) != 0) return false;
     const uint32_t count = rd32(b + 4);
+    if (count > (n - 8) / 3) return false;  // every record is ≥ 3 bytes
+    auto fail = [this] {
+        offs_ = std::vector<uint32_t>();
+        return false;
+    };
     size_t p = 8;
-    words_.reserve(count);
+    offs_.reserve(count);
     for (uint32_t i = 0; i < count; ++i) {
-        if (p + 2 > n) return (words_.clear(), false);
+        if (p + 2 > n) return fail();
         const size_t len = b[p];
-        if (len == 0 || p + 2 + len > n) return (words_.clear(), false);
+        if (len == 0 || p + 2 + len > n) return fail();
         for (size_t j = 0; j < len; ++j)
-            if (b[p + 2 + j] < 'a' || b[p + 2 + j] > 'z') return (words_.clear(), false);
-        words_.emplace_back(reinterpret_cast<const char*>(b + p + 2), len);
+            if (b[p + 2 + j] < 'a' || b[p + 2 + j] > 'z') return fail();
+        offs_.push_back(static_cast<uint32_t>(p));
         p += 2 + len;
     }
-    if (!std::is_sorted(words_.begin(), words_.end())) std::sort(words_.begin(), words_.end());
+    data_ = b;
+    auto less = [this](uint32_t x, uint32_t y) {
+        return std::string_view(reinterpret_cast<const char*>(data_ + x + 2), data_[x]) <
+               std::string_view(reinterpret_cast<const char*>(data_ + y + 2), data_[y]);
+    };
+    if (!std::is_sorted(offs_.begin(), offs_.end(), less)) std::sort(offs_.begin(), offs_.end(), less);
     return true;
 }
 
-bool EnglishLexicon::contains(std::string_view w) const { return std::binary_search(words_.begin(), words_.end(), w); }
+bool EnglishLexicon::contains(std::string_view w) const {
+    const size_t i = lowerBound(w);
+    return i < offs_.size() && word(i) == w;
+}
 
 size_t EnglishLexicon::lowerBound(std::string_view w) const {
-    return static_cast<size_t>(std::lower_bound(words_.begin(), words_.end(), w) - words_.begin());
+    size_t lo = 0, hi = offs_.size();
+    while (lo < hi) {
+        const size_t mid = lo + (hi - lo) / 2;
+        if (word(mid) < w) lo = mid + 1;
+        else hi = mid;
+    }
+    return lo;
 }
 
 // ================================================================ SyllableLM (vnlm.bin v3)
