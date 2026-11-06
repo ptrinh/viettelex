@@ -81,6 +81,13 @@ void vt_commit(vt_engine *h, bool auto_restore, vt_action *out);
 size_t vt_commit_text(vt_engine *h, bool auto_restore, char *buf, size_t cap);
 /* peekCommitText(autoRestore:) — what vt_commit_text WOULD return; no state change. */
 size_t vt_peek(const vt_engine *h, bool auto_restore, char *buf, size_t cap);
+/* The same three with the character that ends the word (`ch`, a Unicode scalar; 0 =
+ * unknown, identical to the calls above) — commitBoundary/commitText/peekCommitText
+ * (autoRestore:boundary:). An apostrophe (' or U+2019) keeps an English contraction stem
+ * typed right before it ("doesn" 't, "isn" 't, "there" 's) as typed. */
+void vt_commit_before(vt_engine *h, bool auto_restore, uint32_t ch, vt_action *out);
+size_t vt_commit_text_before(vt_engine *h, bool auto_restore, uint32_t ch, char *buf, size_t cap);
+size_t vt_peek_before(const vt_engine *h, bool auto_restore, uint32_t ch, char *buf, size_t cap);
 
 size_t vt_composed(const vt_engine *h, char *buf, size_t cap);
 size_t vt_raw(const vt_engine *h, char *buf, size_t cap);

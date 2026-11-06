@@ -47,6 +47,20 @@ final class EngineBridgeTests: XCTestCase {
         return proxy.text
     }
 
+    /// Dấu nháy là ranh giới của từ viết tắt tiếng Anh (07/11/2026; = TelexCore
+    /// ContractionCapsReopenTests): bridge chuyển ký tự ranh giới cho engine ⇒ "doesn't" giữ
+    /// nguyên, không "doén't"; từ Việt trong nháy giữ dấu.
+    func testContractionAtApostrophe() {
+        for retro in [false, true] {
+            var st = KeyboardSettings()
+            st.contextualEnglish = retro
+            st.retroEnglishAuto = retro
+            XCTAssertEqual(typeAll("it doesn't ", settings: st), "it doesn't ")
+            XCTAssertEqual(typeAll("isn't won't there's ", settings: st), "isn't won't there's ")
+            XCTAssertEqual(typeAll("'tieesng' ", settings: st), "'tiếng' ")
+        }
+    }
+
     /// Viết tắt toàn chữ HOA, từ dính "_"/số (30/10/2026; = TelexCore) — có hay không sửa ngược.
     func testAcronymAndGluedWords() {
         for retro in [false, true] {

@@ -379,7 +379,7 @@ void TelexEngine::backspace(Action& out) {
     copyOut(newCount);
 }
 
-void TelexEngine::commitBoundary(bool autoRestore, Action& out) {
+void TelexEngine::commitBoundary(bool autoRestore, Action& out, char32_t boundary) {
     setSimple(out, Action::None);
     hasRestoreUndo_ = false;
     if (rawCount_ <= 0) { reopenRawCount_ = 0; reopenOutCount_ = 0; resetWord(); return; }
@@ -391,7 +391,7 @@ void TelexEngine::commitBoundary(bool autoRestore, Action& out) {
         return;
     }
     bool wantsRestore = outCount_ > 0
-        && (needsStandaloneWRunRestore() || (autoRestore && shouldRestoreRaw()));
+        && (needsStandaloneWRunRestore() || (autoRestore && shouldRestoreRaw(boundary)));
     if (wantsRestore && compositionDiffersFromRaw()) {
         int limit = rawCount_ < outCount_ ? rawCount_ : outCount_;
         int lcp = 0;
@@ -409,7 +409,8 @@ void TelexEngine::commitBoundary(bool autoRestore, Action& out) {
         elongatedTail(tail);
         setReplace(out, 1, tail, 2);
     }
-    captureReopen(wantsRestore || elongate);
+    // A restore that changed nothing on screen ("hoc", "tien") keeps its snapshot.
+    captureReopen((wantsRestore && compositionDiffersFromRaw()) || elongate);
     noteCommittedWord(wantsRestore);
     if (retroactiveEnglish || retroCount_ > 0) retroRecord(wantsRestore, elongate);
     updateContext(wantsRestore);
@@ -501,18 +502,33 @@ bool TelexEngine::needsStandaloneWRunRestore() const {
     return true;
 }
 
-bool TelexEngine::shouldRestoreRaw() const {
+bool TelexEngine::shouldRestoreRaw(char32_t boundary) const {
     if (shouldRestoreRawBase()) return true;
+    if ((boundary == U'\'' || boundary == U'\u2019') && isContractionStemBeforeApostrophe()) return true;
     return englishByFrequency && frequencyPrefersEnglish();
+}
+
+// English contraction stem right before an apostrophe (Swift isContractionStemBeforeApostrophe):
+// raw keys, or raw minus a final `n` (n't), on EnglishContextWords.contractionStems.
+bool TelexEngine::isContractionStemBeforeApostrophe() const {
+    if (!compositionDiffersFromRaw()) return false;
+    char w[kCapacity];
+    int n = lowerAsciiInto(raw_, rawCount_, gen::kEnglishContextMaxLength, w);
+    if (n <= 0) return false;
+    if (inEnglishList(gen::kContractionStems, w, n)) return true;
+    return n >= 2 && w[n - 1] == 'n' && inEnglishList(gen::kContractionStems, w, n - 1);
 }
 
 // Every restore rule except the frequency rule (englishByFrequency).
 bool TelexEngine::shouldRestoreRawBase() const {
     if (initialsSplitAt_ >= 0) return false;   // "PhươngTH" (issue #138) — see Swift
+    if (isListedCapsAcronym()) return true;     // "ASAP", "WWDC" — see Swift
     if (markCancelled_) {
         if (composedIsValidSyllable()) return false;
         if (toneCancelSpan_ > 1) return !composedIsRecognizedEnglish() || rawIsEnglishContextWord();
         if (toneCancelAt_ >= 0 && toneCancelAt_ < rawCount_ - 1 && rawIsEnglishCollision()) return true;
+        // Vowel-doubler cancel that reached back ("seemed" -> "semed"): dictionary wins.
+        if (pMarkCancelReachedBack_ && rawIsEnglishCollision()) return true;
         if (isTeencodeKeep()) return false;
         // Mark doubler + tone folded at the freeze ("cheese" -> "chese"): restore raw.
         if (toneCancelAt_ < 0 && tonesFolded_) return true;
@@ -735,8 +751,28 @@ bool TelexEngine::isRareAllCapsAcronym() const {
     for (int k = 0; k < pCount_; ++k)
         if (isVowelAscii(renderLetters_[k].base)) { hasVowel = true; break; }
     if (!hasVowel || !compositionHasDiacritic() || !composedIsValidSyllable()) return false;
-    if (lastEffTone_ != Tone::None && !isToneKeyAt(rawCount_ - 1)) return false;
+    // Mid-word tone key = Vietnamese spelling ("DAJA"), unless 3+ raw keys spell a
+    // dictionary English word ("NASA" -> NẤ, "USA" -> ÚA).
+    if (lastEffTone_ != Tone::None && !isToneKeyAt(rawCount_ - 1) && !(rawCount_ >= 3 && rawIsDictionaryWord()))
+        return false;
     return !lettersAreCommonSyllable(pCount_);
+}
+
+// Raw keys are in the collision table or the context dictionary (Swift rawIsDictionaryWord).
+bool TelexEngine::rawIsDictionaryWord() const {
+    char w[kCapacity];
+    int n = lowerAsciiInto(raw_, rawCount_, gen::kEnglishContextMaxLength, w);
+    return n > 0 && (inEnglishList(gen::kEnglishCollisions, w, n) || inEnglishList(gen::kEnglishContextWords, w, n));
+}
+
+// ALL-CAPS 3-5 keys on EnglishContextWords.capsAcronyms, changed by Telex (Swift twin).
+bool TelexEngine::isListedCapsAcronym() const {
+    if (vniMode || rawCount_ < 3 || rawCount_ > 5 || !isUpperAscii(raw_[0]) || !rawIsAllCapsToken() ||
+        !compositionDiffersFromRaw())
+        return false;
+    char w[kCapacity];
+    int n = lowerAsciiInto(raw_, rawCount_, gen::kEnglishContextMaxLength, w);
+    return n > 0 && inEnglishList(gen::kCapsAcronyms, w, n);
 }
 
 bool TelexEngine::rawIsAllCapsToken() const {
@@ -1244,7 +1280,7 @@ int TelexEngine::frequencyFlipDistance(bool restored) const {
     return 0;
 }
 
-int TelexEngine::commitText(bool autoRestore, char16_t* buf, int cap) {
+int TelexEngine::commitText(bool autoRestore, char16_t* buf, int cap, char32_t boundary) {
     int n;
     hasRestoreUndo_ = false;
     if (overflowed_) {
@@ -1256,11 +1292,12 @@ int TelexEngine::commitText(bool autoRestore, char16_t* buf, int cap) {
         return n;
     }
     bool wantsRestore = outCount_ > 0
-        && (needsStandaloneWRunRestore() || (autoRestore && shouldRestoreRaw()));
+        && (needsStandaloneWRunRestore() || (autoRestore && shouldRestoreRaw(boundary)));
     const bool elongate = !wantsRestore && outCount_ > 0 && isToneThenATail();
     n = wantsRestore ? emitRaw(raw_, rawCount_, buf, cap)
         : elongate ? emitElongated(buf, cap) : emit(out_, outCount_, buf, cap);
-    captureReopen(wantsRestore || elongate);
+    // A restore that changed nothing on screen ("hoc", "tien") keeps its snapshot.
+    captureReopen((wantsRestore && compositionDiffersFromRaw()) || elongate);
     noteCommittedWord(wantsRestore);
     if (retroactiveEnglish || retroCount_ > 0) retroRecord(wantsRestore, elongate);
     updateContext(wantsRestore);
@@ -1268,10 +1305,10 @@ int TelexEngine::commitText(bool autoRestore, char16_t* buf, int cap) {
     return n;
 }
 
-int TelexEngine::peekCommitText(bool autoRestore, char16_t* buf, int cap) const {
+int TelexEngine::peekCommitText(bool autoRestore, char16_t* buf, int cap, char32_t boundary) const {
     if (overflowed_) return emit(out_, outCount_, buf, cap);
     if (outCount_ > 0 && needsStandaloneWRunRestore()) return emitRaw(raw_, rawCount_, buf, cap);
-    if (autoRestore && outCount_ > 0 && shouldRestoreRaw()) return emitRaw(raw_, rawCount_, buf, cap);
+    if (autoRestore && outCount_ > 0 && shouldRestoreRaw(boundary)) return emitRaw(raw_, rawCount_, buf, cap);
     if (outCount_ > 0 && isToneThenATail()) return emitElongated(buf, cap);
     return emit(out_, outCount_, buf, cap);
 }
@@ -1559,6 +1596,7 @@ void TelexEngine::resetWord() {
     pCancelled_ = false;
     pToneCancelAt_ = -1;
     pToneCancelSpan_ = 0;
+    pMarkCancelReachedBack_ = false;
     pProcessed_ = 0;
 }
 
@@ -1773,6 +1811,7 @@ void TelexEngine::rebuildParseState() {
     pCancelled_ = false;
     pToneCancelAt_ = -1;
     pToneCancelSpan_ = 0;
+    pMarkCancelReachedBack_ = false;
     upperToneKey_ = false;
     pFreeMarking_ = freeMarking;
     pSimpleTelex_ = simpleTelex;
@@ -1958,6 +1997,7 @@ void TelexEngine::parseStep(int at) {
                 if (letters_[k].base == lower && letters_[k].mark == Mark::Circumflex) {
                     letters_[k].mark = Mark::None;
                     pCancelled_ = true;
+                    pMarkCancelReachedBack_ = true;
                     appendLetter(lower, Mark::None, upper);
                     rawLetter_[at] = pCount_ - 1; return;
                 }

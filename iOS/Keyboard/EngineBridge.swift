@@ -724,7 +724,8 @@ final class EngineBridge {
         if expand, !wasSwipe, let expanded = tryExpandShortcut(text, proxy: proxy) { return expanded }
         if expand, !wasSwipe, let ac = autoCorrector, let fixed = tryAutoCorrect(ac, text, proxy: proxy) { return fixed }
         let before = engine.composed
-        var action = engine.commitBoundary(autoRestore: settings.autoRestore)
+        // The character that ends the word: an apostrophe keeps an English contraction stem.
+        var action = engine.commitBoundary(autoRestore: settings.autoRestore, boundary: text.first)
         if !safeToApply(action, expected: before, proxy: proxy) {
             // Lệch: KHÔNG auto-restore (sẽ xoá nhầm chữ khác) — chỉ chèn ký tự ngắt.
             reset()

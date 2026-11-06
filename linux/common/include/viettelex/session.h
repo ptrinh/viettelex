@@ -208,7 +208,9 @@ public:
 private:
     bool handleLetter(uint32_t ch, InputContext &ic);
     bool handleBackspace(InputContext &ic);
-    void endWord(InputContext &ic, bool suppressRestore, bool allowShortcuts);
+    // `endChar` = the typed character ending the word (0 = none): an apostrophe keeps an
+    // English contraction stem as typed ("doesn't", not "doén't").
+    void endWord(InputContext &ic, bool suppressRestore, bool allowShortcuts, uint32_t endChar = 0);
     // Retro English: after every boundary take + apply the engine's correction, then report
     // the boundary character (`ch` printable ASCII, else 0 = Enter / Tab / navigation: ends
     // the phrase). The app inserts the key after this event, so it is not on screen yet.

@@ -138,6 +138,28 @@ enum EnglishContextWords {
         uuid guid dto dao gb en vi us uk ai qr nft faq
         """)
 
+    /// CONTRACTION STEMS — the word right before an apostrophe in an English contraction
+    /// ("does" n't, "is" n't, "wo" n't, "ca" n't, "there" 's, "I" 'll). When the host tells
+    /// the engine the word ends at an apostrophe (`commitBoundary(…, boundary: "'")`), raw
+    /// keys on this list — or on it once a final `n` (the n of n't) is dropped — are
+    /// committed as typed: "doesn't" stays, never "doén't"; "won't" never "ươn't".
+    /// CLOSED list on purpose: a Vietnamese word in single quotes ('tiếng', 'ông') must
+    /// keep its diacritics, so only real contraction stems belong here.
+    static let contractionStems: Set<String> = parse("""
+        do does did is are was were has have had wo ca could should would might must
+        need dare sha ai may there here where what who how why when that this it let
+        i you we they he she
+        """)
+
+    /// ALL-CAPS ACRONYMS that Telex mangles ("ASAP" → ẤP, "WWDC" → WDC): typed in capitals
+    /// as 3+ keys, they commit as typed even when the Telex reading is a common syllable
+    /// or a cancel. CLOSED list, lowercase: only acronyms with no Vietnamese reading anyone
+    /// types in capitals. Deliberately left OUT: "hdd" (HĐ = hợp đồng / hoạt động),
+    /// "ddos" (ĐÓ), and every vowel-less đ-abbreviation (HĐND, VĐV, BĐS).
+    static let capsAcronyms: Set<String> = parse("""
+        asap isp ussr wwdc wwf
+        """)
+
     private static func parseGates(_ list: String) -> [(word: String, predecessors: Set<String>)] {
         var rules: [(word: String, predecessors: Set<String>)] = []
         for line in list.split(separator: "\n") {

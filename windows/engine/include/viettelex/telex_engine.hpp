@@ -101,12 +101,15 @@ public:
     /// Delete the whole last DISPLAYED character.
     void backspace(Action& out);
     /// Word boundary: optional auto-restore; resets the word.
-    void commitBoundary(bool autoRestore, Action& out);
+    /// `boundary` = the character ending the word when the caller knows it (0 = unknown,
+    /// the old behaviour). An apostrophe restores an English contraction stem ("doesn"
+    /// before 't) — Swift commitBoundary(autoRestore:boundary:).
+    void commitBoundary(bool autoRestore, Action& out, char32_t boundary = 0);
     /// Final text to commit (restore applied); resets the word. Returns UTF-16 length,
     /// writes at most cap-1 units + NUL.
-    int commitText(bool autoRestore, char16_t* buf, int cap);
+    int commitText(bool autoRestore, char16_t* buf, int cap, char32_t boundary = 0);
     /// Non-mutating twin of commitText.
-    int peekCommitText(bool autoRestore, char16_t* buf, int cap) const;
+    int peekCommitText(bool autoRestore, char16_t* buf, int cap, char32_t boundary = 0) const;
 
     // ---- State -------------------------------------------------------------------
     int composed(char16_t* buf, int cap) const;
@@ -198,6 +201,8 @@ private:
     bool pCancelled_ = false;
     int pToneCancelSpan_ = 0;
     int pToneCancelAt_ = -1;
+    // A circumflex doubler cancelled a hat it reached back to across letters ("seem" + e).
+    bool pMarkCancelReachedBack_ = false;
     int pProcessed_ = 0;
     bool pFreeMarking_ = false;
     bool pSimpleTelex_ = false;
@@ -254,6 +259,9 @@ private:
     bool isVietnameseTypoKeep() const;
     bool rawHasEnglishReading() const;
     bool isRareAllCapsAcronym() const;
+    bool rawIsDictionaryWord() const;
+    bool isListedCapsAcronym() const;
+    bool isContractionStemBeforeApostrophe() const;
     bool rawIsAllCapsToken() const;
     bool lettersAreCommonSyllable(int count) const;
 
@@ -306,7 +314,7 @@ private:
     void takeSnapshots();
     void captureReopen(bool restored);
     bool needsStandaloneWRunRestore() const;
-    bool shouldRestoreRaw() const;
+    bool shouldRestoreRaw(char32_t boundary = 0) const;
     bool composedEndsWithK() const;
     bool composedHasDiacritic() const;
     bool composedIsRecognizedEnglish() const;

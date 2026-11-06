@@ -1144,7 +1144,7 @@ bool Session::applyRetroOffer(const CaretSuggestion &s, InputContext &ic) {
 
 // TelexInputController.boundary(): shortcut first (composed, then raw keys), then the
 // auto-restore decision.
-void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcuts) {
+void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcuts, uint32_t endChar) {
     if (vt_is_empty(e_)) {
         vt_reset(e_);
         return;
@@ -1181,7 +1181,7 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
     bool autoRestore = autoRestore_ && !suppressRestore;
     if (mode_ == DisplayMode::Preedit) {
         char buf[256];
-        size_t n = vt_commit_text(e_, autoRestore, buf, sizeof buf);
+        size_t n = vt_commit_text_before(e_, autoRestore, endChar, buf, sizeof buf);
         std::string text(buf, n < sizeof buf ? n : sizeof buf - 1);
         retroInflight_ = text.size();
         if (!text.empty()) ic.commit(text);
@@ -1191,11 +1191,11 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
         std::string finalText;
         if (hintsOn_) {
             char buf[256];
-            size_t n = vt_peek(e_, autoRestore, buf, sizeof buf);
+            size_t n = vt_peek_before(e_, autoRestore, endChar, buf, sizeof buf);
             finalText.assign(buf, n < sizeof buf ? n : sizeof buf - 1);
         }
         vt_action a;
-        vt_commit(e_, autoRestore, &a);
+        vt_commit_before(e_, autoRestore, endChar, &a);
         // Typed in place letter by letter: the host may still lag by the whole word.
         retroInflight_ = word.size() + size_t(a.insert_len > 0 ? a.insert_len : 0);
         // Auto-restore deletes the word: with a selection at the caret the delete would hit
@@ -1358,7 +1358,7 @@ bool Session::processKey(const KeyEvent &ev, InputContext &ic) {
     // Symbol / digit shortcut keys ("=>" → "⟶"): only at whitespace (space, Enter, Tab) —
     // before the word path, which never sees them as a word.
     if ((ch == ' ' || newline || ev.keysym == ks::Tab) && tryTokenShortcut(ic)) gluedToDigit_ = false;
-    endWord(ic, printable && isBracket(ch), !gluedToDigit_);
+    endWord(ic, printable && isBracket(ch), !gluedToDigit_, printable ? ch : 0);
     // The engine needs EVERY boundary character (glued "my_var" / "100W"), retro or not.
     if (retroOn_)
         finishRetro(ic, printable ? ch : 0,

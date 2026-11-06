@@ -1017,6 +1017,33 @@ constexpr const char* const kCodeAcronymsBuckets[5] = {
 constexpr uint16_t kCodeAcronymsCounts[5] = {0,0,16,13,4};
 constexpr WordSet kCodeAcronyms{4, kCodeAcronymsBuckets, kCodeAcronymsCounts};
 
+// Contraction stems (EnglishContextWords.contractionStems): raw keys restored right
+// before an apostrophe ("doesn" 't, "there" 's).
+// 40 words
+constexpr const char* const kContractionStemsBuckets[7] = {
+  "",
+  "i",
+  "aicadoheisitwewo",
+  "aredidhadhashowletmayshashewaswhowhyyou",
+  "daredoeshaveheremustneedthattheythiswerewhatwhen",
+  "couldmighttherewherewould",
+  "should",
+};
+constexpr uint16_t kContractionStemsCounts[7] = {0,1,8,13,12,5,1};
+constexpr WordSet kContractionStems{6, kContractionStemsBuckets, kContractionStemsCounts};
+
+// All-caps acronyms Telex mangles (EnglishContextWords.capsAcronyms): ASAP, WWDC.
+// 5 words
+constexpr const char* const kCapsAcronymsBuckets[5] = {
+  "",
+  "",
+  "",
+  "ispwwf",
+  "asapussrwwdc",
+};
+constexpr uint16_t kCapsAcronymsCounts[5] = {0,0,0,2,3};
+constexpr WordSet kCapsAcronyms{4, kCapsAcronymsBuckets, kCapsAcronymsCounts};
+
 // Eager English restore (EnglishFreezePrefixes.swift): raw prefixes at which an English
 // word freezes with marks on screen; probed once per word at the freeze moment.
 constexpr int kFreezePrefixMinLength = 4;

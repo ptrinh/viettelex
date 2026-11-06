@@ -990,7 +990,7 @@ final class TelexInputController: IMKInputController {
             let allow = ShortcutMatch.triggers(boundary: inserted ?? "", glued: wordGluedToDigit)
             let rewrote = boundary(client, suppressAutoRestore: boundaryChar.map(isBracket) ?? false,
                                    allowShortcuts: allow.word, allowTokenShortcuts: allow.token,
-                                   allowAlnumShortcuts: allow.alnum)
+                                   allowAlnumShortcuts: allow.alnum, boundaryKey: boundaryText?.first)
             // "Tự sửa từ phía trước" (thử nghiệm): engine chỉ đặt phép sửa khi "Quyết định theo
             // ngữ cảnh" bật — không có ⇒ một phép so nil. Công tắc bật: áp TRƯỚC khi ký tự ranh
             // giới tới app (con trỏ ở cuối từ vừa chốt; `expected` chưa gồm ranh giới). Tắt:
@@ -2155,7 +2155,7 @@ final class TelexInputController: IMKInputController {
     private func boundary(_ client: IMKTextInput, suppressAutoRestore: Bool = false,
                           allowShortcuts: Bool = true, allowTokenShortcuts: Bool = false,
                           allowAlnumShortcuts: Bool = false,
-                          commitSuffix: String = "") -> Bool {
+                          commitSuffix: String = "", boundaryKey: Character? = nil) -> Bool {
         let wasEdge = edgeTapWord
         expandedAtBoundary = nil
         lastCommitRaw = ""
@@ -2212,7 +2212,8 @@ final class TelexInputController: IMKInputController {
         // Suppressed next to brackets (code context).
         let autoRestore = AppState.shared.autoRestore && !suppressAutoRestore
         lastCommitRaw = rawWord
-        let restored = engine.commitText(autoRestore: autoRestore)
+        // The key that ends the word: an apostrophe keeps an English contraction stem ("doesn't").
+        let restored = engine.commitText(autoRestore: autoRestore, boundary: boundaryKey)
         lastCommitWord = restored
         if marked {
             // Commit the marked text (replaces it with the final word). Optional

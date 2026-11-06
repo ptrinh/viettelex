@@ -41,6 +41,17 @@ class EngineBridgeTests {
         return proxy.text to bridge
     }
 
+    /** Dấu nháy là ranh giới của từ viết tắt tiếng Anh (07/11/2026; = TelexCore ContractionCapsReopenTests):
+     *  bridge chuyển ký tự ranh giới cho engine ⇒ "doesn't" giữ nguyên, không "doén't"; từ Việt trong nháy giữ dấu. */
+    @Test fun testContractionAtApostrophe() {
+        for (retro in listOf(false, true)) {
+            val st = KeyboardSettings(contextualEnglish = retro, retroEnglishAuto = retro)
+            assertEquals("it doesn't ", typeAll("it doesn't ", st).first)
+            assertEquals("isn't won't there's ", typeAll("isn't won't there's ", st).first)
+            assertEquals("'tiếng' ", typeAll("'tieesng' ", st).first)
+        }
+    }
+
     /** Viết tắt toàn chữ HOA, từ dính "_"/số (30/10/2026; = TelexCore) — có hay không sửa ngược. */
     @Test fun testAcronymAndGluedWords() {
         for (retro in listOf(false, true)) {

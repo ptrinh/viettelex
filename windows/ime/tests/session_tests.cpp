@@ -203,6 +203,20 @@ TEST(session_reopen_after_space) {
     bothModes("thays \ba", "thấy");
 }
 
+// The session hands the apostrophe to the engine: contraction stems stay English
+// ("doesn't", not "doén't"), a Vietnamese word in quotes stays Vietnamese.
+TEST(session_contraction_at_apostrophe) {
+    bothModes("it doesn't ", "it doesn't ");
+    bothModes("isn't won't there's ", "isn't won't there's ");
+    bothModes("'tieesng' ", "'tiếng' ");
+}
+
+// A restore that changed nothing on screen keeps the ⌫ re-open: "hoc ␣ ⌫ j" -> "học".
+TEST(session_reopen_after_noop_restore) {
+    bothModes("hoc \bj", "học");
+    bothModes("tien \bs", "tién");
+}
+
 TEST(session_reopen_needs_fresh_boundary) {
     // Typing another char after the space disarms the re-open: the two ⌫ are the
     // app's own, and no word is left open in the engine.

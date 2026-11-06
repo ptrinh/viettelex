@@ -9154,3 +9154,12 @@ en_dev_brand,OrderID,,OrderID,OrderID,restore_raw,mixed_case_identifier,high,nev
 en_dev_brand,DataDB,,DataDB,DataDB,keep_as_typed,mixed_case_identifier,high,never,issue #138 guard: dau khong bien doi
 vn_positive,HungfVM,,HùngVM,HùngVM,transform,vn_name_initials,high,never,issue #138: VM (Vo/Vu Minh) la viet tat ten, khong nam trong danh sach viet tat code
 vn_positive,TuaansPX,,TuấnPX,TuấnPX,transform,vn_name_initials,high,never,issue #138: PX (Pham/Phan Xuan) la viet tat ten
+buffer_boundary,doesn't,,doén't,doesn't,restore_raw,boundary_reset,critical,yes,"2026-11-07: stem 'doesn' truoc dau nhay la tu Anh (contractionStems), khong ra doén"
+buffer_boundary,isn't,,ín't,isn't,restore_raw,boundary_reset,critical,yes,"2026-11-07: stem 'isn' (is + n't) truoc dau nhay"
+buffer_boundary,hasn't,,hán't,hasn't,restore_raw,boundary_reset,critical,yes,"2026-11-07: stem 'hasn' (has + n't) truoc dau nhay"
+buffer_boundary,didn't,,đin't,didn't,restore_raw,boundary_reset,critical,yes,"2026-11-07: stem 'didn' (did + n't) truoc dau nhay"
+buffer_boundary,there's,,thể's,there's,restore_raw,boundary_reset,critical,yes,"2026-11-07: stem 'there' truoc dau nhay"
+buffer_boundary,'tieesng',,'tiếng','tiếng',transform,boundary_vn,high,never,"2026-11-07: tu Viet trong ngoac don giu dau (khong phai stem viet tat tieng Anh)"
+acronym_caps,ASAP,,ẤP,ASAP,restore_raw,acronym,medium,yes,"2026-11-07: viet tat toan chu HOA trong danh sach capsAcronyms"
+acronym_caps,WWDC,,WDC,WWDC,restore_raw,acronym,medium,yes,"2026-11-07: viet tat toan chu HOA (ww huy dau giua tu)"
+acronym_caps,USSR,,USR,USSR,restore_raw,acronym,medium,yes,"2026-11-07: viet tat toan chu HOA (ss huy dau giua tu)"

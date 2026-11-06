@@ -134,13 +134,25 @@ class ReEditTests {
         assertFalse(s.bridge.isComposing)
     }
 
-    @Test fun autoRestoredWordIsNotReopened() {
+    /** Khôi phục KHÔNG đổi gì trên màn hình (eager restore đã hiện "google" từ phím thứ 4):
+     *  chữ trên màn hình đúng là chữ engine giữ ⇒ ⌫ mở lại từ như mọi từ khác (07/11/2026,
+     *  = TelexCore testNoOpRestoreIsReopenable); gõ tiếp vẫn ra chữ thô. */
+    @Test fun noOpRestoredWordIsReopened() {
         val s = session(); val p = MockProxy()
         s.typeKeys(p, "google ")
         assertEquals("google ", p.text)
         s.typeKeys(p, "<")
         assertEquals("google", p.text)
-        assertFalse(s.bridge.isComposing)     // lời mời hoàn tác auto-restore giữ nguyên đường cũ
+        assertTrue(s.bridge.isComposing)
+        s.typeKeys(p, "s ")
+        assertEquals("googles ", p.text)
+    }
+
+    /** Từ chưa có dấu mà engine "khôi phục" y nguyên ("hoc"): ⌫ rồi thêm dấu vẫn sửa được từ đó. */
+    @Test fun noOpRestoreThenToneEditsTheWord() {
+        val s = session(); val p = MockProxy()
+        s.typeKeys(p, "hoc <j")
+        assertEquals("học", p.text)
     }
 
     // MARK: nạp lại từ trước con trỏ

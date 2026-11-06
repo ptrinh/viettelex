@@ -65,11 +65,17 @@ void vtx_backspace(vtx_engine* e, vtx_action* out);  /* PASSTHROUGH = let app de
 /* Word boundary: applies auto-restore, resets the word. Caller inserts the boundary
    char afterwards. `auto_restore` = settings autoRestore (app default ON). */
 void vtx_commit_boundary(vtx_engine* e, int auto_restore, vtx_action* out);
+/* Same, when the caller knows the character that ends the word (`boundary`, UTF-32; 0 =
+   unknown = vtx_commit_boundary). An apostrophe (' or U+2019) restores an English
+   contraction stem typed right before it ("doesn" 't, "isn" 't, "there" 's). */
+void vtx_commit_boundary_before(vtx_engine* e, int auto_restore, uint32_t boundary, vtx_action* out);
 
 /* Composition-mode commit: returns the final text (restore applied), resets word.
    Return value = length in UTF-16 units (buf is NUL-terminated; cap >= VTX_MAX_TEXT
    is always enough). */
 int32_t vtx_commit_text(vtx_engine* e, int auto_restore, uint16_t* buf, int32_t cap);
+/* vtx_commit_text with the word-ending character (see vtx_commit_boundary_before). */
+int32_t vtx_commit_text_before(vtx_engine* e, int auto_restore, uint32_t boundary, uint16_t* buf, int32_t cap);
 /* Same text commit_text would produce, without changing any state. */
 int32_t vtx_peek_commit_text(const vtx_engine* e, int auto_restore, uint16_t* buf, int32_t cap);
 

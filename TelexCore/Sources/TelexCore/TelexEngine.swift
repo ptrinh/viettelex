@@ -264,6 +264,10 @@ public struct TelexEngine {
     // the word it's the literal-letter escape, mid-word it ate a letter. See
     // `shouldRestoreRaw`. Mark doublers (aa a, ww, dd d, VNI 6-9) never set it.
     private var pToneCancelAt = -1
+    // A circumflex doubler (a/e/o) cancelled a hat it REACHED BACK to across letters (free
+    // marking: "seem" → sêm, + e → "seme"), as opposed to the adjacent "eee" escape.
+    // Read at the boundary only (`shouldRestoreRawBase`). Reset with the parse state.
+    private var pMarkCancelReachedBack = false
     private var pProcessed = 0
     private var pFreeMarking = false    // settings snapshot the state was built with
     private var pSimpleTelex = false
@@ -756,7 +760,11 @@ public struct TelexEngine {
     /// Word boundary reached. Optionally auto-restore the raw keystrokes when the
     /// composed word is not a valid Vietnamese syllable. Resets the engine.
     /// The caller inserts the boundary character itself afterwards.
-    public mutating func commitBoundary(autoRestore: Bool) -> TelexAction {
+    /// `boundary` = the character that ends the word, when the caller knows it. Only the
+    /// apostrophe matters today: an English contraction stem right before it ("doesn",
+    /// "isn", "there") comes back as typed — see `isContractionStemBeforeApostrophe`.
+    /// nil (the default) = unknown, exactly the old behaviour.
+    public mutating func commitBoundary(autoRestore: Bool, boundary: Character? = nil) -> TelexAction {
         defer { resetWord() }
         restoreUndo = nil
         guard rawCount > 0 else { reopenRawCount = 0; reopenOutCount = 0; return .none }
@@ -773,7 +781,7 @@ public struct TelexEngine {
         // only when a restore actually happens. shouldRestoreRaw() reads the PREVIOUS
         // word's context; previousWordEnglish is refreshed for the NEXT word after.
         let wantsRestore = outCount > 0
-            && (needsStandaloneWRunRestore() || (autoRestore && shouldRestoreRaw()))
+            && (needsStandaloneWRunRestore() || (autoRestore && shouldRestoreRaw(before: boundary)))
         var action: TelexAction = .none
         if wantsRestore, compositionDiffersFromRaw() {
             // Strip the shared leading run, exactly like diff() does per keystroke:
@@ -795,8 +803,10 @@ public struct TelexEngine {
         let elongate = !wantsRestore && outCount > 0 && isToneThenATail()
         if elongate { action = .replace(backspaces: 1, insert: elongatedTail()) }
         // The screen no longer shows `composed` (and no keystrokes re-compose "dạa"), so a
-        // ⌫ on the boundary must not re-open it — same as a restored word.
-        captureReopen(restored: wantsRestore || elongate)
+        // ⌫ on the boundary must not re-open it — same as a restored word. A restore that
+        // changed nothing on screen (raw keys == composition: "hoc", "tien", "github")
+        // leaves exactly `composed` there, so it keeps its snapshot.
+        captureReopen(restored: (wantsRestore && compositionDiffersFromRaw()) || elongate)
         noteCommittedWord(restored: wantsRestore)
         if retroactiveEnglish || !retroHistory.isEmpty { retroRecord(restored: wantsRestore, elongated: elongate) }
         updateContext(restored: wantsRestore)
@@ -944,9 +954,27 @@ public struct TelexEngine {
     ///     reach-back cancel is never one.
     /// Only then do the standard validity/exception rules decide.
     /// NON-mutating (scratch-free) so `peekCommitText` can share it verbatim.
-    private func shouldRestoreRaw() -> Bool {
+    private func shouldRestoreRaw(before boundary: Character? = nil) -> Bool {
         if shouldRestoreRawBase() { return true }
+        if let b = boundary, Self.isApostrophe(b), isContractionStemBeforeApostrophe() { return true }
         return englishByFrequency && frequencyPrefersEnglish()
+    }
+
+    /// ' typed, or ’ (a smart quote some hosts / mobile keyboards insert for it).
+    static func isApostrophe(_ ch: Character) -> Bool { ch == "'" || ch == "\u{2019}" }
+
+    /// ENGLISH CONTRACTION at the apostrophe: the word right before `'` is the stem of
+    /// "doesn't", "isn't", "won't", "there's", "I'll"… Committed on its own the stem reads
+    /// as Telex ("doesn" → doén, "isn" → ín, "won" → ươn, "there" → thể) — only the tail
+    /// ("t", "s", "ll") is known to be English. With the apostrophe RIGHT AFTER the word,
+    /// the raw keys come back when they — or they minus one final `n` (the n of n't) — are
+    /// on the closed `EnglishContextWords.contractionStems` list. A Vietnamese word in
+    /// single quotes ('tiếng') is not on it and stays Vietnamese. Boundary-only.
+    private func isContractionStemBeforeApostrophe() -> Bool {
+        guard compositionDiffersFromRaw(), let w = rawLowerWord() else { return false }
+        if EnglishContextWords.contractionStems.contains(w) { return true }
+        guard w.count >= 2, w.hasSuffix("n") else { return false }
+        return EnglishContextWords.contractionStems.contains(String(w.dropLast()))
     }
 
     /// Every restore rule except the frequency rule (`englishByFrequency`).
@@ -955,6 +983,10 @@ public struct TelexEngine {
         // vetted when the split was taken (valid syllable, no cancel, not an English
         // word) and the suffix is exactly what was typed — keep the screen.
         if initialsSplitAt >= 0 { return false }
+        // A listed ALL-CAPS acronym ("ASAP" → ẤP, "WWDC" → WDC) is what the user typed, even
+        // when Telex reads a common syllable or a cancel into it (closed list, see
+        // `EnglishContextWords.capsAcronyms`).
+        if isListedCapsAcronym() { return true }
         // ORDER IS THE POLICY. The cancel branch comes FIRST: a TRAILING escape
         // gesture (adjacent double modifier as the word's final keystroke — the user
         // is LOOKING at the screen and said "no diacritic, keep the letter") outranks
@@ -989,6 +1021,13 @@ public struct TelexEngine {
             if toneCancelAt >= 0, toneCancelAt < rawCount - 1, rawIsEnglishCollision() {
                 return true
             }
+            // VOWEL-DOUBLER cancel that REACHED BACK over letters (free marking: "seem" →
+            // sêm, then the next `e` undid the hat across the m — "seemed" → "semed"): like
+            // the reach-back tone cancel above it is no escape gesture (that is always the
+            // adjacent "eee"), so when the raw keys are a dictionary English word the
+            // dictionary wins ("seemed", "deemed", "needed"). "theme"+e ("themee") is no
+            // English word and keeps "theme".
+            if pMarkCancelReachedBack, rawIsEnglishCollision() { return true }
             // Chat elongation whose tail came from a mark doubler that cancelled
             // ("cosaaaaaaa" → "cóaaaaaa", "ajaaaaaaa" → "ạaaaaaa"): the composition is
             // a valid syllable plus the repeated tail, i.e. exactly what the user meant
@@ -1256,9 +1295,28 @@ public struct TelexEngine {
         for k in 0..<pCount where isVowelAscii(renderLetters[k].base) { hasVowel = true; break }
         guard hasVowel, compositionHasDiacritic(), composedIsValidSyllable() else { return false }
         // An acronym's tone letter is its LAST letter ("NAS", "AWS"); a tone key typed
-        // mid-word is Vietnamese spelling ("DAJA" → "DẠA", "DDAFN"), not an acronym.
-        if lastEffTone != .none, !isToneKey(rawCount - 1) { return false }
+        // mid-word is Vietnamese spelling ("DAJA" → "DẠA", "DDAFN"), not an acronym —
+        // unless the 3+ raw keys spell a dictionary English word ("NASA" → NẤ, "USA" → ÚA).
+        if lastEffTone != .none, !isToneKey(rawCount - 1), !(rawCount >= 3 && rawIsDictionaryWord()) {
+            return false
+        }
         return !composedIsCommonSyllable()
+    }
+
+    /// Raw keys (lowercased) are in the collision table or the context dictionary. Unlike
+    /// `rawIsEnglishCollision` this ignores `englishWordRestore` and the w rules — it only
+    /// asks "is this an English word?". Boundary-only (one String).
+    private func rawIsDictionaryWord() -> Bool {
+        guard let w = rawLowerWord() else { return false }
+        return EnglishCollisions.words.contains(w) || EnglishContextWords.words.contains(w)
+    }
+
+    /// ALL-CAPS 3+ keys on `EnglishContextWords.capsAcronyms`, and Telex changed them.
+    /// Boundary-only; byte pre-filters before the one String.
+    private func isListedCapsAcronym() -> Bool {
+        guard !vniMode, rawCount >= 3, rawCount <= 5, isUpperAscii(raw[0]), rawIsAllCapsToken(),
+              compositionDiffersFromRaw(), let w = rawLowerWord() else { return false }
+        return EnglishContextWords.capsAcronyms.contains(w)
     }
 
     /// Every raw key is an uppercase letter and the token has at least two capitals:
@@ -1731,7 +1789,7 @@ public struct TelexEngine {
     /// Final text to commit at a word boundary, with auto-restore applied
     /// (non-Vietnamese syllables fall back to the raw keystrokes). Resets the engine.
     /// Used by the marked-text controller path.
-    public mutating func commitText(autoRestore: Bool) -> String {
+    public mutating func commitText(autoRestore: Bool, boundary: Character? = nil) -> String {
         defer { resetWord() }
         restoreUndo = nil
         // Overflowed: never restore to `rawKeystrokes` (only the first 32 keys) —
@@ -1745,10 +1803,10 @@ public struct TelexEngine {
         // Decide with the PREVIOUS word's context, then refresh it for the NEXT word
         // (reusing the restore decision — no repeated checks).
         let wantsRestore = outCount > 0
-            && (needsStandaloneWRunRestore() || (autoRestore && shouldRestoreRaw()))
+            && (needsStandaloneWRunRestore() || (autoRestore && shouldRestoreRaw(before: boundary)))
         let elongate = !wantsRestore && outCount > 0 && isToneThenATail()
         let text = wantsRestore ? rawKeystrokes : (elongate ? composedElongated() : composed)
-        captureReopen(restored: wantsRestore || elongate)
+        captureReopen(restored: (wantsRestore && compositionDiffersFromRaw()) || elongate)
         noteCommittedWord(restored: wantsRestore)
         if retroactiveEnglish || !retroHistory.isEmpty { retroRecord(restored: wantsRestore, elongated: elongate) }
         updateContext(restored: wantsRestore)
@@ -1760,13 +1818,13 @@ public struct TelexEngine {
     /// trực tiếp trên engine, khỏi COW-copy cả struct (~10 buffer cố định mỗi
     /// lần copy khi `commitText` mutate). Phải trả về byte-identical với
     /// `{ var e = self; return e.commitText(autoRestore:) }`.
-    public func peekCommitText(autoRestore: Bool) -> String {
+    public func peekCommitText(autoRestore: Bool, boundary: Character? = nil) -> String {
         // Overflowed: mirror commitText — composed prefix, không bao giờ restore.
         if overflowed { return composed }
         if outCount > 0, needsStandaloneWRunRestore() {
             return rawKeystrokes
         }
-        if autoRestore, outCount > 0, shouldRestoreRaw() {
+        if autoRestore, outCount > 0, shouldRestoreRaw(before: boundary) {
             return rawKeystrokes
         }
         if outCount > 0, isToneThenATail() { return composedElongated() }
@@ -2292,6 +2350,7 @@ public struct TelexEngine {
         pCancelled = false
         pToneCancelAt = -1
         pToneCancelSpan = 0
+        pMarkCancelReachedBack = false
         pProcessed = 0
     }
 
@@ -2644,6 +2703,7 @@ public struct TelexEngine {
         pCancelled = false
         pToneCancelAt = -1
         pToneCancelSpan = 0
+        pMarkCancelReachedBack = false
         upperToneKey = false
         pFreeMarking = freeMarking
         pSimpleTelex = simpleTelex
@@ -2969,6 +3029,7 @@ public struct TelexEngine {
                     if letters[k].base == lower, letters[k].mark == .circumflex {
                         letters[k].mark = .none
                         pCancelled = true
+                        pMarkCancelReachedBack = true
                         appendLetter(base: lower, mark: .none, upper: upper)
                         rawLetter[at] = pCount - 1; return
                     }
