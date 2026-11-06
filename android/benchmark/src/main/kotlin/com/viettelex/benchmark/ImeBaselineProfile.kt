@@ -14,7 +14,8 @@ import org.junit.runner.RunWith
 /**
  * Sinh Baseline + Startup Profile cho bàn phím (đường: process mới → hiện bàn phím → gõ → đổi bảng
  * phím → ẩn). Chỉ chạy khi gọi rõ (vt.genProfile=1) — xem docs/PERF-IME-SHOW.md mục "Baseline Profile":
- * kết quả `ImeBaselineProfile_generate-baseline-prof.txt` chép vào app/src/main/baseline-prof.txt.
+ * cài bản KHÔNG R8 (:app:assembleBenchmarkProfile), kết quả `ImeBaselineProfile_generate-startup-prof.txt`
+ * chép vào app/src/main/baseline-prof.txt.
  */
 @RunWith(AndroidJUnit4::class)
 class ImeBaselineProfile {

@@ -1,7 +1,6 @@
 // Đo thời gian hiện bàn phím + vẽ khi gõ (Macrobenchmark, chạy trên emulator/máy thật) —
-// docs/PERF-IME-SHOW.md. KHÔNG nằm trong bộ unit test mặc định; chạy bằng
-//   ./gradlew :benchmark:connectedBenchmarkAndroidTest
-// sau khi cài bàn phím bản đo (:app:installBenchmark) và host (:perfhost:installBenchmark).
+// docs/PERF-IME-SHOW.md. KHÔNG nằm trong bộ unit test mặc định; chạy bằng Scripts/ime-perf.sh
+// (hoặc ./gradlew :benchmark:connectedBenchmarkAndroidTest sau :app:installBenchmark).
 plugins {
     id("com.android.test")
     id("org.jetbrains.kotlin.android")

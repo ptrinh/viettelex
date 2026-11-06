@@ -44,7 +44,7 @@ class ImeRenderBudgetTest {
     /** Trần ngân sách — sửa theo quy trình ở đầu file. */
     object Budget {
         /** Số view trong cây input view lúc hiện (mặc định, chưa bật hiệu ứng / nhân vật). */
-        const val VIEWS = 8
+        const val VIEWS = 6
         /** Byte cấp phát cho MỘT lượt vẽ lại lưới phím (onDraw), sau lượt đầu (đã trừ chi phí View.draw). */
         const val DRAW_ALLOC_BYTES = 0L
         /** Byte cấp phát cho một lần chạm-nhả phím chữ (đường chạm + session + IcProxy, chưa tính lượt gợi ý hẹn giờ). */

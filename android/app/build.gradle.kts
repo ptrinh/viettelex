@@ -40,6 +40,14 @@ android {
             matchingFallbacks += listOf("release")
             isDebuggable = false
         }
+        // Sinh Baseline Profile (benchmark/ImeBaselineProfile): như "benchmark" nhưng KHÔNG R8 ⇒ luật
+        // profile mang tên lớp/hàm gốc (R8 tự đổi tên khi đóng bản release).
+        create("benchmarkProfile") {
+            initWith(getByName("benchmark"))
+            isMinifyEnabled = false
+            isShrinkResources = false
+            matchingFallbacks += listOf("release")
+        }
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
@@ -54,6 +62,9 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     // Mốc Perfetto "VT.*" (ImeTrace) — gần 0 chi phí khi không ghi trace.
     implementation("androidx.tracing:tracing:1.2.0")
+    // Cài Baseline Profile (app/src/main/baseline-prof.txt) cho bản APK ngoài Play. Bản kéo theo qua
+    // Compose (1.3.1) không hỗ trợ API 34+ ⇒ Android 14+ cài từ APK không bao giờ được biên dịch trước.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     // ExploreByTouchHelper (TalkBack cho từng phím) — đã có sẵn qua phụ thuộc bắc cầu, khai rõ.
     implementation("androidx.customview:customview:1.0.0")
     // Process ":settings" tự khởi tạo EmojiCompat (androidx.startup chỉ chạy ở process chính) —

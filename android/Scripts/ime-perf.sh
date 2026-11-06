@@ -8,7 +8,7 @@
 #     ITERATIONS   số vòng mỗi test (mặc định 10)
 #     COMPILATION  none | partial | full (mặc định none = mới cài, tệ nhất)
 #
-# Thiết bị: ANDROID_SERIAL nếu có nhiều máy. Cần build trước:
+# Thiết bị: ANDROID_SERIAL nếu có nhiều máy. APP_APK=… đo một APK bàn phím khác (so A/B). Cần build trước:
 #   ./gradlew --max-workers=2 :app:assembleBenchmark :perfhost:assembleBenchmark :benchmark:assembleBenchmark
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -19,7 +19,7 @@ COMP=${4:-none}
 PKG=com.viettelex.benchmark
 DEV_OUT=/sdcard/Android/media/$PKG/additional_test_output
 
-adb install -r app/build/outputs/apk/benchmark/app-benchmark.apk >/dev/null
+adb install -r "${APP_APK:-app/build/outputs/apk/benchmark/app-benchmark.apk}" >/dev/null
 adb install -r perfhost/build/outputs/apk/benchmark/perfhost-benchmark.apk >/dev/null
 adb install -r -t benchmark/build/outputs/apk/benchmark/benchmark-benchmark.apk >/dev/null
 adb shell rm -rf "$DEV_OUT"
