@@ -125,6 +125,7 @@ Mỗi nền tảng: test hiện có xanh; test mới cho (a) bộ chọn hồ s�
 | Tắt Thanh gợi ý (mobile) | Số từ gợi ý, Gợi ý cả khi app tắt gợi ý, Gợi ý số tiền, Kết quả phép tính, Gợi ý emoji, Nút Dán, Thêm dấu, Sửa lỗi bằng Apple Intelligence | Gợi ý sửa lỗi chạm trượt — "Cần bật Thanh gợi ý" |
 | Tắt Tự khôi phục từ tiếng Anh (desktop) | Khi từ vừa Anh vừa Việt, Đoán từ trùng theo tần suất | |
 | Tắt Quyết định theo ngữ cảnh | Tự sửa từ phía trước, Đoán từ trùng theo tần suất | |
+| Tắt Tự sửa từ phía trước | Đoán từ trùng theo tần suất (engine: `englishByFrequencyActive` = englishByFrequency && retroactiveEnglishActive) | |
 | Windows: tắt Hiện biểu tượng ở khay | Kiểu biểu tượng khay, Công cụ văn bản trong menu | |
 | Linux: tắt Ngoặc kép cong và gạch dài | Kiểu ngoặc kép | |
 | Linux: tắt Gợi ý từ | Học từ bạn gõ | |
