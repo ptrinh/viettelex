@@ -76,8 +76,8 @@
     "notes": "Gõ tắt bằng ký hiệu (=> → ⟶, <> → ⟷) chạy được khi đứng riêng."
   },
   "android": {
-    "version": "1.5.28",
-    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.28/VietTelex-android-1.5.28.apk",
+    "version": "1.5.29",
+    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.29/VietTelex-android-1.5.29.apk",
     "play": "https://play.google.com/store/apps/details?id=com.viettelex.android"
   }
 }
