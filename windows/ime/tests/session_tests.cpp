@@ -8,6 +8,8 @@
 #include "settings.h"
 #include "shortcuts.h"
 #include "app_policy.h"
+#include "typed_word.h"
+#include "ipc.h"
 #include "test.h"
 
 using namespace vtx;
@@ -1974,4 +1976,80 @@ TEST(describe_context_log_line) {
     const std::string n = describeContext(none, classifyContext(none), u"éx");
     CHECK(n.find("context: none ") == 0);
     CHECK(n.find(" host 4 class ?x") != std::string::npos);
+}
+
+// ---- WPF list: the TIP's record of the word passed as typed (typed_word.h, 1.3.16) -----
+namespace {
+KeyInput charKey(char32_t c) {
+    KeyInput k;
+    k.kind = KeyKind::Char;
+    k.ch = c;
+    return k;
+}
+KeyInput kindKey(KeyKind kind) {
+    KeyInput k;
+    k.kind = kind;
+    return k;
+}
+TypedWord typedOf(const char* keys) {
+    TypedWord w;
+    for (const char* p = keys; *p; ++p)
+        w.note(*p == '\b' ? kindKey(KeyKind::Backspace) : charKey(static_cast<unsigned char>(*p)));
+    return w;
+}
+}  // namespace
+
+TEST(typed_word_round_trip) {
+    CHECK_EQ(typedOf("").encoded(), 0u);
+    CHECK(decodeTypedWord(typedOf("doj").encoded()).raw == u"doj");
+    CHECK(decodeTypedWord(typedOf("Tie9Z").encoded()).raw == u"Tie9Z");
+    const uint32_t v = typedOf("zzzzz").encoded();  // the largest value still < bit 30
+    CHECK(v < kTypedWordUnknown);
+    CHECK(decodeTypedWord(v).raw == u"zzzzz");
+    // Too long for the record: unknown (the hook keeps waiting for a boundary).
+    CHECK(decodeTypedWord(typedOf("tieeng").encoded()).unknown);
+    CHECK(decodeTypedWord(typedOf("tieeng\b").encoded()).unknown);  // stays unknown
+}
+
+TEST(typed_word_follows_the_app) {
+    CHECK(decodeTypedWord(typedOf("dox\b").encoded()).raw == u"do");  // ⌫ deletes one
+    CHECK_EQ(typedOf("\bd").encoded(), typedOf("d").encoded());         // ⌫ on nothing
+    CHECK_EQ(typedOf("abc ").encoded(), 0u);                            // space ends the word
+    CHECK(decodeTypedWord(typedOf("abc.do").encoded()).raw == u"do");   // punctuation too
+    CHECK(decodeTypedWord(typedOf("o[").encoded()).unknown);             // bracket vowel key
+    TypedWord w = typedOf("do");
+    w.note(kindKey(KeyKind::Modifier));  // Shift for the next capital
+    CHECK(decodeTypedWord(w.encoded()).raw == u"do");
+    for (KeyKind k : {KeyKind::Boundary, KeyKind::Navigation, KeyKind::Chord, KeyKind::Other}) {
+        TypedWord x = typedOf("do");
+        x.note(kindKey(k));
+        CHECK_EQ(x.encoded(), 0u);
+    }
+    KeyInput pad = charKey(U'1');  // numpad digit: never a word key
+    pad.numpad = true;
+    TypedWord y = typedOf("do");
+    y.note(pad);
+    CHECK_EQ(y.encoded(), 0u);
+    TypedWord z = typedOf("do");
+    z.invalidate();  // a key retyped / injected by VietTelex
+    CHECK(decodeTypedWord(z.encoded()).unknown);
+    z.note(charKey(U'c'));
+    CHECK(decodeTypedWord(z.encoded()).unknown);
+    z.note(charKey(U' '));
+    CHECK_EQ(z.encoded(), 0u);
+}
+
+TEST(typed_word_published_only_where_keys_pass_as_typed) {
+    const TypedWord w = typedOf("do");
+    CHECK_EQ(typedWordToPublish(false, w), 0u);
+    CHECK_EQ(typedWordToPublish(true, w), w.encoded());
+    // The WPF list context (wpfDefaultStore) is that context.
+    const ContextInfo c = wpfListContext();
+    CHECK(wpfDefaultStore(c, classifyContext(c)));
+}
+
+TEST(direct_mode_param_bits) {
+    CHECK_EQ(kDirectOn, 1u);
+    CHECK_EQ(kDirectAdoptTyped, 2u);
+    CHECK(((kDirectOn | kDirectAdoptTyped) & kDirectOn) != 0);
 }

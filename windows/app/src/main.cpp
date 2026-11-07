@@ -445,7 +445,9 @@ void runCommand(unsigned cmd, LPARAM lp = 0) {
                                 currentNotificationState()))
                 toastShow(lp ? L"V" : L"E");
             break;
-        case AppCommand::DirectMode: hookSetDirectFromTip(lp != 0); break;
+        case AppCommand::DirectMode:
+            hookSetDirectFromTip((lp & kDirectOn) != 0, (lp & kDirectAdoptTyped) != 0);
+            break;
         case AppCommand::SetAppLanguage: onAppLanguage(lp); break;
         case AppCommand::TextToolReply: textActionsTipReply(lp); break;
         case AppCommand::OpenSettings: showSettings(Tab::Typing); break;

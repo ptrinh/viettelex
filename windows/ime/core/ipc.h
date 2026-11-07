@@ -14,7 +14,11 @@ enum class AppCommand : unsigned {
     SetVni = 4,
     OpenAbout = 5,
     StateChanged = 6,
-    DirectMode = 7,  // TIP -> app: lParam 1 = let the hook type in this field (no underline)
+    // TIP -> app: lParam bit 0 = let the hook type in this field (no underline); bit 1
+    // (kDirectAdoptTyped, 1.3.16) = the keys of the word in progress reached the app as typed
+    // and are on the focus root (typed_word.h): the hook adopts that word instead of waiting
+    // for a boundary. 0 = released.
+    DirectMode = 7,
     // TIP -> app after an in-TIP Việt/Anh switch (1.1.5): bit 0 = Vietnamese, bit 1 = the
     // TIP could not store it (AppContainer / low IL): store it for the foreground app.
     // The app then refreshes the applang.txt mirror AppContainers read.
@@ -27,6 +31,8 @@ enum class AppCommand : unsigned {
     // on the typing path (posted only on a switch).
     UserSwitched = 10,
 };
+
+constexpr unsigned kDirectOn = 1, kDirectAdoptTyped = 2;  // AppCommand::DirectMode lParam bits
 
 inline bool isValidAppCommand(unsigned v) { return v >= 1 && v <= 10; }
 // Commands a user may pass as `--command <n>` (StateChanged is TIP-internal).
