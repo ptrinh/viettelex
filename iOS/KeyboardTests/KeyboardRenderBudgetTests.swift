@@ -256,6 +256,27 @@ final class KeyboardRenderBudgetTests: XCTestCase {
 
     // MARK: đổi mặt phím
 
+    /// Bug 1.2.31 (người dùng báo 07/11/2026): bấm 123 ⇒ phím ABC cùng chỗ sẫm thay cho tới khi
+    /// nhấc — nhưng nút 123 cũ đã bị gỡ nên không nhận nhấc ⇒ ABC sẫm mãi tới khi mở lại bàn phím.
+    func testPlaneKeyCarriedPressReleasesWithoutTouchUp() {
+        let restore = useDefaults(rich: false)
+        defer { restore() }
+        let r = KeyboardStartupTests.Rig(fullAccess: false)
+        defer { r.close() }
+        Self.spin(0.1)
+        let kb = r.vc.debugKeyboard
+        XCTAssertTrue(kb.debugPressPlaneKeyDownOnly()); r.vc.view.layoutIfNeeded()
+        XCTAssertTrue(kb.debugCarriedPressActive, "ABC sẫm thay trong lúc ngón tay còn đè")
+        Self.spin(0.3)
+        XCTAssertFalse(kb.debugCarriedPressActive, "chạm đã hết ⇒ thôi sẫm dù nút cũ không nhận nhấc")
+        XCTAssertFalse(kb.debugCarriedPressShown)
+        XCTAssertTrue(KeyboardView.carriedTouchEnded(phase: nil, elapsed: 0))
+        XCTAssertTrue(KeyboardView.carriedTouchEnded(phase: .ended, elapsed: 0.1))
+        XCTAssertTrue(KeyboardView.carriedTouchEnded(phase: .cancelled, elapsed: 0.1))
+        XCTAssertFalse(KeyboardView.carriedTouchEnded(phase: .stationary, elapsed: 0.1))
+        XCTAssertTrue(KeyboardView.carriedTouchEnded(phase: .stationary, elapsed: 11), "trần 10 giây")
+    }
+
     func testPlaneSwitchBudget() {
         let restore = useDefaults(rich: false)
         defer { restore() }

@@ -4378,7 +4378,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         /// Sự kiện tiếp theo (moved / ended / cancelled) của chạm đã chuyển.
         var onForwardedTouches: ((UITouch.Phase, Set<UITouch>, UIEvent?) -> Void)?
         private var forwardedTouches: Set<ObjectIdentifier> = []
+        /// Chạm vừa bắt đầu trên nút (phím đổi plane theo dõi nó sau khi bị gỡ — carryPress).
+        weak var lastBeganTouch: UITouch?
         override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+            lastBeganTouch = touches.first
             guard let pre = preTouchDown else { return super.touchesBegan(touches, with: event) }
             var keep = touches
             for t in touches where pre(self, t, event) {
@@ -5223,10 +5226,33 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
               nb.isSpecial, nb.pressedBackground != nil else { return }
         nb.press()
         carriedPress = nb
+        watchCarriedTouch(old.lastBeganTouch)
     }
     private func releaseCarriedPress() {
+        carriedWatch?.invalidate(); carriedWatch = nil
         carriedPress?.release()
         carriedPress = nil
+    }
+    /// Phím cũ đã bị gỡ khỏi màn hình ngay lúc chạm xuống ⇒ có thể KHÔNG nhận được nhấc / huỷ
+    /// (bug 1.2.31: bấm 123 xong phím ABC cùng chỗ sẫm mãi tới khi mở lại bàn phím). Theo dõi
+    /// chính chạm đó: kết thúc / huỷ / không còn chạm ⇒ thôi sẫm. Trần 10 giây.
+    private var carriedWatch: Timer?
+    private func watchCarriedTouch(_ touch: UITouch?) {
+        carriedWatch?.invalidate()
+        let start = CACurrentMediaTime()
+        carriedWatch = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self, weak touch] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if Self.carriedTouchEnded(phase: touch?.phase, elapsed: CACurrentMediaTime() - start) {
+                    self.releaseCarriedPress()
+                }
+            }
+        }
+    }
+    /// Thuần (test được): sẫm thay của phím đổi plane hết khi chạm không còn / đã nhấc / huỷ, hoặc quá 10s.
+    static func carriedTouchEnded(phase: UITouch.Phase?, elapsed: CFTimeInterval) -> Bool {
+        guard let phase, elapsed < 10 else { return true }
+        return phase == .ended || phase == .cancelled
     }
     enum ControlFire {
         case up, upOrCancel, down
@@ -7154,6 +7180,19 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         b.sendActions(for: .touchUpInside)
         return true
     }
+    /// Chỉ chạm xuống phím 123 (nút bị gỡ ngay, không bao giờ nhận nhấc — bug 1.2.31).
+    func debugPressPlaneKeyDownOnly() -> Bool {
+        func find(_ v: UIView) -> KeyButton? {
+            if let b = v as? KeyButton, b.accessibilityLabel == L("Số") || b.accessibilityLabel == L("Chữ") { return b }
+            for s in v.subviews { if let b = find(s) { return b } }
+            return nil
+        }
+        guard let b = find(rowsContainer) else { return false }
+        b.sendActions(for: .touchDown)
+        return true
+    }
+    var debugCarriedPressActive: Bool { carriedPress != nil }
+    var debugCarriedPressShown: Bool { carriedPress?.pressShown ?? false }
     #endif
     private func debugButton(_ title: String) -> KeyButton? {
         func find(_ v: UIView) -> KeyButton? {
