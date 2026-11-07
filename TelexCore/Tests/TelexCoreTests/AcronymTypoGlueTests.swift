@@ -28,7 +28,7 @@ final class AcronymTypoGlueTests: XCTestCase {
 
     func testRareAllCapsSyllableIsAnAcronym() {
         for (k, want) in [("NAS", "NAS"), ("OS", "OS"), ("AWS", "AWS"), ("SAS", "SAS"), ("RAS", "RAS"),
-                          ("TOAS", "TOAS"), ("IFS", "IFS")] {
+                          ("IFS", "IFS")] {
             XCTAssertEqual(type(k), want, k)
             XCTAssertEqual(type(k, free: true), want, k + " (free marking)")
         }

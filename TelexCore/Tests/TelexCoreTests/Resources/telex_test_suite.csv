@@ -9118,7 +9118,7 @@ en_dev_brand,AWS,,Ắ,AWS,restore_raw,acronym_all_caps,high,never,30/10/2026: vi
 en_dev_brand,OS,,Ó,OS,restore_raw,acronym_all_caps,high,never,30/10/2026: viet tat toan chu HOA
 en_dev_brand,SAS,,SÁ,SAS,restore_raw,acronym_all_caps,high,never,30/10/2026: viet tat toan chu HOA
 en_dev_brand,RAS,,RÁ,RAS,restore_raw,acronym_all_caps,high,never,30/10/2026: viet tat toan chu HOA
-en_dev_brand,TOAS,,TÓA,TOAS,restore_raw,acronym_all_caps,high,never,30/10/2026: viet tat toan chu HOA
+en_dev_brand,TOAS,,TÓA,TÓA,transform,acronym_all_caps,high,never,"07/11/2026: 4+ phim, dau go cuoi = tieng Viet viet HOA (MUTS->MUT, TETS->TET)"
 vn_positive,DDAF,,ĐÀ,ĐÀ,transform,vn_all_caps,high,never,30/10/2026 guard: am tiet HOA thuong gap giu tieng Viet
 vn_positive,NAWXNG,,NẴNG,NẴNG,transform,vn_all_caps,high,never,30/10/2026 guard
 vn_positive,CHUWS,,CHỨ,CHỨ,transform,vn_all_caps,high,never,30/10/2026 guard

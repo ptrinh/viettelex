@@ -1300,6 +1300,10 @@ public struct TelexEngine {
         if lastEffTone != .none, !isToneKey(rawCount - 1), !(rawCount >= 3 && rawIsDictionaryWord()) {
             return false
         }
+        // Acronyms with a Vietnamese-looking reading are short ("NAS", "AWS", "OS"). From
+        // 4 keys on, a token that is no English word is Vietnamese typed in capitals
+        // ("MUTS" → MÚT, "VIAS" → VÍA, "TAIX" → TÃI); English words ("MUST", "TEST") stay.
+        if rawCount >= 4, !rawIsDictionaryWord() { return false }
         return !composedIsCommonSyllable()
     }
 

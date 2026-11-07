@@ -758,6 +758,8 @@ class TelexEngine {
         // Mid-word tone key = Vietnamese spelling ("DAJA"), unless 3+ raw keys spell a
         // dictionary English word ("NASA" → NẤ, "USA" → ÚA).
         if (lastEffTone != T.NONE && !isToneKey(rawCount - 1) && !(rawCount >= 3 && rawIsDictionaryWord())) return false
+        // 4+ keys that are no English word = Vietnamese in capitals ("MUTS" → MÚT) — Swift twin.
+        if (rawCount >= 4 && !rawIsDictionaryWord()) return false
         return !lettersAreCommonSyllable(pCount)
     }
 

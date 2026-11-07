@@ -136,7 +136,10 @@ final class SuiteRegressionTests: XCTestCase {
         // 07/11/2026: harness passes the boundary character like the hosts do; contraction
         // stems before the apostrophe restore (won't, + 5 new rows doesn't/isn't/hasn't/
         // didn't/there's) and listed all-caps acronyms (+3 rows ASAP/WWDC/USSR). 7161 → 7170.
-        XCTAssertGreaterThanOrEqual(pass["restore_raw"] ?? 0, 7170,
+        // 07/11/2026 (maintainer): 4+ ALL-CAPS keys with the tone key last are Vietnamese
+        // in capitals unless on the collision table (MUTS → MÚT, TETS → TÉT); the TOAS row
+        // moves from restore_raw to transform. 7170 → 7169.
+        XCTAssertGreaterThanOrEqual(pass["restore_raw"] ?? 0, 7169,
                                     "English-restore coverage regressed")
         // Trailing-cancel screen-truth (2026-07-31): the escape gesture commits the
         // rendered text even when raw is a real English word — EXACT, no floor.

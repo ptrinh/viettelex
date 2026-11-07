@@ -238,7 +238,7 @@ void reachBackVowelCancel() {
 }
 
 void allCapsAcronyms() {
-    for (const char* w : {"NASA", "ASAP", "USA", "WWDC", "USSR", "WWF", "ISP", "VISA", "MUST"}) {
+    for (const char* w : {"NASA", "ASAP", "USA", "WWDC", "USSR", "WWF", "ISP", "VISA", "MUST", "TEST", "POST", "TAXI"}) {
         CHECK_EQ(typedMac(w), std::string(w));
         CHECK_EQ(typedWith(w, defaultFlags), std::string(w));
     }
@@ -250,6 +250,11 @@ void allCapsAcronyms() {
     CHECK_EQ(typedMac("DDaf Nawngx"), std::string("Đà Nẵng"));
     CHECK_EQ(typedMac("TIEESNG VIEETJ"), std::string("TIẾNG VIỆT"));
     CHECK_EQ(typedMac("CAS"), std::string("CÁ"));
+    CHECK_EQ(typedMac("MUTS"), std::string("MÚT"));
+    CHECK_EQ(typedMac("VIAS"), std::string("VIAS"));
+    CHECK_EQ(typedMac("TETS"), std::string("TÉT"));
+    CHECK_EQ(typedMac("TAIX"), std::string("TÃI"));
+    CHECK_EQ(typedMac("Os"), std::string("Ó"));
     CHECK_EQ(typedWith("DAJA", defaultFlags), std::string("DẠA"));
     CHECK_EQ(typedMac("HDD"), std::string("HĐ"));
     CHECK_EQ(typedMac("HW"), std::string("HƯ"));
@@ -572,7 +577,7 @@ std::string typeLikeController(vtx::TelexEngine& e, const std::string& text) {
 void acronymTypoGlueUndo() {
     struct Case { const char* in; const char* want; };
     const Case suite[] = {   // liveSpellCheck on, everything else engine default
-        {"NAS", "NAS{NAS>NÁ}"}, {"OS", "OS{OS>Ó}"}, {"AWS", "AWS{AWS>Ắ}"}, {"TOAS", "TOAS{TOAS>TÓA}"},
+        {"NAS", "NAS{NAS>NÁ}"}, {"OS", "OS{OS>Ó}"}, {"AWS", "AWS{AWS>Ắ}"}, {"TOAS", "TÓA"},
         {"VIEEJT", "VIỆT"}, {"DDAF NAWXNG", "ĐÀ NẴNG"}, {"HDDND", "HĐND"}, {"VNDD", "VNĐ"},
         {"AA", "Â"}, {"COS", "CÓ"}, {"QUYEETS DDINHJ", "QUYẾT ĐỊNH"},
         {"deepseek", "deepseek"}, {"casual", "casual"}, {"tester", "tester"}, {"keep", "keep"},

@@ -755,6 +755,8 @@ bool TelexEngine::isRareAllCapsAcronym() const {
     // dictionary English word ("NASA" -> NẤ, "USA" -> ÚA).
     if (lastEffTone_ != Tone::None && !isToneKeyAt(rawCount_ - 1) && !(rawCount_ >= 3 && rawIsDictionaryWord()))
         return false;
+    // 4+ keys that are no English word = Vietnamese in capitals ("MUTS" -> MÚT) — Swift twin.
+    if (rawCount_ >= 4 && !rawIsDictionaryWord()) return false;
     return !lettersAreCommonSyllable(pCount_);
 }
 
