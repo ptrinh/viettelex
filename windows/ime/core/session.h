@@ -173,6 +173,14 @@ public:
     // field never trips it): every key passes through untouched, nothing is claimed, until
     // resetContext() (new field / app). The TIP may hand the field to the hook (Direct).
     bool notTextField() const { return notTextField_; }
+    // Latch notTextField now, without the two-word evidence: the TIP knows from the context
+    // alone that the element has no text (app_policy.h wpfDefaultStore — WPF's default store
+    // behind a list). Called at a word start; ends any word. Kept until resetContext().
+    void markNotTextField() {
+        reset();
+        notTextField_ = true;
+        dropsPassedKeys_ = false;  // keys are not claimed at all: nothing to retype
+    }
     // A WPF element's own store (app_policy.h wpfOwnsClaimedKeys): the TIP composes there
     // from the first key and never lets a claimed key through. In case the element is no
     // text field after all (WPF's empty default store), every composition start is read

@@ -443,6 +443,8 @@ bool TextService::requestDirect(const char* why) {
     }
     if (!directWanted_) {
         directWanted_ = true;
+        directFocus_ = f;
+        directInWpf_ = focusWpf_;
         PostMessageW(app, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode), 1);
         config::log(std::string(why) + " (requested; composing until the hook acks)");
     }
@@ -630,6 +632,7 @@ void TextService::evaluateHostAtWordStart(ITfContext* ctx) {
 void TextService::evaluateHost(ITfContext* ctx) {
     SafeRelease(targetCtx_);
     ContextInfo c;
+    WCHAR cls[128] = {};  // focus window class (also for the context log line)
     c.console = consoleHost_;
     c.hasContext = ctx != nullptr;
     ITfDocumentMgr* dm = nullptr;
@@ -665,7 +668,7 @@ void TextService::evaluateHost(ITfContext* ctx) {
         HWND focus = GetFocus();
         c.unicodeWindow = !focus || IsWindowUnicode(focus);
         if (focus) {
-            WCHAR real[64] = {}, cls[128] = {};
+            WCHAR real[64] = {};
             RealGetWindowClassW(focus, real, 64);
             GetClassNameW(focus, cls, 128);
             c.editControl = isEditControlClass(reinterpret_cast<const char16_t*>(real),
@@ -675,7 +678,12 @@ void TextService::evaluateHost(ITfContext* ctx) {
     }
     if (dm) dm->Release();
     host_ = classifyContext(c);
+    focusWpf_ = c.wpf;
     if (host_ != HostText::NormalViaParent) SafeRelease(targetCtx_);
+    if (!contextLogged_ && config::logging()) {  // once per focus: the next report needs one log
+        contextLogged_ = true;
+        config::log(describeContext(c, host_, reinterpret_cast<const char16_t*>(cls)));
+    }
     // IMM32 app through CUAS: a key claimed in OnTestKeyDown and let through is lost there
     // (#134) — the session eats boundaries into the result string, OnKeyDown retypes the rest.
     if (c.cuasEmulated && host_ == HostText::CompositionOnly) session_.setHostDropsPassedKeys(true);
@@ -685,6 +693,17 @@ void TextService::evaluateHost(ITfContext* ctx) {
     // A store that never shows the keys the app got is no text field (a WPF file list with
     // type-to-filter): the session stops claiming keys there instead of composing into nothing.
     session_.setPassedKeysReachApp(passedKeysReachApp(c, host_));
+    // WPF's default store (a list with type-to-filter): no text field, known from the context
+    // alone (app_policy.h wpfDefaultStore). Keys pass as typed from the first one — a
+    // composition there types nothing — and the hook is asked to type (backspaces + Unicode).
+    if (wpfDefaultStore(c, host_)) {
+        if (!session_.notTextField()) {
+            session_.markNotTextField();
+            config::log("WPF default store (no text field) -> keys pass through");
+        }
+        requestDirect("WPF default store -> direct (hook)");
+        return;
+    }
     // WPF TextBox & co: a claimed key let through never reaches the element (app_policy.h
     // wpfOwnsClaimedKeys). Compose from the first key; boundaries go out with the word,
     // any other claimed key is retyped (#134 path). The composition is read back in case
@@ -776,11 +795,29 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     directBlockedLogged_ = false;
     retypeLogged_ = false;
     notTextFieldLogged_ = false;
-    if (directActive_ || directWanted_) {  // the new field is evaluated afresh
-        directActive_ = false;
-        directWanted_ = false;
-        if (HWND h = FindWindowW(kAppWindowClass, nullptr))
-            PostMessageW(h, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode), 0);
+    contextLogged_ = false;
+    if (directActive_ || directWanted_) {
+        // WPF moves TSF focus between its own documents inside one HwndSource (the filter bar
+        // appearing, a list refresh): the handover asked for that window stays (app_policy.h
+        // directSurvivesFocusChange). Any other change: the new field is evaluated afresh.
+        HWND f = GetFocus();
+        HWND root = f ? GetAncestor(f, GA_ROOT) : nullptr;
+        const bool keep = directSurvivesFocusChange(reinterpret_cast<uintptr_t>(directFocus_), directInWpf_,
+                                                    reinterpret_cast<uintptr_t>(f),
+                                                    root && GetForegroundWindow() == root);
+        HWND app = FindWindowW(kAppWindowClass, nullptr);
+        directActive_ = false;  // keep: the ack is re-checked at the next word start
+        if (keep) {
+            // Re-ask in case the hook dropped it (a foreground event for this same window);
+            // a repeat is a no-op there.
+            if (app) PostMessageW(app, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode), 1);
+            config::log("focus moved inside the handed-over WPF window -> direct kept");
+        } else {
+            directWanted_ = false;
+            directFocus_ = nullptr;
+            directInWpf_ = false;
+            if (app) PostMessageW(app, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode), 0);
+        }
     }
     hostEval_.invalidate();
     resolveActiveApp();

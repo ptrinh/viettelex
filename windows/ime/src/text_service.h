@@ -185,6 +185,10 @@ private:
     bool parentFailed_ = false;         // parent refused edit sessions for this focus
     bool directActive_ = false;         // this field is typed by the app's hook (Direct)
     bool directWanted_ = false;         // this field asked the app's hook to type (1.1.5)
+    HWND directFocus_ = nullptr;        // focus window the handover was asked for (1.3.16)
+    bool directInWpf_ = false;          // ...a WPF HwndSource: survives TSF focus moves inside it
+    bool focusWpf_ = false;             // last evaluateHost: focus window is WPF
+    bool contextLogged_ = false;        // context classification logged for this focus (1.3.16)
     bool directBlockedLogged_ = false;  // "not requested: UIPI" logged for this field (#134)
     bool retypeLogged_ = false;         // "claimed key retyped" logged for this field (#134)
     bool notTextFieldLogged_ = false;   // "not a text field" logged + Direct asked for this focus

@@ -141,6 +141,28 @@ bool wpfOwnsClaimedKeys(const ContextInfo& c, HostText host) {
     return c.wpf && host == HostText::Normal && !c.transitory && !c.console && !c.cuasEmulated;
 }
 
+bool wpfDefaultStore(const ContextInfo& c, HostText host) {
+    return c.wpf && host == HostText::NormalViaParent && !c.editControl && !c.console && !c.cuasEmulated;
+}
+
+bool directSurvivesFocusChange(uintptr_t requestedFocus, bool requestedInWpf, uintptr_t newFocus,
+                               bool newFocusInForeground) {
+    return requestedInWpf && requestedFocus != 0 && newFocus == requestedFocus && newFocusInForeground;
+}
+
+std::string describeContext(const ContextInfo& c, HostText host, const std::u16string& focusClass) {
+    auto b = [](bool v) { return v ? " 1" : " 0"; };
+    std::string s = "context:";
+    if (!c.hasContext) s += " none";
+    s += std::string(" transitory") + b(c.transitory) + " hasParent" + b(c.hasParent) + " parentTransitory" +
+         b(c.parentTransitory) + " editControl" + b(c.editControl) + " wpf" + b(c.wpf) + " cuasEmulated" +
+         b(c.cuasEmulated) + " readOnly" + b(c.readOnly) + " host " + std::to_string(static_cast<int>(host)) +
+         " class ";
+    for (char16_t ch : focusClass) s += (ch >= 0x20 && ch < 0x7F) ? static_cast<char>(ch) : '?';
+    if (focusClass.empty()) s += "-";
+    return s;
+}
+
 bool passedKeysReachApp(const ContextInfo& c, HostText host) {
     if (c.console || c.cuasEmulated) return false;
     if (wpfOwnsClaimedKeys(c, host)) return false;

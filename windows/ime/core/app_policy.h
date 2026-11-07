@@ -114,6 +114,31 @@ bool isWpfWindowClass(const std::u16string& className);
 // parent (a WPF list on WPF's default store) keeps the passedKeysReachApp rule.
 bool wpfOwnsClaimedKeys(const ContextInfo& c, HostText host);
 
+// WPF's default text store (1.3.16): a WPF window whose focused element has no text of its
+// own (a file list with type-to-filter, One Commander) — WPF keeps a transitory context with
+// a non-transitory transitory-extension parent there (NormalViaParent, no Edit). The app
+// takes the keys as text input; the store never shows them, and a composition there types
+// nothing. The TIP latches "not a text field" at the FIRST word start (session.h
+// markNotTextField: keys pass as typed) and asks the hook (Direct: backspaces + Unicode,
+// which the list does take) — instead of losing two words to the empty-store evidence.
+bool wpfDefaultStore(const ContextInfo& c, HostText host);
+
+// (1.3.16) Does a Direct handover survive a TSF focus change (ITfThreadMgrEventSink::
+// OnSetFocus)? WPF hosts every element in one HwndSource and moves TSF focus between its
+// own documents inside it (the filter bar appearing, a list refresh): the handover asked
+// for that window stays. Released when the focus window changes, when the window is no
+// longer the foreground one, or when the handover was not asked for a WPF window — a
+// Chromium / Electron window (VS Code: xterm.js terminal and the editor share one HWND)
+// must re-evaluate its next field, where the hook's blind retype would lose letters.
+// Window handles as integers; 0 = none.
+bool directSurvivesFocusChange(uintptr_t requestedFocus, bool requestedInWpf, uintptr_t newFocus,
+                               bool newFocusInForeground);
+
+// One debug-log line describing a classified context (1.3.16, once per focus change):
+// "context: transitory 1 hasParent 1 parentTransitory 0 editControl 0 wpf 1 cuasEmulated 0
+// host 1 class HwndWrapper[...]". Non-ASCII class characters are written as '?'.
+std::string describeContext(const ContextInfo& c, HostText host, const std::u16string& focusClass);
+
 // Does a key the TIP claims (OnTestKeyDown) and then lets through still reach the app in
 // this context? Decides what "the store shows none of the letters let through" means
 // (session.h setPassedKeysReachApp):
