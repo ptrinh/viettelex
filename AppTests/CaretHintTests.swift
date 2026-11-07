@@ -399,7 +399,11 @@ final class CaretHintTests: XCTestCase {
     }
 
     func testSurfaceChoice() {
-        XCTAssertEqual(L.surface(kind: .typo, imkPath: true, hasCandidateWindow: true, source: .imkFirstRect), .candidates)
+        // Phép tính / sửa lỗi gõ / thêm dấu / ngày giờ: ô nổi kể cả khi IMK có firstRect tốt —
+        // WhatsApp macOS không hiện ô ứng viên hệ thống (07/11/2026).
+        for k: CaretSuggestion.Kind in [.math, .number, .typo, .tones, .date] {
+            XCTAssertEqual(L.surface(kind: k, imkPath: true, hasCandidateWindow: true, source: .imkFirstRect), .panel, "\(k)")
+        }
         // Sửa từ phía trước: cụm nhiều từ, ô hệ thống cắt chữ ⇒ luôn ô nổi tự giãn.
         XCTAssertEqual(L.surface(kind: .retro, imkPath: true, hasCandidateWindow: true, source: .imkFirstRect), .panel)
         XCTAssertEqual(L.surface(kind: .typo, imkPath: true, hasCandidateWindow: true, source: .axCaret), .panel)

@@ -333,7 +333,11 @@ enum CaretHintLogic {
         // Gợi ý từ + sửa từ phía trước (nhiều từ): luôn ô nổi tự giãn — ô ứng viên hệ thống
         // hẹp, cắt mất cụm "His car is…" (Phil 23/10/2026).
         guard !kind.isPrediction, kind != .retro else { return .panel }
-        return imkPath && hasCandidateWindow && source == .imkFirstRect ? .candidates : .panel
+        // Mọi gợi ý còn lại cũng ô nổi (Phil 07/11/2026): WhatsApp macOS không hiện ô ứng viên
+        // hệ thống — "15*2=" không thấy "= 30" dù Tab vẫn chèn. Ô nổi hiện ở mọi app, cùng
+        // vị trí/kiểu với gợi ý từ. Đường ô hệ thống giữ lại nhưng không còn được chọn.
+        _ = (imkPath, hasCandidateWindow, source)
+        return .panel
     }
 }
 
