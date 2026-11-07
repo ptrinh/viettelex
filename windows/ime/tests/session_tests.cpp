@@ -1872,3 +1872,106 @@ TEST(wpf_policy) {
     ro.readOnly = true;
     CHECK(!wpfOwnsClaimedKeys(ro, classifyContext(ro)));
 }
+
+// ---- WPF list (default store): not a text field from the first word (1.3.16) ----------
+namespace {
+ContextInfo wpfListContext() {  // One Commander's file list: host 1 (NormalViaParent), wpf, no Edit
+    ContextInfo c;
+    c.wpf = true;
+    c.editControl = false;
+    c.transitory = true;
+    c.hasParent = true;
+    c.parentTransitory = false;
+    return c;
+}
+}  // namespace
+
+TEST(wpf_default_store_policy) {
+    const ContextInfo list = wpfListContext();
+    CHECK(classifyContext(list) == HostText::NormalViaParent);
+    CHECK(wpfDefaultStore(list, classifyContext(list)));
+    ContextInfo box;  // WPF TextBox: its own store -> composition (wpfOwnsClaimedKeys), not this
+    box.wpf = true;
+    box.editControl = false;
+    CHECK(!wpfDefaultStore(box, classifyContext(box)));
+    ContextInfo edit = list;  // classic Edit's parent mirror (MISA, #134): not WPF
+    edit.wpf = false;
+    edit.editControl = true;
+    CHECK(!wpfDefaultStore(edit, classifyContext(edit)));
+    ContextInfo other = list;  // a non-WPF TSF-native parent: keeps the two-word evidence
+    other.wpf = false;
+    CHECK(!wpfDefaultStore(other, classifyContext(other)));
+    ContextInfo ro = list;  // read-only: literal, nothing to decide
+    ro.readOnly = true;
+    CHECK(!wpfDefaultStore(ro, classifyContext(ro)));
+    ContextInfo parentTrans = list;  // transitory parent: composition only
+    parentTrans.parentTransitory = true;
+    CHECK(!wpfDefaultStore(parentTrans, classifyContext(parentTrans)));
+}
+
+TEST(wpf_list_first_word_passes_as_typed) {
+    // 1.3.15: two whole words went out unaccented before "not a text field" (and the
+    // handover was dropped at once). Now the TIP latches it at the first word start.
+    Settings st;
+    TypingSession s;
+    configureDefaults(s, st);
+    ListStore d;
+    // What TextService::evaluateHost does at the word start.
+    const ContextInfo c = wpfListContext();
+    const HostText h = classifyContext(c);
+    s.setPassedKeysReachApp(passedKeysReachApp(c, h));
+    CHECK(wpfDefaultStore(c, h));
+    s.markNotTextField();
+    CHECK(s.notTextField());
+    CHECK(!s.hostDropsPassedKeys());
+    // Until the hook acks, every key reaches the list as typed: nothing composed, nothing lost.
+    CHECK_EQ(typeList(s, d, "tieengs"), std::string("tieengs"));
+    CHECK_EQ(d.lostKeys, 0);
+    CHECK(!d.comp);
+    CHECK(!s.wordActive());
+    // A new field (focus change) is evaluated afresh.
+    s.resetContext();
+    CHECK(!s.notTextField());
+}
+
+TEST(mark_not_text_field_ends_a_word_in_progress) {
+    Settings st;
+    TypingSession s;
+    configureDefaults(s, st);
+    ListStore d;
+    KeyInput k;
+    k.kind = KeyKind::Char;
+    k.ch = U'a';
+    CHECK(s.wantsKey(k));
+    s.markNotTextField();
+    CHECK(!s.wantsKey(k));
+    CHECK(!s.handleKey(k, d));
+    CHECK(!s.wordActive());
+}
+
+TEST(direct_handover_survives_focus_moves_inside_a_wpf_window) {
+    const uintptr_t wpfWnd = 0x1234, other = 0x5678;
+    // One Commander: the filter bar appears / the list refreshes — same HwndSource.
+    CHECK(directSurvivesFocusChange(wpfWnd, true, wpfWnd, true));
+    // Another window (a dialog, an HwndHost child): released, evaluated afresh.
+    CHECK(!directSurvivesFocusChange(wpfWnd, true, other, true));
+    // The app lost the foreground (focus NULL, or the window is no longer in front).
+    CHECK(!directSurvivesFocusChange(wpfWnd, true, 0, false));
+    CHECK(!directSurvivesFocusChange(wpfWnd, true, wpfWnd, false));
+    // Not asked for a WPF window (VS Code: the terminal and the editor share one HWND).
+    CHECK(!directSurvivesFocusChange(wpfWnd, false, wpfWnd, true));
+    // Nothing recorded.
+    CHECK(!directSurvivesFocusChange(0, true, 0, true));
+}
+
+TEST(describe_context_log_line) {
+    const ContextInfo c = wpfListContext();
+    const std::string line = describeContext(c, classifyContext(c), u"HwndWrapper[OneCommander.exe;;ab]");
+    CHECK_EQ(line, std::string("context: transitory 1 hasParent 1 parentTransitory 0 editControl 0 wpf 1 "
+                               "cuasEmulated 0 readOnly 0 host 1 class HwndWrapper[OneCommander.exe;;ab]"));
+    ContextInfo none;
+    none.hasContext = false;
+    const std::string n = describeContext(none, classifyContext(none), u"éx");
+    CHECK(n.find("context: none ") == 0);
+    CHECK(n.find(" host 4 class ?x") != std::string::npos);
+}
