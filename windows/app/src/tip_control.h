@@ -7,13 +7,21 @@
 #include <string>
 #include <vector>
 
+#include "input_switch.h"
+
 namespace vtx::app {
 
 bool addKeyboardForUser();     // InstallLayoutOrTip("042A:{CLSID}{PROFILE}")
 bool removeKeyboardForUser();  // same with ILOT_UNINSTALL
-// Make VietTelex Windows' default input method for this user (SetDefaultLayoutOrTip):
-// new app windows then start in VietTelex (input_switch.h, 2026-10 Ctrl+Shift report).
+// Make VietTelex Windows' default input method for this user (SetDefaultLayoutOrTip, then
+// the "Override for default input method" through Set-WinDefaultInputMethodOverride if it
+// does not already name VietTelex): new app windows then start in VietTelex (input_switch.h,
+// 2026-10 Ctrl+Shift report; 1.3.14 field report). True = the override names VietTelex
+// (or, where it cannot be read, SetDefaultLayoutOrTip succeeded). Blocks up to ~10 s
+// (PowerShell) only when the override has to be written.
 bool setDefaultKeyboardForUser();
+// HKCU\Control Panel\International\User Profile\InputMethodOverride vs VietTelex.
+OverrideState inputMethodOverride();
 // LOWORD of SPI_GETDEFAULTINPUTLANG (the default input language), 0 = unreadable.
 unsigned defaultInputLangId();
 // Remove another layout/TIP from this user's list ("042A:{CLSID}{PROFILE}" / "042A:0000042A").

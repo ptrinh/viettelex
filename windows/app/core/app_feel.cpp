@@ -56,6 +56,19 @@ ResolveRow welcomeResolveRow(const std::vector<ConflictKind>& found) {
     return ResolveRow::None;
 }
 
+std::vector<std::string> builtInKeyboardRemovals(const std::vector<ViProfile>& found, const std::string& ourClsid) {
+    std::vector<std::string> out;
+    for (const ViProfile& p : found) {
+        if (!isOtherVietnameseProfile(p, ourClsid)) continue;
+        const std::string spec = layoutOrTipSpec(p);
+        if (spec.empty()) continue;
+        bool dup = false;
+        for (const std::string& s : out) dup = dup || s == spec;
+        if (!dup) out.push_back(spec);
+    }
+    return out;
+}
+
 uintptr_t pickExitLayout(const uintptr_t* hkls, size_t count, uintptr_t saved) {
     if (!hkls) count = 0;
     if (rememberableLayout(saved))

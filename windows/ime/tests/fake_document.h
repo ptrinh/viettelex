@@ -53,6 +53,11 @@ public:
         return true;
     }
     bool compositionActive() override { return comp; }
+    bool compositionText(std::u16string& out) override {
+        if (!comp) return false;
+        out = text.substr(compStart, compEnd - compStart);
+        return true;
+    }
     bool misspelled = false;     // attribute of the last setComposition (red squiggle)
     int misspelledSets = 0;      // setComposition calls that asked for the red squiggle
     bool setComposition(const std::u16string& t, int absorb, bool bad) override {

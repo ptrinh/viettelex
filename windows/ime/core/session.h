@@ -60,6 +60,12 @@ public:
     // A sink that types blind (the hook: SendInput, nothing can be read back). The session
     // then trusts its own tracking: no stale checks, no verification fallbacks.
     virtual bool blind() { return false; }
+    // The text the store now holds in our active composition. False = unknown (no
+    // composition, or the sink cannot read it); the session then assumes it shows.
+    virtual bool compositionText(std::u16string& out) {
+        (void)out;
+        return false;
+    }
 };
 
 struct SessionOptions {
@@ -167,6 +173,12 @@ public:
     // field never trips it): every key passes through untouched, nothing is claimed, until
     // resetContext() (new field / app). The TIP may hand the field to the hook (Direct).
     bool notTextField() const { return notTextField_; }
+    // A WPF element's own store (app_policy.h wpfOwnsClaimedKeys): the TIP composes there
+    // from the first key and never lets a claimed key through. In case the element is no
+    // text field after all (WPF's empty default store), every composition start is read
+    // back: a store that holds none of it latches notTextField at once — that key, no
+    // longer claimed for retyping, goes to the app as typed. Kept until resetContext().
+    void setCompositionMustShow(bool on) { compositionMustShow_ = on; }
     // In-place word in progress, something changed the field (OnEndEdit): keep the word
     // only if the text before the caret still ends with it. Recognises the "deletion
     // dropped" signature (screen = word before the replace + inserted text) and switches
@@ -271,6 +283,7 @@ private:
     retro::Offer retroOffer_;            // see retroOffer()
     bool passedKeysReachApp_ = false;    // see setPassedKeysReachApp()
     bool notTextField_ = false;          // see notTextField()
+    bool compositionMustShow_ = false;   // see setCompositionMustShow()
     int emptyStoreHits_ = 0;             // words whose letters the store never showed
     // Gõ tắt with symbol / digit keys ("=>", "<>", "->": shortcuts.h findTokenShortcut).
     // The run of non-whitespace text this session saw typed right before the caret since the

@@ -670,6 +670,7 @@ void TextService::evaluateHost(ITfContext* ctx) {
             GetClassNameW(focus, cls, 128);
             c.editControl = isEditControlClass(reinterpret_cast<const char16_t*>(real),
                                                reinterpret_cast<const char16_t*>(cls));
+            c.wpf = isWpfWindowClass(reinterpret_cast<const char16_t*>(cls));
         }
     }
     if (dm) dm->Release();
@@ -684,6 +685,18 @@ void TextService::evaluateHost(ITfContext* ctx) {
     // A store that never shows the keys the app got is no text field (a WPF file list with
     // type-to-filter): the session stops claiming keys there instead of composing into nothing.
     session_.setPassedKeysReachApp(passedKeysReachApp(c, host_));
+    // WPF TextBox & co: a claimed key let through never reaches the element (app_policy.h
+    // wpfOwnsClaimedKeys). Compose from the first key; boundaries go out with the word,
+    // any other claimed key is retyped (#134 path). The composition is read back in case
+    // the element is no text field after all.
+    if (wpfOwnsClaimedKeys(c, host_) && !session_.notTextField()) {
+        session_.setHostDropsPassedKeys(true);
+        session_.setCompositionMustShow(true);
+        if (!session_.prefersComposition()) {
+            session_.setPreferComposition(true);
+            config::log("WPF text field: composition from the first key, claimed keys never let through");
+        }
+    }
     // No usable text store: prefer Direct (the hook types, no underline) over composition.
     if (host_ == HostText::CompositionOnly && requestDirect("context without surrounding text -> direct (hook)")) return;
     session_.setCompositionOnlyContext(host_ == HostText::CompositionOnly);

@@ -1635,6 +1635,10 @@ struct ListStore : TextSink {
     bool hasSelection() override { return false; }
     bool replaceBeforeCaret(const std::u16string& expect, const std::u16string&) override { return expect.empty(); }
     bool compositionActive() override { return comp; }
+    bool compositionText(std::u16string& out) override {  // a composition holds nothing here
+        out.clear();
+        return comp;
+    }
     bool setComposition(const std::u16string&, int, bool) override { return comp = true; }
     void endComposition(const std::u16string&) override { comp = false; }
     void endCompositionAsIs() override { comp = false; }
@@ -1726,4 +1730,145 @@ TEST(passed_keys_reach_app_policy) {
     ContextInfo con;
     con.console = true;
     CHECK(!passedKeysReachApp(con, classifyContext(con)));
+}
+
+// ---- WPF TextBox: a claimed key let through never arrives (One Commander, 1.3.14) ----
+namespace {
+// WPF feeds keys to TSF itself: a key the TIP claims in OnTestKeyDown becomes
+// Key.ImeProcessed, and when OnKeyDown lets it through WPF marks its KeyDown handled — no
+// TextInput, the TextBox never sees it. A key the TIP does not claim types normally. Like
+// TextService::OnKeyDown, the rig retypes a claimed, uneaten key (SendInput, arrives as an
+// unclaimed key) only when the session says the host drops such keys. '\n' = Enter.
+struct WpfBox {
+    Settings st;  // outlives the session (it keeps a pointer to the shortcuts)
+    TypingSession s;
+    FakeDocument doc;
+    int lost = 0;
+    WpfBox() { configureDefaults(s, st); }  // app default: in-place
+    // What TextService::evaluateHost tells the session at a word start.
+    void evaluate(bool withFix) {
+        ContextInfo c;  // a WPF TextBox: its own TSF store, not transitory
+        c.wpf = true;
+        c.editControl = false;
+        const HostText h = classifyContext(c);
+        if (!withFix) {  // 1.3.14: WPF was any TSF-native store
+            s.setPassedKeysReachApp(true);
+            return;
+        }
+        s.setPassedKeysReachApp(passedKeysReachApp(c, h));
+        if (wpfOwnsClaimedKeys(c, h) && !s.notTextField()) {
+            s.setHostDropsPassedKeys(true);
+            s.setCompositionMustShow(true);
+            s.setPreferComposition(true);
+        }
+    }
+    void type(const char* keys, bool withFix = true) {
+        for (const char* p = keys; *p; ++p) {
+            KeyInput k;
+            if (*p == '\n') {
+                k.kind = KeyKind::Boundary;
+            } else {
+                k.kind = KeyKind::Char;
+                k.ch = static_cast<unsigned char>(*p);
+            }
+            if (!s.wordActive()) evaluate(withFix);
+            const bool claimed = s.wantsKey(k);
+            if (!claimed) s.noteKeyPassedBy(k);
+            if (claimed && s.handleKey(k, doc)) continue;
+            if (claimed && !(s.hostDropsPassedKeys() && passedKeyRetype(k) != PassedKeyRetype::None)) {
+                ++lost;  // ImeProcessed, KeyDown handled: gone
+                continue;
+            }
+            CHECK(!doc.comp);
+            doc.appInsert(*p == '\n' ? u'\n' : static_cast<char16_t>(*p));
+        }
+    }
+    std::string text() const { return utf16ToUtf8(doc.text); }
+};
+}  // namespace
+
+TEST(wpf_textbox_without_the_fix_loses_keys) {
+    // Guard on the rig: 1.3.14 typed WPF in place, letting the first letter of every word
+    // through — gone. The report: an e-mail address showed almost nothing.
+    WpfBox b;
+    b.type("phuc@example.com", false);
+    // Empty field: "phuc" is gone; the 2nd empty-store word latches notTextField (1.3.12),
+    // the rest passes raw.
+    CHECK_EQ(b.lost, 4);
+    CHECK_EQ(b.text(), std::string("@example.com"));
+    // Text already before the caret: the store never ends with the word, so every word
+    // restarts at every key and each key is let through — all of them gone.
+    WpfBox c;
+    c.doc.setText(u"Ghi chu: ");
+    c.type("xin chao", false);
+    CHECK_EQ(c.lost, 8);  // the space too: it ends a word, so it is claimed
+    CHECK_EQ(c.text(), std::string("Ghi chu: "));  // nothing typed at all
+}
+
+TEST(wpf_textbox_composes_and_loses_nothing) {
+    WpfBox b;
+    b.type("phuc@example.com");
+    CHECK_EQ(b.text(), std::string("phuc@example.com"));
+    CHECK_EQ(b.lost, 0);
+    CHECK(!b.s.notTextField());
+    CHECK(b.s.wordMode() == OutputMode::Composition);
+    b.type(" tieengs vieetj, ddi\nok 1 2");
+    CHECK_EQ(b.text(), std::string("phuc@example.com tiếng việt, đi\nok 1 2"));
+    CHECK_EQ(b.lost, 0);
+}
+
+TEST(wpf_rename_box_replaces_the_selected_name) {
+    // Inline folder rename: the whole old name is selected; typing replaces it.
+    WpfBox b;
+    b.doc.setText(u"New folder");
+    b.doc.anchor = 0;
+    b.type("Taif lieeuj");
+    CHECK_EQ(b.text(), std::string("Tài liệu"));
+    CHECK_EQ(b.lost, 0);
+}
+
+TEST(wpf_store_holding_no_composition_is_not_a_text_field) {
+    // Safety net: should a WPF element without text (a list's empty default store) be
+    // classified as a TextBox, the first composition reads back empty -> keys pass from
+    // that very key on, nothing lost (what the list got in 1.3.12).
+    Settings st;
+    TypingSession s;
+    configureDefaults(s, st);
+    s.setHostDropsPassedKeys(true);
+    s.setCompositionMustShow(true);
+    s.setPreferComposition(true);
+    ListStore d;
+    CHECK_EQ(typeList(s, d, "markdown"), std::string("markdown"));
+    CHECK_EQ(d.lostKeys, 0);
+    CHECK(s.notTextField());
+    CHECK(!s.hostDropsPassedKeys());
+    CHECK(!d.comp);
+    s.resetContext();
+    CHECK(!s.notTextField());
+}
+
+TEST(wpf_policy) {
+    CHECK(isWpfWindowClass(u"HwndWrapper[OneCommander.exe;;3f2a9c1e-0b7d-4d4e-9a51-1f0e2c7b9a10]"));
+    CHECK(isWpfWindowClass(u"HwndWrapper[App;;1]"));
+    CHECK(!isWpfWindowClass(u"HwndWrapper["));
+    CHECK(!isWpfWindowClass(u"Edit"));
+    CHECK(!isWpfWindowClass(u"WindowsForms10.EDIT.app.0.141b42a_r6_ad1"));
+    CHECK(!isWpfWindowClass(u"Chrome_RenderWidgetHostHWND"));
+    ContextInfo box;  // WPF TextBox: own store, not transitory
+    box.wpf = true;
+    box.editControl = false;
+    CHECK(wpfOwnsClaimedKeys(box, classifyContext(box)));
+    CHECK(!passedKeysReachApp(box, classifyContext(box)));
+    ContextInfo list = box;  // WPF list: transitory-extension parent, no Edit (1.3.12 rule kept)
+    list.transitory = true;
+    list.hasParent = true;
+    list.parentTransitory = false;
+    CHECK(!wpfOwnsClaimedKeys(list, classifyContext(list)));
+    CHECK(passedKeysReachApp(list, classifyContext(list)));
+    ContextInfo word;  // Word / Firefox: unchanged
+    CHECK(!wpfOwnsClaimedKeys(word, classifyContext(word)));
+    CHECK(passedKeysReachApp(word, classifyContext(word)));
+    ContextInfo ro = box;  // read-only WPF box: literal, nothing claimed anyway
+    ro.readOnly = true;
+    CHECK(!wpfOwnsClaimedKeys(ro, classifyContext(ro)));
 }

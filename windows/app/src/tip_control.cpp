@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "foreground.h"
 #include "input_switch.h"
 #include "registration.h"
 
@@ -63,10 +64,11 @@ std::wstring selfPath() {
 }
 }  // namespace
 
-bool setDefaultKeyboardForUser() {
-    // SetDefaultLayoutOrTip (input.dll, documented in the TSF reference; no import library:
-    // LoadLibrary + GetProcAddress as the documentation shows). Profile-list format
-    // "0x042A:{CLSID}{PROFILE}"; flags 0 = store it AND apply it to the current session.
+namespace {
+// SetDefaultLayoutOrTip (input.dll, documented in the TSF reference; no import library:
+// LoadLibrary + GetProcAddress as the documentation shows). Profile-list format
+// "0x042A:{CLSID}{PROFILE}"; flags 0 = store it AND apply it to the current session.
+bool callSetDefaultLayoutOrTip() {
     const std::string spec = defaultLayoutOrTipSpec(vtx::reg::kLangId, vtx::reg::kClsid, vtx::reg::kProfile);
     const std::wstring w(spec.begin(), spec.end());
     HMODULE input = LoadLibraryExW(L"input.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -76,6 +78,52 @@ bool setDefaultKeyboardForUser() {
     const bool ok = fn && fn(w.c_str(), 0);
     FreeLibrary(input);
     return ok;
+}
+
+// Set-WinDefaultInputMethodOverride (documented, per user) in a hidden powershell.exe.
+bool runSetOverride() {
+    const std::string spec = inputMethodOverrideSpec(vtx::reg::kLangId, vtx::reg::kClsid, vtx::reg::kProfile);
+    wchar_t sys[MAX_PATH];
+    const UINT n = GetSystemDirectoryW(sys, MAX_PATH);
+    if (n == 0 || n >= MAX_PATH) return false;
+    const std::wstring exe = std::wstring(sys, n) + L"\\WindowsPowerShell\\v1.0\\powershell.exe";
+    const std::string args = setOverrideArgs(spec);
+    std::wstring cmd = L"\"" + exe + L"\" " + std::wstring(args.begin(), args.end());
+    STARTUPINFOW si = {};
+    si.cb = sizeof si;
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    PROCESS_INFORMATION pi = {};
+    if (!CreateProcessW(exe.c_str(), cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si,
+                        &pi))
+        return false;
+    const bool done = WaitForSingleObject(pi.hProcess, 10000) == WAIT_OBJECT_0;
+    DWORD code = 1;
+    if (done) GetExitCodeProcess(pi.hProcess, &code);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return done && code == 0;
+}
+}  // namespace
+
+OverrideState inputMethodOverride() {
+    wchar_t buf[256] = {};
+    DWORD sz = sizeof buf;
+    const bool present = RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\International\\User Profile",
+                                      L"InputMethodOverride", RRF_RT_REG_SZ, nullptr, buf, &sz) == ERROR_SUCCESS;
+    std::string v;
+    for (const wchar_t* p = buf; present && *p; ++p) v.push_back(*p < 0x80 ? static_cast<char>(*p) : '?');
+    return overrideState(present, v, vtx::reg::kLangId, vtx::reg::kClsid, vtx::reg::kProfile);
+}
+
+bool setDefaultKeyboardForUser() {
+    const bool set = callSetDefaultLayoutOrTip();
+    if (inputMethodOverride() == OverrideState::VietTelex) return true;
+    const bool ran = runSetOverride();
+    const OverrideState after = inputMethodOverride();
+    appLog("app", std::string("default input method override: ") + (ran ? "set" : "powershell failed") +
+                      (after == OverrideState::VietTelex ? " -> VietTelex" : " -> not VietTelex"));
+    return after == OverrideState::VietTelex || (!ran && set && after == OverrideState::None);
 }
 
 unsigned defaultInputLangId() {

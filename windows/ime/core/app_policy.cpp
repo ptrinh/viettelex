@@ -132,8 +132,18 @@ bool isEditControlClass(const std::u16string& realClass, const std::u16string& c
     return has(realClass, "edit") || has(className, "edit") || has(realClass, "memo") || has(className, "memo");
 }
 
+bool isWpfWindowClass(const std::u16string& className) {
+    static const std::u16string kPrefix = u"HwndWrapper[";
+    return className.size() > kPrefix.size() && className.compare(0, kPrefix.size(), kPrefix) == 0;
+}
+
+bool wpfOwnsClaimedKeys(const ContextInfo& c, HostText host) {
+    return c.wpf && host == HostText::Normal && !c.transitory && !c.console && !c.cuasEmulated;
+}
+
 bool passedKeysReachApp(const ContextInfo& c, HostText host) {
     if (c.console || c.cuasEmulated) return false;
+    if (wpfOwnsClaimedKeys(c, host)) return false;
     switch (host) {
         case HostText::Normal: return !c.transitory;
         case HostText::NormalViaParent: return !c.editControl;

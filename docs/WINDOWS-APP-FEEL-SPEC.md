@@ -105,6 +105,18 @@ Lựa chọn phụ cho máy không có quyền cài / muốn thử nhanh. Bản 
 | 6. Tài liệu + trang tải | test: HDSD/trang tải không nêu tên bộ gõ khác | `docs/hdsd`, `docs/en/guide`, trang tải: một nút tự chọn x64/ARM64 (`userAgentData`), không chắc ⇒ hiện cả hai; khối "Không cài được? Dùng bản portable" (link zip lấy từ `stable.json` `windows.portable_x64/arm64`, chưa có ⇒ trang Releases) |
 | Portable | `portable.h`: marker, đường dẫn `settings.ini`, `KeyValueFile`, nhường bản cài (`yields`), `hookPlan`, ô mật khẩu Win32, autostart | `settings_store.cpp` (kho `settings.ini`, không snapshot), `foreground.cpp`, `hook_fallback.cpp publishForegroundPortable`, mutex/lớp cửa sổ riêng, Ctrl+Shift tự đổi, "Khởi động cùng Windows" trong menu khay, cập nhật = mở trang tải; `scripts/make-portable.sh` + `release.sh` (zip từ exe đã ký, kiểm exe trong zip = exe đã ký, SHA256SUMS) |
 
+**Bổ sung sau báo lỗi 1.3.14** (Windows 10: cài xong vẫn phải tự gỡ bàn phím tiếng Việt có sẵn của
+Windows và tự đặt "Override for default input method" = VietTelex):
+- Đặt mặc định = `SetDefaultLayoutOrTip` **và** kiểm tra `HKCU\Control Panel\International\User
+  Profile\InputMethodOverride`; chưa phải VietTelex ⇒ chạy `Set-WinDefaultInputMethodOverride -InputTip
+  "042A:{CLSID}{PROFILE}"` (cmdlet có tài liệu, theo người dùng, không cần quyền quản trị) rồi đọc lại.
+  Lõi: `input_switch.h overrideState / setOverrideArgs`; thẻ Kiểu gõ cũng hiện khi override đang trỏ bàn
+  phím khác (kể cả bàn phím tiếng Việt của Windows — ngôn ngữ mặc định vẫn là vi-VN).
+- Màn chào: bàn phím tiếng Việt có sẵn của Windows có dòng riêng với **một nút "Gỡ"** — gỡ mọi bàn phím
+  đó khỏi danh sách của người dùng (`app_feel.h builtInKeyboardRemovals`), đặt VietTelex mặc định và
+  chọn ngay. Hộp xung đột gộp thành một nút cho mọi bàn phím đó. Phần mềm bên thứ ba không bao giờ bị
+  đụng tới; bộ gõ khác đang chạy vẫn là dòng "Xử lý…".
+
 **Chưa chạy trên Windows thật** (chỉ ctest host + biên dịch chéo llvm-mingw x86/x64/ARM64, TIP
 498 KB < 520 KB): chọn bàn phím cho phiên/cửa sổ (`ActivateProfile`, `WM_INPUTLANGCHANGEREQUEST`)
 và Thoát trả bàn phím cũ; bấm trái khay đổi Việt/Anh (TIP đọc lại trạng thái khi app lấy lại focus);

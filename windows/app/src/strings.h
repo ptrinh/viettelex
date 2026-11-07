@@ -155,6 +155,8 @@ enum class S {
     // Portable (no TIP): the line instead of the "Gợi ý cạnh con trỏ" group, and the caption of
     // "Sửa dấu từ đã gõ" (the hook reopens a word by ⌫ only)
     PortableHintsNote, ReEditWordPortableDesc,
+    // Welcome: one button removes Windows' built-in Vietnamese keyboard (field report 1.3.14)
+    RemoveBuiltInButton, RemovedBuiltIn,
     Count
 };
 
