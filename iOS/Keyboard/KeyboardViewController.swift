@@ -2775,6 +2775,10 @@ extension KeyboardViewController {
     /// lại) ⇒ xin hệ thống đo lại chiều cao. Mọi máy, mọi theme; thường chỉ một phép so sánh.
     private func checkHostOversize() {
         guard let kb = keyboard, !kb.isTornDown else { return }
+        // Chỉ khi đang hiện: trước viewWillAppear host đặt khung cả màn hình (812) cho controller
+        // cũ, mức xin còn của lần trước — xin đo lại lúc đó làm host (WhatsApp) giữ khung kính sai
+        // chiều cao tới khi app bị tắt hẳn (dải xám trên bàn phím, log máy Phil 07/11/2026).
+        guard appearance.showing else { return }
         let animating = UIView.inheritedAnimationDuration > 0
             || !(view.layer.animationKeys()?.isEmpty ?? true)
         switch hostOversize.observe(requested: kb.requestedHeight, viewHeight: view.bounds.height,

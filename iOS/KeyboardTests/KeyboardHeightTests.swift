@@ -722,6 +722,12 @@ final class HostOversizeControllerTests: XCTestCase {
             vc.view.layoutIfNeeded()
         }
 
+        // Trước viewWillAppear: host đặt khung cả màn hình cho controller (log WhatsApp 07/11) —
+        // không được xin host đo lại lúc này.
+        vc.view.frame = CGRect(x: 0, y: 0, width: w, height: H)
+        pass(); pass(); pass()
+        XCTAssertEqual(host.fittingChanges, 0, "chưa hiện: không xin host đo lại")
+
         vc.beginAppearanceTransition(true, animated: false)
         let req = vc.debugKeyboard.debugRequestedHeight
         XCTAssertGreaterThan(req, 0)
