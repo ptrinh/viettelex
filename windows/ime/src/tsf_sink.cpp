@@ -191,6 +191,20 @@ bool TsfTextSink::canReadContext() {
     return ok;
 }
 
+bool TsfTextSink::compositionText(std::u16string& out) {
+    out.clear();
+    ITfComposition* comp = svc_->composition();
+    if (!comp) return false;
+    ITfRange* r = nullptr;
+    if (FAILED(comp->GetRange(&r)) || !r) return false;
+    WCHAR buf[kMaxRead + 1];
+    ULONG got = 0;
+    // A composition we just set that cannot be read back holds nothing anyone sees.
+    if (SUCCEEDED(r->GetText(ec_, 0, buf, kMaxRead, &got))) out.assign(reinterpret_cast<const char16_t*>(buf), got);
+    r->Release();
+    return true;
+}
+
 bool TsfTextSink::compositionActive() { return svc_->composition() != nullptr; }
 
 bool TsfTextSink::setComposition(const std::u16string& text, int absorb, bool misspelled) {

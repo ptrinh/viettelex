@@ -79,6 +79,7 @@ struct ContextInfo {
     bool parentTransitory = true; // that parent's context status
     bool unicodeWindow = true;    // IsWindowUnicode(focus); ANSI windows mangle Unicode
     bool editControl = true;      // focus window is an Edit / RichEdit (isEditControlClass)
+    bool wpf = false;             // focus window is a WPF HwndSource (isWpfWindowClass)
 };
 
 enum class HostText : uint8_t {
@@ -96,12 +97,30 @@ HostText classifyContext(const ContextInfo& c);
 // `className` = GetClassNameW. Case-insensitive "edit" / "memo" in either.
 bool isEditControlClass(const std::u16string& realClass, const std::u16string& className);
 
+// Focus window is a WPF window (an HwndSource: class "HwndWrapper[<app>;<…>;<guid>]").
+// WPF hosts all of its elements in that one window; a Win32 control hosted inside it
+// (HwndHost: a WinForms / Edit child) has its own window and class.
+bool isWpfWindowClass(const std::u16string& className);
+
+// WPF feeds keys to TSF itself (TextServicesManager): a key the TIP claims in OnTestKeyDown
+// is marked Key.ImeProcessed and, when OnKeyDown then lets it through, WPF marks its KeyDown
+// handled — the message is never translated, no TextInput: the TextBox never gets it.
+// In-place typing lets the first letter of every word (and the Space / "@" / "." / Enter
+// ending it) through, so in a WPF TextBox nearly every key was lost (One Commander field
+// report, 1.3.14: an e-mail address, a folder rename). True for a WPF element's OWN text
+// store (not transitory: TextBox, RichTextBox, PasswordBox…): compose from the first key
+// and never let a claimed key through — the boundary goes out with the word, other keys
+// are retyped (session.h setHostDropsPassedKeys, the #134 path). A transitory-extension
+// parent (a WPF list on WPF's default store) keeps the passedKeysReachApp rule.
+bool wpfOwnsClaimedKeys(const ContextInfo& c, HostText host);
+
 // Does a key the TIP claims (OnTestKeyDown) and then lets through still reach the app in
 // this context? Decides what "the store shows none of the letters let through" means
 // (session.h setPassedKeysReachApp):
-//   Normal, not transitory      a TSF-native app's own store (Word, WPF, Firefox): the app
+//   Normal, not transitory      a TSF-native app's own store (Word, Firefox): the app
 //                               always gets an uneaten key -> the store is not the focused
-//                               element's text (WPF: the default store behind a list).
+//                               element's text. Not WPF (wpfOwnsClaimedKeys): there a
+//                               claimed key let through is lost.
 //   NormalViaParent, no Edit    a transitory-extension parent that is not a classic Edit's
 //                               mirror (WPF's default text store keeps that extension) -> same.
 //   everything else             IMM32 hosts through CUAS (transitory): the claimed key may

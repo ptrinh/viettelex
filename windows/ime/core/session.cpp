@@ -200,6 +200,7 @@ void TypingSession::resetContext() {
     dropsPassedKeys_ = false;
     passedKeysReachApp_ = false;
     notTextField_ = false;
+    compositionMustShow_ = false;
     emptyStoreHits_ = 0;
     if (engine_) vtx_reset_context(engine_);
 }
@@ -406,7 +407,19 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
     }
 
     if (comp) {
+        const bool starting = !sink.compositionActive();
         if (!sink.setComposition(now, 0, misspelled(engine_))) {
+            reset();
+            return false;
+        }
+        std::u16string held;
+        if (starting && compositionMustShow_ && sink.compositionText(held) && held.empty()) {
+            // The store took the composition but holds none of it: not this element's text
+            // (session.h setCompositionMustShow). Nothing of it was ever visible.
+            sink.endCompositionAsIs();
+            notTextField_ = true;
+            dropsPassedKeys_ = false;  // this key and the next go to the app as typed
+            if (opt_.log) opt_.log("composition: the store holds none of it -> not a text field, keys pass through");
             reset();
             return false;
         }
