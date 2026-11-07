@@ -50,6 +50,9 @@ enum : UINT {
 };
 
 // ---------------------------------------------------------------- hook-thread state
+constexpr UINT_PTR kSplitTimer = 1;  // on HookState::sink: the next pending chunk (Java AWT)
+bool isUnicodeInput(const INPUT& in) { return in.type == INPUT_KEYBOARD && (in.ki.dwFlags & KEYEVENTF_UNICODE); }
+
 struct Foreground {
     FgApp app;
     std::wstring exe;
@@ -92,6 +95,11 @@ struct HookState {
     // A TIP handover mid-word (WPF list, 1.3.16): the word the TIP let through as typed is
     // taken over at the first key instead of waiting for a boundary (word_adopt.h).
     WordAdoption adoption;
+    // Java AWT window (JetBrains, Swing; direct_policy.h splitsCorrection): Backspaces and
+    // the text after them go out kSplitCorrectionDelayMs apart; keys typed meanwhile queue
+    // behind the pending text. Sent from the hook callback and from kSplitTimer.
+    bool splitHost = false;
+    SplitInjection<INPUT> split{&isUnicodeInput};
 };
 HookState* h = nullptr;        // hook thread only
 DWORD g_hookTid = 0;
@@ -195,6 +203,87 @@ uint32_t typedWordOnForeground() {
     return root ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(GetPropW(root, kTypedWordProp))) : 0;
 }
 
+// ---- Java AWT split corrections (direct_policy.h splitsCorrection) ---------------------
+void stopSplitTimer() {
+    if (h->sink) KillTimer(h->sink, kSplitTimer);
+}
+
+void verifyLatestEdit() {
+    if (h->direct && h->session.wordActive())
+        directVerifyAfterEdit(h->fgHwnd, h->fgThread, h->session.shown(), ++h->editSeq);
+}
+
+// Pending text no longer belongs where it would land (another window, the hook stopping).
+void splitDrop(const char* why) {
+    if (!h->split.busy()) return;
+    h->split.clear();
+    stopSplitTimer();
+    dropWord();
+    appLog("hook", std::string("split correction: pending text dropped, word reset (") + why + ")");
+}
+
+// One SendInput of a split chunk. Blocked / cut short: like the one-batch path, the screen
+// is unknown and this field goes to composition.
+SendOutcome splitSend(std::vector<INPUT>& ev) {
+    if (ev.empty()) return SendOutcome::Ok;
+    const UINT total = static_cast<UINT>(ev.size());
+    const UINT sent = SendInput(total, ev.data(), sizeof(INPUT));
+    const SendOutcome out = classifySend(sent, total);
+    if (out != SendOutcome::Ok) {
+        appLog("hook", "SendInput " + std::to_string(sent) + "/" + std::to_string(total) + " events (split correction)");
+        h->split.clear();
+        stopSplitTimer();
+        dropWord();
+        markNoDirect(h->fgThread, "SendInput refused");
+        PostThreadMessageW(g_hookTid, kCmdDisableHere, 0, 0);
+    }
+    return out;
+}
+
+// A batch the hook would send in one SendInput: what may go now goes, the rest waits for
+// kSplitTimer (one chunk per tick: each tick is one pause).
+SendOutcome splitSubmit(const std::vector<INPUT>& batch) {
+    const bool wasBusy = h->split.busy();
+    std::vector<INPUT> now = h->split.submit(batch);
+    if (!wasBusy && h->split.busy()) SetTimer(h->sink, kSplitTimer, kSplitCorrectionDelayMs, nullptr);
+    return splitSend(now);
+}
+
+// Everything pending at once, then `after` (the key that cannot wait: a shortcut, a click).
+void splitFlush(const std::vector<INPUT>& after, const char* why) {
+    std::vector<INPUT> all = h->split.drain();
+    stopSplitTimer();
+    if (all.empty() && after.empty()) return;
+    if (!all.empty() && appLogging()) appLog("hook", std::string("split correction: pending text sent at once (") + why + ")");
+    all.insert(all.end(), after.begin(), after.end());
+    if (splitSend(all) == SendOutcome::Ok) verifyLatestEdit();
+}
+
+void splitTick() {
+    if (!h->split.busy()) return stopSplitTimer();
+    if (!injectionAllowed(reinterpret_cast<uintptr_t>(GetForegroundWindow()), reinterpret_cast<uintptr_t>(h->fgHwnd),
+                          false))
+        return splitDrop("foreground changed");
+    if (!injectionModifiersSafe(GetAsyncKeyState(VK_CONTROL) < 0, GetAsyncKeyState(VK_MENU) < 0,
+                                GetAsyncKeyState(VK_LWIN) < 0 || GetAsyncKeyState(VK_RWIN) < 0))
+        return splitDrop("modifier held");
+    std::vector<INPUT> chunk = h->split.next();
+    if (!h->split.busy()) stopSplitTimer();
+    if (splitSend(chunk) == SendOutcome::Ok && !h->split.busy()) verifyLatestEdit();
+}
+
+// A key the hook lets through as is. Behind pending split text it must not overtake: it
+// is eaten and replayed after that text (a shortcut cannot wait: the text goes at once).
+LRESULT passKey(int code, WPARAM wp, LPARAM lp, const KBDLLHOOKSTRUCT& kb, const KeyInput& k) {
+    if (!h->split.busy()) return CallNextHookEx(nullptr, code, wp, lp);
+    HookSink s;
+    if (k.kind == KeyKind::Char) s.addUnicode(static_cast<char16_t>(k.ch));
+    else s.addUserKey(kb);
+    if (k.kind == KeyKind::Chord) splitFlush(s.inputs, "shortcut");
+    else splitSubmit(s.inputs);
+    return 1;
+}
+
 LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     if (code != HC_ACTION || !h) return CallNextHookEx(nullptr, code, wp, lp);
     const auto* kb = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lp);
@@ -228,6 +317,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
         return CallNextHookEx(nullptr, code, wp, lp);
     }
     if (kb->flags & LLKHF_INJECTED) {  // someone else's synthetic input: do not compose over it
+        splitFlush({}, "other synthetic input");
         dropWord();
         return CallNextHookEx(nullptr, code, wp, lp);
     }
@@ -241,6 +331,15 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     if (k.kind == KeyKind::Modifier || k.kind == KeyKind::Other) {
         // Alt alone (menu bar), Win (Start, Win+Space), F-keys & co: the ⌫ trail is unsure.
         if (k.kind == KeyKind::Other || modifierDropsTrail(kb->vkCode)) h->trail.invalidate();
+        // Behind pending split text: Ctrl/Alt/Win or an F-key would act before that text
+        // lands (and turn its Backspaces into Ctrl+Backspace): the text goes now, the key
+        // right after it. Shift / Caps Lock change nothing pending and pass.
+        if (h->split.busy() && !keyPassesPendingSplit(kb->vkCode)) {
+            HookSink s;
+            s.addUserKey(*kb);
+            splitFlush(s.inputs, "modifier / function key");
+            return 1;
+        }
         return CallNextHookEx(nullptr, code, wp, lp);
     }
     // Engaged mid-focus on a TIP handover whose word passed as typed (WPF list): take that
@@ -265,21 +364,21 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     if (!h->arming.key(boundary) || (!h->session.wordActive() && !foregroundVietnamese())) {
         h->trail.invalidate();  // not typed by us (English, yielding, password field...)
         h->adoption.drop();
-        return CallNextHookEx(nullptr, code, wp, lp);
+        return passKey(code, wp, lp, *kb, k);
     }
     // An adopted word whose raw letters still differ from the session's text: ⌫ deletes the
     // last raw letter (the app does it), the rest is adopted again.
     if (h->adoption.owes() && k.kind == KeyKind::Backspace) {
         h->adoption.backspace(h->session);
-        return CallNextHookEx(nullptr, code, wp, lp);
+        return passKey(code, wp, lp, *kb, k);
     }
     switch (h->trail.before(k, h->session)) {
         case ReopenTrail::Before::Reopened:
             // ⌫ deletes the separator after the last word, which is back in the engine: the
             // app deletes it, the next keys edit the word. Nothing injected.
             if (appLogging()) appLog("hook", "backspace: last word reopened");
-            return CallNextHookEx(nullptr, code, wp, lp);
-        case ReopenTrail::Before::Popped: h->session.noteKeyPassedBy(k); return CallNextHookEx(nullptr, code, wp, lp);
+            return passKey(code, wp, lp, *kb, k);
+        case ReopenTrail::Before::Popped: h->session.noteKeyPassedBy(k); return passKey(code, wp, lp, *kb, k);
         case ReopenTrail::Before::Normal: break;
     }
     HookSink sink;
@@ -297,7 +396,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
         h->session.noteKeyPassedBy(k);
         if (!fixing) {
             h->trail.after(k, h->session, false, false, false);
-            return CallNextHookEx(nullptr, code, wp, lp);
+            return passKey(code, wp, lp, *kb, k);
         }
         h->trail.invalidate();
     } else {
@@ -305,7 +404,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     }
     if (sink.inputs.empty()) {
         h->trail.after(k, h->session, true, eaten, false);
-        return eaten ? 1 : CallNextHookEx(nullptr, code, wp, lp);
+        return eaten ? 1 : passKey(code, wp, lp, *kb, k);
     }
     // Edits + a key that should still reach the app: the key must come AFTER our
     // edits, so swallow it and replay it at the end of the batch.
@@ -314,6 +413,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
         else sink.addUserKey(*kb);
     }
     if (!h->breaker.allow(GetTickCount64(), static_cast<uint32_t>(sink.inputs.size()))) {
+        splitDrop("rate breaker");
         dropWord();
         return CallNextHookEx(nullptr, code, wp, lp);
     }
@@ -321,6 +421,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     // window now — drop it, reset the word, let the key go.
     if (!injectionAllowed(reinterpret_cast<uintptr_t>(GetForegroundWindow()), reinterpret_cast<uintptr_t>(h->fgHwnd),
                           false)) {
+        splitDrop("foreground changed");
         dropWord();
         appLog("hook", "foreground changed before injection: edit dropped, word reset");
         return CallNextHookEx(nullptr, code, wp, lp);
@@ -332,6 +433,19 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
         dropWord();
         appLog("hook", "modifier held at injection: edit dropped, word reset");
         return CallNextHookEx(nullptr, code, wp, lp);
+    }
+    // Java AWT (JetBrains): the text goes kSplitCorrectionDelayMs after the Backspaces, and
+    // behind anything still pending (splitSubmit). Failure handling is splitSend's.
+    if (h->splitHost) {
+        const SendOutcome out = splitSubmit(sink.inputs);
+        if (appLogging())
+            appLog("hook", std::string("split correction: ") + std::to_string(sink.backspaces) + " backspaces, " +
+                               std::to_string(sink.units) + " units, " + std::to_string(h->split.pendingChunks()) +
+                               " chunk(s) waiting, key class " + std::to_string(static_cast<int>(k.kind)));
+        if (out != SendOutcome::Ok) return out == SendOutcome::NothingSent ? CallNextHookEx(nullptr, code, wp, lp) : 1;
+        h->trail.after(k, h->session, true, eaten, true);
+        if (!h->split.busy()) verifyLatestEdit();  // else when the last chunk is out
+        return 1;
     }
     const UINT total = static_cast<UINT>(sink.inputs.size());
     const UINT sent = SendInput(total, sink.inputs.data(), sizeof(INPUT));
@@ -360,6 +474,8 @@ LRESULT CALLBACK mouseProc(int code, WPARAM wp, LPARAM lp) {
             h->chord.disarm();  // a click between press and release is not a toggle
             PostThreadMessageW(g_hookTid, kCmdSyncHooks, 0, 0);  // watcher only: drop this hook
         }
+        // Pending split text (JetBrains) goes now — best effort: it lands after this click.
+        splitFlush({}, "click");
         dropWord();  // caret probably moved
         h->arming.click();
     }
@@ -469,6 +585,10 @@ void configureSession(const Settings& s) {
 }
 
 LRESULT CALLBACK sinkProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == WM_TIMER && wp == kSplitTimer) {
+        if (h) splitTick();
+        return 0;
+    }
     if (msg == WM_INPUT && h && hooksNeeded()) {
         RAWINPUT ri;
         UINT sz = sizeof ri;
@@ -505,6 +625,8 @@ DWORD WINAPI hookThreadMain(void*) {
                 case kCmdForeground: {
                     std::unique_ptr<Foreground> f(reinterpret_cast<Foreground*>(msg.lParam));
                     const bool wasEngaged = h->wanted && h->fgHwnd == f->hwnd;
+                    if (!f->install || h->fgHwnd != f->hwnd) splitDrop("foreground changed");
+                    h->splitHost = f->install && splitsCorrection(f->app.windowClass);
                     h->fgExe = f->exe;
                     h->app = f->app;
                     h->fgThread = f->tid;
@@ -524,6 +646,7 @@ DWORD WINAPI hookThreadMain(void*) {
                     break;
                 }
                 case kCmdDisableHere:
+                    splitDrop("Direct stopped here");
                     h->trail.invalidate();
                     applyWanted(false);
                     setAck(nullptr);
@@ -534,6 +657,7 @@ DWORD WINAPI hookThreadMain(void*) {
                 case kCmdSuspend: {
                     const bool on = msg.wParam != 0;
                     if (on == h->suspended) break;
+                    if (on) splitDrop("suspended");
                     h->suspended = on;
                     h->trail.invalidate();
                     h->chord.disarm();

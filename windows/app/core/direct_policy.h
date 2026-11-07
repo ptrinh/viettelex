@@ -4,6 +4,7 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include <deque>
 #include <map>
 #include <string>
 #include <utility>
@@ -147,6 +148,81 @@ constexpr uint32_t kLlkhfExtended = 0x01;           // KBDLLHOOKSTRUCT::flags LL
 // `mappedScan` (MapVirtualKeyW) is used only when the hook reported no scan code.
 std::array<KeyInjection, 2> replayKeyInjection(uint32_t vk, uint32_t scanCode, uint32_t llFlags,
                                                uint16_t mappedScan);
+
+// ---- Java AWT hosts: Backspaces and text in separate SendInput batches (1.3.17) -------
+// JetBrains IDEs (IntelliJ IDEA, PyCharm, Android Studio, Rider, WebStorm, CLion, GoLand…)
+// and other Java Swing/AWT apps reach VietTelex through CUAS, so the TIP hands their
+// fields to the hook (Direct). AWT turns VK_BACK into a KEY_PRESSED the editor runs as an
+// ACTION, and the Unicode text (VK_PACKET -> WM_CHAR) into KEY_TYPED events inserted by
+// another path on its event-dispatch thread. When both arrive in one SendInput batch the
+// editor loses characters; with the text some tens of ms after the Backspaces it behaves.
+// Keyed on the top-level window class (every AWT window class starts with "SunAwt":
+// SunAwtFrame, SunAwtDialog…), so every JetBrains product and any Swing app is covered
+// without an exe list.
+bool splitsCorrection(const std::string& topLevelWindowClass);
+// The pause before text that follows a key event (Backspace or a replayed user key) in
+// such a host. A WM_TIMER on the hook thread: the real pause is this rounded up to the
+// system tick (~15.6 ms), i.e. 50-63 ms. 50 ms is the separation reported to work.
+constexpr unsigned kSplitCorrectionDelayMs = 50;
+// A key pressed while text is pending that may still go straight to the app: it changes
+// no text and no later Backspace (Shift, Caps Lock — the hook's replayed letters are
+// already cased). Ctrl / Alt / Win, F-keys and the like must not overtake the pending
+// text: the hook sends all of it at once, then that key.
+inline bool keyPassesPendingSplit(uint32_t vk) {
+    return vk == 0x10 || vk == 0xA0 || vk == 0xA1 || vk == 0x14;  // Shift, LShift, RShift, Caps Lock
+}
+
+// The hook's injection queue for such a host. `submit` takes one batch the hook would have
+// sent in ONE SendInput and returns what goes now: everything up to the first text event
+// that follows a key event. The rest waits; the caller sends `next()` after each pause.
+// While anything waits, a new batch (a correction, or a key the hook would have let
+// through, replayed) goes entirely behind it — a key typed during the pause never
+// overtakes the pending text. Pure (T = INPUT on Windows); the caller owns the timer.
+template <class T>
+class SplitInjection {
+public:
+    using IsText = bool (*)(const T&);
+    explicit SplitInjection(IsText isText) : isText_(isText) {}
+
+    bool busy() const { return !chunks_.empty(); }
+    size_t pendingChunks() const { return chunks_.size(); }
+
+    std::vector<T> submit(const std::vector<T>& batch) {
+        std::vector<std::vector<T>> parts(1);
+        // What went just before this batch: the tail of what waits (else sent long ago).
+        bool afterKey = busy() && !chunks_.back().empty() && !isText_(chunks_.back().back());
+        for (const T& e : batch) {
+            const bool text = isText_(e);
+            if (text && afterKey) parts.emplace_back();  // a pause before this event
+            parts.back().push_back(e);
+            afterKey = !text;
+        }
+        std::vector<T> now;
+        if (!busy()) now = std::move(parts[0]);
+        else chunks_.back().insert(chunks_.back().end(), parts[0].begin(), parts[0].end());
+        for (size_t i = 1; i < parts.size(); ++i) chunks_.push_back(std::move(parts[i]));
+        return now;
+    }
+    // A pause is over: the next chunk (empty when nothing waits).
+    std::vector<T> next() {
+        if (chunks_.empty()) return {};
+        std::vector<T> c = std::move(chunks_.front());
+        chunks_.pop_front();
+        return c;
+    }
+    // Everything that waits, in order, at once (a chord, a click: it cannot wait).
+    std::vector<T> drain() {
+        std::vector<T> all;
+        for (std::vector<T>& c : chunks_) all.insert(all.end(), c.begin(), c.end());
+        chunks_.clear();
+        return all;
+    }
+    void clear() { chunks_.clear(); }
+
+private:
+    IsText isText_;
+    std::deque<std::vector<T>> chunks_;
+};
 
 // UI Automation timeouts for the echo check (direct_verify.cpp, IUIAutomation2). The
 // defaults are 20 s each: a hung target app would stall the verify worker that long, and

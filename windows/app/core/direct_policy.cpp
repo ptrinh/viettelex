@@ -69,6 +69,8 @@ std::vector<DirectKeyEvent> directEditEvents(unsigned backspaces, const std::u16
     return v;
 }
 
+bool splitsCorrection(const std::string& cls) { return cls.compare(0, 6, "SunAwt") == 0; }
+
 std::array<KeyInjection, 2> replayKeyInjection(uint32_t vk, uint32_t scanCode, uint32_t llFlags,
                                                uint16_t mappedScan) {
     KeyInjection down;
