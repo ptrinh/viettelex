@@ -8,6 +8,7 @@
 #include <cwchar>
 
 #include "app.h"
+#include "app_feel.h"
 #include "foreground.h"
 #include "hotkey.h"
 #include "input_switch.h"
@@ -208,14 +209,35 @@ std::wstring conflictDescription(const std::vector<FoundConflict>& list) {
     return s;
 }
 
+bool removeBuiltInVietnameseKeyboards(const std::vector<FoundConflict>& list) {
+    std::vector<ViProfile> profiles;
+    for (const FoundConflict& c : list)
+        if (c.kind == ConflictKind::MicrosoftVietnamese) profiles.push_back(c.profile);
+    const std::vector<std::string> specs = builtInKeyboardRemovals(profiles, reg::kClsid);
+    bool ok = !specs.empty();
+    for (const std::string& spec : specs) {
+        const bool removed = removeLayoutOrTipForUser(widenAscii(spec.c_str()));
+        appLog("app", std::string("remove Windows Vietnamese keyboard ") + spec + (removed ? ": done" : ": failed"));
+        ok = ok && removed;
+    }
+    // What the user wanted: VietTelex is what Windows types Vietnamese with, from now on.
+    const bool made = setDefaultKeyboardForUser();
+    const bool selected = selectVietTelexForSession();
+    appLog("app", std::string("after removal: ") + (made ? "default" : "default failed") +
+                      (selected ? ", selected" : ", select failed"));
+    return ok;
+}
+
 void resolveConflicts(HWND owner, const std::vector<FoundConflict>& list) {
     if (list.empty()) {
         MessageBoxW(owner, tr(S::ConflictNone), tr(S::AppName), MB_OK | MB_ICONINFORMATION);
         return;
     }
-    // Buttons: 100+i open folder, 200+i how to quit, 300+i remove keyboard, 400 settings.
+    // Buttons: 100+i open folder, 200+i how to quit, 300 remove Windows' built-in
+    // Vietnamese keyboard(s) — one button for all of them, 400 settings.
     std::vector<std::wstring> labels;
     std::vector<int> ids;
+    bool removeOffered = false;
     for (size_t i = 0; i < list.size(); ++i) {
         const FoundConflict& c = list[i];
         if (c.kind == ConflictKind::WindowsHotkey) {
@@ -228,9 +250,10 @@ void resolveConflicts(HWND owner, const std::vector<FoundConflict>& list) {
             }
             labels.push_back(fmt(tr(S::ConflictHowToQuit), c.name));
             ids.push_back(200 + static_cast<int>(i));
-        } else {
-            labels.push_back(fmt(tr(S::ConflictRemoveMs), c.name) + L"\n" + tr(S::ConflictRemoveMsNote));
-            ids.push_back(300 + static_cast<int>(i));
+        } else if (!removeOffered) {
+            removeOffered = true;
+            labels.push_back(std::wstring(tr(S::ConflictRemoveMs)) + L"\n" + tr(S::ConflictRemoveMsNote));
+            ids.push_back(300);
         }
     }
     labels.push_back(tr(S::ConflictOpenLangSettings));
@@ -258,12 +281,8 @@ void resolveConflicts(HWND owner, const std::vector<FoundConflict>& list) {
     } else if (pressed >= 200 && pressed < 200 + static_cast<int>(list.size())) {
         const std::wstring& n = list[static_cast<size_t>(pressed - 200)].name;
         MessageBoxW(owner, fmt(tr(S::ConflictQuitHelp), n, n).c_str(), tr(S::AppName), MB_OK | MB_ICONINFORMATION);
-    } else if (pressed >= 300 && pressed < 300 + static_cast<int>(list.size())) {
-        const FoundConflict& c = list[static_cast<size_t>(pressed - 300)];
-        const std::string spec = layoutOrTipSpec(c.profile);
-        const bool ok = removeLayoutOrTipForUser(widenAscii(spec.c_str()));
-        appLog("app", std::string("remove Microsoft Vietnamese keyboard ") + spec + (ok ? ": done" : ": failed"));
-        if (ok) {
+    } else if (pressed == 300) {
+        if (removeBuiltInVietnameseKeyboards(list)) {
             MessageBoxW(owner, tr(S::ConflictRemoved), tr(S::AppName), MB_OK | MB_ICONINFORMATION);
         } else {
             MessageBoxW(owner, tr(S::ConflictRemoveFailed), tr(S::AppName), MB_OK | MB_ICONWARNING);

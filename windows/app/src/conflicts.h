@@ -26,5 +26,10 @@ std::wstring conflictDescription(const std::vector<FoundConflict>& list);
 // Task dialog: open the other app's folder / how to quit it / remove a Microsoft keyboard
 // from the list (InstallLayoutOrTip ILOT_UNINSTALL, else ms-settings:regionlanguage).
 void resolveConflicts(HWND owner, const std::vector<FoundConflict>& list);
+// One click (welcome row / conflict dialog): remove every Windows built-in Vietnamese
+// keyboard of `list` from the user's own list (app_feel.h builtInKeyboardRemovals), then
+// make VietTelex the default input method and select it. Third-party software untouched.
+// True = all removed.
+bool removeBuiltInVietnameseKeyboards(const std::vector<FoundConflict>& list);
 
 }  // namespace vtx::app

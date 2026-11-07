@@ -11,6 +11,7 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "onboarding.h"
@@ -77,6 +78,14 @@ TrayClick trayClickAction(TrayState state, bool portable);
 // show it (Windows' Ctrl+Shift clash alone does not: the Kiểu gõ page card covers it).
 enum class ResolveRow { None, OtherInputMethod, WindowsKeyboard, Both };
 ResolveRow welcomeResolveRow(const std::vector<ConflictKind>& found);
+
+// The one-button "remove Windows' built-in Vietnamese keyboard" (welcome row, conflict
+// dialog; field report 1.3.14: removing it by hand was confusing). The InstallLayoutOrTip
+// ILOT_UNINSTALL specs for every OTHER enabled Vietnamese profile of the user's list, each
+// once — never VietTelex, never a profile that cannot be expressed (those stay for
+// Windows Settings). Only the user's own list; Windows keeps the keyboard installed.
+// Third-party input methods are never in here (they are processes, not profiles).
+std::vector<std::string> builtInKeyboardRemovals(const std::vector<ViProfile>& found, const std::string& ourClsid);
 
 // ---- §5 Thoát: back to the keyboard used before VietTelex, else English -------------------
 // `hkls` = GetKeyboardLayoutList, `saved` = HKL stored when VietTelex was selected (0 =

@@ -4,8 +4,9 @@
 //   Đã sẵn sàng — gõ thử ở đây
 //   [ a box typed through VietTelex itself ]
 //   Đổi Việt/Anh: Ctrl+Shift hoặc bấm biểu tượng V/E ở khay.
-//   (only when found) one line + "Xử lý…"  — the existing conflict dialog (conflicts.h),
-//   which also offers removing Windows' own "Vietnamese Telex" from the keyboard list
+//   (only when found) one line + "Xử lý…"  — the existing conflict dialog (conflicts.h)
+//   (only when found) one line + "Gỡ"      — removes Windows' built-in Vietnamese keyboard
+//                                            from the user's list, VietTelex made default
 //   [Mở Cài đặt…]                [Bắt đầu gõ]
 //
 // Everything else (typing method, switch key, mixed-typing profile, tray) keeps its
@@ -15,6 +16,7 @@
 // Shown once per user. Not run on real Windows yet (built + host-tested only).
 #include <windows.h>
 #include <commctrl.h>
+#include <shellapi.h>
 
 #include <string>
 #include <vector>
@@ -37,6 +39,8 @@ enum : int {
     IdTryEdit = 100,
     IdResolve,
     IdSettings,
+    IdRemoveBuiltIn,
+    IdRemoveText,
 };
 
 HWND g_wnd = nullptr;
@@ -98,14 +102,19 @@ void build() {
     std::vector<ConflictKind> kinds;
     for (const FoundConflict& c : g_found) kinds.push_back(c.kind);
     const ResolveRow row = welcomeResolveRow(kinds);
-    if (row != ResolveRow::None) {
-        std::wstring msg;
-        if (row == ResolveRow::OtherInputMethod || row == ResolveRow::Both) msg = tr(S::ResolveOtherIme);
-        if (row == ResolveRow::WindowsKeyboard || row == ResolveRow::Both)
-            msg += (msg.empty() ? L"" : L" ") + std::wstring(tr(S::ResolveWindowsKb));
-        add(L"STATIC", msg.c_str(), SS_LEFT, 24, y, W - 48 - 124, 76);
+    // Another input method running: a line + "Xử lý…" (the conflict dialog: how to quit it —
+    // never quit for the user). Windows' built-in Vietnamese keyboard: its own line with a
+    // one-click "Gỡ" that removes it from the user's list and makes VietTelex the default.
+    if (row == ResolveRow::OtherInputMethod || row == ResolveRow::Both) {
+        add(L"STATIC", tr(S::ResolveOtherIme), SS_LEFT, 24, y, W - 48 - 124, 56);
         add(L"BUTTON", tr(S::ConflictButton), BS_PUSHBUTTON | WS_TABSTOP | WS_GROUP, W - 24 - 110, y, 110, 30,
             IdResolve);
+        y += 64;
+    }
+    if (row == ResolveRow::WindowsKeyboard || row == ResolveRow::Both) {
+        add(L"STATIC", tr(S::ResolveWindowsKb), SS_LEFT, 24, y, W - 48 - 124, 76, IdRemoveText);
+        add(L"BUTTON", tr(S::RemoveBuiltInButton), BS_PUSHBUTTON | WS_TABSTOP | WS_GROUP, W - 24 - 110, y, 110, 30,
+            IdRemoveBuiltIn);
         y += 86;
     }
 
@@ -131,6 +140,17 @@ LRESULT CALLBACK welcomeProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             switch (LOWORD(wp)) {
                 case IdResolve:
                     resolveConflicts(h, g_found);
+                    return 0;
+                case IdRemoveBuiltIn:
+                    // The user's explicit click: only Windows' own keyboard, only from their list.
+                    if (removeBuiltInVietnameseKeyboards(g_found)) {
+                        SetDlgItemTextW(h, IdRemoveText, tr(S::RemovedBuiltIn));
+                        EnableWindow(GetDlgItem(h, IdRemoveBuiltIn), FALSE);
+                    } else {
+                        MessageBoxW(h, tr(S::ConflictRemoveFailed), tr(S::AppName), MB_OK | MB_ICONWARNING);
+                        ShellExecuteW(h, L"open", kLanguageSettingsUri, nullptr, nullptr, SW_SHOWNORMAL);
+                    }
+                    SetFocus(GetDlgItem(h, IdTryEdit));
                     return 0;
                 case IdSettings:
                     finish();

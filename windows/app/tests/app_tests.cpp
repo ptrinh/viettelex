@@ -873,3 +873,31 @@ TEST(ui_strings_text_prediction_card) {
     CHECK(std::wstring(vtx::kTypingSettingsUri) == L"ms-settings:typing");  // what the button opens
 }
 
+
+// "Override for default input method" (field report 1.3.14: set by hand after install).
+TEST(default_input_method_override) {
+    const std::string clsid = "{12345678-1234-1234-1234-123456789ABC}";
+    const std::string prof = "{87654321-4321-4321-4321-CBA987654321}";
+    const std::string spec = inputMethodOverrideSpec(0x042A, clsid, prof);
+    CHECK_EQ(spec, std::string("042A:{12345678-1234-1234-1234-123456789ABC}{87654321-4321-4321-4321-CBA987654321}"));
+    CHECK(overrideState(true, spec, 0x042A, clsid, prof) == OverrideState::VietTelex);
+    CHECK(overrideState(true, "0x042a:{12345678-1234-1234-1234-123456789abc}{87654321-4321-4321-4321-cba987654321};",
+                        0x042A, clsid, prof) == OverrideState::VietTelex);
+    CHECK(overrideState(false, "", 0x042A, clsid, prof) == OverrideState::None);
+    CHECK(overrideState(true, "", 0x042A, clsid, prof) == OverrideState::None);
+    CHECK(overrideState(true, "0409:00000409", 0x042A, clsid, prof) == OverrideState::Other);
+    // Windows' own Vietnamese keyboard forced as default: same language, not VietTelex.
+    CHECK(overrideState(true, "042A:0000042A", 0x042A, clsid, prof) == OverrideState::Other);
+    CHECK_EQ(setOverrideArgs(spec),
+             std::string("-NoProfile -NonInteractive -WindowStyle Hidden -Command \"Set-WinDefaultInputMethodOverride "
+                         "-InputTip '042A:{12345678-1234-1234-1234-123456789ABC}{87654321-4321-4321-4321-CBA987654321}'\""));
+
+    const unsigned enUS = 0x0409;
+    CHECK(defaultInputAdvice(SwitchHotkey::CtrlShift, 0x042A, OverrideState::Other) ==
+          DefaultInputAdvice::MakeVietTelexDefault);  // vi-VN default, but not VietTelex
+    CHECK(defaultInputAdvice(SwitchHotkey::CtrlShift, enUS, OverrideState::VietTelex) == DefaultInputAdvice::None);
+    CHECK(defaultInputAdvice(SwitchHotkey::CtrlShift, enUS, OverrideState::None) ==
+          DefaultInputAdvice::MakeVietTelexDefault);
+    CHECK(defaultInputAdvice(SwitchHotkey::CtrlShift, 0x042A, OverrideState::None) == DefaultInputAdvice::None);
+    CHECK(defaultInputAdvice(SwitchHotkey::WinSpace, enUS, OverrideState::Other) == DefaultInputAdvice::None);
+}

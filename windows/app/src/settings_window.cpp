@@ -470,7 +470,8 @@ void onPerAppButton() {
 // settings -> Override for default input method).
 void onDefaultInputButton() {
     if (!setDefaultKeyboardForUser() ||
-        defaultInputAdvice(parseSwitchHotkey(g_settings.switchHotkey), defaultInputLangId()) != DefaultInputAdvice::None)
+        defaultInputAdvice(parseSwitchHotkey(g_settings.switchHotkey), defaultInputLangId(), inputMethodOverride()) !=
+            DefaultInputAdvice::None)
         openTypingSettings();
     PostMessageW(g_wnd, WM_APP + 1, 0, 0);  // re-read and redraw (the card disappears)
 }
@@ -594,7 +595,8 @@ std::vector<Item> pageItems(int tab) {
         ctx.mixedCardPending = mixedCardPending();
         // Ctrl+Shift / Alt+Z live in VietTelex: a window that starts on another keyboard
         // (Windows' default) needs Win+Space first. Offer the fix.
-        ctx.offerDefaultInput = defaultInputAdvice(parseSwitchHotkey(g_settings.switchHotkey), defaultInputLangId()) ==
+        ctx.offerDefaultInput = defaultInputAdvice(parseSwitchHotkey(g_settings.switchHotkey), defaultInputLangId(),
+                                                   inputMethodOverride()) ==
                                 DefaultInputAdvice::MakeVietTelexDefault;
     }
     for (const PageRow& r : settingsPageRows(static_cast<SettingsPage>(tab), g_settings, ctx)) {

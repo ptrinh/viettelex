@@ -383,3 +383,33 @@ TEST(idle_trim_only_when_nothing_is_on_screen_and_the_user_is_quiet) {
     // never the reason a keystroke stalls (the user had stopped typing for ≥ kQuietMs)
     CHECK(kQuietMs < kDelayMs && kRetryMs >= kQuietMs);
 }
+
+// ---------------------------------------------------------------- one-click built-in removal
+
+TEST(feel_built_in_keyboard_removals) {
+    const std::string ours = "{12345678-1234-1234-1234-123456789ABC}";
+    ViProfile us;  // VietTelex itself: never removed
+    us.langId = 0x042A;
+    us.isTip = true;
+    us.enabled = true;
+    us.clsid = ours;
+    us.profile = "{87654321-4321-4321-4321-CBA987654321}";
+    ViProfile telex = us;  // Windows' built-in Vietnamese TIP
+    telex.clsid = "{11111111-2222-3333-4444-555555555555}";
+    telex.profile = "{AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE}";
+    ViProfile legacy;  // the legacy "Vietnamese" layout
+    legacy.langId = 0x042A;
+    legacy.enabled = true;
+    legacy.hkl = 0x042A042A;
+    ViProfile disabled = telex;  // installed, not in the user's list
+    disabled.enabled = false;
+    disabled.profile = "{BBBBBBBB-BBBB-CCCC-DDDD-EEEEEEEEEEEE}";
+    ViProfile variant = legacy;  // a variant layout id: left to Windows Settings
+    variant.hkl = 0xF0C1042A;
+    const std::vector<std::string> r = builtInKeyboardRemovals({us, telex, legacy, telex, disabled, variant}, ours);
+    CHECK_EQ(r.size(), static_cast<size_t>(2));
+    CHECK_EQ(r[0], std::string("042A:{11111111-2222-3333-4444-555555555555}{AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE}"));
+    CHECK_EQ(r[1], std::string("042A:0000042A"));
+    CHECK(builtInKeyboardRemovals({us}, ours).empty());
+    CHECK(builtInKeyboardRemovals({}, ours).empty());
+}

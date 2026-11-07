@@ -120,6 +120,31 @@ DefaultInputAdvice defaultInputAdvice(SwitchHotkey h, unsigned defaultLangId);
 // SetDefaultLayoutOrTip profile-list string "0x042A:{CLSID}{PROFILE}" (documented format).
 std::string defaultLayoutOrTipSpec(unsigned langId, const std::string& clsid, const std::string& profile);
 
+// ---- "Override for default input method" (Windows 8+; field report 1.3.14) -------------
+// Windows Settings → Typing → Advanced keyboard settings → "Override for default input
+// method": the keyboard every new window starts with, whatever the language order. The
+// reporter (Windows 10, fresh 1.3.14) still had to pick "Vietnamese - VietTelex" there by
+// hand after SetDefaultLayoutOrTip. The documented per-user setter is PowerShell's
+// Set-WinDefaultInputMethodOverride -InputTip "<LANGID>:{CLSID}{PROFILE}" (International
+// module, no admin); Windows keeps it in HKCU\Control Panel\International\User Profile,
+// value InputMethodOverride (read back to check).
+std::string inputMethodOverrideSpec(unsigned langId, const std::string& clsid, const std::string& profile);
+enum class OverrideState {
+    None,       // no override: the first language's default keyboard
+    VietTelex,  // the override is VietTelex
+    Other,      // another keyboard (e.g. Windows' own Vietnamese one) is forced as default
+};
+// `present` = the registry value exists. Case-insensitive; "0x" and a trailing ';' tolerated.
+OverrideState overrideState(bool present, const std::string& value, unsigned langId, const std::string& clsid,
+                            const std::string& profile);
+// powershell.exe arguments that set it (spec from inputMethodOverrideSpec: hex + GUIDs only).
+std::string setOverrideArgs(const std::string& spec);
+// The Kiểu gõ card with the override known: VietTelex there -> nothing to offer; another
+// keyboard forced -> offer (even when that keyboard is a Vietnamese one: the default
+// language is then vi-VN although VietTelex is not what new windows get); none -> by
+// language as before.
+DefaultInputAdvice defaultInputAdvice(SwitchHotkey h, unsigned defaultLangId, OverrideState o);
+
 // Welcome window: pre-tick "make VietTelex the default input method"? Same rule as the
 // Kiểu gõ card — a fresh install leaves Windows on the old keyboard (ENG), and a UniKey
 // user has never needed Win+Space, so nothing types Vietnamese until it is switched.

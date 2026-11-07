@@ -234,11 +234,14 @@ const Pair kStrings[] = {
      L"Right-click the %s icon in the notification area (right end of the taskbar, maybe under the ^ arrow) and "
      L"choose Exit. To stop it starting with Windows: turn off its “Run at startup” option in %s, or disable it in "
      L"Task Manager → Startup apps."},
-    {L"Gỡ bàn phím “%s” khỏi danh sách ngôn ngữ", L"Remove the “%s” keyboard from the language list"},
-    {L"Chỉ gỡ khỏi danh sách bàn phím của bạn; Windows vẫn giữ nó, thêm lại được trong Cài đặt.",
-     L"Only removes it from your keyboard list; Windows keeps it and you can add it back in Settings."},
+    {L"Gỡ bàn phím tiếng Việt có sẵn của Windows", L"Remove Windows' built-in Vietnamese keyboard"},
+    {L"Chỉ bỏ khỏi danh sách bàn phím của bạn và đặt VietTelex làm mặc định. Windows vẫn giữ bàn phím đó, thêm "
+     L"lại được trong Cài đặt.",
+     L"Only takes it off your keyboard list and makes VietTelex the default. Windows keeps that keyboard; you can "
+     L"add it back in Settings."},
     {L"Mở Cài đặt ngôn ngữ của Windows", L"Open Windows language settings"},
-    {L"Đã gỡ bàn phím khỏi danh sách.", L"The keyboard was removed from the list."},
+    {L"Đã gỡ khỏi danh sách. Từ giờ Windows gõ tiếng Việt bằng VietTelex.",
+     L"Removed from the list. From now on Windows types Vietnamese with VietTelex."},
     {L"Không gỡ được tự động. Cài đặt ngôn ngữ của Windows sẽ mở ra: Tiếng Việt → Tuỳ chọn → Bàn phím → Gỡ.",
      L"Could not remove it automatically. Windows language settings will open: Vietnamese → Options → Keyboards → "
      L"Remove."},
@@ -410,10 +413,10 @@ const Pair kStrings[] = {
      L"The portable version cannot type into apps running as administrator."},
     {L"Một bộ gõ tiếng Việt khác đang chạy: hai bộ gõ cùng lúc sẽ bỏ dấu hai lần.",
      L"Another Vietnamese input method is running: two at once add every tone twice."},
-    {L"Danh sách bàn phím có “Vietnamese Telex” của Windows — đó không phải VietTelex. Gỡ khỏi danh sách để "
-     L"khỏi nhầm (thêm lại được).",
-     L"Your keyboard list has Windows' own “Vietnamese Telex” — that is not VietTelex. Remove it from the list "
-     L"to avoid mix-ups (you can add it back)."},
+    {L"Danh sách bàn phím còn bàn phím tiếng Việt có sẵn của Windows (không phải VietTelex), nó có thể giành "
+     L"chỗ mặc định. Bấm Gỡ để chỉ dùng VietTelex — thêm lại được bất cứ lúc nào.",
+     L"Your keyboard list also has Windows' built-in Vietnamese keyboard (not VietTelex), which can take over as "
+     L"the default. Click Remove to use only VietTelex — you can add it back anytime."},
     {L"VietTelex (bản cài) đang chạy trên máy này. Bản portable sẽ thoát để không bỏ dấu hai lần.",
      L"The installed VietTelex is running on this PC. The portable copy will quit so tones are not added twice."},
     {L"Đã có VietTelex %s. Mở trang tải để lấy bản portable mới?",
@@ -422,6 +425,10 @@ const Pair kStrings[] = {
      L"The portable version has no suggestions — use the installed version for them."},
     {L"Xoá lùi về từ vừa gõ rồi thêm dấu: “toan ” + Backspace + s → toán.",
      L"Backspace into the word you just typed to add a tone: “toan ” + Backspace + s → toán."},
+    // One-click removal of Windows' built-in Vietnamese keyboard (welcome row)
+    {L"Gỡ", L"Remove"},
+    {L"Đã gỡ — giờ chỉ còn VietTelex, và VietTelex là bàn phím mặc định.",
+     L"Removed — only VietTelex is left, and it is the default keyboard."},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace

@@ -58,6 +58,44 @@ std::string defaultLayoutOrTipSpec(unsigned langId, const std::string& clsid, co
     return s + ":" + clsid + profile;
 }
 
+std::string inputMethodOverrideSpec(unsigned langId, const std::string& clsid, const std::string& profile) {
+    return defaultLayoutOrTipSpec(langId, clsid, profile).substr(2);  // without "0x"
+}
+
+namespace {
+std::string upperAscii(std::string s) {
+    for (char& c : s)
+        if (c >= 'a' && c <= 'z') c = static_cast<char>(c - 'a' + 'A');
+    return s;
+}
+}  // namespace
+
+OverrideState overrideState(bool present, const std::string& value, unsigned langId, const std::string& clsid,
+                            const std::string& profile) {
+    std::string v = upperAscii(value);
+    while (!v.empty() && (v.back() == ';' || v.back() == ' ')) v.pop_back();
+    while (!v.empty() && v.front() == ' ') v.erase(0, 1);
+    if (!present || v.empty()) return OverrideState::None;
+    if (v.size() > 2 && v[0] == '0' && v[1] == 'X') v.erase(0, 2);
+    return v == upperAscii(inputMethodOverrideSpec(langId, clsid, profile)) ? OverrideState::VietTelex
+                                                                            : OverrideState::Other;
+}
+
+std::string setOverrideArgs(const std::string& spec) {
+    return "-NoProfile -NonInteractive -WindowStyle Hidden -Command \"Set-WinDefaultInputMethodOverride -InputTip '" +
+           spec + "'\"";
+}
+
+DefaultInputAdvice defaultInputAdvice(SwitchHotkey h, unsigned defaultLangId, OverrideState o) {
+    if (h != SwitchHotkey::CtrlShift && h != SwitchHotkey::AltZ) return DefaultInputAdvice::None;
+    switch (o) {
+        case OverrideState::VietTelex: return DefaultInputAdvice::None;
+        case OverrideState::Other: return DefaultInputAdvice::MakeVietTelexDefault;
+        case OverrideState::None: break;
+    }
+    return defaultInputAdvice(h, defaultLangId);
+}
+
 WinToggle parseWinToggle(bool present, const std::string& value, WinToggle dflt) {
     if (!present || value.size() != 1 || value[0] < '1' || value[0] > '4') return dflt;
     return static_cast<WinToggle>(value[0] - '0');
