@@ -561,6 +561,130 @@ TEST(direct_replay_key_keeps_extended_flag_and_scan) {
     CHECK_EQ(uint16_t{replayKeyInjection(0x2E, 0, kLlkhfExtended, 0x53)[1].scan}, uint16_t{0x53});
 }
 
+// ---------------------------------------------------------------- Java AWT (JetBrains)
+
+namespace {
+bool isTextEvent(const DirectKeyEvent& e) { return e.unicode; }
+std::vector<DirectKeyEvent> textEvents(const std::u16string& s) { return directEditEvents(0, s); }
+std::vector<DirectKeyEvent> keyEvents(uint16_t vk) {
+    return {DirectKeyEvent{vk, 0, false, false}, DirectKeyEvent{vk, 0, false, true}};
+}
+std::vector<DirectKeyEvent> cat(std::vector<DirectKeyEvent> a, const std::vector<DirectKeyEvent>& b) {
+    a.insert(a.end(), b.begin(), b.end());
+    return a;
+}
+bool sameEvents(const std::vector<DirectKeyEvent>& a, const std::vector<DirectKeyEvent>& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i)
+        if (a[i].vk != b[i].vk || a[i].unit != b[i].unit || a[i].unicode != b[i].unicode || a[i].up != b[i].up)
+            return false;
+    return true;
+}
+}  // namespace
+
+TEST(split_correction_hosts_are_awt_window_classes) {
+    // Every JetBrains IDE (and any Swing app): AWT top-level windows.
+    CHECK(splitsCorrection("SunAwtFrame"));
+    CHECK(splitsCorrection("SunAwtDialog"));
+    CHECK(splitsCorrection("SunAwtWindow"));
+    CHECK(splitsCorrection("SunAwtCanvas"));
+    // Not AWT: no pause anywhere else (consoles, Chromium, WPF, Qt).
+    CHECK(!splitsCorrection("ConsoleWindowClass"));
+    CHECK(!splitsCorrection("CASCADIA_HOSTING_WINDOW_CLASS"));
+    CHECK(!splitsCorrection("Chrome_WidgetWin_1"));
+    CHECK(!splitsCorrection("HwndWrapper[OneCommander;;1]"));
+    CHECK(!splitsCorrection("Qt5152QWindowIcon"));
+    CHECK(!splitsCorrection("SunAw"));
+    CHECK(!splitsCorrection(""));
+    CHECK(kSplitCorrectionDelayMs >= 20 && kSplitCorrectionDelayMs <= 100);
+}
+
+TEST(split_correction_backspaces_now_text_after_pause) {
+    SplitInjection<DirectKeyEvent> q(&isTextEvent);
+    // "viet" + j -> ⌫⌫ "ệt": the Backspaces go now, the text after one pause.
+    const std::vector<DirectKeyEvent> now = q.submit(directEditEvents(2, u"ệt"));
+    CHECK(sameEvents(now, directEditEvents(2, u"")));
+    CHECK(q.busy());
+    CHECK_EQ(q.pendingChunks(), size_t(1));
+    CHECK(sameEvents(q.next(), textEvents(u"ệt")));
+    CHECK(!q.busy());
+    CHECK(q.next().empty());
+    // Text with no key before it (a plain retyped word, no Backspace): all at once.
+    CHECK(sameEvents(q.submit(textEvents(u"đ")), textEvents(u"đ")));
+    CHECK(!q.busy());
+    // Text, then a replayed key (Enter after an auto-restored word): no pause needed.
+    const auto restore = cat(textEvents(u"a"), keyEvents(0x0D));
+    CHECK(sameEvents(q.submit(restore), restore));
+    CHECK(!q.busy());
+}
+
+TEST(split_correction_keys_during_pause_come_after_the_text) {
+    SplitInjection<DirectKeyEvent> q(&isTextEvent);
+    CHECK(sameEvents(q.submit(directEditEvents(1, u"ệ")), directEditEvents(1, u"")));
+    // Typed during the pause: "n" (a key the hook would let through, replayed as text),
+    // then ⌫ (replayed as a key). Nothing goes now.
+    CHECK(q.submit(textEvents(u"n")).empty());
+    CHECK(q.submit(keyEvents(kVkBack)).empty());
+    // A correction during the pause: "ê" again after one ⌫ -> waits behind it all, with a
+    // pause after its Backspace.
+    CHECK(q.submit(directEditEvents(1, u"ê")).empty());
+    // A letter after it: still behind.
+    CHECK(q.submit(textEvents(u"m")).empty());
+    CHECK_EQ(q.pendingChunks(), size_t(2));
+    // Tick 1: the pending text, then the keys typed meanwhile up to the next text-after-key.
+    CHECK(sameEvents(q.next(), cat(cat(textEvents(u"ện"), keyEvents(kVkBack)), keyEvents(kVkBack))));
+    // Tick 2: "ê" + "m" (text after the ⌫ + correction ⌫ waited one pause).
+    CHECK(sameEvents(q.next(), textEvents(u"êm")));
+    CHECK(!q.busy());
+}
+
+TEST(split_correction_preserves_total_order) {
+    // Whatever the batches, the events come out in submission order, each exactly once.
+    SplitInjection<DirectKeyEvent> q(&isTextEvent);
+    const std::vector<std::vector<DirectKeyEvent>> batches = {
+        directEditEvents(3, u"tiế"), textEvents(u"n"), keyEvents(0x25), directEditEvents(2, u"ng"),
+        keyEvents(0x0D), textEvents(u"a"), directEditEvents(1, u"ă"), textEvents(u" "),
+    };
+    std::vector<DirectKeyEvent> want, got;
+    for (size_t i = 0; i < batches.size(); ++i) {
+        want = cat(want, batches[i]);
+        got = cat(got, q.submit(batches[i]));
+        if (i == 4) got = cat(got, q.next());  // one tick in the middle
+    }
+    // No chunk that waits starts with a key: each pause is before text.
+    while (q.busy()) {
+        const std::vector<DirectKeyEvent> c = q.next();
+        CHECK(!c.empty() && c.front().unicode);
+        got = cat(got, c);
+    }
+    CHECK(sameEvents(got, want));
+}
+
+TEST(split_correction_drain_sends_everything_in_order) {
+    SplitInjection<DirectKeyEvent> q(&isTextEvent);
+    q.submit(directEditEvents(2, u"ữ"));
+    q.submit(textEvents(u"a"));
+    q.submit(directEditEvents(1, u"â"));
+    CHECK(sameEvents(q.drain(), cat(cat(textEvents(u"ữa"), directEditEvents(1, u"")), textEvents(u"â"))));
+    CHECK(!q.busy());
+    q.submit(directEditEvents(1, u"ô"));
+    q.clear();
+    CHECK(!q.busy());
+    CHECK(q.next().empty());
+}
+
+TEST(split_correction_which_keys_may_pass_pending_text) {
+    CHECK(keyPassesPendingSplit(0x10));   // Shift
+    CHECK(keyPassesPendingSplit(0xA0));   // LShift
+    CHECK(keyPassesPendingSplit(0xA1));   // RShift
+    CHECK(keyPassesPendingSplit(0x14));   // Caps Lock
+    CHECK(!keyPassesPendingSplit(0x11));  // Ctrl: Ctrl+Backspace / Ctrl+Z before the text
+    CHECK(!keyPassesPendingSplit(0xA2));
+    CHECK(!keyPassesPendingSplit(0x12));  // Alt
+    CHECK(!keyPassesPendingSplit(0x5B));  // Win
+    CHECK(!keyPassesPendingSplit(0x74));  // F5
+}
+
 // The echo check must give up on a hung app in seconds, not UIA's 20 s default.
 TEST(direct_uia_timeouts_are_short) {
     CHECK(kUiaConnectionTimeoutMs > 0 && kUiaConnectionTimeoutMs <= 2000);
