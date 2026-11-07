@@ -744,6 +744,22 @@ final class HostOversizeControllerTests: XCTestCase {
                                                        verticalFittingPriority: .fittingSizeLevel).height,
                        req, accuracy: 0.5, "đo lại ra đúng mức xin")
 
+        // Trong lúc khung còn cao (ảnh issue 07/11, 1 khung hình trên 1.2.31): phần dư nằm TRÊN thanh
+        // gợi ý (nền theme phủ), thanh gợi ý + hàng phím xếp y như khung cao vừa đủ — không dải trống
+        // giữa thanh gợi ý và hàng phím, đáy hàng phím vẫn sát đáy view.
+        let kb = vc.debugKeyboard
+        func qFrame() -> CGRect? { kb.debugDomainKeyFrame("q") ?? kb.debugDomainKeyFrame("Q") }
+        let capH = req + KeyRowLayout.absorbMax
+        vc.view.frame = CGRect(x: 0, y: H - capH, width: w, height: capH); pass()
+        XCTAssertEqual(kb.oversizeShift, 0)
+        let qRef = try! XCTUnwrap(qFrame())
+        vc.view.frame = CGRect(x: 0, y: H - tall, width: w, height: tall); pass()
+        XCTAssertEqual(kb.oversizeShift, tall - req - KeyRowLayout.absorbMax, accuracy: 1)
+        let qTall = try! XCTUnwrap(qFrame())
+        XCTAssertEqual(qTall.minY, qRef.minY, accuracy: 1, "chrome trên hàng phím xếp như khung vừa đủ")
+        XCTAssertEqual(qTall.height, qRef.height, accuracy: 1)
+        XCTAssertEqual(kb.bounds.minY, -kb.oversizeShift, accuracy: 0.01, "phần dư nằm trên đỉnh nội dung")
+
         // Lần hiện mới: đếm lại từ đầu.
         vc.beginAppearanceTransition(false, animated: false); vc.endAppearanceTransition()
         vc.beginAppearanceTransition(true, animated: false); vc.endAppearanceTransition()

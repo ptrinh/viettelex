@@ -152,6 +152,16 @@ enum KeyRowLayout {
     /// Phần host cấp dư mà hàng phím hấp thụ tối đa — quá mức này phần dư thành dải trống trên đỉnh.
     static let absorbMax: CGFloat = 60   // = HostOversize.threshold
 
+    /// #151: host cấp cao hơn mức xin quá phần phím hấp thụ (khung tạm lúc hiện / đổi bàn phím).
+    /// Phần dư đặt TRÊN thanh gợi ý (KeyboardView dời gốc bounds, nền theme phủ kín) thay vì thành
+    /// dải trống giữa thanh gợi ý và hàng phím. Làm tròn pixel; 0 khi không dư quá mức.
+    static func oversizeShift(viewHeight: CGFloat, requested: CGFloat, scale: CGFloat) -> CGFloat {
+        guard requested > 0 else { return 0 }
+        let s = max(viewHeight - requested - absorbMax, 0)
+        let k = max(scale, 1)
+        return (s * k).rounded(.down) / k
+    }
+
     static func rowsArea(viewHeight: CGFloat, bottomInset: CGFloat, top: CGFloat, rows: CGFloat,
                          minTop: CGFloat) -> (top: CGFloat, height: CGFloat) {
         let b = viewHeight - bottomInset

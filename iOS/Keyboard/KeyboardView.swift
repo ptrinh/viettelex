@@ -937,6 +937,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             // Preset stock: xoay đổi khe/lề (dọc 11/6/6.67 ↔ ngang 8/6.67/4.33) ⇒ dựng lại.
             else if builtGeom != nil, builtGeom != geomSig { rebuild() }
         }
+        applyOversizeShift()
         applyOneHand()
         layoutRowsArea()
         if let r = indentedRow {
@@ -967,11 +968,24 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
     }
 
+    /// Phần host cấp dư nằm trên thanh gợi ý (#151, KeyRowLayout.oversizeShift): gốc bounds dời
+    /// lên đúng phần đó ⇒ mọi khung tính từ đỉnh (strip, buddy, gợi ý) nằm sát hàng phím; nền
+    /// (khung = bounds) phủ cả phần dư. 0 = bình thường.
+    private(set) var oversizeShift: CGFloat = 0
+    /// Chiều cao dùng để xếp (bounds trừ phần dư nằm trên thanh gợi ý).
+    private var layoutHeight: CGFloat { bounds.height - oversizeShift }
+    private func applyOversizeShift() {
+        let k = traitCollection.displayScale > 0 ? traitCollection.displayScale : UIScreen.main.scale
+        let s = KeyRowLayout.oversizeShift(viewHeight: bounds.height, requested: requestedHeight + heightNudge, scale: k)
+        oversizeShift = s
+        if bounds.origin.y != -s { bounds.origin.y = -s }
+    }
+
     /// Khung vùng hàng phím (thay các constraint rows↔view cũ): thang ưu tiên tính tay
     /// (KeyRowLayout.rowsArea), mép làm tròn pixel như Auto Layout; lưới xếp hàng theo toạ độ
     /// chính xác để mép từng phím cũng làm tròn y như trước.
     private func layoutRowsArea() {
-        let a = KeyRowLayout.rowsArea(viewHeight: bounds.height, bottomInset: rowsBottomGap, top: rowsTopWanted,
+        let a = KeyRowLayout.rowsArea(viewHeight: layoutHeight, bottomInset: rowsBottomGap, top: rowsTopWanted,
                                       rows: rowsHeightWanted, minTop: rowsMinTop)
         let exact = CGRect(x: rowsSideInsets.left, y: a.top,
                            width: max(bounds.width - rowsSideInsets.left - rowsSideInsets.right, 0), height: a.height)
@@ -2319,7 +2333,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             }
         }
         let top = rowsTopWanted
-        let h = max(bounds.height - top, 0)
+        let h = max(layoutHeight - top, 0)
         let size = min(r.width - 12, 44)
         for (i, b) in railButtons.enumerated() {
             let cy = top + h * (i == 0 ? 0.3 : 0.7)
@@ -5375,7 +5389,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if pill.superview == nil { addSubview(pill) }
         bringSubviewToFront(pill)
         let key = wordSwipeKey.map { convert($0.bounds, from: $0) }
-            ?? CGRect(x: bounds.width - 50, y: bounds.height - 100, width: 44, height: 42)
+            ?? CGRect(x: bounds.width - 50, y: layoutHeight - 100, width: 44, height: 42)
         let size = pill.intrinsicContentSize
         let w = size.width + 20, h: CGFloat = 32
         pill.frame = CGRect(x: max(4, min(key.maxX - w, bounds.width - w - 4)),
@@ -6786,7 +6800,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Strip thật (rowsContainer bắt đầu ngay dưới); ô nhân vật tràn xuống hàng phím đầu (không nhận chạm).
         let strip = min(max(rowsTopWanted, openStripNow),
                         rowsContainer.frame.height > 0 ? rowsContainer.frame.minY : .greatestFiniteMagnitude)
-        let f = Self.buddyFrame(width: bounds.width, strip: strip, placement: buddyPlacement, height: bounds.height)
+        let f = Self.buddyFrame(width: bounds.width, strip: strip, placement: buddyPlacement, height: layoutHeight)
         if b.frame != f { b.frame = f }
         b.layer.zPosition = 1000   // trên cùng: không bị phím / popup / hiệu ứng đè hay chèn
         bringSubviewToFront(b)
