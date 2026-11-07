@@ -83,6 +83,9 @@ public:
         return false;
     }
     void click() { armed_ = true; }
+    // (1.3.16) A TIP handover whose word in progress the hook adopted (word_adopt.h): the
+    // TIP composes nothing there, the hook types from this key on.
+    void armNow() { armed_ = true; }
     bool armed() const { return armed_; }
 
 private:

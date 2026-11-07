@@ -150,6 +150,7 @@ STDMETHODIMP TextService::Deactivate() {
     popup_.destroy();
     destroyToolWindow();
     clearLangProp();
+    clearTypedWord();
     if (composition_ && compositionContext_) {
         // Best effort: close our composition so the app keeps plain text.
         ITfContext* ctx = compositionContext_;
@@ -425,7 +426,7 @@ bool TextService::typingEnabled() const {
 // Asks; the TIP only stays out once the hook's ack (kDirectOnProp) is on the window —
 // until then this word (and any before the ack) is composed here. Returns true when the
 // hook already types here.
-bool TextService::requestDirect(const char* why) {
+bool TextService::requestDirect(const char* why, bool adoptTyped) {
     if (directActive_) return true;
     HWND app = FindWindowW(kAppWindowClass, nullptr);
     if (!app) return false;
@@ -445,7 +446,9 @@ bool TextService::requestDirect(const char* why) {
         directWanted_ = true;
         directFocus_ = f;
         directInWpf_ = focusWpf_;
-        PostMessageW(app, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode), 1);
+        directAdopt_ = adoptTyped;
+        PostMessageW(app, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode),
+                     kDirectOn | (adoptTyped ? kDirectAdoptTyped : 0));
         config::log(std::string(why) + " (requested; composing until the hook acks)");
     }
     if (!directServesHere()) return false;
@@ -467,6 +470,29 @@ void TextService::publishLangProp() {
 void TextService::clearLangProp() {
     if (langPropWnd_ && IsWindow(langPropWnd_)) RemovePropW(langPropWnd_, kTipLangProp);
     langPropWnd_ = nullptr;
+}
+
+// WPF's default store (1.3.16): the raw keys of the word in progress, for the hook to adopt
+// at its first key (typed_word.h). Kept current for as long as the context lets keys pass as
+// typed — also after the ack: a key typed before the hook was in may reach this TIP only
+// after it (the hook reads the record at ITS first key). No syscall unless it changes.
+void TextService::publishTypedWord() {
+    const uint32_t v = typedWordToPublish(keysPassAsTyped_, typedWord_);
+    if (!v && !typedWordWnd_) return;
+    HWND f = GetFocus();
+    HWND root = f ? GetAncestor(f, GA_ROOT) : nullptr;
+    if (v == typedWordPublished_ && root == typedWordWnd_) return;
+    if (root != typedWordWnd_ || !v) clearTypedWord();
+    if (!v || !root) return;
+    SetPropW(root, kTypedWordProp, reinterpret_cast<HANDLE>(static_cast<uintptr_t>(v)));
+    typedWordWnd_ = root;
+    typedWordPublished_ = v;
+}
+
+void TextService::clearTypedWord() {
+    if (typedWordWnd_ && IsWindow(typedWordWnd_)) RemovePropW(typedWordWnd_, kTypedWordProp);
+    typedWordWnd_ = nullptr;
+    typedWordPublished_ = 0;
 }
 
 // Switch hotkey (Ctrl+Shift chord, Alt+Z). Besides the state, tell VietTelex.exe that the
@@ -696,12 +722,15 @@ void TextService::evaluateHost(ITfContext* ctx) {
     // WPF's default store (a list with type-to-filter): no text field, known from the context
     // alone (app_policy.h wpfDefaultStore). Keys pass as typed from the first one — a
     // composition there types nothing — and the hook is asked to type (backspaces + Unicode).
-    if (wpfDefaultStore(c, host_)) {
+    keysPassAsTyped_ = wpfDefaultStore(c, host_);
+    if (keysPassAsTyped_) {
         if (!session_.notTextField()) {
             session_.markNotTextField();
             config::log("WPF default store (no text field) -> keys pass through");
         }
-        requestDirect("WPF default store -> direct (hook)");
+        // The word so far (this key included) is on the root before the hook can ack.
+        publishTypedWord();
+        requestDirect("WPF default store -> direct (hook)", true);
         return;
     }
     // WPF TextBox & co: a claimed key let through never reaches the element (app_policy.h
@@ -796,6 +825,9 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     retypeLogged_ = false;
     notTextFieldLogged_ = false;
     contextLogged_ = false;
+    typedWord_.clear();  // a new element: its word starts afresh
+    clearTypedWord();
+    bool keptPassAsTyped = false;  // a WPF list handover kept: keys still pass as typed there
     if (directActive_ || directWanted_) {
         // WPF moves TSF focus between its own documents inside one HwndSource (the filter bar
         // appearing, a list refresh): the handover asked for that window stays (app_policy.h
@@ -810,15 +842,20 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
         if (keep) {
             // Re-ask in case the hook dropped it (a foreground event for this same window);
             // a repeat is a no-op there.
-            if (app) PostMessageW(app, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode), 1);
+            if (app)
+                PostMessageW(app, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode),
+                             kDirectOn | (directAdopt_ ? kDirectAdoptTyped : 0));
+            keptPassAsTyped = directAdopt_ && keysPassAsTyped_;
             config::log("focus moved inside the handed-over WPF window -> direct kept");
         } else {
             directWanted_ = false;
             directFocus_ = nullptr;
             directInWpf_ = false;
+            directAdopt_ = false;
             if (app) PostMessageW(app, kAppCommandMsg, static_cast<WPARAM>(AppCommand::DirectMode), 0);
         }
     }
+    keysPassAsTyped_ = keptPassAsTyped;
     hostEval_.invalidate();
     resolveActiveApp();
     config::reloadVietnamese();
@@ -1076,7 +1113,12 @@ void TextService::notePassedBy(const KeyInput& k) {
 STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* eaten) {
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
-    if (isOwnInjected(static_cast<uintptr_t>(GetMessageExtraInfo()))) return S_OK;  // typed by our hook
+    if (isOwnInjected(static_cast<uintptr_t>(GetMessageExtraInfo()))) {  // typed by our hook
+        // The hook's edits (or a key this TIP retyped): the raw record no longer says what
+        // the screen shows (typed_word.h).
+        if (!isModifierVk(static_cast<uint32_t>(wp))) typedWord_.invalidate();
+        return S_OK;
+    }
     altZLatch_.noteKey(static_cast<uint32_t>(wp), true);  // any key but a Z repeat re-arms Alt+Z
     if (!isModifierVk(static_cast<uint32_t>(wp))) ++keyGen_;  // background hint work: "typing on cancels"
     passNoted_ = false;
@@ -1084,6 +1126,24 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL
     KeyInput k;
     // Every key let through below asks retypeAsUs (#121): eaten here, retyped in OnKeyDown.
     const bool prepared = prepareKey(wp, true, k);
+    // The raw keys of the word in progress (published only where keys pass as typed).
+    // Once the hook acked, typing is off here (typingEnabled) yet the keys the hook passes on
+    // still arrive as typed — one typed before the hook was in may arrive only now.
+    if (prepared) {
+        typedWord_.note(k);
+    } else if (!isModifierVk(static_cast<uint32_t>(wp))) {
+        if (keysPassAsTyped_) {
+            Modifiers m;
+            m.shift = keyDown(VK_SHIFT);
+            m.ctrl = keyDown(VK_CONTROL);
+            m.alt = keyDown(VK_MENU);
+            m.win = keyDown(VK_LWIN) || keyDown(VK_RWIN);
+            m.capsLock = (GetKeyState(VK_CAPITAL) & 1) != 0;
+            typedWord_.note(classifyKey(static_cast<uint32_t>(wp), m));
+        } else {
+            typedWord_.invalidate();  // English, games...: not known to be this context's word
+        }
+    }
     if (!acceptedSpace_.empty() && !isModifierVk(static_cast<uint32_t>(wp))) {
         if (prepared && acceptSpaceTest(k)) {  // punctuation right after an accepted prediction
             *eaten = TRUE;
@@ -1092,6 +1152,7 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL
         acceptedSpace_ = hints::AcceptedSpace();
     }
     if (!prepared) {  // English, modifiers, games...
+        publishTypedWord();
         *eaten = retypeAsUs(ctx, wp, false) ? TRUE : FALSE;
         return S_OK;
     }
@@ -1099,6 +1160,7 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL
         evaluateHostAtWordStart(ctx);
         hostEval_.noteTest(keyGen_, ctx);  // OnKeyDown of this key reuses it
     }
+    publishTypedWord();
     if (directActive_) {  // the hook types in this field
         notePassedBy(k);
         noteHintKey(k, ctx, false);

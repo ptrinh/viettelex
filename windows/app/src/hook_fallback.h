@@ -21,7 +21,9 @@ void hookConfigure(const Settings& s);  // (re)apply settings; starts/stops watc
 void hookShutdown();
 // The TIP found a field it cannot type into without an underline (CUAS/IMM app,
 // xterm.js, unflagged console): the hook types there until the foreground changes.
-void hookSetDirectFromTip(bool on);
+// `adoptTyped` (kDirectAdoptTyped, 1.3.16): the word in progress reached the app as typed
+// (WPF list); the hook takes it over at its first key (word_adopt.h).
+void hookSetDirectFromTip(bool on, bool adoptTyped);
 // Direct proved unusable in the current field (echo verification): stop hooking it.
 void hookDisableCurrentField();
 // Called (UI thread) when a hook-mode app is elevated above VietTelex.exe: SendInput

@@ -13,6 +13,7 @@
 #include "tip_caches.h"
 #include "caret_hint_ipc.h"
 #include "tsf_compat.h"
+#include "typed_word.h"
 
 #include <memory>
 #include <string>
@@ -93,7 +94,11 @@ private:
     void readSuspendProp();              // focus change: a suspension set before we had focus
     bool appRunning() const;
     bool directServesHere() const;
-    bool requestDirect(const char* why);
+    // `adoptTyped`: the keys of the word in progress pass to the app as typed and are on
+    // the focus root (kTypedWordProp): the hook adopts that word (kDirectAdoptTyped).
+    bool requestDirect(const char* why, bool adoptTyped = false);
+    void publishTypedWord();  // kTypedWordProp on the focus root (typed_word.h)
+    void clearTypedWord();
     bool hookReachesHere(HWND app) const;  // UIPI: app integrity >= this process's
     bool retypeClaimedKey(const KeyInput& k, WPARAM wp, LPARAM lp);  // #134 IMM hosts
     void publishLangProp();  // kTipLangProp on the focus root (hook / tray read it)
@@ -189,6 +194,11 @@ private:
     bool directInWpf_ = false;          // ...a WPF HwndSource: survives TSF focus moves inside it
     bool focusWpf_ = false;             // last evaluateHost: focus window is WPF
     bool contextLogged_ = false;        // context classification logged for this focus (1.3.16)
+    bool directAdopt_ = false;          // the request carried kDirectAdoptTyped (1.3.16)
+    bool keysPassAsTyped_ = false;      // last evaluateHost: WPF default store, keys pass as typed
+    TypedWord typedWord_;               // raw keys of the word in progress (typed_word.h)
+    HWND typedWordWnd_ = nullptr;       // where kTypedWordProp is set
+    uint32_t typedWordPublished_ = 0;   // ...its value
     bool directBlockedLogged_ = false;  // "not requested: UIPI" logged for this field (#134)
     bool retypeLogged_ = false;         // "claimed key retyped" logged for this field (#134)
     bool notTextFieldLogged_ = false;   // "not a text field" logged + Direct asked for this focus

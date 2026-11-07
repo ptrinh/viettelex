@@ -22,6 +22,8 @@
 #include <viettelex/vtx_engine.h>
 #include "settings_store.h"
 #include "setup_helper_logic.h"
+#include "typed_word.h"
+#include "word_adopt.h"
 
 // Hook threading (1.1.3). The low-level hooks live on their OWN high-priority thread with
 // its own message loop, so a busy UI thread (Settings window, dialogs) can never push the
@@ -56,6 +58,7 @@ struct Foreground {
     bool install = false;
     bool direct = false;  // Direct mode (verify echo) vs explicit hookFallback
     bool fresh = false;   // a foreground change (not a mid-focus re-publish)
+    bool adopt = false;   // TIP handover: the word in progress reached the app as typed (1.3.16)
 };
 
 struct HookState {
@@ -86,6 +89,9 @@ struct HookState {
     // ⌫ back into the word just typed (hook_reopen.h): what the hook saw typed since the
     // caret was last certain. Dropped on anything it cannot account for.
     ReopenTrail trail;
+    // A TIP handover mid-word (WPF list, 1.3.16): the word the TIP let through as typed is
+    // taken over at the first key instead of waiting for a boundary (word_adopt.h).
+    WordAdoption adoption;
 };
 HookState* h = nullptr;        // hook thread only
 DWORD g_hookTid = 0;
@@ -100,6 +106,7 @@ struct UiState {
     Settings settings;
     HWINEVENTHOOK fgHook = nullptr;
     bool directFromTip = false;  // TIP asked for direct mode for the current field
+    bool adoptTyped = false;     // ...and its word in progress passed as typed (kDirectAdoptTyped)
     std::wstring fgExe;
     FgApp fgApp;
     DWORD fgThread = 0;
@@ -179,6 +186,13 @@ void markNoDirect(DWORD tid, const char* why);
 void dropWord() {
     h->session.reset();
     h->trail.invalidate();
+    h->adoption.drop();
+}
+
+// The TIP's record of the word in progress on the foreground root (typed_word.h).
+uint32_t typedWordOnForeground() {
+    HWND root = h->fgHwnd ? GetAncestor(h->fgHwnd, GA_ROOT) : nullptr;
+    return root ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(GetPropW(root, kTypedWordProp))) : 0;
 }
 
 LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
@@ -229,11 +243,34 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
         if (k.kind == KeyKind::Other || modifierDropsTrail(kb->vkCode)) h->trail.invalidate();
         return CallNextHookEx(nullptr, code, wp, lp);
     }
+    // Engaged mid-focus on a TIP handover whose word passed as typed (WPF list): take that
+    // word over at this first key (word_adopt.h) instead of waiting for a boundary.
+    if (h->adoption.pending()) {
+        if (foregroundVietnamese()) {
+            const WordAdoption::Start st = h->adoption.begin(typedWordOnForeground(), k, h->session);
+            if (st != WordAdoption::Start::Unknown) h->arming.armNow();
+            h->trail.invalidate();
+            if (appLogging())
+                appLog("hook", std::string("TIP handover: word in progress ") +
+                                   (st == WordAdoption::Start::Adopted   ? (h->adoption.owes() ? "adopted (screen fixed with this key)" : "adopted")
+                                    : st == WordAdoption::Start::Nothing ? "none, typing from this key"
+                                                                         : "unknown, waiting for a boundary"));
+        } else {
+            h->adoption.drop();
+        }
+    }
     // Engaged mid-focus: the TIP may be composing this word — start at the next boundary.
     const bool boundary = k.kind == KeyKind::Boundary || k.kind == KeyKind::Navigation || k.kind == KeyKind::Chord ||
                           (k.kind == KeyKind::Char && k.ch == U' ');
     if (!h->arming.key(boundary) || (!h->session.wordActive() && !foregroundVietnamese())) {
         h->trail.invalidate();  // not typed by us (English, yielding, password field...)
+        h->adoption.drop();
+        return CallNextHookEx(nullptr, code, wp, lp);
+    }
+    // An adopted word whose raw letters still differ from the session's text: ⌫ deletes the
+    // last raw letter (the app does it), the rest is adopted again.
+    if (h->adoption.owes() && k.kind == KeyKind::Backspace) {
+        h->adoption.backspace(h->session);
         return CallNextHookEx(nullptr, code, wp, lp);
     }
     switch (h->trail.before(k, h->session)) {
@@ -245,16 +282,27 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
         case ReopenTrail::Before::Popped: h->session.noteKeyPassedBy(k); return CallNextHookEx(nullptr, code, wp, lp);
         case ReopenTrail::Before::Normal: break;
     }
+    HookSink sink;
+    // Adopted word: the raw letters on screen become the session's text first, in this
+    // key's batch, before the key's own edit (word_adopt.h).
+    const bool fixing = h->adoption.owes();
+    if (fixing) {
+        const WordAdoption::Fix fix = h->adoption.takeFix();
+        sink.replaceBeforeCaret(fix.expect, fix.insert);
+    }
+    bool eaten = false;
     if (!h->session.wantsKey(k)) {
         // Like the TIP: the session still hears a key it lets through ("=" ">" of a "=>"
         // shortcut key, boundaries for the engine's glued separators).
         h->session.noteKeyPassedBy(k);
-        h->trail.after(k, h->session, false, false, false);
-        return CallNextHookEx(nullptr, code, wp, lp);
+        if (!fixing) {
+            h->trail.after(k, h->session, false, false, false);
+            return CallNextHookEx(nullptr, code, wp, lp);
+        }
+        h->trail.invalidate();
+    } else {
+        eaten = h->session.handleKey(k, sink);
     }
-
-    HookSink sink;
-    bool eaten = h->session.handleKey(k, sink);
     if (sink.inputs.empty()) {
         h->trail.after(k, h->session, true, eaten, false);
         return eaten ? 1 : CallNextHookEx(nullptr, code, wp, lp);
@@ -466,8 +514,13 @@ DWORD WINAPI hookThreadMain(void*) {
                     const bool typing = f->install && f->direct;
                     HWND root = f->hwnd ? GetAncestor(f->hwnd, GA_ROOT) : nullptr;
                     setAck(typing ? root : nullptr);
-                    if (!f->install) h->arming.disengaged();
-                    else if (!wasEngaged) h->arming.engaged(f->fresh);  // same window: keep state
+                    if (!f->install) {
+                        h->arming.disengaged();
+                        h->adoption.drop();
+                    } else if (!wasEngaged) {  // same window: keep state
+                        h->arming.engaged(f->fresh);
+                        h->adoption.engaged(!f->fresh && f->adopt);
+                    }
                     break;
                 }
                 case kCmdDisableHere:
@@ -475,6 +528,7 @@ DWORD WINAPI hookThreadMain(void*) {
                     applyWanted(false);
                     setAck(nullptr);
                     h->arming.disengaged();
+                    h->adoption.drop();
                     appLog("hook", "stopped for this field (Direct fell back to composition)");
                     break;
                 case kCmdSuspend: {
@@ -484,6 +538,7 @@ DWORD WINAPI hookThreadMain(void*) {
                     h->trail.invalidate();
                     h->chord.disarm();
                     h->session.resetContext();
+                    h->adoption.drop();
                     // Unhooked while suspended (nothing to type, the chord is ignored). A
                     // resume mid-word: typing starts at the next boundary.
                     syncHooks();
@@ -625,7 +680,7 @@ void publishForeground(bool fresh) {
     directVerifyFocusChanged();
     if (!hookOn && !g_hookThread) return;  // nothing to hook, and no hook thread to tell
     ensureHookThread();
-    auto* f = new Foreground{u->fgApp, u->fgExe, u->fgThread, fg, hookOn, direct, fresh};
+    auto* f = new Foreground{u->fgApp, u->fgExe, u->fgThread, fg, hookOn, direct, fresh, u->adoptTyped};
     if (!PostThreadMessageW(g_hookTid, kCmdForeground, 0, reinterpret_cast<LPARAM>(f))) delete f;
 }
 
@@ -635,6 +690,7 @@ void onForeground(HWND hwnd) {
     u->fgExe = u->fgApp.identity;
     u->fgThread = u->fgApp.tid;
     u->directFromTip = false;  // a new window: the TIP re-evaluates its field
+    u->adoptTyped = false;
     publishForeground(true);
 }
 
@@ -663,10 +719,12 @@ void hookConfigure(const Settings& s) {
     onForeground(GetForegroundWindow());
 }
 
-void hookSetDirectFromTip(bool on) {
+void hookSetDirectFromTip(bool on, bool adoptTyped) {
     if (!u || u->directFromTip == on) return;
     u->directFromTip = on;
-    appLog("hook", std::string("TIP handover: direct ") + (on ? "requested" : "released"));
+    u->adoptTyped = on && adoptTyped;
+    appLog("hook", std::string("TIP handover: direct ") + (on ? "requested" : "released") +
+                       (u->adoptTyped ? " (word in progress passed as typed)" : ""));
     publishForeground(false);
 }
 
