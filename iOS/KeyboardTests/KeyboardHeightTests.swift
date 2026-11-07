@@ -776,4 +776,66 @@ final class HostOversizeControllerTests: XCTestCase {
         for _ in 0..<3 { pass() }
         XCTAssertGreaterThan(host.fittingChanges, before, "lần hiện mới lại được xin đo lại")
     }
+
+    /// WhatsApp quay lại từ nền (log máy Phil 07/11/2026): host dựng controller MỚI và đo nó ở khung cả
+    /// màn hình TRƯỚC viewWillAppear. View chưa cấu hình phải xin đúng chiều cao lần hiện trước (267),
+    /// không phải chiều cao mặc định chưa có thanh gợi ý (232) — đo sai lúc đó WhatsApp giữ khung kính
+    /// cao sai (dải xám) tới khi bị tắt hẳn.
+    @MainActor func testUnconfiguredControllerRequestsLastShownHeight() {
+        let saved = UserDefaultsProvider.shared
+        let savedPaywall = PlusGate.paywallEnabled
+        let savedLast = KeyboardView.lastConfiguredHeight
+        defer {
+            UserDefaultsProvider.shared = saved
+            PlusGate.paywallEnabled = savedPaywall
+            KeyboardView.lastConfiguredHeight = savedLast
+            UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+        }
+        let d = UserDefaults(suiteName: suite)!
+        d.removePersistentDomain(forName: suite)
+        d.set(true, forKey: "showSuggestions")
+        PlusGate.paywallEnabled = false
+        UserDefaultsProvider.shared = d
+        KeyboardView.lastConfiguredHeight = 0
+
+        let w: CGFloat = 375, H: CGFloat = 812
+        let win = UIWindow(frame: CGRect(x: 0, y: 0, width: w, height: H))
+        let host = Host()
+        win.rootViewController = host
+        win.isHidden = false
+        func attach() -> KeyboardViewController {
+            let vc = KeyboardViewController()
+            vc.debugProxy = KeyboardBenchTests.BenchProxy()
+            vc.debugFullAccess = false
+            vc.loadViewIfNeeded()
+            host.addChild(vc); host.view.addSubview(vc.view); vc.didMove(toParent: host)
+            vc.debugKeyboard.debugScreenSize = CGSize(width: w, height: H)
+            vc.debugKeyboard.debugSetSafeBottom(0)
+            return vc
+        }
+        func detach(_ vc: KeyboardViewController) {
+            vc.beginAppearanceTransition(false, animated: false); vc.endAppearanceTransition()
+            vc.willMove(toParent: nil); vc.view.removeFromSuperview(); vc.removeFromParent()
+        }
+        defer { win.isHidden = true }
+
+        // Lần hiện đầu (sau khi mở app): cấu hình xong ⇒ mức xin có thanh gợi ý.
+        let first = attach()
+        first.beginAppearanceTransition(true, animated: false); first.endAppearanceTransition()
+        first.view.frame = CGRect(x: 0, y: 0, width: w, height: 300); first.view.layoutIfNeeded()
+        let shown = first.debugKeyboard.debugRequestedHeight
+        XCTAssertGreaterThan(shown, 0)
+        detach(first)
+
+        // Quay lại từ nền: controller mới, host đo ở khung cả màn hình trước willAppear.
+        let again = attach()
+        again.view.frame = CGRect(x: 0, y: 0, width: w, height: H)
+        again.view.setNeedsLayout(); again.view.layoutIfNeeded()
+        XCTAssertEqual(again.debugKeyboard.debugRequestedHeight, shown, accuracy: 0.5,
+                       "chưa cấu hình: xin đúng chiều cao lần hiện trước")
+        again.beginAppearanceTransition(true, animated: false); again.endAppearanceTransition()
+        again.view.frame = CGRect(x: 0, y: 0, width: w, height: shown); again.view.layoutIfNeeded()
+        XCTAssertEqual(again.debugKeyboard.debugRequestedHeight, shown, accuracy: 0.5)
+        detach(again)
+    }
 }

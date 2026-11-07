@@ -197,6 +197,8 @@ final class KeyboardViewController: UIInputViewController {
             deferInitialBuild: true,   // configureForAppearance dựng MỘT lần với kiểu cuối
             onKey: { [weak self] key in self?.handle(key) }
         )
+        keyboard.primesLastHeight = true
+        keyboard.applyPrimedHeight()
         keyboard.onDeleteWord = { [weak self] in self?.deleteWordBackward() }
         wireWordSwipe()
         wireSwipeTyping()
@@ -548,6 +550,7 @@ final class KeyboardViewController: UIInputViewController {
         // phím hiện trước, chữ trên thanh tới trong lúc bàn phím còn đang trượt lên.
         postFrame.schedule { [weak self] in StartupTrace.span("suggestions") { self?.updateSuggestions() } }
         keyboard.showLanguageBadge()   // "ViệtTelex" thoáng trên spacebar như stock
+        keyboard.markConfigured()
     }
 
     /// Ghi kbFullAccess CHỈ khi đổi; heartbeat kbLastSeen tối đa 1 lần/giờ (app

@@ -140,9 +140,35 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var heightNudge: CGFloat = 0 {
         didSet {
             guard heightNudge != oldValue else { return }
-            let total = baseRequestedHeight + hostFillExtra + heightNudge
-            if heightConstraint?.constant != total { heightConstraint?.constant = total }
+            applyHeightConstant()
         }
+    }
+    /// Chiều cao xin của lần hiện ĐÃ cấu hình gần nhất (cả process). View mới dựng chưa được
+    /// controller cấu hình (chưa đọc cài đặt: chưa có thanh gợi ý…) xin số này thay vì chiều cao
+    /// mặc định — WhatsApp quay lại từ nền đo bàn phím ĐÚNG lúc đó (232 thay vì 267) rồi giữ khung
+    /// kính cao sai tới khi app bị tắt hẳn (dải xám trên bàn phím, log máy Phil 07/11/2026).
+    nonisolated(unsafe) static var lastConfiguredHeight: CGFloat = 0
+    /// Controller đã chạy cấu hình lần hiện cho view này (markConfigured).
+    private(set) var appearanceConfigured = false
+    /// Chỉ view của controller (installKeyboard) mượn lastConfiguredHeight trước khi cấu hình;
+    /// view dựng riêng (test, preview) xin đúng chiều cao của chính nó.
+    var primesLastHeight = false
+    /// Constant đặt cho constraint chiều cao (xem lastConfiguredHeight).
+    var constraintHeight: CGFloat {
+        if primesLastHeight, !appearanceConfigured, Self.lastConfiguredHeight > 0 { return Self.lastConfiguredHeight }
+        return baseRequestedHeight + hostFillExtra + heightNudge
+    }
+    private func applyHeightConstant() {
+        if primesLastHeight, appearanceConfigured { Self.lastConfiguredHeight = requestedHeight }
+        let total = constraintHeight
+        if heightConstraint?.constant != total { heightConstraint?.constant = total }
+    }
+    /// Controller bật primesLastHeight ngay sau khi dựng view: xin luôn chiều cao lần hiện trước.
+    func applyPrimedHeight() { applyHeightConstant() }
+    /// Controller gọi cuối phần cấu hình lần hiện: từ đây xin đúng chiều cao theo cài đặt.
+    func markConfigured() {
+        appearanceConfigured = true
+        applyHeightConstant()
     }
     /// Chiều cao đang xin host (constant constraint, gồm phần xin thêm, không gồm lệch tạm).
     var requestedHeight: CGFloat { baseRequestedHeight + hostFillExtra }
@@ -884,8 +910,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                                                         numberRowFullHeight: numberRowFullHeight,
                                                         strip: strip, headroom: headroom, mode: chromeMode,
                                                         bottomInset: bottomInset)
-        let total = baseRequestedHeight + hostFillExtra + heightNudge
-        if heightConstraint?.constant != total { heightConstraint?.constant = total }
+        applyHeightConstant()
         if rowsBottomGap != bottomInset || rowsHeightWanted != c.rows || rowsMinTop != c.minTop {
             rowsBottomGap = bottomInset; rowsHeightWanted = c.rows; rowsMinTop = c.minTop
             setNeedsLayout()
