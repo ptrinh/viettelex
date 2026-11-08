@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <new>
 #include <string>
+#include <utility>
 #include "support.hpp"
 #include "viettelex/vtx_engine.h"
 
@@ -260,6 +261,50 @@ void allCapsAcronyms() {
     CHECK_EQ(typedMac("HW"), std::string("HƯ"));
     CHECK_EQ(typedMac("nasa"), std::string("nấ"));
     CHECK_EQ(typedWith("nasa", defaultFlags), std::string("nasa"));
+}
+
+// ---- Twin of Swift HatInitialismTests (08/11/2026): "AAL" -> ÂL (âm lịch) -------------
+
+void plainFlags(vtx::TelexEngine&) {}
+
+// (live composition, commitText at a space boundary); peek must agree.
+std::pair<std::string, std::string> liveAndCommit(const std::string& w, void (*cfg)(vtx::TelexEngine&)) {
+    vtx::TelexEngine e;
+    cfg(e);
+    feedStr(e, w);
+    std::string live = composed(e);
+    char16_t b[vtx::kMaxText];
+    std::string p = toUtf8(b, e.peekCommitText(true, b, vtx::kMaxText, U' '));
+    std::string c = toUtf8(b, e.commitText(true, b, vtx::kMaxText, U' '));
+    CHECK_EQ(p, c);
+    return {live, c};
+}
+
+void hatInitialism() {
+    void (*cfgs[])(vtx::TelexEngine&) = {macFlags, plainFlags, defaultFlags};
+    struct K { const char* keys; const char* want; };
+    const K kept[] = {{"AAL", "ÂL"}, {"aal", "âl"}, {"UWD", "ƯD"}, {"uwd", "ưd"}, {"OWB", "ƠB"}};
+    const char* raw[] = {"EEL", "eel", "OOH", "ooh", "EEK", "eek", "BOOK", "book", "COOL", "cool",
+                         "LOOK", "look", "FEED", "feed", "OOTD", "ootd", "AAPL", "aapl", "EEG", "eeg",
+                         "OOP", "oop", "AAC", "aac", "OWL", "owl", "AWL", "awl", "AAH", "aah",
+                         "UWB", "UWP", "AWK", "awk", "aat", "AAT", "eep", "eet", "oog", "OOG", "uwk", "awt", "owp", "uwc", "Aal", "aAL", "AAl", "WL", "wl"};
+    for (auto cfg : cfgs) {
+        for (const K& k : kept) {
+            auto r = liveAndCommit(k.keys, cfg);
+            CHECK_EQ(r.first, std::string(k.want));
+            CHECK_EQ(r.second, std::string(k.want));
+            CHECK_EQ(typedWith(k.keys, cfg), std::string(k.want));
+        }
+        CHECK_EQ(typedWith("ngayf 15 AAL", cfg), std::string("ngày 15 ÂL"));
+        CHECK_EQ(typedWith("BDDS DDT", cfg), std::string("BĐS ĐT"));
+        for (const char* w : raw) CHECK_EQ(liveAndCommit(w, cfg).second, std::string(w));
+        CHECK_EQ(liveAndCommit("AAAL", cfg).second, std::string("AAL"));   // literal via the AAA cancel
+        CHECK_EQ(liveAndCommit("aaal", cfg).second, std::string("aal"));
+        CHECK_EQ(liveAndCommit("OOF", cfg).second, std::string("Ồ"));
+        CHECK_EQ(liveAndCommit("oof", cfg).second, std::string("ồ"));
+        CHECK_EQ(liveAndCommit("AAN", cfg).second, std::string("ÂN"));
+        CHECK_EQ(liveAndCommit("OOM", cfg).second, std::string("ÔM"));
+    }
 }
 
 void reopenAfterNoOpRestore() {
@@ -654,6 +699,7 @@ int runUnit() {
     contractionsAtApostrophe();
     reachBackVowelCancel();
     allCapsAcronyms();
+    hatInitialism();
     reopenAfterNoOpRestore();
     seedRoundTrips();
     overflowPassesThrough();

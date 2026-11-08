@@ -1068,7 +1068,8 @@ public struct TelexEngine {
         // reading: "lanwm" → "lănm") keeps what the screen shows, so the user sees and
         // fixes the typo instead of getting raw keys back.
         if forceRestoreUpperTone || rawIsEnglishException()
-            || (!composedIsValidSyllable() && !isTeencodeKeep() && !isVietnameseTypoKeep()) { return true }
+            || (!composedIsValidSyllable() && !isTeencodeKeep() && !isVietnameseTypoKeep()
+                && !isHatInitialismKeep()) { return true }
         // ALL-CAPS acronym whose Telex reading is a RARE syllable: "NAS" → "NÁ", "OS" → "Ó"
         // restore; "VIỆT", "ĐÀ NẴNG", "CÓ" (common) stay.
         if isRareAllCapsAcronym() { return true }
@@ -1271,6 +1272,48 @@ public struct TelexEngine {
         if SyllableValidator.isValidPrefix(composed.lowercased(), teencode: teencode) { return false }
         return !rawHasEnglishReading()
     }
+
+    /// Two-letter Vietnamese initialism whose first letter is a HAT vowel ("ÂL" = âm lịch,
+    /// typed "AAL"): the sibling of the DD→Đ abbreviation rule in `composedIsValidSyllable`,
+    /// for the hat letters. Kept deliberately NARROW (maintainer spec 2026-11-08): exactly
+    /// three raw keys, ONE case throughout (never mixed), no tone, shaped vowel + doubler
+    /// (aa ee oo) or vowel + w (aw ow uw — never a standalone-w ư) + ONE bare Vietnamese
+    /// consonant letter — not f j w z, and not a stop c k p t g q (vowel + stop with no tone
+    /// is a half-typed syllable: "aat", "eep", "oog", "uwk" restore) — and the raw keys have no English reading — neither
+    /// in the engine's dictionaries nor on `hatInitialismEnglish`, the closed list of
+    /// English words / acronyms of exactly this shape that those dictionaries lack ("EEL",
+    /// "EEK", "OOH", "OWL", "EEG", "OOP", "AAC" restore). The composition is not a valid
+    /// syllable (callers check). 3+ letter forms ("OOTD", "AAPL") are out of scope and
+    /// restore. Literal "AAL" stays reachable via the AAA cancel. Boundary-only,
+    /// non-mutating, allocation-free.
+    private func isHatInitialismKeep() -> Bool {
+        guard !vniMode, rawCount == 3, pCount == 2, lastEffTone == .none else { return false }
+        let up = isUpperAscii(raw[0])
+        guard isUpperAscii(raw[1]) == up, isUpperAscii(raw[2]) == up else { return false }
+        let v = lowercased(raw[0]), m = lowercased(raw[1]), c = lowercased(raw[2])
+        guard isVowelAscii(v), m == v || m == UInt8(ascii: "w") else { return false }
+        if m == v { guard v == UInt8(ascii: "a") || v == UInt8(ascii: "e") || v == UInt8(ascii: "o") else { return false } }
+        else { guard v == UInt8(ascii: "a") || v == UInt8(ascii: "o") || v == UInt8(ascii: "u") else { return false } }
+        guard c >= UInt8(ascii: "a"), c <= UInt8(ascii: "z"), !isVowelAscii(c),
+              !Self.hatInitialismExcludedConsonants.contains(c) else { return false }
+        let first = renderLetters[0], second = renderLetters[1]
+        guard first.base == v, first.mark != .none, second.base == c, second.mark == .none else { return false }
+        let key = UInt32(v) << 16 | UInt32(m) << 8 | UInt32(c)
+        if Self.hatInitialismEnglish.contains(key) { return false }
+        if isListedCapsAcronym() || rawIsEnglishCollision() { return false }
+        return !rawHasEnglishReading()
+    }
+
+    /// Lowercase raw keys (packed v<<16 | m<<8 | c) of the `isHatInitialismKeep` shape that
+    /// read as English: words (aah eel ooh owl awl) and acronyms (aad oob awb awd uwb).
+    /// Stop-consonant forms (eek eeg oop aac…) never reach it. Mirrored in Kotlin and C++.
+    /// Third keys `isHatInitialismKeep` never keeps: non-Vietnamese letters (f j w z) and
+    /// stops (c k p t g q).
+    private static let hatInitialismExcludedConsonants: [UInt8] = Array("fjwzckptgq".utf8)
+
+    private static let hatInitialismEnglish: [UInt32] = [
+        "aah", "eel", "ooh", "owl", "awl", "aad", "oob", "awb", "awd", "uwb",
+    ].map { s in s.utf8.reduce(UInt32(0)) { $0 << 8 | UInt32($1) } }
 
     /// The raw keys spell, or begin like, a known English word: any dictionary the engine
     /// carries, or a freeze prefix of the English lexicon ("seed…", "good…"). Boundary-only.

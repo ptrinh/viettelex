@@ -535,7 +535,8 @@ class TelexEngine {
         // Đuôi -k (ták/ák/rík) không thắng bảng collision (issue #127) — song sinh Swift.
         if (rawIsEnglishCollision() && !(collisionPrefersVietnamese && composedIsValidSyllable() && !composedEndsWithK())) return true
         if (upperToneKey || rawIsEnglishException() ||
-            (!composedIsValidSyllable() && !isTeencodeKeep() && !isVietnameseTypoKeep())
+            (!composedIsValidSyllable() && !isTeencodeKeep() && !isVietnameseTypoKeep() &&
+                !isHatInitialismKeep())
         ) return true
         if (isRareAllCapsAcronym()) return true
         if (contextualEnglish && previousWordEnglish &&
@@ -738,6 +739,28 @@ class TelexEngine {
         }
         if (!hasMark || !lettersAreCommonSyllable(last)) return false
         if (SyllableValidator.isValidPrefix(composed.lowercase(), teencode)) return false
+        return !rawHasEnglishReading()
+    }
+
+    /**
+     * Two-letter hat-vowel initialism ("AAL" → ÂL = âm lịch) — Swift twin `isHatInitialismKeep`.
+     * Exactly 3 raw keys, one case, no tone: vowel + doubler (aa ee oo) or vowel + w (aw ow uw,
+     * never a standalone-w ư) + one bare consonant (not f j w z, not a stop c k p t g q); no English reading and not on
+     * [HAT_INITIALISM_ENGLISH]. Boundary-only, allocation-free.
+     */
+    private fun isHatInitialismKeep(): Boolean {
+        if (vniMode || rawCount != 3 || pCount != 2 || lastEffTone != T.NONE) return false
+        val up = isUpperAscii(raw[0])
+        if (isUpperAscii(raw[1]) != up || isUpperAscii(raw[2]) != up) return false
+        val v = lowercased(raw[0]); val m = lowercased(raw[1]); val c = lowercased(raw[2])
+        if (!isVowelAscii(v) || (m != v && m != 'w'.code)) return false
+        if (m == v) { if (v != 'a'.code && v != 'e'.code && v != 'o'.code) return false }
+        else if (v != 'a'.code && v != 'o'.code && v != 'u'.code) return false
+        if (c < 'a'.code || c > 'z'.code || isVowelAscii(c) || HAT_INITIALISM_EXCLUDED.indexOf(c.toChar()) >= 0) return false
+        if (rBase[0] != v || rMark[0] == Mark.NONE || rBase[1] != c || rMark[1] != Mark.NONE) return false
+        val key = (v shl 16) or (m shl 8) or c
+        for (e in HAT_INITIALISM_ENGLISH) if (e == key) return false
+        if (isListedCapsAcronym() || rawIsEnglishCollision()) return false
         return !rawHasEnglishReading()
     }
 
@@ -2103,6 +2126,14 @@ class TelexEngine {
 
         private const val INITIALS_MIN = 2
         private const val INITIALS_MAX = 4
+
+        /** Swift `hatInitialismExcludedConsonants`: f j w z + stops c k p t g q. */
+        private const val HAT_INITIALISM_EXCLUDED = "fjwzckptgq"
+
+        /** Swift `hatInitialismEnglish`: English words / acronyms of the hat-initialism shape. */
+        private val HAT_INITIALISM_ENGLISH: IntArray = arrayOf(
+            "aah", "eel", "ooh", "owl", "awl", "aad", "oob", "awb", "awd", "uwb",
+        ).map { w -> w.fold(0) { acc, ch -> (acc shl 8) or ch.code } }.toIntArray()
 
         private val ENGLISH_EXCEPTIONS: Array<IntArray> = arrayOf(
             "was".map { it.code }.toIntArray(),
