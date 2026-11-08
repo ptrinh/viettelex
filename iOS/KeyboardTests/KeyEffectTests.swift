@@ -1337,9 +1337,13 @@ extension KeyEffectTests {
         XCTAssertLessThanOrEqual(e.burstSlots * e.layersPerBurst, KeyEffectPool.cap)
         XCTAssertEqual(SeaFx.maxWaves, 3)
         XCTAssertGreaterThanOrEqual(Double(SeaFx.maxWaves) * SeaFx.launchGap, SeaFx.life, "đủ ô cho mọi sóng còn sống")
-        XCTAssertEqual(SeaFx.life, 1.6, accuracy: 1e-12)
+        XCTAssertEqual(SeaFx.life, 3.0, accuracy: 1e-12)
+        XCTAssertEqual(SeaFx.launchGap, 1.0)
         XCTAssertFalse(SeaFx.shouldLaunch(sinceLast: 0.2), "gõ dồn: chỉ bọt + bong bóng")
-        XCTAssertTrue(SeaFx.shouldLaunch(sinceLast: 0.55))
+        XCTAssertFalse(SeaFx.shouldLaunch(sinceLast: 0.99))
+        XCTAssertTrue(SeaFx.shouldLaunch(sinceLast: 1.0))
+        // iOS: keyframe đủ mịn cho đời sóng dài (≥ 20 khung / giây).
+        XCTAssertGreaterThanOrEqual(Double(SeaFx.frames) / SeaFx.life, 20)
         XCTAssertEqual((0...5).map { SeaFx.size(level: $0) }, [1.0, 1.2, 1.4, 1.65, 1.65, 1.65])
         XCTAssertEqual(SeaFx.size(level: -1), 1.0)
     }
@@ -1347,12 +1351,18 @@ extension KeyEffectTests {
     /// Đường cong sóng: cuộn nhanh dần từ đỉnh tới bờ, vỡ (thân tan, bọt dâng) rồi rút để lại vệt ướt mờ dần, hết hẳn ở `life`.
     func testSeaWaveCurveBreakAndRecede() {
         XCTAssertEqual(SeaFx.travel(-1), 0); XCTAssertEqual(SeaFx.travel(0), 0)
-        XCTAssertEqual(SeaFx.travel(0.3), 0.25, accuracy: 1e-12)
-        XCTAssertEqual(SeaFx.travel(0.45), 0.5625, accuracy: 1e-12)
-        XCTAssertEqual(SeaFx.travel(0.6), 1); XCTAssertEqual(SeaFx.travel(5), 1)
+        XCTAssertEqual(SeaFx.travel(0.23), 0.0944, accuracy: 1e-12)
+        XCTAssertEqual(SeaFx.travel(0.575), 0.35, accuracy: 1e-12)
+        XCTAssertEqual(SeaFx.travel(0.8625), 0.646875, accuracy: 1e-12)
+        XCTAssertEqual(SeaFx.travel(1.15), 1); XCTAssertEqual(SeaFx.travel(5), 1)
         var last = -1.0
-        for i in 0...60 { let v = SeaFx.travel(Double(i) * 0.01); XCTAssertGreaterThanOrEqual(v, last); last = v }
-        XCTAssertEqual(SeaFx.driftX(0.3), 8, accuracy: 1e-12); XCTAssertEqual(SeaFx.driftX(2), 16)
+        for i in 0...115 { let v = SeaFx.travel(Double(i) * 0.01); XCTAssertGreaterThan(v, last); last = v }
+        // Sóng lừng: khởi chậm nhưng không đứng (tốc độ 0,3 trung bình), cuối chỉ nhanh hơn chút (≤ 1,5; u² cũ = 2).
+        let h = 1e-6, speed = { (t: Double) in (SeaFx.travel(t + h) - SeaFx.travel(t)) / h * SeaFx.roll }
+        XCTAssertEqual(speed(0), 0.3, accuracy: 1e-3)
+        XCTAssertEqual(speed(SeaFx.roll / 2), 1.05, accuracy: 1e-3)
+        XCTAssertEqual(speed(SeaFx.roll - 2 * h), 1.5, accuracy: 1e-3)
+        XCTAssertEqual(SeaFx.driftX(0.575), 8, accuracy: 1e-12); XCTAssertEqual(SeaFx.driftX(5), 16)
         XCTAssertEqual(SeaFx.crestOffset(0, phase: 0), 0.592875, accuracy: 1e-5)
         XCTAssertEqual(SeaFx.crestOffset(30, phase: 0.9), 1.300941, accuracy: 1e-5)
         XCTAssertEqual(SeaFx.crestOffset(77, phase: 1.8), 0.140812, accuracy: 1e-5)
@@ -1364,25 +1374,75 @@ extension KeyEffectTests {
             XCTAssertLessThan(SeaFx.bodyTop(x, phase: 0.9), SeaFx.crestOffset(x, phase: 0.9), "thân sóng nằm sau mép")
         }
         // Vỡ — rút.
-        XCTAssertEqual(SeaFx.waveAlpha(0.3), 1); XCTAssertEqual(SeaFx.waveAlpha(0.75), 0.5, accuracy: 1e-9)
-        XCTAssertEqual(SeaFx.waveAlpha(0.9), 0); XCTAssertEqual(SeaFx.waveAlpha(-0.1), 0)
-        XCTAssertEqual(SeaFx.washHeight(0.5, size: 1), 0, "chưa tới bờ: chưa có bọt tràn")
-        XCTAssertEqual(SeaFx.washHeight(0.75, size: 1.4), 14.7, accuracy: 1e-9)
-        XCTAssertEqual(SeaFx.washHeight(0.9, size: 1.65), 23.1, accuracy: 1e-9, "đỉnh bọt tràn = washMax × cỡ")
-        XCTAssertEqual(SeaFx.washHeight(1.25, size: 1), 7, accuracy: 1e-9)
+        XCTAssertEqual(SeaFx.waveAlpha(0.6), 1); XCTAssertEqual(SeaFx.waveAlpha(1.425), 0.5, accuracy: 1e-9)
+        XCTAssertEqual(SeaFx.waveAlpha(1.7), 0); XCTAssertEqual(SeaFx.waveAlpha(-0.1), 0)
+        XCTAssertEqual(SeaFx.washHeight(1.0, size: 1), 0, "chưa tới bờ: chưa có bọt tràn")
+        XCTAssertEqual(SeaFx.washHeight(1.425, size: 1.4), 14.7, accuracy: 1e-9)
+        XCTAssertEqual(SeaFx.washHeight(1.7, size: 1.65), 23.1, accuracy: 1e-9, "đỉnh bọt tràn = washMax × cỡ")
+        XCTAssertEqual(SeaFx.washHeight(2.35, size: 1), 7, accuracy: 1e-9)
         XCTAssertEqual(SeaFx.washHeight(SeaFx.life, size: 1.65), 0)
-        XCTAssertEqual(SeaFx.wetAlpha(0.85), 0, "vệt ướt chỉ hiện khi nước rút")
-        XCTAssertEqual(SeaFx.wetAlpha(0.9), 0.3, accuracy: 1e-9)
-        XCTAssertEqual(SeaFx.wetAlpha(1.25), 0.15, accuracy: 1e-9)
+        XCTAssertEqual(SeaFx.wetAlpha(1.65), 0, "vệt ướt chỉ hiện khi nước rút")
+        XCTAssertEqual(SeaFx.wetAlpha(1.7), 0.3, accuracy: 1e-9)
+        XCTAssertEqual(SeaFx.wetAlpha(2.35), 0.15, accuracy: 1e-9)
         XCTAssertEqual(SeaFx.wetAlpha(SeaFx.life), 0)
         // Hết đời sóng: không còn gì vẽ (nghỉ gõ = 0 việc).
         for t in [SeaFx.life, SeaFx.life + 0.5] {
             XCTAssertEqual(SeaFx.waveAlpha(t), 0); XCTAssertEqual(SeaFx.washHeight(t, size: 1.65), 0); XCTAssertEqual(SeaFx.wetAlpha(t), 0)
         }
-        for i in 0...160 {
+        for i in 0...300 {
             XCTAssertLessThanOrEqual(SeaFx.washHeight(Double(i) * 0.01, size: 1.65), SeaFx.washMax * 1.65 + 1e-9)
         }
     }
+
+    /// Tiếng sóng vỗ: chỉ khi Âm thanh phím bật (không bật ⇒ im), to hơn chút khi sóng to; mẫu tất định (checksum chung
+    /// Android), mềm hơn mọi tiếng phím, dâng chậm rồi vỡ ĐÚNG lúc sóng chạm bờ (roll), đóng về 0.
+    @MainActor func testSeaSurfSoundRespectsKeySoundAndLandsWithWave() {
+        XCTAssertFalse(SeaFx.shouldSurf(customSound: false)); XCTAssertTrue(SeaFx.shouldSurf(customSound: true))
+        XCTAssertEqual(SeaFx.surfVoices, 2)
+        XCTAssertEqual(SeaFx.surfVolume(size: 1), 0.7, accuracy: 1e-12)
+        XCTAssertEqual(SeaFx.surfVolume(size: 1.4), 0.884615, accuracy: 1e-5)
+        XCTAssertEqual(SeaFx.surfVolume(size: 1.65), 1, accuracy: 1e-12)
+        XCTAssertEqual(SeaFx.surfVolume(size: 9), 1); XCTAssertEqual(SeaFx.surfVolume(size: 0), 0.7)
+        let saved = KeyboardView.customSoundEnabled
+        defer { KeyboardView.customSoundEnabled = saved }
+        let n0 = KeyboardView.debugSurfs
+        KeyboardView.customSoundEnabled = false
+        KeyboardView.seaSurf(size: 1.65)
+        XCTAssertEqual(KeyboardView.debugSurfs, n0, "Âm thanh phím tắt ⇒ không có tiếng sóng")
+        KeyboardView.customSoundEnabled = true
+        KeyboardView.seaSurf(size: 1)
+        XCTAssertEqual(KeyboardView.debugSurfs, n0 + 1)
+        // Mẫu.
+        XCTAssertEqual(KeySoundSynth.surfCrash, SeaFx.roll, "tiếng vỡ trùng lúc sóng chạm bờ")
+        let x = KeySoundSynth.surfSamples()
+        XCTAssertEqual(x, KeySoundSynth.surfSamples(), "tất định")
+        let sr = KeySoundSynth.surfSampleRate
+        XCTAssertEqual(x.count, Int((KeySoundSynth.surfDuration * sr).rounded()))
+        XCTAssertEqual(x.count, 35_280)
+        let sum = x.reduce(0.0) { $0 + Double(abs($1)) }
+        print("SEA-SURF-GOLDEN sum=\(String(format: "%.4f", sum))")
+        XCTAssertEqual(sum, Self.goldenSurf, accuracy: 0.01)
+        let peak = Double(x.map(abs).max() ?? 1)
+        XCTAssertEqual(peak, KeySoundSynth.surfPeak, accuracy: 1e-6)
+        let softestKey = KeySoundStyle.presets.map { Double(KeySoundSynth.samples($0, .letter).map(abs).max() ?? 0) }.min() ?? 0
+        XCTAssertLessThan(peak, softestKey, "nhỏ hơn mọi tiếng phím")
+        XCTAssertLessThan(KeySoundSynth.rms(x), 0.05)
+        XCTAssertEqual(x.first ?? 1, 0, accuracy: 1e-6); XCTAssertEqual(x.last ?? 1, 0, accuracy: 1e-6)
+        let crash = Int(KeySoundSynth.surfCrash * sr)
+        XCTAssertLessThan(KeySoundSynth.spectralCentroid(Array(x[crash..<(crash + 4096)]), sampleRate: sr), 2500, "ào, không chói")
+        // Vỏ âm: khung 50 ms to nhất nằm ngay sau lúc vỡ; nửa giây đầu chỉ rì rầm nhỏ (dâng chậm).
+        let w = Int(0.05 * sr)
+        let rmsW = stride(from: 0, to: x.count - w, by: w).map { KeySoundSynth.rms(Array(x[$0..<($0 + w)])) }
+        let loud = rmsW.indices.max { rmsW[$0] < rmsW[$1] }!
+        XCTAssertGreaterThanOrEqual(Double(loud * w) / sr, KeySoundSynth.surfCrash - 0.05)
+        XCTAssertLessThanOrEqual(Double(loud * w) / sr, KeySoundSynth.surfCrash + 0.15)
+        XCTAssertLessThan(KeySoundSynth.rms(Array(x[0..<Int(0.5 * sr)])), 0.15 * rmsW[loud])
+        // KeySound: bỏ chọn Biển ⇒ không giữ buffer tiếng sóng.
+        KeySound.shared.setSurfEnabled(false)
+        KeySound.shared.debugDrain()
+        XCTAssertFalse(KeySound.shared.hasSurf)
+    }
+    static let goldenSurf = 854.8853
 
     func testSeaSplashBubblesAndFishRule() {
         let d = SeaFx.droplet(1, 0.5)
@@ -1430,16 +1490,23 @@ extension KeyEffectTests {
         XCTAssertTrue(o.debugSeaWaveRoots.isEmpty, "chưa gõ: không dựng gì")
         let keys = [CGRect(x: 0, y: -180, width: 34, height: 42), CGRect(x: 356, y: 248, width: 34, height: 42),
                     CGRect(x: 180, y: 120, width: 34, height: 42)]
+        var surfSizes: [Double] = []
+        o.onSeaWave = { surfSizes.append($0) }
         for i in 0..<30 { o.emit(key: keys[i % keys.count]); o.flush() }
         XCTAssertEqual(o.debugSeaWaveRoots.count, 1, "gõ dồn trong cùng lúc: một con sóng")
         XCTAssertEqual(o.debugSeaWaveSizes.first ?? 0, 1, "sóng đầu: cỡ thường")
+        XCTAssertEqual(surfSizes, [1], "tiếng sóng: MỘT lần cho cả tràng phím (mỗi sóng, không mỗi phím)")
         XCTAssertNotNil(o.debugSeaFish, "tràng phím nhanh ⇒ cá bơi")
         XCTAssertNotNil(o.debugSeaFish?.animation(forKey: "fx"))
-        // Gõ nhịp đều qua nhiều chu kỳ sóng (combo vẫn giữ: nghỉ < 1 s).
+        // Gõ nhịp đều qua nhiều chu kỳ sóng (combo vẫn giữ: nghỉ < 1 s — chùm phím giữa chu kỳ, không bắn sóng).
         for _ in 0..<5 {
-            KeyboardBenchTests.spin(SeaFx.launchGap + 0.02)
+            KeyboardBenchTests.spin((SeaFx.launchGap + 0.02) / 2)
+            for _ in 0..<7 { o.emit(key: keys[2]); o.flush() }
+            KeyboardBenchTests.spin((SeaFx.launchGap + 0.02) / 2)
             o.emit(key: keys[2]); o.flush()
         }
+        XCTAssertEqual(surfSizes.count, 6, "mỗi con sóng mới đúng một tiếng sóng")
+        XCTAssertEqual(surfSizes.last ?? 0, 1.65, "gõ nhanh ⇒ sóng to ⇒ tiếng to hơn")
         XCTAssertEqual(o.debugSeaWaveRoots.count, SeaFx.maxWaves, "pool sóng có trần")
         XCTAssertGreaterThan(o.debugSeaWaveSizes.max() ?? 0, 1, "gõ nhanh ⇒ sóng to hơn")
         for r in o.debugSeaWaveRoots {

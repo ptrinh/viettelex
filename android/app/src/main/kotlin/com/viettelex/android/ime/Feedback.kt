@@ -50,6 +50,11 @@ import java.io.File
  * Vòng hợp âm phím cách (10/2026): Piano / Ghi-ta có [NoteMap.progression] ⇒ mỗi hợp âm một WAV nạp sẵn
  * ([PianoEvent.chord]), [progression] (thuần, như iOS) chọn hợp âm: tiến mỗi lần cách, nghỉ > 3 s / kết câu ⇒ về đầu,
  * Enter ⇒ chủ rồi về đầu. Đàn tranh: hợp âm cách cố định. Ghi-ta (theme Ghi-ta): nốt 1.2 s ⇒ bộ thường ≈ 1.62 MB PCM16.
+ *
+ * Sóng vỗ (hiệu ứng Biển, 08/11/2026): mỗi con sóng MỚI ([com.viettelex.keyboard.SeaFx], không mỗi phím) một tiếng "ào"
+ * 1,6 s ([KeySoundSynth.surfSamples], WAV 22,05 kHz ≈ 71 KB cache một lần) — chỉ nạp khi hiệu ứng Biển được chọn
+ * ([setSurfEnabled]), chỉ phát khi đường âm riêng phát (như "éc"), âm lượng phím × [SeaFx.surfVolume]; xoay 2 stream ⇒
+ * tiếng sóng trước không bị cắt.
  */
 class Feedback(private val ctx: Context) {
     private val audio = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -119,6 +124,15 @@ class Feedback(private val ctx: Context) {
     /** Test: số lần phát "éc". */
     var squeaks = 0
         private set
+    // --- Sóng vỗ của hiệu ứng Biển — chỉ nạp khi hiệu ứng Biển được chọn ---
+    private var surfWanted = false
+    private var surfId = 0
+    @Volatile private var surfLoaded = false
+    private val surfStreams = IntArray(com.viettelex.keyboard.SeaFx.SURF_VOICES)
+    private var surfCursor = 0
+    /** Test: số lần xin phát tiếng sóng (đã qua công tắc). */
+    var surfs = 0
+        private set
 
     /** Test/log: giọng lần phát piano gần nhất (≥ VOICES = giọng ngân). */
     var lastPianoVoice = -1
@@ -140,24 +154,26 @@ class Feedback(private val ctx: Context) {
         refreshRinger(force = true)
         val customFile = customFile(ctx)
         val key = KeySoundCustom.bankKey(style, customFile)
-        if (pool != null && key == poolKey) { loadSqueak(); return }
+        if (pool != null && key == poolKey) { loadSqueak(); loadSurf(); return }
         releaseSound()
         val inst = KeyInstrument.of(style)
-        val p = SoundPool.Builder().setMaxStreams(if (inst != null) 2 * PianoSynth.VOICES else 4).setAudioAttributes(
+        val p = SoundPool.Builder().setMaxStreams(if (inst != null) 2 * PianoSynth.VOICES else 6).setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).build()
         pool = p; poolKey = key
         val fresh = BooleanArray(ids.size); loaded = fresh
         val dir = ctx.cacheDir
-        if (inst != null) { configurePiano(p, dir, inst, worker); loadSqueak(); return }
+        if (inst != null) { configurePiano(p, dir, inst, worker); loadSqueak(); loadSurf(); return }
         p.setOnLoadCompleteListener { sp, sampleId, status ->
             if (sp !== pool || status != 0) return@setOnLoadCompleteListener
             for (i in ids.indices) if (ids[i] == sampleId) fresh[i] = true
             if (sampleId == returnId) returnLoaded = true
             if (sampleId == squeakId) squeakLoaded = true
+            if (sampleId == surfId) surfLoaded = true
         }
         loadSqueak()
+        loadSurf()
         worker(Runnable {
             val files = soundFiles(dir, style, customFile)
             val ret = returnFile(dir, style)
@@ -185,6 +201,7 @@ class Feedback(private val ctx: Context) {
         p.setOnLoadCompleteListener { sp, sampleId, status ->
             if (sp === pool && status == 0 && sampleId in fresh.indices) fresh[sampleId] = true
             if (sp === pool && status == 0 && sampleId == squeakId) squeakLoaded = true
+            if (sp === pool && status == 0 && sampleId == surfId) surfLoaded = true
         }
         worker(Runnable {
             val notes = inst.map.notes.map { it to pianoNoteFile(dir, inst, it, sustain = false) }
@@ -246,6 +263,42 @@ class Feedback(private val ctx: Context) {
         return true
     }
 
+    /** Hiệu ứng Biển đang chọn ⇒ nạp tiếng sóng vào SoundPool (nếu có); bỏ chọn ⇒ bỏ. Hiệu ứng khác: không gọi gì thêm. */
+    fun setSurfEnabled(on: Boolean) {
+        if (on == surfWanted) return
+        surfWanted = on
+        if (!on) { surfId = 0; surfLoaded = false; surfStreams.fill(0) } else loadSurf()
+    }
+
+    private fun loadSurf() {
+        val p = pool ?: return
+        val w = soundWorker ?: return
+        if (!surfWanted || surfId != 0) return
+        surfId = -1                                    // đang nạp
+        val dir = ctx.cacheDir
+        w(Runnable {
+            val f = surfFile(dir)
+            main.post { if (pool === p && surfWanted && f != null) surfId = p.load(f.path, 1) }
+        })
+    }
+
+    /**
+     * Một con sóng mới (hiệu ứng Biển, cỡ [size]): tiếng sóng vỗ CHỈ khi đường âm riêng phát (như [squeak]). Xoay
+     * [com.viettelex.keyboard.SeaFx.SURF_VOICES] stream — tiếng trước vẫn ngân, tiếng thứ 3 mới thay tiếng cũ nhất.
+     */
+    fun surf(size: Double): Boolean {
+        val route = KeySoundSynth.route(soundEnabled, volumePercent, ringerNormal(), soundStyle)
+        if (!surfAllowed(route)) return false
+        surfs++
+        val p = pool ?: return true
+        if (!surfLoaded || surfId <= 0) return true
+        val v = gain * com.viettelex.keyboard.SeaFx.surfVolume(size).toFloat()
+        val slot = surfCursor; surfCursor = (slot + 1) % surfStreams.size
+        if (surfStreams[slot] != 0) p.stop(surfStreams[slot])
+        surfStreams[slot] = p.play(surfId, v, v, 2, 0, 1f)
+        return true
+    }
+
     /** Nhả SoundPool (ẩn bàn phím, thiếu RAM, tắt setting). */
     fun releaseSound() {
         pool?.release()
@@ -255,6 +308,7 @@ class Feedback(private val ctx: Context) {
         loaded = BooleanArray(ids.size)
         returnId = 0; returnLoaded = false
         squeakId = 0; squeakLoaded = false
+        surfId = 0; surfLoaded = false; surfStreams.fill(0)
         pianoMode = false
         pianoIds.fill(0); sustainIds.fill(0); pianoExtra.fill(0)
         pianoStreams.fill(0); sustainStreams.fill(0)
@@ -410,6 +464,13 @@ class Feedback(private val ctx: Context) {
         /** "Éc" chỉ khi đường âm riêng đang phát (Âm thanh phím bật, âm lượng > 0, máy không im) — test được. */
         fun squeakAllowed(route: KeySoundSynth.Route): Boolean =
             com.viettelex.keyboard.MolePolicy.shouldSqueak(route == KeySoundSynth.Route.CUSTOM)
+
+        /** Tiếng sóng vỗ chỉ khi đường âm riêng đang phát (như "éc") — test được. */
+        fun surfAllowed(route: KeySoundSynth.Route): Boolean = route == KeySoundSynth.Route.CUSTOM
+
+        /** WAV tiếng sóng vỗ (cache, ghi 1 lần; đổi công thức ⇒ đổi tên). */
+        fun surfFile(dir: File): File? =
+            cachedWav(dir, "keysound-v${KeySoundSynth.VERSION}-surf1.wav", KeySoundSynth.SURF_SAMPLE_RATE) { KeySoundSynth.surfSamples() }
 
         /** WAV "éc" (cache, ghi 1 lần). */
         fun squeakFile(dir: File): File? =

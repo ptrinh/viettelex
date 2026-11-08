@@ -37,6 +37,11 @@
 //   phím cách phát `.chord(i)` (KeyboardView giữ ChordProgression). Đàn tranh: hợp âm cách cố định như cũ.
 // - GHI-TA (theme Ghi-ta): CÙNG đường Piano; nốt 1.2 s ⇒ bộ thường ~3.24 MB Float32 (25 nốt + 4 hợp âm + chủ + ⌫ +
 //   pedal); bộ ngân như Piano.
+// - SÓNG VỖ (hiệu ứng Biển, 08/11/2026): mỗi con sóng mới (SeaFx, KHÔNG mỗi phím) một tiếng "ào" 1,6 s
+//   (KeySoundSynth.surfSamples, 22,05 kHz ≈ 141 KB) — buffer dựng LƯỜI một lần khi hiệu ứng Biển được chọn
+//   (setSurfEnabled), 2 node riêng xoay vòng ⇒ tiếng sóng trước không bị cắt (chồng ≤ 2), không đụng node phím.
+//   Âm lượng = âm lượng phím (mixer) × SeaFx.surfVolume(cỡ sóng). Engine đang nghỉ ⇒ phát khi khởi động xong nếu
+//   kịp `surfLateWindow` (tiếng dâng chậm, trễ chút không nghe ra).
 import AVFoundation
 
 final class KeySound {
@@ -91,6 +96,14 @@ final class KeySound {
     // --- "Éc" của theme Đập chuột (MoleGame): chỉ dựng khi theme bật trò chơi (setSqueakEnabled) ---
     private var squeakWanted = false
     private var squeakBuffer: AVAudioPCMBuffer?
+
+    // --- Sóng vỗ của hiệu ứng Biển: chỉ dựng khi hiệu ứng Biển được chọn (setSurfEnabled) ---
+    static let surfLateWindow: TimeInterval = 0.3
+    private var surfWanted = false
+    private var surfBuffer: AVAudioPCMBuffer?
+    private var surfNodes: [AVAudioPlayerNode] = []
+    private var surfCursor = 0
+    private var pendingSurf: (volume: Float, at: TimeInterval)?
 
     // MARK: cấu hình từ main — KHÔNG BAO GIỜ chờ lock
     // startNow/stopNow giữ `lock` suốt lúc dựng engine (AVAudioSession.setActive = XPC, tổng hợp bộ
@@ -243,6 +256,67 @@ final class KeySound {
 
     /// Đã dựng mẫu "éc" (test).
     var hasSqueak: Bool { lock.lock(); defer { lock.unlock() }; return squeakBuffer != nil }
+
+    /// Hiệu ứng Biển đang chọn ⇒ dựng tiếng sóng (1 buffer + 2 node) cùng engine; bỏ chọn ⇒ nhả. Hiệu ứng khác: không gọi.
+    func setSurfEnabled(_ on: Bool) {
+        configure { [self] in
+            surfWanted = on
+            if !on {
+                if let e = engine { for n in surfNodes { n.stop(); e.detach(n) } }
+                surfNodes = []; surfBuffer = nil; pendingSurf = nil
+            }
+            if on && engine != nil && surfBuffer == nil {
+                queue.async { [self] in lock.lock(); buildSurfLocked(); lock.unlock() }
+            }
+        }
+    }
+
+    private func buildSurfLocked() {
+        guard surfWanted, let e = engine,
+              let fmt = AVAudioFormat(standardFormatWithSampleRate: KeySoundSynth.surfSampleRate, channels: 1) else { return }
+        if surfBuffer == nil { surfBuffer = Self.pcm(KeySoundSynth.surfSamples(), fmt) }
+        if surfNodes.isEmpty {
+            for _ in 0..<SeaFx.surfVoices {
+                let n = AVAudioPlayerNode()
+                e.attach(n); e.connect(n, to: e.mainMixerNode, format: fmt)
+                surfNodes.append(n)
+            }
+        }
+        if e.isRunning { for n in surfNodes where !n.isPlaying { n.play() } }
+    }
+
+    /// Một con sóng mới (hiệu ứng Biển): tiếng "ào" trên node sóng kế tiếp (xoay vòng — tiếng trước vẫn ngân). Không cấp
+    /// phát. Engine nghỉ ⇒ khởi động nền, phát lúc xong nếu kịp surfLateWindow.
+    @discardableResult
+    func playSurf(volume: Float) -> Bool {
+        guard lock.try() else { return false }
+        defer { lock.unlock() }
+        guard wanted, surfWanted else { return false }
+        let now = CACurrentMediaTime()
+        lastPlay = now
+        guard running, let e = engine, e.isRunning else {
+            running = false
+            pendingSurf = (volume, now)
+            if !restarting {
+                restarting = true
+                queue.async { [self] in _ = startNow() }
+            }
+            return false
+        }
+        return playSurfLocked(volume)
+    }
+
+    private func playSurfLocked(_ volume: Float) -> Bool {
+        guard let b = surfBuffer, surfNodes.count == SeaFx.surfVoices else { return false }
+        let n = surfNodes[surfCursor]
+        surfCursor = (surfCursor + 1) % surfNodes.count
+        n.volume = volume
+        n.scheduleBuffer(b, at: nil, options: .interrupts, completionHandler: nil)
+        return true
+    }
+
+    /// Đã dựng tiếng sóng (test).
+    var hasSurf: Bool { lock.lock(); defer { lock.unlock() }; return surfBuffer != nil && surfNodes.count == SeaFx.surfVoices }
 
     /// Kiểu đang dựng có tiếng Enter riêng (test).
     var hasReturnSound: Bool { lock.lock(); defer { lock.unlock() }; return returnBuffer != nil }
@@ -481,15 +555,18 @@ final class KeySound {
                 if bank.style.rawValue != styleRaw { TouchLog.write("keysound: \(styleRaw) thiếu file → \(bank.style.rawValue)") }
             }
             if squeakWanted, squeakBuffer == nil { buildSqueakLocked() }
+            if surfWanted, surfBuffer == nil || surfNodes.isEmpty { buildSurfLocked() }
             e.mainMixerNode.outputVolume = gain
             if !e.isRunning {
                 e.prepare()
                 try e.start()
             }
             for n in nodes where !n.isPlaying { n.play() }
-            for n in pianoNodes + sustainNodes where !n.isPlaying { n.play() }
+            for n in pianoNodes + sustainNodes + surfNodes where !n.isPlaying { n.play() }
             running = true
             let now = CACurrentMediaTime()
+            if let p = pendingSurf, now - p.at <= Self.surfLateWindow { _ = playSurfLocked(p.volume) }
+            pendingSurf = nil
             if let p = pending, now - p.at <= Self.lateWindow, !pianoMode {
                 nodes[p.kind.rawValue].scheduleBuffer(buffers[p.kind.rawValue], at: nil, options: .interrupts, completionHandler: nil)
             }
@@ -535,9 +612,10 @@ final class KeySound {
         running = false
         pending = nil
         if let o = configObserver { NotificationCenter.default.removeObserver(o); configObserver = nil }
-        for n in nodes + pianoNodes + sustainNodes { n.stop() }
+        for n in nodes + pianoNodes + sustainNodes + surfNodes { n.stop() }
         engine?.stop()
         engine = nil; nodes = []; buffers = []; returnBuffer = nil; builtKey = nil; squeakBuffer = nil
+        surfBuffer = nil; surfNodes = []; pendingSurf = nil
         pianoNodes = []; sustainNodes = []; pianoExtra = []; pianoMode = false; sustainReady = false
         pianoBuf = [AVAudioPCMBuffer?](repeating: nil, count: 128)
         sustainBuf = [AVAudioPCMBuffer?](repeating: nil, count: 128)
