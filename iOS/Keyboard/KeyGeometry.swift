@@ -577,6 +577,26 @@ enum SymbolReturn: String, CaseIterable {
     static func load(_ d: UserDefaults?) -> SymbolReturn { parse(d?.object(forKey: key)) }
 }
 
+/// "Nút ẩn bàn phím" (Tính năng → Sửa lỗi & gợi ý → Thanh gợi ý; khoá App Group `keyboardDismissButton`,
+/// cùng chuỗi Android Keys.KEYBOARD_DISMISS_BUTTON; 08/11/2026 — email người dùng: chạm chỗ khác để ẩn bàn
+/// phím hay bấm nhầm vào app). Bật: ⌄ sát MÉP PHẢI thanh gợi ý, chạm = `dismissKeyboard()`; 📋 / 😊 / nhân
+/// vật / ô gợi ý dời trái đúng một ô (= ô ☰ bên trái, như nút thu gọn cũ). Mặc định TẮT ⇒ thanh y hệt cũ.
+/// Hiện khi dải gợi ý CÓ CHỖ (kể cả ô mật khẩu / OTP: dải trống vẫn có ⌄); tắt "Thanh gợi ý" ⇒ dải 0pt ⇒
+/// không có ⌄ (không nới bàn phím chỉ để chứa nút; iPad vẫn còn phím ẩn ở hàng đáy). Bàn emoji: lưới / ô
+/// tìm chiếm dải ⇒ ẩn. iPad cũng hiện khi bật (theo công tắc, cạnh phím ẩn hàng đáy). Đọc lúc hiện.
+enum KeyboardDismissButton {
+    static let key = "keyboardDismissButton"
+    static let defaultValue = false
+    static func load(_ d: UserDefaults?) -> Bool { d?.bool(forKey: key) ?? defaultValue }
+    /// Bề ngang ô ⌄ = ô ☰ trái (KeyboardView.stripZoneWidth).
+    static let zoneWidth: CGFloat = 52
+    static func shown(enabled: Bool, stripReserved: Bool, emojiPlane: Bool) -> Bool {
+        enabled && stripReserved && !emojiPlane
+    }
+    /// Phần chừa ở mép phải cho ⌄ — 0 khi không hiện ⇒ mọi khung bên phải y như chưa có nút.
+    static func rightInset(shown: Bool) -> CGFloat { shown ? zoneWidth : 0 }
+}
+
 /// "Phím to" (Tính năng → Phím & cử chỉ; khoá App Group `largeKeys`, mặc định TẮT ⇒ bố cục y
 /// hệt bàn phím iPhone). Góp ý người dùng 04/11/2026: "," "." cạnh phím cách nhỏ quá — hay chạm
 /// nhầm phím cách; ⇧ / ⌫ hàng Z chừa khe trống mỗi bên. Bật (chỉ iPhone — iPad không đổi):

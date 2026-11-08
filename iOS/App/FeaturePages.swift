@@ -383,6 +383,8 @@ struct SuaLoiPage: View {
     @AppStorage("numberChips", store: featureDefaults) private var numberChips = true
     @AppStorage("mathResults", store: featureDefaults) private var mathResults = true
     @AppStorage("suggestInNoSuggestFields", store: featureDefaults) private var suggestInNoSuggestFields = true
+    /// "Nút ẩn bàn phím" (⌄ góc phải thanh gợi ý) — mặc định TẮT (KeyboardDismissButton).
+    @AppStorage(KeyboardDismissButton.key, store: featureDefaults) private var keyboardDismissButton = KeyboardDismissButton.defaultValue
     @AppStorage("pasteButton", store: featureDefaults) private var pasteButton = true
     @AppStorage("addTonesChip", store: featureDefaults) private var addTonesChip = false
     /// Plus, iOS 26+, mặc định TẮT — KeyboardSettings.aiProofread.
@@ -425,6 +427,8 @@ struct SuaLoiPage: View {
                 settingToggle(L("Thanh gợi ý"), L(SettingCaption.showSuggestions), isOn: $showSuggestions)
                 if showSuggestions {
                     SuggestionCountRow()
+                    // ⌄ chỉ có khi dải gợi ý có chỗ ⇒ ẩn cùng các mục thanh khi tắt Thanh gợi ý.
+                    settingToggle(L("Nút ẩn bàn phím"), L(SettingCaption.keyboardDismissButton), isOn: $keyboardDismissButton)
                     settingToggle(L("Gợi ý cả khi ứng dụng tắt gợi ý"), L(SettingCaption.suggestInNoSuggestFields), isOn: $suggestInNoSuggestFields)
                     settingToggle(L("Gợi ý emoji"), L(SettingCaption.emojiSuggest), isOn: $emojiSuggest)
                     settingToggle(L(SettingLabel.numberChips), L(SettingCaption.numberChips), isOn: $numberChips)

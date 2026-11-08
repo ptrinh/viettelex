@@ -162,4 +162,49 @@ class StripGeometryTest {
         org.junit.Assert.assertTrue(StripGeometry.buddyHeight(40) - 40 <= 0.7 * 40)
         org.junit.Assert.assertEquals(66, StripGeometry.buddyDrawWidth(40, 34))   // dáng ngủ nằm ngang không bị cắt
     }
+
+    /**
+     * "Nút ẩn bàn phím" (⌄ góc phải, mặc định TẮT — email người dùng 11/2026): TẮT ⇒ mọi khung y hệt khi chưa có
+     * nút (0 chi phí bố cục); BẬT ⇒ ô ⌄ = ô ☰ (52 dp) sát mép phải, 😊 / 📋 / nhân vật / slot dời trái đúng bấy
+     * nhiêu, không chồng ⌄ — điện thoại dọc, ngang, máy tính bảng; có / không gợi ý, 😊, 📋, nhân vật.
+     */
+    @Test fun dismissButtonReservesRightEdgeOnlyWhenOn() {
+        val zone = KeyLayout.STRIP_ZONE_W
+        assertEquals(0f, StripGeometry.dismissW(false), 0f)
+        assertEquals(zone, StripGeometry.dismissW(true), 0f)
+        for (w in listOf(320f, 360f, 411f, 640f, 915f, 1280f)) for (tools in listOf(true, false))
+            for (clip in listOf(true, false)) for (emoji in listOf(true, false)) for (buddy in listOf(0f, StripGeometry.BUDDY_W)) {
+                // Tắt: đúng con số cũ (không truyền dismiss).
+                val off = StripGeometry.barRight(w, StripGeometry.CLIP_W, clip, tools, emoji, buddy, StripGeometry.dismissW(false))
+                assertEquals(StripGeometry.barRight(w, StripGeometry.CLIP_W, clip, tools, emoji, buddy), off, 0f)
+                assertEquals(StripGeometry.buddyLeft(w), StripGeometry.buddyLeft(w, StripGeometry.dismissW(false)), 0f)
+                // Bật: bar co đúng 52 dp; ô nhân vật kết thúc ngay trái ⌄; slot cuối kết thúc trước 😊/📋/nhân vật/⌄.
+                val dz = StripGeometry.dismissW(true)
+                val on = StripGeometry.barRight(w, StripGeometry.CLIP_W, clip, tools, emoji, buddy, dz)
+                assertEquals(zone, off - on, 0.001f)
+                assertEquals(w - zone, StripGeometry.buddyLeft(w, dz) + StripGeometry.BUDDY_W, 0.001f)
+                val extras = StripGeometry.rightExtraW(StripGeometry.CLIP_W, clip, tools, emoji, buddy, dz)
+                assertEquals(w - on, extras, 0.001f)
+                val l = FloatArray(5); val r = FloatArray(5)
+                StripGeometry.cells(StripGeometry.barLeft(zone, StripGeometry.TOOL_W, tools), on, 3, l, r)
+                assertTrue("$w: ô cuối chồng ⌄", r[2] <= w - zone + 0.001f)
+                assertTrue("$w: ô cuối chồng 😊/📋/nhân vật", r[2] <= w - zone - (extras - zone) + 0.001f)
+            }
+    }
+
+    /** ⌄ chỉ hiện khi bật + dải có chỗ (kể cả ô mật khẩu, dải trống) + không ở bàn emoji; Gợi ý tắt (dải 0) ⇒ không. */
+    @Test fun dismissButtonVisibility() {
+        assertTrue(StripGeometry.dismissShown(enabled = true, reserved = true, emojiPlane = false))
+        assertFalse(StripGeometry.dismissShown(enabled = false, reserved = true, emojiPlane = false))   // mặc định tắt
+        assertFalse(StripGeometry.dismissShown(enabled = true, reserved = false, emojiPlane = false))   // Thanh gợi ý tắt
+        assertFalse(StripGeometry.dismissShown(enabled = true, reserved = true, emojiPlane = true))     // lưới emoji chiếm dải
+    }
+
+    /** Mặc định TẮT: cài đặt mới và prefs trống đều không có ⌄. */
+    @Test fun dismissButtonDefaultsOff() {
+        assertFalse(com.viettelex.keyboard.KeyboardSettings().keyboardDismissButton)
+        assertFalse(com.viettelex.keyboard.KeyboardSettings.load { null }.keyboardDismissButton)
+        assertTrue(com.viettelex.keyboard.KeyboardSettings.load {
+            if (it == com.viettelex.keyboard.Keys.KEYBOARD_DISMISS_BUTTON) true else null }.keyboardDismissButton)
+    }
 }

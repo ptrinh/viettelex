@@ -52,14 +52,27 @@ object StripGeometry {
      * Bề ngang các nút giữa slot và mép phải (dp): nhân vật + 😊 ([emojiButton], LUÔN — cả khi có gợi ý, để emoji
      * không mất lối vào) + 📋 (chỉ khi có nút và [toolsShown]).
      */
-    fun rightExtraW(clipW: Float, clipButton: Boolean, toolsShown: Boolean, emojiButton: Boolean = false, buddy: Float = 0f): Float =
-        buddy + (if (emojiButton) EMOJI_W else 0f) + (if (clipButton && toolsShown) clipW else 0f)
+    fun rightExtraW(clipW: Float, clipButton: Boolean, toolsShown: Boolean, emojiButton: Boolean = false, buddy: Float = 0f,
+                    dismiss: Float = 0f): Float =
+        dismiss + buddy + (if (emojiButton) EMOJI_W else 0f) + (if (clipButton && toolsShown) clipW else 0f)
+
+    /**
+     * "Nút ẩn bàn phím" (Keys.KEYBOARD_DISMISS_BUTTON, mặc định TẮT): ⌄ sát MÉP PHẢI dải gợi ý, chạm = ẩn bàn phím
+     * (requestHideSelf). Hiện khi: công tắc bật + dải đang giữ chỗ ([reserved] — kể cả ô mật khẩu/OTP, dải trống) +
+     * không ở bàn emoji (lưới / ô tìm chiếm dải). Tắt "Thanh gợi ý" ⇒ dải cao 0 ⇒ KHÔNG có ⌄ (không thêm chiều cao chỉ
+     * để chứa nó; tablet vẫn còn phím ẩn ở hàng đáy). = iOS KeyboardDismissButton.shown.
+     */
+    fun dismissShown(enabled: Boolean, reserved: Boolean, emojiPlane: Boolean): Boolean =
+        enabled && reserved && !emojiPlane
+
+    /** Bề ngang ô ⌄ (dp): = ô ☰ trái (như nút thu gọn cũ); 0 khi không hiện ⇒ mọi khung y như chưa có nút. */
+    fun dismissW(shown: Boolean): Float = if (shown) KeyLayout.STRIP_ZONE_W else 0f
 
     /** Ô "Bạn đồng hành" (dp) sát MÉP PHẢI — 😊 / 📋 dời sang trái đúng bấy nhiêu. = iOS KeyboardView.buddyZoneWidth. */
     const val BUDDY_W = 34f
 
-    /** Mép trái ô nhân vật (dp) khi bar mở: ô sát mép phải (không còn nút ⌄). */
-    fun buddyLeft(width: Float): Float = width - BUDDY_W
+    /** Mép trái ô nhân vật (dp) khi bar mở: ô sát mép phải, hoặc sát trái ô ⌄ ẩn bàn phím ([dismiss] = [dismissW]). */
+    fun buddyLeft(width: Float, dismiss: Float = 0f): Float = width - dismiss - BUDDY_W
 
     /** Phần nhân vật tràn xuống hàng phím đầu (theo tỉ lệ strip) — = iOS KeyboardView.buddyOverlapRatio. Chỉ là
      *  hình (BuddyView không nhận chạm) nên phím bên dưới vẫn bấm bình thường. */
@@ -72,10 +85,10 @@ object StripGeometry {
      *  chừa [zone]; canh giữa ô chừa nhưng kẹp trong mép phải, được đè lên 📋 / phím (lớp trên cùng). = iOS KeyboardView.buddyFrame. */
     fun buddyDrawWidth(strip: Int, zone: Int): Int = maxOf(zone, buddyHeight(strip))
 
-    /** Mép phải vùng slot (dp): từ mép phải trừ ô nhân vật, 😊 ([emojiButton]) và 📋 (chỉ khi có nút và [toolsShown]). */
+    /** Mép phải vùng slot (dp): từ mép phải trừ ô ⌄ ([dismiss]), nhân vật, 😊 ([emojiButton]) và 📋 (chỉ khi có nút và [toolsShown]). */
     fun barRight(width: Float, clipW: Float, clipButton: Boolean, toolsShown: Boolean,
-                 emojiButton: Boolean = false, buddy: Float = 0f): Float =
-        width - rightExtraW(clipW, clipButton, toolsShown, emojiButton, buddy)
+                 emojiButton: Boolean = false, buddy: Float = 0f, dismiss: Float = 0f): Float =
+        width - rightExtraW(clipW, clipButton, toolsShown, emojiButton, buddy, dismiss)
 
     /** Mép trái/phải slot i (0..2) trong [barL, barR] → ghi vào [l]/[r]. */
     fun thirds(barL: Float, barR: Float, l: FloatArray, r: FloatArray) = cells(barL, barR, 3, l, r)

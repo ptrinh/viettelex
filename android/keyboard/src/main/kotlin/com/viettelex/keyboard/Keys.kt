@@ -87,6 +87,11 @@ object Keys {
     const val NUMBER_CHIPS = "numberChips"
     /** Int 0…5 — "Số từ gợi ý" ([SuggestionCount]): 0 = Tự động (3 ô). Tên như iOS App Group. */
     const val SUGGESTION_COUNT = "suggestionCount"
+    /**
+     * Bool — "Nút ẩn bàn phím": ⌄ góc phải thanh gợi ý, chạm = ẩn bàn phím (mặc định TẮT ⇒ thanh y như cũ).
+     * Chỉ hiện khi dải gợi ý có chỗ (Thanh gợi ý bật). Tên như iOS App Group.
+     */
+    const val KEYBOARD_DISMISS_BUTTON = "keyboardDismissButton"
     /** "Hiện kết quả phép tính" (Bool, mặc định BẬT) — chỉ đọc context ngay sau phím "=". */
     const val MATH_RESULTS = "mathResults"
     /**

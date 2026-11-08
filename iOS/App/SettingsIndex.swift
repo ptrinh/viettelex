@@ -132,6 +132,7 @@ enum SettingsIndex {
             E(viTitle: LK("Tự sửa từ gõ sai"), keywords: "autocorrect sửa lỗi chạm trượt thử nghiệm", location: .page(.suaLoi), key: "autoCorrect"),
             E(viTitle: LK("Gợi ý sửa lỗi chạm trượt"), keywords: "chạm trượt phím bên cạnh adjacent typo gợi ý", location: .page(.suaLoi), key: "autoFixAdjacent"),
             E(viTitle: LK("Thanh gợi ý"), keywords: "suggestion học từ", location: .page(.suaLoi), key: "showSuggestions"),
+            E(viTitle: LK("Nút ẩn bàn phím"), keywords: "ẩn bàn phím hide dismiss keyboard chevron ⌄ đóng close", location: .page(.suaLoi), key: KeyboardDismissButton.key),
             E(viTitle: LK("Gợi ý emoji"), keywords: "emoji biểu tượng", location: .page(.suaLoi), key: "emojiSuggest"),
             E(viTitle: SettingLabel.numberChips, keywords: "chip số tiền đọc số number money", location: .page(.suaLoi), key: "numberChips"),
             E(viTitle: LK("Hiện kết quả phép tính"), keywords: "tính toán máy tính bằng math calculator", location: .page(.suaLoi), key: "mathResults"),
@@ -253,6 +254,7 @@ enum SettingCaption {
     static let adjacentFooter = LK("Gợi ý sửa lỗi hiện trên thanh gợi ý (cần bật Thanh gợi ý).")
     static let showSuggestions = LK("Gợi ý từ + emoji, tự học từ bạn hay dùng (chỉ trên máy).")
     static let suggestionCount = LK("Tự động: 3 từ. Máy hẹp có thể hiện ít hơn để ô đủ rộng cho dễ chạm.")
+    static let keyboardDismissButton = LK("Hiện ⌄ ở góc phải thanh gợi ý; chạm để ẩn bàn phím.")
     static let suggestInNoSuggestFields = LK("Vẫn gợi ý ở ô mà ứng dụng tắt gợi ý (ô chat, thanh địa chỉ); không học từ ở đó.")
     static let emojiSuggest = LK("Emoji hợp với từ đang gõ (yêu → ❤️).")
     static let numberChips = LK("Đọc số thành chữ, định dạng tiền (1tr2 → 1.200.000 ₫).")
@@ -333,7 +335,7 @@ enum SettingCaption {
         vni, autoCapitalize, simpleTelex, freeMarking, quickTelex, modernTone,
         teencode, profileHint, customProfile, spaceSwipeLanguage, userDictionary, autoRestore,
         contextualEnglish, retroEnglish, englishByFrequency, vniMixedNote, liveSpellCheck, reEditWord, autoFixAdjacent,
-        smartTouch, autoCorrect, adjacentFooter, showSuggestions, suggestionCount, suggestInNoSuggestFields,
+        smartTouch, autoCorrect, adjacentFooter, showSuggestions, suggestionCount, keyboardDismissButton, suggestInNoSuggestFields,
         emojiSuggest, numberChips, mathResults, pasteButton, addTones, aiProofread,
         filterSensitive, swipeTyping, swipeFooterIos, swipeEnglish, swipeFuto, swipePractice,
         shortcuts, systemTextReplacement, templates, textTools, translate, numberRow,

@@ -45,6 +45,7 @@
     "keySoundStyle" : "wood",
     "keySoundVolume" : 70,
     "keyStyles" : "{\"pink\":{\"accent\":\"#D6336C\",\"corner\":70},\"system\":{\"fill\":\"#102030\",\"font\":\"mono\",\"label\":\"#FF2D55\",\"weight\":\"heavy\"}}",
+    "keyboardDismissButton" : false,
     "keyboardTransparency" : 40,
     "largeKeys" : false,
     "liveSpellCheck" : true,

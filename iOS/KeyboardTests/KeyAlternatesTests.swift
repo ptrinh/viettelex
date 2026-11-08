@@ -613,6 +613,93 @@ final class KeyAlternatesTests: XCTestCase {
         withExtendedLifetime((host0, host, hostOff)) {}
     }
 
+    /// "Nút ẩn bàn phím" (⌄ góc phải thanh gợi ý, mặc định TẮT — email người dùng 11/2026): phần thuần.
+    func testKeyboardDismissButtonPure() {
+        XCTAssertFalse(KeyboardDismissButton.defaultValue, "mặc định tắt")
+        XCTAssertEqual(KeyboardDismissButton.key, "keyboardDismissButton")   // cùng khoá Android
+        XCTAssertFalse(KeyboardDismissButton.load(nil))
+        let d = UserDefaults(suiteName: "vt.dismiss.\(UUID().uuidString)")!
+        XCTAssertFalse(KeyboardDismissButton.load(d), "chưa đặt ⇒ tắt")
+        d.set(true, forKey: KeyboardDismissButton.key)
+        XCTAssertTrue(KeyboardDismissButton.load(d))
+        // Hiện: bật + dải có chỗ (kể cả ô mật khẩu) + không ở bàn emoji. Tắt Gợi ý (dải 0) ⇒ không.
+        XCTAssertTrue(KeyboardDismissButton.shown(enabled: true, stripReserved: true, emojiPlane: false))
+        XCTAssertFalse(KeyboardDismissButton.shown(enabled: false, stripReserved: true, emojiPlane: false))
+        XCTAssertFalse(KeyboardDismissButton.shown(enabled: true, stripReserved: false, emojiPlane: false))
+        XCTAssertFalse(KeyboardDismissButton.shown(enabled: true, stripReserved: true, emojiPlane: true))
+        // Tắt ⇒ chừa 0 ⇒ khung 😊 / nhân vật y hệt cũ; bật ⇒ dời trái đúng một ô ☰ (52).
+        let z = KeyboardDismissButton.zoneWidth
+        XCTAssertEqual(z, KeyboardView.stripZoneWidth)
+        XCTAssertEqual(KeyboardDismissButton.rightInset(shown: false), 0)
+        XCTAssertEqual(KeyboardDismissButton.rightInset(shown: true), z)
+        for clip in [false, true] {
+            XCTAssertEqual(KeyboardView.emojiBarFrame(width: 390, strip: 36, clip: clip, dismiss: 0),
+                           KeyboardView.emojiBarFrame(width: 390, strip: 36, clip: clip))
+            XCTAssertEqual(KeyboardView.emojiBarFrame(width: 390, strip: 36, clip: clip, dismiss: z),
+                           KeyboardView.emojiBarFrame(width: 390, strip: 36, clip: clip).offsetBy(dx: -z, dy: 0))
+        }
+        XCTAssertEqual(KeyboardView.buddyZoneFrame(width: 390, strip: 36, dismiss: z).maxX, 390 - z)
+        XCTAssertEqual(KeyboardView.dismissZoneFrame(width: 390, strip: 36), CGRect(x: 390 - z, y: 0, width: z, height: 36))
+        let spec = BackupSettings.all.first { $0.key == KeyboardDismissButton.key }
+        if case .bool(let def)? = spec?.kind { XCTAssertFalse(def) } else { XCTFail("keyboardDismissButton phải là .bool trong sao lưu") }
+    }
+
+    /// Bố cục thật: tắt ⇒ không có nút, thanh y hệt; bật ⇒ ⌄ sát mép phải, 📋 / thanh dời trái, không chồng ⌄;
+    /// dải trống (ô mật khẩu, dải giữ chỗ) vẫn có ⌄; Gợi ý tắt (dải 0) ⇒ không. iPhone + iPad (theo công tắc).
+    @MainActor func testKeyboardDismissButtonLayout() throws {
+        let (kb, host) = makeKeyboard(numbers: true, symbols: false, suggestions: true) { _ in }
+        kb.setClipboardButton(visible: true); kb.layoutIfNeeded()
+        XCTAssertNil(kb.debugDismissButton, "mặc định tắt ⇒ không có ⌄")
+        let off = kb.debugStripLayout()
+        let offClip = try XCTUnwrap(off.clip)
+
+        kb.dismissButtonEnabled = true; kb.layoutIfNeeded()
+        let btn = try XCTUnwrap(kb.debugDismissButton)
+        let z = KeyboardDismissButton.zoneWidth
+        XCTAssertEqual(btn.frame, KeyboardView.dismissZoneFrame(width: kb.bounds.width, strip: btn.frame.height))
+        XCTAssertEqual(btn.frame.maxX, kb.bounds.width, accuracy: 0.5)
+        XCTAssertGreaterThan(btn.frame.height, 0)
+        XCTAssertEqual(btn.accessibilityLabel, L("Ẩn bàn phím"))
+        let on = kb.debugStripLayout()
+        let onClip = try XCTUnwrap(on.clip)
+        XCTAssertEqual(on.bar.maxX, off.bar.maxX - z, accuracy: 0.5, "thanh co đúng một ô")
+        XCTAssertEqual(onClip, offClip.offsetBy(dx: -z, dy: 0))
+        XCTAssertLessThanOrEqual(onClip.maxX, btn.frame.minX + 0.5, "📋 không chồng ⌄")
+        XCTAssertLessThanOrEqual(on.bar.maxX, onClip.minX + 0.5)
+        for c in on.cells { XCTAssertLessThanOrEqual(c.maxX, btn.frame.minX + 0.5, "ô gợi ý chồng ⌄") }
+
+        // Ô từ chối gợi ý nhưng dải giữ chỗ (mật khẩu): dải trống vẫn có ⌄.
+        kb.setSuggestionsEnabled(false, reserveStrip: true); kb.layoutIfNeeded()
+        XCTAssertNotNil(kb.debugDismissButton)
+        // Tắt Thanh gợi ý (dải 0) ⇒ không có ⌄.
+        kb.setSuggestionsEnabled(false, reserveStrip: false); kb.layoutIfNeeded()
+        XCTAssertNil(kb.debugDismissButton)
+
+        // Tắt lại ⇒ đúng bố cục cũ (0 chi phí bố cục).
+        kb.setSuggestionsEnabled(true); kb.dismissButtonEnabled = false; kb.layoutIfNeeded()
+        XCTAssertNil(kb.debugDismissButton)
+        let back = kb.debugStripLayout()
+        XCTAssertEqual(back.bar, off.bar)
+        XCTAssertEqual(back.clip, off.clip)
+        withExtendedLifetime(host) {}
+    }
+
+    /// Bàn emoji (lưới chiếm dải) ⇒ ẩn ⌄; về bàn chữ ⇒ hiện lại. 😊 Thanh trên sát trái ⌄.
+    @MainActor func testKeyboardDismissButtonWithEmojiTop() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom == .pad, "iPad giữ 😊 hàng đáy")
+        let (kb, host) = makeKeyboard(numbers: true, symbols: false, emoji: .top, suggestions: true) { _ in }
+        kb.dismissButtonEnabled = true; kb.layoutIfNeeded()
+        let dz = try XCTUnwrap(kb.debugDismissButton)
+        let em = try XCTUnwrap(kb.debugEmojiBarButton)
+        XCTAssertEqual(em.frame, KeyboardView.emojiBarFrame(width: 390, strip: em.frame.height, clip: false,
+                                                            dismiss: KeyboardDismissButton.zoneWidth))
+        XCTAssertEqual(em.frame.maxX, dz.frame.minX, accuracy: 0.5)
+        em.sendActions(for: .touchUpInside); kb.layoutIfNeeded()
+        XCTAssertEqual(kb.debugPlaneName, "emoji")
+        XCTAssertNil(kb.debugDismissButton, "bàn emoji: ẩn ⌄")
+        withExtendedLifetime(host) {}
+    }
+
     /// Tổ hợp Cả hai × Thanh trên: [123][,][space][.][return]; plane số giữ 😊.
     @MainActor func testBothWithEmojiTop() throws {
         try XCTSkipIf(UIDevice.current.userInterfaceIdiom == .pad)

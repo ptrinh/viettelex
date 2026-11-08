@@ -34,6 +34,7 @@ internal object SettingCaption {
     const val adjacentFooter = "Gợi ý sửa lỗi hiện trên thanh gợi ý (cần bật Thanh gợi ý)." // l10n-key
     const val showSuggestions = "Gợi ý từ + emoji, tự học từ bạn hay dùng (chỉ trên máy)." // l10n-key
     const val suggestionCount = "Tự động: 3 từ. Máy hẹp có thể hiện ít hơn để ô đủ rộng cho dễ chạm." // l10n-key
+    const val keyboardDismissButton = "Hiện ⌄ ở góc phải thanh gợi ý; chạm để ẩn bàn phím." // l10n-key
     const val suggestInNoSuggestFields = "Vẫn gợi ý ở ô mà ứng dụng tắt gợi ý (ô chat, thanh địa chỉ); không học từ ở đó." // l10n-key
     const val numberChips = "Đọc số thành chữ, định dạng tiền (1tr2 → 1.200.000 ₫)." // l10n-key
     const val mathResults = "Gõ phép tính (12*3) → “= 36” hiện trên thanh gợi ý, chạm để chèn." // l10n-key
@@ -109,7 +110,7 @@ internal object SettingCaption {
         vni, autoCapitalize, simpleTelex, freeMarking, quickTelex, modernTone,
         teencode, profileHint, customProfile, spaceSwipeLanguage, userDictionary, autoRestore,
         contextualEnglish, retroEnglish, englishByFrequency, vniMixedNote, liveSpellCheck, reEditWord, autoFixAdjacent,
-        smartTouch, autoCorrect, adjacentFooter, showSuggestions, suggestionCount, suggestInNoSuggestFields, numberChips,
+        smartTouch, autoCorrect, adjacentFooter, showSuggestions, suggestionCount, keyboardDismissButton, suggestInNoSuggestFields, numberChips,
         mathResults, addTones, filterSensitive, swipeTyping, swipeEnglish, swipeFuto,
         swipePractice, shortcuts, templates, textTools, numberRow, numberRowFullHeight,
         spaceSideKey, largeKeys, emojiKeyPlacement, keyLabelSize, longPressNumbers, longPressSymbols,

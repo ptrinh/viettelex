@@ -417,6 +417,59 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // Nút ⌄ thu gọn thanh gợi ý đã BỎ (10/2026, user: "không cần, nhường chỗ cho gợi ý") —
     // gợi ý / 📋 / 😊 / nhân vật dời sát mép phải. Muốn bỏ hẳn thanh: Cài đặt → tắt Gợi ý.
     // Khoá "suggestionBarCollapsed" cũ không còn đọc ⇒ ai đang thu gọn sẽ thấy thanh mở lại.
+    // 11/2026: ⌄ trở lại ở góc phải nhưng để ẨN BÀN PHÍM, chỉ khi bật "Nút ẩn bàn phím"
+    // (KeyboardDismissButton, mặc định TẮT ⇒ bố cục y như trên) — xem dismissZone.
+
+    /// "Nút ẩn bàn phím" (đọc lúc hiện — applyAppearance). Tắt ⇒ không tạo nút, không chừa chỗ.
+    var dismissButtonEnabled = KeyboardDismissButton.defaultValue {
+        didSet { if dismissButtonEnabled != oldValue { stripZonesKey = nil; setNeedsLayout() } }
+    }
+    /// ⌄ đang hiện: bật + dải có chỗ (kể cả ô mật khẩu — dải trống) + không ở bàn emoji.
+    private var dismissShownNow: Bool {
+        KeyboardDismissButton.shown(enabled: dismissButtonEnabled, stripReserved: stripReserved,
+                                    emojiPlane: plane == .emoji || plane == .emojiSearch)
+    }
+    /// Phần chừa ở mép phải cho ⌄ (0 khi tắt / không hiện ⇒ mọi khung y như chưa có nút).
+    private var dismissInset: CGFloat { KeyboardDismissButton.rightInset(shown: dismissShownNow) }
+    private var dismissZoneMade = false
+    private lazy var dismissZone: UIButton = {
+        dismissZoneMade = true
+        let b = UIButton(type: .custom)
+        b.accessibilityLabel = L("Ẩn bàn phím")
+        b.addAction(UIAction { [weak self] _ in
+            Self.clickModifier()
+            self?.inputController?.dismissKeyboard()
+        }, for: .touchUpInside)
+        addSubview(b)
+        return b
+    }()
+    #if DEBUG
+    /// Test hook: nút ⌄ ẩn bàn phím (nil = ẩn / chưa tạo).
+    var debugDismissButton: UIButton? { dismissZoneMade && !dismissZone.isHidden ? dismissZone : nil }
+    #endif
+    /// Khung ⌄ — THUẦN để test: ô cao trọn strip sát mép phải (= ô ☰ bên trái).
+    static func dismissZoneFrame(width: CGFloat, strip: CGFloat) -> CGRect {
+        CGRect(x: width - KeyboardDismissButton.zoneWidth, y: 0, width: KeyboardDismissButton.zoneWidth, height: strip)
+    }
+    private func layoutDismissZone() {
+        let show = dismissShownNow && bounds.width > 0
+        if !show { if dismissZoneMade { dismissZone.isHidden = true }; return }
+        let strip = max(rowsTopWanted, openStripNow)
+        let f = Self.dismissZoneFrame(width: bounds.width, strip: strip)
+        dismissZone.isHidden = false
+        defer { bringSubviewToFront(dismissZone) }
+        // layoutSubviews chạy cả khi gõ: trạng thái không đổi ⇒ khỏi dựng lại ảnh.
+        let key = DismissZoneKey(frame: f, rowTop: barRowTop(strip: strip), ink: palette.barInk)
+        guard key != dismissZoneKey else { return }
+        dismissZoneKey = key
+        dismissZone.frame = f
+        dismissZone.setImage(UIImage(systemName: "keyboard.chevron.compact.down",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .regular)), for: .normal)
+        dismissZone.tintColor = palette.barInk.ui.withAlphaComponent(0.45)
+        dismissZone.contentEdgeInsets = barContentInsets(strip: strip)   // canh hàng chữ gợi ý như ☰ / 📋
+    }
+    private struct DismissZoneKey: Equatable { let frame: CGRect; let rowTop: CGFloat; let ink: RGBA }
+    private var dismissZoneKey: DismissZoneKey?
 
     // Burger (☰) khi bar MỞ: nút GHIM CỐ ĐỊNH ở mép trái, cao trọn
     // strip, tự vẽ icon + nhận tap. Trước nằm trong bar (fillProportionally) nên
@@ -539,6 +592,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Ẩn mà chưa từng tạo ⇒ khỏi tạo (dựng lười lần đầu cần hiện).
         let hideBurger = !open || zone == .none
         if burgerZoneMade || !hideBurger { burgerZone.isHidden = hideBurger }
+        layoutDismissZone()   // trước guard: dải trống (ô mật khẩu) vẫn có ⌄
         layoutClipboardExtras(stripOpen: open)
         layoutBuddy(stripOpen: open)
         layoutEmojiBarButton()
@@ -1602,9 +1656,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     // MARK: Nút emoji trên thanh gợi ý ("Nút emoji" = Thanh trên, EmojiKeyPlacement)
     static let emojiZoneWidth: CGFloat = 40
-    /// Bề ngang chừa bên phải bar (sát mép phải): 📋 (lịch sử clipboard) + 😊 (Thanh trên).
+    /// Bề ngang chừa bên phải bar (sát mép phải): 📋 (lịch sử clipboard) + 😊 (Thanh trên) + nhân vật + ⌄ (nếu bật).
     private var barRightExtras: CGFloat {
-        (clipboardButtonVisible ? Self.clipZoneWidth : 0) + (emojiInBar ? Self.emojiZoneWidth : 0) + buddyZone
+        (clipboardButtonVisible ? Self.clipZoneWidth : 0) + (emojiInBar ? Self.emojiZoneWidth : 0) + buddyZone + dismissInset
     }
     private var emojiZoneMade = false
     private lazy var emojiZone: UIButton = {
@@ -1621,9 +1675,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         addSubview(b)
         return b
     }()
-    /// Khung nút 😊 trên thanh — THUẦN để test: ô cao trọn strip bên trái 📋 (hoặc nhân vật / mép phải).
-    static func emojiBarFrame(width: CGFloat, strip: CGFloat, clip: Bool, buddy: CGFloat = 0) -> CGRect {
-        let x = width - buddy - (clip ? clipZoneWidth : 0) - emojiZoneWidth
+    /// Khung nút 😊 trên thanh — THUẦN để test: ô cao trọn strip bên trái 📋 (hoặc nhân vật / ⌄ / mép phải).
+    static func emojiBarFrame(width: CGFloat, strip: CGFloat, clip: Bool, buddy: CGFloat = 0,
+                              dismiss: CGFloat = 0) -> CGRect {
+        let x = width - dismiss - buddy - (clip ? clipZoneWidth : 0) - emojiZoneWidth
         return CGRect(x: x, y: 0, width: emojiZoneWidth, height: strip)
     }
     private func layoutEmojiBarButton() {
@@ -1632,7 +1687,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         guard bounds.width > 0 else { return }
         let strip = max(rowsTopWanted, openStripNow)
         let f = Self.emojiBarFrame(width: bounds.width, strip: strip,
-                                   clip: clipboardButtonVisible, buddy: buddyZone)
+                                   clip: clipboardButtonVisible, buddy: buddyZone, dismiss: dismissInset)
         emojiZone.isHidden = false
         defer { bringSubviewToFront(emojiZone) }
         // layoutSubviews chạy cả khi gõ (shift/balloon): trạng thái không đổi ⇒ khỏi dựng lại ảnh.
@@ -1660,7 +1715,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if showClip, bounds.width > 0 {
             let strip = max(rowsTopWanted, openStripNow)
             let cw = Self.clipZoneWidth
-            clipZone.frame = CGRect(x: bounds.width - buddyZone - cw, y: 0, width: cw, height: strip)
+            clipZone.frame = CGRect(x: bounds.width - dismissInset - buddyZone - cw, y: 0, width: cw, height: strip)
             clipZone.setImage(UIImage(systemName: "doc.on.clipboard",
                 withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .regular)), for: .normal)
             clipZone.tintColor = palette.barInk.ui.withAlphaComponent(overlayPanel == nil ? 0.45 : 0.9)
@@ -2172,6 +2227,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         symbolReturn = SymbolReturn.load(UserDefaultsProvider.shared)
         largeKeys = LargeKeys.load(UserDefaultsProvider.shared)
         emojiKeyPlacement = EmojiKeyPlacement.load(UserDefaultsProvider.shared)
+        dismissButtonEnabled = KeyboardDismissButton.load(UserDefaultsProvider.shared)   // "Nút ẩn bàn phím"
         suggestionBar.setting = SuggestionCount.load(UserDefaultsProvider.shared)   // "Số từ gợi ý"
         barHeight = SuggestionBarHeight.load(UserDefaultsProvider.shared)   // "Chiều cao thanh gợi ý" — rebuild() cuối hàm áp
         // Bàn phím tách đôi (mặc định TẮT) — rebuild() cuối hàm áp nếu đổi.
@@ -5808,7 +5864,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Chỉ ô chừa trong strip được vuốt ve; phần hình tràn xuống vẫn thuộc phím.
         if let buddy, !buddy.isHidden, !suggestionBar.isHidden, bounds.contains(point) {
             let strip = max(rowsTopWanted, openStripNow)
-            let zone = Self.buddyZoneFrame(width: bounds.width, strip: strip, placement: buddyPlacement)
+            let zone = Self.buddyZoneFrame(width: bounds.width, strip: strip, placement: buddyPlacement,
+                                           dismiss: dismissInset)
             if BuddyTap.tickles(x: Double(point.x), y: Double(point.y),
                                 zone: BuddyRect(x: Double(zone.minX), y: Double(zone.minY), w: Double(zone.width), h: Double(zone.height)),
                                 stripHeight: Double(strip), figure: BuddyRect(x: Double(buddy.frame.minX), y: Double(buddy.frame.minY), w: Double(buddy.frame.width), h: Double(buddy.frame.height))) { return buddyTickleZone }
@@ -6789,18 +6846,20 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// (BuddyView.isUserInteractionEnabled = false) nên phím bên dưới vẫn bấm bình thường.
     static let buddyOverlapRatio: CGFloat = 0.65
 
-    /// Ô chừa cho nhân vật trong thanh gợi ý (chip gợi ý / 📋 / 😊 dời trái đúng bấy nhiêu) — sát mép phải.
-    static func buddyZoneFrame(width: CGFloat, strip: CGFloat, placement: BuddyPlacement = .standard) -> CGRect {
+    /// Ô chừa cho nhân vật trong thanh gợi ý (chip gợi ý / 📋 / 😊 dời trái đúng bấy nhiêu) — sát mép phải,
+    /// hoặc sát trái ⌄ ẩn bàn phím khi bật (`dismiss` = KeyboardDismissButton.rightInset).
+    static func buddyZoneFrame(width: CGFloat, strip: CGFloat, placement: BuddyPlacement = .standard,
+                               dismiss: CGFloat = 0) -> CGRect {
         let w = CGFloat(placement.zoneWidth(Double(buddyZoneWidth)))
-        return CGRect(x: width - w, y: 0, width: w, height: strip)
+        return CGRect(x: width - dismiss - w, y: 0, width: w, height: strip)
     }
 
     /// Khung VẼ nhân vật — THUẦN để test: cao strip + phần tràn xuống phím, rộng vuông (dáng ngủ nằm ngang không
     /// bị cắt), canh giữa ô chừa nhưng không vượt mép phải; được đè lên 📋 / phím (lớp trên cùng, không nhận chạm).
     /// Cỡ / lề (BuddyPlacement): neo đáy-phải khung cỡ gốc; to hơn thì lớn dần xuống phím (trần bàn phím không vẽ được).
     static func buddyFrame(width: CGFloat, strip: CGFloat, placement: BuddyPlacement = .standard,
-                           height: CGFloat? = nil) -> CGRect {
-        let zone = buddyZoneFrame(width: width, strip: strip)
+                           height: CGFloat? = nil, dismiss: CGFloat = 0) -> CGRect {
+        let zone = buddyZoneFrame(width: width, strip: strip, dismiss: dismiss)
         let h = (strip * (1 + buddyOverlapRatio)).rounded()
         let w = max(zone.width, h)
         let base = BuddyRect(x: Double(min(zone.midX - w / 2, width - w)), y: 0, w: Double(w), h: Double(h))
@@ -6848,7 +6907,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func layoutBuddy(stripOpen: Bool) {
         guard let b = buddy else { return }
         let wasHidden = b.isHidden
-        let zone = Self.buddyZoneFrame(width: bounds.width, strip: max(rowsTopWanted, openStripNow), placement: buddyPlacement)
+        let zone = Self.buddyZoneFrame(width: bounds.width, strip: max(rowsTopWanted, openStripNow), placement: buddyPlacement,
+                                       dismiss: dismissInset)
         buddyTickleZone.isHidden = !stripOpen
         buddyTickleZone.frame = zone
         bringSubviewToFront(buddyTickleZone)
@@ -6859,7 +6919,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Strip thật (rowsContainer bắt đầu ngay dưới); ô nhân vật tràn xuống hàng phím đầu (không nhận chạm).
         let strip = min(max(rowsTopWanted, openStripNow),
                         rowsContainer.frame.height > 0 ? rowsContainer.frame.minY : .greatestFiniteMagnitude)
-        let f = Self.buddyFrame(width: bounds.width, strip: strip, placement: buddyPlacement, height: layoutHeight)
+        let f = Self.buddyFrame(width: bounds.width, strip: strip, placement: buddyPlacement, height: layoutHeight,
+                                dismiss: dismissInset)
         if b.frame != f { b.frame = f }
         b.layer.zPosition = 1000   // trên cùng: không bị phím / popup / hiệu ứng đè hay chèn
         bringSubviewToFront(b)
