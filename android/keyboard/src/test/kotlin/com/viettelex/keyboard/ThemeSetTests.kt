@@ -186,7 +186,7 @@ class ThemeSetTests {
     /** Neon Night Club — iOS testNightclubTheme y hệt. */
     @Test fun nightclubTheme() {
         val t = KeyboardTheme.NIGHTCLUB
-        assertEquals(KeyboardTheme.NIGHTCLUB, KeyboardTheme.entries.last())
+        assertTrue("thêm cuối", KeyboardTheme.NIGHTCLUB.ordinal > KeyboardTheme.AI.ordinal)
         val spec = t.spec!!
         assertTrue(t.isPlus)
         assertEquals("Neon Night Club", spec.nameVi); assertEquals("Neon Night Club", spec.nameEn)
@@ -494,7 +494,7 @@ class ThemeSetTests {
         val secs = ThemePicker.sections
         assertEquals(listOf("Miễn phí", "Tương tác", "Plus"), secs.map { it.title })
         assertEquals(listOf(KeyboardTheme.SYSTEM, KeyboardTheme.OLED, KeyboardTheme.CONTRAST, KeyboardTheme.NEUTRAL), secs[0].themes)
-        assertEquals(listOf("nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar"), secs[1].themes.map { it.id })
+        assertEquals(listOf("nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "football"), secs[1].themes.map { it.id })
         assertEquals(ThemePicker.ordered(), secs.flatMap { it.themes })
         assertEquals(KeyboardTheme.entries.toSet(), secs.flatMap { it.themes }.toSet())
         assertEquals("không trùng", KeyboardTheme.entries.size, secs.flatMap { it.themes }.size)

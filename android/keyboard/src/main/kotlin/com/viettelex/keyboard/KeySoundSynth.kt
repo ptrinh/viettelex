@@ -46,7 +46,9 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
     /** Theme "AI" (11/2026): "blip" synth mềm — sine trượt lên D6 → G6 + nốt A6 khẽ chen — công thức đầu file Swift. */
     AI("ai", "Synth AI"), // l10n-key
     /** Theme "Neon Night Club" (11/2026): nhịp club — chữ = hi-hat, xoá = kick, chức năng = kick + hat ([KeySoundSynth.clubRecipe]). */
-    CLUB("club", "Nhịp club"); // l10n-key
+    CLUB("club", "Nhịp club"), // l10n-key
+    /** Theme "Bóng đá" (11/2026): tiếng bóng "bụp" mềm — thân sine trầm trượt xuống + chút da bóng + hơi cỏ (iOS thump). */
+    THUMP("thump", "Bóng bụp"); // l10n-key
 
     /** true ⇒ phát qua SoundPool riêng; [SYSTEM] ⇒ playSoundEffect, không dựng gì. */
     val usesPool: Boolean get() = this != SYSTEM
@@ -56,7 +58,7 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
         val DEFAULT = SUBTLE
         /** Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức [KeySoundSynth.baseRecipe]. */
         val PRESETS = listOf(SUBTLE, WOOD, MECHANICAL, TYPEWRITER, BUBBLE, ROCK, POP, WATER, VINTAGE, PHAO, JINGLE, SCIFI,
-            TRONG, BOO, BOP, CHIP, AI, CLUB)
+            TRONG, BOO, BOP, CHIP, AI, CLUB, THUMP)
         /** Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta). */
         val ALL_PRESETS = PRESETS + PIANO + DANTRANH + GUITAR
         /**
@@ -170,6 +172,10 @@ object KeySoundSynth {
                 t(0.38, 1760.0, 1760.0, tau = 0.012, delay = 0.014)),
             emptyList(), 0.002, 0.05, 5000.0, 0.36)
         KeySoundStyle.CLUB -> clubRecipe(Kind.LETTER)
+        // Bóng bụp: sine 120 → 85 Hz (glide 6 ms) τ18 ms + 240 Hz τ6 ms (0.25) + hơi cỏ lp 900 Hz τ3 ms (0.25); 54 ms; đỉnh 0.5.
+        KeySoundStyle.THUMP -> Recipe(
+            listOf(t(1.0, 120.0, 85.0, glide = 0.006, tau = 0.018), t(0.25, 240.0, 200.0, glide = 0.006, tau = 0.006)),
+            listOf(n(0.25, hp = 90.0, lp = 900.0, tau = 0.003)), 0.0015, 0.054, 1400.0, 0.50)
     }
 
     /**
@@ -194,6 +200,49 @@ object KeySoundSynth {
         emptyList(), 0.006, 0.130, 4200.0, 0.42)
     const val SQUEAK_SEED = 0x6D6F6C65
     fun squeakSamples(): FloatArray = render(SQUEAK_RECIPE, SQUEAK_SEED)
+
+    // --- Hò reo (theme Bóng đá — Sút!, 11/2026): công thức + lý do ở iOS KeySoundSynth.cheerSamples (checksum chung) ---
+    const val CHEER_DURATION = 0.95
+    const val CHEER_SWELL = 0.35
+    const val CHEER_PEAK = 0.28
+    const val CHEER_SEED = 0x63686572   // "cher"
+    /** Âm lượng tiếng hò reo (× âm lượng phím của người dùng). */
+    const val CHEER_VOLUME = 0.8
+
+    /** Tiếng hò reo đám đông ~0,95 s (22,05 kHz): nhiễu hp 300 Hz → lp 2 cực 1,6 kHz × vỏ dâng 0,35 s, giữ, tắt τ 0,32 s. */
+    fun cheerSamples(): FloatArray {
+        val sr = SURF_SAMPLE_RATE.toDouble()
+        val count = (CHEER_DURATION * sr).roundToInt()
+        fun pole(f: Double) = exp(-2 * PI * f / sr)
+        val hA = pole(300.0); val lA = pole(1600.0); val oA = pole(2200.0); val dcA = pole(30.0)
+        var state = CHEER_SEED
+        var hIn = 0.0; var hOut = 0.0; var l1 = 0.0; var l2 = 0.0; var o = 0.0; var dcIn = 0.0; var dcOut = 0.0; var peak = 0.0
+        val fout = (0.080 * sr).toInt()
+        val out = DoubleArray(count)
+        for (i in 0 until count) {
+            val t = i / sr
+            state = state xor (state shl 13); state = state xor (state ushr 17); state = state xor (state shl 5)
+            val white = (state.toLong() and 0xFFFFFFFFL).toDouble() / 4294967295.0 * 2 - 1
+            hOut = hA * (hOut + white - hIn); hIn = white
+            l1 = (1 - lA) * hOut + lA * l1; l2 = (1 - lA) * l1 + lA * l2
+            val env = when {
+                t < CHEER_SWELL -> 0.5 - 0.5 * cos(PI * t / CHEER_SWELL)
+                t < 0.55 -> 1.0
+                else -> exp(-(t - 0.55) / 0.32)
+            }
+            val am = 1 + 0.15 * (sin(2 * PI * 3.1 * t) + sin(2 * PI * 4.7 * t + 1.3) + sin(2 * PI * 6.3 * t + 2.1)) / 3
+            val v = l2 * env * am
+            o = (1 - oA) * v + oA * o
+            dcOut = dcA * (dcOut + o - dcIn); dcIn = o
+            var y = dcOut
+            val fromEnd = count - 1 - i
+            if (fromEnd < fout) y *= 0.5 - 0.5 * cos(PI * fromEnd / fout)
+            out[i] = y
+            peak = maxOf(peak, abs(y))
+        }
+        val norm = if (peak > 0) CHEER_PEAK / peak else 0.0
+        return FloatArray(count) { (out[it] * norm).toFloat() }
+    }
 
     // --- Sóng vỗ (theme Biển — [SeaFx], 08/11/2026): công thức + lý do ở iOS KeySoundSynth.surfSamples (checksum chung) ---
     const val SURF_SAMPLE_RATE = 22_050
@@ -280,7 +329,12 @@ object KeySoundSynth {
     fun seed(s: KeySoundStyle, k: Kind): Int =
         // Nhịp club: seed CỐ ĐỊNH ("club"), không theo vị trí — checksum không đổi khi nhánh khác thêm kiểu trước nó.
         if (s == KeySoundStyle.CLUB) 0x636C7562 xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
-        else (0x9E3779B9.toInt() * (s.ordinal + 1)) xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
+        // Kiểu theme 11/2026 trở đi: seed CỐ ĐỊNH theo tên (iOS fixedSeeds y hệt).
+        else FIXED_SEEDS[s]?.let { it xor (0x85EBCA6B.toInt() * (k.ordinal + 1)) }
+            ?: ((0x9E3779B9.toInt() * (s.ordinal + 1)) xor (0x85EBCA6B.toInt() * (k.ordinal + 1)))
+
+    /** Seed cố định theo tên kiểu ("thum"…) — iOS KeySoundSynth.fixedSeeds y hệt. */
+    val FIXED_SEEDS: Map<KeySoundStyle, Int> = mapOf(KeySoundStyle.THUMP to 0x7468756D)
 
     fun samples(s: KeySoundStyle, k: Kind): FloatArray = render(recipe(s, k), seed(s, k))
 

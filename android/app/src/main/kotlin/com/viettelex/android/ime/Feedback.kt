@@ -133,6 +133,15 @@ class Feedback(private val ctx: Context) {
     /** Test: số lần xin phát tiếng sóng (đã qua công tắc). */
     var surfs = 0
         private set
+    /** Tiếng sự kiện đang dựng trên đường "sóng": sóng vỗ (Biển) hoặc hò reo (Sút! — theme Bóng đá). */
+    var eventSound: EventSound = EventSound.SURF
+        private set
+    /** Test: số lần xin phát tiếng hò reo (đã qua công tắc). */
+    var cheers = 0
+        private set
+
+    /** Tiếng sự kiện của hiệu ứng (không phải tiếng phím) — iOS FxEventSound. */
+    enum class EventSound { SURF, CHEER }
 
     /** Test/log: giọng lần phát piano gần nhất (≥ VOICES = giọng ngân). */
     var lastPianoVoice = -1
@@ -264,6 +273,19 @@ class Feedback(private val ctx: Context) {
     }
 
     /** Hiệu ứng Biển đang chọn ⇒ nạp tiếng sóng vào SoundPool (nếu có); bỏ chọn ⇒ bỏ. Hiệu ứng khác: không gọi gì thêm. */
+    /** Tiếng sự kiện của hiệu ứng đang chọn (null ⇒ nhả). Đổi loại ⇒ nạp lại mẫu. */
+    fun setEventSound(e: EventSound?) {
+        if (e != null && e != eventSound) {
+            eventSound = e
+            surfId = 0; surfLoaded = false; surfStreams.fill(0)
+            if (surfWanted) { loadSurf(); return }
+        }
+        setSurfEnabled(e != null)
+    }
+
+    /** Âm sự kiện đang bật (test). */
+    val eventSoundWanted: EventSound? get() = if (surfWanted) eventSound else null
+
     fun setSurfEnabled(on: Boolean) {
         if (on == surfWanted) return
         surfWanted = on
@@ -276,9 +298,10 @@ class Feedback(private val ctx: Context) {
         if (!surfWanted || surfId != 0) return
         surfId = -1                                    // đang nạp
         val dir = ctx.cacheDir
+        val kind = eventSound
         w(Runnable {
-            val f = surfFile(dir)
-            main.post { if (pool === p && surfWanted && f != null) surfId = p.load(f.path, 1) }
+            val f = if (kind == EventSound.CHEER) cheerFile(dir) else surfFile(dir)
+            main.post { if (pool === p && surfWanted && eventSound == kind && f != null) surfId = p.load(f.path, 1) }
         })
     }
 
@@ -291,8 +314,25 @@ class Feedback(private val ctx: Context) {
         if (!surfAllowed(route)) return false
         surfs++
         val p = pool ?: return true
-        if (!surfLoaded || surfId <= 0) return true
+        if (eventSound != EventSound.SURF || !surfLoaded || surfId <= 0) return true
         val v = gain * com.viettelex.keyboard.SeaFx.surfVolume(size).toFloat()
+        val slot = surfCursor; surfCursor = (slot + 1) % surfStreams.size
+        if (surfStreams[slot] != 0) p.stop(surfStreams[slot])
+        surfStreams[slot] = p.play(surfId, v, v, 2, 0, 1f)
+        return true
+    }
+
+    /**
+     * Một cú sút (Sút! — theme Bóng đá): tiếng hò reo CHỈ khi đường âm riêng phát (như [surf]), âm lượng phím ×
+     * [KeySoundSynth.CHEER_VOLUME]; xoay cùng 2 stream của đường sự kiện.
+     */
+    fun cheer(): Boolean {
+        val route = KeySoundSynth.route(soundEnabled, volumePercent, ringerNormal(), soundStyle)
+        if (!surfAllowed(route)) return false
+        cheers++
+        val p = pool ?: return true
+        if (eventSound != EventSound.CHEER || !surfLoaded || surfId <= 0) return true
+        val v = gain * KeySoundSynth.CHEER_VOLUME.toFloat()
         val slot = surfCursor; surfCursor = (slot + 1) % surfStreams.size
         if (surfStreams[slot] != 0) p.stop(surfStreams[slot])
         surfStreams[slot] = p.play(surfId, v, v, 2, 0, 1f)
@@ -471,6 +511,10 @@ class Feedback(private val ctx: Context) {
         /** WAV tiếng sóng vỗ (cache, ghi 1 lần; đổi công thức ⇒ đổi tên). */
         fun surfFile(dir: File): File? =
             cachedWav(dir, "keysound-v${KeySoundSynth.VERSION}-surf1.wav", KeySoundSynth.SURF_SAMPLE_RATE) { KeySoundSynth.surfSamples() }
+
+        /** WAV tiếng hò reo (cache, ghi 1 lần; đổi công thức ⇒ đổi tên). */
+        fun cheerFile(dir: File): File? =
+            cachedWav(dir, "keysound-v${KeySoundSynth.VERSION}-cheer1.wav", KeySoundSynth.SURF_SAMPLE_RATE) { KeySoundSynth.cheerSamples() }
 
         /** WAV "éc" (cache, ghi 1 lần). */
         fun squeakFile(dir: File): File? =

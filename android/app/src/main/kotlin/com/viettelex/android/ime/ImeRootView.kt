@@ -70,7 +70,7 @@ class ImeRootView(
             android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(theme.bg, bottom))
         // Tim đen / Hoa xanh: hoạ tiết là MỘT Path trong nền (vẽ khi nền đổi, không mỗi phím).
         else if (wallpaperFile == null && (decoration != null || theme.palette.auroraBorder))
-            ThemeDecorDrawable(theme.bg, decoration, theme.density, aurora = theme.palette.auroraBorder)
+            ThemeDecorDrawable(theme.bg, decoration, theme.density, aurora = theme.palette.auroraBorder, dark = theme.dark)
         else android.graphics.drawable.ColorDrawable(theme.bg)
     }
 

@@ -223,6 +223,14 @@ internal object BuiltinThemesData {
       "light": {"bg": "#07020D", "key": "#170A24", "special": "#241038", "ink": "#FBEFFF", "accent": "#FF2FD0",
                 "accentInk": "#1A0016", "fn": "#10061C", "fnInk": "#2FE6FF", "border": "#E6FF2FD0"},
       "dark": "same"
+    },
+    {
+      "v": 1, "id": "football", "name": {"vi": "Bóng đá", "en": "Football"}, "tags": ["interactive"], "corner": 30,
+      "sound": "thump", "effect": "goal",
+      "light": {"bg": "#2F7D32", "key": "#FFFFFF", "special": "#DDEBD8", "ink": "#102114", "accent": "#C62828",
+                "accentInk": "#FFFFFF", "fn": "#14281A", "fnInk": "#FFFFFF", "deco": {"motif": "pitch", "color": "#4DFFFFFF"}},
+      "dark": {"bg": "#1B4D20", "key": "#1C2620", "special": "#2A362E", "ink": "#F4FFF2", "accent": "#C62828",
+               "accentInk": "#FFFFFF", "fn": "#0F1712", "fnInk": "#FFD54F", "deco": {"motif": "pitch", "color": "#38FFFFFF"}}
     }
   ]
 }

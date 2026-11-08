@@ -12,6 +12,7 @@
 		0222562F9A662E1780357942 /* EmojiPlane.swift in Sources */ = {isa = PBXBuildFile; fileRef = D705942B9BA084047E7A7EF1 /* EmojiPlane.swift */; };
 		02277DFC3A0CEDD0F1321BC7 /* lobster.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F21C0A79B520C1120988E6BC /* lobster.ttf */; };
 		02E1FBFA9896C3CD1F0AC050 /* RiengTuSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDF03074145DE8EA1461687C /* RiengTuSection.swift */; };
+		031225F1A92E928112DB699E /* FootballFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77323AD52A4C80D9D12CE505 /* FootballFx.swift */; };
 		03737E5339AC43A75D973144 /* EmojiSuggest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */; };
 		037F3913620B2EEB5C812112 /* RainbowBorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6431194D2F5D04057EE598B6 /* RainbowBorderTests.swift */; };
 		03B12CE64D361D1987537103 /* text-tools.txt in Resources */ = {isa = PBXBuildFile; fileRef = 8CCBF78039DA75E228D4CDC2 /* text-tools.txt */; };
@@ -86,6 +87,7 @@
 		26BE18A2BFA5034F446A5C63 /* NightClub.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC3A07A6FB497AE36F5C1916 /* NightClub.swift */; };
 		26C607EDB93AB182A66930C9 /* AppearancePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214BE1EF9FDB2118D4F50109 /* AppearancePolicyTests.swift */; };
 		26F92D30462E28A390FD70A6 /* UXSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4C8682721439F0EE47DDC34 /* UXSnapshotTests.swift */; };
+		273BA8C49D82163054BCFE0E /* FootballFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77323AD52A4C80D9D12CE505 /* FootballFx.swift */; };
 		277932CADF5C72BEDCB58651 /* EmojiAtlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B235B84E86F71BBBB10E836 /* EmojiAtlas.swift */; };
 		277D00FD560ECE145713C213 /* L10nTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38772D47D6B779FA5C58271 /* L10nTests.swift */; };
 		28204C66017B9ADA8F8C46FE /* Wallpaper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A12BC49EB45298684CF97D /* Wallpaper.swift */; };
@@ -110,6 +112,7 @@
 		2EB255281257BD33FED7B2D8 /* ClipDetect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F980E450F0B3851CDC5361F /* ClipDetect.swift */; };
 		2EB3139E049820E47859ECA3 /* SwipeDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705734FC03226DA179E14A71 /* SwipeDecoder.swift */; };
 		2F20A81CC62D458CB255C0CA /* MoleOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A139193316D149189CF109DA /* MoleOverlay.swift */; };
+		2F8BCD8FE63D6F21CD751FE6 /* ThemeFxPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E368A1D5BE9B4A93BFC10AA /* ThemeFxPack.swift */; };
 		30258E0C2371CFAE67F12754 /* UserLMTables.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B560D6CFFCE1B0B57742E3 /* UserLMTables.swift */; };
 		3083AE37C20908DB486DE722 /* SyllableLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A253A0432EF946B10B4E511 /* SyllableLM.swift */; };
 		30F54CD6827BDA90BB2CAB53 /* TrackpadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D2E54E996214AA4F8CB065 /* TrackpadTests.swift */; };
@@ -149,6 +152,7 @@
 		4126B82B172C1B5BE3EDB352 /* EmojiSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD1ABEB72F0DCCF278A46E7 /* EmojiSearch.swift */; };
 		41E3FA4381117F20A004AB5F /* montserrat.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A3D8EFD54B024F6E0881EC5D /* montserrat.ttf */; };
 		42330A2F6ABF40E32EAD3BAE /* LunarCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5658CD4BA507DF2BA12245 /* LunarCalendar.swift */; };
+		42530AF9240EA84945F8FA6E /* FootballFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77323AD52A4C80D9D12CE505 /* FootballFx.swift */; };
 		42C0FC911DFA0F3E53C151F2 /* patrick-hand.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E75AFF6CFBC6B0096C134CFB /* patrick-hand.ttf */; };
 		434A2DE773686767F92FFCDC /* NightClubSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A05AE760FBCD9C4122821C /* NightClubSnapshotTests.swift */; };
 		444358B0BE78D91F673CD621 /* TouchTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C928B7D91A4C54D1642E70F /* TouchTargetTests.swift */; };
@@ -166,6 +170,7 @@
 		47D0834606BB8E66AB2213D1 /* ScrollEdgeEffectTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBD24780DBDAEB07E6645C3E /* ScrollEdgeEffectTests.swift */; };
 		47E7F5A4D1C2F4DB41A97D74 /* SwipeVocabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32954DB2D38C5B9675E4964D /* SwipeVocabTests.swift */; };
 		4934EAD525E4B9A0DFBE254F /* vnlm.bin in Resources */ = {isa = PBXBuildFile; fileRef = 6C7EDE7A95356B8F9043D32F /* vnlm.bin */; };
+		494C4B384B2DBC6186E8706F /* ThemeFxPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E368A1D5BE9B4A93BFC10AA /* ThemeFxPack.swift */; };
 		496986778385E9E06B65D0C1 /* buddy-cat-v2.png in Resources */ = {isa = PBXBuildFile; fileRef = 2F849B6D66CDB74FA974513D /* buddy-cat-v2.png */; };
 		4A1DAD15F27FA4005C5D4058 /* TranslatePrefs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FD55F59F8275BCD7B566DD /* TranslatePrefs.swift */; };
 		4A60DBA8CC57E903ECFBDA54 /* AIProofreadPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC97B8AC6D8335D37B6565AD /* AIProofreadPanel.swift */; };
@@ -443,6 +448,7 @@
 		CF927A464EEB48A4770D3C9F /* PlusGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D488C3ADF837AC9FCDD9EC1D /* PlusGate.swift */; };
 		D02EDE12A5B131B8B9F2EDD8 /* OnboardingProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB9F0ADEE3855891E61D1DC /* OnboardingProfile.swift */; };
 		D0AB1A2F822234A53F66D19B /* TemplateEditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4FC671773198BA581BA9228 /* TemplateEditTests.swift */; };
+		D0F34FF84DE8AA8BA8C46550 /* ThemeFxPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E368A1D5BE9B4A93BFC10AA /* ThemeFxPack.swift */; };
 		D12405A0B0E9F812580C25F2 /* RamFixTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB757354715E62384994C56 /* RamFixTests.swift */; };
 		D12EE5FDDD99168FAD725605 /* SyncCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079761CFA779BBD4401101EF /* SyncCore.swift */; };
 		D1D473B187EF1FC2AC8A8420 /* KeyCommandGesture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9556E09A2E0A2C9C3E9D1CBD /* KeyCommandGesture.swift */; };
@@ -478,6 +484,7 @@
 		E0E2190351D069CBD17F6B8C /* NumberChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DF8BE49B914D1B4B31116F3 /* NumberChips.swift */; };
 		E16D46978F3A25EF2D8990ED /* AppearancePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62E14AD387BE2B1A54881E15 /* AppearancePolicy.swift */; };
 		E18FE2085B406DE00BC80F1F /* EmojiAtlasBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 818AAEF3703366E38E67813C /* EmojiAtlasBuilder.swift */; };
+		E1950D5D311858E10574F125 /* FootballFxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41DD957284B0C2C42606DAE8 /* FootballFxTests.swift */; };
 		E1A8B31E80F18094634EF943 /* ViewTreeLeakTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9822723B0DBD958953953CF /* ViewTreeLeakTests.swift */; };
 		E238E6821F8CFDE681C387D7 /* AppearanceCycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = E611B5D3668D99B02D1AAE35 /* AppearanceCycle.swift */; };
 		E25796C6DF51C528137161EB /* futo-swipe-fixture.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5A0609A6319273F70D4F03A6 /* futo-swipe-fixture.txt */; };
@@ -648,6 +655,7 @@
 		1B65EEFA3CD83560C2E9D86B /* EmojiSearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSearchBar.swift; sourceTree = "<group>"; };
 		1C44AD1817EC463233B42B2D /* PlusStoreModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlusStoreModel.swift; sourceTree = "<group>"; };
 		1CD424A6A736C971B3F87998 /* FeaturePages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeaturePages.swift; sourceTree = "<group>"; };
+		1E368A1D5BE9B4A93BFC10AA /* ThemeFxPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeFxPack.swift; sourceTree = "<group>"; };
 		1F5F701EEDA1A9A65CB97DCF /* swipe-shortcuts.tsv */ = {isa = PBXFileReference; path = "swipe-shortcuts.tsv"; sourceTree = "<group>"; };
 		208D0B979D689BDA140031CD /* userlm-legacy-android-v1.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "userlm-legacy-android-v1.bin"; sourceTree = "<group>"; };
 		209C000B31A56F2E72663A5D /* math-results.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "math-results.txt"; sourceTree = "<group>"; };
@@ -691,6 +699,7 @@
 		3EDBA5B57FBEDAF80717B58A /* SplitKeyboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitKeyboardTests.swift; sourceTree = "<group>"; };
 		40C99F4D7F9B60E0493E3E16 /* EnglishNext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnglishNext.swift; sourceTree = "<group>"; };
 		41BD0E4DE3C769A2EDE19180 /* ThemeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeSettingsView.swift; sourceTree = "<group>"; };
+		41DD957284B0C2C42606DAE8 /* FootballFxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootballFxTests.swift; sourceTree = "<group>"; };
 		45174CB35A9FB727F1BF5F4F /* RetroEnglishUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroEnglishUI.swift; sourceTree = "<group>"; };
 		451B2112B13ABD917EEE3D9A /* WordDelete.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordDelete.swift; sourceTree = "<group>"; };
 		455CE7543F3290A1B95FA3F9 /* Feedback1028Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Feedback1028Tests.swift; sourceTree = "<group>"; };
@@ -763,6 +772,7 @@
 		75B5F8CF64D742271AB1F96D /* DynamicSnippetsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicSnippetsTests.swift; sourceTree = "<group>"; };
 		76444B4521814651DA2C026A /* FutoSwipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FutoSwipe.swift; sourceTree = "<group>"; };
 		769E76C687A1221F2389FD54 /* OneHandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneHandTests.swift; sourceTree = "<group>"; };
+		77323AD52A4C80D9D12CE505 /* FootballFx.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootballFx.swift; sourceTree = "<group>"; };
 		778ABAFB76C1046BD2E3A1AD /* SwipeGesture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeGesture.swift; sourceTree = "<group>"; };
 		79FD55F59F8275BCD7B566DD /* TranslatePrefs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslatePrefs.swift; sourceTree = "<group>"; };
 		7A239D979FCA572C550C6E31 /* SwipeShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeShortcutTests.swift; sourceTree = "<group>"; };
@@ -1235,6 +1245,7 @@
 				4B68AFA53C7C54443DAB2DA2 /* FieldPolicyTests.swift */,
 				5C82227CC9DC2209E6FFB1FF /* FirstLayoutHeightTests.swift */,
 				E85DE7FE9317FE348701314F /* FoldableLayoutTests.swift */,
+				41DD957284B0C2C42606DAE8 /* FootballFxTests.swift */,
 				D188EC4E6781410050CABC5D /* FullPackSnapshotTests.swift */,
 				8FA4464DCB74D34A8A55E14B /* FutoSwipeTests.swift */,
 				6C79C970EC7D5AB3D9A9C662 /* HapticTests.swift */,
@@ -1445,6 +1456,7 @@
 				A817C3A81FD07D8BF3E86BF2 /* EnglishAssist.swift */,
 				40C99F4D7F9B60E0493E3E16 /* EnglishNext.swift */,
 				480410FD8F2A324AF6A742C1 /* FieldPolicy.swift */,
+				77323AD52A4C80D9D12CE505 /* FootballFx.swift */,
 				76444B4521814651DA2C026A /* FutoSwipe.swift */,
 				47B731DCA56D699168C41DAC /* FutoSwipeModel.swift */,
 				23D9F4828FBAE93DCCEB2271 /* Info.plist */,
@@ -1500,6 +1512,7 @@
 				6EAE46AEF3EF71266329303C /* TextToolRunner.swift */,
 				A49B2C3D02FA8B71A8BFA201 /* TextTools.swift */,
 				FF4C6DB15FA5F4E400E8FC58 /* ThemeAssets.swift */,
+				1E368A1D5BE9B4A93BFC10AA /* ThemeFxPack.swift */,
 				BA49BF61252BA33DE0B264E1 /* ThemeSpec.swift */,
 				359BC071F163E8255C943DA7 /* TouchGeometry.swift */,
 				A73661E1643A0CAA02517C00 /* TouchLog.swift */,
@@ -1850,6 +1863,7 @@
 				9D07E849D90599168806DE1F /* EnglishAssist.swift in Sources */,
 				A670AECC0F777A4574F646C8 /* EnglishNext.swift in Sources */,
 				89E603918708D39C00616ABB /* FieldPolicy.swift in Sources */,
+				273BA8C49D82163054BCFE0E /* FootballFx.swift in Sources */,
 				E8DB9BE35A9F0D3CE0E869E6 /* FutoSwipe.swift in Sources */,
 				8CFA1F2B11ADA1997EEA16AD /* FutoSwipeModel.swift in Sources */,
 				1F4FDF0380687782A44AFAD3 /* KeyAlternates.swift in Sources */,
@@ -1912,6 +1926,7 @@
 				A7D0016FA22EF6C3EE8E20CB /* TextToolRunner.swift in Sources */,
 				0586DC63E120C311C0AB5413 /* TextTools.swift in Sources */,
 				DDEBD437B96994BF83FA4C51 /* ThemeAssets.swift in Sources */,
+				2F8BCD8FE63D6F21CD751FE6 /* ThemeFxPack.swift in Sources */,
 				1D286BF27687D9F637D3E953 /* ThemeSpec.swift in Sources */,
 				86FFD0F2F1C505CCB71BBCB3 /* TouchGeometry.swift in Sources */,
 				665AA760B41DC86808F42E23 /* TouchLog.swift in Sources */,
@@ -1947,6 +1962,7 @@
 				D6B834245592A77251E351F6 /* EmojiAtlasBuilder.swift in Sources */,
 				7E077DE51702D8A5C5A44038 /* EmojiData.swift in Sources */,
 				28F59AFC0EA801B2565A2A41 /* FeaturePages.swift in Sources */,
+				42530AF9240EA84945F8FA6E /* FootballFx.swift in Sources */,
 				752FB9D5D429DB659988F787 /* ICloudSync.swift in Sources */,
 				AFCA6750D4840FC59397D082 /* IntelligenceEngine.swift in Sources */,
 				74A2E4103754E738E797B397 /* KeyEffectPickerView.swift in Sources */,
@@ -1996,6 +2012,7 @@
 				2BCBE4C85250474B6AC8B5CC /* TemplateEdit.swift in Sources */,
 				956878B94F99AA96D9892484 /* ThemeAssetDownloader.swift in Sources */,
 				70DD29A8E2BCC7E33924F72A /* ThemeAssets.swift in Sources */,
+				D0F34FF84DE8AA8BA8C46550 /* ThemeFxPack.swift in Sources */,
 				330405CF2D9F42AD1023C4B5 /* ThemeJSONEditorView.swift in Sources */,
 				44E7050B7B068EC12CC7795C /* ThemePickerView.swift in Sources */,
 				C31A1027B7B30D20C5429A3E /* ThemeSettingsView.swift in Sources */,
@@ -2089,6 +2106,8 @@
 				09A81E2FCFEC3C9A20CE84AD /* FieldPolicyTests.swift in Sources */,
 				C2BC314022F47A1E837DB106 /* FirstLayoutHeightTests.swift in Sources */,
 				C672009CA9A75C96AC55BFFF /* FoldableLayoutTests.swift in Sources */,
+				031225F1A92E928112DB699E /* FootballFx.swift in Sources */,
+				E1950D5D311858E10574F125 /* FootballFxTests.swift in Sources */,
 				4CD19AC18B15C6AE6C859141 /* FullPackSnapshotTests.swift in Sources */,
 				C1206085EB6077DC29ECB44C /* FutoSwipe.swift in Sources */,
 				21EDE1994F70EBB3F1415A4C /* FutoSwipeModel.swift in Sources */,
@@ -2245,6 +2264,7 @@
 				8909859C06DC1C6A41A5111F /* ThemeAssetDownloader.swift in Sources */,
 				13A6653D6FE41956EE9CE8EE /* ThemeAssetTests.swift in Sources */,
 				86F0427F07FF1F06CA5ABDF9 /* ThemeAssets.swift in Sources */,
+				494C4B384B2DBC6186E8706F /* ThemeFxPack.swift in Sources */,
 				C06C5CECDA39AC0698E3B1B6 /* ThemeJSONTests.swift in Sources */,
 				962AD5E7A7B29DDBDD0C54B6 /* ThemeSpec.swift in Sources */,
 				886F6649C089D64E44E1C2FC /* TouchGeometry.swift in Sources */,

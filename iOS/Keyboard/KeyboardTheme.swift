@@ -280,6 +280,9 @@ enum KeyboardTheme: String, CaseIterable {
     // Neon Night Club (11/2026, Plus, THÊM CUỐI): nền đen, phím tối viền ống neon hồng + chữ chức năng lục lam, Đèn rọi
     // trên ảnh nền ("photoFx":"spotlight" — NightClub.swift), hiệu ứng Sàn nhảy LED, âm "club", quả cầu disco.
     case nightclub
+    // Bóng đá (11/2026, Plus, THÊM CUỐI): sân cỏ sọc + vạch vôi (motif cảnh "pitch"), phím trắng / tối kiểu bảng tỉ số,
+    // hiệu ứng "Sút!" (Enter sút bóng vào lưới, cụm cổ vũ ⇒ pháo sáng + cờ đỏ sao vàng — FootballFx.swift), âm "thump".
+    case football
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -318,6 +321,7 @@ enum KeyboardTheme: String, CaseIterable {
         case .timeOfDay: return L("Theo giờ")
         case .ai: return L("AI")
         case .nightclub: return L("Neon Night Club")
+        case .football: return L("Bóng đá")
         }
     }
 
@@ -353,7 +357,8 @@ enum KeyboardTheme: String, CaseIterable {
              .mole,
              .pixel, .sea, .timeOfDay,
              .ai,
-             .nightclub: return true
+             .nightclub,
+             .football: return true
         }
     }
 
@@ -431,6 +436,8 @@ struct KeyboardDecoration: Equatable {
         case pixel, waves, bubbles
         // Theme "AI" (11/2026): "neural" = ba nút nối dây kiểu mạng nơ-ron + hàng chấm lưới trải ngang trong khe.
         case neural
+        // Bộ 11/2026 — CẢNH (ThemeScene, vẽ trọn nền một lần, không theo khe hàng): "pitch" = sân cỏ (Bóng đá).
+        case pitch
     }
     var motif: Motif
     var color: RGBA
@@ -608,6 +615,7 @@ struct KeyboardDecoration: Equatable {
         func poly(_ q: [[Double]]) -> Sub { Sub(start: (q[0][0], q[0][1]), segs: Array(q.dropFirst())) }
         switch m {
         case .hearts, .flowers, .strings: return []
+        case .pitch: return []          // cảnh: ThemeScene vẽ trọn nền
         case .pixel:
             // Trái tim điểm ảnh 7×6 ô (ô = 1/7): mỗi hàng ô liền nhau = MỘT hình chữ nhật (trên-trái → trên-phải →
             // dưới-phải → dưới-trái, cùng chiều quay ⇒ tô nonzero = hợp, không thủng).
@@ -819,7 +827,8 @@ enum ThemePicker {
     struct Section { let title: String; let themes: [KeyboardTheme] }
     /// Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng
     /// không có trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. Android ThemePicker.INTERACTIVE_ORDER y hệt.
-    static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar"]
+    static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar",
+                                   "football"]
 
     /// Thứ tự lưới (thuần): miễn phí (thứ tự khai báo) → tương tác (theo `interactiveOrder`) → còn lại (thứ tự khai
     /// báo). Theme miễn phí có nhãn vẫn ở nhóm miễn phí. Android `ThemePicker.groups` cùng kết quả (fixture "picker").

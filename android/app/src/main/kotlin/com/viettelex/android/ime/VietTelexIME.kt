@@ -380,9 +380,14 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         session.trackBoundaryWord = fx.needsBoundaryWord || root?.buddy != null
         // Biển: mỗi con sóng mới một tiếng sóng vỗ (chỉ khi Âm thanh phím bật). Mẫu chỉ nạp khi Biển được chọn.
         val sea = fx == com.viettelex.keyboard.KeyEffect.SEA
-        feedback.setSurfEnabled(sea)
+        val goal = fx == com.viettelex.keyboard.KeyEffect.GOAL
+        // Tiếng sự kiện (một mẫu, 2 stream): sóng vỗ (Biển) / hò reo (Sút!). Kiểu khác ⇒ nhả.
+        feedback.setEventSound(if (sea) Feedback.EventSound.SURF else if (goal) Feedback.EventSound.CHEER else null)
+        // Sút!: bộ so cụm cổ vũ ở ranh giới từ — chỉ khi chọn Sút! (kiểu khác ⇒ null, 0 chi phí).
+        session.cheer = if (goal) (session.cheer ?: com.viettelex.keyboard.CheerWords.Matcher()) else null
         if (fx == com.viettelex.keyboard.KeyEffect.NONE) {
             r.effects?.onSeaWave = null
+            r.effects?.onThemeEvent = null
             r.effects?.halt()
             r.effects?.shakeTarget = null
             r.effects = null; kb.effects = null
@@ -400,6 +405,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val tokens = fx == com.viettelex.keyboard.KeyEffect.TOKENS
         v.tokenTarget = if (tokens) { out -> r.tokenTarget(out, v) } else null
         v.onSeaWave = if (sea) { size -> feedback.surf(size) } else null
+        v.onThemeEvent = if (goal) ({ feedback.cheer(); Unit }) else null
         strip?.onShown = if (tokens) { set ->
             r.suggestionRect(tokenRect, v)
             val words = ArrayList<String>(8)
@@ -1089,6 +1095,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val out = try { session.handle(key, proxy, touch) } finally { proxy.end() }
         if (fxBefore != null) fxComposeDiff(key, fxBefore)
         if (session.trackBoundaryWord) fxBoundaryEmoji()
+        if (session.cheerHit) root?.effects?.queueCheer()   // Sút!: cụm cổ vũ ⇒ pháo sáng + cờ ở lượt vẽ kế
         root?.buddy?.let { buddy ->
             if (key == Key.Backspace) buddy.deletePressed() else buddy.keyPressed()
             if (key is Key.Text) buddy.emojiInserted(key.text)

@@ -870,7 +870,7 @@ final class ThemeSetTests: XCTestCase {
                                              .guitar,
                                              .mole,
                                              .pixel, .sea, .timeOfDay,
-                                             .nightclub]
+                                             .nightclub, .football]
     static let pastels: [KeyboardTheme] = [.peach, .mint, .sky, .lavender]
 
     // MARK: bảng màu chung iOS ↔ Android
@@ -1241,7 +1241,7 @@ final class ThemeSetTests: XCTestCase {
     /// (≡ Android ThemeSetTests.nightclubTheme).
     func testNightclubTheme() throws {
         let t = KeyboardTheme.nightclub
-        XCTAssertEqual(KeyboardTheme.allCases.last, .nightclub)
+        XCTAssertTrue(KeyboardTheme.allCases.firstIndex(of: .nightclub)! > KeyboardTheme.allCases.firstIndex(of: .ai)!, "thêm cuối")
         let spec = try XCTUnwrap(t.spec)
         XCTAssertTrue(t.isPlus)
         XCTAssertEqual(spec.nameVi, "Neon Night Club"); XCTAssertEqual(spec.nameEn, "Neon Night Club")
@@ -1631,7 +1631,7 @@ final class ThemeSetTests: XCTestCase {
         let secs = ThemePicker.sections
         XCTAssertEqual(secs.map(\.title), ["Miễn phí", "Tương tác", "Plus"])
         XCTAssertEqual(secs[0].themes, [.system, .oled, .contrast, .neutral])
-        XCTAssertEqual(secs[1].themes, [.nightclub, .ai, .sea, .mole, .piano, .space, .rgb, .tet, .tetMai, .guitar])
+        XCTAssertEqual(secs[1].themes, [.nightclub, .ai, .sea, .mole, .piano, .space, .rgb, .tet, .tetMai, .guitar, .football])
         XCTAssertEqual(secs.flatMap(\.themes), ThemePicker.ordered())
         XCTAssertEqual(Set(secs.flatMap(\.themes)), Set(KeyboardTheme.allCases))
         XCTAssertEqual(secs.flatMap(\.themes).count, KeyboardTheme.allCases.count, "không trùng")

@@ -87,7 +87,7 @@ final class KeySoundTests: XCTestCase {
         // Chỉ số case = seed nhiễu: các kiểu cũ giữ nguyên vị trí (mẫu + checksum không đổi).
         XCTAssertEqual(KeySoundStyle.allCases.map(\.rawValue),
                        ["subtle", "wood", "mechanical", "typewriter", "bubble", "custom", "system", "rock", "pop", "water", "vintage",
-                        "phao", "jingle", "piano", "dantranh", "scifi", "trong", "boo", "guitar", "bop", "chip", "ai", "club"])
+                        "phao", "jingle", "piano", "dantranh", "scifi", "trong", "boo", "guitar", "bop", "chip", "ai", "club", "thump"])
         XCTAssertEqual(L10n.en["iOS"], "System click")
         for st in KeySoundStyle.allCases { XCTAssertNotNil(L10n.en[st.viTitle], "\(st) thiếu bản EN") }
         XCTAssertNotNil(L10n.en["Âm thanh gõ"])
@@ -281,7 +281,7 @@ final class KeySoundTests: XCTestCase {
     /// Danh sách id DUY NHẤT cho trường "sound" của theme JSON; "theme" (đã bỏ) ⇒ mặc định.
     func testPresetIDsForThemeJSON() {
         XCTAssertEqual(KeySoundStyle.presetIDs, ["subtle", "wood", "mechanical", "typewriter", "bubble", "rock", "pop",
-                                                 "water", "vintage", "phao", "jingle", "scifi", "trong", "boo", "bop", "chip", "ai", "club", "piano", "dantranh",
+                                                 "water", "vintage", "phao", "jingle", "scifi", "trong", "boo", "bop", "chip", "ai", "club", "thump", "piano", "dantranh",
                                                  "guitar"])
         for bad in ["system", "custom", "theme"] { XCTAssertFalse(KeySoundStyle.presetIDs.contains(bad), bad) }
         XCTAssertEqual(KeySoundStyle.resolve("theme", customAvailable: true), .subtle)

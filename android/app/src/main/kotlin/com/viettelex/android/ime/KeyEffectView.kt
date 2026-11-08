@@ -44,6 +44,9 @@ import com.viettelex.keyboard.ShimmerGate
 import com.viettelex.keyboard.TokenStream
 import com.viettelex.keyboard.ThemeDecoration
 import com.viettelex.keyboard.WaveRings
+import com.viettelex.keyboard.CheerBurst
+import com.viettelex.keyboard.GoalFx
+import com.viettelex.keyboard.GrassTuft
 
 /**
  * Lớp phủ "Hiệu ứng khi bấm phím" (Plus) — song sinh iOS KeyEffectOverlay. MỘT View không nhận chạm.
@@ -81,6 +84,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     private val pendY = FloatArray(MAX_PENDING)
     private val pendW = FloatArray(MAX_PENDING)
     private val pendH = FloatArray(MAX_PENDING)
+    /** Khung chờ thứ i là phím Enter (Sút!: Enter sút bóng, phím khác nhú cỏ). */
+    private val pendR = BooleanArray(MAX_PENDING)
     private var pendN = 0
     private var posted = false
     private val flushRun = Runnable { flush() }
@@ -270,6 +275,30 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     private val flickerTiles = FloatArray(DanceFloor.MAX_GRID * 6)
     private var flickerN = 0
     private val danceRect = RectF()
+    // Sút! (theme Bóng đá — [GoalFx]): pool 2 cú sút (px: đầu / điều khiển / đích + khung lưới), 6 túm cỏ, một chùm cổ vũ.
+    /** Mỗi cú sút một tiếng hò reo — IME đặt khi kiểu là Sút! ([Feedback.cheer]); kiểu khác ⇒ null. */
+    var onThemeEvent: (() -> Unit)? = null
+    private var pendingCheer = false
+    private val shotStart = LongArray(GoalFx.POOL) { Long.MIN_VALUE / 2 }
+    private val shotPts = Array(GoalFx.POOL) { FloatArray(6) }     // sx sy cx cy ex ey (px)
+    private val shotNet = Array(GoalFx.POOL) { RectF() }
+    private var shotCursor = 0
+    /** Test: số cú sút đã bắn. */
+    internal var shotsFired = 0
+        private set
+    private val tuftStart = LongArray(GrassTuft.POOL) { Long.MIN_VALUE / 2 }
+    private val tuftX = FloatArray(GrassTuft.POOL)
+    private val tuftY = FloatArray(GrassTuft.POOL)
+    private var tuftCursor = 0
+    private var cheerStart = Long.MIN_VALUE / 2
+    private val cheerFlags = FloatArray(CheerBurst.FLAG_COUNT * 7)   // x0 y0 dx dy rot delay dur (dp)
+    private val cheerFlares = FloatArray(4)                           // x y × 2 (dp)
+    private val goalBall = Path(); private val goalPatches = Path(); private val goalFrame = Path(); private val goalMesh = Path()
+    private val goalTuft = Path(); private val goalStar = Path(); private val goalFlag = RectF()
+    private var goalPathsBuilt = false
+    private val goalText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER; typeface = android.graphics.Typeface.DEFAULT_BOLD; color = 0xFFFFFFFF.toInt()
+    }
 
     val effect: KeyEffect get() = sim.effect
 
@@ -328,6 +357,9 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     /** "Chữ bay": chữ vừa ra ([FlyingLetters.glyph]) — lần vẽ kế thả từ phím vừa bấm. */
     fun queueLetter(s: String) { if (sim.effect == KeyEffect.LETTERS) pendingLetter = s }
 
+    /** "Sút!": IME vừa thấy cụm cổ vũ ([com.viettelex.keyboard.CheerWords]) — lần vẽ kế bắn pháo sáng + cờ đỏ sao vàng. */
+    fun queueCheer() { if (sim.effect == KeyEffect.GOAL) pendingCheer = true }
+
     /** "Token AI": chữ vừa ra — lần vẽ kế loé tại phím rồi vỡ thành token bay vào thanh gợi ý. */
     fun queueToken(s: String) { if (sim.effect == KeyEffect.TOKENS) pendingToken = s }
 
@@ -360,21 +392,23 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     }
 
     /** Một phím vừa chèn chữ, tâm phím ([x], [y]), cỡ [w]×[h] (px) theo toạ độ view này. */
-    fun burst(x: Float, y: Float, w: Float = 0f, h: Float = 0f) {
+    fun burst(x: Float, y: Float, w: Float = 0f, h: Float = 0f, isReturn: Boolean = false) {
         if (sim.effect == KeyEffect.NONE) return
         if (sim.effect.isQueued && !hasQueued) return   // Emoji / Dấu thanh / Từ khoá / Chữ bay: không có sự kiện ⇒ không hẹn gì
         if (pendN == MAX_PENDING) {
-            for (i in 1 until MAX_PENDING) { pendX[i - 1] = pendX[i]; pendY[i - 1] = pendY[i]; pendW[i - 1] = pendW[i]; pendH[i - 1] = pendH[i] }
+            for (i in 1 until MAX_PENDING) {
+                pendX[i - 1] = pendX[i]; pendY[i - 1] = pendY[i]; pendW[i - 1] = pendW[i]; pendH[i - 1] = pendH[i]; pendR[i - 1] = pendR[i]
+            }
             pendN--
         }
-        pendX[pendN] = x; pendY[pendN] = y; pendW[pendN] = w; pendH[pendN] = h; pendN++
+        pendX[pendN] = x; pendY[pendN] = y; pendW[pendN] = w; pendH[pendN] = h; pendR[pendN] = isReturn; pendN++
         if (!posted) { posted = true; post(flushRun) }
     }
 
     /** Bắn các khung chờ (test gọi thẳng). */
     fun flush() {
         posted = false
-        if (pendN == 0) return
+        if (pendN == 0) { pendingCheer = false; return }
         val now = SystemClock.uptimeMillis()
         when (sim.effect) {
             KeyEffect.EMOJIWORD -> {
@@ -399,6 +433,14 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
                 val g = pendingToken; pendingToken = null
                 if (g != null) fireToken(g, pendX[pendN - 1], pendY[pendN - 1], pendH[pendN - 1], now)
             }
+            KeyEffect.GOAL -> {
+                for (i in 0 until pendN) {
+                    if (pendR[i]) fireShot(pendX[i], pendY[i], now)
+                    else fireTuft(pendX[i], pendY[i], if (pendH[i] > 0f) pendH[i] else DEFAULT_H * density, now)
+                }
+                if (pendingCheer) fireCheer(now)
+                pendingCheer = false
+            }
             else -> for (i in 0 until pendN) fire(pendX[i], pendY[i], pendW[i], pendH[i], now)
         }
         pendN = 0
@@ -407,7 +449,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
 
     private fun fire(x: Float, y: Float, w: Float, h: Float, now: Long) {
         when (sim.effect) {
-            KeyEffect.NONE, KeyEffect.EMOJIWORD, KeyEffect.TONE, KeyEffect.KEYWORD, KeyEffect.LETTERS, KeyEffect.TOKENS -> {}
+            KeyEffect.NONE, KeyEffect.EMOJIWORD, KeyEffect.TONE, KeyEffect.KEYWORD, KeyEffect.LETTERS, KeyEffect.TOKENS,
+            KeyEffect.GOAL -> {}
             KeyEffect.PLASMA -> firePlasma(x, y, now)
             KeyEffect.SHAKE -> {
                 val amp = ShakeFx.amplitude(shakeMeter.press(now))
@@ -513,9 +556,231 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         shakeStart = Long.MIN_VALUE / 2; shakeMeter.reset()
         shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         danceStart.fill(Long.MIN_VALUE / 2); flickerStart = Long.MIN_VALUE / 2
+        shotStart.fill(Long.MIN_VALUE / 2); tuftStart.fill(Long.MIN_VALUE / 2); cheerStart = Long.MIN_VALUE / 2; pendingCheer = false
         pendN = 0
         invalidate()
     }
+
+    // ---- Sút! (theme Bóng đá — [GoalFx] / [GrassTuft] / [CheerBurst], hình học dp chung iOS; vẽ px = dp × density)
+
+    private fun buildGoalPaths() {
+        if (goalPathsBuilt) return
+        goalPathsBuilt = true
+        val d = density
+        val r = (GoalFx.BALL_RADIUS * d).toFloat()
+        goalBall.rewind(); goalBall.addCircle(0f, 0f, r, Path.Direction.CW)
+        goalPatches.rewind()
+        fun pent(cx: Float, cy: Float, rr: Float, rot: Double) {
+            for (i in 0 until 5) {
+                val a = rot + i * 2 * Math.PI / 5
+                val px = cx + rr * Math.cos(a).toFloat(); val py = cy + rr * Math.sin(a).toFloat()
+                if (i == 0) goalPatches.moveTo(px, py) else goalPatches.lineTo(px, py)
+            }
+            goalPatches.close()
+        }
+        pent(0f, 0f, r * 0.37f, -Math.PI / 2)
+        for (k in 0 until 5) {
+            val a = -Math.PI / 2 + k * 2 * Math.PI / 5 + Math.PI / 5
+            pent(r * 0.78f * Math.cos(a).toFloat(), r * 0.78f * Math.sin(a).toFloat(), r * 0.22f, a)
+        }
+        val nw = (GoalFx.NET_WIDTH * d).toFloat(); val nh = (GoalFx.NET_HEIGHT * d).toFloat()
+        goalFrame.rewind(); goalFrame.moveTo(0f, nh); goalFrame.lineTo(0f, 0f); goalFrame.lineTo(nw, 0f); goalFrame.lineTo(nw, nh)
+        goalMesh.rewind()
+        val (xs, ys) = GoalFx.meshLines(GoalFx.Rect(0.0, 0.0, GoalFx.NET_WIDTH, GoalFx.NET_HEIGHT))
+        for (x in xs) { goalMesh.moveTo((x * d).toFloat(), 0f); goalMesh.lineTo((x * d).toFloat(), nh) }
+        for (y in ys) { goalMesh.moveTo(0f, (y * d).toFloat()); goalMesh.lineTo(nw, (y * d).toFloat()) }
+        goalTuft.rewind()
+        val bw = (GrassTuft.BLADE_WIDTH / 2 * d).toFloat()
+        for (b in GrassTuft.BLADES) {
+            val dx = (b[0] * d).toFloat(); val h = (b[1] * d).toFloat(); val lean = (b[2] * d).toFloat()
+            goalTuft.moveTo(dx - bw, 0f)
+            goalTuft.quadTo(dx - bw, -h * 0.6f, dx + lean, -h)
+            goalTuft.quadTo(dx + bw, -h * 0.6f, dx + bw, 0f)
+            goalTuft.close()
+        }
+        goalStar.rewind()
+        for ((k, p) in CheerBurst.star().withIndex()) {   // sao vàng 5 cánh (CheerBurst.star — iOS y hệt)
+            val px = (p.first * d).toFloat(); val py = (p.second * d).toFloat()
+            if (k == 0) goalStar.moveTo(px, py) else goalStar.lineTo(px, py)
+        }
+        goalStar.close()
+        val fw = (CheerBurst.FLAG_W * d / 2).toFloat(); val fh = (CheerBurst.FLAG_H * d / 2).toFloat()
+        goalFlag.set(-fw, -fh, fw, fh)
+        goalText.textSize = (GoalFx.TEXT_SIZE * d).toFloat()
+        goalText.setShadowLayer(1.5f * d, 0f, 0f, 0xFFD91A1A.toInt())
+    }
+
+    /** Enter: cú sút từ tâm phím ([x], [y] px) vào lưới mép trên — cung kẹp trong view (#151). */
+    private fun fireShot(x: Float, y: Float, now: Long) {
+        if (width <= 0 || height <= 0) return
+        buildGoalPaths()
+        val d = density.toDouble()
+        val wDp = width / d; val hDp = height / d
+        val n = GoalFx.net(0.0, wDp, 0.0)
+        val start = GoalFx.Pt(minOf(maxOf(x / d, 8.0), wDp - 8), minOf(maxOf(y / d, 8.0), hDp - 8))
+        val end = GoalFx.target(n)
+        val c = GoalFx.control(start, end, 0.0)
+        val s = shotCursor; shotCursor = (s + 1) % GoalFx.POOL
+        val p = shotPts[s]
+        p[0] = (start.x * d).toFloat(); p[1] = (start.y * d).toFloat(); p[2] = (c.x * d).toFloat(); p[3] = (c.y * d).toFloat()
+        p[4] = (end.x * d).toFloat(); p[5] = (end.y * d).toFloat()
+        shotNet[s].set((n.x * d).toFloat(), (n.y * d).toFloat(), ((n.x + n.w) * d).toFloat(), ((n.y + n.h) * d).toFloat())
+        shotStart[s] = now
+        shotsFired++
+        onThemeEvent?.invoke()
+    }
+
+    private fun fireTuft(x: Float, y: Float, h: Float, now: Long) {
+        buildGoalPaths()
+        val s = tuftCursor; tuftCursor = (s + 1) % GrassTuft.POOL
+        tuftX[s] = x; tuftY[s] = y + h / 2 - (GrassTuft.INSET * density).toFloat()
+        tuftStart[s] = now
+    }
+
+    private fun fireCheer(now: Long) {
+        if (width <= 0 || height <= 0) return
+        buildGoalPaths()
+        val d = density.toDouble()
+        val wDp = width / d; val hDp = height / d
+        val f = CheerBurst.flags(0.0, 0.0, wDp, hDp)
+        for (i in f.indices) {
+            val g = f[i]; val o = 7 * i
+            cheerFlags[o] = g.x0.toFloat(); cheerFlags[o + 1] = g.y0.toFloat(); cheerFlags[o + 2] = g.dx.toFloat()
+            cheerFlags[o + 3] = g.dy.toFloat(); cheerFlags[o + 4] = g.rot.toFloat(); cheerFlags[o + 5] = g.delay.toFloat()
+            cheerFlags[o + 6] = g.dur.toFloat()
+        }
+        val fl = CheerBurst.flares(0.0, 0.0, wDp, hDp)
+        cheerFlares[0] = fl[0].x.toFloat(); cheerFlares[1] = fl[0].y.toFloat(); cheerFlares[2] = fl[1].x.toFloat(); cheerFlares[3] = fl[1].y.toFloat()
+        cheerStart = now
+    }
+
+    private fun drawGoal(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        val d = density
+        for (s in 0 until GoalFx.POOL) {
+            val t = (now - shotStart[s]) / 1000.0
+            if (t < 0 || t >= GoalFx.LIFE) continue
+            any = true
+            val net = shotNet[s]
+            val na = GoalFx.netAlpha(t)
+            val rip = if (t >= GoalFx.FLIGHT) GoalFx.netRipple(t - GoalFx.FLIGHT) else 0.0
+            // Lưới (gợn quanh mép trên) + khung thành
+            var save = canvas.save()
+            canvas.translate(net.left, net.top)
+            stroke.color = 0xFFFFFFFF.toInt()
+            canvas.save()
+            canvas.scale((1 + 0.4 * rip).toFloat(), (1 + rip).toFloat(), net.width() / 2, 0f)
+            stroke.strokeWidth = 0.7f * d; stroke.alpha = (255 * 0.55 * na).toInt().coerceIn(0, 255)
+            canvas.drawPath(goalMesh, stroke)
+            canvas.restore()
+            stroke.strokeWidth = (GoalFx.POST_WIDTH * d).toFloat(); stroke.alpha = (255 * na).toInt().coerceIn(0, 255)
+            canvas.drawPath(goalFrame, stroke)
+            canvas.restoreToCount(save)
+            // Bóng
+            val u = minOf(t / GoalFx.FLIGHT, 1.0)
+            val p = shotPts[s]
+            val m = (1 - u).toFloat(); val k = u.toFloat()
+            val bx = m * m * p[0] + 2 * m * k * p[2] + k * k * p[4]
+            val by = m * m * p[1] + 2 * m * k * p[3] + k * k * p[5]
+            val holdEnd = GoalFx.FLIGHT + GoalFx.HOLD
+            val ba = when {
+                t < holdEnd -> 1.0
+                t < holdEnd + GoalFx.FADE -> 1 - (t - holdEnd) / GoalFx.FADE
+                else -> 0.0
+            }
+            if (ba > 0) {
+                save = canvas.save()
+                canvas.translate(bx, by)
+                canvas.rotate(Math.toDegrees(GoalFx.ballSpin(u)).toFloat())
+                val sc = GoalFx.ballScale(u).toFloat(); canvas.scale(sc, sc)
+                val a = (255 * ba).toInt().coerceIn(0, 255)
+                fill.color = 0xFFFFFFFF.toInt(); fill.alpha = a; canvas.drawPath(goalBall, fill)
+                stroke.color = 0xFF212121.toInt(); stroke.alpha = a; stroke.strokeWidth = 0.8f * d; canvas.drawPath(goalBall, stroke)
+                fill.color = 0xFF212121.toInt(); fill.alpha = a; canvas.drawPath(goalPatches, fill)
+                canvas.restoreToCount(save)
+            }
+            // "VÀOOO!"
+            if (t >= GoalFx.FLIGHT) {
+                val tt = t - GoalFx.FLIGHT
+                val ta = GoalFx.textAlpha(tt)
+                if (ta > 0) {
+                    val cx = net.centerX()
+                    val cy = net.bottom + (GoalFx.TEXT_GAP * d).toFloat()
+                    save = canvas.save()
+                    val sc = GoalFx.textScale(tt).toFloat()
+                    canvas.scale(sc, sc, cx, cy)
+                    goalText.alpha = (255 * ta).toInt().coerceIn(0, 255)
+                    canvas.drawText(GoalFx.TEXT, cx, cy - (goalText.ascent() + goalText.descent()) / 2, goalText)
+                    canvas.restoreToCount(save)
+                }
+            }
+        }
+        // Túm cỏ
+        for (s in 0 until GrassTuft.POOL) {
+            val t = (now - tuftStart[s]) / 1000.0
+            if (t < 0 || t >= GrassTuft.DURATION) continue
+            any = true
+            val a = GrassTuft.alpha(t); val sy = GrassTuft.scaleY(t).toFloat()
+            if (a <= 0 || sy <= 0f) continue
+            val save = canvas.save()
+            canvas.translate(tuftX[s], tuftY[s]); canvas.scale(1f, sy)
+            fill.color = GrassTuft.COLOR or (0xFF shl 24)
+            fill.alpha = (255 * a).toInt().coerceIn(0, 255)
+            canvas.drawPath(goalTuft, fill)
+            canvas.restoreToCount(save)
+        }
+        // Cổ vũ: pháo sáng + tia lửa + cờ đỏ sao vàng
+        val ct = (now - cheerStart) / 1000.0
+        if (ct >= 0 && ct < CheerBurst.DURATION) {
+            any = true
+            val fa = CheerBurst.flareAlpha(ct)
+            val fr = (CheerBurst.FLARE_RADIUS * d).toFloat()
+            for (q in 0 until 2) {
+                val fx = cheerFlares[2 * q] * d; val fy = cheerFlares[2 * q + 1] * d
+                fill.color = CheerBurst.FLARE_RED or (0xFF shl 24)
+                fill.alpha = (255 * 0.35 * fa).toInt().coerceIn(0, 255); canvas.drawCircle(fx, fy, fr * 2, fill)
+                fill.alpha = (255 * fa).toInt().coerceIn(0, 255); canvas.drawCircle(fx, fy, fr, fill)
+                fill.color = 0xFFFFB199.toInt()
+                for (k in 0 until CheerBurst.SPARKS_PER_FLARE) {
+                    val sp = CheerBurst.spark(k)
+                    val lt = ct - sp[2]
+                    if (lt < 0 || lt >= CheerBurst.SPARK_DURATION) continue
+                    val u = lt / CheerBurst.SPARK_DURATION
+                    val sa = if (u < 0.5) 1 - 0.4 * u else 0.8 * (1 - u) / 0.5
+                    fill.alpha = (255 * sa).toInt().coerceIn(0, 255)
+                    canvas.drawCircle(fx + (sp[0] * u * d).toFloat(), fy + (sp[1] * u * d).toFloat(), 1.4f * d, fill)
+                }
+            }
+            for (i in 0 until CheerBurst.FLAG_COUNT) {
+                val o = 7 * i
+                val lt = ct - cheerFlags[o + 5]
+                val dur = cheerFlags[o + 6].toDouble()
+                if (lt < 0 || lt >= dur) continue
+                val u = lt / dur
+                val e = u * u * (3 - 2 * u)
+                val x = (cheerFlags[o] + cheerFlags[o + 2] * u + 4 * Math.sin(2 * Math.PI * 1.5 * u)) * d
+                val y = (cheerFlags[o + 1] + cheerFlags[o + 3] * e) * d
+                val a = if (u < 0.75) 1.0 else (1 - u) / 0.25
+                val save = canvas.save()
+                canvas.translate(x.toFloat(), y.toFloat())
+                canvas.rotate(Math.toDegrees(cheerFlags[o + 4] * u).toFloat())
+                val ai = (255 * a).toInt().coerceIn(0, 255)
+                fill.color = CheerBurst.RED or (0xFF shl 24); fill.alpha = ai; canvas.drawRect(goalFlag, fill)
+                fill.color = CheerBurst.YELLOW or (0xFF shl 24); fill.alpha = ai; canvas.drawPath(goalStar, fill)
+                canvas.restoreToCount(save)
+            }
+        }
+        return any
+    }
+
+    /** Test: cú sút / túm cỏ / chùm cổ vũ còn chạy lúc [now]; điểm cung bay (px) của cú sút [i]; khung lưới; cờ [i] (dp). */
+    internal fun shotsAlive(now: Long): Int = shotStart.count { (now - it) / 1000.0 in 0.0..<GoalFx.LIFE }
+    internal fun tuftsAlive(now: Long): Int = tuftStart.count { (now - it) / 1000.0 in 0.0..<GrassTuft.DURATION }
+    internal fun cheerAlive(now: Long): Boolean = (now - cheerStart) / 1000.0 in 0.0..<CheerBurst.DURATION
+    internal fun shotPoints(i: Int): FloatArray = shotPts[i]
+    internal fun shotNetRect(i: Int): RectF = shotNet[i]
+    internal fun cheerFlag(i: Int): FloatArray = cheerFlags.copyOfRange(7 * i, 7 * i + 7)
+
 
     // ---- Sàn nhảy LED ([DanceFloor] — hình học thuần chung iOS; ở đây px vì cỡ ô theo khung phím thật)
 
@@ -622,6 +887,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.SAND -> drawSand(canvas, now)
             KeyEffect.SEA -> drawSea(canvas, now)
             KeyEffect.DANCEFLOOR -> drawDance(canvas, now)
+            KeyEffect.GOAL -> drawGoal(canvas, now)
             else -> drawParticles(canvas, now)
         }
     }

@@ -282,6 +282,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// khi đổi cỡ — rasterize một lần, không vẽ gì mỗi phím / mỗi lần gõ.
     private let decorLayer = CAShapeLayer()
     private var decorGaps: [KeyboardDecoration.Gap]?
+    /// Cảnh nền (motif cảnh "pitch"… — ThemeScene): dựng lười lần đầu theme có cảnh; theme khác ⇒ chưa từng tạo.
+    private var sceneLayer: ThemeSceneLayer?
     private var decorWidth: CGFloat = 0
     /// Dải cực quang tĩnh mép trên (theme AI, "borderFx":"aurora" — AuroraFx): gradient ngang + mặt nạ gradient dọc trong
     /// themeBackdrop, dựng lười lần đầu cần; theme khác ⇒ chưa từng tạo (0 chi phí).
@@ -2201,8 +2203,16 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func applyDecoration(hidden: Bool) {
         guard let d = palette.decoration, !hidden else {
             if decorLayer.superlayer != nil { decorLayer.isHidden = true }
+            sceneLayer?.isHidden = true
             return
         }
+        if d.isScene, sceneLayer == nil {
+            let l = ThemeSceneLayer()
+            themeBackdrop.layer.insertSublayer(l, at: 0)
+            sceneLayer = l
+        }
+        sceneLayer?.isHidden = !d.isScene
+        sceneLayer?.opacity = Float(palette.surfaceAlpha)   // độ trong suốt phím: cảnh mờ theo nền
         CATransaction.begin(); CATransaction.setDisableActions(true)
         if decorLayer.superlayer == nil { themeBackdrop.layer.addSublayer(decorLayer) }
         decorLayer.isHidden = false
@@ -2216,14 +2226,19 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         guard let d = palette.decoration, decorLayer.superlayer != nil, !decorLayer.isHidden else { return }
         let size = themeBackdrop.bounds.size
         guard size.width > 0, size.height > 0 else { return }
+        if d.isScene, let l = sceneLayer {
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            l.update(motif: d.motif, color: d.color, dark: palette.surfaceDark ?? palette.isDark, size: size)
+            CATransaction.commit()
+        }
         // Khe giữa các hàng phím (toạ độ view) — chỉ khi layout (không mỗi lần gõ), chỉ theme có hoạ tiết.
         let gaps = keyRowGaps()
         guard gaps != decorGaps || size.width != decorWidth else { return }
         decorGaps = gaps; decorWidth = size.width
         CATransaction.begin(); CATransaction.setDisableActions(true)
         decorLayer.frame = CGRect(origin: .zero, size: size)
-        decorLayer.path = d.path(KeyboardDecoration.placements(width: Double(size.width), gaps: gaps, density: d.density),
-                                  width: Double(size.width))
+        decorLayer.path = d.isScene ? nil
+            : d.path(KeyboardDecoration.placements(width: Double(size.width), gaps: gaps, density: d.density), width: Double(size.width))
         CATransaction.commit()
     }
     #if DEBUG
@@ -6940,7 +6955,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         KeystrokeCounter.tick()                  // tắt (mặc định) ⇒ đọc một hằng số
         if let f = beatFlash, Self.isBeatKey(key) { f.kick() }   // Sàn nhảy LED: flash nền ở phím cách; kiểu khác ⇒ nil
         if let fx {
-            keyEffects?.emit(key: fx)
+            keyEffects?.emit(key: fx, isReturn: Self.isReturnKey(key))
             spotlight?.light(key: fx)            // Đèn rọi (theme "photoFx":"spotlight"): theme khác ⇒ nil
         }
         rainbow?.poke()                          // Gaming RGB: theme khác ⇒ nil, chỉ đọc một optional
@@ -7263,6 +7278,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         default: return false
         }
     }
+    /// Phím Enter (Sút!: sút bóng từ phím này).
+    static func isReturnKey(_ k: Key) -> Bool {
+        switch k {
+        case .newline, .lineBreak: return true
+        default: return false
+        }
+    }
     /// Gắn / gỡ lớp flash: ngay DƯỚI hàng phím (trên nền / ảnh / đèn rọi / nhân vật), phủ trọn bàn phím.
     private func configureBeatFlash(_ on: Bool) {
         guard on else {
@@ -7294,8 +7316,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         keyEffects?.tokenTarget = keyEffects?.effect == .tokens ? { [weak self] in self?.tokenTargetPoint() } : nil
         // Biển: mỗi con sóng mới một tiếng sóng vỗ (chỉ khi Âm thanh phím bật). Buffer chỉ dựng khi Biển được chọn.
         let sea = keyEffects?.effect == .sea
-        KeySound.shared.setSurfEnabled(sea)
+        let goal = keyEffects?.effect == .goal
+        // Tiếng sự kiện (một buffer + 2 node riêng): sóng vỗ (Biển) / hò reo (Sút!). Kiểu khác ⇒ nhả.
+        KeySound.shared.setEventSound(sea ? .surf : goal ? .cheer : nil)
         keyEffects?.onSeaWave = sea ? { Self.seaSurf(size: $0) } : nil
+        keyEffects?.onThemeEvent = goal ? { Self.goalCheer() } : nil
         configureBeatFlash(keyEffects?.effect == .dancefloor)
         syncKeyEffectsSpace()
         layoutStringGaps()
@@ -7312,6 +7337,19 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         debugSurfs += 1
         #endif
         KeySound.shared.playSurf(volume: Float(SeaFx.surfVolume(size: size)))
+    }
+
+    #if DEBUG
+    /// Test: số lần xin phát tiếng hò reo (đã qua công tắc Âm thanh phím).
+    nonisolated(unsafe) static var debugCheers = 0
+    #endif
+    /// Một cú sút của Sút!: tiếng hò reo CHỈ khi Âm thanh phím (đường riêng) bật.
+    static func goalCheer() {
+        guard customSoundEnabled else { return }
+        #if DEBUG
+        debugCheers += 1
+        #endif
+        KeySound.shared.playSurf(volume: Float(KeySoundSynth.cheerVolume))
     }
 
     /// Khung phím cách chính theo toạ độ view (= toạ độ overlay hiệu ứng) — nil khi plane không có / chưa xếp.

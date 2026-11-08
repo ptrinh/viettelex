@@ -104,6 +104,8 @@ final class KeySound {
     private var surfNodes: [AVAudioPlayerNode] = []
     private var surfCursor = 0
     private var pendingSurf: (volume: Float, at: TimeInterval)?
+    /// Tiếng sự kiện đang dựng trên đường "sóng": sóng vỗ (Biển) hoặc hò reo (Sút! — theme Bóng đá).
+    private var surfSound: FxEventSound = .surf
 
     // MARK: cấu hình từ main — KHÔNG BAO GIỜ chờ lock
     // startNow/stopNow giữ `lock` suốt lúc dựng engine (AVAudioSession.setActive = XPC, tổng hợp bộ
@@ -258,8 +260,17 @@ final class KeySound {
     var hasSqueak: Bool { lock.lock(); defer { lock.unlock() }; return squeakBuffer != nil }
 
     /// Hiệu ứng Biển đang chọn ⇒ dựng tiếng sóng (1 buffer + 2 node) cùng engine; bỏ chọn ⇒ nhả. Hiệu ứng khác: không gọi.
-    func setSurfEnabled(_ on: Bool) {
+    func setSurfEnabled(_ on: Bool) { setEventSound(on ? .surf : nil) }
+
+    /// Tiếng sự kiện của hiệu ứng đang chọn (nil ⇒ nhả buffer + node). Đổi loại ⇒ dựng lại buffer.
+    func setEventSound(_ e: FxEventSound?) {
         configure { [self] in
+            let on = e != nil
+            if let e, e != surfSound {
+                if let en = engine { for n in surfNodes { n.stop(); en.detach(n) } }
+                surfNodes = []; surfBuffer = nil; pendingSurf = nil
+                surfSound = e
+            }
             surfWanted = on
             if !on {
                 if let e = engine { for n in surfNodes { n.stop(); e.detach(n) } }
@@ -274,7 +285,7 @@ final class KeySound {
     private func buildSurfLocked() {
         guard surfWanted, let e = engine,
               let fmt = AVAudioFormat(standardFormatWithSampleRate: KeySoundSynth.surfSampleRate, channels: 1) else { return }
-        if surfBuffer == nil { surfBuffer = Self.pcm(KeySoundSynth.surfSamples(), fmt) }
+        if surfBuffer == nil { surfBuffer = Self.pcm(surfSound.samples(), fmt) }
         if surfNodes.isEmpty {
             for _ in 0..<SeaFx.surfVoices {
                 let n = AVAudioPlayerNode()
@@ -314,6 +325,9 @@ final class KeySound {
         n.scheduleBuffer(b, at: nil, options: .interrupts, completionHandler: nil)
         return true
     }
+
+    /// Tiếng sự kiện đang chọn (nil = không) — test.
+    var eventSound: FxEventSound? { lock.lock(); defer { lock.unlock() }; return surfWanted ? surfSound : nil }
 
     /// Đã dựng tiếng sóng (test).
     var hasSurf: Bool { lock.lock(); defer { lock.unlock() }; return surfBuffer != nil && surfNodes.count == SeaFx.surfVoices }

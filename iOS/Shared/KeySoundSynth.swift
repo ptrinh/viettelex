@@ -63,6 +63,18 @@
 // không dựng AVAudioEngine/SoundPool (0 chi phí như khi tắt "Âm thanh phím"), miễn phí.
 import Foundation
 
+/// Tiếng sự kiện của hiệu ứng (không phải tiếng phím): phát trên đường riêng 22,05 kHz, 2 giọng, chỉ khi Âm thanh phím bật.
+enum FxEventSound: Equatable {
+    /// Sóng vỗ (Biển) / hò reo (Sút! — Bóng đá).
+    case surf, cheer
+    func samples() -> [Float] {
+        switch self {
+        case .surf: return KeySoundSynth.surfSamples()
+        case .cheer: return KeySoundSynth.cheerSamples()
+        }
+    }
+}
+
 enum KeySoundKind: Int, CaseIterable {
     case letter, delete, modifier
 }
@@ -88,12 +100,14 @@ enum KeySoundStyle: String, CaseIterable {
     // Theme "Neon Night Club" (11/2026): nhịp club điện tử — phím chữ = hi-hat "tss" ngắn, xoá = kick điện tử, cách /
     // Enter (chức năng) = kick + hat ⇒ gõ chữ rồi cách thành nhịp "tss tss tss BÙM" xen kẽ tự nhiên.
     case club
+    // Theme "Bóng đá" (11/2026): tiếng bóng "bụp" mềm — thân sine trầm trượt xuống + chút da bóng + hơi cỏ.
+    case thump
 
     /// Bật "Âm thanh phím" lần đầu ⇒ "Nhẹ nhàng" (bật công tắc phải NGHE khác đi; "iOS" = như lúc tắt).
     static let defaultStyle: KeySoundStyle = .subtle
     /// Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức `baseRecipe`.
     static let presets: [KeySoundStyle] = [.subtle, .wood, .mechanical, .typewriter, .bubble, .rock, .pop, .water, .vintage, .phao, .jingle,
-                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club]
+                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club, .thump]
     /// Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta).
     static let allPresets: [KeySoundStyle] = presets + [.piano, .dantranh, .guitar]
     /// DANH SÁCH DUY NHẤT id hợp lệ cho trường "sound" của theme JSON (chọn theme ⇒ đặt keySoundStyle).
@@ -136,6 +150,7 @@ enum KeySoundStyle: String, CaseIterable {
         case .chip: return LK("Bíp 8-bit")
         case .ai: return LK("Synth AI")
         case .club: return LK("Nhịp club")
+        case .thump: return LK("Bóng bụp")
         }
     }
 
@@ -253,6 +268,12 @@ enum KeySoundSynth {
                           attack: 0.002, duration: 0.05, outLP: 5000, peak: 0.36)
         case .club:
             return clubRecipe(.letter)
+        case .thump:
+            // Bóng bụp: sine 120 → 85 Hz (glide 6 ms) τ18 ms (thân bóng) + 240 Hz τ6 ms (0.25, da bóng) + hơi cỏ nhiễu lp 900 Hz
+            // τ3 ms (0.25); mở 1,5 ms (êm), 54 ms, lọc 1,4 kHz, đỉnh 0.5 (< Gõ gỗ).
+            return Recipe(tones: [t(1.0, 120, 85, glide: 0.006, tau: 0.018), t(0.25, 240, 200, glide: 0.006, tau: 0.006)],
+                          noises: [n(0.25, hp: 90, lp: 900, tau: 0.003)],
+                          attack: 0.0015, duration: 0.054, outLP: 1400, peak: 0.50)
         }
     }
 
@@ -287,6 +308,54 @@ enum KeySoundSynth {
         attack: 0.006, duration: 0.130, outLP: 4200, peak: 0.42)
     static let squeakSeed: UInt32 = 0x6D6F_6C65
     static func squeakSamples() -> [Float] { render(squeakRecipe, seed: squeakSeed) }
+
+    /// Seed cố định theo tên kiểu ("thum"…) — Android FIXED_SEEDS y hệt.
+    static let fixedSeeds: [KeySoundStyle: UInt32] = [.thump: 0x7468_756D]
+
+    // MARK: Hò reo (theme Bóng đá — Sút!, 11/2026)
+    // Mỗi cú sút một tiếng hò reo đám đông ~0,95 s, từ MỘT dòng nhiễu xorshift32: high-pass 1 cực 300 Hz → low-pass 2 cực
+    // 1,6 kHz ("aaa" của đám đông) × vỏ dâng (mở raised-cosine 0,35 s — đỉnh đúng lúc bóng vào lưới) rồi tắt τ 0,32 s sau
+    // 0,55 s; điều biên chậm 3 sóng sine (3,1 / 4,7 / 6,3 Hz, ±15 %) như nhiều giọng chồng; lọc ra 1 cực 2,2 kHz → chặn DC
+    // 30 Hz → đóng 80 ms → đỉnh 0,28 (mềm hơn mọi tiếng phím). 22,05 kHz như tiếng sóng. Android cheerSamples y hệt.
+    static let cheerDuration = 0.95
+    static let cheerSwell = 0.35
+    static let cheerPeak = 0.28
+    static let cheerSeed: UInt32 = 0x6368_6572   // "cher"
+    /// Âm lượng tiếng hò reo (× âm lượng phím của người dùng).
+    static let cheerVolume = 0.8
+
+    static func cheerSamples() -> [Float] {
+        let sr = surfSampleRate
+        let count = Int((cheerDuration * sr).rounded())
+        func pole(_ f: Double) -> Double { exp(-2 * Double.pi * f / sr) }
+        let hA = pole(300), lA = pole(1600), oA = pole(2200), dcA = pole(30)
+        var state = cheerSeed
+        var hIn = 0.0, hOut = 0.0, l1 = 0.0, l2 = 0.0, o = 0.0, dcIn = 0.0, dcOut = 0.0, peak = 0.0
+        let fout = Int(0.080 * sr)
+        var out = [Double](repeating: 0, count: count)
+        for i in 0..<count {
+            let t = Double(i) / sr
+            state ^= state << 13; state ^= state >> 17; state ^= state << 5
+            let white = Double(state) / Double(UInt32.max) * 2 - 1
+            hOut = hA * (hOut + white - hIn); hIn = white
+            l1 = (1 - lA) * hOut + lA * l1; l2 = (1 - lA) * l1 + lA * l2
+            let env: Double
+            if t < cheerSwell { env = 0.5 - 0.5 * cos(Double.pi * t / cheerSwell) }
+            else if t < 0.55 { env = 1 }
+            else { env = exp(-(t - 0.55) / 0.32) }
+            let am = 1 + 0.15 * (sin(2 * Double.pi * 3.1 * t) + sin(2 * Double.pi * 4.7 * t + 1.3) + sin(2 * Double.pi * 6.3 * t + 2.1)) / 3
+            let v = l2 * env * am
+            o = (1 - oA) * v + oA * o
+            dcOut = dcA * (dcOut + o - dcIn); dcIn = o
+            var y = dcOut
+            let fromEnd = count - 1 - i
+            if fromEnd < fout { y *= 0.5 - 0.5 * cos(Double.pi * Double(fromEnd) / Double(fout)) }
+            out[i] = y
+            peak = max(peak, abs(y))
+        }
+        let norm = peak > 0 ? cheerPeak / peak : 0
+        return out.map { Float($0 * norm) }
+    }
 
     // MARK: Sóng vỗ (theme Biển — SeaFx, 08/11/2026)
     // Mỗi con sóng mới một tiếng "ào" 1,6 s, tổng hợp từ MỘT dòng nhiễu xorshift32 qua 3 nhánh song song:
@@ -379,6 +448,8 @@ enum KeySoundSynth {
     static func seed(_ s: KeySoundStyle, _ k: KeySoundKind) -> UInt32 {
         // Nhịp club: seed CỐ ĐỊNH ("club"), không theo vị trí case ⇒ checksum không đổi khi nhánh khác thêm kiểu trước nó.
         if s == .club { return 0x636C_7562 ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1)) }
+        // Kiểu theme 11/2026 trở đi: seed CỐ ĐỊNH theo tên (không theo vị trí case — nhánh khác thêm kiểu không đổi checksum).
+        if let tag = fixedSeeds[s] { return tag ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1)) }
         let si = UInt32(KeySoundStyle.allCases.firstIndex(of: s) ?? 0)
         return 0x9E37_79B9 &* (si &+ 1) ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1))
     }

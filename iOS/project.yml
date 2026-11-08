@@ -39,6 +39,9 @@ targets:
       - Keyboard/Wallpaper.swift
       # Hiệu ứng khi bấm phím: xem thử ở trang chọn (cùng overlay với bàn phím).
       - Keyboard/KeyEffects.swift
+      # Bộ vẽ hiệu ứng theme 11/2026 (Bóng đá…) + cảnh nền — overlay dựng khi chọn kiểu.
+      - Keyboard/ThemeFxPack.swift
+      - Keyboard/FootballFx.swift
       # Bạn đồng hành: xem trước ở trang chọn (cùng view với bàn phím).
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
@@ -229,6 +232,9 @@ targets:
       - App/ThemeAssetDownloader.swift
       - Keyboard/Wallpaper.swift
       - Keyboard/KeyEffects.swift
+      # Bộ vẽ hiệu ứng theme 11/2026 (Bóng đá…) + cảnh nền — overlay dựng khi chọn kiểu.
+      - Keyboard/ThemeFxPack.swift
+      - Keyboard/FootballFx.swift
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
       - Keyboard/AIEye.swift
