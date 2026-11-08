@@ -9,26 +9,51 @@ import org.junit.Test
 /** Theme Neon Night Club — Đèn rọi, quả cầu disco, Sàn nhảy LED, người nhảy hoạt hình (NightDancer). Số CHUNG iOS NightClubTests.swift. */
 class SpotlightTests {
     @Test fun spotlightRadiusAlphaScale() {
-        assertEquals(54.4, SpotlightFx.radius(34.0, 0), 1e-9)
-        assertEquals(69.7, SpotlightFx.radius(34.0, 3), 1e-9)
-        assertEquals(36.0, SpotlightFx.radius(10.0, 0), 0.0)
-        assertEquals(150.0, SpotlightFx.radius(100.0, 3), 0.0)
-        assertEquals(0.72, SpotlightFx.duration(0), 1e-12)
-        assertEquals(0.87, SpotlightFx.duration(3), 1e-12)
-        assertEquals(0.87, SpotlightFx.duration(9), 1e-12)
-        assertEquals(0.78, SpotlightFx.peak(0), 1e-12)
-        assertEquals(0.99, SpotlightFx.peak(3), 1e-12)
+        assertEquals(129.2, SpotlightFx.radius(34.0, 0), 1e-9)
+        assertEquals(164.9, SpotlightFx.radius(34.0, 3), 1e-9)
+        assertEquals(72.0, SpotlightFx.radius(10.0, 0), 0.0)
+        assertEquals(210.0, SpotlightFx.radius(100.0, 3), 0.0)
+        // Chớp đèn sân khấu: ≥ 3,5 bề rộng phím; 3 quầng mức cao nhất phủ hết bề rộng bàn phím 402.
+        assertTrue(SpotlightFx.radius(34.0, 0) >= 3.5 * 34)
+        assertTrue(3 * 2 * SpotlightFx.radius(34.0, 3) >= 402)
+        assertEquals(1.11, SpotlightFx.duration(0), 1e-12)
+        assertEquals(1.29, SpotlightFx.duration(3), 1e-12)
+        assertEquals(1.29, SpotlightFx.duration(9), 1e-12)
+        assertEquals(0.88, SpotlightFx.peak(0), 1e-12)
+        assertEquals(1.0, SpotlightFx.peak(3), 1e-12)
         assertEquals(0.0, SpotlightFx.alpha(-0.01, 0), 0.0)
-        assertEquals(0.39, SpotlightFx.alpha(0.03, 0), 1e-12)
-        assertEquals(0.78, SpotlightFx.alpha(0.06, 0), 1e-12)
-        assertEquals(0.195, SpotlightFx.alpha(0.39, 0), 1e-12)
-        assertEquals(0.0, SpotlightFx.alpha(0.72, 0), 0.0)
-        assertEquals(0.007393689986282588, SpotlightFx.alpha(0.8, 3), 1e-12)
+        assertEquals(0.44, SpotlightFx.alpha(0.03, 0), 1e-12)
+        assertEquals(0.88, SpotlightFx.alpha(0.06, 0), 1e-12)
+        assertEquals(0.88, SpotlightFx.alpha(0.2, 0), 1e-12)
+        assertEquals(0.22, SpotlightFx.alpha(0.66, 0), 1e-12)
+        assertEquals(0.0, SpotlightFx.alpha(1.11, 0), 0.0)
+        assertEquals(0.006944444444444469, SpotlightFx.alpha(1.2, 3), 1e-12)
         assertEquals(0.8, SpotlightFx.scale(0.0, 0), 1e-12)
-        assertEquals(1.025, SpotlightFx.scale(0.36, 0), 1e-12)
+        assertEquals(1.025, SpotlightFx.scale(0.555, 0), 1e-12)
         assertEquals(1.1, SpotlightFx.scale(5.0, 0), 1e-12)
         assertEquals(listOf(0xFF2FD0, 0x9B5CFF, 0x2FE6FF, 0xFF2FD0), (0 until 4).map { SpotlightFx.color(it) })
-        for (lv in 0..3) assertTrue(SpotlightFx.duration(lv) in 0.6..0.9)
+        for (lv in 0..3) {
+            assertTrue(SpotlightFx.duration(lv) in 1.0..1.4)
+            val fade = SpotlightFx.duration(lv) - SpotlightFx.ATTACK - SpotlightFx.HOLD
+            assertTrue("tắt 0,9–1,1 s", fade in 0.9 - 1e-9..1.1)
+        }
+    }
+
+    /** Hình quầng: lõi lộ ảnh 100 %, quầng 50–70 %; tô lõi gần trắng, vành sáng mờ ở rìa. = iOS testSpotlightProfile. */
+    @Test fun spotlightProfile() {
+        assertEquals(SpotlightFx.MASK_STOPS.size, SpotlightFx.MASK_LEVELS.size)
+        assertEquals(SpotlightFx.GLOW_STOPS.size, SpotlightFx.GLOW_ALPHA.size)
+        assertEquals(SpotlightFx.GLOW_STOPS.size, SpotlightFx.GLOW_WHITE.size)
+        assertEquals(1.0, SpotlightFx.MASK_LEVELS[1], 0.0)
+        assertTrue(SpotlightFx.MASK_LEVELS[2] in 0.5..0.7)
+        assertEquals(0.0, SpotlightFx.MASK_LEVELS.last(), 0.0)
+        for (i in 1 until SpotlightFx.MASK_STOPS.size) assertTrue(SpotlightFx.MASK_STOPS[i] > SpotlightFx.MASK_STOPS[i - 1])
+        for (i in 1 until SpotlightFx.GLOW_STOPS.size) assertTrue(SpotlightFx.GLOW_STOPS[i] > SpotlightFx.GLOW_STOPS[i - 1])
+        assertTrue("vành sáng mờ: bướu ở rìa", SpotlightFx.GLOW_ALPHA[4] > SpotlightFx.GLOW_ALPHA[3])
+        assertEquals(0xD9FFACEC.toInt(), SpotlightFx.glowColor(0xFF2FD0, 0))
+        assertEquals(0xB8B485FF.toInt(), SpotlightFx.glowColor(0x9B5CFF, 1))
+        assertEquals(0x572FE6FF, SpotlightFx.glowColor(0x2FE6FF, 2))
+        assertEquals(0x00FF2FD0, SpotlightFx.glowColor(0xFF2FD0, 5))
     }
 
     @Test fun spotlightLightsCap() {
@@ -40,9 +65,9 @@ class SpotlightTests {
         assertEquals(1, l.cursor)
         assertEquals(0.6, l.starts[0], 1e-12)
         assertEquals(SpotlightFx.CAP, l.live(0.65))
-        assertEquals(1.32, l.lastEnd, 1e-12)
-        assertEquals(4, l.live(1.0))
-        assertEquals(0, l.live(1.4))
+        assertEquals(1.71, l.lastEnd, 1e-12)
+        assertEquals(3, l.live(1.5))
+        assertEquals(0, l.live(1.8))
         l.reset()
         assertEquals(0, l.live(0.65))
     }

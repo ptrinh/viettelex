@@ -17,27 +17,51 @@ final class NightClubTests: XCTestCase {
     // MARK: Đèn rọi — hàm thuần
 
     func testSpotlightRadiusAlphaScale() {
-        XCTAssertEqual(SpotlightFx.radius(keyWidth: 34, level: 0), 54.4, accuracy: 1e-9)
-        XCTAssertEqual(SpotlightFx.radius(keyWidth: 34, level: 3), 69.7, accuracy: 1e-9, "gõ nhanh ⇒ to hơn")
-        XCTAssertEqual(SpotlightFx.radius(keyWidth: 10, level: 0), 36, "kẹp dưới")
-        XCTAssertEqual(SpotlightFx.radius(keyWidth: 100, level: 3), 150, "kẹp trên")
-        XCTAssertEqual(SpotlightFx.duration(level: 0), 0.72, accuracy: 1e-12)
-        XCTAssertEqual(SpotlightFx.duration(level: 3), 0.87, accuracy: 1e-12)
-        XCTAssertEqual(SpotlightFx.duration(level: 9), 0.87, accuracy: 1e-12, "mức kẹp 0…3")
-        XCTAssertEqual(SpotlightFx.peak(level: 0), 0.78, accuracy: 1e-12)
-        XCTAssertEqual(SpotlightFx.peak(level: 3), 0.99, accuracy: 1e-12, "gõ nhanh ⇒ sáng hơn")
+        XCTAssertEqual(SpotlightFx.radius(keyWidth: 34, level: 0), 129.2, accuracy: 1e-9)
+        XCTAssertEqual(SpotlightFx.radius(keyWidth: 34, level: 3), 164.9, accuracy: 1e-9, "gõ nhanh ⇒ to hơn")
+        XCTAssertEqual(SpotlightFx.radius(keyWidth: 10, level: 0), 72, "kẹp dưới")
+        XCTAssertEqual(SpotlightFx.radius(keyWidth: 100, level: 3), 210, "kẹp trên")
+        // Chớp đèn sân khấu: ≥ 3,5 bề rộng phím; 3 quầng mức cao nhất phủ hết bề rộng bàn phím 402.
+        XCTAssertGreaterThanOrEqual(SpotlightFx.radius(keyWidth: 34, level: 0), 3.5 * 34)
+        XCTAssertGreaterThanOrEqual(3 * 2 * SpotlightFx.radius(keyWidth: 34, level: 3), 402)
+        XCTAssertEqual(SpotlightFx.duration(level: 0), 1.11, accuracy: 1e-12)
+        XCTAssertEqual(SpotlightFx.duration(level: 3), 1.29, accuracy: 1e-12)
+        XCTAssertEqual(SpotlightFx.duration(level: 9), 1.29, accuracy: 1e-12, "mức kẹp 0…3")
+        XCTAssertEqual(SpotlightFx.peak(level: 0), 0.88, accuracy: 1e-12)
+        XCTAssertEqual(SpotlightFx.peak(level: 3), 1, accuracy: 1e-12, "gõ nhanh ⇒ sáng hơn")
         XCTAssertEqual(SpotlightFx.alpha(-0.01, level: 0), 0)
-        XCTAssertEqual(SpotlightFx.alpha(0.03, level: 0), 0.39, accuracy: 1e-12)
-        XCTAssertEqual(SpotlightFx.alpha(0.06, level: 0), 0.78, accuracy: 1e-12)
-        XCTAssertEqual(SpotlightFx.alpha(0.39, level: 0), 0.195, accuracy: 1e-12)
-        XCTAssertEqual(SpotlightFx.alpha(0.72, level: 0), 0)
-        XCTAssertEqual(SpotlightFx.alpha(0.8, level: 3), 0.007393689986282588, accuracy: 1e-12)
+        XCTAssertEqual(SpotlightFx.alpha(0.03, level: 0), 0.44, accuracy: 1e-12)
+        XCTAssertEqual(SpotlightFx.alpha(0.06, level: 0), 0.88, accuracy: 1e-12)
+        XCTAssertEqual(SpotlightFx.alpha(0.2, level: 0), 0.88, accuracy: 1e-12, "giữ đỉnh")
+        XCTAssertEqual(SpotlightFx.alpha(0.66, level: 0), 0.22, accuracy: 1e-12)
+        XCTAssertEqual(SpotlightFx.alpha(1.11, level: 0), 0)
+        XCTAssertEqual(SpotlightFx.alpha(1.2, level: 3), 0.006944444444444469, accuracy: 1e-12)
         XCTAssertEqual(SpotlightFx.scale(0, level: 0), 0.8, accuracy: 1e-12)
-        XCTAssertEqual(SpotlightFx.scale(0.36, level: 0), 1.025, accuracy: 1e-12)
+        XCTAssertEqual(SpotlightFx.scale(0.555, level: 0), 1.025, accuracy: 1e-12)
         XCTAssertEqual(SpotlightFx.scale(5, level: 0), 1.1, accuracy: 1e-12)
         XCTAssertEqual((0..<4).map { SpotlightFx.color($0) }, [0xFF2FD0, 0x9B5CFF, 0x2FE6FF, 0xFF2FD0])
-        // Tắt trong khoảng 0,6–0,9 s.
-        for lv in 0...3 { XCTAssertTrue((0.6...0.9).contains(SpotlightFx.duration(level: lv))) }
+        for lv in 0...3 {
+            XCTAssertTrue((1.0...1.4).contains(SpotlightFx.duration(level: lv)))
+            let fade = SpotlightFx.duration(level: lv) - SpotlightFx.attack - SpotlightFx.hold
+            XCTAssertTrue(((0.9 - 1e-9)...1.1).contains(fade), "tắt 0,9–1,1 s")
+        }
+    }
+
+    /// Hình quầng: lõi lộ ảnh 100 %, quầng 50–70 %; tô lõi gần trắng, vành sáng mờ ở rìa. = Android spotlightProfile.
+    func testSpotlightProfile() {
+        XCTAssertEqual(SpotlightFx.maskStops.count, SpotlightFx.maskLevels.count)
+        XCTAssertEqual(SpotlightFx.glowStops.count, SpotlightFx.glowAlpha.count)
+        XCTAssertEqual(SpotlightFx.glowStops.count, SpotlightFx.glowWhite.count)
+        XCTAssertEqual(SpotlightFx.maskLevels[1], 1)
+        XCTAssertTrue((0.5...0.7).contains(SpotlightFx.maskLevels[2]))
+        XCTAssertEqual(SpotlightFx.maskLevels.last, 0)
+        for i in 1..<SpotlightFx.maskStops.count { XCTAssertGreaterThan(SpotlightFx.maskStops[i], SpotlightFx.maskStops[i - 1]) }
+        for i in 1..<SpotlightFx.glowStops.count { XCTAssertGreaterThan(SpotlightFx.glowStops[i], SpotlightFx.glowStops[i - 1]) }
+        XCTAssertGreaterThan(SpotlightFx.glowAlpha[4], SpotlightFx.glowAlpha[3], "vành sáng mờ: bướu ở rìa")
+        XCTAssertEqual(SpotlightFx.glowColor(0xFF2FD0, stop: 0), 0xD9FFACEC)
+        XCTAssertEqual(SpotlightFx.glowColor(0x9B5CFF, stop: 1), 0xB8B485FF)
+        XCTAssertEqual(SpotlightFx.glowColor(0x2FE6FF, stop: 2), 0x572FE6FF)
+        XCTAssertEqual(SpotlightFx.glowColor(0xFF2FD0, stop: 5), 0x00FF2FD0)
     }
 
     func testSpotlightLightsCap() {
@@ -49,9 +73,9 @@ final class NightClubTests: XCTestCase {
         XCTAssertEqual(l.cursor, 1, "đủ 6 ⇒ quầng cũ nhất bị thay")
         XCTAssertEqual(l.starts[0], 0.6, accuracy: 1e-12)
         XCTAssertEqual(l.live(at: 0.65), SpotlightFx.cap)
-        XCTAssertEqual(l.lastEnd, 1.32, accuracy: 1e-12)
-        XCTAssertEqual(l.live(at: 1.0), 4)
-        XCTAssertEqual(l.live(at: 1.4), 0)
+        XCTAssertEqual(l.lastEnd, 1.71, accuracy: 1e-12)
+        XCTAssertEqual(l.live(at: 1.5), 3)
+        XCTAssertEqual(l.live(at: 1.8), 0)
         l.reset()
         XCTAssertEqual(l.live(at: 0.65), 0)
     }

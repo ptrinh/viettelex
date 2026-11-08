@@ -14,7 +14,12 @@ object SpotlightPolicy {
         photoFx == ThemeExtraIds.SPOTLIGHT && plus && !lowPower
 }
 
-/** Đèn rọi (giây, dp) — = iOS SpotlightFx. */
+/**
+ * Đèn rọi (giây, dp) — = iOS SpotlightFx. Mỗi lần bấm là một "chớp đèn sân khấu" (11/2026 — Phil: "sáng lóa, rộng hơn"):
+ * quầng ~3,8–4,9 bề rộng phím (≈ 30–45 % bề rộng bàn phím; 2–3 quầng phủ gần hết), lõi nóng gần trắng (tô nhẹ màu neon) →
+ * quầng màu → vành sáng mờ màu neon ở rìa ngoài. Ảnh nền / người nhảy lộ ~100 % trong lõi, ~60 % ở quầng. Sáng giữ
+ * [HOLD] rồi tắt dần 0,9–1,08 s.
+ */
 object SpotlightFx {
     /** Tối đa số quầng sống cùng lúc (quầng cũ nhất bị thay). */
     const val CAP = 6
@@ -22,35 +27,48 @@ object SpotlightFx {
     const val DARKNESS = 0.9
     /** Neon xoay vòng mỗi lần bấm: hồng, tím, lục lam. */
     val COLORS = intArrayOf(0xFF2FD0, 0x9B5CFF, 0x2FE6FF)
-    /** Độ đậm quầng tô màu (nhân với độ sáng quầng). */
-    const val TINT = 0.32
     const val ATTACK = 0.06
-    const val BASE_DURATION = 0.72
-    const val DURATION_PER_LEVEL = 0.05
-    const val RADIUS_FACTOR = 1.6
-    const val RADIUS_PER_LEVEL = 0.15
-    const val MIN_RADIUS = 36.0
-    const val MAX_RADIUS = 150.0
-    const val PEAK_BASE = 0.78
-    const val PEAK_PER_LEVEL = 0.07
+    /** Giữ đỉnh sáng sau [ATTACK] trước khi tắt. */
+    const val HOLD = 0.15
+    /** = ATTACK + HOLD + tắt 0,9 s (mức 0); mỗi mức combo tắt lâu thêm [DURATION_PER_LEVEL]. */
+    const val BASE_DURATION = 1.11
+    const val DURATION_PER_LEVEL = 0.06
+    const val RADIUS_FACTOR = 3.8
+    const val RADIUS_PER_LEVEL = 0.35
+    const val MIN_RADIUS = 72.0
+    const val MAX_RADIUS = 210.0
+    const val PEAK_BASE = 0.88
+    const val PEAK_PER_LEVEL = 0.04
     const val START_SCALE = 0.8
     const val GROW_SCALE = 0.3
 
+    /** Mặt nạ "lộ ảnh" theo bán kính (0 = tâm, 1 = rìa): lõi 100 %, quầng ~60 %, rìa tắt. Nhân với [alpha]. */
+    val MASK_STOPS = doubleArrayOf(0.0, 0.24, 0.55, 0.8, 1.0)
+    val MASK_LEVELS = doubleArrayOf(1.0, 1.0, 0.62, 0.2, 0.0)
+    /**
+     * Quầng tô màu (cộng sáng — SCREEN) theo bán kính: lõi nóng gần trắng ([GLOW_WHITE] = tỉ lệ pha trắng) → màu neon →
+     * vành sáng mờ (bướu ở 0,86) → trong suốt. [GLOW_ALPHA] = độ đậm mỗi mốc; cả quầng nhân với [alpha].
+     */
+    val GLOW_STOPS = doubleArrayOf(0.0, 0.16, 0.42, 0.68, 0.86, 1.0)
+    val GLOW_ALPHA = doubleArrayOf(0.85, 0.72, 0.34, 0.08, 0.16, 0.0)
+    val GLOW_WHITE = doubleArrayOf(0.6, 0.25, 0.0, 0.0, 0.0, 0.0)
+
     private fun lv(level: Int): Double = level.coerceIn(0, 3).toDouble()
 
-    /** Thời gian sống của quầng ở mức combo [level] (0…3): 0,72…0,87 s. */
+    /** Thời gian sống của quầng ở mức combo [level] (0…3): 1,11…1,29 s. */
     fun duration(level: Int): Double = BASE_DURATION + DURATION_PER_LEVEL * lv(level)
-    /** Bán kính quầng (dp) theo bề rộng phím + mức combo, kẹp [36, 150]. */
+    /** Bán kính quầng (dp) theo bề rộng phím + mức combo, kẹp [72, 210]. */
     fun radius(keyWidth: Double, level: Int): Double =
         (keyWidth * (RADIUS_FACTOR + RADIUS_PER_LEVEL * lv(level))).coerceIn(MIN_RADIUS, MAX_RADIUS)
-    /** Độ sáng đỉnh 0,78…0,99. */
+    /** Độ sáng đỉnh 0,88…1. */
     fun peak(level: Int): Double = minOf(1.0, PEAK_BASE + PEAK_PER_LEVEL * lv(level))
-    /** Độ sáng sau [dt] giây: lên tuyến tính trong [ATTACK], rồi tắt (1−u)². */
+    /** Độ sáng sau [dt] giây: lên tuyến tính trong [ATTACK], giữ [HOLD], rồi tắt (1−u)². */
     fun alpha(dt: Double, level: Int): Double {
         val d = duration(level); val p = peak(level)
         if (dt < 0 || dt >= d) return 0.0
         if (dt < ATTACK) return p * dt / ATTACK
-        val u = (dt - ATTACK) / (d - ATTACK)
+        if (dt < ATTACK + HOLD) return p
+        val u = (dt - ATTACK - HOLD) / (d - ATTACK - HOLD)
         return p * (1 - u) * (1 - u)
     }
     /** Hệ số bán kính sau [dt] (0,8 → 1,1, chậm dần). */
@@ -60,6 +78,13 @@ object SpotlightFx {
     }
     /** Màu neon (RGB) của lần bấm thứ [press]. */
     fun color(press: Int): Int = COLORS[((press % COLORS.size) + COLORS.size) % COLORS.size]
+    /** Màu ARGB mốc [stop] của quầng tô màu neon [rgb]: pha trắng [GLOW_WHITE], alpha [GLOW_ALPHA] (làm tròn kênh). */
+    fun glowColor(rgb: Int, stop: Int): Int {
+        val w = GLOW_WHITE[stop]
+        fun ch(c: Int): Int = Math.round(c + (255 - c) * w).toInt().coerceIn(0, 255)
+        val a = Math.round(GLOW_ALPHA[stop] * 255).toInt().coerceIn(0, 255)
+        return (a shl 24) or (ch((rgb shr 16) and 0xFF) shl 16) or (ch((rgb shr 8) and 0xFF) shl 8) or ch(rgb and 0xFF)
+    }
 }
 
 /** Vòng quầng sáng (mảng cấp sẵn): lần bấm ⇒ ô kế tiếp (quầng cũ nhất bị thay khi đủ CAP). = iOS SpotlightLights. */

@@ -36,10 +36,11 @@ import com.viettelex.keyboard.SpotlightTexture
  * phím. Không nhận chạm. Chỉ tồn tại khi theme đang dùng có "photoFx":"spotlight" (IME gắn/gỡ mỗi lần hiện — theme khác
  * không có view, 0 chi phí).
  *
- *  • Có ảnh nền: phủ đen 90 % (vẽ một lần vào display list — nghỉ = không vẽ lại). Mỗi phím bấm: quầng tròn mềm rọi
- *    ảnh — CHÍNH bitmap ảnh nền của ImeRootView (không giải mã / sao chép thêm) vẽ qua mặt nạ RadialGradient trong MỘT
- *    saveLayer (SRC_IN), cộng quầng tô neon (SCREEN). Không ảnh nền: NGƯỜI NHẢY HOẠT HÌNH ([NightDancer] — atlas 4 × 2
- *    của Bạn đồng hành, cô gái / chàng trai) cao 85 % bàn phím phía sau phím, chìm trong tối (~12 % sáng — LightingColorFilter);
+ *  • Có ảnh nền: phủ đen 90 % (vẽ một lần vào display list — nghỉ = không vẽ lại). Mỗi phím bấm: chớp đèn sân khấu
+ *    (~3,8–4,9 bề rộng phím, lõi lộ ảnh 100 % / quầng ~60 %, giữ 0,15 s rồi tắt ~1 s) rọi ảnh — CHÍNH bitmap ảnh nền
+ *    của ImeRootView (không giải mã / sao chép thêm) vẽ qua mặt nạ RadialGradient trong MỘT saveLayer (SRC_IN), cộng
+ *    quầng tô neon (SCREEN: lõi nóng gần trắng → màu → vành sáng mờ). Không ảnh nền: NGƯỜI NHẢY HOẠT HÌNH
+ *    ([NightDancer] — atlas 4 × 2 của Bạn đồng hành, cô gái / chàng trai) cao 85 % bàn phím phía sau phím, chìm trong tối (~12 % sáng — LightingColorFilter);
  *    trong saveLayer của đèn: phông tím đêm + viền neon theo màu đèn (bóng tô màu dời ±viền) + nhân vật màu thật (SRC_ATOP
  *    ⇒ chỉ lộ dưới đèn). Mỗi lần đèn nháy ⇒ biến thể kế (7 khung × lật ngang, không lặp liền). Atlas giải MỘT lần trên
  *    luồng nền theo cỡ hiển thị ([NightDancer.decodeLongEdge]); có ảnh nền ⇒ không giải / thả ra.
@@ -59,13 +60,17 @@ class SpotlightView(context: Context, private val density: Float) : View(context
     private var photoMatrix: Matrix? = null
     private val darkPaint = Paint().apply { color = (Math.round(SpotlightFx.DARKNESS * 255).toInt() shl 24) }
     private val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        shader = RadialGradient(0f, 0f, 1f, intArrayOf(0xFFFFFFFF.toInt(), 0x8CFFFFFF.toInt(), 0x00FFFFFF),
-            floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
+        // Lõi lộ ảnh 100 %, quầng ~60 %, rìa tắt (SpotlightFx.MASK_*).
+        shader = RadialGradient(0f, 0f, 1f,
+            IntArray(SpotlightFx.MASK_LEVELS.size) { (Math.round(SpotlightFx.MASK_LEVELS[it] * 255).toInt() shl 24) or 0xFFFFFF },
+            FloatArray(SpotlightFx.MASK_STOPS.size) { SpotlightFx.MASK_STOPS[it].toFloat() }, Shader.TileMode.CLAMP)
     }
     private val tintPaints = Array(SpotlightFx.COLORS.size) { i ->
         val c = SpotlightFx.COLORS[i]
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = RadialGradient(0f, 0f, 1f, intArrayOf(c or (0xFF shl 24), c), null, Shader.TileMode.CLAMP)
+            // Lõi nóng gần trắng → màu neon → vành sáng mờ ở rìa (SpotlightFx.GLOW_*), cộng sáng (SCREEN).
+            shader = RadialGradient(0f, 0f, 1f, IntArray(SpotlightFx.GLOW_STOPS.size) { SpotlightFx.glowColor(c, it) },
+                FloatArray(SpotlightFx.GLOW_STOPS.size) { SpotlightFx.GLOW_STOPS[it].toFloat() }, Shader.TileMode.CLAMP)
             xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
         }
     }
@@ -299,7 +304,7 @@ class SpotlightView(context: Context, private val density: Float) : View(context
             canvas.restoreToCount(save)
             for (i in 0 until SpotlightFx.CAP) {
                 val dt = now - lights.starts[i]
-                val a = SpotlightFx.alpha(dt, lights.levels[i]) * SpotlightFx.TINT
+                val a = SpotlightFx.alpha(dt, lights.levels[i])
                 if (a <= 0) continue
                 val r = (lr[i] * SpotlightFx.scale(dt, lights.levels[i])).toFloat()
                 val p = tintPaints[lc[i]]
