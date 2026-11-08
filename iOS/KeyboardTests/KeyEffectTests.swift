@@ -957,4 +957,20 @@ extension KeyEffectTests {
             XCTAssertEqual(o.debugStringAnimationCount, 0, "nghỉ gõ = 0 animation")
         }
     }
+
+    /// Issue #151 (video 08/11): overlay gắn lúc host đang cao tạm thời (gốc bounds dời lên) giữ khung cũ
+    /// ⇒ khi gốc về 0, toạ độ phím lệch cả phần dư — tia sét đánh lên thanh trạng thái. Overlay phải
+    /// luôn cùng hệ toạ độ với host.
+    @MainActor func testOverlayFollowsHostBoundsOrigin() {
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 400, height: 470))
+        host.bounds.origin.y = -180                      // khung cao tạm: phần dư nằm trên nội dung
+        let o = KeyEffectOverlay.install(.lightning, color: .yellow, in: host, existing: nil)!
+        let key = CGRect(x: 30, y: 120, width: 34, height: 42)
+        XCTAssertEqual(o.convert(key, from: host), key, "khi gắn: cùng hệ toạ độ")
+        host.frame = CGRect(x: 0, y: 0, width: 400, height: 290)
+        host.bounds.origin.y = 0                         // host đo lại: hết dư
+        KeyEffectOverlay.match(o, to: host)
+        XCTAssertEqual(o.convert(key, from: host), key, "gốc host đổi: overlay theo")
+        XCTAssertEqual(o.frame, host.bounds)
+    }
 }

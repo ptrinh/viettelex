@@ -750,8 +750,7 @@ final class KeyEffectOverlay: UIView {
         }()
         if !placed {
             o.removeFromSuperview()
-            o.frame = host.bounds
-            o.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            match(o, to: host)
             if below, let keys, keys.superview === host {
                 host.insertSubview(o, belowSubview: keys)
             } else {
@@ -759,6 +758,14 @@ final class KeyEffectOverlay: UIView {
             }
         }
         return o
+    }
+
+    /// Đặt overlay trùng hệ toạ độ của `host` (khung = host.bounds, cùng gốc bounds) ⇒ toạ độ host
+    /// dùng thẳng trong overlay dù host dời gốc bounds. Không đổi gì thì không chạm layer.
+    static func match(_ o: KeyEffectOverlay, to host: UIView) {
+        let b = host.bounds
+        if o.frame != b { o.frame = b }
+        if o.bounds.origin != b.origin { o.bounds.origin = b.origin }
     }
 
     func configure(effect: KeyEffect, color: UIColor, keyFill: UIColor? = nil, dark: Bool? = nil) {

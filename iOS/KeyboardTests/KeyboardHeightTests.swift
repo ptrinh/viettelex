@@ -693,6 +693,7 @@ final class HostOversizeControllerTests: XCTestCase {
         PlusGate.paywallEnabled = false
         d.set(BuddyCharacter.cat.rawValue, forKey: BuddyCharacter.key)          // như máy reporter
         d.set(KeyboardTheme.oled.rawValue, forKey: ThemeSettings.themeKey)     // nền đục
+        d.set(KeyEffect.lightning.rawValue, forKey: KeyEffect.key)            // video 08/11: tia sét
         UserDefaultsProvider.shared = d
 
         let w: CGFloat = 402, H: CGFloat = 874
@@ -765,6 +766,15 @@ final class HostOversizeControllerTests: XCTestCase {
         XCTAssertEqual(qTall.minY, qRef.minY, accuracy: 1, "chrome trên hàng phím xếp như khung vừa đủ")
         XCTAssertEqual(qTall.height, qRef.height, accuracy: 1)
         XCTAssertEqual(kb.bounds.minY, -kb.oversizeShift, accuracy: 0.01, "phần dư nằm trên đỉnh nội dung")
+        // Hiệu ứng phím (tia sét) cùng hệ toạ độ với bàn phím cả khi cao tạm lẫn khi về vừa đủ.
+        func checkFx(_ why: String) {
+            guard let o = kb.keyEffects else { return XCTFail("tia sét phải bật: \(why)") }
+            XCTAssertEqual(o.convert(qTall, from: kb), qTall, why)
+        }
+        checkFx("khung cao tạm")
+        vc.view.frame = CGRect(x: 0, y: H - req, width: w, height: req); pass()
+        XCTAssertEqual(kb.oversizeShift, 0)
+        checkFx("về khung vừa đủ")
 
         // Lần hiện mới: đếm lại từ đầu.
         vc.beginAppearanceTransition(false, animated: false); vc.endAppearanceTransition()

@@ -963,6 +963,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             else if builtGeom != nil, builtGeom != geomSig { rebuild() }
         }
         applyOversizeShift()
+        syncKeyEffectsSpace()
         applyOneHand()
         layoutRowsArea()
         if let r = indentedRow {
@@ -6959,6 +6960,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         guard keyEffects != nil else { return }
         fxRect = convert(v.bounds, from: v)
     }
+    /// Overlay hiệu ứng dùng CHUNG hệ toạ độ với KeyboardView: khung = bounds, gốc bounds = gốc bounds
+    /// của view (#151 dời gốc lên phần host cấp dư). Khung phím (fxRect, khe hàng) tính theo toạ độ view
+    /// nên dùng thẳng được. Trước đây overlay giữ khung lúc gắn: gắn khi host đang cao tạm thời ⇒ gốc
+    /// lệch mãi, tia sét / mảnh vỡ vẽ ra ngoài bàn phím (lên tận thanh trạng thái).
+    private func syncKeyEffectsSpace() {
+        guard let o = keyEffects else { return }
+        KeyEffectOverlay.match(o, to: self)
+    }
     /// Đọc cài đặt lúc hiện (applyAppearance): kiểu + cổng Plus + nguồn điện thấp + giảm chuyển động.
     private func configureKeyEffects() {
         // Matrix / Mực loang / Sóng nước: dải DƯỚI phím (ngay dưới rowsContainer, trên nền / ảnh nền).
@@ -6966,6 +6975,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                                               color: palette.accent.alpha(1).ui, keyFill: palette.keyFill.ui,
                                               dark: palette.isDark, in: self, keys: rowsContainer, existing: keyEffects)
         if keyEffects == nil { fxRect = nil }
+        syncKeyEffectsSpace()
         layoutStringGaps()
     }
 
