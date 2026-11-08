@@ -1527,3 +1527,54 @@ object DanceFloor {
         return out
     }
 }
+
+/**
+ * "Sàn nhảy LED" — cú FLASH stroboscope: bấm PHÍM CÁCH (hết một từ — trùng nhịp kick của âm Nhịp club) ⇒ lớp phủ TOÀN
+ * bàn phím, SAU phím (nền / ảnh / nhân vật loé sáng, chữ phím vẫn đọc được), trắng ngả màu neon của nhịp, lên [RISE]
+ * rồi tắt (1−u)² trong [FALL]. Phím chữ không flash. AN TOÀN cảm quang (WCAG 2.3.1): tối đa [MAX_PER_SECOND] lần mỗi
+ * giây — [Gate] dùng CHUNG với nhịp nháy cả bàn phím của [DanceFloor]; quá thì bỏ qua. Không phụ thuộc Giảm chuyển động.
+ * = iOS BeatFlash.
+ */
+object BeatFlash {
+    const val RISE = 0.02
+    const val FALL = 0.11
+    const val DURATION = RISE + FALL
+    const val PEAK = 0.6
+    const val MAX_PER_SECOND = 3
+    const val WINDOW = 1.0
+    /** Phần màu neon trộn vào trắng. */
+    const val TINT_MIX = 0.35
+
+    /** Độ đục sau [dt] giây kể từ cú flash. */
+    fun alpha(dt: Double): Double {
+        if (dt < 0 || dt >= DURATION) return 0.0
+        if (dt < RISE) return PEAK * dt / RISE
+        val u = (dt - RISE) / FALL
+        return PEAK * (1 - u) * (1 - u)
+    }
+
+    /** Màu nhịp thứ [i]: trắng trộn [TINT_MIX] màu [DanceFloor.COLORS] (0xRRGGBB). */
+    fun tint(i: Int): Int {
+        val n = DanceFloor.COLORS.size
+        val c = DanceFloor.COLORS[((i % n) + n) % n]
+        fun ch(sh: Int): Int {
+            val v = ((c shr sh) and 0xFF).toDouble()
+            return Math.round(255 * (1 - TINT_MIX) + v * TINT_MIX).toInt() shl sh
+        }
+        return ch(16) or ch(8) or ch(0)
+    }
+
+    /** Cổng an toàn: ≤ [MAX_PER_SECOND] lần trong mọi khoảng [WINDOW] giây. Dùng chung cho flash phím cách + nháy cả bàn phím. */
+    class Gate {
+        private val times = DoubleArray(MAX_PER_SECOND) { Double.NEGATIVE_INFINITY }
+        private var head = 0
+        var fired = 0; private set
+        fun trigger(t: Double): Boolean {
+            if (t - times[head] < WINDOW) return false
+            times[head] = t; head = (head + 1) % times.size
+            fired++
+            return true
+        }
+        fun reset() { times.fill(Double.NEGATIVE_INFINITY); head = 0 }
+    }
+}

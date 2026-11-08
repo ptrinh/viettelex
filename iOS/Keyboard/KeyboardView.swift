@@ -373,6 +373,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         spaceBar = nil; spaceLogo = nil; spaceCode = nil; indentedRow = nil
         overlayPanel?.removeFromSuperview(); overlayPanel = nil
         keyEffects?.halt(); keyEffects = nil; fxRect = nil
+        beatFlash?.halt(); beatFlash = nil
         buddy?.halt(); buddy = nil
         aiEye?.halt(); aiEye = nil
         rainbow?.halt(); rainbow = nil
@@ -6937,6 +6938,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if handleSearchKey(key) { return }
         onKey(key)
         KeystrokeCounter.tick()                  // tắt (mặc định) ⇒ đọc một hằng số
+        if let f = beatFlash, Self.isBeatKey(key) { f.kick() }   // Sàn nhảy LED: flash nền ở phím cách; kiểu khác ⇒ nil
         if let fx {
             keyEffects?.emit(key: fx)
             spotlight?.light(key: fx)            // Đèn rọi (theme "photoFx":"spotlight"): theme khác ⇒ nil
@@ -7247,8 +7249,37 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// nên dùng thẳng được. Trước đây overlay giữ khung lúc gắn: gắn khi host đang cao tạm thời ⇒ gốc
     /// lệch mãi, tia sét / mảnh vỡ vẽ ra ngoài bàn phím (lên tận thanh trạng thái).
     private func syncKeyEffectsSpace() {
+        beatFlash?.shareCoordinateSpace(with: self)
         guard let o = keyEffects else { return }
         KeyEffectOverlay.match(o, to: self)
+    }
+
+    // MARK: Sàn nhảy LED — flash nền ở phím cách (BeatFlashView). Kiểu khác ⇒ nil (0 view, 0 việc mỗi phím).
+    private(set) var beatFlash: BeatFlashView?
+    /// Phím kết thúc một từ (nhịp "BOOM" của âm Nhịp club) — chỉ những phím này flash.
+    static func isBeatKey(_ k: Key) -> Bool {
+        switch k {
+        case .space, .doubleSpacePeriod: return true
+        default: return false
+        }
+    }
+    /// Gắn / gỡ lớp flash: ngay DƯỚI hàng phím (trên nền / ảnh / đèn rọi / nhân vật), phủ trọn bàn phím.
+    private func configureBeatFlash(_ on: Bool) {
+        guard on else {
+            beatFlash?.halt(); beatFlash?.removeFromSuperview(); beatFlash = nil
+            keyEffects?.flashGate = nil
+            return
+        }
+        let v = beatFlash ?? BeatFlashView()
+        if let i = subviews.firstIndex(of: v), let k = subviews.firstIndex(of: rowsContainer), i == k - 1 {
+            // đã đúng chỗ
+        } else {
+            v.removeFromSuperview()
+            insertSubview(v, belowSubview: rowsContainer)
+        }
+        v.shareCoordinateSpace(with: self)
+        beatFlash = v
+        keyEffects?.flashGate = v.gate   // nháy cả bàn phím dùng chung cổng ≤ 3 lần / giây
     }
     /// Đọc cài đặt lúc hiện (applyAppearance): kiểu + cổng Plus + nguồn điện thấp + giảm chuyển động.
     private func configureKeyEffects() {
@@ -7265,6 +7296,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let sea = keyEffects?.effect == .sea
         KeySound.shared.setSurfEnabled(sea)
         keyEffects?.onSeaWave = sea ? { Self.seaSurf(size: $0) } : nil
+        configureBeatFlash(keyEffects?.effect == .dancefloor)
         syncKeyEffectsSpace()
         layoutStringGaps()
     }
@@ -7787,6 +7819,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Test: dải cực quang (theme AI) — nil = chưa từng tạo.
     var debugAuroraBand: CAGradientLayer? { auroraBand }
     var debugRowsContainer: UIView { rowsContainer }
+    /// Test: đường phím thật sau khi chạm (onKey + hiệu ứng) cho phím `k`.
+    func debugTapped(_ k: Key) { tapped(k) }
     func debugLetterFrame(_ s: String) -> CGRect? {
         letterKeys.first { $0.base == s }.map { convert($0.button.bounds, from: $0.button) }
     }

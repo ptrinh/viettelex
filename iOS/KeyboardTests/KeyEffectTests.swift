@@ -1183,6 +1183,81 @@ extension KeyEffectTests {
         XCTAssertNotNil(keys.layer.animation(forKey: KeyEffectOverlay.shakeKey))
     }
 
+    // MARK: Sàn nhảy LED — flash phím cách
+
+    /// Số tham chiếu — Android KeyEffectFx3Tests.beatFlashNumbersAndGate giữ y hệt.
+    func testBeatFlashNumbersAndGate() {
+        XCTAssertEqual(BeatFlash.rise, 0.02); XCTAssertEqual(BeatFlash.fall, 0.11)
+        XCTAssertEqual(BeatFlash.duration, 0.13, accuracy: 1e-12)
+        XCTAssertEqual(BeatFlash.peak, 0.6); XCTAssertEqual(BeatFlash.maxPerSecond, 3)
+        XCTAssertEqual(BeatFlash.alpha(-0.001), 0)
+        XCTAssertEqual(BeatFlash.alpha(0), 0)
+        XCTAssertEqual(BeatFlash.alpha(0.01), 0.3, accuracy: 1e-9)
+        XCTAssertEqual(BeatFlash.alpha(0.02), 0.6, accuracy: 1e-9)
+        XCTAssertEqual(BeatFlash.alpha(0.075), 0.15, accuracy: 1e-9)
+        XCTAssertEqual(BeatFlash.alpha(0.13), 0)
+        for t in stride(from: 0.0, through: 0.2, by: 0.001) {
+            XCTAssertLessThanOrEqual(BeatFlash.alpha(t), BeatFlash.peak + 1e-12)
+            if t > 0.0205 { XCTAssertLessThanOrEqual(BeatFlash.alpha(t), BeatFlash.alpha(t - 0.001) + 1e-12, "tắt đơn điệu") }
+        }
+        XCTAssertEqual(BeatFlash.tint(0), 0xFFB6EF)
+        XCTAssertEqual(BeatFlash.tint(1), 0xDCC6FF)
+        XCTAssertEqual(BeatFlash.tint(2), 0xB6F6FF)
+        XCTAssertEqual(BeatFlash.tint(3), BeatFlash.tint(0))
+
+        // ≤ 3 lần trong MỌI khoảng 1 s: 10 nhịp trong 1 s ⇒ 3.
+        let g = BeatFlash.Gate()
+        XCTAssertEqual((0..<10).map { g.trigger(at: Double($0) * 0.1) }.filter { $0 }.count, 3)
+        XCTAssertEqual(g.fired, 3)
+        XCTAssertFalse(g.trigger(at: 0.99))
+        XCTAssertTrue(g.trigger(at: 1.0), "đủ 1 s sau nhịp cũ nhất ⇒ lại được")
+        let h = BeatFlash.Gate()
+        XCTAssertEqual((0..<12).map { h.trigger(at: Double($0) * 0.34) }.filter { $0 }.count, 12, "~3 nhịp/s đều đặn: không bỏ")
+        let w = BeatFlash.Gate()
+        var times: [Double] = []
+        for i in 0..<200 { let t = Double(i) * 0.047; if w.trigger(at: t) { times.append(t) } }
+        for (i, t) in times.enumerated() where i >= 3 { XCTAssertGreaterThanOrEqual(t - times[i - 3], 1.0 - 1e-9) }
+    }
+
+    /// Bàn phím thật, kiểu Sàn nhảy LED: lớp flash ngay DƯỚI hàng phím, phủ đúng bàn phím; phím chữ không flash,
+    /// phím cách flash; 10 phím cách trong 1 s ⇒ ≤ 3 flash; nháy cả bàn phím dùng chung cổng. Kiểu khác ⇒ không có lớp.
+    @MainActor func testBeatFlashOnSpaceOnlyBehindKeys() throws {
+        try withKeyboardFx(effect: "dancefloor") { kb in
+            let f = try XCTUnwrap(kb.beatFlash)
+            let o = try XCTUnwrap(kb.keyEffects)
+            XCTAssertTrue(o.flashGate === f.gate)
+            let rows = kb.debugRowsContainer
+            let i = try XCTUnwrap(kb.subviews.firstIndex(of: f)), k = try XCTUnwrap(kb.subviews.firstIndex(of: rows))
+            XCTAssertEqual(i, k - 1, "ngay sau (dưới) hàng phím")
+            XCTAssertEqual(f.frame, kb.bounds, "phủ trọn bàn phím, cùng hệ toạ độ")
+            XCTAssertEqual(f.bounds.origin, kb.bounds.origin)
+            XCTAssertFalse(f.isUserInteractionEnabled)
+            XCTAssertNil(f.hitTest(CGPoint(x: 10, y: 10), with: nil))
+            XCTAssertEqual(f.layer.opacity, 0, "nghỉ: trong suốt")
+
+            for s in ["t", "e", "t"] { kb.debugTapLetter(s, at: 0) }
+            XCTAssertNil(f.layer.animation(forKey: BeatFlashView.animKey), "phím chữ: không flash")
+            XCTAssertEqual(f.gate.fired, 0)
+
+            kb.debugTapped(.space)
+            XCTAssertNotNil(f.layer.animation(forKey: BeatFlashView.animKey), "phím cách: flash")
+            XCTAssertEqual(f.gate.fired, 1)
+            let c = try XCTUnwrap(f.layer.backgroundColor?.components)
+            let t = BeatFlash.tint(0)
+            XCTAssertEqual(c[0], CGFloat((t >> 16) & 0xFF) / 255, accuracy: 1e-3)
+            XCTAssertEqual(c[1], CGFloat((t >> 8) & 0xFF) / 255, accuracy: 1e-3)
+            XCTAssertEqual(c[2], CGFloat(t & 0xFF) / 255, accuracy: 1e-3)
+            for _ in 0..<9 { kb.debugTapped(.space) }
+            XCTAssertEqual(f.gate.fired, 3, "10 phím cách trong 1 s ⇒ ≤ 3 flash")
+
+            // Giữa flash: presentation sáng lên, phím vẫn trên lớp flash.
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+            if let p = f.layer.presentation() { XCTAssertGreaterThan(p.opacity, 0.05) }
+            XCTAssertEqual(kb.subviews.firstIndex(of: f), (kb.subviews.firstIndex(of: rows) ?? 0) - 1)
+        }
+        try withKeyboardFx(effect: "heart") { kb in XCTAssertNil(kb.beatFlash, "kiểu khác: 0 lớp") }
+    }
+
     // MARK: Plasma / Laser / Glitch
 
     func testPlasmaChainAndArcParity() {

@@ -1544,6 +1544,106 @@ enum DanceFloor {
     }
 }
 
+/// "Sàn nhảy LED" — cú FLASH stroboscope: bấm PHÍM CÁCH (hết một từ — trùng nhịp kick của âm Nhịp club) ⇒ lớp phủ
+/// TOÀN bàn phím, SAU phím (nền / ảnh / nhân vật loé sáng, chữ phím vẫn đọc được), trắng ngả màu neon của nhịp, lên
+/// `rise` rồi tắt (1−u)² trong `fall`. Phím chữ không flash. AN TOÀN cảm quang (WCAG 2.3.1): tối đa `maxPerSecond`
+/// lần mỗi giây — cổng `Gate` dùng CHUNG với nhịp nháy cả bàn phím của DanceFloor; quá thì bỏ qua (sàn LED vẫn chạy).
+/// Không phụ thuộc Giảm chuyển động. = Android BeatFlash.
+enum BeatFlash {
+    static let rise = 0.02
+    static let fall = 0.11
+    static var duration: Double { rise + fall }
+    static let peak = 0.6
+    static let maxPerSecond = 3
+    static let window = 1.0
+    /// Phần màu neon trộn vào trắng.
+    static let tintMix = 0.35
+
+    /// Độ đục sau `dt` giây kể từ cú flash.
+    static func alpha(_ dt: Double) -> Double {
+        guard dt >= 0, dt < duration else { return 0 }
+        if dt < rise { return peak * dt / rise }
+        let u = (dt - rise) / fall
+        return peak * (1 - u) * (1 - u)
+    }
+
+    /// Màu nhịp thứ `i`: trắng trộn `tintMix` màu DanceFloor.colors[i % 3] (0xRRGGBB).
+    static func tint(_ i: Int) -> UInt32 {
+        let c = DanceFloor.colors[((i % DanceFloor.colors.count) + DanceFloor.colors.count) % DanceFloor.colors.count]
+        func ch(_ sh: UInt32) -> UInt32 {
+            let v = Double((c >> sh) & 0xFF)
+            return UInt32((255 * (1 - tintMix) + v * tintMix).rounded()) << sh
+        }
+        return ch(16) | ch(8) | ch(0)
+    }
+
+    /// Cổng an toàn: ≤ `maxPerSecond` lần trong mọi khoảng `window` giây. Lớp tham chiếu — flash phím cách và nhịp
+    /// nháy cả bàn phím (DanceFloor) dùng chung một cổng.
+    final class Gate {
+        private var times = [Double](repeating: -Double.greatestFiniteMagnitude, count: BeatFlash.maxPerSecond)
+        private var head = 0
+        private(set) var fired = 0
+        func trigger(at t: Double) -> Bool {
+            guard t - times[head] >= BeatFlash.window else { return false }
+            times[head] = t
+            head = (head + 1) % times.count
+            fired += 1
+            return true
+        }
+        func reset() {
+            for i in times.indices { times[i] = -Double.greatestFiniteMagnitude }
+            head = 0
+        }
+    }
+}
+
+/// Lớp flash của Sàn nhảy LED: MỘT view (layer = màu nền) tái dùng, KeyboardView chèn ngay DƯỚI hàng phím, khung =
+/// bounds KeyboardView (chung hệ toạ độ #151). Animation opacity dựng MỘT lần, mỗi nhịp chỉ đổi màu + gắn lại.
+/// Không nhận chạm, ẩn với VoiceOver. Kiểu khác ⇒ KeyboardView không giữ view này (0 chi phí).
+final class BeatFlashView: UIView {
+    let gate = BeatFlash.Gate()
+    private var beat = 0
+    private let anim: CAKeyframeAnimation = {
+        let a = CAKeyframeAnimation(keyPath: "opacity")
+        let steps = 13
+        a.values = (0...steps).map { BeatFlash.alpha(BeatFlash.duration * Double($0) / Double(steps) * 0.9999) }
+        a.keyTimes = (0...steps).map { NSNumber(value: Double($0) / Double(steps)) }
+        a.duration = BeatFlash.duration
+        a.isRemovedOnCompletion = true
+        return a
+    }()
+    static let animKey = "fx.beat"
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        isAccessibilityElement = false
+        accessibilityElementsHidden = true
+        layer.opacity = 0
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool { false }
+
+    /// Nhịp phím cách: qua cổng an toàn ⇒ flash (true). Quá 3 lần / giây ⇒ bỏ qua (false).
+    @discardableResult
+    func kick(at t: CFTimeInterval = CACurrentMediaTime()) -> Bool {
+        guard gate.trigger(at: t) else { return false }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.backgroundColor = UIColor(rgb: BeatFlash.tint(beat)).cgColor
+        layer.add(anim, forKey: Self.animKey)
+        CATransaction.commit()
+        beat += 1
+        return true
+    }
+
+    func halt() {
+        layer.removeAnimation(forKey: Self.animKey)
+        gate.reset()
+    }
+}
+
 // MARK: - Overlay
 
 extension UIView {
@@ -1678,6 +1778,8 @@ final class KeyEffectOverlay: UIView {
     private var danceSeq = 0
     private var floorFlicker: Dance?
     private var flickerGate = DanceFloor.FlickerGate()
+    /// Sàn nhảy LED: cổng an toàn chung với lớp flash phím cách (BeatFlashView.gate). nil ⇒ chỉ FlickerGate.
+    var flashGate: BeatFlash.Gate?
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -2526,7 +2628,8 @@ final class KeyEffectOverlay: UIView {
         d.root.beginTime = now
         d.root.isHidden = false
         // Gõ dồn (mức combo cao nhất): cả bàn phím nháy một nhịp — trần nhịp `flickerCooldown`.
-        if flickerGate.trigger(level: level, at: media) {
+        // Cổng an toàn chung với flash phím cách (≤ 3 lần / giây) — KeyboardView đặt `flashGate`.
+        if flickerGate.trigger(level: level, at: media), flashGate?.trigger(at: media) ?? true {
             let f: Dance
             if let x = floorFlicker { f = x } else { f = makeDance(rings: 1, flicker: true); floorFlicker = f }
             fill(f, tiles: DanceFloor.grid(bounds: (Double(bounds.minX), Double(bounds.minY), Double(bounds.width), Double(bounds.height)),

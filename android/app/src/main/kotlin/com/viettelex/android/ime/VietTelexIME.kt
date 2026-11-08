@@ -386,6 +386,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             r.effects?.halt()
             r.effects?.shakeTarget = null
             r.effects = null; kb.effects = null
+            r.beatFlash = null; kb.onBeat = null
             strip?.onShown = null
             return
         }
@@ -408,6 +409,15 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         } else null
         r.effects = v          // dải dưới / trên phím theo kiểu vừa cấu hình
         kb.effects = v
+        // Sàn nhảy LED: flash nền ở phím cách (dưới phím); cổng ≤ 3 lần / giây dùng chung với nháy cả bàn phím.
+        if (fx == com.viettelex.keyboard.KeyEffect.DANCEFLOOR) {
+            val f = r.beatFlash ?: BeatFlashView(this)
+            r.beatFlash = f
+            kb.onBeat = { f.kick() }
+            v.flashGate = f.gate
+        } else {
+            r.beatFlash = null; kb.onBeat = null; v.flashGate = null
+        }
         r.refreshStringGaps()  // Rung dây: khe hàng cho overlay (đã layout thì đặt ngay)
     }
 

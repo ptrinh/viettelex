@@ -264,6 +264,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     private var danceCursor = 0
     private var danceSeq = 0
     private val flickerGate = DanceFloor.FlickerGate()
+    /** Sàn nhảy LED: cổng an toàn chung với flash phím cách ([BeatFlashView.gate]). null ⇒ chỉ FlickerGate. */
+    var flashGate: com.viettelex.keyboard.BeatFlash.Gate? = null
     private var flickerStart = Long.MIN_VALUE / 2
     private val flickerTiles = FloatArray(DanceFloor.MAX_GRID * 6)
     private var flickerN = 0
@@ -534,7 +536,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         danceN[s] = copyTiles(DanceFloor.tiles(x.toDouble(), y.toDouble(), w.toDouble(), h.toDouble(), danceSeq), danceTiles[s], DANCE_TILES)
         danceStart[s] = now
         // Gõ dồn (mức combo cao nhất): cả bàn phím nháy một nhịp — trần nhịp FLICKER_COOLDOWN.
-        if (flickerGate.trigger(level, now / 1000.0) && width > 0 && height > 0) {
+        if (flickerGate.trigger(level, now / 1000.0) && (flashGate?.trigger(now / 1000.0) ?: true) && width > 0 && height > 0) {
             flickerN = copyTiles(DanceFloor.grid(0.0, 0.0, width.toDouble(), height.toDouble(), x.toDouble(), y.toDouble(),
                 w.toDouble(), h.toDouble(), danceSeq), flickerTiles, DanceFloor.MAX_GRID)
             flickerStart = now

@@ -145,6 +145,43 @@ class KeyEffectFx3Tests {
         assertEquals(1.2, ShakeFx.offsetX(14, 3.0), 1e-9)
     }
 
+    // MARK: Sàn nhảy LED — flash phím cách
+
+    /** Số tham chiếu — iOS KeyEffectTests.testBeatFlashNumbersAndGate giữ y hệt. */
+    @Test fun beatFlashNumbersAndGate() {
+        assertEquals(0.02, BeatFlash.RISE, 0.0); assertEquals(0.11, BeatFlash.FALL, 0.0)
+        assertEquals(0.13, BeatFlash.DURATION, 1e-12)
+        assertEquals(0.6, BeatFlash.PEAK, 0.0); assertEquals(3, BeatFlash.MAX_PER_SECOND)
+        assertEquals(0.0, BeatFlash.alpha(-0.001), 0.0)
+        assertEquals(0.0, BeatFlash.alpha(0.0), 0.0)
+        assertEquals(0.3, BeatFlash.alpha(0.01), 1e-9)
+        assertEquals(0.6, BeatFlash.alpha(0.02), 1e-9)
+        assertEquals(0.15, BeatFlash.alpha(0.075), 1e-9)
+        assertEquals(0.0, BeatFlash.alpha(0.13), 0.0)
+        var t = 0.0
+        while (t <= 0.2) {
+            assertTrue(BeatFlash.alpha(t) <= BeatFlash.PEAK + 1e-12)
+            if (t > 0.0205) assertTrue("tắt đơn điệu", BeatFlash.alpha(t) <= BeatFlash.alpha(t - 0.001) + 1e-12)
+            t += 0.001
+        }
+        assertEquals(0xFFB6EF, BeatFlash.tint(0))
+        assertEquals(0xDCC6FF, BeatFlash.tint(1))
+        assertEquals(0xB6F6FF, BeatFlash.tint(2))
+        assertEquals(BeatFlash.tint(0), BeatFlash.tint(3))
+
+        // ≤ 3 lần trong MỌI khoảng 1 s: 10 nhịp trong 1 s ⇒ 3.
+        val g = BeatFlash.Gate()
+        assertEquals(3, (0 until 10).count { g.trigger(it * 0.1) })
+        assertEquals(3, g.fired)
+        assertFalse(g.trigger(0.99))
+        assertTrue("đủ 1 s sau nhịp cũ nhất ⇒ lại được", g.trigger(1.0))
+        val h = BeatFlash.Gate()
+        assertEquals("~3 nhịp/s đều đặn: không bỏ", 12, (0 until 12).count { h.trigger(it * 0.34) })
+        val w = BeatFlash.Gate()
+        val times = (0 until 200).map { it * 0.047 }.filter { w.trigger(it) }
+        for (i in 3 until times.size) assertTrue(times[i] - times[i - 3] >= 1.0 - 1e-9)
+    }
+
     // MARK: Plasma
 
     @Test fun plasmaChainAndArc() {

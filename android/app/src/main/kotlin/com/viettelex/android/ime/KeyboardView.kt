@@ -562,6 +562,8 @@ class KeyboardView(
      */
     var effects: KeyEffectView? = null
         set(v) { field = v; fxPending = false }
+    /** "Sàn nhảy LED": phím cách (hết một từ) ⇒ flash nền ([BeatFlashView.kick]). null = kiểu khác (0 chi phí). */
+    var onBeat: (() -> Unit)? = null
     /** "Mắt AI": tâm phím vừa chạm (toạ độ view cha) — IME đặt khi nhân vật là Mắt AI; null = 0 chi phí. */
     var eyeLook: ((Float, Float) -> Unit)? = null
     private var fxPending = false
@@ -591,6 +593,7 @@ class KeyboardView(
     private fun fxAfter(k: Key) {
         if (!fxPending) return
         fxPending = false
+        if (k == Key.Space || k == Key.DoubleSpacePeriod) onBeat?.invoke()   // Sàn nhảy LED: flash nền ở phím cách
         if (k is Key.Letter || k is Key.Text || k == Key.Space || k == Key.DoubleSpacePeriod) {
             effects?.let { it.burst(fxX - it.left, fxY - it.top, fxW, fxH) }
             spotlight?.let { it.light(fxX - it.left, fxY - it.top, fxW) }   // Đèn rọi: theme khác ⇒ null
@@ -1140,6 +1143,8 @@ class KeyboardView(
     /** Test: tâm phím có nhãn [label] (chữ thường) ở plane hiện tại, null nếu không có. */
     internal fun keyCenter(label: String): android.graphics.PointF? =
         keys.firstOrNull { it.label == label }?.let { android.graphics.PointF(it.centerX, it.centerY) }
+    /** Test: tâm phím cách (toạ độ view này). */
+    internal fun spaceCenter(): android.graphics.PointF? = spaceKey?.let { android.graphics.PointF(it.centerX, it.centerY) }
 
     private fun drawKey(c: Canvas, k: LaidKey) {
         // Gboard: phím phẳng bo góc, KHÔNG bóng; phím chức năng tô màu phụ (secondary
