@@ -76,8 +76,8 @@
     "notes": "Gợi ý âm lịch/Tết; sửa ÂL và 5k/tháng; log gỡ lỗi gọn hơn."
   },
   "android": {
-    "version": "1.5.31",
-    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.5.31/VietTelex-android-1.5.31.apk",
+    "version": "1.6.0",
+    "apk": "https://github.com/ptrinh/viettelex/releases/download/android-v1.6.0/VietTelex-android-1.6.0.apk",
     "play": "https://play.google.com/store/apps/details?id=com.viettelex.android"
   }
 }
