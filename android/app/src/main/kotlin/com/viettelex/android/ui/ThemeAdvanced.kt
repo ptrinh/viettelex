@@ -151,7 +151,7 @@ private fun FontGrid(style: KeyStyle, onSystem: (KeyLabelFont) -> Unit, onAsset:
     val selectedAsset = style.assets.font
     val tiles: List<Pair<String, @Composable (Modifier) -> Unit>> = systems.map { f ->
         f.id to @Composable { m: Modifier ->
-            FontTile(f.title, systemFamily(f), selectedAsset == null && (if (style.font.onAndroid) style.font else KeyLabelFont.DEFAULT) == f, m) { onSystem(f) }
+            FontTile(f.title, systemFamily(f, ctx), selectedAsset == null && (if (style.font.onAndroid) style.font else KeyLabelFont.DEFAULT) == f, m) { onSystem(f) }
         }
     } + BuiltinFonts.list.map { e ->
         e.id to @Composable { m: Modifier ->
@@ -168,7 +168,8 @@ private fun FontGrid(style: KeyStyle, onSystem: (KeyLabelFont) -> Unit, onAsset:
         style = VTType.footnote, color = c.secondary, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
 }
 
-private fun systemFamily(f: KeyLabelFont): FontFamily = when (f) {
+private fun systemFamily(f: KeyLabelFont, ctx: android.content.Context): FontFamily = when (f) {
+    KeyLabelFont.PIXEL -> com.viettelex.android.ime.PixelFont.typeface(ctx.assets)?.let { FontFamily(it) } ?: FontFamily.Monospace
     KeyLabelFont.SERIF -> FontFamily.Serif
     KeyLabelFont.MONO -> FontFamily.Monospace
     KeyLabelFont.CONDENSED -> FontFamily(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.NORMAL))

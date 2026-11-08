@@ -129,7 +129,7 @@ class KeyStyleTests {
     @Test fun sameKeysAndIdsAsIOS() {
         assertEquals(listOf("keyLabelColor", "keyFillColor", "keyCornerRadius", "keyFontScale", "keyLabelFont", "keyLabelWeight"),
             listOf(Keys.KEY_LABEL_COLOR, Keys.KEY_FILL_COLOR, Keys.KEY_CORNER_RADIUS, Keys.KEY_FONT_SCALE, Keys.KEY_LABEL_FONT, Keys.KEY_LABEL_WEIGHT))
-        assertEquals(listOf("default", "rounded", "serif", "mono", "condensed"), KeyLabelFont.entries.map { it.id })
+        assertEquals(listOf("default", "rounded", "serif", "mono", "condensed", "pixel"), KeyLabelFont.entries.map { it.id })
         assertEquals(listOf("light", "regular", "medium", "bold", "heavy"), KeyLabelWeight.entries.map { it.id })
     }
 

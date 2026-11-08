@@ -13,9 +13,15 @@ dựng sẵn → đổi tên nếu OFL có Reserved Font Name trùng tên họ.
   iOS/App/FontPreviews/<id>.ttf      (font xem trước: chỉ "V", "t")
   android/app/src/main/assets/fontpreview/<id_gạch_dưới>.ttf
 
+Phông NHÚNG (BUNDLED — không tải qua URL, nạp lười khi theme dùng: KeyLabelFont "pixel"):
+  fonts/<Stem>.ttf, fonts/OFL-<Stem>.txt  (iOS: project.yml chép vào bàn phím + test;
+      Android: app/build.gradle.kts thêm fonts/ vào assets) — tối đa BUNDLED_MAX_BYTES, đủ chữ Việt.
+
 Cách chạy:
   python3 -I Scripts/build-theme-fonts.py --download /tmp/fonts-src   # tải nguồn
   python3 -I Scripts/build-theme-fonts.py /tmp/fonts-src              # dựng
+  python3 -I Scripts/build-theme-fonts.py --bundled-only /tmp/fonts-src   # chỉ dựng phông nhúng
+  python3 -I Scripts/build-theme-fonts.py --check                     # kiểm phông nhúng đủ chữ Việt
 Thư mục nguồn có dạng <src>/<family>/<file nguồn> + <src>/<family>/OFL.txt.
 Cần fontTools (pip install fonttools).
 """
@@ -57,6 +63,14 @@ FONTS = [
     ("xanh-mono", "Xanh Mono", "xanhmono", "XanhMono-Regular.ttf", "XanhMono-Regular", 400),
 ]
 
+# Phông NHÚNG trong app (cùng bộ cột như FONTS; id = KeyLabelFont rawValue). Theme "Pixel 8-bit" ("font":"pixel"):
+# Tiny5 — phông điểm ảnh 5 px khối vuông kiểu máy 8-bit, đủ chữ Việt dựng sẵn (Pixelify Sans thiếu ơ/ư/ạ…). OFL của
+# Tiny5 KHÔNG khai báo Reserved Font Name ⇒ bản subset được giữ tên (luật đổi tên ở dưới vẫn chạy nếu sau này có).
+BUNDLED = [
+    ("pixel", "Tiny5", "tiny5", "Tiny5[BLED,JITT,ROND,wdth,wght].ttf", "Tiny5-Regular", 400),
+]
+BUNDLED_MAX_BYTES = 60 * 1024
+
 UNICODES = (
     "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,"
     "U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,"
@@ -96,7 +110,7 @@ def reserved_font_names(ofl_text):
 
 
 def download(dest):
-    for _id, _name, fam, src, _stem, _w in FONTS:
+    for _id, _name, fam, src, _stem, _w in FONTS + BUNDLED:
         d = os.path.join(dest, fam)
         os.makedirs(d, exist_ok=True)
         for name in (src, "OFL.txt"):
@@ -178,16 +192,84 @@ def to_bytes(font):
     return buf.getvalue()
 
 
+def bundled_issues(data):
+    """Lỗi của một phông nhúng (rỗng = đạt): thiếu chữ Việt dựng sẵn / quá cỡ."""
+    out = []
+    missing = sorted(VI_REQUIRED - set(TTFont(io.BytesIO(data)).getBestCmap()))
+    if missing:
+        out.append("THIẾU " + " ".join(f"U+{c:04X}" for c in missing))
+    if len(data) > BUNDLED_MAX_BYTES:
+        out.append(f"{len(data)} B > {BUNDLED_MAX_BYTES} B")
+    return out
+
+
+def build_bundled(src, root):
+    out_dir = os.path.join(root, "fonts")
+    os.makedirs(out_dir, exist_ok=True)
+    unicodes = parse_unicodes(UNICODES)
+    for fid, display, fam, file, stem, weight in BUNDLED:
+        ofl_bytes = open(os.path.join(src, fam, "OFL.txt"), "rb").read()
+        rfns = reserved_font_names(ofl_bytes.decode("utf-8-sig"))
+        renamed = any(r.lower() in display.lower() for r in rfns)
+        family = RENAME_PREFIX + display if renamed else display
+        font = static_instance(TTFont(os.path.join(src, fam, file)), weight)
+        font = do_subset(TTFont(io.BytesIO(to_bytes(font))), unicodes)
+        set_names(font, family, weight)
+        data = to_bytes(font)
+        issues = bundled_issues(data)
+        if issues:
+            sys.exit(f"phông nhúng {fid}: " + "; ".join(issues))
+        with open(os.path.join(out_dir, stem + ".ttf"), "wb") as f:
+            f.write(data)
+        with open(os.path.join(out_dir, f"OFL-{stem}.txt"), "wb") as f:
+            f.write(ofl_bytes)  # nguyên văn
+        print(f"nhúng {fid:10} {stem}.ttf {len(data):7} B  RFN={rfns or '-'} renamed={renamed}  "
+              f"sha256={hashlib.sha256(data).hexdigest()}")
+    note = ("Phông NHÚNG trong app (không tải qua mạng) — subset Latin + tiếng Việt của phông OFL-1.1,\n"
+            "giấy phép nguyên văn: OFL-<tên>.txt cạnh tệp phông. Sinh bởi Scripts/build-theme-fonts.py\n"
+            "(--bundled-only); kiểm: --check. iOS: project.yml (bàn phím + test); Android: app/build.gradle.kts\n"
+            "(assets). Nạp lười CHỈ khi theme dùng (KeyLabelFont \"pixel\").\n")
+    for fid, display, fam, file, stem, weight in BUNDLED:
+        note += f"  {stem}.ttf — {display} (id \"{fid}\"), nguồn github.com/google/fonts@{SOURCE_SHA} ofl/{fam}/{file}\n"
+    with open(os.path.join(out_dir, "README.txt"), "w", encoding="utf-8") as f:
+        f.write(note)
+
+
+def check_bundled(root):
+    bad = []
+    for fid, _display, _fam, _file, stem, _w in BUNDLED:
+        p = os.path.join(root, "fonts", stem + ".ttf")
+        lic = os.path.join(root, "fonts", f"OFL-{stem}.txt")
+        issues = bundled_issues(open(p, "rb").read()) if os.path.exists(p) else ["không có tệp"]
+        if not os.path.exists(lic):
+            issues.append("thiếu giấy phép OFL")
+        print(f"{fid:10} {stem}.ttf: " + ("OK" if not issues else "; ".join(issues)))
+        if issues:
+            bad.append(fid)
+    if bad:
+        sys.exit("phông nhúng lỗi: " + ", ".join(bad))
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("src", help="thư mục nguồn <src>/<family>/...")
+    ap.add_argument("src", nargs="?", help="thư mục nguồn <src>/<family>/...")
     ap.add_argument("--download", action="store_true", help="tải nguồn về src rồi thoát")
+    ap.add_argument("--bundled-only", action="store_true", help="chỉ dựng phông nhúng (fonts/)")
+    ap.add_argument("--check", action="store_true", help="kiểm phông nhúng trong fonts/ (đủ chữ Việt, cỡ)")
     args = ap.parse_args()
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if args.check:
+        check_bundled(root)
+        return
+    if not args.src:
+        ap.error("thiếu thư mục nguồn")
     if args.download:
         download(args.src)
         return
+    build_bundled(args.src, root)
+    if args.bundled_only:
+        return
 
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     out_docs = os.path.join(root, "docs", "fonts")
     out_ios = os.path.join(root, "iOS", "App", "FontPreviews")
     out_and = os.path.join(root, "android", "app", "src", "main", "assets", "fontpreview")

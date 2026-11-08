@@ -546,6 +546,7 @@ enum L10n {
         "Có chân": "Serif",
         "Đơn cách": "Monospaced",
         "Hẹp": "Condensed",
+        "Điểm ảnh": "Pixel",
         "Mỏng": "Light",
         "Thường": "Regular",
         "Vừa": "Medium",

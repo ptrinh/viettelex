@@ -947,6 +947,7 @@ struct ThemeSettings: Equatable {
             if s.effect == nil { s.effect = t.effect }
             if s.swipe == nil { s.swipe = t.swipe }
             if s.game == nil { s.game = t.game }
+            if s.keyShape == nil { s.keyShape = t.keyShape }
             s.assets = s.assets.merged(over: t.assets)
             if userSystemFont { s.assets.font = nil }
             if s.assets.font != nil { s.font = .standard }
@@ -1030,12 +1031,15 @@ struct ThemeSettings: Equatable {
 
 // MARK: - Tuỳ chỉnh nâng cao (Plus): màu chữ/nền phím, bo góc, cỡ chữ, phông, độ đậm
 
-/// Phông nhãn phím — CHỈ phông hệ thống (không nhúng phông: giữ nhẹ app). Id dùng chung
-/// Android (Keys.KEY_LABEL_FONT); máy không có kiểu đó (Android không có "rounded") ⇒ mặc định.
+/// Phông nhãn phím — phông hệ thống, trừ `pixel` (phông NHÚNG duy nhất, ~36 KB: Tiny5 điểm ảnh, đủ chữ Việt —
+/// fonts/Tiny5-Regular.ttf, nạp LƯỜI lần đầu cần, PixelFont). Id dùng chung Android (Keys.KEY_LABEL_FONT); máy không
+/// có kiểu đó (Android không có "rounded") ⇒ mặc định.
 enum KeyLabelFont: String, CaseIterable {
     /// SF Compact như stock (SF Pro nếu máy không có Compact).
     case standard = "default"
     case rounded, serif, mono, condensed
+    /// Điểm ảnh 8-bit (theme "Pixel 8-bit"). Một độ đậm — bỏ qua "weight" như phông tải về.
+    case pixel
 
     var title: String {
         switch self {
@@ -1044,6 +1048,7 @@ enum KeyLabelFont: String, CaseIterable {
         case .serif: return L("Có chân")
         case .mono: return L("Đơn cách")
         case .condensed: return L("Hẹp")
+        case .pixel: return L("Điểm ảnh")
         }
     }
 }
@@ -1109,6 +1114,9 @@ struct KeyStyle: Equatable {
     var swipe: String? = nil
     /// Trò chơi khi gõ của theme ("game", ThemeExtraIds.games) — bàn phím đọc từ kiểu thực dùng (MolePolicy).
     var game: String? = nil
+    /// Dáng phím ("keyShape", ThemeExtraIds.keyShapes): "pixel" = góc bậc thang + viền + bóng khối (PixelKeys);
+    /// nil = bo góc như cũ.
+    var keyShape: String? = nil
 
     static let `default` = KeyStyle()
     var isDefault: Bool { self == .default }
@@ -1244,6 +1252,7 @@ struct KeyStyle: Equatable {
         st.effect = edited.effect
         st.swipe = edited.swipe
         st.game = edited.game
+        st.keyShape = edited.keyShape
         return (st, l.lostBg || d.lostBg)
     }
 }
@@ -1307,6 +1316,7 @@ enum KeyStyleStore {
         if let v = st.effect { f.append(("effect", .string(v))) }
         if let v = st.swipe { f.append(("swipe", .string(v))) }
         if let v = st.game { f.append(("game", .string(v))) }
+        if let v = st.keyShape { f.append(("keyShape", .string(v))) }
         if !st.light.isEmpty { f.append(("light", ThemeSpec.json(st.light))) }
         if !st.dark.isEmpty { f.append(("dark", ThemeSpec.json(st.dark))) }
         return .object(f)
@@ -1500,6 +1510,10 @@ final class KeyLabelFonts {
             return base.fontDescriptor.withDesign(sd).map { UIFont(descriptor: $0, size: size) } ?? base
         case .condensed:
             return .systemFont(ofSize: size, weight: w, width: .condensed)
+        case .pixel:
+            // Tệp thiếu (không xảy ra — test khoá) ⇒ đơn cách đậm như bản Pixel 8-bit đầu.
+            guard let d = PixelFont.descriptor else { return make(.mono, .bold, size: size, compact: compact) }
+            return CTFontCreateWithFontDescriptor(d, size, nil) as UIFont
         }
     }
 
@@ -1521,6 +1535,17 @@ final class KeyLabelFonts {
         let e = KeyLabelEm.measure(makeFont(size: 24), sample: sample)
         emCache[sample] = e
         return e
+    }
+}
+
+/// Phông điểm ảnh NHÚNG (KeyLabelFont.pixel): mô tả CoreText từ tệp trong bundle (bàn phím; app đọc bản trong
+/// PlugIns/…appex — VTBundleResource), KHÔNG đăng ký toàn hệ thống. Lười: theme khác không bao giờ chạm tới (0 byte,
+/// 0 I/O); lần đầu cần thì đọc một lần rồi giữ suốt process.
+enum PixelFont {
+    static let fileName = "Tiny5-Regular"
+    static var url: URL? { VTBundleResource.url(fileName, "ttf", anchor: KeyLabelFonts.self) }
+    static let descriptor: CTFontDescriptor? = url.flatMap {
+        (CTFontManagerCreateFontDescriptorsFromURL($0 as CFURL) as? [CTFontDescriptor])?.first
     }
 }
 

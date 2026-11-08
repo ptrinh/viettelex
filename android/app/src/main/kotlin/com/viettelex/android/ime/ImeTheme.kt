@@ -24,6 +24,7 @@ import com.viettelex.keyboard.withTransparency
  */
 class ImeTheme(ctx: Context, val settings: ThemeSettings = ThemeSettings(), wallpaperFile: Boolean = false) {
     val res = ctx.resources
+    private val assetManager = ctx.assets
     val density = res.displayMetrics.density
     /** Cỡ chữ theo sp nhưng kẹp fontScale ≤ 1.2 (phím cố định chiều cao như iOS). */
     private val textScale = density * res.configuration.fontScale.coerceIn(0.85f, 1.2f)
@@ -155,7 +156,13 @@ class ImeTheme(ctx: Context, val settings: ThemeSettings = ThemeSettings(), wall
      * giữ typeface cũ — không đổi gì). Độ đậm 100…900 cần API 28; máy cũ: Đậm/Rất đậm ⇒ BOLD,
      * Mỏng/Vừa ⇒ họ "-light"/"-medium" của sans-serif.
      */
-    val keyTypeface: Typeface? by lazy { keyLabelTypeface(keyStyle, assets?.typeface) }
+    val keyTypeface: Typeface? by lazy { keyLabelTypeface(keyStyle, assets?.typeface, assetManager) }
+
+    /** Dáng phím điểm ảnh ("keyShape":"pixel", [com.viettelex.keyboard.PixelKeys]) — theme khác false (đường vẽ cũ). */
+    val pixelKeys: Boolean = keyStyle.keyShape == com.viettelex.keyboard.PixelKeys.SHAPE
+    /** Phông thanh gợi ý: phông điểm ảnh khi theme dùng nó (null = phông hệ thống như cũ). */
+    val stripTypeface: Typeface? get() =
+        if (keyStyle.font == KeyLabelFont.PIXEL && keyStyle.assets.font == null) keyTypeface else null
 
     /** Bo góc phím [w]×[h] px (Tuỳ chỉnh nâng cao); mặc định ⇒ [fallback]. */
     fun keyRadius(w: Float, h: Float, fallback: Float): Float = KeyStyle.cornerRadius(keyStyle.corner, w, h, fallback)
@@ -195,11 +202,13 @@ fun imeResourcePalette(ctx: Context, dark: Boolean): ThemePalette = ThemePalette
  * (KeyboardPreview) để hai bên không lệch nhau. [downloaded] = phông tải về đã nạp từ kho (đã kiểm ở app); null (chưa
  * tải / thiếu tệp) ⇒ phông hệ thống như chưa chọn. Kết quả null = mặc định (paint giữ typeface cũ).
  */
-fun keyLabelTypeface(st: KeyStyle, downloaded: Typeface?): Typeface? {
+fun keyLabelTypeface(st: KeyStyle, downloaded: Typeface?, assets: android.content.res.AssetManager? = null): Typeface? {
     downloaded?.let { tf ->
         return if (android.os.Build.VERSION.SDK_INT >= 28 && st.weight != KeyLabelWeight.REGULAR)
             Typeface.create(tf, st.weight.weight, false) else tf
     }
+    // Phông điểm ảnh nhúng: một độ đậm (bỏ qua weight). Thiếu tệp (không xảy ra — test khoá) ⇒ đơn cách đậm.
+    if (st.font == KeyLabelFont.PIXEL) return assets?.let { PixelFont.typeface(it) } ?: Typeface.create("monospace", Typeface.BOLD)
     if (st.font == KeyLabelFont.DEFAULT || st.font == KeyLabelFont.ROUNDED) {
         if (st.weight == KeyLabelWeight.REGULAR) return null
     }
@@ -212,4 +221,15 @@ fun keyLabelTypeface(st: KeyStyle, downloaded: Typeface?): Typeface? {
         KeyLabelWeight.MEDIUM -> if (st.font.androidFamily == null) Typeface.create("sans-serif-medium", Typeface.NORMAL) else base
         KeyLabelWeight.REGULAR -> base
     }
+}
+
+/**
+ * Phông điểm ảnh NHÚNG ([KeyLabelFont.PIXEL] — Tiny5, assets/Tiny5-Regular.ttf từ fonts/ gốc repo, OFL). Nạp LƯỜI lần đầu
+ * cần rồi giữ suốt process: theme khác không bao giờ chạm tới (0 byte, 0 I/O). iOS PixelFont y hệt.
+ */
+object PixelFont {
+    const val ASSET = "Tiny5-Regular.ttf"
+    @Volatile private var cached: Typeface? = null
+    fun typeface(assets: android.content.res.AssetManager): Typeface? =
+        cached ?: runCatching { Typeface.createFromAsset(assets, ASSET) }.getOrNull()?.also { cached = it }
 }

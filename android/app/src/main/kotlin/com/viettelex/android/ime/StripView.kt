@@ -139,6 +139,13 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
     /** Gboard nhấn mạnh gợi ý giữa (medium). */
     private val wordCenterPaint = TextPaint(theme.text(StripGeometry.WORD_SP, color = theme.barInk, medium = true))
     private var wordCenterOff = theme.centerOffset(wordCenterPaint)
+    init {
+        // Phông điểm ảnh (theme Pixel 8-bit) cả trên ô gợi ý — iOS refreshBarFonts y hệt. Theme khác: null, không đổi gì.
+        theme.stripTypeface?.let { tf ->
+            wordPaint.typeface = tf; wordCenterPaint.typeface = tf
+            wordOff = theme.centerOffset(wordPaint); wordCenterOff = theme.centerOffset(wordCenterPaint)
+        }
+    }
     /** Strip MỞ (dp) theo "Chiều cao thanh gợi ý" ([SuggestionBarHeight]; mặc định Vừa = [KeyLayout.OPEN_STRIP]). */
     var openStripDp = KeyLayout.OPEN_STRIP; private set
     /** Tâm dọc nội dung bar khi mở (dp). */

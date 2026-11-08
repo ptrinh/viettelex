@@ -12,7 +12,14 @@ import Foundation
 //             "borderFx":"rainbow", "spaceDeco":"soundhole"},
 //             (deco "alt": motif thứ hai xen kẽ, vd {"motif":"pumpkin","alt":"bat",…})
 //    "dark":{…} | "same", "corner":70, "fontScale":110, "font":"serif", "weight":"bold",
-//    "sound":"phao", "effect":"blossom", "swipe":"stardust", "game":"mole"}
+//    "sound":"phao", "effect":"blossom", "swipe":"stardust", "game":"mole", "keyShape":"pixel"}
+//
+// "font" chuỗi (KeyLabelFont): "default" | "rounded" | "serif" | "mono" | "condensed" — phông hệ thống — | "pixel" — phông
+//   điểm ảnh NHÚNG trong app (Tiny5, fonts/Tiny5-Regular.ttf, đủ chữ Việt; nạp lười chỉ khi dùng, bỏ qua "weight").
+//   Giá trị khác ⇒ lỗi badValue. Phông ngoài danh sách ⇒ dạng object tải qua URL (dưới).
+// "keyShape" (tuỳ chọn, danh sách trắng ThemeExtraIds.keyShapes): dáng phím — "pixel" = góc cắt bậc thang theo khối,
+//   viền khối đậm + bóng khối cứng dưới/phải, bấm = phím lún một khối (mất bóng). Vẽ bằng ảnh 9-slice tí hon dựng từ
+//   bảng màu (PixelKeys) — 0 chi phí với theme khác. Không có ⇒ bo góc theo "corner" như cũ.
 //
 // "schedule" (tuỳ chọn, 2…6 mục, "from" tăng dần): bảng màu ĐỔI THEO GIỜ ĐỊA PHƯƠNG (theme "Theo giờ") —
 //   "schedule":[{"from":"05:00","palette":{…như "light"…}}, {"from":"07:00","palette":{…}}, …]
@@ -680,6 +687,8 @@ struct ThemeSpec: Equatable {
     var swipe: String?
     /// Trò chơi khi gõ ("mole") — chạy khi theme đang dùng (ThemeExtraIds.games).
     var game: String?
+    /// Dáng phím ("pixel") — ThemeExtraIds.keyShapes.
+    var keyShape: String?
     /// Bảng màu theo giờ (ThemeSchedule); nil = theo sáng/tối hệ thống như mọi theme.
     var schedule: [ThemeScheduleEntry]? = nil
 
@@ -702,6 +711,7 @@ struct ThemeSpec: Equatable {
         k.effect = effect
         k.swipe = swipe
         k.game = game
+        k.keyShape = keyShape
         return k
     }
 }
@@ -715,6 +725,8 @@ enum ThemeExtraIds {
     static let swipes: Set<String> = Set(SwipeTrailStyle.themeIds)
     /// "game": trò chơi khi gõ (Android ThemeExtraIds.GAMES y hệt).
     static let games: Set<String> = [MoleGame.themeGame]
+    /// "keyShape": dáng phím (Android ThemeExtraIds.KEY_SHAPES y hệt).
+    static let keyShapes: Set<String> = [PixelKeys.shape]
 }
 
 // MARK: - Đọc / kiểm
@@ -734,7 +746,7 @@ enum ThemeSpecParser {
 
     static let assetKeys: Set<String> = ["background", "foreground", "keys"]
     static let rootKeys: Set<String> = Set(["v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
-                                            "sound", "effect", "swipe", "game", "schedule"])
+                                            "sound", "effect", "swipe", "game", "keyShape", "schedule"])
         .union(assetKeys)
     static let slotKeys: Set<String> = Set(ThemeSlots.colorKeys + ["deco", "borderFx", "spaceDeco"])
 
@@ -806,6 +818,7 @@ enum ThemeSpecParser {
         spec.effect = typo.effect
         spec.swipe = typo.swipe
         spec.game = typo.game
+        spec.keyShape = typo.keyShape
         spec.schedule = schedule
         if contrast { c.issues += contrastIssues(spec) }
         return Outcome(spec: c.failed ? nil : spec, issues: c.issues)
@@ -969,6 +982,7 @@ enum ThemeSpecParser {
         s.effect = pick("effect", ThemeExtraIds.effects)
         s.swipe = pick("swipe", ThemeExtraIds.swipes)
         s.game = pick("game", ThemeExtraIds.games)
+        s.keyShape = pick("keyShape", ThemeExtraIds.keyShapes)
     }
 
     // MARK: tệp tải về
@@ -1054,7 +1068,7 @@ enum ThemeSpecParser {
         guard case .object(let m) = j else { return nil }
         var c = Ctx()
         let allowed: Set<String> = Set(["label", "fill", "accent", "corner", "fontScale", "font", "weight", "light", "dark",
-                                        "sound", "effect", "swipe", "game"])
+                                        "sound", "effect", "swipe", "game", "keyShape"])
             .union(assetKeys)
         for (k, _) in m where !allowed.contains(k) { c.err(.unknownKey, k) }
         let d = Dictionary(m, uniquingKeysWith: { a, _ in a })
@@ -1126,6 +1140,7 @@ extension ThemeSpec {
         if let effect { m.append(("effect", .string(effect))) }
         if let swipe { m.append(("swipe", .string(swipe))) }
         if let game { m.append(("game", .string(game))) }
+        if let keyShape { m.append(("keyShape", .string(keyShape))) }
         if let schedule {
             m.append(("schedule", .array(schedule.map {
                 .object([("from", .string(ThemeSchedule.format($0.from))), ("palette", Self.json($0.slots))])
@@ -1252,6 +1267,7 @@ extension ThemeSpec {
         s.effect = style.effect
         s.swipe = style.swipe
         s.game = style.game
+        s.keyShape = style.keyShape
         return s
     }
 }
@@ -1393,6 +1409,7 @@ enum ThemeJSONActions {
             if st.effect == b.spec?.effect { st.effect = nil }
             if st.swipe == b.spec?.swipe { st.swipe = nil }
             if st.game == b.spec?.game { st.game = nil }
+            if st.keyShape == b.spec?.keyShape { st.keyShape = nil }
             s.setStyle(st, for: b)
             if r.lostBg { warnings.append(ThemeIssue(code: .bgKept, path: "bg")) }
         case .custom(let id):

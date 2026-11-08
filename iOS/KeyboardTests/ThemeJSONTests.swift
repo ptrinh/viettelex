@@ -365,6 +365,12 @@ final class ThemeJSONTests: XCTestCase {
         XCTAssertEqual(KeyStyleStore.serialize(["mint": st]),
                        ##"{"mint":{"accent":"#FF9500","dark":{"bg":"#000000"},"light":{"deco":{"color":"#80FF0000","density":150,"motif":"hearts"}}}}"##)
         XCTAssertEqual(KeyStyleStore.parse(KeyStyleStore.serialize(["mint": st]))["mint"], st)
+        // Phông điểm ảnh + dáng phím điểm ảnh trong bản vá (Android y hệt).
+        var px = KeyStyle(font: .pixel)
+        px.keyShape = "pixel"
+        XCTAssertEqual(KeyStyleStore.serialize(["mint": px]), #"{"mint":{"font":"pixel","keyShape":"pixel"}}"#)
+        XCTAssertEqual(KeyStyleStore.parse(KeyStyleStore.serialize(["mint": px]))["mint"], px)
+        XCTAssertTrue(KeyStyleStore.parse(#"{"mint":{"keyShape":"round"}}"#).isEmpty, "giá trị lạ ⇒ bỏ cả mục")
     }
 
     // MARK: sao lưu

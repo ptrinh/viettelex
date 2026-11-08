@@ -171,14 +171,12 @@
                "accentInk": "#202124"}
     },
     {
-      "v": 1, "id": "pixel", "name": {"vi": "Pixel 8-bit", "en": "Pixel 8-bit"}, "corner": 0, "font": "mono", "weight": "bold",
+      "v": 1, "id": "pixel", "name": {"vi": "Pixel 8-bit", "en": "Pixel 8-bit"}, "corner": 0, "font": "pixel", "keyShape": "pixel",
       "sound": "chip", "effect": "flash", "swipe": "neon",
-      "light": {"bg": "#8BAC0F", "key": "#9BBC0F", "special": "#B7CF55", "ink": "#0F380F", "accent": "#306230",
-                "accentInk": "#E0F8D0", "fn": "#306230", "fnInk": "#E0F8D0", "border": "#0F380F",
-                "deco": {"motif": "pixel", "color": "#80C8DE5A"}},
-      "dark": {"bg": "#0B1F0B", "key": "#1C3A1C", "special": "#2C522C", "ink": "#C6E86A", "accent": "#306230",
-               "accentInk": "#E0F8D0", "fn": "#132B13", "fnInk": "#9BBC0F", "border": "#669BBC0F",
-               "deco": {"motif": "pixel", "color": "#4D9BBC0F"}}
+      "light": {"bg": "#0B1F0B", "key": "#1C3A1C", "special": "#2C522C", "ink": "#C6E86A", "accent": "#306230",
+                "accentInk": "#E0F8D0", "fn": "#132B13", "fnInk": "#9BBC0F", "border": "#669BBC0F",
+                "deco": {"motif": "pixel", "color": "#4D9BBC0F"}},
+      "dark": "same"
     },
     {
       "v": 1, "id": "sea", "name": {"vi": "Biển", "en": "Sea"}, "corner": 60, "sound": "water", "effect": "wave",

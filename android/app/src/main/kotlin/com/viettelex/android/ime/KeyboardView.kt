@@ -12,6 +12,7 @@ import android.view.View
 import android.view.animation.DecelerateInterpolator
 import com.viettelex.android.R
 import com.viettelex.keyboard.CommaPopup
+import com.viettelex.keyboard.PixelKeys
 import com.viettelex.keyboard.Soundhole
 import com.viettelex.keyboard.SpaceSideKey
 import com.viettelex.keyboard.SymbolReturn
@@ -344,6 +345,14 @@ class KeyboardView(
     /** Skin phím của theme (ảnh 9-slice tải về) theo vai [ThemeKeyRole]; null = vẽ màu như cũ (không đọc gì). */
     private val skins: Array<LoadedSkin?>? = theme.assets?.skins
     private val skinPainter: SkinPainter? = if (skins != null) SkinPainter() else null
+    /**
+     * Dáng phím điểm ảnh (theme JSON "keyShape":"pixel" — [PixelKeys], iOS cùng hình học): vài hình chữ nhật RỜI NHAU mỗi
+     * phím (viền + bóng màu viền, lõi màu phím), không khử răng cưa, mảng ghi sẵn ⇒ 0 cấp phát mỗi khung. Theme khác:
+     * null ⇒ đường bo góc cũ y nguyên.
+     */
+    private val pixelRects: FloatArray? = if (theme.pixelKeys) FloatArray(PixelKeys.FLOATS) else null
+    private val pixelPaint: Paint? = if (theme.pixelKeys) Paint().apply { style = Paint.Style.FILL } else null
+    private val pixelInk: Int = theme.keyBorder?.takeIf { android.graphics.Color.alpha(it) > 0 } ?: theme.ink
     // Logo Vᴛ mờ ở góc phải phím space như iOS (thay nhãn "Tiếng Việt").
     private val logoPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
         colorFilter = android.graphics.PorterDuffColorFilter(theme.withAlpha(theme.spaceInk, 0.16f), android.graphics.PorterDuff.Mode.SRC_IN)
@@ -1128,24 +1137,30 @@ class KeyboardView(
         // Gboard: phím phẳng bo góc, KHÔNG bóng; phím chức năng tô màu phụ (secondary
         // container); enter là pill màu nhấn. Nhấn = state layer ink 12%.
         val special = KeyKind.isSpecial(k.kind) && k.kind != KeyKind.RETURN
+        // Dáng điểm ảnh: bấm = phím LÚN một khối (không đổi màu); ⇧ bật/Caps cũng lún (như iOS skin điểm ảnh).
+        val pixel = pixelRects != null && !trackpad
+        val sunk = pixel && (k.pressed || (k.kind == KeyKind.SHIFT && shift != Shift.OFF))
+        val pressed = k.pressed && !pixel
         var face = when {
-            k.kind == KeyKind.RETURN -> if (k.pressed) actionPressed else theme.action
+            k.kind == KeyKind.RETURN -> if (pressed) actionPressed else theme.action
             // Màu nhấn người dùng chọn ⇒ ⇧ bật/Caps tô màu nhấn, glyph actionInk (accentShift); mặc định như cũ.
             k.kind == KeyKind.SHIFT && theme.accentShift && shift != Shift.OFF -> theme.action
             k.kind == KeyKind.SHIFT && shift == Shift.CAPS -> theme.chip
             k.kind == KeyKind.EDIT && editSelecting && k.insert == "SELECT" -> theme.chip
-            special -> if (k.pressed) specialPressed else theme.fnFill
+            special -> if (pressed) specialPressed else theme.fnFill
             k.kind == KeyKind.LETTER || k.kind == KeyKind.CHAR -> theme.keyFill   // popup lo phản hồi
-            k.kind == KeyKind.PAD && k.side -> if (k.pressed) specialPressed else theme.fnFill
+            k.kind == KeyKind.PAD && k.side -> if (pressed) specialPressed else theme.fnFill
             // Phím cách: như phím chữ, trừ theme tô phím chức năng riêng (Xanh lá).
-            k.kind == KeyKind.SPACE -> if (k.pressed) spacePressed else theme.spaceFill
-            else -> if (k.pressed) keyPressed else theme.keyFill
+            k.kind == KeyKind.SPACE -> if (pressed) spacePressed else theme.spaceFill
+            else -> if (pressed) keyPressed else theme.keyFill
         }
         if (trackpad) face = theme.keyFill
         // Skin của theme (ảnh tải về): thay nền phím; đè ⇒ ảnh "pressed" (⇧ bật cũng vậy). Chữ vẫn vẽ đè lên.
         val skin = if (skins != null && !trackpad) skins[ThemeKeyRole.index(k.kind, k.label, k.side)] else null
         if (skin != null) {
             skinPainter?.draw(c, skin, k.pressed || (k.kind == KeyKind.SHIFT && shift != Shift.OFF), k.left, k.top, k.right, k.bottom)
+        } else if (pixel) {
+            drawPixelKey(c, k, face, sunk)
         } else {
             facePaint.color = face
             // Bo góc tuỳ chỉnh (Plus) áp mọi phím kể cả enter; mặc định enter là viên thuốc như cũ.
@@ -1161,7 +1176,9 @@ class KeyboardView(
 
         // 0.2 khi trackpad; × độ trong suốt ký tự (alpha paint — không offscreen).
         val contentAlpha = ((if (trackpad) 51 else 255) * theme.labelAlpha).toInt()
-        val cx = k.centerX; val cy = k.centerY
+        // Nhãn / icon theo tâm MẶT phím điểm ảnh (thường −khối/2, lún +khối/2).
+        val ps = if (pixel) PixelKeys.labelShift(pixelBlock(k).toDouble(), sunk).toFloat() else 0f
+        val cx = k.centerX + ps; val cy = k.centerY + ps
         when (k.kind) {
             KeyKind.LETTER -> {
                 val alt = if (alts.isNotEmpty()) alts[k.label[0]] else null
@@ -1223,6 +1240,26 @@ class KeyboardView(
                 icon(c, id, cx, cy, 22f, theme.actionInk, contentAlpha)
             }
             KeyKind.SPACE -> Unit   // nội dung: [drawSpaceContent] (lớp động, ngoài lưới tĩnh)
+        }
+    }
+
+    /** Khối điểm ảnh của phím: chiều cao / [PixelKeys.CELLS], làm tròn về px nguyên (khối sắc, ≥ 1 px). */
+    private fun pixelBlock(k: LaidKey): Float = maxOf(1f, Math.round(k.height / PixelKeys.CELLS).toFloat())
+
+    /** Phím điểm ảnh: dải viền + bóng ([pixelInk]) rồi dải lõi ([face]) — rời nhau, không chồng alpha. */
+    private fun drawPixelKey(c: Canvas, k: LaidKey, face: Int, sunk: Boolean) {
+        val r = pixelRects ?: return
+        val p = pixelPaint ?: return
+        val n = PixelKeys.write(r, k.left, k.top, k.right, k.bottom, pixelBlock(k), sunk)
+        p.color = pixelInk
+        for (i in 0 until (n and 0xFF)) {
+            val o = PixelKeys.INK + 4 * i
+            c.drawRect(r[o], r[o + 1], r[o + 2], r[o + 3], p)
+        }
+        p.color = face
+        for (i in 0 until (n shr 8)) {
+            val o = PixelKeys.FILL + 4 * i
+            c.drawRect(r[o], r[o + 1], r[o + 2], r[o + 3], p)
         }
     }
 

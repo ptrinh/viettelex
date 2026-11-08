@@ -11,12 +11,18 @@ package com.viettelex.keyboard
  */
 
 /** Phông nhãn phím — CHỈ phông hệ thống (không nhúng phông). Android không có "rounded" ⇒ mặc định. */
+/**
+ * Phông nhãn phím — phông hệ thống, trừ [PIXEL] (phông NHÚNG duy nhất ~36 KB: Tiny5 điểm ảnh, đủ chữ Việt — fonts/
+ * Tiny5-Regular.ttf trong assets, nạp LƯỜI lần đầu cần, app PixelFont). Id dùng chung iOS KeyLabelFont.
+ */
 enum class KeyLabelFont(val id: String, val viTitle: String, val androidFamily: String?) {
     DEFAULT("default", "Mặc định", null), // l10n-key
     ROUNDED("rounded", "Tròn", null),            // l10n-key · chỉ iOS (SF Rounded)
     SERIF("serif", "Có chân", "serif"), // l10n-key
     MONO("mono", "Đơn cách", "monospace"), // l10n-key
-    CONDENSED("condensed", "Hẹp", "sans-serif-condensed"); // l10n-key
+    CONDENSED("condensed", "Hẹp", "sans-serif-condensed"), // l10n-key
+    /** Điểm ảnh 8-bit (theme "Pixel 8-bit") — một độ đậm, bỏ qua "weight" như phông tải về. */
+    PIXEL("pixel", "Điểm ảnh", null); // l10n-key
 
     val title: String get() = tr(viTitle)
     /** Có trên Android (lựa chọn hiện trong app). */
@@ -68,6 +74,9 @@ data class KeyStyle(
     val swipe: String? = null,
     /** Trò chơi khi gõ của theme ("game", [ThemeExtraIds.GAMES]) — bàn phím đọc từ kiểu thực dùng ([MolePolicy]). */
     val game: String? = null,
+    /** Dáng phím ("keyShape", [ThemeExtraIds.KEY_SHAPES]): "pixel" = góc bậc thang + viền + bóng khối ([PixelKeys]);
+     *  null = bo góc như cũ. iOS `keyShape`. */
+    val keyShape: String? = null,
 ) {
     val isDefault: Boolean get() = this == DEFAULT
     /** Có đổi chữ (phông / độ đậm / cỡ / phông tải về) ⇒ bật đo + kẹp chữ. */
@@ -165,7 +174,8 @@ data class KeyStyle(
             val (d, lostD) = edited.slots(true).patchFrom(baseDark)
             return KeyStyle(corner = edited.corner, fontScale = edited.fontScale, font = edited.font ?: KeyLabelFont.DEFAULT,
                 weight = edited.weight ?: KeyLabelWeight.REGULAR, light = l, dark = d, assets = edited.assets,
-                sound = edited.sound, effect = edited.effect, swipe = edited.swipe, game = edited.game) to (lostL || lostD)
+                sound = edited.sound, effect = edited.effect, swipe = edited.swipe, game = edited.game,
+                keyShape = edited.keyShape) to (lostL || lostD)
         }
 
         fun parseColor(v: Any?): Int? = (v as? Number)?.toInt()?.takeIf { it in 0..0xFFFFFF }
