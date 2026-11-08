@@ -254,7 +254,7 @@ class AIThemeTests {
     /** Motif "neural": nút + dây trong ô ±0.5, chấm lưới trải ngang (|y| ≤ 0.45), cùng chiều quay, mốc chung iOS. */
     @Test fun neuralMotif() {
         assertTrue(ThemeDecoration.NEURAL in ThemeDecoration.MOTIFS)
-        assertEquals(ThemeDecoration.NEURAL, ThemeDecoration.MOTIFS.last())
+        assertEquals(ThemeDecoration.MOTIFS.indexOf(ThemeDecoration.NEURAL) + 1, ThemeDecoration.MOTIFS.indexOf(ThemeDecoration.SWIRL))
         val subs = ThemeDecoration.shape(ThemeDecoration.NEURAL)
         assertEquals(12, subs.size)
         var sum = 0.0

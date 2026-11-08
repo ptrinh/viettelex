@@ -624,11 +624,17 @@ internal fun KeyboardPreview(p: ThemePalette, wallpaper: ImageBitmap?, dim: Int,
             Image(wallpaper, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = wl.imageAlpha)
             Canvas(Modifier.fillMaxSize()) { drawRect(Color(wl.overlay)) }
         }
+        // Ảo giác ("hueflow"): lớp nền đổi sắc lúc nghỉ (một chu kỳ trải hết bề ngang, như bàn phím thật đứng yên).
+        if (!keysOnly && p.hueFlow && wallpaper == null) Canvas(Modifier.fillMaxSize()) {
+            val (cols, pos) = com.viettelex.keyboard.HueFlow.fillStops()
+            drawRect(Brush.horizontalGradient(*Array(cols.size) { pos[it].toFloat() to Color(cols[it] or (0xFF shl 24)) },
+                startX = 0f, endX = size.width * 2), alpha = com.viettelex.keyboard.HueFlow.FILL_ALPHA.toFloat())
+        }
         Canvas(Modifier.fillMaxSize()) {
             val pad = if (large) 6.dp.toPx() else 3.dp.toPx()
             val gap = if (large) 5.dp.toPx() else 2.dp.toPx()
             val r = if (large) 6.dp.toPx() else 2.dp.toPx()
-            val rainbow = if (p.rainbowBorder) com.viettelex.keyboard.RainbowBorder.stops().let { (cols, pos) ->
+            val rainbow = if (p.rainbowBorder || p.hueFlow) com.viettelex.keyboard.RainbowBorder.stops().let { (cols, pos) ->
                 Brush.horizontalGradient(*Array(cols.size) { pos[it].toFloat() to Color(cols[it] or (0xFF shl 24)) },
                     startX = 0f, endX = size.width * 2)
             } else null

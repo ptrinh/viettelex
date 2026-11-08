@@ -23,7 +23,10 @@ import Foundation
 //   bảng màu (PixelKeys) — 0 chi phí với theme khác. Không có ⇒ bo góc theo "corner" như cũ.
 // "borderFx" (trong "light"/"dark", danh sách trắng ThemeSlots.borderFxValues): "rainbow" = viền phím cầu vồng (Gaming
 //   RGB, chỉ xoay màu khi đang gõ) | "aurora" = viền gradient tím → lam ĐỨNG YÊN + dải cực quang tĩnh dọc mép trên
-//   (theme AI, AuroraFx; vẽ một lần, 0 hoạt ảnh) | "none" (bản vá: bỏ). Motif "deco" có thêm "neural" (theme AI).
+//   (theme AI, AuroraFx; vẽ một lần, 0 hoạt ảnh) | "hueflow" = viền phím cầu vồng + NỀN đổi sắc CHẬM khi đang gõ (theme
+//   "Ảo giác", HueFlow: một vòng màu ≥ 8 s — 12 s ở tốc độ đầy, sắc nền cùng độ sáng ⇒ không nháy; nghỉ 1,5 s ⇒ dừng
+//   dần, 0 hoạt ảnh khi nghỉ; gõ dồn ⇒ gợn sóng màu đồng tâm chậm từ phím, sau hàng phím) | "none" (bản vá: bỏ).
+//   Motif "deco" có thêm "neural" (theme AI), "swirl" (xoắn ốc mảnh + chấm — theme "Ảo giác").
 //
 // "schedule" (tuỳ chọn, 2…6 mục, "from" tăng dần): bảng màu ĐỔI THEO GIỜ ĐỊA PHƯƠNG (theme "Theo giờ") —
 //   "schedule":[{"from":"05:00","palette":{…như "light"…}}, {"from":"07:00","palette":{…}}, …]
@@ -463,7 +466,8 @@ struct ThemeSlots: Equatable {
     var accentInk: UInt32?, border: UInt32?, fn: UInt32?, fnInk: UInt32?, balloon: UInt32?, trail: UInt32?
     var deco: ThemeDeco?
     /// Hiệu ứng viền phím: "rainbow" (Gaming RGB — viền cầu vồng, chỉ xoay màu khi đang gõ) | "aurora" (AI — viền
-    /// gradient tím → lam ĐỨNG YÊN + dải cực quang tĩnh dọc mép trên bàn phím; vẽ một lần, 0 hoạt ảnh) | "none" (bản vá: bỏ).
+    /// gradient tím → lam ĐỨNG YÊN + dải cực quang tĩnh dọc mép trên bàn phím; vẽ một lần, 0 hoạt ảnh) | "hueflow" (Ảo giác —
+    /// viền cầu vồng + nền đổi sắc chậm khi đang gõ, HueFlow) | "none" (bản vá: bỏ).
     var borderFx: String?
     /// Hình vẽ trên phím cách: "soundhole" (Ghi-ta — lỗ thoát âm tròn + vành hoa văn, vẽ MỘT lần vào lớp của phím cách)
     /// | "none" (bản vá: bỏ). Không có hook skin ảnh cho builtin (skin = ảnh tải về) ⇒ slot riêng tối giản.
@@ -473,7 +477,9 @@ struct ThemeSlots: Equatable {
     static let rainbow = "rainbow"
     /// Giá trị hợp lệ của "borderFx" (Android ThemeSlots.BORDER_FX y hệt).
     static let aurora = "aurora"
-    static let borderFxValues: Set<String> = [rainbow, aurora, "none"]
+    /// Theme "Ảo giác": viền cầu vồng + nền đổi sắc chậm khi gõ + gợn sóng màu khi gõ dồn (HueFlow).
+    static let hueflow = "hueflow"
+    static let borderFxValues: Set<String> = [rainbow, aurora, hueflow, "none"]
     static let soundhole = "soundhole"
     /// Giá trị hợp lệ của "spaceDeco" (Android ThemeSlots.SPACE_DECO y hệt).
     static let spaceDecoValues: Set<String> = [soundhole, "none"]
@@ -1333,6 +1339,7 @@ extension ThemeSpec {
         }
         p.rainbowBorder = s.borderFx == ThemeSlots.rainbow
         p.auroraBorder = s.borderFx == ThemeSlots.aurora
+        p.hueFlow = s.borderFx == ThemeSlots.hueflow
         p.spaceSoundhole = s.spaceDeco == ThemeSlots.soundhole
         return p
     }
@@ -1352,6 +1359,7 @@ extension ThemeSpec {
         if let d = p.decoration { s.deco = ThemeDeco(motif: d.motif, color: a(d.color), density: d.density, alt: d.alt) }
         if p.rainbowBorder { s.borderFx = ThemeSlots.rainbow }
         if p.auroraBorder { s.borderFx = ThemeSlots.aurora }
+        if p.hueFlow { s.borderFx = ThemeSlots.hueflow }
         if p.spaceSoundhole { s.spaceDeco = ThemeSlots.soundhole }
         return s
     }

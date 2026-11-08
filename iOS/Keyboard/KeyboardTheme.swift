@@ -85,6 +85,10 @@ struct KeyboardPalette: Equatable {
     /// Viền phím gradient tĩnh + dải cực quang mép trên (theme AI, slot "borderFx":"aurora") — AuroraFx; vẽ MỘT lần
     /// (lớp gradient che bằng hình viền phím, như cầu vồng nhưng không chạy), 0 chi phí mỗi phím. Android `auroraBorder`.
     var auroraBorder = false
+    /// Theme "Ảo giác" (slot "borderFx":"hueflow" — HueFlow): viền phím cầu vồng (cùng lớp mặt nạ, chạy chậm) + lớp nền đổi
+    /// sắc CHẬM khi đang gõ (một vòng 12 s ở tốc độ đầy) + gợn sóng màu đồng tâm khi gõ dồn. Nghỉ ⇒ dừng dần rồi 0 hoạt ảnh.
+    /// Android `hueFlow` cùng ý nghĩa.
+    var hueFlow = false
     /// Lỗ thoát âm trên phím cách (Ghi-ta, slot "spaceDeco":"soundhole"): hình tròn tối + vành hoa văn vẽ MỘT lần
     /// (CAShapeLayer trong phím cách / Canvas Android), 0 chi phí mỗi phím. Android `spaceSoundhole` cùng ý nghĩa.
     var spaceSoundhole = false
@@ -280,6 +284,9 @@ enum KeyboardTheme: String, CaseIterable {
     // Neon Night Club (11/2026, Plus, THÊM CUỐI): nền đen, phím tối viền ống neon hồng + chữ chức năng lục lam, Đèn rọi
     // trên ảnh nền ("photoFx":"spotlight" — NightClub.swift), hiệu ứng Sàn nhảy LED, âm "club", quả cầu disco.
     case nightclub
+    // "Ảo giác" (11/2026, Plus, THÊM CUỐI): nền chàm tím, phím tối trong mờ viền cầu vồng, nền đổi sắc chậm khi gõ
+    // ("borderFx":"hueflow" — HueFlow), motif "swirl", hiệu ứng Kính vạn hoa, âm "dream" (Mơ màng), nét vuốt cầu vồng.
+    case trippy
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -318,6 +325,7 @@ enum KeyboardTheme: String, CaseIterable {
         case .timeOfDay: return L("Theo giờ")
         case .ai: return L("AI")
         case .nightclub: return L("Neon Night Club")
+        case .trippy: return L("Ảo giác")
         }
     }
 
@@ -353,7 +361,8 @@ enum KeyboardTheme: String, CaseIterable {
              .mole,
              .pixel, .sea, .timeOfDay,
              .ai,
-             .nightclub: return true
+             .nightclub,
+             .trippy: return true
         }
     }
 
@@ -431,6 +440,8 @@ struct KeyboardDecoration: Equatable {
         case pixel, waves, bubbles
         // Theme "AI" (11/2026): "neural" = ba nút nối dây kiểu mạng nơ-ron + hàng chấm lưới trải ngang trong khe.
         case neural
+        // Theme "Ảo giác" (11/2026): "swirl" = dải xoắn ốc mảnh (1,75 vòng, dày dần ra ngoài) + vài chấm trải ngang trong khe.
+        case swirl
     }
     var motif: Motif
     var color: RGBA
@@ -581,6 +592,13 @@ struct KeyboardDecoration: Equatable {
     static let neuralDots: [(Double, Double, Double)] = [(-2.4, 0, 0.07), (-1.6, 0, 0.06), (-0.9, 0, 0.05), (0.9, 0, 0.05),
                                                           (1.6, 0, 0.06), (2.4, 0, 0.07)]
 
+    /// Motif "swirl" (đơn vị motif): xoắn ốc Archimedes r = r0 + (r1 − r0)·θ/Θ, θ ∈ [0, Θ] (Θ = 1,75 vòng), dải dày
+    /// 2·w(θ) với w = w0 + (w1 − w0)·θ/Θ, lấy `swirlSteps` + 1 mẫu mỗi mép; chấm hình thoi (x, y, bán kính). Android SWIRL_* y hệt.
+    static let swirlTurns = 1.75
+    static let swirlR0 = 0.04, swirlR1 = 0.40, swirlW0 = 0.012, swirlW1 = 0.04
+    static let swirlSteps = 36
+    static let swirlDots: [(Double, Double, Double)] = [(-1.9, -0.18, 0.06), (-1.1, 0.22, 0.05), (1.1, -0.22, 0.05), (1.9, 0.18, 0.06)]
+
     /// Một đường con khép kín: điểm đầu + các đoạn ([x, y] thẳng / [c1x, c1y, c2x, c2y, x, y] cubic).
     struct Sub: Equatable { var start: (Double, Double); var segs: [[Double]]
         static func == (a: Sub, b: Sub) -> Bool { a.start == b.start && a.segs == b.segs }
@@ -632,6 +650,20 @@ struct KeyboardDecoration: Equatable {
             }
             for n in Self.neuralNodes { out.append(ell(n.0, n.1, n.2, n.2)) }
             for d in Self.neuralDots {
+                out.append(Sub(start: (d.0 + d.2, d.1), segs: [[d.0, d.1 + d.2], [d.0 - d.2, d.1], [d.0, d.1 - d.2]]))
+            }
+            return out
+        case .swirl:
+            // Dải xoắn: mép ngoài theo θ tăng, mép trong quay về (θ giảm) ⇒ MỘT đa giác đơn, chiều quay dương như mọi motif.
+            let span = Self.swirlTurns * 2 * .pi, n = Self.swirlSteps
+            func edge(_ i: Int, _ sign: Double) -> [Double] {
+                let u = Double(i) / Double(n), th = u * span
+                let r = Self.swirlR0 + (Self.swirlR1 - Self.swirlR0) * u + sign * (Self.swirlW0 + (Self.swirlW1 - Self.swirlW0) * u)
+                return pol(r, th)
+            }
+            let outer = (0...n).map { edge($0, 1) }, inner = (0...n).reversed().map { edge($0, -1) }
+            var out = [Sub(start: (outer[0][0], outer[0][1]), segs: Array(outer.dropFirst()) + inner)]
+            for d in Self.swirlDots {
                 out.append(Sub(start: (d.0 + d.2, d.1), segs: [[d.0, d.1 + d.2], [d.0 - d.2, d.1], [d.0, d.1 - d.2]]))
             }
             return out
@@ -819,7 +851,7 @@ enum ThemePicker {
     struct Section { let title: String; let themes: [KeyboardTheme] }
     /// Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng
     /// không có trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. Android ThemePicker.INTERACTIVE_ORDER y hệt.
-    static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar"]
+    static let interactiveOrder = ["nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar"]
 
     /// Thứ tự lưới (thuần): miễn phí (thứ tự khai báo) → tương tác (theo `interactiveOrder`) → còn lại (thứ tự khai
     /// báo). Theme miễn phí có nhãn vẫn ở nhóm miễn phí. Android `ThemePicker.groups` cùng kết quả (fixture "picker").
@@ -1319,7 +1351,9 @@ struct KeyStyle: Equatable {
         if let dc = s.deco {
             q.decoration = dc.motif.map { KeyboardDecoration(motif: $0, color: c(dc.color), density: dc.density, alt: dc.alt) }
         }
-        if let fx = s.borderFx { q.rainbowBorder = fx == ThemeSlots.rainbow; q.auroraBorder = fx == ThemeSlots.aurora }
+        if let fx = s.borderFx {
+            q.rainbowBorder = fx == ThemeSlots.rainbow; q.auroraBorder = fx == ThemeSlots.aurora; q.hueFlow = fx == ThemeSlots.hueflow
+        }
         if let sd = s.spaceDeco { q.spaceSoundhole = sd == ThemeSlots.soundhole }
         return q
     }

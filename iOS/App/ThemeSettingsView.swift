@@ -615,6 +615,14 @@ struct ThemePreview: View {
                 if !keysOnly { systemBackdrop }
                 if !keysOnly, let bg = palette.background { Color(bg.ui) }
                 if !keysOnly, let d = palette.decoration { decoration(d, in: geo.size) }
+                // Ảo giác ("hueflow"): lớp nền đổi sắc lúc nghỉ (một chu kỳ trải hết bề ngang, như bàn phím thật đứng yên).
+                if !keysOnly, palette.hueFlow, wallpaper == nil {
+                    LinearGradient(stops: HueFlow.fillStops().map {
+                        Gradient.Stop(color: Color(RGBA(hex: $0.color).ui), location: $0.location)
+                    }, startPoint: .leading, endPoint: UnitPoint(x: 2, y: 0.5))
+                    .opacity(HueFlow.fillAlpha)
+                    .allowsHitTesting(false)
+                }
                 if let wallpaper {
                     // Ảnh nền không theo độ trong suốt phím (KeyboardPalette.wallpaperLayer).
                     let wl = palette.wallpaperLayer(dim: dim)
@@ -625,7 +633,7 @@ struct ThemePreview: View {
                 }
                 keys(in: geo.size)
                 // Gaming RGB: viền cầu vồng tĩnh (một gradient che bằng viền phím — như bàn phím thật lúc nghỉ).
-                if palette.rainbowBorder {
+                if palette.rainbowBorder || palette.hueFlow {
                     LinearGradient(stops: RainbowBorder.stops().map {
                         Gradient.Stop(color: Color(RGBA(hex: $0.color).ui), location: $0.location)
                     }, startPoint: .leading, endPoint: UnitPoint(x: 2, y: 0.5))

@@ -822,6 +822,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         root?.buddy?.halt()                    // Bạn đồng hành: không hẹn giờ khi ẩn
         root?.aiEye?.halt()                    // Mắt AI: lim dim, không hẹn giờ
         root?.rainbow?.halt()                  // Gaming RGB: đứng yên ở cầu vồng tĩnh
+        root?.hueFill?.halt()                  // Ảo giác: nền đứng yên, hết gợn sóng
         session.finishInput()
     }
 

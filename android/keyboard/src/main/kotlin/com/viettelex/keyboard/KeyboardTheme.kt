@@ -104,6 +104,12 @@ data class ThemePalette(
      */
     val auroraBorder: Boolean = false,
     /**
+     * Theme "Ảo giác" (slot "borderFx":"hueflow" — [HueFlow]): viền phím cầu vồng (cùng lớp viền, chạy chậm) + lớp nền đổi
+     * sắc CHẬM khi đang gõ (một vòng 12 s ở tốc độ đầy) + gợn sóng màu đồng tâm khi gõ dồn. Nghỉ ⇒ dừng dần rồi 0 khung
+     * hình. iOS `hueFlow` cùng ý nghĩa.
+     */
+    val hueFlow: Boolean = false,
+    /**
      * Lỗ thoát âm trên phím cách (Ghi-ta, slot "spaceDeco":"soundhole"): hình tròn tối + hai vành hoa văn vẽ cùng
      * nền phím cách (Canvas, hình học [Soundhole]) — 0 chi phí mỗi phím. iOS `spaceSoundhole` cùng ý nghĩa.
      */
@@ -290,7 +296,10 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     AI("ai", "AI", true), // l10n-key
     // Neon Night Club (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền đen, phím tối viền ống neon hồng + chữ chức năng lục
     // lam, Đèn rọi trên ảnh nền ("photoFx":"spotlight" — [SpotlightPolicy]), Sàn nhảy LED, âm "club", quả cầu disco.
-    NIGHTCLUB("nightclub", "Neon Night Club", true); // l10n-key
+    NIGHTCLUB("nightclub", "Neon Night Club", true), // l10n-key
+    // "Ảo giác" (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền chàm tím, phím tối trong mờ viền cầu vồng, nền đổi sắc chậm
+    // khi gõ ("borderFx":"hueflow" — [HueFlow]), motif "swirl", hiệu ứng Kính vạn hoa, âm "dream" (Mơ màng), nét vuốt cầu vồng.
+    TRIPPY("trippy", "Ảo giác", true); // l10n-key
 
     /** Bo góc mặc định (% như [KeyStyle.corner]) khi người dùng chưa chỉnh — null = bo stock. iOS cùng giá trị. */
     val defaultCorner: Int? get() = spec?.corner
@@ -391,9 +400,23 @@ data class ThemeDecoration(val motif: String, val color: Int, val density: Int =
         const val BUBBLES = "bubbles"
         // Theme "AI" (11/2026): ba nút nối dây kiểu mạng nơ-ron + hàng chấm lưới trải ngang trong khe.
         const val NEURAL = "neural"
+        // Theme "Ảo giác" (11/2026): dải xoắn ốc mảnh (1,75 vòng, dày dần ra ngoài) + vài chấm trải ngang trong khe.
+        const val SWIRL = "swirl"
         /** Danh sách trắng motif (theme JSON chỉ nhận các id này) — iOS KeyboardDecoration.Motif y hệt. */
         val MOTIFS = listOf(HEARTS, FLOWERS, MAI, DAO, SNOWFLAKE, STAR, NOTES,
-            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY, PIXEL, WAVES, BUBBLES, NEURAL)
+            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY, PIXEL, WAVES, BUBBLES, NEURAL, SWIRL)
+        /**
+         * Motif "swirl": xoắn ốc Archimedes r = r0 + (r1 − r0)·θ/Θ, θ ∈ [0, Θ] (Θ = 1,75 vòng), dải dày 2·w(θ) với
+         * w = w0 + (w1 − w0)·θ/Θ, [SWIRL_STEPS] + 1 mẫu mỗi mép; chấm hình thoi (x, y, bán kính). iOS swirl* y hệt.
+         */
+        const val SWIRL_TURNS = 1.75
+        const val SWIRL_R0 = 0.04
+        const val SWIRL_R1 = 0.40
+        const val SWIRL_W0 = 0.012
+        const val SWIRL_W1 = 0.04
+        const val SWIRL_STEPS = 36
+        val SWIRL_DOTS = arrayOf(doubleArrayOf(-1.9, -0.18, 0.06), doubleArrayOf(-1.1, 0.22, 0.05), doubleArrayOf(1.1, -0.22, 0.05),
+            doubleArrayOf(1.9, 0.18, 0.06))
         /** Motif "neural": nút (x, y, bán kính), dây nối cặp nút, bề dày nửa dây, chấm lưới (x, y, bán kính) — iOS neural* y hệt. */
         val NEURAL_NODES = arrayOf(doubleArrayOf(-0.34, 0.2, 0.12), doubleArrayOf(0.0, -0.24, 0.13), doubleArrayOf(0.34, 0.2, 0.12))
         val NEURAL_LINKS = arrayOf(intArrayOf(0, 1), intArrayOf(1, 2), intArrayOf(0, 2))
@@ -618,6 +641,20 @@ data class ThemeDecoration(val motif: String, val color: Int, val density: Int =
                     MotifSub(d[0] + d[2], d[1], listOf(doubleArrayOf(d[0], d[1] + d[2]), doubleArrayOf(d[0] - d[2], d[1]),
                         doubleArrayOf(d[0], d[1] - d[2])))
                 }
+                // Dải xoắn: mép ngoài θ tăng, mép trong quay về ⇒ MỘT đa giác đơn, chiều quay dương — y hệt iOS.
+                SWIRL -> {
+                    val span = SWIRL_TURNS * 2 * Math.PI; val n = SWIRL_STEPS
+                    fun edge(i: Int, sign: Double): DoubleArray {
+                        val u = i.toDouble() / n; val th = u * span
+                        val r = SWIRL_R0 + (SWIRL_R1 - SWIRL_R0) * u + sign * (SWIRL_W0 + (SWIRL_W1 - SWIRL_W0) * u)
+                        return pol(r, th)
+                    }
+                    val outer = (0..n).map { edge(it, 1.0) }; val inner = (n downTo 0).map { edge(it, -1.0) }
+                    listOf(MotifSub(outer[0][0], outer[0][1], outer.drop(1) + inner)) + SWIRL_DOTS.map { d ->
+                        MotifSub(d[0] + d[2], d[1], listOf(doubleArrayOf(d[0], d[1] + d[2]), doubleArrayOf(d[0] - d[2], d[1]),
+                            doubleArrayOf(d[0], d[1] - d[2])))
+                    }
+                }
                 else -> emptyList()
             }
         }
@@ -754,7 +791,7 @@ object ThemePicker {
      * Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng không có
      * trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. iOS ThemePicker.interactiveOrder y hệt.
      */
-    val INTERACTIVE_ORDER = listOf("nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar")
+    val INTERACTIVE_ORDER = listOf("nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar")
 
     data class Groups(val free: List<KeyboardTheme>, val interactive: List<KeyboardTheme>, val rest: List<KeyboardTheme>)
     /**

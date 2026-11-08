@@ -62,6 +62,11 @@ import com.viettelex.keyboard.WaveRings
 @SuppressLint("ViewConstructor")
 open class KeyEffectView(context: Context, private val density: Float) : View(context) {
     private val sim = KeyEffectParticles()
+    /** Kính vạn hoa ([KaleidoDrawer]): dựng lười ở phím đầu; kiểu khác ⇒ null (0 chi phí). */
+    private var kaleido: KaleidoDrawer? = null
+    /** Test: số bông Kính vạn hoa còn sống lúc [now] (ms) + tâm bông [i] (px). */
+    internal fun kaleidoAlive(now: Long): Int = kaleido?.alive(now) ?: 0
+    internal fun kaleidoCenter(i: Int): Pair<Float, Float>? = kaleido?.center(i)
     private val paths = Array(3) { Path() }
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
@@ -414,6 +419,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
                 if (amp > 0.0 && shakeTarget != null) { shakeStart = now; shakeAmp = (amp * density).toFloat() }
             }
             KeyEffect.LASER -> fireLaser(x, y, now)
+            KeyEffect.KALEIDO -> (kaleido ?: KaleidoDrawer(density).also { kaleido = it }).fire(x, y, width, height, now)
             KeyEffect.GLITCH -> {
                 val s = glCursor; glCursor = (s + 1) % GlitchFx.POOL
                 val hw = (if (w > 0f) w else DEFAULT_W * density) / 2; val hh = (if (h > 0f) h else DEFAULT_H * density) / 2
@@ -496,6 +502,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
 
     /** Dừng mọi thứ đang chạy (ẩn bàn phím / đổi kiểu / gỡ) — sau đó không còn khung hình nào. */
     fun halt() {
+        kaleido?.halt()
         matrixClock.stop()
         sim.clear()
         strikeStart.fill(Long.MIN_VALUE / 2)
@@ -614,6 +621,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.PLASMA -> drawPlasma(canvas, now)
             KeyEffect.SHAKE -> stepShake(now)
             KeyEffect.LASER -> drawLaser(canvas, now)
+            KeyEffect.KALEIDO -> kaleido?.draw(canvas, now) ?: false
             KeyEffect.GLITCH -> drawGlitch(canvas, now)
             KeyEffect.TONE -> drawTone(canvas, now)
             KeyEffect.KEYWORD -> drawKeyword(canvas, now)

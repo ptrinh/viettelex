@@ -377,6 +377,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         buddy?.halt(); buddy = nil
         aiEye?.halt(); aiEye = nil
         rainbow?.halt(); rainbow = nil
+        hueFill?.halt(); hueFill = nil
         mole?.halt(); mole = nil
         spotlight?.halt(); spotlight = nil
         wallpaperView.image = nil
@@ -6944,6 +6945,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             spotlight?.light(key: fx)            // Đèn rọi (theme "photoFx":"spotlight"): theme khác ⇒ nil
         }
         rainbow?.poke()                          // Gaming RGB: theme khác ⇒ nil, chỉ đọc một optional
+        if let h = hueFill { h.poke(at: fx.map { CGPoint(x: $0.midX, y: $0.midY) }) }   // Ảo giác: nền đổi sắc + gợn sóng
         if let b = buddy {                       // Bạn đồng hành: tắt ⇒ nil, chỉ đọc một optional
             if case .backspace = key { b.deletePressed() } else { b.keyPressed() }
         }
@@ -7200,13 +7202,15 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     /// Lúc hiện / đổi theme: gắn hoặc gỡ lớp viền cầu vồng (trên hàng phím, dưới hiệu ứng / ô phóng to).
     private func configureRainbow() {
-        guard palette.rainbowBorder || palette.auroraBorder else {
+        configureHueFill()
+        guard palette.rainbowBorder || palette.auroraBorder || palette.hueFlow else {
             rainbow?.halt(); rainbow?.removeFromSuperview(); rainbow = nil
             return
         }
-        // AI ("aurora"): cùng lớp mặt nạ viền nhưng gradient tĩnh — đổi kiểu ⇒ dựng view mới.
-        if let r = rainbow, r.isAurora != palette.auroraBorder { r.halt(); r.removeFromSuperview(); rainbow = nil }
-        let v = rainbow ?? RainbowBorderView(aurora: palette.auroraBorder)
+        // AI ("aurora") / Ảo giác ("hueflow"): cùng lớp mặt nạ viền, bộ số khác — đổi kiểu ⇒ dựng view mới.
+        let kind: RainbowBorderView.Kind = palette.auroraBorder ? .aurora : palette.hueFlow ? .hueflowBorder : .rainbow
+        if let r = rainbow, r.kind != kind { r.halt(); r.removeFromSuperview(); rainbow = nil }
+        let v = rainbow ?? RainbowBorderView(kind: kind)
         if v.superview !== self {
             v.frame = bounds
             v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -7216,8 +7220,24 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         layoutRainbow()
     }
 
+    /// Nền đổi sắc của "Ảo giác" ("borderFx":"hueflow" — HueFlow): ngay DƯỚI hàng phím (trên nền / hoạ tiết / ảnh nền), cả
+    /// khung bàn phím; gợn sóng màu toả trong lớp này (sau phím). Theme khác ⇒ nil (0 chi phí).
+    private(set) var hueFill: RainbowBorderView?
+    private func configureHueFill() {
+        // Ảnh nền người dùng thắng: không phủ sắc lên ảnh (Android y hệt).
+        guard palette.hueFlow, !wallpaperActive else { hueFill?.halt(); hueFill?.removeFromSuperview(); hueFill = nil; return }
+        let v = hueFill ?? RainbowBorderView(kind: .hueflowFill)
+        if v.superview !== self {
+            v.frame = bounds
+            v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            insertSubview(v, belowSubview: rowsContainer)
+        }
+        hueFill = v
+    }
+
     /// Khung phím đang hiện → mặt nạ viền (chỉ dựng lại path khi khung đổi — RainbowBorderView.setKeys).
     private func layoutRainbow() {
+        if let h = hueFill, h.frame != bounds { h.frame = bounds }
         guard let v = rainbow else { return }
         if v.frame != bounds { v.frame = bounds }
         var frames: [CGRect] = [], radii: [CGFloat] = []
@@ -7241,7 +7261,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// hiệu ứng (vd mảnh vỡ của Tia sét) không bao giờ đụng tới view phím thật.
     private var fxRect: CGRect?
     @inline(__always) private func fxMark(_ v: UIView) {
-        guard keyEffects != nil || aiEye != nil || spotlight != nil else { return }   // Mắt AI cũng cần tâm phím (nhìn theo)
+        // Mắt AI cũng cần tâm phím (nhìn theo); Ảo giác: gợn sóng màu từ phím.
+        guard keyEffects != nil || aiEye != nil || spotlight != nil || hueFill != nil else { return }
         fxRect = convert(v.bounds, from: v)
     }
     /// Overlay hiệu ứng dùng CHUNG hệ toạ độ với KeyboardView: khung = bounds, gốc bounds = gốc bounds

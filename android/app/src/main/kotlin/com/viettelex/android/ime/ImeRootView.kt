@@ -96,8 +96,18 @@ class ImeRootView(
      * Viền phím cầu vồng (theme Gaming RGB — "borderFx":"rainbow"): ngay TRÊN phím, dưới strip / tiền cảnh / vệt /
      * hiệu ứng / balloon; cùng khung KeyboardView. Theme khác ⇒ null (không có view).
      */
-    val rainbow: RainbowBorderView? = if (theme.palette.rainbowBorder || theme.palette.auroraBorder)
-        RainbowBorderView(context, theme.density, aurora = theme.palette.auroraBorder) else null
+    val rainbow: RainbowBorderView? = if (theme.palette.rainbowBorder || theme.palette.auroraBorder || theme.palette.hueFlow)
+        RainbowBorderView(context, theme.density, kind = when {
+            theme.palette.auroraBorder -> RainbowBorderView.Kind.AURORA
+            theme.palette.hueFlow -> RainbowBorderView.Kind.HUEFLOW_BORDER
+            else -> RainbowBorderView.Kind.RAINBOW
+        }) else null
+    /**
+     * Nền đổi sắc của "Ảo giác" ("borderFx":"hueflow" — [com.viettelex.keyboard.HueFlow]): DƯỚI dải gợi ý + hàng phím (trên
+     * nền / hoạ tiết), cả khung bàn phím; gợn sóng màu toả trong lớp này (sau phím). Theme khác ⇒ null (0 chi phí).
+     */
+    val hueFill: RainbowBorderView? = if (theme.palette.hueFlow && wallpaperFile == null)
+        RainbowBorderView(context, theme.density, kind = RainbowBorderView.Kind.HUEFLOW_FILL) else null
     private val rainbowPath = android.graphics.Path()
 
     /** Mặt nạ viền theo khung phím hiện tại (gọi khi dựng phím / layout — không mỗi phím). */
@@ -113,6 +123,7 @@ class ImeRootView(
         keyboard.onKeysLaidOut = { updateDecorGaps(); updateRainbowOutline(); updateStringGaps() }
         if (wallpaperFile != null || themeBgFile != null) setWillNotDraw(false)
         isMotionEventSplittingEnabled = true
+        hueFill?.let { addView(it); keyboard.hueFill = it }
         addView(keyboard)
         rainbow?.let { addView(it); keyboard.rainbow = it }
         addView(strip)
@@ -378,6 +389,7 @@ class ImeRootView(
         }
         keyboard.layout(px, py + s, px + pw, py + s + keyH)
         rainbow?.layout(px, py + s, px + pw, py + s + keyH)
+        hueFill?.layout(px, py, px + pw, py + s + keyH)
         updateDecorGaps()
         updateRainbowOutline()
         strip.layout(px, py, px + pw, py + strip.measuredHeight)
@@ -563,6 +575,7 @@ class ImeRootView(
         val h = ImeInsets.totalHeight(s, keyH, navInset + raisePx)
         keyboard.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(keyH, MeasureSpec.EXACTLY))
         rainbow?.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(keyH, MeasureSpec.EXACTLY))
+        hueFill?.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(s + keyH, MeasureSpec.EXACTLY))
         strip.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
             MeasureSpec.makeMeasureSpec(strip.viewHeightPx(), MeasureSpec.EXACTLY))
         trail.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(keyH, MeasureSpec.EXACTLY))
@@ -590,6 +603,7 @@ class ImeRootView(
         val ew = MeasureSpec.makeMeasureSpec(pw, MeasureSpec.EXACTLY)
         keyboard.measure(ew, MeasureSpec.makeMeasureSpec(keyH, MeasureSpec.EXACTLY))
         rainbow?.measure(ew, MeasureSpec.makeMeasureSpec(keyH, MeasureSpec.EXACTLY))
+        hueFill?.measure(ew, MeasureSpec.makeMeasureSpec(s + keyH, MeasureSpec.EXACTLY))
         strip.measure(ew, MeasureSpec.makeMeasureSpec(strip.viewHeightPx(), MeasureSpec.EXACTLY))
         trail.measure(ew, MeasureSpec.makeMeasureSpec(keyH, MeasureSpec.EXACTLY))
         foreground?.measure(ew, MeasureSpec.makeMeasureSpec(s + keyH, MeasureSpec.EXACTLY))
@@ -608,6 +622,7 @@ class ImeRootView(
         val keyH = keyboard.measuredHeight
         keyboard.layout(0, s, w, s + keyH)
         rainbow?.layout(0, s, w, s + keyH)
+        hueFill?.layout(0, 0, w, s + keyH)
         updateDecorGaps()
         updateRainbowOutline()
         strip.layout(0, 0, w, strip.measuredHeight)

@@ -40,6 +40,7 @@ targets:
       # Hiệu ứng khi bấm phím: xem thử ở trang chọn (cùng overlay với bàn phím).
       - Keyboard/KeyEffects.swift
       - Keyboard/KeyEffectPreview.swift
+      - Keyboard/Kaleido.swift
       # Bạn đồng hành: xem trước ở trang chọn (cùng view với bàn phím).
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
@@ -231,6 +232,7 @@ targets:
       - Keyboard/Wallpaper.swift
       - Keyboard/KeyEffects.swift
       - Keyboard/KeyEffectPreview.swift
+      - Keyboard/Kaleido.swift
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
       - Keyboard/AIEye.swift
