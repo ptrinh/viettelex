@@ -551,6 +551,7 @@
 		EE7F51531D95329E1799A7C5 /* PixelKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5251A976F003AF8C3F41CE2 /* PixelKeys.swift */; };
 		EE9A7DE6325ECD8F87150CD3 /* KeyLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D77A862B4CBC51471E43C21 /* KeyLayout.swift */; };
 		EEA37BC7FCE44D94EED312BB /* MoleOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A139193316D149189CF109DA /* MoleOverlay.swift */; };
+		EF06D22A9419B810427A5E32 /* MeritGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B294619B1349B1116862526 /* MeritGlass.swift */; };
 		EF47B69B329CB5668C2BA1E7 /* nunito.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 84CE8DA584B5E49DD4C1F74F /* nunito.ttf */; };
 		EFF2A04B47B509C58CC4D358 /* SpaceFlick.swift in Sources */ = {isa = PBXBuildFile; fileRef = D36D03DA09827B3E666C0C94 /* SpaceFlick.swift */; };
 		F06A0012B5F037C57C636E16 /* itim.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AAEC220F2DD66A7EF33DC9B3 /* itim.ttf */; };
@@ -2064,6 +2065,7 @@
 				709378BF50A391137F4F48C6 /* KeyboardTheme.swift in Sources */,
 				674C4F80BF422C056620EFE0 /* KeystrokeCounter.swift in Sources */,
 				3F1292ACF1A9EB3E13E3E0F6 /* L10n.swift in Sources */,
+				EF06D22A9419B810427A5E32 /* MeritGlass.swift in Sources */,
 				CAD2E2CA66D53A042719426D /* MixedTypingSection.swift in Sources */,
 				B6BC6C7FA604A58ED31CC9BB /* MixedTypingUI.swift in Sources */,
 				6F50CB3A770883B3B7301C9F /* MoleGame.swift in Sources */,

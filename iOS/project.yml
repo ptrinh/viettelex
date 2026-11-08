@@ -44,6 +44,8 @@ targets:
       - Keyboard/Kaleido.swift
       # Lạc trôi: Đường hầm (overlay) + Lơ lửng (xem thử phím trôi).
       - Keyboard/Drift.swift
+      # Gõ mõ / Kính màu: Công đức + Nắng qua kính (overlay xem thử) + phím ô kính (GlassKeys — ThemeSpec).
+      - Keyboard/MeritGlass.swift
       # Cung hoàng đạo (theme "zodiac"): cung + bảng màu nguyên tố + chòm sao — trang Giao diện chọn cung.
       - Keyboard/Zodiac.swift
       # Tự hào (theme "pride"): lá cờ + bảng màu + hiệu ứng Cầu vồng — trang Giao diện chọn cờ.
