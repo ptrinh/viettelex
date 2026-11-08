@@ -61,7 +61,7 @@ class KeySoundTests {
         assertFalse(KeySoundStyle.CUSTOM in KeySoundStyle.PRESETS)
         // ordinal = seed nhiễu: kiểu cũ giữ vị trí; id + thứ tự Y HỆT iOS allCases.
         assertEquals(listOf("subtle", "wood", "mechanical", "typewriter", "bubble", "custom", "system", "rock", "pop", "water", "vintage",
-            "phao", "jingle", "piano", "dantranh", "scifi", "trong", "boo", "guitar", "bop"),
+            "phao", "jingle", "piano", "dantranh", "scifi", "trong", "boo", "guitar", "bop", "chip"),
             KeySoundStyle.entries.map { it.id })
         for (id in listOf("system", "rock", "pop", "water", "vintage", "phao", "jingle", "piano", "dantranh", "trong", "boo", "guitar")) assertTrue(id, id in KeySoundStyle.IDS)
         for (st in KeySoundStyle.entries) assertNotNull("$st thiếu bản EN", L10nTable.EN[st.viTitle])
@@ -198,10 +198,26 @@ class KeySoundTests {
         assertEquals("Lion drum", L10nTable.EN["Trống lân"]); assertEquals("Spooky", L10nTable.EN["Ma quái"])
     }
 
+    /** "Bíp 8-bit" (theme Pixel 8-bit): không to hơn Gõ gỗ, ≤ 55 ms, sáng (sóng vuông); checksum chung iOS testChipBlipQuietShortAndShared. */
+    @Test fun chipBlip() {
+        for (k in KeySoundSynth.Kind.entries) {
+            val wood = KeySoundSynth.samples(KeySoundStyle.WOOD, k); val a = KeySoundSynth.samples(KeySoundStyle.CHIP, k)
+            assertTrue("$k", KeySoundSynth.rms(a) < KeySoundSynth.rms(wood))
+            assertTrue("$k", a.maxOf { abs(it) } < wood.maxOf { abs(it) })
+            assertTrue("$k", a.size.toDouble() / KeySoundSynth.SAMPLE_RATE < 0.056)
+            assertTrue("$k sóng vuông sáng", KeySoundSynth.spectralCentroid(a) > 1000.0)
+        }
+        val golden = listOf(214.9587, 213.1522, 237.6303)
+        for ((i, k) in KeySoundSynth.Kind.entries.withIndex())
+            assertEquals("$k", golden[i], KeySoundSynth.samples(KeySoundStyle.CHIP, k).sumOf { abs(it).toDouble() }, 0.01)
+        assertEquals("8-bit blip", L10nTable.EN["Bíp 8-bit"])
+        assertTrue(KeySoundStyle.CHIP in KeySoundStyle.PRESETS)
+    }
+
     /** Danh sách id DUY NHẤT cho "sound" của theme JSON (trùng iOS presetIDs); "theme" (đã bỏ) ⇒ mặc định. */
     @Test fun presetIdsForThemeJson() {
         assertEquals(listOf("subtle", "wood", "mechanical", "typewriter", "bubble", "rock", "pop", "water", "vintage",
-            "phao", "jingle", "scifi", "trong", "boo", "bop", "piano", "dantranh", "guitar"), KeySoundStyle.PRESET_IDS)
+            "phao", "jingle", "scifi", "trong", "boo", "bop", "chip", "piano", "dantranh", "guitar"), KeySoundStyle.PRESET_IDS)
         for (bad in listOf("system", "custom", "theme")) assertFalse(bad, bad in KeySoundStyle.PRESET_IDS)
         assertEquals(KeySoundStyle.SUBTLE, KeySoundStyle.resolve("theme", true))
         assertEquals("subtle", KeyboardSettings.load { if (it == Keys.KEY_SOUND_STYLE) "theme" else null }.keySoundStyle)

@@ -519,6 +519,44 @@ object ThemeAssetURL {
         if (s.length == 64 && s.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) s.lowercase() else null
 }
 
+/** Một mục "schedule": từ phút [from] trong ngày (0…1439) dùng bảng màu [slots] (đầy đủ như "light"). iOS y hệt. */
+data class ThemeScheduleEntry(val from: Int, val slots: ThemeSlots)
+
+/**
+ * "schedule" (tuỳ chọn, 2…6 mục, "from" tăng dần): bảng màu ĐỔI THEO GIỜ ĐỊA PHƯƠNG (theme "Theo giờ") —
+ * `"schedule":[{"from":"05:00","palette":{…như "light"…}}, …]`. Mục có "from" lớn nhất ≤ giờ hiện tại thắng; trước mục
+ * đầu ⇒ mục CUỐI (qua nửa đêm). Có lịch ⇒ bỏ qua sáng/tối hệ thống; "light"/"dark" vẫn bắt buộc (bảng dự phòng khi
+ * không có giờ). Chọn MỘT lần lúc bàn phím hiện — 0 chi phí mỗi phím, không hẹn giờ. Thuần — iOS ThemeSchedule y hệt.
+ */
+object ThemeSchedule {
+    val ENTRY_RANGE = 2..6
+    const val MINUTES_PER_DAY = 24 * 60
+
+    /** "HH:MM" (đúng 5 ký tự, 00…23 : 00…59) ⇒ phút trong ngày; sai ⇒ null. */
+    fun parseTime(s: String): Int? {
+        if (s.length != 5 || s[2] != ':') return null
+        val d = intArrayOf(0, 1, 3, 4).map { i -> s[i].takeIf { it in '0'..'9' }?.let { it - '0' } ?: return null }
+        val h = d[0] * 10 + d[1]; val m = d[2] * 10 + d[3]
+        return if (h < 24 && m < 60) h * 60 + m else null
+    }
+    fun format(minute: Int): String = String.format(java.util.Locale.ROOT, "%02d:%02d", minute / 60, minute % 60)
+
+    /** Chỉ số mục hiệu lực ở phút [minute] (kẹp vào ngày); trước mục đầu ⇒ mục cuối. [froms] rỗng ⇒ null. */
+    fun index(froms: List<Int>, minute: Int): Int? {
+        if (froms.isEmpty()) return null
+        val m = ((minute % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY
+        var best = froms.size - 1
+        for ((i, f) in froms.withIndex()) if (f <= m) best = i
+        return best
+    }
+
+    /** Phút trong ngày theo giờ địa phương — gọi MỘT lần mỗi lần hiện bàn phím, chỉ khi theme có lịch. */
+    fun minuteOfDay(epochMillis: Long = System.currentTimeMillis(), zone: java.util.TimeZone = java.util.TimeZone.getDefault()): Int {
+        val c = java.util.Calendar.getInstance(zone).apply { timeInMillis = epochMillis }
+        return c.get(java.util.Calendar.HOUR_OF_DAY) * 60 + c.get(java.util.Calendar.MINUTE)
+    }
+}
+
 data class ThemeSpec(
     val id: String? = null,
     val nameVi: String,
@@ -539,8 +577,21 @@ data class ThemeSpec(
     val swipe: String? = null,
     /** Trò chơi khi gõ ("mole" — [MoleGame]) — chạy khi theme đang dùng ([ThemeExtraIds.GAMES]). iOS `game`. */
     val game: String? = null,
+    /** Bảng màu theo giờ ([ThemeSchedule]); null = theo sáng/tối hệ thống. iOS `schedule`. */
+    val schedule: List<ThemeScheduleEntry>? = null,
 ) {
     fun slots(dark: Boolean): ThemeSlots = if (dark) (this.dark ?: light) else light
+    /** Bảng màu ở phút [minute] trong ngày: có lịch ⇒ mục hiệu lực (bỏ qua sáng/tối); không lịch / null ⇒ [slots]. */
+    fun slots(dark: Boolean, minute: Int?): ThemeSlots {
+        val sc = schedule ?: return slots(dark)
+        val i = minute?.let { ThemeSchedule.index(sc.map { e -> e.from }, it) } ?: return slots(dark)
+        return sc[i].slots
+    }
+    /** Chỉ số mục lịch đang hiệu lực (null = không có lịch). */
+    fun scheduleIndex(minute: Int): Int? = schedule?.let { ThemeSchedule.index(it.map { e -> e.from }, minute) }
+    /** Palette ở phút [minute] (theme có lịch); null / không lịch ⇒ [palette]. */
+    fun palette(dark: Boolean, minute: Int?): ThemePalette =
+        if (schedule == null || minute == null) palette(dark) else palette(slots(dark, minute), dark)
     val name: String get() = if (L10n.isEnglish) (nameEn ?: nameVi) else nameVi
     /** Kiểu chữ / bo góc / tệp tải về mặc định của theme. */
     val typography: KeyStyle get() = KeyStyle(corner = corner, fontScale = fontScale, font = font ?: KeyLabelFont.DEFAULT,
@@ -568,6 +619,9 @@ data class ThemeSpec(
         effect?.let { m.add("effect" to SJ.Str(it)) }
         swipe?.let { m.add("swipe" to SJ.Str(it)) }
         game?.let { m.add("game" to SJ.Str(it)) }
+        schedule?.let { sc ->
+            m.add("schedule" to SJ.Arr(sc.map { SJ.Obj(listOf("from" to SJ.Str(ThemeSchedule.format(it.from)), "palette" to json(it.slots))) }))
+        }
         return SJ.Obj(m)
     }
     /** Chuỗi chuẩn (trùng iOS từng ký tự). */
@@ -677,7 +731,7 @@ object ThemeSpecParser {
 
     private val ASSET_KEYS = setOf("background", "foreground", "keys")
     private val ROOT_KEYS = setOf("v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
-        "sound", "effect", "swipe", "game") + ASSET_KEYS
+        "sound", "effect", "swipe", "game", "schedule") + ASSET_KEYS
     private val SLOT_KEYS = (ThemeSlots.COLOR_KEYS + "deco" + "borderFx" + "spaceDeco").toSet()
 
     fun parse(text: String): Outcome = when (val r = StrictJson.parse(text)) {
@@ -725,12 +779,39 @@ object ThemeSpecParser {
             else -> dark = slots(v, "dark", true, c)
         }
         val typo = typography(j, KeyStyle(), c)
+        val schedule = j["schedule"]?.let { schedule(it, c) }
         if (c.failed) return Outcome(null, c.issues)
         val spec = ThemeSpec(id, vi, en, light, if (dark == light) null else dark, typo.corner, typo.fontScale,
             if (j["font"] != null && typo.assets.font == null) typo.font else null,
-            if (j["weight"] != null) typo.weight else null, typo.assets, typo.sound, typo.effect, typo.swipe, typo.game)
+            if (j["weight"] != null) typo.weight else null, typo.assets, typo.sound, typo.effect, typo.swipe, typo.game,
+            schedule)
         if (contrast) c.issues.addAll(contrastIssues(spec))
         return Outcome(if (c.failed) null else spec, c.issues)
+    }
+
+    /** "schedule": mảng 2…6 {"from":"HH:MM","palette":{màu đầy đủ}}, "from" tăng dần — iOS y hệt. */
+    private fun schedule(v: SJ, c: Ctx): List<ThemeScheduleEntry>? {
+        if (v !is SJ.Arr) { c.err(ThemeIssue.Code.wrongType, "schedule"); return null }
+        if (v.a.size !in ThemeSchedule.ENTRY_RANGE) { c.err(ThemeIssue.Code.badValue, "schedule"); return null }
+        val out = ArrayList<ThemeScheduleEntry>()
+        for ((i, e) in v.a.withIndex()) {
+            val p = "schedule[$i]"
+            if (e !is SJ.Obj) { c.err(ThemeIssue.Code.wrongType, p); continue }
+            for ((k, _) in e.m) if (k != "from" && k != "palette") c.err(ThemeIssue.Code.unknownKey, "$p.$k")
+            var from: Int? = null
+            when (val f = e["from"]) {
+                null -> c.err(ThemeIssue.Code.missingKey, "$p.from")
+                is SJ.Str -> ThemeSchedule.parseTime(f.s)?.let { from = it } ?: c.err(ThemeIssue.Code.badValue, "$p.from")
+                else -> c.err(ThemeIssue.Code.wrongType, "$p.from")
+            }
+            val last = out.lastOrNull()?.from
+            if (from != null && last != null && from!! <= last) { c.err(ThemeIssue.Code.badValue, "$p.from"); from = null }
+            val pv = e["palette"]
+            if (pv == null) { c.err(ThemeIssue.Code.missingKey, "$p.palette"); continue }
+            val sl = slots(pv, "$p.palette", true, c)
+            from?.let { out.add(ThemeScheduleEntry(it, sl)) }
+        }
+        return if (out.size == v.a.size) out else null
     }
 
     private fun name(v: SJ?, p: String, required: Boolean, c: Ctx): String? {
@@ -951,11 +1032,14 @@ object ThemeSpecParser {
     /** Chữ/phím, chữ/phím chức năng, chữ/nhấn mỗi chế độ: < 2:1 lỗi, < 3:1 cảnh báo. */
     fun contrastIssues(spec: ThemeSpec): List<ThemeIssue> {
         val out = ArrayList<ThemeIssue>()
-        val modes = if (spec.dark == null) listOf("light" to false) else listOf("light" to false, "dark" to true)
         val c = ThemeColor
-        for ((name, dark) in modes) {
-            val s = spec.slots(dark)
-            val p = spec.palette(dark)
+        val modes = ArrayList<Triple<String, ThemeSlots, Boolean>>()
+        modes.add(Triple("light", spec.light, false))
+        spec.dark?.let { modes.add(Triple("dark", it, true)) }
+        // Bảng theo giờ: kiểm trên backdrop theo độ sáng chữ của chính nó — iOS y hệt.
+        spec.schedule?.forEachIndexed { i, e -> modes.add(Triple("schedule[$i]", e.slots, ThemeSpec.palette(e.slots, false).isDark)) }
+        for ((name, s, dark) in modes) {
+            val p = ThemeSpec.palette(s, dark)
             val sys = KeyboardTransparency.systemBackdrop(dark)
             val behind = s.bg?.let { c.over(it, sys) } ?: sys
             val pairs = listOf(

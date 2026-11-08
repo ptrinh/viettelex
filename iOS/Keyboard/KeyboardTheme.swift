@@ -268,6 +268,9 @@ enum KeyboardTheme: String, CaseIterable {
     // Xám trung tính (issue #137, 30/10/2026): miễn phí, kiểu Gboard xám, theo sáng/tối hệ thống. Id trùng Android;
     // THÊM CUỐI (rawValue lưu, không đổi thứ tự).
     case neutral
+    // Bộ 11/2026 (Plus, THÊM CUỐI): Pixel 8-bit (máy chơi game cầm tay, phím vuông, âm "chip"), Biển (xanh biển + cát,
+    // sóng + bọt, hiệu ứng Sóng nước), Theo giờ (bảng màu đổi theo giờ địa phương — "schedule" trong theme JSON).
+    case pixel, sea, timeOfDay
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -301,6 +304,9 @@ enum KeyboardTheme: String, CaseIterable {
         case .guitar: return L("Ghi-ta")
         case .mole: return L("Đập chuột")
         case .neutral: return L("Xám trung tính")
+        case .pixel: return L("Pixel 8-bit")
+        case .sea: return L("Biển")
+        case .timeOfDay: return L("Theo giờ")
         }
     }
 
@@ -330,7 +336,8 @@ enum KeyboardTheme: String, CaseIterable {
              .typewriter, .rgb, .space,
              .trungthu, .valentine, .halloween,
              .guitar,
-             .mole: return true
+             .mole,
+             .pixel, .sea, .timeOfDay: return true
         }
     }
 
@@ -376,6 +383,12 @@ enum KeyboardTheme: String, CaseIterable {
         }
     }
 
+    /// Palette lúc `date` (theme có lịch "schedule" — Theo giờ — đổi theo giờ địa phương; theme khác = `palette(systemDark:)`).
+    func palette(systemDark: Bool, at date: Date) -> KeyboardPalette {
+        guard let s = spec, s.schedule != nil else { return palette(systemDark: systemDark) }
+        return s.palette(dark: systemDark, at: date)
+    }
+
     /// Đặc tả JSON của theme có sẵn (nil = Hệ thống / Kính — vẽ theo nền tảng).
     var spec: ThemeSpec? { BuiltinThemes.specs[rawValue] }
 }
@@ -398,6 +411,8 @@ struct KeyboardDecoration: Equatable {
         // Ghi-ta (10/2026): "strings" = dây đàn kim loại kéo NGANG HẾT khe hàng (vẽ một lần mỗi khe, dày dần ở khe
         // dưới như dây trầm — không theo vị trí motif); "inlay" = chấm khảm xà cừ nhỏ (thường dùng làm deco.alt).
         case strings, inlay
+        // Bộ 11/2026: "pixel" = trái tim điểm ảnh 7×6 (Pixel 8-bit); "waves" = ngọn sóng, "bubbles" = cụm bọt (Biển).
+        case pixel, waves, bubbles
     }
     var motif: Motif
     var color: RGBA
@@ -532,6 +547,10 @@ struct KeyboardDecoration: Equatable {
         return path
     }
 
+    /// Trái tim điểm ảnh của motif "pixel": (hàng, cột đầu, cột cuối loại trừ) trên lưới 7×6 — Android PIXEL_RUNS y hệt.
+    static let pixelRuns: [(row: Int, x0: Int, x1: Int)] = [(0, 1, 3), (0, 4, 6), (1, 0, 7), (2, 0, 7), (3, 1, 6), (4, 2, 5),
+                                                            (5, 3, 4)]
+
     /// Chấm sao nhỏ của motif "starfield": (x, y, bán kính) theo đơn vị motif — Android STAR_DOTS y hệt.
     static let starDots: [(Double, Double, Double)] = [(-2.6, -0.3, 0.1), (-1.4, 0.34, 0.07), (1.5, -0.24, 0.08),
                                                         (2.7, 0.3, 0.11), (0.8, 0.4, 0.05)]
@@ -563,6 +582,24 @@ struct KeyboardDecoration: Equatable {
         func poly(_ q: [[Double]]) -> Sub { Sub(start: (q[0][0], q[0][1]), segs: Array(q.dropFirst())) }
         switch m {
         case .hearts, .flowers, .strings: return []
+        case .pixel:
+            // Trái tim điểm ảnh 7×6 ô (ô = 1/7): mỗi hàng ô liền nhau = MỘT hình chữ nhật (trên-trái → trên-phải →
+            // dưới-phải → dưới-trái, cùng chiều quay ⇒ tô nonzero = hợp, không thủng).
+            let c = 1.0 / 7, top = -3.0 / 7
+            return Self.pixelRuns.map { r in
+                let x0 = -0.5 + Double(r.x0) * c, x1 = -0.5 + Double(r.x1) * c
+                let y0 = top + Double(r.row) * c, y1 = y0 + c
+                return poly([[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
+            }
+        case .waves:
+            // Ngọn sóng: dải lượn hình sin (mép trên trái → phải, mép dưới phải → trái, dày 0.14).
+            let w = 0.14
+            return [Sub(start: (-0.5, 0), segs: [[-0.33, -0.3, -0.17, -0.3, 0, 0], [0.17, 0.3, 0.33, 0.3, 0.5, 0],
+                                                 [0.5, w], [0.33, 0.3 + w, 0.17, 0.3 + w, 0, w],
+                                                 [-0.17, -0.3 + w, -0.33, -0.3 + w, -0.5, w]])]
+        case .bubbles:
+            // Cụm bọt: một bọt to + hai bọt nhỏ nổi lên lệch phải.
+            return [ell(-0.12, 0.14, 0.3, 0.3), ell(0.27, -0.2, 0.15, 0.15), ell(0.36, 0.26, 0.09, 0.09)]
         case .inlay:
             // Chấm khảm xà cừ (tròn nhỏ) — trên cần đàn thật nằm giữa hai phím đàn.
             return [ell(0, 0, 0.22, 0.22)]
@@ -929,28 +966,35 @@ struct ThemeSettings: Equatable {
 
     /// Thẻ "Chọn giao diện": palette gốc của `t` + màu tuỳ chỉnh RIÊNG của nó (không ảnh nền / độ trong
     /// suốt / nền hệ thống — thẻ chỉ để nhận ra theme). Chưa chỉnh ⇒ đúng palette gốc.
-    func cardPalette(for t: KeyboardTheme, systemDark: Bool) -> KeyboardPalette {
-        Self.styled(t.palette(systemDark: systemDark), style: effectiveStyle(for: t), systemDark: systemDark, backdrop: false)
+    /// `now` = giờ cho theme có lịch (Theo giờ: thẻ hiện bảng màu của giờ hiện tại); nil = bảng gốc light/dark ("Chép JSON").
+    func cardPalette(for t: KeyboardTheme, systemDark: Bool, now: Date? = Date()) -> KeyboardPalette {
+        let base = now.map { t.palette(systemDark: systemDark, at: $0) } ?? t.palette(systemDark: systemDark)
+        return Self.styled(base, style: effectiveStyle(for: t), systemDark: systemDark, backdrop: false)
     }
-    func cardPalette(custom c: ThemeSpec, systemDark: Bool) -> KeyboardPalette {
-        Self.styled(c.palette(dark: systemDark), style: effectiveStyle(id: c.id ?? "", typography: c.typography),
-                    systemDark: systemDark, backdrop: false)
+    func cardPalette(custom c: ThemeSpec, systemDark: Bool, now: Date? = Date()) -> KeyboardPalette {
+        let base = now.map { c.palette(dark: systemDark, at: $0) } ?? c.palette(dark: systemDark)
+        return Self.styled(base, style: effectiveStyle(id: c.id ?? "", typography: c.typography),
+                           systemDark: systemDark, backdrop: false)
     }
 
     /// "Chép JSON": theme thực thấy (gồm tuỳ chỉnh) dạng đặc tả đầy đủ — miễn phí.
     func exportSpec(for t: KeyboardTheme) -> ThemeSpec {
         let st = effectiveStyle(for: t)
         // Hệ thống / Kính (vẽ theo nền tảng, không có JSON gốc): xuất màu đã giải trên máy này.
-        return ThemeSpec.export(id: t.rawValue, nameVi: t.spec?.nameVi ?? (t == .glass ? "Kính" : "Hệ thống"),
-                                nameEn: t.spec?.nameEn ?? (t == .glass ? "Glass" : "System"),
-                                light: cardPalette(for: t, systemDark: false), dark: cardPalette(for: t, systemDark: true),
-                                style: st)
+        var s = ThemeSpec.export(id: t.rawValue, nameVi: t.spec?.nameVi ?? (t == .glass ? "Kính" : "Hệ thống"),
+                                 nameEn: t.spec?.nameEn ?? (t == .glass ? "Glass" : "System"),
+                                 light: cardPalette(for: t, systemDark: false, now: nil),
+                                 dark: cardPalette(for: t, systemDark: true, now: nil), style: st)
+        s.schedule = t.spec?.schedule   // lịch theo giờ đi nguyên (bản vá không có "schedule")
+        return s
     }
     func exportSpec(custom c: ThemeSpec) -> ThemeSpec {
         let st = effectiveStyle(id: c.id ?? "", typography: c.typography)
-        return ThemeSpec.export(id: c.id, nameVi: c.nameVi, nameEn: c.nameEn,
-                                light: cardPalette(custom: c, systemDark: false), dark: cardPalette(custom: c, systemDark: true),
-                                style: st)
+        var s = ThemeSpec.export(id: c.id, nameVi: c.nameVi, nameEn: c.nameEn,
+                                 light: cardPalette(custom: c, systemDark: false, now: nil),
+                                 dark: cardPalette(custom: c, systemDark: true, now: nil), style: st)
+        s.schedule = c.schedule
+        return s
     }
     /// Ảnh nền chỉ bật khi có quyền Plus VÀ file tồn tại.
     func wallpaperActive(fileExists: Bool) -> Bool {
@@ -972,8 +1016,10 @@ struct ThemeSettings: Equatable {
         effectiveCustom == nil && effectiveTheme.hasOwnBackground && systemBackdropThemes.contains(effectiveTheme)
     }
 
-    func palette(systemDark: Bool, wallpaperActive: Bool) -> KeyboardPalette {
-        let base = effectiveCustom?.palette(dark: systemDark) ?? effectiveTheme.palette(systemDark: systemDark)
+    /// `now`: giờ chọn bảng màu cho theme có lịch (Theo giờ) — bàn phím gọi MỘT lần mỗi lần hiện (resolvePalette);
+    /// theme khác không đọc giờ.
+    func palette(systemDark: Bool, wallpaperActive: Bool, now: Date = Date()) -> KeyboardPalette {
+        let base = effectiveCustom?.palette(dark: systemDark, at: now) ?? effectiveTheme.palette(systemDark: systemDark, at: now)
         let p = Self.styled(base, style: effectiveKeyStyle, systemDark: systemDark,
                             backdrop: usesSystemBackdrop && !wallpaperActive)
         return (wallpaperActive ? p.overWallpaper() : p)

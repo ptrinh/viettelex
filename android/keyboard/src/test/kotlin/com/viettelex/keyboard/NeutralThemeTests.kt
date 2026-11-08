@@ -29,7 +29,7 @@ class NeutralThemeTests {
     @Test fun neutralIsFreeAppendedAndTitled() {
         val t = KeyboardTheme.NEUTRAL
         assertEquals("neutral", t.id)
-        assertEquals(KeyboardTheme.entries.last(), t)        // thêm cuối — id lưu không đổi thứ tự
+        assertEquals(KeyboardTheme.entries[KeyboardTheme.entries.indexOf(KeyboardTheme.MOLE) + 1], t)   // thêm cuối (sau Đập chuột) — id lưu không đổi thứ tự
         assertFalse(t.isPlus)
         assertEquals(t, KeyboardTheme.of("neutral"))
         assertEquals("Neutral Grey", t.spec?.nameEn)

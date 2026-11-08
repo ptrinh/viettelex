@@ -868,7 +868,8 @@ final class ThemeSetTests: XCTestCase {
                                              .typewriter, .rgb, .space,
                                              .trungthu, .valentine, .halloween,
                                              .guitar,
-                                             .mole]
+                                             .mole,
+                                             .pixel, .sea, .timeOfDay]
     static let pastels: [KeyboardTheme] = [.peach, .mint, .sky, .lavender]
 
     // MARK: bảng màu chung iOS ↔ Android
@@ -903,7 +904,7 @@ final class ThemeSetTests: XCTestCase {
         let f = try fixture()
         XCTAssertEqual(KeyboardTheme.allCases.map(\.rawValue), f.order, "id + thứ tự phải trùng Android")
         XCTAssertEqual(KeyboardTheme.allCases.filter(\.isPlus).map(\.rawValue), f.plus)
-        XCTAssertEqual(f.rows.count, 52)
+        XCTAssertEqual(f.rows.count, 58)
         for r in f.rows {
             let t = try XCTUnwrap(KeyboardTheme(rawValue: r.theme), r.theme)
             let p = t.palette(systemDark: r.dark)
@@ -934,7 +935,8 @@ final class ThemeSetTests: XCTestCase {
 
     /// Đi theo sáng/tối hệ thống TỰ ĐỘNG qua ThemeSettings (không công tắc riêng).
     func testSettingsFollowSystemAppearance() {
-        for t in Self.pastels + Self.newThemes {
+        // Theo giờ bỏ qua sáng/tối hệ thống (lịch theo giờ) — testTimeOfDayThroughSettingsAndCopyJSON.
+        for t in Self.pastels + Self.newThemes where t.spec?.schedule == nil {
             let s = ThemeSettings(theme: t)
             XCTAssertEqual(s.palette(systemDark: true, wallpaperActive: false).background,
                            t.palette(systemDark: true).background, t.rawValue)
@@ -1225,6 +1227,151 @@ final class ThemeSetTests: XCTestCase {
         XCTAssertEqual(t.systemBackdropKey, "systemBackdropGuitar")
     }
 
+    // MARK: bộ 11/2026 — Pixel 8-bit, Biển, Theo giờ
+
+    /// Ba theme mới: Plus, thêm CUỐI (sau Xám trung tính), đúng tên vi/en, âm / hiệu ứng / bo góc / phông đi kèm (≡ Android
+    /// ThemeSetTests.pixelSeaTimeOfDayThemes).
+    func testPixelSeaTimeOfDayThemes() throws {
+        let all = KeyboardTheme.allCases
+        XCTAssertEqual(Array(all.suffix(3)), [.pixel, .sea, .timeOfDay])
+        XCTAssertEqual(all[all.firstIndex(of: .neutral)! + 1], .pixel)
+        let want: [(KeyboardTheme, String, String, String?, String?, Int?)] = [
+            (.pixel, "Pixel 8-bit", "Pixel 8-bit", "chip", "flash", 0),
+            (.sea, "Biển", "Sea", "water", "wave", 60),
+            (.timeOfDay, "Theo giờ", "Time of day", nil, nil, nil)]
+        for (t, vi, en, sound, effect, corner) in want {
+            let spec = try XCTUnwrap(t.spec, t.rawValue)
+            XCTAssertTrue(t.isPlus, t.rawValue)
+            XCTAssertEqual(spec.nameVi, vi); XCTAssertEqual(spec.nameEn, en)
+            XCTAssertEqual(L10n.en[t.title], en)
+            XCTAssertEqual(spec.sound, sound, t.rawValue); XCTAssertEqual(spec.effect, effect, t.rawValue)
+            XCTAssertEqual(spec.corner, corner, t.rawValue)
+            if let sound { XCTAssertTrue(KeySoundStyle.presetIDs.contains(sound)) }
+            if let effect { XCTAssertNotNil(KeyEffect(rawValue: effect)) }
+            XCTAssertNotNil(t.systemBackdropKey.flatMap { BackupSettings.byKey[$0] }, t.rawValue)
+            XCTAssertNotEqual(t.palette(systemDark: false), t.palette(systemDark: true), "\(t) có bản tối riêng")
+        }
+        // Pixel: phím VUÔNG + phông đơn cách đậm (phông hệ thống, không tải gì), viền điểm ảnh, trái tim pixel.
+        let px = try XCTUnwrap(KeyboardTheme.pixel.spec)
+        XCTAssertEqual(px.font, .mono); XCTAssertEqual(px.weight, .bold); XCTAssertTrue(px.assets.isEmpty)
+        XCTAssertEqual(ThemeSettings(theme: .pixel).effectiveKeyStyle.corner, 0)
+        XCTAssertNotNil(KeyboardTheme.pixel.palette(systemDark: false).keyBorder)
+        // Biển: sóng + bọt xen kẽ.
+        XCTAssertEqual(KeyboardTheme.sea.palette(systemDark: false).decoration?.alt, .bubbles)
+        // Chọn theme ⇒ đặt âm + hiệu ứng, KHÔNG bật âm thanh phím.
+        let yes: (String) -> Bool = { _ in true }
+        XCTAssertEqual(ThemeExtras.plan(ThemeSettings(theme: .pixel).effectiveKeyStyle, soundOn: false, effectAllowed: yes, soundAllowed: yes),
+                       ThemeExtras.Outcome(effect: "flash", sound: "chip", soundHint: true))
+        XCTAssertEqual(ThemeExtras.plan(ThemeSettings(theme: .sea).effectiveKeyStyle, soundOn: false, effectAllowed: yes, soundAllowed: yes),
+                       ThemeExtras.Outcome(effect: "wave", sound: "water", soundHint: true))
+    }
+
+    /// Motif mới (pixel / waves / bubbles): cùng chiều quay, trong ô ±0.5, mốc chung Android (ThemeSetTests.newMotifs1111).
+    func testPixelWavesBubblesMotifShapes() {
+        for m in [KeyboardDecoration.Motif.pixel, .waves, .bubbles] {
+            let subs = KeyboardDecoration.shape(m)
+            XCTAssertFalse(subs.isEmpty, m.rawValue)
+            var sum = 0.0
+            for sub in subs {
+                var pts = [[sub.start.0, sub.start.1]]
+                for g in sub.segs { var i = 0; while i < g.count { pts.append([g[i], g[i + 1]]); i += 2 } }
+                var a = 0.0
+                for i in 0..<pts.count { let p = pts[i], q = pts[(i + 1) % pts.count]; a += p[0] * q[1] - q[0] * p[1] }
+                XCTAssertGreaterThan(a, 0, "\(m) chiều quay")
+                for p in pts {
+                    XCTAssertLessThanOrEqual(abs(p[0]), 0.5 + 1e-9, m.rawValue); XCTAssertLessThanOrEqual(abs(p[1]), 0.5 + 1e-9, m.rawValue)
+                    sum += p[0] * 3 + p[1] * 7
+                }
+            }
+            XCTAssertEqual(sum, Self.motifChecksums1111[m.rawValue] ?? .nan, accuracy: 1e-6, m.rawValue)
+        }
+        XCTAssertEqual(KeyboardDecoration.shape(.pixel).count, 7, "mỗi hàng ô liền = một hình chữ nhật")
+        // Path dựng được, nằm gọn trong cỡ motif.
+        let box = KeyboardDecoration(motif: .pixel, color: .white).path([KeyboardDecoration.Placement(x: 0, y: 0, size: 8)]).boundingBoxOfPath
+        XCTAssertLessThanOrEqual(box.width, 8 + 1e-6); XCTAssertLessThanOrEqual(box.height, 8 + 1e-6)
+    }
+    static let motifChecksums1111: [String: Double] = ["pixel": -10.0, "waves": 6.86, "bubbles": 39.71]
+
+    /// Theo giờ: lịch 4 mục (bình minh 05:00, ngày 07:00, hoàng hôn 17:00, đêm 19:00); mốc biên + qua nửa đêm; lịch bỏ qua
+    /// sáng/tối hệ thống; bảng gốc light = ngày, dark = đêm (≡ Android ThemeSetTests.timeOfDaySchedule).
+    func testTimeOfDayScheduleBoundaries() throws {
+        let spec = try XCTUnwrap(KeyboardTheme.timeOfDay.spec)
+        let sc = try XCTUnwrap(spec.schedule)
+        XCTAssertEqual(sc.map(\.from), [300, 420, 1020, 1140])
+        XCTAssertEqual(sc.map { ThemeSchedule.format($0.from) }, ["05:00", "07:00", "17:00", "19:00"])
+        let cases: [(Int, Int)] = [(0, 3), (299, 3), (300, 0), (419, 0), (420, 1), (720, 1), (1019, 1), (1020, 2),
+                                   (1139, 2), (1140, 3), (1439, 3), (1440, 3), (1440 + 300, 0), (-1, 3)]
+        for (m, want) in cases {
+            XCTAssertEqual(ThemeSchedule.index(sc.map(\.from), minute: m), want, "phút \(m)")
+            XCTAssertEqual(spec.slots(dark: true, minute: m), sc[want].slots, "phút \(m) — bỏ qua tối")
+            XCTAssertEqual(spec.slots(dark: false, minute: m), sc[want].slots, "phút \(m) — bỏ qua sáng")
+        }
+        XCTAssertNil(ThemeSchedule.index([], minute: 5))
+        // Bảng gốc (không giờ): light = mục ngày, dark = mục đêm.
+        XCTAssertEqual(spec.light, sc[1].slots); XCTAssertEqual(spec.dark, sc[3].slots)
+        XCTAssertEqual(spec.slots(dark: false, minute: nil), spec.light)
+        // Đồng hồ: ngày cố định (lịch Gregorian, múi UTC) ⇒ đúng phút.
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "UTC")!
+        func at(_ h: Int, _ m: Int) -> Date { cal.date(from: DateComponents(year: 2026, month: 11, day: 8, hour: h, minute: m))! }
+        XCTAssertEqual(ThemeSchedule.minuteOfDay(at(17, 59), calendar: cal), 1079)
+        XCTAssertEqual(ThemeSchedule.minuteOfDay(at(0, 0), calendar: cal), 0)
+        XCTAssertEqual(ThemeSchedule.parseTime("23:59"), 1439)
+        for bad in ["24:00", "7:00", "07:60", "0700", "07-00", "ab:cd", "07:00 ", ""] { XCTAssertNil(ThemeSchedule.parseTime(bad), bad) }
+        // Mọi mục lịch: chữ đọc được như mọi theme (≥ 4.5:1 phím / phím chức năng / phím đè / thanh gợi ý / hoạ tiết).
+        for (i, e) in sc.enumerated() {
+            let p = ThemeSpec.palette(e.slots), bg = try XCTUnwrap(p.background)
+            for (ink, fill, what) in [(p.ink, p.keyFill.over(bg), "phím"), (p.fnInk, p.fnFill.over(bg), "phím chức năng"),
+                                      (p.ink, p.specialFill.over(bg), "phím đè"), (p.barInk, bg, "thanh gợi ý"),
+                                      (p.ink, p.balloon, "ô phóng to")] {
+                XCTAssertGreaterThanOrEqual(RGBA.contrast(ink, fill), 4.5, "mục \(i) \(what)")
+            }
+            XCTAssertGreaterThanOrEqual(RGBA.contrast(p.accentInk, p.accent), 3, "mục \(i) Nhập")
+            XCTAssertEqual(KeyboardTransparency.readable(p.barInk, on: bg), p.barInk)
+            if let d = p.decoration { XCTAssertGreaterThanOrEqual(RGBA.contrast(p.barInk, d.color.over(bg)), 4.5, "mục \(i) hoạ tiết") }
+        }
+        XCTAssertTrue(ThemeSpecParser.contrastIssues(spec).isEmpty)
+        // Đêm tối, ngày sáng (icon / emoji theo nhánh đúng).
+        XCTAssertTrue(ThemeSpec.palette(sc[3].slots).isDark); XCTAssertFalse(ThemeSpec.palette(sc[1].slots).isDark)
+    }
+
+    /// Theo giờ qua ThemeSettings (đường bàn phím dùng): giờ chọn bảng màu, sáng/tối không đổi gì; theme khác không phụ
+    /// thuộc giờ; "Chép JSON" giữ nguyên lịch (khứ hồi), bảng xuất là bảng gốc (không theo giờ).
+    func testTimeOfDayThroughSettingsAndCopyJSON() throws {
+        let cal = Calendar.current
+        func at(_ h: Int) -> Date { cal.date(bySettingHour: h, minute: 0, second: 0, of: Date())! }
+        let s = ThemeSettings(theme: .timeOfDay)
+        let sc = try XCTUnwrap(KeyboardTheme.timeOfDay.spec?.schedule)
+        for (h, i) in [(5, 0), (12, 1), (18, 2), (23, 3), (3, 3)] {
+            let want = ThemeSpec.palette(sc[i].slots).background
+            XCTAssertEqual(s.palette(systemDark: false, wallpaperActive: false, now: at(h)).background, want, "\(h)h")
+            XCTAssertEqual(s.palette(systemDark: true, wallpaperActive: false, now: at(h)).background, want, "\(h)h tối")
+            XCTAssertEqual(s.cardPalette(for: .timeOfDay, systemDark: false, now: at(h)).background, want, "thẻ \(h)h")
+        }
+        // Theme không lịch: giờ không đổi gì.
+        let sea = ThemeSettings(theme: .sea)
+        XCTAssertEqual(sea.palette(systemDark: false, wallpaperActive: false, now: at(3)),
+                       sea.palette(systemDark: false, wallpaperActive: false, now: at(15)))
+        // "Chép JSON" → dán: lịch đi nguyên, chuỗi chuẩn khứ hồi; bảng xuất = bảng gốc.
+        let text = try XCTUnwrap(ThemeJSONActions.copyText(.builtin(.timeOfDay), settings: s, store: [:]))
+        XCTAssertTrue(text.contains("\"schedule\""), text)
+        let back = try XCTUnwrap(ThemeSpecParser.parse(text).spec)
+        XCTAssertEqual(back.schedule, sc)
+        XCTAssertEqual(ThemeSpecParser.parse(back.canonical).spec, back)
+        XCTAssertEqual(back.light, KeyboardTheme.timeOfDay.spec?.light)
+        // Theme tự tạo có lịch: lưu kho khứ hồi, đổi theo giờ như theme có sẵn.
+        var custom = back; custom.id = "mysky"
+        let restored = try XCTUnwrap(CustomThemeStore.parse(CustomThemeStore.serialize(["mysky": custom]))["mysky"])
+        XCTAssertEqual(restored.schedule, sc)
+        XCTAssertEqual(restored.palette(dark: false, at: at(18)).background, ThemeSpec.palette(sc[2].slots).background)
+        // Lưu lại bản chép của theme có sẵn: không đổi gì (bản vá rỗng — lịch luôn theo theme gốc).
+        var settings = s, store: [String: ThemeSpec] = [:]
+        XCTAssertTrue(ThemeJSONActions.save(text, to: .builtin(.timeOfDay), settings: &settings, store: &store).ok)
+        for h in [6, 12, 18, 23] {
+            XCTAssertEqual(settings.palette(systemDark: false, wallpaperActive: false, now: at(h)),
+                           s.palette(systemDark: false, wallpaperActive: false, now: at(h)), "\(h)h")
+        }
+    }
+
     /// "spaceDeco": đọc / chép / dán / chuẩn hoá khứ hồi; giá trị lạ ⇒ lỗi; bản vá bỏ được ("none").
     func testSpaceDecoJSONRoundTrip() throws {
         let text = try XCTUnwrap(ThemeJSONActions.copyText(.builtin(.guitar), settings: ThemeSettings(theme: .guitar), store: [:]))
@@ -1439,7 +1586,8 @@ final class ThemeSetTests: XCTestCase {
     func testNeutralThemeFreeGreyFollowsSystem() throws {
         let t = KeyboardTheme.neutral
         XCTAssertEqual(t.rawValue, "neutral")
-        XCTAssertEqual(KeyboardTheme.allCases.last, t, "thêm CUỐI — rawValue lưu không đổi thứ tự")
+        XCTAssertEqual(KeyboardTheme.allCases[KeyboardTheme.allCases.firstIndex(of: .mole)! + 1], t,
+                       "thêm cuối (sau Đập chuột) — rawValue lưu không đổi thứ tự")
         XCTAssertFalse(t.isPlus)
         XCTAssertEqual(L10n.en["Xám trung tính"], "Neutral Grey")
         XCTAssertEqual(t.spec?.nameEn, "Neutral Grey")
@@ -1507,6 +1655,9 @@ final class ThemeSetTests: XCTestCase {
                 case .halloween: XCTAssertEqual(m, .pumpkin)
                 case .guitar: XCTAssertEqual(m, .strings)
                 case .mole: XCTAssertEqual(m, .flowers)
+                case .pixel: XCTAssertEqual(m, .pixel)
+                case .sea: XCTAssertEqual(m, .waves)
+                case .timeOfDay: XCTAssertEqual(m, dark ? .star : nil, "bảng gốc: ngày không hoạ tiết, đêm có sao")
                 default: XCTAssertNil(m, t.rawValue)
                 }
             }
@@ -1578,17 +1729,19 @@ final class ThemeSetTests: XCTestCase {
     // MARK: đi cùng độ trong suốt / ảnh nền / Nền theo hệ thống / Tuỳ chỉnh nâng cao (tối)
 
     func testDarkComposesWithTransparencyWallpaperBackdropAndAdvanced() {
+        // Theo giờ bỏ qua sáng/tối hệ thống ⇒ chốt giờ đêm (23h) để bảng tối = bảng đêm; theme khác không đọc giờ.
+        let night = Calendar.current.date(bySettingHour: 23, minute: 0, second: 0, of: Date())!
         for t in Self.pastels + Self.newThemes {
             let base = t.palette(systemDark: true)
             // Ảnh nền: bỏ nền + hoạ tiết; chữ ≥ 4.5 trên ảnh tệ nhất cả ở phím chức năng.
-            let wp = ThemeSettings(theme: t).palette(systemDark: true, wallpaperActive: true)
+            let wp = ThemeSettings(theme: t).palette(systemDark: true, wallpaperActive: true, now: night)
             XCTAssertNil(wp.background); XCTAssertNil(wp.decoration)
             if t != .piano { XCTAssertTrue(wp.isDark, t.rawValue) }   // Piano: phím ngà chữ đen ở cả hai chế độ
             XCTAssertGreaterThanOrEqual(RGBA.contrast(wp.fnInk, wp.fnFill.over(.white)), 4.5, "\(t) phím chức năng trên ảnh")
             // Nền theo hệ thống: không hoạ tiết, bảng emoji theo nền tối.
             var sb = ThemeSettings(theme: t)
             sb.systemBackdropThemes = [t]
-            let sp = sb.palette(systemDark: true, wallpaperActive: false)
+            let sp = sb.palette(systemDark: true, wallpaperActive: false, now: night)
             XCTAssertNil(sp.background); XCTAssertNil(sp.decoration); XCTAssertEqual(sp.surfaceDark, true)
             // Độ trong suốt: hoạ tiết + nền chức năng mờ theo phím; chữ vẫn đọc được trên backdrop.
             let half = base.withTransparency(keyboard: 50, labels: 0, systemDark: true, wallpaper: false)

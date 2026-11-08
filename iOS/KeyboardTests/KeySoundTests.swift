@@ -87,7 +87,7 @@ final class KeySoundTests: XCTestCase {
         // Chỉ số case = seed nhiễu: các kiểu cũ giữ nguyên vị trí (mẫu + checksum không đổi).
         XCTAssertEqual(KeySoundStyle.allCases.map(\.rawValue),
                        ["subtle", "wood", "mechanical", "typewriter", "bubble", "custom", "system", "rock", "pop", "water", "vintage",
-                        "phao", "jingle", "piano", "dantranh", "scifi", "trong", "boo", "guitar", "bop"])
+                        "phao", "jingle", "piano", "dantranh", "scifi", "trong", "boo", "guitar", "bop", "chip"])
         XCTAssertEqual(L10n.en["iOS"], "System click")
         for st in KeySoundStyle.allCases { XCTAssertNotNil(L10n.en[st.viTitle], "\(st) thiếu bản EN") }
         XCTAssertNotNil(L10n.en["Âm thanh gõ"])
@@ -238,10 +238,29 @@ final class KeySoundTests: XCTestCase {
         XCTAssertEqual(L10n.en["Trống lân"], "Lion drum"); XCTAssertEqual(L10n.en["Ma quái"], "Spooky")
     }
 
+    /// "Bíp 8-bit" (theme Pixel 8-bit): KHÔNG to hơn "Gõ gỗ" (đỉnh + RMS cả 3 loại phím), ngắn (≤ 55 ms), sáng (trọng
+    /// tâm phổ cao — sóng vuông), hai nốt (nốt sau cao hơn); checksum chung Android (KeySoundTests.kt chipBlip).
+    func testChipBlipQuietShortAndShared() {
+        for k in KeySoundKind.allCases {
+            let wood = KeySoundSynth.samples(.wood, k), a = KeySoundSynth.samples(.chip, k)
+            XCTAssertLessThan(KeySoundSynth.rms(a), KeySoundSynth.rms(wood), "\(k)")
+            XCTAssertLessThan(a.map(abs).max() ?? 1, wood.map(abs).max() ?? 0, "\(k)")
+            XCTAssertLessThan(Double(a.count) / KeySoundSynth.sampleRate, 0.056, "\(k)")
+            XCTAssertGreaterThan(KeySoundSynth.spectralCentroid(a), 1000, "\(k) sóng vuông sáng")
+        }
+        let golden: [(KeySoundKind, Double)] = Self.chipGolden
+        for (k, want) in golden {
+            XCTAssertEqual(KeySoundSynth.samples(.chip, k).reduce(0.0) { $0 + Double(abs($1)) }, want, accuracy: 0.01, "\(k)")
+        }
+        XCTAssertEqual(L10n.en["Bíp 8-bit"], "8-bit blip")
+        XCTAssertTrue(KeySoundStyle.presets.contains(.chip))
+    }
+    static let chipGolden: [(KeySoundKind, Double)] = [(.letter, 214.9587), (.delete, 213.1522), (.modifier, 237.6303)]
+
     /// Danh sách id DUY NHẤT cho trường "sound" của theme JSON; "theme" (đã bỏ) ⇒ mặc định.
     func testPresetIDsForThemeJSON() {
         XCTAssertEqual(KeySoundStyle.presetIDs, ["subtle", "wood", "mechanical", "typewriter", "bubble", "rock", "pop",
-                                                 "water", "vintage", "phao", "jingle", "scifi", "trong", "boo", "bop", "piano", "dantranh",
+                                                 "water", "vintage", "phao", "jingle", "scifi", "trong", "boo", "bop", "chip", "piano", "dantranh",
                                                  "guitar"])
         for bad in ["system", "custom", "theme"] { XCTAssertFalse(KeySoundStyle.presetIDs.contains(bad), bad) }
         XCTAssertEqual(KeySoundStyle.resolve("theme", customAvailable: true), .subtle)

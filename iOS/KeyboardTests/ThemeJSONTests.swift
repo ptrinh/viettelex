@@ -61,8 +61,9 @@ final class ThemeJSONTests: XCTestCase {
             if !L10n.isEnglish { XCTAssertEqual(s.nameVi, t.title, "tên vi = khoá L10n") }
             XCTAssertTrue(ThemeSpecParser.contrastIssues(s).filter(\.isError).isEmpty, id)
             // spec → palette → spec: y nguyên (chưa tuỳ chỉnh gì).
-            let back = ThemeSpec.export(id: id, nameVi: s.nameVi, nameEn: s.nameEn,
+            var back = ThemeSpec.export(id: id, nameVi: s.nameVi, nameEn: s.nameEn,
                                         light: s.palette(dark: false), dark: s.palette(dark: true), style: s.typography)
+            back.schedule = s.schedule   // lịch theo giờ (Theo giờ) không nằm trong palette — đi riêng
             XCTAssertEqual(back.canonical, s.canonical, id)
             // Chuỗi chuẩn đọc lại = chính nó.
             XCTAssertEqual(try Self.spec(s.canonical).canonical, s.canonical, id)
@@ -147,6 +148,17 @@ final class ThemeJSONTests: XCTestCase {
             plans += 1
         }
         XCTAssertGreaterThanOrEqual(plans, 6)
+        // Theo giờ: mục lịch + màu chữ ở phút cho trước (cả nửa đêm / ngoài ngày) — chung Android.
+        var scheds = 0
+        for c in try fixtureLines() where c.first == "SCHED" {
+            let s = try XCTUnwrap(specs[c[1]], c[1])
+            let m = try XCTUnwrap(Int(c[2]))
+            XCTAssertEqual(s.scheduleIndex(minute: m), Int(c[3]), "SCHED \(c[1]) \(m)")
+            XCTAssertEqual(hex(ThemeSpec.palette(s.slots(dark: false, minute: m)).ink), c[4], "SCHED ink \(c[1]) \(m)")
+            XCTAssertEqual(s.slots(dark: true, minute: m), s.slots(dark: false, minute: m), "lịch bỏ qua sáng/tối")
+            scheds += 1
+        }
+        XCTAssertGreaterThanOrEqual(scheds, 6)
     }
 
     // MARK: fuzz — không crash, hoặc model hợp lệ hoặc lỗi

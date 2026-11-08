@@ -282,7 +282,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
 
     editor?.let { input ->
         WallpaperEditorDialog(input.image, input.crop, remember(input) { KeyboardFrame.portrait(ctx) },
-            palette = s.styledCurrent(s.basePalette(dark) ?: systemPreviewPalette(ctx, s, dark), dark).overWallpaper()
+            palette = s.styledCurrent(s.basePaletteNow(dark) ?: systemPreviewPalette(ctx, s, dark), dark).overWallpaper()
                 .withTransparency(s.keyboardTransparency, s.labelTransparency, dark),
             initialDim = s.dim, initialBlur = s.blur,
             onCancel = { editor = null },
@@ -305,13 +305,13 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     }
 
     if (pickingEffect) {
-        KeyEffectPage(s.styledCurrent(s.basePalette(dark) ?: systemPreviewPalette(ctx, s, dark), dark),
+        KeyEffectPage(s.styledCurrent(s.basePaletteNow(dark) ?: systemPreviewPalette(ctx, s, dark), dark),
             onOpenPlus = onOpenPlus, onBack = { pickingEffect = false })
         return
     }
 
     if (pickingBuddy) {
-        BuddyPage(s.styledCurrent(s.basePalette(dark) ?: systemPreviewPalette(ctx, s, dark), dark), s.effectiveTheme.id,
+        BuddyPage(s.styledCurrent(s.basePaletteNow(dark) ?: systemPreviewPalette(ctx, s, dark), dark), s.effectiveTheme.id,
             onOpenPlus = onOpenPlus, onBack = { pickingBuddy = false })
         return
     }
@@ -319,7 +319,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     SubPageHeader(FeaturePage.GiaoDien.title, onBack)
 
     val active = s.wallpaperActive(wall != null)
-    val pal = s.styledCurrent(s.basePalette(dark) ?: systemPreviewPalette(ctx, s, dark), dark)
+    val pal = s.styledCurrent(s.basePaletteNow(dark) ?: systemPreviewPalette(ctx, s, dark), dark)
         .let { if (active) it.overWallpaper() else it }
         .withTransparency(s.keyboardTransparency, s.labelTransparency, dark)
     val raise by rememberIntPref(Keys.KEYBOARD_RAISE, Prefs.D.keyboardRaise)
@@ -339,7 +339,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     VTSection(header = "Theme") {
         VTRow(onClick = { picking = true }) {
             KeyboardPreview(s.custom?.let { s.styledCustom(it, dark) }
-                ?: s.styled(s.theme, s.theme.palette(dark) ?: systemPreviewPalette(ctx, s, dark), dark), null, 0,
+                ?: s.styled(s.theme, s.theme.paletteNow(dark) ?: systemPreviewPalette(ctx, s, dark), dark), null, 0,
                 large = false, keyStyle = s.custom?.let { s.effectiveStyleFor(it.id ?: "", it.typography) } ?: s.effectiveStyleFor(s.theme),
                 modifier = Modifier.width(56.dp).height(36.dp).clip(RoundedCornerShape(6.dp))
                     .border(1.dp, c.separator, RoundedCornerShape(6.dp)))

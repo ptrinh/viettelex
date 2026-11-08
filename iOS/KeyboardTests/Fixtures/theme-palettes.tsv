@@ -4,8 +4,8 @@
 # Màu: AARRGGBB (alpha cắt cụt a*255); '-' = không có. fn = nền phím chức năng + phím cách riêng;
 # fnInk = chữ/icon phím chức năng riêng; deco = hoạ tiết nền motif[+alt]:màu (alt = motif thứ hai xen kẽ). Hệ thống / Kính khác nhau theo
 # nền tảng (backdrop) nên không có ở đây.
-order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral
-plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole
+order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral,pixel,sea,timeOfDay
+plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,pixel,sea,timeOfDay
 #theme	dark	bg	key	special	ink	accent	accentInk	border	fn	fnInk	deco
 oled	0	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
 oled	1	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
@@ -59,3 +59,9 @@ mole	0	FF3D7A24	FF7A4A2A	FF5C3820	FFFFF4DC	FFF4C542	FF3B2410	FF3A2212	FF5C3820	F
 mole	1	FF3D7A24	FF7A4A2A	FF5C3820	FFFFF4DC	FFF4C542	FF3B2410	FF3A2212	FF5C3820	FFFFE3A3	flowers:73245214
 neutral	0	FFE8EAED	FFFFFFFF	FFD2D5DA	FF1F1F1F	FF5F6368	FFFFFFFF	-	-	-	-
 neutral	1	FF202124	FF3C4043	FF2D2E31	FFE8EAED	FF9AA0A6	FF202124	-	-	-	-
+pixel	0	FF8BAC0F	FF9BBC0F	FFB7CF55	FF0F380F	FF306230	FFE0F8D0	FF0F380F	FF306230	FFE0F8D0	pixel:80C8DE5A
+pixel	1	FF0B1F0B	FF1C3A1C	FF2C522C	FFC6E86A	FF306230	FFE0F8D0	669BBC0F	FF132B13	FF9BBC0F	pixel:4D9BBC0F
+sea	0	FFCDEBF2	FFFFF9EF	FFEED9B7	FF0B3C5D	FF0E7C93	FFFFFFFF	-	FFE9D4AE	FF0B3C5D	waves+bubbles:730E7C93
+sea	1	FF05263A	FF0F3D58	FF175676	FFE3F6FB	FF0E7C93	FFFFFFFF	-	FF0A3049	FFF2DFC0	waves+bubbles:598FD3E3
+timeOfDay	0	FFCFE6FA	FFFFFFFF	FFA8CDEF	FF0E3557	FF3567D6	FFFFFFFF	-	FFB8D8F5	FF0E3557	-
+timeOfDay	1	FF0B1430	FF1B2648	FF2A3870	FFE6ECFF	FF3567D6	FFFFFFFF	-	FF121C3B	FFC9D4FF	star:4DFFFFFF

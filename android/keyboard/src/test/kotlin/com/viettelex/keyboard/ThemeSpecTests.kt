@@ -84,7 +84,8 @@ class ThemeSpecTests {
             val t = KeyboardTheme.entries.first { it.id == id }
             assertEquals("tên vi = khoá L10n", t.viTitle, s.nameVi)
             assertTrue(id, ThemeSpecParser.contrastIssues(s).none { it.isError })
-            val back = ThemeSpec.export(id, s.nameVi, s.nameEn, s.palette(false), s.palette(true), s.typography)
+            // Lịch theo giờ (Theo giờ) không nằm trong palette — đi riêng.
+            val back = ThemeSpec.export(id, s.nameVi, s.nameEn, s.palette(false), s.palette(true), s.typography).copy(schedule = s.schedule)
             assertEquals(id, s.canonical, back.canonical)
             assertEquals(id, s.canonical, spec(s.canonical).canonical)
             assertEquals(id, s.canonical, ThemeSettings().exportSpec(t, base.palette(t, false), base.palette(t, true)).canonical)
@@ -135,6 +136,17 @@ class ThemeSpecTests {
             plans++
         }
         assertTrue(plans >= 6)
+        // Theo giờ: mục lịch + màu chữ ở phút cho trước (cả nửa đêm / ngoài ngày) — chung iOS.
+        var scheds = 0
+        for (cs in fixtureLines().filter { it[0] == "SCHED" }) {
+            val s = specs[cs[1]] ?: error(cs[1])
+            val m = cs[2].toInt()
+            assertEquals("SCHED ${cs[1]} $m", cs[3].toInt(), s.scheduleIndex(m))
+            assertEquals("SCHED ink ${cs[1]} $m", cs[4], hex(s.palette(false, m).ink))
+            assertEquals("lịch bỏ qua sáng/tối", s.slots(false, m), s.slots(true, m))
+            scheds++
+        }
+        assertTrue(scheds >= 6)
     }
 
     // ---- fuzz — không crash, hoặc model hợp lệ hoặc lỗi

@@ -274,7 +274,12 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     MOLE("mole", "Đập chuột", true), // l10n-key
     // Xám trung tính (issue #137, 30/10/2026): miễn phí, kiểu Gboard xám — cho người không thích tím Material You của
     // Hệ thống. Theo sáng/tối hệ thống. Id trùng iOS; THÊM CUỐI (id lưu, không đổi thứ tự).
-    NEUTRAL("neutral", "Xám trung tính", false); // l10n-key
+    NEUTRAL("neutral", "Xám trung tính", false), // l10n-key
+    // Bộ 11/2026 (Plus, THÊM CUỐI) — id trùng iOS: Pixel 8-bit (máy chơi game cầm tay, phím vuông, âm "chip"), Biển
+    // (xanh biển + cát, sóng + bọt, Sóng nước), Theo giờ (bảng màu đổi theo giờ địa phương — "schedule" theme JSON).
+    PIXEL("pixel", "Pixel 8-bit", true), // l10n-key
+    SEA("sea", "Biển", true), // l10n-key
+    TIME_OF_DAY("timeOfDay", "Theo giờ", true); // l10n-key
 
     /** Bo góc mặc định (% như [KeyStyle.corner]) khi người dùng chưa chỉnh — null = bo stock. iOS cùng giá trị. */
     val defaultCorner: Int? get() = spec?.corner
@@ -306,6 +311,16 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
             // Thiếu (không xảy ra — test khoá) ⇒ null ⇒ IME vẽ như Hệ thống, không crash.
             else -> spec?.palette(systemDark)
         }
+    }
+
+    /** Thẻ / xem trước trong app: theme có lịch ⇒ bảng màu của giờ hiện tại; theme khác = [palette] (không đọc giờ). */
+    fun paletteNow(systemDark: Boolean): ThemePalette? =
+        palette(systemDark, if (spec?.schedule != null) ThemeSchedule.minuteOfDay() else null)
+
+    /** Palette ở phút [minute] trong ngày (theme có lịch "schedule" — Theo giờ); theme khác / null ⇒ [palette]. */
+    fun palette(systemDark: Boolean, minute: Int?): ThemePalette? {
+        val s = spec
+        return if (s?.schedule != null && minute != null) s.palette(systemDark, minute) else palette(systemDark)
     }
 
     /** Đặc tả JSON của theme có sẵn (null = Hệ thống / Kính — vẽ theo nền tảng). */
@@ -357,9 +372,16 @@ data class ThemeDecoration(val motif: String, val color: Int, val density: Int =
         // Ghi-ta (10/2026): dây đàn kéo NGANG HẾT khe hàng (một lần mỗi khe, dày dần ở khe dưới) + chấm khảm xà cừ.
         const val STRINGS = "strings"
         const val INLAY = "inlay"
+        // Bộ 11/2026: trái tim điểm ảnh 7×6 (Pixel 8-bit); ngọn sóng + cụm bọt (Biển).
+        const val PIXEL = "pixel"
+        const val WAVES = "waves"
+        const val BUBBLES = "bubbles"
         /** Danh sách trắng motif (theme JSON chỉ nhận các id này) — iOS KeyboardDecoration.Motif y hệt. */
         val MOTIFS = listOf(HEARTS, FLOWERS, MAI, DAO, SNOWFLAKE, STAR, NOTES,
-            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY)
+            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY, PIXEL, WAVES, BUBBLES)
+        /** Trái tim điểm ảnh của motif "pixel": (hàng, cột đầu, cột cuối loại trừ) trên lưới 7×6 — iOS pixelRuns y hệt. */
+        val PIXEL_RUNS: List<IntArray> = listOf(intArrayOf(0, 1, 3), intArrayOf(0, 4, 6), intArrayOf(1, 0, 7), intArrayOf(2, 0, 7),
+            intArrayOf(3, 1, 6), intArrayOf(4, 2, 5), intArrayOf(5, 3, 4))
 
         /** Độ dày dây ở khe thứ [i] (0 = khe trên cùng; dp) — dây dưới dày hơn như dây trầm. iOS y hệt. */
         fun stringThickness(i: Int): Double = minOf(0.6 + 0.3 * i, 1.5)
@@ -551,6 +573,22 @@ data class ThemeDecoration(val motif: String, val color: Int, val density: Int =
                     MotifSub(-0.08, 0.1, listOf(d(-0.12, 0.02, -0.18, 0.0, -0.22, 0.06), d(-0.26, -0.02, -0.32, -0.04, -0.36, 0.02),
                         d(-0.4, -0.04, -0.44, -0.04, -0.48, -0.12), d(-0.36, -0.24, -0.18, -0.22, -0.06, -0.08))))
                 INLAY -> listOf(ell(0.0, 0.0, 0.22, 0.22))   // chấm khảm xà cừ tròn nhỏ
+                // Trái tim điểm ảnh: mỗi hàng ô liền = MỘT hình chữ nhật (trên-trái → trên-phải → dưới-phải → dưới-trái).
+                PIXEL -> {
+                    val c = 1.0 / 7; val top = -3.0 / 7
+                    PIXEL_RUNS.map { r ->
+                        val x0 = -0.5 + r[1] * c; val x1 = -0.5 + r[2] * c; val y0 = top + r[0] * c; val y1 = y0 + c
+                        poly(d(x0, y0), d(x1, y0), d(x1, y1), d(x0, y1))
+                    }
+                }
+                // Ngọn sóng: dải lượn hình sin dày 0.14 (mép trên trái → phải, mép dưới phải → trái).
+                WAVES -> {
+                    val w = 0.14
+                    listOf(MotifSub(-0.5, 0.0, listOf(d(-0.33, -0.3, -0.17, -0.3, 0.0, 0.0), d(0.17, 0.3, 0.33, 0.3, 0.5, 0.0),
+                        d(0.5, w), d(0.33, 0.3 + w, 0.17, 0.3 + w, 0.0, w), d(-0.17, -0.3 + w, -0.33, -0.3 + w, -0.5, w))))
+                }
+                // Cụm bọt: một bọt to + hai bọt nhỏ lệch phải.
+                BUBBLES -> listOf(ell(-0.12, 0.14, 0.3, 0.3), ell(0.27, -0.2, 0.15, 0.15), ell(0.36, 0.26, 0.09, 0.09))
                 else -> emptyList()
             }
         }
@@ -758,12 +796,22 @@ data class ThemeSettings(
 
     /** Palette gốc thực dùng (theme tự tạo hoặc có sẵn); null = Hệ thống (màu resource — app/IME cấp). */
     fun basePalette(dark: Boolean): ThemePalette? = effectiveCustom?.palette(dark) ?: effectiveTheme.palette(dark)
+    /** Xem trước trong app: theme có lịch theo giờ (Theo giờ) ⇒ bảng màu của giờ hiện tại; theme khác = [basePalette]. */
+    fun basePaletteNow(dark: Boolean): ThemePalette? = basePaletteAt(dark, scheduleMinuteNow())
+
+    /** Đặc tả có lịch theo giờ của theme ĐANG dùng (Theo giờ / theme tự tạo có "schedule"); null = không đọc giờ. */
+    val scheduledSpec: ThemeSpec? get() = (effectiveCustom ?: effectiveTheme.spec)?.takeIf { it.schedule != null }
+    /** Phút hiện tại nếu theme đang dùng có lịch (đọc đồng hồ MỘT lần — IME gọi lúc dựng theme); không lịch ⇒ null. */
+    fun scheduleMinuteNow(): Int? = scheduledSpec?.let { ThemeSchedule.minuteOfDay() }
+    /** Như [basePalette] ở phút [minute] (theme có lịch đổi bảng màu theo giờ). */
+    fun basePaletteAt(dark: Boolean, minute: Int?): ThemePalette? =
+        effectiveCustom?.palette(dark, minute) ?: effectiveTheme.palette(dark, minute)
 
     /**
      * Như [basePalette] nhưng giải luôn Hệ thống theo [materialYou] trên máy API [sdk]: null CHỈ khi Hệ thống dùng màu
      * Material You (IME/app đọc resource v31); Hệ thống tắt Material You (hoặc máy < 12) ⇒ [SystemColors.static].
      */
-    fun basePalette(dark: Boolean, sdk: Int): ThemePalette? = basePalette(dark)
+    fun basePalette(dark: Boolean, sdk: Int, minute: Int? = null): ThemePalette? = basePaletteAt(dark, minute)
         ?: if (SystemColors.useDynamic(materialYou, sdk)) null else SystemColors.static(dark)
 
     /** Theme + tuỳ chỉnh RIÊNG của nó (vá chế độ → màu chữ/phím → màu nhấn), trước ảnh nền / độ trong suốt. */
@@ -777,8 +825,9 @@ data class ThemeSettings(
     fun exportSpec(t: KeyboardTheme, baseLight: ThemePalette, baseDark: ThemePalette): ThemeSpec =
         ThemeSpec.export(t.id, t.spec?.nameVi ?: t.viTitle, t.spec?.nameEn ?: if (t == KeyboardTheme.GLASS) "Glass" else "System",
             styled(t, baseLight, false), styled(t, baseDark, true), effectiveStyleFor(t))
+            .copy(schedule = t.spec?.schedule)   // lịch theo giờ đi nguyên (bản vá không có "schedule")
     fun exportSpec(c: ThemeSpec): ThemeSpec = ThemeSpec.export(c.id, c.nameVi, c.nameEn, styledCustom(c, false),
-        styledCustom(c, true), effectiveStyleFor(c.id ?: "", c.typography))
+        styledCustom(c, true), effectiveStyleFor(c.id ?: "", c.typography)).copy(schedule = c.schedule)
 
     fun toMap(): Map<String, Any> = mapOf(Keys.KEYBOARD_THEME to themeId, Keys.WALLPAPER_ENABLED to wallpaper,
         Keys.WALLPAPER_DIM to dim, Keys.WALLPAPER_BLUR to blur, Keys.WALLPAPER_VERSION to version,
