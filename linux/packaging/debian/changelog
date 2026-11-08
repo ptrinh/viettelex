@@ -1,3 +1,19 @@
+viettelex (1.0.24) UNRELEASED; urgency=medium
+
+  * Gợi ý âm lịch: gõ "âm lịch", "ngày âm" hoặc "ÂL" rồi dấu cách → "30/9 năm
+    Bính Ngọ"; gõ "Tết" → ngày mùng 1 Tết tới.
+  * Sửa: "AAL" ra "ÂL"; "5k/thangs" ra "5k/tháng".
+  * Nhật ký gỡ lỗi gọn hơn, ghi đủ bối cảnh ở đầu và không còn ghi chữ trước
+    con trỏ.
+  * ---
+  * Lunar date hint: type "âm lịch", "ngày âm" or "ÂL" then space → "30/9 năm
+    Bính Ngọ"; type "Tết" for the next Lunar New Year's date.
+  * Fixed: "AAL" gives "ÂL"; "5k/thangs" gives "5k/tháng".
+  * Leaner debug log with full context at the top; text before the cursor is
+    no longer logged.
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Sun, 08 Nov 2026 19:00:00 +0700
+
 viettelex (1.0.23) UNRELEASED; urgency=medium
 
   * Gõ tắt bằng ký hiệu (=> → ⟶, <> → ⟷) chạy được khi đứng riêng
