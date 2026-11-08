@@ -647,6 +647,18 @@ enum EmojiWords {
 
 // MARK: - Overlay
 
+extension UIView {
+    /// Lớp phủ trọn `host` dùng CHUNG hệ toạ độ với host: khung = host.bounds, gốc bounds = gốc bounds
+    /// của host. KeyboardView dời gốc bounds lên phần host cấp dư (#151); lớp phủ chỉ đặt frame một lần
+    /// (hay dựa autoresizing — không theo gốc) sẽ lệch cả phần dư ⇒ hiệu ứng / ô phóng to vẽ sai chỗ.
+    /// Không đổi gì thì không chạm layer.
+    func shareCoordinateSpace(with host: UIView) {
+        let b = host.bounds
+        if frame != b { frame = b }
+        if bounds.origin != b.origin { bounds.origin = b.origin }
+    }
+}
+
 /// Lớp phủ hiệu ứng — một UIView không nhận chạm, phủ trọn KeyboardView.
 ///
 /// Hạt / mực / sóng / emoji: mỗi lần bấm = MỘT "chùm" (CALayer chứa vài layer con). Animation gắn MỘT
@@ -762,11 +774,7 @@ final class KeyEffectOverlay: UIView {
 
     /// Đặt overlay trùng hệ toạ độ của `host` (khung = host.bounds, cùng gốc bounds) ⇒ toạ độ host
     /// dùng thẳng trong overlay dù host dời gốc bounds. Không đổi gì thì không chạm layer.
-    static func match(_ o: KeyEffectOverlay, to host: UIView) {
-        let b = host.bounds
-        if o.frame != b { o.frame = b }
-        if o.bounds.origin != b.origin { o.bounds.origin = b.origin }
-    }
+    static func match(_ o: KeyEffectOverlay, to host: UIView) { o.shareCoordinateSpace(with: host) }
 
     func configure(effect: KeyEffect, color: UIColor, keyFill: UIColor? = nil, dark: Bool? = nil) {
         let kf = keyFill ?? self.keyFill, dk = dark ?? self.dark

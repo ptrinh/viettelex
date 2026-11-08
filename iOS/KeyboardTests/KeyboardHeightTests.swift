@@ -766,10 +766,25 @@ final class HostOversizeControllerTests: XCTestCase {
         XCTAssertEqual(qTall.minY, qRef.minY, accuracy: 1, "chrome trên hàng phím xếp như khung vừa đủ")
         XCTAssertEqual(qTall.height, qRef.height, accuracy: 1)
         XCTAssertEqual(kb.bounds.minY, -kb.oversizeShift, accuracy: 0.01, "phần dư nằm trên đỉnh nội dung")
-        // Hiệu ứng phím (tia sét) cùng hệ toạ độ với bàn phím cả khi cao tạm lẫn khi về vừa đủ.
+        // Video 08/11 (1.2.32): tia sét đánh lên thanh trạng thái. Mọi lớp phủ trọn bàn phím (hiệu ứng
+        // phím, ô phóng to, game) vẽ theo toạ độ KeyboardView ⇒ phải cùng hệ toạ độ, cả khi cao tạm
+        // lẫn khi về vừa đủ; ô phóng to phải nằm ngay trên phím được bấm.
+        let qKey = try! XCTUnwrap(kb.debugDomainKeyView("q") ?? kb.debugDomainKeyView("Q"))
+        kb.debugShowBalloon(over: qKey, text: "q")
         func checkFx(_ why: String) {
-            guard let o = kb.keyEffects else { return XCTFail("tia sét phải bật: \(why)") }
-            XCTAssertEqual(o.convert(qTall, from: kb), qTall, why)
+            guard kb.keyEffects != nil else { return XCTFail("tia sét phải bật: \(why)") }
+            XCTAssertTrue(kb.debugBalloonMade, why)
+            for o in kb.debugCoordinateOverlays {
+                XCTAssertEqual(o.convert(qTall, from: kb), qTall, "\(type(of: o)) lệch toạ độ: \(why)")
+                XCTAssertEqual(o.frame, kb.bounds, "\(type(of: o)) phủ trọn bàn phím: \(why)")
+            }
+            if let bf = kb.debugBalloonFrame, let host = kb.debugCoordinateOverlays.first(where: { $0.subviews.contains { $0.frame == bf } }) {
+                let inKb = kb.convert(bf, from: host)
+                let key = kb.convert(qKey.bounds, from: qKey)
+                XCTAssertEqual(inKb.midX, key.midX, accuracy: key.width, "ô phóng to trên phím q: \(why)")
+                XCTAssertLessThanOrEqual(inKb.minY, key.minY, "ô phóng to nhô lên trên phím: \(why)")
+                XCTAssertGreaterThanOrEqual(inKb.maxY, key.minY, "ô phóng to chạm phím: \(why)")
+            }
         }
         checkFx("khung cao tạm")
         vc.view.frame = CGRect(x: 0, y: H - req, width: w, height: req); pass()

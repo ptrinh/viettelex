@@ -980,7 +980,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         layoutStripZones()
         layoutOverlayPanel()
         layoutBackdrop()
-        if balloonMade, balloonHost.frame != bounds { balloonHost.frame = bounds }
+        if balloonMade { balloonHost.shareCoordinateSpace(with: self) }
+        mole?.shareCoordinateSpace(with: self)
         StartupTrace.span("kv.wallpaper+screens") {
             loadWallpaperIfNeeded()
             loadThemeScreensIfNeeded()
@@ -5034,6 +5035,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }()
     var debugBalloonMade: Bool { balloonMade }
     #if DEBUG
+    /// Mọi lớp phủ trọn bàn phím vẽ theo toạ độ của KeyboardView (test #151: phải chung hệ toạ độ).
+    /// Thêm lớp phủ mới kiểu này ⇒ thêm vào đây.
+    var debugCoordinateOverlays: [UIView] {
+        [keyEffects, balloonMade ? balloonHost : nil, mole].compactMap { $0 }
+    }
     /// Test: tệp tải về đang nạp + view ảnh nền / tiền cảnh theme + skin ô phóng to.
     var debugThemeAssets: LoadedThemeAssets? { themeAssets }
     var debugThemeImageView: UIImageView { themeImageView }
@@ -5052,10 +5058,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Không bao giờ vượt mép trên view (extension bị cắt ở đó) — headroom luôn có
         // (KeyLayout.balloonHeadroom); bubble thấp thì chữ co cho vừa.
         let topLimit: CGFloat = 0
-        if balloonHost.superview !== self {
-            balloonHost.frame = bounds
-            addSubview(balloonHost)
-        }
+        if balloonHost.superview !== self { addSubview(balloonHost) }
+        balloonHost.shareCoordinateSpace(with: self)
         if balloon.superview !== balloonHost { balloonHost.addSubview(balloon) }
         if balloonHidePending {               // balloon chạm trước đang chờ ẩn trễ — huỷ
             balloonHidePending = false
@@ -6290,6 +6294,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     #if DEBUG
     /// Khung phím `title` theo toạ độ view (test popup).
     func debugDomainKeyFrame(_ title: String) -> CGRect? { debugButton(title).map { convert($0.bounds, from: $0) } }
+    func debugDomainKeyView(_ title: String) -> UIView? { debugButton(title) }
     #endif
     /// Đuôi đang chọn khi popup mở (nil = đóng / không chọn).
     var debugDomainSelection: String? { domainHold.flatMap { h in h.track.selection.map { h.choices[$0] } } }
@@ -6885,11 +6890,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         let v = mole ?? MoleOverlayView()
         if v.superview !== self {
-            v.frame = bounds
-            v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             addSubview(v)
             v.layer.zPosition = 6                 // trên phím + hiệu ứng (5), dưới ô phóng to (10)
         }
+        v.shareCoordinateSpace(with: self)
         v.keyFrame = { [weak self, weak v] c in
             guard let self, let v, self.lettersLike, !self.rowsContainer.isHidden,
                   let b = self.letterKeys.first(where: { $0.base.count == 1 && $0.base.first == c })?.button,
