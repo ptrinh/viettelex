@@ -207,6 +207,8 @@ bool TsfTextSink::compositionText(std::u16string& out) {
 
 bool TsfTextSink::compositionActive() { return svc_->composition() != nullptr; }
 
+AppView TsfTextSink::appTextEndsWith(const std::u16string& tail) { return svc_->focusEditEndsWith(ctx_, tail); }
+
 bool TsfTextSink::setComposition(const std::u16string& text, int absorb, bool misspelled) {
     before_.invalidate();
     ITfComposition* comp = svc_->composition();
