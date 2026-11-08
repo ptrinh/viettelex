@@ -77,6 +77,8 @@ data class KeyStyle(
     /** Dáng phím ("keyShape", [ThemeExtraIds.KEY_SHAPES]): "pixel" = góc bậc thang + viền + bóng khối ([PixelKeys]);
      *  null = bo góc như cũ. iOS `keyShape`. */
     val keyShape: String? = null,
+    /** Hiệu ứng trên ảnh nền của theme ("photoFx", [ThemeExtraIds.PHOTO_FX]) — IME đọc từ kiểu thực dùng ([SpotlightPolicy]). */
+    val photoFx: String? = null,
 ) {
     val isDefault: Boolean get() = this == DEFAULT
     /** Có đổi chữ (phông / độ đậm / cỡ / phông tải về) ⇒ bật đo + kẹp chữ. */
@@ -175,7 +177,7 @@ data class KeyStyle(
             return KeyStyle(corner = edited.corner, fontScale = edited.fontScale, font = edited.font ?: KeyLabelFont.DEFAULT,
                 weight = edited.weight ?: KeyLabelWeight.REGULAR, light = l, dark = d, assets = edited.assets,
                 sound = edited.sound, effect = edited.effect, swipe = edited.swipe, game = edited.game,
-                keyShape = edited.keyShape) to (lostL || lostD)
+                keyShape = edited.keyShape, photoFx = edited.photoFx) to (lostL || lostD)
         }
 
         fun parseColor(v: Any?): Int? = (v as? Number)?.toInt()?.takeIf { it in 0..0xFFFFFF }

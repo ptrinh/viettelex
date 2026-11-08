@@ -15,7 +15,7 @@ class KeyEffectSeaTests {
 
     @Test fun modelAndCaps() {
         val e = KeyEffect.SEA
-        assertEquals("thêm CUỐI enum", KeyEffect.SEA, KeyEffect.entries.last())
+        assertEquals("thêm sau Hạt cát", KeyEffect.SAND.ordinal + 1, KeyEffect.SEA.ordinal)
         assertEquals("sea", e.id); assertEquals(KeyEffect.SEA, KeyEffect.of("sea"))
         assertTrue(e.isPlus); assertFalse(e.isParticle); assertFalse(e.isQueued)
         assertFalse(e.needsComposeDiff); assertFalse(e.needsBoundaryWord)

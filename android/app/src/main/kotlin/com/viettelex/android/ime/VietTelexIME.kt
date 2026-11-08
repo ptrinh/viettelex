@@ -513,6 +513,21 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         kb.mole = v
     }
 
+    /**
+     * Đèn rọi (theme có "photoFx":"spotlight" — [com.viettelex.keyboard.SpotlightPolicy]): theme + Plus + không tiết kiệm
+     * pin — đọc MỘT lần mỗi lần hiện. Không ⇒ gỡ view (0 chi phí mỗi phím).
+     */
+    private fun applySpotlight(th: ImeTheme, kb: KeyboardView) {
+        val r = root ?: return
+        val on = com.viettelex.keyboard.SpotlightPolicy.active(th.keyStyle.photoFx,
+            PlusGate.isUnlocked(PlusFeature.PREMIUM_THEMES),
+            lowPower = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true)
+        if (!on) { r.spotlight = null; kb.spotlight = null; return }
+        val v = r.spotlight ?: SpotlightView(this, th.density)
+        r.spotlight = v
+        kb.spotlight = v
+    }
+
     /** Thống kê Đập chuột trong RAM (đọc file lúc gắn view, ghi file trên worker mỗi lần đập). */
     private var moleStats = com.viettelex.keyboard.MoleStats()
 
@@ -670,6 +685,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         applyBuddy(settings.buddy, settings.buddyStyle, settings.buddyPlacement, th, st)
         applySwipeTrail(settings.swipeTrail, th, kb)
         applyMole(th, kb)
+        applySpotlight(th, kb)
         kb.configureSpaceFlick(settings.spaceSwipeLanguage, session.language)
         kb.trackpadSpeed = settings.trackpadSpeed
         kb.symbolReturn = settings.symbolReturn

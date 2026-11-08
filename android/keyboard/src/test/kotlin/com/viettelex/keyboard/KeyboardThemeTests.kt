@@ -35,7 +35,7 @@ class KeyboardThemeTests {
     @Test fun sameIdsAsIOS() {
         assertEquals(listOf("system", "oled", "contrast", "peach", "mint", "sky", "lavender", "glass",
             "blackHeart", "greenFloral", "sage", "neon", "pink", "tet", "tetMai", "xmas", "xmasSnow", "piano", "sen",
-            "typewriter", "rgb", "space", "trungthu", "valentine", "halloween", "guitar", "mole", "neutral", "pixel", "sea", "timeOfDay", "ai"),
+            "typewriter", "rgb", "space", "trungthu", "valentine", "halloween", "guitar", "mole", "neutral", "pixel", "sea", "timeOfDay", "ai", "nightclub"),
             KeyboardTheme.entries.map { it.id })
     }
 

@@ -277,6 +277,9 @@ enum KeyboardTheme: String, CaseIterable {
     // Theme "AI" (11/2026, Plus, THÊM CUỐI): nền navy đen, phím kính mờ viền gradient tím → lam ("borderFx":"aurora" +
     // dải cực quang mép trên), motif "neural", hiệu ứng Token AI, âm "ai". Mắt AI = nhân vật Bạn đồng hành (người dùng bật).
     case ai
+    // Neon Night Club (11/2026, Plus, THÊM CUỐI): nền đen, phím tối viền ống neon hồng + chữ chức năng lục lam, Đèn rọi
+    // trên ảnh nền ("photoFx":"spotlight" — NightClub.swift), hiệu ứng Sàn nhảy LED, âm "club", quả cầu disco.
+    case nightclub
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -314,6 +317,7 @@ enum KeyboardTheme: String, CaseIterable {
         case .sea: return L("Biển")
         case .timeOfDay: return L("Theo giờ")
         case .ai: return L("AI")
+        case .nightclub: return L("Neon Night Club")
         }
     }
 
@@ -345,7 +349,8 @@ enum KeyboardTheme: String, CaseIterable {
              .guitar,
              .mole,
              .pixel, .sea, .timeOfDay,
-             .ai: return true
+             .ai,
+             .nightclub: return true
         }
     }
 
@@ -978,6 +983,7 @@ struct ThemeSettings: Equatable {
             if s.swipe == nil { s.swipe = t.swipe }
             if s.game == nil { s.game = t.game }
             if s.keyShape == nil { s.keyShape = t.keyShape }
+            if s.photoFx == nil { s.photoFx = t.photoFx }
             s.assets = s.assets.merged(over: t.assets)
             if userSystemFont { s.assets.font = nil }
             if s.assets.font != nil { s.font = .standard }
@@ -1147,6 +1153,8 @@ struct KeyStyle: Equatable {
     /// Dáng phím ("keyShape", ThemeExtraIds.keyShapes): "pixel" = góc bậc thang + viền + bóng khối (PixelKeys);
     /// nil = bo góc như cũ.
     var keyShape: String? = nil
+    /// Hiệu ứng trên ảnh nền của theme ("photoFx", ThemeExtraIds.photoFx) — bàn phím đọc từ kiểu thực dùng (SpotlightPolicy).
+    var photoFx: String? = nil
 
     static let `default` = KeyStyle()
     var isDefault: Bool { self == .default }
@@ -1283,6 +1291,7 @@ struct KeyStyle: Equatable {
         st.swipe = edited.swipe
         st.game = edited.game
         st.keyShape = edited.keyShape
+        st.photoFx = edited.photoFx
         return (st, l.lostBg || d.lostBg)
     }
 }
@@ -1347,6 +1356,7 @@ enum KeyStyleStore {
         if let v = st.swipe { f.append(("swipe", .string(v))) }
         if let v = st.game { f.append(("game", .string(v))) }
         if let v = st.keyShape { f.append(("keyShape", .string(v))) }
+        if let v = st.photoFx { f.append(("photoFx", .string(v))) }
         if !st.light.isEmpty { f.append(("light", ThemeSpec.json(st.light))) }
         if !st.dark.isEmpty { f.append(("dark", ThemeSpec.json(st.dark))) }
         return .object(f)

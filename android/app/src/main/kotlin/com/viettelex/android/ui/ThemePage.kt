@@ -395,6 +395,17 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
         }
     }
 
+    // Neon Night Club ("photoFx":"spotlight"): đèn rọi lên ảnh nền — chưa dùng ảnh ⇒ gợi ý + lối tắt chọn ảnh.
+    if (s.effectiveKeyStyle.photoFx == com.viettelex.keyboard.ThemeExtraIds.SPOTLIGHT && !active) {
+        VTSection(footer = tr(SettingCaption.spotlightPhoto)) {
+            VTRow(onClick = if (busy || !ThemeGate.allowsWallpaper) null else {
+                { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+            }) {
+                Text(tr("Chọn ảnh nền"), style = VTType.body, color = if (ThemeGate.allowsWallpaper) c.accent else c.secondary)
+            }
+        }
+    }
+
     VTSection(header = tr("Ảnh nền · Plus"),
         footer = tr(SettingCaption.wallpaper)) {
         VTRow(onClick = if (busy || !ThemeGate.allowsWallpaper) null else {

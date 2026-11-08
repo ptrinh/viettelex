@@ -12,7 +12,8 @@ import Foundation
 //             "borderFx":"rainbow", "spaceDeco":"soundhole"},
 //             (deco "alt": motif thứ hai xen kẽ, vd {"motif":"pumpkin","alt":"bat",…})
 //    "dark":{…} | "same", "corner":70, "fontScale":110, "font":"serif", "weight":"bold",
-//    "sound":"phao", "effect":"blossom", "swipe":"stardust", "game":"mole", "keyShape":"pixel"}
+//    "sound":"phao", "effect":"blossom", "swipe":"stardust", "game":"mole", "keyShape":"pixel",
+//    "photoFx":"spotlight"}
 //
 // "font" chuỗi (KeyLabelFont): "default" | "rounded" | "serif" | "mono" | "condensed" — phông hệ thống — | "pixel" — phông
 //   điểm ảnh NHÚNG trong app (Tiny5, fonts/Tiny5-Regular.ttf, đủ chữ Việt; nạp lười chỉ khi dùng, bỏ qua "weight").
@@ -20,6 +21,9 @@ import Foundation
 // "keyShape" (tuỳ chọn, danh sách trắng ThemeExtraIds.keyShapes): dáng phím — "pixel" = góc cắt bậc thang theo khối,
 //   viền khối đậm + bóng khối cứng dưới/phải, bấm = phím lún một khối (mất bóng). Vẽ bằng ảnh 9-slice tí hon dựng từ
 //   bảng màu (PixelKeys) — 0 chi phí với theme khác. Không có ⇒ bo góc theo "corner" như cũ.
+// "borderFx" (trong "light"/"dark", danh sách trắng ThemeSlots.borderFxValues): "rainbow" = viền phím cầu vồng (Gaming
+//   RGB, chỉ xoay màu khi đang gõ) | "aurora" = viền gradient tím → lam ĐỨNG YÊN + dải cực quang tĩnh dọc mép trên
+//   (theme AI, AuroraFx; vẽ một lần, 0 hoạt ảnh) | "none" (bản vá: bỏ). Motif "deco" có thêm "neural" (theme AI).
 //
 // "schedule" (tuỳ chọn, 2…6 mục, "from" tăng dần): bảng màu ĐỔI THEO GIỜ ĐỊA PHƯƠNG (theme "Theo giờ") —
 //   "schedule":[{"from":"05:00","palette":{…như "light"…}}, {"from":"07:00","palette":{…}}, …]
@@ -30,6 +34,12 @@ import Foundation
 //
 // "game" (tuỳ chọn, danh sách trắng ThemeExtraIds.games): trò chơi khi gõ CHẠY KHI theme này đang dùng — "mole" = Đập
 // chuột (MoleGame.swift). Khác "sound"/"effect": không ghi gì lúc chọn theme, bàn phím đọc từ kiểu thực dùng.
+//
+// "photoFx" (tuỳ chọn, danh sách trắng ThemeExtraIds.photoFx): hiệu ứng trên ẢNH NỀN chạy KHI theme này đang dùng —
+// "spotlight" = Đèn rọi (NightClub.swift): ảnh nền người dùng tối gần đen, mỗi phím bấm rọi một quầng sáng mềm (tô nhẹ
+// hồng / tím / lục lam xoay vòng) quanh chỗ chạm rồi tắt dần ~0,8 s, tối đa 6 quầng; gõ nhanh ⇒ to + sáng hơn. Không có
+// ảnh nền ⇒ quầng sáng rọi lên hoạ tiết neon tối dựng sẵn; quả cầu disco nhỏ ở góc trên xoay + toả chấm sáng khi bấm.
+// Như "game": không ghi gì lúc chọn theme, bàn phím đọc từ kiểu thực dùng (SpotlightPolicy); theme tự tạo dùng được.
 //
 // "sound" / "effect" (tuỳ chọn, id trong danh sách trắng ThemeExtraIds): âm phím / hiệu ứng bấm phím ĐI KÈM theme —
 // CHỈ áp MỘT lần lúc người dùng chọn theme (ThemeExtras.applyOnSelect); không bao giờ tự bật âm thanh phím.
@@ -691,6 +701,8 @@ struct ThemeSpec: Equatable {
     var game: String?
     /// Dáng phím ("pixel") — ThemeExtraIds.keyShapes.
     var keyShape: String?
+    /// Hiệu ứng trên ảnh nền ("spotlight" — Đèn rọi) — chạy khi theme đang dùng (ThemeExtraIds.photoFx).
+    var photoFx: String? = nil
     /// Bảng màu theo giờ (ThemeSchedule); nil = theo sáng/tối hệ thống như mọi theme.
     var schedule: [ThemeScheduleEntry]? = nil
 
@@ -714,6 +726,7 @@ struct ThemeSpec: Equatable {
         k.swipe = swipe
         k.game = game
         k.keyShape = keyShape
+        k.photoFx = photoFx
         return k
     }
 }
@@ -729,6 +742,9 @@ enum ThemeExtraIds {
     static let games: Set<String> = [MoleGame.themeGame]
     /// "keyShape": dáng phím (Android ThemeExtraIds.KEY_SHAPES y hệt).
     static let keyShapes: Set<String> = [PixelKeys.shape]
+    /// "photoFx": hiệu ứng trên ảnh nền (Android ThemeExtraIds.PHOTO_FX y hệt).
+    static let spotlight = "spotlight"
+    static let photoFx: Set<String> = [spotlight]
 }
 
 // MARK: - Đọc / kiểm
@@ -748,7 +764,7 @@ enum ThemeSpecParser {
 
     static let assetKeys: Set<String> = ["background", "foreground", "keys"]
     static let rootKeys: Set<String> = Set(["v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
-                                            "sound", "effect", "swipe", "game", "keyShape", "schedule"])
+                                            "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx"])
         .union(assetKeys)
     static let slotKeys: Set<String> = Set(ThemeSlots.colorKeys + ["deco", "borderFx", "spaceDeco"])
 
@@ -821,6 +837,7 @@ enum ThemeSpecParser {
         spec.swipe = typo.swipe
         spec.game = typo.game
         spec.keyShape = typo.keyShape
+        spec.photoFx = typo.photoFx
         spec.schedule = schedule
         if contrast { c.issues += contrastIssues(spec) }
         return Outcome(spec: c.failed ? nil : spec, issues: c.issues)
@@ -985,6 +1002,7 @@ enum ThemeSpecParser {
         s.swipe = pick("swipe", ThemeExtraIds.swipes)
         s.game = pick("game", ThemeExtraIds.games)
         s.keyShape = pick("keyShape", ThemeExtraIds.keyShapes)
+        s.photoFx = pick("photoFx", ThemeExtraIds.photoFx)
     }
 
     // MARK: tệp tải về
@@ -1070,7 +1088,7 @@ enum ThemeSpecParser {
         guard case .object(let m) = j else { return nil }
         var c = Ctx()
         let allowed: Set<String> = Set(["label", "fill", "accent", "corner", "fontScale", "font", "weight", "light", "dark",
-                                        "sound", "effect", "swipe", "game", "keyShape"])
+                                        "sound", "effect", "swipe", "game", "keyShape", "photoFx"])
             .union(assetKeys)
         for (k, _) in m where !allowed.contains(k) { c.err(.unknownKey, k) }
         let d = Dictionary(m, uniquingKeysWith: { a, _ in a })
@@ -1143,6 +1161,7 @@ extension ThemeSpec {
         if let swipe { m.append(("swipe", .string(swipe))) }
         if let game { m.append(("game", .string(game))) }
         if let keyShape { m.append(("keyShape", .string(keyShape))) }
+        if let photoFx { m.append(("photoFx", .string(photoFx))) }
         if let schedule {
             m.append(("schedule", .array(schedule.map {
                 .object([("from", .string(ThemeSchedule.format($0.from))), ("palette", Self.json($0.slots))])
@@ -1272,6 +1291,7 @@ extension ThemeSpec {
         s.swipe = style.swipe
         s.game = style.game
         s.keyShape = style.keyShape
+        s.photoFx = style.photoFx
         return s
     }
 }
@@ -1414,6 +1434,7 @@ enum ThemeJSONActions {
             if st.swipe == b.spec?.swipe { st.swipe = nil }
             if st.game == b.spec?.game { st.game = nil }
             if st.keyShape == b.spec?.keyShape { st.keyShape = nil }
+            if st.photoFx == b.spec?.photoFx { st.photoFx = nil }
             s.setStyle(st, for: b)
             if r.lostBg { warnings.append(ThemeIssue(code: .bgKept, path: "bg")) }
         case .custom(let id):

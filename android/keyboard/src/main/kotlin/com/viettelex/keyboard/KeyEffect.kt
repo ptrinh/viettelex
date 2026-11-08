@@ -47,7 +47,9 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     // Theme Biển (11/2026): sóng vỗ bờ + bọt bắn + bong bóng + cá bơi khi combo ([SeaFx]).
     SEA("sea", "Biển"), // l10n-key
     // Theme "AI" (11/2026): chữ vừa ra vỡ thành vài "token" phát sáng bay vào thanh gợi ý ([TokenStream]).
-    TOKENS("tokens", "Token AI"); // l10n-key
+    TOKENS("tokens", "Token AI"), // l10n-key
+    // Theme Neon Night Club (11/2026): Sàn nhảy LED — phím vừa bấm + các phím quanh thắp neon thành vòng vuông lan ra.
+    DANCEFLOOR("dancefloor", "Sàn nhảy LED"); // l10n-key
 
     val title: String get() = tr(viTitle)
 
@@ -1394,5 +1396,96 @@ class ShimmerGate {
         const val PEAK_ALPHA = 0.35
         /** Mép trái vệt ở tiến độ [f] với dải rộng [w]: từ −BAND·w tới w. */
         fun left(f: Double, w: Double): Double { val b = BAND * w; return -b + f.coerceIn(0.0, 1.0) * (w + b) }
+    }
+}
+
+/**
+ * "Sàn nhảy LED" (theme Neon Night Club, 11/2026): phím vừa bấm + các ô quanh nó thắp neon hồng / tím / lục lam như sàn
+ * nhảy LED — vòng 0 (chính phím) rồi vòng vuông 1, 2 lan ra cách nhau [RING_DELAY], mỗi ô tắt trong [TILE_LIFE]. Ô hàng xóm
+ * theo lưới bước = cỡ phím × ([PITCH_X], [PITCH_Y]); phím rộng (cách / Enter) ⇒ ô hàng xóm rộng tối đa 0,85 × cao, dời ra
+ * ngoài mép phím. Gõ dồn ([ComboMeter] mức 3) ⇒ cả bàn phím nháy một nhịp (trần 1,2 s, ≤ 120 ô). Chỉ vector. = iOS DanceFloor.
+ */
+object DanceFloor {
+    const val RINGS = 3
+    const val RING_DELAY = 0.06
+    const val TILE_LIFE = 0.26
+    const val PEAK = 0.55
+    const val PITCH_X = 1.18
+    const val PITCH_Y = 1.28
+    const val UNIT_ASPECT = 0.85
+    const val CORNER_FACTOR = 0.18
+    /** Hồng, tím, lục lam (= [SpotlightFx.COLORS]). */
+    val COLORS = intArrayOf(0xFF2FD0, 0x9B5CFF, 0x2FE6FF)
+    const val POOL = 3
+    const val FLICKER_LEVEL = 3
+    const val FLICKER_COOLDOWN = 1.2
+    const val FLICKER_DURATION = 0.2
+    const val FLICKER_PEAK = 0.22
+    const val MAX_GRID = 120
+
+    data class Tile(val ring: Int, val color: Int, val x: Double, val y: Double, val w: Double, val h: Double)
+
+    fun ring(i: Int, j: Int): Int = maxOf(kotlin.math.abs(i), kotlin.math.abs(j))
+    fun colorIndex(i: Int, j: Int, seed: Int): Int = (((i - j + seed) % 3) + 3) % 3
+    /** Độ sáng ô vòng [ring] sau [dt] giây kể từ lúc bấm: bật ngay khi tới lượt vòng, tắt (1−u)². */
+    fun alpha(dt: Double, ring: Int): Double {
+        val t = dt - ring * RING_DELAY
+        if (t < 0 || t >= TILE_LIFE) return 0.0
+        val u = t / TILE_LIFE
+        return PEAK * (1 - u) * (1 - u)
+    }
+    /** Toàn bộ chùm tắt hẳn sau (giây). */
+    val LIFETIME: Double get() = (RINGS - 1) * RING_DELAY + TILE_LIFE
+    /** Nháy cả bàn phím: sáng 0–60 ms, tắt 60–100 ms, sáng lại rồi tắt dần tới 200 ms. */
+    fun flickerAlpha(dt: Double): Double {
+        if (dt < 0 || dt >= FLICKER_DURATION) return 0.0
+        if (dt < 0.06) return FLICKER_PEAK
+        if (dt < 0.10) return 0.0
+        return FLICKER_PEAK * (1 - (dt - 0.10) / 0.10)
+    }
+    /** Cổng nháy cả bàn phím: chỉ ở mức combo ≥ [FLICKER_LEVEL], cách nhau ≥ [FLICKER_COOLDOWN]. */
+    class FlickerGate {
+        var last = Double.NEGATIVE_INFINITY; private set
+        var fired = 0; private set
+        fun trigger(level: Int, t: Double): Boolean {
+            if (level < FLICKER_LEVEL || t - last < FLICKER_COOLDOWN) return false
+            last = t; fired++
+            return true
+        }
+    }
+
+    /** Bề rộng ô hàng xóm. */
+    fun unit(w: Double, h: Double): Double = minOf(w, h * UNIT_ASPECT)
+    /** Tâm ô (i, j) quanh phím tâm (cx, cy) cỡ w × h. */
+    fun center(i: Int, j: Int, cx: Double, cy: Double, w: Double, h: Double): DoubleArray {
+        val u = unit(w, h)
+        val sx = if (i == 0) 0.0 else if (i > 0) 1.0 else -1.0
+        return doubleArrayOf(cx + sx * ((w - u) / 2 + kotlin.math.abs(i) * u * PITCH_X), cy + j * h * PITCH_Y)
+    }
+
+    /** Các ô vòng 0…RINGS−1 (vòng 0 = đúng khung phím), thứ tự hàng j rồi cột i (−2…2). */
+    fun tiles(cx: Double, cy: Double, w: Double, h: Double, seed: Int): List<Tile> {
+        val out = ArrayList<Tile>(25)
+        val n = RINGS - 1; val u = unit(w, h)
+        for (j in -n..n) for (i in -n..n) {
+            val c = center(i, j, cx, cy, w, h)
+            out.add(Tile(ring(i, j), colorIndex(i, j, seed), c[0], c[1], if (i == 0 && j == 0) w else u, h))
+        }
+        return out
+    }
+
+    /** Lưới phủ cả bàn phím (nháy combo) theo bước của phím vừa bấm — tâm ô trong khung, trần [MAX_GRID] ô. */
+    fun grid(bx: Double, by: Double, bw: Double, bh: Double, cx: Double, cy: Double, w: Double, h: Double, seed: Int): List<Tile> {
+        val u = unit(w, h); val px = u * PITCH_X; val py = h * PITCH_Y
+        if (px <= 1 || py <= 1 || bw <= 0 || bh <= 0) return emptyList()
+        val i0 = kotlin.math.floor((bx - cx) / px).toInt(); val i1 = kotlin.math.ceil((bx + bw - cx) / px).toInt()
+        val j0 = kotlin.math.floor((by - cy) / py).toInt(); val j1 = kotlin.math.ceil((by + bh - cy) / py).toInt()
+        val out = ArrayList<Tile>()
+        for (j in j0..j1) for (i in i0..i1) {
+            val x = cx + i * px; val y = cy + j * py
+            if (x < bx || x > bx + bw || y < by || y > by + bh || out.size >= MAX_GRID) continue
+            out.add(Tile(0, colorIndex(i, j, seed), x, y, u, h))
+        }
+        return out
     }
 }

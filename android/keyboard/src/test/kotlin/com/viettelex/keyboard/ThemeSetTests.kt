@@ -47,7 +47,7 @@ class ThemeSetTests {
         assertEquals(lines.first { it[0] == "order" }[1].split(','), KeyboardTheme.entries.map { it.id })
         assertEquals(lines.first { it[0] == "plus" }[1].split(','), KeyboardTheme.entries.filter { it.isPlus }.map { it.id })
         val rows = lines.filter { it[0] != "order" && it[0] != "plus" }
-        assertEquals(60, rows.size)
+        assertEquals(62, rows.size)
         for (r in rows) {
             val t = KeyboardTheme.entries.first { it.id == r[0] }
             val p = t.palette(r[1] == "1")!!
@@ -61,7 +61,7 @@ class ThemeSetTests {
     @Test fun darkVariantsDifferAndFollowSystem() {
         val fixed = setOf(KeyboardTheme.OLED, KeyboardTheme.CONTRAST, KeyboardTheme.BLACK_HEART, KeyboardTheme.NEON,
             KeyboardTheme.TET, KeyboardTheme.XMAS, KeyboardTheme.PIANO, KeyboardTheme.RGB, KeyboardTheme.SPACE,
-            KeyboardTheme.TRUNG_THU, KeyboardTheme.HALLOWEEN, KeyboardTheme.MOLE, KeyboardTheme.PIXEL, KeyboardTheme.AI)
+            KeyboardTheme.TRUNG_THU, KeyboardTheme.HALLOWEEN, KeyboardTheme.MOLE, KeyboardTheme.PIXEL, KeyboardTheme.AI, KeyboardTheme.NIGHTCLUB)
         for (t in KeyboardTheme.entries) {
             val light = t.palette(false) ?: continue
             val dark = t.palette(true)!!
@@ -179,6 +179,32 @@ class ThemeSetTests {
             }
             assertEquals(m, sumWant, sum, 1e-6)
         }
+    }
+
+    /** Neon Night Club — iOS testNightclubTheme y hệt. */
+    @Test fun nightclubTheme() {
+        val t = KeyboardTheme.NIGHTCLUB
+        assertEquals(KeyboardTheme.NIGHTCLUB, KeyboardTheme.entries.last())
+        val spec = t.spec!!
+        assertTrue(t.isPlus)
+        assertEquals("Neon Night Club", spec.nameVi); assertEquals("Neon Night Club", spec.nameEn)
+        assertEquals("Neon Night Club", L10nTable.EN[t.viTitle])
+        assertEquals("club", spec.sound); assertEquals("dancefloor", spec.effect); assertEquals("neon", spec.swipe)
+        assertEquals(ThemeExtraIds.SPOTLIGHT, spec.photoFx)
+        assertNull("dark = same", spec.dark)
+        val st = ThemeSettings(theme = t).effectiveKeyStyle
+        assertEquals("spotlight", st.photoFx)
+        assertNull(ThemeSettings(theme = KeyboardTheme.PIXEL).effectiveKeyStyle.photoFx)
+        assertNotNull(t.palette(false)!!.keyBorder)
+        assertTrue(ThemeSpecParser.contrastIssues(spec).isEmpty())
+        val back = ThemeSpecParser.parse(spec.canonical).spec!!
+        assertEquals("spotlight", back.photoFx); assertEquals("spotlight", back.typography.photoFx)
+        val patch = KeyStyle(photoFx = "spotlight")
+        assertEquals("spotlight", KeyStyleStore.parse(KeyStyleStore.serialize(mapOf("system" to patch)))["system"]?.photoFx)
+        assertTrue(SpotlightPolicy.active("spotlight", plus = true, lowPower = false))
+        assertFalse(SpotlightPolicy.active("spotlight", plus = false, lowPower = false))
+        assertFalse(SpotlightPolicy.active("spotlight", plus = true, lowPower = true))
+        assertFalse(SpotlightPolicy.active(null, plus = true, lowPower = false))
     }
 
     // ---- bộ 11/2026: Pixel 8-bit, Biển, Theo giờ — iOS KeyboardThemeTests y hệt

@@ -4,8 +4,8 @@
 # Màu: AARRGGBB (alpha cắt cụt a*255); '-' = không có. fn = nền phím chức năng + phím cách riêng;
 # fnInk = chữ/icon phím chức năng riêng; deco = hoạ tiết nền motif[+alt]:màu (alt = motif thứ hai xen kẽ). Hệ thống / Kính khác nhau theo
 # nền tảng (backdrop) nên không có ở đây.
-order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral,pixel,sea,timeOfDay,ai
-plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,pixel,sea,timeOfDay,ai
+order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral,pixel,sea,timeOfDay,ai,nightclub
+plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,pixel,sea,timeOfDay,ai,nightclub
 #theme	dark	bg	key	special	ink	accent	accentInk	border	fn	fnInk	deco
 oled	0	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
 oled	1	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
@@ -67,3 +67,5 @@ timeOfDay	0	FFCFE6FA	FFFFFFFF	FFA8CDEF	FF0E3557	FF3567D6	FFFFFFFF	-	FFB8D8F5	FF0
 timeOfDay	1	FF0B1430	FF1B2648	FF2A3870	FFE6ECFF	FF3567D6	FFFFFFFF	-	FF121C3B	FFC9D4FF	star:4DFFFFFF
 ai	0	FF070A18	FF1B2140	FF2A2452	FFF5F3FF	FF8B5CF6	FFFFFFFF	-	FF141A33	FFA5F3FC	neural:5967E8F9
 ai	1	FF070A18	FF1B2140	FF2A2452	FFF5F3FF	FF8B5CF6	FFFFFFFF	-	FF141A33	FFA5F3FC	neural:5967E8F9
+nightclub	0	FF07020D	FF170A24	FF241038	FFFBEFFF	FFFF2FD0	FF1A0016	E6FF2FD0	FF10061C	FF2FE6FF	-
+nightclub	1	FF07020D	FF170A24	FF241038	FFFBEFFF	FFFF2FD0	FF1A0016	E6FF2FD0	FF10061C	FF2FE6FF	-

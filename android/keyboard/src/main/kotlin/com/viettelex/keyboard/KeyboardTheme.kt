@@ -287,7 +287,10 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     TIME_OF_DAY("timeOfDay", "Theo giờ", true), // l10n-key
     // Theme "AI" (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền navy đen, phím kính mờ viền gradient ("borderFx":"aurora"
     // + dải cực quang mép trên), motif "neural", hiệu ứng Token AI, âm "ai". Mắt AI = nhân vật Bạn đồng hành.
-    AI("ai", "AI", true); // l10n-key
+    AI("ai", "AI", true), // l10n-key
+    // Neon Night Club (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền đen, phím tối viền ống neon hồng + chữ chức năng lục
+    // lam, Đèn rọi trên ảnh nền ("photoFx":"spotlight" — [SpotlightPolicy]), Sàn nhảy LED, âm "club", quả cầu disco.
+    NIGHTCLUB("nightclub", "Neon Night Club", true); // l10n-key
 
     /** Bo góc mặc định (% như [KeyStyle.corner]) khi người dùng chưa chỉnh — null = bo stock. iOS cùng giá trị. */
     val defaultCorner: Int? get() = spec?.corner
@@ -652,6 +655,9 @@ object ThemeExtraIds {
     val GAMES: Set<String> = setOf(MoleGame.THEME_GAME)
     /** "keyShape": dáng phím (iOS ThemeExtraIds.keyShapes y hệt). */
     val KEY_SHAPES: Set<String> = setOf(PixelKeys.SHAPE)
+    /** "photoFx": hiệu ứng trên ảnh nền (iOS ThemeExtraIds.photoFx y hệt). */
+    const val SPOTLIGHT = "spotlight"
+    val PHOTO_FX: Set<String> = setOf(SPOTLIGHT)
 }
 
 /**
@@ -813,6 +819,7 @@ data class ThemeSettings(
             if (s.swipe == null) s = s.copy(swipe = typography.swipe)
             if (s.game == null) s = s.copy(game = typography.game)
             if (s.keyShape == null) s = s.copy(keyShape = typography.keyShape)
+            if (s.photoFx == null) s = s.copy(photoFx = typography.photoFx)
             var a = s.assets.mergedOver(typography.assets)
             if (userSystemFont) a = a.copy(font = null)
             s = s.copy(assets = a)

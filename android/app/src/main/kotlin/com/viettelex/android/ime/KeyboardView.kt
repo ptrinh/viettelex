@@ -570,15 +570,19 @@ class KeyboardView(
     private var fxW = 0f
     private var fxH = 0f
 
+    /** "Đèn rọi" (theme "photoFx":"spotlight", [SpotlightView]) — null = theme khác: đường phím chỉ đọc một biến null. */
+    var spotlight: SpotlightView? = null
+        set(v) { field = v; fxPending = false }
+
     private fun fxMark(k: LaidKey) {
-        val fx = effects ?: return
+        if (effects == null && spotlight == null) return
         fxPending = when (k.kind) {
             KeyKind.LETTER, KeyKind.CHAR, KeyKind.PAD, KeyKind.PUNCT, KeyKind.SPACE -> true
             else -> false
         }
-        // Toạ độ overlay (cùng khung balloon: gốc view cha) = toạ độ phím + vị trí view này.
-        fxX = (k.left + k.right) / 2f + left - fx.left
-        fxY = (k.top + k.bottom) / 2f + top - fx.top
+        // Toạ độ view CHA (ImeRootView) = toạ độ phím + vị trí view này; overlay trừ gốc của chính nó lúc bắn.
+        fxX = (k.left + k.right) / 2f + left
+        fxY = (k.top + k.bottom) / 2f + top
         // Chỉ TOẠ ĐỘ + cỡ phím: hiệu ứng (vd mảnh vỡ Tia sét) vẽ trên overlay, không đụng phím thật.
         fxW = k.right - k.left; fxH = k.bottom - k.top
     }
@@ -587,8 +591,10 @@ class KeyboardView(
     private fun fxAfter(k: Key) {
         if (!fxPending) return
         fxPending = false
-        val fx = effects ?: return
-        if (k is Key.Letter || k is Key.Text || k == Key.Space || k == Key.DoubleSpacePeriod) fx.burst(fxX, fxY, fxW, fxH)
+        if (k is Key.Letter || k is Key.Text || k == Key.Space || k == Key.DoubleSpacePeriod) {
+            effects?.let { it.burst(fxX - it.left, fxY - it.top, fxW, fxH) }
+            spotlight?.let { it.light(fxX - it.left, fxY - it.top, fxW) }   // Đèn rọi: theme khác ⇒ null
+        }
     }
 
     /** "Laser": khung phím cách theo toạ độ [target] (con của cùng view cha) vào [out]; false ⇒ không có phím cách. O(1). */
@@ -1559,7 +1565,7 @@ class KeyboardView(
         val prior = if (shiftSym == null && forced == null && hit.kind == KeyKind.LETTER && plane == Plane.LETTERS) letterPrior?.invoke() else null
         val k = if (prior != null) SmartTouch.refine(keys, hit, x, y - TouchGeometry.yOffset * d, prior) else hit
         ptrKey[pid] = k
-        if (effects != null) fxMark(k)
+        if (effects != null || spotlight != null) fxMark(k)
         eyeLook?.let { look ->   // Mắt AI: nhìn về tâm phím (toạ độ view cha) — nhân vật khác ⇒ null
             if (k.kind == KeyKind.LETTER || k.kind == KeyKind.CHAR || k.kind == KeyKind.PAD || k.kind == KeyKind.PUNCT ||
                 k.kind == KeyKind.SPACE) look((k.left + k.right) / 2f + left, (k.top + k.bottom) / 2f + top)
