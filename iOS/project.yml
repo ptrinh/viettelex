@@ -31,6 +31,7 @@ targets:
       # Token theme + pipeline ảnh nền dùng chung với extension.
       - Keyboard/KeyboardTheme.swift
       - Keyboard/ThemeSpec.swift
+      - Keyboard/ThemeFx.swift
       - Keyboard/BuiltinThemes.swift
       - Keyboard/ThemeAssets.swift
       - Keyboard/BuiltinFonts.swift
@@ -233,6 +234,7 @@ targets:
       - Keyboard/AppearancePolicy.swift
       - Keyboard/KeyboardTheme.swift
       - Keyboard/ThemeSpec.swift
+      - Keyboard/ThemeFx.swift
       - Keyboard/BuiltinThemes.swift
       - Keyboard/ThemeAssets.swift
       - Keyboard/BuiltinFonts.swift

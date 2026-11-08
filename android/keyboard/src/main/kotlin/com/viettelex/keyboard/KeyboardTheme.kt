@@ -976,6 +976,8 @@ data class ThemeSettings(
     /** Tuỳ chỉnh nâng cao thực dùng: hết quyền Plus ⇒ mặc định (giá trị lưu giữ nguyên). */
     /** Đặc tả JSON của theme đang chọn (tự tạo, hoặc có sẵn — null với Hệ thống / Kính). iOS `selectedSpec`. */
     val selectedSpec: ThemeSpec? get() = custom ?: theme.spec
+    /** Đặc tả theme đang dùng sau cổng Plus (tự tạo, hoặc có sẵn) — null với Hệ thống / Kính. iOS `effectiveSpec`. */
+    val effectiveSpec: ThemeSpec? get() = effectiveCustom ?: effectiveTheme.spec
     val effectiveKeyStyle: KeyStyle get() = effectiveCustom?.let { effectiveStyleFor(it.id ?: "", it.typography) }
         ?: effectiveStyleFor(effectiveTheme)
     /** Như [effectiveKeyStyle] cho theme [t] bất kỳ (thẻ "Chọn giao diện" xem trước tuỳ chỉnh riêng). */
@@ -1045,10 +1047,11 @@ data class ThemeSettings(
             .let { e ->   // Kính: gradient giả lập riêng Android (không phải "bg2" của theme) ⇒ không xuất, như iOS
                 if (t != KeyboardTheme.GLASS) e else e.copy(light = e.light.copy(bg2 = null), dark = e.dark?.copy(bg2 = null))
             }
-            .copy(schedule = t.spec?.schedule, tags = t.spec?.tags, buddy = t.spec?.buddy, variant = t.spec?.variant)   // đi nguyên (bản vá không có)
+            .copy(schedule = t.spec?.schedule, tags = t.spec?.tags, buddy = t.spec?.buddy, variant = t.spec?.variant,   // đi nguyên (bản vá không có)
+                particles = t.spec?.particles, keywords = t.spec?.keywords)
     fun exportSpec(c: ThemeSpec): ThemeSpec = ThemeSpec.export(c.id, c.nameVi, c.nameEn, styledCustom(c, false),
         styledCustom(c, true), effectiveStyleFor(c.id ?: "", c.typography)).copy(schedule = c.schedule, tags = c.tags, buddy = c.buddy,
-        variant = c.variant)
+        variant = c.variant, particles = c.particles, keywords = c.keywords)
 
     fun toMap(): Map<String, Any> = mapOf(Keys.KEYBOARD_THEME to themeId, Keys.WALLPAPER_ENABLED to wallpaper,
         Keys.WALLPAPER_DIM to dim, Keys.WALLPAPER_BLUR to blur, Keys.WALLPAPER_VERSION to version,

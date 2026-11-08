@@ -65,6 +65,14 @@ import Foundation
 //   wrongType; nhãn lạ / lặp ⇒ badValue. Mảng rỗng = không có. Chỉ là nhãn hiển thị — không đổi cách vẽ. Theme tự tạo
 //   dùng được; "Chép JSON" giữ nguyên; bản vá (KeyStyle) không có "tags".
 //
+// "particles" / "keywords" (tuỳ chọn): hạt tự tạo + từ khoá tự tạo — CHỈ dữ liệu; đặc tả đầy đủ ở ThemeFx.swift (đầu tệp).
+//   "particles": {"glyphs":["🍜"] | "shape":"circle|star|heart|square|spark", "colors":[…], "count":1…12, "spread":0…360,
+//                 "direction":-360…360, "speed":20…600, "gravity":-800…800, "lifeMs":200…2500, "size":8…48,
+//                 "sizeJitter":0…100, "spin":-720…720, "fade":"out|inOut", "origin":"key|bottom|top"} — dùng khi hiệu ứng
+//                 = "Theo giao diện" ("effect":"theme").
+//   "keywords": [{"words":["yêu","love"], "burst":{…như particles…}?, "text":"≤ 16 ký tự"?}] ≤ 20 mục — nổ THÊM cùng mọi
+//                 hiệu ứng khi gõ xong từ khớp (dấu có nghĩa, không phân biệt hoa thường). Bản vá (KeyStyle) không có.
+//
 // "buddy" (tuỳ chọn): bạn đồng hành ĐI KÈM theme — {"character": id BuddyCharacter trừ "off" (ThemeExtraIds.buddies),
 //   "size": 1…20 (thang "Vị trí & cỡ", BuddyPlacement; 5 = cỡ gốc) tuỳ chọn}. Như "effect": CHỈ ghi MỘT lần lúc người
 //   dùng chọn theme (ThemeExtras.applyBuddyOnSelect — khoá keyboardBuddy / buddySize); đổi tay sau đó thì giữ tới lần
@@ -757,6 +765,10 @@ struct ThemeSpec: Equatable {
     var buddy: ThemeBuddy? = nil
     /// Bảng màu theo lựa chọn người dùng ("zodiac" — ThemeVariants.known); nil = theo "light"/"dark" như mọi theme.
     var variant: String? = nil
+    /// Hạt tự tạo (ThemeFx.swift) — dùng khi hiệu ứng = "Theo giao diện"; nil = không có.
+    var particles: ThemeParticles? = nil
+    /// Từ khoá tự tạo (ThemeFx.swift) — nổ thêm ở ranh giới từ; nil = không có (mảng rỗng cũng là nil).
+    var keywords: [ThemeKeyword]? = nil
     /// Theme tương tác (nhãn "interactive") — chip "Tương tác" + nhóm riêng trong màn chọn giao diện.
     var isInteractive: Bool { tags?.contains(ThemeTags.interactive) ?? false }
 
@@ -880,7 +892,7 @@ enum ThemeSpecParser {
     static let assetKeys: Set<String> = ["background", "foreground", "keys"]
     static let rootKeys: Set<String> = Set(["v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
                                             "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx",
-                                            "keyMotion", "tags", "buddy", "variant"])
+                                            "keyMotion", "tags", "buddy", "variant", "particles", "keywords"])
         .union(assetKeys)
     static let slotKeys: Set<String> = Set(ThemeSlots.colorKeys + ["deco", "borderFx", "spaceDeco"])
 
@@ -950,6 +962,10 @@ enum ThemeSpecParser {
         case .string(let s)?: if ThemeVariants.known.contains(s) { variant = s } else { c.err(.badValue, "variant") }
         default: c.err(.wrongType, "variant")
         }
+        var particles: ThemeParticles?
+        if let v = d["particles"] { let r = ThemeFxParser.particles(v, "particles"); particles = r.0; c.issues += r.1 }
+        var keywords: [ThemeKeyword]?
+        if let v = d["keywords"] { let r = ThemeFxParser.keywords(v); keywords = r.0; c.issues += r.1 }
         guard !c.failed else { return Outcome(spec: nil, issues: c.issues) }
         var spec = ThemeSpec(id: id, nameVi: vi, nameEn: en, light: light, dark: dark == light ? nil : dark)
         spec.corner = typo.corner
@@ -969,6 +985,8 @@ enum ThemeSpecParser {
         spec.tags = tags
         spec.buddy = buddy
         spec.variant = variant
+        spec.particles = particles
+        spec.keywords = keywords
         if contrast { c.issues += contrastIssues(spec) }
         return Outcome(spec: c.failed ? nil : spec, issues: c.issues)
     }
@@ -1338,6 +1356,8 @@ extension ThemeSpec {
             m.append(("buddy", .object(b)))
         }
         if let variant { m.append(("variant", .string(variant))) }
+        if let particles { m.append(("particles", ThemeFxParser.json(particles))) }
+        if let keywords { m.append(("keywords", ThemeFxParser.json(keywords))) }
         if let schedule {
             m.append(("schedule", .array(schedule.map {
                 .object([("from", .string(ThemeSchedule.format($0.from))), ("palette", Self.json($0.slots))])

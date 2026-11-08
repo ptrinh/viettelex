@@ -21,6 +21,7 @@ struct KeyEffectPickerView: View {
         let settings = ThemeSettings.load(effectDefaults)
         let palette = settings.palette(systemDark: scheme == .dark, wallpaperActive: false)
         let zodiac = settings.variantChoice.zodiac, pride = settings.variantChoice.pride
+        let particles = settings.effectiveSpec?.particles
         List {
             if !KeyEffectGate.allows {
                 Section {
@@ -29,7 +30,7 @@ struct KeyEffectPickerView: View {
             }
             Section {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(KeyEffect.allCases, id: \.self) { tile($0, palette: palette, zodiac: zodiac, pride: pride) }
+                    ForEach(KeyEffect.allCases, id: \.self) { tile($0, palette: palette, zodiac: zodiac, pride: pride, particles: particles) }
                 }
                 .padding(.vertical, 6)
             } header: {
@@ -50,6 +51,7 @@ struct KeyEffectPickerView: View {
                     + Text(" ") + Text(L("Sút!: Enter sút bóng vào lưới; gõ \"vô địch\", \"Việt Nam vô địch\", \"vào\" hay \"goal\" để đốt pháo sáng và tung cờ đỏ sao vàng."))
                     + Text(" ") + Text(L("Cho cá ăn: cá bơi chậm sau hàng phím; mỗi phím thả một viên thức ăn, chú cá gần nhất bơi tới ăn. Cá lớn dần và có thêm bạn theo số viên đã ăn."))
                     + Text(" ") + Text(L("Đá lanh canh: viên đá trên phím lắc nhẹ và đọng giọt nước; phin nhỏ giọt cà phê sau vài phím; gõ thật nhanh, sữa xoáy vào ly."))
+                    + Text(" ") + Text(L("Theo giao diện dùng hạt do giao diện đang chọn khai báo (\"particles\" trong JSON giao diện); giao diện không khai báo thì là chùm sao nhỏ."))
             }
         }
         .bottomBarScrollMargin()
@@ -58,14 +60,14 @@ struct KeyEffectPickerView: View {
         .navigationDestination(isPresented: $showPlus) { PlusView(model: PlusShared.model) }
     }
 
-    private func tile(_ e: KeyEffect, palette: KeyboardPalette, zodiac: ZodiacSign, pride: PrideFlag) -> some View {
+    private func tile(_ e: KeyEffect, palette: KeyboardPalette, zodiac: ZodiacSign, pride: PrideFlag, particles: ThemeParticles?) -> some View {
         let locked = !KeyEffectGate.allows(e)
         let selected = current == e
         return VStack(spacing: 6) {
             Button { tap(e, locked: locked) } label: {
                 // Lớp SwiftUI trong suốt PHỦ lên ô xem trước UIKit: hit-test vào UIViewRepresentable
                 // không tới được Button ⇒ chạm ô không chọn được (Phil 19/10/2026).
-                KeyEffectPreview(effect: e, palette: palette, play: plays[e, default: 0], zodiac: zodiac, pride: pride)
+                KeyEffectPreview(effect: e, palette: palette, play: plays[e, default: 0], zodiac: zodiac, pride: pride, themeParticles: particles)
                     .overlay(Color.clear.contentShape(Rectangle()))
                     .frame(height: 84)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -111,10 +113,11 @@ struct KeyEffectPreview: UIViewRepresentable {
     let play: Int
     var zodiac: ZodiacSign = .defaultValue
     var pride: PrideFlag = .defaultValue
+    var themeParticles: ThemeParticles? = nil
 
     func makeUIView(context: Context) -> KeyEffectPreviewView { KeyEffectPreviewView() }
     func updateUIView(_ v: KeyEffectPreviewView, context: Context) {
-        v.update(effect: effect, palette: palette, play: play, zodiac: zodiac, pride: pride)
+        v.update(effect: effect, palette: palette, play: play, zodiac: zodiac, pride: pride, themeParticles: themeParticles)
     }
 }
 // KeyEffectPreviewView (UIKit): Keyboard/KeyEffectPreview.swift — dùng chung với test.

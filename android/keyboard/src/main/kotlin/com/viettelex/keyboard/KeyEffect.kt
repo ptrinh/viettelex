@@ -74,7 +74,10 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     // Theme Bể cá (11/2026): Cho cá ăn — cá bơi sau phím, mỗi phím thả một viên thức ăn, cá gần nhất bơi tới ăn ([AquariumFx]).
     FISHFEED("fishfeed", "Cho cá ăn"), // l10n-key
     // Theme Cà phê sữa đá (11/2026): Đá lanh canh — viên đá lắc + giọt đọng, phin nhỏ giọt, gõ nhanh ⇒ sữa xoáy ([CafeFx]).
-    ICE("ice", "Đá lanh canh"); // l10n-key
+    ICE("ice", "Đá lanh canh"), // l10n-key
+    // Theme JSON (11/2026): "Theo giao diện" — hạt tự tạo trong "particles" của theme đang dùng ([ThemeFx]); theme không có
+    // ⇒ chùm sao mặc định ([ThemeParticles.FALLBACK]).
+    THEME("theme", "Theo giao diện"); // l10n-key
 
     val title: String get() = tr(viTitle)
 

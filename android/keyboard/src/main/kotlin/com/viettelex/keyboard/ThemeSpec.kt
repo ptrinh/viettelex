@@ -64,6 +64,10 @@ import java.nio.charset.CodingErrorAction
  * nhãn lạ / lặp ⇒ badValue. Mảng rỗng = không có. Chỉ là nhãn hiển thị — không đổi cách vẽ. Theme tự tạo dùng được;
  * "Chép JSON" giữ nguyên; bản vá ([KeyStyle]) không có "tags".
  *
+ * "particles" / "keywords" (tuỳ chọn): hạt tự tạo (dùng khi hiệu ứng = "Theo giao diện", "effect":"theme") + từ khoá tự
+ * tạo (nổ thêm cùng mọi hiệu ứng ở ranh giới từ) — CHỈ dữ liệu; đặc tả + giới hạn ở [ThemeFx] (ThemeFx.kt, iOS ThemeFx.swift).
+ * Bản vá ([KeyStyle]) không có hai trường này.
+ *
  * "buddy" (tuỳ chọn): bạn đồng hành ĐI KÈM theme — {"character": id [BuddyCharacter] trừ "off" ([ThemeExtraIds.BUDDIES]),
  * "size": 1…20 (thang "Vị trí & cỡ", [BuddyPlacement]; 5 = cỡ gốc) tuỳ chọn}. Như "effect": CHỈ ghi MỘT lần lúc người dùng
  * chọn theme ([ThemeExtras.applyBuddyOnSelect] — khoá keyboardBuddy / buddySize); đổi tay sau đó thì giữ tới lần chọn
@@ -649,6 +653,10 @@ data class ThemeSpec(
     val buddy: ThemeBuddy? = null,
     /** Bảng màu theo lựa chọn người dùng ("zodiac" — [ThemeVariants.KNOWN]); null = theo light/dark. iOS `variant`. */
     val variant: String? = null,
+    /** Hạt tự tạo ([ThemeFx]) — dùng khi hiệu ứng = "Theo giao diện"; null = không có. iOS `particles`. */
+    val particles: ThemeParticles? = null,
+    /** Từ khoá tự tạo ([ThemeFx]) — nổ thêm ở ranh giới từ; null = không có (mảng rỗng cũng null). iOS `keywords`. */
+    val keywords: List<ThemeKeyword>? = null,
 ) {
     /** Theme tương tác (nhãn "interactive") — chip "Tương tác" + nhóm riêng trong màn chọn giao diện. */
     val isInteractive: Boolean get() = tags?.contains(ThemeTags.INTERACTIVE) == true
@@ -705,6 +713,8 @@ data class ThemeSpec(
             m.add("buddy" to SJ.Obj(bm))
         }
         variant?.let { m.add("variant" to SJ.Str(it)) }
+        particles?.let { m.add("particles" to ThemeFxParser.json(it)) }
+        keywords?.let { m.add("keywords" to ThemeFxParser.json(it)) }
         schedule?.let { sc ->
             m.add("schedule" to SJ.Arr(sc.map { SJ.Obj(listOf("from" to SJ.Str(ThemeSchedule.format(it.from)), "palette" to json(it.slots))) }))
         }
@@ -821,7 +831,7 @@ object ThemeSpecParser {
 
     private val ASSET_KEYS = setOf("background", "foreground", "keys")
     private val ROOT_KEYS = setOf("v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
-        "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx", "keyMotion", "tags", "buddy", "variant") + ASSET_KEYS
+        "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx", "keyMotion", "tags", "buddy", "variant", "particles", "keywords") + ASSET_KEYS
     private val SLOT_KEYS = (ThemeSlots.COLOR_KEYS + "deco" + "borderFx" + "spaceDeco").toSet()
 
     fun parse(text: String): Outcome = when (val r = StrictJson.parse(text)) {
@@ -878,11 +888,14 @@ object ThemeSpecParser {
             is SJ.Str -> if (v.s in ThemeVariants.KNOWN) variant = v.s else c.err(ThemeIssue.Code.badValue, "variant")
             else -> c.err(ThemeIssue.Code.wrongType, "variant")
         }
+        val particles = j["particles"]?.let { v -> ThemeFxParser.particles(v, "particles").also { c.issues.addAll(it.second) }.first }
+        val keywords = j["keywords"]?.let { v -> ThemeFxParser.keywords(v).also { c.issues.addAll(it.second) }.first }
         if (c.failed) return Outcome(null, c.issues)
         val spec = ThemeSpec(id, vi, en, light, if (dark == light) null else dark, typo.corner, typo.fontScale,
             if (j["font"] != null && typo.assets.font == null) typo.font else null,
             if (j["weight"] != null) typo.weight else null, typo.assets, typo.sound, typo.effect, typo.swipe, typo.game,
-            schedule, typo.keyShape, photoFx = typo.photoFx, keyMotion = typo.keyMotion, tags = tags, buddy = buddy, variant = variant)
+            schedule, typo.keyShape, photoFx = typo.photoFx, keyMotion = typo.keyMotion, tags = tags, buddy = buddy, variant = variant,
+            particles = particles, keywords = keywords)
         if (contrast) c.issues.addAll(contrastIssues(spec))
         return Outcome(if (c.failed) null else spec, c.issues)
     }

@@ -42,7 +42,9 @@ import com.viettelex.keyboard.KeyEffectGate
 import com.viettelex.keyboard.Keys
 import com.viettelex.keyboard.KeywordKind
 import com.viettelex.keyboard.ToneFx
+import com.viettelex.keyboard.ThemeFx
 import com.viettelex.keyboard.ThemePalette
+import com.viettelex.keyboard.ThemeParticles
 import com.viettelex.keyboard.tr
 
 /**
@@ -53,7 +55,8 @@ import com.viettelex.keyboard.tr
 @Composable
 internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack: () -> Unit,
                            zodiac: com.viettelex.keyboard.ZodiacSign = com.viettelex.keyboard.ZodiacSign.DEFAULT,
-                           pride: com.viettelex.keyboard.PrideFlag = com.viettelex.keyboard.PrideFlag.DEFAULT) {
+                           pride: com.viettelex.keyboard.PrideFlag = com.viettelex.keyboard.PrideFlag.DEFAULT,
+                           themeParticles: ThemeParticles? = null) {
     val c = LocalVT.current
     BackHandler(onBack = onBack)
     var raw by rememberStringPref(Keys.KEY_EFFECT, KeyEffect.DEFAULT.id)
@@ -82,7 +85,8 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
             " " + tr("Cầu vồng: vòng cung theo màu lá cờ bạn chọn (trong giao diện Tự hào) lan ra từ phím; gõ \"tự hào\", \"yêu là yêu\", \"pride\" hay \"love is love\" thì lá cờ tung bay cùng tim.") +
             " " + tr("Sút!: Enter sút bóng vào lưới; gõ \"vô địch\", \"Việt Nam vô địch\", \"vào\" hay \"goal\" để đốt pháo sáng và tung cờ đỏ sao vàng.") +
             " " + tr("Cho cá ăn: cá bơi chậm sau hàng phím; mỗi phím thả một viên thức ăn, chú cá gần nhất bơi tới ăn. Cá lớn dần và có thêm bạn theo số viên đã ăn.") +
-            " " + tr("Đá lanh canh: viên đá trên phím lắc nhẹ và đọng giọt nước; phin nhỏ giọt cà phê sau vài phím; gõ thật nhanh, sữa xoáy vào ly.")) {
+            " " + tr("Đá lanh canh: viên đá trên phím lắc nhẹ và đọng giọt nước; phin nhỏ giọt cà phê sau vài phím; gõ thật nhanh, sữa xoáy vào ly.") +
+            " " + tr("Theo giao diện dùng hạt do giao diện đang chọn khai báo (\"particles\" trong JSON giao diện); giao diện không khai báo thì là chùm sao nhỏ.")) {
         KeyEffect.entries.chunked(3).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { e ->
@@ -94,7 +98,7 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
                             .alpha(if (locked) 0.5f else 1f)) {
                             val play = plays[e] ?: 0
                             AndroidView(factory = { KeyEffectPreviewView(it) }, modifier = Modifier.matchParentSize(),
-                                update = { it.update(e, palette, play, zodiac, pride) })
+                                update = { it.update(e, palette, play, zodiac, pride, themeParticles) })
                             // Lớp Compose phủ TRÊN AndroidView nhận chạm: View con nhận sự kiện trước nên
                             // clickable đặt ở Box cha không chắc tới được (iOS bị đúng lỗi này, 19/10/2026).
                             Box(Modifier.matchParentSize().clickable {
@@ -172,14 +176,17 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
     /** "Lơ lửng": phím mẫu trôi rồi về chỗ (đồng hồ thật [KeyFloatDriver]). */
     private var floater: KeyFloatDriver? = null
 
+    /** [themeParticles]: "particles" của theme đang dùng — ô "Theo giao diện" xem thử đúng hạt đó (null ⇒ mặc định). */
     fun update(e: KeyEffect, p: ThemePalette, play: Int,
                zodiac: com.viettelex.keyboard.ZodiacSign = com.viettelex.keyboard.ZodiacSign.DEFAULT,
-               pride: com.viettelex.keyboard.PrideFlag = com.viettelex.keyboard.PrideFlag.DEFAULT) {
+               pride: com.viettelex.keyboard.PrideFlag = com.viettelex.keyboard.PrideFlag.DEFAULT,
+               themeParticles: ThemeParticles? = null) {
         zodiacSign = zodiac
         prideFlag = pride
         bg = p.bg; keyPaint.color = p.keyFill; textPaint.color = p.ink
         ghostPaint.color = (p.keyFill and 0x00FFFFFF) or (0x8C shl 24)
         configure(e, p.action, p.keyFill, p.isDark)
+        setThemeFx(if (e == KeyEffect.THEME) ThemeFx(themeParticles, null) else null)
         // Rung combo: rung cả ô xem thử (như hàng phím); Laser: "phím cách" giả ở góc dưới trái ô.
         shakeTarget = if (e == KeyEffect.SHAKE) this else null
         spaceFrame = { out -> out.set(6 * d, height - 10 * d, maxOf(width * 0.3f, 7 * d), height - 2 * d); true }
