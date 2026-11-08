@@ -43,7 +43,9 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     TONE("tone", "Dấu thanh"), // l10n-key
     KEYWORD("keyword", "Từ khoá"), // l10n-key
     LETTERS("letters", "Chữ bay"), // l10n-key
-    SAND("sand", "Hạt cát"); // l10n-key
+    SAND("sand", "Hạt cát"), // l10n-key
+    // Theme Biển (11/2026): sóng vỗ bờ + bọt bắn + bong bóng + cá bơi khi combo ([SeaFx]).
+    SEA("sea", "Biển"); // l10n-key
 
     val title: String get() = tr(viTitle)
 
@@ -1154,4 +1156,129 @@ class SandPile(widthUnits: Double) {
         /** Lệch ngang hạt [i] của lần bấm [seed] (dp). */
         fun spread(i: Int, seed: Int): Double = (fxValue(fxStep(fxSeed(seed * 53 + i * 7 + 3))) - 0.5) * 16
     }
+}
+
+/**
+ * "Biển" (theme Biển, 11/2026): SÓNG VỖ BỜ là phần chính — gõ ⇒ một con sóng cuộn từ đỉnh bàn phím xuống đáy (đáy = bờ
+ * cát): mặt sóng cong, mép bọt trắng; chạm bờ thì vỡ bọt tràn dọc đáy rồi rút, để lại vệt ướt mờ dần. Gõ liên tiếp ⇒ sóng
+ * nối nhau (cách nhau ≥ [LAUNCH_GAP], tối đa [MAX_WAVES] — sóng mới không bao giờ cướp sóng đang chạy); gõ nhanh (mức
+ * [ComboMeter]) ⇒ sóng to hơn. Phụ: vài giọt bọt bắn ở phím + 2 bong bóng lắc lên rồi vỡ thành vòng; combo lên
+ * [FISH_LEVEL] ⇒ một chú cá bơi ngang một lần. Nghỉ gõ = không còn khung hình nào. Thời gian giây, đơn vị dp (iOS pt).
+ * = iOS SeaFx (test số chung).
+ */
+object SeaFx {
+    // Sóng vỗ bờ
+    const val MAX_WAVES = 3
+    const val LAUNCH_GAP = 0.55
+    /** Cuộn từ đỉnh xuống bờ / vỡ bọt tràn lên / rút (giây). */
+    const val ROLL = 0.6
+    const val BREAK = 0.3
+    const val RECEDE = 0.7
+    const val LIFE = ROLL + BREAK + RECEDE
+    const val BODY_HEIGHT = 26.0
+    const val BODY_ALPHA = 0.22
+    const val FOAM_ALPHA = 0.85
+    const val FOAM_WIDTH = 2.5
+    const val CREST_AMP = 3.5
+    const val WAVELENGTH = 110.0
+    const val DRIFT = 16.0
+    const val WASH_MAX = 14.0
+    const val WET_PEAK = 0.3
+    /** Bước lấy mẫu mép sóng (dp). */
+    const val STEP = 8.0
+    /** Cỡ sóng theo mức combo 0…3. */
+    val SIZES = doubleArrayOf(1.0, 1.2, 1.4, 1.65)
+
+    fun size(level: Int): Double = SIZES[level.coerceIn(0, SIZES.size - 1)]
+    /** Sóng mới chỉ khi sóng trước đã đi được [LAUNCH_GAP] (gõ dồn ⇒ chỉ bọt + bong bóng). */
+    fun shouldLaunch(sinceLast: Double): Boolean = sinceLast >= LAUNCH_GAP
+    /** Tỉ lệ quãng đỉnh → bờ của mép sóng (nhanh dần như sóng sắp vỡ). */
+    fun travel(t: Double): Double = when {
+        t <= 0.0 -> 0.0
+        t >= ROLL -> 1.0
+        else -> { val u = t / ROLL; u * u }
+    }
+    fun driftX(t: Double): Double = DRIFT * (t / ROLL).coerceIn(0.0, 1.0)
+    /** Pha mép sóng của ô sóng [slot]. */
+    fun phase(slot: Int): Double = (abs(slot) % 7) * 0.9
+    /** Mép sóng (lệch y, dp) tại [x] — hai điều hoà lệch pha ⇒ đỉnh nhọn lệch như sóng sắp cuộn. */
+    fun crestOffset(x: Double, phase: Double): Double {
+        val th = 2 * Math.PI * x / WAVELENGTH + phase
+        return CREST_AMP * (sin(th) + 0.3 * sin(2 * th + 0.6))
+    }
+    fun bodyTop(x: Double, phase: Double): Double = -BODY_HEIGHT + 0.5 * crestOffset(x + WAVELENGTH / 3, phase)
+    fun washTop(x: Double, phase: Double): Double = -WASH_MAX + 0.4 * crestOffset(x, phase + 1)
+    fun waveAlpha(t: Double): Double = when {
+        t < 0.0 || t >= ROLL + BREAK -> 0.0
+        t < ROLL -> 1.0
+        else -> 1 - (t - ROLL) / BREAK
+    }
+    /** Chiều cao bọt tràn ở bờ (dp): dâng nhanh khi vỡ, rút tuyến tính. */
+    fun washHeight(t: Double, size: Double): Double {
+        val a = t - ROLL
+        if (a <= 0.0 || t >= LIFE) return 0.0
+        if (a < BREAK) { val u = a / BREAK; return WASH_MAX * size * (1 - (1 - u) * (1 - u)) }
+        return WASH_MAX * size * (1 - (a - BREAK) / RECEDE)
+    }
+    /** Vệt ướt lúc nước rút: đậm nhất khi bọt bắt đầu rút, mờ về 0. */
+    fun wetAlpha(t: Double): Double {
+        val a = t - ROLL - BREAK
+        if (a < 0.0 || t >= LIFE) return 0.0
+        return WET_PEAK * (1 - a / RECEDE)
+    }
+
+    // Bọt bắn + bong bóng ở phím
+    const val DROPLETS_PER_TAP = 3
+    const val BUBBLES_PER_TAP = 2
+    const val TAP_SLOTS = 4
+    const val LAYERS_PER_TAP = DROPLETS_PER_TAP + BUBBLES_PER_TAP
+    val DROPLET_DX = doubleArrayOf(-14.0, 3.0, 15.0)
+    val DROPLET_PEAK = doubleArrayOf(16.0, 22.0, 13.0)
+    const val DROPLET_SINK = 12.0
+    const val DROPLET_DURATION = 0.45
+    const val DROPLET_RADIUS = 1.8
+    /** Giọt [i] ở tỉ lệ thời gian [f]: vòng cung lên rồi rơi (gốc = phím). Ghi (x, y) vào [out]. */
+    fun droplet(i: Int, f: Double, out: DoubleArray) {
+        val k = f.coerceIn(0.0, 1.0); val j = i % DROPLETS_PER_TAP
+        out[0] = DROPLET_DX[j] * k
+        out[1] = -DROPLET_PEAK[j] * 4 * k * (1 - k) + DROPLET_SINK * k * k
+    }
+    val BUBBLE_DX = doubleArrayOf(-5.0, 6.0)
+    val BUBBLE_RISE = doubleArrayOf(44.0, 56.0)
+    const val BUBBLE_DURATION = 0.9
+    const val BUBBLE_RADIUS = 3.5
+    const val BUBBLE_SWAY = 3.5
+    const val POP_AT = 0.85
+    const val POP_SCALE = 1.8
+    /** Bong bóng [i] ở [f]: ghi (x, y, scale, alpha) vào [out]. Từ [POP_AT] phồng tới [POP_SCALE] + tan (vòng "póc"). */
+    fun bubble(i: Int, f: Double, out: DoubleArray) {
+        val k = f.coerceIn(0.0, 1.0); val j = i % BUBBLES_PER_TAP
+        val e = 1 - (1 - k) * (1 - k)
+        out[0] = BUBBLE_DX[j] + BUBBLE_SWAY * sin(2 * Math.PI * 1.5 * k + j * Math.PI)
+        out[1] = -BUBBLE_RISE[j] * e
+        if (k < POP_AT) { out[2] = 0.6 + 0.4 * k / POP_AT; out[3] = 1.0 } else {
+            val p = (k - POP_AT) / (1 - POP_AT)
+            out[2] = 1 + (POP_SCALE - 1) * p; out[3] = 1 - p
+        }
+    }
+
+    // Cá bơi khi gõ combo
+    const val FISH_LEVEL = 2
+    const val FISH_COOLDOWN = 4.0
+    const val FISH_DURATION = 2.4
+    const val FISH_SIZE = 24.0
+    const val FISH_MARGIN = 14.0
+    const val FISH_BOB = 3.0
+    val FISH_GLYPHS = listOf("🐟", "🐠") // l10n-skip (emoji)
+    /** Cá bơi khi mức combo VỪA lên [FISH_LEVEL] và đã nghỉ cá ≥ [FISH_COOLDOWN] giây. */
+    fun fishShouldSwim(level: Int, previous: Int, sinceLastFish: Double): Boolean =
+        level >= FISH_LEVEL && previous < FISH_LEVEL && sinceLastFish >= FISH_COOLDOWN
+    fun fishRightToLeft(seq: Int): Boolean = seq % 2 == 0
+    fun fishY(seq: Int, height: Double): Double = height * (0.25 + 0.35 * fxValue(fxStep(fxSeed(seq * 29 + 5))))
+    fun fishX(f: Double, width: Double, rightToLeft: Boolean): Double {
+        val k = f.coerceIn(0.0, 1.0); val a = FISH_MARGIN; val b = maxOf(width - FISH_MARGIN, FISH_MARGIN)
+        return if (rightToLeft) b + (a - b) * k else a + (b - a) * k
+    }
+    fun fishBobY(f: Double): Double = FISH_BOB * sin(2 * Math.PI * 3 * f)
+    fun fishAlpha(f: Double): Double = if (f < 0.0 || f >= 1.0) 0.0 else minOf(1.0, f / 0.1, (1 - f) / 0.1)
 }

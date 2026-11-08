@@ -187,7 +187,7 @@ internal object BuiltinThemesData {
                "deco": {"motif": "pixel", "color": "#4D9BBC0F"}}
     },
     {
-      "v": 1, "id": "sea", "name": {"vi": "Biển", "en": "Sea"}, "corner": 60, "sound": "water", "effect": "wave",
+      "v": 1, "id": "sea", "name": {"vi": "Biển", "en": "Sea"}, "corner": 60, "sound": "water", "effect": "sea",
       "light": {"bg": "#CDEBF2", "key": "#FFF9EF", "special": "#EED9B7", "ink": "#0B3C5D", "accent": "#0E7C93",
                 "fn": "#E9D4AE", "fnInk": "#0B3C5D", "deco": {"motif": "waves", "alt": "bubbles", "color": "#730E7C93"}},
       "dark": {"bg": "#05263A", "key": "#0F3D58", "special": "#175676", "ink": "#E3F6FB", "accent": "#0E7C93",

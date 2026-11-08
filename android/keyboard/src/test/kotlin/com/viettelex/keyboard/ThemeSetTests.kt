@@ -190,7 +190,7 @@ class ThemeSetTests {
         assertEquals(KeyboardTheme.PIXEL, all[all.indexOf(KeyboardTheme.NEUTRAL) + 1])
         data class W(val t: KeyboardTheme, val vi: String, val en: String, val sound: String?, val effect: String?, val corner: Int?)
         for (w in listOf(W(KeyboardTheme.PIXEL, "Pixel 8-bit", "Pixel 8-bit", "chip", "flash", 0),
-                W(KeyboardTheme.SEA, "Biển", "Sea", "water", "wave", 60),
+                W(KeyboardTheme.SEA, "Biển", "Sea", "water", "sea", 60),
                 W(KeyboardTheme.TIME_OF_DAY, "Theo giờ", "Time of day", null, null, null))) {
             val spec = w.t.spec!!
             assertTrue("${w.t}", w.t.isPlus)
