@@ -1394,23 +1394,25 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     override fun onTemplate(item: TemplateItem) {
         val text = item.text
         if (!Templates.isDynamic(text)) { insertTemplate(text); return }
-        // Mẫu động: fetch lúc chạm (timeout 4 s), lỗi ⇒ chèn chính URL.
+        // Mẫu động: fetch lúc chạm (timeout 4 s); HTTP ≠ 200 / lỗi / rỗng ⇒ chèn chính URL.
+        // Đọc 1 byte quá giới hạn để [Templates.bodyFromResponse] biết bị cắt (lùi về ranh giới UTF-8).
         val w = worker()
         w.post {
-            val bytes = try {
+            val body = try {
                 val c = URL(text).openConnection() as HttpURLConnection
                 c.connectTimeout = Templates.FETCH_TIMEOUT_MS
                 c.readTimeout = Templates.FETCH_TIMEOUT_MS
                 try {
-                    c.inputStream.use { ins ->
-                        val buf = ByteArray(Templates.FETCH_MAX_BYTES)
+                    val status = c.responseCode
+                    if (status != 200) null else c.inputStream.use { ins ->
+                        val buf = ByteArray(Templates.FETCH_MAX_BYTES + 1)
                         var n = 0
                         while (n < buf.size) { val r = ins.read(buf, n, buf.size - n); if (r < 0) break; n += r }
-                        buf.copyOf(n)
+                        Templates.bodyFromResponse(buf.copyOf(n), status)
                     }
                 } finally { c.disconnect() }
             } catch (_: Exception) { null }
-            handler.post { insertTemplate(Templates.bodyFromResponse(bytes) ?: text) }
+            handler.post { insertTemplate(body ?: text) }
         }
     }
 

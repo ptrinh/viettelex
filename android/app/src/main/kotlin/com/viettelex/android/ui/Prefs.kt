@@ -78,7 +78,14 @@ object PrefRefresh {
 
 /** userTemplates (JSON) ⇄ list — định dạng/parse do module :keyboard ([Templates]) giữ. */
 object TemplatesStore {
-    fun load(ctx: Context): List<TemplateItem> = Templates.load(Prefs.of(ctx).getString(Keys.USER_TEMPLATES, null)) {
+    fun load(ctx: Context): List<TemplateItem> {
+        val p = Prefs.of(ctx)
+        com.viettelex.android.shared.VTPrefs.migrateDynamicSnippets(p)
+        return loadRaw(ctx, p)
+    }
+
+    private fun loadRaw(ctx: Context, p: android.content.SharedPreferences): List<TemplateItem> =
+        Templates.load(p.getString(Keys.USER_TEMPLATES, null)) {
         runCatching { ctx.assets.open(Keys.ASSET_TEMPLATES_YAML).bufferedReader().use { it.readText() } }.getOrNull()
     }
 

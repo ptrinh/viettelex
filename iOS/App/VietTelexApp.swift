@@ -527,6 +527,7 @@ struct MauCauSections: View {
     }()
 
     static func load() -> [TemplateItem] {
+        DynamicSnippets.migrateIfNeeded(store)
         guard let raw = store?.array(forKey: "userTemplates") as? [[String: String]] else {
             return bundledDefaults
         }

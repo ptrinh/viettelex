@@ -99,12 +99,61 @@ object Templates {
     const val FETCH_TIMEOUT_MS = 4000
     const val FETCH_MAX_BYTES = 1000
 
-    /** Body chèn cho mẫu động: ≤1000 byte, trim; null/rỗng ⇒ caller chèn chính URL. */
-    fun bodyFromResponse(bytes: ByteArray?): String? {
-        if (bytes == null) return null
-        val s = String(bytes, 0, minOf(bytes.size, FETCH_MAX_BYTES), Charsets.UTF_8).trim()
+    /**
+     * Body chèn cho mẫu động: chỉ khi HTTP 200 ([status] null = không kiểm, dùng cho bytes đã
+     * lọc); giải mã UTF-8 tường minh ≤1000 byte, lùi về ranh giới ký tự (không cắt đôi "₫"/chữ
+     * có dấu thành "�"), trim. null ⇒ caller chèn chính URL (lỗi mạng, timeout, mã ≠ 200, rỗng).
+     */
+    fun bodyFromResponse(bytes: ByteArray?, status: Int? = 200): String? {
+        if (bytes == null || status != 200) return null
+        var n = minOf(bytes.size, FETCH_MAX_BYTES)
+        if (bytes.size > FETCH_MAX_BYTES) n = utf8Boundary(bytes, n)
+        val s = String(bytes, 0, n, Charsets.UTF_8).trim()
         return s.ifEmpty { null }
     }
+
+    /** Độ dài ≤ [n] không kết thúc giữa một ký tự UTF-8 nhiều byte. */
+    internal fun utf8Boundary(b: ByteArray, n: Int): Int {
+        var i = n
+        var cont = 0
+        while (i > 0 && cont < 3 && (b[i - 1].toInt() and 0xC0) == 0x80) { i--; cont++ }
+        if (i == 0) return n
+        val lead = b[i - 1].toInt() and 0xFF
+        val need = when {
+            lead and 0x80 == 0 -> return n
+            lead and 0xE0 == 0xC0 -> 1
+            lead and 0xF0 == 0xE0 -> 2
+            lead and 0xF8 == 0xF0 -> 3
+            else -> return n
+        }
+        return if (cont >= need) n else i - 1
+    }
+
+    /** Mẫu động có sẵn — cùng thứ tự/nội dung với cuối assets/ios-mau-cau.yml (và iOS DynamicSnippets). */
+    val dynamicBuiltins = listOf(
+        TemplateItem("💵❓", "https://viettelex.com/api/usd"),
+        TemplateItem("💸❓", "https://viettelex.com/api/usd-tudo"),
+        TemplateItem("🟡❓", "https://viettelex.com/api/vang"),
+        TemplateItem("🪙❓", "https://viettelex.com/api/btc"),
+    )
+
+    /**
+     * Migration MỘT LẦN ([Keys.DYNAMIC_SNIPPETS_MIGRATED]): thêm các [dynamicBuiltins] còn thiếu
+     * (so theo text) vào cuối danh sách đã tự chỉnh. [json] null = chưa tự chỉnh (mặc định YAML
+     * đã có) ⇒ không đổi. Trả JSON mới cần ghi, null = không đổi danh sách. Caller luôn ghi cờ
+     * sau khi gọi — trừ khi JSON hỏng (không đụng, thử lại lần sau) — nên người dùng xoá mẫu
+     * sau đó thì không bao giờ bị thêm lại.
+     */
+    fun migrateDynamicBuiltins(json: String?, alreadyRan: Boolean): String? {
+        if (alreadyRan || json == null) return null
+        val list = fromJson(json) ?: return null
+        val have = list.map { it.text.trim() }.toSet()
+        val missing = dynamicBuiltins.filter { it.text !in have }
+        return if (missing.isEmpty()) null else toJson(list + missing)
+    }
+
+    /** JSON hỏng ⇒ chưa đánh dấu đã chạy (không đụng dữ liệu lạ). */
+    fun shouldMarkDynamicMigrated(json: String?): Boolean = json == null || fromJson(json) != null
 
     /**
      * Nhập mẫu câu KHÔNG cần mạng (file qua SAF hoặc chữ chia sẻ ACTION_SEND): nội dung có
