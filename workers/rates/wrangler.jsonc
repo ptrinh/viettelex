@@ -1,0 +1,10 @@
+// viettelex.com/api/{usd,usd-tudo,vang,btc}: một dòng chữ thuần cho "mẫu câu động" của bàn phím di động.
+// Deploy: CLOUDFLARE_ACCOUNT_ID=<tài khoản cá nhân> npx wrangler deploy (xem README.md)
+{
+  "name": "viettelex-rates",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "routes": [{ "pattern": "viettelex.com/api/*", "zone_name": "viettelex.com" }],
+  "workers_dev": false,
+  "observability": { "enabled": true }
+}

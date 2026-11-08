@@ -1,0 +1,42 @@
+{
+ "data": [
+  {
+   "masp": "SJC",
+   "tensp": "Vàng miếng SJC 999.9",
+   "giaban": 14100,
+   "giamua": 13800
+  },
+  {
+   "masp": "N24K",
+   "tensp": "Nhẫn Trơn PNJ 999.9",
+   "giaban": 14030,
+   "giamua": 13630
+  },
+  {
+   "masp": "KB",
+   "tensp": "Vàng Kim Bảo 999.9",
+   "giaban": 14030,
+   "giamua": 13630
+  },
+  {
+   "masp": "RAW_9999",
+   "tensp": "Vàng nguyên liệu mua ngoài 99.99",
+   "giaban": "",
+   "giamua": 12900,
+   "note": "(*)",
+   "color_note": "#003468"
+  },
+  {
+   "masp": "RAW_9900",
+   "tensp": "Vàng nguyên liệu mua ngoài 99",
+   "giaban": "",
+   "giamua": 12597,
+   "note": "(*)",
+   "color_note": "#003468"
+  }
+ ],
+ "chinhanh": "hochiminh",
+ "updateDate": "07/11/2026 12:29:16",
+ "note": "(*) Áp dụng cho các trang sức ngoài PNJ. Áp dụng cho các Cửa hàng có thu mua nguyên liệu theo nhu cầu của PNJ. Giá mua vào của các tuổi vàng khác được quy đổi theo tỷ lệ từ tuổi vàng 99.99 (liên hệ tư vấn viên để được tư vấn thêm)",
+ "color_note": "#003468"
+}
