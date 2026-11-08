@@ -15,8 +15,13 @@ import com.viettelex.keyboard.ThemeDecoration
  * khi chính nền đổi — gõ phím (KeyboardView invalidate) không đụng tới. Không bitmap.
  * Hình học dùng chung [ThemeDecoration] (= iOS KeyboardDecoration).
  */
-class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecoration, private val density: Float) : Drawable() {
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = decoration.color; style = Paint.Style.FILL }
+class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecoration?, private val density: Float,
+                         private val aurora: Boolean = false) : Drawable() {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = decoration?.color ?: 0; style = Paint.Style.FILL }
+    /** Theme AI ("borderFx":"aurora"): dải cực quang tĩnh mép trên — [AURORA_STEPS] dải ngang gradient, đậm dần lên trên
+     *  ([com.viettelex.keyboard.AuroraFx.bandOpacity]); shader dựng lại chỉ khi đổi bề ngang. */
+    private val auroraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private var auroraW = -1
     private val bgPaint = Paint().apply { color = bg; style = Paint.Style.FILL }
     private val path = Path()
     /** Khe giữa các hàng phím, dp theo toạ độ view gốc (ImeRootView đặt sau mỗi lần dựng phím). */
@@ -35,6 +40,14 @@ class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecor
     }
 
     private fun rebuild() {
+        if (aurora && bounds.width() != auroraW) {
+            auroraW = bounds.width()
+            val fx = com.viettelex.keyboard.AuroraFx
+            auroraPaint.shader = android.graphics.LinearGradient(bounds.left.toFloat(), 0f, bounds.right.toFloat(), 0f,
+                IntArray(fx.BAND_COLORS.size) { fx.BAND_COLORS[it] or (0xFF shl 24) },
+                FloatArray(fx.BAND_STOPS.size) { fx.BAND_STOPS[it].toFloat() }, android.graphics.Shader.TileMode.CLAMP)
+        }
+        val decoration = decoration ?: return
         val w = bounds.width() / density.toDouble()
         decorPath(path, decoration.motif, ThemeDecoration.placements(w, gaps, decoration.density),
             density, bounds.left.toFloat(), 0f, decoration.alt, width = w)
@@ -42,13 +55,25 @@ class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecor
 
     override fun draw(canvas: Canvas) {
         canvas.drawRect(bounds, bgPaint)   // theo bounds: khung thả nổi vẽ tay trong một vùng
-        canvas.drawPath(path, paint)
+        if (aurora) {
+            val band = (com.viettelex.keyboard.AuroraFx.BAND_HEIGHT * density).toFloat()
+            val step = band / AURORA_STEPS
+            for (i in 0 until AURORA_STEPS) {
+                val y = (i + 0.5) * step / density
+                auroraPaint.alpha = (255 * com.viettelex.keyboard.AuroraFx.bandOpacity(y)).toInt().coerceIn(0, 255)
+                val t = bounds.top + i * step
+                canvas.drawRect(bounds.left.toFloat(), t, bounds.right.toFloat(), t + step, auroraPaint)
+            }
+        }
+        if (decoration != null) canvas.drawPath(path, paint)
     }
 
     override fun setAlpha(alpha: Int) {}
     override fun setColorFilter(colorFilter: ColorFilter?) {}
     @Deprecated("Deprecated in Java")
     override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+
+    private companion object { const val AURORA_STEPS = 14 }
 }
 
 /**

@@ -142,6 +142,9 @@ CASE	borderfx-rainbow	ok	{"dark":"same","light":{"accent":"#000000","borderFx":"
 CASE	borderfx-none	ok	{"dark":"same","light":{"accent":"#000000","borderFx":"none","ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"v":1}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000","borderFx":"none"}}
 CASE	borderfx-unknown	err:badValue	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000","borderFx":"disco"}}
 CASE	borderfx-number	err:wrongType	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000","borderFx":1}}
+CASE	borderfx-aurora	ok	{"dark":"same","light":{"accent":"#000000","borderFx":"aurora","ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"v":1}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000","borderFx":"aurora"}}
+CASE	motif-neural	ok	{"dark":"same","light":{"accent":"#000000","deco":{"color":"#5967E8F9","motif":"neural"},"ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"v":1}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000","deco":{"motif":"neural","color":"#5967E8F9"}}}
+CASE	sound-effect-ai	ok	{"dark":"same","effect":"tokens","light":{"accent":"#000000","ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"sound":"ai","v":1}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"sound":"ai","effect":"tokens"}
 CASE	motif-starfield	ok	{"dark":"same","light":{"accent":"#000000","deco":{"color":"#5CFFFFFF","density":140,"motif":"starfield"},"ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"v":1}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000","deco":{"motif":"starfield","color":"#5CFFFFFF","density":140}}}
 CASE	sound-scifi-effect-meteor	ok	{"dark":"same","effect":"meteor","light":{"accent":"#000000","ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"sound":"scifi","v":1}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"sound":"scifi","effect":"meteor"}
 CASE	motif-lantern	ok	{"dark":"same","light":{"accent":"#000000","deco":{"color":"#4DFFB347","motif":"lantern"},"ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"v":1}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000","deco":{"motif":"lantern","color":"#4DFFB347"}}}
@@ -224,3 +227,10 @@ SCHED	schedule	1110	1	FFE6ECFF
 SCHED	schedule	1439	1	FFE6ECFF
 SCHED	schedule	1440	1	FFE6ECFF
 SCHED	schedule	-1	1	FFE6ECFF
+# Neon Night Club: "photoFx" (danh sách trắng: "spotlight" — Đèn rọi trên ảnh nền) + âm "club" + hiệu ứng "dancefloor".
+CASE	photofx-spotlight	ok	{"dark":"same","effect":"dancefloor","light":{"accent":"#000000","ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"photoFx":"spotlight","sound":"club","v":1}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"sound":"club","effect":"dancefloor","photoFx":"spotlight"}
+CASE	photofx-unknown	err:badValue	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"photoFx":"disco"}
+CASE	photofx-upper	err:badValue	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"photoFx":"Spotlight"}
+CASE	photofx-number	err:wrongType	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"photoFx":1}
+CASE	photofx-null	err:wrongType	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"photoFx":null}
+CASE	photofx-in-light	err:unknownKey	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000","photoFx":"spotlight"}}

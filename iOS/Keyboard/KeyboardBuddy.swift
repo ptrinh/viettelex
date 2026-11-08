@@ -72,6 +72,9 @@ enum BuddyTap {
 /// Nhân vật (giá trị lưu App Group / sao lưu = rawValue — CHỈ thêm cuối).
 enum BuddyCharacter: String, CaseIterable {
     case off, girl, boy, cat, chick, shiba, koi, panda, pig, dragon, eagle, robot
+    /// "Mắt AI" (theme AI, 11/2026): quả cầu có đồng tử nhìn theo phím — KHÔNG có khung hình (BuddyRig) / điệu nhảy;
+    /// bàn phím vẽ bằng AIEyeView (AIEye.swift) ở đúng ô + "Vị trí & cỡ" của nhân vật.
+    case ai
 
     static let key = "keyboardBuddy"
     static let defaultValue: BuddyCharacter = BuddyCharacter(rawValue: AppFlavor.defaultBuddy) ?? .off
@@ -105,8 +108,13 @@ enum BuddyCharacter: String, CaseIterable {
         case .dragon: return L("Rồng con")
         case .eagle: return L("Đại bàng")
         case .robot: return L("Robot")
+        case .ai: return L("Mắt AI")
         }
     }
+
+    /// Nhân vật có khung hình vẽ (BuddyRig) + máy trạng thái nhảy — Mắt AI thì không (AIEyeView riêng).
+    var isRigged: Bool { self != .off && self != .ai }
+    static var rigged: [BuddyCharacter] { allCases.filter(\.isRigged) }
 
     /// Nhân vật miễn phí theo `AppFlavor.freeBuddies` (VietTelex: Mèo, Phil 27/10/2026); còn lại thuộc Plus.
     var isPlus: Bool { self != .off && !AppFlavor.freeBuddies.contains(rawValue) }
@@ -445,7 +453,7 @@ enum BuddyDance {
         if season == .tet && clamp(tier) >= 2 { pool.insert(.fanShake, at: character == .robot ? 4 : 1) }
         let n = pool.count
         let c: Int
-        switch character { case .off: c = 0; case .girl: c = 1; case .boy: c = 2; case .cat: c = 3; case .chick: c = 4; case .shiba: c = 5; case .koi: c = 6; case .panda: c = 7; case .pig: c = 8; case .dragon: c = 9; case .eagle: c = 10; case .robot: c = 11 }
+        switch character { case .off: c = 0; case .girl: c = 1; case .boy: c = 2; case .cat: c = 3; case .chick: c = 4; case .shiba: c = 5; case .koi: c = 6; case .panda: c = 7; case .pig: c = 8; case .dragon: c = 9; case .eagle: c = 10; case .robot: c = 11; case .ai: c = 12 }
         let offset = abs(seed % 997) + c * 17
         let group = max(0, loopIndex) / 2 % n
         return pool[(offset + group * (n - 1)) % n]
@@ -1210,6 +1218,7 @@ struct BuddyRig {
         case .dragon: return dragon
         case .eagle: return eagle
         case .robot: return robot
+        case .ai: return nil
         }
     }
 
@@ -2169,7 +2178,7 @@ struct BuddyOutfit {
             case .boy:
                 o.recolor = [0x304563: red, 0x536B8C: 0xF18B95]
                 o.pieces = khanDong(.head, h) + khanDong(.sleep, sh)
-            case .cat, .chick, .shiba, .koi, .panda, .pig, .dragon, .eagle, .robot, .off:
+            case .cat, .chick, .shiba, .koi, .panda, .pig, .dragon, .eagle, .robot, .off, .ai:
                 o.pieces = bow(.head, r.neck) + bow(.sleep, sn)
             }
         case .christmas: o.pieces = c == .koi ? bow(.head, r.neck) + bow(.sleep, sn) : santa(.head, h) + santa(.sleep, sh)

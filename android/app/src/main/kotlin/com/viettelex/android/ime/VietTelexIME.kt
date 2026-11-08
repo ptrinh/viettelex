@@ -382,6 +382,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             r.effects?.halt()
             r.effects?.shakeTarget = null
             r.effects = null; kb.effects = null
+            strip?.onShown = null
             return
         }
         val v = r.effects ?: KeyEffectView(this, th.density)
@@ -391,10 +392,22 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         v.reduceMotion = fx == com.viettelex.keyboard.KeyEffect.SHAKE && !android.animation.ValueAnimator.areAnimatorsEnabled()
         // Laser: tia bắn từ phím cách thật (khung đọc lúc bắn — đổi bàn số / ký hiệu vẫn đúng).
         v.spaceFrame = if (fx == com.viettelex.keyboard.KeyEffect.LASER) { out -> kb.spaceKeyFrame(out, v) } else null
+        // Token AI: đích bay (Mắt AI / tâm dải gợi ý) đọc lúc bắn + vệt sáng khi gợi ý đổi. Kiểu khác ⇒ null (0 chi phí).
+        val tokens = fx == com.viettelex.keyboard.KeyEffect.TOKENS
+        v.tokenTarget = if (tokens) { out -> r.tokenTarget(out, v) } else null
+        strip?.onShown = if (tokens) { set ->
+            r.suggestionRect(tokenRect, v)
+            val words = ArrayList<String>(8)
+            set.word?.let { words.add(it) }; set.word2?.let { words.add(it) }
+            words.addAll(set.moreWords); words.addAll(set.nextWords); words.addAll(set.emojis)
+            v.suggestionsChanged(words, tokenRect[0], tokenRect[1], tokenRect[2], tokenRect[3])
+        } else null
         r.effects = v          // dải dưới / trên phím theo kiểu vừa cấu hình
         kb.effects = v
         r.refreshStringGaps()  // Rung dây: khe hàng cho overlay (đã layout thì đặt ngay)
     }
+
+    private val tokenRect = FloatArray(4)
 
     /**
      * "Hiệu ứng nét vuốt": kiểu + cổng Plus + Trình tiết kiệm pin; "Theo giao diện" ⇒ "swipe" của theme đang dùng —
@@ -426,11 +439,24 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val r = root ?: return
         val c = com.viettelex.keyboard.BuddyPolicy.active(setting, com.viettelex.keyboard.BuddyGate.allows(setting))
         if (c == com.viettelex.keyboard.BuddyCharacter.OFF) {
-            r.buddy = null; st.buddyDp = 0f
+            r.buddy = null; r.aiEye = null; st.buddyDp = 0f; keyboard?.eyeLook = null
             session.trackBoundaryWord = r.effects?.effect?.needsBoundaryWord == true
             return
         }
         val low = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true
+        // Mắt AI: view riêng (không khung hình / điệu nhảy, không tra từ) — cùng ô + "Vị trí & cỡ".
+        if (c == com.viettelex.keyboard.BuddyCharacter.AI) {
+            r.buddy = null
+            val e = r.aiEye ?: AIEyeView(this, th.density, low)
+            e.lowPower = low
+            r.aiEye = e
+            keyboard?.eyeLook = { x, y -> e.keyPressed(x, y) }
+            r.buddyPlacement = placement
+            st.buddyDp = placement.zoneWidth(StripGeometry.BUDDY_W.toDouble()).toFloat()
+            session.trackBoundaryWord = r.effects?.effect?.needsBoundaryWord == true
+            return
+        }
+        r.aiEye = null; keyboard?.eyeLook = null
         val cal = java.util.Calendar.getInstance()
         val season = com.viettelex.keyboard.BuddySeason.resolve(th.settings.effectiveTheme.id,
             cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH))
@@ -487,6 +513,22 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         kb.mole = v
     }
 
+    /**
+     * Đèn rọi (theme có "photoFx":"spotlight" — [com.viettelex.keyboard.SpotlightPolicy]): theme + Plus + không tiết kiệm
+     * pin — đọc MỘT lần mỗi lần hiện. Không ⇒ gỡ view (0 chi phí mỗi phím).
+     */
+    private fun applySpotlight(th: ImeTheme, kb: KeyboardView, buddy: com.viettelex.keyboard.BuddyCharacter) {
+        val r = root ?: return
+        val on = com.viettelex.keyboard.SpotlightPolicy.active(th.keyStyle.photoFx,
+            PlusGate.isUnlocked(PlusFeature.PREMIUM_THEMES),
+            lowPower = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true)
+        if (!on) { r.spotlight = null; kb.spotlight = null; return }
+        val v = r.spotlight ?: SpotlightView(this, th.density)
+        v.dancer = com.viettelex.keyboard.NightDancer.character(buddy)   // người nhảy: chàng trai nếu đang chọn, không thì cô gái
+        r.spotlight = v
+        kb.spotlight = v
+    }
+
     /** Thống kê Đập chuột trong RAM (đọc file lúc gắn view, ghi file trên worker mỗi lần đập). */
     private var moleStats = com.viettelex.keyboard.MoleStats()
 
@@ -527,6 +569,10 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             com.viettelex.keyboard.KeyEffect.LETTERS -> {
                 val typed = when (key) { is Key.Letter -> key.ch.toString(); is Key.Text -> key.text; else -> null }
                 com.viettelex.keyboard.FlyingLetters.glyph(before, after, typed)?.let { fx.queueLetter(it) }
+            }
+            com.viettelex.keyboard.KeyEffect.TOKENS -> {
+                val typed = when (key) { is Key.Letter -> key.ch.toString(); is Key.Text -> key.text; else -> null }
+                com.viettelex.keyboard.FlyingLetters.glyph(before, after, typed)?.let { fx.queueToken(it) }
             }
             else -> {}
         }
@@ -640,6 +686,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         applyBuddy(settings.buddy, settings.buddyStyle, settings.buddyPlacement, th, st)
         applySwipeTrail(settings.swipeTrail, th, kb)
         applyMole(th, kb)
+        applySpotlight(th, kb, settings.buddy)
         kb.configureSpaceFlick(settings.spaceSwipeLanguage, session.language)
         kb.trackpadSpeed = settings.trackpadSpeed
         kb.symbolReturn = settings.symbolReturn
@@ -759,6 +806,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         root?.balloon?.hide()
         root?.effects?.halt()                  // Matrix…: ẩn bàn phím ⇒ dừng hẳn, không còn khung hình
         root?.buddy?.halt()                    // Bạn đồng hành: không hẹn giờ khi ẩn
+        root?.aiEye?.halt()                    // Mắt AI: lim dim, không hẹn giờ
         root?.rainbow?.halt()                  // Gaming RGB: đứng yên ở cầu vồng tĩnh
         session.finishInput()
     }
@@ -1649,7 +1697,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     // --- nút 😊 trên strip ("Nút emoji" = Thanh trên) ---
     override fun onEmojiButton() { keyboard?.setPlane(Plane.EMOJI) }
-    override fun onBuddyTickle() { root?.buddy?.tickle() }
+    override fun onBuddyTickle() { root?.buddy?.tickle(); root?.aiEye?.tickle() }
 
     /** Toạ độ StripView → KeyboardView (cùng cha ImeRootView, kể cả thả nổi). */
     private fun stripToKbDy(): Float {

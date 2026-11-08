@@ -31,12 +31,13 @@ import com.viettelex.keyboard.RainbowDriver
  * tới dừng + mờ dần xuống ánh nghỉ (~1 s) rồi THÔI hẹn khung (0 khung hình, 0 CPU khi nghỉ).
  */
 @SuppressLint("ViewConstructor")
-class RainbowBorderView(context: Context, private val density: Float) : ViewGroup(context) {
-    /** Dải gradient — onDraw MỘT lần (SRC_IN lên viền trong lớp của cha). */
-    private class Strip(context: Context) : View(context) {
+class RainbowBorderView(context: Context, private val density: Float, val aurora: Boolean = false) : ViewGroup(context) {
+    /** Dải gradient — onDraw MỘT lần (SRC_IN lên viền trong lớp của cha). Theme AI ([aurora]): gradient tĩnh [AuroraFx]. */
+    private class Strip(context: Context, private val aurora: Boolean) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN) }
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-            val (cols, pos) = RainbowBorder.stops()
+            val (cols, pos) = if (aurora) com.viettelex.keyboard.AuroraFx.BORDER_COLORS to com.viettelex.keyboard.AuroraFx.BORDER_STOPS
+                else RainbowBorder.stops()
             paint.shader = LinearGradient(0f, 0f, w.toFloat(), 0f, IntArray(cols.size) { cols[it] or (0xFF shl 24) },
                 FloatArray(pos.size) { pos[it].toFloat() }, Shader.TileMode.CLAMP)
         }
@@ -45,10 +46,11 @@ class RainbowBorderView(context: Context, private val density: Float) : ViewGrou
         override fun hasOverlappingRendering() = false
     }
 
-    private val strip = Strip(context)
+    private val strip = Strip(context, aurora)
     private val outline = Path()
     private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE; strokeWidth = (RainbowBorder.LINE_WIDTH * density).toFloat(); color = 0xFF000000.toInt()
+        style = Paint.Style.STROKE; color = 0xFF000000.toInt()
+        strokeWidth = ((if (aurora) com.viettelex.keyboard.AuroraFx.LINE_WIDTH else RainbowBorder.LINE_WIDTH) * density).toFloat()
     }
     private val driver = RainbowDriver()
     /** Độ lệch đang hiện (0…1 bề ngang). */
@@ -68,7 +70,7 @@ class RainbowBorderView(context: Context, private val density: Float) : ViewGrou
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         setWillNotDraw(false)
         addView(strip)
-        strip.alpha = RainbowBorder.REST_ALPHA.toFloat()
+        strip.alpha = (if (aurora) com.viettelex.keyboard.AuroraFx.BORDER_ALPHA else RainbowBorder.REST_ALPHA).toFloat()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -85,14 +87,14 @@ class RainbowBorderView(context: Context, private val density: Float) : ViewGrou
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec); val h = MeasureSpec.getSize(heightMeasureSpec)
-        strip.measure(MeasureSpec.makeMeasureSpec(RainbowBorder.STRIP_PERIODS * w, MeasureSpec.EXACTLY),
+        strip.measure(MeasureSpec.makeMeasureSpec((if (aurora) 1 else RainbowBorder.STRIP_PERIODS) * w, MeasureSpec.EXACTLY),
             MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
         setMeasuredDimension(w, h)
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-        strip.layout(0, 0, RainbowBorder.STRIP_PERIODS * (r - l), b - t)
-        apply(now())
+        strip.layout(0, 0, (if (aurora) 1 else RainbowBorder.STRIP_PERIODS) * (r - l), b - t)
+        if (!aurora) apply(now())
     }
 
     override fun dispatchDraw(canvas: Canvas) {
@@ -105,6 +107,7 @@ class RainbowBorderView(context: Context, private val density: Float) : ViewGrou
 
     /** Một phím vừa tới IME (chữ đã chèn). Nghỉ → chạy: hẹn khung hình. Đang chạy: chỉ ghi giờ. */
     fun poke() {
+        if (aurora) return                         // theme AI: viền tĩnh — không chạy gì
         val t0 = System.nanoTime()
         if (driver.poke(now()) && !framePosted) { framePosted = true; postOnAnimation(frame) }
         costNs += System.nanoTime() - t0
@@ -112,6 +115,7 @@ class RainbowBorderView(context: Context, private val density: Float) : ViewGrou
 
     /** Ẩn bàn phím: đứng yên ngay ở ánh nghỉ. */
     fun halt() {
+        if (aurora) return
         val now = now()
         driver.halt(now)
         apply(now)

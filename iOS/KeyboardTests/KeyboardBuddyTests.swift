@@ -28,7 +28,7 @@ final class KeyboardBuddyTests: XCTestCase {
     // MARK: Cài đặt
 
     func testIdsMatchAndroidAndDefaultIsOff() {
-        XCTAssertEqual(BuddyCharacter.allCases.map(\.rawValue), ["off", "girl", "boy", "cat", "chick", "shiba", "koi", "panda", "pig", "dragon", "eagle", "robot"])
+        XCTAssertEqual(BuddyCharacter.allCases.map(\.rawValue), ["off", "girl", "boy", "cat", "chick", "shiba", "koi", "panda", "pig", "dragon", "eagle", "robot", "ai"])
         XCTAssertEqual(BuddyCharacter.parse("robot"), .robot)
         XCTAssertTrue(BuddyCharacter.robot.isPlus)
         XCTAssertEqual(BuddyStyle.sprite.resolved(for: .robot), .vector)
@@ -59,7 +59,7 @@ final class KeyboardBuddyTests: XCTestCase {
         XCTAssertEqual(BuddyStyle.sprite.resolved(for: .eagle), .vector)
         XCTAssertTrue(BuddyStyle.hasAtlas(.cat))
         XCTAssertFalse(BuddyStyle.hasAtlas(.koi))
-        for c in BuddyCharacter.allCases where c != .off {
+        for c in BuddyCharacter.rigged {
             XCTAssertNotNil(BackupSettings.all.first { $0.key == BuddyStyle.key(c) }, "sao lưu kiểu vẽ \(c)")
         }
     }
@@ -147,7 +147,7 @@ final class KeyboardBuddyTests: XCTestCase {
         XCTAssertEqual(BuddyCharacter.girl.title, "Cô gái")
         XCTAssertEqual(BuddyCharacter.off.title, "Tắt")
         L10n.apply("en")
-        XCTAssertEqual(BuddyCharacter.allCases.map(\.title), ["Off", "Girl", "Boy", "Cat", "Chick", "Shiba", "Koi", "Panda", "Piggy", "Little dragon", "Eagle", "Robot"])
+        XCTAssertEqual(BuddyCharacter.allCases.map(\.title), ["Off", "Girl", "Boy", "Cat", "Chick", "Shiba", "Koi", "Panda", "Piggy", "Little dragon", "Eagle", "Robot", "AI Eye"])
         XCTAssertEqual(L("Bạn đồng hành"), "Keyboard buddy")
     }
 
@@ -274,7 +274,7 @@ final class KeyboardBuddyTests: XCTestCase {
     // MARK: Dáng nhảy
 
     func testDancePoseLoopsAndEnergyRisesWithTier() {
-        for c in BuddyCharacter.allCases where c != .off {
+        for c in BuddyCharacter.rigged {
             let s = BuddyRig.rig(c)!.style
             var peaks: [Double] = []
             for t in 0..<4 {
@@ -368,7 +368,7 @@ final class KeyboardBuddyTests: XCTestCase {
         }
         XCTAssertEqual(BuddySprites.cell(103), 3)
         // Xoay trọn vòng trái rồi phải bằng ảnh (không rotate): đủ 5 dáng quay + bản lật, cô gái theo thứ tự riêng.
-        for c in BuddyCharacter.allCases where c != .off {
+        for c in BuddyCharacter.rigged {
             let d = BuddySprites.dance(c, 3), o = BuddySprites.turnOrder(c)
             XCTAssertEqual(Set(o), [2, 3, 4, 5, 6])
             let s = d.firstIndex(of: o[0])!
@@ -418,7 +418,7 @@ final class KeyboardBuddyTests: XCTestCase {
         XCTAssertNil(sprite.animationKeys())
         v.halt()
       }
-      for character in BuddyCharacter.allCases where character != .off && !BuddyStyle.hasAtlas(character) {
+      for character in BuddyCharacter.rigged where !BuddyStyle.hasAtlas(character) {
         let v = BuddyView(character: character, bar: 0x222222, lowPower: false)
         XCTAssertEqual(v.artStyle, .vector, "\(character): không atlas ⇒ Vẽ nét")
         v.halt()
@@ -487,10 +487,10 @@ final class KeyboardBuddyTests: XCTestCase {
         print("BUDDY checksum \(sums)")
         XCTAssertEqual(sums, Self.checksums)
     }
-    static let checksums = ["0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220", "15289.7078", "14836.0100", "12662.2864", "14607.2357", "12859.3196", "16388.4397", "14471.9114"]
+    static let checksums = ["0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220", "15289.7078", "14836.0100", "12662.2864", "14607.2357", "12859.3196", "16388.4397", "14471.9114", "0.0000"]
 
     func testEveryRigHasAllPartsAndSleepPose() {
-        for c in BuddyCharacter.allCases where c != .off {
+        for c in BuddyCharacter.rigged {
             let r = BuddyRig.rig(c)!
             let required: [BuddyPart] = c == .koi ? [.tail, .body, .armL, .armR, .head, .sleep]
                 : [.legL, .legR, .body, .armL, .armR, .head, .sleep]
@@ -523,7 +523,7 @@ final class KeyboardBuddyTests: XCTestCase {
     /// Ngủ ⇒ 0 hoạt ảnh (kể cả lúc mới hiện); "z z" có hạn rồi gỡ; đứng yên cũng 0 (sau lượt nối).
     @MainActor func testZeroAnimationsWhenAsleep() {
         let clock = Clock()
-        for c in BuddyCharacter.allCases where c != .off {
+        for c in BuddyCharacter.rigged {
             let v = makeView(c, clock: clock)
             XCTAssertEqual(v.shown, .asleep(zzz: false))
             XCTAssertEqual(v.runningAnimationCount, c == .koi ? 3 : 0, "\(c): mới hiện — ngủ yên")
@@ -1031,7 +1031,7 @@ final class KeyboardBuddyTests: XCTestCase {
         XCTAssertEqual(BuddySeason.resolve(themeID: "trungthu", year: 2026, month: 7, day: 1), .midAutumn)
         XCTAssertEqual(BuddySeason.resolve(themeID: "system", year: 2026, month: 12, day: 20), .christmas, "theme thường ⇒ theo ngày")
         XCTAssertNil(BuddySeason.resolve(themeID: "oled", year: 2026, month: 7, day: 1))
-        for c in BuddyCharacter.allCases where c != .off {
+        for c in BuddyCharacter.rigged {
             XCTAssertTrue(BuddyOutfit.make(nil, c).pieces.isEmpty)
             for s in BuddySeason.allCases.prefix(4) {
                 let o = BuddyOutfit.make(s, c)
@@ -1068,7 +1068,7 @@ final class KeyboardBuddyTests: XCTestCase {
         for (tag, theme, sysDark) in bars {
             let pal = theme.palette(systemDark: sysDark)
             let bar = pal.buddyBar
-            for c in BuddyCharacter.allCases where c != .off {
+            for c in BuddyCharacter.rigged {
                 let style = BuddyRig.rig(c)!.style
                 for (name, pose) in [("asleep", nil), ("dance", BuddyDance.pose(style, tier: 3, p: 0.125)),
                                      ("love", BuddyDance.react(.love, style, f: 0.5)),
@@ -1114,7 +1114,7 @@ final class KeyboardBuddyTests: XCTestCase {
     /// + viền (hình tô có viền vẽ dày thêm đúng bề nét). Khung vẽ lại v3 (cô gái chân thon, 27/10/2026) duyệt bằng
     /// ảnh xem trước ⇒ ngưỡng 1,8 pt (chân cô gái ≈ 1,9 pt). Koi không có chân (vây = tay) ⇒ chỉ đo phần có.
     func testLimbsAreFilledAndThickEnough() {
-        for c in BuddyCharacter.allCases where c != .off {
+        for c in BuddyCharacter.rigged {
             let r = BuddyRig.rig(c)!
             let pt = 38 / r.full.h
             for part in [BuddyPart.legL, .legR, .armL, .armR] {
@@ -1206,7 +1206,7 @@ final class KeyboardBuddyTests: XCTestCase {
     }
 
     func testAccessoriesHaveSmallBudgetsAndBothPoses() {
-        for c in BuddyCharacter.allCases where c != .off {
+        for c in BuddyCharacter.rigged {
             for season in BuddySeason.allCases.prefix(4) {
                 let outfit = BuddyOutfit.make(season, c)
                 for sleeping in [false, true] {
@@ -1229,7 +1229,7 @@ final class KeyboardBuddyTests: XCTestCase {
     }
 
     func testNamedMovesNeutralAndSelection() {
-        for c in BuddyCharacter.allCases where c != .off {
+        for c in BuddyCharacter.rigged {
             let style = BuddyRig.rig(c)!.style
             for tier in 0...3 {
                 for move in BuddyDance.Move.allCases {

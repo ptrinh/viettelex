@@ -298,7 +298,7 @@ final class KeyPressHighlightEdgeTests: XCTestCase {
             kb.updateDark(false); try check(false, "sáng, số")
             kb.debugSetPlane(numbers: false); try check(false, "sáng, chữ (từ cache)")
             // applyAppearance (lần hiện mới) cũng vậy.
-            kb.applyAppearance(.dark, style: .light); try check(true, "ô xin .dark")
+            kb.applyAppearance(.dark, style: .light); try check(false, "ô xin .dark nhưng máy sáng ⇒ sáng (AppearancePolicy theo máy)")
             kb.applyAppearance(.default, style: .dark); try check(true, ".default theo trait tối")
             kb.applyAppearance(.default, style: .light); try check(false, ".default theo trait sáng")
         }

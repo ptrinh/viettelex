@@ -69,7 +69,8 @@ class ImeRootView(
         if (wallpaperFile == null && bottom != null) android.graphics.drawable.GradientDrawable(
             android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(theme.bg, bottom))
         // Tim đen / Hoa xanh: hoạ tiết là MỘT Path trong nền (vẽ khi nền đổi, không mỗi phím).
-        else if (wallpaperFile == null && decoration != null) ThemeDecorDrawable(theme.bg, decoration, theme.density)
+        else if (wallpaperFile == null && (decoration != null || theme.palette.auroraBorder))
+            ThemeDecorDrawable(theme.bg, decoration, theme.density, aurora = theme.palette.auroraBorder)
         else android.graphics.drawable.ColorDrawable(theme.bg)
     }
 
@@ -95,7 +96,8 @@ class ImeRootView(
      * Viền phím cầu vồng (theme Gaming RGB — "borderFx":"rainbow"): ngay TRÊN phím, dưới strip / tiền cảnh / vệt /
      * hiệu ứng / balloon; cùng khung KeyboardView. Theme khác ⇒ null (không có view).
      */
-    val rainbow: RainbowBorderView? = if (theme.palette.rainbowBorder) RainbowBorderView(context, theme.density) else null
+    val rainbow: RainbowBorderView? = if (theme.palette.rainbowBorder || theme.palette.auroraBorder)
+        RainbowBorderView(context, theme.density, aurora = theme.palette.auroraBorder) else null
     private val rainbowPath = android.graphics.Path()
 
     /** Mặt nạ viền theo khung phím hiện tại (gọi khi dựng phím / layout — không mỗi phím). */
@@ -164,6 +166,7 @@ class ImeRootView(
 
     private fun setWallpaper(b: android.graphics.Bitmap?) {
         wallpaper = b
+        spotlight?.setPhoto(b, if (b != null) wallMatrix else null)   // Đèn rọi: CHÍNH bitmap này, không sao chép
         updateWallMatrix()
         invalidate()
     }
@@ -186,6 +189,7 @@ class ImeRootView(
     fun dropWallpaper(): Boolean {
         var had = wallpaper != null
         wallpaper = null; reloadGen++
+        spotlight?.setPhoto(null, null)
         if (themeBg != null) { themeBg = null; themeBgW = 0; themeBgH = 0; had = true }
         if (foreground?.drop() == true) had = true
         return had
@@ -387,6 +391,7 @@ class ImeRootView(
         layoutBuddy(px, py, pw, s)
         updateStringGaps()
         mole?.layout(px, 0, px + pw, py + s + keyH)
+        spotlight?.layout(panel.left, panel.top, panel.right, panel.bottom)
         if (wallpaperFile != null && (wallW != pw || wallH != ph)) loadWallpaperFor(pw, ph) else updateWallMatrix()
         loadThemeBgFor(pw, ph)
     }
@@ -429,8 +434,63 @@ class ImeRootView(
     var buddyPlacement = com.viettelex.keyboard.BuddyPlacement.STANDARD
         set(v) { if (field != v) { field = v; requestLayout() } }
 
+    /**
+     * "Mắt AI" ([AIEyeView], nhân vật "ai") — cùng ô / "Vị trí & cỡ" với Bạn đồng hành (StripView chừa [StripView.buddyDp]),
+     * hình vuông cạnh = cao strip, không tràn xuống phím. null = nhân vật khác / tắt (0 chi phí).
+     */
+    private val eyeSlot = DoubleArray(2)
+    var aiEye: AIEyeView? = null
+        set(v) {
+            if (field === v) return
+            field?.let { it.halt(); removeView(it) }
+            field = v
+            if (v != null) { addView(v); v.outlineProvider = null; v.translationZ = 1000f }
+            if (buddy == null) strip.onBuddySlot = if (v == null) null else ({ v.shownInSlot = strip.buddySlotShown() })
+            requestLayout()
+        }
+
+    /** Token AI: đích bay theo toạ độ [fx] (px) → [out]: tâm Mắt AI nếu đang hiện, không thì tâm vùng ô gợi ý. */
+    fun tokenTarget(out: FloatArray, fx: android.view.View): Boolean {
+        val e = aiEye
+        if (e != null && e.visibility == VISIBLE && e.width > 0) {
+            out[0] = e.eyeCenterX - fx.left; out[1] = e.eyeCenterY - fx.top; return true
+        }
+        val s = stripPx()
+        if (s <= 0 || strip.slotSpanR <= strip.slotSpanL) return false
+        out[0] = strip.left + (strip.slotSpanL + strip.slotSpanR) / 2 - fx.left
+        out[1] = strip.top + s / 2f - fx.top
+        return true
+    }
+
+    /** Token AI: vùng ô gợi ý theo toạ độ [fx] (px) → [out] (l, t, r, b). */
+    fun suggestionRect(out: FloatArray, fx: android.view.View) {
+        out[0] = strip.left + strip.slotSpanL - fx.left; out[2] = strip.left + strip.slotSpanR - fx.left
+        out[1] = (strip.top - fx.top).toFloat(); out[3] = strip.top + stripPx() - fx.top.toFloat()
+    }
+
+    /**
+     * Khung Mắt AI: vuông cạnh strip × [com.viettelex.keyboard.AIEye.SLOT_SIZE], TÂM DỌC = tâm dòng chữ gợi ý
+     * ([KeyLayout.barCy]), canh giữa ô chừa (không vượt mép phải / mép trên); cỡ / lề theo [buddyPlacement].
+     */
+    private fun layoutAIEye(e: AIEyeView, px: Int, py: Int, pw: Int, s: Int) {
+        val r = px + pw - Math.round(strip.dismissPx())
+        val l = r - Math.round(theme.dp(StripGeometry.BUDDY_W))
+        com.viettelex.keyboard.AIEye.slot(s.toDouble(), theme.dp(KeyLayout.barCy(strip.openStripDp)).toDouble(), eyeSlot)
+        val es = eyeSlot[1].toInt()
+        val bl = minOf((l + r - es) / 2, px + pw - es)
+        val f = buddyPlacement.frame(com.viettelex.keyboard.BuddyRect(bl.toDouble(), py + eyeSlot[0], es.toDouble(), es.toDouble()),
+            es.toDouble(), theme.dp(1f).toDouble(), (height - py).toDouble())
+        val fl = Math.round(f.x).toInt(); val ft = Math.round(f.y).toInt()
+        val fw = Math.round(f.w).toInt(); val fh = Math.round(f.h).toInt()
+        e.measure(MeasureSpec.makeMeasureSpec(fw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(fh, MeasureSpec.EXACTLY))
+        e.layout(fl, ft, fl + fw, ft + fh)
+        strip.buddyFigure = com.viettelex.keyboard.BuddyRect((fl - strip.left).toDouble(), (ft - strip.top).toDouble(), fw.toDouble(), fh.toDouble())
+        e.shownInSlot = strip.buddySlotShown() && s > 0
+    }
+
     /** Khung ô nhân vật (px, gốc = khung bàn phím): sát mép phải, cao = strip + phần tràn xuống phím; cỡ / lề neo đáy-phải. */
     private fun layoutBuddy(px: Int, py: Int, pw: Int, s: Int) {
+        aiEye?.let { layoutAIEye(it, px, py, pw, s); return }
         val b = buddy ?: return
         val r = px + pw - Math.round(strip.dismissPx())   // ⌄ ẩn bàn phím (tắt = 0) nằm sát mép phải
         val l = r - Math.round(theme.dp(StripGeometry.BUDDY_W))
@@ -457,6 +517,21 @@ class ImeRootView(
             field?.let { it.halt(); removeView(it) }
             field = v
             if (v != null) addView(v, indexOfChild(balloon))
+        }
+
+    /**
+     * Đèn rọi ([SpotlightView], theme có "photoFx":"spotlight") — con ĐẦU TIÊN: trên nền + ảnh nền (vẽ trong onDraw của view
+     * này), dưới hiệu ứng dải dưới + phím; phủ trọn khung như ảnh nền. null = theme khác (không view, 0 chi phí).
+     */
+    var spotlight: SpotlightView? = null
+        set(v) {
+            if (field === v) return
+            field?.let { it.halt(); removeView(it) }
+            field = v
+            if (v != null) {
+                addView(v, 0)
+                v.setPhoto(wallpaper, if (wallpaper != null) wallMatrix else null)
+            }
         }
 
     /** Bảng phủ đúng vùng phím (lịch sử clipboard); null = không có. Thêm lười khi mở lần đầu. */
@@ -487,6 +562,7 @@ class ImeRootView(
             MeasureSpec.makeMeasureSpec(s + keyH, MeasureSpec.EXACTLY))
         mole?.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
             MeasureSpec.makeMeasureSpec(s + keyH, MeasureSpec.EXACTLY))
+        spotlight?.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
         setMeasuredDimension(w, h)
     }
 
@@ -509,6 +585,7 @@ class ImeRootView(
         balloon.measure(ew, MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
         effects?.measure(ew, MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
         mole?.measure(ew, MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
+        spotlight?.measure(ew, MeasureSpec.makeMeasureSpec(FloatingKeyboard.panelHeight(s, keyH, handlePx), MeasureSpec.EXACTLY))
         setMeasuredDimension(w, h)
     }
 
@@ -530,6 +607,7 @@ class ImeRootView(
         layoutBuddy(0, 0, w, s)
         updateStringGaps()
         mole?.layout(0, 0, w, s + keyH)
+        spotlight?.layout(0, 0, w, b - t)
     }
 
     private var insetsKnown = false

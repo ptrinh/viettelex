@@ -37,6 +37,7 @@ struct KeyEffectPickerView: View {
                     + Text(" ") + Text(L("Matrix, Mực loang, Sóng nước chạy dưới phím; Matrix chỉ chạy khi đang gõ. Nháy sáng được giới hạn nhịp và độ sáng cho dịu mắt. Emoji theo chữ hiện khi vừa gõ xong từ như \"haha\", \"cảm ơn\", \"chúc mừng\"."))
                     + Text(" ") + Text(L("Rung combo không rung khi bật Giảm chuyển động. Dấu thanh phản ứng theo dấu vừa bỏ; Từ khoá nổ pháo đỏ và lì xì khi gõ \"tết\", thả tim khi gõ \"yêu\"; Chữ bay thả đúng chữ vừa ra; Hạt cát đọng thành đống thấp ở đáy rồi tự tan."))
                     + Text(" ") + Text(L("Biển: mỗi đợt gõ một con sóng vỗ vào bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang."))
+                    + Text(" ") + Text(L("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp."))
             }
         }
         .bottomBarScrollMargin()
@@ -136,6 +137,9 @@ final class KeyEffectPreviewView: UIView {
             guard let self else { return nil }
             return CGRect(x: 6, y: self.bounds.height - 10, width: self.bounds.width * 0.3 - 6, height: 8)
         } : nil
+        overlay?.tokenTarget = effect == .tokens ? { [weak self] in
+            self.map { CGPoint(x: $0.bounds.midX, y: 10) }
+        } : nil
         if play != lastPlay {
             lastPlay = play
             layoutIfNeeded()
@@ -143,6 +147,7 @@ final class KeyEffectPreviewView: UIView {
             if effect == .tone { overlay?.queueTone(.sac) }
             if effect == .keyword { overlay?.queueKeyword(.tet) }   // như vừa gõ "tết" + dấu cách
             if effect == .letters { overlay?.queueLetter("ế") }
+            if effect == .tokens { overlay?.queueToken("ế") }   // token bay lên "thanh gợi ý" (mép trên ô xem thử)
             if effect == .plasma {
                 overlay?.emit(key: CGRect(x: bounds.width * 0.12, y: 12, width: 20, height: 20)); overlay?.flush()
                 overlay?.emit(key: CGRect(x: bounds.width * 0.78, y: 18, width: 20, height: 20)); overlay?.flush()

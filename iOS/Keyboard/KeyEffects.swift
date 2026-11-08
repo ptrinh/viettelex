@@ -1,7 +1,7 @@
 // "Hiệu ứng khi bấm phím" (Plus, Phil 19/10/2026): Trái tim, Bong bóng, Gợn sóng,
 // Cánh hoa, Pháo hoa, Nháy sáng, Matrix, Tia sét, Emoji theo chữ, Hoa đào / mai, Lửa combo, Mực loang,
 // Sóng nước, Tuyết rơi, Sao băng, Đèn lồng, Sương ma, Rung dây, Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá,
-// Chữ bay, Hạt cát, Biển; "Không" = mặc định. Song sinh android/keyboard/.../KeyEffect.kt (cùng khoá
+// Chữ bay, Hạt cát, Biển, Token AI; "Không" = mặc định. Song sinh android/keyboard/.../KeyEffect.kt (cùng khoá
 // `keyEffect`, cùng id, cùng quỹ đạo / cùng hàm thuần: tia sét, mảnh vỡ, combo, nháy sáng, emoji).
 //
 // Luật hiệu năng (feature-flags-perf-policy — gõ mượt là số 1):
@@ -32,6 +32,10 @@ enum KeyEffect: String, CaseIterable {
     case plasma, shake, laser, glitch, tone, keyword, letters, sand
     // Theme Biển (11/2026): sóng vỗ bờ + bọt bắn + bong bóng + cá bơi khi combo (SeaFx).
     case sea
+    // Theme "AI" (11/2026): chữ vừa ra vỡ thành vài "token" phát sáng bay vào thanh gợi ý (TokenStream).
+    case tokens
+    // Theme Neon Night Club (11/2026): Sàn nhảy LED — phím vừa bấm + các phím quanh thắp neon thành vòng vuông lan ra.
+    case dancefloor
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -72,6 +76,8 @@ enum KeyEffect: String, CaseIterable {
         case .letters: return L("Chữ bay")
         case .sand: return L("Hạt cát")
         case .sea: return L("Biển")
+        case .tokens: return L("Token AI")
+        case .dancefloor: return L("Sàn nhảy LED")
         }
     }
 
@@ -79,9 +85,9 @@ enum KeyEffect: String, CaseIterable {
     var isPlus: Bool { self != .none }
 
     /// Chỉ bắn khi controller xếp sẵn sự kiện (từ vừa chốt / dấu vừa bỏ / chữ vừa ra): phím thường không hẹn vẽ gì.
-    var isQueued: Bool { self == .emojiword || self == .tone || self == .keyword || self == .letters }
+    var isQueued: Bool { self == .emojiword || self == .tone || self == .keyword || self == .letters || self == .tokens }
     /// Controller phải so từ đang soạn trước/sau phím — kiểu khác: không đọc gì (0 chi phí).
-    var needsComposeDiff: Bool { self == .tone || self == .letters }
+    var needsComposeDiff: Bool { self == .tone || self == .letters || self == .tokens }
     /// Controller phải tra từ vừa chốt ở ranh giới.
     var needsBoundaryWord: Bool { self == .emojiword || self == .keyword }
 
@@ -1284,6 +1290,219 @@ enum SeaFx {
     }
 }
 
+// MARK: - Theme "AI" (11/2026): Token AI
+
+/// "Token AI": ĐÚNG chữ engine vừa ra (như Chữ bay — FlyingLetters.glyph) loé ở mép trên phím rồi VỠ thành 3…6 "token"
+/// (chip bo tròn nhỏ, gradient phát sáng tím / lam / hồng) bay theo đường cong VÀO thanh gợi ý (tâm dải gợi ý, hoặc
+/// Mắt AI nếu đang bật). Thanh gợi ý đổi gợi ý thật ⇒ một vệt sáng quét ngang MỘT lần (~0,3 s) — ShimmerGate.
+/// Hàm thuần song sinh android KeyEffect.kt TokenStream — CÙNG SỐ (test chéo hai nền tảng).
+enum TokenStream {
+    /// Số chùm bay cùng lúc (xoay vòng — gõ nhanh hơn thì chùm cũ nhất bị bắn lại).
+    static let pool = 4
+    static let minChips = 3, maxChips = 6
+    /// Trần chip đang có (mọi chùm) — không bao giờ quá.
+    static var cap: Int { pool * maxChips }
+    /// Chip (pt / dp): rộng × cao, bo.
+    static let chipW = 7.0, chipH = 4.0, chipRadius = 2.0
+    /// Màu chip (theo thứ tự chip): tím, lam ngọc, hồng — gradient chip i: màu i → màu i+1.
+    static let colors: [UInt32] = [0xA855F7, 0x22D3EE, 0xF472B6]
+    /// Chữ loé tại phím trước khi vỡ (giây) + cỡ chữ.
+    static let glyphTime = 0.16
+    static let glyphSize = 20.0
+    /// Thời gian bay mỗi chip + trễ giữa hai chip liền nhau (chip đầu rời phím sau glyphTime / 2).
+    static let flight = 0.55
+    static let stagger = 0.035
+    /// Chip toả ở điểm xuất phát (khoảng cách ngang giữa hai chip liền nhau).
+    static let spread = 6.0
+    /// Độ cong: điểm điều khiển lệch khỏi trung điểm ≤ `bend` (và ≤ 35 % quãng bay).
+    static let bend = 42.0
+    /// Điểm điều khiển / đích cách mép bàn phím ≥ `inset` ⇒ cả đường cong (bao lồi) nằm TRONG bàn phím (#151).
+    static let inset = 2.0
+    /// Co lại khi tới đích.
+    static let endScale = 0.45
+
+    /// Số chip cho chữ vừa ra: 3 + số dấu (NFD, tối đa 2) + chẵn/lẻ mã chữ gốc ⇒ 3…6. "b" 3, "a" 4, "đ" 4, "á" 5, "ế" 6.
+    static func chipCount(_ glyph: String) -> Int {
+        let scalars = Array(glyph.decomposedStringWithCanonicalMapping.unicodeScalars)
+        guard let base = scalars.first else { return minChips }
+        return Swift.min(maxChips, minChips + Swift.min(scalars.count - 1, 2) + Int(base.value % 2))
+    }
+
+    /// Hệ số toả của chip `i` trong `n` chip: −1…1 (giữa = 0).
+    static func fan(_ i: Int, of n: Int) -> Double { n > 1 ? (Double(i) - Double(n - 1) / 2) / (Double(n - 1) / 2) : 0 }
+
+    /// Điểm xuất phát chip `i`/`n` quanh mép trên phím `key`, kẹp trong khung `w`×`h`.
+    static func start(key: (x: Double, y: Double), chip i: Int, of n: Int, width w: Double, height h: Double)
+        -> (x: Double, y: Double) {
+        clamp((key.x + (Double(i) - Double(n - 1) / 2) * spread, key.y), width: w, height: h)
+    }
+
+    /// Điểm điều khiển (Bézier bậc 2) — lệch VUÔNG GÓC khỏi trung điểm, cùng phía cho cả chùm (vòng cung vồng LÊN),
+    /// chip ngoài cong hơn (toả quạt); kẹp trong khung ⇒ đường cong không bao giờ ra ngoài bàn phím.
+    static func control(from p0: (x: Double, y: Double), to p1: (x: Double, y: Double), chip i: Int, of n: Int,
+                        width w: Double, height h: Double) -> (x: Double, y: Double) {
+        let dx = p1.x - p0.x, dy = p1.y - p0.y
+        let len = hypot(dx, dy)
+        guard len > 1e-9 else { return clamp(p0, width: w, height: h) }
+        var nx = -dy / len, ny = dx / len
+        if ny > 0 || (ny == 0 && nx < 0) { nx = -nx; ny = -ny }   // vồng lên (y nhỏ hơn); bay thẳng đứng ⇒ sang phải
+        let k = Swift.min(bend, len * 0.35) * (0.55 + 0.45 * fan(i, of: n))
+        return clamp(((p0.x + p1.x) / 2 + nx * k, (p0.y + p1.y) / 2 + ny * k), width: w, height: h)
+    }
+
+    /// Điểm trên đường bay tại tiến độ `t` (0…1, đã qua `ease`).
+    static func point(_ p0: (x: Double, y: Double), _ c: (x: Double, y: Double), _ p1: (x: Double, y: Double), t: Double)
+        -> (x: Double, y: Double) {
+        let u = 1 - t
+        return (u * u * p0.x + 2 * u * t * c.x + t * t * p1.x, u * u * p0.y + 2 * u * t * c.y + t * t * p1.y)
+    }
+
+    /// Kẹp điểm vào [inset, w − inset] × [inset, h − inset].
+    static func clamp(_ p: (x: Double, y: Double), width w: Double, height h: Double) -> (x: Double, y: Double) {
+        (Swift.min(Swift.max(p.x, inset), Swift.max(inset, w - inset)), Swift.min(Swift.max(p.y, inset), Swift.max(inset, h - inset)))
+    }
+
+    /// Trễ (giây, tính từ lúc bấm) của chip `i`.
+    static func delay(_ i: Int) -> Double { glyphTime / 2 + Double(i) * stagger }
+    /// Toàn bộ chùm xong sau (giây).
+    static var lifetime: Double { delay(maxChips - 1) + flight }
+
+    /// Tăng tốc dần vào đích (hút vào): t².
+    static func ease(_ f: Double) -> Double { let x = Swift.min(Swift.max(f, 0), 1); return x * x }
+    /// Độ đậm theo tiến độ bay `f`: hiện nhanh (12 %), giữ, tắt dần 75 % → 100 %.
+    static func alpha(_ f: Double) -> Double {
+        guard f >= 0, f <= 1 else { return 0 }
+        if f < 0.12 { return f / 0.12 }
+        return f < 0.75 ? 1 : (1 - f) / 0.25
+    }
+    static func scale(_ f: Double) -> Double { 1 - (1 - endScale) * Swift.min(Swift.max(f, 0), 1) }
+}
+
+/// Vệt sáng quét thanh gợi ý khi gợi ý ĐỔI THẬT (Token AI): cùng danh sách từ ⇒ không; rỗng ⇒ không; đổi quá dồn
+/// (< `minGap` từ lần quét trước) ⇒ bỏ (không quét chồng). Chỉ overlay kiểu Token AI giữ — kiểu khác không có gì.
+struct ShimmerGate {
+    static let duration = 0.3
+    static let minGap = 0.35
+    /// Bề ngang vệt (tỉ lệ bề ngang dải gợi ý).
+    static let band = 0.35
+    static let peakAlpha = 0.35
+    private(set) var words: [String] = []
+    private var last = -Double.greatestFiniteMagnitude
+
+    /// Gợi ý đang hiện là `w` lúc `t` (giây) ⇒ true = quét một lần.
+    mutating func update(_ w: [String], at t: Double) -> Bool {
+        guard w != words else { return false }
+        words = w
+        guard !w.isEmpty, t - last >= Self.minGap else { return false }
+        last = t
+        return true
+    }
+    mutating func reset() { words = []; last = -.greatestFiniteMagnitude }
+
+    /// Mép trái vệt (theo bề ngang dải `w`) ở tiến độ `f` 0…1: từ ngoài trái (−band·w) tới ngoài phải (w).
+    static func left(_ f: Double, width w: Double) -> Double {
+        let b = band * w
+        return -b + Swift.min(Swift.max(f, 0), 1) * (w + b)
+    }
+}
+
+/// "Sàn nhảy LED" (theme Neon Night Club, 11/2026): phím vừa bấm + các ô quanh nó thắp neon hồng / tím / lục lam như
+/// sàn nhảy LED — vòng 0 (chính phím) rồi vòng vuông 1, 2 lan ra cách nhau `ringDelay`, mỗi ô tắt trong `tileLife`. Ô
+/// hàng xóm theo lưới bước = cỡ phím × (pitchX, pitchY) (≈ khe phím thật); phím rộng (cách / Enter) ⇒ ô hàng xóm rộng
+/// tối đa 0,85 × cao, dời ra ngoài mép phím. Gõ dồn (ComboMeter mức 3) ⇒ cả bàn phím nháy một nhịp (trần 1,2 s, ≤ 120
+/// ô). Chỉ vector. Hàm thuần — Android DanceFloor cùng số.
+enum DanceFloor {
+    static let rings = 3
+    static let ringDelay = 0.06
+    static let tileLife = 0.26
+    static let peak = 0.55
+    static let pitchX = 1.18
+    static let pitchY = 1.28
+    static let unitAspect = 0.85
+    static let cornerFactor = 0.18
+    /// Hồng, tím, lục lam (= SpotlightFx.colors).
+    static let colors: [UInt32] = [0xFF2FD0, 0x9B5CFF, 0x2FE6FF]
+    static let pool = 3
+    static let flickerLevel = 3
+    static let flickerCooldown = 1.2
+    static let flickerDuration = 0.2
+    static let flickerPeak = 0.22
+    /// Trần số ô của lưới nháy cả bàn phím.
+    static let maxGrid = 120
+
+    struct Tile: Equatable { var ring: Int; var color: Int; var x: Double; var y: Double; var w: Double; var h: Double }
+
+    static func ring(_ i: Int, _ j: Int) -> Int { Swift.max(abs(i), abs(j)) }
+    static func colorIndex(_ i: Int, _ j: Int, seed: Int) -> Int { (((i - j + seed) % 3) + 3) % 3 }
+    /// Độ sáng ô vòng `ring` sau `dt` giây kể từ lúc bấm: bật ngay khi tới lượt vòng, tắt (1−u)².
+    static func alpha(_ dt: Double, ring: Int) -> Double {
+        let t = dt - Double(ring) * ringDelay
+        guard t >= 0, t < tileLife else { return 0 }
+        let u = t / tileLife
+        return peak * (1 - u) * (1 - u)
+    }
+    /// Toàn bộ chùm tắt hẳn sau (giây).
+    static var lifetime: Double { Double(rings - 1) * ringDelay + tileLife }
+    /// Nháy cả bàn phím: sáng 0–60 ms, tắt 60–100 ms, sáng lại rồi tắt dần tới 200 ms.
+    static func flickerAlpha(_ dt: Double) -> Double {
+        guard dt >= 0, dt < flickerDuration else { return 0 }
+        if dt < 0.06 { return flickerPeak }
+        if dt < 0.10 { return 0 }
+        return flickerPeak * (1 - (dt - 0.10) / 0.10)
+    }
+    /// Cổng nháy cả bàn phím: chỉ ở mức combo ≥ `flickerLevel`, cách nhau ≥ `flickerCooldown`.
+    struct FlickerGate {
+        private(set) var last = -Double.greatestFiniteMagnitude
+        private(set) var fired = 0
+        mutating func trigger(level: Int, at t: Double) -> Bool {
+            guard level >= DanceFloor.flickerLevel, t - last >= DanceFloor.flickerCooldown else { return false }
+            last = t; fired += 1
+            return true
+        }
+    }
+
+    /// Bề rộng ô hàng xóm.
+    static func unit(w: Double, h: Double) -> Double { Swift.min(w, h * unitAspect) }
+    /// Tâm ô (i, j) quanh phím tâm (cx, cy) cỡ w × h.
+    static func center(_ i: Int, _ j: Int, cx: Double, cy: Double, w: Double, h: Double) -> (x: Double, y: Double) {
+        let u = unit(w: w, h: h)
+        let sx = i == 0 ? 0 : (i > 0 ? 1.0 : -1.0)
+        return (cx + sx * ((w - u) / 2 + Double(abs(i)) * u * pitchX), cy + Double(j) * h * pitchY)
+    }
+
+    /// Các ô vòng 0…rings−1 (vòng 0 = đúng khung phím), thứ tự hàng j rồi cột i (−2…2).
+    static func tiles(cx: Double, cy: Double, w: Double, h: Double, seed: Int) -> [Tile] {
+        var out: [Tile] = []
+        let n = rings - 1, u = unit(w: w, h: h)
+        for j in -n...n {
+            for i in -n...n {
+                let c = center(i, j, cx: cx, cy: cy, w: w, h: h)
+                out.append(Tile(ring: ring(i, j), color: colorIndex(i, j, seed: seed), x: c.x, y: c.y,
+                                w: i == 0 && j == 0 ? w : u, h: h))
+            }
+        }
+        return out
+    }
+
+    /// Lưới phủ cả bàn phím (nháy combo) theo bước của phím vừa bấm — tâm ô nằm trong khung, trần `maxGrid` ô.
+    static func grid(bounds b: (x: Double, y: Double, w: Double, h: Double), cx: Double, cy: Double, w: Double, h: Double,
+                     seed: Int) -> [Tile] {
+        let u = unit(w: w, h: h), px = u * pitchX, py = h * pitchY
+        guard px > 1, py > 1, b.w > 0, b.h > 0 else { return [] }
+        let i0 = Int(((b.x - cx) / px).rounded(.down)), i1 = Int(((b.x + b.w - cx) / px).rounded(.up))
+        let j0 = Int(((b.y - cy) / py).rounded(.down)), j1 = Int(((b.y + b.h - cy) / py).rounded(.up))
+        var out: [Tile] = []
+        for j in j0...j1 {
+            for i in i0...i1 {
+                let x = cx + Double(i) * px, y = cy + Double(j) * py
+                guard x >= b.x, x <= b.x + b.w, y >= b.y, y <= b.y + b.h, out.count < maxGrid else { continue }
+                out.append(Tile(ring: 0, color: colorIndex(i, j, seed: seed), x: x, y: y, w: u, h: h))
+            }
+        }
+        return out
+    }
+}
+
 // MARK: - Overlay
 
 extension UIView {
@@ -1401,6 +1620,21 @@ final class KeyEffectOverlay: UIView {
     private var seaFish: CALayer?
     private var seaLastFish: CFTimeInterval = -.greatestFiniteMagnitude
     private var seaFishSeq = 0
+    // Token AI — pool chùm dựng lười (chữ + 6 chip mỗi chùm), vệt sáng dải gợi ý dựng lười ở lần gợi ý đổi đầu tiên.
+    /// Đích bay (toạ độ overlay): tâm Mắt AI nếu đang bật, không thì tâm dải gợi ý — KeyboardView đặt khi kiểu là Token AI.
+    var tokenTarget: (() -> CGPoint?)?
+    private var pendingToken: String?
+    private var tokenBursts: [TokenBurst] = []
+    private var tokenPool = KeyEffectPool(capacity: TokenStream.pool)
+    private var shimmerGate = ShimmerGate()
+    private var shimmerClip: CALayer?
+    private var shimmerBand: CAGradientLayer?
+    // Sàn nhảy LED
+    private var dances: [Dance] = []
+    private var dancePool = KeyEffectPool(capacity: DanceFloor.pool)
+    private var danceSeq = 0
+    private var floorFlicker: Dance?
+    private var flickerGate = DanceFloor.FlickerGate()
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -1470,7 +1704,7 @@ final class KeyEffectOverlay: UIView {
         rebuild()
     }
 
-    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea]
+    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -1493,6 +1727,17 @@ final class KeyEffectOverlay: UIView {
     func queueKeyword(_ k: KeywordKind) { if effect == .keyword { pendingKeyword = k } }
     /// "Chữ bay": chữ vừa ra (FlyingLetters.glyph) — lần vẽ kế thả từ phím vừa bấm.
     func queueLetter(_ g: String) { if effect == .letters { pendingLetter = g } }
+    /// "Token AI": chữ vừa ra — lần vẽ kế loé tại phím rồi vỡ thành token bay vào thanh gợi ý.
+    func queueToken(_ g: String) { if effect == .tokens { pendingToken = g } }
+
+    /// "Token AI": thanh gợi ý vừa hiện `words` trong khung `bar` (toạ độ overlay). Chỉ đổi THẬT (ShimmerGate) mới quét
+    /// một vệt sáng ~0,3 s; kiểu khác ⇒ return ngay (0 chi phí).
+    func suggestionsChanged(_ words: [String], bar: CGRect) {
+        guard effect == .tokens else { return }
+        guard shimmerGate.update(words, at: CACurrentMediaTime()), bar.width > 0, bar.height > 0,
+              window != nil || Self.drawsOffscreen else { return }
+        fireShimmer(in: bar)
+    }
 
     private var hasQueued: Bool {
         switch effect {
@@ -1500,6 +1745,7 @@ final class KeyEffectOverlay: UIView {
         case .tone: return pendingTone != nil
         case .keyword: return pendingKeyword != nil
         case .letters: return pendingLetter != nil
+        case .tokens: return pendingToken != nil
         default: return true
         }
     }
@@ -1530,7 +1776,7 @@ final class KeyEffectOverlay: UIView {
         scheduled = false
         guard !pending.isEmpty, effect != .none, window != nil || Self.drawsOffscreen else {
             pending.removeAll(keepingCapacity: true)
-            pendingEmoji = nil; pendingTone = nil; pendingKeyword = nil; pendingLetter = nil
+            pendingEmoji = nil; pendingTone = nil; pendingKeyword = nil; pendingLetter = nil; pendingToken = nil
             return
         }
         CATransaction.begin()
@@ -1549,6 +1795,9 @@ final class KeyEffectOverlay: UIView {
         } else if effect == .letters {
             if let g = pendingLetter, let r = pending.last { fireLetter(g, at: r, now: now) }
             pendingLetter = nil
+        } else if effect == .tokens {
+            if let g = pendingToken, let r = pending.last { fireToken(g, at: r, now: now) }
+            pendingToken = nil
         } else {
             for r in pending { fire(r, now: now, media: media) }
         }
@@ -1623,6 +1872,16 @@ final class KeyEffectOverlay: UIView {
     var debugSeaWaveRoots: [CALayer] { seaWaves.map(\.root) }
     var debugSeaWaveSizes: [CGFloat] { seaWaves.map { $0.wave.transform.m22 } }
     var debugSeaFish: CALayer? { seaFish }
+    /// Token AI: gốc các chùm đã dựng (pool) + số chip đang hiện của từng chùm + đường bay (điểm đầu / điều khiển / đích).
+    var debugTokenRoots: [CALayer] { tokenBursts.map(\.root) }
+    var debugTokenChipCounts: [Int] { tokenBursts.map { $0.chips.filter { !$0.isHidden }.count } }
+    var debugTokenLayerCount: Int { tokenBursts.reduce(0) { $0 + 1 + $1.chips.count * 2 + 1 } }
+    var debugTokenPaths: [CGPath] { tokenBursts.flatMap { b in b.chips.compactMap { ($0.animation(forKey: "fx") as? CAAnimationGroup)?.animations?.compactMap { ($0 as? CAKeyframeAnimation)?.path }.first } } }
+    var debugShimmerLayer: CAGradientLayer? { shimmerBand }
+    var debugShimmerFrame: CGRect? { shimmerClip?.frame }
+    /// Sàn nhảy LED: gốc các chùm ô đã dựng (pool) + lớp nháy cả bàn phím (nil = chưa nháy lần nào).
+    var debugDanceRoots: [CALayer] { dances.map(\.root) }
+    var debugFloorFlicker: CALayer? { floorFlicker?.root }
     #else
     static let drawsOffscreen = false
     #endif
@@ -1632,13 +1891,14 @@ final class KeyEffectOverlay: UIView {
     private func fire(_ r: CGRect, now: CFTimeInterval, media: CFTimeInterval) {
         let c = CGPoint(x: r.midX, y: r.midY)
         switch effect {
-        case .none, .emojiword, .tone, .keyword, .letters: return
+        case .none, .emojiword, .tone, .keyword, .letters, .tokens: return
         case .plasma: firePlasma(c, now: now, media: media)
         case .shake: fireShake(media: media)
         case .laser: fireLaser(c, now: now)
         case .glitch: fireGlitch(r, now: now)
         case .sand: fireSand(c, now: now, media: media)
         case .sea: fireSea(c, now: now, media: media)
+        case .dancefloor: fireDance(r, now: now, media: media)
         case .flash: fireFlash(now: now, media: media)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)
@@ -2003,8 +2263,11 @@ final class KeyEffectOverlay: UIView {
     /// Dừng mọi thứ chạy liên tục (ẩn bàn phím / đổi kiểu / gỡ).
     func halt() {
         haltMatrix()
-        pendingEmoji = nil; pendingTone = nil; pendingKeyword = nil; pendingLetter = nil
+        pendingEmoji = nil; pendingTone = nil; pendingKeyword = nil; pendingLetter = nil; pendingToken = nil
         for l in strings { l.removeAllAnimations() }
+        for b in tokenBursts { b.root.isHidden = true }   // Token AI: ẩn bàn phím ⇒ không còn chip / vệt nào
+        shimmerBand?.removeAllAnimations()
+        shimmerGate.reset()
         shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey)
         plasma.reset()
         clearSand()                       // ẩn bàn phím ⇒ đống cát về 0
@@ -2199,6 +2462,87 @@ final class KeyEffectOverlay: UIView {
         return g
     }
 
+    // MARK: Sàn nhảy LED
+
+    /// Một chùm ô: mỗi vòng × mỗi màu một CAShapeLayer (path = các ô bo góc) — animation mờ dựng MỘT lần (trễ theo vòng).
+    private final class Dance {
+        let root = CALayer()
+        var layers: [[CAShapeLayer]] = []      // [vòng][màu]
+    }
+
+    private func fireDance(_ r: CGRect, now: CFTimeInterval, media: CFTimeInterval) {
+        let level = combo.press(at: media)
+        let slot = dancePool.next()
+        let d: Dance
+        if slot < dances.count { d = dances[slot] } else { d = makeDance(rings: DanceFloor.rings, flicker: false); dances.append(d) }
+        danceSeq += 1
+        let key = r.size == .zero ? CGRect(x: r.minX - Self.defaultKeySize.width / 2, y: r.minY - Self.defaultKeySize.height / 2,
+                                           width: Self.defaultKeySize.width, height: Self.defaultKeySize.height) : r
+        fill(d, tiles: DanceFloor.tiles(cx: Double(key.midX), cy: Double(key.midY), w: Double(key.width), h: Double(key.height),
+                                        seed: danceSeq), rings: DanceFloor.rings)
+        d.root.beginTime = now
+        d.root.isHidden = false
+        // Gõ dồn (mức combo cao nhất): cả bàn phím nháy một nhịp — trần nhịp `flickerCooldown`.
+        if flickerGate.trigger(level: level, at: media) {
+            let f: Dance
+            if let x = floorFlicker { f = x } else { f = makeDance(rings: 1, flicker: true); floorFlicker = f }
+            fill(f, tiles: DanceFloor.grid(bounds: (Double(bounds.minX), Double(bounds.minY), Double(bounds.width), Double(bounds.height)),
+                                           cx: Double(key.midX), cy: Double(key.midY), w: Double(key.width), h: Double(key.height),
+                                           seed: danceSeq), rings: 1)
+            f.root.beginTime = now
+            f.root.isHidden = false
+        }
+    }
+
+    private func fill(_ d: Dance, tiles: [DanceFloor.Tile], rings: Int) {
+        let paths = (0..<rings).map { _ in (0..<DanceFloor.colors.count).map { _ in CGMutablePath() } }
+        for t in tiles where t.ring < rings {
+            let rect = CGRect(x: t.x - t.w / 2, y: t.y - t.h / 2, width: t.w, height: t.h)
+            let rad = CGFloat(DanceFloor.cornerFactor) * min(rect.width, rect.height)
+            paths[t.ring][t.color].addRoundedRect(in: rect, cornerWidth: rad, cornerHeight: rad)
+        }
+        for (i, row) in d.layers.enumerated() where i < rings {
+            for (k, l) in row.enumerated() { l.path = paths[i][k] }
+        }
+    }
+
+    private func makeDance(rings: Int, flicker: Bool) -> Dance {
+        let d = Dance()
+        d.root.bounds = .zero
+        d.root.position = .zero
+        d.root.anchorPoint = .zero
+        d.root.isHidden = true
+        for ring in 0..<rings {
+            var row: [CAShapeLayer] = []
+            for c in DanceFloor.colors {
+                let l = CAShapeLayer()
+                l.fillColor = UIColor(rgb: c).cgColor
+                l.strokeColor = UIColor(rgb: c).withAlphaComponent(0.9).cgColor
+                l.lineWidth = 1.5
+                l.opacity = 0
+                let a = CAKeyframeAnimation(keyPath: "opacity")
+                let steps = 10
+                let life = flicker ? DanceFloor.flickerDuration : DanceFloor.tileLife
+                let start = flicker ? 0 : DanceFloor.ringDelay * Double(ring)
+                a.values = (0...steps).map { k -> Double in
+                    let t = life * Double(k) / Double(steps) * 0.9999
+                    return flicker ? DanceFloor.flickerAlpha(t) : DanceFloor.alpha(t + start, ring: ring)
+                }
+                a.keyTimes = (0...steps).map { NSNumber(value: Double($0) / Double(steps)) }
+                a.duration = life
+                a.beginTime = Self.animBegin + start
+                a.fillMode = .removed
+                a.isRemovedOnCompletion = false
+                l.add(a, forKey: "fx")
+                d.root.addSublayer(l)
+                row.append(l)
+            }
+            d.layers.append(row)
+        }
+        layer.addSublayer(d.root)
+        return d
+    }
+
     /// Dấu thanh: mỗi kiểu dấu một pool nhỏ (dựng lười — chỉ kiểu đã gặp mới có layer).
     private func fireTone(_ t: ToneFx, at r: CGRect, now: CFTimeInterval) {
         var list = toneRoots[t] ?? []
@@ -2326,6 +2670,152 @@ final class KeyEffectOverlay: UIView {
         l.add(Self.makeAnimation(t, fadeAt: 0.4), forKey: "fx")
         layer.addSublayer(l)
         return l
+    }
+
+    // Token AI
+
+    /// Một chùm: chữ loé + `maxChips` chip (vỏ có bóng sáng theo shadowPath — không vẽ ngoài màn — + lõi gradient bo).
+    private final class TokenBurst {
+        let root = CALayer()
+        let glyph = CATextLayer()
+        var chips: [CALayer] = []
+    }
+
+    private func fireToken(_ g: String, at r: CGRect, now: CFTimeInterval) {
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        let slot = tokenPool.next()
+        let b: TokenBurst
+        if slot < tokenBursts.count { b = tokenBursts[slot] } else { b = makeTokenBurst(); tokenBursts.append(b) }
+        // Toạ độ tính trong khung overlay gốc 0 (pure clamp theo w × h) rồi cộng gốc bounds (#151).
+        let o = bounds.origin, w = Double(bounds.width), h = Double(bounds.height)
+        let k = Self.keyTop(r)
+        let key = (x: Double(k.x - o.x), y: Double(k.y - o.y))
+        let t = tokenTarget?() ?? CGPoint(x: bounds.midX, y: bounds.minY + 14)
+        let p1 = TokenStream.clamp((Double(t.x - o.x), Double(t.y - o.y)), width: w, height: h)
+        let n = TokenStream.chipCount(g)
+        b.root.isHidden = false
+        b.glyph.string = g
+        b.glyph.position = CGPoint(x: k.x, y: max(k.y, bounds.minY + CGFloat(TokenStream.glyphSize) / 2))
+        b.glyph.beginTime = now
+        for (i, c) in b.chips.enumerated() {
+            guard i < n else { c.isHidden = true; continue }
+            let p0 = TokenStream.start(key: key, chip: i, of: n, width: w, height: h)
+            let cp = TokenStream.control(from: p0, to: p1, chip: i, of: n, width: w, height: h)
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: p0.x + o.x, y: p0.y + o.y))
+            path.addQuadCurve(to: CGPoint(x: p1.x + o.x, y: p1.y + o.y), control: CGPoint(x: cp.x + o.x, y: cp.y + o.y))
+            c.isHidden = false
+            c.position = CGPoint(x: p1.x + o.x, y: p1.y + o.y)
+            c.removeAnimation(forKey: "fx")
+            c.add(Self.tokenAnimation(path: path, delay: TokenStream.delay(i), now: now), forKey: "fx")
+        }
+    }
+
+    private func makeTokenBurst() -> TokenBurst {
+        let b = TokenBurst()
+        b.root.bounds = .zero
+        b.root.position = .zero
+        let s = CGFloat(TokenStream.glyphSize)
+        b.glyph.bounds = CGRect(x: 0, y: 0, width: s * 2, height: s * 1.3)
+        b.glyph.font = UIFont.boldSystemFont(ofSize: s)
+        b.glyph.fontSize = s
+        b.glyph.alignmentMode = .center
+        b.glyph.contentsScale = UIScreen.main.scale
+        b.glyph.foregroundColor = UIColor.white.cgColor
+        b.glyph.shadowColor = UIColor(rgb: TokenStream.colors[0]).cgColor
+        b.glyph.shadowRadius = 4
+        b.glyph.shadowOpacity = 0.9
+        b.glyph.shadowOffset = .zero
+        b.glyph.opacity = 0
+        let pop = CABasicAnimation(keyPath: "transform.scale")
+        pop.fromValue = 0.9; pop.toValue = 1.25
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        fade.values = [1, 1, 0]; fade.keyTimes = [0, 0.45, 1]
+        b.glyph.add(Self.group([pop, fade], duration: TokenStream.glyphTime, delay: 0), forKey: "fx")
+        b.root.addSublayer(b.glyph)
+        let cw = CGFloat(TokenStream.chipW), ch = CGFloat(TokenStream.chipH), cr = CGFloat(TokenStream.chipRadius)
+        let cols = TokenStream.colors
+        for i in 0..<TokenStream.maxChips {
+            let shell = CALayer()
+            shell.bounds = CGRect(x: 0, y: 0, width: cw, height: ch)
+            shell.opacity = 0
+            shell.isHidden = true
+            let glowColor = UIColor(rgb: cols[i % cols.count])
+            shell.shadowColor = glowColor.cgColor
+            shell.shadowOpacity = 1
+            shell.shadowRadius = 3
+            shell.shadowOffset = .zero
+            shell.shadowPath = CGPath(roundedRect: shell.bounds, cornerWidth: cr, cornerHeight: cr, transform: nil)
+            let core = CAGradientLayer()
+            core.frame = shell.bounds
+            core.colors = [glowColor.cgColor, UIColor(rgb: cols[(i + 1) % cols.count]).cgColor]
+            core.startPoint = CGPoint(x: 0, y: 0.5)
+            core.endPoint = CGPoint(x: 1, y: 0.5)
+            core.cornerRadius = cr
+            core.masksToBounds = true
+            shell.addSublayer(core)
+            b.root.addSublayer(shell)
+            b.chips.append(shell)
+        }
+        layer.addSublayer(b.root)
+        return b
+    }
+
+    /// Chip bay theo `path` (Bézier bậc 2 trong bàn phím), nhanh dần vào đích (t² ≈ easeIn), co lại, hiện nhanh rồi tắt.
+    private static func tokenAnimation(path: CGPath, delay: Double, now: CFTimeInterval) -> CAAnimationGroup {
+        let move = CAKeyframeAnimation(keyPath: "position")
+        move.path = path
+        move.calculationMode = .linear
+        move.timingFunction = CAMediaTimingFunction(name: .easeIn)
+        let scale = CABasicAnimation(keyPath: "transform.scale")
+        scale.fromValue = 1
+        scale.toValue = TokenStream.endScale
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        fade.values = [0, 1, 1, 0]
+        fade.keyTimes = [0, 0.12, 0.75, 1]
+        let g = CAAnimationGroup()
+        g.animations = [move, scale, fade]
+        for a in g.animations ?? [] { a.duration = TokenStream.flight }
+        g.duration = TokenStream.flight
+        g.beginTime = now + delay
+        g.fillMode = .both
+        g.isRemovedOnCompletion = false
+        return g
+    }
+
+    /// Vệt sáng quét dải gợi ý MỘT lần: lớp cắt theo khung dải + dải gradient trắng mờ trượt trái → phải, gỡ khi xong.
+    private func fireShimmer(in bar: CGRect) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        let clip: CALayer
+        if let c = shimmerClip { clip = c } else {
+            clip = CALayer()
+            clip.masksToBounds = true
+            let band = CAGradientLayer()
+            let white = UIColor.white
+            band.colors = [white.withAlphaComponent(0).cgColor, white.withAlphaComponent(CGFloat(ShimmerGate.peakAlpha)).cgColor,
+                           white.withAlphaComponent(0).cgColor]
+            band.startPoint = CGPoint(x: 0, y: 0.5)
+            band.endPoint = CGPoint(x: 1, y: 0.5)
+            band.anchorPoint = .zero
+            clip.addSublayer(band)
+            layer.addSublayer(clip)
+            shimmerClip = clip; shimmerBand = band
+        }
+        if clip.frame != bar { clip.frame = bar }
+        let w = Double(bar.width)
+        if let band = shimmerBand {
+            band.bounds = CGRect(x: 0, y: 0, width: CGFloat(ShimmerGate.band * w), height: bar.height)
+            band.position = CGPoint(x: CGFloat(ShimmerGate.left(1, width: w)), y: 0)   // nghỉ: ngoài mép phải (bị cắt)
+            let a = CABasicAnimation(keyPath: "position.x")
+            a.fromValue = ShimmerGate.left(0, width: w)
+            a.toValue = ShimmerGate.left(1, width: w)
+            a.duration = ShimmerGate.duration
+            a.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            band.removeAnimation(forKey: "shimmer")
+            band.add(a, forKey: "shimmer")   // tự gỡ khi xong (isRemovedOnCompletion mặc định) ⇒ nghỉ = 0 animation
+        }
+        CATransaction.commit()
     }
 
     // Hạt cát
@@ -2797,7 +3287,11 @@ final class KeyEffectOverlay: UIView {
         for l in toneRoots.values.joined() { l.removeFromSuperlayer() }
         for l in keywordRoots.values.joined() { l.removeFromSuperlayer() }
         for l in letters { l.removeFromSuperlayer() }
+        for b in tokenBursts { b.root.removeFromSuperlayer() }
+        shimmerClip?.removeFromSuperlayer()
         for g in grains { g.removeFromSuperlayer() }
+        for d in dances { d.root.removeFromSuperlayer() }
+        floorFlicker?.root.removeFromSuperlayer()
         sandPile?.removeFromSuperlayer()
         for w in seaWaves { w.root.removeFromSuperlayer() }
         seaFish?.removeFromSuperlayer()
@@ -2814,10 +3308,14 @@ final class KeyEffectOverlay: UIView {
         toneRoots.removeAll(); toneCursor.removeAll()
         keywordRoots.removeAll(); keywordCursor.removeAll()
         letters.removeAll(); letterPool = KeyEffectPool(capacity: FlyingLetters.pool)
+        tokenBursts.removeAll(); tokenPool = KeyEffectPool(capacity: TokenStream.pool)
+        shimmerClip = nil; shimmerBand = nil; shimmerGate.reset()
         grains.removeAll(); grainPool = KeyEffectPool(capacity: SandPile.flying)
         sandPile = nil; sand = nil; pendingLandings.removeAll()
         seaWaves.removeAll(); seaBuiltFor = .zero; seaCursor = 0; seaFish = nil; seaFishSeq = 0
         seaLastWave = -.greatestFiniteMagnitude; seaLastFish = -.greatestFiniteMagnitude; seaLevel = 0
+        dances.removeAll(); dancePool = KeyEffectPool(capacity: DanceFloor.pool); danceSeq = 0
+        floorFlicker = nil; flickerGate = DanceFloor.FlickerGate()
         if effect != .shake { shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey) }
         stringAnim = nil
         flashLayer = nil

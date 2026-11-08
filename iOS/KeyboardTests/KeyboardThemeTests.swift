@@ -193,7 +193,7 @@ final class KeyboardThemeTests: XCTestCase {
     /// Theme tối cố định (OLED, Tương phản cao, Tim đen, Neon) không đổi theo hệ thống; mọi theme
     /// nền đục khác có bản tối riêng (bug 10/2026: "giao diện plus ở chế độ tối không chuyển tối").
     func testFixedThemesIgnoreSystemAppearance() {
-        let fixed: Set<KeyboardTheme> = [.oled, .contrast, .blackHeart, .neon, .tet, .xmas, .piano, .rgb, .space, .trungthu, .halloween, .mole, .pixel]
+        let fixed: Set<KeyboardTheme> = [.oled, .contrast, .blackHeart, .neon, .tet, .xmas, .piano, .rgb, .space, .trungthu, .halloween, .mole, .pixel, .ai, .nightclub]
         for t in KeyboardTheme.allCases where t != .system && t != .glass {
             XCTAssertNotNil(t.palette(systemDark: false).background, "\(t) cần nền đục")
             if fixed.contains(t) {
@@ -869,7 +869,8 @@ final class ThemeSetTests: XCTestCase {
                                              .trungthu, .valentine, .halloween,
                                              .guitar,
                                              .mole,
-                                             .pixel, .sea, .timeOfDay]
+                                             .pixel, .sea, .timeOfDay,
+                                             .nightclub]
     static let pastels: [KeyboardTheme] = [.peach, .mint, .sky, .lavender]
 
     // MARK: bảng màu chung iOS ↔ Android
@@ -904,7 +905,7 @@ final class ThemeSetTests: XCTestCase {
         let f = try fixture()
         XCTAssertEqual(KeyboardTheme.allCases.map(\.rawValue), f.order, "id + thứ tự phải trùng Android")
         XCTAssertEqual(KeyboardTheme.allCases.filter(\.isPlus).map(\.rawValue), f.plus)
-        XCTAssertEqual(f.rows.count, 58)
+        XCTAssertEqual(f.rows.count, 62)
         for r in f.rows {
             let t = try XCTUnwrap(KeyboardTheme(rawValue: r.theme), r.theme)
             let p = t.palette(systemDark: r.dark)
@@ -1227,13 +1228,54 @@ final class ThemeSetTests: XCTestCase {
         XCTAssertEqual(t.systemBackdropKey, "systemBackdropGuitar")
     }
 
+    // MARK: Neon Night Club (11/2026)
+
+    /// Neon Night Club: Plus, thêm CUỐI, tên, âm "club" + hiệu ứng "dancefloor" + nét vuốt neon + "photoFx":"spotlight"
+    /// (Đèn rọi chạy khi theme đang dùng, kể cả theme tự tạo / khi Chép JSON); nền đen, viền neon, chữ chức năng lục lam
+    /// (≡ Android ThemeSetTests.nightclubTheme).
+    func testNightclubTheme() throws {
+        let t = KeyboardTheme.nightclub
+        XCTAssertEqual(KeyboardTheme.allCases.last, .nightclub)
+        let spec = try XCTUnwrap(t.spec)
+        XCTAssertTrue(t.isPlus)
+        XCTAssertEqual(spec.nameVi, "Neon Night Club"); XCTAssertEqual(spec.nameEn, "Neon Night Club")
+        XCTAssertEqual(L10n.en[t.title], "Neon Night Club")
+        XCTAssertEqual(spec.sound, "club"); XCTAssertEqual(spec.effect, "dancefloor"); XCTAssertEqual(spec.swipe, "neon")
+        XCTAssertEqual(spec.photoFx, ThemeExtraIds.spotlight)
+        XCTAssertNil(spec.dark, "dark = same")
+        let st = ThemeSettings(theme: t).effectiveKeyStyle
+        XCTAssertEqual(st.photoFx, "spotlight")
+        XCTAssertNil(ThemeSettings(theme: .pixel).effectiveKeyStyle.photoFx, "theme khác: không đèn rọi")
+        XCTAssertNotNil(t.palette(systemDark: false).keyBorder, "viền ống neon")
+        XCTAssertTrue(t.palette(systemDark: false).isDark)
+        XCTAssertEqual(t.systemBackdropKey, "systemBackdropNightclub")
+        XCTAssertNotNil(BackupSettings.byKey["systemBackdropNightclub"])
+        XCTAssertTrue(ThemeSpecParser.contrastIssues(spec).isEmpty, "chữ / phím đủ tương phản")
+        // Khứ hồi JSON giữ "photoFx" (Chép JSON → dán làm theme tự tạo).
+        let back = try XCTUnwrap(ThemeSpecParser.parse(spec.canonical).spec)
+        XCTAssertEqual(back.photoFx, "spotlight")
+        XCTAssertEqual(back.typography.photoFx, "spotlight")
+        // Bản vá theo theme giữ / bỏ "photoFx" (KeyStyleStore khứ hồi).
+        var patch = KeyStyle(); patch.photoFx = "spotlight"
+        XCTAssertEqual(KeyStyleStore.parse(KeyStyleStore.serialize(["system": patch]))["system"]?.photoFx, "spotlight")
+        // Cổng: Plus + không tiết kiệm pin.
+        XCTAssertTrue(SpotlightPolicy.active(photoFx: "spotlight", plus: true, lowPower: false))
+        XCTAssertFalse(SpotlightPolicy.active(photoFx: "spotlight", plus: false, lowPower: false))
+        XCTAssertFalse(SpotlightPolicy.active(photoFx: "spotlight", plus: true, lowPower: true))
+        XCTAssertFalse(SpotlightPolicy.active(photoFx: nil, plus: true, lowPower: false))
+        let yes: (String) -> Bool = { _ in true }
+        XCTAssertEqual(ThemeExtras.plan(st, soundOn: false, effectAllowed: yes, soundAllowed: yes),
+                       ThemeExtras.Outcome(effect: "dancefloor", sound: "club", soundHint: true), "âm không tự bật")
+    }
+
     // MARK: bộ 11/2026 — Pixel 8-bit, Biển, Theo giờ
 
     /// Ba theme mới: Plus, thêm CUỐI (sau Xám trung tính), đúng tên vi/en, âm / hiệu ứng / bo góc / phông đi kèm (≡ Android
     /// ThemeSetTests.pixelSeaTimeOfDayThemes).
     func testPixelSeaTimeOfDayThemes() throws {
         let all = KeyboardTheme.allCases
-        XCTAssertEqual(Array(all.suffix(3)), [.pixel, .sea, .timeOfDay])
+        let ni = all.firstIndex(of: .neutral)!
+        XCTAssertEqual(Array(all[(ni + 1)...(ni + 3)]), [.pixel, .sea, .timeOfDay])
         XCTAssertEqual(all[all.firstIndex(of: .neutral)! + 1], .pixel)
         let want: [(KeyboardTheme, String, String, String?, String?, Int?)] = [
             (.pixel, "Pixel 8-bit", "Pixel 8-bit", "chip", "flash", 0),
@@ -1666,6 +1708,7 @@ final class ThemeSetTests: XCTestCase {
                 case .mole: XCTAssertEqual(m, .flowers)
                 case .pixel: XCTAssertEqual(m, .pixel)
                 case .sea: XCTAssertEqual(m, .waves)
+                case .ai: XCTAssertEqual(m, .neural)
                 case .timeOfDay: XCTAssertEqual(m, dark ? .star : nil, "bảng gốc: ngày không hoạ tiết, đêm có sao")
                 default: XCTAssertNil(m, t.rawValue)
                 }

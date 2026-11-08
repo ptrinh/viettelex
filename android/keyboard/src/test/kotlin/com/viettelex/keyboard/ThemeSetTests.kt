@@ -47,7 +47,7 @@ class ThemeSetTests {
         assertEquals(lines.first { it[0] == "order" }[1].split(','), KeyboardTheme.entries.map { it.id })
         assertEquals(lines.first { it[0] == "plus" }[1].split(','), KeyboardTheme.entries.filter { it.isPlus }.map { it.id })
         val rows = lines.filter { it[0] != "order" && it[0] != "plus" }
-        assertEquals(58, rows.size)
+        assertEquals(62, rows.size)
         for (r in rows) {
             val t = KeyboardTheme.entries.first { it.id == r[0] }
             val p = t.palette(r[1] == "1")!!
@@ -61,7 +61,7 @@ class ThemeSetTests {
     @Test fun darkVariantsDifferAndFollowSystem() {
         val fixed = setOf(KeyboardTheme.OLED, KeyboardTheme.CONTRAST, KeyboardTheme.BLACK_HEART, KeyboardTheme.NEON,
             KeyboardTheme.TET, KeyboardTheme.XMAS, KeyboardTheme.PIANO, KeyboardTheme.RGB, KeyboardTheme.SPACE,
-            KeyboardTheme.TRUNG_THU, KeyboardTheme.HALLOWEEN, KeyboardTheme.MOLE, KeyboardTheme.PIXEL)
+            KeyboardTheme.TRUNG_THU, KeyboardTheme.HALLOWEEN, KeyboardTheme.MOLE, KeyboardTheme.PIXEL, KeyboardTheme.AI, KeyboardTheme.NIGHTCLUB)
         for (t in KeyboardTheme.entries) {
             val light = t.palette(false) ?: continue
             val dark = t.palette(true)!!
@@ -181,12 +181,39 @@ class ThemeSetTests {
         }
     }
 
+    /** Neon Night Club — iOS testNightclubTheme y hệt. */
+    @Test fun nightclubTheme() {
+        val t = KeyboardTheme.NIGHTCLUB
+        assertEquals(KeyboardTheme.NIGHTCLUB, KeyboardTheme.entries.last())
+        val spec = t.spec!!
+        assertTrue(t.isPlus)
+        assertEquals("Neon Night Club", spec.nameVi); assertEquals("Neon Night Club", spec.nameEn)
+        assertEquals("Neon Night Club", L10nTable.EN[t.viTitle])
+        assertEquals("club", spec.sound); assertEquals("dancefloor", spec.effect); assertEquals("neon", spec.swipe)
+        assertEquals(ThemeExtraIds.SPOTLIGHT, spec.photoFx)
+        assertNull("dark = same", spec.dark)
+        val st = ThemeSettings(theme = t).effectiveKeyStyle
+        assertEquals("spotlight", st.photoFx)
+        assertNull(ThemeSettings(theme = KeyboardTheme.PIXEL).effectiveKeyStyle.photoFx)
+        assertNotNull(t.palette(false)!!.keyBorder)
+        assertTrue(ThemeSpecParser.contrastIssues(spec).isEmpty())
+        val back = ThemeSpecParser.parse(spec.canonical).spec!!
+        assertEquals("spotlight", back.photoFx); assertEquals("spotlight", back.typography.photoFx)
+        val patch = KeyStyle(photoFx = "spotlight")
+        assertEquals("spotlight", KeyStyleStore.parse(KeyStyleStore.serialize(mapOf("system" to patch)))["system"]?.photoFx)
+        assertTrue(SpotlightPolicy.active("spotlight", plus = true, lowPower = false))
+        assertFalse(SpotlightPolicy.active("spotlight", plus = false, lowPower = false))
+        assertFalse(SpotlightPolicy.active("spotlight", plus = true, lowPower = true))
+        assertFalse(SpotlightPolicy.active(null, plus = true, lowPower = false))
+    }
+
     // ---- bộ 11/2026: Pixel 8-bit, Biển, Theo giờ — iOS KeyboardThemeTests y hệt
 
     /** Ba theme mới: Plus, thêm CUỐI (sau Xám trung tính), tên vi/en, âm / hiệu ứng / bo góc / phông. iOS testPixelSeaTimeOfDayThemes. */
     @Test fun pixelSeaTimeOfDayThemes() {
         val all = KeyboardTheme.entries
-        assertEquals(listOf(KeyboardTheme.PIXEL, KeyboardTheme.SEA, KeyboardTheme.TIME_OF_DAY), all.takeLast(3))
+        assertEquals(listOf(KeyboardTheme.PIXEL, KeyboardTheme.SEA, KeyboardTheme.TIME_OF_DAY),
+            all.subList(all.indexOf(KeyboardTheme.NEUTRAL) + 1, all.indexOf(KeyboardTheme.NEUTRAL) + 4))
         assertEquals(KeyboardTheme.PIXEL, all[all.indexOf(KeyboardTheme.NEUTRAL) + 1])
         data class W(val t: KeyboardTheme, val vi: String, val en: String, val sound: String?, val effect: String?, val corner: Int?)
         for (w in listOf(W(KeyboardTheme.PIXEL, "Pixel 8-bit", "Pixel 8-bit", "chip", "flash", 0),
@@ -515,7 +542,7 @@ class ThemeSetTests {
             KeyboardTheme.TRUNG_THU to ThemeDecoration.LANTERN, KeyboardTheme.VALENTINE to ThemeDecoration.HEARTS,
             KeyboardTheme.HALLOWEEN to ThemeDecoration.PUMPKIN, KeyboardTheme.GUITAR to ThemeDecoration.STRINGS,
             KeyboardTheme.MOLE to ThemeDecoration.FLOWERS, KeyboardTheme.PIXEL to ThemeDecoration.PIXEL,
-            KeyboardTheme.SEA to ThemeDecoration.WAVES)
+            KeyboardTheme.SEA to ThemeDecoration.WAVES, KeyboardTheme.AI to ThemeDecoration.NEURAL)
         for ((t, m) in festive) for (dk in listOf(false, true)) assertEquals("$t", m, t.palette(dk)!!.decoration!!.motif)
         assertEquals(ThemeDecoration.SNOWFLAKE, KeyboardTheme.XMAS_SNOW.palette(false)!!.decoration!!.motif)
         assertEquals(ThemeDecoration.STAR, KeyboardTheme.XMAS_SNOW.palette(true)!!.decoration!!.motif)

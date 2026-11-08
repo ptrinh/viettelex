@@ -1776,7 +1776,7 @@ final class KeyboardViewController: UIInputViewController {
         fx.queueEmoji(e)
     }
 
-    /// "Dấu thanh" / "Chữ bay": từ đang soạn TRƯỚC phím — chỉ khi chọn hai kiểu đó (kiểu khác: một phép so sánh, 0 đọc).
+    /// "Dấu thanh" / "Chữ bay" / "Token AI": từ đang soạn TRƯỚC phím — chỉ khi chọn ba kiểu đó (kiểu khác: một phép so sánh, 0 đọc).
     private func fxComposeBefore() -> String? {
         guard let fx = keyboard?.keyEffects, fx.effect.needsComposeDiff else { return nil }
         return bridge.composedWord
@@ -1789,6 +1789,7 @@ final class KeyboardViewController: UIInputViewController {
         switch fx.effect {
         case .tone: if let t = ToneMarks.detect(before: before, after: after) { fx.queueTone(t) }
         case .letters: if let g = FlyingLetters.glyph(before: before, after: after, typed: typed) { fx.queueLetter(g) }
+        case .tokens: if let g = FlyingLetters.glyph(before: before, after: after, typed: typed) { fx.queueToken(g) }
         default: break
         }
     }

@@ -58,13 +58,15 @@ struct BuddyPickerView: View {
                 Text(L("Nhân vật nhỏ ở góc phải thanh gợi ý: gõ thì nhảy — gõ càng nhanh nhảy càng sung — ngừng gõ thì cuộn tròn ngủ. Chỉ chuyển động khi đang gõ; Chế độ nguồn điện thấp chỉ hiện dáng đứng yên."))
             }
             if current != .off && BuddyGate.allows(current) {
-                Section {
+                if current.isRigged { Section {
                     TextField(L("Đặt tên"), text: Binding(
                         get: { names[current, default: ""] },
                         set: { let v = BuddyName.clean($0); names[current] = v; buddyDefaults?.set(v, forKey: BuddyName.key(current)) }))
                         .textInputAutocapitalization(.words)
-                } header: { Text(L("Đặt tên") + " · " + current.title) }
-                if BuddyStyle.isChoosable(current) {
+                } header: { Text(L("Đặt tên") + " · " + current.title) } }
+                if current == .ai {
+                    Section { Text(L("Mắt AI nhìn theo phím bạn gõ, gõ nhanh thì sáng rực; ngừng gõ thì thở chậm vài nhịp rồi lim dim. Hợp với giao diện AI và hiệu ứng Token AI.")).foregroundStyle(.secondary) }
+                } else if BuddyStyle.isChoosable(current) {
                     Section {
                         Picker(L("Kiểu vẽ"), selection: Binding(
                             get: { styles[current, default: .defaultValue] },
@@ -202,6 +204,7 @@ struct BuddyPreview: UIViewRepresentable {
 
 final class BuddyPreviewView: UIView {
     private var buddy: BuddyView?
+    private var eye: AIEyeView?
     private let off = UILabel()
     private var lastPlay = -1
     private var demo: Timer?
@@ -223,7 +226,14 @@ final class BuddyPreviewView: UIView {
                                                                     : UIColor(red: 0.82, green: 0.84, blue: 0.87, alpha: 1))
         off.textColor = palette.barInk.ui.withAlphaComponent(0.5)
         off.isHidden = character != .off
-        if character == .off { buddy?.removeFromSuperview(); buddy = nil; return }
+        if character == .off { buddy?.removeFromSuperview(); buddy = nil; eye?.removeFromSuperview(); eye = nil; return }
+        if character == .ai {
+            buddy?.halt(); buddy?.removeFromSuperview(); buddy = nil
+            if eye == nil { let e = AIEyeView(lowPower: false); addSubview(e); eye = e; setNeedsLayout() }
+            if play != lastPlay { lastPlay = play; startDemo() }
+            return
+        }
+        eye?.removeFromSuperview(); eye = nil
         if buddy?.character != character || buddy?.artStyle != style || buddy?.season != season {
             buddy?.halt(); buddy?.removeFromSuperview()
             let b = BuddyView(character: character, bar: palette.buddyBar, lowPower: false, framing: .full,
@@ -244,6 +254,10 @@ final class BuddyPreviewView: UIView {
         let t = Timer(timeInterval: 0.11, repeats: true) { [weak self] t in
             n += 1
             self?.buddy?.keyPressed()
+            if let self, let e = self.eye {   // Mắt AI: nhìn lần lượt các "phím" quanh ô
+                let a = Double(n) * 0.9
+                e.keyPressed(at: CGPoint(x: e.center.x + CGFloat(cos(a)) * 60, y: e.center.y + CGFloat(sin(a)) * 40 + 20))
+            }
             if n >= 24 { t.invalidate() }
         }
         RunLoop.main.add(t, forMode: .common)
@@ -254,5 +268,6 @@ final class BuddyPreviewView: UIView {
         super.layoutSubviews()
         off.frame = bounds
         buddy?.frame = bounds.insetBy(dx: 4, dy: 4)
+        eye?.frame = bounds.insetBy(dx: 12, dy: 12)
     }
 }

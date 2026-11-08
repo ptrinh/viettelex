@@ -87,7 +87,7 @@ final class KeySoundTests: XCTestCase {
         // Chỉ số case = seed nhiễu: các kiểu cũ giữ nguyên vị trí (mẫu + checksum không đổi).
         XCTAssertEqual(KeySoundStyle.allCases.map(\.rawValue),
                        ["subtle", "wood", "mechanical", "typewriter", "bubble", "custom", "system", "rock", "pop", "water", "vintage",
-                        "phao", "jingle", "piano", "dantranh", "scifi", "trong", "boo", "guitar", "bop", "chip"])
+                        "phao", "jingle", "piano", "dantranh", "scifi", "trong", "boo", "guitar", "bop", "chip", "ai", "club"])
         XCTAssertEqual(L10n.en["iOS"], "System click")
         for st in KeySoundStyle.allCases { XCTAssertNotNil(L10n.en[st.viTitle], "\(st) thiếu bản EN") }
         XCTAssertNotNil(L10n.en["Âm thanh gõ"])
@@ -257,10 +257,31 @@ final class KeySoundTests: XCTestCase {
     }
     static let chipGolden: [(KeySoundKind, Double)] = [(.letter, 214.9587), (.delete, 213.1522), (.modifier, 237.6303)]
 
+    /// "Nhịp club" (theme Neon Night Club): mỗi loại phím một tiếng — chữ = hi-hat (sáng hơn), xoá / chức năng = kick
+    /// (trầm); không to hơn "Gõ gỗ", ≤ 60 ms; seed cố định (không theo vị trí case); checksum chung Android (clubBeat).
+    func testClubBeatQuietAndShared() {
+        for k in KeySoundKind.allCases {
+            let wood = KeySoundSynth.samples(.wood, k), a = KeySoundSynth.samples(.club, k)
+            XCTAssertLessThan(KeySoundSynth.rms(a), KeySoundSynth.rms(wood), "\(k)")
+            XCTAssertLessThan(a.map(abs).max() ?? 1, wood.map(abs).max() ?? 0, "\(k)")
+            XCTAssertLessThan(Double(a.count) / KeySoundSynth.sampleRate, 0.061, "\(k)")
+        }
+        let hat = KeySoundSynth.samples(.club, .letter), kick = KeySoundSynth.samples(.club, .delete)
+        XCTAssertGreaterThan(KeySoundSynth.spectralCentroid(hat), 3 * KeySoundSynth.spectralCentroid(kick), "hat sáng, kick trầm")
+        XCTAssertLessThan(KeySoundSynth.spectralCentroid(kick), 600)
+        XCTAssertEqual(KeySoundSynth.seed(.club, .letter), 0x636C_7562 ^ 0x85EB_CA6B)
+        for (k, want) in Self.clubGolden {
+            XCTAssertEqual(KeySoundSynth.samples(.club, k).reduce(0.0) { $0 + Double(abs($1)) }, want, accuracy: 0.01, "\(k)")
+        }
+        XCTAssertEqual(L10n.en["Nhịp club"], "Club beat")
+        XCTAssertTrue(KeySoundStyle.presets.contains(.club))
+    }
+    static let clubGolden: [(KeySoundKind, Double)] = [(.letter, 47.9893), (.delete, 207.6961), (.modifier, 231.8860)]
+
     /// Danh sách id DUY NHẤT cho trường "sound" của theme JSON; "theme" (đã bỏ) ⇒ mặc định.
     func testPresetIDsForThemeJSON() {
         XCTAssertEqual(KeySoundStyle.presetIDs, ["subtle", "wood", "mechanical", "typewriter", "bubble", "rock", "pop",
-                                                 "water", "vintage", "phao", "jingle", "scifi", "trong", "boo", "bop", "chip", "piano", "dantranh",
+                                                 "water", "vintage", "phao", "jingle", "scifi", "trong", "boo", "bop", "chip", "ai", "club", "piano", "dantranh",
                                                  "guitar"])
         for bad in ["system", "custom", "theme"] { XCTAssertFalse(KeySoundStyle.presetIDs.contains(bad), bad) }
         XCTAssertEqual(KeySoundStyle.resolve("theme", customAvailable: true), .subtle)

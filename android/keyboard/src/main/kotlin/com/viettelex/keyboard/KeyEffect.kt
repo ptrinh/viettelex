@@ -45,7 +45,11 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     LETTERS("letters", "Chữ bay"), // l10n-key
     SAND("sand", "Hạt cát"), // l10n-key
     // Theme Biển (11/2026): sóng vỗ bờ + bọt bắn + bong bóng + cá bơi khi combo ([SeaFx]).
-    SEA("sea", "Biển"); // l10n-key
+    SEA("sea", "Biển"), // l10n-key
+    // Theme "AI" (11/2026): chữ vừa ra vỡ thành vài "token" phát sáng bay vào thanh gợi ý ([TokenStream]).
+    TOKENS("tokens", "Token AI"), // l10n-key
+    // Theme Neon Night Club (11/2026): Sàn nhảy LED — phím vừa bấm + các phím quanh thắp neon thành vòng vuông lan ra.
+    DANCEFLOOR("dancefloor", "Sàn nhảy LED"); // l10n-key
 
     val title: String get() = tr(viTitle)
 
@@ -56,10 +60,10 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     val isParticle: Boolean get() = this in PARTICLES
 
     /** Chỉ bắn khi IME xếp sẵn sự kiện (từ vừa chốt / dấu vừa bỏ): phím thường không hẹn vẽ gì. = iOS isQueued. */
-    val isQueued: Boolean get() = this == EMOJIWORD || this == TONE || this == KEYWORD || this == LETTERS
+    val isQueued: Boolean get() = this == EMOJIWORD || this == TONE || this == KEYWORD || this == LETTERS || this == TOKENS
 
     /** IME phải so từ đang soạn trước/sau phím (dấu vừa bỏ / chữ vừa ra) — kiểu khác: không đọc gì. = iOS needsComposeDiff. */
-    val needsComposeDiff: Boolean get() = this == TONE || this == LETTERS
+    val needsComposeDiff: Boolean get() = this == TONE || this == LETTERS || this == TOKENS
 
     /** IME phải ghi từ vừa chốt ở ranh giới (tra bảng). = iOS needsBoundaryWord. */
     val needsBoundaryWord: Boolean get() = this == EMOJIWORD || this == KEYWORD
@@ -1281,4 +1285,207 @@ object SeaFx {
     }
     fun fishBobY(f: Double): Double = FISH_BOB * sin(2 * Math.PI * 3 * f)
     fun fishAlpha(f: Double): Double = if (f < 0.0 || f >= 1.0) 0.0 else minOf(1.0, f / 0.1, (1 - f) / 0.1)
+}
+
+/**
+ * "Token AI" (theme AI, 11/2026): ĐÚNG chữ engine vừa ra (như Chữ bay — [FlyingLetters.glyph]) loé ở mép trên phím rồi VỠ
+ * thành 3…6 "token" (chip bo tròn nhỏ, gradient phát sáng tím / lam / hồng) bay theo đường cong (Bézier bậc 2) VÀO thanh
+ * gợi ý (tâm dải gợi ý, hoặc Mắt AI nếu đang bật). Gợi ý đổi THẬT ⇒ vệt sáng quét dải MỘT lần ([ShimmerGate]).
+ * Hàm thuần = iOS TokenStream — CÙNG SỐ (test chéo hai nền tảng). Đơn vị dp (iOS pt) — đường cong tính bằng px thì
+ * truyền khung px, chỉ hằng số dp nhân density.
+ */
+object TokenStream {
+    /** Số chùm bay cùng lúc (xoay vòng). */
+    const val POOL = 4
+    const val MIN_CHIPS = 3
+    const val MAX_CHIPS = 6
+    /** Trần chip đang có (mọi chùm). */
+    const val CAP = POOL * MAX_CHIPS
+    const val CHIP_W = 7.0
+    const val CHIP_H = 4.0
+    const val CHIP_RADIUS = 2.0
+    /** Màu chip (RGB): tím, lam ngọc, hồng — chip i gradient màu i → màu i+1. */
+    val COLORS = intArrayOf(0xA855F7, 0x22D3EE, 0xF472B6)
+    const val GLYPH_TIME = 0.16
+    const val GLYPH_SIZE = 20.0
+    const val FLIGHT = 0.55
+    const val STAGGER = 0.035
+    const val SPREAD = 6.0
+    const val BEND = 42.0
+    /** Điểm điều khiển / đích cách mép ≥ INSET ⇒ cả đường cong (bao lồi) nằm TRONG bàn phím. */
+    const val INSET = 2.0
+    const val END_SCALE = 0.45
+
+    /** Số chip: 3 + số dấu (NFD, tối đa 2) + chẵn/lẻ mã chữ gốc ⇒ 3…6. "b" 3, "a" 4, "đ" 4, "á" 5, "ế" 6. */
+    fun chipCount(glyph: String): Int {
+        val nfd = java.text.Normalizer.normalize(glyph, java.text.Normalizer.Form.NFD)
+        if (nfd.isEmpty()) return MIN_CHIPS
+        val base = nfd.codePointAt(0)
+        val n = nfd.codePointCount(0, nfd.length)
+        return minOf(MAX_CHIPS, MIN_CHIPS + minOf(n - 1, 2) + base % 2)
+    }
+
+    /** Hệ số toả chip [i] trong [n] chip: −1…1. */
+    fun fan(i: Int, n: Int): Double = if (n > 1) (i - (n - 1) / 2.0) / ((n - 1) / 2.0) else 0.0
+
+    /** Kẹp (x, y) vào [inset, w − inset] × [inset, h − inset] → [out] (x, y). [inset] cùng đơn vị với w/h. */
+    fun clamp(x: Double, y: Double, w: Double, h: Double, out: DoubleArray, inset: Double = INSET) {
+        out[0] = x.coerceIn(inset, maxOf(inset, w - inset)); out[1] = y.coerceIn(inset, maxOf(inset, h - inset))
+    }
+
+    /** Điểm xuất phát chip [i]/[n] quanh mép trên phím ([kx], [ky]) → [out]. [unit] = px mỗi dp (1 = dp). */
+    fun start(kx: Double, ky: Double, i: Int, n: Int, w: Double, h: Double, out: DoubleArray, unit: Double = 1.0) =
+        clamp(kx + (i - (n - 1) / 2.0) * SPREAD * unit, ky, w, h, out, INSET * unit)
+
+    /**
+     * Điểm điều khiển — lệch VUÔNG GÓC khỏi trung điểm, cùng phía cho cả chùm (vòng cung vồng LÊN; bay thẳng đứng ⇒
+     * sang phải), chip ngoài cong hơn; kẹp trong khung ⇒ đường cong không ra ngoài bàn phím. → [out].
+     */
+    fun control(x0: Double, y0: Double, x1: Double, y1: Double, i: Int, n: Int, w: Double, h: Double, out: DoubleArray,
+                unit: Double = 1.0) {
+        val dx = x1 - x0; val dy = y1 - y0
+        val len = Math.hypot(dx, dy)
+        if (len <= 1e-9) { clamp(x0, y0, w, h, out, INSET * unit); return }
+        var nx = -dy / len; var ny = dx / len
+        if (ny > 0 || (ny == 0.0 && nx < 0)) { nx = -nx; ny = -ny }
+        val k = minOf(BEND * unit, len * 0.35) * (0.55 + 0.45 * fan(i, n))
+        clamp((x0 + x1) / 2 + nx * k, (y0 + y1) / 2 + ny * k, w, h, out, INSET * unit)
+    }
+
+    /** Điểm Bézier bậc 2 tại [t] (đã qua [ease]) → [out]. */
+    fun point(x0: Double, y0: Double, cx: Double, cy: Double, x1: Double, y1: Double, t: Double, out: DoubleArray) {
+        val u = 1 - t
+        out[0] = u * u * x0 + 2 * u * t * cx + t * t * x1
+        out[1] = u * u * y0 + 2 * u * t * cy + t * t * y1
+    }
+
+    fun delay(i: Int): Double = GLYPH_TIME / 2 + i * STAGGER
+    val lifetime: Double get() = delay(MAX_CHIPS - 1) + FLIGHT
+    fun ease(f: Double): Double { val x = f.coerceIn(0.0, 1.0); return x * x }
+    fun alpha(f: Double): Double = when {
+        f < 0 || f > 1 -> 0.0
+        f < 0.12 -> f / 0.12
+        f < 0.75 -> 1.0
+        else -> (1 - f) / 0.25
+    }
+    fun scale(f: Double): Double = 1 - (1 - END_SCALE) * f.coerceIn(0.0, 1.0)
+}
+
+/**
+ * Vệt sáng quét thanh gợi ý khi gợi ý ĐỔI THẬT (Token AI): cùng danh sách từ ⇒ không; rỗng ⇒ không; đổi quá dồn
+ * (< [MIN_GAP] từ lần quét trước) ⇒ bỏ. = iOS ShimmerGate.
+ */
+class ShimmerGate {
+    var words: List<String> = emptyList(); private set
+    private var last = -Double.MAX_VALUE
+
+    /** Gợi ý đang hiện là [w] lúc [t] (giây) ⇒ true = quét một lần. */
+    fun update(w: List<String>, t: Double): Boolean {
+        if (w == words) return false
+        words = w
+        if (w.isEmpty() || t - last < MIN_GAP) return false
+        last = t
+        return true
+    }
+    fun reset() { words = emptyList(); last = -Double.MAX_VALUE }
+
+    companion object {
+        const val DURATION = 0.3
+        const val MIN_GAP = 0.35
+        const val BAND = 0.35
+        const val PEAK_ALPHA = 0.35
+        /** Mép trái vệt ở tiến độ [f] với dải rộng [w]: từ −BAND·w tới w. */
+        fun left(f: Double, w: Double): Double { val b = BAND * w; return -b + f.coerceIn(0.0, 1.0) * (w + b) }
+    }
+}
+
+/**
+ * "Sàn nhảy LED" (theme Neon Night Club, 11/2026): phím vừa bấm + các ô quanh nó thắp neon hồng / tím / lục lam như sàn
+ * nhảy LED — vòng 0 (chính phím) rồi vòng vuông 1, 2 lan ra cách nhau [RING_DELAY], mỗi ô tắt trong [TILE_LIFE]. Ô hàng xóm
+ * theo lưới bước = cỡ phím × ([PITCH_X], [PITCH_Y]); phím rộng (cách / Enter) ⇒ ô hàng xóm rộng tối đa 0,85 × cao, dời ra
+ * ngoài mép phím. Gõ dồn ([ComboMeter] mức 3) ⇒ cả bàn phím nháy một nhịp (trần 1,2 s, ≤ 120 ô). Chỉ vector. = iOS DanceFloor.
+ */
+object DanceFloor {
+    const val RINGS = 3
+    const val RING_DELAY = 0.06
+    const val TILE_LIFE = 0.26
+    const val PEAK = 0.55
+    const val PITCH_X = 1.18
+    const val PITCH_Y = 1.28
+    const val UNIT_ASPECT = 0.85
+    const val CORNER_FACTOR = 0.18
+    /** Hồng, tím, lục lam (= [SpotlightFx.COLORS]). */
+    val COLORS = intArrayOf(0xFF2FD0, 0x9B5CFF, 0x2FE6FF)
+    const val POOL = 3
+    const val FLICKER_LEVEL = 3
+    const val FLICKER_COOLDOWN = 1.2
+    const val FLICKER_DURATION = 0.2
+    const val FLICKER_PEAK = 0.22
+    const val MAX_GRID = 120
+
+    data class Tile(val ring: Int, val color: Int, val x: Double, val y: Double, val w: Double, val h: Double)
+
+    fun ring(i: Int, j: Int): Int = maxOf(kotlin.math.abs(i), kotlin.math.abs(j))
+    fun colorIndex(i: Int, j: Int, seed: Int): Int = (((i - j + seed) % 3) + 3) % 3
+    /** Độ sáng ô vòng [ring] sau [dt] giây kể từ lúc bấm: bật ngay khi tới lượt vòng, tắt (1−u)². */
+    fun alpha(dt: Double, ring: Int): Double {
+        val t = dt - ring * RING_DELAY
+        if (t < 0 || t >= TILE_LIFE) return 0.0
+        val u = t / TILE_LIFE
+        return PEAK * (1 - u) * (1 - u)
+    }
+    /** Toàn bộ chùm tắt hẳn sau (giây). */
+    val LIFETIME: Double get() = (RINGS - 1) * RING_DELAY + TILE_LIFE
+    /** Nháy cả bàn phím: sáng 0–60 ms, tắt 60–100 ms, sáng lại rồi tắt dần tới 200 ms. */
+    fun flickerAlpha(dt: Double): Double {
+        if (dt < 0 || dt >= FLICKER_DURATION) return 0.0
+        if (dt < 0.06) return FLICKER_PEAK
+        if (dt < 0.10) return 0.0
+        return FLICKER_PEAK * (1 - (dt - 0.10) / 0.10)
+    }
+    /** Cổng nháy cả bàn phím: chỉ ở mức combo ≥ [FLICKER_LEVEL], cách nhau ≥ [FLICKER_COOLDOWN]. */
+    class FlickerGate {
+        var last = Double.NEGATIVE_INFINITY; private set
+        var fired = 0; private set
+        fun trigger(level: Int, t: Double): Boolean {
+            if (level < FLICKER_LEVEL || t - last < FLICKER_COOLDOWN) return false
+            last = t; fired++
+            return true
+        }
+    }
+
+    /** Bề rộng ô hàng xóm. */
+    fun unit(w: Double, h: Double): Double = minOf(w, h * UNIT_ASPECT)
+    /** Tâm ô (i, j) quanh phím tâm (cx, cy) cỡ w × h. */
+    fun center(i: Int, j: Int, cx: Double, cy: Double, w: Double, h: Double): DoubleArray {
+        val u = unit(w, h)
+        val sx = if (i == 0) 0.0 else if (i > 0) 1.0 else -1.0
+        return doubleArrayOf(cx + sx * ((w - u) / 2 + kotlin.math.abs(i) * u * PITCH_X), cy + j * h * PITCH_Y)
+    }
+
+    /** Các ô vòng 0…RINGS−1 (vòng 0 = đúng khung phím), thứ tự hàng j rồi cột i (−2…2). */
+    fun tiles(cx: Double, cy: Double, w: Double, h: Double, seed: Int): List<Tile> {
+        val out = ArrayList<Tile>(25)
+        val n = RINGS - 1; val u = unit(w, h)
+        for (j in -n..n) for (i in -n..n) {
+            val c = center(i, j, cx, cy, w, h)
+            out.add(Tile(ring(i, j), colorIndex(i, j, seed), c[0], c[1], if (i == 0 && j == 0) w else u, h))
+        }
+        return out
+    }
+
+    /** Lưới phủ cả bàn phím (nháy combo) theo bước của phím vừa bấm — tâm ô trong khung, trần [MAX_GRID] ô. */
+    fun grid(bx: Double, by: Double, bw: Double, bh: Double, cx: Double, cy: Double, w: Double, h: Double, seed: Int): List<Tile> {
+        val u = unit(w, h); val px = u * PITCH_X; val py = h * PITCH_Y
+        if (px <= 1 || py <= 1 || bw <= 0 || bh <= 0) return emptyList()
+        val i0 = kotlin.math.floor((bx - cx) / px).toInt(); val i1 = kotlin.math.ceil((bx + bw - cx) / px).toInt()
+        val j0 = kotlin.math.floor((by - cy) / py).toInt(); val j1 = kotlin.math.ceil((by + bh - cy) / py).toInt()
+        val out = ArrayList<Tile>()
+        for (j in j0..j1) for (i in i0..i1) {
+            val x = cx + i * px; val y = cy + j * py
+            if (x < bx || x > bx + bw || y < by || y > by + bh || out.size >= MAX_GRID) continue
+            out.add(Tile(0, colorIndex(i, j, seed), x, y, u, h))
+        }
+        return out
+    }
 }
