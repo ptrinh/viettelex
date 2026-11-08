@@ -86,6 +86,7 @@
 		25EDD0A1235FCCBE349B7DDC /* SwipeDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705734FC03226DA179E14A71 /* SwipeDecoder.swift */; };
 		26BE18A2BFA5034F446A5C63 /* NightClub.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC3A07A6FB497AE36F5C1916 /* NightClub.swift */; };
 		26C607EDB93AB182A66930C9 /* AppearancePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214BE1EF9FDB2118D4F50109 /* AppearancePolicyTests.swift */; };
+		26F2D7624CE32453221594EF /* Drift.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1004150693E0D28BF19C388 /* Drift.swift */; };
 		26F92D30462E28A390FD70A6 /* UXSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4C8682721439F0EE47DDC34 /* UXSnapshotTests.swift */; };
 		277932CADF5C72BEDCB58651 /* EmojiAtlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B235B84E86F71BBBB10E836 /* EmojiAtlas.swift */; };
 		277D00FD560ECE145713C213 /* L10nTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38772D47D6B779FA5C58271 /* L10nTests.swift */; };
@@ -454,6 +455,7 @@
 		D12EE5FDDD99168FAD725605 /* SyncCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079761CFA779BBD4401101EF /* SyncCore.swift */; };
 		D1D473B187EF1FC2AC8A8420 /* KeyCommandGesture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9556E09A2E0A2C9C3E9D1CBD /* KeyCommandGesture.swift */; };
 		D3280160129E83532E28D054 /* Translate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADEE2E97D8CBDA3CAE8C94C1 /* Translate.swift */; };
+		D3E8612244CA2A705B0E80AE /* Drift.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1004150693E0D28BF19C388 /* Drift.swift */; };
 		D3F8E4EFCD63DA847B35F639 /* SuggestionCountTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4FB2FAF13758F39DEA42ECE /* SuggestionCountTests.swift */; };
 		D411A1F4EF3BEDABD0A2E768 /* AppFlavor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCAC9CC32E1896AB8B3EB695 /* AppFlavor.swift */; };
 		D4218E1F871AA9175218113F /* vnlm.bin in Resources */ = {isa = PBXBuildFile; fileRef = 6C7EDE7A95356B8F9043D32F /* vnlm.bin */; };
@@ -471,6 +473,7 @@
 		D999711EB62DDA26D0043E4F /* SuggestionCount.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C67EF4DD8066AD3C798959 /* SuggestionCount.swift */; };
 		D9B5AF814479AE68F463B5B6 /* SwipeGesture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 778ABAFB76C1046BD2E3A1AD /* SwipeGesture.swift */; };
 		DB896CD1D04C80934D4BA6CB /* CuratedPairs.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4DD73D913F39519883282CE /* CuratedPairs.swift */; };
+		DBAF646157C25BB744ACD7FF /* Drift.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1004150693E0D28BF19C388 /* Drift.swift */; };
 		DBC370A7174CDADB99FC0E6D /* backup-future-v2.json in Resources */ = {isa = PBXBuildFile; fileRef = BDBDF5E631CCFAEF1C938796 /* backup-future-v2.json */; };
 		DBE4AB9A3B654D9D44392251 /* TelexCore in Frameworks */ = {isa = PBXBuildFile; productRef = E6EA46A66DF9410EF89A3FC9 /* TelexCore */; };
 		DC996CC66C628B133BA2BCDD /* WordDelete.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451B2112B13ABD917EEE3D9A /* WordDelete.swift */; };
@@ -500,6 +503,7 @@
 		E85D2C0EF200DB299E7B01D9 /* KeyEffectPreviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94DDD159471700537F5FB4D3 /* KeyEffectPreviewTests.swift */; };
 		E8C8BDC1DF2A4D93400ED41E /* AIProofread.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D148C459EDB5655C7C98BE2 /* AIProofread.swift */; };
 		E8DB9BE35A9F0D3CE0E869E6 /* FutoSwipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76444B4521814651DA2C026A /* FutoSwipe.swift */; };
+		E91791E208883C6766B4BA74 /* DriftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED77385AD9E133889F24561E /* DriftTests.swift */; };
 		E971817D1FA24FB167538336 /* SwipeRevise.swift in Sources */ = {isa = PBXBuildFile; fileRef = A93B754A244411A21FFA6EA0 /* SwipeRevise.swift */; };
 		E986D58B038F7EFC5C5803FB /* EmojiPlane.swift in Sources */ = {isa = PBXBuildFile; fileRef = D705942B9BA084047E7A7EF1 /* EmojiPlane.swift */; };
 		E9A5FC1B28D2683637E9A42D /* ClipboardHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = C23B10293CBF99CC16B1E908 /* ClipboardHistory.swift */; };
@@ -940,12 +944,14 @@
 		EA68B0A44030FC4DBC9F9F80 /* LargeKeysTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LargeKeysTests.swift; sourceTree = "<group>"; };
 		EBB757354715E62384994C56 /* RamFixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RamFixTests.swift; sourceTree = "<group>"; };
 		ED375EC0A76A9B50C92DE443 /* lexend.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = lexend.ttf; sourceTree = "<group>"; };
+		ED77385AD9E133889F24561E /* DriftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriftTests.swift; sourceTree = "<group>"; };
 		EE4C2C271F18A006B9967589 /* SwipePractice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipePractice.swift; sourceTree = "<group>"; };
 		EE8993F83A60C653C26799EC /* NumberRowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberRowTests.swift; sourceTree = "<group>"; };
 		EF30CED4269435719F2F5392 /* PasteOfferOnceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteOfferOnceTests.swift; sourceTree = "<group>"; };
 		F0396F7F4C967F32F6246FFB /* NumericKeypadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumericKeypadTests.swift; sourceTree = "<group>"; };
 		F06874DA9C48F5720BD4FCB5 /* LineBreakTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineBreakTests.swift; sourceTree = "<group>"; };
 		F0FC8F0608409E1FDA1707BD /* suggest-dev.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "suggest-dev.txt"; sourceTree = "<group>"; };
+		F1004150693E0D28BF19C388 /* Drift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Drift.swift; sourceTree = "<group>"; };
 		F19DD98199410F2E9E9DAE24 /* userlm-vtl2-case.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "userlm-vtl2-case.bin"; sourceTree = "<group>"; };
 		F1AF0B5D15512A88DDB6CFF7 /* KeyHitBiasTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyHitBiasTests.swift; sourceTree = "<group>"; };
 		F212F74EAF47564BF3FF101C /* KeystrokeCounter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeystrokeCounter.swift; sourceTree = "<group>"; };
@@ -1233,6 +1239,7 @@
 				D13EC9E20C9CC2A1DBBF56D3 /* CorrectionHintTests.swift */,
 				B81DF7C11BC56071493CA007 /* CuratedPairsTests.swift */,
 				ACF0C397A9C6E378B4465FAE /* DomainPopupTests.swift */,
+				ED77385AD9E133889F24561E /* DriftTests.swift */,
 				75B5F8CF64D742271AB1F96D /* DynamicSnippetsTests.swift */,
 				515867D60976AB481872E0F2 /* EdgeTouchDelayTests.swift */,
 				A9F6973DD8764DB934C95323 /* EmojiAtlasTests.swift */,
@@ -1450,6 +1457,7 @@
 				E4DD73D913F39519883282CE /* CuratedPairs.swift */,
 				6B7D70220F7D14EBC3C3AACD /* DisplayCase.swift */,
 				95F2B6D4AD796E9D33B623BA /* DomainPopup.swift */,
+				F1004150693E0D28BF19C388 /* Drift.swift */,
 				FE050ECA55A95B273F9E18A0 /* EmojiData.swift */,
 				D705942B9BA084047E7A7EF1 /* EmojiPlane.swift */,
 				6CD1ABEB72F0DCCF278A46E7 /* EmojiSearch.swift */,
@@ -1855,6 +1863,7 @@
 				700B0B1ADD376A396DA59B13 /* CuratedPairs.swift in Sources */,
 				5E9A08F294F260D516411505 /* DisplayCase.swift in Sources */,
 				0B1441C5B52FF8CC5F5382AE /* DomainPopup.swift in Sources */,
+				26F2D7624CE32453221594EF /* Drift.swift in Sources */,
 				E6D7D2C5B7DEFCC7FFEDEA63 /* DynamicSnippets.swift in Sources */,
 				277932CADF5C72BEDCB58651 /* EmojiAtlas.swift in Sources */,
 				391082DF75889B3977A67837 /* EmojiData.swift in Sources */,
@@ -1960,6 +1969,7 @@
 				DCB8D7A31898382626331E8D /* BuddyPickerView.swift in Sources */,
 				D9698F87C83A2F6BF7D7D86E /* BuiltinFonts.swift in Sources */,
 				673B126D70D140C3758BEA30 /* BuiltinThemes.swift in Sources */,
+				D3E8612244CA2A705B0E80AE /* Drift.swift in Sources */,
 				1B86C6D3015F6C676976353C /* DynamicSnippets.swift in Sources */,
 				697E89D4CCFFE9F62F474A97 /* EmojiAtlas.swift in Sources */,
 				D6B834245592A77251E351F6 /* EmojiAtlasBuilder.swift in Sources */,
@@ -2083,6 +2093,8 @@
 				36C564FD8BADBFB0BCC1E645 /* DisplayCase.swift in Sources */,
 				4AB730B9742118C7208D887A /* DomainPopup.swift in Sources */,
 				DD2DD4A8FC64DD7B498864FA /* DomainPopupTests.swift in Sources */,
+				DBAF646157C25BB744ACD7FF /* Drift.swift in Sources */,
+				E91791E208883C6766B4BA74 /* DriftTests.swift in Sources */,
 				7289119A49E54D7B17E9CC17 /* DynamicSnippets.swift in Sources */,
 				0D9E316FDE15CC789086F395 /* DynamicSnippetsTests.swift in Sources */,
 				A3BB802468EAD5366DCCFFCD /* EdgeTouchDelayTests.swift in Sources */,

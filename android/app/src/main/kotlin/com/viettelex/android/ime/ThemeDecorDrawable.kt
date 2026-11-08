@@ -16,7 +16,9 @@ import com.viettelex.keyboard.ThemeDecoration
  * Hình học dùng chung [ThemeDecoration] (= iOS KeyboardDecoration).
  */
 class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecoration?, private val density: Float,
-                         private val aurora: Boolean = false) : Drawable() {
+                         private val aurora: Boolean = false,
+                         /** Màu đáy ("bg2" — gradient dọc bg → bgBottom, Lạc trôi); null = nền phẳng. */
+                         private val bgBottom: Int? = null) : Drawable() {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = decoration?.color ?: 0; style = Paint.Style.FILL }
     /** Theme AI ("borderFx":"aurora"): dải cực quang tĩnh mép trên — [AURORA_STEPS] dải ngang gradient, đậm dần lên trên
      *  ([com.viettelex.keyboard.AuroraFx.bandOpacity]); shader dựng lại chỉ khi đổi bề ngang. */
@@ -40,6 +42,8 @@ class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecor
     }
 
     private fun rebuild() {
+        if (bgBottom != null) bgPaint.shader = android.graphics.LinearGradient(0f, bounds.top.toFloat(), 0f, bounds.bottom.toFloat(),
+            bg, bgBottom, android.graphics.Shader.TileMode.CLAMP)
         if (aurora && bounds.width() != auroraW) {
             auroraW = bounds.width()
             val fx = com.viettelex.keyboard.AuroraFx

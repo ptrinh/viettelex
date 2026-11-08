@@ -38,6 +38,9 @@ enum KeyEffect: String, CaseIterable {
     case dancefloor
     // Theme "Ảo giác" (11/2026): Kính vạn hoa — bông đối xứng 8 nhánh sắc cầu vồng nở + xoay chậm từ phím (Kaleido.swift).
     case kaleido
+    // Theme "Lạc trôi" (11/2026, Drift.swift): Đường hầm — vòng co về phím vừa bấm như rơi vào đường hầm (TunnelFx);
+    // Lơ lửng — phím trôi + nhấp nhô chậm khi đang gõ, nghỉ thì về chỗ (FloatFx / KeyFloat, chỉ hình).
+    case tunnel, float
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -81,6 +84,8 @@ enum KeyEffect: String, CaseIterable {
         case .tokens: return L("Token AI")
         case .dancefloor: return L("Sàn nhảy LED")
         case .kaleido: return L("Kính vạn hoa")
+        case .tunnel: return L("Đường hầm")
+        case .float: return L("Lơ lửng")
         }
     }
 
@@ -1785,6 +1790,8 @@ final class KeyEffectOverlay: UIView {
     private var flickerGate = DanceFloor.FlickerGate()
     /// Sàn nhảy LED: cổng an toàn chung với lớp flash phím cách (BeatFlashView.gate). nil ⇒ chỉ FlickerGate.
     var flashGate: BeatFlash.Gate?
+    // Lạc trôi — Đường hầm (Drift.swift): dựng lười ở lần bắn đầu; kiểu khác ⇒ nil.
+    private var tunnel: TunnelRings?
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -1855,7 +1862,7 @@ final class KeyEffectOverlay: UIView {
     }
 
     static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor,
-                                          .kaleido]
+                                          .kaleido, .tunnel]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -2035,6 +2042,8 @@ final class KeyEffectOverlay: UIView {
     /// Sàn nhảy LED: gốc các chùm ô đã dựng (pool) + lớp nháy cả bàn phím (nil = chưa nháy lần nào).
     var debugDanceRoots: [CALayer] { dances.map(\.root) }
     var debugFloorFlicker: CALayer? { floorFlicker?.root }
+    /// Đường hầm: pool vòng (nil = chưa bắn lần nào).
+    var debugTunnel: TunnelRings? { tunnel }
     #else
     static let drawsOffscreen = false
     #endif
@@ -2045,6 +2054,11 @@ final class KeyEffectOverlay: UIView {
         let c = CGPoint(x: r.midX, y: r.midY)
         switch effect {
         case .none, .emojiword, .tone, .keyword, .letters, .tokens: return
+        case .float: return     // Lơ lửng: KeyboardView.keyFloat lo (không vẽ gì trên overlay)
+        case .tunnel:
+            let t = tunnel ?? TunnelRings(host: layer)
+            tunnel = t
+            t.fire(key: r, bounds: bounds, level: combo.press(at: media), media: media)
         case .plasma: firePlasma(c, now: now, media: media)
         case .shake: fireShake(media: media)
         case .laser: fireLaser(c, now: now)
@@ -2430,6 +2444,7 @@ final class KeyEffectOverlay: UIView {
         plasma.reset()
         clearSand()                       // ẩn bàn phím ⇒ đống cát về 0
         haltSea()
+        tunnel?.halt()
     }
 
     // MARK: Đợt 3 — Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá, Chữ bay, Hạt cát
@@ -3478,6 +3493,7 @@ final class KeyEffectOverlay: UIView {
         seaLastWave = -.greatestFiniteMagnitude; seaLastFish = -.greatestFiniteMagnitude; seaLevel = 0
         dances.removeAll(); dancePool = KeyEffectPool(capacity: DanceFloor.pool); danceSeq = 0
         floorFlicker = nil; flickerGate = DanceFloor.FlickerGate()
+        tunnel?.remove(); tunnel = nil
         if effect != .shake { shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey) }
         shakeMeter.reset()
         stringAnim = nil

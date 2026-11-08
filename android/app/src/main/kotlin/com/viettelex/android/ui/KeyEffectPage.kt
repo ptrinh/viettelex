@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.viettelex.android.ime.KeyEffectView
 import com.viettelex.keyboard.BeatFlash
+import com.viettelex.android.ime.KeyFloatDriver
 import com.viettelex.keyboard.ComboMeter
 import com.viettelex.keyboard.DanceFloor
 import com.viettelex.keyboard.KeyEffect
@@ -70,7 +71,8 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
             " " + tr("Rung combo không rung khi bật Giảm chuyển động. Dấu thanh phản ứng theo dấu vừa bỏ; Từ khoá nổ pháo đỏ và lì xì khi gõ \"tết\", thả tim khi gõ \"yêu\"; Chữ bay thả đúng chữ vừa ra; Hạt cát đọng thành đống thấp ở đáy rồi tự tan.") +
             " " + tr("Biển: mỗi đợt gõ một con sóng vỗ vào bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang.") +
             " " + tr("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp.") +
-            " " + tr("Kính vạn hoa nở một bông đối xứng sắc cầu vồng từ phím vừa bấm, xoay chậm rồi tan.")) {
+            " " + tr("Kính vạn hoa nở một bông đối xứng sắc cầu vồng từ phím vừa bấm, xoay chậm rồi tan.") +
+            " " + tr("Đường hầm: vòng sáng co về phím vừa bấm như rơi vào đường hầm, gõ nhanh thì rơi nhanh hơn. Lơ lửng: phím trôi nhẹ khỏi hàng khi đang gõ rồi về chỗ khi nghỉ; chỉ là hình — chạm vẫn đúng phím; tắt khi bật Giảm chuyển động.")) {
         KeyEffect.entries.chunked(3).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { e ->
@@ -149,6 +151,8 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
     private var beatStart = Long.MIN_VALUE / 2
     private var beatColor = 0
     private var beatN = 0
+    /** "Lơ lửng": phím mẫu trôi rồi về chỗ (đồng hồ thật [KeyFloatDriver]). */
+    private var floater: KeyFloatDriver? = null
 
     fun update(e: KeyEffect, p: ThemePalette, play: Int) {
         bg = p.bg; keyPaint.color = p.keyFill; textPaint.color = p.ink
@@ -157,6 +161,7 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
         // Rung combo: rung cả ô xem thử (như hàng phím); Laser: "phím cách" giả ở góc dưới trái ô.
         shakeTarget = if (e == KeyEffect.SHAKE) this else null
         spaceFrame = { out -> out.set(6 * d, height - 10 * d, maxOf(width * 0.3f, 7 * d), height - 2 * d); true }
+        floater = if (e == KeyEffect.FLOAT) floater ?: KeyFloatDriver() else null
         // Token AI: "thanh gợi ý" = mép trên ô xem thử.
         tokenTarget = { out -> out[0] = width / 2f; out[1] = 10 * d; true }
         flashGate = if (e == KeyEffect.DANCEFLOOR) beatGate else null
@@ -185,6 +190,7 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
         burst(x, y, w, h)
         flush()
         if (KeyEffectPreviewScript.beat(e, tap)) kickBeat()
+        floater?.let { it.poke(); invalidate() }
     }
 
     private fun kickBeat() {
@@ -216,9 +222,16 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
                 canvas.drawRoundRect(ghostRect, 6 * d, 6 * d, ghostPaint)
             }
         }
+        val f = floater
+        val t = f?.now?.invoke() ?: 0.0
+        val floating = f != null && f.frame(t)
+        canvas.save()
+        if (floating) f!!.apply(canvas, 0, t, keyRect.centerX(), keyRect.centerY(), d)
         canvas.drawRoundRect(keyRect, 6 * d, 6 * d, keyPaint)
         canvas.drawText("V", keyRect.centerX(), keyRect.centerY() + textPaint.textSize / 3f, textPaint)
+        canvas.restore()
         if (!below) running = drawEffects(canvas) || running
+        if (floating) running = true
         if (running || ba > 0 || now - beatStart < (BeatFlash.DURATION * 1000).toLong()) postInvalidateOnAnimation()
     }
 }

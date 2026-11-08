@@ -260,3 +260,14 @@ CASE	buddy-no-character	err:missingKey	-	{"v":1,"name":{"vi":"x"},"light":{"key"
 CASE	buddy-extra-key	err:unknownKey	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"buddy":{"character":"ai","style":"vector"}}
 CASE	buddy-string	err:wrongType	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"buddy":"ai"}
 CASE	buddy-size-string	err:wrongType	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"buddy":{"character":"ai","size":"5"}}
+# Lạc trôi: "keyMotion" (danh sách trắng: "float" — Lơ lửng, độc lập với "effect") + âm "airy" + hiệu ứng "tunnel"; "bg2" = nền gradient dọc.
+CASE	keymotion-float	ok	{"dark":"same","effect":"tunnel","keyMotion":"float","light":{"accent":"#000000","ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"sound":"airy","v":1}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"sound":"airy","effect":"tunnel","keyMotion":"float"}
+CASE	effect-float	ok	{"dark":"same","effect":"float","light":{"accent":"#000000","ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"v":1}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"effect":"float"}
+CASE	keymotion-unknown	err:badValue	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"keyMotion":"spin"}
+CASE	keymotion-upper	err:badValue	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"keyMotion":"Float"}
+CASE	keymotion-number	err:wrongType	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"keyMotion":1}
+CASE	keymotion-null	err:wrongType	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"keyMotion":null}
+CASE	keymotion-in-light	err:unknownKey	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000","keyMotion":"float"}}
+CASE	bg2-gradient	ok	{"dark":"same","light":{"accent":"#000000","bg":"#EEEEEE","bg2":"#CCCCCC","ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"v":1}	{"v":1,"name":{"vi":"x"},"light":{"bg":"#EEEEEE","bg2":"#cccccc","key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"}}
+CASE	bg2-bad	err:badColor	-	{"v":1,"name":{"vi":"x"},"light":{"bg":"#EEEEEE","bg2":"teal","key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"}}
+CASE	bg2-root	err:unknownKey	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"bg2":"#CCCCCC"}

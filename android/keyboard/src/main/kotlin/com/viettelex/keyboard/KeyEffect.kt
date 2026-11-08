@@ -51,7 +51,11 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     // Theme Neon Night Club (11/2026): Sàn nhảy LED — phím vừa bấm + các phím quanh thắp neon thành vòng vuông lan ra.
     DANCEFLOOR("dancefloor", "Sàn nhảy LED"), // l10n-key
     // Theme "Ảo giác" (11/2026): Kính vạn hoa — bông đối xứng 8 nhánh sắc cầu vồng nở + xoay chậm từ phím ([KaleidoBloom]).
-    KALEIDO("kaleido", "Kính vạn hoa"); // l10n-key
+    KALEIDO("kaleido", "Kính vạn hoa"), // l10n-key
+    // Theme "Lạc trôi" (11/2026, [TunnelFx] / [FloatFx] trong Drift.kt): Đường hầm — vòng co về phím vừa bấm như rơi vào
+    // đường hầm; Lơ lửng — phím trôi + nhấp nhô chậm khi đang gõ, nghỉ thì về chỗ (chỉ hình, vùng chạm không đổi).
+    TUNNEL("tunnel", "Đường hầm"), // l10n-key
+    FLOAT("float", "Lơ lửng"); // l10n-key
 
     val title: String get() = tr(viTitle)
 

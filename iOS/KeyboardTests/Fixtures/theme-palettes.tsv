@@ -6,10 +6,10 @@
 # nền tảng (backdrop) nên không có ở đây.
 # interactive = theme có nhãn "interactive" (thứ tự khai báo); picker = thứ tự lưới "Chọn giao diện" (ThemePicker.ordered:
 # miễn phí → tương tác theo ThemePicker.interactiveOrder → còn lại).
-order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral,pixel,sea,timeOfDay,ai,nightclub,trippy
-plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,pixel,sea,timeOfDay,ai,nightclub,trippy
-interactive	tet,tetMai,piano,rgb,space,guitar,mole,sea,ai,nightclub,trippy
-picker	system,oled,contrast,neutral,nightclub,ai,trippy,sea,mole,piano,space,rgb,tet,tetMai,guitar,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,xmas,xmasSnow,sen,typewriter,trungthu,valentine,halloween,pixel,timeOfDay
+order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral,pixel,sea,timeOfDay,ai,nightclub,trippy,drift
+plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,pixel,sea,timeOfDay,ai,nightclub,trippy,drift
+interactive	tet,tetMai,piano,rgb,space,guitar,mole,sea,ai,nightclub,trippy,drift
+picker	system,oled,contrast,neutral,nightclub,ai,trippy,sea,mole,piano,space,rgb,tet,tetMai,guitar,drift,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,xmas,xmasSnow,sen,typewriter,trungthu,valentine,halloween,pixel,timeOfDay
 #theme	dark	bg	key	special	ink	accent	accentInk	border	fn	fnInk	deco
 oled	0	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
 oled	1	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
@@ -75,3 +75,5 @@ nightclub	0	FF07020D	FF170A24	FF241038	FFFBEFFF	FFFF2FD0	FF1A0016	E6FF2FD0	FF100
 nightclub	1	FF07020D	FF170A24	FF241038	FFFBEFFF	FFFF2FD0	FF1A0016	E6FF2FD0	FF10061C	FF2FE6FF	-
 trippy	0	FF160A33	B32A1758	C23B2170	FFFFFFFF	FFC084FC	FF1A0633	-	B3221448	FFF0ABFC	swirl:66C4B5FD
 trippy	1	FF160A33	B32A1758	C23B2170	FFFFFFFF	FFC084FC	FF1A0633	-	B3221448	FFF0ABFC	swirl:66C4B5FD
+drift	0	FF062B33	29FFFFFF	40FFFFFF	FFFFFFFF	FF9B7BFF	FF14082C	66C9B8FF	1AFFFFFF	FFA8F0E6	starfield:47E8F6FF
+drift	1	FF062B33	29FFFFFF	40FFFFFF	FFFFFFFF	FF9B7BFF	FF14082C	66C9B8FF	1AFFFFFF	FFA8F0E6	starfield:47E8F6FF

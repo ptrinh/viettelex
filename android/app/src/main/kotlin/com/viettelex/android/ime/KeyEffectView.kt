@@ -275,6 +275,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     private val flickerTiles = FloatArray(DanceFloor.MAX_GRID * 6)
     private var flickerN = 0
     private val danceRect = RectF()
+    // Lạc trôi — Đường hầm ([TunnelPainter], DriftPainters.kt): dựng lười ở lần bắn đầu; kiểu khác ⇒ null.
+    private var tunnel: TunnelPainter? = null
 
     val effect: KeyEffect get() = sim.effect
 
@@ -317,6 +319,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         if (changed) { shardCache.clear(); combo.reset(); shakeMeter.reset(); plasma.reset(); prewarm(e); buildFx3Paths(e) }
         if (e != KeyEffect.SHAKE) shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         if (e != KeyEffect.SAND) sand = null
+        if (e != KeyEffect.TUNNEL) tunnel = null
         pendN = 0
         invalidate()
     }
@@ -428,6 +431,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.SAND -> fireSand(x, y, now)
             KeyEffect.SEA -> fireSea(x, y, now)
             KeyEffect.DANCEFLOOR -> fireDance(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
+            KeyEffect.TUNNEL -> (tunnel ?: TunnelPainter(density).also { tunnel = it }).fire(x, y, w, h, width, height, combo.press(now), now)
+            KeyEffect.FLOAT -> {}   // Lơ lửng: KeyboardView dời hình phím (KeyFloatDriver) — overlay không vẽ gì
             KeyEffect.FLASH -> if (flash.trigger(now)) flashStart = now
             KeyEffect.LIGHTNING -> fireLightning(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.MATRIX -> pokeMatrix(now)
@@ -520,6 +525,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         shakeStart = Long.MIN_VALUE / 2; shakeMeter.reset()
         shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         danceStart.fill(Long.MIN_VALUE / 2); flickerStart = Long.MIN_VALUE / 2
+        tunnel?.halt()
         pendN = 0
         invalidate()
     }
@@ -583,6 +589,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     }
 
     /** Test: số chùm sàn nhảy còn sáng lúc [now] + đã nháy cả bàn phím bao nhiêu lần. */
+    /** Test: số vòng Đường hầm đang hiện lúc [now] (0 khi chưa bắn). */
+    internal fun tunnelAlive(now: Long): Int = tunnel?.alive(now) ?: 0
     internal fun dancesAlive(now: Long): Int = danceStart.count { (now - it) / 1000.0 in 0.0..<DanceFloor.LIFETIME }
     internal val flickersFired: Int get() = flickerGate.fired
 
@@ -630,6 +638,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.SAND -> drawSand(canvas, now)
             KeyEffect.SEA -> drawSea(canvas, now)
             KeyEffect.DANCEFLOOR -> drawDance(canvas, now)
+            KeyEffect.TUNNEL -> tunnel?.draw(canvas, now, width, height) ?: false
+            KeyEffect.FLOAT -> false
             else -> drawParticles(canvas, now)
         }
     }

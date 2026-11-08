@@ -53,6 +53,8 @@ final class KeyEffectPreviewView: UIView {
     private(set) var overlay: KeyEffectOverlay?
     private var effect: KeyEffect = .none
     private var lastPlay = 0
+    /// "Lơ lửng": phím mẫu trôi rồi về chỗ (KeyFloat thật, lọc đúng phím mẫu).
+    private(set) var floater: KeyFloat?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -85,6 +87,7 @@ final class KeyEffectPreviewView: UIView {
         overlay?.laserOrigin = { [weak self] in self.map { KeyEffectPreviewScript.spaceBar(in: $0.bounds) } }
         overlay?.tokenTarget = { [weak self] in self.map { KeyEffectPreviewScript.tokenTarget(in: $0.bounds) } }
         overlay?.flashGate = beat?.gate
+        if e != .float { floater?.halt(); floater = nil }
         syncSpace()
         if play != lastPlay {
             lastPlay = play
@@ -111,6 +114,11 @@ final class KeyEffectPreviewView: UIView {
         o.emit(key: k)
         o.flush()
         if KeyEffectPreviewScript.beat(effect, tap: tap) { beat?.kick() }
+        if effect == .float {
+            let f = floater ?? KeyFloat(target: self) { [weak self] v in v === self?.key }
+            floater = f
+            f.poke()
+        }
     }
 
     /// Overlay + lớp flash trùng khung ô (gắn lúc ô còn 0×0 ⇒ phải đặt lại khi ô có cỡ).

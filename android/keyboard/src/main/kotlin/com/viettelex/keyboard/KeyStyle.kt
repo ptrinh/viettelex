@@ -79,6 +79,8 @@ data class KeyStyle(
     val keyShape: String? = null,
     /** Hiệu ứng trên ảnh nền của theme ("photoFx", [ThemeExtraIds.PHOTO_FX]) — IME đọc từ kiểu thực dùng ([SpotlightPolicy]). */
     val photoFx: String? = null,
+    /** Chuyển động nền của phím ("keyMotion", [ThemeExtraIds.KEY_MOTIONS]) — IME đọc từ kiểu thực dùng ([FloatPolicy]). */
+    val keyMotion: String? = null,
 ) {
     val isDefault: Boolean get() = this == DEFAULT
     /** Có đổi chữ (phông / độ đậm / cỡ / phông tải về) ⇒ bật đo + kẹp chữ. */
@@ -134,7 +136,8 @@ data class KeyStyle(
         if (s.isEmpty) return p
         val c = ThemeColor
         var q = p
-        s.bg?.let { q = q.copy(bg = it, bgBottom = null) }
+        s.bg?.let { q = q.copy(bg = it, bgBottom = null) }   // nền vá = nền phẳng (bỏ gradient)
+        s.bg2?.let { q = q.copy(bgBottom = it) }
         s.key?.let { q = q.copy(keyFill = it, balloon = it, popup = it) }
         s.special?.let { q = q.copy(specialFill = it, chip = it) }
         s.ink?.let { q = q.copy(ink = it, isDark = c.luminance(it) > 0.5) }
@@ -179,7 +182,7 @@ data class KeyStyle(
             return KeyStyle(corner = edited.corner, fontScale = edited.fontScale, font = edited.font ?: KeyLabelFont.DEFAULT,
                 weight = edited.weight ?: KeyLabelWeight.REGULAR, light = l, dark = d, assets = edited.assets,
                 sound = edited.sound, effect = edited.effect, swipe = edited.swipe, game = edited.game,
-                keyShape = edited.keyShape, photoFx = edited.photoFx) to (lostL || lostD)
+                keyShape = edited.keyShape, photoFx = edited.photoFx, keyMotion = edited.keyMotion) to (lostL || lostD)
         }
 
         fun parseColor(v: Any?): Int? = (v as? Number)?.toInt()?.takeIf { it in 0..0xFFFFFF }

@@ -225,6 +225,15 @@
                 "accentInk": "#1A0633", "fn": "#B3221448", "fnInk": "#F0ABFC", "balloon": "#3B2270", "trail": "#CCF0ABFC",
                 "borderFx": "hueflow", "deco": {"motif": "swirl", "color": "#66C4B5FD"}},
       "dark": "same"
+    },
+    {
+      "v": 1, "id": "drift", "name": {"vi": "Lạc trôi", "en": "Adrift"}, "tags": ["interactive"], "corner": 60,
+      "sound": "airy", "effect": "tunnel", "swipe": "stardust", "keyMotion": "float",
+      "light": {"bg": "#062B33", "bg2": "#22104A", "key": "#29FFFFFF", "special": "#40FFFFFF", "ink": "#FFFFFF",
+                "accent": "#9B7BFF", "accentInk": "#14082C", "fn": "#1AFFFFFF", "fnInk": "#A8F0E6",
+                "border": "#66C9B8FF", "balloon": "#2A2350", "trail": "#CC5EEAD4",
+                "deco": {"motif": "starfield", "color": "#47E8F6FF", "density": 120}},
+      "dark": "same"
     }
   ]
 }

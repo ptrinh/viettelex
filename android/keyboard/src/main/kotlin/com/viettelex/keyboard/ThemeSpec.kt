@@ -44,6 +44,16 @@ import java.nio.charset.CodingErrorAction
  * sáng hơn. Không có ảnh nền ⇒ quầng sáng rọi lên hoạ tiết neon tối; quả cầu disco nhỏ ở góc trên xoay + toả chấm sáng.
  * Như "game": không ghi gì lúc chọn theme, IME đọc từ kiểu thực dùng ([SpotlightPolicy]); theme tự tạo dùng được.
  *
+ * "keyMotion" (tuỳ chọn, danh sách trắng [ThemeExtraIds.KEY_MOTIONS]): chuyển động NỀN của phím chạy KHI theme này đang
+ * dùng, ĐỘC LẬP với "effect" (theme Lạc trôi: "effect":"tunnel" + "keyMotion":"float") — "float" = Lơ lửng (Drift.kt):
+ * khi đang gõ, từng phím trôi nhẹ khỏi hàng + nhấp nhô chậm (≤ 4 dp, ≤ 2°, chu kỳ 3–5 s), nghỉ 2 s ⇒ về chỗ rồi dừng hẳn.
+ * Chỉ HÌNH (vùng nhận chạm theo khung phím gốc); cần Plus, tắt khi tiết kiệm pin / Giảm chuyển động ([FloatPolicy]). Chọn
+ * hiệu ứng "float" cũng bật y hệt. Như "photoFx": không ghi gì lúc chọn theme; theme tự tạo dùng được. iOS y hệt.
+ *
+ * "bg2" (tuỳ chọn, trong "light"/"dark", màu như "bg"): nền GRADIENT DỌC — "bg" ở mép trên → "bg2" ở đáy (theme Lạc trôi:
+ * lục lam đêm → tím) = [ThemePalette.bgBottom]. Vẽ một lần cùng nền (0 chi phí mỗi phím); ảnh nền bỏ cả hai. Bản vá
+ * ([KeyStyle]) có thể đặt "bg2"; đặt "bg" trong bản vá ⇒ nền phẳng. iOS y hệt.
+ *
  * "tags" (tuỳ chọn, mảng chuỗi trong danh sách trắng [ThemeTags.KNOWN]): nhãn của theme — "interactive" = theme TƯƠNG TÁC
  * (phím/ảnh nền phản ứng khi gõ: trò chơi, đèn rọi, sóng, nốt nhạc…) ⇒ màn "Chọn giao diện" gắn chip "Tương tác" và xếp
  * nhóm riêng ngay sau theme miễn phí ([ThemePicker]). Không phải mảng ⇒ wrongType; phần tử không phải chuỗi ⇒ wrongType;
@@ -412,6 +422,8 @@ data class ThemeSlots(
     val bg: Int? = null, val key: Int? = null, val special: Int? = null, val ink: Int? = null, val accent: Int? = null,
     val accentInk: Int? = null, val border: Int? = null, val fn: Int? = null, val fnInk: Int? = null,
     val balloon: Int? = null, val trail: Int? = null, val deco: ThemeDeco? = null,
+    /** Màu nền ở ĐÁY (gradient dọc "bg" → "bg2"); null = nền phẳng. iOS `bg2`. */
+    val bg2: Int? = null,
     /** Hiệu ứng viền phím: "rainbow" (Gaming RGB — chỉ xoay màu khi đang gõ) | "none" (bản vá: bỏ). iOS y hệt. */
     val borderFx: String? = null,
     /**
@@ -423,11 +435,11 @@ data class ThemeSlots(
     val isEmpty: Boolean get() = this == ThemeSlots()
 
     fun color(k: String): Int? = when (k) {
-        "bg" -> bg; "key" -> key; "special" -> special; "ink" -> ink; "accent" -> accent; "accentInk" -> accentInk
+        "bg" -> bg; "bg2" -> bg2; "key" -> key; "special" -> special; "ink" -> ink; "accent" -> accent; "accentInk" -> accentInk
         "border" -> border; "fn" -> fn; "fnInk" -> fnInk; "balloon" -> balloon; "trail" -> trail; else -> null
     }
     fun with(k: String, v: Int?): ThemeSlots = when (k) {
-        "bg" -> copy(bg = v); "key" -> copy(key = v); "special" -> copy(special = v); "ink" -> copy(ink = v)
+        "bg" -> copy(bg = v); "bg2" -> copy(bg2 = v); "key" -> copy(key = v); "special" -> copy(special = v); "ink" -> copy(ink = v)
         "accent" -> copy(accent = v); "accentInk" -> copy(accentInk = v); "border" -> copy(border = v); "fn" -> copy(fn = v)
         "fnInk" -> copy(fnInk = v); "balloon" -> copy(balloon = v); "trail" -> copy(trail = v); else -> this
     }
@@ -454,7 +466,7 @@ data class ThemeSlots(
     }
 
     companion object {
-        val COLOR_KEYS = listOf("accent", "accentInk", "balloon", "bg", "border", "fn", "fnInk", "ink", "key", "special", "trail")
+        val COLOR_KEYS = listOf("accent", "accentInk", "balloon", "bg", "bg2", "border", "fn", "fnInk", "ink", "key", "special", "trail")
         val REQUIRED = listOf("key", "special", "ink", "accent")
         const val RAINBOW = "rainbow"
         /** Giá trị hợp lệ của "borderFx" (iOS ThemeSlots.borderFxValues y hệt). */
@@ -619,6 +631,8 @@ data class ThemeSpec(
     val keyShape: String? = null,
     /** Hiệu ứng trên ảnh nền ("spotlight" — Đèn rọi) — chạy khi theme đang dùng ([ThemeExtraIds.PHOTO_FX]). iOS `photoFx`. */
     val photoFx: String? = null,
+    /** Chuyển động nền của phím ("float" — Lơ lửng) — chạy khi theme đang dùng ([ThemeExtraIds.KEY_MOTIONS]). iOS `keyMotion`. */
+    val keyMotion: String? = null,
     /** Nhãn ("interactive" — [ThemeTags.KNOWN]), thứ tự như trong JSON; null = không có (mảng rỗng cũng là null). iOS `tags`. */
     val tags: List<String>? = null,
     /** Bạn đồng hành đi kèm (ghi một lần lúc chọn theme — [ThemeExtras.applyBuddyOnSelect]); null = không đổi. iOS `buddy`. */
@@ -642,7 +656,7 @@ data class ThemeSpec(
     /** Kiểu chữ / bo góc / tệp tải về mặc định của theme. */
     val typography: KeyStyle get() = KeyStyle(corner = corner, fontScale = fontScale, font = font ?: KeyLabelFont.DEFAULT,
         weight = weight ?: KeyLabelWeight.REGULAR, assets = assets, sound = sound, effect = effect, swipe = swipe, game = game,
-        keyShape = keyShape, photoFx = photoFx)
+        keyShape = keyShape, photoFx = photoFx, keyMotion = keyMotion)
 
     fun palette(dark: Boolean): ThemePalette = palette(slots(dark), dark)
 
@@ -668,6 +682,7 @@ data class ThemeSpec(
         game?.let { m.add("game" to SJ.Str(it)) }
         keyShape?.let { m.add("keyShape" to SJ.Str(it)) }
         photoFx?.let { m.add("photoFx" to SJ.Str(it)) }
+        keyMotion?.let { m.add("keyMotion" to SJ.Str(it)) }
         tags?.let { t -> m.add("tags" to SJ.Arr(t.map { SJ.Str(it) })) }
         buddy?.let { b ->
             val bm = arrayListOf<Pair<String, SJ>>("character" to SJ.Str(b.character))
@@ -741,7 +756,7 @@ data class ThemeSpec(
             val barInk = solidBg?.takeIf { c.contrast(ink, it) < KeyboardTransparency.MIN_LABEL_CONTRAST }
                 ?.let { KeyboardTransparency.readable(ink, it) }
             return ThemePalette(barInk = barInk, surfaceDark = if (barInk != null && solidBg != null) c.luminance(solidBg) < 0.18 else null,
-                bg = s.bg ?: KeyboardTransparency.systemBackdrop(dark), keyFill = key, specialFill = special,
+                bg = s.bg ?: KeyboardTransparency.systemBackdrop(dark), bgBottom = if (s.bg != null) s.bg2 else null, keyFill = key, specialFill = special,
                 ink = ink, trail = s.trail ?: c.withAlpha(accent, 0.6f), balloon = balloon, popup = balloon, action = accent,
                 actionInk = s.accentInk ?: autoAccentInk(accent), chip = special, keyBorder = s.border,
                 isDark = c.luminance(ink) > 0.5, functionFill = s.fn, functionInk = s.fnInk,
@@ -754,7 +769,7 @@ data class ThemeSpec(
         /** Palette (đã giải) → màu một chế độ; bỏ trường bằng mặc định tự tính. */
         fun slots(p: ThemePalette): ThemeSlots {
             val c = ThemeColor
-            return ThemeSlots(bg = p.bg, key = p.keyFill, special = p.specialFill, ink = p.ink, accent = p.action,
+            return ThemeSlots(bg = p.bg, bg2 = p.bgBottom, key = p.keyFill, special = p.specialFill, ink = p.ink, accent = p.action,
                 accentInk = p.actionInk.takeIf { it != autoAccentInk(p.action) }, border = p.keyBorder,
                 fn = p.functionFill, fnInk = p.functionInk, balloon = p.balloon.takeIf { it != p.keyFill },
                 trail = p.trail.takeIf { it != c.withAlpha(p.action, 0.6f) },
@@ -770,7 +785,7 @@ data class ThemeSpec(
             return ThemeSpec(id, nameVi, nameEn, l, if (d == l) null else d, style.corner, style.fontScale,
                 style.font.takeIf { it != KeyLabelFont.DEFAULT && style.assets.font == null },
                 style.weight.takeIf { it != KeyLabelWeight.REGULAR }, style.assets, style.sound, style.effect, style.swipe, style.game,
-                keyShape = style.keyShape, photoFx = style.photoFx)
+                keyShape = style.keyShape, photoFx = style.photoFx, keyMotion = style.keyMotion)
         }
     }
 }
@@ -790,7 +805,7 @@ object ThemeSpecParser {
 
     private val ASSET_KEYS = setOf("background", "foreground", "keys")
     private val ROOT_KEYS = setOf("v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
-        "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx", "tags", "buddy") + ASSET_KEYS
+        "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx", "keyMotion", "tags", "buddy") + ASSET_KEYS
     private val SLOT_KEYS = (ThemeSlots.COLOR_KEYS + "deco" + "borderFx" + "spaceDeco").toSet()
 
     fun parse(text: String): Outcome = when (val r = StrictJson.parse(text)) {
@@ -845,7 +860,7 @@ object ThemeSpecParser {
         val spec = ThemeSpec(id, vi, en, light, if (dark == light) null else dark, typo.corner, typo.fontScale,
             if (j["font"] != null && typo.assets.font == null) typo.font else null,
             if (j["weight"] != null) typo.weight else null, typo.assets, typo.sound, typo.effect, typo.swipe, typo.game,
-            schedule, typo.keyShape, photoFx = typo.photoFx, tags = tags, buddy = buddy)
+            schedule, typo.keyShape, photoFx = typo.photoFx, keyMotion = typo.keyMotion, tags = tags, buddy = buddy)
         if (contrast) c.issues.addAll(contrastIssues(spec))
         return Outcome(if (c.failed) null else spec, c.issues)
     }
@@ -1030,7 +1045,8 @@ object ThemeSpecParser {
         }
         s = s.copy(sound = pick("sound", ThemeExtraIds.SOUNDS), effect = pick("effect", ThemeExtraIds.EFFECTS),
             swipe = pick("swipe", ThemeExtraIds.SWIPES), game = pick("game", ThemeExtraIds.GAMES),
-            keyShape = pick("keyShape", ThemeExtraIds.KEY_SHAPES), photoFx = pick("photoFx", ThemeExtraIds.PHOTO_FX))
+            keyShape = pick("keyShape", ThemeExtraIds.KEY_SHAPES), photoFx = pick("photoFx", ThemeExtraIds.PHOTO_FX),
+            keyMotion = pick("keyMotion", ThemeExtraIds.KEY_MOTIONS))
         return s
     }
 
@@ -1111,7 +1127,7 @@ object ThemeSpecParser {
         if (j !is SJ.Obj) return null
         val c = Ctx()
         val allowed = setOf("label", "fill", "accent", "corner", "fontScale", "font", "weight", "light", "dark",
-            "sound", "effect", "swipe", "game", "keyShape", "photoFx") + ASSET_KEYS
+            "sound", "effect", "swipe", "game", "keyShape", "photoFx", "keyMotion") + ASSET_KEYS
         for ((k, _) in j.m) if (k !in allowed) c.err(ThemeIssue.Code.unknownKey, k)
         fun rgb(k: String): Int? {
             val v = j[k] ?: return null
@@ -1283,6 +1299,7 @@ object ThemeJsonActions {
                 if (st.game == b.spec?.game) st = st.copy(game = null)
                 if (st.keyShape == b.spec?.keyShape) st = st.copy(keyShape = null)
                 if (st.photoFx == b.spec?.photoFx) st = st.copy(photoFx = null)
+                if (st.keyMotion == b.spec?.keyMotion) st = st.copy(keyMotion = null)
                 if (lostBg) warnings.add(ThemeIssue(ThemeIssue.Code.bgKept, "bg"))
                 Saved(true, warnings, s.withKeyStyle(st, b), store)
             }
