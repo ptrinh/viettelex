@@ -1081,52 +1081,106 @@ extension KeyEffectTests {
 
     // MARK: Rung combo
 
-    func testShakeRespectsReduceMotionAndCaps() {
-        for lv in -1...5 {
-            XCTAssertEqual(ShakeFx.amplitude(level: lv, reduceMotion: true), 0)
-            XCTAssertLessThanOrEqual(ShakeFx.amplitude(level: lv, reduceMotion: false), ShakeFx.max)
-        }
-        XCTAssertEqual(ShakeFx.max, 3)
-        XCTAssertEqual(ShakeFx.amplitude(level: 0, reduceMotion: false), 0)
-        var m = ComboMeter()
-        var lv = 0
-        for i in 0..<14 { lv = m.press(at: Double(i) * 0.1) }
-        XCTAssertEqual(lv, 3)
-        let amp = ShakeFx.amplitude(level: lv, reduceMotion: false)
-        for t in stride(from: -0.01, through: 0.2, by: 0.001) {
+    /// Số tham chiếu — Android KeyEffectFx3Tests.shakeNumbersAndMeter giữ y hệt.
+    func testShakeNumbersAndMeter() {
+        XCTAssertEqual(ShakeFx.max, 7)
+        XCTAssertEqual(ShakeFx.amps, [0, 3, 5, 7])
+        XCTAssertEqual(ShakeFx.duration, 0.245, accuracy: 1e-12)
+        for lv in -1...5 { XCTAssertLessThanOrEqual(ShakeFx.amplitude(level: lv), ShakeFx.max) }
+        XCTAssertEqual(ShakeFx.amplitude(level: 0), 0)
+        XCTAssertEqual((1...3).map { ShakeFx.amplitude(level: $0) }, [3, 5, 7])
+        // 3–4 nhịp tắt dần: dấu x đổi chiều mỗi khung, |x| giảm dần.
+        let mid = Array(ShakeFx.xs.dropFirst().dropLast())
+        XCTAssertGreaterThanOrEqual(zip(mid, mid.dropFirst()).filter { $0 * $1 < 0 }.count, 5)
+        XCTAssertTrue(zip(mid, mid.dropFirst()).allSatisfy { abs($0) > abs($1) })
+        XCTAssertTrue(ShakeFx.ys.allSatisfy { abs($0) < 0.5 }, "dọc nhẹ hơn ngang")
+
+        // Gõ nhanh bình thường: phím thứ 4 trong 1,2 s đã rung (≈ 3,5 phím/s).
+        var m = ShakeMeter()
+        XCTAssertEqual((0..<4).map { m.press(at: Double($0) * 0.3) }, [0, 0, 0, 1])
+        m.reset()
+        XCTAssertEqual((0..<9).map { m.press(at: Double($0) * 0.1) }, [0, 0, 0, 1, 1, 2, 2, 3, 3])
+        XCTAssertEqual(m.press(at: 0.8 + 2), 0, "nghỉ ⇒ về 0")
+        m.reset()
+        XCTAssertEqual((0..<6).map { m.press(at: Double($0) * 0.5) }, [0, 0, 0, 0, 0, 0], "gõ chậm (2 phím/s) không rung")
+
+        let amp = ShakeFx.amplitude(level: 3)
+        for t in stride(from: -0.01, through: 0.3, by: 0.001) {
             XCTAssertLessThanOrEqual(abs(ShakeFx.offsetX(t, amp: amp)), amp + 1e-9)
             XCTAssertLessThanOrEqual(abs(ShakeFx.offsetY(t, amp: amp)), amp + 1e-9)
         }
+        XCTAssertEqual(ShakeFx.offsetX(0, amp: amp), 0)
         XCTAssertEqual(ShakeFx.offsetX(ShakeFx.duration, amp: amp), 0)
-        XCTAssertEqual(ShakeFx.offsetX(0.03, amp: 3), 3, accuracy: 1e-9)
-        XCTAssertEqual(ShakeFx.offsetX(0.015, amp: 1.5), 0.75, accuracy: 1e-9)
+        XCTAssertEqual(ShakeFx.offsetX(0.035, amp: 7), 7, accuracy: 1e-9)
+        XCTAssertEqual(ShakeFx.offsetX(0.070, amp: 5), -4.25, accuracy: 1e-9)
+        XCTAssertEqual(ShakeFx.offsetY(0.035, amp: 7), -2.45, accuracy: 1e-9)
+        XCTAssertEqual(ShakeFx.offsetX(0.014, amp: 3), 1.2, accuracy: 1e-9)
     }
 
-    /// Rung trên bàn phím thật: chỉ animation cộng dồn trên layer hàng phím — khung (nhận chạm) không đổi, biên độ ≤ 3pt,
-    /// tự gỡ; Giảm chuyển động ⇒ không có animation.
-    @MainActor func testShakeOnKeyboardMovesDrawingOnlyAndRespectsReduceMotion() throws {
+    /// Rung trên bàn phím thật, qua đường gõ thật (router → tapped → emit → flush): chỉ animation cộng dồn trên layer
+    /// hàng phím ĐANG HIỆN — giữa chừng presentation lệch rõ (≥ 2pt), khung + hit-test không đổi, tự gỡ.
+    /// Giảm chuyển động bật hay tắt đều rung (Phil 08/11/2026).
+    @MainActor func testShakeOnKeyboardMovesDrawingOnly() throws {
         try withKeyboardFx(effect: "shake") { kb in
             let o = try XCTUnwrap(kb.keyEffects)
-            XCTAssertTrue(o.shakeTarget === kb.debugRowsContainer)
+            XCTAssertEqual(o.effect, .shake)
             let rows = kb.debugRowsContainer
+            XCTAssertTrue(o.shakeTarget === rows)
+            XCTAssertNotNil(rows.window, "hàng phím đang trên màn hình")
+            XCTAssertTrue(rows.isDescendant(of: kb))
             let frame0 = rows.frame
-            o.reduceMotion = { true }
-            for _ in 0..<14 { o.emit(key: CGRect(x: 30, y: 120, width: 34, height: 42)); o.flush() }
-            XCTAssertNil(rows.layer.animation(forKey: KeyEffectOverlay.shakeKey), "Giảm chuyển động ⇒ không rung")
-            o.reduceMotion = { false }
-            o.emit(key: CGRect(x: 30, y: 120, width: 34, height: 42)); o.flush()
+            let fA = try XCTUnwrap(kb.debugLetterFrame("a"))
+            let hit0 = kb.hitTest(CGPoint(x: fA.midX, y: fA.midY), with: nil)
+
+            // 3 phím: chưa rung.
+            for (i, s) in ["t", "o", "i"].enumerated() { kb.debugTapLetter(s, at: Double(i) * 0.1); o.flush() }
+            XCTAssertNil(rows.layer.animation(forKey: KeyEffectOverlay.shakeKey), "dưới ngưỡng: chưa rung")
+            // Phím thứ 4 trong 1,2 s ⇒ rung.
+            kb.debugTapLetter("a", at: 0.3); o.flush()
             let a = try XCTUnwrap(rows.layer.animation(forKey: KeyEffectOverlay.shakeKey) as? CAKeyframeAnimation)
+            XCTAssertEqual(a.keyPath, "position")
             XCTAssertTrue(a.isAdditive)
             XCTAssertTrue(a.isRemovedOnCompletion)
-            for v in a.values as? [NSValue] ?? [] {
-                XCTAssertLessThanOrEqual(abs(v.cgPointValue.x), CGFloat(ShakeFx.max) + 1e-6)
-                XCTAssertLessThanOrEqual(abs(v.cgPointValue.y), CGFloat(ShakeFx.max) + 1e-6)
-            }
+            XCTAssertEqual(a.duration, ShakeFx.duration, accuracy: 1e-9)
+            let pts = (a.values as? [NSValue] ?? []).map(\.cgPointValue)
+            XCTAssertEqual(pts.count, ShakeFx.xs.count)
+            XCTAssertEqual(pts.map { abs($0.x) }.max() ?? 0, 3, accuracy: 1e-6, "mức 1 = 3pt")
             XCTAssertEqual(rows.frame, frame0, "khung nhận chạm không đổi")
-            XCTAssertEqual(o.layer.sublayers?.count ?? 0, 0)
+            XCTAssertTrue(kb.hitTest(CGPoint(x: fA.midX, y: fA.midY), with: nil) === hit0, "hit-test không đổi")
+
+            // Giữa animation: hình (presentation) thật sự lệch khỏi model.
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+            let model = rows.layer.position
+            let p = try XCTUnwrap(rows.layer.presentation()?.position)
+            XCTAssertGreaterThan(hypot(p.x - model.x, p.y - model.y), 1, "presentation lệch giữa chừng")
+            XCTAssertEqual(rows.frame, frame0)
+
+            // Gõ dồn ⇒ mức 3 = 7pt.
+            for i in 0..<6 { kb.debugTapLetter("e", at: 0.4 + Double(i) * 0.05); o.flush() }
+            let a3 = try XCTUnwrap(rows.layer.animation(forKey: KeyEffectOverlay.shakeKey) as? CAKeyframeAnimation)
+            XCTAssertEqual((a3.values as? [NSValue] ?? []).map { abs($0.cgPointValue.x) }.max() ?? 0, 7, accuracy: 1e-6)
+            XCTAssertEqual(o.layer.sublayers?.count ?? 0, 0, "rung: không vẽ gì trên overlay")
+            XCTAssertEqual(rows.frame, frame0)
+
+            // Xong: hình về đúng chỗ (animation không fillMode giữ lại; isRemovedOnCompletion gỡ ở lần commit kế).
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: ShakeFx.duration + 0.15))
+            let q = try XCTUnwrap(rows.layer.presentation()?.position)
+            XCTAssertEqual(q.x, rows.layer.position.x, accuracy: 0.01, "hết rung: về chỗ")
+            XCTAssertEqual(q.y, rows.layer.position.y, accuracy: 0.01)
             o.halt()
             XCTAssertNil(rows.layer.animation(forKey: KeyEffectOverlay.shakeKey))
         }
+    }
+
+    /// Giảm chuyển động KHÔNG tắt Rung combo (như mọi hiệu ứng): overlay không còn đọc cài đặt đó.
+    @MainActor func testShakeIgnoresReduceMotion() throws {
+        XCTAssertEqual(KeyEffectPolicy.active(setting: .shake, plus: true, lowPower: false), .shake)
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 200))
+        let keys = UIView(frame: host.bounds)
+        host.addSubview(keys)
+        let o = try XCTUnwrap(KeyEffectOverlay.install(.shake, color: .red, in: host, keys: keys, existing: nil))
+        for _ in 0..<ShakeMeter.thresholds[0] { o.emit(key: CGRect(x: 10, y: 10, width: 30, height: 40)); o.flush() }
+        XCTAssertNotNil(keys.layer.animation(forKey: KeyEffectOverlay.shakeKey))
     }
 
     // MARK: Plasma / Laser / Glitch

@@ -117,7 +117,6 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
         configure(e, p.action, p.keyFill, p.isDark)
         // Rung combo: rung cả ô xem thử (như hàng phím); Laser: "phím cách" giả ở góc dưới trái ô.
         shakeTarget = if (e == KeyEffect.SHAKE) this else null
-        reduceMotion = !android.animation.ValueAnimator.areAnimatorsEnabled()
         spaceFrame = if (e == KeyEffect.LASER) { out -> out.set(6 * d, height - 10 * d, width * 0.3f, height - 2 * d); true } else null
         // Token AI: "thanh gợi ý" = mép trên ô xem thử.
         tokenTarget = if (e == KeyEffect.TOKENS) { out -> out[0] = width / 2f; out[1] = 10 * d; true } else null

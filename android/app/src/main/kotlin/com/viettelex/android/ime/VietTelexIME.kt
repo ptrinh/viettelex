@@ -391,9 +391,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         }
         val v = r.effects ?: KeyEffectView(this, th.density)
         v.configure(fx, th.action, th.keyFill, th.dark)
-        // Rung combo: rung HÌNH hàng phím (translation) — Giảm chuyển động / tắt hiệu ứng động ⇒ không rung.
+        // Rung combo: rung HÌNH hàng phím (translation) — Giảm chuyển động vẫn rung (như mọi hiệu ứng).
         v.shakeTarget = if (fx == com.viettelex.keyboard.KeyEffect.SHAKE) kb else null
-        v.reduceMotion = fx == com.viettelex.keyboard.KeyEffect.SHAKE && !android.animation.ValueAnimator.areAnimatorsEnabled()
         // Laser: tia bắn từ phím cách thật (khung đọc lúc bắn — đổi bàn số / ký hiệu vẫn đúng).
         v.spaceFrame = if (fx == com.viettelex.keyboard.KeyEffect.LASER) { out -> kb.spaceKeyFrame(out, v) } else null
         // Token AI: đích bay (Mắt AI / tâm dải gợi ý) đọc lúc bắn + vệt sáng khi gợi ý đổi. Kiểu khác ⇒ null (0 chi phí).

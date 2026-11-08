@@ -742,20 +742,22 @@ struct PlasmaChain {
     mutating func reset() { last = -Double.greatestFiniteMagnitude }
 }
 
-/// "Rung combo": gõ nhanh (mức ComboMeter ≥ 1) ⇒ hàng phím rung vài pt kiểu game, mạnh dần theo mức, trần `max`.
-/// Chỉ dời HÌNH (animation cộng dồn trên layer — khung nhận chạm của phím không đổi), ~0,18 s rồi tự gỡ.
-/// Giảm chuyển động ⇒ không rung.
+/// "Rung combo": gõ nhanh ⇒ hàng phím rung kiểu đòn trúng trong game đối kháng, mạnh dần theo mức ShakeMeter
+/// (3 / 5 / 7 pt), ~0,25 s, 3–4 nhịp tắt dần, ngang + chút dọc. Chỉ dời HÌNH (animation cộng dồn trên layer — khung
+/// nhận chạm của phím không đổi), tự gỡ. Giảm chuyển động KHÔNG tắt (Phil 08/11/2026, như mọi hiệu ứng khác).
+/// Bản trước (1,5 pt / 0,18 s, mức ComboMeter cần 6 phím / 2 s, tắt khi Giảm chuyển động) gần như không thấy.
 enum ShakeFx {
-    static let max = 3.0
-    static let amps: [Double] = [0, 1.5, 2.25, 3.0]
-    static let duration = 0.18
+    static let max = 7.0
+    static let amps: [Double] = [0, 3, 5, 7]
+    /// 7 đoạn × 35 ms (Android DURATION_MS = 245).
+    static let duration = 0.245
     /// Khung hình (tỉ lệ biên độ) — dao động tắt dần, đầu/cuối 0.
-    static let xs: [Double] = [0, 1.0, -0.8, 0.55, -0.3, 0.1, 0]
-    static let ys: [Double] = [0, -0.5, 0.45, -0.3, 0.15, -0.05, 0]
+    static let xs: [Double] = [0, 1.0, -0.85, 0.65, -0.45, 0.28, -0.12, 0]
+    static let ys: [Double] = [0, -0.35, 0.3, -0.22, 0.15, -0.08, 0.03, 0]
 
-    /// Biên độ (pt) cho mức combo; Giảm chuyển động ⇒ 0.
-    static func amplitude(level: Int, reduceMotion: Bool) -> Double {
-        reduceMotion ? 0 : Swift.min(max, amps[Swift.min(Swift.max(level, 0), amps.count - 1)])
+    /// Biên độ (pt) cho mức ShakeMeter.
+    static func amplitude(level: Int) -> Double {
+        Swift.min(max, amps[Swift.min(Swift.max(level, 0), amps.count - 1)])
     }
 
     private static func sample(_ k: [Double], _ dt: Double, _ amp: Double) -> Double {
@@ -766,6 +768,32 @@ enum ShakeFx {
     }
     static func offsetX(_ dt: Double, amp: Double) -> Double { sample(xs, dt, amp) }
     static func offsetY(_ dt: Double, amp: Double) -> Double { sample(ys, dt, amp) }
+}
+
+/// Mức rung: số phím trong `window` giây gần nhất (kể cả phím này) ≥ 4 / 6 / 8 ⇒ mức 1 / 2 / 3 — gõ nhanh bình thường
+/// (≈ 3,5 phím/s) đã lên mức 1. Riêng với ComboMeter (Lửa combo giữ ngưỡng cũ).
+struct ShakeMeter {
+    static let window = 1.2
+    static let thresholds = [4, 6, 8]
+    static let capacity = 8
+    private var times = [Double](repeating: -Double.greatestFiniteMagnitude, count: ShakeMeter.capacity)
+    private var head = 0
+
+    /// Ghi một phím lúc `t` (giây) — trả mức sau phím đó.
+    mutating func press(at t: Double) -> Int {
+        times[head] = t
+        head = (head + 1) % Self.capacity
+        var n = 0
+        for x in times where x <= t && t - x <= Self.window { n += 1 }
+        var lv = 0
+        for th in Self.thresholds where n >= th { lv += 1 }
+        return lv
+    }
+
+    mutating func reset() {
+        for i in 0..<Self.capacity { times[i] = -Double.greatestFiniteMagnitude }
+        head = 0
+    }
 }
 
 /// "Laser": tia mảnh sáng từ phím cách bắn lên phím vừa bấm, tắt nhanh.
@@ -1597,9 +1625,9 @@ final class KeyEffectOverlay: UIView {
     private var arcPool = KeyEffectPool(capacity: PlasmaArc.pool)
     private var plasma = PlasmaChain()
     private var plasmaSeq = 0
-    /// Rung combo: layer hàng phím bị rung (install đặt = `keys`). Giảm chuyển động ⇒ không rung.
+    /// Rung combo: layer hàng phím bị rung (install đặt = `keys`). Giảm chuyển động vẫn rung (như mọi hiệu ứng).
     weak var shakeTarget: UIView?
-    var reduceMotion: () -> Bool = { UIAccessibility.isReduceMotionEnabled }
+    private var shakeMeter = ShakeMeter()
     /// Laser: khung phím cách (toạ độ overlay) — nil ⇒ gốc giữa đáy.
     var laserOrigin: (() -> CGRect?)?
     private var beams: [Beam] = []
@@ -2345,7 +2373,7 @@ final class KeyEffectOverlay: UIView {
 
     /// Rung combo: animation CỘNG DỒN trên layer hàng phím (model — khung nhận chạm — không đổi), tự gỡ khi xong.
     private func fireShake(media: CFTimeInterval) {
-        let amp = ShakeFx.amplitude(level: combo.press(at: media), reduceMotion: reduceMotion())
+        let amp = ShakeFx.amplitude(level: shakeMeter.press(at: media))
         guard amp > 0, let target = shakeTarget else { return }
         let a = CAKeyframeAnimation(keyPath: "position")
         a.isAdditive = true
@@ -3334,6 +3362,7 @@ final class KeyEffectOverlay: UIView {
         dances.removeAll(); dancePool = KeyEffectPool(capacity: DanceFloor.pool); danceSeq = 0
         floorFlicker = nil; flickerGate = DanceFloor.FlickerGate()
         if effect != .shake { shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey) }
+        shakeMeter.reset()
         stringAnim = nil
         flashLayer = nil
         matrixRoot = nil
