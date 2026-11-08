@@ -91,7 +91,7 @@ struct KeyEffectPickerView: View {
     }
 }
 
-/// Ô xem thử: một phím "a" trên nền theme + overlay hiệu ứng thật.
+/// Ô xem thử: một phím "V" trên nền theme + overlay hiệu ứng thật.
 struct KeyEffectPreview: UIViewRepresentable {
     let effect: KeyEffect
     let palette: KeyboardPalette
@@ -114,7 +114,7 @@ final class KeyEffectPreviewView: UIView {
         clipsToBounds = true
         key.layer.cornerRadius = 6
         key.isUserInteractionEnabled = false
-        label.text = "a"
+        label.text = "V"
         label.textAlignment = .center
         label.font = .systemFont(ofSize: 20)
         key.addSubview(label)

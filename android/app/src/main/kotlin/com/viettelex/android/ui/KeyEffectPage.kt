@@ -101,7 +101,7 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
     }
 }
 
-/** Ô xem thử: nền theme + một phím "a" + overlay hiệu ứng thật (vẽ phím trước, hạt sau). */
+/** Ô xem thử: nền theme + một phím "V" + overlay hiệu ứng thật (vẽ phím trước, hạt sau). */
 @SuppressLint("ViewConstructor")
 internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, context.resources.displayMetrics.density) {
     private val d = context.resources.displayMetrics.density
@@ -148,7 +148,7 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
         val w = 34 * d; val h = 42 * d
         keyRect.set((width - w) / 2f, height - h - 8 * d, (width + w) / 2f, height - 8 * d)
         canvas.drawRoundRect(keyRect, 6 * d, 6 * d, keyPaint)
-        canvas.drawText("a", keyRect.centerX(), keyRect.centerY() + textPaint.textSize / 3f, textPaint)
+        canvas.drawText("V", keyRect.centerX(), keyRect.centerY() + textPaint.textSize / 3f, textPaint)
         if (!below) running = drawEffects(canvas)
         if (running) postInvalidateOnAnimation()
     }
