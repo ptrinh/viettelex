@@ -34,6 +34,8 @@ targets:
       - Keyboard/BuiltinThemes.swift
       - Keyboard/ThemeAssets.swift
       - Keyboard/BuiltinFonts.swift
+      # Dáng phím "pixel" (id ThemeExtraIds.keyShapes). Phông điểm ảnh: app đọc bản trong appex (VTBundleResource).
+      - Keyboard/PixelKeys.swift
       - Keyboard/Wallpaper.swift
       # Hiệu ứng khi bấm phím: xem thử ở trang chọn (cùng overlay với bàn phím).
       - Keyboard/KeyEffects.swift
@@ -122,6 +124,11 @@ targets:
       - Keyboard
       - Shared
       - path: ios-mau-cau.yml
+        buildPhase: resources
+      # Phông điểm ảnh NHÚNG (KeyLabelFont "pixel", ~36 KB, nạp lười) + giấy phép OFL đi kèm — fonts/README.txt.
+      - path: ../fonts/Tiny5-Regular.ttf
+        buildPhase: resources
+      - path: ../fonts/OFL-Tiny5-Regular.txt
         buildPhase: resources
       # Âm lịch dùng chung với macOS/Linux (Keyboard/LunarDate.swift gọi vào).
       - path: ../App/Sources/LunarCalendar.swift
@@ -215,6 +222,9 @@ targets:
       - Keyboard/BuiltinThemes.swift
       - Keyboard/ThemeAssets.swift
       - Keyboard/BuiltinFonts.swift
+      - Keyboard/PixelKeys.swift
+      - path: ../fonts/Tiny5-Regular.ttf
+        buildPhase: resources
       - App/ThemeAssetDownloader.swift
       - Keyboard/Wallpaper.swift
       - Keyboard/KeyEffects.swift

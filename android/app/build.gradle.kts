@@ -53,6 +53,9 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
     androidResources { noCompress += listOf("bin") }
+    // Phông điểm ảnh NHÚNG (theme Pixel 8-bit, KeyLabelFont.PIXEL) + giấy phép OFL: MỘT bản ở fonts/ gốc repo, dùng chung
+    // iOS (project.yml). Vào assets gốc: Tiny5-Regular.ttf + OFL-Tiny5-Regular.txt + README.txt (nguồn / giấy phép).
+    sourceSets["main"].assets.srcDir(rootProject.file("../fonts"))
     testOptions { unitTests { isIncludeAndroidResources = true } }
     // Module Play Feature Delivery (on-demand) — chỉ vào AAB; assembleRelease (APK GitHub) không có.
     dynamicFeatures += setOf(":translate")

@@ -61,7 +61,7 @@ class ThemeSetTests {
     @Test fun darkVariantsDifferAndFollowSystem() {
         val fixed = setOf(KeyboardTheme.OLED, KeyboardTheme.CONTRAST, KeyboardTheme.BLACK_HEART, KeyboardTheme.NEON,
             KeyboardTheme.TET, KeyboardTheme.XMAS, KeyboardTheme.PIANO, KeyboardTheme.RGB, KeyboardTheme.SPACE,
-            KeyboardTheme.TRUNG_THU, KeyboardTheme.HALLOWEEN, KeyboardTheme.MOLE)
+            KeyboardTheme.TRUNG_THU, KeyboardTheme.HALLOWEEN, KeyboardTheme.MOLE, KeyboardTheme.PIXEL)
         for (t in KeyboardTheme.entries) {
             val light = t.palette(false) ?: continue
             val dark = t.palette(true)!!
@@ -199,11 +199,20 @@ class ThemeSetTests {
             assertEquals("${w.t}", w.corner, spec.corner)
             w.sound?.let { assertTrue(it in KeySoundStyle.PRESET_IDS) }
             w.effect?.let { assertTrue(it in ThemeExtraIds.EFFECTS) }
-            assertNotEquals("${w.t} có bản tối riêng", w.t.palette(false), w.t.palette(true))
+            // Pixel 8-bit: MỘT bảng (màn tắt đèn nền) — app chủ đổi sáng/tối không làm bàn phím đổi màu (iOS y hệt).
+            if (w.t == KeyboardTheme.PIXEL) assertEquals("${w.t}", w.t.palette(false), w.t.palette(true))
+            else assertNotEquals("${w.t} có bản tối riêng", w.t.palette(false), w.t.palette(true))
         }
         val px = KeyboardTheme.PIXEL.spec!!
-        assertEquals(KeyLabelFont.MONO, px.font); assertEquals(KeyLabelWeight.BOLD, px.weight); assertTrue(px.assets.isEmpty)
-        assertEquals(0, ThemeSettings(theme = KeyboardTheme.PIXEL).effectiveKeyStyle.corner)
+        // Phông điểm ảnh NHÚNG (không tải gì) + dáng phím điểm ảnh — iOS testPixelSeaTimeOfDayThemes y hệt.
+        assertEquals(KeyLabelFont.PIXEL, px.font); assertNull(px.weight); assertTrue(px.assets.isEmpty)
+        assertEquals(PixelKeys.SHAPE, px.keyShape)
+        val pst = ThemeSettings(theme = KeyboardTheme.PIXEL).effectiveKeyStyle
+        assertEquals(0, pst.corner); assertEquals(KeyLabelFont.PIXEL, pst.font); assertEquals("pixel", pst.keyShape)
+        for (t in KeyboardTheme.entries) if (t != KeyboardTheme.PIXEL) {
+            assertNull("$t", ThemeSettings(theme = t).effectiveKeyStyle.keyShape)
+            assertNotEquals("$t", KeyLabelFont.PIXEL, ThemeSettings(theme = t).effectiveKeyStyle.font)
+        }
         assertNotNull(KeyboardTheme.PIXEL.palette(false)!!.keyBorder)
         assertEquals(ThemeDecoration.BUBBLES, KeyboardTheme.SEA.palette(false)!!.decoration!!.alt)
         assertEquals(ThemeDecoration.STAR, KeyboardTheme.TIME_OF_DAY.palette(true)!!.decoration!!.motif)

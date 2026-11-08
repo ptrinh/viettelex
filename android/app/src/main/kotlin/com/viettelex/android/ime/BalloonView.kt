@@ -85,12 +85,26 @@ class BalloonView(context: Context, private val theme: ImeTheme) : View(context)
 
     fun clearPress() { if (press.clearAll()) invalidate() }
 
+    /** Dáng phím điểm ảnh: lớp sẫm chỉ phủ LÕI bậc thang (không tràn ra góc cắt / bóng) — mảng ghi sẵn, 0 cấp phát. */
+    private val pixelRects: FloatArray? = if (theme.pixelKeys) FloatArray(com.viettelex.keyboard.PixelKeys.FLOATS) else null
+
     private fun drawPress(c: Canvas) {
         val p = press
-        for (i in 0 until p.capacity) if (p.isPressed(i))
+        val px = pixelRects
+        for (i in 0 until p.capacity) if (p.isPressed(i)) {
+            if (px != null) {
+                val k = maxOf(1f, Math.round((p.bottom(i) - p.top(i)) / com.viettelex.keyboard.PixelKeys.CELLS).toFloat())
+                val n = com.viettelex.keyboard.PixelKeys.write(px, p.left(i), p.top(i), p.right(i), p.bottom(i), k, false)
+                for (j in 0 until (n shr 8)) {
+                    val o = com.viettelex.keyboard.PixelKeys.FILL + 4 * j
+                    c.drawRect(px[o], px[o + 1], px[o + 2], px[o + 3], pressPaint)
+                }
+                continue
+            }
             theme.keyRadius(p.right(i) - p.left(i), p.bottom(i) - p.top(i), pressRadius).let { r ->
                 c.drawRoundRect(p.left(i), p.top(i), p.right(i), p.bottom(i), r, r, pressPaint)
             }
+        }
     }
 
     /**

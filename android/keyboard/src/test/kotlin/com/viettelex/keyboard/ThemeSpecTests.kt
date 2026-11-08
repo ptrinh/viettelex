@@ -339,5 +339,10 @@ class ThemeSpecTests {
             light = ThemeSlots(deco = ThemeDeco(ThemeDecoration.HEARTS, 0x80FF0000.toInt(), 150)))
         assertEquals("""{"mint":{"accent":"#FF9500","dark":{"bg":"#000000"},"light":{"deco":{"color":"#80FF0000","density":150,"motif":"hearts"}}}}""",
             KeyStyleStore.serialize(mapOf("mint" to st)))
+        // Phông điểm ảnh + dáng phím điểm ảnh trong bản vá (iOS testPatchCanonicalMatchesAndroid y hệt).
+        val px = KeyStyle(font = KeyLabelFont.PIXEL, keyShape = "pixel")
+        assertEquals("""{"mint":{"font":"pixel","keyShape":"pixel"}}""", KeyStyleStore.serialize(mapOf("mint" to px)))
+        assertEquals(px, KeyStyleStore.parse(KeyStyleStore.serialize(mapOf("mint" to px)))["mint"])
+        assertTrue(KeyStyleStore.parse("""{"mint":{"keyShape":"round"}}""").isEmpty())
     }
 }

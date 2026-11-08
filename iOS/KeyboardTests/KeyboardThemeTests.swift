@@ -193,7 +193,7 @@ final class KeyboardThemeTests: XCTestCase {
     /// Theme tối cố định (OLED, Tương phản cao, Tim đen, Neon) không đổi theo hệ thống; mọi theme
     /// nền đục khác có bản tối riêng (bug 10/2026: "giao diện plus ở chế độ tối không chuyển tối").
     func testFixedThemesIgnoreSystemAppearance() {
-        let fixed: Set<KeyboardTheme> = [.oled, .contrast, .blackHeart, .neon, .tet, .xmas, .piano, .rgb, .space, .trungthu, .halloween, .mole]
+        let fixed: Set<KeyboardTheme> = [.oled, .contrast, .blackHeart, .neon, .tet, .xmas, .piano, .rgb, .space, .trungthu, .halloween, .mole, .pixel]
         for t in KeyboardTheme.allCases where t != .system && t != .glass {
             XCTAssertNotNil(t.palette(systemDark: false).background, "\(t) cần nền đục")
             if fixed.contains(t) {
@@ -1249,12 +1249,21 @@ final class ThemeSetTests: XCTestCase {
             if let sound { XCTAssertTrue(KeySoundStyle.presetIDs.contains(sound)) }
             if let effect { XCTAssertNotNil(KeyEffect(rawValue: effect)) }
             XCTAssertNotNil(t.systemBackdropKey.flatMap { BackupSettings.byKey[$0] }, t.rawValue)
-            XCTAssertNotEqual(t.palette(systemDark: false), t.palette(systemDark: true), "\(t) có bản tối riêng")
+            // Pixel 8-bit: MỘT bảng (màn tắt đèn nền) — app chủ đổi sáng/tối không làm bàn phím đổi màu.
+            if t == .pixel { XCTAssertEqual(t.palette(systemDark: false), t.palette(systemDark: true)) }
+            else { XCTAssertNotEqual(t.palette(systemDark: false), t.palette(systemDark: true), "\(t) có bản tối riêng") }
         }
-        // Pixel: phím VUÔNG + phông đơn cách đậm (phông hệ thống, không tải gì), viền điểm ảnh, trái tim pixel.
+        // Pixel: phông điểm ảnh NHÚNG (không tải gì) + dáng phím điểm ảnh, viền khối, trái tim pixel.
         let px = try XCTUnwrap(KeyboardTheme.pixel.spec)
-        XCTAssertEqual(px.font, .mono); XCTAssertEqual(px.weight, .bold); XCTAssertTrue(px.assets.isEmpty)
-        XCTAssertEqual(ThemeSettings(theme: .pixel).effectiveKeyStyle.corner, 0)
+        XCTAssertEqual(px.font, .pixel); XCTAssertNil(px.weight); XCTAssertTrue(px.assets.isEmpty)
+        XCTAssertEqual(px.keyShape, PixelKeys.shape)
+        let pst = ThemeSettings(theme: .pixel).effectiveKeyStyle
+        XCTAssertEqual(pst.corner, 0); XCTAssertEqual(pst.font, .pixel); XCTAssertEqual(pst.keyShape, "pixel")
+        // Theme khác: không dáng phím điểm ảnh, không phông điểm ảnh.
+        for t in KeyboardTheme.allCases where t != .pixel {
+            XCTAssertNil(ThemeSettings(theme: t).effectiveKeyStyle.keyShape, t.rawValue)
+            XCTAssertNotEqual(ThemeSettings(theme: t).effectiveKeyStyle.font, .pixel, t.rawValue)
+        }
         XCTAssertNotNil(KeyboardTheme.pixel.palette(systemDark: false).keyBorder)
         // Biển: sóng + bọt xen kẽ.
         XCTAssertEqual(KeyboardTheme.sea.palette(systemDark: false).decoration?.alt, .bubbles)

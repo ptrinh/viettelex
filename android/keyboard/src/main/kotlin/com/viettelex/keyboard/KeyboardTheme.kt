@@ -626,6 +626,8 @@ object ThemeExtraIds {
     val SWIPES: Set<String> get() = SwipeTrailStyle.THEME_IDS.toSet()
     /** "game": trò chơi khi gõ (iOS ThemeExtraIds.games y hệt). */
     val GAMES: Set<String> = setOf(MoleGame.THEME_GAME)
+    /** "keyShape": dáng phím (iOS ThemeExtraIds.keyShapes y hệt). */
+    val KEY_SHAPES: Set<String> = setOf(PixelKeys.SHAPE)
 }
 
 /**
@@ -786,6 +788,7 @@ data class ThemeSettings(
             if (s.effect == null) s = s.copy(effect = typography.effect)
             if (s.swipe == null) s = s.copy(swipe = typography.swipe)
             if (s.game == null) s = s.copy(game = typography.game)
+            if (s.keyShape == null) s = s.copy(keyShape = typography.keyShape)
             var a = s.assets.mergedOver(typography.assets)
             if (userSystemFont) a = a.copy(font = null)
             s = s.copy(assets = a)

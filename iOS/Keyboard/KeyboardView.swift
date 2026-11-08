@@ -81,6 +81,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         Self.cornerPercent = style.corner
         if balloonMade { balloon.invalidateStyle() }   // ô phóng to lấy phông mới lần hiện kế
+        refreshBarFonts()
     }
     /// Phông ô phóng to / popup ký tự phụ: cùng phông + độ đậm với phím (KHÔNG nhân cỡ), kẹp để
     /// dấu chồng (Ễ, Ỗ) không bị UILabel cắt. Mặc định ⇒ y như cũ.
@@ -287,6 +288,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Tệp tải về của theme (theme JSON: phông / ảnh nền / tiền cảnh / skin phím) — nạp MỘT lần mỗi theme
     /// (ThemeAssetLoader, cache theo chữ ký). Theme không có tệp ⇒ nil, mọi đường bên dưới thoát ngay.
     private var themeAssets: LoadedThemeAssets?
+    /// Bộ tải về (trước khi gắn skin điểm ảnh) — dáng phím "pixel" dựng skin theo bảng màu mỗi lần palette đổi.
+    private var downloadedAssets: LoadedThemeAssets?
     /// Ảnh nền theme (trên màu nền, dưới ảnh nền người dùng — ảnh người dùng bật thì thắng).
     private let themeImageView = UIImageView()
     /// Ảnh tiền cảnh: TRÊN hàng phím, căng đúng cỡ bàn phím, không nhận chạm; ô phóng to / hiệu ứng nằm trên.
@@ -1118,9 +1121,16 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func refreshBarFonts() {
         let cap = barLandscapeCap
         let s = barHeight.slotFontSize(landscape: cap), c = barHeight.chipFontSize(landscape: cap)
-        if slotFont.pointSize != s { slotFont = .systemFont(ofSize: s, weight: .regular) }
-        if chipFont.pointSize != c { chipFont = .systemFont(ofSize: c, weight: .regular) }
+        // Phông điểm ảnh (theme Pixel 8-bit) cả trên thanh gợi ý; phông khác: thanh giữ phông hệ thống như cũ.
+        let pixel = Self.labelFonts.font == .pixel && Self.labelFonts.custom == nil
+        func make(_ size: CGFloat) -> UIFont {
+            pixel ? KeyLabelFonts.make(.pixel, .regular, size: size, compact: nil) : .systemFont(ofSize: size, weight: .regular)
+        }
+        if slotFont.pointSize != s || barPixelFont != pixel { slotFont = make(s) }
+        if chipFont.pointSize != c || barPixelFont != pixel { chipFont = make(c) }
+        barPixelFont = pixel
     }
+    private var barPixelFont = false
     private var barInkApplied: UIColor?
     private var barLabelInkApplied: UIColor?
     /// "Màu chữ gợi ý" (SuggestionInk, mặc định Xám) — đọc mỗi lần hiện (applyAppearance).
@@ -1909,7 +1919,19 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                                       keyFill: palette.keyFill.ui, dark: palette.isDark) }
         buddy?.setBar(palette.buddyBar)
         configureTrailColors()
+        applyPixelKeys()
         applyBackdrop()
+    }
+
+    /// Dáng phím "pixel" (theme JSON "keyShape"): skin điểm ảnh dựng từ palette VỪA giải (cache theo màu — đổi sáng/tối
+    /// ⇒ chữ ký khác ⇒ plane dựng lại). Skin tải về của theme ("keys") thắng. Theme khác: một phép so sánh.
+    private func applyPixelKeys() {
+        let st = themeSettings.effectiveKeyStyle
+        guard st.keyShape == PixelKeys.shape, st.assets.keys.isEmpty else {
+            if themeAssets !== downloadedAssets { themeAssets = downloadedAssets }
+            return
+        }
+        themeAssets = PixelKeys.assets(over: downloadedAssets, palette: palette)
     }
 
     /// Chữ + vạch ngăn thanh gợi ý theo palette hiện tại; y hệt thì 0 việc.
@@ -2201,11 +2223,12 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Tệp tải về: chỉ theme có khai báo mới đọc mục lục / giải ảnh (một lần, cache theo chữ ký).
         let assetSpec = themeSettings.effectiveKeyStyle.assets
         if assetSpec.isEmpty {
-            if themeAssets != nil { ThemeAssetLoader.dropCache() }
-            themeAssets = nil
+            if downloadedAssets != nil { ThemeAssetLoader.dropCache() }
+            downloadedAssets = nil
         } else {
-            themeAssets = ThemeAssetLoader.load(ThemeAssetPlan.make(assetSpec))
+            downloadedAssets = ThemeAssetLoader.load(ThemeAssetPlan.make(assetSpec))
         }
+        themeAssets = downloadedAssets
         applyKeyStyle(themeSettings.effectiveKeyStyle)
         suggestionInk = SuggestionInk.load(UserDefaultsProvider.shared)   // "Màu chữ gợi ý" — resolvePalette áp
         resolvePalette()
@@ -3408,8 +3431,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         if themeAssets != nil {
             applySkin(ret, role: "return")
-            // Skin thay nền nhấn ⇒ chữ/icon theo màu phím chức năng (đọc được trên skin).
-            if ret.skin != nil, returnTitle != "return" { ret.setTitleColor(fnInk, for: .normal); ret.tintColor = fnInk }
+            if ret.skin?.pixelated == true {
+                // Skin điểm ảnh tô theo palette: return hành động giữ màu nhấn (chữ accentInk như không skin).
+                if returnTitle != "return" { applySkin(ret, role: PixelKeys.actionReturnRole) }
+            } else if ret.skin != nil, returnTitle != "return" {
+                // Skin thay nền nhấn ⇒ chữ/icon theo màu phím chức năng (đọc được trên skin).
+                ret.setTitleColor(fnInk, for: .normal); ret.tintColor = fnInk
+            }
         }
         return ret
     }
@@ -4148,12 +4176,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
 
         private func layoutContent() {
+            pixelShift = targetPixelShift()
+            let ps = pixelShift
             if let l = label, !l.isHidden {
-                let f = titleFrame()
+                let f = titleFrame().offsetBy(dx: ps, dy: ps)
                 if l.frame != f { l.frame = f }
             }
             if let v = iconView, !v.isHidden, let img = v.image {
-                let f = imageFrame(img)
+                let f = imageFrame(img).offsetBy(dx: ps, dy: ps)
                 if v.frame != f { v.frame = f }
             }
             layoutOverlays()
@@ -4277,6 +4307,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                 pressShown = on
                 let img = on || skinLatched ? (skinPressed ?? skinNormal) : skinNormal
                 if (sl.contents as AnyObject?) !== img { sl.contents = img }
+                setPixelSunk(on || skinLatched)
                 return
             }
             guard let c = on ? pressedBackground : (pressedBackground != nil ? normalBackground : nil) else { return }
@@ -4300,6 +4331,25 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             guard !pressShown else { return }
             let img = on ? (skinPressed ?? skinNormal) : skinNormal
             if (sl.contents as AnyObject?) !== img { sl.contents = img }
+            setPixelSunk(on)
+        }
+        /// Skin điểm ảnh: nhãn / icon theo tâm MẶT phím (PixelKeys.labelShift) — lún thì dời theo, KHÔNG lượt layout
+        /// (dời thẳng tâm view; layoutContent áp lại cùng độ dời). Skin khác: 0.
+        private var pixelShift: CGFloat = 0
+        private var pixelSunk = false
+        private var pixelBlock: CGFloat { bounds.height / CGFloat(PixelKeys.cells) }
+        private func targetPixelShift() -> CGFloat {
+            guard skin?.pixelated == true, bounds.height > 0 else { return 0 }
+            return CGFloat(PixelKeys.labelShift(block: Double(pixelBlock), pressed: pixelSunk))
+        }
+        private func setPixelSunk(_ sunk: Bool) {
+            guard skin?.pixelated == true, sunk != pixelSunk else { return }
+            pixelSunk = sunk
+            let t = targetPixelShift(), d = t - pixelShift
+            guard d != 0 else { return }
+            pixelShift = t
+            if let l = label, !l.isHidden { l.center = CGPoint(x: l.center.x + d, y: l.center.y + d) }
+            if let v = iconView, !v.isHidden { v.center = CGPoint(x: v.center.x + d, y: v.center.y + d) }
         }
         /// Skin đang dùng (ô phóng to vẽ cùng skin).
         private(set) var skin: LoadedThemeAssets.Skin?
@@ -4326,6 +4376,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             }()
             skinNormal = s.normal; skinPressed = s.pressed; skinInsets = s.insets
             sl.contents = s.normal
+            // Ảnh điểm ảnh 16 px phóng ~8× ⇒ "nearest" giữ khối vuông sắc (ảnh tải về: mượt như cũ).
+            let filter: CALayerContentsFilter = s.pixelated ? .nearest : .linear
+            if sl.magnificationFilter != filter { sl.magnificationFilter = filter }
+            pixelSunk = false
             sl.contentsCenter = s.insets.map { NineSlice.contentsCenter($0, w: s.normal.width, h: s.normal.height) }
                 ?? CGRect(x: 0, y: 0, width: 1, height: 1)
             super.backgroundColor = .clear
@@ -4979,6 +5033,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             if let f = skinFor, f.image === skin.normal, f.w == bubble.width, f.h == bubble.height { return }
             skinFor = (skin.normal, bubble.width, bubble.height)
             sl.contents = skin.normal
+            sl.magnificationFilter = skin.pixelated ? .nearest : .linear
             sl.frame = CGRect(origin: .zero, size: bubble)
             let img = skin.normal
             if let ins = skin.insets {
@@ -5335,7 +5390,12 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         b.setImage(UIImage(systemName: symbol), for: .normal)
         if Self.isPad { b.padRole = .icon }
         b.accessibilityLabel = "Shift"
-        if shift != .off {
+        if shift != .off, b.skin != nil {
+            // Skin (tải về / điểm ảnh): bật = ảnh đè, glyph màu chức năng — như applyShiftAppearance (trước: glyph
+            // shiftOnInk đen trên skin khi plane dựng lúc ⇧ đang bật).
+            b.tintColor = fnInk
+            b.setSkinLatched(true)
+        } else if shift != .off {
             b.backgroundColor = shiftOnFill
             b.tintColor = shiftOnInk
         } else {

@@ -701,6 +701,7 @@ object L10nTable {
         put("Có chân", "Serif")
         put("Đơn cách", "Monospaced")
         put("Hẹp", "Condensed")
+        put("Điểm ảnh", "Pixel")
         put("Mỏng", "Light")
         put("Thường", "Regular")
         put("Đậm", "Bold")

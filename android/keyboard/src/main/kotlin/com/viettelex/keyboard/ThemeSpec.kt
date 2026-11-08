@@ -16,6 +16,12 @@ import java.nio.charset.CodingErrorAction
  * vài giá trị liệt kê và URL tệp tải về (đã kiểm). IME chỉ đọc bản app đã chuẩn hoá và vẫn kiểm lại —
  * hỏng thì về theme có sẵn / Hệ thống.
  *
+ * "font" chuỗi ([KeyLabelFont]): "default" | "rounded" | "serif" | "mono" | "condensed" — phông hệ thống — | "pixel" — phông
+ *   điểm ảnh NHÚNG (Tiny5, fonts/Tiny5-Regular.ttf, đủ chữ Việt; nạp lười chỉ khi dùng, bỏ qua "weight"). Khác ⇒ badValue.
+ * "keyShape" (tuỳ chọn, danh sách trắng [ThemeExtraIds.KEY_SHAPES]): dáng phím — "pixel" = góc cắt bậc thang theo khối,
+ *   viền khối đậm + bóng khối cứng dưới/phải, bấm = phím lún một khối (mất bóng) — [PixelKeys], vẽ vài hình chữ nhật mỗi
+ *   phím, 0 cấp phát; theme khác không chạm tới. Không có ⇒ bo góc theo "corner" như cũ. iOS y hệt.
+ *
  * Tệp tải về (Plus — ThemeAssets.kt: kế hoạch / kho / dọn; app ui/ThemeAssetDownloader.kt: tải + xử lý):
  *   "font": "serif" | {"name":"Nunito","url":"https://….ttf|otf","sha256":"…"?}
  *   "background": {"url":"https://…","sha256":"…"?}      ảnh nền theme (ảnh nền tự đặt của người dùng thắng)
@@ -579,6 +585,8 @@ data class ThemeSpec(
     val game: String? = null,
     /** Bảng màu theo giờ ([ThemeSchedule]); null = theo sáng/tối hệ thống. iOS `schedule`. */
     val schedule: List<ThemeScheduleEntry>? = null,
+    /** Dáng phím ("pixel" — [ThemeExtraIds.KEY_SHAPES]). iOS `keyShape`. */
+    val keyShape: String? = null,
 ) {
     fun slots(dark: Boolean): ThemeSlots = if (dark) (this.dark ?: light) else light
     /** Bảng màu ở phút [minute] trong ngày: có lịch ⇒ mục hiệu lực (bỏ qua sáng/tối); không lịch / null ⇒ [slots]. */
@@ -595,7 +603,8 @@ data class ThemeSpec(
     val name: String get() = if (L10n.isEnglish) (nameEn ?: nameVi) else nameVi
     /** Kiểu chữ / bo góc / tệp tải về mặc định của theme. */
     val typography: KeyStyle get() = KeyStyle(corner = corner, fontScale = fontScale, font = font ?: KeyLabelFont.DEFAULT,
-        weight = weight ?: KeyLabelWeight.REGULAR, assets = assets, sound = sound, effect = effect, swipe = swipe, game = game)
+        weight = weight ?: KeyLabelWeight.REGULAR, assets = assets, sound = sound, effect = effect, swipe = swipe, game = game,
+        keyShape = keyShape)
 
     fun palette(dark: Boolean): ThemePalette = palette(slots(dark), dark)
 
@@ -619,6 +628,7 @@ data class ThemeSpec(
         effect?.let { m.add("effect" to SJ.Str(it)) }
         swipe?.let { m.add("swipe" to SJ.Str(it)) }
         game?.let { m.add("game" to SJ.Str(it)) }
+        keyShape?.let { m.add("keyShape" to SJ.Str(it)) }
         schedule?.let { sc ->
             m.add("schedule" to SJ.Arr(sc.map { SJ.Obj(listOf("from" to SJ.Str(ThemeSchedule.format(it.from)), "palette" to json(it.slots))) }))
         }
@@ -711,7 +721,8 @@ data class ThemeSpec(
             val l = slots(light); val d = slots(dark)
             return ThemeSpec(id, nameVi, nameEn, l, if (d == l) null else d, style.corner, style.fontScale,
                 style.font.takeIf { it != KeyLabelFont.DEFAULT && style.assets.font == null },
-                style.weight.takeIf { it != KeyLabelWeight.REGULAR }, style.assets, style.sound, style.effect, style.swipe, style.game)
+                style.weight.takeIf { it != KeyLabelWeight.REGULAR }, style.assets, style.sound, style.effect, style.swipe, style.game,
+                keyShape = style.keyShape)
         }
     }
 }
@@ -731,7 +742,7 @@ object ThemeSpecParser {
 
     private val ASSET_KEYS = setOf("background", "foreground", "keys")
     private val ROOT_KEYS = setOf("v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
-        "sound", "effect", "swipe", "game", "schedule") + ASSET_KEYS
+        "sound", "effect", "swipe", "game", "keyShape", "schedule") + ASSET_KEYS
     private val SLOT_KEYS = (ThemeSlots.COLOR_KEYS + "deco" + "borderFx" + "spaceDeco").toSet()
 
     fun parse(text: String): Outcome = when (val r = StrictJson.parse(text)) {
@@ -784,7 +795,7 @@ object ThemeSpecParser {
         val spec = ThemeSpec(id, vi, en, light, if (dark == light) null else dark, typo.corner, typo.fontScale,
             if (j["font"] != null && typo.assets.font == null) typo.font else null,
             if (j["weight"] != null) typo.weight else null, typo.assets, typo.sound, typo.effect, typo.swipe, typo.game,
-            schedule)
+            schedule, typo.keyShape)
         if (contrast) c.issues.addAll(contrastIssues(spec))
         return Outcome(if (c.failed) null else spec, c.issues)
     }
@@ -933,7 +944,8 @@ object ThemeSpecParser {
             else -> { c.err(ThemeIssue.Code.wrongType, k); null }
         }
         s = s.copy(sound = pick("sound", ThemeExtraIds.SOUNDS), effect = pick("effect", ThemeExtraIds.EFFECTS),
-            swipe = pick("swipe", ThemeExtraIds.SWIPES), game = pick("game", ThemeExtraIds.GAMES))
+            swipe = pick("swipe", ThemeExtraIds.SWIPES), game = pick("game", ThemeExtraIds.GAMES),
+            keyShape = pick("keyShape", ThemeExtraIds.KEY_SHAPES))
         return s
     }
 
@@ -1014,7 +1026,7 @@ object ThemeSpecParser {
         if (j !is SJ.Obj) return null
         val c = Ctx()
         val allowed = setOf("label", "fill", "accent", "corner", "fontScale", "font", "weight", "light", "dark",
-            "sound", "effect", "swipe", "game") + ASSET_KEYS
+            "sound", "effect", "swipe", "game", "keyShape") + ASSET_KEYS
         for ((k, _) in j.m) if (k !in allowed) c.err(ThemeIssue.Code.unknownKey, k)
         fun rgb(k: String): Int? {
             val v = j[k] ?: return null
@@ -1184,6 +1196,7 @@ object ThemeJsonActions {
                 if (st.effect == b.spec?.effect) st = st.copy(effect = null)
                 if (st.swipe == b.spec?.swipe) st = st.copy(swipe = null)
                 if (st.game == b.spec?.game) st = st.copy(game = null)
+                if (st.keyShape == b.spec?.keyShape) st = st.copy(keyShape = null)
                 if (lostBg) warnings.add(ThemeIssue(ThemeIssue.Code.bgKept, "bg"))
                 Saved(true, warnings, s.withKeyStyle(st, b), store)
             }

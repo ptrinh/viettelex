@@ -332,6 +332,8 @@ final class LoadedThemeAssets {
         let insets: [Int]?
         /// Chiều cao ảnh gốc (px) — hệ số đích = chiều cao phím / srcH.
         let srcH: Int
+        /// Ảnh điểm ảnh dựng sẵn (PixelKeys): phóng to kiểu "nearest" (khối sắc) + nhãn dời theo mặt phím lún.
+        var pixelated = false
     }
     let signature: String
     let font: CTFontDescriptor?

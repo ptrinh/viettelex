@@ -680,7 +680,7 @@ private fun rememberPreviewLabelPaint(style: KeyStyle): android.graphics.Paint {
         val downloaded = file?.let { runCatching { android.graphics.Typeface.createFromFile(it) }.getOrNull() }
         android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             textAlign = android.graphics.Paint.Align.CENTER
-            typeface = com.viettelex.android.ime.keyLabelTypeface(style, downloaded)
+            typeface = com.viettelex.android.ime.keyLabelTypeface(style, downloaded, ctx.assets)
                 ?: android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
         }
     }
