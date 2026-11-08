@@ -40,6 +40,7 @@ struct KeyEffectPickerView: View {
                     + Text(" ") + Text(L("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp."))
                     + Text(" ") + Text(L("Sút!: Enter sút bóng vào lưới; gõ \"vô địch\", \"Việt Nam vô địch\", \"vào\" hay \"goal\" để đốt pháo sáng và tung cờ đỏ sao vàng."))
                     + Text(" ") + Text(L("Cho cá ăn: cá bơi chậm sau hàng phím; mỗi phím thả một viên thức ăn, chú cá gần nhất bơi tới ăn. Cá lớn dần và có thêm bạn theo số viên đã ăn."))
+                    + Text(" ") + Text(L("Đá lanh canh: viên đá trên phím lắc nhẹ và đọng giọt nước; phin nhỏ giọt cà phê sau vài phím; gõ thật nhanh, sữa xoáy vào ly."))
             }
         }
         .bottomBarScrollMargin()
@@ -154,7 +155,7 @@ final class KeyEffectPreviewView: UIView {
                 overlay?.emit(key: CGRect(x: bounds.width * 0.12, y: 12, width: 20, height: 20)); overlay?.flush()
                 overlay?.emit(key: CGRect(x: bounds.width * 0.78, y: 18, width: 20, height: 20)); overlay?.flush()
             }
-            if effect == .combo || effect == .shake || effect == .sea {   // Biển: sóng lớn + cá bơi
+            if effect == .combo || effect == .shake || effect == .sea || effect == .ice {   // Đá: gõ dồn ⇒ sữa xoáy   // Biển: sóng lớn + cá bơi
                 // Xem thử combo: một tràng phím nhanh ⇒ lên mức lửa cao nhất.
                 for _ in 0..<ComboMeter.thresholds[2] { overlay?.emit(key: key.frame); overlay?.flush() }
             }

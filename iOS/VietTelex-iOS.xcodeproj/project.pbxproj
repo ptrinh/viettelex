@@ -58,6 +58,7 @@
 		1A6C76EDB4E5FEC29351714B /* KeyboardBuddyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 052E6FE3AB0D95827A3C3A25 /* KeyboardBuddyView.swift */; };
 		1B86C6D3015F6C676976353C /* DynamicSnippets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45FD7A68B46DF76459196CD4 /* DynamicSnippets.swift */; };
 		1BDEABFA14745D76DB06262B /* AddTones.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11876FBB4C611F4A86CBCBB2 /* AddTones.swift */; };
+		1C711F4EF920384E89DF50B6 /* CafeFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD6AD7899A8A78AE18ED958 /* CafeFx.swift */; };
 		1D286BF27687D9F637D3E953 /* ThemeSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA49BF61252BA33DE0B264E1 /* ThemeSpec.swift */; };
 		1D3501D761DFD4F1BED9ED72 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */; };
 		1D563C25C56EE3DA89FCEAE2 /* Translation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 575059AED927C97A7E6E33CD /* Translation.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
@@ -110,6 +111,7 @@
 		2CD73C63D0A8516C1B298E55 /* retro-english-eval.txt in Resources */ = {isa = PBXBuildFile; fileRef = DDE1C36F67801FE8C7E0AA33 /* retro-english-eval.txt */; };
 		2CF827BBB2A997A87A2C28C3 /* OFL-Tiny5-Regular.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5FB555B02C639E1F1E0A8500 /* OFL-Tiny5-Regular.txt */; };
 		2D0A6EC839258696715BD4B8 /* KeySoundSynth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F98B87CC6DBF96F8D09A899 /* KeySoundSynth.swift */; };
+		2D3F9363F8B3BBA8BAD2105E /* CafeFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD6AD7899A8A78AE18ED958 /* CafeFx.swift */; };
 		2DB77D80E80526F0BD1D7EEC /* userlm-vtl2.bin in Resources */ = {isa = PBXBuildFile; fileRef = 6FA7EECB778753ABA3C1B49B /* userlm-vtl2.bin */; };
 		2EADB038BF9A63A56A227EA6 /* PerThemeKeyStyleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC2E388FF909A3DD4DE0C0E0 /* PerThemeKeyStyleTests.swift */; };
 		2EB255281257BD33FED7B2D8 /* ClipDetect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F980E450F0B3851CDC5361F /* ClipDetect.swift */; };
@@ -434,6 +436,7 @@
 		C73A709E5B0D36C4E69B092F /* KeySoundImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D146E8AD1DCD530316701E0E /* KeySoundImport.swift */; };
 		C8544CF6FB20F9FC3C225800 /* KeyboardStartupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CFAD5C6AC4A874128E68CF8 /* KeyboardStartupTests.swift */; };
 		C86DD09896C9AA0FE73DB817 /* SuggestionBarHeight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D5175437869F54D6E628A5 /* SuggestionBarHeight.swift */; };
+		C8C9BC7AC020CD3C4F592F81 /* CafeFxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F2084E6B5D4E27BF3A8786 /* CafeFxTests.swift */; };
 		C9C973EB878B8C06CDF7393A /* AdjacentKeyFixerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB8B0DA94C5E17697D6DE9E7 /* AdjacentKeyFixerTests.swift */; };
 		C9ED085F787CE2F94907BAD6 /* UserDictionaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56C41B594797A8B06ED5012D /* UserDictionaryTests.swift */; };
 		CA1662D03BD4C629C3C2AB2C /* SwipeTypingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 821BD7CBEE8349CC782C3E41 /* SwipeTypingTests.swift */; };
@@ -511,6 +514,7 @@
 		EB4B8B1753D9CA6AD26B06CB /* VniMixedHiddenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4F88B734B9569A1C514B47 /* VniMixedHiddenTests.swift */; };
 		EB9F471C2D36A7B6AC4C733D /* KeyboardBuddyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1912918744F1F9CEBC4B8526 /* KeyboardBuddyTests.swift */; };
 		EBE45A06B3E66585C2076D02 /* AutoCorrect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80AB0C87154897C583AEB2AE /* AutoCorrect.swift */; };
+		EC750AC4F0A3E6B2A2E61CE5 /* CafeFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD6AD7899A8A78AE18ED958 /* CafeFx.swift */; };
 		EC7DB6C7411C3F49A17437F2 /* OnboardingProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB9F0ADEE3855891E61D1DC /* OnboardingProfile.swift */; };
 		ED0E4AB71B7002DAED413238 /* KeyboardBuddyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 052E6FE3AB0D95827A3C3A25 /* KeyboardBuddyView.swift */; };
 		ED775BF98DCED7572B174C36 /* playfair-display.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 222EF2EE5A6F795385492BEA /* playfair-display.ttf */; };
@@ -696,6 +700,7 @@
 		3A1DB988579CAEA0FC0453E7 /* futoswipe.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = futoswipe.bin; sourceTree = "<group>"; };
 		3A477E94A632702FD5B83824 /* KeyboardBuddyExtrasTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardBuddyExtrasTests.swift; sourceTree = "<group>"; };
 		3B258DEED17434ED054B29D7 /* LetterUndoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LetterUndoTests.swift; sourceTree = "<group>"; };
+		3BD6AD7899A8A78AE18ED958 /* CafeFx.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CafeFx.swift; sourceTree = "<group>"; };
 		3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSuggest.swift; sourceTree = "<group>"; };
 		3CD9AC3759F73AB2A6C0BC1B /* ClipboardFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardFeature.swift; sourceTree = "<group>"; };
 		3DF8BE49B914D1B4B31116F3 /* NumberChips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberChips.swift; sourceTree = "<group>"; };
@@ -796,6 +801,7 @@
 		83172F6D36753303988A9F6B /* LearnedCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearnedCaseTests.swift; sourceTree = "<group>"; };
 		8352627FA542E2B2D34D819F /* README.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = README.txt; sourceTree = "<group>"; };
 		84CE8DA584B5E49DD4C1F74F /* nunito.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = nunito.ttf; sourceTree = "<group>"; };
+		84F2084E6B5D4E27BF3A8786 /* CafeFxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CafeFxTests.swift; sourceTree = "<group>"; };
 		853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
 		874923DAE33DB7FA95441F18 /* bigram-heldout.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "bigram-heldout.txt"; sourceTree = "<group>"; };
 		87B560D6CFFCE1B0B57742E3 /* UserLMTables.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserLMTables.swift; sourceTree = "<group>"; };
@@ -1233,6 +1239,7 @@
 				D44937FCA0854428DB368FC7 /* AutoCorrectTests.swift */,
 				FCB85821624ECE46B9C12A4A /* BackupTests.swift */,
 				56F3118CEF485547C4673DAB /* BuddyFlavorTests.swift */,
+				84F2084E6B5D4E27BF3A8786 /* CafeFxTests.swift */,
 				2A7C16DB3F7238439276C90B /* ClipboardTests.swift */,
 				532D1B26A4AA10CD402E4D31 /* CompositionSyncTests.swift */,
 				D13EC9E20C9CC2A1DBBF56D3 /* CorrectionHintTests.swift */,
@@ -1447,6 +1454,7 @@
 				80AB0C87154897C583AEB2AE /* AutoCorrect.swift */,
 				32246E1A2093C068D48B4809 /* BuiltinFonts.swift */,
 				69841F9C38AF675A240AD5A7 /* BuiltinThemes.swift */,
+				3BD6AD7899A8A78AE18ED958 /* CafeFx.swift */,
 				3CD9AC3759F73AB2A6C0BC1B /* ClipboardFeature.swift */,
 				C23B10293CBF99CC16B1E908 /* ClipboardHistory.swift */,
 				B42E3B1AEEBA29C8D4693932 /* ClipboardPanel.swift */,
@@ -1853,6 +1861,7 @@
 				9EA33523CEB34D6A414A3522 /* AutoCorrect.swift in Sources */,
 				6330FEE335DD31BEDC34A22C /* BuiltinFonts.swift in Sources */,
 				9BB786380B23917BBEBE91B5 /* BuiltinThemes.swift in Sources */,
+				EC750AC4F0A3E6B2A2E61CE5 /* CafeFx.swift in Sources */,
 				2EB255281257BD33FED7B2D8 /* ClipDetect.swift in Sources */,
 				154EDCAD77DB44CD65FA5344 /* ClipboardFeature.swift in Sources */,
 				D652DD5E0514F42EB5E7989A /* ClipboardHistory.swift in Sources */,
@@ -1967,6 +1976,7 @@
 				DCB8D7A31898382626331E8D /* BuddyPickerView.swift in Sources */,
 				D9698F87C83A2F6BF7D7D86E /* BuiltinFonts.swift in Sources */,
 				673B126D70D140C3758BEA30 /* BuiltinThemes.swift in Sources */,
+				2D3F9363F8B3BBA8BAD2105E /* CafeFx.swift in Sources */,
 				1B86C6D3015F6C676976353C /* DynamicSnippets.swift in Sources */,
 				697E89D4CCFFE9F62F474A97 /* EmojiAtlas.swift in Sources */,
 				D6B834245592A77251E351F6 /* EmojiAtlasBuilder.swift in Sources */,
@@ -2079,6 +2089,8 @@
 				8449FB3FD11D06D38549212A /* BuddyFlavorTests.swift in Sources */,
 				65D82AAE22D437742097F6E1 /* BuiltinFonts.swift in Sources */,
 				A0DE3267223FA1F050AC1124 /* BuiltinThemes.swift in Sources */,
+				1C711F4EF920384E89DF50B6 /* CafeFx.swift in Sources */,
+				C8C9BC7AC020CD3C4F592F81 /* CafeFxTests.swift in Sources */,
 				51CA5A07AC3ABDAA5CA756C2 /* ClipDetect.swift in Sources */,
 				40614AF54533871C40393A5D /* ClipboardFeature.swift in Sources */,
 				E9A5FC1B28D2683637E9A42D /* ClipboardHistory.swift in Sources */,

@@ -43,6 +43,7 @@ targets:
       - Keyboard/ThemeFxPack.swift
       - Keyboard/FootballFx.swift
       - Keyboard/AquariumFx.swift
+      - Keyboard/CafeFx.swift
       # Bạn đồng hành: xem trước ở trang chọn (cùng view với bàn phím).
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
@@ -237,6 +238,7 @@ targets:
       - Keyboard/ThemeFxPack.swift
       - Keyboard/FootballFx.swift
       - Keyboard/AquariumFx.swift
+      - Keyboard/CafeFx.swift
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
       - Keyboard/AIEye.swift

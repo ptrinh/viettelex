@@ -48,6 +48,7 @@ import com.viettelex.keyboard.CheerBurst
 import com.viettelex.keyboard.GoalFx
 import com.viettelex.keyboard.GrassTuft
 import com.viettelex.keyboard.AquariumFx
+import com.viettelex.keyboard.CafeFx
 
 /**
  * Lớp phủ "Hiệu ứng khi bấm phím" (Plus) — song sinh iOS KeyEffectOverlay. MỘT View không nhận chạm.
@@ -320,6 +321,22 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     private val fishBody = Path(); private val fishEye = Path()
     private var fishPathsBuilt = false
 
+    // Đá lanh canh (theme Cà phê sữa đá — [CafeFx], dp chung iOS): pool 6 viên đá + giọt đọng, phin tĩnh góc trái thanh gợi ý
+    // (giọt cà phê mỗi 4 phím), vòng sữa xoáy khi combo lên mức 2.
+    private val iceStart = LongArray(CafeFx.POOL) { Long.MIN_VALUE / 2 }
+    private val iceRect = Array(CafeFx.POOL) { RectF() }
+    private var iceCursor = 0
+    private val drip = CafeFx.DripCounter()
+    private var dripStart = Long.MIN_VALUE / 2
+    private val swirlGate = CafeFx.SwirlGate()
+    private var swirlStart = Long.MIN_VALUE / 2
+    private var iceLevel = 0
+    private val swirlPts = FloatArray((CafeFx.SWIRL_POINTS + 1) * 2)
+    private val swirlSegBuf = FloatArray(CafeFx.SWIRL_POINTS * 4)
+    private val dropPath = Path()
+    private var icePathsBuilt = false
+    private val iceTmp = RectF()
+
     val effect: KeyEffect get() = sim.effect
 
     init {
@@ -486,6 +503,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.SAND -> fireSand(x, y, now)
             KeyEffect.SEA -> fireSea(x, y, now)
             KeyEffect.FISHFEED -> fireFish(x, y, now)
+            KeyEffect.ICE -> fireIce(x, y, w, h, now)
             KeyEffect.DANCEFLOOR -> fireDance(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.FLASH -> if (flash.trigger(now)) flashStart = now
             KeyEffect.LIGHTNING -> fireLightning(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
@@ -580,6 +598,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         danceStart.fill(Long.MIN_VALUE / 2); flickerStart = Long.MIN_VALUE / 2
         shotStart.fill(Long.MIN_VALUE / 2); tuftStart.fill(Long.MIN_VALUE / 2); cheerStart = Long.MIN_VALUE / 2; pendingCheer = false
         saveFish(force = true); fishLastPress = Long.MIN_VALUE / 2   // Bể cá: ẩn ⇒ ghi bộ đếm + dừng hẳn (cá giữ chỗ)
+        iceStart.fill(Long.MIN_VALUE / 2); dripStart = Long.MIN_VALUE / 2; swirlStart = Long.MIN_VALUE / 2; iceLevel = 0; drip.reset()
         pendN = 0
         invalidate()
     }
@@ -878,6 +897,132 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     internal val fishWorldForTest: AquariumFx.World? get() { ensureFishWorld(); return fishWorld }
     internal fun fishRunning(now: Long): Boolean = now - fishLastPress <= (AquariumFx.IDLE_AFTER * 1000).toLong()
 
+    // ---- Đá lanh canh (theme Cà phê sữa đá — [CafeFx]; dp chung iOS, vẽ px = dp × density)
+
+    private fun buildIcePaths() {
+        if (icePathsBuilt) return
+        icePathsBuilt = true
+        val d = density
+        for ((i, p) in CafeFx.spiral().withIndex()) {
+            swirlPts[2 * i] = (p.first * d).toFloat(); swirlPts[2 * i + 1] = (p.second * d).toFloat()
+        }
+        val r = (CafeFx.DROPLET_RADIUS * d).toFloat()
+        dropPath.rewind()   // giọt: đầu nhọn trên, đáy tròn
+        dropPath.moveTo(0f, -2 * r)
+        dropPath.quadTo(r * 0.9f, -r, r, 0f)
+        dropPath.arcTo(RectF(-r, -r, r, r), 0f, 180f, false)
+        dropPath.quadTo(-r * 0.9f, -r, 0f, -2 * r)
+        dropPath.close()
+    }
+
+    private fun fireIce(x: Float, y: Float, w: Float, h: Float, now: Long) {
+        buildIcePaths()
+        // Chỉ có điểm ⇒ phím cỡ mặc định quanh điểm.
+        val kw = if (w >= 4 * density) w else DEFAULT_W * density
+        val kh = if (h >= 4 * density) h else DEFAULT_H * density
+        val inset = (CafeFx.CUBE_INSET * density).toFloat()
+        val s = iceCursor; iceCursor = (s + 1) % CafeFx.POOL
+        iceRect[s].set(x - kw / 2 + inset, y - kh / 2 + inset, x + kw / 2 - inset, y + kh / 2 - inset)
+        iceStart[s] = now
+        if (drip.press()) dripStart = now
+        val prev = iceLevel
+        iceLevel = combo.press(now)
+        if (swirlGate.shouldSwirl(iceLevel, prev, now / 1000.0)) swirlStart = now
+    }
+
+    private fun drawIce(canvas: Canvas, now: Long): Boolean {
+        buildIcePaths()
+        var any = false
+        val d = density
+        // Phin (tĩnh) + ly + giọt cà phê
+        val o = CafeFx.phinOrigin(0.0, 0.0)
+        val ox = (o.first * d).toFloat(); val oy = (o.second * d).toFloat()
+        val pw = (CafeFx.PHIN_WIDTH * d).toFloat(); val ph = (CafeFx.PHIN_HEIGHT * d).toFloat()
+        val cw = (CafeFx.CUP_WIDTH * d).toFloat(); val ch = (CafeFx.CUP_HEIGHT * d).toFloat()
+        val cx = ox + (pw - cw) / 2; val cy = oy + ph + (CafeFx.CUP_GAP * d).toFloat()
+        iceTmp.set(cx, cy, cx + cw, cy + ch)
+        fill.color = 0x38FFFFFF; canvas.drawRoundRect(iceTmp, 2 * d, 2 * d, fill)
+        stroke.color = 0xB3FFFFFF.toInt(); stroke.strokeWidth = 0.8f * d; canvas.drawRoundRect(iceTmp, 2 * d, 2 * d, stroke)
+        fill.color = CafeFx.COFFEE or (0xF2 shl 24)
+        canvas.drawRect(cx + d, cy + ch * 0.45f, cx + cw - d, cy + ch - d, fill)
+        fill.color = 0xF2BDBDBD.toInt()
+        canvas.drawRect(ox + 3 * d, oy, ox + pw - 3 * d, oy + 2 * d, fill)                         // nắp
+        canvas.drawRect(ox + 3 * d, oy + 2.5f * d, ox + pw - 3 * d, oy + ph - 2 * d, fill)          // thân
+        canvas.drawRect(ox, oy + ph - 1.5f * d, ox + pw, oy + ph, fill)                            // đế
+        val dt = (now - dripStart) / 1000.0
+        if (dt >= 0 && dt < CafeFx.DROP_DURATION) {
+            any = true
+            fill.color = CafeFx.COFFEE or (0xFF shl 24)
+            fill.alpha = (255 * (if (dt < CafeFx.DROP_DURATION / 2) 1.0 else 2 * (1 - dt / CafeFx.DROP_DURATION))).toInt().coerceIn(0, 255)
+            canvas.drawCircle(ox + pw / 2, oy + ph + (CafeFx.dropY(dt) * d).toFloat(), (CafeFx.DROP_RADIUS * d).toFloat(), fill)
+        }
+        // Viên đá lắc + giọt đọng
+        for (s in 0 until CafeFx.POOL) {
+            val t = (now - iceStart[s]) / 1000.0
+            if (t < 0 || t >= maxOf(CafeFx.JIGGLE_DURATION, CafeFx.DROPLET_DURATION)) continue
+            any = true
+            val r = iceRect[s]
+            val ca = CafeFx.cubeAlpha(t)
+            if (ca > 0) {
+                val save = canvas.save()
+                canvas.rotate(Math.toDegrees(CafeFx.jiggle(t)).toFloat(), r.centerX(), r.centerY())
+                val rr = minOf((CafeFx.CUBE_CORNER * d).toFloat(), r.width() / 2, r.height() / 2)
+                fill.color = 0x2EFFFFFF; fill.alpha = (0x2E * ca).toInt().coerceIn(0, 255); canvas.drawRoundRect(r, rr, rr, fill)
+                stroke.color = 0xBFFFFFFF.toInt(); stroke.strokeWidth = 1.2f * d; stroke.alpha = (0xBF * ca).toInt().coerceIn(0, 255)
+                canvas.drawRoundRect(r, rr, rr, stroke)
+                stroke.color = 0xE6FFFFFF.toInt(); stroke.strokeWidth = 1.4f * d; stroke.alpha = (0xE6 * ca).toInt().coerceIn(0, 255)
+                stroke.strokeCap = Paint.Cap.ROUND
+                canvas.drawLine(r.left + 4 * d, r.top + 9 * d, r.left + 9 * d, r.top + 4 * d, stroke)   // vệt sáng chéo
+                stroke.strokeCap = Paint.Cap.BUTT
+                canvas.restoreToCount(save)
+            }
+            val dr = CafeFx.droplet(t)
+            if (dr.second > 0) {
+                val o2 = CafeFx.dropletOrigin(r.right / d + CafeFx.CUBE_INSET, r.bottom / d + CafeFx.CUBE_INSET)
+                val save = canvas.save()
+                canvas.translate((o2.first * d).toFloat(), ((o2.second + dr.first) * d).toFloat())
+                fill.color = 0xCCFFFFFF.toInt(); fill.alpha = (0xCC * dr.second / 0.9).toInt().coerceIn(0, 255)
+                canvas.drawPath(dropPath, fill)
+                canvas.restoreToCount(save)
+            }
+        }
+        // Sữa xoáy: vẽ dần 0,6 s (theo số điểm đã "rót"), xoay nửa vòng, mờ cuối.
+        val st = (now - swirlStart) / 1000.0
+        if (st >= 0 && st < CafeFx.SWIRL_DURATION && width > 0) {
+            any = true
+            val c = CafeFx.swirlCenter(width / 2.0 / d, height.toDouble() / d)
+            val save = canvas.save()
+            canvas.translate((c.first * d).toFloat(), (c.second * d).toFloat())
+            canvas.rotate((180.0 * st / CafeFx.SWIRL_DURATION).toFloat())
+            stroke.color = CafeFx.MILK or (0xFF shl 24); stroke.alpha = (255 * CafeFx.swirlAlpha(st)).toInt().coerceIn(0, 255)
+            stroke.strokeWidth = (CafeFx.SWIRL_WIDTH * d).toFloat(); stroke.strokeCap = Paint.Cap.ROUND
+            val n = (CafeFx.SWIRL_POINTS * (st / CafeFx.SWIRL_DRAW).coerceIn(0.0, 1.0)).toInt()
+            if (n > 0) canvas.drawLines(swirlSegs(n), 0, n * 4, stroke)
+            stroke.strokeCap = Paint.Cap.BUTT
+            canvas.restoreToCount(save)
+        }
+        return any
+    }
+
+    /** Đoạn thẳng của [n] đoạn đầu xoắn ốc (x0 y0 x1 y1 …) — mảng cấp sẵn. */
+    private fun swirlSegs(n: Int): FloatArray {
+        for (i in 0 until n) {
+            swirlSegBuf[4 * i] = swirlPts[2 * i]; swirlSegBuf[4 * i + 1] = swirlPts[2 * i + 1]
+            swirlSegBuf[4 * i + 2] = swirlPts[2 * i + 2]; swirlSegBuf[4 * i + 3] = swirlPts[2 * i + 3]
+        }
+        return swirlSegBuf
+    }
+
+    /** Test: viên đá còn lắc lúc [now]; khung viên đá [i]; giọt cà phê / sữa xoáy đang chạy; khung phin + ly (px). */
+    internal fun icesAlive(now: Long): Int = iceStart.count { (now - it) / 1000.0 in 0.0..<CafeFx.JIGGLE_DURATION }
+    internal fun iceRectAt(i: Int): RectF = iceRect[i]
+    internal fun dripping(now: Long): Boolean = (now - dripStart) / 1000.0 in 0.0..<CafeFx.DROP_DURATION
+    internal fun swirling(now: Long): Boolean = (now - swirlStart) / 1000.0 in 0.0..<CafeFx.SWIRL_DURATION
+    internal fun phinRect(): RectF {
+        val b = CafeFx.phinBox(0.0, 0.0)
+        return RectF((b[0] * density).toFloat(), (b[1] * density).toFloat(), ((b[0] + b[2]) * density).toFloat(), ((b[1] + b[3]) * density).toFloat())
+    }
+
     // ---- Sàn nhảy LED ([DanceFloor] — hình học thuần chung iOS; ở đây px vì cỡ ô theo khung phím thật)
 
     private fun copyTiles(src: List<DanceFloor.Tile>, dst: FloatArray, max: Int): Int {
@@ -985,6 +1130,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.DANCEFLOOR -> drawDance(canvas, now)
             KeyEffect.GOAL -> drawGoal(canvas, now)
             KeyEffect.FISHFEED -> drawFish(canvas, now)
+            KeyEffect.ICE -> drawIce(canvas, now)
             else -> drawParticles(canvas, now)
         }
     }

@@ -25,13 +25,14 @@ extension ThemeFxRenderer {
 
 enum ThemeFxFactory {
     /// Kiểu có bộ vẽ riêng.
-    static let effects: Set<KeyEffect> = [.goal, .fishfeed]
+    static let effects: Set<KeyEffect> = [.goal, .fishfeed, .ice]
     static func handles(_ e: KeyEffect) -> Bool { effects.contains(e) }
 
     @MainActor static func make(_ e: KeyEffect, host: UIView, defaults: UserDefaults?) -> ThemeFxRenderer? {
         switch e {
         case .goal: return GoalRenderer(host: host)
         case .fishfeed: return FishFeedRenderer(host: host, defaults: defaults)
+        case .ice: return IceRenderer(host: host)
         default: return nil
         }
     }
@@ -42,12 +43,13 @@ enum ThemeFxFactory {
 /// Motif "cảnh": vẽ TRỌN nền theme một lần mỗi cỡ (không theo khe hàng phím như motif thường): gradient + hình vector.
 /// Màu `deco.color` = màu nét / điểm sáng của cảnh; gradient theo bảng cố định (sáng / tối).
 enum ThemeScene {
-    static let motifs: Set<KeyboardDecoration.Motif> = [.pitch, .aquarium]
+    static let motifs: Set<KeyboardDecoration.Motif> = [.pitch, .aquarium, .cafe]
     static func isScene(_ m: KeyboardDecoration.Motif) -> Bool { motifs.contains(m) }
     /// Gradient trên → dưới (0xRRGGBB); rỗng = giữ màu nền theme.
     static func gradient(_ m: KeyboardDecoration.Motif, dark: Bool) -> [UInt32] {
         switch m {
         case .aquarium: return [0x0F4C7A, 0x0B3D66, 0x062847]   // nước sâu (sáng = tối)
+        case .cafe: return dark ? [0x1A0F09, 0x3A271C, 0x4A3426] : [0xEAD7B8, 0xC9A27E, 0x6B4430]   // sáng: sữa (thanh gợi ý sáng) → cà phê; tối: cà phê đen
         default: return []
         }
     }
@@ -80,6 +82,10 @@ final class ThemeSceneLayer: CALayer {
         switch m {
         case .pitch: buildPitch(w, h, color)
         case .aquarium: buildAquarium(w, h, color)
+        case .cafe:
+            let dots = CGMutablePath()
+            for d in CafeScene.dots(width: w, height: h) { dots.addEllipse(in: CGRect(x: d.x - d.r, y: d.y - d.r, width: 2 * d.r, height: 2 * d.r)) }
+            _ = shape(dots, fill: color.ui)
         default: break
         }
     }

@@ -296,7 +296,10 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     FOOTBALL("football", "Bóng đá", true), // l10n-key
     // Bể cá (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nước sâu + vệt nắng + cát + rong (cảnh "aquarium"), phím kính trong
     // mờ, hiệu ứng "Cho cá ăn" ([AquariumFx]), âm "bloop".
-    AQUARIUM("aquarium", "Bể cá", true); // l10n-key
+    AQUARIUM("aquarium", "Bể cá", true), // l10n-key
+    // Cà phê sữa đá (11/2026, Plus, THÊM CUỐI) — id trùng iOS: gradient cà phê → sữa (cảnh "cafe"), phím như viên đá trong,
+    // hiệu ứng "Đá lanh canh" ([CafeFx]), âm "clink".
+    CAFE("cafe", "Cà phê sữa đá", true); // l10n-key
 
     /** Bo góc mặc định (% như [KeyStyle.corner]) khi người dùng chưa chỉnh — null = bo stock. iOS cùng giá trị. */
     val defaultCorner: Int? get() = spec?.corner
@@ -401,9 +404,11 @@ data class ThemeDecoration(val motif: String, val color: Int, val density: Int =
         const val PITCH = "pitch"
         // "aquarium" = bể cá (gradient nước sâu + vệt nắng + cát + rong).
         const val AQUARIUM = "aquarium"
+        // "cafe" = ly cà phê sữa đá (gradient cà phê → sữa + giọt nước đọng li ti).
+        const val CAFE = "cafe"
         /** Danh sách trắng motif (theme JSON chỉ nhận các id này) — iOS KeyboardDecoration.Motif y hệt. */
         val MOTIFS = listOf(HEARTS, FLOWERS, MAI, DAO, SNOWFLAKE, STAR, NOTES,
-            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY, PIXEL, WAVES, BUBBLES, NEURAL, PITCH, AQUARIUM)
+            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY, PIXEL, WAVES, BUBBLES, NEURAL, PITCH, AQUARIUM, CAFE)
         /** Motif "neural": nút (x, y, bán kính), dây nối cặp nút, bề dày nửa dây, chấm lưới (x, y, bán kính) — iOS neural* y hệt. */
         val NEURAL_NODES = arrayOf(doubleArrayOf(-0.34, 0.2, 0.12), doubleArrayOf(0.0, -0.24, 0.13), doubleArrayOf(0.34, 0.2, 0.12))
         val NEURAL_LINKS = arrayOf(intArrayOf(0, 1), intArrayOf(1, 2), intArrayOf(0, 2))
@@ -765,7 +770,7 @@ object ThemePicker {
      * trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. iOS ThemePicker.interactiveOrder y hệt.
      */
     val INTERACTIVE_ORDER = listOf("nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar",
-        "football", "aquarium")
+        "football", "aquarium", "cafe")
 
     data class Groups(val free: List<KeyboardTheme>, val interactive: List<KeyboardTheme>, val rest: List<KeyboardTheme>)
     /**

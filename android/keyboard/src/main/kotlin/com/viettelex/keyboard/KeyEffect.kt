@@ -53,7 +53,9 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     // Theme Bóng đá (11/2026): Sút! — Enter sút bóng vào lưới, phím khác nhú túm cỏ, cụm cổ vũ ⇒ pháo sáng + cờ ([GoalFx]).
     GOAL("goal", "Sút!"), // l10n-key
     // Theme Bể cá (11/2026): Cho cá ăn — cá bơi sau phím, mỗi phím thả một viên thức ăn, cá gần nhất bơi tới ăn ([AquariumFx]).
-    FISHFEED("fishfeed", "Cho cá ăn"); // l10n-key
+    FISHFEED("fishfeed", "Cho cá ăn"), // l10n-key
+    // Theme Cà phê sữa đá (11/2026): Đá lanh canh — viên đá lắc + giọt đọng, phin nhỏ giọt, gõ nhanh ⇒ sữa xoáy ([CafeFx]).
+    ICE("ice", "Đá lanh canh"); // l10n-key
 
     val title: String get() = tr(viTitle)
 

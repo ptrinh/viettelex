@@ -169,6 +169,7 @@ class ThemeScenePainter(private val motif: String, private val color: Int, priva
                 linePaint.color = a.WEED_COLOR or (0xFF shl 24); linePaint.alpha = (255 * a.WEED_ALPHA).toInt()
                 canvas.drawPath(p3, linePaint)                                                // rong
             }
+            ThemeDecoration.CAFE -> { fillPaint.color = color; canvas.drawPath(p1, fillPaint) }   // giọt nước đọng
         }
     }
 
@@ -208,6 +209,10 @@ class ThemeScenePainter(private val motif: String, private val color: Int, priva
                 for (wv in a.weeds(wd, hd)) { p3.moveTo(x(wv[0]), y(wv[1])); p3.quadTo(x(wv[2]), y(wv[3]), x(wv[4]), y(wv[5])) }
                 linePaint.strokeWidth = (a.WEED_WIDTH * unit).toFloat()
                 n += 3
+            }
+            ThemeDecoration.CAFE -> {
+                for (dt in com.viettelex.keyboard.CafeScene.dots(wd, hd)) p1.addCircle(x(dt[0]), y(dt[1]), (dt[2] * unit).toFloat(), Path.Direction.CW)
+                n += 1
             }
         }
         layerCount = n
