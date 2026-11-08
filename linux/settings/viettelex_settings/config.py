@@ -53,7 +53,7 @@ DEFAULTS = {
         "number_chips": True,     # 1tr2␣ → 1.200.000 ₫
         "typo_hints": True,       # tpoi␣ → tôi
         "tone_hints": False,      # toi di hoc. → tôi đi học.
-        "date_hints": True,       # hôm nay␣ → 28/09/2026, bây giờ␣ → 21:35, âm lịch␣ → 30/9 năm Bính Ngọ
+        "date_hints": True,       # hôm nay␣ → 28/09/2026, bây giờ␣ → 21:35, âm lịch␣ → 30/9 năm Bính Ngọ, Tết␣ → Tết 06/02/2027
         # Văn bản tự động (SETTINGS.md §8b) — macOS theo cài đặt Nhập văn bản của hệ thống;
         # Linux không có ⇒ công tắc riêng, MẶC ĐỊNH TẮT HẾT (terminal / code).
         "double_space_period": False,   # chào␣␣ → "chào. "

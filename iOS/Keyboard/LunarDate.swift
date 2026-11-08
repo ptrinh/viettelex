@@ -8,6 +8,8 @@
 // Chip: gõ "âm lịch" / "ngày âm" / "ÂL" rồi cách ⇒ chip "30/9 năm Bính Ngọ" (tháng nhuận:
 // "30/9 nhuận năm Bính Ngọ"); chạm = thay cụm vừa gõ bằng chữ đó + " ". Chi phí mỗi phím: chỉ so
 // chuỗi từ vừa chốt (`mayTrigger`); ngày âm chỉ tính khi khớp, cache theo ngày.
+// "Tết" rồi cách ⇒ chip ngày dương mùng 1 Tết kế tiếp "06/02/2027"; chạm = GIỮ chữ Tết như đã gõ,
+// nối ngày: "Tết " → "Tết 06/02/2027 ".
 import Foundation
 
 enum LunarDate {
@@ -39,7 +41,7 @@ enum LunarDate {
     static func mayTrigger(_ lastWord: String?) -> Bool {
         guard let w = lastWord, w.count <= 4 else { return false }
         switch w.lowercased() {
-        case "lịch", "âm", "âl": return true
+        case "lịch", "âm", "âl", "tết": return true
         default: return false
         }
     }
@@ -55,7 +57,7 @@ enum LunarDate {
         guard t1.count <= 4 else { return nil }
         let w1 = t1.lowercased()
         var start = t1.startIndex
-        if w1 == "âl" {
+        if w1 == "âl" || w1 == "tết" {
             // một từ
         } else if w1 == "lịch" || w1 == "âm", let i1, s[i1] == " " {
             let head = s[..<i1]
@@ -73,6 +75,11 @@ enum LunarDate {
     /// Chip cho `before` vào ngày dương `today` (y, m, d theo lịch máy).
     static func chip(before: String, today: (y: Int, m: Int, d: Int)) -> NumberChip? {
         guard let tail = triggerTail(before: before) else { return nil }
+        let word = tail.hasSuffix(" ") ? String(tail.dropLast()) : tail
+        if word.lowercased() == "tết" {
+            let date = LunarCalendar.nextTetText(day: today.d, month: today.m, year: today.y)
+            return NumberChip(display: date, replace: tail, insert: word + " " + date + " ")
+        }
         let text = cachedLabel(today)
         return NumberChip(display: text, replace: tail, insert: text + " ")
     }

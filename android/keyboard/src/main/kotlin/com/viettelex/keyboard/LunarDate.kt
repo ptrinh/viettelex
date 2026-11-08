@@ -18,6 +18,8 @@ import kotlin.math.sin
  * Chip: gõ "âm lịch" / "ngày âm" / "ÂL" rồi cách ⇒ chip "30/9 năm Bính Ngọ" (tháng nhuận
  * "30/9 nhuận năm Bính Ngọ"); chạm = thay cụm vừa gõ bằng chữ đó + " ". Mỗi phím chỉ so chuỗi từ
  * vừa chốt ([mayTrigger]); ngày âm chỉ tính khi khớp, cache theo ngày.
+ * "Tết" rồi cách ⇒ chip ngày dương mùng 1 Tết kế tiếp "06/02/2027"; chạm = GIỮ chữ Tết như đã gõ,
+ * nối ngày: "Tết " → "Tết 06/02/2027 ".
  */
 object LunarDate {
     data class Lunar(val day: Int, val month: Int, val year: Int, val leap: Boolean)
@@ -168,6 +170,36 @@ object LunarDate {
         return Lunar(lunarDay, lunarMonth, lunarYear, leap)
     }
 
+    /** Ngày Julius của mùng 1 Tết năm âm [lunarYear] (= LunarCalendar.tetDayNumber). */
+    fun tetDayNumber(lunarYear: Int, tz: Double = TIME_ZONE): Int {
+        val a11 = lunarMonth11(lunarYear - 1, tz)
+        var off = 2   // tháng Giêng = 2 tháng sau tháng 11 (3 nếu tháng 11/12 nhuận)
+        if (lunarMonth11(lunarYear, tz) - a11 > 365 && off >= leapMonthOffset(a11, tz)) off++
+        return newMoonDay(lunationIndex(a11.toDouble(), rounded = true) + off, tz)
+    }
+
+    /** Ngày Julius → (năm, tháng, ngày) Gregory. */
+    fun gregorian(jd: Int): Triple<Int, Int, Int> {
+        val a = jd + 32044; val b = (4 * a + 3) / 146097; val c = a - 146097 * b / 4
+        val d = (4 * c + 3) / 1461; val e = c - 1461 * d / 4; val m = (5 * e + 2) / 153
+        return Triple(100 * b + d - 4800 + m / 10, m + 3 - 12 * (m / 10), e - (153 * m + 2) / 5 + 1)
+    }
+
+    @Volatile private var tetCache: Pair<Int, String>? = null
+
+    /** "06/02/2027" — mùng 1 Tết đầu tiên có ngày dương ≥ [y]/[m]/[d] (đúng mùng 1 ⇒ hôm nay). Cache theo ngày. */
+    fun nextTetText(y: Int, m: Int, d: Int): String {
+        val today = jdFromDate(d, m, y)
+        tetCache?.let { if (it.first == today) return it.second }
+        var jd = tetDayNumber(y)
+        if (jd < today) jd = tetDayNumber(y + 1)
+        val (ty, tm, td) = gregorian(jd)
+        fun pad(n: Int, w: Int) = n.toString().padStart(w, '0')   // không theo Locale (chữ số Ả Rập…)
+        val text = "${pad(td, 2)}/${pad(tm, 2)}/${pad(ty, 4)}"
+        tetCache = today to text
+        return text
+    }
+
     private val CAN = arrayOf("Canh", "Tân", "Nhâm", "Quý", "Giáp", "Ất", "Bính", "Đinh", "Mậu", "Kỷ")
     private val CHI = arrayOf("Thân", "Dậu", "Tuất", "Hợi", "Tý", "Sửu", "Dần", "Mão", "Thìn", "Tỵ", "Ngọ", "Mùi")
 
@@ -185,7 +217,7 @@ object LunarDate {
     fun mayTrigger(lastWord: String?): Boolean {
         val w = lastWord ?: return false
         if (w.length > 8) return false
-        return when (norm(w)) { "lịch", "âm", "âl" -> true; else -> false }
+        return when (norm(w)) { "lịch", "âm", "âl", "tết" -> true; else -> false }
     }
 
     /**
@@ -201,7 +233,7 @@ object LunarDate {
         if (t1.length > 8) return null
         val w1 = norm(t1)
         var start = i1 + 1
-        if (w1 == "âl") {
+        if (w1 == "âl" || w1 == "tết") {
             // một từ
         } else if ((w1 == "lịch" || w1 == "âm") && i1 >= 0 && before[i1] == ' ') {
             val i0 = (i1 - 1 downTo 0).firstOrNull { before[it].isWhitespace() } ?: -1
@@ -217,6 +249,11 @@ object LunarDate {
     /** Chip cho [before] vào ngày dương [y]/[m]/[d] (lịch máy). */
     fun chip(before: String, y: Int, m: Int, d: Int): NumberChip? {
         val tail = triggerTail(before) ?: return null
+        val word = tail.removeSuffix(" ")
+        if (norm(word) == "tết") {
+            val date = nextTetText(y, m, d)
+            return NumberChip(display = date, replace = tail, insert = "$word $date ")
+        }
         val text = cachedLabel(y, m, d)
         return NumberChip(display = text, replace = tail, insert = "$text ")
     }

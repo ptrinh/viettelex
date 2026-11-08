@@ -413,7 +413,7 @@ enum ToneRunLogic {
 // MARK: - 3. Ngày giờ (= DateHintLogic)
 
 enum DateHintLogic {
-    enum Phrase: Equatable { case today, tomorrow, yesterday, now, lunar }
+    enum Phrase: Equatable { case today, tomorrow, yesterday, now, lunar, tet }
 
     private static let vietnamese: [String: [String: Phrase]] = [
         "hôm": ["nay": .today, "qua": .yesterday],
@@ -421,8 +421,9 @@ enum DateHintLogic {
         "bây": ["giờ": .now],
         "âm": ["lịch": .lunar],
     ]
-    /// Một từ đứng riêng (từ trước bất kỳ): "ÂL␣" ⇒ âm lịch hôm nay.
-    private static let single: [String: Phrase] = ["âl": .lunar]
+    /// Một từ đứng riêng (từ trước bất kỳ): "ÂL␣" ⇒ âm lịch hôm nay; "Tết␣" ⇒ ngày dương của
+    /// mùng 1 Tết kế tiếp (Tab GIỮ chữ "Tết" như đã gõ, nối ngày: "Tết 06/02/2027 ").
+    private static let single: [String: Phrase] = ["âl": .lunar, "tết": .tet]
 
     private static func isPair(prevRun: String, run: String) -> Bool {
         vietnamese[prevRun.lowercased().precomposedStringWithCanonicalMapping]?[
@@ -475,12 +476,14 @@ enum DateHintLogic {
         return s.count >= w ? s : String(repeating: "0", count: w - s.count) + s
     }
 
-    /// "28/09/2026" (ngày), "21:35" (giờ), âm lịch hôm nay "30/9 năm Bính Ngọ".
+    /// "28/09/2026" (ngày), "21:35" (giờ), âm lịch hôm nay "30/9 năm Bính Ngọ", Tết kế tiếp
+    /// "06/02/2027".
     static func format(_ p: Phrase, now t: LocalTime) -> String {
         let delta: Int
         switch p {
         case .now: return pad(t.hour, 2) + ":" + pad(t.minute, 2)
         case .lunar: return LunarCalendar.text(day: t.day, month: t.month, year: t.year)
+        case .tet: return LunarCalendar.nextTetText(day: t.day, month: t.month, year: t.year)
         case .today: delta = 0
         case .tomorrow: delta = 1
         case .yesterday: delta = -1
@@ -494,6 +497,7 @@ enum DateHintLogic {
         let replace = (isPair(prevRun: prevRun, run: run) ? prevRun + " " : "") + run + " "
         guard CaretHintLogic.standsAlone(before: before, token: replace) else { return nil }
         let value = format(phrase, now: now)
-        return CaretSuggestion(kind: .date, display: value, replace: replace, insert: value + " ")
+        let insert = phrase == .tet ? run + " " + value + " " : value + " "
+        return CaretSuggestion(kind: .date, display: value, replace: replace, insert: insert)
     }
 }

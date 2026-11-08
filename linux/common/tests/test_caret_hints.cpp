@@ -213,6 +213,12 @@ void testGates() {
     CHECK(!hints::dateCandidate(',', "âm", "lịch"));
     CHECK(!hints::dateCandidate(' ', "am", "lich"));
     CHECK(!hints::dateCandidate(' ', "", "al"));
+    CHECK(hints::dateCandidate(' ', "", "Tết"));  // Tết kế tiếp
+    CHECK(hints::dateCandidate(' ', "ăn", "tết"));
+    CHECK(hints::dateCandidate(' ', "", "TẾT"));
+    CHECK(!hints::dateCandidate(' ', "", "tếtt"));
+    CHECK(!hints::dateCandidate(' ', "", "tet"));
+    CHECK(!hints::dateCandidate(',', "", "Tết"));
 
     // = TypoFixLogic.worthChecking (testTypoGateOnlyInvalidLetterWordsAtBoundary)
     CHECK(hints::typoWorthChecking(' ', "tpoi", "tpoi"));
@@ -426,6 +432,16 @@ void testDateHint() {
     CHECK(!n.reqs.empty());
     l = n.last();
     CHECK_EQ(l.substr(0, l.find("\t2")), req({"date", "ngày âm ", "ngày", "âm", " "}));
+
+    // Tết kế tiếp: "Tết " → helper; Tab GIỮ chữ Tết, nối ngày.
+    Rig t;
+    type(t.s, t.m, "Teets ");
+    CHECK(!t.reqs.empty());
+    l = t.last();
+    CHECK_EQ(l.substr(0, l.find("\t2")), req({"date", "Tết ", "", "Tết", " "}));
+    t.answer(S(Kind::Date, "06/02/2027", "Tết ", "Tết 06/02/2027 "));
+    CHECK(tab(t.s, t.m));
+    CHECK_EQ(t.m.doc, std::string("Tết 06/02/2027 "));
 }
 
 void testToneRun() {

@@ -126,4 +126,38 @@ class LunarDateTests {
         assertNull(NumberChips.chip("hôm nay 30/9 năm Bính Ngọ "))
         assertNotNull(LunarDate.chip("ÂL "))
     }
+
+    // chip "Tết"
+
+    @Test fun tetTriggers() {
+        assertEquals("Tết ", LunarDate.triggerTail("Sắp Tết "))
+        assertEquals("tết ", LunarDate.triggerTail("tết "))
+        assertEquals("TẾT ", LunarDate.triggerTail("ăn TẾT "))
+        val nfd = "te\u0302\u0301t "
+        assertEquals(nfd, LunarDate.triggerTail("ăn $nfd"))
+        for (s in listOf("tếtt ", "tet ", "tét ", "xTết ", "Tết.", "Tết  ")) assertNull("«$s» không được khớp", LunarDate.triggerTail(s))
+        for (w in listOf("Tết", "tết", "TẾT", "te\u0302\u0301t")) assertTrue(w, LunarDate.mayTrigger(w))
+        for (w in listOf("tếtt", "tet", "Têt")) assertFalse(w, LunarDate.mayTrigger(w))
+    }
+
+    @Test fun tetChipBoundaries() {
+        assertEquals(NumberChip("06/02/2027", "Tết ", "Tết 06/02/2027 "), LunarDate.chip("Sắp Tết ", 2026, 11, 8))
+        assertEquals("TẾT 06/02/2027 ", LunarDate.chip("TẾT ", 2026, 11, 8)?.insert)
+        assertEquals("06/02/2027", LunarDate.chip("tết ", 2027, 2, 5)?.display)   // hôm trước
+        assertEquals("06/02/2027", LunarDate.chip("tết ", 2027, 2, 6)?.display)   // đúng mùng 1
+        assertEquals("26/01/2028", LunarDate.chip("tết ", 2027, 2, 7)?.display)   // hôm sau
+        assertEquals("Tết 06/02/2027 ", LunarDate.chip("Tết", 2026, 11, 8)?.insert)
+        assertNull(NumberChips.chip("Tết 06/02/2027 "))
+        assertNull(LunarDate.triggerTail("Tết 06/02/2027 "))
+    }
+
+    @Test fun tetDayNumber() {
+        for ((y, md) in BuddySeason.LUNAR_NEW_YEAR) {
+            assertEquals("Tết $y", Triple(y, md.first, md.second), LunarDate.gregorian(LunarDate.tetDayNumber(y)))
+        }
+        for (y in 1901..2100) {
+            val (gy, gm, gd) = LunarDate.gregorian(LunarDate.tetDayNumber(y))
+            assertEquals("Tết $y", L(1, 1, y), lunar(gd, gm, gy))
+        }
+    }
 }

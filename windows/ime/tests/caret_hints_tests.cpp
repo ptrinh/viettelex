@@ -285,6 +285,14 @@ TEST(hints_date_detect) {
     CHECK(!detectDate(U',', U("âm"), U("lịch"), en));
     CHECK(!detectDate(U' ', U("am"), U("lich"), en));
     CHECK(!detectDate(U' ', U(""), U("al"), en));
+    // Next Tết: the word on its own (any word before), any case, NFC.
+    CHECK(detectDate(U' ', U(""), U("Tết"), en) == Phrase::Tet);
+    CHECK(detectDate(U' ', U("ăn"), U("tết"), en) == Phrase::Tet);
+    CHECK(detectDate(U' ', U(""), U("TẾT"), en) == Phrase::Tet);
+    CHECK(!detectDate(U' ', U(""), U("tếtt"), en));
+    CHECK(!detectDate(U' ', U(""), U("tet"), en));
+    CHECK(!detectDate(U' ', U(""), U("tét"), en));
+    CHECK(!detectDate(U',', U(""), U("Tết"), en));
 }
 
 TEST(hints_lunar_calendar) {
@@ -394,6 +402,34 @@ TEST(hints_date_suggestion_replaces_phrase) {
     auto nal = dateSuggestion(U("ngày ÂL "), U("ngày"), U("ÂL"), Phrase::Lunar, nov8);
     CHECK(nal && nal->replace == u"ÂL ");  // only the word itself
     CHECK(!dateSuggestion(U("xâm lịch "), U("âm"), U("lịch"), Phrase::Lunar, nov8));
+    // Tết: display the date, Tab keeps the typed word and appends the date.
+    CHECK_EQ(S(formatDate(Phrase::Tet, nov8)), std::string("06/02/2027"));
+    auto t = dateSuggestion(U("Sắp Tết "), U("Sắp"), U("Tết"), Phrase::Tet, nov8);
+    CHECK(t && *t == (Suggestion{Kind::Date, u"06/02/2027", u"Tết ", u"Tết 06/02/2027 "}));
+    auto tu = dateSuggestion(U("TẾT "), U(""), U("TẾT"), Phrase::Tet, nov8);
+    CHECK(tu && tu->insert == u"TẾT 06/02/2027 ");
+    auto tn = dateSuggestion(U("ngày tết "), U("ngày"), U("tết"), Phrase::Tet, nov8);
+    CHECK(tn && tn->replace == u"tết ");
+    CHECK(!dateSuggestion(U("xTết "), U(""), U("Tết"), Phrase::Tet, nov8));
+}
+
+TEST(hints_next_tet) {
+    CHECK_EQ(S(nextTetText(8, 11, 2026)), std::string("06/02/2027"));
+    CHECK_EQ(S(nextTetText(5, 2, 2027)), std::string("06/02/2027"));  // day before
+    CHECK_EQ(S(nextTetText(6, 2, 2027)), std::string("06/02/2027"));  // mùng 1 itself
+    CHECK_EQ(S(nextTetText(7, 2, 2027)), std::string("26/01/2028"));  // day after
+    CHECK_EQ(S(nextTetText(1, 1, 2026)), std::string("17/02/2026"));
+    CHECK_EQ(S(nextTetText(31, 12, 2029)), std::string("02/02/2030"));  // UTC+7 (UTC+8: 3 Feb)
+    // Every Tết 1901-2100 is lunar 1/1 (not leap) of that year, and the day before is not.
+    int bad = 0;
+    for (int y = 1901; y <= 2100; ++y) {
+        int d = 0, m = 0, yy = 0;
+        gregorianFromJulianDay(tetDayNumber(y), d, m, yy);
+        if (yy != y || !(lunarDate(d, m, yy) == LunarDate{1, 1, y, false})) ++bad;
+        gregorianFromJulianDay(tetDayNumber(y) - 1, d, m, yy);
+        if (lunarDate(d, m, yy).year != y - 1) ++bad;
+    }
+    CHECK_EQ(bad, 0);
 }
 
 TEST(hints_last_runs_from_screen) {
@@ -432,6 +468,14 @@ TEST(hints_tracker_triggers) {
     CHECK(typeInto(t, "aam lichj ", en).kind == TriggerKind::Date);
     t.reset();
     CHECK(typeInto(t, "AAL ", en).kind == TriggerKind::Date);
+    t.reset();
+    CHECK(typeInto(t, "an teets ", en).kind == TriggerKind::Date);
+    t.reset();
+    CHECK(typeInto(t, "TEETS ", en).kind == TriggerKind::Date);
+    t.reset();
+    CHECK(typeInto(t, "te6t1 ", en).kind == TriggerKind::Date);
+    t.reset();
+    CHECK(typeInto(t, "test ", en).kind != TriggerKind::Date);
     t.reset();
     Trigger ty = typeInto(t, "anh tpoi ", en, Commit{U("tpoi"), U("tpoi")});
     CHECK(ty.kind == TriggerKind::Typo && S(ty.raw) == "tpoi" && ty.boundary == U' ');
@@ -487,6 +531,12 @@ TEST(hints_worth_checking_filters) {
     CHECK(dateWorthReading(U("laf"), U("aal")));
     CHECK(!dateWorthReading(U(""), U("anh")));
     CHECK(!dateWorthReading(U("anh"), U("ddi")));
+    // tết: any raw spelling, any word before; nothing wider.
+    for (const char* r : {"teets", "tetes", "teest", "teste", "TEETS", "Teets", "te6t1", "tet61", "te61t", "teetss"})
+        CHECK(dateWorthReading(U(""), U(r)));
+    CHECK(dateWorthReading(U("an"), U("teets")));
+    for (const char* r : {"test", "tet", "tees", "teet", "tests", "teetst", "texts", "eetst", "te6t", "tet1"})
+        CHECK(!dateWorthReading(U(""), U(r)));
 }
 
 // ---------------------------------------------------------------- the session reports the commit

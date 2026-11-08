@@ -22,7 +22,8 @@
 //     tiếng Anh ("see you tomorrow␣"). Tab THAY cụm bằng ngày/giờ (ví dụ maintainer: gõ
 //     "hôm nay" → gợi ý "28/09/2026"); muốn giữ chữ thì Esc / gõ tiếp. Âm lịch hôm nay
 //     (lịch Việt Nam, UTC+7 — LunarCalendar.swift): "âm lịch␣" / "ngày âm␣" / "ÂL␣" ⇒
-//     "30/9 năm Bính Ngọ" (tháng nhuận: "1/6 nhuận năm Ất Tỵ").
+//     "30/9 năm Bính Ngọ" (tháng nhuận: "1/6 nhuận năm Ất Tỵ"). "Tết␣" ⇒ ngày dương mùng 1
+//     Tết kế tiếp "06/02/2027"; Tab giữ chữ Tết: "Tết 06/02/2027 ".
 import Foundation
 import TelexCore
 
@@ -523,7 +524,7 @@ enum ToneRunLogic {
 // MARK: - 3. Ngày giờ
 
 enum DateHintLogic {
-    enum Phrase: Equatable { case today, tomorrow, yesterday, now, lunar }
+    enum Phrase: Equatable { case today, tomorrow, yesterday, now, lunar, tet }
 
     private static let vietnamese: [String: [String: Phrase]] = [
         "hôm": ["nay": .today, "qua": .yesterday],
@@ -531,8 +532,9 @@ enum DateHintLogic {
         "bây": ["giờ": .now],
         "âm": ["lịch": .lunar],
     ]
-    /// Một từ đứng riêng (từ trước bất kỳ): "ÂL␣" ⇒ âm lịch hôm nay.
-    private static let single: [String: Phrase] = ["âl": .lunar]
+    /// Một từ đứng riêng (từ trước bất kỳ): "ÂL␣" ⇒ âm lịch hôm nay; "Tết␣" ⇒ ngày dương của
+    /// mùng 1 Tết kế tiếp (Tab GIỮ chữ "Tết" như đã gõ, nối ngày: "Tết 06/02/2027 ").
+    private static let single: [String: Phrase] = ["âl": .lunar, "tết": .tet]
 
     /// Cụm hai từ tiếng Việt? (khi đó Tab thay cả hai từ, không thì chỉ từ cuối).
     private static func isPair(prevRun: String, run: String) -> Bool {
@@ -557,7 +559,8 @@ enum DateHintLogic {
     }
 
     /// "28/09/2026" (ngày), "21:35" (giờ), lịch Gregorian theo múi giờ máy; âm lịch hôm nay
-    /// "30/9 năm Bính Ngọ" (ngày dương theo múi giờ máy, đổi sang âm lịch Việt Nam UTC+7).
+    /// "30/9 năm Bính Ngọ" (ngày dương theo múi giờ máy, đổi sang âm lịch Việt Nam UTC+7); Tết kế
+    /// tiếp "06/02/2027" (mùng 1 đầu tiên ≥ hôm nay).
     static func format(_ p: Phrase, now: Date, timeZone: TimeZone = .current) -> String {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = timeZone
@@ -569,6 +572,9 @@ enum DateHintLogic {
         case .lunar:
             let c = cal.dateComponents([.day, .month, .year], from: now)
             return LunarCalendar.text(day: c.day ?? 1, month: c.month ?? 1, year: c.year ?? 2000)
+        case .tet:
+            let c = cal.dateComponents([.day, .month, .year], from: now)
+            return LunarCalendar.nextTetText(day: c.day ?? 1, month: c.month ?? 1, year: c.year ?? 2000)
         case .today: day = now
         case .tomorrow: day = cal.date(byAdding: .day, value: 1, to: now) ?? now
         case .yesterday: day = cal.date(byAdding: .day, value: -1, to: now) ?? now
@@ -583,7 +589,8 @@ enum DateHintLogic {
         let replace = (isPair(prevRun: prevRun, run: run) ? prevRun + " " : "") + run + " "
         guard CaretHintLogic.standsAlone(before: before, token: replace) else { return nil }
         let value = format(phrase, now: now, timeZone: timeZone)
-        return CaretSuggestion(kind: .date, display: value, replace: replace, insert: value + " ")
+        let insert = phrase == .tet ? run + " " + value + " " : value + " "
+        return CaretSuggestion(kind: .date, display: value, replace: replace, insert: insert)
     }
 }
 
