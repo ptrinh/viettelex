@@ -35,6 +35,8 @@ std::u16string actionInsert(const vtx_action& a) {
     return toU16(a.insert, n);
 }
 
+char16_t lastOf(const std::u16string& s) { return s.empty() ? 0 : s.back(); }
+
 bool tailOf(const std::u16string& s, int32_t n, std::u16string& out) {
     if (n < 0 || static_cast<size_t>(n) > s.size()) return false;
     out = s.substr(s.size() - static_cast<size_t>(n));
@@ -93,6 +95,15 @@ void TypingSession::fallBack(const char* why) {
     }
     if (!contextFallback_ && opt_.log) opt_.log(why);
     contextFallback_ = true;
+}
+
+void TypingSession::note(const char* msg) const {
+    if (opt_.log) opt_.log(msg);
+}
+
+// "<what> (read N, word M)": lengths only, never the text.
+std::string TypingSession::staleNote(const char* what, size_t readLen) const {
+    return std::string(what) + " (read " + std::to_string(readLen) + ", word " + std::to_string(shown_.size()) + ")";
 }
 
 std::u16string TypingSession::composed() const { return engine_ ? composedOf(engine_) : std::u16string(); }
@@ -188,6 +199,7 @@ void TypingSession::verifyScreen(TextSink& sink) {
     // Forgetting the word here made the next key start a "word" in the middle of one,
     // edited against the stale view (model: "trinhf" -> "triìn", the h lost).
     if (asyncStore_ && preferred == preferComposition_) return;
+    note("in-place: the field changed around the word (edit outside the TIP) -> word dropped");
     reset();
 }
 
@@ -307,6 +319,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
         bool stale;
         if (wordMode_ == OutputMode::Composition) {
             stale = !sink.compositionActive();
+            if (stale) note("composition: ended outside the TIP -> word dropped, this key starts a new word");
         } else {
             const size_t want = shown_.size() > droppedSig_.size() ? shown_.size() : droppedSig_.size();
             const std::u16string before = sink.textBeforeCaret(static_cast<int>(want));
@@ -334,6 +347,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
                         swapEngine(t);
                         shown_ = next;
                         droppedSig_.clear();
+                        note("in-place (async store): view behind the page, key only appends -> word kept");
                         return false;
                     }
                     vtx_destroy(t);
@@ -341,6 +355,8 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
                 // A key that needs an edit goes to the page as typed (in order, after the
                 // keys still in flight): at worst one word without its accent, never a
                 // letter deleted or misplaced.
+                note(staleNote("in-place (async store): view behind the page, key needs an edit -> as typed, word dropped",
+                               before.size()).c_str());
                 reset();
                 return false;
             }
@@ -373,6 +389,10 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
                 wordMode_ = OutputMode::Composition;
                 stale = false;
             }
+            if (stale)
+                note(staleNote("in-place: text before the caret no longer ends with the word -> word dropped, "
+                               "this key starts a new word",
+                               before.size()).c_str());
         }
         if (stale) reset();
     }
@@ -388,6 +408,15 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
     if (vtx_is_empty(engine_) && mayReEdit() && !sink.hasSelection() &&
         (!comp || !sink.compositionActive())) {
         if (tryReEdit(c, sink)) return true;
+    } else if (opt_.verboseLog && vtx_is_empty(engine_) && opt_.reEditWord &&
+               isDiacriticOnlyKey(c, (opt_.engineFlags & VTX_VNI) != 0) && !sink.blind() &&
+               isWordCharForReEdit(lastOf(sink.textBeforeCaret(1)))) {
+        // A tone key right after a word (no space) cannot reach back into it here.
+        std::string why = "re-edit: a tone key right after a word, reaching back is off here (";
+        why += asyncStore_ ? "async store" : compositionOnly_ ? "composition-only context"
+                           : dropsPassedKeys_ ? "IMM host" : "selection / composition open";
+        why += ") -> new word";
+        note(why.c_str());
     }
 
     const size_t prevLen = shown_.size();
@@ -409,6 +438,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
     if (comp) {
         const bool starting = !sink.compositionActive();
         if (!sink.setComposition(now, 0, misspelled(engine_))) {
+            note("composition: the field refused it -> word dropped, key as typed");
             reset();
             return false;
         }
@@ -472,6 +502,8 @@ bool TypingSession::tryReEdit(char32_t c, TextSink& sink) {
     if (!t) return false;
     if (!vtx_seed(t, reinterpret_cast<const uint16_t*>(word.data()), static_cast<int32_t>(word.size()))) {
         vtx_destroy(t);
+        note(("re-edit: the word before the caret does not round-trip (len " + std::to_string(len) + ") -> new word")
+                 .c_str());
         return false;
     }
     vtx_action a;
@@ -494,6 +526,7 @@ bool TypingSession::tryReEdit(char32_t c, TextSink& sink) {
     }
     if (!ok) {
         vtx_destroy(t);
+        note("re-edit: the field refused the edit -> new word");
         return false;
     }
     swapEngine(t);

@@ -223,4 +223,10 @@ bool fieldPrefersComposition(const std::string& exe, const int* scopes, size_t c
     return false;
 }
 
+bool shellSearchPrefersComposition(const std::string& app, bool asyncStore) {
+    if (!asyncStore) return false;
+    return app == "searchhost.exe" || app == "searchapp.exe" || app == "searchui.exe" ||
+           app == "startmenuexperiencehost.exe";
+}
+
 }  // namespace vtx

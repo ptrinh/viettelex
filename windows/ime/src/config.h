@@ -40,6 +40,8 @@ void reloadVietnamese();  // pick up a toggle made in another process of the sam
 // The app a focused context belongs to, when the process is only a host (WebView2):
 // per-app mode and Việt/Anh memory then follow that app. See appIdentity().
 void setActiveApp(const std::wstring& exeBaseName);
+// That app identity, lowercase (exeName() unless a WebView2 host follows its owner).
+std::string activeApp();
 
 // Debug log (settings.debugLogging): %LOCALAPPDATA%\VietTelex\debug.log (debug_file.h),
 // component "tip". Decisions, key classes and lengths only — never typed characters.

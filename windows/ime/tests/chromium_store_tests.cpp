@@ -290,3 +290,135 @@ TEST(chromium_store_lag_latch_survives_focus_changes_but_not_for_sync_stores) {
     r.s.setAsyncStore(false);
     CHECK(!r.s.prefersComposition());
 }
+
+// Field report 2026-11 (Windows 11 Start search, Telex): the FIRST word lost its tone key
+// after "aa" ("taafng" -> "tâfng", "taangf taangf" -> "tângf tầng"); later words were fine.
+// Modelled as Chromium's store: the replace "a" -> "â" reaches the page as delete + insert,
+// and the next renderer report carries the state between the two (the view goes "back").
+// The next key that needs an edit then goes through as typed (no letter lost, never an
+// edit from a stale view) and the field composes from the next word on (#139 path).
+namespace {
+std::vector<std::string>* g_lines = nullptr;
+void captureLog(const char* m) {
+    if (g_lines) g_lines->push_back(m);
+}
+void settle(ChromeRig& r) {
+    r.doc.catchUp();
+    if (!r.doc.comp) r.s.verifyScreen(r.doc);
+}
+// Types `keys`; the renderer reports after each key, except: after key `halfAfter` (our
+// replace) the report shows the page between its deletion and its insertion, and no
+// further report arrives until the word ends (a space).
+std::string searchWord(ChromeRig& r, const char* keys, int halfAfter) {
+    bool held = false;
+    for (int i = 0; keys[i]; ++i) {
+        r.key(keys[i]);
+        if (keys[i] == ' ') held = false;
+        if (i == halfAfter) {
+            r.doc.lag = 1;
+            r.report();
+            r.doc.lag = 1000;
+            held = true;
+        } else if (!held) {
+            settle(r);
+        }
+    }
+    return utf16ToUtf8(r.doc.page.text);
+}
+}  // namespace
+
+TEST(start_search_first_word_report_reproduced_by_the_async_store_model) {
+    {
+        ChromeRig r(1000);
+        CHECK_EQ(searchWord(r, "taafng ", 2), std::string("tâfng "));  // the reported first word
+        CHECK(r.s.prefersComposition());
+        CHECK(!r.s.contextFellBack());
+        CHECK_EQ(searchWord(r, "taafng ", 2), std::string("tâfng tầng "));
+    }
+    {
+        ChromeRig r(1000);
+        CHECK_EQ(searchWord(r, "taangf ", 2), std::string("tângf "));
+        CHECK_EQ(searchWord(r, "taangf", 2), std::string("tângf tầng"));
+    }
+}
+
+TEST(start_search_async_box_composing_from_the_first_letter_keeps_the_first_word) {
+    // What the TIP does for a shell search box on an async store (app_policy.h
+    // shellSearchPrefersComposition): composition from the first letter, as the second
+    // word of the report already did.
+    struct Case {
+        const char* keys;
+        const char* want;
+    };
+    for (const Case& c : {Case{"taafng", "tầng tầng"}, Case{"taangf", "tầng tầng"}, Case{"huyeenf", "huyền huyền"},
+                          Case{"tieenf", "tiền tiền"}}) {
+        ChromeRig r(1000);
+        r.s.setPreferComposition(true);
+        searchWord(r, c.keys, 2);
+        searchWord(r, " ", -1);
+        CHECK_EQ(searchWord(r, c.keys, 2), std::string(c.want));
+        CHECK(!r.s.contextFellBack());
+    }
+}
+
+TEST(word_dropping_decisions_are_logged_without_text) {
+    Settings st;
+    SessionOptions o;
+    o.engineFlags = st.engineFlags();
+    o.autoRestore = st.autoRestore;
+    o.reEditWord = st.reEditWord;
+    o.log = captureLog;
+    std::vector<std::string> lines;
+    g_lines = &lines;
+    {
+        ChromeRig r(1000);
+        r.s.configure(o);
+        searchWord(r, "taaf", 2);
+        // A sync field: a word the app changed under us is logged too.
+        ChromeRig s(0);
+        s.s.configure(o);
+        s.s.setAsyncStore(false);
+        s.type("vie");
+        s.doc.page = s.doc.view = {u"x", 1};
+        s.key('e');
+        // A word dropped mid-way (a focus change) in an async store, then its tone key:
+        // logged only with debug logging on (it costs a read).
+        for (bool verbose : {false, true}) {
+            ChromeRig f(0);
+            SessionOptions v = o;
+            v.verboseLog = verbose;
+            f.s.configure(v);
+            f.type("taa");
+            f.s.resetContext();
+            f.s.setAsyncStore(true);
+            const size_t before = lines.size();
+            f.key('f');
+            CHECK_EQ(utf16ToUtf8(f.doc.page.text), std::string("tâf"));
+            bool reEditOff = false;
+            for (size_t i = before; i < lines.size(); ++i)
+                if (lines[i].find("re-edit: a tone key right after a word, reaching back is off here (async store)") !=
+                    std::string::npos)
+                    reEditOff = true;
+            CHECK(reEditOff == verbose);
+        }
+        // A tone key starting a word after a space is ordinary typing: never logged.
+        ChromeRig sp(0);
+        SessionOptions v = o;
+        v.verboseLog = true;
+        sp.s.configure(v);
+        const size_t before = lines.size();
+        sp.type("ta sao");
+        for (size_t i = before; i < lines.size(); ++i) CHECK(lines[i].find("re-edit") == std::string::npos);
+    }
+    g_lines = nullptr;
+    bool asyncDrop = false, syncDrop = false;
+    for (const std::string& l : lines) {
+        if (l.find("key needs an edit -> as typed, word dropped (read ") != std::string::npos) asyncDrop = true;
+        if (l.find("text before the caret no longer ends with the word -> word dropped") != std::string::npos)
+            syncDrop = true;
+        CHECK(l.find("\xC3\xA2") == std::string::npos);  // never typed text ("â")
+        CHECK(l.find("\xC3\xAA") == std::string::npos);  // ("ê")
+    }
+    CHECK(asyncDrop);
+    CHECK(syncDrop);
+}

@@ -194,6 +194,7 @@ private:
     bool directInWpf_ = false;          // ...a WPF HwndSource: survives TSF focus moves inside it
     bool focusWpf_ = false;             // last evaluateHost: focus window is WPF
     bool contextLogged_ = false;        // context classification logged for this focus (1.3.16)
+    HWND focusWnd_ = nullptr;           // GetFocus() at the last OnSetFocus (debug log only)
     bool directAdopt_ = false;          // the request carried kDirectAdoptTyped (1.3.16)
     bool keysPassAsTyped_ = false;      // last evaluateHost: WPF default store, keys pass as typed
     TypedWord typedWord_;               // raw keys of the word in progress (typed_word.h)

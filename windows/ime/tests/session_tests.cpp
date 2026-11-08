@@ -887,6 +887,16 @@ TEST(field_prefers_composition_only_for_chromium_address_bars) {
     CHECK(!fieldPrefersComposition("msedgewebview2.exe", url, 1));  // WebView2 has no omnibox
 }
 
+TEST(shell_search_composes_from_the_first_letter_only_on_an_async_store) {
+    for (const char* app : {"searchhost.exe", "searchapp.exe", "searchui.exe", "startmenuexperiencehost.exe"}) {
+        CHECK(shellSearchPrefersComposition(app, true));
+        CHECK(!shellSearchPrefersComposition(app, false));  // a XAML / Win32 box: in-place as before
+    }
+    for (const char* app : {"msedge.exe", "chrome.exe", "msedgewebview2.exe", "explorer.exe", "notepad.exe",
+                            "powertoys.powerlauncher.exe", "ms-teams.exe"})
+        CHECK(!shellSearchPrefersComposition(app, true));
+}
+
 TEST(search_box_rewriting_its_text_each_key_stays_in_sync) {
     // Explorer / Settings / Start search boxes re-set their own text on every keystroke
     // (same text, caret at the end). That is not a change of OUR word: keep composing.

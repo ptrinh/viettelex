@@ -144,6 +144,7 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* ptim, TfClientId tid, DWORD f
 }
 
 STDMETHODIMP TextService::Deactivate() {
+    config::log("deactivated");  // a later "activated" = a new instance: per-app latches start over
     suspendPosted_ = 0;
     hideHint();
     dropHintWork();
@@ -311,6 +312,7 @@ void TextService::applyConfig(bool force) {
         o.underlineMisspelled = s.underlineMisspelled;
         o.shortcuts = config::secureMode() ? nullptr : &s.shortcuts;
         o.log = config::log;
+        o.verboseLog = s.debugLogging;
         session_.configure(o);
 
         hintsOn_.math = s.mathResults;
@@ -716,6 +718,13 @@ void TextService::evaluateHost(ITfContext* ctx) {
     // Chromium & co (transitory, readable): the store mirrors the page asynchronously
     // (session.h setAsyncStore — 2026-10 Messenger/Facebook "mất chữ" report).
     session_.setAsyncStore(c.transitory && host_ == HostText::Normal);
+    // Windows search on an async store: compose from the first letter — the first word of
+    // every search lost its tone key in place (app_policy.h shellSearchPrefersComposition).
+    if (session_.outputMode() == OutputMode::InPlace && !session_.prefersComposition() &&
+        shellSearchPrefersComposition(config::activeApp(), session_.asyncStore())) {
+        session_.setPreferComposition(true);
+        config::log("Windows search box (async store): composition from the first letter");
+    }
     // A store that never shows the keys the app got is no text field (a WPF file list with
     // type-to-filter): the session stops claiming keys there instead of composing into nothing.
     session_.setPassedKeysReachApp(passedKeysReachApp(c, host_));
@@ -814,6 +823,14 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     hintTracker_.reset();
     acceptedSpace_ = hints::AcceptedSpace();
     acceptAct_ = -1;
+    {
+        // Diagnostics: a focus change that ends a word mid-way (no text, only its length).
+        HWND nf = GetFocus();
+        if (session_.wordActive() && config::logging())
+            config::log("focus changed mid-word -> word dropped (" + std::to_string(session_.rawKeys().size()) +
+                        " keys, " + (nf == focusWnd_ ? "same window" : "other window") + ")");
+        focusWnd_ = nf;
+    }
     if (composition_) endCompositionAsync();
     session_.resetContext();
     chord_.disarm();
@@ -904,6 +921,7 @@ STDMETHODIMP TextService::OnPushContext(ITfContext*) {
         hookTextEditSink(dm);
         dm->Release();
     }
+    if (session_.wordActive()) config::log("context pushed / popped mid-word -> word dropped");
     session_.reset();
     return S_OK;
 }
@@ -1259,6 +1277,12 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL*
     ownKeyEdit_ = false;
     if (hr != S_OK) {
         // The app refused a synchronous edit session: type literally, never guess.
+        if (config::logging()) {
+            char buf[96];
+            std::snprintf(buf, sizeof buf, "edit session refused (hr 0x%08lx, host %d) -> key as typed, word dropped",
+                          static_cast<unsigned long>(hr), static_cast<int>(host_));
+            config::log(buf);
+        }
         session_.reset();
         result = FALSE;
     }
@@ -1318,6 +1342,7 @@ STDMETHODIMP TextService::OnPreservedKey(ITfContext*, REFGUID guid, BOOL* eaten)
 
 STDMETHODIMP TextService::OnCompositionTerminated(TfEditCookie, ITfComposition* comp) {
     if (comp && comp == composition_) {
+        if (session_.wordActive()) config::log("composition terminated by the app mid-word -> word dropped");
         clearComposition();
         session_.reset();
     }

@@ -80,6 +80,9 @@ struct SessionOptions {
     bool retroOffer = false;
     const std::map<std::u16string, std::u16string>* shortcuts = nullptr;  // not owned
     void (*log)(const char*) = nullptr;  // debug log (never typed text)
+    // Debug logging is on (settings.debugLogging): decisions that cost a document read to
+    // explain are logged only then.
+    bool verboseLog = false;
 };
 
 class TypingSession {
@@ -276,6 +279,9 @@ private:
     // without the keys still in flight (model of the 2026-10 report: "tuwf" -> "tuưf").
     bool mayReEdit() const { return mayReadBack() && !asyncStore_; }
     void fallBack(const char* why);
+    // Debug log of a decision that drops / cannot continue a word (lengths, never text).
+    void note(const char* msg) const;
+    std::string staleNote(const char* what, size_t readLen) const;
     SessionOptions opt_;
     std::u16string shown_;     // what the current word looks like on screen
     bool overflow_ = false;    // engine overflowed: rest of the word passes through raw
