@@ -379,6 +379,38 @@ final class CaretSuggestionsTests: XCTestCase {
         XCTAssertEqual(L.lunar(day: 21, month: 1, year: 1985), .init(day: 1, month: 1, year: 1985, leap: false))
     }
 
+    /// Các ngày bản rút gọn (mobile cũ) trả ngày 0 / lệch một ngày — khoá kết quả chung.
+    func testLunarCalendarRegressionDates() {
+        typealias L = LunarCalendar
+        XCTAssertEqual(L.lunar(day: 7, month: 5, year: 2054), .init(day: 30, month: 3, year: 2054, leap: false))
+        XCTAssertEqual(L.lunar(day: 9, month: 4, year: 2062), .init(day: 30, month: 2, year: 2062, leap: false))
+        XCTAssertEqual(L.lunar(day: 9, month: 12, year: 2072), .init(day: 1, month: 11, year: 2072, leap: false))
+        XCTAssertEqual(L.lunar(day: 15, month: 11, year: 2077), .init(day: 1, month: 10, year: 2077, leap: false))
+    }
+
+    /// Fixture chung iOS/Android/Windows (iOS/KeyboardTests/Fixtures/lunar-month-starts.txt, sinh từ
+    /// LunarCalendar.swift): mỗi ngày đầu tháng âm 1900–2100 phải là mùng 1 đúng tháng/năm/nhuận, và
+    /// hôm trước là ngày 29/30 của tháng trước.
+    func testLunarCalendarMatchesCrossPortFixture() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("iOS/KeyboardTests/Fixtures/lunar-month-starts.txt")
+        var bad: [String] = [], n = 0, prevJD: Int?
+        for line in try String(contentsOf: url, encoding: .utf8).split(separator: "\n") where !line.hasPrefix("#") {
+            let f = line.split(separator: "\t")
+            let ymd = Int(f[0])!, y = ymd / 10_000, m = ymd / 100 % 100, d = ymd % 100
+            let leap = f[1].hasSuffix("+"), month = Int(leap ? f[1].dropLast() : f[1])!, year = Int(f[2])!
+            if LunarCalendar.lunar(day: d, month: m, year: y) != .init(day: 1, month: month, year: year, leap: leap) {
+                bad.append(String(line))
+            }
+            let jd = LunarCalendar.julianDay(d, m, y)
+            if let p = prevJD, jd - p != 29 && jd - p != 30 { bad.append("độ dài tháng trước " + line) }
+            prevJD = jd
+            n += 1
+        }
+        XCTAssertEqual(n, 2487)
+        XCTAssertEqual(bad, [], "\(bad.prefix(10))")
+    }
+
     /// Đối chiếu từng ngày 1986–2050 với Calendar(identifier: .vietnamese) của Foundation (ICU).
     /// Ngoài khoảng này ICU khác lịch Việt Nam đã ban hành (1984–85: ICU giữ Tết 20/02/1985) hoặc
     /// trả ngày 0 (vài tháng sau 2050) — không dùng làm chuẩn.

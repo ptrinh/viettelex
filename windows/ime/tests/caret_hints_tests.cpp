@@ -3,6 +3,7 @@
 // shared fixtures math-results.txt / number-chips.txt (same results as iOS/Android/macOS).
 // The typo-fix lexicon part (and its precision eval) lives in the app tests (typo_fix.h).
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <sstream>
 
@@ -312,6 +313,55 @@ TEST(hints_lunar_calendar) {
     CHECK_EQ(S(lunarText(8, 11, 2026)), std::string("30/9 năm Bính Ngọ"));
     CHECK_EQ(S(lunarText(16, 2, 2026)), std::string("29/12 năm Ất Tỵ"));  // before Tết: previous year
     CHECK_EQ(S(lunarText(25, 7, 2025)), std::string("1/6 nhuận năm Ất Tỵ"));
+    // Dates the short public algorithm (old mobile code) got wrong: day 0 / one day off.
+    CHECK(lunarDate(7, 5, 2054) == (LunarDate{30, 3, 2054, false}));
+    CHECK(lunarDate(9, 4, 2062) == (LunarDate{30, 2, 2062, false}));
+    CHECK(lunarDate(9, 12, 2072) == (LunarDate{1, 11, 2072, false}));
+    CHECK(lunarDate(15, 11, 2077) == (LunarDate{1, 10, 2077, false}));
+}
+
+// Shared fixture lunar-month-starts.txt (every lunar month start 1900-2100, generated from
+// App/Sources/LunarCalendar.swift): walk every day and compare with the month that holds it.
+TEST(hints_lunar_cross_port_fixture) {
+    struct Start {
+        long jd;
+        int month, year;
+        bool leap;
+    };
+    auto jdOf = [](int d, int m, int y) -> long {
+        const long a = (14 - m) / 12, yy = y + 4800 - a, mm = m + 12 * a - 3;
+        return d + (153 * mm + 2) / 5 + 365 * yy + yy / 4 - yy / 100 + yy / 400 - 32045;
+    };
+    std::vector<Start> starts;
+    for (const auto& line : fixtureLines("lunar-month-starts.txt")) {
+        int ymd = 0, month = 0, year = 0;
+        char plus = 0;
+        if (std::sscanf(line.c_str(), "%d\t%d%c", &ymd, &month, &plus) < 2) continue;
+        const bool leap = plus == '+';
+        const size_t tab = line.rfind('\t');
+        year = std::atoi(line.c_str() + tab + 1);
+        starts.push_back({jdOf(ymd % 100, ymd / 100 % 100, ymd / 10000), month, year, leap});
+    }
+    CHECK_EQ(starts.size(), size_t(2487));
+    int bad = 0;
+    long days = 0;
+    for (size_t i = 0; i < starts.size(); ++i) {
+        const long next = i + 1 < starts.size() ? starts[i + 1].jd : jdOf(31, 12, 2100) + 1;
+        for (long jd = starts[i].jd; jd < next; ++jd) {
+            const long a = jd + 32044, b = (4 * a + 3) / 146097, c = a - 146097 * b / 4;
+            const long d4 = (4 * c + 3) / 1461, e = c - 1461 * d4 / 4, m5 = (5 * e + 2) / 153;
+            const int day = static_cast<int>(e - (153 * m5 + 2) / 5 + 1);
+            const int month = static_cast<int>(m5 + 3 - 12 * (m5 / 10));
+            const int year = static_cast<int>(100 * b + d4 - 4800 + m5 / 10);
+            const LunarDate want{static_cast<int>(jd - starts[i].jd + 1), starts[i].month, starts[i].year,
+                                 starts[i].leap};
+            if (!(lunarDate(day, month, year) == want) && ++bad <= 5)
+                std::printf("  lunar mismatch %d/%d/%d\n", day, month, year);
+            ++days;
+        }
+    }
+    CHECK_EQ(bad, 0);
+    CHECK(days > 73000);
 }
 
 TEST(hints_date_format) {

@@ -123,6 +123,8 @@ targets:
       - Shared
       - path: ios-mau-cau.yml
         buildPhase: resources
+      # Âm lịch dùng chung với macOS/Linux (Keyboard/LunarDate.swift gọi vào).
+      - path: ../App/Sources/LunarCalendar.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.viettelex.ios.keyboard
@@ -233,6 +235,7 @@ targets:
       - Keyboard/SuggestionSlots.swift
       - Keyboard/NumberChips.swift
       - Keyboard/LunarDate.swift
+      - path: ../App/Sources/LunarCalendar.swift
       - Keyboard/MathResults.swift
       - Keyboard/VNSuggest.swift
       - Keyboard/VNLexicon2.swift
