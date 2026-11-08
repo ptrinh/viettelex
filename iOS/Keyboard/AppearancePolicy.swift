@@ -4,12 +4,12 @@ import UIKit
 /// (host/hệ thống). Không dùng trait của KeyboardView: lúc viewWillAppear view chưa
 /// vào window nên trait `.unspecified` ⇒ phím sáng trên nền tối (bug 26/09/2026).
 enum AppearancePolicy {
+    /// Sáng/tối LUÔN theo chế độ của máy (trait), KHÔNG nghe `keyboardAppearance` app/ô xin (Phil 08/11/2026:
+    /// app ép .light làm theme đổi sang bảng màu sáng giữa chừng — trông như lỗi). `appearance` giữ trong chữ
+    /// ký để chỗ gọi không đổi, nhưng không còn quyết định gì.
     static func isDark(appearance: UIKeyboardAppearance, style: UIUserInterfaceStyle) -> Bool {
-        switch appearance {
-        case .dark: return true
-        case .light: return false
-        default: return style == .dark
-        }
+        _ = appearance
+        return style == .dark
     }
 
     /// MỘT nguồn sáng/tối cho mỗi lần hiện (bug Phil 19/10/2026: nền + thanh gợi ý TỐI nhưng phím SÁNG,

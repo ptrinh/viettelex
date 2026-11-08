@@ -31,7 +31,9 @@ final class LateDarkTraitTests: XCTestCase {
         XCTAssertFalse(kb.isDarkAppearance)
         kb.updateDark(AppearancePolicy.isDark(appearance: .default, style: .dark))
         XCTAssertTrue(kb.isDarkAppearance)
-        kb.updateDark(AppearancePolicy.isDark(appearance: .light, style: .dark))   // host ép sáng
+        kb.updateDark(AppearancePolicy.isDark(appearance: .light, style: .dark))   // host xin sáng: vẫn theo máy (tối)
+        XCTAssertTrue(kb.isDarkAppearance)
+        kb.updateDark(AppearancePolicy.isDark(appearance: .default, style: .light))
         XCTAssertFalse(kb.isDarkAppearance)
     }
 }

@@ -8,9 +8,10 @@ final class AppearancePolicyTests: XCTestCase {
         XCTAssertTrue(AppearancePolicy.isDark(appearance: .default, style: .dark))
         XCTAssertFalse(AppearancePolicy.isDark(appearance: .default, style: .light))
     }
-    func testExplicitAppearanceWins() {
-        XCTAssertTrue(AppearancePolicy.isDark(appearance: .dark, style: .light))
-        XCTAssertFalse(AppearancePolicy.isDark(appearance: .light, style: .dark))
+    /// Phil 08/11/2026: luôn theo chế độ của máy — app/ô xin .light/.dark KHÔNG đổi bảng màu theme.
+    func testFieldAppearanceIgnoredFollowsDevice() {
+        XCTAssertFalse(AppearancePolicy.isDark(appearance: .dark, style: .light))
+        XCTAssertTrue(AppearancePolicy.isDark(appearance: .light, style: .dark))
     }
 
     /// Bug Phil 19/10/2026 (chập chờn): nền + thanh gợi ý tối nhưng phím sáng. MỌI chỗ phải ra cùng một
@@ -22,8 +23,8 @@ final class AppearancePolicyTests: XCTestCase {
         XCTAssertFalse(P.presentationDark(fieldAppearance: .default, viewStyle: .light, controllerStyle: .dark))
         XCTAssertTrue(P.presentationDark(fieldAppearance: .default, viewStyle: .unspecified, controllerStyle: .dark))
         XCTAssertTrue(P.presentationDark(fieldAppearance: nil, viewStyle: .unspecified, controllerStyle: .dark))
-        XCTAssertFalse(P.presentationDark(fieldAppearance: .light, viewStyle: .dark, controllerStyle: .dark))
-        XCTAssertTrue(P.presentationDark(fieldAppearance: .dark, viewStyle: .light, controllerStyle: .light))
+        XCTAssertTrue(P.presentationDark(fieldAppearance: .light, viewStyle: .dark, controllerStyle: .dark))
+        XCTAssertFalse(P.presentationDark(fieldAppearance: .dark, viewStyle: .light, controllerStyle: .light))
         for a in [UIKeyboardAppearance.default, .light, .dark] {
             for v in [UIUserInterfaceStyle.unspecified, .light, .dark] {
                 for c in [UIUserInterfaceStyle.light, .dark] {
