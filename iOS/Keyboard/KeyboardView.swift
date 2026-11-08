@@ -7187,6 +7187,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         v.shareCoordinateSpace(with: self)
         v.setCornerRadius(wallpaperView.layer.cornerRadius)
+        // Người nhảy (không ảnh nền): chàng trai nếu Bạn đồng hành đang chọn chàng trai, còn lại cô gái.
+        v.dancer = NightDancer.character(BuddyCharacter.load(UserDefaultsProvider.shared))
         v.setPhoto(wallpaperActive ? wallpaperView.image?.cgImage : nil)
         spotlight = v
     }

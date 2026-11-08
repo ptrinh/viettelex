@@ -226,20 +226,4 @@ internal object BuiltinThemesData {
   ]
 }
 """
-    /** Tư thế bóng cô gái nhảy (theme Neon Night Club — [DancerFigure]), từ themes/dancer-poses.json. */
-    const val DANCER_JSON = """
-{
-  "v": 1,
-  "poses": [
-    {"id": "vArms", "torso": 180, "lua": 215, "lfa": 200, "rua": 145, "rfa": 160, "lth": -16, "lsh": -10, "rth": 16, "rsh": 10, "hair": 12, "flare": 40},
-    {"id": "point", "torso": 172, "lua": -40, "lfa": 40, "rua": 158, "rfa": 172, "lth": -6, "lsh": 0, "rth": 62, "rsh": 72, "hair": -18, "flare": 70},
-    {"id": "jump", "torso": 180, "lua": 238, "lfa": 214, "rua": 122, "rfa": 146, "lth": -42, "lsh": 28, "rth": 38, "rsh": -26, "hair": 4, "flare": 90},
-    {"id": "spin", "torso": 190, "lua": 228, "lfa": 168, "rua": 58, "rfa": 22, "lth": 8, "lsh": -4, "rth": -9, "rsh": 6, "hair": 72, "flare": 100},
-    {"id": "disco", "torso": 186, "lua": -32, "lfa": -30, "rua": 148, "rfa": 150, "lth": -12, "lsh": -12, "rth": 26, "rsh": 4, "hair": -10, "flare": 30},
-    {"id": "clap", "torso": 178, "lua": 206, "lfa": 158, "rua": 154, "rfa": 202, "lth": -64, "lsh": 8, "rth": 5, "rsh": 0, "hair": 6, "flare": 60},
-    {"id": "groove", "torso": 162, "lua": 272, "lfa": 292, "rua": 232, "rfa": 262, "lth": -20, "lsh": 6, "rth": 10, "rsh": 22, "hair": -42, "flare": 55},
-    {"id": "hips", "torso": 184, "lua": -58, "lfa": 48, "rua": 58, "rfa": -48, "lth": -8, "lsh": -8, "rth": 30, "rsh": -8, "hair": 8, "flare": 35}
-  ]
-}
-"""
 }

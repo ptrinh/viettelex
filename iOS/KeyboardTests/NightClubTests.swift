@@ -1,7 +1,7 @@
 import XCTest
 
-/// Theme Neon Night Club: Đèn rọi (SpotlightFx / SpotlightLights), quả cầu disco, Sàn nhảy LED (DanceFloor), bóng cô gái
-/// nhảy (DancerFigure). Số tham chiếu CHUNG Android (keyboard/src/test/.../SpotlightTests.kt).
+/// Theme Neon Night Club: Đèn rọi (SpotlightFx / SpotlightLights), quả cầu disco, Sàn nhảy LED (DanceFloor), người nhảy
+/// hoạt hình (NightDancer). Số tham chiếu CHUNG Android (keyboard/src/test/.../SpotlightTests.kt).
 final class NightClubTests: XCTestCase {
     override func setUp() {
         super.setUp()
@@ -128,47 +128,71 @@ final class NightClubTests: XCTestCase {
         XCTAssertTrue(layers.allSatisfy { $0.animation(forKey: "fx") != nil })
     }
 
-    // MARK: Bóng cô gái nhảy
+    // MARK: Người nhảy hoạt hình (NightDancer) — số CHUNG Android SpotlightTests
 
-    func testDancerPosesParseAndRotate() {
-        let poses = DancerFigure.poses
-        XCTAssertEqual(poses.map(\.id), ["vArms", "point", "jump", "spin", "disco", "clap", "groove", "hips"])
-        XCTAssertEqual(DancerFigure.parse(BuiltinThemesData.dancerJson), poses)
-        // Xoay vòng: đủ 8 tư thế mỗi 8 lần nháy, không lặp liền.
-        let seq = (1...16).map { DancerFigure.poseIndex(press: $0, count: poses.count) }
-        XCTAssertEqual(Array(seq.prefix(8)), [3, 6, 1, 4, 7, 2, 5, 0])
-        XCTAssertEqual(Set(seq.prefix(8)).count, 8)
-        for i in 1..<seq.count { XCTAssertNotEqual(seq[i], seq[i - 1]) }
-        // Đọc chặt: mục hỏng bị bỏ, JSON hỏng ⇒ rỗng.
-        XCTAssertEqual(DancerFigure.parse("{"), [])
-        XCTAssertEqual(DancerFigure.parse(#"{"poses":[{"id":"a","torso":180}]}"#), [])
-        XCTAssertEqual(DancerFigure.parse(#"{"poses":[{"id":"a","torso":999,"lua":0,"lfa":0,"rua":0,"rfa":0,"lth":0,"lsh":0,"rth":0,"rsh":0,"hair":0,"flare":0}]}"#), [])
-        XCTAssertEqual(DancerFigure.parse(#"{"poses":[{"id":"a","torso":180,"lua":0,"lfa":0,"rua":0,"rfa":0,"lth":0,"lsh":0,"rth":0,"rsh":0,"hair":0,"flare":50}]}"#).count, 1)
-        XCTAssertLessThan(BuiltinThemesData.dancerJson.utf8.count, 30 * 1024, "dữ liệu nhỏ")
+    /// Biến thể (khung × lật) tất định, không lặp liền, đủ 14 biến thể. = Android dancerVariants.
+    func testDancerVariants() {
+        XCTAssertEqual(NightDancer.sequence, [0, 1, 0, 1, 2, 3, 4, 5, 6])
+        XCTAssertEqual(NightDancer.variants, 14)
+        XCTAssertEqual(NightDancer.frame(3), 3); XCTAssertFalse(NightDancer.mirrored(3))
+        XCTAssertEqual(NightDancer.frame(10), 3); XCTAssertTrue(NightDancer.mirrored(10))
+        let golden = [1, 7, 1, 9, 3, 4, 5, 4, 7, 8, 0, 8, 2, 3, 4, 12, 13, 0, 12, 0, 1, 2, 3, 11, 12, 6, 11, 1, 0, 1, 9,
+                      10, 3, 12, 6, 0, 1, 6, 8, 9]
+        var p = -1
+        let seq: [Int] = (1...400).map { n in p = NightDancer.next(prev: p, flash: n); return p }
+        XCTAssertEqual(Array(seq.prefix(40)), golden)
+        XCTAssertTrue(seq.allSatisfy { (0..<NightDancer.variants).contains($0) })
+        for i in 1..<seq.count { XCTAssertNotEqual(seq[i - 1], seq[i], "lần \(i)") }
+        XCTAssertEqual(Set(seq.prefix(40)).count, 14, "đủ 14 biến thể trong 40 lần nháy")
+        let mirrors = seq.filter(NightDancer.mirrored).count
+        let twice = (1..<seq.count).filter { NightDancer.mirrored(seq[$0]) && NightDancer.mirrored(seq[$0 - 1]) }.count
+        XCTAssertTrue((100...200).contains(mirrors), "lật ~1/3 số lần")
+        XCTAssertLessThan(twice * 2, mirrors, "lật hai lần liền ít hơn hẳn")
+        XCTAssertGreaterThan(seq.enumerated().filter { NightDancer.frame($0.element) == NightDancer.sequence[($0.offset + 1) % 9] }.count,
+                             240, "theo chuỗi nhảy là chính")
+        for n in 1...200 { for prev in 0..<NightDancer.variants { XCTAssertNotEqual(NightDancer.next(prev: prev, flash: n), prev) } }
     }
 
-    /// Hình học: 17 đa giác / 216 điểm, cùng chiều quay, vừa khung (86 % cao, giữa ngang), checksum chung Android.
-    func testDancerGeometry() {
-        let golden: [Double] = [71623.601231, 67304.161350, 70302.961617, 73226.334031, 75023.606427, 72363.604897,
-                                71621.713071, 74609.106699]
-        for (i, p) in DancerFigure.poses.enumerated() {
-            let polys = DancerFigure.fitted(p, width: 400, height: 300)
-            XCTAssertEqual(polys.count, 17, p.id)
-            XCTAssertEqual(polys.reduce(0) { $0 + $1.count / 2 }, 216, p.id)
-            var minY = Double.infinity, maxY = -Double.infinity
-            for q in polys {
-                var a = 0.0
-                for k in stride(from: 0, to: q.count, by: 2) {
-                    let n = (k + 2) % q.count
-                    a += q[k] * q[n + 1] - q[n] * q[k + 1]
-                    XCTAssertTrue(q[k] > 0 && q[k] < 400, p.id)
-                    minY = min(minY, q[k + 1]); maxY = max(maxY, q[k + 1])
-                }
-                XCTAssertGreaterThan(a, 0, "\(p.id) cùng chiều quay")
+    func testDancerCharacterCellsAndDecodeSize() {
+        XCTAssertEqual(NightDancer.character(.off), .girl)
+        XCTAssertEqual(NightDancer.character(.girl), .girl)
+        XCTAssertEqual(NightDancer.character(.boy), .boy)
+        for c in [BuddyCharacter.cat, .chick, .ai] { XCTAssertEqual(NightDancer.character(c), .girl) }
+        XCTAssertEqual(NightDancer.cell(0), CGRect(x: 0, y: 0, width: 0.25, height: 0.5))
+        XCTAssertEqual(NightDancer.cell(3), CGRect(x: 0.75, y: 0, width: 0.25, height: 0.5))
+        XCTAssertEqual(NightDancer.cell(6), CGRect(x: 0.5, y: 0.5, width: 0.25, height: 0.5))
+        let r = NightDancer.rect(width: 400, height: 260, cellAspect: 0.75)
+        XCTAssertEqual(r.height, 221, accuracy: 1e-9); XCTAssertEqual(r.width, 165.75, accuracy: 1e-9)
+        XCTAssertEqual(r.minX, 117.125, accuracy: 1e-9); XCTAssertEqual(r.minY, 39, accuracy: 1e-9)
+        XCTAssertTrue(CGRect(x: 0, y: 0, width: 400, height: 260).contains(r))
+        XCTAssertEqual(NightDancer.decodeLongEdge(displayHeight: 221, scale: 3, atlasW: 1536, atlasH: 1024), 1536)
+        XCTAssertEqual(NightDancer.decodeLongEdge(displayHeight: 221, scale: 2, atlasW: 1536, atlasH: 1024), 1326)
+        XCTAssertEqual(NightDancer.decodeLongEdge(displayHeight: 85, scale: 2, atlasW: 1536, atlasH: 1024), 510)
+        XCTAssertEqual(NightDancer.decodeLongEdge(displayHeight: 400, scale: 3, atlasW: 4096, atlasH: 2731), 2048)
+        XCTAssertEqual(NightDancer.decodeLongEdge(displayHeight: 221, scale: 3, atlasW: 0, atlasH: 0), 0)
+        XCTAssertEqual(NightDancer.decodedBytes(longEdge: 1536, atlasW: 1536, atlasH: 1024), 6_291_456)
+        XCTAssertEqual(NightDancer.decodedBytes(longEdge: 1326, atlasW: 1536, atlasH: 1024), 4_688_736)
+        XCTAssertLessThan(NightDancer.decodedBytes(longEdge: 2048, atlasW: 2048, atlasH: 1365), 11_200_000, "≤ ~11 MB ở trần")
+    }
+
+    /// Giải atlas thật theo cỡ hiển thị + đo RAM (phys_footprint) — báo con số trong log test.
+    func testDancerAtlasDecodeSizeAndMemory() throws {
+        func footprint() -> Int {
+            var info = task_vm_info_data_t()
+            var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+            let kr = withUnsafeMutablePointer(to: &info) {
+                $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
             }
-            XCTAssertEqual(minY, 21, accuracy: 1e-9); XCTAssertEqual(maxY, 279, accuracy: 1e-9)
-            XCTAssertEqual(DancerFigure.checksum(polys), golden[i], accuracy: 1e-5, p.id)
+            return kr == KERN_SUCCESS ? Int(info.phys_footprint) : 0
         }
+        let before = footprint()
+        let img = try XCTUnwrap(NightDancer.decodeAtlas(.girl, displayHeight: 221, scale: 3))
+        let after = footprint()
+        XCTAssertEqual(max(img.width, img.height), 1536, "@3x, bàn phím 260 pt ⇒ ảnh gốc 1536 px (không mờ)")
+        XCTAssertEqual(img.bytesPerRow * img.height, 6_291_456, accuracy: 64 * 1024)
+        print("NightDancer RAM: ảnh \(img.width)×\(img.height) = \(img.bytesPerRow * img.height) B; phys_footprint +\(after - before) B")
+        let small = try XCTUnwrap(NightDancer.decodeAtlas(.boy, displayHeight: 85, scale: 2))
+        XCTAssertEqual(max(small.width, small.height), 510, "cỡ nhỏ ⇒ giải nhỏ")
     }
 
     // MARK: Lớp đèn rọi
@@ -179,35 +203,47 @@ final class NightClubTests: XCTestCase {
         v.setPhoto(nil)
         XCTAssertTrue(v.debugDarkHidden, "không ảnh: không phủ đen thêm (nền theme đã tối)")
         XCTAssertTrue(v.debugTextureVisible)
-        XCTAssertNotNil(v.debugDancer?.path)
-        XCTAssertFalse(v.debugDancer?.isHidden ?? true)
+        v.debugLoadAtlasNow(scale: 2)
+        XCTAssertNotNil(v.debugAtlas)
+        XCTAssertTrue(v.debugDancerVisible)
+        XCTAssertEqual(v.debugDancerFrame, NightDancer.rect(width: 400, height: 300, cellAspect: 0.75), "85 % cao, đứng đáy, giữa")
+        XCTAssertEqual(v.debugDancerCell, NightDancer.cell(0), "đứng thẳng trước lần nháy đầu")
         XCTAssertTrue(v.debugLitHidden, "nghỉ: không lượt vẽ mặt nạ")
         v.light(key: CGRect(x: 100, y: 200, width: 30, height: 40)); v.flush()
         XCTAssertFalse(v.debugLitHidden)
-        XCTAssertEqual(v.poseIndex, 3, "nháy ⇒ tư thế kế")
+        XCTAssertEqual(v.variant, NightDancer.next(prev: 0, flash: 1), "nháy ⇒ biến thể kế")
+        XCTAssertEqual(v.debugDancerCell, NightDancer.cell(NightDancer.frame(v.variant)))
+        XCTAssertEqual(v.debugDancerMirrored, NightDancer.mirrored(v.variant))
         XCTAssertNotNil(v.debugHoleLayers[0].animation(forKey: "fx"))
         XCTAssertEqual(v.debugHoleLayers[0].bounds.width, CGFloat(2 * SpotlightFx.radius(keyWidth: 30, level: 0)), accuracy: 0.01)
         XCTAssertEqual(v.debugHoleLayers[0].position, CGPoint(x: 115, y: 220))
-        let first = v.debugDancer?.path
-        v.light(key: CGRect(x: 10, y: 20, width: 30, height: 40)); v.flush()
-        XCTAssertEqual(v.poseIndex, 6)
-        XCTAssertNotEqual(v.debugDancer?.path, first, "đổi path")
-        XCTAssertEqual(v.debugRim?.path, v.debugDancer?.path, "viền cùng hình bóng")
-        XCTAssertEqual(v.debugRim?.strokeColor, UIColor(red: 0x9B / 255.0, green: 0x5C / 255.0, blue: 1, alpha: 1).cgColor,
-                       "viền theo màu đèn vừa bật (lần 2: tím)")
-        for _ in 0..<10 { v.light(key: CGRect(x: 10, y: 20, width: 30, height: 40)); v.flush() }
-        XCTAssertEqual(v.debugLights.presses, 12)
+        var prev = v.variant
+        for i in 0..<20 {
+            v.light(key: CGRect(x: 10, y: 20, width: 30, height: 40)); v.flush()
+            XCTAssertNotEqual(v.variant, prev, "không lặp liền (\(i))")
+            prev = v.variant
+            if i == 0 {
+                XCTAssertEqual(v.debugRimColor, UIColor(red: 0x9B / 255.0, green: 0x5C / 255.0, blue: 1, alpha: 1).cgColor,
+                               "viền theo màu đèn vừa bật (lần 2: tím)")
+            }
+        }
+        XCTAssertEqual(v.debugLights.presses, 21)
         XCTAssertLessThanOrEqual(v.debugLights.live(at: CACurrentMediaTime()), SpotlightFx.cap)
         XCTAssertLessThanOrEqual(v.debugDots.count, DiscoBall.dotPool, "chấm sáng pool cố định")
+        XCTAssertTrue(CGRect(x: 0, y: 0, width: 400, height: 300).contains(v.debugDancerFrame), "luôn trong bàn phím")
         v.debugIdle()
         XCTAssertTrue(v.debugLitHidden)
         XCTAssertTrue(v.debugTintLayers.allSatisfy(\.isHidden))
+        v.dancer = .boy
+        XCTAssertNil(v.debugAtlas, "đổi nhân vật ⇒ thả atlas cũ")
     }
 
     func testSpotlightViewWithPhotoSharesImageAndHidesDancer() throws {
         let v = SpotlightView(frame: CGRect(x: 0, y: 0, width: 400, height: 300))
         v.layoutIfNeeded()
         v.setPhoto(nil)
+        v.debugLoadAtlasNow(scale: 2)
+        XCTAssertNotNil(v.debugAtlas)
         let img = try XCTUnwrap(UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { c in
             UIColor.red.setFill(); c.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
         }.cgImage)
@@ -215,10 +251,13 @@ final class NightClubTests: XCTestCase {
         XCTAssertTrue(v.hasPhoto)
         XCTAssertTrue((v.debugLitContents as AnyObject?) === img, "CHÍNH CGImage của ảnh nền — không sao chép")
         XCTAssertFalse(v.debugDarkHidden, "ảnh: phủ đen 90 %")
-        XCTAssertTrue(v.debugDancer?.isHidden ?? true, "có ảnh nền ⇒ không hiện bóng")
+        XCTAssertNil(v.debugAtlas, "có ảnh nền ⇒ thả atlas (0 byte)")
+        XCTAssertFalse(v.debugDancerVisible, "có ảnh nền ⇒ không người nhảy")
+        v.debugLoadAtlasNow(scale: 2)
+        XCTAssertNil(v.debugAtlas, "có ảnh nền ⇒ không giải")
         XCTAssertFalse(v.debugTextureVisible)
         v.light(key: CGRect(x: 100, y: 200, width: 30, height: 40)); v.flush()
-        XCTAssertEqual(v.poseIndex, 0, "có ảnh: không đổi tư thế")
+        XCTAssertEqual(v.variant, 0, "có ảnh: không đổi biến thể")
         v.halt()
         XCTAssertTrue(v.debugLitHidden)
     }

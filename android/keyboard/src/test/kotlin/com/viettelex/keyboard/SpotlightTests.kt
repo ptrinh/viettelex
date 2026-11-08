@@ -6,7 +6,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Theme Neon Night Club — Đèn rọi, quả cầu disco, Sàn nhảy LED, bóng cô gái nhảy. Số CHUNG iOS NightClubTests.swift. */
+/** Theme Neon Night Club — Đèn rọi, quả cầu disco, Sàn nhảy LED, người nhảy hoạt hình (NightDancer). Số CHUNG iOS NightClubTests.swift. */
 class SpotlightTests {
     @Test fun spotlightRadiusAlphaScale() {
         assertEquals(54.4, SpotlightFx.radius(34.0, 0), 1e-9)
@@ -98,43 +98,55 @@ class SpotlightTests {
         assertTrue(DanceFloor.grid(0.0, 0.0, 4000.0, 3000.0, 0.0, 0.0, 30.0, 40.0, 0).size <= DanceFloor.MAX_GRID)
     }
 
-    @Test fun dancerPosesParseAndRotate() {
-        val poses = DancerFigure.POSES
-        assertEquals(listOf("vArms", "point", "jump", "spin", "disco", "clap", "groove", "hips"), poses.map { it.id })
-        val seq = (1..16).map { DancerFigure.poseIndex(it, poses.size) }
-        assertEquals(listOf(3, 6, 1, 4, 7, 2, 5, 0), seq.take(8))
-        assertEquals(8, seq.take(8).toSet().size)
-        for (i in 1 until seq.size) assertNotEquals(seq[i], seq[i - 1])
-        assertEquals(emptyList<DancerPose>(), DancerFigure.parse("{"))
-        assertEquals(emptyList<DancerPose>(), DancerFigure.parse("""{"poses":[{"id":"a","torso":180}]}"""))
-        assertEquals(emptyList<DancerPose>(), DancerFigure.parse("""{"poses":[{"id":"a","torso":999,"lua":0,"lfa":0,"rua":0,"rfa":0,"lth":0,"lsh":0,"rth":0,"rsh":0,"hair":0,"flare":0}]}"""))
-        assertEquals(1, DancerFigure.parse("""{"poses":[{"id":"a","torso":180,"lua":0,"lfa":0,"rua":0,"rfa":0,"lth":0,"lsh":0,"rth":0,"rsh":0,"hair":0,"flare":50}]}""").size)
-        assertTrue(BuiltinThemesData.DANCER_JSON.toByteArray().size < 30 * 1024)
-        // Chuỗi nhúng trùng nguồn (Scripts/gen-builtin-themes.py).
-        val src = java.io.File("../../themes/dancer-poses.json").takeIf { it.exists() }?.readText()?.trimEnd('\n')
-        if (src != null) assertEquals(src, BuiltinThemesData.DANCER_JSON.trim())
+    /** Người nhảy hoạt hình: biến thể (khung × lật) tất định, không lặp liền, đủ 14 biến thể. = iOS testDancerVariants. */
+    @Test fun dancerVariants() {
+        assertEquals(listOf(0, 1, 0, 1, 2, 3, 4, 5, 6), NightDancer.SEQUENCE.toList())
+        assertEquals(14, NightDancer.VARIANTS)
+        assertEquals(3, NightDancer.frame(3)); assertFalse(NightDancer.mirrored(3))
+        assertEquals(3, NightDancer.frame(10)); assertTrue(NightDancer.mirrored(10))
+        val golden = listOf(1, 7, 1, 9, 3, 4, 5, 4, 7, 8, 0, 8, 2, 3, 4, 12, 13, 0, 12, 0, 1, 2, 3, 11, 12, 6, 11, 1, 0, 1, 9,
+            10, 3, 12, 6, 0, 1, 6, 8, 9)
+        var p = -1
+        val seq = (1..400).map { n -> NightDancer.next(p, n).also { p = it } }
+        assertEquals(golden, seq.take(40))
+        assertTrue(seq.all { it in 0 until NightDancer.VARIANTS })
+        for (i in 1 until seq.size) assertNotEquals("lần $i", seq[i - 1], seq[i])
+        assertEquals("đủ 14 biến thể trong 40 lần nháy", 14, seq.take(40).toSet().size)
+        val mirrors = seq.count { NightDancer.mirrored(it) }
+        val twice = (1 until seq.size).count { NightDancer.mirrored(seq[it]) && NightDancer.mirrored(seq[it - 1]) }
+        assertTrue("lật ~1/3 số lần", mirrors in 100..200)
+        assertTrue("lật hai lần liền ít hơn hẳn", twice * 2 < mirrors)
+        assertTrue("theo chuỗi nhảy là chính",
+            seq.withIndex().count { (i, v) -> NightDancer.frame(v) == NightDancer.SEQUENCE[(i + 1) % 9] } > 240)
+        // Không trùng biến thể trước kể cả khi chuỗi rơi đúng nó.
+        for (n in 1..200) for (prev in 0 until NightDancer.VARIANTS) assertNotEquals(prev, NightDancer.next(prev, n))
     }
 
-    @Test fun dancerGeometry() {
-        val golden = doubleArrayOf(71623.601231, 67304.161350, 70302.961617, 73226.334031, 75023.606427, 72363.604897,
-            71621.713071, 74609.106699)
-        for ((i, p) in DancerFigure.POSES.withIndex()) {
-            val polys = DancerFigure.fitted(p, 400.0, 300.0)
-            assertEquals(p.id, 17, polys.size)
-            assertEquals(p.id, 216, polys.sumOf { it.size / 2 })
-            var minY = Double.POSITIVE_INFINITY; var maxY = Double.NEGATIVE_INFINITY
-            for (q in polys) {
-                var a = 0.0
-                for (k in q.indices step 2) {
-                    val n = (k + 2) % q.size
-                    a += q[k] * q[n + 1] - q[n] * q[k + 1]
-                    assertTrue(p.id, q[k] > 0 && q[k] < 400)
-                    minY = minOf(minY, q[k + 1]); maxY = maxOf(maxY, q[k + 1])
-                }
-                assertTrue("${p.id} cùng chiều quay", a > 0)
-            }
-            assertEquals(21.0, minY, 1e-9); assertEquals(279.0, maxY, 1e-9)
-            assertEquals(p.id, golden[i], DancerFigure.checksum(polys), 1e-5)
-        }
+    @Test fun dancerCharacterCellsAndDecodeSize() {
+        assertEquals(BuddyCharacter.GIRL, NightDancer.character(BuddyCharacter.OFF))
+        assertEquals(BuddyCharacter.GIRL, NightDancer.character(BuddyCharacter.GIRL))
+        assertEquals(BuddyCharacter.BOY, NightDancer.character(BuddyCharacter.BOY))
+        for (c in listOf(BuddyCharacter.CAT, BuddyCharacter.CHICK, BuddyCharacter.AI)) assertEquals(BuddyCharacter.GIRL, NightDancer.character(c))
+        assertEquals(listOf(0.0, 0.0, 0.25, 0.5), NightDancer.cell(0).toList())
+        assertEquals(listOf(0.75, 0.0, 0.25, 0.5), NightDancer.cell(3).toList())
+        assertEquals(listOf(0.5, 0.5, 0.25, 0.5), NightDancer.cell(6).toList())
+        // Khung vẽ: cao 85 %, đứng đáy, giữa ngang, trong bàn phím.
+        val r = NightDancer.rect(400.0, 260.0, 0.75)
+        assertEquals(221.0, r[3], 1e-9); assertEquals(165.75, r[2], 1e-9)
+        assertEquals(117.125, r[0], 1e-9); assertEquals(39.0, r[1], 1e-9)
+        assertTrue(r[0] >= 0 && r[0] + r[2] <= 400 && r[1] >= 0 && r[1] + r[3] <= 260)
+        // Cỡ giải theo cỡ hiển thị (atlas 1536 × 1024): @3x chạm ảnh gốc, @2x nhỏ hơn, cỡ nhỏ thì nhỏ nữa; trần 2048.
+        assertEquals(1536, NightDancer.decodeLongEdge(221.0, 3.0, 1536, 1024))
+        assertEquals(1326, NightDancer.decodeLongEdge(221.0, 2.0, 1536, 1024))
+        assertEquals(510, NightDancer.decodeLongEdge(85.0, 2.0, 1536, 1024))
+        assertEquals(2048, NightDancer.decodeLongEdge(400.0, 3.0, 4096, 2731))
+        assertEquals(0, NightDancer.decodeLongEdge(221.0, 3.0, 0, 0))
+        assertEquals(6_291_456L, NightDancer.decodedBytes(1536, 1536, 1024))
+        assertEquals(4_688_736L, NightDancer.decodedBytes(1326, 1536, 1024))
+        assertTrue("≤ ~11 MB ở trần", NightDancer.decodedBytes(2048, 2048, 1365) < 11_200_000L)
+        // Android inSampleSize: không bao giờ mờ hơn cỡ cần.
+        assertEquals(1, NightDancer.sampleSize(1536, 1536)); assertEquals(1, NightDancer.sampleSize(1536, 1326))
+        assertEquals(2, NightDancer.sampleSize(1536, 510)); assertEquals(4, NightDancer.sampleSize(1536, 300))
+        assertEquals(1, NightDancer.sampleSize(1536, 0))
     }
 }

@@ -9,13 +9,15 @@
 //   `lit` chứa CHÍNH CGImage của ảnh nền đang hiện (không giải mã / sao chép thêm) cắt bằng mặt nạ là vài
 //   CAGradientLayer radial (lỗ sáng), cộng quầng tô màu neon hồng / tím / lục lam xoay vòng mỗi lần bấm. Tắt dần
 //   ~0,7–0,9 s, tối đa 6 quầng (quầng cũ nhất bị thay); gõ nhanh (ComboMeter) ⇒ quầng to + sáng + lâu hơn chút.
-// • Không có ảnh nền: phía sau phím là BÓNG ĐEN cô gái nhảy (DancerFigure — 8 tư thế vector, kiểu bóng đen quảng cáo máy
-//   nghe nhạc, đầm kín): mỗi lần đèn nháy bóng đổi tư thế, đèn rọi viền neon theo màu đèn + phông tím đêm quanh bóng;
-//   ngoài quầng sáng mọi thứ chìm trong tối. Có ảnh nền ⇒ không có bóng.
+// • Không có ảnh nền: phía sau phím là NGƯỜI NHẢY HOẠT HÌNH (NightDancer — atlas 4 × 2 của Bạn đồng hành, cô gái /
+//   chàng trai) cao 85 % bàn phím, chìm trong tối (~12 % sáng); đèn rọi mới thấy màu thật + viền neon theo màu đèn + phông
+//   tím đêm. Mỗi lần đèn nháy ⇒ biến thể kế (7 khung × lật ngang, không lặp liền) — chỉ đổi contentsRect / transform.
+//   Atlas giải MỘT lần trên luồng nền theo cỡ hiển thị (NightDancer.decodeLongEdge); có ảnh nền ⇒ không giải / thả ra.
 // • Hiệu năng: lớp + animation dựng MỘT lần (pool); bấm chỉ đặt vị trí / cỡ + gắn animation dựng sẵn (render server
 //   chạy phần còn lại — không timer khung hình). Hết quầng ⇒ ẩn `lit` (không còn lượt vẽ mặt nạ) bằng MỘT asyncAfter
 //   cho cả loạt gõ. Nghỉ = 0 animation.
 import UIKit
+import ImageIO
 
 /// Cổng chạy (thuần): theme có "photoFx":"spotlight" + Plus + không tiết kiệm pin. Giảm chuyển động KHÔNG tắt
 /// (như hiệu ứng phím — Phil 19/10/2026). Android SpotlightPolicy y hệt.
@@ -155,15 +157,28 @@ final class SpotlightView: UIView {
     private let holes = CALayer()
     private var holeLayers: [CAGradientLayer] = []
     private var tintLayers: [CAGradientLayer] = []
-    /// Không ảnh nền: "phông" tím đêm (trong `lit` — chỉ lộ dưới đèn) + viền neon của bóng (trong `lit`) + bóng đen cô gái
-    /// nhảy (NGOÀI `lit`, trên quầng tô ⇒ che nửa trong của viền: chỉ còn vành sáng quanh bóng). Dựng lười.
+    /// Không ảnh nền: "phông" tím đêm (trong `lit` — chỉ lộ dưới đèn) + người nhảy: bản tối (NGOÀI `lit`: ảnh + lớp đen
+    /// 88 % cắt theo alpha ảnh) và bản màu thật có bóng neon (TRONG `lit` ⇒ chỉ lộ dưới đèn). Dựng lười; atlas giải nền.
     private var texture: CAGradientLayer?
-    private var rim: CAShapeLayer?
-    private var dancer: CAShapeLayer?
     private var textureBuiltFor: CGSize = .zero
-    private var dancerPaths: [Int: CGPath] = [:]
+    private let dimBox = CALayer(), dimArt = CALayer(), dimShade = CALayer(), dimMask = CALayer()
+    private let litBox = CALayer(), litArt = CALayer()
+    private var dancerBuilt = false
+    private var atlas: CGImage?
+    private var atlasGen = 0
+    private var atlasLoading = false
     private var flashes = 0
-    private(set) var poseIndex = 0
+    /// Biến thể đang hiện (khung × lật — NightDancer.next); 0 = đứng thẳng trước lần nháy đầu.
+    private(set) var variant = 0
+    /// Nhân vật nhảy (NightDancer.character) — đổi ⇒ thả atlas cũ, giải lại.
+    var dancer: BuddyCharacter = .girl {
+        didSet {
+            guard dancer != oldValue else { return }
+            dropAtlas()
+            ensureAtlas()
+        }
+    }
+    private static let atlasQueue = DispatchQueue(label: "com.viettelex.nightclub.atlas", qos: .userInitiated)
     private let ball = CALayer()
     private let ballFacets = CAShapeLayer()
     private let ballCord = CAShapeLayer()
@@ -269,8 +284,10 @@ final class SpotlightView: UIView {
         lit.contents = img
         dark.isHidden = img == nil
         if img == nil { ensureTexture() }
-        for l in [texture, rim, dancer] as [CALayer?] { l?.isHidden = img != nil }
+        texture?.isHidden = img != nil
+        if img != nil { dropAtlas() }   // có ảnh nền ⇒ không người nhảy, thả atlas (0 byte)
         CATransaction.commit()
+        if img == nil { ensureAtlas() }
     }
 
     /// Bo góc theo nền bàn phím (2 góc trên).
@@ -299,7 +316,7 @@ final class SpotlightView: UIView {
         CATransaction.commit()
     }
 
-    /// Không ảnh nền: phông gradient + viền + bóng cô gái nhảy — dựng lười, path theo cỡ (cache theo tư thế).
+    /// Không ảnh nền: phông gradient + khung người nhảy — dựng lười theo cỡ.
     private func ensureTexture() {
         let size = bounds.size
         guard size.width > 0, size.height > 0 else { return }
@@ -308,43 +325,82 @@ final class SpotlightView: UIView {
             g.colors = SpotlightTexture.gradient.map { UIColor(neon: $0).cgColor }
             g.startPoint = CGPoint(x: 0, y: 0); g.endPoint = CGPoint(x: 1, y: 1)
             lit.insertSublayer(g, at: 0)
-            let r = CAShapeLayer()
-            r.fillColor = nil
-            r.lineWidth = CGFloat(DancerFigure.rimWidth * 2)       // nửa trong bị bóng che ⇒ vành = rimWidth
-            r.lineJoin = .round
-            r.strokeColor = UIColor(neon: SpotlightFx.colors[0]).cgColor
-            lit.addSublayer(r)
-            let d = CAShapeLayer()
-            d.fillColor = UIColor.black.cgColor
-            layer.insertSublayer(d, below: ball)
-            texture = g; rim = r; dancer = d
+            texture = g
+        }
+        if !dancerBuilt {
+            dancerBuilt = true
+            for l in [dimArt, dimMask, litArt] { l.contentsGravity = .resize; l.minificationFilter = .trilinear }
+            dimShade.backgroundColor = UIColor.black.withAlphaComponent(CGFloat(1 - NightDancer.shade)).cgColor
+            dimShade.mask = dimMask
+            dimBox.addSublayer(dimArt); dimBox.addSublayer(dimShade)
+            layer.insertSublayer(dimBox, below: lit)
+            litArt.shadowOffset = .zero
+            litArt.shadowOpacity = 1
+            litArt.shadowRadius = CGFloat(NightDancer.rim)
+            litArt.shadowColor = UIColor(neon: SpotlightFx.colors[0]).cgColor
+            litArt.shouldRasterize = true   // bóng neon tính MỘT lần mỗi biến thể; mặt nạ đèn chạy không vẽ lại bóng
+            litBox.addSublayer(litArt)
+            lit.addSublayer(litBox)
+            dimBox.isHidden = true; litBox.isHidden = true
         }
         guard textureBuiltFor != size else { return }
         textureBuiltFor = size
-        dancerPaths.removeAll()
         texture?.frame = lit.bounds
-        rim?.frame = lit.bounds
-        dancer?.frame = bounds
-        applyPose()
+        layoutDancer()
+        ensureAtlas()
     }
 
-    /// Path tư thế hiện tại ở cỡ hiện tại (toạ độ cục bộ 0…w, 0…h — dùng chung cho viền lẫn bóng).
-    private func applyPose() {
-        let poses = DancerFigure.poses
-        guard !poses.isEmpty, bounds.width > 0, bounds.height > 0 else { return }
-        let i = poseIndex % poses.count
-        let path: CGPath
-        if let p = dancerPaths[i] { path = p } else {
-            let m = CGMutablePath()
-            for q in DancerFigure.fitted(poses[i], width: Double(bounds.width), height: Double(bounds.height)) where q.count >= 6 {
-                m.move(to: CGPoint(x: q[0], y: q[1]))
-                for k in stride(from: 2, to: q.count, by: 2) { m.addLine(to: CGPoint(x: q[k], y: q[k + 1])) }
-                m.closeSubpath()
+    /// Giải atlas MỘT lần trên luồng nền (chỉ khi không có ảnh nền + đã biết cỡ). Xong ⇒ gắn vào 3 lớp (cùng CGImage).
+    private func ensureAtlas() {
+        guard !hasPhoto, atlas == nil, !atlasLoading, bounds.height > 0 else { return }
+        atlasLoading = true
+        let gen = atlasGen, c = dancer
+        let h = Double(bounds.height) * NightDancer.heightFraction
+        let scale = Double(window?.screen.scale ?? traitCollection.displayScale)
+        Self.atlasQueue.async { [weak self] in
+            let img = NightDancer.decodeAtlas(c, displayHeight: h, scale: max(scale, 1))
+            DispatchQueue.main.async {
+                guard let self, gen == self.atlasGen else { return }
+                self.atlasLoading = false
+                if !self.hasPhoto, let img { self.attachAtlas(img) }
             }
-            dancerPaths[i] = m; path = m
         }
-        rim?.path = path
-        dancer?.path = path
+    }
+
+    private func attachAtlas(_ img: CGImage) {
+        atlas = img
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        for l in [dimArt, dimMask, litArt] { l.contents = img }
+        litArt.rasterizationScale = window?.screen.scale ?? traitCollection.displayScale
+        dimBox.isHidden = false; litBox.isHidden = false
+        layoutDancer()
+        CATransaction.commit()
+    }
+
+    private func dropAtlas() {
+        atlasGen += 1; atlasLoading = false; atlas = nil
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        for l in [dimArt, dimMask, litArt] { l.contents = nil }
+        dimBox.isHidden = true; litBox.isHidden = true
+        CATransaction.commit()
+    }
+
+    /// Khung + ô + lật theo biến thể hiện tại (chỉ đặt thuộc tính — không giải / vẽ lại ảnh).
+    private func layoutDancer() {
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        let aspect: Double = atlas.map { Double($0.width) / Double(NightDancer.columns) / (Double($0.height) / Double(NightDancer.rows)) } ?? 0.75
+        // Gốc bounds có thể dời (chung hệ toạ độ với bàn phím — #151) ⇒ khung theo bounds, không theo (0, 0).
+        let r = NightDancer.rect(width: Double(bounds.width), height: Double(bounds.height), cellAspect: aspect)
+            .offsetBy(dx: bounds.minX, dy: bounds.minY)
+        let cell = NightDancer.cell(NightDancer.frame(variant))
+        let flip = NightDancer.mirrored(variant) ? CATransform3DMakeScale(-1, 1, 1) : CATransform3DIdentity
+        for box in [dimBox, litBox] {
+            box.transform = CATransform3DIdentity
+            box.frame = box === litBox ? layer.convert(r, to: lit) : r
+            box.transform = flip
+        }
+        for l in [dimArt, dimShade, dimMask, litArt] { l.frame = CGRect(origin: .zero, size: r.size) }
+        for l in [dimArt, dimMask, litArt] { l.contentsRect = cell }
     }
 
     // MARK: quả cầu disco
@@ -443,12 +499,12 @@ final class SpotlightView: UIView {
         let media = CACurrentMediaTime()
         lit.isHidden = false
         for r in pending { fire(r, media: media) }
-        if !hasPhoto, dancer != nil {
-            // Mỗi lần đèn nháy: bóng đổi tư thế (xoay vòng, không lặp liền) + viền theo màu đèn vừa bật.
+        if !hasPhoto {
+            // Mỗi lần đèn nháy: người nhảy sang biến thể kế (không lặp liền) + viền neon theo màu đèn vừa bật.
             flashes += 1
-            poseIndex = DancerFigure.poseIndex(press: flashes, count: DancerFigure.poses.count)
-            rim?.strokeColor = UIColor(neon: SpotlightFx.color(lights.presses - 1)).cgColor
-            applyPose()
+            variant = NightDancer.next(prev: variant, flash: flashes)
+            litArt.shadowColor = UIColor(neon: SpotlightFx.color(lights.presses - 1)).cgColor
+            layoutDancer()
         }
         spinBall(media: media)
         CATransaction.commit()
@@ -519,15 +575,26 @@ final class SpotlightView: UIView {
     var debugTintLayers: [CAGradientLayer] { tintLayers }
     var debugLitContents: Any? { lit.contents }
     var debugTextureVisible: Bool { texture.map { !$0.isHidden } ?? false }
-    var debugDancer: CAShapeLayer? { dancer }
-    var debugRim: CAShapeLayer? { rim }
+    var debugAtlas: CGImage? { atlas }
+    var debugDancerFrame: CGRect { dimBox.frame }
+    var debugDancerVisible: Bool { !dimBox.isHidden && !litBox.isHidden }
+    var debugDancerCell: CGRect { dimArt.contentsRect }
+    var debugDancerMirrored: Bool { dimBox.transform.m11 < 0 }
+    var debugRimColor: CGColor? { litArt.shadowColor }
+    /// Test: giải + gắn atlas ĐỒNG BỘ (đo RAM / ảnh xuất).
+    func debugLoadAtlasNow(scale: Double) {
+        guard !hasPhoto, let img = NightDancer.decodeAtlas(dancer, displayHeight: Double(bounds.height) * NightDancer.heightFraction,
+                                                           scale: scale) else { return }
+        atlasGen += 1; atlasLoading = false
+        attachAtlas(img)
+    }
     var debugBallPosition: CGPoint { ball.position }
     var debugDots: [CAShapeLayer] { dots }
     func debugIdle() { idle() }
 
     /// Ảnh xem trước (test xuất ảnh — layer.render bỏ qua mask / animation): vẽ lại bằng Core Graphics theo CÙNG hàm thuần
     /// các quầng `lights` (tâm, bề rộng phím, mức combo, số giây đã trôi, chỉ số màu) + tư thế + ảnh nền (nếu có) + quả cầu.
-    static func debugRender(in ctx: CGContext, size: CGSize, photo: CGImage?, pose: Int,
+    static func debugRender(in ctx: CGContext, size: CGSize, photo: CGImage?, atlas: CGImage?, variant: Int,
                             lights: [(center: CGPoint, keyWidth: Double, level: Int, dt: Double, color: Int)]) {
         let rect = CGRect(origin: .zero, size: size)
         let cs = CGColorSpaceCreateDeviceRGB()
@@ -536,14 +603,29 @@ final class SpotlightView: UIView {
             ctx.draw(photo, in: rect); ctx.restoreGState()
             ctx.setFillColor(UIColor.black.withAlphaComponent(CGFloat(SpotlightFx.darkness)).cgColor); ctx.fill(rect)
         }
-        let poses = DancerFigure.poses
-        let path = CGMutablePath()
-        if photo == nil, !poses.isEmpty {
-            for q in DancerFigure.fitted(poses[pose % poses.count], width: Double(size.width), height: Double(size.height)) {
-                path.move(to: CGPoint(x: q[0], y: q[1]))
-                for k in stride(from: 2, to: q.count, by: 2) { path.addLine(to: CGPoint(x: q[k], y: q[k + 1])) }
-                path.closeSubpath()
-            }
+        // Người nhảy: ô của biến thể (cắt từ atlas) + khung 85 % + lật.
+        var cellImg: CGImage?, dRect = CGRect.zero
+        if photo == nil, let atlas {
+            let c = NightDancer.cell(NightDancer.frame(variant))
+            let px = CGRect(x: c.minX * CGFloat(atlas.width), y: c.minY * CGFloat(atlas.height),
+                            width: c.width * CGFloat(atlas.width), height: c.height * CGFloat(atlas.height)).integral
+            cellImg = atlas.cropping(to: px)
+            dRect = NightDancer.rect(width: Double(size.width), height: Double(size.height), cellAspect: Double(px.width / px.height))
+        }
+        let mirrored = NightDancer.mirrored(variant)
+        func drawDancer(_ img: CGImage) {
+            ctx.saveGState()
+            if mirrored { ctx.translateBy(x: dRect.midX, y: 0); ctx.scaleBy(x: -1, y: 1); ctx.translateBy(x: -dRect.midX, y: 0) }
+            UIImage(cgImage: img).draw(in: dRect)
+            ctx.restoreGState()
+        }
+        if let cellImg {
+            // Bản tối (ngoài đèn): ảnh rồi phủ đen 88 % chỉ trên phần có hình.
+            ctx.beginTransparencyLayer(auxiliaryInfo: nil)
+            drawDancer(cellImg)
+            ctx.setBlendMode(.sourceAtop)
+            ctx.setFillColor(UIColor.black.withAlphaComponent(CGFloat(1 - NightDancer.shade)).cgColor); ctx.fill(dRect)
+            ctx.endTransparencyLayer()
         }
         // Mặt nạ quầng sáng (xám) → lớp `lit` (ảnh / phông + viền).
         let w = Int(size.width), h = Int(size.height)
@@ -570,11 +652,13 @@ final class SpotlightView: UIView {
         } else {
             let g = CGGradient(colorsSpace: cs, colors: SpotlightTexture.gradient.map { UIColor(neon: $0).cgColor } as CFArray, locations: nil)!
             ctx.drawLinearGradient(g, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
-            if let last = lights.last {
-                ctx.addPath(path)
-                ctx.setStrokeColor(UIColor(neon: SpotlightFx.colors[last.color % 3]).cgColor)
-                ctx.setLineWidth(CGFloat(DancerFigure.rimWidth * 2)); ctx.setLineJoin(.round)
-                ctx.strokePath()
+            if let cellImg {
+                // Màu thật + viền neon (bóng) theo màu đèn cuối — chỉ trong mặt nạ đèn.
+                let rim = UIColor(neon: SpotlightFx.colors[(lights.last?.color ?? 0) % 3]).cgColor
+                ctx.saveGState(); ctx.setShadow(offset: .zero, blur: CGFloat(NightDancer.rim * 2), color: rim)
+                drawDancer(cellImg); drawDancer(cellImg)
+                ctx.restoreGState()
+                drawDancer(cellImg)
             }
         }
         ctx.restoreGState()
@@ -590,7 +674,6 @@ final class SpotlightView: UIView {
             ctx.drawRadialGradient(g, startCenter: l.center, startRadius: 0, endCenter: l.center, endRadius: r, options: [])
         }
         ctx.restoreGState()
-        if photo == nil { ctx.addPath(path); ctx.setFillColor(UIColor.black.cgColor); ctx.fillPath() }
         // Quả cầu disco.
         let bc = DiscoBall.center(minX: 0, minY: 0, width: Double(size.width)), d = CGFloat(DiscoBall.diameter)
         let b = CGRect(x: CGFloat(bc.x) - d / 2, y: CGFloat(bc.y) - d / 2, width: d, height: d)
@@ -618,7 +701,7 @@ final class SpotlightView: UIView {
     #endif
 }
 
-/// Phông tím đêm khi không có ảnh nền (chỉ lộ dưới đèn, sau bóng cô gái nhảy) — Android SpotlightTexture cùng số.
+/// Phông tím đêm khi không có ảnh nền (chỉ lộ dưới đèn, quanh người nhảy) — Android SpotlightTexture cùng số.
 enum SpotlightTexture {
     /// Gradient chéo: tím đậm → tím đêm → xanh đêm.
     static let gradient: [UInt32] = [0x3A0A5E, 0x16073A, 0x06284A]
@@ -632,146 +715,93 @@ private extension UIColor {
     }
 }
 
-// MARK: - Bóng cô gái nhảy (không có ảnh nền)
+// MARK: - Người nhảy hoạt hình (không có ảnh nền)
 
-/// Một tư thế (độ; hướng a ⇒ vector (sin a, cos a), y hướng xuống: 0 = xuống, 90 = phải, 180 = lên, −90 = trái).
-/// l / r = tay, chân bên TRÁI / PHẢI màn hình; ua / fa = cánh tay / cẳng tay; th / sh = đùi / cẳng chân; flare = độ xoè váy 0…100.
-struct DancerPose: Equatable {
-    var id: String
-    var torso = 180, lua = 0, lfa = 0, rua = 0, rfa = 0, lth = 0, lsh = 0, rth = 0, rsh = 0, hair = 0, flare = 0
-}
+/// Người nhảy (KHÔNG có ảnh nền): nhân vật HOẠT HÌNH của Bạn đồng hành (atlas 4 × 2 buddy-<id>-v2.png — khung 0 đứng,
+/// 1 nhảy, 2 xoay ¾, 3 nghiêng phải, 4 sau lưng, 5 nghiêng trái, 6 xoay về; 7 ngủ không dùng) cỡ lớn phía sau phím, chìm
+/// trong tối (~12 % sáng); chỉ vùng đèn rọi thấy màu thật + viền neon theo màu đèn. Mỗi lần đèn nháy ⇒ biến thể kế: 7 khung
+/// × {thường, lật ngang} = 14 biến thể. Hàm THUẦN — Android NightDancer cùng số (test chung).
+enum NightDancer {
+    /// Chuỗi nhảy nhanh (khung atlas) — trọng số chọn khung; bỏ khung 7 (ngủ).
+    static let sequence = [0, 1, 0, 1, 2, 3, 4, 5, 6]
+    static let frames = 7
+    static let variants = frames * 2
+    /// Xác suất theo đúng chuỗi nhảy (còn lại: khung ngẫu nhiên 0…6).
+    static let follow = 0.7
+    /// Lật ngang: sau biến thể thường / sau biến thể đã lật (thấp hơn ⇒ ít khi lật hai lần liền).
+    static let mirror = 0.5, mirrorAgain = 0.25
+    /// Cao nhân vật = tỉ lệ cao bàn phím (cả dải gợi ý), đứng sát đáy, giữa ngang.
+    static let heightFraction = 0.85
+    /// Độ sáng phần ngoài đèn.
+    static let shade = 0.12
+    /// Viền neon quanh nhân vật dưới đèn (pt).
+    static let rim = 2.5
+    static let columns = 4, rows = 2
+    /// Trần cạnh dài atlas khi giải (px) — ≤ 2048 × 1365 × 4 B ≈ 11 MB; atlas hiện 1536 × 1024 ⇒ 6,3 MB.
+    static let maxLongEdge = 2048
 
-/// Bóng đen cô gái nhảy (theme Neon Night Club, KHÔNG có ảnh nền): khối hình bo tròn (đầu, tóc đuôi ngựa, thân thon, váy
-/// chữ A, tay chân) dựng từ 8 tư thế trong themes/dancer-poses.json (sinh vào BuiltinThemesData.dancerJson). Phong cách bóng
-/// đen quảng cáo máy nghe nhạc: dáng nhảy năng động, đầm kín, không chi tiết cơ thể. Mỗi lần đèn rọi nháy ⇒ tư thế kế
-/// (bước 3 mod 8: đủ vòng, không lặp liền). Đa giác cùng chiều quay ⇒ tô nonzero = hợp. Hình học thuần — Android
-/// DancerFigure cùng số (checksum chung).
-enum DancerFigure {
-    static let torsoLen = 0.27, neck = 0.03, headR = 0.058, shoulder = 0.068, hipW = 0.034
-    static let upperArm = 0.14, forearm = 0.13, thigh = 0.235, shin = 0.22, foot = 0.05, hair = 0.21
-    static let seg = 6
-    /// Bóng cao 86 % khung, giữa ngang, cách đáy 7 %.
-    static let heightFraction = 0.86
-    /// Bước xoay vòng tư thế (nguyên tố cùng nhau với số tư thế ⇒ đi đủ vòng, không lặp liền).
-    static let step = 3
-    /// Viền đèn rọi (pt) — nửa ngoài lộ ra quanh bóng.
-    static let rimWidth = 3.0
-    static let fields = ["torso", "lua", "lfa", "rua", "rfa", "lth", "lsh", "rth", "rsh", "hair", "flare"]
+    static func frame(_ variant: Int) -> Int { ((variant % variants) + variants) % variants % frames }
+    static func mirrored(_ variant: Int) -> Bool { ((variant % variants) + variants) % variants >= frames }
 
-    /// Đọc CHẶT (StrictJSON): mục thiếu / sai kiểu / ngoài khoảng ⇒ bỏ mục; hỏng cả ⇒ [].
-    static func parse(_ text: String) -> [DancerPose] {
-        guard case .success(.object(let root)) = StrictJSON.parse(text),
-              let arr = root.first(where: { $0.0 == "poses" })?.1, case .array(let items) = arr else { return [] }
-        var out: [DancerPose] = []
-        for it in items.prefix(12) {
-            guard case .object(let m) = it else { continue }
-            let d = Dictionary(m, uniquingKeysWith: { a, _ in a })
-            guard case .string(let id)? = d["id"], !id.isEmpty else { continue }
-            var vals: [Int] = []
-            for f in fields {
-                guard case .int(let v)? = d[f], abs(v) <= 360 else { break }
-                vals.append(v)
-            }
-            guard vals.count == fields.count, vals[10] >= 0, vals[10] <= 100 else { continue }
-            out.append(DancerPose(id: id, torso: vals[0], lua: vals[1], lfa: vals[2], rua: vals[3], rfa: vals[4],
-                                  lth: vals[5], lsh: vals[6], rth: vals[7], rsh: vals[8], hair: vals[9], flare: vals[10]))
-        }
-        return out
-    }
-    /// Tư thế dựng sẵn — đọc LƯỜI (chỉ khi theme này đang dùng và không có ảnh nền).
-    static let poses: [DancerPose] = parse(BuiltinThemesData.dancerJson)
+    /// Nhân vật nhảy: chàng trai nếu Bạn đồng hành đang chọn là chàng trai; còn lại ⇒ cô gái.
+    static func character(_ buddy: BuddyCharacter) -> BuddyCharacter { buddy == .boy ? .boy : .girl }
 
-    /// Tư thế của lần nháy thứ `press`.
-    static func poseIndex(press: Int, count: Int) -> Int {
-        guard count > 0 else { return 0 }
-        return ((press % count + count) % count) * step % count
+    /// Biến thể của lần nháy thứ `flash` sau biến thể `prev` (−1 = chưa có): theo chuỗi nhảy với xác suất `follow`,
+    /// không thì khung ngẫu nhiên; lật ngang `mirror` / `mirrorAgain`; KHÔNG BAO GIỜ trùng `prev`. Tất định theo `flash`.
+    static func next(prev: Int, flash: Int) -> Int {
+        var st = fxStep(fxSeed(flash &* 7919 &+ 17))   // bỏ một bước: số đầu của seed liền nhau tương quan
+        st = fxStep(st); let a = fxValue(st)
+        st = fxStep(st); let b = fxValue(st)
+        st = fxStep(st); let c = fxValue(st)
+        var f = a < follow ? sequence[((flash % sequence.count) + sequence.count) % sequence.count]
+                           : Swift.min(frames - 1, Int(b * Double(frames)))
+        let m = c < (prev >= 0 && mirrored(prev) ? mirrorAgain : mirror)
+        var v = f + (m ? frames : 0)
+        if v == prev { f = (f + 1) % frames; v = f + (m ? frames : 0) }
+        return v
     }
 
-    private static func vec(_ a: Int) -> (Double, Double) { let r = Double(a) * .pi / 180; return (sin(r), cos(r)) }
-    private static func add(_ p: (Double, Double), _ v: (Double, Double), _ k: Double) -> (Double, Double) {
-        (p.0 + v.0 * k, p.1 + v.1 * k)
-    }
-    private static func oriented(_ pts: [(Double, Double)]) -> [Double] {
-        var a = 0.0
-        for i in 0..<pts.count { let p = pts[i], q = pts[(i + 1) % pts.count]; a += p.0 * q.1 - q.0 * p.1 }
-        let o = a >= 0 ? pts : Array(pts.reversed())
-        return o.flatMap { [$0.0, $0.1] }
-    }
-    private static func capsule(_ p0: (Double, Double), _ p1: (Double, Double), _ r0: Double, _ r1: Double) -> [Double] {
-        let dx = p1.0 - p0.0, dy = p1.1 - p0.1
-        let a = hypot(dx, dy) > 1e-9 ? atan2(dy, dx) : 0
-        var pts: [(Double, Double)] = []
-        for k in 0...seg {
-            let t = a - .pi / 2 + .pi * Double(k) / Double(seg)
-            pts.append((p1.0 + r1 * cos(t), p1.1 + r1 * sin(t)))
-        }
-        for k in 0...seg {
-            let t = a + .pi / 2 + .pi * Double(k) / Double(seg)
-            pts.append((p0.0 + r0 * cos(t), p0.1 + r0 * sin(t)))
-        }
-        return oriented(pts)
-    }
-    private static func circle(_ c: (Double, Double), _ r: Double) -> [Double] {
-        oriented((0..<(2 * seg)).map { k in
-            let t = 2 * Double.pi * Double(k) / Double(2 * seg)
-            return (c.0 + r * cos(t), c.1 + r * sin(t))
-        })
+    /// Ô `frame` trong atlas (contentsRect, tỉ lệ 0…1).
+    static func cell(_ frame: Int) -> CGRect {
+        let i = ((frame % (columns * rows)) + columns * rows) % (columns * rows)
+        return CGRect(x: Double(i % columns) / Double(columns), y: Double(i / columns) / Double(rows),
+                      width: 1 / Double(columns), height: 1 / Double(rows))
     }
 
-    /// Đa giác (mảng phẳng x0, y0, x1, y1 …) của tư thế, toạ độ đơn vị (hông = gốc). Thứ tự: thân, cổ, đầu, tóc, váy,
-    /// tay trái (cánh, cẳng, bàn tay), tay phải, chân trái (đùi, cẳng, bàn chân), chân phải — 17 đa giác.
-    static func polygons(_ p: DancerPose) -> [[Double]] {
-        let hip = (0.0, 0.0), t = vec(p.torso), perp = (-t.1, t.0)
-        let neckP = add(hip, t, torsoLen), head = add(neckP, t, neck + headR)
-        func side(_ k: Double, _ w: Double) -> (Double, Double) { add(add(hip, t, k), perp, w) }
-        var out: [[Double]] = []
-        out.append(oriented([side(0, -0.05), side(0.12, -0.04), side(0.20, -0.052), side(torsoLen, -0.072),
-                             side(torsoLen, 0.072), side(0.20, 0.052), side(0.12, 0.04), side(0, 0.05)]))
-        out.append(capsule(neckP, add(neckP, t, neck + 0.01), 0.02, 0.02))
-        out.append(circle(head, headR))
-        out.append(capsule(add(head, t, -0.01), add(head, vec(p.hair), hair), headR, 0.03))
-        let fl = Double(p.flare) / 100, down = (-t.0, -t.1)
-        let w0 = add(hip, t, 0.12), hem = add(hip, down, 0.11), hw = 0.10 + 0.05 * fl
-        out.append(oriented([add(w0, perp, -0.045), add(hem, perp, -hw), add(hem, perp, hw), add(w0, perp, 0.045)]))
-        for (s, ua, fa) in [(-1.0, p.lua, p.lfa), (1.0, p.rua, p.rfa)] {
-            let sh = add(add(hip, t, torsoLen - 0.015), perp, s * shoulder)
-            let el = add(sh, vec(ua), upperArm), hd = add(el, vec(fa), forearm)
-            out.append(capsule(sh, el, 0.027, 0.021))
-            out.append(capsule(el, hd, 0.021, 0.016))
-            out.append(circle(hd, 0.019))
-        }
-        for (s, th, sn) in [(-1, p.lth, p.lsh), (1, p.rth, p.rsh)] {
-            let root = add(hip, perp, Double(s) * hipW)
-            let kn = add(root, vec(th), thigh), an = add(kn, vec(sn), shin)
-            out.append(capsule(root, kn, 0.04, 0.027))
-            out.append(capsule(kn, an, 0.026, 0.015))
-            out.append(capsule(an, add(an, vec(sn + s * 80), foot), 0.015, 0.011))
-        }
-        return out
+    /// Khung vẽ trong bàn phím w × h với ô tỉ lệ rộng/cao `cellAspect`: cao 85 %, đứng đáy, giữa ngang.
+    static func rect(width w: Double, height h: Double, cellAspect: Double) -> CGRect {
+        let fh = h * heightFraction, fw = fh * cellAspect
+        return CGRect(x: (w - fw) / 2, y: h - fh, width: fw, height: fh)
     }
 
-    /// Đặt vào khung w × h (gốc 0,0): cao `heightFraction`·h theo khung bao tư thế, giữa ngang, đáy cách 7 %.
-    static func fitted(_ p: DancerPose, width w: Double, height h: Double) -> [[Double]] {
-        let polys = polygons(p)
-        var minX = Double.infinity, maxX = -Double.infinity, minY = Double.infinity, maxY = -Double.infinity
-        for q in polys {
-            for i in stride(from: 0, to: q.count, by: 2) {
-                minX = min(minX, q[i]); maxX = max(maxX, q[i]); minY = min(minY, q[i + 1]); maxY = max(maxY, q[i + 1])
-            }
-        }
-        guard maxY > minY, h > 0 else { return [] }
-        let k = h * heightFraction / (maxY - minY), cx = (minX + maxX) / 2
-        let bottom = h * (1 - (1 - heightFraction) / 2)
-        return polys.map { q in
-            var o = q
-            for i in stride(from: 0, to: q.count, by: 2) {
-                o[i] = w / 2 + (q[i] - cx) * k
-                o[i + 1] = bottom - (maxY - q[i + 1]) * k
-            }
-            return o
-        }
+    /// Cạnh dài (px) cần giải atlas để ô cao đúng `displayHeight` pt × `scale` — không quá ảnh gốc, không quá trần.
+    static func decodeLongEdge(displayHeight: Double, scale: Double, atlasW: Int, atlasH: Int) -> Int {
+        guard atlasW > 0, atlasH > 0 else { return 0 }
+        let native = Swift.max(atlasW, atlasH)
+        let need = Int((displayHeight * scale * Double(rows) * Double(native) / Double(atlasH)).rounded(.up))
+        return Swift.min(need, native, maxLongEdge)
     }
 
-    /// Tổng toạ độ (test chéo nền tảng).
-    static func checksum(_ polys: [[Double]]) -> Double { polys.reduce(0) { $0 + $1.reduce(0, +) } }
+    /// RAM ảnh đã giải (byte, RGBA 8-bit) khi cạnh dài = `longEdge`.
+    static func decodedBytes(longEdge: Int, atlasW: Int, atlasH: Int) -> Int {
+        guard atlasW > 0, atlasH > 0, longEdge > 0 else { return 0 }
+        let native = Double(Swift.max(atlasW, atlasH))
+        let w = (Double(atlasW) * Double(longEdge) / native).rounded(), h = (Double(atlasH) * Double(longEdge) / native).rounded()
+        return Int(w * h * 4)
+    }
+
+    /// Giải atlas nhân vật `c` (cạnh dài theo cỡ hiển thị) — gọi trên luồng nền. Không có ảnh / lỗi ⇒ nil.
+    static func decodeAtlas(_ c: BuddyCharacter, displayHeight: Double, scale: Double) -> CGImage? {
+        guard let url = VTBundleResource.url("buddy-\(c.rawValue)-v2", "png", anchor: SpotlightView.self),
+              let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
+              let w = props[kCGImagePropertyPixelWidth] as? Int, let h = props[kCGImagePropertyPixelHeight] as? Int else { return nil }
+        let edge = decodeLongEdge(displayHeight: displayHeight, scale: scale, atlasW: w, atlasH: h)
+        guard edge > 0 else { return nil }
+        return CGImageSourceCreateThumbnailAtIndex(src, 0, [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: edge,
+            kCGImageSourceShouldCacheImmediately: true,
+        ] as CFDictionary)
+    }
 }

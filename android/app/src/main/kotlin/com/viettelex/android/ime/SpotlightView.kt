@@ -3,21 +3,27 @@ package com.viettelex.android.ime
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.LightingColorFilter
 import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
+import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.Shader
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
+import com.viettelex.keyboard.BuddyCharacter
 import com.viettelex.keyboard.ComboMeter
-import com.viettelex.keyboard.DancerFigure
 import com.viettelex.keyboard.DiscoBall
+import com.viettelex.keyboard.NightDancer
 import com.viettelex.keyboard.SpotlightFx
 import com.viettelex.keyboard.SpotlightLights
 import com.viettelex.keyboard.SpotlightTexture
@@ -32,9 +38,11 @@ import com.viettelex.keyboard.SpotlightTexture
  *
  *  • Có ảnh nền: phủ đen 90 % (vẽ một lần vào display list — nghỉ = không vẽ lại). Mỗi phím bấm: quầng tròn mềm rọi
  *    ảnh — CHÍNH bitmap ảnh nền của ImeRootView (không giải mã / sao chép thêm) vẽ qua mặt nạ RadialGradient trong MỘT
- *    saveLayer (SRC_IN), cộng quầng tô neon (SCREEN). Không ảnh nền: BÓNG ĐEN cô gái nhảy ([DancerFigure], 8 tư thế
- *    vector) — mỗi lần đèn nháy đổi tư thế; đèn rọi viền neon theo màu đèn (viền vẽ trong saveLayer ⇒ chỉ lộ dưới đèn,
- *    bóng đen tô SAU quầng tô che nửa trong) + phông tím đêm quanh bóng; ngoài quầng sáng chìm trong tối.
+ *    saveLayer (SRC_IN), cộng quầng tô neon (SCREEN). Không ảnh nền: NGƯỜI NHẢY HOẠT HÌNH ([NightDancer] — atlas 4 × 2
+ *    của Bạn đồng hành, cô gái / chàng trai) cao 85 % bàn phím phía sau phím, chìm trong tối (~12 % sáng — LightingColorFilter);
+ *    trong saveLayer của đèn: phông tím đêm + viền neon theo màu đèn (bóng tô màu dời ±viền) + nhân vật màu thật (SRC_ATOP
+ *    ⇒ chỉ lộ dưới đèn). Mỗi lần đèn nháy ⇒ biến thể kế (7 khung × lật ngang, không lặp liền). Atlas giải MỘT lần trên
+ *    luồng nền theo cỡ hiển thị ([NightDancer.decodeLongEdge]); có ảnh nền ⇒ không giải / thả ra.
  *  • Paint / Shader / mảng cấp sẵn ⇒ không cấp phát mỗi khung hình; chỉ hẹn khung hình khi còn quầng / chấm / quả cầu
  *    đang xoay (nghỉ = 0 CPU).
  */
@@ -63,16 +71,30 @@ class SpotlightView(context: Context, private val density: Float) : View(context
     }
     private val photoPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN) }
     private val gradPaint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN) }
-    private val rimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
-    }
-    private val dancerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF000000.toInt() }
-    /** Path tư thế theo cỡ view (dựng lười, chỉ khi không có ảnh nền) — đổi cỡ ⇒ xoá. */
-    private val dancerPaths = HashMap<Int, Path>()
+    // Người nhảy (không ảnh nền): atlas giải lười trên luồng nền, src / dst dùng lại.
+    /** Nhân vật nhảy ([NightDancer.character]) — đổi ⇒ thả atlas cũ, giải lại lần cần vẽ. */
+    var dancer: BuddyCharacter = BuddyCharacter.GIRL
+        set(v) {
+            if (field == v) return
+            field = v; atlas = null; atlasGen++; loading = false
+            maybeLoadAtlas()
+        }
+    @Volatile private var atlas: Bitmap? = null
+    private var atlasGen = 0
+    private var loading = false
     private var flashes = 0
-    internal var poseIndex = 0; private set
+    /** Biến thể đang hiện (khung × lật — [NightDancer.next]); 0 = đứng thẳng trước lần nháy đầu. */
+    internal var variant = 0; private set
     private var rimColor = SpotlightFx.COLORS[0]
+    private val dSrc = Rect()
+    private val dDst = RectF()
+    private val shadePaint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
+        val k = Math.round(NightDancer.SHADE * 255).toInt()
+        colorFilter = LightingColorFilter((k shl 16) or (k shl 8) or k, 0)
+    }
+    private var rimFilterColor = -1
+    private val colorPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP) }
+    private val rimPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP) }
 
     // Quả cầu disco
     private val ballPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -117,7 +139,36 @@ class SpotlightView(context: Context, private val density: Float) : View(context
     fun setPhoto(b: Bitmap?, m: Matrix?) {
         if (photo === b && photoMatrix === m) return
         photo = b; photoMatrix = m
+        if (b != null) { atlas = null; atlasGen++; loading = false }   // có ảnh nền ⇒ không người nhảy, thả atlas
+        else maybeLoadAtlas()
         invalidate()
+    }
+
+    /** Test: atlas người nhảy đang giữ (null = chưa giải / có ảnh nền). */
+    internal val dancerAtlas: Bitmap? get() = atlas
+
+    /** Giải atlas người nhảy MỘT lần trên luồng nền (chỉ khi không có ảnh nền và đã biết cỡ). */
+    private fun maybeLoadAtlas() {
+        if (photo != null || atlas != null || loading || height <= 0) return
+        loading = true
+        val gen = atlasGen
+        val c = dancer
+        val displayDp = height * NightDancer.HEIGHT_FRACTION / density
+        val app = context.applicationContext
+        ATLAS_EXECUTOR.execute {
+            val b = decodeAtlas(app, c, displayDp, density.toDouble())
+            post {
+                if (gen != atlasGen) return@post
+                loading = false
+                if (photo == null) { atlas = b; invalidate() }
+            }
+        }
+    }
+
+    /** Test: giải đồng bộ (Robolectric). */
+    internal fun loadAtlasNow() {
+        if (photo != null) return
+        atlas = decodeAtlas(context, dancer, height * NightDancer.HEIGHT_FRACTION / density, density.toDouble())
     }
     internal val hasPhoto: Boolean get() = photo != null
 
@@ -127,7 +178,7 @@ class SpotlightView(context: Context, private val density: Float) : View(context
         val g = SpotlightTexture.GRADIENT
         gradPaint.shader = LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), intArrayOf(g[0] or (0xFF shl 24), g[1] or (0xFF shl 24),
             g[2] or (0xFF shl 24)), null, Shader.TileMode.CLAMP)
-        dancerPaths.clear()
+        maybeLoadAtlas()
     }
 
     /** Khung phím vừa bấm: tâm ([x], [y]) + bề rộng [w] (px, toạ độ view này) — vẽ ở lượt sau, SAU khi phím đã chèn chữ. */
@@ -157,9 +208,9 @@ class SpotlightView(context: Context, private val density: Float) : View(context
         }
         pendN = 0
         if (photo == null) {
-            // Mỗi lần đèn nháy: bóng đổi tư thế (xoay vòng, không lặp liền) + viền theo màu đèn vừa bật.
+            // Mỗi lần đèn nháy: người nhảy sang biến thể kế (không lặp liền) + viền theo màu đèn vừa bật.
             flashes++
-            poseIndex = DancerFigure.poseIndex(flashes, DancerFigure.POSES.size)
+            variant = NightDancer.next(variant, flashes)
             rimColor = SpotlightFx.color(lights.presses - 1)
         }
         spin(now)
@@ -209,6 +260,9 @@ class SpotlightView(context: Context, private val density: Float) : View(context
         val w = width.toFloat(); val h = height.toFloat()
         val ph = photo
         if (ph != null) canvas.drawRect(0f, 0f, w, h, darkPaint)
+        // Người nhảy chìm trong tối (ngoài đèn) — trước lớp đèn.
+        val dance = if (ph == null) atlas?.takeIf { dancerRects(it, w, h) } else null
+        if (dance != null) drawDancer(canvas, dance, shadePaint, 0f, 0f)
         val now = SystemClock.uptimeMillis() / 1000.0
         var alive = false
         if (lights.live(now) > 0) {
@@ -231,10 +285,15 @@ class SpotlightView(context: Context, private val density: Float) : View(context
                 canvas.restore()
             } else {
                 canvas.drawRect(0f, 0f, w, h, gradPaint)
-                dancerPath()?.let {
-                    rimPaint.color = rimColor or (0xFF shl 24)
-                    rimPaint.strokeWidth = (DancerFigure.RIM_WIDTH * 2 * density).toFloat()
-                    canvas.drawPath(it, rimPaint)
+                if (dance != null) {
+                    // Viền neon: bóng tô màu đèn dời ±viền (8 hướng), rồi nhân vật màu thật đè lên — chỉ dưới đèn (SRC_ATOP).
+                    if (rimFilterColor != rimColor) {
+                        rimFilterColor = rimColor
+                        rimPaint.colorFilter = PorterDuffColorFilter(rimColor or (0xFF shl 24), PorterDuff.Mode.SRC_IN)
+                    }
+                    val r = (NightDancer.RIM * density).toFloat()
+                    for (k in 0 until 8) drawDancer(canvas, dance, rimPaint, r * RIM_DX[k], r * RIM_DY[k])
+                    drawDancer(canvas, dance, colorPaint, 0f, 0f)
                 }
             }
             canvas.restoreToCount(save)
@@ -250,27 +309,32 @@ class SpotlightView(context: Context, private val density: Float) : View(context
                 canvas.restore()
             }
         }
-        // Bóng cô gái nhảy (không ảnh nền): đen đặc, TRÊN quầng tô — ngoài đèn lẫn vào nền tối.
-        if (ph == null) dancerPath()?.let { canvas.drawPath(it, dancerPaint) }
         if (drawBall(canvas, now, w)) alive = true
         if (alive) postInvalidateOnAnimation()
     }
 
-    /** Path tư thế hiện tại ở cỡ view (cache theo tư thế). */
-    internal fun dancerPath(): Path? {
-        val poses = DancerFigure.POSES
-        if (poses.isEmpty() || width <= 0 || height <= 0) return null
-        val i = poseIndex % poses.size
-        return dancerPaths.getOrPut(i) {
-            val p = Path()
-            for (q in DancerFigure.fitted(poses[i], width.toDouble(), height.toDouble())) {
-                if (q.size < 6) continue
-                p.moveTo(q[0].toFloat(), q[1].toFloat())
-                for (k in 2 until q.size step 2) p.lineTo(q[k].toFloat(), q[k + 1].toFloat())
-                p.close()
-            }
-            p
-        }
+    /** Đặt src (ô khung của biến thể) / dst (85 % cao, đứng đáy, giữa ngang) — false nếu atlas hỏng. */
+    private fun dancerRects(b: Bitmap, w: Float, h: Float): Boolean {
+        if (b.width <= 0 || b.height <= 0) return false
+        val c = NightDancer.cell(NightDancer.frame(variant))
+        dSrc.set(Math.round(c[0] * b.width).toInt(), Math.round(c[1] * b.height).toInt(),
+            Math.round((c[0] + c[2]) * b.width).toInt(), Math.round((c[1] + c[3]) * b.height).toInt())
+        val aspect = dSrc.width().toDouble() / maxOf(dSrc.height(), 1)
+        val r = NightDancer.rect(w.toDouble(), h.toDouble(), aspect)
+        dDst.set(r[0].toFloat(), r[1].toFloat(), (r[0] + r[2]).toFloat(), (r[1] + r[3]).toFloat())
+        return true
+    }
+
+    /** Test: khung vẽ người nhảy hiện tại (px). */
+    internal val dancerRect: RectF get() = dDst
+
+    /** Vẽ ô hiện tại (lật ngang nếu biến thể lật) dời ([dx], [dy]) px. */
+    private fun drawDancer(canvas: Canvas, b: Bitmap, p: Paint, dx: Float, dy: Float) {
+        canvas.save()
+        canvas.translate(dx, dy)
+        if (NightDancer.mirrored(variant)) canvas.scale(-1f, 1f, dDst.centerX(), 0f)
+        canvas.drawBitmap(b, dSrc, dDst, p)
+        canvas.restore()
     }
 
     /** Quả cầu disco + chấm sáng; true = còn chuyển động. */
@@ -315,5 +379,24 @@ class SpotlightView(context: Context, private val density: Float) : View(context
 
     companion object {
         const val MAX_PENDING = 4
+        private val RIM_DX = FloatArray(8) { Math.cos(Math.PI / 4 * it).toFloat() }
+        private val RIM_DY = FloatArray(8) { Math.sin(Math.PI / 4 * it).toFloat() }
+        private val ATLAS_EXECUTOR = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+            Thread(r, "vt-dancer").apply { isDaemon = true }
+        }
+
+        /** Giải atlas buddy-<id>-v2.png theo cỡ hiển thị (inSampleSize — [NightDancer.sampleSize]). Lỗi / OOM ⇒ null. */
+        internal fun decodeAtlas(context: Context, c: BuddyCharacter, displayDp: Double, density: Double): Bitmap? = try {
+            val name = "buddy-${c.id}-v2.png"
+            val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.assets.open(name).use { BitmapFactory.decodeStream(it, null, o) }
+            val target = NightDancer.decodeLongEdge(displayDp, density, o.outWidth, o.outHeight)
+            if (target <= 0) null else {
+                o.inJustDecodeBounds = false
+                o.inScaled = false
+                o.inSampleSize = NightDancer.sampleSize(maxOf(o.outWidth, o.outHeight), target)
+                context.assets.open(name).use { BitmapFactory.decodeStream(it, null, o) }
+            }
+        } catch (_: java.io.IOException) { null } catch (_: RuntimeException) { null } catch (_: OutOfMemoryError) { null }
     }
 }

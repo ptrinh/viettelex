@@ -13,17 +13,21 @@ final class NightClubSnapshotTests: XCTestCase {
         }
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let out = URL(fileURLWithPath: dir)
-        // Bóng cô gái nhảy: 3 tư thế dưới 3 quầng đèn (không có ảnh nền).
+        // Người nhảy hoạt hình: 3 biến thể dưới 3 quầng đèn (không có ảnh nền) — atlas cô gái giải đúng cỡ @3x.
         let size = CGSize(width: 402, height: 270)
-        for (n, pose) in [(0, 0), (1, 2), (2, 6)] {
+        let atlas = NightDancer.decodeAtlas(.girl, displayHeight: Double(size.height) * NightDancer.heightFraction, scale: 3)
+        XCTAssertNotNil(atlas)
+        for (n, variant) in [(0, 1), (1, 3 + NightDancer.frames), (2, 5)] {
             let lights: [(center: CGPoint, keyWidth: Double, level: Int, dt: Double, color: Int)] = [
-                (CGPoint(x: 150, y: 190), 34, 1, 0.35, n), (CGPoint(x: 250, y: 80), 34, 2, 0.2, n + 1),
-                (CGPoint(x: 200, y: 150), 34, 3, 0.07, n + 2)]
-            let img = UIGraphicsImageRenderer(size: size).image { c in
+                (CGPoint(x: 165, y: 175), 34, 1, 0.35, n), (CGPoint(x: 230, y: 110), 34, 2, 0.2, n + 1),
+                (CGPoint(x: 200, y: 160), 34, 3, 0.07, n + 2)]
+            let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 3
+            let img = UIGraphicsImageRenderer(size: size, format: fmt).image { c in
                 Self.bg.setFill(); c.fill(CGRect(origin: .zero, size: size))
-                SpotlightView.debugRender(in: c.cgContext, size: size, photo: nil, pose: pose, lights: lights)
+                SpotlightView.debugRender(in: c.cgContext, size: size, photo: nil, atlas: atlas, variant: variant, lights: lights)
             }
-            try XCTUnwrap(img.pngData()).write(to: out.appendingPathComponent("nightclub-dancer-\(DancerFigure.poses[pose].id).png"))
+            let name = "nightclub-dancer-\(NightDancer.frame(variant))\(NightDancer.mirrored(variant) ? "-lat" : "").png"
+            try XCTUnwrap(img.pngData()).write(to: out.appendingPathComponent(name))
         }
         // Bàn phím thật giữa hiệu ứng: đèn rọi (không ảnh + có ảnh) + Sàn nhảy LED.
         let d = UserDefaultsProvider.shared
@@ -66,7 +70,8 @@ final class NightClubSnapshotTests: XCTestCase {
             }
             let shot = UIGraphicsImageRenderer(bounds: kb.bounds).image { c in
                 Self.bg.setFill(); c.fill(kb.bounds)
-                SpotlightView.debugRender(in: c.cgContext, size: kb.bounds.size, photo: img, pose: 3, lights: lights)
+                SpotlightView.debugRender(in: c.cgContext, size: kb.bounds.size, photo: img, atlas: img == nil ? atlas : nil,
+                                          variant: 1, lights: lights)
                 kb.layer.render(in: c.cgContext)
                 // Sàn nhảy LED ở phím vừa bấm (n), 70 ms sau khi bấm.
                 let k = keys[2]

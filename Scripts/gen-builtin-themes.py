@@ -4,7 +4,6 @@
 Chuỗi JSON được nhúng NGUYÊN VĂN (iOS: Keyboard/BuiltinThemes.swift, Android:
 keyboard/.../BuiltinThemesData.kt) — hai bên parse bằng cùng bộ đọc chặt (ThemeSpec), test hai
 bên kiểm tra chuỗi nhúng trùng file nguồn. Sửa theme: sửa file JSON rồi chạy lại script này.
-Kèm themes/dancer-poses.json (tư thế bóng cô gái nhảy — theme Neon Night Club) nhúng cùng hai file đó.
 
   python3 Scripts/gen-builtin-themes.py          # ghi lại hai file
   python3 Scripts/gen-builtin-themes.py --check  # chỉ kiểm tra (exit 1 nếu lệch)
@@ -22,8 +21,6 @@ FONTS_SWIFT = os.path.join(ROOT, "iOS", "Keyboard", "BuiltinFonts.swift")
 FONTS_KOTLIN = os.path.join(ROOT, "android", "keyboard", "src", "main", "kotlin", "com", "viettelex", "keyboard",
                             "BuiltinFontsData.kt")
 
-DANCER_SRC = os.path.join(ROOT, "themes", "dancer-poses.json")
-
 HEADER = "Sinh bởi Scripts/gen-builtin-themes.py từ themes/builtin-themes.json — KHÔNG sửa tay."
 
 
@@ -33,25 +30,16 @@ def main():
     for bad in ('"""', "$", "\\"):
         if bad in text:
             sys.exit(f"builtin-themes.json không được chứa {bad!r} (nhúng chuỗi thô)")
-    dtext = open(DANCER_SRC, encoding="utf-8").read().rstrip(chr(10))
-    json.loads(dtext)
-    for bad in ('"""', "$", "\\"):
-        if bad in dtext:
-            sys.exit(f"dancer-poses.json không được chứa {bad!r} (nhúng chuỗi thô)")
     swift = (f"// {HEADER}\n"
              "// Theme có sẵn (trừ Hệ thống / Kính — vẽ theo nền tảng) dạng JSON, đọc một lần (BuiltinThemes.specs).\n"
              "enum BuiltinThemesData {\n"
              f'    static let json = ##"""\n{text.rstrip(chr(10))}\n"""##\n'
-             "    /// Tư thế bóng cô gái nhảy (theme Neon Night Club — DancerFigure), từ themes/dancer-poses.json.\n"
-             f'    static let dancerJson = ##"""\n{dtext}\n"""##\n'
              "}\n")
     kotlin = (f"// {HEADER}\n"
               "package com.viettelex.keyboard\n\n"
               "/** Theme có sẵn (trừ Hệ thống / Kính — vẽ theo nền tảng) dạng JSON, đọc một lần ([BuiltinThemes]). */\n"
               "internal object BuiltinThemesData {\n"
               f'    const val JSON = """\n{text.rstrip(chr(10))}\n"""\n'
-              "    /** Tư thế bóng cô gái nhảy (theme Neon Night Club — [DancerFigure]), từ themes/dancer-poses.json. */\n"
-              f'    const val DANCER_JSON = """\n{dtext}\n"""\n'
               "}\n")
     ftext = open(FONTS_SRC, encoding="utf-8").read()
     json.loads(ftext)
