@@ -23,10 +23,11 @@ for pair in i686:x86 x86_64:x64 aarch64:arm64; do
   if grep -E "warning:" "$b.log" | grep -v character-conversion | grep -q .; then
     grep -E "warning:" "$b.log" | grep -v character-conversion | sort -u >&2
   fi
-  # Size budget (2026-10: ~500 KB TIP sau sửa MISA #134 / ~145 KB helper at most per arch). The TIP is loaded
+  # Size budget (2026-10: ~500 KB TIP sau sửa MISA #134 / ~145 KB helper at most per arch; 2026-11 1.3.18:
+  # ~537 KB x86 sau gợi ý âm lịch/Tết, debug log có header, Notepad Edit — +30 KB đúng tính năng). The TIP is loaded
   # into every process; a jump means libc++abi's demangler (ime/src/no_demangle.cpp) or
   # dead code (-ffunction-sections / --gc-sections / ThinLTO, CMakeLists.txt) came back.
-  for f in "$b/ime/VietTelexTIP.dll:520000" "$b/app/VietTelexSetupHelper.exe:180000"; do
+  for f in "$b/ime/VietTelexTIP.dll:560000" "$b/app/VietTelexSetupHelper.exe:180000"; do
     sz=$(wc -c < "${f%%:*}")
     [ "$sz" -le "${f##*:}" ] || { echo "${f%%:*}: $sz bytes > budget ${f##*:}" >&2; exit 1; }
   done
