@@ -171,6 +171,9 @@ enum BackupSettings {
         Spec(key: "systemBackdropGuitar", kind: .bool(false)),
         Spec(key: "systemBackdropMole", kind: .bool(false)),
         Spec(key: "systemBackdropNeutral", kind: .bool(false)),
+        Spec(key: "systemBackdropPixel", kind: .bool(false)),
+        Spec(key: "systemBackdropSea", kind: .bool(false)),
+        Spec(key: "systemBackdropTimeOfDay", kind: .bool(false)),
         // Ngôn ngữ giao diện app (L10n) — mặc định "vi", không theo máy.
         Spec(key: "uiLanguage", kind: .string("vi", ["vi", "en"])),
         // Dịch trên máy (Plus): ngôn ngữ đích — chỉ iOS dùng.

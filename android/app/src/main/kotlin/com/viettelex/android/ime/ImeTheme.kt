@@ -48,10 +48,20 @@ class ImeTheme(ctx: Context, val settings: ThemeSettings = ThemeSettings(), wall
     /** Giải LƯỜI (view đầu tiên cần) — dựng ImeTheme chỉ để so chữ ký không giải ảnh nào. */
     val assets: LoadedThemeAssets? by lazy { assetPlan?.let { ThemeAssetLoader.load(it, assetDir, assetStamp) } }
 
+    /**
+     * Theo giờ ("schedule" — [com.viettelex.keyboard.ThemeSchedule]): phút lúc dựng theme + mục lịch đang hiệu lực. Theme
+     * không có lịch ⇒ null, không đọc đồng hồ. Đọc MỘT lần mỗi lần dựng (không hẹn giờ, 0 chi phí mỗi phím).
+     */
+    private val scheduleMinute: Int? = settings.scheduleMinuteNow()
+    val scheduleIndex: Int? = scheduleMinute?.let { settings.scheduledSpec?.scheduleIndex(it) }
+    /** Lần hiện kế: giờ đã sang mục lịch khác ⇒ dựng lại view. Theme không lịch ⇒ false (không đọc đồng hồ). */
+    fun scheduleChanged(): Boolean = scheduleIndex != null &&
+        settings.scheduledSpec?.scheduleIndex(com.viettelex.keyboard.ThemeSchedule.minuteOfDay()) != scheduleIndex
+
     private val basePalette: ThemePalette = run {
         // Theme tự tạo ("Giao diện JSON") hoặc có sẵn; Hệ thống = màu resource (Material You) hoặc bảng tĩnh
         // khi tắt "Dùng màu hình nền (Material You)" ([com.viettelex.keyboard.SystemColors]).
-        val base = settings.basePalette(systemDark, android.os.Build.VERSION.SDK_INT) ?: imeResourcePalette(ctx, systemDark)
+        val base = settings.basePalette(systemDark, android.os.Build.VERSION.SDK_INT, scheduleMinute) ?: imeResourcePalette(ctx, systemDark)
         // Tuỳ chỉnh nâng cao (Plus): màu chữ / nền phím — trước ảnh nền và độ trong suốt.
         // Vá chế độ + màu chữ/phím + Màu nhấn (Nhập, ⇧ bật/Caps, vệt vuốt) — riêng theme đang dùng, giải MỘT lần ở đây.
         val styled = settings.styledCurrent(base, systemDark)
@@ -108,7 +118,7 @@ class ImeTheme(ctx: Context, val settings: ThemeSettings = ThemeSettings(), wall
     /** Nhận diện theme để IME biết khi nào phải dựng lại input view. */
     val signature = "${settings.effectiveTheme.id}|${settings.materialYou}|$systemDark|${palette.wallpaper}|${settings.dim}|${settings.version}" +
         "|${settings.keyboardTransparency}|${settings.labelTransparency}|$keyStyle|${settings.effectiveCustom?.canonical?.hashCode()}" +
-        "|$assetStamp"
+        "|$assetStamp|$scheduleIndex"
 
     /** Màu khi đè phím: phủ ink 12% kiểu state layer Material. */
     fun pressed(color: Int): Int = blend(color, ink, 0.12f)

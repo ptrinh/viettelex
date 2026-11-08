@@ -129,7 +129,7 @@ internal fun ThemePickerPage(s: ThemeSettings, dark: Boolean, onSelect: (ThemeSe
         VTSection(header = tr(section.title)) {
             Grid(section.themes) { t ->
                 val locked = !ThemeGate.allows(t)
-                ThemeCard(s.styled(t, t.palette(dark) ?: systemPreviewPalette(ctx, s, dark), dark), s.effectiveStyleFor(t), t.title,
+                ThemeCard(s.styled(t, t.paletteNow(dark) ?: systemPreviewPalette(ctx, s, dark), dark), s.effectiveStyleFor(t), t.title,
                     selected = s.custom == null && s.theme == t, locked = locked, showPlus = t.isPlus && locked,
                     onTap = { ThemePicker.select(t, s)?.let(::choose) ?: onOpenPlus() },
                     menu = { close ->

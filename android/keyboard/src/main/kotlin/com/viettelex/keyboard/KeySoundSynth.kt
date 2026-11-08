@@ -40,7 +40,9 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
     /** Theme "Ghi-ta" (10/2026): mỗi phím một nốt ghi-ta mộc dây sắt ([KeyInstrument.GUITAR]), cách = quạt hợp âm theo vòng. */
     GUITAR("guitar", "Ghi-ta mộc"), // l10n-key
     /** Theme "Đập chuột" (10/2026): búa gỗ bọc vải gõ nhẹ — công thức đầu file Swift. */
-    BOP("bop", "Búa gỗ"); // l10n-key
+    BOP("bop", "Búa gỗ"), // l10n-key
+    /** Theme "Pixel 8-bit" (11/2026): "blip" sóng vuông (hoạ âm lẻ) hai nốt nhảy lên — công thức đầu file Swift. */
+    CHIP("chip", "Bíp 8-bit"); // l10n-key
 
     /** true ⇒ phát qua SoundPool riêng; [SYSTEM] ⇒ playSoundEffect, không dựng gì. */
     val usesPool: Boolean get() = this != SYSTEM
@@ -50,7 +52,7 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
         val DEFAULT = SUBTLE
         /** Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức [KeySoundSynth.baseRecipe]. */
         val PRESETS = listOf(SUBTLE, WOOD, MECHANICAL, TYPEWRITER, BUBBLE, ROCK, POP, WATER, VINTAGE, PHAO, JINGLE, SCIFI,
-            TRONG, BOO, BOP)
+            TRONG, BOO, BOP, CHIP)
         /** Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta). */
         val ALL_PRESETS = PRESETS + PIANO + DANTRANH + GUITAR
         /**
@@ -153,6 +155,12 @@ object KeySoundSynth {
         KeySoundStyle.BOP -> Recipe(
             listOf(t(1.0, 210.0, 165.0, glide = 0.006, tau = 0.011), t(0.22, 210 * 2.4, 165 * 2.4, glide = 0.006, tau = 0.003)),
             listOf(n(0.18, hp = 90.0, lp = 900.0, tau = 0.0018)), 0.0018, 0.048, 1500.0, 0.50)
+        KeySoundStyle.CHIP -> Recipe(
+            listOf(t(1.0, 988.0, 988.0, tau = 0.008), t(0.33, 988.0 * 3, 988.0 * 3, tau = 0.008),
+                t(0.20, 988.0 * 5, 988.0 * 5, tau = 0.008),
+                t(0.85, 1319.0, 1319.0, tau = 0.009, delay = 0.012), t(0.28, 1319.0 * 3, 1319.0 * 3, tau = 0.009, delay = 0.012),
+                t(0.17, 1319.0 * 5, 1319.0 * 5, tau = 0.009, delay = 0.012)),
+            emptyList(), 0.0008, 0.048, 6000.0, 0.42)
     }
 
     /** "Éc" khi đập trúng chuột (theme Đập chuột — [MoleGame]): hai tiếng chíp vút lên, nhỏ + mềm. iOS squeakRecipe y hệt. */

@@ -169,6 +169,41 @@
       "light": {"bg": "#E8EAED", "key": "#FFFFFF", "special": "#D2D5DA", "ink": "#1F1F1F", "accent": "#5F6368"},
       "dark": {"bg": "#202124", "key": "#3C4043", "special": "#2D2E31", "ink": "#E8EAED", "accent": "#9AA0A6",
                "accentInk": "#202124"}
+    },
+    {
+      "v": 1, "id": "pixel", "name": {"vi": "Pixel 8-bit", "en": "Pixel 8-bit"}, "corner": 0, "font": "mono", "weight": "bold",
+      "sound": "chip", "effect": "flash", "swipe": "neon",
+      "light": {"bg": "#8BAC0F", "key": "#9BBC0F", "special": "#B7CF55", "ink": "#0F380F", "accent": "#306230",
+                "accentInk": "#E0F8D0", "fn": "#306230", "fnInk": "#E0F8D0", "border": "#0F380F",
+                "deco": {"motif": "pixel", "color": "#80C8DE5A"}},
+      "dark": {"bg": "#0B1F0B", "key": "#1C3A1C", "special": "#2C522C", "ink": "#C6E86A", "accent": "#306230",
+               "accentInk": "#E0F8D0", "fn": "#132B13", "fnInk": "#9BBC0F", "border": "#669BBC0F",
+               "deco": {"motif": "pixel", "color": "#4D9BBC0F"}}
+    },
+    {
+      "v": 1, "id": "sea", "name": {"vi": "Biển", "en": "Sea"}, "corner": 60, "sound": "water", "effect": "wave",
+      "light": {"bg": "#CDEBF2", "key": "#FFF9EF", "special": "#EED9B7", "ink": "#0B3C5D", "accent": "#0E7C93",
+                "fn": "#E9D4AE", "fnInk": "#0B3C5D", "deco": {"motif": "waves", "alt": "bubbles", "color": "#730E7C93"}},
+      "dark": {"bg": "#05263A", "key": "#0F3D58", "special": "#175676", "ink": "#E3F6FB", "accent": "#0E7C93",
+               "fn": "#0A3049", "fnInk": "#F2DFC0", "deco": {"motif": "waves", "alt": "bubbles", "color": "#598FD3E3"}}
+    },
+    {
+      "v": 1, "id": "timeOfDay", "name": {"vi": "Theo giờ", "en": "Time of day"},
+      "light": {"bg": "#CFE6FA", "key": "#FFFFFF", "special": "#A8CDEF", "ink": "#0E3557", "accent": "#3567D6",
+                "fn": "#B8D8F5", "fnInk": "#0E3557"},
+      "dark": {"bg": "#0B1430", "key": "#1B2648", "special": "#2A3870", "ink": "#E6ECFF", "accent": "#3567D6",
+               "fn": "#121C3B", "fnInk": "#C9D4FF", "deco": {"motif": "star", "color": "#4DFFFFFF"}},
+      "schedule": [
+        {"from": "05:00", "palette": {"bg": "#F9D5C6", "key": "#FFF7F2", "special": "#F2BBA6", "ink": "#4A2338",
+                                      "accent": "#C2557A", "fn": "#F6C8B5", "fnInk": "#5A2A44"}},
+        {"from": "07:00", "palette": {"bg": "#CFE6FA", "key": "#FFFFFF", "special": "#A8CDEF", "ink": "#0E3557",
+                                      "accent": "#3567D6", "fn": "#B8D8F5", "fnInk": "#0E3557"}},
+        {"from": "17:00", "palette": {"bg": "#F5B27A", "key": "#FFF0E0", "special": "#EDB98C", "ink": "#4B1D3F",
+                                      "accent": "#B5482F", "fn": "#F3C49B", "fnInk": "#4B1D3F"}},
+        {"from": "19:00", "palette": {"bg": "#0B1430", "key": "#1B2648", "special": "#2A3870", "ink": "#E6ECFF",
+                                      "accent": "#3567D6", "fn": "#121C3B", "fnInk": "#C9D4FF",
+                                      "deco": {"motif": "star", "color": "#4DFFFFFF"}}}
+      ]
     }
   ]
 }

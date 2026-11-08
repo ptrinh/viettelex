@@ -565,8 +565,10 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         // Ngôn ngữ giao diện (Tính Năng → Ngôn ngữ): đọc MỘT lần mỗi lần hiện bàn phím; view đang
         // giữ chữ dựng sẵn (Dán, Khôi phục, …) ⇒ đổi ngôn ngữ thì dựng lại view. 0 chi phí mỗi phím.
         L10n.load { prefs.getString(it, null) }
+        // Theo giờ: giờ đã sang mục lịch khác (bình minh → ngày …) ⇒ dựng lại; theme không lịch không đọc đồng hồ.
         if (theme != null && (viewLang != L10n.lang ||
-                ((themeStale || uiMode != themeUiMode) && freshTheme().signature != theme?.signature)))
+                ((themeStale || uiMode != themeUiMode || theme?.scheduleChanged() == true) &&
+                    freshTheme().signature != theme?.signature)))
             setInputView(onCreateInputView())
         themeStale = false; themeUiMode = uiMode
         rewarmAfterIdle()

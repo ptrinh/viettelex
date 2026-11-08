@@ -14,6 +14,13 @@ import Foundation
 //    "dark":{…} | "same", "corner":70, "fontScale":110, "font":"serif", "weight":"bold",
 //    "sound":"phao", "effect":"blossom", "swipe":"stardust", "game":"mole"}
 //
+// "schedule" (tuỳ chọn, 2…6 mục, "from" tăng dần): bảng màu ĐỔI THEO GIỜ ĐỊA PHƯƠNG (theme "Theo giờ") —
+//   "schedule":[{"from":"05:00","palette":{…như "light"…}}, {"from":"07:00","palette":{…}}, …]
+// Mục có "from" lớn nhất ≤ giờ hiện tại thắng; trước mục đầu ⇒ mục CUỐI (qua nửa đêm). Có "schedule" ⇒ bỏ qua
+// sáng/tối hệ thống (bầu trời là bầu trời); "light"/"dark" vẫn bắt buộc như mọi theme = bảng dự phòng khi không có
+// giờ (bản xem trước tĩnh, "Chép JSON" so bản vá). Chọn giờ MỘT lần lúc bàn phím hiện (ThemeSchedule) — 0 chi phí
+// mỗi phím, không hẹn giờ. Bản vá (KeyStyle) không có "schedule".
+//
 // "game" (tuỳ chọn, danh sách trắng ThemeExtraIds.games): trò chơi khi gõ CHẠY KHI theme này đang dùng — "mole" = Đập
 // chuột (MoleGame.swift). Khác "sound"/"effect": không ghi gì lúc chọn theme, bàn phím đọc từ kiểu thực dùng.
 //
@@ -608,6 +615,49 @@ enum ThemeAssetURL {
     }
 }
 
+/// Một mục "schedule": từ phút `from` trong ngày (0…1439) dùng bảng màu `slots` (đầy đủ như "light").
+struct ThemeScheduleEntry: Equatable {
+    var from: Int
+    var slots: ThemeSlots
+}
+
+/// Chọn bảng màu theo giờ (thuần — Android ThemeSchedule y hệt, test mốc chung).
+enum ThemeSchedule {
+    static let entryRange = 2...6
+    static let minutesPerDay = 24 * 60
+
+    /// "HH:MM" (đúng 5 ký tự, 00…23 : 00…59) ⇒ phút trong ngày; sai ⇒ nil.
+    static func parseTime(_ s: String) -> Int? {
+        let u = Array(s.utf8)
+        guard u.count == 5, u[2] == UInt8(ascii: ":") else { return nil }
+        var d: [Int] = []
+        for i in [0, 1, 3, 4] {
+            guard u[i] >= 0x30, u[i] <= 0x39 else { return nil }
+            d.append(Int(u[i]) - 0x30)
+        }
+        let h = d[0] * 10 + d[1], m = d[2] * 10 + d[3]
+        guard h < 24, m < 60 else { return nil }
+        return h * 60 + m
+    }
+    static func format(_ minute: Int) -> String { String(format: "%02d:%02d", minute / 60, minute % 60) }
+
+    /// Chỉ số mục đang hiệu lực ở phút `minute` (kẹp vào ngày): mục có `from` lớn nhất ≤ phút; trước mục đầu ⇒ mục
+    /// cuối (đêm qua nửa đêm). `froms` tăng dần (bộ đọc đã kiểm), rỗng ⇒ nil.
+    static func index(_ froms: [Int], minute: Int) -> Int? {
+        guard !froms.isEmpty else { return nil }
+        let m = ((minute % minutesPerDay) + minutesPerDay) % minutesPerDay
+        var best = froms.count - 1
+        for (i, f) in froms.enumerated() where f <= m { best = i }
+        return best
+    }
+
+    /// Phút trong ngày theo giờ địa phương (lịch máy) — gọi MỘT lần mỗi lần hiện bàn phím, chỉ khi theme có lịch.
+    static func minuteOfDay(_ date: Date, calendar: Calendar = .current) -> Int {
+        let c = calendar.dateComponents([.hour, .minute], from: date)
+        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
+    }
+}
+
 struct ThemeSpec: Equatable {
     static let version = 1
     static let maxName = 40
@@ -630,8 +680,18 @@ struct ThemeSpec: Equatable {
     var swipe: String?
     /// Trò chơi khi gõ ("mole") — chạy khi theme đang dùng (ThemeExtraIds.games).
     var game: String?
+    /// Bảng màu theo giờ (ThemeSchedule); nil = theo sáng/tối hệ thống như mọi theme.
+    var schedule: [ThemeScheduleEntry]? = nil
 
     func slots(dark d: Bool) -> ThemeSlots { d ? (dark ?? light) : light }
+    /// Bảng màu ở phút `minute` trong ngày: có lịch ⇒ mục đang hiệu lực (bỏ qua sáng/tối); không lịch / `minute` nil
+    /// ⇒ như `slots(dark:)`.
+    func slots(dark d: Bool, minute: Int?) -> ThemeSlots {
+        guard let sc = schedule, let m = minute, let i = ThemeSchedule.index(sc.map(\.from), minute: m) else { return slots(dark: d) }
+        return sc[i].slots
+    }
+    /// Chỉ số mục lịch đang hiệu lực (nil = không có lịch).
+    func scheduleIndex(minute: Int) -> Int? { schedule.flatMap { ThemeSchedule.index($0.map(\.from), minute: minute) } }
     var name: String { L10n.isEnglish ? (nameEn ?? nameVi) : nameVi }
 
     /// Kiểu chữ / bo góc / tệp tải về mặc định của theme (KeyStyle không đặt thì dùng cái này).
@@ -674,7 +734,7 @@ enum ThemeSpecParser {
 
     static let assetKeys: Set<String> = ["background", "foreground", "keys"]
     static let rootKeys: Set<String> = Set(["v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
-                                            "sound", "effect", "swipe", "game"])
+                                            "sound", "effect", "swipe", "game", "schedule"])
         .union(assetKeys)
     static let slotKeys: Set<String> = Set(ThemeSlots.colorKeys + ["deco", "borderFx", "spaceDeco"])
 
@@ -732,6 +792,8 @@ enum ThemeSpecParser {
         }
         var typo = KeyStyle()
         typography(d, &typo, &c)
+        var schedule: [ThemeScheduleEntry]?
+        if let v = d["schedule"] { schedule = Self.schedule(v, &c) }
         guard !c.failed else { return Outcome(spec: nil, issues: c.issues) }
         var spec = ThemeSpec(id: id, nameVi: vi, nameEn: en, light: light, dark: dark == light ? nil : dark)
         spec.corner = typo.corner
@@ -744,8 +806,34 @@ enum ThemeSpecParser {
         spec.effect = typo.effect
         spec.swipe = typo.swipe
         spec.game = typo.game
+        spec.schedule = schedule
         if contrast { c.issues += contrastIssues(spec) }
         return Outcome(spec: c.failed ? nil : spec, issues: c.issues)
+    }
+
+    /// "schedule": mảng 2…6 {"from":"HH:MM","palette":{màu đầy đủ}}, "from" tăng dần.
+    private static func schedule(_ v: StrictJSON, _ c: inout Ctx) -> [ThemeScheduleEntry]? {
+        guard case .array(let a) = v else { c.err(.wrongType, "schedule"); return nil }
+        guard ThemeSchedule.entryRange.contains(a.count) else { c.err(.badValue, "schedule"); return nil }
+        var out: [ThemeScheduleEntry] = []
+        for (i, e) in a.enumerated() {
+            let p = "schedule[\(i)]"
+            guard case .object(let m) = e else { c.err(.wrongType, p); continue }
+            for (k, _) in m where k != "from" && k != "palette" { c.err(.unknownKey, p + "." + k) }
+            let d = Dictionary(m, uniquingKeysWith: { a, _ in a })
+            var from: Int?
+            switch d["from"] {
+            case nil: c.err(.missingKey, p + ".from")
+            case .string(let t)?:
+                if let f = ThemeSchedule.parseTime(t) { from = f } else { c.err(.badValue, p + ".from") }
+            default: c.err(.wrongType, p + ".from")
+            }
+            if let f = from, let last = out.last?.from, f <= last { c.err(.badValue, p + ".from"); from = nil }
+            guard let pv = d["palette"] else { c.err(.missingKey, p + ".palette"); continue }
+            let sl = Self.slots(pv, p + ".palette", full: true, &c)
+            if let f = from { out.append(ThemeScheduleEntry(from: f, slots: sl)) }
+        }
+        return out.count == a.count ? out : nil
     }
 
     private static func name(_ v: StrictJSON?, _ p: String, required: Bool, _ c: inout Ctx) -> String? {
@@ -992,9 +1080,14 @@ enum ThemeSpecParser {
     /// Chữ/phím, chữ/phím chức năng, chữ/nhấn mỗi chế độ: < 2:1 lỗi, < 3:1 cảnh báo.
     static func contrastIssues(_ spec: ThemeSpec) -> [ThemeIssue] {
         var out: [ThemeIssue] = []
-        let modes: [(String, Bool)] = spec.dark == nil ? [("light", false)] : [("light", false), ("dark", true)]
-        for (name, dark) in modes {
-            let p = spec.palette(dark: dark)
+        var modes: [(String, ThemeSlots, Bool)] = [("light", spec.light, false)]
+        if let d = spec.dark { modes.append(("dark", d, true)) }
+        // Bảng theo giờ: kiểm trên backdrop theo độ sáng chữ của chính nó.
+        for (i, e) in (spec.schedule ?? []).enumerated() {
+            modes.append(("schedule[\(i)]", e.slots, ThemeSpec.palette(e.slots).isDark))
+        }
+        for (name, slots, dark) in modes {
+            let p = ThemeSpec.palette(slots)
             let sys = KeyboardTransparency.systemBackdrop(dark: dark)
             let behind = p.background?.over(sys) ?? sys
             let pairs: [(String, RGBA, RGBA)] = [
@@ -1033,6 +1126,11 @@ extension ThemeSpec {
         if let effect { m.append(("effect", .string(effect))) }
         if let swipe { m.append(("swipe", .string(swipe))) }
         if let game { m.append(("game", .string(game))) }
+        if let schedule {
+            m.append(("schedule", .array(schedule.map {
+                .object([("from", .string(ThemeSchedule.format($0.from))), ("palette", Self.json($0.slots))])
+            })))
+        }
         return .object(m)
     }
 
@@ -1085,6 +1183,12 @@ extension ThemeSpec {
     /// accentInk tự tính. Thiếu màu bắt buộc (không xảy ra với spec đã kiểm) ⇒ xám an toàn.
     func palette(dark d: Bool) -> KeyboardPalette {
         Self.palette(slots(dark: d))
+    }
+    /// Palette lúc `date`: theme có lịch ⇒ bảng của giờ địa phương đó (đọc lịch máy MỘT lần); không lịch ⇒
+    /// `palette(dark:)` — không đụng tới lịch/đồng hồ.
+    func palette(dark d: Bool, at date: Date) -> KeyboardPalette {
+        guard schedule != nil else { return palette(dark: d) }
+        return Self.palette(slots(dark: d, minute: ThemeSchedule.minuteOfDay(date)))
     }
 
     static func palette(_ s: ThemeSlots) -> KeyboardPalette {

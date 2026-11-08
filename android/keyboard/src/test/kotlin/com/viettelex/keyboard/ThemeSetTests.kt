@@ -31,7 +31,7 @@ class ThemeSetTests {
         KeyboardTheme.XMAS_SNOW, KeyboardTheme.PIANO,
         KeyboardTheme.SEN, KeyboardTheme.TYPEWRITER, KeyboardTheme.RGB, KeyboardTheme.SPACE,
         KeyboardTheme.TRUNG_THU, KeyboardTheme.VALENTINE, KeyboardTheme.HALLOWEEN,
-        KeyboardTheme.MOLE)
+        KeyboardTheme.MOLE, KeyboardTheme.PIXEL, KeyboardTheme.SEA, KeyboardTheme.TIME_OF_DAY)
     private val pastels = listOf(KeyboardTheme.PEACH, KeyboardTheme.MINT, KeyboardTheme.SKY, KeyboardTheme.LAVENDER)
 
     private fun fixtureLines(): List<List<String>> {
@@ -47,7 +47,7 @@ class ThemeSetTests {
         assertEquals(lines.first { it[0] == "order" }[1].split(','), KeyboardTheme.entries.map { it.id })
         assertEquals(lines.first { it[0] == "plus" }[1].split(','), KeyboardTheme.entries.filter { it.isPlus }.map { it.id })
         val rows = lines.filter { it[0] != "order" && it[0] != "plus" }
-        assertEquals(52, rows.size)
+        assertEquals(58, rows.size)
         for (r in rows) {
             val t = KeyboardTheme.entries.first { it.id == r[0] }
             val p = t.palette(r[1] == "1")!!
@@ -179,6 +179,108 @@ class ThemeSetTests {
             }
             assertEquals(m, sumWant, sum, 1e-6)
         }
+    }
+
+    // ---- bộ 11/2026: Pixel 8-bit, Biển, Theo giờ — iOS KeyboardThemeTests y hệt
+
+    /** Ba theme mới: Plus, thêm CUỐI (sau Xám trung tính), tên vi/en, âm / hiệu ứng / bo góc / phông. iOS testPixelSeaTimeOfDayThemes. */
+    @Test fun pixelSeaTimeOfDayThemes() {
+        val all = KeyboardTheme.entries
+        assertEquals(listOf(KeyboardTheme.PIXEL, KeyboardTheme.SEA, KeyboardTheme.TIME_OF_DAY), all.takeLast(3))
+        assertEquals(KeyboardTheme.PIXEL, all[all.indexOf(KeyboardTheme.NEUTRAL) + 1])
+        data class W(val t: KeyboardTheme, val vi: String, val en: String, val sound: String?, val effect: String?, val corner: Int?)
+        for (w in listOf(W(KeyboardTheme.PIXEL, "Pixel 8-bit", "Pixel 8-bit", "chip", "flash", 0),
+                W(KeyboardTheme.SEA, "Biển", "Sea", "water", "wave", 60),
+                W(KeyboardTheme.TIME_OF_DAY, "Theo giờ", "Time of day", null, null, null))) {
+            val spec = w.t.spec!!
+            assertTrue("${w.t}", w.t.isPlus)
+            assertEquals(w.vi, spec.nameVi); assertEquals(w.en, spec.nameEn); assertEquals(w.en, L10nTable.EN[w.t.viTitle])
+            assertEquals("${w.t}", w.sound, spec.sound); assertEquals("${w.t}", w.effect, spec.effect)
+            assertEquals("${w.t}", w.corner, spec.corner)
+            w.sound?.let { assertTrue(it in KeySoundStyle.PRESET_IDS) }
+            w.effect?.let { assertTrue(it in ThemeExtraIds.EFFECTS) }
+            assertNotEquals("${w.t} có bản tối riêng", w.t.palette(false), w.t.palette(true))
+        }
+        val px = KeyboardTheme.PIXEL.spec!!
+        assertEquals(KeyLabelFont.MONO, px.font); assertEquals(KeyLabelWeight.BOLD, px.weight); assertTrue(px.assets.isEmpty)
+        assertEquals(0, ThemeSettings(theme = KeyboardTheme.PIXEL).effectiveKeyStyle.corner)
+        assertNotNull(KeyboardTheme.PIXEL.palette(false)!!.keyBorder)
+        assertEquals(ThemeDecoration.BUBBLES, KeyboardTheme.SEA.palette(false)!!.decoration!!.alt)
+        assertEquals(ThemeDecoration.STAR, KeyboardTheme.TIME_OF_DAY.palette(true)!!.decoration!!.motif)
+        assertNull(KeyboardTheme.TIME_OF_DAY.palette(false)!!.decoration)
+    }
+
+    /** Motif pixel / waves / bubbles: cùng chiều quay, trong ô ±0.5, mốc chung iOS (testPixelWavesBubblesMotifShapes). */
+    @Test fun newMotifs1111() {
+        val want = mapOf("pixel" to -10.0, "waves" to 6.86, "bubbles" to 39.71)
+        for ((m, sumWant) in want) {
+            assertTrue(m, m in ThemeDecoration.MOTIFS)
+            val subs = ThemeDecoration.shape(m)
+            assertTrue(m, subs.isNotEmpty())
+            var sum = 0.0
+            for (sub in subs) {
+                val pts = ArrayList<DoubleArray>()
+                pts.add(doubleArrayOf(sub.sx, sub.sy))
+                for (g in sub.segs) { var i = 0; while (i < g.size) { pts.add(doubleArrayOf(g[i], g[i + 1])); i += 2 } }
+                var a = 0.0
+                for (i in pts.indices) { val p = pts[i]; val q = pts[(i + 1) % pts.size]; a += p[0] * q[1] - q[0] * p[1] }
+                assertTrue("$m chiều quay", a > 0)
+                for (p in pts) { assertTrue(m, Math.abs(p[0]) <= 0.5 + 1e-9 && Math.abs(p[1]) <= 0.5 + 1e-9); sum += p[0] * 3 + p[1] * 7 }
+            }
+            assertEquals(m, sumWant, sum, 1e-6)
+        }
+        assertEquals(7, ThemeDecoration.shape(ThemeDecoration.PIXEL).size)
+    }
+
+    /** Theo giờ: mốc biên + qua nửa đêm, bỏ qua sáng/tối, bảng gốc light = ngày / dark = đêm — iOS testTimeOfDayScheduleBoundaries. */
+    @Test fun timeOfDaySchedule() {
+        val spec = KeyboardTheme.TIME_OF_DAY.spec!!
+        val sc = spec.schedule!!
+        assertEquals(listOf(300, 420, 1020, 1140), sc.map { it.from })
+        assertEquals(listOf("05:00", "07:00", "17:00", "19:00"), sc.map { ThemeSchedule.format(it.from) })
+        val cases = listOf(0 to 3, 299 to 3, 300 to 0, 419 to 0, 420 to 1, 720 to 1, 1019 to 1, 1020 to 2, 1139 to 2,
+            1140 to 3, 1439 to 3, 1440 to 3, 1440 + 300 to 0, -1 to 3)
+        for ((m, want) in cases) {
+            assertEquals("phút $m", want, ThemeSchedule.index(sc.map { it.from }, m))
+            assertEquals("phút $m tối", sc[want].slots, spec.slots(true, m))
+            assertEquals("phút $m sáng", sc[want].slots, spec.slots(false, m))
+        }
+        assertNull(ThemeSchedule.index(emptyList(), 5))
+        assertEquals(sc[1].slots, spec.light); assertEquals(sc[3].slots, spec.dark)
+        assertEquals(spec.light, spec.slots(false, null))
+        // Đồng hồ: ngày cố định, múi UTC.
+        val utc = java.util.TimeZone.getTimeZone("UTC")
+        val cal = java.util.Calendar.getInstance(utc).apply { clear(); set(2026, 10, 8, 17, 59) }
+        assertEquals(1079, ThemeSchedule.minuteOfDay(cal.timeInMillis, utc))
+        assertEquals(1439, ThemeSchedule.parseTime("23:59"))
+        for (bad in listOf("24:00", "7:00", "07:60", "0700", "07-00", "ab:cd", "07:00 ", "")) assertNull(bad, ThemeSchedule.parseTime(bad))
+        // Mọi mục lịch đọc được như mọi theme.
+        for ((i, e) in sc.withIndex()) {
+            val p = ThemeSpec.palette(e.slots, false)
+            val key = c.over(p.keyFill, p.bg); val fn = c.over(p.fnFill, p.bg)
+            assertTrue("mục $i phím", c.contrast(p.ink, key) >= 4.5)
+            assertTrue("mục $i phím chức năng", c.contrast(p.fnInk, fn) >= 4.5)
+            assertTrue("mục $i phím đè", c.contrast(p.ink, c.over(p.specialFill, p.bg)) >= 4.5)
+            val bar = p.barInk ?: p.ink
+            assertTrue("mục $i thanh gợi ý", c.contrast(bar, p.bg) >= 4.5)
+            assertTrue("mục $i Nhập", c.contrast(p.actionInk, p.action) >= 3)
+            p.decoration?.let { assertTrue("mục $i hoạ tiết", c.contrast(bar, c.over(it.color, p.bg)) >= 4.5) }
+        }
+        assertTrue(ThemeSpecParser.contrastIssues(spec).isEmpty())
+        // Qua ThemeSettings / IME: phút chọn bảng, theme khác không phụ thuộc giờ.
+        val s = ThemeSettings(theme = KeyboardTheme.TIME_OF_DAY)
+        assertEquals(sc[2].slots.bg, s.basePaletteAt(false, 18 * 60)!!.bg)
+        assertEquals(sc[2].slots.bg, s.basePaletteAt(true, 18 * 60)!!.bg)
+        assertEquals(sc[3].slots.bg, s.basePalette(true, 33, 3 * 60)!!.bg)
+        assertNotNull(s.scheduledSpec); assertNull(ThemeSettings(theme = KeyboardTheme.SEA).scheduledSpec)
+        assertNull(ThemeSettings(theme = KeyboardTheme.SEA).scheduleMinuteNow())
+        val sea = ThemeSettings(theme = KeyboardTheme.SEA)
+        assertEquals(sea.basePaletteAt(false, 3 * 60), sea.basePaletteAt(false, 15 * 60))
+        // "Chép JSON" giữ lịch; khứ hồi chuỗi chuẩn.
+        val exported = s.exportSpec(KeyboardTheme.TIME_OF_DAY, KeyboardTheme.TIME_OF_DAY.palette(false)!!, KeyboardTheme.TIME_OF_DAY.palette(true)!!)
+        assertEquals(sc, exported.schedule)
+        assertEquals(spec.canonical, exported.canonical)
+        assertEquals(exported, ThemeSpecParser.parse(exported.canonical).spec)
     }
 
     @Test fun festiveThemesCarrySoundAndEffect() {
@@ -403,12 +505,16 @@ class ThemeSetTests {
             KeyboardTheme.SPACE to ThemeDecoration.STARFIELD,
             KeyboardTheme.TRUNG_THU to ThemeDecoration.LANTERN, KeyboardTheme.VALENTINE to ThemeDecoration.HEARTS,
             KeyboardTheme.HALLOWEEN to ThemeDecoration.PUMPKIN, KeyboardTheme.GUITAR to ThemeDecoration.STRINGS,
-            KeyboardTheme.MOLE to ThemeDecoration.FLOWERS)
+            KeyboardTheme.MOLE to ThemeDecoration.FLOWERS, KeyboardTheme.PIXEL to ThemeDecoration.PIXEL,
+            KeyboardTheme.SEA to ThemeDecoration.WAVES)
         for ((t, m) in festive) for (dk in listOf(false, true)) assertEquals("$t", m, t.palette(dk)!!.decoration!!.motif)
         assertEquals(ThemeDecoration.SNOWFLAKE, KeyboardTheme.XMAS_SNOW.palette(false)!!.decoration!!.motif)
         assertEquals(ThemeDecoration.STAR, KeyboardTheme.XMAS_SNOW.palette(true)!!.decoration!!.motif)
+        // Theo giờ: bảng gốc ngày không hoạ tiết, đêm có sao (iOS testDecorationOnlyOnHeartAndFloral).
+        assertNull(KeyboardTheme.TIME_OF_DAY.palette(false)!!.decoration)
+        assertEquals(ThemeDecoration.STAR, KeyboardTheme.TIME_OF_DAY.palette(true)!!.decoration!!.motif)
         for (t in KeyboardTheme.entries) if (t != KeyboardTheme.BLACK_HEART && t != KeyboardTheme.GREEN_FLORAL &&
-            t != KeyboardTheme.XMAS_SNOW && t !in festive)
+            t != KeyboardTheme.XMAS_SNOW && t != KeyboardTheme.TIME_OF_DAY && t !in festive)
             for (dk in listOf(false, true)) assertNull("$t", t.palette(dk)?.decoration)
     }
 
