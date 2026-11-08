@@ -21,6 +21,7 @@
 #include "viettelex/app.h"
 #include "viettelex/auto_text.h"
 #include "viettelex/caret_hints.h"
+#include "viettelex/debug_log.h"
 #include "viettelex/gnome.h"
 #include "viettelex/gnome_monitor.h"
 #include "viettelex/session.h"
@@ -98,6 +99,22 @@ const vt::Settings &settings() { return G().watcher->settings(); }
 
 bool english() { return vt::isEnglishUi(settings().uiLanguage); }
 std::string tr(const char *vi) { return vt::uiText(vi, english()); }
+
+// VIETTELEX_DEBUG log (debug_log.h): header once, then the settings line when it changes.
+vt::debuglog::Logger &debugLog() {
+    static vt::debuglog::Logger log([](const std::string &l) { g_message("%s", l.c_str()); });
+    return log;
+}
+void debugContext() {
+    vt::debuglog::Frontend fe;
+    fe.name = "ibus";
+    // Headers this engine was built against (the daemon is the distro's matching package).
+    fe.version = std::to_string(IBUS_MAJOR_VERSION) + "." + std::to_string(IBUS_MINOR_VERSION) + "." +
+                 std::to_string(IBUS_MICRO_VERSION);
+    fe.layouts = "(ibus: system layout)";
+    fe.gnomeShell = G().gnome ? G().gnome->shellMajor() : 0;
+    debugLog().context(VT_VERSION, fe, settings());
+}
 // IBusText owns a copy of the string.
 IBusText *text(const std::string &s) { return ibus_text_new_from_string(s.c_str()); }
 
@@ -311,15 +328,18 @@ void refreshFieldFlags(VtIBusEngine *self) {
     // Email-domain suggestion (part of word_prediction): e-mail / URL fields included.
     self->session->setEmailDomainsAllowed(vt::autotext::appAllowed(*self->appId) && !field.terminal);
     self->session->setMultiline(false);
-    // VIETTELEX_DEBUG=1 in ibus-daemon's environment: why a field got its mode (stderr).
-    static const bool debug = std::getenv("VIETTELEX_DEBUG") != nullptr;
-    if (debug)
-        g_message("viettelex: client=%s app=%s host=%d surroundingCap=%d proven=%d purpose=%d shell=%d "
-                  "keysDropped=%d mode=%d deleteWithKeys=%d",
-                  self->clientName->c_str(), self->appId->c_str(), int(field.host),
-                  (IBUS_ENGINE(self)->client_capabilities & IBUS_CAP_SURROUNDING_TEXT) != 0,
-                  int(self->surroundingProven), int(self->purpose),
-                  G().gnome ? G().gnome->shellMajor() : 0, int(field.forwardedKeysDropped), int(policy.mode), int(policy.deleteWithKeys));
+    // VIETTELEX_DEBUG=1 in ibus-daemon's environment: why a field got its mode (stderr / journal).
+    if (vt::debuglog::enabled()) {
+        debugContext();
+        debugLog().line("field client=" + *self->clientName + " app=" + *self->appId +
+                        " host=" + std::to_string(int(field.host)) + " sCap=" +
+                        std::to_string(int((IBUS_ENGINE(self)->client_capabilities & IBUS_CAP_SURROUNDING_TEXT) != 0)) +
+                        " proven=" + std::to_string(int(self->surroundingProven)) +
+                        " purpose=" + std::to_string(int(self->purpose)) +
+                        " keysDropped=" + std::to_string(int(field.forwardedKeysDropped)) +
+                        " mode=" + std::to_string(int(policy.mode)) +
+                        " delKeys=" + std::to_string(int(policy.deleteWithKeys)));
+    }
 }
 
 std::string effectiveAppId(const std::string &clientId) {
@@ -335,6 +355,7 @@ void loadAppState(VtIBusEngine *self) {
 
 void applySettingsToAll() {
     const auto &s = G().watcher->reload();
+    if (vt::debuglog::enabled()) debugContext();  // settings line, only when it changed
     for (auto *e : G().engines) {
         e->session->applySettings(s);
         refreshFieldFlags(e);
@@ -491,13 +512,14 @@ gboolean processKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint 
         }
         IBusClient client(engine);
         bool handled = self->session->processKey(ev, client);
-        static const bool debug = std::getenv("VIETTELEX_DEBUG") != nullptr;
-        if (debug && !ev.release) {
+        if (vt::debuglog::enabled() && !ev.release) {
+            // Length only: the text before the caret is the user's (privacy contract).
             std::string before;
             bool ok = client.textBeforeCursorTail(24, before);
-            g_message("viettelex key: sym=%u fwd=%d mode=%d distrusted=%d before(%d)=[%s]", keyval,
-                      int(ev.forwarded), int(self->session->displayMode()),
-                      int(self->session->surroundingDistrusted()), int(ok), before.c_str());
+            debugLog().line("key sym=" + std::to_string(keyval) + " fwd=" + std::to_string(int(ev.forwarded)) +
+                            " mode=" + std::to_string(int(self->session->displayMode())) +
+                            " dist=" + std::to_string(int(self->session->surroundingDistrusted())) +
+                            " before=" + (ok ? std::to_string(before.size()) : std::string("?")));
         }
         return handled ? TRUE : FALSE;
     } catch (...) {

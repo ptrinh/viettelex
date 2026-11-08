@@ -1300,7 +1300,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             }
             TranslateResult.MissingModel -> showTranslateStatus(tr("Mở app VietTelex để tải gói dịch"), 3500)
             is TranslateResult.Failed -> {
-                TouchLog.write("translate failed: ${r.reason}")
+                // Chỉ tên lớp lỗi (phần trước ":"): thông điệp exception có thể kèm nội dung.
+                TouchLog.write("translate failed: ${r.reason.substringBefore(':').take(80)}")
                 showTranslateStatus(tr("Không dịch được — thử lại sau"), 2500)
             }
         }

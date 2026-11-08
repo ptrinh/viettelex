@@ -495,7 +495,8 @@ final class KeyboardViewController: UIInputViewController {
         StartupTrace.span("fieldTraits") { refreshFieldTraits(force: true) }
         applyOneHandSetting()
         StartupTrace.span("buildKeys") { keyboard.endBatch() }
-        TouchLog.session(fullAccess: hasFullAccess, traits: fieldTraits?.logDescription ?? "")
+        TouchLog.session(header: TouchLogFormat.liveHeader(settings: settings, fullAccess: hasFullAccess),
+                         fullAccess: hasFullAccess, traits: fieldTraits?.logDescription ?? "")
         logHostGeometry("willAppear")
         // Rung phím: cần cả toggle trong app LẪN Toàn quyền Truy cập (iOS
         // vô hiệu haptics trong extension không có Full Access).
@@ -504,7 +505,6 @@ final class KeyboardViewController: UIInputViewController {
         KeyHaptics.log = { TouchLog.write($0) }
         KeyHaptics.shared.setStrength(settings.hapticStrength)
         KeyHaptics.shared.resetFailures()   // lần hiện mới: thử Core Haptics lại dù lần trước lỗi
-        TouchLog.write("haptics setting=\(settings.hapticFeedback ? 1 : 0) strength=\(settings.hapticStrength) fullAccess=\(hasFullAccess ? 1 : 0)")
         StartupTrace.span("keySound") { applyKeySound(settings) }
         // Báo trạng thái Full Access cho app chứa (ẩn banner nhắc cấp quyền).
         // Không Full Access thì iOS chặn GHI App Group → cờ giữ nguyên/vắng,
@@ -637,9 +637,6 @@ final class KeyboardViewController: UIInputViewController {
         // Engine âm dựng nền SAU khung đầu (phím tới trước đó: play() trả false — im một tiếng,
         // không chặn, không ảnh hưởng chữ).
         if on && settings.keySoundVolume > 0 { afterFirstFrame { KeySound.shared.prepare() } } else { KeySound.shared.shutdown() }
-        if settings.keySound {
-            TouchLog.write("keysound setting=1 style=\(settings.keySoundStyle) volume=\(settings.keySoundVolume) fullAccess=\(hasFullAccess ? 1 : 0)")
-        }
     }
 
     /// Nạp NỀN dữ liệu tính năng đang BẬT (tắt ⇒ không nạp gì): model cá nhân + mô hình âm
@@ -2235,6 +2232,8 @@ final class KeyboardViewController: UIInputViewController {
     // gõ dở từ, và clipboard có nội dung MỚI trong 3 phút chưa dán. hasStrings không
     // bật hỏi quyền; nội dung chỉ đọc khi user CHẠM nút. Cache 2s: hasStrings là XPC.
     private var pasteSeenChange = -1
+    /// Debug mode: dòng "paste:" chỉ ghi khi (cc, used, has, kết quả) đổi.
+    private var pasteLogKey = ""
     private var pasteSeenAt = Date.distantPast
     private var pasteUsedChange = -1
     private var pasteCheckedAt = Date.distantPast
@@ -2294,10 +2293,15 @@ final class KeyboardViewController: UIInputViewController {
         pasteCached = cc != pasteUsedChange && has
             && now.timeIntervalSince(pasteSeenAt) < 180
             && pasteOnce.canOffer(cc)
+        // Chỉ khi trạng thái đổi: refresh bar chạy mỗi phím/đổi ô, dòng y hệt (trừ tuổi) là rác.
         if TouchLog.enabled {
-            TouchLog.write(String(format: "paste: cc=%d used=%d hasStrings=%d age=%.0fs → %d",
-                                  cc, pasteUsedChange, has ? 1 : 0,
-                                  now.timeIntervalSince(pasteSeenAt), pasteCached ? 1 : 0))
+            let key = "\(cc)/\(pasteUsedChange)/\(has ? 1 : 0)/\(pasteCached ? 1 : 0)"
+            if key != pasteLogKey {
+                pasteLogKey = key
+                TouchLog.write(String(format: "paste: cc=%d used=%d has=%d age=%.0fs → %d",
+                                      cc, pasteUsedChange, has ? 1 : 0,
+                                      now.timeIntervalSince(pasteSeenAt), pasteCached ? 1 : 0))
+            }
         }
     }
 

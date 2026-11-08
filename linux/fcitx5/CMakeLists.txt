@@ -24,6 +24,7 @@ add_library(viettelex-fcitx5 MODULE src/viettelex.cpp)
 set_target_properties(viettelex-fcitx5 PROPERTIES OUTPUT_NAME viettelex PREFIX "")
 target_link_libraries(viettelex-fcitx5 PRIVATE Fcitx5::Core Fcitx5::Config Fcitx5::Utils viettelex-common)
 target_compile_options(viettelex-fcitx5 PRIVATE -Wall -fvisibility=hidden)
+target_compile_definitions(viettelex-fcitx5 PRIVATE VT_VERSION="${PROJECT_VERSION}")
 # Optional: the clipboard addon's PRIMARY selection for text tools in apps without
 # surrounding text (header from fcitx5-modules-dev; runtime falls back to wl-paste/xclip).
 find_package(Fcitx5ModuleClipboard QUIET)

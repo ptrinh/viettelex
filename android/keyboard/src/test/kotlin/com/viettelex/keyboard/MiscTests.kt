@@ -232,7 +232,7 @@ class TouchLogTests {
         TouchLog.edit(1, 1, "ệ")
         TouchLog.touchBegan(1, 1, 2.0, true, 10.0, "w")
         val text = f.readText()
-        assertTrue(text.contains("key=letter") && text.contains("edit bs=1 ins=1"))
+        assertTrue(text.contains("key letter comp=1") && text.contains("edit bs=1 ins=1"))
         assertTrue(!text.contains("[q]") && !text.contains("ệ") && !text.contains("[w]"))
         TouchLog.configure(f, recordsCharacters = true)
         TouchLog.key("letter", true, 0.1, "z")
@@ -253,6 +253,67 @@ class TouchLogTests {
         assertTrue(f.length() < 160_000)
         assertTrue(f.readText().endsWith("tail-line\n"))
         TouchLog.enabled = false; TouchLog.configure(null, false); TouchLog.synchronous = false
+    }
+
+    @Test fun testHeaderOnceThenOnlyWhenChangedAndAfterTrim() {
+        val f = Files.createTempFile("touchlog", ".txt").toFile(); f.delete()
+        TouchLog.synchronous = true
+        TouchLog.configure(f, false); TouchLog.enabled = true
+        TouchLog.headerProvider = { listOf("=== H") }
+        val s = KeyboardSettings()
+        TouchLog.session("a", TouchLogFormat.settingsLines(s))
+        TouchLog.session("a", TouchLogFormat.settingsLines(s))
+        var lines = f.readLines()
+        assertEquals("=== H", lines[0])
+        assertTrue(lines[1].startsWith("typing: method=telex-simple "))
+        assertEquals(1, lines.count { it == "=== H" })
+        // Hai lần appear y hệt ⇒ gộp "×2".
+        TouchLog.write("x")
+        lines = f.readLines()
+        assertEquals("  ×2", lines[lines.size - 2])
+        // Setting đổi ⇒ header ghi lại.
+        TouchLog.session("a", TouchLogFormat.settingsLines(s.copy(vniMode = true)))
+        assertTrue(f.readLines().any { it.startsWith("typing: method=vni ") })
+        assertEquals(2, f.readLines().count { it == "=== H" })
+        // Quá trần ⇒ cắt, header lên đầu.
+        f.appendText("y".repeat(TouchLog.CAP_BYTES.toInt()) + "\n")
+        TouchLog.write("after-trim")
+        lines = f.readLines()
+        assertEquals("=== H", lines[0])
+        assertTrue(lines.contains("… (older lines trimmed)"))
+        assertTrue(lines.last().endsWith("after-trim"))
+        assertTrue(f.length() < TouchLog.KEEP_BYTES + 2_000)
+        // Xoá log (app) ⇒ dòng kế tiếp mở file mới bằng header.
+        TouchLog.clear()
+        TouchLog.write("fresh")
+        assertEquals("=== H", f.readLines()[0])
+        TouchLog.enabled = false; TouchLog.headerProvider = null
+        TouchLog.clear(); TouchLog.configure(null, false); TouchLog.synchronous = false
+    }
+
+    @Test fun testCollapser() {
+        val c = TouchLogFormat.Collapser()
+        assertEquals(listOf("a"), c.push("a"))
+        assertEquals(emptyList<String>(), c.push("a"))
+        assertEquals(emptyList<String>(), c.push("a"))
+        assertEquals(listOf("  ×3", "b"), c.push("b"))
+        assertEquals(emptyList<String>(), c.flush())
+        c.push("b")
+        assertEquals(listOf("  ×2"), c.flush())
+        assertEquals(listOf("b"), c.push("b"))
+    }
+
+    @Test fun testContextAndSettingsLinesNeverCarryContent() {
+        val h = TouchLogFormat.contextLines(TouchLogFormat.Context(version = "1.5.29", build = "36",
+            android = "16 (API 36)", device = "Google Pixel 9", abi = "arm64-v8a", install = "play",
+            locales = "vi-VN,en-US", uiLanguage = "vi", theme = "sakura"))
+        assertEquals("=== VietTelex Android 1.5.29 (36) keyboard debug log", h[0])
+        assertEquals("device: Google Pixel 9 · arm64-v8a · Android 16 (API 36) · install play", h[1])
+        assertEquals("locale: vi-VN,en-US · ui vi · theme sakura", h[2])
+        val s = KeyboardSettings(shortcuts = ShortcutTable(mapOf("vn" to "Việt Nam bí mật")))
+        val text = TouchLogFormat.settingsLines(s).joinToString("\n")
+        assertTrue(text.contains("shortcuts: on:1 "))
+        assertFalse(text.contains("Việt Nam"))
     }
 }
 
