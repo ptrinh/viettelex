@@ -179,6 +179,8 @@ object Keys {
     const val ONE_HAND_LAST = "oneHandLastSide"
     /** String JSON `[{"label":…,"text":…}]`; vắng ⇒ mặc định từ assets/ios-mau-cau.yml. */
     const val USER_TEMPLATES = "userTemplates"
+    /** Bool — đã chạy migration một lần thêm mẫu động có sẵn ([Templates.migrateDynamicBuiltins]). */
+    const val DYNAMIC_SNIPPETS_MIGRATED = "dynamicSnippetsMigrated1"
     const val DEBUG_TOUCH_LOG = "debugTouchLog"
     // Theme & ảnh nền ([ThemeSettings]) — tên như iOS App Group.
     const val KEYBOARD_THEME = "keyboardTheme"

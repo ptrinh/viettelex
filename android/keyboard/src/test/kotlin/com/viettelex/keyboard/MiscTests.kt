@@ -14,8 +14,12 @@ class TemplatesTests {
     @Test fun testParseDefaultsFile() {
         val items = Templates.parseYAML(KeyboardData.text(Keys.ASSET_TEMPLATES_YAML))
         assertEquals(TemplateItem("👋", "Chào buổi sáng"), items.first())
-        assertEquals(TemplateItem("🌐 IP", "https://api.ipify.org"), items.last())
-        assertTrue(Templates.isDynamic(items.last().text))
+        assertEquals(27, items.size)
+        // 🌐 IP rồi bốn mẫu động có sẵn — khớp bảng migration [Templates.dynamicBuiltins].
+        assertEquals(TemplateItem("🌐 IP", "https://api.ipify.org"), items[items.size - 5])
+        assertEquals(Templates.dynamicBuiltins, items.takeLast(4))
+        assertEquals(listOf("💵❓", "💸❓", "🟡❓", "🪙❓"), items.takeLast(4).map { it.label })
+        assertTrue(items.takeLast(5).all { Templates.isDynamic(it.text) })
     }
 
     @Test fun testParseFormats() {
@@ -75,6 +79,72 @@ class TemplatesTests {
         assertEquals("1.2.3.4", Templates.bodyFromResponse("  1.2.3.4\n".toByteArray()))
         assertNull(Templates.bodyFromResponse("   ".toByteArray()))
         assertEquals(1000, Templates.bodyFromResponse(ByteArray(3000) { 'a'.code.toByte() })!!.length)
+    }
+
+    @Test fun testDynamicBodyNon200FallsBackToUrl() {
+        val ok = "25.430".toByteArray()
+        assertEquals("25.430", Templates.bodyFromResponse(ok, 200))
+        assertNull(Templates.bodyFromResponse(ok, 404))
+        assertNull(Templates.bodyFromResponse(ok, 500))
+        assertNull(Templates.bodyFromResponse(ok, 204))
+        assertNull(Templates.bodyFromResponse(null, 200))
+    }
+
+    @Test fun testDynamicBodyUtf8() {
+        val s = "USD/VND: 25.430 ₫ — giá vàng SJC: 84,5 triệu đồng/lượng"
+        assertEquals(s, Templates.bodyFromResponse("\n$s\n".toByteArray(Charsets.UTF_8)))
+        // 999 byte ASCII + "₫" (3 byte): cắt ở 1000 rơi giữa "₫" ⇒ bỏ hẳn, không "�".
+        val cut = Templates.bodyFromResponse(("a".repeat(999) + "₫xyz").toByteArray(Charsets.UTF_8))!!
+        assertEquals("a".repeat(999), cut)
+        assertFalse(cut.contains('\uFFFD'))
+        // Đúng 1000 byte có dấu: giữ nguyên; dài hơn ⇒ 500 chữ "đ".
+        assertEquals("đ".repeat(500), Templates.bodyFromResponse("đ".repeat(500).toByteArray(Charsets.UTF_8)))
+        assertEquals("đ".repeat(500), Templates.bodyFromResponse("đ".repeat(600).toByteArray(Charsets.UTF_8)))
+        // Ký tự 4 byte bị cắt giữa (IME đọc 1001 byte).
+        assertEquals("b".repeat(998), Templates.bodyFromResponse(("b".repeat(998) + "🟡").toByteArray(Charsets.UTF_8)))
+    }
+
+    private val builtinTexts = Templates.dynamicBuiltins.map { it.text }
+
+    @Test fun testDynamicMigrationFreshUser() {
+        assertNull(Templates.migrateDynamicBuiltins(null, alreadyRan = false))
+        assertTrue(Templates.shouldMarkDynamicMigrated(null))
+    }
+
+    @Test fun testDynamicMigrationCustomizedUser() {
+        val mine = listOf(TemplateItem("👋", "Chào"))
+        val out = Templates.fromJson(Templates.migrateDynamicBuiltins(Templates.toJson(mine), false)!!)!!
+        assertEquals(mine + Templates.dynamicBuiltins, out)
+    }
+
+    @Test fun testDynamicMigrationAlreadyHasOne() {
+        val mine = listOf(TemplateItem("vàng", "https://viettelex.com/api/vang"))
+        val out = Templates.fromJson(Templates.migrateDynamicBuiltins(Templates.toJson(mine), false)!!)!!
+        assertEquals(1, out.count { it.text == "https://viettelex.com/api/vang" })
+        assertEquals("vàng", out[0].label)
+        assertEquals(builtinTexts.toSet(), out.map { it.text }.toSet())
+        // Có đủ cả bốn ⇒ không đổi.
+        assertNull(Templates.migrateDynamicBuiltins(Templates.toJson(Templates.dynamicBuiltins), false))
+    }
+
+    @Test fun testDynamicMigrationRanTwiceAndUserDeleted() {
+        // Mô phỏng prefs: json + cờ, cùng cách VTPrefs.migrateDynamicSnippets ghi.
+        var json: String? = Templates.toJson(listOf(TemplateItem("👋", "Chào")))
+        var done = false
+        fun run() {
+            if (done || !Templates.shouldMarkDynamicMigrated(json)) return
+            Templates.migrateDynamicBuiltins(json, false)?.let { json = it }
+            done = true
+        }
+        run(); run()
+        assertEquals(1 + builtinTexts.size, Templates.fromJson(json!!)!!.size)
+        json = Templates.toJson(listOf(TemplateItem("👋", "Chào")))   // người dùng xoá cả bốn
+        run()
+        assertEquals(1, Templates.fromJson(json!!)!!.size)
+        assertNull(Templates.migrateDynamicBuiltins(json, alreadyRan = true))
+        // JSON hỏng ⇒ không đụng, không đánh dấu.
+        assertFalse(Templates.shouldMarkDynamicMigrated("not json"))
+        assertNull(Templates.migrateDynamicBuiltins("not json", false))
     }
 
     @Test fun testParseImportYamlFile() {

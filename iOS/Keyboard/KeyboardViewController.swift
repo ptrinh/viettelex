@@ -1669,19 +1669,16 @@ final class KeyboardViewController: UIInputViewController {
     /// Mẫu câu từ burger menu: chèn nguyên văn, KHÔNG học vào model (câu
     /// nhiều từ sẽ làm bẩn unigram), reset engine như một lần dán.
     /// Mẫu dạng https:// = "mẫu động": fetch NGAY LÚC TAP, chèn raw response
-    /// (cắt 1000 bytes). LƯU Ý: không Full Access thì iOS chặn network của
+    /// (cắt 1000 bytes, UTF-8 — DynamicSnippets.body). HTTP ≠ 200 / timeout / body rỗng
+    /// → chèn chính URL. LƯU Ý: không Full Access thì iOS chặn network của
     /// keyboard extension → fetch fail → fallback chèn chính URL.
     private func insertTemplate(_ s: String) {
         if s.hasPrefix("https://"), let url = URL(string: s) {
-            let req = URLRequest(url: url, timeoutInterval: 4)
-            URLSession.shared.dataTask(with: req) { [weak self] data, _, _ in
-                DispatchQueue.main.async {
-                    let body = data.map { d in
-                        String(decoding: d.prefix(1000), as: UTF8.self)
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-                    } ?? ""
-                    self?.rawInsert(body.isEmpty ? s : body)
-                }
+            let req = URLRequest(url: url, timeoutInterval: DynamicSnippets.fetchTimeout)
+            URLSession.shared.dataTask(with: req) { [weak self] data, resp, _ in
+                let status = (resp as? HTTPURLResponse)?.statusCode
+                let body = DynamicSnippets.body(data: data, statusCode: status)
+                DispatchQueue.main.async { self?.rawInsert(body ?? s) }
             }.resume()
             return
         }

@@ -393,18 +393,23 @@ final class UXFeedbackTests: XCTestCase {
 
     // MARK: 6. mẫu câu mặc định
 
-    /// Nhãn mặc định không dùng ❓ (đỏ — trông như lỗi hiển thị); nội dung câu giữ nguyên.
+    /// Nhãn câu thường không dùng ❓ (đỏ — trông như lỗi hiển thị); ❓ chỉ dành cho mẫu
+    /// động có sẵn (💵❓ 💸❓ 🟡❓ 🪙❓ — "hỏi giá"). Nội dung câu giữ nguyên.
     func testDefaultTemplateLabelsHaveNoRedQuestionMark() throws {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("ios-mau-cau.yml")
         let items = KeyboardView.parseTemplatesYAML(try String(contentsOf: url, encoding: .utf8))
-        XCTAssertEqual(items.count, 23)
-        for i in items { XCTAssertFalse(i.label.contains("❓"), i.label) }
+        XCTAssertEqual(items.count, 27)
+        let builtinTexts = Set(DynamicSnippets.builtins.map(\.text))
+        for i in items where !builtinTexts.contains(i.text) { XCTAssertFalse(i.label.contains("❓"), i.label) }
         let texts = items.map(\.text)
         for t in ["Đang ở đâu vậy?", "Đang làm gì vậy", "Lúc nào gặp được nhỉ", "Bạn đang ở đâu?",
                   "https://api.ipify.org"] {
             XCTAssertTrue(texts.contains(t), t)
         }
+        // Mẫu động có sẵn: ngay sau 🌐 IP, khớp DynamicSnippets.builtins (migration dùng bảng này).
+        XCTAssertEqual(items.suffix(5).map(\.text), ["https://api.ipify.org"] + DynamicSnippets.builtins.map(\.text))
+        XCTAssertEqual(items.suffix(4).map(\.label), DynamicSnippets.builtins.map(\.label))
     }
 }
 

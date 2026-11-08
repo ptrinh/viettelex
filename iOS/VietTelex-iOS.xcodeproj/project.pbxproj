@@ -27,6 +27,7 @@
 		0B1441C5B52FF8CC5F5382AE /* DomainPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95F2B6D4AD796E9D33B623BA /* DomainPopup.swift */; };
 		0BA146A5605A6C79C1FD23BC /* backup-too-new.json in Resources */ = {isa = PBXBuildFile; fileRef = 283B18B560C805EFBE10D839 /* backup-too-new.json */; };
 		0D74B9E1C49AB9872006D893 /* bigram-heldout.txt in Resources */ = {isa = PBXBuildFile; fileRef = 874923DAE33DB7FA95441F18 /* bigram-heldout.txt */; };
+		0D9E316FDE15CC789086F395 /* DynamicSnippetsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75B5F8CF64D742271AB1F96D /* DynamicSnippetsTests.swift */; };
 		0E4E1EDF98B16B37559DDCDD /* PlanePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A6BDCAE323FDEA73473DB7 /* PlanePolicyTests.swift */; };
 		0E9B932EADC04178D1A36C72 /* SwipePractice.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE4C2C271F18A006B9967589 /* SwipePractice.swift */; };
 		0F638DDA7C5DE1FC8DA03D46 /* KeyLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3125082F1A2E31162FC7045 /* KeyLayoutTests.swift */; };
@@ -50,6 +51,7 @@
 		19E10CBD380ADB2DE7B4FD84 /* futoswipe-LICENSE.md in Resources */ = {isa = PBXBuildFile; fileRef = 906FFAA7A51DC0B6F109763A /* futoswipe-LICENSE.md */; };
 		1A29E473944251EB70A23628 /* SensitiveWords.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9F4445707DBA22FE5219CD /* SensitiveWords.swift */; };
 		1A6C76EDB4E5FEC29351714B /* KeyboardBuddyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 052E6FE3AB0D95827A3C3A25 /* KeyboardBuddyView.swift */; };
+		1B86C6D3015F6C676976353C /* DynamicSnippets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45FD7A68B46DF76459196CD4 /* DynamicSnippets.swift */; };
 		1BDEABFA14745D76DB06262B /* AddTones.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11876FBB4C611F4A86CBCBB2 /* AddTones.swift */; };
 		1D286BF27687D9F637D3E953 /* ThemeSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA49BF61252BA33DE0B264E1 /* ThemeSpec.swift */; };
 		1D3501D761DFD4F1BED9ED72 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */; };
@@ -232,6 +234,7 @@
 		70DD29A8E2BCC7E33924F72A /* ThemeAssets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF4C6DB15FA5F4E400E8FC58 /* ThemeAssets.swift */; };
 		7110C4E467E4CDBC2631B08B /* EnglishAssist.swift in Sources */ = {isa = PBXBuildFile; fileRef = A817C3A81FD07D8BF3E86BF2 /* EnglishAssist.swift */; };
 		71E1B2497AB798436D5D3CC3 /* VTTranslate.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE0588321F07A1A67271DE4E /* VTTranslate.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		7289119A49E54D7B17E9CC17 /* DynamicSnippets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45FD7A68B46DF76459196CD4 /* DynamicSnippets.swift */; };
 		72FADD3D9A76936B50D45FA3 /* buddy-boy-v2.png in Resources */ = {isa = PBXBuildFile; fileRef = BBDFD4831F701CE3922C7ACB /* buddy-boy-v2.png */; };
 		733D3888524809658B6A04D3 /* VTCatch.m in Sources */ = {isa = PBXBuildFile; fileRef = 4F35DEB1416616443DB332E0 /* VTCatch.m */; };
 		7461378F13B76FACDE12EE82 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F9FF65E125861AD8DCB6B4D /* OnboardingView.swift */; };
@@ -463,6 +466,7 @@
 		E36CA3CB7199842336DF87EB /* UserLMTables.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B560D6CFFCE1B0B57742E3 /* UserLMTables.swift */; };
 		E373E5A2EFC2168C0356254B /* KeyEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = D464912521BAEE32297B4D44 /* KeyEffects.swift */; };
 		E6D596FF4699916EC99C811C /* KeyGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 491E9FDC24E9CC711FC62BD8 /* KeyGeometryTests.swift */; };
+		E6D7D2C5B7DEFCC7FFEDEA63 /* DynamicSnippets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45FD7A68B46DF76459196CD4 /* DynamicSnippets.swift */; };
 		E74F85FA5D7275FFA0E8F759 /* NumberRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8993F83A60C653C26799EC /* NumberRowTests.swift */; };
 		E83BC0DEF991CE5003E3E36D /* AIAssistLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB7D7BF0F94DBAD0C6F2A2F /* AIAssistLoader.swift */; };
 		E8C8BDC1DF2A4D93400ED41E /* AIProofread.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D148C459EDB5655C7C98BE2 /* AIProofread.swift */; };
@@ -665,6 +669,7 @@
 		45174CB35A9FB727F1BF5F4F /* RetroEnglishUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroEnglishUI.swift; sourceTree = "<group>"; };
 		451B2112B13ABD917EEE3D9A /* WordDelete.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordDelete.swift; sourceTree = "<group>"; };
 		455CE7543F3290A1B95FA3F9 /* Feedback1028Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Feedback1028Tests.swift; sourceTree = "<group>"; };
+		45FD7A68B46DF76459196CD4 /* DynamicSnippets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicSnippets.swift; sourceTree = "<group>"; };
 		46501A28188D32863452971E /* MathResultsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathResultsTests.swift; sourceTree = "<group>"; };
 		47B731DCA56D699168C41DAC /* FutoSwipeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FutoSwipeModel.swift; sourceTree = "<group>"; };
 		480410FD8F2A324AF6A742C1 /* FieldPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldPolicy.swift; sourceTree = "<group>"; };
@@ -726,6 +731,7 @@
 		738732B955CD39C76B2484C7 /* SeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedData.swift; sourceTree = "<group>"; };
 		7394A70103C67353E530BD3C /* KeyVariants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyVariants.swift; sourceTree = "<group>"; };
 		75A9F065C3D6400280AE99D7 /* ReEditWordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReEditWordTests.swift; sourceTree = "<group>"; };
+		75B5F8CF64D742271AB1F96D /* DynamicSnippetsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicSnippetsTests.swift; sourceTree = "<group>"; };
 		76444B4521814651DA2C026A /* FutoSwipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FutoSwipe.swift; sourceTree = "<group>"; };
 		769E76C687A1221F2389FD54 /* OneHandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneHandTests.swift; sourceTree = "<group>"; };
 		778ABAFB76C1046BD2E3A1AD /* SwipeGesture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeGesture.swift; sourceTree = "<group>"; };
@@ -1099,6 +1105,7 @@
 			isa = PBXGroup;
 			children = (
 				FCAC9CC32E1896AB8B3EB695 /* AppFlavor.swift */,
+				45FD7A68B46DF76459196CD4 /* DynamicSnippets.swift */,
 				0B235B84E86F71BBBB10E836 /* EmojiAtlas.swift */,
 				BF99EE8945374D95A9001E47 /* KeyHaptics.swift */,
 				6F98B87CC6DBF96F8D09A899 /* KeySoundSynth.swift */,
@@ -1155,6 +1162,7 @@
 				D13EC9E20C9CC2A1DBBF56D3 /* CorrectionHintTests.swift */,
 				B81DF7C11BC56071493CA007 /* CuratedPairsTests.swift */,
 				ACF0C397A9C6E378B4465FAE /* DomainPopupTests.swift */,
+				75B5F8CF64D742271AB1F96D /* DynamicSnippetsTests.swift */,
 				515867D60976AB481872E0F2 /* EdgeTouchDelayTests.swift */,
 				A9F6973DD8764DB934C95323 /* EmojiAtlasTests.swift */,
 				104D515FA297531BCEF3AA25 /* EmojiDataTests.swift */,
@@ -1748,6 +1756,7 @@
 				700B0B1ADD376A396DA59B13 /* CuratedPairs.swift in Sources */,
 				5E9A08F294F260D516411505 /* DisplayCase.swift in Sources */,
 				0B1441C5B52FF8CC5F5382AE /* DomainPopup.swift in Sources */,
+				E6D7D2C5B7DEFCC7FFEDEA63 /* DynamicSnippets.swift in Sources */,
 				277932CADF5C72BEDCB58651 /* EmojiAtlas.swift in Sources */,
 				391082DF75889B3977A67837 /* EmojiData.swift in Sources */,
 				E986D58B038F7EFC5C5803FB /* EmojiPlane.swift in Sources */,
@@ -1845,6 +1854,7 @@
 				DCB8D7A31898382626331E8D /* BuddyPickerView.swift in Sources */,
 				D9698F87C83A2F6BF7D7D86E /* BuiltinFonts.swift in Sources */,
 				673B126D70D140C3758BEA30 /* BuiltinThemes.swift in Sources */,
+				1B86C6D3015F6C676976353C /* DynamicSnippets.swift in Sources */,
 				697E89D4CCFFE9F62F474A97 /* EmojiAtlas.swift in Sources */,
 				D6B834245592A77251E351F6 /* EmojiAtlasBuilder.swift in Sources */,
 				7E077DE51702D8A5C5A44038 /* EmojiData.swift in Sources */,
@@ -1962,6 +1972,8 @@
 				36C564FD8BADBFB0BCC1E645 /* DisplayCase.swift in Sources */,
 				4AB730B9742118C7208D887A /* DomainPopup.swift in Sources */,
 				DD2DD4A8FC64DD7B498864FA /* DomainPopupTests.swift in Sources */,
+				7289119A49E54D7B17E9CC17 /* DynamicSnippets.swift in Sources */,
+				0D9E316FDE15CC789086F395 /* DynamicSnippetsTests.swift in Sources */,
 				A3BB802468EAD5366DCCFFCD /* EdgeTouchDelayTests.swift in Sources */,
 				21079B460094A0461A80E0FC /* EmojiAtlas.swift in Sources */,
 				E18FE2085B406DE00BC80F1F /* EmojiAtlasBuilder.swift in Sources */,

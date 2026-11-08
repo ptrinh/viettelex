@@ -1317,6 +1317,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var userTemplates: [(label: String, text: String)] {
         if let c = userTemplatesCache { return c }
         let c: [(label: String, text: String)]
+        // Một lần: thêm mẫu động có sẵn (tỷ giá/vàng/BTC) vào danh sách đã tự chỉnh.
+        DynamicSnippets.migrateIfNeeded(UserDefaultsProvider.shared)
         if let raw = UserDefaultsProvider.shared?.array(forKey: "userTemplates") as? [[String: String]] {
             c = raw.compactMap { e in
                 guard let t = e["text"], !t.isEmpty else { return nil }

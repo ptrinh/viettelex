@@ -24,9 +24,22 @@ object VTPrefs {
 
     fun settings(ctx: Context): KeyboardSettings = settings(of(ctx))
 
+    /**
+     * Một lần: thêm mẫu động có sẵn (tỷ giá/vàng/BTC) vào danh sách đã tự chỉnh. Đã chạy ⇒
+     * chỉ một lần đọc bool. Gọi từ cả IME lẫn app (idempotent, so theo text).
+     */
+    fun migrateDynamicSnippets(p: SharedPreferences) {
+        if (p.getBoolean(Keys.DYNAMIC_SNIPPETS_MIGRATED, false)) return
+        val json = p.getString(Keys.USER_TEMPLATES, null)
+        if (!Templates.shouldMarkDynamicMigrated(json)) return
+        val e = p.edit()
+        Templates.migrateDynamicBuiltins(json, alreadyRan = false)?.let { e.putString(Keys.USER_TEMPLATES, it) }
+        e.putBoolean(Keys.DYNAMIC_SNIPPETS_MIGRATED, true).apply()
+    }
+
     /** Mẫu câu hiện hành: pref JSON, không thì assets/ios-mau-cau.yml. */
     fun templates(ctx: Context, p: SharedPreferences = of(ctx)): List<TemplateItem> =
-        Templates.load(p.getString(Keys.USER_TEMPLATES, null)) {
+        Templates.load(migrateDynamicSnippets(p).let { p.getString(Keys.USER_TEMPLATES, null) }) {
             try {
                 ctx.assets.open(Keys.ASSET_TEMPLATES_YAML).use { String(it.readBytes(), Charsets.UTF_8) }
             } catch (_: Exception) { null }
