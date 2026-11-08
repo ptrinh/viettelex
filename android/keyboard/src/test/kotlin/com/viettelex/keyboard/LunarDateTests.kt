@@ -6,6 +6,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 /** Ngày âm lịch Việt Nam (UTC+7) + chip "âm lịch" — cùng bộ ca với iOS LunarDateTests.swift. */
 class LunarDateTests {
@@ -40,6 +41,46 @@ class LunarDateTests {
         assertEquals(L(30, 6, 2025), lunar(24, 7, 2025))
         assertEquals(L(1, 2, 2023, leap = true), lunar(22, 3, 2023))
         assertEquals("1/6 nhuận năm Ất Tỵ", LunarDate.label(lunar(25, 7, 2025)))
+    }
+
+    /** Bản rút gọn cũ trả ngày 0 (thiếu lùi thêm một kỳ trăng) hoặc lệch một ngày ở các ngày này. */
+    @Test fun regressionShortAlgorithmDates() {
+        assertEquals(L(30, 3, 2054), lunar(7, 5, 2054))     // cũ: ngày 0
+        assertEquals(L(30, 2, 2062), lunar(9, 4, 2062))     // cũ: ngày 0
+        assertEquals(L(1, 11, 2072), lunar(9, 12, 2072))    // cũ: lệch 1 ngày
+        assertEquals(L(1, 10, 2077), lunar(15, 11, 2077))   // cũ: lệch 1 ngày
+        assertEquals("30/3 năm Giáp Tuất", LunarDate.label(lunar(7, 5, 2054)))
+    }
+
+    /**
+     * Fixture chung 4 nền tảng (iOS/KeyboardTests/Fixtures/lunar-month-starts.txt, sinh từ
+     * App/Sources/LunarCalendar.swift): đi từng ngày 1900–2100, so với tháng trong fixture chứa ngày đó.
+     */
+    @Test fun matchesCrossPortFixture() {
+        val f = listOf("../../iOS", "../iOS", "iOS").map { File(it, "KeyboardTests/Fixtures/lunar-month-starts.txt") }
+            .firstOrNull { it.exists() } ?: error("không thấy iOS/KeyboardTests/Fixtures/lunar-month-starts.txt")
+        data class Start(val jd: Int, val month: Int, val year: Int, val leap: Boolean)
+        val starts = f.readLines().filter { it.isNotEmpty() && !it.startsWith("#") }.map { line ->
+            val (ymd, mo, yr) = line.split('\t')
+            val n = ymd.toInt()
+            val leap = mo.endsWith("+")
+            Start(LunarDate.jdFromDate(n % 100, n / 100 % 100, n / 10_000), mo.removeSuffix("+").toInt(), yr.toInt(), leap)
+        }
+        assertEquals(2487, starts.size)
+        val bad = mutableListOf<String>()
+        var days = 0
+        for ((i, s) in starts.withIndex()) {
+            val next = if (i + 1 < starts.size) starts[i + 1].jd else LunarDate.jdFromDate(31, 12, 2100) + 1
+            for (jd in s.jd until next) {
+                val a = jd + 32044; val b = (4 * a + 3) / 146097; val c = a - 146097 * b / 4
+                val d4 = (4 * c + 3) / 1461; val e = c - 1461 * d4 / 4; val m5 = (5 * e + 2) / 153
+                val d = e - (153 * m5 + 2) / 5 + 1; val m = m5 + 3 - 12 * (m5 / 10); val y = 100 * b + d4 - 4800 + m5 / 10
+                if (lunar(d, m, y) != L(jd - s.jd + 1, s.month, s.year, s.leap)) bad += "$d/$m/$y"
+                days++
+            }
+        }
+        assertTrue(days > 73_000)
+        assertEquals("lệch: ${bad.take(10)}", emptyList<String>(), bad)
     }
 
     @Test fun labelAndYearName() {

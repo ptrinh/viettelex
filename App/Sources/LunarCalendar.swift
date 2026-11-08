@@ -1,6 +1,9 @@
 // LunarCalendar.swift — âm lịch Việt Nam (gợi ý "âm lịch␣" → "30/9 năm Bính Ngọ", CaretSuggestions.swift).
-// Dùng chung macOS + Linux (linux/engine-capi/Sources/TextToolCLI/LunarCalendar.swift là symlink);
-// Windows có bản C++ cùng công thức (windows/ime/core/caret_hints.cpp `lunarDate`).
+// Dùng chung macOS + Linux (linux/engine-capi/Sources/TextToolCLI/LunarCalendar.swift là symlink)
+// + bàn phím iOS (iOS/project.yml, iOS/Keyboard/LunarDate.swift gọi vào); Windows có bản C++ cùng
+// công thức (windows/ime/core/caret_hints.cpp `lunarDate`), Android bản Kotlin (LunarDate.kt).
+// Ba bản khoá chung bởi iOS/KeyboardTests/Fixtures/lunar-month-starts.txt (mọi ngày đầu tháng
+// 1900–2100, sinh từ file này) — sửa công thức ⇒ sinh lại fixture và chạy test cả bốn nền tảng.
 //
 // Luật lịch: tháng bắt đầu từ ngày có điểm sóc (trăng mới) theo giờ địa phương; tháng 11 âm là
 // tháng chứa Đông chí; năm có 13 tháng thì tháng nhuận là tháng đầu tiên (sau tháng 11) không

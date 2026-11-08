@@ -49,16 +49,47 @@ final class LunarDateTests: XCTestCase {
         XCTAssertEqual(LunarDate.label(lunar(1, 1, 2026)), "13/11 năm Ất Tỵ")
     }
 
-    /// Đối chiếu lịch Việt của Foundation (iOS 26+) — 1990–2060, từng ngày. Ngoài khoảng này lệch vài
-    /// tháng sát ranh giới trung khí (2062, 2072: công thức gần đúng khác nhau) và 1985 (Foundation
-    /// ra Tết 20/2 như lịch Trung Quốc; lịch Việt 1985 Tết 21/1 — xem testVietnamTimezoneDivergence).
+    /// Bản rút gọn cũ (sóc sai ~30 phút, thiếu lùi thêm một kỳ trăng) trả ngày 0 hoặc lệch một ngày ở
+    /// các ngày này; công thức chung LunarCalendar (desktop) ra đúng.
+    func testRegressionShortAlgorithmDates() {
+        XCTAssertEqual(lunar(7, 5, 2054), .init(day: 30, month: 3, year: 2054, leap: false))    // cũ: ngày 0
+        XCTAssertEqual(lunar(9, 4, 2062), .init(day: 30, month: 2, year: 2062, leap: false))    // cũ: ngày 0
+        XCTAssertEqual(lunar(9, 12, 2072), .init(day: 1, month: 11, year: 2072, leap: false))   // cũ: lệch 1 ngày
+        XCTAssertEqual(lunar(15, 11, 2077), .init(day: 1, month: 10, year: 2077, leap: false))  // cũ: lệch 1 ngày
+        XCTAssertEqual(LunarDate.label(lunar(7, 5, 2054)), "30/3 năm Giáp Tuất")
+    }
+
+    /// Fixture chung 4 nền tảng: mọi ngày đầu tháng âm 1900–2100 (sinh từ App/Sources/LunarCalendar.swift).
+    /// Đi từng ngày, so ngày/tháng/nhuận/năm với tháng trong fixture chứa ngày đó.
+    func testMatchesCrossPortFixture() throws {
+        let url = Bundle(for: Self.self).url(forResource: "lunar-month-starts", withExtension: "txt")
+            ?? URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/lunar-month-starts.txt")
+        let starts = try LunarFixture.parse(String(contentsOf: url, encoding: .utf8))
+        XCTAssertEqual(starts.count, 2487)
+        var bad: [String] = [], days = 0
+        for (i, s) in starts.enumerated() {
+            let next = i + 1 < starts.count ? starts[i + 1].jd : LunarFixture.jd(31, 12, 2100) + 1
+            for jd in s.jd..<next {
+                let (y, m, d) = LunarFixture.gregorian(jd)
+                let l = lunar(d, m, y)
+                if l != .init(day: jd - s.jd + 1, month: s.month, year: s.year, leap: s.leap) { bad.append("\(d)/\(m)/\(y)") }
+                days += 1
+            }
+        }
+        XCTAssertGreaterThan(days, 73_000)
+        XCTAssertEqual(bad, [], "lệch: \(bad.prefix(10))")
+    }
+
+    /// Đối chiếu lịch Việt của Foundation (iOS 26+) — 1990–2050, từng ngày (cùng khoảng AppTests;
+    /// sau 2050 Foundation có tháng trả ngày 0) và 1985 (Foundation ra Tết 20/2 như lịch Trung Quốc;
+    /// lịch Việt 1985 Tết 21/1 — xem testVietnamTimezoneDivergence).
     func testMatchesFoundationVietnameseCalendar() throws {
         guard #available(iOS 26, *) else { throw XCTSkip("Calendar.Identifier.vietnamese cần iOS 26") }
         let tz = TimeZone(secondsFromGMT: 7 * 3600)!
         var vn = Calendar(identifier: .vietnamese); vn.timeZone = tz
         var g = Calendar(identifier: .gregorian); g.timeZone = tz
         var date = g.date(from: DateComponents(year: 1990, month: 1, day: 1, hour: 12))!
-        let end = g.date(from: DateComponents(year: 2060, month: 12, day: 31, hour: 12))!
+        let end = g.date(from: DateComponents(year: 2050, month: 12, day: 31, hour: 12))!
         var n = 0, bad: [String] = []
         while date <= end {
             let gc = g.dateComponents([.year, .month, .day], from: date)
@@ -70,7 +101,7 @@ final class LunarDateTests: XCTestCase {
             n += 1
             date = g.date(byAdding: .day, value: 1, to: date)!
         }
-        XCTAssertGreaterThan(n, 25_000)
+        XCTAssertGreaterThan(n, 22_000)
         XCTAssertEqual(bad.count, 0, "lệch: \(bad.prefix(10))")
     }
 
@@ -112,5 +143,31 @@ final class LunarDateTests: XCTestCase {
         // chữ vừa chèn không sinh chip số kế tiếp
         XCTAssertNil(NumberChips.chip(before: "hôm nay 30/9 năm Bính Ngọ "))
         XCTAssertNotNil(LunarDate.chip(before: "ÂL "))   // theo ngày máy
+    }
+}
+
+/// Đọc iOS/KeyboardTests/Fixtures/lunar-month-starts.txt: "yyyymmdd<TAB>tháng[+]<TAB>năm âm".
+enum LunarFixture {
+    struct Start { let jd: Int, month: Int, year: Int, leap: Bool }
+
+    static func jd(_ d: Int, _ m: Int, _ y: Int) -> Int {
+        let a = (14 - m) / 12, yy = y + 4800 - a, mm = m + 12 * a - 3
+        return d + (153 * mm + 2) / 5 + 365 * yy + yy / 4 - yy / 100 + yy / 400 - 32045
+    }
+
+    static func gregorian(_ jd: Int) -> (y: Int, m: Int, d: Int) {
+        let a = jd + 32044, b = (4 * a + 3) / 146097, c = a - 146097 * b / 4
+        let d = (4 * c + 3) / 1461, e = c - 1461 * d / 4, m = (5 * e + 2) / 153
+        return (100 * b + d - 4800 + m / 10, m + 3 - 12 * (m / 10), e - (153 * m + 2) / 5 + 1)
+    }
+
+    static func parse(_ text: String) throws -> [Start] {
+        try text.split(separator: "\n").filter { !$0.hasPrefix("#") && !$0.isEmpty }.map { line in
+            let f = line.split(separator: "\t")
+            guard f.count == 3, let ymd = Int(f[0]), let year = Int(f[2]) else { throw CocoaError(.fileReadCorruptFile) }
+            let leap = f[1].hasSuffix("+")
+            guard let month = Int(leap ? f[1].dropLast() : f[1]) else { throw CocoaError(.fileReadCorruptFile) }
+            return Start(jd: jd(ymd % 100, ymd / 100 % 100, ymd / 10_000), month: month, year: year, leap: leap)
+        }
     }
 }
