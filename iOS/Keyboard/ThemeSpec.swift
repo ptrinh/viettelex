@@ -37,7 +37,7 @@ import Foundation
 //
 // "photoFx" (tuỳ chọn, danh sách trắng ThemeExtraIds.photoFx): hiệu ứng trên ẢNH NỀN chạy KHI theme này đang dùng —
 // "spotlight" = Đèn rọi (NightClub.swift): ảnh nền người dùng tối gần đen, mỗi phím bấm rọi một quầng sáng mềm (tô nhẹ
-// hồng / tím / lục lam xoay vòng) quanh chỗ chạm rồi tắt dần ~0,8 s, tối đa 6 quầng; gõ nhanh ⇒ to + sáng hơn. Không có
+// hồng / tím / lục lam xoay vòng, lõi sáng lóa gần trắng) quanh chỗ chạm rồi tắt dần ~1,1 s, tối đa 6 quầng; gõ nhanh ⇒ to + sáng hơn. Không có
 // ảnh nền ⇒ quầng sáng rọi lên hoạ tiết neon tối dựng sẵn; quả cầu disco nhỏ ở góc trên xoay + toả chấm sáng khi bấm.
 // Như "game": không ghi gì lúc chọn theme, bàn phím đọc từ kiểu thực dùng (SpotlightPolicy); theme tự tạo dùng được.
 //

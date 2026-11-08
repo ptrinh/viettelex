@@ -37,7 +37,7 @@ import java.nio.charset.CodingErrorAction
  *
  * "photoFx" (tuỳ chọn, danh sách trắng [ThemeExtraIds.PHOTO_FX]): hiệu ứng trên ẢNH NỀN chạy KHI theme này đang dùng —
  * "spotlight" = Đèn rọi (Spotlight.kt + app ime/SpotlightView): ảnh nền người dùng tối gần đen, mỗi phím bấm rọi một quầng
- * sáng mềm (tô nhẹ hồng / tím / lục lam xoay vòng) quanh chỗ chạm rồi tắt dần ~0,8 s, tối đa 6 quầng; gõ nhanh ⇒ to +
+ * sáng lóa (lõi gần trắng, quầng hồng / tím / lục lam xoay vòng) quanh chỗ chạm rồi tắt dần ~1,1 s, tối đa 6 quầng; gõ nhanh ⇒ to +
  * sáng hơn. Không có ảnh nền ⇒ quầng sáng rọi lên hoạ tiết neon tối; quả cầu disco nhỏ ở góc trên xoay + toả chấm sáng.
  * Như "game": không ghi gì lúc chọn theme, IME đọc từ kiểu thực dùng ([SpotlightPolicy]); theme tự tạo dùng được.
  * iOS ThemeSpec.swift y hệt.

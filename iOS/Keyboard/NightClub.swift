@@ -5,10 +5,11 @@
 // đường phím chỉ đọc một optional). Thứ tự lớp: nền theme / ảnh nền / lớp phủ ảnh · ĐÈN RỌI · hiệu ứng dải dưới phím ·
 // phím. Không nhận chạm.
 //
-// • Có ảnh nền: lớp đen 90 % phủ ảnh; mỗi phím bấm "rọi" một quầng tròn mềm (bán kính ~1,6–2 bề rộng phím) — lớp
+// • Có ảnh nền: lớp đen 90 % phủ ảnh; mỗi phím bấm "chớp" một quầng đèn sân khấu (bán kính ~3,8–4,9 bề rộng phím;
+//   lõi lộ ảnh 100 % + cộng sáng gần trắng, quầng ~60 %, vành sáng mờ màu neon ở rìa) — lớp
 //   `lit` chứa CHÍNH CGImage của ảnh nền đang hiện (không giải mã / sao chép thêm) cắt bằng mặt nạ là vài
-//   CAGradientLayer radial (lỗ sáng), cộng quầng tô màu neon hồng / tím / lục lam xoay vòng mỗi lần bấm. Tắt dần
-//   ~0,7–0,9 s, tối đa 6 quầng (quầng cũ nhất bị thay); gõ nhanh (ComboMeter) ⇒ quầng to + sáng + lâu hơn chút.
+//   CAGradientLayer radial (lỗ sáng), cộng quầng tô màu neon hồng / tím / lục lam xoay vòng mỗi lần bấm. Giữ 0,15 s rồi
+//   tắt dần ~0,9–1,1 s, tối đa 6 quầng (quầng cũ nhất bị thay); gõ nhanh (ComboMeter) ⇒ quầng to + sáng + lâu hơn chút.
 // • Không có ảnh nền: phía sau phím là NGƯỜI NHẢY HOẠT HÌNH (NightDancer — atlas 4 × 2 của Bạn đồng hành, cô gái /
 //   chàng trai) cao 85 % bàn phím, chìm trong tối (~12 % sáng); đèn rọi mới thấy màu thật + viền neon theo màu đèn + phông
 //   tím đêm. Mỗi lần đèn nháy ⇒ biến thể kế (7 khung × lật ngang, không lặp liền) — chỉ đổi contentsRect / transform.
@@ -27,7 +28,10 @@ enum SpotlightPolicy {
     }
 }
 
-/// Hàm thuần đèn rọi (giây, pt) — Android SpotlightFx cùng số (test chung).
+/// Hàm thuần đèn rọi (giây, pt) — Android SpotlightFx cùng số (test chung). Mỗi lần bấm là một "chớp đèn sân khấu"
+/// (11/2026 — Phil: "sáng lóa, rộng hơn"): quầng ~3,8–4,9 bề rộng phím (≈ 30–45 % bề rộng bàn phím; 2–3 quầng phủ gần
+/// hết), lõi nóng gần trắng (tô nhẹ màu neon) → quầng màu → vành sáng mờ màu neon ở rìa ngoài. Ảnh nền / người nhảy lộ
+/// ~100 % trong lõi, ~60 % ở quầng. Sáng giữ `hold` rồi tắt dần 0,9–1,08 s.
 enum SpotlightFx {
     /// Tối đa số quầng sống cùng lúc (quầng cũ nhất bị thay).
     static let cap = 6
@@ -35,36 +39,47 @@ enum SpotlightFx {
     static let darkness = 0.9
     /// Neon xoay vòng mỗi lần bấm: hồng, tím, lục lam.
     static let colors: [UInt32] = [0xFF2FD0, 0x9B5CFF, 0x2FE6FF]
-    /// Độ đậm quầng tô màu (nhân với độ sáng quầng).
-    static let tint = 0.32
     static let attack = 0.06
-    static let baseDuration = 0.72
-    static let durationPerLevel = 0.05
-    static let radiusFactor = 1.6
-    static let radiusPerLevel = 0.15
-    static let minRadius = 36.0
-    static let maxRadius = 150.0
-    static let peakBase = 0.78
-    static let peakPerLevel = 0.07
+    /// Giữ đỉnh sáng sau `attack` trước khi tắt.
+    static let hold = 0.15
+    /// = attack + hold + tắt 0,9 s (mức 0); mỗi mức combo tắt lâu thêm `durationPerLevel`.
+    static let baseDuration = 1.11
+    static let durationPerLevel = 0.06
+    static let radiusFactor = 3.8
+    static let radiusPerLevel = 0.35
+    static let minRadius = 72.0
+    static let maxRadius = 210.0
+    static let peakBase = 0.88
+    static let peakPerLevel = 0.04
     static let startScale = 0.8
     static let growScale = 0.3
 
+    /// Mặt nạ "lộ ảnh" theo bán kính (0 = tâm, 1 = rìa): lõi 100 %, quầng ~60 %, rìa tắt. Nhân với `alpha`.
+    static let maskStops: [Double] = [0, 0.24, 0.55, 0.8, 1]
+    static let maskLevels: [Double] = [1, 1, 0.62, 0.2, 0]
+    /// Quầng tô màu (cộng sáng — screen) theo bán kính: lõi nóng gần trắng (`glowWhite` = tỉ lệ pha trắng) → màu neon →
+    /// vành sáng mờ (bướu ở 0,86) → trong suốt. `glowAlpha` = độ đậm mỗi mốc; cả quầng nhân với `alpha`.
+    static let glowStops: [Double] = [0, 0.16, 0.42, 0.68, 0.86, 1]
+    static let glowAlpha: [Double] = [0.85, 0.72, 0.34, 0.08, 0.16, 0]
+    static let glowWhite: [Double] = [0.6, 0.25, 0, 0, 0, 0]
+
     private static func lv(_ level: Int) -> Double { Double(min(max(level, 0), 3)) }
 
-    /// Thời gian sống của quầng ở mức combo `level` (0…3): 0,72…0,87 s.
+    /// Thời gian sống của quầng ở mức combo `level` (0…3): 1,11…1,29 s.
     static func duration(level: Int) -> Double { baseDuration + durationPerLevel * lv(level) }
-    /// Bán kính quầng (pt) theo bề rộng phím + mức combo, kẹp [36, 150].
+    /// Bán kính quầng (pt) theo bề rộng phím + mức combo, kẹp [72, 210].
     static func radius(keyWidth w: Double, level: Int) -> Double {
         min(max(w * (radiusFactor + radiusPerLevel * lv(level)), minRadius), maxRadius)
     }
-    /// Độ sáng đỉnh 0,78…0,99.
+    /// Độ sáng đỉnh 0,88…1.
     static func peak(level: Int) -> Double { min(1, peakBase + peakPerLevel * lv(level)) }
-    /// Độ sáng sau `dt` giây: lên tuyến tính trong `attack`, rồi tắt (1−u)².
+    /// Độ sáng sau `dt` giây: lên tuyến tính trong `attack`, giữ `hold`, rồi tắt (1−u)².
     static func alpha(_ dt: Double, level: Int) -> Double {
         let d = duration(level: level), p = peak(level: level)
         guard dt >= 0, dt < d else { return 0 }
         if dt < attack { return p * dt / attack }
-        let u = (dt - attack) / (d - attack)
+        if dt < attack + hold { return p }
+        let u = (dt - attack - hold) / (d - attack - hold)
         return p * (1 - u) * (1 - u)
     }
     /// Hệ số bán kính sau `dt` (0,8 → 1,1, chậm dần).
@@ -74,6 +89,18 @@ enum SpotlightFx {
     }
     /// Màu neon của lần bấm thứ `press`.
     static func color(_ press: Int) -> UInt32 { colors[((press % colors.count) + colors.count) % colors.count] }
+    /// Màu ARGB mốc `stop` của quầng tô màu neon `rgb`: pha trắng `glowWhite`, alpha `glowAlpha` (làm tròn kênh).
+    static func glowColor(_ rgb: UInt32, stop: Int) -> UInt32 {
+        let w = glowWhite[stop]
+        func ch(_ c: UInt32) -> UInt32 { UInt32(min(max((Double(c) + (255 - Double(c)) * w).rounded(), 0), 255)) }
+        let a = UInt32(min(max((glowAlpha[stop] * 255).rounded(), 0), 255))
+        return a << 24 | ch(rgb >> 16 & 0xFF) << 16 | ch(rgb >> 8 & 0xFF) << 8 | ch(rgb & 0xFF)
+    }
+    /// CGColor (sRGB) của màu ARGB `glowColor` — dựng sẵn một lần (không mỗi lần bấm).
+    static func cgColor(argb v: UInt32) -> CGColor {
+        UIColor(red: CGFloat(v >> 16 & 0xFF) / 255, green: CGFloat(v >> 8 & 0xFF) / 255, blue: CGFloat(v & 0xFF) / 255,
+                alpha: CGFloat(v >> 24 & 0xFF) / 255).cgColor
+    }
 }
 
 /// Vòng quầng sáng (thuần, mảng cấp sẵn): lần bấm ⇒ ô kế tiếp (quầng cũ nhất bị thay khi đủ `cap`).
@@ -193,12 +220,14 @@ final class SpotlightView: UIView {
     private var hideScheduled = false
     private(set) var hasPhoto = false
     private static let maxPending = 4
-    /// Màu tô (CGColor) dựng sẵn: [đậm, trong] mỗi màu.
-    private let tintColors: [[CGColor]] = SpotlightFx.colors.map {
-        [UIColor(neon: $0).cgColor, UIColor(neon: $0).withAlphaComponent(0).cgColor]
+    /// Màu tô (CGColor) dựng sẵn mỗi màu neon: các mốc SpotlightFx.glowColor (lõi gần trắng → màu → vành mờ).
+    private let tintColors: [[CGColor]] = SpotlightFx.colors.map { c in
+        SpotlightFx.glowStops.indices.map { SpotlightFx.cgColor(argb: SpotlightFx.glowColor(c, stop: $0)) }
     }
-    private static let holeAnims: [CAAnimationGroup] = (0...3).map { anim(level: $0, tint: false) }
-    private static let tintAnims: [CAAnimationGroup] = (0...3).map { anim(level: $0, tint: true) }
+    /// Màu chấm sáng quả cầu disco (neon đặc) — dựng sẵn.
+    private let dotColors: [CGColor] = SpotlightFx.colors.map { UIColor(neon: $0).cgColor }
+    /// Mặt nạ + quầng tô chung MỘT animation mỗi mức (cùng độ sáng — màu / độ đậm nằm trong gradient).
+    private static let anims: [CAAnimationGroup] = (0...3).map { anim(level: $0) }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -220,11 +249,12 @@ final class SpotlightView: UIView {
         layer.addSublayer(lit)
         for _ in 0..<SpotlightFx.cap {
             let h = Self.radial()
-            h.colors = [UIColor.white.cgColor, UIColor.white.withAlphaComponent(0.55).cgColor, UIColor.white.withAlphaComponent(0).cgColor]
-            h.locations = [0, 0.45, 1]
+            h.colors = SpotlightFx.maskLevels.map { UIColor.white.withAlphaComponent(CGFloat($0)).cgColor }
+            h.locations = SpotlightFx.maskStops.map { NSNumber(value: $0) }
             holes.addSublayer(h); holeLayers.append(h)
             let t = Self.radial()
             t.colors = tintColors[0]
+            t.locations = SpotlightFx.glowStops.map { NSNumber(value: $0) }
             t.compositingFilter = "screenBlendMode"
             t.isHidden = true
             layer.addSublayer(t); tintLayers.append(t)
@@ -246,14 +276,14 @@ final class SpotlightView: UIView {
         return g
     }
 
-    /// Animation dựng MỘT lần mỗi mức combo: độ sáng + bán kính lấy mẫu từ SpotlightFx (8 bước).
-    private static func anim(level: Int, tint: Bool) -> CAAnimationGroup {
-        let d = SpotlightFx.duration(level: level), a = SpotlightFx.attack, steps = 7
-        // Mốc: 0, hết attack (đỉnh), rồi 7 bước đều tới hết.
-        let times = [0.0] + (0...steps).map { a + (d - a) * Double($0) / Double(steps) }
+    /// Animation dựng MỘT lần mỗi mức combo: độ sáng + bán kính lấy mẫu từ SpotlightFx (đỉnh, giữ, 7 bước tắt).
+    private static func anim(level: Int) -> CAAnimationGroup {
+        let d = SpotlightFx.duration(level: level), a = SpotlightFx.attack + SpotlightFx.hold, steps = 7
+        // Mốc: 0, hết attack (đỉnh), hết giữ, rồi 7 bước đều tới hết.
+        let times = [0.0, SpotlightFx.attack] + (0...steps).map { a + (d - a) * Double($0) / Double(steps) }
         let keyTimes = times.map { NSNumber(value: $0 / d) }
         let o = CAKeyframeAnimation(keyPath: "opacity")
-        o.values = times.map { SpotlightFx.alpha(min($0, d * 0.9999), level: level) * (tint ? SpotlightFx.tint : 1) }
+        o.values = times.map { SpotlightFx.alpha(min($0, d * 0.9999), level: level) }
         o.keyTimes = keyTimes
         let s = CAKeyframeAnimation(keyPath: "transform.scale")
         s.values = times.map { SpotlightFx.scale($0, level: level) }
@@ -466,7 +496,7 @@ final class SpotlightView: UIView {
             let slot = dotCursor
             dotCursor = (dotCursor + 1) % DiscoBall.dotPool
             let dot = slot < dots.count ? dots[slot] : { let d = makeDot(); dots.append(d); return d }()
-            dot.fillColor = tintColors[(press + i) % tintColors.count][0]
+            dot.fillColor = dotColors[(press + i) % dotColors.count]
             let dir = DiscoBall.direction(press: press, dot: i)
             let end = CGPoint(x: c.x + CGFloat(dir.x * DiscoBall.dotDistance), y: c.y + CGFloat(dir.y * DiscoBall.dotDistance))
             dot.position = end
@@ -525,8 +555,8 @@ final class SpotlightView: UIView {
         t.bounds = box; t.position = c
         t.colors = tintColors[((press % tintColors.count) + tintColors.count) % tintColors.count]   // = SpotlightFx.color(press)
         t.isHidden = false
-        h.add(Self.holeAnims[min(level, 3)], forKey: "fx")
-        t.add(Self.tintAnims[min(level, 3)], forKey: "fx")
+        h.add(Self.anims[min(level, 3)], forKey: "fx")
+        t.add(Self.anims[min(level, 3)], forKey: "fx")
     }
 
     /// MỘT asyncAfter cho cả loạt gõ: tới lúc quầng cuối tắt ⇒ ẩn `lit` (không còn lượt vẽ mặt nạ).
@@ -638,8 +668,8 @@ final class SpotlightView: UIView {
             guard a > 0 else { continue }
             let r = CGFloat(SpotlightFx.radius(keyWidth: l.keyWidth, level: l.level) * SpotlightFx.scale(l.dt, level: l.level))
             let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceGray(),
-                               colors: [CGColor(gray: a, alpha: 1), CGColor(gray: a * 0.55, alpha: 1), CGColor(gray: 0, alpha: 1)] as CFArray,
-                               locations: [0, 0.45, 1])!
+                               colors: SpotlightFx.maskLevels.map { CGColor(gray: CGFloat(a * $0), alpha: 1) } as CFArray,
+                               locations: SpotlightFx.maskStops.map { CGFloat($0) })!
             let c = CGPoint(x: l.center.x, y: size.height - l.center.y)
             mctx.drawRadialGradient(g, startCenter: c, startRadius: 0, endCenter: c, endRadius: r, options: [])
         }
@@ -662,15 +692,18 @@ final class SpotlightView: UIView {
             }
         }
         ctx.restoreGState()
-        // Quầng tô neon (screen).
+        // Quầng tô neon (screen): lõi gần trắng → màu → vành sáng mờ.
         ctx.saveGState(); ctx.setBlendMode(.screen)
         for l in lights {
-            let a = SpotlightFx.alpha(l.dt, level: l.level) * SpotlightFx.tint
+            let a = SpotlightFx.alpha(l.dt, level: l.level)
             guard a > 0 else { continue }
             let r = CGFloat(SpotlightFx.radius(keyWidth: l.keyWidth, level: l.level) * SpotlightFx.scale(l.dt, level: l.level))
-            let col = UIColor(neon: SpotlightFx.colors[l.color % 3])
-            let g = CGGradient(colorsSpace: cs, colors: [col.withAlphaComponent(CGFloat(a)).cgColor, col.withAlphaComponent(0).cgColor] as CFArray,
-                               locations: [0, 1])!
+            let neon = SpotlightFx.colors[l.color % 3]
+            let cols = SpotlightFx.glowStops.indices.map { i -> CGColor in
+                let c = SpotlightFx.cgColor(argb: SpotlightFx.glowColor(neon, stop: i))
+                return c.copy(alpha: c.alpha * CGFloat(a)) ?? c
+            }
+            let g = CGGradient(colorsSpace: cs, colors: cols as CFArray, locations: SpotlightFx.glowStops.map { CGFloat($0) })!
             ctx.drawRadialGradient(g, startCenter: l.center, startRadius: 0, endCenter: l.center, endRadius: r, options: [])
         }
         ctx.restoreGState()
