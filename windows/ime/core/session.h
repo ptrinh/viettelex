@@ -30,6 +30,19 @@ namespace vtx {
 
 enum class OutputMode : uint8_t { Composition, InPlace };
 
+// What an app's own window shows right before its caret (TextSink::appTextEndsWith).
+enum class AppView : uint8_t { Unknown, Shows, Lacks };
+
+// A classic Edit / RichEdit read with its own messages (the TIP: EM_GETSEL, EM_LINEFROMCHAR,
+// EM_LINEINDEX, EM_GETLINE): `line` = the caret's line as EM_GETLINE copied it, `col` = the
+// caret's offset from that line's start. Does `tail` end right at the caret? Unknown when
+// the copy stops short of the caret, or the tail would start on an earlier line (a soft
+// wrap in word-wrap mode moves a word to the next line: not proof of anything).
+inline AppView editLineEndsWith(const std::u16string& line, size_t col, const std::u16string& tail) {
+    if (tail.empty() || col > line.size() || col < tail.size()) return AppView::Unknown;
+    return line.compare(col - tail.size(), tail.size(), tail) == 0 ? AppView::Shows : AppView::Lacks;
+}
+
 class TextSink {
 public:
     virtual ~TextSink() = default;
@@ -65,6 +78,15 @@ public:
     virtual bool compositionText(std::u16string& out) {
         (void)out;
         return false;
+    }
+    // Read AROUND the text store: does the app's own window (a classic Edit / RichEdit:
+    // EM_GETSEL + EM_GETLINE) show `tail` right before its caret? Shows / Lacks, or Unknown
+    // (no such window, a selection, cannot tell). Asked only when the store's view went
+    // stale: tells a store that misreads the field (the keys did reach the app) from an app
+    // that dropped them (#134).
+    virtual AppView appTextEndsWith(const std::u16string& tail) {
+        (void)tail;
+        return AppView::Unknown;
     }
 };
 
@@ -190,6 +212,16 @@ public:
     // back: a store that holds none of it latches notTextField at once — that key, no
     // longer claimed for retyping, goes to the app as typed. Kept until resetContext().
     void setCompositionMustShow(bool on) { compositionMustShow_ = on; }
+    // The store does not show the letters let through, but the app's own window does
+    // (TextSink::appTextEndsWith — Win10 Notepad's Edit with text in it, 2026-11 report:
+    // its transitory-extension parent reads nothing before the caret, and a composition
+    // there shows nowhere). The keys reach the app: the word in progress goes on AS TYPED
+    // (passingWord) and the TIP stops using that store for this focus (asks the hook,
+    // else composes in the keystroke context). Latched until resetContext().
+    bool storeMisreads() const { return storeMisreads_; }
+    // The word in progress passes to the app as typed (after storeMisreads): its word keys
+    // are not claimed, until a key that is not part of a word. Cleared by resetContext().
+    bool passingWord() const { return passingWord_; }
     // In-place word in progress, something changed the field (OnEndEdit): keep the word
     // only if the text before the caret still ends with it. Recognises the "deletion
     // dropped" signature (screen = word before the replace + inserted text) and switches
@@ -299,6 +331,8 @@ private:
     bool notTextField_ = false;          // see notTextField()
     bool compositionMustShow_ = false;   // see setCompositionMustShow()
     int emptyStoreHits_ = 0;             // words whose letters the store never showed
+    bool storeMisreads_ = false;         // see storeMisreads()
+    bool passingWord_ = false;           // see passingWord()
     // Gõ tắt with symbol / digit keys ("=>", "<>", "->": shortcuts.h findTokenShortcut).
     // The run of non-whitespace text this session saw typed right before the caret since the
     // last whitespace: committed words and the boundary characters it handled or let through

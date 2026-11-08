@@ -2063,3 +2063,250 @@ TEST(direct_mode_param_bits) {
     CHECK_EQ(kDirectAdoptTyped, 2u);
     CHECK(((kDirectOn | kDirectAdoptTyped) & kDirectOn) != 0);
 }
+
+// ---- Win10 Notepad (classic Edit) with text in it: the parent store misreads (2026-11) ----
+namespace {
+// The Edit itself (`app`: CRLF line breaks, caret anywhere) and the TSF store the TIP reads
+// it through. `parentBlind` = the transitory-extension parent as the tester's log showed it
+// with text in the file: it reads nothing before the caret, a composition set there "works"
+// yet shows nowhere. `keystroke` = the TIP left the parent (storeMisreads): the CUAS
+// keystroke context — never read back, its composition is the Edit's own IME composition,
+// shown at the caret. `windowView` = the sink answers appTextEndsWith from the Edit's own
+// line (EM_GETSEL + EM_GETLINE); false = the TIP before the fix.
+struct NotepadEdit : TextSink {
+    FakeDocument app;
+    bool parentBlind = false;
+    bool keystroke = false;
+    bool windowView = true;
+    bool hiddenComp = false;  // a composition in the blind parent: shown nowhere
+    std::u16string hidden;
+    bool compHidden = true;   // false: the blind store's composition does show (MISA, #134)
+    bool readsNothing() const { return keystroke || parentBlind; }
+    bool shownStore() const { return keystroke || !parentBlind || !compHidden; }
+
+    std::u16string textBeforeCaret(int max) override {
+        return readsNothing() ? std::u16string() : app.textBeforeCaret(max);
+    }
+    char16_t charAfterCaret() override { return readsNothing() ? 0 : app.charAfterCaret(); }
+    bool hasSelection() override { return app.hasSelection(); }
+    bool replaceBeforeCaret(const std::u16string& expect, const std::u16string& ins) override {
+        if (parentBlind && !keystroke) return false;  // the read-back check fails
+        if (keystroke) {
+            if (!expect.empty()) return false;
+            for (char16_t c : ins) app.appInsert(c);
+            return true;
+        }
+        return app.replaceBeforeCaret(expect, ins);
+    }
+    bool compositionActive() override { return shownStore() ? app.comp : hiddenComp; }
+    bool compositionText(std::u16string& out) override {
+        if (shownStore()) return app.compositionText(out);
+        if (!hiddenComp) return false;
+        out = hidden;
+        return true;
+    }
+    bool setComposition(const std::u16string& t, int absorb, bool bad) override {
+        if (shownStore()) return (keystroke && absorb) ? false : app.setComposition(t, absorb, bad);
+        hiddenComp = true;
+        hidden = t;
+        return true;
+    }
+    void endComposition(const std::u16string& t) override {
+        if (shownStore()) return app.endComposition(t);
+        hiddenComp = false;
+        hidden.clear();
+    }
+    void endCompositionAsIs() override {
+        if (shownStore()) return app.endCompositionAsIs();
+        hiddenComp = false;
+        hidden.clear();
+    }
+    AppView appTextEndsWith(const std::u16string& tail) override {
+        if (!windowView || app.hasSelection()) return AppView::Unknown;
+        const size_t caret = app.lo();
+        size_t start = caret;
+        while (start > 0 && app.text[start - 1] != u'\n') --start;
+        size_t end = caret;
+        while (end < app.text.size() && app.text[end] != u'\r' && app.text[end] != u'\n') ++end;
+        return editLineEndsWith(app.text.substr(start, end - start), caret - start, tail);
+    }
+};
+
+// The TIP around the session, as TextService::OnTestKeyDown / OnKeyDown: a key not claimed
+// reaches the Edit; a claimed key the session lets through reaches it too (Notepad), unless
+// `dropsClaimed` (an IMM32 app where it became VK_PROCESSKEY, #134 — then only a key the TIP
+// retypes arrives). Once the session says the store misreads, the TIP leaves the parent:
+// keystroke context, composition only, CUAS (claimed keys retyped). '\n' = Enter (CRLF).
+std::string typeNotepad(TypingSession& s, NotepadEdit& d, const char* keys, bool dropsClaimed = false) {
+    for (const char* p = keys; *p; ++p) {
+        KeyInput k;
+        if (*p == '\n') {
+            k.kind = KeyKind::Boundary;
+        } else {
+            k.kind = KeyKind::Char;
+            k.ch = static_cast<unsigned char>(*p);
+        }
+        const bool claimed = s.wantsKey(k);
+        if (!claimed) s.noteKeyPassedBy(k);
+        const bool eaten = claimed && s.handleKey(k, d);
+        if (s.storeMisreads() && !d.keystroke) {
+            d.keystroke = true;
+            s.setCompositionOnlyContext(true);
+            s.setHostDropsPassedKeys(true);
+        }
+        if (eaten) continue;
+        CHECK(!d.compositionActive());  // a key reaching the app never finds a composition
+        if (claimed && dropsClaimed && !(s.hostDropsPassedKeys() && passedKeyRetype(k) != PassedKeyRetype::None))
+            continue;  // VK_PROCESSKEY: gone
+        if (k.kind == KeyKind::Boundary) {
+            d.app.appInsert(u'\r');
+            d.app.appInsert(u'\n');
+        } else {
+            d.app.appInsert(static_cast<char16_t>(k.ch));
+        }
+    }
+    return utf16ToUtf8(d.app.text);
+}
+
+void notepadSession(TypingSession& s, const Settings& st) {
+    configureDefaults(s, st);
+    s.setOutputMode(OutputMode::InPlace);  // the app default
+    // The TIP for "transitory 1 hasParent 1 parentTransitory 0 editControl 1 cuasEmulated 1
+    // host 1": NormalViaParent; as far as it knows, passed keys may be dropped there (#134).
+    ContextInfo c;
+    c.hasContext = true;
+    c.transitory = true;
+    c.cuasEmulated = true;
+    c.hasParent = true;
+    c.parentTransitory = false;
+    c.editControl = true;
+    CHECK(classifyContext(c) == HostText::NormalViaParent);
+    s.setPassedKeysReachApp(passedKeysReachApp(c, classifyContext(c)));
+}
+
+const std::string kNotepadLine1 = "D\xc3\xb2ng m\xe1\xbb\x99t\r\n";     // "Dòng một\r\n"
+const std::string kNotepadText = kNotepadLine1 + "D\xc3\xb2ng hai\r\n";  // + "Dòng hai\r\n"
+}  // namespace
+
+TEST(edit_line_ends_with) {
+    CHECK(editLineEndsWith(u"abc tie", 7, u"tie") == AppView::Shows);
+    CHECK(editLineEndsWith(u"abc tie more", 7, u"tie") == AppView::Shows);  // caret mid-line
+    CHECK(editLineEndsWith(u"abc tix", 7, u"tie") == AppView::Lacks);
+    CHECK(editLineEndsWith(u"ti", 1, u"ti") == AppView::Unknown);   // would start on an earlier line
+    CHECK(editLineEndsWith(u"abc", 7, u"bc") == AppView::Unknown);  // the copy stops short of the caret
+    CHECK(editLineEndsWith(u"abc", 3, u"") == AppView::Unknown);
+}
+
+TEST(notepad_with_text_store_misreads_letters_appear) {
+    // 2026-11 report (Win10 Notepad, a file with text in it): "in-place: the field shows none
+    // of the typed text -> composition" then "letters let through never reached the app (IMM
+    // host)" — but they had: the Edit showed them, its parent store did not. The composition
+    // went to that store and showed nowhere: no Vietnamese letter ever appeared. Now the
+    // Edit's own line proves the letters arrived: that word goes on as typed (the hook adopts
+    // it in the real TIP), the field leaves the parent and composes in the keystroke context.
+    Settings st;
+    TypingSession s;
+    notepadSession(s, st);
+    NotepadEdit d;
+    d.app.setText(utf8ToUtf16(kNotepadText));  // caret at the end, after the last CRLF
+    d.parentBlind = true;
+    typeNotepad(s, d, "tie");
+    CHECK(s.storeMisreads());
+    CHECK(s.passingWord());
+    CHECK_EQ(typeNotepad(s, d, "engs vieetj nhaf\nddi "),
+             kNotepadText + "tieengs vi\xe1\xbb\x87t nh\xc3\xa0\r\n\xc4\x91i ");  // "tieengs việt nhà\r\nđi "
+    CHECK(!s.passingWord());  // the Space ended the word passed as typed
+    CHECK(!d.hiddenComp);     // nothing composed into the blind store
+}
+
+TEST(notepad_with_text_store_misreads_caret_mid_document) {
+    // Same, the caret at the start of the second line (CRLF before it, text after it).
+    Settings st;
+    TypingSession s;
+    notepadSession(s, st);
+    NotepadEdit d;
+    d.app.setText(utf8ToUtf16(kNotepadText));
+    d.app.caret = d.app.anchor = utf8ToUtf16(kNotepadLine1).size();
+    d.parentBlind = true;
+    CHECK_EQ(typeNotepad(s, d, "xin chaof "),
+             kNotepadLine1 + "xin ch\xc3\xa0o D\xc3\xb2ng hai\r\n");  // "xin chào "
+    CHECK(s.storeMisreads());
+}
+
+TEST(notepad_with_text_store_misreads_without_the_fix_shows_nothing) {
+    // Guard on the rig: a TIP that cannot look at the Edit (the 1.3.15 path) composes into the
+    // blind store — after the first letter, nothing typed appears.
+    Settings st;
+    TypingSession s;
+    notepadSession(s, st);
+    NotepadEdit d;
+    d.app.setText(utf8ToUtf16(kNotepadText));
+    d.parentBlind = true;
+    d.windowView = false;
+    CHECK_EQ(typeNotepad(s, d, "tieengs vieetj "), kNotepadText + "t");
+    CHECK(!s.storeMisreads());
+    CHECK(s.contextFellBack());
+}
+
+TEST(notepad_readable_store_stays_in_place_with_crlf_text) {
+    // A parent store that does read the Edit (the empty file in the report; here text with
+    // CRLF, caret at the end and in the middle): in-place as before, no fallback.
+    for (bool middle : {false, true}) {
+        Settings st;
+        TypingSession s;
+        notepadSession(s, st);
+        NotepadEdit d;
+        d.app.setText(utf8ToUtf16(kNotepadText));
+        if (middle) d.app.caret = d.app.anchor = utf8ToUtf16(kNotepadLine1).size();
+        const std::string got = typeNotepad(s, d, "tieengs vieetj\nddi ");
+        const std::string typed = "ti\xe1\xba\xbfng vi\xe1\xbb\x87t\r\n\xc4\x91i ";  // "tiếng việt\r\nđi "
+        CHECK_EQ(got, middle ? kNotepadLine1 + typed + "D\xc3\xb2ng hai\r\n" : kNotepadText + typed);
+        CHECK(!s.storeMisreads());
+        CHECK(!s.contextFellBack());
+        CHECK(s.wordMode() == OutputMode::InPlace);
+        CHECK(d.app.edits > 0);  // the accents were edited in place
+    }
+}
+
+TEST(edit_dropping_claimed_keys_still_composes_them) {
+    // #134 kept: an IMM32 Edit that DROPS a claimed key let through (MISA SME): the store
+    // shows none of the letters and neither does the Edit's own line -> the letters are
+    // composed with the rest of the word (that store's composition shows), nothing lost,
+    // nothing doubled.
+    Settings st;
+    TypingSession s;
+    notepadSession(s, st);
+    NotepadEdit d;
+    d.app.setText(utf8ToUtf16("M\xc3\xa3: "));  // "Mã: " — text before the caret, same line
+    d.parentBlind = true;
+    d.compHidden = false;
+    CHECK_EQ(typeNotepad(s, d, "Luwowng nhaan vieen ", true),
+             std::string("M\xc3\xa3: L\xc6\xb0\xc6\xa1ng nh\xc3\xa2n vi\xc3\xaan "));  // "Mã: Lương nhân viên "
+    CHECK(!s.storeMisreads());
+    CHECK(s.hostDropsPassedKeys());
+}
+
+TEST(passing_word_ends_at_a_non_word_key_and_with_the_focus) {
+    Settings st;
+    TypingSession s;
+    notepadSession(s, st);
+    NotepadEdit d;
+    d.app.setText(utf8ToUtf16(kNotepadText));
+    d.parentBlind = true;
+    typeNotepad(s, d, "vie");
+    CHECK(s.passingWord());
+    KeyInput shift;
+    shift.kind = KeyKind::Modifier;  // Shift for a capital: the word goes on
+    CHECK(!s.wantsKey(shift));
+    s.noteKeyPassedBy(shift);
+    CHECK(s.passingWord());
+    KeyInput bs;
+    bs.kind = KeyKind::Backspace;  // ⌫: not claimed (no word), ends the word passed as typed
+    CHECK(!s.wantsKey(bs));
+    s.noteKeyPassedBy(bs);
+    CHECK(!s.passingWord());
+    CHECK(s.storeMisreads());
+    s.resetContext();  // a new focus: the store gets another chance
+    CHECK(!s.storeMisreads());
+    CHECK(!s.passingWord());
+}

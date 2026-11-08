@@ -397,6 +397,36 @@ bool TextService::directServesHere() const {
     return hookReachesHere(app);
 }
 
+// A classic Edit / RichEdit read through its own messages, around the transitory-extension
+// parent store (Win10 Notepad with text in it: that store read nothing before the caret
+// while the letters were on screen). The TIP runs on the window's own thread: SendMessage
+// is a direct call. Logs the numbers once per focus (never the text) for the next report.
+AppView TextService::focusEditEndsWith(ITfContext* ctx, const std::u16string& tail) const {
+    if (host_ != HostText::NormalViaParent || !targetCtx_ || ctx != targetCtx_ || !focusEdit_ || tail.empty())
+        return AppView::Unknown;
+    HWND f = GetFocus();
+    if (f != focusEdit_ || GetWindowThreadProcessId(f, nullptr) != GetCurrentThreadId()) return AppView::Unknown;
+    DWORD selStart = 0, selEnd = 0;
+    SendMessageW(f, EM_GETSEL, reinterpret_cast<WPARAM>(&selStart), reinterpret_cast<LPARAM>(&selEnd));
+    if (selStart != selEnd) return AppView::Unknown;
+    const LRESULT line = SendMessageW(f, EM_LINEFROMCHAR, static_cast<WPARAM>(selStart), 0);
+    const LRESULT lineStart = line < 0 ? -1 : SendMessageW(f, EM_LINEINDEX, static_cast<WPARAM>(line), 0);
+    if (lineStart < 0 || static_cast<DWORD>(lineStart) > selStart) return AppView::Unknown;
+    const size_t col = selStart - static_cast<DWORD>(lineStart);
+    if (col < tail.size() || col > 0xFFFE) return AppView::Unknown;
+    std::vector<WCHAR> buf(col + 2, 0);
+    *reinterpret_cast<WORD*>(buf.data()) = static_cast<WORD>(buf.size());  // EM_GETLINE: size in the first WORD
+    const LRESULT copied = SendMessageW(f, EM_GETLINE, static_cast<WPARAM>(line), reinterpret_cast<LPARAM>(buf.data()));
+    if (copied <= 0) return AppView::Unknown;
+    const size_t n = static_cast<size_t>(copied) < buf.size() ? static_cast<size_t>(copied) : buf.size();
+    const AppView v = editLineEndsWith(std::u16string(reinterpret_cast<const char16_t*>(buf.data()), n), col, tail);
+    if (v == AppView::Shows && !session_.storeMisreads())
+        config::log("Edit: caret " + std::to_string(selStart) + ", line " + std::to_string(line) + ", column " +
+                    std::to_string(col) + ", length " + std::to_string(GetWindowTextLengthW(f)) +
+                    " -> the typed word is there");
+    return v;
+}
+
 // UIPI: VietTelex.exe's SendInput cannot reach this process when it runs at a HIGHER
 // integrity than the app (started "as administrator") or the app's token is unreadable.
 bool TextService::hookReachesHere(HWND app) const {
@@ -661,6 +691,7 @@ void TextService::evaluateHost(ITfContext* ctx) {
     SafeRelease(targetCtx_);
     ContextInfo c;
     WCHAR cls[128] = {};  // focus window class (also for the context log line)
+    HWND focusWnd = nullptr;
     c.console = consoleHost_;
     c.hasContext = ctx != nullptr;
     ITfDocumentMgr* dm = nullptr;
@@ -694,6 +725,7 @@ void TextService::evaluateHost(ITfContext* ctx) {
             VariantClear(&v);
         }
         HWND focus = GetFocus();
+        focusWnd = focus;
         c.unicodeWindow = !focus || IsWindowUnicode(focus);
         if (focus) {
             WCHAR real[64] = {};
@@ -707,6 +739,7 @@ void TextService::evaluateHost(ITfContext* ctx) {
     if (dm) dm->Release();
     host_ = classifyContext(c);
     focusWpf_ = c.wpf;
+    focusEdit_ = c.editControl ? focusWnd : nullptr;
     if (host_ != HostText::NormalViaParent) SafeRelease(targetCtx_);
     if (!contextLogged_ && config::logging()) {  // once per focus: the next report needs one log
         contextLogged_ = true;
@@ -731,8 +764,11 @@ void TextService::evaluateHost(ITfContext* ctx) {
     // WPF's default store (a list with type-to-filter): no text field, known from the context
     // alone (app_policy.h wpfDefaultStore). Keys pass as typed from the first one — a
     // composition there types nothing — and the hook is asked to type (backspaces + Unicode).
-    keysPassAsTyped_ = wpfDefaultStore(c, host_);
-    if (keysPassAsTyped_) {
+    // Also while a word passes as typed after a misreading Edit store (session.h
+    // passingWord): the hook adopts that word, as in a WPF list.
+    const bool wpfList = wpfDefaultStore(c, host_);
+    keysPassAsTyped_ = wpfList || session_.passingWord();
+    if (wpfList) {
         if (!session_.notTextField()) {
             session_.markNotTextField();
             config::log("WPF default store (no text field) -> keys pass through");
@@ -1292,6 +1328,21 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL*
     // lagging the page, and the hook's blind backspace+retype loses letters in web editors.
     if (session_.contextFellBack() && !result && !session_.asyncStore())
         requestDirect("in-place failed in this field -> direct (hook)");
+    // A classic Edit's parent store misreads the field (session.h storeMisreads — Win10
+    // Notepad with text in it): the letters let through are on screen, the store shows none
+    // and a composition there shows nowhere. Leave the parent for this focus: the word in
+    // progress passes as typed and the hook adopts it; without the hook the next words
+    // compose in the keystroke (CUAS) context, which the Edit displays itself.
+    if (session_.storeMisreads() && !parentFailed_ && target != ctx) {
+        config::log("Edit: the parent store misreads this field -> keystroke context, direct (hook) asked");
+        parentFailed_ = true;
+        SafeRelease(targetCtx_);
+        host_ = HostText::CompositionOnly;
+        session_.setCompositionOnlyContext(true);
+        keysPassAsTyped_ = true;
+        publishTypedWord();
+        requestDirect("Edit store misreads -> direct (hook)", true);
+    }
     // Not a text field (session.h notTextField): keys pass through untouched from now on;
     // the hook, if it can, types there with plain Unicode keys the element does take.
     if (session_.notTextField() && !notTextFieldLogged_) {

@@ -23,6 +23,7 @@ public:
     void endCompositionAsIs() override;
     bool canReadContext() override;
     bool compositionText(std::u16string& out) override;
+    AppView appTextEndsWith(const std::u16string& tail) override;
 
     // True when the selection lies inside the active composition (OnEndEdit check).
     bool selectionInsideComposition();

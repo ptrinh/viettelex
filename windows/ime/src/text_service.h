@@ -76,6 +76,9 @@ public:
     TfGuidAtom misspelledAtom() const { return misspelledAtom_; }
     TfClientId clientId() const { return clientId_; }
     ITfCompositionSink* compositionSink() { return this; }
+    // TextSink::appTextEndsWith for `ctx`: answers only for the transitory-extension parent
+    // of a classic Edit / RichEdit (NormalViaParent), from the focus window itself.
+    AppView focusEditEndsWith(ITfContext* ctx, const std::u16string& tail) const;
 
     bool vietnamese() const;
     void toggleVietnamese();                 // switch hotkey
@@ -187,7 +190,8 @@ private:
     bool consoleHost_ = false;  // activated with TF_TMAE_CONSOLE
     HostText host_ = HostText::Normal;  // classification of the context of the current word
     ITfContext* targetCtx_ = nullptr;   // full transitory-extension parent (Edit/RichEdit)
-    bool parentFailed_ = false;         // parent refused edit sessions for this focus
+    bool parentFailed_ = false;         // parent refused edit sessions / misreads, this focus
+    HWND focusEdit_ = nullptr;          // last evaluateHost: focus window, if a classic Edit
     bool directActive_ = false;         // this field is typed by the app's hook (Direct)
     bool directWanted_ = false;         // this field asked the app's hook to type (1.1.5)
     HWND directFocus_ = nullptr;        // focus window the handover was asked for (1.3.16)

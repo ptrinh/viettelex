@@ -214,6 +214,8 @@ void TypingSession::resetContext() {
     notTextField_ = false;
     compositionMustShow_ = false;
     emptyStoreHits_ = 0;
+    storeMisreads_ = false;
+    passingWord_ = false;
     if (engine_) vtx_reset_context(engine_);
 }
 
@@ -224,6 +226,7 @@ void TypingSession::swapEngine(vtx_engine* e) {
 
 bool TypingSession::wantsKey(const KeyInput& k) const {
     if (!engine_ || notTextField_) return false;
+    if (passingWord_ && k.kind == KeyKind::Char && isWordKey(k)) return false;  // see passingWord()
     switch (k.kind) {
         case KeyKind::Char:
             // Retro English: boundary characters declined here reach the engine through
@@ -256,6 +259,10 @@ bool TypingSession::handleKey(const KeyInput& k, TextSink& sink) {
     const retro::Undo undo = std::move(retroUndo_);
     retroUndo_.clear();
     if (!engine_ || notTextField_) return false;
+    if (passingWord_) {  // see passingWord(): its letters go to the app as typed
+        if (k.kind == KeyKind::Char && isWordKey(k)) return false;
+        if (k.kind != KeyKind::Modifier && k.kind != KeyKind::Other) passingWord_ = false;
+    }
     switch (k.kind) {
         case KeyKind::Char:
             if (isWordKey(k)) return handleWordKey(k.ch, sink);
@@ -278,6 +285,12 @@ bool TypingSession::handleKey(const KeyInput& k, TextSink& sink) {
 void TypingSession::flush(TextSink& sink) { commitWord(sink, KeyKind::Navigation); }
 
 void TypingSession::noteKeyPassedBy(const KeyInput& k) {
+    if (passingWord_) {
+        // The word in progress reaching the app as typed: its letters are no boundary.
+        if ((k.kind == KeyKind::Char && isWordKey(k)) || k.kind == KeyKind::Modifier || k.kind == KeyKind::Other)
+            return;
+        passingWord_ = false;  // anything else ends that word
+    }
     retroOffer_.clear();
     lastRetroWords_ = 0;
     // Any other key drops the one-key undo (retro rewrite or boundary restore), and the
@@ -358,6 +371,21 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
                 note(staleNote("in-place (async store): view behind the page, key needs an edit -> as typed, word dropped",
                                before.size()).c_str());
                 reset();
+                return false;
+            }
+            // The store does not show the letters we let through, the app's own window does
+            // (Win10 Notepad's Edit with text in it, read through its transitory-extension
+            // parent, 2026-11): the keys DID reach the app — the store misreads this field.
+            // Composing there shows nowhere ("Vietnamese letters never appear"), and the
+            // #134 path below would also type the letters already on screen a second time.
+            // The word goes on as typed; the TIP leaves that store (storeMisreads).
+            if (stale && !shown_.empty() && !dropsPassedKeys_ && sink.appTextEndsWith(shown_) == AppView::Shows) {
+                if (!storeMisreads_ && opt_.log)
+                    opt_.log("in-place: the store does not show the typed text, the app's window does -> "
+                             "the store misreads this field, word goes on as typed");
+                storeMisreads_ = true;
+                reset();
+                passingWord_ = true;
                 return false;
             }
             // NOTHING before the caret although we just let letters through: the store
