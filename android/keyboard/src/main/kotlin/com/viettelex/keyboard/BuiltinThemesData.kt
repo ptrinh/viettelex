@@ -262,6 +262,14 @@ internal object BuiltinThemesData {
                 "accentInk": "#2A1A06", "fn": "#CC1E2A3A", "fnInk": "#FFD08A", "border": "#40D6E4F5",
                 "balloon": "#2B394E", "trail": "#B3FFE2B8", "deco": {"motif": "bokeh", "color": "#38FFD59A"}},
       "dark": "same"
+    },
+    {
+      "v": 1, "id": "gym", "name": {"vi": "Gym", "en": "Gym"}, "tags": ["interactive"],
+      "sound": "plate", "effect": "reps", "swipe": "neon",
+      "light": {"bg": "#16191C", "key": "#2A2E33", "special": "#3A3F45", "ink": "#FFFFFF", "accent": "#C6FF1A",
+                "accentInk": "#141A00", "fn": "#202327", "fnInk": "#D4FF3A", "balloon": "#3A3F45", "trail": "#CCC6FF1A",
+                "border": "#99C6FF1A", "deco": {"motif": "treadplate", "color": "#4D8A9299"}},
+      "dark": "same"
     }
   ]
 }

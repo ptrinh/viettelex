@@ -586,6 +586,10 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
                 val w = session.boundaryWord ?: return
                 com.viettelex.keyboard.KeywordBursts.lookup(w, session.boundaryPrev)?.let { fx.queueKeyword(it) }
             }
+            com.viettelex.keyboard.KeyEffect.REPS -> {   // Rep (Gym): "gym", "tập", "beast mode"… ⇒ BEAST MODE
+                val w = session.boundaryWord ?: return
+                if (com.viettelex.keyboard.RepsFx.isKeyword(w, session.boundaryPrev, session.boundaryPrev2)) fx.queueBeastMode()
+            }
             else -> {}
         }
     }

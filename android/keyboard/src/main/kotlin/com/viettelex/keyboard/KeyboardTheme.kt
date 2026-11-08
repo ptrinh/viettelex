@@ -311,7 +311,10 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     STAINED_GLASS("stainedGlass", "Kính màu", true), // l10n-key
     // Mưa đêm (11/2026, Plus, THÊM CUỐI) — id trùng iOS: ô kính đêm mưa xanh xám (dải tối dần xuống đáy), phím kính tối
     // trong mờ, chữ kem, nhấn vàng hổ phách, motif "bokeh" (đốm đèn nhoè), hiệu ứng Mưa + âm Mưa — êm, ấm, chậm.
-    RAINY_NIGHT("rainyNight", "Mưa đêm", true); // l10n-key
+    RAINY_NIGHT("rainyNight", "Mưa đêm", true), // l10n-key
+    // Gym (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền thép gunmetal + hoạ tiết sàn thép ("treadplate"), phím cao su tối
+    // viền vàng chanh neon, chữ trắng; hiệu ứng "Rep" ([RepsFx]), âm "Tạ sắt".
+    GYM("gym", "Gym", true); // l10n-key
 
     /** Bo góc mặc định (% như [KeyStyle.corner]) khi người dùng chưa chỉnh — null = bo stock. iOS cùng giá trị. */
     val defaultCorner: Int? get() = spec?.corner
@@ -417,9 +420,11 @@ data class ThemeDecoration(val motif: String, val color: Int, val density: Int =
         // Theme "Mưa đêm" (11/2026): vài đốm đèn tròn nhoè cỡ khác nhau trải ngang trong khe (đèn phố qua kính mưa);
         // motif này kèm dải tối dần xuống đáy trên nền ([BOKEH_SHADE]) — ô cửa kính về đêm.
         const val BOKEH = "bokeh"
+        // Theme "Gym" (11/2026): hàng gân thép chéo kiểu sàn thép chống trượt (gân xen ±45°) trải ngang khe.
+        const val TREADPLATE = "treadplate"
         /** Danh sách trắng motif (theme JSON chỉ nhận các id này) — iOS KeyboardDecoration.Motif y hệt. */
         val MOTIFS = listOf(HEARTS, FLOWERS, MAI, DAO, SNOWFLAKE, STAR, NOTES,
-            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY, PIXEL, WAVES, BUBBLES, NEURAL, SWIRL, BOKEH)
+            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY, PIXEL, WAVES, BUBBLES, NEURAL, SWIRL, BOKEH, TREADPLATE)
         /**
          * Motif "swirl": xoắn ốc Archimedes r = r0 + (r1 − r0)·θ/Θ, θ ∈ [0, Θ] (Θ = 1,75 vòng), dải dày 2·w(θ) với
          * w = w0 + (w1 − w0)·θ/Θ, [SWIRL_STEPS] + 1 mẫu mỗi mép; chấm hình thoi (x, y, bán kính). iOS swirl* y hệt.
@@ -446,6 +451,12 @@ data class ThemeDecoration(val motif: String, val color: Int, val density: Int =
         const val NEURAL_LINK_WIDTH = 0.03
         val NEURAL_DOTS = arrayOf(doubleArrayOf(-2.4, 0.0, 0.07), doubleArrayOf(-1.6, 0.0, 0.06), doubleArrayOf(-0.9, 0.0, 0.05),
             doubleArrayOf(0.9, 0.0, 0.05), doubleArrayOf(1.6, 0.0, 0.06), doubleArrayOf(2.4, 0.0, 0.07))
+        /** Motif "treadplate": gân thép (x, y, góc radian) hình thoi dài [TREAD_LENGTH], nửa bề dày [TREAD_HALF_WIDTH] — iOS tread* y hệt. */
+        val TREAD_BARS = arrayOf(doubleArrayOf(-2.4, 0.0, Math.PI / 4), doubleArrayOf(-1.6, 0.0, -Math.PI / 4),
+            doubleArrayOf(-0.8, 0.0, Math.PI / 4), doubleArrayOf(0.0, 0.0, -Math.PI / 4), doubleArrayOf(0.8, 0.0, Math.PI / 4),
+            doubleArrayOf(1.6, 0.0, -Math.PI / 4), doubleArrayOf(2.4, 0.0, Math.PI / 4))
+        const val TREAD_LENGTH = 0.62
+        const val TREAD_HALF_WIDTH = 0.09
         /** Trái tim điểm ảnh của motif "pixel": (hàng, cột đầu, cột cuối loại trừ) trên lưới 7×6 — iOS pixelRuns y hệt. */
         val PIXEL_RUNS: List<IntArray> = listOf(intArrayOf(0, 1, 3), intArrayOf(0, 4, 6), intArrayOf(1, 0, 7), intArrayOf(2, 0, 7),
             intArrayOf(3, 1, 6), intArrayOf(4, 2, 5), intArrayOf(5, 3, 4))
@@ -680,6 +691,13 @@ data class ThemeDecoration(val motif: String, val color: Int, val density: Int =
                 }
                 // Đốm đèn nhoè: vài hình tròn rời nhau cỡ khác nhau — cùng chiều quay.
                 BOKEH -> BOKEH_DOTS.map { d -> ell(d[0], d[1], d[2], d[2]) }
+                // Sàn thép: mỗi gân một hình thoi (đầu + → cạnh +n → đầu − → cạnh −n) — cùng chiều quay với chấm neural.
+                TREADPLATE -> TREAD_BARS.map { b ->
+                    val dx = Math.cos(b[2]); val dy = Math.sin(b[2]); val nx = -dy; val ny = dx
+                    val l = TREAD_LENGTH / 2; val w = TREAD_HALF_WIDTH
+                    MotifSub(b[0] + dx * l, b[1] + dy * l, listOf(doubleArrayOf(b[0] + nx * w, b[1] + ny * w),
+                        doubleArrayOf(b[0] - dx * l, b[1] - dy * l), doubleArrayOf(b[0] - nx * w, b[1] - ny * w)))
+                }
                 else -> emptyList()
             }
         }
@@ -820,7 +838,7 @@ object ThemePicker {
      * trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. iOS ThemePicker.interactiveOrder y hệt.
      */
     val INTERACTIVE_ORDER = listOf("nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "drift",
-        "mo", "stainedGlass")
+        "mo", "stainedGlass", "gym")
 
     data class Groups(val free: List<KeyboardTheme>, val interactive: List<KeyboardTheme>, val rest: List<KeyboardTheme>)
     /**

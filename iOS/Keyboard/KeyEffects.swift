@@ -47,6 +47,8 @@ enum KeyEffect: String, CaseIterable {
     // Theme "Mưa đêm" (11/2026): mưa đêm êm trên ô kính — giọt rơi + loang + lăn ở phím, hạt mưa nền trượt chậm, mưa
     // thưa dần khi gõ và ánh đèn vàng ấm ở góc sáng lên (RainFx).
     case rain
+    // Theme Gym (11/2026): Rep — thanh rep lấp mỗi phím, 10 phím = SET ✓, gõ nhanh "+1 rep 💪", từ khoá ⇒ BEAST MODE (RepsFx).
+    case reps
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -95,6 +97,7 @@ enum KeyEffect: String, CaseIterable {
         case .merit: return L("Công đức")
         case .sunlight: return L("Nắng qua kính")
         case .rain: return L("Mưa")
+        case .reps: return L("Rep")
         }
     }
 
@@ -106,7 +109,7 @@ enum KeyEffect: String, CaseIterable {
     /// Controller phải so từ đang soạn trước/sau phím — kiểu khác: không đọc gì (0 chi phí).
     var needsComposeDiff: Bool { self == .tone || self == .letters || self == .tokens }
     /// Controller phải tra từ vừa chốt ở ranh giới.
-    var needsBoundaryWord: Bool { self == .emojiword || self == .keyword }
+    var needsBoundaryWord: Bool { self == .emojiword || self == .keyword || self == .reps }
 
     /// Kiểu "hạt bay ra từ phím" (chùm hạt vector, quỹ đạo `trajectory`).
     static let particleCases: [KeyEffect] = [.heart, .bubble, .ripple, .petal, .firework, .blossom, .combo, .snow, .meteor,
@@ -1816,6 +1819,153 @@ extension UIView {
 /// ⇒ cả cây thời gian chạy lại từ đầu trên render server. Tia sét: pool 3 "cú đánh" (path lấy từ cache
 /// theo độ cao / cỡ phím). Nháy sáng: MỘT layer. Matrix: các cột ảnh dựng sẵn, animation chỉ gắn khi đang
 /// gõ, gỡ sạch sau khi nghỉ.
+/// "Rep" (theme Gym, 11/2026): thanh rep mảnh dọc mép trên bàn phím lấp MỘT nấc mỗi phím; đủ `perSet` phím = một hiệp ⇒ huy
+/// hiệu "SET n ✓" đấm phồng rồi mờ, thanh rút về 0. Gõ nhanh (ComboMeter ≥ 1) ⇒ nhãn "+1 rep 💪" bay lên từ phím (pool
+/// `labelCap`, dùng lại). Từ khoá ("gym", "tập", "beast mode"…) ⇒ chữ BEAST MODE đập xuống giữa bàn phím + một vòng sóng
+/// xung kích (~1 s). Đếm hiệp về 0 khi ẩn bàn phím hoặc nghỉ `idleReset` giây. Mọi thứ nằm TRONG khung bàn phím (#151).
+/// Đường cong là hàm thuần (keyframe tuyến tính) — iOS lấy mẫu làm CAKeyframeAnimation, Android vẽ Canvas: cùng số.
+/// Android RepsFx y hệt.
+enum RepsFx {
+    static let perSet = 10
+    static let idleReset = 60.0
+    static let labelCap = 5
+    static let labelText = "+1 rep 💪"
+    static let slamText = "BEAST MODE"
+    static func badgeText(set: Int) -> String { "SET \(set) ✓" }
+    /// Thanh rep: cao (pt / dp), cách mép trên + lề hai bên.
+    static let barHeight = 3.0
+    static let barInset = 2.0
+    /// Một nấc trượt; hết hiệp: đầy thêm `setHold` rồi rút về 0 trong `setDrain`.
+    static let barStep = 0.12
+    static let setHold = 0.45
+    static let setDrain = 0.2
+    static var setLife: Double { barStep + setHold + setDrain }
+    /// Huy hiệu SET: tâm cách mép trên `badgeY`, cỡ chữ, thời lượng, mốc phồng / mờ.
+    static let badgeY = 18.0
+    static let badgeFont = 13.0
+    static let badgeDuration = 0.9
+    static let badgeTimes: [Double] = [0, 0.12, 0.22, 0.3, 0.7, 0.9]
+    static let badgeScales: [Double] = [0.4, 1.25, 0.95, 1.0, 1.0, 1.0]
+    static let badgeAlphas: [Double] = [0, 1, 1, 1, 1, 0]
+    /// Nhãn "+1 rep 💪".
+    static let labelDuration = 0.8
+    static let labelRise = 38.0
+    static let labelFont = 14.0
+    static let labelHeight = 20.0
+    static let labelHalfWidth = 40.0
+    /// BEAST MODE: chữ đập (phồng 2.4 → 0.9 → 1.08 → 1) + vòng xung kích trễ `ringDelay`.
+    static let slamDuration = 1.0
+    static let slamTimes: [Double] = [0, 0.1, 0.18, 0.26, 0.8, 1.0]
+    static let slamScales: [Double] = [2.4, 0.9, 1.08, 1.0, 1.0, 1.0]
+    static let slamAlphas: [Double] = [0, 1, 1, 1, 1, 0]
+    static let slamMaxFont = 30.0
+    static let ringDelay = 0.1
+    static let ringDuration = 0.5
+    static let ringRadius = 44.0
+    static let ringGrow = 1.6
+    static let ringWidth = 3.0
+
+    /// Bộ đếm rep / hiệp — hàm thuần (thời gian truyền vào, giây).
+    struct Counter: Equatable {
+        struct Event: Equatable { var fill: Int; var completedSet: Int? }
+        private(set) var reps = 0
+        private(set) var sets = 0
+        private(set) var last = -Double.greatestFiniteMagnitude
+        /// Một phím lúc `t`: nấc thanh sau phím (1…perSet) + số hiệp vừa xong (nil nếu chưa).
+        mutating func press(at t: Double) -> Event {
+            if isIdle(at: t) { reset() }
+            last = t
+            reps += 1
+            if reps >= RepsFx.perSet { reps = 0; sets += 1; return Event(fill: RepsFx.perSet, completedSet: sets) }
+            return Event(fill: reps, completedSet: nil)
+        }
+        func isIdle(at t: Double) -> Bool { t - last > RepsFx.idleReset }
+        /// Ẩn bàn phím / nghỉ lâu ⇒ hiệp về 0.
+        mutating func reset() { reps = 0; sets = 0; last = -Double.greatestFiniteMagnitude }
+    }
+
+    /// Nội suy tuyến tính theo mốc (kẹp hai đầu).
+    static func keyframe(_ t: Double, _ ts: [Double], _ vs: [Double]) -> Double {
+        guard let f = ts.first, t > f else { return vs[0] }
+        for i in 1..<ts.count where t <= ts[i] {
+            let u = (t - ts[i - 1]) / max(ts[i] - ts[i - 1], 1e-9)
+            return vs[i - 1] + (vs[i] - vs[i - 1]) * u
+        }
+        return vs[vs.count - 1]
+    }
+
+    /// Phần thanh (0…1) sau `dt` giây kể từ phím: nấc `from` → `to`; hết hiệp (`to` = perSet) ⇒ đầy, giữ, rút về 0.
+    static func barFill(from: Int, to: Int, dt: Double) -> Double {
+        let a = Double(from) / Double(perSet), b = Double(to) / Double(perSet)
+        if dt <= 0 { return a }
+        if dt < barStep { return a + (b - a) * dt / barStep }
+        guard to >= perSet else { return b }
+        let u = dt - barStep - setHold
+        if u < 0 { return 1 }
+        return u < setDrain ? 1 - u / setDrain : 0
+    }
+
+    static func badgeScale(_ dt: Double) -> Double { keyframe(dt, badgeTimes, badgeScales) }
+    static func badgeAlpha(_ dt: Double) -> Double { dt < 0 || dt >= badgeDuration ? 0 : keyframe(dt, badgeTimes, badgeAlphas) }
+    static func slamScale(_ dt: Double) -> Double { keyframe(dt, slamTimes, slamScales) }
+    static func slamAlpha(_ dt: Double) -> Double { dt < 0 || dt >= slamDuration ? 0 : keyframe(dt, slamTimes, slamAlphas) }
+
+    /// Nhãn: độ lên (âm = lên), mờ, cỡ sau `dt` giây.
+    static func labelDy(_ dt: Double) -> Double {
+        let u = min(max(dt / labelDuration, 0), 1)
+        return -labelRise * (1 - (1 - u) * (1 - u))
+    }
+    static func labelAlpha(_ dt: Double) -> Double {
+        guard dt >= 0, dt < labelDuration else { return 0 }
+        let u = dt / labelDuration
+        return u < 0.15 ? u / 0.15 : (u > 0.6 ? (1 - u) / 0.4 : 1)
+    }
+    static func labelScale(_ dt: Double) -> Double { 0.8 + 0.25 * min(max(dt / labelDuration, 0) / 0.2, 1) }
+    /// Lệch ngang nhẹ theo lần bắn (−8…8) — tất định.
+    static func labelDrift(_ seed: Int) -> Double { Double(((seed % 5) + 5) % 5 - 2) * 4 }
+
+    /// Vòng xung kích: hệ số bán kính + độ mờ sau `dt` giây kể từ cú đập.
+    static func ringScale(_ dt: Double) -> Double {
+        let u = min(max((dt - ringDelay) / ringDuration, 0), 1)
+        return 0.3 + (ringGrow - 0.3) * (1 - (1 - u) * (1 - u))
+    }
+    static func ringAlpha(_ dt: Double) -> Double {
+        let t = dt - ringDelay
+        guard t >= 0, t < ringDuration else { return 0 }
+        return 0.85 * (1 - t / ringDuration)
+    }
+
+    /// Bán kính vòng vừa khung (lớn nhất × ringGrow + nét vẫn trong bàn phím).
+    static func ringRadius(width w: Double, height h: Double) -> Double { max(0, min(ringRadius, (min(w, h) / 2 - ringWidth) / ringGrow)) }
+    /// Cỡ chữ BEAST MODE vừa bề ngang (10 ký tự đậm, chừa lề — phồng 1.08 vẫn trong khung).
+    static func slamFont(width w: Double) -> Double { max(8, min(slamMaxFont, w / 8.5)) }
+
+    /// Tâm xuất phát của nhãn (mép trên phím) — kẹp sao cho CẢ đường bay (lệch ngang, lên `labelRise`) nằm trong khung.
+    static func labelOrigin(keyMidX: Double, keyTop: Double, seed: Int,
+                            bounds b: (x: Double, y: Double, w: Double, h: Double)) -> (x: Double, y: Double) {
+        let hw = labelHalfWidth, hh = labelHeight / 2
+        let x = min(max(keyMidX + labelDrift(seed), b.x + hw), max(b.x + b.w - hw, b.x + hw))
+        let y = min(max(keyTop, b.y + labelRise + hh), max(b.y + b.h - hh, b.y + labelRise + hh))
+        return (x, y)
+    }
+
+    /// Từ khoá BEAST MODE. Cụm > 3 từ khớp theo 3 từ cuối ("no pain no gain" ⇒ "pain no gain").
+    static let keywords = ["gym", "tập", "fit", "no pain no gain", "beast mode", "lên tạ"]
+    private static let forms: Set<String> = Set(keywords.map { $0.split(separator: " ").suffix(3).joined(separator: " ") })
+    private static func clean(_ s: String) -> String { s.trimmingCharacters(in: CharacterSet.letters.inverted).lowercased() }
+
+    /// Từ vừa chốt `word` (+ hai từ liền trước) có kích BEAST MODE không — tra O(1) ở RANH GIỚI TỪ; đúng dấu ("tap" ≠ "tập").
+    static func isKeyword(word: String, prev: String?, prev2: String?) -> Bool {
+        let w = clean(word)
+        guard !w.isEmpty, w.count <= 24 else { return false }
+        if forms.contains(w) { return true }
+        guard let p = prev.map(clean), !p.isEmpty else { return false }
+        if forms.contains(p + " " + w) { return true }
+        guard let p2 = prev2.map(clean), !p2.isEmpty else { return false }
+        return forms.contains(p2 + " " + p + " " + w)
+    }
+}
+
 final class KeyEffectOverlay: UIView {
     private(set) var effect: KeyEffect
     /// Kính vạn hoa: dựng lười ở phím đầu; kiểu khác ⇒ nil.
@@ -1968,6 +2118,23 @@ final class KeyEffectOverlay: UIView {
     private var rainGlow: CAGradientLayer?
     private var rainGlowLevel = 0.0
     private var rainSweepScheduled = false
+    // Rep (theme Gym) — dựng lười lần bắn đầu; kiểu khác ⇒ không layer nào.
+    private var repCounter = RepsFx.Counter()
+    private var repFill = 0
+    private var repLastMedia: CFTimeInterval = 0
+    private var repSweepScheduled = false
+    private var repBarTrack: CALayer?
+    private var repBar: CALayer?
+    private var repBadge: CALayer?
+    private var repBadgeText: CATextLayer?
+    private var repLabels: [CALayer] = []
+    private var repLabelPool = KeyEffectPool(capacity: RepsFx.labelCap)
+    private var repLabelImage: CGImage?
+    private var repSeq = 0
+    private var pendingSlam = false
+    private var repSlam: CALayer?
+    private var repSlamText: CATextLayer?
+    private var repRing: CAShapeLayer?
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -2038,7 +2205,7 @@ final class KeyEffectOverlay: UIView {
     }
 
     static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor,
-                                          .kaleido, .tunnel, .merit, .sunlight, .rain]
+                                          .kaleido, .tunnel, .merit, .sunlight, .rain, .reps]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -2061,6 +2228,8 @@ final class KeyEffectOverlay: UIView {
     func queueKeyword(_ k: KeywordKind) { if effect == .keyword { pendingKeyword = k } }
     /// "Chữ bay": chữ vừa ra (FlyingLetters.glyph) — lần vẽ kế thả từ phím vừa bấm.
     func queueLetter(_ g: String) { if effect == .letters { pendingLetter = g } }
+    /// "Rep": từ vừa chốt là từ khoá gym (RepsFx.isKeyword) — lần vẽ kế đập chữ BEAST MODE + vòng xung kích.
+    func queueBeastMode() { if effect == .reps { pendingSlam = true } }
     /// "Token AI": chữ vừa ra — lần vẽ kế loé tại phím rồi vỡ thành token bay vào thanh gợi ý.
     func queueToken(_ g: String) { if effect == .tokens { pendingToken = g } }
 
@@ -2111,6 +2280,7 @@ final class KeyEffectOverlay: UIView {
         guard !pending.isEmpty, effect != .none, window != nil || Self.drawsOffscreen else {
             pending.removeAll(keepingCapacity: true)
             pendingEmoji = nil; pendingTone = nil; pendingKeyword = nil; pendingLetter = nil; pendingToken = nil
+            pendingSlam = false
             return
         }
         CATransaction.begin()
@@ -2134,6 +2304,7 @@ final class KeyEffectOverlay: UIView {
             pendingToken = nil
         } else {
             for r in pending { fire(r, now: now, media: media) }
+            if pendingSlam { pendingSlam = false; fireSlam(now: now) }
         }
         CATransaction.commit()
         pending.removeAll(keepingCapacity: true)
@@ -2145,6 +2316,7 @@ final class KeyEffectOverlay: UIView {
         CATransaction.setDisableActions(true)
         flashLayer?.frame = bounds
         matrixRoot?.frame = bounds
+        if repBarTrack != nil { layoutRepBar() }
         if let l = sandPile {
             let f = CGRect(x: bounds.minX, y: bounds.maxY - CGFloat(SandPile.maxHeight) - 1,
                            width: bounds.width, height: CGFloat(SandPile.maxHeight) + 1)
@@ -2235,6 +2407,18 @@ final class KeyEffectOverlay: UIView {
     var debugMerit: MeritLayers? { merit }
     var debugMeritCounter: MeritCounter { meritCounter }
     var debugSunlight: SunlightLayers? { sunlight }
+    /// Rep: bộ đếm, nấc thanh đang hiện, các layer đã dựng (thanh, huy hiệu, chữ đập, nhãn), chữ huy hiệu.
+    var debugRepCounter: RepsFx.Counter { repCounter }
+    var debugRepFill: Int { repFill }
+    var debugRepBarTrack: CALayer? { repBarTrack }
+    var debugRepBar: CALayer? { repBar }
+    var debugRepBadge: CALayer? { repBadge }
+    var debugRepBadgeText: String? { repBadgeText?.string as? String }
+    var debugRepLabels: [CALayer] { repLabels }
+    var debugRepSlam: CALayer? { repSlam }
+    var debugRepSlamText: CATextLayer? { repSlamText }
+    var debugRepRing: CAShapeLayer? { repRing }
+    func debugSweepReps(idleFor s: Double) { repLastMedia = CACurrentMediaTime() - s; repSweepScheduled = false; sweepReps() }
     #else
     static let drawsOffscreen = false
     #endif
@@ -2267,6 +2451,7 @@ final class KeyEffectOverlay: UIView {
             sunlight = s
             s.fire(key: r, bounds: bounds, now: now, media: media)
         case .rain: fireRain(c, now: now, media: media)
+        case .reps: fireRep(r, now: now, media: media)
         case .flash: fireFlash(now: now, media: media)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)
@@ -2645,6 +2830,7 @@ final class KeyEffectOverlay: UIView {
         sunlight?.halt()
         persistMerit(force: true)         // ẩn bàn phím ⇒ ghi nốt công đức chưa lưu
         haltRain()                        // ẩn bàn phím ⇒ mưa về đậm, đèn tắt, không còn hạt nào
+        resetReps()                       // ẩn bàn phím ⇒ hiệp về 0
     }
 
     // MARK: Công đức
@@ -3782,6 +3968,230 @@ final class KeyEffectOverlay: UIView {
         CATransaction.commit()
     }
 
+    // MARK: Rep (theme Gym — RepsFx)
+    // Thanh rep + huy hiệu + nhãn + chữ đập: layer dựng lười MỘT lần, animation keyframe lấy mẫu từ hàm thuần (RepsFx).
+    // Nhãn / huy hiệu / chữ đập gắn animation một lần, bấm chỉ đổi vị trí + beginTime; thanh rep: animation tự gỡ khi xong
+    // ⇒ nghỉ = 0 animation. Một asyncAfter (gộp) đưa hiệp về 0 sau `idleReset` giây nghỉ; ẩn bàn phím (halt) cũng vậy.
+
+    /// Keyframe lấy mẫu `n` + 1 điểm đều trên [0, duration) từ hàm thuần `f`.
+    private static func sampled(_ keyPath: String, duration: Double, steps n: Int, _ f: (Double) -> Double) -> CAKeyframeAnimation {
+        let a = CAKeyframeAnimation(keyPath: keyPath)
+        a.values = (0...n).map { f(duration * Double($0) / Double(n) * 0.9999) }
+        a.keyTimes = (0...n).map { NSNumber(value: Double($0) / Double(n)) }
+        a.duration = duration
+        return a
+    }
+
+    /// Chữ trên nền màu nhấn: đen hay trắng tuỳ độ sáng.
+    private static func inkOn(_ c: UIColor) -> UIColor {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        c.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return 0.299 * r + 0.587 * g + 0.114 * b > 0.55 ? UIColor(white: 0.07, alpha: 1) : .white
+    }
+
+    private var repBoundsTuple: (x: Double, y: Double, w: Double, h: Double) {
+        (Double(bounds.minX), Double(bounds.minY), Double(bounds.width), Double(bounds.height))
+    }
+
+    private func fireRep(_ r: CGRect, now: CFTimeInterval, media: CFTimeInterval) {
+        let ev = repCounter.press(at: media)
+        let from = repFill
+        repFill = ev.fill >= RepsFx.perSet ? 0 : ev.fill
+        repLastMedia = media
+        layoutRepBar()
+        if let bar = repBar {
+            bar.transform = CATransform3DMakeScale(CGFloat(max(Double(repFill) / Double(RepsFx.perSet), 1e-4)), 1, 1)
+            let set = ev.completedSet != nil
+            let a = Self.sampled("transform.scale.x", duration: set ? RepsFx.setLife : RepsFx.barStep, steps: set ? 24 : 2) {
+                max(RepsFx.barFill(from: from, to: ev.fill, dt: $0), 1e-4)
+            }
+            bar.add(a, forKey: "fx")   // tự gỡ khi xong (isRemovedOnCompletion mặc định) ⇒ nghỉ = 0 animation
+        }
+        if let s = ev.completedSet { fireRepBadge(set: s, now: now) }
+        if combo.press(at: media) >= 1 { fireRepLabel(r, now: now) }
+        scheduleRepSweep(after: RepsFx.idleReset + 0.5)
+    }
+
+    private func layoutRepBar() {
+        let track: CALayer
+        if let t = repBarTrack { track = t } else {
+            track = CALayer()
+            track.backgroundColor = color.withAlphaComponent(0.22).cgColor
+            track.cornerRadius = CGFloat(RepsFx.barHeight / 2)
+            let b = CALayer()
+            b.backgroundColor = color.cgColor
+            b.cornerRadius = CGFloat(RepsFx.barHeight / 2)
+            b.anchorPoint = CGPoint(x: 0, y: 0.5)
+            b.transform = CATransform3DMakeScale(1e-4, 1, 1)
+            track.addSublayer(b)
+            layer.addSublayer(track)
+            repBarTrack = track; repBar = b
+        }
+        let ins = CGFloat(RepsFx.barInset), h = CGFloat(RepsFx.barHeight)
+        let f = CGRect(x: bounds.minX + ins, y: bounds.minY + ins, width: max(bounds.width - 2 * ins, 0), height: h)
+        guard track.frame != f else { return }
+        track.frame = f
+        repBar?.bounds = CGRect(x: 0, y: 0, width: f.width, height: h)
+        repBar?.position = CGPoint(x: 0, y: h / 2)
+    }
+
+    private func fireRepBadge(set: Int, now: CFTimeInterval) {
+        let root: CALayer, text: CATextLayer
+        if let r = repBadge, let t = repBadgeText { root = r; text = t } else {
+            root = CALayer()
+            root.backgroundColor = color.cgColor
+            root.opacity = 0
+            root.isHidden = true
+            text = CATextLayer()
+            let fs = CGFloat(RepsFx.badgeFont)
+            text.font = UIFont.systemFont(ofSize: fs, weight: .heavy)
+            text.fontSize = fs
+            text.alignmentMode = .center
+            text.contentsScale = UIScreen.main.scale
+            text.foregroundColor = Self.inkOn(color).cgColor
+            root.addSublayer(text)
+            let times = RepsFx.badgeTimes.map { NSNumber(value: $0 / RepsFx.badgeDuration) }
+            let scale = CAKeyframeAnimation(keyPath: "transform.scale")
+            scale.values = RepsFx.badgeScales; scale.keyTimes = times
+            let fade = CAKeyframeAnimation(keyPath: "opacity")
+            fade.values = RepsFx.badgeAlphas; fade.keyTimes = times
+            root.add(Self.group([scale, fade], duration: RepsFx.badgeDuration, delay: 0), forKey: "fx")
+            layer.addSublayer(root)
+            repBadge = root; repBadgeText = text
+        }
+        text.string = RepsFx.badgeText(set: set)
+        let pref = text.preferredFrameSize()
+        let maxScale = CGFloat(RepsFx.badgeScales.max() ?? 1)
+        let h = CGFloat(RepsFx.badgeFont) + 9
+        let w = min(pref.width + 18, max((bounds.width - 4) / maxScale, 1))
+        root.bounds = CGRect(x: 0, y: 0, width: w, height: h)
+        root.cornerRadius = h / 2
+        text.frame = CGRect(x: 0, y: (h - pref.height) / 2, width: w, height: pref.height)
+        root.position = CGPoint(x: bounds.midX, y: bounds.minY + CGFloat(RepsFx.badgeY))
+        root.beginTime = now
+        root.isHidden = false
+    }
+
+    private func fireRepLabel(_ r: CGRect, now: CFTimeInterval) {
+        if repLabelImage == nil { repLabelImage = Self.renderRepLabel(color: color, scale: UIScreen.main.scale) }
+        let slot = repLabelPool.next()
+        let l: CALayer
+        if slot < repLabels.count { l = repLabels[slot] } else {
+            l = CALayer()
+            l.bounds = CGRect(x: 0, y: 0, width: RepsFx.labelHalfWidth * 2, height: RepsFx.labelHeight)
+            l.contentsGravity = .resizeAspect
+            l.contentsScale = UIScreen.main.scale
+            l.opacity = 0
+            l.isHidden = true
+            let d = RepsFx.labelDuration
+            let rise = Self.sampled("position.y", duration: d, steps: 8) { RepsFx.labelDy($0) }
+            rise.isAdditive = true
+            let fade = Self.sampled("opacity", duration: d, steps: 8) { RepsFx.labelAlpha($0) }
+            let grow = Self.sampled("transform.scale", duration: d, steps: 8) { RepsFx.labelScale($0) }
+            l.add(Self.group([rise, fade, grow], duration: d, delay: 0), forKey: "fx")
+            layer.addSublayer(l)
+            repLabels.append(l)
+        }
+        l.contents = repLabelImage
+        repSeq &+= 1
+        let size = r.size == .zero ? Self.defaultKeySize : r.size
+        let top = r.size == .zero ? r.midY - size.height / 2 : r.minY
+        let o = RepsFx.labelOrigin(keyMidX: Double(r.midX), keyTop: Double(top), seed: repSeq, bounds: repBoundsTuple)
+        l.position = CGPoint(x: o.x, y: o.y)
+        l.beginTime = now
+        l.isHidden = false
+    }
+
+    /// "+1 rep 💪" vẽ MỘT lần mỗi màu (CATextLayer không vẽ emoji màu).
+    static func renderRepLabel(color: UIColor, scale: CGFloat) -> CGImage? {
+        let size = CGSize(width: RepsFx.labelHalfWidth * 2, height: RepsFx.labelHeight)
+        let f = UIGraphicsImageRendererFormat()
+        f.scale = scale
+        f.opaque = false
+        let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: CGFloat(RepsFx.labelFont), weight: .heavy),
+                                                    .foregroundColor: color]
+        let s = RepsFx.labelText as NSString
+        let sz = s.size(withAttributes: attrs)
+        return UIGraphicsImageRenderer(size: size, format: f).image { _ in
+            s.draw(at: CGPoint(x: (size.width - sz.width) / 2, y: (size.height - sz.height) / 2), withAttributes: attrs)
+        }.cgImage
+    }
+
+    private func fireSlam(now: CFTimeInterval) {
+        let root: CALayer, text: CATextLayer, ring: CAShapeLayer
+        if let r = repSlam, let t = repSlamText, let g = repRing { root = r; text = t; ring = g } else {
+            root = CALayer()
+            root.bounds = .zero
+            root.isHidden = true
+            ring = CAShapeLayer()
+            ring.fillColor = nil
+            ring.strokeColor = color.cgColor
+            ring.lineWidth = CGFloat(RepsFx.ringWidth)
+            ring.opacity = 0
+            let d = RepsFx.slamDuration
+            ring.add(Self.group([Self.sampled("transform.scale", duration: d, steps: 16) { RepsFx.ringScale($0) },
+                                 Self.sampled("opacity", duration: d, steps: 16) { RepsFx.ringAlpha($0) }],
+                                duration: d, delay: 0), forKey: "fx")
+            text = CATextLayer()
+            text.alignmentMode = .center
+            text.contentsScale = UIScreen.main.scale
+            text.foregroundColor = color.cgColor
+            text.opacity = 0
+            let times = RepsFx.slamTimes.map { NSNumber(value: $0 / d) }
+            let scale = CAKeyframeAnimation(keyPath: "transform.scale")
+            scale.values = RepsFx.slamScales; scale.keyTimes = times
+            let fade = CAKeyframeAnimation(keyPath: "opacity")
+            fade.values = RepsFx.slamAlphas; fade.keyTimes = times
+            text.add(Self.group([scale, fade], duration: d, delay: 0), forKey: "fx")
+            root.addSublayer(ring)
+            root.addSublayer(text)
+            layer.addSublayer(root)
+            repSlam = root; repSlamText = text; repRing = ring
+        }
+        let w = Double(bounds.width), h = Double(bounds.height)
+        let rad = CGFloat(RepsFx.ringRadius(width: w, height: h))
+        ring.path = CGPath(ellipseIn: CGRect(x: -rad, y: -rad, width: 2 * rad, height: 2 * rad), transform: nil)
+        let fs = CGFloat(RepsFx.slamFont(width: w))
+        if text.fontSize != fs {
+            text.font = UIFont.systemFont(ofSize: fs, weight: .black)
+            text.fontSize = fs
+        }
+        text.string = RepsFx.slamText
+        text.bounds = CGRect(x: 0, y: 0, width: bounds.width, height: fs * 1.3)
+        text.position = .zero
+        root.position = CGPoint(x: bounds.midX, y: bounds.midY)
+        root.beginTime = now
+        root.isHidden = false
+    }
+
+    private func scheduleRepSweep(after s: Double) {
+        guard !repSweepScheduled else { return }
+        repSweepScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + s) { [weak self] in self?.sweepReps() }
+    }
+
+    /// Nghỉ đủ `idleReset` ⇒ hiệp về 0 (thanh rỗng); chưa đủ ⇒ hẹn lại phần còn lại. Một lần hẹn cho cả loạt gõ.
+    private func sweepReps() {
+        repSweepScheduled = false
+        guard effect == .reps else { return }
+        let idle = CACurrentMediaTime() - repLastMedia
+        if idle <= RepsFx.idleReset { scheduleRepSweep(after: RepsFx.idleReset - idle + 0.5); return }
+        resetReps()
+    }
+
+    /// Hiệp về 0 + ẩn mọi thứ đang bay (ẩn bàn phím / nghỉ lâu / đổi kiểu).
+    private func resetReps() {
+        repCounter.reset(); repFill = 0; pendingSlam = false
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        repBar?.removeAllAnimations()
+        repBar?.transform = CATransform3DMakeScale(1e-4, 1, 1)
+        repBadge?.isHidden = true
+        repSlam?.isHidden = true
+        for l in repLabels { l.isHidden = true }
+        CATransaction.commit()
+    }
+
     // MARK: dựng
 
     /// Một chùm: các layer con, animation gắn sẵn.
@@ -3922,6 +4332,8 @@ final class KeyEffectOverlay: UIView {
         floorFlicker?.root.removeFromSuperlayer()
         merit?.remove(); merit = nil
         sunlight?.remove(); sunlight = nil
+        repBarTrack?.removeFromSuperlayer(); repBadge?.removeFromSuperlayer(); repSlam?.removeFromSuperlayer()
+        for l in repLabels { l.removeFromSuperlayer() }
         sandPile?.removeFromSuperlayer()
         for w in seaWaves { w.root.removeFromSuperlayer() }
         seaFish?.removeFromSuperlayer()
@@ -3951,6 +4363,9 @@ final class KeyEffectOverlay: UIView {
         rainKeys = 0; rainGlowLevel = 0; rainLastDrop = -.greatestFiniteMagnitude; rainLastKey = -.greatestFiniteMagnitude
         floorFlicker = nil; flickerGate = DanceFloor.FlickerGate()
         tunnel?.remove(); tunnel = nil
+        repBarTrack = nil; repBar = nil; repBadge = nil; repBadgeText = nil; repSlam = nil; repSlamText = nil; repRing = nil
+        repLabels.removeAll(); repLabelPool = KeyEffectPool(capacity: RepsFx.labelCap); repLabelImage = nil
+        repCounter.reset(); repFill = 0; pendingSlam = false
         if effect != .shake { shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey) }
         shakeMeter.reset()
         stringAnim = nil

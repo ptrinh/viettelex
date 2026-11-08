@@ -30,6 +30,7 @@ import java.nio.charset.CodingErrorAction
  *   [HueFlow]: một vòng màu ≥ 8 s — 12 s ở tốc độ đầy, sắc nền cùng độ sáng ⇒ không nháy; nghỉ 1,5 s ⇒ dừng dần, 0 khung
  *   hình khi nghỉ; gõ dồn ⇒ gợn sóng màu đồng tâm chậm từ phím, sau hàng phím) | "none" (bản vá: bỏ).
  *   Motif "deco" có thêm "neural" (theme AI), "swirl" (xoắn ốc mảnh + chấm — theme "Ảo giác").
+ * Motif "deco" "treadplate" (theme Gym): hàng gân thép chéo ±45° kiểu sàn thép chống trượt; "sound":"plate", "effect":"reps".
  * "schedule" (tuỳ chọn): bảng màu đổi theo giờ địa phương (theme "Theo giờ") — xem [ThemeSchedule] / [ThemeScheduleEntry].
  *
  * Tệp tải về (Plus — ThemeAssets.kt: kế hoạch / kho / dọn; app ui/ThemeAssetDownloader.kt: tải + xử lý):

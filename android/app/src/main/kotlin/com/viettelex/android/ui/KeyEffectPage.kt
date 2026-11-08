@@ -74,7 +74,8 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
             " " + tr("Kính vạn hoa nở một bông đối xứng sắc cầu vồng từ phím vừa bấm, xoay chậm rồi tan.") +
             " " + tr("Đường hầm: vòng sáng co về phím vừa bấm như rơi vào đường hầm, gõ nhanh thì rơi nhanh hơn. Lơ lửng: phím trôi nhẹ khỏi hàng khi đang gõ rồi về chỗ khi nghỉ; chỉ là hình — chạm vẫn đúng phím; tắt khi bật Giảm chuyển động.") +
             " " + tr("Công đức thả \"+1 công đức\" bay lên từ phím vừa bấm và đếm số phím trong ngày (về 0 lúc nửa đêm, chỉ lưu trên máy). Nắng qua kính làm ô vừa bấm sáng lên như nắng xuyên qua kính màu; gõ nhanh có ánh nến ấm bập bùng chậm ở mép dưới.") +
-            " " + tr("Mưa: mưa đêm êm trên ô kính — giọt rơi xuống phím vừa bấm rồi lăn nhẹ; gõ một lúc mưa thưa dần và ánh đèn ấm ở góc sáng lên.")) {
+            " " + tr("Mưa: mưa đêm êm trên ô kính — giọt rơi xuống phím vừa bấm rồi lăn nhẹ; gõ một lúc mưa thưa dần và ánh đèn ấm ở góc sáng lên.") +
+            " " + tr("Rep lấp thanh rep một nấc mỗi phím, đủ 10 phím là xong một hiệp (SET ✓); gõ nhanh bật \"+1 rep 💪\"; gõ \"gym\", \"tập\", \"beast mode\"… để nổ chữ BEAST MODE.")) {
         KeyEffect.entries.chunked(3).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { e ->
@@ -124,10 +125,13 @@ internal object KeyEffectPreviewScript {
     /** Số phím của một "tràng gõ nhanh" (mức combo cao nhất). */
     fun burst(e: KeyEffect): Int = when (e) {
         KeyEffect.COMBO, KeyEffect.SHAKE, KeyEffect.SEA, KeyEffect.DANCEFLOOR -> ComboMeter.THRESHOLDS[2]
+        KeyEffect.REPS -> com.viettelex.keyboard.RepsFx.PER_SET   // đủ một hiệp ⇒ SET 1 ✓ + "+1 rep 💪" (gõ dồn)
         else -> 1
     }
     /** Sàn nhảy LED: lần chạm chẵn = một nhịp phím cách (flash nền, cổng ≤ 3 lần / giây vẫn áp). */
     fun beat(e: KeyEffect, tap: Int): Boolean = e == KeyEffect.DANCEFLOOR && tap % 2 == 0
+    /** Rep: lần chạm lẻ như vừa gõ "gym" + dấu cách ⇒ BEAST MODE. */
+    fun beastMode(tap: Int): Boolean = tap % 2 == 1
     /** Phím hàng xóm giả quanh phím V (Sàn nhảy LED). */
     fun ghostKeys(e: KeyEffect): Boolean = e == KeyEffect.DANCEFLOOR
     /** Ô hàng xóm (i, j) theo lưới DanceFloor: trái / phải cùng hàng + ba phím hàng trên. */
@@ -189,6 +193,7 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
         queueKeyword(KeyEffectPreviewScript.keyword(tap))
         queueLetter(KeyEffectPreviewScript.GLYPH)
         queueToken(KeyEffectPreviewScript.GLYPH)
+        if (KeyEffectPreviewScript.beastMode(tap)) queueBeastMode()
         burst(x, y, w, h)
         flush()
         if (KeyEffectPreviewScript.beat(e, tap)) kickBeat()

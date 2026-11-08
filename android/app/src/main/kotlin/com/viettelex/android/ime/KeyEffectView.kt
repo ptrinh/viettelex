@@ -25,6 +25,7 @@ import com.viettelex.keyboard.LaserBeam
 import com.viettelex.keyboard.PlasmaArc
 import com.viettelex.keyboard.PlasmaChain
 import com.viettelex.keyboard.RainFx
+import com.viettelex.keyboard.RepsFx
 import com.viettelex.keyboard.SandPile
 import com.viettelex.keyboard.SeaFx
 import com.viettelex.keyboard.ShakeFx
@@ -298,6 +299,30 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     private val danceRect = RectF()
     // Lạc trôi — Đường hầm ([TunnelPainter], DriftPainters.kt): dựng lười ở lần bắn đầu; kiểu khác ⇒ null.
     private var tunnel: TunnelPainter? = null
+    // Rep (theme Gym) — mảng cấp sẵn; thanh rep vẽ tĩnh, chỉ hẹn khung hình khi có thứ đang chuyển động (nghỉ = 0).
+    private val repCounter = RepsFx.Counter()
+    private var repFill = 0
+    private var repFrom = 0
+    private var repTo = 0
+    private var repStart = Long.MIN_VALUE / 2
+    private var repActive = false
+    private var badgeStart = Long.MIN_VALUE / 2
+    private var badgeLabel = ""
+    private val repLabelStart = LongArray(RepsFx.LABEL_CAP) { Long.MIN_VALUE / 2 }
+    private val repLabelX = FloatArray(RepsFx.LABEL_CAP)
+    private val repLabelY = FloatArray(RepsFx.LABEL_CAP)
+    private var repLabelCursor = 0
+    private var repSeq = 0
+    private var pendingSlam = false
+    private var slamStart = Long.MIN_VALUE / 2
+    private var repLastMs = 0L
+    private var repSweepPosted = false
+    private val repSweep = Runnable { sweepReps() }
+    private val repTmp = DoubleArray(2)
+    private val repRect = RectF()
+    private val repText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER; typeface = android.graphics.Typeface.DEFAULT_BOLD
+    }
 
     val effect: KeyEffect get() = sim.effect
 
@@ -389,6 +414,9 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     /** "Chữ bay": chữ vừa ra ([FlyingLetters.glyph]) — lần vẽ kế thả từ phím vừa bấm. */
     fun queueLetter(s: String) { if (sim.effect == KeyEffect.LETTERS) pendingLetter = s }
 
+    /** "Rep": từ vừa chốt là từ khoá gym ([RepsFx.isKeyword]) — lần vẽ kế đập chữ BEAST MODE + vòng xung kích. */
+    fun queueBeastMode() { if (sim.effect == KeyEffect.REPS) pendingSlam = true }
+
     /** "Token AI": chữ vừa ra — lần vẽ kế loé tại phím rồi vỡ thành token bay vào thanh gợi ý. */
     fun queueToken(s: String) { if (sim.effect == KeyEffect.TOKENS) pendingToken = s }
 
@@ -460,7 +488,10 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
                 val g = pendingToken; pendingToken = null
                 if (g != null) fireToken(g, pendX[pendN - 1], pendY[pendN - 1], pendH[pendN - 1], now)
             }
-            else -> for (i in 0 until pendN) fire(pendX[i], pendY[i], pendW[i], pendH[i], now)
+            else -> {
+                for (i in 0 until pendN) fire(pendX[i], pendY[i], pendW[i], pendH[i], now)
+                if (pendingSlam) { pendingSlam = false; slamStart = now }
+            }
         }
         pendN = 0
         postInvalidateOnAnimation()
@@ -484,6 +515,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.SAND -> fireSand(x, y, now)
             KeyEffect.SEA -> fireSea(x, y, now)
             KeyEffect.RAIN -> fireRain(x, y, now)
+            KeyEffect.REPS -> fireRep(x, y, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.DANCEFLOOR -> fireDance(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.TUNNEL -> (tunnel ?: TunnelPainter(density).also { tunnel = it }).fire(x, y, w, h, width, height, combo.press(now), now)
             KeyEffect.FLOAT -> {}   // Lơ lửng: KeyboardView dời hình phím (KeyFloatDriver) — overlay không vẽ gì
@@ -589,6 +621,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         merit?.let { it.persist(); it.clear() }   // ẩn bàn phím ⇒ ghi nốt công đức chưa lưu
         sunlight?.clear()
         haltRain()                         // ẩn bàn phím ⇒ mưa về đậm, đèn tắt, không còn hạt nào
+        removeCallbacks(repSweep); repSweepPosted = false; resetReps()   // ẩn bàn phím ⇒ hiệp về 0
         pendN = 0
         invalidate()
     }
@@ -785,6 +818,138 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     internal fun rainDropX(i: Int): Float = rainDropX[i]
     internal fun rainTapPos(i: Int): Pair<Float, Float> = rainTapX[i] to rainTapY[i]
 
+    // ---- Rep (theme Gym — [RepsFx], hàm thuần chung iOS; ở đây px = dp × density)
+
+    private fun fireRep(x: Float, y: Float, h: Float, now: Long) {
+        val ev = repCounter.press(now / 1000.0)
+        repFrom = repFill; repTo = ev.fill; repStart = now; repActive = true
+        repFill = if (ev.fill >= RepsFx.PER_SET) 0 else ev.fill
+        ev.completedSet?.let { badgeStart = now; badgeLabel = RepsFx.badgeText(it) }
+        if (combo.press(now) >= 1 && width > 0 && height > 0) {
+            val s = repLabelCursor; repLabelCursor = (s + 1) % RepsFx.LABEL_CAP
+            repSeq++
+            val d = density.toDouble()
+            RepsFx.labelOrigin(x / d, (y - h / 2) / d, repSeq, 0.0, 0.0, width / d, height / d, repTmp)
+            repLabelStart[s] = now; repLabelX[s] = (repTmp[0] * d).toFloat(); repLabelY[s] = (repTmp[1] * d).toFloat()
+        }
+        repLastMs = now
+        scheduleRepSweep(((RepsFx.IDLE_RESET + 0.5) * 1000).toLong())
+    }
+
+    private fun scheduleRepSweep(delayMs: Long) {
+        if (repSweepPosted) return
+        repSweepPosted = true
+        postDelayed(repSweep, delayMs)
+    }
+
+    /** Nghỉ đủ [RepsFx.IDLE_RESET] ⇒ hiệp về 0 (thanh rỗng); chưa đủ ⇒ hẹn lại phần còn lại. Một lần hẹn cho cả loạt gõ. */
+    private fun sweepReps() {
+        repSweepPosted = false
+        if (sim.effect != KeyEffect.REPS) return
+        val idle = (SystemClock.uptimeMillis() - repLastMs) / 1000.0
+        if (idle <= RepsFx.IDLE_RESET) { scheduleRepSweep(((RepsFx.IDLE_RESET - idle + 0.5) * 1000).toLong()); return }
+        resetReps()
+        invalidate()
+    }
+
+    /** Hiệp về 0 + tắt mọi thứ đang bay (ẩn bàn phím / nghỉ lâu / đổi kiểu). */
+    private fun resetReps() {
+        repCounter.reset(); repFill = 0; repFrom = 0; repTo = 0; repStart = Long.MIN_VALUE / 2; repActive = false
+        badgeStart = Long.MIN_VALUE / 2; slamStart = Long.MIN_VALUE / 2; repLabelStart.fill(Long.MIN_VALUE / 2); pendingSlam = false
+    }
+
+    /** Chữ trên nền màu nhấn: đen hay trắng tuỳ độ sáng. */
+    private fun inkOn(c: Int): Int {
+        val l = 0.299 * ((c shr 16) and 0xFF) + 0.587 * ((c shr 8) and 0xFF) + 0.114 * (c and 0xFF)
+        return if (l / 255 > 0.55) 0xFF121212.toInt() else 0xFFFFFFFF.toInt()
+    }
+
+    private fun drawReps(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        val d = density
+        val accent = color or (0xFF shl 24)
+        // Thanh rep (tĩnh khi nghỉ — chỉ hẹn khung hình lúc đang trượt).
+        if (repActive) {
+            val bdt = (now - repStart) / 1000.0
+            val life = if (repTo >= RepsFx.PER_SET) RepsFx.SET_LIFE else RepsFx.BAR_STEP
+            val f = if (bdt >= 0 && bdt < life) { any = true; RepsFx.barFill(repFrom, repTo, bdt) } else repFill.toDouble() / RepsFx.PER_SET
+            val ins = (RepsFx.BAR_INSET * d).toFloat(); val bh = (RepsFx.BAR_HEIGHT * d).toFloat(); val tw = width - 2 * ins
+            if (tw > 0) {
+                fill.color = accent; fill.alpha = 56
+                repRect.set(ins, ins, ins + tw, ins + bh); canvas.drawRoundRect(repRect, bh / 2, bh / 2, fill)
+                if (f > 5e-4) {
+                    fill.alpha = 255
+                    repRect.set(ins, ins, ins + (tw * f).toFloat(), ins + bh); canvas.drawRoundRect(repRect, bh / 2, bh / 2, fill)
+                }
+            }
+        }
+        // Huy hiệu SET n ✓
+        val gdt = (now - badgeStart) / 1000.0
+        if (gdt >= 0 && gdt < RepsFx.BADGE_DURATION) {
+            any = true
+            val a = (RepsFx.badgeAlpha(gdt) * 255).toInt().coerceIn(0, 255)
+            val s = RepsFx.badgeScale(gdt).toFloat()
+            repText.textSize = (RepsFx.BADGE_FONT * d).toFloat()
+            val maxScale = RepsFx.BADGE_SCALES.max().toFloat()
+            val bw = minOf(repText.measureText(badgeLabel) + 18 * d, maxOf((width - 4 * d) / maxScale, 1f))
+            val bh = ((RepsFx.BADGE_FONT + 9) * d).toFloat()
+            val save = canvas.save()
+            canvas.translate(width / 2f, (RepsFx.BADGE_Y * d).toFloat())
+            canvas.scale(s, s)
+            fill.color = accent; fill.alpha = a
+            repRect.set(-bw / 2, -bh / 2, bw / 2, bh / 2); canvas.drawRoundRect(repRect, bh / 2, bh / 2, fill)
+            repText.color = inkOn(accent); repText.alpha = a
+            canvas.drawText(badgeLabel, 0f, -(repText.ascent() + repText.descent()) / 2, repText)
+            canvas.restoreToCount(save)
+        }
+        // "+1 rep 💪"
+        for (k in 0 until RepsFx.LABEL_CAP) {
+            val dt = (now - repLabelStart[k]) / 1000.0
+            if (dt < 0 || dt >= RepsFx.LABEL_DURATION) continue
+            any = true
+            repText.textSize = (RepsFx.LABEL_FONT * RepsFx.labelScale(dt) * d).toFloat()
+            repText.color = accent; repText.alpha = (RepsFx.labelAlpha(dt) * 255).toInt().coerceIn(0, 255)
+            val ly = repLabelY[k] + (RepsFx.labelDy(dt) * d).toFloat()
+            canvas.drawText(RepsFx.LABEL_TEXT, repLabelX[k], ly - (repText.ascent() + repText.descent()) / 2, repText)
+        }
+        // BEAST MODE + vòng xung kích
+        val sdt = (now - slamStart) / 1000.0
+        if (sdt >= 0 && sdt < RepsFx.SLAM_DURATION && width > 0 && height > 0) {
+            any = true
+            val cx = width / 2f; val cy = height / 2f
+            val ra = RepsFx.ringAlpha(sdt)
+            if (ra > 0) {
+                stroke.color = accent; stroke.alpha = (ra * 255).toInt().coerceIn(0, 255); stroke.strokeWidth = (RepsFx.RING_WIDTH * d).toFloat()
+                val r = RepsFx.ringRadius(width / d.toDouble(), height / d.toDouble()) * RepsFx.ringScale(sdt) * d
+                canvas.drawCircle(cx, cy, r.toFloat(), stroke)
+            }
+            val sa = RepsFx.slamAlpha(sdt)
+            if (sa > 0) {
+                val s = RepsFx.slamScale(sdt).toFloat()
+                repText.textSize = (RepsFx.slamFont(width / d.toDouble()) * d).toFloat()
+                repText.color = accent; repText.alpha = (sa * 255).toInt().coerceIn(0, 255)
+                val save = canvas.save()
+                canvas.translate(cx, cy); canvas.scale(s, s)
+                canvas.drawText(RepsFx.SLAM_TEXT, 0f, -(repText.ascent() + repText.descent()) / 2, repText)
+                canvas.restoreToCount(save)
+            }
+        }
+        return any
+    }
+
+    /** Test (Rep): bộ đếm, nấc thanh đang hiện, nhãn còn bay lúc [now] + tâm (px), huy hiệu / chữ đập còn chạy, chữ huy hiệu. */
+    internal val repCounterState: RepsFx.Counter get() = repCounter
+    internal val repFillShown: Int get() = repFill
+    internal val repBarActive: Boolean get() = repActive
+    internal fun repLabelsAlive(now: Long): Int = repLabelStart.count { (now - it) / 1000.0 in 0.0..<RepsFx.LABEL_DURATION }
+    internal fun repLabelCenter(i: Int): Pair<Float, Float> = repLabelX[i] to repLabelY[i]
+    internal fun repBadgeAlive(now: Long): Boolean = (now - badgeStart) / 1000.0 in 0.0..<RepsFx.BADGE_DURATION
+    internal fun repSlamAlive(now: Long): Boolean = (now - slamStart) / 1000.0 in 0.0..<RepsFx.SLAM_DURATION
+    internal val repBadgeLabel: String get() = badgeLabel
+    internal fun debugSweepReps(idleSeconds: Double) {
+        repLastMs = SystemClock.uptimeMillis() - (idleSeconds * 1000).toLong(); removeCallbacks(repSweep); repSweepPosted = false; sweepReps()
+    }
+
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         halt()
@@ -836,6 +1001,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.FLOAT -> false
             KeyEffect.MERIT -> merit?.draw(canvas, now) ?: false
             KeyEffect.SUNLIGHT -> sunlight?.draw(canvas, now, width, height) ?: false
+            KeyEffect.REPS -> drawReps(canvas, now)
             else -> drawParticles(canvas, now)
         }
     }

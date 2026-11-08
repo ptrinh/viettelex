@@ -27,11 +27,14 @@ enum KeyEffectPreviewScript {
     static func burst(_ e: KeyEffect) -> Int {
         switch e {
         case .combo, .shake, .sea, .dancefloor: return ComboMeter.thresholds[2]
+        case .reps: return RepsFx.perSet      // Rep: đủ một hiệp ⇒ huy hiệu SET 1 ✓ + nhãn "+1 rep 💪" (gõ dồn)
         default: return 1
         }
     }
     /// Sàn nhảy LED: lần chạm chẵn = một nhịp phím cách (flash nền, cổng ≤ 3 lần / giây vẫn áp).
     static func beat(_ e: KeyEffect, tap: Int) -> Bool { e == .dancefloor && tap % 2 == 0 }
+    /// Rep: lần chạm lẻ như vừa gõ "gym" + dấu cách ⇒ BEAST MODE.
+    static func beastMode(tap: Int) -> Bool { tap % 2 == 1 }
     /// Phím giả quanh phím V (Sàn nhảy LED thắp phím hàng xóm).
     static func ghostKeys(_ e: KeyEffect) -> Bool { e == .dancefloor }
     /// "Phím cách" giả: dải thấp ở góc dưới trái ô (Laser bắn từ đây lên phím V).
@@ -111,6 +114,7 @@ final class KeyEffectPreviewView: UIView {
         o.queueKeyword(KeyEffectPreviewScript.keyword(tap: tap))
         o.queueLetter(KeyEffectPreviewScript.glyph)
         o.queueToken(KeyEffectPreviewScript.glyph)
+        if KeyEffectPreviewScript.beastMode(tap: tap) { o.queueBeastMode() }
         o.emit(key: k)
         o.flush()
         if KeyEffectPreviewScript.beat(effect, tap: tap) { beat?.kick() }

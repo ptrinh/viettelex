@@ -6,10 +6,10 @@
 # nền tảng (backdrop) nên không có ở đây.
 # interactive = theme có nhãn "interactive" (thứ tự khai báo); picker = thứ tự lưới "Chọn giao diện" (ThemePicker.ordered:
 # miễn phí → tương tác theo ThemePicker.interactiveOrder → còn lại).
-order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral,pixel,sea,timeOfDay,ai,nightclub,trippy,drift,mo,stainedGlass,rainyNight
-plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,pixel,sea,timeOfDay,ai,nightclub,trippy,drift,mo,stainedGlass,rainyNight
-interactive	tet,tetMai,piano,rgb,space,guitar,mole,sea,ai,nightclub,trippy,drift,mo,stainedGlass
-picker	system,oled,contrast,neutral,nightclub,ai,trippy,sea,mole,piano,space,rgb,tet,tetMai,guitar,drift,mo,stainedGlass,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,xmas,xmasSnow,sen,typewriter,trungthu,valentine,halloween,pixel,timeOfDay,rainyNight
+order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral,pixel,sea,timeOfDay,ai,nightclub,trippy,drift,mo,stainedGlass,rainyNight,gym
+plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,pixel,sea,timeOfDay,ai,nightclub,trippy,drift,mo,stainedGlass,rainyNight,gym
+interactive	tet,tetMai,piano,rgb,space,guitar,mole,sea,ai,nightclub,trippy,drift,mo,stainedGlass,gym
+picker	system,oled,contrast,neutral,nightclub,ai,trippy,sea,mole,piano,space,rgb,tet,tetMai,guitar,drift,mo,stainedGlass,gym,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,xmas,xmasSnow,sen,typewriter,trungthu,valentine,halloween,pixel,timeOfDay,rainyNight
 #theme	dark	bg	key	special	ink	accent	accentInk	border	fn	fnInk	deco
 oled	0	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
 oled	1	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
@@ -83,3 +83,5 @@ stainedGlass	0	FF141018	FF1E4596	FF2A2230	FFFFF6E0	FFC98A12	FF1A0F00	FF0B0A0C	FF
 stainedGlass	1	FF141018	FF1E4596	FF2A2230	FFFFF6E0	FFC98A12	FF1A0F00	FF0B0A0C	FF2A2230	FFFFE3A3	-
 rainyNight	0	FF161E2B	B32C3A50	CC223042	FFF3EAD9	FFE9A84E	FF2A1A06	40D6E4F5	CC1E2A3A	FFFFD08A	bokeh:38FFD59A
 rainyNight	1	FF161E2B	B32C3A50	CC223042	FFF3EAD9	FFE9A84E	FF2A1A06	40D6E4F5	CC1E2A3A	FFFFD08A	bokeh:38FFD59A
+gym	0	FF16191C	FF2A2E33	FF3A3F45	FFFFFFFF	FFC6FF1A	FF141A00	99C6FF1A	FF202327	FFD4FF3A	treadplate:4D8A9299
+gym	1	FF16191C	FF2A2E33	FF3A3F45	FFFFFFFF	FFC6FF1A	FF141A00	99C6FF1A	FF202327	FFD4FF3A	treadplate:4D8A9299

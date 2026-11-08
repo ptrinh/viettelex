@@ -446,6 +446,7 @@ final class AIThemeTests: XCTestCase {
     func testNeuralMotif() {
         XCTAssertEqual(KeyboardDecoration.Motif.allCases.firstIndex(of: .neural)! + 1, KeyboardDecoration.Motif.allCases.firstIndex(of: .swirl)!)
         XCTAssertTrue(KeyboardDecoration.Motif.allCases.contains(.neural))
+        XCTAssertEqual(KeyboardDecoration.Motif.allCases.firstIndex(of: .bubbles)! + 1, KeyboardDecoration.Motif.allCases.firstIndex(of: .neural)!)
         let subs = KeyboardDecoration.shape(.neural)
         XCTAssertEqual(subs.count, 12)
         var sum = 0.0

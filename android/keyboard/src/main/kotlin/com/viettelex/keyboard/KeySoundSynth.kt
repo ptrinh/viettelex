@@ -56,7 +56,9 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
     /** Theme "Kính màu" (11/2026): chuông nhỏ mềm, vài hoạ âm phi điều hoà ([KeySoundSynth.BELL_RECIPE]). */
     BELL("bell", "Chuông nhỏ"), // l10n-key
     /** Theme "Mưa đêm" (11/2026): mưa lách tách trên kính — phím chữ xoay 4 biến thể cao độ ([KeySoundSynth.rainRecipe]). */
-    RAIN("rain", "Mưa"); // l10n-key
+    RAIN("rain", "Mưa"), // l10n-key
+    /** Theme "Gym" (11/2026): "keng" kim loại khẽ của bánh tạ sắt (hoạ âm không điều hoà) — công thức đầu file Swift. */
+    PLATE("plate", "Tạ sắt"); // l10n-key
 
     /** true ⇒ phát qua SoundPool riêng; [SYSTEM] ⇒ playSoundEffect, không dựng gì. */
     val usesPool: Boolean get() = this != SYSTEM
@@ -66,7 +68,7 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
         val DEFAULT = SUBTLE
         /** Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức [KeySoundSynth.baseRecipe]. */
         val PRESETS = listOf(SUBTLE, WOOD, MECHANICAL, TYPEWRITER, BUBBLE, ROCK, POP, WATER, VINTAGE, PHAO, JINGLE, SCIFI,
-            TRONG, BOO, BOP, CHIP, AI, CLUB, DREAM, AIRY, MO, BELL, RAIN)
+            TRONG, BOO, BOP, CHIP, AI, CLUB, DREAM, AIRY, MO, BELL, RAIN, PLATE)
         /** Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta). */
         val ALL_PRESETS = PRESETS + PIANO + DANTRANH + GUITAR
         /**
@@ -189,6 +191,10 @@ object KeySoundSynth {
         KeySoundStyle.MO -> MO_RECIPE
         KeySoundStyle.BELL -> BELL_RECIPE
         KeySoundStyle.RAIN -> rainRecipe(Kind.LETTER, 0)
+        KeySoundStyle.PLATE -> Recipe(
+            listOf(t(1.0, 784.0, 784.0, tau = 0.014), t(0.35, 784 * 1.59, 784 * 1.59, tau = 0.012),
+                t(0.55, 784 * 2.76, 784 * 2.76, tau = 0.010), t(0.3, 784 * 5.4, 784 * 5.4, tau = 0.006)),
+            listOf(n(0.22, hp = 900.0, lp = 3200.0, tau = 0.0012)), 0.0006, 0.052, 4200.0, 0.42)
     }
 
     /**
@@ -367,6 +373,8 @@ object KeySoundSynth {
         else if (s == KeySoundStyle.MO) 0x6D6F6D6F xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
         else if (s == KeySoundStyle.BELL) 0x62656C6C xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
         else if (s == KeySoundStyle.RAIN) rainSeed(k, 0)
+        // Tạ sắt: seed CỐ ĐỊNH ("plat") — như club.
+        else if (s == KeySoundStyle.PLATE) 0x706C6174 xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
         else (0x9E3779B9.toInt() * (s.ordinal + 1)) xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
 
     fun samples(s: KeySoundStyle, k: Kind): FloatArray = render(recipe(s, k), seed(s, k))
