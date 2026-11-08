@@ -15,7 +15,7 @@ class PsychedelicThemeTests {
     // MARK: Kính vạn hoa
 
     @Test fun kaleidoIdAppendedAndCapped() {
-        assertEquals(KeyEffect.KALEIDO, KeyEffect.entries.last())
+        assertEquals(KeyEffect.DANCEFLOOR.ordinal + 1, KeyEffect.KALEIDO.ordinal)
         assertEquals(KeyEffect.DANCEFLOOR.ordinal + 1, KeyEffect.KALEIDO.ordinal)
         assertEquals("kaleido", KeyEffect.KALEIDO.id)
         assertTrue(KeyEffect.KALEIDO.isPlus)
@@ -180,7 +180,7 @@ class PsychedelicThemeTests {
 
     @Test fun trippyTheme() {
         val t = KeyboardTheme.TRIPPY
-        assertEquals(KeyboardTheme.TRIPPY, KeyboardTheme.entries.last())
+        assertEquals(KeyboardTheme.NIGHTCLUB.ordinal + 1, KeyboardTheme.TRIPPY.ordinal)
         assertEquals("trippy", t.id); assertTrue(t.isPlus); assertTrue(t.isInteractive)
         assertEquals("Psychedelic", L10nTable.EN["Ảo giác"])
         val spec = t.spec!!
@@ -211,7 +211,7 @@ class PsychedelicThemeTests {
 
     /** Motif "swirl": một dải xoắn (đa giác đơn, chiều quay dương) + 4 chấm; |y| ≤ 0,45; mốc chung iOS. */
     @Test fun swirlMotif() {
-        assertEquals(ThemeDecoration.SWIRL, ThemeDecoration.MOTIFS.last())
+        assertEquals(ThemeDecoration.MOTIFS.indexOf(ThemeDecoration.NEURAL) + 1, ThemeDecoration.MOTIFS.indexOf(ThemeDecoration.SWIRL))
         val subs = ThemeDecoration.shape(ThemeDecoration.SWIRL)
         assertEquals(5, subs.size)
         assertEquals(2 * (ThemeDecoration.SWIRL_STEPS + 1), 1 + subs[0].segs.size)

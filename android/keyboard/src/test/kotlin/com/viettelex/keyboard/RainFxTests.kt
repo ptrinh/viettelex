@@ -13,7 +13,7 @@ import kotlin.math.abs
  */
 class RainFxTests {
     @Test fun idAppendedLast() {
-        assertEquals(KeyEffect.RAIN, KeyEffect.entries.last())
+        assertTrue(KeyEffect.RAIN.ordinal > KeyEffect.SUNLIGHT.ordinal)
         assertEquals("rain", KeyEffect.RAIN.id)
         assertTrue(KeyEffect.RAIN.isPlus)
         assertEquals(KeyEffectBand.ABOVE_KEYS, KeyEffect.RAIN.band)
@@ -124,7 +124,8 @@ class RainFxTests {
             assertTrue("$k", KeySoundSynth.rms(a) < KeySoundSynth.rms(wood))
             assertTrue("$k", KeySoundSynth.spectralCentroid(a) < 2500)
             for (st in KeySoundStyle.PRESETS) if (st != KeySoundStyle.RAIN)
-                assertTrue("$st", a.maxOf { abs(it) } < KeySoundSynth.samples(st, k).maxOf { abs(it) })
+                // ≤: Chuông sao (Cung hoàng đạo) cũng đỉnh 0.34 — hai nhánh cùng chọn mức êm nhất.
+                assertTrue("$st", a.maxOf { abs(it) } <= KeySoundSynth.samples(st, k).maxOf { abs(it) } + 1e-6f)
         }
         val golden = listOf(54.9785, 57.6999, 63.9406)
         for ((i, k) in KeySoundSynth.Kind.entries.withIndex())

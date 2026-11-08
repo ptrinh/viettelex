@@ -14,15 +14,15 @@ import kotlin.math.abs
 class GymThemeTests {
 
     @Test fun idsAppendedAndShared() {
-        assertEquals(KeyboardTheme.NIGHTCLUB.ordinal + 1, KeyboardTheme.GYM.ordinal)
+        assertEquals(KeyboardTheme.RAINY_NIGHT.ordinal + 1, KeyboardTheme.GYM.ordinal)
         assertEquals("gym", KeyboardTheme.GYM.id)
-        assertEquals(KeyEffect.DANCEFLOOR.ordinal + 1, KeyEffect.REPS.ordinal)
+        assertEquals(KeyEffect.RAIN.ordinal + 1, KeyEffect.REPS.ordinal)
         assertEquals("reps", KeyEffect.REPS.id)
         assertTrue(KeyEffect.REPS.isPlus)
         assertFalse("mỗi phím đều lấp thanh rep", KeyEffect.REPS.isQueued)
         assertTrue(KeyEffect.REPS.needsBoundaryWord)
         assertFalse(KeyEffect.REPS.needsComposeDiff)
-        assertEquals(KeySoundStyle.CLUB.ordinal + 1, KeySoundStyle.PLATE.ordinal)
+        assertEquals(KeySoundStyle.RAIN.ordinal + 1, KeySoundStyle.PLATE.ordinal)
         assertTrue(KeySoundStyle.PLATE in KeySoundStyle.PRESETS)
         assertTrue("plate" in KeySoundStyle.PRESET_IDS)
         assertTrue(ThemeDecoration.TREADPLATE in ThemeDecoration.MOTIFS)

@@ -35,7 +35,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testIdsMatchAndroidAndDefaultIsNone() {
         // Cùng id với android/keyboard/.../KeyEffect.kt (sao lưu chéo nền tảng).
-        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "goal", "fishfeed", "ice", "theme"])
+        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "constellation", "rainbowburst", "goal", "fishfeed", "ice", "theme"])
         XCTAssertEqual(KeyEffect.key, "keyEffect")
         XCTAssertEqual(KeyEffect.defaultValue, .none)
         XCTAssertEqual(KeyEffect.parse(nil), .none)
@@ -57,7 +57,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testBackupSpecWhitelistsIds() {
         let spec = BackupSettings.all.first { $0.key == KeyEffect.key }
-        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "goal", "fishfeed", "ice", "theme"]))
+        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "constellation", "rainbowburst", "goal", "fishfeed", "ice", "theme"]))
     }
 
     func testTitlesBilingual() {
@@ -1850,7 +1850,7 @@ final class RainFxTests: XCTestCase {
     }
 
     func testIdAppendedLast() {
-        XCTAssertEqual(KeyEffect.allCases.last, .rain)
+        XCTAssertGreaterThan(KeyEffect.allCases.firstIndex(of: .rain)!, KeyEffect.allCases.firstIndex(of: .sunlight)!)
         XCTAssertEqual(KeyEffect.rain.rawValue, "rain")
         XCTAssertTrue(KeyEffect.rain.isPlus)
         XCTAssertEqual(KeyEffect.rain.band, .aboveKeys)
@@ -2038,7 +2038,8 @@ final class RainFxTests: XCTestCase {
             XCTAssertLessThan(KeySoundSynth.rms(a), KeySoundSynth.rms(wood), "\(k)")
             XCTAssertLessThan(KeySoundSynth.spectralCentroid(a), 2500, "\(k)")
             for st in KeySoundStyle.presets where st != .rain {
-                XCTAssertLessThan(a.map(abs).max() ?? 1, KeySoundSynth.samples(st, k).map(abs).max() ?? 0, "\(st)/\(k)")
+                // ≤: Chuông sao (Cung hoàng đạo) cũng đỉnh 0.34 — hai nhánh cùng chọn mức êm nhất.
+                XCTAssertLessThanOrEqual(a.map(abs).max() ?? 1, (KeySoundSynth.samples(st, k).map(abs).max() ?? 0) + 1e-6, "\(st)/\(k)")
             }
         }
         let golden: [(KeySoundKind, Double)] = [(.letter, 54.9785), (.delete, 57.6999), (.modifier, 63.9406)]

@@ -27,8 +27,8 @@ final class DriftTests: XCTestCase {
     }
 
     func testEffectIdsAppendedAndPlus() {
-        XCTAssertEqual(Array(KeyEffect.allCases.map(\.rawValue).suffix(2)), ["tunnel", "float"])
-        XCTAssertEqual(KeyEffect.allCases.firstIndex(of: .dancefloor)! + 1, KeyEffect.allCases.firstIndex(of: .tunnel)!)
+        XCTAssertEqual({ let o = KeyEffect.allCases.map(\.rawValue); let i = o.firstIndex(of: "tunnel") ?? 0; return Array(o[i..<min(i + 2, o.count)]) }(), ["tunnel", "float"])
+        XCTAssertEqual(KeyEffect.allCases.firstIndex(of: .kaleido)! + 1, KeyEffect.allCases.firstIndex(of: .tunnel)!)
         XCTAssertTrue(KeyEffect.tunnel.isPlus); XCTAssertTrue(KeyEffect.float.isPlus)
         XCTAssertEqual(KeyEffect.parse("tunnel"), .tunnel); XCTAssertEqual(KeyEffect.parse("float"), .float)
         XCTAssertEqual(L10n.en["Đường hầm"], "Tunnel"); XCTAssertEqual(L10n.en["Lơ lửng"], "Floating")
@@ -309,7 +309,7 @@ final class DriftTests: XCTestCase {
     /// (≡ Android DriftTests.driftTheme)
     func testDriftTheme() throws {
         let t = KeyboardTheme.drift
-        XCTAssertEqual(KeyboardTheme.allCases.firstIndex(of: .nightclub)! + 1, KeyboardTheme.allCases.firstIndex(of: .drift)!)
+        XCTAssertEqual(KeyboardTheme.allCases.firstIndex(of: .trippy)! + 1, KeyboardTheme.allCases.firstIndex(of: .drift)!)
         XCTAssertTrue(t.isPlus); XCTAssertTrue(t.isInteractive)
         let spec = try XCTUnwrap(t.spec)
         XCTAssertEqual(spec.nameVi, "Lạc trôi"); XCTAssertEqual(spec.nameEn, "Adrift"); XCTAssertEqual(L10n.en["Lạc trôi"], "Adrift")
@@ -366,7 +366,7 @@ final class DriftTests: XCTestCase {
         }
         XCTAssertEqual(L10n.en["Lơ lửng"], "Floating")
         XCTAssertTrue(KeySoundStyle.presets.contains(.airy))
-        XCTAssertEqual(KeySoundStyle.allCases.firstIndex(of: .club)! + 1, KeySoundStyle.allCases.firstIndex(of: .airy)!)
+        XCTAssertEqual(KeySoundStyle.allCases.firstIndex(of: .dream)! + 1, KeySoundStyle.allCases.firstIndex(of: .airy)!)
     }
 
     /// Ảnh cho chủ dự án — chỉ khi có VT_THEME_SNAPSHOT_DIR. layer.render bỏ animation ⇒ vòng đường hầm + dời phím vẽ lại

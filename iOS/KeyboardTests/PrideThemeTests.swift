@@ -153,7 +153,7 @@ final class PrideThemeTests: XCTestCase {
         XCTAssertEqual(spec.light, PrideFlag.rainbow.slots, "bảng dự phòng = Cầu vồng")
         XCTAssertEqual(KeyboardTheme.pride.systemBackdropKey, "systemBackdropPride")
         XCTAssertTrue(BackupSettings.all.contains { $0.key == "systemBackdropPride" })
-        XCTAssertEqual(ThemePicker.interactiveOrder.suffix(2), ["zodiac", "pride"])
+        XCTAssertEqual({ let o = ThemePicker.interactiveOrder; let i = o.firstIndex(of: "zodiac") ?? 0; return Array(o[i..<min(i + 2, o.count)]) }(), ["zodiac", "pride"])
     }
 
     func testVariantResolvesFromSettings() {

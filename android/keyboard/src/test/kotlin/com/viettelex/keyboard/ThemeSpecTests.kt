@@ -86,7 +86,8 @@ class ThemeSpecTests {
             assertTrue(id, ThemeSpecParser.contrastIssues(s).none { it.isError })
             // Lịch theo giờ (Theo giờ) không nằm trong palette — đi riêng.
             val back = ThemeSpec.export(id, s.nameVi, s.nameEn, s.palette(false), s.palette(true), s.typography)
-                .copy(schedule = s.schedule, tags = s.tags, buddy = s.buddy)   // lịch / nhãn / bạn đồng hành đi riêng
+                .copy(schedule = s.schedule, tags = s.tags, buddy = s.buddy, variant = s.variant,   // lịch / nhãn / bạn đồng hành /
+                    particles = s.particles, keywords = s.keywords)                                 // bảng biến thể / hạt / từ khoá đi riêng
             assertEquals(id, s.canonical, back.canonical)
             assertEquals(id, s.canonical, spec(s.canonical).canonical)
             assertEquals(id, s.canonical, ThemeSettings().exportSpec(t, base.palette(t, false), base.palette(t, true)).canonical)

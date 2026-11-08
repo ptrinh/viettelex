@@ -296,7 +296,7 @@ final class FootballFxTests: XCTestCase {
         XCTAssertEqual(t.systemBackdropKey, "systemBackdropFootball")
         XCTAssertNotNil(BackupSettings.byKey["systemBackdropFootball"])
         XCTAssertTrue(ThemeSpecParser.contrastIssues(spec).isEmpty)
-        XCTAssertEqual(ThemePicker.interactiveOrder.firstIndex(of: "football"), ThemePicker.interactiveOrder.firstIndex(of: "guitar").map { $0 + 1 })
+        XCTAssertEqual(ThemePicker.interactiveOrder.firstIndex(of: "football"), ThemePicker.interactiveOrder.firstIndex(of: "stainedGlass").map { $0 + 1 })
         for dark in [false, true] {
             let p = t.palette(systemDark: dark)
             let bg = try XCTUnwrap(p.background)

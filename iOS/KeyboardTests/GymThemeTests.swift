@@ -22,16 +22,16 @@ final class GymThemeTests: XCTestCase {
     // MARK: id
 
     func testIdsAppendedAndShared() throws {
-        XCTAssertEqual(KeyboardTheme.allCases.firstIndex(of: .nightclub)! + 1, KeyboardTheme.allCases.firstIndex(of: .gym)!)
+        XCTAssertEqual(KeyboardTheme.allCases.firstIndex(of: .rainyNight)! + 1, KeyboardTheme.allCases.firstIndex(of: .gym)!)
         XCTAssertEqual(KeyboardTheme.gym.rawValue, "gym")
-        XCTAssertEqual(KeyEffect.allCases.firstIndex(of: .dancefloor)! + 1, KeyEffect.allCases.firstIndex(of: .reps)!)
+        XCTAssertEqual(KeyEffect.allCases.firstIndex(of: .rain)! + 1, KeyEffect.allCases.firstIndex(of: .reps)!)
         XCTAssertEqual(KeyEffect.reps.rawValue, "reps")
         XCTAssertTrue(KeyEffect.reps.isPlus)
         XCTAssertFalse(KeyEffect.reps.isQueued, "mỗi phím đều lấp thanh rep")
         XCTAssertTrue(KeyEffect.reps.needsBoundaryWord, "từ khoá BEAST MODE ở ranh giới từ")
         XCTAssertFalse(KeyEffect.reps.needsComposeDiff)
         XCTAssertTrue(KeyEffectOverlay.clipped.contains(.reps), "cắt theo bàn phím (#151)")
-        XCTAssertEqual(KeySoundStyle.allCases.firstIndex(of: .club)! + 1, KeySoundStyle.allCases.firstIndex(of: .plate)!)
+        XCTAssertEqual(KeySoundStyle.allCases.firstIndex(of: .rain)! + 1, KeySoundStyle.allCases.firstIndex(of: .plate)!)
         XCTAssertTrue(KeySoundStyle.presets.contains(.plate))
         XCTAssertTrue(KeySoundStyle.presetIDs.contains("plate"))
         XCTAssertEqual(KeyboardDecoration.Motif(rawValue: "treadplate"), .treadplate)

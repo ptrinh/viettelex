@@ -61,7 +61,7 @@ class KeySoundTests {
         assertFalse(KeySoundStyle.CUSTOM in KeySoundStyle.PRESETS)
         // ordinal = seed nhiễu: kiểu cũ giữ vị trí; id + thứ tự Y HỆT iOS allCases.
         assertEquals(listOf("subtle", "wood", "mechanical", "typewriter", "bubble", "custom", "system", "rock", "pop", "water", "vintage",
-            "phao", "jingle", "piano", "dantranh", "scifi", "trong", "boo", "guitar", "bop", "chip", "ai", "club", "dream", "airy", "mo", "bell", "rain", "plate", "thump", "bloop", "clink"),
+            "phao", "jingle", "piano", "dantranh", "scifi", "trong", "boo", "guitar", "bop", "chip", "ai", "club", "dream", "airy", "mo", "bell", "rain", "plate", "twinkle", "thump", "bloop", "clink"),
             KeySoundStyle.entries.map { it.id })
         for (id in listOf("system", "rock", "pop", "water", "vintage", "phao", "jingle", "piano", "dantranh", "trong", "boo", "guitar")) assertTrue(id, id in KeySoundStyle.IDS)
         for (st in KeySoundStyle.entries) assertNotNull("$st thiếu bản EN", L10nTable.EN[st.viTitle])
@@ -93,7 +93,8 @@ class KeySoundTests {
             val all = KeySoundSynth.Kind.entries.map { k ->
                 val a = KeySoundSynth.samples(st, k)
                 assertArrayEquals(a, KeySoundSynth.samples(st, k), 0f)
-                assertTrue(a.size in 1001..2699)
+                // Mõ gỗ 0,12 s / Chuông nhỏ 0,36 s (Gõ mõ / Kính màu) ngân theo thiết kế — kiểu khác là tiếng gõ ngắn.
+                assertTrue("$st ${a.size}", a.size in 1001..(if (st == KeySoundStyle.BELL || st == KeySoundStyle.MO) 17000 else 2999))   // Chuông sao (Cung hoàng đạo) 2822 mẫu
                 assertEquals(KeySoundSynth.baseRecipe(st).peak.toFloat(), a.maxOf { abs(it) }, 1e-4f)
                 assertEquals(0f, a.first(), 1e-6f); assertEquals(0f, a.last(), 1e-6f)
                 val e = a.sumOf { (it * it).toDouble() }

@@ -36,7 +36,7 @@ final class PsychedelicThemeTests: XCTestCase {
     // MARK: Kính vạn hoa
 
     func testKaleidoIdAppendedAndCapped() {
-        XCTAssertEqual(KeyEffect.allCases.last, .kaleido)
+        XCTAssertEqual(KeyEffect.allCases.firstIndex(of: .dancefloor)! + 1, KeyEffect.allCases.firstIndex(of: .kaleido)!)
         XCTAssertEqual(KeyEffect.allCases.firstIndex(of: .dancefloor)! + 1, KeyEffect.allCases.firstIndex(of: .kaleido)!)
         XCTAssertEqual(KeyEffect.kaleido.rawValue, "kaleido")
         XCTAssertTrue(KeyEffect.kaleido.isPlus)
@@ -254,7 +254,7 @@ final class PsychedelicThemeTests: XCTestCase {
 
     func testTrippyTheme() throws {
         let t = KeyboardTheme.trippy
-        XCTAssertEqual(KeyboardTheme.allCases.last, .trippy)
+        XCTAssertEqual(KeyboardTheme.allCases.firstIndex(of: .nightclub)! + 1, KeyboardTheme.allCases.firstIndex(of: .trippy)!)
         XCTAssertTrue(t.isPlus); XCTAssertTrue(t.isInteractive)
         XCTAssertEqual(t.title, L("Ảo giác")); XCTAssertEqual(L10n.en["Ảo giác"], "Psychedelic")
         let spec = try XCTUnwrap(t.spec)
@@ -287,7 +287,7 @@ final class PsychedelicThemeTests: XCTestCase {
 
     /// Motif "swirl": một dải xoắn (đa giác đơn, chiều quay dương) + 4 chấm; |y| ≤ 0,45; mốc chung Android.
     func testSwirlMotif() {
-        XCTAssertEqual(KeyboardDecoration.Motif.allCases.last, .swirl)
+        XCTAssertEqual(KeyboardDecoration.Motif.allCases.firstIndex(of: .neural)! + 1, KeyboardDecoration.Motif.allCases.firstIndex(of: .swirl)!)
         let subs = KeyboardDecoration.shape(.swirl)
         XCTAssertEqual(subs.count, 5)
         XCTAssertEqual(1 + subs[0].segs.count, 2 * (KeyboardDecoration.swirlSteps + 1))

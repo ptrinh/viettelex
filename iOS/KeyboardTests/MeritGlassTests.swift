@@ -15,8 +15,8 @@ final class MeritGlassTests: XCTestCase {
     // MARK: id
 
     func testNewIdsAppendedAndShared() {
-        XCTAssertEqual(Array(KeyEffect.allCases.map(\.rawValue).suffix(2)), ["merit", "sunlight"])
-        XCTAssertEqual(Array(KeySoundStyle.allCases.map(\.rawValue).suffix(2)), ["mo", "bell"])
+        XCTAssertEqual({ let o = KeyEffect.allCases.map(\.rawValue); let i = o.firstIndex(of: "merit") ?? 0; return Array(o[i..<min(i + 2, o.count)]) }(), ["merit", "sunlight"])
+        XCTAssertEqual({ let o = KeySoundStyle.allCases.map(\.rawValue); let i = o.firstIndex(of: "mo") ?? 0; return Array(o[i..<min(i + 2, o.count)]) }(), ["mo", "bell"])
         XCTAssertTrue(KeySoundStyle.presetIDs.contains("mo") && KeySoundStyle.presetIDs.contains("bell"))
         XCTAssertTrue(KeyboardTheme.allCases.contains(.mo) && KeyboardTheme.allCases.contains(.stainedGlass))
         XCTAssertEqual(KeyboardTheme.mo.rawValue, "mo")
@@ -37,7 +37,7 @@ final class MeritGlassTests: XCTestCase {
         XCTAssertEqual(sg.sound, "bell"); XCTAssertEqual(sg.effect, "sunlight"); XCTAssertEqual(sg.keyShape, "glass")
         XCTAssertTrue(KeyboardTheme.mo.isPlus && KeyboardTheme.stainedGlass.isPlus)
         XCTAssertTrue(KeyboardTheme.mo.isInteractive && KeyboardTheme.stainedGlass.isInteractive)
-        XCTAssertEqual(Array(ThemePicker.interactiveOrder.suffix(2)), ["mo", "stainedGlass"])
+        XCTAssertEqual({ let o = ThemePicker.interactiveOrder; let i = o.firstIndex(of: "mo") ?? 0; return Array(o[i..<min(i + 2, o.count)]) }(), ["mo", "stainedGlass"])
         XCTAssertEqual(KeyboardTheme.mo.systemBackdropKey, "systemBackdropMo")
         XCTAssertEqual(KeyboardTheme.stainedGlass.systemBackdropKey, "systemBackdropStainedGlass")
         XCTAssertNotNil(BackupSettings.byKey["systemBackdropMo"])

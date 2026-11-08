@@ -119,7 +119,7 @@ final class CafeFxTests: XCTestCase {
         XCTAssertNotNil(BackupSettings.byKey["systemBackdropCafe"])
         XCTAssertTrue(ThemeSpecParser.contrastIssues(spec).isEmpty)
         XCTAssertEqual(L10n.en["Đá lanh canh"], "Ice clink")
-        XCTAssertEqual(ThemePicker.interactiveOrder.suffix(3), ["football", "aquarium", "cafe"])
+        XCTAssertEqual({ let o = ThemePicker.interactiveOrder; let i = o.firstIndex(of: "football") ?? 0; return Array(o[i..<min(i + 3, o.count)]) }(), ["football", "aquarium", "cafe"])
         for dark in [false, true] {
             let p = t.palette(systemDark: dark)
             XCTAssertEqual(p.decoration?.motif, .cafe)

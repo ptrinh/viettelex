@@ -24,7 +24,7 @@ class KeyEffectTests {
     }
 
     @Test fun idsMatchIosAndDefaultIsNone() {
-        assertEquals(listOf("none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "goal", "fishfeed", "ice", "theme"), KeyEffect.entries.map { it.id })
+        assertEquals(listOf("none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "constellation", "rainbowburst", "goal", "fishfeed", "ice", "theme"), KeyEffect.entries.map { it.id })
         assertEquals("keyEffect", Keys.KEY_EFFECT)
         assertEquals(KeyEffect.NONE, KeyEffect.DEFAULT)
         assertEquals(KeyEffect.NONE, KeyEffect.of(null))
@@ -42,7 +42,7 @@ class KeyEffectTests {
 
     @Test fun backupSpecWhitelistsIds() {
         val spec = BackupSettings.all.first { it.key == Keys.KEY_EFFECT }
-        assertEquals(SettingKind.Choice("none", setOf("none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "goal", "fishfeed", "ice", "theme")), spec.kind)
+        assertEquals(SettingKind.Choice("none", setOf("none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "constellation", "rainbowburst", "goal", "fishfeed", "ice", "theme")), spec.kind)
     }
 
     @Test fun titlesBilingual() {

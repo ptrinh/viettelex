@@ -446,7 +446,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     private val thX = FloatArray(TH_SLOTS)
     private val thY = FloatArray(TH_SLOTS)
     private val thParts = arrayOfNulls<Array<ThemeParticle>>(TH_SLOTS)
-    private var thSlots = 1
+    // Chưa có theme nào ⇒ chùm mặc định (setThemeFx(null) trên view mới thoát sớm, không tính lại).
+    private var thSlots = minOf(TH_SLOTS, ThemeParticles.slots(ThemeParticles.FALLBACK.effCount))
     private var thCursor = 0
     private var pendingThemeKeyword: Int? = null
     private val tkStart = LongArray(2) { Long.MIN_VALUE / 2 }

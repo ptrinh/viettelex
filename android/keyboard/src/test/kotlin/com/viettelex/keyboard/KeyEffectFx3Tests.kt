@@ -26,7 +26,8 @@ class KeyEffectFx3Tests {
         }
         // Chỉ ba kiểu khiến IME đọc từ đang soạn trước/sau phím (+ Token AI 11/2026); chỉ hai kiểu cần từ ở ranh giới.
         assertEquals(listOf(KeyEffect.TONE, KeyEffect.LETTERS, KeyEffect.TOKENS), KeyEffect.entries.filter { it.needsComposeDiff })
-        assertEquals(listOf(KeyEffect.EMOJIWORD, KeyEffect.KEYWORD), KeyEffect.entries.filter { it.needsBoundaryWord })
+        assertEquals(listOf(KeyEffect.EMOJIWORD, KeyEffect.KEYWORD, KeyEffect.REPS, KeyEffect.RAINBOWBURST),   // + BEAST MODE (Gym), cờ (Tự hào)
+            KeyEffect.entries.filter { it.needsBoundaryWord })
         assertEquals(listOf(KeyEffect.EMOJIWORD, KeyEffect.TONE, KeyEffect.KEYWORD, KeyEffect.LETTERS, KeyEffect.TOKENS),
             KeyEffect.entries.filter { it.isQueued })
         assertTrue(ThemeExtraIds.EFFECTS.containsAll(new.map { it.id }))

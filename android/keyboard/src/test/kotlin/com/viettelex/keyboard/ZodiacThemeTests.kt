@@ -151,7 +151,7 @@ class ZodiacThemeTests {
         assertEquals("zodiac", spec.variant)
         assertEquals("constellation", spec.effect); assertEquals("twinkle", spec.sound); assertEquals("stardust", spec.swipe)
         assertEquals("bảng dự phòng = Lửa", ZodiacElement.FIRE.slots, spec.light)
-        assertEquals("zodiac", ThemePicker.INTERACTIVE_ORDER.last())
+        assertEquals(listOf("zodiac", "pride"), ThemePicker.INTERACTIVE_ORDER.let { o -> val i = o.indexOf("zodiac"); o.subList(i, minOf(i + 2, o.size)) })
     }
 
     @Test fun variantResolvesFromSettings() {

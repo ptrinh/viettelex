@@ -104,6 +104,9 @@ internal object SettingCaption {
     // Phản hồi khi chạm › Âm thanh gõ
     const val keySoundStylesAndroid = "Hệ thống: âm thanh khi chạm của Android. Kiểu khác: tiếng riêng của VietTelex." // l10n-key
     const val keySoundVolumeAndroid = "Kéo hoặc chọn kiểu để nghe thử. Không nghe thấy? Tắt chế độ Rung/Im lặng." // l10n-key
+    // Giao diện › Cung hoàng đạo / Tự hào
+    const val zodiacSign = "Màu theo nguyên tố của cung; Chòm sao vẽ chòm của cung. Chỉ lưu cung, không lưu ngày sinh." // l10n-key
+    const val prideFlag = "Màu, viền phím và Cầu vồng theo lá cờ bạn chọn. Gõ \"tự hào\" để thấy lá cờ tung bay." // l10n-key
     const val customSound = "Cắt lặng đầu, tối đa 0,3 giây, chỉnh độ to an toàn. File chỉ trên máy này (không sao lưu)." // l10n-key
 
     val all: List<String> = listOf(
@@ -121,6 +124,6 @@ internal object SettingCaption {
         keyboardRaise, suggestionBarHeight, suggestionInk, spaceLogo, splitKeyboardAndroid, resetAppearance,
         advancedStyle, fontScaleAndroid, clipboardHistory, clipboardTTL, clipboardFooterAndroid, incognitoAndroid,
         includeLearned, backupFile, debugLogAndroid, showLog, clearLog, swipeDataCredit,
-        privacyAndroid, tryItAndroid,
+        privacyAndroid, tryItAndroid, zodiacSign, prideFlag,
     )
 }

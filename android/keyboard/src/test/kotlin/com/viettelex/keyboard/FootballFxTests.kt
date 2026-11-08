@@ -76,6 +76,7 @@ class FootballFxTests {
 
     /** Phía phiên gõ: Matcher chỉ nạp khi IME đặt (Sút!); null ⇒ không bao giờ có cụm. */
     @Test fun sessionCheerOnlyWhenSet() {
+        TestAssets.install()   // KeyboardSession cần seed.tsv — chạy riêng lớp này cũng được (không dựa thứ tự test)
         val s = KeyboardSession(UserLangModel()).also { it.startInput(KeyboardSettings(), FieldTraits()) }
         val p = MockProxy()
         fun type(word: String) { for (c in word) s.handle(Key.Letter(c), p) }
@@ -245,7 +246,7 @@ class FootballFxTests {
         assertEquals("Football", L10nTable.EN[t.viTitle])
         assertEquals("thump", spec.sound); assertEquals("goal", spec.effect)
         assertTrue(ThemeSpecParser.contrastIssues(spec).isEmpty())
-        assertEquals(ThemePicker.INTERACTIVE_ORDER.indexOf("guitar") + 1, ThemePicker.INTERACTIVE_ORDER.indexOf("football"))
+        assertEquals(ThemePicker.INTERACTIVE_ORDER.indexOf("stainedGlass") + 1, ThemePicker.INTERACTIVE_ORDER.indexOf("football"))
         assertTrue(KeyEffect.GOAL.isPlus); assertEquals("Kick!", L10nTable.EN[KeyEffect.GOAL.viTitle])
         assertTrue(KeyEffect.GOAL in ThemeFxFactory.EFFECTS); assertFalse(ThemeFxFactory.handles(KeyEffect.HEART))
         for (dark in listOf(false, true)) {

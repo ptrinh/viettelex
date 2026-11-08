@@ -93,7 +93,7 @@ class CafeFxTests {
         assertEquals("Iced Coffee", L10nTable.EN[t.viTitle])
         assertEquals("clink", spec.sound); assertEquals("ice", spec.effect)
         assertTrue(ThemeSpecParser.contrastIssues(spec).isEmpty())
-        assertEquals(listOf("football", "aquarium", "cafe"), ThemePicker.INTERACTIVE_ORDER.takeLast(3))
+        assertEquals(listOf("football", "aquarium", "cafe"), ThemePicker.INTERACTIVE_ORDER.let { o -> val i = o.indexOf("football"); o.subList(i, minOf(i + 3, o.size)) })
         assertEquals(KeyEffectBand.ABOVE_KEYS, KeyEffect.ICE.band)
         assertTrue(KeyEffect.ICE in ThemeFxFactory.EFFECTS)
         for (dark in listOf(false, true)) {

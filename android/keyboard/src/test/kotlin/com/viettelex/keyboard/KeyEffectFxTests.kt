@@ -17,7 +17,7 @@ import kotlin.math.hypot
  */
 class KeyEffectFxTests {
     @Test fun bandsAndZOrder() {
-        assertEquals(listOf(KeyEffect.MATRIX, KeyEffect.INK, KeyEffect.WAVE, KeyEffect.STRING),
+        assertEquals(listOf(KeyEffect.MATRIX, KeyEffect.INK, KeyEffect.WAVE, KeyEffect.STRING, KeyEffect.FISHFEED),   // cá bơi sau hàng phím
             KeyEffect.entries.filter { it.band == KeyEffectBand.BELOW_KEYS })
         // Rung dây: dây ở khe hàng — trên nền + hoạ tiết dây đàn (nền view gốc), dưới phím.
         assertEquals(0, KeyEffectBand.insertIndex(KeyEffect.STRING.band, keyboardIndex = 0, balloonIndex = 4))

@@ -15,8 +15,8 @@ import kotlin.math.abs
  */
 class MeritGlassTests {
     @Test fun newIdsAppendedAndShared() {
-        assertEquals(listOf("merit", "sunlight"), KeyEffect.entries.map { it.id }.takeLast(2))
-        assertEquals(listOf("mo", "bell"), KeySoundStyle.entries.map { it.id }.takeLast(2))
+        assertEquals(listOf("merit", "sunlight"), KeyEffect.entries.map { it.id }.let { o -> val i = o.indexOf("merit"); o.subList(i, minOf(i + 2, o.size)) })
+        assertEquals(listOf("mo", "bell"), KeySoundStyle.entries.map { it.id }.let { o -> val i = o.indexOf("mo"); o.subList(i, minOf(i + 2, o.size)) })
         assertTrue("mo" in KeySoundStyle.PRESET_IDS && "bell" in KeySoundStyle.PRESET_IDS)
         assertEquals(KeyboardTheme.MO, KeyboardTheme.entries.first { it.id == "mo" })
         assertEquals(KeyboardTheme.STAINED_GLASS, KeyboardTheme.entries.first { it.id == "stainedGlass" })
@@ -33,7 +33,7 @@ class MeritGlassTests {
         assertEquals("mo", mo.sound); assertEquals("merit", mo.effect)
         assertEquals("bell", sg.sound); assertEquals("sunlight", sg.effect); assertEquals("glass", sg.keyShape)
         assertTrue(KeyboardTheme.MO.isPlus && KeyboardTheme.STAINED_GLASS.isPlus)
-        assertEquals(listOf("mo", "stainedGlass"), ThemePicker.INTERACTIVE_ORDER.takeLast(2))
+        assertEquals(listOf("mo", "stainedGlass"), ThemePicker.INTERACTIVE_ORDER.let { o -> val i = o.indexOf("mo"); o.subList(i, minOf(i + 2, o.size)) })
     }
 
     @Test fun moAndBellQuietAndShared() {

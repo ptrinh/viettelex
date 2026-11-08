@@ -874,7 +874,7 @@ struct ZodiacSection: View {
         } header: {
             Text(L("Cung hoàng đạo"))
         } footer: {
-            Text(L("Màu bàn phím theo nguyên tố của cung (Lửa, Đất, Khí, Nước); hiệu ứng Chòm sao vẽ chòm sao của cung khi bạn gõ. Chỉ lưu cung đã chọn, không lưu ngày sinh."))
+            Text(L("Màu theo nguyên tố của cung; Chòm sao vẽ chòm của cung. Chỉ lưu cung, không lưu ngày sinh."))
         }
     }
 }
@@ -908,7 +908,7 @@ struct PrideSection: View {
         } header: {
             Text(L("Lá cờ"))
         } footer: {
-            Text(L("Màu bàn phím, viền phím và hiệu ứng Cầu vồng theo lá cờ bạn chọn. Gõ \"tự hào\", \"yêu là yêu\", \"pride\" hay \"love is love\" để thấy lá cờ tung bay."))
+            Text(L("Màu, viền phím và Cầu vồng theo lá cờ bạn chọn. Gõ \"tự hào\" để thấy lá cờ tung bay."))
         }
     }
 }

@@ -170,7 +170,7 @@ final class KeyboardThemeTests: XCTestCase {
     // MARK: token
 
     func testThemeSetIsCompactAndSystemIsDefault() {
-        XCTAssertTrue((6...40).contains(KeyboardTheme.allCases.count))
+        XCTAssertTrue((6...60).contains(KeyboardTheme.allCases.count))
         XCTAssertEqual(ThemeSettings().theme, .system)
         XCTAssertEqual(ThemeSettings.load(nil).theme, .system)
     }
@@ -193,7 +193,7 @@ final class KeyboardThemeTests: XCTestCase {
     /// Theme tối cố định (OLED, Tương phản cao, Tim đen, Neon) không đổi theo hệ thống; mọi theme
     /// nền đục khác có bản tối riêng (bug 10/2026: "giao diện plus ở chế độ tối không chuyển tối").
     func testFixedThemesIgnoreSystemAppearance() {
-        let fixed: Set<KeyboardTheme> = [.oled, .contrast, .blackHeart, .neon, .tet, .xmas, .piano, .rgb, .space, .trungthu, .halloween, .mole, .pixel, .ai, .nightclub, .trippy, .drift, .stainedGlass, .rainyNight, .gym, .aquarium]
+        let fixed: Set<KeyboardTheme> = [.oled, .contrast, .blackHeart, .neon, .tet, .xmas, .piano, .rgb, .space, .trungthu, .halloween, .mole, .pixel, .ai, .nightclub, .trippy, .drift, .stainedGlass, .rainyNight, .gym, .zodiac, .pride, .aquarium]
         for t in KeyboardTheme.allCases where t != .system && t != .glass {
             XCTAssertNotNil(t.palette(systemDark: false).background, "\(t) cần nền đục")
             if fixed.contains(t) {
@@ -871,7 +871,7 @@ final class ThemeSetTests: XCTestCase {
                                              .mole,
                                              .pixel, .sea, .timeOfDay,
                                              .nightclub,
-                                             .drift, .mo, .stainedGlass, .rainyNight, .gym, .football, .aquarium, .cafe]
+                                             .drift, .mo, .stainedGlass, .rainyNight, .gym, .zodiac, .pride, .football, .aquarium, .cafe]
     static let pastels: [KeyboardTheme] = [.peach, .mint, .sky, .lavender]
 
     // MARK: bảng màu chung iOS ↔ Android
@@ -1804,6 +1804,14 @@ final class ThemeSetTests: XCTestCase {
                 case .ai: XCTAssertEqual(m, .neural)
                 case .drift: XCTAssertEqual(m, .starfield)
                 case .rainyNight: XCTAssertEqual(m, .bokeh)
+                case .trippy: XCTAssertEqual(m, .swirl)
+                case .mo: XCTAssertEqual(m, .lotus)
+                case .gym: XCTAssertEqual(m, .treadplate)
+                case .zodiac: XCTAssertEqual(m, .starfield)
+                case .pride: XCTAssertEqual(m, .hearts)
+                case .football: XCTAssertEqual(m, .pitch)
+                case .aquarium: XCTAssertEqual(m, .aquarium)
+                case .cafe: XCTAssertEqual(m, .cafe)
                 case .timeOfDay: XCTAssertEqual(m, dark ? .star : nil, "bảng gốc: ngày không hoạ tiết, đêm có sao")
                 default: XCTAssertNil(m, t.rawValue)
                 }

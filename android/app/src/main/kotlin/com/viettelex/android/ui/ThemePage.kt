@@ -747,7 +747,7 @@ private fun ZodiacPicker(sign: com.viettelex.keyboard.ZodiacSign, onPick: (com.v
     var day by remember { mutableStateOf(1) }
     var month by remember { mutableStateOf(1) }
     VTSection(header = tr("Cung hoàng đạo"),
-        footer = tr("Màu bàn phím theo nguyên tố của cung (Lửa, Đất, Khí, Nước); hiệu ứng Chòm sao vẽ chòm sao của cung khi bạn gõ. Chỉ lưu cung đã chọn, không lưu ngày sinh.")) {
+        footer = tr(SettingCaption.zodiacSign)) {
         com.viettelex.keyboard.ZodiacSign.entries.forEachIndexed { i, z ->
             if (i > 0) RowDivider()
             VTRow(onClick = { onPick(z) }) {
@@ -780,7 +780,7 @@ private fun ZodiacPicker(sign: com.viettelex.keyboard.ZodiacSign, onPick: (com.v
 private fun PrideFlagPicker(flag: com.viettelex.keyboard.PrideFlag, onPick: (com.viettelex.keyboard.PrideFlag) -> Unit) {
     val c = LocalVT.current
     VTSection(header = tr("Lá cờ"),
-        footer = tr("Màu bàn phím, viền phím và hiệu ứng Cầu vồng theo lá cờ bạn chọn. Gõ \"tự hào\", \"yêu là yêu\", \"pride\" hay \"love is love\" để thấy lá cờ tung bay.")) {
+        footer = tr(SettingCaption.prideFlag)) {
         com.viettelex.keyboard.PrideFlag.entries.forEachIndexed { i, f ->
             if (i > 0) RowDivider()
             VTRow(onClick = { onPick(f) }) {

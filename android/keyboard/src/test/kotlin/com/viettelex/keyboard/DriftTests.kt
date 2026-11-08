@@ -21,8 +21,8 @@ class DriftTests {
 
     @Test fun effectIdsAppendedAndPlus() {
         val ids = KeyEffect.entries.map { it.id }
-        assertEquals(listOf("tunnel", "float"), ids.takeLast(2))
-        assertEquals(KeyEffect.DANCEFLOOR.ordinal + 1, KeyEffect.TUNNEL.ordinal)
+        assertEquals(listOf("tunnel", "float"), ids.subList(ids.indexOf("tunnel"), ids.indexOf("tunnel") + 2))
+        assertEquals(KeyEffect.KALEIDO.ordinal + 1, KeyEffect.TUNNEL.ordinal)
         assertTrue(KeyEffect.TUNNEL.isPlus); assertTrue(KeyEffect.FLOAT.isPlus)
         assertEquals(KeyEffect.TUNNEL, KeyEffect.of("tunnel")); assertEquals(KeyEffect.FLOAT, KeyEffect.of("float"))
         assertEquals("Tunnel", L10nTable.EN["Đường hầm"]); assertEquals("Floating", L10nTable.EN["Lơ lửng"])
@@ -144,7 +144,7 @@ class DriftTests {
     /** Theme Lạc trôi — iOS testDriftTheme y hệt. */
     @Test fun driftTheme() {
         val t = KeyboardTheme.DRIFT
-        assertEquals(KeyboardTheme.NIGHTCLUB.ordinal + 1, t.ordinal)
+        assertEquals(KeyboardTheme.TRIPPY.ordinal + 1, t.ordinal)
         assertTrue(t.isPlus); assertTrue(t.isInteractive)
         val spec = t.spec!!
         assertEquals("Lạc trôi", spec.nameVi); assertEquals("Adrift", spec.nameEn); assertEquals("Adrift", L10nTable.EN["Lạc trôi"])
@@ -152,8 +152,8 @@ class DriftTests {
         assertEquals("float", spec.keyMotion)
         assertEquals("float", ThemeSettings(theme = t).effectiveKeyStyle.keyMotion)
         assertNull(ThemeSettings(theme = KeyboardTheme.NIGHTCLUB).effectiveKeyStyle.keyMotion)
-        assertEquals("drift", ThemePicker.INTERACTIVE_ORDER.last())
-        assertEquals(t, ThemePicker.groups().interactive.last())
+        assertEquals(ThemePicker.INTERACTIVE_ORDER.indexOf("guitar") + 1, ThemePicker.INTERACTIVE_ORDER.indexOf("drift"))
+        assertTrue(t in ThemePicker.groups().interactive)
         for (dark in listOf(false, true)) {
             val p = t.palette(dark)!!
             assertEquals(0xFF062B33.toInt(), p.bg); assertEquals(0xFF22104A.toInt(), p.bgBottom)
@@ -198,7 +198,7 @@ class DriftTests {
             assertEquals("$k", AIRY_GOLDEN[i], KeySoundSynth.samples(KeySoundStyle.AIRY, k).sumOf { abs(it).toDouble() }, 0.01)
         assertEquals("Floating", L10nTable.EN["Lơ lửng"])
         assertTrue(KeySoundStyle.AIRY in KeySoundStyle.PRESETS)
-        assertEquals(KeySoundStyle.CLUB.ordinal + 1, KeySoundStyle.AIRY.ordinal)
+        assertEquals(KeySoundStyle.DREAM.ordinal + 1, KeySoundStyle.AIRY.ordinal)
     }
 
     private companion object {

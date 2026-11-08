@@ -49,7 +49,7 @@ class ThemeSetTests {
         assertEquals(lines.first { it[0] == "interactive" }[1].split(','), KeyboardTheme.entries.filter { it.isInteractive }.map { it.id })
         assertEquals("thứ tự lưới phải trùng iOS", lines.first { it[0] == "picker" }[1].split(','), ThemePicker.ordered().map { it.id })
         val rows = lines.filter { it[0] !in setOf("order", "plus", "interactive", "picker") }
-        assertEquals(64, rows.size)
+        assertEquals(84, rows.size)   // 42 theme JSON × sáng / tối
         for (r in rows) {
             val t = KeyboardTheme.entries.first { it.id == r[0] }
             val p = t.palette(r[1] == "1")!!
@@ -65,7 +65,7 @@ class ThemeSetTests {
             KeyboardTheme.TET, KeyboardTheme.XMAS, KeyboardTheme.PIANO, KeyboardTheme.RGB, KeyboardTheme.SPACE,
             KeyboardTheme.TRUNG_THU, KeyboardTheme.HALLOWEEN, KeyboardTheme.MOLE, KeyboardTheme.PIXEL, KeyboardTheme.AI, KeyboardTheme.NIGHTCLUB,
             KeyboardTheme.TRIPPY, KeyboardTheme.DRIFT, KeyboardTheme.STAINED_GLASS, KeyboardTheme.RAINY_NIGHT, KeyboardTheme.GYM,
-            KeyboardTheme.AQUARIUM)
+            KeyboardTheme.ZODIAC, KeyboardTheme.PRIDE, KeyboardTheme.AQUARIUM)
         for (t in KeyboardTheme.entries) {
             val light = t.palette(false) ?: continue
             val dark = t.palette(true)!!
@@ -245,7 +245,9 @@ class ThemeSetTests {
         val pst = ThemeSettings(theme = KeyboardTheme.PIXEL).effectiveKeyStyle
         assertEquals(0, pst.corner); assertEquals(KeyLabelFont.PIXEL, pst.font); assertEquals("pixel", pst.keyShape)
         for (t in KeyboardTheme.entries) if (t != KeyboardTheme.PIXEL) {
-            assertNull("$t", ThemeSettings(theme = t).effectiveKeyStyle.keyShape)
+            // Kính màu: dáng phím "glass" (ô kính màu, [GlassKeys]).
+            if (t == KeyboardTheme.STAINED_GLASS) assertEquals("glass", ThemeSettings(theme = t).effectiveKeyStyle.keyShape)
+            else assertNull("$t", ThemeSettings(theme = t).effectiveKeyStyle.keyShape)
             assertNotEquals("$t", KeyLabelFont.PIXEL, ThemeSettings(theme = t).effectiveKeyStyle.font)
         }
         assertNotNull(KeyboardTheme.PIXEL.palette(false)!!.keyBorder)
@@ -608,7 +610,11 @@ class ThemeSetTests {
             KeyboardTheme.HALLOWEEN to ThemeDecoration.PUMPKIN, KeyboardTheme.GUITAR to ThemeDecoration.STRINGS,
             KeyboardTheme.MOLE to ThemeDecoration.FLOWERS, KeyboardTheme.PIXEL to ThemeDecoration.PIXEL,
             KeyboardTheme.SEA to ThemeDecoration.WAVES, KeyboardTheme.AI to ThemeDecoration.NEURAL,
-            KeyboardTheme.TRIPPY to ThemeDecoration.SWIRL, KeyboardTheme.DRIFT to ThemeDecoration.STARFIELD)
+            KeyboardTheme.TRIPPY to ThemeDecoration.SWIRL, KeyboardTheme.DRIFT to ThemeDecoration.STARFIELD,
+            KeyboardTheme.MO to ThemeDecoration.LOTUS, KeyboardTheme.RAINY_NIGHT to ThemeDecoration.BOKEH,
+            KeyboardTheme.GYM to ThemeDecoration.TREADPLATE, KeyboardTheme.ZODIAC to ThemeDecoration.STARFIELD,
+            KeyboardTheme.PRIDE to ThemeDecoration.HEARTS, KeyboardTheme.FOOTBALL to ThemeDecoration.PITCH,
+            KeyboardTheme.AQUARIUM to ThemeDecoration.AQUARIUM, KeyboardTheme.CAFE to ThemeDecoration.CAFE)
         for ((t, m) in festive) for (dk in listOf(false, true)) assertEquals("$t", m, t.palette(dk)!!.decoration!!.motif)
         assertEquals(ThemeDecoration.SNOWFLAKE, KeyboardTheme.XMAS_SNOW.palette(false)!!.decoration!!.motif)
         assertEquals(ThemeDecoration.STAR, KeyboardTheme.XMAS_SNOW.palette(true)!!.decoration!!.motif)

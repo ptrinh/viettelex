@@ -117,7 +117,7 @@ class PrideThemeTests {
         assertEquals("pride", spec.variant)
         assertEquals("rainbowburst", spec.effect); assertEquals("pop", spec.sound); assertEquals("rainbow", spec.swipe)
         assertEquals("bảng dự phòng = Cầu vồng", PrideFlag.RAINBOW.slots, spec.light)
-        assertEquals(listOf("zodiac", "pride"), ThemePicker.INTERACTIVE_ORDER.takeLast(2))
+        assertEquals(listOf("zodiac", "pride"), ThemePicker.INTERACTIVE_ORDER.let { o -> val i = o.indexOf("zodiac"); o.subList(i, minOf(i + 2, o.size)) })
     }
 
     @Test fun variantResolvesFromSettings() {
