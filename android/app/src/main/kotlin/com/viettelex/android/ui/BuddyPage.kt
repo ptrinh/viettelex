@@ -121,12 +121,17 @@ internal fun BuddyPage(palette: ThemePalette, themeId: String, onOpenPlus: () ->
         }
     }
     if (current != BuddyCharacter.OFF && BuddyGate.allows(current)) {
-        var name by rememberStringPref(BuddyName.key(current), "")
-        VTSection(header = tr("Đặt tên") + " · " + current.title) {
-            VTRow { VTTextField(name, { name = BuddyName.clean(it) }, tr("Đặt tên"), maxLines = 1) }
+        if (current.isRigged) {
+            var name by rememberStringPref(BuddyName.key(current), "")
+            VTSection(header = tr("Đặt tên") + " · " + current.title) {
+                VTRow { VTTextField(name, { name = BuddyName.clean(it) }, tr("Đặt tên"), maxLines = 1) }
+            }
         }
         val style = styles[current] ?: BuddyStyle.DEFAULT
-        if (BuddyStyle.hasAtlas(current)) VTSection(header = tr("Kiểu vẽ") + " · " + current.title,
+        if (current == BuddyCharacter.AI) {
+            VTSection { VTRow { Text(tr("Mắt AI nhìn theo phím bạn gõ, gõ nhanh thì sáng rực; ngừng gõ thì thở chậm vài nhịp rồi lim dim. Hợp với giao diện AI và hiệu ứng Token AI."),
+                style = VTType.footnote, color = c.secondary) } }
+        } else if (BuddyStyle.hasAtlas(current)) VTSection(header = tr("Kiểu vẽ") + " · " + current.title,
             footer = tr("Hoạt hình: hình vẽ sẵn, giữ nguyên quanh năm. Vẽ nét: mặc trang phục mùa lễ (Tết, Trung Thu, Halloween, Giáng sinh) và có thêm điệu nhảy.")) {
             VTRow {
                 // Segmented như "Ngôn ngữ / Language" (LanguagePickerRow); đổi ⇒ ô xem thử diễn lại theo kiểu mới.
@@ -198,6 +203,7 @@ private fun PlacementRow(title: String, value: String, v: Int, range: IntRange, 
 internal class BuddyPreviewView(context: Context) : FrameLayout(context) {
     private val d = context.resources.displayMetrics.density
     private var buddy: BuddyView? = null
+    private var eye: com.viettelex.android.ime.AIEyeView? = null
     private var bg = 0
     private val dash = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; textSize = 28 * d }
     private var off = true
@@ -205,6 +211,12 @@ internal class BuddyPreviewView(context: Context) : FrameLayout(context) {
     private var presses = 0
     private val demo = object : Runnable {
         override fun run() {
+            eye?.let { e ->   // Mắt AI: nhìn lần lượt các "phím" quanh ô
+                val a = presses * 0.9
+                e.keyPressed(e.eyeCenterX + (Math.cos(a) * 60 * d).toFloat(), e.eyeCenterY + (Math.sin(a) * 40 * d + 20 * d).toFloat())
+                if (++presses < 24) postDelayed(this, 110)
+                return
+            }
             val b = buddy ?: return
             b.keyPressed()
             if (++presses < 24) postDelayed(this, 110)
@@ -216,7 +228,19 @@ internal class BuddyPreviewView(context: Context) : FrameLayout(context) {
     fun update(ch: BuddyCharacter, style: BuddyStyle, season: BuddySeason?, p: ThemePalette, play: Int) {
         bg = p.bg; dash.color = (p.ink and 0xFFFFFF) or 0x80000000.toInt()
         off = ch == BuddyCharacter.OFF
-        if (off) { buddy?.let { it.halt(); removeView(it) }; buddy = null; invalidate(); return }
+        if (off || ch == BuddyCharacter.AI) { buddy?.let { it.halt(); removeView(it) }; buddy = null }
+        if (ch != BuddyCharacter.AI) { eye?.let { it.halt(); removeView(it) }; eye = null }
+        if (off) { invalidate(); return }
+        if (ch == BuddyCharacter.AI) {
+            if (eye == null) {
+                val e = com.viettelex.android.ime.AIEyeView(context, d, false)
+                val m = (12 * d).toInt()
+                addView(e, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT).apply { setMargins(m, m, m, m) })
+                eye = e
+            }
+            if (play != lastPlay) { lastPlay = play; removeCallbacks(demo); presses = 0; post(demo) }
+            invalidate(); return
+        }
         if (buddy?.character != ch || buddy?.artStyle != style || buddy?.season != season) {
             buddy?.let { it.halt(); removeView(it) }
             val b = BuddyView(context, ch, d, com.viettelex.keyboard.BuddyHalo.opaque(p.bg, p.isDark), false, season, BuddyFraming.FULL,
@@ -230,7 +254,7 @@ internal class BuddyPreviewView(context: Context) : FrameLayout(context) {
         invalidate()
     }
 
-    override fun onDetachedFromWindow() { removeCallbacks(demo); buddy?.halt(); super.onDetachedFromWindow() }
+    override fun onDetachedFromWindow() { removeCallbacks(demo); buddy?.halt(); eye?.halt(); super.onDetachedFromWindow() }
 
     override fun onDraw(canvas: Canvas) {
         canvas.drawColor(bg)

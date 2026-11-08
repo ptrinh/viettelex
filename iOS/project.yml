@@ -40,6 +40,7 @@ targets:
       # Bạn đồng hành: xem trước ở trang chọn (cùng view với bàn phím).
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
+      - Keyboard/AIEye.swift
       # Hiệu ứng nét vuốt: xem thử ở trang chọn (cùng renderer với bàn phím).
       - Keyboard/SwipeTrailStyles.swift
       # Viền cầu vồng (Gaming RGB): thẻ xem trước dùng cùng dải màu.
@@ -220,6 +221,7 @@ targets:
       - Keyboard/KeyEffects.swift
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
+      - Keyboard/AIEye.swift
       - Keyboard/SwipeTrailStyles.swift
       - Keyboard/RainbowBorder.swift
       - Keyboard/MoleGame.swift

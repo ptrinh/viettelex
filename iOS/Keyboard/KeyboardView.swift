@@ -282,6 +282,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private let decorLayer = CAShapeLayer()
     private var decorGaps: [KeyboardDecoration.Gap]?
     private var decorWidth: CGFloat = 0
+    /// Dải cực quang tĩnh mép trên (theme AI, "borderFx":"aurora" — AuroraFx): gradient ngang + mặt nạ gradient dọc trong
+    /// themeBackdrop, dựng lười lần đầu cần; theme khác ⇒ chưa từng tạo (0 chi phí).
+    private var auroraBand: CAGradientLayer?
     private var wallpaperActive = false
     private var wallpaperLoadedFor: CGSize = .zero
     /// Tệp tải về của theme (theme JSON: phông / ảnh nền / tiền cảnh / skin phím) — nạp MỘT lần mỗi theme
@@ -368,6 +371,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         overlayPanel?.removeFromSuperview(); overlayPanel = nil
         keyEffects?.halt(); keyEffects = nil; fxRect = nil
         buddy?.halt(); buddy = nil
+        aiEye?.halt(); aiEye = nil
         rainbow?.halt(); rainbow = nil
         mole?.halt(); mole = nil
         wallpaperView.image = nil
@@ -1560,6 +1564,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             pill: pillIndex)
         if sig == lastSuggestionSig { return }
         lastSuggestionSig = sig
+        // Token AI: vệt sáng quét dải gợi ý khi GỢI Ý đổi thật (không tính chữ đang gõ). Kiểu khác ⇒ một phép so sánh.
+        if let fx = keyEffects, fx.effect == .tokens {
+            var words: [String] = []
+            if let w = set.word { words.append(w) }
+            if let w = set.word2 { words.append(w) }
+            words += set.moreWords; words += set.nextWords; words += set.emojis
+            fx.suggestionsChanged(words, bar: suggestionBar.frame)
+        }
 
         suggestionBar.setChipCount(chipCount)
         applyBarInk()
@@ -2010,6 +2022,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         themeBackdrop.backgroundColor = clear ? nil : palette.background?.ui
         themeBackdrop.isHidden = clear || palette.background == nil
         applyDecoration(hidden: clear)
+        applyAurora(hidden: clear)
         // Nền tự vẽ: bo 2 góc trên theo khung kính bàn phím iOS 26+ (không còn góc vuông đen
         // chồng lên góc bo xám của hệ thống). cornerRadius trên view lá màu phẳng / ảnh ⇒ không
         // offscreen pass.
@@ -2086,8 +2099,46 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             v.frame = bounds
         }
         layoutDecoration()
+        layoutAurora()
         layoutRainbow()
         layoutStringGaps()
+    }
+
+    private func applyAurora(hidden: Bool) {
+        guard palette.auroraBorder, !hidden else { auroraBand?.isHidden = true; return }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        if auroraBand == nil {
+            let g = CAGradientLayer()
+            g.colors = AuroraFx.band.map { v -> CGColor in
+                UIColor(red: CGFloat((v.color >> 16) & 0xFF) / 255, green: CGFloat((v.color >> 8) & 0xFF) / 255,
+                        blue: CGFloat(v.color & 0xFF) / 255, alpha: 1).cgColor
+            }
+            g.locations = AuroraFx.band.map { NSNumber(value: $0.location) }
+            g.startPoint = CGPoint(x: 0, y: 0.5)
+            g.endPoint = CGPoint(x: 1, y: 0.5)
+            let m = CAGradientLayer()   // độ đậm theo chiều dọc: AuroraFx.bandOpacity (mép trên → 0)
+            let steps = 6
+            m.colors = (0...steps).map { UIColor(white: 1, alpha: CGFloat(AuroraFx.bandOpacity(AuroraFx.bandHeight * Double($0) / Double(steps)))).cgColor }
+            m.locations = (0...steps).map { NSNumber(value: Double($0) / Double(steps)) }
+            g.mask = m
+            themeBackdrop.layer.insertSublayer(g, at: 0)
+            auroraBand = g
+        }
+        auroraBand?.isHidden = false
+        CATransaction.commit()
+        layoutAurora()
+    }
+
+    private func layoutAurora() {
+        guard let g = auroraBand, !g.isHidden else { return }
+        // Mép trên NỘI DUNG (gốc 0 của view) — khi host cấp dư (#151) phần dư nằm trên, dải vẫn sát thanh gợi ý.
+        let top = themeBackdrop.convert(CGPoint.zero, from: self).y
+        let f = CGRect(x: 0, y: top, width: themeBackdrop.bounds.width, height: CGFloat(AuroraFx.bandHeight))
+        guard g.frame != f else { return }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        g.frame = f
+        g.mask?.frame = g.bounds
+        CATransaction.commit()
     }
 
     /// Khe giữa các hàng phím (toạ độ view) từ khung phím của lượt layout này — chỉ gọi lúc layout (hoạ tiết / Rung dây).
@@ -5862,7 +5913,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Trackpad đang chạy: mọi ngón MỚI (phím chữ lẫn nút thật) về router để nuốt — xem routeDown.
         if trackpadActive, bounds.contains(point) { return self }
         // Chỉ ô chừa trong strip được vuốt ve; phần hình tràn xuống vẫn thuộc phím.
-        if let buddy, !buddy.isHidden, !suggestionBar.isHidden, bounds.contains(point) {
+        if let buddy = buddyFigureView, !buddy.isHidden, !suggestionBar.isHidden, bounds.contains(point) {
             let strip = max(rowsTopWanted, openStripNow)
             let zone = Self.buddyZoneFrame(width: bounds.width, strip: strip, placement: buddyPlacement,
                                            dismiss: dismissInset)
@@ -6819,6 +6870,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if let b = buddy {                       // Bạn đồng hành: tắt ⇒ nil, chỉ đọc một optional
             if case .backspace = key { b.deletePressed() } else { b.keyPressed() }
         }
+        if let e = aiEye, let fx { e.keyPressed(at: CGPoint(x: fx.midX, y: fx.midY)) }   // Mắt AI: nhìn về phím vừa bấm
         if let m = mole { m.typed(Self.moleLetter(key), at: CACurrentMediaTime()) }   // Đập chuột: theme khác ⇒ nil
     }
 
@@ -6831,6 +6883,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         v.accessibilityLabel = L("Cù bạn đồng hành")
         v.addAction(UIAction { [weak self] _ in
             self?.buddy?.tickle()
+            self?.aiEye?.tickle()
             UIDevice.current.playInputClick()  // iOS tự im lặng khi tiếng click hệ thống tắt.
         }, for: .touchUpInside)
         addSubview(v)
@@ -6838,7 +6891,33 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }()
     /// Ô nhân vật sát MÉP PHẢI (thanh gợi ý co lại đúng bấy nhiêu, 📋 / 😊 dời trái) — không đè chip gợi ý.
     static let buddyZoneWidth: CGFloat = 34
-    private var buddyZone: CGFloat { buddy == nil ? 0 : CGFloat(buddyPlacement.zoneWidth(Double(Self.buddyZoneWidth))) }
+    private var buddyZone: CGFloat {
+        buddy == nil && aiEye == nil ? 0 : CGFloat(buddyPlacement.zoneWidth(Double(Self.buddyZoneWidth)))
+    }
+    /// View đang đứng ở ô nhân vật (Bạn đồng hành hoặc Mắt AI) — vùng chạm "cù".
+    private var buddyFigureView: UIView? { buddy ?? aiEye }
+
+    // MARK: Mắt AI (AIEye.swift) — nhân vật "ai": cùng ô / công tắc / "Vị trí & cỡ" với Bạn đồng hành; khác ⇒ nil.
+    private(set) var aiEye: AIEyeView?
+
+    /// Khung VẼ Mắt AI — THUẦN để test: hình vuông cạnh = cao strip, canh giữa ô chừa (không vượt mép phải), KHÔNG tràn
+    /// xuống phím; cỡ / lề theo BuddyPlacement (neo đáy-phải như nhân vật, to hơn thì lớn dần xuống phím).
+    static func aiEyeFrame(width: CGFloat, strip: CGFloat, placement: BuddyPlacement = .standard,
+                           height: CGFloat? = nil, dismiss: CGFloat = 0) -> CGRect {
+        let zone = buddyZoneFrame(width: width, strip: strip, placement: placement, dismiss: dismiss)
+        let s = strip.rounded()
+        let base = BuddyRect(x: Double(min(zone.midX - s / 2, width - s)), y: 0, w: Double(s), h: Double(s))
+        let f = placement.frame(standard: base, minWidth: Double(s), fullHeight: height.map(Double.init))
+        return CGRect(x: f.x, y: f.y, width: f.w, height: f.h)
+    }
+
+    /// Token AI: đích bay — tâm Mắt AI nếu đang hiện, không thì tâm dải gợi ý, không thì giữa mép trên (toạ độ view).
+    func tokenTargetPoint() -> CGPoint {
+        if let e = aiEye, !e.isHidden, e.bounds.width > 0 { return e.eyeCenter }
+        let f = suggestionBar.frame
+        if !suggestionBar.isHidden, f.width > 0, f.height > 0 { return CGPoint(x: f.midX, y: f.midY) }
+        return CGPoint(x: bounds.midX, y: bounds.minY + 14)
+    }
     /// "Vị trí & cỡ" (BuddyPlacement, chung mọi nhân vật) — đọc lúc hiện bàn phím.
     private var buddyPlacement = BuddyPlacement.standard
 
@@ -6873,16 +6952,28 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let low = ProcessInfo.processInfo.isLowPowerModeEnabled
         if c == .off {
             buddy?.halt(); buddy?.removeFromSuperview(); buddy = nil
+            aiEye?.halt(); aiEye?.removeFromSuperview(); aiEye = nil
             if buddyTickleZoneMade { buddyTickleZone.isHidden = true }
             return
         }
+        // Vị trí & cỡ: chung mọi nhân vật — chỉ đổi khung (layout kế), không dựng lại view.
+        let placementNow = BuddyPlacement.load(UserDefaultsProvider.shared)
+        if placementNow != buddyPlacement { buddyPlacement = placementNow; setNeedsLayout() }
+        // Mắt AI: view riêng (không khung hình / điệu nhảy) — 0 ảnh, dựng một lần.
+        if c == .ai {
+            buddy?.halt(); buddy?.removeFromSuperview(); buddy = nil
+            if let e = aiEye { e.lowPower = low; return }
+            let e = AIEyeView(lowPower: low)
+            addSubview(e)
+            aiEye = e
+            setNeedsLayout()
+            return
+        }
+        aiEye?.halt(); aiEye?.removeFromSuperview(); aiEye = nil
         // Trang phục mùa lễ: theme lễ đang dùng, không thì theo ngày (một lần lúc hiện, không mỗi phím).
         let today = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: Date())
         let season = BuddySeason.resolve(themeID: themeSettings.effectiveTheme.rawValue,
                                          year: today.year ?? 0, month: today.month ?? 0, day: today.day ?? 0)
-        // Vị trí & cỡ: chỉ đổi khung (layout kế), không dựng lại view.
-        let placement = BuddyPlacement.load(UserDefaultsProvider.shared)
-        if placement != buddyPlacement { buddyPlacement = placement; setNeedsLayout() }
         // Kiểu vẽ riêng nhân vật (Hoạt hình mặc định / Vẽ nét) — đổi ⇒ dựng view mới, chỉ nạp tài nguyên kiểu đó.
         let style = BuddyStyle.load(UserDefaultsProvider.shared, c)
         let stamp = (today.year ?? 0) * 10_000 + (today.month ?? 0) * 100 + (today.day ?? 0)
@@ -6905,6 +6996,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     }
 
     private func layoutBuddy(stripOpen: Bool) {
+        if let e = aiEye { layoutAIEye(e, stripOpen: stripOpen); return }
         guard let b = buddy else { return }
         let wasHidden = b.isHidden
         let zone = Self.buddyZoneFrame(width: bounds.width, strip: max(rowsTopWanted, openStripNow), placement: buddyPlacement,
@@ -6924,6 +7016,24 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if b.frame != f { b.frame = f }
         b.layer.zPosition = 1000   // trên cùng: không bị phím / popup / hiệu ứng đè hay chèn
         bringSubviewToFront(b)
+    }
+
+    private func layoutAIEye(_ e: AIEyeView, stripOpen: Bool) {
+        let zone = Self.buddyZoneFrame(width: bounds.width, strip: max(rowsTopWanted, openStripNow), placement: buddyPlacement,
+                                       dismiss: dismissInset)
+        buddyTickleZone.isHidden = !stripOpen
+        buddyTickleZone.frame = zone
+        bringSubviewToFront(buddyTickleZone)
+        let show = stripOpen && bounds.width > 0
+        e.isHidden = !show
+        guard show else { e.halt(); return }
+        let strip = min(max(rowsTopWanted, openStripNow),
+                        rowsContainer.frame.height > 0 ? rowsContainer.frame.minY : .greatestFiniteMagnitude)
+        let f = Self.aiEyeFrame(width: bounds.width, strip: strip, placement: buddyPlacement, height: layoutHeight,
+                                dismiss: dismissInset)
+        if e.frame != f { e.frame = f }
+        e.layer.zPosition = 1000   // trên cùng như nhân vật (token bay VÀO mắt: lớp hiệu ứng ở dưới)
+        bringSubviewToFront(e)
     }
 
     // MARK: Đập chuột (MoleGame.swift / MoleOverlay.swift) — chỉ theme có "game":"mole"; khác ⇒ nil (0 lớp, 0 việc).
@@ -6983,11 +7093,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     /// Lúc hiện / đổi theme: gắn hoặc gỡ lớp viền cầu vồng (trên hàng phím, dưới hiệu ứng / ô phóng to).
     private func configureRainbow() {
-        guard palette.rainbowBorder else {
+        guard palette.rainbowBorder || palette.auroraBorder else {
             rainbow?.halt(); rainbow?.removeFromSuperview(); rainbow = nil
             return
         }
-        let v = rainbow ?? RainbowBorderView()
+        // AI ("aurora"): cùng lớp mặt nạ viền nhưng gradient tĩnh — đổi kiểu ⇒ dựng view mới.
+        if let r = rainbow, r.isAurora != palette.auroraBorder { r.halt(); r.removeFromSuperview(); rainbow = nil }
+        let v = rainbow ?? RainbowBorderView(aurora: palette.auroraBorder)
         if v.superview !== self {
             v.frame = bounds
             v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -7022,7 +7134,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// hiệu ứng (vd mảnh vỡ của Tia sét) không bao giờ đụng tới view phím thật.
     private var fxRect: CGRect?
     @inline(__always) private func fxMark(_ v: UIView) {
-        guard keyEffects != nil else { return }
+        guard keyEffects != nil || aiEye != nil else { return }   // Mắt AI cũng cần tâm phím (nhìn theo)
         fxRect = convert(v.bounds, from: v)
     }
     /// Overlay hiệu ứng dùng CHUNG hệ toạ độ với KeyboardView: khung = bounds, gốc bounds = gốc bounds
@@ -7042,6 +7154,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if keyEffects == nil { fxRect = nil }
         // Laser: tia bắn từ phím cách thật (khung đọc lúc bắn — đổi bàn số / ký hiệu vẫn đúng). Kiểu khác ⇒ nil.
         keyEffects?.laserOrigin = keyEffects?.effect == .laser ? { [weak self] in self?.spaceBarFrame() } : nil
+        // Token AI: đích bay đọc lúc bắn (Mắt AI / dải gợi ý có thể đổi chỗ). Kiểu khác ⇒ nil.
+        keyEffects?.tokenTarget = keyEffects?.effect == .tokens ? { [weak self] in self?.tokenTargetPoint() } : nil
         syncKeyEffectsSpace()
         layoutStringGaps()
     }
@@ -7548,6 +7662,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Test hook: frame phím chữ (toạ độ self).
     /// Thứ tự lớp: nền (màu / ảnh theme / ảnh nền / lớp tối) + hàng phím.
     var debugBackdropViews: [UIView] { [themeBackdrop, themeImageView, wallpaperView, wallpaperDim] }
+    /// Test: dải cực quang (theme AI) — nil = chưa từng tạo.
+    var debugAuroraBand: CAGradientLayer? { auroraBand }
     var debugRowsContainer: UIView { rowsContainer }
     func debugLetterFrame(_ s: String) -> CGRect? {
         letterKeys.first { $0.base == s }.map { convert($0.button.bounds, from: $0.button) }

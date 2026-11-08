@@ -99,6 +99,11 @@ data class ThemePalette(
      */
     val rainbowBorder: Boolean = false,
     /**
+     * Viền phím gradient TĨNH + dải cực quang mép trên (theme AI, slot "borderFx":"aurora" — [AuroraFx]): cùng lớp viền
+     * với cầu vồng (ime/RainbowBorderView chế độ tĩnh) + dải vẽ một lần trong nền; 0 chi phí mỗi phím. iOS `auroraBorder`.
+     */
+    val auroraBorder: Boolean = false,
+    /**
      * Lỗ thoát âm trên phím cách (Ghi-ta, slot "spaceDeco":"soundhole"): hình tròn tối + hai vành hoa văn vẽ cùng
      * nền phím cách (Canvas, hình học [Soundhole]) — 0 chi phí mỗi phím. iOS `spaceSoundhole` cùng ý nghĩa.
      */
@@ -279,7 +284,10 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     // (xanh biển + cát, sóng + bọt, Sóng nước), Theo giờ (bảng màu đổi theo giờ địa phương — "schedule" theme JSON).
     PIXEL("pixel", "Pixel 8-bit", true), // l10n-key
     SEA("sea", "Biển", true), // l10n-key
-    TIME_OF_DAY("timeOfDay", "Theo giờ", true); // l10n-key
+    TIME_OF_DAY("timeOfDay", "Theo giờ", true), // l10n-key
+    // Theme "AI" (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền navy đen, phím kính mờ viền gradient ("borderFx":"aurora"
+    // + dải cực quang mép trên), motif "neural", hiệu ứng Token AI, âm "ai". Mắt AI = nhân vật Bạn đồng hành.
+    AI("ai", "AI", true); // l10n-key
 
     /** Bo góc mặc định (% như [KeyStyle.corner]) khi người dùng chưa chỉnh — null = bo stock. iOS cùng giá trị. */
     val defaultCorner: Int? get() = spec?.corner
@@ -376,9 +384,17 @@ data class ThemeDecoration(val motif: String, val color: Int, val density: Int =
         const val PIXEL = "pixel"
         const val WAVES = "waves"
         const val BUBBLES = "bubbles"
+        // Theme "AI" (11/2026): ba nút nối dây kiểu mạng nơ-ron + hàng chấm lưới trải ngang trong khe.
+        const val NEURAL = "neural"
         /** Danh sách trắng motif (theme JSON chỉ nhận các id này) — iOS KeyboardDecoration.Motif y hệt. */
         val MOTIFS = listOf(HEARTS, FLOWERS, MAI, DAO, SNOWFLAKE, STAR, NOTES,
-            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY, PIXEL, WAVES, BUBBLES)
+            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY, PIXEL, WAVES, BUBBLES, NEURAL)
+        /** Motif "neural": nút (x, y, bán kính), dây nối cặp nút, bề dày nửa dây, chấm lưới (x, y, bán kính) — iOS neural* y hệt. */
+        val NEURAL_NODES = arrayOf(doubleArrayOf(-0.34, 0.2, 0.12), doubleArrayOf(0.0, -0.24, 0.13), doubleArrayOf(0.34, 0.2, 0.12))
+        val NEURAL_LINKS = arrayOf(intArrayOf(0, 1), intArrayOf(1, 2), intArrayOf(0, 2))
+        const val NEURAL_LINK_WIDTH = 0.03
+        val NEURAL_DOTS = arrayOf(doubleArrayOf(-2.4, 0.0, 0.07), doubleArrayOf(-1.6, 0.0, 0.06), doubleArrayOf(-0.9, 0.0, 0.05),
+            doubleArrayOf(0.9, 0.0, 0.05), doubleArrayOf(1.6, 0.0, 0.06), doubleArrayOf(2.4, 0.0, 0.07))
         /** Trái tim điểm ảnh của motif "pixel": (hàng, cột đầu, cột cuối loại trừ) trên lưới 7×6 — iOS pixelRuns y hệt. */
         val PIXEL_RUNS: List<IntArray> = listOf(intArrayOf(0, 1, 3), intArrayOf(0, 4, 6), intArrayOf(1, 0, 7), intArrayOf(2, 0, 7),
             intArrayOf(3, 1, 6), intArrayOf(4, 2, 5), intArrayOf(5, 3, 4))
@@ -589,6 +605,14 @@ data class ThemeDecoration(val motif: String, val color: Int, val density: Int =
                 }
                 // Cụm bọt: một bọt to + hai bọt nhỏ lệch phải.
                 BUBBLES -> listOf(ell(-0.12, 0.14, 0.3, 0.3), ell(0.27, -0.2, 0.15, 0.15), ell(0.36, 0.26, 0.09, 0.09))
+                // Mạng nơ-ron: dây (chữ nhật mảnh giữa tâm hai nút) + nút tròn + chấm lưới hình thoi — cùng chiều quay.
+                NEURAL -> NEURAL_LINKS.map { l ->
+                    val p = NEURAL_NODES[l[0]]; val q = NEURAL_NODES[l[1]]
+                    rect(p[0], p[1], Math.atan2(q[1] - p[1], q[0] - p[0]), Math.hypot(q[0] - p[0], q[1] - p[1]), NEURAL_LINK_WIDTH)
+                } + NEURAL_NODES.map { n -> ell(n[0], n[1], n[2], n[2]) } + NEURAL_DOTS.map { d ->
+                    MotifSub(d[0] + d[2], d[1], listOf(doubleArrayOf(d[0], d[1] + d[2]), doubleArrayOf(d[0] - d[2], d[1]),
+                        doubleArrayOf(d[0], d[1] - d[2])))
+                }
                 else -> emptyList()
             }
         }

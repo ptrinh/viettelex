@@ -306,6 +306,12 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         invalidate()
     }
 
+    /** Token AI: gợi ý vừa đổi (sau khi xếp ô) — IME chỉ đặt khi kiểu là Token AI; null = 0 chi phí. */
+    var onShown: ((SuggestionSet) -> Unit)? = null
+    /** Mép trái / phải vùng ô gợi ý (px, toạ độ view này) của lần xếp gần nhất. */
+    var slotSpanL = 0f; private set
+    var slotSpanR = 0f; private set
+
     fun show(set: SuggestionSet?) {
         if (!suggestionsEnabled) return
         if (set == null) return
@@ -315,6 +321,7 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
             lastSet = set
             layoutSlots(set)
             invalidate()
+            onShown?.invoke(set)
         }
         notePasteOffer()
     }
@@ -339,6 +346,7 @@ class StripView(context: Context, private val theme: ImeTheme, private val feedb
         val barL = theme.dp(StripGeometry.barLeft(KeyLayout.STRIP_ZONE_W, STRIP_TOOL_W, shown))
         val barR = theme.dp(StripGeometry.barRight(width / d, CLIP_W, clipButton, shown, emojiButton, buddyDp,
             StripGeometry.dismissW(dismissShown())))
+        slotSpanL = barL; slotSpanR = barR
         // Bar chật (máy nhỏ, icon con trỏ/📋/😊 đang hiện) ⇒ bớt ô cho mỗi ô ≥ 44 dp.
         slotCount = if (width > 0) SuggestionCount.fit(slotSetting, (barR - barL) / d) else SuggestionCount.resolved(slotSetting)
         if (l is BarLayout.Slots && l.slots.size != slotCount)

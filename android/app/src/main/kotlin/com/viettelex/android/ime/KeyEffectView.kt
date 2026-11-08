@@ -37,6 +37,8 @@ import com.viettelex.keyboard.MatrixClock
 import com.viettelex.keyboard.MatrixRain
 import com.viettelex.keyboard.MeteorStreak
 import com.viettelex.keyboard.StringPluck
+import com.viettelex.keyboard.ShimmerGate
+import com.viettelex.keyboard.TokenStream
 import com.viettelex.keyboard.ThemeDecoration
 import com.viettelex.keyboard.WaveRings
 
@@ -208,6 +210,31 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     private var grainSeq = 0
     private var sandLast = Long.MIN_VALUE / 2
     private val sandPath = Path()
+    // Token AI — pool chùm (chữ + ≤ 6 chip), mảng cấp sẵn; đường bay (px) tính MỘT lần lúc bắn.
+    /** Đích bay (toạ độ view này, px) ghi vào out[0..1] — IME đặt khi kiểu là Token AI; false/null ⇒ giữa mép trên. */
+    var tokenTarget: ((FloatArray) -> Boolean)? = null
+    private var pendingToken: String? = null
+    private val tokGlyph = arrayOfNulls<String>(TokenStream.POOL)
+    private val tokStart = LongArray(TokenStream.POOL) { Long.MIN_VALUE / 2 }
+    private val tokGX = FloatArray(TokenStream.POOL)
+    private val tokGY = FloatArray(TokenStream.POOL)
+    private val tokN = IntArray(TokenStream.POOL)
+    private val tokPts = DoubleArray(TokenStream.CAP * 6)   // mỗi chip: x0 y0 cx cy x1 y1
+    private var tokCursor = 0
+    private val tokTarget = FloatArray(2)
+    private val tokTmp = DoubleArray(2)
+    private val tokTmp2 = DoubleArray(2)
+    private val tokRect = RectF()
+    private val tokChip = arrayOfNulls<Paint>(3)
+    private val tokGlow = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val tokText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER; typeface = android.graphics.Typeface.DEFAULT_BOLD; color = 0xFFFFFFFF.toInt()
+    }
+    private val shimmerGate = ShimmerGate()
+    private var shimStart = Long.MIN_VALUE / 2
+    private val shimBar = RectF()
+    private val shimPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var shimBandW = -1f
 
     val effect: KeyEffect get() = sim.effect
 
@@ -266,11 +293,34 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     /** "Chữ bay": chữ vừa ra ([FlyingLetters.glyph]) — lần vẽ kế thả từ phím vừa bấm. */
     fun queueLetter(s: String) { if (sim.effect == KeyEffect.LETTERS) pendingLetter = s }
 
+    /** "Token AI": chữ vừa ra — lần vẽ kế loé tại phím rồi vỡ thành token bay vào thanh gợi ý. */
+    fun queueToken(s: String) { if (sim.effect == KeyEffect.TOKENS) pendingToken = s }
+
+    /**
+     * "Token AI": thanh gợi ý vừa hiện [words] trong khung ([l], [t], [r], [b]) px theo toạ độ view này. Chỉ đổi THẬT
+     * ([ShimmerGate]) mới quét vệt sáng ~0,3 s; kiểu khác ⇒ return ngay.
+     */
+    fun suggestionsChanged(words: List<String>, l: Float, t: Float, r: Float, b: Float) {
+        if (sim.effect != KeyEffect.TOKENS) return
+        if (!shimmerGate.update(words, SystemClock.uptimeMillis() / 1000.0) || r <= l || b <= t) return
+        shimBar.set(l, t, r, b)
+        val bw = ((r - l) * ShimmerGate.BAND).toFloat()
+        if (bw != shimBandW) {
+            shimBandW = bw
+            val w = (ShimmerGate.PEAK_ALPHA * 255).toInt() shl 24 or 0xFFFFFF
+            shimPaint.shader = android.graphics.LinearGradient(0f, 0f, bw, 0f, intArrayOf(0x00FFFFFF, w, 0x00FFFFFF), null,
+                android.graphics.Shader.TileMode.CLAMP)
+        }
+        shimStart = SystemClock.uptimeMillis()
+        postInvalidateOnAnimation()
+    }
+
     private val hasQueued: Boolean get() = when (sim.effect) {
         KeyEffect.EMOJIWORD -> pendingEmoji != null
         KeyEffect.TONE -> pendingTone != null
         KeyEffect.KEYWORD -> pendingKeyword != null
         KeyEffect.LETTERS -> pendingLetter != null
+        KeyEffect.TOKENS -> pendingToken != null
         else -> true
     }
 
@@ -310,6 +360,10 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
                 val g = pendingLetter; pendingLetter = null
                 if (g != null) fireLetter(g, pendX[pendN - 1], pendY[pendN - 1], pendH[pendN - 1], now)
             }
+            KeyEffect.TOKENS -> {
+                val g = pendingToken; pendingToken = null
+                if (g != null) fireToken(g, pendX[pendN - 1], pendY[pendN - 1], pendH[pendN - 1], now)
+            }
             else -> for (i in 0 until pendN) fire(pendX[i], pendY[i], pendW[i], pendH[i], now)
         }
         pendN = 0
@@ -318,7 +372,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
 
     private fun fire(x: Float, y: Float, w: Float, h: Float, now: Long) {
         when (sim.effect) {
-            KeyEffect.NONE, KeyEffect.EMOJIWORD, KeyEffect.TONE, KeyEffect.KEYWORD, KeyEffect.LETTERS -> {}
+            KeyEffect.NONE, KeyEffect.EMOJIWORD, KeyEffect.TONE, KeyEffect.KEYWORD, KeyEffect.LETTERS, KeyEffect.TOKENS -> {}
             KeyEffect.PLASMA -> firePlasma(x, y, now)
             KeyEffect.SHAKE -> {
                 val amp = ShakeFx.amplitude(combo.press(now), reduceMotion)
@@ -412,7 +466,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         strStart.fill(Long.MIN_VALUE / 2)
         flashStart = Long.MIN_VALUE / 2
         pendingEmoji = null
-        pendingTone = null; pendingKeyword = null; pendingLetter = null
+        pendingTone = null; pendingKeyword = null; pendingLetter = null; pendingToken = null
+        tokStart.fill(Long.MIN_VALUE / 2); shimStart = Long.MIN_VALUE / 2; shimmerGate.reset()
         arcStart.fill(Long.MIN_VALUE / 2); laserStart.fill(Long.MIN_VALUE / 2); glStart.fill(Long.MIN_VALUE / 2)
         toneStart.fill(Long.MIN_VALUE / 2); kwStart.fill(Long.MIN_VALUE / 2); letterStart.fill(Long.MIN_VALUE / 2)
         grainAlive.fill(false); sand?.clear(); plasma.reset()
@@ -461,6 +516,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.TONE -> drawTone(canvas, now)
             KeyEffect.KEYWORD -> drawKeyword(canvas, now)
             KeyEffect.LETTERS -> drawLetters(canvas, now)
+            KeyEffect.TOKENS -> drawTokens(canvas, now)
             KeyEffect.SAND -> drawSand(canvas, now)
             else -> drawParticles(canvas, now)
         }
@@ -710,6 +766,107 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         val s = letterCursor; letterCursor = (s + 1) % FlyingLetters.POOL
         letterText[s] = g; letterStart[s] = now; letterX[s] = x; letterY[s] = keyTop(y, h); letterSeed[s] = letterSeq++
     }
+
+    /** Token AI: tính đường bay của mọi chip MỘT lần (px, trong khung view — bao lồi ⇒ không ra ngoài bàn phím). */
+    private fun fireToken(g: String, x: Float, y: Float, h: Float, now: Long) {
+        if (width <= 0 || height <= 0) return
+        val s = tokCursor; tokCursor = (s + 1) % TokenStream.POOL
+        val w = width.toDouble(); val hh = height.toDouble(); val u = density.toDouble()
+        val ky = keyTop(y, h)
+        if (tokenTarget?.invoke(tokTarget) != true) { tokTarget[0] = width / 2f; tokTarget[1] = 14 * density }
+        TokenStream.clamp(tokTarget[0].toDouble(), tokTarget[1].toDouble(), w, hh, tokTmp2, TokenStream.INSET * u)
+        val x1 = tokTmp2[0]; val y1 = tokTmp2[1]
+        val n = TokenStream.chipCount(g)
+        tokGlyph[s] = g; tokStart[s] = now; tokN[s] = n
+        tokGX[s] = x; tokGY[s] = maxOf(ky, (TokenStream.GLYPH_SIZE * density / 2).toFloat())
+        for (i in 0 until n) {
+            TokenStream.start(x.toDouble(), ky.toDouble(), i, n, w, hh, tokTmp, u)
+            val x0 = tokTmp[0]; val y0 = tokTmp[1]
+            TokenStream.control(x0, y0, x1, y1, i, n, w, hh, tokTmp, u)
+            val o = (s * TokenStream.MAX_CHIPS + i) * 6
+            tokPts[o] = x0; tokPts[o + 1] = y0; tokPts[o + 2] = tokTmp[0]; tokPts[o + 3] = tokTmp[1]
+            tokPts[o + 4] = x1; tokPts[o + 5] = y1
+        }
+    }
+
+    private fun tokenPaints() {
+        if (tokChip[0] != null) return
+        val cw = (TokenStream.CHIP_W * density).toFloat()
+        val c = TokenStream.COLORS
+        for (i in 0 until 3) {
+            tokChip[i] = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = android.graphics.LinearGradient(-cw / 2, 0f, cw / 2, 0f, c[i] or (0xFF shl 24), c[(i + 1) % 3] or (0xFF shl 24),
+                    android.graphics.Shader.TileMode.CLAMP)
+            }
+        }
+        tokText.setShadowLayer(4 * density, 0f, 0f, c[0] or (0xFF shl 24))
+    }
+
+    /** Token AI: chữ loé + chip bay (Bézier, nhanh dần, co lại) + vệt sáng dải gợi ý. Hết ⇒ false (thôi hẹn khung). */
+    private fun drawTokens(canvas: Canvas, now: Long): Boolean {
+        tokenPaints()
+        var any = false
+        tokText.textSize = (TokenStream.GLYPH_SIZE * density).toFloat()
+        val fm = tokText.fontMetrics
+        val base = -(fm.ascent + fm.descent) / 2
+        val cw = (TokenStream.CHIP_W * density).toFloat(); val ch = (TokenStream.CHIP_H * density).toFloat()
+        val cr = (TokenStream.CHIP_RADIUS * density).toFloat(); val gp = 2 * density
+        for (s in 0 until TokenStream.POOL) {
+            val g = tokGlyph[s] ?: continue
+            val sec = (now - tokStart[s]) / 1000.0
+            if (sec < 0 || sec > TokenStream.lifetime) continue
+            any = true
+            val fg = sec / TokenStream.GLYPH_TIME
+            if (fg < 1) {
+                tokText.alpha = (255 * (if (fg < 0.45) 1.0 else (1 - fg) / 0.55)).toInt().coerceIn(0, 255)
+                val save = canvas.save()
+                canvas.translate(tokGX[s], tokGY[s])
+                val sc = (0.9 + 0.35 * fg).toFloat()
+                canvas.scale(sc, sc)
+                canvas.drawText(g, 0f, base, tokText)
+                canvas.restoreToCount(save)
+            }
+            for (i in 0 until tokN[s]) {
+                val f = (sec - TokenStream.delay(i)) / TokenStream.FLIGHT
+                if (f < 0 || f >= 1) continue
+                val o = (s * TokenStream.MAX_CHIPS + i) * 6
+                TokenStream.point(tokPts[o], tokPts[o + 1], tokPts[o + 2], tokPts[o + 3], tokPts[o + 4], tokPts[o + 5],
+                    TokenStream.ease(f), tokTmp)
+                val a = TokenStream.alpha(f); val k = TokenStream.scale(f).toFloat()
+                val save = canvas.save()
+                canvas.translate(tokTmp[0].toFloat(), tokTmp[1].toFloat())
+                canvas.scale(k, k)
+                tokGlow.color = TokenStream.COLORS[i % 3] or (0xFF shl 24)
+                tokGlow.alpha = (90 * a).toInt()
+                tokRect.set(-cw / 2 - gp, -ch / 2 - gp, cw / 2 + gp, ch / 2 + gp)
+                canvas.drawRoundRect(tokRect, cr + gp, cr + gp, tokGlow)
+                val p = tokChip[i % 3]!!
+                p.alpha = (255 * a).toInt()
+                tokRect.set(-cw / 2, -ch / 2, cw / 2, ch / 2)
+                canvas.drawRoundRect(tokRect, cr, cr, p)
+                canvas.restoreToCount(save)
+            }
+        }
+        val fs = (now - shimStart) / (ShimmerGate.DURATION * 1000)
+        if (fs in 0.0..1.0 && shimBandW > 0f) {
+            any = true
+            val e = fs * fs * (3 - 2 * fs)
+            val save = canvas.save()
+            canvas.clipRect(shimBar)
+            canvas.translate(shimBar.left + ShimmerGate.left(e, shimBar.width().toDouble()).toFloat(), shimBar.top)
+            canvas.drawRect(0f, 0f, shimBandW, shimBar.height(), shimPaint)
+            canvas.restoreToCount(save)
+        }
+        return any
+    }
+
+    // Test: Token AI
+    internal fun tokenChipCount(slot: Int): Int = tokN[slot]
+    internal fun tokenPath(slot: Int, i: Int): DoubleArray = tokPts.copyOfRange((slot * TokenStream.MAX_CHIPS + i) * 6,
+        (slot * TokenStream.MAX_CHIPS + i) * 6 + 6)
+    internal val tokenGlyphs: List<String?> get() = tokGlyph.toList()
+    internal val shimmerActive: Boolean get() = (SystemClock.uptimeMillis() - shimStart) <= ShimmerGate.DURATION * 1000
+    internal val shimmerRect: RectF get() = shimBar
 
     private fun fireSand(x: Float, y: Float, now: Long) {
         if (width <= 0 || height <= 0) return

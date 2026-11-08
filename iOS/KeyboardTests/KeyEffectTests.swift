@@ -35,7 +35,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testIdsMatchAndroidAndDefaultIsNone() {
         // Cùng id với android/keyboard/.../KeyEffect.kt (sao lưu chéo nền tảng).
-        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand"])
+        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "tokens"])
         XCTAssertEqual(KeyEffect.key, "keyEffect")
         XCTAssertEqual(KeyEffect.defaultValue, .none)
         XCTAssertEqual(KeyEffect.parse(nil), .none)
@@ -57,7 +57,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testBackupSpecWhitelistsIds() {
         let spec = BackupSettings.all.first { $0.key == KeyEffect.key }
-        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand"]))
+        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "tokens"]))
     }
 
     func testTitlesBilingual() {
@@ -266,7 +266,7 @@ final class KeyEffectTests: XCTestCase {
                 case .glitch: XCTAssertEqual(topLayers, GlitchFx.pool)
                 case .shake: XCTAssertEqual(topLayers, 0, "rung: không vẽ gì trên overlay")
                 case .sand: XCTAssertEqual(topLayers, SandPile.flying + 1, "pool hạt + một layer đống")
-                case .tone, .keyword, .letters:
+                case .tone, .keyword, .letters, .tokens:
                     XCTAssertEqual(topLayers, 0, "chưa có sự kiện xếp hàng ⇒ phím thường không vẽ gì")
                 default:
                     XCTAssertEqual(o.debugBurstCount, e.burstSlots, e.rawValue)
@@ -995,9 +995,9 @@ extension KeyEffectTests {
             XCTAssertEqual(e.particlesPerTap, 0)
             XCTAssertNil(KeyEffectShapes.path(e))
         }
-        XCTAssertEqual(KeyEffect.allCases.filter(\.needsComposeDiff), [.tone, .letters])
+        XCTAssertEqual(KeyEffect.allCases.filter(\.needsComposeDiff), [.tone, .letters, .tokens])
         XCTAssertEqual(KeyEffect.allCases.filter(\.needsBoundaryWord), [.emojiword, .keyword])
-        XCTAssertEqual(KeyEffect.allCases.filter(\.isQueued), [.emojiword, .tone, .keyword, .letters])
+        XCTAssertEqual(KeyEffect.allCases.filter(\.isQueued), [.emojiword, .tone, .keyword, .letters, .tokens])
     }
 
     // MARK: Dấu thanh

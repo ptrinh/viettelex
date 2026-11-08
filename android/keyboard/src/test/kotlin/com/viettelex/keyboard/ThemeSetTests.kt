@@ -47,7 +47,7 @@ class ThemeSetTests {
         assertEquals(lines.first { it[0] == "order" }[1].split(','), KeyboardTheme.entries.map { it.id })
         assertEquals(lines.first { it[0] == "plus" }[1].split(','), KeyboardTheme.entries.filter { it.isPlus }.map { it.id })
         val rows = lines.filter { it[0] != "order" && it[0] != "plus" }
-        assertEquals(58, rows.size)
+        assertEquals(60, rows.size)
         for (r in rows) {
             val t = KeyboardTheme.entries.first { it.id == r[0] }
             val p = t.palette(r[1] == "1")!!
@@ -61,7 +61,7 @@ class ThemeSetTests {
     @Test fun darkVariantsDifferAndFollowSystem() {
         val fixed = setOf(KeyboardTheme.OLED, KeyboardTheme.CONTRAST, KeyboardTheme.BLACK_HEART, KeyboardTheme.NEON,
             KeyboardTheme.TET, KeyboardTheme.XMAS, KeyboardTheme.PIANO, KeyboardTheme.RGB, KeyboardTheme.SPACE,
-            KeyboardTheme.TRUNG_THU, KeyboardTheme.HALLOWEEN, KeyboardTheme.MOLE)
+            KeyboardTheme.TRUNG_THU, KeyboardTheme.HALLOWEEN, KeyboardTheme.MOLE, KeyboardTheme.AI)
         for (t in KeyboardTheme.entries) {
             val light = t.palette(false) ?: continue
             val dark = t.palette(true)!!
@@ -186,7 +186,8 @@ class ThemeSetTests {
     /** Ba theme mới: Plus, thêm CUỐI (sau Xám trung tính), tên vi/en, âm / hiệu ứng / bo góc / phông. iOS testPixelSeaTimeOfDayThemes. */
     @Test fun pixelSeaTimeOfDayThemes() {
         val all = KeyboardTheme.entries
-        assertEquals(listOf(KeyboardTheme.PIXEL, KeyboardTheme.SEA, KeyboardTheme.TIME_OF_DAY), all.takeLast(3))
+        assertEquals(listOf(KeyboardTheme.PIXEL, KeyboardTheme.SEA, KeyboardTheme.TIME_OF_DAY),
+            all.subList(all.indexOf(KeyboardTheme.NEUTRAL) + 1, all.indexOf(KeyboardTheme.NEUTRAL) + 4))
         assertEquals(KeyboardTheme.PIXEL, all[all.indexOf(KeyboardTheme.NEUTRAL) + 1])
         data class W(val t: KeyboardTheme, val vi: String, val en: String, val sound: String?, val effect: String?, val corner: Int?)
         for (w in listOf(W(KeyboardTheme.PIXEL, "Pixel 8-bit", "Pixel 8-bit", "chip", "flash", 0),
@@ -506,7 +507,7 @@ class ThemeSetTests {
             KeyboardTheme.TRUNG_THU to ThemeDecoration.LANTERN, KeyboardTheme.VALENTINE to ThemeDecoration.HEARTS,
             KeyboardTheme.HALLOWEEN to ThemeDecoration.PUMPKIN, KeyboardTheme.GUITAR to ThemeDecoration.STRINGS,
             KeyboardTheme.MOLE to ThemeDecoration.FLOWERS, KeyboardTheme.PIXEL to ThemeDecoration.PIXEL,
-            KeyboardTheme.SEA to ThemeDecoration.WAVES)
+            KeyboardTheme.SEA to ThemeDecoration.WAVES, KeyboardTheme.AI to ThemeDecoration.NEURAL)
         for ((t, m) in festive) for (dk in listOf(false, true)) assertEquals("$t", m, t.palette(dk)!!.decoration!!.motif)
         assertEquals(ThemeDecoration.SNOWFLAKE, KeyboardTheme.XMAS_SNOW.palette(false)!!.decoration!!.motif)
         assertEquals(ThemeDecoration.STAR, KeyboardTheme.XMAS_SNOW.palette(true)!!.decoration!!.motif)

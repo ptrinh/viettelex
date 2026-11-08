@@ -24,10 +24,10 @@ class KeyEffectFx3Tests {
             assertFalse(e.id, e.isParticle)
             assertEquals(e.id, 0, e.particlesPerTap)
         }
-        // Chỉ hai kiểu khiến IME đọc từ đang soạn trước/sau phím; chỉ hai kiểu cần từ ở ranh giới.
-        assertEquals(listOf(KeyEffect.TONE, KeyEffect.LETTERS), KeyEffect.entries.filter { it.needsComposeDiff })
+        // Chỉ ba kiểu khiến IME đọc từ đang soạn trước/sau phím (+ Token AI 11/2026); chỉ hai kiểu cần từ ở ranh giới.
+        assertEquals(listOf(KeyEffect.TONE, KeyEffect.LETTERS, KeyEffect.TOKENS), KeyEffect.entries.filter { it.needsComposeDiff })
         assertEquals(listOf(KeyEffect.EMOJIWORD, KeyEffect.KEYWORD), KeyEffect.entries.filter { it.needsBoundaryWord })
-        assertEquals(listOf(KeyEffect.EMOJIWORD, KeyEffect.TONE, KeyEffect.KEYWORD, KeyEffect.LETTERS),
+        assertEquals(listOf(KeyEffect.EMOJIWORD, KeyEffect.TONE, KeyEffect.KEYWORD, KeyEffect.LETTERS, KeyEffect.TOKENS),
             KeyEffect.entries.filter { it.isQueued })
         assertTrue(ThemeExtraIds.EFFECTS.containsAll(new.map { it.id }))
     }

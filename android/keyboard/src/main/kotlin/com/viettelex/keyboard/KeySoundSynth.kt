@@ -42,7 +42,9 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
     /** Theme "Đập chuột" (10/2026): búa gỗ bọc vải gõ nhẹ — công thức đầu file Swift. */
     BOP("bop", "Búa gỗ"), // l10n-key
     /** Theme "Pixel 8-bit" (11/2026): "blip" sóng vuông (hoạ âm lẻ) hai nốt nhảy lên — công thức đầu file Swift. */
-    CHIP("chip", "Bíp 8-bit"); // l10n-key
+    CHIP("chip", "Bíp 8-bit"), // l10n-key
+    /** Theme "AI" (11/2026): "blip" synth mềm — sine trượt lên D6 → G6 + nốt A6 khẽ chen — công thức đầu file Swift. */
+    AI("ai", "Synth AI"); // l10n-key
 
     /** true ⇒ phát qua SoundPool riêng; [SYSTEM] ⇒ playSoundEffect, không dựng gì. */
     val usesPool: Boolean get() = this != SYSTEM
@@ -52,7 +54,7 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
         val DEFAULT = SUBTLE
         /** Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức [KeySoundSynth.baseRecipe]. */
         val PRESETS = listOf(SUBTLE, WOOD, MECHANICAL, TYPEWRITER, BUBBLE, ROCK, POP, WATER, VINTAGE, PHAO, JINGLE, SCIFI,
-            TRONG, BOO, BOP, CHIP)
+            TRONG, BOO, BOP, CHIP, AI)
         /** Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta). */
         val ALL_PRESETS = PRESETS + PIANO + DANTRANH + GUITAR
         /**
@@ -161,6 +163,10 @@ object KeySoundSynth {
                 t(0.85, 1319.0, 1319.0, tau = 0.009, delay = 0.012), t(0.28, 1319.0 * 3, 1319.0 * 3, tau = 0.009, delay = 0.012),
                 t(0.17, 1319.0 * 5, 1319.0 * 5, tau = 0.009, delay = 0.012)),
             emptyList(), 0.0008, 0.048, 6000.0, 0.42)
+        KeySoundStyle.AI -> Recipe(
+            listOf(t(1.0, 1175.0, 1568.0, glide = 0.02, tau = 0.016), t(0.16, 2350.0, 3136.0, glide = 0.02, tau = 0.007),
+                t(0.38, 1760.0, 1760.0, tau = 0.012, delay = 0.014)),
+            emptyList(), 0.002, 0.05, 5000.0, 0.36)
     }
 
     /** "Éc" khi đập trúng chuột (theme Đập chuột — [MoleGame]): hai tiếng chíp vút lên, nhỏ + mềm. iOS squeakRecipe y hệt. */

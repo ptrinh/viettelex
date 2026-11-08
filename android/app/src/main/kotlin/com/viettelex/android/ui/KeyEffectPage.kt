@@ -117,6 +117,8 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
         shakeTarget = if (e == KeyEffect.SHAKE) this else null
         reduceMotion = !android.animation.ValueAnimator.areAnimatorsEnabled()
         spaceFrame = if (e == KeyEffect.LASER) { out -> out.set(6 * d, height - 10 * d, width * 0.3f, height - 2 * d); true } else null
+        // Token AI: "thanh gợi ý" = mép trên ô xem thử.
+        tokenTarget = if (e == KeyEffect.TOKENS) { out -> out[0] = width / 2f; out[1] = 10 * d; true } else null
         invalidate()
         if (play != lastPlay) {
             lastPlay = play
@@ -134,6 +136,7 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
             KeyEffect.TONE -> queueTone(ToneFx.SAC)
             KeyEffect.KEYWORD -> queueKeyword(KeywordKind.TET)
             KeyEffect.LETTERS -> queueLetter("ế")   // l10n-skip (chữ mẫu, không phải câu chữ)
+            KeyEffect.TOKENS -> queueToken("ế")   // l10n-skip (chữ mẫu, không phải câu chữ)
             else -> {}
         }
         burst(x, y, 34 * d, 42 * d)

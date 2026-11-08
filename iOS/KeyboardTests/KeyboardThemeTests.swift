@@ -193,7 +193,7 @@ final class KeyboardThemeTests: XCTestCase {
     /// Theme tối cố định (OLED, Tương phản cao, Tim đen, Neon) không đổi theo hệ thống; mọi theme
     /// nền đục khác có bản tối riêng (bug 10/2026: "giao diện plus ở chế độ tối không chuyển tối").
     func testFixedThemesIgnoreSystemAppearance() {
-        let fixed: Set<KeyboardTheme> = [.oled, .contrast, .blackHeart, .neon, .tet, .xmas, .piano, .rgb, .space, .trungthu, .halloween, .mole]
+        let fixed: Set<KeyboardTheme> = [.oled, .contrast, .blackHeart, .neon, .tet, .xmas, .piano, .rgb, .space, .trungthu, .halloween, .mole, .ai]
         for t in KeyboardTheme.allCases where t != .system && t != .glass {
             XCTAssertNotNil(t.palette(systemDark: false).background, "\(t) cần nền đục")
             if fixed.contains(t) {
@@ -904,7 +904,7 @@ final class ThemeSetTests: XCTestCase {
         let f = try fixture()
         XCTAssertEqual(KeyboardTheme.allCases.map(\.rawValue), f.order, "id + thứ tự phải trùng Android")
         XCTAssertEqual(KeyboardTheme.allCases.filter(\.isPlus).map(\.rawValue), f.plus)
-        XCTAssertEqual(f.rows.count, 58)
+        XCTAssertEqual(f.rows.count, 60)
         for r in f.rows {
             let t = try XCTUnwrap(KeyboardTheme(rawValue: r.theme), r.theme)
             let p = t.palette(systemDark: r.dark)
@@ -1233,7 +1233,7 @@ final class ThemeSetTests: XCTestCase {
     /// ThemeSetTests.pixelSeaTimeOfDayThemes).
     func testPixelSeaTimeOfDayThemes() throws {
         let all = KeyboardTheme.allCases
-        XCTAssertEqual(Array(all.suffix(3)), [.pixel, .sea, .timeOfDay])
+        XCTAssertEqual(Array(all.dropLast().suffix(3)), [.pixel, .sea, .timeOfDay])   // theme AI theo sau
         XCTAssertEqual(all[all.firstIndex(of: .neutral)! + 1], .pixel)
         let want: [(KeyboardTheme, String, String, String?, String?, Int?)] = [
             (.pixel, "Pixel 8-bit", "Pixel 8-bit", "chip", "flash", 0),
@@ -1657,6 +1657,7 @@ final class ThemeSetTests: XCTestCase {
                 case .mole: XCTAssertEqual(m, .flowers)
                 case .pixel: XCTAssertEqual(m, .pixel)
                 case .sea: XCTAssertEqual(m, .waves)
+                case .ai: XCTAssertEqual(m, .neural)
                 case .timeOfDay: XCTAssertEqual(m, dark ? .star : nil, "bảng gốc: ngày không hoạ tiết, đêm có sao")
                 default: XCTAssertNil(m, t.rawValue)
                 }

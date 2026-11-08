@@ -83,12 +83,14 @@ enum KeySoundStyle: String, CaseIterable {
     case bop
     // Theme "Pixel 8-bit" (11/2026): tiếng "blip" máy chơi game cầm tay — sóng vuông (hoạ âm lẻ) hai nốt nhảy lên.
     case chip
+    // Theme "AI" (11/2026): "blip" synth mềm — sine trượt lên (D6 → G6) + bồi nhẹ quãng năm, không nhiễu.
+    case ai
 
     /// Bật "Âm thanh phím" lần đầu ⇒ "Nhẹ nhàng" (bật công tắc phải NGHE khác đi; "iOS" = như lúc tắt).
     static let defaultStyle: KeySoundStyle = .subtle
     /// Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức `baseRecipe`.
     static let presets: [KeySoundStyle] = [.subtle, .wood, .mechanical, .typewriter, .bubble, .rock, .pop, .water, .vintage, .phao, .jingle,
-                                           .scifi, .trong, .boo, .bop, .chip]
+                                           .scifi, .trong, .boo, .bop, .chip, .ai]
     /// Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta).
     static let allPresets: [KeySoundStyle] = presets + [.piano, .dantranh, .guitar]
     /// DANH SÁCH DUY NHẤT id hợp lệ cho trường "sound" của theme JSON (chọn theme ⇒ đặt keySoundStyle).
@@ -129,6 +131,7 @@ enum KeySoundStyle: String, CaseIterable {
         case .guitar: return LK("Ghi-ta mộc")
         case .bop: return LK("Búa gỗ")
         case .chip: return LK("Bíp 8-bit")
+        case .ai: return LK("Synth AI")
         }
     }
 
@@ -237,6 +240,13 @@ enum KeySoundSynth {
                                   t(0.17, 1319 * 5, 1319 * 5, tau: 0.009, delay: 0.012)],
                           noises: [],
                           attack: 0.0008, duration: 0.048, outLP: 6000, peak: 0.42)
+        case .ai:
+            // Synth AI: sine mềm trượt lên D6 (1175 Hz) → G6 (1568 Hz) trong 20 ms + bồi bát độ rất nhẹ, nốt A6 (1760 Hz)
+            // khẽ chen sau 14 ms như tiếng "xác nhận". Không nhiễu, đỉnh 0.36 (< Gõ gỗ), ≤ 50 ms, lọc mềm 5 kHz.
+            return Recipe(tones: [t(1.0, 1175, 1568, glide: 0.02, tau: 0.016), t(0.16, 2350, 3136, glide: 0.02, tau: 0.007),
+                                  t(0.38, 1760, 1760, tau: 0.012, delay: 0.014)],
+                          noises: [],
+                          attack: 0.002, duration: 0.05, outLP: 5000, peak: 0.36)
         }
     }
 

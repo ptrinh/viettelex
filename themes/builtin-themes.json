@@ -204,6 +204,13 @@
                                       "accent": "#3567D6", "fn": "#121C3B", "fnInk": "#C9D4FF",
                                       "deco": {"motif": "star", "color": "#4DFFFFFF"}}}
       ]
+    },
+    {
+      "v": 1, "id": "ai", "name": {"vi": "AI", "en": "AI"}, "sound": "ai", "effect": "tokens", "swipe": "neon",
+      "light": {"bg": "#070A18", "key": "#1B2140", "special": "#2A2452", "ink": "#F5F3FF", "accent": "#8B5CF6",
+                "fn": "#141A33", "fnInk": "#A5F3FC", "balloon": "#232A52", "trail": "#CC22D3EE",
+                "borderFx": "aurora", "deco": {"motif": "neural", "color": "#5967E8F9"}},
+      "dark": "same"
     }
   ]
 }

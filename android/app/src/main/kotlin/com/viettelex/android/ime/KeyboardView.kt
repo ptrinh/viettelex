@@ -553,6 +553,8 @@ class KeyboardView(
      */
     var effects: KeyEffectView? = null
         set(v) { field = v; fxPending = false }
+    /** "Mắt AI": tâm phím vừa chạm (toạ độ view cha) — IME đặt khi nhân vật là Mắt AI; null = 0 chi phí. */
+    var eyeLook: ((Float, Float) -> Unit)? = null
     private var fxPending = false
     private var fxX = 0f
     private var fxY = 0f
@@ -1521,6 +1523,10 @@ class KeyboardView(
         val k = if (prior != null) SmartTouch.refine(keys, hit, x, y - TouchGeometry.yOffset * d, prior) else hit
         ptrKey[pid] = k
         if (effects != null) fxMark(k)
+        eyeLook?.let { look ->   // Mắt AI: nhìn về tâm phím (toạ độ view cha) — nhân vật khác ⇒ null
+            if (k.kind == KeyKind.LETTER || k.kind == KeyKind.CHAR || k.kind == KeyKind.PAD || k.kind == KeyKind.PUNCT ||
+                k.kind == KeyKind.SPACE) look((k.left + k.right) / 2f + left, (k.top + k.bottom) / 2f + top)
+        }
         when (k.kind) {
             KeyKind.LETTER -> if (shiftSym != null) {
                 // Giữ ⇧: ký tự phụ nguyên văn (VNI không bỏ dấu); không vuốt / lệnh / giữ ký tự phụ.
