@@ -16,6 +16,17 @@ import android.view.View
 import com.viettelex.keyboard.ComboMeter
 import com.viettelex.keyboard.EmojiWords
 import com.viettelex.keyboard.FlashPulse
+import com.viettelex.keyboard.FlyingLetters
+import com.viettelex.keyboard.GlitchFx
+import com.viettelex.keyboard.KeywordBursts
+import com.viettelex.keyboard.KeywordKind
+import com.viettelex.keyboard.LaserBeam
+import com.viettelex.keyboard.PlasmaArc
+import com.viettelex.keyboard.PlasmaChain
+import com.viettelex.keyboard.SandPile
+import com.viettelex.keyboard.ShakeFx
+import com.viettelex.keyboard.ToneBurst
+import com.viettelex.keyboard.ToneFx
 import com.viettelex.keyboard.GlowSprite
 import com.viettelex.keyboard.InkBloom
 import com.viettelex.keyboard.KeyEffect
@@ -115,6 +126,89 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     @Volatile private var strips: Array<Bitmap>? = null
     private var columns: Array<MatrixRain.Column> = emptyArray()
 
+    // ---- Đợt 3 (11/2026) — mảng cấp sẵn, Path dùng lại; hết hiệu ứng thì thôi hẹn khung hình (idle = 0).
+    // Plasma
+    private val plasma = PlasmaChain()
+    private val arcStart = LongArray(PlasmaArc.POOL) { Long.MIN_VALUE / 2 }
+    private val arcLinked = BooleanArray(PlasmaArc.POOL)
+    private val arcX = FloatArray(PlasmaArc.POOL)
+    private val arcY = FloatArray(PlasmaArc.POOL)
+    private val arcPaths = Array(PlasmaArc.POOL) { Path() }
+    private val arcPts = DoubleArray(2 * (PlasmaArc.SEGMENTS + 1))
+    private var arcCursor = 0
+    private var arcSeq = 0
+    // Rung combo — dời HÌNH của [shakeTarget] (translationX/Y, RenderThread), xong về 0. Giảm chuyển động ⇒ không rung.
+    /** View hàng phím bị rung (IME đặt = KeyboardView). */
+    var shakeTarget: View? = null
+        set(v) { if (field !== v) field?.let { it.translationX = 0f; it.translationY = 0f }; field = v }
+    /** Giảm chuyển động (tỉ lệ thời lượng animation hệ thống = 0) — IME đọc mỗi lần hiện. */
+    var reduceMotion = false
+    private var shakeStart = Long.MIN_VALUE / 2
+    private var shakeAmp = 0f
+    // Laser — khung phím cách (toạ độ view này) do IME cấp; không có ⇒ gốc giữa đáy.
+    var spaceFrame: ((RectF) -> Boolean)? = null
+    private val spaceRect = RectF()
+    private val laserStart = LongArray(LaserBeam.POOL) { Long.MIN_VALUE / 2 }
+    private val laserOx = FloatArray(LaserBeam.POOL)
+    private val laserOy = FloatArray(LaserBeam.POOL)
+    private val laserTx = FloatArray(LaserBeam.POOL)
+    private val laserTy = FloatArray(LaserBeam.POOL)
+    private var laserCursor = 0
+    // Glitch
+    private val glStart = LongArray(GlitchFx.POOL) { Long.MIN_VALUE / 2 }
+    private val glRect = Array(GlitchFx.POOL) { RectF() }
+    private val glVariant = IntArray(GlitchFx.POOL)
+    private val glSlices = DoubleArray(3 * GlitchFx.SLICES)
+    private val glTmp = RectF()
+    private var glCursor = 0
+    private var glSeq = 0
+    // Dấu thanh
+    private var pendingTone: ToneFx? = null
+    private val toneStart = LongArray(ToneBurst.POOL) { Long.MIN_VALUE / 2 }
+    private val toneKind = IntArray(ToneBurst.POOL)
+    private val toneX = FloatArray(ToneBurst.POOL)
+    private val toneY = FloatArray(ToneBurst.POOL)
+    private var toneCursor = 0
+    private val toneTraj = Array(ToneFx.entries.size) { k ->
+        val kind = ToneFx.entries[k]; Array(ToneBurst.count(kind)) { ToneBurst.trajectory(kind, it) }
+    }
+    private val tonePaths = Array(ToneFx.entries.size) { Path() }
+    // Từ khoá
+    private var pendingKeyword: KeywordKind? = null
+    private val kwStart = LongArray(KeywordBursts.POOL) { Long.MIN_VALUE / 2 }
+    private val kwKind = IntArray(KeywordBursts.POOL)
+    private val kwX = FloatArray(KeywordBursts.POOL)
+    private val kwY = FloatArray(KeywordBursts.POOL)
+    private var kwCursor = 0
+    private val kwHeart = Path()
+    private val kwStar = Path()
+    @Volatile private var kwEmoji: Map<String, Bitmap> = emptyMap()
+    private val kwRect = RectF()
+    // Chữ bay
+    private var pendingLetter: String? = null
+    private val letterText = arrayOfNulls<String>(FlyingLetters.POOL)
+    private val letterStart = LongArray(FlyingLetters.POOL) { Long.MIN_VALUE / 2 }
+    private val letterX = FloatArray(FlyingLetters.POOL)
+    private val letterY = FloatArray(FlyingLetters.POOL)
+    private val letterSeed = IntArray(FlyingLetters.POOL)
+    private var letterCursor = 0
+    private var letterSeq = 0
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER; typeface = android.graphics.Typeface.DEFAULT_BOLD
+    }
+    // Hạt cát — đống = mảng chiều cao theo cột (SandPile), hạt bay pool cố định.
+    internal var sand: SandPile? = null
+        private set
+    private val grainStart = LongArray(SandPile.FLYING) { Long.MIN_VALUE / 2 }
+    private val grainX = FloatArray(SandPile.FLYING)
+    private val grainY = FloatArray(SandPile.FLYING)
+    private val grainFallMs = LongArray(SandPile.FLYING)
+    private val grainAlive = BooleanArray(SandPile.FLYING)
+    private var grainCursor = 0
+    private var grainSeq = 0
+    private var sandLast = Long.MIN_VALUE / 2
+    private val sandPath = Path()
+
     val effect: KeyEffect get() = sim.effect
 
     init {
@@ -153,7 +247,9 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         }
         blob = if (e == KeyEffect.INK) renderBlob(opaque) else null
         glows = if (e.usesGlow) Array(e.fixedColors.size) { renderGlow(e, e.fixedColors[it]) } else emptyArray()
-        if (changed) { shardCache.clear(); combo.reset(); prewarm(e) }
+        if (changed) { shardCache.clear(); combo.reset(); plasma.reset(); prewarm(e); buildFx3Paths(e) }
+        if (e != KeyEffect.SHAKE) shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
+        if (e != KeyEffect.SAND) sand = null
         pendN = 0
         invalidate()
     }
@@ -161,10 +257,27 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     /** "Emoji theo chữ": IME tra bảng ở ranh giới từ rồi xếp emoji — lần vẽ kế (phím ranh giới) bắn nó. */
     fun queueEmoji(e: String) { if (sim.effect == KeyEffect.EMOJIWORD) pendingEmoji = e }
 
+    /** "Dấu thanh": IME so từ trước/sau phím ([com.viettelex.keyboard.ToneMarks.detect]) — lần vẽ kế bắn tại phím đó. */
+    fun queueTone(t: ToneFx) { if (sim.effect == KeyEffect.TONE) pendingTone = t }
+
+    /** "Từ khoá": IME tra bảng ở ranh giới từ — lần vẽ kế (phím ranh giới) bắn chùm. */
+    fun queueKeyword(k: KeywordKind) { if (sim.effect == KeyEffect.KEYWORD) pendingKeyword = k }
+
+    /** "Chữ bay": chữ vừa ra ([FlyingLetters.glyph]) — lần vẽ kế thả từ phím vừa bấm. */
+    fun queueLetter(s: String) { if (sim.effect == KeyEffect.LETTERS) pendingLetter = s }
+
+    private val hasQueued: Boolean get() = when (sim.effect) {
+        KeyEffect.EMOJIWORD -> pendingEmoji != null
+        KeyEffect.TONE -> pendingTone != null
+        KeyEffect.KEYWORD -> pendingKeyword != null
+        KeyEffect.LETTERS -> pendingLetter != null
+        else -> true
+    }
+
     /** Một phím vừa chèn chữ, tâm phím ([x], [y]), cỡ [w]×[h] (px) theo toạ độ view này. */
     fun burst(x: Float, y: Float, w: Float = 0f, h: Float = 0f) {
         if (sim.effect == KeyEffect.NONE) return
-        if (sim.effect == KeyEffect.EMOJIWORD && pendingEmoji == null) return   // phím chữ thường: không hẹn gì
+        if (sim.effect.isQueued && !hasQueued) return   // Emoji / Dấu thanh / Từ khoá / Chữ bay: không có sự kiện ⇒ không hẹn gì
         if (pendN == MAX_PENDING) {
             for (i in 1 until MAX_PENDING) { pendX[i - 1] = pendX[i]; pendY[i - 1] = pendY[i]; pendW[i - 1] = pendW[i]; pendH[i - 1] = pendH[i] }
             pendN--
@@ -185,6 +298,18 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
                 val b = em?.let { emojiBitmaps[it] ?: renderEmoji(it).also { r -> emojiBitmaps = emojiBitmaps + (it to r) } }
                 if (b != null) fireSlot(pendX[pendN - 1], pendY[pendN - 1], now, b)
             }
+            KeyEffect.TONE -> {
+                val t = pendingTone; pendingTone = null
+                if (t != null) fireTone(t, pendX[pendN - 1], pendY[pendN - 1], pendH[pendN - 1], now)
+            }
+            KeyEffect.KEYWORD -> {
+                val k = pendingKeyword; pendingKeyword = null
+                if (k != null) fireKeyword(k, pendX[pendN - 1], pendY[pendN - 1], pendH[pendN - 1], now)
+            }
+            KeyEffect.LETTERS -> {
+                val g = pendingLetter; pendingLetter = null
+                if (g != null) fireLetter(g, pendX[pendN - 1], pendY[pendN - 1], pendH[pendN - 1], now)
+            }
             else -> for (i in 0 until pendN) fire(pendX[i], pendY[i], pendW[i], pendH[i], now)
         }
         pendN = 0
@@ -193,7 +318,19 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
 
     private fun fire(x: Float, y: Float, w: Float, h: Float, now: Long) {
         when (sim.effect) {
-            KeyEffect.NONE, KeyEffect.EMOJIWORD -> {}
+            KeyEffect.NONE, KeyEffect.EMOJIWORD, KeyEffect.TONE, KeyEffect.KEYWORD, KeyEffect.LETTERS -> {}
+            KeyEffect.PLASMA -> firePlasma(x, y, now)
+            KeyEffect.SHAKE -> {
+                val amp = ShakeFx.amplitude(combo.press(now), reduceMotion)
+                if (amp > 0.0 && shakeTarget != null) { shakeStart = now; shakeAmp = (amp * density).toFloat() }
+            }
+            KeyEffect.LASER -> fireLaser(x, y, now)
+            KeyEffect.GLITCH -> {
+                val s = glCursor; glCursor = (s + 1) % GlitchFx.POOL
+                val hw = (if (w > 0f) w else DEFAULT_W * density) / 2; val hh = (if (h > 0f) h else DEFAULT_H * density) / 2
+                glStart[s] = now; glRect[s].set(x - hw, y - hh, x + hw, y + hh); glVariant[s] = glSeq++ % GlitchFx.VARIANTS
+            }
+            KeyEffect.SAND -> fireSand(x, y, now)
             KeyEffect.FLASH -> if (flash.trigger(now)) flashStart = now
             KeyEffect.LIGHTNING -> fireLightning(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.MATRIX -> pokeMatrix(now)
@@ -275,6 +412,12 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         strStart.fill(Long.MIN_VALUE / 2)
         flashStart = Long.MIN_VALUE / 2
         pendingEmoji = null
+        pendingTone = null; pendingKeyword = null; pendingLetter = null
+        arcStart.fill(Long.MIN_VALUE / 2); laserStart.fill(Long.MIN_VALUE / 2); glStart.fill(Long.MIN_VALUE / 2)
+        toneStart.fill(Long.MIN_VALUE / 2); kwStart.fill(Long.MIN_VALUE / 2); letterStart.fill(Long.MIN_VALUE / 2)
+        grainAlive.fill(false); sand?.clear(); plasma.reset()
+        shakeStart = Long.MIN_VALUE / 2
+        shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         pendN = 0
         invalidate()
     }
@@ -311,6 +454,14 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.WAVE -> drawWave(canvas, now)
             KeyEffect.STRING -> drawStrings(canvas, now)
             KeyEffect.EMOJIWORD -> drawEmoji(canvas, now)
+            KeyEffect.PLASMA -> drawPlasma(canvas, now)
+            KeyEffect.SHAKE -> stepShake(now)
+            KeyEffect.LASER -> drawLaser(canvas, now)
+            KeyEffect.GLITCH -> drawGlitch(canvas, now)
+            KeyEffect.TONE -> drawTone(canvas, now)
+            KeyEffect.KEYWORD -> drawKeyword(canvas, now)
+            KeyEffect.LETTERS -> drawLetters(canvas, now)
+            KeyEffect.SAND -> drawSand(canvas, now)
             else -> drawParticles(canvas, now)
         }
     }
@@ -511,6 +662,345 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         return any
     }
 
+    // MARK: đợt 3 — bắn
+
+    private fun firePlasma(x: Float, y: Float, now: Long) {
+        val s = arcCursor; arcCursor = (s + 1) % PlasmaArc.POOL
+        val link = plasma.press((x / density).toDouble(), (y / density).toDouble(), now)
+        arcStart[s] = now; arcX[s] = x; arcY[s] = y; arcLinked[s] = link
+        val p = arcPaths[s]
+        p.rewind()
+        if (!link) return
+        PlasmaArc.points(plasma.prevX * density, plasma.prevY * density, x.toDouble(), y.toDouble(),
+            arcSeq++ % PlasmaArc.VARIANTS, arcPts, density.toDouble())
+        for (i in 0..PlasmaArc.SEGMENTS) {
+            val px = arcPts[2 * i].toFloat(); val py = arcPts[2 * i + 1].toFloat()
+            if (i == 0) p.moveTo(px, py) else p.lineTo(px, py)
+        }
+    }
+
+    private fun fireLaser(x: Float, y: Float, now: Long) {
+        val f = spaceFrame
+        val ox: Float; val oy: Float
+        if (f != null && f(spaceRect)) {
+            if (!LaserBeam.fires(spaceRect.left.toDouble(), spaceRect.top.toDouble(), spaceRect.right.toDouble(),
+                    spaceRect.bottom.toDouble(), x.toDouble(), y.toDouble())) return
+            ox = spaceRect.centerX(); oy = spaceRect.top
+        } else {
+            ox = width / 2f; oy = height - (LaserBeam.FALLBACK_INSET * density).toFloat()
+        }
+        val s = laserCursor; laserCursor = (s + 1) % LaserBeam.POOL
+        laserStart[s] = now; laserOx[s] = ox; laserOy[s] = oy; laserTx[s] = x; laserTy[s] = y
+    }
+
+    /** Tâm phát ở mép trên phím (tâm − nửa cao), không vượt đỉnh view. */
+    private fun keyTop(y: Float, h: Float): Float = maxOf(0f, y - (if (h > 0f) h else DEFAULT_H * density) / 2 + 4 * density)
+
+    private fun fireTone(t: ToneFx, x: Float, y: Float, h: Float, now: Long) {
+        val s = toneCursor; toneCursor = (s + 1) % ToneBurst.POOL
+        toneStart[s] = now; toneKind[s] = t.ordinal; toneX[s] = x; toneY[s] = keyTop(y, h)
+    }
+
+    private fun fireKeyword(k: KeywordKind, x: Float, y: Float, h: Float, now: Long) {
+        val s = kwCursor; kwCursor = (s + 1) % KeywordBursts.POOL
+        kwStart[s] = now; kwKind[s] = k.ordinal; kwX[s] = x; kwY[s] = keyTop(y, h)
+    }
+
+    private fun fireLetter(g: String, x: Float, y: Float, h: Float, now: Long) {
+        val s = letterCursor; letterCursor = (s + 1) % FlyingLetters.POOL
+        letterText[s] = g; letterStart[s] = now; letterX[s] = x; letterY[s] = keyTop(y, h); letterSeed[s] = letterSeq++
+    }
+
+    private fun fireSand(x: Float, y: Float, now: Long) {
+        if (width <= 0 || height <= 0) return
+        val pile = sand?.takeIf { it.columns == SandPile.columnsFor((width / density).toDouble()) }
+            ?: SandPile((width / density).toDouble()).also { sand = it }
+        // Đang lún dở ⇒ chốt mức lún hiện tại vào đống rồi gõ tiếp từ đó.
+        val k = SandPile.sinkFactor(now - sandLast)
+        if (k < 1.0) { if (k <= 0.0) pile.clear() else pile.scale(k) }
+        sandLast = now
+        grainSeq++
+        for (i in 0 until SandPile.GRAINS_PER_TAP) {
+            val g = grainCursor; grainCursor = (g + 1) % SandPile.FLYING
+            if (grainAlive[g]) pile.deposit((grainX[g] / density).toDouble())   // hạt cũ bị thay: cho đáp luôn
+            val gx = (x + SandPile.spread(i, grainSeq) * density).toFloat().coerceIn(0f, width - 1f)
+            val floor = height - (pile.surface((gx / density).toDouble()) * density).toFloat()
+            grainX[g] = gx; grainY[g] = y; grainStart[g] = now + i * 25L
+            grainFallMs[g] = Math.round(SandPile.fallTime(((floor - y) / density).toDouble()) * 1000)
+            grainAlive[g] = true
+        }
+    }
+
+    // MARK: đợt 3 — vẽ
+
+    private fun drawPlasma(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        stroke.strokeJoin = Paint.Join.ROUND; stroke.strokeCap = Paint.Cap.ROUND
+        for (s in 0 until PlasmaArc.POOL) {
+            val t = now - arcStart[s]
+            val a = PlasmaArc.alpha(t).toFloat()
+            if (a <= 0f) continue
+            any = true
+            if (arcLinked[s]) {
+                stroke.color = PlasmaArc.COLOR or (0xFF shl 24); stroke.strokeWidth = 5 * density; stroke.alpha = (255 * 0.5f * a).toInt()
+                canvas.drawPath(arcPaths[s], stroke)
+                stroke.color = PlasmaArc.CORE or (0xFF shl 24); stroke.strokeWidth = 1.5f * density; stroke.alpha = (255 * a).toInt()
+                canvas.drawPath(arcPaths[s], stroke)
+            }
+            fill.color = PlasmaArc.COLOR or (0xFF shl 24); fill.alpha = (255 * 0.45f * a).toInt()
+            canvas.drawCircle(arcX[s], arcY[s], (PlasmaArc.SPARK_RADIUS * density).toFloat() * (1.3f - 0.3f * a), fill)
+        }
+        return any
+    }
+
+    /** Rung combo: chỉ đặt translation của view hàng phím (RenderThread) — xong ⇒ về 0, thôi hẹn khung hình. */
+    private fun stepShake(now: Long): Boolean {
+        val tg = shakeTarget ?: return false
+        val dt = now - shakeStart
+        if (dt < 0 || dt >= ShakeFx.DURATION_MS) {
+            if (tg.translationX != 0f || tg.translationY != 0f) { tg.translationX = 0f; tg.translationY = 0f }
+            return false
+        }
+        val a = shakeAmp / density
+        tg.translationX = (ShakeFx.offsetX(dt, a.toDouble()) * density).toFloat()
+        tg.translationY = (ShakeFx.offsetY(dt, a.toDouble()) * density).toFloat()
+        return true
+    }
+
+    private fun drawLaser(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        stroke.strokeCap = Paint.Cap.ROUND
+        for (s in 0 until LaserBeam.POOL) {
+            val t = now - laserStart[s]
+            val a = LaserBeam.alpha(t).toFloat()
+            if (a <= 0f) continue
+            any = true
+            val r = LaserBeam.reach(t).toFloat()
+            val ex = laserOx[s] + (laserTx[s] - laserOx[s]) * r; val ey = laserOy[s] + (laserTy[s] - laserOy[s]) * r
+            stroke.color = LaserBeam.COLOR or (0xFF shl 24); stroke.strokeWidth = (LaserBeam.GLOW_WIDTH * density).toFloat()
+            stroke.alpha = (255 * 0.55f * a).toInt()
+            canvas.drawLine(laserOx[s], laserOy[s], ex, ey, stroke)
+            stroke.color = 0xFFFFFFFF.toInt(); stroke.strokeWidth = (LaserBeam.CORE_WIDTH * density).toFloat(); stroke.alpha = (255 * a).toInt()
+            canvas.drawLine(laserOx[s], laserOy[s], ex, ey, stroke)
+            if (r >= 1f) {   // chạm phím: đốm loé
+                fill.color = LaserBeam.COLOR or (0xFF shl 24); fill.alpha = (255 * 0.5f * a).toInt()
+                canvas.drawCircle(ex, ey, 6 * density * (1.4f - 0.4f * a), fill)
+            }
+        }
+        return any
+    }
+
+    private fun drawGlitch(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        val r6 = 5 * density
+        for (s in 0 until GlitchFx.POOL) {
+            val step = GlitchFx.step(now - glStart[s])
+            if (step >= GlitchFx.STEPS) continue
+            any = true
+            val rc = glRect[s]
+            val sp = (GlitchFx.split(step) * density).toFloat()
+            fill.color = GlitchFx.CYAN or (0xFF shl 24); fill.alpha = 80
+            glTmp.set(rc); glTmp.offset(-sp, 0f); canvas.drawRoundRect(glTmp, r6, r6, fill)
+            fill.color = GlitchFx.MAGENTA or (0xFF shl 24); fill.alpha = 80
+            glTmp.set(rc); glTmp.offset(sp, 0f); canvas.drawRoundRect(glTmp, r6, r6, fill)
+            GlitchFx.slices(step, glVariant[s], glSlices)
+            for (k in 0 until GlitchFx.SLICES) {
+                val top = rc.top + rc.height() * glSlices[3 * k].toFloat()
+                val hh = rc.height() * glSlices[3 * k + 1].toFloat()
+                val dx = (glSlices[3 * k + 2] * GlitchFx.MAX_SHIFT * density).toFloat()
+                fill.color = keyFill or (0xFF shl 24); fill.alpha = 242
+                canvas.drawRect(rc.left + dx, top, rc.right + dx, top + hh, fill)
+                fill.color = (if (k % 2 == 0) GlitchFx.CYAN else GlitchFx.MAGENTA) or (0xFF shl 24); fill.alpha = 200
+                canvas.drawRect(rc.left + dx, top, rc.right + dx, top + density, fill)
+            }
+        }
+        return any
+    }
+
+    private fun drawTone(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        for (s in 0 until ToneBurst.POOL) {
+            val kind = ToneFx.entries[toneKind[s]]
+            val trajs = toneTraj[kind.ordinal]
+            val col = ToneBurst.color(kind) or (0xFF shl 24)
+            val strokeShape = kind != ToneFx.SAC && kind != ToneFx.HUYEN && kind != ToneFx.NANG
+            for (i in trajs.indices) {
+                val t = trajs[i]
+                val f = ((now - toneStart[s]) / (t.duration * 1000.0)).toFloat()
+                if (f < 0f || f >= 1f) continue
+                any = true
+                val e = if (ToneBurst.easeIn(kind)) f * f else 1f - (1f - f) * (1f - f)
+                val sc = (t.scaleFrom + (t.scaleTo - t.scaleFrom) * f).toFloat()
+                val a = if (f < 0.5f) 1f else 1f - (f - 0.5f) / 0.5f
+                val save = canvas.save()
+                canvas.translate(toneX[s] + (t.dx * e * density).toFloat(), toneY[s] + (t.dy * e * density).toFloat())
+                if (t.rotation != 0.0) canvas.rotate(Math.toDegrees(t.rotation * f).toFloat())
+                if (ToneBurst.stretchesX(kind)) canvas.scale(sc * density, density) else canvas.scale(sc * density, sc * density)
+                if (strokeShape) {
+                    stroke.color = col; stroke.alpha = (255 * a).toInt(); stroke.strokeWidth = 2f
+                    stroke.strokeCap = Paint.Cap.ROUND; stroke.strokeJoin = Paint.Join.ROUND
+                    canvas.drawPath(tonePaths[kind.ordinal], stroke)
+                } else {
+                    fill.color = col; fill.alpha = (255 * a).toInt()
+                    canvas.drawPath(tonePaths[kind.ordinal], fill)
+                }
+                canvas.restoreToCount(save)
+            }
+        }
+        return any
+    }
+
+    private fun drawKeyword(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        for (s in 0 until KeywordBursts.POOL) {
+            val kind = KeywordKind.entries[kwKind[s]]
+            val dt = (now - kwStart[s]) / 1000.0
+            if (dt < 0 || dt >= KeywordBursts.lifetime(kind)) continue
+            any = true
+            val ems = KeywordBursts.emojis(kind)
+            for (p in KeywordBursts.particles(kind)) {
+                val f = ((dt - p.delay) / p.traj.duration).toFloat()
+                if (f < 0f || f >= 1f) continue
+                val t = p.traj
+                val e = if (p.easeIn) f * f else 1f - (1f - f) * (1f - f)
+                val sw = if (t.sway != 0.0) t.sway * Math.sin(f * 2 * Math.PI) else 0.0
+                val px = kwX[s] + ((p.x0 + t.dx * e + sw) * density).toFloat()
+                val py = kwY[s] + ((p.y0 + t.dy * e) * density).toFloat()
+                val sc = (t.scaleFrom + (t.scaleTo - t.scaleFrom) * f).toFloat()
+                val a = if (f < 0.5f) 1f else 1f - (f - 0.5f) / 0.5f
+                if (p.shape == KeywordBursts.Shape.EMOJI) {
+                    val b = ems.getOrNull(p.color)?.let { kwEmoji[it] } ?: continue
+                    bmpPaint.alpha = (255 * a).toInt()
+                    mtx.setTranslate(-b.width / 2f, -b.height / 2f)
+                    mtx.postRotate(Math.toDegrees(t.rotation * f).toFloat())
+                    mtx.postScale(sc, sc); mtx.postTranslate(px, py)
+                    canvas.drawBitmap(b, mtx, bmpPaint)
+                    continue
+                }
+                val save = canvas.save()
+                canvas.translate(px, py)
+                if (t.rotation != 0.0) canvas.rotate(Math.toDegrees(t.rotation * f).toFloat())
+                canvas.scale(sc * density, sc * density)
+                fill.color = p.color or (0xFF shl 24); fill.alpha = (255 * a).toInt()
+                when (p.shape) {
+                    KeywordBursts.Shape.HEART -> canvas.drawPath(kwHeart, fill)
+                    KeywordBursts.Shape.SPARK -> canvas.drawPath(kwStar, fill)
+                    KeywordBursts.Shape.PUFF -> { fill.alpha = (255 * 0.7f * a).toInt(); canvas.drawCircle(0f, 0f, 6f, fill) }
+                    KeywordBursts.Shape.PAPER -> canvas.drawRect(-1.5f, -2.5f, 1.5f, 2.5f, fill)
+                    KeywordBursts.Shape.CRACKER -> {
+                        kwRect.set(-2.5f, -5.5f, 2.5f, 5.5f); canvas.drawRoundRect(kwRect, 1f, 1f, fill)
+                        fill.color = KeywordBursts.GOLD or (0xFF shl 24); fill.alpha = (255 * a).toInt()
+                        canvas.drawRect(-2.5f, -1f, 2.5f, 1f, fill)
+                    }
+                    KeywordBursts.Shape.ENVELOPE -> {
+                        kwRect.set(-6f, -8f, 6f, 8f); canvas.drawRoundRect(kwRect, 1.5f, 1.5f, fill)
+                        fill.color = KeywordBursts.GOLD or (0xFF shl 24); fill.alpha = (255 * a).toInt()
+                        canvas.drawCircle(0f, -1f, 2.6f, fill)
+                    }
+                    else -> {}
+                }
+                canvas.restoreToCount(save)
+            }
+        }
+        return any
+    }
+
+    private fun drawLetters(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        textPaint.textSize = (FlyingLetters.SIZE * density).toFloat()
+        textPaint.color = color or (0xFF shl 24)
+        val fm = textPaint.fontMetrics
+        val base = -(fm.ascent + fm.descent) / 2
+        for (s in 0 until FlyingLetters.POOL) {
+            val g = letterText[s] ?: continue
+            val f = ((now - letterStart[s]) / (FlyingLetters.DURATION * 1000)).toFloat()
+            if (f < 0f || f >= 1f) continue
+            any = true
+            val e = 1f - (1f - f) * (1f - f)
+            textPaint.alpha = (255 * (if (f < 0.4f) 1f else 1f - (f - 0.4f) / 0.6f)).toInt()
+            val save = canvas.save()
+            canvas.translate(letterX[s] + (FlyingLetters.drift(letterSeed[s]) * e * density).toFloat(),
+                letterY[s] - (FlyingLetters.RISE * e * density).toFloat())
+            canvas.rotate(Math.toDegrees(FlyingLetters.spin(letterSeed[s]) * f).toFloat())
+            val sc = 0.8f + 0.4f * f
+            canvas.scale(sc, sc)
+            canvas.drawText(g, 0f, base, textPaint)
+            canvas.restoreToCount(save)
+        }
+        return any
+    }
+
+    /** Hạt rơi (gia tốc) rồi đáp vào mảng chiều cao; đống lún sau khi nghỉ. Đứng yên ⇒ chỉ hẹn MỘT lần lúc bắt đầu lún. */
+    private fun drawSand(canvas: Canvas, now: Long): Boolean {
+        val pile = sand ?: return false
+        var flying = false
+        fill.color = SandPile.COLOR or (0xFF shl 24); fill.alpha = 235
+        val r = (SandPile.GRAIN_SIZE / 2 * density).toFloat()
+        for (g in 0 until SandPile.FLYING) {
+            if (!grainAlive[g]) continue
+            val t = now - grainStart[g]
+            if (t >= grainFallMs[g]) { grainAlive[g] = false; pile.deposit((grainX[g] / density).toDouble()); continue }
+            flying = true
+            if (t < 0) continue
+            val ts = t / 1000.0
+            canvas.drawCircle(grainX[g], grainY[g] + (0.5 * SandPile.GRAVITY * ts * ts * density).toFloat(), r, fill)
+        }
+        val idle = now - sandLast
+        val k = SandPile.sinkFactor(idle)
+        if (k <= 0.0 && !flying) { pile.clear(); return false }
+        if (!pile.isEmpty) {
+            val sx = (SandPile.COLUMN * density).toFloat()
+            sandPath.rewind()
+            sandPath.moveTo(0f, height.toFloat())
+            for (c in 0 until pile.columns) {
+                val y = height - (pile.heights[c] * k * density).toFloat()
+                sandPath.lineTo(c * sx, y); sandPath.lineTo((c + 1) * sx, y)
+            }
+            sandPath.lineTo(pile.columns * sx, height.toFloat()); sandPath.close()
+            canvas.drawPath(sandPath, fill)
+        }
+        if (flying || (k < 1.0 && !pile.isEmpty)) return true
+        if (!pile.isEmpty) postInvalidateDelayed(maxOf(16L, SandPile.IDLE_MS - idle))   // đứng yên tới lúc lún: 0 khung hình
+        return false
+    }
+
+    /** Test: số hạt cát đang bay. */
+    internal fun grainsAlive(): Int = grainAlive.count { it }
+
+    /** Hình vector dp của Dấu thanh / Từ khoá — dựng MỘT lần lúc đổi kiểu. */
+    private fun buildFx3Paths(e: KeyEffect) {
+        if (e == KeyEffect.TONE) {
+            for (k in ToneFx.entries) {
+                val p = tonePaths[k.ordinal]; p.reset()
+                when (k) {
+                    ToneFx.SAC, ToneFx.HUYEN -> star4(p, 3.5f, 1f)
+                    ToneFx.HOI -> { p.moveTo(-3.5f, -2.5f); p.quadTo(-3f, -6.5f, 1f, -6f); p.quadTo(4.5f, -5f, 3f, -2f)
+                        p.quadTo(1.5f, 0.5f, 0f, 1f); p.lineTo(0f, 4f) }
+                    ToneFx.NGA -> { p.moveTo(-8f, 1f); p.quadTo(-4f, -5f, 0f, 0f); p.quadTo(4f, 5f, 8f, -1f) }
+                    ToneFx.NANG -> { p.moveTo(0f, -6f); p.quadTo(5f, 0f, 3.5f, 2.5f); p.quadTo(0f, 6.5f, -3.5f, 2.5f); p.quadTo(-5f, 0f, 0f, -6f); p.close() }
+                    ToneFx.HAT -> { p.moveTo(-5f, 2.5f); p.lineTo(0f, -2.5f); p.lineTo(5f, 2.5f) }
+                    ToneFx.HORN -> { p.moveTo(-1f, 3f); p.quadTo(4f, 2f, 3f, -3f); p.lineTo(5f, -4f) }
+                    ToneFx.STROKE -> { p.moveTo(-5f, 0f); p.lineTo(5f, 0f) }
+                }
+            }
+        }
+        if (e == KeyEffect.KEYWORD) {
+            buildPath(KeyEffect.HEART, 0, kwHeart)
+            kwStar.reset(); star4(kwStar, 3.5f, 1.1f)
+        }
+    }
+
+    /** Sao 4 cánh (tia lửa). */
+    private fun star4(p: Path, r: Float, inner: Float) {
+        for (k in 0 until 8) {
+            val a = k * Math.PI / 4 - Math.PI / 2
+            val rr = if (k % 2 == 0) r else inner
+            val x = (Math.cos(a) * rr).toFloat(); val y = (Math.sin(a) * rr).toFloat()
+            if (k == 0) p.moveTo(x, y) else p.lineTo(x, y)
+        }
+        p.close()
+    }
+
     // MARK: dựng sẵn
 
     /** Ảnh dựng NGOÀI main (dải Matrix, emoji) — một lần mỗi lần đổi kiểu. */
@@ -520,6 +1010,10 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
                 val s = Array(MatrixRain.STRIP_COUNT) { renderStrip(it) }
                 post { if (sim.effect == KeyEffect.MATRIX) strips = s }
             }, "vt-fx-matrix").start()
+            KeyEffect.KEYWORD -> if (kwEmoji.isEmpty()) Thread({
+                val m = KeywordBursts.allEmojis.associateWith { renderEmoji(it) }
+                post { if (sim.effect == KeyEffect.KEYWORD) kwEmoji = m }
+            }, "vt-fx-keyword").start()
             KeyEffect.EMOJIWORD -> if (emojiBitmaps.isEmpty()) Thread({
                 val m = EmojiWords.distinctEmojis.associateWith { renderEmoji(it) }
                 post { if (sim.effect == KeyEffect.EMOJIWORD) emojiBitmaps = m + emojiBitmaps }
@@ -528,6 +1022,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         }
         if (e != KeyEffect.MATRIX) strips = null
         if (e != KeyEffect.EMOJIWORD) emojiBitmaps = emptyMap()
+        if (e != KeyEffect.KEYWORD) kwEmoji = emptyMap()
         if (e == KeyEffect.MATRIX && width > 0) columns = Array(MatrixRain.columnCount((width / density).toDouble())) { MatrixRain.column(it) }
     }
 

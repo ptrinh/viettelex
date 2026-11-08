@@ -1002,7 +1002,7 @@ final class ThemeSetTests: XCTestCase {
     // MARK: âm / hiệu ứng đi kèm theme ("sound" / "effect")
 
     func testFestiveThemesCarrySoundAndEffect() {
-        XCTAssertEqual(KeyboardTheme.tet.spec?.sound, "phao"); XCTAssertEqual(KeyboardTheme.tet.spec?.effect, "blossom")
+        XCTAssertEqual(KeyboardTheme.tet.spec?.sound, "phao"); XCTAssertEqual(KeyboardTheme.tet.spec?.effect, "keyword")
         XCTAssertEqual(KeyboardTheme.tetMai.spec?.sound, "phao")
         XCTAssertEqual(KeyboardTheme.xmas.spec?.sound, "jingle"); XCTAssertEqual(KeyboardTheme.xmas.spec?.effect, "snow")
         XCTAssertEqual(KeyboardTheme.piano.spec?.sound, "piano"); XCTAssertNil(KeyboardTheme.piano.spec?.effect)
@@ -1086,14 +1086,14 @@ final class ThemeSetTests: XCTestCase {
         XCTAssertEqual(tw.corner, 80, "phím tròn tròn")
         let rgb = try XCTUnwrap(KeyboardTheme.rgb.spec)
         XCTAssertEqual(rgb.nameEn, "Gaming RGB")
-        XCTAssertEqual(rgb.sound, "mechanical"); XCTAssertEqual(rgb.effect, "combo")
+        XCTAssertEqual(rgb.sound, "mechanical"); XCTAssertEqual(rgb.effect, "glitch")
         for dark in [false, true] {
             XCTAssertTrue(KeyboardTheme.rgb.palette(systemDark: dark).rainbowBorder)
             XCTAssertNil(KeyboardTheme.rgb.palette(systemDark: dark).keyBorder, "viền thường nhường chỗ cầu vồng")
         }
         let sp = try XCTUnwrap(KeyboardTheme.space.spec)
         XCTAssertEqual(sp.nameEn, "Outer Space")
-        XCTAssertEqual(sp.sound, "scifi"); XCTAssertEqual(sp.effect, "meteor")
+        XCTAssertEqual(sp.sound, "scifi"); XCTAssertEqual(sp.effect, "plasma")
         for t in [KeyboardTheme.typewriter, .rgb, .space] {
             let st = try XCTUnwrap(t.spec)
             XCTAssertTrue(ThemeExtras.soundAllowed(st.sound ?? ""), t.rawValue)
@@ -1355,7 +1355,7 @@ final class ThemeSetTests: XCTestCase {
         let text = try XCTUnwrap(ThemeJSONActions.copyText(.builtin(.tet), settings: s, store: [:]))
         XCTAssertTrue(text.contains("\"sound\""), text)
         let back = try XCTUnwrap(ThemeSpecParser.parse(text).spec)
-        XCTAssertEqual(back.sound, "phao"); XCTAssertEqual(back.effect, "blossom")
+        XCTAssertEqual(back.sound, "phao"); XCTAssertEqual(back.effect, "keyword")
         XCTAssertEqual(ThemeSpecParser.parse(back.canonical).spec, back)
         // Sửa theme có sẵn: đổi âm ⇒ lưu vào bản vá; trùng mặc định theme ⇒ không lưu.
         var settings = s, store: [String: ThemeSpec] = [:]
@@ -1372,7 +1372,7 @@ final class ThemeSetTests: XCTestCase {
         // Theme tự tạo: dán + lưu kho giữ nguyên.
         var custom = back; custom.id = "mytet"
         let restored = CustomThemeStore.parse(CustomThemeStore.serialize(["mytet": custom]))
-        XCTAssertEqual(restored["mytet"]?.sound, "phao"); XCTAssertEqual(restored["mytet"]?.effect, "blossom")
+        XCTAssertEqual(restored["mytet"]?.sound, "phao"); XCTAssertEqual(restored["mytet"]?.effect, "keyword")
     }
 
     func testThemeExtrasPlanNeverEnablesSound() {

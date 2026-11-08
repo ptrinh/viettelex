@@ -1136,7 +1136,9 @@ final class KeyboardViewController: UIInputViewController {
         switch key {
         case .letter(let ch):
             let fresh = !bridge.isComposing
+            let fxBefore = fxComposeBefore()
             bridge.letter(ch, proxy: proxy)
+            if let fxBefore { fxComposeDiff(fxBefore, typed: String(ch)) }
             restoreUndo = nil; undoOfferActive = false
             if autoCorrectActive || correctionHintActive { noteTouch(fresh: fresh, touch) }
         case .replaceLastLetter(let s):
@@ -1146,8 +1148,10 @@ final class KeyboardViewController: UIInputViewController {
                 let r = AutoSpace.reaction(toText: s)
                 if r != .keep, autoSpaceStillThere(q) { removeAutoSpace(); autoSpaceCarry = r == .carry }
             }
+            let fxBefore = fxComposeBefore()
             if let d = Self.singleDigit(s), bridge.vniDigit(d, proxy: proxy) {
                 // VNI: số vuốt xuống (iPad) trong từ = phím dấu
+                if let fxBefore { fxComposeDiff(fxBefore, typed: s) }
             } else {
                 commitAndLearn(bridge.symbolBoundary(s, proxy: proxy), accepted: openAccepted)
                 lastWord = nil; lastWord2 = nil
@@ -1157,11 +1161,14 @@ final class KeyboardViewController: UIInputViewController {
         case .text(let s):                            // numbers, symbols
             // Bàn số lớn: số chèn THẲNG (không phải phím dấu VNI của từ đang gõ — từ được chốt).
             // Giữ ⇧ + phím chữ (ShiftHold): người dùng muốn SỐ ⇒ nguyên văn, không phải phím dấu VNI.
+            let fxBefore = fxComposeBefore()
             if !keyboard.keypadShown, !keyboard.literalTextInFlight,
                let d = Self.singleDigit(s), bridge.vniDigit(d, proxy: proxy) {
                 // VNI: số trong lúc soạn từ (hàng số / plane 123) mang dấu — phím của từ
+                if let fxBefore { fxComposeDiff(fxBefore, typed: s) }
             } else {
                 let final = bridge.symbolBoundary(s, proxy: proxy)
+                if let fxBefore { fxComposeDiff(fxBefore, typed: s) }
                 fxWordBoundary(final, prev: lastWord)
                 keyboard?.buddy?.emojiInserted(s)
                 commitAndLearn(final, accepted: openAccepted)
@@ -1760,9 +1767,30 @@ final class KeyboardViewController: UIInputViewController {
     private func fxWordBoundary(_ word: String, prev: String?) {
         // Bạn đồng hành: phản ứng theo từ vừa chốt (tắt ⇒ nil, một optional).
         if let b = keyboard?.buddy, !word.isEmpty { b.wordCommitted(word, prev: prev, prev2: lastWord2) }
-        guard let fx = keyboard?.keyEffects, fx.effect == .emojiword, !word.isEmpty,
-              let e = EmojiWords.lookup(word: word, prev: prev) else { return }
+        guard let fx = keyboard?.keyEffects, fx.effect.needsBoundaryWord, !word.isEmpty else { return }
+        if fx.effect == .keyword {
+            if let k = KeywordBursts.lookup(word: word, prev: prev) { fx.queueKeyword(k) }   // Từ khoá: pháo đỏ / lì xì…
+            return
+        }
+        guard let e = EmojiWords.lookup(word: word, prev: prev) else { return }
         fx.queueEmoji(e)
+    }
+
+    /// "Dấu thanh" / "Chữ bay": từ đang soạn TRƯỚC phím — chỉ khi chọn hai kiểu đó (kiểu khác: một phép so sánh, 0 đọc).
+    private func fxComposeBefore() -> String? {
+        guard let fx = keyboard?.keyEffects, fx.effect.needsComposeDiff else { return nil }
+        return bridge.composedWord
+    }
+
+    /// So với từ SAU phím ⇒ dấu vừa bỏ (ToneMarks) / đúng chữ vừa ra (FlyingLetters) — bắn ở lượt vẽ kế của phím này.
+    private func fxComposeDiff(_ before: String, typed: String) {
+        guard let fx = keyboard?.keyEffects else { return }
+        let after = bridge.composedWord
+        switch fx.effect {
+        case .tone: if let t = ToneMarks.detect(before: before, after: after) { fx.queueTone(t) }
+        case .letters: if let g = FlyingLetters.glyph(before: before, after: after, typed: typed) { fx.queueLetter(g) }
+        default: break
+        }
     }
 
     /// Từ vừa chốt: nạp vào model cá nhân + trượt cửa sổ context (prev2, prev1).

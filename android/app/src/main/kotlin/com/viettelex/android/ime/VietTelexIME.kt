@@ -377,14 +377,20 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val fx = if (setting == com.viettelex.keyboard.KeyEffect.NONE) setting else com.viettelex.keyboard.KeyEffectPolicy.active(
             setting, com.viettelex.keyboard.KeyEffectGate.allows(setting),
             powerSave = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true)
-        session.trackBoundaryWord = fx == com.viettelex.keyboard.KeyEffect.EMOJIWORD || root?.buddy != null
+        session.trackBoundaryWord = fx.needsBoundaryWord || root?.buddy != null
         if (fx == com.viettelex.keyboard.KeyEffect.NONE) {
             r.effects?.halt()
+            r.effects?.shakeTarget = null
             r.effects = null; kb.effects = null
             return
         }
         val v = r.effects ?: KeyEffectView(this, th.density)
         v.configure(fx, th.action, th.keyFill, th.dark)
+        // Rung combo: rung HÌNH hàng phím (translation) — Giảm chuyển động / tắt hiệu ứng động ⇒ không rung.
+        v.shakeTarget = if (fx == com.viettelex.keyboard.KeyEffect.SHAKE) kb else null
+        v.reduceMotion = fx == com.viettelex.keyboard.KeyEffect.SHAKE && !android.animation.ValueAnimator.areAnimatorsEnabled()
+        // Laser: tia bắn từ phím cách thật (khung đọc lúc bắn — đổi bàn số / ký hiệu vẫn đúng).
+        v.spaceFrame = if (fx == com.viettelex.keyboard.KeyEffect.LASER) { out -> kb.spaceKeyFrame(out, v) } else null
         r.effects = v          // dải dưới / trên phím theo kiểu vừa cấu hình
         kb.effects = v
         r.refreshStringGaps()  // Rung dây: khe hàng cho overlay (đã layout thì đặt ngay)
@@ -421,7 +427,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val c = com.viettelex.keyboard.BuddyPolicy.active(setting, com.viettelex.keyboard.BuddyGate.allows(setting))
         if (c == com.viettelex.keyboard.BuddyCharacter.OFF) {
             r.buddy = null; st.buddyDp = 0f
-            session.trackBoundaryWord = r.effects?.effect == com.viettelex.keyboard.KeyEffect.EMOJIWORD
+            session.trackBoundaryWord = r.effects?.effect?.needsBoundaryWord == true
             return
         }
         val low = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true
@@ -484,13 +490,46 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     /** Thống kê Đập chuột trong RAM (đọc file lúc gắn view, ghi file trên worker mỗi lần đập). */
     private var moleStats = com.viettelex.keyboard.MoleStats()
 
-    /** "Emoji theo chữ": phím ranh giới vừa chốt từ ⇒ tra bảng O(1) (chỉ khi chọn kiểu này). */
+    /** "Emoji theo chữ" / "Từ khoá": phím ranh giới vừa chốt từ ⇒ tra bảng O(1) (chỉ khi chọn kiểu đó). */
     private fun fxBoundaryEmoji() {
         buddyBoundary()
         val fx = root?.effects ?: return
-        if (fx.effect != com.viettelex.keyboard.KeyEffect.EMOJIWORD) return
-        val w = session.boundaryWord ?: return
-        com.viettelex.keyboard.EmojiWords.lookup(w, session.boundaryPrev)?.let { fx.queueEmoji(it) }
+        when (fx.effect) {
+            com.viettelex.keyboard.KeyEffect.EMOJIWORD -> {
+                val w = session.boundaryWord ?: return
+                com.viettelex.keyboard.EmojiWords.lookup(w, session.boundaryPrev)?.let { fx.queueEmoji(it) }
+            }
+            com.viettelex.keyboard.KeyEffect.KEYWORD -> {
+                val w = session.boundaryWord ?: return
+                com.viettelex.keyboard.KeywordBursts.lookup(w, session.boundaryPrev)?.let { fx.queueKeyword(it) }
+            }
+            else -> {}
+        }
+    }
+
+    /**
+     * "Dấu thanh" / "Chữ bay": so từ đang soạn trước/sau phím (dấu vừa bỏ / đúng chữ vừa ra). Kiểu khác ⇒ [composeBefore]
+     * trả null, không đọc gì (0 chi phí).
+     */
+    private fun composeBefore(key: Key): String? {
+        val fx = root?.effects ?: return null
+        if (!fx.effect.needsComposeDiff) return null
+        if (key !is Key.Letter && key !is Key.Text) return null
+        return session.bridge.composedWord
+    }
+
+    private fun fxComposeDiff(key: Key, before: String) {
+        val fx = root?.effects ?: return
+        val after = session.bridge.composedWord
+        when (fx.effect) {
+            com.viettelex.keyboard.KeyEffect.TONE ->
+                com.viettelex.keyboard.ToneMarks.detect(before, after)?.let { fx.queueTone(it) }
+            com.viettelex.keyboard.KeyEffect.LETTERS -> {
+                val typed = when (key) { is Key.Letter -> key.ch.toString(); is Key.Text -> key.text; else -> null }
+                com.viettelex.keyboard.FlyingLetters.glyph(before, after, typed)?.let { fx.queueLetter(it) }
+            }
+            else -> {}
+        }
     }
 
     /** Theme từ cài đặt hiện tại (rẻ: vài lần đọc màu resource, không giải ảnh). */
@@ -982,7 +1021,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         if (key == Key.Backspace && toolUndo != null) { undoTextTool(); return }   // ⌫ ngay sau = hoàn tác
         clearSwipeUndo()
         if (!proxy.begin()) return
+        val fxBefore = composeBefore(key)
         val out = try { session.handle(key, proxy, touch) } finally { proxy.end() }
+        if (fxBefore != null) fxComposeDiff(key, fxBefore)
         if (session.trackBoundaryWord) fxBoundaryEmoji()
         root?.buddy?.let { buddy ->
             if (key == Key.Backspace) buddy.deletePressed() else buddy.keyPressed()

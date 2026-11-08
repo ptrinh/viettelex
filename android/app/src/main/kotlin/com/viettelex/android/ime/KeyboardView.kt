@@ -580,6 +580,15 @@ class KeyboardView(
         if (k is Key.Letter || k is Key.Text || k == Key.Space || k == Key.DoubleSpacePeriod) fx.burst(fxX, fxY, fxW, fxH)
     }
 
+    /** "Laser": khung phím cách theo toạ độ [target] (con của cùng view cha) vào [out]; false ⇒ không có phím cách. O(1). */
+    fun spaceKeyFrame(out: android.graphics.RectF, target: View): Boolean {
+        val k = spaceKey ?: return false
+        if (k.width <= 0f || k.height <= 0f) return false
+        val dx = left - target.left; val dy = top - target.top
+        out.set(k.left + dx, k.top + dy, k.right + dx, k.bottom + dy)
+        return true
+    }
+
     /** Đập chuột (theme "game":"mole", [MoleView]) — null = theme khác: đường phím chỉ đọc một biến null. */
     var mole: MoleView? = null
 

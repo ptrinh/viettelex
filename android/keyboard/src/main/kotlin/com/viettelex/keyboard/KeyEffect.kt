@@ -34,7 +34,16 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     LANTERN("lantern", "Đèn lồng"), // l10n-key
     SMOKE("smoke", "Sương ma"), // l10n-key
     // Theme Ghi-ta (10/2026): đoạn dây ở khe hàng gần phím rung sóng dừng rồi đứng yên ([StringPluck]).
-    STRING("string", "Rung dây"); // l10n-key
+    STRING("string", "Rung dây"), // l10n-key
+    // Đợt 3 (11/2026): tia plasma nối phím, rung combo, laser từ phím cách, glitch, dấu thanh, từ khoá (pháo đỏ / lì xì).
+    PLASMA("plasma", "Plasma"), // l10n-key
+    SHAKE("shake", "Rung combo"), // l10n-key
+    LASER("laser", "Laser"), // l10n-key
+    GLITCH("glitch", "Glitch"), // l10n-key
+    TONE("tone", "Dấu thanh"), // l10n-key
+    KEYWORD("keyword", "Từ khoá"), // l10n-key
+    LETTERS("letters", "Chữ bay"), // l10n-key
+    SAND("sand", "Hạt cát"); // l10n-key
 
     val title: String get() = tr(viTitle)
 
@@ -43,6 +52,15 @@ enum class KeyEffect(val id: String, val viTitle: String) {
 
     /** Kiểu "hạt bay ra từ phím" (quỹ đạo [trajectory]). */
     val isParticle: Boolean get() = this in PARTICLES
+
+    /** Chỉ bắn khi IME xếp sẵn sự kiện (từ vừa chốt / dấu vừa bỏ): phím thường không hẹn vẽ gì. = iOS isQueued. */
+    val isQueued: Boolean get() = this == EMOJIWORD || this == TONE || this == KEYWORD || this == LETTERS
+
+    /** IME phải so từ đang soạn trước/sau phím (dấu vừa bỏ / chữ vừa ra) — kiểu khác: không đọc gì. = iOS needsComposeDiff. */
+    val needsComposeDiff: Boolean get() = this == TONE || this == LETTERS
+
+    /** IME phải ghi từ vừa chốt ở ranh giới (tra bảng). = iOS needsBoundaryWord. */
+    val needsBoundaryWord: Boolean get() = this == EMOJIWORD || this == KEYWORD
 
     /** Hạt là ẢNH đốm sáng mềm dựng sẵn ([GlowSprite]), không path: Đèn lồng, Sương ma. = iOS usesGlow. */
     val usesGlow: Boolean get() = this == LANTERN || this == SMOKE
@@ -666,5 +684,474 @@ object EmojiWords {
         if (w.split(' ').any { it in SensitiveWords.set }) return true
         if (prev != null && (prev in SensitiveWords.set || SensitiveWords.isPair(prev, w))) return true
         return false
+    }
+}
+
+// MARK: đợt 3 (11/2026): Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá, Chữ bay, Hạt cát
+// — hàm thuần song sinh iOS KeyEffects.swift, CÙNG SỐ (test chéo hai nền tảng).
+
+/** LCG của [FxRandom] viết thẳng (không tạo đối tượng): trạng thái kế. */
+internal fun fxStep(st: Int): Int = st * 1103515245 + 12345
+/** Giá trị 0…1 của trạng thái [st]. */
+internal fun fxValue(st: Int): Double = ((st ushr 8) and 0xFFFF) / 65535.0
+/** Trạng thái đầu của hạt giống [seed] (= FxRandom(seed).state). */
+internal fun fxSeed(seed: Int): Int = seed * -1640531535 + 1
+
+/**
+ * "Plasma": tia điện tím nối phím TRƯỚC với phím vừa bấm — gõ nhanh thành chuỗi, mỗi tia tắt nhanh. Hai phím cách
+ * nhau quá [CHAIN_MS] (hay cùng phím) ⇒ không nối, chỉ đốm lửa nhỏ tại phím. = iOS PlasmaArc.
+ */
+object PlasmaArc {
+    const val CHAIN_MS = 500L
+    const val SEGMENTS = 8
+    const val DURATION_MS = 220L
+    const val MAX_JITTER = 9.0
+    /** Ngắn hơn (dp) ⇒ cùng phím: không nối. */
+    const val MIN_LENGTH = 6.0
+    const val POOL = 4
+    const val VARIANTS = 6
+    const val COLOR = 0xB44CFF
+    const val CORE = 0xF3E0FF
+    const val SPARK_RADIUS = 7.0
+
+    /**
+     * (SEGMENTS+1) điểm x,y từ (x0,y0) tới (x1,y1) vào [out]: lệch vuông góc tất định theo [variant], bao sin (hai đầu
+     * đúng tâm phím). [unit] = px mỗi dp (iOS 1) — trần lệch tính theo dp. Không cấp phát.
+     */
+    fun points(x0: Double, y0: Double, x1: Double, y1: Double, variant: Int, out: DoubleArray, unit: Double = 1.0) {
+        val dx = x1 - x0; val dy = y1 - y0
+        val len = kotlin.math.hypot(dx, dy)
+        val nx = if (len > 1e-9) -dy / len else 0.0
+        val ny = if (len > 1e-9) dx / len else 0.0
+        val amp = minOf(MAX_JITTER * unit, len * 0.15)
+        var st = fxSeed(variant * 7919 + 29)
+        out[0] = x0; out[1] = y0
+        for (i in 1 until SEGMENTS) {
+            val f = i.toDouble() / SEGMENTS
+            st = fxStep(st)
+            val off = (fxValue(st) - 0.5) * 2 * amp * sin(f * Math.PI)
+            out[2 * i] = x0 + dx * f + nx * off; out[2 * i + 1] = y0 + dy * f + ny * off
+        }
+        out[2 * SEGMENTS] = x1; out[2 * SEGMENTS + 1] = y1
+    }
+
+    /** Độ mờ sau [dtMs]: giữ 30 % rồi tắt tuyến tính. */
+    fun alpha(dtMs: Long): Double {
+        if (dtMs < 0 || dtMs >= DURATION_MS) return 0.0
+        val f = dtMs.toDouble() / DURATION_MS
+        return if (f < 0.3) 1.0 else 1.0 - (f - 0.3) / 0.7
+    }
+}
+
+/** Chuỗi Plasma: nhớ phím trước (toạ độ dp + giờ). = iOS PlasmaChain. */
+class PlasmaChain {
+    var prevX = 0.0; private set
+    var prevY = 0.0; private set
+    private var lastX = 0.0
+    private var lastY = 0.0
+    private var last = Long.MIN_VALUE / 2
+
+    /** Một phím tại ([x], [y]) (dp) lúc [nowMs]: true ⇒ nối tia từ ([prevX], [prevY]). */
+    fun press(x: Double, y: Double, nowMs: Long): Boolean {
+        val link = nowMs - last <= PlasmaArc.CHAIN_MS && kotlin.math.hypot(x - lastX, y - lastY) >= PlasmaArc.MIN_LENGTH
+        prevX = lastX; prevY = lastY
+        lastX = x; lastY = y; last = nowMs
+        return link
+    }
+
+    fun reset() { last = Long.MIN_VALUE / 2 }
+}
+
+/**
+ * "Rung combo": gõ nhanh (mức [ComboMeter] ≥ 1) ⇒ nội dung bàn phím rung vài dp kiểu game, mạnh dần theo mức, trần
+ * [MAX]. Chỉ dời HÌNH vẽ trong ~0,18 s rồi về 0 — không dời khung nhận chạm. Giảm chuyển động ⇒ không rung.
+ * = iOS ShakeFx.
+ */
+object ShakeFx {
+    const val MAX = 3.0
+    val AMPS = doubleArrayOf(0.0, 1.5, 2.25, 3.0)
+    const val DURATION_MS = 180L
+    /** Khung hình (tỉ lệ biên độ) — dao động tắt dần, đầu/cuối 0. */
+    val XS = doubleArrayOf(0.0, 1.0, -0.8, 0.55, -0.3, 0.1, 0.0)
+    val YS = doubleArrayOf(0.0, -0.5, 0.45, -0.3, 0.15, -0.05, 0.0)
+
+    /** Biên độ (dp) cho mức combo [level]; Giảm chuyển động ⇒ 0. */
+    fun amplitude(level: Int, reduceMotion: Boolean): Double =
+        if (reduceMotion) 0.0 else minOf(MAX, AMPS[level.coerceIn(0, AMPS.size - 1)])
+
+    private fun sample(k: DoubleArray, dtMs: Long, amp: Double): Double {
+        if (dtMs <= 0 || dtMs >= DURATION_MS || amp == 0.0) return 0.0
+        val x = dtMs.toDouble() / DURATION_MS * (k.size - 1)
+        val i = x.toInt()
+        return amp * (k[i] + (k[i + 1] - k[i]) * (x - i))
+    }
+    fun offsetX(dtMs: Long, amp: Double): Double = sample(XS, dtMs, amp)
+    fun offsetY(dtMs: Long, amp: Double): Double = sample(YS, dtMs, amp)
+}
+
+/** "Laser": tia mảnh sáng từ phím cách bắn lên phím vừa bấm, tắt nhanh. = iOS LaserBeam. */
+object LaserBeam {
+    const val DURATION_MS = 160L
+    /** Thời gian đầu tia chạy từ phím cách tới phím. */
+    const val TRAVEL_MS = 40L
+    const val COLOR = 0xFF2D55
+    const val GLOW_WIDTH = 4.0
+    const val CORE_WIDTH = 1.2
+    const val POOL = 3
+    /** Không biết phím cách: gốc ở giữa đáy, cách đáy chừng này (dp). */
+    const val FALLBACK_INSET = 4.0
+
+    /** Phím vừa bấm nằm trong phím cách ⇒ không bắn (tia dài 0). */
+    fun fires(spaceL: Double, spaceT: Double, spaceR: Double, spaceB: Double, kx: Double, ky: Double): Boolean =
+        !(kx >= spaceL && kx <= spaceR && ky >= spaceT && ky <= spaceB)
+
+    /** Tỉ lệ đường đã chạy (0…1) sau [dtMs]. */
+    fun reach(dtMs: Long): Double = (dtMs.toDouble() / TRAVEL_MS).coerceIn(0.0, 1.0)
+
+    fun alpha(dtMs: Long): Double {
+        if (dtMs < 0 || dtMs >= DURATION_MS) return 0.0
+        val f = dtMs.toDouble() / DURATION_MS
+        return if (f < 0.25) 1.0 else 1.0 - (f - 0.25) / 0.75
+    }
+}
+
+/**
+ * "Glitch": phím vừa bấm nhiễu hình ~120 ms — lệch kênh màu (lục lam / hồng) + vài lát ngang lệch trái/phải, đổi mỗi
+ * [STEP_MS]. Chỉ lớp phủ (lát = màu phím), phím thật không bị đụng. = iOS GlitchFx.
+ */
+object GlitchFx {
+    const val DURATION_MS = 120L
+    const val STEP_MS = 30L
+    const val STEPS = 4
+    const val SLICES = 3
+    const val MAX_SHIFT = 4.0
+    const val SPLIT = 2.0
+    const val CYAN = 0x00E5FF
+    const val MAGENTA = 0xFF2BD6
+    const val POOL = 2
+    const val VARIANTS = 8
+
+    /** Lát [SLICES] ở bước [step] (lần bấm [variant]) vào [out] (cỡ 3·SLICES): (đỉnh 0…1, cao 0…1, lệch −1…1). */
+    fun slices(step: Int, variant: Int, out: DoubleArray) {
+        var st = fxSeed(variant * 131 + step * 17 + 5)
+        for (k in 0 until SLICES) {
+            st = fxStep(st); val h = 0.08 + fxValue(st) * 0.14
+            st = fxStep(st); val y = fxValue(st) * (1 - h)
+            st = fxStep(st); val dx = fxValue(st) * 2 - 1
+            out[3 * k] = y; out[3 * k + 1] = h; out[3 * k + 2] = dx
+        }
+    }
+
+    /** Bước hiện tại sau [dtMs]; ≥ STEPS ⇒ hết. */
+    fun step(dtMs: Long): Int = if (dtMs < 0) STEPS else (dtMs / STEP_MS).toInt()
+    /** Lệch kênh màu bước [step]: bước lẻ một nửa. */
+    fun split(step: Int): Double = if (step % 2 == 0) SPLIT else SPLIT / 2
+}
+
+/** Kiểu hình "Dấu thanh": 5 dấu thanh + mũ (â ê ô ă) / râu (ơ ư) / gạch đ. Thứ tự = iOS ToneFx. */
+enum class ToneFx { SAC, HUYEN, HOI, NGA, NANG, HAT, HORN, STROKE }
+
+/**
+ * "Dấu thanh": so từ đang soạn TRƯỚC/SAU phím ⇒ dấu vừa bỏ. Bảng ký tự (không cấp phát, không chuẩn hoá chuỗi);
+ * nhận cả dấu rời (U+0300…). Chỉ chạy khi chọn kiểu này. = iOS ToneMarks.
+ */
+object ToneMarks {
+    /** Mỗi hàng 6 ký tự: không dấu, sắc, huyền, hỏi, ngã, nặng. */
+    private const val TABLE = "aáàảãạăắằẳẵặâấầẩẫậeéèẻẽẹêếềểễệiíìỉĩịoóòỏõọôốồổỗộơớờởỡợuúùủũụưứừửữựyýỳỷỹỵ"
+    private const val BASES = "aăâeêioôơuưy"
+
+    /** Mã ký tự: 3 bit thấp = dấu thanh (0…5), bit 3+ = 1 mũ / 2 râu / 3 gạch. */
+    fun code(c: Char): Int {
+        when (c.code) {
+            0x301 -> return 1; 0x300 -> return 2; 0x309 -> return 3; 0x303 -> return 4; 0x323 -> return 5
+            0x302, 0x306 -> return 1 shl 3
+            0x31B -> return 2 shl 3
+        }
+        val l = c.lowercaseChar()
+        if (l == 'đ') return 3 shl 3
+        val i = TABLE.indexOf(l)
+        if (i < 0) return 0
+        val mod = when (BASES[i / 6]) { 'ă', 'â', 'ê', 'ô' -> 1; 'ơ', 'ư' -> 2; else -> 0 }
+        return (i % 6) or (mod shl 3)
+    }
+
+    /** Dấu thanh của từ + số mũ / râu / gạch, gói: dấu | mũ<<8 | râu<<16 | gạch<<24. */
+    fun summary(w: CharSequence): Int {
+        var tone = 0; var hats = 0; var horns = 0; var strokes = 0
+        for (i in 0 until w.length) {
+            val c = code(w[i])
+            if (c and 7 != 0) tone = c and 7
+            when (c shr 3) { 1 -> hats++; 2 -> horns++; 3 -> strokes++ }
+        }
+        return tone or (minOf(hats, 255) shl 8) or (minOf(horns, 255) shl 16) or (minOf(strokes, 127) shl 24)
+    }
+
+    /** Dấu vừa bỏ khi từ đổi từ [before] thành [after]; null = không (gỡ dấu, chữ thường, ranh giới…). */
+    fun detect(before: CharSequence, after: CharSequence): ToneFx? {
+        if (after.isEmpty()) return null
+        val b = summary(before); val a = summary(after)
+        val ta = a and 0xFF; val tb = b and 0xFF
+        if (ta != 0 && ta != tb) return when (ta) { 1 -> ToneFx.SAC; 2 -> ToneFx.HUYEN; 3 -> ToneFx.HOI; 4 -> ToneFx.NGA; else -> ToneFx.NANG }
+        if ((a ushr 24) > (b ushr 24)) return ToneFx.STROKE
+        if ((a shr 16 and 0xFF) > (b shr 16 and 0xFF)) return ToneFx.HORN
+        if ((a shr 8 and 0xFF) > (b shr 8 and 0xFF)) return ToneFx.HAT
+        return null
+    }
+}
+
+/** Màu + quỹ đạo của "Dấu thanh" (dp, giây). = iOS ToneBurst. */
+object ToneBurst {
+    const val SPARKS = 4
+    const val POOL = 4
+    /** Sắc vàng, huyền xanh, hỏi tím, ngã ngọc, nặng cam; mũ/râu/gạch vàng nhạt. */
+    fun color(k: ToneFx): Int = when (k) {
+        ToneFx.SAC -> 0xFFC83D; ToneFx.HUYEN -> 0x4FC3F7; ToneFx.HOI -> 0xB388FF
+        ToneFx.NGA -> 0x26C6DA; ToneFx.NANG -> 0xFF7043; else -> 0xFFE082
+    }
+    /** Số hình mỗi lần: sắc/huyền = chùm tia lửa, còn lại 1. */
+    fun count(k: ToneFx): Int = if (k == ToneFx.SAC || k == ToneFx.HUYEN) SPARKS else 1
+    /** Ngã: giãn NGANG từ scaleFrom tới scaleTo (dọc giữ 1) — gợn sóng. */
+    fun stretchesX(k: ToneFx): Boolean = k == ToneFx.NGA
+    /** Nặng: rơi nhanh dần (giọt nước). */
+    fun easeIn(k: ToneFx): Boolean = k == ToneFx.NANG
+
+    /** Sắc: tia lửa bay lên-phải; huyền: xuống-trái; hỏi: móc xoáy; ngã: sóng ngã giãn; nặng: giọt rơi; mũ…: lấp lánh. */
+    fun trajectory(k: ToneFx, i: Int): KeyEffectTrajectory = when (k) {
+        ToneFx.SAC, ToneFx.HUYEN -> {
+            val base = if (k == ToneFx.SAC) -Math.PI / 4 else 3 * Math.PI / 4
+            val a = base + (i - 1.5) * 0.28
+            val d = 26.0 + (i % 2) * 8
+            KeyEffectTrajectory(cos(a) * d, sin(a) * d, 1.0, 0.4, 0.0, 0.42)
+        }
+        ToneFx.HOI -> KeyEffectTrajectory(0.0, -18.0, 0.6, 1.3, -1.2, 0.5)
+        ToneFx.NGA -> KeyEffectTrajectory(0.0, -10.0, 0.6, 2.0, 0.0, 0.5)
+        ToneFx.NANG -> KeyEffectTrajectory(0.0, 28.0, 1.0, 0.8, 0.0, 0.55)
+        else -> KeyEffectTrajectory(0.0, -14.0, 0.4, 1.4, 0.0, 0.4)
+    }
+}
+
+enum class KeywordKind { LAUGH, LOVE, ANGRY, TET }
+
+/**
+ * "Từ khoá": từ vừa chốt khớp bảng nhỏ ⇒ chùm hình theo nghĩa: cười (mặt cười), yêu (tim), giận (khói bốc), Tết
+ * (pháo đỏ nổ + xác pháo rơi + lì xì bay lên). Tra O(1) ở RANH GIỚI TỪ. Từ Việt khớp ĐÚNG dấu (không phân biệt hoa
+ * thường): "tết" ≠ "tet", "thương" ≠ "thường"; tiếng cười lặp ("hahaha", "kkkk") khớp theo đơn vị lặp. Lọc từ tục như
+ * Emoji theo chữ. Bảng y hệt iOS KeywordBursts.
+ */
+object KeywordBursts {
+    class Entry(val form: String, val kind: KeywordKind)
+    val entries: List<Entry> = listOf(
+        Entry("haha", KeywordKind.LAUGH), Entry("hihi", KeywordKind.LAUGH), Entry("hehe", KeywordKind.LAUGH),
+        Entry("kkk", KeywordKind.LAUGH),
+        Entry("yêu", KeywordKind.LOVE), Entry("thương", KeywordKind.LOVE), Entry("love", KeywordKind.LOVE),
+        Entry("giận", KeywordKind.ANGRY), Entry("bực", KeywordKind.ANGRY),
+        Entry("tết", KeywordKind.TET), Entry("năm mới", KeywordKind.TET), Entry("lì xì", KeywordKind.TET),
+        Entry("lixi", KeywordKind.TET),
+    )
+    /** Tiếng cười lặp: (đơn vị, số lần tối thiểu). */
+    val LAUGH_UNITS: List<Pair<String, Int>> = listOf("ha" to 2, "hi" to 2, "he" to 2, "k" to 3)
+    private val table: Map<String, KeywordKind> = HashMap<String, KeywordKind>().also { m -> entries.forEach { m.putIfAbsent(it.form, it.kind) } }
+
+    private fun clean(s: String): String = s.trim { !it.isLetter() }.lowercase()
+
+    /** [w] là đơn vị cười lặp đủ lần. */
+    fun isLaugh(w: String): Boolean = LAUGH_UNITS.any { (u, n) ->
+        w.length >= u.length * n && w.length % u.length == 0 && (0 until w.length / u.length).all { w.startsWith(u, it * u.length) }
+    }
+
+    /** Kiểu chùm cho từ vừa chốt [word] (từ liền trước [prev] — cụm 2 từ ưu tiên: "chúc mừng năm mới" ⇒ "năm mới"). */
+    fun lookup(word: String, prev: String?): KeywordKind? {
+        val w = clean(word)
+        if (w.isEmpty() || w.length > 24) return null
+        val p = prev?.let(::clean)
+        if (EmojiWords.blocked(w, p)) return null
+        if (!p.isNullOrEmpty()) table["$p $w"]?.let { return it }
+        return table[w] ?: if (isLaugh(w)) KeywordKind.LAUGH else null
+    }
+
+    /** Hình của hạt chùm Từ khoá. */
+    enum class Shape { EMOJI, HEART, PUFF, CRACKER, SPARK, PAPER, ENVELOPE }
+
+    /**
+     * Một hạt: hình, màu RGB (EMOJI: chỉ số trong [emojis]), điểm xuất phát lệch khỏi phím ([x0], [y0] dp), quỹ đạo,
+     * trễ (giây), rơi nhanh dần ([easeIn]).
+     */
+    class Particle(val shape: Shape, val color: Int, val x0: Double, val y0: Double, val traj: KeyEffectTrajectory,
+                   val delay: Double, val easeIn: Boolean = false)
+
+    fun emojis(k: KeywordKind): List<String> = when (k) {
+        KeywordKind.LAUGH -> listOf("😂", "🤣", "😆")
+        KeywordKind.ANGRY -> listOf("😤")
+        else -> emptyList()
+    }
+    val allEmojis: List<String> get() = KeywordKind.entries.flatMap(::emojis).distinct()
+
+    const val RED = 0xE53935
+    const val GOLD = 0xFFC83D
+    /** Pháo: bay lên trong [CRACKER_RISE] giây rồi nổ ở đỉnh. */
+    const val CRACKER_RISE = 0.35
+    /** Số chùm Từ khoá xoay vòng cùng lúc. */
+    const val POOL = 2
+
+    private val cache = HashMap<KeywordKind, List<Particle>>()
+
+    /** Các hạt của chùm [k] — tất định, ≤ [KeyEffectPool.CAP]; dựng một lần. */
+    fun particles(k: KeywordKind): List<Particle> = cache.getOrPut(k) { build(k) }
+
+    private fun build(k: KeywordKind): List<Particle> = when (k) {
+        KeywordKind.LAUGH -> (0 until 3).map { i ->
+            val t = i - 1.0
+            Particle(Shape.EMOJI, i, 0.0, 0.0, KeyEffectTrajectory(t * 24, -(52 + (1 - abs(t)) * 12), 0.6, 1.1, t * 0.3, 1.0), i * 0.06)
+        }
+        KeywordKind.LOVE -> (0 until 5).map { i ->
+            val t = (i - 2) / 2.0
+            Particle(Shape.HEART, intArrayOf(0xFF3B6B, 0xFF7AA2, 0xE91E63)[i % 3], 0.0, 0.0,
+                KeyEffectTrajectory(t * 30, -(44 + (i % 3) * 8.0), 0.5, 1.1, t * 0.3, 0.95, sway = 5.0), i * 0.04)
+        }
+        KeywordKind.ANGRY -> listOf(Particle(Shape.EMOJI, 0, 0.0, 0.0, KeyEffectTrajectory(0.0, -22.0, 0.6, 1.2, 0.0, 0.8), 0.0)) +
+            (0 until 4).map { i ->
+                val side = if (i % 2 == 0) -1.0 else 1.0
+                Particle(Shape.PUFF, 0xB0B0B0, side * 10, -6.0,
+                    KeyEffectTrajectory(side * (10 + i * 3.0), -(30 + i * 4.0), 0.5, 1.8, 0.0, 0.8, sway = 3.0), 0.08 + i * 0.06)
+            }
+        KeywordKind.TET -> {
+            val out = ArrayList<Particle>(20)
+            for (c in 0 until 2) {
+                val side = if (c == 0) -1.0 else 1.0
+                val rise = 56.0 + c * 10
+                val start = c * 0.12
+                out.add(Particle(Shape.CRACKER, RED, side * 6, 0.0, KeyEffectTrajectory(side * 14, -rise, 1.0, 0.9, side * 0.4, CRACKER_RISE), start))
+                val px = side * 20; val py = -rise
+                for (s in 0 until 5) {   // nổ: tia vàng / đỏ toả tròn ở đỉnh
+                    val a = s * 2 * Math.PI / 5 + c * 0.6
+                    out.add(Particle(Shape.SPARK, if (s % 2 == 0) GOLD else RED, px, py,
+                        KeyEffectTrajectory(cos(a) * 22, sin(a) * 22, 1.0, 0.4, 0.0, 0.45), start + CRACKER_RISE))
+                }
+                for (b in 0 until 3) {   // xác pháo đỏ rơi, lắc, xoay
+                    val t = b - 1.0
+                    out.add(Particle(Shape.PAPER, RED, px, py,
+                        KeyEffectTrajectory(t * 18 + side * 6, 44 + b * 12.0, 1.0, 0.9, t * 3 + side, 1.0, sway = 6.0),
+                        start + CRACKER_RISE + 0.03, easeIn = true))
+                }
+            }
+            for (e in 0 until 2) {       // lì xì bay lên
+                val side = if (e == 0) -1.0 else 1.0
+                out.add(Particle(Shape.ENVELOPE, RED, side * 4, 0.0,
+                    KeyEffectTrajectory(side * (20 + e * 8.0), -(70 + e * 10.0), 0.7, 1.0, side * 0.25, 1.3, sway = 6.0), 0.1 + e * 0.15))
+            }
+            out
+        }
+    }
+
+    /** Thời gian chùm [k] (giây) — hết thì thôi vẽ. */
+    fun lifetime(k: KeywordKind): Double = particles(k).maxOf { it.delay + it.traj.duration }
+}
+
+/**
+ * "Chữ bay": ĐÚNG chữ vừa ra (kể cả dấu — lấy từ engine, không phải nhãn phím) bay lên từ phím, hơi xoay/lệch rồi mờ.
+ * Pool [POOL] chữ. = iOS FlyingLetters.
+ */
+object FlyingLetters {
+    const val POOL = 6
+    const val DURATION = 0.7
+    const val RISE = 46.0
+    const val SIZE = 22.0
+
+    /**
+     * Chữ vừa ra khi từ đang soạn đổi [before] → [after]: dài ra ⇒ ký tự cuối; cùng độ dài ⇒ ký tự cuối cùng KHÁC
+     * ("hoan"+"s" ⇒ "á", "tuong"+"w" ⇒ "ơ"). Từ rỗng (ký hiệu, ngoài soạn từ) ⇒ [typed] nếu là đúng một ký tự in
+     * được. Không đổi / khoảng trắng ⇒ null.
+     */
+    fun glyph(before: String, after: String, typed: String?): String? {
+        if (after.isNotEmpty()) {
+            if (after == before) return null
+            var i = after.length - 1
+            if (after.length == before.length) while (i > 0 && after[i] == before[i]) i--
+            if (i > 0 && Character.isLowSurrogate(after[i])) i--
+            return after.substring(i, minOf(after.length, i + Character.charCount(after.codePointAt(i))))
+        }
+        val t = typed ?: return null
+        if (t.isBlank() || t.codePointCount(0, t.length) != 1) return null
+        return t
+    }
+
+    /** Lệch ngang (dp) tất định theo lần bấm [seed]. */
+    fun drift(seed: Int): Double = (fxValue(fxStep(fxSeed(seed * 37 + 11))) - 0.5) * 24
+    /** Xoay (rad) tất định theo lần bấm [seed]. */
+    fun spin(seed: Int): Double = (fxValue(fxStep(fxStep(fxSeed(seed * 37 + 11)))) - 0.5) * 0.6
+}
+
+/**
+ * "Hạt cát": chạm phím ⇒ vài hạt rơi xuống đáy bàn phím rồi TÍCH LẠI thành đống thấp (mảng chiều cao theo cột — không
+ * mô phỏng hạt đã đáp). Trần [MAX_HEIGHT]; ngừng gõ [IDLE_MS] ⇒ lún dần trong [SINK_MS] rồi sạch; ẩn bàn phím ⇒ xoá.
+ * Mảng cấp sẵn, không cấp phát. Đơn vị dp (iOS pt). = iOS SandPile.
+ */
+class SandPile(widthUnits: Double) {
+    val columns: Int = columnsFor(widthUnits)
+    val heights = DoubleArray(columns)
+
+    fun column(x: Double): Int = (x / COLUMN).toInt().coerceIn(0, columns - 1)
+    fun surface(x: Double): Double = heights[column(x)]
+    val isEmpty: Boolean get() = heights.all { it <= 1e-6 }
+    val maxHeight: Double get() = heights.max()
+
+    /** Một hạt đáp tại [x]: cột cao thêm [GRAIN] (trần — đầy thì lăn sang cột thấp hơn), rồi sạt cho dốc ≤ [SLOPE]. */
+    fun deposit(x: Double) {
+        var c = column(x)
+        var guard = 0
+        while (heights[c] + GRAIN > MAX_HEIGHT) {
+            val l = if (c > 0) heights[c - 1] else Double.MAX_VALUE
+            val r = if (c < columns - 1) heights[c + 1] else Double.MAX_VALUE
+            if (minOf(l, r) >= heights[c] || guard++ > columns) return   // đáy phẳng đã đầy: bỏ hạt
+            c = if (l <= r) c - 1 else c + 1
+        }
+        heights[c] += GRAIN
+        relax(c)
+    }
+
+    private fun relax(start: Int) {
+        var c = start
+        for (pass in 0 until columns) {
+            val l = if (c > 0) heights[c] - heights[c - 1] else 0.0
+            val r = if (c < columns - 1) heights[c] - heights[c + 1] else 0.0
+            if (l <= SLOPE && r <= SLOPE) return
+            val n = if (l >= r) c - 1 else c + 1
+            val move = (heights[c] - heights[n]) / 2
+            heights[c] -= move; heights[n] += move
+            c = n
+        }
+    }
+
+    /** Nhân mọi cột với [f] (lún). */
+    fun scale(f: Double) { val k = f.coerceIn(0.0, 1.0); for (i in heights.indices) heights[i] *= k }
+    fun clear() { heights.fill(0.0) }
+
+    companion object {
+        const val COLUMN = 3.0
+        /** Số cột cho bề ngang [w] (dp). */
+        fun columnsFor(w: Double): Int = maxOf(1, Math.ceil(maxOf(w, 1.0) / COLUMN).toInt())
+        const val GRAIN = 0.6
+        const val MAX_HEIGHT = 5.0
+        const val SLOPE = 0.9
+        const val GRAINS_PER_TAP = 3
+        const val GRAIN_SIZE = 1.8
+        /** Gia tốc rơi (dp/s²). */
+        const val GRAVITY = 1800.0
+        const val IDLE_MS = 1200L
+        const val SINK_MS = 1500L
+        const val COLOR = 0xD9B26A
+        /** Hạt đang bay tối đa (pool). */
+        const val FLYING = 12
+
+        /** Thời gian rơi [d] dp (giây). */
+        fun fallTime(d: Double): Double = Math.sqrt(2 * maxOf(d, 0.0) / GRAVITY)
+        /** Hệ số còn lại của đống sau [idleMs] không gõ: 1 tới IDLE_MS rồi giảm tuyến tính về 0 trong SINK_MS. */
+        fun sinkFactor(idleMs: Long): Double = when {
+            idleMs <= IDLE_MS -> 1.0
+            idleMs >= IDLE_MS + SINK_MS -> 0.0
+            else -> 1.0 - (idleMs - IDLE_MS).toDouble() / SINK_MS
+        }
+        /** Lệch ngang hạt [i] của lần bấm [seed] (dp). */
+        fun spread(i: Int, seed: Int): Double = (fxValue(fxStep(fxSeed(seed * 53 + i * 7 + 3))) - 0.5) * 16
     }
 }

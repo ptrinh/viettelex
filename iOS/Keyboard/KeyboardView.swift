@@ -7040,8 +7040,16 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                                               color: palette.accent.alpha(1).ui, keyFill: palette.keyFill.ui,
                                               dark: palette.isDark, in: self, keys: rowsContainer, existing: keyEffects)
         if keyEffects == nil { fxRect = nil }
+        // Laser: tia bắn từ phím cách thật (khung đọc lúc bắn — đổi bàn số / ký hiệu vẫn đúng). Kiểu khác ⇒ nil.
+        keyEffects?.laserOrigin = keyEffects?.effect == .laser ? { [weak self] in self?.spaceBarFrame() } : nil
         syncKeyEffectsSpace()
         layoutStringGaps()
+    }
+
+    /// Khung phím cách chính theo toạ độ view (= toạ độ overlay hiệu ứng) — nil khi plane không có / chưa xếp.
+    private func spaceBarFrame() -> CGRect? {
+        guard let s = spaceBar, s.window != nil, !s.isHidden, s.bounds.width > 0 else { return nil }
+        return convert(s.bounds, from: s)
     }
 
     #if DEBUG

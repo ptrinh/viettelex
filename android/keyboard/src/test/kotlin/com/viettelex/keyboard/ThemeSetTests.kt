@@ -182,7 +182,7 @@ class ThemeSetTests {
     }
 
     @Test fun festiveThemesCarrySoundAndEffect() {
-        assertEquals("phao", KeyboardTheme.TET.spec?.sound); assertEquals("blossom", KeyboardTheme.TET.spec?.effect)
+        assertEquals("phao", KeyboardTheme.TET.spec?.sound); assertEquals("keyword", KeyboardTheme.TET.spec?.effect)
         assertEquals("phao", KeyboardTheme.TET_MAI.spec?.sound)
         assertEquals("jingle", KeyboardTheme.XMAS.spec?.sound); assertEquals("snow", KeyboardTheme.XMAS.spec?.effect)
         assertEquals("piano", KeyboardTheme.PIANO.spec?.sound); assertNull(KeyboardTheme.PIANO.spec?.effect)
@@ -256,14 +256,14 @@ class ThemeSetTests {
         assertEquals(0xFFEFE6D2.toInt(), tw.palette(false).bg)
         assertEquals(80, tw.corner)
         val rgb = KeyboardTheme.RGB.spec!!
-        assertEquals("mechanical", rgb.sound); assertEquals("combo", rgb.effect)
+        assertEquals("mechanical", rgb.sound); assertEquals("glitch", rgb.effect)
         for (dk in listOf(false, true)) {
             assertTrue(KeyboardTheme.RGB.palette(dk)!!.rainbowBorder)
             assertNull("viền thường nhường chỗ cầu vồng", KeyboardTheme.RGB.palette(dk)!!.keyBorder)
         }
         val sp = KeyboardTheme.SPACE.spec!!
         assertEquals("Outer Space", sp.nameEn)
-        assertEquals("scifi", sp.sound); assertEquals("meteor", sp.effect)
+        assertEquals("scifi", sp.sound); assertEquals("plasma", sp.effect)
         for (t in listOf(KeyboardTheme.TYPEWRITER, KeyboardTheme.RGB, KeyboardTheme.SPACE)) {
             assertTrue("$t", t.spec!!.sound in ThemeExtraIds.SOUNDS)
             assertTrue("$t", t.spec!!.effect in ThemeExtraIds.EFFECTS)
@@ -300,7 +300,7 @@ class ThemeSetTests {
         val text = ThemeJsonActions.copyText(ThemeEditTarget.Builtin(KeyboardTheme.TET), s, emptyMap(), base)!!
         assertTrue(text, text.contains("\"sound\""))
         val back = ThemeSpecParser.parse(text).spec!!
-        assertEquals("phao", back.sound); assertEquals("blossom", back.effect)
+        assertEquals("phao", back.sound); assertEquals("keyword", back.effect)
         assertEquals(back, ThemeSpecParser.parse(back.canonical).spec)
         val edited = text.replace("\"phao\"", "\"wood\"")
         val r = ThemeJsonActions.save(edited, ThemeEditTarget.Builtin(KeyboardTheme.TET), s, emptyMap(), base)
@@ -313,7 +313,7 @@ class ThemeSetTests {
         val same = ThemeJsonActions.save(text, ThemeEditTarget.Builtin(KeyboardTheme.TET), s, emptyMap(), base)
         assertNull(same.settings.keyStyles["tet"]?.sound)
         val restored = CustomThemeStore.parse(CustomThemeStore.serialize(mapOf("mytet" to back.copy(id = "mytet"))))
-        assertEquals("phao", restored["mytet"]?.sound); assertEquals("blossom", restored["mytet"]?.effect)
+        assertEquals("phao", restored["mytet"]?.sound); assertEquals("keyword", restored["mytet"]?.effect)
     }
 
     @Test fun themeExtrasPlanNeverEnablesSound() {
