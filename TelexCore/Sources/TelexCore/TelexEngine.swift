@@ -1278,7 +1278,8 @@ public struct TelexEngine {
     /// for the hat letters. Kept deliberately NARROW (maintainer spec 2026-11-08): exactly
     /// three raw keys, ONE case throughout (never mixed), no tone, shaped vowel + doubler
     /// (aa ee oo) or vowel + w (aw ow uw — never a standalone-w ư) + ONE bare Vietnamese
-    /// consonant letter (not f j w z), and the raw keys have no English reading — neither
+    /// consonant letter — not f j w z, and not a stop c k p t g q (vowel + stop with no tone
+    /// is a half-typed syllable: "aat", "eep", "oog", "uwk" restore) — and the raw keys have no English reading — neither
     /// in the engine's dictionaries nor on `hatInitialismEnglish`, the closed list of
     /// English words / acronyms of exactly this shape that those dictionaries lack ("EEL",
     /// "EEK", "OOH", "OWL", "EEG", "OOP", "AAC" restore). The composition is not a valid
@@ -1294,8 +1295,7 @@ public struct TelexEngine {
         if m == v { guard v == UInt8(ascii: "a") || v == UInt8(ascii: "e") || v == UInt8(ascii: "o") else { return false } }
         else { guard v == UInt8(ascii: "a") || v == UInt8(ascii: "o") || v == UInt8(ascii: "u") else { return false } }
         guard c >= UInt8(ascii: "a"), c <= UInt8(ascii: "z"), !isVowelAscii(c),
-              c != UInt8(ascii: "f"), c != UInt8(ascii: "j"), c != UInt8(ascii: "w"),
-              c != UInt8(ascii: "z") else { return false }
+              !Self.hatInitialismExcludedConsonants.contains(c) else { return false }
         let first = renderLetters[0], second = renderLetters[1]
         guard first.base == v, first.mark != .none, second.base == c, second.mark == .none else { return false }
         let key = UInt32(v) << 16 | UInt32(m) << 8 | UInt32(c)
@@ -1305,11 +1305,14 @@ public struct TelexEngine {
     }
 
     /// Lowercase raw keys (packed v<<16 | m<<8 | c) of the `isHatInitialismKeep` shape that
-    /// read as English: words (aah eek eel ooh owl awl) and acronyms (aac aad eec eeg oob
-    /// ooc oop awb awd awg awk uwb uwp). Mirrored in the Kotlin and C++ ports.
+    /// read as English: words (aah eel ooh owl awl) and acronyms (aad oob awb awd uwb).
+    /// Stop-consonant forms (eek eeg oop aac…) never reach it. Mirrored in Kotlin and C++.
+    /// Third keys `isHatInitialismKeep` never keeps: non-Vietnamese letters (f j w z) and
+    /// stops (c k p t g q).
+    private static let hatInitialismExcludedConsonants: [UInt8] = Array("fjwzckptgq".utf8)
+
     private static let hatInitialismEnglish: [UInt32] = [
-        "aah", "eek", "eel", "ooh", "owl", "awl",
-        "aac", "aad", "eec", "eeg", "oob", "ooc", "oop", "awb", "awd", "awg", "awk", "uwb", "uwp",
+        "aah", "eel", "ooh", "owl", "awl", "aad", "oob", "awb", "awd", "uwb",
     ].map { s in s.utf8.reduce(UInt32(0)) { $0 << 8 | UInt32($1) } }
 
     /// The raw keys spell, or begin like, a known English word: any dictionary the engine

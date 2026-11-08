@@ -735,7 +735,7 @@ bool TelexEngine::isVietnameseTypoKeep() const {
 
 // Two-letter hat-vowel initialism ("AAL" -> "ÂL" = âm lịch) — Swift isHatInitialismKeep.
 // Exactly 3 raw keys, one case, no tone: vowel + doubler (aa ee oo) or vowel + w (aw ow uw,
-// never a standalone-w ư) + one bare consonant (not f j w z); no English reading and not on
+// never a standalone-w ư) + one bare consonant (not f j w z, not a stop c k p t g q); no English reading and not on
 // the closed hat-shape English list. Boundary-only, allocation-free.
 bool TelexEngine::isHatInitialismKeep() const {
     if (vniMode || rawCount_ != 3 || pCount_ != 2 || lastEffTone_ != Tone::None) return false;
@@ -745,14 +745,15 @@ bool TelexEngine::isHatInitialismKeep() const {
     if (!isVowelAscii(v) || (m != v && m != 'w')) return false;
     if (m == v) { if (v != 'a' && v != 'e' && v != 'o') return false; }
     else if (v != 'a' && v != 'o' && v != 'u') return false;
-    if (c < 'a' || c > 'z' || isVowelAscii(c) || c == 'f' || c == 'j' || c == 'w' || c == 'z') return false;
+    if (c < 'a' || c > 'z' || isVowelAscii(c)) return false;
+    for (const char* x = "fjwzckptgq"; *x; ++x)
+        if (c == static_cast<uint8_t>(*x)) return false;
     const Letter& first = renderLetters_[0];
     const Letter& second = renderLetters_[1];
     if (first.base != v || first.mark == Mark::None || second.base != c || second.mark != Mark::None) return false;
     // Swift hatInitialismEnglish: English words / acronyms of exactly this shape.
     static const char* const kHatInitialismEnglish[] = {
-        "aah", "eek", "eel", "ooh", "owl", "awl",
-        "aac", "aad", "eec", "eeg", "oob", "ooc", "oop", "awb", "awd", "awg", "awk", "uwb", "uwp",
+        "aah", "eel", "ooh", "owl", "awl", "aad", "oob", "awb", "awd", "uwb",
     };
     for (const char* e : kHatInitialismEnglish)
         if (e[0] == static_cast<char>(v) && e[1] == static_cast<char>(m) && e[2] == static_cast<char>(c)) return false;

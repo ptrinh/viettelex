@@ -745,7 +745,7 @@ class TelexEngine {
     /**
      * Two-letter hat-vowel initialism ("AAL" → ÂL = âm lịch) — Swift twin `isHatInitialismKeep`.
      * Exactly 3 raw keys, one case, no tone: vowel + doubler (aa ee oo) or vowel + w (aw ow uw,
-     * never a standalone-w ư) + one bare consonant (not f j w z); no English reading and not on
+     * never a standalone-w ư) + one bare consonant (not f j w z, not a stop c k p t g q); no English reading and not on
      * [HAT_INITIALISM_ENGLISH]. Boundary-only, allocation-free.
      */
     private fun isHatInitialismKeep(): Boolean {
@@ -756,8 +756,7 @@ class TelexEngine {
         if (!isVowelAscii(v) || (m != v && m != 'w'.code)) return false
         if (m == v) { if (v != 'a'.code && v != 'e'.code && v != 'o'.code) return false }
         else if (v != 'a'.code && v != 'o'.code && v != 'u'.code) return false
-        if (c < 'a'.code || c > 'z'.code || isVowelAscii(c) ||
-            c == 'f'.code || c == 'j'.code || c == 'w'.code || c == 'z'.code) return false
+        if (c < 'a'.code || c > 'z'.code || isVowelAscii(c) || HAT_INITIALISM_EXCLUDED.indexOf(c.toChar()) >= 0) return false
         if (rBase[0] != v || rMark[0] == Mark.NONE || rBase[1] != c || rMark[1] != Mark.NONE) return false
         val key = (v shl 16) or (m shl 8) or c
         for (e in HAT_INITIALISM_ENGLISH) if (e == key) return false
@@ -2128,10 +2127,12 @@ class TelexEngine {
         private const val INITIALS_MIN = 2
         private const val INITIALS_MAX = 4
 
+        /** Swift `hatInitialismExcludedConsonants`: f j w z + stops c k p t g q. */
+        private const val HAT_INITIALISM_EXCLUDED = "fjwzckptgq"
+
         /** Swift `hatInitialismEnglish`: English words / acronyms of the hat-initialism shape. */
         private val HAT_INITIALISM_ENGLISH: IntArray = arrayOf(
-            "aah", "eek", "eel", "ooh", "owl", "awl",
-            "aac", "aad", "eec", "eeg", "oob", "ooc", "oop", "awb", "awd", "awg", "awk", "uwb", "uwp",
+            "aah", "eel", "ooh", "owl", "awl", "aad", "oob", "awb", "awd", "uwb",
         ).map { w -> w.fold(0) { acc, ch -> (acc shl 8) or ch.code } }.toIntArray()
 
         private val ENGLISH_EXCEPTIONS: Array<IntArray> = arrayOf(
