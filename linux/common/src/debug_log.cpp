@@ -79,10 +79,13 @@ Env readEnv() {
     if (e.locale.empty()) e.locale = env("LC_CTYPE");
     if (e.locale.empty()) e.locale = env("LANG");
     // Which package manager owns the frontends (binary package names of linux/packaging/).
-    bool packaged = exists("/usr/lib/viettelex/libtelexcore.so") || exists("/usr/lib64/viettelex/libtelexcore.so") ||
-                    exists("/usr/lib/x86_64-linux-gnu/viettelex/libtelexcore.so") ||
-                    exists("/usr/lib/aarch64-linux-gnu/viettelex/libtelexcore.so");
-    if (exists("/var/lib/dpkg/info/libviettelex-core.list")) e.install = "deb";
+    // .deb is the only package that installs the engine under the Debian multiarch dir
+    // (debian/libviettelex-core.install: usr/lib/*/viettelex). Don't read /var/lib/dpkg:
+    // lintian fails the build on uses-dpkg-database-directly.
+    bool deb = exists("/usr/lib/x86_64-linux-gnu/viettelex/libtelexcore.so") ||
+               exists("/usr/lib/aarch64-linux-gnu/viettelex/libtelexcore.so");
+    bool packaged = deb || exists("/usr/lib/viettelex/libtelexcore.so") || exists("/usr/lib64/viettelex/libtelexcore.so");
+    if (deb) e.install = "deb";
     else if (packaged && hasEntryWithPrefix("/var/lib/pacman/local", "viettelex")) e.install = "pacman";
     else if (packaged && exists("/var/lib/rpm")) e.install = "rpm";
     else e.install = packaged ? "package" : "source";
