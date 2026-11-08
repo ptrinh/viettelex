@@ -30,7 +30,7 @@ class KeyboardBuddyTests {
     // MARK: cài đặt
 
     @Test fun idsMatchIOSAndDefaultIsOff() {
-        assertEquals(listOf("off", "girl", "boy", "cat", "chick", "shiba", "koi", "panda", "pig", "dragon", "eagle", "robot"), BuddyCharacter.IDS.toList())
+        assertEquals(listOf("off", "girl", "boy", "cat", "chick", "shiba", "koi", "panda", "pig", "dragon", "eagle", "robot", "ai"), BuddyCharacter.IDS.toList())
         assertEquals(BuddyCharacter.ROBOT, BuddyCharacter.of("robot"))
         assertTrue(BuddyCharacter.ROBOT.isPlus)
         assertEquals(BuddyStyle.VECTOR, BuddyStyle.SPRITE.resolved(BuddyCharacter.ROBOT))
@@ -66,7 +66,7 @@ class KeyboardBuddyTests {
         assertEquals(BuddyStyle.VECTOR, KeyboardSettings.load { if (it == Keys.KEYBOARD_BUDDY) "dragon" else null }.buddyStyle)
         assertTrue(BuddyStyle.hasAtlas(BuddyCharacter.CAT))
         assertFalse(BuddyStyle.hasAtlas(BuddyCharacter.KOI))
-        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF })
+        for (c in BuddyCharacter.RIGGED)
             assertTrue("sao lưu kiểu vẽ $c", BackupSettings.all.any { it.key == BuddyStyle.key(c) })
     }
 
@@ -195,7 +195,7 @@ class KeyboardBuddyTests {
     // MARK: dáng
 
     @Test fun danceLoopsAndEnergyRises() {
-        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
+        for (c in BuddyCharacter.RIGGED) {
             val s = BuddyRig.rig(c)!!.style
             val peaks = (0..3).map { t ->
                 assertEquals(BuddyDance.pose(s, t, 0.0), BuddyDance.pose(s, t, 1.0))
@@ -230,7 +230,7 @@ class KeyboardBuddyTests {
     /** Bảng hình giống hệt iOS (KeyboardBuddyTests.checksums). */
     @Test fun rigChecksumParity() {
         val sums = BuddyCharacter.entries.map { String.format(Locale.US, "%.4f", BuddyRig.checksum(it)) }
-        assertEquals(listOf("0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220", "15289.7078", "14836.0100", "12662.2864", "14607.2357", "12859.3196", "16388.4397", "14471.9114"), sums)
+        assertEquals(listOf("0.0000", "29155.8356", "19939.9990", "28728.3206", "20913.1220", "15289.7078", "14836.0100", "12662.2864", "14607.2357", "12859.3196", "16388.4397", "14471.9114", "0.0000"), sums)
     }
 
     /** = iOS testMirroredFramesDoublePoses: lật gương khung có sẵn để gấp đôi dáng. */
@@ -245,7 +245,7 @@ class KeyboardBuddyTests {
                 BuddySprites.CHEER.toList(), BuddySprites.REACT.toList()))
             for (f in seq) assertTrue(BuddySprites.cell(f) < 7)
         assertEquals(3, BuddySprites.cell(103)); assertFalse(BuddySprites.isMirrored(6))
-        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
+        for (c in BuddyCharacter.RIGGED) {
             val d = BuddySprites.dance(c, 3).toList(); val o = BuddySprites.turnOrder(c).toList()
             assertEquals(setOf(2, 3, 4, 5, 6), o.toSet())
             val s = d.indexOf(o[0])
@@ -275,7 +275,7 @@ class KeyboardBuddyTests {
     }
 
     @Test fun everyRigComplete() {
-        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
+        for (c in BuddyCharacter.RIGGED) {
             val r = BuddyRig.rig(c)!!
             val required = if (c == BuddyCharacter.KOI) listOf(BuddyPart.TAIL, BuddyPart.BODY, BuddyPart.ARM_L, BuddyPart.ARM_R, BuddyPart.HEAD, BuddyPart.SLEEP)
                 else listOf(BuddyPart.LEG_L, BuddyPart.LEG_R, BuddyPart.BODY, BuddyPart.ARM_L, BuddyPart.ARM_R, BuddyPart.HEAD, BuddyPart.SLEEP)
@@ -496,7 +496,7 @@ class KeyboardBuddyTests {
         // id theme trùng KeyboardTheme.
         for (id in listOf("tet", "tetMai", "xmas", "xmasSnow", "halloween", "trungthu"))
             assertTrue(id, KeyboardTheme.entries.any { it.id == id })
-        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
+        for (c in BuddyCharacter.RIGGED) {
             assertTrue(BuddyOutfit.make(null, c).pieces.isEmpty())
             for (s in BuddySeason.entries.take(4)) { val o = BuddyOutfit.make(s, c); assertFalse("$c $s", o.pieces.isEmpty() && o.recolor.isEmpty()) }
         }
@@ -507,7 +507,7 @@ class KeyboardBuddyTests {
     // MARK: driver (logic view Android)
 
     @Test fun driverZeroFramesWhenAsleep() {
-        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
+        for (c in BuddyCharacter.RIGGED) {
             val d = BuddyDriver(BuddyRig.rig(c)!!)
             var t = 100.0
             d.update(t)
@@ -632,7 +632,7 @@ class KeyboardBuddyTests {
 
     /** = iOS testLimbsAreFilledAndThickEnough: chi là hình tô (viền + ruột màu), ống tô + viền ≥ 1,8 dp ở cỡ thanh ~38 dp (khung v3: chân cô gái thon ≈ 1,9 dp); koi không chân. */
     @Test fun limbsAreFilledAndThickEnough() {
-        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
+        for (c in BuddyCharacter.RIGGED) {
             val r = BuddyRig.rig(c)!!
             val pt = 38 / r.full.h
             for (part in listOf(BuddyPart.LEG_L, BuddyPart.LEG_R, BuddyPart.ARM_L, BuddyPart.ARM_R)) {
@@ -713,7 +713,7 @@ class KeyboardBuddyTests {
     }
 
     @Test fun accessoriesHaveSmallBudgetsAndBothPoses() {
-        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
+        for (c in BuddyCharacter.RIGGED) {
             for (season in BuddySeason.entries.take(4)) {
                 val outfit = BuddyOutfit.make(season, c)
                 for (sleeping in listOf(false, true)) {
@@ -733,7 +733,7 @@ class KeyboardBuddyTests {
     }
 
     @Test fun namedMovesNeutralAndSelection() {
-        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
+        for (c in BuddyCharacter.RIGGED) {
             val style = BuddyRig.rig(c)!!.style
             for (tier in 0..3) {
                 for (move in BuddyDance.Move.entries) {

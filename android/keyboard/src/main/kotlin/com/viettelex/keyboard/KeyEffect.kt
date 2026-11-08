@@ -45,7 +45,9 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     LETTERS("letters", "Chữ bay"), // l10n-key
     SAND("sand", "Hạt cát"), // l10n-key
     // Theme Biển (11/2026): sóng vỗ bờ + bọt bắn + bong bóng + cá bơi khi combo ([SeaFx]).
-    SEA("sea", "Biển"); // l10n-key
+    SEA("sea", "Biển"), // l10n-key
+    // Theme "AI" (11/2026): chữ vừa ra vỡ thành vài "token" phát sáng bay vào thanh gợi ý ([TokenStream]).
+    TOKENS("tokens", "Token AI"); // l10n-key
 
     val title: String get() = tr(viTitle)
 
@@ -56,10 +58,10 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     val isParticle: Boolean get() = this in PARTICLES
 
     /** Chỉ bắn khi IME xếp sẵn sự kiện (từ vừa chốt / dấu vừa bỏ): phím thường không hẹn vẽ gì. = iOS isQueued. */
-    val isQueued: Boolean get() = this == EMOJIWORD || this == TONE || this == KEYWORD || this == LETTERS
+    val isQueued: Boolean get() = this == EMOJIWORD || this == TONE || this == KEYWORD || this == LETTERS || this == TOKENS
 
     /** IME phải so từ đang soạn trước/sau phím (dấu vừa bỏ / chữ vừa ra) — kiểu khác: không đọc gì. = iOS needsComposeDiff. */
-    val needsComposeDiff: Boolean get() = this == TONE || this == LETTERS
+    val needsComposeDiff: Boolean get() = this == TONE || this == LETTERS || this == TOKENS
 
     /** IME phải ghi từ vừa chốt ở ranh giới (tra bảng). = iOS needsBoundaryWord. */
     val needsBoundaryWord: Boolean get() = this == EMOJIWORD || this == KEYWORD
@@ -1281,4 +1283,116 @@ object SeaFx {
     }
     fun fishBobY(f: Double): Double = FISH_BOB * sin(2 * Math.PI * 3 * f)
     fun fishAlpha(f: Double): Double = if (f < 0.0 || f >= 1.0) 0.0 else minOf(1.0, f / 0.1, (1 - f) / 0.1)
+}
+
+/**
+ * "Token AI" (theme AI, 11/2026): ĐÚNG chữ engine vừa ra (như Chữ bay — [FlyingLetters.glyph]) loé ở mép trên phím rồi VỠ
+ * thành 3…6 "token" (chip bo tròn nhỏ, gradient phát sáng tím / lam / hồng) bay theo đường cong (Bézier bậc 2) VÀO thanh
+ * gợi ý (tâm dải gợi ý, hoặc Mắt AI nếu đang bật). Gợi ý đổi THẬT ⇒ vệt sáng quét dải MỘT lần ([ShimmerGate]).
+ * Hàm thuần = iOS TokenStream — CÙNG SỐ (test chéo hai nền tảng). Đơn vị dp (iOS pt) — đường cong tính bằng px thì
+ * truyền khung px, chỉ hằng số dp nhân density.
+ */
+object TokenStream {
+    /** Số chùm bay cùng lúc (xoay vòng). */
+    const val POOL = 4
+    const val MIN_CHIPS = 3
+    const val MAX_CHIPS = 6
+    /** Trần chip đang có (mọi chùm). */
+    const val CAP = POOL * MAX_CHIPS
+    const val CHIP_W = 7.0
+    const val CHIP_H = 4.0
+    const val CHIP_RADIUS = 2.0
+    /** Màu chip (RGB): tím, lam ngọc, hồng — chip i gradient màu i → màu i+1. */
+    val COLORS = intArrayOf(0xA855F7, 0x22D3EE, 0xF472B6)
+    const val GLYPH_TIME = 0.16
+    const val GLYPH_SIZE = 20.0
+    const val FLIGHT = 0.55
+    const val STAGGER = 0.035
+    const val SPREAD = 6.0
+    const val BEND = 42.0
+    /** Điểm điều khiển / đích cách mép ≥ INSET ⇒ cả đường cong (bao lồi) nằm TRONG bàn phím. */
+    const val INSET = 2.0
+    const val END_SCALE = 0.45
+
+    /** Số chip: 3 + số dấu (NFD, tối đa 2) + chẵn/lẻ mã chữ gốc ⇒ 3…6. "b" 3, "a" 4, "đ" 4, "á" 5, "ế" 6. */
+    fun chipCount(glyph: String): Int {
+        val nfd = java.text.Normalizer.normalize(glyph, java.text.Normalizer.Form.NFD)
+        if (nfd.isEmpty()) return MIN_CHIPS
+        val base = nfd.codePointAt(0)
+        val n = nfd.codePointCount(0, nfd.length)
+        return minOf(MAX_CHIPS, MIN_CHIPS + minOf(n - 1, 2) + base % 2)
+    }
+
+    /** Hệ số toả chip [i] trong [n] chip: −1…1. */
+    fun fan(i: Int, n: Int): Double = if (n > 1) (i - (n - 1) / 2.0) / ((n - 1) / 2.0) else 0.0
+
+    /** Kẹp (x, y) vào [inset, w − inset] × [inset, h − inset] → [out] (x, y). [inset] cùng đơn vị với w/h. */
+    fun clamp(x: Double, y: Double, w: Double, h: Double, out: DoubleArray, inset: Double = INSET) {
+        out[0] = x.coerceIn(inset, maxOf(inset, w - inset)); out[1] = y.coerceIn(inset, maxOf(inset, h - inset))
+    }
+
+    /** Điểm xuất phát chip [i]/[n] quanh mép trên phím ([kx], [ky]) → [out]. [unit] = px mỗi dp (1 = dp). */
+    fun start(kx: Double, ky: Double, i: Int, n: Int, w: Double, h: Double, out: DoubleArray, unit: Double = 1.0) =
+        clamp(kx + (i - (n - 1) / 2.0) * SPREAD * unit, ky, w, h, out, INSET * unit)
+
+    /**
+     * Điểm điều khiển — lệch VUÔNG GÓC khỏi trung điểm, cùng phía cho cả chùm (vòng cung vồng LÊN; bay thẳng đứng ⇒
+     * sang phải), chip ngoài cong hơn; kẹp trong khung ⇒ đường cong không ra ngoài bàn phím. → [out].
+     */
+    fun control(x0: Double, y0: Double, x1: Double, y1: Double, i: Int, n: Int, w: Double, h: Double, out: DoubleArray,
+                unit: Double = 1.0) {
+        val dx = x1 - x0; val dy = y1 - y0
+        val len = Math.hypot(dx, dy)
+        if (len <= 1e-9) { clamp(x0, y0, w, h, out, INSET * unit); return }
+        var nx = -dy / len; var ny = dx / len
+        if (ny > 0 || (ny == 0.0 && nx < 0)) { nx = -nx; ny = -ny }
+        val k = minOf(BEND * unit, len * 0.35) * (0.55 + 0.45 * fan(i, n))
+        clamp((x0 + x1) / 2 + nx * k, (y0 + y1) / 2 + ny * k, w, h, out, INSET * unit)
+    }
+
+    /** Điểm Bézier bậc 2 tại [t] (đã qua [ease]) → [out]. */
+    fun point(x0: Double, y0: Double, cx: Double, cy: Double, x1: Double, y1: Double, t: Double, out: DoubleArray) {
+        val u = 1 - t
+        out[0] = u * u * x0 + 2 * u * t * cx + t * t * x1
+        out[1] = u * u * y0 + 2 * u * t * cy + t * t * y1
+    }
+
+    fun delay(i: Int): Double = GLYPH_TIME / 2 + i * STAGGER
+    val lifetime: Double get() = delay(MAX_CHIPS - 1) + FLIGHT
+    fun ease(f: Double): Double { val x = f.coerceIn(0.0, 1.0); return x * x }
+    fun alpha(f: Double): Double = when {
+        f < 0 || f > 1 -> 0.0
+        f < 0.12 -> f / 0.12
+        f < 0.75 -> 1.0
+        else -> (1 - f) / 0.25
+    }
+    fun scale(f: Double): Double = 1 - (1 - END_SCALE) * f.coerceIn(0.0, 1.0)
+}
+
+/**
+ * Vệt sáng quét thanh gợi ý khi gợi ý ĐỔI THẬT (Token AI): cùng danh sách từ ⇒ không; rỗng ⇒ không; đổi quá dồn
+ * (< [MIN_GAP] từ lần quét trước) ⇒ bỏ. = iOS ShimmerGate.
+ */
+class ShimmerGate {
+    var words: List<String> = emptyList(); private set
+    private var last = -Double.MAX_VALUE
+
+    /** Gợi ý đang hiện là [w] lúc [t] (giây) ⇒ true = quét một lần. */
+    fun update(w: List<String>, t: Double): Boolean {
+        if (w == words) return false
+        words = w
+        if (w.isEmpty() || t - last < MIN_GAP) return false
+        last = t
+        return true
+    }
+    fun reset() { words = emptyList(); last = -Double.MAX_VALUE }
+
+    companion object {
+        const val DURATION = 0.3
+        const val MIN_GAP = 0.35
+        const val BAND = 0.35
+        const val PEAK_ALPHA = 0.35
+        /** Mép trái vệt ở tiến độ [f] với dải rộng [w]: từ −BAND·w tới w. */
+        fun left(f: Double, w: Double): Double { val b = BAND * w; return -b + f.coerceIn(0.0, 1.0) * (w + b) }
+    }
 }

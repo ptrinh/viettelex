@@ -49,7 +49,7 @@ class KeyboardBuddyExtrasTests {
         assertEquals("Mướp says hi!", BuddyName.bubble("Mướp", true, 30))
         assertEquals("Mướp sa…", BuddyName.bubble("Mướp", true, 8))
         assertNull(BuddyName.bubble("", false, 30))
-        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF })
+        for (c in BuddyCharacter.RIGGED)
             assertTrue(BackupSettings.all.any { it.key == BuddyName.key(c) })
         assertTrue(BackupSettings.all.any { it.key == BuddyBirthday.MONTH_KEY })
         assertTrue(BackupSettings.all.any { it.key == BuddyBirthday.DAY_KEY })

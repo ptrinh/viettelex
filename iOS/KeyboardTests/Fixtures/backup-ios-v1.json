@@ -71,6 +71,7 @@
     "swipeEnglish" : true,
     "swipeKeyCommands" : false,
     "swipeTyping" : true,
+    "systemBackdropAi" : false,
     "systemBackdropBlackHeart" : false,
     "systemBackdropContrast" : false,
     "systemBackdropGreenFloral" : false,

@@ -82,6 +82,9 @@ struct KeyboardPalette: Equatable {
     /// Viền phím cầu vồng (Gaming RGB, slot "borderFx":"rainbow"): MỘT lớp gradient che bằng hình viền mọi phím
     /// (RainbowBorder) — chỉ xoay màu khi đang gõ, nghỉ thì đứng yên. Android `rainbowBorder` cùng ý nghĩa.
     var rainbowBorder = false
+    /// Viền phím gradient tĩnh + dải cực quang mép trên (theme AI, slot "borderFx":"aurora") — AuroraFx; vẽ MỘT lần
+    /// (lớp gradient che bằng hình viền phím, như cầu vồng nhưng không chạy), 0 chi phí mỗi phím. Android `auroraBorder`.
+    var auroraBorder = false
     /// Lỗ thoát âm trên phím cách (Ghi-ta, slot "spaceDeco":"soundhole"): hình tròn tối + vành hoa văn vẽ MỘT lần
     /// (CAShapeLayer trong phím cách / Canvas Android), 0 chi phí mỗi phím. Android `spaceSoundhole` cùng ý nghĩa.
     var spaceSoundhole = false
@@ -271,6 +274,9 @@ enum KeyboardTheme: String, CaseIterable {
     // Bộ 11/2026 (Plus, THÊM CUỐI): Pixel 8-bit (máy chơi game cầm tay, phím vuông, âm "chip"), Biển (xanh biển + cát,
     // sóng + bọt, hiệu ứng Sóng nước), Theo giờ (bảng màu đổi theo giờ địa phương — "schedule" trong theme JSON).
     case pixel, sea, timeOfDay
+    // Theme "AI" (11/2026, Plus, THÊM CUỐI): nền navy đen, phím kính mờ viền gradient tím → lam ("borderFx":"aurora" +
+    // dải cực quang mép trên), motif "neural", hiệu ứng Token AI, âm "ai". Mắt AI = nhân vật Bạn đồng hành (người dùng bật).
+    case ai
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -307,6 +313,7 @@ enum KeyboardTheme: String, CaseIterable {
         case .pixel: return L("Pixel 8-bit")
         case .sea: return L("Biển")
         case .timeOfDay: return L("Theo giờ")
+        case .ai: return L("AI")
         }
     }
 
@@ -337,7 +344,8 @@ enum KeyboardTheme: String, CaseIterable {
              .trungthu, .valentine, .halloween,
              .guitar,
              .mole,
-             .pixel, .sea, .timeOfDay: return true
+             .pixel, .sea, .timeOfDay,
+             .ai: return true
         }
     }
 
@@ -413,6 +421,8 @@ struct KeyboardDecoration: Equatable {
         case strings, inlay
         // Bộ 11/2026: "pixel" = trái tim điểm ảnh 7×6 (Pixel 8-bit); "waves" = ngọn sóng, "bubbles" = cụm bọt (Biển).
         case pixel, waves, bubbles
+        // Theme "AI" (11/2026): "neural" = ba nút nối dây kiểu mạng nơ-ron + hàng chấm lưới trải ngang trong khe.
+        case neural
     }
     var motif: Motif
     var color: RGBA
@@ -555,6 +565,14 @@ struct KeyboardDecoration: Equatable {
     static let starDots: [(Double, Double, Double)] = [(-2.6, -0.3, 0.1), (-1.4, 0.34, 0.07), (1.5, -0.24, 0.08),
                                                         (2.7, 0.3, 0.11), (0.8, 0.4, 0.05)]
 
+    /// Nút + dây của motif "neural" (đơn vị motif): tâm nút (x, y) + bán kính; dây nối cặp nút (chỉ số); chấm lưới
+    /// (x, y, bán kính) trải ngang trong khe như starDots. Android NEURAL_* y hệt.
+    static let neuralNodes: [(Double, Double, Double)] = [(-0.34, 0.2, 0.12), (0, -0.24, 0.13), (0.34, 0.2, 0.12)]
+    static let neuralLinks: [(Int, Int)] = [(0, 1), (1, 2), (0, 2)]
+    static let neuralLinkWidth = 0.03
+    static let neuralDots: [(Double, Double, Double)] = [(-2.4, 0, 0.07), (-1.6, 0, 0.06), (-0.9, 0, 0.05), (0.9, 0, 0.05),
+                                                          (1.6, 0, 0.06), (2.4, 0, 0.07)]
+
     /// Một đường con khép kín: điểm đầu + các đoạn ([x, y] thẳng / [c1x, c1y, c2x, c2y, x, y] cubic).
     struct Sub: Equatable { var start: (Double, Double); var segs: [[Double]]
         static func == (a: Sub, b: Sub) -> Bool { a.start == b.start && a.segs == b.segs }
@@ -597,6 +615,18 @@ struct KeyboardDecoration: Equatable {
             return [Sub(start: (-0.5, 0), segs: [[-0.33, -0.3, -0.17, -0.3, 0, 0], [0.17, 0.3, 0.33, 0.3, 0.5, 0],
                                                  [0.5, w], [0.33, 0.3 + w, 0.17, 0.3 + w, 0, w],
                                                  [-0.17, -0.3 + w, -0.33, -0.3 + w, -0.5, w]])]
+        case .neural:
+            // Mạng nơ-ron: dây (hình chữ nhật mảnh giữa tâm hai nút) + nút tròn + chấm lưới hình thoi — cùng chiều quay.
+            var out: [Sub] = []
+            for (a, b) in Self.neuralLinks {
+                let p = Self.neuralNodes[a], q = Self.neuralNodes[b]
+                out.append(rect(p.0, p.1, atan2(q.1 - p.1, q.0 - p.0), hypot(q.0 - p.0, q.1 - p.1), Self.neuralLinkWidth))
+            }
+            for n in Self.neuralNodes { out.append(ell(n.0, n.1, n.2, n.2)) }
+            for d in Self.neuralDots {
+                out.append(Sub(start: (d.0 + d.2, d.1), segs: [[d.0, d.1 + d.2], [d.0 - d.2, d.1], [d.0, d.1 - d.2]]))
+            }
+            return out
         case .bubbles:
             // Cụm bọt: một bọt to + hai bọt nhỏ nổi lên lệch phải.
             return [ell(-0.12, 0.14, 0.3, 0.3), ell(0.27, -0.2, 0.15, 0.15), ell(0.36, 0.26, 0.09, 0.09)]
@@ -1229,7 +1259,7 @@ struct KeyStyle: Equatable {
         if let dc = s.deco {
             q.decoration = dc.motif.map { KeyboardDecoration(motif: $0, color: c(dc.color), density: dc.density, alt: dc.alt) }
         }
-        if let fx = s.borderFx { q.rainbowBorder = fx == ThemeSlots.rainbow }
+        if let fx = s.borderFx { q.rainbowBorder = fx == ThemeSlots.rainbow; q.auroraBorder = fx == ThemeSlots.aurora }
         if let sd = s.spaceDeco { q.spaceSoundhole = sd == ThemeSlots.soundhole }
         return q
     }

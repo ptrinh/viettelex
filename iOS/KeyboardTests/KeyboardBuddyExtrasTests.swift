@@ -44,7 +44,7 @@ final class KeyboardBuddyExtrasTests: XCTestCase {
         XCTAssertEqual(BuddyName.bubble("Mướp", english: true, maxCharacters: 30), "Mướp says hi!")
         XCTAssertEqual(BuddyName.bubble("Mướp", english: true, maxCharacters: 8), "Mướp sa…")
         XCTAssertNil(BuddyName.bubble("", english: false, maxCharacters: 30))
-        for c in BuddyCharacter.allCases where c != .off {
+        for c in BuddyCharacter.rigged {
             XCTAssertTrue(BackupSettings.all.contains { $0.key == BuddyName.key(c) })
         }
         XCTAssertTrue(BackupSettings.all.contains { $0.key == BuddyBirthday.monthKey })

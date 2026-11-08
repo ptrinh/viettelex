@@ -440,7 +440,8 @@ struct ThemeSlots: Equatable {
     var bg: UInt32?, key: UInt32?, special: UInt32?, ink: UInt32?, accent: UInt32?
     var accentInk: UInt32?, border: UInt32?, fn: UInt32?, fnInk: UInt32?, balloon: UInt32?, trail: UInt32?
     var deco: ThemeDeco?
-    /// Hiệu ứng viền phím: "rainbow" (Gaming RGB — viền cầu vồng, chỉ xoay màu khi đang gõ) | "none" (bản vá: bỏ).
+    /// Hiệu ứng viền phím: "rainbow" (Gaming RGB — viền cầu vồng, chỉ xoay màu khi đang gõ) | "aurora" (AI — viền
+    /// gradient tím → lam ĐỨNG YÊN + dải cực quang tĩnh dọc mép trên bàn phím; vẽ một lần, 0 hoạt ảnh) | "none" (bản vá: bỏ).
     var borderFx: String?
     /// Hình vẽ trên phím cách: "soundhole" (Ghi-ta — lỗ thoát âm tròn + vành hoa văn, vẽ MỘT lần vào lớp của phím cách)
     /// | "none" (bản vá: bỏ). Không có hook skin ảnh cho builtin (skin = ảnh tải về) ⇒ slot riêng tối giản.
@@ -449,7 +450,8 @@ struct ThemeSlots: Equatable {
     var isEmpty: Bool { self == ThemeSlots() }
     static let rainbow = "rainbow"
     /// Giá trị hợp lệ của "borderFx" (Android ThemeSlots.BORDER_FX y hệt).
-    static let borderFxValues: Set<String> = [rainbow, "none"]
+    static let aurora = "aurora"
+    static let borderFxValues: Set<String> = [rainbow, aurora, "none"]
     static let soundhole = "soundhole"
     /// Giá trị hợp lệ của "spaceDeco" (Android ThemeSlots.SPACE_DECO y hệt).
     static let spaceDecoValues: Set<String> = [soundhole, "none"]
@@ -1230,6 +1232,7 @@ extension ThemeSpec {
             p.decoration = KeyboardDecoration(motif: m, color: c(dc.color), density: dc.density, alt: dc.alt)
         }
         p.rainbowBorder = s.borderFx == ThemeSlots.rainbow
+        p.auroraBorder = s.borderFx == ThemeSlots.aurora
         p.spaceSoundhole = s.spaceDeco == ThemeSlots.soundhole
         return p
     }
@@ -1248,6 +1251,7 @@ extension ThemeSpec {
         if a(p.trail) != a(p.accent.alpha(0.6)) { s.trail = a(p.trail) }
         if let d = p.decoration { s.deco = ThemeDeco(motif: d.motif, color: a(d.color), density: d.density, alt: d.alt) }
         if p.rainbowBorder { s.borderFx = ThemeSlots.rainbow }
+        if p.auroraBorder { s.borderFx = ThemeSlots.aurora }
         if p.spaceSoundhole { s.spaceDeco = ThemeSlots.soundhole }
         return s
     }

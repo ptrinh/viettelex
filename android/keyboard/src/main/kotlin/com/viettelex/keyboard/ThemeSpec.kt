@@ -432,7 +432,9 @@ data class ThemeSlots(
         val REQUIRED = listOf("key", "special", "ink", "accent")
         const val RAINBOW = "rainbow"
         /** Giá trị hợp lệ của "borderFx" (iOS ThemeSlots.borderFxValues y hệt). */
-        val BORDER_FX = setOf(RAINBOW, "none")
+        /** Theme AI: viền gradient tĩnh + dải cực quang mép trên ([AuroraFx]). */
+        const val AURORA = "aurora"
+        val BORDER_FX = setOf(RAINBOW, AURORA, "none")
         const val SOUNDHOLE = "soundhole"
         /** Giá trị hợp lệ của "spaceDeco" (iOS ThemeSlots.spaceDecoValues y hệt). */
         val SPACE_DECO = setOf(SOUNDHOLE, "none")
@@ -701,7 +703,8 @@ data class ThemeSpec(
                 actionInk = s.accentInk ?: autoAccentInk(accent), chip = special, keyBorder = s.border,
                 isDark = c.luminance(ink) > 0.5, functionFill = s.fn, functionInk = s.fnInk,
                 decoration = s.deco?.let { d -> d.motif?.let { ThemeDecoration(it, d.color, d.density, d.alt) } },
-                rainbowBorder = s.borderFx == ThemeSlots.RAINBOW, spaceSoundhole = s.spaceDeco == ThemeSlots.SOUNDHOLE)
+                rainbowBorder = s.borderFx == ThemeSlots.RAINBOW, auroraBorder = s.borderFx == ThemeSlots.AURORA,
+                spaceSoundhole = s.spaceDeco == ThemeSlots.SOUNDHOLE)
         }
 
         /** Palette (đã giải) → màu một chế độ; bỏ trường bằng mặc định tự tính. */
@@ -712,7 +715,7 @@ data class ThemeSpec(
                 fn = p.functionFill, fnInk = p.functionInk, balloon = p.balloon.takeIf { it != p.keyFill },
                 trail = p.trail.takeIf { it != c.withAlpha(p.action, 0.6f) },
                 deco = p.decoration?.let { ThemeDeco(it.motif, it.color, it.density, it.alt) },
-                borderFx = if (p.rainbowBorder) ThemeSlots.RAINBOW else null,
+                borderFx = if (p.rainbowBorder) ThemeSlots.RAINBOW else if (p.auroraBorder) ThemeSlots.AURORA else null,
                 spaceDeco = if (p.spaceSoundhole) ThemeSlots.SOUNDHOLE else null)
         }
 

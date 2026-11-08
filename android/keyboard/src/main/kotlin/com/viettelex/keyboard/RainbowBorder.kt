@@ -172,3 +172,27 @@ class RainbowDriver(idleAfter: Double = RainbowBorder.IDLE_AFTER) {
     fun offset(t: Double) = motion.offset(t)
     fun alpha(t: Double) = fade.alpha(t)
 }
+
+/**
+ * "borderFx":"aurora" (theme AI, 11/2026): viền phím gradient ĐỨNG YÊN (tím → lam ngọc → hồng theo bề ngang bàn phím,
+ * cùng lớp viền với cầu vồng nhưng không chạy) + dải cực quang tĩnh dọc mép trên (vẽ một lần trong nền). 0 chi phí mỗi
+ * phím, 0 hoạt ảnh. = iOS AuroraFx (test số chung).
+ */
+object AuroraFx {
+    /** Viền phím: màu (RGB) + vị trí 0…1 bề ngang. */
+    val BORDER_COLORS = intArrayOf(0x8B5CF6, 0x22D3EE, 0xF472B6)
+    val BORDER_STOPS = doubleArrayOf(0.0, 0.55, 1.0)
+    const val BORDER_ALPHA = 0.85
+    const val LINE_WIDTH = 1.0
+    /** Dải cực quang: cao (dp) từ mép trên nội dung; màu ngang; độ đậm mép trên → 0 ở đáy dải. */
+    const val BAND_HEIGHT = 56.0
+    val BAND_COLORS = intArrayOf(0x7C3AED, 0x22D3EE, 0xA855F7, 0x06B6D4)
+    val BAND_STOPS = doubleArrayOf(0.0, 0.4, 0.7, 1.0)
+    const val BAND_ALPHA = 0.32
+    /** Độ đậm dải theo độ sâu [y] (dp, 0 = mép trên) — giảm bậc hai. */
+    fun bandOpacity(y: Double): Double {
+        if (y < 0 || y >= BAND_HEIGHT) return 0.0
+        val f = 1 - y / BAND_HEIGHT
+        return BAND_ALPHA * f * f
+    }
+}

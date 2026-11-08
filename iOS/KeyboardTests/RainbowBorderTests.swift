@@ -166,9 +166,13 @@ final class RainbowBorderTests: XCTestCase {
     }
 
     @MainActor func testOnlyRgbThemeHasOverlayAndItIsOneMaskedLayer() throws {
-        for t in KeyboardTheme.allCases where t != .rgb {
+        for t in KeyboardTheme.allCases where t != .rgb && t != .ai {
             XCTAssertNil(keyboard(t).rainbow, "\(t): theme khác ⇒ không có lớp (0 chi phí)")
         }
+        // AI ("borderFx":"aurora"): cùng lớp mặt nạ viền nhưng gradient TĨNH (AIThemeTests).
+        XCTAssertEqual(keyboard(.ai).rainbow?.isAurora, true)
+        XCTAssertNotNil(keyboard(.ai).debugAuroraBand, "dải cực quang mép trên")
+        XCTAssertNil(keyboard(.rgb).debugAuroraBand)
         let kb = keyboard(.rgb)
         let v = try XCTUnwrap(kb.rainbow)
         XCTAssertFalse(v.isUserInteractionEnabled)

@@ -85,7 +85,12 @@ enum class BuddyCharacter(val id: String, val viTitle: String) {
     PIG("pig", "Heo con"),
     DRAGON("dragon", "Rồng con"),
     EAGLE("eagle", "Đại bàng"), // l10n-key
-    ROBOT("robot", "Robot"); // l10n-key
+    ROBOT("robot", "Robot"), // l10n-key
+    /**
+     * "Mắt AI" (theme AI, 11/2026): quả cầu có đồng tử nhìn theo phím — KHÔNG có khung hình ([BuddyRig]) / điệu nhảy;
+     * IME vẽ bằng ime/AIEyeView ở đúng ô + "Vị trí & cỡ" của nhân vật. = iOS BuddyCharacter.ai.
+     */
+    AI("ai", "Mắt AI"); // l10n-key
 
     val title: String get() = tr(viTitle)
     /** Mèo dùng miễn phí (Phil 27/10/2026); các nhân vật khác thuộc Plus. */
@@ -95,7 +100,12 @@ enum class BuddyCharacter(val id: String, val viTitle: String) {
         val DEFAULT = OFF
         val IDS: Set<String> = entries.map { it.id }.toSet()
         fun of(raw: Any?): BuddyCharacter = entries.firstOrNull { it.id == raw } ?: DEFAULT
+        /** Nhân vật có khung hình + máy trạng thái nhảy (trừ Tắt / Mắt AI). = iOS BuddyCharacter.rigged. */
+        val RIGGED: List<BuddyCharacter> get() = entries.filter { it.isRigged }
     }
+
+    /** Có khung hình vẽ ([BuddyRig]) — Mắt AI thì không (AIEyeView riêng). */
+    val isRigged: Boolean get() = this != OFF && this != AI
 }
 
 /**
@@ -1119,6 +1129,7 @@ class BuddyRig(
             BuddyCharacter.DRAGON -> DRAGON
             BuddyCharacter.EAGLE -> EAGLE
             BuddyCharacter.ROBOT -> ROBOT
+            BuddyCharacter.AI -> null
         }
 
         /** = iOS BuddyRig.checksum (cùng công thức) — sửa hình một bên mà quên bên kia thì test đỏ. */

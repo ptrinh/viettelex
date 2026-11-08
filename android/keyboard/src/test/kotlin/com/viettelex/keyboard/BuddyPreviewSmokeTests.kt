@@ -37,7 +37,7 @@ class BuddyPreviewSmokeTests {
 
     @Test fun everyCharacterSeasonFramingBuildsAndAnimates() {
         val seasons = listOf<BuddySeason?>(null) + BuddySeason.entries
-        for (c in BuddyCharacter.entries.filter { it != BuddyCharacter.OFF }) {
+        for (c in BuddyCharacter.RIGGED) {
             val rig = BuddyRig.rig(c) ?: error("$c thiếu rig")
             parseAll(rig.pieces)
             BuddySVG.parse(rig.brows)
