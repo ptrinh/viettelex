@@ -46,7 +46,9 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
     /** Theme "AI" (11/2026): "blip" synth mềm — sine trượt lên D6 → G6 + nốt A6 khẽ chen — công thức đầu file Swift. */
     AI("ai", "Synth AI"), // l10n-key
     /** Theme "Neon Night Club" (11/2026): nhịp club — chữ = hi-hat, xoá = kick, chức năng = kick + hat ([KeySoundSynth.clubRecipe]). */
-    CLUB("club", "Nhịp club"); // l10n-key
+    CLUB("club", "Nhịp club"), // l10n-key
+    /** Theme "Mưa đêm" (11/2026): mưa lách tách trên kính — phím chữ xoay 4 biến thể cao độ ([KeySoundSynth.rainRecipe]). */
+    RAIN("rain", "Mưa"); // l10n-key
 
     /** true ⇒ phát qua SoundPool riêng; [SYSTEM] ⇒ playSoundEffect, không dựng gì. */
     val usesPool: Boolean get() = this != SYSTEM
@@ -56,7 +58,7 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
         val DEFAULT = SUBTLE
         /** Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức [KeySoundSynth.baseRecipe]. */
         val PRESETS = listOf(SUBTLE, WOOD, MECHANICAL, TYPEWRITER, BUBBLE, ROCK, POP, WATER, VINTAGE, PHAO, JINGLE, SCIFI,
-            TRONG, BOO, BOP, CHIP, AI, CLUB)
+            TRONG, BOO, BOP, CHIP, AI, CLUB, RAIN)
         /** Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta). */
         val ALL_PRESETS = PRESETS + PIANO + DANTRANH + GUITAR
         /**
@@ -170,7 +172,42 @@ object KeySoundSynth {
                 t(0.38, 1760.0, 1760.0, tau = 0.012, delay = 0.014)),
             emptyList(), 0.002, 0.05, 5000.0, 0.36)
         KeySoundStyle.CLUB -> clubRecipe(Kind.LETTER)
+        KeySoundStyle.RAIN -> rainRecipe(Kind.LETTER, 0)
     }
+
+    /**
+     * Mưa (theme Mưa đêm) — "tích" mưa lách tách, NHỎ nhất (đỉnh 0.34): chữ = giọt "plip" trượt lên 1150 → 1600 Hz + nhiễu
+     * lọc + hạt trễ 9 ms, cao độ × [RAIN_PITCH] theo biến thể; xoá trầm hơn; chức năng = giọt to rơi vũng + 3 hạt.
+     * Seed cố định ("rain") theo loại phím + biến thể. iOS rainRecipe y hệt (công thức + checksum chung).
+     */
+    val RAIN_PITCH = doubleArrayOf(1.0, 1.07, 0.94, 1.12)
+    val RAIN_VARIANTS: Int get() = RAIN_PITCH.size
+    /** Thứ tự biến thể phím chữ (xoay vòng — không bao giờ lặp liền một cao độ). */
+    val RAIN_ORDER = intArrayOf(0, 2, 1, 3, 2, 0, 3, 1)
+    /** Biến thể của lần bấm phím chữ thứ [n]. */
+    fun rainVariant(n: Int): Int = RAIN_ORDER[((n % RAIN_ORDER.size) + RAIN_ORDER.size) % RAIN_ORDER.size]
+
+    fun rainRecipe(k: Kind, variant: Int): Recipe = when (k) {
+        Kind.LETTER -> {
+            val p = RAIN_PITCH[((variant % RAIN_PITCH.size) + RAIN_PITCH.size) % RAIN_PITCH.size]
+            Recipe(listOf(t(0.55, 1150.0 * p, 1600.0 * p, glide = 0.005, tau = 0.006)),
+                listOf(n(1.0, hp = 500.0, lp = 1800.0 * p, tau = 0.0032), n(0.45, hp = 500.0, lp = 1800.0 * p, tau = 0.002, delay = 0.009)),
+                0.0006, 0.030, 2400.0, 0.34)
+        }
+        Kind.DELETE -> Recipe(listOf(t(0.5, 1000.0, 1350.0, glide = 0.006, tau = 0.007)),
+            listOf(n(1.0, hp = 400.0, lp = 1700.0, tau = 0.0032), n(0.35, hp = 400.0, lp = 1700.0, tau = 0.002, delay = 0.011)),
+            0.0006, 0.034, 2400.0, 0.34)
+        Kind.MODIFIER -> Recipe(listOf(t(0.45, 820.0, 1100.0, glide = 0.007, tau = 0.009), t(0.3, 1300.0, 1700.0, glide = 0.005, tau = 0.005, delay = 0.013)),
+            listOf(n(1.0, hp = 300.0, lp = 1500.0, tau = 0.0045), n(0.5, hp = 400.0, lp = 1900.0, tau = 0.0022, delay = 0.013),
+                n(0.3, hp = 400.0, lp = 1900.0, tau = 0.0016, delay = 0.024)),
+            0.0006, 0.040, 2200.0, 0.34)
+    }
+
+    fun rainSeed(k: Kind, variant: Int): Int =
+        0x7261696E xor (0x85EBCA6B.toInt() * (k.ordinal + 1)) xor (0x9E3779B9.toInt() * variant)
+
+    /** Mẫu phím chữ biến thể [v] của kiểu Mưa (biến thể 0 = samples(RAIN, LETTER)). */
+    fun rainLetterSamples(v: Int): FloatArray = render(rainRecipe(Kind.LETTER, v), rainSeed(Kind.LETTER, v))
 
     /**
      * Nhịp club (theme Neon Night Club) — MỖI LOẠI PHÍM một tiếng riêng (không theo luật cao độ ×0.86 / ×0.74): chữ = hi-hat
@@ -265,6 +302,7 @@ object KeySoundSynth {
     /** Xoá trầm hơn chút; phím chức năng trầm + dài hơn (như iOS). */
     fun recipe(s: KeySoundStyle, k: Kind): Recipe {
         if (s == KeySoundStyle.CLUB) return clubRecipe(k)   // mỗi loại phím một tiếng (hat / kick / kick + hat)
+        if (s == KeySoundStyle.RAIN) return rainRecipe(k, 0)
         val r = baseRecipe(s)
         val (pitch, decay, extra) = when (k) {
             Kind.LETTER -> return r
@@ -280,6 +318,7 @@ object KeySoundSynth {
     fun seed(s: KeySoundStyle, k: Kind): Int =
         // Nhịp club: seed CỐ ĐỊNH ("club"), không theo vị trí — checksum không đổi khi nhánh khác thêm kiểu trước nó.
         if (s == KeySoundStyle.CLUB) 0x636C7562 xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
+        else if (s == KeySoundStyle.RAIN) rainSeed(k, 0)
         else (0x9E3779B9.toInt() * (s.ordinal + 1)) xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
 
     fun samples(s: KeySoundStyle, k: Kind): FloatArray = render(recipe(s, k), seed(s, k))

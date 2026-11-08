@@ -49,7 +49,7 @@ class ThemeSetTests {
         assertEquals(lines.first { it[0] == "interactive" }[1].split(','), KeyboardTheme.entries.filter { it.isInteractive }.map { it.id })
         assertEquals("thứ tự lưới phải trùng iOS", lines.first { it[0] == "picker" }[1].split(','), ThemePicker.ordered().map { it.id })
         val rows = lines.filter { it[0] !in setOf("order", "plus", "interactive", "picker") }
-        assertEquals(62, rows.size)
+        assertEquals(64, rows.size)
         for (r in rows) {
             val t = KeyboardTheme.entries.first { it.id == r[0] }
             val p = t.palette(r[1] == "1")!!
@@ -63,7 +63,7 @@ class ThemeSetTests {
     @Test fun darkVariantsDifferAndFollowSystem() {
         val fixed = setOf(KeyboardTheme.OLED, KeyboardTheme.CONTRAST, KeyboardTheme.BLACK_HEART, KeyboardTheme.NEON,
             KeyboardTheme.TET, KeyboardTheme.XMAS, KeyboardTheme.PIANO, KeyboardTheme.RGB, KeyboardTheme.SPACE,
-            KeyboardTheme.TRUNG_THU, KeyboardTheme.HALLOWEEN, KeyboardTheme.MOLE, KeyboardTheme.PIXEL, KeyboardTheme.AI, KeyboardTheme.NIGHTCLUB)
+            KeyboardTheme.TRUNG_THU, KeyboardTheme.HALLOWEEN, KeyboardTheme.MOLE, KeyboardTheme.PIXEL, KeyboardTheme.AI, KeyboardTheme.NIGHTCLUB, KeyboardTheme.RAINY_NIGHT)
         for (t in KeyboardTheme.entries) {
             val light = t.palette(false) ?: continue
             val dark = t.palette(true)!!
@@ -186,7 +186,7 @@ class ThemeSetTests {
     /** Neon Night Club — iOS testNightclubTheme y hệt. */
     @Test fun nightclubTheme() {
         val t = KeyboardTheme.NIGHTCLUB
-        assertEquals(KeyboardTheme.NIGHTCLUB, KeyboardTheme.entries.last())
+        assertEquals(KeyboardTheme.RAINY_NIGHT, KeyboardTheme.entries[KeyboardTheme.entries.indexOf(KeyboardTheme.NIGHTCLUB) + 1])
         val spec = t.spec!!
         assertTrue(t.isPlus)
         assertEquals("Neon Night Club", spec.nameVi); assertEquals("Neon Night Club", spec.nameEn)

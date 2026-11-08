@@ -444,7 +444,7 @@ final class AIThemeTests: XCTestCase {
 
     /// Motif "neural": nút + dây trong ô ±0.5, chấm lưới trải ngang (|y| ≤ 0.45), cùng chiều quay, mốc chung android.
     func testNeuralMotif() {
-        XCTAssertEqual(KeyboardDecoration.Motif.allCases.last, .neural)
+        XCTAssertTrue(KeyboardDecoration.Motif.allCases.contains(.neural))
         let subs = KeyboardDecoration.shape(.neural)
         XCTAssertEqual(subs.count, 12)
         var sum = 0.0

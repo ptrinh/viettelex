@@ -36,6 +36,9 @@ enum KeyEffect: String, CaseIterable {
     case tokens
     // Theme Neon Night Club (11/2026): Sàn nhảy LED — phím vừa bấm + các phím quanh thắp neon thành vòng vuông lan ra.
     case dancefloor
+    // Theme "Mưa đêm" (11/2026): mưa đêm êm trên ô kính — giọt rơi + loang + lăn ở phím, hạt mưa nền trượt chậm, mưa
+    // thưa dần khi gõ và ánh đèn vàng ấm ở góc sáng lên (RainFx).
+    case rain
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -78,6 +81,7 @@ enum KeyEffect: String, CaseIterable {
         case .sea: return L("Biển")
         case .tokens: return L("Token AI")
         case .dancefloor: return L("Sàn nhảy LED")
+        case .rain: return L("Mưa")
         }
     }
 
@@ -143,6 +147,7 @@ enum KeyEffect: String, CaseIterable {
         case .string: return StringPluck.pool
         case .emojiword: return 3
         case .sea: return SeaFx.tapSlots    // chùm bọt + bong bóng; sóng / cá là layer riêng
+        case .rain: return RainFx.tapSlots  // giọt + vòng loang + vệt ướt; mưa nền / đèn là layer riêng
         default:
             guard particlesPerTap > 0 else { return 1 }
             return max(1, min(8, KeyEffectPool.cap / particlesPerTap))
@@ -155,6 +160,7 @@ enum KeyEffect: String, CaseIterable {
         case .ink, .emojiword, .string: return 1
         case .wave: return WaveRings.rings
         case .sea: return SeaFx.layersPerTap
+        case .rain: return RainFx.layersPerTap
         default: return particlesPerTap
         }
     }
@@ -1331,6 +1337,138 @@ enum SeaFx {
     }
 }
 
+// MARK: - Theme "Mưa đêm" (11/2026): Mưa
+
+/// "Mưa" (theme Mưa đêm): mưa đêm êm trên ô kính — chậm, dịu, ấm dần.
+///  • Mưa nền: khi đang gõ, vài hạt mưa có vệt trượt xuống "ô kính" (cả bàn phím, rất mờ), trượt — dừng — trượt tiếp
+///    (`profiles`), tối đa `maxDrops`; hạt mới chỉ sinh lúc bấm phím, cách nhau ≥ `spawnGap(intensity:)` ⇒ ngừng gõ thì
+///    các hạt đang trượt chạy nốt (`dropLife` = `idleAfter`) rồi thôi — nghỉ = 0 animation / 0 khung hình.
+///  • Bấm phím: một giọt rơi xuống đúng phím, loang một vòng nhỏ, rồi lăn xuống để lại vệt ướt ngắn mờ dần.
+///  • Mưa tạnh dần: mỗi lần bàn phím hiện mưa đậm (1.0); cứ `stepKeys` phím mưa thưa đi `stepDrop` (sàn
+///    `floorIntensity`), ánh đèn vàng ấm ở góc dưới phải sáng dần 0 → `glowMax`. Ẩn bàn phím ⇒ về đầu.
+/// Hàm thuần song sinh android RainFx.kt — CÙNG SỐ (test chéo hai nền tảng). Thời gian giây, đơn vị pt (Android dp).
+enum RainFx {
+    // Mưa tạnh dần
+    static let stepKeys = 40
+    static let stepDrop = 0.1
+    static let floorIntensity = 0.2
+    /// Độ đậm của mưa sau `keys` phím kể từ lúc bàn phím hiện: 1.0 → giảm `stepDrop` mỗi `stepKeys` phím, sàn 0.2.
+    static func intensity(keys: Int) -> Double {
+        let steps = Swift.max(keys, 0) / stepKeys
+        return Swift.max(floorIntensity, 1 - stepDrop * Double(steps))
+    }
+    /// Ánh đèn ấm: 0 khi mưa đậm nhất → `glowMax` khi mưa thưa tới sàn (tuyến tính theo độ thưa).
+    static let glowMax = 0.6
+    static func glow(keys: Int) -> Double { glowMax * (1 - intensity(keys: keys)) / (1 - floorIntensity) }
+    /// Chuyển độ sáng đèn khi mưa thưa một nấc: êm (smoothstep) trong `glowFade` giây — không bao giờ nháy.
+    static let glowFade = 1.5
+    static func glowAt(from a: Double, to b: Double, t: Double) -> Double {
+        let u = Swift.min(Swift.max(t / glowFade, 0), 1)
+        return a + (b - a) * u * u * (3 - 2 * u)
+    }
+    /// Đèn: màu vàng hổ phách, tâm gần góc dưới phải, bán kính theo cỡ bàn phím; độ đậm theo bán kính (0…1).
+    static let glowColor: UInt32 = 0xFFB25C
+    static let glowStops: [(location: Double, alpha: Double)] = [(0, 0.42), (0.45, 0.17), (1, 0)]
+    static func glowCenter(width w: Double, height h: Double) -> (x: Double, y: Double) { (w * 0.9, h * 0.94) }
+    static func glowRadius(width w: Double, height h: Double) -> Double { Swift.min(0.55 * w, 0.9 * h) }
+
+    // Mưa nền
+    static let maxDrops = 12
+    /// Đời một hạt mưa nền (trượt từ trên xuống hết ô kính) = ngưỡng nghỉ: ngừng gõ `idleAfter` giây là hết hạt.
+    static let dropLife = 3.0
+    static let idleAfter = 3.0
+    static let baseGap = 0.25
+    /// Khoảng cách tối thiểu giữa hai hạt mưa nền: mưa thưa ⇒ hạt thưa (0,25 s → 1,25 s).
+    static func spawnGap(intensity i: Double) -> Double { baseGap / Swift.max(i, floorIntensity) }
+    static func shouldSpawn(sinceLast dt: Double, intensity i: Double) -> Bool { dt >= spawnGap(intensity: i) - 1e-9 }
+    /// Số hạt cùng lúc nhiều nhất ở độ đậm `i` (≤ `maxDrops`).
+    static func maxInFlight(intensity i: Double) -> Int {
+        Swift.min(maxDrops, Int((dropLife / spawnGap(intensity: i) - 1e-9).rounded(.up)))
+    }
+    static func isIdle(sinceLastKey dt: Double) -> Bool { dt >= idleAfter }
+    /// Ba kiểu trượt (tỉ lệ thời gian, tỉ lệ quãng): trượt — đọng lại (bò rất chậm) — trượt — đọng — trượt hết kính.
+    static let profiles: [[(t: Double, y: Double)]] = [
+        [(0, 0), (0.18, 0.22), (0.40, 0.25), (0.58, 0.55), (0.74, 0.57), (1, 1)],
+        [(0, 0), (0.25, 0.34), (0.50, 0.37), (0.66, 0.66), (0.80, 0.68), (1, 1)],
+        [(0, 0), (0.12, 0.14), (0.34, 0.16), (0.55, 0.48), (0.72, 0.50), (1, 1)],
+    ]
+    static func profile(slot: Int) -> Int { ((slot % profiles.count) + profiles.count) % profiles.count }
+    /// Tỉ lệ quãng đã trượt ở tỉ lệ thời gian `f` (nội suy tuyến tính giữa các mốc).
+    static func travel(_ f: Double, profile p: Int) -> Double {
+        let k = profiles[((p % profiles.count) + profiles.count) % profiles.count]
+        if f <= 0 { return 0 }
+        if f >= 1 { return 1 }
+        for i in 1..<k.count where f <= k[i].t {
+            let a = k[i - 1], b = k[i]
+            return a.y + (b.y - a.y) * (f - a.t) / (b.t - a.t)
+        }
+        return 1
+    }
+    /// Hạt mưa nền xuất phát trên mép trên `startAbove` pt và trượt quá mép dưới `overshoot` pt (vệt ra hết khỏi kính).
+    static let startAbove = 4.0
+    static let overshoot = 18.0
+    static func travelDistance(height h: Double) -> Double { h + startAbove + overshoot }
+    static let dropPeakAlpha = 0.45
+    static func dropAlpha(_ f: Double) -> Double {
+        guard f >= 0, f < 1 else { return 0 }
+        return dropPeakAlpha * Swift.min(1, f / 0.06, (1 - f) / 0.1)
+    }
+    static let dropMargin = 10.0
+    /// Hoành độ hạt mưa nền thứ `seq` (từ mép trái bàn phím).
+    static func dropX(seq: Int, width w: Double) -> Double {
+        let span = Swift.max(w - 2 * dropMargin, 0)
+        return dropMargin + span * fxValue(fxStep(fxSeed(seq &* 37 &+ 11)))
+    }
+    /// Hạt mưa nền: đầu giọt elip (bán kính ngang, dọc) + vệt nước phía trên (dài, rộng, độ đậm tương đối).
+    static let headRX = 1.5, headRY = 2.1
+    static let streakLength = 16.0, streakWidth = 1.0, streakAlpha = 0.55
+
+    // Giọt ở phím
+    static let tapSlots = 6
+    /// Giọt + vòng loang + vệt ướt.
+    static let layersPerTap = 3
+    static let fallTime = 0.12
+    static let fallFrom = 16.0
+    static let rollStart = 0.2
+    static let rollTime = 1.1
+    static let rollDistance = 30.0
+    static let rollWiggle = 2.5
+    static let trailFade = 0.8
+    static var tapLife: Double { rollStart + rollTime + trailFade }
+    static let tapDropRadius = 2.2
+    static let tapDropAlpha = 0.9
+    /// Giọt ở phím (gốc = tâm phím, y xuống): rơi nhanh dần từ trên xuống, đọng ở tâm, rồi lăn xuống (nhanh dần, lắc nhẹ).
+    static func drop(_ t: Double) -> (x: Double, y: Double, alpha: Double) {
+        if t < 0 { return (0, -fallFrom, 0) }
+        if t < fallTime { let u = t / fallTime; return (0, -fallFrom * (1 - u * u), tapDropAlpha) }
+        if t < rollStart { return (0, 0, tapDropAlpha) }
+        if t < rollStart + rollTime {
+            let u = (t - rollStart) / rollTime
+            return (rollX(u), rollDistance * u * u, tapDropAlpha * (u < 0.7 ? 1 : (1 - u) / 0.3))
+        }
+        return (rollX(1), rollDistance, 0)
+    }
+    static func rollX(_ u: Double) -> Double { rollWiggle * sin(Double.pi * u) }
+    static let ringFrom = 1.5, ringTo = 11.0, ringTime = 0.4, ringAlpha = 0.7, ringWidth = 1.0
+    /// Vòng loang khi giọt chạm phím: nở nhanh rồi chậm, mờ dần.
+    static func ring(_ t: Double) -> (radius: Double, alpha: Double) {
+        let a = t - fallTime
+        guard a >= 0, a < ringTime else { return (0, 0) }
+        let u = a / ringTime, e = 1 - (1 - u) * (1 - u)
+        return (ringFrom + (ringTo - ringFrom) * e, ringAlpha * (1 - u))
+    }
+    static let trailAlpha = 0.35, trailWidth = 1.6
+    /// Vệt ướt sau giọt lăn: phần đã lăn (tỉ lệ quãng, = y giọt / rollDistance) + độ đậm (mờ dần sau khi giọt lăn hết).
+    static func trail(_ t: Double) -> (end: Double, alpha: Double) {
+        let a = t - rollStart
+        guard a >= 0 else { return (0, 0) }
+        let u = Swift.min(a / rollTime, 1)
+        if a < rollTime { return (u * u, trailAlpha) }
+        let fade = (a - rollTime) / trailFade
+        return fade < 1 ? (1, trailAlpha * (1 - fade)) : (1, 0)
+    }
+}
+
 // MARK: - Theme "AI" (11/2026): Token AI
 
 /// "Token AI": ĐÚNG chữ engine vừa ra (như Chữ bay — FlyingLetters.glyph) loé ở mép trên phím rồi VỠ thành 3…6 "token"
@@ -1780,6 +1918,18 @@ final class KeyEffectOverlay: UIView {
     private var flickerGate = DanceFloor.FlickerGate()
     /// Sàn nhảy LED: cổng an toàn chung với lớp flash phím cách (BeatFlashView.gate). nil ⇒ chỉ FlickerGate.
     var flashGate: BeatFlash.Gate?
+    // Mưa — mưa nền: pool maxDrops hạt dựng lười theo cỡ bàn phím (animation gắn MỘT lần), bấm chỉ đặt x + beginTime;
+    // đèn ấm: MỘT lớp gradient tròn, chỉ đổi độ đậm khi mưa thưa một nấc (một animation ngắn tự gỡ).
+    private var rainDrops: [CALayer] = []
+    private var rainBuiltFor: CGSize = .zero
+    private var rainCursor = 0
+    private var rainSeq = 0
+    private var rainKeys = 0
+    private var rainLastDrop: CFTimeInterval = -.greatestFiniteMagnitude
+    private var rainLastKey: CFTimeInterval = -.greatestFiniteMagnitude
+    private var rainGlow: CAGradientLayer?
+    private var rainGlowLevel = 0.0
+    private var rainSweepScheduled = false
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -1849,7 +1999,7 @@ final class KeyEffectOverlay: UIView {
         rebuild()
     }
 
-    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor]
+    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor, .rain]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -2026,6 +2176,14 @@ final class KeyEffectOverlay: UIView {
     var debugShimmerFrame: CGRect? { shimmerClip?.frame }
     /// Sàn nhảy LED: gốc các chùm ô đã dựng (pool) + lớp nháy cả bàn phím (nil = chưa nháy lần nào).
     var debugDanceRoots: [CALayer] { dances.map(\.root) }
+    /// Mưa: hạt mưa nền đã dựng (pool) + số đang hiện, số phím đã gõ, độ đậm mưa, độ sáng đèn (đích) + lớp đèn.
+    var debugRainDrops: [CALayer] { rainDrops }
+    var debugRainVisibleDrops: Int { rainDrops.filter { !$0.isHidden }.count }
+    var debugRainKeys: Int { rainKeys }
+    var debugRainIntensity: Double { RainFx.intensity(keys: rainKeys) }
+    var debugRainGlowLevel: Double { rainGlowLevel }
+    var debugRainGlow: CAGradientLayer? { rainGlow }
+    func debugRainSweep() { sweepRain(force: true) }
     var debugFloorFlicker: CALayer? { floorFlicker?.root }
     #else
     static let drawsOffscreen = false
@@ -2044,6 +2202,7 @@ final class KeyEffectOverlay: UIView {
         case .sand: fireSand(c, now: now, media: media)
         case .sea: fireSea(c, now: now, media: media)
         case .dancefloor: fireDance(r, now: now, media: media)
+        case .rain: fireRain(c, now: now, media: media)
         case .flash: fireFlash(now: now, media: media)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)
@@ -2417,6 +2576,7 @@ final class KeyEffectOverlay: UIView {
         plasma.reset()
         clearSand()                       // ẩn bàn phím ⇒ đống cát về 0
         haltSea()
+        haltRain()                        // ẩn bàn phím ⇒ mưa về đậm, đèn tắt, không còn hạt nào
     }
 
     // MARK: Đợt 3 — Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá, Chữ bay, Hạt cát
@@ -3305,6 +3465,220 @@ final class KeyEffectOverlay: UIView {
         CATransaction.commit()
     }
 
+    // MARK: Mưa
+
+    /// Màu nước: trắng trên theme tối, màu nhấn trên theme sáng (trắng không thấy trên phím sáng).
+    private var rainInk: UIColor { dark ? .white : color }
+
+    private func fireRain(_ c: CGPoint, now: CFTimeInterval, media: CFTimeInterval) {
+        rainKeys += 1
+        rainLastKey = media
+        launch(nextBurst(), at: c, now: now)            // giọt rơi + loang + lăn ở phím
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        if rainBuiltFor != bounds.size {                // cỡ bàn phím đổi ⇒ dựng lại hạt mưa nền theo cỡ mới
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            for d in rainDrops { d.removeFromSuperlayer() }
+            CATransaction.commit()
+            rainDrops.removeAll(); rainCursor = 0
+            rainBuiltFor = bounds.size
+        }
+        layoutRainGlow()
+        let i = RainFx.intensity(keys: rainKeys)
+        if RainFx.shouldSpawn(sinceLast: media - rainLastDrop, intensity: i) {
+            rainLastDrop = media
+            launchRainDrop(now: now)
+        }
+        let g = RainFx.glow(keys: rainKeys)
+        if g != rainGlowLevel { setRainGlow(g) }
+        scheduleRainSweep(after: Swift.max(RainFx.dropLife, RainFx.tapLife) + 0.05)
+    }
+
+    private func launchRainDrop(now: CFTimeInterval) {
+        let slot = rainCursor
+        rainCursor = (slot + 1) % RainFx.maxDrops
+        let d = slot < rainDrops.count ? rainDrops[slot] : makeRainDrop(slot)
+        if slot >= rainDrops.count { rainDrops.append(d) }
+        d.position = CGPoint(x: Double(bounds.minX) + RainFx.dropX(seq: rainSeq, width: Double(bounds.width)),
+                             y: Double(bounds.minY) - RainFx.startAbove)
+        rainSeq += 1
+        d.beginTime = now
+        d.isHidden = false
+    }
+
+    /// Hạt mưa nền: gốc = đầu giọt; vệt nước (gradient trong → trắng mờ) phía trên; trượt theo `RainFx.profiles`.
+    private func makeRainDrop(_ slot: Int) -> CALayer {
+        let root = CALayer()
+        root.bounds = .zero
+        root.isHidden = true
+        let ink = rainInk
+        let streak = CAGradientLayer()
+        let sw = CGFloat(RainFx.streakWidth), sl = CGFloat(RainFx.streakLength), ry = CGFloat(RainFx.headRY)
+        streak.frame = CGRect(x: -sw / 2, y: -sl - ry * 0.6, width: sw, height: sl)
+        streak.colors = [ink.withAlphaComponent(0).cgColor, ink.withAlphaComponent(CGFloat(RainFx.streakAlpha)).cgColor]
+        streak.cornerRadius = sw / 2
+        let head = CAShapeLayer()
+        let rx = CGFloat(RainFx.headRX)
+        head.path = CGPath(ellipseIn: CGRect(x: -rx, y: -ry, width: 2 * rx, height: 2 * ry), transform: nil)
+        head.fillColor = ink.cgColor
+        head.contentsScale = UIScreen.main.scale
+        root.addSublayer(streak)
+        root.addSublayer(head)
+        let n = 60, life = RainFx.dropLife, p = RainFx.profile(slot: slot)
+        let dist = RainFx.travelDistance(height: Double(bounds.height))
+        let fs = (0...n).map { Double($0) / Double(n) }
+        let move = CAKeyframeAnimation(keyPath: "position")
+        move.isAdditive = true
+        move.values = fs.map { NSValue(cgPoint: CGPoint(x: 0, y: RainFx.travel($0, profile: p) * dist)) }
+        move.calculationMode = .linear
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        fade.values = fs.map { RainFx.dropAlpha(Swift.min($0, 0.9999)) }
+        root.opacity = 0
+        root.add(Self.group([move, fade], duration: life, delay: 0), forKey: "fx")
+        layer.insertSublayer(root, at: rainGlow == nil ? 0 : 1)   // dưới giọt ở phím, trên đèn
+        return root
+    }
+
+    /// Một lần bấm: vệt ướt + vòng loang + giọt — animation gắn MỘT lần (lấy mẫu RainFx), bấm chỉ dời + beginTime.
+    private func makeRainTap(into b: CALayer) {
+        let ink = rainInk
+        let n = 42, life = RainFx.tapLife
+        let ts = (0...n).map { life * Double($0) / Double(n) }
+        func kf(_ path: String, _ values: [Any], additive: Bool = false) -> CAKeyframeAnimation {
+            let a = CAKeyframeAnimation(keyPath: path)
+            a.values = values; a.calculationMode = .linear; a.isAdditive = additive
+            return a
+        }
+        func shape() -> CAShapeLayer {
+            let l = CAShapeLayer()
+            l.bounds = .zero; l.position = .zero
+            l.contentsScale = UIScreen.main.scale
+            l.opacity = 0
+            return l
+        }
+        // Vệt ướt: đường lăn của giọt (u = 0…1), vẽ dần theo strokeEnd = tỉ lệ quãng đã lăn.
+        let trail = shape()
+        let tp = CGMutablePath()
+        for k in 0...24 {
+            let u = Double(k) / 24
+            let pt = CGPoint(x: RainFx.rollX(u), y: RainFx.rollDistance * u * u)
+            if k == 0 { tp.move(to: pt) } else { tp.addLine(to: pt) }
+        }
+        trail.path = tp
+        trail.fillColor = nil
+        trail.strokeColor = ink.cgColor
+        trail.lineWidth = CGFloat(RainFx.trailWidth)
+        trail.lineCap = .round; trail.lineJoin = .round
+        trail.strokeEnd = 0
+        let tr = ts.map { RainFx.trail($0) }
+        trail.add(Self.group([kf("strokeEnd", tr.map(\.end)), kf("opacity", tr.map(\.alpha))], duration: life, delay: 0),
+                  forKey: "fx")
+        // Vòng loang: path vòng tròn theo bán kính lấy mẫu (cùng số phần tử ⇒ CA nội suy được).
+        let ring = shape()
+        ring.fillColor = nil
+        ring.strokeColor = ink.cgColor
+        ring.lineWidth = CGFloat(RainFx.ringWidth)
+        let rg = ts.map { RainFx.ring($0) }
+        let circles: [CGPath] = rg.map {
+            let r = CGFloat(Swift.max($0.radius, RainFx.ringFrom))
+            return CGPath(ellipseIn: CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r), transform: nil)
+        }
+        ring.path = circles[0]
+        ring.add(Self.group([kf("path", circles), kf("opacity", rg.map(\.alpha))], duration: life, delay: 0), forKey: "fx")
+        // Giọt: rơi xuống phím, đọng, lăn xuống.
+        let drop = shape()
+        let r = CGFloat(RainFx.tapDropRadius)
+        drop.path = CGPath(ellipseIn: CGRect(x: -r, y: -r * 1.25, width: 2 * r, height: 2.5 * r), transform: nil)
+        drop.fillColor = ink.cgColor
+        let dp = ts.map { RainFx.drop($0) }
+        drop.add(Self.group([kf("position", dp.map { NSValue(cgPoint: CGPoint(x: $0.x, y: $0.y)) }, additive: true),
+                             kf("opacity", dp.map(\.alpha))], duration: life, delay: 0), forKey: "fx")
+        b.addSublayer(trail)
+        b.addSublayer(ring)
+        b.addSublayer(drop)
+    }
+
+    /// Đèn ấm góc dưới phải: lớp gradient tròn dựng lười lần đầu cần, khung theo cỡ bàn phím (gốc bounds — #151).
+    private func layoutRainGlow() {
+        guard let g = rainGlow else { return }
+        let w = Double(bounds.width), h = Double(bounds.height)
+        let c = RainFx.glowCenter(width: w, height: h), rad = RainFx.glowRadius(width: w, height: h)
+        let f = CGRect(x: Double(bounds.minX) + c.x - rad, y: Double(bounds.minY) + c.y - rad, width: 2 * rad, height: 2 * rad)
+        guard g.frame != f else { return }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        g.frame = f
+        CATransaction.commit()
+    }
+
+    private func setRainGlow(_ level: Double) {
+        let g: CAGradientLayer
+        if let x = rainGlow { g = x } else {
+            g = CAGradientLayer()
+            g.type = .radial
+            g.startPoint = CGPoint(x: 0.5, y: 0.5)
+            g.endPoint = CGPoint(x: 1, y: 1)
+            let c = UIColor(rgb: RainFx.glowColor)
+            g.colors = RainFx.glowStops.map { c.withAlphaComponent(CGFloat($0.alpha)).cgColor }
+            g.locations = RainFx.glowStops.map { NSNumber(value: $0.location) }
+            g.opacity = 0
+            layer.insertSublayer(g, at: 0)                // dưới hạt mưa / giọt
+            rainGlow = g
+            layoutRainGlow()
+        }
+        let from = (g.presentation()?.opacity ?? g.opacity)
+        rainGlowLevel = level
+        g.opacity = Float(level)
+        let a = CABasicAnimation(keyPath: "opacity")
+        a.fromValue = from; a.toValue = Float(level)
+        a.duration = RainFx.glowFade
+        a.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)   // ≈ smoothstep (Android glowAt)
+        a.isRemovedOnCompletion = true
+        g.add(a, forKey: "glow")
+    }
+
+    /// MỘT asyncAfter cho cả loạt gõ: nghỉ đủ đời hạt ⇒ ẩn mọi hạt / giọt (không còn layer nào chạy), không timer lặp.
+    private func scheduleRainSweep(after s: Double) {
+        guard !rainSweepScheduled else { return }
+        rainSweepScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + s) { [weak self] in
+            guard let self else { return }
+            self.rainSweepScheduled = false
+            self.sweepRain(force: false)
+        }
+    }
+
+    private func sweepRain(force: Bool) {
+        guard effect == .rain else { return }
+        let idle = CACurrentMediaTime() - rainLastKey
+        let need = Swift.max(RainFx.dropLife, RainFx.tapLife)
+        if !force && idle < need {
+            scheduleRainSweep(after: need - idle + 0.05)
+            return
+        }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        for d in rainDrops { d.isHidden = true }
+        for b in bursts { b.isHidden = true }
+        CATransaction.commit()
+    }
+
+    /// Ô xem thử (app): như đã gõ `keys` phím từ lúc bàn phím hiện — mưa thưa + đèn ấm theo đúng đường cong RainFx.
+    func previewRain(keys: Int) {
+        guard effect == .rain else { return }
+        rainKeys = Swift.max(keys - 1, 0)
+    }
+
+    private func haltRain() {
+        rainKeys = 0
+        rainLastDrop = -.greatestFiniteMagnitude
+        rainLastKey = -.greatestFiniteMagnitude
+        rainGlowLevel = 0
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        for d in rainDrops { d.isHidden = true }
+        if effect == .rain { for b in bursts { b.isHidden = true } }
+        rainGlow?.removeAllAnimations()
+        rainGlow?.opacity = 0
+        CATransaction.commit()
+    }
+
     // MARK: dựng
 
     /// Một chùm: các layer con, animation gắn sẵn.
@@ -3362,6 +3736,8 @@ final class KeyEffectOverlay: UIView {
             b.addSublayer(l)
         case .sea:
             makeSeaSplash(into: b)
+        case .rain:
+            makeRainTap(into: b)
         case _ where effect.usesGlow:
             let g = CGFloat(GlowSprite.size)
             for i in 0..<effect.particlesPerTap {
@@ -3443,6 +3819,8 @@ final class KeyEffectOverlay: UIView {
         sandPile?.removeFromSuperlayer()
         for w in seaWaves { w.root.removeFromSuperlayer() }
         seaFish?.removeFromSuperlayer()
+        for d in rainDrops { d.removeFromSuperlayer() }
+        rainGlow?.removeFromSuperlayer()
         flashLayer?.removeFromSuperlayer()
         matrixRoot?.removeFromSuperlayer()
         CATransaction.commit()
@@ -3463,6 +3841,8 @@ final class KeyEffectOverlay: UIView {
         seaWaves.removeAll(); seaBuiltFor = .zero; seaCursor = 0; seaFish = nil; seaFishSeq = 0
         seaLastWave = -.greatestFiniteMagnitude; seaLastFish = -.greatestFiniteMagnitude; seaLevel = 0
         dances.removeAll(); dancePool = KeyEffectPool(capacity: DanceFloor.pool); danceSeq = 0
+        rainDrops.removeAll(); rainBuiltFor = .zero; rainCursor = 0; rainSeq = 0; rainGlow = nil
+        rainKeys = 0; rainGlowLevel = 0; rainLastDrop = -.greatestFiniteMagnitude; rainLastKey = -.greatestFiniteMagnitude
         floorFlicker = nil; flickerGate = DanceFloor.FlickerGate()
         if effect != .shake { shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey) }
         shakeMeter.reset()

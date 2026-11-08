@@ -281,6 +281,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Hoạ tiết nền (Tim đen / Hoa xanh): MỘT CAShapeLayer trong themeBackdrop, path dựng lại chỉ
     /// khi đổi cỡ — rasterize một lần, không vẽ gì mỗi phím / mỗi lần gõ.
     private let decorLayer = CAShapeLayer()
+    /// Dải phủ nền của motif "bokeh" (Mưa đêm — KeyboardDecoration.bokehShade): dựng lười, theme khác không có.
+    private var decorShade: CAGradientLayer?
     private var decorGaps: [KeyboardDecoration.Gap]?
     private var decorWidth: CGFloat = 0
     /// Dải cực quang tĩnh mép trên (theme AI, "borderFx":"aurora" — AuroraFx): gradient ngang + mặt nạ gradient dọc trong
@@ -2201,11 +2203,25 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func applyDecoration(hidden: Bool) {
         guard let d = palette.decoration, !hidden else {
             if decorLayer.superlayer != nil { decorLayer.isHidden = true }
+            decorShade?.isHidden = true
             return
         }
         CATransaction.begin(); CATransaction.setDisableActions(true)
         if decorLayer.superlayer == nil { themeBackdrop.layer.addSublayer(decorLayer) }
         decorLayer.isHidden = false
+        if d.hasShade {
+            if decorShade == nil {
+                let g = CAGradientLayer()
+                g.colors = KeyboardDecoration.bokehShade.map { RGBA(hex: $0.argb & 0xFF_FFFF, alpha: Double($0.argb >> 24) / 255).ui.cgColor }
+                g.locations = KeyboardDecoration.bokehShade.map { NSNumber(value: $0.location) }
+                themeBackdrop.layer.insertSublayer(g, below: decorLayer)
+                decorShade = g
+            }
+            decorShade?.isHidden = false
+            decorShade?.frame = themeBackdrop.bounds
+        } else {
+            decorShade?.isHidden = true
+        }
         decorLayer.fillColor = d.color.ui.cgColor
         decorGaps = nil                           // motif có thể đã đổi → dựng lại path
         CATransaction.commit()
@@ -2216,6 +2232,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         guard let d = palette.decoration, decorLayer.superlayer != nil, !decorLayer.isHidden else { return }
         let size = themeBackdrop.bounds.size
         guard size.width > 0, size.height > 0 else { return }
+        if let g = decorShade, !g.isHidden, g.frame != themeBackdrop.bounds {
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            g.frame = themeBackdrop.bounds
+            CATransaction.commit()
+        }
         // Khe giữa các hàng phím (toạ độ view) — chỉ khi layout (không mỗi lần gõ), chỉ theme có hoạ tiết.
         let gaps = keyRowGaps()
         guard gaps != decorGaps || size.width != decorWidth else { return }
@@ -2237,6 +2258,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var debugPalette: KeyboardPalette { palette }
     /// Test: nền + màu glyph phím ⇧ khi bật (màu nhấn nếu người dùng chọn).
     var debugShiftOnColors: (fill: UIColor, ink: UIColor) { (shiftOnFill, shiftOnInk) }
+    /// Test: dải phủ nền của motif "bokeh" đang hiện (Mưa đêm) — nil = chưa từng dựng.
+    var debugDecorShade: CAGradientLayer? { decorShade.flatMap { $0.isHidden ? nil : $0 } }
     /// Test: hoạ tiết nền đang hiện (có path) hay không.
     var debugDecorationVisible: Bool {
         decorLayer.superlayer != nil && !decorLayer.isHidden && !themeBackdrop.isHidden && decorLayer.path != nil

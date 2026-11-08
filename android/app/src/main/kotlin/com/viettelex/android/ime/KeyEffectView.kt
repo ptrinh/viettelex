@@ -24,6 +24,7 @@ import com.viettelex.keyboard.KeywordKind
 import com.viettelex.keyboard.LaserBeam
 import com.viettelex.keyboard.PlasmaArc
 import com.viettelex.keyboard.PlasmaChain
+import com.viettelex.keyboard.RainFx
 import com.viettelex.keyboard.SandPile
 import com.viettelex.keyboard.SeaFx
 import com.viettelex.keyboard.ShakeFx
@@ -267,6 +268,26 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     /** Sàn nhảy LED: cổng an toàn chung với flash phím cách ([BeatFlashView.gate]). null ⇒ chỉ FlickerGate. */
     var flashGate: com.viettelex.keyboard.BeatFlash.Gate? = null
     private var flickerStart = Long.MIN_VALUE / 2
+    // Mưa — giọt ở phím (pool TAP_SLOTS), hạt mưa nền (pool MAX_DROPS), đèn ấm; mảng cấp sẵn, Path / Paint dùng lại.
+    private val rainTapStart = LongArray(RainFx.TAP_SLOTS) { Long.MIN_VALUE / 2 }
+    private val rainTapX = FloatArray(RainFx.TAP_SLOTS)
+    private val rainTapY = FloatArray(RainFx.TAP_SLOTS)
+    private var rainTapCursor = 0
+    private val rainDropStart = LongArray(RainFx.MAX_DROPS) { Long.MIN_VALUE / 2 }
+    private val rainDropX = FloatArray(RainFx.MAX_DROPS)
+    private var rainDropCursor = 0
+    private var rainSeq = 0
+    private var rainKeys = 0
+    private var rainLastDrop = Long.MIN_VALUE / 2
+    private var rainLastKey = Long.MIN_VALUE / 2
+    private var rainGlowFrom = 0.0
+    private var rainGlowTo = 0.0
+    private var rainGlowStart = Long.MIN_VALUE / 2
+    private var rainGlowR = -1f
+    private val rainGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val rainPath = Path()
+    private val rainOval = RectF()
+    private val rainTmp = DoubleArray(3)
     private val flickerTiles = FloatArray(DanceFloor.MAX_GRID * 6)
     private var flickerN = 0
     private val danceRect = RectF()
@@ -421,6 +442,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             }
             KeyEffect.SAND -> fireSand(x, y, now)
             KeyEffect.SEA -> fireSea(x, y, now)
+            KeyEffect.RAIN -> fireRain(x, y, now)
             KeyEffect.DANCEFLOOR -> fireDance(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.FLASH -> if (flash.trigger(now)) flashStart = now
             KeyEffect.LIGHTNING -> fireLightning(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
@@ -513,6 +535,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         shakeStart = Long.MIN_VALUE / 2; shakeMeter.reset()
         shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         danceStart.fill(Long.MIN_VALUE / 2); flickerStart = Long.MIN_VALUE / 2
+        haltRain()                         // ẩn bàn phím ⇒ mưa về đậm, đèn tắt, không còn hạt nào
         pendN = 0
         invalidate()
     }
@@ -579,6 +602,134 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     internal fun dancesAlive(now: Long): Int = danceStart.count { (now - it) / 1000.0 in 0.0..<DanceFloor.LIFETIME }
     internal val flickersFired: Int get() = flickerGate.fired
 
+    // ---- Mưa ([RainFx] — hàm thuần chung iOS; ở đây px = dp × density)
+
+    /** Màu nước: trắng trên theme tối, màu nhấn trên theme sáng (= iOS rainInk). */
+    private fun rainInk(): Int = if (dark) 0xFFFFFFFF.toInt() else (color or (0xFF shl 24))
+
+    private fun fireRain(x: Float, y: Float, now: Long) {
+        rainKeys++
+        rainLastKey = now
+        val s = rainTapCursor; rainTapCursor = (s + 1) % RainFx.TAP_SLOTS
+        rainTapStart[s] = now; rainTapX[s] = x; rainTapY[s] = y
+        if (width <= 0 || height <= 0) return
+        val i = RainFx.intensity(rainKeys)
+        if (RainFx.shouldSpawn((now - rainLastDrop) / 1000.0, i)) {
+            rainLastDrop = now
+            val d = rainDropCursor; rainDropCursor = (d + 1) % RainFx.MAX_DROPS
+            rainDropStart[d] = now
+            rainDropX[d] = (RainFx.dropX(rainSeq++, (width / density).toDouble()) * density).toFloat()
+        }
+        val g = RainFx.glow(rainKeys)
+        if (g != rainGlowTo) {
+            rainGlowFrom = rainGlowLevel(now); rainGlowTo = g; rainGlowStart = now
+        }
+    }
+
+    /** Độ sáng đèn ấm lúc [now] (đang chuyển nấc thì theo smoothstep). */
+    private fun rainGlowLevel(now: Long): Double = RainFx.glowAt(rainGlowFrom, rainGlowTo, (now - rainGlowStart) / 1000.0)
+
+    /** Ô xem thử (app): như đã gõ [keys] phím từ lúc bàn phím hiện — mưa thưa + đèn ấm theo đúng RainFx (= iOS). */
+    fun previewRain(keys: Int) { if (sim.effect == KeyEffect.RAIN) rainKeys = maxOf(keys - 1, 0) }
+
+    private fun drawRain(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        val w = width.toFloat(); val h = height.toFloat()
+        // Đèn ấm (dưới hạt mưa): gradient tròn dựng lại chỉ khi đổi cỡ.
+        val gt = (now - rainGlowStart) / 1000.0
+        if (gt >= 0 && gt < RainFx.GLOW_FADE && rainGlowTo != rainGlowFrom) any = true
+        val gl = rainGlowLevel(now)
+        if (gl > 0.0 && w > 0 && h > 0) {
+            val wd = (w / density).toDouble(); val hd = (h / density).toDouble()
+            val cx = (RainFx.glowCenterX(wd) * density).toFloat(); val cy = (RainFx.glowCenterY(hd) * density).toFloat()
+            val r = (RainFx.glowRadius(wd, hd) * density).toFloat()
+            if (r != rainGlowR) {
+                rainGlowR = r
+                val c = RainFx.GLOW_COLOR
+                rainGlowPaint.shader = RadialGradient(cx, cy, r,
+                    IntArray(RainFx.GLOW_ALPHAS.size) { ((RainFx.GLOW_ALPHAS[it] * 255).toInt() shl 24) or c },
+                    FloatArray(RainFx.GLOW_STOPS.size) { RainFx.GLOW_STOPS[it].toFloat() }, Shader.TileMode.CLAMP)
+            }
+            rainGlowPaint.alpha = (255 * gl).toInt().coerceIn(0, 255)
+            canvas.drawCircle(cx, cy, r, rainGlowPaint)
+        }
+        val ink = rainInk()
+        // Mưa nền: vệt (vài đoạn mờ dần lên trên) + đầu giọt elip.
+        val dist = RainFx.travelDistance((h / density).toDouble())
+        for (d in 0 until RainFx.MAX_DROPS) {
+            val f = (now - rainDropStart[d]) / 1000.0 / RainFx.DROP_LIFE
+            if (f < 0.0 || f >= 1.0) continue
+            any = true
+            val a = RainFx.dropAlpha(f)
+            val px = rainDropX[d]
+            val py = ((-RainFx.START_ABOVE + RainFx.travel(f, RainFx.profile(d)) * dist) * density).toFloat()
+            stroke.color = ink; stroke.strokeWidth = (RainFx.STREAK_WIDTH * density).toFloat()
+            val seg = (RainFx.STREAK_LENGTH * density / RAIN_STREAK_SEGS).toFloat()
+            val top0 = py - (RainFx.HEAD_RY * 0.6 * density).toFloat()
+            for (k in 0 until RAIN_STREAK_SEGS) {
+                val y1 = top0 - k * seg
+                stroke.alpha = (255 * a * RainFx.STREAK_ALPHA * (RAIN_STREAK_SEGS - k) / RAIN_STREAK_SEGS).toInt().coerceIn(0, 255)
+                canvas.drawLine(px, y1, px, y1 - seg, stroke)
+            }
+            fill.color = ink; fill.alpha = (255 * a).toInt().coerceIn(0, 255)
+            rainOval.set(px - (RainFx.HEAD_RX * density).toFloat(), py - (RainFx.HEAD_RY * density).toFloat(),
+                px + (RainFx.HEAD_RX * density).toFloat(), py + (RainFx.HEAD_RY * density).toFloat())
+            canvas.drawOval(rainOval, fill)
+        }
+        // Giọt ở phím: vệt ướt, vòng loang, giọt.
+        for (s in 0 until RainFx.TAP_SLOTS) {
+            val t = (now - rainTapStart[s]) / 1000.0
+            if (t < 0.0 || t >= RainFx.TAP_LIFE) continue
+            any = true
+            val ox = rainTapX[s]; val oy = rainTapY[s]
+            RainFx.trail(t, rainTmp)
+            if (rainTmp[1] > 0.0 && rainTmp[0] > 0.0) {
+                val uEnd = Math.sqrt(rainTmp[0])
+                rainPath.rewind(); rainPath.moveTo(ox, oy)
+                for (k in 1..RAIN_TRAIL_STEPS) {
+                    val u = uEnd * k / RAIN_TRAIL_STEPS
+                    rainPath.lineTo(ox + (RainFx.rollX(u) * density).toFloat(), oy + (RainFx.ROLL_DISTANCE * u * u * density).toFloat())
+                }
+                stroke.color = ink; stroke.alpha = (255 * rainTmp[1]).toInt().coerceIn(0, 255)
+                stroke.strokeWidth = (RainFx.TRAIL_WIDTH * density).toFloat(); stroke.strokeCap = Paint.Cap.ROUND
+                canvas.drawPath(rainPath, stroke)
+                stroke.strokeCap = Paint.Cap.BUTT
+            }
+            RainFx.ring(t, rainTmp)
+            if (rainTmp[1] > 0.0) {
+                stroke.color = ink; stroke.alpha = (255 * rainTmp[1]).toInt().coerceIn(0, 255)
+                stroke.strokeWidth = (RainFx.RING_WIDTH * density).toFloat()
+                canvas.drawCircle(ox, oy, (rainTmp[0] * density).toFloat(), stroke)
+            }
+            RainFx.drop(t, rainTmp)
+            if (rainTmp[2] > 0.0) {
+                val r = (RainFx.TAP_DROP_RADIUS * density).toFloat()
+                val cx = ox + (rainTmp[0] * density).toFloat(); val cy = oy + (rainTmp[1] * density).toFloat()
+                fill.color = ink; fill.alpha = (255 * rainTmp[2]).toInt().coerceIn(0, 255)
+                rainOval.set(cx - r, cy - r * 1.25f, cx + r, cy + r * 1.25f)
+                canvas.drawOval(rainOval, fill)
+            }
+        }
+        return any
+    }
+
+    private fun haltRain() {
+        rainKeys = 0
+        rainLastDrop = Long.MIN_VALUE / 2; rainLastKey = Long.MIN_VALUE / 2
+        rainTapStart.fill(Long.MIN_VALUE / 2); rainDropStart.fill(Long.MIN_VALUE / 2)
+        rainGlowFrom = 0.0; rainGlowTo = 0.0; rainGlowStart = Long.MIN_VALUE / 2
+    }
+
+    /** Test: số phím đã gõ, độ đậm mưa, đèn (đích), hạt mưa nền / giọt ở phím còn chạy lúc [now], vị trí (px). */
+    internal val rainKeyCount: Int get() = rainKeys
+    internal val rainIntensity: Double get() = RainFx.intensity(rainKeys)
+    internal val rainGlowTarget: Double get() = rainGlowTo
+    internal fun rainGlowAt(now: Long): Double = rainGlowLevel(now)
+    internal fun rainDropsAlive(now: Long): Int = rainDropStart.count { (now - it) / 1000.0 in 0.0..<RainFx.DROP_LIFE }
+    internal fun rainTapsAlive(now: Long): Int = rainTapStart.count { (now - it) / 1000.0 in 0.0..<RainFx.TAP_LIFE }
+    internal fun rainDropX(i: Int): Float = rainDropX[i]
+    internal fun rainTapPos(i: Int): Pair<Float, Float> = rainTapX[i] to rainTapY[i]
+
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         halt()
@@ -586,6 +737,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
+        rainGlowR = -1f                    // Mưa: dựng lại gradient đèn theo cỡ mới
         if (sim.effect == KeyEffect.MATRIX && w > 0) columns = Array(MatrixRain.columnCount((w / density).toDouble())) { MatrixRain.column(it) }
     }
 
@@ -621,6 +773,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.TOKENS -> drawTokens(canvas, now)
             KeyEffect.SAND -> drawSand(canvas, now)
             KeyEffect.SEA -> drawSea(canvas, now)
+            KeyEffect.RAIN -> drawRain(canvas, now)
             KeyEffect.DANCEFLOOR -> drawDance(canvas, now)
             else -> drawParticles(canvas, now)
         }
@@ -1579,6 +1732,9 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         /** Rung dây: thời lượng (ms) = StringPluck.DURATION. */
         val STRING_MS = Math.round(StringPluck.DURATION * 1000)
         const val DEFAULT_H = 42f
+        /** Mưa: số đoạn vẽ vệt hạt mưa nền (mờ dần lên trên) / số bước vẽ vệt ướt sau giọt lăn. */
+        const val RAIN_STREAK_SEGS = 4
+        const val RAIN_TRAIL_STEPS = 12
         /** Biển: đời một con sóng / một lần cá bơi (ms). */
         val SEA_LIFE_MS = Math.round(SeaFx.LIFE * 1000)
         val SEA_FISH_MS = Math.round(SeaFx.FISH_DURATION * 1000)

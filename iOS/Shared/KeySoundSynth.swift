@@ -88,12 +88,15 @@ enum KeySoundStyle: String, CaseIterable {
     // Theme "Neon Night Club" (11/2026): nhịp club điện tử — phím chữ = hi-hat "tss" ngắn, xoá = kick điện tử, cách /
     // Enter (chức năng) = kick + hat ⇒ gõ chữ rồi cách thành nhịp "tss tss tss BÙM" xen kẽ tự nhiên.
     case club
+    // Theme "Mưa đêm" (11/2026): mưa lách tách trên kính — tiếng "tích" nhiễu lọc rất nhỏ + giọt nước "plip" trượt lên,
+    // phím chữ đổi cao độ nhẹ theo bộ biến thể cố định (KeySoundSynth.rainVariant) ⇒ nghe như mưa rơi lộp độp.
+    case rain
 
     /// Bật "Âm thanh phím" lần đầu ⇒ "Nhẹ nhàng" (bật công tắc phải NGHE khác đi; "iOS" = như lúc tắt).
     static let defaultStyle: KeySoundStyle = .subtle
     /// Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức `baseRecipe`.
     static let presets: [KeySoundStyle] = [.subtle, .wood, .mechanical, .typewriter, .bubble, .rock, .pop, .water, .vintage, .phao, .jingle,
-                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club]
+                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club, .rain]
     /// Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta).
     static let allPresets: [KeySoundStyle] = presets + [.piano, .dantranh, .guitar]
     /// DANH SÁCH DUY NHẤT id hợp lệ cho trường "sound" của theme JSON (chọn theme ⇒ đặt keySoundStyle).
@@ -136,6 +139,7 @@ enum KeySoundStyle: String, CaseIterable {
         case .chip: return LK("Bíp 8-bit")
         case .ai: return LK("Synth AI")
         case .club: return LK("Nhịp club")
+        case .rain: return LK("Mưa")
         }
     }
 
@@ -253,8 +257,49 @@ enum KeySoundSynth {
                           attack: 0.002, duration: 0.05, outLP: 5000, peak: 0.36)
         case .club:
             return clubRecipe(.letter)
+        case .rain:
+            return rainRecipe(.letter, variant: 0)
         }
     }
+
+    /// Mưa (theme Mưa đêm) — "tích" mưa lách tách, NHỎ nhất trong các kiểu (đỉnh 0.34):
+    ///   chữ: giọt "plip" sine trượt LÊN 1150 → 1600 Hz (glide 5 ms) τ6 ms (0.55) + nhiễu hp 500 lp 1.8 kHz τ3.2 ms (1.0)
+    ///        + hạt thứ hai trễ 9 ms (0.45 τ2 ms); 30 ms; outLP 2.4 kHz. Cao độ (tone + lp nhiễu) × rainPitch[biến thể].
+    ///   xoá: trầm hơn — 1000 → 1350 Hz τ7 ms (0.5) + nhiễu lp 1.7 kHz τ3.2 ms + hạt trễ 11 ms (0.35); 34 ms.
+    ///   chức năng (cách / Enter): giọt to hơn rơi xuống vũng — 820 → 1100 Hz τ9 ms + giọt nhỏ trễ 13 ms + 3 hạt nhiễu; 40 ms.
+    /// Seed cố định ("rain") theo loại phím + biến thể — không theo vị trí case. Android KeySoundSynth.rainRecipe y hệt.
+    static let rainPitch: [Double] = [1.0, 1.07, 0.94, 1.12]
+    static var rainVariants: Int { rainPitch.count }
+    /// Thứ tự biến thể phím chữ (xoay vòng — không bao giờ lặp liền một cao độ) ⇒ "mưa" không đều như máy.
+    static let rainOrder: [Int] = [0, 2, 1, 3, 2, 0, 3, 1]
+    /// Biến thể của lần bấm phím chữ thứ `n` (0, 1, 2…).
+    static func rainVariant(_ n: Int) -> Int { rainOrder[((n % rainOrder.count) + rainOrder.count) % rainOrder.count] }
+
+    static func rainRecipe(_ k: KeySoundKind, variant v: Int) -> Recipe {
+        switch k {
+        case .letter:
+            let p = rainPitch[((v % rainPitch.count) + rainPitch.count) % rainPitch.count]
+            return Recipe(tones: [t(0.55, 1150 * p, 1600 * p, glide: 0.005, tau: 0.006)],
+                          noises: [n(1.0, hp: 500, lp: 1800 * p, tau: 0.0032), n(0.45, hp: 500, lp: 1800 * p, tau: 0.002, delay: 0.009)],
+                          attack: 0.0006, duration: 0.030, outLP: 2400, peak: 0.34)
+        case .delete:
+            return Recipe(tones: [t(0.5, 1000, 1350, glide: 0.006, tau: 0.007)],
+                          noises: [n(1.0, hp: 400, lp: 1700, tau: 0.0032), n(0.35, hp: 400, lp: 1700, tau: 0.002, delay: 0.011)],
+                          attack: 0.0006, duration: 0.034, outLP: 2400, peak: 0.34)
+        case .modifier:
+            return Recipe(tones: [t(0.45, 820, 1100, glide: 0.007, tau: 0.009), t(0.3, 1300, 1700, glide: 0.005, tau: 0.005, delay: 0.013)],
+                          noises: [n(1.0, hp: 300, lp: 1500, tau: 0.0045), n(0.5, hp: 400, lp: 1900, tau: 0.0022, delay: 0.013),
+                                   n(0.3, hp: 400, lp: 1900, tau: 0.0016, delay: 0.024)],
+                          attack: 0.0006, duration: 0.040, outLP: 2200, peak: 0.34)
+        }
+    }
+
+    static func rainSeed(_ k: KeySoundKind, variant v: Int) -> UInt32 {
+        0x7261_696E ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1)) ^ (0x9E37_79B9 &* UInt32(truncatingIfNeeded: v))
+    }
+
+    /// Mẫu phím chữ biến thể `v` của kiểu Mưa (biến thể 0 = samples(.rain, .letter)).
+    static func rainLetterSamples(_ v: Int) -> [Float] { render(rainRecipe(.letter, variant: v), seed: rainSeed(.letter, variant: v)) }
 
     /// Nhịp club (theme Neon Night Club) — MỖI LOẠI PHÍM một tiếng riêng (không theo luật cao độ ×0.86 / ×0.74):
     ///   chữ: hi-hat đóng "tss" mềm — nhiễu hp 700 Hz lp 1.7 kHz τ10 ms (1.0) + vệt kim loại 2.2 kHz τ2 ms (0.10); 34 ms.
@@ -363,6 +408,7 @@ enum KeySoundSynth {
     /// Công thức theo loại phím: xoá trầm hơn chút; phím chức năng trầm + dài hơn.
     static func recipe(_ s: KeySoundStyle, _ k: KeySoundKind) -> Recipe {
         if s == .club { return clubRecipe(k) }   // mỗi loại phím một tiếng (hat / kick / kick + hat)
+        if s == .rain { return rainRecipe(k, variant: 0) }
         var r = baseRecipe(s)
         let (pitch, decay, extra): (Double, Double, Double)
         switch k {
@@ -379,6 +425,7 @@ enum KeySoundSynth {
     static func seed(_ s: KeySoundStyle, _ k: KeySoundKind) -> UInt32 {
         // Nhịp club: seed CỐ ĐỊNH ("club"), không theo vị trí case ⇒ checksum không đổi khi nhánh khác thêm kiểu trước nó.
         if s == .club { return 0x636C_7562 ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1)) }
+        if s == .rain { return rainSeed(k, variant: 0) }
         let si = UInt32(KeySoundStyle.allCases.firstIndex(of: s) ?? 0)
         return 0x9E37_79B9 &* (si &+ 1) ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1))
     }

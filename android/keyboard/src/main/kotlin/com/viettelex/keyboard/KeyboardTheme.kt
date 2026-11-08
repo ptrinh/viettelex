@@ -290,7 +290,10 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     AI("ai", "AI", true), // l10n-key
     // Neon Night Club (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền đen, phím tối viền ống neon hồng + chữ chức năng lục
     // lam, Đèn rọi trên ảnh nền ("photoFx":"spotlight" — [SpotlightPolicy]), Sàn nhảy LED, âm "club", quả cầu disco.
-    NIGHTCLUB("nightclub", "Neon Night Club", true); // l10n-key
+    NIGHTCLUB("nightclub", "Neon Night Club", true), // l10n-key
+    // Mưa đêm (11/2026, Plus, THÊM CUỐI) — id trùng iOS: ô kính đêm mưa xanh xám (dải tối dần xuống đáy), phím kính tối
+    // trong mờ, chữ kem, nhấn vàng hổ phách, motif "bokeh" (đốm đèn nhoè), hiệu ứng Mưa + âm Mưa — êm, ấm, chậm.
+    RAINY_NIGHT("rainyNight", "Mưa đêm", true); // l10n-key
 
     /** Bo góc mặc định (% như [KeyStyle.corner]) khi người dùng chưa chỉnh — null = bo stock. iOS cùng giá trị. */
     val defaultCorner: Int? get() = spec?.corner
@@ -391,9 +394,20 @@ data class ThemeDecoration(val motif: String, val color: Int, val density: Int =
         const val BUBBLES = "bubbles"
         // Theme "AI" (11/2026): ba nút nối dây kiểu mạng nơ-ron + hàng chấm lưới trải ngang trong khe.
         const val NEURAL = "neural"
+        // Theme "Mưa đêm" (11/2026): vài đốm đèn tròn nhoè cỡ khác nhau trải ngang trong khe (đèn phố qua kính mưa);
+        // motif này kèm dải tối dần xuống đáy trên nền ([BOKEH_SHADE]) — ô cửa kính về đêm.
+        const val BOKEH = "bokeh"
         /** Danh sách trắng motif (theme JSON chỉ nhận các id này) — iOS KeyboardDecoration.Motif y hệt. */
         val MOTIFS = listOf(HEARTS, FLOWERS, MAI, DAO, SNOWFLAKE, STAR, NOTES,
-            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY, PIXEL, WAVES, BUBBLES, NEURAL)
+            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY, PIXEL, WAVES, BUBBLES, NEURAL, BOKEH)
+        /** Đốm đèn của motif "bokeh" (x, y, bán kính) — không chồng nhau, |y| + r ≤ 0.5. iOS bokehDots y hệt. */
+        val BOKEH_DOTS = arrayOf(doubleArrayOf(-2.0, 0.06, 0.4), doubleArrayOf(-0.9, -0.2, 0.22), doubleArrayOf(0.0, 0.02, 0.46),
+            doubleArrayOf(1.1, -0.16, 0.28), doubleArrayOf(2.1, 0.1, 0.36))
+        /** Dải phủ nền của motif "bokeh" (trên → dưới): vị trí 0…1 + ARGB — đỉnh hơi sáng, đáy tối dần. iOS bokehShade y hệt. */
+        val BOKEH_SHADE_STOPS = doubleArrayOf(0.0, 0.55, 1.0)
+        val BOKEH_SHADE = intArrayOf(0x14FFFFFF, 0x00000000, 0x2E000000)
+        /** Motif có dải phủ nền ([BOKEH_SHADE]) không. */
+        fun hasShade(motif: String?, alt: String?): Boolean = motif == BOKEH || alt == BOKEH
         /** Motif "neural": nút (x, y, bán kính), dây nối cặp nút, bề dày nửa dây, chấm lưới (x, y, bán kính) — iOS neural* y hệt. */
         val NEURAL_NODES = arrayOf(doubleArrayOf(-0.34, 0.2, 0.12), doubleArrayOf(0.0, -0.24, 0.13), doubleArrayOf(0.34, 0.2, 0.12))
         val NEURAL_LINKS = arrayOf(intArrayOf(0, 1), intArrayOf(1, 2), intArrayOf(0, 2))
@@ -618,6 +632,8 @@ data class ThemeDecoration(val motif: String, val color: Int, val density: Int =
                     MotifSub(d[0] + d[2], d[1], listOf(doubleArrayOf(d[0], d[1] + d[2]), doubleArrayOf(d[0] - d[2], d[1]),
                         doubleArrayOf(d[0], d[1] - d[2])))
                 }
+                // Đốm đèn nhoè: vài hình tròn rời nhau cỡ khác nhau — cùng chiều quay.
+                BOKEH -> BOKEH_DOTS.map { d -> ell(d[0], d[1], d[2], d[2]) }
                 else -> emptyList()
             }
         }
