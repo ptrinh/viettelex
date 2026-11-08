@@ -672,7 +672,8 @@ void TelexEngine::noteGlue(char32_t ch) {
 void TelexEngine::noteCommittedWord(bool restored) {
     if (rawCount_ <= 0) return;
     const bool keptVietnamese = !restored && (compositionHasDiacritic() || composedIsValidSyllable());
-    lastWordKind_ = (keptVietnamese || isUpperAscii(raw_[0])) ? 1 : 2;
+    // A word glued to a number is a quantity ("5k", "2h"): "/" after it starts a Vietnamese unit ("5k/tháng").
+    lastWordKind_ = (keptVietnamese || isUpperAscii(raw_[0]) || wordGlue_ == 2) ? 1 : 2;
     noteSinceWord_ = false;
     pendingGlue_ = 0;
     if (restored && wordGlue_ == 0 && compositionDiffersFromRaw() && compositionHasDiacritic() &&

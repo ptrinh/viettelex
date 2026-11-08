@@ -1689,7 +1689,9 @@ public struct TelexEngine {
     private mutating func noteCommittedWord(restored: Bool) {
         guard rawCount > 0 else { return }
         let keptVietnamese = !restored && (compositionHasDiacritic() || composedIsValidSyllable())
-        lastWordKind = keptVietnamese || isUpperAscii(raw[0]) ? 1 : 2
+        // A word glued to a number is a quantity ("5k", "100m", "2h"): a "/" after it starts a
+        // Vietnamese unit ("5k/tháng", "2h/ngày"), not a code path.
+        lastWordKind = keptVietnamese || isUpperAscii(raw[0]) || wordGlue == 2 ? 1 : 2
         noteSinceWord = false
         pendingGlue = 0
         // Not for a word glued to code/number ("self.bar", "100W"): a ⌫ there is editing.

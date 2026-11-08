@@ -108,6 +108,13 @@ final class AcronymTypoGlueTests: XCTestCase {
         XCTAssertEqual(type("Uwf...thooi"), "Ừ...thôi")
         XCTAssertEqual(type("ddi. Mai"), "đi. Mai")
         XCTAssertEqual(type("xong. vaf"), "xong. và")
+        // Quantity + "/" + Vietnamese unit (Phil 08/11/2026: "5k/thangs" stayed raw).
+        XCTAssertEqual(type("5k/thangs"), "5k/tháng")
+        XCTAssertEqual(type("100k/nguwowif"), "100k/người")
+        XCTAssertEqual(type("2h/ngayf"), "2h/ngày")
+        XCTAssertEqual(type("1tr/thangs"), "1tr/tháng")
+        XCTAssertEqual(type("user/repo"), "user/repo")      // code path unchanged
+        XCTAssertEqual(type("src/bas"), "src/bas")
     }
 
     func testDigitGlue() {

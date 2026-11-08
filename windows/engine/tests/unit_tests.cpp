@@ -631,6 +631,8 @@ void acronymTypoGlueUndo() {
         {"vaf/hoawcj", "và/hoặc"}, {"anh/chij", "anh/chị"}, {"TP.Hoof", "TP.Hồ"},
         {"100W", "100W"}, {"10kW", "10kW"}, {"5trawm", "5trăm"}, {"2tieengs", "2tiếng"},
         {"100dd", "100đ"}, {"5s", "5s"}, {"4G", "4G"}, {"5tuw", "5tư"},
+        {"5k/thangs", "5k/tháng"}, {"100k/nguwowif", "100k/người"}, {"2h/ngayf", "2h/ngày"},
+        {"src/bas", "src/bas"},
         {"bene NAS", "bene NAS{NAS>NÁ}"},
     };
     for (const Case& c : suite) {

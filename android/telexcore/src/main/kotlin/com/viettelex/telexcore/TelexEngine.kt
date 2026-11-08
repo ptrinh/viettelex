@@ -683,7 +683,8 @@ class TelexEngine {
     private fun noteCommittedWord(restored: Boolean) {
         if (rawCount <= 0) return
         val keptVietnamese = !restored && (compositionHasDiacritic() || composedIsValidSyllable())
-        lastWordKind = if (keptVietnamese || isUpperAscii(raw[0])) 1 else 2
+        // A word glued to a number is a quantity ("5k", "2h"): "/" after it starts a Vietnamese unit ("5k/tháng").
+        lastWordKind = if (keptVietnamese || isUpperAscii(raw[0]) || wordGlue == 2) 1 else 2
         noteSinceWord = false
         pendingGlue = 0
         if (restored && wordGlue == 0 && compositionDiffersFromRaw() && compositionHasDiacritic() &&
