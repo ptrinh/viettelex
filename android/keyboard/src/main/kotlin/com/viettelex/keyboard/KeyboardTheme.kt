@@ -114,6 +114,10 @@ data class ThemePalette(
      * nền phím cách (Canvas, hình học [Soundhole]) — 0 chi phí mỗi phím. iOS `spaceSoundhole` cùng ý nghĩa.
      */
     val spaceSoundhole: Boolean = false,
+    /** Ký hiệu mờ ở góc trên phải (theme Cung hoàng đạo: ♈…♓ dạng chữ) — vẽ một lần ở nền IME; null = không. iOS `cornerGlyph`. */
+    val cornerGlyph: String? = null,
+    /** Màu dải viền "aurora" thay [AuroraFx] (theme Tự hào: sọc cờ chia đều) — null = mặc định. iOS `auroraColors`. */
+    val auroraColors: List<Int>? = null,
 ) {
     val keyInk: Int get() = keyLabel ?: ink
     /** Nền phím chức năng (⇧ ⌫ 123 🌐 😊…). */
@@ -314,7 +318,13 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     RAINY_NIGHT("rainyNight", "Mưa đêm", true), // l10n-key
     // Gym (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền thép gunmetal + hoạ tiết sàn thép ("treadplate"), phím cao su tối
     // viền vàng chanh neon, chữ trắng; hiệu ứng "Rep" ([RepsFx]), âm "Tạ sắt".
-    GYM("gym", "Gym", true); // l10n-key
+    GYM("gym", "Gym", true), // l10n-key
+    // Cung hoàng đạo (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền trời đêm, bảng màu theo nguyên tố của cung người dùng
+    // chọn ("variant":"zodiac" — Zodiac.kt), ký hiệu cung mờ ở góc, hiệu ứng Chòm sao, âm "twinkle".
+    ZODIAC("zodiac", "Cung hoàng đạo", true), // l10n-key
+    // Tự hào (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền tối, viền phím gradient theo màu lá cờ người dùng chọn
+    // ("variant":"pride" — Pride.kt), chữ trắng, hiệu ứng Cầu vồng (+ cờ phấp phới khi gõ từ khoá), âm "pop".
+    PRIDE("pride", "Tự hào", true); // l10n-key
 
     /** Bo góc mặc định (% như [KeyStyle.corner]) khi người dùng chưa chỉnh — null = bo stock. iOS cùng giá trị. */
     val defaultCorner: Int? get() = spec?.corner
@@ -356,6 +366,11 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     fun palette(systemDark: Boolean, minute: Int?): ThemePalette? {
         val s = spec
         return if (s?.schedule != null && minute != null) s.palette(systemDark, minute) else palette(systemDark)
+    }
+    /** Như [palette] + lựa chọn biến thể ("variant": cung hoàng đạo…); theme không có biến thể ⇒ như cũ. */
+    fun palette(systemDark: Boolean, minute: Int?, choice: ThemeVariantChoice): ThemePalette? {
+        val s = spec
+        return if (s?.variant != null) s.palette(systemDark, minute, choice) else palette(systemDark, minute)
     }
 
     /** Đặc tả JSON của theme có sẵn (null = Hệ thống / Kính — vẽ theo nền tảng). */
@@ -838,7 +853,7 @@ object ThemePicker {
      * trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. iOS ThemePicker.interactiveOrder y hệt.
      */
     val INTERACTIVE_ORDER = listOf("nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "drift",
-        "mo", "stainedGlass", "gym")
+        "mo", "stainedGlass", "gym", "zodiac", "pride")
 
     data class Groups(val free: List<KeyboardTheme>, val interactive: List<KeyboardTheme>, val rest: List<KeyboardTheme>)
     /**
@@ -917,6 +932,8 @@ data class ThemeSettings(
      * [SystemColors.static] (xám, nhấn xanh) thay màu theo hình nền ([basePalette] với sdk).
      */
     val materialYou: Boolean = true,
+    /** Lựa chọn cho theme có "variant" (cung hoàng đạo…) — chỉ id, khoá riêng; giữ khi khôi phục gốc. iOS `variantChoice`. */
+    val variantChoice: ThemeVariantChoice = ThemeVariantChoice(),
 ) {
     /** Id theme đang chọn (có sẵn hoặc tự tạo) — khoá của [keyStyles]. */
     val themeId: String get() = custom?.id ?: theme.id
@@ -933,7 +950,7 @@ data class ThemeSettings(
      * "Khôi phục giao diện gốc": mọi chỉnh ở màn Giao diện về mặc định. Ảnh nền chỉ bỏ
      * chọn (file giữ để bật lại); version giữ nguyên (không vứt bitmap cache vô cớ).
      */
-    fun resetToDefaults() = ThemeSettings(version = version, crop = crop)
+    fun resetToDefaults() = ThemeSettings(version = version, crop = crop, variantChoice = variantChoice)
     val isDefault: Boolean get() = this == resetToDefaults()
 
     val effectiveTheme: KeyboardTheme get() = if (ThemeGate.allows(theme)) theme else KeyboardTheme.SYSTEM
@@ -972,7 +989,7 @@ data class ThemeSettings(
     }
 
     /** Palette gốc thực dùng (theme tự tạo hoặc có sẵn); null = Hệ thống (màu resource — app/IME cấp). */
-    fun basePalette(dark: Boolean): ThemePalette? = effectiveCustom?.palette(dark) ?: effectiveTheme.palette(dark)
+    fun basePalette(dark: Boolean): ThemePalette? = basePaletteAt(dark, null)
     /** Xem trước trong app: theme có lịch theo giờ (Theo giờ) ⇒ bảng màu của giờ hiện tại; theme khác = [basePalette]. */
     fun basePaletteNow(dark: Boolean): ThemePalette? = basePaletteAt(dark, scheduleMinuteNow())
 
@@ -982,7 +999,10 @@ data class ThemeSettings(
     fun scheduleMinuteNow(): Int? = scheduledSpec?.let { ThemeSchedule.minuteOfDay() }
     /** Như [basePalette] ở phút [minute] (theme có lịch đổi bảng màu theo giờ). */
     fun basePaletteAt(dark: Boolean, minute: Int?): ThemePalette? =
-        effectiveCustom?.palette(dark, minute) ?: effectiveTheme.palette(dark, minute)
+        effectiveCustom?.palette(dark, minute, variantChoice) ?: effectiveTheme.palette(dark, minute, variantChoice)
+    /** Thẻ "Chọn giao diện": palette của theme [t] theo giờ hiện tại + lựa chọn biến thể (cung đã chọn…). */
+    fun cardPalette(t: KeyboardTheme, dark: Boolean): ThemePalette? =
+        t.palette(dark, if (t.spec?.schedule != null) ThemeSchedule.minuteOfDay() else null, variantChoice)
 
     /**
      * Như [basePalette] nhưng giải luôn Hệ thống theo [materialYou] trên máy API [sdk]: null CHỈ khi Hệ thống dùng màu
@@ -995,6 +1015,10 @@ data class ThemeSettings(
     fun styled(t: KeyboardTheme, base: ThemePalette, dark: Boolean): ThemePalette = styled(effectiveStyleFor(t), base, dark)
     fun styledCustom(c: ThemeSpec, dark: Boolean): ThemePalette =
         styled(effectiveStyleFor(c.id ?: "", c.typography), c.palette(dark), dark)
+    /** Thẻ / xem trước theme tự tạo: như [styledCustom] + giờ hiện tại + lựa chọn biến thể. */
+    fun styledCustomNow(c: ThemeSpec, dark: Boolean): ThemePalette =
+        styled(effectiveStyleFor(c.id ?: "", c.typography),
+            c.palette(dark, if (c.schedule != null) ThemeSchedule.minuteOfDay() else null, variantChoice), dark)
     /** Theme ĐANG dùng (IME): [base] = [basePalette] hoặc màu resource cho Hệ thống. */
     fun styledCurrent(base: ThemePalette, dark: Boolean): ThemePalette = styled(effectiveKeyStyle, base, dark)
 
@@ -1002,17 +1026,19 @@ data class ThemeSettings(
     fun exportSpec(t: KeyboardTheme, baseLight: ThemePalette, baseDark: ThemePalette): ThemeSpec =
         ThemeSpec.export(t.id, t.spec?.nameVi ?: t.viTitle, t.spec?.nameEn ?: if (t == KeyboardTheme.GLASS) "Glass" else "System",
             styled(t, baseLight, false), styled(t, baseDark, true), effectiveStyleFor(t))
-            .copy(schedule = t.spec?.schedule, tags = t.spec?.tags, buddy = t.spec?.buddy)   // đi nguyên (bản vá không có)
             .let { e ->   // Kính: gradient giả lập riêng Android (không phải "bg2" của theme) ⇒ không xuất, như iOS
                 if (t != KeyboardTheme.GLASS) e else e.copy(light = e.light.copy(bg2 = null), dark = e.dark?.copy(bg2 = null))
             }
+            .copy(schedule = t.spec?.schedule, tags = t.spec?.tags, buddy = t.spec?.buddy, variant = t.spec?.variant)   // đi nguyên (bản vá không có)
     fun exportSpec(c: ThemeSpec): ThemeSpec = ThemeSpec.export(c.id, c.nameVi, c.nameEn, styledCustom(c, false),
-        styledCustom(c, true), effectiveStyleFor(c.id ?: "", c.typography)).copy(schedule = c.schedule, tags = c.tags, buddy = c.buddy)
+        styledCustom(c, true), effectiveStyleFor(c.id ?: "", c.typography)).copy(schedule = c.schedule, tags = c.tags, buddy = c.buddy,
+        variant = c.variant)
 
     fun toMap(): Map<String, Any> = mapOf(Keys.KEYBOARD_THEME to themeId, Keys.WALLPAPER_ENABLED to wallpaper,
         Keys.WALLPAPER_DIM to dim, Keys.WALLPAPER_BLUR to blur, Keys.WALLPAPER_VERSION to version,
         Keys.KEYBOARD_TRANSPARENCY to keyboardTransparency, Keys.KEY_LABEL_TRANSPARENCY to labelTransparency,
         Keys.SYSTEM_MATERIAL_YOU to materialYou,
+        ZodiacSign.KEY to variantChoice.zodiac.id, PrideFlag.KEY to variantChoice.pride.id,
         Keys.KEY_STYLES to KeyStyleStore.serialize(keyStyles),
         // IME chỉ đọc theme tự tạo đang chọn — bản chuẩn hoá ở khoá riêng ("" = không có).
         Keys.ACTIVE_THEME_SPEC to (custom?.canonical ?: "")) +
@@ -1056,6 +1082,7 @@ data class ThemeSettings(
                 labelTransparency = KeyboardTransparency.clamp((get(Keys.KEY_LABEL_TRANSPARENCY) as? Number)?.toInt() ?: 0),
                 crop = WallpaperCrop.parse(get(Keys.WALLPAPER_CROP) as? String),
                 materialYou = get(Keys.SYSTEM_MATERIAL_YOU) as? Boolean ?: true,
+                variantChoice = ThemeVariantChoice.load(get),
             )
         }
 

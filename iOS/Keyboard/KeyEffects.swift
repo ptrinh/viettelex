@@ -49,6 +49,10 @@ enum KeyEffect: String, CaseIterable {
     case rain
     // Theme Gym (11/2026): Rep — thanh rep lấp mỗi phím, 10 phím = SET ✓, gõ nhanh "+1 rep 💪", từ khoá ⇒ BEAST MODE (RepsFx).
     case reps
+    // Theme Cung hoàng đạo (11/2026): Chòm sao — mỗi phím thắp thêm một sao của chòm người dùng chọn, đủ sao thì loé.
+    case constellation
+    // Theme Tự hào (11/2026): Cầu vồng — vòng cung các sọc cờ lan ra từ phím; gõ từ khoá ⇒ cờ phấp phới + tim tung.
+    case rainbowburst
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -98,6 +102,8 @@ enum KeyEffect: String, CaseIterable {
         case .sunlight: return L("Nắng qua kính")
         case .rain: return L("Mưa")
         case .reps: return L("Rep")
+        case .constellation: return L("Chòm sao")
+        case .rainbowburst: return L("Cầu vồng")
         }
     }
 
@@ -109,7 +115,7 @@ enum KeyEffect: String, CaseIterable {
     /// Controller phải so từ đang soạn trước/sau phím — kiểu khác: không đọc gì (0 chi phí).
     var needsComposeDiff: Bool { self == .tone || self == .letters || self == .tokens }
     /// Controller phải tra từ vừa chốt ở ranh giới.
-    var needsBoundaryWord: Bool { self == .emojiword || self == .keyword || self == .reps }
+    var needsBoundaryWord: Bool { self == .emojiword || self == .keyword || self == .reps || self == .rainbowburst }
 
     /// Kiểu "hạt bay ra từ phím" (chùm hạt vector, quỹ đạo `trajectory`).
     static let particleCases: [KeyEffect] = [.heart, .bubble, .ripple, .petal, .firework, .blossom, .combo, .snow, .meteor,
@@ -2135,6 +2141,24 @@ final class KeyEffectOverlay: UIView {
     private var repSlam: CALayer?
     private var repSlamText: CATextLayer?
     private var repRing: CAShapeLayer?
+    // Chòm sao — pool ConstellationFx.pool chòm dựng lười (≤ 9 sao + 9 lớp nét + 1 quầng mỗi chòm).
+    /// Cung của người dùng (KeyboardView đặt lúc hiện từ `zodiacSign`). Đổi ⇒ chòm mới ở phím kế.
+    var zodiacSign: ZodiacSign = .defaultValue {
+        didSet { if zodiacSign != oldValue { haltConstellation() } }
+    }
+    private var starCycles: [StarCycle] = []
+    private var starCursor = 0
+    private var starTrace: ConstellationTrace?
+    private var activeStars: StarCycle?
+    // Cầu vồng (theme Tự hào) — pool RainbowBurst.pool vòng cung (≤ 6 sọc) + MỘT cờ (≤ 6 sọc + cán + 8 tim), dựng lười.
+    /// Lá cờ người dùng chọn (KeyboardView đặt lúc hiện từ `prideFlag`). Đổi ⇒ dựng lại màu.
+    var prideFlag: PrideFlag = .defaultValue {
+        didSet { if prideFlag != oldValue { resetPride() } }
+    }
+    private var rainbows: [CALayer] = []
+    private var rainbowPool = KeyEffectPool(capacity: RainbowBurst.pool)
+    private var prideRoot: CALayer?
+    private var pendingPride = false
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -2205,7 +2229,7 @@ final class KeyEffectOverlay: UIView {
     }
 
     static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor,
-                                          .kaleido, .tunnel, .merit, .sunlight, .rain, .reps]
+                                          .kaleido, .tunnel, .merit, .sunlight, .rain, .reps, .constellation, .rainbowburst]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -2232,6 +2256,8 @@ final class KeyEffectOverlay: UIView {
     func queueBeastMode() { if effect == .reps { pendingSlam = true } }
     /// "Token AI": chữ vừa ra — lần vẽ kế loé tại phím rồi vỡ thành token bay vào thanh gợi ý.
     func queueToken(_ g: String) { if effect == .tokens { pendingToken = g } }
+    /// "Cầu vồng": controller vừa thấy từ khoá Tự hào (PrideKeywords) — lần vẽ kế (phím ranh giới) thêm cờ + tim.
+    func queuePride() { if effect == .rainbowburst { pendingPride = true } }
 
     /// "Token AI": thanh gợi ý vừa hiện `words` trong khung `bar` (toạ độ overlay). Chỉ đổi THẬT (ShimmerGate) mới quét
     /// một vệt sáng ~0,3 s; kiểu khác ⇒ return ngay (0 chi phí).
@@ -2281,6 +2307,7 @@ final class KeyEffectOverlay: UIView {
             pending.removeAll(keepingCapacity: true)
             pendingEmoji = nil; pendingTone = nil; pendingKeyword = nil; pendingLetter = nil; pendingToken = nil
             pendingSlam = false
+            pendingPride = false
             return
         }
         CATransaction.begin()
@@ -2305,6 +2332,8 @@ final class KeyEffectOverlay: UIView {
         } else {
             for r in pending { fire(r, now: now, media: media) }
             if pendingSlam { pendingSlam = false; fireSlam(now: now) }
+            if pendingPride, let r = pending.last { firePrideFlag(at: r, now: now) }
+            pendingPride = false
         }
         CATransaction.commit()
         pending.removeAll(keepingCapacity: true)
@@ -2419,6 +2448,18 @@ final class KeyEffectOverlay: UIView {
     var debugRepSlamText: CATextLayer? { repSlamText }
     var debugRepRing: CAShapeLayer? { repRing }
     func debugSweepReps(idleFor s: Double) { repLastMedia = CACurrentMediaTime() - s; repSweepScheduled = false; sweepReps() }
+    /// Chòm sao: gốc các chòm đã dựng + sao đang hiện (chưa ẩn) của từng chòm + vị trí sao.
+    var debugStarRoots: [CALayer] { starCycles.map(\.root) }
+    var debugStarsShown: [Int] { starCycles.map { $0.stars.filter { !$0.isHidden }.count } }
+    var debugStarPositions: [[CGPoint]] { starCycles.map { $0.stars.map(\.position) } }
+    /// Cầu vồng: gốc vòng cung đã dựng (pool) + gốc cờ (nil = chưa gõ từ khoá) + tổng layer hiệu ứng Tự hào.
+    var debugRainbowRoots: [CALayer] { rainbows }
+    var debugPrideFlagRoot: CALayer? { prideRoot }
+    var debugPrideLayerCount: Int {
+        func count(_ l: CALayer) -> Int { 1 + (l.sublayers ?? []).reduce(0) { $0 + count($1) } }
+        return rainbows.reduce(0) { $0 + count($1) } + (prideRoot.map(count) ?? 0)
+    }
+    var debugStarLayerCount: Int { starCycles.reduce(0) { $0 + 1 + $1.stars.count + $1.lines.count + 1 } }
     #else
     static let drawsOffscreen = false
     #endif
@@ -2452,6 +2493,8 @@ final class KeyEffectOverlay: UIView {
             s.fire(key: r, bounds: bounds, now: now, media: media)
         case .rain: fireRain(c, now: now, media: media)
         case .reps: fireRep(r, now: now, media: media)
+        case .constellation: fireConstellation(r, now: now, media: media)
+        case .rainbowburst: fireRainbow(c, now: now)
         case .flash: fireFlash(now: now, media: media)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)
@@ -2831,6 +2874,10 @@ final class KeyEffectOverlay: UIView {
         persistMerit(force: true)         // ẩn bàn phím ⇒ ghi nốt công đức chưa lưu
         haltRain()                        // ẩn bàn phím ⇒ mưa về đậm, đèn tắt, không còn hạt nào
         resetReps()                       // ẩn bàn phím ⇒ hiệp về 0
+        haltConstellation()
+        pendingPride = false
+        for b in rainbows { b.isHidden = true }
+        prideRoot?.isHidden = true
     }
 
     // MARK: Công đức
@@ -2866,6 +2913,292 @@ final class KeyEffectOverlay: UIView {
         CATransaction.setDisableActions(true)
         m.showCounter(meritCounter.today(day), anchor: laserOrigin?())
         CATransaction.commit()
+    }
+
+    // MARK: Cầu vồng (theme Tự hào — Pride.swift)
+
+    private func resetPride() {
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        for b in rainbows { b.removeFromSuperlayer() }
+        prideRoot?.removeFromSuperlayer()
+        CATransaction.commit()
+        rainbows.removeAll(); rainbowPool = KeyEffectPool(capacity: RainbowBurst.pool)
+        prideRoot = nil; pendingPride = false
+    }
+
+    private func fireRainbow(_ c: CGPoint, now: CFTimeInterval) {
+        let slot = rainbowPool.next()
+        let b: CALayer
+        if slot < rainbows.count { b = rainbows[slot] } else { b = makeRainbow(); rainbows.append(b) }
+        b.position = c
+        b.beginTime = now
+        b.isHidden = false
+    }
+
+    private func makeRainbow() -> CALayer {
+        let b = CALayer()
+        b.bounds = .zero
+        b.isHidden = true
+        b.opacity = 0
+        for (i, rgb) in prideFlag.stripes.enumerated() {
+            let l = CAShapeLayer()
+            let r = RainbowBurst.radius(i), p = CGMutablePath()
+            for k in 0...24 {   // nửa trên (y xuống ⇒ sin âm)
+                let a = Double.pi + Double.pi * Double(k) / 24
+                let pt = CGPoint(x: r * cos(a), y: r * sin(a))
+                if k == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
+            }
+            l.path = p
+            l.fillColor = nil
+            l.strokeColor = UIColor(rgb: rgb).cgColor
+            l.lineWidth = CGFloat(RainbowBurst.band)
+            l.contentsScale = UIScreen.main.scale
+            b.addSublayer(l)
+        }
+        let steps = 12
+        let ts = (0...steps).map { RainbowBurst.life * Double($0) / Double(steps) * 0.9999 }
+        let sc = CAKeyframeAnimation(keyPath: "transform.scale")
+        sc.values = ts.map(RainbowBurst.scale)
+        let op = CAKeyframeAnimation(keyPath: "opacity")
+        op.values = ts.map(RainbowBurst.alpha)
+        let g = CAAnimationGroup()
+        g.animations = [sc, op]
+        g.duration = RainbowBurst.life
+        g.beginTime = Self.animBegin
+        g.fillMode = .both
+        g.isRemovedOnCompletion = false
+        b.add(g, forKey: "fx")
+        layer.addSublayer(b)
+        return b
+    }
+
+    private func firePrideFlag(at r: CGRect, now: CFTimeInterval) {
+        let root = prideRoot ?? makePrideFlag()
+        prideRoot = root
+        let top = Self.keyTop(r)
+        let hw = CGFloat(PrideFlagWave.width / 2 + 6)
+        let need = CGFloat(PrideFlagWave.gap + PrideFlagWave.height + PrideFlagWave.rise + 4)
+        let x = min(max(top.x, bounds.minX + hw), bounds.maxX - hw)
+        let y = max(top.y, bounds.minY + need)
+        root.position = CGPoint(x: x, y: y)
+        root.beginTime = now
+        root.isHidden = false
+    }
+
+    private func makePrideFlag() -> CALayer {
+        let root = CALayer()
+        root.bounds = .zero
+        root.isHidden = true
+        let flag = CALayer()
+        flag.bounds = .zero
+        flag.opacity = 0
+        let life = PrideFlagWave.life, steps = 12
+        let ts = (0...steps).map { life * Double($0) / Double(steps) * 0.9999 }
+        let op = CAKeyframeAnimation(keyPath: "opacity")
+        op.values = ts.map(PrideFlagWave.alpha)
+        let up = CAKeyframeAnimation(keyPath: "transform.translation.y")
+        up.values = ts.map(PrideFlagWave.riseY)
+        let fg = CAAnimationGroup()
+        fg.animations = [op, up]
+        fg.duration = life
+        fg.beginTime = Self.animBegin
+        fg.fillMode = .both
+        fg.isRemovedOnCompletion = false
+        flag.add(fg, forKey: "fx")
+        let pole = CAShapeLayer()
+        let poleX = -PrideFlagWave.width / 2 - PrideFlagWave.poleWidth
+        pole.path = CGPath(rect: CGRect(x: poleX, y: -PrideFlagWave.gap - PrideFlagWave.height - 3, width: PrideFlagWave.poleWidth,
+                                        height: PrideFlagWave.height + PrideFlagWave.gap), transform: nil)
+        pole.fillColor = UIColor(white: 0.92, alpha: 1).cgColor
+        flag.addSublayer(pole)
+        let stripes = prideFlag.stripes
+        let frames = PrideFlagWave.frames
+        for (i, rgb) in stripes.enumerated() {
+            let l = CAShapeLayer()
+            l.fillColor = UIColor(rgb: rgb).cgColor
+            let paths: [CGPath] = (0...frames).map { f in
+                let pts = PrideFlagWave.stripe(i, of: stripes.count, phase: PrideFlagWave.phase(life * Double(f) / Double(frames)))
+                let p = CGMutablePath()
+                p.addLines(between: pts.map { CGPoint(x: $0.x, y: $0.y) })
+                p.closeSubpath()
+                return p
+            }
+            l.path = paths[0]
+            let a = CAKeyframeAnimation(keyPath: "path")
+            a.values = paths
+            a.duration = life
+            a.beginTime = Self.animBegin
+            a.fillMode = .both
+            a.isRemovedOnCompletion = false
+            l.add(a, forKey: "fx")
+            flag.addSublayer(l)
+        }
+        root.addSublayer(flag)
+        let heart = KeyEffectShapes.heart(6)
+        for k in 0..<PrideFlagWave.hearts {
+            let l = CAShapeLayer()
+            l.path = heart
+            l.bounds = .zero
+            l.contentsScale = UIScreen.main.scale
+            l.fillColor = UIColor(rgb: stripes[k % stripes.count]).cgColor
+            l.position = CGPoint(x: 0, y: -PrideFlagWave.gap)
+            l.opacity = 0
+            l.add(Self.makeAnimation(PrideFlagWave.heart(k), delay: PrideFlagWave.heartDelay(k), hiddenBefore: true), forKey: "fx")
+            root.addSublayer(l)
+        }
+        layer.addSublayer(root)
+        return root
+    }
+
+    // MARK: Chòm sao (theme Cung hoàng đạo — Zodiac.swift)
+
+    private final class StarCycle {
+        let root = CALayer()
+        var stars: [CAShapeLayer] = []
+        var lines: [CAShapeLayer] = []
+        let glow = CAShapeLayer()
+    }
+
+    private func fireConstellation(_ r: CGRect, now: CFTimeInterval, media: CFTimeInterval) {
+        let c = zodiacSign.constellation
+        var tr = starTrace ?? ConstellationTrace(count: c.stars.count)
+        let step = tr.press(at: media)
+        starTrace = tr
+        if step.newCycle || activeStars == nil {
+            let slot = starCursor
+            starCursor = (starCursor + 1) % ConstellationFx.pool
+            let cy: StarCycle
+            if slot < starCycles.count { cy = starCycles[slot] } else { cy = makeStarCycle(); starCycles.append(cy) }
+            layoutStars(cy, c, key: r)
+            activeStars = cy
+        }
+        guard let cy = activeStars, step.star < c.stars.count else { return }
+        let star = cy.stars[step.star]
+        star.beginTime = now
+        star.isHidden = false
+        let line = cy.lines[step.star]
+        if line.path != nil { line.beginTime = now; line.isHidden = false }
+        // Cả chòm: giữ rồi mờ — phím kế (cùng chòm) thay animation này ⇒ giữ tiếp. Xong ⇒ tự gỡ, model opacity 0.
+        let hold = step.completes ? ConstellationFx.glowTime : ConstellationFx.resetGap
+        let fade = step.completes ? ConstellationFx.glowFade : ConstellationFx.fadeOut
+        let life = CAKeyframeAnimation(keyPath: "opacity")
+        life.values = [1, 1, 0]
+        life.keyTimes = [0, NSNumber(value: hold / (hold + fade)), 1]
+        life.duration = hold + fade
+        life.beginTime = now
+        life.fillMode = .removed
+        life.isRemovedOnCompletion = true
+        cy.root.add(life, forKey: "life")
+        if step.completes {
+            cy.glow.beginTime = now
+            cy.glow.isHidden = false
+            activeStars = nil
+        }
+    }
+
+    /// Chòm mới quanh phím: đặt vị trí sao + nét (path dựng một lần mỗi chòm, không mỗi khung), ẩn hết chờ thắp.
+    private func layoutStars(_ cy: StarCycle, _ c: ZodiacSign.Constellation, key r: CGRect) {
+        let box = ConstellationFx.box(cx: Double(r.midX), cy: Double(r.midY),
+                                      bounds: (Double(bounds.minX), Double(bounds.minY), Double(bounds.width), Double(bounds.height)))
+        let pts = c.stars.map { s -> CGPoint in
+            let p = ConstellationFx.point(s, box: box)
+            return CGPoint(x: p.x, y: p.y)
+        }
+        let halo = CGMutablePath()
+        let hr = CGFloat(ConstellationFx.haloRadius)
+        for (i, l) in cy.stars.enumerated() {
+            l.isHidden = true
+            if i < pts.count { l.position = pts[i]; halo.addEllipse(in: CGRect(x: pts[i].x - hr, y: pts[i].y - hr, width: 2 * hr, height: 2 * hr)) }
+        }
+        for (i, l) in cy.lines.enumerated() {
+            l.isHidden = true
+            let es = i < pts.count ? c.edges(ownedBy: i) : []
+            if es.isEmpty { l.path = nil; continue }
+            let p = CGMutablePath()
+            for e in es where e.a < pts.count && e.b < pts.count {
+                let (a, b) = e.a < e.b ? (e.a, e.b) : (e.b, e.a)   // vẽ từ sao cũ tới sao vừa thắp
+                p.move(to: pts[a]); p.addLine(to: pts[b])
+            }
+            l.path = p
+        }
+        cy.glow.path = halo
+        cy.glow.isHidden = true
+        cy.root.removeAnimation(forKey: "life")
+    }
+
+    private func makeStarCycle() -> StarCycle {
+        let cy = StarCycle()
+        cy.root.bounds = .zero
+        cy.root.position = .zero
+        cy.root.anchorPoint = .zero
+        cy.root.opacity = 0
+        let maxStars = ZodiacSign.allCases.map { $0.constellation.stars.count }.max() ?? 9
+        let fadeIn = ConstellationFx.starFadeIn
+        cy.glow.fillColor = color.withAlphaComponent(0.55).cgColor
+        cy.glow.opacity = 0
+        let g = CAKeyframeAnimation(keyPath: "opacity")
+        let steps = 10, life = ConstellationFx.glowTime + ConstellationFx.glowFade
+        g.values = (0...steps).map { ConstellationFx.glowAlpha(life * Double($0) / Double(steps) * 0.9999) }
+        g.keyTimes = (0...steps).map { NSNumber(value: Double($0) / Double(steps)) }
+        g.duration = life
+        g.beginTime = Self.animBegin
+        g.fillMode = .both
+        g.isRemovedOnCompletion = false
+        cy.glow.add(g, forKey: "fx")
+        cy.glow.isHidden = true
+        cy.root.addSublayer(cy.glow)
+        let starPath = KeyEffectShapes.star4(CGFloat(ConstellationFx.starRadius), inner: CGFloat(ConstellationFx.starInner))
+        for _ in 0..<maxStars {
+            let l = CAShapeLayer()
+            l.strokeColor = color.withAlphaComponent(CGFloat(ConstellationFx.lineAlpha)).cgColor
+            l.fillColor = nil
+            l.lineWidth = CGFloat(ConstellationFx.lineWidth)
+            l.lineCap = .round
+            let a = CABasicAnimation(keyPath: "strokeEnd")
+            a.fromValue = 0; a.toValue = 1
+            a.duration = fadeIn
+            a.beginTime = Self.animBegin
+            a.fillMode = .both
+            a.isRemovedOnCompletion = false
+            l.add(a, forKey: "fx")
+            l.isHidden = true
+            cy.root.addSublayer(l)
+            cy.lines.append(l)
+        }
+        for _ in 0..<maxStars {
+            let l = CAShapeLayer()
+            l.path = starPath
+            l.bounds = .zero
+            l.contentsScale = UIScreen.main.scale
+            l.fillColor = UIColor(rgb: ConstellationFx.starColor).cgColor
+            let o = CABasicAnimation(keyPath: "opacity")
+            o.fromValue = 0; o.toValue = 1
+            let sc = CABasicAnimation(keyPath: "transform.scale")
+            sc.fromValue = 0.3; sc.toValue = 1
+            let grp = CAAnimationGroup()
+            grp.animations = [o, sc]
+            grp.duration = fadeIn
+            grp.beginTime = Self.animBegin
+            grp.fillMode = .both
+            grp.isRemovedOnCompletion = false
+            l.add(grp, forKey: "fx")
+            l.isHidden = true
+            cy.root.addSublayer(l)
+            cy.stars.append(l)
+        }
+        layer.addSublayer(cy.root)
+        return cy
+    }
+
+    private func haltConstellation() {
+        for cy in starCycles {
+            cy.root.removeAnimation(forKey: "life")
+            for l in cy.stars { l.isHidden = true }
+            for l in cy.lines { l.isHidden = true }
+            cy.glow.isHidden = true
+        }
+        starTrace = nil
+        activeStars = nil
     }
 
     // MARK: Đợt 3 — Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá, Chữ bay, Hạt cát
@@ -4334,6 +4667,9 @@ final class KeyEffectOverlay: UIView {
         sunlight?.remove(); sunlight = nil
         repBarTrack?.removeFromSuperlayer(); repBadge?.removeFromSuperlayer(); repSlam?.removeFromSuperlayer()
         for l in repLabels { l.removeFromSuperlayer() }
+        for cy in starCycles { cy.root.removeFromSuperlayer() }
+        for b in rainbows { b.removeFromSuperlayer() }
+        prideRoot?.removeFromSuperlayer()
         sandPile?.removeFromSuperlayer()
         for w in seaWaves { w.root.removeFromSuperlayer() }
         seaFish?.removeFromSuperlayer()
@@ -4366,6 +4702,8 @@ final class KeyEffectOverlay: UIView {
         repBarTrack = nil; repBar = nil; repBadge = nil; repBadgeText = nil; repSlam = nil; repSlamText = nil; repRing = nil
         repLabels.removeAll(); repLabelPool = KeyEffectPool(capacity: RepsFx.labelCap); repLabelImage = nil
         repCounter.reset(); repFill = 0; pendingSlam = false
+        starCycles.removeAll(); starCursor = 0; starTrace = nil; activeStars = nil
+        rainbows.removeAll(); rainbowPool = KeyEffectPool(capacity: RainbowBurst.pool); prideRoot = nil; pendingPride = false
         if effect != .shake { shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey) }
         shakeMeter.reset()
         stringAnim = nil

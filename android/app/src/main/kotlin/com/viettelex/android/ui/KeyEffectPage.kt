@@ -51,7 +51,9 @@ import com.viettelex.keyboard.tr
  * nhãn Plus, chạm mở VietTelex Plus. Lưu [Keys.KEY_EFFECT] — IME đọc lần hiện kế. iOS: KeyEffectPickerView.
  */
 @Composable
-internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack: () -> Unit) {
+internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack: () -> Unit,
+                           zodiac: com.viettelex.keyboard.ZodiacSign = com.viettelex.keyboard.ZodiacSign.DEFAULT,
+                           pride: com.viettelex.keyboard.PrideFlag = com.viettelex.keyboard.PrideFlag.DEFAULT) {
     val c = LocalVT.current
     BackHandler(onBack = onBack)
     var raw by rememberStringPref(Keys.KEY_EFFECT, KeyEffect.DEFAULT.id)
@@ -75,7 +77,9 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
             " " + tr("Đường hầm: vòng sáng co về phím vừa bấm như rơi vào đường hầm, gõ nhanh thì rơi nhanh hơn. Lơ lửng: phím trôi nhẹ khỏi hàng khi đang gõ rồi về chỗ khi nghỉ; chỉ là hình — chạm vẫn đúng phím; tắt khi bật Giảm chuyển động.") +
             " " + tr("Công đức thả \"+1 công đức\" bay lên từ phím vừa bấm và đếm số phím trong ngày (về 0 lúc nửa đêm, chỉ lưu trên máy). Nắng qua kính làm ô vừa bấm sáng lên như nắng xuyên qua kính màu; gõ nhanh có ánh nến ấm bập bùng chậm ở mép dưới.") +
             " " + tr("Mưa: mưa đêm êm trên ô kính — giọt rơi xuống phím vừa bấm rồi lăn nhẹ; gõ một lúc mưa thưa dần và ánh đèn ấm ở góc sáng lên.") +
-            " " + tr("Rep lấp thanh rep một nấc mỗi phím, đủ 10 phím là xong một hiệp (SET ✓); gõ nhanh bật \"+1 rep 💪\"; gõ \"gym\", \"tập\", \"beast mode\"… để nổ chữ BEAST MODE.")) {
+            " " + tr("Rep lấp thanh rep một nấc mỗi phím, đủ 10 phím là xong một hiệp (SET ✓); gõ nhanh bật \"+1 rep 💪\"; gõ \"gym\", \"tập\", \"beast mode\"… để nổ chữ BEAST MODE.") +
+            " " + tr("Chòm sao: mỗi phím thắp thêm một sao của chòm cung hoàng đạo bạn chọn (trong giao diện Cung hoàng đạo), đủ sao thì cả chòm loé sáng.") +
+            " " + tr("Cầu vồng: vòng cung theo màu lá cờ bạn chọn (trong giao diện Tự hào) lan ra từ phím; gõ \"tự hào\", \"yêu là yêu\", \"pride\" hay \"love is love\" thì lá cờ tung bay cùng tim.")) {
         KeyEffect.entries.chunked(3).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { e ->
@@ -87,7 +91,7 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
                             .alpha(if (locked) 0.5f else 1f)) {
                             val play = plays[e] ?: 0
                             AndroidView(factory = { KeyEffectPreviewView(it) }, modifier = Modifier.matchParentSize(),
-                                update = { it.update(e, palette, play) })
+                                update = { it.update(e, palette, play, zodiac, pride) })
                             // Lớp Compose phủ TRÊN AndroidView nhận chạm: View con nhận sự kiện trước nên
                             // clickable đặt ở Box cha không chắc tới được (iOS bị đúng lỗi này, 19/10/2026).
                             Box(Modifier.matchParentSize().clickable {
@@ -128,6 +132,11 @@ internal object KeyEffectPreviewScript {
         KeyEffect.REPS -> com.viettelex.keyboard.RepsFx.PER_SET   // đủ một hiệp ⇒ SET 1 ✓ + "+1 rep 💪" (gõ dồn)
         else -> 1
     }
+    /** Chòm sao: một chạm = đủ số phím để thắp CẢ chòm của cung (thấy nét nối + loé). */
+    fun burst(e: KeyEffect, zodiac: com.viettelex.keyboard.ZodiacSign): Int =
+        if (e == KeyEffect.CONSTELLATION) zodiac.constellation.stars.size else burst(e)
+    /** Cầu vồng: lần chạm lẻ như vừa gõ "tự hào" (cờ + tim), lần chẵn chỉ vòng cung. */
+    fun pride(tap: Int): Boolean = tap % 2 == 1
     /** Sàn nhảy LED: lần chạm chẵn = một nhịp phím cách (flash nền, cổng ≤ 3 lần / giây vẫn áp). */
     fun beat(e: KeyEffect, tap: Int): Boolean = e == KeyEffect.DANCEFLOOR && tap % 2 == 0
     /** Rep: lần chạm lẻ như vừa gõ "gym" + dấu cách ⇒ BEAST MODE. */
@@ -160,7 +169,11 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
     /** "Lơ lửng": phím mẫu trôi rồi về chỗ (đồng hồ thật [KeyFloatDriver]). */
     private var floater: KeyFloatDriver? = null
 
-    fun update(e: KeyEffect, p: ThemePalette, play: Int) {
+    fun update(e: KeyEffect, p: ThemePalette, play: Int,
+               zodiac: com.viettelex.keyboard.ZodiacSign = com.viettelex.keyboard.ZodiacSign.DEFAULT,
+               pride: com.viettelex.keyboard.PrideFlag = com.viettelex.keyboard.PrideFlag.DEFAULT) {
+        zodiacSign = zodiac
+        prideFlag = pride
         bg = p.bg; keyPaint.color = p.keyFill; textPaint.color = p.ink
         ghostPaint.color = (p.keyFill and 0x00FFFFFF) or (0x8C shl 24)
         configure(e, p.action, p.keyFill, p.isDark)
@@ -187,13 +200,14 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
         val e = effect
         val x = keyCx(); val y = keyCy(); val w = 34 * d; val h = 42 * d
         if (e == KeyEffect.PLASMA) { burst(width * 0.15f, 18 * d); flush(); burst(width * 0.85f, 26 * d); flush() }
-        repeat(KeyEffectPreviewScript.burst(e) - 1) { burst(x, y, w, h); flush() }
+        repeat(KeyEffectPreviewScript.burst(e, zodiacSign) - 1) { burst(x, y, w, h); flush() }
         queueEmoji(KeyEffectPreviewScript.EMOJI)
         queueTone(KeyEffectPreviewScript.TONE)
         queueKeyword(KeyEffectPreviewScript.keyword(tap))
         queueLetter(KeyEffectPreviewScript.GLYPH)
         queueToken(KeyEffectPreviewScript.GLYPH)
         if (KeyEffectPreviewScript.beastMode(tap)) queueBeastMode()
+        if (KeyEffectPreviewScript.pride(tap)) queuePride()
         burst(x, y, w, h)
         flush()
         if (KeyEffectPreviewScript.beat(e, tap)) kickBeat()

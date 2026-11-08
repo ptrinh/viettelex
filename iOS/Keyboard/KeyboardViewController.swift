@@ -1776,6 +1776,10 @@ final class KeyboardViewController: UIInputViewController {
             if RepsFx.isKeyword(word: word, prev: prev, prev2: lastWord2) { fx.queueBeastMode() }
             return
         }
+        if fx.effect == .rainbowburst {   // Tự hào: "love is love", "tự hào", "pride", "yêu là yêu" ⇒ cờ + tim
+            if PrideKeywords.matches(word: word, prev: prev, prev2: lastWord2) { fx.queuePride() }
+            return
+        }
         guard let e = EmojiWords.lookup(word: word, prev: prev) else { return }
         fx.queueEmoji(e)
     }

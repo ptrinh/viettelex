@@ -100,12 +100,14 @@ enum KeySoundStyle: String, CaseIterable {
     // Theme "Gym" (11/2026): "keng" kim loại khẽ của bánh tạ sắt — hoạ âm KHÔNG điều hoà (×1, ×1.59, ×2.76, ×5.4 như đĩa
     // kim loại) tắt nhanh + tiếng chạm nhiễu rất ngắn. Seed cố định ("plat").
     case plate
+    // Theme "Cung hoàng đạo" (11/2026): chuông sao "twinkle" — sine G6 mềm + E7 khẽ chen, không nhiễu.
+    case twinkle
 
     /// Bật "Âm thanh phím" lần đầu ⇒ "Nhẹ nhàng" (bật công tắc phải NGHE khác đi; "iOS" = như lúc tắt).
     static let defaultStyle: KeySoundStyle = .subtle
     /// Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức `baseRecipe`.
     static let presets: [KeySoundStyle] = [.subtle, .wood, .mechanical, .typewriter, .bubble, .rock, .pop, .water, .vintage, .phao, .jingle,
-                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club, .dream, .airy, .mo, .bell, .rain, .plate]
+                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club, .dream, .airy, .mo, .bell, .rain, .plate, .twinkle]
     /// Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta).
     static let allPresets: [KeySoundStyle] = presets + [.piano, .dantranh, .guitar]
     /// DANH SÁCH DUY NHẤT id hợp lệ cho trường "sound" của theme JSON (chọn theme ⇒ đặt keySoundStyle).
@@ -154,6 +156,7 @@ enum KeySoundStyle: String, CaseIterable {
         case .bell: return LK("Chuông nhỏ")
         case .rain: return LK("Mưa")
         case .plate: return LK("Tạ sắt")
+        case .twinkle: return LK("Chuông sao")
         }
     }
 
@@ -294,6 +297,13 @@ enum KeySoundSynth {
                                   t(0.55, 784 * 2.76, 784 * 2.76, tau: 0.010), t(0.3, 784 * 5.4, 784 * 5.4, tau: 0.006)],
                           noises: [n(0.22, hp: 900, lp: 3200, tau: 0.0012)],
                           attack: 0.0006, duration: 0.052, outLP: 4200, peak: 0.42)
+        case .twinkle:
+            // Chuông sao: sine G6 (1568 Hz) ngân ngắn + C7 (2093 Hz) khẽ chen sau 18 ms như sao lấp lánh + chút hoạ âm
+            // cao rất nhẹ. Không nhiễu, đỉnh 0.34 (< Gõ gỗ), ≤ 60 ms, lọc mềm 4,5 kHz.
+            return Recipe(tones: [t(1.0, 1568, 1568, tau: 0.016), t(0.55, 2093, 2093, tau: 0.014, delay: 0.018),
+                                  t(0.10, 3136, 3136, tau: 0.005)],
+                          noises: [],
+                          attack: 0.002, duration: 0.058, outLP: 4500, peak: 0.34)
         }
     }
 
@@ -509,6 +519,8 @@ enum KeySoundSynth {
         if s == .rain { return rainSeed(k, variant: 0) }
         // Tạ sắt: seed CỐ ĐỊNH ("plat") — như club.
         if s == .plate { return 0x706C_6174 ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1)) }
+        // Chuông sao: seed cố định ("twnk") như Nhịp club.
+        if s == .twinkle { return 0x7477_6E6B ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1)) }
         let si = UInt32(KeySoundStyle.allCases.firstIndex(of: s) ?? 0)
         return 0x9E37_79B9 &* (si &+ 1) ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1))
     }

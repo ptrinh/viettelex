@@ -264,6 +264,21 @@
                 "accentInk": "#141A00", "fn": "#202327", "fnInk": "#D4FF3A", "balloon": "#3A3F45", "trail": "#CCC6FF1A",
                 "border": "#99C6FF1A", "deco": {"motif": "treadplate", "color": "#4D8A9299"}},
       "dark": "same"
+    },
+    {
+      "v": 1, "id": "zodiac", "name": {"vi": "Cung hoàng đạo", "en": "Zodiac"}, "tags": ["interactive"], "variant": "zodiac",
+      "sound": "twinkle", "effect": "constellation", "swipe": "stardust",
+      "light": {"bg": "#120A1F", "key": "#2A1530", "special": "#3D1C38", "ink": "#FFF4E6", "accent": "#FF7A2F",
+                "accentInk": "#1A0A00", "fn": "#1E1028", "fnInk": "#FFC857", "deco": {"motif": "starfield", "color": "#66FFD9A0"}},
+      "dark": "same"
+    },
+    {
+      "v": 1, "id": "pride", "name": {"vi": "Tự hào", "en": "Pride"}, "tags": ["interactive"], "variant": "pride",
+      "sound": "pop", "effect": "rainbowburst", "swipe": "rainbow",
+      "light": {"bg": "#0E0E14", "key": "#1E1E28", "special": "#2C2C3A", "ink": "#FFFFFF", "accent": "#FF8C00",
+                "accentInk": "#1A0A00", "fn": "#16161F", "fnInk": "#FFED00", "borderFx": "aurora",
+                "deco": {"motif": "hearts", "color": "#26FFFFFF"}},
+      "dark": "same"
     }
   ]
 }

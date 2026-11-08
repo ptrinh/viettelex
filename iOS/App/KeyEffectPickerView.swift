@@ -18,7 +18,9 @@ struct KeyEffectPickerView: View {
     private var current: KeyEffect { KeyEffect.parse(raw) }
 
     var body: some View {
-        let palette = ThemeSettings.load(effectDefaults).palette(systemDark: scheme == .dark, wallpaperActive: false)
+        let settings = ThemeSettings.load(effectDefaults)
+        let palette = settings.palette(systemDark: scheme == .dark, wallpaperActive: false)
+        let zodiac = settings.variantChoice.zodiac, pride = settings.variantChoice.pride
         List {
             if !KeyEffectGate.allows {
                 Section {
@@ -27,7 +29,7 @@ struct KeyEffectPickerView: View {
             }
             Section {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(KeyEffect.allCases, id: \.self) { tile($0, palette: palette) }
+                    ForEach(KeyEffect.allCases, id: \.self) { tile($0, palette: palette, zodiac: zodiac, pride: pride) }
                 }
                 .padding(.vertical, 6)
             } header: {
@@ -43,6 +45,8 @@ struct KeyEffectPickerView: View {
                     + Text(" ") + Text(L("Đường hầm: vòng sáng co về phím vừa bấm như rơi vào đường hầm, gõ nhanh thì rơi nhanh hơn. Lơ lửng: phím trôi nhẹ khỏi hàng khi đang gõ rồi về chỗ khi nghỉ; chỉ là hình — chạm vẫn đúng phím; tắt khi bật Giảm chuyển động."))
                     + Text(" ") + Text(L("Công đức thả \"+1 công đức\" bay lên từ phím vừa bấm và đếm số phím trong ngày (về 0 lúc nửa đêm, chỉ lưu trên máy). Nắng qua kính làm ô vừa bấm sáng lên như nắng xuyên qua kính màu; gõ nhanh có ánh nến ấm bập bùng chậm ở mép dưới."))
                     + Text(" ") + Text(L("Rep lấp thanh rep một nấc mỗi phím, đủ 10 phím là xong một hiệp (SET ✓); gõ nhanh bật \"+1 rep 💪\"; gõ \"gym\", \"tập\", \"beast mode\"… để nổ chữ BEAST MODE."))
+                    + Text(" ") + Text(L("Chòm sao: mỗi phím thắp thêm một sao của chòm cung hoàng đạo bạn chọn (trong giao diện Cung hoàng đạo), đủ sao thì cả chòm loé sáng."))
+                    + Text(" ") + Text(L("Cầu vồng: vòng cung theo màu lá cờ bạn chọn (trong giao diện Tự hào) lan ra từ phím; gõ \"tự hào\", \"yêu là yêu\", \"pride\" hay \"love is love\" thì lá cờ tung bay cùng tim."))
             }
         }
         .bottomBarScrollMargin()
@@ -51,14 +55,14 @@ struct KeyEffectPickerView: View {
         .navigationDestination(isPresented: $showPlus) { PlusView(model: PlusShared.model) }
     }
 
-    private func tile(_ e: KeyEffect, palette: KeyboardPalette) -> some View {
+    private func tile(_ e: KeyEffect, palette: KeyboardPalette, zodiac: ZodiacSign, pride: PrideFlag) -> some View {
         let locked = !KeyEffectGate.allows(e)
         let selected = current == e
         return VStack(spacing: 6) {
             Button { tap(e, locked: locked) } label: {
                 // Lớp SwiftUI trong suốt PHỦ lên ô xem trước UIKit: hit-test vào UIViewRepresentable
                 // không tới được Button ⇒ chạm ô không chọn được (Phil 19/10/2026).
-                KeyEffectPreview(effect: e, palette: palette, play: plays[e, default: 0])
+                KeyEffectPreview(effect: e, palette: palette, play: plays[e, default: 0], zodiac: zodiac, pride: pride)
                     .overlay(Color.clear.contentShape(Rectangle()))
                     .frame(height: 84)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -102,10 +106,12 @@ struct KeyEffectPreview: UIViewRepresentable {
     let effect: KeyEffect
     let palette: KeyboardPalette
     let play: Int
+    var zodiac: ZodiacSign = .defaultValue
+    var pride: PrideFlag = .defaultValue
 
     func makeUIView(context: Context) -> KeyEffectPreviewView { KeyEffectPreviewView() }
     func updateUIView(_ v: KeyEffectPreviewView, context: Context) {
-        v.update(effect: effect, palette: palette, play: play)
+        v.update(effect: effect, palette: palette, play: play, zodiac: zodiac, pride: pride)
     }
 }
 // KeyEffectPreviewView (UIKit): Keyboard/KeyEffectPreview.swift — dùng chung với test.

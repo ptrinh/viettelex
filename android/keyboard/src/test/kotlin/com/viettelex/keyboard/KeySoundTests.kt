@@ -237,7 +237,7 @@ class KeySoundTests {
     /** Danh sách id DUY NHẤT cho "sound" của theme JSON (trùng iOS presetIDs); "theme" (đã bỏ) ⇒ mặc định. */
     @Test fun presetIdsForThemeJson() {
         assertEquals(listOf("subtle", "wood", "mechanical", "typewriter", "bubble", "rock", "pop", "water", "vintage",
-            "phao", "jingle", "scifi", "trong", "boo", "bop", "chip", "ai", "club", "dream", "airy", "mo", "bell", "rain", "plate", "piano", "dantranh", "guitar"), KeySoundStyle.PRESET_IDS)
+            "phao", "jingle", "scifi", "trong", "boo", "bop", "chip", "ai", "club", "dream", "airy", "mo", "bell", "rain", "plate", "twinkle", "piano", "dantranh", "guitar"), KeySoundStyle.PRESET_IDS)
         for (bad in listOf("system", "custom", "theme")) assertFalse(bad, bad in KeySoundStyle.PRESET_IDS)
         assertEquals(KeySoundStyle.SUBTLE, KeySoundStyle.resolve("theme", true))
         assertEquals("subtle", KeyboardSettings.load { if (it == Keys.KEY_SOUND_STYLE) "theme" else null }.keySoundStyle)

@@ -290,6 +290,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var auroraBand: CAGradientLayer?
     /// Nền gradient dọc (theme JSON "bg2" — Lạc trôi): MỘT CAGradientLayer đáy themeBackdrop, dựng lười; theme khác ⇒ nil.
     private var bgGradient: CAGradientLayer?
+    private var auroraBandColors: [UInt32]?
+    /// Ký hiệu mờ ở góc trên phải (theme Cung hoàng đạo — palette.cornerGlyph): MỘT CATextLayer trong themeBackdrop, dựng
+    /// lười; theme khác ⇒ chưa từng tạo / ẩn (0 chi phí).
+    private var cornerGlyphLayer: CATextLayer?
     private var wallpaperActive = false
     private var wallpaperLoadedFor: CGSize = .zero
     /// Tệp tải về của theme (theme JSON: phông / ảnh nền / tiền cảnh / skin phím) — nạp MỘT lần mỗi theme
@@ -2062,6 +2066,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         applyBackgroundGradient(hidden: clear)
         applyDecoration(hidden: clear)
         applyAurora(hidden: clear)
+        applyCornerGlyph(hidden: clear)
         // Nền tự vẽ: bo 2 góc trên theo khung kính bàn phím iOS 26+ (không còn góc vuông đen
         // chồng lên góc bo xám của hệ thống). cornerRadius trên view lá màu phẳng / ảnh ⇒ không
         // offscreen pass.
@@ -2145,6 +2150,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             g.frame = themeBackdrop.bounds
             CATransaction.commit()
         }
+        layoutCornerGlyph()
         layoutRainbow()
         layoutStringGaps()
     }
@@ -2170,16 +2176,58 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var debugBackgroundGradient: CAGradientLayer? { bgGradient }
     #endif
 
+    /// Cỡ ký hiệu góc (pt) + độ đậm so với chữ theme. Android ImeRootView y hệt (CornerGlyph).
+    static let cornerGlyphSize: CGFloat = 26
+    static let cornerGlyphAlpha: CGFloat = 0.22
+
+    private func applyCornerGlyph(hidden: Bool) {
+        guard let g = palette.cornerGlyph, !hidden else { cornerGlyphLayer?.isHidden = true; return }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        let l = cornerGlyphLayer ?? {
+            let t = CATextLayer()
+            t.contentsScale = UIScreen.main.scale
+            t.alignmentMode = .right
+            t.font = UIFont.systemFont(ofSize: Self.cornerGlyphSize)
+            t.fontSize = Self.cornerGlyphSize
+            themeBackdrop.layer.addSublayer(t)
+            cornerGlyphLayer = t
+            return t
+        }()
+        l.string = g
+        l.foregroundColor = palette.ink.ui.withAlphaComponent(Self.cornerGlyphAlpha).cgColor
+        l.isHidden = false
+        CATransaction.commit()
+        layoutCornerGlyph()
+    }
+
+    private func layoutCornerGlyph() {
+        guard let l = cornerGlyphLayer, !l.isHidden else { return }
+        // Góc trên phải NỘI DUNG (gốc 0 của view — #151 phần host cấp dư nằm trên).
+        let top = themeBackdrop.convert(CGPoint.zero, from: self).y
+        let h = Self.cornerGlyphSize * 1.25
+        let f = CGRect(x: themeBackdrop.bounds.width - h * 1.6 - 6, y: top + 4, width: h * 1.6, height: h)
+        guard l.frame != f else { return }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        l.frame = f
+        CATransaction.commit()
+    }
+
     private func applyAurora(hidden: Bool) {
         guard palette.auroraBorder, !hidden else { auroraBand?.isHidden = true; return }
         CATransaction.begin(); CATransaction.setDisableActions(true)
+        // Tự hào: dải theo sọc cờ — đổi cờ ⇒ dựng lại (chỉ lúc đổi theme / cờ).
+        let band = palette.auroraColors.map(AuroraFx.stops) ?? AuroraFx.band
+        if let g = auroraBand, (g.locations ?? []).map(\.doubleValue) != band.map(\.location) || auroraBandColors != palette.auroraColors {
+            g.removeFromSuperlayer(); auroraBand = nil
+        }
+        auroraBandColors = palette.auroraColors
         if auroraBand == nil {
             let g = CAGradientLayer()
-            g.colors = AuroraFx.band.map { v -> CGColor in
+            g.colors = band.map { v -> CGColor in
                 UIColor(red: CGFloat((v.color >> 16) & 0xFF) / 255, green: CGFloat((v.color >> 8) & 0xFF) / 255,
                         blue: CGFloat(v.color & 0xFF) / 255, alpha: 1).cgColor
             }
-            g.locations = AuroraFx.band.map { NSNumber(value: $0.location) }
+            g.locations = band.map { NSNumber(value: $0.location) }
             g.startPoint = CGPoint(x: 0, y: 0.5)
             g.endPoint = CGPoint(x: 1, y: 0.5)
             let m = CAGradientLayer()   // độ đậm theo chiều dọc: AuroraFx.bandOpacity (mép trên → 0)
@@ -7265,8 +7313,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         // AI ("aurora") / Ảo giác ("hueflow"): cùng lớp mặt nạ viền, bộ số khác — đổi kiểu ⇒ dựng view mới.
         let kind: RainbowBorderView.Kind = palette.auroraBorder ? .aurora : palette.hueFlow ? .hueflowBorder : .rainbow
-        if let r = rainbow, r.kind != kind { r.halt(); r.removeFromSuperview(); rainbow = nil }
-        let v = rainbow ?? RainbowBorderView(kind: kind)
+        // Tự hào: viền tĩnh theo sọc cờ — đổi cờ ⇒ dựng view mới.
+        if let r = rainbow, r.kind != kind || r.auroraColors != (kind == .aurora ? palette.auroraColors : nil) {
+            r.halt(); r.removeFromSuperview(); rainbow = nil
+        }
+        let v = rainbow ?? RainbowBorderView(kind: kind, colors: palette.auroraColors)
         if v.superview !== self {
             v.frame = bounds
             v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -7378,6 +7429,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         KeySound.shared.setSurfEnabled(sea)
         keyEffects?.onSeaWave = sea ? { Self.seaSurf(size: $0) } : nil
         configureBeatFlash(keyEffects?.effect == .dancefloor)
+        // Chòm sao: cung người dùng chọn (đọc cùng ThemeSettings lúc hiện — 0 chi phí mỗi phím).
+        if keyEffects?.effect == .constellation { keyEffects?.zodiacSign = themeSettings.variantChoice.zodiac }
+        // Cầu vồng: màu theo lá cờ người dùng chọn (theme Tự hào).
+        if keyEffects?.effect == .rainbowburst { keyEffects?.prideFlag = themeSettings.variantChoice.pride }
         syncKeyEffectsSpace()
         layoutStringGaps()
         configureKeyFloat()
@@ -7915,6 +7970,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var debugBackdropViews: [UIView] { [themeBackdrop, themeImageView, wallpaperView, wallpaperDim] }
     /// Test: dải cực quang (theme AI) — nil = chưa từng tạo.
     var debugAuroraBand: CAGradientLayer? { auroraBand }
+    var debugCornerGlyph: CATextLayer? { cornerGlyphLayer }
     var debugRowsContainer: UIView { rowsContainer }
     /// Test: đường phím thật sau khi chạm (onKey + hiệu ứng) cho phím `k`.
     func debugTapped(_ k: Key) { tapped(k) }

@@ -66,12 +66,14 @@ class ImeRootView(
     private val bgDrawable: android.graphics.drawable.Drawable = theme.palette.bgBottom.let { bottom ->
         // Kính giả lập: gradient dọc (GradientDrawable — vẽ phẳng, không blur).
         val decoration = theme.palette.decoration
-        if (wallpaperFile == null && bottom != null && decoration == null && !theme.palette.auroraBorder) android.graphics.drawable.GradientDrawable(
+        if (wallpaperFile == null && bottom != null && decoration == null && !theme.palette.auroraBorder &&
+            theme.palette.cornerGlyph == null) android.graphics.drawable.GradientDrawable(
             android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(theme.bg, bottom))
         // Tim đen / Hoa xanh: hoạ tiết là MỘT Path trong nền (vẽ khi nền đổi, không mỗi phím).
-        else if (wallpaperFile == null && (decoration != null || theme.palette.auroraBorder))
+        else if (wallpaperFile == null && (decoration != null || theme.palette.auroraBorder || theme.palette.cornerGlyph != null))
             ThemeDecorDrawable(theme.bg, decoration, theme.density, aurora = theme.palette.auroraBorder,
-                bgBottom = if (wallpaperFile == null) bottom else null)
+                bgBottom = if (wallpaperFile == null) bottom else null,
+                glyph = theme.palette.cornerGlyph, glyphColor = theme.palette.ink, auroraColors = theme.palette.auroraColors)
         else android.graphics.drawable.ColorDrawable(theme.bg)
     }
 
@@ -98,7 +100,7 @@ class ImeRootView(
      * hiệu ứng / balloon; cùng khung KeyboardView. Theme khác ⇒ null (không có view).
      */
     val rainbow: RainbowBorderView? = if (theme.palette.rainbowBorder || theme.palette.auroraBorder || theme.palette.hueFlow)
-        RainbowBorderView(context, theme.density, kind = when {
+        RainbowBorderView(context, theme.density, auroraColors = theme.palette.auroraColors, kind = when {
             theme.palette.auroraBorder -> RainbowBorderView.Kind.AURORA
             theme.palette.hueFlow -> RainbowBorderView.Kind.HUEFLOW_BORDER
             else -> RainbowBorderView.Kind.RAINBOW

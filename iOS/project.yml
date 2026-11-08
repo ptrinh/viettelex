@@ -43,6 +43,10 @@ targets:
       - Keyboard/Kaleido.swift
       # Lạc trôi: Đường hầm (overlay) + Lơ lửng (xem thử phím trôi).
       - Keyboard/Drift.swift
+      # Cung hoàng đạo (theme "zodiac"): cung + bảng màu nguyên tố + chòm sao — trang Giao diện chọn cung.
+      - Keyboard/Zodiac.swift
+      # Tự hào (theme "pride"): lá cờ + bảng màu + hiệu ứng Cầu vồng — trang Giao diện chọn cờ.
+      - Keyboard/Pride.swift
       # Bạn đồng hành: xem trước ở trang chọn (cùng view với bàn phím).
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
@@ -235,6 +239,10 @@ targets:
       - Keyboard/KeyEffects.swift
       - Keyboard/KeyEffectPreview.swift
       - Keyboard/Kaleido.swift
+      # Cung hoàng đạo (theme "zodiac"): cung + bảng màu nguyên tố + chòm sao — trang Giao diện chọn cung.
+      - Keyboard/Zodiac.swift
+      # Tự hào (theme "pride"): lá cờ + bảng màu + hiệu ứng Cầu vồng — trang Giao diện chọn cờ.
+      - Keyboard/Pride.swift
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
       - Keyboard/AIEye.swift
