@@ -85,7 +85,8 @@ class ThemeSpecTests {
             assertEquals("tên vi = khoá L10n", t.viTitle, s.nameVi)
             assertTrue(id, ThemeSpecParser.contrastIssues(s).none { it.isError })
             // Lịch theo giờ (Theo giờ) không nằm trong palette — đi riêng.
-            val back = ThemeSpec.export(id, s.nameVi, s.nameEn, s.palette(false), s.palette(true), s.typography).copy(schedule = s.schedule)
+            val back = ThemeSpec.export(id, s.nameVi, s.nameEn, s.palette(false), s.palette(true), s.typography)
+                .copy(schedule = s.schedule, tags = s.tags, buddy = s.buddy)   // lịch / nhãn / bạn đồng hành đi riêng
             assertEquals(id, s.canonical, back.canonical)
             assertEquals(id, s.canonical, spec(s.canonical).canonical)
             assertEquals(id, s.canonical, ThemeSettings().exportSpec(t, base.palette(t, false), base.palette(t, true)).canonical)
@@ -345,4 +346,16 @@ class ThemeSpecTests {
         assertEquals(px, KeyStyleStore.parse(KeyStyleStore.serialize(mapOf("mint" to px)))["mint"])
         assertTrue(KeyStyleStore.parse("""{"mint":{"keyShape":"round"}}""").isEmpty())
     }
+
+    /** "Chép JSON" theme có sẵn giữ "tags" + "buddy"; dán lại đọc ra y hệt. = iOS testCopyJSONKeepsTagsAndBuddy. */
+    @Test fun copyJsonKeepsTagsAndBuddy() {
+        val s = ThemeSettings(theme = KeyboardTheme.AI)
+        val text = ThemeJsonActions.copyText(ThemeEditTarget.Builtin(KeyboardTheme.AI), s, emptyMap(), base)!!
+        val back = ThemeSpecParser.parse(text).spec!!
+        assertEquals(listOf("interactive"), back.tags)
+        assertEquals(ThemeBuddy("ai", 5), back.buddy)
+        val plain = ThemeJsonActions.copyText(ThemeEditTarget.Builtin(KeyboardTheme.PEACH), s, emptyMap(), base)!!
+        assertFalse(plain.contains("tags")); assertFalse(plain.contains("buddy"))
+    }
+
 }

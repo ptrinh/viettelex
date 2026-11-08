@@ -46,7 +46,9 @@ class ThemeSetTests {
         val lines = fixtureLines()
         assertEquals(lines.first { it[0] == "order" }[1].split(','), KeyboardTheme.entries.map { it.id })
         assertEquals(lines.first { it[0] == "plus" }[1].split(','), KeyboardTheme.entries.filter { it.isPlus }.map { it.id })
-        val rows = lines.filter { it[0] != "order" && it[0] != "plus" }
+        assertEquals(lines.first { it[0] == "interactive" }[1].split(','), KeyboardTheme.entries.filter { it.isInteractive }.map { it.id })
+        assertEquals("thứ tự lưới phải trùng iOS", lines.first { it[0] == "picker" }[1].split(','), ThemePicker.ordered().map { it.id })
+        val rows = lines.filter { it[0] !in setOf("order", "plus", "interactive", "picker") }
         assertEquals(62, rows.size)
         for (r in rows) {
             val t = KeyboardTheme.entries.first { it.id == r[0] }
@@ -488,14 +490,71 @@ class ThemeSetTests {
         assertEquals("none", prefs[Keys.KEY_EFFECT])
     }
 
-    @Test fun pickerSectionsFreeThenPlus() {
+    @Test fun pickerSectionsFreeThenInteractiveThenPlus() {
         val secs = ThemePicker.sections
-        assertEquals(listOf("Miễn phí", "Plus"), secs.map { it.title })
+        assertEquals(listOf("Miễn phí", "Tương tác", "Plus"), secs.map { it.title })
         assertEquals(listOf(KeyboardTheme.SYSTEM, KeyboardTheme.OLED, KeyboardTheme.CONTRAST, KeyboardTheme.NEUTRAL), secs[0].themes)
-        assertEquals(KeyboardTheme.entries.toSet(), (secs[0].themes + secs[1].themes).toSet())
-        assertTrue(secs[1].themes.all { it.isPlus })
+        assertEquals(listOf("nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar"), secs[1].themes.map { it.id })
+        assertEquals(ThemePicker.ordered(), secs.flatMap { it.themes })
+        assertEquals(KeyboardTheme.entries.toSet(), secs.flatMap { it.themes }.toSet())
+        assertEquals("không trùng", KeyboardTheme.entries.size, secs.flatMap { it.themes }.size)
+        assertTrue(secs[1].themes.all { it.isPlus && it.isInteractive })
+        assertTrue(secs[2].themes.all { it.isPlus && !it.isInteractive })
+        assertEquals(ThemePicker.INTERACTIVE_ORDER.toSet(), KeyboardTheme.entries.filter { it.isInteractive }.map { it.id }.toSet())
+        assertEquals(KeyboardTheme.entries.filter { it.isPlus && !it.isInteractive }, secs[2].themes)
+        assertEquals("Interactive", L10nTable.EN["Tương tác"])
         for ((vi, en) in listOf("Miễn phí" to "Free", "Chọn giao diện" to "Choose theme", "Giao diện bàn phím" to "Keyboard theme"))
             assertEquals(en, L10nTable.EN[vi])
+    }
+
+    /** Hàm thứ tự thuần: theme miễn phí có nhãn vẫn ở nhóm miễn phí; = iOS testPickerOrderingPure. */
+    @Test fun pickerOrderingPure() {
+        val g = ThemePicker.groups(listOf(KeyboardTheme.PEACH, KeyboardTheme.AI, KeyboardTheme.OLED, KeyboardTheme.GUITAR, KeyboardTheme.NIGHTCLUB, KeyboardTheme.SYSTEM))
+        assertEquals(listOf(KeyboardTheme.OLED, KeyboardTheme.SYSTEM), g.free)
+        assertEquals(listOf(KeyboardTheme.NIGHTCLUB, KeyboardTheme.AI, KeyboardTheme.GUITAR), g.interactive)
+        assertEquals(listOf(KeyboardTheme.PEACH), g.rest)
+        assertEquals(emptyList<KeyboardTheme>(), ThemePicker.ordered(emptyList()))
+    }
+
+    /** Chip "Tương tác": đúng theme có nhãn (có sẵn + tự tạo). = iOS testInteractiveBadge. */
+    @Test fun interactiveBadge() {
+        for (t in KeyboardTheme.entries) assertEquals(t.id, t.id in ThemePicker.INTERACTIVE_ORDER, ThemePicker.badge(t) != null)
+        assertEquals(tr("Tương tác"), ThemePicker.badge(KeyboardTheme.NIGHTCLUB))
+        assertNull(ThemePicker.badge(KeyboardTheme.SYSTEM)); assertNull(ThemePicker.badge(KeyboardTheme.GLASS))
+        val base = """{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"}"""
+        assertNotNull(ThemePicker.badge(ThemeSpecParser.parse(base + ""","tags":["interactive"]}""").spec!!))
+        assertNull(ThemePicker.badge(ThemeSpecParser.parse("$base}").spec!!))
+    }
+
+    /** Chọn theme AI ⇒ bạn đồng hành = Mắt AI, cỡ 5 (một lần); theme khác không đổi. = iOS testThemeBuddyAppliedOnSelect. */
+    @Test fun themeBuddyAppliedOnSelect() {
+        assertEquals(ThemeBuddy("ai", 5), KeyboardTheme.AI.spec?.buddy)
+        assertEquals("chỉ theme AI đặt bạn đồng hành", listOf(KeyboardTheme.AI), KeyboardTheme.entries.filter { it.spec?.buddy != null })
+        val b = ThemeBuddy("ai", 5)
+        assertEquals(b, ThemeExtras.planBuddy(b) { true })
+        assertNull(ThemeExtras.planBuddy(b) { false })
+        assertNull(ThemeExtras.planBuddy(null) { true })
+        assertNull(ThemeExtras.planBuddy(ThemeBuddy("off")) { true })
+        val prefs = HashMap<String, Any>()
+        prefs[Keys.KEYBOARD_BUDDY] = "cat"; prefs[Keys.BUDDY_SIZE] = 9
+        fun apply(s: ThemeSettings) = ThemeExtras.applyBuddyOnSelect(s.selectedSpec?.buddy, { k, v -> prefs[k] = v }, { k, v -> prefs[k] = v })
+        assertNull(apply(ThemeSettings(theme = KeyboardTheme.PEACH)))
+        assertEquals("cat", prefs[Keys.KEYBOARD_BUDDY]); assertEquals(9, prefs[Keys.BUDDY_SIZE])
+        assertEquals(b, apply(ThemeSettings(theme = KeyboardTheme.AI)))
+        assertEquals("ai", prefs[Keys.KEYBOARD_BUDDY]); assertEquals(5, prefs[Keys.BUDDY_SIZE])
+        // Đổi tay sau đó ⇒ giữ (chọn theme khác không ghi đè).
+        prefs[Keys.KEYBOARD_BUDDY] = "cat"
+        apply(ThemeSettings(theme = KeyboardTheme.NIGHTCLUB))
+        assertEquals("cat", prefs[Keys.KEYBOARD_BUDDY])
+        // Theme tự tạo có "buddy" cũng áp; không có cỡ ⇒ giữ cỡ cũ.
+        val custom = ThemeSpecParser.parse("""{"v":1,"id":"my-b","name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"buddy":{"character":"robot"}}""").spec!!
+        assertEquals("robot", apply(ThemeSettings(custom = custom))?.character)
+        assertEquals("robot", prefs[Keys.KEYBOARD_BUDDY]); assertEquals(5, prefs[Keys.BUDDY_SIZE])
+        // Khoá Plus ⇒ bỏ qua cả nhân vật lẫn cỡ.
+        PlusGate.paywallEnabled = true
+        PlusGate.install({ null }, debugBuild = false)
+        assertNull(apply(ThemeSettings(theme = KeyboardTheme.AI)))
+        assertEquals("robot", prefs[Keys.KEYBOARD_BUDDY])
     }
 
     @Test fun pickerSelectRespectsPlusGate() {

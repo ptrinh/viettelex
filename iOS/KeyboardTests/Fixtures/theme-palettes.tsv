@@ -4,8 +4,12 @@
 # Màu: AARRGGBB (alpha cắt cụt a*255); '-' = không có. fn = nền phím chức năng + phím cách riêng;
 # fnInk = chữ/icon phím chức năng riêng; deco = hoạ tiết nền motif[+alt]:màu (alt = motif thứ hai xen kẽ). Hệ thống / Kính khác nhau theo
 # nền tảng (backdrop) nên không có ở đây.
+# interactive = theme có nhãn "interactive" (thứ tự khai báo); picker = thứ tự lưới "Chọn giao diện" (ThemePicker.ordered:
+# miễn phí → tương tác theo ThemePicker.interactiveOrder → còn lại).
 order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral,pixel,sea,timeOfDay,ai,nightclub
 plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,pixel,sea,timeOfDay,ai,nightclub
+interactive	tet,tetMai,piano,rgb,space,guitar,mole,sea,ai,nightclub
+picker	system,oled,contrast,neutral,nightclub,ai,sea,mole,piano,space,rgb,tet,tetMai,guitar,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,xmas,xmasSnow,sen,typewriter,trungthu,valentine,halloween,pixel,timeOfDay
 #theme	dark	bg	key	special	ink	accent	accentInk	border	fn	fnInk	deco
 oled	0	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
 oled	1	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-

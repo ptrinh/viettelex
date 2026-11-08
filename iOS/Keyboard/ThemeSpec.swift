@@ -13,7 +13,7 @@ import Foundation
 //             (deco "alt": motif thứ hai xen kẽ, vd {"motif":"pumpkin","alt":"bat",…})
 //    "dark":{…} | "same", "corner":70, "fontScale":110, "font":"serif", "weight":"bold",
 //    "sound":"phao", "effect":"blossom", "swipe":"stardust", "game":"mole", "keyShape":"pixel",
-//    "photoFx":"spotlight"}
+//    "photoFx":"spotlight", "tags":["interactive"], "buddy":{"character":"ai","size":5}}
 //
 // "font" chuỗi (KeyLabelFont): "default" | "rounded" | "serif" | "mono" | "condensed" — phông hệ thống — | "pixel" — phông
 //   điểm ảnh NHÚNG trong app (Tiny5, fonts/Tiny5-Regular.ttf, đủ chữ Việt; nạp lười chỉ khi dùng, bỏ qua "weight").
@@ -40,6 +40,18 @@ import Foundation
 // hồng / tím / lục lam xoay vòng) quanh chỗ chạm rồi tắt dần ~0,8 s, tối đa 6 quầng; gõ nhanh ⇒ to + sáng hơn. Không có
 // ảnh nền ⇒ quầng sáng rọi lên hoạ tiết neon tối dựng sẵn; quả cầu disco nhỏ ở góc trên xoay + toả chấm sáng khi bấm.
 // Như "game": không ghi gì lúc chọn theme, bàn phím đọc từ kiểu thực dùng (SpotlightPolicy); theme tự tạo dùng được.
+//
+// "tags" (tuỳ chọn, mảng chuỗi trong danh sách trắng ThemeTags.known): nhãn của theme — "interactive" = theme TƯƠNG TÁC
+//   (phím/ảnh nền phản ứng khi gõ: trò chơi, đèn rọi, sóng, nốt nhạc…) ⇒ màn "Chọn giao diện" gắn chip "Tương tác" và
+//   xếp nhóm riêng ngay sau theme miễn phí (ThemePicker). Không phải mảng ⇒ wrongType; phần tử không phải chuỗi ⇒
+//   wrongType; nhãn lạ / lặp ⇒ badValue. Mảng rỗng = không có. Chỉ là nhãn hiển thị — không đổi cách vẽ. Theme tự tạo
+//   dùng được; "Chép JSON" giữ nguyên; bản vá (KeyStyle) không có "tags".
+//
+// "buddy" (tuỳ chọn): bạn đồng hành ĐI KÈM theme — {"character": id BuddyCharacter trừ "off" (ThemeExtraIds.buddies),
+//   "size": 1…20 (thang "Vị trí & cỡ", BuddyPlacement; 5 = cỡ gốc) tuỳ chọn}. Như "effect": CHỈ ghi MỘT lần lúc người
+//   dùng chọn theme (ThemeExtras.applyBuddyOnSelect — khoá keyboardBuddy / buddySize); đổi tay sau đó thì giữ tới lần
+//   chọn theme kế. Nhân vật bị khoá Plus / app không có ⇒ bỏ qua (cả cỡ). Khoá lạ ⇒ unknownKey; thiếu "character" ⇒
+//   missingKey; id lạ ⇒ badValue; cỡ ngoài 1…20 ⇒ kẹp + cảnh báo clamped. Bản vá (KeyStyle) không có "buddy".
 //
 // "sound" / "effect" (tuỳ chọn, id trong danh sách trắng ThemeExtraIds): âm phím / hiệu ứng bấm phím ĐI KÈM theme —
 // CHỈ áp MỘT lần lúc người dùng chọn theme (ThemeExtras.applyOnSelect); không bao giờ tự bật âm thanh phím.
@@ -705,6 +717,12 @@ struct ThemeSpec: Equatable {
     var photoFx: String? = nil
     /// Bảng màu theo giờ (ThemeSchedule); nil = theo sáng/tối hệ thống như mọi theme.
     var schedule: [ThemeScheduleEntry]? = nil
+    /// Nhãn ("interactive" — ThemeTags.known), thứ tự như trong JSON; nil = không có (mảng rỗng cũng là nil).
+    var tags: [String]? = nil
+    /// Bạn đồng hành đi kèm (ghi một lần lúc chọn theme — ThemeExtras.applyBuddyOnSelect); nil = không đổi.
+    var buddy: ThemeBuddy? = nil
+    /// Theme tương tác (nhãn "interactive") — chip "Tương tác" + nhóm riêng trong màn chọn giao diện.
+    var isInteractive: Bool { tags?.contains(ThemeTags.interactive) ?? false }
 
     func slots(dark d: Bool) -> ThemeSlots { d ? (dark ?? light) : light }
     /// Bảng màu ở phút `minute` trong ngày: có lịch ⇒ mục đang hiệu lực (bỏ qua sáng/tối); không lịch / `minute` nil
@@ -731,6 +749,18 @@ struct ThemeSpec: Equatable {
     }
 }
 
+/// "buddy" của theme JSON: nhân vật (id BuddyCharacter, không "off") + cỡ tuỳ chọn (BuddyPlacement.sizeRange).
+struct ThemeBuddy: Equatable {
+    var character: String
+    var size: Int? = nil
+}
+
+/// Nhãn theme ("tags") — danh sách trắng; Android ThemeTags y hệt (fixture chung chốt).
+enum ThemeTags {
+    static let interactive = "interactive"
+    static let known: Set<String> = [interactive]
+}
+
 /// Danh sách trắng id "sound" / "effect" của theme JSON = đúng danh sách kiểu âm dựng sẵn / hiệu ứng của app
 /// (KeySoundStyle.presetIDs, KeyEffect) — Android ThemeExtraIds y hệt (fixture chung chốt).
 enum ThemeExtraIds {
@@ -745,6 +775,8 @@ enum ThemeExtraIds {
     /// "photoFx": hiệu ứng trên ảnh nền (Android ThemeExtraIds.PHOTO_FX y hệt).
     static let spotlight = "spotlight"
     static let photoFx: Set<String> = [spotlight]
+    /// "buddy.character": mọi nhân vật trừ "off" (Android ThemeExtraIds.BUDDIES y hệt).
+    static let buddies: Set<String> = Set(BuddyCharacter.allCases.filter { $0 != .off }.map(\.rawValue))
 }
 
 // MARK: - Đọc / kiểm
@@ -764,7 +796,8 @@ enum ThemeSpecParser {
 
     static let assetKeys: Set<String> = ["background", "foreground", "keys"]
     static let rootKeys: Set<String> = Set(["v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
-                                            "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx"])
+                                            "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx",
+                                            "tags", "buddy"])
         .union(assetKeys)
     static let slotKeys: Set<String> = Set(ThemeSlots.colorKeys + ["deco", "borderFx", "spaceDeco"])
 
@@ -824,6 +857,10 @@ enum ThemeSpecParser {
         typography(d, &typo, &c)
         var schedule: [ThemeScheduleEntry]?
         if let v = d["schedule"] { schedule = Self.schedule(v, &c) }
+        var tags: [String]?
+        if let v = d["tags"] { tags = Self.tags(v, &c) }
+        var buddy: ThemeBuddy?
+        if let v = d["buddy"] { buddy = Self.buddy(v, &c) }
         guard !c.failed else { return Outcome(spec: nil, issues: c.issues) }
         var spec = ThemeSpec(id: id, nameVi: vi, nameEn: en, light: light, dark: dark == light ? nil : dark)
         spec.corner = typo.corner
@@ -839,8 +876,46 @@ enum ThemeSpecParser {
         spec.keyShape = typo.keyShape
         spec.photoFx = typo.photoFx
         spec.schedule = schedule
+        spec.tags = tags
+        spec.buddy = buddy
         if contrast { c.issues += contrastIssues(spec) }
         return Outcome(spec: c.failed ? nil : spec, issues: c.issues)
+    }
+
+    /// "tags": mảng nhãn trong ThemeTags.known, không lặp; rỗng ⇒ nil.
+    private static func tags(_ v: StrictJSON, _ c: inout Ctx) -> [String]? {
+        guard case .array(let a) = v else { c.err(.wrongType, "tags"); return nil }
+        var out: [String] = []
+        for (i, e) in a.enumerated() {
+            let p = "tags[\(i)]"
+            guard case .string(let t) = e else { c.err(.wrongType, p); continue }
+            guard ThemeTags.known.contains(t), !out.contains(t) else { c.err(.badValue, p); continue }
+            out.append(t)
+        }
+        return out.isEmpty ? nil : out
+    }
+
+    /// "buddy": {"character": id (ThemeExtraIds.buddies), "size": 1…20 (kẹp + clamped)?}.
+    private static func buddy(_ v: StrictJSON, _ c: inout Ctx) -> ThemeBuddy? {
+        guard case .object(let m) = v else { c.err(.wrongType, "buddy"); return nil }
+        for (k, _) in m where k != "character" && k != "size" { c.err(.unknownKey, "buddy." + k) }
+        let d = Dictionary(m, uniquingKeysWith: { a, _ in a })
+        var out: ThemeBuddy?
+        switch d["character"] {
+        case nil: c.err(.missingKey, "buddy.character")
+        case .string(let id)?:
+            if ThemeExtraIds.buddies.contains(id) { out = ThemeBuddy(character: id) } else { c.err(.badValue, "buddy.character") }
+        default: c.err(.wrongType, "buddy.character")
+        }
+        switch d["size"] {
+        case nil: break
+        case .int(let n)?:
+            let r = BuddyPlacement.sizeRange
+            if !r.contains(n) { c.err(.clamped, "buddy.size") }
+            out?.size = min(max(n, r.lowerBound), r.upperBound)
+        default: c.err(.wrongType, "buddy.size")
+        }
+        return out
     }
 
     /// "schedule": mảng 2…6 {"from":"HH:MM","palette":{màu đầy đủ}}, "from" tăng dần.
@@ -1162,6 +1237,12 @@ extension ThemeSpec {
         if let game { m.append(("game", .string(game))) }
         if let keyShape { m.append(("keyShape", .string(keyShape))) }
         if let photoFx { m.append(("photoFx", .string(photoFx))) }
+        if let tags { m.append(("tags", .array(tags.map { .string($0) }))) }
+        if let buddy {
+            var b: [(String, StrictJSON)] = [("character", .string(buddy.character))]
+            if let n = buddy.size { b.append(("size", .int(n))) }
+            m.append(("buddy", .object(b)))
+        }
         if let schedule {
             m.append(("schedule", .array(schedule.map {
                 .object([("from", .string(ThemeSchedule.format($0.from))), ("palette", Self.json($0.slots))])

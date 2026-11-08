@@ -336,6 +336,8 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
 
     /** Đặc tả JSON của theme có sẵn (null = Hệ thống / Kính — vẽ theo nền tảng). */
     val spec: ThemeSpec? get() = BuiltinThemes.specs[id]
+    /** Theme tương tác (nhãn "interactive" trong builtin-themes.json) — Hệ thống / Kính không có JSON ⇒ false. */
+    val isInteractive: Boolean get() = spec?.isInteractive == true
 
     companion object {
         fun of(id: String?): KeyboardTheme = entries.firstOrNull { it.id == id } ?: SYSTEM
@@ -658,6 +660,17 @@ object ThemeExtraIds {
     /** "photoFx": hiệu ứng trên ảnh nền (iOS ThemeExtraIds.photoFx y hệt). */
     const val SPOTLIGHT = "spotlight"
     val PHOTO_FX: Set<String> = setOf(SPOTLIGHT)
+    /** "buddy.character": mọi nhân vật trừ "off" (iOS ThemeExtraIds.buddies y hệt). */
+    val BUDDIES: Set<String> get() = BuddyCharacter.IDS - BuddyCharacter.OFF.id
+}
+
+/** "buddy" của theme JSON: nhân vật (id [BuddyCharacter], không "off") + cỡ tuỳ chọn ([BuddyPlacement.SIZE_RANGE]). iOS y hệt. */
+data class ThemeBuddy(val character: String, val size: Int? = null)
+
+/** Nhãn theme ("tags") — danh sách trắng; iOS ThemeTags y hệt (fixture chung chốt). */
+object ThemeTags {
+    const val INTERACTIVE = "interactive"
+    val KNOWN: Set<String> = setOf(INTERACTIVE)
 }
 
 /**
@@ -690,6 +703,24 @@ object ThemeExtras {
     }
 
     const val HINT = "Giao diện này có âm thanh riêng — bật Âm thanh phím để nghe." // l10n-key
+
+    /** "buddy" của theme vừa chọn (thuần): nhân vật được phép (Plus) ⇒ trả lại để ghi; không ⇒ null (bỏ cả cỡ). */
+    fun planBuddy(b: ThemeBuddy?, allowed: (BuddyCharacter) -> Boolean): ThemeBuddy? {
+        b ?: return null
+        val c = BuddyCharacter.entries.firstOrNull { it.id == b.character } ?: return null
+        return b.takeIf { c != BuddyCharacter.OFF && allowed(c) }
+    }
+
+    /**
+     * Gọi NGAY sau khi lưu theme vừa chọn (cùng lúc [applyOnSelect]): ghi MỘT lần nhân vật + cỡ ("Vị trí & cỡ") của theme.
+     * Đổi tay sau đó thì giữ; theme không khai báo "buddy" ⇒ không đổi gì. iOS y hệt.
+     */
+    fun applyBuddyOnSelect(b: ThemeBuddy?, writeString: (String, String) -> Unit, writeInt: (String, Int) -> Unit): ThemeBuddy? {
+        val r = planBuddy(b) { BuddyGate.allows(it) } ?: return null
+        writeString(Keys.KEYBOARD_BUDDY, r.character)
+        r.size?.let { writeInt(Keys.BUDDY_SIZE, it) }
+        return r
+    }
 }
 
 /**
@@ -719,10 +750,35 @@ object SystemColors {
 /** Trang "Chọn giao diện" (logic thuần — test JVM; iOS: ThemePicker trong KeyboardTheme.swift). */
 object ThemePicker {
     data class Section(val title: String, val themes: List<KeyboardTheme>)
-    /** "Miễn phí" (Hệ thống, OLED, Tương phản cao, Xám trung tính) rồi "Plus" (còn lại), giữ thứ tự khai báo. */
-    val sections: List<Section> get() = listOf(
-        Section("Miễn phí", KeyboardTheme.entries.filter { !it.isPlus }),
-        Section("Plus", KeyboardTheme.entries.filter { it.isPlus }))
+    /**
+     * Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng không có
+     * trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. iOS ThemePicker.interactiveOrder y hệt.
+     */
+    val INTERACTIVE_ORDER = listOf("nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar")
+
+    data class Groups(val free: List<KeyboardTheme>, val interactive: List<KeyboardTheme>, val rest: List<KeyboardTheme>)
+    /**
+     * Thứ tự lưới (thuần): miễn phí (thứ tự khai báo) → tương tác (theo [INTERACTIVE_ORDER]) → còn lại (thứ tự khai báo).
+     * Theme miễn phí có nhãn vẫn ở nhóm miễn phí. iOS `ThemePicker.groups` cùng kết quả (fixture "picker").
+     */
+    fun groups(all: List<KeyboardTheme> = KeyboardTheme.entries): Groups {
+        fun rank(t: KeyboardTheme) = INTERACTIVE_ORDER.indexOf(t.id).let { if (it < 0) INTERACTIVE_ORDER.size else it }
+        return Groups(all.filter { !it.isPlus },
+            all.filter { it.isPlus && it.isInteractive }.sortedBy { rank(it) },   // sortedBy ổn định
+            all.filter { it.isPlus && !it.isInteractive })
+    }
+    fun ordered(all: List<KeyboardTheme> = KeyboardTheme.entries): List<KeyboardTheme> =
+        groups(all).let { it.free + it.interactive + it.rest }
+
+    /** "Miễn phí" (Hệ thống, OLED, Tương phản cao, Xám trung tính) → "Tương tác" → "Plus" (còn lại). */
+    val sections: List<Section> get() = groups().let { g ->
+        listOf(Section("Miễn phí", g.free), Section("Tương tác", g.interactive), Section("Plus", g.rest))
+            .filter { it.themes.isNotEmpty() }
+    }
+
+    /** Chip "Tương tác" trên thẻ theme (null = không gắn). Theme tự tạo có nhãn cũng có chip. */
+    fun badge(t: KeyboardTheme): String? = if (t.isInteractive) tr("Tương tác") else null
+    fun badge(custom: ThemeSpec): String? = if (custom.isInteractive) tr("Tương tác") else null
     /** Chạm thẻ: chọn ngay nếu được phép; theme Plus bị khoá ⇒ null (IME/app không đổi gì). */
     fun select(t: KeyboardTheme, s: ThemeSettings): ThemeSettings? =
         if (ThemeGate.allows(t)) s.copy(theme = t, custom = null) else null
@@ -801,6 +857,8 @@ data class ThemeSettings(
     val effectiveCustom: ThemeSpec? get() = if (ThemeGate.allowsCustom) custom else null
     fun wallpaperActive(fileExists: Boolean) = wallpaper && fileExists && ThemeGate.allowsWallpaper
     /** Tuỳ chỉnh nâng cao thực dùng: hết quyền Plus ⇒ mặc định (giá trị lưu giữ nguyên). */
+    /** Đặc tả JSON của theme đang chọn (tự tạo, hoặc có sẵn — null với Hệ thống / Kính). iOS `selectedSpec`. */
+    val selectedSpec: ThemeSpec? get() = custom ?: theme.spec
     val effectiveKeyStyle: KeyStyle get() = effectiveCustom?.let { effectiveStyleFor(it.id ?: "", it.typography) }
         ?: effectiveStyleFor(effectiveTheme)
     /** Như [effectiveKeyStyle] cho theme [t] bất kỳ (thẻ "Chọn giao diện" xem trước tuỳ chỉnh riêng). */
@@ -859,9 +917,9 @@ data class ThemeSettings(
     fun exportSpec(t: KeyboardTheme, baseLight: ThemePalette, baseDark: ThemePalette): ThemeSpec =
         ThemeSpec.export(t.id, t.spec?.nameVi ?: t.viTitle, t.spec?.nameEn ?: if (t == KeyboardTheme.GLASS) "Glass" else "System",
             styled(t, baseLight, false), styled(t, baseDark, true), effectiveStyleFor(t))
-            .copy(schedule = t.spec?.schedule)   // lịch theo giờ đi nguyên (bản vá không có "schedule")
+            .copy(schedule = t.spec?.schedule, tags = t.spec?.tags, buddy = t.spec?.buddy)   // đi nguyên (bản vá không có)
     fun exportSpec(c: ThemeSpec): ThemeSpec = ThemeSpec.export(c.id, c.nameVi, c.nameEn, styledCustom(c, false),
-        styledCustom(c, true), effectiveStyleFor(c.id ?: "", c.typography)).copy(schedule = c.schedule)
+        styledCustom(c, true), effectiveStyleFor(c.id ?: "", c.typography)).copy(schedule = c.schedule, tags = c.tags, buddy = c.buddy)
 
     fun toMap(): Map<String, Any> = mapOf(Keys.KEYBOARD_THEME to themeId, Keys.WALLPAPER_ENABLED to wallpaper,
         Keys.WALLPAPER_DIM to dim, Keys.WALLPAPER_BLUR to blur, Keys.WALLPAPER_VERSION to version,
