@@ -24,6 +24,7 @@ on:
       - "iOS/Keyboard/Resources/*.bin"
       - "App/Sources/SeedNextData.swift"   # gợi ý từ: bảng seed (generated, symlinked)
       - "App/Sources/LearnedModel.swift"   # học từ bạn gõ (symlinked)
+      - "App/Sources/LunarCalendar.swift"  # âm lịch cho công cụ chữ (symlinked)
       - "windows/app/tests/fixtures/**"    # golden gợi ý dùng chung (self-test)
       - "iOS/KeyboardTests/Fixtures/**"
       - "android/telexcore/src/test/resources/golden.tsv.gz"

@@ -23,7 +23,8 @@ W=$(mktemp -d)
 S=$(mktemp -d)
 ( cd /src && tar -cf - --exclude='.build' --exclude='.swiftpm' --exclude='linux/dist' \
     TelexCore linux iOS/Keyboard iOS/KeyboardTests/Fixtures \
-    App/Sources/SeedNextData.swift App/Sources/LearnedModel.swift ) | tar -xf - -C "$S"
+    App/Sources/SeedNextData.swift App/Sources/LearnedModel.swift \
+    App/Sources/LunarCalendar.swift ) | tar -xf - -C "$S"
 cmake -S "$S/linux" -B "$W" -DVT_BUILD_FCITX5=OFF -DVT_BUILD_IBUS=OFF -DVT_BUILD_TESTS=OFF >"$W.log" 2>&1 \
   || { tail -30 "$W.log"; exit 1; }
 cmake --build "$W" --target telexcore_swift >>"$W.log" 2>&1 || { tail -40 "$W.log"; exit 1; }

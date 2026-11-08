@@ -51,7 +51,8 @@ mkdir -p "$STAGE"
     iOS/Keyboard/AdjacentKeyFixer.swift iOS/Keyboard/AutoCorrect.swift iOS/Keyboard/MathResults.swift \
     iOS/Keyboard/NumberChips.swift iOS/Keyboard/SeedData.swift \
     iOS/Keyboard/SuggestionSupport.swift iOS/Keyboard/DisplayCase.swift iOS/Keyboard/SensitiveWords.swift \
-    App/Sources/SeedNextData.swift App/Sources/LearnedModel.swift iOS/Keyboard/UserLMTables.swift \
+    App/Sources/SeedNextData.swift App/Sources/LearnedModel.swift App/Sources/LunarCalendar.swift \
+    iOS/Keyboard/UserLMTables.swift \
     iOS/Keyboard/CuratedPairs.swift \
     iOS/Keyboard/Resources/vnlexicon.bin iOS/Keyboard/Resources/vnlm.bin iOS/Keyboard/Resources/enlexicon.bin \
     iOS/KeyboardTests/Fixtures/text-tools.txt iOS/KeyboardTests/Fixtures/add-tones.txt \
