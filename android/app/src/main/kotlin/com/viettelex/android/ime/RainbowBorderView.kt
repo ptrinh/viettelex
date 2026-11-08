@@ -31,12 +31,15 @@ import com.viettelex.keyboard.RainbowDriver
  * tới dừng + mờ dần xuống ánh nghỉ (~1 s) rồi THÔI hẹn khung (0 khung hình, 0 CPU khi nghỉ).
  */
 @SuppressLint("ViewConstructor")
-class RainbowBorderView(context: Context, private val density: Float, val aurora: Boolean = false) : ViewGroup(context) {
+class RainbowBorderView(context: Context, private val density: Float, val aurora: Boolean = false,
+                        /** Màu riêng của viền tĩnh (theme Tự hào) — null = [com.viettelex.keyboard.AuroraFx]. */
+                        val auroraColors: List<Int>? = null) : ViewGroup(context) {
     /** Dải gradient — onDraw MỘT lần (SRC_IN lên viền trong lớp của cha). Theme AI ([aurora]): gradient tĩnh [AuroraFx]. */
-    private class Strip(context: Context, private val aurora: Boolean) : View(context) {
+    private class Strip(context: Context, private val aurora: Boolean, private val colors: List<Int>?) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN) }
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-            val (cols, pos) = if (aurora) com.viettelex.keyboard.AuroraFx.BORDER_COLORS to com.viettelex.keyboard.AuroraFx.BORDER_STOPS
+            val (cols, pos) = if (aurora && colors != null) com.viettelex.keyboard.AuroraFx.stops(colors)
+                else if (aurora) com.viettelex.keyboard.AuroraFx.BORDER_COLORS to com.viettelex.keyboard.AuroraFx.BORDER_STOPS
                 else RainbowBorder.stops()
             paint.shader = LinearGradient(0f, 0f, w.toFloat(), 0f, IntArray(cols.size) { cols[it] or (0xFF shl 24) },
                 FloatArray(pos.size) { pos[it].toFloat() }, Shader.TileMode.CLAMP)
@@ -46,7 +49,7 @@ class RainbowBorderView(context: Context, private val density: Float, val aurora
         override fun hasOverlappingRendering() = false
     }
 
-    private val strip = Strip(context, aurora)
+    private val strip = Strip(context, aurora, if (aurora) auroraColors else null)
     private val outline = Path()
     private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE; color = 0xFF000000.toInt()

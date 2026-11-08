@@ -34,6 +34,8 @@ enum KeyEffectPreviewScript {
     static func burst(_ e: KeyEffect, zodiac: ZodiacSign) -> Int {
         e == .constellation ? zodiac.constellation.stars.count : burst(e)
     }
+    /// Cầu vồng: lần chạm lẻ như vừa gõ "tự hào" (cờ phấp phới + tim), lần chẵn chỉ vòng cung.
+    static func pride(tap: Int) -> Bool { tap % 2 == 1 }
     /// Sàn nhảy LED: lần chạm chẵn = một nhịp phím cách (flash nền, cổng ≤ 3 lần / giây vẫn áp).
     static func beat(_ e: KeyEffect, tap: Int) -> Bool { e == .dancefloor && tap % 2 == 0 }
     /// Phím giả quanh phím V (Sàn nhảy LED thắp phím hàng xóm).
@@ -74,7 +76,8 @@ final class KeyEffectPreviewView: UIView {
 
     var keyFrame: CGRect { key.frame }
 
-    func update(effect e: KeyEffect, palette: KeyboardPalette, play: Int, zodiac: ZodiacSign = .defaultValue) {
+    func update(effect e: KeyEffect, palette: KeyboardPalette, play: Int, zodiac: ZodiacSign = .defaultValue,
+                pride: PrideFlag = .defaultValue) {
         effect = e
         backgroundColor = palette.background?.ui ?? (palette.isDark ? UIColor(white: 0.16, alpha: 1)
                                                                     : UIColor(red: 0.82, green: 0.84, blue: 0.87, alpha: 1))
@@ -90,6 +93,7 @@ final class KeyEffectPreviewView: UIView {
         overlay?.tokenTarget = { [weak self] in self.map { KeyEffectPreviewScript.tokenTarget(in: $0.bounds) } }
         overlay?.flashGate = beat?.gate
         overlay?.zodiacSign = zodiac
+        overlay?.prideFlag = pride
         syncSpace()
         if play != lastPlay {
             lastPlay = play
@@ -113,6 +117,7 @@ final class KeyEffectPreviewView: UIView {
         o.queueKeyword(KeyEffectPreviewScript.keyword(tap: tap))
         o.queueLetter(KeyEffectPreviewScript.glyph)
         o.queueToken(KeyEffectPreviewScript.glyph)
+        if KeyEffectPreviewScript.pride(tap: tap) { o.queuePride() }
         o.emit(key: k)
         o.flush()
         if KeyEffectPreviewScript.beat(effect, tap: tap) { beat?.kick() }

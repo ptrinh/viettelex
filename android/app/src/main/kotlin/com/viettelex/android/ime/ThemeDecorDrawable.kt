@@ -18,7 +18,9 @@ import com.viettelex.keyboard.ThemeDecoration
 class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecoration?, private val density: Float,
                          private val aurora: Boolean = false,
                          /** Ký hiệu mờ góc trên phải (Cung hoàng đạo — palette.cornerGlyph); null = không. iOS cornerGlyphLayer. */
-                         private val glyph: String? = null, glyphColor: Int = 0) : Drawable() {
+                         private val glyph: String? = null, glyphColor: Int = 0,
+                         /** Dải mép trên theo sọc cờ (theme Tự hào) — null = [com.viettelex.keyboard.AuroraFx.BAND_COLORS]. */
+                         private val auroraColors: List<Int>? = null) : Drawable() {
     private val glyphPaint: Paint? = glyph?.let {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = glyphColor or (0xFF shl 24)
@@ -53,9 +55,10 @@ class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecor
         if (aurora && bounds.width() != auroraW) {
             auroraW = bounds.width()
             val fx = com.viettelex.keyboard.AuroraFx
+            val (cols, stops) = auroraColors?.let { fx.stops(it) } ?: (fx.BAND_COLORS to fx.BAND_STOPS)
             auroraPaint.shader = android.graphics.LinearGradient(bounds.left.toFloat(), 0f, bounds.right.toFloat(), 0f,
-                IntArray(fx.BAND_COLORS.size) { fx.BAND_COLORS[it] or (0xFF shl 24) },
-                FloatArray(fx.BAND_STOPS.size) { fx.BAND_STOPS[it].toFloat() }, android.graphics.Shader.TileMode.CLAMP)
+                IntArray(cols.size) { cols[it] or (0xFF shl 24) },
+                FloatArray(stops.size) { stops[it].toFloat() }, android.graphics.Shader.TileMode.CLAMP)
         }
         val decoration = decoration ?: return
         val w = bounds.width() / density.toDouble()
@@ -78,7 +81,7 @@ class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecor
         if (decoration != null) canvas.drawPath(path, paint)
         if (glyph != null && glyphPaint != null) {
             // Góc trên phải (dải gợi ý) — một lần mỗi lần vẽ nền, không mỗi phím.
-            canvas.drawText(glyph, bounds.right - 8 * density, bounds.top + (CORNER_GLYPH_SIZE + 4) * density, glyphPaint)
+            canvas.drawText(glyph, bounds.right - 8 * density, bounds.top + ((CORNER_GLYPH_SIZE + 4) * density).toFloat(), glyphPaint)
         }
     }
 

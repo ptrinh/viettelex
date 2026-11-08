@@ -103,6 +103,11 @@ enum AuroraFx {
     static let bandHeight = 56.0
     static let band: [(color: UInt32, location: Double)] = [(0x7C3AED, 0), (0x22D3EE, 0.4), (0xA855F7, 0.7), (0x06B6D4, 1)]
     static let bandAlpha = 0.32
+    /// Dải màu riêng (theme Tự hào: sọc lá cờ) chia đều 0…1 — dùng cho cả viền lẫn dải mép trên. Android AuroraFx.stops y hệt.
+    static func stops(_ colors: [UInt32]) -> [(color: UInt32, location: Double)] {
+        guard colors.count > 1 else { return colors.map { ($0, 0) } + colors.map { ($0, 1) } }
+        return colors.enumerated().map { ($0.element, Double($0.offset) / Double(colors.count - 1)) }
+    }
     /// Độ đậm dải theo độ sâu `y` (0 = mép trên) — giảm bậc hai (mềm ở đáy dải).
     static func bandOpacity(_ y: Double) -> Double {
         guard y >= 0, y < bandHeight else { return 0 }
@@ -192,6 +197,8 @@ struct RainbowClock {
 final class RainbowBorderView: UIView {
     /// true = viền gradient TĨNH của theme AI (AuroraFx): không animation, poke không làm gì.
     let isAurora: Bool
+    /// Màu riêng của viền tĩnh (theme Tự hào) — nil = AuroraFx.border.
+    let auroraColors: [UInt32]?
     private let strip = CAGradientLayer()
     private let outline = CAShapeLayer()
     private var clock = RainbowClock()
@@ -206,15 +213,16 @@ final class RainbowBorderView: UIView {
     /// Độ lệch đang hiện (0…1 bề ngang).
     var phase: Double { motion.offset(at: CACurrentMediaTime()) }
 
-    init(frame: CGRect = .zero, aurora: Bool = false) {
+    init(frame: CGRect = .zero, aurora: Bool = false, colors: [UInt32]? = nil) {
         isAurora = aurora
+        auroraColors = aurora ? colors : nil
         super.init(frame: frame)
         isUserInteractionEnabled = false
         isAccessibilityElement = false
         accessibilityElementsHidden = true
         backgroundColor = .clear
         isOpaque = false
-        let st = aurora ? AuroraFx.border : RainbowBorder.stops()
+        let st = aurora ? (colors.map(AuroraFx.stops) ?? AuroraFx.border) : RainbowBorder.stops()
         strip.colors = st.map { UIColor(rgbHex: $0.color).cgColor }
         strip.locations = st.map { NSNumber(value: $0.location) }
         strip.startPoint = CGPoint(x: 0, y: 0.5)
@@ -425,7 +433,7 @@ final class RainbowBorderView: UIView {
         c.setAlpha(CGFloat(isAurora ? AuroraFx.borderAlpha : fade.alpha(at: CACurrentMediaTime())))
         c.addPath(path.copy(strokingWithWidth: outline.lineWidth, lineCap: .butt, lineJoin: .miter, miterLimit: 10))
         c.clip()
-        let st = isAurora ? AuroraFx.border : RainbowBorder.stops()
+        let st = isAurora ? (auroraColors.map(AuroraFx.stops) ?? AuroraFx.border) : RainbowBorder.stops()
         let cols = st.map { UIColor(rgbHex: $0.color).cgColor } as CFArray
         let locs = st.map { CGFloat($0.location) }
         if let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: cols, locations: locs) {

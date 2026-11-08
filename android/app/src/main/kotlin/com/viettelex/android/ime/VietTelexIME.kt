@@ -402,6 +402,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         v.onSeaWave = if (sea) { size -> feedback.surf(size) } else null
         // Chòm sao: cung người dùng chọn (đọc cùng ThemeSettings lúc dựng — 0 chi phí mỗi phím).
         if (fx == com.viettelex.keyboard.KeyEffect.CONSTELLATION) v.zodiacSign = th.settings.variantChoice.zodiac
+        // Cầu vồng: màu theo lá cờ người dùng chọn (theme Tự hào).
+        if (fx == com.viettelex.keyboard.KeyEffect.RAINBOWBURST) v.prideFlag = th.settings.variantChoice.pride
         strip?.onShown = if (tokens) { set ->
             r.suggestionRect(tokenRect, v)
             val words = ArrayList<String>(8)
@@ -560,6 +562,11 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             com.viettelex.keyboard.KeyEffect.KEYWORD -> {
                 val w = session.boundaryWord ?: return
                 com.viettelex.keyboard.KeywordBursts.lookup(w, session.boundaryPrev)?.let { fx.queueKeyword(it) }
+            }
+            // Tự hào: "love is love", "tự hào", "pride", "yêu là yêu" ⇒ cờ phấp phới + tim.
+            com.viettelex.keyboard.KeyEffect.RAINBOWBURST -> {
+                val w = session.boundaryWord ?: return
+                if (com.viettelex.keyboard.PrideKeywords.matches(w, session.boundaryPrev, session.boundaryPrev2)) fx.queuePride()
             }
             else -> {}
         }

@@ -179,6 +179,9 @@ enum BackupSettings {
         Spec(key: "systemBackdropZodiac", kind: .bool(false)),
         // Cung hoàng đạo (theme "zodiac", "variant") — CHỈ id cung, cùng khoá + id Android; lạ ⇒ bỏ qua (máy giữ Bạch Dương).
         Spec(key: ZodiacSign.key, kind: .string(ZodiacSign.defaultValue.rawValue, ZodiacSign.allCases.map(\.rawValue))),
+        Spec(key: "systemBackdropPride", kind: .bool(false)),
+        // Lá cờ của theme Tự hào ("variant":"pride") — CHỈ id cờ, cùng khoá + id Android; lạ ⇒ bỏ qua (máy giữ Cầu vồng).
+        Spec(key: PrideFlag.key, kind: .string(PrideFlag.defaultValue.rawValue, PrideFlag.allCases.map(\.rawValue))),
         // Ngôn ngữ giao diện app (L10n) — mặc định "vi", không theo máy.
         Spec(key: "uiLanguage", kind: .string("vi", ["vi", "en"])),
         // Dịch trên máy (Plus): ngôn ngữ đích — chỉ iOS dùng.

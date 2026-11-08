@@ -56,7 +56,8 @@ import java.nio.charset.CodingErrorAction
  * "variant" (tuỳ chọn, danh sách trắng [ThemeVariants.KNOWN]): bảng màu THEO LỰA CHỌN CỦA NGƯỜI DÙNG ở trang Giao diện —
  * "zodiac" = Cung hoàng đạo: bảng màu theo nguyên tố của cung đã chọn (khoá `zodiacSign`, [ZodiacElement.slots]) + ký hiệu
  * cung mờ ở góc + chòm sao của cung cho hiệu ứng "Chòm sao". Giải MỘT lần lúc dựng bàn phím ([ThemeSettings] đọc lựa chọn)
- * — 0 chi phí mỗi phím. "light"/"dark" vẫn bắt buộc = bảng dự phòng. Lạ ⇒ badValue; sai kiểu ⇒ wrongType. iOS y hệt.
+ * — 0 chi phí mỗi phím. "light"/"dark" vẫn bắt buộc = bảng dự phòng. "pride" = Tự hào: bảng màu + viền aurora + màu hiệu
+ * ứng theo lá cờ đã chọn (khoá `prideFlag`, [PrideFlag]). Lạ ⇒ badValue; sai kiểu ⇒ wrongType. iOS y hệt.
  * iOS ThemeSpec.swift y hệt.
  */
 
@@ -1322,19 +1323,22 @@ object ThemeJsonActions {
 }
 
 /** Lựa chọn cho theme có "variant" — chỉ id (khoá riêng `zodiacSign`). iOS ThemeVariantChoice y hệt. */
-data class ThemeVariantChoice(val zodiac: ZodiacSign = ZodiacSign.DEFAULT) {
+data class ThemeVariantChoice(val zodiac: ZodiacSign = ZodiacSign.DEFAULT, val pride: PrideFlag = PrideFlag.DEFAULT) {
     companion object {
-        fun load(get: (String) -> Any?): ThemeVariantChoice = ThemeVariantChoice(zodiac = ZodiacSign.parse(get(ZodiacSign.KEY)))
+        fun load(get: (String) -> Any?): ThemeVariantChoice =
+            ThemeVariantChoice(zodiac = ZodiacSign.parse(get(ZodiacSign.KEY)), pride = PrideFlag.parse(get(PrideFlag.KEY)))
     }
 }
 
 /** "variant" của theme JSON — danh sách trắng + bảng màu theo lựa chọn. iOS ThemeVariants y hệt (fixture chung chốt). */
 object ThemeVariants {
     const val ZODIAC = "zodiac"
-    val KNOWN: Set<String> = setOf(ZODIAC)
+    const val PRIDE = "pride"
+    val KNOWN: Set<String> = setOf(ZODIAC, PRIDE)
 
     fun slots(v: String, c: ThemeVariantChoice): ThemeSlots? = when (v) {
         ZODIAC -> c.zodiac.element.slots
+        PRIDE -> c.pride.slots
         else -> null
     }
 
@@ -1342,6 +1346,10 @@ object ThemeVariants {
     fun palette(v: String, c: ThemeVariantChoice): ThemePalette? {
         val s = slots(v, c) ?: return null
         val p = ThemeSpec.palette(s, true)
-        return if (v == ZODIAC) p.copy(cornerGlyph = c.zodiac.glyph) else p
+        return when (v) {
+            ZODIAC -> p.copy(cornerGlyph = c.zodiac.glyph)
+            PRIDE -> p.copy(auroraColors = c.pride.stripes.toList())
+            else -> p
+        }
     }
 }

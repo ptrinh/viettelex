@@ -51,7 +51,9 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     // Theme Neon Night Club (11/2026): Sàn nhảy LED — phím vừa bấm + các phím quanh thắp neon thành vòng vuông lan ra.
     DANCEFLOOR("dancefloor", "Sàn nhảy LED"), // l10n-key
     // Theme Cung hoàng đạo (11/2026): Chòm sao — mỗi phím thắp thêm một sao của chòm người dùng chọn ([ConstellationFx]).
-    CONSTELLATION("constellation", "Chòm sao"); // l10n-key
+    CONSTELLATION("constellation", "Chòm sao"), // l10n-key
+    // Theme Tự hào (11/2026): Cầu vồng — vòng cung các sọc cờ lan ra từ phím; gõ từ khoá ⇒ cờ phấp phới + tim ([RainbowBurst]).
+    RAINBOWBURST("rainbowburst", "Cầu vồng"); // l10n-key
 
     val title: String get() = tr(viTitle)
 
@@ -68,7 +70,7 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     val needsComposeDiff: Boolean get() = this == TONE || this == LETTERS || this == TOKENS
 
     /** IME phải ghi từ vừa chốt ở ranh giới (tra bảng). = iOS needsBoundaryWord. */
-    val needsBoundaryWord: Boolean get() = this == EMOJIWORD || this == KEYWORD
+    val needsBoundaryWord: Boolean get() = this == EMOJIWORD || this == KEYWORD || this == RAINBOWBURST
 
     /** Hạt là ẢNH đốm sáng mềm dựng sẵn ([GlowSprite]), không path: Đèn lồng, Sương ma. = iOS usesGlow. */
     val usesGlow: Boolean get() = this == LANTERN || this == SMOKE

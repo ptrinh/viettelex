@@ -188,6 +188,10 @@ object AuroraFx {
     const val BAND_HEIGHT = 56.0
     val BAND_COLORS = intArrayOf(0x7C3AED, 0x22D3EE, 0xA855F7, 0x06B6D4)
     val BAND_STOPS = doubleArrayOf(0.0, 0.4, 0.7, 1.0)
+    /** Dải màu riêng (theme Tự hào: sọc cờ) chia đều 0…1 — cho cả viền lẫn dải mép trên. iOS AuroraFx.stops y hệt. */
+    fun stops(colors: List<Int>): Pair<IntArray, DoubleArray> =
+        if (colors.size <= 1) IntArray(2) { colors.firstOrNull() ?: 0 } to doubleArrayOf(0.0, 1.0)
+        else colors.toIntArray() to DoubleArray(colors.size) { it.toDouble() / (colors.size - 1) }
     const val BAND_ALPHA = 0.32
     /** Độ đậm dải theo độ sâu [y] (dp, 0 = mép trên) — giảm bậc hai. */
     fun bandOpacity(y: Double): Double {

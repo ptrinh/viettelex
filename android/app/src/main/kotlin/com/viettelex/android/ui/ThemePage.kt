@@ -205,6 +205,7 @@ internal fun saveThemeSettings(ctx: Context, s: ThemeSettings) {
         putBoolean(Keys.SYSTEM_MATERIAL_YOU, s.materialYou)
         // Cung hoàng đạo (theme "variant"): CHỈ id cung.
         putString(com.viettelex.keyboard.ZodiacSign.KEY, s.variantChoice.zodiac.id)
+        putString(com.viettelex.keyboard.PrideFlag.KEY, s.variantChoice.pride.id)
         // Tuỳ chỉnh nâng cao theo theme: một chuỗi JSON chuẩn; khoá chung cũ bỏ (đã chuyển vào chuỗi).
         putString(Keys.KEY_STYLES, KeyStyleStore.serialize(s.keyStyles))
         // IME chỉ đọc theme tự tạo đang chọn — bản chuẩn hoá ở khoá riêng.
@@ -308,7 +309,8 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
 
     if (pickingEffect) {
         KeyEffectPage(s.styledCurrent(s.basePaletteNow(dark) ?: systemPreviewPalette(ctx, s, dark), dark),
-            onOpenPlus = onOpenPlus, onBack = { pickingEffect = false }, zodiac = s.variantChoice.zodiac)
+            onOpenPlus = onOpenPlus, onBack = { pickingEffect = false }, zodiac = s.variantChoice.zodiac,
+            pride = s.variantChoice.pride)
         return
     }
 
@@ -400,6 +402,9 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     // Theme có "variant" (Cung hoàng đạo): chọn cung ngay dưới — chỉ lưu id.
     if (s.selectedSpec?.variant == com.viettelex.keyboard.ThemeVariants.ZODIAC) {
         ZodiacPicker(s.variantChoice.zodiac) { update(s.copy(variantChoice = s.variantChoice.copy(zodiac = it))) }
+    }
+    if (s.selectedSpec?.variant == com.viettelex.keyboard.ThemeVariants.PRIDE) {
+        PrideFlagPicker(s.variantChoice.pride) { update(s.copy(variantChoice = s.variantChoice.copy(pride = it))) }
     }
 
     // Neon Night Club ("photoFx":"spotlight"): đèn rọi lên ảnh nền — chưa dùng ảnh ⇒ gợi ý + lối tắt chọn ảnh.
@@ -754,6 +759,26 @@ private fun ZodiacPicker(sign: com.viettelex.keyboard.ZodiacSign, onPick: (com.v
             val found = com.viettelex.keyboard.ZodiacSign.from(day, month)
             Text(tr("Tính"), style = VTType.body, color = if (found != null) c.accent else c.secondary,
                 modifier = Modifier.clickable(enabled = found != null) { found?.let(onPick) }.padding(start = 8.dp))
+        }
+    }
+}
+
+/** Theme "Tự hào": chọn lá cờ — đổi bảng màu, viền phím và màu hiệu ứng Cầu vồng. CHỈ lưu id cờ. iOS PrideSection y hệt. */
+@Composable
+private fun PrideFlagPicker(flag: com.viettelex.keyboard.PrideFlag, onPick: (com.viettelex.keyboard.PrideFlag) -> Unit) {
+    val c = LocalVT.current
+    VTSection(header = tr("Lá cờ"),
+        footer = tr("Màu bàn phím, viền phím và hiệu ứng Cầu vồng theo lá cờ bạn chọn. Gõ \"tự hào\", \"yêu là yêu\", \"pride\" hay \"love is love\" để thấy lá cờ tung bay.")) {
+        com.viettelex.keyboard.PrideFlag.entries.forEachIndexed { i, f ->
+            if (i > 0) RowDivider()
+            VTRow(onClick = { onPick(f) }) {
+                Column(Modifier.width(36.dp).height(22.dp).clip(RoundedCornerShape(4.dp)).border(1.dp, c.separator, RoundedCornerShape(4.dp))) {
+                    // sọc ngang như lá cờ
+                    for (rgb in f.stripes) Box(Modifier.weight(1f).fillMaxWidth().background(androidx.compose.ui.graphics.Color(rgb or (0xFF shl 24))))
+                }
+                Text(f.title, style = VTType.body, color = c.label, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                if (f == flag) Text("✓", style = VTType.body, color = c.accent)
+            }
         }
     }
 }

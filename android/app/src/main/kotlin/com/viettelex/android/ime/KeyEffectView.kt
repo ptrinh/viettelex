@@ -47,6 +47,9 @@ import com.viettelex.keyboard.WaveRings
 import com.viettelex.keyboard.ConstellationFx
 import com.viettelex.keyboard.ConstellationTrace
 import com.viettelex.keyboard.ZodiacSign
+import com.viettelex.keyboard.PrideFlag
+import com.viettelex.keyboard.PrideFlagWave
+import com.viettelex.keyboard.RainbowBurst
 
 /**
  * Lớp phủ "Hiệu ứng khi bấm phím" (Plus) — song sinh iOS KeyEffectOverlay. MỘT View không nhận chạm.
@@ -402,6 +405,11 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
                 val g = pendingToken; pendingToken = null
                 if (g != null) fireToken(g, pendX[pendN - 1], pendY[pendN - 1], pendH[pendN - 1], now)
             }
+            KeyEffect.RAINBOWBURST -> {
+                for (i in 0 until pendN) fire(pendX[i], pendY[i], pendW[i], pendH[i], now)
+                if (pendingPride) firePrideFlag(pendX[pendN - 1], pendY[pendN - 1], pendH[pendN - 1], now)
+                pendingPride = false
+            }
             else -> for (i in 0 until pendN) fire(pendX[i], pendY[i], pendW[i], pendH[i], now)
         }
         pendN = 0
@@ -426,6 +434,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.SEA -> fireSea(x, y, now)
             KeyEffect.DANCEFLOOR -> fireDance(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.CONSTELLATION -> fireConstellation(x, y, now)
+            KeyEffect.RAINBOWBURST -> fireRainbow(x, y, now)
             KeyEffect.FLASH -> if (flash.trigger(now)) flashStart = now
             KeyEffect.LIGHTNING -> fireLightning(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.MATRIX -> pokeMatrix(now)
@@ -518,6 +527,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         danceStart.fill(Long.MIN_VALUE / 2); flickerStart = Long.MIN_VALUE / 2
         haltConstellation()
+        rbStart.fill(Long.MIN_VALUE / 2); flagStart = Long.MIN_VALUE / 2; pendingPride = false
         pendN = 0
         invalidate()
     }
@@ -615,6 +625,108 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         }
         return any
     }
+
+    // ---- Cầu vồng (theme Tự hào — [RainbowBurst] / [PrideFlagWave], chung iOS). Mảng + Path cấp sẵn; nghỉ = 0 khung.
+
+    /** Lá cờ người dùng chọn (IME đặt lúc dựng view từ ThemeSettings.variantChoice). */
+    var prideFlag: PrideFlag = PrideFlag.DEFAULT
+    private val rbStart = LongArray(RainbowBurst.POOL) { Long.MIN_VALUE / 2 }
+    private val rbX = FloatArray(RainbowBurst.POOL)
+    private val rbY = FloatArray(RainbowBurst.POOL)
+    private var rbCursor = 0
+    private var pendingPride = false
+    private var flagStart = Long.MIN_VALUE / 2
+    private var flagX = 0f
+    private var flagY = 0f
+    private val flagPts = DoubleArray(2 * PrideFlagWave.STRIPE_POINTS)
+    private val flagPath = Path()
+    private val rbOval = RectF()
+
+    /** "Cầu vồng": IME vừa thấy từ khoá Tự hào ([com.viettelex.keyboard.PrideKeywords]) — lần vẽ kế thêm cờ + tim. */
+    fun queuePride() { if (sim.effect == KeyEffect.RAINBOWBURST) pendingPride = true }
+
+    private fun fireRainbow(x: Float, y: Float, now: Long) {
+        val s = rbCursor; rbCursor = (s + 1) % RainbowBurst.POOL
+        rbStart[s] = now; rbX[s] = x; rbY[s] = y
+    }
+
+    private fun firePrideFlag(x: Float, y: Float, h: Float, now: Long) {
+        val top = keyTop(y, h)
+        val hw = ((PrideFlagWave.WIDTH / 2 + 6) * density).toFloat()
+        val need = ((PrideFlagWave.GAP + PrideFlagWave.HEIGHT + PrideFlagWave.RISE + 4) * density).toFloat()
+        flagX = x.coerceIn(hw, maxOf(hw, width - hw))
+        flagY = maxOf(top, need)
+        flagStart = now
+    }
+
+    private fun drawRainbow(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        val stripes = prideFlag.stripes
+        stroke.strokeCap = Paint.Cap.BUTT
+        stroke.strokeWidth = (RainbowBurst.BAND * density).toFloat()
+        for (s in 0 until RainbowBurst.POOL) {
+            val t = (now - rbStart[s]) / 1000.0
+            if (t < 0 || t >= RainbowBurst.LIFE) continue
+            any = true
+            val a = RainbowBurst.alpha(t); val sc = RainbowBurst.scale(t)
+            for ((i, rgb) in stripes.withIndex()) {
+                val r = (RainbowBurst.radius(i) * sc * density).toFloat()
+                stroke.color = rgb or (0xFF shl 24); stroke.alpha = (a * 255).toInt().coerceIn(0, 255)
+                stroke.strokeWidth = (RainbowBurst.BAND * sc * density).toFloat()
+                rbOval.set(rbX[s] - r, rbY[s] - r, rbX[s] + r, rbY[s] + r)
+                canvas.drawArc(rbOval, 180f, 180f, false, stroke)   // nửa trên
+            }
+        }
+        val ft = (now - flagStart) / 1000.0
+        if (ft >= 0 && ft < PrideFlagWave.LIFE) {
+            any = true
+            val fa = PrideFlagWave.alpha(ft)
+            val ph = PrideFlagWave.phase(ft)
+            val dy = (PrideFlagWave.riseY(ft) * density).toFloat()
+            val d = density
+            // Cán cờ
+            fill.color = 0xFFEBEBEB.toInt(); fill.alpha = (fa * 255).toInt().coerceIn(0, 255)
+            val px = flagX + ((-PrideFlagWave.WIDTH / 2 - PrideFlagWave.POLE_WIDTH) * d).toFloat()
+            canvas.drawRect(px, flagY + dy + ((-PrideFlagWave.GAP - PrideFlagWave.HEIGHT - 3) * d).toFloat(),
+                px + (PrideFlagWave.POLE_WIDTH * d).toFloat(), flagY + dy + (-3 * d), fill)
+            for ((i, rgb) in stripes.withIndex()) {
+                val n = PrideFlagWave.stripe(i, stripes.size, ph, flagPts)
+                flagPath.rewind()
+                for (k in 0 until n) {
+                    val x = flagX + (flagPts[2 * k] * d).toFloat(); val y = flagY + dy + (flagPts[2 * k + 1] * d).toFloat()
+                    if (k == 0) flagPath.moveTo(x, y) else flagPath.lineTo(x, y)
+                }
+                flagPath.close()
+                fill.color = rgb or (0xFF shl 24); fill.alpha = (fa * 255).toInt().coerceIn(0, 255)
+                canvas.drawPath(flagPath, fill)
+            }
+            // Tim tung (quỹ đạo như Từ khoá: ease-out, lắc ngang, mờ nửa sau).
+            for (k in 0 until PrideFlagWave.HEARTS) {
+                val tr = PrideFlagWave.heart(k)
+                val f = ((ft - PrideFlagWave.heartDelay(k)) / tr.duration).toFloat()
+                if (f < 0f || f >= 1f) continue
+                val e = 1f - (1f - f) * (1f - f)
+                val sw = tr.sway * Math.sin(f * 2 * Math.PI)
+                val hx = flagX + ((tr.dx * e + sw) * d).toFloat()
+                val hy = flagY + ((-PrideFlagWave.GAP + tr.dy * e) * d).toFloat()
+                val sc = (tr.scaleFrom + (tr.scaleTo - tr.scaleFrom) * f).toFloat()
+                val ha = if (f < 0.5f) 1f else 1f - (f - 0.5f) / 0.5f
+                val save = canvas.save()
+                canvas.translate(hx, hy)
+                canvas.rotate(Math.toDegrees(tr.rotation * f).toFloat())
+                canvas.scale(sc * d * 0.75f, sc * d * 0.75f)
+                fill.color = stripes[k % stripes.size] or (0xFF shl 24); fill.alpha = (255 * ha).toInt().coerceIn(0, 255)
+                canvas.drawPath(kwHeart, fill)
+                canvas.restoreToCount(save)
+            }
+        }
+        return any
+    }
+
+    /** Test: số vòng cung còn chạy lúc [now] + cờ đang bay + vị trí cờ (px). */
+    internal fun rainbowsAlive(now: Long): Int = rbStart.count { (now - it) / 1000.0 in 0.0..<RainbowBurst.LIFE }
+    internal fun flagFlying(now: Long): Boolean = (now - flagStart) / 1000.0 in 0.0..<PrideFlagWave.LIFE
+    internal val flagPos: FloatArray get() = floatArrayOf(flagX, flagY)
 
     /** Test: số sao đã thắp của chòm ô [s] + vị trí sao (px). */
     internal fun starsLit(s: Int): Int = if (cycSign[s] == null) 0 else cycLit[s].count { it > Long.MIN_VALUE / 2 }
@@ -727,6 +839,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.SEA -> drawSea(canvas, now)
             KeyEffect.DANCEFLOOR -> drawDance(canvas, now)
             KeyEffect.CONSTELLATION -> drawConstellation(canvas, now)
+            KeyEffect.RAINBOWBURST -> drawRainbow(canvas, now)
             else -> drawParticles(canvas, now)
         }
     }
@@ -1499,7 +1612,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
                 }
             }
         }
-        if (e == KeyEffect.KEYWORD) {
+        if (e == KeyEffect.KEYWORD || e == KeyEffect.RAINBOWBURST) {   // Tự hào: tim tung dùng chung hình tim
             buildPath(KeyEffect.HEART, 0, kwHeart)
             kwStar.reset(); star4(kwStar, 3.5f, 1.1f)
         }

@@ -38,6 +38,8 @@ enum KeyEffect: String, CaseIterable {
     case dancefloor
     // Theme Cung hoàng đạo (11/2026): Chòm sao — mỗi phím thắp thêm một sao của chòm người dùng chọn, đủ sao thì loé.
     case constellation
+    // Theme Tự hào (11/2026): Cầu vồng — vòng cung các sọc cờ lan ra từ phím; gõ từ khoá ⇒ cờ phấp phới + tim tung.
+    case rainbowburst
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -81,6 +83,7 @@ enum KeyEffect: String, CaseIterable {
         case .tokens: return L("Token AI")
         case .dancefloor: return L("Sàn nhảy LED")
         case .constellation: return L("Chòm sao")
+        case .rainbowburst: return L("Cầu vồng")
         }
     }
 
@@ -92,7 +95,7 @@ enum KeyEffect: String, CaseIterable {
     /// Controller phải so từ đang soạn trước/sau phím — kiểu khác: không đọc gì (0 chi phí).
     var needsComposeDiff: Bool { self == .tone || self == .letters || self == .tokens }
     /// Controller phải tra từ vừa chốt ở ranh giới.
-    var needsBoundaryWord: Bool { self == .emojiword || self == .keyword }
+    var needsBoundaryWord: Bool { self == .emojiword || self == .keyword || self == .rainbowburst }
 
     /// Kiểu "hạt bay ra từ phím" (chùm hạt vector, quỹ đạo `trajectory`).
     static let particleCases: [KeyEffect] = [.heart, .bubble, .ripple, .petal, .firework, .blossom, .combo, .snow, .meteor,
@@ -1792,6 +1795,15 @@ final class KeyEffectOverlay: UIView {
     private var starCursor = 0
     private var starTrace: ConstellationTrace?
     private var activeStars: StarCycle?
+    // Cầu vồng (theme Tự hào) — pool RainbowBurst.pool vòng cung (≤ 6 sọc) + MỘT cờ (≤ 6 sọc + cán + 8 tim), dựng lười.
+    /// Lá cờ người dùng chọn (KeyboardView đặt lúc hiện từ `prideFlag`). Đổi ⇒ dựng lại màu.
+    var prideFlag: PrideFlag = .defaultValue {
+        didSet { if prideFlag != oldValue { resetPride() } }
+    }
+    private var rainbows: [CALayer] = []
+    private var rainbowPool = KeyEffectPool(capacity: RainbowBurst.pool)
+    private var prideRoot: CALayer?
+    private var pendingPride = false
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -1862,7 +1874,7 @@ final class KeyEffectOverlay: UIView {
     }
 
     static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor,
-                                            .constellation]
+                                            .constellation, .rainbowburst]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -1887,6 +1899,8 @@ final class KeyEffectOverlay: UIView {
     func queueLetter(_ g: String) { if effect == .letters { pendingLetter = g } }
     /// "Token AI": chữ vừa ra — lần vẽ kế loé tại phím rồi vỡ thành token bay vào thanh gợi ý.
     func queueToken(_ g: String) { if effect == .tokens { pendingToken = g } }
+    /// "Cầu vồng": controller vừa thấy từ khoá Tự hào (PrideKeywords) — lần vẽ kế (phím ranh giới) thêm cờ + tim.
+    func queuePride() { if effect == .rainbowburst { pendingPride = true } }
 
     /// "Token AI": thanh gợi ý vừa hiện `words` trong khung `bar` (toạ độ overlay). Chỉ đổi THẬT (ShimmerGate) mới quét
     /// một vệt sáng ~0,3 s; kiểu khác ⇒ return ngay (0 chi phí).
@@ -1935,6 +1949,7 @@ final class KeyEffectOverlay: UIView {
         guard !pending.isEmpty, effect != .none, window != nil || Self.drawsOffscreen else {
             pending.removeAll(keepingCapacity: true)
             pendingEmoji = nil; pendingTone = nil; pendingKeyword = nil; pendingLetter = nil; pendingToken = nil
+            pendingPride = false
             return
         }
         CATransaction.begin()
@@ -1958,6 +1973,8 @@ final class KeyEffectOverlay: UIView {
             pendingToken = nil
         } else {
             for r in pending { fire(r, now: now, media: media) }
+            if pendingPride, let r = pending.last { firePrideFlag(at: r, now: now) }
+            pendingPride = false
         }
         CATransaction.commit()
         pending.removeAll(keepingCapacity: true)
@@ -2044,6 +2061,13 @@ final class KeyEffectOverlay: UIView {
     var debugStarRoots: [CALayer] { starCycles.map(\.root) }
     var debugStarsShown: [Int] { starCycles.map { $0.stars.filter { !$0.isHidden }.count } }
     var debugStarPositions: [[CGPoint]] { starCycles.map { $0.stars.map(\.position) } }
+    /// Cầu vồng: gốc vòng cung đã dựng (pool) + gốc cờ (nil = chưa gõ từ khoá) + tổng layer hiệu ứng Tự hào.
+    var debugRainbowRoots: [CALayer] { rainbows }
+    var debugPrideFlagRoot: CALayer? { prideRoot }
+    var debugPrideLayerCount: Int {
+        func count(_ l: CALayer) -> Int { 1 + (l.sublayers ?? []).reduce(0) { $0 + count($1) } }
+        return rainbows.reduce(0) { $0 + count($1) } + (prideRoot.map(count) ?? 0)
+    }
     var debugStarLayerCount: Int { starCycles.reduce(0) { $0 + 1 + $1.stars.count + $1.lines.count + 1 } }
     #else
     static let drawsOffscreen = false
@@ -2063,6 +2087,7 @@ final class KeyEffectOverlay: UIView {
         case .sea: fireSea(c, now: now, media: media)
         case .dancefloor: fireDance(r, now: now, media: media)
         case .constellation: fireConstellation(r, now: now, media: media)
+        case .rainbowburst: fireRainbow(c, now: now)
         case .flash: fireFlash(now: now, media: media)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)
@@ -2437,6 +2462,144 @@ final class KeyEffectOverlay: UIView {
         clearSand()                       // ẩn bàn phím ⇒ đống cát về 0
         haltSea()
         haltConstellation()
+        pendingPride = false
+        for b in rainbows { b.isHidden = true }
+        prideRoot?.isHidden = true
+    }
+
+    // MARK: Cầu vồng (theme Tự hào — Pride.swift)
+
+    private func resetPride() {
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        for b in rainbows { b.removeFromSuperlayer() }
+        prideRoot?.removeFromSuperlayer()
+        CATransaction.commit()
+        rainbows.removeAll(); rainbowPool = KeyEffectPool(capacity: RainbowBurst.pool)
+        prideRoot = nil; pendingPride = false
+    }
+
+    private func fireRainbow(_ c: CGPoint, now: CFTimeInterval) {
+        let slot = rainbowPool.next()
+        let b: CALayer
+        if slot < rainbows.count { b = rainbows[slot] } else { b = makeRainbow(); rainbows.append(b) }
+        b.position = c
+        b.beginTime = now
+        b.isHidden = false
+    }
+
+    private func makeRainbow() -> CALayer {
+        let b = CALayer()
+        b.bounds = .zero
+        b.isHidden = true
+        b.opacity = 0
+        for (i, rgb) in prideFlag.stripes.enumerated() {
+            let l = CAShapeLayer()
+            let r = RainbowBurst.radius(i), p = CGMutablePath()
+            for k in 0...24 {   // nửa trên (y xuống ⇒ sin âm)
+                let a = Double.pi + Double.pi * Double(k) / 24
+                let pt = CGPoint(x: r * cos(a), y: r * sin(a))
+                if k == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
+            }
+            l.path = p
+            l.fillColor = nil
+            l.strokeColor = UIColor(rgb: rgb).cgColor
+            l.lineWidth = CGFloat(RainbowBurst.band)
+            l.contentsScale = UIScreen.main.scale
+            b.addSublayer(l)
+        }
+        let steps = 12
+        let ts = (0...steps).map { RainbowBurst.life * Double($0) / Double(steps) * 0.9999 }
+        let sc = CAKeyframeAnimation(keyPath: "transform.scale")
+        sc.values = ts.map(RainbowBurst.scale)
+        let op = CAKeyframeAnimation(keyPath: "opacity")
+        op.values = ts.map(RainbowBurst.alpha)
+        let g = CAAnimationGroup()
+        g.animations = [sc, op]
+        g.duration = RainbowBurst.life
+        g.beginTime = Self.animBegin
+        g.fillMode = .both
+        g.isRemovedOnCompletion = false
+        b.add(g, forKey: "fx")
+        layer.addSublayer(b)
+        return b
+    }
+
+    private func firePrideFlag(at r: CGRect, now: CFTimeInterval) {
+        let root = prideRoot ?? makePrideFlag()
+        prideRoot = root
+        let top = Self.keyTop(r)
+        let hw = CGFloat(PrideFlagWave.width / 2 + 6)
+        let need = CGFloat(PrideFlagWave.gap + PrideFlagWave.height + PrideFlagWave.rise + 4)
+        let x = min(max(top.x, bounds.minX + hw), bounds.maxX - hw)
+        let y = max(top.y, bounds.minY + need)
+        root.position = CGPoint(x: x, y: y)
+        root.beginTime = now
+        root.isHidden = false
+    }
+
+    private func makePrideFlag() -> CALayer {
+        let root = CALayer()
+        root.bounds = .zero
+        root.isHidden = true
+        let flag = CALayer()
+        flag.bounds = .zero
+        flag.opacity = 0
+        let life = PrideFlagWave.life, steps = 12
+        let ts = (0...steps).map { life * Double($0) / Double(steps) * 0.9999 }
+        let op = CAKeyframeAnimation(keyPath: "opacity")
+        op.values = ts.map(PrideFlagWave.alpha)
+        let up = CAKeyframeAnimation(keyPath: "transform.translation.y")
+        up.values = ts.map(PrideFlagWave.riseY)
+        let fg = CAAnimationGroup()
+        fg.animations = [op, up]
+        fg.duration = life
+        fg.beginTime = Self.animBegin
+        fg.fillMode = .both
+        fg.isRemovedOnCompletion = false
+        flag.add(fg, forKey: "fx")
+        let pole = CAShapeLayer()
+        let poleX = -PrideFlagWave.width / 2 - PrideFlagWave.poleWidth
+        pole.path = CGPath(rect: CGRect(x: poleX, y: -PrideFlagWave.gap - PrideFlagWave.height - 3, width: PrideFlagWave.poleWidth,
+                                        height: PrideFlagWave.height + PrideFlagWave.gap), transform: nil)
+        pole.fillColor = UIColor(white: 0.92, alpha: 1).cgColor
+        flag.addSublayer(pole)
+        let stripes = prideFlag.stripes
+        let frames = PrideFlagWave.frames
+        for (i, rgb) in stripes.enumerated() {
+            let l = CAShapeLayer()
+            l.fillColor = UIColor(rgb: rgb).cgColor
+            let paths: [CGPath] = (0...frames).map { f in
+                let pts = PrideFlagWave.stripe(i, of: stripes.count, phase: PrideFlagWave.phase(life * Double(f) / Double(frames)))
+                let p = CGMutablePath()
+                p.addLines(between: pts.map { CGPoint(x: $0.x, y: $0.y) })
+                p.closeSubpath()
+                return p
+            }
+            l.path = paths[0]
+            let a = CAKeyframeAnimation(keyPath: "path")
+            a.values = paths
+            a.duration = life
+            a.beginTime = Self.animBegin
+            a.fillMode = .both
+            a.isRemovedOnCompletion = false
+            l.add(a, forKey: "fx")
+            flag.addSublayer(l)
+        }
+        root.addSublayer(flag)
+        let heart = KeyEffectShapes.heart(6)
+        for k in 0..<PrideFlagWave.hearts {
+            let l = CAShapeLayer()
+            l.path = heart
+            l.bounds = .zero
+            l.contentsScale = UIScreen.main.scale
+            l.fillColor = UIColor(rgb: stripes[k % stripes.count]).cgColor
+            l.position = CGPoint(x: 0, y: -PrideFlagWave.gap)
+            l.opacity = 0
+            l.add(Self.makeAnimation(PrideFlagWave.heart(k), delay: PrideFlagWave.heartDelay(k), hiddenBefore: true), forKey: "fx")
+            root.addSublayer(l)
+        }
+        layer.addSublayer(root)
+        return root
     }
 
     // MARK: Chòm sao (theme Cung hoàng đạo — Zodiac.swift)
@@ -3612,6 +3775,8 @@ final class KeyEffectOverlay: UIView {
         for d in dances { d.root.removeFromSuperlayer() }
         floorFlicker?.root.removeFromSuperlayer()
         for cy in starCycles { cy.root.removeFromSuperlayer() }
+        for b in rainbows { b.removeFromSuperlayer() }
+        prideRoot?.removeFromSuperlayer()
         sandPile?.removeFromSuperlayer()
         for w in seaWaves { w.root.removeFromSuperlayer() }
         seaFish?.removeFromSuperlayer()
@@ -3637,6 +3802,7 @@ final class KeyEffectOverlay: UIView {
         dances.removeAll(); dancePool = KeyEffectPool(capacity: DanceFloor.pool); danceSeq = 0
         floorFlicker = nil; flickerGate = DanceFloor.FlickerGate()
         starCycles.removeAll(); starCursor = 0; starTrace = nil; activeStars = nil
+        rainbows.removeAll(); rainbowPool = KeyEffectPool(capacity: RainbowBurst.pool); prideRoot = nil; pendingPride = false
         if effect != .shake { shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey) }
         shakeMeter.reset()
         stringAnim = nil

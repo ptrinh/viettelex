@@ -170,6 +170,10 @@ struct ThemeSettingsView: View {
                 ZodiacSection(sign: Binding(get: { settings.variantChoice.zodiac },
                                             set: { settings.variantChoice.zodiac = $0; save() }))
             }
+            if settings.selectedSpec?.variant == ThemeVariants.pride {
+                PrideSection(flag: Binding(get: { settings.variantChoice.pride },
+                                           set: { settings.variantChoice.pride = $0; save() }))
+            }
 
             Section {
                 NavigationLink {
@@ -863,6 +867,40 @@ struct ZodiacSection: View {
             Text(L("Cung hoàng đạo"))
         } footer: {
             Text(L("Màu bàn phím theo nguyên tố của cung (Lửa, Đất, Khí, Nước); hiệu ứng Chòm sao vẽ chòm sao của cung khi bạn gõ. Chỉ lưu cung đã chọn, không lưu ngày sinh."))
+        }
+    }
+}
+
+/// Theme "Tự hào": chọn lá cờ — đổi bảng màu, viền phím và màu hiệu ứng Cầu vồng. CHỈ lưu id cờ (Pride.swift). Android
+/// PrideFlagPicker (ThemePage.kt) y hệt.
+struct PrideSection: View {
+    @Binding var flag: PrideFlag
+
+    var body: some View {
+        Section {
+            ForEach(PrideFlag.allCases, id: \.self) { f in
+                Button { flag = f } label: {
+                    HStack(spacing: 12) {
+                        VStack(spacing: 0) {   // sọc ngang như lá cờ
+                            ForEach(Array(f.stripes.enumerated()), id: \.offset) { _, c in
+                                Rectangle().fill(Color(red: Double((c >> 16) & 0xFF) / 255, green: Double((c >> 8) & 0xFF) / 255,
+                                                       blue: Double(c & 0xFF) / 255))
+                            }
+                        }
+                        .frame(width: 36, height: 22)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.secondary.opacity(0.3), lineWidth: 1))
+                        Text(f.title).foregroundStyle(Color.primary)
+                        Spacer()
+                        if f == flag { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
+                    }
+                }
+                .accessibilityAddTraits(f == flag ? .isSelected : [])
+            }
+        } header: {
+            Text(L("Lá cờ"))
+        } footer: {
+            Text(L("Màu bàn phím, viền phím và hiệu ứng Cầu vồng theo lá cờ bạn chọn. Gõ \"tự hào\", \"yêu là yêu\", \"pride\" hay \"love is love\" để thấy lá cờ tung bay."))
         }
     }
 }

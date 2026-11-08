@@ -28,6 +28,7 @@ final class BackupTests: XCTestCase {
         s["keyboardTransparency"] = .int(40); s["keyLabelTransparency"] = .int(20)
         s["uiLanguage"] = .string("en")
         s[ZodiacSign.key] = .string("leo")   // Cung hoàng đạo: chỉ id cung
+        s[PrideFlag.key] = .string("trans")   // Tự hào: chỉ id lá cờ
         s["keySound"] = .bool(true); s["keySoundVolume"] = .int(70); s["keySoundStyle"] = .string("wood")
         s[KeyStyleStore.key] = .string(PerThemeKeyStyleTests.golden)   // Tuỳ chỉnh nâng cao theo theme
         s[CustomThemeStore.key] = .string(BackupTests.customThemes)   // Giao diện JSON: theme tự tạo

@@ -57,6 +57,7 @@ import Foundation
 //   "zodiac" = Cung hoàng đạo: bảng màu theo nguyên tố của cung đã chọn (khoá `zodiacSign`, ZodiacElement.slots) + ký
 //   hiệu cung mờ ở góc + chòm sao của cung cho hiệu ứng "Chòm sao". Giải MỘT lần lúc bàn phím hiện (ThemeSettings đọc
 //   lựa chọn) — 0 chi phí mỗi phím. "light"/"dark" vẫn bắt buộc = bảng dự phòng (thẻ xem trước tĩnh, "Chép JSON").
+//   "pride" = Tự hào: bảng màu + màu viền (aurora) + màu hiệu ứng theo lá cờ đã chọn (khoá `prideFlag`, PrideFlag).
 //   Giá trị lạ ⇒ badValue; sai kiểu ⇒ wrongType. Bản vá (KeyStyle) không có "variant"; "Chép JSON" giữ nguyên.
 //
 // "sound" / "effect" (tuỳ chọn, id trong danh sách trắng ThemeExtraIds): âm phím / hiệu ứng bấm phím ĐI KÈM theme —
@@ -766,27 +767,32 @@ struct ThemeBuddy: Equatable {
 /// "variant" của theme JSON — bảng màu theo lựa chọn của người dùng (Android ThemeVariants y hệt, fixture chung chốt).
 struct ThemeVariantChoice: Equatable {
     var zodiac: ZodiacSign = .defaultValue
+    var pride: PrideFlag = .defaultValue
 
     static func load(_ d: UserDefaults?) -> ThemeVariantChoice {
         var c = ThemeVariantChoice()
         c.zodiac = ZodiacSign.load(d)
+        c.pride = PrideFlag.load(d)
         return c
     }
     /// Chưa từng chọn ⇒ không tạo khoá (máy giữ mặc định); đã có khoá ⇒ ghi.
     func save(_ d: UserDefaults?) {
         guard let d else { return }
         if zodiac != .defaultValue || d.object(forKey: ZodiacSign.key) != nil { d.set(zodiac.rawValue, forKey: ZodiacSign.key) }
+        if pride != .defaultValue || d.object(forKey: PrideFlag.key) != nil { d.set(pride.rawValue, forKey: PrideFlag.key) }
     }
 }
 
 enum ThemeVariants {
     static let zodiac = "zodiac"
-    static let known: Set<String> = [zodiac]
+    static let pride = "pride"
+    static let known: Set<String> = [zodiac, pride]
 
     /// Bảng màu của biến thể theo lựa chọn; nil = biến thể lạ (không xảy ra với spec đã kiểm).
     static func slots(_ v: String, _ c: ThemeVariantChoice) -> ThemeSlots? {
         switch v {
         case zodiac: return c.zodiac.element.slots
+        case pride: return c.pride.slots
         default: return nil
         }
     }
@@ -796,6 +802,7 @@ enum ThemeVariants {
         guard let s = slots(v, c) else { return nil }
         var p = ThemeSpec.palette(s)
         if v == zodiac { p.cornerGlyph = c.zodiac.glyph }
+        if v == pride { p.auroraColors = c.pride.stripes }
         return p
     }
 }

@@ -137,6 +137,8 @@ object BackupSettings {
         Spec(Keys.SWIPE_TRAIL, SettingKind.Choice(SwipeTrailStyle.DEFAULT.id, SwipeTrailStyle.IDS)),
         // Cung hoàng đạo (theme "zodiac", "variant") — CHỈ id cung, cùng khoá + id iOS; lạ ⇒ bỏ qua (máy giữ Bạch Dương).
         Spec(ZodiacSign.KEY, SettingKind.Choice(ZodiacSign.DEFAULT.id, ZodiacSign.IDS)),
+        // Lá cờ của theme Tự hào ("variant":"pride") — CHỈ id cờ, cùng khoá + id iOS; lạ ⇒ bỏ qua (máy giữ Cầu vồng).
+        Spec(PrideFlag.KEY, SettingKind.Choice(PrideFlag.DEFAULT.id, PrideFlag.IDS)),
         // "Tuỳ chỉnh nâng cao" (Plus) RIÊNG từng theme — MỘT chuỗi JSON chuẩn ([KeyStyleStore]), cùng khoá +
         // định dạng iOS. Khoá chung cũ (keyLabelColor…) không còn sao lưu: file cũ có chúng ⇒ bỏ qua như
         // key lạ. "rounded" (chỉ iOS) vẫn giữ để khứ hồi; bàn phím Android vẽ như mặc định.

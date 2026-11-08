@@ -91,6 +91,9 @@ struct KeyboardPalette: Equatable {
     /// Ký hiệu mờ ở góc trên phải (theme Cung hoàng đạo: ♈…♓ dạng chữ) — MỘT CATextLayer trong nền theme, dựng lúc đổi
     /// theme; nil = không có (0 chi phí). Android `cornerGlyph` cùng ý nghĩa.
     var cornerGlyph: String? = nil
+    /// Màu dải viền "aurora" thay cho AuroraFx (theme Tự hào: sọc lá cờ đã chọn, chia đều bề ngang) — nil = mặc định.
+    /// Android `auroraColors` cùng ý nghĩa.
+    var auroraColors: [UInt32]? = nil
     /// Người dùng chọn "Màu nhấn" (KeyStyle.accentColor) ⇒ phím ⇧ bật / Caps tô `accent` + `accentInk`
     /// (mặc định: nền trắng glyph đen như stock). Android cùng ý nghĩa (`accentShift`).
     var accentShift = false
@@ -286,6 +289,9 @@ enum KeyboardTheme: String, CaseIterable {
     // Cung hoàng đạo (11/2026, Plus, THÊM CUỐI): nền trời đêm, bảng màu theo nguyên tố của cung người dùng chọn
     // ("variant":"zodiac" — Zodiac.swift), ký hiệu cung mờ ở góc, hiệu ứng Chòm sao, âm "twinkle".
     case zodiac
+    // Tự hào (11/2026, Plus, THÊM CUỐI): nền tối, viền phím gradient theo màu lá cờ người dùng chọn ("variant":"pride" —
+    // Pride.swift), chữ trắng, hiệu ứng Cầu vồng (+ cờ phấp phới khi gõ từ khoá), âm "pop".
+    case pride
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -325,6 +331,7 @@ enum KeyboardTheme: String, CaseIterable {
         case .ai: return L("AI")
         case .nightclub: return L("Neon Night Club")
         case .zodiac: return L("Cung hoàng đạo")
+        case .pride: return L("Tự hào")
         }
     }
 
@@ -361,7 +368,7 @@ enum KeyboardTheme: String, CaseIterable {
              .pixel, .sea, .timeOfDay,
              .ai,
              .nightclub,
-             .zodiac: return true
+             .zodiac, .pride: return true
         }
     }
 
@@ -834,7 +841,7 @@ enum ThemePicker {
     /// Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng
     /// không có trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. Android ThemePicker.INTERACTIVE_ORDER y hệt.
     static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar",
-                                   "zodiac"]
+                                   "zodiac", "pride"]
 
     /// Thứ tự lưới (thuần): miễn phí (thứ tự khai báo) → tương tác (theo `interactiveOrder`) → còn lại (thứ tự khai
     /// báo). Theme miễn phí có nhãn vẫn ở nhóm miễn phí. Android `ThemePicker.groups` cùng kết quả (fixture "picker").

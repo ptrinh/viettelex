@@ -71,7 +71,7 @@ class ImeRootView(
         // Tim đen / Hoa xanh: hoạ tiết là MỘT Path trong nền (vẽ khi nền đổi, không mỗi phím).
         else if (wallpaperFile == null && (decoration != null || theme.palette.auroraBorder || theme.palette.cornerGlyph != null))
             ThemeDecorDrawable(theme.bg, decoration, theme.density, aurora = theme.palette.auroraBorder,
-                glyph = theme.palette.cornerGlyph, glyphColor = theme.palette.ink)
+                glyph = theme.palette.cornerGlyph, glyphColor = theme.palette.ink, auroraColors = theme.palette.auroraColors)
         else android.graphics.drawable.ColorDrawable(theme.bg)
     }
 
@@ -98,7 +98,7 @@ class ImeRootView(
      * hiệu ứng / balloon; cùng khung KeyboardView. Theme khác ⇒ null (không có view).
      */
     val rainbow: RainbowBorderView? = if (theme.palette.rainbowBorder || theme.palette.auroraBorder)
-        RainbowBorderView(context, theme.density, aurora = theme.palette.auroraBorder) else null
+        RainbowBorderView(context, theme.density, aurora = theme.palette.auroraBorder, auroraColors = theme.palette.auroraColors) else null
     private val rainbowPath = android.graphics.Path()
 
     /** Mặt nạ viền theo khung phím hiện tại (gọi khi dựng phím / layout — không mỗi phím). */

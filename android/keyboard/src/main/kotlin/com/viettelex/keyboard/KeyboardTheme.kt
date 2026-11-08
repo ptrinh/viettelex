@@ -110,6 +110,8 @@ data class ThemePalette(
     val spaceSoundhole: Boolean = false,
     /** Ký hiệu mờ ở góc trên phải (theme Cung hoàng đạo: ♈…♓ dạng chữ) — vẽ một lần ở nền IME; null = không. iOS `cornerGlyph`. */
     val cornerGlyph: String? = null,
+    /** Màu dải viền "aurora" thay [AuroraFx] (theme Tự hào: sọc cờ chia đều) — null = mặc định. iOS `auroraColors`. */
+    val auroraColors: List<Int>? = null,
 ) {
     val keyInk: Int get() = keyLabel ?: ink
     /** Nền phím chức năng (⇧ ⌫ 123 🌐 😊…). */
@@ -295,7 +297,10 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     NIGHTCLUB("nightclub", "Neon Night Club", true), // l10n-key
     // Cung hoàng đạo (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền trời đêm, bảng màu theo nguyên tố của cung người dùng
     // chọn ("variant":"zodiac" — Zodiac.kt), ký hiệu cung mờ ở góc, hiệu ứng Chòm sao, âm "twinkle".
-    ZODIAC("zodiac", "Cung hoàng đạo", true); // l10n-key
+    ZODIAC("zodiac", "Cung hoàng đạo", true), // l10n-key
+    // Tự hào (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền tối, viền phím gradient theo màu lá cờ người dùng chọn
+    // ("variant":"pride" — Pride.kt), chữ trắng, hiệu ứng Cầu vồng (+ cờ phấp phới khi gõ từ khoá), âm "pop".
+    PRIDE("pride", "Tự hào", true); // l10n-key
 
     /** Bo góc mặc định (% như [KeyStyle.corner]) khi người dùng chưa chỉnh — null = bo stock. iOS cùng giá trị. */
     val defaultCorner: Int? get() = spec?.corner
@@ -765,7 +770,7 @@ object ThemePicker {
      * trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. iOS ThemePicker.interactiveOrder y hệt.
      */
     val INTERACTIVE_ORDER = listOf("nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar",
-        "zodiac")
+        "zodiac", "pride")
 
     data class Groups(val free: List<KeyboardTheme>, val interactive: List<KeyboardTheme>, val rest: List<KeyboardTheme>)
     /**
@@ -946,7 +951,7 @@ data class ThemeSettings(
         Keys.WALLPAPER_DIM to dim, Keys.WALLPAPER_BLUR to blur, Keys.WALLPAPER_VERSION to version,
         Keys.KEYBOARD_TRANSPARENCY to keyboardTransparency, Keys.KEY_LABEL_TRANSPARENCY to labelTransparency,
         Keys.SYSTEM_MATERIAL_YOU to materialYou,
-        ZodiacSign.KEY to variantChoice.zodiac.id,
+        ZodiacSign.KEY to variantChoice.zodiac.id, PrideFlag.KEY to variantChoice.pride.id,
         Keys.KEY_STYLES to KeyStyleStore.serialize(keyStyles),
         // IME chỉ đọc theme tự tạo đang chọn — bản chuẩn hoá ở khoá riêng ("" = không có).
         Keys.ACTIVE_THEME_SPEC to (custom?.canonical ?: "")) +

@@ -286,6 +286,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Dải cực quang tĩnh mép trên (theme AI, "borderFx":"aurora" — AuroraFx): gradient ngang + mặt nạ gradient dọc trong
     /// themeBackdrop, dựng lười lần đầu cần; theme khác ⇒ chưa từng tạo (0 chi phí).
     private var auroraBand: CAGradientLayer?
+    private var auroraBandColors: [UInt32]?
     /// Ký hiệu mờ ở góc trên phải (theme Cung hoàng đạo — palette.cornerGlyph): MỘT CATextLayer trong themeBackdrop, dựng
     /// lười; theme khác ⇒ chưa từng tạo / ẩn (0 chi phí).
     private var cornerGlyphLayer: CATextLayer?
@@ -2179,13 +2180,19 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func applyAurora(hidden: Bool) {
         guard palette.auroraBorder, !hidden else { auroraBand?.isHidden = true; return }
         CATransaction.begin(); CATransaction.setDisableActions(true)
+        // Tự hào: dải theo sọc cờ — đổi cờ ⇒ dựng lại (chỉ lúc đổi theme / cờ).
+        let band = palette.auroraColors.map(AuroraFx.stops) ?? AuroraFx.band
+        if let g = auroraBand, (g.locations ?? []).map(\.doubleValue) != band.map(\.location) || auroraBandColors != palette.auroraColors {
+            g.removeFromSuperlayer(); auroraBand = nil
+        }
+        auroraBandColors = palette.auroraColors
         if auroraBand == nil {
             let g = CAGradientLayer()
-            g.colors = AuroraFx.band.map { v -> CGColor in
+            g.colors = band.map { v -> CGColor in
                 UIColor(red: CGFloat((v.color >> 16) & 0xFF) / 255, green: CGFloat((v.color >> 8) & 0xFF) / 255,
                         blue: CGFloat(v.color & 0xFF) / 255, alpha: 1).cgColor
             }
-            g.locations = AuroraFx.band.map { NSNumber(value: $0.location) }
+            g.locations = band.map { NSNumber(value: $0.location) }
             g.startPoint = CGPoint(x: 0, y: 0.5)
             g.endPoint = CGPoint(x: 1, y: 0.5)
             let m = CAGradientLayer()   // độ đậm theo chiều dọc: AuroraFx.bandOpacity (mép trên → 0)
@@ -7246,8 +7253,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             return
         }
         // AI ("aurora"): cùng lớp mặt nạ viền nhưng gradient tĩnh — đổi kiểu ⇒ dựng view mới.
-        if let r = rainbow, r.isAurora != palette.auroraBorder { r.halt(); r.removeFromSuperview(); rainbow = nil }
-        let v = rainbow ?? RainbowBorderView(aurora: palette.auroraBorder)
+        if let r = rainbow, r.isAurora != palette.auroraBorder || r.auroraColors != palette.auroraColors {
+            r.halt(); r.removeFromSuperview(); rainbow = nil
+        }
+        let v = rainbow ?? RainbowBorderView(aurora: palette.auroraBorder, colors: palette.auroraColors)
         if v.superview !== self {
             v.frame = bounds
             v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -7340,6 +7349,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         configureBeatFlash(keyEffects?.effect == .dancefloor)
         // Chòm sao: cung người dùng chọn (đọc cùng ThemeSettings lúc hiện — 0 chi phí mỗi phím).
         if keyEffects?.effect == .constellation { keyEffects?.zodiacSign = themeSettings.variantChoice.zodiac }
+        // Cầu vồng: màu theo lá cờ người dùng chọn (theme Tự hào).
+        if keyEffects?.effect == .rainbowburst { keyEffects?.prideFlag = themeSettings.variantChoice.pride }
         syncKeyEffectsSpace()
         layoutStringGaps()
     }

@@ -262,3 +262,6 @@ CASE	variant-upper	err:badValue	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFF
 CASE	variant-number	err:wrongType	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"variant":1}
 CASE	variant-array	err:wrongType	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"variant":["zodiac"]}
 CASE	variant-in-light	err:unknownKey	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000","variant":"zodiac"}}
+# "variant":"pride" — Tự hào (bảng màu + viền + hiệu ứng theo lá cờ người dùng chọn).
+CASE	variant-pride	ok	{"dark":"same","light":{"accent":"#000000","ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"v":1,"variant":"pride"}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"variant":"pride"}
+CASE	variant-pride-flag	err:badValue	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"variant":"rainbow"}
