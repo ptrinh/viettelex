@@ -55,7 +55,11 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     // Theme "Lạc trôi" (11/2026, [TunnelFx] / [FloatFx] trong Drift.kt): Đường hầm — vòng co về phím vừa bấm như rơi vào
     // đường hầm; Lơ lửng — phím trôi + nhấp nhô chậm khi đang gõ, nghỉ thì về chỗ (chỉ hình, vùng chạm không đổi).
     TUNNEL("tunnel", "Đường hầm"), // l10n-key
-    FLOAT("float", "Lơ lửng"); // l10n-key
+    FLOAT("float", "Lơ lửng"), // l10n-key
+    // Theme Gõ mõ / Kính màu (11/2026): Công đức ("+1 công đức" bay lên + đếm trong ngày), Nắng qua kính (ô kính sáng lên
+    // + tia nắng chéo, gõ dồn ⇒ ánh nến mép dưới) — [MeritFx], [SunlightFx].
+    MERIT("merit", "Công đức"), // l10n-key
+    SUNLIGHT("sunlight", "Nắng qua kính"); // l10n-key
 
     val title: String get() = tr(viTitle)
 

@@ -244,6 +244,7 @@ targets:
       - Keyboard/MoleOverlay.swift
       - Keyboard/NightClub.swift
       - Keyboard/Drift.swift
+      - Keyboard/MeritGlass.swift
       - Keyboard/KeyCommitQueue.swift
       - Keyboard/LineBreak.swift
       - Keyboard/AdjacentKeyFixer.swift

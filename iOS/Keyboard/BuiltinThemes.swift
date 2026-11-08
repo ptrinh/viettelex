@@ -238,6 +238,21 @@ enum BuiltinThemesData {
                 "border": "#66C9B8FF", "balloon": "#2A2350", "trail": "#CC5EEAD4",
                 "deco": {"motif": "starfield", "color": "#47E8F6FF", "density": 120}},
       "dark": "same"
+    },
+    {
+      "v": 1, "id": "mo", "name": {"vi": "Gõ mõ", "en": "Wooden Fish"}, "tags": ["interactive"],
+      "sound": "mo", "effect": "merit",
+      "light": {"bg": "#C9A27A", "key": "#6B4226", "special": "#4E2F1A", "ink": "#FFF3DC", "accent": "#E8A317",
+                "accentInk": "#3A1E00", "fn": "#4E2F1A", "fnInk": "#FFD27A", "deco": {"motif": "lotus", "color": "#4D8A5A2B"}},
+      "dark": {"bg": "#2E1B10", "key": "#5A3A22", "special": "#3E2616", "ink": "#FFF3DC", "accent": "#E8A317",
+               "accentInk": "#3A1E00", "fn": "#3E2616", "fnInk": "#FFD27A", "deco": {"motif": "lotus", "color": "#33FFD27A"}}
+    },
+    {
+      "v": 1, "id": "stainedGlass", "name": {"vi": "Kính màu", "en": "Stained Glass"}, "tags": ["interactive"],
+      "keyShape": "glass", "sound": "bell", "effect": "sunlight",
+      "light": {"bg": "#141018", "key": "#1E4596", "special": "#2A2230", "ink": "#FFF6E0", "accent": "#C98A12",
+                "accentInk": "#1A0F00", "fn": "#2A2230", "fnInk": "#FFE3A3", "border": "#FF0B0A0C"},
+      "dark": "same"
     }
   ]
 }

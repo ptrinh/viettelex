@@ -21,6 +21,10 @@ import Foundation
 // "keyShape" (tuỳ chọn, danh sách trắng ThemeExtraIds.keyShapes): dáng phím — "pixel" = góc cắt bậc thang theo khối,
 //   viền khối đậm + bóng khối cứng dưới/phải, bấm = phím lún một khối (mất bóng). Vẽ bằng ảnh 9-slice tí hon dựng từ
 //   bảng màu (PixelKeys) — 0 chi phí với theme khác. Không có ⇒ bo góc theo "corner" như cũ.
+//   | "glass" = ô KÍNH MÀU (theme Kính màu, GlassKeys): mỗi phím chữ một ô ruby / lam ngọc / lục bảo / hổ phách xếp
+//   so le theo hàng QWERTY (GlassKeys.paneIndex — theo CHỮ, không theo vị trí ⇒ ổn định khi đổi bố cục), viền chì
+//   gần đen dày + gradient trong nhẹ; phím chức năng = kính khói; Enter = màu nhấn. Ảnh 9-slice tí hon dựng MỘT lần
+//   mỗi bảng màu (cache), không ảnh tải về. Chữ phím = "ink" (kiểm tương phản ≥ 4,5 trên mọi ô — test chốt).
 // "borderFx" (trong "light"/"dark", danh sách trắng ThemeSlots.borderFxValues): "rainbow" = viền phím cầu vồng (Gaming
 //   RGB, chỉ xoay màu khi đang gõ) | "aurora" = viền gradient tím → lam ĐỨNG YÊN + dải cực quang tĩnh dọc mép trên
 //   (theme AI, AuroraFx; vẽ một lần, 0 hoạt ảnh) | "hueflow" = viền phím cầu vồng + NỀN đổi sắc CHẬM khi đang gõ (theme
@@ -794,7 +798,7 @@ enum ThemeExtraIds {
     /// "game": trò chơi khi gõ (Android ThemeExtraIds.GAMES y hệt).
     static let games: Set<String> = [MoleGame.themeGame]
     /// "keyShape": dáng phím (Android ThemeExtraIds.KEY_SHAPES y hệt).
-    static let keyShapes: Set<String> = [PixelKeys.shape]
+    static let keyShapes: Set<String> = [PixelKeys.shape, GlassKeys.shape]
     /// "photoFx": hiệu ứng trên ảnh nền (Android ThemeExtraIds.PHOTO_FX y hệt).
     static let spotlight = "spotlight"
     static let photoFx: Set<String> = [spotlight]

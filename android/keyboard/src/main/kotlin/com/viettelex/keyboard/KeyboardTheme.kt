@@ -302,7 +302,13 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     TRIPPY("trippy", "Ảo giác", true), // l10n-key
     // Lạc trôi (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền gradient lục lam đêm → tím ("bg2"), phím trong mờ viền sáng
     // dịu, bụi sao, Đường hầm + phím Lơ lửng ("keyMotion":"float" — [FloatPolicy]), âm "airy", nét vuốt bụi sao.
-    DRIFT("drift", "Lạc trôi", true); // l10n-key
+    DRIFT("drift", "Lạc trôi", true), // l10n-key
+    // Gõ mõ (11/2026, Plus, THÊM CUỐI) — id trùng iOS: gỗ ấm + nhấn nghệ / vàng, hoạ tiết sen mờ, âm "mo" (mõ gỗ),
+    // hiệu ứng Công đức ("+1 công đức" bay lên + đếm công đức trong ngày). Chỉ biểu tượng — không hình tượng tôn giáo.
+    MO("mo", "Gõ mõ", true), // l10n-key
+    // Kính màu (11/2026, Plus, THÊM CUỐI) — id trùng iOS: phím ô kính ruby / lam ngọc / lục bảo / hổ phách viền chì
+    // ("keyShape":"glass" — [GlassKeys]), hiệu ứng Nắng qua kính, âm "bell" (chuông nhỏ). Chỉ hoa văn kính + tia nắng.
+    STAINED_GLASS("stainedGlass", "Kính màu", true); // l10n-key
 
     /** Bo góc mặc định (% như [KeyStyle.corner]) khi người dùng chưa chỉnh — null = bo stock. iOS cùng giá trị. */
     val defaultCorner: Int? get() = spec?.corner
@@ -696,7 +702,7 @@ object ThemeExtraIds {
     /** "game": trò chơi khi gõ (iOS ThemeExtraIds.games y hệt). */
     val GAMES: Set<String> = setOf(MoleGame.THEME_GAME)
     /** "keyShape": dáng phím (iOS ThemeExtraIds.keyShapes y hệt). */
-    val KEY_SHAPES: Set<String> = setOf(PixelKeys.SHAPE)
+    val KEY_SHAPES: Set<String> = setOf(PixelKeys.SHAPE, GlassKeys.SHAPE)
     /** "photoFx": hiệu ứng trên ảnh nền (iOS ThemeExtraIds.photoFx y hệt). */
     const val SPOTLIGHT = "spotlight"
     val PHOTO_FX: Set<String> = setOf(SPOTLIGHT)
@@ -797,7 +803,8 @@ object ThemePicker {
      * Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng không có
      * trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. iOS ThemePicker.interactiveOrder y hệt.
      */
-    val INTERACTIVE_ORDER = listOf("nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "drift")
+    val INTERACTIVE_ORDER = listOf("nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "drift",
+        "mo", "stainedGlass")
 
     data class Groups(val free: List<KeyboardTheme>, val interactive: List<KeyboardTheme>, val rest: List<KeyboardTheme>)
     /**

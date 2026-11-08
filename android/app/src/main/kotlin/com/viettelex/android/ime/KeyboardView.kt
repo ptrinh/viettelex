@@ -353,6 +353,23 @@ class KeyboardView(
     private val pixelRects: FloatArray? = if (theme.pixelKeys) FloatArray(PixelKeys.FLOATS) else null
     private val pixelPaint: Paint? = if (theme.pixelKeys) Paint().apply { style = Paint.Style.FILL } else null
     private val pixelInk: Int = theme.keyBorder?.takeIf { android.graphics.Color.alpha(it) > 0 } ?: theme.ink
+    /**
+     * Ô kính màu ("keyShape":"glass" — [com.viettelex.keyboard.GlassKeys], iOS cùng màu): mặt màu theo chữ + MỘT shader
+     * gradient trong (ma trận đặt lại mỗi phím, không cấp phát) + viền chì. Theme khác: null ⇒ đường cũ y nguyên.
+     */
+    private val glassFill: Paint? = if (theme.glassKeys) Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL } else null
+    private val glassSheen: Paint? = if (theme.glassKeys) Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        shader = android.graphics.LinearGradient(0f, 0f, 0f, 1f,
+            intArrayOf(android.graphics.Color.argb((255 * com.viettelex.keyboard.GlassKeys.HIGHLIGHT).toInt(), 255, 255, 255),
+                0x00FFFFFF, android.graphics.Color.argb((255 * com.viettelex.keyboard.GlassKeys.SHADE).toInt(), 0, 0, 0)),
+            floatArrayOf(0f, 0.55f, 1f), android.graphics.Shader.TileMode.CLAMP)
+    } else null
+    private val glassLead: Paint? = if (theme.glassKeys) Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        color = theme.keyBorder?.takeIf { android.graphics.Color.alpha(it) > 0 } ?: (com.viettelex.keyboard.GlassKeys.LEAD or (0xFF shl 24))
+    } else null
+    private val glassMatrix: android.graphics.Matrix? = if (theme.glassKeys) android.graphics.Matrix() else null
     // Logo Vᴛ mờ ở góc phải phím space như iOS (thay nhãn "Tiếng Việt").
     private val logoPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
         colorFilter = android.graphics.PorterDuffColorFilter(theme.withAlpha(theme.spaceInk, 0.16f), android.graphics.PorterDuff.Mode.SRC_IN)
@@ -1203,6 +1220,8 @@ class KeyboardView(
             skinPainter?.draw(c, skin, k.pressed || (k.kind == KeyKind.SHIFT && shift != Shift.OFF), k.left, k.top, k.right, k.bottom)
         } else if (pixel) {
             drawPixelKey(c, k, face, sunk)
+        } else if (glassFill != null && !trackpad) {
+            drawGlassKey(c, k, face)
         } else {
             facePaint.color = face
             // Bo góc tuỳ chỉnh (Plus) áp mọi phím kể cả enter; mặc định enter là viên thuốc như cũ.
@@ -1283,6 +1302,28 @@ class KeyboardView(
             }
             KeyKind.SPACE -> Unit   // nội dung: [drawSpaceContent] (lớp động, ngoài lưới tĩnh)
         }
+    }
+
+    /** Ô kính màu: chữ a–z ⇒ màu ô theo chữ ([GlassKeys.paneColor]); phím khác giữ [face] (fn / nhấn / "key"). */
+    private fun drawGlassKey(c: Canvas, k: LaidKey, face: Int) {
+        val fp = glassFill ?: return
+        val sp = glassSheen ?: return
+        val lp = glassLead ?: return
+        val m = glassMatrix ?: return
+        val G = com.viettelex.keyboard.GlassKeys
+        val letter = k.kind == KeyKind.LETTER && k.label.length == 1 && k.label[0].lowercaseChar() in 'a'..'z'
+        var col = if (letter) G.paneColor(k.label) or (0xFF shl 24) else face
+        if (k.pressed && letter) col = G.pressed(col and 0xFFFFFF) or (0xFF shl 24)
+        val lw = G.leadWidth(k.height.toDouble()).toFloat()
+        val r = theme.keyRadius(k.width, k.height, radius)
+        fp.color = col
+        c.drawRoundRect(k.left, k.top, k.right, k.bottom, r, r, fp)
+        m.setScale(1f, k.height); m.postTranslate(0f, k.top)
+        sp.shader?.setLocalMatrix(m)
+        c.drawRoundRect(k.left, k.top, k.right, k.bottom, r, r, sp)
+        lp.strokeWidth = lw
+        val h = lw / 2
+        c.drawRoundRect(k.left + h, k.top + h, k.right - h, k.bottom - h, maxOf(r - h, 0f), maxOf(r - h, 0f), lp)
     }
 
     /** Khối điểm ảnh của phím: chiều cao / [PixelKeys.CELLS], làm tròn về px nguyên (khối sắc, ≥ 1 px). */

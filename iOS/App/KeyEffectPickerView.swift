@@ -40,6 +40,7 @@ struct KeyEffectPickerView: View {
                     + Text(" ") + Text(L("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp."))
                     + Text(" ") + Text(L("Kính vạn hoa nở một bông đối xứng sắc cầu vồng từ phím vừa bấm, xoay chậm rồi tan."))
                     + Text(" ") + Text(L("Đường hầm: vòng sáng co về phím vừa bấm như rơi vào đường hầm, gõ nhanh thì rơi nhanh hơn. Lơ lửng: phím trôi nhẹ khỏi hàng khi đang gõ rồi về chỗ khi nghỉ; chỉ là hình — chạm vẫn đúng phím; tắt khi bật Giảm chuyển động."))
+                    + Text(" ") + Text(L("Công đức thả \"+1 công đức\" bay lên từ phím vừa bấm và đếm số phím trong ngày (về 0 lúc nửa đêm, chỉ lưu trên máy). Nắng qua kính làm ô vừa bấm sáng lên như nắng xuyên qua kính màu; gõ nhanh có ánh nến ấm bập bùng chậm ở mép dưới."))
             }
         }
         .bottomBarScrollMargin()

@@ -21,6 +21,9 @@ import java.nio.charset.CodingErrorAction
  * "keyShape" (tuỳ chọn, danh sách trắng [ThemeExtraIds.KEY_SHAPES]): dáng phím — "pixel" = góc cắt bậc thang theo khối,
  *   viền khối đậm + bóng khối cứng dưới/phải, bấm = phím lún một khối (mất bóng) — [PixelKeys], vẽ vài hình chữ nhật mỗi
  *   phím, 0 cấp phát; theme khác không chạm tới. Không có ⇒ bo góc theo "corner" như cũ. iOS y hệt.
+ *   | "glass" = ô KÍNH MÀU (theme Kính màu, [GlassKeys]): mỗi phím chữ một ô ruby / lam ngọc / lục bảo / hổ phách so le
+ *   theo hàng QWERTY ([GlassKeys.paneIndex] — theo CHỮ), viền chì gần đen dày + gradient trong nhẹ; phím chức năng = kính
+ *   khói; Enter = màu nhấn. Vẽ màu + một shader dùng lại, 0 cấp phát mỗi khung. Chữ phím = "ink" (tương phản ≥ 4,5).
  * "borderFx" (trong "light"/"dark", danh sách trắng [ThemeSlots.BORDER_FX]): "rainbow" = viền phím cầu vồng (Gaming RGB,
  *   chỉ xoay màu khi đang gõ) | "aurora" = viền gradient tím → lam ĐỨNG YÊN + dải cực quang tĩnh dọc mép trên (theme AI,
  *   [AuroraFx]; vẽ một lần, 0 hoạt ảnh) | "hueflow" = viền phím cầu vồng + NỀN đổi sắc CHẬM khi đang gõ (theme "Ảo giác",

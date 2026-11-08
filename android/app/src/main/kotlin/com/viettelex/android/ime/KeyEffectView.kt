@@ -280,6 +280,36 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
 
     val effect: KeyEffect get() = sim.effect
 
+    // Công đức / Nắng qua kính ([MeritDrawer], [SunlightDrawer] — MeritSunlightFx.kt): dựng lười, kiểu khác ⇒ null.
+    internal var merit: MeritDrawer? = null; private set
+    internal var sunlight: SunlightDrawer? = null; private set
+    /** Test: giờ "bây giờ" (epoch giây) cho bộ đếm công đức — null = đồng hồ hệ thống. */
+    internal var meritEpoch: (() -> Double)? = null
+
+    /**
+     * Công đức: gắn kho bộ đếm trong ngày ([load] → (ngày, số) hoặc null; [save] ghi) — IME đặt khi kiểu là Công đức (prefs
+     * ime_state, chỉ hai số). Hiện nhãn đếm ngay ở phím cách ([spaceFrame]).
+     */
+    fun attachMeritStore(load: () -> Pair<Int, Int>?, save: (Int, Int) -> Unit) {
+        if (sim.effect != KeyEffect.MERIT) return
+        val m = merit ?: MeritDrawer(density).also { merit = it }
+        val v = load()
+        m.counter = com.viettelex.keyboard.MeritCounter(v?.first ?: Int.MIN_VALUE, v?.second ?: 0)
+        m.utcOffset = java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000
+        m.save = save
+        refreshMeritCounter()
+    }
+
+    private fun epochNow(): Double = meritEpoch?.invoke() ?: (System.currentTimeMillis() / 1000.0)
+
+    /** Nhãn đếm theo khung phím cách hiện tại (hiện / đổi bố cục). */
+    fun refreshMeritCounter() {
+        val m = merit ?: return
+        val r = spaceFrame?.let { f -> if (f(spaceRect)) spaceRect else null }
+        m.layoutCounter(m.counter.today(com.viettelex.keyboard.MeritCounter.dayIndex(epochNow(), m.utcOffset)), r)
+        invalidate()
+    }
+
     init {
         isClickable = false
         isFocusable = false
@@ -320,6 +350,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         if (e != KeyEffect.SHAKE) shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         if (e != KeyEffect.SAND) sand = null
         if (e != KeyEffect.TUNNEL) tunnel = null
+        if (e != KeyEffect.MERIT) merit = null
+        if (e != KeyEffect.SUNLIGHT) sunlight = null
         pendN = 0
         invalidate()
     }
@@ -433,6 +465,12 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.DANCEFLOOR -> fireDance(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.TUNNEL -> (tunnel ?: TunnelPainter(density).also { tunnel = it }).fire(x, y, w, h, width, height, combo.press(now), now)
             KeyEffect.FLOAT -> {}   // Lơ lửng: KeyboardView dời hình phím (KeyFloatDriver) — overlay không vẽ gì
+            KeyEffect.MERIT -> {
+                val m = merit ?: MeritDrawer(density).also { merit = it }
+                m.fire(x, y, w, h, width, height, now, epochNow(), spaceFrame?.let { f -> if (f(spaceRect)) spaceRect else null })
+            }
+            KeyEffect.SUNLIGHT -> (sunlight ?: SunlightDrawer(density).also { sunlight = it })
+                .fire(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.FLASH -> if (flash.trigger(now)) flashStart = now
             KeyEffect.LIGHTNING -> fireLightning(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.MATRIX -> pokeMatrix(now)
@@ -526,6 +564,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         danceStart.fill(Long.MIN_VALUE / 2); flickerStart = Long.MIN_VALUE / 2
         tunnel?.halt()
+        merit?.let { it.persist(); it.clear() }   // ẩn bàn phím ⇒ ghi nốt công đức chưa lưu
+        sunlight?.clear()
         pendN = 0
         invalidate()
     }
@@ -602,6 +642,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         if (sim.effect == KeyEffect.MATRIX && w > 0) columns = Array(MatrixRain.columnCount((w / density).toDouble())) { MatrixRain.column(it) }
+        if (sim.effect == KeyEffect.MERIT) post { refreshMeritCounter() }   // phím cách đã layout ⇒ nhãn đếm đúng chỗ
     }
 
     internal val pendingCount: Int get() = pendN
@@ -640,6 +681,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.DANCEFLOOR -> drawDance(canvas, now)
             KeyEffect.TUNNEL -> tunnel?.draw(canvas, now, width, height) ?: false
             KeyEffect.FLOAT -> false
+            KeyEffect.MERIT -> merit?.draw(canvas, now) ?: false
+            KeyEffect.SUNLIGHT -> sunlight?.draw(canvas, now, width, height) ?: false
             else -> drawParticles(canvas, now)
         }
     }

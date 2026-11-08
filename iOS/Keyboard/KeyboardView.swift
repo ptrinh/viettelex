@@ -1951,11 +1951,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// ⇒ chữ ký khác ⇒ plane dựng lại). Skin tải về của theme ("keys") thắng. Theme khác: một phép so sánh.
     private func applyPixelKeys() {
         let st = themeSettings.effectiveKeyStyle
-        guard st.keyShape == PixelKeys.shape, st.assets.keys.isEmpty else {
+        guard st.keyShape == PixelKeys.shape || st.keyShape == GlassKeys.shape, st.assets.keys.isEmpty else {
             if themeAssets !== downloadedAssets { themeAssets = downloadedAssets }
             return
         }
-        themeAssets = PixelKeys.assets(over: downloadedAssets, palette: palette)
+        // "glass" (Kính màu): ô kính màu theo chữ + viền chì — cùng đường skin (GlassKeys).
+        themeAssets = st.keyShape == GlassKeys.shape ? GlassKeys.assets(over: downloadedAssets, palette: palette)
+            : PixelKeys.assets(over: downloadedAssets, palette: palette)
     }
 
     /// Chữ + vạch ngăn thanh gợi ý theo palette hiện tại; y hệt thì 0 việc.
@@ -7341,7 +7343,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                                               dark: palette.isDark, in: self, keys: rowsContainer, existing: keyEffects)
         if keyEffects == nil { fxRect = nil }
         // Laser: tia bắn từ phím cách thật (khung đọc lúc bắn — đổi bàn số / ký hiệu vẫn đúng). Kiểu khác ⇒ nil.
-        keyEffects?.laserOrigin = keyEffects?.effect == .laser ? { [weak self] in self?.spaceBarFrame() } : nil
+        // Công đức: cùng khung phím cách làm chỗ đặt nhãn "Công đức hôm nay" (góc trên-trái phím cách).
+        let spaceAnchored = keyEffects?.effect == .laser || keyEffects?.effect == .merit
+        keyEffects?.laserOrigin = spaceAnchored ? { [weak self] in self?.spaceBarFrame() } : nil
+        // Công đức: bộ đếm trong ngày lưu App Group (chỉ một số đếm). Kiểu khác ⇒ nil.
+        keyEffects?.meritStore = keyEffects?.effect == .merit ? MeritStore.defaults(UserDefaultsProvider.shared) : nil
         // Token AI: đích bay đọc lúc bắn (Mắt AI / dải gợi ý có thể đổi chỗ). Kiểu khác ⇒ nil.
         keyEffects?.tokenTarget = keyEffects?.effect == .tokens ? { [weak self] in self?.tokenTargetPoint() } : nil
         // Biển: mỗi con sóng mới một tiếng sóng vỗ (chỉ khi Âm thanh phím bật). Buffer chỉ dựng khi Biển được chọn.
