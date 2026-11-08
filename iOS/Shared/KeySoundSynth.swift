@@ -288,6 +288,62 @@ enum KeySoundSynth {
     static let squeakSeed: UInt32 = 0x6D6F_6C65
     static func squeakSamples() -> [Float] { render(squeakRecipe, seed: squeakSeed) }
 
+    // MARK: Sóng vỗ (theme Biển — SeaFx, 08/11/2026)
+    // Mỗi con sóng mới một tiếng "ào" 1,6 s, tổng hợp từ MỘT dòng nhiễu xorshift32 qua 3 nhánh song song:
+    //   dâng: low-pass 2 cực 420 Hz, vỏ (t/crash)² — rì rầm lớn dần khi sóng cuộn tới;
+    //   vỡ:   high-pass 160 Hz → low-pass 2 cực 1,6 kHz (×2,6), mở 15 ms đúng lúc `surfCrash` (= SeaFx.roll: sóng chạm bờ), tắt τ 280 ms;
+    //   rút:  high-pass 1,1 kHz → low-pass 2 cực 3,2 kHz, mở 60 ms, tắt τ 500 ms, xì xào lắc 6 Hz ±20 %.
+    // Tổng → low-pass 1 cực 1,8 kHz (trọng tâm phổ < 2,5 kHz như tiếng phím) → chặn DC 30 Hz → mở 30 ms / đóng 80 ms raised-cosine → chuẩn hoá đỉnh 0,30 (mềm hơn mọi tiếng phím).
+    // 22,05 kHz (đủ cho nhiễu ≤ 3,2 kHz, nửa bộ nhớ: ~141 KB Float32). Android KeySoundSynth.surfSamples y hệt (checksum chung).
+    static let surfSampleRate = 22_050.0
+    static let surfDuration = 1.6
+    /// Giây từ lúc phát tới tiếng vỡ — PHẢI = SeaFx.roll (test chốt).
+    static let surfCrash = 1.15
+    static let surfPeak = 0.30
+    static let surfSeed: UInt32 = 0x7375_7266   // "surf"
+
+    static func surfSamples() -> [Float] {
+        let sr = surfSampleRate, crash = surfCrash
+        let count = Int((surfDuration * sr).rounded())
+        func pole(_ f: Double) -> Double { exp(-2 * Double.pi * f / sr) }
+        let aS = pole(420), hC = pole(160), aC = pole(1600), hH = pole(1100), aH = pole(3200), aO = pole(1800), dcA = pole(30)
+        var state = surfSeed
+        var s1 = 0.0, s2 = 0.0, chIn = 0.0, chOut = 0.0, c1 = 0.0, c2 = 0.0, hhIn = 0.0, hhOut = 0.0, h1 = 0.0, h2 = 0.0, o = 0.0
+        var dcIn = 0.0, dcOut = 0.0, peak = 0.0
+        let fin = Int(0.030 * sr), fout = Int(0.080 * sr)
+        var out = [Double](repeating: 0, count: count)
+        for i in 0..<count {
+            let t = Double(i) / sr
+            state ^= state << 13; state ^= state >> 17; state ^= state << 5
+            let white = Double(state) / Double(UInt32.max) * 2 - 1
+            s1 = (1 - aS) * white + aS * s1; s2 = (1 - aS) * s1 + aS * s2
+            chOut = hC * (chOut + white - chIn); chIn = white
+            c1 = (1 - aC) * chOut + aC * c1; c2 = (1 - aC) * c1 + aC * c2
+            hhOut = hH * (hhOut + white - hhIn); hhIn = white
+            h1 = (1 - aH) * hhOut + aH * h1; h2 = (1 - aH) * h1 + aH * h2
+            let a = t - crash
+            let v: Double
+            if a < 0 {
+                let u = t / crash
+                v = 2.2 * u * u * s2
+            } else {
+                v = 2.2 * exp(-a / 0.30) * s2
+                    + 2.6 * (1 - exp(-a / 0.015)) * exp(-a / 0.28) * c2
+                    + 0.9 * (1 - exp(-a / 0.06)) * exp(-a / 0.5) * (0.8 + 0.2 * sin(2 * Double.pi * 6 * a)) * h2
+            }
+            o = (1 - aO) * v + aO * o
+            dcOut = dcA * (dcOut + o - dcIn); dcIn = o
+            var y = dcOut
+            if i < fin { y *= 0.5 - 0.5 * cos(Double.pi * Double(i) / Double(fin)) }
+            let fromEnd = count - 1 - i
+            if fromEnd < fout { y *= 0.5 - 0.5 * cos(Double.pi * Double(fromEnd) / Double(fout)) }
+            out[i] = y
+            peak = max(peak, abs(y))
+        }
+        let norm = peak > 0 ? surfPeak / peak : 0
+        return out.map { Float($0 * norm) }
+    }
+
     /// Tiếng Enter RIÊNG của kiểu (nil = như phím chức năng). Máy chữ: tiếng phím chức năng + "ding" chuông về
     /// dòng. Seed cố định theo (typewriter, modifier) ⇒ không đổi khi thêm kiểu mới. Android y hệt.
     static func returnRecipe(_ s: KeySoundStyle) -> Recipe? {

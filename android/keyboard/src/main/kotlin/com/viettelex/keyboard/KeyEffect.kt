@@ -1169,15 +1169,18 @@ class SandPile(widthUnits: Double) {
  * [ComboMeter]) ⇒ sóng to hơn. Phụ: vài giọt bọt bắn ở phím + 2 bong bóng lắc lên rồi vỡ thành vòng; combo lên
  * [FISH_LEVEL] ⇒ một chú cá bơi ngang một lần. Nghỉ gõ = không còn khung hình nào. Thời gian giây, đơn vị dp (iOS pt).
  * = iOS SeaFx (test số chung).
+ * Phil 08/11/2026: sóng chạy nhanh quá ⇒ chậm ~1,9× như sóng lừng ngoài biển (cuộn 1,15 s êm — chậm lúc đầu, đều, chỉ nhanh
+ * dần chút trước khi chạm bờ; vỡ 0,55 s; rút 1,3 s) + mỗi con sóng mới một tiếng "ào" ([KeySoundSynth.surfSamples], tiếng
+ * vỡ trùng lúc sóng chạm bờ) khi Âm thanh phím bật.
  */
 object SeaFx {
     // Sóng vỗ bờ
     const val MAX_WAVES = 3
-    const val LAUNCH_GAP = 0.55
+    const val LAUNCH_GAP = 1.0
     /** Cuộn từ đỉnh xuống bờ / vỡ bọt tràn lên / rút (giây). */
-    const val ROLL = 0.6
-    const val BREAK = 0.3
-    const val RECEDE = 0.7
+    const val ROLL = 1.15
+    const val BREAK = 0.55
+    const val RECEDE = 1.3
     const val LIFE = ROLL + BREAK + RECEDE
     const val BODY_HEIGHT = 26.0
     const val BODY_ALPHA = 0.22
@@ -1196,11 +1199,14 @@ object SeaFx {
     fun size(level: Int): Double = SIZES[level.coerceIn(0, SIZES.size - 1)]
     /** Sóng mới chỉ khi sóng trước đã đi được [LAUNCH_GAP] (gõ dồn ⇒ chỉ bọt + bong bóng). */
     fun shouldLaunch(sinceLast: Double): Boolean = sinceLast >= LAUNCH_GAP
-    /** Tỉ lệ quãng đỉnh → bờ của mép sóng (nhanh dần như sóng sắp vỡ). */
+    /**
+     * Tỉ lệ quãng đỉnh → bờ của mép sóng: sóng lừng — khởi chậm (tốc độ 0,3), đều giữa chừng, nhanh dần CHÚT trước khi chạm
+     * bờ (tốc độ cuối 1,5; u² cũ = 0 → 2 như rơi). f(u) = 0,3u + 0,9u² − 0,2u³: f′ > 0, f″ > 0 trên [0, 1].
+     */
     fun travel(t: Double): Double = when {
         t <= 0.0 -> 0.0
         t >= ROLL -> 1.0
-        else -> { val u = t / ROLL; u * u }
+        else -> { val u = t / ROLL; u * (0.3 + u * (0.9 - 0.2 * u)) }
     }
     fun driftX(t: Double): Double = DRIFT * (t / ROLL).coerceIn(0.0, 1.0)
     /** Pha mép sóng của ô sóng [slot]. */
@@ -1269,7 +1275,7 @@ object SeaFx {
     // Cá bơi khi gõ combo
     const val FISH_LEVEL = 2
     const val FISH_COOLDOWN = 4.0
-    const val FISH_DURATION = 2.4
+    const val FISH_DURATION = 2.8
     const val FISH_SIZE = 24.0
     const val FISH_MARGIN = 14.0
     const val FISH_BOB = 3.0
@@ -1285,6 +1291,12 @@ object SeaFx {
     }
     fun fishBobY(f: Double): Double = FISH_BOB * sin(2 * Math.PI * 3 * f)
     fun fishAlpha(f: Double): Double = if (f < 0.0 || f >= 1.0) 0.0 else minOf(1.0, f / 0.1, (1 - f) / 0.1)
+
+    // Tiếng sóng vỗ ([KeySoundSynth.surfSamples]): MỖI CON SÓNG MỚI một tiếng (không mỗi phím), chỉ khi Âm thanh phím bật.
+    /** Tối đa bấy nhiêu tiếng sóng chồng nhau (tiếng 1,6 s, sóng cách ≥ [LAUNCH_GAP] ⇒ ≤ 2) — tiếng thứ 3 thay tiếng cũ nhất. */
+    const val SURF_VOICES = 2
+    /** Âm lượng tiếng sóng theo cỡ sóng: cỡ thường 0,7 → cỡ combo lớn nhất 1,0 (nhân âm lượng phím của user). */
+    fun surfVolume(size: Double): Double = 0.7 + 0.3 * ((size - 1) / (SIZES[SIZES.size - 1] - 1)).coerceIn(0.0, 1.0)
 }
 
 /**

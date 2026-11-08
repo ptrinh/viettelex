@@ -1176,12 +1176,15 @@ struct SandPile {
 /// nối nhau (cách nhau ≥ `launchGap`, tối đa `maxWaves` — sóng mới không bao giờ cướp sóng đang chạy); gõ nhanh (mức
 /// ComboMeter) ⇒ sóng to hơn. Phụ: vài giọt bọt bắn ở phím + 2 bong bóng lắc lên rồi vỡ thành vòng; combo lên `fishLevel` ⇒
 /// một chú cá bơi ngang một lần. Nghỉ gõ = không còn gì chạy. Hàm thuần — Android SeaFx y hệt (test số chung).
+/// Phil 08/11/2026: sóng chạy nhanh quá ⇒ chậm ~1,9× như sóng lừng ngoài biển (cuộn 1,15 s êm — chậm lúc đầu, đều, chỉ
+/// nhanh dần chút trước khi chạm bờ; vỡ 0,55 s; rút 1,3 s) + mỗi con sóng mới một tiếng "ào" (KeySoundSynth.surfSamples,
+/// tiếng vỡ trùng lúc sóng chạm bờ) khi Âm thanh phím bật.
 enum SeaFx {
     // Sóng vỗ bờ
     static let maxWaves = 3
-    static let launchGap = 0.55
+    static let launchGap = 1.0
     /// Cuộn từ đỉnh xuống bờ / vỡ bọt tràn lên / rút (giây).
-    static let roll = 0.6, breakTime = 0.3, recede = 0.7
+    static let roll = 1.15, breakTime = 0.55, recede = 1.3
     static var life: Double { roll + breakTime + recede }
     /// Thân sóng (pt, phía sau mép sóng) — nhân cỡ sóng.
     static let bodyHeight = 26.0
@@ -1197,19 +1200,20 @@ enum SeaFx {
     static let wetPeak = 0.3
     /// Bước lấy mẫu mép sóng (pt) / số khung keyframe iOS trên cả đời sóng.
     static let step = 8.0
-    static let frames = 32
+    static let frames = 64
     /// Cỡ sóng theo mức combo 0…3.
     static let sizes: [Double] = [1.0, 1.2, 1.4, 1.65]
 
     static func size(level: Int) -> Double { sizes[Swift.min(Swift.max(level, 0), sizes.count - 1)] }
     /// Sóng mới chỉ khi sóng trước đã đi được `launchGap` (gõ dồn ⇒ chỉ bọt + bong bóng).
     static func shouldLaunch(sinceLast dt: Double) -> Bool { dt >= launchGap }
-    /// Tỉ lệ quãng đỉnh → bờ của mép sóng (nhanh dần như sóng sắp vỡ).
+    /// Tỉ lệ quãng đỉnh → bờ của mép sóng: sóng lừng — khởi chậm (tốc độ 0,3), đều giữa chừng, nhanh dần CHÚT trước khi
+    /// chạm bờ (tốc độ cuối 1,5; u² cũ = 0 → 2 như rơi). f(u) = 0,3u + 0,9u² − 0,2u³: f′ > 0, f″ > 0 trên [0, 1].
     static func travel(_ t: Double) -> Double {
         guard t > 0 else { return 0 }
         guard t < roll else { return 1 }
         let u = t / roll
-        return u * u
+        return u * (0.3 + u * (0.9 - 0.2 * u))
     }
     static func driftX(_ t: Double) -> Double { drift * Swift.min(Swift.max(t / roll, 0), 1) }
     /// Pha mép sóng của ô sóng `slot` (mỗi con sóng một dáng).
@@ -1271,7 +1275,7 @@ enum SeaFx {
 
     // Cá bơi khi gõ combo
     static let fishLevel = 2
-    static let fishCooldown = 4.0, fishDuration = 2.4, fishSize = 24.0, fishMargin = 14.0, fishBob = 3.0
+    static let fishCooldown = 4.0, fishDuration = 2.8, fishSize = 24.0, fishMargin = 14.0, fishBob = 3.0
     static let fishGlyphs = ["🐟", "🐠"]
     /// Cá bơi khi mức combo VỪA lên tới fishLevel và đã nghỉ cá ≥ fishCooldown.
     static func fishShouldSwim(level: Int, previous: Int, sinceLastFish: Double) -> Bool {
@@ -1287,6 +1291,15 @@ enum SeaFx {
     static func fishAlpha(_ f: Double) -> Double {
         guard f >= 0, f < 1 else { return 0 }
         return Swift.min(1, f / 0.1, (1 - f) / 0.1)
+    }
+
+    // Tiếng sóng vỗ (KeySoundSynth.surfSamples): MỖI CON SÓNG MỚI một tiếng (không mỗi phím), chỉ khi Âm thanh phím bật.
+    /// Tối đa bấy nhiêu tiếng sóng chồng nhau (tiếng 1,6 s, sóng cách ≥ launchGap ⇒ ≤ 2) — tiếng thứ 3 thay tiếng cũ nhất.
+    static let surfVoices = 2
+    static func shouldSurf(customSound: Bool) -> Bool { customSound }
+    /// Âm lượng tiếng sóng theo cỡ sóng: cỡ thường 0,7 → cỡ combo lớn nhất 1,0 (nhân âm lượng phím của user).
+    static func surfVolume(size s: Double) -> Double {
+        0.7 + 0.3 * Swift.min(Swift.max((s - 1) / (sizes[sizes.count - 1] - 1), 0), 1)
     }
 }
 
@@ -1620,6 +1633,8 @@ final class KeyEffectOverlay: UIView {
     private var seaFish: CALayer?
     private var seaLastFish: CFTimeInterval = -.greatestFiniteMagnitude
     private var seaFishSeq = 0
+    /// Biển: mỗi con sóng MỚI (không mỗi phím) — cỡ sóng. KeyboardView đặt khi kiểu là Biển ⇒ tiếng sóng vỗ (KeySound.playSurf).
+    var onSeaWave: ((Double) -> Void)?
     // Token AI — pool chùm dựng lười (chữ + 6 chip mỗi chùm), vệt sáng dải gợi ý dựng lười ở lần gợi ý đổi đầu tiên.
     /// Đích bay (toạ độ overlay): tâm Mắt AI nếu đang bật, không thì tâm dải gợi ý — KeyboardView đặt khi kiểu là Token AI.
     var tokenTarget: (() -> CGPoint?)?
@@ -2962,7 +2977,9 @@ final class KeyEffectOverlay: UIView {
         guard bounds.width > 0, bounds.height > 0 else { return }
         if SeaFx.shouldLaunch(sinceLast: media - seaLastWave) {
             seaLastWave = media
-            launchWave(size: SeaFx.size(level: lv), now: now)
+            let size = SeaFx.size(level: lv)
+            launchWave(size: size, now: now)
+            onSeaWave?(size)
         }
         if SeaFx.fishShouldSwim(level: lv, previous: prev, sinceLastFish: media - seaLastFish) {
             seaLastFish = media

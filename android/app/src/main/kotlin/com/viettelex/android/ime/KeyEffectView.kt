@@ -233,6 +233,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     // Token AI — pool chùm (chữ + ≤ 6 chip), mảng cấp sẵn; đường bay (px) tính MỘT lần lúc bắn.
     /** Đích bay (toạ độ view này, px) ghi vào out[0..1] — IME đặt khi kiểu là Token AI; false/null ⇒ giữa mép trên. */
     var tokenTarget: ((FloatArray) -> Boolean)? = null
+    /** Biển: mỗi con sóng MỚI (không mỗi phím) — cỡ sóng. IME đặt khi kiểu là Biển ⇒ tiếng sóng vỗ ([Feedback.surf]). */
+    var onSeaWave: ((Double) -> Unit)? = null
     private var pendingToken: String? = null
     private val tokGlyph = arrayOfNulls<String>(TokenStream.POOL)
     private val tokStart = LongArray(TokenStream.POOL) { Long.MIN_VALUE / 2 }
@@ -1233,6 +1235,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             seaLastWave = now
             val w = seaWaveCursor; seaWaveCursor = (w + 1) % SeaFx.MAX_WAVES
             seaWaveStart[w] = now; seaWaveSize[w] = SeaFx.size(lv)
+            onSeaWave?.invoke(seaWaveSize[w])
         }
         if (SeaFx.fishShouldSwim(lv, prev, (now - seaLastFish) / 1000.0)) {
             seaLastFish = now; seaFishStart = now; seaFishCur = seaFishSeq++

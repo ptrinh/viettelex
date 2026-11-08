@@ -195,6 +195,58 @@ object KeySoundSynth {
     const val SQUEAK_SEED = 0x6D6F6C65
     fun squeakSamples(): FloatArray = render(SQUEAK_RECIPE, SQUEAK_SEED)
 
+    // --- Sóng vỗ (theme Biển — [SeaFx], 08/11/2026): công thức + lý do ở iOS KeySoundSynth.surfSamples (checksum chung) ---
+    const val SURF_SAMPLE_RATE = 22_050
+    const val SURF_DURATION = 1.6
+    /** Giây từ lúc phát tới tiếng vỡ — PHẢI = [SeaFx.ROLL] (test chốt). */
+    const val SURF_CRASH = 1.15
+    const val SURF_PEAK = 0.30
+    const val SURF_SEED = 0x73757266   // "surf"
+
+    /** Tiếng "ào" của MỘT con sóng: nhiễu dâng (lp 420 Hz) → vỡ đúng [SURF_CRASH] (hp 160 / lp 1,6 kHz) → rút xì xào (hp 1,1 / lp 3,2 kHz); ra lp 1,8 kHz. */
+    fun surfSamples(): FloatArray {
+        val sr = SURF_SAMPLE_RATE.toDouble(); val crash = SURF_CRASH
+        val count = (SURF_DURATION * sr).roundToInt()
+        fun pole(f: Double) = exp(-2 * PI * f / sr)
+        val aS = pole(420.0); val hC = pole(160.0); val aC = pole(1600.0); val hH = pole(1100.0); val aH = pole(3200.0)
+        val aO = pole(1800.0); val dcA = pole(30.0)
+        var state = SURF_SEED
+        var s1 = 0.0; var s2 = 0.0; var chIn = 0.0; var chOut = 0.0; var c1 = 0.0; var c2 = 0.0
+        var hhIn = 0.0; var hhOut = 0.0; var h1 = 0.0; var h2 = 0.0; var o = 0.0
+        var dcIn = 0.0; var dcOut = 0.0; var peak = 0.0
+        val fin = (0.030 * sr).toInt(); val fout = (0.080 * sr).toInt()
+        val out = DoubleArray(count)
+        for (i in 0 until count) {
+            val t = i / sr
+            state = state xor (state shl 13); state = state xor (state ushr 17); state = state xor (state shl 5)
+            val white = (state.toLong() and 0xFFFFFFFFL).toDouble() / 4294967295.0 * 2 - 1
+            s1 = (1 - aS) * white + aS * s1; s2 = (1 - aS) * s1 + aS * s2
+            chOut = hC * (chOut + white - chIn); chIn = white
+            c1 = (1 - aC) * chOut + aC * c1; c2 = (1 - aC) * c1 + aC * c2
+            hhOut = hH * (hhOut + white - hhIn); hhIn = white
+            h1 = (1 - aH) * hhOut + aH * h1; h2 = (1 - aH) * h1 + aH * h2
+            val a = t - crash
+            val v = if (a < 0) {
+                val u = t / crash
+                2.2 * u * u * s2
+            } else {
+                2.2 * exp(-a / 0.30) * s2 +
+                    2.6 * (1 - exp(-a / 0.015)) * exp(-a / 0.28) * c2 +
+                    0.9 * (1 - exp(-a / 0.06)) * exp(-a / 0.5) * (0.8 + 0.2 * sin(2 * PI * 6 * a)) * h2
+            }
+            o = (1 - aO) * v + aO * o
+            dcOut = dcA * (dcOut + o - dcIn); dcIn = o
+            var y = dcOut
+            if (i < fin) y *= 0.5 - 0.5 * cos(PI * i / fin)
+            val fromEnd = count - 1 - i
+            if (fromEnd < fout) y *= 0.5 - 0.5 * cos(PI * fromEnd / fout)
+            out[i] = y
+            peak = maxOf(peak, abs(y))
+        }
+        val norm = if (peak > 0) SURF_PEAK / peak else 0.0
+        return FloatArray(count) { (out[it] * norm).toFloat() }
+    }
+
     /**
      * Tiếng Enter RIÊNG của kiểu (null = như phím chức năng). Máy chữ: tiếng phím chức năng + "ding" chuông về dòng
      * (1568 Hz τ80 ms + bồi 2.76× τ20 ms, trễ 12 ms; 280 ms; đỉnh 0.60). Thuộc KIỂU âm (ai chọn Máy chữ cũng nghe),

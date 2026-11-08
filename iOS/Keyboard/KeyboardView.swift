@@ -7261,8 +7261,25 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         keyEffects?.laserOrigin = keyEffects?.effect == .laser ? { [weak self] in self?.spaceBarFrame() } : nil
         // Token AI: đích bay đọc lúc bắn (Mắt AI / dải gợi ý có thể đổi chỗ). Kiểu khác ⇒ nil.
         keyEffects?.tokenTarget = keyEffects?.effect == .tokens ? { [weak self] in self?.tokenTargetPoint() } : nil
+        // Biển: mỗi con sóng mới một tiếng sóng vỗ (chỉ khi Âm thanh phím bật). Buffer chỉ dựng khi Biển được chọn.
+        let sea = keyEffects?.effect == .sea
+        KeySound.shared.setSurfEnabled(sea)
+        keyEffects?.onSeaWave = sea ? { Self.seaSurf(size: $0) } : nil
         syncKeyEffectsSpace()
         layoutStringGaps()
+    }
+
+    #if DEBUG
+    /// Test: số lần xin phát tiếng sóng vỗ (đã qua công tắc Âm thanh phím).
+    nonisolated(unsafe) static var debugSurfs = 0
+    #endif
+    /// Một con sóng mới của hiệu ứng Biển: tiếng sóng vỗ CHỈ khi Âm thanh phím (đường riêng) bật — to hơn chút khi sóng to.
+    static func seaSurf(size: Double) {
+        guard SeaFx.shouldSurf(customSound: customSoundEnabled) else { return }
+        #if DEBUG
+        debugSurfs += 1
+        #endif
+        KeySound.shared.playSurf(volume: Float(SeaFx.surfVolume(size: size)))
     }
 
     /// Khung phím cách chính theo toạ độ view (= toạ độ overlay hiệu ứng) — nil khi plane không có / chưa xếp.
