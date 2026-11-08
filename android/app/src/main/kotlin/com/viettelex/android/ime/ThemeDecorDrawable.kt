@@ -25,6 +25,10 @@ class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecor
     private val auroraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private var auroraW = -1
     private val bgPaint = Paint().apply { color = bg; style = Paint.Style.FILL }
+    /** Motif "bokeh" (Mưa đêm): dải phủ nền trên → dưới ([ThemeDecoration.BOKEH_SHADE]); shader dựng lại khi đổi chiều cao. */
+    private val shade = decoration != null && ThemeDecoration.hasShade(decoration.motif, decoration.alt)
+    private val shadePaint = Paint().apply { style = Paint.Style.FILL }
+    private var shadeH = -1
     private val path = Path()
     /** Khe giữa các hàng phím, dp theo toạ độ view gốc (ImeRootView đặt sau mỗi lần dựng phím). */
     private var gaps: List<ThemeDecoration.Gap> = emptyList()
@@ -51,6 +55,12 @@ class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecor
                 IntArray(fx.BAND_COLORS.size) { fx.BAND_COLORS[it] or (0xFF shl 24) },
                 FloatArray(fx.BAND_STOPS.size) { fx.BAND_STOPS[it].toFloat() }, android.graphics.Shader.TileMode.CLAMP)
         }
+        if (shade && bounds.height() != shadeH) {
+            shadeH = bounds.height()
+            shadePaint.shader = android.graphics.LinearGradient(0f, bounds.top.toFloat(), 0f, bounds.bottom.toFloat(),
+                ThemeDecoration.BOKEH_SHADE, FloatArray(ThemeDecoration.BOKEH_SHADE_STOPS.size) { ThemeDecoration.BOKEH_SHADE_STOPS[it].toFloat() },
+                android.graphics.Shader.TileMode.CLAMP)
+        }
         val decoration = decoration ?: return
         val w = bounds.width() / density.toDouble()
         decorPath(path, decoration.motif, ThemeDecoration.placements(w, gaps, decoration.density),
@@ -59,6 +69,7 @@ class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecor
 
     override fun draw(canvas: Canvas) {
         canvas.drawRect(bounds, bgPaint)   // theo bounds: khung thả nổi vẽ tay trong một vùng
+        if (shade) canvas.drawRect(bounds, shadePaint)
         if (aurora) {
             val band = (com.viettelex.keyboard.AuroraFx.BAND_HEIGHT * density).toFloat()
             val step = band / AURORA_STEPS

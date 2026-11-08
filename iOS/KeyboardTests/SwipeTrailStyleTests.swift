@@ -146,7 +146,7 @@ final class SwipeTrailStyleTests: XCTestCase {
     func testBuiltinThemesSwipeMapping() {
         let want: [String: String] = ["tet": "stardust", "tetMai": "stardust", "xmas": "stardust", "xmasSnow": "stardust",
                                       "rgb": "rainbow", "neon": "neon", "space": "stardust", "typewriter": "brush",
-                                      "halloween": "electric", "pixel": "neon", "ai": "neon", "nightclub": "neon", "trippy": "rainbow", "drift": "stardust"]
+                                      "halloween": "electric", "pixel": "neon", "ai": "neon", "nightclub": "neon", "trippy": "rainbow", "drift": "stardust", "rainyNight": "simple"]
         XCTAssertFalse(BuiltinThemes.specs.isEmpty)
         for (id, spec) in BuiltinThemes.specs {
             XCTAssertEqual(spec.swipe, want[id], id)

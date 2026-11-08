@@ -55,6 +55,10 @@ import java.io.File
  * 1,6 s ([KeySoundSynth.surfSamples], WAV 22,05 kHz ≈ 71 KB cache một lần) — chỉ nạp khi hiệu ứng Biển được chọn
  * ([setSurfEnabled]), chỉ phát khi đường âm riêng phát (như "éc"), âm lượng phím × [SeaFx.surfVolume]; xoay 2 stream ⇒
  * tiếng sóng trước không bị cắt.
+ *
+ * Mưa (kiểu "rain", theme Mưa đêm, 11/2026): đường 3 tiếng như cũ, nhưng phím chữ xoay 4 biến thể cao độ
+ * ([KeySoundSynth.rainLetterSamples], WAV cache ~2,6 KB mỗi biến thể) theo thứ tự cố định [KeySoundSynth.rainVariant] —
+ * bấm chỉ chọn sample id (một phép tăng đếm). Biến thể chưa nạp ⇒ tiếng chữ thường. Kiểu khác: không nạp gì thêm.
  */
 class Feedback(private val ctx: Context) {
     private val audio = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -86,6 +90,13 @@ class Feedback(private val ctx: Context) {
     /** Tiếng Enter riêng của kiểu (Máy chữ: "ding" về dòng) — 0 = không có ⇒ Enter dùng tiếng phím chức năng. */
     private var returnId = 0
     @Volatile private var returnLoaded = false
+    /** Mưa: sample id các biến thể phím chữ (0 = chưa / không có) + đã nạp + số lần bấm phím chữ. */
+    private val variantIds = IntArray(KeySoundSynth.RAIN_VARIANTS)
+    @Volatile private var variantLoaded = BooleanArray(variantIds.size)
+    private var letterCount = 0
+    /** Test: biến thể phím chữ lần phát gần nhất (−1 = không có). */
+    var lastLetterVariant = -1
+        private set
     private var ringerNormal = true
     private var ringerCheckedAt = 0L
     /** Test hook: đường âm lần bấm gần nhất. */
@@ -169,6 +180,7 @@ class Feedback(private val ctx: Context) {
             if (sp !== pool || status != 0) return@setOnLoadCompleteListener
             for (i in ids.indices) if (ids[i] == sampleId) fresh[i] = true
             if (sampleId == returnId) returnLoaded = true
+            for (i in variantIds.indices) if (variantIds[i] == sampleId) variantLoaded[i] = true
             if (sampleId == squeakId) squeakLoaded = true
             if (sampleId == surfId) surfLoaded = true
         }
@@ -177,9 +189,11 @@ class Feedback(private val ctx: Context) {
         worker(Runnable {
             val files = soundFiles(dir, style, customFile)
             val ret = returnFile(dir, style)
+            val vars = rainVariantFiles(dir, style)
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 if (pool !== p) return@post
                 if (ret != null) returnId = p.load(ret.path, 1)
+                vars.forEachIndexed { i, f -> if (f != null && i < variantIds.size) variantIds[i] = p.load(f.path, 1) }
                 val custom = files.distinct().size == 1 && files[0] == customFile
                 var sharedId = 0
                 files.forEachIndexed { i, f ->
@@ -307,6 +321,7 @@ class Feedback(private val ctx: Context) {
         ids.fill(0)
         loaded = BooleanArray(ids.size)
         returnId = 0; returnLoaded = false
+        variantIds.fill(0); variantLoaded = BooleanArray(variantIds.size); letterCount = 0; lastLetterVariant = -1
         squeakId = 0; squeakLoaded = false
         surfId = 0; surfLoaded = false; surfStreams.fill(0)
         pianoMode = false
@@ -414,7 +429,9 @@ class Feedback(private val ctx: Context) {
             else {
                 val i = soundKind(kind).ordinal
                 val g = gain * kindGain[i]
-                if (loaded[i]) pool?.play(ids[i], g, g, 1, 0, 1f)
+                val v = if (kind == LETTER) nextVariant() else -1
+                if (v >= 0) pool?.play(variantIds[v], g, g, 1, 0, 1f)
+                else if (loaded[i]) pool?.play(ids[i], g, g, 1, 0, 1f)
             }
             KeySoundSynth.Route.SILENT -> {}
         }
@@ -422,6 +439,16 @@ class Feedback(private val ctx: Context) {
             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP,
                 HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING)
         }
+    }
+
+    /** Mưa: biến thể phím chữ kế tiếp đã nạp (−1 = kiểu khác / chưa nạp ⇒ tiếng chữ thường). Không cấp phát. */
+    private fun nextVariant(): Int {
+        if (variantIds[0] == 0) return -1
+        val v = KeySoundSynth.rainVariant(letterCount)
+        letterCount = (letterCount + 1) % KeySoundSynth.RAIN_ORDER.size
+        if (!variantLoaded[v]) return -1
+        lastLetterVariant = v
+        return v
     }
 
     /** Cù nhân vật: chỉ click hệ thống (tự tắt theo cài đặt âm bàn phím), không phát mẫu riêng/rung. */
@@ -471,6 +498,13 @@ class Feedback(private val ctx: Context) {
         /** WAV tiếng sóng vỗ (cache, ghi 1 lần; đổi công thức ⇒ đổi tên). */
         fun surfFile(dir: File): File? =
             cachedWav(dir, "keysound-v${KeySoundSynth.VERSION}-surf1.wav", KeySoundSynth.SURF_SAMPLE_RATE) { KeySoundSynth.surfSamples() }
+
+        /** Mưa: WAV các biến thể phím chữ (cache, ghi 1 lần); kiểu khác ⇒ rỗng. Chạy trên worker. */
+        fun rainVariantFiles(dir: File, style: String): List<File?> =
+            if (style != KeySoundStyle.RAIN.id) emptyList()
+            else List(KeySoundSynth.RAIN_VARIANTS) { v ->
+                cachedWav(dir, "keysound-v${KeySoundSynth.VERSION}-rain-var$v.wav", KeySoundSynth.SAMPLE_RATE) { KeySoundSynth.rainLetterSamples(v) }
+            }
 
         /** WAV "éc" (cache, ghi 1 lần). */
         fun squeakFile(dir: File): File? =

@@ -114,6 +114,11 @@ final class KeyEffectPreviewView: UIView {
         o.emit(key: k)
         o.flush()
         if KeyEffectPreviewScript.beat(effect, tap: tap) { beat?.kick() }
+        if effect == .rain {   // Mưa: như đã gõ một lúc (mưa thưa bớt, đèn ấm sáng lên) + vài giọt rơi quanh ô
+            o.previewRain(keys: 200)
+            o.emit(key: CGRect(x: bounds.width * 0.18, y: 14, width: 20, height: 20)); o.flush()
+            o.emit(key: CGRect(x: bounds.width * 0.8, y: 22, width: 20, height: 20)); o.flush()
+        }
         if effect == .float {
             let f = floater ?? KeyFloat(target: self) { [weak self] v in v === self?.key }
             floater = f

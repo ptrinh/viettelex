@@ -42,6 +42,9 @@
 //   (setSurfEnabled), 2 node riêng xoay vòng ⇒ tiếng sóng trước không bị cắt (chồng ≤ 2), không đụng node phím.
 //   Âm lượng = âm lượng phím (mixer) × SeaFx.surfVolume(cỡ sóng). Engine đang nghỉ ⇒ phát khi khởi động xong nếu
 //   kịp `surfLateWindow` (tiếng dâng chậm, trễ chút không nghe ra).
+// - MƯA (kiểu "rain", theme Mưa đêm, 11/2026): như đường 3 tiếng, nhưng phím chữ xoay vòng 4 biến thể cao độ dựng sẵn
+//   cùng lúc dựng bộ mẫu (KeySoundSynth.rainLetterSamples, ~4 × 1,3 k mẫu ≈ 21 KB) theo thứ tự cố định rainVariant —
+//   bấm phím chỉ chọn buffer (một phép tăng đếm), cùng node phím chữ. Kiểu khác: mảng rỗng, không đổi gì.
 import AVFoundation
 
 final class KeySound {
@@ -60,6 +63,11 @@ final class KeySound {
     private var buffers: [AVAudioPCMBuffer] = []
     /// Tiếng Enter riêng của kiểu (Máy chữ: "ding" về dòng) — nil = Enter dùng tiếng phím chức năng.
     private var returnBuffer: AVAudioPCMBuffer?
+    /// Mưa: biến thể cao độ của tiếng phím chữ (rỗng = kiểu khác) + số lần bấm phím chữ (chọn biến thể).
+    private var letterVariants: [AVAudioPCMBuffer] = []
+    private var letterCount = 0
+    /// Biến thể phím chữ lần phát gần nhất (test); −1 = không có biến thể.
+    private(set) var lastLetterVariant = -1
     private var running = false
     private var wanted = false
     private var restarting = false
@@ -204,8 +212,17 @@ final class KeySound {
             return false
         }
         if pianoMode { return playPianoLocked(Self.pianoEvent(for: kind), sustain: false, now: now) }
-        nodes[kind.rawValue].scheduleBuffer(buffers[kind.rawValue], at: nil, options: .interrupts, completionHandler: nil)
+        nodes[kind.rawValue].scheduleBuffer(bufferLocked(kind), at: nil, options: .interrupts, completionHandler: nil)
         return true
+    }
+
+    /// Buffer của loại phím; phím chữ kiểu Mưa ⇒ biến thể kế tiếp (KeySoundSynth.rainVariant). Không cấp phát.
+    private func bufferLocked(_ kind: KeySoundKind) -> AVAudioPCMBuffer {
+        guard kind == .letter, !letterVariants.isEmpty else { return buffers[kind.rawValue] }
+        let v = KeySoundSynth.rainVariant(letterCount) % letterVariants.count
+        letterCount = (letterCount + 1) % KeySoundSynth.rainOrder.count
+        lastLetterVariant = v
+        return letterVariants[v]
     }
 
     /// Enter: kiểu có tiếng Enter riêng (Máy chữ: "ding") ⇒ phát nó trên node phím chức năng; còn lại = `play(.modifier)`.
@@ -537,7 +554,7 @@ final class KeySound {
             }
             if builtKey != key, let inst = KeyInstrument.of(styleRaw) {
                 guard buildPianoLocked(e, inst) else { return false }
-                buffers = []; returnBuffer = nil; builtKey = key; activeStyle = inst.style; pianoMode = true
+                buffers = []; returnBuffer = nil; letterVariants = []; builtKey = key; activeStyle = inst.style; pianoMode = true
             } else if builtKey != key {
                 if pianoMode { releasePianoLocked() }
                 let custom = styleRaw == KeySoundStyle.custom.rawValue ? KeySoundCustom.load(customURL) : nil
@@ -552,6 +569,9 @@ final class KeySound {
                 }
                 buffers = bs; builtKey = key; activeStyle = bank.style
                 returnBuffer = KeySoundSynth.returnSamples(bank.style).flatMap { Self.pcm($0, fmt) }
+                letterVariants = bank.style == .rain
+                    ? (0..<KeySoundSynth.rainVariants).compactMap { Self.pcm(KeySoundSynth.rainLetterSamples($0), fmt) } : []
+                letterCount = 0; lastLetterVariant = -1
                 if bank.style.rawValue != styleRaw { TouchLog.write("keysound: \(styleRaw) thiếu file → \(bank.style.rawValue)") }
             }
             if squeakWanted, squeakBuffer == nil { buildSqueakLocked() }
@@ -568,7 +588,7 @@ final class KeySound {
             if let p = pendingSurf, now - p.at <= Self.surfLateWindow { _ = playSurfLocked(p.volume) }
             pendingSurf = nil
             if let p = pending, now - p.at <= Self.lateWindow, !pianoMode {
-                nodes[p.kind.rawValue].scheduleBuffer(buffers[p.kind.rawValue], at: nil, options: .interrupts, completionHandler: nil)
+                nodes[p.kind.rawValue].scheduleBuffer(bufferLocked(p.kind), at: nil, options: .interrupts, completionHandler: nil)
             }
             pending = nil
             lastPlay = now   // khởi động = hoạt động: đếm 8 s nghỉ từ đây
@@ -614,7 +634,7 @@ final class KeySound {
         if let o = configObserver { NotificationCenter.default.removeObserver(o); configObserver = nil }
         for n in nodes + pianoNodes + sustainNodes + surfNodes { n.stop() }
         engine?.stop()
-        engine = nil; nodes = []; buffers = []; returnBuffer = nil; builtKey = nil; squeakBuffer = nil
+        engine = nil; nodes = []; buffers = []; returnBuffer = nil; letterVariants = []; builtKey = nil; squeakBuffer = nil
         surfBuffer = nil; surfNodes = []; pendingSurf = nil
         pianoNodes = []; sustainNodes = []; pianoExtra = []; pianoMode = false; sustainReady = false
         pianoBuf = [AVAudioPCMBuffer?](repeating: nil, count: 128)
@@ -623,6 +643,8 @@ final class KeySound {
     }
 
     #if DEBUG
+    /// Test: số biến thể phím chữ đang dựng (Mưa: 4; kiểu khác: 0).
+    var debugLetterVariantCount: Int { lock.lock(); defer { lock.unlock() }; return letterVariants.count }
     /// Test: bật cờ muốn chạy mà không qua queue.
     func debugWant(_ on: Bool) { lock.lock(); wanted = on; lock.unlock() }
     /// Test: chạy kiểm tra nghỉ ngay (đồng bộ).

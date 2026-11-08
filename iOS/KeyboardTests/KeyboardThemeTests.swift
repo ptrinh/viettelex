@@ -193,7 +193,7 @@ final class KeyboardThemeTests: XCTestCase {
     /// Theme tối cố định (OLED, Tương phản cao, Tim đen, Neon) không đổi theo hệ thống; mọi theme
     /// nền đục khác có bản tối riêng (bug 10/2026: "giao diện plus ở chế độ tối không chuyển tối").
     func testFixedThemesIgnoreSystemAppearance() {
-        let fixed: Set<KeyboardTheme> = [.oled, .contrast, .blackHeart, .neon, .tet, .xmas, .piano, .rgb, .space, .trungthu, .halloween, .mole, .pixel, .ai, .nightclub, .trippy, .drift, .stainedGlass]
+        let fixed: Set<KeyboardTheme> = [.oled, .contrast, .blackHeart, .neon, .tet, .xmas, .piano, .rgb, .space, .trungthu, .halloween, .mole, .pixel, .ai, .nightclub, .trippy, .drift, .stainedGlass, .rainyNight]
         for t in KeyboardTheme.allCases where t != .system && t != .glass {
             XCTAssertNotNil(t.palette(systemDark: false).background, "\(t) cần nền đục")
             if fixed.contains(t) {
@@ -871,7 +871,7 @@ final class ThemeSetTests: XCTestCase {
                                              .mole,
                                              .pixel, .sea, .timeOfDay,
                                              .nightclub,
-                                             .drift, .mo, .stainedGlass]
+                                             .drift, .mo, .stainedGlass, .rainyNight]
     static let pastels: [KeyboardTheme] = [.peach, .mint, .sky, .lavender]
 
     // MARK: bảng màu chung iOS ↔ Android
@@ -1245,6 +1245,7 @@ final class ThemeSetTests: XCTestCase {
         XCTAssertEqual(KeyboardTheme.allCases.firstIndex(of: .nightclub)! + 1, KeyboardTheme.allCases.firstIndex(of: .trippy)!)
         XCTAssertEqual(KeyboardTheme.allCases.firstIndex(of: .ai)! + 1, KeyboardTheme.allCases.firstIndex(of: .nightclub)!)
         XCTAssertGreaterThan(KeyboardTheme.allCases.firstIndex(of: .nightclub)!, KeyboardTheme.allCases.firstIndex(of: .ai)!)
+        XCTAssertGreaterThan(KeyboardTheme.allCases.firstIndex(of: .rainyNight)!, KeyboardTheme.allCases.firstIndex(of: .nightclub)!)
         let spec = try XCTUnwrap(t.spec)
         XCTAssertTrue(t.isPlus)
         XCTAssertEqual(spec.nameVi, "Neon Night Club"); XCTAssertEqual(spec.nameEn, "Neon Night Club")
@@ -1802,6 +1803,7 @@ final class ThemeSetTests: XCTestCase {
                 case .sea: XCTAssertEqual(m, .waves)
                 case .ai: XCTAssertEqual(m, .neural)
                 case .drift: XCTAssertEqual(m, .starfield)
+                case .rainyNight: XCTAssertEqual(m, .bokeh)
                 case .timeOfDay: XCTAssertEqual(m, dark ? .star : nil, "bảng gốc: ngày không hoạ tiết, đêm có sao")
                 default: XCTAssertNil(m, t.rawValue)
                 }

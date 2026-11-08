@@ -59,7 +59,10 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     // Theme Gõ mõ / Kính màu (11/2026): Công đức ("+1 công đức" bay lên + đếm trong ngày), Nắng qua kính (ô kính sáng lên
     // + tia nắng chéo, gõ dồn ⇒ ánh nến mép dưới) — [MeritFx], [SunlightFx].
     MERIT("merit", "Công đức"), // l10n-key
-    SUNLIGHT("sunlight", "Nắng qua kính"); // l10n-key
+    SUNLIGHT("sunlight", "Nắng qua kính"), // l10n-key
+    // Theme "Mưa đêm" (11/2026): mưa đêm êm trên ô kính — giọt rơi + loang + lăn ở phím, hạt mưa nền trượt chậm, mưa
+    // thưa dần khi gõ và ánh đèn vàng ấm ở góc sáng lên ([RainFx]).
+    RAIN("rain", "Mưa"); // l10n-key
 
     val title: String get() = tr(viTitle)
 

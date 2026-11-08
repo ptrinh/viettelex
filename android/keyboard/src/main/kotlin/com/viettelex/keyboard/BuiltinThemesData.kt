@@ -255,6 +255,13 @@ internal object BuiltinThemesData {
       "light": {"bg": "#141018", "key": "#1E4596", "special": "#2A2230", "ink": "#FFF6E0", "accent": "#C98A12",
                 "accentInk": "#1A0F00", "fn": "#2A2230", "fnInk": "#FFE3A3", "border": "#FF0B0A0C"},
       "dark": "same"
+    },
+    {
+      "v": 1, "id": "rainyNight", "name": {"vi": "Mưa đêm", "en": "Rainy Night"}, "sound": "rain", "effect": "rain", "swipe": "simple",
+      "light": {"bg": "#161E2B", "key": "#B32C3A50", "special": "#CC223042", "ink": "#F3EAD9", "accent": "#E9A84E",
+                "accentInk": "#2A1A06", "fn": "#CC1E2A3A", "fnInk": "#FFD08A", "border": "#40D6E4F5",
+                "balloon": "#2B394E", "trail": "#B3FFE2B8", "deco": {"motif": "bokeh", "color": "#38FFD59A"}},
+      "dark": "same"
     }
   ]
 }

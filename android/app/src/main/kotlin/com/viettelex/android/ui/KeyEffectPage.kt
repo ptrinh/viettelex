@@ -73,7 +73,8 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
             " " + tr("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp.") +
             " " + tr("Kính vạn hoa nở một bông đối xứng sắc cầu vồng từ phím vừa bấm, xoay chậm rồi tan.") +
             " " + tr("Đường hầm: vòng sáng co về phím vừa bấm như rơi vào đường hầm, gõ nhanh thì rơi nhanh hơn. Lơ lửng: phím trôi nhẹ khỏi hàng khi đang gõ rồi về chỗ khi nghỉ; chỉ là hình — chạm vẫn đúng phím; tắt khi bật Giảm chuyển động.") +
-            " " + tr("Công đức thả \"+1 công đức\" bay lên từ phím vừa bấm và đếm số phím trong ngày (về 0 lúc nửa đêm, chỉ lưu trên máy). Nắng qua kính làm ô vừa bấm sáng lên như nắng xuyên qua kính màu; gõ nhanh có ánh nến ấm bập bùng chậm ở mép dưới.")) {
+            " " + tr("Công đức thả \"+1 công đức\" bay lên từ phím vừa bấm và đếm số phím trong ngày (về 0 lúc nửa đêm, chỉ lưu trên máy). Nắng qua kính làm ô vừa bấm sáng lên như nắng xuyên qua kính màu; gõ nhanh có ánh nến ấm bập bùng chậm ở mép dưới.") +
+            " " + tr("Mưa: mưa đêm êm trên ô kính — giọt rơi xuống phím vừa bấm rồi lăn nhẹ; gõ một lúc mưa thưa dần và ánh đèn ấm ở góc sáng lên.")) {
         KeyEffect.entries.chunked(3).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { e ->
@@ -191,6 +192,8 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
         burst(x, y, w, h)
         flush()
         if (KeyEffectPreviewScript.beat(e, tap)) kickBeat()
+        // Mưa: như đã gõ một lúc (mưa thưa bớt, đèn ấm sáng lên) + vài giọt rơi quanh ô — = iOS.
+        if (e == KeyEffect.RAIN) { previewRain(200); burst(width * 0.18f, 24 * d); flush(); burst(width * 0.8f, 32 * d); flush() }
         floater?.let { it.poke(); invalidate() }
     }
 

@@ -64,7 +64,7 @@ class ThemeSetTests {
         val fixed = setOf(KeyboardTheme.OLED, KeyboardTheme.CONTRAST, KeyboardTheme.BLACK_HEART, KeyboardTheme.NEON,
             KeyboardTheme.TET, KeyboardTheme.XMAS, KeyboardTheme.PIANO, KeyboardTheme.RGB, KeyboardTheme.SPACE,
             KeyboardTheme.TRUNG_THU, KeyboardTheme.HALLOWEEN, KeyboardTheme.MOLE, KeyboardTheme.PIXEL, KeyboardTheme.AI, KeyboardTheme.NIGHTCLUB,
-            KeyboardTheme.TRIPPY, KeyboardTheme.DRIFT, KeyboardTheme.STAINED_GLASS)
+            KeyboardTheme.TRIPPY, KeyboardTheme.DRIFT, KeyboardTheme.STAINED_GLASS, KeyboardTheme.RAINY_NIGHT)
         for (t in KeyboardTheme.entries) {
             val light = t.palette(false) ?: continue
             val dark = t.palette(true)!!
@@ -190,6 +190,7 @@ class ThemeSetTests {
         assertEquals(KeyboardTheme.NIGHTCLUB.ordinal + 1, KeyboardTheme.TRIPPY.ordinal)
         assertEquals(KeyboardTheme.AI.ordinal + 1, KeyboardTheme.NIGHTCLUB.ordinal)
         assertTrue(KeyboardTheme.entries.indexOf(KeyboardTheme.NIGHTCLUB) > KeyboardTheme.entries.indexOf(KeyboardTheme.AI))
+        assertTrue(KeyboardTheme.entries.indexOf(KeyboardTheme.RAINY_NIGHT) > KeyboardTheme.entries.indexOf(KeyboardTheme.NIGHTCLUB))
         val spec = t.spec!!
         assertTrue(t.isPlus)
         assertEquals("Neon Night Club", spec.nameVi); assertEquals("Neon Night Club", spec.nameEn)

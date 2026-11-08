@@ -300,6 +300,9 @@ enum KeyboardTheme: String, CaseIterable {
     // Kính màu (11/2026, Plus, THÊM CUỐI): phím ô kính ruby / lam ngọc / lục bảo / hổ phách viền chì ("keyShape":"glass" —
     // GlassKeys), hiệu ứng Nắng qua kính, âm "bell" (chuông nhỏ). Chỉ hoa văn kính + tia nắng.
     case mo, stainedGlass
+    // Mưa đêm (11/2026, Plus, THÊM CUỐI): ô kính đêm mưa xanh xám (dải tối dần xuống đáy), phím kính tối trong mờ, chữ
+    // kem, nhấn vàng hổ phách, motif "bokeh" (đốm đèn nhoè), hiệu ứng Mưa + âm Mưa — êm, ấm, chậm.
+    case rainyNight
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -342,6 +345,7 @@ enum KeyboardTheme: String, CaseIterable {
         case .drift: return L("Lạc trôi")
         case .mo: return L("Gõ mõ")
         case .stainedGlass: return L("Kính màu")
+        case .rainyNight: return L("Mưa đêm")
         }
     }
 
@@ -380,7 +384,8 @@ enum KeyboardTheme: String, CaseIterable {
              .nightclub,
              .trippy,
              .drift,
-             .mo, .stainedGlass: return true
+             .mo, .stainedGlass,
+             .rainyNight: return true
         }
     }
 
@@ -460,6 +465,9 @@ struct KeyboardDecoration: Equatable {
         case neural
         // Theme "Ảo giác" (11/2026): "swirl" = dải xoắn ốc mảnh (1,75 vòng, dày dần ra ngoài) + vài chấm trải ngang trong khe.
         case swirl
+        // Theme "Mưa đêm" (11/2026): "bokeh" = vài đốm đèn tròn nhoè cỡ khác nhau trải ngang trong khe (như đèn phố qua
+        // kính mưa); motif này kèm dải tối dần xuống đáy trên nền (bokehShade) — ô cửa kính về đêm.
+        case bokeh
     }
     var motif: Motif
     var color: RGBA
@@ -617,6 +625,15 @@ struct KeyboardDecoration: Equatable {
     static let swirlSteps = 36
     static let swirlDots: [(Double, Double, Double)] = [(-1.9, -0.18, 0.06), (-1.1, 0.22, 0.05), (1.1, -0.22, 0.05), (1.9, 0.18, 0.06)]
 
+    /// Đốm đèn của motif "bokeh" (đơn vị motif): (x, y, bán kính) — không chồng nhau, |y| + r ≤ 0.5. Android BOKEH_DOTS y hệt.
+    static let bokehDots: [(Double, Double, Double)] = [(-2.0, 0.06, 0.4), (-0.9, -0.2, 0.22), (0, 0.02, 0.46), (1.1, -0.16, 0.28),
+                                                         (2.1, 0.1, 0.36)]
+    /// Dải phủ nền của motif "bokeh" (trên → dưới, vị trí 0…1, ARGB): đỉnh hơi sáng như trời đêm, đáy tối dần như
+    /// ô cửa kính. Vẽ MỘT lần cùng nền (0 chi phí mỗi phím). Android BOKEH_SHADE y hệt.
+    static let bokehShade: [(location: Double, argb: UInt32)] = [(0, 0x14FF_FFFF), (0.55, 0x0000_0000), (1, 0x2E00_0000)]
+    /// Motif có dải phủ nền (bokehShade) không.
+    var hasShade: Bool { motif == .bokeh || alt == .bokeh }
+
     /// Một đường con khép kín: điểm đầu + các đoạn ([x, y] thẳng / [c1x, c1y, c2x, c2y, x, y] cubic).
     struct Sub: Equatable { var start: (Double, Double); var segs: [[Double]]
         static func == (a: Sub, b: Sub) -> Bool { a.start == b.start && a.segs == b.segs }
@@ -685,6 +702,9 @@ struct KeyboardDecoration: Equatable {
                 out.append(Sub(start: (d.0 + d.2, d.1), segs: [[d.0, d.1 + d.2], [d.0 - d.2, d.1], [d.0, d.1 - d.2]]))
             }
             return out
+        case .bokeh:
+            // Đốm đèn nhoè: vài hình tròn rời nhau cỡ khác nhau — cùng chiều quay (ell).
+            return Self.bokehDots.map { ell($0.0, $0.1, $0.2, $0.2) }
         case .bubbles:
             // Cụm bọt: một bọt to + hai bọt nhỏ nổi lên lệch phải.
             return [ell(-0.12, 0.14, 0.3, 0.3), ell(0.27, -0.2, 0.15, 0.15), ell(0.36, 0.26, 0.09, 0.09)]

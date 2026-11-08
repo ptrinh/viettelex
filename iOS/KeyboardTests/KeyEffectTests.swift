@@ -35,7 +35,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testIdsMatchAndroidAndDefaultIsNone() {
         // Cùng id với android/keyboard/.../KeyEffect.kt (sao lưu chéo nền tảng).
-        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight"])
+        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain"])
         XCTAssertEqual(KeyEffect.key, "keyEffect")
         XCTAssertEqual(KeyEffect.defaultValue, .none)
         XCTAssertEqual(KeyEffect.parse(nil), .none)
@@ -57,7 +57,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testBackupSpecWhitelistsIds() {
         let spec = BackupSettings.all.first { $0.key == KeyEffect.key }
-        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight"]))
+        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain"]))
     }
 
     func testTitlesBilingual() {
@@ -1814,5 +1814,275 @@ final class KeyEffectHostTests: XCTestCase {
             vc.view.frame = CGRect(x: 0, y: H - req, width: w, height: req); pass()
             try tapAndCheck("hiện lại sau khi xé")
         }
+    }
+}
+
+// MARK: - Hiệu ứng / âm / theme "Mưa" (theme Mưa đêm, 11/2026)
+// Số tham chiếu GIỐNG HỆT android RainFxTests.kt + RainEffectViewTest.kt.
+
+final class RainFxTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        #if DEBUG
+        KeyEffectOverlay.drawsOffscreen = true
+        #endif
+    }
+
+    override func tearDown() {
+        #if DEBUG
+        KeyEffectOverlay.drawsOffscreen = false
+        #endif
+        super.tearDown()
+    }
+
+    func testIdAppendedLast() {
+        XCTAssertEqual(KeyEffect.allCases.last, .rain)
+        XCTAssertEqual(KeyEffect.rain.rawValue, "rain")
+        XCTAssertTrue(KeyEffect.rain.isPlus)
+        XCTAssertEqual(KeyEffect.rain.band, .aboveKeys)
+        XCTAssertTrue(KeyEffectOverlay.clipped.contains(.rain), "cắt theo bàn phím (#151)")
+        XCTAssertEqual(L10n.en[KeyEffect.rain.title], "Rain")
+    }
+
+    /// Mưa thưa dần: 1.0 suốt 40 phím đầu, −0.1 mỗi 40 phím, sàn 0.2 từ phím 320.
+    func testIntensityCurve() {
+        let want: [(Int, Double)] = [(0, 1), (1, 1), (39, 1), (40, 0.9), (79, 0.9), (80, 0.8), (200, 0.5), (319, 0.3), (320, 0.2),
+                                     (1000, 0.2), (-5, 1)]
+        for (k, v) in want { XCTAssertEqual(RainFx.intensity(keys: k), v, accuracy: 1e-12, "\(k)") }
+        var prev = 2.0
+        for k in 0...600 {
+            let i = RainFx.intensity(keys: k)
+            XCTAssertLessThanOrEqual(i, prev); XCTAssertGreaterThanOrEqual(i, RainFx.floorIntensity)
+            prev = i
+        }
+    }
+
+    /// Đèn ấm: 0 → 0.6 theo độ thưa; chuyển nấc êm (smoothstep 1,5 s), không vượt đích.
+    func testWarmGlowCurve() {
+        XCTAssertEqual(RainFx.glow(keys: 0), 0, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.glow(keys: 40), 0.075, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.glow(keys: 200), 0.375, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.glow(keys: 320), 0.6, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.glow(keys: 5000), 0.6, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.glowAt(from: 0, to: 0.3, t: 0), 0, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.glowAt(from: 0, to: 0.3, t: 0.75), 0.15, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.glowAt(from: 0, to: 0.3, t: 1.5), 0.3, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.glowAt(from: 0, to: 0.3, t: 9), 0.3, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.glowAt(from: 0, to: 0.3, t: -1), 0, accuracy: 1e-12)
+        var last = -1.0
+        for i in 0...30 {
+            let g = RainFx.glowAt(from: 0.1, to: 0.4, t: Double(i) * 0.05)
+            XCTAssertGreaterThanOrEqual(g, last - 1e-12); XCTAssertLessThanOrEqual(g, 0.4 + 1e-12)
+            last = g
+        }
+        XCTAssertEqual(RainFx.glowRadius(width: 390, height: 260), 214.5, accuracy: 1e-9)
+        XCTAssertEqual(RainFx.glowRadius(width: 1000, height: 260), 234, accuracy: 1e-9)
+    }
+
+    /// Trần hạt mưa nền: ≤ 12 cùng lúc; mưa thưa ⇒ ít hạt.
+    func testDropCaps() {
+        XCTAssertEqual(RainFx.maxInFlight(intensity: 1), 12)
+        XCTAssertEqual(RainFx.maxInFlight(intensity: 0.5), 6)
+        XCTAssertEqual(RainFx.maxInFlight(intensity: 0.2), 3)
+        XCTAssertEqual(RainFx.spawnGap(intensity: 1), 0.25, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.spawnGap(intensity: 0.2), 1.25, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.spawnGap(intensity: 0), 1.25, accuracy: 1e-12)
+        for k in stride(from: 0, through: 400, by: 40) {
+            XCTAssertLessThanOrEqual(RainFx.maxInFlight(intensity: RainFx.intensity(keys: k)), RainFx.maxDrops)
+        }
+        var starts: [Double] = [], last = -1e9
+        for n in 0..<600 {
+            let t = Double(n) * 0.1, i = RainFx.intensity(keys: n + 1)
+            if RainFx.shouldSpawn(sinceLast: t - last, intensity: i) { last = t; starts.append(t) }
+            let alive = starts.filter { t - $0 >= 0 && t - $0 < RainFx.dropLife }.count
+            XCTAssertLessThanOrEqual(alive, RainFx.maxDrops, "t=\(t)")
+        }
+        XCTAssertLessThanOrEqual(RainFx.tapSlots * RainFx.layersPerTap, KeyEffectPool.cap)
+        XCTAssertEqual(KeyEffect.rain.burstSlots, RainFx.tapSlots)
+        XCTAssertEqual(KeyEffect.rain.layersPerBurst, RainFx.layersPerTap)
+    }
+
+    /// Nghỉ: hạt mưa nền sống đúng dropLife = ngưỡng nghỉ 3 s; giọt ở phím ≤ 2,1 s.
+    func testIdleStop() {
+        XCTAssertEqual(RainFx.idleAfter, RainFx.dropLife)
+        XCTAssertFalse(RainFx.isIdle(sinceLastKey: 2.99)); XCTAssertTrue(RainFx.isIdle(sinceLastKey: 3))
+        XCTAssertEqual(RainFx.tapLife, 2.1, accuracy: 1e-12)
+        XCTAssertLessThanOrEqual(RainFx.tapLife, RainFx.idleAfter)
+        XCTAssertEqual(RainFx.dropAlpha(1), 0); XCTAssertEqual(RainFx.dropAlpha(-0.01), 0)
+        XCTAssertEqual(RainFx.drop(RainFx.tapLife).alpha, 0)
+        XCTAssertEqual(RainFx.ring(RainFx.tapLife).alpha, 0)
+        XCTAssertEqual(RainFx.trail(RainFx.tapLife).alpha, 0)
+    }
+
+    func testAmbientPathShared() {
+        XCTAssertEqual(RainFx.travel(0, profile: 0), 0); XCTAssertEqual(RainFx.travel(1, profile: 2), 1)
+        XCTAssertEqual(RainFx.travel(0.18, profile: 0), 0.22, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.travel(0.29, profile: 0), 0.235, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.travel(0.73, profile: 1), 0.67, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.travel(0.86, profile: 2), 0.75, accuracy: 1e-12)
+        for p in 0..<3 {
+            var prev = 0.0
+            for i in 0...100 { let y = RainFx.travel(Double(i) / 100, profile: p); XCTAssertGreaterThanOrEqual(y, prev); prev = y }
+        }
+        XCTAssertLessThan(RainFx.travel(0.40, profile: 0) - RainFx.travel(0.18, profile: 0), 0.04, "đoạn đọng")
+        XCTAssertEqual(RainFx.travelDistance(height: 260), 282, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.dropAlpha(0.5), RainFx.dropPeakAlpha, accuracy: 1e-12)
+        var sum = 0.0
+        for s in 0..<50 {
+            let x = RainFx.dropX(seq: s, width: 390)
+            XCTAssertTrue((10...380).contains(x)); sum += x
+        }
+        XCTAssertEqual(sum, 9862.284428168154, accuracy: 1e-6)
+        XCTAssertEqual(RainFx.profile(slot: 4), 1); XCTAssertEqual(RainFx.profile(slot: -1), 2)
+    }
+
+    func testTapDropShared() {
+        XCTAssertEqual(RainFx.drop(0).y, -16, accuracy: 1e-12); XCTAssertEqual(RainFx.drop(0).alpha, 0.9, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.drop(0.06).y, -12, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.drop(0.15).y, 0, accuracy: 1e-12)
+        let d = RainFx.drop(0.75)
+        XCTAssertEqual(d.y, 7.5, accuracy: 1e-12); XCTAssertEqual(d.x, 2.5, accuracy: 1e-12); XCTAssertEqual(d.alpha, 0.9, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.drop(1.19).alpha, 0.3, accuracy: 1e-9)
+        XCTAssertEqual(RainFx.ring(0.12).radius, 1.5, accuracy: 1e-12); XCTAssertEqual(RainFx.ring(0.12).alpha, 0.7, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.ring(0.32).radius, 8.625, accuracy: 1e-12); XCTAssertEqual(RainFx.ring(0.32).alpha, 0.35, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.ring(0.6).alpha, 0)
+        XCTAssertEqual(RainFx.trail(0.1).alpha, 0)
+        XCTAssertEqual(RainFx.trail(0.75).end, 0.25, accuracy: 1e-12); XCTAssertEqual(RainFx.trail(0.75).alpha, 0.35, accuracy: 1e-12)
+        XCTAssertEqual(RainFx.trail(1.7).end, 1); XCTAssertEqual(RainFx.trail(1.7).alpha, 0.175, accuracy: 1e-12)
+    }
+
+    // MARK: overlay
+
+    /// Host dời gốc bounds (#151): mọi lớp mưa nằm TRONG bàn phím; trần hạt; mưa thưa + đèn theo số phím; nghỉ ⇒ ẩn hết;
+    /// ẩn bàn phím ⇒ về đầu.
+    @MainActor func testRainOverlayInsideShiftedKeyboardCappedAndReset() throws {
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 470))
+        host.bounds.origin.y = -180
+        let keysView = UIView(frame: host.bounds)
+        host.addSubview(keysView)
+        let o = try XCTUnwrap(KeyEffectOverlay.install(.rain, color: .systemOrange, keyFill: .white, dark: true, in: host,
+                                                       keys: keysView, existing: nil))
+        XCTAssertEqual(o.frame, host.bounds); XCTAssertEqual(o.bounds.origin, host.bounds.origin)
+        XCTAssertTrue(o.clipsToBounds)
+        XCTAssertTrue(o.debugRainDrops.isEmpty, "chưa gõ: không dựng gì")
+        XCTAssertNil(o.debugRainGlow)
+        let keys = [CGRect(x: 0, y: -180, width: 34, height: 42), CGRect(x: 356, y: 248, width: 34, height: 42),
+                    CGRect(x: 180, y: 120, width: 34, height: 42)]
+        for i in 0..<85 { o.emit(key: keys[i % keys.count]); o.flush() }
+        XCTAssertEqual(o.debugRainKeys, 85)
+        XCTAssertEqual(o.debugRainIntensity, 0.8, accuracy: 1e-12)
+        XCTAssertEqual(o.debugRainGlowLevel, RainFx.glow(keys: 85), accuracy: 1e-12)
+        XCTAssertLessThanOrEqual(o.debugRainDrops.count, 2, "gõ dồn trong cùng lúc: một (hai) hạt mưa nền")
+        for _ in 0..<20 {
+            KeyboardBenchTests.spin(0.3)
+            o.emit(key: keys[2]); o.flush()
+        }
+        XCTAssertLessThanOrEqual(o.debugRainDrops.count, RainFx.maxDrops, "pool hạt có trần")
+        XCTAssertGreaterThan(o.debugRainDrops.count, 1)
+        for d in o.debugRainDrops {
+            XCTAssertEqual(d.position.y, o.bounds.minY - CGFloat(RainFx.startAbove), accuracy: 0.5, "xuất phát ở đỉnh bàn phím")
+            XCTAssertTrue((o.bounds.minX...o.bounds.maxX).contains(d.position.x))
+        }
+        for b in o.debugBursts { XCTAssertTrue(o.bounds.insetBy(dx: -1, dy: -1).contains(b.position)) }
+        XCTAssertLessThanOrEqual(o.debugParticleCount, KeyEffectPool.cap)
+        let glow = try XCTUnwrap(o.debugRainGlow)
+        XCTAssertTrue(o.bounds.contains(CGPoint(x: glow.frame.midX, y: glow.frame.midY)), "tâm đèn trong bàn phím")
+        XCTAssertGreaterThan(glow.opacity, 0)
+        // Nghỉ: quét ẩn mọi hạt / giọt (không còn layer nào chạy); đèn giữ tĩnh.
+        o.debugRainSweep()
+        XCTAssertEqual(o.debugRainVisibleDrops, 0)
+        XCTAssertTrue(o.debugBursts.allSatisfy(\.isHidden))
+        XCTAssertGreaterThan(glow.opacity, 0)
+        // Ẩn bàn phím ⇒ mưa về đậm, đèn tắt.
+        o.halt()
+        XCTAssertEqual(o.debugRainKeys, 0)
+        XCTAssertEqual(o.debugRainIntensity, 1)
+        XCTAssertEqual(glow.opacity, 0)
+        _ = KeyEffectOverlay.install(.none, color: .red, in: host, existing: o)
+    }
+
+    /// Ô xem thử: như đã gõ 200 phím — mưa 0.5, đèn sáng, có giọt + hạt.
+    @MainActor func testPreviewShowsSomething() throws {
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 120))
+        let o = try XCTUnwrap(KeyEffectOverlay.install(.rain, color: .systemOrange, in: host, existing: nil))
+        o.previewRain(keys: 200)
+        o.emit(key: CGRect(x: 54, y: 14, width: 20, height: 20)); o.flush()
+        XCTAssertEqual(o.debugRainKeys, 200)
+        XCTAssertEqual(o.debugRainIntensity, 0.5, accuracy: 1e-12)
+        XCTAssertEqual(o.debugRainGlowLevel, RainFx.glow(keys: 200), accuracy: 1e-12)
+        XCTAssertEqual(o.debugRainVisibleDrops, 1)
+        XCTAssertEqual(o.debugBursts.filter { !$0.isHidden }.count, 1)
+        XCTAssertNotNil(o.debugRainGlow)
+        _ = KeyEffectOverlay.install(.none, color: .red, in: host, existing: o)
+    }
+
+    // MARK: âm Mưa
+
+    func testRainPatterSound() {
+        for k in KeySoundKind.allCases {
+            let a = KeySoundSynth.samples(.rain, k), wood = KeySoundSynth.samples(.wood, k)
+            XCTAssertLessThan(KeySoundSynth.rms(a), KeySoundSynth.rms(wood), "\(k)")
+            XCTAssertLessThan(KeySoundSynth.spectralCentroid(a), 2500, "\(k)")
+            for st in KeySoundStyle.presets where st != .rain {
+                XCTAssertLessThan(a.map(abs).max() ?? 1, KeySoundSynth.samples(st, k).map(abs).max() ?? 0, "\(st)/\(k)")
+            }
+        }
+        let golden: [(KeySoundKind, Double)] = [(.letter, 54.9785), (.delete, 57.6999), (.modifier, 63.9406)]
+        for (k, want) in golden {
+            XCTAssertEqual(KeySoundSynth.samples(.rain, k).reduce(0.0) { $0 + Double(abs($1)) }, want, accuracy: 0.01, "\(k)")
+        }
+        let varGolden = [54.9785, 39.5428, 45.6720, 40.3041]
+        let vs = (0..<KeySoundSynth.rainVariants).map { KeySoundSynth.rainLetterSamples($0) }
+        for (v, s) in vs.enumerated() {
+            XCTAssertEqual(s.reduce(0.0) { $0 + Double(abs($1)) }, varGolden[v], accuracy: 0.01, "var \(v)")
+            XCTAssertEqual(s, KeySoundSynth.rainLetterSamples(v))
+            XCTAssertLessThan(KeySoundSynth.spectralCentroid(s), 2500)
+            for u in 0..<v { XCTAssertNotEqual(vs[u], s) }
+        }
+        XCTAssertEqual(KeySoundSynth.samples(.rain, .letter), vs[0])
+        XCTAssertEqual(KeySoundSynth.seed(.rain, .letter), 0x7261_696E ^ 0x85EB_CA6B)
+        let seq = (0..<32).map(KeySoundSynth.rainVariant)
+        XCTAssertEqual(Set(seq), [0, 1, 2, 3])
+        for i in 1..<seq.count { XCTAssertNotEqual(seq[i - 1], seq[i]) }
+        XCTAssertEqual(Array(seq.prefix(8)), [0, 2, 1, 3, 2, 0, 3, 1])
+        XCTAssertEqual(L10n.en["Mưa"], "Rain")
+        XCTAssertTrue(KeySoundStyle.presets.contains(.rain))
+    }
+
+    // MARK: theme Mưa đêm
+
+    func testRainyNightTheme() throws {
+        let t = KeyboardTheme.rainyNight
+        XCTAssertEqual(t.rawValue, "rainyNight")
+        XCTAssertTrue(t.isPlus); XCTAssertFalse(t.isInteractive, "không gắn nhãn Tương tác")
+        let spec = try XCTUnwrap(t.spec)
+        XCTAssertEqual(spec.nameVi, "Mưa đêm"); XCTAssertEqual(spec.nameEn, "Rainy Night")
+        XCTAssertEqual(L10n.en[t.title], "Rainy Night")
+        XCTAssertEqual(spec.sound, "rain"); XCTAssertEqual(spec.effect, "rain"); XCTAssertEqual(spec.swipe, "simple")
+        XCTAssertNil(spec.dark)
+        XCTAssertTrue(ThemeSpecParser.contrastIssues(spec).isEmpty)
+        let p = t.palette(systemDark: false)
+        let bg = try XCTUnwrap(p.background)
+        XCTAssertGreaterThanOrEqual(RGBA.contrast(p.ink, p.keyFill.over(bg)), 4.5)
+        XCTAssertLessThan(p.keyFill.a, 1, "phím kính trong mờ")
+        XCTAssertEqual(p.decoration?.motif, .bokeh)
+        XCTAssertEqual(t.systemBackdropKey, "systemBackdropRainyNight")
+        XCTAssertNotNil(BackupSettings.byKey["systemBackdropRainyNight"])
+        XCTAssertTrue(p.decoration?.hasShade ?? false)
+        let secs = ThemePicker.sections
+        XCTAssertTrue(secs[2].themes.contains(t)); XCTAssertFalse(secs[1].themes.contains(t))
+        XCTAssertEqual(ThemePicker.ordered().last, t)
+    }
+
+    func testBokehMotif() {
+        XCTAssertTrue(KeyboardDecoration.Motif.allCases.contains(.bokeh))
+        XCTAssertEqual(KeyboardDecoration.shape(.bokeh).count, 5)
+        let d = KeyboardDecoration.bokehDots
+        for x in d { XCTAssertLessThanOrEqual(abs(x.1) + x.2, 0.5 + 1e-12) }
+        for i in d.indices { for j in 0..<i { XCTAssertGreaterThan(hypot(d[i].0 - d[j].0, d[i].1 - d[j].1), d[i].2 + d[j].2) } }
+        XCTAssertEqual(KeyboardDecoration.bokehShade[0].argb >> 24, 0x14)
+        XCTAssertEqual(KeyboardDecoration.bokehShade[2].argb >> 24, 0x2E)
+        XCTAssertEqual(KeyboardDecoration.bokehShade[2].argb & 0xFF_FFFF, 0)
+        XCTAssertFalse(KeyboardDecoration(motif: .neural, color: RGBA(hex: 0xFFFFFF)).hasShade)
     }
 }

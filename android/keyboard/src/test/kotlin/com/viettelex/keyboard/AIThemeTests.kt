@@ -255,6 +255,7 @@ class AIThemeTests {
     @Test fun neuralMotif() {
         assertTrue(ThemeDecoration.NEURAL in ThemeDecoration.MOTIFS)
         assertEquals(ThemeDecoration.MOTIFS.indexOf(ThemeDecoration.NEURAL) + 1, ThemeDecoration.MOTIFS.indexOf(ThemeDecoration.SWIRL))
+        assertTrue(ThemeDecoration.NEURAL in ThemeDecoration.MOTIFS)
         val subs = ThemeDecoration.shape(ThemeDecoration.NEURAL)
         assertEquals(12, subs.size)
         var sum = 0.0
