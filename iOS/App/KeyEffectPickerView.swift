@@ -18,7 +18,9 @@ struct KeyEffectPickerView: View {
     private var current: KeyEffect { KeyEffect.parse(raw) }
 
     var body: some View {
-        let palette = ThemeSettings.load(effectDefaults).palette(systemDark: scheme == .dark, wallpaperActive: false)
+        let settings = ThemeSettings.load(effectDefaults)
+        let palette = settings.palette(systemDark: scheme == .dark, wallpaperActive: false)
+        let particles = settings.effectiveSpec?.particles
         List {
             if !KeyEffectGate.allows {
                 Section {
@@ -27,7 +29,7 @@ struct KeyEffectPickerView: View {
             }
             Section {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(KeyEffect.allCases, id: \.self) { tile($0, palette: palette) }
+                    ForEach(KeyEffect.allCases, id: \.self) { tile($0, palette: palette, particles: particles) }
                 }
                 .padding(.vertical, 6)
             } header: {
@@ -38,6 +40,7 @@ struct KeyEffectPickerView: View {
                     + Text(" ") + Text(L("Rung combo không rung khi bật Giảm chuyển động. Dấu thanh phản ứng theo dấu vừa bỏ; Từ khoá nổ pháo đỏ và lì xì khi gõ \"tết\", thả tim khi gõ \"yêu\"; Chữ bay thả đúng chữ vừa ra; Hạt cát đọng thành đống thấp ở đáy rồi tự tan."))
                     + Text(" ") + Text(L("Biển: mỗi đợt gõ một con sóng vỗ vào bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang."))
                     + Text(" ") + Text(L("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp."))
+                    + Text(" ") + Text(L("Theo giao diện dùng hạt do giao diện đang chọn khai báo (\"particles\" trong JSON giao diện); giao diện không khai báo thì là chùm sao nhỏ."))
             }
         }
         .bottomBarScrollMargin()
@@ -46,14 +49,14 @@ struct KeyEffectPickerView: View {
         .navigationDestination(isPresented: $showPlus) { PlusView(model: PlusShared.model) }
     }
 
-    private func tile(_ e: KeyEffect, palette: KeyboardPalette) -> some View {
+    private func tile(_ e: KeyEffect, palette: KeyboardPalette, particles: ThemeParticles?) -> some View {
         let locked = !KeyEffectGate.allows(e)
         let selected = current == e
         return VStack(spacing: 6) {
             Button { tap(e, locked: locked) } label: {
                 // Lớp SwiftUI trong suốt PHỦ lên ô xem trước UIKit: hit-test vào UIViewRepresentable
                 // không tới được Button ⇒ chạm ô không chọn được (Phil 19/10/2026).
-                KeyEffectPreview(effect: e, palette: palette, play: plays[e, default: 0])
+                KeyEffectPreview(effect: e, palette: palette, play: plays[e, default: 0], themeParticles: particles)
                     .overlay(Color.clear.contentShape(Rectangle()))
                     .frame(height: 84)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -97,10 +100,11 @@ struct KeyEffectPreview: UIViewRepresentable {
     let effect: KeyEffect
     let palette: KeyboardPalette
     let play: Int
+    var themeParticles: ThemeParticles? = nil
 
     func makeUIView(context: Context) -> KeyEffectPreviewView { KeyEffectPreviewView() }
     func updateUIView(_ v: KeyEffectPreviewView, context: Context) {
-        v.update(effect: effect, palette: palette, play: play)
+        v.update(effect: effect, palette: palette, play: play, themeParticles: themeParticles)
     }
 }
 // KeyEffectPreviewView (UIKit): Keyboard/KeyEffectPreview.swift — dùng chung với test.

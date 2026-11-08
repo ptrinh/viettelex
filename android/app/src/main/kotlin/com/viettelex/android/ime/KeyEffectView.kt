@@ -43,6 +43,10 @@ import com.viettelex.keyboard.StringPluck
 import com.viettelex.keyboard.ShimmerGate
 import com.viettelex.keyboard.TokenStream
 import com.viettelex.keyboard.ThemeDecoration
+import com.viettelex.keyboard.ThemeFx
+import com.viettelex.keyboard.ThemeFxOrigin
+import com.viettelex.keyboard.ThemeParticle
+import com.viettelex.keyboard.ThemeParticles
 import com.viettelex.keyboard.WaveRings
 
 /**
@@ -280,6 +284,27 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         setWillNotDraw(false)
     }
 
+    // Theme JSON: hạt tự tạo ("Theo giao diện") + từ khoá tự tạo ([ThemeFx]). null ⇒ 0 việc, 0 cấp phát.
+    var themeFx: ThemeFx? = null
+        private set
+    private val thStart = LongArray(TH_SLOTS) { Long.MIN_VALUE / 2 }
+    private val thX = FloatArray(TH_SLOTS)
+    private val thY = FloatArray(TH_SLOTS)
+    private val thParts = arrayOfNulls<Array<ThemeParticle>>(TH_SLOTS)
+    private var thSlots = 1
+    private var thCursor = 0
+    private var pendingThemeKeyword: Int? = null
+    private val tkStart = LongArray(2) { Long.MIN_VALUE / 2 }
+    private val tkX = FloatArray(2)
+    private val tkY = FloatArray(2)
+    private val tkEntry = IntArray(2) { -1 }
+    private val tkParts = arrayOfNulls<Array<ThemeParticle>>(2)
+    private var tkCursor = 0
+    private val thShapes = HashMap<String, Path>()
+    private val thGlyphs = HashMap<String, Bitmap>()
+    private val thPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val thText = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; isFakeBoldText = true }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?) = false
 
@@ -361,8 +386,9 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
 
     /** Một phím vừa chèn chữ, tâm phím ([x], [y]), cỡ [w]×[h] (px) theo toạ độ view này. */
     fun burst(x: Float, y: Float, w: Float = 0f, h: Float = 0f) {
-        if (sim.effect == KeyEffect.NONE) return
-        if (sim.effect.isQueued && !hasQueued) return   // Emoji / Dấu thanh / Từ khoá / Chữ bay: không có sự kiện ⇒ không hẹn gì
+        val none = sim.effect == KeyEffect.NONE
+        // Emoji / Dấu thanh / Từ khoá / Chữ bay (và "Không" chỉ có từ khoá theme): không có sự kiện ⇒ không hẹn gì.
+        if ((none || sim.effect.isQueued) && pendingThemeKeyword == null && (none || !hasQueued)) return
         if (pendN == MAX_PENDING) {
             for (i in 1 until MAX_PENDING) { pendX[i - 1] = pendX[i]; pendY[i - 1] = pendY[i]; pendW[i - 1] = pendW[i]; pendH[i - 1] = pendH[i] }
             pendN--
@@ -376,6 +402,9 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         posted = false
         if (pendN == 0) return
         val now = SystemClock.uptimeMillis()
+        // Từ khoá theme: nổ THÊM tại phím ranh giới, không thay hiệu ứng đang chọn.
+        pendingThemeKeyword?.let { fireThemeKeyword(it, pendX[pendN - 1], pendY[pendN - 1], pendH[pendN - 1], now) }
+        pendingThemeKeyword = null
         when (sim.effect) {
             KeyEffect.EMOJIWORD -> {
                 val em = pendingEmoji
@@ -420,6 +449,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
                 glStart[s] = now; glRect[s].set(x - hw, y - hh, x + hw, y + hh); glVariant[s] = glSeq++ % GlitchFx.VARIANTS
             }
             KeyEffect.SAND -> fireSand(x, y, now)
+            KeyEffect.THEME -> fireTheme(x, y, now)
             KeyEffect.SEA -> fireSea(x, y, now)
             KeyEffect.DANCEFLOOR -> fireDance(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.FLASH -> if (flash.trigger(now)) flashStart = now
@@ -504,6 +534,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         flashStart = Long.MIN_VALUE / 2
         pendingEmoji = null
         pendingTone = null; pendingKeyword = null; pendingLetter = null; pendingToken = null
+        pendingThemeKeyword = null; thStart.fill(Long.MIN_VALUE / 2); tkStart.fill(Long.MIN_VALUE / 2)
         tokStart.fill(Long.MIN_VALUE / 2); shimStart = Long.MIN_VALUE / 2; shimmerGate.reset()
         arcStart.fill(Long.MIN_VALUE / 2); laserStart.fill(Long.MIN_VALUE / 2); glStart.fill(Long.MIN_VALUE / 2)
         toneStart.fill(Long.MIN_VALUE / 2); kwStart.fill(Long.MIN_VALUE / 2); letterStart.fill(Long.MIN_VALUE / 2)
@@ -601,9 +632,11 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     /** Vẽ hiệu ứng lúc này; true = còn đang chạy (hẹn khung hình kế). */
     protected fun drawEffects(canvas: Canvas): Boolean {
         val e = sim.effect
-        if (e == KeyEffect.NONE) return false
         val now = SystemClock.uptimeMillis()
-        return when (e) {
+        val kw = themeFx?.keywords != null && drawThemeKeywords(canvas, now)
+        if (e == KeyEffect.NONE) return kw
+        return kw or when (e) {
+            KeyEffect.THEME -> drawTheme(canvas, now)
             KeyEffect.FLASH -> drawFlash(canvas, now)
             KeyEffect.LIGHTNING -> drawLightning(canvas, now)
             KeyEffect.MATRIX -> drawMatrix(canvas, now)
@@ -1461,6 +1494,183 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         return b
     }
 
+    // ---- Theme JSON: hạt tự tạo + từ khoá tự tạo ([ThemeFx], hàm thuần chung iOS)
+
+    /** Đặt hạt / từ khoá của theme đang dùng (lúc hiện bàn phím). Đổi ⇒ bỏ chùm cũ. */
+    fun setThemeFx(fx: ThemeFx?) {
+        if (fx == themeFx) return
+        themeFx = fx
+        thStart.fill(Long.MIN_VALUE / 2); tkStart.fill(Long.MIN_VALUE / 2); tkEntry.fill(-1)
+        thParts.fill(null); tkParts.fill(null); thCursor = 0; tkCursor = 0
+        thSlots = minOf(TH_SLOTS, ThemeParticles.slots(themeParticles.effCount))
+        thGlyphs.clear()
+        pendingThemeKeyword = null
+    }
+
+    /** Hạt đang dùng của "Theo giao diện". */
+    val themeParticles: ThemeParticles get() = themeFx?.particles ?: ThemeParticles.FALLBACK
+
+    /** IME phải tra từ vừa chốt (kiểu cần, hoặc theme có từ khoá). */
+    val wantsBoundaryWord: Boolean get() = effect.needsBoundaryWord || themeFx?.keywords != null
+
+    /** Từ khoá theme: IME tra bảng ở ranh giới từ — lần vẽ kế (phím ranh giới) nổ chùm của mục [entry]. */
+    fun queueThemeKeyword(entry: Int) {
+        val k = themeFx?.keywords ?: return
+        if (entry in k.entries.indices) pendingThemeKeyword = entry
+    }
+
+    private fun parts(t: ThemeParticles, seed: Int): Array<ThemeParticle> =
+        Array(minOf(t.effCount, 12)) { t.particle(it, seed) }
+
+    private fun themeOriginX(x: Float): Float = ThemeFxOrigin.x(x.toDouble(), 0.0, width.toDouble()).toFloat()
+    private fun themeOriginY(t: ThemeParticles, y: Float): Float =
+        ThemeFxOrigin.y(t.effOrigin, y.toDouble(), t.effSize * density.toDouble(), 0.0, height.toDouble()).toFloat()
+
+    private fun fireTheme(x: Float, y: Float, now: Long) {
+        val t = themeParticles
+        val s = thCursor; thCursor = (s + 1) % thSlots
+        if (thParts[s] == null) thParts[s] = parts(t, s + 1)
+        thStart[s] = now; thX[s] = themeOriginX(x); thY[s] = themeOriginY(t, y)
+    }
+
+    private fun fireThemeKeyword(entry: Int, x: Float, y: Float, h: Float, now: Long) {
+        val fx = themeFx ?: return
+        val k = fx.keywords ?: return
+        if (entry !in k.entries.indices) return
+        val t = fx.burst(entry)
+        val slots = maxOf(1, minOf(2, fx.keywordSlots))
+        val s = tkCursor % slots; tkCursor = (s + 1) % slots
+        if (tkEntry[s] != entry || tkParts[s] == null) { tkParts[s] = parts(t, entry + 1); tkEntry[s] = entry }
+        tkStart[s] = now
+        tkX[s] = themeOriginX(x)
+        tkY[s] = if (t.origin == null) keyTop(y, h) else themeOriginY(t, y)
+        postInvalidateOnAnimation()
+    }
+
+    /** Số hạt theme đang sống lúc [now] (test: trần [com.viettelex.keyboard.KeyEffectPool.CAP]). */
+    internal fun themeAlive(now: Long): Int {
+        var n = 0
+        for (s in 0 until TH_SLOTS) {
+            val p = thParts[s] ?: continue
+            if (now - thStart[s] >= 0 && (now - thStart[s]) / 1000.0 < (p.firstOrNull()?.life ?: 0.0)) n += p.size
+        }
+        return n
+    }
+    internal val themeSlotCount: Int get() = thSlots
+    internal fun themeOrigin(slot: Int): FloatArray = floatArrayOf(thX[slot], thY[slot])
+    internal fun keywordEntry(slot: Int): Int = tkEntry[slot]
+    internal val pendingThemeKeywordForTest: Int? get() = pendingThemeKeyword
+
+    private fun drawTheme(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        val t = themeParticles
+        for (s in 0 until thSlots) {
+            val p = thParts[s] ?: continue
+            if (drawThemeBurst(canvas, t, p, thX[s], thY[s], now - thStart[s], null)) any = true
+        }
+        return any
+    }
+
+    private fun drawThemeKeywords(canvas: Canvas, now: Long): Boolean {
+        val fx = themeFx ?: return false
+        val k = fx.keywords ?: return false
+        var any = false
+        for (s in 0 until 2) {
+            val p = tkParts[s] ?: continue
+            val e = tkEntry[s]
+            if (e !in k.entries.indices) continue
+            if (drawThemeBurst(canvas, fx.burst(e), p, tkX[s], tkY[s], now - tkStart[s], k.entries[e].text)) any = true
+        }
+        return any
+    }
+
+    private fun drawThemeBurst(canvas: Canvas, t: ThemeParticles, ps: Array<ThemeParticle>, ox: Float, oy: Float,
+                               ms: Long, text: String?): Boolean {
+        if (ms < 0) return false
+        val dt = ms / 1000.0
+        var any = false
+        val glyphs = t.glyphs
+        val cols = t.colors
+        for (p in ps) {
+            val a = p.alpha(dt)
+            if (a <= 0) continue
+            any = true
+            val px = ox + (p.offsetX(dt) * density).toFloat()
+            val py = oy + (p.offsetY(dt) * density).toFloat()
+            val r = (p.size * density / 2).toFloat()
+            val save = canvas.save()
+            canvas.translate(px, py)
+            if (p.rotation != 0.0) canvas.rotate(Math.toDegrees(p.rotation * (dt / p.life).coerceIn(0.0, 1.0)).toFloat())
+            val col = cols?.let { it[p.colorIndex % it.size] }
+            if (!glyphs.isNullOrEmpty()) {
+                val b = glyphBitmap(glyphs[p.glyphIndex % glyphs.size], col ?: (color or (0xFF shl 24)))
+                bmpPaint.alpha = (255 * a).toInt().coerceIn(0, 255)
+                mtx.setTranslate(-b.width / 2f, -b.height / 2f)
+                val k = 2 * r / b.width
+                mtx.postScale(k, k)
+                canvas.drawBitmap(b, mtx, bmpPaint)
+            } else {
+                val c = col ?: (color or (0xFF shl 24))
+                thPaint.color = c
+                thPaint.alpha = (((c ushr 24) and 0xFF) * a).toInt().coerceIn(0, 255)
+                canvas.scale(r, r)
+                canvas.drawPath(themeShape(t.effShape), thPaint)
+            }
+            canvas.restoreToCount(save)
+        }
+        if (text != null) {
+            val life = maxOf(t.life, 0.9)
+            val a = if (dt < life) (if (dt / life < 0.5) 1.0 else (1 - dt / life) / 0.5) else 0.0
+            if (a > 0) {
+                any = true
+                thText.textSize = 17 * density
+                thText.color = color or (0xFF shl 24)
+                thText.alpha = (255 * a).toInt().coerceIn(0, 255)
+                canvas.drawText(text, ox, oy - (48 * dt * density).toFloat(), thText)
+            }
+        }
+        return any
+    }
+
+    /** Hình theo "shape" ở bán kính 1 (vẽ thì scale theo cỡ hạt). = iOS themeShape. */
+    private fun themeShape(shape: String): Path = thShapes.getOrPut(shape) {
+        val p = Path()
+        when (shape) {
+            "heart" -> {
+                p.moveTo(0f, 0.9f)
+                p.cubicTo(-0.6f, 0.5f, -1f, 0.15f, -1f, -0.2f)
+                p.cubicTo(-1f, -0.85f, -0.2f, -0.95f, 0f, -0.55f)
+                p.cubicTo(0.2f, -0.95f, 1f, -0.85f, 1f, -0.2f)
+                p.cubicTo(1f, 0.15f, 0.6f, 0.5f, 0f, 0.9f)
+                p.close()
+            }
+            "square" -> p.addRect(-0.8f, -0.8f, 0.8f, 0.8f, Path.Direction.CW)
+            "spark", "star" -> {
+                val pts = if (shape == "star") 5 else 4
+                val inner = if (shape == "star") 0.45f else 0.3f
+                for (k in 0 until pts * 2) {
+                    val a = k * Math.PI / pts - Math.PI / 2
+                    val rr = if (k % 2 == 0) 1f else inner
+                    val x = (Math.cos(a) * rr).toFloat(); val y = (Math.sin(a) * rr).toFloat()
+                    if (k == 0) p.moveTo(x, y) else p.lineTo(x, y)
+                }
+                p.close()
+            }
+            else -> p.addCircle(0f, 0f, 1f, Path.Direction.CW)
+        }
+        p
+    }
+
+    /** Ảnh một ký tự (emoji giữ màu riêng; chữ thường tô [c]) — cache theo ký tự + màu, dựng một lần. */
+    private fun glyphBitmap(g: String, c: Int): Bitmap = thGlyphs.getOrPut(g + "|" + c) {
+        val size = Math.ceil(48.0 * density).toInt()
+        val b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 38 * density; textAlign = Paint.Align.CENTER; color = c }
+        val fm = p.fontMetrics
+        Canvas(b).drawText(g, size / 2f, size / 2f - (fm.ascent + fm.descent) / 2, p)
+        b
+    }
+
     private fun renderEmoji(e: String): Bitmap {
         val size = Math.ceil(30.0 * density).toInt()
         val b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -1572,6 +1782,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
 
     companion object {
         const val MAX_PENDING = 4
+        /** Theme JSON: số chùm hạt tối đa (ThemeParticles.slots ≤ 8). */
+        const val TH_SLOTS = 8
         const val STRIKES = 3
         const val SLOTS = 4
         const val EMOJI_MS = 1100L

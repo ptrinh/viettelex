@@ -1767,7 +1767,10 @@ final class KeyboardViewController: UIInputViewController {
     private func fxWordBoundary(_ word: String, prev: String?) {
         // Bạn đồng hành: phản ứng theo từ vừa chốt (tắt ⇒ nil, một optional).
         if let b = keyboard?.buddy, !word.isEmpty { b.wordCommitted(word, prev: prev, prev2: lastWord2) }
-        guard let fx = keyboard?.keyEffects, fx.effect.needsBoundaryWord, !word.isEmpty else { return }
+        guard let fx = keyboard?.keyEffects, fx.wantsBoundaryWord, !word.isEmpty else { return }
+        // Từ khoá tự tạo của theme (ThemeFx): nổ THÊM, cùng mọi hiệu ứng. Theme không có ⇒ nil, không tra.
+        if let table = fx.themeFx?.keywords, let i = table.lookup(word: word, prev: prev) { fx.queueThemeKeyword(i) }
+        guard fx.effect.needsBoundaryWord else { return }
         if fx.effect == .keyword {
             if let k = KeywordBursts.lookup(word: word, prev: prev) { fx.queueKeyword(k) }   // Từ khoá: pháo đỏ / lì xì…
             return

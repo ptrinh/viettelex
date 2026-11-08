@@ -36,6 +36,9 @@ enum KeyEffect: String, CaseIterable {
     case tokens
     // Theme Neon Night Club (11/2026): Sàn nhảy LED — phím vừa bấm + các phím quanh thắp neon thành vòng vuông lan ra.
     case dancefloor
+    // Theme JSON (11/2026): "Theo giao diện" — hạt tự tạo trong "particles" của theme đang dùng (ThemeFx.swift); theme
+    // không có "particles" ⇒ chùm sao mặc định (ThemeParticles.fallback).
+    case theme
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -78,6 +81,7 @@ enum KeyEffect: String, CaseIterable {
         case .sea: return L("Biển")
         case .tokens: return L("Token AI")
         case .dancefloor: return L("Sàn nhảy LED")
+        case .theme: return L("Theo giao diện")
         }
     }
 
@@ -1780,6 +1784,14 @@ final class KeyEffectOverlay: UIView {
     private var flickerGate = DanceFloor.FlickerGate()
     /// Sàn nhảy LED: cổng an toàn chung với lớp flash phím cách (BeatFlashView.gate). nil ⇒ chỉ FlickerGate.
     var flashGate: BeatFlash.Gate?
+    // Theme JSON: hạt tự tạo ("Theo giao diện") + từ khoá tự tạo (ThemeFx.swift). nil ⇒ 0 layer, 0 việc.
+    private(set) var themeFx: ThemeFx?
+    private var themeBursts: [CALayer] = []
+    private var themePool = KeyEffectPool(capacity: 1)
+    private var pendingThemeKeyword: Int?
+    private var themeKwRoots: [(entry: Int, root: CALayer)] = []
+    private var themeKwCursor = 0
+    private var glyphImages: [String: CGImage] = [:]
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -1803,15 +1815,18 @@ final class KeyEffectOverlay: UIView {
 
     /// Gắn / cập nhật / gỡ overlay của `host`. Kiểu "Không" ⇒ gỡ và trả nil (0 chi phí).
     /// `keys`: view chứa phím — dải DƯỚI phím chèn ngay dưới nó (trên nền / ảnh nền).
+    /// `themeFx`: hạt / từ khoá tự tạo của theme đang dùng — có "keywords" thì overlay sống cả khi kiểu là "Không".
     static func install(_ effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false,
-                        in host: UIView, keys: UIView? = nil, existing: KeyEffectOverlay?) -> KeyEffectOverlay? {
-        guard effect != .none else {
+                        in host: UIView, keys: UIView? = nil, existing: KeyEffectOverlay?,
+                        themeFx: ThemeFx? = nil) -> KeyEffectOverlay? {
+        guard effect != .none || themeFx?.keywords != nil else {
             existing?.halt()
             existing?.removeFromSuperview()
             return nil
         }
         let o = existing ?? KeyEffectOverlay(effect: effect, color: color, keyFill: keyFill, dark: dark)
         o.configure(effect: effect, color: color, keyFill: keyFill, dark: dark)
+        o.setThemeFx(themeFx)
         o.shakeTarget = effect == .shake ? keys : nil
         let below = effect.band == .belowKeys
         let placed: Bool = {
@@ -1849,7 +1864,8 @@ final class KeyEffectOverlay: UIView {
         rebuild()
     }
 
-    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor]
+    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor,
+                                          .theme]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -1857,6 +1873,7 @@ final class KeyEffectOverlay: UIView {
         layer.zPosition = effect.band == .belowKeys ? 0 : 5
         // Đợt 3: cắt theo bàn phím — tia / pháo / chữ không bao giờ vẽ ra ngoài (#151).
         clipsToBounds = effect.band == .belowKeys || effect == .flash || Self.clipped.contains(effect)
+            || themeFx?.keywords != nil
     }
 
     /// "Emoji theo chữ": controller tra bảng ở ranh giới từ (sau khi chốt) rồi xếp emoji — lần vẽ kế
@@ -1904,7 +1921,8 @@ final class KeyEffectOverlay: UIView {
         let t0 = CACurrentMediaTime()
         defer { Self.debugCost += CACurrentMediaTime() - t0 }
         #endif
-        if effect.isQueued && !hasQueued { return }   // Emoji / Dấu thanh / Từ khoá / Chữ bay: không có sự kiện ⇒ không hẹn gì
+        // Emoji / Dấu thanh / Từ khoá / Chữ bay (và "Không" chỉ có từ khoá theme): không có sự kiện ⇒ không hẹn gì.
+        if (effect == .none || effect.isQueued), pendingThemeKeyword == nil, effect == .none || !hasQueued { return }
         if pending.count >= Self.maxPending { pending.removeFirst() }
         pending.append(r)
         guard !scheduled else { return }
@@ -1919,16 +1937,22 @@ final class KeyEffectOverlay: UIView {
         defer { Self.debugCost += CACurrentMediaTime() - t0 }
         #endif
         scheduled = false
-        guard !pending.isEmpty, effect != .none, window != nil || Self.drawsOffscreen else {
+        guard !pending.isEmpty, effect != .none || themeFx != nil, window != nil || Self.drawsOffscreen else {
             pending.removeAll(keepingCapacity: true)
             pendingEmoji = nil; pendingTone = nil; pendingKeyword = nil; pendingLetter = nil; pendingToken = nil
+            pendingThemeKeyword = nil
             return
         }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         let media = CACurrentMediaTime()
         let now = layer.convertTime(media, from: nil)
-        if effect == .emojiword {
+        // Từ khoá theme: nổ THÊM tại phím ranh giới, không thay hiệu ứng đang chọn.
+        if let k = pendingThemeKeyword, let r = pending.last { fireThemeKeyword(k, at: r, now: now) }
+        pendingThemeKeyword = nil
+        if effect == .none {
+            // chỉ có từ khoá theme
+        } else if effect == .emojiword {
             if let e = pendingEmoji, let r = pending.last { fireEmoji(e, at: r, now: now) }
             pendingEmoji = nil
         } else if effect == .tone {
@@ -2027,6 +2051,10 @@ final class KeyEffectOverlay: UIView {
     /// Sàn nhảy LED: gốc các chùm ô đã dựng (pool) + lớp nháy cả bàn phím (nil = chưa nháy lần nào).
     var debugDanceRoots: [CALayer] { dances.map(\.root) }
     var debugFloorFlicker: CALayer? { floorFlicker?.root }
+    /// Theme JSON: chùm hạt tự tạo đã dựng (pool) + gốc chùm từ khoá (kèm mục) + số hạt từng chùm.
+    var debugThemeBursts: [CALayer] { themeBursts }
+    var debugThemeKeywordRoots: [(entry: Int, root: CALayer)] { themeKwRoots }
+    var debugPendingThemeKeyword: Int? { pendingThemeKeyword }
     #else
     static let drawsOffscreen = false
     #endif
@@ -2044,6 +2072,7 @@ final class KeyEffectOverlay: UIView {
         case .sand: fireSand(c, now: now, media: media)
         case .sea: fireSea(c, now: now, media: media)
         case .dancefloor: fireDance(r, now: now, media: media)
+        case .theme: fireTheme(r, now: now)
         case .flash: fireFlash(now: now, media: media)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)
@@ -2409,6 +2438,7 @@ final class KeyEffectOverlay: UIView {
     func halt() {
         haltMatrix()
         pendingEmoji = nil; pendingTone = nil; pendingKeyword = nil; pendingLetter = nil; pendingToken = nil
+        pendingThemeKeyword = nil
         for l in strings { l.removeAllAnimations() }
         for b in tokenBursts { b.root.isHidden = true }   // Token AI: ẩn bàn phím ⇒ không còn chip / vệt nào
         shimmerBand?.removeAllAnimations()
@@ -2605,6 +2635,199 @@ final class KeyEffectOverlay: UIView {
         }
         layer.addSublayer(g.root)
         return g
+    }
+
+    // MARK: Theme JSON — hạt tự tạo ("Theo giao diện") + từ khoá tự tạo (ThemeFx.swift)
+    // Cùng kiểu chùm dựng lười theo pool: animation (đường bay ném xiên lấy mẫu ThemeParticle.pathSteps mốc) gắn MỘT
+    // lần lúc dựng, bấm chỉ đặt vị trí + beginTime. Trần: ≤ 12 hạt / chùm, chùm xoay vòng ≤ KeyEffectPool.cap hạt.
+
+    /// Đặt hạt / từ khoá của theme đang dùng (lúc hiện bàn phím). Đổi ⇒ bỏ chùm cũ (dựng lại lười).
+    func setThemeFx(_ fx: ThemeFx?) {
+        guard fx != themeFx else { return }
+        themeFx = fx
+        clearThemeLayers()
+        applyBand()
+    }
+
+    /// Từ khoá theme: controller tra bảng ở ranh giới từ — lần vẽ kế (phím ranh giới) nổ chùm của mục `entry`.
+    func queueThemeKeyword(_ entry: Int) {
+        guard let k = themeFx?.keywords, k.entries.indices.contains(entry) else { return }
+        pendingThemeKeyword = entry
+    }
+
+    /// Controller phải tra từ vừa chốt (kiểu cần, hoặc theme có từ khoá).
+    var wantsBoundaryWord: Bool { effect.needsBoundaryWord || themeFx?.keywords != nil }
+
+    /// Hạt đang dùng của "Theo giao diện".
+    var themeParticles: ThemeParticles { themeFx?.particles ?? .fallback }
+
+    private func clearThemeLayers() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for b in themeBursts { b.removeFromSuperlayer() }
+        for r in themeKwRoots { r.root.removeFromSuperlayer() }
+        CATransaction.commit()
+        themeBursts.removeAll()
+        themeKwRoots.removeAll()
+        themeKwCursor = 0
+        themePool = KeyEffectPool(capacity: ThemeParticles.slots(perBurst: themeParticles.effCount))
+        glyphImages.removeAll()
+    }
+
+    private func themeOrigin(_ t: ThemeParticles, key r: CGRect) -> CGPoint {
+        let b = bounds
+        let o = ThemeFxOrigin.point(t.effOrigin, key: (Double(r.midX), Double(r.midY)), size: Double(t.effSize),
+                                    bounds: (Double(b.minX), Double(b.minY), Double(b.maxX), Double(b.maxY)))
+        return CGPoint(x: o.x, y: o.y)
+    }
+
+    private func fireTheme(_ r: CGRect, now: CFTimeInterval) {
+        let t = themeParticles
+        let slot = themePool.next()
+        let b: CALayer
+        if slot < themeBursts.count { b = themeBursts[slot] } else {
+            b = makeThemeBurst(t, seed: slot + 1, text: nil)
+            themeBursts.append(b)
+        }
+        launch(b, at: themeOrigin(t, key: r), now: now)
+    }
+
+    private func fireThemeKeyword(_ entry: Int, at r: CGRect, now: CFTimeInterval) {
+        guard let fx = themeFx, let k = fx.keywords, k.entries.indices.contains(entry) else { return }
+        let t = fx.burst(keyword: entry)
+        let slots = max(fx.keywordSlots, 1)
+        let slot = themeKwCursor % slots
+        themeKwCursor = (slot + 1) % slots
+        let root: CALayer
+        if slot < themeKwRoots.count, themeKwRoots[slot].entry == entry {
+            root = themeKwRoots[slot].root
+        } else {
+            // Ô này đang giữ chùm của mục khác ⇒ dựng lại (chỉ ở ranh giới từ — hiếm, ≤ 13 layer).
+            root = makeThemeBurst(t, seed: entry + 1, text: k.entries[entry].text)
+            if slot < themeKwRoots.count {
+                themeKwRoots[slot].root.removeFromSuperlayer()
+                themeKwRoots[slot] = (entry, root)
+            } else {
+                themeKwRoots.append((entry, root))
+            }
+        }
+        let origin = t.origin == nil ? Self.keyTop(r) : themeOrigin(t, key: r)
+        launch(root, at: origin, now: now)
+    }
+
+    /// Một chùm: `effCount` hạt (hình vẽ / ảnh ký tự) + chữ bay (từ khoá). Ẩn tới lần bắn đầu.
+    private func makeThemeBurst(_ t: ThemeParticles, seed: Int, text: String?) -> CALayer {
+        let b = CALayer()
+        b.bounds = .zero
+        b.isHidden = true
+        let accent = color.argbValue
+        let cols = t.colors ?? [accent]
+        for i in 0..<min(t.effCount, 12) {
+            let p = t.particle(i, seed: seed)
+            let c = cols[p.colorIndex % cols.count]
+            let sz = CGFloat(p.size)
+            let l: CALayer
+            if let gs = t.glyphs, !gs.isEmpty {
+                l = CALayer()
+                l.bounds = CGRect(x: 0, y: 0, width: sz, height: sz)
+                l.contentsGravity = .resizeAspect
+                l.contents = glyphImage(gs[p.glyphIndex % gs.count], rgb: t.colors == nil ? nil : c)
+            } else {
+                let sl = CAShapeLayer()
+                sl.bounds = .zero
+                sl.contentsScale = UIScreen.main.scale
+                sl.path = Self.themeShape(t.effShape, size: sz)
+                sl.fillColor = UIColor(argb: c).cgColor
+                l = sl
+            }
+            l.position = .zero
+            l.opacity = 0
+            l.add(Self.themeAnimation(p), forKey: "fx")
+            b.addSublayer(l)
+        }
+        if let text {
+            let tl = CATextLayer()
+            tl.string = text
+            tl.fontSize = 17
+            tl.font = UIFont.systemFont(ofSize: 17, weight: .bold)
+            tl.alignmentMode = .center
+            tl.contentsScale = UIScreen.main.scale
+            tl.foregroundColor = color.cgColor
+            tl.bounds = CGRect(x: 0, y: 0, width: 160, height: 22)
+            tl.position = .zero
+            tl.opacity = 0
+            let up = ThemeParticle(vx: 0, vy: -48, gravity: 0, life: max(t.life, 0.9), size: 17, rotation: 0, fadeIn: false,
+                                   colorIndex: 0, glyphIndex: 0)
+            tl.add(Self.themeAnimation(up), forKey: "fx")
+            b.addSublayer(tl)
+        }
+        layer.addSublayer(b)
+        return b
+    }
+
+    /// Đường bay ném xiên (mẫu đều theo thời gian) + mờ + quay — dựng MỘT lần.
+    static func themeAnimation(_ p: ThemeParticle) -> CAAnimationGroup {
+        let n = ThemeParticle.pathSteps
+        let times = (0...n).map { Double($0) / Double(n) * p.life }
+        let move = CAKeyframeAnimation(keyPath: "position")
+        move.isAdditive = true
+        move.values = times.map { let o = p.offset($0); return NSValue(cgPoint: CGPoint(x: o.x, y: o.y)) }
+        move.keyTimes = (0...n).map { NSNumber(value: Double($0) / Double(n)) }
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        let fts: [Double] = p.fadeIn ? [0, 0.15, 0.5, 1] : [0, 0.5, 1]
+        fade.values = fts.map { $0 >= 1 ? 0 : p.alpha($0 * p.life) }
+        fade.keyTimes = fts.map { NSNumber(value: $0) }
+        var parts: [CAAnimation] = [move, fade]
+        if p.rotation != 0 {
+            let spin = CABasicAnimation(keyPath: "transform.rotation.z")
+            spin.fromValue = 0
+            spin.toValue = p.rotation
+            parts.append(spin)
+        }
+        return group(parts, duration: p.life, delay: 0)
+    }
+
+    /// Hình vẽ theo "shape", cỡ `size` (đường kính ~ size).
+    static func themeShape(_ shape: String, size: CGFloat) -> CGPath {
+        let r = size / 2
+        switch shape {
+        case "heart": return KeyEffectShapes.heart(r)
+        case "square": return CGPath(rect: CGRect(x: -r * 0.8, y: -r * 0.8, width: r * 1.6, height: r * 1.6), transform: nil)
+        case "spark": return KeyEffectShapes.star4(r, inner: r * 0.3)
+        case "star":
+            let p = CGMutablePath()
+            for k in 0..<10 {
+                let a = CGFloat(k) * .pi / 5 - .pi / 2
+                let rr = k % 2 == 0 ? r : r * 0.45
+                let pt = CGPoint(x: cos(a) * rr, y: sin(a) * rr)
+                if k == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
+            }
+            p.closeSubpath()
+            return p
+        default: return CGPath(ellipseIn: CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r), transform: nil)
+        }
+    }
+
+    /// Ảnh một ký tự (emoji giữ màu riêng; chữ thường tô `rgb`, nil = màu nhấn) — cache theo ký tự + màu.
+    private func glyphImage(_ g: String, rgb: UInt32?) -> CGImage? {
+        let key = g + "|" + String(rgb ?? 0)
+        if let i = glyphImages[key] { return i }
+        let i = Self.renderGlyph(g, color: rgb.map { UIColor(argb: $0) } ?? color, scale: UIScreen.main.scale)
+        glyphImages[key] = i
+        return i
+    }
+
+    static func renderGlyph(_ g: String, color: UIColor, scale: CGFloat) -> CGImage? {
+        let size: CGFloat = 48
+        let f = UIGraphicsImageRendererFormat()
+        f.scale = scale
+        f.opaque = false
+        let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 38), .foregroundColor: color]
+        let s = g as NSString
+        let sz = s.size(withAttributes: attrs)
+        return UIGraphicsImageRenderer(size: CGSize(width: size, height: size), format: f).image { _ in
+            s.draw(at: CGPoint(x: (size - sz.width) / 2, y: (size - sz.height) / 2), withAttributes: attrs)
+        }.cgImage
     }
 
     // MARK: Sàn nhảy LED
@@ -3439,6 +3662,7 @@ final class KeyEffectOverlay: UIView {
         shimmerClip?.removeFromSuperlayer()
         for g in grains { g.removeFromSuperlayer() }
         for d in dances { d.root.removeFromSuperlayer() }
+        clearThemeLayers()
         floorFlicker?.root.removeFromSuperlayer()
         sandPile?.removeFromSuperlayer()
         for w in seaWaves { w.root.removeFromSuperlayer() }
@@ -3639,6 +3863,18 @@ final class KeyEffectOverlay: UIView {
 }
 
 private extension UIColor {
+    /// "#AARRGGBB" (ThemeColorCode) ⇒ màu.
+    convenience init(argb v: UInt32) {
+        self.init(red: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255,
+                  blue: CGFloat(v & 0xFF) / 255, alpha: CGFloat(v >> 24) / 255)
+    }
+    /// Màu ⇒ ARGB (đục).
+    var argbValue: UInt32 {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        getRed(&r, green: &g, blue: &b, alpha: &a)
+        func ch(_ x: CGFloat) -> UInt32 { UInt32(max(0, min(255, (x * 255).rounded()))) }
+        return 0xFF00_0000 | ch(r) << 16 | ch(g) << 8 | ch(b)
+    }
     convenience init(rgb: UInt32) {
         self.init(red: CGFloat((rgb >> 16) & 0xFF) / 255, green: CGFloat((rgb >> 8) & 0xFF) / 255,
                   blue: CGFloat(rgb & 0xFF) / 255, alpha: 1)

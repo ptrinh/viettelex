@@ -49,7 +49,10 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     // Theme "AI" (11/2026): chữ vừa ra vỡ thành vài "token" phát sáng bay vào thanh gợi ý ([TokenStream]).
     TOKENS("tokens", "Token AI"), // l10n-key
     // Theme Neon Night Club (11/2026): Sàn nhảy LED — phím vừa bấm + các phím quanh thắp neon thành vòng vuông lan ra.
-    DANCEFLOOR("dancefloor", "Sàn nhảy LED"); // l10n-key
+    DANCEFLOOR("dancefloor", "Sàn nhảy LED"), // l10n-key
+    // Theme JSON (11/2026): "Theo giao diện" — hạt tự tạo trong "particles" của theme đang dùng ([ThemeFx]); theme không có
+    // ⇒ chùm sao mặc định ([ThemeParticles.FALLBACK]).
+    THEME("theme", "Theo giao diện"); // l10n-key
 
     val title: String get() = tr(viTitle)
 

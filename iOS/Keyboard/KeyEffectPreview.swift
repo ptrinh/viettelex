@@ -70,7 +70,8 @@ final class KeyEffectPreviewView: UIView {
 
     var keyFrame: CGRect { key.frame }
 
-    func update(effect e: KeyEffect, palette: KeyboardPalette, play: Int) {
+    /// `themeParticles`: "particles" của theme đang dùng — ô "Theo giao diện" xem thử đúng hạt đó (nil ⇒ chùm mặc định).
+    func update(effect e: KeyEffect, palette: KeyboardPalette, play: Int, themeParticles: ThemeParticles? = nil) {
         effect = e
         backgroundColor = palette.background?.ui ?? (palette.isDark ? UIColor(white: 0.16, alpha: 1)
                                                                     : UIColor(red: 0.82, green: 0.84, blue: 0.87, alpha: 1))
@@ -80,7 +81,8 @@ final class KeyEffectPreviewView: UIView {
         configureBeat(e)
         // Matrix / Mực loang / Sóng nước: dưới phím mẫu (như bàn phím thật).
         overlay = KeyEffectOverlay.install(e, color: palette.accent.alpha(1).ui, keyFill: palette.keyFill.ui,
-                                           dark: palette.isDark, in: self, keys: key, existing: overlay)
+                                           dark: palette.isDark, in: self, keys: key, existing: overlay,
+                                           themeFx: e == .theme ? ThemeFx(particles: themeParticles, keywords: nil) : nil)
         // Đầu vào giả — chỉ kiểu cần mới đọc (closure đọc khung lúc bắn ⇒ đúng cả khi ô đổi cỡ).
         overlay?.laserOrigin = { [weak self] in self.map { KeyEffectPreviewScript.spaceBar(in: $0.bounds) } }
         overlay?.tokenTarget = { [weak self] in self.map { KeyEffectPreviewScript.tokenTarget(in: $0.bounds) } }

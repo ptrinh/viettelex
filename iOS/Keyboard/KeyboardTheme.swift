@@ -1073,6 +1073,8 @@ struct ThemeSettings: Equatable {
         s.schedule = t.spec?.schedule   // lịch theo giờ đi nguyên (bản vá không có "schedule")
         s.tags = t.spec?.tags           // nhãn + bạn đồng hành đi nguyên (bản vá không có)
         s.buddy = t.spec?.buddy
+        s.particles = t.spec?.particles   // hạt / từ khoá tự tạo đi nguyên (bản vá không có)
+        s.keywords = t.spec?.keywords
         return s
     }
     func exportSpec(custom c: ThemeSpec) -> ThemeSpec {
@@ -1083,6 +1085,8 @@ struct ThemeSettings: Equatable {
         s.schedule = c.schedule
         s.tags = c.tags
         s.buddy = c.buddy
+        s.particles = c.particles
+        s.keywords = c.keywords
         return s
     }
     /// Ảnh nền chỉ bật khi có quyền Plus VÀ file tồn tại.

@@ -859,6 +859,8 @@ data class ThemeSettings(
     /** Tuỳ chỉnh nâng cao thực dùng: hết quyền Plus ⇒ mặc định (giá trị lưu giữ nguyên). */
     /** Đặc tả JSON của theme đang chọn (tự tạo, hoặc có sẵn — null với Hệ thống / Kính). iOS `selectedSpec`. */
     val selectedSpec: ThemeSpec? get() = custom ?: theme.spec
+    /** Đặc tả theme đang dùng sau cổng Plus (tự tạo, hoặc có sẵn) — null với Hệ thống / Kính. iOS `effectiveSpec`. */
+    val effectiveSpec: ThemeSpec? get() = effectiveCustom ?: effectiveTheme.spec
     val effectiveKeyStyle: KeyStyle get() = effectiveCustom?.let { effectiveStyleFor(it.id ?: "", it.typography) }
         ?: effectiveStyleFor(effectiveTheme)
     /** Như [effectiveKeyStyle] cho theme [t] bất kỳ (thẻ "Chọn giao diện" xem trước tuỳ chỉnh riêng). */
@@ -917,9 +919,11 @@ data class ThemeSettings(
     fun exportSpec(t: KeyboardTheme, baseLight: ThemePalette, baseDark: ThemePalette): ThemeSpec =
         ThemeSpec.export(t.id, t.spec?.nameVi ?: t.viTitle, t.spec?.nameEn ?: if (t == KeyboardTheme.GLASS) "Glass" else "System",
             styled(t, baseLight, false), styled(t, baseDark, true), effectiveStyleFor(t))
-            .copy(schedule = t.spec?.schedule, tags = t.spec?.tags, buddy = t.spec?.buddy)   // đi nguyên (bản vá không có)
+            .copy(schedule = t.spec?.schedule, tags = t.spec?.tags, buddy = t.spec?.buddy,   // đi nguyên (bản vá không có)
+                particles = t.spec?.particles, keywords = t.spec?.keywords)
     fun exportSpec(c: ThemeSpec): ThemeSpec = ThemeSpec.export(c.id, c.nameVi, c.nameEn, styledCustom(c, false),
-        styledCustom(c, true), effectiveStyleFor(c.id ?: "", c.typography)).copy(schedule = c.schedule, tags = c.tags, buddy = c.buddy)
+        styledCustom(c, true), effectiveStyleFor(c.id ?: "", c.typography)).copy(schedule = c.schedule, tags = c.tags, buddy = c.buddy,
+            particles = c.particles, keywords = c.keywords)
 
     fun toMap(): Map<String, Any> = mapOf(Keys.KEYBOARD_THEME to themeId, Keys.WALLPAPER_ENABLED to wallpaper,
         Keys.WALLPAPER_DIM to dim, Keys.WALLPAPER_BLUR to blur, Keys.WALLPAPER_VERSION to version,

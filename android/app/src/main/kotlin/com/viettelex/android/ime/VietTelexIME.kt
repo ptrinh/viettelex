@@ -377,11 +377,16 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val fx = if (setting == com.viettelex.keyboard.KeyEffect.NONE) setting else com.viettelex.keyboard.KeyEffectPolicy.active(
             setting, com.viettelex.keyboard.KeyEffectGate.allows(setting),
             powerSave = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true)
-        session.trackBoundaryWord = fx.needsBoundaryWord || root?.buddy != null
+        // Theme JSON: hạt ("Theo giao diện") + từ khoá tự tạo của theme đang dùng — theme không có ⇒ null (0 chi phí).
+        val themeFx = com.viettelex.keyboard.ThemeFx.make(th.settings.effectiveSpec)?.let {
+            com.viettelex.keyboard.ThemeFxPolicy.active(it, com.viettelex.keyboard.KeyEffectGate.allows(com.viettelex.keyboard.KeyEffect.THEME),
+                powerSave = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true)
+        }
+        session.trackBoundaryWord = fx.needsBoundaryWord || themeFx?.keywords != null || root?.buddy != null
         // Biển: mỗi con sóng mới một tiếng sóng vỗ (chỉ khi Âm thanh phím bật). Mẫu chỉ nạp khi Biển được chọn.
         val sea = fx == com.viettelex.keyboard.KeyEffect.SEA
         feedback.setSurfEnabled(sea)
-        if (fx == com.viettelex.keyboard.KeyEffect.NONE) {
+        if (fx == com.viettelex.keyboard.KeyEffect.NONE && themeFx?.keywords == null) {
             r.effects?.onSeaWave = null
             r.effects?.halt()
             r.effects?.shakeTarget = null
@@ -392,6 +397,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         }
         val v = r.effects ?: KeyEffectView(this, th.density)
         v.configure(fx, th.action, th.keyFill, th.dark)
+        v.setThemeFx(themeFx)
         // Rung combo: rung HÌNH hàng phím (translation) — Giảm chuyển động vẫn rung (như mọi hiệu ứng).
         v.shakeTarget = if (fx == com.viettelex.keyboard.KeyEffect.SHAKE) kb else null
         // Laser: tia bắn từ phím cách thật (khung đọc lúc bắn — đổi bàn số / ký hiệu vẫn đúng).
@@ -454,7 +460,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val c = com.viettelex.keyboard.BuddyPolicy.active(setting, com.viettelex.keyboard.BuddyGate.allows(setting))
         if (c == com.viettelex.keyboard.BuddyCharacter.OFF) {
             r.buddy = null; r.aiEye = null; st.buddyDp = 0f; keyboard?.eyeLook = null
-            session.trackBoundaryWord = r.effects?.effect?.needsBoundaryWord == true
+            session.trackBoundaryWord = r.effects?.wantsBoundaryWord == true
             return
         }
         val low = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true
@@ -467,7 +473,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             keyboard?.eyeLook = { x, y -> e.keyPressed(x, y) }
             r.buddyPlacement = placement
             st.buddyDp = placement.zoneWidth(StripGeometry.BUDDY_W.toDouble()).toFloat()
-            session.trackBoundaryWord = r.effects?.effect?.needsBoundaryWord == true
+            session.trackBoundaryWord = r.effects?.wantsBoundaryWord == true
             return
         }
         r.aiEye = null; keyboard?.eyeLook = null
@@ -550,6 +556,10 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     private fun fxBoundaryEmoji() {
         buddyBoundary()
         val fx = root?.effects ?: return
+        // Từ khoá tự tạo của theme ([com.viettelex.keyboard.ThemeFx]): nổ THÊM, cùng mọi hiệu ứng. Không có ⇒ null, không tra.
+        fx.themeFx?.keywords?.let { table ->
+            session.boundaryWord?.let { w -> table.lookup(w, session.boundaryPrev)?.let { fx.queueThemeKeyword(it) } }
+        }
         when (fx.effect) {
             com.viettelex.keyboard.KeyEffect.EMOJIWORD -> {
                 val w = session.boundaryWord ?: return

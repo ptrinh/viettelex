@@ -7284,9 +7284,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Đọc cài đặt lúc hiện (applyAppearance): kiểu + cổng Plus + nguồn điện thấp + giảm chuyển động.
     private func configureKeyEffects() {
         // Matrix / Mực loang / Sóng nước: dải DƯỚI phím (ngay dưới rowsContainer, trên nền / ảnh nền).
+        // Theme JSON: hạt ("Theo giao diện") + từ khoá tự tạo của theme đang dùng — theme không có ⇒ nil (0 chi phí).
         keyEffects = KeyEffectOverlay.install(KeyEffectPolicy.current(UserDefaultsProvider.shared),
                                               color: palette.accent.alpha(1).ui, keyFill: palette.keyFill.ui,
-                                              dark: palette.isDark, in: self, keys: rowsContainer, existing: keyEffects)
+                                              dark: palette.isDark, in: self, keys: rowsContainer, existing: keyEffects,
+                                              themeFx: ThemeFxPolicy.current(themeSettings.effectiveSpec))
         if keyEffects == nil { fxRect = nil }
         // Laser: tia bắn từ phím cách thật (khung đọc lúc bắn — đổi bàn số / ký hiệu vẫn đúng). Kiểu khác ⇒ nil.
         keyEffects?.laserOrigin = keyEffects?.effect == .laser ? { [weak self] in self?.spaceBarFrame() } : nil

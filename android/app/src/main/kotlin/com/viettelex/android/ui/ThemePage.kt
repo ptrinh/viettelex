@@ -306,7 +306,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
 
     if (pickingEffect) {
         KeyEffectPage(s.styledCurrent(s.basePaletteNow(dark) ?: systemPreviewPalette(ctx, s, dark), dark),
-            onOpenPlus = onOpenPlus, onBack = { pickingEffect = false })
+            onOpenPlus = onOpenPlus, onBack = { pickingEffect = false }, themeParticles = s.effectiveSpec?.particles)
         return
     }
 
