@@ -69,13 +69,13 @@ enum BuiltinThemesData {
       "dark": {"bg": "#2B1520", "key": "#472335", "special": "#5E2F46", "ink": "#FCDDE8", "accent": "#D94680"}
     },
     {
-      "v": 1, "id": "tet", "name": {"vi": "Tết", "en": "Lunar New Year"}, "sound": "phao", "effect": "blossom", "swipe": "stardust",
+      "v": 1, "id": "tet", "name": {"vi": "Tết", "en": "Lunar New Year"}, "sound": "phao", "effect": "keyword", "swipe": "stardust",
       "light": {"bg": "#8E1010", "key": "#B71C1C", "special": "#7A0D0D", "ink": "#FFD54F", "accent": "#F9A825",
                 "accentInk": "#7F0000", "fn": "#9C1414", "fnInk": "#FFCA28", "deco": {"motif": "mai", "color": "#33FFD54F"}},
       "dark": "same"
     },
     {
-      "v": 1, "id": "tetMai", "name": {"vi": "Tết mai vàng", "en": "Golden Apricot Tết"}, "sound": "phao", "effect": "blossom", "swipe": "stardust",
+      "v": 1, "id": "tetMai", "name": {"vi": "Tết mai vàng", "en": "Golden Apricot Tết"}, "sound": "phao", "effect": "keyword", "swipe": "stardust",
       "light": {"bg": "#FFF3D6", "key": "#FFFDF6", "special": "#F3D9A4", "ink": "#7A1414", "accent": "#C62828",
                 "fn": "#F6E2B3", "fnInk": "#B71C1C", "deco": {"motif": "mai", "color": "#CCE5A000"}},
       "dark": {"bg": "#2B1608", "key": "#47260F", "special": "#5E3418", "ink": "#FFE6A6", "accent": "#C62828",
@@ -119,13 +119,13 @@ enum BuiltinThemesData {
     },
     {
       "v": 1, "id": "rgb", "name": {"vi": "Gaming RGB", "en": "Gaming RGB"}, "corner": 30, "swipe": "rainbow",
-      "sound": "mechanical", "effect": "combo",
+      "sound": "mechanical", "effect": "glitch",
       "light": {"bg": "#0A0A0F", "key": "#15151C", "special": "#1F1F28", "ink": "#F2F2F7", "accent": "#7C4DFF",
                 "fn": "#101016", "fnInk": "#E0E0EA", "borderFx": "rainbow"},
       "dark": "same"
     },
     {
-      "v": 1, "id": "space", "name": {"vi": "Vũ trụ", "en": "Outer Space"}, "sound": "scifi", "effect": "meteor", "swipe": "stardust",
+      "v": 1, "id": "space", "name": {"vi": "Vũ trụ", "en": "Outer Space"}, "sound": "scifi", "effect": "plasma", "swipe": "stardust",
       "light": {"bg": "#070B1E", "key": "#141A33", "special": "#1C2445", "ink": "#E8ECFF", "accent": "#3D5AFE",
                 "fn": "#10162C", "fnInk": "#B8C4FF",
                 "deco": {"motif": "starfield", "color": "#5CFFFFFF", "density": 140}},

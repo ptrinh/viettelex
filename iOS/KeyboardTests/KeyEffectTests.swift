@@ -35,7 +35,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testIdsMatchAndroidAndDefaultIsNone() {
         // Cùng id với android/keyboard/.../KeyEffect.kt (sao lưu chéo nền tảng).
-        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string"])
+        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand"])
         XCTAssertEqual(KeyEffect.key, "keyEffect")
         XCTAssertEqual(KeyEffect.defaultValue, .none)
         XCTAssertEqual(KeyEffect.parse(nil), .none)
@@ -57,7 +57,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testBackupSpecWhitelistsIds() {
         let spec = BackupSettings.all.first { $0.key == KeyEffect.key }
-        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string"]))
+        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand"]))
     }
 
     func testTitlesBilingual() {
@@ -261,6 +261,13 @@ final class KeyEffectTests: XCTestCase {
                 case .lightning: XCTAssertEqual(topLayers, 3, "≤ 3 cú đánh dùng lại")
                 case .matrix: XCTAssertEqual(topLayers, 1, "một gốc Matrix")
                 case .string: XCTAssertEqual(topLayers, StringPluck.pool, "pool đoạn dây dùng lại")
+                case .plasma: XCTAssertEqual(topLayers, PlasmaArc.pool, "pool tia dùng lại")
+                case .laser: XCTAssertEqual(topLayers, LaserBeam.pool)
+                case .glitch: XCTAssertEqual(topLayers, GlitchFx.pool)
+                case .shake: XCTAssertEqual(topLayers, 0, "rung: không vẽ gì trên overlay")
+                case .sand: XCTAssertEqual(topLayers, SandPile.flying + 1, "pool hạt + một layer đống")
+                case .tone, .keyword, .letters:
+                    XCTAssertEqual(topLayers, 0, "chưa có sự kiện xếp hàng ⇒ phím thường không vẽ gì")
                 default:
                     XCTAssertEqual(o.debugBurstCount, e.burstSlots, e.rawValue)
                     XCTAssertEqual(topLayers, e.burstSlots, "chùm dùng lại, không mọc thêm layer")
@@ -972,5 +979,336 @@ extension KeyEffectTests {
         KeyEffectOverlay.match(o, to: host)
         XCTAssertEqual(o.convert(key, from: host), key, "gốc host đổi: overlay theo")
         XCTAssertEqual(o.frame, host.bounds)
+    }
+}
+
+// MARK: - Đợt 3 (11/2026): Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá, Chữ bay, Hạt cát.
+// Số tham chiếu GIỐNG HỆT android KeyEffectFx3Tests.
+extension KeyEffectTests {
+    private static let fx3: [KeyEffect] = [.plasma, .shake, .laser, .glitch, .tone, .keyword, .letters, .sand]
+
+    func testFx3ModelZeroCostHooks() {
+        for e in Self.fx3 {
+            XCTAssertTrue(e.isPlus, e.rawValue)
+            XCTAssertEqual(e.band, .aboveKeys, e.rawValue)
+            XCTAssertFalse(e.isParticle, e.rawValue)
+            XCTAssertEqual(e.particlesPerTap, 0)
+            XCTAssertNil(KeyEffectShapes.path(e))
+        }
+        XCTAssertEqual(KeyEffect.allCases.filter(\.needsComposeDiff), [.tone, .letters])
+        XCTAssertEqual(KeyEffect.allCases.filter(\.needsBoundaryWord), [.emojiword, .keyword])
+        XCTAssertEqual(KeyEffect.allCases.filter(\.isQueued), [.emojiword, .tone, .keyword, .letters])
+    }
+
+    // MARK: Dấu thanh
+
+    func testToneDetection() {
+        let cases: [(String, String, ToneFx)] = [
+            ("a", "á", .sac), ("ban", "bàn", .huyen), ("ca", "cả", .hoi), ("ma", "mã", .nga), ("ho", "họ", .nang),
+            ("hoa", "hoá", .sac), ("bá", "bà", .huyen), ("A", "Á", .sac), ("a", "a\u{301}", .sac),
+            ("a", "â", .hat), ("a", "ă", .hat), ("e", "ê", .hat), ("o", "ô", .hat), ("á", "ấ", .hat),
+            ("o", "ơ", .horn), ("u", "ư", .horn), ("tuong", "tương", .horn), ("d", "đ", .stroke), ("D", "Đ", .stroke),
+            ("tiê", "tiế", .sac), ("nguyen", "nguyễn", .nga),
+        ]
+        for (b, a, want) in cases { XCTAssertEqual(ToneMarks.detect(before: b, after: a), want, "\(b) → \(a)") }
+        for (b, a) in [("á", "as"), ("hoa", "hoan"), ("hóa", "hoá"), ("", "a"), ("a", ""), ("â", "âu"), ("đ", "đi"),
+                       ("tương", "tươn"), ("abc", "abcd")] {
+            XCTAssertNil(ToneMarks.detect(before: b, after: a), "\(b) → \(a)")
+        }
+    }
+
+    func testToneTrajectories() {
+        for i in 0..<ToneBurst.sparks {
+            let s = ToneBurst.trajectory(.sac, i); XCTAssertTrue(s.dx > 0 && s.dy < 0, "sắc lên-phải")
+            let h = ToneBurst.trajectory(.huyen, i); XCTAssertTrue(h.dx < 0 && h.dy > 0, "huyền xuống-trái")
+        }
+        XCTAssertGreaterThan(ToneBurst.trajectory(.nang, 0).dy, 0, "nặng rơi")
+        XCTAssertTrue(ToneBurst.easeIn(.nang)); XCTAssertTrue(ToneBurst.stretchesX(.nga))
+        for k in [ToneFx.hoi, .nga, .hat, .horn, .stroke] { XCTAssertLessThan(ToneBurst.trajectory(k, 0).dy, 0) }
+        for k in ToneFx.allCases {
+            XCTAssertFalse(ToneBurst.path(k).boundingBoxOfPath.isEmpty && k != .stroke, "\(k)")
+            for i in 0..<ToneBurst.count(k) {
+                let t = ToneBurst.trajectory(k, i)
+                XCTAssertLessThanOrEqual(hypot(t.dx, t.dy), 40); XCTAssertTrue((0.3...0.6).contains(t.duration))
+            }
+        }
+        XCTAssertEqual(ToneFx.allCases.count, 8)
+        let s0 = ToneBurst.trajectory(.sac, 0)
+        XCTAssertEqual(s0.dx, 9.2904, accuracy: 1e-3); XCTAssertEqual(s0.dy, -24.2835, accuracy: 1e-3)
+    }
+
+    // MARK: Từ khoá
+
+    func testKeywordTable() {
+        XCTAssertEqual(KeywordBursts.entries.map { "\($0.form):\($0.kind)" }.joined(separator: " "),
+                       "haha:laugh hihi:laugh hehe:laugh kkk:laugh yêu:love thương:love love:love giận:angry bực:angry "
+                       + "tết:tet năm mới:tet lì xì:tet lixi:tet")
+        let hit: [String: KeywordKind] = ["haha": .laugh, "hahaha": .laugh, "HIHI": .laugh, "kkkk": .laugh, "hehehe": .laugh,
+                                          "Yêu": .love, "thương!": .love, "LOVE": .love, "giận": .angry, "Bực": .angry,
+                                          "Tết": .tet, "tết,": .tet, "lixi": .tet]
+        for (w, k) in hit { XCTAssertEqual(KeywordBursts.lookup(word: w, prev: nil), k, w) }
+        for w in ["tet", "yeu", "thường", "thuong", "gian", "buc", "kk", "ha", "hah", "hahah", "", "!!", "khóc"] {
+            XCTAssertNil(KeywordBursts.lookup(word: w, prev: nil), w)
+        }
+        XCTAssertEqual(KeywordBursts.lookup(word: "mới", prev: "năm"), .tet, "chúc mừng năm mới")
+        XCTAssertEqual(KeywordBursts.lookup(word: "xì", prev: "lì"), .tet)
+        XCTAssertNil(KeywordBursts.lookup(word: "mới", prev: "mừng"))
+        XCTAssertNil(KeywordBursts.lookup(word: "moi", prev: "nam"))
+    }
+
+    func testKeywordParticlesCapped() {
+        XCTAssertEqual(KeywordKind.allCases.map { KeywordBursts.particles($0).count }, [3, 5, 5, 20])
+        for k in KeywordKind.allCases {
+            XCTAssertLessThanOrEqual(KeywordBursts.lifetime(k), 2)
+            for p in KeywordBursts.particles(k) {
+                XCTAssertLessThanOrEqual(abs(p.x0 + p.traj.dx) + abs(p.traj.sway), 90)
+                XCTAssertLessThanOrEqual(abs(p.y0 + p.traj.dy), 90)
+                if p.shape == .emoji { XCTAssertLessThan(Int(p.color), KeywordBursts.emojis(k).count) }
+            }
+        }
+        let tet = KeywordBursts.particles(.tet)
+        XCTAssertTrue(tet.contains { $0.shape == .cracker } && tet.contains { $0.shape == .spark }, "pháo đỏ nổ")
+        XCTAssertTrue(tet.filter { $0.shape == .paper }.allSatisfy { $0.traj.dy > 0 && $0.easeIn }, "xác pháo rơi")
+        XCTAssertTrue(tet.filter { $0.shape == .envelope }.allSatisfy { $0.traj.dy < 0 }, "lì xì bay lên")
+    }
+
+    // MARK: Rung combo
+
+    func testShakeRespectsReduceMotionAndCaps() {
+        for lv in -1...5 {
+            XCTAssertEqual(ShakeFx.amplitude(level: lv, reduceMotion: true), 0)
+            XCTAssertLessThanOrEqual(ShakeFx.amplitude(level: lv, reduceMotion: false), ShakeFx.max)
+        }
+        XCTAssertEqual(ShakeFx.max, 3)
+        XCTAssertEqual(ShakeFx.amplitude(level: 0, reduceMotion: false), 0)
+        var m = ComboMeter()
+        var lv = 0
+        for i in 0..<14 { lv = m.press(at: Double(i) * 0.1) }
+        XCTAssertEqual(lv, 3)
+        let amp = ShakeFx.amplitude(level: lv, reduceMotion: false)
+        for t in stride(from: -0.01, through: 0.2, by: 0.001) {
+            XCTAssertLessThanOrEqual(abs(ShakeFx.offsetX(t, amp: amp)), amp + 1e-9)
+            XCTAssertLessThanOrEqual(abs(ShakeFx.offsetY(t, amp: amp)), amp + 1e-9)
+        }
+        XCTAssertEqual(ShakeFx.offsetX(ShakeFx.duration, amp: amp), 0)
+        XCTAssertEqual(ShakeFx.offsetX(0.03, amp: 3), 3, accuracy: 1e-9)
+        XCTAssertEqual(ShakeFx.offsetX(0.015, amp: 1.5), 0.75, accuracy: 1e-9)
+    }
+
+    /// Rung trên bàn phím thật: chỉ animation cộng dồn trên layer hàng phím — khung (nhận chạm) không đổi, biên độ ≤ 3pt,
+    /// tự gỡ; Giảm chuyển động ⇒ không có animation.
+    @MainActor func testShakeOnKeyboardMovesDrawingOnlyAndRespectsReduceMotion() throws {
+        try withKeyboardFx(effect: "shake") { kb in
+            let o = try XCTUnwrap(kb.keyEffects)
+            XCTAssertTrue(o.shakeTarget === kb.debugRowsContainer)
+            let rows = kb.debugRowsContainer
+            let frame0 = rows.frame
+            o.reduceMotion = { true }
+            for _ in 0..<14 { o.emit(key: CGRect(x: 30, y: 120, width: 34, height: 42)); o.flush() }
+            XCTAssertNil(rows.layer.animation(forKey: KeyEffectOverlay.shakeKey), "Giảm chuyển động ⇒ không rung")
+            o.reduceMotion = { false }
+            o.emit(key: CGRect(x: 30, y: 120, width: 34, height: 42)); o.flush()
+            let a = try XCTUnwrap(rows.layer.animation(forKey: KeyEffectOverlay.shakeKey) as? CAKeyframeAnimation)
+            XCTAssertTrue(a.isAdditive)
+            XCTAssertTrue(a.isRemovedOnCompletion)
+            for v in a.values as? [NSValue] ?? [] {
+                XCTAssertLessThanOrEqual(abs(v.cgPointValue.x), CGFloat(ShakeFx.max) + 1e-6)
+                XCTAssertLessThanOrEqual(abs(v.cgPointValue.y), CGFloat(ShakeFx.max) + 1e-6)
+            }
+            XCTAssertEqual(rows.frame, frame0, "khung nhận chạm không đổi")
+            XCTAssertEqual(o.layer.sublayers?.count ?? 0, 0)
+            o.halt()
+            XCTAssertNil(rows.layer.animation(forKey: KeyEffectOverlay.shakeKey))
+        }
+    }
+
+    // MARK: Plasma / Laser / Glitch
+
+    func testPlasmaChainAndArcParity() {
+        var c = PlasmaChain()
+        XCTAssertFalse(c.press((10, 10), at: 1.0))
+        XCTAssertTrue(c.press((80, 20), at: 1.2)); XCTAssertEqual(c.prev.x, 10); XCTAssertEqual(c.prev.y, 10)
+        XCTAssertFalse(c.press((81, 21), at: 1.3), "cùng phím")
+        XCTAssertFalse(c.press((10, 10), at: 1.3 + PlasmaArc.chainWindow + 0.001), "nghỉ lâu")
+        for v in 0..<PlasmaArc.variants {
+            let pts = PlasmaArc.points(from: (0, 0), to: (100, 40), variant: v)
+            XCTAssertEqual(pts.count, PlasmaArc.segments + 1)
+            XCTAssertEqual(pts.last!.x, 100)
+            for (i, q) in pts.enumerated() {
+                let f = Double(i) / Double(PlasmaArc.segments)
+                XCTAssertLessThanOrEqual(hypot(q.x - 100 * f, q.y - 40 * f), PlasmaArc.maxJitter + 1e-9)
+            }
+        }
+        let p = PlasmaArc.points(from: (0, 0), to: (100, 0), variant: 3)
+        XCTAssertEqual(p[1].y, 2.0967, accuracy: 1e-4)
+        XCTAssertEqual(p[4].y, 3.5963, accuracy: 1e-4)
+        XCTAssertEqual(PlasmaArc.alpha(0), 1); XCTAssertEqual(PlasmaArc.alpha(PlasmaArc.duration), 0)
+    }
+
+    func testLaserAndGlitchParity() {
+        let space = CGRect(x: 100, y: 200, width: 200, height: 40)
+        XCTAssertFalse(LaserBeam.fires(space: space, key: CGPoint(x: 150, y: 220)))
+        XCTAssertTrue(LaserBeam.fires(space: space, key: CGPoint(x: 150, y: 120)))
+        XCTAssertEqual(LaserBeam.reach(0), 0); XCTAssertEqual(LaserBeam.reach(LaserBeam.travel), 1)
+        XCTAssertEqual(LaserBeam.alpha(0.01), 1); XCTAssertEqual(LaserBeam.alpha(LaserBeam.duration), 0)
+        XCTAssertEqual(GlitchFx.step(0), 0); XCTAssertEqual(GlitchFx.step(0.119), 3); XCTAssertEqual(GlitchFx.step(0.12), 4)
+        for v in 0..<GlitchFx.variants { for st in 0..<GlitchFx.steps {
+            for s in GlitchFx.slices(step: st, variant: v) {
+                XCTAssertGreaterThanOrEqual(s.y, 0); XCTAssertLessThanOrEqual(s.y + s.h, 1 + 1e-9)
+                XCTAssertLessThanOrEqual(abs(s.dx), 1)
+            }
+        } }
+        let g = GlitchFx.slices(step: 1, variant: 2).flatMap { [$0.y, $0.h, $0.dx] }
+        let want = [0.8370, 0.1115, 0.9431, 0.2958, 0.2180, -0.2651, 0.5173, 0.1869, -0.4911]
+        for (a, b) in zip(g, want) { XCTAssertEqual(a, b, accuracy: 1e-4) }
+    }
+
+    // MARK: Chữ bay / Hạt cát
+
+    func testFlyingLetterGlyph() {
+        XCTAssertEqual(FlyingLetters.glyph(before: "hoa", after: "hoá", typed: "s"), "á")
+        XCTAssertEqual(FlyingLetters.glyph(before: "hoan", after: "hoán", typed: "s"), "á")
+        XCTAssertEqual(FlyingLetters.glyph(before: "tuong", after: "tương", typed: "w"), "ơ")
+        XCTAssertEqual(FlyingLetters.glyph(before: "", after: "a", typed: "a"), "a")
+        XCTAssertEqual(FlyingLetters.glyph(before: "", after: "A", typed: "A"), "A")
+        XCTAssertEqual(FlyingLetters.glyph(before: "d", after: "đ", typed: "d"), "đ")
+        XCTAssertEqual(FlyingLetters.glyph(before: "á", after: "as", typed: "s"), "s")
+        XCTAssertEqual(FlyingLetters.glyph(before: "abc", after: "", typed: "."), ".")
+        XCTAssertEqual(FlyingLetters.glyph(before: "", after: "", typed: "😂"), "😂")
+        XCTAssertNil(FlyingLetters.glyph(before: "", after: "", typed: " "))
+        XCTAssertNil(FlyingLetters.glyph(before: "", after: "", typed: "ab"))
+        XCTAssertNil(FlyingLetters.glyph(before: "abc", after: "abc", typed: "x"))
+        XCTAssertNil(FlyingLetters.glyph(before: "", after: "", typed: nil))
+        for s in 0..<50 {
+            XCTAssertLessThanOrEqual(abs(FlyingLetters.drift(s)), 12); XCTAssertLessThanOrEqual(abs(FlyingLetters.spin(s)), 0.3)
+        }
+        XCTAssertEqual(FlyingLetters.drift(5), 5.2726, accuracy: 1e-4)
+        XCTAssertEqual(FlyingLetters.spin(5), 0.2413, accuracy: 1e-4)
+    }
+
+    func testSandPileCapsSlopeAndSinks() {
+        var p = SandPile(width: 390)
+        XCTAssertEqual(p.columns, 130)
+        XCTAssertTrue(p.isEmpty)
+        for _ in 0..<2000 { p.deposit(195) }
+        XCTAssertLessThanOrEqual(p.maxHeightNow, SandPile.maxHeight + 1e-9)
+        XCTAssertGreaterThan(p.heights[p.column(195) - 5], 0); XCTAssertGreaterThan(p.heights[p.column(195) + 5], 0)
+        for c in 1..<p.columns {
+            XCTAssertLessThanOrEqual(abs(p.heights[c] - p.heights[c - 1]), SandPile.slope + SandPile.grain + 1e-9)
+        }
+        for i in 0..<5000 { p.deposit(Double(i * 37 % 390)) }
+        XCTAssertLessThanOrEqual(p.maxHeightNow, SandPile.maxHeight + 1e-9, "trần — không che phím đáy")
+        XCTAssertEqual(SandPile.sinkFactor(idle: 0), 1)
+        XCTAssertEqual(SandPile.sinkFactor(idle: SandPile.idleAfter), 1)
+        XCTAssertEqual(SandPile.sinkFactor(idle: SandPile.idleAfter + SandPile.sinkTime / 2), 0.5, accuracy: 1e-9)
+        XCTAssertEqual(SandPile.sinkFactor(idle: SandPile.idleAfter + SandPile.sinkTime), 0)
+        p.scale(0.5); XCTAssertLessThanOrEqual(p.maxHeightNow, SandPile.maxHeight / 2 + 1e-9)
+        p.clear(); XCTAssertTrue(p.isEmpty)
+        XCTAssertEqual(SandPile.fallTime(200), sqrt(2 * 200 / 1800.0), accuracy: 1e-12)
+        XCTAssertEqual(p.column(-5), 0); XCTAssertEqual(p.column(1e6), 129)
+        XCTAssertEqual(SandPile.spread(1, seed: 4), -4.2766, accuracy: 1e-4)
+    }
+
+    // MARK: overlay — trong khung bàn phím (#151), trần, không bắn khi chưa có sự kiện
+
+    /// Host dời gốc bounds (khung cao tạm, #151): mọi layer của hiệu ứng đợt 3 nằm TRONG bàn phím (overlay cắt theo
+    /// bounds + cùng hệ toạ độ), số layer có trần.
+    @MainActor func testFx3OverlaysStayInsideKeyboardAndCapped() throws {
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 470))
+        host.bounds.origin.y = -180
+        let keysView = UIView(frame: host.bounds)
+        host.addSubview(keysView)
+        for e in Self.fx3 {
+            let o = try XCTUnwrap(KeyEffectOverlay.install(e, color: .systemPurple, keyFill: .white, in: host, keys: keysView,
+                                                           existing: nil))
+            XCTAssertEqual(o.frame, host.bounds, e.rawValue)
+            XCTAssertEqual(o.bounds.origin, host.bounds.origin, e.rawValue)
+            if e != .shake { XCTAssertTrue(o.clipsToBounds, "\(e.rawValue): cắt theo bàn phím") }
+            // Phím sát mép trên (y = 0 nội dung) và sát góc: chùm không được tràn.
+            let keys = [CGRect(x: 0, y: 0, width: 34, height: 42), CGRect(x: 356, y: 248, width: 34, height: 42),
+                        CGRect(x: 180, y: 120, width: 34, height: 42)]
+            for i in 0..<40 {
+                switch e {
+                case .tone: o.queueTone(ToneFx(rawValue: i % 8)!)
+                case .keyword: o.queueKeyword(KeywordKind(rawValue: i % 4)!)
+                case .letters: o.queueLetter("ế")
+                default: break
+                }
+                o.emit(key: keys[i % keys.count]); o.flush()
+            }
+            let roots = o.debugFx3Roots
+            switch e {
+            case .shake: XCTAssertTrue(roots.isEmpty)
+            case .plasma: XCTAssertEqual(roots.count, PlasmaArc.pool)
+            case .laser: XCTAssertEqual(roots.count, LaserBeam.pool)
+            case .glitch: XCTAssertEqual(roots.count, GlitchFx.pool)
+            case .tone: XCTAssertEqual(roots.count, ToneFx.allCases.count * ToneBurst.pool)
+            case .keyword: XCTAssertEqual(roots.count, KeywordKind.allCases.count * KeywordBursts.pool)
+            case .letters: XCTAssertEqual(roots.count, FlyingLetters.pool)
+            case .sand: XCTAssertEqual(roots.count, SandPile.flying + 1)
+            default: break
+            }
+            // Điểm phát (vị trí model của gốc) trong bàn phím.
+            for r in roots where !(r is CAShapeLayer && r === o.debugSandLayer) {
+                let pt = o.layer.convert(r.position, from: r.superlayer)
+                XCTAssertTrue(o.bounds.insetBy(dx: -1, dy: -1).contains(pt), "\(e.rawValue): \(pt) ngoài \(o.bounds)")
+            }
+            if e == .sand {
+                let l = try XCTUnwrap(o.debugSandLayer)
+                XCTAssertEqual(l.frame.maxY, o.bounds.maxY, accuracy: 0.5, "đống cát nằm sát đáy bàn phím")
+                XCTAssertLessThanOrEqual(l.frame.height, CGFloat(SandPile.maxHeight) + 1)
+            }
+            o.halt()
+            if e == .sand { XCTAssertTrue(o.debugSand?.isEmpty ?? true, "ẩn bàn phím ⇒ đống cát về 0") }
+            _ = KeyEffectOverlay.install(.none, color: .red, in: host, existing: o)
+        }
+    }
+
+    /// Hiệu ứng theo sự kiện: phím thường không hẹn gì; có sự kiện ⇒ bắn đúng một lần ở lượt kế.
+    @MainActor func testQueuedFx3FireOnlyWithEvent() throws {
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 260))
+        for e in [KeyEffect.tone, .keyword, .letters] {
+            let o = try XCTUnwrap(KeyEffectOverlay.install(e, color: .red, in: host, existing: nil))
+            o.emit(key: CGRect(x: 50, y: 100, width: 34, height: 42))
+            XCTAssertFalse(o.debugScheduled, "\(e.rawValue): không có sự kiện ⇒ không hẹn vẽ")
+            o.queueTone(.hoi); o.queueKeyword(.tet); o.queueLetter("ữ")
+            o.emit(key: CGRect(x: 50, y: 100, width: 34, height: 42))
+            XCTAssertTrue(o.debugScheduled)
+            o.flush()
+            XCTAssertEqual(o.debugFx3Roots.count, 1, e.rawValue)
+            if e == .letters { XCTAssertEqual(o.debugLetters.first?.string as? String, "ữ") }
+            o.emit(key: CGRect(x: 50, y: 100, width: 34, height: 42))
+            XCTAssertFalse(o.debugScheduled, "sự kiện đã dùng")
+            _ = KeyEffectOverlay.install(.none, color: .red, in: host, existing: o)
+        }
+    }
+
+    /// Hạt cát: hạt đáp ⇒ đống tăng (trần), path đống chỉ là MỘT layer; nghỉ ⇒ có animation lún; halt ⇒ sạch.
+    @MainActor func testSandAccumulatesThenSinks() throws {
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 260))
+        let o = try XCTUnwrap(KeyEffectOverlay.install(.sand, color: .red, in: host, existing: nil))
+        for i in 0..<300 { o.emit(key: CGRect(x: 180 + CGFloat(i % 5), y: 100, width: 34, height: 42)); o.flush(); o.debugLandSand() }
+        let s = try XCTUnwrap(o.debugSand)
+        XCTAssertFalse(s.isEmpty)
+        XCTAssertLessThanOrEqual(s.maxHeightNow, SandPile.maxHeight + 1e-9)
+        let l = try XCTUnwrap(o.debugSandLayer)
+        XCTAssertNotNil(l.path)
+        XCTAssertNotNil(l.animation(forKey: "sink"), "đặt sẵn animation lún sau khi nghỉ")
+        o.halt()
+        XCTAssertTrue(o.debugSand?.isEmpty ?? true)
+        XCTAssertNil(l.path)
+        XCTAssertNil(l.animation(forKey: "sink"))
+    }
+
+    /// Laser trên bàn phím thật: gốc tia là phím cách (khung phím cách theo toạ độ overlay).
+    @MainActor func testLaserOriginIsSpaceBar() throws {
+        try withKeyboardFx(effect: "laser") { kb in
+            let o = try XCTUnwrap(kb.keyEffects)
+            let s = try XCTUnwrap(o.laserOrigin?())
+            XCTAssertTrue(kb.bounds.contains(CGPoint(x: s.midX, y: s.minY)))
+            XCTAssertGreaterThan(s.width, 100, "phím cách rộng")
+            XCTAssertGreaterThan(s.minY, kb.bounds.midY, "phím cách ở nửa dưới")
+        }
+        try withKeyboardFx(effect: "plasma") { kb in XCTAssertNil(kb.keyEffects?.laserOrigin) }
     }
 }

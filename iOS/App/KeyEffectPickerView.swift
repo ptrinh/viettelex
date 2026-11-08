@@ -35,6 +35,7 @@ struct KeyEffectPickerView: View {
             } footer: {
                 Text(L("Hình nhỏ bay ra từ phím vừa bấm, theo màu nhấn của giao diện. Vẽ sau khi chữ đã vào ô nên không làm chậm gõ; tự tắt khi bật Chế độ nguồn điện thấp."))
                     + Text(" ") + Text(L("Matrix, Mực loang, Sóng nước chạy dưới phím; Matrix chỉ chạy khi đang gõ. Nháy sáng được giới hạn nhịp và độ sáng cho dịu mắt. Emoji theo chữ hiện khi vừa gõ xong từ như \"haha\", \"cảm ơn\", \"chúc mừng\"."))
+                    + Text(" ") + Text(L("Rung combo không rung khi bật Giảm chuyển động. Dấu thanh phản ứng theo dấu vừa bỏ; Từ khoá nổ pháo đỏ và lì xì khi gõ \"tết\", thả tim khi gõ \"yêu\"; Chữ bay thả đúng chữ vừa ra; Hạt cát đọng thành đống thấp ở đáy rồi tự tan."))
             }
         }
         .bottomBarScrollMargin()
@@ -129,11 +130,23 @@ final class KeyEffectPreviewView: UIView {
         // Matrix / Mực loang / Sóng nước: dưới phím mẫu (như bàn phím thật).
         overlay = KeyEffectOverlay.install(effect, color: palette.accent.alpha(1).ui, keyFill: palette.keyFill.ui,
                                            dark: palette.isDark, in: self, keys: key, existing: overlay)
+        // Laser: "phím cách" giả ở góc dưới trái ô xem thử.
+        overlay?.laserOrigin = effect == .laser ? { [weak self] in
+            guard let self else { return nil }
+            return CGRect(x: 6, y: self.bounds.height - 10, width: self.bounds.width * 0.3 - 6, height: 8)
+        } : nil
         if play != lastPlay {
             lastPlay = play
             layoutIfNeeded()
             if effect == .emojiword { overlay?.queueEmoji("😂") }   // như vừa gõ "haha" + dấu cách
-            if effect == .combo {
+            if effect == .tone { overlay?.queueTone(.sac) }
+            if effect == .keyword { overlay?.queueKeyword(.tet) }   // như vừa gõ "tết" + dấu cách
+            if effect == .letters { overlay?.queueLetter("ế") }
+            if effect == .plasma {
+                overlay?.emit(key: CGRect(x: bounds.width * 0.12, y: 12, width: 20, height: 20)); overlay?.flush()
+                overlay?.emit(key: CGRect(x: bounds.width * 0.78, y: 18, width: 20, height: 20)); overlay?.flush()
+            }
+            if effect == .combo || effect == .shake {
                 // Xem thử combo: một tràng phím nhanh ⇒ lên mức lửa cao nhất.
                 for _ in 0..<ComboMeter.thresholds[2] { overlay?.emit(key: key.frame); overlay?.flush() }
             }

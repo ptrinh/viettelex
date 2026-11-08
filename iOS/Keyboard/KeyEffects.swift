@@ -1,6 +1,7 @@
 // "Hiệu ứng khi bấm phím" (Plus, Phil 19/10/2026): Trái tim, Bong bóng, Gợn sóng,
 // Cánh hoa, Pháo hoa, Nháy sáng, Matrix, Tia sét, Emoji theo chữ, Hoa đào / mai, Lửa combo, Mực loang,
-// Sóng nước, Tuyết rơi, Sao băng, Đèn lồng, Sương ma, Rung dây; "Không" = mặc định. Song sinh android/keyboard/.../KeyEffect.kt (cùng khoá
+// Sóng nước, Tuyết rơi, Sao băng, Đèn lồng, Sương ma, Rung dây, Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá,
+// Chữ bay, Hạt cát; "Không" = mặc định. Song sinh android/keyboard/.../KeyEffect.kt (cùng khoá
 // `keyEffect`, cùng id, cùng quỹ đạo / cùng hàm thuần: tia sét, mảnh vỡ, combo, nháy sáng, emoji).
 //
 // Luật hiệu năng (feature-flags-perf-policy — gõ mượt là số 1):
@@ -26,6 +27,9 @@ enum KeyEffect: String, CaseIterable {
     case lantern, smoke
     // Theme Ghi-ta (10/2026): Rung dây — đoạn dây ở khe hàng gần phím rung sóng dừng rồi đứng yên (StringPluck).
     case string
+    // Đợt 3 (11/2026): tia plasma nối phím, rung combo, laser từ phím cách, glitch, dấu thanh, từ khoá (pháo đỏ / lì xì),
+    // chữ bay, hạt cát.
+    case plasma, shake, laser, glitch, tone, keyword, letters, sand
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -57,11 +61,26 @@ enum KeyEffect: String, CaseIterable {
         case .lantern: return L("Đèn lồng")
         case .smoke: return L("Sương ma")
         case .string: return L("Rung dây")
+        case .plasma: return L("Plasma")
+        case .shake: return L("Rung combo")
+        case .laser: return L("Laser")
+        case .glitch: return L("Glitch")
+        case .tone: return L("Dấu thanh")
+        case .keyword: return L("Từ khoá")
+        case .letters: return L("Chữ bay")
+        case .sand: return L("Hạt cát")
         }
     }
 
     /// Mọi kiểu trừ "Không" thuộc Plus.
     var isPlus: Bool { self != .none }
+
+    /// Chỉ bắn khi controller xếp sẵn sự kiện (từ vừa chốt / dấu vừa bỏ / chữ vừa ra): phím thường không hẹn vẽ gì.
+    var isQueued: Bool { self == .emojiword || self == .tone || self == .keyword || self == .letters }
+    /// Controller phải so từ đang soạn trước/sau phím — kiểu khác: không đọc gì (0 chi phí).
+    var needsComposeDiff: Bool { self == .tone || self == .letters }
+    /// Controller phải tra từ vừa chốt ở ranh giới.
+    var needsBoundaryWord: Bool { self == .emojiword || self == .keyword }
 
     /// Kiểu "hạt bay ra từ phím" (chùm hạt vector, quỹ đạo `trajectory`).
     static let particleCases: [KeyEffect] = [.heart, .bubble, .ripple, .petal, .firework, .blossom, .combo, .snow, .meteor,
@@ -645,6 +664,502 @@ enum EmojiWords {
     }
 }
 
+// MARK: - Đợt 3 (11/2026): Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá, Chữ bay, Hạt cát
+// Hàm thuần song sinh android KeyEffect.kt — CÙNG SỐ (test chéo hai nền tảng).
+
+/// LCG của FxRandom viết thẳng (không tạo struct): trạng thái đầu / kế / giá trị 0…1.
+@inline(__always) func fxSeed(_ seed: Int) -> UInt32 { UInt32(truncatingIfNeeded: seed) &* 2_654_435_761 &+ 1 }
+@inline(__always) func fxStep(_ st: UInt32) -> UInt32 { st &* 1_103_515_245 &+ 12345 }
+@inline(__always) func fxValue(_ st: UInt32) -> Double { Double((st >> 8) & 0xFFFF) / 65535 }
+
+/// "Plasma": tia điện tím nối phím TRƯỚC với phím vừa bấm — gõ nhanh thành chuỗi, mỗi tia tắt nhanh. Hai phím cách
+/// nhau quá `chainWindow` (hay cùng phím) ⇒ không nối, chỉ đốm lửa nhỏ tại phím.
+enum PlasmaArc {
+    static let chainWindow = 0.5
+    static let segments = 8
+    static let duration = 0.22
+    static let maxJitter = 9.0
+    /// Ngắn hơn (pt) ⇒ cùng phím: không nối.
+    static let minLength = 6.0
+    static let pool = 4
+    static let variants = 6
+    static let color: UInt32 = 0xB44CFF
+    static let core: UInt32 = 0xF3E0FF
+    static let sparkRadius = 7.0
+
+    /// `segments + 1` điểm từ p0 tới p1: lệch vuông góc tất định theo `variant`, bao sin (hai đầu đúng tâm phím).
+    static func points(from p0: (x: Double, y: Double), to p1: (x: Double, y: Double), variant: Int) -> [(x: Double, y: Double)] {
+        let dx = p1.x - p0.x, dy = p1.y - p0.y
+        let len = hypot(dx, dy)
+        let nx = len > 1e-9 ? -dy / len : 0, ny = len > 1e-9 ? dx / len : 0
+        let amp = min(maxJitter, len * 0.15)
+        var st = fxSeed(variant &* 7919 &+ 29)
+        var out: [(x: Double, y: Double)] = [p0]
+        out.reserveCapacity(segments + 1)
+        for i in 1..<segments {
+            let f = Double(i) / Double(segments)
+            st = fxStep(st)
+            let off = (fxValue(st) - 0.5) * 2 * amp * sin(f * .pi)
+            out.append((p0.x + dx * f + nx * off, p0.y + dy * f + ny * off))
+        }
+        out.append(p1)
+        return out
+    }
+
+    /// Độ mờ sau `dt` giây: giữ 30 % rồi tắt tuyến tính.
+    static func alpha(_ dt: Double) -> Double {
+        guard dt >= 0, dt < duration else { return 0 }
+        let f = dt / duration
+        return f < 0.3 ? 1 : 1 - (f - 0.3) / 0.7
+    }
+}
+
+/// Chuỗi Plasma: nhớ phím trước (toạ độ + giờ).
+struct PlasmaChain {
+    private(set) var prev: (x: Double, y: Double) = (0, 0)
+    private var lastP: (x: Double, y: Double) = (0, 0)
+    private var last = -Double.greatestFiniteMagnitude
+
+    /// Một phím tại `p` lúc `t` (giây): true ⇒ nối tia từ `prev`.
+    mutating func press(_ p: (x: Double, y: Double), at t: Double) -> Bool {
+        let link = t - last <= PlasmaArc.chainWindow && hypot(p.x - lastP.x, p.y - lastP.y) >= PlasmaArc.minLength
+        prev = lastP
+        lastP = p
+        last = t
+        return link
+    }
+    mutating func reset() { last = -Double.greatestFiniteMagnitude }
+}
+
+/// "Rung combo": gõ nhanh (mức ComboMeter ≥ 1) ⇒ hàng phím rung vài pt kiểu game, mạnh dần theo mức, trần `max`.
+/// Chỉ dời HÌNH (animation cộng dồn trên layer — khung nhận chạm của phím không đổi), ~0,18 s rồi tự gỡ.
+/// Giảm chuyển động ⇒ không rung.
+enum ShakeFx {
+    static let max = 3.0
+    static let amps: [Double] = [0, 1.5, 2.25, 3.0]
+    static let duration = 0.18
+    /// Khung hình (tỉ lệ biên độ) — dao động tắt dần, đầu/cuối 0.
+    static let xs: [Double] = [0, 1.0, -0.8, 0.55, -0.3, 0.1, 0]
+    static let ys: [Double] = [0, -0.5, 0.45, -0.3, 0.15, -0.05, 0]
+
+    /// Biên độ (pt) cho mức combo; Giảm chuyển động ⇒ 0.
+    static func amplitude(level: Int, reduceMotion: Bool) -> Double {
+        reduceMotion ? 0 : Swift.min(max, amps[Swift.min(Swift.max(level, 0), amps.count - 1)])
+    }
+
+    private static func sample(_ k: [Double], _ dt: Double, _ amp: Double) -> Double {
+        guard dt > 0, dt < duration, amp != 0 else { return 0 }
+        let x = dt / duration * Double(k.count - 1)
+        let i = Int(x)
+        return amp * (k[i] + (k[i + 1] - k[i]) * (x - Double(i)))
+    }
+    static func offsetX(_ dt: Double, amp: Double) -> Double { sample(xs, dt, amp) }
+    static func offsetY(_ dt: Double, amp: Double) -> Double { sample(ys, dt, amp) }
+}
+
+/// "Laser": tia mảnh sáng từ phím cách bắn lên phím vừa bấm, tắt nhanh.
+enum LaserBeam {
+    static let duration = 0.16
+    /// Thời gian đầu tia chạy từ phím cách tới phím.
+    static let travel = 0.04
+    static let color: UInt32 = 0xFF2D55
+    static let glowWidth = 4.0, coreWidth = 1.2
+    static let pool = 3
+    /// Không biết phím cách: gốc giữa đáy, cách đáy chừng này (pt).
+    static let fallbackInset = 4.0
+
+    /// Phím vừa bấm nằm trong phím cách ⇒ không bắn (tia dài 0).
+    static func fires(space: CGRect, key p: CGPoint) -> Bool { !space.contains(p) }
+    static func reach(_ dt: Double) -> Double { Swift.min(Swift.max(dt / travel, 0), 1) }
+    static func alpha(_ dt: Double) -> Double {
+        guard dt >= 0, dt < duration else { return 0 }
+        let f = dt / duration
+        return f < 0.25 ? 1 : 1 - (f - 0.25) / 0.75
+    }
+}
+
+/// "Glitch": phím vừa bấm nhiễu hình ~120 ms — lệch kênh màu (lục lam / hồng) + vài lát ngang lệch trái/phải, đổi
+/// mỗi `stepTime`. Chỉ lớp phủ (lát = màu phím), phím thật không bị đụng.
+enum GlitchFx {
+    static let duration = 0.12
+    static let stepTime = 0.03
+    static let steps = 4
+    static let slices = 3
+    static let maxShift = 4.0
+    static let split = 2.0
+    static let cyan: UInt32 = 0x00E5FF
+    static let magenta: UInt32 = 0xFF2BD6
+    static let pool = 2
+    static let variants = 8
+
+    /// Lát ở bước `step` (lần bấm `variant`): (đỉnh 0…1, cao 0…1, lệch −1…1).
+    static func slices(step: Int, variant: Int) -> [(y: Double, h: Double, dx: Double)] {
+        var st = fxSeed(variant &* 131 &+ step &* 17 &+ 5)
+        return (0..<slices).map { _ in
+            st = fxStep(st); let h = 0.08 + fxValue(st) * 0.14
+            st = fxStep(st); let y = fxValue(st) * (1 - h)
+            st = fxStep(st); let dx = fxValue(st) * 2 - 1
+            return (y, h, dx)
+        }
+    }
+    /// Bước sau `dt` giây; ≥ steps ⇒ hết.
+    static func step(_ dt: Double) -> Int { dt < 0 ? steps : Int((dt * 1000).rounded(.down)) / Int(stepTime * 1000) }
+    /// Lệch kênh màu bước `step`: bước lẻ một nửa.
+    static func split(step: Int) -> Double { step % 2 == 0 ? split : split / 2 }
+}
+
+/// Kiểu hình "Dấu thanh": 5 dấu thanh + mũ (â ê ô ă) / râu (ơ ư) / gạch đ. Thứ tự = Android ToneFx.
+enum ToneFx: Int, CaseIterable {
+    case sac, huyen, hoi, nga, nang, hat, horn, stroke
+}
+
+/// "Dấu thanh": so từ đang soạn TRƯỚC/SAU phím ⇒ dấu vừa bỏ. Bảng ký tự dựng một lần (tra không cấp phát); nhận cả
+/// dấu rời (U+0300…). Chỉ chạy khi chọn kiểu này.
+enum ToneMarks {
+    /// Mỗi hàng 6 ký tự: không dấu, sắc, huyền, hỏi, ngã, nặng.
+    private static let table = Array("aáàảãạăắằẳẵặâấầẩẫậeéèẻẽẹêếềểễệiíìỉĩịoóòỏõọôốồổỗộơớờởỡợuúùủũụưứừửữựyýỳỷỹỵ".unicodeScalars)
+    private static let bases = Array("aăâeêioôơuưy")
+    /// Mã: 3 bit thấp = dấu thanh (0…5), bit 3+ = 1 mũ / 2 râu / 3 gạch — cả chữ hoa.
+    private static let codes: [UInt32: UInt8] = {
+        var m: [UInt32: UInt8] = [0x301: 1, 0x300: 2, 0x309: 3, 0x303: 4, 0x323: 5, 0x302: 1 << 3, 0x306: 1 << 3, 0x31B: 2 << 3]
+        for (i, u) in table.enumerated() {
+            let mod: UInt8
+            switch bases[i / 6] {
+            case "ă", "â", "ê", "ô": mod = 1
+            case "ơ", "ư": mod = 2
+            default: mod = 0
+            }
+            let c = UInt8(i % 6) | (mod << 3)
+            m[u.value] = c
+            for up in String(u).uppercased().unicodeScalars { m[up.value] = c }
+        }
+        m[0x111] = 3 << 3; m[0x110] = 3 << 3        // đ Đ
+        return m
+    }()
+
+    static func code(_ u: Unicode.Scalar) -> Int { Int(codes[u.value] ?? 0) }
+
+    /// (dấu thanh 0…5, số mũ, số râu, số gạch).
+    static func summary(_ w: String) -> (tone: Int, hats: Int, horns: Int, strokes: Int) {
+        var tone = 0, hats = 0, horns = 0, strokes = 0
+        for u in w.unicodeScalars {
+            let c = code(u)
+            if c & 7 != 0 { tone = c & 7 }
+            switch c >> 3 { case 1: hats += 1; case 2: horns += 1; case 3: strokes += 1; default: break }
+        }
+        return (tone, hats, horns, strokes)
+    }
+
+    /// Dấu vừa bỏ khi từ đổi `before` → `after`; nil = không (gỡ dấu, chữ thường, ranh giới…).
+    static func detect(before: String, after: String) -> ToneFx? {
+        guard !after.isEmpty else { return nil }
+        let b = summary(before), a = summary(after)
+        if a.tone != 0 && a.tone != b.tone { return ToneFx(rawValue: a.tone - 1) }
+        if a.strokes > b.strokes { return .stroke }
+        if a.horns > b.horns { return .horn }
+        if a.hats > b.hats { return .hat }
+        return nil
+    }
+}
+
+/// Màu + quỹ đạo của "Dấu thanh" (pt, giây).
+enum ToneBurst {
+    static let sparks = 4
+    static let pool = 2      // mỗi kiểu dấu (dựng lười)
+    static func color(_ k: ToneFx) -> UInt32 {
+        switch k {
+        case .sac: return 0xFFC83D
+        case .huyen: return 0x4FC3F7
+        case .hoi: return 0xB388FF
+        case .nga: return 0x26C6DA
+        case .nang: return 0xFF7043
+        default: return 0xFFE082
+        }
+    }
+    static func count(_ k: ToneFx) -> Int { k == .sac || k == .huyen ? sparks : 1 }
+    static func stretchesX(_ k: ToneFx) -> Bool { k == .nga }
+    static func easeIn(_ k: ToneFx) -> Bool { k == .nang }
+    /// Hình vẽ bằng nét (móc hỏi, sóng ngã, mũ, râu, gạch); còn lại tô.
+    static func stroked(_ k: ToneFx) -> Bool { !(k == .sac || k == .huyen || k == .nang) }
+
+    /// Sắc: tia lửa lên-phải; huyền: xuống-trái; hỏi: móc xoáy; ngã: sóng giãn ngang; nặng: giọt rơi; mũ…: lấp lánh.
+    static func trajectory(_ k: ToneFx, _ i: Int) -> KeyEffectTrajectory {
+        switch k {
+        case .sac, .huyen:
+            let base = k == .sac ? -Double.pi / 4 : 3 * Double.pi / 4
+            let a = base + (Double(i) - 1.5) * 0.28
+            let d = 26.0 + Double(i % 2) * 8
+            return KeyEffectTrajectory(dx: cos(a) * d, dy: sin(a) * d, scaleFrom: 1, scaleTo: 0.4, rotation: 0, duration: 0.42)
+        case .hoi: return KeyEffectTrajectory(dx: 0, dy: -18, scaleFrom: 0.6, scaleTo: 1.3, rotation: -1.2, duration: 0.5)
+        case .nga: return KeyEffectTrajectory(dx: 0, dy: -10, scaleFrom: 0.6, scaleTo: 2.0, rotation: 0, duration: 0.5)
+        case .nang: return KeyEffectTrajectory(dx: 0, dy: 28, scaleFrom: 1, scaleTo: 0.8, rotation: 0, duration: 0.55)
+        default: return KeyEffectTrajectory(dx: 0, dy: -14, scaleFrom: 0.4, scaleTo: 1.4, rotation: 0, duration: 0.4)
+        }
+    }
+
+    /// Hình (pt quanh gốc) — y hệt Android buildFx3Paths.
+    static func path(_ k: ToneFx) -> CGPath {
+        let p = CGMutablePath()
+        switch k {
+        case .sac, .huyen: return KeyEffectShapes.star4(3.5, inner: 1)
+        case .hoi:
+            p.move(to: CGPoint(x: -3.5, y: -2.5))
+            p.addQuadCurve(to: CGPoint(x: 1, y: -6), control: CGPoint(x: -3, y: -6.5))
+            p.addQuadCurve(to: CGPoint(x: 3, y: -2), control: CGPoint(x: 4.5, y: -5))
+            p.addQuadCurve(to: CGPoint(x: 0, y: 1), control: CGPoint(x: 1.5, y: 0.5))
+            p.addLine(to: CGPoint(x: 0, y: 4))
+        case .nga:
+            p.move(to: CGPoint(x: -8, y: 1))
+            p.addQuadCurve(to: CGPoint(x: 0, y: 0), control: CGPoint(x: -4, y: -5))
+            p.addQuadCurve(to: CGPoint(x: 8, y: -1), control: CGPoint(x: 4, y: 5))
+        case .nang:
+            p.move(to: CGPoint(x: 0, y: -6))
+            p.addQuadCurve(to: CGPoint(x: 3.5, y: 2.5), control: CGPoint(x: 5, y: 0))
+            p.addQuadCurve(to: CGPoint(x: -3.5, y: 2.5), control: CGPoint(x: 0, y: 6.5))
+            p.addQuadCurve(to: CGPoint(x: 0, y: -6), control: CGPoint(x: -5, y: 0))
+            p.closeSubpath()
+        case .hat:
+            p.move(to: CGPoint(x: -5, y: 2.5)); p.addLine(to: CGPoint(x: 0, y: -2.5)); p.addLine(to: CGPoint(x: 5, y: 2.5))
+        case .horn:
+            p.move(to: CGPoint(x: -1, y: 3))
+            p.addQuadCurve(to: CGPoint(x: 3, y: -3), control: CGPoint(x: 4, y: 2))
+            p.addLine(to: CGPoint(x: 5, y: -4))
+        case .stroke:
+            p.move(to: CGPoint(x: -5, y: 0)); p.addLine(to: CGPoint(x: 5, y: 0))
+        }
+        return p
+    }
+}
+
+enum KeywordKind: Int, CaseIterable { case laugh, love, angry, tet }
+
+/// "Từ khoá": từ vừa chốt khớp bảng nhỏ ⇒ chùm hình theo nghĩa: cười (mặt cười), yêu (tim), giận (khói bốc), Tết
+/// (pháo đỏ nổ + xác pháo rơi + lì xì bay lên). Tra O(1) ở RANH GIỚI TỪ. Từ Việt khớp ĐÚNG dấu (không phân biệt hoa
+/// thường): "tết" ≠ "tet", "thương" ≠ "thường"; tiếng cười lặp ("hahaha", "kkkk") khớp theo đơn vị lặp. Lọc từ tục như
+/// Emoji theo chữ. Bảng y hệt Android KeywordBursts.
+enum KeywordBursts {
+    static let entries: [(form: String, kind: KeywordKind)] = [
+        ("haha", .laugh), ("hihi", .laugh), ("hehe", .laugh), ("kkk", .laugh),
+        ("yêu", .love), ("thương", .love), ("love", .love),
+        ("giận", .angry), ("bực", .angry),
+        ("tết", .tet), ("năm mới", .tet), ("lì xì", .tet), ("lixi", .tet),
+    ]
+    /// Tiếng cười lặp: (đơn vị, số lần tối thiểu).
+    static let laughUnits: [(unit: String, min: Int)] = [("ha", 2), ("hi", 2), ("he", 2), ("k", 3)]
+    private static let table: [String: KeywordKind] = Dictionary(entries.map { ($0.form, $0.kind) }, uniquingKeysWith: { a, _ in a })
+
+    private static func clean(_ s: String) -> String { s.trimmingCharacters(in: CharacterSet.letters.inverted).lowercased() }
+
+    static func isLaugh(_ w: String) -> Bool {
+        let cs = Array(w)
+        return laughUnits.contains { u in
+            let us = Array(u.unit)
+            guard cs.count >= us.count * u.min, cs.count % us.count == 0 else { return false }
+            return cs.indices.allSatisfy { cs[$0] == us[$0 % us.count] }
+        }
+    }
+
+    /// Kiểu chùm cho từ vừa chốt (từ liền trước `prev` — cụm 2 từ ưu tiên: "chúc mừng năm mới" ⇒ "năm mới").
+    static func lookup(word: String, prev: String?) -> KeywordKind? {
+        let w = clean(word)
+        guard !w.isEmpty, w.count <= 24 else { return nil }
+        let p = prev.map(clean)
+        if EmojiWords.blocked(w, prev: p) { return nil }
+        if let p, !p.isEmpty, let k = table[p + " " + w] { return k }
+        return table[w] ?? (isLaugh(w) ? .laugh : nil)
+    }
+
+    enum Shape { case emoji, heart, puff, cracker, spark, paper, envelope }
+
+    /// Một hạt: hình, màu (emoji: chỉ số trong `emojis`), điểm xuất phát lệch khỏi phím (pt), quỹ đạo, trễ (giây).
+    struct Particle {
+        var shape: Shape
+        var color: UInt32
+        var x0: Double, y0: Double
+        var traj: KeyEffectTrajectory
+        var delay: Double
+        var easeIn = false
+    }
+
+    static func emojis(_ k: KeywordKind) -> [String] {
+        switch k {
+        case .laugh: return ["😂", "🤣", "😆"]
+        case .angry: return ["😤"]
+        default: return []
+        }
+    }
+    static var allEmojis: [String] {
+        var seen = Set<String>(); return KeywordKind.allCases.flatMap(emojis).filter { seen.insert($0).inserted }
+    }
+
+    static let red: UInt32 = 0xE53935
+    static let gold: UInt32 = 0xFFC83D
+    static let crackerRise = 0.35
+    /// Số chùm xoay vòng mỗi kiểu (dựng lười).
+    static let pool = 2
+
+    private static let built: [[Particle]] = KeywordKind.allCases.map(build)
+    /// Các hạt của chùm — tất định, ≤ KeyEffectPool.cap; dựng một lần.
+    static func particles(_ k: KeywordKind) -> [Particle] { built[k.rawValue] }
+    static func lifetime(_ k: KeywordKind) -> Double { particles(k).map { $0.delay + $0.traj.duration }.max() ?? 0 }
+
+    private static func build(_ k: KeywordKind) -> [Particle] {
+        switch k {
+        case .laugh:
+            return (0..<3).map { i in
+                let t = Double(i) - 1
+                return Particle(shape: .emoji, color: UInt32(i), x0: 0, y0: 0,
+                                traj: KeyEffectTrajectory(dx: t * 24, dy: -(52 + (1 - abs(t)) * 12), scaleFrom: 0.6, scaleTo: 1.1,
+                                                          rotation: t * 0.3, duration: 1.0), delay: Double(i) * 0.06)
+            }
+        case .love:
+            let cols: [UInt32] = [0xFF3B6B, 0xFF7AA2, 0xE91E63]
+            return (0..<5).map { i in
+                let t = Double(i - 2) / 2
+                return Particle(shape: .heart, color: cols[i % 3], x0: 0, y0: 0,
+                                traj: KeyEffectTrajectory(dx: t * 30, dy: -(44 + Double(i % 3) * 8), scaleFrom: 0.5, scaleTo: 1.1,
+                                                          rotation: t * 0.3, duration: 0.95, sway: 5), delay: Double(i) * 0.04)
+            }
+        case .angry:
+            return [Particle(shape: .emoji, color: 0, x0: 0, y0: 0,
+                             traj: KeyEffectTrajectory(dx: 0, dy: -22, scaleFrom: 0.6, scaleTo: 1.2, rotation: 0, duration: 0.8), delay: 0)]
+                + (0..<4).map { i in
+                    let side: Double = i % 2 == 0 ? -1 : 1
+                    return Particle(shape: .puff, color: 0xB0B0B0, x0: side * 10, y0: -6,
+                                    traj: KeyEffectTrajectory(dx: side * (10 + Double(i) * 3), dy: -(30 + Double(i) * 4), scaleFrom: 0.5,
+                                                              scaleTo: 1.8, rotation: 0, duration: 0.8, sway: 3),
+                                    delay: 0.08 + Double(i) * 0.06)
+                }
+        case .tet:
+            var out: [Particle] = []
+            for c in 0..<2 {
+                let side: Double = c == 0 ? -1 : 1
+                let rise = 56.0 + Double(c) * 10
+                let start = Double(c) * 0.12
+                out.append(Particle(shape: .cracker, color: red, x0: side * 6, y0: 0,
+                                    traj: KeyEffectTrajectory(dx: side * 14, dy: -rise, scaleFrom: 1, scaleTo: 0.9, rotation: side * 0.4,
+                                                              duration: crackerRise), delay: start))
+                let px = side * 20, py = -rise
+                for s in 0..<5 {     // nổ: tia vàng / đỏ toả tròn ở đỉnh
+                    let a = Double(s) * 2 * .pi / 5 + Double(c) * 0.6
+                    out.append(Particle(shape: .spark, color: s % 2 == 0 ? gold : red, x0: px, y0: py,
+                                        traj: KeyEffectTrajectory(dx: cos(a) * 22, dy: sin(a) * 22, scaleFrom: 1, scaleTo: 0.4,
+                                                                  rotation: 0, duration: 0.45), delay: start + crackerRise))
+                }
+                for b in 0..<3 {     // xác pháo đỏ rơi, lắc, xoay
+                    let t = Double(b) - 1
+                    out.append(Particle(shape: .paper, color: red, x0: px, y0: py,
+                                        traj: KeyEffectTrajectory(dx: t * 18 + side * 6, dy: 44 + Double(b) * 12, scaleFrom: 1, scaleTo: 0.9,
+                                                                  rotation: t * 3 + side, duration: 1.0, sway: 6),
+                                        delay: start + crackerRise + 0.03, easeIn: true))
+                }
+            }
+            for e in 0..<2 {         // lì xì bay lên
+                let side: Double = e == 0 ? -1 : 1
+                out.append(Particle(shape: .envelope, color: red, x0: side * 4, y0: 0,
+                                    traj: KeyEffectTrajectory(dx: side * (20 + Double(e) * 8), dy: -(70 + Double(e) * 10), scaleFrom: 0.7,
+                                                              scaleTo: 1, rotation: side * 0.25, duration: 1.3, sway: 6),
+                                    delay: 0.1 + Double(e) * 0.15))
+            }
+            return out
+        }
+    }
+}
+
+/// "Chữ bay": ĐÚNG chữ vừa ra (kể cả dấu — lấy từ engine, không phải nhãn phím) bay lên từ phím, hơi xoay/lệch rồi mờ.
+enum FlyingLetters {
+    static let pool = 6
+    static let duration = 0.7
+    static let rise = 46.0
+    static let size = 22.0
+
+    /// Chữ vừa ra khi từ đang soạn đổi `before` → `after`: dài ra ⇒ ký tự cuối; cùng độ dài ⇒ ký tự cuối cùng KHÁC
+    /// ("hoan"+"s" ⇒ "á", "tuong"+"w" ⇒ "ơ"). Từ rỗng (ký hiệu) ⇒ `typed` nếu đúng một ký tự in được.
+    static func glyph(before: String, after: String, typed: String?) -> String? {
+        if !after.isEmpty {
+            guard after != before else { return nil }
+            let a = Array(after), b = Array(before)
+            var i = a.count - 1
+            if a.count == b.count { while i > 0 && a[i] == b[i] { i -= 1 } }
+            return String(a[i])
+        }
+        guard let t = typed, t.count == 1, !t.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return t
+    }
+
+    static func drift(_ seed: Int) -> Double { (fxValue(fxStep(fxSeed(seed &* 37 &+ 11))) - 0.5) * 24 }
+    static func spin(_ seed: Int) -> Double { (fxValue(fxStep(fxStep(fxSeed(seed &* 37 &+ 11)))) - 0.5) * 0.6 }
+}
+
+/// "Hạt cát": chạm phím ⇒ vài hạt rơi xuống đáy bàn phím rồi TÍCH LẠI thành đống thấp (mảng chiều cao theo cột — không
+/// mô phỏng hạt đã đáp). Trần `maxHeight`; ngừng gõ `idleAfter` ⇒ lún dần trong `sinkTime` rồi sạch; ẩn bàn phím ⇒ xoá.
+struct SandPile {
+    static let column = 3.0
+    static let grain = 0.6
+    static let maxHeight = 5.0
+    static let slope = 0.9
+    static let grainsPerTap = 3
+    static let grainSize = 1.8
+    static let gravity = 1800.0
+    static let idleAfter = 1.2
+    static let sinkTime = 1.5
+    static let color: UInt32 = 0xD9B26A
+    static let flying = 12
+
+    static func columns(for w: Double) -> Int { Swift.max(1, Int((Swift.max(w, 1) / column).rounded(.up))) }
+    static func fallTime(_ d: Double) -> Double { sqrt(2 * Swift.max(d, 0) / gravity) }
+    /// Hệ số còn lại sau `idle` giây không gõ: 1 tới idleAfter rồi giảm tuyến tính về 0 trong sinkTime.
+    static func sinkFactor(idle: Double) -> Double {
+        if idle <= idleAfter { return 1 }
+        if idle >= idleAfter + sinkTime { return 0 }
+        return 1 - (idle - idleAfter) / sinkTime
+    }
+    static func spread(_ i: Int, seed: Int) -> Double { (fxValue(fxStep(fxSeed(seed &* 53 &+ i &* 7 &+ 3))) - 0.5) * 16 }
+
+    let columns: Int
+    private(set) var heights: [Double]
+    init(width: Double) {
+        columns = Self.columns(for: width)
+        heights = [Double](repeating: 0, count: columns)
+    }
+
+    func column(_ x: Double) -> Int { Swift.min(Swift.max(Int(x / Self.column), 0), columns - 1) }
+    func surface(_ x: Double) -> Double { heights[column(x)] }
+    var isEmpty: Bool { heights.allSatisfy { $0 <= 1e-6 } }
+    var maxHeightNow: Double { heights.max() ?? 0 }
+
+    /// Một hạt đáp tại x: cột cao thêm `grain` (trần — đầy thì lăn sang cột thấp hơn), rồi sạt cho dốc ≤ slope.
+    mutating func deposit(_ x: Double) {
+        var c = column(x)
+        var guardN = 0
+        while heights[c] + Self.grain > Self.maxHeight {
+            let l = c > 0 ? heights[c - 1] : .greatestFiniteMagnitude
+            let r = c < columns - 1 ? heights[c + 1] : .greatestFiniteMagnitude
+            guardN += 1
+            if Swift.min(l, r) >= heights[c] || guardN > columns + 1 { return }
+            c = l <= r ? c - 1 : c + 1
+        }
+        heights[c] += Self.grain
+        relax(c)
+    }
+
+    private mutating func relax(_ start: Int) {
+        var c = start
+        for _ in 0..<columns {
+            let l = c > 0 ? heights[c] - heights[c - 1] : 0
+            let r = c < columns - 1 ? heights[c] - heights[c + 1] : 0
+            if l <= Self.slope && r <= Self.slope { return }
+            let n = l >= r ? c - 1 : c + 1
+            let move = (heights[c] - heights[n]) / 2
+            heights[c] -= move; heights[n] += move
+            c = n
+        }
+    }
+
+    mutating func scale(_ f: Double) { let k = Swift.min(Swift.max(f, 0), 1); for i in heights.indices { heights[i] *= k } }
+    mutating func clear() { for i in heights.indices { heights[i] = 0 } }
+}
+
 // MARK: - Overlay
 
 extension UIView {
@@ -721,6 +1236,38 @@ final class KeyEffectOverlay: UIView {
     private var matrixFading = false
     private var matrixGen = 0
     private var matrixBuiltFor: CGSize = .zero
+    // Đợt 3
+    private var arcs: [Arc] = []
+    private var arcPool = KeyEffectPool(capacity: PlasmaArc.pool)
+    private var plasma = PlasmaChain()
+    private var plasmaSeq = 0
+    /// Rung combo: layer hàng phím bị rung (install đặt = `keys`). Giảm chuyển động ⇒ không rung.
+    weak var shakeTarget: UIView?
+    var reduceMotion: () -> Bool = { UIAccessibility.isReduceMotionEnabled }
+    /// Laser: khung phím cách (toạ độ overlay) — nil ⇒ gốc giữa đáy.
+    var laserOrigin: (() -> CGRect?)?
+    private var beams: [Beam] = []
+    private var beamPool = KeyEffectPool(capacity: LaserBeam.pool)
+    private var glitches: [Glitch] = []
+    private var glitchPool = KeyEffectPool(capacity: GlitchFx.pool)
+    private var glitchSeq = 0
+    private var pendingTone: ToneFx?
+    private var toneRoots: [ToneFx: [CALayer]] = [:]
+    private var toneCursor: [ToneFx: Int] = [:]
+    private var pendingKeyword: KeywordKind?
+    private var keywordRoots: [KeywordKind: [CALayer]] = [:]
+    private var keywordCursor: [KeywordKind: Int] = [:]
+    private var pendingLetter: String?
+    private var letters: [CATextLayer] = []
+    private var letterPool = KeyEffectPool(capacity: FlyingLetters.pool)
+    private var sand: SandPile?
+    private var sandPile: CAShapeLayer?
+    private var grains: [CALayer] = []
+    private var grainPool = KeyEffectPool(capacity: SandPile.flying)
+    private var sandSeq = 0
+    private var sandLast: CFTimeInterval = -.greatestFiniteMagnitude
+    private var pendingLandings: [Double] = []
+    private var sandSweepScheduled = false
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -753,6 +1300,7 @@ final class KeyEffectOverlay: UIView {
         }
         let o = existing ?? KeyEffectOverlay(effect: effect, color: color, keyFill: keyFill, dark: dark)
         o.configure(effect: effect, color: color, keyFill: keyFill, dark: dark)
+        o.shakeTarget = effect == .shake ? keys : nil
         let below = effect.band == .belowKeys
         let placed: Bool = {
             guard o.superview === host else { return false }
@@ -789,11 +1337,14 @@ final class KeyEffectOverlay: UIView {
         rebuild()
     }
 
+    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand]
+
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
         // thứ tự subview (ngay dưới hàng phím, trên nền / ảnh nền).
         layer.zPosition = effect.band == .belowKeys ? 0 : 5
-        clipsToBounds = effect.band == .belowKeys || effect == .flash
+        // Đợt 3: cắt theo bàn phím — tia / pháo / chữ không bao giờ vẽ ra ngoài (#151).
+        clipsToBounds = effect.band == .belowKeys || effect == .flash || Self.clipped.contains(effect)
     }
 
     /// "Emoji theo chữ": controller tra bảng ở ranh giới từ (sau khi chốt) rồi xếp emoji — lần vẽ kế
@@ -801,6 +1352,23 @@ final class KeyEffectOverlay: UIView {
     func queueEmoji(_ e: String) {
         guard effect == .emojiword else { return }
         pendingEmoji = e
+    }
+
+    /// "Dấu thanh": controller so từ trước/sau phím (ToneMarks.detect) — lần vẽ kế bắn tại phím đó.
+    func queueTone(_ t: ToneFx) { if effect == .tone { pendingTone = t } }
+    /// "Từ khoá": controller tra bảng ở ranh giới từ — lần vẽ kế (phím ranh giới) bắn chùm.
+    func queueKeyword(_ k: KeywordKind) { if effect == .keyword { pendingKeyword = k } }
+    /// "Chữ bay": chữ vừa ra (FlyingLetters.glyph) — lần vẽ kế thả từ phím vừa bấm.
+    func queueLetter(_ g: String) { if effect == .letters { pendingLetter = g } }
+
+    private var hasQueued: Bool {
+        switch effect {
+        case .emojiword: return pendingEmoji != nil
+        case .tone: return pendingTone != nil
+        case .keyword: return pendingKeyword != nil
+        case .letters: return pendingLetter != nil
+        default: return true
+        }
     }
 
     /// Ghi điểm (toạ độ overlay) — vẽ ở lượt runloop kế, SAU khi phím đã chèn chữ.
@@ -812,7 +1380,7 @@ final class KeyEffectOverlay: UIView {
         let t0 = CACurrentMediaTime()
         defer { Self.debugCost += CACurrentMediaTime() - t0 }
         #endif
-        if effect == .emojiword && pendingEmoji == nil { return }   // không có emoji ⇒ không hẹn gì
+        if effect.isQueued && !hasQueued { return }   // Emoji / Dấu thanh / Từ khoá / Chữ bay: không có sự kiện ⇒ không hẹn gì
         if pending.count >= Self.maxPending { pending.removeFirst() }
         pending.append(r)
         guard !scheduled else { return }
@@ -829,7 +1397,7 @@ final class KeyEffectOverlay: UIView {
         scheduled = false
         guard !pending.isEmpty, effect != .none, window != nil || Self.drawsOffscreen else {
             pending.removeAll(keepingCapacity: true)
-            pendingEmoji = nil
+            pendingEmoji = nil; pendingTone = nil; pendingKeyword = nil; pendingLetter = nil
             return
         }
         CATransaction.begin()
@@ -839,6 +1407,15 @@ final class KeyEffectOverlay: UIView {
         if effect == .emojiword {
             if let e = pendingEmoji, let r = pending.last { fireEmoji(e, at: r, now: now) }
             pendingEmoji = nil
+        } else if effect == .tone {
+            if let t = pendingTone, let r = pending.last { fireTone(t, at: r, now: now) }
+            pendingTone = nil
+        } else if effect == .keyword {
+            if let k = pendingKeyword, let r = pending.last { fireKeyword(k, at: r, now: now) }
+            pendingKeyword = nil
+        } else if effect == .letters {
+            if let g = pendingLetter, let r = pending.last { fireLetter(g, at: r, now: now) }
+            pendingLetter = nil
         } else {
             for r in pending { fire(r, now: now, media: media) }
         }
@@ -852,6 +1429,11 @@ final class KeyEffectOverlay: UIView {
         CATransaction.setDisableActions(true)
         flashLayer?.frame = bounds
         matrixRoot?.frame = bounds
+        if let l = sandPile {
+            let f = CGRect(x: bounds.minX, y: bounds.maxY - CGFloat(SandPile.maxHeight) - 1,
+                           width: bounds.width, height: CGFloat(SandPile.maxHeight) + 1)
+            if l.frame != f, l.animation(forKey: "sink") == nil { l.frame = f }
+        }
         CATransaction.commit()
         if effect == .matrix, matrixClock.running, bounds.size != matrixBuiltFor { restartMatrixColumns() }
     }
@@ -895,6 +1477,15 @@ final class KeyEffectOverlay: UIView {
     var debugStringLayers: [CAShapeLayer] { strings }
     var debugStringAnimationCount: Int { strings.reduce(0) { $0 + ($1.animationKeys()?.count ?? 0) } }
     var debugStringAnimation: CAAnimationGroup { stringAnimation() }
+    /// Đợt 3: mọi layer gốc đã dựng (để kiểm trần + trong khung bàn phím) + trạng thái.
+    var debugFx3Roots: [CALayer] {
+        arcs.map(\.root) + beams.map(\.root) + glitches.map(\.root) + Array(toneRoots.values.joined())
+            + Array(keywordRoots.values.joined()) + letters + grains + (sandPile.map { [$0] } ?? [])
+    }
+    var debugSand: SandPile? { sand }
+    var debugSandLayer: CAShapeLayer? { sandPile }
+    func debugLandSand() { landSand() }
+    var debugLetters: [CATextLayer] { letters }
     #else
     static let drawsOffscreen = false
     #endif
@@ -904,7 +1495,12 @@ final class KeyEffectOverlay: UIView {
     private func fire(_ r: CGRect, now: CFTimeInterval, media: CFTimeInterval) {
         let c = CGPoint(x: r.midX, y: r.midY)
         switch effect {
-        case .none, .emojiword: return
+        case .none, .emojiword, .tone, .keyword, .letters: return
+        case .plasma: firePlasma(c, now: now, media: media)
+        case .shake: fireShake(media: media)
+        case .laser: fireLaser(c, now: now)
+        case .glitch: fireGlitch(r, now: now)
+        case .sand: fireSand(c, now: now, media: media)
         case .flash: fireFlash(now: now, media: media)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)
@@ -1269,8 +1865,456 @@ final class KeyEffectOverlay: UIView {
     /// Dừng mọi thứ chạy liên tục (ẩn bàn phím / đổi kiểu / gỡ).
     func halt() {
         haltMatrix()
-        pendingEmoji = nil
+        pendingEmoji = nil; pendingTone = nil; pendingKeyword = nil; pendingLetter = nil
         for l in strings { l.removeAllAnimations() }
+        shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey)
+        plasma.reset()
+        clearSand()                       // ẩn bàn phím ⇒ đống cát về 0
+    }
+
+    // MARK: Đợt 3 — Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá, Chữ bay, Hạt cát
+    // Cùng kiểu: layer dựng lười theo pool, animation gắn MỘT lần, bấm chỉ đặt hình/vị trí + beginTime.
+
+    private final class Arc {
+        let root = CALayer()
+        let glow = CAShapeLayer()
+        let core = CAShapeLayer()
+        let spark = CAShapeLayer()
+    }
+
+    private func firePlasma(_ c: CGPoint, now: CFTimeInterval, media: CFTimeInterval) {
+        let slot = arcPool.next()
+        let a: Arc
+        if slot < arcs.count { a = arcs[slot] } else { a = makeArc(); arcs.append(a) }
+        let link = plasma.press((Double(c.x), Double(c.y)), at: media)
+        if link {
+            plasmaSeq += 1
+            let p = CGMutablePath()
+            for (i, q) in PlasmaArc.points(from: plasma.prev, to: (Double(c.x), Double(c.y)),
+                                           variant: plasmaSeq % PlasmaArc.variants).enumerated() {
+                if i == 0 { p.move(to: CGPoint(x: q.x, y: q.y)) } else { p.addLine(to: CGPoint(x: q.x, y: q.y)) }
+            }
+            a.glow.path = p; a.core.path = p
+        } else {
+            a.glow.path = nil; a.core.path = nil
+        }
+        a.spark.position = c
+        a.root.beginTime = now
+        a.root.isHidden = false
+    }
+
+    private func makeArc() -> Arc {
+        let a = Arc()
+        a.root.bounds = .zero
+        a.root.position = .zero
+        a.root.isHidden = true
+        a.root.opacity = 0
+        for (l, w, c) in [(a.glow, CGFloat(5), UIColor(rgb: PlasmaArc.color).withAlphaComponent(0.5)),
+                          (a.core, CGFloat(1.5), UIColor(rgb: PlasmaArc.core))] {
+            l.fillColor = nil; l.strokeColor = c.cgColor; l.lineWidth = w
+            l.lineJoin = .round; l.lineCap = .round
+            a.root.addSublayer(l)
+        }
+        let r = CGFloat(PlasmaArc.sparkRadius)
+        a.spark.path = CGPath(ellipseIn: CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r), transform: nil)
+        a.spark.fillColor = UIColor(rgb: PlasmaArc.color).withAlphaComponent(0.45).cgColor
+        a.root.addSublayer(a.spark)
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        fade.values = [1, 1, 0]; fade.keyTimes = [0, 0.3, 1]
+        a.root.add(Self.group([fade], duration: PlasmaArc.duration, delay: 0), forKey: "fx")
+        layer.addSublayer(a.root)
+        return a
+    }
+
+    /// Rung combo: animation CỘNG DỒN trên layer hàng phím (model — khung nhận chạm — không đổi), tự gỡ khi xong.
+    private func fireShake(media: CFTimeInterval) {
+        let amp = ShakeFx.amplitude(level: combo.press(at: media), reduceMotion: reduceMotion())
+        guard amp > 0, let target = shakeTarget else { return }
+        let a = CAKeyframeAnimation(keyPath: "position")
+        a.isAdditive = true
+        a.values = zip(ShakeFx.xs, ShakeFx.ys).map { NSValue(cgPoint: CGPoint(x: $0 * amp, y: $1 * amp)) }
+        a.duration = ShakeFx.duration
+        a.isRemovedOnCompletion = true
+        target.layer.add(a, forKey: Self.shakeKey)
+    }
+    static let shakeKey = "fx.shake"
+
+    private final class Beam {
+        let root = CALayer()
+        let glow = CAShapeLayer()
+        let core = CAShapeLayer()
+        let flare = CAShapeLayer()
+    }
+
+    private func fireLaser(_ c: CGPoint, now: CFTimeInterval) {
+        let origin: CGPoint
+        if let s = laserOrigin?() {
+            guard LaserBeam.fires(space: s, key: c) else { return }
+            origin = CGPoint(x: s.midX, y: s.minY)
+        } else {
+            origin = CGPoint(x: bounds.midX, y: bounds.maxY - CGFloat(LaserBeam.fallbackInset))
+        }
+        let slot = beamPool.next()
+        let b: Beam
+        if slot < beams.count { b = beams[slot] } else { b = makeBeam(); beams.append(b) }
+        let p = CGMutablePath()
+        p.move(to: origin); p.addLine(to: c)
+        b.glow.path = p; b.core.path = p
+        b.flare.position = c
+        b.root.beginTime = now
+        b.root.isHidden = false
+    }
+
+    private func makeBeam() -> Beam {
+        let b = Beam()
+        b.root.bounds = .zero
+        b.root.position = .zero
+        b.root.isHidden = true
+        b.root.opacity = 0
+        let travel = LaserBeam.travel / LaserBeam.duration
+        for (l, w, c) in [(b.glow, CGFloat(LaserBeam.glowWidth), UIColor(rgb: LaserBeam.color).withAlphaComponent(0.55)),
+                          (b.core, CGFloat(LaserBeam.coreWidth), UIColor.white)] {
+            l.fillColor = nil; l.strokeColor = c.cgColor; l.lineWidth = w; l.lineCap = .round
+            let draw = CAKeyframeAnimation(keyPath: "strokeEnd")
+            draw.values = [0, 1, 1]; draw.keyTimes = [0, NSNumber(value: travel), 1]
+            l.add(Self.group([draw], duration: LaserBeam.duration, delay: 0), forKey: "fx")
+            b.root.addSublayer(l)
+        }
+        b.flare.path = CGPath(ellipseIn: CGRect(x: -6, y: -6, width: 12, height: 12), transform: nil)
+        b.flare.fillColor = UIColor(rgb: LaserBeam.color).withAlphaComponent(0.5).cgColor
+        b.flare.opacity = 0
+        let pop = CAKeyframeAnimation(keyPath: "opacity")
+        pop.values = [0, 0, 1, 0]; pop.keyTimes = [0, NSNumber(value: travel), NSNumber(value: travel + 0.01), 1]
+        b.flare.add(Self.group([pop], duration: LaserBeam.duration, delay: 0), forKey: "fx")
+        b.root.addSublayer(b.flare)
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        fade.values = [1, 1, 0]; fade.keyTimes = [0, 0.25, 1]
+        b.root.add(Self.group([fade], duration: LaserBeam.duration, delay: 0), forKey: "fx")
+        layer.addSublayer(b.root)
+        return b
+    }
+
+    /// Glitch: mỗi bước một nhóm (2 kênh màu + 3 lát) chỉ hiện trong 30 ms của nó — hình đặt mỗi lần bấm, animation gắn sẵn.
+    private final class Glitch {
+        let root = CALayer()
+        var steps: [(group: CALayer, cyan: CALayer, magenta: CALayer, slices: [CALayer])] = []
+    }
+
+    private func fireGlitch(_ r: CGRect, now: CFTimeInterval) {
+        let slot = glitchPool.next()
+        let g: Glitch
+        if slot < glitches.count { g = glitches[slot] } else { g = makeGlitch(); glitches.append(g) }
+        glitchSeq += 1
+        let size = r.size == .zero ? Self.defaultKeySize : r.size
+        let box = CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height)
+        for (k, st) in g.steps.enumerated() {
+            let sp = CGFloat(GlitchFx.split(step: k))
+            st.cyan.frame = box.offsetBy(dx: -sp, dy: 0)
+            st.magenta.frame = box.offsetBy(dx: sp, dy: 0)
+            for (i, s) in GlitchFx.slices(step: k, variant: glitchSeq % GlitchFx.variants).enumerated() where i < st.slices.count {
+                st.slices[i].frame = CGRect(x: box.minX + CGFloat(s.dx * GlitchFx.maxShift), y: box.minY + size.height * CGFloat(s.y),
+                                            width: size.width, height: size.height * CGFloat(s.h))
+            }
+        }
+        g.root.position = CGPoint(x: r.midX, y: r.midY)
+        g.root.beginTime = now
+        g.root.isHidden = false
+    }
+
+    private func makeGlitch() -> Glitch {
+        let g = Glitch()
+        g.root.bounds = .zero
+        g.root.isHidden = true
+        for k in 0..<GlitchFx.steps {
+            let grp = CALayer()
+            grp.opacity = 0                      // chỉ hiện trong khoảng của bước (animation không lấp hai đầu)
+            let cyan = CALayer(), magenta = CALayer()
+            for (l, c) in [(cyan, GlitchFx.cyan), (magenta, GlitchFx.magenta)] {
+                l.backgroundColor = UIColor(rgb: c).withAlphaComponent(0.32).cgColor
+                l.cornerRadius = 5
+                grp.addSublayer(l)
+            }
+            var slices: [CALayer] = []
+            for i in 0..<GlitchFx.slices {
+                let s = CALayer()
+                s.backgroundColor = keyFill.withAlphaComponent(0.95).cgColor
+                let line = CALayer()
+                line.backgroundColor = UIColor(rgb: i % 2 == 0 ? GlitchFx.cyan : GlitchFx.magenta).withAlphaComponent(0.8).cgColor
+                line.frame = CGRect(x: 0, y: 0, width: 400, height: 1)
+                s.masksToBounds = true
+                s.addSublayer(line)
+                grp.addSublayer(s)
+                slices.append(s)
+            }
+            let on = CABasicAnimation(keyPath: "opacity")
+            on.fromValue = 1; on.toValue = 1
+            on.duration = GlitchFx.stepTime
+            on.beginTime = Self.animBegin + Double(k) * GlitchFx.stepTime
+            on.fillMode = .removed
+            on.isRemovedOnCompletion = false
+            grp.add(on, forKey: "fx")
+            g.root.addSublayer(grp)
+            g.steps.append((grp, cyan, magenta, slices))
+        }
+        layer.addSublayer(g.root)
+        return g
+    }
+
+    /// Dấu thanh: mỗi kiểu dấu một pool nhỏ (dựng lười — chỉ kiểu đã gặp mới có layer).
+    private func fireTone(_ t: ToneFx, at r: CGRect, now: CFTimeInterval) {
+        var list = toneRoots[t] ?? []
+        let cur = toneCursor[t, default: 0]
+        toneCursor[t] = (cur + 1) % ToneBurst.pool
+        let root: CALayer
+        if cur < list.count { root = list[cur] } else { root = makeToneRoot(t); list.append(root); toneRoots[t] = list }
+        launch(root, at: Self.keyTop(r), now: now)
+    }
+
+    /// Điểm phát: mép trên phím (không vượt đỉnh overlay).
+    private static func keyTop(_ r: CGRect) -> CGPoint {
+        let h = r.size == .zero ? defaultKeySize.height : r.height
+        return CGPoint(x: r.midX, y: max(r.midY - h / 2 + 4, 0))
+    }
+
+    private func makeToneRoot(_ t: ToneFx) -> CALayer {
+        let b = CALayer()
+        b.bounds = .zero
+        b.isHidden = true
+        let path = ToneBurst.path(t)
+        let c = UIColor(rgb: ToneBurst.color(t))
+        for i in 0..<ToneBurst.count(t) {
+            let l = CAShapeLayer()
+            l.path = path
+            l.bounds = .zero
+            l.contentsScale = UIScreen.main.scale
+            if ToneBurst.stroked(t) {
+                l.fillColor = nil; l.strokeColor = c.cgColor; l.lineWidth = 2; l.lineCap = .round; l.lineJoin = .round
+            } else {
+                l.fillColor = c.cgColor
+            }
+            l.opacity = 0
+            l.add(Self.makeAnimation(ToneBurst.trajectory(t, i), easeIn: ToneBurst.easeIn(t),
+                                     scaleXOnly: ToneBurst.stretchesX(t)), forKey: "fx")
+            b.addSublayer(l)
+        }
+        layer.addSublayer(b)
+        return b
+    }
+
+    private func fireKeyword(_ k: KeywordKind, at r: CGRect, now: CFTimeInterval) {
+        var list = keywordRoots[k] ?? []
+        let cur = keywordCursor[k, default: 0]
+        keywordCursor[k] = (cur + 1) % KeywordBursts.pool
+        let root: CALayer
+        if cur < list.count { root = list[cur] } else { root = makeKeywordRoot(k); list.append(root); keywordRoots[k] = list }
+        launch(root, at: Self.keyTop(r), now: now)
+    }
+
+    private func makeKeywordRoot(_ k: KeywordKind) -> CALayer {
+        let b = CALayer()
+        b.bounds = .zero
+        b.isHidden = true
+        let ems = KeywordBursts.emojis(k)
+        for p in KeywordBursts.particles(k) {
+            let l: CALayer
+            switch p.shape {
+            case .emoji:
+                l = CALayer()
+                l.bounds = CGRect(x: 0, y: 0, width: 30, height: 30)
+                l.contentsGravity = .resizeAspect
+                if Int(p.color) < ems.count { l.contents = emojiImage(ems[Int(p.color)]) }
+            default:
+                let s = CAShapeLayer()
+                s.bounds = .zero
+                s.contentsScale = UIScreen.main.scale
+                s.fillColor = UIColor(rgb: p.color).cgColor
+                switch p.shape {
+                case .heart: s.path = KeyEffectShapes.heart(8)
+                case .spark: s.path = KeyEffectShapes.star4(3.5, inner: 1.1)
+                case .puff:
+                    s.path = CGPath(ellipseIn: CGRect(x: -6, y: -6, width: 12, height: 12), transform: nil)
+                    s.fillColor = UIColor(rgb: p.color).withAlphaComponent(0.7).cgColor
+                case .paper: s.path = CGPath(rect: CGRect(x: -1.5, y: -2.5, width: 3, height: 5), transform: nil)
+                case .cracker:
+                    s.path = CGPath(roundedRect: CGRect(x: -2.5, y: -5.5, width: 5, height: 11), cornerWidth: 1, cornerHeight: 1, transform: nil)
+                    let band = CAShapeLayer()
+                    band.path = CGPath(rect: CGRect(x: -2.5, y: -1, width: 5, height: 2), transform: nil)
+                    band.fillColor = UIColor(rgb: KeywordBursts.gold).cgColor
+                    s.addSublayer(band)
+                case .envelope:
+                    s.path = CGPath(roundedRect: CGRect(x: -6, y: -8, width: 12, height: 16), cornerWidth: 1.5, cornerHeight: 1.5, transform: nil)
+                    let seal = CAShapeLayer()
+                    seal.path = CGPath(ellipseIn: CGRect(x: -2.6, y: -3.6, width: 5.2, height: 5.2), transform: nil)
+                    seal.fillColor = UIColor(rgb: KeywordBursts.gold).cgColor
+                    s.addSublayer(seal)
+                case .emoji: break
+                }
+                l = s
+            }
+            l.position = CGPoint(x: p.x0, y: p.y0)
+            l.opacity = 0
+            l.add(Self.makeAnimation(p.traj, easeIn: p.easeIn, delay: p.delay, hiddenBefore: true), forKey: "fx")
+            b.addSublayer(l)
+        }
+        layer.addSublayer(b)
+        return b
+    }
+
+    private func fireLetter(_ g: String, at r: CGRect, now: CFTimeInterval) {
+        let slot = letterPool.next()
+        let l: CATextLayer
+        if slot < letters.count { l = letters[slot] } else { l = makeLetter(slot); letters.append(l) }
+        l.string = g
+        let p = Self.keyTop(r)
+        l.position = CGPoint(x: p.x, y: p.y)
+        l.beginTime = now
+        l.isHidden = false
+    }
+
+    private func makeLetter(_ seed: Int) -> CATextLayer {
+        let l = CATextLayer()
+        let s = CGFloat(FlyingLetters.size)
+        l.bounds = CGRect(x: 0, y: 0, width: s * 2, height: s * 1.3)
+        l.font = UIFont.boldSystemFont(ofSize: s)
+        l.fontSize = s
+        l.alignmentMode = .center
+        l.contentsScale = UIScreen.main.scale
+        l.foregroundColor = color.cgColor
+        l.isHidden = true
+        l.opacity = 0
+        let t = KeyEffectTrajectory(dx: FlyingLetters.drift(seed), dy: -FlyingLetters.rise, scaleFrom: 0.8, scaleTo: 1.2,
+                                    rotation: FlyingLetters.spin(seed), duration: FlyingLetters.duration)
+        l.add(Self.makeAnimation(t, fadeAt: 0.4), forKey: "fx")
+        layer.addSublayer(l)
+        return l
+    }
+
+    // Hạt cát
+
+    private func fireSand(_ c: CGPoint, now: CFTimeInterval, media: CFTimeInterval) {
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        if sand?.columns != SandPile.columns(for: Double(bounds.width)) { sand = SandPile(width: Double(bounds.width)) }
+        let pileLayer = sandLayer()
+        // Đang lún dở ⇒ chốt mức lún hiện tại vào đống rồi gõ tiếp từ đó.
+        let k = SandPile.sinkFactor(idle: media - sandLast)
+        if k < 1 {
+            if k <= 0 { sand?.clear() } else { sand?.scale(k) }
+            updateSandPath()
+        }
+        sandLast = media
+        sandSeq += 1
+        var maxFall = 0.0
+        var landing: [Double] = []
+        for i in 0..<SandPile.grainsPerTap {
+            let slot = grainPool.next()
+            let g: CALayer
+            if slot < grains.count { g = grains[slot] } else { g = makeGrain(); grains.append(g) }
+            let x = min(max(Double(c.x) + SandPile.spread(i, seed: sandSeq), 0), Double(bounds.width) - 1)
+            let floorY = Double(bounds.maxY) - (sand?.surface(x) ?? 0)
+            let fall = SandPile.fallTime(floorY - Double(c.y))
+            maxFall = max(maxFall, fall)
+            let drop = CABasicAnimation(keyPath: "position.y")
+            drop.fromValue = c.y; drop.toValue = floorY
+            drop.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            let show = CABasicAnimation(keyPath: "opacity")
+            show.fromValue = 1; show.toValue = 1
+            let grp = CAAnimationGroup()
+            grp.animations = [drop, show]
+            grp.duration = max(fall, 0.01); drop.duration = grp.duration; show.duration = grp.duration
+            grp.isRemovedOnCompletion = true
+            g.position = CGPoint(x: x, y: floorY)
+            g.add(grp, forKey: "fx")
+            landing.append(x)
+        }
+        pendingLandings += landing
+        // MỘT hẹn giờ cho cả lượt hạt: đáp ⇒ ghi vào mảng chiều cao + vẽ lại đống (một path).
+        DispatchQueue.main.asyncAfter(deadline: .now() + maxFall) { [weak self] in self?.landSand() }
+        // Lún: animation co dọc đống bắt đầu sau idleAfter (đặt lại mỗi lần gõ), một lần dọn khi hết.
+        let sink = CABasicAnimation(keyPath: "transform.scale.y")
+        sink.fromValue = 1; sink.toValue = 0
+        sink.beginTime = pileLayer.convertTime(media, from: nil) + SandPile.idleAfter
+        sink.duration = SandPile.sinkTime
+        sink.fillMode = .both
+        sink.isRemovedOnCompletion = false
+        pileLayer.add(sink, forKey: "sink")
+        scheduleSandSweep(after: SandPile.idleAfter + SandPile.sinkTime + 0.05)
+        _ = now
+    }
+
+    private func landSand() {
+        guard !pendingLandings.isEmpty, sand != nil else { pendingLandings.removeAll(); return }
+        for x in pendingLandings { sand?.deposit(x) }
+        pendingLandings.removeAll(keepingCapacity: true)
+        updateSandPath()
+    }
+
+    private func scheduleSandSweep(after s: Double) {
+        guard !sandSweepScheduled else { return }
+        sandSweepScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + s) { [weak self] in self?.sweepSand() }
+    }
+
+    private func sweepSand() {
+        sandSweepScheduled = false
+        let left = SandPile.idleAfter + SandPile.sinkTime + 0.05 - (CACurrentMediaTime() - sandLast)
+        if left > 0 { scheduleSandSweep(after: left); return }
+        clearSand()
+    }
+
+    private func clearSand() {
+        sand?.clear()
+        pendingLandings.removeAll()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        sandPile?.removeAllAnimations()
+        sandPile?.path = nil
+        for g in grains { g.removeAllAnimations() }
+        CATransaction.commit()
+    }
+
+    private func sandLayer() -> CAShapeLayer {
+        if let l = sandPile { return l }
+        let l = CAShapeLayer()
+        l.fillColor = UIColor(rgb: SandPile.color).withAlphaComponent(0.92).cgColor
+        l.anchorPoint = CGPoint(x: 0.5, y: 1)
+        l.frame = CGRect(x: bounds.minX, y: bounds.maxY - CGFloat(SandPile.maxHeight) - 1,
+                         width: bounds.width, height: CGFloat(SandPile.maxHeight) + 1)
+        l.actions = ["path": NSNull(), "position": NSNull(), "bounds": NSNull()]
+        layer.addSublayer(l)
+        sandPile = l
+        return l
+    }
+
+    /// Path đống cát (toạ độ layer đống: đáy = bounds.maxY) — dựng lại chỉ khi đống đổi.
+    private func updateSandPath() {
+        guard let l = sandPile, let s = sand else { return }
+        if s.isEmpty { l.path = nil; return }
+        let h = l.bounds.height
+        let w = CGFloat(SandPile.column)
+        let p = CGMutablePath()
+        p.move(to: CGPoint(x: 0, y: h))
+        for (c, v) in s.heights.enumerated() {
+            let y = h - CGFloat(v)
+            p.addLine(to: CGPoint(x: CGFloat(c) * w, y: y))
+            p.addLine(to: CGPoint(x: CGFloat(c + 1) * w, y: y))
+        }
+        p.addLine(to: CGPoint(x: CGFloat(s.columns) * w, y: h))
+        p.closeSubpath()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        l.path = p
+        CATransaction.commit()
+    }
+
+    private func makeGrain() -> CALayer {
+        let g = CALayer()
+        let d = CGFloat(SandPile.grainSize)
+        g.bounds = CGRect(x: 0, y: 0, width: d, height: d)
+        g.cornerRadius = d / 2
+        g.backgroundColor = UIColor(rgb: SandPile.color).cgColor
+        g.opacity = 0                 // chỉ hiện khi đang rơi (animation tự gỡ)
+        layer.addSublayer(g)
+        return g
     }
 
     // MARK: dựng
@@ -1395,6 +2439,14 @@ final class KeyEffectOverlay: UIView {
         for b in bursts { b.removeFromSuperlayer() }
         for s in strikes { s.root.removeFromSuperlayer() }
         for l in strings { l.removeFromSuperlayer() }
+        for a in arcs { a.root.removeFromSuperlayer() }
+        for b in beams { b.root.removeFromSuperlayer() }
+        for g in glitches { g.root.removeFromSuperlayer() }
+        for l in toneRoots.values.joined() { l.removeFromSuperlayer() }
+        for l in keywordRoots.values.joined() { l.removeFromSuperlayer() }
+        for l in letters { l.removeFromSuperlayer() }
+        for g in grains { g.removeFromSuperlayer() }
+        sandPile?.removeFromSuperlayer()
         flashLayer?.removeFromSuperlayer()
         matrixRoot?.removeFromSuperlayer()
         CATransaction.commit()
@@ -1402,6 +2454,15 @@ final class KeyEffectOverlay: UIView {
         strikes.removeAll()
         strings.removeAll()
         stringPool = KeyEffectPool(capacity: StringPluck.pool)
+        arcs.removeAll(); arcPool = KeyEffectPool(capacity: PlasmaArc.pool); plasma.reset()
+        beams.removeAll(); beamPool = KeyEffectPool(capacity: LaserBeam.pool)
+        glitches.removeAll(); glitchPool = KeyEffectPool(capacity: GlitchFx.pool)
+        toneRoots.removeAll(); toneCursor.removeAll()
+        keywordRoots.removeAll(); keywordCursor.removeAll()
+        letters.removeAll(); letterPool = KeyEffectPool(capacity: FlyingLetters.pool)
+        grains.removeAll(); grainPool = KeyEffectPool(capacity: SandPile.flying)
+        sandPile = nil; sand = nil; pendingLandings.removeAll()
+        if effect != .shake { shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey) }
         stringAnim = nil
         flashLayer = nil
         matrixRoot = nil
@@ -1415,7 +2476,7 @@ final class KeyEffectOverlay: UIView {
         glows = effect.usesGlow
             ? effect.fixedColors.compactMap { Self.renderGlow(effect, rgb: $0, scale: UIScreen.main.scale) } : []
         if effect != .matrix { matrixStrips = [] }
-        if effect != .emojiword { emojiImages = [:] }
+        if effect != .emojiword && effect != .keyword { emojiImages = [:] }
         prewarm()
     }
 
@@ -1434,12 +2495,14 @@ final class KeyEffectOverlay: UIView {
                     }
                 }
             }
-        case .emojiword where emojiImages.isEmpty:
+        case .emojiword where emojiImages.isEmpty, .keyword where emojiImages.isEmpty:
+            let want = effect
+            let list = effect == .keyword ? KeywordBursts.allEmojis : EmojiWords.distinctEmojis
             DispatchQueue.global(qos: .utility).async { [weak self] in
                 var imgs: [String: CGImage] = [:]
-                for e in EmojiWords.distinctEmojis { imgs[e] = Self.renderEmoji(e, scale: scale) }
+                for e in list { imgs[e] = Self.renderEmoji(e, scale: scale) }
                 DispatchQueue.main.async {
-                    guard let self, self.effect == .emojiword else { return }
+                    guard let self, self.effect == want else { return }
                     self.emojiImages.merge(imgs) { a, _ in a }
                 }
             }
@@ -1533,18 +2596,26 @@ final class KeyEffectOverlay: UIView {
         return g
     }
 
-    private static func makeAnimation(_ t: KeyEffectTrajectory) -> CAAnimationGroup {
+    /// `easeIn`: rơi nhanh dần (giọt nặng, xác pháo); `scaleXOnly`: giãn ngang (sóng ngã); `delay`: trễ trong chùm;
+    /// `hiddenBefore`: vô hình tới lúc bắt đầu (hạt trễ); `fadeAt`: bắt đầu mờ (tỉ lệ thời gian).
+    private static func makeAnimation(_ t: KeyEffectTrajectory, easeIn: Bool = false, scaleXOnly: Bool = false,
+                                      delay: Double = 0, hiddenBefore: Bool = false, fadeAt: Double = 0.5) -> CAAnimationGroup {
         let move = CABasicAnimation(keyPath: "position")
         move.isAdditive = true
         move.fromValue = NSValue(cgPoint: .zero)
         move.toValue = NSValue(cgPoint: CGPoint(x: t.dx, y: t.dy))
-        move.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        let scale = CABasicAnimation(keyPath: "transform.scale")
+        move.timingFunction = CAMediaTimingFunction(name: easeIn ? .easeIn : .easeOut)
+        let scale = CABasicAnimation(keyPath: scaleXOnly ? "transform.scale.x" : "transform.scale")
         scale.fromValue = t.scaleFrom
         scale.toValue = t.scaleTo
         let fade = CAKeyframeAnimation(keyPath: "opacity")
-        fade.values = [1, 1, 0]
-        fade.keyTimes = [0, 0.5, 1]
+        if hiddenBefore {
+            fade.values = [0, 1, 1, 0]
+            fade.keyTimes = [0, 0.01, NSNumber(value: fadeAt), 1]
+        } else {
+            fade.values = [1, 1, 0]
+            fade.keyTimes = [0, NSNumber(value: fadeAt), 1]
+        }
         var parts: [CAAnimation] = [move, scale, fade]
         if t.rotation != 0 {
             let spin = CABasicAnimation(keyPath: "transform.rotation.z")
@@ -1560,7 +2631,7 @@ final class KeyEffectOverlay: UIView {
         }
         // Giữ animation (không gỡ khi xong): chùm chỉ cần đổi beginTime là chạy lại; xong thì đứng ở
         // khung cuối (opacity 0 — vô hình, render server không vẽ gì).
-        return group(parts, duration: t.duration, delay: 0)
+        return group(parts, duration: t.duration, delay: delay)
     }
 }
 
@@ -1621,6 +2692,19 @@ enum KeyEffectShapes {
     }
 
     static func star(_ r: CGFloat, inner: CGFloat) -> CGPath {
+        let p = CGMutablePath()
+        for k in 0..<8 {
+            let a = CGFloat(k) * .pi / 4 - .pi / 2
+            let rr = k % 2 == 0 ? r : inner
+            let pt = CGPoint(x: cos(a) * rr, y: sin(a) * rr)
+            if k == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
+        }
+        p.closeSubpath()
+        return p
+    }
+
+    /// Sao 4 cánh (tia lửa Dấu thanh / pháo Từ khoá) — = Android star4.
+    static func star4(_ r: CGFloat, inner: CGFloat) -> CGPath {
         let p = CGMutablePath()
         for k in 0..<8 {
             let a = CGFloat(k) * .pi / 4 - .pi / 2
