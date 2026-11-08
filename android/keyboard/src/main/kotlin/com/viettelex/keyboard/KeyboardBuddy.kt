@@ -1826,15 +1826,15 @@ enum class BuddySeason {
             else -> null
         }
 
-        /** Mùng 1 Tết — LƯU Ý: bảng nhúng theo lịch âm VN, cần đối chiếu nguồn chính thức trước khi phát hành. */
+        /** Mùng 1 Tết — lịch âm VN (UTC+7), khớp [LunarDate] (test LunarDateTests; Tết 2030 = 2/2, Trung Thu 2034 = 26/9 — UTC+8 lệch 1 ngày). */
         val LUNAR_NEW_YEAR: Map<Int, Pair<Int, Int>> = mapOf(
-            2026 to (2 to 17), 2027 to (2 to 6), 2028 to (1 to 26), 2029 to (2 to 13), 2030 to (2 to 3),
+            2026 to (2 to 17), 2027 to (2 to 6), 2028 to (1 to 26), 2029 to (2 to 13), 2030 to (2 to 2),
             2031 to (1 to 23), 2032 to (2 to 11), 2033 to (1 to 31), 2034 to (2 to 19), 2035 to (2 to 8),
         )
         /** Rằm tháng Tám. */
         val MID_AUTUMN_DAY: Map<Int, Pair<Int, Int>> = mapOf(
             2026 to (9 to 25), 2027 to (9 to 15), 2028 to (10 to 3), 2029 to (9 to 22), 2030 to (9 to 12),
-            2031 to (10 to 1), 2032 to (9 to 19), 2033 to (9 to 8), 2034 to (9 to 27), 2035 to (9 to 16),
+            2031 to (10 to 1), 2032 to (9 to 19), 2033 to (9 to 8), 2034 to (9 to 26), 2035 to (9 to 16),
         )
 
         fun dayNumber(y: Int, m: Int, d: Int): Int {

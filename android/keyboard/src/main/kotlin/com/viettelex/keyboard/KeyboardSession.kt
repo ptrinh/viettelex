@@ -1309,7 +1309,7 @@ class KeyboardSession(
                 .take(slotWant).map { caseForContext(displayCase(it)) }
             padWords(top, slotWant)
         }
-        val number = refreshNumberChip(proxy)
+        val number = refreshNumberChip(proxy, idle = true)
         val math = refreshMathChip(proxy)
         val paste = pasteOffer(proxy)
         // Chip tách STK/SĐT/OTP = Clipboard nâng cao (Plus; paywall tắt ⇒ mở cho mọi người).
@@ -1364,8 +1364,13 @@ class KeyboardSession(
     }
 
     /** Chip số cho token trước con trỏ (đọc chữ / định dạng tiền / máy tính nhanh). */
-    private fun refreshNumberChip(proxy: TextProxy): String? {
+    private fun refreshNumberChip(proxy: TextProxy, idle: Boolean = false): String? {
         numberChip = null
+        // Ngày âm lịch ("âm lịch" / "ngày âm" / "ÂL" vừa chốt): lọc bằng so chuỗi từ vừa chốt, chỉ đọc
+        // context + tính ngày âm khi khớp (cache theo ngày) — dùng chung slot + đường thay của chip số.
+        if (idle && numberChipsOn && LunarDate.mayTrigger(lastWord)) {
+            proxy.contextBeforeInput()?.let { LunarDate.chip(it) }?.let { numberChip = it; return it.display }
+        }
         if (!numberChipsOn || numberSpaces > 1) return null
         val before = proxy.contextBeforeInput() ?: return null
         numberChip = NumberChips.chip(before)

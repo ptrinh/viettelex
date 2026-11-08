@@ -1926,15 +1926,15 @@ enum BuddySeason: String, CaseIterable {
     }
 
     /// Mùng 1 Tết (năm → (tháng, ngày) dương lịch), 2026–2035.
-    /// LƯU Ý: bảng nhúng theo lịch âm Việt Nam (UTC+7) — cần đối chiếu nguồn chính thức trước khi phát hành.
+    /// Lịch âm Việt Nam (UTC+7), khớp LunarDate (LunarDateTests; Tết 2030 = 2/2, Trung Thu 2034 = 26/9 — UTC+8 lệch 1 ngày).
     static let lunarNewYear: [Int: (Int, Int)] = [
-        2026: (2, 17), 2027: (2, 6), 2028: (1, 26), 2029: (2, 13), 2030: (2, 3),
+        2026: (2, 17), 2027: (2, 6), 2028: (1, 26), 2029: (2, 13), 2030: (2, 2),
         2031: (1, 23), 2032: (2, 11), 2033: (1, 31), 2034: (2, 19), 2035: (2, 8),
     ]
     /// Rằm tháng Tám (Trung Thu), 2026–2035 — cùng lưu ý như trên.
     static let midAutumnDay: [Int: (Int, Int)] = [
         2026: (9, 25), 2027: (9, 15), 2028: (10, 3), 2029: (9, 22), 2030: (9, 12),
-        2031: (10, 1), 2032: (9, 19), 2033: (9, 8), 2034: (9, 27), 2035: (9, 16),
+        2031: (10, 1), 2032: (9, 19), 2033: (9, 8), 2034: (9, 26), 2035: (9, 16),
     ]
 
     /// Số ngày từ 1/1/1970 (lịch Gregory) — hàm thuần, không phụ thuộc múi giờ.
