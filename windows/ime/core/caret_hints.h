@@ -13,6 +13,8 @@
 //                                  (Thêm dấu runs in VietTelex.exe, as the text tools do).
 //   5. Date/time (default ON):     "hôm nay " -> "28/09/2026", "bây giờ " -> "21:35"; English
 //                                  today/tomorrow/yesterday/now only after an English word.
+//                                  Lunar: "âm lịch " / "ngày âm " / "ÂL " -> "30/9 năm Bính Ngọ"
+//                                  (today, Vietnamese calendar UTC+7; macOS LunarCalendar.swift).
 //   7. Retro English (offer mode of "Tự sửa từ phía trước", retro_english.h): "Hí cả í very
 //                                  fast " -> "His car is", Tab rewrites the words. The
 //                                  session decides and verifies; it wins over every other hint.
@@ -152,14 +154,26 @@ std::optional<std::u32string> toneRun(const std::u32string& before);
 std::optional<Suggestion> toneSuggestion(const std::u32string& run, const std::u32string& restored);
 
 // ---------------------------------------------------------------- 5. date / time
-enum class Phrase : uint8_t { Today, Tomorrow, Yesterday, Now };
+enum class Phrase : uint8_t { Today, Tomorrow, Yesterday, Now, Lunar };
 struct LocalTime {
     int year = 2000, month = 1, day = 1, hour = 0, minute = 0;
 };
 // `isEnglish(prev)`: English only after an English word ("see you tomorrow ").
 std::optional<Phrase> detectDate(char32_t boundary, const std::u32string& prevRun, const std::u32string& run,
                                  bool (*isEnglish)(const std::u32string&));
-std::u32string formatDate(Phrase p, const LocalTime& now);  // "28/09/2026" / "21:35"
+std::u32string formatDate(Phrase p, const LocalTime& now);  // "28/09/2026" / "21:35" / "30/9 năm Bính Ngọ"
+// Vietnamese lunar date (astronomical new moons + solar terms, time zone `tz` hours, default
+// +7 = the Vietnamese calendar; +8 differs on some days, e.g. Tết 2030). Same algorithm as
+// App/Sources/LunarCalendar.swift.
+struct LunarDate {
+    int day = 1, month = 1, year = 2000;
+    bool leap = false;
+    bool operator==(const LunarDate&) const = default;
+};
+LunarDate lunarDate(int day, int month, int year, double tz = 7);
+std::u32string lunarYearName(int lunarYear);  // 2026 -> "Bính Ngọ"
+// "30/9 năm Bính Ngọ"; leap month "1/6 nhuận năm Ất Tỵ".
+std::u32string lunarText(int day, int month, int year);
 std::optional<Suggestion> dateSuggestion(const std::u32string& before, const std::u32string& prevRun,
                                          const std::u32string& run, Phrase phrase, const LocalTime& now);
 // The last two whitespace-separated chunks before the final space ("Hẹn hôm nay " ->

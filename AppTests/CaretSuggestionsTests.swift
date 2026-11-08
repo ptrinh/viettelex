@@ -297,6 +297,110 @@ final class CaretSuggestionsTests: XCTestCase {
                                               now: now, timeZone: tz))                  // màn hình lệch
     }
 
+    // MARK: Âm lịch
+
+    private func vnDate(_ y: Int, _ m: Int, _ d: Int, hour: Int = 9) -> Date {
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = tz
+        return cal.date(from: DateComponents(year: y, month: m, day: d, hour: hour))!
+    }
+
+    /// Ba cách gọi: "âm lịch␣", "ngày âm␣", "ÂL␣" (một từ, từ trước bất kỳ).
+    func testLunarDetect() {
+        let en: (String) -> Bool = TypoFixLogic.isEnglish
+        XCTAssertEqual(DateHintLogic.detect(boundary: " ", prevRun: "âm", run: "lịch", isEnglish: en), .lunar)
+        XCTAssertEqual(DateHintLogic.detect(boundary: " ", prevRun: "Âm", run: "lịch", isEnglish: en), .lunar)
+        XCTAssertEqual(DateHintLogic.detect(boundary: " ", prevRun: "ÂM", run: "LỊCH", isEnglish: en), .lunar)
+        XCTAssertEqual(DateHintLogic.detect(boundary: " ", prevRun: "a\u{0302}m", run: "li\u{0323}ch", isEnglish: en), .lunar)  // NFD
+        XCTAssertEqual(DateHintLogic.detect(boundary: " ", prevRun: "ngày", run: "âm", isEnglish: en), .lunar)
+        XCTAssertEqual(DateHintLogic.detect(boundary: " ", prevRun: "ngày", run: "mai", isEnglish: en), .tomorrow)
+        XCTAssertEqual(DateHintLogic.detect(boundary: " ", prevRun: "", run: "ÂL", isEnglish: en), .lunar)
+        XCTAssertEqual(DateHintLogic.detect(boundary: " ", prevRun: "là", run: "âl", isEnglish: en), .lunar)
+        XCTAssertNil(DateHintLogic.detect(boundary: ",", prevRun: "âm", run: "lịch", isEnglish: en))
+        XCTAssertNil(DateHintLogic.detect(boundary: " ", prevRun: "am", run: "lich", isEnglish: en))
+        XCTAssertNil(DateHintLogic.detect(boundary: " ", prevRun: "", run: "al", isEnglish: en))
+    }
+
+    /// "30/9 năm Bính Ngọ"; năm âm (trước Tết = năm trước); tháng nhuận "nhuận".
+    func testLunarFormat() {
+        XCTAssertEqual(DateHintLogic.format(.lunar, now: vnDate(2026, 11, 8), timeZone: tz), "30/9 năm Bính Ngọ")
+        XCTAssertEqual(DateHintLogic.format(.lunar, now: vnDate(2026, 2, 16), timeZone: tz), "29/12 năm Ất Tỵ")
+        XCTAssertEqual(DateHintLogic.format(.lunar, now: vnDate(2026, 2, 17), timeZone: tz), "1/1 năm Bính Ngọ")
+        XCTAssertEqual(DateHintLogic.format(.lunar, now: vnDate(2025, 7, 25), timeZone: tz), "1/6 nhuận năm Ất Tỵ")
+        // Ngày dương lấy theo múi giờ máy: 23:30 giờ VN 07/11 vẫn là 29/9.
+        XCTAssertEqual(DateHintLogic.format(.lunar, now: vnDate(2026, 11, 7, hour: 23), timeZone: tz), "29/9 năm Bính Ngọ")
+        XCTAssertEqual(LunarCalendar.yearName(2025), "Ất Tỵ")
+        XCTAssertEqual(LunarCalendar.yearName(2026), "Bính Ngọ")
+        XCTAssertEqual(LunarCalendar.yearName(2027), "Đinh Mùi")
+    }
+
+    /// Tab thay "âm lịch " / "ngày âm " / "ÂL " bằng ngày âm + dấu cách.
+    func testLunarSuggestionReplacesPhrase() {
+        let d = vnDate(2026, 11, 8)
+        XCTAssertEqual(DateHintLogic.suggestion(before: "Hôm nay âm lịch ", prevRun: "âm", run: "lịch", phrase: .lunar,
+                                                now: d, timeZone: tz),
+                       CaretSuggestion(kind: .date, display: "30/9 năm Bính Ngọ", replace: "âm lịch ",
+                                       insert: "30/9 năm Bính Ngọ "))
+        XCTAssertEqual(DateHintLogic.suggestion(before: "ngày âm ", prevRun: "ngày", run: "âm", phrase: .lunar,
+                                                now: d, timeZone: tz)?.replace, "ngày âm ")
+        XCTAssertEqual(DateHintLogic.suggestion(before: "Hôm nay ÂL ", prevRun: "nay", run: "ÂL", phrase: .lunar,
+                                                now: d, timeZone: tz),
+                       CaretSuggestion(kind: .date, display: "30/9 năm Bính Ngọ", replace: "ÂL ",
+                                       insert: "30/9 năm Bính Ngọ "))
+        XCTAssertEqual(DateHintLogic.suggestion(before: "ngày ÂL ", prevRun: "ngày", run: "ÂL", phrase: .lunar,
+                                                now: d, timeZone: tz)?.replace, "ÂL ")   // chỉ thay chính từ đó
+        XCTAssertNil(DateHintLogic.suggestion(before: "xâm lịch ", prevRun: "âm", run: "lịch", phrase: .lunar,
+                                              now: d, timeZone: tz))
+    }
+
+    /// Tết 2026–2035, Trung Thu, tháng nhuận 2025/2028 — lịch Việt Nam UTC+7. Bảng Tết/Trung Thu
+    /// của KeyboardBuddy (iOS) lệch ở Tết 2030 (VN 02/02, bảng 03/02 = lịch UTC+8) và Trung Thu
+    /// 2034 (VN 26/09, bảng 27/09) — ở đây theo thuật toán, có đối chiếu Foundation bên dưới.
+    func testLunarCalendarKnownDates() {
+        typealias L = LunarCalendar
+        for (y, m, d) in [(2026, 2, 17), (2027, 2, 6), (2028, 1, 26), (2029, 2, 13), (2030, 2, 2),
+                          (2031, 1, 23), (2032, 2, 11), (2033, 1, 31), (2034, 2, 19), (2035, 2, 8)] {
+            XCTAssertEqual(L.lunar(day: d, month: m, year: y), .init(day: 1, month: 1, year: y, leap: false), "Tết \(y)")
+        }
+        XCTAssertEqual(L.lunar(day: 3, month: 2, year: 2030, timeZone: 8).day, 1)   // lịch +8: Tết 03/02/2030
+        for (y, m, d) in [(2026, 9, 25), (2027, 9, 15), (2028, 10, 3), (2029, 9, 22), (2030, 9, 12),
+                          (2031, 10, 1), (2032, 9, 19), (2033, 9, 8), (2034, 9, 26), (2035, 9, 16)] {
+            XCTAssertEqual(L.lunar(day: d, month: m, year: y), .init(day: 15, month: 8, year: y, leap: false), "Trung Thu \(y)")
+        }
+        XCTAssertEqual(L.lunar(day: 24, month: 7, year: 2025), .init(day: 30, month: 6, year: 2025, leap: false))
+        XCTAssertEqual(L.lunar(day: 25, month: 7, year: 2025), .init(day: 1, month: 6, year: 2025, leap: true))
+        XCTAssertEqual(L.lunar(day: 23, month: 8, year: 2025), .init(day: 1, month: 7, year: 2025, leap: false))
+        XCTAssertEqual(L.lunar(day: 23, month: 6, year: 2028), .init(day: 1, month: 5, year: 2028, leap: true))
+        XCTAssertEqual(L.lunar(day: 8, month: 11, year: 2026), .init(day: 30, month: 9, year: 2026, leap: false))
+        // Sóc 12/08/2026 17:37 UTC = 00:37 ngày 13 giờ VN ⇒ 1/7 là 13/08 (bản thuật toán rút gọn ra 12/08).
+        XCTAssertEqual(L.lunar(day: 13, month: 8, year: 2026), .init(day: 1, month: 7, year: 2026, leap: false))
+        // 2023: tháng 2 nhuận (22/03–19/04).
+        XCTAssertEqual(L.lunar(day: 22, month: 3, year: 2023), .init(day: 1, month: 2, year: 2023, leap: true))
+        // Tết Ất Sửu 1985 ở Việt Nam là 21/01 (lịch +8: 20/02).
+        XCTAssertEqual(L.lunar(day: 21, month: 1, year: 1985), .init(day: 1, month: 1, year: 1985, leap: false))
+    }
+
+    /// Đối chiếu từng ngày 1986–2050 với Calendar(identifier: .vietnamese) của Foundation (ICU).
+    /// Ngoài khoảng này ICU khác lịch Việt Nam đã ban hành (1984–85: ICU giữ Tết 20/02/1985) hoặc
+    /// trả ngày 0 (vài tháng sau 2050) — không dùng làm chuẩn.
+    func testLunarMatchesFoundationVietnameseCalendar() throws {
+        guard #available(macOS 26, *) else { throw XCTSkip("Calendar .vietnamese cần macOS 26") }
+        var vn = Calendar(identifier: .vietnamese); vn.timeZone = tz
+        var g = Calendar(identifier: .gregorian); g.timeZone = tz
+        var day = vnDate(1986, 1, 1, hour: 12)
+        let end = vnDate(2051, 1, 1, hour: 12)
+        var mismatches: [String] = []
+        while day < end {
+            let s = g.dateComponents([.year, .month, .day], from: day)
+            let f = vn.dateComponents([.month, .day, .isLeapMonth], from: day)
+            let l = LunarCalendar.lunar(day: s.day!, month: s.month!, year: s.year!)
+            if l.day != f.day || l.month != f.month || l.leap != (f.isLeapMonth ?? false) {
+                mismatches.append("\(s.year!)-\(s.month!)-\(s.day!): \(l) vs \(f.day!)/\(f.month!)")
+            }
+            day = g.date(byAdding: .day, value: 1, to: day)!
+        }
+        XCTAssertEqual(mismatches, [], "\(mismatches.prefix(10))")
+    }
+
     // MARK: Luật chung
 
     /// Ba loại mới chỉ nhận Tab — Enter sau câu/từ là gửi/xuống dòng, không được cướp.

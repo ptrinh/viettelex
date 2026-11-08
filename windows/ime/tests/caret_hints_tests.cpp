@@ -273,6 +273,45 @@ TEST(hints_date_detect) {
     CHECK(!detectDate(U',', U("hôm"), U("nay"), en));     // space only
     CHECK(!detectDate(U' ', U("hom"), U("nay"), en));     // unaccented
     CHECK(!detectDate(U' ', U("hôm"), U("sau"), en));
+    // Lunar: "âm lịch " / "ngày âm " / "ÂL "
+    CHECK(detectDate(U' ', U("âm"), U("lịch"), en) == Phrase::Lunar);
+    CHECK(detectDate(U' ', U("Âm"), U("lịch"), en) == Phrase::Lunar);
+    CHECK(detectDate(U' ', U("ÂM"), U("LỊCH"), en) == Phrase::Lunar);
+    CHECK(detectDate(U' ', U("ngày"), U("âm"), en) == Phrase::Lunar);
+    CHECK(detectDate(U' ', U("ngày"), U("mai"), en) == Phrase::Tomorrow);
+    CHECK(detectDate(U' ', U(""), U("ÂL"), en) == Phrase::Lunar);
+    CHECK(detectDate(U' ', U("là"), U("âl"), en) == Phrase::Lunar);
+    CHECK(!detectDate(U',', U("âm"), U("lịch"), en));
+    CHECK(!detectDate(U' ', U("am"), U("lich"), en));
+    CHECK(!detectDate(U' ', U(""), U("al"), en));
+}
+
+TEST(hints_lunar_calendar) {
+    // Tết 2026-2035 (UTC+7; 2030 is 2 Feb in Vietnam, 3 Feb on the UTC+8 calendar).
+    const int tet[][3] = {{2026, 2, 17}, {2027, 2, 6}, {2028, 1, 26}, {2029, 2, 13}, {2030, 2, 2},
+                          {2031, 1, 23}, {2032, 2, 11}, {2033, 1, 31}, {2034, 2, 19}, {2035, 2, 8}};
+    for (const auto& t : tet) CHECK(lunarDate(t[2], t[1], t[0]) == (LunarDate{1, 1, t[0], false}));
+    CHECK(lunarDate(3, 2, 2030, 8).day == 1);
+    CHECK(lunarDate(3, 2, 2030) == (LunarDate{2, 1, 2030, false}));
+    // Trung Thu (15/8); 2034 is 26 Sep in Vietnam (27 Sep at UTC+8).
+    const int mid[][3] = {{2026, 9, 25}, {2027, 9, 15}, {2028, 10, 3}, {2029, 9, 22}, {2030, 9, 12},
+                          {2031, 10, 1}, {2032, 9, 19}, {2033, 9, 8},  {2034, 9, 26}, {2035, 9, 16}};
+    for (const auto& t : mid) CHECK(lunarDate(t[2], t[1], t[0]) == (LunarDate{15, 8, t[0], false}));
+    // Leap months: 6/2025, 5/2028.
+    CHECK(lunarDate(24, 7, 2025) == (LunarDate{30, 6, 2025, false}));
+    CHECK(lunarDate(25, 7, 2025) == (LunarDate{1, 6, 2025, true}));
+    CHECK(lunarDate(23, 8, 2025) == (LunarDate{1, 7, 2025, false}));
+    CHECK(lunarDate(23, 6, 2028) == (LunarDate{1, 5, 2028, true}));
+    CHECK(lunarDate(8, 11, 2026) == (LunarDate{30, 9, 2026, false}));
+    CHECK(lunarDate(13, 8, 2026) == (LunarDate{1, 7, 2026, false}));  // new moon 00:37 VN time
+    CHECK(lunarDate(22, 3, 2023) == (LunarDate{1, 2, 2023, true}));   // leap 2nd month 2023
+    CHECK(lunarDate(21, 1, 1985) == (LunarDate{1, 1, 1985, false}));  // Tết 1985 in Vietnam
+    CHECK_EQ(S(lunarYearName(2025)), std::string("Ất Tỵ"));
+    CHECK_EQ(S(lunarYearName(2026)), std::string("Bính Ngọ"));
+    CHECK_EQ(S(lunarYearName(2027)), std::string("Đinh Mùi"));
+    CHECK_EQ(S(lunarText(8, 11, 2026)), std::string("30/9 năm Bính Ngọ"));
+    CHECK_EQ(S(lunarText(16, 2, 2026)), std::string("29/12 năm Ất Tỵ"));  // before Tết: previous year
+    CHECK_EQ(S(lunarText(25, 7, 2025)), std::string("1/6 nhuận năm Ất Tỵ"));
 }
 
 TEST(hints_date_format) {
@@ -294,6 +333,17 @@ TEST(hints_date_suggestion_replaces_phrase) {
     CHECK(c && c->replace == u"tomorrow ");
     CHECK(!dateSuggestion(U("xhôm nay "), U("hôm"), U("nay"), Phrase::Today, kNow));  // not standing alone
     CHECK(!dateSuggestion(U("hôm nay"), U("hôm"), U("nay"), Phrase::Today, kNow));    // screen differs
+    const LocalTime nov8{2026, 11, 8, 9, 0};
+    CHECK_EQ(S(formatDate(Phrase::Lunar, nov8)), std::string("30/9 năm Bính Ngọ"));
+    auto l = dateSuggestion(U("Hôm nay âm lịch "), U("âm"), U("lịch"), Phrase::Lunar, nov8);
+    CHECK(l && *l == (Suggestion{Kind::Date, u"30/9 năm Bính Ngọ", u"âm lịch ", u"30/9 năm Bính Ngọ "}));
+    auto n = dateSuggestion(U("ngày âm "), U("ngày"), U("âm"), Phrase::Lunar, nov8);
+    CHECK(n && n->replace == u"ngày âm ");
+    auto al = dateSuggestion(U("Hôm nay ÂL "), U("nay"), U("ÂL"), Phrase::Lunar, nov8);
+    CHECK(al && *al == (Suggestion{Kind::Date, u"30/9 năm Bính Ngọ", u"ÂL ", u"30/9 năm Bính Ngọ "}));
+    auto nal = dateSuggestion(U("ngày ÂL "), U("ngày"), U("ÂL"), Phrase::Lunar, nov8);
+    CHECK(nal && nal->replace == u"ÂL ");  // only the word itself
+    CHECK(!dateSuggestion(U("xâm lịch "), U("âm"), U("lịch"), Phrase::Lunar, nov8));
 }
 
 TEST(hints_last_runs_from_screen) {
@@ -328,6 +378,10 @@ TEST(hints_tracker_triggers) {
     CHECK(typeInto(t, "hen hoom nay ", en).kind == TriggerKind::Date);
     t.reset();
     CHECK(typeInto(t, "see you tomorrow ", en).kind == TriggerKind::Date);
+    t.reset();
+    CHECK(typeInto(t, "aam lichj ", en).kind == TriggerKind::Date);
+    t.reset();
+    CHECK(typeInto(t, "AAL ", en).kind == TriggerKind::Date);
     t.reset();
     Trigger ty = typeInto(t, "anh tpoi ", en, Commit{U("tpoi"), U("tpoi")});
     CHECK(ty.kind == TriggerKind::Typo && S(ty.raw) == "tpoi" && ty.boundary == U' ');
@@ -376,6 +430,13 @@ TEST(hints_worth_checking_filters) {
     CHECK(dateWorthReading(U("you"), U("Tomorrow")));
     CHECK(!dateWorthReading(U(""), U("now")));
     CHECK(!dateWorthReading(U("xin"), U("chao")));
+    CHECK(dateWorthReading(U("aam"), U("lichj")));
+    CHECK(dateWorthReading(U("a6m"), U("lich5")));
+    CHECK(dateWorthReading(U("ngayf"), U("aam")));
+    CHECK(dateWorthReading(U(""), U("AAL")));
+    CHECK(dateWorthReading(U("laf"), U("aal")));
+    CHECK(!dateWorthReading(U(""), U("anh")));
+    CHECK(!dateWorthReading(U("anh"), U("ddi")));
 }
 
 // ---------------------------------------------------------------- the session reports the commit

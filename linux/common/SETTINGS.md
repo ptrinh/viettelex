@@ -58,7 +58,7 @@ math_results = true                 # Gợi ý cạnh con trỏ (§8): kết qu�
 number_chips = true                 # chip số dạng tiền "1tr2 " → 1.200.000 ₫
 typo_hints = true                   # sửa lỗi gõ sai "tpoi " → tôi
 tone_hints = false                  # thêm dấu cho câu không dấu "toi di hoc." → tôi đi học.
-date_hints = true                   # ngày giờ "hôm nay " → 28/09/2026, "bây giờ " → 21:35
+date_hints = true                   # ngày giờ "hôm nay " → 28/09/2026, "bây giờ " → 21:35, "âm lịch " → 30/9 năm Bính Ngọ
 double_space_period = false         # Văn bản tự động (§8b): "chào  " → "chào. "
 auto_capitalize = false             # tự viết hoa đầu câu
 smart_punctuation = false           # " ' → “ ” ‘ ’, "--" → "—"
@@ -218,7 +218,7 @@ công tắc; tắt hết = một lần đọc cờ mỗi phím, không theo dõi
 | `number_chips` | bật | `50k` / `1tr2` / `2 tỷ` + dấu cách → `1.200.000 ₫` (chỉ dạng tiền, không đọc số thành chữ); Tab thay |
 | `typo_hints` | bật | từ vừa gõ (ranh giới ` , ; ! ? )`) không là âm tiết Việt / tiếng Anh / từ chat → sửa MỘT phím kề trên bàn phím cứng hoặc đảo hai phím liền nhau, cùng ngưỡng macOS (tần suất ≥ 150, hơn ứng viên thứ hai ≥ 80); không có bản sửa tiếng Việt ⇒ bản sửa **tiếng Anh** một sửa trên phím thô (đảo / phím kề; sót / thừa phím khi ≥ 5 chữ — `spellnig` → spelling, `teh` → the), tần suất ≥ 140 (từ ≥ 7 chữ: ≥ 60), hơn ứng viên thứ hai ≥ 60 (`TypoFixLogic.englishDefaults`); Tab thay (giữ ký tự ranh giới), Esc = không gợi ý lại từ đó trong phiên |
 | `tone_hints` | **tắt** | ≥ 3 âm tiết không dấu liên tiếp, rồi `. ! ?` hoặc dừng gõ 0,9 s sau dấu cách → cụm có dấu (Thêm dấu); Tab thay cả cụm, Esc = không mời lại cụm đó |
-| `date_hints` | bật | `hôm nay` / `ngày mai` / `hôm qua` + dấu cách → `dd/MM/yyyy`; `bây giờ` → `HH:mm`; today / tomorrow / yesterday / now chỉ sau một từ tiếng Anh; Tab thay cụm |
+| `date_hints` | bật | `hôm nay` / `ngày mai` / `hôm qua` + dấu cách → `dd/MM/yyyy`; `bây giờ` → `HH:mm`; `âm lịch` / `ngày âm` / `ÂL` → âm lịch hôm nay `30/9 năm Bính Ngọ` (lịch Việt Nam UTC+7; tháng nhuận `1/6 nhuận năm Ất Tỵ`); today / tomorrow / yesterday / now chỉ sau một từ tiếng Anh; Tab thay cụm |
 
 Luật chung: chỉ Tab áp dụng (Enter chỉ cho phép tính — sau `50k␣` Enter là gửi tin), phím khác
 tắt gợi ý rồi đi tiếp như thường, không bao giờ tự thay, không chạy ở ô mật khẩu / ô nhạy cảm /

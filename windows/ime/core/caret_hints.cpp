@@ -1067,9 +1067,14 @@ std::optional<Phrase> vietnamesePhrase(const std::u32string& p, const std::u32st
     if (p == U"hôm" && w == U"qua") return Phrase::Yesterday;
     if (p == U"ngày" && w == U"mai") return Phrase::Tomorrow;
     if (p == U"bây" && w == U"giờ") return Phrase::Now;
+    if ((p == U"âm" && w == U"lịch") || (p == U"ngày" && w == U"âm")) return Phrase::Lunar;
     return std::nullopt;
 }
-bool isVietnameseHead(const std::u32string& p) { return p == U"hôm" || p == U"ngày" || p == U"bây"; }
+// One word on its own (any word before it): "ÂL " -> today's lunar date.
+std::optional<Phrase> singlePhrase(const std::u32string& w) {
+    if (w == U"âl") return Phrase::Lunar;
+    return std::nullopt;
+}
 std::optional<Phrase> englishPhrase(const std::u32string& w) {
     if (w == U"today") return Phrase::Today;
     if (w == U"tomorrow") return Phrase::Tomorrow;
@@ -1098,13 +1103,182 @@ void civilFromDays(long z, int& y, int& m, int& d) {
     m = static_cast<int>(mp < 10 ? mp + 3 : mp - 9);
     y = static_cast<int>(yoe + era * 400 + (m <= 2));
 }
+
+// ---- lunar calendar (App/Sources/LunarCalendar.swift — same formulas, same results)
+// New moons: Meeus "Astronomical Algorithms" ch. 49 full series (seconds) + Delta T; apparent
+// sun longitude ch. 25 (~0.01 deg). The short series (~30 min error) shifts months whose new
+// moon falls near local midnight (1/7 of 2026 is 13 Aug, not 12 Aug).
+constexpr double kPi = 3.14159265358979323846;
+constexpr double kDr = kPi / 180;
+double sind(double x) { return std::sin(x * kDr); }
+
+long julianDay(int d, int m, int y) {
+    const long a = (14 - m) / 12;
+    const long yy = y + 4800 - a;
+    const long mm = m + 12 * a - 3;
+    return d + (153 * mm + 2) / 5 + 365 * yy + yy / 4 - yy / 100 + yy / 400 - 32045;
+}
+
+// Lunation k (k = 0: new moon of 6 Jan 2000) whose new moon is at or before Julian day `jd`.
+long lunationIndex(double jd, bool rounded = false) {
+    const double v = (jd - 2451550.09766) / 29.530588861;
+    return static_cast<long>(std::floor(rounded ? v + 0.5 : v));
+}
+
+// Delta T = TT - UT in days (Espenak-Meeus polynomials).
+double deltaT(double jd) {
+    const double y = 2000 + (jd - 2451545.0) / 365.25;
+    double secs;
+    if (y < 1961) {
+        const double t = y - 1950;
+        secs = 29.07 + 0.407 * t - t * t / 233 + t * t * t / 2547;
+    } else if (y < 1986) {
+        const double t = y - 1975;
+        secs = 45.45 + 1.067 * t - t * t / 260 - t * t * t / 718;
+    } else if (y < 2005) {
+        const double t = y - 2000;
+        secs = 63.86 + 0.3345 * t - 0.060374 * t * t + 0.0017275 * t * t * t + 0.000651814 * t * t * t * t +
+               0.00002373599 * t * t * t * t * t;
+    } else if (y < 2050) {
+        const double t = y - 2000;
+        secs = 62.92 + 0.32217 * t + 0.005589 * t * t;
+    } else if (y < 2150) {
+        const double u = (y - 1820) / 100;
+        secs = -20 + 32 * u * u - 0.5628 * (2150 - y);
+    } else {
+        const double u = (y - 1820) / 100;
+        secs = -20 + 32 * u * u;
+    }
+    return secs / 86400;
+}
+
+// New moon k, Julian day UT (fractional).
+double newMoon(long k) {
+    const double kd = static_cast<double>(k);
+    const double t = kd / 1236.85, t2 = t * t, t3 = t2 * t, t4 = t3 * t;
+    double jde = 2451550.09766 + 29.530588861 * kd + 0.00015437 * t2 - 0.000000150 * t3 + 0.00000000073 * t4;
+    const double e = 1 - 0.002516 * t - 0.0000074 * t2;
+    const double m = 2.5534 + 29.10535670 * kd - 0.0000014 * t2 - 0.00000011 * t3;                        // sun anomaly
+    const double mp = 201.5643 + 385.81693528 * kd + 0.0107582 * t2 + 0.00001238 * t3 - 0.000000058 * t4;  // moon
+    const double f = 160.7108 + 390.67050284 * kd - 0.0016118 * t2 - 0.00000227 * t3 + 0.000000011 * t4;   // latitude
+    const double om = 124.7746 - 1.56375588 * kd + 0.0020672 * t2 + 0.00000215 * t3;
+    double c = -0.40720 * sind(mp) + 0.17241 * e * sind(m) + 0.01608 * sind(2 * mp) + 0.01039 * sind(2 * f);
+    c += 0.00739 * e * sind(mp - m) - 0.00514 * e * sind(mp + m) + 0.00208 * e * e * sind(2 * m);
+    c += -0.00111 * sind(mp - 2 * f) - 0.00057 * sind(mp + 2 * f) + 0.00056 * e * sind(2 * mp + m);
+    c += -0.00042 * sind(3 * mp) + 0.00042 * e * sind(m + 2 * f) + 0.00038 * e * sind(m - 2 * f);
+    c += -0.00024 * e * sind(2 * mp - m) - 0.00017 * sind(om) - 0.00007 * sind(mp + 2 * m);
+    c += 0.00004 * sind(2 * mp - 2 * f) + 0.00004 * sind(3 * m) + 0.00003 * sind(mp + m - 2 * f);
+    c += 0.00003 * sind(2 * mp + 2 * f) - 0.00003 * sind(mp + m + 2 * f) + 0.00003 * sind(mp - m + 2 * f);
+    c += -0.00002 * sind(mp - m - 2 * f) - 0.00002 * sind(3 * mp + m) + 0.00002 * sind(4 * mp);
+    // Planetary arguments.
+    const double a[14] = {299.77 + 0.107408 * kd - 0.009173 * t2, 251.88 + 0.016321 * kd, 251.83 + 26.651886 * kd,
+                          349.42 + 36.412478 * kd, 84.66 + 18.206239 * kd, 141.74 + 53.303771 * kd,
+                          207.14 + 2.453732 * kd, 154.84 + 7.306860 * kd, 34.52 + 27.261239 * kd,
+                          207.19 + 0.121824 * kd, 291.34 + 1.844379 * kd, 161.72 + 24.198154 * kd,
+                          239.56 + 25.513099 * kd, 331.55 + 3.592518 * kd};
+    const double w[14] = {325, 165, 164, 126, 110, 62, 60, 56, 47, 42, 40, 37, 35, 23};
+    for (int i = 0; i < 14; ++i) c += w[i] * 0.000001 * sind(a[i]);
+    jde += c;
+    return jde - deltaT(jde);
+}
+
+long newMoonDay(long k, double tz) { return static_cast<long>(std::floor(newMoon(k) + 0.5 + tz / 24)); }
+
+// Apparent sun longitude (radians, 0..2pi) at Julian day UT `jd`.
+double sunLongitude(double jd) {
+    const double t = (jd + deltaT(jd) - 2451545.0) / 36525, t2 = t * t;
+    const double l0 = 280.46646 + 36000.76983 * t + 0.0003032 * t2;
+    const double m = 357.52911 + 35999.05029 * t - 0.0001537 * t2;
+    const double c = (1.914602 - 0.004817 * t - 0.000014 * t2) * sind(m) + (0.019993 - 0.000101 * t) * sind(2 * m) +
+                     0.000289 * sind(3 * m);
+    const double om = 125.04 - 1934.136 * t;
+    const double l = (l0 + c - 0.00569 - 0.00478 * sind(om)) * kDr;
+    return l - kPi * 2 * std::floor(l / (kPi * 2));
+}
+
+// The sun's 30-degree sector (0..11) at the start of local day `dayNumber`.
+int sunSector(long dayNumber, double tz) {
+    return static_cast<int>(std::floor(sunLongitude(static_cast<double>(dayNumber) - 0.5 - tz / 24) / kPi * 6));
+}
+
+// First day of lunar month 11 (the month holding the winter solstice) of year `y`.
+long lunarMonth11(int y, double tz) {
+    const long dec31 = julianDay(31, 12, y);
+    long k = lunationIndex(static_cast<double>(dec31));
+    long nm = newMoonDay(k, tz);
+    if (nm > dec31) nm = newMoonDay(--k, tz);
+    if (sunSector(nm, tz) >= 9) nm = newMoonDay(k - 1, tz);
+    return nm;
+}
+
+// Leap month position after month 11 starting `a11`: the first month without a major term.
+int leapMonthOffset(long a11, double tz) {
+    const long k = lunationIndex(static_cast<double>(a11), true);
+    int i = 1;
+    int arc = sunSector(newMoonDay(k + i, tz), tz);
+    int last;
+    do {
+        last = arc;
+        ++i;
+        arc = sunSector(newMoonDay(k + i, tz), tz);
+    } while (arc != last && i < 14);
+    return i - 1;
+}
 }  // namespace
+
+LunarDate lunarDate(int day, int month, int year, double tz) {
+    const long dayNumber = julianDay(day, month, year);
+    const long k = lunationIndex(static_cast<double>(dayNumber));
+    long monthStart = newMoonDay(k + 1, tz);
+    if (monthStart > dayNumber) monthStart = newMoonDay(k, tz);
+    if (monthStart > dayNumber) monthStart = newMoonDay(k - 1, tz);
+    long a11 = lunarMonth11(year, tz), b11 = a11;
+    int lunarYear;
+    if (a11 >= monthStart) {
+        lunarYear = year;
+        a11 = lunarMonth11(year - 1, tz);
+    } else {
+        lunarYear = year + 1;
+        b11 = lunarMonth11(year + 1, tz);
+    }
+    LunarDate r;
+    r.day = static_cast<int>(dayNumber - monthStart + 1);
+    const int diff = static_cast<int>(std::floor(static_cast<double>(monthStart - a11) / 29));
+    r.month = diff + 11;
+    if (b11 - a11 > 365) {
+        const int leapDiff = leapMonthOffset(a11, tz);
+        if (diff >= leapDiff) {
+            r.month = diff + 10;
+            if (diff == leapDiff) r.leap = true;
+        }
+    }
+    if (r.month > 12) r.month -= 12;
+    if (r.month >= 11 && diff < 4) lunarYear -= 1;
+    r.year = lunarYear;
+    return r;
+}
+
+std::u32string lunarYearName(int lunarYear) {
+    static const char32_t* const can[] = {U"Canh", U"Tân",  U"Nhâm", U"Quý", U"Giáp",
+                                          U"Ất",   U"Bính", U"Đinh", U"Mậu", U"Kỷ"};
+    static const char32_t* const chi[] = {U"Thân", U"Dậu", U"Tuất", U"Hợi", U"Tý",  U"Sửu",
+                                          U"Dần",  U"Mão", U"Thìn", U"Tỵ",  U"Ngọ", U"Mùi"};
+    return std::u32string(can[((lunarYear % 10) + 10) % 10]) + U" " + chi[((lunarYear % 12) + 12) % 12];
+}
+
+std::u32string lunarText(int day, int month, int year) {
+    const LunarDate l = lunarDate(day, month, year);
+    char buf[16];
+    std::snprintf(buf, sizeof buf, "%d/%d", l.day, l.month);
+    return fromAscii(buf) + (l.leap ? U" nhuận" : U"") + U" năm " + lunarYearName(l.year);
+}
 
 std::optional<Phrase> detectDate(char32_t boundary, const std::u32string& prevRun, const std::u32string& run,
                                  bool (*isEnglish)(const std::u32string&)) {
     if (boundary != U' ' || run.empty() || run.size() > 9) return std::nullopt;
     const std::u32string w = lower(run), p = lower(prevRun);
     if (auto m = vietnamesePhrase(p, w)) return m;
+    if (auto m = singlePhrase(w)) return m;
     if (auto m = englishPhrase(w)) {
         if (!p.empty() && allOf(p, isAsciiLetter) && isEnglish && isEnglish(p)) return m;
     }
@@ -1117,6 +1291,7 @@ std::u32string formatDate(Phrase p, const LocalTime& now) {
         std::snprintf(buf, sizeof buf, "%02d:%02d", now.hour, now.minute);
         return fromAscii(buf);
     }
+    if (p == Phrase::Lunar) return lunarText(now.day, now.month, now.year);
     int y = now.year, m = now.month, d = now.day;
     if (p != Phrase::Today) civilFromDays(daysFromCivil(y, m, d) + (p == Phrase::Tomorrow ? 1 : -1), y, m, d);
     std::snprintf(buf, sizeof buf, "%02d/%02d/%04d", d, m, y);
@@ -1125,7 +1300,7 @@ std::u32string formatDate(Phrase p, const LocalTime& now) {
 
 std::optional<Suggestion> dateSuggestion(const std::u32string& before, const std::u32string& prevRun,
                                          const std::u32string& run, Phrase phrase, const LocalTime& now) {
-    const bool vi = isVietnameseHead(lower(prevRun));
+    const bool vi = vietnamesePhrase(lower(prevRun), lower(run)).has_value();  // two-word phrase
     const std::u32string replace = (vi ? prevRun + U" " : std::u32string()) + run + U" ";
     if (!standsAlone(before, replace)) return std::nullopt;
     const std::u32string value = formatDate(phrase, now);
@@ -1163,8 +1338,11 @@ bool numberWorthChecking(const std::u32string& run, const std::u32string& prevRu
 bool dateWorthReading(const std::u32string& prevRaw, const std::u32string& raw) {
     const std::u32string w = lower(raw), p = lower(prevRaw);
     if (!p.empty() && englishPhrase(w)) return true;
+    if (w == U"aal" || w == U"a6l") return true;  // "ÂL" (Telex / VNI), any word before
     if (p.empty() || w.empty() || w.size() > 7 || p.size() > 8) return false;
     const char32_t a = p[0], b = w[0];
+    if (a == U'a' && p.size() <= 4 && b == U'l') return true;  // âm lịch (aam lichj, a6m lich5)
+    if (a == U'n' && b == U'a' && w.size() <= 4) return true;  // ngày âm (ngayf aam)
     return (a == U'h' || a == U'n' || a == U'b') && (b == U'n' || b == U'q' || b == U'm' || b == U'g');
 }
 

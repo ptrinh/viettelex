@@ -210,9 +210,12 @@ bool numberWorthChecking(uint32_t boundary, const std::string &run, const std::s
 }
 
 bool dateCandidate(uint32_t boundary, const std::string &prevRun, const std::string &run) {
-    if (boundary != ' ' || run.empty() || cpCount(run) > 9 || prevRun.empty()) return false;
+    if (boundary != ' ' || run.empty() || cpCount(run) > 9) return false;
     std::string p = lower(prevRun), w = lower(run);
-    if ((p == "hôm" && (w == "nay" || w == "qua")) || (p == "ngày" && w == "mai") || (p == "bây" && w == "giờ"))
+    if (w == "âl") return true;  // âm lịch, từ trước bất kỳ
+    if (prevRun.empty()) return false;
+    if ((p == "hôm" && (w == "nay" || w == "qua")) || (p == "ngày" && (w == "mai" || w == "âm")) ||
+        (p == "bây" && w == "giờ") || (p == "âm" && w == "lịch"))
         return true;
     return (w == "today" || w == "tomorrow" || w == "yesterday" || w == "now") && isAsciiLetters(prevRun);
 }
