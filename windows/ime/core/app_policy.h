@@ -179,4 +179,14 @@ FieldPolicy classifyInputScopes(const int* scopes, size_t count);
 bool isChromiumNativeOmniboxBrowser(const std::string& exe);
 bool fieldPrefersComposition(const std::string& exe, const int* scopes, size_t count);
 
+// Windows search (Start / taskbar search: SearchHost, SearchApp, StartMenuExperienceHost)
+// on an ASYNC store (a Chromium/WebView2 context: transitory, readable). 2026-11 field
+// report: the first word lost its tone key after "aa" ("taafng" -> "tâfng", "taangf" ->
+// "tângf") while every later word worked — the #139 path: the store lags right after the
+// first in-place replace, the edit key goes through as typed, and only then the field
+// composes. The search box is opened afresh for each search, so each search paid that
+// first word. There the TIP composes from the first letter (as the later words already
+// did). `app` = the app identity (WebView2: the owning app). Sync stores: unchanged.
+bool shellSearchPrefersComposition(const std::string& app, bool asyncStore);
+
 }  // namespace vtx

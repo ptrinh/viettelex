@@ -264,6 +264,13 @@ void setActiveApp(const std::wstring& exeBaseName) {
     ReleaseSRWLockExclusive(&g_lock);
 }
 
+std::string activeApp() {
+    AcquireSRWLockShared(&g_lock);
+    std::string id = narrowLower(activeExeW().c_str());
+    ReleaseSRWLockShared(&g_lock);
+    return id;
+}
+
 void reloadVietnamese() {
     AcquireSRWLockShared(&g_lock);
     loadVietnameseLocked();
