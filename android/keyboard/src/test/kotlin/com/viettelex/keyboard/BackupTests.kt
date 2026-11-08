@@ -72,7 +72,8 @@ class BackupTests {
         val p = BackupCodec.decode(fixture("backup-ios-v1"))
         assertEquals("ios", p.platform)
         assertEquals(Instant.parse("2026-09-27T08:00:00Z"), p.createdAt)
-        assertEquals(46, p.settings!!.size)             // emojiSuggest/pasteButton chỉ iOS, bị bỏ qua; +largeKeys (04/11); +englishByFrequency (05/11)
+        assertEquals(47, p.settings!!.size)             // emojiSuggest/pasteButton chỉ iOS, bị bỏ qua; +largeKeys (04/11); +englishByFrequency (05/11); +keyboardDismissButton (08/11)
+        assertEquals(false, p.settings!![Keys.KEYBOARD_DISMISS_BUTTON])   // "Nút ẩn bàn phím" — cùng khoá iOS
         assertEquals(false, p.settings!![Keys.ENGLISH_BY_FREQUENCY])   // "Đoán từ trùng theo tần suất" — cùng khoá iOS
         assertEquals(false, p.settings!![Keys.LARGE_KEYS])   // "Phím to" — cùng khoá iOS
         assertEquals(true, p.settings!![Keys.HOLD_SHIFT_SYMBOLS])   // "Giữ Shift để gõ số và ký hiệu"
@@ -144,7 +145,7 @@ class BackupTests {
             "keyboardTransparency" to 250, "keyLabelTransparency" to 35,
             BackupPrefs.SHORTCUTS_KEY to "# VietTelex — bảng gõ tắt\nko: không\n")
         val p = BackupPrefs.snapshot({ prefs[it] }, listOf(TemplateItem("", "a")), null)
-        assertEquals(92, p.settings!!.size)   // +symbolReturn (06/11); +englishByFrequency (05/11); +largeKeys (04/11); +systemMaterialYou, +suggestionInk (30/10); +trackpadSpeed (29/10); +27 Bạn đồng hành: sinh nhật 2, tên 11, kiểu vẽ 11, vị trí & cỡ 3 (27/10); +retroactiveEnglish (23/10); +splitKeyboard; 6 khoá KeyStyle chung → 1 keyStyles (18/10/2026); +keyEffect, +holdShiftSymbols, +swipeTrail, +keyboardBuddy (19/10)
+        assertEquals(93, p.settings!!.size)   // +keyboardDismissButton (08/11); +symbolReturn (06/11); +englishByFrequency (05/11); +largeKeys (04/11); +systemMaterialYou, +suggestionInk (30/10); +trackpadSpeed (29/10); +27 Bạn đồng hành: sinh nhật 2, tên 11, kiểu vẽ 11, vị trí & cỡ 3 (27/10); +retroactiveEnglish (23/10); +splitKeyboard; 6 khoá KeyStyle chung → 1 keyStyles (18/10/2026); +keyEffect, +holdShiftSymbols, +swipeTrail, +keyboardBuddy (19/10)
         assertEquals("simple", p.settings!![Keys.SWIPE_TRAIL])   // hiệu ứng nét vuốt: mặc định Đơn giản
         assertEquals("off", p.settings!![Keys.KEYBOARD_BUDDY])   // bạn đồng hành: mặc định Tắt
         assertEquals(true, p.settings!![Keys.HOLD_SHIFT_SYMBOLS])   // giữ Shift ra số/ký hiệu: mặc định bật
@@ -157,6 +158,7 @@ class BackupTests {
         assertEquals("1h", p.settings!![Keys.CLIPBOARD_TTL])   // giữ lịch sử clipboard: mặc định 1 giờ
         assertEquals("comma", p.settings!![Keys.SPACE_SIDE_KEY])   // phím cạnh dấu cách: mặc định ","
         assertEquals("auto", p.settings!![Keys.SYMBOL_RETURN])   // về bàn chữ sau ký hiệu: mặc định Tự động
+        assertEquals(false, p.settings!![Keys.KEYBOARD_DISMISS_BUTTON])   // nút ẩn bàn phím: mặc định tắt
         assertEquals("bottom", p.settings!![Keys.EMOJI_KEY_PLACEMENT])   // nút emoji: mặc định hàng dưới
         assertEquals("medium", p.settings!![Keys.KEY_LABEL_SIZE])   // cỡ chữ trên phím: mặc định Vừa
         assertEquals("en", p.settings!![Keys.TRANSLATE_TARGET])   // Dịch trên máy: mặc định English
@@ -272,6 +274,18 @@ class BackupTests {
         assertEquals(SymbolReturn.OFF, KeyboardSettings.load { b[it] }.symbolReturn)
         val bad = BackupCodec.decode("""{"format":"viettelex-backup","version":1,"settings":{"symbolReturn":"sometimes"}}""")
         assertNull(bad.settings!![Keys.SYMBOL_RETURN])
+    }
+
+    /** "Nút ẩn bàn phím" (keyboardDismissButton, cùng khoá iOS): khứ hồi qua file; sai kiểu bị bỏ qua. */
+    @Test fun keyboardDismissButtonBackupRoundTrip() {
+        val a = mapOf<String, Any?>(Keys.KEYBOARD_DISMISS_BUTTON to true)
+        val p = BackupCodec.decode(BackupCodec.encode(BackupPrefs.snapshot({ a[it] }, emptyList(), null)))
+        assertEquals(true, p.settings!![Keys.KEYBOARD_DISMISS_BUTTON])
+        val b = HashMap<String, Any?>()
+        b.putAll(BackupPrefs.plan(p, { b[it] }, emptyList()).writes)
+        assertEquals(true, KeyboardSettings.load { b[it] }.keyboardDismissButton)
+        val bad = BackupCodec.decode("""{"format":"viettelex-backup","version":1,"settings":{"keyboardDismissButton":"yes"}}""")
+        assertNull(bad.settings!![Keys.KEYBOARD_DISMISS_BUTTON])
     }
 
     /** uiLanguage: khứ hồi qua file; giá trị lạ / sai kiểu bị bỏ qua khi nhập, pref lạ ⇒ "vi". */

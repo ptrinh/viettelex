@@ -210,6 +210,20 @@ final class BackupTests: XCTestCase {
         XCTAssertNil(try BackupCodec.decode(bad).settings?[SymbolReturn.key])
     }
 
+    /// "Nút ẩn bàn phím" (keyboardDismissButton) đi theo sao lưu; mặc định tắt; sai kiểu ⇒ bỏ qua.
+    func testSnapshotIncludesKeyboardDismissButton() throws {
+        let (s, _) = makeStore()
+        XCTAssertEqual(s.snapshot(includeLearned: false).settings?[KeyboardDismissButton.key], .bool(false))
+        s.defaults.set(true, forKey: KeyboardDismissButton.key)
+        let snap = s.snapshot(includeLearned: false)
+        XCTAssertEqual(snap.settings?[KeyboardDismissButton.key], .bool(true))
+        let (t, _) = makeStore()
+        _ = t.apply(try BackupCodec.decode(BackupCodec.encode(snap)))
+        XCTAssertTrue(KeyboardDismissButton.load(t.defaults))
+        let bad = Data(#"{"format":"viettelex-backup","version":1,"settings":{"keyboardDismissButton":"yes"}}"#.utf8)
+        XCTAssertNil(try BackupCodec.decode(bad).settings?[KeyboardDismissButton.key])
+    }
+
     /// Ngôn ngữ giao diện (uiLanguage, kiểu chuỗi) đi theo sao lưu; mặc định "vi";
     /// giá trị lạ bị bỏ qua cả khi nhập file lẫn khi đồng bộ.
     func testUILanguageBackupRoundTrip() throws {

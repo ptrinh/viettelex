@@ -409,7 +409,7 @@ class ImeRootView(
     private var effectsBand = com.viettelex.keyboard.KeyEffectBand.ABOVE_KEYS
 
     /**
-     * "Bạn đồng hành" ([BuddyView], Plus) — ô ngay trái ⌄ trong strip (StripView chừa [StripView.buddyDp]), tràn
+     * "Bạn đồng hành" ([BuddyView], Plus) — ô sát mép phải strip (trái ⌄ ẩn bàn phím khi bật) (StripView chừa [StripView.buddyDp]), tràn
      * xuống hàng phím đầu (vẽ trên phím, không nhận chạm). null = tắt (mặc định: không view, 0 chi phí).
      */
     var buddy: BuddyView? = null
@@ -432,7 +432,7 @@ class ImeRootView(
     /** Khung ô nhân vật (px, gốc = khung bàn phím): sát mép phải, cao = strip + phần tràn xuống phím; cỡ / lề neo đáy-phải. */
     private fun layoutBuddy(px: Int, py: Int, pw: Int, s: Int) {
         val b = buddy ?: return
-        val r = px + pw
+        val r = px + pw - Math.round(strip.dismissPx())   // ⌄ ẩn bàn phím (tắt = 0) nằm sát mép phải
         val l = r - Math.round(theme.dp(StripGeometry.BUDDY_W))
         val h = StripGeometry.buddyHeight(s)
         val w = StripGeometry.buddyDrawWidth(s, r - l)

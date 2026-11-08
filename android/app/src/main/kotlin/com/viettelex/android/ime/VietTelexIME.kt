@@ -573,7 +573,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             slotSetting = settings.suggestionCount,
             // "Chiều cao thanh gợi ý" — điện thoại ngang kẹp ở Vừa (màn thấp).
             barHeight = settings.suggestionBarHeight, landscapeCap = th.landscape && !th.tablet,
-            suggestionInk = settings.suggestionInk)
+            suggestionInk = settings.suggestionInk,
+            // "Nút ẩn bàn phím" (mặc định tắt): ⌄ góc phải dải → onDismissKeyboard (requestHideSelf).
+            dismissButton = settings.keyboardDismissButton)
         applyFloating(settings.floatingKeyboard, settings)
         kb.setEditHasSelection(info.initialSelStart >= 0 && info.initialSelStart != info.initialSelEnd)
         st.setExtras(clipButton = settings.clipboardHistory, open = false)

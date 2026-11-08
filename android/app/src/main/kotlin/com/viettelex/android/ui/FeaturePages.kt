@@ -131,6 +131,7 @@ internal data class FeatureSearchEntry(
             FeatureSearchEntry("Chọn phím thông minh", "chạm trượt smart touch thử nghiệm experimental", FeaturePage.SuaLoi), // l10n-key
             FeatureSearchEntry("Tự sửa từ gõ sai", "autocorrect sửa lỗi chạm trượt thử nghiệm experimental", FeaturePage.SuaLoi), // l10n-key
             FeatureSearchEntry("Thanh gợi ý", "suggestion học từ", FeaturePage.SuaLoi), // l10n-key
+            FeatureSearchEntry("Nút ẩn bàn phím", "ẩn bàn phím hide dismiss keyboard chevron ⌄ đóng close", FeaturePage.SuaLoi), // l10n-key
             FeatureSearchEntry("Gợi ý số tiền", "chip số tiền đọc số number money currency", FeaturePage.SuaLoi), // l10n-key
             FeatureSearchEntry("Hiện kết quả phép tính", "tính toán máy tính bằng math calculator", FeaturePage.SuaLoi), // l10n-key
             FeatureSearchEntry("Thêm dấu", "chip thêm dấu cả câu không dấu add tones plus", FeaturePage.SuaLoi), // l10n-key
@@ -494,6 +495,9 @@ private fun SuaLoiPage(onBack: () -> Unit) {
                 SettingDeps.SuggestionRow.Toggle ->
                     BoolToggle(Keys.SHOW_SUGGESTIONS, Prefs.D.showSuggestions, tr("Thanh gợi ý"), tr(SettingCaption.showSuggestions))
                 SettingDeps.SuggestionRow.Count -> SuggestionCountRow()
+                SettingDeps.SuggestionRow.DismissButton ->
+                    BoolToggle(Keys.KEYBOARD_DISMISS_BUTTON, Prefs.D.keyboardDismissButton, tr("Nút ẩn bàn phím"),
+                        tr(SettingCaption.keyboardDismissButton))
                 SettingDeps.SuggestionRow.InNoSuggestFields ->
                     BoolToggle(Keys.SUGGEST_IN_NO_SUGGEST_FIELDS, Prefs.D.suggestInNoSuggestFields, tr("Gợi ý cả khi ứng dụng tắt gợi ý"),
                         tr(SettingCaption.suggestInNoSuggestFields))

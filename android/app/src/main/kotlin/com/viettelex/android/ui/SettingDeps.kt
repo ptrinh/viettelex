@@ -9,11 +9,11 @@ internal object SettingDeps {
     const val NEEDS_SUGGESTIONS = "Cần bật Thanh gợi ý" // l10n-key
 
     /** Dòng của nhóm "Thanh gợi ý" (trang Sửa lỗi & gợi ý), theo thứ tự hiển thị. */
-    enum class SuggestionRow { Toggle, Count, InNoSuggestFields, NumberChips, MathResults, AddTones, FilterSensitive }
+    enum class SuggestionRow { Toggle, Count, DismissButton, InNoSuggestFields, NumberChips, MathResults, AddTones, FilterSensitive }
 
     /**
-     * Thanh gợi ý tắt ⇒ ẩn các mục chỉ hiện trên thanh (số từ, gợi ý cả khi app tắt gợi ý, số tiền,
-     * phép tính, Thêm dấu). "Lọc từ nhạy cảm" luôn hiện (§6: không phụ thuộc).
+     * Thanh gợi ý tắt ⇒ ẩn các mục chỉ hiện trên thanh (số từ, nút ẩn bàn phím ⌄, gợi ý cả khi app tắt
+     * gợi ý, số tiền, phép tính, Thêm dấu). "Lọc từ nhạy cảm" luôn hiện (§6: không phụ thuộc).
      */
     fun suggestionRows(showSuggestions: Boolean): List<SuggestionRow> =
         if (showSuggestions) SuggestionRow.entries
