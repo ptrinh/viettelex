@@ -83,12 +83,15 @@ enum KeySoundStyle: String, CaseIterable {
     case bop
     // Theme "Pixel 8-bit" (11/2026): tiếng "blip" máy chơi game cầm tay — sóng vuông (hoạ âm lẻ) hai nốt nhảy lên.
     case chip
+    // Theme "Neon Night Club" (11/2026): nhịp club điện tử — phím chữ = hi-hat "tss" ngắn, xoá = kick điện tử, cách /
+    // Enter (chức năng) = kick + hat ⇒ gõ chữ rồi cách thành nhịp "tss tss tss BÙM" xen kẽ tự nhiên.
+    case club
 
     /// Bật "Âm thanh phím" lần đầu ⇒ "Nhẹ nhàng" (bật công tắc phải NGHE khác đi; "iOS" = như lúc tắt).
     static let defaultStyle: KeySoundStyle = .subtle
     /// Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức `baseRecipe`.
     static let presets: [KeySoundStyle] = [.subtle, .wood, .mechanical, .typewriter, .bubble, .rock, .pop, .water, .vintage, .phao, .jingle,
-                                           .scifi, .trong, .boo, .bop, .chip]
+                                           .scifi, .trong, .boo, .bop, .chip, .club]
     /// Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta).
     static let allPresets: [KeySoundStyle] = presets + [.piano, .dantranh, .guitar]
     /// DANH SÁCH DUY NHẤT id hợp lệ cho trường "sound" của theme JSON (chọn theme ⇒ đặt keySoundStyle).
@@ -129,6 +132,7 @@ enum KeySoundStyle: String, CaseIterable {
         case .guitar: return LK("Ghi-ta mộc")
         case .bop: return LK("Búa gỗ")
         case .chip: return LK("Bíp 8-bit")
+        case .club: return LK("Nhịp club")
         }
     }
 
@@ -237,6 +241,30 @@ enum KeySoundSynth {
                                   t(0.17, 1319 * 5, 1319 * 5, tau: 0.009, delay: 0.012)],
                           noises: [],
                           attack: 0.0008, duration: 0.048, outLP: 6000, peak: 0.42)
+        case .club:
+            return clubRecipe(.letter)
+        }
+    }
+
+    /// Nhịp club (theme Neon Night Club) — MỖI LOẠI PHÍM một tiếng riêng (không theo luật cao độ ×0.86 / ×0.74):
+    ///   chữ: hi-hat đóng "tss" mềm — nhiễu hp 700 Hz lp 1.7 kHz τ10 ms (1.0) + vệt kim loại 2.2 kHz τ2 ms (0.10); 34 ms.
+    ///   xoá: kick điện tử — sine trượt XUỐNG 170 → 55 Hz (glide 7 ms) τ14 ms + "click" nhiễu lp 2.2 kHz τ0.8 ms (0.25); 50 ms.
+    ///   chức năng (cách / Enter): kick trầm hơn 150 → 48 Hz + hat nhỏ trễ 9 ms (0.45) ⇒ "bùm-tss"; 56 ms.
+    /// Đỉnh chung 0.45 (< Gõ gỗ, test chốt), không chói (trọng tâm phổ < 2.5 kHz). Android KeySoundSynth.clubRecipe y hệt.
+    static func clubRecipe(_ k: KeySoundKind) -> Recipe {
+        switch k {
+        case .letter:
+            return Recipe(tones: [t(0.10, 2200, 2200, tau: 0.002)],
+                          noises: [n(1.0, hp: 700, lp: 1700, tau: 0.010)],
+                          attack: 0.0005, duration: 0.034, outLP: 1800, peak: 0.45)
+        case .delete:
+            return Recipe(tones: [t(1.0, 170, 55, glide: 0.007, tau: 0.014)],
+                          noises: [n(0.25, hp: 300, lp: 2200, tau: 0.0008)],
+                          attack: 0.0006, duration: 0.050, outLP: 3000, peak: 0.45)
+        case .modifier:
+            return Recipe(tones: [t(1.0, 150, 48, glide: 0.007, tau: 0.015), t(0.05, 2200, 2200, tau: 0.002, delay: 0.009)],
+                          noises: [n(0.25, hp: 300, lp: 2200, tau: 0.0008), n(0.45, hp: 700, lp: 1700, tau: 0.004, delay: 0.009)],
+                          attack: 0.0006, duration: 0.056, outLP: 2400, peak: 0.45)
         }
     }
 
@@ -268,6 +296,7 @@ enum KeySoundSynth {
 
     /// Công thức theo loại phím: xoá trầm hơn chút; phím chức năng trầm + dài hơn.
     static func recipe(_ s: KeySoundStyle, _ k: KeySoundKind) -> Recipe {
+        if s == .club { return clubRecipe(k) }   // mỗi loại phím một tiếng (hat / kick / kick + hat)
         var r = baseRecipe(s)
         let (pitch, decay, extra): (Double, Double, Double)
         switch k {
@@ -282,6 +311,8 @@ enum KeySoundSynth {
     }
 
     static func seed(_ s: KeySoundStyle, _ k: KeySoundKind) -> UInt32 {
+        // Nhịp club: seed CỐ ĐỊNH ("club"), không theo vị trí case ⇒ checksum không đổi khi nhánh khác thêm kiểu trước nó.
+        if s == .club { return 0x636C_7562 ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1)) }
         let si = UInt32(KeySoundStyle.allCases.firstIndex(of: s) ?? 0)
         return 0x9E37_79B9 &* (si &+ 1) ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1))
     }

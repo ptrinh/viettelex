@@ -14,6 +14,7 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
 import com.viettelex.keyboard.ComboMeter
+import com.viettelex.keyboard.DanceFloor
 import com.viettelex.keyboard.EmojiWords
 import com.viettelex.keyboard.FlashPulse
 import com.viettelex.keyboard.FlyingLetters
@@ -208,6 +209,17 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     private var grainSeq = 0
     private var sandLast = Long.MIN_VALUE / 2
     private val sandPath = Path()
+    // Sàn nhảy LED — pool chùm ô (mảng phẳng cấp sẵn: vòng, màu, x, y, w, h mỗi ô), nháy cả bàn phím một lớp.
+    private val danceStart = LongArray(DanceFloor.POOL) { Long.MIN_VALUE / 2 }
+    private val danceTiles = Array(DanceFloor.POOL) { FloatArray(DANCE_TILES * 6) }
+    private val danceN = IntArray(DanceFloor.POOL)
+    private var danceCursor = 0
+    private var danceSeq = 0
+    private val flickerGate = DanceFloor.FlickerGate()
+    private var flickerStart = Long.MIN_VALUE / 2
+    private val flickerTiles = FloatArray(DanceFloor.MAX_GRID * 6)
+    private var flickerN = 0
+    private val danceRect = RectF()
 
     val effect: KeyEffect get() = sim.effect
 
@@ -331,6 +343,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
                 glStart[s] = now; glRect[s].set(x - hw, y - hh, x + hw, y + hh); glVariant[s] = glSeq++ % GlitchFx.VARIANTS
             }
             KeyEffect.SAND -> fireSand(x, y, now)
+            KeyEffect.DANCEFLOOR -> fireDance(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.FLASH -> if (flash.trigger(now)) flashStart = now
             KeyEffect.LIGHTNING -> fireLightning(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.MATRIX -> pokeMatrix(now)
@@ -418,9 +431,72 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         grainAlive.fill(false); sand?.clear(); plasma.reset()
         shakeStart = Long.MIN_VALUE / 2
         shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
+        danceStart.fill(Long.MIN_VALUE / 2); flickerStart = Long.MIN_VALUE / 2
         pendN = 0
         invalidate()
     }
+
+    // ---- Sàn nhảy LED ([DanceFloor] — hình học thuần chung iOS; ở đây px vì cỡ ô theo khung phím thật)
+
+    private fun copyTiles(src: List<DanceFloor.Tile>, dst: FloatArray, max: Int): Int {
+        val n = minOf(src.size, max)
+        for (k in 0 until n) {
+            val t = src[k]
+            dst[6 * k] = t.ring.toFloat(); dst[6 * k + 1] = t.color.toFloat()
+            dst[6 * k + 2] = t.x.toFloat(); dst[6 * k + 3] = t.y.toFloat(); dst[6 * k + 4] = t.w.toFloat(); dst[6 * k + 5] = t.h.toFloat()
+        }
+        return n
+    }
+
+    private fun fireDance(x: Float, y: Float, w: Float, h: Float, now: Long) {
+        val level = combo.press(now)
+        val s = danceCursor; danceCursor = (s + 1) % DanceFloor.POOL
+        danceSeq++
+        danceN[s] = copyTiles(DanceFloor.tiles(x.toDouble(), y.toDouble(), w.toDouble(), h.toDouble(), danceSeq), danceTiles[s], DANCE_TILES)
+        danceStart[s] = now
+        // Gõ dồn (mức combo cao nhất): cả bàn phím nháy một nhịp — trần nhịp FLICKER_COOLDOWN.
+        if (flickerGate.trigger(level, now / 1000.0) && width > 0 && height > 0) {
+            flickerN = copyTiles(DanceFloor.grid(0.0, 0.0, width.toDouble(), height.toDouble(), x.toDouble(), y.toDouble(),
+                w.toDouble(), h.toDouble(), danceSeq), flickerTiles, DanceFloor.MAX_GRID)
+            flickerStart = now
+        }
+    }
+
+    private fun drawTile(canvas: Canvas, t: FloatArray, k: Int, a: Double) {
+        val c = DanceFloor.COLORS[t[6 * k + 1].toInt()] or (0xFF shl 24)
+        val cx = t[6 * k + 2]; val cy = t[6 * k + 3]; val hw = t[6 * k + 4] / 2; val hh = t[6 * k + 5] / 2
+        danceRect.set(cx - hw, cy - hh, cx + hw, cy + hh)
+        val r = (DanceFloor.CORNER_FACTOR * minOf(hw, hh) * 2).toFloat()
+        fill.color = c; fill.alpha = (a * 255).toInt().coerceIn(0, 255)
+        canvas.drawRoundRect(danceRect, r, r, fill)
+        stroke.color = c; stroke.alpha = (a * 0.9 * 255).toInt().coerceIn(0, 255); stroke.strokeWidth = 1.5f * density
+        canvas.drawRoundRect(danceRect, r, r, stroke)
+    }
+
+    private fun drawDance(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        val fdt = (now - flickerStart) / 1000.0
+        if (fdt >= 0 && fdt < DanceFloor.FLICKER_DURATION) {
+            any = true
+            val a = DanceFloor.flickerAlpha(fdt)
+            if (a > 0) for (k in 0 until flickerN) drawTile(canvas, flickerTiles, k, a)
+        }
+        for (s in 0 until DanceFloor.POOL) {
+            val dt = (now - danceStart[s]) / 1000.0
+            if (dt < 0 || dt >= DanceFloor.LIFETIME) continue
+            any = true
+            val t = danceTiles[s]
+            for (k in 0 until danceN[s]) {
+                val a = DanceFloor.alpha(dt, t[6 * k].toInt())
+                if (a > 0) drawTile(canvas, t, k, a)
+            }
+        }
+        return any
+    }
+
+    /** Test: số chùm sàn nhảy còn sáng lúc [now] + đã nháy cả bàn phím bao nhiêu lần. */
+    internal fun dancesAlive(now: Long): Int = danceStart.count { (now - it) / 1000.0 in 0.0..<DanceFloor.LIFETIME }
+    internal val flickersFired: Int get() = flickerGate.fired
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
@@ -462,6 +538,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.KEYWORD -> drawKeyword(canvas, now)
             KeyEffect.LETTERS -> drawLetters(canvas, now)
             KeyEffect.SAND -> drawSand(canvas, now)
+            KeyEffect.DANCEFLOOR -> drawDance(canvas, now)
             else -> drawParticles(canvas, now)
         }
     }
@@ -1164,5 +1241,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         /** Rung dây: thời lượng (ms) = StringPluck.DURATION. */
         val STRING_MS = Math.round(StringPluck.DURATION * 1000)
         const val DEFAULT_H = 42f
+        /** Sàn nhảy LED: số ô mỗi chùm = (2·(RINGS−1)+1)². */
+        const val DANCE_TILES = (2 * (DanceFloor.RINGS - 1) + 1) * (2 * (DanceFloor.RINGS - 1) + 1)
     }
 }

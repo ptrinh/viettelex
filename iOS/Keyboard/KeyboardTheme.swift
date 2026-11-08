@@ -271,6 +271,9 @@ enum KeyboardTheme: String, CaseIterable {
     // Bộ 11/2026 (Plus, THÊM CUỐI): Pixel 8-bit (máy chơi game cầm tay, phím vuông, âm "chip"), Biển (xanh biển + cát,
     // sóng + bọt, hiệu ứng Sóng nước), Theo giờ (bảng màu đổi theo giờ địa phương — "schedule" trong theme JSON).
     case pixel, sea, timeOfDay
+    // Neon Night Club (11/2026, Plus, THÊM CUỐI): nền đen, phím tối viền ống neon hồng + chữ chức năng lục lam, Đèn rọi
+    // trên ảnh nền ("photoFx":"spotlight" — NightClub.swift), hiệu ứng Sàn nhảy LED, âm "club", quả cầu disco.
+    case nightclub
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -307,6 +310,7 @@ enum KeyboardTheme: String, CaseIterable {
         case .pixel: return L("Pixel 8-bit")
         case .sea: return L("Biển")
         case .timeOfDay: return L("Theo giờ")
+        case .nightclub: return L("Neon Night Club")
         }
     }
 
@@ -337,7 +341,8 @@ enum KeyboardTheme: String, CaseIterable {
              .trungthu, .valentine, .halloween,
              .guitar,
              .mole,
-             .pixel, .sea, .timeOfDay: return true
+             .pixel, .sea, .timeOfDay,
+             .nightclub: return true
         }
     }
 
@@ -947,6 +952,7 @@ struct ThemeSettings: Equatable {
             if s.effect == nil { s.effect = t.effect }
             if s.swipe == nil { s.swipe = t.swipe }
             if s.game == nil { s.game = t.game }
+            if s.photoFx == nil { s.photoFx = t.photoFx }
             s.assets = s.assets.merged(over: t.assets)
             if userSystemFont { s.assets.font = nil }
             if s.assets.font != nil { s.font = .standard }
@@ -1109,6 +1115,8 @@ struct KeyStyle: Equatable {
     var swipe: String? = nil
     /// Trò chơi khi gõ của theme ("game", ThemeExtraIds.games) — bàn phím đọc từ kiểu thực dùng (MolePolicy).
     var game: String? = nil
+    /// Hiệu ứng trên ảnh nền của theme ("photoFx", ThemeExtraIds.photoFx) — bàn phím đọc từ kiểu thực dùng (SpotlightPolicy).
+    var photoFx: String? = nil
 
     static let `default` = KeyStyle()
     var isDefault: Bool { self == .default }
@@ -1244,6 +1252,7 @@ struct KeyStyle: Equatable {
         st.effect = edited.effect
         st.swipe = edited.swipe
         st.game = edited.game
+        st.photoFx = edited.photoFx
         return (st, l.lostBg || d.lostBg)
     }
 }
@@ -1307,6 +1316,7 @@ enum KeyStyleStore {
         if let v = st.effect { f.append(("effect", .string(v))) }
         if let v = st.swipe { f.append(("swipe", .string(v))) }
         if let v = st.game { f.append(("game", .string(v))) }
+        if let v = st.photoFx { f.append(("photoFx", .string(v))) }
         if !st.light.isEmpty { f.append(("light", ThemeSpec.json(st.light))) }
         if !st.dark.isEmpty { f.append(("dark", ThemeSpec.json(st.dark))) }
         return .object(f)

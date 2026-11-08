@@ -81,6 +81,7 @@
 		25BE9185DF0E0B4209A458C8 /* futoswipe.bin in Resources */ = {isa = PBXBuildFile; fileRef = 3A1DB988579CAEA0FC0453E7 /* futoswipe.bin */; };
 		25D118C61ECCCF2C969F549D /* RainbowBorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C48C500F39CC4B089E84DA5 /* RainbowBorder.swift */; };
 		25EDD0A1235FCCBE349B7DDC /* SwipeDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705734FC03226DA179E14A71 /* SwipeDecoder.swift */; };
+		26BE18A2BFA5034F446A5C63 /* NightClub.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC3A07A6FB497AE36F5C1916 /* NightClub.swift */; };
 		26C607EDB93AB182A66930C9 /* AppearancePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214BE1EF9FDB2118D4F50109 /* AppearancePolicyTests.swift */; };
 		26F92D30462E28A390FD70A6 /* UXSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4C8682721439F0EE47DDC34 /* UXSnapshotTests.swift */; };
 		277932CADF5C72BEDCB58651 /* EmojiAtlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B235B84E86F71BBBB10E836 /* EmojiAtlas.swift */; };
@@ -145,6 +146,7 @@
 		41E3FA4381117F20A004AB5F /* montserrat.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A3D8EFD54B024F6E0881EC5D /* montserrat.ttf */; };
 		42330A2F6ABF40E32EAD3BAE /* LunarCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5658CD4BA507DF2BA12245 /* LunarCalendar.swift */; };
 		42C0FC911DFA0F3E53C151F2 /* patrick-hand.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E75AFF6CFBC6B0096C134CFB /* patrick-hand.ttf */; };
+		434A2DE773686767F92FFCDC /* NightClubSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A05AE760FBCD9C4122821C /* NightClubSnapshotTests.swift */; };
 		444358B0BE78D91F673CD621 /* TouchTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C928B7D91A4C54D1642E70F /* TouchTargetTests.swift */; };
 		449E170B3E5587C8C753066F /* TesterFeedback128Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A3A76C6FE352CB31025CB2 /* TesterFeedback128Tests.swift */; };
 		44A5583606CE1DF3341B9EC6 /* BackupStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A809E689B0799E01016CE69B /* BackupStore.swift */; };
@@ -231,6 +233,7 @@
 		6CEF83B7DF0599D2A422B7F5 /* StartupTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C9D789536A5CAC8C4A014DF /* StartupTrace.swift */; };
 		6D6F9E75269F8D8410CB106F /* HostRewriteCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27D10BA36AFF204B214098B2 /* HostRewriteCompositionTests.swift */; };
 		6E288C02E8191203ECFB80E3 /* TouchTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E700B266A47DAAAD5A72343 /* TouchTarget.swift */; };
+		6E3104A3456E6DE48560B662 /* NightClub.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC3A07A6FB497AE36F5C1916 /* NightClub.swift */; };
 		6F42E1D0D97E7C5C8855A854 /* SwipeTrailPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE8354468306FC0BF399DB2 /* SwipeTrailPickerView.swift */; };
 		6F50CB3A770883B3B7301C9F /* MoleGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 680C638081B910FE0C6D35F3 /* MoleGame.swift */; };
 		6F62D529E361DD85CF4B72AD /* KeyVariants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7394A70103C67353E530BD3C /* KeyVariants.swift */; };
@@ -307,6 +310,7 @@
 		8ECAE0FEE3CD0AD5D5A6F10D /* KeyVariantsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AFA2F7162222243B187E853 /* KeyVariantsTests.swift */; };
 		8ED2C863FDB34599CA463016 /* TranslatePrefs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FD55F59F8275BCD7B566DD /* TranslatePrefs.swift */; };
 		8EFE03B0F8E51977E629FE86 /* RetroEnglishUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45174CB35A9FB727F1BF5F4F /* RetroEnglishUI.swift */; };
+		8F86CAE3EFA20369A2DD6DEC /* NightClubTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBFA99F205FC938D73E00858 /* NightClubTests.swift */; };
 		9007A67A56C9D0746F042F21 /* SwipeVocab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03130513F64077C5E7BBBE54 /* SwipeVocab.swift */; };
 		907F964487BA3A68973501C4 /* TrackpadSpeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B4720D0E4858AFE6E92602D /* TrackpadSpeed.swift */; };
 		9105305FBB5859C1717C3B36 /* TrackpadSpeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B4720D0E4858AFE6E92602D /* TrackpadSpeed.swift */; };
@@ -809,6 +813,7 @@
 		A9F6973DD8764DB934C95323 /* EmojiAtlasTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiAtlasTests.swift; sourceTree = "<group>"; };
 		AAEC220F2DD66A7EF33DC9B3 /* itim.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = itim.ttf; sourceTree = "<group>"; };
 		AC1AFC01B017992B476A591C /* EmojiEnglishTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiEnglishTests.swift; sourceTree = "<group>"; };
+		AC3A07A6FB497AE36F5C1916 /* NightClub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightClub.swift; sourceTree = "<group>"; };
 		ACF0C397A9C6E378B4465FAE /* DomainPopupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainPopupTests.swift; sourceTree = "<group>"; };
 		ADEE2E97D8CBDA3CAE8C94C1 /* Translate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translate.swift; sourceTree = "<group>"; };
 		B131CAD7D99573DFCAB4D70E /* BuddyPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuddyPickerView.swift; sourceTree = "<group>"; };
@@ -830,6 +835,7 @@
 		BA8ED337D5676E88733DA615 /* Shortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shortcuts.swift; sourceTree = "<group>"; };
 		BB1DCD35542C6BD215740CDE /* be-vietnam-pro.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "be-vietnam-pro.ttf"; sourceTree = "<group>"; };
 		BBDFD4831F701CE3922C7ACB /* buddy-boy-v2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "buddy-boy-v2.png"; sourceTree = "<group>"; };
+		BBFA99F205FC938D73E00858 /* NightClubTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightClubTests.swift; sourceTree = "<group>"; };
 		BCEDB8DB46233031AA0E58FB /* quicksand.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = quicksand.ttf; sourceTree = "<group>"; };
 		BDBDF5E631CCFAEF1C938796 /* backup-future-v2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "backup-future-v2.json"; sourceTree = "<group>"; };
 		BE53C9206C42DC93F0BA92B1 /* IntelligenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligenceEngine.swift; sourceTree = "<group>"; };
@@ -873,6 +879,7 @@
 		D705942B9BA084047E7A7EF1 /* EmojiPlane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPlane.swift; sourceTree = "<group>"; };
 		D93CDC9D2CEA8A91A576B183 /* FeatureRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureRegressionTests.swift; sourceTree = "<group>"; };
 		D95D1F5343F64A6142AF4DBC /* MixedTypingSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MixedTypingSection.swift; sourceTree = "<group>"; };
+		D9A05AE760FBCD9C4122821C /* NightClubSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightClubSnapshotTests.swift; sourceTree = "<group>"; };
 		DB52CD432640348306317A7C /* vnlm-parity.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "vnlm-parity.txt"; sourceTree = "<group>"; };
 		DB8B0DA94C5E17697D6DE9E7 /* AdjacentKeyFixerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdjacentKeyFixerTests.swift; sourceTree = "<group>"; };
 		DB94721D99CEB3A5D2CA8A8B /* SlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlowTests.swift; sourceTree = "<group>"; };
@@ -1240,6 +1247,8 @@
 				46501A28188D32863452971E /* MathResultsTests.swift */,
 				F6972CB533614293F6563376 /* MixedTypingUITests.swift */,
 				B5A005BDE8CE23D127F0AE4A /* MoleGameTests.swift */,
+				D9A05AE760FBCD9C4122821C /* NightClubSnapshotTests.swift */,
+				BBFA99F205FC938D73E00858 /* NightClubTests.swift */,
 				A7FCB71A2846557F9B5442F7 /* NumberChipsTests.swift */,
 				E57EA9452496184AC2ED6BA5 /* NumberRowFullHeightTests.swift */,
 				EE8993F83A60C653C26799EC /* NumberRowTests.swift */,
@@ -1427,6 +1436,7 @@
 				A1859475A5F95F02805768CA /* MathResults.swift */,
 				680C638081B910FE0C6D35F3 /* MoleGame.swift */,
 				A139193316D149189CF109DA /* MoleOverlay.swift */,
+				AC3A07A6FB497AE36F5C1916 /* NightClub.swift */,
 				3DF8BE49B914D1B4B31116F3 /* NumberChips.swift */,
 				C007A36B32C0446F5DA0D89F /* NumericKeypad.swift */,
 				17665D2E58942674B15504AB /* OneHand.swift */,
@@ -1829,6 +1839,7 @@
 				C6771B55F9BBE0EC87F164D8 /* MixedTypingUI.swift in Sources */,
 				E9E2F40F060ACF3421394AA6 /* MoleGame.swift in Sources */,
 				EEA37BC7FCE44D94EED312BB /* MoleOverlay.swift in Sources */,
+				26BE18A2BFA5034F446A5C63 /* NightClub.swift in Sources */,
 				E0E2190351D069CBD17F6B8C /* NumberChips.swift in Sources */,
 				81C0F52CD34495D609EC6D0B /* NumericKeypad.swift in Sources */,
 				EC7DB6C7411C3F49A17437F2 /* OnboardingProfile.swift in Sources */,
@@ -2097,6 +2108,9 @@
 				A2A9A0CA122A1E4542FC1237 /* MoleGame.swift in Sources */,
 				CE53DF071D96A40BF63F2B37 /* MoleGameTests.swift in Sources */,
 				2F20A81CC62D458CB255C0CA /* MoleOverlay.swift in Sources */,
+				6E3104A3456E6DE48560B662 /* NightClub.swift in Sources */,
+				434A2DE773686767F92FFCDC /* NightClubSnapshotTests.swift in Sources */,
+				8F86CAE3EFA20369A2DD6DEC /* NightClubTests.swift in Sources */,
 				B7ABF18E21AA806DFDB67928 /* NumberChips.swift in Sources */,
 				45143ADE3A7BEAE0B4841933 /* NumberChipsTests.swift in Sources */,
 				9158E85419EC0E211D76DEC8 /* NumberRowFullHeightTests.swift in Sources */,

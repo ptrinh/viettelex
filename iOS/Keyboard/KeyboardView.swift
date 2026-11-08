@@ -370,6 +370,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         buddy?.halt(); buddy = nil
         rainbow?.halt(); rainbow = nil
         mole?.halt(); mole = nil
+        spotlight?.halt(); spotlight = nil
         wallpaperView.image = nil
         wallpaperLoadedFor = .zero
         themeImageView.image = nil; foregroundView.image = nil; themeScreenLoadedFor = nil
@@ -1036,6 +1037,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         layoutBackdrop()
         if balloonMade { balloonHost.shareCoordinateSpace(with: self) }
         mole?.shareCoordinateSpace(with: self)
+        spotlight?.shareCoordinateSpace(with: self)
         StartupTrace.span("kv.wallpaper+screens") {
             loadWallpaperIfNeeded()
             loadThemeScreensIfNeeded()
@@ -2027,6 +2029,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         wallpaperDim.backgroundColor = wl.overlay.ui
         if !wallpaperActive {
             wallpaperView.image = nil          // nhả bitmap ngay khi tắt ảnh nền
+            spotlight?.setPhoto(nil)
             wallpaperLoadedFor = .zero
         } else {
             wallpaperLoadedFor = .zero         // version/cỡ có thể đã đổi → nạp lại
@@ -2188,6 +2191,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             DispatchQueue.main.async {
                 guard let self, self.wallpaperActive else { return }
                 self.wallpaperView.image = img
+                self.spotlight?.setPhoto(img?.cgImage)   // Đèn rọi: CÙNG CGImage (không sao chép)
             }
         }
     }
@@ -2214,6 +2218,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         configureRainbow()
         StartupTrace.span("kv.buddy") { configureBuddy() }
         configureMole()
+        configureSpotlight()
         // Chiều cao hàng phím ±10pt (Settings → Giao diện) — đọc mỗi lần hiện. Bản cũ (có công
         // tắc "Kích thước như bàn phím iPhone") chưa được app chuyển đổi ⇒ tính trong bộ nhớ,
         // không ghi (KeyGeometry.RowAdjust.effectiveAdjust).
@@ -5094,7 +5099,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Mọi lớp phủ trọn bàn phím vẽ theo toạ độ của KeyboardView (test #151: phải chung hệ toạ độ).
     /// Thêm lớp phủ mới kiểu này ⇒ thêm vào đây.
     var debugCoordinateOverlays: [UIView] {
-        [keyEffects, balloonMade ? balloonHost : nil, mole].compactMap { $0 }
+        [keyEffects, balloonMade ? balloonHost : nil, mole, spotlight].compactMap { $0 }
     }
     /// Test: tệp tải về đang nạp + view ảnh nền / tiền cảnh theme + skin ô phóng to.
     var debugThemeAssets: LoadedThemeAssets? { themeAssets }
@@ -6814,7 +6819,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if handleSearchKey(key) { return }
         onKey(key)
         KeystrokeCounter.tick()                  // tắt (mặc định) ⇒ đọc một hằng số
-        if let fx, let o = keyEffects { o.emit(key: fx) }
+        if let fx {
+            keyEffects?.emit(key: fx)
+            spotlight?.light(key: fx)            // Đèn rọi (theme "photoFx":"spotlight"): theme khác ⇒ nil
+        }
         rainbow?.poke()                          // Gaming RGB: theme khác ⇒ nil, chỉ đọc một optional
         if let b = buddy {                       // Bạn đồng hành: tắt ⇒ nil, chỉ đọc một optional
             if case .backspace = key { b.deletePressed() } else { b.keyPressed() }
@@ -6978,6 +6986,29 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     func debugMoleKeyFrame(_ c: Character) -> CGRect? { mole?.keyFrame?(c)?.rect }
     #endif
 
+    // MARK: Đèn rọi (NightClub.swift) — chỉ theme có "photoFx":"spotlight"; khác ⇒ nil (0 lớp, 0 việc).
+    private(set) var spotlight: SpotlightView?
+
+    /// Lúc hiện / đổi theme: gắn hoặc gỡ lớp đèn rọi (trên nền / ảnh nền + lớp phủ, dưới hiệu ứng dải dưới + phím).
+    private func configureSpotlight() {
+        let on = SpotlightPolicy.active(photoFx: themeSettings.effectiveKeyStyle.photoFx,
+                                        plus: PlusGate.isUnlocked(.premiumThemes),
+                                        lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled)
+        guard on else {
+            spotlight?.halt(); spotlight?.removeFromSuperview(); spotlight = nil
+            return
+        }
+        let v = spotlight ?? SpotlightView()
+        if v.superview !== self {
+            if wallpaperDim.superview === self { insertSubview(v, aboveSubview: wallpaperDim) }
+            else { insertSubview(v, belowSubview: rowsContainer) }
+        }
+        v.shareCoordinateSpace(with: self)
+        v.setCornerRadius(wallpaperView.layer.cornerRadius)
+        v.setPhoto(wallpaperActive ? wallpaperView.image?.cgImage : nil)
+        spotlight = v
+    }
+
     // MARK: Viền phím cầu vồng (RainbowBorder.swift) — chỉ theme có "borderFx":"rainbow"; khác ⇒ nil (0 chi phí).
     private(set) var rainbow: RainbowBorderView?
 
@@ -7022,7 +7053,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// hiệu ứng (vd mảnh vỡ của Tia sét) không bao giờ đụng tới view phím thật.
     private var fxRect: CGRect?
     @inline(__always) private func fxMark(_ v: UIView) {
-        guard keyEffects != nil else { return }
+        guard keyEffects != nil || spotlight != nil else { return }
         fxRect = convert(v.bounds, from: v)
     }
     /// Overlay hiệu ứng dùng CHUNG hệ toạ độ với KeyboardView: khung = bounds, gốc bounds = gốc bounds

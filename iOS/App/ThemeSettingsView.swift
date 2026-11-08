@@ -152,6 +152,19 @@ struct ThemeSettingsView: View {
                 }
             }
 
+            // Neon Night Club ("photoFx":"spotlight"): đèn rọi lên ảnh nền — chưa dùng ảnh ⇒ gợi ý + lối tắt chọn ảnh.
+            if settings.effectiveKeyStyle.photoFx == ThemeExtraIds.spotlight,
+               !settings.wallpaperActive(fileExists: hasWallpaperFile) {
+                Section {
+                    PhotosPicker(selection: $pickerItem, matching: .images) {
+                        Label(L("Chọn ảnh nền từ Thư viện"), systemImage: "photo")
+                    }
+                    .disabled(busy || !ThemeGate.allowsWallpaper)
+                } footer: {
+                    Text(L(SettingCaption.spotlightPhoto))
+                }
+            }
+
             Section {
                 NavigationLink {
                     KeyEffectPickerView()

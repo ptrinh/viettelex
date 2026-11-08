@@ -224,6 +224,7 @@ targets:
       - Keyboard/RainbowBorder.swift
       - Keyboard/MoleGame.swift
       - Keyboard/MoleOverlay.swift
+      - Keyboard/NightClub.swift
       - Keyboard/KeyCommitQueue.swift
       - Keyboard/LineBreak.swift
       - Keyboard/AdjacentKeyFixer.swift

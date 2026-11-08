@@ -172,9 +172,9 @@ enum SettingsIndex {
             E(viTitle: LK("Phím sẫm khi bấm"), keywords: "pressed key highlight", location: .feedback, key: "keyPressHighlight"),
             E(viTitle: LK("Rung phím"), keywords: "haptic rung vibrate", location: .feedback, key: "hapticFeedback"),
             E(viTitle: LK("Âm thanh phím"), keywords: "sound click tiếng âm lượng volume kiểu style gỗ cơ máy chữ bong bóng custom", location: .feedback, key: "keySound"),
-            E(viTitle: LK("Âm thanh gõ"), keywords: "typing sound key sound style kiểu âm iOS system click hệ thống gỗ wood đá rock pop nước water cổ điển vintage pháo firecracker tết chuông jingle bell giáng sinh piano nốt nhạc đàn tranh dan tranh zither việt nam viet nam bàn phím cơ mechanical máy chữ typewriter bong bóng bubble ding sci-fi scifi bíp beep vũ trụ space trống lân lion drum trung thu mid autumn ma quái spooky boo halloween guitar ghi ta ghi-ta đàn ghi-ta acoustic hợp âm chord búa gỗ mallet bop bíp 8-bit 8 bit chiptune chip blip retro game", location: .feedback),
+            E(viTitle: LK("Âm thanh gõ"), keywords: "typing sound key sound style kiểu âm iOS system click hệ thống gỗ wood đá rock pop nước water cổ điển vintage pháo firecracker tết chuông jingle bell giáng sinh piano nốt nhạc đàn tranh dan tranh zither việt nam viet nam bàn phím cơ mechanical máy chữ typewriter bong bóng bubble ding sci-fi scifi bíp beep vũ trụ space trống lân lion drum trung thu mid autumn ma quái spooky boo halloween guitar ghi ta ghi-ta đàn ghi-ta acoustic hợp âm chord búa gỗ mallet bop bíp 8-bit 8 bit chiptune chip blip retro game nhịp club club beat hi-hat hihat kick trống điện tử edm", location: .feedback),
             // Giao diện
-            E(viTitle: LK("Theme & ảnh nền"), keywords: "theme màu chủ đề wallpaper hình nền tết tet năm mới lunar new year mai đào giáng sinh noel christmas xmas tuyết snow piano đàn dương cầm sen lotus hoa sen sen việt đàn tranh dan tranh zither việt nam viet nam máy chữ cổ typewriter vintage gaming rgb cầu vồng rainbow vũ trụ space sao star outer space trung thu mid autumn đèn lồng lantern trăng moon valentine tình yêu love tim heart halloween bí ngô pumpkin dơi bat guitar ghi ta ghi-ta đàn ghi-ta acoustic dây đàn strings đập chuột whack a mole xám trung tính neutral grey gray xám ghi gboard pixel 8-bit 8 bit retro game boy máy chơi game điểm ảnh biển sea ocean đại dương sóng wave bọt bubbles cát sand theo giờ time of day bình minh sunrise dawn hoàng hôn sunset ban ngày ban đêm night bầu trời sky", location: .page(.giaoDien)),
+            E(viTitle: LK("Theme & ảnh nền"), keywords: "theme màu chủ đề wallpaper hình nền tết tet năm mới lunar new year mai đào giáng sinh noel christmas xmas tuyết snow piano đàn dương cầm sen lotus hoa sen sen việt đàn tranh dan tranh zither việt nam viet nam máy chữ cổ typewriter vintage gaming rgb cầu vồng rainbow vũ trụ space sao star outer space trung thu mid autumn đèn lồng lantern trăng moon valentine tình yêu love tim heart halloween bí ngô pumpkin dơi bat guitar ghi ta ghi-ta đàn ghi-ta acoustic dây đàn strings đập chuột whack a mole xám trung tính neutral grey gray xám ghi gboard pixel 8-bit 8 bit retro game boy máy chơi game điểm ảnh biển sea ocean đại dương sóng wave bọt bubbles cát sand theo giờ time of day bình minh sunrise dawn hoàng hôn sunset ban ngày ban đêm night bầu trời sky neon night club hộp đêm vũ trường disco quả cầu disco đèn rọi spotlight sàn nhảy dance floor led", location: .page(.giaoDien)),
             E(viTitle: LK("Độ trong suốt phím"), keywords: "trong suốt transparent", location: .page(.giaoDien)),
             E(viTitle: LK("Độ trong suốt ký tự"), keywords: "trong suốt transparent chữ", location: .page(.giaoDien)),
             E(viTitle: LK("Tuỳ chỉnh nâng cao"), keywords: "màu chữ màu phím màu nhấn accent color colour bo góc tròn vuông corner radius cỡ chữ size phông font độ đậm weight bold đặt lại reset mặc định giao diện theme", location: .page(.giaoDien)),
@@ -298,6 +298,7 @@ enum SettingCaption {
     static let plusThemes = LK("Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus; các theme khác miễn phí.")
     static let systemBackdrop = LK("Giữ màu phím của theme, nền dùng lớp kính của iOS (liền với dải 🌐 🎤).")
     static let moleGame = LK("Gõ như thường — chú chuột thò lên ở phím bạn sắp gõ. Gõ trúng lúc nó lên là đập được!")
+    static let spotlightPhoto = LK("Thêm ảnh nền để đèn rọi lên ảnh của bạn.")
     static let wallpaper = LK("Ảnh được thu nhỏ, nén ngay trên máy, không gửi đi đâu. Lớp phủ giúp chữ dễ đọc.")
     static let transparency = LK("Phím: 100% chỉ còn chữ, ảnh nền vẫn giữ. Ký tự: 100% là phím trơn không chữ.")
     static let rowHeightIos = LK("0 = như bàn phím gốc của iPhone, gõ theo thói quen không lệch phím.")
@@ -342,7 +343,7 @@ enum SettingCaption {
         numberRowFullHeight, spaceSideKey, largeKeys, emojiKeyPlacement, longPressNumbers, longPressSymbols,
         holdShiftSymbols, autoSpaceAfterPunct, symbolReturn, trackpadSpeed, swipeKeyCommandsIos, oneHandIos, gesturesFooterIos,
         keyPreview, keyPressHighlight, hapticFeedback, keySound, plusThemes, systemBackdrop,
-        moleGame, wallpaper, transparency, rowHeightIos, keyboardRaise, suggestionBarHeight,
+        moleGame, spotlightPhoto, wallpaper, transparency, rowHeightIos, keyboardRaise, suggestionBarHeight,
         suggestionInk, spaceLogo, splitKeyboardIos, resetAppearance, advancedStyle, fontScaleIos,
         clipboardHistory, clipboardTTL, clipboardPasteAllowIos, clipboardIosLimit, clipboardOffClears, incognitoIos,
         iCloudSync, includeLearned, backupFile, debugLogIos, showLog, clearLog,

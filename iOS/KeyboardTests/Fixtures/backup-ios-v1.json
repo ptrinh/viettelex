@@ -81,6 +81,7 @@
     "systemBackdropMole" : false,
     "systemBackdropNeon" : false,
     "systemBackdropNeutral" : false,
+    "systemBackdropNightclub" : false,
     "systemBackdropOled" : false,
     "systemBackdropPeach" : false,
     "systemBackdropPiano" : false,

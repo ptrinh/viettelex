@@ -213,3 +213,10 @@ SCHED	schedule	1110	1	FFE6ECFF
 SCHED	schedule	1439	1	FFE6ECFF
 SCHED	schedule	1440	1	FFE6ECFF
 SCHED	schedule	-1	1	FFE6ECFF
+# Neon Night Club: "photoFx" (danh sách trắng: "spotlight" — Đèn rọi trên ảnh nền) + âm "club" + hiệu ứng "dancefloor".
+CASE	photofx-spotlight	ok	{"dark":"same","effect":"dancefloor","light":{"accent":"#000000","ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"photoFx":"spotlight","sound":"club","v":1}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"sound":"club","effect":"dancefloor","photoFx":"spotlight"}
+CASE	photofx-unknown	err:badValue	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"photoFx":"disco"}
+CASE	photofx-upper	err:badValue	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"photoFx":"Spotlight"}
+CASE	photofx-number	err:wrongType	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"photoFx":1}
+CASE	photofx-null	err:wrongType	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"photoFx":null}
+CASE	photofx-in-light	err:unknownKey	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000","photoFx":"spotlight"}}

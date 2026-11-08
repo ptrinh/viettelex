@@ -30,6 +30,8 @@ enum KeyEffect: String, CaseIterable {
     // Đợt 3 (11/2026): tia plasma nối phím, rung combo, laser từ phím cách, glitch, dấu thanh, từ khoá (pháo đỏ / lì xì),
     // chữ bay, hạt cát.
     case plasma, shake, laser, glitch, tone, keyword, letters, sand
+    // Theme Neon Night Club (11/2026): Sàn nhảy LED — phím vừa bấm + các phím quanh thắp neon thành vòng vuông lan ra.
+    case dancefloor
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -69,6 +71,7 @@ enum KeyEffect: String, CaseIterable {
         case .keyword: return L("Từ khoá")
         case .letters: return L("Chữ bay")
         case .sand: return L("Hạt cát")
+        case .dancefloor: return L("Sàn nhảy LED")
         }
     }
 
@@ -1160,6 +1163,103 @@ struct SandPile {
     mutating func clear() { for i in heights.indices { heights[i] = 0 } }
 }
 
+/// "Sàn nhảy LED" (theme Neon Night Club, 11/2026): phím vừa bấm + các ô quanh nó thắp neon hồng / tím / lục lam như
+/// sàn nhảy LED — vòng 0 (chính phím) rồi vòng vuông 1, 2 lan ra cách nhau `ringDelay`, mỗi ô tắt trong `tileLife`. Ô
+/// hàng xóm theo lưới bước = cỡ phím × (pitchX, pitchY) (≈ khe phím thật); phím rộng (cách / Enter) ⇒ ô hàng xóm rộng
+/// tối đa 0,85 × cao, dời ra ngoài mép phím. Gõ dồn (ComboMeter mức 3) ⇒ cả bàn phím nháy một nhịp (trần 1,2 s, ≤ 120
+/// ô). Chỉ vector. Hàm thuần — Android DanceFloor cùng số.
+enum DanceFloor {
+    static let rings = 3
+    static let ringDelay = 0.06
+    static let tileLife = 0.26
+    static let peak = 0.55
+    static let pitchX = 1.18
+    static let pitchY = 1.28
+    static let unitAspect = 0.85
+    static let cornerFactor = 0.18
+    /// Hồng, tím, lục lam (= SpotlightFx.colors).
+    static let colors: [UInt32] = [0xFF2FD0, 0x9B5CFF, 0x2FE6FF]
+    static let pool = 3
+    static let flickerLevel = 3
+    static let flickerCooldown = 1.2
+    static let flickerDuration = 0.2
+    static let flickerPeak = 0.22
+    /// Trần số ô của lưới nháy cả bàn phím.
+    static let maxGrid = 120
+
+    struct Tile: Equatable { var ring: Int; var color: Int; var x: Double; var y: Double; var w: Double; var h: Double }
+
+    static func ring(_ i: Int, _ j: Int) -> Int { Swift.max(abs(i), abs(j)) }
+    static func colorIndex(_ i: Int, _ j: Int, seed: Int) -> Int { (((i - j + seed) % 3) + 3) % 3 }
+    /// Độ sáng ô vòng `ring` sau `dt` giây kể từ lúc bấm: bật ngay khi tới lượt vòng, tắt (1−u)².
+    static func alpha(_ dt: Double, ring: Int) -> Double {
+        let t = dt - Double(ring) * ringDelay
+        guard t >= 0, t < tileLife else { return 0 }
+        let u = t / tileLife
+        return peak * (1 - u) * (1 - u)
+    }
+    /// Toàn bộ chùm tắt hẳn sau (giây).
+    static var lifetime: Double { Double(rings - 1) * ringDelay + tileLife }
+    /// Nháy cả bàn phím: sáng 0–60 ms, tắt 60–100 ms, sáng lại rồi tắt dần tới 200 ms.
+    static func flickerAlpha(_ dt: Double) -> Double {
+        guard dt >= 0, dt < flickerDuration else { return 0 }
+        if dt < 0.06 { return flickerPeak }
+        if dt < 0.10 { return 0 }
+        return flickerPeak * (1 - (dt - 0.10) / 0.10)
+    }
+    /// Cổng nháy cả bàn phím: chỉ ở mức combo ≥ `flickerLevel`, cách nhau ≥ `flickerCooldown`.
+    struct FlickerGate {
+        private(set) var last = -Double.greatestFiniteMagnitude
+        private(set) var fired = 0
+        mutating func trigger(level: Int, at t: Double) -> Bool {
+            guard level >= DanceFloor.flickerLevel, t - last >= DanceFloor.flickerCooldown else { return false }
+            last = t; fired += 1
+            return true
+        }
+    }
+
+    /// Bề rộng ô hàng xóm.
+    static func unit(w: Double, h: Double) -> Double { Swift.min(w, h * unitAspect) }
+    /// Tâm ô (i, j) quanh phím tâm (cx, cy) cỡ w × h.
+    static func center(_ i: Int, _ j: Int, cx: Double, cy: Double, w: Double, h: Double) -> (x: Double, y: Double) {
+        let u = unit(w: w, h: h)
+        let sx = i == 0 ? 0 : (i > 0 ? 1.0 : -1.0)
+        return (cx + sx * ((w - u) / 2 + Double(abs(i)) * u * pitchX), cy + Double(j) * h * pitchY)
+    }
+
+    /// Các ô vòng 0…rings−1 (vòng 0 = đúng khung phím), thứ tự hàng j rồi cột i (−2…2).
+    static func tiles(cx: Double, cy: Double, w: Double, h: Double, seed: Int) -> [Tile] {
+        var out: [Tile] = []
+        let n = rings - 1, u = unit(w: w, h: h)
+        for j in -n...n {
+            for i in -n...n {
+                let c = center(i, j, cx: cx, cy: cy, w: w, h: h)
+                out.append(Tile(ring: ring(i, j), color: colorIndex(i, j, seed: seed), x: c.x, y: c.y,
+                                w: i == 0 && j == 0 ? w : u, h: h))
+            }
+        }
+        return out
+    }
+
+    /// Lưới phủ cả bàn phím (nháy combo) theo bước của phím vừa bấm — tâm ô nằm trong khung, trần `maxGrid` ô.
+    static func grid(bounds b: (x: Double, y: Double, w: Double, h: Double), cx: Double, cy: Double, w: Double, h: Double,
+                     seed: Int) -> [Tile] {
+        let u = unit(w: w, h: h), px = u * pitchX, py = h * pitchY
+        guard px > 1, py > 1, b.w > 0, b.h > 0 else { return [] }
+        let i0 = Int(((b.x - cx) / px).rounded(.down)), i1 = Int(((b.x + b.w - cx) / px).rounded(.up))
+        let j0 = Int(((b.y - cy) / py).rounded(.down)), j1 = Int(((b.y + b.h - cy) / py).rounded(.up))
+        var out: [Tile] = []
+        for j in j0...j1 {
+            for i in i0...i1 {
+                let x = cx + Double(i) * px, y = cy + Double(j) * py
+                guard x >= b.x, x <= b.x + b.w, y >= b.y, y <= b.y + b.h, out.count < maxGrid else { continue }
+                out.append(Tile(ring: 0, color: colorIndex(i, j, seed: seed), x: x, y: y, w: u, h: h))
+            }
+        }
+        return out
+    }
+}
+
 // MARK: - Overlay
 
 extension UIView {
@@ -1268,6 +1368,12 @@ final class KeyEffectOverlay: UIView {
     private var sandLast: CFTimeInterval = -.greatestFiniteMagnitude
     private var pendingLandings: [Double] = []
     private var sandSweepScheduled = false
+    // Sàn nhảy LED
+    private var dances: [Dance] = []
+    private var dancePool = KeyEffectPool(capacity: DanceFloor.pool)
+    private var danceSeq = 0
+    private var floorFlicker: Dance?
+    private var flickerGate = DanceFloor.FlickerGate()
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -1337,7 +1443,7 @@ final class KeyEffectOverlay: UIView {
         rebuild()
     }
 
-    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand]
+    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .dancefloor]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -1486,6 +1592,9 @@ final class KeyEffectOverlay: UIView {
     var debugSandLayer: CAShapeLayer? { sandPile }
     func debugLandSand() { landSand() }
     var debugLetters: [CATextLayer] { letters }
+    /// Sàn nhảy LED: gốc các chùm ô đã dựng (pool) + lớp nháy cả bàn phím (nil = chưa nháy lần nào).
+    var debugDanceRoots: [CALayer] { dances.map(\.root) }
+    var debugFloorFlicker: CALayer? { floorFlicker?.root }
     #else
     static let drawsOffscreen = false
     #endif
@@ -1501,6 +1610,7 @@ final class KeyEffectOverlay: UIView {
         case .laser: fireLaser(c, now: now)
         case .glitch: fireGlitch(r, now: now)
         case .sand: fireSand(c, now: now, media: media)
+        case .dancefloor: fireDance(r, now: now, media: media)
         case .flash: fireFlash(now: now, media: media)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)
@@ -2060,6 +2170,87 @@ final class KeyEffectOverlay: UIView {
         return g
     }
 
+    // MARK: Sàn nhảy LED
+
+    /// Một chùm ô: mỗi vòng × mỗi màu một CAShapeLayer (path = các ô bo góc) — animation mờ dựng MỘT lần (trễ theo vòng).
+    private final class Dance {
+        let root = CALayer()
+        var layers: [[CAShapeLayer]] = []      // [vòng][màu]
+    }
+
+    private func fireDance(_ r: CGRect, now: CFTimeInterval, media: CFTimeInterval) {
+        let level = combo.press(at: media)
+        let slot = dancePool.next()
+        let d: Dance
+        if slot < dances.count { d = dances[slot] } else { d = makeDance(rings: DanceFloor.rings, flicker: false); dances.append(d) }
+        danceSeq += 1
+        let key = r.size == .zero ? CGRect(x: r.minX - Self.defaultKeySize.width / 2, y: r.minY - Self.defaultKeySize.height / 2,
+                                           width: Self.defaultKeySize.width, height: Self.defaultKeySize.height) : r
+        fill(d, tiles: DanceFloor.tiles(cx: Double(key.midX), cy: Double(key.midY), w: Double(key.width), h: Double(key.height),
+                                        seed: danceSeq), rings: DanceFloor.rings)
+        d.root.beginTime = now
+        d.root.isHidden = false
+        // Gõ dồn (mức combo cao nhất): cả bàn phím nháy một nhịp — trần nhịp `flickerCooldown`.
+        if flickerGate.trigger(level: level, at: media) {
+            let f: Dance
+            if let x = floorFlicker { f = x } else { f = makeDance(rings: 1, flicker: true); floorFlicker = f }
+            fill(f, tiles: DanceFloor.grid(bounds: (Double(bounds.minX), Double(bounds.minY), Double(bounds.width), Double(bounds.height)),
+                                           cx: Double(key.midX), cy: Double(key.midY), w: Double(key.width), h: Double(key.height),
+                                           seed: danceSeq), rings: 1)
+            f.root.beginTime = now
+            f.root.isHidden = false
+        }
+    }
+
+    private func fill(_ d: Dance, tiles: [DanceFloor.Tile], rings: Int) {
+        let paths = (0..<rings).map { _ in (0..<DanceFloor.colors.count).map { _ in CGMutablePath() } }
+        for t in tiles where t.ring < rings {
+            let rect = CGRect(x: t.x - t.w / 2, y: t.y - t.h / 2, width: t.w, height: t.h)
+            let rad = CGFloat(DanceFloor.cornerFactor) * min(rect.width, rect.height)
+            paths[t.ring][t.color].addRoundedRect(in: rect, cornerWidth: rad, cornerHeight: rad)
+        }
+        for (i, row) in d.layers.enumerated() where i < rings {
+            for (k, l) in row.enumerated() { l.path = paths[i][k] }
+        }
+    }
+
+    private func makeDance(rings: Int, flicker: Bool) -> Dance {
+        let d = Dance()
+        d.root.bounds = .zero
+        d.root.position = .zero
+        d.root.anchorPoint = .zero
+        d.root.isHidden = true
+        for ring in 0..<rings {
+            var row: [CAShapeLayer] = []
+            for c in DanceFloor.colors {
+                let l = CAShapeLayer()
+                l.fillColor = UIColor(rgb: c).cgColor
+                l.strokeColor = UIColor(rgb: c).withAlphaComponent(0.9).cgColor
+                l.lineWidth = 1.5
+                l.opacity = 0
+                let a = CAKeyframeAnimation(keyPath: "opacity")
+                let steps = 10
+                let life = flicker ? DanceFloor.flickerDuration : DanceFloor.tileLife
+                let start = flicker ? 0 : DanceFloor.ringDelay * Double(ring)
+                a.values = (0...steps).map { k -> Double in
+                    let t = life * Double(k) / Double(steps) * 0.9999
+                    return flicker ? DanceFloor.flickerAlpha(t) : DanceFloor.alpha(t + start, ring: ring)
+                }
+                a.keyTimes = (0...steps).map { NSNumber(value: Double($0) / Double(steps)) }
+                a.duration = life
+                a.beginTime = Self.animBegin + start
+                a.fillMode = .removed
+                a.isRemovedOnCompletion = false
+                l.add(a, forKey: "fx")
+                d.root.addSublayer(l)
+                row.append(l)
+            }
+            d.layers.append(row)
+        }
+        layer.addSublayer(d.root)
+        return d
+    }
+
     /// Dấu thanh: mỗi kiểu dấu một pool nhỏ (dựng lười — chỉ kiểu đã gặp mới có layer).
     private func fireTone(_ t: ToneFx, at r: CGRect, now: CFTimeInterval) {
         var list = toneRoots[t] ?? []
@@ -2446,6 +2637,8 @@ final class KeyEffectOverlay: UIView {
         for l in keywordRoots.values.joined() { l.removeFromSuperlayer() }
         for l in letters { l.removeFromSuperlayer() }
         for g in grains { g.removeFromSuperlayer() }
+        for d in dances { d.root.removeFromSuperlayer() }
+        floorFlicker?.root.removeFromSuperlayer()
         sandPile?.removeFromSuperlayer()
         flashLayer?.removeFromSuperlayer()
         matrixRoot?.removeFromSuperlayer()
@@ -2462,6 +2655,8 @@ final class KeyEffectOverlay: UIView {
         letters.removeAll(); letterPool = KeyEffectPool(capacity: FlyingLetters.pool)
         grains.removeAll(); grainPool = KeyEffectPool(capacity: SandPile.flying)
         sandPile = nil; sand = nil; pendingLandings.removeAll()
+        dances.removeAll(); dancePool = KeyEffectPool(capacity: DanceFloor.pool); danceSeq = 0
+        floorFlicker = nil; flickerGate = DanceFloor.FlickerGate()
         if effect != .shake { shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey) }
         stringAnim = nil
         flashLayer = nil

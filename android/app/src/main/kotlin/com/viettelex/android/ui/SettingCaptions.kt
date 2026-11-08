@@ -74,6 +74,7 @@ internal object SettingCaption {
     const val plusThemes = "Theme có nhãn Plus và ảnh nền thuộc VietTelex Plus; các theme khác miễn phí." // l10n-key
     const val materialYou = "Tắt để bàn phím dùng màu xám trung tính, không đổi theo hình nền." // l10n-key
     const val moleGame = "Gõ như thường — chú chuột thò lên ở phím bạn sắp gõ. Gõ trúng lúc nó lên là đập được!" // l10n-key
+    const val spotlightPhoto = "Thêm ảnh nền để đèn rọi lên ảnh của bạn." // l10n-key
     const val wallpaper = "Ảnh được thu nhỏ, nén ngay trên máy, không gửi đi đâu. Lớp phủ giúp chữ dễ đọc." // l10n-key
     const val transparency = "Phím: 100% chỉ còn chữ, ảnh nền vẫn giữ. Ký tự: 100% là phím trơn không chữ." // l10n-key
     const val transparencyHostApp = "Chỉ app vẽ dưới bàn phím (trình duyệt…) mới thấy xuyên; mọi app: dùng ảnh nền." // l10n-key
@@ -116,7 +117,7 @@ internal object SettingCaption {
         spaceSideKey, largeKeys, emojiKeyPlacement, keyLabelSize, longPressNumbers, longPressSymbols,
         holdShiftSymbols, autoSpaceAfterPunct, symbolReturn, trackpadSpeed, swipeKeyCommandsAndroid, oneHandAndroid, floatingKeyboard,
         hardwareTelex, keyPreview, keyPressHighlight, hapticFeedback, keySound, plusThemes,
-        materialYou, moleGame, wallpaper, transparency, transparencyHostApp, rowHeightClamp,
+        materialYou, moleGame, spotlightPhoto, wallpaper, transparency, transparencyHostApp, rowHeightClamp,
         keyboardRaise, suggestionBarHeight, suggestionInk, spaceLogo, splitKeyboardAndroid, resetAppearance,
         advancedStyle, fontScaleAndroid, clipboardHistory, clipboardTTL, clipboardFooterAndroid, incognitoAndroid,
         includeLearned, backupFile, debugLogAndroid, showLog, clearLog, swipeDataCredit,

@@ -164,6 +164,7 @@ class ImeRootView(
 
     private fun setWallpaper(b: android.graphics.Bitmap?) {
         wallpaper = b
+        spotlight?.setPhoto(b, if (b != null) wallMatrix else null)   // Đèn rọi: CHÍNH bitmap này, không sao chép
         updateWallMatrix()
         invalidate()
     }
@@ -186,6 +187,7 @@ class ImeRootView(
     fun dropWallpaper(): Boolean {
         var had = wallpaper != null
         wallpaper = null; reloadGen++
+        spotlight?.setPhoto(null, null)
         if (themeBg != null) { themeBg = null; themeBgW = 0; themeBgH = 0; had = true }
         if (foreground?.drop() == true) had = true
         return had
@@ -387,6 +389,7 @@ class ImeRootView(
         layoutBuddy(px, py, pw, s)
         updateStringGaps()
         mole?.layout(px, 0, px + pw, py + s + keyH)
+        spotlight?.layout(panel.left, panel.top, panel.right, panel.bottom)
         if (wallpaperFile != null && (wallW != pw || wallH != ph)) loadWallpaperFor(pw, ph) else updateWallMatrix()
         loadThemeBgFor(pw, ph)
     }
@@ -459,6 +462,21 @@ class ImeRootView(
             if (v != null) addView(v, indexOfChild(balloon))
         }
 
+    /**
+     * Đèn rọi ([SpotlightView], theme có "photoFx":"spotlight") — con ĐẦU TIÊN: trên nền + ảnh nền (vẽ trong onDraw của view
+     * này), dưới hiệu ứng dải dưới + phím; phủ trọn khung như ảnh nền. null = theme khác (không view, 0 chi phí).
+     */
+    var spotlight: SpotlightView? = null
+        set(v) {
+            if (field === v) return
+            field?.let { it.halt(); removeView(it) }
+            field = v
+            if (v != null) {
+                addView(v, 0)
+                v.setPhoto(wallpaper, if (wallpaper != null) wallMatrix else null)
+            }
+        }
+
     /** Bảng phủ đúng vùng phím (lịch sử clipboard); null = không có. Thêm lười khi mở lần đầu. */
     var overlay: android.view.View? = null
         set(v) {
@@ -487,6 +505,7 @@ class ImeRootView(
             MeasureSpec.makeMeasureSpec(s + keyH, MeasureSpec.EXACTLY))
         mole?.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
             MeasureSpec.makeMeasureSpec(s + keyH, MeasureSpec.EXACTLY))
+        spotlight?.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
         setMeasuredDimension(w, h)
     }
 
@@ -509,6 +528,7 @@ class ImeRootView(
         balloon.measure(ew, MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
         effects?.measure(ew, MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
         mole?.measure(ew, MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
+        spotlight?.measure(ew, MeasureSpec.makeMeasureSpec(FloatingKeyboard.panelHeight(s, keyH, handlePx), MeasureSpec.EXACTLY))
         setMeasuredDimension(w, h)
     }
 
@@ -530,6 +550,7 @@ class ImeRootView(
         layoutBuddy(0, 0, w, s)
         updateStringGaps()
         mole?.layout(0, 0, w, s + keyH)
+        spotlight?.layout(0, 0, w, b - t)
     }
 
     private var insetsKnown = false
