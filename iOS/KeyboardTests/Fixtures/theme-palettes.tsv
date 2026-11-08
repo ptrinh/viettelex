@@ -6,10 +6,10 @@
 # nền tảng (backdrop) nên không có ở đây.
 # interactive = theme có nhãn "interactive" (thứ tự khai báo); picker = thứ tự lưới "Chọn giao diện" (ThemePicker.ordered:
 # miễn phí → tương tác theo ThemePicker.interactiveOrder → còn lại).
-order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral,pixel,sea,timeOfDay,ai,nightclub,trippy,drift,mo,stainedGlass,rainyNight,gym,zodiac,pride
-plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,pixel,sea,timeOfDay,ai,nightclub,trippy,drift,mo,stainedGlass,rainyNight,gym,zodiac,pride
-interactive	tet,tetMai,piano,rgb,space,guitar,mole,sea,ai,nightclub,trippy,drift,mo,stainedGlass,gym,zodiac,pride
-picker	system,oled,contrast,neutral,nightclub,ai,trippy,sea,mole,piano,space,rgb,tet,tetMai,guitar,drift,mo,stainedGlass,gym,zodiac,pride,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,xmas,xmasSnow,sen,typewriter,trungthu,valentine,halloween,pixel,timeOfDay,rainyNight
+order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral,pixel,sea,timeOfDay,ai,nightclub,trippy,drift,mo,stainedGlass,rainyNight,gym,zodiac,pride,football,aquarium,cafe
+plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,pixel,sea,timeOfDay,ai,nightclub,trippy,drift,mo,stainedGlass,rainyNight,gym,zodiac,pride,football,aquarium,cafe
+interactive	tet,tetMai,piano,rgb,space,guitar,mole,sea,ai,nightclub,trippy,drift,mo,stainedGlass,gym,zodiac,pride,football,aquarium,cafe
+picker	system,oled,contrast,neutral,nightclub,ai,trippy,sea,mole,piano,space,rgb,tet,tetMai,guitar,drift,mo,stainedGlass,gym,zodiac,pride,football,aquarium,cafe,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,xmas,xmasSnow,sen,typewriter,trungthu,valentine,halloween,pixel,timeOfDay,rainyNight
 #theme	dark	bg	key	special	ink	accent	accentInk	border	fn	fnInk	deco
 oled	0	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
 oled	1	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
@@ -89,3 +89,9 @@ zodiac	0	FF120A1F	FF2A1530	FF3D1C38	FFFFF4E6	FFFF7A2F	FF1A0A00	-	FF1E1028	FFFFC8
 zodiac	1	FF120A1F	FF2A1530	FF3D1C38	FFFFF4E6	FFFF7A2F	FF1A0A00	-	FF1E1028	FFFFC857	starfield:66FFD9A0
 pride	0	FF0E0E14	FF1E1E28	FF2C2C3A	FFFFFFFF	FFFF8C00	FF1A0A00	-	FF16161F	FFFFED00	hearts:26FFFFFF
 pride	1	FF0E0E14	FF1E1E28	FF2C2C3A	FFFFFFFF	FFFF8C00	FF1A0A00	-	FF16161F	FFFFED00	hearts:26FFFFFF
+football	0	FF4E9F3D	FFFFFFFF	FFDDEBD8	FF102114	FFC62828	FFFFFFFF	-	FF14281A	FFFFFFFF	pitch:4DFFFFFF
+football	1	FF1B4D20	FF1C2620	FF2A362E	FFF4FFF2	FFC62828	FFFFFFFF	-	FF0F1712	FFFFD54F	pitch:38FFFFFF
+aquarium	0	FF0B3D66	2BFFFFFF	59041E36	FFFFFFFF	FFFF9F1C	FF1A1000	4DFFFFFF	59041E36	FFBDF2FF	aquarium:12FFFFFF
+aquarium	1	FF0B3D66	2BFFFFFF	59041E36	FFFFFFFF	FFFF9F1C	FF1A1000	4DFFFFFF	59041E36	FFBDF2FF	aquarium:12FFFFFF
+cafe	0	FFEAD7B8	D9FFFFFF	B3F3E6D6	FF3B2416	FF6F4E37	FFFFFFFF	99FFFFFF	B3F3E6D6	FF3B2416	cafe:40FFFFFF
+cafe	1	FF2A1A12	33FFFFFF	26FFFFFF	FFF6E7CF	FF6F4E37	FFFFFFFF	4DFFFFFF	26FFFFFF	FFF6E7CF	cafe:26FFFFFF

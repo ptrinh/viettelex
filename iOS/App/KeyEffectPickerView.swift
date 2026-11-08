@@ -47,6 +47,9 @@ struct KeyEffectPickerView: View {
                     + Text(" ") + Text(L("Rep lấp thanh rep một nấc mỗi phím, đủ 10 phím là xong một hiệp (SET ✓); gõ nhanh bật \"+1 rep 💪\"; gõ \"gym\", \"tập\", \"beast mode\"… để nổ chữ BEAST MODE."))
                     + Text(" ") + Text(L("Chòm sao: mỗi phím thắp thêm một sao của chòm cung hoàng đạo bạn chọn (trong giao diện Cung hoàng đạo), đủ sao thì cả chòm loé sáng."))
                     + Text(" ") + Text(L("Cầu vồng: vòng cung theo màu lá cờ bạn chọn (trong giao diện Tự hào) lan ra từ phím; gõ \"tự hào\", \"yêu là yêu\", \"pride\" hay \"love is love\" thì lá cờ tung bay cùng tim."))
+                    + Text(" ") + Text(L("Sút!: Enter sút bóng vào lưới; gõ \"vô địch\", \"Việt Nam vô địch\", \"vào\" hay \"goal\" để đốt pháo sáng và tung cờ đỏ sao vàng."))
+                    + Text(" ") + Text(L("Cho cá ăn: cá bơi chậm sau hàng phím; mỗi phím thả một viên thức ăn, chú cá gần nhất bơi tới ăn. Cá lớn dần và có thêm bạn theo số viên đã ăn."))
+                    + Text(" ") + Text(L("Đá lanh canh: viên đá trên phím lắc nhẹ và đọng giọt nước; phin nhỏ giọt cà phê sau vài phím; gõ thật nhanh, sữa xoáy vào ly."))
             }
         }
         .bottomBarScrollMargin()

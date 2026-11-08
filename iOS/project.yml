@@ -47,6 +47,11 @@ targets:
       - Keyboard/Zodiac.swift
       # Tự hào (theme "pride"): lá cờ + bảng màu + hiệu ứng Cầu vồng — trang Giao diện chọn cờ.
       - Keyboard/Pride.swift
+      # Bộ vẽ hiệu ứng theme 11/2026 (Bóng đá…) + cảnh nền — overlay dựng khi chọn kiểu.
+      - Keyboard/ThemeFxPack.swift
+      - Keyboard/FootballFx.swift
+      - Keyboard/AquariumFx.swift
+      - Keyboard/CafeFx.swift
       # Bạn đồng hành: xem trước ở trang chọn (cùng view với bàn phím).
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
@@ -243,6 +248,11 @@ targets:
       - Keyboard/Zodiac.swift
       # Tự hào (theme "pride"): lá cờ + bảng màu + hiệu ứng Cầu vồng — trang Giao diện chọn cờ.
       - Keyboard/Pride.swift
+      # Bộ vẽ hiệu ứng theme 11/2026 (Bóng đá…) + cảnh nền — overlay dựng khi chọn kiểu.
+      - Keyboard/ThemeFxPack.swift
+      - Keyboard/FootballFx.swift
+      - Keyboard/AquariumFx.swift
+      - Keyboard/CafeFx.swift
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
       - Keyboard/AIEye.swift

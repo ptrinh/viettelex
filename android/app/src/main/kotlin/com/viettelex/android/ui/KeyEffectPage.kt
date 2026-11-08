@@ -79,7 +79,10 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
             " " + tr("Mưa: mưa đêm êm trên ô kính — giọt rơi xuống phím vừa bấm rồi lăn nhẹ; gõ một lúc mưa thưa dần và ánh đèn ấm ở góc sáng lên.") +
             " " + tr("Rep lấp thanh rep một nấc mỗi phím, đủ 10 phím là xong một hiệp (SET ✓); gõ nhanh bật \"+1 rep 💪\"; gõ \"gym\", \"tập\", \"beast mode\"… để nổ chữ BEAST MODE.") +
             " " + tr("Chòm sao: mỗi phím thắp thêm một sao của chòm cung hoàng đạo bạn chọn (trong giao diện Cung hoàng đạo), đủ sao thì cả chòm loé sáng.") +
-            " " + tr("Cầu vồng: vòng cung theo màu lá cờ bạn chọn (trong giao diện Tự hào) lan ra từ phím; gõ \"tự hào\", \"yêu là yêu\", \"pride\" hay \"love is love\" thì lá cờ tung bay cùng tim.")) {
+            " " + tr("Cầu vồng: vòng cung theo màu lá cờ bạn chọn (trong giao diện Tự hào) lan ra từ phím; gõ \"tự hào\", \"yêu là yêu\", \"pride\" hay \"love is love\" thì lá cờ tung bay cùng tim.") +
+            " " + tr("Sút!: Enter sút bóng vào lưới; gõ \"vô địch\", \"Việt Nam vô địch\", \"vào\" hay \"goal\" để đốt pháo sáng và tung cờ đỏ sao vàng.") +
+            " " + tr("Cho cá ăn: cá bơi chậm sau hàng phím; mỗi phím thả một viên thức ăn, chú cá gần nhất bơi tới ăn. Cá lớn dần và có thêm bạn theo số viên đã ăn.") +
+            " " + tr("Đá lanh canh: viên đá trên phím lắc nhẹ và đọng giọt nước; phin nhỏ giọt cà phê sau vài phím; gõ thật nhanh, sữa xoáy vào ly.")) {
         KeyEffect.entries.chunked(3).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { e ->
@@ -128,7 +131,7 @@ internal object KeyEffectPreviewScript {
     fun keyword(tap: Int): KeywordKind = if (tap % 2 == 1) KeywordKind.TET else KeywordKind.LOVE
     /** Số phím của một "tràng gõ nhanh" (mức combo cao nhất). */
     fun burst(e: KeyEffect): Int = when (e) {
-        KeyEffect.COMBO, KeyEffect.SHAKE, KeyEffect.SEA, KeyEffect.DANCEFLOOR -> ComboMeter.THRESHOLDS[2]
+        KeyEffect.COMBO, KeyEffect.SHAKE, KeyEffect.SEA, KeyEffect.DANCEFLOOR, KeyEffect.ICE -> ComboMeter.THRESHOLDS[2]
         KeyEffect.REPS -> com.viettelex.keyboard.RepsFx.PER_SET   // đủ một hiệp ⇒ SET 1 ✓ + "+1 rep 💪" (gõ dồn)
         else -> 1
     }
@@ -208,7 +211,11 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
         queueToken(KeyEffectPreviewScript.GLYPH)
         if (KeyEffectPreviewScript.beastMode(tap)) queueBeastMode()
         if (KeyEffectPreviewScript.pride(tap)) queuePride()
-        burst(x, y, w, h)
+        // Cho cá ăn: thêm hai viên thức ăn rơi quanh phím mẫu.
+        if (e == KeyEffect.FISHFEED) { burst(x - 24 * d, y - 20 * d, w, h); flush(); burst(x + 24 * d, y - 24 * d, w, h); flush() }
+        // Sút!: "Enter" sút bóng vào lưới + cụm cổ vũ (như vừa gõ "vô địch" + cách).
+        if (e == KeyEffect.GOAL) queueCheer()
+        burst(x, y, w, h, isReturn = e == KeyEffect.GOAL)
         flush()
         if (KeyEffectPreviewScript.beat(e, tap)) kickBeat()
         // Mưa: như đã gõ một lúc (mưa thưa bớt, đèn ấm sáng lên) + vài giọt rơi quanh ô — = iOS.

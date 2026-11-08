@@ -35,7 +35,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testIdsMatchAndroidAndDefaultIsNone() {
         // Cùng id với android/keyboard/.../KeyEffect.kt (sao lưu chéo nền tảng).
-        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps"])
+        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "goal", "fishfeed", "ice"])
         XCTAssertEqual(KeyEffect.key, "keyEffect")
         XCTAssertEqual(KeyEffect.defaultValue, .none)
         XCTAssertEqual(KeyEffect.parse(nil), .none)
@@ -57,7 +57,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testBackupSpecWhitelistsIds() {
         let spec = BackupSettings.all.first { $0.key == KeyEffect.key }
-        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps"]))
+        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea", "tokens", "dancefloor", "kaleido", "tunnel", "float", "merit", "sunlight", "rain", "reps", "goal", "fishfeed", "ice"]))
     }
 
     func testTitlesBilingual() {
@@ -285,6 +285,12 @@ final class KeyEffectTests: XCTestCase {
                 case .reps:
                     XCTAssertLessThanOrEqual(o.debugRepLabels.count, RepsFx.labelCap, "pool nhãn +1 rep dùng lại")
                     XCTAssertLessThanOrEqual(topLayers, RepsFx.labelCap + 2, "thanh rep + huy hiệu + pool nhãn")
+                case .goal:
+                    XCTAssertEqual(topLayers, GrassTuft.pool, "Sút!: phím thường = pool túm cỏ dùng lại")
+                case .ice:
+                    XCTAssertLessThanOrEqual(topLayers, 2 * CafeFx.pool + 2, "pool đá + giọt, phin, một vòng sữa")
+                case .fishfeed:
+                    XCTAssertLessThanOrEqual(topLayers, AquariumFx.maxFish + AquariumFx.maxPellets, "≤ 6 cá + 8 viên, không mọc thêm")
                 case .tone, .keyword, .letters, .tokens:
                     XCTAssertEqual(topLayers, 0, "chưa có sự kiện xếp hàng ⇒ phím thường không vẽ gì")
                 default:

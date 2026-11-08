@@ -285,6 +285,32 @@ internal object BuiltinThemesData {
                 "accentInk": "#1A0A00", "fn": "#16161F", "fnInk": "#FFED00", "borderFx": "aurora",
                 "deco": {"motif": "hearts", "color": "#26FFFFFF"}},
       "dark": "same"
+    },
+    {
+      "v": 1, "id": "football", "name": {"vi": "Bóng đá", "en": "Football"}, "tags": ["interactive"], "corner": 30,
+      "sound": "thump", "effect": "goal",
+      "light": {"bg": "#4E9F3D", "key": "#FFFFFF", "special": "#DDEBD8", "ink": "#102114", "accent": "#C62828",
+                "accentInk": "#FFFFFF", "fn": "#14281A", "fnInk": "#FFFFFF", "deco": {"motif": "pitch", "color": "#4DFFFFFF"}},
+      "dark": {"bg": "#1B4D20", "key": "#1C2620", "special": "#2A362E", "ink": "#F4FFF2", "accent": "#C62828",
+               "accentInk": "#FFFFFF", "fn": "#0F1712", "fnInk": "#FFD54F", "deco": {"motif": "pitch", "color": "#38FFFFFF"}}
+    },
+    {
+      "v": 1, "id": "aquarium", "name": {"vi": "Bể cá", "en": "Aquarium"}, "tags": ["interactive"], "corner": 50,
+      "sound": "bloop", "effect": "fishfeed",
+      "light": {"bg": "#0B3D66", "key": "#2BFFFFFF", "special": "#59041E36", "ink": "#FFFFFF", "accent": "#FF9F1C",
+                "accentInk": "#1A1000", "fn": "#59041E36", "fnInk": "#BDF2FF", "border": "#4DFFFFFF",
+                "deco": {"motif": "aquarium", "color": "#12FFFFFF"}},
+      "dark": "same"
+    },
+    {
+      "v": 1, "id": "cafe", "name": {"vi": "Cà phê sữa đá", "en": "Iced Coffee"}, "tags": ["interactive"], "corner": 40,
+      "sound": "clink", "effect": "ice",
+      "light": {"bg": "#EAD7B8", "key": "#D9FFFFFF", "special": "#B3F3E6D6", "ink": "#3B2416", "accent": "#6F4E37",
+                "accentInk": "#FFFFFF", "fn": "#B3F3E6D6", "fnInk": "#3B2416", "border": "#99FFFFFF",
+                "deco": {"motif": "cafe", "color": "#40FFFFFF"}},
+      "dark": {"bg": "#2A1A12", "key": "#33FFFFFF", "special": "#26FFFFFF", "ink": "#F6E7CF", "accent": "#6F4E37",
+               "accentInk": "#FFFFFF", "fn": "#26FFFFFF", "fnInk": "#F6E7CF", "border": "#4DFFFFFF",
+               "deco": {"motif": "cafe", "color": "#26FFFFFF"}}
     }
   ]
 }

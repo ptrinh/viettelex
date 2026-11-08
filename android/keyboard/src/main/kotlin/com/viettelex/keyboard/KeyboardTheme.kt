@@ -324,7 +324,16 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     ZODIAC("zodiac", "Cung hoàng đạo", true), // l10n-key
     // Tự hào (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền tối, viền phím gradient theo màu lá cờ người dùng chọn
     // ("variant":"pride" — Pride.kt), chữ trắng, hiệu ứng Cầu vồng (+ cờ phấp phới khi gõ từ khoá), âm "pop".
-    PRIDE("pride", "Tự hào", true); // l10n-key
+    PRIDE("pride", "Tự hào", true), // l10n-key
+    // Bóng đá (11/2026, Plus, THÊM CUỐI) — id trùng iOS: sân cỏ sọc + vạch vôi (motif cảnh "pitch" — [ThemeScene]), phím
+    // trắng / tối kiểu bảng tỉ số, hiệu ứng "Sút!" ([GoalFx], cụm cổ vũ [CheerWords]), âm "thump".
+    FOOTBALL("football", "Bóng đá", true), // l10n-key
+    // Bể cá (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nước sâu + vệt nắng + cát + rong (cảnh "aquarium"), phím kính trong
+    // mờ, hiệu ứng "Cho cá ăn" ([AquariumFx]), âm "bloop".
+    AQUARIUM("aquarium", "Bể cá", true), // l10n-key
+    // Cà phê sữa đá (11/2026, Plus, THÊM CUỐI) — id trùng iOS: gradient cà phê → sữa (cảnh "cafe"), phím như viên đá trong,
+    // hiệu ứng "Đá lanh canh" ([CafeFx]), âm "clink".
+    CAFE("cafe", "Cà phê sữa đá", true); // l10n-key
 
     /** Bo góc mặc định (% như [KeyStyle.corner]) khi người dùng chưa chỉnh — null = bo stock. iOS cùng giá trị. */
     val defaultCorner: Int? get() = spec?.corner
@@ -437,9 +446,15 @@ data class ThemeDecoration(val motif: String, val color: Int, val density: Int =
         const val BOKEH = "bokeh"
         // Theme "Gym" (11/2026): hàng gân thép chéo kiểu sàn thép chống trượt (gân xen ±45°) trải ngang khe.
         const val TREADPLATE = "treadplate"
+        // Bộ 11/2026 — CẢNH ([ThemeScene], vẽ trọn nền một lần, không theo khe hàng): "pitch" = sân cỏ (Bóng đá).
+        const val PITCH = "pitch"
+        // "aquarium" = bể cá (gradient nước sâu + vệt nắng + cát + rong).
+        const val AQUARIUM = "aquarium"
+        // "cafe" = ly cà phê sữa đá (gradient cà phê → sữa + giọt nước đọng li ti).
+        const val CAFE = "cafe"
         /** Danh sách trắng motif (theme JSON chỉ nhận các id này) — iOS KeyboardDecoration.Motif y hệt. */
         val MOTIFS = listOf(HEARTS, FLOWERS, MAI, DAO, SNOWFLAKE, STAR, NOTES,
-            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY, PIXEL, WAVES, BUBBLES, NEURAL, SWIRL, BOKEH, TREADPLATE)
+            LOTUS, STARFIELD, LANTERN, MOON, PUMPKIN, BAT, STRINGS, INLAY, PIXEL, WAVES, BUBBLES, NEURAL, SWIRL, BOKEH, TREADPLATE, PITCH, AQUARIUM, CAFE)
         /**
          * Motif "swirl": xoắn ốc Archimedes r = r0 + (r1 − r0)·θ/Θ, θ ∈ [0, Θ] (Θ = 1,75 vòng), dải dày 2·w(θ) với
          * w = w0 + (w1 − w0)·θ/Θ, [SWIRL_STEPS] + 1 mẫu mỗi mép; chấm hình thoi (x, y, bán kính). iOS swirl* y hệt.
@@ -853,7 +868,8 @@ object ThemePicker {
      * trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. iOS ThemePicker.interactiveOrder y hệt.
      */
     val INTERACTIVE_ORDER = listOf("nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "drift",
-        "mo", "stainedGlass", "gym", "zodiac", "pride")
+        "mo", "stainedGlass", "gym", "zodiac", "pride", "football",
+        "aquarium", "cafe")
 
     data class Groups(val free: List<KeyboardTheme>, val interactive: List<KeyboardTheme>, val rest: List<KeyboardTheme>)
     /**

@@ -26,7 +26,7 @@ enum KeyEffectPreviewScript {
     /// Số phím của một "tràng gõ nhanh" (Lửa combo / Rung combo / Biển / Sàn nhảy LED: mức cao nhất).
     static func burst(_ e: KeyEffect) -> Int {
         switch e {
-        case .combo, .shake, .sea, .dancefloor: return ComboMeter.thresholds[2]
+        case .combo, .shake, .sea, .dancefloor, .ice: return ComboMeter.thresholds[2]   // Đá: gõ dồn ⇒ sữa xoáy
         case .reps: return RepsFx.perSet      // Rep: đủ một hiệp ⇒ huy hiệu SET 1 ✓ + nhãn "+1 rep 💪" (gõ dồn)
         default: return 1
         }
@@ -125,7 +125,12 @@ final class KeyEffectPreviewView: UIView {
         o.queueToken(KeyEffectPreviewScript.glyph)
         if KeyEffectPreviewScript.beastMode(tap: tap) { o.queueBeastMode() }
         if KeyEffectPreviewScript.pride(tap: tap) { o.queuePride() }
-        o.emit(key: k)
+        if effect == .fishfeed {   // Cho cá ăn: thêm hai viên thức ăn rơi quanh phím mẫu
+            o.emit(key: k.offsetBy(dx: -24, dy: -20)); o.flush()
+            o.emit(key: k.offsetBy(dx: 24, dy: -24)); o.flush()
+        }
+        if effect == .goal { o.queueCheer() }   // Sút!: "Enter" sút bóng vào lưới + cụm cổ vũ (như vừa gõ "vô địch" + cách)
+        o.emit(key: k, isReturn: effect == .goal)
         o.flush()
         if KeyEffectPreviewScript.beat(effect, tap: tap) { beat?.kick() }
         if effect == .rain {   // Mưa: như đã gõ một lúc (mưa thưa bớt, đèn ấm sáng lên) + vài giọt rơi quanh ô

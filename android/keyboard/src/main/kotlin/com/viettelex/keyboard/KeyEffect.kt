@@ -68,7 +68,13 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     // Theme Cung hoàng đạo (11/2026): Chòm sao — mỗi phím thắp thêm một sao của chòm người dùng chọn ([ConstellationFx]).
     CONSTELLATION("constellation", "Chòm sao"), // l10n-key
     // Theme Tự hào (11/2026): Cầu vồng — vòng cung các sọc cờ lan ra từ phím; gõ từ khoá ⇒ cờ phấp phới + tim ([RainbowBurst]).
-    RAINBOWBURST("rainbowburst", "Cầu vồng"); // l10n-key
+    RAINBOWBURST("rainbowburst", "Cầu vồng"), // l10n-key
+    // Theme Bóng đá (11/2026): Sút! — Enter sút bóng vào lưới, phím khác nhú túm cỏ, cụm cổ vũ ⇒ pháo sáng + cờ ([GoalFx]).
+    GOAL("goal", "Sút!"), // l10n-key
+    // Theme Bể cá (11/2026): Cho cá ăn — cá bơi sau phím, mỗi phím thả một viên thức ăn, cá gần nhất bơi tới ăn ([AquariumFx]).
+    FISHFEED("fishfeed", "Cho cá ăn"), // l10n-key
+    // Theme Cà phê sữa đá (11/2026): Đá lanh canh — viên đá lắc + giọt đọng, phin nhỏ giọt, gõ nhanh ⇒ sữa xoáy ([CafeFx]).
+    ICE("ice", "Đá lanh canh"); // l10n-key
 
     val title: String get() = tr(viTitle)
 
@@ -92,7 +98,7 @@ enum class KeyEffect(val id: String, val viTitle: String) {
 
     /** Dải z: Matrix / Mực loang / Sóng nước vẽ trên nền nhưng DƯỚI phím. */
     val band: KeyEffectBand get() = when (this) {
-        MATRIX, INK, WAVE, STRING -> KeyEffectBand.BELOW_KEYS
+        MATRIX, INK, WAVE, STRING, FISHFEED -> KeyEffectBand.BELOW_KEYS
         else -> KeyEffectBand.ABOVE_KEYS
     }
 

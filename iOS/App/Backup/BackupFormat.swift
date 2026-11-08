@@ -188,6 +188,9 @@ enum BackupSettings {
         Spec(key: "systemBackdropPride", kind: .bool(false)),
         // Lá cờ của theme Tự hào ("variant":"pride") — CHỈ id cờ, cùng khoá + id Android; lạ ⇒ bỏ qua (máy giữ Cầu vồng).
         Spec(key: PrideFlag.key, kind: .string(PrideFlag.defaultValue.rawValue, PrideFlag.allCases.map(\.rawValue))),
+        Spec(key: "systemBackdropFootball", kind: .bool(false)),
+        Spec(key: "systemBackdropAquarium", kind: .bool(false)),
+        Spec(key: "systemBackdropCafe", kind: .bool(false)),
         // Ngôn ngữ giao diện app (L10n) — mặc định "vi", không theo máy.
         Spec(key: "uiLanguage", kind: .string("vi", ["vi", "en"])),
         // Dịch trên máy (Plus): ngôn ngữ đích — chỉ iOS dùng.

@@ -73,7 +73,8 @@ class ImeRootView(
         else if (wallpaperFile == null && (decoration != null || theme.palette.auroraBorder || theme.palette.cornerGlyph != null))
             ThemeDecorDrawable(theme.bg, decoration, theme.density, aurora = theme.palette.auroraBorder,
                 bgBottom = if (wallpaperFile == null) bottom else null,
-                glyph = theme.palette.cornerGlyph, glyphColor = theme.palette.ink, auroraColors = theme.palette.auroraColors)
+                glyph = theme.palette.cornerGlyph, glyphColor = theme.palette.ink, auroraColors = theme.palette.auroraColors,
+                dark = theme.dark)
         else android.graphics.drawable.ColorDrawable(theme.bg)
     }
 

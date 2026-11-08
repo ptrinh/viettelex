@@ -598,6 +598,7 @@ class KeyboardView(
         if (effects == null && spotlight == null && hueFill == null) return
         fxPending = when (k.kind) {
             KeyKind.LETTER, KeyKind.CHAR, KeyKind.PAD, KeyKind.PUNCT, KeyKind.SPACE -> true
+            KeyKind.RETURN -> effects?.effect == com.viettelex.keyboard.KeyEffect.GOAL   // Sút!: Enter sút bóng
             else -> false
         }
         // Toạ độ view CHA (ImeRootView) = toạ độ phím + vị trí view này; overlay trừ gốc của chính nó lúc bắn.
@@ -612,6 +613,7 @@ class KeyboardView(
         if (!fxPending) return
         fxPending = false
         if (k == Key.Space || k == Key.DoubleSpacePeriod) onBeat?.invoke()   // Sàn nhảy LED: flash nền ở phím cách
+        if (isReturnKey(k)) { effects?.let { it.burst(fxX - it.left, fxY - it.top, fxW, fxH, isReturn = true) }; return }
         if (k is Key.Letter || k is Key.Text || k == Key.Space || k == Key.DoubleSpacePeriod) {
             effects?.let { it.burst(fxX - it.left, fxY - it.top, fxW, fxH) }
             spotlight?.let { it.light(fxX - it.left, fxY - it.top, fxW) }   // Đèn rọi: theme khác ⇒ null
@@ -2509,6 +2511,8 @@ class KeyboardView(
     }
 
     companion object {
+        /** Phím Enter (Sút!: sút bóng từ phím này) — iOS KeyboardView.isReturnKey. */
+        fun isReturnKey(k: Key): Boolean = k == Key.Newline || k == Key.LineBreak
         private const val MAX_PTR = 32
         /** Số chữ ký bố cục giữ trong [layoutCache]. */
         private const val LAYOUT_SIGS = 4

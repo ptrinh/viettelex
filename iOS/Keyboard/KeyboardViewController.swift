@@ -1153,7 +1153,9 @@ final class KeyboardViewController: UIInputViewController {
                 // VNI: số vuốt xuống (iPad) trong từ = phím dấu
                 if let fxBefore { fxComposeDiff(fxBefore, typed: s) }
             } else {
-                commitAndLearn(bridge.symbolBoundary(s, proxy: proxy), accepted: openAccepted)
+                let sb = bridge.symbolBoundary(s, proxy: proxy)
+                fxCheer(word: sb, symbol: s)
+                commitAndLearn(sb, accepted: openAccepted)
                 lastWord = nil; lastWord2 = nil
                 applyAutoSpace(after: s, carry: autoSpaceCarry)
             }
@@ -1170,6 +1172,7 @@ final class KeyboardViewController: UIInputViewController {
                 let final = bridge.symbolBoundary(s, proxy: proxy)
                 if let fxBefore { fxComposeDiff(fxBefore, typed: s) }
                 fxWordBoundary(final, prev: lastWord)
+                fxCheer(word: final, symbol: s)
                 keyboard?.buddy?.emojiInserted(s)
                 commitAndLearn(final, accepted: openAccepted)
                 lastWord = nil; lastWord2 = nil            // dấu câu/ký hiệu = ngắt câu
@@ -1187,6 +1190,7 @@ final class KeyboardViewController: UIInputViewController {
                 ? (raw: committed, composed: composedBefore) : nil
             undoOfferActive = false
             fxWordBoundary(committed, prev: lastWord)
+            fxCheer(word: committed, end: true)
             commitAndLearn(committed, accepted: openAccepted)
             typedCommit = (committed, " ")
         case .doubleSpacePeriod:
@@ -1200,12 +1204,16 @@ final class KeyboardViewController: UIInputViewController {
                 textProxy.insertText(". ")
                 bridge.forgetLastCommit()         // space đã thành ". " → ⌫ không mở lại từ
                 lastWord = nil; lastWord2 = nil
+                fxCheer(word: "", symbol: ".")
             } else {
-                commitAndLearn(bridge.boundary(" ", proxy: proxy), accepted: openAccepted)
+                let w = bridge.boundary(" ", proxy: proxy)
+                fxCheer(word: w, end: true)
+                commitAndLearn(w, accepted: openAccepted)
             }
             restoreUndo = nil; undoOfferActive = false
         case .moveCursor(let delta):
             bridge.reset()                        // caret moved → composition gone
+            cheer.reset()
             lastWord = nil; lastWord2 = nil
             restoreUndo = nil; undoOfferActive = false
             if trackpadActive {
@@ -1236,6 +1244,7 @@ final class KeyboardViewController: UIInputViewController {
             if case .lineBreak = key { proxy.lineBreak = Proxy.LineBreakTap() }
             let final = bridge.boundary("\n", proxy: proxy)
             proxy.lineBreak = nil
+            fxCheer(word: final, end: true)
             commitAndLearn(final, accepted: openAccepted)
             lastWord = nil; lastWord2 = nil
             typedCommit = (final, "\n")
@@ -1764,6 +1773,9 @@ final class KeyboardViewController: UIInputViewController {
 
     /// "Emoji theo chữ" (KeyEffects.swift) + thả tim của Bạn đồng hành: CHỈ ở ranh giới từ, bằng từ vừa chốt — tra bảng O(1).
     /// Kiểu khác / tắt ⇒ một phép so sánh, không tra gì. Emoji bắn ở lượt vẽ kế của phím ranh giới.
+    /// Bộ so cụm cổ vũ của Sút! — chỉ được nạp khi kiểu đang chọn là Sút!.
+    private var cheer = CheerWords.Matcher()
+
     private func fxWordBoundary(_ word: String, prev: String?) {
         // Bạn đồng hành: phản ứng theo từ vừa chốt (tắt ⇒ nil, một optional).
         if let b = keyboard?.buddy, !word.isEmpty { b.wordCommitted(word, prev: prev, prev2: lastWord2) }
@@ -1782,6 +1794,13 @@ final class KeyboardViewController: UIInputViewController {
         }
         guard let e = EmojiWords.lookup(word: word, prev: prev) else { return }
         fx.queueEmoji(e)
+    }
+
+    /// Sút! (theme Bóng đá): cụm cổ vũ vừa gõ xong ("việt nam vô địch", "vn #1", "vào", "goal"…) ⇒ pháo sáng + cờ ở lượt vẽ
+    /// kế. Kiểu khác ⇒ một phép so sánh, không đọc gì. Giữ ≤ 6 token gần nhất (CheerWords.Matcher) — O(1) mỗi ranh giới.
+    private func fxCheer(word: String, symbol: String? = nil, end: Bool = false) {
+        guard let fx = keyboard?.keyEffects, fx.effect == .goal else { return }
+        if cheer.feed(word: word, symbol: symbol, end: end) { fx.queueCheer() }
     }
 
     /// "Dấu thanh" / "Chữ bay" / "Token AI": từ đang soạn TRƯỚC phím — chỉ khi chọn ba kiểu đó (kiểu khác: một phép so sánh, 0 đọc).

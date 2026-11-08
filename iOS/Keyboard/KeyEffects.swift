@@ -53,6 +53,12 @@ enum KeyEffect: String, CaseIterable {
     case constellation
     // Theme Tự hào (11/2026): Cầu vồng — vòng cung các sọc cờ lan ra từ phím; gõ từ khoá ⇒ cờ phấp phới + tim tung.
     case rainbowburst
+    // Theme Bóng đá (11/2026): Sút! — Enter sút bóng vào lưới, phím khác nhú túm cỏ, cụm cổ vũ ⇒ pháo sáng + cờ (FootballFx).
+    case goal
+    // Theme Bể cá (11/2026): Cho cá ăn — cá bơi sau phím, mỗi phím thả một viên thức ăn, cá gần nhất bơi tới ăn (AquariumFx).
+    case fishfeed
+    // Theme Cà phê sữa đá (11/2026): Đá lanh canh — viên đá lắc + giọt đọng, phin nhỏ giọt, gõ nhanh ⇒ sữa xoáy (CafeFx).
+    case ice
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -104,6 +110,9 @@ enum KeyEffect: String, CaseIterable {
         case .reps: return L("Rep")
         case .constellation: return L("Chòm sao")
         case .rainbowburst: return L("Cầu vồng")
+        case .goal: return L("Sút!")
+        case .fishfeed: return L("Cho cá ăn")
+        case .ice: return L("Đá lanh canh")
         }
     }
 
@@ -127,7 +136,7 @@ enum KeyEffect: String, CaseIterable {
     /// Dải z: Matrix / Mực loang / Sóng nước vẽ trên nền nhưng DƯỚI phím.
     var band: KeyEffectBand {
         switch self {
-        case .matrix, .ink, .wave, .string: return .belowKeys
+        case .matrix, .ink, .wave, .string, .fishfeed: return .belowKeys
         default: return .aboveKeys
         }
     }
@@ -2159,6 +2168,16 @@ final class KeyEffectOverlay: UIView {
     private var rainbowPool = KeyEffectPool(capacity: RainbowBurst.pool)
     private var prideRoot: CALayer?
     private var pendingPride = false
+    // Theme Bóng đá / Bể cá / Cà phê: bộ vẽ riêng (ThemeFxPack.swift) — chỉ tồn tại khi chọn đúng kiểu (0 chi phí kiểu khác).
+    private var themeFx: ThemeFxRenderer?
+    /// Khung phím Enter của lượt vẽ đang chờ (Sút!: Enter sút bóng, phím khác nhú cỏ).
+    private var pendingReturn: CGRect?
+    /// Sút!: cụm cổ vũ vừa gõ xong — lượt vẽ kế bắn pháo sáng + cờ.
+    private var pendingCheer = false
+    /// Sự kiện âm của bộ vẽ theme (Sút!: mỗi cú sút một tiếng hò reo) — KeyboardView đặt; kiểu khác ⇒ nil.
+    var onThemeEvent: (() -> Void)? { didSet { themeFx?.onEvent = onThemeEvent } }
+    /// App Group để Bể cá lưu bộ đếm thức ăn (nil = ô xem thử: không lưu). Đặt TRƯỚC lần vẽ đầu.
+    var themeDefaults: UserDefaults? { didSet { if themeDefaults !== oldValue { themeFx?.setDefaults(themeDefaults) } } }
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -2229,7 +2248,8 @@ final class KeyEffectOverlay: UIView {
     }
 
     static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor,
-                                          .kaleido, .tunnel, .merit, .sunlight, .rain, .reps, .constellation, .rainbowburst]
+                                          .kaleido, .tunnel, .merit, .sunlight, .rain, .reps, .constellation, .rainbowburst,
+                                          .goal, .fishfeed, .ice]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -2250,6 +2270,13 @@ final class KeyEffectOverlay: UIView {
     func queueTone(_ t: ToneFx) { if effect == .tone { pendingTone = t } }
     /// "Từ khoá": controller tra bảng ở ranh giới từ — lần vẽ kế (phím ranh giới) bắn chùm.
     func queueKeyword(_ k: KeywordKind) { if effect == .keyword { pendingKeyword = k } }
+    /// "Sút!": controller vừa thấy cụm cổ vũ (CheerWords) — lần vẽ kế bắn pháo sáng + cờ đỏ sao vàng.
+    func queueCheer() { if effect == .goal { pendingCheer = true } }
+    /// Ghi khung phím kèm loại: `isReturn` = phím Enter (Sút! sút bóng từ đó). Kiểu khác bỏ qua cờ.
+    func emit(key r: CGRect, isReturn: Bool) {
+        if isReturn, themeFx != nil { pendingReturn = r }
+        emit(key: r)
+    }
     /// "Chữ bay": chữ vừa ra (FlyingLetters.glyph) — lần vẽ kế thả từ phím vừa bấm.
     func queueLetter(_ g: String) { if effect == .letters { pendingLetter = g } }
     /// "Rep": từ vừa chốt là từ khoá gym (RepsFx.isKeyword) — lần vẽ kế đập chữ BEAST MODE + vòng xung kích.
@@ -2308,6 +2335,7 @@ final class KeyEffectOverlay: UIView {
             pendingEmoji = nil; pendingTone = nil; pendingKeyword = nil; pendingLetter = nil; pendingToken = nil
             pendingSlam = false
             pendingPride = false
+            pendingReturn = nil; pendingCheer = false
             return
         }
         CATransaction.begin()
@@ -2334,7 +2362,9 @@ final class KeyEffectOverlay: UIView {
             if pendingSlam { pendingSlam = false; fireSlam(now: now) }
             if pendingPride, let r = pending.last { firePrideFlag(at: r, now: now) }
             pendingPride = false
+            if pendingCheer { themeFx?.fireQueued(now: now, media: media) }
         }
+        pendingReturn = nil; pendingCheer = false
         CATransaction.commit()
         pending.removeAll(keepingCapacity: true)
     }
@@ -2354,6 +2384,7 @@ final class KeyEffectOverlay: UIView {
         CATransaction.commit()
         if effect == .matrix, matrixClock.running, bounds.size != matrixBuiltFor { restartMatrixColumns() }
         if effect == .merit { refreshMeritCounter() }
+        themeFx?.layout()
     }
 
     override func didMoveToWindow() {
@@ -2460,6 +2491,8 @@ final class KeyEffectOverlay: UIView {
         return rainbows.reduce(0) { $0 + count($1) } + (prideRoot.map(count) ?? 0)
     }
     var debugStarLayerCount: Int { starCycles.reduce(0) { $0 + 1 + $1.stars.count + $1.lines.count + 1 } }
+    /// Bóng đá / Bể cá / Cà phê: bộ vẽ riêng đang gắn (nil = kiểu khác).
+    var debugThemeFx: ThemeFxRenderer? { themeFx }
     #else
     static let drawsOffscreen = false
     #endif
@@ -2495,6 +2528,7 @@ final class KeyEffectOverlay: UIView {
         case .reps: fireRep(r, now: now, media: media)
         case .constellation: fireConstellation(r, now: now, media: media)
         case .rainbowburst: fireRainbow(c, now: now)
+        case .goal, .fishfeed, .ice: themeFx?.fire(r, isReturn: pendingReturn == r, now: now, media: media)
         case .flash: fireFlash(now: now, media: media)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)
@@ -3199,6 +3233,8 @@ final class KeyEffectOverlay: UIView {
         }
         starTrace = nil
         activeStars = nil
+        themeFx?.halt()
+        pendingReturn = nil; pendingCheer = false
     }
 
     // MARK: Đợt 3 — Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá, Chữ bay, Hạt cát
@@ -4718,6 +4754,10 @@ final class KeyEffectOverlay: UIView {
         blob = effect == .ink ? Self.renderBlob(color: color, scale: UIScreen.main.scale) : nil
         glows = effect.usesGlow
             ? effect.fixedColors.compactMap { Self.renderGlow(effect, rgb: $0, scale: UIScreen.main.scale) } : []
+        themeFx?.detach()
+        themeFx = ThemeFxFactory.make(effect, host: self, defaults: themeDefaults)
+        themeFx?.onEvent = onThemeEvent
+        pendingReturn = nil; pendingCheer = false
         if effect != .matrix { matrixStrips = [] }
         if effect != .emojiword && effect != .keyword && effect != .sea { emojiImages = [:] }
         prewarm()

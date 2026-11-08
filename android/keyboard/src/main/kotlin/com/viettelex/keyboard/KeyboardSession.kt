@@ -298,6 +298,12 @@ class KeyboardSession(
      * từ vừa chốt + từ liền trước. Tắt (mặc định) ⇒ không ghi gì.
      */
     var trackBoundaryWord = false
+    /**
+     * Sút! (theme Bóng đá): bộ so cụm cổ vũ ([CheerWords.Matcher]) — IME đặt CHỈ khi hiệu ứng Sút! đang chọn (null = 0
+     * chi phí). [cheerHit] = phím vừa rồi gõ xong một cụm ⇒ IME xếp pháo sáng + cờ. iOS KeyboardViewController.fxCheer.
+     */
+    var cheer: CheerWords.Matcher? = null
+    var cheerHit = false; private set
     /** Từ vừa chốt ở phím ranh giới gần nhất (null = phím vừa rồi không phải ranh giới có từ). */
     var boundaryWord: String? = null; private set
     var boundaryPrev: String? = null; private set
@@ -739,6 +745,7 @@ class KeyboardSession(
     /** [touch]: điểm chạm của phím chữ (bàn phím cảm ứng) — cho tự sửa; null = không biết. */
     fun handle(key: Key, proxy: TextProxy, touch: AutoCorrect.Touch? = null): KeyOutcome {
         mathArmed = false
+        cheerHit = false
         if (trackBoundaryWord) boundaryWord = null
         val t0 = if (TouchLog.enabled) System.nanoTime() else 0L
         val underLetter = autoSpaceUnderLetter
@@ -836,6 +843,7 @@ class KeyboardSession(
                         SwipeSpacing.spaceBefore(key.text, true, proxy.contextBeforeInput())) " " + key.text else key.text
                     val committed = bridge.boundary(text, proxy, expand = expand)
                     if (trackBoundaryWord) { boundaryWord = committed; boundaryPrev = prevBefore; boundaryPrev2 = prev2Before }
+                    cheer?.let { if (it.feed(committed, key.text)) cheerHit = true }
                     commitAndLearn(committed)
                     lastWord = null; lastWord2 = null
                     clearUndo()
@@ -852,6 +860,7 @@ class KeyboardSession(
                 } else { restoreUndoRaw = null; restoreUndoComposed = null }
                 undoOfferActive = false
                 if (trackBoundaryWord) { boundaryWord = committed; boundaryPrev = prevBefore; boundaryPrev2 = prev2Before }
+                cheer?.let { if (it.feed(committed, end = true)) cheerHit = true }
                 if (literal == null) commitAndLearn(committed)
                 if (typedArm != null && committed == typedArm.word)
                     typedPending = TypedPending(SwipeRevise.Typed(typedArm.word, typedArm.scored, typedArm.case, prevBefore),
@@ -867,8 +876,11 @@ class KeyboardSession(
                     proxy.deleteCodePoints(1)
                     proxy.insertText(". ")
                     lastWord = null; lastWord2 = null
+                    cheer?.let { if (it.feed("", ".")) cheerHit = true }
                 } else {
-                    commitAndLearn(bridge.boundary(" ", proxy, expand = expand))
+                    val w = bridge.boundary(" ", proxy, expand = expand)
+                    cheer?.let { if (it.feed(w, end = true)) cheerHit = true }
+                    commitAndLearn(w)
                 }
                 // Space đôi có thể đã thành ". ": ⌫ sau đó không được mở lại từ.
                 bridge.forgetLastCommit()
@@ -876,9 +888,11 @@ class KeyboardSession(
             }
             is Key.MoveCursor -> {
                 bridge.reset(); lastWord = null; lastWord2 = null; clearUndo()
+                cheer?.reset()
             }
             Key.Newline, Key.LineBreak -> {
                 val committed = bridge.boundary("\n", proxy, lineBreak = key == Key.LineBreak, expand = expand)
+                cheer?.let { if (it.feed(committed, end = true)) cheerHit = true }
                 commitAndLearn(committed)
                 typedCommit = committed to "\n"
                 // Enter có thể là "gửi"/performEditorAction: ⌫ sau đó không mở lại từ cũ.

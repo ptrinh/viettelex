@@ -64,7 +64,8 @@ class ThemeSetTests {
         val fixed = setOf(KeyboardTheme.OLED, KeyboardTheme.CONTRAST, KeyboardTheme.BLACK_HEART, KeyboardTheme.NEON,
             KeyboardTheme.TET, KeyboardTheme.XMAS, KeyboardTheme.PIANO, KeyboardTheme.RGB, KeyboardTheme.SPACE,
             KeyboardTheme.TRUNG_THU, KeyboardTheme.HALLOWEEN, KeyboardTheme.MOLE, KeyboardTheme.PIXEL, KeyboardTheme.AI, KeyboardTheme.NIGHTCLUB,
-            KeyboardTheme.TRIPPY, KeyboardTheme.DRIFT, KeyboardTheme.STAINED_GLASS, KeyboardTheme.RAINY_NIGHT, KeyboardTheme.GYM)
+            KeyboardTheme.TRIPPY, KeyboardTheme.DRIFT, KeyboardTheme.STAINED_GLASS, KeyboardTheme.RAINY_NIGHT, KeyboardTheme.GYM,
+            KeyboardTheme.AQUARIUM)
         for (t in KeyboardTheme.entries) {
             val light = t.palette(false) ?: continue
             val dark = t.palette(true)!!
@@ -76,7 +77,8 @@ class ThemeSetTests {
             assertFalse("$t", light.surfaceDark ?: light.isDark)
             assertTrue("$t bản tối", dark.surfaceDark ?: dark.isDark)
             // Kính, Xám trung tính (kiểu Gboard): nhấn xám đậm ở bản sáng, xám nhạt ở bản tối — cố ý khác.
-            if (t != KeyboardTheme.GLASS && t != KeyboardTheme.NEUTRAL) assertEquals("$t giữ màu nhấn", light.action, dark.action)
+            if (t != KeyboardTheme.GLASS && t != KeyboardTheme.NEUTRAL)
+                assertEquals("$t giữ màu nhấn", light.action, dark.action)
         }
     }
 
@@ -498,7 +500,7 @@ class ThemeSetTests {
         val secs = ThemePicker.sections
         assertEquals(listOf("Miễn phí", "Tương tác", "Plus"), secs.map { it.title })
         assertEquals(listOf(KeyboardTheme.SYSTEM, KeyboardTheme.OLED, KeyboardTheme.CONTRAST, KeyboardTheme.NEUTRAL), secs[0].themes)
-        assertEquals(listOf("nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "drift", "mo", "stainedGlass", "gym"), secs[1].themes.map { it.id })
+        assertEquals(listOf("nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "drift", "mo", "stainedGlass", "gym", "football", "aquarium", "cafe"), secs[1].themes.map { it.id })
         assertEquals(ThemePicker.ordered(), secs.flatMap { it.themes })
         assertEquals(KeyboardTheme.entries.toSet(), secs.flatMap { it.themes }.toSet())
         assertEquals("không trùng", KeyboardTheme.entries.size, secs.flatMap { it.themes }.size)

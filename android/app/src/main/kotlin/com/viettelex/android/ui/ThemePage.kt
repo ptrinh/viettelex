@@ -624,10 +624,16 @@ internal fun KeyboardPreview(p: ThemePalette, wallpaper: ImageBitmap?, dim: Int,
                 val gap = if (large) 5.dp.toPx() else 2.dp.toPx()
                 val kh = (size.height - bottomPadDp.dp.toPx() - pad * 2 - gap * 3) / 4
                 val gaps = (1..3).map { i -> com.viettelex.keyboard.ThemeDecoration.Gap(((pad + i * kh + (i - 0.5f) * gap) / unit).toDouble(), 11.0) }
-                val path = android.graphics.Path()
-                com.viettelex.android.ime.decorPath(path, d.motif, com.viettelex.keyboard.ThemeDecoration.placements(390.0, gaps, d.density), unit,
-                    alt = d.alt, width = 390.0)
-                drawPath(path.asComposePath(), Color(d.color))
+                if (com.viettelex.keyboard.ThemeScene.isScene(d.motif)) {
+                    // Cảnh (sân cỏ…): vẽ trọn nền cùng hình học bàn phím thật (thu theo 390 dp).
+                    com.viettelex.android.ime.ThemeScenePainter(d.motif, d.color, p.surfaceDark ?: p.isDark)
+                        .draw(drawContext.canvas.nativeCanvas, 0f, 0f, size.width, size.height, unit)
+                } else {
+                    val path = android.graphics.Path()
+                    com.viettelex.android.ime.decorPath(path, d.motif, com.viettelex.keyboard.ThemeDecoration.placements(390.0, gaps, d.density), unit,
+                        alt = d.alt, width = 390.0)
+                    drawPath(path.asComposePath(), Color(d.color))
+                }
             }
         }
         if (wallpaper != null) {
