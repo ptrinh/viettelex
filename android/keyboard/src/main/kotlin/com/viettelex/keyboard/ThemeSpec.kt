@@ -24,6 +24,7 @@ import java.nio.charset.CodingErrorAction
  * "borderFx" (trong "light"/"dark", danh sách trắng [ThemeSlots.BORDER_FX]): "rainbow" = viền phím cầu vồng (Gaming RGB,
  *   chỉ xoay màu khi đang gõ) | "aurora" = viền gradient tím → lam ĐỨNG YÊN + dải cực quang tĩnh dọc mép trên (theme AI,
  *   [AuroraFx]; vẽ một lần, 0 hoạt ảnh) | "none" (bản vá: bỏ). Motif "deco" có thêm "neural" (theme AI).
+ * Motif "deco" "treadplate" (theme Gym): hàng gân thép chéo ±45° kiểu sàn thép chống trượt; "sound":"plate", "effect":"reps".
  * "schedule" (tuỳ chọn): bảng màu đổi theo giờ địa phương (theme "Theo giờ") — xem [ThemeSchedule] / [ThemeScheduleEntry].
  *
  * Tệp tải về (Plus — ThemeAssets.kt: kế hoạch / kho / dọn; app ui/ThemeAssetDownloader.kt: tải + xử lý):

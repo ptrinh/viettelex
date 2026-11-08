@@ -24,6 +24,7 @@ import Foundation
 // "borderFx" (trong "light"/"dark", danh sách trắng ThemeSlots.borderFxValues): "rainbow" = viền phím cầu vồng (Gaming
 //   RGB, chỉ xoay màu khi đang gõ) | "aurora" = viền gradient tím → lam ĐỨNG YÊN + dải cực quang tĩnh dọc mép trên
 //   (theme AI, AuroraFx; vẽ một lần, 0 hoạt ảnh) | "none" (bản vá: bỏ). Motif "deco" có thêm "neural" (theme AI).
+// Motif "deco" "treadplate" (theme Gym): hàng gân thép chéo ±45° kiểu sàn thép chống trượt; "sound":"plate", "effect":"reps".
 //
 // "schedule" (tuỳ chọn, 2…6 mục, "from" tăng dần): bảng màu ĐỔI THEO GIỜ ĐỊA PHƯƠNG (theme "Theo giờ") —
 //   "schedule":[{"from":"05:00","palette":{…như "light"…}}, {"from":"07:00","palette":{…}}, …]

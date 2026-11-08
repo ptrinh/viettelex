@@ -46,7 +46,9 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
     /** Theme "AI" (11/2026): "blip" synth mềm — sine trượt lên D6 → G6 + nốt A6 khẽ chen — công thức đầu file Swift. */
     AI("ai", "Synth AI"), // l10n-key
     /** Theme "Neon Night Club" (11/2026): nhịp club — chữ = hi-hat, xoá = kick, chức năng = kick + hat ([KeySoundSynth.clubRecipe]). */
-    CLUB("club", "Nhịp club"); // l10n-key
+    CLUB("club", "Nhịp club"), // l10n-key
+    /** Theme "Gym" (11/2026): "keng" kim loại khẽ của bánh tạ sắt (hoạ âm không điều hoà) — công thức đầu file Swift. */
+    PLATE("plate", "Tạ sắt"); // l10n-key
 
     /** true ⇒ phát qua SoundPool riêng; [SYSTEM] ⇒ playSoundEffect, không dựng gì. */
     val usesPool: Boolean get() = this != SYSTEM
@@ -56,7 +58,7 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
         val DEFAULT = SUBTLE
         /** Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức [KeySoundSynth.baseRecipe]. */
         val PRESETS = listOf(SUBTLE, WOOD, MECHANICAL, TYPEWRITER, BUBBLE, ROCK, POP, WATER, VINTAGE, PHAO, JINGLE, SCIFI,
-            TRONG, BOO, BOP, CHIP, AI, CLUB)
+            TRONG, BOO, BOP, CHIP, AI, CLUB, PLATE)
         /** Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta). */
         val ALL_PRESETS = PRESETS + PIANO + DANTRANH + GUITAR
         /**
@@ -170,6 +172,10 @@ object KeySoundSynth {
                 t(0.38, 1760.0, 1760.0, tau = 0.012, delay = 0.014)),
             emptyList(), 0.002, 0.05, 5000.0, 0.36)
         KeySoundStyle.CLUB -> clubRecipe(Kind.LETTER)
+        KeySoundStyle.PLATE -> Recipe(
+            listOf(t(1.0, 784.0, 784.0, tau = 0.014), t(0.35, 784 * 1.59, 784 * 1.59, tau = 0.012),
+                t(0.55, 784 * 2.76, 784 * 2.76, tau = 0.010), t(0.3, 784 * 5.4, 784 * 5.4, tau = 0.006)),
+            listOf(n(0.22, hp = 900.0, lp = 3200.0, tau = 0.0012)), 0.0006, 0.052, 4200.0, 0.42)
     }
 
     /**
@@ -280,6 +286,8 @@ object KeySoundSynth {
     fun seed(s: KeySoundStyle, k: Kind): Int =
         // Nhịp club: seed CỐ ĐỊNH ("club"), không theo vị trí — checksum không đổi khi nhánh khác thêm kiểu trước nó.
         if (s == KeySoundStyle.CLUB) 0x636C7562 xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
+        // Tạ sắt: seed CỐ ĐỊNH ("plat") — như club.
+        else if (s == KeySoundStyle.PLATE) 0x706C6174 xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
         else (0x9E3779B9.toInt() * (s.ordinal + 1)) xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
 
     fun samples(s: KeySoundStyle, k: Kind): FloatArray = render(recipe(s, k), seed(s, k))

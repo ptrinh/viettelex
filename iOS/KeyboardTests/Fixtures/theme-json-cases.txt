@@ -255,3 +255,6 @@ CASE	buddy-no-character	err:missingKey	-	{"v":1,"name":{"vi":"x"},"light":{"key"
 CASE	buddy-extra-key	err:unknownKey	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"buddy":{"character":"ai","style":"vector"}}
 CASE	buddy-string	err:wrongType	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"buddy":"ai"}
 CASE	buddy-size-string	err:wrongType	-	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"buddy":{"character":"ai","size":"5"}}
+# Gym: motif "treadplate" (sàn thép chống trượt) + âm "plate" + hiệu ứng "reps".
+CASE	motif-treadplate	ok	{"dark":"same","light":{"accent":"#000000","deco":{"color":"#4D8A9299","motif":"treadplate"},"ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"v":1}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000","deco":{"motif":"treadplate","color":"#4D8A9299"}}}
+CASE	sound-effect-gym	ok	{"dark":"same","effect":"reps","light":{"accent":"#000000","ink":"#000000","key":"#FFFFFF","special":"#DDDDDD"},"name":{"vi":"x"},"sound":"plate","v":1}	{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"sound":"plate","effect":"reps"}

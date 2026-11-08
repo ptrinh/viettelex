@@ -6,10 +6,10 @@
 # nền tảng (backdrop) nên không có ở đây.
 # interactive = theme có nhãn "interactive" (thứ tự khai báo); picker = thứ tự lưới "Chọn giao diện" (ThemePicker.ordered:
 # miễn phí → tương tác theo ThemePicker.interactiveOrder → còn lại).
-order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral,pixel,sea,timeOfDay,ai,nightclub
-plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,pixel,sea,timeOfDay,ai,nightclub
-interactive	tet,tetMai,piano,rgb,space,guitar,mole,sea,ai,nightclub
-picker	system,oled,contrast,neutral,nightclub,ai,sea,mole,piano,space,rgb,tet,tetMai,guitar,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,xmas,xmasSnow,sen,typewriter,trungthu,valentine,halloween,pixel,timeOfDay
+order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral,pixel,sea,timeOfDay,ai,nightclub,gym
+plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,pixel,sea,timeOfDay,ai,nightclub,gym
+interactive	tet,tetMai,piano,rgb,space,guitar,mole,sea,ai,nightclub,gym
+picker	system,oled,contrast,neutral,nightclub,ai,sea,mole,piano,space,rgb,tet,tetMai,guitar,gym,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,xmas,xmasSnow,sen,typewriter,trungthu,valentine,halloween,pixel,timeOfDay
 #theme	dark	bg	key	special	ink	accent	accentInk	border	fn	fnInk	deco
 oled	0	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
 oled	1	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
@@ -73,3 +73,5 @@ ai	0	FF070A18	FF1B2140	FF2A2452	FFF5F3FF	FF8B5CF6	FFFFFFFF	-	FF141A33	FFA5F3FC	n
 ai	1	FF070A18	FF1B2140	FF2A2452	FFF5F3FF	FF8B5CF6	FFFFFFFF	-	FF141A33	FFA5F3FC	neural:5967E8F9
 nightclub	0	FF07020D	FF170A24	FF241038	FFFBEFFF	FFFF2FD0	FF1A0016	E6FF2FD0	FF10061C	FF2FE6FF	-
 nightclub	1	FF07020D	FF170A24	FF241038	FFFBEFFF	FFFF2FD0	FF1A0016	E6FF2FD0	FF10061C	FF2FE6FF	-
+gym	0	FF16191C	FF2A2E33	FF3A3F45	FFFFFFFF	FFC6FF1A	FF141A00	99C6FF1A	FF202327	FFD4FF3A	treadplate:4D8A9299
+gym	1	FF16191C	FF2A2E33	FF3A3F45	FFFFFFFF	FFC6FF1A	FF141A00	99C6FF1A	FF202327	FFD4FF3A	treadplate:4D8A9299

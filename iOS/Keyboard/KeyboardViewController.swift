@@ -1772,6 +1772,10 @@ final class KeyboardViewController: UIInputViewController {
             if let k = KeywordBursts.lookup(word: word, prev: prev) { fx.queueKeyword(k) }   // Từ khoá: pháo đỏ / lì xì…
             return
         }
+        if fx.effect == .reps {   // Rep (Gym): "gym", "tập", "beast mode"… ⇒ BEAST MODE
+            if RepsFx.isKeyword(word: word, prev: prev, prev2: lastWord2) { fx.queueBeastMode() }
+            return
+        }
         guard let e = EmojiWords.lookup(word: word, prev: prev) else { return }
         fx.queueEmoji(e)
     }

@@ -88,12 +88,15 @@ enum KeySoundStyle: String, CaseIterable {
     // Theme "Neon Night Club" (11/2026): nhịp club điện tử — phím chữ = hi-hat "tss" ngắn, xoá = kick điện tử, cách /
     // Enter (chức năng) = kick + hat ⇒ gõ chữ rồi cách thành nhịp "tss tss tss BÙM" xen kẽ tự nhiên.
     case club
+    // Theme "Gym" (11/2026): "keng" kim loại khẽ của bánh tạ sắt — hoạ âm KHÔNG điều hoà (×1, ×1.59, ×2.76, ×5.4 như đĩa
+    // kim loại) tắt nhanh + tiếng chạm nhiễu rất ngắn. Seed cố định ("plat").
+    case plate
 
     /// Bật "Âm thanh phím" lần đầu ⇒ "Nhẹ nhàng" (bật công tắc phải NGHE khác đi; "iOS" = như lúc tắt).
     static let defaultStyle: KeySoundStyle = .subtle
     /// Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức `baseRecipe`.
     static let presets: [KeySoundStyle] = [.subtle, .wood, .mechanical, .typewriter, .bubble, .rock, .pop, .water, .vintage, .phao, .jingle,
-                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club]
+                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club, .plate]
     /// Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta).
     static let allPresets: [KeySoundStyle] = presets + [.piano, .dantranh, .guitar]
     /// DANH SÁCH DUY NHẤT id hợp lệ cho trường "sound" của theme JSON (chọn theme ⇒ đặt keySoundStyle).
@@ -136,6 +139,7 @@ enum KeySoundStyle: String, CaseIterable {
         case .chip: return LK("Bíp 8-bit")
         case .ai: return LK("Synth AI")
         case .club: return LK("Nhịp club")
+        case .plate: return LK("Tạ sắt")
         }
     }
 
@@ -253,6 +257,13 @@ enum KeySoundSynth {
                           attack: 0.002, duration: 0.05, outLP: 5000, peak: 0.36)
         case .club:
             return clubRecipe(.letter)
+        case .plate:
+            // Tạ sắt: G5 (784 Hz) τ14 ms + các hoạ âm lệch kiểu đĩa kim loại 1.59× / 2.76× / 5.4× tắt nhanh dần, chạm nhiễu
+            // hp 900 Hz lp 3.2 kHz τ1.2 ms. Đỉnh 0.42 (< Gõ gỗ), ≤ 52 ms, lọc 4.2 kHz ⇒ "keng" khẽ, không chói.
+            return Recipe(tones: [t(1.0, 784, 784, tau: 0.014), t(0.35, 784 * 1.59, 784 * 1.59, tau: 0.012),
+                                  t(0.55, 784 * 2.76, 784 * 2.76, tau: 0.010), t(0.3, 784 * 5.4, 784 * 5.4, tau: 0.006)],
+                          noises: [n(0.22, hp: 900, lp: 3200, tau: 0.0012)],
+                          attack: 0.0006, duration: 0.052, outLP: 4200, peak: 0.42)
         }
     }
 
@@ -379,6 +390,8 @@ enum KeySoundSynth {
     static func seed(_ s: KeySoundStyle, _ k: KeySoundKind) -> UInt32 {
         // Nhịp club: seed CỐ ĐỊNH ("club"), không theo vị trí case ⇒ checksum không đổi khi nhánh khác thêm kiểu trước nó.
         if s == .club { return 0x636C_7562 ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1)) }
+        // Tạ sắt: seed CỐ ĐỊNH ("plat") — như club.
+        if s == .plate { return 0x706C_6174 ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1)) }
         let si = UInt32(KeySoundStyle.allCases.firstIndex(of: s) ?? 0)
         return 0x9E37_79B9 &* (si &+ 1) ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1))
     }

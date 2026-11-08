@@ -49,7 +49,9 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     // Theme "AI" (11/2026): chữ vừa ra vỡ thành vài "token" phát sáng bay vào thanh gợi ý ([TokenStream]).
     TOKENS("tokens", "Token AI"), // l10n-key
     // Theme Neon Night Club (11/2026): Sàn nhảy LED — phím vừa bấm + các phím quanh thắp neon thành vòng vuông lan ra.
-    DANCEFLOOR("dancefloor", "Sàn nhảy LED"); // l10n-key
+    DANCEFLOOR("dancefloor", "Sàn nhảy LED"), // l10n-key
+    // Theme Gym (11/2026): Rep — thanh rep lấp mỗi phím, 10 phím = SET ✓, gõ nhanh "+1 rep 💪", từ khoá ⇒ BEAST MODE ([RepsFx]).
+    REPS("reps", "Rep"); // l10n-key
 
     val title: String get() = tr(viTitle)
 
@@ -66,7 +68,7 @@ enum class KeyEffect(val id: String, val viTitle: String) {
     val needsComposeDiff: Boolean get() = this == TONE || this == LETTERS || this == TOKENS
 
     /** IME phải ghi từ vừa chốt ở ranh giới (tra bảng). = iOS needsBoundaryWord. */
-    val needsBoundaryWord: Boolean get() = this == EMOJIWORD || this == KEYWORD
+    val needsBoundaryWord: Boolean get() = this == EMOJIWORD || this == KEYWORD || this == REPS
 
     /** Hạt là ẢNH đốm sáng mềm dựng sẵn ([GlowSprite]), không path: Đèn lồng, Sương ma. = iOS usesGlow. */
     val usesGlow: Boolean get() = this == LANTERN || this == SMOKE
@@ -1576,5 +1578,143 @@ object BeatFlash {
             return true
         }
         fun reset() { times.fill(Double.NEGATIVE_INFINITY); head = 0 }
+    }
+}
+
+/**
+ * "Rep" (theme Gym, 11/2026): thanh rep mảnh dọc mép trên bàn phím lấp MỘT nấc mỗi phím; đủ [PER_SET] phím = một hiệp ⇒
+ * huy hiệu "SET n ✓" đấm phồng rồi mờ, thanh rút về 0. Gõ nhanh ([ComboMeter] ≥ 1) ⇒ nhãn "+1 rep 💪" bay lên từ phím (pool
+ * [LABEL_CAP], dùng lại). Từ khoá ("gym", "tập", "beast mode"…) ⇒ chữ BEAST MODE đập xuống giữa bàn phím + vòng xung kích
+ * (~1 s). Đếm hiệp về 0 khi ẩn bàn phím hoặc nghỉ [IDLE_RESET] giây. Mọi thứ nằm TRONG khung bàn phím. Đường cong = hàm thuần
+ * (keyframe tuyến tính), đơn vị dp / giây. = iOS RepsFx (cùng số).
+ */
+object RepsFx {
+    const val PER_SET = 10
+    const val IDLE_RESET = 60.0
+    const val LABEL_CAP = 5
+    const val LABEL_TEXT = "+1 rep 💪" // l10n-skip
+    const val SLAM_TEXT = "BEAST MODE" // l10n-skip
+    fun badgeText(set: Int): String = "SET $set ✓" // l10n-skip
+    const val BAR_HEIGHT = 3.0
+    const val BAR_INSET = 2.0
+    const val BAR_STEP = 0.12
+    const val SET_HOLD = 0.45
+    const val SET_DRAIN = 0.2
+    const val SET_LIFE = BAR_STEP + SET_HOLD + SET_DRAIN
+    const val BADGE_Y = 18.0
+    const val BADGE_FONT = 13.0
+    const val BADGE_DURATION = 0.9
+    val BADGE_TIMES = doubleArrayOf(0.0, 0.12, 0.22, 0.3, 0.7, 0.9)
+    val BADGE_SCALES = doubleArrayOf(0.4, 1.25, 0.95, 1.0, 1.0, 1.0)
+    val BADGE_ALPHAS = doubleArrayOf(0.0, 1.0, 1.0, 1.0, 1.0, 0.0)
+    const val LABEL_DURATION = 0.8
+    const val LABEL_RISE = 38.0
+    const val LABEL_FONT = 14.0
+    const val LABEL_HEIGHT = 20.0
+    const val LABEL_HALF_WIDTH = 40.0
+    const val SLAM_DURATION = 1.0
+    val SLAM_TIMES = doubleArrayOf(0.0, 0.1, 0.18, 0.26, 0.8, 1.0)
+    val SLAM_SCALES = doubleArrayOf(2.4, 0.9, 1.08, 1.0, 1.0, 1.0)
+    val SLAM_ALPHAS = doubleArrayOf(0.0, 1.0, 1.0, 1.0, 1.0, 0.0)
+    const val SLAM_MAX_FONT = 30.0
+    const val RING_DELAY = 0.1
+    const val RING_DURATION = 0.5
+    const val RING_RADIUS = 44.0
+    const val RING_GROW = 1.6
+    const val RING_WIDTH = 3.0
+
+    /** Bộ đếm rep / hiệp — thuần (thời gian truyền vào, giây). = iOS RepsFx.Counter. */
+    class Counter {
+        data class Event(val fill: Int, val completedSet: Int?)
+        var reps = 0; private set
+        var sets = 0; private set
+        var last = Double.NEGATIVE_INFINITY; private set
+        /** Một phím lúc [t]: nấc thanh sau phím (1…PER_SET) + số hiệp vừa xong (null nếu chưa). */
+        fun press(t: Double): Event {
+            if (isIdle(t)) reset()
+            last = t
+            reps++
+            if (reps >= PER_SET) { reps = 0; sets++; return Event(PER_SET, sets) }
+            return Event(reps, null)
+        }
+        fun isIdle(t: Double): Boolean = t - last > IDLE_RESET
+        fun reset() { reps = 0; sets = 0; last = Double.NEGATIVE_INFINITY }
+    }
+
+    /** Nội suy tuyến tính theo mốc (kẹp hai đầu). */
+    fun keyframe(t: Double, ts: DoubleArray, vs: DoubleArray): Double {
+        if (t <= ts[0]) return vs[0]
+        for (i in 1 until ts.size) if (t <= ts[i]) {
+            val u = (t - ts[i - 1]) / maxOf(ts[i] - ts[i - 1], 1e-9)
+            return vs[i - 1] + (vs[i] - vs[i - 1]) * u
+        }
+        return vs[vs.size - 1]
+    }
+
+    /** Phần thanh (0…1) sau [dt] giây: nấc [from] → [to]; hết hiệp ([to] = PER_SET) ⇒ đầy, giữ, rút về 0. */
+    fun barFill(from: Int, to: Int, dt: Double): Double {
+        val a = from.toDouble() / PER_SET; val b = to.toDouble() / PER_SET
+        if (dt <= 0) return a
+        if (dt < BAR_STEP) return a + (b - a) * dt / BAR_STEP
+        if (to < PER_SET) return b
+        val u = dt - BAR_STEP - SET_HOLD
+        if (u < 0) return 1.0
+        return if (u < SET_DRAIN) 1 - u / SET_DRAIN else 0.0
+    }
+
+    fun badgeScale(dt: Double): Double = keyframe(dt, BADGE_TIMES, BADGE_SCALES)
+    fun badgeAlpha(dt: Double): Double = if (dt < 0 || dt >= BADGE_DURATION) 0.0 else keyframe(dt, BADGE_TIMES, BADGE_ALPHAS)
+    fun slamScale(dt: Double): Double = keyframe(dt, SLAM_TIMES, SLAM_SCALES)
+    fun slamAlpha(dt: Double): Double = if (dt < 0 || dt >= SLAM_DURATION) 0.0 else keyframe(dt, SLAM_TIMES, SLAM_ALPHAS)
+
+    fun labelDy(dt: Double): Double {
+        val u = (dt / LABEL_DURATION).coerceIn(0.0, 1.0)
+        return -LABEL_RISE * (1 - (1 - u) * (1 - u))
+    }
+    fun labelAlpha(dt: Double): Double {
+        if (dt < 0 || dt >= LABEL_DURATION) return 0.0
+        val u = dt / LABEL_DURATION
+        return if (u < 0.15) u / 0.15 else if (u > 0.6) (1 - u) / 0.4 else 1.0
+    }
+    fun labelScale(dt: Double): Double = 0.8 + 0.25 * minOf((dt / LABEL_DURATION).coerceAtLeast(0.0) / 0.2, 1.0)
+    /** Lệch ngang nhẹ theo lần bắn (−8…8 dp) — tất định. */
+    fun labelDrift(seed: Int): Double = (((seed % 5) + 5) % 5 - 2) * 4.0
+
+    fun ringScale(dt: Double): Double {
+        val u = ((dt - RING_DELAY) / RING_DURATION).coerceIn(0.0, 1.0)
+        return 0.3 + (RING_GROW - 0.3) * (1 - (1 - u) * (1 - u))
+    }
+    fun ringAlpha(dt: Double): Double {
+        val t = dt - RING_DELAY
+        if (t < 0 || t >= RING_DURATION) return 0.0
+        return 0.85 * (1 - t / RING_DURATION)
+    }
+
+    /** Bán kính vòng vừa khung (lớn nhất × RING_GROW + nét vẫn trong bàn phím). */
+    fun ringRadius(w: Double, h: Double): Double = maxOf(0.0, minOf(RING_RADIUS, (minOf(w, h) / 2 - RING_WIDTH) / RING_GROW))
+    /** Cỡ chữ BEAST MODE vừa bề ngang. */
+    fun slamFont(w: Double): Double = maxOf(8.0, minOf(SLAM_MAX_FONT, w / 8.5))
+
+    /** Tâm xuất phát của nhãn — kẹp sao cho CẢ đường bay nằm trong khung ([bx], [by], [bw], [bh]); ghi vào out[0..1]. */
+    fun labelOrigin(keyMidX: Double, keyTop: Double, seed: Int, bx: Double, by: Double, bw: Double, bh: Double, out: DoubleArray) {
+        val hw = LABEL_HALF_WIDTH; val hh = LABEL_HEIGHT / 2
+        out[0] = minOf(maxOf(keyMidX + labelDrift(seed), bx + hw), maxOf(bx + bw - hw, bx + hw))
+        out[1] = minOf(maxOf(keyTop, by + LABEL_RISE + hh), maxOf(by + bh - hh, by + LABEL_RISE + hh))
+    }
+
+    /** Từ khoá BEAST MODE. Cụm > 3 từ khớp theo 3 từ cuối ("no pain no gain" ⇒ "pain no gain"). */
+    val KEYWORDS = listOf("gym", "tập", "fit", "no pain no gain", "beast mode", "lên tạ") // l10n-skip
+    private val FORMS: Set<String> = KEYWORDS.map { it.split(' ').takeLast(3).joinToString(" ") }.toHashSet()
+    private fun clean(s: String): String = s.trim { !it.isLetter() }.lowercase()
+
+    /** Từ vừa chốt [word] (+ hai từ liền trước) có kích BEAST MODE không — tra O(1) ở RANH GIỚI TỪ; đúng dấu. */
+    fun isKeyword(word: String, prev: String?, prev2: String?): Boolean {
+        val w = clean(word)
+        if (w.isEmpty() || w.length > 24) return false
+        if (w in FORMS) return true
+        val p = prev?.let(::clean); if (p.isNullOrEmpty()) return false
+        if ("$p $w" in FORMS) return true
+        val p2 = prev2?.let(::clean); if (p2.isNullOrEmpty()) return false
+        return "$p2 $p $w" in FORMS
     }
 }

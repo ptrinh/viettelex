@@ -280,6 +280,9 @@ enum KeyboardTheme: String, CaseIterable {
     // Neon Night Club (11/2026, Plus, THÊM CUỐI): nền đen, phím tối viền ống neon hồng + chữ chức năng lục lam, Đèn rọi
     // trên ảnh nền ("photoFx":"spotlight" — NightClub.swift), hiệu ứng Sàn nhảy LED, âm "club", quả cầu disco.
     case nightclub
+    // Gym (11/2026, Plus, THÊM CUỐI): nền thép gunmetal + hoạ tiết sàn thép chống trượt ("treadplate"), phím cao su tối viền
+    // vàng chanh neon, chữ trắng; hiệu ứng "Rep" (thanh rep / SET ✓ / BEAST MODE — RepsFx), âm "Tạ sắt".
+    case gym
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -318,6 +321,7 @@ enum KeyboardTheme: String, CaseIterable {
         case .timeOfDay: return L("Theo giờ")
         case .ai: return L("AI")
         case .nightclub: return L("Neon Night Club")
+        case .gym: return L("Gym")
         }
     }
 
@@ -353,7 +357,8 @@ enum KeyboardTheme: String, CaseIterable {
              .mole,
              .pixel, .sea, .timeOfDay,
              .ai,
-             .nightclub: return true
+             .nightclub,
+             .gym: return true
         }
     }
 
@@ -431,6 +436,8 @@ struct KeyboardDecoration: Equatable {
         case pixel, waves, bubbles
         // Theme "AI" (11/2026): "neural" = ba nút nối dây kiểu mạng nơ-ron + hàng chấm lưới trải ngang trong khe.
         case neural
+        // Theme "Gym" (11/2026): "treadplate" = hàng gân thép chéo kiểu sàn thép chống trượt (gân xen ±45°) trải ngang khe.
+        case treadplate
     }
     var motif: Motif
     var color: RGBA
@@ -581,6 +588,13 @@ struct KeyboardDecoration: Equatable {
     static let neuralDots: [(Double, Double, Double)] = [(-2.4, 0, 0.07), (-1.6, 0, 0.06), (-0.9, 0, 0.05), (0.9, 0, 0.05),
                                                           (1.6, 0, 0.06), (2.4, 0, 0.07)]
 
+    /// Gân thép của motif "treadplate" (đơn vị motif): tâm (x, y) + góc (radian) — gân hình thoi dài `treadLength`, nửa bề
+    /// dày `treadHalfWidth`, xen kẽ ±45° như sàn thép chống trượt. Android TREAD_* y hệt.
+    static let treadBars: [(Double, Double, Double)] = [(-2.4, 0, .pi / 4), (-1.6, 0, -.pi / 4), (-0.8, 0, .pi / 4),
+                                                         (0, 0, -.pi / 4), (0.8, 0, .pi / 4), (1.6, 0, -.pi / 4), (2.4, 0, .pi / 4)]
+    static let treadLength = 0.62
+    static let treadHalfWidth = 0.09
+
     /// Một đường con khép kín: điểm đầu + các đoạn ([x, y] thẳng / [c1x, c1y, c2x, c2y, x, y] cubic).
     struct Sub: Equatable { var start: (Double, Double); var segs: [[Double]]
         static func == (a: Sub, b: Sub) -> Bool { a.start == b.start && a.segs == b.segs }
@@ -635,6 +649,13 @@ struct KeyboardDecoration: Equatable {
                 out.append(Sub(start: (d.0 + d.2, d.1), segs: [[d.0, d.1 + d.2], [d.0 - d.2, d.1], [d.0, d.1 - d.2]]))
             }
             return out
+        case .treadplate:
+            // Sàn thép: mỗi gân một hình thoi (đầu + → cạnh +n → đầu − → cạnh −n) — cùng chiều quay với chấm của neural.
+            return Self.treadBars.map { b in
+                let dx = cos(b.2), dy = sin(b.2), nx = -dy, ny = dx, l = Self.treadLength / 2, w = Self.treadHalfWidth
+                return Sub(start: (b.0 + dx * l, b.1 + dy * l),
+                           segs: [[b.0 + nx * w, b.1 + ny * w], [b.0 - dx * l, b.1 - dy * l], [b.0 - nx * w, b.1 - ny * w]])
+            }
         case .bubbles:
             // Cụm bọt: một bọt to + hai bọt nhỏ nổi lên lệch phải.
             return [ell(-0.12, 0.14, 0.3, 0.3), ell(0.27, -0.2, 0.15, 0.15), ell(0.36, 0.26, 0.09, 0.09)]
@@ -819,7 +840,7 @@ enum ThemePicker {
     struct Section { let title: String; let themes: [KeyboardTheme] }
     /// Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng
     /// không có trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. Android ThemePicker.INTERACTIVE_ORDER y hệt.
-    static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar"]
+    static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "gym"]
 
     /// Thứ tự lưới (thuần): miễn phí (thứ tự khai báo) → tương tác (theo `interactiveOrder`) → còn lại (thứ tự khai
     /// báo). Theme miễn phí có nhãn vẫn ở nhóm miễn phí. Android `ThemePicker.groups` cùng kết quả (fixture "picker").
