@@ -252,6 +252,10 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         super.onCreate()
         ImeTrace.begin("VT.onCreate.data")
         prefs = VTPrefs.of(this)
+        // Migration mẫu câu động (một lần mỗi máy) chạy NGAY ở đây: để lười tới lúc nạp mẫu câu thì
+        // lần ghi cờ đó đánh dấu theme "cũ" + đổi mốc file ⇒ lần mở bàn phím sau dựng lại ImeTheme
+        // thừa (ImeRenderBudgetTest.warmReopenRebuildsNothing).
+        VTPrefs.migrateDynamicSnippets(prefs, sync = true)
         com.viettelex.android.plus.PlusPrefs.install(this)   // PlusGate đọc cờ Plus từ prefs chung
         KeyboardData.install(AssetBlobs.provider(assets))
         // Emoji mới hơn mức API chắc có → hỏi font hệ thống (ẩn emoji máy không vẽ được).

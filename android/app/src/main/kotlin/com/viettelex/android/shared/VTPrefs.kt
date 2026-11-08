@@ -27,14 +27,17 @@ object VTPrefs {
     /**
      * Một lần: thêm mẫu động có sẵn (tỷ giá/vàng/BTC) vào danh sách đã tự chỉnh. Đã chạy ⇒
      * chỉ một lần đọc bool. Gọi từ cả IME lẫn app (idempotent, so theo text).
+     * [sync] = ghi đồng bộ (commit) — IME gọi lúc onCreate để lần ghi một lần này xong TRƯỚC
+     * mốc file prefs đầu tiên, không bị coi là "prefs đổi" ở lần mở bàn phím sau.
      */
-    fun migrateDynamicSnippets(p: SharedPreferences) {
+    fun migrateDynamicSnippets(p: SharedPreferences, sync: Boolean = false) {
         if (p.getBoolean(Keys.DYNAMIC_SNIPPETS_MIGRATED, false)) return
         val json = p.getString(Keys.USER_TEMPLATES, null)
         if (!Templates.shouldMarkDynamicMigrated(json)) return
         val e = p.edit()
         Templates.migrateDynamicBuiltins(json, alreadyRan = false)?.let { e.putString(Keys.USER_TEMPLATES, it) }
-        e.putBoolean(Keys.DYNAMIC_SNIPPETS_MIGRATED, true).apply()
+        e.putBoolean(Keys.DYNAMIC_SNIPPETS_MIGRATED, true)
+        if (sync) e.commit() else e.apply()
     }
 
     /** Mẫu câu hiện hành: pref JSON, không thì assets/ios-mau-cau.yml. */
