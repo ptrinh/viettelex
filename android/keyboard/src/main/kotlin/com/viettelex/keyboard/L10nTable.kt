@@ -567,6 +567,7 @@ object L10nTable {
         put("Giao diện bàn phím", "Keyboard theme")
         put("Chọn giao diện", "Choose theme")
         put("Miễn phí", "Free")
+        put("Tương tác", "Interactive")
         put("Plus", "Plus")
         put("Tim đen", "Black Heart")
         put("Hoa xanh", "Green Blossom")

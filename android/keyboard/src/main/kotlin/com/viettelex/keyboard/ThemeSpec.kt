@@ -40,6 +40,18 @@ import java.nio.charset.CodingErrorAction
  * sáng lóa (lõi gần trắng, quầng hồng / tím / lục lam xoay vòng) quanh chỗ chạm rồi tắt dần ~1,1 s, tối đa 6 quầng; gõ nhanh ⇒ to +
  * sáng hơn. Không có ảnh nền ⇒ quầng sáng rọi lên hoạ tiết neon tối; quả cầu disco nhỏ ở góc trên xoay + toả chấm sáng.
  * Như "game": không ghi gì lúc chọn theme, IME đọc từ kiểu thực dùng ([SpotlightPolicy]); theme tự tạo dùng được.
+ *
+ * "tags" (tuỳ chọn, mảng chuỗi trong danh sách trắng [ThemeTags.KNOWN]): nhãn của theme — "interactive" = theme TƯƠNG TÁC
+ * (phím/ảnh nền phản ứng khi gõ: trò chơi, đèn rọi, sóng, nốt nhạc…) ⇒ màn "Chọn giao diện" gắn chip "Tương tác" và xếp
+ * nhóm riêng ngay sau theme miễn phí ([ThemePicker]). Không phải mảng ⇒ wrongType; phần tử không phải chuỗi ⇒ wrongType;
+ * nhãn lạ / lặp ⇒ badValue. Mảng rỗng = không có. Chỉ là nhãn hiển thị — không đổi cách vẽ. Theme tự tạo dùng được;
+ * "Chép JSON" giữ nguyên; bản vá ([KeyStyle]) không có "tags".
+ *
+ * "buddy" (tuỳ chọn): bạn đồng hành ĐI KÈM theme — {"character": id [BuddyCharacter] trừ "off" ([ThemeExtraIds.BUDDIES]),
+ * "size": 1…20 (thang "Vị trí & cỡ", [BuddyPlacement]; 5 = cỡ gốc) tuỳ chọn}. Như "effect": CHỈ ghi MỘT lần lúc người dùng
+ * chọn theme ([ThemeExtras.applyBuddyOnSelect] — khoá keyboardBuddy / buddySize); đổi tay sau đó thì giữ tới lần chọn
+ * theme kế. Nhân vật bị khoá Plus ⇒ bỏ qua (cả cỡ). Khoá lạ ⇒ unknownKey; thiếu "character" ⇒ missingKey; id lạ ⇒
+ * badValue; cỡ ngoài 1…20 ⇒ kẹp + cảnh báo clamped. Bản vá ([KeyStyle]) không có "buddy".
  * iOS ThemeSpec.swift y hệt.
  */
 
@@ -602,7 +614,13 @@ data class ThemeSpec(
     val keyShape: String? = null,
     /** Hiệu ứng trên ảnh nền ("spotlight" — Đèn rọi) — chạy khi theme đang dùng ([ThemeExtraIds.PHOTO_FX]). iOS `photoFx`. */
     val photoFx: String? = null,
+    /** Nhãn ("interactive" — [ThemeTags.KNOWN]), thứ tự như trong JSON; null = không có (mảng rỗng cũng là null). iOS `tags`. */
+    val tags: List<String>? = null,
+    /** Bạn đồng hành đi kèm (ghi một lần lúc chọn theme — [ThemeExtras.applyBuddyOnSelect]); null = không đổi. iOS `buddy`. */
+    val buddy: ThemeBuddy? = null,
 ) {
+    /** Theme tương tác (nhãn "interactive") — chip "Tương tác" + nhóm riêng trong màn chọn giao diện. */
+    val isInteractive: Boolean get() = tags?.contains(ThemeTags.INTERACTIVE) == true
     fun slots(dark: Boolean): ThemeSlots = if (dark) (this.dark ?: light) else light
     /** Bảng màu ở phút [minute] trong ngày: có lịch ⇒ mục hiệu lực (bỏ qua sáng/tối); không lịch / null ⇒ [slots]. */
     fun slots(dark: Boolean, minute: Int?): ThemeSlots {
@@ -645,6 +663,12 @@ data class ThemeSpec(
         game?.let { m.add("game" to SJ.Str(it)) }
         keyShape?.let { m.add("keyShape" to SJ.Str(it)) }
         photoFx?.let { m.add("photoFx" to SJ.Str(it)) }
+        tags?.let { t -> m.add("tags" to SJ.Arr(t.map { SJ.Str(it) })) }
+        buddy?.let { b ->
+            val bm = arrayListOf<Pair<String, SJ>>("character" to SJ.Str(b.character))
+            b.size?.let { bm.add("size" to SJ.Num(it)) }
+            m.add("buddy" to SJ.Obj(bm))
+        }
         schedule?.let { sc ->
             m.add("schedule" to SJ.Arr(sc.map { SJ.Obj(listOf("from" to SJ.Str(ThemeSchedule.format(it.from)), "palette" to json(it.slots))) }))
         }
@@ -759,7 +783,7 @@ object ThemeSpecParser {
 
     private val ASSET_KEYS = setOf("background", "foreground", "keys")
     private val ROOT_KEYS = setOf("v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
-        "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx") + ASSET_KEYS
+        "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx", "tags", "buddy") + ASSET_KEYS
     private val SLOT_KEYS = (ThemeSlots.COLOR_KEYS + "deco" + "borderFx" + "spaceDeco").toSet()
 
     fun parse(text: String): Outcome = when (val r = StrictJson.parse(text)) {
@@ -808,13 +832,50 @@ object ThemeSpecParser {
         }
         val typo = typography(j, KeyStyle(), c)
         val schedule = j["schedule"]?.let { schedule(it, c) }
+        val tags = j["tags"]?.let { tags(it, c) }
+        val buddy = j["buddy"]?.let { buddy(it, c) }
         if (c.failed) return Outcome(null, c.issues)
         val spec = ThemeSpec(id, vi, en, light, if (dark == light) null else dark, typo.corner, typo.fontScale,
             if (j["font"] != null && typo.assets.font == null) typo.font else null,
             if (j["weight"] != null) typo.weight else null, typo.assets, typo.sound, typo.effect, typo.swipe, typo.game,
-            schedule, typo.keyShape, photoFx = typo.photoFx)
+            schedule, typo.keyShape, photoFx = typo.photoFx, tags = tags, buddy = buddy)
         if (contrast) c.issues.addAll(contrastIssues(spec))
         return Outcome(if (c.failed) null else spec, c.issues)
+    }
+
+    /** "tags": mảng nhãn trong [ThemeTags.KNOWN], không lặp; rỗng ⇒ null — iOS y hệt. */
+    private fun tags(v: SJ, c: Ctx): List<String>? {
+        if (v !is SJ.Arr) { c.err(ThemeIssue.Code.wrongType, "tags"); return null }
+        val out = ArrayList<String>()
+        for ((i, e) in v.a.withIndex()) {
+            val p = "tags[$i]"
+            if (e !is SJ.Str) { c.err(ThemeIssue.Code.wrongType, p); continue }
+            if (e.s !in ThemeTags.KNOWN || e.s in out) { c.err(ThemeIssue.Code.badValue, p); continue }
+            out.add(e.s)
+        }
+        return out.ifEmpty { null }
+    }
+
+    /** "buddy": {"character": id ([ThemeExtraIds.BUDDIES]), "size": 1…20 (kẹp + clamped)?} — iOS y hệt. */
+    private fun buddy(v: SJ, c: Ctx): ThemeBuddy? {
+        if (v !is SJ.Obj) { c.err(ThemeIssue.Code.wrongType, "buddy"); return null }
+        for ((k, _) in v.m) if (k != "character" && k != "size") c.err(ThemeIssue.Code.unknownKey, "buddy.$k")
+        var out: ThemeBuddy? = null
+        when (val ch = v["character"]) {
+            null -> c.err(ThemeIssue.Code.missingKey, "buddy.character")
+            is SJ.Str -> if (ch.s in ThemeExtraIds.BUDDIES) out = ThemeBuddy(ch.s) else c.err(ThemeIssue.Code.badValue, "buddy.character")
+            else -> c.err(ThemeIssue.Code.wrongType, "buddy.character")
+        }
+        when (val n = v["size"]) {
+            null -> {}
+            is SJ.Num -> {
+                val r = BuddyPlacement.SIZE_RANGE
+                if (n.v !in r) c.err(ThemeIssue.Code.clamped, "buddy.size")
+                out = out?.copy(size = n.v.coerceIn(r))
+            }
+            else -> c.err(ThemeIssue.Code.wrongType, "buddy.size")
+        }
+        return out
     }
 
     /** "schedule": mảng 2…6 {"from":"HH:MM","palette":{màu đầy đủ}}, "from" tăng dần — iOS y hệt. */

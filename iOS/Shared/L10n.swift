@@ -729,6 +729,7 @@ enum L10n {
         "Giao diện bàn phím": "Keyboard theme",
         "Chọn giao diện": "Choose theme",
         "Miễn phí": "Free",
+        "Tương tác": "Interactive",
         "Tim đen": "Black Heart",
         "Hoa xanh": "Green Blossom",
         "Xanh lá": "Sage",

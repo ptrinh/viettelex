@@ -66,8 +66,9 @@ private fun saveCustomStore(ctx: Context, m: Map<String, ThemeSpec>) =
     Prefs.of(ctx).edit().putString(Keys.CUSTOM_THEMES, CustomThemeStore.serialize(m)).apply()
 
 /**
- * "Chọn giao diện": lưới 2 cột thẻ xem trước (vẽ bằng token theme, không ảnh), chia "Miễn phí" / "Plus" /
- * "Giao diện của bạn". Chạm là chọn ngay và ở lại trang (thẻ đang chọn viền + ✓). Theme Plus bị khoá: mờ
+ * "Chọn giao diện": lưới 2 cột thẻ xem trước (vẽ bằng token theme, không ảnh), chia "Miễn phí" / "Tương tác" /
+ * "Plus" / "Giao diện của bạn" ([ThemePicker.sections]). Theme có nhãn "interactive" mang chip "Tương tác" ở góc
+ * trên-trái thẻ (✓ đang chọn góc trên-phải, Plus cạnh tên — không đè nhau). Chạm là chọn ngay và ở lại trang (thẻ đang chọn viền + ✓). Theme Plus bị khoá: mờ
  * + nhãn Plus, chạm mở VietTelex Plus. Mỗi thẻ có menu ⋯ ("Giao diện JSON"): Chép JSON (miễn phí) · Sửa ·
  * Đặt lại mặc định (theme có sẵn đã chỉnh) · Xoá (theme tự tạo) — trừ Chép, mọi mục cần Plus. "Dán giao
  * diện" chỉ đọc clipboard khi bấm, xem trước rồi mới thêm. Y hệt iOS ThemePickerView.
@@ -100,6 +101,8 @@ internal fun ThemePickerPage(s: ThemeSettings, dark: Boolean, onSelect: (ThemeSe
         val r = ThemeExtras.applyOnSelect(ns.effectiveKeyStyle, sp.getBoolean(Keys.KEY_SOUND, Prefs.D.keySound)) { k, v ->
             sp.edit().putString(k, v).apply()
         }
+        ThemeExtras.applyBuddyOnSelect(ns.selectedSpec?.buddy, { k, v -> sp.edit().putString(k, v).apply() },
+            { k, v -> sp.edit().putInt(k, v).apply() })
         soundHint = r.soundHint
     }
     fun choose(ns: ThemeSettings) { onSelect(ns); applyExtras(ns); prompt.offer(ctx, ns.effectiveKeyStyle.assets) }
@@ -131,6 +134,7 @@ internal fun ThemePickerPage(s: ThemeSettings, dark: Boolean, onSelect: (ThemeSe
                 val locked = !ThemeGate.allows(t)
                 ThemeCard(s.styled(t, t.paletteNow(dark) ?: systemPreviewPalette(ctx, s, dark), dark), s.effectiveStyleFor(t), t.title,
                     selected = s.custom == null && s.theme == t, locked = locked, showPlus = t.isPlus && locked,
+                    badge = ThemePicker.badge(t),
                     onTap = { ThemePicker.select(t, s)?.let(::choose) ?: onOpenPlus() },
                     menu = { close ->
                         MenuItems(ThemeEditTarget.Builtin(t), t.title, hasOverride = s.keyStyles[t.id] != null, close = close,
@@ -150,6 +154,7 @@ internal fun ThemePickerPage(s: ThemeSettings, dark: Boolean, onSelect: (ThemeSe
                 val locked = !ThemeGate.allowsCustom
                 ThemeCard(s.styledCustom(spec, dark), s.effectiveStyleFor(id, spec.typography), spec.name,
                     selected = s.custom?.id == id, locked = locked, showPlus = locked,
+                    badge = ThemePicker.badge(spec),
                     onTap = { ThemePicker.select(spec, s)?.let(::choose) ?: onOpenPlus() },
                     menu = { close ->
                         MenuItems(ThemeEditTarget.Custom(id), spec.name, hasOverride = false, close = close,
@@ -239,9 +244,16 @@ private fun PlusBadge() {
             .padding(horizontal = 6.dp, vertical = 1.dp))
 }
 
+/** Chip "Tương tác" — cùng kiểu nhãn Plus (capsule caption2), màu tím để phân biệt. */
+@Composable
+private fun InteractiveBadge(text: String, modifier: Modifier) {
+    Text(text, style = VTType.caption2, color = Color.White, maxLines = 1,
+        modifier = modifier.background(Color(0xD9AF52DE), RoundedCornerShape(50)).padding(horizontal = 6.dp, vertical = 1.dp))
+}
+
 @Composable
 private fun ThemeCard(palette: ThemePalette, style: KeyStyle, title: String, selected: Boolean, locked: Boolean, showPlus: Boolean,
-                      onTap: () -> Unit, menu: @Composable (close: () -> Unit) -> Unit) {
+                      badge: String?, onTap: () -> Unit, menu: @Composable (close: () -> Unit) -> Unit) {
     val c = LocalVT.current
     var open by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -251,6 +263,7 @@ private fun ThemeCard(palette: ThemePalette, style: KeyStyle, title: String, sel
                 modifier = Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(10.dp))
                     .border(if (selected) 3.dp else 1.dp, if (selected) c.accent else c.separator, RoundedCornerShape(10.dp)))
             if (selected) Text("✓", style = VTType.body, color = c.accent, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp))
+            badge?.let { InteractiveBadge(it, Modifier.align(Alignment.TopStart).padding(5.dp)) }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(title + if (showPlus) " · Plus" else "", style = VTType.footnote,

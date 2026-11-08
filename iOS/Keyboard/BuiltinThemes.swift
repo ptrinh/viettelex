@@ -69,13 +69,13 @@ enum BuiltinThemesData {
       "dark": {"bg": "#2B1520", "key": "#472335", "special": "#5E2F46", "ink": "#FCDDE8", "accent": "#D94680"}
     },
     {
-      "v": 1, "id": "tet", "name": {"vi": "Tết", "en": "Lunar New Year"}, "sound": "phao", "effect": "keyword", "swipe": "stardust",
+      "v": 1, "id": "tet", "name": {"vi": "Tết", "en": "Lunar New Year"}, "tags": ["interactive"], "sound": "phao", "effect": "keyword", "swipe": "stardust",
       "light": {"bg": "#8E1010", "key": "#B71C1C", "special": "#7A0D0D", "ink": "#FFD54F", "accent": "#F9A825",
                 "accentInk": "#7F0000", "fn": "#9C1414", "fnInk": "#FFCA28", "deco": {"motif": "mai", "color": "#33FFD54F"}},
       "dark": "same"
     },
     {
-      "v": 1, "id": "tetMai", "name": {"vi": "Tết mai vàng", "en": "Golden Apricot Tết"}, "sound": "phao", "effect": "keyword", "swipe": "stardust",
+      "v": 1, "id": "tetMai", "name": {"vi": "Tết mai vàng", "en": "Golden Apricot Tết"}, "tags": ["interactive"], "sound": "phao", "effect": "keyword", "swipe": "stardust",
       "light": {"bg": "#FFF3D6", "key": "#FFFDF6", "special": "#F3D9A4", "ink": "#7A1414", "accent": "#C62828",
                 "fn": "#F6E2B3", "fnInk": "#B71C1C", "deco": {"motif": "mai", "color": "#CCE5A000"}},
       "dark": {"bg": "#2B1608", "key": "#47260F", "special": "#5E3418", "ink": "#FFE6A6", "accent": "#C62828",
@@ -95,7 +95,7 @@ enum BuiltinThemesData {
                "fn": "#15263D", "fnInk": "#FFD54F", "deco": {"motif": "star", "color": "#66FFD54F"}}
     },
     {
-      "v": 1, "id": "piano", "name": {"vi": "Piano", "en": "Piano"}, "sound": "piano",
+      "v": 1, "id": "piano", "name": {"vi": "Piano", "en": "Piano"}, "tags": ["interactive"], "sound": "piano",
       "light": {"bg": "#000000", "key": "#FAFAF7", "special": "#85827B", "ink": "#111111", "accent": "#A4161A",
                 "fn": "#111111", "fnInk": "#FFFFFF", "border": "#33FFFFFF", "deco": {"motif": "notes", "color": "#66D4AF37"}},
       "dark": "same"
@@ -118,14 +118,14 @@ enum BuiltinThemesData {
                "fn": "#2E241A", "fnInk": "#F3E8D2", "border": "#66C9A97C"}
     },
     {
-      "v": 1, "id": "rgb", "name": {"vi": "Gaming RGB", "en": "Gaming RGB"}, "corner": 30, "swipe": "rainbow",
+      "v": 1, "id": "rgb", "name": {"vi": "Gaming RGB", "en": "Gaming RGB"}, "tags": ["interactive"], "corner": 30, "swipe": "rainbow",
       "sound": "mechanical", "effect": "glitch",
       "light": {"bg": "#0A0A0F", "key": "#15151C", "special": "#1F1F28", "ink": "#F2F2F7", "accent": "#7C4DFF",
                 "fn": "#101016", "fnInk": "#E0E0EA", "borderFx": "rainbow"},
       "dark": "same"
     },
     {
-      "v": 1, "id": "space", "name": {"vi": "Vũ trụ", "en": "Outer Space"}, "sound": "scifi", "effect": "plasma", "swipe": "stardust",
+      "v": 1, "id": "space", "name": {"vi": "Vũ trụ", "en": "Outer Space"}, "tags": ["interactive"], "sound": "scifi", "effect": "plasma", "swipe": "stardust",
       "light": {"bg": "#070B1E", "key": "#141A33", "special": "#1C2445", "ink": "#E8ECFF", "accent": "#3D5AFE",
                 "fn": "#10162C", "fnInk": "#B8C4FF",
                 "deco": {"motif": "starfield", "color": "#5CFFFFFF", "density": 140}},
@@ -153,7 +153,7 @@ enum BuiltinThemesData {
       "dark": "same"
     },
     {
-      "v": 1, "id": "guitar", "name": {"vi": "Ghi-ta", "en": "Guitar"}, "sound": "guitar", "effect": "string",
+      "v": 1, "id": "guitar", "name": {"vi": "Ghi-ta", "en": "Guitar"}, "tags": ["interactive"], "sound": "guitar", "effect": "string",
       "light": {"bg": "#DDA35C", "key": "#4A2A1C", "special": "#6B4030", "ink": "#F6EBD5", "accent": "#E8A93A",
                 "accentInk": "#2A1606", "fn": "#351D13", "fnInk": "#F2C46D",
                 "deco": {"motif": "strings", "alt": "inlay", "color": "#D9FBF1DC"}, "spaceDeco": "soundhole"},
@@ -162,7 +162,7 @@ enum BuiltinThemesData {
                "deco": {"motif": "strings", "alt": "inlay", "color": "#73C9A46A"}, "spaceDeco": "soundhole"}
     },
     {
-      "v": 1, "id": "mole", "name": {"vi": "Đập chuột", "en": "Whack-a-mole"}, "corner": 80, "sound": "bop", "game": "mole",
+      "v": 1, "id": "mole", "name": {"vi": "Đập chuột", "en": "Whack-a-mole"}, "tags": ["interactive"], "corner": 80, "sound": "bop", "game": "mole",
       "light": {"bg": "#3D7A24", "key": "#7A4A2A", "special": "#5C3820", "ink": "#FFF4DC", "accent": "#F4C542",
                 "accentInk": "#3B2410", "fn": "#5C3820", "fnInk": "#FFE3A3", "border": "#3A2212",
                 "deco": {"motif": "flowers", "color": "#73245214"}},
@@ -183,7 +183,7 @@ enum BuiltinThemesData {
       "dark": "same"
     },
     {
-      "v": 1, "id": "sea", "name": {"vi": "Biển", "en": "Sea"}, "corner": 60, "sound": "water", "effect": "sea",
+      "v": 1, "id": "sea", "name": {"vi": "Biển", "en": "Sea"}, "tags": ["interactive"], "corner": 60, "sound": "water", "effect": "sea",
       "light": {"bg": "#CDEBF2", "key": "#FFF9EF", "special": "#EED9B7", "ink": "#0B3C5D", "accent": "#0E7C93",
                 "fn": "#E9D4AE", "fnInk": "#0B3C5D", "deco": {"motif": "waves", "alt": "bubbles", "color": "#730E7C93"}},
       "dark": {"bg": "#05263A", "key": "#0F3D58", "special": "#175676", "ink": "#E3F6FB", "accent": "#0E7C93",
@@ -208,14 +208,15 @@ enum BuiltinThemesData {
       ]
     },
     {
-      "v": 1, "id": "ai", "name": {"vi": "AI", "en": "AI"}, "sound": "ai", "effect": "tokens", "swipe": "neon",
+      "v": 1, "id": "ai", "name": {"vi": "AI", "en": "AI"}, "tags": ["interactive"], "sound": "ai", "effect": "tokens", "swipe": "neon",
+      "buddy": {"character": "ai", "size": 5},
       "light": {"bg": "#070A18", "key": "#1B2140", "special": "#2A2452", "ink": "#F5F3FF", "accent": "#8B5CF6",
                 "fn": "#141A33", "fnInk": "#A5F3FC", "balloon": "#232A52", "trail": "#CC22D3EE",
                 "borderFx": "aurora", "deco": {"motif": "neural", "color": "#5967E8F9"}},
       "dark": "same"
     },
     {
-      "v": 1, "id": "nightclub", "name": {"vi": "Neon Night Club", "en": "Neon Night Club"},
+      "v": 1, "id": "nightclub", "name": {"vi": "Neon Night Club", "en": "Neon Night Club"}, "tags": ["interactive"],
       "sound": "club", "effect": "dancefloor", "swipe": "neon", "photoFx": "spotlight",
       "light": {"bg": "#07020D", "key": "#170A24", "special": "#241038", "ink": "#FBEFFF", "accent": "#FF2FD0",
                 "accentInk": "#1A0016", "fn": "#10061C", "fnInk": "#2FE6FF", "border": "#E6FF2FD0"},

@@ -336,6 +336,9 @@ enum KeyboardTheme: String, CaseIterable {
         return "systemBackdrop" + rawValue.prefix(1).uppercased() + rawValue.dropFirst()
     }
 
+    /// Theme tương tác (nhãn "interactive" trong builtin-themes.json) — Hệ thống / Kính không có JSON ⇒ false.
+    var isInteractive: Bool { spec?.isInteractive ?? false }
+
     /// Theme cao cấp thuộc gói Plus. Tương phản cao là trợ năng → luôn miễn phí.
     var isPlus: Bool {
         switch self {
@@ -792,16 +795,59 @@ enum ThemeExtras {
     }
 
     static var hintText: String { L("Giao diện này có âm thanh riêng — bật Âm thanh phím để nghe.") }
+
+    /// "buddy" của theme vừa chọn (thuần): nhân vật được phép (Plus + app có) ⇒ trả lại để ghi; không ⇒ nil (bỏ cả cỡ).
+    static func planBuddy(_ b: ThemeBuddy?, allowed: (BuddyCharacter) -> Bool) -> ThemeBuddy? {
+        guard let b, let c = BuddyCharacter(rawValue: b.character), c != .off, allowed(c) else { return nil }
+        return b
+    }
+    static func buddyAllowed(_ c: BuddyCharacter) -> Bool { BuddyGate.allows(c) && BuddyCharacter.offered.contains(c) }
+
+    /// Gọi NGAY sau khi lưu theme vừa chọn (cùng lúc `applyOnSelect`): ghi MỘT lần nhân vật + cỡ ("Vị trí & cỡ") của
+    /// theme. Đổi tay sau đó thì giữ; theme không khai báo "buddy" ⇒ không đổi gì. Android y hệt.
+    @discardableResult
+    static func applyBuddyOnSelect(_ b: ThemeBuddy?, to d: UserDefaults?) -> ThemeBuddy? {
+        guard let r = planBuddy(b, allowed: buddyAllowed) else { return nil }
+        d?.set(r.character, forKey: BuddyCharacter.key)
+        if let n = r.size { d?.set(n, forKey: BuddyPlacement.sizeKey) }
+        return r
+    }
 }
 
 /// Trang "Chọn giao diện" (logic thuần — test được; Android: ThemePicker trong KeyboardTheme.kt).
 enum ThemePicker {
     struct Section { let title: String; let themes: [KeyboardTheme] }
-    /// "Miễn phí" (Hệ thống, OLED, Tương phản cao, Xám trung tính) rồi "Plus" (còn lại), giữ thứ tự khai báo.
-    static var sections: [Section] {
-        [Section(title: LK("Miễn phí"), themes: KeyboardTheme.allCases.filter { !$0.isPlus }),
-         Section(title: "Plus", themes: KeyboardTheme.allCases.filter(\.isPlus))]
+    /// Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng
+    /// không có trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. Android ThemePicker.INTERACTIVE_ORDER y hệt.
+    static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar"]
+
+    /// Thứ tự lưới (thuần): miễn phí (thứ tự khai báo) → tương tác (theo `interactiveOrder`) → còn lại (thứ tự khai
+    /// báo). Theme miễn phí có nhãn vẫn ở nhóm miễn phí. Android `ThemePicker.groups` cùng kết quả (fixture "picker").
+    static func groups(_ all: [KeyboardTheme]) -> (free: [KeyboardTheme], interactive: [KeyboardTheme], rest: [KeyboardTheme]) {
+        let free = all.filter { !$0.isPlus }
+        let tagged = all.filter { $0.isPlus && $0.isInteractive }
+        func rank(_ t: KeyboardTheme) -> Int { interactiveOrder.firstIndex(of: t.rawValue) ?? interactiveOrder.count }
+        // Sắp ổn định: cùng hạng ⇒ giữ thứ tự khai báo.
+        let interactive = tagged.enumerated().sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }.map(\.element)
+        let rest = all.filter { $0.isPlus && !$0.isInteractive }
+        return (free, interactive, rest)
     }
+    static func ordered(_ all: [KeyboardTheme] = KeyboardTheme.allCases) -> [KeyboardTheme] {
+        let g = groups(all)
+        return g.free + g.interactive + g.rest
+    }
+
+    /// "Miễn phí" (Hệ thống, OLED, Tương phản cao, Xám trung tính) → "Tương tác" → "Plus" (còn lại).
+    static var sections: [Section] {
+        let g = groups(KeyboardTheme.allCases)
+        return [Section(title: LK("Miễn phí"), themes: g.free),
+                Section(title: LK("Tương tác"), themes: g.interactive),
+                Section(title: "Plus", themes: g.rest)].filter { !$0.themes.isEmpty }
+    }
+
+    /// Chip "Tương tác" trên thẻ theme (nil = không gắn). Theme tự tạo có nhãn cũng có chip.
+    static func badge(_ t: KeyboardTheme) -> String? { t.isInteractive ? L("Tương tác") : nil }
+    static func badge(custom spec: ThemeSpec) -> String? { spec.isInteractive ? L("Tương tác") : nil }
     /// Chạm thẻ: chọn ngay nếu được phép; theme Plus bị khoá ⇒ nil (không đổi gì).
     static func select(_ t: KeyboardTheme, in s: ThemeSettings) -> ThemeSettings? {
         guard ThemeGate.allows(t) else { return nil }
@@ -878,6 +924,8 @@ struct ThemeSettings: Equatable {
 
     /// Chọn theme có sẵn (bỏ theme tự tạo).
     mutating func select(_ t: KeyboardTheme) { theme = t; custom = nil }
+    /// Đặc tả JSON của theme đang chọn (tự tạo, hoặc có sẵn — nil với Hệ thống / Kính).
+    var selectedSpec: ThemeSpec? { custom ?? theme.spec }
     /// Chọn theme tự tạo.
     mutating func select(custom spec: ThemeSpec) { theme = .system; custom = spec }
 
@@ -1023,6 +1071,8 @@ struct ThemeSettings: Equatable {
                                  light: cardPalette(for: t, systemDark: false, now: nil),
                                  dark: cardPalette(for: t, systemDark: true, now: nil), style: st)
         s.schedule = t.spec?.schedule   // lịch theo giờ đi nguyên (bản vá không có "schedule")
+        s.tags = t.spec?.tags           // nhãn + bạn đồng hành đi nguyên (bản vá không có)
+        s.buddy = t.spec?.buddy
         return s
     }
     func exportSpec(custom c: ThemeSpec) -> ThemeSpec {
@@ -1031,6 +1081,8 @@ struct ThemeSettings: Equatable {
                                  light: cardPalette(custom: c, systemDark: false, now: nil),
                                  dark: cardPalette(custom: c, systemDark: true, now: nil), style: st)
         s.schedule = c.schedule
+        s.tags = c.tags
+        s.buddy = c.buddy
         return s
     }
     /// Ảnh nền chỉ bật khi có quyền Plus VÀ file tồn tại.

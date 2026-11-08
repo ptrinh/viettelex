@@ -1,5 +1,7 @@
-// "Chọn giao diện": lưới 2 cột thẻ xem trước (vẽ bằng token theme, không ảnh), chia "Miễn phí" / "Plus" /
-// "Giao diện của bạn". Chạm là chọn ngay và ở lại trang (thẻ đang chọn có viền + dấu ✓). Theme Plus bị
+// "Chọn giao diện": lưới 2 cột thẻ xem trước (vẽ bằng token theme, không ảnh), chia "Miễn phí" / "Tương tác" /
+// "Plus" / "Giao diện của bạn" (ThemePicker.sections). Theme có nhãn "interactive" mang chip "Tương tác" ở góc
+// trên-trái thẻ (✓ đang chọn ở góc trên-phải, nhãn Plus cạnh tên — không đè nhau). Chạm là chọn ngay và ở lại
+// trang (thẻ đang chọn có viền + dấu ✓). Theme Plus bị
 // khoá: mờ + nhãn Plus, chạm mở màn VietTelex Plus (như Android).
 // Mỗi thẻ có menu ⋯ ("Giao diện JSON"): Chép JSON (miễn phí) · Sửa · Đặt lại mặc định (theme có sẵn đã
 // chỉnh) · Xoá (theme tự tạo) — trừ Chép, mọi mục cần Plus. "Dán giao diện" chỉ đọc clipboard khi bấm.
@@ -230,7 +232,7 @@ struct ThemePickerView: View {
         let locked = !ThemeGate.allows(t)
         return cardBody(palette: settings.cardPalette(for: t, systemDark: scheme == .dark), style: settings.effectiveStyle(for: t),
                         title: t.title, selected: selected, locked: locked, showPlus: t.isPlus && locked,
-                        menu: menu(.builtin(t), title: t.title)) {
+                        badge: ThemePicker.badge(t), menu: menu(.builtin(t), title: t.title)) {
             switch ThemePicker.tap(t, in: settings) {
             case .select(let next): settings = next; onChange(); applyExtras()
             case .openPlus: showPlus = true
@@ -245,7 +247,7 @@ struct ThemePickerView: View {
         return cardBody(palette: settings.cardPalette(custom: c, systemDark: scheme == .dark),
                         style: settings.effectiveStyle(id: id, typography: c.typography),
                         title: c.name, selected: selected, locked: locked, showPlus: locked,
-                        menu: menu(.custom(id), title: c.name)) {
+                        badge: ThemePicker.badge(custom: c), menu: menu(.custom(id), title: c.name)) {
             if let next = ThemePicker.select(custom: c, in: settings) {
                 settings = next; onChange(); applyExtras(); offerAssets(for: .custom(id))
             }
@@ -254,7 +256,7 @@ struct ThemePickerView: View {
     }
 
     private func cardBody<M: View>(palette: KeyboardPalette, style: KeyStyle, title: String, selected: Bool, locked: Bool,
-                                   showPlus: Bool, menu: M, tap: @escaping () -> Void) -> some View {
+                                   showPlus: Bool, badge: String?, menu: M, tap: @escaping () -> Void) -> some View {
         VStack(spacing: 6) {
             Button(action: tap) {
                 // Thẻ phản ánh tuỳ chỉnh riêng của theme đó (rẻ: vài phép màu, không ảnh).
@@ -270,9 +272,13 @@ struct ThemePickerView: View {
                         }
                     }
                     .opacity(locked ? 0.5 : 1)
+                    .overlay(alignment: .topLeading) {
+                        if let badge { interactiveBadge(badge).padding(5) }
+                    }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(title + (selected ? L(", đang chọn") : "") + (locked ? " · Plus" : ""))
+            .accessibilityLabel(title + (badge.map { " · " + $0 } ?? "") + (selected ? L(", đang chọn") : "")
+                                + (locked ? " · Plus" : ""))
             .accessibilityAddTraits(selected ? .isSelected : [])
             HStack(spacing: 4) {
                 Text(title).font(.footnote).lineLimit(1)
@@ -287,6 +293,7 @@ struct ThemePickerView: View {
     /// Âm / hiệu ứng đi kèm theme vừa chọn (chỉ lúc chọn — ThemeExtras). Không bật âm thanh phím.
     private func applyExtras() {
         soundHint = ThemeExtras.applyOnSelect(settings.effectiveKeyStyle, to: pickerDefaults).soundHint
+        ThemeExtras.applyBuddyOnSelect(settings.selectedSpec?.buddy, to: pickerDefaults)
     }
 
     private var soundHintBar: some View {
@@ -304,6 +311,14 @@ struct ThemePickerView: View {
         .padding(.horizontal, 16)
         .padding(.bottom, 100)   // trên thanh tab nổi
         .task { try? await Task.sleep(nanoseconds: 6_000_000_000); soundHint = false }
+    }
+
+    /// Chip "Tương tác" — cùng kiểu nhãn Plus (capsule caption2 đậm), màu tím để phân biệt.
+    private func interactiveBadge(_ text: String) -> some View {
+        Text(text).font(.caption2.weight(.bold)).lineLimit(1)
+            .padding(.horizontal, 5).padding(.vertical, 1)
+            .background(Capsule().fill(Color.purple.opacity(0.85)))
+            .foregroundStyle(.white)
     }
 
     private var plusBadge: some View {

@@ -878,6 +878,8 @@ final class ThemeSetTests: XCTestCase {
     private struct Fixture {
         var order: [String] = []
         var plus: [String] = []
+        var interactive: [String] = []
+        var picker: [String] = []
         var rows: [(theme: String, dark: Bool, cols: [String])] = []
     }
 
@@ -889,6 +891,8 @@ final class ThemeSetTests: XCTestCase {
             switch c[0] {
             case "order": f.order = c[1].split(separator: ",").map(String.init)
             case "plus": f.plus = c[1].split(separator: ",").map(String.init)
+            case "interactive": f.interactive = c[1].split(separator: ",").map(String.init)
+            case "picker": f.picker = c[1].split(separator: ",").map(String.init)
             default: f.rows.append((c[0], c[1] == "1", Array(c.dropFirst(2))))
             }
         }
@@ -905,6 +909,8 @@ final class ThemeSetTests: XCTestCase {
         let f = try fixture()
         XCTAssertEqual(KeyboardTheme.allCases.map(\.rawValue), f.order, "id + thứ tự phải trùng Android")
         XCTAssertEqual(KeyboardTheme.allCases.filter(\.isPlus).map(\.rawValue), f.plus)
+        XCTAssertEqual(KeyboardTheme.allCases.filter(\.isInteractive).map(\.rawValue), f.interactive)
+        XCTAssertEqual(ThemePicker.ordered().map(\.rawValue), f.picker, "thứ tự lưới phải trùng Android")
         XCTAssertEqual(f.rows.count, 62)
         for r in f.rows {
             let t = try XCTUnwrap(KeyboardTheme(rawValue: r.theme), r.theme)
@@ -1621,15 +1627,98 @@ final class ThemeSetTests: XCTestCase {
         XCTAssertEqual(KeyEffect.load(d), .none)
     }
 
-    func testPickerSectionsFreeThenPlus() {
+    func testPickerSectionsFreeThenInteractiveThenPlus() {
         let secs = ThemePicker.sections
-        XCTAssertEqual(secs.map(\.title), ["Miễn phí", "Plus"])
+        XCTAssertEqual(secs.map(\.title), ["Miễn phí", "Tương tác", "Plus"])
         XCTAssertEqual(secs[0].themes, [.system, .oled, .contrast, .neutral])
-        XCTAssertEqual(Set(secs[0].themes + secs[1].themes), Set(KeyboardTheme.allCases))
-        XCTAssertTrue(secs[1].themes.allSatisfy(\.isPlus))
+        XCTAssertEqual(secs[1].themes, [.nightclub, .ai, .sea, .mole, .piano, .space, .rgb, .tet, .tetMai, .guitar])
+        XCTAssertEqual(secs.flatMap(\.themes), ThemePicker.ordered())
+        XCTAssertEqual(Set(secs.flatMap(\.themes)), Set(KeyboardTheme.allCases))
+        XCTAssertEqual(secs.flatMap(\.themes).count, KeyboardTheme.allCases.count, "không trùng")
+        XCTAssertTrue(secs[1].themes.allSatisfy { $0.isPlus && $0.isInteractive })
+        XCTAssertTrue(secs[2].themes.allSatisfy { $0.isPlus && !$0.isInteractive })
+        // Nhóm "Tương tác" = đúng các theme có nhãn, đúng danh sách thứ tự.
+        XCTAssertEqual(Set(ThemePicker.interactiveOrder), Set(KeyboardTheme.allCases.filter(\.isInteractive).map(\.rawValue)))
+        // "Còn lại" giữ thứ tự khai báo.
+        XCTAssertEqual(secs[2].themes, KeyboardTheme.allCases.filter { $0.isPlus && !$0.isInteractive })
+        XCTAssertEqual(L10n.en["Tương tác"], "Interactive")
         XCTAssertEqual(L10n.en["Miễn phí"], "Free")
         XCTAssertEqual(L10n.en["Chọn giao diện"], "Choose theme")
         XCTAssertEqual(L10n.en["Giao diện bàn phím"], "Keyboard theme")
+    }
+
+    /// Hàm thứ tự thuần: theme miễn phí có nhãn vẫn ở nhóm miễn phí; nhãn ngoài danh sách ⇒ cuối nhóm (ổn định).
+    func testPickerOrderingPure() {
+        let g = ThemePicker.groups([.peach, .ai, .oled, .guitar, .nightclub, .system])
+        XCTAssertEqual(g.free, [.oled, .system])
+        XCTAssertEqual(g.interactive, [.nightclub, .ai, .guitar])
+        XCTAssertEqual(g.rest, [.peach])
+        XCTAssertEqual(ThemePicker.ordered([]), [])
+    }
+
+    /// Chip "Tương tác": đúng theme có nhãn (có sẵn + tự tạo), không theme nào khác.
+    func testInteractiveBadge() throws {
+        for t in KeyboardTheme.allCases {
+            XCTAssertEqual(ThemePicker.badge(t) != nil, ThemePicker.interactiveOrder.contains(t.rawValue), t.rawValue)
+        }
+        XCTAssertEqual(ThemePicker.badge(.nightclub), L("Tương tác"))
+        XCTAssertNil(ThemePicker.badge(.system)); XCTAssertNil(ThemePicker.badge(.glass)); XCTAssertNil(ThemePicker.badge(.peach))
+        let base = ##"{"v":1,"name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"}"##
+        let tagged = try XCTUnwrap(ThemeSpecParser.parse(base + #","tags":["interactive"]}"#).spec)
+        let plain = try XCTUnwrap(ThemeSpecParser.parse(base + "}").spec)
+        XCTAssertNotNil(ThemePicker.badge(custom: tagged))
+        XCTAssertNil(ThemePicker.badge(custom: plain))
+    }
+
+    /// "Chép JSON" theme có sẵn giữ "tags" + "buddy"; dán lại đọc ra y hệt.
+    func testCopyJSONKeepsTagsAndBuddy() throws {
+        let s = ThemeSettings(theme: .ai)
+        let text = try XCTUnwrap(ThemeJSONActions.copyText(.builtin(.ai), settings: s, store: [:]))
+        let back = try XCTUnwrap(ThemeSpecParser.parse(text).spec)
+        XCTAssertEqual(back.tags, ["interactive"])
+        XCTAssertEqual(back.buddy, ThemeBuddy(character: "ai", size: 5))
+        let plain = try XCTUnwrap(ThemeJSONActions.copyText(.builtin(.peach), settings: s, store: [:]))
+        XCTAssertFalse(plain.contains("tags")); XCTAssertFalse(plain.contains("buddy"))
+    }
+
+    /// Chọn theme AI ⇒ bạn đồng hành = Mắt AI, cỡ 5 (ghi một lần); theme khác không đổi bạn đồng hành.
+    func testThemeBuddyAppliedOnSelect() throws {
+        XCTAssertEqual(KeyboardTheme.ai.spec?.buddy, ThemeBuddy(character: "ai", size: 5))
+        XCTAssertEqual(KeyboardTheme.allCases.filter { $0.spec?.buddy != nil }, [.ai], "chỉ theme AI đặt bạn đồng hành")
+        // Thuần: được phép ⇒ ghi; bị khoá ⇒ bỏ cả cỡ; không khai báo ⇒ nil.
+        let b = ThemeBuddy(character: "ai", size: 5)
+        XCTAssertEqual(ThemeExtras.planBuddy(b, allowed: { _ in true }), b)
+        XCTAssertNil(ThemeExtras.planBuddy(b, allowed: { _ in false }))
+        XCTAssertNil(ThemeExtras.planBuddy(nil, allowed: { _ in true }))
+        XCTAssertNil(ThemeExtras.planBuddy(ThemeBuddy(character: "off"), allowed: { _ in true }))
+
+        let suite = "themebuddy-\(UUID().uuidString)"
+        let d = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { d.removePersistentDomain(forName: suite) }
+        let saved = PlusGate.paywallEnabled
+        defer { PlusGate.paywallEnabled = saved }
+        PlusGate.paywallEnabled = false   // mở hết (như chưa bật thanh toán)
+        d.set("cat", forKey: BuddyCharacter.key)
+        d.set(9, forKey: BuddyPlacement.sizeKey)
+        // Theme khác (không có "buddy") ⇒ không đổi.
+        XCTAssertNil(ThemeExtras.applyBuddyOnSelect(ThemeSettings(theme: .peach).selectedSpec?.buddy, to: d))
+        XCTAssertEqual(d.string(forKey: BuddyCharacter.key), "cat")
+        XCTAssertEqual(BuddyPlacement.load(d).size, 9)
+        // Chọn AI ⇒ Mắt AI + cỡ 5.
+        var s = ThemeSettings(); s.select(.ai)
+        XCTAssertEqual(ThemeExtras.applyBuddyOnSelect(s.selectedSpec?.buddy, to: d), b)
+        XCTAssertEqual(BuddyCharacter.load(d), .ai)
+        XCTAssertEqual(BuddyPlacement.load(d).size, 5)
+        // Người dùng đổi tay sau đó ⇒ giữ tới lần chọn theme kế (chọn theme khác không ghi đè).
+        d.set("cat", forKey: BuddyCharacter.key)
+        ThemeExtras.applyBuddyOnSelect(ThemeSettings(theme: .nightclub).selectedSpec?.buddy, to: d)
+        XCTAssertEqual(BuddyCharacter.load(d), .cat)
+        // Theme tự tạo có "buddy" cũng áp.
+        let custom = try XCTUnwrap(ThemeSpecParser.parse(##"{"v":1,"id":"my-b","name":{"vi":"x"},"light":{"key":"#FFFFFF","special":"#DDDDDD","ink":"#000000","accent":"#000000"},"buddy":{"character":"robot"}}"##).spec)
+        var cs = ThemeSettings(); cs.select(custom: custom)
+        XCTAssertEqual(ThemeExtras.applyBuddyOnSelect(cs.selectedSpec?.buddy, to: d)?.character, "robot")
+        XCTAssertEqual(BuddyCharacter.load(d), .robot)
+        XCTAssertEqual(BuddyPlacement.load(d).size, 5, "không có cỡ ⇒ giữ cỡ cũ")
     }
 
     /// Issue #137 (30/10/2026): "Xám trung tính" miễn phí, thêm cuối, kiểu Gboard, theo sáng/tối hệ thống — ≡ Android
