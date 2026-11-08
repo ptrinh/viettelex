@@ -466,6 +466,40 @@ class KeyboardSessionTests {
         assertFalse(KeyboardSettings.load { if (it == Keys.NUMBER_CHIPS) false else null }.numberChips)
     }
 
+    // MARK: chip âm lịch (LunarDate) — dùng chung slot + đường thay của chip số
+
+    @Test fun testLunarChipReplacesTriggerPhrase() {
+        val s = session(traits = FieldTraits()); val p = MockProxy()
+        s.typeMixed(p, "hom nay aam lichj ")
+        assertEquals("hom nay âm lịch ", p.text)
+        val want = LunarDate.chip("âm lịch ")!!.display
+        val set = s.suggestionsNow(p)!!
+        assertEquals(want, set.number)
+        assertEquals(3, set.nextWords.size)                   // chip chỉ thêm 1 slot
+        s.acceptSuggestion(SuggestionSet.NUMBER_TOKEN, p)
+        assertEquals("hom nay $want ", p.text)
+        assertNull(s.suggestionsNow(p)!!.number)              // chữ vừa chèn không sinh chip tiếp
+    }
+
+    @Test fun testLunarChipNgayAmKeepsNextWordsAfterNgay() {
+        val s = session(traits = FieldTraits()); val p = MockProxy()
+        s.typeMixed(p, "ngayf ")
+        val after = s.suggestionsNow(p)!!
+        assertNull(after.number)                              // "ngày" một mình: gợi ý kế tiếp như cũ
+        assertEquals(3, after.nextWords.size)
+        s.typeMixed(p, "aam ")
+        assertEquals("ngày âm ", p.text)
+        assertEquals(LunarDate.chip("ngày âm ")!!.display, s.suggestionsNow(p)!!.number)
+        s.acceptSuggestion(SuggestionSet.NUMBER_TOKEN, p)
+        assertEquals(LunarDate.chip("ngày âm ")!!.insert, p.text)
+    }
+
+    @Test fun testLunarChipOffWithNumberChipsSwitch() {
+        val s = session(KeyboardSettings(numberChips = false), FieldTraits()); val p = MockProxy()
+        s.typeMixed(p, "aam lichj ")
+        assertNull(s.suggestionsNow(p)!!.number)
+    }
+
     @Test fun testNumberChipShorthandChainsToWords() {
         val s = session(traits = FieldTraits()); val p = MockProxy()
         s.typeMixed(p, "1tr2")

@@ -2033,7 +2033,7 @@ final class KeyboardViewController: UIInputViewController {
                 .prefix(slotWant).map { caseForContext(properCase($0)) }
             set.nextWords = padWords(Array(top), need: slotWant)
         }
-        set.number = refreshNumberChip()
+        set.number = refreshNumberChip(idle: composed.isEmpty)
         set.math = refreshMathChip()
         if composed.isEmpty, pasteOffer() {
             // Nút Dán tắt: vẫn ghi lịch sử + chip tách số (thuộc Lịch sử clipboard).
@@ -2082,8 +2082,16 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     /// Chip số cho token trước con trỏ (NumberChips — đọc chữ / định dạng tiền / máy tính).
-    private func refreshNumberChip() -> String? {
+    private func refreshNumberChip(idle: Bool = false) -> String? {
         numberChip = nil
+        // Ngày âm lịch ("âm lịch" / "ngày âm" / "ÂL" vừa chốt): lọc bằng so chuỗi từ vừa chốt,
+        // chỉ đọc context + tính ngày âm khi khớp (cache theo ngày) — dùng chung slot chip số.
+        if idle, numberChipsSetting, LunarDate.mayTrigger(lastWord),
+           let before = textProxy.documentContextBeforeInput,
+           let c = LunarDate.chip(before: before) {
+            numberChip = c
+            return c.display
+        }
         guard numberChipsSetting, numberSpaces <= 1,
               let before = textProxy.documentContextBeforeInput else { return nil }
         numberChip = NumberChips.chip(before: before)
