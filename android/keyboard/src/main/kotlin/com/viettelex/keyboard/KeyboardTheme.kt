@@ -867,9 +867,8 @@ object ThemePicker {
      * Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng không có
      * trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. iOS ThemePicker.interactiveOrder y hệt.
      */
-    val INTERACTIVE_ORDER = listOf("nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "drift",
-        "mo", "stainedGlass", "gym", "zodiac", "pride", "football",
-        "aquarium", "cafe")
+    val INTERACTIVE_ORDER = listOf("nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar",
+        "drift", "mo", "stainedGlass", "football", "aquarium", "cafe", "zodiac", "pride", "gym")
 
     data class Groups(val free: List<KeyboardTheme>, val interactive: List<KeyboardTheme>, val rest: List<KeyboardTheme>)
     /**

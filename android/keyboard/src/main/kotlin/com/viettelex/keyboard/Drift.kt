@@ -138,10 +138,10 @@ class FloatClock {
 }
 
 /**
- * Cổng "Lơ lửng": hiệu ứng thực dùng là FLOAT HOẶC theme có "keyMotion":"float"; cần Plus, không tiết kiệm pin, KHÔNG Giảm
- * chuyển động (chuyển động liên tục — dễ say). = iOS FloatPolicy.
+ * Cổng "Lơ lửng": hiệu ứng thực dùng là FLOAT HOẶC theme có "keyMotion":"float"; cần Plus, không tiết kiệm pin. Giảm
+ * chuyển động / tỉ lệ hoạt ảnh 0 KHÔNG tắt (Phil 11/2026). = iOS FloatPolicy.
  */
 object FloatPolicy {
-    fun active(effect: KeyEffect, keyMotion: String?, plus: Boolean, lowPower: Boolean, reduceMotion: Boolean): Boolean =
-        plus && !lowPower && !reduceMotion && (effect == KeyEffect.FLOAT || keyMotion == ThemeExtraIds.FLOAT_MOTION)
+    fun active(effect: KeyEffect, keyMotion: String?, plus: Boolean, lowPower: Boolean): Boolean =
+        plus && !lowPower && (effect == KeyEffect.FLOAT || keyMotion == ThemeExtraIds.FLOAT_MOTION)
 }

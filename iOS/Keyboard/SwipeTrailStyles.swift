@@ -250,7 +250,7 @@ private extension UIColor {
 // MARK: - Renderer (Core Animation)
 
 /// Vệt vuốt: container (lớp `layer`) = nhóm nét (mờ dần / nhấp nháy) + nhóm hạt. Đuôi ~300ms, không
-/// animation ngầm khi vẽ; nhấc tay nét mờ dần ~200ms (Giảm chuyển động: tắt ngay), hạt bay nốt.
+/// animation ngầm khi vẽ; nhấc tay nét mờ dần ~200ms (huỷ: tắt ngay; Giảm chuyển động vẫn mờ dần), hạt bay nốt.
 final class SwipeTrailRenderer {
     let layer = CALayer()
     private(set) var style: SwipeTrailStyle = .none
@@ -534,7 +534,7 @@ final class SwipeTrailRenderer {
         path.closeSubpath()
     }
 
-    /// Nhấc tay / huỷ: nét mờ dần (Giảm chuyển động / huỷ: tắt ngay), hạt bay nốt; rồi settle.
+    /// Nhấc tay / huỷ: nét mờ dần (`reduceMotion` = true: tắt ngay — chỉ dùng khi huỷ), hạt bay nốt; rồi settle.
     func fadeOut(reduceMotion: Bool) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)

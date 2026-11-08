@@ -141,14 +141,12 @@ final class DriftTests: XCTestCase {
     }
 
     func testFloatPolicy() {
-        XCTAssertTrue(FloatPolicy.active(effect: .float, keyMotion: nil, plus: true, lowPower: false, reduceMotion: false))
-        XCTAssertTrue(FloatPolicy.active(effect: .tunnel, keyMotion: "float", plus: true, lowPower: false, reduceMotion: false))
-        XCTAssertTrue(FloatPolicy.active(effect: .none, keyMotion: "float", plus: true, lowPower: false, reduceMotion: false))
-        XCTAssertFalse(FloatPolicy.active(effect: .tunnel, keyMotion: nil, plus: true, lowPower: false, reduceMotion: false))
-        XCTAssertFalse(FloatPolicy.active(effect: .float, keyMotion: "float", plus: false, lowPower: false, reduceMotion: false))
-        XCTAssertFalse(FloatPolicy.active(effect: .float, keyMotion: "float", plus: true, lowPower: true, reduceMotion: false))
-        XCTAssertFalse(FloatPolicy.active(effect: .float, keyMotion: "float", plus: true, lowPower: false, reduceMotion: true),
-                       "Giảm chuyển động ⇒ không trôi")
+        XCTAssertTrue(FloatPolicy.active(effect: .float, keyMotion: nil, plus: true, lowPower: false))
+        XCTAssertTrue(FloatPolicy.active(effect: .tunnel, keyMotion: "float", plus: true, lowPower: false))
+        XCTAssertTrue(FloatPolicy.active(effect: .none, keyMotion: "float", plus: true, lowPower: false))
+        XCTAssertFalse(FloatPolicy.active(effect: .tunnel, keyMotion: nil, plus: true, lowPower: false))
+        XCTAssertFalse(FloatPolicy.active(effect: .float, keyMotion: "float", plus: false, lowPower: false))
+        XCTAssertFalse(FloatPolicy.active(effect: .float, keyMotion: "float", plus: true, lowPower: true))
         XCTAssertEqual(ThemeExtraIds.keyMotions, ["float"])
     }
 
@@ -214,7 +212,6 @@ final class DriftTests: XCTestCase {
         #if DEBUG
         let (kb, done) = keyboard(theme: .drift, effect: .tunnel, suite: "vt-drift-tests")
         defer { done() }
-        guard !UIAccessibility.isReduceMotionEnabled else { XCTAssertNil(kb.keyFloat); return }
         let f = try XCTUnwrap(kb.keyFloat, "theme Lạc trôi ⇒ phím Lơ lửng")
         XCTAssertEqual(kb.keyEffects?.effect, .tunnel)
         let g = try XCTUnwrap(kb.debugBackgroundGradient)
@@ -262,7 +259,6 @@ final class DriftTests: XCTestCase {
 
     /// Theme khác / hiệu ứng khác ⇒ không có Lơ lửng; hiệu ứng "float" ở theme thường ⇒ có.
     @MainActor func testKeyFloatOnlyWhenChosen() {
-        guard !UIAccessibility.isReduceMotionEnabled else { return }
         do { let (kb, done) = keyboard(theme: .nightclub, effect: .dancefloor, suite: "vt-drift-a"); XCTAssertNil(kb.keyFloat); done() }
         do { let (kb, done) = keyboard(theme: .mint, effect: .tunnel, suite: "vt-drift-b"); XCTAssertNil(kb.keyFloat); done() }
         do { let (kb, done) = keyboard(theme: .mint, effect: .float, suite: "vt-drift-c"); XCTAssertNotNil(kb.keyFloat); done() }
@@ -272,6 +268,39 @@ final class DriftTests: XCTestCase {
             XCTAssertTrue(kb.debugBackgroundGradient?.isHidden ?? true, "không bg2 ⇒ nền phẳng")
             done()
         }
+        #endif
+    }
+
+    /// Phil 11/2026: Giảm chuyển động KHÔNG tắt hiệu ứng / hoạt ảnh theme nào. Không có cách bật Giảm chuyển động của hệ
+    /// thống trong test ⇒ chốt bằng nguồn: mã bàn phím (Keyboard/ + Shared/) không đọc cờ Giảm chuyển động ở đâu cả, và
+    /// hiệu ứng vẫn chạy (Lơ lửng trôi, Đường hầm có vòng) — chạy được cả khi máy test bật Giảm chuyển động.
+    @MainActor func testReduceMotionNeverGatesEffects() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        var scanned = 0
+        for dir in ["Keyboard", "Shared"] {
+            let urls = try FileManager.default.contentsOfDirectory(at: root.appendingPathComponent(dir), includingPropertiesForKeys: nil)
+            for u in urls where u.pathExtension == "swift" {
+                let src = try String(contentsOf: u, encoding: .utf8)
+                scanned += 1
+                XCTAssertFalse(src.contains("isReduceMotionEnabled"), "\(u.lastPathComponent) đọc Giảm chuyển động")
+                XCTAssertFalse(src.contains("accessibilityReduceMotion"), "\(u.lastPathComponent) đọc Giảm chuyển động")
+            }
+        }
+        XCTAssertGreaterThan(scanned, 50)
+        XCTAssertTrue(FloatPolicy.active(effect: .float, keyMotion: nil, plus: true, lowPower: false))
+        #if DEBUG
+        let (kb, done) = keyboard(theme: .drift, effect: .tunnel, suite: "vt-drift-rm")
+        defer { done() }
+        let f = try XCTUnwrap(kb.keyFloat, "Lơ lửng chạy bất kể Giảm chuyển động")
+        f.poke()
+        XCTAssertGreaterThan(f.debugAnimationCount, 0, "phím trôi")
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 300))
+        let keys = UIView(frame: host.bounds); host.addSubview(keys)
+        let o = try XCTUnwrap(KeyEffectOverlay.install(.tunnel, color: .systemTeal, in: host, keys: keys, existing: nil))
+        o.emit(key: CGRect(x: 120, y: 200, width: 34, height: 42)); o.flush()
+        XCTAssertGreaterThan(o.debugTunnel?.debugAnimationCount ?? 0, 0, "vòng Đường hầm hiện")
+        o.halt()
+        f.halt()
         #endif
     }
 

@@ -1635,7 +1635,7 @@ final class ThemeSetTests: XCTestCase {
         let secs = ThemePicker.sections
         XCTAssertEqual(secs.map(\.title), ["Miễn phí", "Tương tác", "Plus"])
         XCTAssertEqual(secs[0].themes, [.system, .oled, .contrast, .neutral])
-        XCTAssertEqual(secs[1].themes, [.nightclub, .ai, .trippy, .sea, .mole, .piano, .space, .rgb, .tet, .tetMai, .guitar, .drift, .mo, .stainedGlass, .gym, .football, .aquarium, .cafe])
+        XCTAssertEqual(secs[1].themes, [.nightclub, .ai, .trippy, .sea, .mole, .piano, .space, .rgb, .tet, .tetMai, .guitar, .drift, .mo, .stainedGlass, .football, .aquarium, .cafe, .zodiac, .pride, .gym])
         XCTAssertEqual(secs.flatMap(\.themes), ThemePicker.ordered())
         XCTAssertEqual(Set(secs.flatMap(\.themes)), Set(KeyboardTheme.allCases))
         XCTAssertEqual(secs.flatMap(\.themes).count, KeyboardTheme.allCases.count, "không trùng")

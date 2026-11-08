@@ -951,9 +951,8 @@ enum ThemePicker {
     struct Section { let title: String; let themes: [KeyboardTheme] }
     /// Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng
     /// không có trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. Android ThemePicker.INTERACTIVE_ORDER y hệt.
-    static let interactiveOrder = ["nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "drift",
-                                   "mo", "stainedGlass", "gym", "zodiac", "pride", "football",
-                                   "aquarium", "cafe"]
+    static let interactiveOrder = ["nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar",
+                                   "drift", "mo", "stainedGlass", "football", "aquarium", "cafe", "zodiac", "pride", "gym"]
 
     /// Thứ tự lưới (thuần): miễn phí (thứ tự khai báo) → tương tác (theo `interactiveOrder`) → còn lại (thứ tự khai
     /// báo). Theme miễn phí có nhãn vẫn ở nhóm miễn phí. Android `ThemePicker.groups` cùng kết quả (fixture "picker").

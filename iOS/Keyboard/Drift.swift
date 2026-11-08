@@ -7,7 +7,7 @@
 //   hơn. Trần `TunnelFx.pool` vòng; vector; animation gắn lúc bắn rồi TỰ GỠ ⇒ nghỉ = 0 animation.
 // • Lơ lửng: khi đang gõ, từng phím trôi khỏi hàng + nhấp nhô chậm (lệch ≤ 4 pt, xoay ≤ 2°, chu kỳ 3–5 s, mỗi phím
 //   một nhịp riêng); nghỉ gõ 2 s ⇒ về chỗ êm trong 0,8 s rồi DỪNG HẲN (0 animation). CHỈ HÌNH: animation cộng dồn trên
-//   layer phím (như Rung combo) — khung phím / vùng nhận chạm không đổi. Giảm chuyển động ⇒ không trôi.
+//   layer phím (như Rung combo) — khung phím / vùng nhận chạm không đổi. Giảm chuyển động vẫn trôi.
 //   Bật bằng hiệu ứng "float" HOẶC theme có "keyMotion":"float" (ThemeSpec) — FloatPolicy.
 import UIKit
 
@@ -167,10 +167,10 @@ struct FloatClock {
 }
 
 /// Cổng chạy "Lơ lửng" (thuần): hiệu ứng thực dùng là `float` HOẶC theme có "keyMotion":"float"; cần Plus, không tiết
-/// kiệm pin, KHÔNG Giảm chuyển động (chuyển động liên tục — dễ say). Android FloatPolicy y hệt.
+/// kiệm pin. Giảm chuyển động KHÔNG tắt (Phil 11/2026: mọi hiệu ứng / hoạt ảnh theme vẫn chạy). Android FloatPolicy y hệt.
 enum FloatPolicy {
-    static func active(effect: KeyEffect, keyMotion: String?, plus: Bool, lowPower: Bool, reduceMotion: Bool) -> Bool {
-        guard plus, !lowPower, !reduceMotion else { return false }
+    static func active(effect: KeyEffect, keyMotion: String?, plus: Bool, lowPower: Bool) -> Bool {
+        guard plus, !lowPower else { return false }
         return effect == .float || keyMotion == ThemeExtraIds.floatMotion
     }
 }

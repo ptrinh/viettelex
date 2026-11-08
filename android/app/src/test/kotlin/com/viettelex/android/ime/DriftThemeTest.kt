@@ -135,6 +135,38 @@ class DriftThemeTest {
         assertTrue(t0 > 0)
     }
 
+    /**
+     * Phil 11/2026: Giảm chuyển động / "Tỉ lệ hoạt ảnh" = 0 (ValueAnimator.areAnimatorsEnabled() == false) KHÔNG tắt hiệu
+     * ứng: phím vẫn Lơ lửng (đồng hồ thật [KeyFloatDriver]), Đường hầm vẫn có vòng (uptimeMillis + postInvalidateOnAnimation).
+     */
+    @Test fun effectsRunWithAnimatorScaleZero() {
+        val setScale = android.animation.ValueAnimator::class.java.getDeclaredMethod("setDurationScale", Float::class.javaPrimitiveType)
+        setScale.isAccessible = true
+        setScale.invoke(null, 0f)
+        try {
+            assertFalse("giả lập tắt hoạt ảnh hệ thống", android.animation.ValueAnimator.areAnimatorsEnabled())
+            val ime = start("drift", "tunnel")
+            val kb = find(show(ime), KeyboardView::class.java)!!
+            val f = kb.keyFloat
+            assertNotNull("Lơ lửng vẫn bật khi tỉ lệ hoạt ảnh = 0", f)
+            tap(kb, "g")
+            assertTrue("phím trôi", f!!.clock.bobbing)
+            ShadowSystemClock.advanceBy(Duration.ofMillis(600))
+            val bmp = Bitmap.createBitmap(kb.width, kb.height, Bitmap.Config.ARGB_8888)
+            kb.draw(Canvas(bmp))
+            assertTrue(f.clock.active)
+            val v = KeyEffectView(RuntimeEnvironment.getApplication(), 3f)
+            v.measure(View.MeasureSpec.makeMeasureSpec(1170, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(780, View.MeasureSpec.EXACTLY))
+            v.layout(0, 0, 1170, 780)
+            v.configure(KeyEffect.TUNNEL, 0xFF9B7BFF.toInt())
+            v.burst(300f, 500f, 100f, 130f); v.flush()
+            ShadowSystemClock.advanceBy(Duration.ofMillis(130))
+            assertEquals("vòng Đường hầm hiện", TunnelFx.rings(0), v.tunnelAlive(android.os.SystemClock.uptimeMillis()))
+        } finally {
+            setScale.invoke(null, 1f)
+        }
+    }
+
     /** Ảnh cho chủ dự án (chỉ khi có thư mục). */
     @Test fun snapshotForOwner() {
         val dir = File("/Users/ptrinh/Downloads/Temp")

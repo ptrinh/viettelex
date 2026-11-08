@@ -52,7 +52,7 @@ import Foundation
 // "keyMotion" (tuỳ chọn, danh sách trắng ThemeExtraIds.keyMotions): chuyển động NỀN của phím chạy KHI theme này đang
 // dùng, ĐỘC LẬP với "effect" (theme Lạc trôi: "effect":"tunnel" + "keyMotion":"float") — "float" = Lơ lửng (Drift.swift):
 // khi đang gõ, từng phím trôi nhẹ khỏi hàng + nhấp nhô chậm (≤ 4 pt, ≤ 2°, chu kỳ 3–5 s), nghỉ 2 s ⇒ về chỗ rồi dừng hẳn.
-// Chỉ HÌNH (khung nhận chạm không đổi); cần Plus, tắt khi tiết kiệm pin / Giảm chuyển động (FloatPolicy). Chọn hiệu ứng
+// Chỉ HÌNH (khung nhận chạm không đổi); cần Plus, tắt khi tiết kiệm pin (FloatPolicy; Giảm chuyển động vẫn chạy). Chọn hiệu ứng
 // "float" ở trang hiệu ứng cũng bật y hệt. Như "photoFx": không ghi gì lúc chọn theme; theme tự tạo dùng được.
 //
 // "bg2" (tuỳ chọn, trong "light"/"dark", màu như "bg"): nền GRADIENT DỌC — "bg" ở mép trên → "bg2" ở đáy (theme Lạc trôi:

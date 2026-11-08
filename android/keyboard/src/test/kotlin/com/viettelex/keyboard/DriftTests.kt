@@ -132,13 +132,12 @@ class DriftTests {
     }
 
     @Test fun floatPolicy() {
-        assertTrue(FloatPolicy.active(KeyEffect.FLOAT, null, plus = true, lowPower = false, reduceMotion = false))
-        assertTrue(FloatPolicy.active(KeyEffect.TUNNEL, "float", plus = true, lowPower = false, reduceMotion = false))
-        assertTrue(FloatPolicy.active(KeyEffect.NONE, "float", plus = true, lowPower = false, reduceMotion = false))
-        assertFalse(FloatPolicy.active(KeyEffect.TUNNEL, null, plus = true, lowPower = false, reduceMotion = false))
-        assertFalse(FloatPolicy.active(KeyEffect.FLOAT, "float", plus = false, lowPower = false, reduceMotion = false))
-        assertFalse(FloatPolicy.active(KeyEffect.FLOAT, "float", plus = true, lowPower = true, reduceMotion = false))
-        assertFalse("Giảm chuyển động ⇒ không trôi", FloatPolicy.active(KeyEffect.FLOAT, "float", plus = true, lowPower = false, reduceMotion = true))
+        assertTrue(FloatPolicy.active(KeyEffect.FLOAT, null, plus = true, lowPower = false))
+        assertTrue(FloatPolicy.active(KeyEffect.TUNNEL, "float", plus = true, lowPower = false))
+        assertTrue(FloatPolicy.active(KeyEffect.NONE, "float", plus = true, lowPower = false))
+        assertFalse(FloatPolicy.active(KeyEffect.TUNNEL, null, plus = true, lowPower = false))
+        assertFalse(FloatPolicy.active(KeyEffect.FLOAT, "float", plus = false, lowPower = false))
+        assertFalse(FloatPolicy.active(KeyEffect.FLOAT, "float", plus = true, lowPower = true))
         assertEquals(setOf("float"), ThemeExtraIds.KEY_MOTIONS)
     }
 

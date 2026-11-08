@@ -9,7 +9,7 @@
 order	system,oled,contrast,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,neutral,pixel,sea,timeOfDay,ai,nightclub,trippy,drift,mo,stainedGlass,rainyNight,gym,zodiac,pride,football,aquarium,cafe
 plus	peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,tet,tetMai,xmas,xmasSnow,piano,sen,typewriter,rgb,space,trungthu,valentine,halloween,guitar,mole,pixel,sea,timeOfDay,ai,nightclub,trippy,drift,mo,stainedGlass,rainyNight,gym,zodiac,pride,football,aquarium,cafe
 interactive	tet,tetMai,piano,rgb,space,guitar,mole,sea,ai,nightclub,trippy,drift,mo,stainedGlass,gym,zodiac,pride,football,aquarium,cafe
-picker	system,oled,contrast,neutral,nightclub,ai,trippy,sea,mole,piano,space,rgb,tet,tetMai,guitar,drift,mo,stainedGlass,gym,zodiac,pride,football,aquarium,cafe,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,xmas,xmasSnow,sen,typewriter,trungthu,valentine,halloween,pixel,timeOfDay,rainyNight
+picker	system,oled,contrast,neutral,nightclub,ai,trippy,sea,mole,piano,space,rgb,tet,tetMai,guitar,drift,mo,stainedGlass,football,aquarium,cafe,zodiac,pride,gym,peach,mint,sky,lavender,glass,blackHeart,greenFloral,sage,neon,pink,xmas,xmasSnow,sen,typewriter,trungthu,valentine,halloween,pixel,timeOfDay,rainyNight
 #theme	dark	bg	key	special	ink	accent	accentInk	border	fn	fnInk	deco
 oled	0	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-
 oled	1	FF000000	FF1C1C1E	FF3A3A3C	FFFFFFFF	FF0A84FF	FFFFFFFF	-	-	-	-

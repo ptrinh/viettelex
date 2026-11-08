@@ -500,7 +500,7 @@ class ThemeSetTests {
         val secs = ThemePicker.sections
         assertEquals(listOf("Miễn phí", "Tương tác", "Plus"), secs.map { it.title })
         assertEquals(listOf(KeyboardTheme.SYSTEM, KeyboardTheme.OLED, KeyboardTheme.CONTRAST, KeyboardTheme.NEUTRAL), secs[0].themes)
-        assertEquals(listOf("nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "drift", "mo", "stainedGlass", "gym", "football", "aquarium", "cafe"), secs[1].themes.map { it.id })
+        assertEquals(listOf("nightclub", "ai", "trippy", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "drift", "mo", "stainedGlass", "football", "aquarium", "cafe", "zodiac", "pride", "gym"), secs[1].themes.map { it.id })
         assertEquals(ThemePicker.ordered(), secs.flatMap { it.themes })
         assertEquals(KeyboardTheme.entries.toSet(), secs.flatMap { it.themes }.toSet())
         assertEquals("không trùng", KeyboardTheme.entries.size, secs.flatMap { it.themes }.size)

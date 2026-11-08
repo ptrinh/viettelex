@@ -7030,7 +7030,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         swipeActive = false
         swipeTouchID = nil
         classifier = nil
-        trail?.fadeOut(reduceMotion: UIAccessibility.isReduceMotionEnabled)
+        trail?.fadeOut(reduceMotion: false)   // Giảm chuyển động KHÔNG tắt hiệu ứng (Phil 11/2026)
         if shift == .on { shift = .off; applyShiftAppearance() }
         #if DEBUG
         debugSwipeUps += 1
@@ -7473,8 +7473,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let on = FloatPolicy.active(effect: keyEffects?.effect ?? .none,
                                     keyMotion: themeSettings.effectiveKeyStyle.keyMotion,
                                     plus: PlusGate.isUnlocked(.premiumThemes),
-                                    lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled,
-                                    reduceMotion: UIAccessibility.isReduceMotionEnabled)
+                                    lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled)
         if on {
             if keyFloat == nil { keyFloat = KeyFloat(target: rowsContainer) { $0 is KeyButton } }
         } else {
