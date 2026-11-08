@@ -481,7 +481,11 @@ class KeyboardSession(
     fun startInput(settings: KeyboardSettings, field: FieldTraits) {
         if (lastResetAt != null && lastResetAt != settings.userlmResetAt) langModel.reloadAfterExternalErase()
         lastResetAt = settings.userlmResetAt
-        TouchLog.session("android")
+        if (TouchLog.enabled) {
+            fun b(v: Boolean) = if (v) 1 else 0
+            TouchLog.session("secure=${b(field.isSecure)} pass=${b(field.passthrough)} sugg=${b(field.suggestionsAllowed)}" +
+                " email=${b(field.emailCompose)} url=${b(field.urlField)}", TouchLogFormat.settingsLines(settings))
+        }
         bridge = EngineBridge(settings)
         // Ô email: Telex BẬT + bảo vệ địa chỉ; không gõ tắt (app đổi chữ thành chip người nhận).
         bridge.passthrough = field.passthrough && !field.emailCompose
@@ -1497,6 +1501,8 @@ class KeyboardSession(
     // MARK: nút Dán
 
     private var pasteSeenChange = -1
+    /** Debug mode: dòng "paste:" chỉ ghi khi (cc, used, has, kết quả) đổi. */
+    private var pasteLogKey = ""
     private var pasteSeenAt = Long.MIN_VALUE / 2
     private var pasteUsedChange = -1
     private var pasteCheckedAt = Long.MIN_VALUE / 2
@@ -1528,8 +1534,15 @@ class KeyboardSession(
         val has = cb.hasText()
         pasteCached = cc != pasteUsedChange && has && now - pasteSeenAt < 180_000
         if (pasteCached) { pasteId = cb.clipId(); pasteCached = pasteOnce.canOffer(pasteId) }
-        if (TouchLog.enabled) TouchLog.write("paste: cc=$cc used=$pasteUsedChange hasText=${if (has) 1 else 0} " +
-            "age=${(now - pasteSeenAt) / 1000}s → ${if (pasteCached) 1 else 0}")
+        // Chỉ khi trạng thái đổi (kiểm 2 s/lần mỗi lần refresh bar ⇒ dòng y hệt trừ tuổi là rác).
+        if (TouchLog.enabled) {
+            val key = "$cc/$pasteUsedChange/$has/$pasteCached"
+            if (key != pasteLogKey) {
+                pasteLogKey = key
+                TouchLog.write("paste: cc=$cc used=$pasteUsedChange has=${if (has) 1 else 0} " +
+                    "age=${(now - pasteSeenAt) / 1000}s → ${if (pasteCached) 1 else 0}")
+            }
+        }
         return pasteCached
     }
 

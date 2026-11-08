@@ -96,7 +96,8 @@ enum AIAssistLoader {
         }
         guard let (code, text) = r else { return .failure(.timeout) }
         if let f = AIFailure(engineCode: code) {
-            if f == .failed { TouchLog.write("ai failed: \(text ?? "?")") }
+            // Chỉ tên lỗi (phần trước "("): mô tả đầy đủ của lỗi model có thể kèm nội dung.
+            if f == .failed { TouchLog.write("ai failed: \(text.map { String($0.prefix { $0 != "(" }.prefix(60)) } ?? "?")") }
             return .failure(f)
         }
         return .success(text ?? "")

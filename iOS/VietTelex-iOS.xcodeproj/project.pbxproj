@@ -123,6 +123,7 @@
 		3918D6C9CF7ED09C9D68DBEB /* MathResults.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1859475A5F95F02805768CA /* MathResults.swift */; };
 		399ACBBB25EBADB0EB138EBE /* buddy-girl-v2.png in Resources */ = {isa = PBXBuildFile; fileRef = 195CBD6A539777991FFCD89C /* buddy-girl-v2.png */; };
 		3ADA98F967283A5E9D998695 /* theme-json-cases.txt in Resources */ = {isa = PBXBuildFile; fileRef = 1694350BF74AC5F613846DD6 /* theme-json-cases.txt */; };
+		3B0F67D9F2B02D6D37BC001A /* TouchLogFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51063A0F650745F8BD1C658F /* TouchLogFormatTests.swift */; };
 		3B923BBCC59407884A0A8C09 /* KeyboardBuddy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA9907DB3D540310F5E7DC9 /* KeyboardBuddy.swift */; };
 		3D60F41E59C5877D893E1088 /* SpaceFlick.swift in Sources */ = {isa = PBXBuildFile; fileRef = D36D03DA09827B3E666C0C94 /* SpaceFlick.swift */; };
 		3D6C897D3E6A6D2A37325AD0 /* vnlexicon.bin in Resources */ = {isa = PBXBuildFile; fileRef = 915FC9A836F82E797FA0AEA1 /* vnlexicon.bin */; };
@@ -680,6 +681,7 @@
 		4F299BCC57B1DB9FC94AD14A /* RetroEnglishBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroEnglishBridgeTests.swift; sourceTree = "<group>"; };
 		4F35DEB1416616443DB332E0 /* VTCatch.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VTCatch.m; sourceTree = "<group>"; };
 		4F980E450F0B3851CDC5361F /* ClipDetect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipDetect.swift; sourceTree = "<group>"; };
+		51063A0F650745F8BD1C658F /* TouchLogFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchLogFormatTests.swift; sourceTree = "<group>"; };
 		5143281A235F9FF66DF0ABAE /* KeyboardBenchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardBenchTests.swift; sourceTree = "<group>"; };
 		515867D60976AB481872E0F2 /* EdgeTouchDelayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeTouchDelayTests.swift; sourceTree = "<group>"; };
 		52D5175437869F54D6E628A5 /* SuggestionBarHeight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionBarHeight.swift; sourceTree = "<group>"; };
@@ -1251,6 +1253,7 @@
 				D0E5388BE246A2014C812518 /* TextToolsTests.swift */,
 				BF44D3DF90FF0D44BFF1C899 /* ThemeAssetTests.swift */,
 				19D3E94A29FB7A57CAC324FC /* ThemeJSONTests.swift */,
+				51063A0F650745F8BD1C658F /* TouchLogFormatTests.swift */,
 				6C928B7D91A4C54D1642E70F /* TouchTargetTests.swift */,
 				C0D2E54E996214AA4F8CB065 /* TrackpadTests.swift */,
 				360B593D7FFB9CC01D2AFAA7 /* TranslateTests.swift */,
@@ -2138,6 +2141,7 @@
 				962AD5E7A7B29DDBDD0C54B6 /* ThemeSpec.swift in Sources */,
 				886F6649C089D64E44E1C2FC /* TouchGeometry.swift in Sources */,
 				59184856DB1424FEC29F3781 /* TouchLog.swift in Sources */,
+				3B0F67D9F2B02D6D37BC001A /* TouchLogFormatTests.swift in Sources */,
 				6E288C02E8191203ECFB80E3 /* TouchTarget.swift in Sources */,
 				444358B0BE78D91F673CD621 /* TouchTargetTests.swift in Sources */,
 				0ADB3CE1AC55F916715D7B4C /* Trackpad.swift in Sources */,

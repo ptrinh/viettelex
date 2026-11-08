@@ -16,6 +16,7 @@
 #include "viettelex/app.h"
 #include "viettelex/auto_text.h"
 #include "viettelex/caret_hints.h"
+#include "viettelex/debug_log.h"
 #include "viettelex/gnome.h"
 #include "viettelex/gnome_monitor.h"
 #include "viettelex/session.h"
@@ -40,6 +41,8 @@
 #include <fcitx/inputcontext.h>
 #include <fcitx/inputcontextmanager.h>
 #include <fcitx/inputcontextproperty.h>
+#include <fcitx/inputmethodgroup.h>
+#include <fcitx/inputmethodmanager.h>
 #include <fcitx/inputmethodengine.h>
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
@@ -395,6 +398,27 @@ public:
 
     const vt::Settings &settings() const { return watcher_.settings(); }
 
+    // VIETTELEX_DEBUG log (debug_log.h): header once, then the settings line when it changes.
+    static vt::debuglog::Logger &debugLog() {
+        static vt::debuglog::Logger log([](const std::string &l) { FCITX_INFO() << l; });
+        return log;
+    }
+    void debugContext() {
+        vt::debuglog::Frontend fe;
+        fe.name = "fcitx5";
+        fe.version = fcitx::Instance::version();
+        const auto &group = instance_->inputMethodManager().currentGroup();
+        fe.layouts = group.defaultLayout() + " [";
+        bool first = true;
+        for (const auto &item : group.inputMethodList()) {
+            fe.layouts += (first ? "" : ",") + item.name();
+            first = false;
+        }
+        fe.layouts += "]";
+        fe.gnomeShell = gnome_ ? gnome_->shellMajor() : 0;
+        debugLog().context(VT_VERSION, fe, settings());
+    }
+
     // Session → helper (worker thread) → back here on the event loop.
     void submitHint(fcitx::InputContext *ic, const vt::HintRequest &r) {
         auto ref = ic->watch();
@@ -443,14 +467,14 @@ public:
                 return;
             }
             if (st->session.processKey(ev, client)) event.filterAndAccept();
-            static const bool debug = std::getenv("VIETTELEX_DEBUG") != nullptr;
-            if (debug) {
+            if (vt::debuglog::enabled()) {
+                // Length only: the text before the caret is the user's (privacy contract).
                 std::string before;
                 bool ok = client.textBeforeCursorTail(24, before);
-                FCITX_INFO() << "viettelex key: sym=" << ev.keysym << " mode="
-                             << int(st->session.displayMode())
-                             << " distrusted=" << st->session.surroundingDistrusted()
-                             << " before(" << ok << ")=[" << before << "]";
+                debugLog().line("key sym=" + std::to_string(ev.keysym) + " mode=" +
+                                std::to_string(int(st->session.displayMode())) +
+                                " dist=" + std::to_string(int(st->session.surroundingDistrusted())) +
+                                " before=" + (ok ? std::to_string(before.size()) : std::string("?")));
             }
         } catch (...) {
             // never take fcitx5 down with us: the key simply reaches the app
@@ -660,16 +684,17 @@ private:
         st->session.setEmailDomainsAllowed(vt::autotext::appAllowed(st->appId) && !field.terminal);
         st->session.setMultiline((caps.toInteger() & kCapMultiline) != 0);
         // VIETTELEX_DEBUG=1 in Fcitx5's environment: why a field got its mode (journal / stderr).
-        static const bool debug = std::getenv("VIETTELEX_DEBUG") != nullptr;
-        if (debug) {
-            FCITX_INFO() << "viettelex: program=" << st->ic->program() << " app=" << st->appId
-                         << " frontend=" << (st->ic->frontend() ? st->ic->frontend() : "")
-                         << " host=" << int(field.host) << " surroundingCap="
-                         << caps.test(fcitx::CapabilityFlag::SurroundingText)
-                         << " surroundingValid=" << st->ic->surroundingText().isValid()
-                         << " shell=" << (gnome_ ? gnome_->shellMajor() : 0)
-                         << " keysDropped=" << field.forwardedKeysDropped << " terminal=" << field.terminal << " url=" << field.urlOrEmail
-                         << " mode=" << int(policy.mode) << " deleteWithKeys=" << policy.deleteWithKeys;
+        if (vt::debuglog::enabled()) {
+            debugContext();
+            const char *fe = st->ic->frontend();
+            debugLog().line("field program=" + st->ic->program() + " app=" + st->appId + " fe=" + (fe ? fe : "") +
+                            " host=" + std::to_string(int(field.host)) +
+                            " sCap=" + std::to_string(int(caps.test(fcitx::CapabilityFlag::SurroundingText))) +
+                            " sValid=" + std::to_string(int(st->ic->surroundingText().isValid())) +
+                            " keysDropped=" + std::to_string(int(field.forwardedKeysDropped)) +
+                            " term=" + std::to_string(int(field.terminal)) + " url=" +
+                            std::to_string(int(field.urlOrEmail)) + " mode=" + std::to_string(int(policy.mode)) +
+                            " delKeys=" + std::to_string(int(policy.deleteWithKeys)));
         }
     }
 
@@ -677,6 +702,7 @@ private:
         const auto &s = watcher_.reload();
         syncConfigFromSettings();
         updateLabels();
+        if (vt::debuglog::enabled()) debugContext();  // settings line, only when it changed
         instance_->inputContextManager().foreach([this, &s](fcitx::InputContext *ic) {
             auto *st = state(ic);
             st->session.applySettings(s);
