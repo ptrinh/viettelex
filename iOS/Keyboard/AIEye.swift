@@ -41,6 +41,22 @@ enum AIEye {
     static let irisColors: [UInt32] = [0xA5F3FC, 0x22D3EE, 0x7C3AED]
     static let pupilColor: UInt32 = 0x0B1020, ringColor: UInt32 = 0x67E8F9, lidColor: UInt32 = 0x0A0E22
 
+    /// Cạnh khung vẽ cỡ gốc = cao strip × `slotSize` (Phil 08/11: mắt cạnh = strip sát mép trên bàn phím ⇒ thu ~14 %
+    /// cho quầng sáng có khoảng thở trên / dưới).
+    static let slotSize = 0.86
+
+    /// Khung cỡ gốc (TRƯỚC "Vị trí & cỡ") trong strip cao `strip`, dòng chữ gợi ý có tâm dọc `rowMid` (gốc = đỉnh
+    /// strip): cạnh = round(strip × slotSize) nhưng không quá 2 × khoảng từ tâm chữ tới mép gần nhất (strip bị host bóp ⇒
+    /// mắt nhỏ lại thay vì lệch tâm), tối thiểu nửa strip; TÂM DỌC = rowMid (thẳng hàng chữ gợi ý); kẹp trong [0, strip]
+    /// ⇒ quầng sáng (cả khung) không vượt mép trên, không đè phím. Android AIEye.slot cùng số.
+    static func slot(strip: Double, rowMid: Double) -> (top: Double, side: Double) {
+        let fit = (2 * Swift.min(rowMid, strip - rowMid)).rounded(.down)
+        let s = Swift.max((strip * minSlot).rounded(), Swift.min((strip * slotSize).rounded(), fit))
+        return (Swift.max(0, Swift.min(rowMid - s / 2, strip - s)), s)
+    }
+    /// Cạnh tối thiểu (tỉ lệ strip) khi dòng chữ sát mép.
+    static let minSlot = 0.5
+
     enum Phase: Equatable { case active, breathing, resting }
 
     /// Đồng tử lệch tối đa (cùng đơn vị với `side`): mép đồng tử luôn trong mống mắt, chừa `margin`.

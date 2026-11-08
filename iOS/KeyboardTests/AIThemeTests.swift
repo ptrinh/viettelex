@@ -34,7 +34,7 @@ final class AIThemeTests: XCTestCase {
     // MARK: Token AI — model
 
     func testTokensEffectIdAndHooks() {
-        XCTAssertEqual(KeyEffect.allCases.last, .tokens)
+        XCTAssertEqual(KeyEffect.allCases.firstIndex(of: .sea)! + 1, KeyEffect.allCases.firstIndex(of: .tokens)!)   // thêm sau Biển (Night Club theo sau)
         XCTAssertEqual(KeyEffect.tokens.rawValue, "tokens")
         XCTAssertEqual(KeyEffect.parse("tokens"), .tokens)
         XCTAssertTrue(KeyEffect.tokens.isPlus)
@@ -343,6 +343,10 @@ final class AIThemeTests: XCTestCase {
             XCTAssertFalse(e.isUserInteractionEnabled)
             XCTAssertFalse(e.isHidden)
             XCTAssertLessThanOrEqual(e.frame.maxY, kb.debugRowsMinY + 0.5, "mắt nằm trong dải gợi ý, không đè phím")
+            // Phil 08/11: tâm mắt thẳng hàng chữ gợi ý (± 1 pt), quầng sáng (cả khung) không chạm mép trên.
+            XCTAssertEqual(e.eyeCenter.y, kb.debugSuggestionBarFrame.midY, accuracy: 1, "tâm mắt = tâm dọc dòng chữ gợi ý — mắt \(e.frame), bar \(kb.debugSuggestionBarFrame), hàng phím \(kb.debugRowsMinY)")
+            XCTAssertGreaterThanOrEqual(e.frame.minY, 0, "không vượt mép trên")
+            XCTAssertLessThan(e.frame.height, kb.debugRowsMinY, "nhỏ hơn strip ⇒ có khoảng thở")
             XCTAssertLessThanOrEqual(e.frame.maxX, kb.bounds.maxX + 0.5)
             XCTAssertEqual(kb.keyEffects?.tokenTarget?(), e.eyeCenter, "token bay vào mắt")
         }
@@ -357,24 +361,46 @@ final class AIThemeTests: XCTestCase {
     }
 
     func testAIEyeFramePure() {
-        let f = KeyboardView.aiEyeFrame(width: 390, strip: 44)
-        XCTAssertEqual(f.size, CGSize(width: 44, height: 44))
-        XCTAssertEqual(f.minY, 0)
+        let f = KeyboardView.aiEyeFrame(width: 390, strip: 44, rowMid: 24)
+        XCTAssertEqual(f.size, CGSize(width: 38, height: 38), "44 × 0,86 → 38")
+        XCTAssertEqual(f.midY, 24, accuracy: 1, "tâm dọc = tâm dòng chữ gợi ý")
+        XCTAssertEqual(f.minY, 5)
         XCTAssertLessThanOrEqual(f.maxX, 390)
         let zone = KeyboardView.buddyZoneFrame(width: 390, strip: 44)
         XCTAssertEqual(f.maxX, 390, accuracy: 0.5, "rộng hơn ô chừa ⇒ kẹp sát mép phải")
         XCTAssertTrue(f.intersects(zone))
         var big = BuddyPlacement.standard; big.size = 10
-        let g = KeyboardView.aiEyeFrame(width: 390, strip: 44, placement: big, height: 260)
+        let g = KeyboardView.aiEyeFrame(width: 390, strip: 44, rowMid: 24, placement: big, height: 260)
         XCTAssertGreaterThan(g.height, f.height, "cỡ lớn hơn ⇒ mắt to hơn")
         XCTAssertLessThanOrEqual(g.maxX, 390.5, "không vượt mép phải")
-        XCTAssertEqual(g.minY, 0, accuracy: 0.5, "lớn dần xuống phím, đỉnh giữ trần bàn phím")
+        XCTAssertEqual(g.minY, f.minY, accuracy: 0.5, "lớn dần xuống phím, đỉnh giữ nguyên")
+        XCTAssertEqual(KeyboardView.aiEyeFrame(width: 390, strip: 44).midY, 22, accuracy: 0.5, "không biết dòng chữ ⇒ giữa strip")
+    }
+
+    /// Khung cỡ gốc của Mắt AI: cạnh = round(strip × 0,86), tâm dọc = tâm dòng chữ gợi ý, kẹp trong strip.
+    /// CÙNG SỐ Android AIThemeTests.eyeSlotCentersOnSuggestionRow.
+    func testEyeSlotCentersOnSuggestionRow() {
+        XCTAssertEqual(AIEye.slotSize, 0.86)
+        // (strip, rowMid) → (top, side)
+        let cases: [(Double, Double, Double, Double)] = [
+            (44, 24, 5, 38), (44, 21, 2, 38), (44, 22, 3, 38), (52, 26, 3.5, 45), (40, 19, 2, 34),
+            (35, 22, 9, 26),   // strip bị bóp (máy test 300 pt): mắt nhỏ lại, vẫn đúng tâm
+            (44, 10, 0, 22),   // chữ sát mép trên ⇒ cạnh tối thiểu nửa strip, kẹp mép trên
+            (44, 40, 22, 22),  // chữ sát đáy ⇒ kẹp đáy strip (không đè phím)
+        ]
+        for (strip, mid, top, side) in cases {
+            let s = AIEye.slot(strip: strip, rowMid: mid)
+            XCTAssertEqual(s.top, top, accuracy: 1e-9, "\(strip) \(mid)")
+            XCTAssertEqual(s.side, side, accuracy: 1e-9, "\(strip) \(mid)")
+            XCTAssertGreaterThanOrEqual(s.top, 0); XCTAssertLessThanOrEqual(s.top + s.side, strip)
+            if mid - side / 2 >= 0, mid + side / 2 <= strip { XCTAssertEqual(s.top + s.side / 2, mid, accuracy: 1) }
+        }
     }
 
     // MARK: Theme AI, motif neural, aurora, âm
 
     func testAITheme() throws {
-        XCTAssertEqual(KeyboardTheme.allCases.last, .ai)
+        XCTAssertEqual(KeyboardTheme.allCases.firstIndex(of: .timeOfDay)! + 1, KeyboardTheme.allCases.firstIndex(of: .ai)!)
         let spec = try XCTUnwrap(KeyboardTheme.ai.spec)
         XCTAssertTrue(KeyboardTheme.ai.isPlus)
         XCTAssertEqual(spec.nameVi, "AI"); XCTAssertEqual(spec.nameEn, "AI"); XCTAssertEqual(L10n.en["AI"], "AI")
@@ -446,7 +472,7 @@ final class AIThemeTests: XCTestCase {
             XCTAssertLessThan(Double(a.count) / KeySoundSynth.sampleRate, 0.061, "\(k)")
             XCTAssertEqual(a.reduce(0.0) { $0 + Double(abs($1)) }, want, accuracy: 0.01, "\(k)")
         }
-        XCTAssertEqual(KeySoundStyle.allCases.last, .ai)
+        XCTAssertEqual(KeySoundStyle.allCases.firstIndex(of: .chip)! + 1, KeySoundStyle.allCases.firstIndex(of: .ai)!)
         XCTAssertTrue(KeySoundStyle.presets.contains(.ai))
         XCTAssertTrue(KeySoundStyle.presetIDs.contains("ai"))
         XCTAssertEqual(L10n.en["Synth AI"], "AI synth")

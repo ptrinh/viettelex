@@ -44,6 +44,23 @@ object AIEye {
     const val RING_COLOR = 0x67E8F9
     const val LID_COLOR = 0x0A0E22
 
+    /** Cạnh khung vẽ cỡ gốc = cao strip × [SLOT_SIZE] (Phil 08/11: thu ~14 % cho quầng sáng có khoảng thở trên / dưới). */
+    const val SLOT_SIZE = 0.86
+
+    /**
+     * Khung cỡ gốc (TRƯỚC "Vị trí & cỡ") trong strip cao [strip], dòng chữ gợi ý có tâm dọc [rowMid] (gốc = đỉnh strip,
+     * cùng đơn vị — dp / px): cạnh = round(strip × SLOT_SIZE) nhưng không quá 2 × khoảng từ tâm chữ tới mép gần nhất
+     * (strip bị bóp ⇒ mắt nhỏ lại thay vì lệch tâm), tối thiểu [MIN_SLOT] × strip; TÂM DỌC = rowMid; kẹp trong [0, strip]
+     * ⇒ quầng sáng không vượt mép trên, không đè phím. Ghi (top, side) vào [out]. = iOS AIEye.slot (test số chung).
+     */
+    fun slot(strip: Double, rowMid: Double, out: DoubleArray) {
+        val fit = Math.floor(2 * minOf(rowMid, strip - rowMid))
+        val s = maxOf(Math.round(strip * MIN_SLOT).toDouble(), minOf(Math.round(strip * SLOT_SIZE).toDouble(), fit))
+        out[0] = maxOf(0.0, minOf(rowMid - s / 2, strip - s)); out[1] = s
+    }
+    /** Cạnh tối thiểu (tỉ lệ strip) khi dòng chữ sát mép. */
+    const val MIN_SLOT = 0.5
+
     enum class Phase { ACTIVE, BREATHING, RESTING }
 
     /** Đồng tử lệch tối đa (cùng đơn vị với [side]). */

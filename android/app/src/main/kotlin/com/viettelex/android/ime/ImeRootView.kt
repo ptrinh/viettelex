@@ -438,6 +438,7 @@ class ImeRootView(
      * "Mắt AI" ([AIEyeView], nhân vật "ai") — cùng ô / "Vị trí & cỡ" với Bạn đồng hành (StripView chừa [StripView.buddyDp]),
      * hình vuông cạnh = cao strip, không tràn xuống phím. null = nhân vật khác / tắt (0 chi phí).
      */
+    private val eyeSlot = DoubleArray(2)
     var aiEye: AIEyeView? = null
         set(v) {
             if (field === v) return
@@ -467,13 +468,18 @@ class ImeRootView(
         out[1] = (strip.top - fx.top).toFloat(); out[3] = strip.top + stripPx() - fx.top.toFloat()
     }
 
-    /** Khung Mắt AI: vuông cạnh strip, canh giữa ô chừa (không vượt mép phải); cỡ / lề theo [buddyPlacement]. */
+    /**
+     * Khung Mắt AI: vuông cạnh strip × [com.viettelex.keyboard.AIEye.SLOT_SIZE], TÂM DỌC = tâm dòng chữ gợi ý
+     * ([KeyLayout.barCy]), canh giữa ô chừa (không vượt mép phải / mép trên); cỡ / lề theo [buddyPlacement].
+     */
     private fun layoutAIEye(e: AIEyeView, px: Int, py: Int, pw: Int, s: Int) {
         val r = px + pw - Math.round(strip.dismissPx())
         val l = r - Math.round(theme.dp(StripGeometry.BUDDY_W))
-        val bl = minOf((l + r - s) / 2, px + pw - s)
-        val f = buddyPlacement.frame(com.viettelex.keyboard.BuddyRect(bl.toDouble(), py.toDouble(), s.toDouble(), s.toDouble()),
-            s.toDouble(), theme.dp(1f).toDouble(), (height - py).toDouble())
+        com.viettelex.keyboard.AIEye.slot(s.toDouble(), theme.dp(KeyLayout.barCy(strip.openStripDp)).toDouble(), eyeSlot)
+        val es = eyeSlot[1].toInt()
+        val bl = minOf((l + r - es) / 2, px + pw - es)
+        val f = buddyPlacement.frame(com.viettelex.keyboard.BuddyRect(bl.toDouble(), py + eyeSlot[0], es.toDouble(), es.toDouble()),
+            es.toDouble(), theme.dp(1f).toDouble(), (height - py).toDouble())
         val fl = Math.round(f.x).toInt(); val ft = Math.round(f.y).toInt()
         val fw = Math.round(f.w).toInt(); val fh = Math.round(f.h).toInt()
         e.measure(MeasureSpec.makeMeasureSpec(fw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(fh, MeasureSpec.EXACTLY))

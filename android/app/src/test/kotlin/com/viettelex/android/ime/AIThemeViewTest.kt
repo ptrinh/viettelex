@@ -27,6 +27,19 @@ class AIThemeViewTest {
         return v
     }
 
+    /** Phil 08/11: tâm Mắt AI = tâm dọc dòng chữ gợi ý ([KeyLayout.barCy], ± 1 dp) ở mọi mức cao strip, không vượt mép trên. */
+    @Test fun eyeCentersOnSuggestionRowForEveryStripHeight() {
+        val out = DoubleArray(2)
+        for (open in listOf(KeyLayout.OPEN_STRIP, 34f, 38f, 46f, 52f)) {
+            val cy = KeyLayout.barCy(open).toDouble()
+            AIEye.slot(open.toDouble(), cy, out)
+            assertEquals("strip $open", cy, out[0] + out[1] / 2, 1.0)
+            assertTrue("strip $open: không vượt mép trên", out[0] >= 0)
+            assertTrue("strip $open: không đè phím", out[0] + out[1] <= open)
+            assertTrue("strip $open: nhỏ hơn strip", out[1] < open)
+        }
+    }
+
     @Test fun eyePupilClampedAndIdleBounded() {
         val e = sized(AIEyeView(ctx, 3f, lowPower = false), 132, 132)
         assertEquals(AIEye.Phase.RESTING, e.phase)

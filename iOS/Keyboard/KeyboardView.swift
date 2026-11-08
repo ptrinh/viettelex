@@ -580,15 +580,20 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func layoutSuggestionBar() {
         let w = Self.stripZoneWidth
         let right = barRightExtras
-        // Host cấp thiếu chiều cao ⇒ strip co (phím giữ nguyên): bar Vừa/Cao co về chỗ còn lại
-        // trước (sàn 20 = mức Thấp), hết chỗ mới dời lên VỪA đủ để không đè hàng đầu.
+        let (y, h) = suggestionRowSpan()
+        let f = CGRect(x: w, y: y, width: max(bounds.width - w - right, 0), height: h)
+        if suggestionBar.frame != f { suggestionBar.frame = f }
+    }
+
+    /// Đỉnh + cao dòng chữ gợi ý (toạ độ view). Host cấp thiếu chiều cao ⇒ strip co (phím giữ nguyên): bar Vừa/Cao co
+    /// về chỗ còn lại trước (sàn 20 = mức Thấp), hết chỗ mới dời lên VỪA đủ để không đè hàng đầu. Mắt AI canh tâm theo.
+    private func suggestionRowSpan() -> (y: CGFloat, h: CGFloat) {
         let top = barRowTop(strip: max(rowsTopWanted, openStripNow))
         let room = rowsContainer.frame.height > 0 ? rowsContainer.frame.minY - top : .greatestFiniteMagnitude
         let h = max(min(barRowNow, room), min(barRowNow, SuggestionBarHeight.baseRow))
         let squeeze = rowsContainer.frame.height > 0
             ? min(0, rowsContainer.frame.minY - (top + h)) : 0
-        let f = CGRect(x: w, y: top + squeeze, width: max(bounds.width - w - right, 0), height: h)
-        if suggestionBar.frame != f { suggestionBar.frame = f }
+        return (top + squeeze, h)
     }
 
     /// Đặt lại frame + icon + ẩn/hiện nút mép trái (☰) theo trạng thái bar. Gọi mỗi
@@ -2247,6 +2252,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         return (decorLayer.isHidden ? [] : motifs, keys)
     }
     var debugRowsMinY: CGFloat { rowsContainer.frame.minY }
+    /// Test: khung dòng chữ gợi ý (toạ độ view) — Mắt AI canh tâm dọc theo đó.
+    var debugSuggestionBarFrame: CGRect { suggestionBar.frame }
     /// Test: số lớp lỗ thoát âm trên phím cách chính (Ghi-ta: 3; theme khác: 0) + path lỗ tối.
     var debugSoundhole: (count: Int, hole: CGPath?) { (spaceBarButton?.soundholeLayers.count ?? 0, spaceBarButton?.soundholeLayers.first?.path) }
     #endif
@@ -6968,13 +6975,15 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // MARK: Mắt AI (AIEye.swift) — nhân vật "ai": cùng ô / công tắc / "Vị trí & cỡ" với Bạn đồng hành; khác ⇒ nil.
     private(set) var aiEye: AIEyeView?
 
-    /// Khung VẼ Mắt AI — THUẦN để test: hình vuông cạnh = cao strip, canh giữa ô chừa (không vượt mép phải), KHÔNG tràn
-    /// xuống phím; cỡ / lề theo BuddyPlacement (neo đáy-phải như nhân vật, to hơn thì lớn dần xuống phím).
-    static func aiEyeFrame(width: CGFloat, strip: CGFloat, placement: BuddyPlacement = .standard,
+    /// Khung VẼ Mắt AI — THUẦN để test: hình vuông cạnh = strip × AIEye.slotSize, TÂM DỌC = tâm dòng chữ gợi ý `rowMid`
+    /// (nil ⇒ giữa strip), canh giữa ô chừa (không vượt mép phải), không vượt mép trên / không tràn xuống phím; cỡ / lề
+    /// theo BuddyPlacement (neo đáy-phải như nhân vật, to hơn thì lớn dần xuống phím).
+    static func aiEyeFrame(width: CGFloat, strip: CGFloat, rowMid: CGFloat? = nil, placement: BuddyPlacement = .standard,
                            height: CGFloat? = nil, dismiss: CGFloat = 0) -> CGRect {
         let zone = buddyZoneFrame(width: width, strip: strip, placement: placement, dismiss: dismiss)
-        let s = strip.rounded()
-        let base = BuddyRect(x: Double(min(zone.midX - s / 2, width - s)), y: 0, w: Double(s), h: Double(s))
+        let slot = AIEye.slot(strip: Double(strip), rowMid: Double(rowMid ?? strip / 2))
+        let s = CGFloat(slot.side)
+        let base = BuddyRect(x: Double(min(zone.midX - s / 2, width - s)), y: slot.top, w: Double(s), h: Double(s))
         let f = placement.frame(standard: base, minWidth: Double(s), fullHeight: height.map(Double.init))
         return CGRect(x: f.x, y: f.y, width: f.w, height: f.h)
     }
@@ -7097,8 +7106,11 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         guard show else { e.halt(); return }
         let strip = min(max(rowsTopWanted, openStripNow),
                         rowsContainer.frame.height > 0 ? rowsContainer.frame.minY : .greatestFiniteMagnitude)
-        let f = Self.aiEyeFrame(width: bounds.width, strip: strip, placement: buddyPlacement, height: layoutHeight,
-                                dismiss: dismissInset)
+        // Tâm dọc dòng chữ gợi ý: khung bar thật (layoutSuggestionBar chạy ngay trước), chưa có ⇒ công thức như bar.
+        let bar = suggestionBar.frame
+        let row = bar.height > 0 ? (y: bar.minY, h: bar.height) : suggestionRowSpan()
+        let f = Self.aiEyeFrame(width: bounds.width, strip: strip, rowMid: row.y + row.h / 2, placement: buddyPlacement,
+                                height: layoutHeight, dismiss: dismissInset)
         if e.frame != f { e.frame = f }
         e.layer.zPosition = 1000   // trên cùng như nhân vật (token bay VÀO mắt: lớp hiệu ứng ở dưới)
         bringSubviewToFront(e)

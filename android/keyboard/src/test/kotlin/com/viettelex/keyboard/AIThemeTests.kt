@@ -24,7 +24,7 @@ class AIThemeTests {
     // ---- Token AI
 
     @Test fun tokensEffectIdAndHooks() {
-        assertEquals(KeyEffect.TOKENS, KeyEffect.entries.last())
+        assertEquals(KeyEffect.SEA.ordinal + 1, KeyEffect.TOKENS.ordinal)   // thêm sau Biển (Night Club theo sau)
         assertEquals("tokens", KeyEffect.TOKENS.id)
         assertEquals(KeyEffect.TOKENS, KeyEffect.of("tokens"))
         assertTrue(KeyEffect.TOKENS.isPlus)
@@ -130,6 +130,26 @@ class AIThemeTests {
     }
 
     /** Đồng tử: đúng hướng, không bao giờ quá bán kính cho phép — mốc chung iOS testEyePupilClamp. */
+    /** Khung cỡ gốc Mắt AI: cạnh round(strip × 0,86), tâm dọc = tâm dòng chữ gợi ý, kẹp trong strip. = iOS testEyeSlotCentersOnSuggestionRow. */
+    @Test fun eyeSlotCentersOnSuggestionRow() {
+        assertEquals(0.86, AIEye.SLOT_SIZE, 0.0)
+        // strip, rowMid → top, side
+        val cases = listOf(
+            doubleArrayOf(44.0, 24.0, 5.0, 38.0), doubleArrayOf(44.0, 21.0, 2.0, 38.0), doubleArrayOf(44.0, 22.0, 3.0, 38.0),
+            doubleArrayOf(52.0, 26.0, 3.5, 45.0), doubleArrayOf(40.0, 19.0, 2.0, 34.0),
+            doubleArrayOf(35.0, 22.0, 9.0, 26.0),   // strip bị bóp: mắt nhỏ lại, vẫn đúng tâm
+            doubleArrayOf(44.0, 10.0, 0.0, 22.0),   // chữ sát mép trên ⇒ cạnh tối thiểu nửa strip
+            doubleArrayOf(44.0, 40.0, 22.0, 22.0))   // chữ sát đáy ⇒ kẹp đáy strip
+        val out = DoubleArray(2)
+        for (c in cases) {
+            AIEye.slot(c[0], c[1], out)
+            assertEquals("${c.toList()}", c[2], out[0], 1e-9)
+            assertEquals("${c.toList()}", c[3], out[1], 1e-9)
+            assertTrue(out[0] >= 0 && out[0] + out[1] <= c[0])
+            if (c[1] - c[3] / 2 >= 0 && c[1] + c[3] / 2 <= c[0]) assertEquals(c[1], out[0] + out[1] / 2, 1.0)
+        }
+    }
+
     @Test fun eyePupilClamp() {
         val o = DoubleArray(2)
         AIEye.pupilOffset(0.0, 0.0, 60.0, 80.0, 10.0, o)
@@ -196,7 +216,7 @@ class AIThemeTests {
     // ---- Theme AI, motif neural, aurora, âm
 
     @Test fun aiTheme() {
-        assertEquals(KeyboardTheme.AI, KeyboardTheme.entries.last())
+        assertEquals(KeyboardTheme.TIME_OF_DAY.ordinal + 1, KeyboardTheme.AI.ordinal)
         val spec = KeyboardTheme.AI.spec!!
         assertTrue(KeyboardTheme.AI.isPlus)
         assertEquals("AI", spec.nameVi); assertEquals("AI", spec.nameEn); assertEquals("AI", L10nTable.EN["AI"])
@@ -263,7 +283,7 @@ class AIThemeTests {
             assertTrue("$k", a.size.toDouble() / KeySoundSynth.SAMPLE_RATE < 0.061)
             assertEquals("$k", golden[i], a.sumOf { abs(it).toDouble() }, 0.01)
         }
-        assertEquals(KeySoundStyle.AI, KeySoundStyle.entries.last())
+        assertEquals(KeySoundStyle.CHIP.ordinal + 1, KeySoundStyle.AI.ordinal)
         assertTrue(KeySoundStyle.AI in KeySoundStyle.PRESETS)
         assertTrue("ai" in KeySoundStyle.PRESET_IDS)
         assertEquals("AI synth", L10nTable.EN["Synth AI"])
