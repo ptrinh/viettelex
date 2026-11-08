@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,7 +32,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.viettelex.android.ime.KeyEffectView
+import com.viettelex.keyboard.BeatFlash
 import com.viettelex.keyboard.ComboMeter
+import com.viettelex.keyboard.DanceFloor
 import com.viettelex.keyboard.KeyEffect
 import com.viettelex.keyboard.KeyEffectBand
 import com.viettelex.keyboard.KeyEffectGate
@@ -102,57 +105,119 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
     }
 }
 
-/** Ô xem thử: nền theme + một phím "V" + overlay hiệu ứng thật (vẽ phím trước, hạt sau). */
+/**
+ * Kịch bản một lần chạm ô xem thử ([tap] = số lần đã chạm, từ 1) — = iOS KeyEffectPreviewScript. IME thật cấp chữ vừa
+ * ra, từ vừa chốt, khung phím cách, đích thanh gợi ý…; ô xem thử cấp TẤT CẢ mỗi lần chạm (mỗi hàm queue / lambda tự bỏ
+ * qua khi không phải kiểu của nó) ⇒ kiểu mới chỉ cần thêm đầu vào của mình vào đây (hoặc không cần gì).
+ */
+internal object KeyEffectPreviewScript {
+    const val EMOJI = "😂"                 // như vừa gõ "haha" + dấu cách
+    const val GLYPH = "ế"                  // l10n-skip (chữ mẫu: Chữ bay / Token AI)
+    val TONE = ToneFx.SAC
+    /** Từ khoá: lần lẻ "tết" (pháo + lì xì), lần chẵn "yêu" (tim). */
+    fun keyword(tap: Int): KeywordKind = if (tap % 2 == 1) KeywordKind.TET else KeywordKind.LOVE
+    /** Số phím của một "tràng gõ nhanh" (mức combo cao nhất). */
+    fun burst(e: KeyEffect): Int = when (e) {
+        KeyEffect.COMBO, KeyEffect.SHAKE, KeyEffect.SEA, KeyEffect.DANCEFLOOR -> ComboMeter.THRESHOLDS[2]
+        else -> 1
+    }
+    /** Sàn nhảy LED: lần chạm chẵn = một nhịp phím cách (flash nền, cổng ≤ 3 lần / giây vẫn áp). */
+    fun beat(e: KeyEffect, tap: Int): Boolean = e == KeyEffect.DANCEFLOOR && tap % 2 == 0
+    /** Phím hàng xóm giả quanh phím V (Sàn nhảy LED). */
+    fun ghostKeys(e: KeyEffect): Boolean = e == KeyEffect.DANCEFLOOR
+    /** Ô hàng xóm (i, j) theo lưới DanceFloor: trái / phải cùng hàng + ba phím hàng trên. */
+    val GHOST_CELLS = arrayOf(intArrayOf(-1, 0), intArrayOf(1, 0), intArrayOf(-1, -1), intArrayOf(0, -1), intArrayOf(1, -1))
+}
+
+/**
+ * Ô xem thử: nền theme + một phím "V" + overlay hiệu ứng thật (vẽ phím trước, hạt sau). Đầu vào giả theo
+ * [KeyEffectPreviewScript]; bắn NGAY (không đợi lượt kế như IME — ô xem thử không chèn chữ).
+ */
 @SuppressLint("ViewConstructor")
 internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, context.resources.displayMetrics.density) {
     private val d = context.resources.displayMetrics.density
     private val keyPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val ghostPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; textSize = 20 * d }
     private val keyRect = RectF()
+    private val ghostRect = RectF()
     private var bg = 0
     private var lastPlay = 0
+    /** Sàn nhảy LED: flash nền (= BeatFlashView của IME) — cổng dùng chung với nhịp nháy cả bàn phím. */
+    private val beatGate = BeatFlash.Gate()
+    private var beatStart = Long.MIN_VALUE / 2
+    private var beatColor = 0
+    private var beatN = 0
 
     fun update(e: KeyEffect, p: ThemePalette, play: Int) {
         bg = p.bg; keyPaint.color = p.keyFill; textPaint.color = p.ink
+        ghostPaint.color = (p.keyFill and 0x00FFFFFF) or (0x8C shl 24)
         configure(e, p.action, p.keyFill, p.isDark)
         // Rung combo: rung cả ô xem thử (như hàng phím); Laser: "phím cách" giả ở góc dưới trái ô.
         shakeTarget = if (e == KeyEffect.SHAKE) this else null
-        spaceFrame = if (e == KeyEffect.LASER) { out -> out.set(6 * d, height - 10 * d, width * 0.3f, height - 2 * d); true } else null
+        spaceFrame = { out -> out.set(6 * d, height - 10 * d, maxOf(width * 0.3f, 7 * d), height - 2 * d); true }
         // Token AI: "thanh gợi ý" = mép trên ô xem thử.
-        tokenTarget = if (e == KeyEffect.TOKENS) { out -> out[0] = width / 2f; out[1] = 10 * d; true } else null
+        tokenTarget = { out -> out[0] = width / 2f; out[1] = 10 * d; true }
+        flashGate = if (e == KeyEffect.DANCEFLOOR) beatGate else null
         invalidate()
         if (play != lastPlay) {
             lastPlay = play
-            if (width > 0) playOnce() else post { playOnce() }
+            if (width > 0) playTap(play) else post { playTap(play) }
         }
     }
 
-    /** Một lần xem thử: emoji như vừa gõ "haha" + dấu cách; combo = một tràng phím nhanh (mức lửa cao nhất). */
-    private fun playOnce() {
-        val x = width / 2f; val y = height - 8 * d - 21 * d
-        when (effect) {
-            KeyEffect.EMOJIWORD -> queueEmoji("😂")
-            KeyEffect.COMBO, KeyEffect.SHAKE, KeyEffect.SEA -> repeat(ComboMeter.THRESHOLDS[2]) { burst(x, y, 34 * d, 42 * d); flush() }
-            KeyEffect.PLASMA -> { burst(width * 0.15f, 18 * d); flush(); burst(width * 0.85f, 26 * d); flush() }
-            KeyEffect.TONE -> queueTone(ToneFx.SAC)
-            KeyEffect.KEYWORD -> queueKeyword(KeywordKind.TET)
-            KeyEffect.LETTERS -> queueLetter("ế")   // l10n-skip (chữ mẫu, không phải câu chữ)
-            KeyEffect.TOKENS -> queueToken("ế")   // l10n-skip (chữ mẫu, không phải câu chữ)
-            else -> {}
-        }
-        burst(x, y, 34 * d, 42 * d)
+    private fun keyCx() = width / 2f
+    private fun keyCy() = height - 8 * d - 21 * d
+
+    /** Một lần xem thử: cấp mọi đầu vào giả rồi "bấm" phím V. */
+    fun playTap(tap: Int) {
+        if (width <= 0 || height <= 0) return
+        val e = effect
+        val x = keyCx(); val y = keyCy(); val w = 34 * d; val h = 42 * d
+        if (e == KeyEffect.PLASMA) { burst(width * 0.15f, 18 * d); flush(); burst(width * 0.85f, 26 * d); flush() }
+        repeat(KeyEffectPreviewScript.burst(e) - 1) { burst(x, y, w, h); flush() }
+        queueEmoji(KeyEffectPreviewScript.EMOJI)
+        queueTone(KeyEffectPreviewScript.TONE)
+        queueKeyword(KeyEffectPreviewScript.keyword(tap))
+        queueLetter(KeyEffectPreviewScript.GLYPH)
+        queueToken(KeyEffectPreviewScript.GLYPH)
+        burst(x, y, w, h)
+        flush()
+        if (KeyEffectPreviewScript.beat(e, tap)) kickBeat()
     }
+
+    private fun kickBeat() {
+        val now = SystemClock.uptimeMillis()
+        if (!beatGate.trigger(now / 1000.0)) return
+        beatColor = BeatFlash.tint(beatN++); beatStart = now
+        postInvalidateOnAnimation()
+    }
+
+    /** Test: độ đục flash nền lúc [now]. */
+    internal fun beatAlpha(now: Long): Double = BeatFlash.alpha((now - beatStart) / 1000.0)
 
     override fun onDraw(canvas: Canvas) {
         canvas.drawColor(bg)
+        val now = SystemClock.uptimeMillis()
+        val ba = beatAlpha(now)
+        if (ba > 0) canvas.drawColor(((ba * 255).toInt().coerceIn(0, 255) shl 24) or (beatColor and 0xFFFFFF))
         // Matrix / Mực loang / Sóng nước: dưới phím mẫu (như bàn phím thật); còn lại: trên.
         val below = effect.band == KeyEffectBand.BELOW_KEYS
         var running = below && drawEffects(canvas)
         val w = 34 * d; val h = 42 * d
         keyRect.set((width - w) / 2f, height - h - 8 * d, (width + w) / 2f, height - 8 * d)
+        if (KeyEffectPreviewScript.ghostKeys(effect)) {
+            val u = DanceFloor.unit(w.toDouble(), h.toDouble()).toFloat()
+            for (c in KeyEffectPreviewScript.GHOST_CELLS) {
+                val p = DanceFloor.center(c[0], c[1], keyRect.centerX().toDouble(), keyRect.centerY().toDouble(), w.toDouble(), h.toDouble())
+                val gw = if (c[0] == 0) w else u
+                ghostRect.set(p[0].toFloat() - gw / 2, p[1].toFloat() - h / 2, p[0].toFloat() + gw / 2, p[1].toFloat() + h / 2)
+                canvas.drawRoundRect(ghostRect, 6 * d, 6 * d, ghostPaint)
+            }
+        }
         canvas.drawRoundRect(keyRect, 6 * d, 6 * d, keyPaint)
         canvas.drawText("V", keyRect.centerX(), keyRect.centerY() + textPaint.textSize / 3f, textPaint)
-        if (!below) running = drawEffects(canvas)
-        if (running) postInvalidateOnAnimation()
+        if (!below) running = drawEffects(canvas) || running
+        if (running || ba > 0 || now - beatStart < (BeatFlash.DURATION * 1000).toLong()) postInvalidateOnAnimation()
     }
 }

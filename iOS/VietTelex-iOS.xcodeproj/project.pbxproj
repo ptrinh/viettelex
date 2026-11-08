@@ -361,11 +361,13 @@
 		A502757FCDB7FBD09FE8CD1D /* ClipboardPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B42E3B1AEEBA29C8D4693932 /* ClipboardPanel.swift */; };
 		A5D63AF8B31BCC530FDD52B0 /* SuggestTrigramTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61FEE31733E89BE49DAF48E /* SuggestTrigramTests.swift */; };
 		A612DF363A05FED5AFB1C7B4 /* PlusConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0F66BB47D978962BA91434 /* PlusConfig.swift */; };
+		A66D598A28C65DC830CE36D7 /* KeyEffectPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD4E9F6CE4AEFCD787BC3BF /* KeyEffectPreview.swift */; };
 		A670AECC0F777A4574F646C8 /* EnglishNext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40C99F4D7F9B60E0493E3E16 /* EnglishNext.swift */; };
 		A6E141B35CAAB29FD01AC1DF /* KeyboardBuddyExtrasTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A477E94A632702FD5B83824 /* KeyboardBuddyExtrasTests.swift */; };
 		A755E9F920E0111F7E89F9DC /* SuggestionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A392056B54E623933F9CD3 /* SuggestionSupport.swift */; };
 		A7D0016FA22EF6C3EE8E20CB /* TextToolRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EAE46AEF3EF71266329303C /* TextToolRunner.swift */; };
 		A8202055F6F4248A5DF3B02C /* ClipboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A7C16DB3F7238439276C90B /* ClipboardTests.swift */; };
+		A8D01039B8A17E5F7671E959 /* KeyEffectPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD4E9F6CE4AEFCD787BC3BF /* KeyEffectPreview.swift */; };
 		A8E752D70EF6926F03C6E45C /* EmojiSearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B65EEFA3CD83560C2E9D86B /* EmojiSearchBar.swift */; };
 		A9B5CB329E25C3281FFDE6CC /* KeyAlternatesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20B596D225BB513FA414DB3 /* KeyAlternatesTests.swift */; };
 		AAD686F0EFFB0502D1BC32E9 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BDB49FABB2F78D2A96902FA /* L10n.swift */; };
@@ -400,6 +402,7 @@
 		B78AACD386D18D38FBC73712 /* lexend.ttf in Resources */ = {isa = PBXBuildFile; fileRef = ED375EC0A76A9B50C92DE443 /* lexend.ttf */; };
 		B7ABF18E21AA806DFDB67928 /* NumberChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DF8BE49B914D1B4B31116F3 /* NumberChips.swift */; };
 		B7B107E0D177438E5EACCFAC /* SlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB94721D99CEB3A5D2CA8A8B /* SlowTests.swift */; };
+		B84C01B0DF80B00EE48C9868 /* KeyEffectPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD4E9F6CE4AEFCD787BC3BF /* KeyEffectPreview.swift */; };
 		B87943E26F538BEF419FBEC4 /* BackupFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02937CC02BE49C39A5A7933D /* BackupFormat.swift */; };
 		B89ADE1402279BAFC8E73951 /* pixel-key-cases.txt in Resources */ = {isa = PBXBuildFile; fileRef = AB18A03E8841E48AA6919F8A /* pixel-key-cases.txt */; };
 		B92E282E8D0ABE8BEBD693E7 /* suggest-trigram-parity.txt in Resources */ = {isa = PBXBuildFile; fileRef = C39CAE56C7A6C95E09637270 /* suggest-trigram-parity.txt */; };
@@ -490,6 +493,7 @@
 		E6D7D2C5B7DEFCC7FFEDEA63 /* DynamicSnippets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45FD7A68B46DF76459196CD4 /* DynamicSnippets.swift */; };
 		E74F85FA5D7275FFA0E8F759 /* NumberRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8993F83A60C653C26799EC /* NumberRowTests.swift */; };
 		E83BC0DEF991CE5003E3E36D /* AIAssistLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB7D7BF0F94DBAD0C6F2A2F /* AIAssistLoader.swift */; };
+		E85D2C0EF200DB299E7B01D9 /* KeyEffectPreviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94DDD159471700537F5FB4D3 /* KeyEffectPreviewTests.swift */; };
 		E8C8BDC1DF2A4D93400ED41E /* AIProofread.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D148C459EDB5655C7C98BE2 /* AIProofread.swift */; };
 		E8DB9BE35A9F0D3CE0E869E6 /* FutoSwipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76444B4521814651DA2C026A /* FutoSwipe.swift */; };
 		E971817D1FA24FB167538336 /* SwipeRevise.swift in Sources */ = {isa = PBXBuildFile; fileRef = A93B754A244411A21FFA6EA0 /* SwipeRevise.swift */; };
@@ -748,6 +752,7 @@
 		6C7EDE7A95356B8F9043D32F /* vnlm.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = vnlm.bin; sourceTree = "<group>"; };
 		6C928B7D91A4C54D1642E70F /* TouchTargetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchTargetTests.swift; sourceTree = "<group>"; };
 		6CD1ABEB72F0DCCF278A46E7 /* EmojiSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSearch.swift; sourceTree = "<group>"; };
+		6CD4E9F6CE4AEFCD787BC3BF /* KeyEffectPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyEffectPreview.swift; sourceTree = "<group>"; };
 		6CFAD5C6AC4A874128E68CF8 /* KeyboardStartupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardStartupTests.swift; sourceTree = "<group>"; };
 		6E5245DDF6AEAD53DBD8A504 /* swipe-revise.tsv */ = {isa = PBXFileReference; path = "swipe-revise.tsv"; sourceTree = "<group>"; };
 		6EAE46AEF3EF71266329303C /* TextToolRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextToolRunner.swift; sourceTree = "<group>"; };
@@ -799,6 +804,7 @@
 		915FC9A836F82E797FA0AEA1 /* vnlexicon.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = vnlexicon.bin; sourceTree = "<group>"; };
 		939D0D4BB91E134BA501CBFF /* StockSizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockSizeTests.swift; sourceTree = "<group>"; };
 		941319FB73DCEB18DDE2E232 /* KeyboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardView.swift; sourceTree = "<group>"; };
+		94DDD159471700537F5FB4D3 /* KeyEffectPreviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyEffectPreviewTests.swift; sourceTree = "<group>"; };
 		9556E09A2E0A2C9C3E9D1CBD /* KeyCommandGesture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCommandGesture.swift; sourceTree = "<group>"; };
 		95E0A5B88D8B8B98DFC5583D /* frequency-english-parity.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "frequency-english-parity.txt"; sourceTree = "<group>"; };
 		95F2B6D4AD796E9D33B623BA /* DomainPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainPopup.swift; sourceTree = "<group>"; };
@@ -1250,6 +1256,7 @@
 				A087DB1153D19136851D711B /* KeyboardThemeTests.swift */,
 				66C737100000EEDE34E2CBC1 /* KeyCommandGestureTests.swift */,
 				5D0B60123ABBD5FE60D9234A /* KeyCommitQueueTests.swift */,
+				94DDD159471700537F5FB4D3 /* KeyEffectPreviewTests.swift */,
 				580B8F2122EE28753CB78353 /* KeyEffectTests.swift */,
 				491E9FDC24E9CC711FC62BD8 /* KeyGeometryTests.swift */,
 				C6422EBB065177CD5822871E /* KeyGridTests.swift */,
@@ -1457,6 +1464,7 @@
 				853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */,
 				9556E09A2E0A2C9C3E9D1CBD /* KeyCommandGesture.swift */,
 				A8F1F925F053BA5BF36C118C /* KeyCommitQueue.swift */,
+				6CD4E9F6CE4AEFCD787BC3BF /* KeyEffectPreview.swift */,
 				D464912521BAEE32297B4D44 /* KeyEffects.swift */,
 				DBCB7D7DAA868C8FB4B96C87 /* KeyGeometry.swift */,
 				2858993AEE798E0B36D6B495 /* KeyGrid.swift */,
@@ -1855,6 +1863,7 @@
 				1F4FDF0380687782A44AFAD3 /* KeyAlternates.swift in Sources */,
 				D1D473B187EF1FC2AC8A8420 /* KeyCommandGesture.swift in Sources */,
 				6883E23E2D9C7A63C862B4AC /* KeyCommitQueue.swift in Sources */,
+				B84C01B0DF80B00EE48C9868 /* KeyEffectPreview.swift in Sources */,
 				E373E5A2EFC2168C0356254B /* KeyEffects.swift in Sources */,
 				96D7630D602618705D221481 /* KeyGeometry.swift in Sources */,
 				13807023493A840F2568F85B /* KeyGrid.swift in Sources */,
@@ -1950,6 +1959,7 @@
 				752FB9D5D429DB659988F787 /* ICloudSync.swift in Sources */,
 				AFCA6750D4840FC59397D082 /* IntelligenceEngine.swift in Sources */,
 				74A2E4103754E738E797B397 /* KeyEffectPickerView.swift in Sources */,
+				A8D01039B8A17E5F7671E959 /* KeyEffectPreview.swift in Sources */,
 				2B3FFE59BF7CA517590DB8A9 /* KeyEffects.swift in Sources */,
 				F8600BEC357C950EB10B41E2 /* KeyGeometry.swift in Sources */,
 				FDD2D7137E50BB3DDBC3CAE4 /* KeyHaptics.swift in Sources */,
@@ -2102,6 +2112,8 @@
 				6B50BDCB45FD66E510DE5BC3 /* KeyCommandGestureTests.swift in Sources */,
 				AAEAE3FC59DE30D707662F4F /* KeyCommitQueue.swift in Sources */,
 				D97E377C61E596A589464160 /* KeyCommitQueueTests.swift in Sources */,
+				A66D598A28C65DC830CE36D7 /* KeyEffectPreview.swift in Sources */,
+				E85D2C0EF200DB299E7B01D9 /* KeyEffectPreviewTests.swift in Sources */,
 				3FDC40DF237F16A813EF1EA4 /* KeyEffectTests.swift in Sources */,
 				69CFB39387EBD51220B02EE6 /* KeyEffects.swift in Sources */,
 				4569D97A1018CAFF39BC9E3D /* KeyGeometry.swift in Sources */,
