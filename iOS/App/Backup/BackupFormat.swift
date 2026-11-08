@@ -176,6 +176,8 @@ enum BackupSettings {
         Spec(key: "systemBackdropTimeOfDay", kind: .bool(false)),
         Spec(key: "systemBackdropAi", kind: .bool(false)),
         Spec(key: "systemBackdropNightclub", kind: .bool(false)),
+        Spec(key: "systemBackdropMo", kind: .bool(false)),
+        Spec(key: "systemBackdropStainedGlass", kind: .bool(false)),
         // Ngôn ngữ giao diện app (L10n) — mặc định "vi", không theo máy.
         Spec(key: "uiLanguage", kind: .string("vi", ["vi", "en"])),
         // Dịch trên máy (Plus): ngôn ngữ đích — chỉ iOS dùng.

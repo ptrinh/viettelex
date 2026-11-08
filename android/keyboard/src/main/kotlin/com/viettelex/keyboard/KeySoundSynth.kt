@@ -46,7 +46,11 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
     /** Theme "AI" (11/2026): "blip" synth mềm — sine trượt lên D6 → G6 + nốt A6 khẽ chen — công thức đầu file Swift. */
     AI("ai", "Synth AI"), // l10n-key
     /** Theme "Neon Night Club" (11/2026): nhịp club — chữ = hi-hat, xoá = kick, chức năng = kick + hat ([KeySoundSynth.clubRecipe]). */
-    CLUB("club", "Nhịp club"); // l10n-key
+    CLUB("club", "Nhịp club"), // l10n-key
+    /** Theme "Gõ mõ" (11/2026): mõ gỗ "cốc" ấm, rỗng ([KeySoundSynth.MO_RECIPE]). */
+    MO("mo", "Mõ gỗ"), // l10n-key
+    /** Theme "Kính màu" (11/2026): chuông nhỏ mềm, vài hoạ âm phi điều hoà ([KeySoundSynth.BELL_RECIPE]). */
+    BELL("bell", "Chuông nhỏ"); // l10n-key
 
     /** true ⇒ phát qua SoundPool riêng; [SYSTEM] ⇒ playSoundEffect, không dựng gì. */
     val usesPool: Boolean get() = this != SYSTEM
@@ -56,7 +60,7 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
         val DEFAULT = SUBTLE
         /** Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức [KeySoundSynth.baseRecipe]. */
         val PRESETS = listOf(SUBTLE, WOOD, MECHANICAL, TYPEWRITER, BUBBLE, ROCK, POP, WATER, VINTAGE, PHAO, JINGLE, SCIFI,
-            TRONG, BOO, BOP, CHIP, AI, CLUB)
+            TRONG, BOO, BOP, CHIP, AI, CLUB, MO, BELL)
         /** Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta). */
         val ALL_PRESETS = PRESETS + PIANO + DANTRANH + GUITAR
         /**
@@ -170,7 +174,21 @@ object KeySoundSynth {
                 t(0.38, 1760.0, 1760.0, tau = 0.012, delay = 0.014)),
             emptyList(), 0.002, 0.05, 5000.0, 0.36)
         KeySoundStyle.CLUB -> clubRecipe(Kind.LETTER)
+        KeySoundStyle.MO -> MO_RECIPE
+        KeySoundStyle.BELL -> BELL_RECIPE
     }
+
+    /** Mõ gỗ (theme Gõ mõ) — công thức + lý do: iOS KeySoundSynth.moRecipe (checksum chung). */
+    val MO_RECIPE = Recipe(
+        listOf(t(1.0, 860.0, 820.0, glide = 0.004, tau = 0.028), t(0.55, 410.0, 400.0, glide = 0.006, tau = 0.040),
+            t(0.12, 860 * 2.3, 820 * 2.3, glide = 0.004, tau = 0.006)),
+        listOf(n(0.35, hp = 600.0, lp = 1000.0, tau = 0.0025)), 0.0006, 0.12, 2600.0, 0.50)
+
+    /** Chuông nhỏ (theme Kính màu) — công thức + lý do: iOS KeySoundSynth.bellRecipe (checksum chung). */
+    val BELL_RECIPE = Recipe(
+        listOf(t(1.0, 1568.0, 1568.0, tau = 0.11), t(0.35, 1572.0, 1572.0, tau = 0.12), t(0.30, 1568 * 2.76, 1568 * 2.76, tau = 0.06),
+            t(0.12, 1568 * 5.4, 1568 * 5.4, tau = 0.025), t(0.25, 784.0, 784.0, tau = 0.14)),
+        emptyList(), 0.0015, 0.36, 5000.0, 0.40)
 
     /**
      * Nhịp club (theme Neon Night Club) — MỖI LOẠI PHÍM một tiếng riêng (không theo luật cao độ ×0.86 / ×0.74): chữ = hi-hat
@@ -280,6 +298,9 @@ object KeySoundSynth {
     fun seed(s: KeySoundStyle, k: Kind): Int =
         // Nhịp club: seed CỐ ĐỊNH ("club"), không theo vị trí — checksum không đổi khi nhánh khác thêm kiểu trước nó.
         if (s == KeySoundStyle.CLUB) 0x636C7562 xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
+        // Mõ gỗ / Chuông nhỏ: seed cố định ("momo" / "bell") — cùng lý do.
+        else if (s == KeySoundStyle.MO) 0x6D6F6D6F xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
+        else if (s == KeySoundStyle.BELL) 0x62656C6C xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
         else (0x9E3779B9.toInt() * (s.ordinal + 1)) xor (0x85EBCA6B.toInt() * (k.ordinal + 1))
 
     fun samples(s: KeySoundStyle, k: Kind): FloatArray = render(recipe(s, k), seed(s, k))

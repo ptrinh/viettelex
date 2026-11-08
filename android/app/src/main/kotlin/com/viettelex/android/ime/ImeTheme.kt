@@ -160,6 +160,8 @@ class ImeTheme(ctx: Context, val settings: ThemeSettings = ThemeSettings(), wall
 
     /** Dáng phím điểm ảnh ("keyShape":"pixel", [com.viettelex.keyboard.PixelKeys]) — theme khác false (đường vẽ cũ). */
     val pixelKeys: Boolean = keyStyle.keyShape == com.viettelex.keyboard.PixelKeys.SHAPE
+    /** Dáng phím ô kính màu ("keyShape":"glass", [com.viettelex.keyboard.GlassKeys]) — theme khác false. */
+    val glassKeys: Boolean = keyStyle.keyShape == com.viettelex.keyboard.GlassKeys.SHAPE
     /** Phông thanh gợi ý: phông điểm ảnh khi theme dùng nó (null = phông hệ thống như cũ). */
     val stripTypeface: Typeface? get() =
         if (keyStyle.font == KeyLabelFont.PIXEL && keyStyle.assets.font == null) keyTypeface else null

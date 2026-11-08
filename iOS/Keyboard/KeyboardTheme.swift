@@ -280,6 +280,11 @@ enum KeyboardTheme: String, CaseIterable {
     // Neon Night Club (11/2026, Plus, THÊM CUỐI): nền đen, phím tối viền ống neon hồng + chữ chức năng lục lam, Đèn rọi
     // trên ảnh nền ("photoFx":"spotlight" — NightClub.swift), hiệu ứng Sàn nhảy LED, âm "club", quả cầu disco.
     case nightclub
+    // Gõ mõ (11/2026, Plus, THÊM CUỐI): gỗ ấm + nhấn nghệ / vàng, hoạ tiết sen mờ, âm "mo" (mõ gỗ), hiệu ứng Công đức
+    // ("+1 công đức" bay lên + đếm công đức trong ngày — MeritGlass.swift). Chỉ biểu tượng, không hình tượng tôn giáo.
+    // Kính màu (11/2026, Plus, THÊM CUỐI): phím ô kính ruby / lam ngọc / lục bảo / hổ phách viền chì ("keyShape":"glass" —
+    // GlassKeys), hiệu ứng Nắng qua kính, âm "bell" (chuông nhỏ). Chỉ hoa văn kính + tia nắng.
+    case mo, stainedGlass
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -318,6 +323,8 @@ enum KeyboardTheme: String, CaseIterable {
         case .timeOfDay: return L("Theo giờ")
         case .ai: return L("AI")
         case .nightclub: return L("Neon Night Club")
+        case .mo: return L("Gõ mõ")
+        case .stainedGlass: return L("Kính màu")
         }
     }
 
@@ -353,7 +360,8 @@ enum KeyboardTheme: String, CaseIterable {
              .mole,
              .pixel, .sea, .timeOfDay,
              .ai,
-             .nightclub: return true
+             .nightclub,
+             .mo, .stainedGlass: return true
         }
     }
 
@@ -819,7 +827,8 @@ enum ThemePicker {
     struct Section { let title: String; let themes: [KeyboardTheme] }
     /// Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng
     /// không có trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. Android ThemePicker.INTERACTIVE_ORDER y hệt.
-    static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar"]
+    static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "mo",
+                                    "stainedGlass"]
 
     /// Thứ tự lưới (thuần): miễn phí (thứ tự khai báo) → tương tác (theo `interactiveOrder`) → còn lại (thứ tự khai
     /// báo). Theme miễn phí có nhãn vẫn ở nhóm miễn phí. Android `ThemePicker.groups` cùng kết quả (fixture "picker").

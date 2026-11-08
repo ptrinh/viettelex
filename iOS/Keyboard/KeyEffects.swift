@@ -36,6 +36,9 @@ enum KeyEffect: String, CaseIterable {
     case tokens
     // Theme Neon Night Club (11/2026): Sàn nhảy LED — phím vừa bấm + các phím quanh thắp neon thành vòng vuông lan ra.
     case dancefloor
+    // Theme Gõ mõ / Kính màu (11/2026): Công đức ("+1 công đức" bay lên + đếm trong ngày), Nắng qua kính (ô kính sáng
+    // lên + tia nắng chéo, gõ dồn ⇒ ánh nến mép dưới) — MeritGlass.swift.
+    case merit, sunlight
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -78,6 +81,8 @@ enum KeyEffect: String, CaseIterable {
         case .sea: return L("Biển")
         case .tokens: return L("Token AI")
         case .dancefloor: return L("Sàn nhảy LED")
+        case .merit: return L("Công đức")
+        case .sunlight: return L("Nắng qua kính")
         }
     }
 
@@ -1780,6 +1785,27 @@ final class KeyEffectOverlay: UIView {
     private var flickerGate = DanceFloor.FlickerGate()
     /// Sàn nhảy LED: cổng an toàn chung với lớp flash phím cách (BeatFlashView.gate). nil ⇒ chỉ FlickerGate.
     var flashGate: BeatFlash.Gate?
+    // Công đức / Nắng qua kính (MeritGlass.swift) — dựng lười ở lần bấm đầu; kiểu khác ⇒ nil (0 chi phí).
+    private var merit: MeritLayers?
+    private var sunlight: SunlightLayers?
+    /// Công đức: bộ đếm trong ngày (RAM) — giữ qua rebuild (đổi màu), chỉ nạp từ `meritStore` khi gắn kho.
+    private var meritCounter = MeritCounter()
+    /// Lệch múi giờ (giây) đọc MỘT lần lúc gắn kho / hiện bàn phím — mỗi phím chỉ cộng trừ số.
+    private var meritOffset = TimeZone.current.secondsFromGMT()
+    /// Công đức: nơi lưu bộ đếm (App Group) — KeyboardView đặt khi kiểu là Công đức; nil ⇒ chỉ đếm trong RAM (xem thử).
+    var meritStore: MeritStore? {
+        didSet {
+            guard let st = meritStore, effect == .merit else { return }
+            let v = st.load()
+            meritCounter = MeritCounter(day: v.day, count: v.count)
+            meritOffset = TimeZone.current.secondsFromGMT()
+            refreshMeritCounter()
+        }
+    }
+    #if DEBUG
+    /// Test: giờ "bây giờ" (epoch giây) cho bộ đếm công đức — nil = Date().
+    var debugMeritEpoch: (() -> Double)?
+    #endif
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -1849,7 +1875,8 @@ final class KeyEffectOverlay: UIView {
         rebuild()
     }
 
-    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor]
+    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor,
+                                          .merit, .sunlight]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -1963,12 +1990,15 @@ final class KeyEffectOverlay: UIView {
         }
         CATransaction.commit()
         if effect == .matrix, matrixClock.running, bounds.size != matrixBuiltFor { restartMatrixColumns() }
+        if effect == .merit { refreshMeritCounter() }
     }
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
         // Bàn phím ẩn ⇒ Matrix dừng hẳn (không còn animation nào).
-        if window == nil { halt() }
+        if window == nil { halt() } else if effect == .merit {
+            DispatchQueue.main.async { [weak self] in self?.refreshMeritCounter() }   // phím cách đã layout
+        }
     }
 
     #if DEBUG
@@ -2027,6 +2057,10 @@ final class KeyEffectOverlay: UIView {
     /// Sàn nhảy LED: gốc các chùm ô đã dựng (pool) + lớp nháy cả bàn phím (nil = chưa nháy lần nào).
     var debugDanceRoots: [CALayer] { dances.map(\.root) }
     var debugFloorFlicker: CALayer? { floorFlicker?.root }
+    /// Công đức / Nắng qua kính: lớp đã dựng (nil = chưa bấm lần nào / kiểu khác) + bộ đếm.
+    var debugMerit: MeritLayers? { merit }
+    var debugMeritCounter: MeritCounter { meritCounter }
+    var debugSunlight: SunlightLayers? { sunlight }
     #else
     static let drawsOffscreen = false
     #endif
@@ -2044,6 +2078,11 @@ final class KeyEffectOverlay: UIView {
         case .sand: fireSand(c, now: now, media: media)
         case .sea: fireSea(c, now: now, media: media)
         case .dancefloor: fireDance(r, now: now, media: media)
+        case .merit: fireMerit(r, now: now, media: media)
+        case .sunlight:
+            let s = sunlight ?? SunlightLayers(host: layer)
+            sunlight = s
+            s.fire(key: r, bounds: bounds, now: now, media: media)
         case .flash: fireFlash(now: now, media: media)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)
@@ -2417,6 +2456,43 @@ final class KeyEffectOverlay: UIView {
         plasma.reset()
         clearSand()                       // ẩn bàn phím ⇒ đống cát về 0
         haltSea()
+        sunlight?.halt()
+        persistMerit(force: true)         // ẩn bàn phím ⇒ ghi nốt công đức chưa lưu
+    }
+
+    // MARK: Công đức
+
+    private var meritEpoch: Double {
+        #if DEBUG
+        if let f = debugMeritEpoch { return f() }
+        #endif
+        return Date().timeIntervalSince1970
+    }
+
+    private func fireMerit(_ r: CGRect, now: CFTimeInterval, media: CFTimeInterval) {
+        let m = merit ?? MeritLayers(host: layer)
+        merit = m
+        m.fire(key: r, bounds: bounds, now: now)
+        let day = MeritCounter.dayIndex(epoch: meritEpoch, utcOffset: meritOffset)
+        if meritCounter.press(day: day, at: media) { meritStore?.save(meritCounter.day, meritCounter.count) }
+        m.showCounter(meritCounter.count, anchor: laserOrigin?())
+    }
+
+    private func persistMerit(force: Bool) {
+        guard effect == .merit, let st = meritStore, meritCounter.takeDirty() || !force else { return }
+        st.save(meritCounter.day, meritCounter.count)
+    }
+
+    /// Nhãn đếm trên phím cách theo khung hiện tại (hiện / đổi bố cục) — kiểu khác ⇒ 0 việc.
+    private func refreshMeritCounter() {
+        guard effect == .merit, meritStore != nil else { return }
+        let m = merit ?? MeritLayers(host: layer)
+        merit = m
+        let day = MeritCounter.dayIndex(epoch: meritEpoch, utcOffset: meritOffset)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        m.showCounter(meritCounter.today(day), anchor: laserOrigin?())
+        CATransaction.commit()
     }
 
     // MARK: Đợt 3 — Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá, Chữ bay, Hạt cát
@@ -3440,6 +3516,8 @@ final class KeyEffectOverlay: UIView {
         for g in grains { g.removeFromSuperlayer() }
         for d in dances { d.root.removeFromSuperlayer() }
         floorFlicker?.root.removeFromSuperlayer()
+        merit?.remove(); merit = nil
+        sunlight?.remove(); sunlight = nil
         sandPile?.removeFromSuperlayer()
         for w in seaWaves { w.root.removeFromSuperlayer() }
         seaFish?.removeFromSuperlayer()

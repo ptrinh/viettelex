@@ -176,6 +176,7 @@
 		4CD19AC18B15C6AE6C859141 /* FullPackSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D188EC4E6781410050CABC5D /* FullPackSnapshotTests.swift */; };
 		4D16B4C7A816CF7B417D47E5 /* RetroEnglishUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45174CB35A9FB727F1BF5F4F /* RetroEnglishUI.swift */; };
 		4DD222306E0ED8EAA1F4DD6C /* swipe-shortcuts.tsv in Resources */ = {isa = PBXBuildFile; fileRef = 1F5F701EEDA1A9A65CB97DCF /* swipe-shortcuts.tsv */; };
+		4E294C1C6A28B1015B448332 /* MeritGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B294619B1349B1116862526 /* MeritGlass.swift */; };
 		4E60808450DA80CBC7DEF891 /* ios-mau-cau.yml in Resources */ = {isa = PBXBuildFile; fileRef = E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */; };
 		4E871644F8FD8B5DEF5D18C5 /* CompositionSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BDEAB6EAD0F1EA689B388A /* CompositionSync.swift */; };
 		4F177B14857E493A92E95B00 /* PlaneCacheLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EAFABBBF6544841D633BFD9 /* PlaneCacheLayoutTests.swift */; };
@@ -376,6 +377,7 @@
 		AC5A40141A59AD642474D654 /* buddy-chick-v2.png in Resources */ = {isa = PBXBuildFile; fileRef = 3709709ACAA431BAEAEDA597 /* buddy-chick-v2.png */; };
 		AC6E9978B1D5F292B09158AE /* KeySoundTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8B6F1BC1B564638DA93D085 /* KeySoundTests.swift */; };
 		AD67BC077725334F09B0357B /* SwipeTyping.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BA79FCDFB7209A8D1C65B0 /* SwipeTyping.swift */; };
+		ADD40A7393F6B610F37C4C4E /* MeritGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B294619B1349B1116862526 /* MeritGlass.swift */; };
 		ADFABDEFCF110F9344626A54 /* SwipeRevise.swift in Sources */ = {isa = PBXBuildFile; fileRef = A93B754A244411A21FFA6EA0 /* SwipeRevise.swift */; };
 		AE8C8BFF9AFC39E140C7C0DA /* EnglishNext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40C99F4D7F9B60E0493E3E16 /* EnglishNext.swift */; };
 		AEB26295D146F323D1A735AE /* AIAssistLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB7D7BF0F94DBAD0C6F2A2F /* AIAssistLoader.swift */; };
@@ -453,6 +455,7 @@
 		D45BA551FBF05D36CED8D449 /* SwipeLexicon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3994C0C17115101811283049 /* SwipeLexicon.swift */; };
 		D4DEA988483DB59F683B8407 /* EngineBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AE58D76A8127D641A2AF62 /* EngineBridgeTests.swift */; };
 		D59FEC004410CCD1216A4438 /* PasteOfferOnce.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CD24A88B2F680A535A339CC /* PasteOfferOnce.swift */; };
+		D5E86045895AFF1B3F278F8B /* MeritGlassTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE3EC16868FC85A6414BC6C /* MeritGlassTests.swift */; };
 		D652DD5E0514F42EB5E7989A /* ClipboardHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = C23B10293CBF99CC16B1E908 /* ClipboardHistory.swift */; };
 		D69BE9A295DEC8D5C42B587F /* ThemeSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA49BF61252BA33DE0B264E1 /* ThemeSpec.swift */; };
 		D6B834245592A77251E351F6 /* EmojiAtlasBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 818AAEF3703366E38E67813C /* EmojiAtlasBuilder.swift */; };
@@ -627,6 +630,7 @@
 		0C290F16D4A2A71703AFCDE2 /* SpaceLogoEN@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "SpaceLogoEN@3x.png"; sourceTree = "<group>"; };
 		0D77A862B4CBC51471E43C21 /* KeyLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyLayout.swift; sourceTree = "<group>"; };
 		0DBDDC2765D27AF7C83556EE /* KeyboardHeightTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardHeightTests.swift; sourceTree = "<group>"; };
+		0DE3EC16868FC85A6414BC6C /* MeritGlassTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeritGlassTests.swift; sourceTree = "<group>"; };
 		0EBD4D68E1E032F0E0FBB27B /* emoji.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = emoji.bin; sourceTree = "<group>"; };
 		0EF0C7985F5CA04234BE588D /* AIThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIThemeTests.swift; sourceTree = "<group>"; };
 		104D515FA297531BCEF3AA25 /* EmojiDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiDataTests.swift; sourceTree = "<group>"; };
@@ -724,6 +728,7 @@
 		5934AB6CE713D08F46A5E0C1 /* SwipeReviseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeReviseTests.swift; sourceTree = "<group>"; };
 		5A0609A6319273F70D4F03A6 /* futo-swipe-fixture.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "futo-swipe-fixture.txt"; sourceTree = "<group>"; };
 		5A47D56948509C053EEAE005 /* LunarDate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LunarDate.swift; sourceTree = "<group>"; };
+		5B294619B1349B1116862526 /* MeritGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeritGlass.swift; sourceTree = "<group>"; };
 		5C82227CC9DC2209E6FFB1FF /* FirstLayoutHeightTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstLayoutHeightTests.swift; sourceTree = "<group>"; };
 		5C9D789536A5CAC8C4A014DF /* StartupTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupTrace.swift; sourceTree = "<group>"; };
 		5D0B60123ABBD5FE60D9234A /* KeyCommitQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCommitQueueTests.swift; sourceTree = "<group>"; };
@@ -1267,6 +1272,7 @@
 				F06874DA9C48F5720BD4FCB5 /* LineBreakTests.swift */,
 				19406D9FB4C4AA5EE794B061 /* LunarDateTests.swift */,
 				46501A28188D32863452971E /* MathResultsTests.swift */,
+				0DE3EC16868FC85A6414BC6C /* MeritGlassTests.swift */,
 				F6972CB533614293F6563376 /* MixedTypingUITests.swift */,
 				B5A005BDE8CE23D127F0AE4A /* MoleGameTests.swift */,
 				D9A05AE760FBCD9C4122821C /* NightClubSnapshotTests.swift */,
@@ -1467,6 +1473,7 @@
 				5A47D56948509C053EEAE005 /* LunarDate.swift */,
 				2A5ACFCC85098E199869C169 /* MainDebouncer.swift */,
 				A1859475A5F95F02805768CA /* MathResults.swift */,
+				5B294619B1349B1116862526 /* MeritGlass.swift */,
 				680C638081B910FE0C6D35F3 /* MoleGame.swift */,
 				A139193316D149189CF109DA /* MoleOverlay.swift */,
 				AC3A07A6FB497AE36F5C1916 /* NightClub.swift */,
@@ -1875,6 +1882,7 @@
 				47AED41CA523BEF3F434CBE4 /* LunarDate.swift in Sources */,
 				691A8436633BE0A93E74C70A /* MainDebouncer.swift in Sources */,
 				217BFFCE84C84D2083F2A528 /* MathResults.swift in Sources */,
+				ADD40A7393F6B610F37C4C4E /* MeritGlass.swift in Sources */,
 				C6771B55F9BBE0EC87F164D8 /* MixedTypingUI.swift in Sources */,
 				E9E2F40F060ACF3421394AA6 /* MoleGame.swift in Sources */,
 				EEA37BC7FCE44D94EED312BB /* MoleOverlay.swift in Sources */,
@@ -2147,6 +2155,8 @@
 				91A901E0BDF972D22FEEF80B /* MainDebouncer.swift in Sources */,
 				3918D6C9CF7ED09C9D68DBEB /* MathResults.swift in Sources */,
 				06A12CC4391529A62752829A /* MathResultsTests.swift in Sources */,
+				4E294C1C6A28B1015B448332 /* MeritGlass.swift in Sources */,
+				D5E86045895AFF1B3F278F8B /* MeritGlassTests.swift in Sources */,
 				7D71F07699E264F502138634 /* MixedTypingUI.swift in Sources */,
 				626310C4B44F98AB5AE4F9EA /* MixedTypingUITests.swift in Sources */,
 				A2A9A0CA122A1E4542FC1237 /* MoleGame.swift in Sources */,

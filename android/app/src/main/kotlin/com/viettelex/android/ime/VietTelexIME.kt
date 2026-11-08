@@ -395,7 +395,21 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         // Rung combo: rung HÌNH hàng phím (translation) — Giảm chuyển động vẫn rung (như mọi hiệu ứng).
         v.shakeTarget = if (fx == com.viettelex.keyboard.KeyEffect.SHAKE) kb else null
         // Laser: tia bắn từ phím cách thật (khung đọc lúc bắn — đổi bàn số / ký hiệu vẫn đúng).
-        v.spaceFrame = if (fx == com.viettelex.keyboard.KeyEffect.LASER) { out -> kb.spaceKeyFrame(out, v) } else null
+        // Công đức: cùng khung phím cách làm chỗ đặt nhãn "Công đức hôm nay" (góc trên-trái phím cách).
+        val merit = fx == com.viettelex.keyboard.KeyEffect.MERIT
+        v.spaceFrame = if (fx == com.viettelex.keyboard.KeyEffect.LASER || merit) { out -> kb.spaceKeyFrame(out, v) } else null
+        // Công đức: bộ đếm trong ngày ở prefs ime_state (chỉ hai số; ghi tối đa mỗi 5 s + lúc ẩn bàn phím).
+        if (merit) {
+            val st = stateStore()
+            v.attachMeritStore(load = {
+                if (st.contains(com.viettelex.keyboard.MeritCounter.DAY_KEY))
+                    st.getInt(com.viettelex.keyboard.MeritCounter.DAY_KEY, 0) to st.getInt(com.viettelex.keyboard.MeritCounter.COUNT_KEY, 0)
+                else null
+            }, save = { day, count ->
+                st.edit().putInt(com.viettelex.keyboard.MeritCounter.DAY_KEY, day)
+                    .putInt(com.viettelex.keyboard.MeritCounter.COUNT_KEY, count).apply()
+            })
+        }
         // Token AI: đích bay (Mắt AI / tâm dải gợi ý) đọc lúc bắn + vệt sáng khi gợi ý đổi. Kiểu khác ⇒ null (0 chi phí).
         val tokens = fx == com.viettelex.keyboard.KeyEffect.TOKENS
         v.tokenTarget = if (tokens) { out -> r.tokenTarget(out, v) } else null
