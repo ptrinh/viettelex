@@ -352,6 +352,57 @@ final class CaretSuggestionsTests: XCTestCase {
                                               now: d, timeZone: tz))
     }
 
+    // MARK: Tết kế tiếp
+
+    /// "Tết␣" (hoa/thường, NFC/NFD), từ trước bất kỳ; không "tếtt", không "tet".
+    func testTetDetect() {
+        let en: (String) -> Bool = TypoFixLogic.isEnglish
+        XCTAssertEqual(DateHintLogic.detect(boundary: " ", prevRun: "", run: "Tết", isEnglish: en), .tet)
+        XCTAssertEqual(DateHintLogic.detect(boundary: " ", prevRun: "ăn", run: "tết", isEnglish: en), .tet)
+        XCTAssertEqual(DateHintLogic.detect(boundary: " ", prevRun: "", run: "TẾT", isEnglish: en), .tet)
+        XCTAssertEqual(DateHintLogic.detect(boundary: " ", prevRun: "", run: "te\u{0302}\u{0301}t", isEnglish: en), .tet)
+        for w in ["tếtt", "tet", "tét", "têt", "Tếts"] {
+            XCTAssertNil(DateHintLogic.detect(boundary: " ", prevRun: "", run: w, isEnglish: en), w)
+        }
+        XCTAssertNil(DateHintLogic.detect(boundary: ",", prevRun: "", run: "Tết", isEnglish: en))
+    }
+
+    /// Mùng 1 Tết đầu tiên có ngày dương ≥ hôm nay, dd/MM/yyyy.
+    func testTetFormatBoundaries() {
+        XCTAssertEqual(DateHintLogic.format(.tet, now: vnDate(2026, 11, 8), timeZone: tz), "06/02/2027")
+        XCTAssertEqual(DateHintLogic.format(.tet, now: vnDate(2027, 2, 5), timeZone: tz), "06/02/2027")   // hôm trước
+        XCTAssertEqual(DateHintLogic.format(.tet, now: vnDate(2027, 2, 6), timeZone: tz), "06/02/2027")   // đúng mùng 1
+        XCTAssertEqual(DateHintLogic.format(.tet, now: vnDate(2027, 2, 7), timeZone: tz), "26/01/2028")   // hôm sau
+        XCTAssertEqual(DateHintLogic.format(.tet, now: vnDate(2026, 1, 1), timeZone: tz), "17/02/2026")
+        XCTAssertEqual(DateHintLogic.format(.tet, now: vnDate(2029, 12, 31), timeZone: tz), "02/02/2030") // UTC+7
+    }
+
+    /// Tab giữ chữ "Tết" như đã gõ, nối ngày: "Tết " → "Tết 06/02/2027 ".
+    func testTetSuggestionKeepsWord() {
+        let d = vnDate(2026, 11, 8)
+        XCTAssertEqual(DateHintLogic.suggestion(before: "Sắp Tết ", prevRun: "Sắp", run: "Tết", phrase: .tet,
+                                                now: d, timeZone: tz),
+                       CaretSuggestion(kind: .date, display: "06/02/2027", replace: "Tết ", insert: "Tết 06/02/2027 "))
+        XCTAssertEqual(DateHintLogic.suggestion(before: "TẾT ", prevRun: "", run: "TẾT", phrase: .tet,
+                                                now: d, timeZone: tz)?.insert, "TẾT 06/02/2027 ")
+        XCTAssertEqual(DateHintLogic.suggestion(before: "ngày tết ", prevRun: "ngày", run: "tết", phrase: .tet,
+                                                now: d, timeZone: tz)?.replace, "tết ")
+        XCTAssertNil(DateHintLogic.suggestion(before: "xTết ", prevRun: "", run: "Tết", phrase: .tet, now: d, timeZone: tz))
+    }
+
+    /// Mọi Tết 1901–2100 là 1/1 âm (không nhuận) của đúng năm đó; hôm trước thuộc năm âm trước.
+    func testTetDayNumberRoundTrip() {
+        for y in 1901...2100 {
+            let jd = LunarCalendar.tetDayNumber(lunarYear: y)
+            let g = LunarCalendar.gregorian(jd)
+            XCTAssertEqual(g.year, y)
+            XCTAssertEqual(LunarCalendar.lunar(day: g.day, month: g.month, year: g.year),
+                           .init(day: 1, month: 1, year: y, leap: false), "Tết \(y)")
+            let e = LunarCalendar.gregorian(jd - 1)
+            XCTAssertEqual(LunarCalendar.lunar(day: e.day, month: e.month, year: e.year).year, y - 1, "giao thừa \(y)")
+        }
+    }
+
     /// Tết 2026–2035, Trung Thu, tháng nhuận 2025/2028 — lịch Việt Nam UTC+7. Bảng Tết/Trung Thu
     /// của KeyboardBuddy (iOS) lệch ở Tết 2030 (VN 02/02, bảng 03/02 = lịch UTC+8) và Trung Thu
     /// 2034 (VN 26/09, bảng 27/09) — ở đây theo thuật toán, có đối chiếu Foundation bên dưới.

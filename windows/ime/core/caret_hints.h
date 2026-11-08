@@ -15,6 +15,8 @@
 //                                  today/tomorrow/yesterday/now only after an English word.
 //                                  Lunar: "âm lịch " / "ngày âm " / "ÂL " -> "30/9 năm Bính Ngọ"
 //                                  (today, Vietnamese calendar UTC+7; macOS LunarCalendar.swift).
+//                                  "Tết " -> "06/02/2027" (next mùng 1 Tết); Tab keeps the word:
+//                                  "Tết 06/02/2027 ".
 //   7. Retro English (offer mode of "Tự sửa từ phía trước", retro_english.h): "Hí cả í very
 //                                  fast " -> "His car is", Tab rewrites the words. The
 //                                  session decides and verifies; it wins over every other hint.
@@ -154,7 +156,7 @@ std::optional<std::u32string> toneRun(const std::u32string& before);
 std::optional<Suggestion> toneSuggestion(const std::u32string& run, const std::u32string& restored);
 
 // ---------------------------------------------------------------- 5. date / time
-enum class Phrase : uint8_t { Today, Tomorrow, Yesterday, Now, Lunar };
+enum class Phrase : uint8_t { Today, Tomorrow, Yesterday, Now, Lunar, Tet };
 struct LocalTime {
     int year = 2000, month = 1, day = 1, hour = 0, minute = 0;
 };
@@ -174,6 +176,11 @@ LunarDate lunarDate(int day, int month, int year, double tz = 7);
 std::u32string lunarYearName(int lunarYear);  // 2026 -> "Bính Ngọ"
 // "30/9 năm Bính Ngọ"; leap month "1/6 nhuận năm Ất Tỵ".
 std::u32string lunarText(int day, int month, int year);
+// Julian day number of mùng 1 Tết (lunar 1/1) of `lunarYear`.
+long tetDayNumber(int lunarYear, double tz = 7);
+void gregorianFromJulianDay(long jd, int& day, int& month, int& year);
+// The next Tết on or after (day, month, year): "06/02/2027" (on mùng 1 itself: today).
+std::u32string nextTetText(int day, int month, int year);
 std::optional<Suggestion> dateSuggestion(const std::u32string& before, const std::u32string& prevRun,
                                          const std::u32string& run, Phrase phrase, const LocalTime& now);
 // The last two whitespace-separated chunks before the final space ("Hẹn hôm nay " ->
@@ -331,6 +338,8 @@ std::optional<Suggestion> retroSuggestion(const std::u32string& before, const Su
 // Cheap pre-filters on RAW keys (the screen decides).
 bool numberWorthChecking(const std::u32string& run, const std::u32string& prevRun);
 bool dateWorthReading(const std::u32string& prevRaw, const std::u32string& raw);
+// Raw keys that may spell "tết" (Telex teets/tetes/teest…, VNI te6t1…), lowercase.
+bool tetRaw(const std::u32string& raw);
 
 // ---------------------------------------------------------------- where to show
 struct Rect {

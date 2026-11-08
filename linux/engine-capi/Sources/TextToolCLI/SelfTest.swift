@@ -212,6 +212,35 @@ func caretSelfTest(fixtures: String) -> Int {
     eq(HintProtocol.handle("date\tÂL \t\tÂL\t \t2026\t11\t8\t9\t0"),
        "date\t30/9 năm Bính Ngọ\tÂL \t30/9 năm Bính Ngọ ", "serve lunar ÂL")
 
+    // Tết kế tiếp: "Tết␣" ⇒ ngày dương mùng 1 Tết đầu tiên ≥ hôm nay; Tab giữ chữ Tết.
+    eq(D.detect(boundary: " ", prevRun: "", run: "Tết", isEnglish: en), .tet, "tet Tết")
+    eq(D.detect(boundary: " ", prevRun: "ăn", run: "tết", isEnglish: en), .tet, "tet ăn tết")
+    eq(D.detect(boundary: " ", prevRun: "", run: "TẾT", isEnglish: en), .tet, "tet TẾT")
+    eq(D.detect(boundary: " ", prevRun: "", run: "te\u{0302}\u{0301}t", isEnglish: en), .tet, "tet NFD")
+    eq(D.detect(boundary: " ", prevRun: "", run: "tếtt", isEnglish: en), nil, "tet tếtt")
+    eq(D.detect(boundary: " ", prevRun: "", run: "tet", isEnglish: en), nil, "tet không dấu")
+    eq(D.detect(boundary: " ", prevRun: "", run: "tét", isEnglish: en), nil, "tet tét")
+    eq(D.detect(boundary: ",", prevRun: "", run: "Tết", isEnglish: en), nil, "tet ,")
+    eq(D.format(.tet, now: nov8), "06/02/2027", "tet 8/11/2026")
+    eq(D.format(.tet, now: .init(year: 2027, month: 2, day: 5, hour: 9, minute: 0)), "06/02/2027", "tet hôm trước")
+    eq(D.format(.tet, now: .init(year: 2027, month: 2, day: 6, hour: 9, minute: 0)), "06/02/2027", "tet đúng mùng 1")
+    eq(D.format(.tet, now: .init(year: 2027, month: 2, day: 7, hour: 9, minute: 0)), "26/01/2028", "tet hôm sau")
+    eq(D.format(.tet, now: .init(year: 2026, month: 1, day: 1, hour: 9, minute: 0)), "17/02/2026", "tet đầu năm")
+    eq(D.suggestion(before: "Sắp Tết ", prevRun: "Sắp", run: "Tết", phrase: .tet, now: nov8),
+       S(.date, "06/02/2027", "Tết ", "Tết 06/02/2027 "), "tet sugg")
+    eq(D.suggestion(before: "TẾT ", prevRun: "", run: "TẾT", phrase: .tet, now: nov8)?.insert, "TẾT 06/02/2027 ", "tet giữ hoa")
+    eq(D.suggestion(before: "ngày tết ", prevRun: "ngày", run: "tết", phrase: .tet, now: nov8)?.replace, "tết ", "tet chỉ thay Tết")
+    eq(D.suggestion(before: "xTết ", prevRun: "", run: "Tết", phrase: .tet, now: nov8), nil, "tet dính")
+    eq(HintProtocol.handle("date\tTết \t\tTết\t \t2026\t11\t8\t9\t0"),
+       "date\t06/02/2027\tTết \tTết 06/02/2027 ", "serve tet")
+    var tetBad = 0
+    for y in 1901...2100 {
+        let g = LunarCalendar.gregorian(LunarCalendar.tetDayNumber(lunarYear: y))
+        if g.year != y || LunarCalendar.lunar(day: g.day, month: g.month, year: g.year)
+            != .init(day: 1, month: 1, year: y, leap: false) { tetBad += 1 }
+    }
+    eq(tetBad, 0, "tet 1901–2100 = 1/1 âm")
+
     // Thuật toán âm lịch: Tết 2026–2035 (UTC+7; 2030 là 02/02 — lịch +8 là 03/02), Trung Thu,
     // tháng nhuận 2025 (6) / 2028 (5), và ngày lệch giữa +7 và +8.
     typealias LC = LunarCalendar

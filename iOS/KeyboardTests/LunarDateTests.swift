@@ -144,6 +144,47 @@ final class LunarDateTests: XCTestCase {
         XCTAssertNil(NumberChips.chip(before: "hôm nay 30/9 năm Bính Ngọ "))
         XCTAssertNotNil(LunarDate.chip(before: "ÂL "))   // theo ngày máy
     }
+
+    // MARK: - Chip "Tết"
+
+    func testTetTriggers() {
+        XCTAssertEqual(LunarDate.triggerTail(before: "Sắp Tết "), "Tết ")
+        XCTAssertEqual(LunarDate.triggerTail(before: "tết "), "tết ")
+        XCTAssertEqual(LunarDate.triggerTail(before: "ăn TẾT "), "TẾT ")
+        let nfd = "te\u{0302}\u{0301}t "
+        XCTAssertEqual(LunarDate.triggerTail(before: "ăn " + nfd), nfd)
+        for s in ["tếtt ", "tet ", "tét ", "xTết ", "Tết.", "Tết  "] {
+            XCTAssertNil(LunarDate.triggerTail(before: s), "«\(s)» không được khớp")
+        }
+        for w in ["Tết", "tết", "TẾT", "te\u{0302}\u{0301}t"] { XCTAssertTrue(LunarDate.mayTrigger(w), w) }
+        for w in ["tếtt", "tet", "Têt"] { XCTAssertFalse(LunarDate.mayTrigger(w), w) }
+    }
+
+    /// Chip = ngày dương mùng 1 Tết kế tiếp (≥ hôm nay); chạm giữ chữ Tết như đã gõ, nối ngày.
+    func testTetChipBoundaries() {
+        XCTAssertEqual(LunarDate.chip(before: "Sắp Tết ", today: (2026, 11, 8)),
+                       NumberChip(display: "06/02/2027", replace: "Tết ", insert: "Tết 06/02/2027 "))
+        XCTAssertEqual(LunarDate.chip(before: "TẾT ", today: (2026, 11, 8))?.insert, "TẾT 06/02/2027 ")
+        XCTAssertEqual(LunarDate.chip(before: "tết ", today: (2027, 2, 5))?.display, "06/02/2027")   // hôm trước
+        XCTAssertEqual(LunarDate.chip(before: "tết ", today: (2027, 2, 6))?.display, "06/02/2027")   // đúng mùng 1
+        XCTAssertEqual(LunarDate.chip(before: "tết ", today: (2027, 2, 7))?.display, "26/01/2028")   // hôm sau
+        XCTAssertEqual(LunarDate.chip(before: "Tết", today: (2026, 11, 8))?.insert, "Tết 06/02/2027 ")
+        // chữ vừa chèn không sinh chip số / chip Tết kế tiếp
+        XCTAssertNil(NumberChips.chip(before: "Tết 06/02/2027 "))
+        XCTAssertNil(LunarDate.triggerTail(before: "Tết 06/02/2027 "))
+    }
+
+    /// Tết theo thuật toán = bảng Tết của KeyboardBuddy; mọi Tết 1901–2100 là 1/1 âm của năm đó.
+    func testTetDayNumber() {
+        for (y, md) in BuddySeason.lunarNewYear {
+            let g = LunarCalendar.gregorian(LunarCalendar.tetDayNumber(lunarYear: y))
+            XCTAssertEqual([g.year, g.month, g.day], [y, md.0, md.1], "Tết \(y)")
+        }
+        for y in 1901...2100 {
+            let g = LunarCalendar.gregorian(LunarCalendar.tetDayNumber(lunarYear: y))
+            XCTAssertEqual(lunar(g.day, g.month, g.year), .init(day: 1, month: 1, year: y, leap: false), "Tết \(y)")
+        }
+    }
 }
 
 /// Đọc iOS/KeyboardTests/Fixtures/lunar-month-starts.txt: "yyyymmdd<TAB>tháng[+]<TAB>năm âm".

@@ -1,4 +1,5 @@
-// LunarCalendar.swift — âm lịch Việt Nam (gợi ý "âm lịch␣" → "30/9 năm Bính Ngọ", CaretSuggestions.swift).
+// LunarCalendar.swift — âm lịch Việt Nam (gợi ý "âm lịch␣" → "30/9 năm Bính Ngọ", "Tết␣" → ngày
+// dương của mùng 1 Tết kế tiếp "06/02/2027" — CaretSuggestions.swift).
 // Dùng chung macOS + Linux (linux/engine-capi/Sources/TextToolCLI/LunarCalendar.swift là symlink)
 // + bàn phím iOS (iOS/project.yml, iOS/Keyboard/LunarDate.swift gọi vào); Windows có bản C++ cùng
 // công thức (windows/ime/core/caret_hints.cpp `lunarDate`), Android bản Kotlin (LunarDate.kt).
@@ -72,6 +73,47 @@ enum LunarCalendar {
     static func text(day: Int, month: Int, year: Int) -> String {
         let l = lunar(day: day, month: month, year: year)
         return String(l.day) + "/" + String(l.month) + (l.leap ? " nhuận" : "") + " năm " + yearName(l.year)
+    }
+
+    // MARK: Tết (âm → dương)
+
+    /// Ngày Julius của mùng 1 Tết năm âm `lunarYear`: tháng thứ 2 sau tháng 11 âm của năm dương
+    /// trước (tháng thứ 3 nếu tháng 11 hoặc 12 nhuận).
+    static func tetDayNumber(lunarYear y: Int, timeZone tz: Double = 7) -> Int {
+        let a11 = lunarMonth11(y - 1, tz)
+        var off = 2
+        if lunarMonth11(y, tz) - a11 > 365, off >= leapMonthOffset(a11, tz) { off += 1 }
+        return newMoonDay(lunationIndex(Double(a11), rounded: true) + off, tz)
+    }
+
+    /// Mùng 1 Tết KẾ TIẾP tính từ ngày dương (day, month, year): Tết đầu tiên có ngày dương ≥ hôm
+    /// đó (đúng mùng 1 ⇒ chính hôm nay). Chỉ tính khi gõ "Tết␣"; cache theo ngày.
+    static func nextTet(day: Int, month: Int, year: Int) -> (day: Int, month: Int, year: Int) {
+        let today = julianDay(day, month, year)
+        if let c = tetCache, c.today == today { return c.tet }
+        var jd = tetDayNumber(lunarYear: year)
+        if jd < today { jd = tetDayNumber(lunarYear: year + 1) }
+        let g = gregorian(jd)
+        tetCache = (today, g)
+        return g
+    }
+    private static var tetCache: (today: Int, tet: (day: Int, month: Int, year: Int))?
+
+    /// "06/02/2027" — ngày dương của Tết kế tiếp (dd/MM/yyyy như gợi ý "hôm nay").
+    static func nextTetText(day: Int, month: Int, year: Int) -> String {
+        let t = nextTet(day: day, month: month, year: year)
+        func pad(_ n: Int, _ w: Int) -> String {
+            let s = String(n)
+            return s.count >= w ? s : String(repeating: "0", count: w - s.count) + s
+        }
+        return pad(t.day, 2) + "/" + pad(t.month, 2) + "/" + pad(t.year, 4)
+    }
+
+    /// Ngày Julius → (ngày, tháng, năm) Gregorian.
+    static func gregorian(_ jd: Int) -> (day: Int, month: Int, year: Int) {
+        let a = jd + 32044, b = (4 * a + 3) / 146097, c = a - 146097 * b / 4
+        let d = (4 * c + 3) / 1461, e = c - 1461 * d / 4, m = (5 * e + 2) / 153
+        return (e - (153 * m + 2) / 5 + 1, m + 3 - 12 * (m / 10), 100 * b + d - 4800 + m / 10)
     }
 
     /// Số ngày Julius (lịch Gregorian) lúc trưa.

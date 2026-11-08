@@ -1070,9 +1070,11 @@ std::optional<Phrase> vietnamesePhrase(const std::u32string& p, const std::u32st
     if ((p == U"âm" && w == U"lịch") || (p == U"ngày" && w == U"âm")) return Phrase::Lunar;
     return std::nullopt;
 }
-// One word on its own (any word before it): "ÂL " -> today's lunar date.
+// One word on its own (any word before it): "ÂL " -> today's lunar date; "Tết " -> the
+// Gregorian date of the next mùng 1 Tết (Tab keeps the word: "Tết 06/02/2027 ").
 std::optional<Phrase> singlePhrase(const std::u32string& w) {
     if (w == U"âl") return Phrase::Lunar;
+    if (w == U"tết") return Phrase::Tet;
     return std::nullopt;
 }
 std::optional<Phrase> englishPhrase(const std::u32string& w) {
@@ -1226,6 +1228,38 @@ int leapMonthOffset(long a11, double tz) {
 }
 }  // namespace
 
+long tetDayNumber(int lunarYear, double tz) {
+    const long a11 = lunarMonth11(lunarYear - 1, tz);
+    int off = 2;  // month 1 = two months after month 11 (three if 11 or 12 is leap)
+    if (lunarMonth11(lunarYear, tz) - a11 > 365 && off >= leapMonthOffset(a11, tz)) ++off;
+    return newMoonDay(lunationIndex(static_cast<double>(a11), true) + off, tz);
+}
+
+void gregorianFromJulianDay(long jd, int& day, int& month, int& year) {
+    const long a = jd + 32044, b = (4 * a + 3) / 146097, c = a - 146097 * b / 4;
+    const long d = (4 * c + 3) / 1461, e = c - 1461 * d / 4, m = (5 * e + 2) / 153;
+    day = static_cast<int>(e - (153 * m + 2) / 5 + 1);
+    month = static_cast<int>(m + 3 - 12 * (m / 10));
+    year = static_cast<int>(100 * b + d - 4800 + m / 10);
+}
+
+std::u32string nextTetText(int day, int month, int year) {
+    // Computed only when "Tết " matched; cached per day.
+    thread_local long cachedToday = 0;
+    thread_local std::u32string cachedText;
+    const long today = julianDay(day, month, year);
+    if (today == cachedToday && !cachedText.empty()) return cachedText;
+    long jd = tetDayNumber(year);
+    if (jd < today) jd = tetDayNumber(year + 1);
+    int d = 1, m = 1, y = 2000;
+    gregorianFromJulianDay(jd, d, m, y);
+    char buf[16];
+    std::snprintf(buf, sizeof buf, "%02d/%02d/%04d", d, m, y);
+    cachedToday = today;
+    cachedText = fromAscii(buf);
+    return cachedText;
+}
+
 LunarDate lunarDate(int day, int month, int year, double tz) {
     const long dayNumber = julianDay(day, month, year);
     const long k = lunationIndex(static_cast<double>(dayNumber));
@@ -1292,6 +1326,7 @@ std::u32string formatDate(Phrase p, const LocalTime& now) {
         return fromAscii(buf);
     }
     if (p == Phrase::Lunar) return lunarText(now.day, now.month, now.year);
+    if (p == Phrase::Tet) return nextTetText(now.day, now.month, now.year);
     int y = now.year, m = now.month, d = now.day;
     if (p != Phrase::Today) civilFromDays(daysFromCivil(y, m, d) + (p == Phrase::Tomorrow ? 1 : -1), y, m, d);
     std::snprintf(buf, sizeof buf, "%02d/%02d/%04d", d, m, y);
@@ -1304,7 +1339,8 @@ std::optional<Suggestion> dateSuggestion(const std::u32string& before, const std
     const std::u32string replace = (vi ? prevRun + U" " : std::u32string()) + run + U" ";
     if (!standsAlone(before, replace)) return std::nullopt;
     const std::u32string value = formatDate(phrase, now);
-    return Suggestion{Kind::Date, toU16(value), toU16(replace), toU16(value + U" ")};
+    const std::u32string insert = phrase == Phrase::Tet ? run + U" " + value + U" " : value + U" ";
+    return Suggestion{Kind::Date, toU16(value), toU16(replace), toU16(insert)};
 }
 
 bool lastRuns(const std::u32string& before, std::u32string& prevRun, std::u32string& run) {
@@ -1335,10 +1371,29 @@ bool numberWorthChecking(const std::u32string& run, const std::u32string& prevRu
     return false;
 }
 
+// Raw keys that can spell "tết": two t's (first key t), the vowel e with its circumflex and
+// the sắc tone in any order — Telex e+e and s (teets, tetes, teest…), VNI e+6 and 1 (te6t1,
+// tet61…). "test" (one e, no 6) and "tet" stay out.
+bool tetRaw(const std::u32string& w) {
+    if (w.size() < 5 || w.size() > 6 || w[0] != U't') return false;
+    int t = 0, e = 0, s = 0, six = 0, one = 0;
+    for (char32_t c : w) {
+        if (c == U't') ++t;
+        else if (c == U'e') ++e;
+        else if (c == U's') ++s;
+        else if (c == U'6') ++six;
+        else if (c == U'1') ++one;
+        else return false;
+    }
+    if (t != 2) return false;
+    return (e == 2 && s >= 1 && six + one == 0) || (e == 1 && six == 1 && one == 1 && s == 0);
+}
+
 bool dateWorthReading(const std::u32string& prevRaw, const std::u32string& raw) {
     const std::u32string w = lower(raw), p = lower(prevRaw);
     if (!p.empty() && englishPhrase(w)) return true;
     if (w == U"aal" || w == U"a6l") return true;  // "ÂL" (Telex / VNI), any word before
+    if (tetRaw(w)) return true;                    // "Tết", any word before
     if (p.empty() || w.empty() || w.size() > 7 || p.size() > 8) return false;
     const char32_t a = p[0], b = w[0];
     if (a == U'a' && p.size() <= 4 && b == U'l') return true;  // âm lịch (aam lichj, a6m lich5)
@@ -1380,6 +1435,8 @@ Trigger HintTracker::onChar(char32_t ch, const Commit& commit, const Enabled& en
     t.boundary = ch;
     if (ch == U'=' && en.math) {
         t.kind = TriggerKind::Math;
+    } else if (ch == U' ' && en.date && run.size() >= 5 && run.size() <= 6 && tetRaw(lower(run))) {
+        t.kind = TriggerKind::Date;  // before Number: VNI "te6t1" holds digits
     } else if (ch == U' ' && en.number && numberWorthChecking(run, prev)) {
         t.kind = TriggerKind::Number;
     } else if (ch == U' ' && en.date && dateWorthReading(prev, run)) {

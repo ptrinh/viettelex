@@ -212,7 +212,7 @@ bool numberWorthChecking(uint32_t boundary, const std::string &run, const std::s
 bool dateCandidate(uint32_t boundary, const std::string &prevRun, const std::string &run) {
     if (boundary != ' ' || run.empty() || cpCount(run) > 9) return false;
     std::string p = lower(prevRun), w = lower(run);
-    if (w == "âl") return true;  // âm lịch, từ trước bất kỳ
+    if (w == "âl" || w == "tết") return true;  // âm lịch / Tết kế tiếp, từ trước bất kỳ
     if (prevRun.empty()) return false;
     if ((p == "hôm" && (w == "nay" || w == "qua")) || (p == "ngày" && (w == "mai" || w == "âm")) ||
         (p == "bây" && w == "giờ") || (p == "âm" && w == "lịch"))
