@@ -49,7 +49,6 @@
 		18EB5C9002EAD3991F709FD5 /* UserLangModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F316CA910C58A9377DC754A0 /* UserLangModel.swift */; };
 		190CF5484AD04F180D055523 /* KeyboardBuddyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 052E6FE3AB0D95827A3C3A25 /* KeyboardBuddyView.swift */; };
 		19A0B9BFBF4CF5C3FEE6785B /* SensitiveWords.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9F4445707DBA22FE5219CD /* SensitiveWords.swift */; };
-		19C97787C1CF86629E8366E6 /* LunarCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 868097322B8B9D5B0D7BB875 /* LunarCalendar.swift */; };
 		19E10CBD380ADB2DE7B4FD84 /* futoswipe-LICENSE.md in Resources */ = {isa = PBXBuildFile; fileRef = 906FFAA7A51DC0B6F109763A /* futoswipe-LICENSE.md */; };
 		1A29E473944251EB70A23628 /* SensitiveWords.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9F4445707DBA22FE5219CD /* SensitiveWords.swift */; };
 		1A6C76EDB4E5FEC29351714B /* KeyboardBuddyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 052E6FE3AB0D95827A3C3A25 /* KeyboardBuddyView.swift */; };
@@ -61,7 +60,6 @@
 		1D815BBDFF3A950828D4A0B5 /* AddTones.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11876FBB4C611F4A86CBCBB2 /* AddTones.swift */; };
 		1E175ED9F1FE58CFBD01BD44 /* AddTonesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D6434BF385E0EB2AC3B5010 /* AddTonesTests.swift */; };
 		1E3BA256F62480AA94474E72 /* TextToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E5388BE246A2014C812518 /* TextToolsTests.swift */; };
-		1E553A14C8B7A0A7F512E7A2 /* sample-shortcuts.yml in Resources */ = {isa = PBXBuildFile; fileRef = 144782F10D0B8DA7D00F53DC /* sample-shortcuts.yml */; };
 		1ECBD8089C0345854667709E /* key-alternates.txt in Resources */ = {isa = PBXBuildFile; fileRef = DF447D2ACACB4E96B9438498 /* key-alternates.txt */; };
 		1EF8FD5251B2B551021D1994 /* KeyboardBuddy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA9907DB3D540310F5E7DC9 /* KeyboardBuddy.swift */; };
 		1F4FDF0380687782A44AFAD3 /* KeyAlternates.swift in Sources */ = {isa = PBXBuildFile; fileRef = A34BA298D30DC3B98633F154 /* KeyAlternates.swift */; };
@@ -87,7 +85,6 @@
 		26F92D30462E28A390FD70A6 /* UXSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4C8682721439F0EE47DDC34 /* UXSnapshotTests.swift */; };
 		277932CADF5C72BEDCB58651 /* EmojiAtlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B235B84E86F71BBBB10E836 /* EmojiAtlas.swift */; };
 		277D00FD560ECE145713C213 /* L10nTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38772D47D6B779FA5C58271 /* L10nTests.swift */; };
-		27D348C663BB4796C3CBC1A2 /* LunarCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 868097322B8B9D5B0D7BB875 /* LunarCalendar.swift */; };
 		28204C66017B9ADA8F8C46FE /* Wallpaper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A12BC49EB45298684CF97D /* Wallpaper.swift */; };
 		28C579703223D53D46A60F0D /* swipe-paths-en.txt in Resources */ = {isa = PBXBuildFile; fileRef = 38966B5E3DF4C19B07287B0C /* swipe-paths-en.txt */; };
 		28F59AFC0EA801B2565A2A41 /* FeaturePages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CD424A6A736C971B3F87998 /* FeaturePages.swift */; };
@@ -145,6 +142,7 @@
 		4099FB4DB4E8A07024E1B47B /* SwipeVocab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03130513F64077C5E7BBBE54 /* SwipeVocab.swift */; };
 		4126B82B172C1B5BE3EDB352 /* EmojiSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD1ABEB72F0DCCF278A46E7 /* EmojiSearch.swift */; };
 		41E3FA4381117F20A004AB5F /* montserrat.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A3D8EFD54B024F6E0881EC5D /* montserrat.ttf */; };
+		42330A2F6ABF40E32EAD3BAE /* LunarCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5658CD4BA507DF2BA12245 /* LunarCalendar.swift */; };
 		42C0FC911DFA0F3E53C151F2 /* patrick-hand.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E75AFF6CFBC6B0096C134CFB /* patrick-hand.ttf */; };
 		444358B0BE78D91F673CD621 /* TouchTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C928B7D91A4C54D1642E70F /* TouchTargetTests.swift */; };
 		449E170B3E5587C8C753066F /* TesterFeedback128Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A3A76C6FE352CB31025CB2 /* TesterFeedback128Tests.swift */; };
@@ -189,6 +187,7 @@
 		59184856DB1424FEC29F3781 /* TouchLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73661E1643A0CAA02517C00 /* TouchLog.swift */; };
 		593AA8DEA7AFB11D6005F173 /* EngineBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD709650C25830CA926EBCF /* EngineBridge.swift */; };
 		5996B5BAD4D3204CEF8FE6CC /* KeySoundSynth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F98B87CC6DBF96F8D09A899 /* KeySoundSynth.swift */; };
+		59C66E8A96CED913A07EA832 /* sample-shortcuts.yml in Resources */ = {isa = PBXBuildFile; fileRef = 24A08F7D2F73879EBEC99BEB /* sample-shortcuts.yml */; };
 		5A5A4CFF71EA497935A2961D /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */; };
 		5A863B519CEB4DFF869913D0 /* SwipeEnglishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC4C7AA642979C79BA435C61 /* SwipeEnglishTests.swift */; };
 		5B52F74F525D2FE790784DEB /* AdjacentKeyFixer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A25C830B85508BCD22F38A /* AdjacentKeyFixer.swift */; };
@@ -297,6 +296,7 @@
 		8C36E56F67059CC68F98AA21 /* SpaceFlickTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11DFA0E70EB963455C306748 /* SpaceFlickTests.swift */; };
 		8C67AE83701708A694FB0A4E /* AIAssist.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14750E2D627B341F717F713 /* AIAssist.swift */; };
 		8C80153A5E61E1B6D477A71B /* pacifico.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FAA1D78D90A4E8285059D183 /* pacifico.ttf */; };
+		8CEB69C27FDAF15C5D8E97E0 /* LunarCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5658CD4BA507DF2BA12245 /* LunarCalendar.swift */; };
 		8CFA1F2B11ADA1997EEA16AD /* FutoSwipeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B731DCA56D699168C41DAC /* FutoSwipeModel.swift */; };
 		8D12FF20ED51C2AEE54AE456 /* SwipeEnglish.swift in Sources */ = {isa = PBXBuildFile; fileRef = E360BCC27ECE43C8DEB11CC7 /* SwipeEnglish.swift */; };
 		8D25DCCE3CDCCBAFED8AE0D3 /* SuggestionCount.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C67EF4DD8066AD3C798959 /* SuggestionCount.swift */; };
@@ -617,7 +617,6 @@
 		11DFA0E70EB963455C306748 /* SpaceFlickTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceFlickTests.swift; sourceTree = "<group>"; };
 		121671DAC21692CEBCF9B296 /* ShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutTests.swift; sourceTree = "<group>"; };
 		142CFBEA43046FC96EBF437F /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
-		144782F10D0B8DA7D00F53DC /* sample-shortcuts.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = "sample-shortcuts.yml"; sourceTree = "<group>"; };
 		150EAA710911C53C0656FEBD /* PlusFeedback1015Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlusFeedback1015Tests.swift; sourceTree = "<group>"; };
 		161158B158034E15B97338F4 /* VietTelex.storekit */ = {isa = PBXFileReference; path = VietTelex.storekit; sourceTree = "<group>"; };
 		1694350BF74AC5F613846DD6 /* theme-json-cases.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "theme-json-cases.txt"; sourceTree = "<group>"; };
@@ -638,6 +637,7 @@
 		222EF2EE5A6F795385492BEA /* playfair-display.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "playfair-display.ttf"; sourceTree = "<group>"; };
 		22BDEAB6EAD0F1EA689B388A /* CompositionSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositionSync.swift; sourceTree = "<group>"; };
 		23D9F4828FBAE93DCCEB2271 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		24A08F7D2F73879EBEC99BEB /* sample-shortcuts.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = "sample-shortcuts.yml"; sourceTree = "<group>"; };
 		27D10BA36AFF204B214098B2 /* HostRewriteCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostRewriteCompositionTests.swift; sourceTree = "<group>"; };
 		283B18B560C805EFBE10D839 /* backup-too-new.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "backup-too-new.json"; sourceTree = "<group>"; };
 		2858993AEE798E0B36D6B495 /* KeyGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyGrid.swift; sourceTree = "<group>"; };
@@ -745,6 +745,7 @@
 		778ABAFB76C1046BD2E3A1AD /* SwipeGesture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeGesture.swift; sourceTree = "<group>"; };
 		79FD55F59F8275BCD7B566DD /* TranslatePrefs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslatePrefs.swift; sourceTree = "<group>"; };
 		7A239D979FCA572C550C6E31 /* SwipeShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeShortcutTests.swift; sourceTree = "<group>"; };
+		7A5658CD4BA507DF2BA12245 /* LunarCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LunarCalendar.swift; sourceTree = "<group>"; };
 		7C832E4FAF0818129299FF52 /* PlanePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanePolicy.swift; sourceTree = "<group>"; };
 		7CD24A88B2F680A535A339CC /* PasteOfferOnce.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteOfferOnce.swift; sourceTree = "<group>"; };
 		7DEEE8E94999D6169D4D2768 /* KeyPressHighlightEdgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyPressHighlightEdgeTests.swift; sourceTree = "<group>"; };
@@ -761,7 +762,6 @@
 		8352627FA542E2B2D34D819F /* README.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = README.txt; sourceTree = "<group>"; };
 		84CE8DA584B5E49DD4C1F74F /* nunito.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = nunito.ttf; sourceTree = "<group>"; };
 		853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
-		868097322B8B9D5B0D7BB875 /* LunarCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LunarCalendar.swift; sourceTree = "<group>"; };
 		874923DAE33DB7FA95441F18 /* bigram-heldout.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "bigram-heldout.txt"; sourceTree = "<group>"; };
 		87B560D6CFFCE1B0B57742E3 /* UserLMTables.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserLMTables.swift; sourceTree = "<group>"; };
 		8ACB739F614F962C3F8A7B62 /* SwipeTrailStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeTrailStyles.swift; sourceTree = "<group>"; };
@@ -988,14 +988,6 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		01C60D93B97D282423EA7EED /* Sources */ = {
-			isa = PBXGroup;
-			children = (
-				868097322B8B9D5B0D7BB875 /* LunarCalendar.swift */,
-			);
-			path = Sources;
-			sourceTree = "<group>";
-		};
 		0AC014664E5E5F22C04FB37A /* Plus */ = {
 			isa = PBXGroup;
 			children = (
@@ -1007,27 +999,17 @@
 			path = Plus;
 			sourceTree = "<group>";
 		};
-		0B25BE03DAC68EB92E879C29 /* agent-ab67913aa539c6359 */ = {
-			isa = PBXGroup;
-			children = (
-				144782F10D0B8DA7D00F53DC /* sample-shortcuts.yml */,
-				A78B5967FE77E295BBF30C7A /* App */,
-			);
-			name = "agent-ab67913aa539c6359";
-			path = ..;
-			sourceTree = "<group>";
-		};
 		157C51231B94A40CA803DFF2 = {
 			isa = PBXGroup;
 			children = (
 				E07A3B8533DF185DE4EC05F4 /* ios-mau-cau.yml */,
-				0B25BE03DAC68EB92E879C29 /* agent-ab67913aa539c6359 */,
 				C9D01CBA8ACF33359DB0C0BD /* App */,
 				D31F988D110CA9E478B35C27 /* Keyboard */,
 				9F75E32DB55D92888E77DE61 /* KeyboardTests */,
 				DF35FD668408A625226DFE82 /* Packages */,
 				7D398E9EE329A73C8620EBFB /* Shared */,
 				FAFFB2CAD61DDABA741DAA0D /* StoreKit */,
+				968E2C214A1AF99C3F83F278 /* VietTelex */,
 				33667695AC2B28EDA68E0C24 /* VTIntelligence */,
 				D1587473BF6CB453210A7CCB /* VTTranslate */,
 				01272B6532043F67ED824A91 /* Frameworks */,
@@ -1109,6 +1091,14 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		6444A32BD46A7EE6F4630080 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				7A5658CD4BA507DF2BA12245 /* LunarCalendar.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
 		6DFF8917D9F3EA7178FACE90 /* FontPreviews */ = {
 			isa = PBXGroup;
 			children = (
@@ -1154,6 +1144,14 @@
 			path = Shared;
 			sourceTree = "<group>";
 		};
+		864DE06A2ED3D44039DBF461 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				6444A32BD46A7EE6F4630080 /* Sources */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
 		92CD01597B3A59960ABD0DF6 /* Backup */ = {
 			isa = PBXGroup;
 			children = (
@@ -1165,6 +1163,16 @@
 				E8E2E27B46842AE6F5EB0A74 /* SyncMerge.swift */,
 			);
 			path = Backup;
+			sourceTree = "<group>";
+		};
+		968E2C214A1AF99C3F83F278 /* VietTelex */ = {
+			isa = PBXGroup;
+			children = (
+				24A08F7D2F73879EBEC99BEB /* sample-shortcuts.yml */,
+				864DE06A2ED3D44039DBF461 /* App */,
+			);
+			name = VietTelex;
+			path = ..;
 			sourceTree = "<group>";
 		};
 		9F75E32DB55D92888E77DE61 /* KeyboardTests */ = {
@@ -1306,14 +1314,6 @@
 				4F35DEB1416616443DB332E0 /* VTCatch.m */,
 			);
 			path = ObjC;
-			sourceTree = "<group>";
-		};
-		A78B5967FE77E295BBF30C7A /* App */ = {
-			isa = PBXGroup;
-			children = (
-				01C60D93B97D282423EA7EED /* Sources */,
-			);
-			path = App;
 			sourceTree = "<group>";
 		};
 		ACA2EF74601F7B3D920485DD /* Products */ = {
@@ -1705,7 +1705,7 @@
 				DF225D04D7CF81C8C54070B8 /* number-chips.txt in Resources */,
 				2CD73C63D0A8516C1B298E55 /* retro-english-eval.txt in Resources */,
 				B6C7B7E478B6AEAF66C2D94B /* safety-cases.txt in Resources */,
-				1E553A14C8B7A0A7F512E7A2 /* sample-shortcuts.yml in Resources */,
+				59C66E8A96CED913A07EA832 /* sample-shortcuts.yml in Resources */,
 				93E768311710062913552601 /* suggest-dev.txt in Resources */,
 				B92E282E8D0ABE8BEBD693E7 /* suggest-trigram-parity.txt in Resources */,
 				2ADC518FE5C55961C93038B7 /* swipe-lang-sentences.txt in Resources */,
@@ -1819,7 +1819,7 @@
 				61E03FD579DB9D2880FBB044 /* KeystrokeCounter.swift in Sources */,
 				AAD686F0EFFB0502D1BC32E9 /* L10n.swift in Sources */,
 				0028C2A1231D251EAFFFB5BD /* LineBreak.swift in Sources */,
-				19C97787C1CF86629E8366E6 /* LunarCalendar.swift in Sources */,
+				42330A2F6ABF40E32EAD3BAE /* LunarCalendar.swift in Sources */,
 				47AED41CA523BEF3F434CBE4 /* LunarDate.swift in Sources */,
 				691A8436633BE0A93E74C70A /* MainDebouncer.swift in Sources */,
 				217BFFCE84C84D2083F2A528 /* MathResults.swift in Sources */,
@@ -2083,7 +2083,7 @@
 				175CED36E0C29E01403A284F /* LetterUndoTests.swift in Sources */,
 				6644AE50C0BC33D2EC05AB6D /* LineBreak.swift in Sources */,
 				77E204D3C6741B96B65EDCE9 /* LineBreakTests.swift in Sources */,
-				27D348C663BB4796C3CBC1A2 /* LunarCalendar.swift in Sources */,
+				8CEB69C27FDAF15C5D8E97E0 /* LunarCalendar.swift in Sources */,
 				575DF631A38BBAD892B438A3 /* LunarDate.swift in Sources */,
 				4BF47F4F4278437B57D198FD /* LunarDateTests.swift in Sources */,
 				91A901E0BDF972D22FEEF80B /* MainDebouncer.swift in Sources */,
