@@ -36,6 +36,7 @@ struct KeyEffectPickerView: View {
                 Text(L("Hình nhỏ bay ra từ phím vừa bấm, theo màu nhấn của giao diện. Vẽ sau khi chữ đã vào ô nên không làm chậm gõ; tự tắt khi bật Chế độ nguồn điện thấp."))
                     + Text(" ") + Text(L("Matrix, Mực loang, Sóng nước chạy dưới phím; Matrix chỉ chạy khi đang gõ. Nháy sáng được giới hạn nhịp và độ sáng cho dịu mắt. Emoji theo chữ hiện khi vừa gõ xong từ như \"haha\", \"cảm ơn\", \"chúc mừng\"."))
                     + Text(" ") + Text(L("Rung combo không rung khi bật Giảm chuyển động. Dấu thanh phản ứng theo dấu vừa bỏ; Từ khoá nổ pháo đỏ và lì xì khi gõ \"tết\", thả tim khi gõ \"yêu\"; Chữ bay thả đúng chữ vừa ra; Hạt cát đọng thành đống thấp ở đáy rồi tự tan."))
+                    + Text(" ") + Text(L("Biển: mỗi đợt gõ một con sóng vỗ vào bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang."))
             }
         }
         .bottomBarScrollMargin()
@@ -146,7 +147,7 @@ final class KeyEffectPreviewView: UIView {
                 overlay?.emit(key: CGRect(x: bounds.width * 0.12, y: 12, width: 20, height: 20)); overlay?.flush()
                 overlay?.emit(key: CGRect(x: bounds.width * 0.78, y: 18, width: 20, height: 20)); overlay?.flush()
             }
-            if effect == .combo || effect == .shake {
+            if effect == .combo || effect == .shake || effect == .sea {   // Biển: sóng lớn + cá bơi
                 // Xem thử combo: một tràng phím nhanh ⇒ lên mức lửa cao nhất.
                 for _ in 0..<ComboMeter.thresholds[2] { overlay?.emit(key: key.frame); overlay?.flush() }
             }

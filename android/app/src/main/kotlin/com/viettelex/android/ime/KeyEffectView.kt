@@ -24,6 +24,7 @@ import com.viettelex.keyboard.LaserBeam
 import com.viettelex.keyboard.PlasmaArc
 import com.viettelex.keyboard.PlasmaChain
 import com.viettelex.keyboard.SandPile
+import com.viettelex.keyboard.SeaFx
 import com.viettelex.keyboard.ShakeFx
 import com.viettelex.keyboard.ToneBurst
 import com.viettelex.keyboard.ToneFx
@@ -208,6 +209,24 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     private var grainSeq = 0
     private var sandLast = Long.MIN_VALUE / 2
     private val sandPath = Path()
+    // Biển — sóng (pool MAX_WAVES), chùm bọt + bong bóng (pool TAP_SLOTS), một con cá; mảng cấp sẵn, Path dùng lại.
+    private val seaTapStart = LongArray(SeaFx.TAP_SLOTS) { Long.MIN_VALUE / 2 }
+    private val seaTapX = FloatArray(SeaFx.TAP_SLOTS)
+    private val seaTapY = FloatArray(SeaFx.TAP_SLOTS)
+    private var seaTapCursor = 0
+    private val seaWaveStart = LongArray(SeaFx.MAX_WAVES) { Long.MIN_VALUE / 2 }
+    private val seaWaveSize = DoubleArray(SeaFx.MAX_WAVES)
+    private var seaWaveCursor = 0
+    private var seaLastWave = Long.MIN_VALUE / 2
+    private var seaLevel = 0
+    private var seaFishStart = Long.MIN_VALUE / 2
+    private var seaLastFish = Long.MIN_VALUE / 2
+    private var seaFishSeq = 0
+    private var seaFishCur = 0
+    @Volatile private var seaFishBmp: Array<Bitmap>? = null
+    private val seaPath = Path()
+    private val seaEdge = Path()
+    private val seaTmp = DoubleArray(4)
 
     val effect: KeyEffect get() = sim.effect
 
@@ -331,6 +350,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
                 glStart[s] = now; glRect[s].set(x - hw, y - hh, x + hw, y + hh); glVariant[s] = glSeq++ % GlitchFx.VARIANTS
             }
             KeyEffect.SAND -> fireSand(x, y, now)
+            KeyEffect.SEA -> fireSea(x, y, now)
             KeyEffect.FLASH -> if (flash.trigger(now)) flashStart = now
             KeyEffect.LIGHTNING -> fireLightning(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.MATRIX -> pokeMatrix(now)
@@ -416,6 +436,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         arcStart.fill(Long.MIN_VALUE / 2); laserStart.fill(Long.MIN_VALUE / 2); glStart.fill(Long.MIN_VALUE / 2)
         toneStart.fill(Long.MIN_VALUE / 2); kwStart.fill(Long.MIN_VALUE / 2); letterStart.fill(Long.MIN_VALUE / 2)
         grainAlive.fill(false); sand?.clear(); plasma.reset()
+        seaTapStart.fill(Long.MIN_VALUE / 2); seaWaveStart.fill(Long.MIN_VALUE / 2); seaFishStart = Long.MIN_VALUE / 2
+        seaLastWave = Long.MIN_VALUE / 2; seaLevel = 0
         shakeStart = Long.MIN_VALUE / 2
         shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         pendN = 0
@@ -462,6 +484,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.KEYWORD -> drawKeyword(canvas, now)
             KeyEffect.LETTERS -> drawLetters(canvas, now)
             KeyEffect.SAND -> drawSand(canvas, now)
+            KeyEffect.SEA -> drawSea(canvas, now)
             else -> drawParticles(canvas, now)
         }
     }
@@ -964,6 +987,154 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         return false
     }
 
+    // MARK: Biển — sóng vỗ bờ + bọt bắn + bong bóng + cá (= iOS KeyEffectOverlay, cùng hàm thuần SeaFx)
+
+    private fun fireSea(x: Float, y: Float, now: Long) {
+        val prev = seaLevel
+        val lv = combo.press(now)
+        seaLevel = lv
+        val s = seaTapCursor; seaTapCursor = (s + 1) % SeaFx.TAP_SLOTS
+        seaTapStart[s] = now; seaTapX[s] = x; seaTapY[s] = y
+        if (SeaFx.shouldLaunch((now - seaLastWave) / 1000.0)) {
+            seaLastWave = now
+            val w = seaWaveCursor; seaWaveCursor = (w + 1) % SeaFx.MAX_WAVES
+            seaWaveStart[w] = now; seaWaveSize[w] = SeaFx.size(lv)
+        }
+        if (SeaFx.fishShouldSwim(lv, prev, (now - seaLastFish) / 1000.0)) {
+            seaLastFish = now; seaFishStart = now; seaFishCur = seaFishSeq++
+        }
+    }
+
+    /** Test: số sóng / chùm bọt đang chạy lúc [now], cỡ sóng ô [i], cá đang bơi. */
+    internal fun seaWavesAlive(now: Long): Int = seaWaveStart.count { now - it in 0 until SEA_LIFE_MS }
+    internal fun seaWaveSize(i: Int): Double = seaWaveSize[i]
+    internal fun seaFishSwimming(now: Long): Boolean = now - seaFishStart in 0 until SEA_FISH_MS
+
+    /** Vẽ Biển lúc [now]; true = còn gì đang chạy. Hết sóng / bọt / cá ⇒ false (thôi hẹn khung hình). */
+    private fun drawSea(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        val wDp = (width / density).toDouble()
+        val h = height.toFloat()
+        val accent = color or (0xFF shl 24)
+        val x0 = -SeaFx.WAVELENGTH; val x1 = wDp + SeaFx.WAVELENGTH
+        for (w in 0 until SeaFx.MAX_WAVES) {
+            val t = (now - seaWaveStart[w]) / 1000.0
+            if (t < 0 || t >= SeaFx.LIFE) continue
+            any = true
+            val sz = seaWaveSize[w]; val ph = SeaFx.phase(w)
+            // Bờ: vệt ướt (cao WASH_MAX × cỡ) + bọt tràn (cao washHeight).
+            val wet = SeaFx.wetAlpha(t)
+            if (wet > 0) {
+                shoreBand(x0, x1, ph, sz, h)
+                fill.color = accent; fill.alpha = (255 * wet).toInt(); canvas.drawPath(seaPath, fill)
+            }
+            val wash = SeaFx.washHeight(t, sz)
+            if (wash > 0) {
+                shoreBand(x0, x1, ph, wash / SeaFx.WASH_MAX, h)
+                fill.color = 0xFFFFFFFF.toInt(); fill.alpha = if (dark) 153 else 191
+                canvas.drawPath(seaPath, fill)
+                stroke.color = accent; stroke.alpha = 178; stroke.strokeWidth = density
+                canvas.drawPath(seaEdge, stroke)
+            }
+            // Sóng cuộn: thân + mép màu nhấn + mép bọt.
+            val a = SeaFx.waveAlpha(t)
+            if (a > 0) {
+                val cy = (SeaFx.travel(t) * h).toFloat()
+                val dx = SeaFx.driftX(t)
+                seaPath.rewind(); seaEdge.rewind()
+                var x = x0; var first = true
+                while (x <= x1 + 1e-9) {
+                    val px = ((x + dx) * density).toFloat()
+                    val py = cy + (SeaFx.crestOffset(x, ph) * sz * density).toFloat()
+                    if (first) { seaPath.moveTo(px, py); seaEdge.moveTo(px, py) } else { seaPath.lineTo(px, py); seaEdge.lineTo(px, py) }
+                    first = false
+                    x += SeaFx.STEP
+                }
+                x -= SeaFx.STEP
+                while (x >= x0 - 1e-9) {
+                    seaPath.lineTo(((x + dx) * density).toFloat(), cy + (SeaFx.bodyTop(x, ph) * sz * density).toFloat())
+                    x -= SeaFx.STEP
+                }
+                seaPath.close()
+                stroke.strokeJoin = Paint.Join.ROUND; stroke.strokeCap = Paint.Cap.ROUND
+                fill.color = accent; fill.alpha = (255 * SeaFx.BODY_ALPHA * a).toInt(); canvas.drawPath(seaPath, fill)
+                val save = canvas.save()
+                canvas.translate(0f, (1.8 * sz * density).toFloat())
+                stroke.color = accent; stroke.alpha = (255 * 0.6 * a).toInt(); stroke.strokeWidth = density
+                canvas.drawPath(seaEdge, stroke)
+                canvas.restoreToCount(save)
+                stroke.color = 0xFFFFFFFF.toInt(); stroke.alpha = (255 * SeaFx.FOAM_ALPHA * a).toInt()
+                stroke.strokeWidth = (SeaFx.FOAM_WIDTH * density).toFloat()
+                canvas.drawPath(seaEdge, stroke)
+            }
+        }
+        // Bọt bắn + bong bóng ở phím.
+        val dr = (SeaFx.DROPLET_RADIUS * density).toFloat()
+        for (s in 0 until SeaFx.TAP_SLOTS) {
+            val t = (now - seaTapStart[s]) / 1000.0
+            if (t < 0 || t >= SeaFx.BUBBLE_DURATION) continue
+            any = true
+            val fd = t / SeaFx.DROPLET_DURATION
+            if (fd < 1) {
+                val al = if (fd < 0.6) 1.0 else 1 - (fd - 0.6) / 0.4
+                for (i in 0 until SeaFx.DROPLETS_PER_TAP) {
+                    SeaFx.droplet(i, fd, seaTmp)
+                    val px = seaTapX[s] + (seaTmp[0] * density).toFloat(); val py = seaTapY[s] + (seaTmp[1] * density).toFloat()
+                    fill.color = 0xFFFFFFFF.toInt(); fill.alpha = (255 * al).toInt(); canvas.drawCircle(px, py, dr, fill)
+                    if (!dark) {
+                        stroke.color = accent; stroke.alpha = (204 * al).toInt(); stroke.strokeWidth = 0.6f * density
+                        canvas.drawCircle(px, py, dr, stroke)
+                    }
+                }
+            }
+            val fb = t / SeaFx.BUBBLE_DURATION
+            for (i in 0 until SeaFx.BUBBLES_PER_TAP) {
+                SeaFx.bubble(i, fb, seaTmp)
+                val px = seaTapX[s] + (seaTmp[0] * density).toFloat(); val py = seaTapY[s] + (seaTmp[1] * density).toFloat()
+                val r = (SeaFx.BUBBLE_RADIUS * seaTmp[2] * density).toFloat(); val al = seaTmp[3]
+                fill.color = accent; fill.alpha = (255 * 0.15 * al).toInt(); canvas.drawCircle(px, py, r, fill)
+                stroke.color = if (dark) 0xFFFFFFFF.toInt() else accent
+                stroke.alpha = (255 * (if (dark) 0.85 else 1.0) * al).toInt(); stroke.strokeWidth = 1.2f * density
+                canvas.drawCircle(px, py, r, stroke)
+            }
+        }
+        // Cá.
+        val ff = (now - seaFishStart) / 1000.0 / SeaFx.FISH_DURATION
+        if (ff >= 0 && ff < 1) {
+            any = true
+            val bmps = seaFishBmp
+            if (bmps != null && bmps.isNotEmpty()) {
+                val b = bmps[seaFishCur % bmps.size]
+                val rtl = SeaFx.fishRightToLeft(seaFishCur)
+                val px = (SeaFx.fishX(ff, wDp, rtl) * density).toFloat()
+                val py = ((SeaFx.fishY(seaFishCur, (h / density).toDouble()) + SeaFx.fishBobY(ff)) * density).toFloat()
+                val k = (SeaFx.FISH_SIZE * density / b.width).toFloat()
+                bmpPaint.alpha = (255 * SeaFx.fishAlpha(ff)).toInt().coerceIn(0, 255)
+                mtx.setTranslate(-b.width / 2f, -b.height / 2f)
+                mtx.postScale(if (rtl) k else -k, k)      // emoji cá quay mặt sang trái: bơi sang phải ⇒ lật ngang
+                mtx.postTranslate(px, py)
+                canvas.drawBitmap(b, mtx, bmpPaint)
+            }
+        }
+        return any
+    }
+
+    /** Dải bờ (gốc = đáy view, mép trên gợn [SeaFx.washTop] nhân [k]) vào [seaPath]; mép trên riêng vào [seaEdge]. */
+    private fun shoreBand(x0: Double, x1: Double, ph: Double, k: Double, h: Float) {
+        seaPath.rewind(); seaEdge.rewind()
+        seaPath.moveTo((x0 * density).toFloat(), h)
+        var x = x0; var first = true
+        while (x <= x1 + 1e-9) {
+            val px = (x * density).toFloat(); val py = h + (SeaFx.washTop(x, ph) * k * density).toFloat()
+            seaPath.lineTo(px, py)
+            if (first) seaEdge.moveTo(px, py) else seaEdge.lineTo(px, py)
+            first = false
+            x += SeaFx.STEP
+        }
+        seaPath.lineTo(((x - SeaFx.STEP) * density).toFloat(), h)
+        seaPath.close()
+    }
+
     /** Test: số hạt cát đang bay. */
     internal fun grainsAlive(): Int = grainAlive.count { it }
 
@@ -1014,6 +1185,10 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
                 val m = KeywordBursts.allEmojis.associateWith { renderEmoji(it) }
                 post { if (sim.effect == KeyEffect.KEYWORD) kwEmoji = m }
             }, "vt-fx-keyword").start()
+            KeyEffect.SEA -> if (seaFishBmp == null) Thread({
+                val b = Array(SeaFx.FISH_GLYPHS.size) { renderEmoji(SeaFx.FISH_GLYPHS[it]) }
+                post { if (sim.effect == KeyEffect.SEA) seaFishBmp = b }
+            }, "vt-fx-sea").start()
             KeyEffect.EMOJIWORD -> if (emojiBitmaps.isEmpty()) Thread({
                 val m = EmojiWords.distinctEmojis.associateWith { renderEmoji(it) }
                 post { if (sim.effect == KeyEffect.EMOJIWORD) emojiBitmaps = m + emojiBitmaps }
@@ -1023,6 +1198,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         if (e != KeyEffect.MATRIX) strips = null
         if (e != KeyEffect.EMOJIWORD) emojiBitmaps = emptyMap()
         if (e != KeyEffect.KEYWORD) kwEmoji = emptyMap()
+        if (e != KeyEffect.SEA) seaFishBmp = null
         if (e == KeyEffect.MATRIX && width > 0) columns = Array(MatrixRain.columnCount((width / density).toDouble())) { MatrixRain.column(it) }
     }
 
@@ -1164,5 +1340,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         /** Rung dây: thời lượng (ms) = StringPluck.DURATION. */
         val STRING_MS = Math.round(StringPluck.DURATION * 1000)
         const val DEFAULT_H = 42f
+        /** Biển: đời một con sóng / một lần cá bơi (ms). */
+        val SEA_LIFE_MS = Math.round(SeaFx.LIFE * 1000)
+        val SEA_FISH_MS = Math.round(SeaFx.FISH_DURATION * 1000)
     }
 }

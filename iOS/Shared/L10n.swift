@@ -388,6 +388,7 @@ enum L10n {
         "Từ khoá": "Keywords",
         "Chữ bay": "Flying letters",
         "Hạt cát": "Sand",
+        "Biển: mỗi đợt gõ một con sóng vỗ vào bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang.": "Sea: each burst of typing sends a wave rolling onto the shore at the bottom of the keyboard — the faster you type, the bigger the wave; now and then a fish swims by.",
         "Rung combo không rung khi bật Giảm chuyển động. Dấu thanh phản ứng theo dấu vừa bỏ; Từ khoá nổ pháo đỏ và lì xì khi gõ \"tết\", thả tim khi gõ \"yêu\"; Chữ bay thả đúng chữ vừa ra; Hạt cát đọng thành đống thấp ở đáy rồi tự tan.": "Combo shake stays still when Reduce Motion is on. Tone marks react to the mark you just typed; Keywords set off red firecrackers and lucky envelopes for \"tết\" and hearts for \"yêu\"; Flying letters release exactly the letter you typed; Sand piles up low along the bottom and fades away.",
         "Matrix, Mực loang, Sóng nước chạy dưới phím; Matrix chỉ chạy khi đang gõ. Nháy sáng được giới hạn nhịp và độ sáng cho dịu mắt. Emoji theo chữ hiện khi vừa gõ xong từ như \"haha\", \"cảm ơn\", \"chúc mừng\".": "Matrix, Ink bloom and Water ripples play beneath the keys; Matrix only runs while you type. Flash is rate- and brightness-limited to stay easy on the eyes. Emoji words appear right after words like \"haha\", \"thanks\", \"congrats\".",
         "Chạm một ô để chọn và xem thử.": "Tap a tile to choose and preview it.",

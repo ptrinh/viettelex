@@ -1237,7 +1237,7 @@ final class ThemeSetTests: XCTestCase {
         XCTAssertEqual(all[all.firstIndex(of: .neutral)! + 1], .pixel)
         let want: [(KeyboardTheme, String, String, String?, String?, Int?)] = [
             (.pixel, "Pixel 8-bit", "Pixel 8-bit", "chip", "flash", 0),
-            (.sea, "Biển", "Sea", "water", "wave", 60),
+            (.sea, "Biển", "Sea", "water", "sea", 60),
             (.timeOfDay, "Theo giờ", "Time of day", nil, nil, nil)]
         for (t, vi, en, sound, effect, corner) in want {
             let spec = try XCTUnwrap(t.spec, t.rawValue)
@@ -1263,7 +1263,7 @@ final class ThemeSetTests: XCTestCase {
         XCTAssertEqual(ThemeExtras.plan(ThemeSettings(theme: .pixel).effectiveKeyStyle, soundOn: false, effectAllowed: yes, soundAllowed: yes),
                        ThemeExtras.Outcome(effect: "flash", sound: "chip", soundHint: true))
         XCTAssertEqual(ThemeExtras.plan(ThemeSettings(theme: .sea).effectiveKeyStyle, soundOn: false, effectAllowed: yes, soundAllowed: yes),
-                       ThemeExtras.Outcome(effect: "wave", sound: "water", soundHint: true))
+                       ThemeExtras.Outcome(effect: "sea", sound: "water", soundHint: true))
     }
 
     /// Motif mới (pixel / waves / bubbles): cùng chiều quay, trong ô ±0.5, mốc chung Android (ThemeSetTests.newMotifs1111).

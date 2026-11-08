@@ -1,7 +1,7 @@
 // "Hiệu ứng khi bấm phím" (Plus, Phil 19/10/2026): Trái tim, Bong bóng, Gợn sóng,
 // Cánh hoa, Pháo hoa, Nháy sáng, Matrix, Tia sét, Emoji theo chữ, Hoa đào / mai, Lửa combo, Mực loang,
 // Sóng nước, Tuyết rơi, Sao băng, Đèn lồng, Sương ma, Rung dây, Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá,
-// Chữ bay, Hạt cát; "Không" = mặc định. Song sinh android/keyboard/.../KeyEffect.kt (cùng khoá
+// Chữ bay, Hạt cát, Biển; "Không" = mặc định. Song sinh android/keyboard/.../KeyEffect.kt (cùng khoá
 // `keyEffect`, cùng id, cùng quỹ đạo / cùng hàm thuần: tia sét, mảnh vỡ, combo, nháy sáng, emoji).
 //
 // Luật hiệu năng (feature-flags-perf-policy — gõ mượt là số 1):
@@ -30,6 +30,8 @@ enum KeyEffect: String, CaseIterable {
     // Đợt 3 (11/2026): tia plasma nối phím, rung combo, laser từ phím cách, glitch, dấu thanh, từ khoá (pháo đỏ / lì xì),
     // chữ bay, hạt cát.
     case plasma, shake, laser, glitch, tone, keyword, letters, sand
+    // Theme Biển (11/2026): sóng vỗ bờ + bọt bắn + bong bóng + cá bơi khi combo (SeaFx).
+    case sea
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -69,6 +71,7 @@ enum KeyEffect: String, CaseIterable {
         case .keyword: return L("Từ khoá")
         case .letters: return L("Chữ bay")
         case .sand: return L("Hạt cát")
+        case .sea: return L("Biển")
         }
     }
 
@@ -133,6 +136,7 @@ enum KeyEffect: String, CaseIterable {
         case .wave: return 3              // 3 vòng mỗi chùm ⇒ 9 layer
         case .string: return StringPluck.pool
         case .emojiword: return 3
+        case .sea: return SeaFx.tapSlots    // chùm bọt + bong bóng; sóng / cá là layer riêng
         default:
             guard particlesPerTap > 0 else { return 1 }
             return max(1, min(8, KeyEffectPool.cap / particlesPerTap))
@@ -144,6 +148,7 @@ enum KeyEffect: String, CaseIterable {
         switch self {
         case .ink, .emojiword, .string: return 1
         case .wave: return WaveRings.rings
+        case .sea: return SeaFx.layersPerTap
         default: return particlesPerTap
         }
     }
@@ -1160,6 +1165,125 @@ struct SandPile {
     mutating func clear() { for i in heights.indices { heights[i] = 0 } }
 }
 
+/// "Biển" (theme Biển, 11/2026): SÓNG VỖ BỜ là phần chính — gõ ⇒ một con sóng cuộn từ đỉnh bàn phím xuống đáy (đáy = bờ
+/// cát): mặt sóng cong, mép bọt trắng; chạm bờ thì vỡ bọt tràn dọc đáy rồi rút, để lại vệt ướt mờ dần. Gõ liên tiếp ⇒ sóng
+/// nối nhau (cách nhau ≥ `launchGap`, tối đa `maxWaves` — sóng mới không bao giờ cướp sóng đang chạy); gõ nhanh (mức
+/// ComboMeter) ⇒ sóng to hơn. Phụ: vài giọt bọt bắn ở phím + 2 bong bóng lắc lên rồi vỡ thành vòng; combo lên `fishLevel` ⇒
+/// một chú cá bơi ngang một lần. Nghỉ gõ = không còn gì chạy. Hàm thuần — Android SeaFx y hệt (test số chung).
+enum SeaFx {
+    // Sóng vỗ bờ
+    static let maxWaves = 3
+    static let launchGap = 0.55
+    /// Cuộn từ đỉnh xuống bờ / vỡ bọt tràn lên / rút (giây).
+    static let roll = 0.6, breakTime = 0.3, recede = 0.7
+    static var life: Double { roll + breakTime + recede }
+    /// Thân sóng (pt, phía sau mép sóng) — nhân cỡ sóng.
+    static let bodyHeight = 26.0
+    static let bodyAlpha = 0.22
+    static let foamAlpha = 0.85
+    static let foamWidth = 2.5
+    static let crestAmp = 3.5
+    static let wavelength = 110.0
+    /// Mép sóng trôi ngang khi cuộn (pt).
+    static let drift = 16.0
+    /// Bọt tràn lên bờ cao nhất (pt, nhân cỡ sóng).
+    static let washMax = 14.0
+    static let wetPeak = 0.3
+    /// Bước lấy mẫu mép sóng (pt) / số khung keyframe iOS trên cả đời sóng.
+    static let step = 8.0
+    static let frames = 32
+    /// Cỡ sóng theo mức combo 0…3.
+    static let sizes: [Double] = [1.0, 1.2, 1.4, 1.65]
+
+    static func size(level: Int) -> Double { sizes[Swift.min(Swift.max(level, 0), sizes.count - 1)] }
+    /// Sóng mới chỉ khi sóng trước đã đi được `launchGap` (gõ dồn ⇒ chỉ bọt + bong bóng).
+    static func shouldLaunch(sinceLast dt: Double) -> Bool { dt >= launchGap }
+    /// Tỉ lệ quãng đỉnh → bờ của mép sóng (nhanh dần như sóng sắp vỡ).
+    static func travel(_ t: Double) -> Double {
+        guard t > 0 else { return 0 }
+        guard t < roll else { return 1 }
+        let u = t / roll
+        return u * u
+    }
+    static func driftX(_ t: Double) -> Double { drift * Swift.min(Swift.max(t / roll, 0), 1) }
+    /// Pha mép sóng của ô sóng `slot` (mỗi con sóng một dáng).
+    static func phase(_ slot: Int) -> Double { Double(abs(slot) % 7) * 0.9 }
+    /// Mép sóng (lệch y, pt) tại x — hai điều hoà lệch pha ⇒ đỉnh nhọn lệch như sóng sắp cuộn.
+    static func crestOffset(_ x: Double, phase: Double) -> Double {
+        let th = 2 * Double.pi * x / wavelength + phase
+        return crestAmp * (sin(th) + 0.3 * sin(2 * th + 0.6))
+    }
+    /// Mép trên thân sóng (gốc = mép sóng).
+    static func bodyTop(_ x: Double, phase: Double) -> Double { -bodyHeight + 0.5 * crestOffset(x + wavelength / 3, phase: phase) }
+    /// Mép trên bọt tràn / vệt ướt (gốc = đáy, cao washMax).
+    static func washTop(_ x: Double, phase: Double) -> Double { -washMax + 0.4 * crestOffset(x, phase: phase + 1) }
+    /// Độ đậm thân + mép sóng: đủ khi cuộn, tan trong lúc vỡ.
+    static func waveAlpha(_ t: Double) -> Double {
+        if t < 0 || t >= roll + breakTime { return 0 }
+        if t < roll { return 1 }
+        return 1 - (t - roll) / breakTime
+    }
+    /// Chiều cao bọt tràn ở bờ (pt): dâng nhanh khi vỡ, rút tuyến tính.
+    static func washHeight(_ t: Double, size s: Double) -> Double {
+        let a = t - roll
+        if a <= 0 || t >= life { return 0 }
+        if a < breakTime { let u = a / breakTime; return washMax * s * (1 - (1 - u) * (1 - u)) }
+        return washMax * s * (1 - (a - breakTime) / recede)
+    }
+    /// Vệt ướt trên cát lúc nước rút: đậm nhất khi bọt bắt đầu rút, mờ về 0.
+    static func wetAlpha(_ t: Double) -> Double {
+        let a = t - roll - breakTime
+        if a < 0 || t >= life { return 0 }
+        return wetPeak * (1 - a / recede)
+    }
+
+    // Bọt bắn + bong bóng ở phím (mỗi lần bấm MỘT chùm, pool tapSlots chùm)
+    static let dropletsPerTap = 3, bubblesPerTap = 2, tapSlots = 4
+    static var layersPerTap: Int { dropletsPerTap + bubblesPerTap }
+    static let dropletDx: [Double] = [-14, 3, 15]
+    static let dropletPeak: [Double] = [16, 22, 13]
+    static let dropletSink = 12.0, dropletDuration = 0.45, dropletRadius = 1.8
+    /// Giọt `i` ở tỉ lệ thời gian f: vòng cung lên rồi rơi (gốc = phím).
+    static func droplet(_ i: Int, _ f: Double) -> (x: Double, y: Double) {
+        let k = Swift.min(Swift.max(f, 0), 1), j = i % dropletsPerTap
+        return (dropletDx[j] * k, -dropletPeak[j] * 4 * k * (1 - k) + dropletSink * k * k)
+    }
+    static let bubbleDx: [Double] = [-5, 6]
+    static let bubbleRise: [Double] = [44, 56]
+    static let bubbleDuration = 0.9, bubbleRadius = 3.5, bubbleSway = 3.5
+    /// Bong bóng vỡ: từ popAt phồng tới popScale + tan (vòng "póc").
+    static let popAt = 0.85, popScale = 1.8
+    static func bubble(_ i: Int, _ f: Double) -> (x: Double, y: Double, scale: Double, alpha: Double) {
+        let k = Swift.min(Swift.max(f, 0), 1), j = i % bubblesPerTap
+        let e = 1 - (1 - k) * (1 - k)
+        let x = bubbleDx[j] + bubbleSway * sin(2 * Double.pi * 1.5 * k + Double(j) * Double.pi)
+        let y = -bubbleRise[j] * e
+        if k < popAt { return (x, y, 0.6 + 0.4 * k / popAt, 1) }
+        let p = (k - popAt) / (1 - popAt)
+        return (x, y, 1 + (popScale - 1) * p, 1 - p)
+    }
+
+    // Cá bơi khi gõ combo
+    static let fishLevel = 2
+    static let fishCooldown = 4.0, fishDuration = 2.4, fishSize = 24.0, fishMargin = 14.0, fishBob = 3.0
+    static let fishGlyphs = ["🐟", "🐠"]
+    /// Cá bơi khi mức combo VỪA lên tới fishLevel và đã nghỉ cá ≥ fishCooldown.
+    static func fishShouldSwim(level: Int, previous: Int, sinceLastFish: Double) -> Bool {
+        level >= fishLevel && previous < fishLevel && sinceLastFish >= fishCooldown
+    }
+    static func fishRightToLeft(_ seq: Int) -> Bool { seq % 2 == 0 }
+    static func fishY(_ seq: Int, height: Double) -> Double { height * (0.25 + 0.35 * fxValue(fxStep(fxSeed(seq &* 29 &+ 5)))) }
+    static func fishX(_ f: Double, width: Double, rightToLeft: Bool) -> Double {
+        let k = Swift.min(Swift.max(f, 0), 1), a = fishMargin, b = Swift.max(width - fishMargin, fishMargin)
+        return rightToLeft ? b + (a - b) * k : a + (b - a) * k
+    }
+    static func fishBobY(_ f: Double) -> Double { fishBob * sin(2 * Double.pi * 3 * f) }
+    static func fishAlpha(_ f: Double) -> Double {
+        guard f >= 0, f < 1 else { return 0 }
+        return Swift.min(1, f / 0.1, (1 - f) / 0.1)
+    }
+}
+
 // MARK: - Overlay
 
 extension UIView {
@@ -1268,6 +1392,15 @@ final class KeyEffectOverlay: UIView {
     private var sandLast: CFTimeInterval = -.greatestFiniteMagnitude
     private var pendingLandings: [Double] = []
     private var sandSweepScheduled = false
+    // Biển — sóng: pool maxWaves gốc dựng lười theo cỡ bàn phím (path + animation gắn MỘT lần), bấm chỉ đặt cỡ + beginTime.
+    private var seaWaves: [SeaWave] = []
+    private var seaBuiltFor: CGSize = .zero
+    private var seaCursor = 0
+    private var seaLastWave: CFTimeInterval = -.greatestFiniteMagnitude
+    private var seaLevel = 0
+    private var seaFish: CALayer?
+    private var seaLastFish: CFTimeInterval = -.greatestFiniteMagnitude
+    private var seaFishSeq = 0
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -1337,7 +1470,7 @@ final class KeyEffectOverlay: UIView {
         rebuild()
     }
 
-    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand]
+    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -1486,6 +1619,10 @@ final class KeyEffectOverlay: UIView {
     var debugSandLayer: CAShapeLayer? { sandPile }
     func debugLandSand() { landSand() }
     var debugLetters: [CATextLayer] { letters }
+    /// Biển: gốc các con sóng đã dựng + cỡ (scale dọc) từng con + cá (nil nếu chưa bơi lần nào).
+    var debugSeaWaveRoots: [CALayer] { seaWaves.map(\.root) }
+    var debugSeaWaveSizes: [CGFloat] { seaWaves.map { $0.wave.transform.m22 } }
+    var debugSeaFish: CALayer? { seaFish }
     #else
     static let drawsOffscreen = false
     #endif
@@ -1501,6 +1638,7 @@ final class KeyEffectOverlay: UIView {
         case .laser: fireLaser(c, now: now)
         case .glitch: fireGlitch(r, now: now)
         case .sand: fireSand(c, now: now, media: media)
+        case .sea: fireSea(c, now: now, media: media)
         case .flash: fireFlash(now: now, media: media)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)
@@ -1870,6 +2008,7 @@ final class KeyEffectOverlay: UIView {
         shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey)
         plasma.reset()
         clearSand()                       // ẩn bàn phím ⇒ đống cát về 0
+        haltSea()
     }
 
     // MARK: Đợt 3 — Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá, Chữ bay, Hạt cát
@@ -2317,6 +2456,217 @@ final class KeyEffectOverlay: UIView {
         return g
     }
 
+    // MARK: Biển
+
+    /// Một con sóng: gốc (góc trên-trái bàn phím) chứa `wave` (thân + mép bọt, cuộn xuống) và `shore` (vệt ướt + bọt
+    /// tràn ở đáy). Cỡ sóng = scale dọc của `wave` / `shore`, đặt lúc bắn.
+    private final class SeaWave {
+        let root = CALayer(), wave = CALayer(), shore = CALayer()
+    }
+
+    private func fireSea(_ c: CGPoint, now: CFTimeInterval, media: CFTimeInterval) {
+        let prev = seaLevel
+        let lv = combo.press(at: media)
+        seaLevel = lv
+        launch(nextBurst(), at: c, now: now)            // bọt bắn + bong bóng ở phím
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        if SeaFx.shouldLaunch(sinceLast: media - seaLastWave) {
+            seaLastWave = media
+            launchWave(size: SeaFx.size(level: lv), now: now)
+        }
+        if SeaFx.fishShouldSwim(level: lv, previous: prev, sinceLastFish: media - seaLastFish) {
+            seaLastFish = media
+            swimFish()
+        }
+    }
+
+    private func launchWave(size: Double, now: CFTimeInterval) {
+        if seaBuiltFor != bounds.size {       // cỡ bàn phím đổi ⇒ dựng lại path + animation theo cỡ mới
+            for w in seaWaves { w.root.removeFromSuperlayer() }
+            seaWaves.removeAll(); seaCursor = 0
+            seaBuiltFor = bounds.size
+        }
+        let slot = seaCursor
+        seaCursor = (slot + 1) % SeaFx.maxWaves
+        let w: SeaWave
+        if slot < seaWaves.count { w = seaWaves[slot] } else { w = makeSeaWave(slot); seaWaves.append(w) }
+        let s = CGFloat(size)
+        w.wave.transform = CATransform3DMakeScale(1, s, 1)
+        w.shore.transform = CATransform3DMakeScale(1, s, 1)
+        w.root.position = bounds.origin
+        w.root.beginTime = now
+        w.root.isHidden = false
+    }
+
+    private static func polyline(_ xs: [Double], _ y: (Double) -> Double) -> CGMutablePath {
+        let p = CGMutablePath()
+        for (i, x) in xs.enumerated() {
+            let pt = CGPoint(x: x, y: y(x))
+            if i == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
+        }
+        return p
+    }
+
+    private func makeSeaWave(_ slot: Int) -> SeaWave {
+        let w = SeaWave()
+        let W = Double(bounds.width), H = Double(bounds.height)
+        let ph = SeaFx.phase(slot)
+        let lam = SeaFx.wavelength
+        let xs = Array(stride(from: -lam, through: W + lam, by: SeaFx.step))
+        let foam = UIColor.white
+        // Thân sóng (gốc = mép sóng): mép dưới = crestOffset, mép trên = bodyTop.
+        let body = Self.polyline(xs) { SeaFx.crestOffset($0, phase: ph) }
+        for x in xs.reversed() { body.addLine(to: CGPoint(x: x, y: SeaFx.bodyTop(x, phase: ph))) }
+        body.closeSubpath()
+        let crest = Self.polyline(xs) { SeaFx.crestOffset($0, phase: ph) }
+        let edge = Self.polyline(xs) { SeaFx.crestOffset($0, phase: ph) + 1.8 }
+        func shape(_ path: CGPath, fill: UIColor?, stroke: UIColor?, width: CGFloat = 0) -> CAShapeLayer {
+            let l = CAShapeLayer()
+            l.path = path; l.bounds = .zero; l.position = .zero
+            l.fillColor = fill?.cgColor; l.strokeColor = stroke?.cgColor; l.lineWidth = width
+            l.lineJoin = .round; l.lineCap = .round
+            l.contentsScale = UIScreen.main.scale
+            return l
+        }
+        w.wave.bounds = .zero
+        w.wave.addSublayer(shape(body, fill: color.withAlphaComponent(CGFloat(SeaFx.bodyAlpha)), stroke: nil))
+        // Mép màu nhấn ngay dưới bọt — thấy được cả trên phím sáng.
+        w.wave.addSublayer(shape(edge, fill: nil, stroke: color.withAlphaComponent(0.6), width: 1))
+        w.wave.addSublayer(shape(crest, fill: nil, stroke: foam.withAlphaComponent(CGFloat(SeaFx.foamAlpha)),
+                                 width: CGFloat(SeaFx.foamWidth)))
+        // Bờ (gốc = đáy bàn phím): vệt ướt + bọt tràn, cao washMax, mép trên gợn.
+        let band = CGMutablePath()
+        band.move(to: CGPoint(x: xs[0], y: 0))
+        for x in xs { band.addLine(to: CGPoint(x: x, y: SeaFx.washTop(x, phase: ph))) }
+        band.addLine(to: CGPoint(x: xs[xs.count - 1], y: 0))
+        band.closeSubpath()
+        let top = Self.polyline(xs) { SeaFx.washTop($0, phase: ph) }
+        w.shore.bounds = .zero
+        w.shore.position = CGPoint(x: 0, y: H)
+        let wet = shape(band, fill: color, stroke: nil)
+        wet.opacity = 0
+        let wash = CALayer()
+        wash.bounds = .zero
+        wash.addSublayer(shape(band, fill: foam.withAlphaComponent(dark ? 0.6 : 0.75), stroke: nil))
+        wash.addSublayer(shape(top, fill: nil, stroke: color.withAlphaComponent(0.7), width: 1))
+        wash.transform = CATransform3DMakeScale(1, 0, 1)
+        w.shore.addSublayer(wet)
+        w.shore.addSublayer(wash)
+
+        // Animation gắn MỘT lần, lấy mẫu từ hàm thuần (Android vẽ từng khung bằng đúng các hàm đó).
+        let n = SeaFx.frames, life = SeaFx.life
+        let ts = (0...n).map { life * Double($0) / Double(n) }
+        let keyTimes = (0...n).map { NSNumber(value: Double($0) / Double(n)) }
+        func kf(_ path: String, _ values: [Any]) -> CAKeyframeAnimation {
+            let a = CAKeyframeAnimation(keyPath: path)
+            a.values = values; a.keyTimes = keyTimes; a.calculationMode = .linear
+            return a
+        }
+        w.wave.opacity = 0
+        w.wave.add(Self.group([kf("position", ts.map { NSValue(cgPoint: CGPoint(x: SeaFx.driftX($0), y: SeaFx.travel($0) * H)) }),
+                               kf("opacity", ts.map { SeaFx.waveAlpha($0) })], duration: life, delay: 0), forKey: "fx")
+        wet.add(Self.group([kf("opacity", ts.map { SeaFx.wetAlpha($0) })], duration: life, delay: 0), forKey: "fx")
+        wash.add(Self.group([kf("transform.scale.y", ts.map { SeaFx.washHeight($0, size: 1) / SeaFx.washMax })],
+                            duration: life, delay: 0), forKey: "fx")
+        w.root.bounds = .zero
+        w.root.anchorPoint = .zero
+        w.root.isHidden = true
+        w.root.addSublayer(w.wave)
+        w.root.addSublayer(w.shore)
+        layer.insertSublayer(w.root, at: 0)        // sóng nằm dưới bọt bắn / bong bóng
+        return w
+    }
+
+    /// Cá: MỘT layer ảnh emoji (dựng sẵn ngoài main); hiếm (≥ fishCooldown) nên animation tạo mỗi lần bơi, tự gỡ khi xong.
+    private func swimFish() {
+        let seq = seaFishSeq
+        seaFishSeq += 1
+        let l: CALayer
+        if let f = seaFish { l = f } else {
+            l = CALayer()
+            let s = CGFloat(SeaFx.fishSize)
+            l.bounds = CGRect(x: 0, y: 0, width: s, height: s)
+            l.contentsGravity = .resizeAspect
+            l.opacity = 0
+            layer.addSublayer(l)
+            seaFish = l
+        }
+        let rtl = SeaFx.fishRightToLeft(seq)
+        l.contents = emojiImage(SeaFx.fishGlyphs[seq % SeaFx.fishGlyphs.count])
+        // Emoji cá quay mặt sang trái: bơi sang phải ⇒ lật ngang.
+        l.transform = rtl ? CATransform3DIdentity : CATransform3DMakeScale(-1, 1, 1)
+        let W = Double(bounds.width), x0 = Double(bounds.minX)
+        let y0 = Double(bounds.minY) + SeaFx.fishY(seq, height: Double(bounds.height))
+        let n = 24
+        let fs = (0...n).map { Double($0) / Double(n) }
+        let move = CAKeyframeAnimation(keyPath: "position")
+        move.values = fs.map { NSValue(cgPoint: CGPoint(x: x0 + SeaFx.fishX($0, width: W, rightToLeft: rtl), y: y0 + SeaFx.fishBobY($0))) }
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        fade.values = fs.map { SeaFx.fishAlpha(min($0, 0.999)) }
+        let g = CAAnimationGroup()
+        g.animations = [move, fade]
+        g.duration = SeaFx.fishDuration; move.duration = g.duration; fade.duration = g.duration
+        g.isRemovedOnCompletion = true
+        g.fillMode = .removed
+        l.position = CGPoint(x: x0 + SeaFx.fishX(1, width: W, rightToLeft: rtl), y: y0)
+        l.add(g, forKey: "fx")
+    }
+
+    /// Chùm bọt bắn (giọt trắng) + bong bóng (vòng) của một lần bấm — animation gắn một lần.
+    private func makeSeaSplash(into b: CALayer) {
+        let r = CGFloat(SeaFx.dropletRadius)
+        let dropPath = CGPath(ellipseIn: CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r), transform: nil)
+        let n = 10
+        let fs = (0...n).map { Double($0) / Double(n) }
+        for i in 0..<SeaFx.dropletsPerTap {
+            let l = CAShapeLayer()
+            l.path = dropPath; l.bounds = .zero; l.position = .zero
+            l.contentsScale = UIScreen.main.scale
+            l.fillColor = UIColor.white.cgColor
+            l.strokeColor = dark ? nil : color.withAlphaComponent(0.8).cgColor   // theme sáng: viền để thấy trên phím sáng
+            l.lineWidth = dark ? 0 : 0.6
+            l.opacity = 0
+            let move = CAKeyframeAnimation(keyPath: "position")
+            move.isAdditive = true
+            move.values = fs.map { let p = SeaFx.droplet(i, $0); return NSValue(cgPoint: CGPoint(x: p.x, y: p.y)) }
+            let fade = CAKeyframeAnimation(keyPath: "opacity")
+            fade.values = [1, 1, 0]; fade.keyTimes = [0, 0.6, 1]
+            l.add(Self.group([move, fade], duration: SeaFx.dropletDuration, delay: 0), forKey: "fx")
+            b.addSublayer(l)
+        }
+        let br = CGFloat(SeaFx.bubbleRadius)
+        let ring = CGPath(ellipseIn: CGRect(x: -br, y: -br, width: 2 * br, height: 2 * br), transform: nil)
+        for i in 0..<SeaFx.bubblesPerTap {
+            let l = CAShapeLayer()
+            l.path = ring; l.bounds = .zero; l.position = .zero
+            l.contentsScale = UIScreen.main.scale
+            l.fillColor = color.withAlphaComponent(0.15).cgColor
+            l.strokeColor = (dark ? UIColor.white.withAlphaComponent(0.85) : color).cgColor
+            l.lineWidth = 1.2
+            l.opacity = 0
+            let samples = fs.map { SeaFx.bubble(i, $0) }
+            let move = CAKeyframeAnimation(keyPath: "position")
+            move.isAdditive = true
+            move.values = samples.map { NSValue(cgPoint: CGPoint(x: $0.x, y: $0.y)) }
+            let scale = CAKeyframeAnimation(keyPath: "transform.scale")
+            scale.values = samples.map(\.scale)
+            let fade = CAKeyframeAnimation(keyPath: "opacity")
+            fade.values = samples.map(\.alpha)
+            l.add(Self.group([move, scale, fade], duration: SeaFx.bubbleDuration, delay: 0), forKey: "fx")
+            b.addSublayer(l)
+        }
+    }
+
+    private func haltSea() {
+        seaLastWave = -.greatestFiniteMagnitude
+        seaLevel = 0
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for w in seaWaves { w.root.isHidden = true }
+        seaFish?.removeAllAnimations()
+        CATransaction.commit()
+    }
+
     // MARK: dựng
 
     /// Một chùm: các layer con, animation gắn sẵn.
@@ -2372,6 +2722,8 @@ final class KeyEffectOverlay: UIView {
             fade.values = [1, 1, 0]; fade.keyTimes = [0, 0.6, 1]
             l.add(Self.group([move, scale, fade], duration: 1.1, delay: 0), forKey: "fx")
             b.addSublayer(l)
+        case .sea:
+            makeSeaSplash(into: b)
         case _ where effect.usesGlow:
             let g = CGFloat(GlowSprite.size)
             for i in 0..<effect.particlesPerTap {
@@ -2447,6 +2799,8 @@ final class KeyEffectOverlay: UIView {
         for l in letters { l.removeFromSuperlayer() }
         for g in grains { g.removeFromSuperlayer() }
         sandPile?.removeFromSuperlayer()
+        for w in seaWaves { w.root.removeFromSuperlayer() }
+        seaFish?.removeFromSuperlayer()
         flashLayer?.removeFromSuperlayer()
         matrixRoot?.removeFromSuperlayer()
         CATransaction.commit()
@@ -2462,6 +2816,8 @@ final class KeyEffectOverlay: UIView {
         letters.removeAll(); letterPool = KeyEffectPool(capacity: FlyingLetters.pool)
         grains.removeAll(); grainPool = KeyEffectPool(capacity: SandPile.flying)
         sandPile = nil; sand = nil; pendingLandings.removeAll()
+        seaWaves.removeAll(); seaBuiltFor = .zero; seaCursor = 0; seaFish = nil; seaFishSeq = 0
+        seaLastWave = -.greatestFiniteMagnitude; seaLastFish = -.greatestFiniteMagnitude; seaLevel = 0
         if effect != .shake { shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey) }
         stringAnim = nil
         flashLayer = nil
@@ -2476,7 +2832,7 @@ final class KeyEffectOverlay: UIView {
         glows = effect.usesGlow
             ? effect.fixedColors.compactMap { Self.renderGlow(effect, rgb: $0, scale: UIScreen.main.scale) } : []
         if effect != .matrix { matrixStrips = [] }
-        if effect != .emojiword && effect != .keyword { emojiImages = [:] }
+        if effect != .emojiword && effect != .keyword && effect != .sea { emojiImages = [:] }
         prewarm()
     }
 
@@ -2495,9 +2851,9 @@ final class KeyEffectOverlay: UIView {
                     }
                 }
             }
-        case .emojiword where emojiImages.isEmpty, .keyword where emojiImages.isEmpty:
+        case .emojiword where emojiImages.isEmpty, .keyword where emojiImages.isEmpty, .sea where emojiImages.isEmpty:
             let want = effect
-            let list = effect == .keyword ? KeywordBursts.allEmojis : EmojiWords.distinctEmojis
+            let list = effect == .keyword ? KeywordBursts.allEmojis : effect == .sea ? SeaFx.fishGlyphs : EmojiWords.distinctEmojis
             DispatchQueue.global(qos: .utility).async { [weak self] in
                 var imgs: [String: CGImage] = [:]
                 for e in list { imgs[e] = Self.renderEmoji(e, scale: scale) }

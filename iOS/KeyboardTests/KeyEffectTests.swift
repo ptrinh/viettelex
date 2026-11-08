@@ -35,7 +35,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testIdsMatchAndroidAndDefaultIsNone() {
         // Cùng id với android/keyboard/.../KeyEffect.kt (sao lưu chéo nền tảng).
-        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand"])
+        XCTAssertEqual(KeyEffect.allCases.map(\.rawValue), ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea"])
         XCTAssertEqual(KeyEffect.key, "keyEffect")
         XCTAssertEqual(KeyEffect.defaultValue, .none)
         XCTAssertEqual(KeyEffect.parse(nil), .none)
@@ -57,7 +57,7 @@ final class KeyEffectTests: XCTestCase {
 
     func testBackupSpecWhitelistsIds() {
         let spec = BackupSettings.all.first { $0.key == KeyEffect.key }
-        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand"]))
+        XCTAssertEqual(spec?.kind, .string("none", ["none", "heart", "bubble", "ripple", "petal", "firework", "flash", "matrix", "lightning", "emojiword", "blossom", "combo", "ink", "wave", "snow", "meteor", "lantern", "smoke", "string", "plasma", "shake", "laser", "glitch", "tone", "keyword", "letters", "sand", "sea"]))
     }
 
     func testTitlesBilingual() {
@@ -266,6 +266,10 @@ final class KeyEffectTests: XCTestCase {
                 case .glitch: XCTAssertEqual(topLayers, GlitchFx.pool)
                 case .shake: XCTAssertEqual(topLayers, 0, "rung: không vẽ gì trên overlay")
                 case .sand: XCTAssertEqual(topLayers, SandPile.flying + 1, "pool hạt + một layer đống")
+                case .sea:
+                    XCTAssertEqual(o.debugBurstCount, SeaFx.tapSlots, "chùm bọt / bong bóng dùng lại")
+                    XCTAssertLessThanOrEqual(o.debugSeaWaveRoots.count, SeaFx.maxWaves)
+                    XCTAssertLessThanOrEqual(topLayers, SeaFx.tapSlots + SeaFx.maxWaves + 1, "chùm + sóng + một con cá")
                 case .tone, .keyword, .letters:
                     XCTAssertEqual(topLayers, 0, "chưa có sự kiện xếp hàng ⇒ phím thường không vẽ gì")
                 default:
@@ -1310,5 +1314,179 @@ extension KeyEffectTests {
             XCTAssertGreaterThan(s.minY, kb.bounds.midY, "phím cách ở nửa dưới")
         }
         try withKeyboardFx(effect: "plasma") { kb in XCTAssertNil(kb.keyEffects?.laserOrigin) }
+    }
+}
+
+// MARK: - Biển (theme Biển, 11/2026): sóng vỗ bờ + bọt bắn + bong bóng + cá. Số tham chiếu GIỐNG HỆT android KeyEffectSeaTests.
+extension KeyEffectTests {
+    func testSeaModelAndCaps() {
+        let e = KeyEffect.sea
+        XCTAssertEqual(KeyEffect.allCases.last, .sea, "thêm CUỐI enum")
+        XCTAssertTrue(e.isPlus); XCTAssertFalse(e.isParticle); XCTAssertFalse(e.isQueued)
+        XCTAssertFalse(e.needsComposeDiff); XCTAssertFalse(e.needsBoundaryWord)
+        XCTAssertEqual(e.band, .aboveKeys)
+        XCTAssertTrue(KeyEffectOverlay.clipped.contains(e), "cắt theo bàn phím (#151)")
+        XCTAssertEqual(e.title, L("Biển")); XCTAssertEqual(L10n.en["Biển"], "Sea")
+        XCTAssertNil(KeyEffectShapes.path(e))
+        // Trần: chùm bọt + bong bóng trong pool chung; sóng nối nhau không bao giờ cướp sóng đang chạy.
+        XCTAssertEqual(SeaFx.layersPerTap, 5)
+        XCTAssertEqual(e.burstSlots * e.layersPerBurst, 20)
+        XCTAssertLessThanOrEqual(e.burstSlots * e.layersPerBurst, KeyEffectPool.cap)
+        XCTAssertEqual(SeaFx.maxWaves, 3)
+        XCTAssertGreaterThanOrEqual(Double(SeaFx.maxWaves) * SeaFx.launchGap, SeaFx.life, "đủ ô cho mọi sóng còn sống")
+        XCTAssertEqual(SeaFx.life, 1.6, accuracy: 1e-12)
+        XCTAssertFalse(SeaFx.shouldLaunch(sinceLast: 0.2), "gõ dồn: chỉ bọt + bong bóng")
+        XCTAssertTrue(SeaFx.shouldLaunch(sinceLast: 0.55))
+        XCTAssertEqual((0...5).map { SeaFx.size(level: $0) }, [1.0, 1.2, 1.4, 1.65, 1.65, 1.65])
+        XCTAssertEqual(SeaFx.size(level: -1), 1.0)
+    }
+
+    /// Đường cong sóng: cuộn nhanh dần từ đỉnh tới bờ, vỡ (thân tan, bọt dâng) rồi rút để lại vệt ướt mờ dần, hết hẳn ở `life`.
+    func testSeaWaveCurveBreakAndRecede() {
+        XCTAssertEqual(SeaFx.travel(-1), 0); XCTAssertEqual(SeaFx.travel(0), 0)
+        XCTAssertEqual(SeaFx.travel(0.3), 0.25, accuracy: 1e-12)
+        XCTAssertEqual(SeaFx.travel(0.45), 0.5625, accuracy: 1e-12)
+        XCTAssertEqual(SeaFx.travel(0.6), 1); XCTAssertEqual(SeaFx.travel(5), 1)
+        var last = -1.0
+        for i in 0...60 { let v = SeaFx.travel(Double(i) * 0.01); XCTAssertGreaterThanOrEqual(v, last); last = v }
+        XCTAssertEqual(SeaFx.driftX(0.3), 8, accuracy: 1e-12); XCTAssertEqual(SeaFx.driftX(2), 16)
+        XCTAssertEqual(SeaFx.crestOffset(0, phase: 0), 0.592875, accuracy: 1e-5)
+        XCTAssertEqual(SeaFx.crestOffset(30, phase: 0.9), 1.300941, accuracy: 1e-5)
+        XCTAssertEqual(SeaFx.crestOffset(77, phase: 1.8), 0.140812, accuracy: 1e-5)
+        XCTAssertEqual(SeaFx.bodyTop(10, phase: 0.9), -26.198922, accuracy: 1e-5)
+        XCTAssertEqual(SeaFx.washTop(20, phase: 0), -13.236323, accuracy: 1e-5)
+        XCTAssertEqual(SeaFx.phase(1), 0.9, accuracy: 1e-12)
+        for x in stride(from: -110.0, through: 500, by: 3) {
+            XCTAssertLessThanOrEqual(abs(SeaFx.crestOffset(x, phase: 0.9)), SeaFx.crestAmp * 1.3 + 1e-9)
+            XCTAssertLessThan(SeaFx.bodyTop(x, phase: 0.9), SeaFx.crestOffset(x, phase: 0.9), "thân sóng nằm sau mép")
+        }
+        // Vỡ — rút.
+        XCTAssertEqual(SeaFx.waveAlpha(0.3), 1); XCTAssertEqual(SeaFx.waveAlpha(0.75), 0.5, accuracy: 1e-9)
+        XCTAssertEqual(SeaFx.waveAlpha(0.9), 0); XCTAssertEqual(SeaFx.waveAlpha(-0.1), 0)
+        XCTAssertEqual(SeaFx.washHeight(0.5, size: 1), 0, "chưa tới bờ: chưa có bọt tràn")
+        XCTAssertEqual(SeaFx.washHeight(0.75, size: 1.4), 14.7, accuracy: 1e-9)
+        XCTAssertEqual(SeaFx.washHeight(0.9, size: 1.65), 23.1, accuracy: 1e-9, "đỉnh bọt tràn = washMax × cỡ")
+        XCTAssertEqual(SeaFx.washHeight(1.25, size: 1), 7, accuracy: 1e-9)
+        XCTAssertEqual(SeaFx.washHeight(SeaFx.life, size: 1.65), 0)
+        XCTAssertEqual(SeaFx.wetAlpha(0.85), 0, "vệt ướt chỉ hiện khi nước rút")
+        XCTAssertEqual(SeaFx.wetAlpha(0.9), 0.3, accuracy: 1e-9)
+        XCTAssertEqual(SeaFx.wetAlpha(1.25), 0.15, accuracy: 1e-9)
+        XCTAssertEqual(SeaFx.wetAlpha(SeaFx.life), 0)
+        // Hết đời sóng: không còn gì vẽ (nghỉ gõ = 0 việc).
+        for t in [SeaFx.life, SeaFx.life + 0.5] {
+            XCTAssertEqual(SeaFx.waveAlpha(t), 0); XCTAssertEqual(SeaFx.washHeight(t, size: 1.65), 0); XCTAssertEqual(SeaFx.wetAlpha(t), 0)
+        }
+        for i in 0...160 {
+            XCTAssertLessThanOrEqual(SeaFx.washHeight(Double(i) * 0.01, size: 1.65), SeaFx.washMax * 1.65 + 1e-9)
+        }
+    }
+
+    func testSeaSplashBubblesAndFishRule() {
+        let d = SeaFx.droplet(1, 0.5)
+        XCTAssertEqual(d.x, 1.5, accuracy: 1e-12); XCTAssertEqual(d.y, -19, accuracy: 1e-12)
+        XCTAssertEqual(SeaFx.droplet(0, 0).x, 0); XCTAssertEqual(SeaFx.droplet(0, 0).y, 0)
+        XCTAssertEqual(SeaFx.droplet(2, 1).y, SeaFx.dropletSink, accuracy: 1e-12, "giọt rơi xuống dưới phím")
+        let b = SeaFx.bubble(1, 0.5)
+        XCTAssertEqual(b.x, 9.5, accuracy: 1e-9); XCTAssertEqual(b.y, -42, accuracy: 1e-9)
+        XCTAssertEqual(b.scale, 0.835294, accuracy: 1e-5); XCTAssertEqual(b.alpha, 1)
+        let p = SeaFx.bubble(0, 0.9)
+        XCTAssertEqual(p.x, -2.168441, accuracy: 1e-5); XCTAssertEqual(p.y, -43.56, accuracy: 1e-9)
+        XCTAssertEqual(p.scale, 1.266667, accuracy: 1e-5); XCTAssertEqual(p.alpha, 0.666667, accuracy: 1e-5)
+        XCTAssertEqual(SeaFx.bubble(0, 1).scale, SeaFx.popScale, accuracy: 1e-9, "vỡ thành vòng")
+        XCTAssertEqual(SeaFx.bubble(0, 1).alpha, 0, accuracy: 1e-9)
+        // Cá: chỉ khi mức combo VỪA lên fishLevel, nghỉ ≥ fishCooldown.
+        XCTAssertTrue(SeaFx.fishShouldSwim(level: 2, previous: 1, sinceLastFish: 100))
+        XCTAssertTrue(SeaFx.fishShouldSwim(level: 3, previous: 0, sinceLastFish: 4))
+        XCTAssertFalse(SeaFx.fishShouldSwim(level: 1, previous: 0, sinceLastFish: 100), "chưa đủ combo")
+        XCTAssertFalse(SeaFx.fishShouldSwim(level: 3, previous: 2, sinceLastFish: 100), "đang combo: không bơi lại")
+        XCTAssertFalse(SeaFx.fishShouldSwim(level: 2, previous: 1, sinceLastFish: 3.9), "trong thời gian nghỉ cá")
+        XCTAssertEqual(SeaFx.fishY(3, height: 260), 125.752758, accuracy: 1e-5)
+        XCTAssertEqual(SeaFx.fishY(0, height: 260), 134.036973, accuracy: 1e-5)
+        XCTAssertTrue(SeaFx.fishRightToLeft(0)); XCTAssertFalse(SeaFx.fishRightToLeft(1))
+        XCTAssertEqual(SeaFx.fishX(0, width: 390, rightToLeft: true), 376)
+        XCTAssertEqual(SeaFx.fishX(1, width: 390, rightToLeft: true), 14)
+        XCTAssertEqual(SeaFx.fishX(0.5, width: 390, rightToLeft: false), 195)
+        XCTAssertEqual(SeaFx.fishAlpha(0.05), 0.5, accuracy: 1e-9); XCTAssertEqual(SeaFx.fishAlpha(0.5), 1); XCTAssertEqual(SeaFx.fishAlpha(1), 0)
+        for s in 0..<40 {
+            let y = SeaFx.fishY(s, height: 260)
+            XCTAssertGreaterThanOrEqual(y - SeaFx.fishBob - SeaFx.fishSize / 2, 0)
+            XCTAssertLessThanOrEqual(y + SeaFx.fishBob + SeaFx.fishSize / 2, 260)
+        }
+    }
+
+    /// Bàn phím cao tạm (gốc bounds dời, #151): sóng (đỉnh → bờ = đáy bàn phím), bọt, cá đều nằm trong bàn phím; gõ dồn
+    /// chỉ một sóng; gõ nhịp đều ⇒ sóng nối nhau, tối đa maxWaves gốc; combo ⇒ sóng to hơn + cá bơi một lần.
+    @MainActor func testSeaOverlayInsideShiftedKeyboardAndCapped() throws {
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 470))
+        host.bounds.origin.y = -180
+        let keysView = UIView(frame: host.bounds)
+        host.addSubview(keysView)
+        let o = try XCTUnwrap(KeyEffectOverlay.install(.sea, color: .systemTeal, keyFill: .white, in: host, keys: keysView, existing: nil))
+        XCTAssertEqual(o.frame, host.bounds); XCTAssertEqual(o.bounds.origin, host.bounds.origin)
+        XCTAssertTrue(o.clipsToBounds)
+        XCTAssertTrue(o.debugSeaWaveRoots.isEmpty, "chưa gõ: không dựng gì")
+        let keys = [CGRect(x: 0, y: -180, width: 34, height: 42), CGRect(x: 356, y: 248, width: 34, height: 42),
+                    CGRect(x: 180, y: 120, width: 34, height: 42)]
+        for i in 0..<30 { o.emit(key: keys[i % keys.count]); o.flush() }
+        XCTAssertEqual(o.debugSeaWaveRoots.count, 1, "gõ dồn trong cùng lúc: một con sóng")
+        XCTAssertEqual(o.debugSeaWaveSizes.first ?? 0, 1, "sóng đầu: cỡ thường")
+        XCTAssertNotNil(o.debugSeaFish, "tràng phím nhanh ⇒ cá bơi")
+        XCTAssertNotNil(o.debugSeaFish?.animation(forKey: "fx"))
+        // Gõ nhịp đều qua nhiều chu kỳ sóng (combo vẫn giữ: nghỉ < 1 s).
+        for _ in 0..<5 {
+            KeyboardBenchTests.spin(SeaFx.launchGap + 0.02)
+            o.emit(key: keys[2]); o.flush()
+        }
+        XCTAssertEqual(o.debugSeaWaveRoots.count, SeaFx.maxWaves, "pool sóng có trần")
+        XCTAssertGreaterThan(o.debugSeaWaveSizes.max() ?? 0, 1, "gõ nhanh ⇒ sóng to hơn")
+        for r in o.debugSeaWaveRoots {
+            XCTAssertEqual(r.position, o.bounds.origin, "sóng xuất phát ở đỉnh bàn phím (không phải đỉnh phần dư)")
+            for sub in r.sublayers ?? [] {
+                let p = o.layer.convert(sub.position, from: r)
+                XCTAssertTrue(o.bounds.insetBy(dx: -1, dy: -1).contains(p), "\(p) ngoài \(o.bounds)")
+            }
+            let shore = try XCTUnwrap(r.sublayers?.last)
+            XCTAssertEqual(o.layer.convert(shore.position, from: r).y, o.bounds.maxY, accuracy: 0.5, "bờ = đáy bàn phím")
+        }
+        for b in o.debugBursts { XCTAssertTrue(o.bounds.insetBy(dx: -1, dy: -1).contains(b.position)) }
+        XCTAssertLessThanOrEqual(o.debugParticleCount, KeyEffectPool.cap)
+        let fish = try XCTUnwrap(o.debugSeaFish)
+        XCTAssertTrue(o.bounds.contains(fish.position), "cá trong bàn phím")
+        o.halt()
+        for r in o.debugSeaWaveRoots { XCTAssertTrue(r.isHidden, "ẩn bàn phím ⇒ không còn sóng") }
+        XCTAssertNil(fish.animation(forKey: "fx"))
+        _ = KeyEffectOverlay.install(.none, color: .red, in: host, existing: o)
+    }
+
+    /// Phủ chung mọi kiểu (#151): host dời gốc bounds ⇒ overlay luôn cùng hệ toạ độ, gõ ở mép trên / góc dưới không
+    /// làm điểm phát chùm nào ra ngoài bàn phím; host về gốc 0 vẫn theo.
+    @MainActor func testEveryEffectSharesShiftedOrigin() throws {
+        for e in KeyEffect.allCases where e != .none {
+            let host = UIView(frame: CGRect(x: 0, y: 0, width: 390, height: 470))
+            host.bounds.origin.y = -180
+            let keysView = UIView(frame: host.bounds)
+            host.addSubview(keysView)
+            let o = try XCTUnwrap(KeyEffectOverlay.install(e, color: .systemTeal, keyFill: .white, in: host, keys: keysView,
+                                                           existing: nil))
+            XCTAssertEqual(o.frame, host.bounds, e.rawValue)
+            XCTAssertEqual(o.bounds.origin, host.bounds.origin, e.rawValue)
+            for k in [CGRect(x: 0, y: -180, width: 34, height: 42), CGRect(x: 356, y: 248, width: 34, height: 42)] {
+                if e == .emojiword { o.queueEmoji("😂") }
+                if e == .letters { o.queueLetter("ơ") }
+                if e == .tone { o.queueTone(.hoi) }
+                if e == .keyword { o.queueKeyword(.love) }
+                o.emit(key: k); o.flush()
+            }
+            for b in o.debugBursts {
+                XCTAssertTrue(o.bounds.insetBy(dx: -1, dy: -1).contains(b.position), "\(e.rawValue): \(b.position) ngoài \(o.bounds)")
+            }
+            host.frame = CGRect(x: 0, y: 0, width: 390, height: 290)
+            host.bounds.origin.y = 0
+            KeyEffectOverlay.match(o, to: host)
+            XCTAssertEqual(o.frame, host.bounds, e.rawValue)
+            XCTAssertEqual(o.bounds.origin, .zero, e.rawValue)
+            o.halt()
+            _ = KeyEffectOverlay.install(.none, color: .red, in: host, existing: o)
+        }
     }
 }
