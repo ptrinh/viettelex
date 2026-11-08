@@ -36,22 +36,17 @@ struct KeyEffectPickerView: View {
             } header: {
                 Text(L("Chạm một ô để chọn và xem thử."))
             } footer: {
-                Text(L("Hình nhỏ bay ra từ phím vừa bấm, theo màu nhấn của giao diện. Vẽ sau khi chữ đã vào ô nên không làm chậm gõ; tự tắt khi bật Chế độ nguồn điện thấp."))
-                    + Text(" ") + Text(L("Matrix, Mực loang, Sóng nước chạy dưới phím; Matrix chỉ chạy khi đang gõ. Nháy sáng được giới hạn nhịp và độ sáng cho dịu mắt. Emoji theo chữ hiện khi vừa gõ xong từ như \"haha\", \"cảm ơn\", \"chúc mừng\"."))
-                    + Text(" ") + Text(L("Rung combo rung cả hàng phím khi gõ dồn. Dấu thanh phản ứng theo dấu vừa bỏ; Từ khoá nổ pháo đỏ và lì xì khi gõ \"tết\", thả tim khi gõ \"yêu\"; Chữ bay thả đúng chữ vừa ra; Hạt cát đọng thành đống thấp ở đáy rồi tự tan."))
-                    + Text(" ") + Text(L("Biển: mỗi đợt gõ một con sóng vỗ vào bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang."))
-                    + Text(" ") + Text(L("Mưa: mưa đêm êm trên ô kính — giọt rơi xuống phím vừa bấm rồi lăn nhẹ; gõ một lúc mưa thưa dần và ánh đèn ấm ở góc sáng lên."))
-                    + Text(" ") + Text(L("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp."))
-                    + Text(" ") + Text(L("Kính vạn hoa nở một bông đối xứng sắc cầu vồng từ phím vừa bấm, xoay chậm rồi tan."))
-                    + Text(" ") + Text(L("Đường hầm: vòng sáng co về phím vừa bấm như rơi vào đường hầm, gõ nhanh thì rơi nhanh hơn. Lơ lửng: phím trôi nhẹ khỏi hàng khi đang gõ rồi về chỗ khi nghỉ; chỉ là hình — chạm vẫn đúng phím."))
-                    + Text(" ") + Text(L("Công đức thả \"+1 công đức\" bay lên từ phím vừa bấm và đếm số phím trong ngày (về 0 lúc nửa đêm, chỉ lưu trên máy). Nắng qua kính làm ô vừa bấm sáng lên như nắng xuyên qua kính màu; gõ nhanh có ánh nến ấm bập bùng chậm ở mép dưới."))
-                    + Text(" ") + Text(L("Rep lấp thanh rep một nấc mỗi phím, đủ 10 phím là xong một hiệp (SET ✓); gõ nhanh bật \"+1 rep 💪\"; gõ \"gym\", \"tập\", \"beast mode\"… để nổ chữ BEAST MODE."))
-                    + Text(" ") + Text(L("Chòm sao: mỗi phím thắp thêm một sao của chòm cung hoàng đạo bạn chọn (trong giao diện Cung hoàng đạo), đủ sao thì cả chòm loé sáng."))
-                    + Text(" ") + Text(L("Cầu vồng: vòng cung theo màu lá cờ bạn chọn (trong giao diện Tự hào) lan ra từ phím; gõ \"tự hào\", \"yêu là yêu\", \"pride\" hay \"love is love\" thì lá cờ tung bay cùng tim."))
-                    + Text(" ") + Text(L("Sút!: Enter sút bóng vào lưới; gõ \"vô địch\", \"Việt Nam vô địch\", \"vào\" hay \"goal\" để đốt pháo sáng và tung cờ đỏ sao vàng."))
-                    + Text(" ") + Text(L("Cho cá ăn: cá bơi chậm sau hàng phím; mỗi phím thả một viên thức ăn, chú cá gần nhất bơi tới ăn. Cá lớn dần và có thêm bạn theo số viên đã ăn."))
-                    + Text(" ") + Text(L("Đá lanh canh: viên đá trên phím lắc nhẹ và đọng giọt nước; phin nhỏ giọt cà phê sau vài phím; gõ thật nhanh, sữa xoáy vào ly."))
-                    + Text(" ") + Text(L("Theo giao diện dùng hạt do giao diện đang chọn khai báo (\"particles\" trong JSON giao diện); giao diện không khai báo thì là chùm sao nhỏ."))
+                // Chỉ mô tả kiểu ĐANG CHỌN (đổi khi chạm ô khác) + một câu chung — thay đoạn liệt kê mọi kiểu (Phil 11/2026).
+                VStack(alignment: .leading, spacing: 8) {
+                    if let detail = KeyEffect.description(for: current) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(current.title).font(.footnote.weight(.semibold)).foregroundStyle(.primary)
+                            Text(detail)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                    Text(L(KeyEffect.generalNoteKey))
+                }
             }
         }
         .bottomBarScrollMargin()

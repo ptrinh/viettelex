@@ -2111,3 +2111,60 @@ final class RainFxTests: XCTestCase {
         XCTAssertFalse(KeyboardDecoration(motif: .neural, color: RGBA(hex: 0xFFFFFF)).hasShade)
     }
 }
+
+/// Màn "Hiệu ứng khi bấm phím": chú thích dưới lưới chỉ là mô tả của kiểu ĐANG CHỌN + một câu chung (Phil 11/2026) —
+/// mọi kiểu (trừ "Không") có mô tả vi + en ngắn; đoạn liệt kê dài cũ không còn. Android: KeyEffectDescriptionTest.
+final class KeyEffectDescriptionTests: XCTestCase {
+    override func tearDown() { L10n.apply("vi"); super.tearDown() }
+
+    func testEveryEffectHasShortBilingualDescription() {
+        XCTAssertNil(KeyEffect.none.descriptionKey)
+        XCTAssertNil(KeyEffect.description(for: .none))
+        for e in KeyEffect.allCases where e != .none {
+            guard let vi = e.descriptionKey else { XCTFail("thiếu mô tả: \(e)"); continue }
+            let en = L10n.en[vi] ?? ""
+            XCTAssertFalse(vi.trimmingCharacters(in: .whitespaces).isEmpty, "\(e)")
+            XCTAssertFalse(en.trimmingCharacters(in: .whitespaces).isEmpty, "thiếu bản dịch mô tả: \(e)")
+            XCTAssertLessThanOrEqual(vi.count, 200, "mô tả quá dài: \(e)")
+            XCTAssertLessThanOrEqual(en.count, 200, "mô tả quá dài (en): \(e)")
+        }
+        let keys = KeyEffect.allCases.compactMap(\.descriptionKey)
+        XCTAssertEqual(Set(keys).count, keys.count, "mỗi kiểu một mô tả riêng")
+    }
+
+    func testDescriptionFollowsLanguage() {
+        L10n.apply("vi")
+        XCTAssertEqual(KeyEffect.description(for: .goal), KeyEffect.goal.descriptionKey)
+        L10n.apply("en")
+        XCTAssertEqual(KeyEffect.description(for: .goal), L10n.en[KeyEffect.goal.descriptionKey!])
+        XCTAssertNotEqual(KeyEffect.description(for: .goal), KeyEffect.goal.descriptionKey)
+    }
+
+    func testGeneralNoteIsShort() {
+        let note = KeyEffect.generalNoteKey
+        XCTAssertLessThanOrEqual(note.count, 200)
+        XCTAssertFalse((L10n.en[note] ?? "").isEmpty)
+    }
+
+    /// Dữ kiện lỗi thời: "vào" thường không còn là từ cổ vũ (chỉ "vàooo"); Giảm chuyển động KHÔNG tắt hiệu ứng.
+    func testFactsUpToDate() {
+        let goal = KeyEffect.goal.descriptionKey!
+        XCTAssertFalse(goal.contains("\"vào\""), goal)
+        XCTAssertTrue(goal.contains("vàooo"))
+        for e in KeyEffect.allCases {
+            guard let vi = e.descriptionKey else { continue }
+            XCTAssertFalse(vi.contains("Giảm chuyển động"), "\(e)")
+            XCTAssertFalse((L10n.en[vi] ?? "").contains("Reduce Motion"), "\(e)")
+        }
+    }
+
+    func testOldLongFooterGone() throws {
+        let iosRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let src = try String(contentsOf: iosRoot.appendingPathComponent("App/KeyEffectPickerView.swift"), encoding: .utf8)
+        for old in ["Hình nhỏ bay ra từ phím vừa bấm", "Matrix, Mực loang, Sóng nước chạy dưới phím", "Rung combo rung cả hàng phím"] {
+            XCTAssertFalse(src.contains(old), old)
+            XCTAssertFalse(L10n.en.keys.contains { $0.hasPrefix(old) }, old)
+        }
+        XCTAssertTrue(src.contains("KeyEffect.description(for: current)"))
+    }
+}

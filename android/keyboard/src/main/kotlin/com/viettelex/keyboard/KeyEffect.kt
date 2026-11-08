@@ -168,6 +168,59 @@ enum class KeyEffect(val id: String, val viTitle: String) {
         return (i * stride + abs(seed) % stride) % maxOf(variantCount, 1)
     }
 
+    /**
+     * Mô tả ngắn (tiếng Việt, ≤ ~200 ký tự) — màn "Hiệu ứng khi bấm phím" chỉ hiện mô tả của kiểu ĐANG CHỌN dưới lưới
+     * (thay đoạn chú thích dài cũ, Phil 11/2026). [NONE] ⇒ null. = iOS KeyEffect.descriptionKey (cùng chữ).
+     */
+    val viDescription: String? get() = when (this) {
+        NONE -> null
+        HEART -> "Trái tim nhỏ bay lên từ phím vừa bấm, theo màu nhấn của giao diện." // l10n-key
+        BUBBLE -> "Bong bóng nổi lên từ phím vừa bấm rồi tan, theo màu nhấn của giao diện." // l10n-key
+        RIPPLE -> "Một vòng gợn lan ra từ phím vừa bấm rồi tắt." // l10n-key
+        PETAL -> "Cánh hoa xoay nhẹ rơi xuống từ phím vừa bấm." // l10n-key
+        FIREWORK -> "Chùm pháo hoa nhỏ toả ra quanh phím vừa bấm." // l10n-key
+        FLASH -> "Phím vừa bấm loé sáng; nhịp và độ sáng được giới hạn cho dịu mắt." // l10n-key
+        MATRIX -> "Cột chữ xanh kiểu Matrix rơi dưới hàng phím; chỉ chạy khi đang gõ." // l10n-key
+        LIGHTNING -> "Tia sét đánh xuống phím vừa bấm, phím vỡ thành mảnh (chỉ là hình)." // l10n-key
+        EMOJIWORD -> "Gõ xong từ như \"haha\", \"cảm ơn\", \"chúc mừng\" thì emoji hợp nghĩa bay lên." // l10n-key
+        BLOSSOM -> "Hoa đào hồng và hoa mai vàng bay lên từ phím vừa bấm, đậm không khí Tết." // l10n-key
+        COMBO -> "Lửa bốc lên từ phím vừa bấm; gõ dồn càng nhanh lửa càng to." // l10n-key
+        INK -> "Giọt mực loang ra dưới phím vừa bấm rồi nhạt dần." // l10n-key
+        WAVE -> "Các vòng sóng nước lan rộng dưới hàng phím từ phím vừa bấm." // l10n-key
+        SNOW -> "Bông tuyết trắng lắc lư rơi xuống từ phím vừa bấm." // l10n-key
+        METEOR -> "Một ngôi sao băng lao chéo từ phím vừa bấm rồi tắt." // l10n-key
+        LANTERN -> "Đốm sáng đèn lồng cam vàng ấm bay lên từ phím, hợp mùa Trung Thu." // l10n-key
+        SMOKE -> "Làn sương tím xám ma mị bốc lên từ phím, hợp mùa Halloween." // l10n-key
+        STRING -> "Đoạn dây đàn ở khe hàng gần phím rung lên rồi đứng yên." // l10n-key
+        PLASMA -> "Tia điện tím nối phím trước với phím vừa bấm; gõ nhanh thành chuỗi." // l10n-key
+        SHAKE -> "Gõ dồn thì cả bàn phím rung như đòn trúng trong game, càng nhanh càng mạnh (chỉ là hình)." // l10n-key
+        LASER -> "Tia laser mảnh bắn từ phím cách lên phím vừa bấm." // l10n-key
+        GLITCH -> "Phím vừa bấm nhiễu hình chớp nhoáng: lệch màu, lát cắt xô lệch." // l10n-key
+        TONE -> "Mỗi dấu thanh vừa bỏ (sắc, huyền, hỏi, ngã, nặng) có một kiểu bay riêng." // l10n-key
+        KEYWORD -> "Gõ \"tết\" nổ pháo đỏ và lì xì, \"yêu\" thả tim; tiếng cười và từ giận dữ cũng có hình riêng." // l10n-key
+        LETTERS -> "Đúng chữ vừa gõ (kể cả dấu) bay lên từ phím rồi mờ dần." // l10n-key
+        SAND -> "Hạt cát rơi từ phím, đọng thành đống thấp ở đáy bàn phím rồi tự tan." // l10n-key
+        SEA -> "Mỗi đợt gõ một con sóng vỗ bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang." // l10n-key
+        TOKENS -> "Chữ vừa gõ vỡ thành vài token phát sáng bay vào thanh gợi ý." // l10n-key
+        DANCEFLOOR -> "Phím vừa bấm và các phím quanh thắp vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp." // l10n-key
+        KALEIDO -> "Bông đối xứng sắc cầu vồng nở từ phím vừa bấm, xoay chậm rồi tan." // l10n-key
+        TUNNEL -> "Vòng sáng co về phím vừa bấm như rơi vào đường hầm; gõ nhanh thì rơi nhanh hơn." // l10n-key
+        FLOAT -> "Phím trôi nhẹ khỏi hàng khi đang gõ rồi về chỗ khi nghỉ; chỉ là hình, chạm vẫn đúng phím." // l10n-key
+        MERIT -> "\"+1 công đức\" bay lên từ phím và đếm số phím trong ngày (về 0 lúc nửa đêm, chỉ lưu trên máy)." // l10n-key
+        SUNLIGHT -> "Ô vừa bấm sáng lên như nắng xuyên kính màu; gõ nhanh có ánh nến ấm bập bùng ở mép dưới." // l10n-key
+        RAIN -> "Mưa đêm trên ô kính: giọt rơi xuống phím rồi lăn nhẹ; gõ một lúc mưa thưa dần, đèn ấm ở góc sáng lên." // l10n-key
+        REPS -> "Mỗi phím lấp thanh rep một nấc, 10 phím là một hiệp (SET ✓); gõ \"gym\", \"tập\", \"beast mode\" để nổ chữ BEAST MODE." // l10n-key
+        CONSTELLATION -> "Mỗi phím thắp một sao của chòm cung hoàng đạo bạn chọn (trong giao diện Cung hoàng đạo); đủ sao thì cả chòm loé sáng." // l10n-key
+        RAINBOWBURST -> "Vòng cung màu lá cờ bạn chọn (trong giao diện Tự hào) lan ra từ phím; gõ \"tự hào\" hay \"pride\" thì cờ tung bay cùng tim." // l10n-key
+        GOAL -> "Enter sút bóng vào lưới, phím khác nhú túm cỏ; gõ \"vô địch\", \"Việt Nam vô địch\", \"VN #1\", \"vàooo\" hay \"goal\" để đốt pháo sáng, tung cờ đỏ sao vàng." // l10n-key
+        FISHFEED -> "Cá bơi sau hàng phím; mỗi phím thả một viên thức ăn, chú cá gần nhất bơi tới ăn, lớn dần và có thêm bạn." // l10n-key
+        ICE -> "Viên đá trên phím lắc nhẹ, đọng giọt; phin nhỏ giọt cà phê sau vài phím; gõ thật nhanh, sữa xoáy vào ly." // l10n-key
+        THEME -> "Dùng hạt riêng của giao diện đang chọn; giao diện không có hạt riêng thì là chùm sao nhỏ." // l10n-key
+    }
+
+    /** Mô tả đã dịch theo ngôn ngữ giao diện; [NONE] ⇒ null. */
+    val description: String? get() = viDescription?.let { tr(it) }
+
     companion object {
         val DEFAULT = NONE
         val IDS: Set<String> = entries.map { it.id }.toSet()

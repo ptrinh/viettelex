@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.viettelex.android.ime.KeyEffectView
@@ -70,23 +71,9 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
             VTRow(onClick = onOpenPlus) { Text("VietTelex Plus ›", color = c.accent) }
         }
     }
+    // Chú thích: chỉ mô tả kiểu ĐANG CHỌN (đổi khi chạm ô khác) + một câu chung — thay đoạn liệt kê mọi kiểu (Phil 11/2026).
     VTSection(header = tr("Chạm một ô để chọn và xem thử."),
-        footer = tr("Hình nhỏ bay ra từ phím vừa bấm, theo màu nhấn của giao diện. Vẽ sau khi chữ đã vào ô nên không làm chậm gõ; tự tắt khi bật Trình tiết kiệm pin.") +
-            " " + tr("Matrix, Mực loang, Sóng nước chạy dưới phím; Matrix chỉ chạy khi đang gõ. Nháy sáng được giới hạn nhịp và độ sáng cho dịu mắt. Emoji theo chữ hiện khi vừa gõ xong từ như \"haha\", \"cảm ơn\", \"chúc mừng\".") +
-            " " + tr("Rung combo rung cả hàng phím khi gõ dồn. Dấu thanh phản ứng theo dấu vừa bỏ; Từ khoá nổ pháo đỏ và lì xì khi gõ \"tết\", thả tim khi gõ \"yêu\"; Chữ bay thả đúng chữ vừa ra; Hạt cát đọng thành đống thấp ở đáy rồi tự tan.") +
-            " " + tr("Biển: mỗi đợt gõ một con sóng vỗ vào bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang.") +
-            " " + tr("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp.") +
-            " " + tr("Kính vạn hoa nở một bông đối xứng sắc cầu vồng từ phím vừa bấm, xoay chậm rồi tan.") +
-            " " + tr("Đường hầm: vòng sáng co về phím vừa bấm như rơi vào đường hầm, gõ nhanh thì rơi nhanh hơn. Lơ lửng: phím trôi nhẹ khỏi hàng khi đang gõ rồi về chỗ khi nghỉ; chỉ là hình — chạm vẫn đúng phím.") +
-            " " + tr("Công đức thả \"+1 công đức\" bay lên từ phím vừa bấm và đếm số phím trong ngày (về 0 lúc nửa đêm, chỉ lưu trên máy). Nắng qua kính làm ô vừa bấm sáng lên như nắng xuyên qua kính màu; gõ nhanh có ánh nến ấm bập bùng chậm ở mép dưới.") +
-            " " + tr("Mưa: mưa đêm êm trên ô kính — giọt rơi xuống phím vừa bấm rồi lăn nhẹ; gõ một lúc mưa thưa dần và ánh đèn ấm ở góc sáng lên.") +
-            " " + tr("Rep lấp thanh rep một nấc mỗi phím, đủ 10 phím là xong một hiệp (SET ✓); gõ nhanh bật \"+1 rep 💪\"; gõ \"gym\", \"tập\", \"beast mode\"… để nổ chữ BEAST MODE.") +
-            " " + tr("Chòm sao: mỗi phím thắp thêm một sao của chòm cung hoàng đạo bạn chọn (trong giao diện Cung hoàng đạo), đủ sao thì cả chòm loé sáng.") +
-            " " + tr("Cầu vồng: vòng cung theo màu lá cờ bạn chọn (trong giao diện Tự hào) lan ra từ phím; gõ \"tự hào\", \"yêu là yêu\", \"pride\" hay \"love is love\" thì lá cờ tung bay cùng tim.") +
-            " " + tr("Sút!: Enter sút bóng vào lưới; gõ \"vô địch\", \"Việt Nam vô địch\", \"vào\" hay \"goal\" để đốt pháo sáng và tung cờ đỏ sao vàng.") +
-            " " + tr("Cho cá ăn: cá bơi chậm sau hàng phím; mỗi phím thả một viên thức ăn, chú cá gần nhất bơi tới ăn. Cá lớn dần và có thêm bạn theo số viên đã ăn.") +
-            " " + tr("Đá lanh canh: viên đá trên phím lắc nhẹ và đọng giọt nước; phin nhỏ giọt cà phê sau vài phím; gõ thật nhanh, sữa xoáy vào ly.") +
-            " " + tr("Theo giao diện dùng hạt do giao diện đang chọn khai báo (\"particles\" trong JSON giao diện); giao diện không khai báo thì là chùm sao nhỏ.")) {
+        footer = tr("Hiệu ứng vẽ sau khi chữ đã vào ô nên không làm chậm gõ; tự tắt khi bật Trình tiết kiệm pin.")) {
         KeyEffect.entries.chunked(3).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { e ->
@@ -117,6 +104,13 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
                     }
                 }
                 repeat(3 - row.size) { Box(Modifier.weight(1f)) }
+            }
+        }
+        current.description?.let { detail ->
+            Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(current.title, style = VTType.footnote.copy(fontWeight = FontWeight.SemiBold), color = c.label)
+                Text(detail, style = VTType.footnote, color = c.secondary)
             }
         }
     }

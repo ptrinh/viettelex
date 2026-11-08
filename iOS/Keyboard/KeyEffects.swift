@@ -5283,3 +5283,62 @@ enum KeyEffectShapes {
         return p
     }
 }
+
+// Mô tả ngắn từng kiểu — màn "Hiệu ứng khi bấm phím" chỉ hiện mô tả của kiểu ĐANG CHỌN dưới lưới (thay đoạn chú thích
+// dài cũ, Phil 11/2026). Khoá tiếng Việt (LK), dịch lúc hiển thị. Android: KeyEffect.viDescription — cùng chữ.
+extension KeyEffect {
+    /// Chú thích chung (1 câu) dưới lưới.
+    static let generalNoteKey = LK("Hiệu ứng vẽ sau khi chữ đã vào ô nên không làm chậm gõ; tự tắt khi bật Chế độ nguồn điện thấp.")
+
+    /// Khoá mô tả tiếng Việt; "Không" ⇒ nil.
+    var descriptionKey: String? {
+        switch self {
+        case .none: return nil
+        case .heart: return LK("Trái tim nhỏ bay lên từ phím vừa bấm, theo màu nhấn của giao diện.")
+        case .bubble: return LK("Bong bóng nổi lên từ phím vừa bấm rồi tan, theo màu nhấn của giao diện.")
+        case .ripple: return LK("Một vòng gợn lan ra từ phím vừa bấm rồi tắt.")
+        case .petal: return LK("Cánh hoa xoay nhẹ rơi xuống từ phím vừa bấm.")
+        case .firework: return LK("Chùm pháo hoa nhỏ toả ra quanh phím vừa bấm.")
+        case .flash: return LK("Phím vừa bấm loé sáng; nhịp và độ sáng được giới hạn cho dịu mắt.")
+        case .matrix: return LK("Cột chữ xanh kiểu Matrix rơi dưới hàng phím; chỉ chạy khi đang gõ.")
+        case .lightning: return LK("Tia sét đánh xuống phím vừa bấm, phím vỡ thành mảnh (chỉ là hình).")
+        case .emojiword: return LK("Gõ xong từ như \"haha\", \"cảm ơn\", \"chúc mừng\" thì emoji hợp nghĩa bay lên.")
+        case .blossom: return LK("Hoa đào hồng và hoa mai vàng bay lên từ phím vừa bấm, đậm không khí Tết.")
+        case .combo: return LK("Lửa bốc lên từ phím vừa bấm; gõ dồn càng nhanh lửa càng to.")
+        case .ink: return LK("Giọt mực loang ra dưới phím vừa bấm rồi nhạt dần.")
+        case .wave: return LK("Các vòng sóng nước lan rộng dưới hàng phím từ phím vừa bấm.")
+        case .snow: return LK("Bông tuyết trắng lắc lư rơi xuống từ phím vừa bấm.")
+        case .meteor: return LK("Một ngôi sao băng lao chéo từ phím vừa bấm rồi tắt.")
+        case .lantern: return LK("Đốm sáng đèn lồng cam vàng ấm bay lên từ phím, hợp mùa Trung Thu.")
+        case .smoke: return LK("Làn sương tím xám ma mị bốc lên từ phím, hợp mùa Halloween.")
+        case .string: return LK("Đoạn dây đàn ở khe hàng gần phím rung lên rồi đứng yên.")
+        case .plasma: return LK("Tia điện tím nối phím trước với phím vừa bấm; gõ nhanh thành chuỗi.")
+        case .shake: return LK("Gõ dồn thì cả bàn phím rung như đòn trúng trong game, càng nhanh càng mạnh (chỉ là hình).")
+        case .laser: return LK("Tia laser mảnh bắn từ phím cách lên phím vừa bấm.")
+        case .glitch: return LK("Phím vừa bấm nhiễu hình chớp nhoáng: lệch màu, lát cắt xô lệch.")
+        case .tone: return LK("Mỗi dấu thanh vừa bỏ (sắc, huyền, hỏi, ngã, nặng) có một kiểu bay riêng.")
+        case .keyword: return LK("Gõ \"tết\" nổ pháo đỏ và lì xì, \"yêu\" thả tim; tiếng cười và từ giận dữ cũng có hình riêng.")
+        case .letters: return LK("Đúng chữ vừa gõ (kể cả dấu) bay lên từ phím rồi mờ dần.")
+        case .sand: return LK("Hạt cát rơi từ phím, đọng thành đống thấp ở đáy bàn phím rồi tự tan.")
+        case .sea: return LK("Mỗi đợt gõ một con sóng vỗ bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang.")
+        case .tokens: return LK("Chữ vừa gõ vỡ thành vài token phát sáng bay vào thanh gợi ý.")
+        case .dancefloor: return LK("Phím vừa bấm và các phím quanh thắp vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp.")
+        case .kaleido: return LK("Bông đối xứng sắc cầu vồng nở từ phím vừa bấm, xoay chậm rồi tan.")
+        case .tunnel: return LK("Vòng sáng co về phím vừa bấm như rơi vào đường hầm; gõ nhanh thì rơi nhanh hơn.")
+        case .float: return LK("Phím trôi nhẹ khỏi hàng khi đang gõ rồi về chỗ khi nghỉ; chỉ là hình, chạm vẫn đúng phím.")
+        case .merit: return LK("\"+1 công đức\" bay lên từ phím và đếm số phím trong ngày (về 0 lúc nửa đêm, chỉ lưu trên máy).")
+        case .sunlight: return LK("Ô vừa bấm sáng lên như nắng xuyên kính màu; gõ nhanh có ánh nến ấm bập bùng ở mép dưới.")
+        case .rain: return LK("Mưa đêm trên ô kính: giọt rơi xuống phím rồi lăn nhẹ; gõ một lúc mưa thưa dần, đèn ấm ở góc sáng lên.")
+        case .reps: return LK("Mỗi phím lấp thanh rep một nấc, 10 phím là một hiệp (SET ✓); gõ \"gym\", \"tập\", \"beast mode\" để nổ chữ BEAST MODE.")
+        case .constellation: return LK("Mỗi phím thắp một sao của chòm cung hoàng đạo bạn chọn (trong giao diện Cung hoàng đạo); đủ sao thì cả chòm loé sáng.")
+        case .rainbowburst: return LK("Vòng cung màu lá cờ bạn chọn (trong giao diện Tự hào) lan ra từ phím; gõ \"tự hào\" hay \"pride\" thì cờ tung bay cùng tim.")
+        case .goal: return LK("Enter sút bóng vào lưới, phím khác nhú túm cỏ; gõ \"vô địch\", \"Việt Nam vô địch\", \"VN #1\", \"vàooo\" hay \"goal\" để đốt pháo sáng, tung cờ đỏ sao vàng.")
+        case .fishfeed: return LK("Cá bơi sau hàng phím; mỗi phím thả một viên thức ăn, chú cá gần nhất bơi tới ăn, lớn dần và có thêm bạn.")
+        case .ice: return LK("Viên đá trên phím lắc nhẹ, đọng giọt; phin nhỏ giọt cà phê sau vài phím; gõ thật nhanh, sữa xoáy vào ly.")
+        case .theme: return LK("Dùng hạt riêng của giao diện đang chọn; giao diện không có hạt riêng thì là chùm sao nhỏ.")
+        }
+    }
+
+    /// Mô tả đã dịch theo ngôn ngữ giao diện; "Không" ⇒ nil.
+    static func description(for e: KeyEffect) -> String? { e.descriptionKey.map { L($0) } }
+}
