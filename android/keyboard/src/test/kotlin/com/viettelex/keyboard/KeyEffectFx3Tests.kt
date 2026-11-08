@@ -110,25 +110,76 @@ class KeyEffectFx3Tests {
 
     // MARK: Rung combo
 
-    @Test fun shakeRespectsReduceMotionAndCaps() {
-        for (lv in -1..5) {
-            assertEquals(0.0, ShakeFx.amplitude(lv, reduceMotion = true), 0.0)
-            assertTrue(ShakeFx.amplitude(lv, false) <= ShakeFx.MAX)
-        }
-        assertEquals(0.0, ShakeFx.amplitude(0, false), 0.0)
-        assertTrue(ShakeFx.amplitude(1, false) < ShakeFx.amplitude(3, false))
-        assertEquals(3.0, ShakeFx.MAX, 0.0)
-        val m = ComboMeter()
-        var lv = 0
-        for (i in 0 until 14) lv = m.press(i * 100L)
-        assertEquals(3, lv)
-        val amp = ShakeFx.amplitude(lv, false)
-        for (t in -10L..200L) {
+    /** Số tham chiếu — iOS KeyEffectTests.testShakeNumbersAndMeter giữ y hệt. Giảm chuyển động không còn tắt rung. */
+    @Test fun shakeNumbersAndMeter() {
+        assertEquals(7.0, ShakeFx.MAX, 0.0)
+        assertEquals(listOf(0.0, 3.0, 5.0, 7.0), ShakeFx.AMPS.toList())
+        assertEquals(245L, ShakeFx.DURATION_MS)
+        for (lv in -1..5) assertTrue(ShakeFx.amplitude(lv) <= ShakeFx.MAX)
+        assertEquals(0.0, ShakeFx.amplitude(0), 0.0)
+        assertEquals(listOf(3.0, 5.0, 7.0), (1..3).map { ShakeFx.amplitude(it) })
+        // 3–4 nhịp tắt dần: dấu x đổi chiều mỗi khung, |x| giảm dần.
+        val mid = ShakeFx.XS.toList().drop(1).dropLast(1)
+        assertTrue(mid.zipWithNext().count { (a, b) -> a * b < 0 } >= 5)
+        assertTrue(mid.zipWithNext().all { (a, b) -> abs(a) > abs(b) })
+        assertTrue(ShakeFx.YS.all { abs(it) < 0.5 })
+
+        // Gõ nhanh bình thường: phím thứ 4 trong 1,2 s đã rung (≈ 3,5 phím/s).
+        val m = ShakeMeter()
+        assertEquals(listOf(0, 0, 0, 1), (0 until 4).map { m.press(it * 300L) })
+        m.reset()
+        assertEquals(listOf(0, 0, 0, 1, 1, 2, 2, 3, 3), (0 until 9).map { m.press(it * 100L) })
+        assertEquals(0, m.press(800L + 2000L))
+        m.reset()
+        assertEquals(List(6) { 0 }, (0 until 6).map { m.press(it * 500L) })
+
+        val amp = ShakeFx.amplitude(3)
+        for (t in -10L..300L) {
             assertTrue(abs(ShakeFx.offsetX(t, amp)) <= amp + 1e-9); assertTrue(abs(ShakeFx.offsetY(t, amp)) <= amp + 1e-9)
         }
         assertEquals(0.0, ShakeFx.offsetX(0, amp), 0.0); assertEquals(0.0, ShakeFx.offsetX(ShakeFx.DURATION_MS, amp), 0.0)
         assertEquals(0.0, ShakeFx.offsetY(ShakeFx.DURATION_MS + 5, amp), 0.0)
-        assertEquals(3.0, ShakeFx.offsetX(30, 3.0), 1e-9); assertEquals(0.75, ShakeFx.offsetX(15, 1.5), 1e-9)
+        assertEquals(7.0, ShakeFx.offsetX(35, 7.0), 1e-9)
+        assertEquals(-4.25, ShakeFx.offsetX(70, 5.0), 1e-9)
+        assertEquals(-2.45, ShakeFx.offsetY(35, 7.0), 1e-9)
+        assertEquals(1.2, ShakeFx.offsetX(14, 3.0), 1e-9)
+    }
+
+    // MARK: Sàn nhảy LED — flash phím cách
+
+    /** Số tham chiếu — iOS KeyEffectTests.testBeatFlashNumbersAndGate giữ y hệt. */
+    @Test fun beatFlashNumbersAndGate() {
+        assertEquals(0.02, BeatFlash.RISE, 0.0); assertEquals(0.11, BeatFlash.FALL, 0.0)
+        assertEquals(0.13, BeatFlash.DURATION, 1e-12)
+        assertEquals(0.6, BeatFlash.PEAK, 0.0); assertEquals(3, BeatFlash.MAX_PER_SECOND)
+        assertEquals(0.0, BeatFlash.alpha(-0.001), 0.0)
+        assertEquals(0.0, BeatFlash.alpha(0.0), 0.0)
+        assertEquals(0.3, BeatFlash.alpha(0.01), 1e-9)
+        assertEquals(0.6, BeatFlash.alpha(0.02), 1e-9)
+        assertEquals(0.15, BeatFlash.alpha(0.075), 1e-9)
+        assertEquals(0.0, BeatFlash.alpha(0.13), 0.0)
+        var t = 0.0
+        while (t <= 0.2) {
+            assertTrue(BeatFlash.alpha(t) <= BeatFlash.PEAK + 1e-12)
+            if (t > 0.0205) assertTrue("tắt đơn điệu", BeatFlash.alpha(t) <= BeatFlash.alpha(t - 0.001) + 1e-12)
+            t += 0.001
+        }
+        assertEquals(0xFFB6EF, BeatFlash.tint(0))
+        assertEquals(0xDCC6FF, BeatFlash.tint(1))
+        assertEquals(0xB6F6FF, BeatFlash.tint(2))
+        assertEquals(BeatFlash.tint(0), BeatFlash.tint(3))
+
+        // ≤ 3 lần trong MỌI khoảng 1 s: 10 nhịp trong 1 s ⇒ 3.
+        val g = BeatFlash.Gate()
+        assertEquals(3, (0 until 10).count { g.trigger(it * 0.1) })
+        assertEquals(3, g.fired)
+        assertFalse(g.trigger(0.99))
+        assertTrue("đủ 1 s sau nhịp cũ nhất ⇒ lại được", g.trigger(1.0))
+        val h = BeatFlash.Gate()
+        assertEquals("~3 nhịp/s đều đặn: không bỏ", 12, (0 until 12).count { h.trigger(it * 0.34) })
+        val w = BeatFlash.Gate()
+        val times = (0 until 200).map { it * 0.047 }.filter { w.trigger(it) }
+        for (i in 3 until times.size) assertTrue(times[i] - times[i - 3] >= 1.0 - 1e-9)
     }
 
     // MARK: Plasma

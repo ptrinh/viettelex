@@ -27,6 +27,7 @@ import com.viettelex.keyboard.PlasmaChain
 import com.viettelex.keyboard.SandPile
 import com.viettelex.keyboard.SeaFx
 import com.viettelex.keyboard.ShakeFx
+import com.viettelex.keyboard.ShakeMeter
 import com.viettelex.keyboard.ToneBurst
 import com.viettelex.keyboard.ToneFx
 import com.viettelex.keyboard.GlowSprite
@@ -141,12 +142,11 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     private val arcPts = DoubleArray(2 * (PlasmaArc.SEGMENTS + 1))
     private var arcCursor = 0
     private var arcSeq = 0
-    // Rung combo — dời HÌNH của [shakeTarget] (translationX/Y, RenderThread), xong về 0. Giảm chuyển động ⇒ không rung.
+    // Rung combo — dời HÌNH của [shakeTarget] (translationX/Y, RenderThread), xong về 0. Giảm chuyển động vẫn rung.
     /** View hàng phím bị rung (IME đặt = KeyboardView). */
     var shakeTarget: View? = null
         set(v) { if (field !== v) field?.let { it.translationX = 0f; it.translationY = 0f }; field = v }
-    /** Giảm chuyển động (tỉ lệ thời lượng animation hệ thống = 0) — IME đọc mỗi lần hiện. */
-    var reduceMotion = false
+    private val shakeMeter = ShakeMeter()
     private var shakeStart = Long.MIN_VALUE / 2
     private var shakeAmp = 0f
     // Laser — khung phím cách (toạ độ view này) do IME cấp; không có ⇒ gốc giữa đáy.
@@ -264,6 +264,8 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     private var danceCursor = 0
     private var danceSeq = 0
     private val flickerGate = DanceFloor.FlickerGate()
+    /** Sàn nhảy LED: cổng an toàn chung với flash phím cách ([BeatFlashView.gate]). null ⇒ chỉ FlickerGate. */
+    var flashGate: com.viettelex.keyboard.BeatFlash.Gate? = null
     private var flickerStart = Long.MIN_VALUE / 2
     private val flickerTiles = FloatArray(DanceFloor.MAX_GRID * 6)
     private var flickerN = 0
@@ -307,7 +309,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         }
         blob = if (e == KeyEffect.INK) renderBlob(opaque) else null
         glows = if (e.usesGlow) Array(e.fixedColors.size) { renderGlow(e, e.fixedColors[it]) } else emptyArray()
-        if (changed) { shardCache.clear(); combo.reset(); plasma.reset(); prewarm(e); buildFx3Paths(e) }
+        if (changed) { shardCache.clear(); combo.reset(); shakeMeter.reset(); plasma.reset(); prewarm(e); buildFx3Paths(e) }
         if (e != KeyEffect.SHAKE) shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         if (e != KeyEffect.SAND) sand = null
         pendN = 0
@@ -408,7 +410,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.NONE, KeyEffect.EMOJIWORD, KeyEffect.TONE, KeyEffect.KEYWORD, KeyEffect.LETTERS, KeyEffect.TOKENS -> {}
             KeyEffect.PLASMA -> firePlasma(x, y, now)
             KeyEffect.SHAKE -> {
-                val amp = ShakeFx.amplitude(combo.press(now), reduceMotion)
+                val amp = ShakeFx.amplitude(shakeMeter.press(now))
                 if (amp > 0.0 && shakeTarget != null) { shakeStart = now; shakeAmp = (amp * density).toFloat() }
             }
             KeyEffect.LASER -> fireLaser(x, y, now)
@@ -508,7 +510,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         grainAlive.fill(false); sand?.clear(); plasma.reset()
         seaTapStart.fill(Long.MIN_VALUE / 2); seaWaveStart.fill(Long.MIN_VALUE / 2); seaFishStart = Long.MIN_VALUE / 2
         seaLastWave = Long.MIN_VALUE / 2; seaLevel = 0
-        shakeStart = Long.MIN_VALUE / 2
+        shakeStart = Long.MIN_VALUE / 2; shakeMeter.reset()
         shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         danceStart.fill(Long.MIN_VALUE / 2); flickerStart = Long.MIN_VALUE / 2
         pendN = 0
@@ -534,7 +536,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         danceN[s] = copyTiles(DanceFloor.tiles(x.toDouble(), y.toDouble(), w.toDouble(), h.toDouble(), danceSeq), danceTiles[s], DANCE_TILES)
         danceStart[s] = now
         // Gõ dồn (mức combo cao nhất): cả bàn phím nháy một nhịp — trần nhịp FLICKER_COOLDOWN.
-        if (flickerGate.trigger(level, now / 1000.0) && width > 0 && height > 0) {
+        if (flickerGate.trigger(level, now / 1000.0) && (flashGate?.trigger(now / 1000.0) ?: true) && width > 0 && height > 0) {
             flickerN = copyTiles(DanceFloor.grid(0.0, 0.0, width.toDouble(), height.toDouble(), x.toDouble(), y.toDouble(),
                 w.toDouble(), h.toDouble(), danceSeq), flickerTiles, DanceFloor.MAX_GRID)
             flickerStart = now

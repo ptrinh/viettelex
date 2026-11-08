@@ -742,20 +742,22 @@ struct PlasmaChain {
     mutating func reset() { last = -Double.greatestFiniteMagnitude }
 }
 
-/// "Rung combo": gõ nhanh (mức ComboMeter ≥ 1) ⇒ hàng phím rung vài pt kiểu game, mạnh dần theo mức, trần `max`.
-/// Chỉ dời HÌNH (animation cộng dồn trên layer — khung nhận chạm của phím không đổi), ~0,18 s rồi tự gỡ.
-/// Giảm chuyển động ⇒ không rung.
+/// "Rung combo": gõ nhanh ⇒ hàng phím rung kiểu đòn trúng trong game đối kháng, mạnh dần theo mức ShakeMeter
+/// (3 / 5 / 7 pt), ~0,25 s, 3–4 nhịp tắt dần, ngang + chút dọc. Chỉ dời HÌNH (animation cộng dồn trên layer — khung
+/// nhận chạm của phím không đổi), tự gỡ. Giảm chuyển động KHÔNG tắt (Phil 08/11/2026, như mọi hiệu ứng khác).
+/// Bản trước (1,5 pt / 0,18 s, mức ComboMeter cần 6 phím / 2 s, tắt khi Giảm chuyển động) gần như không thấy.
 enum ShakeFx {
-    static let max = 3.0
-    static let amps: [Double] = [0, 1.5, 2.25, 3.0]
-    static let duration = 0.18
+    static let max = 7.0
+    static let amps: [Double] = [0, 3, 5, 7]
+    /// 7 đoạn × 35 ms (Android DURATION_MS = 245).
+    static let duration = 0.245
     /// Khung hình (tỉ lệ biên độ) — dao động tắt dần, đầu/cuối 0.
-    static let xs: [Double] = [0, 1.0, -0.8, 0.55, -0.3, 0.1, 0]
-    static let ys: [Double] = [0, -0.5, 0.45, -0.3, 0.15, -0.05, 0]
+    static let xs: [Double] = [0, 1.0, -0.85, 0.65, -0.45, 0.28, -0.12, 0]
+    static let ys: [Double] = [0, -0.35, 0.3, -0.22, 0.15, -0.08, 0.03, 0]
 
-    /// Biên độ (pt) cho mức combo; Giảm chuyển động ⇒ 0.
-    static func amplitude(level: Int, reduceMotion: Bool) -> Double {
-        reduceMotion ? 0 : Swift.min(max, amps[Swift.min(Swift.max(level, 0), amps.count - 1)])
+    /// Biên độ (pt) cho mức ShakeMeter.
+    static func amplitude(level: Int) -> Double {
+        Swift.min(max, amps[Swift.min(Swift.max(level, 0), amps.count - 1)])
     }
 
     private static func sample(_ k: [Double], _ dt: Double, _ amp: Double) -> Double {
@@ -766,6 +768,32 @@ enum ShakeFx {
     }
     static func offsetX(_ dt: Double, amp: Double) -> Double { sample(xs, dt, amp) }
     static func offsetY(_ dt: Double, amp: Double) -> Double { sample(ys, dt, amp) }
+}
+
+/// Mức rung: số phím trong `window` giây gần nhất (kể cả phím này) ≥ 4 / 6 / 8 ⇒ mức 1 / 2 / 3 — gõ nhanh bình thường
+/// (≈ 3,5 phím/s) đã lên mức 1. Riêng với ComboMeter (Lửa combo giữ ngưỡng cũ).
+struct ShakeMeter {
+    static let window = 1.2
+    static let thresholds = [4, 6, 8]
+    static let capacity = 8
+    private var times = [Double](repeating: -Double.greatestFiniteMagnitude, count: ShakeMeter.capacity)
+    private var head = 0
+
+    /// Ghi một phím lúc `t` (giây) — trả mức sau phím đó.
+    mutating func press(at t: Double) -> Int {
+        times[head] = t
+        head = (head + 1) % Self.capacity
+        var n = 0
+        for x in times where x <= t && t - x <= Self.window { n += 1 }
+        var lv = 0
+        for th in Self.thresholds where n >= th { lv += 1 }
+        return lv
+    }
+
+    mutating func reset() {
+        for i in 0..<Self.capacity { times[i] = -Double.greatestFiniteMagnitude }
+        head = 0
+    }
 }
 
 /// "Laser": tia mảnh sáng từ phím cách bắn lên phím vừa bấm, tắt nhanh.
@@ -1516,6 +1544,106 @@ enum DanceFloor {
     }
 }
 
+/// "Sàn nhảy LED" — cú FLASH stroboscope: bấm PHÍM CÁCH (hết một từ — trùng nhịp kick của âm Nhịp club) ⇒ lớp phủ
+/// TOÀN bàn phím, SAU phím (nền / ảnh / nhân vật loé sáng, chữ phím vẫn đọc được), trắng ngả màu neon của nhịp, lên
+/// `rise` rồi tắt (1−u)² trong `fall`. Phím chữ không flash. AN TOÀN cảm quang (WCAG 2.3.1): tối đa `maxPerSecond`
+/// lần mỗi giây — cổng `Gate` dùng CHUNG với nhịp nháy cả bàn phím của DanceFloor; quá thì bỏ qua (sàn LED vẫn chạy).
+/// Không phụ thuộc Giảm chuyển động. = Android BeatFlash.
+enum BeatFlash {
+    static let rise = 0.02
+    static let fall = 0.11
+    static var duration: Double { rise + fall }
+    static let peak = 0.6
+    static let maxPerSecond = 3
+    static let window = 1.0
+    /// Phần màu neon trộn vào trắng.
+    static let tintMix = 0.35
+
+    /// Độ đục sau `dt` giây kể từ cú flash.
+    static func alpha(_ dt: Double) -> Double {
+        guard dt >= 0, dt < duration else { return 0 }
+        if dt < rise { return peak * dt / rise }
+        let u = (dt - rise) / fall
+        return peak * (1 - u) * (1 - u)
+    }
+
+    /// Màu nhịp thứ `i`: trắng trộn `tintMix` màu DanceFloor.colors[i % 3] (0xRRGGBB).
+    static func tint(_ i: Int) -> UInt32 {
+        let c = DanceFloor.colors[((i % DanceFloor.colors.count) + DanceFloor.colors.count) % DanceFloor.colors.count]
+        func ch(_ sh: UInt32) -> UInt32 {
+            let v = Double((c >> sh) & 0xFF)
+            return UInt32((255 * (1 - tintMix) + v * tintMix).rounded()) << sh
+        }
+        return ch(16) | ch(8) | ch(0)
+    }
+
+    /// Cổng an toàn: ≤ `maxPerSecond` lần trong mọi khoảng `window` giây. Lớp tham chiếu — flash phím cách và nhịp
+    /// nháy cả bàn phím (DanceFloor) dùng chung một cổng.
+    final class Gate {
+        private var times = [Double](repeating: -Double.greatestFiniteMagnitude, count: BeatFlash.maxPerSecond)
+        private var head = 0
+        private(set) var fired = 0
+        func trigger(at t: Double) -> Bool {
+            guard t - times[head] >= BeatFlash.window else { return false }
+            times[head] = t
+            head = (head + 1) % times.count
+            fired += 1
+            return true
+        }
+        func reset() {
+            for i in times.indices { times[i] = -Double.greatestFiniteMagnitude }
+            head = 0
+        }
+    }
+}
+
+/// Lớp flash của Sàn nhảy LED: MỘT view (layer = màu nền) tái dùng, KeyboardView chèn ngay DƯỚI hàng phím, khung =
+/// bounds KeyboardView (chung hệ toạ độ #151). Animation opacity dựng MỘT lần, mỗi nhịp chỉ đổi màu + gắn lại.
+/// Không nhận chạm, ẩn với VoiceOver. Kiểu khác ⇒ KeyboardView không giữ view này (0 chi phí).
+final class BeatFlashView: UIView {
+    let gate = BeatFlash.Gate()
+    private var beat = 0
+    private let anim: CAKeyframeAnimation = {
+        let a = CAKeyframeAnimation(keyPath: "opacity")
+        let steps = 13
+        a.values = (0...steps).map { BeatFlash.alpha(BeatFlash.duration * Double($0) / Double(steps) * 0.9999) }
+        a.keyTimes = (0...steps).map { NSNumber(value: Double($0) / Double(steps)) }
+        a.duration = BeatFlash.duration
+        a.isRemovedOnCompletion = true
+        return a
+    }()
+    static let animKey = "fx.beat"
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        isAccessibilityElement = false
+        accessibilityElementsHidden = true
+        layer.opacity = 0
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool { false }
+
+    /// Nhịp phím cách: qua cổng an toàn ⇒ flash (true). Quá 3 lần / giây ⇒ bỏ qua (false).
+    @discardableResult
+    func kick(at t: CFTimeInterval = CACurrentMediaTime()) -> Bool {
+        guard gate.trigger(at: t) else { return false }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.backgroundColor = UIColor(rgb: BeatFlash.tint(beat)).cgColor
+        layer.add(anim, forKey: Self.animKey)
+        CATransaction.commit()
+        beat += 1
+        return true
+    }
+
+    func halt() {
+        layer.removeAnimation(forKey: Self.animKey)
+        gate.reset()
+    }
+}
+
 // MARK: - Overlay
 
 extension UIView {
@@ -1597,9 +1725,9 @@ final class KeyEffectOverlay: UIView {
     private var arcPool = KeyEffectPool(capacity: PlasmaArc.pool)
     private var plasma = PlasmaChain()
     private var plasmaSeq = 0
-    /// Rung combo: layer hàng phím bị rung (install đặt = `keys`). Giảm chuyển động ⇒ không rung.
+    /// Rung combo: layer hàng phím bị rung (install đặt = `keys`). Giảm chuyển động vẫn rung (như mọi hiệu ứng).
     weak var shakeTarget: UIView?
-    var reduceMotion: () -> Bool = { UIAccessibility.isReduceMotionEnabled }
+    private var shakeMeter = ShakeMeter()
     /// Laser: khung phím cách (toạ độ overlay) — nil ⇒ gốc giữa đáy.
     var laserOrigin: (() -> CGRect?)?
     private var beams: [Beam] = []
@@ -1650,6 +1778,8 @@ final class KeyEffectOverlay: UIView {
     private var danceSeq = 0
     private var floorFlicker: Dance?
     private var flickerGate = DanceFloor.FlickerGate()
+    /// Sàn nhảy LED: cổng an toàn chung với lớp flash phím cách (BeatFlashView.gate). nil ⇒ chỉ FlickerGate.
+    var flashGate: BeatFlash.Gate?
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -2345,7 +2475,7 @@ final class KeyEffectOverlay: UIView {
 
     /// Rung combo: animation CỘNG DỒN trên layer hàng phím (model — khung nhận chạm — không đổi), tự gỡ khi xong.
     private func fireShake(media: CFTimeInterval) {
-        let amp = ShakeFx.amplitude(level: combo.press(at: media), reduceMotion: reduceMotion())
+        let amp = ShakeFx.amplitude(level: shakeMeter.press(at: media))
         guard amp > 0, let target = shakeTarget else { return }
         let a = CAKeyframeAnimation(keyPath: "position")
         a.isAdditive = true
@@ -2498,7 +2628,8 @@ final class KeyEffectOverlay: UIView {
         d.root.beginTime = now
         d.root.isHidden = false
         // Gõ dồn (mức combo cao nhất): cả bàn phím nháy một nhịp — trần nhịp `flickerCooldown`.
-        if flickerGate.trigger(level: level, at: media) {
+        // Cổng an toàn chung với flash phím cách (≤ 3 lần / giây) — KeyboardView đặt `flashGate`.
+        if flickerGate.trigger(level: level, at: media), flashGate?.trigger(at: media) ?? true {
             let f: Dance
             if let x = floorFlicker { f = x } else { f = makeDance(rings: 1, flicker: true); floorFlicker = f }
             fill(f, tiles: DanceFloor.grid(bounds: (Double(bounds.minX), Double(bounds.minY), Double(bounds.width), Double(bounds.height)),
@@ -3334,6 +3465,7 @@ final class KeyEffectOverlay: UIView {
         dances.removeAll(); dancePool = KeyEffectPool(capacity: DanceFloor.pool); danceSeq = 0
         floorFlicker = nil; flickerGate = DanceFloor.FlickerGate()
         if effect != .shake { shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey) }
+        shakeMeter.reset()
         stringAnim = nil
         flashLayer = nil
         matrixRoot = nil

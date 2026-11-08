@@ -414,6 +414,18 @@ class ImeRootView(
     private var effectsBand = com.viettelex.keyboard.KeyEffectBand.ABOVE_KEYS
 
     /**
+     * Flash phím cách của "Sàn nhảy LED" ([BeatFlashView]) — ngay DƯỚI [keyboard] (trên nền / ảnh nền / đèn rọi), phủ
+     * strip + phím. null = kiểu khác (không view, 0 chi phí).
+     */
+    var beatFlash: BeatFlashView? = null
+        set(v) {
+            if (field === v) return
+            field?.let { it.halt(); removeView(it) }
+            field = v
+            if (v != null) addView(v, indexOfChild(keyboard))
+        }
+
+    /**
      * "Bạn đồng hành" ([BuddyView], Plus) — ô sát mép phải strip (trái ⌄ ẩn bàn phím khi bật) (StripView chừa [StripView.buddyDp]), tràn
      * xuống hàng phím đầu (vẽ trên phím, không nhận chạm). null = tắt (mặc định: không view, 0 chi phí).
      */
@@ -604,6 +616,7 @@ class ImeRootView(
         overlay?.layout(0, s, w, s + keyH)
         balloon.layout(0, 0, w, s + keyH)
         effects?.layout(0, 0, w, s + keyH)
+        beatFlash?.layout(0, 0, w, s + keyH)
         layoutBuddy(0, 0, w, s)
         updateStringGaps()
         mole?.layout(0, 0, w, s + keyH)

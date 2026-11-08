@@ -769,21 +769,21 @@ class PlasmaChain {
 }
 
 /**
- * "Rung combo": gõ nhanh (mức [ComboMeter] ≥ 1) ⇒ nội dung bàn phím rung vài dp kiểu game, mạnh dần theo mức, trần
- * [MAX]. Chỉ dời HÌNH vẽ trong ~0,18 s rồi về 0 — không dời khung nhận chạm. Giảm chuyển động ⇒ không rung.
- * = iOS ShakeFx.
+ * "Rung combo": gõ nhanh ⇒ nội dung bàn phím rung kiểu đòn trúng trong game đối kháng, mạnh dần theo mức [ShakeMeter]
+ * (3 / 5 / 7 dp), ~0,25 s, 3–4 nhịp tắt dần, ngang + chút dọc. Chỉ dời HÌNH vẽ rồi về 0. Giảm chuyển động KHÔNG tắt
+ * (Phil 08/11/2026, như mọi hiệu ứng khác). = iOS ShakeFx.
  */
 object ShakeFx {
-    const val MAX = 3.0
-    val AMPS = doubleArrayOf(0.0, 1.5, 2.25, 3.0)
-    const val DURATION_MS = 180L
+    const val MAX = 7.0
+    val AMPS = doubleArrayOf(0.0, 3.0, 5.0, 7.0)
+    /** 7 đoạn × 35 ms (iOS duration = 0,245). */
+    const val DURATION_MS = 245L
     /** Khung hình (tỉ lệ biên độ) — dao động tắt dần, đầu/cuối 0. */
-    val XS = doubleArrayOf(0.0, 1.0, -0.8, 0.55, -0.3, 0.1, 0.0)
-    val YS = doubleArrayOf(0.0, -0.5, 0.45, -0.3, 0.15, -0.05, 0.0)
+    val XS = doubleArrayOf(0.0, 1.0, -0.85, 0.65, -0.45, 0.28, -0.12, 0.0)
+    val YS = doubleArrayOf(0.0, -0.35, 0.3, -0.22, 0.15, -0.08, 0.03, 0.0)
 
-    /** Biên độ (dp) cho mức combo [level]; Giảm chuyển động ⇒ 0. */
-    fun amplitude(level: Int, reduceMotion: Boolean): Double =
-        if (reduceMotion) 0.0 else minOf(MAX, AMPS[level.coerceIn(0, AMPS.size - 1)])
+    /** Biên độ (dp) cho mức [ShakeMeter] [level]. */
+    fun amplitude(level: Int): Double = minOf(MAX, AMPS[level.coerceIn(0, AMPS.size - 1)])
 
     private fun sample(k: DoubleArray, dtMs: Long, amp: Double): Double {
         if (dtMs <= 0 || dtMs >= DURATION_MS || amp == 0.0) return 0.0
@@ -793,6 +793,32 @@ object ShakeFx {
     }
     fun offsetX(dtMs: Long, amp: Double): Double = sample(XS, dtMs, amp)
     fun offsetY(dtMs: Long, amp: Double): Double = sample(YS, dtMs, amp)
+}
+
+/**
+ * Mức rung: số phím trong [WINDOW_MS] gần nhất (kể cả phím này) ≥ 4 / 6 / 8 ⇒ mức 1 / 2 / 3 — gõ nhanh bình thường
+ * (≈ 3,5 phím/s) đã lên mức 1. Riêng với [ComboMeter] (Lửa combo giữ ngưỡng cũ). = iOS ShakeMeter.
+ */
+class ShakeMeter {
+    private val times = LongArray(CAPACITY) { Long.MIN_VALUE / 2 }
+    private var head = 0
+
+    fun press(nowMs: Long): Int {
+        times[head] = nowMs; head = (head + 1) % CAPACITY
+        var n = 0
+        for (x in times) if (x <= nowMs && nowMs - x <= WINDOW_MS) n++
+        var lv = 0
+        for (th in THRESHOLDS) if (n >= th) lv++
+        return lv
+    }
+
+    fun reset() { times.fill(Long.MIN_VALUE / 2); head = 0 }
+
+    companion object {
+        const val WINDOW_MS = 1200L
+        val THRESHOLDS = intArrayOf(4, 6, 8)
+        const val CAPACITY = 8
+    }
 }
 
 /** "Laser": tia mảnh sáng từ phím cách bắn lên phím vừa bấm, tắt nhanh. = iOS LaserBeam. */
@@ -1499,5 +1525,56 @@ object DanceFloor {
             out.add(Tile(0, colorIndex(i, j, seed), x, y, u, h))
         }
         return out
+    }
+}
+
+/**
+ * "Sàn nhảy LED" — cú FLASH stroboscope: bấm PHÍM CÁCH (hết một từ — trùng nhịp kick của âm Nhịp club) ⇒ lớp phủ TOÀN
+ * bàn phím, SAU phím (nền / ảnh / nhân vật loé sáng, chữ phím vẫn đọc được), trắng ngả màu neon của nhịp, lên [RISE]
+ * rồi tắt (1−u)² trong [FALL]. Phím chữ không flash. AN TOÀN cảm quang (WCAG 2.3.1): tối đa [MAX_PER_SECOND] lần mỗi
+ * giây — [Gate] dùng CHUNG với nhịp nháy cả bàn phím của [DanceFloor]; quá thì bỏ qua. Không phụ thuộc Giảm chuyển động.
+ * = iOS BeatFlash.
+ */
+object BeatFlash {
+    const val RISE = 0.02
+    const val FALL = 0.11
+    const val DURATION = RISE + FALL
+    const val PEAK = 0.6
+    const val MAX_PER_SECOND = 3
+    const val WINDOW = 1.0
+    /** Phần màu neon trộn vào trắng. */
+    const val TINT_MIX = 0.35
+
+    /** Độ đục sau [dt] giây kể từ cú flash. */
+    fun alpha(dt: Double): Double {
+        if (dt < 0 || dt >= DURATION) return 0.0
+        if (dt < RISE) return PEAK * dt / RISE
+        val u = (dt - RISE) / FALL
+        return PEAK * (1 - u) * (1 - u)
+    }
+
+    /** Màu nhịp thứ [i]: trắng trộn [TINT_MIX] màu [DanceFloor.COLORS] (0xRRGGBB). */
+    fun tint(i: Int): Int {
+        val n = DanceFloor.COLORS.size
+        val c = DanceFloor.COLORS[((i % n) + n) % n]
+        fun ch(sh: Int): Int {
+            val v = ((c shr sh) and 0xFF).toDouble()
+            return Math.round(255 * (1 - TINT_MIX) + v * TINT_MIX).toInt() shl sh
+        }
+        return ch(16) or ch(8) or ch(0)
+    }
+
+    /** Cổng an toàn: ≤ [MAX_PER_SECOND] lần trong mọi khoảng [WINDOW] giây. Dùng chung cho flash phím cách + nháy cả bàn phím. */
+    class Gate {
+        private val times = DoubleArray(MAX_PER_SECOND) { Double.NEGATIVE_INFINITY }
+        private var head = 0
+        var fired = 0; private set
+        fun trigger(t: Double): Boolean {
+            if (t - times[head] < WINDOW) return false
+            times[head] = t; head = (head + 1) % times.size
+            fired++
+            return true
+        }
+        fun reset() { times.fill(Double.NEGATIVE_INFINITY); head = 0 }
     }
 }
