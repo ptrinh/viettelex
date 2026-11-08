@@ -413,13 +413,21 @@ enum ToneRunLogic {
 // MARK: - 3. Ngày giờ (= DateHintLogic)
 
 enum DateHintLogic {
-    enum Phrase: Equatable { case today, tomorrow, yesterday, now }
+    enum Phrase: Equatable { case today, tomorrow, yesterday, now, lunar }
 
     private static let vietnamese: [String: [String: Phrase]] = [
         "hôm": ["nay": .today, "qua": .yesterday],
-        "ngày": ["mai": .tomorrow],
+        "ngày": ["mai": .tomorrow, "âm": .lunar],
         "bây": ["giờ": .now],
+        "âm": ["lịch": .lunar],
     ]
+    /// Một từ đứng riêng (từ trước bất kỳ): "ÂL␣" ⇒ âm lịch hôm nay.
+    private static let single: [String: Phrase] = ["âl": .lunar]
+
+    private static func isPair(prevRun: String, run: String) -> Bool {
+        vietnamese[prevRun.lowercased().precomposedStringWithCanonicalMapping]?[
+            run.lowercased().precomposedStringWithCanonicalMapping] != nil
+    }
     private static let english: [String: Phrase] = [
         "today": .today, "tomorrow": .tomorrow, "yesterday": .yesterday, "now": .now,
     ]
@@ -430,6 +438,7 @@ enum DateHintLogic {
         let w = run.lowercased().precomposedStringWithCanonicalMapping
         let p = prevRun.lowercased().precomposedStringWithCanonicalMapping
         if let m = vietnamese[p]?[w] { return m }
+        if let m = single[w] { return m }
         if let m = english[w], !p.isEmpty, p.allSatisfy({ $0.isASCII && $0.isLetter }), isEnglish(p) { return m }
         return nil
     }
@@ -466,11 +475,12 @@ enum DateHintLogic {
         return s.count >= w ? s : String(repeating: "0", count: w - s.count) + s
     }
 
-    /// "28/09/2026" (ngày) hoặc "21:35" (giờ).
+    /// "28/09/2026" (ngày), "21:35" (giờ), âm lịch hôm nay "30/9 năm Bính Ngọ".
     static func format(_ p: Phrase, now t: LocalTime) -> String {
         let delta: Int
         switch p {
         case .now: return pad(t.hour, 2) + ":" + pad(t.minute, 2)
+        case .lunar: return LunarCalendar.text(day: t.day, month: t.month, year: t.year)
         case .today: delta = 0
         case .tomorrow: delta = 1
         case .yesterday: delta = -1
@@ -481,8 +491,7 @@ enum DateHintLogic {
 
     static func suggestion(before: String, prevRun: String, run: String, phrase: Phrase,
                            now: LocalTime) -> CaretSuggestion? {
-        let isVi = vietnamese[prevRun.lowercased().precomposedStringWithCanonicalMapping] != nil
-        let replace = (isVi ? prevRun + " " : "") + run + " "
+        let replace = (isPair(prevRun: prevRun, run: run) ? prevRun + " " : "") + run + " "
         guard CaretHintLogic.standsAlone(before: before, token: replace) else { return nil }
         let value = format(phrase, now: now)
         return CaretSuggestion(kind: .date, display: value, replace: replace, insert: value + " ")

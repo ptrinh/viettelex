@@ -204,6 +204,15 @@ void testGates() {
     CHECK(!hints::dateCandidate(',', "hôm", "nay"));
     CHECK(!hints::dateCandidate(' ', "hom", "nay"));
     CHECK(!hints::dateCandidate(' ', "hôm", "sau"));
+    CHECK(hints::dateCandidate(' ', "âm", "lịch"));  // âm lịch
+    CHECK(hints::dateCandidate(' ', "Âm", "lịch"));
+    CHECK(hints::dateCandidate(' ', "ÂM", "LỊCH"));
+    CHECK(hints::dateCandidate(' ', "ngày", "âm"));
+    CHECK(hints::dateCandidate(' ', "", "ÂL"));
+    CHECK(hints::dateCandidate(' ', "là", "âl"));
+    CHECK(!hints::dateCandidate(',', "âm", "lịch"));
+    CHECK(!hints::dateCandidate(' ', "am", "lich"));
+    CHECK(!hints::dateCandidate(' ', "", "al"));
 
     // = TypoFixLogic.worthChecking (testTypoGateOnlyInvalidLetterWordsAtBoundary)
     CHECK(hints::typoWorthChecking(' ', "tpoi", "tpoi"));
@@ -402,6 +411,21 @@ void testDateHint() {
     r.answer(S(Kind::Date, "28/09/2026", "hôm nay ", "28/09/2026 "));
     CHECK(tab(r.s, r.m));
     CHECK_EQ(r.m.doc, std::string("Hẹn 28/09/2026 "));
+
+    // Âm lịch: "âm lịch " / "ngày âm " → helper; Tab thay cụm.
+    Rig a;
+    type(a.s, a.m, "aam lichj ");
+    CHECK(!a.reqs.empty());
+    l = a.last();
+    CHECK_EQ(l.substr(0, l.find("\t2")), req({"date", "âm lịch ", "âm", "lịch", " "}));
+    a.answer(S(Kind::Date, "30/9 năm Bính Ngọ", "âm lịch ", "30/9 năm Bính Ngọ "));
+    CHECK(tab(a.s, a.m));
+    CHECK_EQ(a.m.doc, std::string("30/9 năm Bính Ngọ "));
+    Rig n;
+    type(n.s, n.m, "ngayf aam ");
+    CHECK(!n.reqs.empty());
+    l = n.last();
+    CHECK_EQ(l.substr(0, l.find("\t2")), req({"date", "ngày âm ", "ngày", "âm", " "}));
 }
 
 void testToneRun() {

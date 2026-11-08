@@ -20,7 +20,9 @@
 //  3. NGÀY GIỜ (mặc định BẬT) — "hôm nay␣" / "ngày mai␣" / "hôm qua␣" ⇒ "28/09/2026";
 //     "bây giờ␣" ⇒ "21:35"; tiếng Anh (today/tomorrow/yesterday/now) chỉ khi từ trước là
 //     tiếng Anh ("see you tomorrow␣"). Tab THAY cụm bằng ngày/giờ (ví dụ maintainer: gõ
-//     "hôm nay" → gợi ý "28/09/2026"); muốn giữ chữ thì Esc / gõ tiếp.
+//     "hôm nay" → gợi ý "28/09/2026"); muốn giữ chữ thì Esc / gõ tiếp. Âm lịch hôm nay
+//     (lịch Việt Nam, UTC+7 — LunarCalendar.swift): "âm lịch␣" / "ngày âm␣" / "ÂL␣" ⇒
+//     "30/9 năm Bính Ngọ" (tháng nhuận: "1/6 nhuận năm Ất Tỵ").
 import Foundation
 import TelexCore
 
@@ -521,13 +523,22 @@ enum ToneRunLogic {
 // MARK: - 3. Ngày giờ
 
 enum DateHintLogic {
-    enum Phrase: Equatable { case today, tomorrow, yesterday, now }
+    enum Phrase: Equatable { case today, tomorrow, yesterday, now, lunar }
 
     private static let vietnamese: [String: [String: Phrase]] = [
         "hôm": ["nay": .today, "qua": .yesterday],
-        "ngày": ["mai": .tomorrow],
+        "ngày": ["mai": .tomorrow, "âm": .lunar],
         "bây": ["giờ": .now],
+        "âm": ["lịch": .lunar],
     ]
+    /// Một từ đứng riêng (từ trước bất kỳ): "ÂL␣" ⇒ âm lịch hôm nay.
+    private static let single: [String: Phrase] = ["âl": .lunar]
+
+    /// Cụm hai từ tiếng Việt? (khi đó Tab thay cả hai từ, không thì chỉ từ cuối).
+    private static func isPair(prevRun: String, run: String) -> Bool {
+        vietnamese[prevRun.lowercased().precomposedStringWithCanonicalMapping]?[
+            run.lowercased().precomposedStringWithCanonicalMapping] != nil
+    }
     private static let english: [String: Phrase] = [
         "today": .today, "tomorrow": .tomorrow, "yesterday": .yesterday, "now": .now,
     ]
@@ -540,11 +551,13 @@ enum DateHintLogic {
         let w = run.lowercased().precomposedStringWithCanonicalMapping
         let p = prevRun.lowercased().precomposedStringWithCanonicalMapping
         if let m = vietnamese[p]?[w] { return m }
+        if let m = single[w] { return m }
         if let m = english[w], !p.isEmpty, p.allSatisfy({ $0.isASCII && $0.isLetter }), isEnglish(p) { return m }
         return nil
     }
 
-    /// "28/09/2026" (ngày) hoặc "21:35" (giờ), lịch Gregorian theo múi giờ máy.
+    /// "28/09/2026" (ngày), "21:35" (giờ), lịch Gregorian theo múi giờ máy; âm lịch hôm nay
+    /// "30/9 năm Bính Ngọ" (ngày dương theo múi giờ máy, đổi sang âm lịch Việt Nam UTC+7).
     static func format(_ p: Phrase, now: Date, timeZone: TimeZone = .current) -> String {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = timeZone
@@ -553,6 +566,9 @@ enum DateHintLogic {
         case .now:
             let c = cal.dateComponents([.hour, .minute], from: now)
             return String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
+        case .lunar:
+            let c = cal.dateComponents([.day, .month, .year], from: now)
+            return LunarCalendar.text(day: c.day ?? 1, month: c.month ?? 1, year: c.year ?? 2000)
         case .today: day = now
         case .tomorrow: day = cal.date(byAdding: .day, value: 1, to: now) ?? now
         case .yesterday: day = cal.date(byAdding: .day, value: -1, to: now) ?? now
@@ -564,8 +580,7 @@ enum DateHintLogic {
     /// Gợi ý: màn hình kết thúc bằng "<prevRun> <run> " đứng riêng ⇒ thay cả cụm bằng ngày/giờ.
     static func suggestion(before: String, prevRun: String, run: String, phrase: Phrase,
                            now: Date, timeZone: TimeZone = .current) -> CaretSuggestion? {
-        let isVi = vietnamese[prevRun.lowercased().precomposedStringWithCanonicalMapping] != nil
-        let replace = (isVi ? prevRun + " " : "") + run + " "
+        let replace = (isPair(prevRun: prevRun, run: run) ? prevRun + " " : "") + run + " "
         guard CaretHintLogic.standsAlone(before: before, token: replace) else { return nil }
         let value = format(phrase, now: now, timeZone: timeZone)
         return CaretSuggestion(kind: .date, display: value, replace: replace, insert: value + " ")

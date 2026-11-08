@@ -1349,7 +1349,8 @@ final class AppState: @unchecked Sendable {
         set { defaults.set(newValue, forKey: "toneHints"); CaretHint.shared.reloadSetting() }
     }
 
-    /// Gợi ý ngày giờ sau "hôm nay␣" / "ngày mai␣" / "hôm qua␣" / "bây giờ␣". Mặc định BẬT.
+    /// Gợi ý ngày giờ sau "hôm nay␣" / "ngày mai␣" / "hôm qua␣" / "bây giờ␣", âm lịch sau
+    /// "âm lịch␣" / "ngày âm␣" / "ÂL␣". Mặc định BẬT.
     var dateHints: Bool {
         get { defaults.object(forKey: "dateHints") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "dateHints"); CaretHint.shared.reloadSetting() }

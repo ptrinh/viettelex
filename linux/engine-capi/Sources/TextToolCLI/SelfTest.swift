@@ -182,6 +182,58 @@ func caretSelfTest(fixtures: String) -> Int {
     eq(D.suggestion(before: "xhôm nay ", prevRun: "hôm", run: "nay", phrase: .today, now: now), nil, "date dính")
     eq(D.suggestion(before: "hôm nay", prevRun: "hôm", run: "nay", phrase: .today, now: now), nil, "date lệch")
 
+    // Âm lịch (lịch Việt Nam UTC+7): "âm lịch␣" / "ngày âm␣" / "ÂL␣"
+    eq(D.detect(boundary: " ", prevRun: "âm", run: "lịch", isEnglish: en), .lunar, "lunar âm lịch")
+    eq(D.detect(boundary: " ", prevRun: "Âm", run: "lịch", isEnglish: en), .lunar, "lunar Âm lịch")
+    eq(D.detect(boundary: " ", prevRun: "ÂM", run: "LỊCH", isEnglish: en), .lunar, "lunar ÂM LỊCH")
+    eq(D.detect(boundary: " ", prevRun: "a\u{0302}m", run: "li\u{0323}ch", isEnglish: en), .lunar, "lunar NFD")
+    eq(D.detect(boundary: " ", prevRun: "ngày", run: "âm", isEnglish: en), .lunar, "lunar ngày âm")
+    eq(D.detect(boundary: " ", prevRun: "ngày", run: "mai", isEnglish: en), .tomorrow, "ngày mai vẫn còn")
+    eq(D.detect(boundary: " ", prevRun: "", run: "ÂL", isEnglish: en), .lunar, "lunar ÂL")
+    eq(D.detect(boundary: " ", prevRun: "là", run: "âl", isEnglish: en), .lunar, "lunar là âl")
+    eq(D.detect(boundary: ",", prevRun: "âm", run: "lịch", isEnglish: en), nil, "lunar ,")
+    eq(D.detect(boundary: " ", prevRun: "am", run: "lich", isEnglish: en), nil, "lunar không dấu")
+    eq(D.detect(boundary: " ", prevRun: "", run: "al", isEnglish: en), nil, "lunar al")
+    let nov8 = D.LocalTime(year: 2026, month: 11, day: 8, hour: 9, minute: 0)
+    eq(D.format(.lunar, now: nov8), "30/9 năm Bính Ngọ", "format lunar")
+    eq(D.format(.lunar, now: .init(year: 2026, month: 2, day: 16, hour: 9, minute: 0)), "29/12 năm Ất Tỵ", "lunar trước Tết")
+    eq(D.format(.lunar, now: .init(year: 2025, month: 7, day: 25, hour: 9, minute: 0)), "1/6 nhuận năm Ất Tỵ", "lunar nhuận")
+    eq(D.suggestion(before: "Hôm nay âm lịch ", prevRun: "âm", run: "lịch", phrase: .lunar, now: nov8),
+       S(.date, "30/9 năm Bính Ngọ", "âm lịch ", "30/9 năm Bính Ngọ "), "lunar sugg")
+    eq(D.suggestion(before: "ngày âm ", prevRun: "ngày", run: "âm", phrase: .lunar, now: nov8)?.replace,
+       "ngày âm ", "lunar ngày âm sugg")
+    eq(D.suggestion(before: "Hôm nay ÂL ", prevRun: "nay", run: "ÂL", phrase: .lunar, now: nov8),
+       S(.date, "30/9 năm Bính Ngọ", "ÂL ", "30/9 năm Bính Ngọ "), "lunar ÂL sugg")
+    eq(D.suggestion(before: "ngày ÂL ", prevRun: "ngày", run: "ÂL", phrase: .lunar, now: nov8)?.replace,
+       "ÂL ", "lunar ngày ÂL chỉ thay ÂL")
+    eq(D.suggestion(before: "xâm lịch ", prevRun: "âm", run: "lịch", phrase: .lunar, now: nov8), nil, "lunar dính")
+    eq(HintProtocol.handle("date\tâm lịch \tâm\tlịch\t \t2026\t11\t8\t9\t0"),
+       "date\t30/9 năm Bính Ngọ\tâm lịch \t30/9 năm Bính Ngọ ", "serve lunar")
+    eq(HintProtocol.handle("date\tÂL \t\tÂL\t \t2026\t11\t8\t9\t0"),
+       "date\t30/9 năm Bính Ngọ\tÂL \t30/9 năm Bính Ngọ ", "serve lunar ÂL")
+
+    // Thuật toán âm lịch: Tết 2026–2035 (UTC+7; 2030 là 02/02 — lịch +8 là 03/02), Trung Thu,
+    // tháng nhuận 2025 (6) / 2028 (5), và ngày lệch giữa +7 và +8.
+    typealias LC = LunarCalendar
+    for (y, m, d) in [(2026, 2, 17), (2027, 2, 6), (2028, 1, 26), (2029, 2, 13), (2030, 2, 2),
+                      (2031, 1, 23), (2032, 2, 11), (2033, 1, 31), (2034, 2, 19), (2035, 2, 8)] {
+        eq(LC.lunar(day: d, month: m, year: y), .init(day: 1, month: 1, year: y, leap: false), "Tết \(y)")
+    }
+    eq(LC.lunar(day: 3, month: 2, year: 2030, timeZone: 8).day, 1, "Tết 2030 lịch +8")
+    for (y, m, d) in [(2026, 9, 25), (2027, 9, 15), (2028, 10, 3), (2029, 9, 22), (2030, 9, 12),
+                      (2031, 10, 1), (2032, 9, 19), (2033, 9, 8), (2034, 9, 26), (2035, 9, 16)] {
+        eq(LC.lunar(day: d, month: m, year: y), .init(day: 15, month: 8, year: y, leap: false), "Trung Thu \(y)")
+    }
+    eq(LC.lunar(day: 24, month: 7, year: 2025), .init(day: 30, month: 6, year: 2025, leap: false), "trước nhuận 6/2025")
+    eq(LC.lunar(day: 25, month: 7, year: 2025), .init(day: 1, month: 6, year: 2025, leap: true), "nhuận 6/2025")
+    eq(LC.lunar(day: 23, month: 8, year: 2025), .init(day: 1, month: 7, year: 2025, leap: false), "sau nhuận 2025")
+    eq(LC.lunar(day: 23, month: 6, year: 2028), .init(day: 1, month: 5, year: 2028, leap: true), "nhuận 5/2028")
+    eq(LC.lunar(day: 8, month: 11, year: 2026), .init(day: 30, month: 9, year: 2026, leap: false), "08/11/2026")
+    eq(LC.lunar(day: 13, month: 8, year: 2026), .init(day: 1, month: 7, year: 2026, leap: false), "sóc 00:37 13/08/2026")
+    eq(LC.lunar(day: 22, month: 3, year: 2023), .init(day: 1, month: 2, year: 2023, leap: true), "nhuận 2/2023")
+    eq(LC.lunar(day: 21, month: 1, year: 1985), .init(day: 1, month: 1, year: 1985, leap: false), "Tết 1985")
+    eq(LC.yearName(2025) + "|" + LC.yearName(2026) + "|" + LC.yearName(2027), "Ất Tỵ|Bính Ngọ|Đinh Mùi", "can chi")
+
     // MARK: Giao thức --serve
     eq(HintProtocol.unescape(Substring(HintProtocol.escape("a\tb\nc\\d\re"))), "a\tb\nc\\d\re", "escape")
     eq(HintProtocol.handle("ping"), "ok", "ping")

@@ -99,7 +99,8 @@ bool parseAnswer(const std::string &line, CaretSuggestion &out);
 // right after a run with a digit ("2 tỷ").
 bool numberWorthChecking(uint32_t boundary, const std::string &run, const std::string &prevRun);
 // Superset of DateHintLogic.detect the helper then decides: "hôm nay/qua", "ngày mai",
-// "bây giờ" (any case of the first letter), or today/tomorrow/yesterday/now after an ASCII word.
+// "bây giờ", lunar "âm lịch" / "ngày âm" / "ÂL" (any case), or today/tomorrow/yesterday/now
+// after an ASCII word.
 bool dateCandidate(uint32_t boundary, const std::string &prevRun, const std::string &run);
 // TypoFixLogic.worthChecking: boundary in "  ,;!?)", raw 3–10 ASCII letters, word all
 // letters and NOT a valid Vietnamese syllable.
