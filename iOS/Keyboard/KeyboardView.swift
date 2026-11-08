@@ -286,6 +286,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Dải cực quang tĩnh mép trên (theme AI, "borderFx":"aurora" — AuroraFx): gradient ngang + mặt nạ gradient dọc trong
     /// themeBackdrop, dựng lười lần đầu cần; theme khác ⇒ chưa từng tạo (0 chi phí).
     private var auroraBand: CAGradientLayer?
+    /// Nền gradient dọc (theme JSON "bg2" — Lạc trôi): MỘT CAGradientLayer đáy themeBackdrop, dựng lười; theme khác ⇒ nil.
+    private var bgGradient: CAGradientLayer?
     private var wallpaperActive = false
     private var wallpaperLoadedFor: CGSize = .zero
     /// Tệp tải về của theme (theme JSON: phông / ảnh nền / tiền cảnh / skin phím) — nạp MỘT lần mỗi theme
@@ -373,6 +375,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         spaceBar = nil; spaceLogo = nil; spaceCode = nil; indentedRow = nil
         overlayPanel?.removeFromSuperview(); overlayPanel = nil
         keyEffects?.halt(); keyEffects = nil; fxRect = nil
+        keyFloat?.halt(); keyFloat = nil
         buddy?.halt(); buddy = nil
         aiEye?.halt(); aiEye = nil
         rainbow?.halt(); rainbow = nil
@@ -2050,6 +2053,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         let clear = themeSettings.clearBackground(systemDark: systemDark, wallpaperActive: wallpaperActive)
         themeBackdrop.backgroundColor = clear ? nil : palette.background?.ui
         themeBackdrop.isHidden = clear || palette.background == nil
+        applyBackgroundGradient(hidden: clear)
         applyDecoration(hidden: clear)
         applyAurora(hidden: clear)
         // Nền tự vẽ: bo 2 góc trên theo khung kính bàn phím iOS 26+ (không còn góc vuông đen
@@ -2130,9 +2134,35 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         layoutDecoration()
         layoutAurora()
+        if let g = bgGradient, !g.isHidden, g.frame != themeBackdrop.bounds {
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            g.frame = themeBackdrop.bounds
+            CATransaction.commit()
+        }
         layoutRainbow()
         layoutStringGaps()
     }
+
+    /// "bg2": gradient dọc bg → bg2 phủ trọn nền (vẽ một lần — 0 chi phí mỗi phím). Không có ⇒ ẩn (nếu từng dựng).
+    private func applyBackgroundGradient(hidden: Bool) {
+        guard let top = palette.background, let bottom = palette.background2, !hidden else {
+            bgGradient?.isHidden = true; return
+        }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        let g = bgGradient ?? CAGradientLayer()
+        if bgGradient == nil {
+            g.startPoint = CGPoint(x: 0.5, y: 0); g.endPoint = CGPoint(x: 0.5, y: 1)
+            themeBackdrop.layer.insertSublayer(g, at: 0)
+            bgGradient = g
+        }
+        g.colors = [top.ui.cgColor, bottom.ui.cgColor]
+        g.isHidden = false
+        g.frame = themeBackdrop.bounds
+        CATransaction.commit()
+    }
+    #if DEBUG
+    var debugBackgroundGradient: CAGradientLayer? { bgGradient }
+    #endif
 
     private func applyAurora(hidden: Bool) {
         guard palette.auroraBorder, !hidden else { auroraBand?.isHidden = true; return }
@@ -6946,6 +6976,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             if case .backspace = key { b.deletePressed() } else { b.keyPressed() }
         }
         if let e = aiEye, let fx { e.keyPressed(at: CGPoint(x: fx.midX, y: fx.midY)) }   // Mắt AI: nhìn về phím vừa bấm
+        keyFloat?.poke()                         // Lơ lửng (Lạc trôi / hiệu ứng "float"): khác ⇒ nil
         if let m = mole { m.typed(Self.moleLetter(key), at: CACurrentMediaTime()) }   // Đập chuột: theme khác ⇒ nil
     }
 
@@ -7267,6 +7298,22 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         keyEffects?.onSeaWave = sea ? { Self.seaSurf(size: $0) } : nil
         syncKeyEffectsSpace()
         layoutStringGaps()
+        configureKeyFloat()
+    }
+
+    // MARK: Lơ lửng (Drift.swift) — hiệu ứng "float" hoặc theme "keyMotion":"float"; khác ⇒ nil (0 animation, 0 việc).
+    private(set) var keyFloat: KeyFloat?
+    private func configureKeyFloat() {
+        let on = FloatPolicy.active(effect: keyEffects?.effect ?? .none,
+                                    keyMotion: themeSettings.effectiveKeyStyle.keyMotion,
+                                    plus: PlusGate.isUnlocked(.premiumThemes),
+                                    lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled,
+                                    reduceMotion: UIAccessibility.isReduceMotionEnabled)
+        if on {
+            if keyFloat == nil { keyFloat = KeyFloat(target: rowsContainer) { $0 is KeyButton } }
+        } else {
+            keyFloat?.halt(); keyFloat = nil
+        }
     }
 
     #if DEBUG

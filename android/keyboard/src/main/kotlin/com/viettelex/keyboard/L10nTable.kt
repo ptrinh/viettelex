@@ -245,6 +245,9 @@ object L10nTable {
         put("Hạt cát", "Sand")
         put("Biển: mỗi đợt gõ một con sóng vỗ vào bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang.", "Sea: each burst of typing sends a wave rolling onto the shore at the bottom of the keyboard — the faster you type, the bigger the wave; now and then a fish swims by.")
         put("Sàn nhảy LED", "LED dance floor")
+        put("Đường hầm", "Tunnel")
+        put("Lơ lửng", "Floating")
+        put("Đường hầm: vòng sáng co về phím vừa bấm như rơi vào đường hầm, gõ nhanh thì rơi nhanh hơn. Lơ lửng: phím trôi nhẹ khỏi hàng khi đang gõ rồi về chỗ khi nghỉ; chỉ là hình — chạm vẫn đúng phím; tắt khi bật Giảm chuyển động.", "Tunnel: glowing rings shrink toward the key you pressed, like falling down a tunnel — type faster to fall faster. Floating: keys drift gently out of their rows while you type and settle back when you pause; it is only visual — taps still land on the right key; off when Reduce Motion is on.")
         put("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp.", "LED dance floor lights the key you pressed and its neighbours in spreading neon rings; type fast and the whole keyboard flashes once.")
         put("Rung combo không rung khi bật Giảm chuyển động. Dấu thanh phản ứng theo dấu vừa bỏ; Từ khoá nổ pháo đỏ và lì xì khi gõ \"tết\", thả tim khi gõ \"yêu\"; Chữ bay thả đúng chữ vừa ra; Hạt cát đọng thành đống thấp ở đáy rồi tự tan.", "Combo shake stays still when Reduce Motion is on. Tone marks react to the mark you just typed; Keywords set off red firecrackers and lucky envelopes for \"tết\" and hearts for \"yêu\"; Flying letters release exactly the letter you typed; Sand piles up low along the bottom and fades away.")
         put("Matrix, Mực loang, Sóng nước chạy dưới phím; Matrix chỉ chạy khi đang gõ. Nháy sáng được giới hạn nhịp và độ sáng cho dịu mắt. Emoji theo chữ hiện khi vừa gõ xong từ như \"haha\", \"cảm ơn\", \"chúc mừng\".",
@@ -593,6 +596,7 @@ object L10nTable {
         put("Theo giờ", "Time of day")
         put("AI", "AI")
         put("Neon Night Club", "Neon Night Club")
+        put("Lạc trôi", "Adrift")
         put("Thêm ảnh nền để đèn rọi lên ảnh của bạn.", "Add a background photo and the lights reveal it.")
         put("Dùng màu hình nền (Material You)", "Use wallpaper colours (Material You)")
         put("Tắt để bàn phím dùng màu xám trung tính, không đổi theo hình nền.", "Turn off to keep the keyboard neutral grey instead of matching your wallpaper.")

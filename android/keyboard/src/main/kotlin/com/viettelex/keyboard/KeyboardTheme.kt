@@ -290,7 +290,10 @@ enum class KeyboardTheme(val id: String, val viTitle: String, val isPlus: Boolea
     AI("ai", "AI", true), // l10n-key
     // Neon Night Club (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền đen, phím tối viền ống neon hồng + chữ chức năng lục
     // lam, Đèn rọi trên ảnh nền ("photoFx":"spotlight" — [SpotlightPolicy]), Sàn nhảy LED, âm "club", quả cầu disco.
-    NIGHTCLUB("nightclub", "Neon Night Club", true); // l10n-key
+    NIGHTCLUB("nightclub", "Neon Night Club", true), // l10n-key
+    // Lạc trôi (11/2026, Plus, THÊM CUỐI) — id trùng iOS: nền gradient lục lam đêm → tím ("bg2"), phím trong mờ viền sáng
+    // dịu, bụi sao, Đường hầm + phím Lơ lửng ("keyMotion":"float" — [FloatPolicy]), âm "airy", nét vuốt bụi sao.
+    DRIFT("drift", "Lạc trôi", true); // l10n-key
 
     /** Bo góc mặc định (% như [KeyStyle.corner]) khi người dùng chưa chỉnh — null = bo stock. iOS cùng giá trị. */
     val defaultCorner: Int? get() = spec?.corner
@@ -660,6 +663,9 @@ object ThemeExtraIds {
     /** "photoFx": hiệu ứng trên ảnh nền (iOS ThemeExtraIds.photoFx y hệt). */
     const val SPOTLIGHT = "spotlight"
     val PHOTO_FX: Set<String> = setOf(SPOTLIGHT)
+    /** "keyMotion": chuyển động nền của phím (iOS ThemeExtraIds.keyMotions y hệt). */
+    const val FLOAT_MOTION = "float"
+    val KEY_MOTIONS: Set<String> = setOf(FLOAT_MOTION)
     /** "buddy.character": mọi nhân vật trừ "off" (iOS ThemeExtraIds.buddies y hệt). */
     val BUDDIES: Set<String> get() = BuddyCharacter.IDS - BuddyCharacter.OFF.id
 }
@@ -754,7 +760,7 @@ object ThemePicker {
      * Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng không có
      * trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. iOS ThemePicker.interactiveOrder y hệt.
      */
-    val INTERACTIVE_ORDER = listOf("nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar")
+    val INTERACTIVE_ORDER = listOf("nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "drift")
 
     data class Groups(val free: List<KeyboardTheme>, val interactive: List<KeyboardTheme>, val rest: List<KeyboardTheme>)
     /**
@@ -878,6 +884,7 @@ data class ThemeSettings(
             if (s.game == null) s = s.copy(game = typography.game)
             if (s.keyShape == null) s = s.copy(keyShape = typography.keyShape)
             if (s.photoFx == null) s = s.copy(photoFx = typography.photoFx)
+            if (s.keyMotion == null) s = s.copy(keyMotion = typography.keyMotion)
             var a = s.assets.mergedOver(typography.assets)
             if (userSystemFont) a = a.copy(font = null)
             s = s.copy(assets = a)
@@ -918,6 +925,9 @@ data class ThemeSettings(
         ThemeSpec.export(t.id, t.spec?.nameVi ?: t.viTitle, t.spec?.nameEn ?: if (t == KeyboardTheme.GLASS) "Glass" else "System",
             styled(t, baseLight, false), styled(t, baseDark, true), effectiveStyleFor(t))
             .copy(schedule = t.spec?.schedule, tags = t.spec?.tags, buddy = t.spec?.buddy)   // đi nguyên (bản vá không có)
+            .let { e ->   // Kính: gradient giả lập riêng Android (không phải "bg2" của theme) ⇒ không xuất, như iOS
+                if (t != KeyboardTheme.GLASS) e else e.copy(light = e.light.copy(bg2 = null), dark = e.dark?.copy(bg2 = null))
+            }
     fun exportSpec(c: ThemeSpec): ThemeSpec = ThemeSpec.export(c.id, c.nameVi, c.nameEn, styledCustom(c, false),
         styledCustom(c, true), effectiveStyleFor(c.id ?: "", c.typography)).copy(schedule = c.schedule, tags = c.tags, buddy = c.buddy)
 

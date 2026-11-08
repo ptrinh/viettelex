@@ -649,6 +649,7 @@ class KeyboardView(
             val sym = k is Key.Text && (plane == Plane.NUMBERS || plane == Plane.SYMBOLS)
             val before = if (sym && PlanePolicy.needsBefore((k as Key.Text).text, symbolReturn)) listener?.charBeforeCursor() else null
             listener?.onKey(k); fxAfter(k); rainbow?.poke()
+            keyFloat?.let { it.poke(); invalidate() }      // Lơ lửng: khác ⇒ null
             mole?.typed(moleLetter(k), android.os.SystemClock.uptimeMillis() / 1000.0)   // Đập chuột: theme khác ⇒ null
             if (sym) typedInSymbolPlane = true
             // Ký hiệu ⇒ về chữ ngay theo "Về bàn chữ sau ký hiệu" (IME đánh giá lại viết hoa ở onPlaneChanged, như chạm ABC).
@@ -1012,8 +1013,22 @@ class KeyboardView(
     private fun drawGrid(c: Canvas) {
         ImeCost.gridRecords++
         val ks = keys
-        for (i in ks.indices) drawKey(c, ks[i])
+        val f = keyFloat
+        if (f != null && floating) {
+            // Lơ lửng: dời HÌNH từng phím (canvas) — vùng nhận chạm vẫn theo khung gốc trong `keys`.
+            val d = theme.dp(1f)
+            for (i in ks.indices) { val k = ks[i]; c.save(); f.apply(c, i, floatT, k.centerX, k.centerY, d); drawKey(c, k); c.restore() }
+        } else for (i in ks.indices) drawKey(c, ks[i])
     }
+
+    /**
+     * "Lơ lửng" ([KeyFloatDriver], hiệu ứng "float" hoặc theme "keyMotion":"float") — null = tắt: đường phím chỉ đọc một
+     * biến null. Đang trôi / về chỗ: mỗi khung ghi lại lưới phím có dời hình; xong ⇒ ghi lại một lần ở chỗ cũ rồi thôi.
+     */
+    var keyFloat: KeyFloatDriver? = null
+        set(v) { if (field !== v) { field?.halt(); field = v; floating = false; invalidate() } }
+    private var floating = false
+    private var floatT = 0.0
 
     @Suppress("DEPRECATION")
     private fun invalidateKey(k: LaidKey) =
@@ -1035,6 +1050,10 @@ class KeyboardView(
             Plane.EMOJI_SEARCH -> searchBar.draw(c)
             else -> Unit
         }
+        val fl = keyFloat
+        val was = floating
+        floating = fl != null && fl.frame(fl.now().also { floatT = it })
+        if (floating || was) gridDirty = true            // trôi: ghi lại mỗi khung; vừa dừng: ghi lại ở chỗ cũ một lần
         val node = gridNode
         if (node != null && c.isHardwareAccelerated) {
             if (gridDirty || !node.hasDisplayList()) {
@@ -1045,8 +1064,12 @@ class KeyboardView(
             c.drawRenderNode(node)
         } else drawGrid(c)
         gridDirty = false
-        drawSpaceContent(c)
+        val sk = spaceKey
+        if (floating && fl != null && sk != null) {
+            c.save(); fl.apply(c, keys.indexOf(sk), floatT, sk.centerX, sk.centerY, theme.dp(1f)); drawSpaceContent(c); c.restore()
+        } else drawSpaceContent(c)
         railSpan?.let { drawRail(c, it) }
+        if (floating) postInvalidateOnAnimation()
     }
 
     // MARK: một tay — rail (dải trống: nút đổi bên + thoát)

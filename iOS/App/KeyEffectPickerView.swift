@@ -38,6 +38,7 @@ struct KeyEffectPickerView: View {
                     + Text(" ") + Text(L("Rung combo không rung khi bật Giảm chuyển động. Dấu thanh phản ứng theo dấu vừa bỏ; Từ khoá nổ pháo đỏ và lì xì khi gõ \"tết\", thả tim khi gõ \"yêu\"; Chữ bay thả đúng chữ vừa ra; Hạt cát đọng thành đống thấp ở đáy rồi tự tan."))
                     + Text(" ") + Text(L("Biển: mỗi đợt gõ một con sóng vỗ vào bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang."))
                     + Text(" ") + Text(L("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp."))
+                    + Text(" ") + Text(L("Đường hầm: vòng sáng co về phím vừa bấm như rơi vào đường hầm, gõ nhanh thì rơi nhanh hơn. Lơ lửng: phím trôi nhẹ khỏi hàng khi đang gõ rồi về chỗ khi nghỉ; chỉ là hình — chạm vẫn đúng phím; tắt khi bật Giảm chuyển động."))
             }
         }
         .bottomBarScrollMargin()
@@ -109,6 +110,8 @@ final class KeyEffectPreviewView: UIView {
     private let label = UILabel()
     private var overlay: KeyEffectOverlay?
     private var lastPlay = 0
+    /// "Lơ lửng": phím mẫu trôi rồi về chỗ (KeyFloat thật, lọc đúng phím mẫu).
+    private var floater: KeyFloat?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -157,7 +160,13 @@ final class KeyEffectPreviewView: UIView {
                 for _ in 0..<ComboMeter.thresholds[2] { overlay?.emit(key: key.frame); overlay?.flush() }
             }
             overlay?.emit(key: key.frame)
+            if effect == .float, !UIAccessibility.isReduceMotionEnabled {
+                let f = floater ?? KeyFloat(target: self) { [weak self] v in v === self?.key }
+                floater = f
+                f.poke()
+            }
         }
+        if effect != .float { floater?.halt(); floater = nil }
     }
 
     override func layoutSubviews() {

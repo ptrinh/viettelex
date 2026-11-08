@@ -534,6 +534,19 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         kb.spotlight = v
     }
 
+    /**
+     * "Lơ lửng" ([com.viettelex.keyboard.FloatPolicy]): hiệu ứng "float" HOẶC theme "keyMotion":"float" + Plus + không tiết
+     * kiệm pin + không tắt hiệu ứng động hệ thống (Giảm chuyển động) — đọc MỘT lần mỗi lần hiện. Không ⇒ null (0 chi phí).
+     */
+    private fun applyKeyFloat(setting: com.viettelex.keyboard.KeyEffect, th: ImeTheme, kb: KeyboardView) {
+        val powerSave = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true
+        val fx = com.viettelex.keyboard.KeyEffectPolicy.active(setting, com.viettelex.keyboard.KeyEffectGate.allows(setting), powerSave)
+        val on = com.viettelex.keyboard.FloatPolicy.active(fx, th.keyStyle.keyMotion,
+            plus = PlusGate.isUnlocked(PlusFeature.PREMIUM_THEMES), lowPower = powerSave,
+            reduceMotion = !android.animation.ValueAnimator.areAnimatorsEnabled())
+        kb.keyFloat = if (on) kb.keyFloat ?: KeyFloatDriver() else null
+    }
+
     /** Thống kê Đập chuột trong RAM (đọc file lúc gắn view, ghi file trên worker mỗi lần đập). */
     private var moleStats = com.viettelex.keyboard.MoleStats()
 
@@ -692,6 +705,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         applySwipeTrail(settings.swipeTrail, th, kb)
         applyMole(th, kb)
         applySpotlight(th, kb, settings.buddy)
+        applyKeyFloat(settings.keyEffect, th, kb)
         kb.configureSpaceFlick(settings.spaceSwipeLanguage, session.language)
         kb.trackpadSpeed = settings.trackpadSpeed
         kb.symbolReturn = settings.symbolReturn

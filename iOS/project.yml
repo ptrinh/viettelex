@@ -39,6 +39,8 @@ targets:
       - Keyboard/Wallpaper.swift
       # Hiệu ứng khi bấm phím: xem thử ở trang chọn (cùng overlay với bàn phím).
       - Keyboard/KeyEffects.swift
+      # Lạc trôi: Đường hầm (overlay) + Lơ lửng (xem thử phím trôi).
+      - Keyboard/Drift.swift
       # Bạn đồng hành: xem trước ở trang chọn (cùng view với bàn phím).
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
@@ -237,6 +239,7 @@ targets:
       - Keyboard/MoleGame.swift
       - Keyboard/MoleOverlay.swift
       - Keyboard/NightClub.swift
+      - Keyboard/Drift.swift
       - Keyboard/KeyCommitQueue.swift
       - Keyboard/LineBreak.swift
       - Keyboard/AdjacentKeyFixer.swift

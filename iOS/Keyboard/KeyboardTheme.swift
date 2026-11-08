@@ -43,6 +43,8 @@ struct RGBA: Equatable {
 struct KeyboardPalette: Equatable {
     /// nil = nền trong suốt (backdrop hệ thống lộ ra: theme Hệ thống, Kính).
     var background: RGBA?
+    /// Màu nền ở ĐÁY (theme JSON "bg2"): ≠ nil ⇒ nền gradient dọc `background` → `background2` (Lạc trôi). Bỏ cùng nền.
+    var background2: RGBA? = nil
     var keyFill: RGBA
     /// Phím chức năng khi ĐÈ (iOS 26+: mọi phím cùng nền, đè thì sẫm lại).
     var specialFill: RGBA
@@ -101,6 +103,7 @@ struct KeyboardPalette: Equatable {
     func onSystemBackdrop(systemDark: Bool) -> KeyboardPalette {
         var p = self
         p.background = nil
+        p.background2 = nil
         p.decoration = nil
         p.barInk = KeyboardTransparency.readable(barInk, on: KeyboardTransparency.systemBackdrop(dark: systemDark))
         p.surfaceDark = systemDark
@@ -127,6 +130,7 @@ struct KeyboardPalette: Equatable {
         // Phím chức năng đo theo CHỮ phím chức năng (Giáng sinh: glyph vàng, Piano: glyph trắng trên phím đen).
         p.functionFill = functionFill.map { legible($0, functionInk ?? ink) }
         p.background = nil
+        p.background2 = nil
         p.decoration = nil
         // Thanh gợi ý nằm trên lớp phủ ảnh (tông theo isDark) ⇒ chữ riêng của thanh (Piano) đổi cho đọc được.
         // Theme khác: barInk = ink vốn đọc được trên lớp phủ cùng tông ⇒ không đổi.
@@ -224,6 +228,7 @@ extension KeyboardPalette {
             let s = T.alpha(k)
             p.surfaceAlpha = s
             p.background = background?.alpha(s)
+            p.background2 = background2?.alpha(s)
             p.keyFill = keyFill.alpha(s)
             p.specialFill = specialFill.alpha(s)
             p.accent = accent.alpha(s)
@@ -280,6 +285,9 @@ enum KeyboardTheme: String, CaseIterable {
     // Neon Night Club (11/2026, Plus, THÊM CUỐI): nền đen, phím tối viền ống neon hồng + chữ chức năng lục lam, Đèn rọi
     // trên ảnh nền ("photoFx":"spotlight" — NightClub.swift), hiệu ứng Sàn nhảy LED, âm "club", quả cầu disco.
     case nightclub
+    // Lạc trôi (11/2026, Plus, THÊM CUỐI): nền gradient lục lam đêm → tím ("bg2"), phím trong mờ viền sáng dịu, bụi sao,
+    // hiệu ứng Đường hầm + phím Lơ lửng ("keyMotion":"float" — Drift.swift), âm "airy", nét vuốt bụi sao.
+    case drift
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -318,6 +326,7 @@ enum KeyboardTheme: String, CaseIterable {
         case .timeOfDay: return L("Theo giờ")
         case .ai: return L("AI")
         case .nightclub: return L("Neon Night Club")
+        case .drift: return L("Lạc trôi")
         }
     }
 
@@ -353,7 +362,8 @@ enum KeyboardTheme: String, CaseIterable {
              .mole,
              .pixel, .sea, .timeOfDay,
              .ai,
-             .nightclub: return true
+             .nightclub,
+             .drift: return true
         }
     }
 
@@ -819,7 +829,7 @@ enum ThemePicker {
     struct Section { let title: String; let themes: [KeyboardTheme] }
     /// Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng
     /// không có trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. Android ThemePicker.INTERACTIVE_ORDER y hệt.
-    static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar"]
+    static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar", "drift"]
 
     /// Thứ tự lưới (thuần): miễn phí (thứ tự khai báo) → tương tác (theo `interactiveOrder`) → còn lại (thứ tự khai
     /// báo). Theme miễn phí có nhãn vẫn ở nhóm miễn phí. Android `ThemePicker.groups` cùng kết quả (fixture "picker").
@@ -1032,6 +1042,7 @@ struct ThemeSettings: Equatable {
             if s.game == nil { s.game = t.game }
             if s.keyShape == nil { s.keyShape = t.keyShape }
             if s.photoFx == nil { s.photoFx = t.photoFx }
+            if s.keyMotion == nil { s.keyMotion = t.keyMotion }
             s.assets = s.assets.merged(over: t.assets)
             if userSystemFont { s.assets.font = nil }
             if s.assets.font != nil { s.font = .standard }
@@ -1207,6 +1218,8 @@ struct KeyStyle: Equatable {
     var keyShape: String? = nil
     /// Hiệu ứng trên ảnh nền của theme ("photoFx", ThemeExtraIds.photoFx) — bàn phím đọc từ kiểu thực dùng (SpotlightPolicy).
     var photoFx: String? = nil
+    /// Chuyển động nền của phím của theme ("keyMotion", ThemeExtraIds.keyMotions) — bàn phím đọc từ kiểu thực dùng (FloatPolicy).
+    var keyMotion: String? = nil
 
     static let `default` = KeyStyle()
     var isDefault: Bool { self == .default }
@@ -1300,7 +1313,8 @@ struct KeyStyle: Equatable {
         guard !s.isEmpty else { return p }
         let c = ThemeColorCode.rgba
         var q = p
-        if let v = s.bg { q.background = c(v) }
+        if let v = s.bg { q.background = c(v); q.background2 = nil }   // nền vá = nền phẳng (bỏ gradient)
+        if let v = s.bg2, q.background != nil { q.background2 = c(v) }
         if let v = s.key { q.keyFill = c(v); q.balloon = c(v) }
         if let v = s.special { q.specialFill = c(v) }
         if let v = s.ink { q.ink = c(v); q.barInk = c(v); q.isDark = c(v).luminance > 0.5 }
@@ -1344,6 +1358,7 @@ struct KeyStyle: Equatable {
         st.game = edited.game
         st.keyShape = edited.keyShape
         st.photoFx = edited.photoFx
+        st.keyMotion = edited.keyMotion
         return (st, l.lostBg || d.lostBg)
     }
 }
@@ -1409,6 +1424,7 @@ enum KeyStyleStore {
         if let v = st.game { f.append(("game", .string(v))) }
         if let v = st.keyShape { f.append(("keyShape", .string(v))) }
         if let v = st.photoFx { f.append(("photoFx", .string(v))) }
+        if let v = st.keyMotion { f.append(("keyMotion", .string(v))) }
         if !st.light.isEmpty { f.append(("light", ThemeSpec.json(st.light))) }
         if !st.dark.isEmpty { f.append(("dark", ThemeSpec.json(st.dark))) }
         return .object(f)

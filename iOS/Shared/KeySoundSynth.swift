@@ -88,12 +88,14 @@ enum KeySoundStyle: String, CaseIterable {
     // Theme "Neon Night Club" (11/2026): nhịp club điện tử — phím chữ = hi-hat "tss" ngắn, xoá = kick điện tử, cách /
     // Enter (chức năng) = kick + hat ⇒ gõ chữ rồi cách thành nhịp "tss tss tss BÙM" xen kẽ tự nhiên.
     case club
+    // Theme "Lạc trôi" (11/2026): "Lơ lửng" — làn gió khẽ (nhiễu dải giữa mở chậm) + nốt pad sine mềm, không gắt.
+    case airy
 
     /// Bật "Âm thanh phím" lần đầu ⇒ "Nhẹ nhàng" (bật công tắc phải NGHE khác đi; "iOS" = như lúc tắt).
     static let defaultStyle: KeySoundStyle = .subtle
     /// Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức `baseRecipe`.
     static let presets: [KeySoundStyle] = [.subtle, .wood, .mechanical, .typewriter, .bubble, .rock, .pop, .water, .vintage, .phao, .jingle,
-                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club]
+                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club, .airy]
     /// Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta).
     static let allPresets: [KeySoundStyle] = presets + [.piano, .dantranh, .guitar]
     /// DANH SÁCH DUY NHẤT id hợp lệ cho trường "sound" của theme JSON (chọn theme ⇒ đặt keySoundStyle).
@@ -136,6 +138,7 @@ enum KeySoundStyle: String, CaseIterable {
         case .chip: return LK("Bíp 8-bit")
         case .ai: return LK("Synth AI")
         case .club: return LK("Nhịp club")
+        case .airy: return LK("Lơ lửng")
         }
     }
 
@@ -253,6 +256,30 @@ enum KeySoundSynth {
                           attack: 0.002, duration: 0.05, outLP: 5000, peak: 0.36)
         case .club:
             return clubRecipe(.letter)
+        case .airy:
+            return airyRecipe(.letter)
+        }
+    }
+
+    /// "Lơ lửng" (theme Lạc trôi) — làn gió + pad, MỖI LOẠI PHÍM một biến thể (không theo luật cao độ ×0.86 / ×0.74):
+    ///   chữ: nhiễu hp 500 Hz lp 1.5 kHz τ17 ms (1.0) + pad sine 660 → 700 Hz trượt 30 ms τ20 ms (0.22); mở 6 ms; 58 ms.
+    ///   xoá: gió trầm hơn — nhiễu hp 300 lp 1.1 kHz τ17 ms + pad 520 → 480 Hz (0.22); 58 ms.
+    ///   chức năng (cách / Enter): nhiễu hp 350 lp 1.3 kHz τ16 ms + hai nốt pad 440 Hz + 660 Hz trễ 8 ms ("hà-a"); 60 ms.
+    /// Đỉnh chung 0.40 (< Gõ gỗ), mở chậm (không "tách"), trọng tâm phổ thấp. Android KeySoundSynth.airyRecipe y hệt.
+    static func airyRecipe(_ k: KeySoundKind) -> Recipe {
+        switch k {
+        case .letter:
+            return Recipe(tones: [t(0.22, 660, 700, glide: 0.030, tau: 0.020)],
+                          noises: [n(1.0, hp: 500, lp: 1500, tau: 0.017)],
+                          attack: 0.006, duration: 0.058, outLP: 1800, peak: 0.40)
+        case .delete:
+            return Recipe(tones: [t(0.22, 520, 480, glide: 0.030, tau: 0.020)],
+                          noises: [n(1.0, hp: 300, lp: 1100, tau: 0.017)],
+                          attack: 0.006, duration: 0.058, outLP: 1500, peak: 0.40)
+        case .modifier:
+            return Recipe(tones: [t(0.20, 440, 440, tau: 0.016), t(0.14, 660, 660, tau: 0.013, delay: 0.008)],
+                          noises: [n(1.0, hp: 350, lp: 1300, tau: 0.016)],
+                          attack: 0.006, duration: 0.060, outLP: 1600, peak: 0.40)
         }
     }
 
@@ -363,6 +390,7 @@ enum KeySoundSynth {
     /// Công thức theo loại phím: xoá trầm hơn chút; phím chức năng trầm + dài hơn.
     static func recipe(_ s: KeySoundStyle, _ k: KeySoundKind) -> Recipe {
         if s == .club { return clubRecipe(k) }   // mỗi loại phím một tiếng (hat / kick / kick + hat)
+        if s == .airy { return airyRecipe(k) }   // gió + pad theo loại phím
         var r = baseRecipe(s)
         let (pitch, decay, extra): (Double, Double, Double)
         switch k {
@@ -379,6 +407,8 @@ enum KeySoundSynth {
     static func seed(_ s: KeySoundStyle, _ k: KeySoundKind) -> UInt32 {
         // Nhịp club: seed CỐ ĐỊNH ("club"), không theo vị trí case ⇒ checksum không đổi khi nhánh khác thêm kiểu trước nó.
         if s == .club { return 0x636C_7562 ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1)) }
+        // Lơ lửng: seed CỐ ĐỊNH ("airy") — checksum không đổi khi nhánh khác thêm kiểu trước nó.
+        if s == .airy { return 0x6169_7279 ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1)) }
         let si = UInt32(KeySoundStyle.allCases.firstIndex(of: s) ?? 0)
         return 0x9E37_79B9 &* (si &+ 1) ^ (0x85EB_CA6B &* UInt32(k.rawValue + 1))
     }

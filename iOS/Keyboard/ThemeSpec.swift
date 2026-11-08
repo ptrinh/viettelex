@@ -41,6 +41,16 @@ import Foundation
 // ảnh nền ⇒ quầng sáng rọi lên hoạ tiết neon tối dựng sẵn; quả cầu disco nhỏ ở góc trên xoay + toả chấm sáng khi bấm.
 // Như "game": không ghi gì lúc chọn theme, bàn phím đọc từ kiểu thực dùng (SpotlightPolicy); theme tự tạo dùng được.
 //
+// "keyMotion" (tuỳ chọn, danh sách trắng ThemeExtraIds.keyMotions): chuyển động NỀN của phím chạy KHI theme này đang
+// dùng, ĐỘC LẬP với "effect" (theme Lạc trôi: "effect":"tunnel" + "keyMotion":"float") — "float" = Lơ lửng (Drift.swift):
+// khi đang gõ, từng phím trôi nhẹ khỏi hàng + nhấp nhô chậm (≤ 4 pt, ≤ 2°, chu kỳ 3–5 s), nghỉ 2 s ⇒ về chỗ rồi dừng hẳn.
+// Chỉ HÌNH (khung nhận chạm không đổi); cần Plus, tắt khi tiết kiệm pin / Giảm chuyển động (FloatPolicy). Chọn hiệu ứng
+// "float" ở trang hiệu ứng cũng bật y hệt. Như "photoFx": không ghi gì lúc chọn theme; theme tự tạo dùng được.
+//
+// "bg2" (tuỳ chọn, trong "light"/"dark", màu như "bg"): nền GRADIENT DỌC — "bg" ở mép trên → "bg2" ở đáy (theme Lạc trôi:
+// lục lam đêm → tím). Vẽ một lần cùng lớp nền (0 chi phí mỗi phím); ảnh nền / "Nền theo hệ thống" bỏ cả hai. Thiếu "bg"
+// thì "bg2" bị bỏ qua lúc vẽ. Bản vá (KeyStyle) có thể đặt / đổi "bg2"; đặt "bg" trong bản vá ⇒ nền phẳng (bỏ gradient).
+//
 // "tags" (tuỳ chọn, mảng chuỗi trong danh sách trắng ThemeTags.known): nhãn của theme — "interactive" = theme TƯƠNG TÁC
 //   (phím/ảnh nền phản ứng khi gõ: trò chơi, đèn rọi, sóng, nốt nhạc…) ⇒ màn "Chọn giao diện" gắn chip "Tương tác" và
 //   xếp nhóm riêng ngay sau theme miễn phí (ThemePicker). Không phải mảng ⇒ wrongType; phần tử không phải chuỗi ⇒
@@ -460,6 +470,8 @@ struct ThemeDeco: Equatable {
 /// mọi trường tuỳ chọn. bg nil = nền trong suốt / theo hệ thống.
 struct ThemeSlots: Equatable {
     var bg: UInt32?, key: UInt32?, special: UInt32?, ink: UInt32?, accent: UInt32?
+    /// Màu nền ở ĐÁY (gradient dọc "bg" → "bg2"); nil = nền phẳng.
+    var bg2: UInt32?
     var accentInk: UInt32?, border: UInt32?, fn: UInt32?, fnInk: UInt32?, balloon: UInt32?, trail: UInt32?
     var deco: ThemeDeco?
     /// Hiệu ứng viền phím: "rainbow" (Gaming RGB — viền cầu vồng, chỉ xoay màu khi đang gõ) | "aurora" (AI — viền
@@ -477,13 +489,14 @@ struct ThemeSlots: Equatable {
     static let soundhole = "soundhole"
     /// Giá trị hợp lệ của "spaceDeco" (Android ThemeSlots.SPACE_DECO y hệt).
     static let spaceDecoValues: Set<String> = [soundhole, "none"]
-    static let colorKeys = ["accent", "accentInk", "balloon", "bg", "border", "fn", "fnInk", "ink", "key", "special", "trail"]
+    static let colorKeys = ["accent", "accentInk", "balloon", "bg", "bg2", "border", "fn", "fnInk", "ink", "key", "special", "trail"]
     static let requiredKeys = ["key", "special", "ink", "accent"]
 
     subscript(color k: String) -> UInt32? {
         get {
             switch k {
             case "bg": return bg
+            case "bg2": return bg2
             case "key": return key
             case "special": return special
             case "ink": return ink
@@ -500,6 +513,7 @@ struct ThemeSlots: Equatable {
         set {
             switch k {
             case "bg": bg = newValue
+            case "bg2": bg2 = newValue
             case "key": key = newValue
             case "special": special = newValue
             case "ink": ink = newValue
@@ -715,6 +729,8 @@ struct ThemeSpec: Equatable {
     var keyShape: String?
     /// Hiệu ứng trên ảnh nền ("spotlight" — Đèn rọi) — chạy khi theme đang dùng (ThemeExtraIds.photoFx).
     var photoFx: String? = nil
+    /// Chuyển động nền của phím ("float" — Lơ lửng) — chạy khi theme đang dùng (ThemeExtraIds.keyMotions, FloatPolicy).
+    var keyMotion: String? = nil
     /// Bảng màu theo giờ (ThemeSchedule); nil = theo sáng/tối hệ thống như mọi theme.
     var schedule: [ThemeScheduleEntry]? = nil
     /// Nhãn ("interactive" — ThemeTags.known), thứ tự như trong JSON; nil = không có (mảng rỗng cũng là nil).
@@ -745,6 +761,7 @@ struct ThemeSpec: Equatable {
         k.game = game
         k.keyShape = keyShape
         k.photoFx = photoFx
+        k.keyMotion = keyMotion
         return k
     }
 }
@@ -775,6 +792,9 @@ enum ThemeExtraIds {
     /// "photoFx": hiệu ứng trên ảnh nền (Android ThemeExtraIds.PHOTO_FX y hệt).
     static let spotlight = "spotlight"
     static let photoFx: Set<String> = [spotlight]
+    /// "keyMotion": chuyển động nền của phím (Android ThemeExtraIds.KEY_MOTIONS y hệt).
+    static let floatMotion = "float"
+    static let keyMotions: Set<String> = [floatMotion]
     /// "buddy.character": mọi nhân vật trừ "off" (Android ThemeExtraIds.BUDDIES y hệt).
     static let buddies: Set<String> = Set(BuddyCharacter.allCases.filter { $0 != .off }.map(\.rawValue))
 }
@@ -797,7 +817,7 @@ enum ThemeSpecParser {
     static let assetKeys: Set<String> = ["background", "foreground", "keys"]
     static let rootKeys: Set<String> = Set(["v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
                                             "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx",
-                                            "tags", "buddy"])
+                                            "keyMotion", "tags", "buddy"])
         .union(assetKeys)
     static let slotKeys: Set<String> = Set(ThemeSlots.colorKeys + ["deco", "borderFx", "spaceDeco"])
 
@@ -875,6 +895,7 @@ enum ThemeSpecParser {
         spec.game = typo.game
         spec.keyShape = typo.keyShape
         spec.photoFx = typo.photoFx
+        spec.keyMotion = typo.keyMotion
         spec.schedule = schedule
         spec.tags = tags
         spec.buddy = buddy
@@ -1078,6 +1099,7 @@ enum ThemeSpecParser {
         s.game = pick("game", ThemeExtraIds.games)
         s.keyShape = pick("keyShape", ThemeExtraIds.keyShapes)
         s.photoFx = pick("photoFx", ThemeExtraIds.photoFx)
+        s.keyMotion = pick("keyMotion", ThemeExtraIds.keyMotions)
     }
 
     // MARK: tệp tải về
@@ -1163,7 +1185,8 @@ enum ThemeSpecParser {
         guard case .object(let m) = j else { return nil }
         var c = Ctx()
         let allowed: Set<String> = Set(["label", "fill", "accent", "corner", "fontScale", "font", "weight", "light", "dark",
-                                        "sound", "effect", "swipe", "game", "keyShape", "photoFx"])
+                                        "sound", "effect", "swipe", "game", "keyShape", "photoFx",
+                                        "keyMotion"])
             .union(assetKeys)
         for (k, _) in m where !allowed.contains(k) { c.err(.unknownKey, k) }
         let d = Dictionary(m, uniquingKeysWith: { a, _ in a })
@@ -1237,6 +1260,7 @@ extension ThemeSpec {
         if let game { m.append(("game", .string(game))) }
         if let keyShape { m.append(("keyShape", .string(keyShape))) }
         if let photoFx { m.append(("photoFx", .string(photoFx))) }
+        if let keyMotion { m.append(("keyMotion", .string(keyMotion))) }
         if let tags { m.append(("tags", .array(tags.map { .string($0) }))) }
         if let buddy {
             var b: [(String, StrictJSON)] = [("character", .string(buddy.character))]
@@ -1312,7 +1336,7 @@ extension ThemeSpec {
         let c = ThemeColorCode.rgba
         let key = c(s.key ?? 0xFFFF_FFFF), ink = c(s.ink ?? 0xFF00_0000)
         let accent = c(s.accent ?? 0xFF00_7AFF)
-        var p = KeyboardPalette(background: s.bg.map(c), keyFill: key, specialFill: c(s.special ?? 0xFFCCCCCC), ink: ink,
+        var p = KeyboardPalette(background: s.bg.map(c), background2: s.bg == nil ? nil : s.bg2.map(c), keyFill: key, specialFill: c(s.special ?? 0xFFCCCCCC), ink: ink,
                                 trail: s.trail.map(c) ?? accent.alpha(0.6), barInk: ink,
                                 balloon: s.balloon.map(c) ?? key, accent: accent,
                                 accentInk: s.accentInk.map(c) ?? autoAccentInk(accent),
@@ -1342,6 +1366,7 @@ extension ThemeSpec {
         let a = ThemeColorCode.argb
         var s = ThemeSlots()
         s.bg = p.background.map(a)
+        s.bg2 = p.background2.map(a)
         s.key = a(p.keyFill); s.special = a(p.specialFill); s.ink = a(p.ink); s.accent = a(p.accent)
         if a(p.accentInk) != a(autoAccentInk(p.accent)) { s.accentInk = a(p.accentInk) }
         s.border = p.keyBorder.map(a)
@@ -1373,6 +1398,7 @@ extension ThemeSpec {
         s.game = style.game
         s.keyShape = style.keyShape
         s.photoFx = style.photoFx
+        s.keyMotion = style.keyMotion
         return s
     }
 }
@@ -1516,6 +1542,7 @@ enum ThemeJSONActions {
             if st.game == b.spec?.game { st.game = nil }
             if st.keyShape == b.spec?.keyShape { st.keyShape = nil }
             if st.photoFx == b.spec?.photoFx { st.photoFx = nil }
+            if st.keyMotion == b.spec?.keyMotion { st.keyMotion = nil }
             s.setStyle(st, for: b)
             if r.lostBg { warnings.append(ThemeIssue(code: .bgKept, path: "bg")) }
         case .custom(let id):
