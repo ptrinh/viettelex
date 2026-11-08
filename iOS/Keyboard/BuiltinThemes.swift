@@ -296,7 +296,7 @@ enum BuiltinThemesData {
       "v": 1, "id": "aquarium", "name": {"vi": "Bể cá", "en": "Aquarium"}, "tags": ["interactive"], "corner": 50,
       "sound": "bloop", "effect": "fishfeed",
       "light": {"bg": "#0B3D66", "key": "#2BFFFFFF", "special": "#59041E36", "ink": "#FFFFFF", "accent": "#FF9F1C",
-                "accentInk": "#1A1000", "fn": "#59041E36", "fnInk": "#BDF2FF", "border": "#4DFFFFFF",
+                "accentInk": "#1A1000", "fn": "#59041E36", "fnInk": "#BDF2FF", "border": "#4DFFFFFF", "balloon": "#0E4A78",
                 "deco": {"motif": "aquarium", "color": "#12FFFFFF"}},
       "dark": "same"
     },
@@ -307,7 +307,7 @@ enum BuiltinThemesData {
                 "fn": "#B3F3E6D6", "fnInk": "#3B2416", "border": "#99FFFFFF",
                 "deco": {"motif": "cafe", "color": "#40FFFFFF"}},
       "dark": {"bg": "#2A1A12", "key": "#33FFFFFF", "special": "#26FFFFFF", "ink": "#F6E7CF", "accent": "#6F4E37",
-               "fn": "#26FFFFFF", "fnInk": "#F6E7CF", "border": "#4DFFFFFF",
+               "fn": "#26FFFFFF", "fnInk": "#F6E7CF", "border": "#4DFFFFFF", "balloon": "#4A3424",
                "deco": {"motif": "cafe", "color": "#26FFFFFF"}}
     }
   ]

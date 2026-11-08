@@ -65,6 +65,7 @@ final class ThemeJSONTests: XCTestCase {
                                         light: s.palette(dark: false), dark: s.palette(dark: true), style: s.typography)
             back.schedule = s.schedule   // lịch theo giờ (Theo giờ) không nằm trong palette — đi riêng
             back.tags = s.tags; back.buddy = s.buddy   // nhãn / bạn đồng hành cũng đi riêng
+            back.variant = s.variant; back.particles = s.particles; back.keywords = s.keywords   // biến thể / hạt / từ khoá
             XCTAssertEqual(back.canonical, s.canonical, id)
             // Chuỗi chuẩn đọc lại = chính nó.
             XCTAssertEqual(try Self.spec(s.canonical).canonical, s.canonical, id)

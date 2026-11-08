@@ -293,6 +293,16 @@ final class KeyEffectTests: XCTestCase {
                     XCTAssertLessThanOrEqual(topLayers, AquariumFx.maxFish + AquariumFx.maxPellets, "≤ 6 cá + 8 viên, không mọc thêm")
                 case .tone, .keyword, .letters, .tokens:
                     XCTAssertEqual(topLayers, 0, "chưa có sự kiện xếp hàng ⇒ phím thường không vẽ gì")
+                case .rain:
+                    XCTAssertEqual(o.debugBurstCount, e.burstSlots, e.rawValue)
+                    XCTAssertLessThanOrEqual(topLayers, e.burstSlots + 2, "chùm giọt + mưa nền + đèn ấm")
+                case .float:
+                    XCTAssertEqual(topLayers, 0, "Lơ lửng: KeyboardView dời phím, overlay không vẽ gì")
+                case .tunnel:
+                    XCTAssertLessThanOrEqual(o.debugTunnel?.debugRoots.count ?? 0, TunnelFx.pool, "pool vòng dùng lại")
+                    XCTAssertLessThanOrEqual(topLayers, TunnelFx.pool)
+                case .constellation, .rainbowburst:
+                    XCTAssertLessThanOrEqual(topLayers, KeyEffectPool.cap, "\(e.rawValue): pool dùng lại, không mọc thêm layer")
                 case .theme:
                     let t = ThemeParticles.fallback
                     XCTAssertEqual(o.debugThemeBursts.count, ThemeParticles.slots(perBurst: t.effCount), "chùm hạt theme dùng lại")
@@ -516,7 +526,7 @@ extension KeyEffectTests {
     }
 
     func testNewEffectsModel() {
-        XCTAssertEqual(KeyEffect.allCases.filter { $0.band == .belowKeys }, [.matrix, .ink, .wave, .string])
+        XCTAssertEqual(KeyEffect.allCases.filter { $0.band == .belowKeys }, [.matrix, .ink, .wave, .string, .fishfeed])   // cá bơi sau hàng phím
         for e in KeyEffect.allCases where e != .none { XCTAssertTrue(e.isPlus, e.rawValue) }
         XCTAssertEqual(KeyEffect.blossom.fixedColors, [0xFF8FB1, 0xFFC93C], "đào hồng + mai vàng, không theo màu nhấn")
         XCTAssertEqual(KeyEffect.snow.fixedColors, [0xFFFFFF])
@@ -1026,7 +1036,7 @@ extension KeyEffectTests {
             XCTAssertNil(KeyEffectShapes.path(e))
         }
         XCTAssertEqual(KeyEffect.allCases.filter(\.needsComposeDiff), [.tone, .letters, .tokens])
-        XCTAssertEqual(KeyEffect.allCases.filter(\.needsBoundaryWord), [.emojiword, .keyword])
+        XCTAssertEqual(KeyEffect.allCases.filter(\.needsBoundaryWord), [.emojiword, .keyword, .reps, .rainbowburst])   // + BEAST MODE, cờ Tự hào
         XCTAssertEqual(KeyEffect.allCases.filter(\.isQueued), [.emojiword, .tone, .keyword, .letters, .tokens])
     }
 

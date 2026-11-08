@@ -131,7 +131,8 @@ final class KeySoundTests: XCTestCase {
                 let a = KeySoundSynth.samples(st, k), b = KeySoundSynth.samples(st, k)
                 XCTAssertEqual(a, b, "\(st)/\(k) phải tất định")
                 XCTAssertGreaterThan(a.count, 1000)
-                XCTAssertLessThan(a.count, 2700)                  // ≤ 60 ms ở 44.1 kHz
+                // ≤ 60 ms ở 44.1 kHz; Mõ gỗ 0,12 s / Chuông nhỏ 0,36 s ngân theo thiết kế; Chuông sao 2822 mẫu (≡ Android).
+                XCTAssertLessThan(a.count, [.mo, .bell].contains(st) ? 17000 : 3000, "\(st)/\(k)")
                 let peak = a.map(abs).max() ?? 0
                 XCTAssertEqual(Double(peak), KeySoundSynth.baseRecipe(st).peak, accuracy: 1e-4)
                 XCTAssertEqual(a.first ?? 1, 0, accuracy: 1e-6)   // mở/đóng mềm — không "bụp"

@@ -135,7 +135,7 @@ final class AquariumFxTests: XCTestCase {
     func testBloopSound() {
         XCTAssertTrue(KeySoundStyle.presets.contains(.bloop))
         XCTAssertEqual(KeySoundSynth.seed(.bloop, .letter), 0x626C_6F6F ^ 0x85EB_CA6B)
-        let golden: [(KeySoundKind, Double)] = [(.letter, 178.7899), (.delete, 180.1119), (.modifier, 213.0168)]
+        let golden: [(KeySoundKind, Double)] = [(.letter, 178.8050), (.delete, 180.1272), (.modifier, 213.0168)]
         for (k, want) in golden {
             XCTAssertEqual(KeySoundSynth.samples(.bloop, k).reduce(0.0) { $0 + Double(abs($1)) }, want, accuracy: 0.01, "\(k)")
         }

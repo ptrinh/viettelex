@@ -29,24 +29,25 @@ class FootballFxTests {
     }
 
     private val yes = listOf("Việt Nam vô địch", "VN vô địch", "VNVĐ", "vnvd", "vnvđ", "VN number 1", "VN #1", "VN # 1", "Việt Nam số 1",
-        "VN số 1", "Việt Nam number one", "Việt Nam #1", "vô địch", "vào", "goal", "GOAL", "gooool", "vàoooo",
-        "VÀOOO", "goooal", "đi vào", "vô địch!", "Vào!!!")
+        "VN số 1", "Việt Nam number one", "Việt Nam #1", "vô địch", "goal", "GOAL", "gooool", "vàoooo",
+        "VÀOOO", "goooal", "đi vàooo", "vô địch!", "Vàooo!!!")
     private val no = listOf("vao", "vo dich", "vô", "địch", "vàobờ", "vn", "việt nam", "number one", "#1", "goals", "số 1", "vào nhà",
-        "vnvđx", "gool", "Việt Nam số 2", "VN #10", "vô đich", "")
+        "vnvđx", "gool", "Việt Nam số 2", "VN #10", "vô đich", "", "vào", "Vào!!!", "đi vào", "vàoo")
 
     @Test fun cheerTable() {
-        assertEquals(listOf("việt nam vô địch", "vô địch", "vnvđ", "vn #1", "vào", "goal", "gol"), CheerWords.PHRASES)
-        assertEquals(listOf(listOf("vn", "vô", "địch"), listOf("vô", "địch"), listOf("vnvđ"), listOf("vn", "#1"), listOf("vào"),
+        assertEquals(listOf("việt nam vô địch", "vô địch", "vnvđ", "vn #1", "vàooo", "goal", "gol"), CheerWords.PHRASES)
+        assertEquals(listOf(listOf("vn", "vô", "địch"), listOf("vô", "địch"), listOf("vnvđ"), listOf("vn", "#1"), listOf("vào~"),
             listOf("goal"), listOf("gol")), CheerWords.TABLE)
         for (s in yes) assertTrue(s, cheers(s))
         for (s in no) assertFalse(s, cheers(s))
-        assertEquals(23, yes.size); assertEquals(18, no.size)
+        assertEquals(22, yes.size); assertEquals(22, no.size)
     }
 
     @Test fun cheerNormalize() {
-        assertEquals("vào", CheerWords.token("Vàoooo!"))
-        assertEquals("gol", CheerWords.token("GOOOOL"))
-        assertEquals("chuỗi lặp lẫn dấu ⇒ chữ gốc", "vào", CheerWords.token("vàôoo"))
+        assertEquals("vào~", CheerWords.token("Vàoooo!"))
+        assertEquals("vào thường: không dấu kéo dài", "vào", CheerWords.token("Vào!"))
+        assertEquals("gol~", CheerWords.token("GOOOOL"))
+        assertEquals("chuỗi lặp lẫn dấu ⇒ chữ gốc", "vào~", CheerWords.token("vàôoo"))
         assertEquals("vnvđ", CheerWords.token("…VNVĐ…"))
         assertEquals("lặp 2 lần giữ nguyên", "good", CheerWords.token("good"))
         assertEquals("#1", CheerWords.token("#1"))
@@ -60,7 +61,8 @@ class FootballFxTests {
 
     @Test fun matcherFiresOnceAndKeepsSixTokens() {
         val m = CheerWords.Matcher()
-        assertTrue(m.feed("vào", end = true))
+        assertFalse("\"vào\" thường không cổ vũ", m.feed("vào", end = true))
+        assertTrue(m.feed("vàooo", end = true))
         assertFalse("một cụm bắn một lần", m.feed("", end = true))
         for (w in listOf("a", "b", "c", "d", "e", "f", "g", "h")) m.feed(w, end = true)
         assertEquals(CheerWords.MAX_TOKENS, m.tokens.size)
@@ -85,7 +87,9 @@ class FootballFxTests {
         assertFalse("không chọn Sút! ⇒ không so", s.cheerHit)
         s.cheer = CheerWords.Matcher()
         type("vaof"); s.handle(Key.Space, p)
-        assertTrue("\"vào\" + cách", s.cheerHit)
+        assertFalse("\"vào\" thường không cổ vũ", s.cheerHit)
+        type("goal"); s.handle(Key.Space, p)
+        assertTrue("\"goal\" + cách", s.cheerHit)
         type("an"); s.handle(Key.Space, p)
         assertFalse(s.cheerHit)
         // "VN #1": "#" và "1" là ký hiệu riêng, dồn thành "#1"; Enter = ranh giới.

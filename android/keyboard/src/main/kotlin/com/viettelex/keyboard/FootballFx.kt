@@ -12,11 +12,12 @@ import kotlin.math.sin
 
 /**
  * Cụm cổ vũ của theme Bóng đá. Chuẩn hoá: NFC, chữ thường, bỏ ký tự đầu/cuối không phải chữ/số/#, chữ lặp ≥ 3 lần (cùng
- * chữ gốc, bỏ dấu) gộp còn một ("vàoooo" ⇒ "vào", "gooool" ⇒ "gol"); "việt nam" ⇒ "vn"; "# 1" / "number one" / "số 1"
- * ⇒ "#1"; "vnvd" ⇒ "vnvđ". Chỉ so NGUYÊN token ("vàobờ" ≠ "vào"); từ Việt phải đúng dấu. iOS CheerWords y hệt.
+ * chữ gốc, bỏ dấu) gộp còn một + dấu kéo dài "~" ("vàoooo" ⇒ "vào~", "gooool" ⇒ "gol~"); "việt nam" ⇒ "vn"; "# 1" /
+ * "number one" / "số 1" ⇒ "#1"; "vnvd" ⇒ "vnvđ". Chỉ so NGUYÊN token ("vàobờ" ≠ "vào"); từ Việt phải đúng dấu. Mục bảng có
+ * "~" (chỉ "vàooo") chỉ khớp từ kéo dài — "vào" thường quá thông dụng (Phil 11/2026). iOS CheerWords y hệt.
  */
 object CheerWords {
-    val PHRASES = listOf("việt nam vô địch", "vô địch", "vnvđ", "vn #1", "vào", "goal", "gol")
+    val PHRASES = listOf("việt nam vô địch", "vô địch", "vnvđ", "vn #1", "vàooo", "goal", "gol")
     /** Số token gần nhất giữ lại (đủ cho "việt nam number one"). */
     const val MAX_TOKENS = 6
     val TABLE: List<List<String>> by lazy { PHRASES.map { canonical(tokens(it)) } }
@@ -40,6 +41,7 @@ object CheerWords {
     /** Gộp chuỗi ≥ 3 ký tự cùng chữ gốc: cùng một ký tự ⇒ ký tự đó; lẫn dấu ⇒ chữ gốc không dấu. */
     fun collapse(cs: String): String {
         val out = StringBuilder()
+        var long = false
         var i = 0
         while (i < cs.length) {
             val b = base(cs[i])
@@ -49,11 +51,18 @@ object CheerWords {
                 var same = true
                 for (k in i until j) if (cs[k] != cs[i]) same = false
                 out.append(if (same) cs[i] else b)
+                long = true
             } else out.append(cs, i, j)
             i = j
         }
+        if (long) out.append(ELONGATED)
         return out.toString()
     }
+
+    /** Dấu "đã kéo dài" gắn cuối token khi có chuỗi bị gộp. */
+    const val ELONGATED = '~'
+    /** Token bỏ dấu kéo dài. */
+    fun plain(s: String): String = s.removeSuffix(ELONGATED.toString())
 
     val NUMBER_WORDS = setOf("#", "number", "số")
     val ONE_WORDS = setOf("1", "one", "một")
@@ -63,11 +72,11 @@ object CheerWords {
         val out = ArrayList<String>(t.size)
         var i = 0
         while (i < t.size) {
-            val a = t[i]
-            val b = if (i + 1 < t.size) t[i + 1] else null
-            if (a == "việt" && b == "nam") { out.add("vn"); i += 2; continue }
-            if (a in NUMBER_WORDS && b != null && b in ONE_WORDS) { out.add("#1"); i += 2; continue }
-            out.add(if (a == "vnvd") "vnvđ" else a)
+            val a = t[i]; val pa = plain(a)
+            val b = if (i + 1 < t.size) plain(t[i + 1]) else null
+            if (pa == "việt" && b == "nam") { out.add("vn"); i += 2; continue }
+            if (pa in NUMBER_WORDS && b != null && b in ONE_WORDS) { out.add("#1"); i += 2; continue }
+            out.add(if (pa == "vnvd") "vnvđ" else a)
             i++
         }
         return out
@@ -76,7 +85,11 @@ object CheerWords {
     /** Dãy token (cũ → mới) có KẾT THÚC bằng một cụm trong bảng không. */
     fun matches(t: List<String>): Boolean {
         val c = canonical(t)
-        return TABLE.any { p -> p.size <= c.size && c.subList(c.size - p.size, c.size) == p }
+        return TABLE.any { p ->
+            p.size <= c.size && c.subList(c.size - p.size, c.size).zip(p).all { (x, q) ->
+                if (q.endsWith(ELONGATED)) x == q else plain(x) == q
+            }
+        }
     }
 
     /**

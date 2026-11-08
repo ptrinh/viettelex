@@ -22,23 +22,24 @@ final class FootballFxTests: XCTestCase {
     }
 
     static let yes = ["Việt Nam vô địch", "VN vô địch", "VNVĐ", "vnvd", "vnvđ", "VN number 1", "VN #1", "VN # 1", "Việt Nam số 1",
-                      "VN số 1", "Việt Nam number one", "Việt Nam #1", "vô địch", "vào", "goal", "GOAL", "gooool", "vàoooo",
-                      "VÀOOO", "goooal", "đi vào", "vô địch!", "Vào!!!"]
+                      "VN số 1", "Việt Nam number one", "Việt Nam #1", "vô địch", "goal", "GOAL", "gooool", "vàoooo",
+                      "VÀOOO", "goooal", "đi vàooo", "vô địch!", "Vàooo!!!"]
     static let no = ["vao", "vo dich", "vô", "địch", "vàobờ", "vn", "việt nam", "number one", "#1", "goals", "số 1", "vào nhà",
-                     "vnvđx", "gool", "Việt Nam số 2", "VN #10", "vô đich", ""]
+                     "vnvđx", "gool", "Việt Nam số 2", "VN #10", "vô đich", "", "vào", "Vào!!!", "đi vào", "vàoo"]
 
     func testCheerTable() {
-        XCTAssertEqual(CheerWords.phrases, ["việt nam vô địch", "vô địch", "vnvđ", "vn #1", "vào", "goal", "gol"])
-        XCTAssertEqual(CheerWords.table, [["vn", "vô", "địch"], ["vô", "địch"], ["vnvđ"], ["vn", "#1"], ["vào"], ["goal"], ["gol"]])
+        XCTAssertEqual(CheerWords.phrases, ["việt nam vô địch", "vô địch", "vnvđ", "vn #1", "vàooo", "goal", "gol"])
+        XCTAssertEqual(CheerWords.table, [["vn", "vô", "địch"], ["vô", "địch"], ["vnvđ"], ["vn", "#1"], ["vào~"], ["goal"], ["gol"]])
         for s in Self.yes { XCTAssertTrue(Self.cheers(s), s) }
         for s in Self.no { XCTAssertFalse(Self.cheers(s), s) }
-        XCTAssertEqual(Self.yes.count, 23); XCTAssertEqual(Self.no.count, 18)
+        XCTAssertEqual(Self.yes.count, 22); XCTAssertEqual(Self.no.count, 22)
     }
 
     func testCheerNormalize() {
-        XCTAssertEqual(CheerWords.token("Vàoooo!"), "vào")
-        XCTAssertEqual(CheerWords.token("GOOOOL"), "gol")
-        XCTAssertEqual(CheerWords.token("vàôoo"), "vào", "chuỗi lặp lẫn dấu ⇒ chữ gốc")
+        XCTAssertEqual(CheerWords.token("Vàoooo!"), "vào~")
+        XCTAssertEqual(CheerWords.token("Vào!"), "vào", "vào thường: không dấu kéo dài")
+        XCTAssertEqual(CheerWords.token("GOOOOL"), "gol~")
+        XCTAssertEqual(CheerWords.token("vàôoo"), "vào~", "chuỗi lặp lẫn dấu ⇒ chữ gốc")
         XCTAssertEqual(CheerWords.token("…VNVĐ…"), "vnvđ")
         XCTAssertEqual(CheerWords.token("good"), "good", "lặp 2 lần giữ nguyên")
         XCTAssertEqual(CheerWords.token("#1"), "#1")
@@ -52,7 +53,8 @@ final class FootballFxTests: XCTestCase {
 
     func testMatcherFiresOnceAndKeepsSixTokens() {
         var m = CheerWords.Matcher()
-        XCTAssertTrue(m.feed(word: "vào", end: true))
+        XCTAssertFalse(m.feed(word: "vào", end: true), "\"vào\" thường không cổ vũ")
+        XCTAssertTrue(m.feed(word: "vàooo", end: true))
         XCTAssertFalse(m.feed(word: "", end: true), "một cụm bắn một lần")
         for w in ["a", "b", "c", "d", "e", "f", "g", "h"] { _ = m.feed(word: w, end: true) }
         XCTAssertEqual(m.tokens.count, CheerWords.maxTokens)

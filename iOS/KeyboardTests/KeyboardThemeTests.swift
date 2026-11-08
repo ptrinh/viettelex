@@ -912,7 +912,7 @@ final class ThemeSetTests: XCTestCase {
         XCTAssertEqual(KeyboardTheme.allCases.filter(\.isPlus).map(\.rawValue), f.plus)
         XCTAssertEqual(KeyboardTheme.allCases.filter(\.isInteractive).map(\.rawValue), f.interactive)
         XCTAssertEqual(ThemePicker.ordered().map(\.rawValue), f.picker, "thứ tự lưới phải trùng Android")
-        XCTAssertEqual(f.rows.count, 64)
+        XCTAssertEqual(f.rows.count, 84)   // 42 theme JSON × sáng / tối
         for r in f.rows {
             let t = try XCTUnwrap(KeyboardTheme(rawValue: r.theme), r.theme)
             let p = t.palette(systemDark: r.dark)
@@ -1313,7 +1313,8 @@ final class ThemeSetTests: XCTestCase {
         XCTAssertEqual(pst.corner, 0); XCTAssertEqual(pst.font, .pixel); XCTAssertEqual(pst.keyShape, "pixel")
         // Theme khác: không dáng phím điểm ảnh, không phông điểm ảnh.
         for t in KeyboardTheme.allCases where t != .pixel {
-            XCTAssertNil(ThemeSettings(theme: t).effectiveKeyStyle.keyShape, t.rawValue)
+            // Kính màu: dáng phím "glass" (ô kính màu, GlassKeys).
+            XCTAssertEqual(ThemeSettings(theme: t).effectiveKeyStyle.keyShape, t == .stainedGlass ? "glass" : nil, t.rawValue)
             XCTAssertNotEqual(ThemeSettings(theme: t).effectiveKeyStyle.font, .pixel, t.rawValue)
         }
         XCTAssertNotNil(KeyboardTheme.pixel.palette(systemDark: false).keyBorder)
@@ -1843,7 +1844,7 @@ final class ThemeSetTests: XCTestCase {
         XCTAssertTrue(D.placements(width: 800, gaps: [D.Gap(center: 50, height: 6)]).isEmpty)
         // Rộng: trần số motif.
         XCTAssertLessThanOrEqual(D.placements(width: 5000, gaps: Array(repeating: D.Gap(center: 50, height: 11), count: 8)).count, D.maxMotifs)
-        for motif in D.Motif.allCases {
+        for motif in D.Motif.allCases where !ThemeScene.isScene(motif) {   // motif cảnh vẽ trọn nền (ThemeScene), không theo khe
             let box = D(motif: motif, color: .white).path(pts).boundingBoxOfPath
             XCTAssertGreaterThanOrEqual(box.minY, 88 - 1e-6); XCTAssertLessThanOrEqual(box.maxY, 205 + 1e-6)
         }
@@ -1901,7 +1902,8 @@ final class ThemeSetTests: XCTestCase {
             // Độ trong suốt: hoạ tiết + nền chức năng mờ theo phím; chữ vẫn đọc được trên backdrop.
             let half = base.withTransparency(keyboard: 50, labels: 0, systemDark: true, wallpaper: false)
             XCTAssertEqual(half.decoration?.color.a ?? 0, (base.decoration?.color.a ?? 0) * 0.5, accuracy: 1e-9)
-            XCTAssertEqual(half.functionFill?.a ?? 0.5, 0.5, accuracy: 1e-9)
+            // Nền chức năng trong mờ sẵn (Lạc trôi, Mưa đêm, Bể cá…) ⇒ nhân thêm 0,5.
+            XCTAssertEqual(half.functionFill?.a ?? 0.5, (base.functionFill?.a ?? 1) * 0.5, accuracy: 1e-9)
             let full = base.withTransparency(keyboard: 100, labels: 0, systemDark: true, wallpaper: false)
             let sys = KeyboardTransparency.systemBackdrop(dark: true)
             XCTAssertGreaterThanOrEqual(RGBA.contrast(full.fnInk, full.fnFill.over(sys)), KeyboardTransparency.minLabelContrast)

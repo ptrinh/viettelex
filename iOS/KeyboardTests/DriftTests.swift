@@ -317,8 +317,8 @@ final class DriftTests: XCTestCase {
         XCTAssertEqual(spec.keyMotion, "float")
         XCTAssertEqual(ThemeSettings(theme: t).effectiveKeyStyle.keyMotion, "float")
         XCTAssertNil(ThemeSettings(theme: .nightclub).effectiveKeyStyle.keyMotion)
-        XCTAssertEqual(ThemePicker.interactiveOrder.last, "drift")
-        XCTAssertEqual(ThemePicker.groups(KeyboardTheme.allCases).interactive.last, .drift)
+        XCTAssertEqual(ThemePicker.interactiveOrder.firstIndex(of: "guitar").map { $0 + 1 }, ThemePicker.interactiveOrder.firstIndex(of: "drift"))
+        XCTAssertTrue(ThemePicker.groups(KeyboardTheme.allCases).interactive.contains(.drift))
         XCTAssertEqual(t.systemBackdropKey, "systemBackdropDrift")
         XCTAssertNotNil(BackupSettings.byKey["systemBackdropDrift"])
         for dark in [false, true] {

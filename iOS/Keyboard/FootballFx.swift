@@ -12,11 +12,12 @@ import UIKit
 // MARK: - Cụm cổ vũ
 
 /// Cụm cổ vũ của theme Bóng đá. Chuẩn hoá: NFC, chữ thường, bỏ ký tự đầu/cuối không phải chữ/số/#, chữ lặp ≥ 3 lần (cùng
-/// chữ gốc, bỏ dấu) gộp còn một ("vàoooo" ⇒ "vào", "gooool" ⇒ "gol"); "việt nam" ⇒ "vn"; "# 1" / "number one" / "số 1"
-/// ⇒ "#1"; "vnvd" ⇒ "vnvđ". Chỉ so NGUYÊN token ("vàobờ" ≠ "vào"); từ Việt phải đúng dấu ("vao" không khớp). Bảng là dữ
-/// liệu — Android CheerWords y hệt.
+/// chữ gốc, bỏ dấu) gộp còn một + dấu kéo dài "~" ("vàoooo" ⇒ "vào~", "gooool" ⇒ "gol~"); "việt nam" ⇒ "vn"; "# 1" /
+/// "number one" / "số 1" ⇒ "#1"; "vnvd" ⇒ "vnvđ". Chỉ so NGUYÊN token ("vàobờ" ≠ "vào"); từ Việt phải đúng dấu ("vao" không
+/// khớp). Mục bảng có "~" (chỉ "vàooo") chỉ khớp từ kéo dài — "vào" thường quá thông dụng (Phil 11/2026); mục khác khớp cả
+/// dạng kéo dài lẫn không. Bảng là dữ liệu — Android CheerWords y hệt.
 enum CheerWords {
-    static let phrases: [String] = ["việt nam vô địch", "vô địch", "vnvđ", "vn #1", "vào", "goal", "gol"]
+    static let phrases: [String] = ["việt nam vô địch", "vô địch", "vnvđ", "vn #1", "vàooo", "goal", "gol"]
     /// Số token gần nhất giữ lại (đủ cho "việt nam number one").
     static let maxTokens = 6
     static let table: [[String]] = phrases.map { canonical(tokens($0)) }
@@ -41,9 +42,13 @@ enum CheerWords {
         return collapse(cs)
     }
 
-    /// Gộp chuỗi ≥ 3 ký tự cùng chữ gốc: cùng một ký tự ⇒ ký tự đó; lẫn dấu ⇒ chữ gốc không dấu.
+    /// Dấu "đã kéo dài" gắn cuối token khi có chuỗi bị gộp.
+    static let elongated: Character = "~"
+
+    /// Gộp chuỗi ≥ 3 ký tự cùng chữ gốc: cùng một ký tự ⇒ ký tự đó; lẫn dấu ⇒ chữ gốc không dấu. Có gộp ⇒ thêm "~" cuối.
     static func collapse(_ cs: [Character]) -> String {
         var out = ""
+        var long = false
         var i = 0
         while i < cs.count {
             let b = base(cs[i])
@@ -52,13 +57,18 @@ enum CheerWords {
             if j - i >= 3 {
                 let same = cs[i..<j].allSatisfy { $0 == cs[i] }
                 out.append(same ? cs[i] : b)
+                long = true
             } else {
                 out.append(contentsOf: cs[i..<j])
             }
             i = j
         }
+        if long { out.append(elongated) }
         return out
     }
+
+    /// Token bỏ dấu kéo dài.
+    static func plain(_ s: String) -> String { s.last == elongated ? String(s.dropLast()) : s }
 
     static let numberWords: Set<String> = ["#", "number", "số"]
     static let oneWords: Set<String> = ["1", "one", "một"]
@@ -68,11 +78,11 @@ enum CheerWords {
         var out: [String] = []
         var i = 0
         while i < t.count {
-            let a = t[i]
-            let b: String? = i + 1 < t.count ? t[i + 1] : nil
-            if a == "việt", b == "nam" { out.append("vn"); i += 2; continue }
-            if numberWords.contains(a), let b, oneWords.contains(b) { out.append("#1"); i += 2; continue }
-            out.append(a == "vnvd" ? "vnvđ" : a)
+            let a = t[i], pa = plain(a)
+            let b: String? = i + 1 < t.count ? plain(t[i + 1]) : nil
+            if pa == "việt", b == "nam" { out.append("vn"); i += 2; continue }
+            if numberWords.contains(pa), let b, oneWords.contains(b) { out.append("#1"); i += 2; continue }
+            out.append(pa == "vnvd" ? "vnvđ" : a)
             i += 1
         }
         return out
@@ -81,7 +91,9 @@ enum CheerWords {
     /// Dãy token (cũ → mới) có KẾT THÚC bằng một cụm trong bảng không.
     static func matches(_ t: [String]) -> Bool {
         let c = canonical(t)
-        return table.contains { p in p.count <= c.count && Array(c.suffix(p.count)) == p }
+        return table.contains { p in
+            p.count <= c.count && zip(c.suffix(p.count), p).allSatisfy { x, q in q.last == elongated ? x == q : plain(x) == q }
+        }
     }
 
     /// Bộ so khớp chạy theo phím: controller đưa từ vừa chốt + ký hiệu vừa gõ; "#" và chữ số dồn thành một token ("#1").

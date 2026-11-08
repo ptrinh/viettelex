@@ -166,7 +166,8 @@ final class RainbowBorderTests: XCTestCase {
     }
 
     @MainActor func testOnlyRgbThemeHasOverlayAndItIsOneMaskedLayer() throws {
-        for t in KeyboardTheme.allCases where t != .rgb && t != .ai {
+        // Ảo giác ("hueflow") + Tự hào ("aurora" theo sọc cờ) cũng có lớp viền (PsychedelicThemeTests / PrideThemeTests).
+        for t in KeyboardTheme.allCases where ![.rgb, .ai, .trippy, .pride].contains(t) {
             XCTAssertNil(keyboard(t).rainbow, "\(t): theme khác ⇒ không có lớp (0 chi phí)")
         }
         // AI ("borderFx":"aurora"): cùng lớp mặt nạ viền nhưng gradient TĨNH (AIThemeTests).

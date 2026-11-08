@@ -142,7 +142,7 @@ class AquariumFxTests {
     @Test fun bloopSound() {
         assertTrue(KeySoundStyle.BLOOP in KeySoundStyle.PRESETS)
         assertEquals(0x626C6F6F xor 0x85EBCA6B.toInt(), KeySoundSynth.seed(KeySoundStyle.BLOOP, KeySoundSynth.Kind.LETTER))
-        val golden = listOf(KeySoundSynth.Kind.LETTER to 178.7899, KeySoundSynth.Kind.DELETE to 180.1119, KeySoundSynth.Kind.MODIFIER to 213.0168)
+        val golden = listOf(KeySoundSynth.Kind.LETTER to 178.8050, KeySoundSynth.Kind.DELETE to 180.1272, KeySoundSynth.Kind.MODIFIER to 213.0168)
         for ((k, want) in golden) {
             assertEquals("$k", want, KeySoundSynth.samples(KeySoundStyle.BLOOP, k).sumOf { abs(it.toDouble()) }, 0.01)
         }

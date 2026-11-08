@@ -194,7 +194,7 @@ final class ZodiacThemeTests: XCTestCase {
         XCTAssertEqual(spec.light, ZodiacElement.fire.slots, "bảng dự phòng = Lửa")
         XCTAssertEqual(KeyboardTheme.zodiac.systemBackdropKey, "systemBackdropZodiac")
         XCTAssertTrue(BackupSettings.all.contains { $0.key == "systemBackdropZodiac" })
-        XCTAssertEqual(ThemePicker.interactiveOrder.last, "zodiac")
+        XCTAssertEqual(ThemePicker.interactiveOrder.firstIndex(of: "zodiac").map { $0 + 1 }, ThemePicker.interactiveOrder.firstIndex(of: "pride"))
     }
 
     /// Lựa chọn cung giải lúc hiện: bảng màu theo nguyên tố + ký hiệu góc; theme khác không đổi.
