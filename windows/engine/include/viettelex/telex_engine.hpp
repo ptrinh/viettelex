@@ -257,6 +257,7 @@ private:
     void noteCommittedWord(bool restored);
     bool glueRestores() const;
     bool isVietnameseTypoKeep() const;
+    bool isHatInitialismKeep() const;
     bool rawHasEnglishReading() const;
     bool isRareAllCapsAcronym() const;
     bool rawIsDictionaryWord() const;
