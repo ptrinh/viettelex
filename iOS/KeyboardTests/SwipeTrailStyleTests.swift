@@ -6,6 +6,36 @@
 import XCTest
 import UIKit
 
+// MARK: - Vệt vuốt cùng hệ toạ độ với bàn phím khi host dời gốc bounds (#151, khung host cao tạm)
+// Trước: layer.frame = bounds nhưng gốc bounds 0 ⇒ điểm chạm (toạ độ KeyboardView) vẽ lệch lên đúng phần dư.
+final class SwipeTrailCoordinateTests: XCTestCase {
+    @MainActor func testTrailSharesShiftedHostOrigin() throws {
+        let host = CALayer()
+        host.frame = CGRect(x: 0, y: 0, width: 390, height: 470)
+        host.bounds.origin.y = -180
+        let t = SwipeTrailRenderer()
+        t.configure(style: .rainbow, trail: RGBA(hex: 0xFFFFFF, alpha: 0.6), accent: RGBA(hex: 0x0A84FF), dark: false)
+        t.begin(bounds: host.bounds)
+        host.addSublayer(t.layer)
+        let p = CGPoint(x: 60, y: 150)
+        XCTAssertEqual(t.layer.frame, host.bounds, "phủ trọn phần đang hiện")
+        XCTAssertEqual(host.convert(p, from: t.layer), p, "điểm chạm vẽ đúng chỗ")
+        for l in t.layer.sublayers ?? [] { XCTAssertEqual(host.convert(p, from: l), p) }
+        let g = try XCTUnwrap(t.debugGradient)
+        XCTAssertEqual(host.convert(p, from: g), p, "gradient (mặt nạ nét cầu vồng) cùng toạ độ")
+        // Host đo lại: hết dư ⇒ cú vuốt sau theo gốc mới.
+        host.frame = CGRect(x: 0, y: 0, width: 390, height: 290)
+        host.bounds.origin.y = 0
+        t.begin(bounds: host.bounds)
+        XCTAssertEqual(t.layer.frame, host.bounds)
+        for l in [t.layer, g] + (t.layer.sublayers ?? []) { XCTAssertEqual(host.convert(p, from: l), p) }
+        // Đổi kiểu (gradient dựng lại) rồi vuốt: gradient mới cũng cùng toạ độ.
+        t.configure(style: .rainbow, trail: RGBA(hex: 0xFF0000, alpha: 0.6), accent: RGBA(hex: 0x0A84FF), dark: true)
+        t.begin(bounds: host.bounds)
+        XCTAssertEqual(host.convert(p, from: try XCTUnwrap(t.debugGradient)), p)
+    }
+}
+
 final class SwipeTrailStyleTests: XCTestCase {
     private var savedDefaults: UserDefaults!
     private var savedPaywall = true

@@ -1490,3 +1490,121 @@ extension KeyEffectTests {
         }
     }
 }
+
+// MARK: - Hiệu ứng phải nằm TRÊN bàn phím ở mọi host (tester 08/11/2026, 1.2.32)
+// "Chỉ còn thấy trên Zalo" — mà trên Zalo cũng hiện gần tai thỏ. Host đo controller ở khung cả màn hình
+// TRƯỚC viewWillAppear ⇒ #151 dời gốc bounds KeyboardView lên vài trăm pt đúng lúc cấu hình ⇒ overlay 1.2.32
+// gắn với frame.y âm (autoresizing chỉ co chiều cao) rồi kẹt ở đó: app thường vẽ hẳn ra ngoài phần bàn phím
+// đang hiện (không thấy), host dư ít hơn vẽ lên đỉnh màn hình. Sửa ở 206454e7 (overlay theo gốc bounds mỗi
+// lượt layout); test này chốt cả đường controller thật: bắn ĐÚNG phím ở mọi hình dạng host.
+@MainActor
+final class KeyEffectHostTests: XCTestCase {
+    private let suite = "vt-keyeffect-host-tests"
+
+    final class Host: UIViewController {
+        override var shouldAutomaticallyForwardAppearanceMethods: Bool { false }
+    }
+
+    /// Vị trí (toạ độ KeyboardView) của mọi chùm hạt / cú đánh đã bắn.
+    private func firedPoints(_ kb: KeyboardView) -> [CGPoint] {
+        guard let o = kb.keyEffects else { return [] }
+        let roots = o.debugBursts.filter { !$0.isHidden } + o.debugStrikeRoots.filter { !$0.isHidden }
+        return roots.map { kb.layer.convert($0.position, from: o.layer) }
+    }
+
+    func testEffectsLandOnTappedKeyInEveryHostShape() throws {
+        for effect in [KeyEffect.petal, .lightning, .meteor] {
+            let saved = UserDefaultsProvider.shared
+            let savedPaywall = PlusGate.paywallEnabled
+            defer {
+                UserDefaultsProvider.shared = saved
+                PlusGate.paywallEnabled = savedPaywall
+                UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+            }
+            let d = UserDefaults(suiteName: suite)!
+            d.removePersistentDomain(forName: suite)
+            d.set(true, forKey: "showSuggestions")
+            d.set(effect.rawValue, forKey: KeyEffect.key)
+            PlusGate.paywallEnabled = false
+            UserDefaultsProvider.shared = d
+
+            let w: CGFloat = 402, H: CGFloat = 874
+            let win = UIWindow(frame: CGRect(x: 0, y: 0, width: w, height: H))
+            let host = Host()
+            win.rootViewController = host
+            win.isHidden = false
+            let vc = KeyboardViewController()
+            vc.debugProxy = KeyboardBenchTests.BenchProxy()
+            vc.debugFullAccess = false
+            vc.loadViewIfNeeded()
+            host.addChild(vc); host.view.addSubview(vc.view); vc.didMove(toParent: host)
+            func prime() {
+                vc.debugKeyboard.debugScreenSize = CGSize(width: w, height: H)
+                vc.debugKeyboard.debugSetSafeBottom(0)
+            }
+            prime()
+            defer {
+                vc.beginAppearanceTransition(false, animated: false); vc.endAppearanceTransition()
+                vc.willMove(toParent: nil); vc.view.removeFromSuperview(); vc.removeFromParent()
+                win.isHidden = true
+            }
+            func pass() {
+                vc.view.setNeedsLayout(); vc.view.layoutIfNeeded()
+                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.2))
+                vc.view.layoutIfNeeded()
+            }
+            var t: TimeInterval = 1
+            func tapAndCheck(_ why: String) throws {
+                let kb = vc.debugKeyboard
+                let o = try XCTUnwrap(kb.keyEffects, "\(effect) phải bật: \(why)")
+                XCTAssertTrue(o.superview === kb && o.window != nil && !o.isHidden && o.alpha > 0, "\(effect): \(why)")
+                XCTAssertEqual(o.frame, kb.bounds, "\(effect) overlay phủ đúng phần đang hiện: \(why)")
+                XCTAssertEqual(o.bounds.origin, kb.bounds.origin, "\(effect) cùng gốc toạ độ: \(why)")
+                let f = try XCTUnwrap(kb.debugLetterFrame("g"))
+                XCTAssertTrue(kb.bounds.contains(f), "phím nằm trong bàn phím: \(why)")
+                t += 1
+                kb.benchTap(at: CGPoint(x: f.midX, y: f.midY), time: t)
+                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+                let pts = firedPoints(kb)
+                XCTAssertTrue(pts.contains { abs($0.x - f.midX) < 1 && abs($0.y - f.midY) < 1 },
+                              "\(effect) phải bắn ĐÚNG phím g \(f) (thấy \(pts)): \(why)")
+                for p in pts {
+                    XCTAssertTrue(kb.bounds.insetBy(dx: -1, dy: -1).contains(p),
+                                  "\(effect) \(p) ngoài bàn phím \(kb.bounds): \(why)")
+                }
+            }
+
+            // Host đo controller ở khung cả màn hình TRƯỚC viewWillAppear (WhatsApp / Zalo).
+            vc.view.frame = CGRect(x: 0, y: 0, width: w, height: H)
+            pass()
+            vc.beginAppearanceTransition(true, animated: false)
+            let req = vc.debugKeyboard.debugRequestedHeight
+            vc.endAppearanceTransition()
+            vc.view.frame = CGRect(x: 0, y: H - req, width: w, height: req); pass()
+            XCTAssertEqual(vc.debugKeyboard.oversizeShift, 0)
+            try tapAndCheck("đo trước ở cả màn hình rồi về vừa đủ")
+            // Host bình thường (dư ~25pt) — gốc bounds vẫn 0.
+            vc.view.frame = CGRect(x: 0, y: H - req - 25, width: w, height: req + 25); pass()
+            try tapAndCheck("dư bình thường")
+            // Cao tạm (gốc bounds dời) rồi trở lại.
+            let tall = req + 195
+            vc.view.frame = CGRect(x: 0, y: H - tall, width: w, height: tall); pass()
+            XCTAssertGreaterThan(vc.debugKeyboard.oversizeShift, 0)
+            try tapAndCheck("khung cao tạm")
+            vc.view.frame = CGRect(x: 0, y: H - req, width: w, height: req); pass()
+            try tapAndCheck("cao tạm rồi về vừa đủ")
+            // Dựng lại hàng phím (plane số rồi về chữ).
+            vc.debugKeyboard.debugCycleThroughNumbers(); pass()
+            try tapAndCheck("sau rebuild")
+            // Ẩn rồi hiện lại (cây view xé + KeyboardView mới), host lại đo cả màn hình trước.
+            vc.beginAppearanceTransition(false, animated: false); vc.endAppearanceTransition()
+            vc.view.frame = CGRect(x: 0, y: 0, width: w, height: H)
+            vc.beginAppearanceTransition(true, animated: false)
+            prime()
+            vc.endAppearanceTransition()
+            pass()
+            vc.view.frame = CGRect(x: 0, y: H - req, width: w, height: req); pass()
+            try tapAndCheck("hiện lại sau khi xé")
+        }
+    }
+}

@@ -426,17 +426,23 @@ final class SwipeTrailRenderer {
         spawner.reset()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        if layer.frame != bounds {
-            layer.frame = bounds
-            strokeRoot.frame = layer.bounds
-            particleRoot.frame = layer.bounds
-            gradient?.frame = layer.bounds
-        }
+        // CÙNG hệ toạ độ với host (khung = bounds, gốc bounds = gốc bounds host): điểm chạm tính theo
+        // toạ độ KeyboardView dùng thẳng được cả khi host dời gốc bounds (#151, khung host cao tạm).
+        // Trước đây frame = bounds nhưng gốc bounds 0 ⇒ vệt vẽ lệch lên đúng phần dư.
+        Self.share(layer, bounds); Self.share(strokeRoot, bounds); Self.share(particleRoot, bounds)
+        if let g = gradient { Self.share(g, bounds) }   // gradient dựng lại (đổi kiểu) sau lần begin trước
         strokeRoot.removeAnimation(forKey: "fade")
         strokeRoot.opacity = 1
         for l in strokeLayers { l.path = nil }
         if let f = flicker { strokeRoot.add(f, forKey: "flicker") }
         CATransaction.commit()
+    }
+
+    /// Layer phủ `b` VÀ dùng toạ độ của `b` (layer gốc: toạ độ host; layer con: toạ độ layer gốc — cùng một hệ).
+    private static func share(_ l: CALayer, _ b: CGRect) {
+        let p = CGPoint(x: b.midX, y: b.midY)
+        if l.bounds != b { l.bounds = b }
+        if l.position != p { l.position = p }
     }
 
     func add(_ p: CGPoint, _ t: TimeInterval) {
