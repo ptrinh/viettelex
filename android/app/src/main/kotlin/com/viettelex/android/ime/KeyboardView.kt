@@ -575,7 +575,8 @@ class KeyboardView(
         set(v) { field = v; fxPending = false }
 
     private fun fxMark(k: LaidKey) {
-        if (effects == null && spotlight == null) return
+        hueMarked = hueFill != null
+        if (effects == null && spotlight == null && hueFill == null) return
         fxPending = when (k.kind) {
             KeyKind.LETTER, KeyKind.CHAR, KeyKind.PAD, KeyKind.PUNCT, KeyKind.SPACE -> true
             else -> false
@@ -629,6 +630,10 @@ class KeyboardView(
 
     /** Viền cầu vồng (theme Gaming RGB, [RainbowBorderView]) — null = theme khác: đường phím chỉ đọc một biến null. */
     var rainbow: RainbowBorderView? = null
+    /** Nền đổi sắc "Ảo giác" ([RainbowBorderView] kiểu HUEFLOW_FILL, view anh em) — null = theme khác. */
+    var hueFill: RainbowBorderView? = null
+    /** Phím vừa chạm có toạ độ cho gợn sóng màu (fxX / fxY) — chỉ khi [hueFill] có. */
+    private var hueMarked = false
 
     /** Viền mọi phím đang hiện (toạ độ view này) thụt [inset] — mặt nạ của [RainbowBorderView]. Bo góc như [drawKey]. */
     fun keyOutlines(out: android.graphics.Path, inset: Float) {
@@ -649,6 +654,7 @@ class KeyboardView(
             val sym = k is Key.Text && (plane == Plane.NUMBERS || plane == Plane.SYMBOLS)
             val before = if (sym && PlanePolicy.needsBefore((k as Key.Text).text, symbolReturn)) listener?.charBeforeCursor() else null
             listener?.onKey(k); fxAfter(k); rainbow?.poke()
+            hueFill?.let { h -> h.poke(if (hueMarked) fxX - h.left else Float.NaN, fxY - h.top); hueMarked = false }   // Ảo giác
             mole?.typed(moleLetter(k), android.os.SystemClock.uptimeMillis() / 1000.0)   // Đập chuột: theme khác ⇒ null
             if (sym) typedInSymbolPlane = true
             // Ký hiệu ⇒ về chữ ngay theo "Về bàn chữ sau ký hiệu" (IME đánh giá lại viết hoa ở onPlaneChanged, như chạm ABC).

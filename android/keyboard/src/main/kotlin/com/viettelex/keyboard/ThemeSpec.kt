@@ -23,7 +23,10 @@ import java.nio.charset.CodingErrorAction
  *   phím, 0 cấp phát; theme khác không chạm tới. Không có ⇒ bo góc theo "corner" như cũ. iOS y hệt.
  * "borderFx" (trong "light"/"dark", danh sách trắng [ThemeSlots.BORDER_FX]): "rainbow" = viền phím cầu vồng (Gaming RGB,
  *   chỉ xoay màu khi đang gõ) | "aurora" = viền gradient tím → lam ĐỨNG YÊN + dải cực quang tĩnh dọc mép trên (theme AI,
- *   [AuroraFx]; vẽ một lần, 0 hoạt ảnh) | "none" (bản vá: bỏ). Motif "deco" có thêm "neural" (theme AI).
+ *   [AuroraFx]; vẽ một lần, 0 hoạt ảnh) | "hueflow" = viền phím cầu vồng + NỀN đổi sắc CHẬM khi đang gõ (theme "Ảo giác",
+ *   [HueFlow]: một vòng màu ≥ 8 s — 12 s ở tốc độ đầy, sắc nền cùng độ sáng ⇒ không nháy; nghỉ 1,5 s ⇒ dừng dần, 0 khung
+ *   hình khi nghỉ; gõ dồn ⇒ gợn sóng màu đồng tâm chậm từ phím, sau hàng phím) | "none" (bản vá: bỏ).
+ *   Motif "deco" có thêm "neural" (theme AI), "swirl" (xoắn ốc mảnh + chấm — theme "Ảo giác").
  * "schedule" (tuỳ chọn): bảng màu đổi theo giờ địa phương (theme "Theo giờ") — xem [ThemeSchedule] / [ThemeScheduleEntry].
  *
  * Tệp tải về (Plus — ThemeAssets.kt: kế hoạch / kho / dọn; app ui/ThemeAssetDownloader.kt: tải + xử lý):
@@ -457,7 +460,9 @@ data class ThemeSlots(
         /** Giá trị hợp lệ của "borderFx" (iOS ThemeSlots.borderFxValues y hệt). */
         /** Theme AI: viền gradient tĩnh + dải cực quang mép trên ([AuroraFx]). */
         const val AURORA = "aurora"
-        val BORDER_FX = setOf(RAINBOW, AURORA, "none")
+        /** Theme "Ảo giác": viền cầu vồng + nền đổi sắc chậm khi gõ + gợn sóng màu khi gõ dồn ([HueFlow]). */
+        const val HUEFLOW = "hueflow"
+        val BORDER_FX = setOf(RAINBOW, AURORA, HUEFLOW, "none")
         const val SOUNDHOLE = "soundhole"
         /** Giá trị hợp lệ của "spaceDeco" (iOS ThemeSlots.spaceDecoValues y hệt). */
         val SPACE_DECO = setOf(SOUNDHOLE, "none")
@@ -742,6 +747,7 @@ data class ThemeSpec(
                 isDark = c.luminance(ink) > 0.5, functionFill = s.fn, functionInk = s.fnInk,
                 decoration = s.deco?.let { d -> d.motif?.let { ThemeDecoration(it, d.color, d.density, d.alt) } },
                 rainbowBorder = s.borderFx == ThemeSlots.RAINBOW, auroraBorder = s.borderFx == ThemeSlots.AURORA,
+                hueFlow = s.borderFx == ThemeSlots.HUEFLOW,
                 spaceSoundhole = s.spaceDeco == ThemeSlots.SOUNDHOLE)
         }
 
@@ -753,7 +759,8 @@ data class ThemeSpec(
                 fn = p.functionFill, fnInk = p.functionInk, balloon = p.balloon.takeIf { it != p.keyFill },
                 trail = p.trail.takeIf { it != c.withAlpha(p.action, 0.6f) },
                 deco = p.decoration?.let { ThemeDeco(it.motif, it.color, it.density, it.alt) },
-                borderFx = if (p.rainbowBorder) ThemeSlots.RAINBOW else if (p.auroraBorder) ThemeSlots.AURORA else null,
+                borderFx = if (p.rainbowBorder) ThemeSlots.RAINBOW else if (p.auroraBorder) ThemeSlots.AURORA
+                    else if (p.hueFlow) ThemeSlots.HUEFLOW else null,
                 spaceDeco = if (p.spaceSoundhole) ThemeSlots.SOUNDHOLE else null)
         }
 

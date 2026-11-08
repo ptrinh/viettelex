@@ -223,6 +223,14 @@ internal object BuiltinThemesData {
       "light": {"bg": "#07020D", "key": "#170A24", "special": "#241038", "ink": "#FBEFFF", "accent": "#FF2FD0",
                 "accentInk": "#1A0016", "fn": "#10061C", "fnInk": "#2FE6FF", "border": "#E6FF2FD0"},
       "dark": "same"
+    },
+    {
+      "v": 1, "id": "trippy", "name": {"vi": "Ảo giác", "en": "Psychedelic"}, "tags": ["interactive"],
+      "sound": "dream", "effect": "kaleido", "swipe": "rainbow",
+      "light": {"bg": "#160A33", "key": "#B32A1758", "special": "#C23B2170", "ink": "#FFFFFF", "accent": "#C084FC",
+                "accentInk": "#1A0633", "fn": "#B3221448", "fnInk": "#F0ABFC", "balloon": "#3B2270", "trail": "#CCF0ABFC",
+                "borderFx": "hueflow", "deco": {"motif": "swirl", "color": "#66C4B5FD"}},
+      "dark": "same"
     }
   ]
 }

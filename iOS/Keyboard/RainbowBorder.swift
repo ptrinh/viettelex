@@ -42,8 +42,8 @@ enum RainbowBorder {
     /// để dịch đúng một bề ngang là liền mạch.
     static let hues: [UInt32] = [0xFF3B30, 0xFF9500, 0xFFCC00, 0x34C759, 0x00C7BE, 0x007AFF, 0xAF52DE, 0xFF3B30]
 
-    /// Màu + vị trí của dải 2 chu kỳ (bỏ điểm trùng ở giữa).
-    static func stops() -> [(color: UInt32, location: Double)] {
+    /// Màu + vị trí của dải 2 chu kỳ (bỏ điểm trùng ở giữa). `hues`: một chu kỳ, điểm cuối = điểm đầu.
+    static func stops(_ hues: [UInt32] = RainbowBorder.hues) -> [(color: UInt32, location: Double)] {
         let n = hues.count - 1
         var out: [(color: UInt32, location: Double)] = []
         for cycle in 0..<2 {
@@ -111,6 +111,112 @@ enum AuroraFx {
     }
 }
 
+/// "borderFx":"hueflow" (theme "Ảo giác", 11/2026): viền phím cầu vồng (cùng lớp mặt nạ với Gaming RGB nhưng CHẬM) + MỘT
+/// lớp nền đổi sắc (dải gradient chàm / tím / lam ngọc cùng độ sáng, trượt ngang như cầu vồng — không mặt nạ, sau hàng
+/// phím) — chỉ chạy KHI ĐANG GÕ, một vòng màu `period` giây ở tốc độ đầy (≥ `minCycle`), nghỉ `idleAfter` ⇒ giảm tốc tới
+/// dừng rồi 0 hoạt ảnh. An toàn thị giác: sắc nền kề nhau lệch độ sáng tương đối ≤ ~0,02 (không nháy), số lần chuyển sắc
+/// mỗi giây ≤ 3; độ đậm nền KHÔNG đổi khi gõ / nghỉ. Gõ dồn (ComboMeter ≥ `rippleLevel`, cách nhau ≥ `rippleGap`) ⇒ một
+/// gợn sóng màu đồng tâm chậm (3 vòng cầu vồng mảnh) toả từ phím, trong lớp nền (sau phím). Android HueFlow y hệt.
+enum HueFlow {
+    static let period = 12.0
+    /// Sàn an toàn: một vòng màu không bao giờ nhanh hơn (giây).
+    static let minCycle = 8.0
+    static let idleAfter = 1.5
+    static let accelTime = 0.8
+    static let decelTime = 1.5
+    static let fadeInTime = 0.6
+    static let fadeOutTime = 1.5
+    /// Độ sáng viền lúc nghỉ / lúc gõ.
+    static let borderRest = 0.55
+    static let borderActive = 0.9
+    /// Độ đậm lớp nền (cố định — không đổi khi gõ / nghỉ).
+    static let fillAlpha = 0.5
+    /// Một chu kỳ sắc nền (điểm cuối = điểm đầu): tím, chàm, lam ngọc sẫm, lam, mận — độ sáng gần nhau.
+    static let fillHues: [UInt32] = [0x4C1D95, 0x312E81, 0x134E4A, 0x1E3A8A, 0x701A75, 0x4C1D95]
+    static func fillStops() -> [(color: UInt32, location: Double)] { RainbowBorder.stops(fillHues) }
+
+    /// Độ sáng tương đối (WCAG) của màu RGB.
+    static func luminance(_ rgb: UInt32) -> Double {
+        func lin(_ v: UInt32) -> Double {
+            let c = Double(v & 0xFF) / 255
+            return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * lin(rgb >> 16) + 0.7152 * lin(rgb >> 8) + 0.0722 * lin(rgb)
+    }
+    /// Chênh độ sáng lớn nhất giữa hai sắc nền kề nhau.
+    static var maxLuminanceStep: Double {
+        zip(fillHues, fillHues.dropFirst()).map { abs(luminance($0) - luminance($1)) }.max() ?? 0
+    }
+    /// Số lần chuyển sắc mỗi giây ở tốc độ đầy (một điểm trên nền đi qua cả chu kỳ trong `period` giây).
+    static var transitionsPerSecond: Double { Double(fillHues.count - 1) / period }
+
+    // Gợn sóng màu khi gõ dồn.
+    static let rippleLevel = 2
+    static let rippleGap = 0.9
+    static let rippleRings = 3
+    static let rippleStagger = 0.3
+    static let rippleLife = 1.6
+    static let rippleRadius = 110.0
+    static let ripplePeak = 0.35
+    static let rippleWidth = 2.0
+    static let ripplePool = 2
+    /// Bán kính vòng `ring` sau `dt` giây (ease-out bậc ba; 0 trước lượt vòng).
+    static func rippleRadius(_ dt: Double, ring: Int) -> Double {
+        let t = dt - Double(ring) * rippleStagger
+        guard t > 0 else { return 0 }
+        let u = min(1, t / rippleLife), v = 1 - u
+        return rippleRadius * (1 - v * v * v)
+    }
+    /// Độ đậm vòng `ring` sau `dt` giây: hiện mềm 0,15 s rồi tắt (1 − u)².
+    static func rippleAlpha(_ dt: Double, ring: Int) -> Double {
+        let t = dt - Double(ring) * rippleStagger
+        guard t > 0, t < rippleLife else { return 0 }
+        let u = t / rippleLife
+        return ripplePeak * min(1, t / 0.15) * (1 - u) * (1 - u)
+    }
+    static var rippleLifetime: Double { Double(rippleRings - 1) * rippleStagger + rippleLife }
+    /// Màu vòng `ring` của lần gợn thứ `seed` (sắc cầu vồng, hai bậc mỗi vòng).
+    static func rippleColor(ring: Int, seed: Int) -> UInt32 {
+        let n = RainbowBorder.hues.count - 1
+        return RainbowBorder.hues[((seed + ring) * 2 % n + n) % n]
+    }
+    /// Cổng gợn: chỉ ở mức combo ≥ `rippleLevel`, cách nhau ≥ `rippleGap`.
+    struct RippleGate {
+        private(set) var last = -Double.greatestFiniteMagnitude
+        private(set) var fired = 0
+        mutating func trigger(level: Int, at t: Double) -> Bool {
+            guard level >= HueFlow.rippleLevel, t - last >= HueFlow.rippleGap else { return false }
+            last = t; fired += 1
+            return true
+        }
+    }
+}
+
+/// Bộ số chạy của một lớp dải (thuần; Android RainbowTuning y hệt): Gaming RGB, viền / nền "Ảo giác".
+struct RainbowTuning: Equatable {
+    var period: Double
+    var idleAfter: Double
+    var accelTime: Double
+    var decelTime: Double
+    var fadeInTime: Double
+    var fadeOutTime: Double
+    var restAlpha: Double
+    var activeAlpha: Double
+    var fullSpeed: Double { 1 / period }
+
+    static let rainbow = RainbowTuning(period: RainbowBorder.period, idleAfter: RainbowBorder.idleAfter,
+                                       accelTime: RainbowBorder.accelTime, decelTime: RainbowBorder.decelTime,
+                                       fadeInTime: RainbowBorder.fadeInTime, fadeOutTime: RainbowBorder.fadeOutTime,
+                                       restAlpha: RainbowBorder.restAlpha, activeAlpha: 1)
+    static let hueflowBorder = RainbowTuning(period: HueFlow.period, idleAfter: HueFlow.idleAfter, accelTime: HueFlow.accelTime,
+                                             decelTime: HueFlow.decelTime, fadeInTime: HueFlow.fadeInTime,
+                                             fadeOutTime: HueFlow.fadeOutTime, restAlpha: HueFlow.borderRest,
+                                             activeAlpha: HueFlow.borderActive)
+    static let hueflowFill = RainbowTuning(period: HueFlow.period, idleAfter: HueFlow.idleAfter, accelTime: HueFlow.accelTime,
+                                           decelTime: HueFlow.decelTime, fadeInTime: 0, fadeOutTime: 0,
+                                           restAlpha: HueFlow.fillAlpha, activeAlpha: HueFlow.fillAlpha)
+}
+
 /// Đường chuyển động của dải (thuần — test được; Android RainbowMotion y hệt). Đơn vị: chu kỳ màu (= một bề
 /// ngang); tốc độ đầy = 1/period chu kỳ/giây. Từ `t0` ở `x0`, tốc độ đổi tuyến tính `v0` → `v1` trong `ramp` giây
 /// rồi giữ `v1`.
@@ -140,15 +246,15 @@ struct RainbowMotion: Equatable {
     static func rest(at x: Double) -> RainbowMotion { RainbowMotion(x0: RainbowBorder.wrap(x)) }
 
     /// Gõ tiếp lúc `t`: tăng tốc từ tốc độ hiện tại tới đầy (đang giảm tốc dở ⇒ ramp ngắn hơn, không giật).
-    func resumed(at t: Double) -> RainbowMotion {
+    func resumed(at t: Double, _ k: RainbowTuning = .rainbow) -> RainbowMotion {
         let v = velocity(at: t)
-        return RainbowMotion(t0: t, x0: offset(at: t), v0: v, v1: Self.fullSpeed,
-                             ramp: RainbowBorder.accelTime * max(0, 1 - v / Self.fullSpeed))
+        return RainbowMotion(t0: t, x0: offset(at: t), v0: v, v1: k.fullSpeed,
+                             ramp: k.accelTime * max(0, 1 - v / k.fullSpeed))
     }
     /// Nghỉ lúc `t`: giảm tốc đều tới dừng (từ tốc độ đầy mất decelTime).
-    func settled(at t: Double) -> RainbowMotion {
+    func settled(at t: Double, _ k: RainbowTuning = .rainbow) -> RainbowMotion {
         let v = velocity(at: t)
-        return RainbowMotion(t0: t, x0: offset(at: t), v0: v, v1: 0, ramp: RainbowBorder.decelTime * v / Self.fullSpeed)
+        return RainbowMotion(t0: t, x0: offset(at: t), v0: v, v1: 0, ramp: k.decelTime * v / k.fullSpeed)
     }
 }
 
@@ -188,10 +294,16 @@ struct RainbowClock {
     mutating func stop() { running = false }
 }
 
-/// Lớp viền cầu vồng phủ trên hàng phím (không nhận chạm). Chỉ tồn tại khi theme có "borderFx":"rainbow".
+/// Lớp viền cầu vồng phủ trên hàng phím (không nhận chạm). Chỉ tồn tại khi theme có "borderFx":"rainbow" / "aurora" /
+/// "hueflow". "hueflow" dùng HAI view: viền (`hueflowBorder`) trên hàng phím + nền (`hueflowFill`, không mặt nạ, sau
+/// hàng phím, có gợn sóng màu).
 final class RainbowBorderView: UIView {
+    enum Kind { case rainbow, aurora, hueflowBorder, hueflowFill }
+    let kind: Kind
     /// true = viền gradient TĨNH của theme AI (AuroraFx): không animation, poke không làm gì.
-    let isAurora: Bool
+    var isAurora: Bool { kind == .aurora }
+    var isFill: Bool { kind == .hueflowFill }
+    let tuning: RainbowTuning
     private let strip = CAGradientLayer()
     private let outline = CAShapeLayer()
     private var clock = RainbowClock()
@@ -206,26 +318,37 @@ final class RainbowBorderView: UIView {
     /// Độ lệch đang hiện (0…1 bề ngang).
     var phase: Double { motion.offset(at: CACurrentMediaTime()) }
 
-    init(frame: CGRect = .zero, aurora: Bool = false) {
-        isAurora = aurora
+    // Gợn sóng màu (chỉ nền "hueflow"): pool gốc dựng lười, animation gắn MỘT lần, bấm chỉ đặt vị trí + màu + beginTime.
+    private var combo = ComboMeter()
+    private var rippleGate = HueFlow.RippleGate()
+    private var ripples: [CALayer] = []
+    private var rippleCursor = 0
+
+    init(frame: CGRect = .zero, aurora: Bool = false, kind: Kind? = nil) {
+        let k = kind ?? (aurora ? .aurora : .rainbow)
+        self.kind = k
+        tuning = k == .hueflowBorder ? .hueflowBorder : k == .hueflowFill ? .hueflowFill : .rainbow
         super.init(frame: frame)
+        let aurora = k == .aurora
+        clock.idleAfter = tuning.idleAfter
+        fade = RainbowFade(from: tuning.restAlpha, to: tuning.restAlpha)
         isUserInteractionEnabled = false
         isAccessibilityElement = false
         accessibilityElementsHidden = true
         backgroundColor = .clear
         isOpaque = false
-        let st = aurora ? AuroraFx.border : RainbowBorder.stops()
+        let st = aurora ? AuroraFx.border : isFill ? HueFlow.fillStops() : RainbowBorder.stops()
         strip.colors = st.map { UIColor(rgbHex: $0.color).cgColor }
         strip.locations = st.map { NSNumber(value: $0.location) }
         strip.startPoint = CGPoint(x: 0, y: 0.5)
         strip.endPoint = CGPoint(x: 1, y: 0.5)
         strip.anchorPoint = .zero
-        strip.opacity = Float(aurora ? AuroraFx.borderAlpha : RainbowBorder.restAlpha)
+        strip.opacity = Float(aurora ? AuroraFx.borderAlpha : tuning.restAlpha)
         outline.fillColor = nil
         outline.strokeColor = UIColor.black.cgColor
         outline.lineWidth = CGFloat(aurora ? AuroraFx.lineWidth : RainbowBorder.lineWidth)
         layer.addSublayer(strip)
-        layer.mask = outline
+        if !isFill { layer.mask = outline }   // nền "hueflow": cả mặt, không mặt nạ
     }
     required init?(coder: NSCoder) { fatalError() }
 
@@ -271,13 +394,80 @@ final class RainbowBorderView: UIView {
         if isAurora { return }
         let now = CACurrentMediaTime()
         if clock.poke(at: now) {
-            motion = motion.resumed(at: now)
+            motion = motion.resumed(at: now, tuning)
             CATransaction.begin(); CATransaction.setDisableActions(true)
             installMotion(at: now)
-            fadeStrip(to: 1, duration: RainbowBorder.fadeInTime, at: now)
+            fadeStrip(to: tuning.activeAlpha, duration: tuning.fadeInTime, at: now)
             CATransaction.commit()
         }
         scheduleTick(after: clock.idleRemaining(at: now))
+    }
+
+    /// Nền "hueflow": một phím vừa gõ ở `p` (toạ độ view này; nil = phím không có khung) — chạy dải như `poke` + gõ dồn
+    /// thì MỘT gợn sóng màu (cổng RippleGate). Kiểu khác ⇒ như `poke`.
+    func poke(at p: CGPoint?) {
+        poke()
+        guard isFill else { return }
+        let now = CACurrentMediaTime()
+        let level = combo.press(at: now)
+        guard let p, rippleGate.trigger(level: level, at: now), window != nil || Self.drawsOffscreen else { return }
+        fireRipple(at: p, now: now)
+    }
+
+    private func fireRipple(at p: CGPoint, now: CFTimeInterval) {
+        let slot = rippleCursor % HueFlow.ripplePool
+        rippleCursor += 1
+        let root: CALayer
+        if slot < ripples.count { root = ripples[slot] } else { root = makeRipple(); ripples.append(root) }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        for (i, l) in (root.sublayers ?? []).enumerated() {
+            (l as? CAShapeLayer)?.strokeColor = UIColor(rgbHex: HueFlow.rippleColor(ring: i, seed: rippleGate.fired)).cgColor
+        }
+        root.position = p
+        root.beginTime = layer.convertTime(now, from: nil)
+        root.isHidden = false
+        CATransaction.commit()
+    }
+
+    /// Một gốc gợn: `rippleRings` vòng tròn mảnh (path bán kính đầy), animation cỡ + độ đậm + nét lấy mẫu hàm thuần, gắn
+    /// MỘT lần (không gỡ; fillMode removed ⇒ xong là vô hình — model opacity 0).
+    private func makeRipple() -> CALayer {
+        let root = CALayer()
+        root.bounds = .zero
+        root.isHidden = true
+        let r = CGFloat(HueFlow.rippleRadius)
+        let path = CGPath(ellipseIn: CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r), transform: nil)
+        let steps = 16
+        for ring in 0..<HueFlow.rippleRings {
+            let l = CAShapeLayer()
+            l.path = path
+            l.fillColor = nil
+            l.lineWidth = CGFloat(HueFlow.rippleWidth)
+            l.opacity = 0
+            let life = HueFlow.rippleLife, start = Double(ring) * HueFlow.rippleStagger
+            func at(_ k: Int) -> Double { start + life * Double(k) / Double(steps) * 0.9999 }
+            let times = (0...steps).map { NSNumber(value: Double($0) / Double(steps)) }
+            let sc = CAKeyframeAnimation(keyPath: "transform.scale")
+            sc.values = (0...steps).map { max(0.001, HueFlow.rippleRadius(at($0), ring: ring) / HueFlow.rippleRadius) }
+            sc.keyTimes = times
+            let op = CAKeyframeAnimation(keyPath: "opacity")
+            op.values = (0...steps).map { HueFlow.rippleAlpha(at($0), ring: ring) }
+            op.keyTimes = times
+            // Nét giữ ~rippleWidth trên màn khi vòng phóng to (bù cỡ).
+            let lw = CAKeyframeAnimation(keyPath: "lineWidth")
+            lw.values = (0...steps).map { HueFlow.rippleWidth * HueFlow.rippleRadius / max(4, HueFlow.rippleRadius(at($0), ring: ring)) }
+            lw.keyTimes = times
+            let g = CAAnimationGroup()
+            g.animations = [sc, op, lw]
+            g.duration = life
+            g.beginTime = 1e-3 + start
+            g.fillMode = .removed
+            g.isRemovedOnCompletion = false
+            l.add(g, forKey: "fx")
+            root.addSublayer(l)
+        }
+        layer.addSublayer(root)
+        return root
     }
 
     /// Ẩn bàn phím / đổi theme: đứng yên ngay ở ánh nghỉ (không còn animation).
@@ -286,8 +476,10 @@ final class RainbowBorderView: UIView {
         let now = CACurrentMediaTime()
         clock.stop()
         motion = .rest(at: motion.offset(at: now))
-        fade = RainbowFade()
+        fade = RainbowFade(from: tuning.restAlpha, to: tuning.restAlpha)
+        combo.reset()
         CATransaction.begin(); CATransaction.setDisableActions(true)
+        for r in ripples { r.isHidden = true }
         strip.removeAllAnimations()
         strip.opacity = Float(fade.to)
         applyOffset(motion.x0)
@@ -332,16 +524,24 @@ final class RainbowBorderView: UIView {
     /// Nghỉ: giảm tốc tới dừng + mờ xuống ánh nghỉ, cùng lúc (GPU); xong thì tick gỡ sạch.
     private func settle(at now: Double) {
         clock.stop()
-        motion = motion.settled(at: now)
+        motion = motion.settled(at: now, tuning)
         CATransaction.begin(); CATransaction.setDisableActions(true)
         installMotion(at: now)
-        fadeStrip(to: RainbowBorder.restAlpha, duration: RainbowBorder.fadeOutTime, at: now)
+        fadeStrip(to: tuning.restAlpha, duration: tuning.fadeOutTime, at: now)
         CATransaction.commit()
     }
 
     private func applyOffset(_ x: Double) {
         strip.setAffineTransform(CGAffineTransform(translationX: -CGFloat(x) * bounds.width, y: 0))
     }
+
+    #if DEBUG
+    nonisolated(unsafe) static var drawsOffscreen = false
+    var debugRipples: [CALayer] { ripples }
+    var debugRippleFired: Int { rippleGate.fired }
+    #else
+    static let drawsOffscreen = false
+    #endif
 
     /// Dựng animation dịch dải theo `motion` từ `now`: đoạn tăng/giảm tốc (keyframe, đã lấy dư) rồi — nếu còn chạy —
     /// vòng lặp 0 → −W đúng một chu kỳ, lặp mãi (timeOffset = vị trí vào vòng). Model = vị trí cuối ⇒ khe giữa hai
@@ -368,10 +568,10 @@ final class RainbowBorderView: UIView {
             let a = CABasicAnimation(keyPath: "transform.translation.x")
             a.fromValue = 0.0
             a.toValue = -w
-            a.duration = RainbowBorder.period
+            a.duration = tuning.period
             a.repeatCount = .infinity
             a.timingFunction = CAMediaTimingFunction(name: .linear)
-            a.timeOffset = entry * RainbowBorder.period
+            a.timeOffset = entry * tuning.period
             if end > now { a.beginTime = strip.convertTime(end, from: nil) }
             a.isRemovedOnCompletion = false
             strip.add(a, forKey: Self.loopKey)
@@ -380,6 +580,7 @@ final class RainbowBorderView: UIView {
 
     /// Độ sáng dải → `a` trong `duration` giây (từ độ sáng đang hiện; animation opacity GPU). Trong CATransaction.
     private func fadeStrip(to a: Double, duration: Double, at now: Double) {
+        guard duration > 0, abs(fade.alpha(at: now) - a) > 1e-9 else { return }   // nền "hueflow": độ đậm không đổi
         fade = fade.toward(a, at: now, duration: duration)
         strip.opacity = Float(a)
         let an = CABasicAnimation(keyPath: "opacity")
@@ -423,9 +624,11 @@ final class RainbowBorderView: UIView {
         guard let path = outline.path, bounds.width > 0 else { return }
         c.saveGState()
         c.setAlpha(CGFloat(isAurora ? AuroraFx.borderAlpha : fade.alpha(at: CACurrentMediaTime())))
-        c.addPath(path.copy(strokingWithWidth: outline.lineWidth, lineCap: .butt, lineJoin: .miter, miterLimit: 10))
-        c.clip()
-        let st = isAurora ? AuroraFx.border : RainbowBorder.stops()
+        if !isFill {
+            c.addPath(path.copy(strokingWithWidth: outline.lineWidth, lineCap: .butt, lineJoin: .miter, miterLimit: 10))
+            c.clip()
+        }
+        let st = isAurora ? AuroraFx.border : isFill ? HueFlow.fillStops() : RainbowBorder.stops()
         let cols = st.map { UIColor(rgbHex: $0.color).cgColor } as CFArray
         let locs = st.map { CGFloat($0.location) }
         if let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: cols, locations: locs) {

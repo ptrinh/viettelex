@@ -36,6 +36,8 @@ enum KeyEffect: String, CaseIterable {
     case tokens
     // Theme Neon Night Club (11/2026): Sàn nhảy LED — phím vừa bấm + các phím quanh thắp neon thành vòng vuông lan ra.
     case dancefloor
+    // Theme "Ảo giác" (11/2026): Kính vạn hoa — bông đối xứng 8 nhánh sắc cầu vồng nở + xoay chậm từ phím (Kaleido.swift).
+    case kaleido
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -78,6 +80,7 @@ enum KeyEffect: String, CaseIterable {
         case .sea: return L("Biển")
         case .tokens: return L("Token AI")
         case .dancefloor: return L("Sàn nhảy LED")
+        case .kaleido: return L("Kính vạn hoa")
         }
     }
 
@@ -1539,6 +1542,8 @@ extension UIView {
 /// gõ, gỡ sạch sau khi nghỉ.
 final class KeyEffectOverlay: UIView {
     private(set) var effect: KeyEffect
+    /// Kính vạn hoa: dựng lười ở phím đầu; kiểu khác ⇒ nil.
+    private var kaleido: KaleidoFx?
     private var color: UIColor
     private var keyFill: UIColor
     private var dark: Bool
@@ -1719,7 +1724,8 @@ final class KeyEffectOverlay: UIView {
         rebuild()
     }
 
-    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor]
+    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor,
+                                          .kaleido]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -1883,6 +1889,8 @@ final class KeyEffectOverlay: UIView {
     var debugSandLayer: CAShapeLayer? { sandPile }
     func debugLandSand() { landSand() }
     var debugLetters: [CATextLayer] { letters }
+    /// Kính vạn hoa: gốc các bông đã dựng (pool).
+    var debugKaleidoRoots: [CALayer] { kaleido?.roots ?? [] }
     /// Biển: gốc các con sóng đã dựng + cỡ (scale dọc) từng con + cá (nil nếu chưa bơi lần nào).
     var debugSeaWaveRoots: [CALayer] { seaWaves.map(\.root) }
     var debugSeaWaveSizes: [CGFloat] { seaWaves.map { $0.wave.transform.m22 } }
@@ -1910,6 +1918,10 @@ final class KeyEffectOverlay: UIView {
         case .plasma: firePlasma(c, now: now, media: media)
         case .shake: fireShake(media: media)
         case .laser: fireLaser(c, now: now)
+        case .kaleido:
+            let k = kaleido ?? KaleidoFx(host: layer)
+            kaleido = k
+            k.fire(at: c, bounds: bounds, now: now)
         case .glitch: fireGlitch(r, now: now)
         case .sand: fireSand(c, now: now, media: media)
         case .sea: fireSea(c, now: now, media: media)
@@ -2277,6 +2289,7 @@ final class KeyEffectOverlay: UIView {
 
     /// Dừng mọi thứ chạy liên tục (ẩn bàn phím / đổi kiểu / gỡ).
     func halt() {
+        kaleido?.halt()
         haltMatrix()
         pendingEmoji = nil; pendingTone = nil; pendingKeyword = nil; pendingLetter = nil; pendingToken = nil
         for l in strings { l.removeAllAnimations() }
@@ -3290,6 +3303,7 @@ final class KeyEffectOverlay: UIView {
 
     /// Đổi kiểu / màu (lúc hiện bàn phím): bỏ các chùm cũ, dựng lại lười ở lần bấm kế.
     private func rebuild() {
+        kaleido?.remove(); kaleido = nil
         paths = (0..<max(effect.particlesPerTap, 1)).map { KeyEffectShapes.path(effect, particle: $0) }
         pool = KeyEffectPool(capacity: effect.burstSlots)
         strikePool = KeyEffectPool(capacity: Strike.cap)

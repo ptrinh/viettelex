@@ -46,7 +46,9 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
     /** Theme "AI" (11/2026): "blip" synth mềm — sine trượt lên D6 → G6 + nốt A6 khẽ chen — công thức đầu file Swift. */
     AI("ai", "Synth AI"), // l10n-key
     /** Theme "Neon Night Club" (11/2026): nhịp club — chữ = hi-hat, xoá = kick, chức năng = kick + hat ([KeySoundSynth.clubRecipe]). */
-    CLUB("club", "Nhịp club"); // l10n-key
+    CLUB("club", "Nhịp club"), // l10n-key
+    /** Theme "Ảo giác" (11/2026): "bloop" mơ màng — hai sine lệch ~1 % trượt lên (phách chậm = lượn cao độ nhẹ). */
+    DREAM("dream", "Mơ màng"); // l10n-key
 
     /** true ⇒ phát qua SoundPool riêng; [SYSTEM] ⇒ playSoundEffect, không dựng gì. */
     val usesPool: Boolean get() = this != SYSTEM
@@ -56,7 +58,7 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
         val DEFAULT = SUBTLE
         /** Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức [KeySoundSynth.baseRecipe]. */
         val PRESETS = listOf(SUBTLE, WOOD, MECHANICAL, TYPEWRITER, BUBBLE, ROCK, POP, WATER, VINTAGE, PHAO, JINGLE, SCIFI,
-            TRONG, BOO, BOP, CHIP, AI, CLUB)
+            TRONG, BOO, BOP, CHIP, AI, CLUB, DREAM)
         /** Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta). */
         val ALL_PRESETS = PRESETS + PIANO + DANTRANH + GUITAR
         /**
@@ -170,6 +172,11 @@ object KeySoundSynth {
                 t(0.38, 1760.0, 1760.0, tau = 0.012, delay = 0.014)),
             emptyList(), 0.002, 0.05, 5000.0, 0.36)
         KeySoundStyle.CLUB -> clubRecipe(Kind.LETTER)
+        // Mơ màng: G5 → C6 trượt 24 ms + bản sao lệch +1,1 % (phách ~9 Hz) + bồi quãng năm khẽ; không nhiễu — y hệt Swift.
+        KeySoundStyle.DREAM -> Recipe(
+            listOf(t(1.0, 784.0, 1047.0, glide = 0.024, tau = 0.013), t(0.7, 793.0, 1058.0, glide = 0.024, tau = 0.013),
+                t(0.12, 1176.0, 1570.0, glide = 0.024, tau = 0.007)),
+            emptyList(), 0.003, 0.054, 3200.0, 0.38)
     }
 
     /**

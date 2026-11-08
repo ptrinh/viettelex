@@ -88,12 +88,14 @@ enum KeySoundStyle: String, CaseIterable {
     // Theme "Neon Night Club" (11/2026): nhịp club điện tử — phím chữ = hi-hat "tss" ngắn, xoá = kick điện tử, cách /
     // Enter (chức năng) = kick + hat ⇒ gõ chữ rồi cách thành nhịp "tss tss tss BÙM" xen kẽ tự nhiên.
     case club
+    // Theme "Ảo giác" (11/2026): "bloop" mơ màng — hai sine lệch nhau ~1 % trượt lên (phách chậm = lượn cao độ nhẹ).
+    case dream
 
     /// Bật "Âm thanh phím" lần đầu ⇒ "Nhẹ nhàng" (bật công tắc phải NGHE khác đi; "iOS" = như lúc tắt).
     static let defaultStyle: KeySoundStyle = .subtle
     /// Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức `baseRecipe`.
     static let presets: [KeySoundStyle] = [.subtle, .wood, .mechanical, .typewriter, .bubble, .rock, .pop, .water, .vintage, .phao, .jingle,
-                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club]
+                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club, .dream]
     /// Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta).
     static let allPresets: [KeySoundStyle] = presets + [.piano, .dantranh, .guitar]
     /// DANH SÁCH DUY NHẤT id hợp lệ cho trường "sound" của theme JSON (chọn theme ⇒ đặt keySoundStyle).
@@ -136,6 +138,7 @@ enum KeySoundStyle: String, CaseIterable {
         case .chip: return LK("Bíp 8-bit")
         case .ai: return LK("Synth AI")
         case .club: return LK("Nhịp club")
+        case .dream: return LK("Mơ màng")
         }
     }
 
@@ -253,6 +256,14 @@ enum KeySoundSynth {
                           attack: 0.002, duration: 0.05, outLP: 5000, peak: 0.36)
         case .club:
             return clubRecipe(.letter)
+        case .dream:
+            // Mơ màng: "bloop" mềm — sine G5 (784 Hz) trượt lên C6 (1047 Hz) trong 24 ms + bản sao lệch +1,1 % (phách ~9 Hz
+            // ⇒ cao độ lượn nhẹ như chorus) + bồi quãng năm rất khẽ. Không nhiễu (checksum không phụ thuộc seed), đỉnh 0.38
+            // (< Gõ gỗ), ≤ 56 ms, lọc mềm 3,2 kHz.
+            return Recipe(tones: [t(1.0, 784, 1047, glide: 0.024, tau: 0.013), t(0.7, 793, 1058, glide: 0.024, tau: 0.013),
+                                  t(0.12, 1176, 1570, glide: 0.024, tau: 0.007)],
+                          noises: [],
+                          attack: 0.003, duration: 0.054, outLP: 3200, peak: 0.38)
         }
     }
 
