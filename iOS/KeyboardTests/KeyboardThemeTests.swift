@@ -193,7 +193,7 @@ final class KeyboardThemeTests: XCTestCase {
     /// Theme tối cố định (OLED, Tương phản cao, Tim đen, Neon) không đổi theo hệ thống; mọi theme
     /// nền đục khác có bản tối riêng (bug 10/2026: "giao diện plus ở chế độ tối không chuyển tối").
     func testFixedThemesIgnoreSystemAppearance() {
-        let fixed: Set<KeyboardTheme> = [.oled, .contrast, .blackHeart, .neon, .tet, .xmas, .piano, .rgb, .space, .trungthu, .halloween, .mole, .pixel, .ai, .nightclub]
+        let fixed: Set<KeyboardTheme> = [.oled, .contrast, .blackHeart, .neon, .tet, .xmas, .piano, .rgb, .space, .trungthu, .halloween, .mole, .pixel, .ai, .nightclub, .aquarium]
         for t in KeyboardTheme.allCases where t != .system && t != .glass {
             XCTAssertNotNil(t.palette(systemDark: false).background, "\(t) cần nền đục")
             if fixed.contains(t) {
@@ -870,7 +870,7 @@ final class ThemeSetTests: XCTestCase {
                                              .guitar,
                                              .mole,
                                              .pixel, .sea, .timeOfDay,
-                                             .nightclub, .football]
+                                             .nightclub, .football, .aquarium]
     static let pastels: [KeyboardTheme] = [.peach, .mint, .sky, .lavender]
 
     // MARK: bảng màu chung iOS ↔ Android
@@ -1631,7 +1631,7 @@ final class ThemeSetTests: XCTestCase {
         let secs = ThemePicker.sections
         XCTAssertEqual(secs.map(\.title), ["Miễn phí", "Tương tác", "Plus"])
         XCTAssertEqual(secs[0].themes, [.system, .oled, .contrast, .neutral])
-        XCTAssertEqual(secs[1].themes, [.nightclub, .ai, .sea, .mole, .piano, .space, .rgb, .tet, .tetMai, .guitar, .football])
+        XCTAssertEqual(secs[1].themes, [.nightclub, .ai, .sea, .mole, .piano, .space, .rgb, .tet, .tetMai, .guitar, .football, .aquarium])
         XCTAssertEqual(secs.flatMap(\.themes), ThemePicker.ordered())
         XCTAssertEqual(Set(secs.flatMap(\.themes)), Set(KeyboardTheme.allCases))
         XCTAssertEqual(secs.flatMap(\.themes).count, KeyboardTheme.allCases.count, "không trùng")

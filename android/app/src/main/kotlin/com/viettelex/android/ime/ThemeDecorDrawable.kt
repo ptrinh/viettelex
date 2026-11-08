@@ -161,6 +161,14 @@ class ThemeScenePainter(private val motif: String, private val color: Int, priva
                 fillPaint.color = color
                 canvas.drawPath(p3, fillPaint)
             }
+            ThemeDecoration.AQUARIUM -> {
+                val a = com.viettelex.keyboard.AquariumScene
+                fillPaint.color = color; canvas.drawPath(p1, fillPaint)                       // vệt nắng (màu deco)
+                fillPaint.color = a.SAND_COLOR or (0xFF shl 24); fillPaint.alpha = (255 * a.SAND_ALPHA).toInt()
+                canvas.drawPath(p2, fillPaint)                                                // cát
+                linePaint.color = a.WEED_COLOR or (0xFF shl 24); linePaint.alpha = (255 * a.WEED_ALPHA).toInt()
+                canvas.drawPath(p3, linePaint)                                                // rong
+            }
         }
     }
 
@@ -186,6 +194,19 @@ class ThemeScenePainter(private val motif: String, private val color: Int, priva
                 }
                 p3.addCircle(x(wd / 2), y(hd / 2), (ps.SPOT * unit).toFloat(), Path.Direction.CW)
                 linePaint.strokeWidth = (ps.LINE_WIDTH * unit).toFloat()
+                n += 3
+            }
+            ThemeDecoration.AQUARIUM -> {
+                val a = com.viettelex.keyboard.AquariumScene
+                for (q in a.rays(wd, hd)) {
+                    for ((i, pt) in q.withIndex()) { if (i == 0) p1.moveTo(x(pt.first), y(pt.second)) else p1.lineTo(x(pt.first), y(pt.second)) }
+                    p1.close()
+                }
+                p2.moveTo(x(0.0), y(hd))
+                for (pt in a.sandTop(wd, hd)) p2.lineTo(x(pt.first), y(pt.second))
+                p2.lineTo(x(wd), y(hd)); p2.close()
+                for (wv in a.weeds(wd, hd)) { p3.moveTo(x(wv[0]), y(wv[1])); p3.quadTo(x(wv[2]), y(wv[3]), x(wv[4]), y(wv[5])) }
+                linePaint.strokeWidth = (a.WEED_WIDTH * unit).toFloat()
                 n += 3
             }
         }

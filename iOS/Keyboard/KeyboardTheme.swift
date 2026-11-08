@@ -283,6 +283,9 @@ enum KeyboardTheme: String, CaseIterable {
     // Bóng đá (11/2026, Plus, THÊM CUỐI): sân cỏ sọc + vạch vôi (motif cảnh "pitch"), phím trắng / tối kiểu bảng tỉ số,
     // hiệu ứng "Sút!" (Enter sút bóng vào lưới, cụm cổ vũ ⇒ pháo sáng + cờ đỏ sao vàng — FootballFx.swift), âm "thump".
     case football
+    // Bể cá (11/2026, Plus, THÊM CUỐI): nước sâu + vệt nắng + cát + rong (cảnh "aquarium"), phím kính trong mờ, hiệu ứng
+    // "Cho cá ăn" (AquariumFx.swift — cá bơi sau phím, mỗi phím thả một viên thức ăn), âm "bloop".
+    case aquarium
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -322,6 +325,7 @@ enum KeyboardTheme: String, CaseIterable {
         case .ai: return L("AI")
         case .nightclub: return L("Neon Night Club")
         case .football: return L("Bóng đá")
+        case .aquarium: return L("Bể cá")
         }
     }
 
@@ -358,7 +362,7 @@ enum KeyboardTheme: String, CaseIterable {
              .pixel, .sea, .timeOfDay,
              .ai,
              .nightclub,
-             .football: return true
+             .football, .aquarium: return true
         }
     }
 
@@ -438,6 +442,8 @@ struct KeyboardDecoration: Equatable {
         case neural
         // Bộ 11/2026 — CẢNH (ThemeScene, vẽ trọn nền một lần, không theo khe hàng): "pitch" = sân cỏ (Bóng đá).
         case pitch
+        // "aquarium" = bể cá (gradient nước sâu + vệt nắng + cát + rong).
+        case aquarium
     }
     var motif: Motif
     var color: RGBA
@@ -615,7 +621,7 @@ struct KeyboardDecoration: Equatable {
         func poly(_ q: [[Double]]) -> Sub { Sub(start: (q[0][0], q[0][1]), segs: Array(q.dropFirst())) }
         switch m {
         case .hearts, .flowers, .strings: return []
-        case .pitch: return []          // cảnh: ThemeScene vẽ trọn nền
+        case .pitch, .aquarium: return []          // cảnh: ThemeScene vẽ trọn nền
         case .pixel:
             // Trái tim điểm ảnh 7×6 ô (ô = 1/7): mỗi hàng ô liền nhau = MỘT hình chữ nhật (trên-trái → trên-phải →
             // dưới-phải → dưới-trái, cùng chiều quay ⇒ tô nonzero = hợp, không thủng).
@@ -828,7 +834,7 @@ enum ThemePicker {
     /// Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng
     /// không có trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. Android ThemePicker.INTERACTIVE_ORDER y hệt.
     static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar",
-                                   "football"]
+                                   "football", "aquarium"]
 
     /// Thứ tự lưới (thuần): miễn phí (thứ tự khai báo) → tương tác (theo `interactiveOrder`) → còn lại (thứ tự khai
     /// báo). Theme miễn phí có nhãn vẫn ở nhóm miễn phí. Android `ThemePicker.groups` cùng kết quả (fixture "picker").

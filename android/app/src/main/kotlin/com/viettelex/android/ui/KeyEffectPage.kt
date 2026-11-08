@@ -67,7 +67,8 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
             " " + tr("Rung combo không rung khi bật Giảm chuyển động. Dấu thanh phản ứng theo dấu vừa bỏ; Từ khoá nổ pháo đỏ và lì xì khi gõ \"tết\", thả tim khi gõ \"yêu\"; Chữ bay thả đúng chữ vừa ra; Hạt cát đọng thành đống thấp ở đáy rồi tự tan.") +
             " " + tr("Biển: mỗi đợt gõ một con sóng vỗ vào bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang.") +
             " " + tr("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp.") +
-            " " + tr("Sút!: Enter sút bóng vào lưới; gõ \"vô địch\", \"Việt Nam vô địch\", \"vào\" hay \"goal\" để đốt pháo sáng và tung cờ đỏ sao vàng.")) {
+            " " + tr("Sút!: Enter sút bóng vào lưới; gõ \"vô địch\", \"Việt Nam vô địch\", \"vào\" hay \"goal\" để đốt pháo sáng và tung cờ đỏ sao vàng.") +
+            " " + tr("Cho cá ăn: cá bơi chậm sau hàng phím; mỗi phím thả một viên thức ăn, chú cá gần nhất bơi tới ăn. Cá lớn dần và có thêm bạn theo số viên đã ăn.")) {
         KeyEffect.entries.chunked(3).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { e ->
@@ -141,6 +142,8 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
             KeyEffect.TOKENS -> queueToken("ế")   // l10n-skip (chữ mẫu, không phải câu chữ)
             // Sút!: "Enter" sút bóng vào lưới + cụm cổ vũ (như vừa gõ "vô địch" + cách).
             KeyEffect.GOAL -> { queueCheer(); burst(x, y, 34 * d, 42 * d, isReturn = true); return }
+            // Cho cá ăn: ba viên thức ăn rơi quanh phím mẫu.
+            KeyEffect.FISHFEED -> { burst(x - 24 * d, y - 20 * d, 34 * d, 42 * d); flush(); burst(x + 24 * d, y - 24 * d, 34 * d, 42 * d); flush() }
             else -> {}
         }
         burst(x, y, 34 * d, 42 * d)

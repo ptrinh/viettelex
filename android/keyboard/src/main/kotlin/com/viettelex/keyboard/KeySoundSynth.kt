@@ -48,7 +48,9 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
     /** Theme "Neon Night Club" (11/2026): nhịp club — chữ = hi-hat, xoá = kick, chức năng = kick + hat ([KeySoundSynth.clubRecipe]). */
     CLUB("club", "Nhịp club"), // l10n-key
     /** Theme "Bóng đá" (11/2026): tiếng bóng "bụp" mềm — thân sine trầm trượt xuống + chút da bóng + hơi cỏ (iOS thump). */
-    THUMP("thump", "Bóng bụp"); // l10n-key
+    THUMP("thump", "Bóng bụp"), // l10n-key
+    /** Theme "Bể cá" (11/2026): bọt "bloop" mềm — sine trượt LÊN 380 → 900 Hz, không nhiễu (iOS bloop). */
+    BLOOP("bloop", "Bọt cá"); // l10n-key
 
     /** true ⇒ phát qua SoundPool riêng; [SYSTEM] ⇒ playSoundEffect, không dựng gì. */
     val usesPool: Boolean get() = this != SYSTEM
@@ -58,7 +60,7 @@ enum class KeySoundStyle(val id: String, val viTitle: String) {
         val DEFAULT = SUBTLE
         /** Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức [KeySoundSynth.baseRecipe]. */
         val PRESETS = listOf(SUBTLE, WOOD, MECHANICAL, TYPEWRITER, BUBBLE, ROCK, POP, WATER, VINTAGE, PHAO, JINGLE, SCIFI,
-            TRONG, BOO, BOP, CHIP, AI, CLUB, THUMP)
+            TRONG, BOO, BOP, CHIP, AI, CLUB, THUMP, BLOOP)
         /** Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta). */
         val ALL_PRESETS = PRESETS + PIANO + DANTRANH + GUITAR
         /**
@@ -176,6 +178,10 @@ object KeySoundSynth {
         KeySoundStyle.THUMP -> Recipe(
             listOf(t(1.0, 120.0, 85.0, glide = 0.006, tau = 0.018), t(0.25, 240.0, 200.0, glide = 0.006, tau = 0.006)),
             listOf(n(0.25, hp = 90.0, lp = 900.0, tau = 0.003)), 0.0015, 0.054, 1400.0, 0.50)
+        // Bọt cá: sine 380 → 900 Hz (glide 14 ms) τ14 ms + bồi bát độ khẽ (0.10); mở 3 ms, 45 ms, lọc 2,8 kHz, đỉnh 0.45.
+        KeySoundStyle.BLOOP -> Recipe(
+            listOf(t(1.0, 380.0, 900.0, glide = 0.014, tau = 0.014), t(0.10, 760.0, 1800.0, glide = 0.014, tau = 0.008)),
+            emptyList(), 0.003, 0.045, 2800.0, 0.45)
     }
 
     /**
@@ -334,7 +340,7 @@ object KeySoundSynth {
             ?: ((0x9E3779B9.toInt() * (s.ordinal + 1)) xor (0x85EBCA6B.toInt() * (k.ordinal + 1)))
 
     /** Seed cố định theo tên kiểu ("thum"…) — iOS KeySoundSynth.fixedSeeds y hệt. */
-    val FIXED_SEEDS: Map<KeySoundStyle, Int> = mapOf(KeySoundStyle.THUMP to 0x7468756D)
+    val FIXED_SEEDS: Map<KeySoundStyle, Int> = mapOf(KeySoundStyle.THUMP to 0x7468756D, KeySoundStyle.BLOOP to 0x626C6F6F)
 
     fun samples(s: KeySoundStyle, k: Kind): FloatArray = render(recipe(s, k), seed(s, k))
 

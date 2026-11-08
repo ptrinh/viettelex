@@ -229,6 +229,14 @@ enum BuiltinThemesData {
                 "accentInk": "#FFFFFF", "fn": "#14281A", "fnInk": "#FFFFFF", "deco": {"motif": "pitch", "color": "#4DFFFFFF"}},
       "dark": {"bg": "#1B4D20", "key": "#1C2620", "special": "#2A362E", "ink": "#F4FFF2", "accent": "#C62828",
                "accentInk": "#FFFFFF", "fn": "#0F1712", "fnInk": "#FFD54F", "deco": {"motif": "pitch", "color": "#38FFFFFF"}}
+    },
+    {
+      "v": 1, "id": "aquarium", "name": {"vi": "Bể cá", "en": "Aquarium"}, "tags": ["interactive"], "corner": 50,
+      "sound": "bloop", "effect": "fishfeed",
+      "light": {"bg": "#0B3D66", "key": "#2BFFFFFF", "special": "#59041E36", "ink": "#FFFFFF", "accent": "#FF9F1C",
+                "accentInk": "#1A1000", "fn": "#59041E36", "fnInk": "#BDF2FF", "border": "#4DFFFFFF",
+                "deco": {"motif": "aquarium", "color": "#12FFFFFF"}},
+      "dark": "same"
     }
   ]
 }

@@ -38,6 +38,8 @@ enum KeyEffect: String, CaseIterable {
     case dancefloor
     // Theme Bóng đá (11/2026): Sút! — Enter sút bóng vào lưới, phím khác nhú túm cỏ, cụm cổ vũ ⇒ pháo sáng + cờ (FootballFx).
     case goal
+    // Theme Bể cá (11/2026): Cho cá ăn — cá bơi sau phím, mỗi phím thả một viên thức ăn, cá gần nhất bơi tới ăn (AquariumFx).
+    case fishfeed
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -81,6 +83,7 @@ enum KeyEffect: String, CaseIterable {
         case .tokens: return L("Token AI")
         case .dancefloor: return L("Sàn nhảy LED")
         case .goal: return L("Sút!")
+        case .fishfeed: return L("Cho cá ăn")
         }
     }
 
@@ -104,7 +107,7 @@ enum KeyEffect: String, CaseIterable {
     /// Dải z: Matrix / Mực loang / Sóng nước vẽ trên nền nhưng DƯỚI phím.
     var band: KeyEffectBand {
         switch self {
-        case .matrix, .ink, .wave, .string: return .belowKeys
+        case .matrix, .ink, .wave, .string, .fishfeed: return .belowKeys
         default: return .aboveKeys
         }
     }
@@ -1862,7 +1865,7 @@ final class KeyEffectOverlay: UIView {
         rebuild()
     }
 
-    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor, .goal]
+    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor, .goal, .fishfeed]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -2070,7 +2073,7 @@ final class KeyEffectOverlay: UIView {
         case .sand: fireSand(c, now: now, media: media)
         case .sea: fireSea(c, now: now, media: media)
         case .dancefloor: fireDance(r, now: now, media: media)
-        case .goal: themeFx?.fire(r, isReturn: pendingReturn == r, now: now, media: media)
+        case .goal, .fishfeed: themeFx?.fire(r, isReturn: pendingReturn == r, now: now, media: media)
         case .flash: fireFlash(now: now, media: media)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)

@@ -72,6 +72,7 @@
     "swipeKeyCommands" : false,
     "swipeTyping" : true,
     "systemBackdropAi" : false,
+    "systemBackdropAquarium" : false,
     "systemBackdropBlackHeart" : false,
     "systemBackdropContrast" : false,
     "systemBackdropFootball" : false,

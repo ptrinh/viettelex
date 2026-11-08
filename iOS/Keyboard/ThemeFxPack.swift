@@ -25,12 +25,13 @@ extension ThemeFxRenderer {
 
 enum ThemeFxFactory {
     /// Kiểu có bộ vẽ riêng.
-    static let effects: Set<KeyEffect> = [.goal]
+    static let effects: Set<KeyEffect> = [.goal, .fishfeed]
     static func handles(_ e: KeyEffect) -> Bool { effects.contains(e) }
 
     @MainActor static func make(_ e: KeyEffect, host: UIView, defaults: UserDefaults?) -> ThemeFxRenderer? {
         switch e {
         case .goal: return GoalRenderer(host: host)
+        case .fishfeed: return FishFeedRenderer(host: host, defaults: defaults)
         default: return nil
         }
     }
@@ -41,11 +42,12 @@ enum ThemeFxFactory {
 /// Motif "cảnh": vẽ TRỌN nền theme một lần mỗi cỡ (không theo khe hàng phím như motif thường): gradient + hình vector.
 /// Màu `deco.color` = màu nét / điểm sáng của cảnh; gradient theo bảng cố định (sáng / tối).
 enum ThemeScene {
-    static let motifs: Set<KeyboardDecoration.Motif> = [.pitch]
+    static let motifs: Set<KeyboardDecoration.Motif> = [.pitch, .aquarium]
     static func isScene(_ m: KeyboardDecoration.Motif) -> Bool { motifs.contains(m) }
     /// Gradient trên → dưới (0xRRGGBB); rỗng = giữ màu nền theme.
     static func gradient(_ m: KeyboardDecoration.Motif, dark: Bool) -> [UInt32] {
         switch m {
+        case .aquarium: return [0x0F4C7A, 0x0B3D66, 0x062847]   // nước sâu (sáng = tối)
         default: return []
         }
     }
@@ -77,6 +79,7 @@ final class ThemeSceneLayer: CALayer {
         }
         switch m {
         case .pitch: buildPitch(w, h, color)
+        case .aquarium: buildAquarium(w, h, color)
         default: break
         }
     }
@@ -110,6 +113,30 @@ final class ThemeSceneLayer: CALayer {
         let spot = PitchScene.spot
         _ = shape(CGPath(ellipseIn: CGRect(x: w / 2 - spot, y: h / 2 - spot, width: 2 * spot, height: 2 * spot), transform: nil),
                   fill: c.ui)
+    }
+
+    private func buildAquarium(_ w: Double, _ h: Double, _ c: RGBA) {
+        let rays = CGMutablePath()
+        for q in AquariumScene.rays(width: w, height: h) {
+            for (i, p) in q.enumerated() {
+                if i == 0 { rays.move(to: CGPoint(x: p.0, y: p.1)) } else { rays.addLine(to: CGPoint(x: p.0, y: p.1)) }
+            }
+            rays.closeSubpath()
+        }
+        _ = shape(rays, fill: c.ui)
+        let sand = CGMutablePath()
+        let top = AquariumScene.sandTop(width: w, height: h)
+        sand.move(to: CGPoint(x: 0, y: h))
+        for p in top { sand.addLine(to: CGPoint(x: p.0, y: p.1)) }
+        sand.addLine(to: CGPoint(x: w, y: h)); sand.closeSubpath()
+        _ = shape(sand, fill: UIColor(fx: AquariumScene.sandColor, alpha: AquariumScene.sandAlpha))
+        let weeds = CGMutablePath()
+        for s in AquariumScene.weeds(width: w, height: h) {
+            weeds.move(to: CGPoint(x: s.x0, y: s.y0))
+            weeds.addQuadCurve(to: CGPoint(x: s.x1, y: s.y1), control: CGPoint(x: s.cx, y: s.cy))
+        }
+        _ = shape(weeds, fill: nil, stroke: UIColor(fx: AquariumScene.weedColor, alpha: AquariumScene.weedAlpha),
+                  width: AquariumScene.weedWidth)
     }
 
     #if DEBUG

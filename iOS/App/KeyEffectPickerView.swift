@@ -39,6 +39,7 @@ struct KeyEffectPickerView: View {
                     + Text(" ") + Text(L("Biển: mỗi đợt gõ một con sóng vỗ vào bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang."))
                     + Text(" ") + Text(L("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp."))
                     + Text(" ") + Text(L("Sút!: Enter sút bóng vào lưới; gõ \"vô địch\", \"Việt Nam vô địch\", \"vào\" hay \"goal\" để đốt pháo sáng và tung cờ đỏ sao vàng."))
+                    + Text(" ") + Text(L("Cho cá ăn: cá bơi chậm sau hàng phím; mỗi phím thả một viên thức ăn, chú cá gần nhất bơi tới ăn. Cá lớn dần và có thêm bạn theo số viên đã ăn."))
             }
         }
         .bottomBarScrollMargin()
@@ -156,6 +157,10 @@ final class KeyEffectPreviewView: UIView {
             if effect == .combo || effect == .shake || effect == .sea {   // Biển: sóng lớn + cá bơi
                 // Xem thử combo: một tràng phím nhanh ⇒ lên mức lửa cao nhất.
                 for _ in 0..<ComboMeter.thresholds[2] { overlay?.emit(key: key.frame); overlay?.flush() }
+            }
+            if effect == .fishfeed {   // Cho cá ăn: ba viên thức ăn rơi quanh phím mẫu
+                overlay?.emit(key: key.frame.offsetBy(dx: -24, dy: -20)); overlay?.flush()
+                overlay?.emit(key: key.frame.offsetBy(dx: 24, dy: -24)); overlay?.flush()
             }
             if effect == .goal {   // Sút!: "Enter" sút bóng vào lưới + cụm cổ vũ (như vừa gõ "vô địch" + cách)
                 overlay?.queueCheer()

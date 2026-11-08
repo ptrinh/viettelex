@@ -406,6 +406,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         v.tokenTarget = if (tokens) { out -> r.tokenTarget(out, v) } else null
         v.onSeaWave = if (sea) { size -> feedback.surf(size) } else null
         v.onThemeEvent = if (goal) ({ feedback.cheer(); Unit }) else null
+        // Cho cá ăn: bộ đếm thức ăn theo máy (ime_state) — kiểu khác ⇒ null.
+        v.fishPrefs = if (fx == com.viettelex.keyboard.KeyEffect.FISHFEED) stateStore() else null
         strip?.onShown = if (tokens) { set ->
             r.suggestionRect(tokenRect, v)
             val words = ArrayList<String>(8)

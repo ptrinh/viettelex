@@ -7321,6 +7321,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         KeySound.shared.setEventSound(sea ? .surf : goal ? .cheer : nil)
         keyEffects?.onSeaWave = sea ? { Self.seaSurf(size: $0) } : nil
         keyEffects?.onThemeEvent = goal ? { Self.goalCheer() } : nil
+        // Cho cá ăn: bộ đếm thức ăn theo máy (App Group) — kiểu khác ⇒ nil.
+        keyEffects?.themeDefaults = keyEffects?.effect == .fishfeed ? UserDefaultsProvider.shared : nil
         configureBeatFlash(keyEffects?.effect == .dancefloor)
         syncKeyEffectsSpace()
         layoutStringGaps()

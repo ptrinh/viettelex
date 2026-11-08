@@ -47,6 +47,7 @@ import com.viettelex.keyboard.WaveRings
 import com.viettelex.keyboard.CheerBurst
 import com.viettelex.keyboard.GoalFx
 import com.viettelex.keyboard.GrassTuft
+import com.viettelex.keyboard.AquariumFx
 
 /**
  * Lớp phủ "Hiệu ứng khi bấm phím" (Plus) — song sinh iOS KeyEffectOverlay. MỘT View không nhận chạm.
@@ -300,6 +301,25 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         textAlign = Paint.Align.CENTER; typeface = android.graphics.Typeface.DEFAULT_BOLD; color = 0xFFFFFFFF.toInt()
     }
 
+    // Cho cá ăn (theme Bể cá — [AquariumFx], dp): thế giới dựng lười theo cỡ view; mô phỏng chỉ khi đang gõ (nghỉ 3 s ⇒ thôi
+    // hẹn khung hình, cá đứng yên); bộ đếm thức ăn lưu thưa ([AquariumFx.PersistGate]).
+    /** Nơi lưu bộ đếm "aquariumFood" — IME đặt khi kiểu là Cho cá ăn; null (ô xem thử) ⇒ không lưu, bắt đầu từ 0. */
+    var fishPrefs: android.content.SharedPreferences? = null
+        set(v) {
+            if (v === field) return
+            field = v
+            fishGate = AquariumFx.PersistGate()
+            fishWorld = null   // nạp lại bộ đếm từ nơi lưu mới (không ghi đè bằng 0)
+            invalidate()
+        }
+    private var fishWorld: AquariumFx.World? = null
+    private var fishBuiltW = -1; private var fishBuiltH = -1
+    private var fishLastPress = Long.MIN_VALUE / 2
+    private var fishLastTick = 0L
+    private var fishGate = AquariumFx.PersistGate()
+    private val fishBody = Path(); private val fishEye = Path()
+    private var fishPathsBuilt = false
+
     val effect: KeyEffect get() = sim.effect
 
     init {
@@ -338,6 +358,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         }
         blob = if (e == KeyEffect.INK) renderBlob(opaque) else null
         glows = if (e.usesGlow) Array(e.fixedColors.size) { renderGlow(e, e.fixedColors[it]) } else emptyArray()
+        if (changed) fishWorld = null
         if (changed) { shardCache.clear(); combo.reset(); shakeMeter.reset(); plasma.reset(); prewarm(e); buildFx3Paths(e) }
         if (e != KeyEffect.SHAKE) shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         if (e != KeyEffect.SAND) sand = null
@@ -464,6 +485,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             }
             KeyEffect.SAND -> fireSand(x, y, now)
             KeyEffect.SEA -> fireSea(x, y, now)
+            KeyEffect.FISHFEED -> fireFish(x, y, now)
             KeyEffect.DANCEFLOOR -> fireDance(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.FLASH -> if (flash.trigger(now)) flashStart = now
             KeyEffect.LIGHTNING -> fireLightning(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
@@ -557,6 +579,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         danceStart.fill(Long.MIN_VALUE / 2); flickerStart = Long.MIN_VALUE / 2
         shotStart.fill(Long.MIN_VALUE / 2); tuftStart.fill(Long.MIN_VALUE / 2); cheerStart = Long.MIN_VALUE / 2; pendingCheer = false
+        saveFish(force = true); fishLastPress = Long.MIN_VALUE / 2   // Bể cá: ẩn ⇒ ghi bộ đếm + dừng hẳn (cá giữ chỗ)
         pendN = 0
         invalidate()
     }
@@ -782,6 +805,79 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
     internal fun cheerFlag(i: Int): FloatArray = cheerFlags.copyOfRange(7 * i, 7 * i + 7)
 
 
+    // ---- Cho cá ăn (theme Bể cá — [AquariumFx]; dp chung iOS, vẽ px = dp × density)
+
+    private fun ensureFishWorld() {
+        if (width <= 0 || height <= 0) return
+        if (fishWorld != null && fishBuiltW == width && fishBuiltH == height) return
+        val eaten = fishWorld?.eaten ?: (fishPrefs?.getInt(AquariumFx.STORAGE_KEY, 0) ?: 0)
+        val d = density.toDouble()
+        fishWorld = AquariumFx.World(eaten, 0.0, 0.0, width / d, height / d)
+        fishBuiltW = width; fishBuiltH = height
+        if (!fishPathsBuilt) {
+            fishPathsBuilt = true
+            val dd = density
+            val l = (AquariumFx.FISH_LENGTH * dd).toFloat(); val h = (AquariumFx.FISH_HEIGHT * dd).toFloat()
+            fishBody.rewind()
+            fishBody.addOval(-l * 0.38f, -h / 2, -l * 0.38f + l * 0.8f, h / 2, Path.Direction.CW)
+            fishBody.moveTo(-l * 0.3f, 0f); fishBody.lineTo(-l * 0.55f, -h * 0.45f); fishBody.lineTo(-l * 0.55f, h * 0.45f); fishBody.close()
+            fishEye.rewind(); fishEye.addCircle(l * 0.22f + 1.1f * dd, -1.1f * dd, 1.1f * dd, Path.Direction.CW)
+        }
+    }
+
+    private fun fireFish(x: Float, y: Float, now: Long) {
+        ensureFishWorld()
+        val w = fishWorld ?: return
+        w.drop((x / density).toDouble(), (y / density).toDouble())
+        if (now - fishLastPress > (AquariumFx.IDLE_AFTER * 1000).toLong()) fishLastTick = now   // vừa thức dậy: không bước dồn
+        fishLastPress = now
+    }
+
+    private fun saveFish(force: Boolean) {
+        val w = fishWorld ?: return
+        val p = fishPrefs ?: return
+        val t = SystemClock.uptimeMillis() / 1000.0
+        if (if (force) fishGate.flush(t) else fishGate.shouldSave(t)) p.edit().putInt(AquariumFx.STORAGE_KEY, w.eaten).apply()
+    }
+
+    private fun drawFish(canvas: Canvas, now: Long): Boolean {
+        ensureFishWorld()
+        val w = fishWorld ?: return false
+        val running = now - fishLastPress <= (AquariumFx.IDLE_AFTER * 1000).toLong()
+        if (running) {
+            val dt = ((now - fishLastTick) / 1000.0).coerceIn(0.0, 0.1)
+            fishLastTick = now
+            if (dt > 0) {
+                if (w.step(dt) > 0) fishGate.note()
+                saveFish(force = false)
+            }
+        } else saveFish(force = true)
+        val d = density
+        for (k in w.pellets.indices) {
+            val p = w.pellets[k]
+            if (!p.alive) continue
+            fill.color = AquariumFx.PELLET_COLOR or (0xFF shl 24)
+            canvas.drawCircle((p.x * d).toFloat(), (p.y * d).toFloat(), (AquariumFx.PELLET_RADIUS * d).toFloat(), fill)
+        }
+        for (i in 0 until w.count) {
+            val f = w.fish[i]
+            val sc = w.scale(i).toFloat()
+            val save = canvas.save()
+            canvas.translate((f.x * d).toFloat(), (f.y * d).toFloat())
+            canvas.scale(if (w.facesLeft(i)) -sc else sc, sc)
+            fill.color = AquariumFx.COLORS[i % AquariumFx.COLORS.size] or (0xFF shl 24); fill.alpha = 230
+            canvas.drawPath(fishBody, fill)
+            fill.color = 0xFF1A1A1A.toInt()
+            canvas.drawPath(fishEye, fill)
+            canvas.restoreToCount(save)
+        }
+        return running
+    }
+
+    /** Test: thế giới bể cá; mô phỏng còn chạy lúc [now]. */
+    internal val fishWorldForTest: AquariumFx.World? get() { ensureFishWorld(); return fishWorld }
+    internal fun fishRunning(now: Long): Boolean = now - fishLastPress <= (AquariumFx.IDLE_AFTER * 1000).toLong()
+
     // ---- Sàn nhảy LED ([DanceFloor] — hình học thuần chung iOS; ở đây px vì cỡ ô theo khung phím thật)
 
     private fun copyTiles(src: List<DanceFloor.Tile>, dst: FloatArray, max: Int): Int {
@@ -888,6 +984,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.SEA -> drawSea(canvas, now)
             KeyEffect.DANCEFLOOR -> drawDance(canvas, now)
             KeyEffect.GOAL -> drawGoal(canvas, now)
+            KeyEffect.FISHFEED -> drawFish(canvas, now)
             else -> drawParticles(canvas, now)
         }
     }

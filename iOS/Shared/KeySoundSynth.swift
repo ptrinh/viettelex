@@ -102,12 +102,14 @@ enum KeySoundStyle: String, CaseIterable {
     case club
     // Theme "Bóng đá" (11/2026): tiếng bóng "bụp" mềm — thân sine trầm trượt xuống + chút da bóng + hơi cỏ.
     case thump
+    // Theme "Bể cá" (11/2026): bọt "bloop" mềm — sine trượt LÊN 380 → 900 Hz, không nhiễu.
+    case bloop
 
     /// Bật "Âm thanh phím" lần đầu ⇒ "Nhẹ nhàng" (bật công tắc phải NGHE khác đi; "iOS" = như lúc tắt).
     static let defaultStyle: KeySoundStyle = .subtle
     /// Kiểu tổng hợp 3 tiếng (chữ / xoá / chức năng) — có công thức `baseRecipe`.
     static let presets: [KeySoundStyle] = [.subtle, .wood, .mechanical, .typewriter, .bubble, .rock, .pop, .water, .vintage, .phao, .jingle,
-                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club, .thump]
+                                           .scifi, .trong, .boo, .bop, .chip, .ai, .club, .thump, .bloop]
     /// Mọi kiểu dựng sẵn (3 tiếng + nhạc cụ mỗi phím một nốt: Piano, Đàn tranh, Ghi-ta).
     static let allPresets: [KeySoundStyle] = presets + [.piano, .dantranh, .guitar]
     /// DANH SÁCH DUY NHẤT id hợp lệ cho trường "sound" của theme JSON (chọn theme ⇒ đặt keySoundStyle).
@@ -151,6 +153,7 @@ enum KeySoundStyle: String, CaseIterable {
         case .ai: return LK("Synth AI")
         case .club: return LK("Nhịp club")
         case .thump: return LK("Bóng bụp")
+        case .bloop: return LK("Bọt cá")
         }
     }
 
@@ -274,6 +277,12 @@ enum KeySoundSynth {
             return Recipe(tones: [t(1.0, 120, 85, glide: 0.006, tau: 0.018), t(0.25, 240, 200, glide: 0.006, tau: 0.006)],
                           noises: [n(0.25, hp: 90, lp: 900, tau: 0.003)],
                           attack: 0.0015, duration: 0.054, outLP: 1400, peak: 0.50)
+        case .bloop:
+            // Bọt cá: sine trượt LÊN 380 → 900 Hz (glide 14 ms) τ14 ms + bồi bát độ khẽ (0.10); mở 3 ms, 45 ms, lọc 2,8 kHz,
+            // đỉnh 0.45 — tròn, ướt, không "tách".
+            return Recipe(tones: [t(1.0, 380, 900, glide: 0.014, tau: 0.014), t(0.10, 760, 1800, glide: 0.014, tau: 0.008)],
+                          noises: [],
+                          attack: 0.003, duration: 0.045, outLP: 2800, peak: 0.45)
         }
     }
 
@@ -310,7 +319,7 @@ enum KeySoundSynth {
     static func squeakSamples() -> [Float] { render(squeakRecipe, seed: squeakSeed) }
 
     /// Seed cố định theo tên kiểu ("thum"…) — Android FIXED_SEEDS y hệt.
-    static let fixedSeeds: [KeySoundStyle: UInt32] = [.thump: 0x7468_756D]
+    static let fixedSeeds: [KeySoundStyle: UInt32] = [.thump: 0x7468_756D, .bloop: 0x626C_6F6F]
 
     // MARK: Hò reo (theme Bóng đá — Sút!, 11/2026)
     // Mỗi cú sút một tiếng hò reo đám đông ~0,95 s, từ MỘT dòng nhiễu xorshift32: high-pass 1 cực 300 Hz → low-pass 2 cực

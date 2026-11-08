@@ -11,6 +11,7 @@
 		01B8210D0F9862246491F86C /* PlusConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0F66BB47D978962BA91434 /* PlusConfig.swift */; };
 		0222562F9A662E1780357942 /* EmojiPlane.swift in Sources */ = {isa = PBXBuildFile; fileRef = D705942B9BA084047E7A7EF1 /* EmojiPlane.swift */; };
 		02277DFC3A0CEDD0F1321BC7 /* lobster.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F21C0A79B520C1120988E6BC /* lobster.ttf */; };
+		024C67745F3D45701F8C730C /* AquariumFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = D370A895B31AA077E27BD527 /* AquariumFx.swift */; };
 		02E1FBFA9896C3CD1F0AC050 /* RiengTuSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDF03074145DE8EA1461687C /* RiengTuSection.swift */; };
 		031225F1A92E928112DB699E /* FootballFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77323AD52A4C80D9D12CE505 /* FootballFx.swift */; };
 		03737E5339AC43A75D973144 /* EmojiSuggest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CCA79BB7903D0F4A2BC56B5 /* EmojiSuggest.swift */; };
@@ -25,6 +26,7 @@
 		0838D223301F8D5042A2F43D /* OneHandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 769E76C687A1221F2389FD54 /* OneHandTests.swift */; };
 		0915CBB32F4179E306A28D9A /* frequency-english-parity.txt in Resources */ = {isa = PBXBuildFile; fileRef = 95E0A5B88D8B8B98DFC5583D /* frequency-english-parity.txt */; };
 		09A81E2FCFEC3C9A20CE84AD /* FieldPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B68AFA53C7C54443DAB2DA2 /* FieldPolicyTests.swift */; };
+		0AD177207FC4D6F7269C5DA5 /* AquariumFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = D370A895B31AA077E27BD527 /* AquariumFx.swift */; };
 		0ADB3CE1AC55F916715D7B4C /* Trackpad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58D98494210ACD4B0ED51A92 /* Trackpad.swift */; };
 		0B013C247F9445A11747604A /* SyllableLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A253A0432EF946B10B4E511 /* SyllableLM.swift */; };
 		0B1441C5B52FF8CC5F5382AE /* DomainPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95F2B6D4AD796E9D33B623BA /* DomainPopup.swift */; };
@@ -59,6 +61,7 @@
 		1D286BF27687D9F637D3E953 /* ThemeSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA49BF61252BA33DE0B264E1 /* ThemeSpec.swift */; };
 		1D3501D761DFD4F1BED9ED72 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 853A101B912DF1524B01E1A2 /* KeyboardViewController.swift */; };
 		1D563C25C56EE3DA89FCEAE2 /* Translation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 575059AED927C97A7E6E33CD /* Translation.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
+		1D6D7889E792618908588B16 /* AquariumFx.swift in Sources */ = {isa = PBXBuildFile; fileRef = D370A895B31AA077E27BD527 /* AquariumFx.swift */; };
 		1D815BBDFF3A950828D4A0B5 /* AddTones.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11876FBB4C611F4A86CBCBB2 /* AddTones.swift */; };
 		1E175ED9F1FE58CFBD01BD44 /* AddTonesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D6434BF385E0EB2AC3B5010 /* AddTonesTests.swift */; };
 		1E3BA256F62480AA94474E72 /* TextToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E5388BE246A2014C812518 /* TextToolsTests.swift */; };
@@ -423,6 +426,7 @@
 		C503CFFEFC1A127BE3B99F82 /* SyncMerge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E2E27B46842AE6F5EB0A74 /* SyncMerge.swift */; };
 		C5CBA64509EDCDA0318FC6BF /* WordDelete.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451B2112B13ABD917EEE3D9A /* WordDelete.swift */; };
 		C618DE16B7A564F8E5BD4DA2 /* TouchGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 359BC071F163E8255C943DA7 /* TouchGeometry.swift */; };
+		C61F3BCB937C97E88807434F /* AquariumFxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F86198F42D513B3AC87D3CF8 /* AquariumFxTests.swift */; };
 		C6465DB2FD6BA0B131DB30D7 /* NumericKeypadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0396F7F4C967F32F6246FFB /* NumericKeypadTests.swift */; };
 		C672009CA9A75C96AC55BFFF /* FoldableLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E85DE7FE9317FE348701314F /* FoldableLayoutTests.swift */; };
 		C6771B55F9BBE0EC87F164D8 /* MixedTypingUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9083F681A5C7781D4DBF11F /* MixedTypingUI.swift */; };
@@ -899,6 +903,7 @@
 		D188EC4E6781410050CABC5D /* FullPackSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullPackSnapshotTests.swift; sourceTree = "<group>"; };
 		D20B596D225BB513FA414DB3 /* KeyAlternatesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyAlternatesTests.swift; sourceTree = "<group>"; };
 		D36D03DA09827B3E666C0C94 /* SpaceFlick.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceFlick.swift; sourceTree = "<group>"; };
+		D370A895B31AA077E27BD527 /* AquariumFx.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AquariumFx.swift; sourceTree = "<group>"; };
 		D44937FCA0854428DB368FC7 /* AutoCorrectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoCorrectTests.swift; sourceTree = "<group>"; };
 		D464912521BAEE32297B4D44 /* KeyEffects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyEffects.swift; sourceTree = "<group>"; };
 		D488C3ADF837AC9FCDD9EC1D /* PlusGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlusGate.swift; sourceTree = "<group>"; };
@@ -956,6 +961,7 @@
 		F6972CB533614293F6563376 /* MixedTypingUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MixedTypingUITests.swift; sourceTree = "<group>"; };
 		F76A283D98F951FB082F620E /* SwipeReviseParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeReviseParityTests.swift; sourceTree = "<group>"; };
 		F79F82B042565CDF4CA8558E /* chat-cases.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "chat-cases.txt"; sourceTree = "<group>"; };
+		F86198F42D513B3AC87D3CF8 /* AquariumFxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AquariumFxTests.swift; sourceTree = "<group>"; };
 		F98CF75D5CF9E5845F830381 /* backup-ios-v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "backup-ios-v1.json"; sourceTree = "<group>"; };
 		F9A392056B54E623933F9CD3 /* SuggestionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionSupport.swift; sourceTree = "<group>"; };
 		F9D1C75C783E3B6F2B47CADC /* SwipeTrailStyleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeTrailStyleTests.swift; sourceTree = "<group>"; };
@@ -1223,6 +1229,7 @@
 				802D32F4C57339D1C073559A /* AIProofreadTests.swift */,
 				0EF0C7985F5CA04234BE588D /* AIThemeTests.swift */,
 				214BE1EF9FDB2118D4F50109 /* AppearancePolicyTests.swift */,
+				F86198F42D513B3AC87D3CF8 /* AquariumFxTests.swift */,
 				D44937FCA0854428DB368FC7 /* AutoCorrectTests.swift */,
 				FCB85821624ECE46B9C12A4A /* BackupTests.swift */,
 				56F3118CEF485547C4673DAB /* BuddyFlavorTests.swift */,
@@ -1436,6 +1443,7 @@
 				CC97B8AC6D8335D37B6565AD /* AIProofreadPanel.swift */,
 				E611B5D3668D99B02D1AAE35 /* AppearanceCycle.swift */,
 				62E14AD387BE2B1A54881E15 /* AppearancePolicy.swift */,
+				D370A895B31AA077E27BD527 /* AquariumFx.swift */,
 				80AB0C87154897C583AEB2AE /* AutoCorrect.swift */,
 				32246E1A2093C068D48B4809 /* BuiltinFonts.swift */,
 				69841F9C38AF675A240AD5A7 /* BuiltinThemes.swift */,
@@ -1841,6 +1849,7 @@
 				A06BFF1C75670E39975E9FEF /* AppFlavor.swift in Sources */,
 				E238E6821F8CFDE681C387D7 /* AppearanceCycle.swift in Sources */,
 				7A17145A9CA2831379306335 /* AppearancePolicy.swift in Sources */,
+				0AD177207FC4D6F7269C5DA5 /* AquariumFx.swift in Sources */,
 				9EA33523CEB34D6A414A3522 /* AutoCorrect.swift in Sources */,
 				6330FEE335DD31BEDC34A22C /* BuiltinFonts.swift in Sources */,
 				9BB786380B23917BBEBE91B5 /* BuiltinThemes.swift in Sources */,
@@ -1951,6 +1960,7 @@
 			files = (
 				24722E60BBE901062069EB5F /* AIEye.swift in Sources */,
 				CF80BFE2E96A08FC240721A8 /* AppFlavor.swift in Sources */,
+				1D6D7889E792618908588B16 /* AquariumFx.swift in Sources */,
 				83667F4BE07F378F1DD8EDEA /* BackupFormat.swift in Sources */,
 				83E46F7A9330C715C3C78F49 /* BackupSection.swift in Sources */,
 				2C4EB5A2F26CFEC063FDD2D0 /* BackupStore.swift in Sources */,
@@ -2059,6 +2069,8 @@
 				836B0B912D65DF647EF4087D /* AppearanceCycle.swift in Sources */,
 				E16D46978F3A25EF2D8990ED /* AppearancePolicy.swift in Sources */,
 				26C607EDB93AB182A66930C9 /* AppearancePolicyTests.swift in Sources */,
+				024C67745F3D45701F8C730C /* AquariumFx.swift in Sources */,
+				C61F3BCB937C97E88807434F /* AquariumFxTests.swift in Sources */,
 				EBE45A06B3E66585C2076D02 /* AutoCorrect.swift in Sources */,
 				5E88C6DD76B1FF760FC20D3D /* AutoCorrectTests.swift in Sources */,
 				B87943E26F538BEF419FBEC4 /* BackupFormat.swift in Sources */,

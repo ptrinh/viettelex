@@ -245,9 +245,9 @@ class FootballFxTests {
         assertEquals("Football", L10nTable.EN[t.viTitle])
         assertEquals("thump", spec.sound); assertEquals("goal", spec.effect)
         assertTrue(ThemeSpecParser.contrastIssues(spec).isEmpty())
-        assertEquals("football", ThemePicker.INTERACTIVE_ORDER.last())
+        assertEquals(ThemePicker.INTERACTIVE_ORDER.indexOf("guitar") + 1, ThemePicker.INTERACTIVE_ORDER.indexOf("football"))
         assertTrue(KeyEffect.GOAL.isPlus); assertEquals("Kick!", L10nTable.EN[KeyEffect.GOAL.viTitle])
-        assertEquals(setOf(KeyEffect.GOAL), ThemeFxFactory.EFFECTS)
+        assertTrue(KeyEffect.GOAL in ThemeFxFactory.EFFECTS); assertFalse(ThemeFxFactory.handles(KeyEffect.HEART))
         for (dark in listOf(false, true)) {
             val p = t.palette(dark)!!
             assertEquals(ThemeDecoration.PITCH, p.decoration?.motif)

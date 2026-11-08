@@ -42,6 +42,7 @@ targets:
       # Bộ vẽ hiệu ứng theme 11/2026 (Bóng đá…) + cảnh nền — overlay dựng khi chọn kiểu.
       - Keyboard/ThemeFxPack.swift
       - Keyboard/FootballFx.swift
+      - Keyboard/AquariumFx.swift
       # Bạn đồng hành: xem trước ở trang chọn (cùng view với bàn phím).
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
@@ -235,6 +236,7 @@ targets:
       # Bộ vẽ hiệu ứng theme 11/2026 (Bóng đá…) + cảnh nền — overlay dựng khi chọn kiểu.
       - Keyboard/ThemeFxPack.swift
       - Keyboard/FootballFx.swift
+      - Keyboard/AquariumFx.swift
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
       - Keyboard/AIEye.swift
