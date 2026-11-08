@@ -329,6 +329,7 @@ TEST(direct_echo_mismatch_counter_policy) {
 // ---------------------------------------------------------------- 1.1.5
 #include "app_language.h"
 #include "app_policy.h"
+#include "debug_header.h"
 #include "debug_log.h"
 #include "input_switch.h"
 #include "keymap.h"
@@ -530,11 +531,177 @@ TEST(fake_conhost_handover_mid_word_needs_arming) {
 
 TEST(debug_log_line_format_and_rotation) {
     LogStamp t{2026, 9, 26, 14, 3, 7, 5};
+    // Compact (1.3.18): time only (the date is on a day line), pid + exe on every line
+    // (several processes append to one file), one line per entry.
     const std::string l = formatLogLine(t, 4312, "conhost.exe", "tip", "rule 4\nx");
-    CHECK_EQ(l, std::string("2026-09-26 14:03:07.005 pid=4312 conhost.exe [tip] rule 4 x\r\n"));
+    CHECK_EQ(l, std::string("14:03:07.005 4312 conhost.exe [tip] rule 4 x\r\n"));
+    CHECK_EQ(formatLogLine(t, 1, "", nullptr, "a\tb\r"), std::string("14:03:07.005 1 ? [?] a b \r\n"));
+    CHECK_EQ(formatDayLine(t), std::string("=== 2026-09-26 ===\r\n"));
     CHECK(!logNeedsRotation(0, 100));
     CHECK(!logNeedsRotation(1000, 100));
     CHECK(logNeedsRotation(kDebugLogMaxBytes - 10, 100));
+    // An old session's file is rotated away (one old file kept: debug.1.log).
+    CHECK(!logNeedsRotation(1000, 100, kDebugLogMaxIdleSeconds));
+    CHECK(logNeedsRotation(1000, 100, kDebugLogMaxIdleSeconds + 1));
+    CHECK(!logNeedsRotation(0, 100, kDebugLogMaxIdleSeconds * 2));  // empty: nothing to keep
+}
+
+TEST(debug_log_day_line_when_file_new_or_day_changed) {
+    const LogStamp now{2026, 11, 8, 9, 0, 0, 0};
+    CHECK(logNeedsDayLine(0, now, now));                                    // new / rotated file
+    CHECK(!logNeedsDayLine(500, LogStamp{2026, 11, 8, 0, 0, 1, 0}, now));   // earlier today
+    CHECK(logNeedsDayLine(500, LogStamp{2026, 11, 7, 23, 59, 59, 0}, now)); // yesterday
+    CHECK(logNeedsDayLine(500, LogStamp{2026, 10, 8, 9, 0, 0, 0}, now));    // same day, other month
+    CHECK(logNeedsDayLine(500, LogStamp{}, now));                           // file time unreadable
+}
+
+TEST(debug_log_collapses_identical_consecutive_lines) {
+    LogCollapser c;
+    const LogStamp t0{2026, 11, 8, 9, 33, 9, 647}, t1{2026, 11, 8, 9, 33, 9, 657},
+        t2{2026, 11, 8, 9, 33, 11, 663};
+    const std::string a = "applang restore msedge.exe -> vi from default";
+    CHECK_EQ(c.offer(t0, 1000, 11512, "msedge.exe", "tip", a),
+             std::string("09:33:09.647 11512 msedge.exe [tip] ") + a + "\r\n");
+    for (int i = 0; i < 8; ++i) CHECK_EQ(c.offer(t1, 1010, 11512, "msedge.exe", "tip", a), std::string());
+    CHECK_EQ(c.pending(), 8u);
+    // The next different line writes the count first (with the last repeat's time).
+    CHECK_EQ(c.offer(t2, 3000, 11512, "msedge.exe", "tip", "browser address bar"),
+             std::string("09:33:11.663 11512 msedge.exe [tip] ^ repeated 8x more until 09:33:09.657\r\n"
+                         "09:33:11.663 11512 msedge.exe [tip] browser address bar\r\n"));
+    CHECK_EQ(c.pending(), 0u);
+    // Same message from another component is another line.
+    CHECK(!c.offer(t2, 3001, 11512, "msedge.exe", "hook", "browser address bar").empty());
+    // A repeat after the window is written again (keeps the timeline readable).
+    CHECK(!c.offer(t2, 3002 + kDebugLogRepeatWindowMs + 1, 11512, "msedge.exe", "hook", "browser address bar").empty());
+    // drain(): the pending count at exit; nothing when none.
+    CHECK_EQ(c.drain(t2, 11512, "msedge.exe"), std::string());
+    CHECK(c.offer(t2, 3002 + kDebugLogRepeatWindowMs + 2, 11512, "msedge.exe", "hook", "browser address bar").empty());
+    CHECK_EQ(c.drain(t2, 11512, "msedge.exe"),
+             std::string("09:33:11.663 11512 msedge.exe [hook] ^ repeated 1x more until 09:33:11.663\r\n"));
+    CHECK_EQ(c.drain(t2, 11512, "msedge.exe"), std::string());
+}
+
+TEST(debug_log_change_gate_logs_only_changes) {
+    LogChangeGate g(3);
+    CHECK(g.changed("msedge.exe", "vi from default"));
+    CHECK(!g.changed("msedge.exe", "vi from default"));
+    CHECK(g.changed("msedge.exe", "vi from registry"));
+    CHECK(g.changed("notepad.exe", "en from registry"));
+    CHECK(!g.changed("notepad.exe", "en from registry"));
+    CHECK(g.changed("notepad.exe", "vi from registry"));
+    CHECK(g.changed("explorer.exe", "vi from default"));
+    // Bounded: a 4th key forgets the rest (worst case one extra line per app).
+    CHECK(g.changed("typora.exe", "vi from default"));
+    CHECK(g.changed("msedge.exe", "vi from registry"));
+    CHECK(!g.changed("typora.exe", "vi from default"));
+}
+
+TEST(debug_header_process_context) {
+    ProcessContext c;
+    c.version = "1.3.17.0";
+    c.module = "viettelextip_x64_1_3_17.dll";
+    c.processMachine = 0x8664;
+    c.osMachine = 0xAA64;
+    c.osMajor = 10;
+    c.osBuild = 26100;
+    c.integrityRid = 0x1000;
+    c.appContainer = true;
+    CHECK_EQ(formatProcessContext(c),
+             std::string("# context: VietTelex 1.3.17.0 viettelextip_x64_1_3_17.dll, x64 on arm64 (emulated), "
+                         "Windows 10.0.26100, integrity low, not elevated, AppContainer"));
+    c.module = "viettelex.exe";
+    c.osMachine = 0x8664;
+    c.integrityRid = 0x3000;
+    c.elevated = true;
+    c.appContainer = false;
+    CHECK_EQ(formatProcessContext(c), std::string("# context: VietTelex 1.3.17.0 viettelex.exe, x64, "
+                                                  "Windows 10.0.26100, integrity high, elevated"));
+    c.processMachine = 0x014C;  // x86 TIP in a 32-bit app: WOW64, not emulation
+    CHECK(formatProcessContext(c).find("x86 on x64,") != std::string::npos);
+    CHECK_EQ(std::string(integrityName(0x2000)), std::string("medium"));
+    CHECK_EQ(std::string(integrityName(0x2100)), std::string("medium+"));
+    CHECK_EQ(std::string(integrityName(0x4000)), std::string("system"));
+    CHECK_EQ(std::string(integrityName(0)), std::string("?"));
+    CHECK_EQ(std::string(machineName(0xA641)), std::string("arm64ec"));
+}
+
+TEST(debug_header_windows_version) {
+    CHECK_EQ(formatWindowsVersion(10, 0, 26100, 2314, "24H2", "Professional"),
+             std::string("Windows 11 Professional 24H2 (10.0.26100.2314)"));
+    CHECK_EQ(formatWindowsVersion(10, 0, 19045, 5011, "22H2", "Core"),
+             std::string("Windows 10 Core 22H2 (10.0.19045.5011)"));
+    CHECK_EQ(formatWindowsVersion(10, 0, 17763, 0, "", ""), std::string("Windows 10 (10.0.17763.0)"));
+    CHECK_EQ(formatWindowsVersion(6, 3, 9600, 0, "", ""), std::string("Windows 6.3 (6.3.9600.0)"));
+}
+
+TEST(debug_header_redacts_user_profile) {
+    const std::string home = "C:\\Users\\Nguyen An";
+    CHECK_EQ(redactUserPath("C:\\Users\\Nguyen An\\AppData\\Local\\Programs\\VietTelex", home),
+             std::string("~\\AppData\\Local\\Programs\\VietTelex"));
+    CHECK_EQ(redactUserPath("c:\\users\\NGUYEN AN\\x", home), std::string("~\\x"));  // case-insensitive
+    CHECK_EQ(redactUserPath("C:\\Users\\Nguyen An", home + "\\"), std::string("~"));
+    // Another profile that merely starts with the same letters is not this user's.
+    CHECK_EQ(redactUserPath("C:\\Users\\Nguyen Anh\\x", home), std::string("C:\\Users\\Nguyen Anh\\x"));
+    CHECK_EQ(redactUserPath("\"C:\\Users\\Nguyen An\";D:\\x", home), std::string("\"~\";D:\\x"));
+    CHECK_EQ(redactUserPath("C:\\Program Files\\VietTelex", home), std::string("C:\\Program Files\\VietTelex"));
+    CHECK_EQ(redactUserPath("C:\\x", ""), std::string("C:\\x"));
+}
+
+TEST(debug_header_install_kind) {
+    const std::vector<std::string> machine = {"C:\\Program Files", "C:\\Program Files (x86)"};
+    const std::string user = "C:\\Users\\An\\AppData\\Local";
+    CHECK(classifyInstall(false, false, "c:\\program files\\VietTelex\\VietTelex.exe", machine, user) ==
+          InstallKind::MsiPerMachine);
+    CHECK(classifyInstall(false, false, "C:\\Program Files (x86)\\VietTelex\\VietTelex.exe", machine, user) ==
+          InstallKind::MsiPerMachine);
+    CHECK(classifyInstall(false, false, "C:\\Users\\An\\AppData\\Local\\Programs\\VietTelex\\VietTelex.exe",
+                          machine, user) == InstallKind::MsiPerUser);
+    CHECK(classifyInstall(false, false, "C:\\Program Files Extra\\VietTelex.exe", machine, user) ==
+          InstallKind::Other);
+    CHECK(classifyInstall(false, true, "C:\\Program Files\\WindowsApps\\VietTelex_1.3.17.0_x64\\VietTelex.exe",
+                          machine, user) == InstallKind::Store);
+    CHECK(classifyInstall(true, false, "D:\\Tools\\VietTelex\\VietTelex.exe", machine, user) ==
+          InstallKind::Portable);
+    CHECK_EQ(std::string(installKindName(InstallKind::MsiPerUser)), std::string("MSI per-user"));
+}
+
+TEST(debug_header_tip_release_vs_app) {
+    CHECK(sameRelease("1.3.17.0", "1.3.17"));
+    CHECK(!sameRelease("1.3.17.0", "1.3.15"));   // the 1.3.15 tester case
+    CHECK(!sameRelease("1.3.17.0", "1.3.1"));
+    CHECK(!sameRelease("1.3.17.0", "0"));        // unversioned DLL name
+    CHECK(!sameRelease("1.3.17.0", ""));
+}
+
+TEST(debug_header_settings_summary_and_layout) {
+    Settings s;
+    s.shortcuts[u"vn"] = u"Việt Nam";      // contents never appear, only the count
+    s.appModes["secret-app.exe"] = AppMode::Off;
+    s.appModes["wt.exe"] = AppMode::Direct;
+    s.appModes["code.exe"] = AppMode::Direct;
+    s.debugLogging = true;
+    const std::string sum = formatSettingsSummary(s);
+    CHECK(sum.compare(0, 11, "Telex | on:") == 0);
+    CHECK(sum.find(" freeMarking") != std::string::npos);
+    CHECK(sum.find(" autoRestore") != std::string::npos);
+    CHECK(sum.find("vniMode") == std::string::npos);
+    CHECK(sum.find("debugLogging") == std::string::npos);
+    CHECK(sum.find("per-app 3 (off 1, direct 2)") != std::string::npos);
+    CHECK(sum.find("shortcuts 1") != std::string::npos);
+    CHECK(sum.find("secret-app") == std::string::npos);
+    CHECK(sum.find("Việt") == std::string::npos);
+    CHECK(sum.find("vn") == std::string::npos);
+    s.vniMode = true;
+    CHECK(formatSettingsSummary(s).compare(0, 3, "VNI") == 0);
+    s.vniMode = false;
+    s.simpleTelex = true;
+    CHECK(formatSettingsSummary(s).compare(0, 14, "Telex (simple)") == 0);
+
+    const std::vector<std::string> h = formatDebugHeader({{"app", "1.3.17.0"}, {"TIP DLL", ""}});
+    CHECK_EQ(h.size(), size_t(3));
+    CHECK(h[0].compare(0, 22, "# VietTelex debug log:") == 0);
+    CHECK_EQ(h[1], std::string("# app: 1.3.17.0"));
+    CHECK_EQ(h[2], std::string("# TIP DLL: ?"));
 }
 
 TEST(app_language_switch_focus_sequence) {

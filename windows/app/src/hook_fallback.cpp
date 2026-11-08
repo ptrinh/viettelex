@@ -1,4 +1,5 @@
 #include "hook_fallback.h"
+#include "debug_context.h"
 
 #include <windows.h>
 
@@ -827,7 +828,7 @@ void CALLBACK winEventProc(HWINEVENTHOOK, DWORD event, HWND hwnd, LONG idObject,
 void hookConfigure(const Settings& s) {
     if (!u) u = new UiState();
     u->settings = s;
-    appSetLogging(s.debugLogging);
+    debugContextApply(s);  // appSetLogging + the debug-log header
     if (g_hookThread) {
         auto* copy = new Settings(s);
         if (!PostThreadMessageW(g_hookTid, kCmdConfig, 0, reinterpret_cast<LPARAM>(copy))) delete copy;

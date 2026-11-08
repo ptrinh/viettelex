@@ -230,6 +230,36 @@ bool vietTelexInUserList(bool& registered) {
     return enabled;
 }
 
+std::vector<unsigned> otherEnabledTextServiceLangs() {
+    GUID clsid;
+    std::vector<unsigned> out;
+    if (!guidFrom(vtx::reg::kClsid, clsid)) return out;
+    // The languages in the user's list (one per distinct LOWORD of the layouts): text
+    // services of other languages are not selectable anyway.
+    std::vector<unsigned> langs;
+    for (uintptr_t hkl : keyboardLayouts()) {
+        const unsigned lang = static_cast<unsigned>(hkl & 0xFFFF);
+        bool seen = false;
+        for (unsigned l : langs) seen = seen || l == lang;
+        if (!seen) langs.push_back(lang);
+    }
+    withProfileMgr([&](ITfInputProcessorProfileMgr* mgr) {
+        for (unsigned lang : langs) {
+            IEnumTfInputProcessorProfiles* en = nullptr;
+            if (FAILED(mgr->EnumProfiles(static_cast<LANGID>(lang), &en)) || !en) continue;
+            TF_INPUTPROCESSORPROFILE pr;
+            ULONG got = 0;
+            while (en->Next(1, &pr, &got) == S_OK && got == 1)
+                if (pr.dwProfileType == TF_PROFILETYPE_INPUTPROCESSOR && (pr.dwFlags & TF_IPP_FLAG_ENABLED) &&
+                    !IsEqualGUID(pr.clsid, clsid))
+                    out.push_back(pr.langid);
+            en->Release();
+        }
+        return true;
+    });
+    return out;
+}
+
 bool selectVietTelexForSession() {
     GUID clsid, profile;
     if (!guidFrom(vtx::reg::kClsid, clsid) || !guidFrom(vtx::reg::kProfile, profile)) return false;

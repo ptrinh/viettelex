@@ -37,6 +37,9 @@ std::wstring selfExePath();
 // ---- app feel (core/app_feel.h; not yet run on real Windows, see tip_control.cpp) -------
 // VietTelex enabled in this user's list; `registered` = the TIP's profile exists at all.
 bool vietTelexInUserList(bool& registered);
+// Language ids of the enabled text services (TIPs) other than VietTelex in the languages
+// of the user's list, one entry per profile (debug-log header: counts, no names).
+std::vector<unsigned> otherEnabledTextServiceLangs();
 // ITfInputProcessorProfileMgr::ActivateProfile(TF_IPPMF_FORSESSION): VietTelex / a layout
 // becomes the session's current input method.
 bool selectVietTelexForSession();
