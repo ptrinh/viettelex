@@ -52,6 +52,7 @@ if(WIN32)
   add_executable(VietTelex WIN32
     src/app_quit.cpp
     src/conflicts.cpp
+    src/debug_context.cpp
     src/direct_verify.cpp
     ../ime/src/debug_file.cpp
     src/foreground.cpp

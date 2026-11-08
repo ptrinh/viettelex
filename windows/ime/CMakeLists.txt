@@ -5,6 +5,7 @@ add_library(vtx_ime_core STATIC
   core/app_language.cpp
   core/app_policy.cpp
   core/caret_hints.cpp
+  core/debug_header.cpp
   core/debug_log.cpp
   core/com_path.cpp
   core/registration.cpp

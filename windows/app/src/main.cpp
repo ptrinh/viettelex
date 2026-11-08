@@ -30,6 +30,7 @@
 #include "app.h"
 #include "app_feel.h"
 #include "app_quit.h"
+#include "debug_context.h"
 #include "portable.h"
 #include "text_action_logic.h"
 #include "setup_helper_logic.h"
@@ -312,9 +313,13 @@ void CALLBACK fgWinEvent(HWINEVENTHOOK, DWORD, HWND hwnd, LONG idObject, LONG, D
     if (isShellSurface(hwnd)) return;
     g_lastAppWnd = hwnd;
     const vtx::TrayState s = trayStateOf(hwnd);
-    if (appLogging())
+    // Logged on change only: the hook's "foreground" line already names every switch.
+    static int loggedState = -1;  // UI thread only
+    if (appLogging() && static_cast<int>(s) != loggedState) {
+        loggedState = static_cast<int>(s);
         appLog("app", std::string("tray state: ") +
                           (s == vtx::TrayState::Off ? "off" : s == vtx::TrayState::Vietnamese ? "vi" : "en"));
+    }
     setTrayStateEx(s);
 }
 
@@ -577,6 +582,7 @@ LRESULT CALLBACK mainProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         case kMsgUpdateChecked: onUpdateChecked(reinterpret_cast<UpdateInfo*>(lp)); return 0;
         case kMsgUpdateDownloaded: onDownloaded(wp, reinterpret_cast<wchar_t*>(lp)); return 0;
         case WM_DESTROY:
+            debugContextShutdown();
             gameShutdown();
             toastShutdown();
             removeTrayIcon();
@@ -897,6 +903,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     // through" would look like a broken keyboard.
     const bool staleGameMode = g_settings.gameMode;
     g_settings.gameMode = false;
+    debugContextApply(g_settings);  // debug log on: the header before the first app lines
     // Windows' text-suggestion setting (word prediction) may have changed while we were not
     // running: republish the snapshot then.
     const bool predictionStale = readFlag(L"systemTextPredictionPublished") != g_settings.systemTextPrediction;

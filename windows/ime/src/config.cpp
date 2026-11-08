@@ -4,6 +4,7 @@
 
 #include "app_language.h"
 #include "debug_file.h"
+#include "debug_log.h"
 #include "ipc.h"
 
 namespace vtx::tip::config {
@@ -91,6 +92,12 @@ SRWLOCK g_mirrorLock = SRWLOCK_INIT;
 AppLanguageStore g_mirror;
 FILETIME g_mirrorStamp = {0, 0};
 
+// Debug log: "applang restore" is re-announced at every activation / focus change (dozens
+// per second in a browser); only a result that differs from the last one logged for that
+// app in this process is written.
+SRWLOCK g_applangLogLock = SRWLOCK_INIT;
+LogChangeGate g_applangLogged;
+
 std::wstring g_activeExeW;  // app identity (WebView2: the owning app's exe)
 std::wstring activeExeW() { return g_activeExeW.empty() ? exeNameW() : g_activeExeW; }
 
@@ -139,8 +146,13 @@ void loadVietnameseLocked() {
         ReleaseSRWLockExclusive(&g_mirrorLock);
     }
     InterlockedExchange(&g_vietnamese, on ? 1 : 0);
-    if (InterlockedCompareExchange(&g_debug, 0, 0))
-        debugFileWrite("tip", "applang restore " + id + " -> " + (on ? "vi" : "en") + " from " + source);
+    if (InterlockedCompareExchange(&g_debug, 0, 0)) {
+        const std::string result = std::string(on ? "vi" : "en") + " from " + source;
+        AcquireSRWLockExclusive(&g_applangLogLock);
+        const bool changed = g_applangLogged.changed(id, result);
+        ReleaseSRWLockExclusive(&g_applangLogLock);
+        if (changed) debugFileWrite("tip", "applang restore " + id + " -> " + result);
+    }
 }
 
 }  // namespace
