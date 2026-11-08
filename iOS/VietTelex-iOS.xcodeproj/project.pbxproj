@@ -78,6 +78,7 @@
 		22D1BA72A9F94A82E3BB5FA9 /* KeyPressHighlightEdgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DEEE8E94999D6169D4D2768 /* KeyPressHighlightEdgeTests.swift */; };
 		22F2A416452F74CABC57AAC5 /* VNLexicon2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E29815B4F2B0747B961A561 /* VNLexicon2.swift */; };
 		2338E959472A88B21C366BBF /* TemplateEdit.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D95DF2E5846D5F65882073 /* TemplateEdit.swift */; };
+		2354B962BDC97C649EAE20B9 /* ZodiacThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC639307CA58019356167256 /* ZodiacThemeTests.swift */; };
 		24722E60BBE901062069EB5F /* AIEye.swift in Sources */ = {isa = PBXBuildFile; fileRef = 525A99D68CEE11E3F8735F01 /* AIEye.swift */; };
 		247F94DC39018D199F2AA416 /* SwipePractice.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE4C2C271F18A006B9967589 /* SwipePractice.swift */; };
 		25BE9185DF0E0B4209A458C8 /* futoswipe.bin in Resources */ = {isa = PBXBuildFile; fileRef = 3A1DB988579CAEA0FC0453E7 /* futoswipe.bin */; };
@@ -358,6 +359,7 @@
 		A354F35BE23603DF53A32A80 /* SpaceLogoEN@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 0B0AEDFB5FDC699CA97C4DE2 /* SpaceLogoEN@2x.png */; };
 		A3ACE14C8F0F55490A23732E /* FutoSwipeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FA4464DCB74D34A8A55E14B /* FutoSwipeTests.swift */; };
 		A3BB802468EAD5366DCCFFCD /* EdgeTouchDelayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 515867D60976AB481872E0F2 /* EdgeTouchDelayTests.swift */; };
+		A4C4C8C0CC9E0A3C11DBCC47 /* Zodiac.swift in Sources */ = {isa = PBXBuildFile; fileRef = 625D4BBB065084DF9D051CE0 /* Zodiac.swift */; };
 		A502757FCDB7FBD09FE8CD1D /* ClipboardPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B42E3B1AEEBA29C8D4693932 /* ClipboardPanel.swift */; };
 		A5D63AF8B31BCC530FDD52B0 /* SuggestTrigramTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61FEE31733E89BE49DAF48E /* SuggestTrigramTests.swift */; };
 		A612DF363A05FED5AFB1C7B4 /* PlusConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0F66BB47D978962BA91434 /* PlusConfig.swift */; };
@@ -374,6 +376,7 @@
 		AADA245766A91FA02046C53A /* EmojiSearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B65EEFA3CD83560C2E9D86B /* EmojiSearchBar.swift */; };
 		AAEAE3FC59DE30D707662F4F /* KeyCommitQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8F1F925F053BA5BF36C118C /* KeyCommitQueue.swift */; };
 		AB0F2E167DA8AA1EBD8F37E5 /* PlusGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D488C3ADF837AC9FCDD9EC1D /* PlusGate.swift */; };
+		AB3FDDE7EE22D498D55C496F /* Zodiac.swift in Sources */ = {isa = PBXBuildFile; fileRef = 625D4BBB065084DF9D051CE0 /* Zodiac.swift */; };
 		AC2407E83BA2FC77C45DE3FF /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 738732B955CD39C76B2484C7 /* SeedData.swift */; };
 		AC5A40141A59AD642474D654 /* buddy-chick-v2.png in Resources */ = {isa = PBXBuildFile; fileRef = 3709709ACAA431BAEAEDA597 /* buddy-chick-v2.png */; };
 		AC6E9978B1D5F292B09158AE /* KeySoundTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8B6F1BC1B564638DA93D085 /* KeySoundTests.swift */; };
@@ -524,6 +527,7 @@
 		F2EAFEC76076EAC9B3E82E15 /* TextToolRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EAE46AEF3EF71266329303C /* TextToolRunner.swift */; };
 		F3826B7852246039AC38DA7B /* SuggestionCount.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C67EF4DD8066AD3C798959 /* SuggestionCount.swift */; };
 		F3CD769E5BE2D6A260542902 /* userlm-legacy-ios.plist in Resources */ = {isa = PBXBuildFile; fileRef = B588D27FC630D28D8CAA5CB1 /* userlm-legacy-ios.plist */; };
+		F7782F309B020930AAAD4EF7 /* Zodiac.swift in Sources */ = {isa = PBXBuildFile; fileRef = 625D4BBB065084DF9D051CE0 /* Zodiac.swift */; };
 		F8600BEC357C950EB10B41E2 /* KeyGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBCB7D7DAA868C8FB4B96C87 /* KeyGeometry.swift */; };
 		F99684807A0497470052E57C /* AIThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EF0C7985F5CA04234BE588D /* AIThemeTests.swift */; };
 		FAA72FF64936E572745B57FC /* TouchTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E700B266A47DAAAD5A72343 /* TouchTarget.swift */; };
@@ -736,6 +740,7 @@
 		5E8B28C264666A6160445981 /* swipe-traces-sample.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "swipe-traces-sample.json"; sourceTree = "<group>"; };
 		5FB555B02C639E1F1E0A8500 /* OFL-Tiny5-Regular.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "OFL-Tiny5-Regular.txt"; sourceTree = "<group>"; };
 		6152562FF50F2AE0026EE23A /* SuggestionInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionInk.swift; sourceTree = "<group>"; };
+		625D4BBB065084DF9D051CE0 /* Zodiac.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Zodiac.swift; sourceTree = "<group>"; };
 		62E14AD387BE2B1A54881E15 /* AppearancePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearancePolicy.swift; sourceTree = "<group>"; };
 		6431194D2F5D04057EE598B6 /* RainbowBorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RainbowBorderTests.swift; sourceTree = "<group>"; };
 		667215621CB316149B211C19 /* OnboardingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTests.swift; sourceTree = "<group>"; };
@@ -883,6 +888,7 @@
 		C9822723B0DBD958953953CF /* ViewTreeLeakTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewTreeLeakTests.swift; sourceTree = "<group>"; };
 		CAD72939A03B2CDB528A0C4A /* Keyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Keyboard.entitlements; sourceTree = "<group>"; };
 		CBD24780DBDAEB07E6645C3E /* ScrollEdgeEffectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollEdgeEffectTests.swift; sourceTree = "<group>"; };
+		CC639307CA58019356167256 /* ZodiacThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZodiacThemeTests.swift; sourceTree = "<group>"; };
 		CC97B8AC6D8335D37B6565AD /* AIProofreadPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIProofreadPanel.swift; sourceTree = "<group>"; };
 		CCEDEE554C73498F36146A9D /* VietTelexApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = VietTelexApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CD4F88B734B9569A1C514B47 /* VniMixedHiddenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VniMixedHiddenTests.swift; sourceTree = "<group>"; };
@@ -1343,6 +1349,7 @@
 				8B3578841CEB4885B61BD148 /* VTCatchTests.swift */,
 				36C728D6BE87D4E515070B03 /* WallpaperCropTests.swift */,
 				0599154D3A43772DC7456968 /* WordDeleteTests.swift */,
+				CC639307CA58019356167256 /* ZodiacThemeTests.swift */,
 				1CF891C409E9F5C6BC92268A /* Fixtures */,
 			);
 			path = KeyboardTests;
@@ -1520,6 +1527,7 @@
 				C445BEBA75DFC20101EC3BA9 /* VNSuggest.swift */,
 				69A12BC49EB45298684CF97D /* Wallpaper.swift */,
 				451B2112B13ABD917EEE3D9A /* WordDelete.swift */,
+				625D4BBB065084DF9D051CE0 /* Zodiac.swift */,
 				A496EA2CBCF9E03EEE543B0C /* ObjC */,
 				386A21A07F2A4BABEBD7B24B /* Resources */,
 			);
@@ -1936,6 +1944,7 @@
 				733D3888524809658B6A04D3 /* VTCatch.m in Sources */,
 				28204C66017B9ADA8F8C46FE /* Wallpaper.swift in Sources */,
 				C5CBA64509EDCDA0318FC6BF /* WordDelete.swift in Sources */,
+				A4C4C8C0CC9E0A3C11DBCC47 /* Zodiac.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2022,6 +2031,7 @@
 				5CA3CB101E504E9B3DF8B3A9 /* VietTelexApp.swift in Sources */,
 				E318F2FD0A91CFD018E4BC65 /* Wallpaper.swift in Sources */,
 				5D4E6E65DD77BBA816CD4938 /* WallpaperEditorView.swift in Sources */,
+				F7782F309B020930AAAD4EF7 /* Zodiac.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2287,6 +2297,8 @@
 				DE66F26425D4405AA5861CC8 /* WallpaperCropTests.swift in Sources */,
 				DC996CC66C628B133BA2BCDD /* WordDelete.swift in Sources */,
 				C0F883065272FE06DAE56D0E /* WordDeleteTests.swift in Sources */,
+				AB3FDDE7EE22D498D55C496F /* Zodiac.swift in Sources */,
+				2354B962BDC97C649EAE20B9 /* ZodiacThemeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -30,6 +30,10 @@ enum KeyEffectPreviewScript {
         default: return 1
         }
     }
+    /// Chòm sao: một chạm = đủ số phím để thắp CẢ chòm của cung (thấy nét nối + loé).
+    static func burst(_ e: KeyEffect, zodiac: ZodiacSign) -> Int {
+        e == .constellation ? zodiac.constellation.stars.count : burst(e)
+    }
     /// Sàn nhảy LED: lần chạm chẵn = một nhịp phím cách (flash nền, cổng ≤ 3 lần / giây vẫn áp).
     static func beat(_ e: KeyEffect, tap: Int) -> Bool { e == .dancefloor && tap % 2 == 0 }
     /// Phím giả quanh phím V (Sàn nhảy LED thắp phím hàng xóm).
@@ -70,7 +74,7 @@ final class KeyEffectPreviewView: UIView {
 
     var keyFrame: CGRect { key.frame }
 
-    func update(effect e: KeyEffect, palette: KeyboardPalette, play: Int) {
+    func update(effect e: KeyEffect, palette: KeyboardPalette, play: Int, zodiac: ZodiacSign = .defaultValue) {
         effect = e
         backgroundColor = palette.background?.ui ?? (palette.isDark ? UIColor(white: 0.16, alpha: 1)
                                                                     : UIColor(red: 0.82, green: 0.84, blue: 0.87, alpha: 1))
@@ -85,6 +89,7 @@ final class KeyEffectPreviewView: UIView {
         overlay?.laserOrigin = { [weak self] in self.map { KeyEffectPreviewScript.spaceBar(in: $0.bounds) } }
         overlay?.tokenTarget = { [weak self] in self.map { KeyEffectPreviewScript.tokenTarget(in: $0.bounds) } }
         overlay?.flashGate = beat?.gate
+        overlay?.zodiacSign = zodiac
         syncSpace()
         if play != lastPlay {
             lastPlay = play
@@ -102,7 +107,7 @@ final class KeyEffectPreviewView: UIView {
             o.emit(key: CGRect(x: bounds.width * 0.12, y: 12, width: 20, height: 20)); o.flush()
             o.emit(key: CGRect(x: bounds.width * 0.78, y: 18, width: 20, height: 20)); o.flush()
         }
-        for _ in 1..<max(KeyEffectPreviewScript.burst(effect), 1) { o.emit(key: k); o.flush() }
+        for _ in 1..<max(KeyEffectPreviewScript.burst(effect, zodiac: o.zodiacSign), 1) { o.emit(key: k); o.flush() }
         o.queueEmoji(KeyEffectPreviewScript.emoji)
         o.queueTone(KeyEffectPreviewScript.tone)
         o.queueKeyword(KeyEffectPreviewScript.keyword(tap: tap))

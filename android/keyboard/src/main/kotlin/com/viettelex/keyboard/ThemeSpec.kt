@@ -52,6 +52,11 @@ import java.nio.charset.CodingErrorAction
  * chọn theme ([ThemeExtras.applyBuddyOnSelect] — khoá keyboardBuddy / buddySize); đổi tay sau đó thì giữ tới lần chọn
  * theme kế. Nhân vật bị khoá Plus ⇒ bỏ qua (cả cỡ). Khoá lạ ⇒ unknownKey; thiếu "character" ⇒ missingKey; id lạ ⇒
  * badValue; cỡ ngoài 1…20 ⇒ kẹp + cảnh báo clamped. Bản vá ([KeyStyle]) không có "buddy".
+ *
+ * "variant" (tuỳ chọn, danh sách trắng [ThemeVariants.KNOWN]): bảng màu THEO LỰA CHỌN CỦA NGƯỜI DÙNG ở trang Giao diện —
+ * "zodiac" = Cung hoàng đạo: bảng màu theo nguyên tố của cung đã chọn (khoá `zodiacSign`, [ZodiacElement.slots]) + ký hiệu
+ * cung mờ ở góc + chòm sao của cung cho hiệu ứng "Chòm sao". Giải MỘT lần lúc dựng bàn phím ([ThemeSettings] đọc lựa chọn)
+ * — 0 chi phí mỗi phím. "light"/"dark" vẫn bắt buộc = bảng dự phòng. Lạ ⇒ badValue; sai kiểu ⇒ wrongType. iOS y hệt.
  * iOS ThemeSpec.swift y hệt.
  */
 
@@ -618,6 +623,8 @@ data class ThemeSpec(
     val tags: List<String>? = null,
     /** Bạn đồng hành đi kèm (ghi một lần lúc chọn theme — [ThemeExtras.applyBuddyOnSelect]); null = không đổi. iOS `buddy`. */
     val buddy: ThemeBuddy? = null,
+    /** Bảng màu theo lựa chọn người dùng ("zodiac" — [ThemeVariants.KNOWN]); null = theo light/dark. iOS `variant`. */
+    val variant: String? = null,
 ) {
     /** Theme tương tác (nhãn "interactive") — chip "Tương tác" + nhóm riêng trong màn chọn giao diện. */
     val isInteractive: Boolean get() = tags?.contains(ThemeTags.INTERACTIVE) == true
@@ -633,6 +640,9 @@ data class ThemeSpec(
     /** Palette ở phút [minute] (theme có lịch); null / không lịch ⇒ [palette]. */
     fun palette(dark: Boolean, minute: Int?): ThemePalette =
         if (schedule == null || minute == null) palette(dark) else palette(slots(dark, minute), dark)
+    /** Như [palette] + lựa chọn biến thể ("variant") — có biến thể ⇒ bảng của lựa chọn (gồm ký hiệu góc). */
+    fun palette(dark: Boolean, minute: Int?, choice: ThemeVariantChoice): ThemePalette =
+        variant?.let { ThemeVariants.palette(it, choice) } ?: palette(dark, minute)
     val name: String get() = if (L10n.isEnglish) (nameEn ?: nameVi) else nameVi
     /** Kiểu chữ / bo góc / tệp tải về mặc định của theme. */
     val typography: KeyStyle get() = KeyStyle(corner = corner, fontScale = fontScale, font = font ?: KeyLabelFont.DEFAULT,
@@ -669,6 +679,7 @@ data class ThemeSpec(
             b.size?.let { bm.add("size" to SJ.Num(it)) }
             m.add("buddy" to SJ.Obj(bm))
         }
+        variant?.let { m.add("variant" to SJ.Str(it)) }
         schedule?.let { sc ->
             m.add("schedule" to SJ.Arr(sc.map { SJ.Obj(listOf("from" to SJ.Str(ThemeSchedule.format(it.from)), "palette" to json(it.slots))) }))
         }
@@ -783,7 +794,7 @@ object ThemeSpecParser {
 
     private val ASSET_KEYS = setOf("background", "foreground", "keys")
     private val ROOT_KEYS = setOf("v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
-        "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx", "tags", "buddy") + ASSET_KEYS
+        "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx", "tags", "buddy", "variant") + ASSET_KEYS
     private val SLOT_KEYS = (ThemeSlots.COLOR_KEYS + "deco" + "borderFx" + "spaceDeco").toSet()
 
     fun parse(text: String): Outcome = when (val r = StrictJson.parse(text)) {
@@ -834,11 +845,17 @@ object ThemeSpecParser {
         val schedule = j["schedule"]?.let { schedule(it, c) }
         val tags = j["tags"]?.let { tags(it, c) }
         val buddy = j["buddy"]?.let { buddy(it, c) }
+        var variant: String? = null
+        when (val v = j["variant"]) {
+            null -> {}
+            is SJ.Str -> if (v.s in ThemeVariants.KNOWN) variant = v.s else c.err(ThemeIssue.Code.badValue, "variant")
+            else -> c.err(ThemeIssue.Code.wrongType, "variant")
+        }
         if (c.failed) return Outcome(null, c.issues)
         val spec = ThemeSpec(id, vi, en, light, if (dark == light) null else dark, typo.corner, typo.fontScale,
             if (j["font"] != null && typo.assets.font == null) typo.font else null,
             if (j["weight"] != null) typo.weight else null, typo.assets, typo.sound, typo.effect, typo.swipe, typo.game,
-            schedule, typo.keyShape, photoFx = typo.photoFx, tags = tags, buddy = buddy)
+            schedule, typo.keyShape, photoFx = typo.photoFx, tags = tags, buddy = buddy, variant = variant)
         if (contrast) c.issues.addAll(contrastIssues(spec))
         return Outcome(if (c.failed) null else spec, c.issues)
     }
@@ -1302,4 +1319,29 @@ object ThemeJsonActions {
     fun preview(text: String): ThemeSpecParser.Outcome = ThemeSpecParser.parse(text)
 
     fun commitPaste(spec: ThemeSpec, store: Map<String, ThemeSpec>): CustomThemeStore.Added = CustomThemeStore.add(spec, store)
+}
+
+/** Lựa chọn cho theme có "variant" — chỉ id (khoá riêng `zodiacSign`). iOS ThemeVariantChoice y hệt. */
+data class ThemeVariantChoice(val zodiac: ZodiacSign = ZodiacSign.DEFAULT) {
+    companion object {
+        fun load(get: (String) -> Any?): ThemeVariantChoice = ThemeVariantChoice(zodiac = ZodiacSign.parse(get(ZodiacSign.KEY)))
+    }
+}
+
+/** "variant" của theme JSON — danh sách trắng + bảng màu theo lựa chọn. iOS ThemeVariants y hệt (fixture chung chốt). */
+object ThemeVariants {
+    const val ZODIAC = "zodiac"
+    val KNOWN: Set<String> = setOf(ZODIAC)
+
+    fun slots(v: String, c: ThemeVariantChoice): ThemeSlots? = when (v) {
+        ZODIAC -> c.zodiac.element.slots
+        else -> null
+    }
+
+    /** Palette đã giải (gồm ký hiệu góc); null = biến thể lạ. Bảng nền tối ("dark":"same"). */
+    fun palette(v: String, c: ThemeVariantChoice): ThemePalette? {
+        val s = slots(v, c) ?: return null
+        val p = ThemeSpec.palette(s, true)
+        return if (v == ZODIAC) p.copy(cornerGlyph = c.zodiac.glyph) else p
+    }
 }

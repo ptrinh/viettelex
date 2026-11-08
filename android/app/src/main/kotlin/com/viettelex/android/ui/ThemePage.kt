@@ -203,6 +203,8 @@ internal fun saveThemeSettings(ctx: Context, s: ThemeSettings) {
         putInt(Keys.KEYBOARD_TRANSPARENCY, s.keyboardTransparency)
         putInt(Keys.KEY_LABEL_TRANSPARENCY, s.labelTransparency)
         putBoolean(Keys.SYSTEM_MATERIAL_YOU, s.materialYou)
+        // Cung hoàng đạo (theme "variant"): CHỈ id cung.
+        putString(com.viettelex.keyboard.ZodiacSign.KEY, s.variantChoice.zodiac.id)
         // Tuỳ chỉnh nâng cao theo theme: một chuỗi JSON chuẩn; khoá chung cũ bỏ (đã chuyển vào chuỗi).
         putString(Keys.KEY_STYLES, KeyStyleStore.serialize(s.keyStyles))
         // IME chỉ đọc theme tự tạo đang chọn — bản chuẩn hoá ở khoá riêng.
@@ -306,7 +308,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
 
     if (pickingEffect) {
         KeyEffectPage(s.styledCurrent(s.basePaletteNow(dark) ?: systemPreviewPalette(ctx, s, dark), dark),
-            onOpenPlus = onOpenPlus, onBack = { pickingEffect = false })
+            onOpenPlus = onOpenPlus, onBack = { pickingEffect = false }, zodiac = s.variantChoice.zodiac)
         return
     }
 
@@ -338,8 +340,8 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
     // Bộ theme dài (14) ⇒ chọn ở trang con "Chọn giao diện"; ở đây một dòng tóm tắt.
     VTSection(header = "Theme") {
         VTRow(onClick = { picking = true }) {
-            KeyboardPreview(s.custom?.let { s.styledCustom(it, dark) }
-                ?: s.styled(s.theme, s.theme.paletteNow(dark) ?: systemPreviewPalette(ctx, s, dark), dark), null, 0,
+            KeyboardPreview(s.custom?.let { s.styledCustomNow(it, dark) }
+                ?: s.styled(s.theme, s.cardPalette(s.theme, dark) ?: systemPreviewPalette(ctx, s, dark), dark), null, 0,
                 large = false, keyStyle = s.custom?.let { s.effectiveStyleFor(it.id ?: "", it.typography) } ?: s.effectiveStyleFor(s.theme),
                 modifier = Modifier.width(56.dp).height(36.dp).clip(RoundedCornerShape(6.dp))
                     .border(1.dp, c.separator, RoundedCornerShape(6.dp)))
@@ -393,6 +395,11 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
                 }
             }
         }
+    }
+
+    // Theme có "variant" (Cung hoàng đạo): chọn cung ngay dưới — chỉ lưu id.
+    if (s.selectedSpec?.variant == com.viettelex.keyboard.ThemeVariants.ZODIAC) {
+        ZodiacPicker(s.variantChoice.zodiac) { update(s.copy(variantChoice = s.variantChoice.copy(zodiac = it))) }
     }
 
     // Neon Night Club ("photoFx":"spotlight"): đèn rọi lên ảnh nền — chưa dùng ảnh ⇒ gợi ý + lối tắt chọn ảnh.
@@ -711,4 +718,42 @@ internal fun HotBadge(animated: Boolean, modifier: Modifier = Modifier) {
             .clip(RoundedCornerShape(50))
             .background(Brush.horizontalGradient(listOf(Color(0xFFFF3B30), Color(0xFFFF9500))))
             .padding(horizontal = 5.dp, vertical = 1.dp))
+}
+
+/**
+ * Theme "Cung hoàng đạo": chọn cung (12 dòng) hoặc tính từ ngày / tháng sinh. CHỈ lưu id cung — ngày / tháng chỉ để tính,
+ * không lưu (Zodiac.kt). iOS ZodiacSection y hệt.
+ */
+@Composable
+private fun ZodiacPicker(sign: com.viettelex.keyboard.ZodiacSign, onPick: (com.viettelex.keyboard.ZodiacSign) -> Unit) {
+    val c = LocalVT.current
+    var day by remember { mutableStateOf(1) }
+    var month by remember { mutableStateOf(1) }
+    VTSection(header = tr("Cung hoàng đạo"),
+        footer = tr("Màu bàn phím theo nguyên tố của cung (Lửa, Đất, Khí, Nước); hiệu ứng Chòm sao vẽ chòm sao của cung khi bạn gõ. Chỉ lưu cung đã chọn, không lưu ngày sinh.")) {
+        com.viettelex.keyboard.ZodiacSign.entries.forEachIndexed { i, z ->
+            if (i > 0) RowDivider()
+            VTRow(onClick = { onPick(z) }) {
+                Text(z.glyph, style = VTType.body.copy(fontSize = 20.sp), color = c.label)
+                Text("${z.title} · ${z.element.title}", style = VTType.body, color = c.label,
+                    modifier = Modifier.weight(1f).padding(start = 12.dp))
+                if (z == sign) Text("✓", style = VTType.body, color = c.accent)
+            }
+        }
+        RowDivider()
+        VTRow {
+            Text(tr("Tính từ ngày sinh"), style = VTType.body, color = c.label, modifier = Modifier.weight(1f))
+            Text("$day/$month", style = VTType.body, color = c.secondary, modifier = Modifier.padding(end = 8.dp))
+        }
+        VTRow {
+            Text(tr("Ngày"), style = VTType.body, color = c.secondary, modifier = Modifier.padding(end = 6.dp))
+            IosStepper(day, 1..31) { day = it }
+            Text(tr("Tháng"), style = VTType.body, color = c.secondary, modifier = Modifier.padding(start = 10.dp, end = 6.dp))
+            IosStepper(month, 1..12) { month = it }
+            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+            val found = com.viettelex.keyboard.ZodiacSign.from(day, month)
+            Text(tr("Tính"), style = VTType.body, color = if (found != null) c.accent else c.secondary,
+                modifier = Modifier.clickable(enabled = found != null) { found?.let(onPick) }.padding(start = 8.dp))
+        }
+    }
 }

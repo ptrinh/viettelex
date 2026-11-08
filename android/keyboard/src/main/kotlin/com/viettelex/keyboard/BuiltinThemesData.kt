@@ -223,6 +223,13 @@ internal object BuiltinThemesData {
       "light": {"bg": "#07020D", "key": "#170A24", "special": "#241038", "ink": "#FBEFFF", "accent": "#FF2FD0",
                 "accentInk": "#1A0016", "fn": "#10061C", "fnInk": "#2FE6FF", "border": "#E6FF2FD0"},
       "dark": "same"
+    },
+    {
+      "v": 1, "id": "zodiac", "name": {"vi": "Cung hoàng đạo", "en": "Zodiac"}, "tags": ["interactive"], "variant": "zodiac",
+      "sound": "twinkle", "effect": "constellation", "swipe": "stardust",
+      "light": {"bg": "#120A1F", "key": "#2A1530", "special": "#3D1C38", "ink": "#FFF4E6", "accent": "#FF7A2F",
+                "accentInk": "#1A0A00", "fn": "#1E1028", "fnInk": "#FFC857", "deco": {"motif": "starfield", "color": "#66FFD9A0"}},
+      "dark": "same"
     }
   ]
 }

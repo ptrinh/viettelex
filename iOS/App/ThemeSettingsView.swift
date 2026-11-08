@@ -165,6 +165,12 @@ struct ThemeSettingsView: View {
                 }
             }
 
+            // Theme có "variant" (Cung hoàng đạo…): chọn ngay dưới — chỉ lưu id lựa chọn.
+            if settings.selectedSpec?.variant == ThemeVariants.zodiac {
+                ZodiacSection(sign: Binding(get: { settings.variantChoice.zodiac },
+                                            set: { settings.variantChoice.zodiac = $0; save() }))
+            }
+
             Section {
                 NavigationLink {
                     KeyEffectPickerView()
@@ -822,5 +828,41 @@ struct HotBadge: View {
             .onAppear { pulse = on }
             .onChange(of: on) { v in pulse = v }
             .accessibilityLabel(L("Mới"))
+    }
+}
+
+/// Theme "Cung hoàng đạo": chọn cung (danh sách 12) hoặc tính từ ngày / tháng sinh. CHỈ lưu id cung — ngày / tháng nhập
+/// vào chỉ để tính, không lưu (Zodiac.swift). Android ZodiacPicker (ThemePage.kt) y hệt.
+struct ZodiacSection: View {
+    @Binding var sign: ZodiacSign
+    @State private var day = 1
+    @State private var month = 1
+
+    var body: some View {
+        Section {
+            Picker(L("Cung của bạn"), selection: $sign) {
+                ForEach(ZodiacSign.allCases, id: \.self) { z in
+                    Text("\(z.glyph)  \(z.title) · \(z.element.title)").tag(z)
+                }
+            }
+            HStack {
+                Text(L("Tính từ ngày sinh"))
+                Spacer()
+                Picker(L("Ngày"), selection: $day) { ForEach(1...31, id: \.self) { Text("\($0)").tag($0) } }
+                    .labelsHidden()
+                Text("/")
+                Picker(L("Tháng"), selection: $month) { ForEach(1...12, id: \.self) { Text("\($0)").tag($0) } }
+                    .labelsHidden()
+                Button(L("Tính")) {
+                    if let z = ZodiacSign.from(day: day, month: month) { sign = z }
+                }
+                .disabled(ZodiacSign.from(day: day, month: month) == nil)
+                .buttonStyle(.borderless)
+            }
+        } header: {
+            Text(L("Cung hoàng đạo"))
+        } footer: {
+            Text(L("Màu bàn phím theo nguyên tố của cung (Lửa, Đất, Khí, Nước); hiệu ứng Chòm sao vẽ chòm sao của cung khi bạn gõ. Chỉ lưu cung đã chọn, không lưu ngày sinh."))
+        }
     }
 }

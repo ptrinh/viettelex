@@ -44,6 +44,9 @@ import com.viettelex.keyboard.ShimmerGate
 import com.viettelex.keyboard.TokenStream
 import com.viettelex.keyboard.ThemeDecoration
 import com.viettelex.keyboard.WaveRings
+import com.viettelex.keyboard.ConstellationFx
+import com.viettelex.keyboard.ConstellationTrace
+import com.viettelex.keyboard.ZodiacSign
 
 /**
  * Lớp phủ "Hiệu ứng khi bấm phím" (Plus) — song sinh iOS KeyEffectOverlay. MỘT View không nhận chạm.
@@ -422,6 +425,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.SAND -> fireSand(x, y, now)
             KeyEffect.SEA -> fireSea(x, y, now)
             KeyEffect.DANCEFLOOR -> fireDance(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
+            KeyEffect.CONSTELLATION -> fireConstellation(x, y, now)
             KeyEffect.FLASH -> if (flash.trigger(now)) flashStart = now
             KeyEffect.LIGHTNING -> fireLightning(x, y, if (w > 0f) w else DEFAULT_W * density, if (h > 0f) h else DEFAULT_H * density, now)
             KeyEffect.MATRIX -> pokeMatrix(now)
@@ -513,9 +517,109 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         shakeStart = Long.MIN_VALUE / 2; shakeMeter.reset()
         shakeTarget?.let { it.translationX = 0f; it.translationY = 0f }
         danceStart.fill(Long.MIN_VALUE / 2); flickerStart = Long.MIN_VALUE / 2
+        haltConstellation()
         pendN = 0
         invalidate()
     }
+
+    // ---- Chòm sao ([ConstellationFx] / [ConstellationTrace] — Zodiac.kt, chung iOS). Mảng cấp sẵn, không cấp phát
+    // mỗi khung; hết chòm thì thôi hẹn khung hình (nghỉ = 0).
+
+    /** Cung của người dùng (IME đặt lúc dựng view từ ThemeSettings.variantChoice). Đổi ⇒ chòm mới ở phím kế. */
+    var zodiacSign: ZodiacSign = ZodiacSign.DEFAULT
+        set(v) { if (v != field) { field = v; haltConstellation() } }
+    private var starTrace: ConstellationTrace? = null
+    private val cycSign = arrayOfNulls<ZodiacSign>(ConstellationFx.POOL)
+    private val cycX = Array(ConstellationFx.POOL) { FloatArray(MAX_STARS) }
+    private val cycY = Array(ConstellationFx.POOL) { FloatArray(MAX_STARS) }
+    private val cycLit = Array(ConstellationFx.POOL) { LongArray(MAX_STARS) { Long.MIN_VALUE / 2 } }
+    private val cycLast = LongArray(ConstellationFx.POOL) { Long.MIN_VALUE / 2 }
+    private val cycDone = LongArray(ConstellationFx.POOL) { Long.MIN_VALUE / 2 }
+    private var cycCursor = 0
+    private var cycActive = -1
+    private val starPath = Path()
+
+    private fun haltConstellation() {
+        starTrace = null; cycActive = -1
+        cycSign.fill(null); cycLast.fill(Long.MIN_VALUE / 2); cycDone.fill(Long.MIN_VALUE / 2)
+        for (l in cycLit) l.fill(Long.MIN_VALUE / 2)
+    }
+
+    private fun fireConstellation(x: Float, y: Float, now: Long) {
+        val sign = zodiacSign
+        val c = sign.constellation
+        val tr = starTrace ?: ConstellationTrace(c.stars.size).also { starTrace = it }
+        val step = tr.press(now / 1000.0)
+        if (step.newCycle || cycActive < 0) {
+            val s = cycCursor; cycCursor = (s + 1) % ConstellationFx.POOL
+            cycActive = s
+            val d = density.toDouble()
+            val b = ConstellationFx.box(x / d, y / d, 0.0, 0.0, width / d, height / d)
+            for ((i, st) in c.stars.withIndex()) {
+                cycX[s][i] = (ConstellationFx.pointX(st, b) * d).toFloat()
+                cycY[s][i] = (ConstellationFx.pointY(st, b) * d).toFloat()
+            }
+            cycLit[s].fill(Long.MIN_VALUE / 2)
+            cycDone[s] = Long.MIN_VALUE / 2
+            cycSign[s] = sign
+        }
+        val s = cycActive
+        if (step.star < MAX_STARS) cycLit[s][step.star] = now
+        cycLast[s] = now
+        if (step.completes) { cycDone[s] = now; cycActive = -1 }
+    }
+
+    private fun drawConstellation(canvas: Canvas, now: Long): Boolean {
+        var any = false
+        val opaque = color or (0xFF shl 24)
+        if (starPath.isEmpty) star4(starPath, (ConstellationFx.STAR_RADIUS * density).toFloat(), (ConstellationFx.STAR_INNER * density).toFloat())
+        for (s in 0 until ConstellationFx.POOL) {
+            val sign = cycSign[s] ?: continue
+            val done = cycDone[s] > Long.MIN_VALUE / 2
+            val a = if (done) ConstellationFx.cycleAlpha((now - cycDone[s]) / 1000.0, true)
+                    else ConstellationFx.cycleAlpha((now - cycLast[s]) / 1000.0, false)
+            if (a <= 0.0) { cycSign[s] = null; continue }
+            any = true
+            val c = sign.constellation
+            val xs = cycX[s]; val ys = cycY[s]; val lit = cycLit[s]
+            if (done) {
+                val g = ConstellationFx.glowAlpha((now - cycDone[s]) / 1000.0) * 0.55 * a
+                if (g > 0) {
+                    fill.color = opaque; fill.alpha = (g * 255).toInt().coerceIn(0, 255)
+                    val r = (ConstellationFx.HALO_RADIUS * density).toFloat()
+                    for (i in c.stars.indices) canvas.drawCircle(xs[i], ys[i], r, fill)
+                }
+            }
+            stroke.color = opaque; stroke.strokeWidth = (ConstellationFx.LINE_WIDTH * density).toFloat()
+            stroke.strokeCap = Paint.Cap.ROUND
+            for (e in c.edges) {
+                val lo = minOf(e.a, e.b); val hi = maxOf(e.a, e.b)
+                val dt = (now - lit[hi]) / 1000.0
+                if (dt < 0 || lit[hi] <= Long.MIN_VALUE / 2) continue
+                val p = ConstellationFx.starAlpha(dt).toFloat()
+                stroke.alpha = (ConstellationFx.LINE_ALPHA * a * 255).toInt().coerceIn(0, 255)
+                canvas.drawLine(xs[lo], ys[lo], xs[lo] + (xs[hi] - xs[lo]) * p, ys[lo] + (ys[hi] - ys[lo]) * p, stroke)
+            }
+            fill.color = ConstellationFx.STAR_COLOR or (0xFF shl 24)
+            for (i in c.stars.indices) {
+                if (lit[i] <= Long.MIN_VALUE / 2) continue
+                val dt = (now - lit[i]) / 1000.0
+                if (dt < 0) continue
+                val k = ConstellationFx.starAlpha(dt)
+                fill.alpha = (k * a * 255).toInt().coerceIn(0, 255)
+                val sc = (0.3 + 0.7 * k).toFloat()
+                canvas.save(); canvas.translate(xs[i], ys[i]); canvas.scale(sc, sc)
+                canvas.drawPath(starPath, fill)
+                canvas.restore()
+            }
+        }
+        return any
+    }
+
+    /** Test: số sao đã thắp của chòm ô [s] + vị trí sao (px). */
+    internal fun starsLit(s: Int): Int = if (cycSign[s] == null) 0 else cycLit[s].count { it > Long.MIN_VALUE / 2 }
+    internal fun starX(s: Int, i: Int): Float = cycX[s][i]
+    internal fun starY(s: Int, i: Int): Float = cycY[s][i]
 
     // ---- Sàn nhảy LED ([DanceFloor] — hình học thuần chung iOS; ở đây px vì cỡ ô theo khung phím thật)
 
@@ -622,6 +726,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
             KeyEffect.SAND -> drawSand(canvas, now)
             KeyEffect.SEA -> drawSea(canvas, now)
             KeyEffect.DANCEFLOOR -> drawDance(canvas, now)
+            KeyEffect.CONSTELLATION -> drawConstellation(canvas, now)
             else -> drawParticles(canvas, now)
         }
     }
@@ -1584,5 +1689,7 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
         val SEA_FISH_MS = Math.round(SeaFx.FISH_DURATION * 1000)
         /** Sàn nhảy LED: số ô mỗi chùm = (2·(RINGS−1)+1)². */
         const val DANCE_TILES = (2 * (DanceFloor.RINGS - 1) + 1) * (2 * (DanceFloor.RINGS - 1) + 1)
+        /** Chòm sao: số sao tối đa một chòm (bảng ZodiacSign). */
+        val MAX_STARS = ZodiacSign.MAX_STARS
     }
 }

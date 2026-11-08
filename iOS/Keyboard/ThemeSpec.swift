@@ -53,6 +53,12 @@ import Foundation
 //   chọn theme kế. Nhân vật bị khoá Plus / app không có ⇒ bỏ qua (cả cỡ). Khoá lạ ⇒ unknownKey; thiếu "character" ⇒
 //   missingKey; id lạ ⇒ badValue; cỡ ngoài 1…20 ⇒ kẹp + cảnh báo clamped. Bản vá (KeyStyle) không có "buddy".
 //
+// "variant" (tuỳ chọn, danh sách trắng ThemeVariants.known): bảng màu THEO LỰA CHỌN CỦA NGƯỜI DÙNG ở trang Giao diện —
+//   "zodiac" = Cung hoàng đạo: bảng màu theo nguyên tố của cung đã chọn (khoá `zodiacSign`, ZodiacElement.slots) + ký
+//   hiệu cung mờ ở góc + chòm sao của cung cho hiệu ứng "Chòm sao". Giải MỘT lần lúc bàn phím hiện (ThemeSettings đọc
+//   lựa chọn) — 0 chi phí mỗi phím. "light"/"dark" vẫn bắt buộc = bảng dự phòng (thẻ xem trước tĩnh, "Chép JSON").
+//   Giá trị lạ ⇒ badValue; sai kiểu ⇒ wrongType. Bản vá (KeyStyle) không có "variant"; "Chép JSON" giữ nguyên.
+//
 // "sound" / "effect" (tuỳ chọn, id trong danh sách trắng ThemeExtraIds): âm phím / hiệu ứng bấm phím ĐI KÈM theme —
 // CHỈ áp MỘT lần lúc người dùng chọn theme (ThemeExtras.applyOnSelect); không bao giờ tự bật âm thanh phím.
 // "swipe" (tuỳ chọn, id SwipeTrailStyle trừ "theme"): nét vuốt của theme — KHÔNG áp lúc chọn theme; chỉ được
@@ -721,6 +727,8 @@ struct ThemeSpec: Equatable {
     var tags: [String]? = nil
     /// Bạn đồng hành đi kèm (ghi một lần lúc chọn theme — ThemeExtras.applyBuddyOnSelect); nil = không đổi.
     var buddy: ThemeBuddy? = nil
+    /// Bảng màu theo lựa chọn người dùng ("zodiac" — ThemeVariants.known); nil = theo "light"/"dark" như mọi theme.
+    var variant: String? = nil
     /// Theme tương tác (nhãn "interactive") — chip "Tương tác" + nhóm riêng trong màn chọn giao diện.
     var isInteractive: Bool { tags?.contains(ThemeTags.interactive) ?? false }
 
@@ -753,6 +761,43 @@ struct ThemeSpec: Equatable {
 struct ThemeBuddy: Equatable {
     var character: String
     var size: Int? = nil
+}
+
+/// "variant" của theme JSON — bảng màu theo lựa chọn của người dùng (Android ThemeVariants y hệt, fixture chung chốt).
+struct ThemeVariantChoice: Equatable {
+    var zodiac: ZodiacSign = .defaultValue
+
+    static func load(_ d: UserDefaults?) -> ThemeVariantChoice {
+        var c = ThemeVariantChoice()
+        c.zodiac = ZodiacSign.load(d)
+        return c
+    }
+    /// Chưa từng chọn ⇒ không tạo khoá (máy giữ mặc định); đã có khoá ⇒ ghi.
+    func save(_ d: UserDefaults?) {
+        guard let d else { return }
+        if zodiac != .defaultValue || d.object(forKey: ZodiacSign.key) != nil { d.set(zodiac.rawValue, forKey: ZodiacSign.key) }
+    }
+}
+
+enum ThemeVariants {
+    static let zodiac = "zodiac"
+    static let known: Set<String> = [zodiac]
+
+    /// Bảng màu của biến thể theo lựa chọn; nil = biến thể lạ (không xảy ra với spec đã kiểm).
+    static func slots(_ v: String, _ c: ThemeVariantChoice) -> ThemeSlots? {
+        switch v {
+        case zodiac: return c.zodiac.element.slots
+        default: return nil
+        }
+    }
+
+    /// Palette đã giải của biến thể (gồm ký hiệu góc). nil ⇒ dùng light/dark.
+    static func palette(_ v: String, _ c: ThemeVariantChoice) -> KeyboardPalette? {
+        guard let s = slots(v, c) else { return nil }
+        var p = ThemeSpec.palette(s)
+        if v == zodiac { p.cornerGlyph = c.zodiac.glyph }
+        return p
+    }
 }
 
 /// Nhãn theme ("tags") — danh sách trắng; Android ThemeTags y hệt (fixture chung chốt).
@@ -797,7 +842,7 @@ enum ThemeSpecParser {
     static let assetKeys: Set<String> = ["background", "foreground", "keys"]
     static let rootKeys: Set<String> = Set(["v", "id", "name", "light", "dark", "corner", "fontScale", "font", "weight",
                                             "sound", "effect", "swipe", "game", "keyShape", "schedule", "photoFx",
-                                            "tags", "buddy"])
+                                            "tags", "buddy", "variant"])
         .union(assetKeys)
     static let slotKeys: Set<String> = Set(ThemeSlots.colorKeys + ["deco", "borderFx", "spaceDeco"])
 
@@ -861,6 +906,12 @@ enum ThemeSpecParser {
         if let v = d["tags"] { tags = Self.tags(v, &c) }
         var buddy: ThemeBuddy?
         if let v = d["buddy"] { buddy = Self.buddy(v, &c) }
+        var variant: String?
+        switch d["variant"] {
+        case nil: break
+        case .string(let s)?: if ThemeVariants.known.contains(s) { variant = s } else { c.err(.badValue, "variant") }
+        default: c.err(.wrongType, "variant")
+        }
         guard !c.failed else { return Outcome(spec: nil, issues: c.issues) }
         var spec = ThemeSpec(id: id, nameVi: vi, nameEn: en, light: light, dark: dark == light ? nil : dark)
         spec.corner = typo.corner
@@ -878,6 +929,7 @@ enum ThemeSpecParser {
         spec.schedule = schedule
         spec.tags = tags
         spec.buddy = buddy
+        spec.variant = variant
         if contrast { c.issues += contrastIssues(spec) }
         return Outcome(spec: c.failed ? nil : spec, issues: c.issues)
     }
@@ -1243,6 +1295,7 @@ extension ThemeSpec {
             if let n = buddy.size { b.append(("size", .int(n))) }
             m.append(("buddy", .object(b)))
         }
+        if let variant { m.append(("variant", .string(variant))) }
         if let schedule {
             m.append(("schedule", .array(schedule.map {
                 .object([("from", .string(ThemeSchedule.format($0.from))), ("palette", Self.json($0.slots))])
@@ -1303,6 +1356,10 @@ extension ThemeSpec {
     }
     /// Palette lúc `date`: theme có lịch ⇒ bảng của giờ địa phương đó (đọc lịch máy MỘT lần); không lịch ⇒
     /// `palette(dark:)` — không đụng tới lịch/đồng hồ.
+    func palette(dark d: Bool, at date: Date, choice: ThemeVariantChoice) -> KeyboardPalette {
+        if let v = variant, let p = ThemeVariants.palette(v, choice) { return p }
+        return palette(dark: d, at: date)
+    }
     func palette(dark d: Bool, at date: Date) -> KeyboardPalette {
         guard schedule != nil else { return palette(dark: d) }
         return Self.palette(slots(dark: d, minute: ThemeSchedule.minuteOfDay(date)))

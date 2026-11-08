@@ -16,7 +16,17 @@ import com.viettelex.keyboard.ThemeDecoration
  * Hình học dùng chung [ThemeDecoration] (= iOS KeyboardDecoration).
  */
 class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecoration?, private val density: Float,
-                         private val aurora: Boolean = false) : Drawable() {
+                         private val aurora: Boolean = false,
+                         /** Ký hiệu mờ góc trên phải (Cung hoàng đạo — palette.cornerGlyph); null = không. iOS cornerGlyphLayer. */
+                         private val glyph: String? = null, glyphColor: Int = 0) : Drawable() {
+    private val glyphPaint: Paint? = glyph?.let {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = glyphColor or (0xFF shl 24)
+            alpha = (255 * CORNER_GLYPH_ALPHA).toInt()
+            textSize = (CORNER_GLYPH_SIZE * density).toFloat()
+            textAlign = Paint.Align.RIGHT
+        }
+    }
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = decoration?.color ?: 0; style = Paint.Style.FILL }
     /** Theme AI ("borderFx":"aurora"): dải cực quang tĩnh mép trên — [AURORA_STEPS] dải ngang gradient, đậm dần lên trên
      *  ([com.viettelex.keyboard.AuroraFx.bandOpacity]); shader dựng lại chỉ khi đổi bề ngang. */
@@ -66,6 +76,10 @@ class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecor
             }
         }
         if (decoration != null) canvas.drawPath(path, paint)
+        if (glyph != null && glyphPaint != null) {
+            // Góc trên phải (dải gợi ý) — một lần mỗi lần vẽ nền, không mỗi phím.
+            canvas.drawText(glyph, bounds.right - 8 * density, bounds.top + (CORNER_GLYPH_SIZE + 4) * density, glyphPaint)
+        }
     }
 
     override fun setAlpha(alpha: Int) {}
@@ -73,7 +87,12 @@ class ThemeDecorDrawable(private val bg: Int, private val decoration: ThemeDecor
     @Deprecated("Deprecated in Java")
     override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 
-    private companion object { const val AURORA_STEPS = 14 }
+    companion object {
+        private const val AURORA_STEPS = 14
+        /** Ký hiệu góc: cỡ (dp) + độ đậm so với chữ theme — iOS KeyboardView.cornerGlyphSize / cornerGlyphAlpha. */
+        const val CORNER_GLYPH_SIZE = 26.0
+        const val CORNER_GLYPH_ALPHA = 0.22
+    }
 }
 
 /**

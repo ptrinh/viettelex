@@ -286,6 +286,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Dải cực quang tĩnh mép trên (theme AI, "borderFx":"aurora" — AuroraFx): gradient ngang + mặt nạ gradient dọc trong
     /// themeBackdrop, dựng lười lần đầu cần; theme khác ⇒ chưa từng tạo (0 chi phí).
     private var auroraBand: CAGradientLayer?
+    /// Ký hiệu mờ ở góc trên phải (theme Cung hoàng đạo — palette.cornerGlyph): MỘT CATextLayer trong themeBackdrop, dựng
+    /// lười; theme khác ⇒ chưa từng tạo / ẩn (0 chi phí).
+    private var cornerGlyphLayer: CATextLayer?
     private var wallpaperActive = false
     private var wallpaperLoadedFor: CGSize = .zero
     /// Tệp tải về của theme (theme JSON: phông / ảnh nền / tiền cảnh / skin phím) — nạp MỘT lần mỗi theme
@@ -2053,6 +2056,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         themeBackdrop.isHidden = clear || palette.background == nil
         applyDecoration(hidden: clear)
         applyAurora(hidden: clear)
+        applyCornerGlyph(hidden: clear)
         // Nền tự vẽ: bo 2 góc trên theo khung kính bàn phím iOS 26+ (không còn góc vuông đen
         // chồng lên góc bo xám của hệ thống). cornerRadius trên view lá màu phẳng / ảnh ⇒ không
         // offscreen pass.
@@ -2131,8 +2135,45 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         layoutDecoration()
         layoutAurora()
+        layoutCornerGlyph()
         layoutRainbow()
         layoutStringGaps()
+    }
+
+    /// Cỡ ký hiệu góc (pt) + độ đậm so với chữ theme. Android ImeRootView y hệt (CornerGlyph).
+    static let cornerGlyphSize: CGFloat = 26
+    static let cornerGlyphAlpha: CGFloat = 0.22
+
+    private func applyCornerGlyph(hidden: Bool) {
+        guard let g = palette.cornerGlyph, !hidden else { cornerGlyphLayer?.isHidden = true; return }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        let l = cornerGlyphLayer ?? {
+            let t = CATextLayer()
+            t.contentsScale = UIScreen.main.scale
+            t.alignmentMode = .right
+            t.font = UIFont.systemFont(ofSize: Self.cornerGlyphSize)
+            t.fontSize = Self.cornerGlyphSize
+            themeBackdrop.layer.addSublayer(t)
+            cornerGlyphLayer = t
+            return t
+        }()
+        l.string = g
+        l.foregroundColor = palette.ink.ui.withAlphaComponent(Self.cornerGlyphAlpha).cgColor
+        l.isHidden = false
+        CATransaction.commit()
+        layoutCornerGlyph()
+    }
+
+    private func layoutCornerGlyph() {
+        guard let l = cornerGlyphLayer, !l.isHidden else { return }
+        // Góc trên phải NỘI DUNG (gốc 0 của view — #151 phần host cấp dư nằm trên).
+        let top = themeBackdrop.convert(CGPoint.zero, from: self).y
+        let h = Self.cornerGlyphSize * 1.25
+        let f = CGRect(x: themeBackdrop.bounds.width - h * 1.6 - 6, y: top + 4, width: h * 1.6, height: h)
+        guard l.frame != f else { return }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        l.frame = f
+        CATransaction.commit()
     }
 
     private func applyAurora(hidden: Bool) {
@@ -7297,6 +7338,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         KeySound.shared.setSurfEnabled(sea)
         keyEffects?.onSeaWave = sea ? { Self.seaSurf(size: $0) } : nil
         configureBeatFlash(keyEffects?.effect == .dancefloor)
+        // Chòm sao: cung người dùng chọn (đọc cùng ThemeSettings lúc hiện — 0 chi phí mỗi phím).
+        if keyEffects?.effect == .constellation { keyEffects?.zodiacSign = themeSettings.variantChoice.zodiac }
         syncKeyEffectsSpace()
         layoutStringGaps()
     }
@@ -7818,6 +7861,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var debugBackdropViews: [UIView] { [themeBackdrop, themeImageView, wallpaperView, wallpaperDim] }
     /// Test: dải cực quang (theme AI) — nil = chưa từng tạo.
     var debugAuroraBand: CAGradientLayer? { auroraBand }
+    var debugCornerGlyph: CATextLayer? { cornerGlyphLayer }
     var debugRowsContainer: UIView { rowsContainer }
     /// Test: đường phím thật sau khi chạm (onKey + hiệu ứng) cho phím `k`.
     func debugTapped(_ k: Key) { tapped(k) }

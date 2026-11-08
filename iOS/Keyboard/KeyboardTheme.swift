@@ -88,6 +88,9 @@ struct KeyboardPalette: Equatable {
     /// Lỗ thoát âm trên phím cách (Ghi-ta, slot "spaceDeco":"soundhole"): hình tròn tối + vành hoa văn vẽ MỘT lần
     /// (CAShapeLayer trong phím cách / Canvas Android), 0 chi phí mỗi phím. Android `spaceSoundhole` cùng ý nghĩa.
     var spaceSoundhole = false
+    /// Ký hiệu mờ ở góc trên phải (theme Cung hoàng đạo: ♈…♓ dạng chữ) — MỘT CATextLayer trong nền theme, dựng lúc đổi
+    /// theme; nil = không có (0 chi phí). Android `cornerGlyph` cùng ý nghĩa.
+    var cornerGlyph: String? = nil
     /// Người dùng chọn "Màu nhấn" (KeyStyle.accentColor) ⇒ phím ⇧ bật / Caps tô `accent` + `accentInk`
     /// (mặc định: nền trắng glyph đen như stock). Android cùng ý nghĩa (`accentShift`).
     var accentShift = false
@@ -280,6 +283,9 @@ enum KeyboardTheme: String, CaseIterable {
     // Neon Night Club (11/2026, Plus, THÊM CUỐI): nền đen, phím tối viền ống neon hồng + chữ chức năng lục lam, Đèn rọi
     // trên ảnh nền ("photoFx":"spotlight" — NightClub.swift), hiệu ứng Sàn nhảy LED, âm "club", quả cầu disco.
     case nightclub
+    // Cung hoàng đạo (11/2026, Plus, THÊM CUỐI): nền trời đêm, bảng màu theo nguyên tố của cung người dùng chọn
+    // ("variant":"zodiac" — Zodiac.swift), ký hiệu cung mờ ở góc, hiệu ứng Chòm sao, âm "twinkle".
+    case zodiac
     // "Trắng hồng" (pureWhite, 1.5.12) đã bỏ 10/2026: chỉ là Hệ thống + màu nhấn hồng ⇒ chuyển sang
     // Hệ thống + Màu nhấn D6336C (KeyStyleStore.migrate). Id lạ / đã bỏ luôn về Hệ thống.
 
@@ -318,6 +324,7 @@ enum KeyboardTheme: String, CaseIterable {
         case .timeOfDay: return L("Theo giờ")
         case .ai: return L("AI")
         case .nightclub: return L("Neon Night Club")
+        case .zodiac: return L("Cung hoàng đạo")
         }
     }
 
@@ -353,7 +360,8 @@ enum KeyboardTheme: String, CaseIterable {
              .mole,
              .pixel, .sea, .timeOfDay,
              .ai,
-             .nightclub: return true
+             .nightclub,
+             .zodiac: return true
         }
     }
 
@@ -397,6 +405,12 @@ enum KeyboardTheme: String, CaseIterable {
             guard let spec = BuiltinThemes.specs[rawValue] else { return Self.system.palette(systemDark: systemDark) }
             return spec.palette(dark: systemDark)
         }
+    }
+
+    /// Palette lúc `date` + lựa chọn biến thể ("variant": cung hoàng đạo…) — theme khác như `palette(systemDark:at:)`.
+    func palette(systemDark: Bool, at date: Date, choice: ThemeVariantChoice) -> KeyboardPalette {
+        guard let s = spec, s.variant != nil else { return palette(systemDark: systemDark, at: date) }
+        return s.palette(dark: systemDark, at: date, choice: choice)
     }
 
     /// Palette lúc `date` (theme có lịch "schedule" — Theo giờ — đổi theo giờ địa phương; theme khác = `palette(systemDark:)`).
@@ -819,7 +833,8 @@ enum ThemePicker {
     struct Section { let title: String; let themes: [KeyboardTheme] }
     /// Thứ tự trong nhóm "Tương tác" (theme có nhãn "interactive" trong builtin-themes.json). Theme có nhãn nhưng
     /// không có trong danh sách ⇒ cuối nhóm theo thứ tự khai báo. Android ThemePicker.INTERACTIVE_ORDER y hệt.
-    static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar"]
+    static let interactiveOrder = ["nightclub", "ai", "sea", "mole", "piano", "space", "rgb", "tet", "tetMai", "guitar",
+                                   "zodiac"]
 
     /// Thứ tự lưới (thuần): miễn phí (thứ tự khai báo) → tương tác (theo `interactiveOrder`) → còn lại (thứ tự khai
     /// báo). Theme miễn phí có nhãn vẫn ở nhóm miễn phí. Android `ThemePicker.groups` cùng kết quả (fixture "picker").
@@ -908,6 +923,8 @@ struct ThemeSettings: Equatable {
     /// không có mục. Lưu nguyên kể cả khi hết quyền; áp qua `effectiveKeyStyle`. Id lạ (bản mới hơn)
     /// giữ nguyên để khứ hồi.
     var keyStyles: [String: KeyStyle] = [:]
+    /// Lựa chọn cho theme có "variant" (cung hoàng đạo…) — chỉ id, khoá riêng (`zodiacSign`); giữ khi khôi phục gốc.
+    var variantChoice = ThemeVariantChoice()
 
     /// Id theme đang chọn (có sẵn hoặc tự tạo) — khoá của `keyStyles`.
     var themeId: String { custom?.id ?? theme.rawValue }
@@ -935,6 +952,7 @@ struct ThemeSettings: Equatable {
         var s = ThemeSettings()
         s.version = version
         s.crop = crop
+        s.variantChoice = variantChoice
         return s
     }
     var isDefault: Bool { self == resetToDefaults() }
@@ -966,6 +984,7 @@ struct ThemeSettings: Equatable {
         for t in KeyboardTheme.allCases {
             if let k = t.systemBackdropKey, d.bool(forKey: k) { s.systemBackdropThemes.insert(t) }
         }
+        s.variantChoice = ThemeVariantChoice.load(d)
         return s
     }
 
@@ -1000,6 +1019,7 @@ struct ThemeSettings: Equatable {
             d?.set(styles, forKey: KeyStyleStore.key)
         }
         KeyStyleStore.removeLegacy(d)
+        variantChoice.save(d)
     }
 
     /// Theme thực dùng sau cổng Plus (hết quyền → về Hệ thống, không crash/không trắng).
@@ -1053,11 +1073,11 @@ struct ThemeSettings: Equatable {
     /// suốt / nền hệ thống — thẻ chỉ để nhận ra theme). Chưa chỉnh ⇒ đúng palette gốc.
     /// `now` = giờ cho theme có lịch (Theo giờ: thẻ hiện bảng màu của giờ hiện tại); nil = bảng gốc light/dark ("Chép JSON").
     func cardPalette(for t: KeyboardTheme, systemDark: Bool, now: Date? = Date()) -> KeyboardPalette {
-        let base = now.map { t.palette(systemDark: systemDark, at: $0) } ?? t.palette(systemDark: systemDark)
+        let base = now.map { t.palette(systemDark: systemDark, at: $0, choice: variantChoice) } ?? t.palette(systemDark: systemDark)
         return Self.styled(base, style: effectiveStyle(for: t), systemDark: systemDark, backdrop: false)
     }
     func cardPalette(custom c: ThemeSpec, systemDark: Bool, now: Date? = Date()) -> KeyboardPalette {
-        let base = now.map { c.palette(dark: systemDark, at: $0) } ?? c.palette(dark: systemDark)
+        let base = now.map { c.palette(dark: systemDark, at: $0, choice: variantChoice) } ?? c.palette(dark: systemDark)
         return Self.styled(base, style: effectiveStyle(id: c.id ?? "", typography: c.typography),
                            systemDark: systemDark, backdrop: false)
     }
@@ -1073,6 +1093,7 @@ struct ThemeSettings: Equatable {
         s.schedule = t.spec?.schedule   // lịch theo giờ đi nguyên (bản vá không có "schedule")
         s.tags = t.spec?.tags           // nhãn + bạn đồng hành đi nguyên (bản vá không có)
         s.buddy = t.spec?.buddy
+        s.variant = t.spec?.variant
         return s
     }
     func exportSpec(custom c: ThemeSpec) -> ThemeSpec {
@@ -1083,6 +1104,7 @@ struct ThemeSettings: Equatable {
         s.schedule = c.schedule
         s.tags = c.tags
         s.buddy = c.buddy
+        s.variant = c.variant
         return s
     }
     /// Ảnh nền chỉ bật khi có quyền Plus VÀ file tồn tại.
@@ -1108,7 +1130,8 @@ struct ThemeSettings: Equatable {
     /// `now`: giờ chọn bảng màu cho theme có lịch (Theo giờ) — bàn phím gọi MỘT lần mỗi lần hiện (resolvePalette);
     /// theme khác không đọc giờ.
     func palette(systemDark: Bool, wallpaperActive: Bool, now: Date = Date()) -> KeyboardPalette {
-        let base = effectiveCustom?.palette(dark: systemDark, at: now) ?? effectiveTheme.palette(systemDark: systemDark, at: now)
+        let base = effectiveCustom?.palette(dark: systemDark, at: now, choice: variantChoice)
+            ?? effectiveTheme.palette(systemDark: systemDark, at: now, choice: variantChoice)
         let p = Self.styled(base, style: effectiveKeyStyle, systemDark: systemDark,
                             backdrop: usesSystemBackdrop && !wallpaperActive)
         return (wallpaperActive ? p.overWallpaper() : p)

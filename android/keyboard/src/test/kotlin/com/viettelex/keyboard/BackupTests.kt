@@ -72,7 +72,8 @@ class BackupTests {
         val p = BackupCodec.decode(fixture("backup-ios-v1"))
         assertEquals("ios", p.platform)
         assertEquals(Instant.parse("2026-09-27T08:00:00Z"), p.createdAt)
-        assertEquals(47, p.settings!!.size)             // emojiSuggest/pasteButton chỉ iOS, bị bỏ qua; +largeKeys (04/11); +englishByFrequency (05/11); +keyboardDismissButton (08/11)
+        assertEquals(48, p.settings!!.size)             // emojiSuggest/pasteButton chỉ iOS, bị bỏ qua; +largeKeys (04/11); +englishByFrequency (05/11); +keyboardDismissButton (08/11); +zodiacSign (11/2026)
+        assertEquals("leo", p.settings!![ZodiacSign.KEY])   // Cung hoàng đạo: chỉ id cung, cùng khoá iOS
         assertEquals(false, p.settings!![Keys.KEYBOARD_DISMISS_BUTTON])   // "Nút ẩn bàn phím" — cùng khoá iOS
         assertEquals(false, p.settings!![Keys.ENGLISH_BY_FREQUENCY])   // "Đoán từ trùng theo tần suất" — cùng khoá iOS
         assertEquals(false, p.settings!![Keys.LARGE_KEYS])   // "Phím to" — cùng khoá iOS

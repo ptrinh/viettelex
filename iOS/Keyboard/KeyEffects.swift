@@ -36,6 +36,8 @@ enum KeyEffect: String, CaseIterable {
     case tokens
     // Theme Neon Night Club (11/2026): Sàn nhảy LED — phím vừa bấm + các phím quanh thắp neon thành vòng vuông lan ra.
     case dancefloor
+    // Theme Cung hoàng đạo (11/2026): Chòm sao — mỗi phím thắp thêm một sao của chòm người dùng chọn, đủ sao thì loé.
+    case constellation
 
     static let key = "keyEffect"
     static let defaultValue: KeyEffect = .none
@@ -78,6 +80,7 @@ enum KeyEffect: String, CaseIterable {
         case .sea: return L("Biển")
         case .tokens: return L("Token AI")
         case .dancefloor: return L("Sàn nhảy LED")
+        case .constellation: return L("Chòm sao")
         }
     }
 
@@ -1780,6 +1783,15 @@ final class KeyEffectOverlay: UIView {
     private var flickerGate = DanceFloor.FlickerGate()
     /// Sàn nhảy LED: cổng an toàn chung với lớp flash phím cách (BeatFlashView.gate). nil ⇒ chỉ FlickerGate.
     var flashGate: BeatFlash.Gate?
+    // Chòm sao — pool ConstellationFx.pool chòm dựng lười (≤ 9 sao + 9 lớp nét + 1 quầng mỗi chòm).
+    /// Cung của người dùng (KeyboardView đặt lúc hiện từ `zodiacSign`). Đổi ⇒ chòm mới ở phím kế.
+    var zodiacSign: ZodiacSign = .defaultValue {
+        didSet { if zodiacSign != oldValue { haltConstellation() } }
+    }
+    private var starCycles: [StarCycle] = []
+    private var starCursor = 0
+    private var starTrace: ConstellationTrace?
+    private var activeStars: StarCycle?
 
     init(effect: KeyEffect, color: UIColor, keyFill: UIColor = .white, dark: Bool = false) {
         self.effect = effect
@@ -1849,7 +1861,8 @@ final class KeyEffectOverlay: UIView {
         rebuild()
     }
 
-    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor]
+    static let clipped: Set<KeyEffect> = [.plasma, .laser, .glitch, .tone, .keyword, .letters, .sand, .sea, .tokens, .dancefloor,
+                                            .constellation]
 
     private func applyBand() {
         // Trên phím (zPosition 0), dưới ô phóng to (BalloonView 10) và popup (11). Dải dưới phím: 0 +
@@ -2027,6 +2040,11 @@ final class KeyEffectOverlay: UIView {
     /// Sàn nhảy LED: gốc các chùm ô đã dựng (pool) + lớp nháy cả bàn phím (nil = chưa nháy lần nào).
     var debugDanceRoots: [CALayer] { dances.map(\.root) }
     var debugFloorFlicker: CALayer? { floorFlicker?.root }
+    /// Chòm sao: gốc các chòm đã dựng + sao đang hiện (chưa ẩn) của từng chòm + vị trí sao.
+    var debugStarRoots: [CALayer] { starCycles.map(\.root) }
+    var debugStarsShown: [Int] { starCycles.map { $0.stars.filter { !$0.isHidden }.count } }
+    var debugStarPositions: [[CGPoint]] { starCycles.map { $0.stars.map(\.position) } }
+    var debugStarLayerCount: Int { starCycles.reduce(0) { $0 + 1 + $1.stars.count + $1.lines.count + 1 } }
     #else
     static let drawsOffscreen = false
     #endif
@@ -2044,6 +2062,7 @@ final class KeyEffectOverlay: UIView {
         case .sand: fireSand(c, now: now, media: media)
         case .sea: fireSea(c, now: now, media: media)
         case .dancefloor: fireDance(r, now: now, media: media)
+        case .constellation: fireConstellation(r, now: now, media: media)
         case .flash: fireFlash(now: now, media: media)
         case .lightning: fireLightning(r, now: now)
         case .matrix: pokeMatrix(media: media)
@@ -2417,6 +2436,158 @@ final class KeyEffectOverlay: UIView {
         plasma.reset()
         clearSand()                       // ẩn bàn phím ⇒ đống cát về 0
         haltSea()
+        haltConstellation()
+    }
+
+    // MARK: Chòm sao (theme Cung hoàng đạo — Zodiac.swift)
+
+    private final class StarCycle {
+        let root = CALayer()
+        var stars: [CAShapeLayer] = []
+        var lines: [CAShapeLayer] = []
+        let glow = CAShapeLayer()
+    }
+
+    private func fireConstellation(_ r: CGRect, now: CFTimeInterval, media: CFTimeInterval) {
+        let c = zodiacSign.constellation
+        var tr = starTrace ?? ConstellationTrace(count: c.stars.count)
+        let step = tr.press(at: media)
+        starTrace = tr
+        if step.newCycle || activeStars == nil {
+            let slot = starCursor
+            starCursor = (starCursor + 1) % ConstellationFx.pool
+            let cy: StarCycle
+            if slot < starCycles.count { cy = starCycles[slot] } else { cy = makeStarCycle(); starCycles.append(cy) }
+            layoutStars(cy, c, key: r)
+            activeStars = cy
+        }
+        guard let cy = activeStars, step.star < c.stars.count else { return }
+        let star = cy.stars[step.star]
+        star.beginTime = now
+        star.isHidden = false
+        let line = cy.lines[step.star]
+        if line.path != nil { line.beginTime = now; line.isHidden = false }
+        // Cả chòm: giữ rồi mờ — phím kế (cùng chòm) thay animation này ⇒ giữ tiếp. Xong ⇒ tự gỡ, model opacity 0.
+        let hold = step.completes ? ConstellationFx.glowTime : ConstellationFx.resetGap
+        let fade = step.completes ? ConstellationFx.glowFade : ConstellationFx.fadeOut
+        let life = CAKeyframeAnimation(keyPath: "opacity")
+        life.values = [1, 1, 0]
+        life.keyTimes = [0, NSNumber(value: hold / (hold + fade)), 1]
+        life.duration = hold + fade
+        life.beginTime = now
+        life.fillMode = .removed
+        life.isRemovedOnCompletion = true
+        cy.root.add(life, forKey: "life")
+        if step.completes {
+            cy.glow.beginTime = now
+            cy.glow.isHidden = false
+            activeStars = nil
+        }
+    }
+
+    /// Chòm mới quanh phím: đặt vị trí sao + nét (path dựng một lần mỗi chòm, không mỗi khung), ẩn hết chờ thắp.
+    private func layoutStars(_ cy: StarCycle, _ c: ZodiacSign.Constellation, key r: CGRect) {
+        let box = ConstellationFx.box(cx: Double(r.midX), cy: Double(r.midY),
+                                      bounds: (Double(bounds.minX), Double(bounds.minY), Double(bounds.width), Double(bounds.height)))
+        let pts = c.stars.map { s -> CGPoint in
+            let p = ConstellationFx.point(s, box: box)
+            return CGPoint(x: p.x, y: p.y)
+        }
+        let halo = CGMutablePath()
+        let hr = CGFloat(ConstellationFx.haloRadius)
+        for (i, l) in cy.stars.enumerated() {
+            l.isHidden = true
+            if i < pts.count { l.position = pts[i]; halo.addEllipse(in: CGRect(x: pts[i].x - hr, y: pts[i].y - hr, width: 2 * hr, height: 2 * hr)) }
+        }
+        for (i, l) in cy.lines.enumerated() {
+            l.isHidden = true
+            let es = i < pts.count ? c.edges(ownedBy: i) : []
+            if es.isEmpty { l.path = nil; continue }
+            let p = CGMutablePath()
+            for e in es where e.a < pts.count && e.b < pts.count {
+                let (a, b) = e.a < e.b ? (e.a, e.b) : (e.b, e.a)   // vẽ từ sao cũ tới sao vừa thắp
+                p.move(to: pts[a]); p.addLine(to: pts[b])
+            }
+            l.path = p
+        }
+        cy.glow.path = halo
+        cy.glow.isHidden = true
+        cy.root.removeAnimation(forKey: "life")
+    }
+
+    private func makeStarCycle() -> StarCycle {
+        let cy = StarCycle()
+        cy.root.bounds = .zero
+        cy.root.position = .zero
+        cy.root.anchorPoint = .zero
+        cy.root.opacity = 0
+        let maxStars = ZodiacSign.allCases.map { $0.constellation.stars.count }.max() ?? 9
+        let fadeIn = ConstellationFx.starFadeIn
+        cy.glow.fillColor = color.withAlphaComponent(0.55).cgColor
+        cy.glow.opacity = 0
+        let g = CAKeyframeAnimation(keyPath: "opacity")
+        let steps = 10, life = ConstellationFx.glowTime + ConstellationFx.glowFade
+        g.values = (0...steps).map { ConstellationFx.glowAlpha(life * Double($0) / Double(steps) * 0.9999) }
+        g.keyTimes = (0...steps).map { NSNumber(value: Double($0) / Double(steps)) }
+        g.duration = life
+        g.beginTime = Self.animBegin
+        g.fillMode = .both
+        g.isRemovedOnCompletion = false
+        cy.glow.add(g, forKey: "fx")
+        cy.glow.isHidden = true
+        cy.root.addSublayer(cy.glow)
+        let starPath = KeyEffectShapes.star4(CGFloat(ConstellationFx.starRadius), inner: CGFloat(ConstellationFx.starInner))
+        for _ in 0..<maxStars {
+            let l = CAShapeLayer()
+            l.strokeColor = color.withAlphaComponent(CGFloat(ConstellationFx.lineAlpha)).cgColor
+            l.fillColor = nil
+            l.lineWidth = CGFloat(ConstellationFx.lineWidth)
+            l.lineCap = .round
+            let a = CABasicAnimation(keyPath: "strokeEnd")
+            a.fromValue = 0; a.toValue = 1
+            a.duration = fadeIn
+            a.beginTime = Self.animBegin
+            a.fillMode = .both
+            a.isRemovedOnCompletion = false
+            l.add(a, forKey: "fx")
+            l.isHidden = true
+            cy.root.addSublayer(l)
+            cy.lines.append(l)
+        }
+        for _ in 0..<maxStars {
+            let l = CAShapeLayer()
+            l.path = starPath
+            l.bounds = .zero
+            l.contentsScale = UIScreen.main.scale
+            l.fillColor = UIColor(rgb: ConstellationFx.starColor).cgColor
+            let o = CABasicAnimation(keyPath: "opacity")
+            o.fromValue = 0; o.toValue = 1
+            let sc = CABasicAnimation(keyPath: "transform.scale")
+            sc.fromValue = 0.3; sc.toValue = 1
+            let grp = CAAnimationGroup()
+            grp.animations = [o, sc]
+            grp.duration = fadeIn
+            grp.beginTime = Self.animBegin
+            grp.fillMode = .both
+            grp.isRemovedOnCompletion = false
+            l.add(grp, forKey: "fx")
+            l.isHidden = true
+            cy.root.addSublayer(l)
+            cy.stars.append(l)
+        }
+        layer.addSublayer(cy.root)
+        return cy
+    }
+
+    private func haltConstellation() {
+        for cy in starCycles {
+            cy.root.removeAnimation(forKey: "life")
+            for l in cy.stars { l.isHidden = true }
+            for l in cy.lines { l.isHidden = true }
+            cy.glow.isHidden = true
+        }
+        starTrace = nil
+        activeStars = nil
     }
 
     // MARK: Đợt 3 — Plasma, Rung combo, Laser, Glitch, Dấu thanh, Từ khoá, Chữ bay, Hạt cát
@@ -3440,6 +3611,7 @@ final class KeyEffectOverlay: UIView {
         for g in grains { g.removeFromSuperlayer() }
         for d in dances { d.root.removeFromSuperlayer() }
         floorFlicker?.root.removeFromSuperlayer()
+        for cy in starCycles { cy.root.removeFromSuperlayer() }
         sandPile?.removeFromSuperlayer()
         for w in seaWaves { w.root.removeFromSuperlayer() }
         seaFish?.removeFromSuperlayer()
@@ -3464,6 +3636,7 @@ final class KeyEffectOverlay: UIView {
         seaLastWave = -.greatestFiniteMagnitude; seaLastFish = -.greatestFiniteMagnitude; seaLevel = 0
         dances.removeAll(); dancePool = KeyEffectPool(capacity: DanceFloor.pool); danceSeq = 0
         floorFlicker = nil; flickerGate = DanceFloor.FlickerGate()
+        starCycles.removeAll(); starCursor = 0; starTrace = nil; activeStars = nil
         if effect != .shake { shakeTarget?.layer.removeAnimation(forKey: Self.shakeKey) }
         shakeMeter.reset()
         stringAnim = nil

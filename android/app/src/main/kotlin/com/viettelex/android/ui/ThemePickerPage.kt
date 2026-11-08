@@ -132,7 +132,7 @@ internal fun ThemePickerPage(s: ThemeSettings, dark: Boolean, onSelect: (ThemeSe
         VTSection(header = tr(section.title)) {
             Grid(section.themes) { t ->
                 val locked = !ThemeGate.allows(t)
-                ThemeCard(s.styled(t, t.paletteNow(dark) ?: systemPreviewPalette(ctx, s, dark), dark), s.effectiveStyleFor(t), t.title,
+                ThemeCard(s.styled(t, s.cardPalette(t, dark) ?: systemPreviewPalette(ctx, s, dark), dark), s.effectiveStyleFor(t), t.title,
                     selected = s.custom == null && s.theme == t, locked = locked, showPlus = t.isPlus && locked,
                     badge = ThemePicker.badge(t),
                     onTap = { ThemePicker.select(t, s)?.let(::choose) ?: onOpenPlus() },
@@ -152,7 +152,7 @@ internal fun ThemePickerPage(s: ThemeSettings, dark: Boolean, onSelect: (ThemeSe
             Grid(customs) { spec ->
                 val id = spec.id ?: ""
                 val locked = !ThemeGate.allowsCustom
-                ThemeCard(s.styledCustom(spec, dark), s.effectiveStyleFor(id, spec.typography), spec.name,
+                ThemeCard(s.styledCustomNow(spec, dark), s.effectiveStyleFor(id, spec.typography), spec.name,
                     selected = s.custom?.id == id, locked = locked, showPlus = locked,
                     badge = ThemePicker.badge(spec),
                     onTap = { ThemePicker.select(spec, s)?.let(::choose) ?: onOpenPlus() },

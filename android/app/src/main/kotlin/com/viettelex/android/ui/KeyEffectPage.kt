@@ -50,7 +50,8 @@ import com.viettelex.keyboard.tr
  * nhãn Plus, chạm mở VietTelex Plus. Lưu [Keys.KEY_EFFECT] — IME đọc lần hiện kế. iOS: KeyEffectPickerView.
  */
 @Composable
-internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack: () -> Unit) {
+internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack: () -> Unit,
+                           zodiac: com.viettelex.keyboard.ZodiacSign = com.viettelex.keyboard.ZodiacSign.DEFAULT) {
     val c = LocalVT.current
     BackHandler(onBack = onBack)
     var raw by rememberStringPref(Keys.KEY_EFFECT, KeyEffect.DEFAULT.id)
@@ -69,7 +70,8 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
             " " + tr("Matrix, Mực loang, Sóng nước chạy dưới phím; Matrix chỉ chạy khi đang gõ. Nháy sáng được giới hạn nhịp và độ sáng cho dịu mắt. Emoji theo chữ hiện khi vừa gõ xong từ như \"haha\", \"cảm ơn\", \"chúc mừng\".") +
             " " + tr("Rung combo không rung khi bật Giảm chuyển động. Dấu thanh phản ứng theo dấu vừa bỏ; Từ khoá nổ pháo đỏ và lì xì khi gõ \"tết\", thả tim khi gõ \"yêu\"; Chữ bay thả đúng chữ vừa ra; Hạt cát đọng thành đống thấp ở đáy rồi tự tan.") +
             " " + tr("Biển: mỗi đợt gõ một con sóng vỗ vào bờ dưới đáy bàn phím, gõ càng nhanh sóng càng lớn; thỉnh thoảng có cá bơi ngang.") +
-            " " + tr("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp.")) {
+            " " + tr("Sàn nhảy LED thắp phím vừa bấm và các phím quanh thành vòng neon lan ra; gõ thật nhanh, cả bàn phím nháy một nhịp.") +
+            " " + tr("Chòm sao: mỗi phím thắp thêm một sao của chòm cung hoàng đạo bạn chọn (trong giao diện Cung hoàng đạo), đủ sao thì cả chòm loé sáng.")) {
         KeyEffect.entries.chunked(3).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { e ->
@@ -81,7 +83,7 @@ internal fun KeyEffectPage(palette: ThemePalette, onOpenPlus: () -> Unit, onBack
                             .alpha(if (locked) 0.5f else 1f)) {
                             val play = plays[e] ?: 0
                             AndroidView(factory = { KeyEffectPreviewView(it) }, modifier = Modifier.matchParentSize(),
-                                update = { it.update(e, palette, play) })
+                                update = { it.update(e, palette, play, zodiac) })
                             // Lớp Compose phủ TRÊN AndroidView nhận chạm: View con nhận sự kiện trước nên
                             // clickable đặt ở Box cha không chắc tới được (iOS bị đúng lỗi này, 19/10/2026).
                             Box(Modifier.matchParentSize().clickable {
@@ -121,6 +123,9 @@ internal object KeyEffectPreviewScript {
         KeyEffect.COMBO, KeyEffect.SHAKE, KeyEffect.SEA, KeyEffect.DANCEFLOOR -> ComboMeter.THRESHOLDS[2]
         else -> 1
     }
+    /** Chòm sao: một chạm = đủ số phím để thắp CẢ chòm của cung (thấy nét nối + loé). */
+    fun burst(e: KeyEffect, zodiac: com.viettelex.keyboard.ZodiacSign): Int =
+        if (e == KeyEffect.CONSTELLATION) zodiac.constellation.stars.size else burst(e)
     /** Sàn nhảy LED: lần chạm chẵn = một nhịp phím cách (flash nền, cổng ≤ 3 lần / giây vẫn áp). */
     fun beat(e: KeyEffect, tap: Int): Boolean = e == KeyEffect.DANCEFLOOR && tap % 2 == 0
     /** Phím hàng xóm giả quanh phím V (Sàn nhảy LED). */
@@ -149,7 +154,9 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
     private var beatColor = 0
     private var beatN = 0
 
-    fun update(e: KeyEffect, p: ThemePalette, play: Int) {
+    fun update(e: KeyEffect, p: ThemePalette, play: Int,
+               zodiac: com.viettelex.keyboard.ZodiacSign = com.viettelex.keyboard.ZodiacSign.DEFAULT) {
+        zodiacSign = zodiac
         bg = p.bg; keyPaint.color = p.keyFill; textPaint.color = p.ink
         ghostPaint.color = (p.keyFill and 0x00FFFFFF) or (0x8C shl 24)
         configure(e, p.action, p.keyFill, p.isDark)
@@ -175,7 +182,7 @@ internal class KeyEffectPreviewView(context: Context) : KeyEffectView(context, c
         val e = effect
         val x = keyCx(); val y = keyCy(); val w = 34 * d; val h = 42 * d
         if (e == KeyEffect.PLASMA) { burst(width * 0.15f, 18 * d); flush(); burst(width * 0.85f, 26 * d); flush() }
-        repeat(KeyEffectPreviewScript.burst(e) - 1) { burst(x, y, w, h); flush() }
+        repeat(KeyEffectPreviewScript.burst(e, zodiacSign) - 1) { burst(x, y, w, h); flush() }
         queueEmoji(KeyEffectPreviewScript.EMOJI)
         queueTone(KeyEffectPreviewScript.TONE)
         queueKeyword(KeyEffectPreviewScript.keyword(tap))

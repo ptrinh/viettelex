@@ -40,6 +40,8 @@ targets:
       # Hiệu ứng khi bấm phím: xem thử ở trang chọn (cùng overlay với bàn phím).
       - Keyboard/KeyEffects.swift
       - Keyboard/KeyEffectPreview.swift
+      # Cung hoàng đạo (theme "zodiac"): cung + bảng màu nguyên tố + chòm sao — trang Giao diện chọn cung.
+      - Keyboard/Zodiac.swift
       # Bạn đồng hành: xem trước ở trang chọn (cùng view với bàn phím).
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
@@ -231,6 +233,8 @@ targets:
       - Keyboard/Wallpaper.swift
       - Keyboard/KeyEffects.swift
       - Keyboard/KeyEffectPreview.swift
+      # Cung hoàng đạo (theme "zodiac"): cung + bảng màu nguyên tố + chòm sao — trang Giao diện chọn cung.
+      - Keyboard/Zodiac.swift
       - Keyboard/KeyboardBuddy.swift
       - Keyboard/KeyboardBuddyView.swift
       - Keyboard/AIEye.swift

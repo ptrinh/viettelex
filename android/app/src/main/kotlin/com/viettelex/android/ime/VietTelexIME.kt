@@ -400,6 +400,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val tokens = fx == com.viettelex.keyboard.KeyEffect.TOKENS
         v.tokenTarget = if (tokens) { out -> r.tokenTarget(out, v) } else null
         v.onSeaWave = if (sea) { size -> feedback.surf(size) } else null
+        // Chòm sao: cung người dùng chọn (đọc cùng ThemeSettings lúc dựng — 0 chi phí mỗi phím).
+        if (fx == com.viettelex.keyboard.KeyEffect.CONSTELLATION) v.zodiacSign = th.settings.variantChoice.zodiac
         strip?.onShown = if (tokens) { set ->
             r.suggestionRect(tokenRect, v)
             val words = ArrayList<String>(8)

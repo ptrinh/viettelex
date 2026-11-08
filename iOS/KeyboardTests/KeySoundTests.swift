@@ -281,7 +281,7 @@ final class KeySoundTests: XCTestCase {
     /// Danh sách id DUY NHẤT cho trường "sound" của theme JSON; "theme" (đã bỏ) ⇒ mặc định.
     func testPresetIDsForThemeJSON() {
         XCTAssertEqual(KeySoundStyle.presetIDs, ["subtle", "wood", "mechanical", "typewriter", "bubble", "rock", "pop",
-                                                 "water", "vintage", "phao", "jingle", "scifi", "trong", "boo", "bop", "chip", "ai", "club", "piano", "dantranh",
+                                                 "water", "vintage", "phao", "jingle", "scifi", "trong", "boo", "bop", "chip", "ai", "club", "twinkle", "piano", "dantranh",
                                                  "guitar"])
         for bad in ["system", "custom", "theme"] { XCTAssertFalse(KeySoundStyle.presetIDs.contains(bad), bad) }
         XCTAssertEqual(KeySoundStyle.resolve("theme", customAvailable: true), .subtle)

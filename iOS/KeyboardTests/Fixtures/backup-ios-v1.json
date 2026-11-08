@@ -102,10 +102,12 @@
     "systemBackdropValentine" : false,
     "systemBackdropXmas" : false,
     "systemBackdropXmasSnow" : false,
+    "systemBackdropZodiac" : false,
     "teencode" : false,
     "templatesEnabled" : true,
     "textToolsEnabled" : true,
-    "uiLanguage" : "en"
+    "uiLanguage" : "en",
+    "zodiacSign" : "leo"
   },
   "shortcuts" : {
     "ko" : "không",
