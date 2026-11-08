@@ -1389,6 +1389,15 @@ bool tetRaw(const std::u32string& w) {
     return (e == 2 && s >= 1 && six + one == 0) || (e == 1 && six == 1 && one == 1 && s == 0);
 }
 
+// VNI spellings of the lunar triggers hold digits, so the number check would claim them
+// first: "a6l" (ÂL), "a6m lich5" (âm lịch), "nga2y a6m" (ngày âm).
+bool vniLunarRaw(const std::u32string& prevRaw, const std::u32string& raw) {
+    const std::u32string w = lower(raw), p = lower(prevRaw);
+    if (w == U"a6l") return true;
+    if (p == U"a6m" && w.size() >= 5 && w.size() <= 6 && w.compare(0, 4, U"lich") == 0) return true;
+    return w == U"a6m" && p.size() >= 4 && p.size() <= 5 && p.compare(0, 3, U"nga") == 0;
+}
+
 bool dateWorthReading(const std::u32string& prevRaw, const std::u32string& raw) {
     const std::u32string w = lower(raw), p = lower(prevRaw);
     if (!p.empty() && englishPhrase(w)) return true;
@@ -1437,6 +1446,8 @@ Trigger HintTracker::onChar(char32_t ch, const Commit& commit, const Enabled& en
         t.kind = TriggerKind::Math;
     } else if (ch == U' ' && en.date && run.size() >= 5 && run.size() <= 6 && tetRaw(lower(run))) {
         t.kind = TriggerKind::Date;  // before Number: VNI "te6t1" holds digits
+    } else if (ch == U' ' && en.date && vniLunarRaw(prev, run)) {
+        t.kind = TriggerKind::Date;  // before Number: VNI "a6m lich5" holds digits
     } else if (ch == U' ' && en.number && numberWorthChecking(run, prev)) {
         t.kind = TriggerKind::Number;
     } else if (ch == U' ' && en.date && dateWorthReading(prev, run)) {

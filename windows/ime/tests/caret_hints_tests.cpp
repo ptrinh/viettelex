@@ -477,6 +477,15 @@ TEST(hints_tracker_triggers) {
     t.reset();
     CHECK(typeInto(t, "test ", en).kind != TriggerKind::Date);
     t.reset();
+    // VNI lunar triggers hold digits: date must win over number (en.number is on)
+    CHECK(typeInto(t, "a6m lich5 ", en).kind == TriggerKind::Date);
+    t.reset();
+    CHECK(typeInto(t, "A6L ", en).kind == TriggerKind::Date);
+    t.reset();
+    CHECK(typeInto(t, "nga2y a6m ", en).kind == TriggerKind::Date);
+    t.reset();
+    CHECK(typeInto(t, "gia 1tr2 ", en).kind == TriggerKind::Number);
+    t.reset();
     Trigger ty = typeInto(t, "anh tpoi ", en, Commit{U("tpoi"), U("tpoi")});
     CHECK(ty.kind == TriggerKind::Typo && S(ty.raw) == "tpoi" && ty.boundary == U' ');
     t.reset();
