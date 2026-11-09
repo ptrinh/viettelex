@@ -277,6 +277,24 @@ qua phys_footprint. **Cần máy thật**: `ram-audit.sh` (mốc "Đang mở emo
 app chủ một lần; kiểm nét ảnh @3x (iPhone) và @2x (iPad 52 pt), căn giữa so với stock, giật khi
 lướt (giải mã trang trên main lúc trang kề chưa kịp giải mã nền), app dựng lại sau cập nhật iOS.
 
+## 4c. Trie chọn phím thông minh dựng sẵn (09/11/2026)
+
+`TelexKeyPrior` (chọn phím thông minh, mặc định BẬT) trước đây dựng trie trong RAM mỗi process
+(`fromLexicon`: vnlexicon + parse enlexicon ra String + seed). Giờ đọc `keyprior.bin` — CHÍNH tệp
+Android (`android/app/src/main/assets`, sinh bằng `KeyPriorBlobTests` Kotlin) chép vào
+`Keyboard/Resources/`, mmap qua `NSData(.alwaysMapped)`, `KeyTrie.mapped` đọc tại chỗ (nút BFS).
+Thiếu / hỏng / tham số khác ⇒ dựng như cũ. `KeyPriorBlobTests` (iOS): bản chép trùng byte bản
+Android, duyệt đủ 63.341 nút khớp bản dựng trong RAM (63.340 trọng số trùng bit, 1 lệch sai số
+cộng float), prior từng phím khớp, blob hỏng bị từ chối.
+
+| `testRamAssetVsLexicon` (simulator iPhone 17, Debug) | dựng từ lexicon (cũ) | asset mmap (mới) |
+|---|---|---|
+| Heap giữ lại khi trie sống | +959,8 KB | +0,6 KB |
+| Thời gian (luồng nền, sau khung đầu) | 960 ms | 0,31 ms |
+
+Đổi dữ liệu nguồn (vnlexicon / enlexicon / seed / TelexSpell): sinh lại bên Android rồi chép tệp
+sang iOS — test iOS đỏ nếu hai bản lệch.
+
 ## 5. UserLangModel
 
 **Đã làm (09/2026)** — `UserLMTables` trong Keyboard/UserLangModel.swift: từ intern thành id

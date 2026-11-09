@@ -62,20 +62,59 @@ enum TelexSpell {
     }
 }
 
-/// Trie chuỗi phím a–z, mỗi nút mang tổng trọng số các chuỗi đi qua (CSR gọn).
+/// Trie chuỗi phím a–z, mỗi nút mang tổng trọng số các chuỗi đi qua. Hai cách chứa, CÙNG kết
+/// quả (như Kotlin): mảng CSR trên heap (`Builder` — test / dựng dự phòng) và blob keyprior.bin
+/// mmap (`mapped` — bàn phím: 0 heap, trang sạch; xem `KeyPriorBlob`).
 final class KeyTrie {
     private let edgeStart: [Int32]   // [node] → dải cạnh; count = nodes + 1
     private let edgeKey: [UInt8]     // 0…25, tăng dần trong dải
     private let edgeTo: [Int32]
     private let weights: [Float]
+    /// Blob mmap (nil = mảng heap). Nút đánh số BFS ⇒ con của cạnh e là nút e + 1 (không lưu edgeTo).
+    private let blob: Mapped?
 
-    var nodeCount: Int { weights.count }
+    private struct Mapped {
+        let data: NSData             // giữ vùng map sống; `p` trỏ vào nó (NSData bất biến ⇒ con trỏ cố định)
+        let p: UnsafeRawPointer
+        let nodes: Int, startOff: Int, weightOff: Int, keyOff: Int
+        @inline(__always) func u32(_ off: Int) -> Int {
+            Int(UInt32(littleEndian: p.loadUnaligned(fromByteOffset: off, as: UInt32.self)))
+        }
+    }
+
+    var nodeCount: Int { blob?.nodes ?? weights.count }
+    /// Test: trie đọc tại chỗ từ blob mmap.
+    var isMapped: Bool { blob != nil }
 
     private init(edgeStart: [Int32], edgeKey: [UInt8], edgeTo: [Int32], weights: [Float]) {
         self.edgeStart = edgeStart; self.edgeKey = edgeKey; self.edgeTo = edgeTo; self.weights = weights
+        blob = nil
+    }
+
+    private init(_ m: Mapped) {
+        edgeStart = []; edgeKey = []; edgeTo = []; weights = []
+        blob = m
+    }
+
+    /// Trie đọc tại chỗ từ blob `KeyPriorBlob` (nil = sai magic / phiên bản / cỡ). = Kotlin KeyTrie.mapped.
+    static func mapped(_ d: NSData) -> KeyTrie? {
+        guard let h = KeyPriorBlob.header(d) else { return nil }
+        let n = h.nodes, base = KeyPriorBlob.headerSize
+        return KeyTrie(Mapped(data: d, p: d.bytes, nodes: n, startOff: base, weightOff: base + 4 * (n + 1),
+                              keyOff: base + 8 * n + 4))
     }
 
     func child(_ node: Int, _ key: Int) -> Int {
+        if let m = blob {
+            var e = m.u32(m.startOff + 4 * node); let end = m.u32(m.startOff + 4 * (node + 1))
+            while e < end {
+                let k = Int(m.p.load(fromByteOffset: m.keyOff + e, as: UInt8.self))
+                if k == key { return e + 1 }
+                if k > key { return -1 }
+                e += 1
+            }
+            return -1
+        }
         var e = Int(edgeStart[node]); let end = Int(edgeStart[node + 1])
         while e < end {
             let k = Int(edgeKey[e])
@@ -100,7 +139,10 @@ final class KeyTrie {
         return n
     }
 
-    func weight(_ node: Int) -> Float { weights[node] }
+    func weight(_ node: Int) -> Float {
+        if let m = blob { return Float(bitPattern: UInt32(m.u32(m.weightOff + 4 * node))) }
+        return weights[node]
+    }
 
     final class Builder {
         private var children: [Int: Int] = [:]
@@ -130,6 +172,31 @@ final class KeyTrie {
             for (i, e) in edges.enumerated() { key[i] = UInt8(e.key % 32); to[i] = Int32(e.value) }
             return KeyTrie(edgeStart: start, edgeKey: key, edgeTo: to, weights: weights)
         }
+    }
+}
+
+/// keyprior.bin — trie `TelexKeyPrior` dựng SẴN, CÙNG tệp với Android (android/app/src/main/assets,
+/// sinh bằng `VT_REGEN_KEYPRIOR=1 ./gradlew :keyboard:test --tests '*KeyPriorBlobTests*'`; bản chép ở
+/// Keyboard/Resources phải trùng từng byte — KeyPriorBlobTests iOS chốt). Little-endian:
+///   "VTKP" | version u32 | nodes u32 | edges u32 | crc32 nguồn u32 | lambda f32 | englishShare f32 | 0 u32
+///   edgeStart[nodes + 1] u32 · weight[nodes] f32 · edgeKey[edges] u8
+/// Trước đây iOS dựng trie trong RAM mỗi process (~1 MB heap giữ suốt đời + rác lúc dựng); mmap ⇒ 0 heap.
+enum KeyPriorBlob {
+    static let magic: UInt32 = 0x504B_5456   // "VTKP" LE
+    static let version: UInt32 = 1
+    static let headerSize = 32
+
+    struct Header { let nodes: Int, edges: Int, inputCrc: UInt32, lambda: Float, englishShare: Float }
+
+    static func header(_ d: NSData) -> Header? {
+        guard d.length >= headerSize else { return nil }
+        let p = d.bytes
+        func u32(_ o: Int) -> UInt32 { UInt32(littleEndian: p.loadUnaligned(fromByteOffset: o, as: UInt32.self)) }
+        guard u32(0) == magic, u32(4) == version else { return nil }
+        let n = Int(u32(8)), e = Int(u32(12))
+        guard n > 0, e == n - 1, d.length >= headerSize + 8 * n + 4 + e else { return nil }
+        return Header(nodes: n, edges: e, inputCrc: u32(16), lambda: Float(bitPattern: u32(20)),
+                      englishShare: Float(bitPattern: u32(24)))
     }
 }
 
@@ -267,16 +334,31 @@ final class TelexKeyPrior: @unchecked Sendable {
         return build(syllables: syl, english: en, chat: chat, lambda: lambda, englishShare: englishShare)
     }
 
+    /// Trie dựng sẵn keyprior.bin (mmap: 0 heap, trang sạch, vài µs) — nil nếu thiếu / hỏng / sinh với tham
+    /// số khác mặc định (khi đó warmUp dựng từ lexicon như cũ). = Kotlin fromAsset.
+    static func fromAsset(_ url: URL? = assetURL) -> TelexKeyPrior? {
+        guard let url, let d = try? NSData(contentsOf: url, options: .alwaysMapped),
+              let h = KeyPriorBlob.header(d), h.lambda == lambda, h.englishShare == englishShare,
+              let t = KeyTrie.mapped(d) else { return nil }
+        return TelexKeyPrior(trie: t)
+    }
+
+    static var assetURL: URL? {
+        final class BundleToken {}
+        return Bundle(for: BundleToken.self).url(forResource: "keyprior", withExtension: "bin")
+    }
+
     private static let lock = NSLock()
     nonisolated(unsafe) private static var cached: TelexKeyPrior?
 
     /// Bảng dùng chung; nil tới khi warmUp xong (router coi như tắt).
     static var sharedIfReady: TelexKeyPrior? { lock.lock(); defer { lock.unlock() }; return cached }
 
+    /// Asset mmap (vài µs); asset thiếu ⇒ dựng từ lexicon (gọi ngoài main).
     @discardableResult
     static func warmUp() -> TelexKeyPrior {
         if let c = sharedIfReady { return c }
-        let p = fromLexicon()
+        let p = fromAsset() ?? fromLexicon()
         lock.lock(); defer { lock.unlock() }
         if let c = cached { return c }
         cached = p
