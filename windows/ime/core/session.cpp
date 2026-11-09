@@ -135,6 +135,7 @@ void TypingSession::reset() {
     if (engine_) vtx_reset(engine_);
     shown_.clear();
     droppedSig_.clear();
+    undoneSig_.clear();
     overflow_ = false;
     reopenArmed_ = false;
     retroUndo_.clear();
@@ -169,6 +170,29 @@ void TypingSession::noteReplace(const std::u16string& oldShown, const std::u16st
     // A pure insertion has no deletion to drop.
     if (expect.empty()) droppedSig_.clear();
     else droppedSig_ = oldShown + insert;
+    // An app that undoes / ignores the edit shows the word as it was (takeFieldUnreliable).
+    undoneSig_ = oldShown;
+}
+
+size_t TypingSession::staleReadLen() const {
+    size_t n = shown_.size();
+    if (droppedSig_.size() > n) n = droppedSig_.size();
+    if (undoneSig_.size() > n) n = undoneSig_.size();
+    return n;
+}
+
+bool TypingSession::screenShowsUndone(const std::u16string& before) const {
+    if (asyncStore_|| undoneSig_.empty() || undoneSig_ == shown_) return false;
+    return before.size() >= undoneSig_.size() &&
+           before.compare(before.size() - undoneSig_.size(), undoneSig_.size(), undoneSig_) == 0;
+}
+
+void TypingSession::noteUndone() {
+    if (!preferComposition_ && opt_.log)
+        opt_.log("in-place: the field undid our last replace (it shows the word as before it) -> "
+                 "word re-taken into a composition, composition for this field");
+    preferComposition_ = true;
+    fieldUnreliable_ = true;
 }
 
 bool TypingSession::screenStale(const std::u16string& before) {
@@ -184,15 +208,22 @@ bool TypingSession::screenStale(const std::u16string& before) {
         if (!preferComposition_ && opt_.log)
             opt_.log("in-place: the app dropped the deletion of a replace -> composition for this field");
         preferComposition_ = true;
+        if (!asyncStore_) fieldUnreliable_ = true;  // a sync store: remember the control kind
     }
     return true;
 }
 
 void TypingSession::verifyScreen(TextSink& sink) {
     if (!wordActive() || wordMode_ != OutputMode::InPlace || sink.blind()) return;
-    const size_t want = shown_.size() > droppedSig_.size() ? shown_.size() : droppedSig_.size();
     const bool preferred = preferComposition_;
-    if (!screenStale(sink.textBeforeCaret(static_cast<int>(want)))) return;
+    const std::u16string before = sink.textBeforeCaret(static_cast<int>(staleReadLen()));
+    if (!screenStale(before)) return;
+    if (screenShowsUndone(before)) {
+        // The app undid our last replace (search-as-you-type re-setting its text): keep the
+        // word — the next key re-takes it into a composition (handleWordKey).
+        noteUndone();
+        return;
+    }
     // An async store (Chromium) reports the page renderer round trips late, often with a
     // state OLDER than our own last edit: not a change of the word. Keep it; the next key
     // re-checks and, if the store is still behind, stops editing in place (handleWordKey).
@@ -324,6 +355,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
     }
     // A composition we no longer track (engine was reset): close it, text stays.
     if (vtx_is_empty(engine_) && sink.compositionActive()) sink.endCompositionAsIs();
+    int absorb = 0;  // units of an undone in-place word to pull into the composition
     if (!vtx_is_empty(engine_) && !sink.blind()) {
         // Our picture of the screen went stale (composition ended behind our back, the
         // app changed the text before the caret): start over rather than edit blindly.
@@ -334,8 +366,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
             stale = !sink.compositionActive();
             if (stale) note("composition: ended outside the TIP -> word dropped, this key starts a new word");
         } else {
-            const size_t want = shown_.size() > droppedSig_.size() ? shown_.size() : droppedSig_.size();
-            const std::u16string before = sink.textBeforeCaret(static_cast<int>(want));
+            const std::u16string before = sink.textBeforeCaret(static_cast<int>(staleReadLen()));
             stale = screenStale(before);
             if (!stale) emptyStoreHits_ = 0;  // the store shows our word: a text field after all
             if (stale && asyncStore_) {
@@ -372,6 +403,17 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
                                before.size()).c_str());
                 reset();
                 return false;
+            }
+            // The app undid our last replace (sync store: what it reads is the field): the
+            // screen holds the word as it was before it. Pull exactly that into a composition
+            // set to the whole word (this key included) — nothing lost — and compose this
+            // field from now on (noteUndone). 2026-11, Word's Navigation search box.
+            if (stale && screenShowsUndone(before)) {
+                noteUndone();
+                absorb = static_cast<int>(undoneSig_.size());
+                undoneSig_.clear();
+                wordMode_ = OutputMode::Composition;
+                stale = false;
             }
             // The store does not show the letters we let through, the app's own window does
             // (Win10 Notepad's Edit with text in it, read through its transitory-extension
@@ -426,6 +468,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
     }
     droppedSig_.clear();
     if (vtx_is_empty(engine_)) {
+        undoneSig_.clear();
         wordMode_ = effectiveMode();
         if (wordMode_ == OutputMode::InPlace && !sink.blind() && !sink.canReadContext()) {
             fallBack("in-place: cannot read the text around the caret -> composition for this field");
@@ -459,13 +502,14 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
             overflow_ = true;
             if (comp && sink.compositionActive()) sink.endComposition(shown_);
             shown_.clear();
+            undoneSig_.clear();
             return false;
         }
     }
 
     if (comp) {
         const bool starting = !sink.compositionActive();
-        if (!sink.setComposition(now, 0, misspelled(engine_))) {
+        if (!sink.setComposition(now, starting ? absorb : 0, misspelled(engine_))) {
             note("composition: the field refused it -> word dropped, key as typed");
             reset();
             return false;
@@ -488,6 +532,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
     // In-place.
     if (a.kind == VTX_PASSTHROUGH) {
         shown_ = now;  // the app inserts the key itself
+        if (!undoneSig_.empty()) undoneSig_ += static_cast<char16_t>(c);
         return false;
     }
     if (a.kind == VTX_NONE) {
@@ -559,6 +604,9 @@ bool TypingSession::tryReEdit(char32_t c, TextSink& sink) {
     }
     swapEngine(t);
     shown_ = now;
+    if (opt_.verboseLog)
+        note(("re-edit: a tone key reached back into the word before the caret (len " + std::to_string(len) + ")")
+                 .c_str());
     return true;
 }
 
@@ -605,6 +653,7 @@ bool TypingSession::handleBackspace(TextSink& sink) {
 
     if (a.kind == VTX_PASSTHROUGH) {
         if (!shown_.empty()) shown_.pop_back();
+        if (!undoneSig_.empty()) undoneSig_.pop_back();  // the app deletes it either way
         return false;
     }
     if (a.kind == VTX_NONE) {
@@ -904,6 +953,20 @@ bool TypingSession::tryTokenShortcut(TextSink& sink) {
 }
 
 bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind, char32_t ch) {
+    if (wordMode_ == OutputMode::InPlace && !overflow_ && !asyncStore_ && !undoneSig_.empty() &&
+        !vtx_is_empty(engine_) && !sink.blind()) {
+        // The word's last replace may have been undone by the app after its key (the last
+        // word of a search: "mối" left as "môi"). One read per word that had an edit; when
+        // the screen shows the word as before that edit, re-take it into a composition and
+        // commit it from there (noteUndone).
+        const std::u16string before = sink.textBeforeCaret(static_cast<int>(staleReadLen()));
+        if (screenStale(before) && screenShowsUndone(before)) {
+            noteUndone();
+            if (sink.setComposition(shown_, static_cast<int>(undoneSig_.size()), misspelled(engine_)))
+                wordMode_ = OutputMode::Composition;
+        }
+        undoneSig_.clear();
+    }
     const bool comp = wordMode_ == OutputMode::Composition;
     const bool printable = kind == KeyKind::Char;
     // #134: a host that drops claimed keys gets the printable boundary inside the result
@@ -996,6 +1059,7 @@ bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind, char32_t ch) {
     else runBreak();
     if (committed && (printable || kind == KeyKind::Boundary)) lastWord_ = finalText;
     shown_.clear();
+    undoneSig_.clear();
     // ⌫ re-open reads "<word><boundary>" back: impossible where keys are dropped (nothing
     // readable), and claiming the next key there would lose it.
     reopenArmed_ = printable && !dropsPassedKeys_;

@@ -136,6 +136,7 @@ private:
     void applyTextToolResult();
     void evaluateHost(ITfContext* ctx);
     void evaluateHostAtWordStart(ITfContext* ctx);  // + Direct handover state
+    void noteUnreliableField();                     // session.h takeFieldUnreliable -> unreliable_
     void resolveActiveApp();
 
     // Gợi ý cạnh con trỏ (ime/core/caret_hints.h). Keys feed a tracker only while a hint is
@@ -198,6 +199,8 @@ private:
     bool directInWpf_ = false;          // ...a WPF HwndSource: survives TSF focus moves inside it
     bool focusWpf_ = false;             // last evaluateHost: focus window is WPF
     bool contextLogged_ = false;        // context classification logged for this focus (1.3.16)
+    std::u16string focusClass_;         // last evaluateHost: focus window class (UnreliableControls)
+    UnreliableControls unreliable_;     // control kinds where in-place was undone (2026-11)
     HWND focusWnd_ = nullptr;           // GetFocus() at the last OnSetFocus (debug log only)
     bool directAdopt_ = false;          // the request carried kDirectAdoptTyped (1.3.16)
     bool keysPassAsTyped_ = false;      // last evaluateHost: WPF default store, keys pass as typed

@@ -2310,3 +2310,159 @@ TEST(passing_word_ends_at_a_non_word_key_and_with_the_focus) {
     CHECK(!s.storeMisreads());
     CHECK(!s.passingWord());
 }
+
+// ---------------------------------------------------------------- tự kiểm sau mỗi lần sửa
+// 2026-11 (Windows 1.3.18, Word desktop, ô tìm kiếm của khung Navigation — Ctrl+F): "đầu
+// mối" ra "đàu môi". Mô hình: ô nhận lần thay tại chỗ rồi tự đặt lại chữ cũ (search-as-you-
+// type). Trước bản sửa mô hình ra ĐÚNG chuỗi báo lỗi: "ddaafu" với lần thay thứ 2 (a->â) bị
+// ô bỏ -> "f" thấy màn hình lệch, bỏ từ, re-edit "đa"+f = "đà", "u" -> "đàu"; "moois" với lần
+// thay thứ 2 (dấu sắc, lần cuối của từ) bị bỏ, không còn phím nào sau nó -> "môi".
+
+namespace {
+// Replaces the engine makes for `keys` in a normal field (to pick which one the app undoes).
+int replacesFor(const char* keys) {
+    Rig r(OutputMode::InPlace);
+    r.type(keys);
+    return r.doc.replaces;
+}
+std::string* gUndoLog = nullptr;
+}  // namespace
+
+TEST(field_undoing_a_replace_keeps_the_word_and_composes_after) {
+    // The 2nd replace of "ddaafu" (a -> â) is undone by the app (before the fix: "đàu").
+    Rig r(OutputMode::InPlace);
+    std::string log;
+    gUndoLog = &log;
+    SessionOptions o;
+    o.engineFlags = r.settings.engineFlags();
+    o.autoRestore = r.settings.autoRestore;
+    o.reEditWord = r.settings.reEditWord;
+    o.log = [](const char* m) {
+        if (gUndoLog) *gUndoLog += std::string(m) + "\n";
+    };
+    r.s.configure(o);
+    r.doc.undoReplaces = {2};
+    r.type("ddaafu ");
+    CHECK_EQ(r.text(), std::string("đầu "));
+    CHECK(r.s.prefersComposition());
+    CHECK(r.s.takeFieldUnreliable());
+    CHECK(!r.s.takeFieldUnreliable());  // one event
+    CHECK(!r.s.contextFellBack());      // never handed to the hook: composition only
+    CHECK(log.find("undid our last replace") != std::string::npos);
+    r.type("moois");
+    CHECK(r.s.wordMode() == OutputMode::Composition);
+    r.type(" ");
+    CHECK_EQ(r.text(), std::string("đầu mối "));
+    r.s.resetContext();  // another field: in-place again (the TIP remembers the control kind)
+    CHECK(!r.s.prefersComposition());
+    gUndoLog = nullptr;
+}
+
+TEST(field_undoing_the_last_replace_of_a_word_is_repaired_at_the_boundary) {
+    // "moois": the tone replace is the word's last edit, nothing typed after it but the space.
+    const int n = replacesFor("moois");
+    Rig r(OutputMode::InPlace);
+    r.doc.undoReplaces = {n};
+    r.type("moois");
+    CHECK_EQ(n, 2);
+    CHECK_EQ(r.text(), std::string("môi"));  // what the tester saw (until the boundary)
+    r.type(" ");
+    CHECK_EQ(r.text(), std::string("mối "));
+    CHECK(r.s.takeFieldUnreliable());
+}
+
+TEST(field_undoing_a_replace_seen_at_end_edit_keeps_the_word) {
+    // OnEndEdit (verifyScreen) sees the undone text first: the word is kept, not dropped.
+    Rig r(OutputMode::InPlace);
+    r.doc.undoReplaces = {2};
+    for (const char* p = "ddaafu moois "; *p; ++p) {
+        r.key(*p);
+        r.s.verifyScreen(r.doc);
+    }
+    CHECK_EQ(r.text(), std::string("đầu mối "));
+}
+
+TEST(normal_and_rewriting_fields_never_report_unreliable) {
+    // A normal field and a search box re-setting the SAME text each key: no event, in-place.
+    Rig r(OutputMode::InPlace);
+    r.type("tieengs vieetj ddaauf moois ");
+    CHECK_EQ(r.text(), std::string("tiếng việt đầu mối "));
+    CHECK(!r.s.takeFieldUnreliable());
+    CHECK(!r.s.prefersComposition());
+    Rig b(OutputMode::InPlace);
+    for (const char* p = "ddaauf moois "; *p; ++p) {
+        b.key(*p);
+        std::u16string t = b.doc.text;
+        b.doc.setText(t);
+        b.s.verifyScreen(b.doc);
+    }
+    CHECK_EQ(b.text(), std::string("đầu mối "));
+    CHECK(!b.s.takeFieldUnreliable());
+    // A click elsewhere is no undo: the word is dropped as before, nothing remembered.
+    Rig c(OutputMode::InPlace);
+    c.type("vieet");
+    c.doc.setText(u"something else");
+    c.s.verifyScreen(c.doc);
+    CHECK(!c.s.wordActive());
+    CHECK(!c.s.takeFieldUnreliable());
+}
+
+TEST(unreliable_controls_are_remembered_by_class) {
+    UnreliableControls u;
+    CHECK(!u.has(u"NetUIHWND"));
+    u.remember(u"NetUIHWND");
+    u.remember(u"NetUIHWND");
+    CHECK(u.has(u"NetUIHWND"));
+    CHECK_EQ(u.size(), static_cast<size_t>(1));
+    CHECK(!u.has(u"_WwG"));  // Word's document body: another kind, stays in-place
+    u.remember(u"");         // unknown class: never remembered
+    CHECK(!u.has(u""));
+    CHECK_EQ(u.size(), static_cast<size_t>(1));
+    for (int i = 0; i < 20; ++i) u.remember(u"C" + std::u16string(1, static_cast<char16_t>(u'a' + i)));
+    CHECK_EQ(u.size(), static_cast<size_t>(8));  // bounded
+}
+
+TEST(hard_field_matrix_types_the_phrase) {
+    // Every known kind of "hard" synchronous field, same phrase: Vietnamese comes out whole.
+    // (Async / Chromium stores: chromium_store_tests.cpp; read-only / disabled / no context:
+    // the TIP never hands those keys to the session — host_text_policy; IMM hosts, consoles,
+    // WPF, Notepad's misreading store: their own tests above.)
+    // A TSF-native store (Word & co): keys let through reach the app (passedKeysReachApp).
+    const char* keys = "tieengs vieetj ddaafu moois ddaauf ";
+    const std::string whole = "tiếng việt đầu mối đầu ";
+    struct Kind {
+        void (*setup)(FakeDocument&);
+        bool rewriteEachKey;
+        const char* want;  // nullptr = whole
+    };
+    const Kind kinds[] = {
+        {[](FakeDocument&) {}, false, nullptr},                                   // normal
+        {[](FakeDocument&) {}, true, nullptr},                                    // re-sets its text
+        {[](FakeDocument& d) { d.unreadable = true; }, false, nullptr},           // reads nothing
+        {[](FakeDocument& d) { d.undoReplaces = {2}; }, false, nullptr},          // undoes one
+        {[](FakeDocument& d) { for (int i = 2; i < 64; ++i) d.undoReplaces.insert(i); }, false, nullptr},  // all but 1st
+        {[](FakeDocument& d) { for (int i = 1; i < 64; ++i) d.undoReplaces.insert(i); }, false, nullptr},  // all
+        // Not ready at the first key (its first read sees nothing): no letter doubled or lost.
+        {[](FakeDocument& d) { d.blankReads = 1; }, false, nullptr},
+        // (Several empty reads in a row look like WPF's empty default store — "not a text
+        // field", keys pass as typed: wpf_* / not_a_text_field_* tests. Deliberately not
+        // re-tuned here.)
+    };
+    for (const Kind& k : kinds) {
+        const std::string want = k.want ? k.want : whole;
+        for (bool endEdit : {false, true}) {
+            Rig r(OutputMode::InPlace);
+            r.s.setPassedKeysReachApp(true);
+            k.setup(r.doc);
+            for (const char* p = keys; *p; ++p) {
+                r.key(*p);
+                if (k.rewriteEachKey) {
+                    std::u16string t = r.doc.text;
+                    r.doc.setText(t);
+                }
+                if (endEdit) r.s.verifyScreen(r.doc);
+            }
+            CHECK_EQ(r.text(), want);
+        }
+    }
+}

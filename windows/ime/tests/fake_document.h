@@ -2,6 +2,7 @@
 // TypingSession: composition range, caret, selection, and the app's default handling
 // of keys the TIP did not eat.
 #pragma once
+#include <set>
 #include <string>
 
 #include "session.h"
@@ -25,6 +26,8 @@ public:
     bool unreadable = false;     // simulate a control whose text cannot be read
     bool refuseReplace = false;  // in-place edits refused (verification-style failure)
     bool canReadContext() override { return !unreadable; }
+    std::set<int> undoReplaces;  // these replaces (1-based, in order) are undone by the app
+    int replaces = 0;            // replaceBeforeCaret calls that verified
 
     int blankReads = 0;          // the next N reads see nothing (a store one update behind)
     std::u16string textBeforeCaret(int max) override {
@@ -46,6 +49,9 @@ public:
         const size_t at = lo(), selLen = hi() - lo();
         if (refuseEdits || refuseReplace || unreadable || comp || expect.size() > at) return false;
         if (text.compare(at - expect.size(), expect.size(), expect) != 0) return false;
+        // A field that takes the edit and then puts its own text back (Word's Navigation
+        // search box, 2026-11): the edit "succeeds", the text is as before.
+        if (undoReplaces.count(++replaces)) return true;
         text.replace(at - expect.size(), expect.size(), ins);
         caret = at - expect.size() + ins.size();
         anchor = caret + selLen;  // the app's selected suffix stays selected, untouched
