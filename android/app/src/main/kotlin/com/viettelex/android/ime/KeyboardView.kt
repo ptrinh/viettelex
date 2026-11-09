@@ -294,6 +294,11 @@ class KeyboardView(
     private val ptrDownY = FloatArray(MAX_PTR)
     /** Pointer đang thuộc pane emoji/mẫu câu thay vì phím. */
     private val ptrPane = BooleanArray(MAX_PTR)
+    /** Pointer chạm xuống trong dải cử chỉ hệ thống trái/phải (EdgeTouch): chữ / ⌫ chờ nhấc, huỷ ⇒ bỏ. */
+    private val ptrEdge = BooleanArray(MAX_PTR)
+    /** Shift lúc chạm của pointer mép (huỷ ⇒ trả Shift một-lần đã nhả). */
+    private val ptrEdgeShiftOn = BooleanArray(MAX_PTR)
+    private val edgeLoc = IntArray(2)
     private var balloonOwner: LaidKey? = null
 
     // --- paint (tạo 1 lần) ---
@@ -464,6 +469,7 @@ class KeyboardView(
 
     private val spaceHoldRun = Runnable { beginTrackpad() }
     private val bsStartRun = Runnable {
+        ptrKey.getOrNull(bsPtr)?.let { commits.release(it) }   // ⌫ chạm ở mép: giữ lâu ⇒ chốt lần đầu
         bsRepeating = true; bsHoldStart = SystemClock.uptimeMillis(); bsTick = 0
         postDelayed(bsTickRun, BS_INTERVAL)
     }
@@ -1587,7 +1593,8 @@ class KeyboardView(
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val i = e.actionIndex
-                up(e.getPointerId(i), e.getX(i), e.getY(i), cancelled = false, t = e.eventTime)
+                // API 33+: hệ thống có thể huỷ MỘT ngón bằng UP mang FLAG_CANCELED thay vì CANCEL.
+                up(e.getPointerId(i), e.getX(i), e.getY(i), cancelled = EdgeTouch.upCancelled(e.flags), t = e.eventTime)
             }
             MotionEvent.ACTION_CANCEL -> for (i in 0 until e.pointerCount)
                 up(e.getPointerId(i), e.getX(i), e.getY(i), cancelled = true)
@@ -1595,8 +1602,27 @@ class KeyboardView(
         return true
     }
 
+    /**
+     * [x] (toạ độ view) nằm trong dải cử chỉ hệ thống trái/phải của cửa sổ IME (vuốt từ mép =
+     * Quay lại). Nav 3 nút / API < 29: insets = 0 ⇒ false ngay, không tốn gì thêm.
+     */
+    private fun inSystemGestureEdge(x: Float): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < 29) return false
+        val wi = rootWindowInsets ?: return false
+        val l: Int; val r: Int
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            val g = wi.getInsets(android.view.WindowInsets.Type.systemGestures()); l = g.left; r = g.right
+        } else {
+            @Suppress("DEPRECATION") val g = wi.systemGestureInsets; l = g.left; r = g.right
+        }
+        if (l <= 0 && r <= 0) return false
+        getLocationInWindow(edgeLoc)
+        return EdgeTouch.inGestureZone(x + edgeLoc[0], rootView.width, l, r)
+    }
+
     private fun down(pid: Int, x: Float, y: Float, e: MotionEvent) {
         if (pid !in 0 until MAX_PTR) return
+        ptrEdge[pid] = false; ptrEdgeShiftOn[pid] = false
         // Trackpad (giữ phím cách): ngón THỨ HAI chạm bất kỳ đâu ⇒ chuyển sang chọn chữ như bàn
         // phím Apple — không gõ phím dưới ngón đó. Ngoài trackpad: một phép so bool.
         if (TrackpadTouch.swallows(trackpad, pid == spacePtr)) { beginTrackpadSelect(); return }
@@ -1643,6 +1669,10 @@ class KeyboardView(
         val prior = if (shiftSym == null && forced == null && hit.kind == KeyKind.LETTER && plane == Plane.LETTERS) letterPrior?.invoke() else null
         val k = if (prior != null) SmartTouch.refine(keys, hit, x, y - TouchGeometry.yOffset * d, prior) else hit
         ptrKey[pid] = k
+        // Chạm ở dải mép cử chỉ hệ thống ⇒ tạm: chữ / ⌫ chờ nhấc; chữ, ⌫, space, return bị huỷ ⇒ bỏ.
+        val edge = forced == null && (k.kind == KeyKind.LETTER || k.kind == KeyKind.BACKSPACE ||
+            k.kind == KeyKind.SPACE || k.kind == KeyKind.RETURN) && inSystemGestureEdge(x)
+        ptrEdge[pid] = edge
         if (effects != null || spotlight != null) fxMark(k)
         eyeLook?.let { look ->   // Mắt AI: nhìn về tâm phím (toạ độ view cha) — nhân vật khác ⇒ null
             if (k.kind == KeyKind.LETTER || k.kind == KeyKind.CHAR || k.kind == KeyKind.PAD || k.kind == KeyKind.PUNCT ||
@@ -1654,7 +1684,7 @@ class KeyboardView(
                 feedback.clickKey(k.label, Feedback.LETTER, this)
                 pressDown(pid, k)
                 if (keyPreview) showBalloon(k, shiftSym)
-                emit(ShiftHold.key(shiftSym))
+                if (edge) { val sk = ShiftHold.key(shiftSym); commits.arm(k) { emit(sk) } } else emit(ShiftHold.key(shiftSym))
                 lastLetterDownT = e.eventTime
             } else {
                 feedback.clickKey(k.label, Feedback.LETTER, this)
@@ -1668,10 +1698,19 @@ class KeyboardView(
                 val cmdGesture = if (keyCommands && plane == Plane.LETTERS && forced == null && activeCount() == 1)
                     KeyCommandGesture.start(true, k.label[0], x / d, y / d, keyAreaTop() / d, (k.right - k.left) / d)
                     else null
-                val defer = cmdGesture != null && listener?.keyCommandHasSelection() == true
-                if (defer) {
+                val selDefer = cmdGesture != null && listener?.keyCommandHasSelection() == true
+                val defer = selDefer || edge
+                ptrEdgeShiftOn[pid] = shiftWas == Shift.ON
+                if (selDefer) {
                     val letter = Key.Letter(ch)
                     commits.arm(k) { emit(letter) }
+                } else if (edge) {
+                    // Dải mép: chữ chốt lúc nhấc / khi ngón khác chạm; huỷ (vuốt Quay lại) ⇒ không gõ.
+                    val letter = Key.Letter(ch)
+                    val lt = plane == Plane.LETTERS
+                    val dx = (x - (k.left + k.right) / 2) / (k.right - k.left)
+                    val dy = (y - TouchGeometry.yOffset * d - (k.top + k.bottom) / 2) / (k.bottom - k.top)
+                    commits.arm(k) { if (lt) listener?.onLetterTouch(dx, dy); emit(letter) }
                 } else {
                     if (plane == Plane.LETTERS) listener?.onLetterTouch(
                         (x - (k.left + k.right) / 2) / (k.right - k.left),
@@ -1686,7 +1725,8 @@ class KeyboardView(
                 }
                 if (!defer && swipeTyping && !splitNow && plane == Plane.LETTERS && activeCount() == 1)
                     startSwipeTracking(pid, k, x, y, e.eventTime, since, shiftWas)
-                if (!defer && alts.isNotEmpty()) armAlt(pid, k, x, y, shiftWas)
+                // Mép: vẫn giữ ra ký tự phụ (chữ gốc chốt trước khi ký tự phụ thay nó — settleAlt / up).
+                if (!selDefer && alts.isNotEmpty()) armAlt(pid, k, x, y, shiftWas)
             }
             KeyKind.CHAR -> {
                 feedback.clickKey(k.label, Feedback.LETTER, this)
@@ -1745,7 +1785,7 @@ class KeyboardView(
             KeyKind.BACKSPACE -> {
                 feedback.click(Feedback.DELETE, this)
                 press(k)
-                emit(Key.Backspace)
+                if (edge) commits.arm(k) { emit(Key.Backspace) } else emit(Key.Backspace)
                 bsPtr = pid; bsRepeating = false
                 bsSwipe = 0; bsSwipeAsked = 0; bsSwipeWords = 0
                 removeCallbacks(bsStartRun); removeCallbacks(bsTickRun)
@@ -1843,16 +1883,21 @@ class KeyboardView(
         }
         val k = ptrKey[pid] ?: run { if (TouchLog.enabled) TouchLog.touchEnded(cancelled, false); return }
         ptrKey[pid] = null
+        val edge = ptrEdge[pid]
+        ptrEdge[pid] = false
         if (TouchLog.enabled) TouchLog.touchEnded(cancelled, true)
         when (k.kind) {
             KeyKind.LETTER -> {
                 hideBalloon(k)
-                commits.release(k)        // chữ chờ nhấc (vuốt-ra-lệnh khi có vùng chọn); thường là no-op
+                // chữ chờ nhấc (vuốt-ra-lệnh khi có vùng chọn / chạm ở dải mép); thường là no-op.
+                // Chạm mép bị huỷ (vuốt Quay lại) ⇒ bỏ chữ + ký tự phụ, trả Shift một-lần.
+                val kept = EdgeTouch.settle(commits, k, edge, cancelled)
                 if (pid == altPid) {
                     val alt = altHold?.commit
                     dropAlt()
-                    if (alt != null) commitAlt(alt, k)   // cancel vẫn chốt như chữ thường
+                    if (alt != null && kept) commitAlt(alt, k)   // cancel ngoài mép vẫn chốt như chữ thường
                 }
+                if (!kept && ptrEdgeShiftOn[pid] && shift == Shift.OFF) { shift = Shift.ON; invalidate() }
             }
             KeyKind.CHAR -> {
                 hideBalloon(k); commits.release(k)   // popup đã mở ⇒ chèn ô đang chọn
@@ -1865,18 +1910,21 @@ class KeyboardView(
             }
             KeyKind.RETURN -> {
                 if (pid == returnPtr) { removeCallbacks(returnHoldRun); returnPtr = -1; hideBalloon(k) }
-                commits.release(k)        // đã giữ lâu ⇒ đã disarm, không có gì để chốt
+                // đã giữ lâu ⇒ đã disarm, không có gì để chốt; chạm mép bị huỷ ⇒ không gửi
+                EdgeTouch.settle(commits, k, edge, cancelled)
             }
             KeyKind.SPACE -> {
                 if (pid == spacePtr) {
                     removeCallbacks(spaceHoldRun); spacePtr = -1
                     if (spaceFlickEnabled && !trackpad) endFlick(k, x - ptrDownX[pid], y - ptrDownY[pid], t, cancelled)
-                    // Cancel VẪN chốt (KeyCommitQueue); trackpad đã disarm nên không có space.
-                    commits.release(k)
+                    // Cancel VẪN chốt (KeyCommitQueue) — trừ chạm ở dải mép (vuốt Quay lại);
+                    // trackpad đã disarm nên không có space.
+                    EdgeTouch.settle(commits, k, edge, cancelled)
                     if (trackpad) endTrackpad()
-                } else commits.release(k)
+                } else EdgeTouch.settle(commits, k, edge, cancelled)
             }
             KeyKind.BACKSPACE -> if (pid == bsPtr) {
+                EdgeTouch.settle(commits, k, edge, cancelled)   // ⌫ chạm ở mép: chốt lúc nhấc, huỷ ⇒ bỏ
                 removeCallbacks(bsStartRun); removeCallbacks(bsTickRun)
                 bsPtr = -1; bsRepeating = false
                 endSwipe(commit = !cancelled)
@@ -1922,6 +1970,7 @@ class KeyboardView(
         val step = swipeStepPx()
         val act = SwipeDelete.activatePx(step, theme.dp(16f))
         if (bsSwipe == 0 && SwipeDelete.activates(dx, dy, act)) {
+            commits.release(k)            // ⌫ chạm ở mép: như chạm thường, ⌫ đầu chạy trước khi vuốt xoá
             bsSwipe = if (listener?.onSwipeDeleteStart() == true) 1 else -1
         }
         if (bsSwipe != 1) return
@@ -1967,6 +2016,9 @@ class KeyboardView(
         dropPopover()
         dropEmojiMenu()
         for (i in 0 until MAX_PTR) {
+            // Chạm ở dải mép chưa nhấc mà bàn phím ẩn (Quay lại tới trước CANCEL) ⇒ huỷ, không chốt.
+            if (ptrEdge[i]) ptrKey[i]?.let { EdgeTouch.settle(commits, it, edge = true, cancelled = true) }
+            ptrEdge[i] = false
             ptrKey[i]?.pressed = false
             ptrKey[i] = null; ptrPane[i] = false
         }
@@ -2201,7 +2253,8 @@ class KeyboardView(
         val k = altKey
         dropAlt()
         val alt = h.commit ?: return
-        if (k != null) { hideBalloon(k); commitAlt(alt, k) }
+        // Chữ gốc còn chờ (chạm ở dải mép) ⇒ chốt trước để ký tự phụ thay đúng nó.
+        if (k != null) { hideBalloon(k); commits.release(k); commitAlt(alt, k) }
     }
 
     private fun dropAlt() {
