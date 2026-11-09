@@ -379,6 +379,12 @@ void trayLeftClick() {
             // Portable, yielding: give that window a non-Vietnamese layout so the hook types.
             const std::vector<uintptr_t> hkls = keyboardLayouts();
             const uintptr_t en = vtx::pickExitLayout(hkls.data(), hkls.size(), 0);
+            if (vtx::portable::yieldClick(en) == vtx::portable::YieldClick::ExplainNoOtherKeyboard) {
+                // Only Vietnamese keyboards in the list: say what to do (was a silent no-op).
+                appLog("app", "portable tray click: only Vietnamese keyboards in the list");
+                MessageBoxW(nullptr, tr(S::PortableNoOtherKeyboard), tr(S::AppName), MB_OK | MB_ICONINFORMATION);
+                break;
+            }
             const bool ok = requestInputLanguage(wnd, en);
             appLog("app", std::string("portable tray click: English layout ") + (ok ? "requested" : "unavailable"));
             if (ok) setTrayState(storedVietnamese(describeWindow(wnd).identity));
@@ -416,7 +422,15 @@ void portableChord() {
     HWND fg = GetForegroundWindow();
     if (!fg || gameSuspendedNow()) return;
     const FgApp app = describeWindow(fg);
-    if (vtx::portable::yields(fgTipProp(fg), fgLangId(app))) return;
+    const int prop = fgTipProp(fg);
+    const unsigned lang = fgLangId(app);
+    if (vtx::portable::yields(prop, lang)) {
+        // Not a silent mystery in the log (báo lỗi 1.3.17 "không chuyển được"): who has the window.
+        appLog("app", std::string("portable Ctrl+Shift ignored: ") +
+                          (prop ? "installed VietTelex keyboard active" : "a Vietnamese keyboard is selected") +
+                          " in " + narrowAscii(app.identity) + " (lang " + std::to_string(lang) + ")");
+        return;
+    }
     const bool on = !storedVietnamese(app.identity);
     storeVietnamese(app.identity, on);
     setTrayState(on);
@@ -836,7 +850,16 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
             vtx::portable::StartAction::ExitInstalledRunning) {
         g_settings = loadSettings();
         setEnglish(g_settings.uiLanguage == "en");
+        appSetLogging(g_settings.debugLogging);
+        appLog("app", std::string("portable ") + VTX_VER_STRING + ": installed VietTelex is running -> quit");
         MessageBoxW(nullptr, tr(S::PortableInstalledRunning), tr(S::AppName), MB_OK | MB_ICONINFORMATION);
+        return 0;
+    }
+    // Started from inside the zip (Explorer copied only the exe, no portable.ini): it would
+    // run as the installed build from a throwaway folder (portable.h launchedFromArchive).
+    // Plain starts only — the update watcher's own copy in %TEMP% is oneShot 4.
+    if (!isPortable && oneShot == 0 && vtx::portable::launchedFromArchive(selfExePath())) {
+        MessageBoxW(nullptr, tr(S::RunFromArchive), tr(S::AppName), MB_OK | MB_ICONWARNING);
         return 0;
     }
 

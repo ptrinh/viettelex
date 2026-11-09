@@ -246,7 +246,9 @@ window.vtxDetectOS = function (ua, plat, touch) {
         <li>Trade-offs: the portable version types by listening to keys system-wide (a keyboard hook) — direct, no underline, but less smooth in browsers and Word than the installed version; it can't type into apps running as administrator or some games; browser password boxes can't be detected (switch to E for passwords).</li>
         <li><b>Start with Windows</b>: an option in the tray icon's right-click menu (off by default).</li>
         <li>No self-update: <b>Check for updates</b> opens the download page for the new zip.</li>
-        <li>If VietTelex is installed on the PC, the portable copy steps aside (no double typing).</li>
+        <li>Unzip first (right-click the zip → <b>Extract All</b>): started from inside the zip, it only shows a message asking you to unzip.</li>
+        <li>The portable copy is <b>not</b> in Windows' keyboard list (<kbd>Win</kbd><kbd>Space</kbd>): keep an English keyboard selected and switch Vietnamese on/off with <kbd>Ctrl</kbd><kbd>Shift</kbd> or the tray icon. While a Vietnamese keyboard is selected, it steps aside.</li>
+        <li>If the installed VietTelex is running, the portable copy says so and quits (no double typing). To use the portable copy, right-click the VietTelex tray icon → <b>Quit VietTelex</b> first.</li>
       </ul>
     </div>
     <div class="card" data-os="linux">

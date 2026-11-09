@@ -49,6 +49,22 @@ inline StartAction decideStart(bool installedAppRunning) {
     return installedAppRunning ? StartAction::ExitInstalledRunning : StartAction::Run;
 }
 
+// Explorer's "Run" on an exe INSIDE a zip copies only that exe to a throwaway folder
+// (%TEMP%\Temp1_<tên>.zip\...; trình giải nén khác: %TEMP%\7zO…, %TEMP%\Rar$EX…): portable.ini
+// is not next to it, so it would start as the INSTALLED build — handing off to (or even
+// replacing) the installed app, never typing as the portable copy (báo lỗi 1.3.17: "bản
+// portable không hoạt động"). True when a folder of `exePath` looks like one of those;
+// main.cpp then asks to unzip the whole folder and quits.
+bool launchedFromArchive(const std::wstring& exePath);
+
+// Portable tray click while it yields (a Vietnamese keyboard is active in that window):
+// switch the window to `exitLayout` (app_feel.h pickExitLayout) so the hook types — or,
+// with no other keyboard in the list (0), say what to do instead of a silent no-op.
+enum class YieldClick { SwitchLayout, ExplainNoOtherKeyboard };
+inline YieldClick yieldClick(uintptr_t exitLayout) {
+    return exitLayout ? YieldClick::SwitchLayout : YieldClick::ExplainNoOtherKeyboard;
+}
+
 // The installed VietTelex keyboard (tipProp 1/2) or any Vietnamese keyboard (Windows'
 // own, the installed TIP before it set its prop) is active in the foreground window:
 // the portable hook stays out there.

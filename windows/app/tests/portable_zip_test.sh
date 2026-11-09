@@ -21,7 +21,14 @@ VietTelex-9.8.7-portable-$arch/README.txt"
   [ "$list" = "$want" ] || fail "zip $arch lists: $list"
   [ "$(unzip -p "$z" "VietTelex-9.8.7-portable-$arch/VietTelex.exe")" = "MZ$arch" ] || fail "wrong exe in $arch zip"
   unzip -p "$z" "VietTelex-9.8.7-portable-$arch/portable.ini" | grep -q '^\[VietTelex\]' || fail "marker content"
-  unzip -p "$z" "VietTelex-9.8.7-portable-$arch/README.txt" | grep -q 'portable' || fail "readme"
+  readme="$(unzip -p "$z" "VietTelex-9.8.7-portable-$arch/README.txt")"
+  grep -q 'portable' <<<"$readme" || fail "readme"
+  # Báo lỗi 1.3.17: the three ways testers got stuck, spelled out in both languages.
+  grep -q 'Giải nén tất cả' <<<"$readme" || fail "readme: unzip first (vi)"
+  grep -q 'Extract All' <<<"$readme" || fail "readme: unzip first (en)"
+  [ "$(grep -c 'Win+Space' <<<"$readme")" -ge 2 ] || fail "readme: not in Windows' keyboard list"
+  grep -q 'Thoát VietTelex' <<<"$readme" || fail "readme: quit the installed copy (vi)"
+  grep -q 'Quit VietTelex' <<<"$readme" || fail "readme: quit the installed copy (en)"
 done
 # Deterministic: same input, same bytes.
 cp "$T/out/VietTelex-9.8.7-portable-x64.zip" "$T/first.zip"

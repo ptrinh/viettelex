@@ -206,6 +206,36 @@ TEST(portable_start_and_yield) {
     CHECK(std::wstring(portable::kMutexName) != L"Local\\VietTelex.App");
 }
 
+// Báo lỗi 1.3.17 ("bản portable không hoạt động"): Explorer's "Run" inside the zip copies
+// only the exe to a temp folder — no portable.ini, so it started as the installed build.
+TEST(portable_launched_from_archive) {
+    const std::wstring tmp = L"C:\\Users\\a\\AppData\\Local\\Temp\\";
+    CHECK(portable::launchedFromArchive(
+        tmp + L"Temp1_VietTelex-1.3.17-portable-x64.zip\\VietTelex-1.3.17-portable-x64\\VietTelex.exe"));
+    CHECK(portable::launchedFromArchive(tmp + L"Temp2_vt.ZIP\\VietTelex.exe"));  // case, Temp2_
+    CHECK(portable::launchedFromArchive(tmp + L"7zO4A1B2C3D\\VietTelex.exe"));
+    CHECK(portable::launchedFromArchive(tmp + L"Rar$EXa1234.5678\\VietTelex-1.3.17-portable-x64\\VietTelex.exe"));
+    CHECK(portable::launchedFromArchive(L"C:/Users/a/AppData/Local/Temp/Temp1_x.zip/VietTelex.exe"));
+    // Unzipped folders, installed builds, the update watcher's copy: not from an archive.
+    CHECK(!portable::launchedFromArchive(L"D:\\Tools\\VietTelex-1.3.17-portable-x64\\VietTelex.exe"));
+    CHECK(!portable::launchedFromArchive(L"C:\\Program Files\\VietTelex\\VietTelex.exe"));
+    CHECK(!portable::launchedFromArchive(L"C:\\Users\\a\\AppData\\Local\\VietTelex\\VietTelex.exe"));
+    CHECK(!portable::launchedFromArchive(tmp + L"VietTelex-update-1234.exe"));
+    CHECK(!portable::launchedFromArchive(L"D:\\zip\\VietTelex.exe"));         // a folder just named "zip"
+    CHECK(!portable::launchedFromArchive(L"D:\\VietTelex.zip.exe"));          // the file name never counts
+    CHECK(!portable::launchedFromArchive(L"D:\\.zip"));
+    CHECK(!portable::launchedFromArchive(L""));
+}
+
+// Portable tray click while it yields: with only Vietnamese keyboards in the list there is
+// nothing to switch to — explain instead of a silent no-op.
+TEST(portable_yield_click) {
+    const uintptr_t onlyVi[] = {0x042A042A};
+    CHECK(portable::yieldClick(pickExitLayout(onlyVi, 1, 0)) == portable::YieldClick::ExplainNoOtherKeyboard);
+    const uintptr_t withUs[] = {0x042A042A, 0x04090409};
+    CHECK(portable::yieldClick(pickExitLayout(withUs, 2, 0)) == portable::YieldClick::SwitchLayout);
+}
+
 TEST(portable_hook_plan) {
     for (AppMode m : {AppMode::InPlace, AppMode::Composition, AppMode::HookFallback, AppMode::Direct}) {
         const portable::HookPlan p = portable::hookPlan(m, false, false);
