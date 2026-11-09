@@ -1161,12 +1161,13 @@ void Session::endWord(InputContext &ic, bool suppressRestore, bool allowShortcut
         tailAppend(text);
     };
     if (allowShortcuts && shortcutsEnabled_ && !word.empty() && shortcuts_) {
-        auto it = shortcuts_->find(word);
-        if (it == shortcuts_->end()) it = shortcuts_->find(rawWord);
+        // Case follows the typing (ko/Ko/KO — shortcutExpansion, as on macOS).
+        std::string expansion;
+        const bool found = shortcutExpansion(*shortcuts_, word, expansion) ||
+                           (rawWord != word && shortcutExpansion(*shortcuts_, rawWord, expansion));
         // Surrounding deletes the word to expand it: never with a selection at the caret.
-        if (it != shortcuts_->end() && (mode_ != DisplayMode::Surrounding ||
-                                        (!selectionAtCaret(ic) && inPlaceAllowed(ic, word)))) {
-            std::string expansion = it->second;
+        if (found && (mode_ != DisplayMode::Surrounding ||
+                      (!selectionAtCaret(ic) && inPlaceAllowed(ic, word)))) {
             vt_reset(e_);
             ended(expansion, std::string());
             if (mode_ == DisplayMode::Preedit) {
@@ -1699,11 +1700,10 @@ bool Session::tryTokenShortcut(InputContext &ic) {
     if (start == 0 && utf8Chars(before) > kMaxKeyChars) return false;
     const std::string token = screen.substr(start);
     if (token.size() <= word.size() || !isTokenShortcutKey(token)) return false;  // the word path's
-    auto it = shortcuts_->find(token);
-    if (it == shortcuts_->end()) return false;
+    std::string expansion;
+    if (!shortcutExpansion(*shortcuts_, token, expansion)) return false;
     if (ic.hasSelection() || selectionAtCaret(ic)) return false;
     if (!preedit && !inPlaceAllowed(ic, word, int(utf8Chars(token)))) return false;
-    const std::string expansion = it->second;
     // Committed part of the run ("=>" / ":" of ":D"); in Surrounding the word goes too.
     const std::string onScreen = preedit ? token.substr(0, token.size() - word.size()) : token;
     vt_reset(e_);

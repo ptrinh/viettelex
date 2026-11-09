@@ -199,18 +199,101 @@ std::string exportShortcutsYaml(const StringMap& m) {
     return o;
 }
 
-const std::u16string* findShortcut(const std::map<std::u16string, std::u16string>& table,
-                                   const std::u16string& composed, const std::u16string& raw,
-                                   char16_t charBeforeWord) {
-    if (table.empty() || composed.empty()) return nullptr;
-    if (gluesShortcutToken(charBeforeWord)) return nullptr;
-    auto it = table.find(composed);
-    if (it != table.end()) return &it->second;
-    if (!raw.empty()) {
-        it = table.find(raw);
-        if (it != table.end()) return &it->second;
+namespace {
+
+char16_t lowerUnit(char16_t c) {
+    if (c >= u'A' && c <= u'Z') return static_cast<char16_t>(c + 32);
+    if (c >= 0x00C0 && c <= 0x00DE && c != 0x00D7) return static_cast<char16_t>(c + 0x20);
+    if (c >= 0x0100 && c <= 0x0137 && c != 0x0130 && c != 0x0131 && (c % 2) == 0) return static_cast<char16_t>(c + 1);
+    if (c >= 0x0139 && c <= 0x0148 && (c % 2) == 1) return static_cast<char16_t>(c + 1);
+    if (c >= 0x014A && c <= 0x0177 && (c % 2) == 0) return static_cast<char16_t>(c + 1);
+    if (c == 0x0178) return 0x00FF;
+    if (c >= 0x0179 && c <= 0x017E && (c % 2) == 1) return static_cast<char16_t>(c + 1);
+    if (c == 0x01A0) return 0x01A1;  // Ơ
+    if (c == 0x01AF) return 0x01B0;  // Ư
+    if (((c >= 0x1E00 && c <= 0x1E95) || (c >= 0x1EA0 && c <= 0x1EFF)) && (c % 2) == 0)
+        return static_cast<char16_t>(c + 1);
+    return c;
+}
+
+char16_t upperUnit(char16_t c) {
+    if (c >= u'a' && c <= u'z') return static_cast<char16_t>(c - 32);
+    if (c >= 0x00E0 && c <= 0x00FE && c != 0x00F7) return static_cast<char16_t>(c - 0x20);
+    if (c == 0x00FF) return 0x0178;
+    if (c >= 0x0101 && c <= 0x0137 && c != 0x0131 && (c % 2) == 1) return static_cast<char16_t>(c - 1);
+    if (c >= 0x013A && c <= 0x0148 && (c % 2) == 0) return static_cast<char16_t>(c - 1);
+    if (c >= 0x014B && c <= 0x0177 && (c % 2) == 1) return static_cast<char16_t>(c - 1);
+    if (c >= 0x017A && c <= 0x017E && (c % 2) == 0) return static_cast<char16_t>(c - 1);
+    if (c == 0x01A1) return 0x01A0;  // ơ
+    if (c == 0x01B0) return 0x01AF;  // ư
+    if (((c >= 0x1E01 && c <= 0x1E95) || (c >= 0x1EA1 && c <= 0x1EFF)) && (c % 2) == 1)
+        return static_cast<char16_t>(c - 1);
+    return c;
+}
+
+bool isUpperUnit(char16_t c) { return lowerUnit(c) != c; }
+
+}  // namespace
+
+std::u16string shortcutLower(const std::u16string& s) {
+    std::u16string o(s);
+    for (char16_t& c : o) c = lowerUnit(c);
+    return o;
+}
+
+std::u16string shortcutUpper(const std::u16string& s) {
+    std::u16string o(s);
+    for (char16_t& c : o) c = upperUnit(c);
+    return o;
+}
+
+namespace {
+
+// macOS ShortcutTable.applyCase: all caps (>= 2 letters) -> all caps; first letter only
+// uppercase -> capitalized; mixed -> no match.
+bool applyCase(const std::u16string& typed, const std::u16string& e, std::u16string& out) {
+    std::u16string letters;
+    for (char16_t c : typed)
+        if (isShortcutLetter(c)) letters.push_back(c);
+    if (letters.empty()) {
+        out = e;
+        return true;
     }
-    return nullptr;
+    if (letters.size() >= 2 && typed == shortcutUpper(typed)) {
+        out = shortcutUpper(e);
+        return true;
+    }
+    const std::u16string rest = letters.substr(1);
+    if (isUpperUnit(letters[0]) && rest == shortcutLower(rest)) {
+        out = e;
+        if (!out.empty()) out[0] = upperUnit(out[0]);
+        return true;
+    }
+    return false;
+}
+
+}  // namespace
+
+bool shortcutExpansion(const std::map<std::u16string, std::u16string>& table, const std::u16string& typed,
+                       std::u16string& out) {
+    if (typed.empty()) return false;
+    auto it = table.find(typed);
+    if (it != table.end()) {
+        out = it->second;
+        return true;
+    }
+    const std::u16string lower = shortcutLower(typed);
+    if (lower == typed) return false;
+    it = table.find(lower);
+    return it != table.end() && applyCase(typed, it->second, out);
+}
+
+bool findShortcut(const std::map<std::u16string, std::u16string>& table, const std::u16string& composed,
+                  const std::u16string& raw, char16_t charBeforeWord, std::u16string& out) {
+    if (table.empty() || composed.empty()) return false;
+    if (gluesShortcutToken(charBeforeWord)) return false;
+    if (shortcutExpansion(table, composed, out)) return true;
+    return !raw.empty() && raw != composed && shortcutExpansion(table, raw, out);
 }
 
 bool isShortcutLetter(char16_t c) {
@@ -228,11 +311,13 @@ bool isTokenShortcutKey(const std::u16string& key) {
     return false;
 }
 
-const std::u16string* findTokenShortcut(const std::map<std::u16string, std::u16string>& table,
-                                        const std::u16string& token) {
-    if (table.empty() || !isTokenShortcutKey(token)) return nullptr;
-    auto it = table.find(token);
-    return it == table.end() ? nullptr : &it->second;
+bool findTokenShortcut(const std::map<std::u16string, std::u16string>& table, const std::u16string& token,
+                       std::u16string* out) {
+    if (table.empty() || !isTokenShortcutKey(token)) return false;
+    std::u16string e;
+    if (!shortcutExpansion(table, token, e)) return false;
+    if (out) *out = std::move(e);
+    return true;
 }
 
 }  // namespace vtx

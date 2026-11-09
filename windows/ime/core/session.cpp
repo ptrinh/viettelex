@@ -136,6 +136,7 @@ void TypingSession::reset() {
     shown_.clear();
     droppedSig_.clear();
     undoneSig_.clear();
+    rewritePending_ = false;
     overflow_ = false;
     reopenArmed_ = false;
     retroUndo_.clear();
@@ -187,6 +188,21 @@ bool TypingSession::screenShowsUndone(const std::u16string& before) const {
            before.compare(before.size() - undoneSig_.size(), undoneSig_.size(), undoneSig_) == 0;
 }
 
+bool TypingSession::screenMidRewrite(const std::u16string& before, TextSink& sink) const {
+    if (asyncStore_) return false;
+    // Emptied, or everything selected (the insertion point is the selection START: the
+    // field's start) — the first half of an app's select-all + replace / clear + insert.
+    if (before.empty() || sink.hasSelection()) return true;
+    // Part of the word back (an app restoring its text piece by piece): the screen ends with
+    // a non-empty proper prefix of the word as it was before our replace, or as we left it.
+    auto endsWithPrefixOf = [&](const std::u16string& w) {
+        for (size_t n = 1; n < w.size(); ++n)
+            if (before.size() >= n && before.compare(before.size() - n, n, w, 0, n) == 0) return true;
+        return false;
+    };
+    return endsWithPrefixOf(undoneSig_) || endsWithPrefixOf(shown_);
+}
+
 void TypingSession::noteUndone() {
     if (!preferComposition_ && opt_.log)
         opt_.log("in-place: the field undid our last replace (it shows the word as before it) -> "
@@ -217,11 +233,24 @@ void TypingSession::verifyScreen(TextSink& sink) {
     if (!wordActive() || wordMode_ != OutputMode::InPlace || sink.blind()) return;
     const bool preferred = preferComposition_;
     const std::u16string before = sink.textBeforeCaret(static_cast<int>(staleReadLen()));
-    if (!screenStale(before)) return;
+    if (!screenStale(before)) {
+        rewritePending_ = false;
+        return;
+    }
     if (screenShowsUndone(before)) {
         // The app undid our last replace (search-as-you-type re-setting its text): keep the
         // word — the next key re-takes it into a composition (handleWordKey).
+        rewritePending_ = false;
         noteUndone();
+        return;
+    }
+    if (screenMidRewrite(before, sink)) {
+        // The field is half-way through putting its own text back (TSF delivers an app's
+        // "set text" as several edits: emptied / all selected, then the text). Dropping the
+        // word here lost the undo the next state shows (1.3.19, Word's Navigation search box
+        // through the TIP: "đầu mối" still "đàu môi"). Decide on the finished text.
+        if (!rewritePending_ && opt_.verboseLog) note("in-place: field mid-way through re-setting its text -> wait");
+        rewritePending_ = true;
         return;
     }
     // An async store (Chromium) reports the page renderer round trips late, often with a
@@ -368,6 +397,11 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
         } else {
             const std::u16string before = sink.textBeforeCaret(static_cast<int>(staleReadLen()));
             stale = screenStale(before);
+            // The field was seen re-setting its text after our replace (verifyScreen): it IS
+            // a text field showing our edits — whatever it shows now is a change of the word,
+            // never the empty / misreading-store evidence below.
+            const bool afterRewrite = rewritePending_;
+            rewritePending_ = false;
             if (!stale) emptyStoreHits_ = 0;  // the store shows our word: a text field after all
             if (stale && asyncStore_) {
                 // The store has not caught up with the page (or the page changed): an edit
@@ -421,7 +455,12 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
             // Composing there shows nowhere ("Vietnamese letters never appear"), and the
             // #134 path below would also type the letters already on screen a second time.
             // The word goes on as typed; the TIP leaves that store (storeMisreads).
-            if (stale && !shown_.empty() && !dropsPassedKeys_ && sink.appTextEndsWith(shown_) == AppView::Shows) {
+            if (stale && afterRewrite)
+                note(staleNote("in-place: the field re-set its text to something else -> word dropped, "
+                               "this key starts a new word",
+                               before.size()).c_str());
+            else if (stale && !shown_.empty() && !dropsPassedKeys_ &&
+                     sink.appTextEndsWith(shown_) == AppView::Shows) {
                 if (!storeMisreads_ && opt_.log)
                     opt_.log("in-place: the store does not show the typed text, the app's window does -> "
                              "the store misreads this field, word goes on as typed");
@@ -437,7 +476,8 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
             // MISA SME, mintty): the letters we let through were claimed in
             // OnTestKeyDown, so the app never got them (#134: "first letter lost").
             // Keep the word and compose all of it, from this key on.
-            if (stale && before.empty() && !shown_.empty() && passedKeysReachApp_ && !dropsPassedKeys_) {
+            if (stale && !afterRewrite && before.empty() && !shown_.empty() && passedKeysReachApp_ &&
+                !dropsPassedKeys_) {
                 // The app got the letters (a TSF-native store never drops them) but its store
                 // shows none: the store is not this element's text. Composing would type into
                 // nothing (WPF type-to-filter list: "markdown" -> nothing at all). This word
@@ -451,7 +491,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
                 reset();
                 return false;
             }
-            if (stale && before.empty() && !shown_.empty()) {
+            if (stale && !afterRewrite && before.empty() && !shown_.empty()) {
                 fallBack("in-place: the field shows none of the typed text -> composition for this field");
                 if (!dropsPassedKeys_ && opt_.log)
                     opt_.log("in-place: letters let through never reached the app (IMM host) -> composing them");
@@ -459,7 +499,7 @@ bool TypingSession::handleWordKey(char32_t c, TextSink& sink) {
                 wordMode_ = OutputMode::Composition;
                 stale = false;
             }
-            if (stale)
+            if (stale && !afterRewrite)
                 note(staleNote("in-place: text before the caret no longer ends with the word -> word dropped, "
                                "this key starts a new word",
                                before.size()).c_str());
@@ -908,15 +948,15 @@ void TypingSession::runAppendText(const std::u16string& t) {
 }
 
 bool TypingSession::tokenCandidate() const {
-    return opt_.shortcuts && !tokenRun_.empty() && findTokenShortcut(*opt_.shortcuts, tokenRun_) != nullptr;
+    return opt_.shortcuts && !tokenRun_.empty() && findTokenShortcut(*opt_.shortcuts, tokenRun_);
 }
 
 bool TypingSession::tryTokenShortcut(TextSink& sink) {
     if (!opt_.shortcuts || tokenRun_.empty()) return false;
     const bool word = !vtx_is_empty(engine_) && !overflow_;
     const std::u16string token = tokenRun_ + (word ? shown_ : std::u16string());
-    const std::u16string* exp = findTokenShortcut(*opt_.shortcuts, token);
-    if (!exp) return false;
+    std::u16string expansion;
+    if (!findTokenShortcut(*opt_.shortcuts, token, &expansion)) return false;
     const bool comp = word && wordMode_ == OutputMode::Composition;
     if (sink.blind()) {
         // Nothing can be read back (the hook): only a run that provably starts after a
@@ -934,7 +974,6 @@ bool TypingSession::tryTokenShortcut(TextSink& sink) {
             return false;
         if (before.size() > onScreen.size() && !isShortcutSpace(before.front())) return false;
     }
-    const std::u16string expansion = *exp;
     if (comp) {
         // Commit the word as typed, then replace the whole run (committed text only).
         sink.endComposition(shown_);
@@ -953,18 +992,27 @@ bool TypingSession::tryTokenShortcut(TextSink& sink) {
 }
 
 bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind, char32_t ch) {
-    if (wordMode_ == OutputMode::InPlace && !overflow_ && !asyncStore_ && !undoneSig_.empty() &&
+    if (wordMode_ == OutputMode::InPlace && !overflow_ && !asyncStore_ && (!undoneSig_.empty() || rewritePending_) &&
         !vtx_is_empty(engine_) && !sink.blind()) {
         // The word's last replace may have been undone by the app after its key (the last
         // word of a search: "mối" left as "môi"). One read per word that had an edit; when
         // the screen shows the word as before that edit, re-take it into a composition and
         // commit it from there (noteUndone).
         const std::u16string before = sink.textBeforeCaret(static_cast<int>(staleReadLen()));
-        if (screenStale(before) && screenShowsUndone(before)) {
+        const bool stale = screenStale(before);
+        if (stale && screenShowsUndone(before)) {
             noteUndone();
             if (sink.setComposition(shown_, static_cast<int>(undoneSig_.size()), misspelled(engine_)))
                 wordMode_ = OutputMode::Composition;
+        } else if (stale && rewritePending_) {
+            // Seen mid-rewrite, and the field now shows something else: what OnEndEdit used
+            // to conclude at once — the word is gone, nothing to commit or expand.
+            note(staleNote("in-place: the field re-set its text to something else -> word dropped", before.size())
+                     .c_str());
+            reset();
+            return false;
         }
+        rewritePending_ = false;
         undoneSig_.clear();
     }
     const bool comp = wordMode_ == OutputMode::Composition;
@@ -1014,8 +1062,8 @@ bool TypingSession::commitWordInner(TextSink& sink, KeyKind kind, char32_t ch) {
             before = ctx.front();
         }
         const std::u16string raw = rawOf(engine_);
-        if (const std::u16string* exp = findShortcut(*opt_.shortcuts, shown_, raw, before)) {
-            std::u16string expansion = *exp;
+        std::u16string expansion;
+        if (findShortcut(*opt_.shortcuts, shown_, raw, before, expansion)) {
             if (comp) sink.endComposition(expansion + boundary);
             else sink.replaceBeforeCaret(shown_, expansion);
             reset();

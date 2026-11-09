@@ -759,6 +759,13 @@ void TextService::evaluateHost(ITfContext* ctx) {
         session_.setPreferComposition(true);
         config::log("control kind undid in-place edits before in this app -> composition from the first letter");
     }
+    // Word's NetUI text boxes (Navigation pane search, Ctrl+F): the search box re-sets its
+    // text and undoes in-place replaces (app_policy.h officeUiPrefersComposition).
+    if (session_.outputMode() == OutputMode::InPlace && !session_.prefersComposition() &&
+        officeUiPrefersComposition(config::exeName(), focusClass_, session_.asyncStore())) {
+        session_.setPreferComposition(true);
+        config::log("Word UI text box (NetUIHWND): composition from the first letter");
+    }
     // Windows search on an async store: compose from the first letter — the first word of
     // every search lost its tone key in place (app_policy.h shellSearchPrefersComposition).
     if (session_.outputMode() == OutputMode::InPlace && !session_.prefersComposition() &&

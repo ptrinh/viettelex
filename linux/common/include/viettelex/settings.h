@@ -105,6 +105,12 @@ std::string exportShortcuts(const ShortcutTable &t);
 // non-whitespace text before the caret at a whitespace boundary (Session::tryTokenShortcut,
 // macOS ShortcutTable.tokenExpansion).
 bool isTokenShortcutKey(const std::string &utf8Key);
+// Expansion for `typed` with the case of the typing carried over (macOS / iOS / Android
+// ShortcutTable.expansion): the key exactly as typed first; else a lowercase key — "Ko" ->
+// first letter capitalized ("Không"), "KO" (>= 2 letters, all caps) -> all caps ("KHÔNG"),
+// mixed case ("kO") -> no match. Case mapping: ASCII, Latin-1, Latin Extended-A, Ơ Ư, the
+// Vietnamese block. (2026-11: before, only the exact key matched — "Ko" never expanded.)
+bool shortcutExpansion(const ShortcutTable &t, const std::string &typed, std::string &out);
 
 // Hotkey "Ctrl+Shift+space". Returns false for an empty/invalid string.
 struct Hotkey {

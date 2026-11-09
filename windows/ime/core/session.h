@@ -316,6 +316,14 @@ private:
     // tracked. See takeFieldUnreliable().
     std::u16string undoneSig_;
     bool fieldUnreliable_ = false;  // see takeFieldUnreliable()
+    // OnEndEdit saw the field half-way through re-setting its own text (emptied, all
+    // selected, or only part of the word back — 1.3.19 Word Navigation search box through
+    // TSF: an app's "set text" arrives as several edits; sync stores). Not proof of a change
+    // of the word: the decision waits for the next key / the next OnEndEdit / the commit,
+    // which see the finished text (undone -> re-take the word; anything else -> drop it).
+    bool rewritePending_ = false;
+    // Sync store: `before` looks like the field mid-way through re-setting its text.
+    bool screenMidRewrite(const std::u16string& before, TextSink& sink) const;
     // Sync store, screen = undoneSig_ (not the word): the app undid our last replace.
     bool screenShowsUndone(const std::u16string& before) const;
     // Logs once per field, moves it to composition, raises takeFieldUnreliable().
