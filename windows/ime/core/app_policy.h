@@ -189,4 +189,32 @@ bool fieldPrefersComposition(const std::string& exe, const int* scopes, size_t c
 // did). `app` = the app identity (WebView2: the owning app). Sync stores: unchanged.
 bool shellSearchPrefersComposition(const std::string& app, bool asyncStore);
 
+// (2026-11) Control kinds of THIS app where in-place proved unreliable on a sync store
+// (session.h takeFieldUnreliable: the app undid our replace, or dropped its deletion — Word's
+// Navigation search box). One TIP instance serves one app, so the key is the focus window
+// class alone; the next time such a control gets focus it composes from the first letter
+// instead of paying one damaged word again. In memory only (gone when the app quits); a
+// few entries at most (an unknown / empty class is never remembered).
+class UnreliableControls {
+public:
+    void remember(const std::u16string& cls) {
+        if (cls.empty() || has(cls)) return;
+        if (n_ == kMax) n_ = 0;  // full: overwrite from the oldest (never grows)
+        cls_[n_++] = cls;
+        if (count_ < kMax) ++count_;
+    }
+    bool has(const std::u16string& cls) const {
+        if (cls.empty()) return false;
+        for (size_t i = 0; i < count_; ++i)
+            if (cls_[i] == cls) return true;
+        return false;
+    }
+    size_t size() const { return count_; }
+
+private:
+    static constexpr size_t kMax = 8;
+    std::u16string cls_[kMax];
+    size_t n_ = 0, count_ = 0;
+};
+
 }  // namespace vtx

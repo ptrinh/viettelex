@@ -751,6 +751,14 @@ void TextService::evaluateHost(ITfContext* ctx) {
     // Chromium & co (transitory, readable): the store mirrors the page asynchronously
     // (session.h setAsyncStore — 2026-10 Messenger/Facebook "mất chữ" report).
     session_.setAsyncStore(c.transitory && host_ == HostText::Normal);
+    // A control kind of this app that already undid an in-place edit (app_policy.h
+    // UnreliableControls): compose from the first letter. Sync stores only.
+    focusClass_.assign(reinterpret_cast<const char16_t*>(cls));
+    if (session_.outputMode() == OutputMode::InPlace && !session_.prefersComposition() && !session_.asyncStore() &&
+        unreliable_.has(focusClass_)) {
+        session_.setPreferComposition(true);
+        config::log("control kind undid in-place edits before in this app -> composition from the first letter");
+    }
     // Windows search on an async store: compose from the first letter — the first word of
     // every search lost its tone key in place (app_policy.h shellSearchPrefersComposition).
     if (session_.outputMode() == OutputMode::InPlace && !session_.prefersComposition() &&
@@ -1012,8 +1020,19 @@ STDMETHODIMP TextService::OnEndEdit(ITfContext* ctx, TfEditCookie ecReadOnly, IT
         // A forward selection (omnibox autocomplete suffix) is the app's, not a change.
         // An app that dropped the deletion of our replace moves the field to composition.
         session_.verifyScreen(ro);
+        noteUnreliableField();
     }
     return S_OK;
+}
+
+// The session found this control undoing in-place edits (session.h takeFieldUnreliable):
+// remember its kind for the rest of this app's life (one log line per kind).
+void TextService::noteUnreliableField() {
+    if (!session_.takeFieldUnreliable() || focusClass_.empty() || unreliable_.has(focusClass_)) return;
+    unreliable_.remember(focusClass_);
+    std::string c;
+    for (char16_t ch : focusClass_) c += (ch >= 0x20 && ch < 0x7F) ? static_cast<char>(ch) : '?';
+    config::log("in-place unreliable in this control kind (class " + c + ") -> it composes from now on in this app");
 }
 
 // ---------------------------------------------------------------- keys
@@ -1311,6 +1330,7 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL*
         hr = run(ctx);
     }
     ownKeyEdit_ = false;
+    noteUnreliableField();
     if (hr != S_OK) {
         // The app refused a synchronous edit session: type literally, never guess.
         if (config::logging()) {

@@ -227,6 +227,18 @@ public:
     // dropped" signature (screen = word before the replace + inserted text) and switches
     // this field to composition (setPreferComposition).
     void verifyScreen(TextSink& sink);
+    // Tự kiểm sau mỗi lần sửa tại chỗ (2026-11, ô tìm kiếm Navigation của Word: "đầu mối" ->
+    // "đàu môi"): kho đồng bộ đọc ra đúng chữ TRƯỚC lần thay cuối của mình (cộng các chữ để
+    // app tự chèn sau đó) — app đã bỏ / đặt lại lần thay (search-as-you-type tự đặt lại chữ).
+    // Từ đang gõ được lấy lại vào một composition (đủ dấu), ô này chuyển composition, và
+    // takeFieldUnreliable() báo cho TIP nhớ loại control đó trong phiên (cũng cho chữ ký
+    // "bỏ phần xoá" ở trên). Kho bất đồng bộ (Chromium) không bao giờ báo: ở đó đọc trễ là
+    // chuyện thường, đã có đường riêng (setAsyncStore).
+    bool takeFieldUnreliable() {
+        const bool r = fieldUnreliable_;
+        fieldUnreliable_ = false;
+        return r;
+    }
     OutputMode wordMode() const { return wordMode_; }
     // The word the LAST handleKey committed at a printable boundary: its raw keys and the
     // text left on screen (auto-restore applied). Empty after any other key, after a
@@ -299,6 +311,16 @@ private:
     // After an in-place replace: what the screen shows if the app inserted our text but
     // dropped the deletion (Chromium omnibox, 2026-10 field report "theêz"). Empty = none.
     std::u16string droppedSig_;
+    // After an in-place edit: what the screen shows if the app UNDID it (the word as it was
+    // before our last replace, plus the letters let through since). Empty = none / not
+    // tracked. See takeFieldUnreliable().
+    std::u16string undoneSig_;
+    bool fieldUnreliable_ = false;  // see takeFieldUnreliable()
+    // Sync store, screen = undoneSig_ (not the word): the app undid our last replace.
+    bool screenShowsUndone(const std::u16string& before) const;
+    // Logs once per field, moves it to composition, raises takeFieldUnreliable().
+    void noteUndone();
+    size_t staleReadLen() const;
     OutputMode effectiveMode() const {
         return (contextFallback_ || compositionOnly_ || preferComposition_) ? OutputMode::Composition : mode_;
     }
