@@ -195,3 +195,38 @@ một khung), mà bớt layout mỗi phím và bớt tranh CPU nền lúc mở (
 Cần đo lại trên máy thật (A13: 2 lõi hiệu năng) theo mục 2.
 
 Trong tiến trình (KeyboardStartupTests, Debug, simulator, 3 lần, máy bận): xem commit message.
+
+## 6. Ảnh lưới phím cho khung đầu (KeySnapshot, 09/11/2026)
+
+Lần hiện trước (yên, chưa chạm, `captureDelay` sau viewDidAppear) chụp **chỉ vùng phím**
+(`rowsContainer`, nền trong suốt) + khung từng phím, ghi nền vào Caches riêng của extension
+(`Caches/KeySnapshot/keysnap-<khoá>-<khung>-<w>x<h>.bgra`: BGRA thô để mmap, đuôi = khung phím).
+Lần mở sau, khoá khớp chính xác ⇒ khung đầu là một CALayer chứa ảnh, phím thật dựng ngay sau commit
+(PostFrameWork) rồi bỏ ảnh. Chạm khi ảnh còn hiện: `hitTest` dựng phím thật ngay rồi định tuyến như
+thường (không mất chạm, hiệu ứng bấm phím chạy như cũ).
+
+- **Khoá** (`KeyboardView.snapshotKeyParts`): build, scale, hướng, a11y, ngôn ngữ, plane, shift, loại ô,
+  Return, sáng/tối, theme (id, JSON chuẩn của theme tự tạo, kiểu phím, bảng màu liệt kê tay —
+  `KeySnapshot.paletteKey`), tệp theme, hàng số, một tay, phím cách, ký tự phụ, hình học hàng… KHÔNG
+  dùng Mirror / in tên case enum (đo: ~17–23 ms lúc tiến trình lạnh → 0,1–0,2 ms sau khi bỏ).
+- **Không dùng ảnh**: VoiceOver; plane emoji / mẫu câu / bàn số lớn; phím tự chuyển động (keyMotion,
+  float); phím kính (keyShape glass); đập chuột. Viền cầu vồng / cực quang / Ảo giác, hoạ tiết giữa hàng,
+  nền, đèn, bạn đồng hành, hiệu ứng là lớp riêng dựng sống — viền / hoạ tiết dùng khung phím lưu kèm.
+  Theo giờ: bảng màu nằm trong khoá ⇒ giờ khác = dựng như cũ.
+- **Tắt nhanh**: `KeySnapshot.compiledOn = false` (biên dịch) hoặc defaults `keySnapshotOff = true`.
+  Tắt ⇒ không liệt kê thư mục, không tính khoá, không chụp. Trong XCTest mặc định TẮT (test bật riêng).
+- Đo: `KeyboardStartupTests/testTimeToFirstFrameSnapshot{Default,Dark,Rich}` — chạy HAI lần
+  (`-only-testing`, tiến trình riêng); lượt đầu chụp, lượt sau là "lạnh có ảnh" (dòng `snap=1`).
+
+**Số đo 09/11/2026** — simulator iPhone 17 (iOS 27), Debug, trong tiến trình, mỗi ô trung vị 4 tiến
+trình lạnh riêng (Mac dùng chung, nhiễu). "Sẵn chạm" = khung đầu + dựng phím thật sau khung đầu.
+
+| Cấu hình | Khung đầu cũ (ms) | Khung đầu ảnh (ms) | Sẵn chạm cũ / ảnh (ms) | Footprint sau khung đầu cũ / ảnh (MB) |
+|---|---|---|---|---|
+| Mặc định | 47,8 | 34,1 | 47,8 / 51,7 | 18,3 / 19,5 |
+| Tối | 51,3 | 34,7 | 51,3 / 52,4 | 18,3 / 19,4 |
+| Theme + nhân vật + âm + hàng số | 63,1 | 50,5 | 63,1 / 68,8 | 20,8 / 20,9 |
+
+Ấm (cùng tiến trình): khung đầu 11,7 → 7,0 (mặc định); footprint sau didAppear không đổi (ảnh nhả).
+Đánh đổi: phím hiện sớm hơn ~13–17 ms, nhận chạm muộn hơn ~1–6 ms (chạm sớm hơn thì dựng ngay lúc chạm).
+Cần đo lại trên máy thật (Release, mục 2).

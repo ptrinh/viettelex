@@ -164,7 +164,7 @@ final class KeyboardViewController: UIInputViewController {
             let w = Int(view.bounds.width), hh = Int(h)
             s.emitEvent("height", "\(w)x\(hh)")
         }
-        if let st = appearTrace, h > 0, let kb = keyboard, !kb.isTornDown, !kb.initialBuildPending {
+        if let st = appearTrace, h > 0, let kb = keyboard, !kb.isTornDown, kb.firstFrameReady {   // phím hoặc ảnh lưới phím
             appearTrace = nil
             FrameTrace.endAtCommit("appear", st)
         }
@@ -1615,6 +1615,8 @@ final class KeyboardViewController: UIInputViewController {
         keyboard?.setNeedsGlobe(needsInputModeSwitchKey)
         refreshFullAccessIfChanged()
         pushSwipeLayout(prepare: true)   // frame phím đã thật → dựng template ở nền
+        // Ảnh lưới phím cho lần mở sau (KeySnapshot): chụp khi đã yên, chỉ khi khoá đổi; tắt ⇒ không làm gì.
+        keyboard?.scheduleSnapshotCapture()
         // Clipboard có thể vừa đổi trong lúc bàn phím ẩn: tính lại bar khi đã hiện
         // hẳn (cache 2s của pasteOffer bỏ qua để đọc trạng thái mới).
         // Chỉ tính lại cả bar khi kết quả nút Dán ĐỔI so với lúc viewWillAppear

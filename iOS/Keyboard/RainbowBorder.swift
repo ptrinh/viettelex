@@ -318,7 +318,7 @@ final class RainbowBorderView: UIView {
     private var motion = RainbowMotion()
     private var fade = RainbowFade()
     private var laidOutWidth: CGFloat = -1
-    private var outlines: [CGRect] = []
+    private(set) var outlines: [CGRect] = []
     private var radii: [CGFloat] = []
     private static let moveKey = "rgb.move", loopKey = "rgb.loop", fadeKey = "rgb.fade"
 
