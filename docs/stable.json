@@ -3,12 +3,12 @@
   "url": "https://github.com/ptrinh/viettelex/releases/tag/v1.9.1",
   "build": 149,
   "windows": {
-    "version": "1.3.18",
-    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.18/VietTelex-1.3.18-x64.msi",
-    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.18/VietTelex-1.3.18-arm64.msi",
-    "notes": "Gợi ý âm lịch/Tết; Notepad cổ điển và ô tìm kiếm Windows gõ được dấu từ chữ đầu; log gỡ lỗi gọn hơn.",
-    "portable_x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.18/VietTelex-1.3.18-portable-x64.zip",
-    "portable_arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.18/VietTelex-1.3.18-portable-arm64.zip"
+    "version": "1.3.19",
+    "x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.19/VietTelex-1.3.19-x64.msi",
+    "arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.19/VietTelex-1.3.19-arm64.msi",
+    "notes": "Ô tìm kiếm Navigation của Word gõ đúng dấu; bản portable hướng dẫn rõ khi chạy từ zip hoặc khi bản cài đang chạy.",
+    "portable_x64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.19/VietTelex-1.3.19-portable-x64.zip",
+    "portable_arm64": "https://github.com/ptrinh/viettelex/releases/download/windows-v1.3.19/VietTelex-1.3.19-portable-arm64.zip"
   },
   "linux": {
     "version": "1.0.24",
