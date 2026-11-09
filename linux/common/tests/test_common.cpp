@@ -214,8 +214,27 @@ void testShortcuts() {
     bothModes("ko ", "không ", st);
     bothModes("cf ", "cà phê ", st);
     bothModes("2ko ", "2ko ", st);   // glued to a digit: no expansion (#82)
+    // Case follows the typing, as on macOS / iOS / Android (2026-11: "Ko" never expanded).
+    bothModes("Ko ", "Không ", st);
+    bothModes("KO ", "KHÔNG ", st);
+    bothModes("kO ", "kO ", st);     // mixed case: no match
+    bothModes("Cf ", "Cà phê ", st); // raw-key path too
     st.shortcutsEnabled = false;
     bothModes("ko ", "ko ", st);
+    // The lookup itself.
+    ShortcutTable k{{"ko", "không"}, {"dc", "được"}, {"đc", "địa chỉ"}, {"Hn", "Hà Nội"}, {"k2", "kệ hai"}};
+    std::string e;
+    CHECK(shortcutExpansion(k, "ko", e) && e == "không");
+    CHECK(shortcutExpansion(k, "Ko", e) && e == "Không");
+    CHECK(shortcutExpansion(k, "KO", e) && e == "KHÔNG");
+    CHECK(!shortcutExpansion(k, "kO", e));
+    CHECK(shortcutExpansion(k, "DC", e) && e == "ĐƯỢC");
+    CHECK(shortcutExpansion(k, "Đc", e) && e == "Địa chỉ");
+    CHECK(shortcutExpansion(k, "ĐC", e) && e == "ĐỊA CHỈ");
+    CHECK(shortcutExpansion(k, "Hn", e) && e == "Hà Nội");  // a key with capitals: exact only
+    CHECK(!shortcutExpansion(k, "hn", e));
+    CHECK(shortcutExpansion(k, "K2", e) && e == "Kệ hai");  // token keys too
+    CHECK(!shortcutExpansion(k, "", e));
 }
 
 // Gõ tắt with symbol keys ("=>" → "⟶", "<>" → "⟷"; Windows field report 1.3.x, same gap

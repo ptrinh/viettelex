@@ -346,6 +346,118 @@ bool isTokenShortcutKey(const std::string &k) {
     return false;
 }
 
+namespace {
+
+std::vector<uint32_t> scDecode(const std::string &s) {
+    std::vector<uint32_t> out;
+    for (size_t i = 0; i < s.size();) {
+        const unsigned char b = static_cast<unsigned char>(s[i]);
+        uint32_t cp;
+        size_t n;
+        if (b < 0x80) { cp = b; n = 1; }
+        else if ((b >> 5) == 6) { cp = b & 0x1f; n = 2; }
+        else if ((b >> 4) == 14) { cp = b & 0x0f; n = 3; }
+        else { cp = b & 0x07; n = 4; }
+        for (size_t j = 1; j < n && i + j < s.size(); ++j) cp = (cp << 6) | (static_cast<unsigned char>(s[i + j]) & 0x3f);
+        i += n;
+        out.push_back(cp);
+    }
+    return out;
+}
+
+std::string scEncode(const std::vector<uint32_t> &cps) {
+    std::string o;
+    for (uint32_t c : cps) {
+        if (c < 0x80) {
+            o += char(c);
+        } else if (c < 0x800) {
+            o += char(0xc0 | (c >> 6));
+            o += char(0x80 | (c & 0x3f));
+        } else if (c < 0x10000) {
+            o += char(0xe0 | (c >> 12));
+            o += char(0x80 | ((c >> 6) & 0x3f));
+            o += char(0x80 | (c & 0x3f));
+        } else {
+            o += char(0xf0 | (c >> 18));
+            o += char(0x80 | ((c >> 12) & 0x3f));
+            o += char(0x80 | ((c >> 6) & 0x3f));
+            o += char(0x80 | (c & 0x3f));
+        }
+    }
+    return o;
+}
+
+uint32_t scLower(uint32_t c) {
+    if (c >= 'A' && c <= 'Z') return c + 32;
+    if (c >= 0xC0 && c <= 0xDE && c != 0xD7) return c + 0x20;
+    if (c >= 0x100 && c <= 0x137 && c != 0x130 && (c % 2) == 0) return c + 1;
+    if (c >= 0x139 && c <= 0x148 && (c % 2) == 1) return c + 1;
+    if (c >= 0x14A && c <= 0x177 && (c % 2) == 0) return c + 1;
+    if (c == 0x178) return 0xFF;
+    if (c >= 0x179 && c <= 0x17E && (c % 2) == 1) return c + 1;
+    if (c == 0x1A0) return 0x1A1;  // Ơ
+    if (c == 0x1AF) return 0x1B0;  // Ư
+    if (((c >= 0x1E00 && c <= 0x1E95) || (c >= 0x1EA0 && c <= 0x1EFF)) && (c % 2) == 0) return c + 1;
+    return c;
+}
+
+uint32_t scUpper(uint32_t c) {
+    if (c >= 'a' && c <= 'z') return c - 32;
+    if (c >= 0xE0 && c <= 0xFE && c != 0xF7) return c - 0x20;
+    if (c == 0xFF) return 0x178;
+    if (c >= 0x101 && c <= 0x137 && c != 0x131 && (c % 2) == 1) return c - 1;
+    if (c >= 0x13A && c <= 0x148 && (c % 2) == 0) return c - 1;
+    if (c >= 0x14B && c <= 0x177 && (c % 2) == 1) return c - 1;
+    if (c >= 0x17A && c <= 0x17E && (c % 2) == 0) return c - 1;
+    if (c == 0x1A1) return 0x1A0;  // ơ
+    if (c == 0x1B0) return 0x1AF;  // ư
+    if (((c >= 0x1E01 && c <= 0x1E95) || (c >= 0x1EA1 && c <= 0x1EFF)) && (c % 2) == 1) return c - 1;
+    return c;
+}
+
+bool scLetter(uint32_t cp) {
+    return (cp >= 'a' && cp <= 'z') || (cp >= 'A' && cp <= 'Z') || (cp >= 0xc0 && cp <= 0x24f && cp != 0xd7 && cp != 0xf7) ||
+           (cp >= 0x300 && cp <= 0x36f) || (cp >= 0x1e00 && cp <= 0x1eff);
+}
+
+}  // namespace
+
+bool shortcutExpansion(const ShortcutTable &t, const std::string &typed, std::string &out) {
+    if (typed.empty()) return false;
+    auto it = t.find(typed);
+    if (it != t.end()) {
+        out = it->second;
+        return true;
+    }
+    const std::vector<uint32_t> cps = scDecode(typed);
+    std::vector<uint32_t> low(cps), up(cps), letters;
+    for (auto &c : low) c = scLower(c);
+    for (auto &c : up) c = scUpper(c);
+    if (low == cps) return false;
+    it = t.find(scEncode(low));
+    if (it == t.end()) return false;
+    for (uint32_t c : cps)
+        if (scLetter(c)) letters.push_back(c);
+    std::vector<uint32_t> e = scDecode(it->second);
+    if (letters.empty()) {
+        out = it->second;
+        return true;
+    }
+    if (letters.size() >= 2 && up == cps) {  // KO -> KHÔNG
+        for (auto &c : e) c = scUpper(c);
+        out = scEncode(e);
+        return true;
+    }
+    bool restLower = true;
+    for (size_t i = 1; i < letters.size(); ++i) restLower = restLower && scLower(letters[i]) == letters[i];
+    if (scLower(letters[0]) != letters[0] && restLower) {  // Ko -> Không
+        if (!e.empty()) e[0] = scUpper(e[0]);
+        out = scEncode(e);
+        return true;
+    }
+    return false;  // kO: mixed case
+}
+
 ShortcutTable parseShortcuts(const std::string &yaml) {
     ShortcutTable out;
     std::istringstream in(yaml);
