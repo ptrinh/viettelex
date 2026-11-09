@@ -19,13 +19,22 @@ class EdgeTouchTest {
     private val q = KeyCommitQueue()
     private val held = HashMap<Int, Pair<String, Boolean>>()   // pid → (phím, edge)
 
-    /** KeyboardView.down cho phím chữ / ⌫: ngoài mép chèn ngay; trong mép arm. */
+    /** Số lần gửi tin (return) — vuốt Quay lại không bao giờ được gửi. */
+    private var sent = 0
+
+    /** KeyboardView.down: chữ / ⌫ ngoài mép chèn ngay, trong mép arm; space / return luôn arm. */
     private fun down(pid: Int, key: String, windowX: Float) {
         q.flush(key)                                        // FlushRoute: chốt phím đang chờ trước
         val edge = EdgeTouch.inGestureZone(windowX, w, inset, inset)
         held[pid] = key to edge
-        val fire = { if (key == "⌫") field.setLength(field.length - 1) else field.append(key) }
-        if (edge) q.arm(key) { fire() } else fire()
+        val fire = {
+            when (key) {
+                "⌫" -> field.setLength(field.length - 1)
+                "⏎" -> sent++
+                else -> field.append(key)
+            }
+        }
+        if (edge || key == " " || key == "⏎") q.arm(key) { fire() } else fire()
     }
 
     private fun up(pid: Int, flags: Int = 0) {
@@ -57,6 +66,37 @@ class EdgeTouchTest {
         down(0, "⌫", 20f)
         cancel(0)
         assertEquals("P", field.toString())
+    }
+
+    @Test fun backGestureOverReturnAtEdgeNeverSends() {
+        down(0, "⏎", 1050f)
+        cancel(0)
+        q.flush()
+        assertEquals(0, sent)
+        down(0, "⏎", 1050f)
+        up(0, flags = EdgeTouch.FLAG_CANCELED)
+        assertEquals(0, sent)
+    }
+
+    @Test fun backGestureOverSpaceAtEdgeInsertsNothing() {
+        down(0, " ", 30f)            // space chạm trong dải mép trái (một tay / phím rộng)
+        cancel(0)
+        q.flush()
+        assertEquals("P", field.toString())
+    }
+
+    @Test fun returnAndSpaceAtEdgeStillWorkOnPlainTap() {
+        down(0, " ", 30f); up(0)
+        down(0, "⏎", 1050f); up(0)
+        assertEquals("P ", field.toString())
+        assertEquals(1, sent)
+    }
+
+    @Test fun returnAndSpaceAwayFromEdgeStillCommitOnCancel() {
+        down(0, " ", 540f); cancel(0)
+        down(0, "⏎", 900f); cancel(0)
+        assertEquals("P ", field.toString())
+        assertEquals(1, sent)
     }
 
     @Test fun plainTapAtEdgeStillTypesOnLift() {

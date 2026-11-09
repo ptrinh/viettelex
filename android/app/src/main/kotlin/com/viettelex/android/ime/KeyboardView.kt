@@ -1669,8 +1669,9 @@ class KeyboardView(
         val prior = if (shiftSym == null && forced == null && hit.kind == KeyKind.LETTER && plane == Plane.LETTERS) letterPrior?.invoke() else null
         val k = if (prior != null) SmartTouch.refine(keys, hit, x, y - TouchGeometry.yOffset * d, prior) else hit
         ptrKey[pid] = k
-        // Chạm ở dải mép cử chỉ hệ thống (chỉ phím chèn lúc DOWN: chữ, ⌫) ⇒ tạm, chờ nhấc.
-        val edge = forced == null && (k.kind == KeyKind.LETTER || k.kind == KeyKind.BACKSPACE) && inSystemGestureEdge(x)
+        // Chạm ở dải mép cử chỉ hệ thống ⇒ tạm: chữ / ⌫ chờ nhấc; chữ, ⌫, space, return bị huỷ ⇒ bỏ.
+        val edge = forced == null && (k.kind == KeyKind.LETTER || k.kind == KeyKind.BACKSPACE ||
+            k.kind == KeyKind.SPACE || k.kind == KeyKind.RETURN) && inSystemGestureEdge(x)
         ptrEdge[pid] = edge
         if (effects != null || spotlight != null) fxMark(k)
         eyeLook?.let { look ->   // Mắt AI: nhìn về tâm phím (toạ độ view cha) — nhân vật khác ⇒ null
@@ -1909,16 +1910,18 @@ class KeyboardView(
             }
             KeyKind.RETURN -> {
                 if (pid == returnPtr) { removeCallbacks(returnHoldRun); returnPtr = -1; hideBalloon(k) }
-                commits.release(k)        // đã giữ lâu ⇒ đã disarm, không có gì để chốt
+                // đã giữ lâu ⇒ đã disarm, không có gì để chốt; chạm mép bị huỷ ⇒ không gửi
+                EdgeTouch.settle(commits, k, edge, cancelled)
             }
             KeyKind.SPACE -> {
                 if (pid == spacePtr) {
                     removeCallbacks(spaceHoldRun); spacePtr = -1
                     if (spaceFlickEnabled && !trackpad) endFlick(k, x - ptrDownX[pid], y - ptrDownY[pid], t, cancelled)
-                    // Cancel VẪN chốt (KeyCommitQueue); trackpad đã disarm nên không có space.
-                    commits.release(k)
+                    // Cancel VẪN chốt (KeyCommitQueue) — trừ chạm ở dải mép (vuốt Quay lại);
+                    // trackpad đã disarm nên không có space.
+                    EdgeTouch.settle(commits, k, edge, cancelled)
                     if (trackpad) endTrackpad()
-                } else commits.release(k)
+                } else EdgeTouch.settle(commits, k, edge, cancelled)
             }
             KeyKind.BACKSPACE -> if (pid == bsPtr) {
                 EdgeTouch.settle(commits, k, edge, cancelled)   // ⌫ chạm ở mép: chốt lúc nhấc, huỷ ⇒ bỏ
