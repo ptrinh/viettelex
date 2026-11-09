@@ -16,6 +16,8 @@ internal object ImeCost {
     @JvmField var keyboardDraws = 0
     /** Ghi lại lưới phím tĩnh (mọi phím) — đắt; chỉ khi bố cục / shift / phím chức năng / theme đổi. */
     @JvmField var gridRecords = 0
+    /** Lượt gợi ý lúc hiện bàn phím (hoãn ra sau khung đầu — VietTelexIME.firstBarRun). */
+    @JvmField var barRefreshes = 0
 
-    fun reset() { inputViews = 0; themes = 0; layoutBuilds = 0; keyboardDraws = 0; gridRecords = 0 }
+    fun reset() { inputViews = 0; themes = 0; layoutBuilds = 0; keyboardDraws = 0; gridRecords = 0; barRefreshes = 0 }
 }

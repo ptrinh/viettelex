@@ -20,6 +20,10 @@ object ImeTrace {
     const val COLD_TO_FIRST_DRAW = "VT.coldToFirstDraw"
     const val KEYBOARD_DRAW = "VT.kbDraw"
     const val PLANE_SWITCH = "VT.planeSwitch"
+    /** Ghi lại display list lưới phím (RenderNode, mọi phím) — nằm trong VT.kbDraw. */
+    const val GRID_RECORD = "VT.gridRecord"
+    /** Gợi ý lúc hiện bàn phím — hoãn ra sau khung đầu có phím (trước đây VT.startInput.refreshBar). */
+    const val BAR_AFTER_FIRST_FRAME = "VT.barAfterFirstFrame"
     const val LAYOUT_BUILD = "VT.layoutBuild"
     const val ON_KEY = "VT.onKey"
     /** ACTION_DOWN trên lưới phím → lượt vẽ kế của bất kỳ view bàn phím nào (cookie 3). */

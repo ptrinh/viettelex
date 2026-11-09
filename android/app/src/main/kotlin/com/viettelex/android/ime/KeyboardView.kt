@@ -1085,9 +1085,10 @@ class KeyboardView(
         val node = gridNode
         if (node != null && c.isHardwareAccelerated) {
             if (gridDirty || !node.hasDisplayList()) {
+                ImeTrace.begin(ImeTrace.GRID_RECORD)
                 node.setPosition(0, 0, width, height)
                 val rc = node.beginRecording(width, height)
-                try { drawGrid(rc) } finally { node.endRecording() }
+                try { drawGrid(rc) } finally { node.endRecording(); ImeTrace.end() }
             }
             c.drawRenderNode(node)
         } else drawGrid(c)

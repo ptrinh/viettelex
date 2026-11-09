@@ -65,6 +65,11 @@ class ImeShowBenchmark {
     private fun showMetrics() = listOf(
         section("VT.onCreate"), section("VT.onCreateInputView"), section("VT.onStartInputView"),
         section("VT.showToFirstDraw"), section("VT.kbDraw", Mode.First), section("VT.layoutBuild"),
+        // Khúc con (tìm việc đáng hoãn ra sau khung đầu) + số lần ghi lại display list lưới phím.
+        section("VT.onCreate.data"), section("VT.onCreate.session"), section("VT.onCreate.state"),
+        section("VT.startInput.field"), section("VT.startInput.kbConfigure"), section("VT.startInput.refreshBar"), section("VT.barAfterFirstFrame"),
+        section("VT.startInput.prefs"), section("VT.startInput.extras"),
+        section("VT.gridRecord", Mode.Count),
         section("Host.imeShowToAnimStart", host = true), section("Host.imeShowToAnimEnd", host = true),
     )
 
@@ -104,7 +109,7 @@ class ImeShowBenchmark {
     /** Gõ 20 chữ: chạm → lượt vẽ kế (VT.keyToDraw), xử lý phím (VT.onKey), khung hình process IME. */
     @Test fun typing() = rule.measureRepeated(IME,
         listOf(FrameTimingMetric(), section("VT.keyToDraw", Mode.Average), section("VT.onKey", Mode.Average),
-            section("VT.kbDraw", Mode.Count)),
+            section("VT.kbDraw", Mode.Count), section("VT.gridRecord", Mode.Count)),
         iterations, config, compilation, startupMode = null,
         setupBlock = { selectIme(); openHost(); show() }) {
         val kb = keyboardBounds()
@@ -117,7 +122,8 @@ class ImeShowBenchmark {
     /** Đổi bảng phím chữ ↔ ?123 (VT.planeSwitch, dựng / lấy layout từ cache). */
     @Test fun planeSwitch() = rule.measureRepeated(IME,
         listOf(FrameTimingMetric(), section("VT.planeSwitch", Mode.Average), section("VT.layoutBuild", Mode.Count),
-            section("VT.kbDraw", Mode.Average)),
+            section("VT.kbDraw", Mode.Average), section("VT.kbDraw", Mode.Sum), section("VT.gridRecord", Mode.Count),
+            section("VT.gridRecord", Mode.Sum)),
         iterations, config, compilation, startupMode = null,
         setupBlock = { selectIme(); openHost(); show() }) {
         val kb = keyboardBounds()
