@@ -18,13 +18,24 @@ std::string toFlatJson(const StringMap& m);
 bool parseShortcutFile(const std::string& text, StringMap& out);
 std::string exportShortcutsYaml(const StringMap& m);
 
+// Expansion for `typed` with the case of the typing carried over (macOS / iOS / Android
+// ShortcutTable.expansion): 1. the key exactly as typed; 2. a lowercase key — "Ko" -> the
+// expansion with its first letter capitalized ("Không"), "KO" (>= 2 letters, all caps) ->
+// all caps ("KHÔNG"); mixed case ("kO") matches nothing. (2026-11 Windows report: key "ko",
+// typing "Ko" did not expand.) Case mapping: ASCII, Latin-1, Latin Extended-A, Ơ Ư, the
+// Vietnamese block — anything else is left as is.
+bool shortcutExpansion(const std::map<std::u16string, std::u16string>& table, const std::u16string& typed,
+                       std::u16string& out);
+std::u16string shortcutLower(const std::u16string& s);
+std::u16string shortcutUpper(const std::u16string& s);
+
 // Boundary lookup (macOS TelexInputController.boundary): composed word first, then
 // the raw keystrokes (a key containing Telex triggers never survives composition).
 // `charBeforeWord` = the character right before the word (0 if none): a word glued
 // to a digit or / # @ is part of a token ("5h", "/h3", "#tag") and never expands.
-const std::u16string* findShortcut(const std::map<std::u16string, std::u16string>& table,
-                                   const std::u16string& composed, const std::u16string& raw,
-                                   char16_t charBeforeWord);
+// The expansion (case carried, shortcutExpansion) goes to `out`.
+bool findShortcut(const std::map<std::u16string, std::u16string>& table, const std::u16string& composed,
+                  const std::u16string& raw, char16_t charBeforeWord, std::u16string& out);
 
 inline bool gluesShortcutToken(char16_t c) {
     return (c >= u'0' && c <= u'9') || c == u'/' || c == u'#' || c == u'@';
@@ -49,8 +60,9 @@ inline bool isShortcutSpace(char32_t c) {
     return c == U' ' || c == U'\t' || c == U'\r' || c == U'\n' || c == 0x00A0 || c == 0x3000;
 }
 // Expansion of a token key equal to `token` (the run before the caret, word in progress
-// included), or nullptr. Letter-only tokens never match here (the word lookup owns them).
-const std::u16string* findTokenShortcut(const std::map<std::u16string, std::u16string>& table,
-                                        const std::u16string& token);
+// included; case carried as in shortcutExpansion) into `out` (may be null). Letter-only
+// tokens never match here (the word lookup owns them).
+bool findTokenShortcut(const std::map<std::u16string, std::u16string>& table, const std::u16string& token,
+                       std::u16string* out = nullptr);
 
 }  // namespace vtx

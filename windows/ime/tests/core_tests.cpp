@@ -300,11 +300,44 @@ TEST(shortcut_import_formats) {
 
 TEST(shortcut_lookup_rules) {
     std::map<std::u16string, std::u16string> t{{u"vn", u"Việt Nam"}, {u"cf", u"cà phê"}};
-    CHECK(findShortcut(t, u"vn", u"vn", 0) != nullptr);
-    CHECK(findShortcut(t, u"c", u"cf", u' ') != nullptr);  // raw fallback ("cf" composes away)
-    CHECK(findShortcut(t, u"vn", u"vn", u'5') == nullptr);
-    CHECK(findShortcut(t, u"vn", u"vn", u'#') == nullptr);
-    CHECK(findShortcut(t, u"xx", u"xx", 0) == nullptr);
+    std::u16string e;
+    CHECK(findShortcut(t, u"vn", u"vn", 0, e));
+    CHECK(e == u"Việt Nam");
+    CHECK(findShortcut(t, u"c", u"cf", u' ', e));  // raw fallback ("cf" composes away)
+    CHECK(e == u"cà phê");
+    CHECK(!findShortcut(t, u"vn", u"vn", u'5', e));
+    CHECK(!findShortcut(t, u"vn", u"vn", u'#', e));
+    CHECK(!findShortcut(t, u"xx", u"xx", 0, e));
+}
+
+TEST(shortcut_case_follows_typing) {
+    // 2026-11 Windows report: key "ko" -> "không"; "ko" expanded, "Ko" stayed "Ko".
+    // Same rules as macOS / iOS / Android ShortcutTable.expansion.
+    std::map<std::u16string, std::u16string> t{
+        {u"ko", u"không"}, {u"dc", u"được"}, {u"vn", u"Việt Nam"}, {u"Hn", u"Hà Nội"}, {u"đc", u"địa chỉ"}};
+    std::u16string e;
+    CHECK(shortcutExpansion(t, u"ko", e) && e == u"không");
+    CHECK(shortcutExpansion(t, u"Ko", e) && e == u"Không");
+    CHECK(shortcutExpansion(t, u"KO", e) && e == u"KHÔNG");
+    CHECK(!shortcutExpansion(t, u"kO", e));                       // mixed case: no match
+    CHECK(shortcutExpansion(t, u"Dc", e) && e == u"Được");         // ư ơ -> Ư Ơ
+    CHECK(shortcutExpansion(t, u"DC", e) && e == u"ĐƯỢC");
+    CHECK(shortcutExpansion(t, u"VN", e) && e == u"VIỆT NAM");
+    CHECK(shortcutExpansion(t, u"Vn", e) && e == u"Việt Nam");
+    CHECK(shortcutExpansion(t, u"Đc", e) && e == u"Địa chỉ");      // Đ / đ
+    CHECK(shortcutExpansion(t, u"ĐC", e) && e == u"ĐỊA CHỈ");
+    CHECK(shortcutExpansion(t, u"Hn", e) && e == u"Hà Nội");       // a key with capitals: exact
+    CHECK(!shortcutExpansion(t, u"hn", e));                         // ...only (as on macOS)
+    CHECK(!shortcutExpansion(t, u"", e));
+    // The word lookup (composed, then raw keys) carries the case too.
+    CHECK(findShortcut(t, u"Ko", u"Ko", 0, e) && e == u"Không");
+    CHECK(findShortcut(t, u"Đc", u"Ddc", 0, e) && e == u"Địa chỉ");
+    CHECK(findShortcut(t, u"KO", u"KO", u' ', e) && e == u"KHÔNG");
+    CHECK(!findShortcut(t, u"Ko", u"Ko", u'5', e));  // glued to a digit: still never
+    CHECK(shortcutUpper(u"ăâđêôơưàảãáạằẳẵắặầẩẫấậèẻẽéẹềểễếệìỉĩíịòỏõóọồổỗốộờởỡớợùủũúụừửữứựỳỷỹýỵ") ==
+          u"ĂÂĐÊÔƠƯÀẢÃÁẠẰẲẴẮẶẦẨẪẤẬÈẺẼÉẸỀỂỄẾỆÌỈĨÍỊÒỎÕÓỌỒỔỖỐỘỜỞỠỚỢÙỦŨÚỤỪỬỮỨỰỲỶỸÝỴ");
+    CHECK(shortcutLower(u"ĂÂĐÊÔƠƯÀẢÃÁẠẰẲẴẮẶẦẨẪẤẬÈẺẼÉẸỀỂỄẾỆÌỈĨÍỊÒỎÕÓỌỒỔỖỐỘỜỞỠỚỢÙỦŨÚỤỪỬỮỨỰỲỶỸÝỴ") ==
+          u"ăâđêôơưàảãáạằẳẵắặầẩẫấậèẻẽéẹềểễếệìỉĩíịòỏõóọồổỗốộờởỡớợùủũúụừửữứựỳỷỹýỵ");
 }
 
 TEST(app_policy_resolution) {

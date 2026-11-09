@@ -28,6 +28,58 @@ public:
     bool canReadContext() override { return !unreadable; }
     std::set<int> undoReplaces;  // these replaces (1-based, in order) are undone by the app
     int replaces = 0;            // replaceBeforeCaret calls that verified
+    bool undidReplace = false;   // a replace was undone since the last appRewrite
+
+    // How a TSF text service SEES the app putting its own text back after an undone replace
+    // (1.3.19: Word's Navigation search box through the TIP — the TSF store reports the
+    // app's "set text" as several edits, one OnEndEdit each). The final text is the same in
+    // every style (the atomic model above, which is also all the hook ever sees).
+    enum class Rewrite {
+        Atomic,                // one edit: the word as before the replace
+        ClearThenSet,          // the field emptied, then its text set
+        SelectAllThenCollapse, // the text set with all of it selected, then the caret to the end
+        Piecewise,             // the last word's last two units (never its first) deleted, then put back
+    };
+    Rewrite rewrite = Rewrite::Atomic;
+    // Plays the app's rewrite after the key (if a replace was undone), calling `endEdit`
+    // (the TIP's OnEndEdit) at every intermediate state and at the final one.
+    template <class F>
+    void appRewrite(F endEdit) {
+        if (!undidReplace) return;
+        undidReplace = false;
+        const std::u16string t = text;
+        const size_t end = t.size();
+        switch (rewrite) {
+            case Rewrite::Atomic: break;
+            case Rewrite::ClearThenSet:
+                text.clear();
+                caret = anchor = 0;
+                endEdit();
+                break;
+            case Rewrite::SelectAllThenCollapse:
+                caret = 0;
+                anchor = end;
+                endEdit();
+                break;
+            case Rewrite::Piecewise: {
+                size_t from = end >= 2 ? end - 2 : 0;
+                // Within the last word, its first unit kept: a state with the word wholly gone
+                // and other text before it is indistinguishable from a click (word dropped).
+                const size_t sp = t.find_last_of(u" \n");
+                const size_t first = sp == std::u16string::npos ? 1 : sp + 2;
+                if (first > from) from = first;
+                for (size_t cut = from; cut < end; ++cut) {
+                    text = t.substr(0, cut);
+                    caret = anchor = cut;
+                    endEdit();
+                }
+                break;
+            }
+        }
+        text = t;
+        caret = anchor = end;
+        endEdit();
+    }
 
     int blankReads = 0;          // the next N reads see nothing (a store one update behind)
     std::u16string textBeforeCaret(int max) override {
@@ -51,7 +103,10 @@ public:
         if (text.compare(at - expect.size(), expect.size(), expect) != 0) return false;
         // A field that takes the edit and then puts its own text back (Word's Navigation
         // search box, 2026-11): the edit "succeeds", the text is as before.
-        if (undoReplaces.count(++replaces)) return true;
+        if (undoReplaces.count(++replaces)) {
+            undidReplace = true;  // appRewrite: how TSF shows the app putting its text back
+            return true;
+        }
         text.replace(at - expect.size(), expect.size(), ins);
         caret = at - expect.size() + ins.size();
         anchor = caret + selLen;  // the app's selected suffix stays selected, untouched

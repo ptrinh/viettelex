@@ -189,6 +189,15 @@ bool fieldPrefersComposition(const std::string& exe, const int* scopes, size_t c
 // did). `app` = the app identity (WebView2: the owning app). Sync stores: unchanged.
 bool shellSearchPrefersComposition(const std::string& app, bool asyncStore);
 
+// (2026-11, 1.3.19 report) Word's own UI text boxes — the Navigation pane search box
+// (Ctrl+F), the ribbon search: Office NetUI, focus window class "NetUIHWND" (the document
+// body is "_WwG": not this). The search box re-sets its text while a search runs, so an
+// in-place replace can be undone ("đầu mối" -> "đàu môi"); the session detects that from
+// the screen (session.h takeFieldUnreliable), but only after one damaged word, and only
+// when it reads the app's rewrite back whole. Composition never edits committed text:
+// compose there from the first letter. Sync stores only; `exe` = lowercase process name.
+bool officeUiPrefersComposition(const std::string& exe, const std::u16string& focusClass, bool asyncStore);
+
 // (2026-11) Control kinds of THIS app where in-place proved unreliable on a sync store
 // (session.h takeFieldUnreliable: the app undid our replace, or dropped its deletion — Word's
 // Navigation search box). One TIP instance serves one app, so the key is the focus window

@@ -1628,9 +1628,24 @@ TEST(shortcut_token_key_classification) {
     CHECK(!isTokenShortcutKey(u"đc"));
     CHECK(!isTokenShortcutKey(u""));
     std::map<std::u16string, std::u16string> t{{u"=>", u"⟶"}, {u"ko", u"không"}};
-    CHECK(findTokenShortcut(t, u"=>") != nullptr);
-    CHECK(findTokenShortcut(t, u"ko") == nullptr);  // letter keys: the word lookup only
-    CHECK(findTokenShortcut(t, u"=>>") == nullptr);
+    CHECK(findTokenShortcut(t, u"=>"));
+    CHECK(!findTokenShortcut(t, u"ko"));  // letter keys: the word lookup only
+    CHECK(!findTokenShortcut(t, u"=>>"));
+    std::map<std::u16string, std::u16string> k{{u"k2", u"kệ hai"}};
+    std::u16string e;
+    CHECK(findTokenShortcut(k, u"K2", &e) && e == u"Kệ hai");  // case carried (macOS tokenExpansion)
+}
+
+TEST(shortcut_typed_with_a_capital_expands_with_one) {
+    // 2026-11 Windows report (TIP and portable hook share this session): key "ko" ->
+    // "không"; typing "Ko" left "Ko". Both output modes, the hook's blind sink included.
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        Rig r(m);
+        r.settings.shortcuts[u"ko"] = u"không";
+        r.apply();
+        r.type("ko Ko KO kO ");
+        CHECK_EQ(r.text(), std::string("không Không KHÔNG kO "));
+    }
 }
 
 // ---- Not a text field: a WPF list with type-to-filter (Windows field report 1.3.x) ----
@@ -2405,6 +2420,101 @@ TEST(normal_and_rewriting_fields_never_report_unreliable) {
     c.s.verifyScreen(c.doc);
     CHECK(!c.s.wordActive());
     CHECK(!c.s.takeFieldUnreliable());
+}
+
+// 1.3.19 report: with the installed edition (TSF) Word's Navigation search box still gave
+// "đàu môi" (the portable hook was fine). Through TSF the app putting its text back is
+// several edits; OnEndEdit saw the first one (field emptied / all selected / part of the
+// word) — neither the word nor the undone signature — and dropped the word, so the next
+// tone key re-edited the unaccented word ("đa" + f -> "đà") and the last word was lost.
+TEST(field_undoing_a_replace_through_tsf_rewrite_steps_types_the_phrase) {
+    using RW = FakeDocument::Rewrite;
+    for (RW style : {RW::Atomic, RW::ClearThenSet, RW::SelectAllThenCollapse, RW::Piecewise}) {
+        // Replaces of "ddaafu moois": 1 dd, 2 aa, 3 f, 4 oo, 5 s. Undone: "aa" (the report's
+        // "đàu"), only the last word's tone (its "môi", seen at the commit), all but the 1st.
+        for (int variant = 0; variant < 3; ++variant) {
+            Rig r(OutputMode::InPlace);
+            r.s.setPassedKeysReachApp(true);  // a TSF-native store (Word)
+            r.doc.rewrite = style;
+            if (variant == 0) r.doc.undoReplaces = {2};
+            if (variant == 1) r.doc.undoReplaces = {5};
+            if (variant == 2)
+                for (int i = 2; i < 64; ++i) r.doc.undoReplaces.insert(i);
+            for (const char* p = "ddaafu moois "; *p; ++p) {
+                r.key(*p);
+                r.doc.appRewrite([&] { r.s.verifyScreen(r.doc); });
+                r.s.verifyScreen(r.doc);
+            }
+            CHECK_EQ(r.text(), std::string("đầu mối "));
+            CHECK(r.s.prefersComposition());
+            CHECK(r.s.takeFieldUnreliable());
+            CHECK(!r.s.notTextField());
+        }
+    }
+}
+
+TEST(field_rewriting_the_same_text_in_steps_keeps_the_word_in_place) {
+    // A search box that re-sets the SAME text after every key, in TSF steps: nothing undone,
+    // the words stay in place (before: the emptied step dropped the word mid-way).
+    using RW = FakeDocument::Rewrite;
+    for (RW style : {RW::ClearThenSet, RW::SelectAllThenCollapse, RW::Piecewise}) {
+        Rig r(OutputMode::InPlace);
+        r.s.setPassedKeysReachApp(true);
+        r.doc.rewrite = style;
+        for (const char* p = "ddaauf moois "; *p; ++p) {
+            r.key(*p);
+            r.doc.undidReplace = true;  // the app re-sets its (unchanged) text
+            r.doc.appRewrite([&] { r.s.verifyScreen(r.doc); });
+        }
+        CHECK_EQ(r.text(), std::string("đầu mối "));
+        CHECK(!r.s.takeFieldUnreliable());
+        CHECK(!r.s.prefersComposition());
+    }
+}
+
+TEST(field_seen_mid_rewrite_then_changed_drops_the_word_cleanly) {
+    // Emptied (or a click at the field's start) after a replace, then something else: the
+    // word is dropped at the next key as before — not "the store never shows the keys"
+    // (not-a-text-field), not composed, the key typed normally.
+    Rig r(OutputMode::InPlace);
+    r.s.setPassedKeysReachApp(true);
+    r.type("vieet");
+    r.doc.caret = r.doc.anchor = 0;  // click at the start of the field
+    r.s.verifyScreen(r.doc);
+    CHECK(r.s.wordActive());  // undecided: the field may be re-setting its text
+    r.type("ab ");
+    CHECK_EQ(r.text(), std::string("ab viêt"));
+    CHECK(!r.s.notTextField());
+    CHECK(!r.s.prefersComposition());
+    CHECK(!r.s.takeFieldUnreliable());
+    // ...and at a boundary: the field emptied, then other text: nothing committed or expanded.
+    Rig b(OutputMode::InPlace);
+    b.settings.shortcuts[u"vieet"] = u"X";
+    b.settings.shortcuts[u"viêt"] = u"X";
+    b.apply();
+    b.type("vieet");
+    b.doc.setText(u"");
+    b.s.verifyScreen(b.doc);
+    b.doc.setText(u"other");
+    b.type(" ");
+    CHECK_EQ(b.text(), std::string("other "));
+    CHECK(!b.s.wordActive());
+}
+
+TEST(word_ui_text_boxes_compose_from_the_first_letter) {
+    CHECK(officeUiPrefersComposition("winword.exe", u"NetUIHWND", false));  // Navigation search
+    CHECK(!officeUiPrefersComposition("winword.exe", u"_WwG", false));      // the document
+    CHECK(!officeUiPrefersComposition("winword.exe", u"NetUIHWND", true));  // async store
+    CHECK(!officeUiPrefersComposition("winword.exe", u"", false));
+    CHECK(!officeUiPrefersComposition("notepad.exe", u"NetUIHWND", false));
+    // Composing there (setPreferComposition, as the TIP does): the phrase comes out whole
+    // even when the box undoes every replace.
+    Rig r(OutputMode::InPlace);
+    r.s.setPreferComposition(true);
+    for (int i = 1; i < 64; ++i) r.doc.undoReplaces.insert(i);
+    r.type("ddaafu moois ");
+    CHECK_EQ(r.text(), std::string("đầu mối "));
+    CHECK_EQ(r.doc.replaces, 0);  // never edited in place
 }
 
 TEST(unreliable_controls_are_remembered_by_class) {

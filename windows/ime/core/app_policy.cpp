@@ -229,4 +229,8 @@ bool shellSearchPrefersComposition(const std::string& app, bool asyncStore) {
            app == "startmenuexperiencehost.exe";
 }
 
+bool officeUiPrefersComposition(const std::string& exe, const std::u16string& focusClass, bool asyncStore) {
+    return !asyncStore && exe == "winword.exe" && focusClass == u"NetUIHWND";
+}
+
 }  // namespace vtx
