@@ -157,6 +157,9 @@ enum class S {
     PortableHintsNote, ReEditWordPortableDesc,
     // Welcome: one button removes Windows' built-in Vietnamese keyboard (field report 1.3.14)
     RemoveBuiltInButton, RemovedBuiltIn,
+    // Portable (báo lỗi 1.3.17): run from inside the zip; tray click with only Vietnamese
+    // keyboards in the list
+    RunFromArchive, PortableNoOtherKeyboard,
     Count
 };
 

@@ -93,6 +93,25 @@ std::wstring settingsPath(const std::wstring& exeDir, bool exeDirWritable, const
     return L"";
 }
 
+bool launchedFromArchive(const std::wstring& exePath) {
+    // Folder names only (never the exe's own name), lower-cased, either separator.
+    auto archiveFolder = [](const std::wstring& f) {
+        const std::wstring zip = L".zip";
+        return (f.size() > zip.size() && f.compare(f.size() - zip.size(), zip.size(), zip) == 0) ||
+               f.rfind(L"7zo", 0) == 0 || f.rfind(L"rar$ex", 0) == 0;
+    };
+    std::wstring seg;
+    for (wchar_t c : exePath) {
+        if (!isSep(c)) {
+            seg.push_back(lowerW(c));
+            continue;
+        }
+        if (archiveFolder(seg)) return true;
+        seg.clear();
+    }
+    return false;
+}
+
 bool yields(int tipProp, unsigned fgLangId) { return tipProp != 0 || fgLangId == 0x042A; }
 
 HookPlan hookPlan(AppMode mode, bool passwordField, bool yieldsHere) {

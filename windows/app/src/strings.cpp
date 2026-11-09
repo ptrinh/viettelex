@@ -417,8 +417,16 @@ const Pair kStrings[] = {
      L"chỗ mặc định. Bấm Gỡ để chỉ dùng VietTelex — thêm lại được bất cứ lúc nào.",
      L"Your keyboard list also has Windows' built-in Vietnamese keyboard (not VietTelex), which can take over as "
      L"the default. Click Remove to use only VietTelex — you can add it back anytime."},
-    {L"VietTelex (bản cài) đang chạy trên máy này. Bản portable sẽ thoát để không bỏ dấu hai lần.",
-     L"The installed VietTelex is running on this PC. The portable copy will quit so tones are not added twice."},
+    {L"VietTelex bản cài đang chạy trên máy này nên bản portable sẽ thoát (hai bộ gõ cùng lúc sẽ bỏ dấu hai "
+     L"lần).\n\nBạn vẫn gõ tiếng Việt bằng bản cài như thường: Ctrl+Shift hoặc bấm biểu tượng V/E ở khay.\n\n"
+     L"Muốn dùng bản portable: bấm chuột phải biểu tượng VietTelex ở khay → Thoát VietTelex, rồi mở lại "
+     L"VietTelex.exe trong thư mục portable. Bản portable không có trong danh sách bàn phím của Windows "
+     L"(Win+Space) — bật/tắt tiếng Việt bằng Ctrl+Shift hoặc biểu tượng ở khay.",
+     L"The installed VietTelex is running on this PC, so the portable copy will quit (two at once would add every "
+     L"tone twice).\n\nYou can keep typing Vietnamese with the installed version: Ctrl+Shift or a click on the V/E "
+     L"icon in the notification area.\n\nTo use the portable copy: right-click the VietTelex icon in the "
+     L"notification area → Quit VietTelex, then open VietTelex.exe in the portable folder again. The portable copy "
+     L"is not in Windows' keyboard list (Win+Space) — switch Vietnamese on/off with Ctrl+Shift or its tray icon."},
     {L"Đã có VietTelex %s. Mở trang tải để lấy bản portable mới?",
      L"VietTelex %s is available. Open the download page for the new portable version?"},
     {L"Bản portable không có gợi ý từ — dùng bản cài để có gợi ý.",
@@ -429,6 +437,20 @@ const Pair kStrings[] = {
     {L"Gỡ", L"Remove"},
     {L"Đã gỡ — giờ chỉ còn VietTelex, và VietTelex là bàn phím mặc định.",
      L"Removed — only VietTelex is left, and it is the default keyboard."},
+    // Portable (báo lỗi 1.3.17)
+    {L"VietTelex đang được chạy thẳng từ trong file zip nên không chạy được.\n\nBấm chuột phải file zip → "
+     L"Giải nén tất cả (Extract All), rồi mở VietTelex.exe trong thư mục vừa giải nén (cần có file "
+     L"portable.ini nằm cạnh).",
+     L"VietTelex was started from inside the zip file, so it cannot run.\n\nRight-click the zip → Extract All, "
+     L"then open VietTelex.exe in the extracted folder (portable.ini must be next to it)."},
+    {L"Cửa sổ này đang dùng bàn phím tiếng Việt (VietTelex bản cài hoặc bàn phím có sẵn của Windows) nên bản "
+     L"portable nhường, và danh sách bàn phím không có bàn phím nào khác để đổi sang.\n\nThêm bàn phím tiếng Anh "
+     L"(US) trong Cài đặt Windows → Thời gian & ngôn ngữ → Ngôn ngữ & khu vực, rồi bấm Win+Space chọn nó: bản portable "
+     L"sẽ gõ tiếng Việt ở đó.",
+     L"This window uses a Vietnamese keyboard (the installed VietTelex or Windows' built-in one), so the portable "
+     L"copy steps aside, and the keyboard list has no other keyboard to switch to.\n\nAdd an English (US) keyboard "
+     L"in Windows Settings → Time & language → Language & region, then pick it with Win+Space: the portable copy types "
+     L"Vietnamese there."},
 };
 static_assert(sizeof(kStrings) / sizeof(kStrings[0]) == static_cast<size_t>(S::Count), "string table size");
 }  // namespace

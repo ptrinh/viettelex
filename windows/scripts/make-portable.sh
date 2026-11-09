@@ -37,23 +37,35 @@ for arch in x64 arm64; do
   printf '%s\r\n' \
     "VietTelex $VERSION — bản portable ($arch)" \
     "" \
-    "Cách dùng: giải nén cả thư mục rồi chạy VietTelex.exe. Không cần quyền quản trị, không cài gì." \
+    "Cách dùng: giải nén cả thư mục (chuột phải file zip -> Giải nén tất cả) rồi chạy VietTelex.exe" \
+    "trong thư mục đã giải nén — đừng chạy thẳng từ trong file zip. Không cần quyền quản trị, không cài gì." \
     "Biểu tượng V/E hiện ở khay; đổi Việt/Anh bằng Ctrl+Shift hoặc bấm vào biểu tượng." \
+    "Bản portable KHÔNG có trong danh sách bàn phím của Windows (Win+Space): cứ để bàn phím tiếng Anh," \
+    "VietTelex gõ tiếng Việt trên đó. Khi đang chọn một bàn phím tiếng Việt, bản portable nhường." \
     "Cài đặt lưu trong settings.ini cạnh VietTelex.exe. Xoá thư mục là gỡ xong." \
+    "" \
+    "Máy đã cài VietTelex (.msi) và bản cài đang chạy: bản portable báo rồi thoát. Muốn dùng bản portable," \
+    "bấm chuột phải biểu tượng VietTelex ở khay -> Thoát VietTelex trước, rồi mới chạy bản portable." \
     "" \
     "Khác bản cài (.msi): gõ bằng hook bàn phím cho mọi ứng dụng, nên trình duyệt/Word không mượt bằng;" \
     "không gõ được vào ứng dụng chạy quyền quản trị và một số game. Không tự cập nhật: \"Kiểm tra cập nhật\"" \
-    "mở trang tải. Nếu máy đã cài VietTelex, bản portable nhường cho bản cài." \
+    "mở trang tải." \
     "" \
     "VietTelex $VERSION — portable ($arch)" \
     "" \
-    "Unzip the whole folder and run VietTelex.exe. No administrator rights, nothing is installed." \
+    "Unzip the whole folder (right-click the zip -> Extract All) and run VietTelex.exe from the extracted" \
+    "folder — not from inside the zip. No administrator rights, nothing is installed." \
     "A V/E icon appears in the notification area; switch Vietnamese/English with Ctrl+Shift or a click on it." \
+    "The portable copy is NOT in Windows' keyboard list (Win+Space): keep an English keyboard selected and" \
+    "VietTelex types Vietnamese on it. While a Vietnamese keyboard is selected, the portable copy steps aside." \
     "Settings are saved in settings.ini next to VietTelex.exe. Delete the folder to remove it." \
+    "" \
+    "If the installed VietTelex (.msi) is running, the portable copy says so and quits. To use the portable" \
+    "copy, right-click the VietTelex tray icon -> Quit VietTelex first, then start the portable copy." \
     "" \
     "Unlike the installer (.msi) it types with a keyboard hook in every app, so browsers/Word are less smooth;" \
     "it cannot type into apps running as administrator or some games. No self-update: \"Check for updates\"" \
-    "opens the download page. If VietTelex is installed on the PC, the portable copy steps aside." \
+    "opens the download page." \
     "" \
     "https://viettelex.com/download/?os=windows#portable" > "$work/$name/README.txt"
   touch -t 202601010000 "$work/$name" "$work/$name/"*
