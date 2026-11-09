@@ -194,6 +194,34 @@ class ImeRenderBudgetTest {
         assertEquals("KeyLayout.build: ?123 dựng một lần, chữ từ cache", 1, ImeCost.layoutBuilds)
     }
 
+    // MARK: hoãn gợi ý lúc hiện ra sau khung đầu
+
+    @Test fun startInputDefersSuggestionBarPastFirstFrame() {
+        show()
+        assertEquals("gợi ý chạy trong onStartInputView (trước khung đầu có phím)", 0, ImeCost.barRefreshes)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(100))
+        assertEquals("gợi ý chạy một lần ngay sau khung đầu", 1, ImeCost.barRefreshes)
+    }
+
+    /** Gõ ngay khi bàn phím vừa hiện (lượt gợi ý hoãn chưa chạy): phím đầu không mất, lượt hoãn tự bỏ. */
+    @Test fun keysTypedBeforeDeferredBarAreNotLost() {
+        val ed = FakeEditor("")
+        ime.testPort = ed
+        val kb = keyboard(show(field()))
+        tap(kb, "x"); tap(kb, "i")
+        assertEquals("phím gõ trước lượt gợi ý hoãn", "xi", ed.text)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(200))
+        assertEquals("xi", ed.text)
+        assertEquals("lượt hoãn bỏ qua (phím đã đổi thế hệ — gợi ý của chính phím lo bar)", 0, ImeCost.barRefreshes)
+    }
+
+    /** Ẩn trước khi khung kế tới: lượt hoãn không chạy cho bàn phím đã ẩn. */
+    @Test fun deferredBarDroppedWhenHiddenFirst() {
+        show(); hide()
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(100))
+        assertEquals(0, ImeCost.barRefreshes)
+    }
+
     // MARK: bấm phím
 
     private fun tap(kb: KeyboardView, label: String) {

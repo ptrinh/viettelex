@@ -106,8 +106,12 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     private var translateUsed = false
     private val clearStatusRun = Runnable { strip?.showStatus(null) }
 
+    /** Test (Robolectric không có InputConnection): ô giả thay ô thật. */
+    @androidx.annotation.VisibleForTesting internal var testPort: EditorPort? = null
+
     /** Wrapper cache theo InputConnection hiện hành (không cấp phát mỗi phím). */
     private fun port(): EditorPort? {
+        testPort?.let { return it }
         val ic = currentInputConnection ?: return null
         portCache?.let { if (it.ic === ic) return it }
         return AndroidEditorPort(ic).also { portCache = it }
@@ -128,6 +132,29 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     private var pendingGen = 0
 
     private val autoShiftRun = Runnable { if (pendingGen == session.generation) applyAutoShift() }
+    /**
+     * Gợi ý lúc hiện bàn phím (gợi mở đầu / từ đang đứng): 2–12 ms trên emulator (đo 09/11/2026,
+     * docs/PERF-IME-SHOW.md) — dời ra SAU khung đầu có phím. Phím gõ trước đó không chờ gì: [handleKey]
+     * hạ [firstBarPending] ⇒ lượt hoãn này bỏ qua, lượt gợi ý của chính phím đó lo bar.
+     */
+    private var firstBarPending = false
+    private val firstBarRun = Runnable {
+        if (!firstBarPending || !inputShown || pendingGen != session.generation) return@Runnable
+        firstBarPending = false
+        ImeCost.barRefreshes++
+        ImeTrace.begin(ImeTrace.BAR_AFTER_FIRST_FRAME)
+        try { refreshBar() } finally { ImeTrace.end() }
+    }
+    /** Khung kế (callback hoạt ảnh) ⇒ post: chạy sau traversal của chính khung đó (đã vẽ phím). */
+    private val firstBarFrame = android.view.Choreographer.FrameCallback { handler.post(firstBarRun) }
+
+    private fun refreshBarAfterFirstFrame() {
+        pendingGen = session.generation
+        firstBarPending = true
+        handler.removeCallbacks(firstBarRun)
+        android.view.Choreographer.getInstance().removeFrameCallback(firstBarFrame)
+        android.view.Choreographer.getInstance().postFrameCallback(firstBarFrame)
+    }
     private val suggestRun = Runnable { if (pendingGen == session.generation) refreshBar() }
     /**
      * Shift đổi ⇒ vẽ lại bar như Gboard. Trễ bằng [SUGGEST_DELAY_MS] để lượt gợi ý của chính
@@ -674,9 +701,11 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     private fun startInputView(info: EditorInfo, restarting: Boolean) {
         val t0 = SystemClock.elapsedRealtime()
+        ImeTrace.begin("VT.startInput.prefs")
         super.onStartInputView(info, restarting)
         handler.removeCallbacks(idleRelease)
         syncPrefsFromDisk()
+        ImeTrace.end()
         // Đổi theme/ảnh nền trong app → dựng lại input view (màu/Paint tạo sẵn trong view).
         // Chỉ dựng ImeTheme để so khi pref đổi hoặc sáng/tối hệ thống đổi (không mỗi lần focus ô).
         val uiMode = resources.configuration.uiMode
@@ -752,6 +781,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             field.numberSigned, field.numberDecimal, settings.numberRow, settings.numberRowFullHeight,
             settings.spaceSideKey, emojiInStrip, settings.keyLabelSize, settings.splitKeyboard, settings.largeKeys)
         ImeTrace.end()
+        ImeTrace.begin("VT.startInput.extras")
         kb.keyPreview = settings.keyPreview
         kb.keyPressHighlight = settings.keyPressHighlight
         applyKeyEffect(settings.keyEffect, th, kb)
@@ -777,15 +807,14 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         if (!restarting || !voiceChecked) { voice.refresh(); voiceChecked = true }
         kb.setVoiceAvailable(voice.available && !field.isSecure)
         updateSwipeTyping()
+        ImeTrace.end()
         root?.refreshInsets()
         root?.requestLayout()
 
         session.invalidatePasteCache()
         if (!restarting) session.pasteOnce.ended()   // ô mới: lời mời dán đang hiện coi như bỏ qua
         applyAutoShift()
-        ImeTrace.begin("VT.startInput.refreshBar")
-        refreshBar()                  // ô trống → gợi mở đầu ngay khi hiện
-        ImeTrace.end()
+        refreshBarAfterFirstFrame()   // ô trống → gợi mở đầu, ngay SAU khung có phím
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "perf onStartInputView ${SystemClock.elapsedRealtime() - t0} ms")
             logFirstFrame(t0)   // sau setInputView (nếu dựng lại) ⇒ gắn đúng cây view sẽ vẽ
@@ -867,6 +896,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         // tốn ~4.7 MB cấp phát) — nhả khi ẩn lâu ([idleRelease]; onTrimMemory hầu như không tới).
         handler.removeCallbacks(idleRelease)
         handler.postDelayed(idleRelease, IDLE_RELEASE_MS)
+        handler.removeCallbacks(firstBarRun)
+        android.view.Choreographer.getInstance().removeFrameCallback(firstBarFrame)
         handler.removeCallbacks(autoShiftRun); handler.removeCallbacks(suggestRun); handler.removeCallbacks(shiftRun)
         trackpadMoved = false                  // ô đóng: không auto-shift/gợi ý lúc nhả trackpad
         keyboard?.onHidden()
@@ -1160,6 +1191,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         resetIfEditFailed()
         if (key is Key.Letter) strip?.hidePasteCard()
         pendingGen = out.generation
+        firstBarPending = false                // lượt gợi ý của phím này thay lượt hoãn lúc hiện
         if (out.needsAutoShift) { handler.removeCallbacks(autoShiftRun); handler.post(autoShiftRun) }
         handler.removeCallbacks(suggestRun)
         handler.postDelayed(suggestRun, SUGGEST_DELAY_MS)

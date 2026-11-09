@@ -38,10 +38,12 @@ Hai lớp bảo vệ:
 | `VT.onCreate.data` / `.session` / `.state` / `.listeners` | đồng bộ | các khúc của `onCreate` (prefs + asset; UserLangModel + session; prefs trạng thái + clipboard; listener/receiver) |
 | `VT.onCreateInputView` | đồng bộ | dựng cây view bàn phím |
 | `VT.onStartInputView` | đồng bộ | cấu hình ô nhập + bàn phím |
-| `VT.startInput.field` / `.kbConfigure` / `.refreshBar` | đồng bộ | các khúc của `onStartInputView` |
+| `VT.startInput.prefs` / `.field` / `.kbConfigure` / `.extras` | đồng bộ | các khúc của `onStartInputView` (super + đồng bộ prefs; ô nhập; cấu hình bàn phím; hiệu ứng / nhân vật / gõ vuốt / giọng nói). `.refreshBar` cũ: nay là `VT.barAfterFirstFrame` |
+| `VT.barAfterFirstFrame` | đồng bộ | gợi ý lúc hiện bàn phím — chạy SAU khung đầu có phím (Choreographer → post) |
 | `VT.showToFirstDraw` | async (cookie 1) | đầu `onStartInputView` → lượt vẽ đầu của lưới phím |
 | `VT.coldToFirstDraw` | async (cookie 2) | `IME.onCreate` → lượt vẽ đầu (chỉ lần hiện đầu của service) |
 | `VT.kbDraw` | đồng bộ | `KeyboardView.onDraw` |
+| `VT.gridRecord` | đồng bộ | ghi lại display list lưới phím (trong `VT.kbDraw`) |
 | `VT.layoutBuild` | đồng bộ | `KeyLayout.build` (lỡ cache bố cục) |
 | `VT.planeSwitch` | đồng bộ | đổi bảng phím (chữ ↔ ?123 …) |
 | `VT.onKey` | đồng bộ | xử lý một phím (session + IcProxy) |
@@ -126,6 +128,9 @@ bộ unit test mặc định, ~6 s). Số đo hiện tại in ra stdout (`BUDGET
 | `shiftChangeDirtiesGrid` | đối chứng: shift đổi ⇒ lưới PHẢI ghi lại | bẩn | bẩn |
 | `keyGridRedrawAllocatesNothing` | byte cấp phát mỗi lượt vẽ lưới (trừ chi phí `View.draw`) | `Budget.DRAW_ALLOC_BYTES` = 0 | ≤ 0 |
 | `letterKeypressAllocationBudget` | byte cấp phát một lần chạm-nhả phím chữ (đường chạm + session + IcProxy) | `Budget.KEYPRESS_ALLOC_BYTES` = 3 000 | 1 560 |
+| `startInputDefersSuggestionBarPastFirstFrame` | gợi ý lúc hiện KHÔNG chạy trong `onStartInputView`; chạy đúng một lần sau khung kế | 0 → 1 | 0 → 1 |
+| `keysTypedBeforeDeferredBarAreNotLost` | gõ ngay khi vừa hiện (lượt hoãn chưa chạy): phím đầu vào ô đúng, lượt hoãn tự bỏ | "xi" / 0 | "xi" / 0 |
+| `deferredBarDroppedWhenHiddenFirst` | ẩn trước khung kế: lượt hoãn không chạy | 0 | 0 |
 
 Liên quan: `keyboard/.../UserLMSeedAsyncTests.kt` (seed người dùng mới parse trên io, không chặn
 `onStartInputView`).
@@ -212,3 +217,42 @@ lại chậm hơn (khoảng min–max chồng nhau, emulator dịch ARM trên m�
 đầu gần như bằng nhau. Cần đo lại trên máy thật trước khi kết luận. Việc chắc chắn có ích là nâng
 profileinstaller lên 1.4.1: bản 1.3.1 kéo theo trước đây từ chối cài profile trên API 34+, nên APK ngoài Play
 trên Android 14+ chưa bao giờ được biên dịch trước (kể cả profile của thư viện).
+
+### Đợt 09/11/2026: hoãn gợi ý lúc hiện; thử cache lưới theo bàn phím (bỏ)
+
+Emulator `vt_perf` dựng lại cùng cấu hình (API 35 google_apis arm64, 1080×2400 @420 dpi, 4 nhân, swiftshader),
+host Apple Silicon dùng chung, `cpu-gate.sh` trước mỗi lượt. 10 vòng, `CompilationMode.None`, median (min–max)
+ms. "Trước" = `main` 678aefdb, "Sau" = nhánh này; đo liền nhau trên cùng máy ảo, cùng APK `:benchmark`.
+
+| Mốc | Trước | Sau |
+|---|---|---|
+| cold `VT.onStartInputView` | 8.99 (4.90–28.3) | **2.84** (1.77–8.63) |
+| cold gợi ý lúc hiện (`startInput.refreshBar` → `barAfterFirstFrame`) | 2.38 trong `onStartInputView` | 8.86 sau khung đầu |
+| cold `VT.showToFirstDraw` | 46.3 (35.5–59.1) | 45.4 (32.6–60.4) |
+| cold `VT.onCreate` / `VT.onCreateInputView` | 12.9 / 10.0 | 11.9 / 7.5 (code không đổi — nhiễu) |
+| cold `Host.imeShowToAnimStart` / `AnimEnd` | 133 / 450 | 131 / 447 |
+| warm `VT.onStartInputView` | 14.6 (10.2–18.8) | **1.91** (1.02–7.57) |
+| warm gợi ý lúc hiện | 12.3 trong `onStartInputView` | 9.19 sau khung đầu |
+| warm `VT.showToFirstDraw` | 21.4 (15.9–24.2) | 19.4 (13.9–29.5) |
+| warm `Host.imeShowToAnimStart` / `AnimEnd` | 49.2 / 366 | 50.9 / 367 |
+| RAM sau hiện + đổi bàn vài vòng (TOTAL PSS, KB, từng lần) | 28 631 / 26 510 / 26 416 | 28 502 / 26 599 / 26 424 |
+
+Đọc: việc trên main TRƯỚC khung đầu giảm 6–13 ms (gợi ý mở đầu / từ đang đứng là khúc nặng nhất của
+`onStartInputView`, nhất là mở ấm). Thứ tự đã kiểm bằng atrace: `VT.kbDraw` (khung đầu) rồi `VT.barAfterFirstFrame`
+~30–40 ms sau, vẫn trong lúc hoạt ảnh trượt lên (~315 ms). `showToFirstDraw` chỉ giảm 1–2 ms (trong khoảng nhiễu):
+trên emulator khung đầu chủ yếu chờ hệ thống (hiện cửa sổ, vsync). Cần máy thật để biết phần thắng end-to-end. RAM
+không đổi.
+
+**Cache RenderNode theo bàn phím (chữ ↔ ?123 ↔ =\< + shift) — thử, đo, BỎ.** Bản thử (khoá: chữ ký bố cục + plane +
+shift + trạng thái bảng sửa + kích thước; phím nhấn ghi vào node tạm riêng; 4 node LRU) chạy được và có test, nhưng
+một lần ghi lại lưới (`VT.gridRecord`) chỉ ~0.18 ms (`planeSwitch`: 12 lần / 2.21 ms), khung đầu `VT.kbDraw`
+0.5–0.65 ms lạnh / 0.07–0.13 ms ấm ⇒ lợi tối đa < 0.4 ms mỗi lần đổi bàn, dưới ngưỡng ~1 ms, trong khi thêm một lớp
+vô hiệu hoá (mọi trạng thái vẽ trong lưới phải nằm trong khoá hoặc đổi "thế hệ") dễ vẽ nhãn cũ nếu sau này quên.
+Giữ mốc `VT.gridRecord` để đo lại nếu lưới nặng lên (skin theme, nhiều icon).
+
+Mục khác:
+- Cache hình học phím + đo chữ: đã có (bố cục LRU chữ ký × plane; `fitLetterLabels` chỉ đo khi bề ngang phím đổi;
+  Typeface đặt một lần mỗi view; 0 B cấp phát mỗi lượt vẽ — `keyGridRedrawAllocatesNothing`). Không đổi.
+- Baseline/Startup Profile: đã có (`ImeBaselineProfile`); đợt này không đổi lớp nào trên đường hiện nên không sinh lại.
+- Còn lại trong `onStartInputView`: `VT.startInput.extras` ~1.4 ms (hiệu ứng / nhân vật / gõ vuốt / dò IME giọng nói
+  qua IPC) — ứng viên kế, chưa làm (sát ngưỡng 1 ms trên emulator).
