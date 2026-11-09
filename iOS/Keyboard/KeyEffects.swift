@@ -2326,8 +2326,13 @@ final class KeyEffectOverlay: UIView {
     func emit(at p: CGPoint) { emit(key: CGRect(origin: p, size: .zero)) }
 
     /// Ghi khung phím (toạ độ overlay) — vẽ ở lượt runloop kế, SAU khi phím đã chèn chữ.
+    #if DEBUG
+    /// Test: số lần phím xin hiệu ứng (KeyboardStartupTests — chạm lúc khung còn là ảnh lưới phím).
+    private(set) var debugEmitCount = 0
+    #endif
     func emit(key r: CGRect) {
         #if DEBUG
+        debugEmitCount += 1
         let t0 = CACurrentMediaTime()
         defer { Self.debugCost += CACurrentMediaTime() - t0 }
         #endif

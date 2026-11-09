@@ -372,6 +372,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     func tearDown() {
         guard !isTornDown else { return }
         isTornDown = true
+        dropSnapshot()
         repeatTimer?.invalidate(); repeatTimer = nil
         trackpadLink?.invalidate(); trackpadLink = nil
         altTimer?.cancel(); altTimer = nil
@@ -1025,10 +1026,12 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         #if DEBUG
         Self.perfLayoutPasses += 1
         #endif
+        inLayoutPass = true
+        defer { inLayoutPass = false }
         StartupTrace.span("kv.layout") { layoutSubviewsBody() }
     }
     private func layoutSubviewsBody() {
-        if initialBuildPending, !rebuildDeferred, !isTornDown { rebuild() }
+        if initialBuildPending, !rebuildDeferred, !isTornDown, snapState != .armed { rebuild() }
         if Self.isPad { KeyButton.padLandscape = isLandscapeNow }   // phím tự áp cỡ chữ theo hướng
         super.layoutSubviews()
         letterGeometryCache = nil
@@ -1046,6 +1049,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         syncKeyEffectsSpace()
         applyOneHand()
         layoutRowsArea()
+        if snapState == .armed || snapState == .showing { layoutSnapshot() }   // khung vùng phím đã biết
         if let r = indentedRow {
             // Thụt theo bề ngang VÙNG PHÍM (một tay: hẹp hơn view) — hàng 2 đúng nửa phím.
             let inset = KeyGeometry.indentedMargin(width: keysWidth, margin: sideMarginNow,
@@ -2259,6 +2263,14 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
 
     /// Khe giữa các hàng phím (toạ độ view) từ khung phím của lượt layout này — chỉ gọi lúc layout (hoạ tiết / Rung dây).
     private func keyRowGaps() -> [KeyboardDecoration.Gap] {
+        if snapState == .showing {
+            // Khung đầu còn là ảnh lưới phím: khe hàng theo khung phím lưu kèm ảnh (hoạ tiết / cảnh nền
+            // dựng sống đúng chỗ ngay khung đầu).
+            return KeyboardDecoration.rowGaps(snapOutlines.map {
+                let f = rowsContainer.convert($0.rect, to: self)
+                return (Double(f.minY), Double(f.maxY))
+            })
+        }
         rowsContainer.layoutIfNeeded()            // khung phím của lượt layout này (hàng xếp lồng nhau)
         var spans: [(top: Double, bottom: Double)] = []
         for row in rowsContainer.arrangedSubviews where !row.isHidden {
@@ -2441,6 +2453,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         keyPreviewEnabled = Self.keyPreviewSetting(UserDefaultsProvider.shared)
         if !keyPreviewEnabled { hideBalloon() }
         keyPressHighlightEnabled = Self.keyPressHighlightSetting(UserDefaultsProvider.shared)
+        snapshotSettingOff = KeySnapshot.featureOn && (UserDefaultsProvider.shared?.bool(forKey: KeySnapshot.disableKey) ?? false)
         // Mẫu câu: danh sách user tự quản trong app + toggle bật/tắt.
         let d = UserDefaultsProvider.shared
         templatesEnabled = d?.object(forKey: "templatesEnabled") == nil
@@ -2518,6 +2531,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var indentedRowInset: CGFloat = 0
     private var shiftKeys: [KeyButton] = []   // iPad có 2 shift
     private func applyShiftAppearance() {
+        if snapState == .showing { goLive(); return }   // ảnh chụp shift cũ ⇒ phím thật (dựng theo shift mới)
         for (b, s) in letterKeys {
             let t = shift == .off ? s : s.uppercased()
             b.setTitle(t, for: .normal)
@@ -2703,8 +2717,345 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     static var perfKeyLayoutPasses = 0
     #endif
 
+    // MARK: ảnh lưới phím cho khung đầu (KeySnapshot — StartupTrace.swift, docs/KEYBOARD-STARTUP.md §6)
+
+    /// off: chưa xét · armed: có ảnh cùng khoá trạng thái, hoãn dựng tới lượt layout (biết khung) ·
+    /// showing: khung đang là ảnh, phím thật chưa dựng · done: đã dựng thật / không dùng ảnh — đời
+    /// view này không xét lại.
+    private enum SnapState { case off, armed, showing, done }
+    private var snapState: SnapState = .off
+    private var snapLayer: CALayer?
+    private var snapEntry: KeySnapshot.Entry?
+    /// Khung từng phím lưu kèm ảnh — viền cầu vồng / cực quang / Ảo giác (lớp RIÊNG trên hàng phím, không
+    /// nằm trong ảnh) vẽ đúng chỗ ngay khung đầu, trên ảnh.
+    private var snapOutlines: [KeySnapshot.Store.Outline] = []
+    /// Nhãn "ViệtTelex" xin lúc chưa có phím cách thật — hiện khi phím thật dựng.
+    private var snapBadgePending = false
+    /// Đã có chạm / phím từ lúc hiện ⇒ không còn trạng thái mở đầu, không chụp.
+    private var snapInteracted = false
+    private var snapCaptureScheduled = false
+    /// Công tắc chạy `KeySnapshot.disableKey` (đọc ở applyAppearance).
+    private var snapshotSettingOff = false
+    private let snapPost = PostFrameWork()
+    /// Đang trong layoutSubviews (goLive khi đó không gọi layoutIfNeeded lồng).
+    private var inLayoutPass = false
+
+    private var snapshotEnabled: Bool { KeySnapshot.featureOn && !snapshotSettingOff }
+    /// Lưới hợp lệ cho ảnh: plane chữ / số / ký hiệu (emoji, mẫu câu chứa nội dung người dùng; bàn số
+    /// lớn, tìm emoji bỏ qua) và không lớp phủ nào bám khung TỪNG phím (viền cầu vồng, nền đổi sắc,
+    /// hoạ tiết khe hàng, viền cực quang, đập chuột, đèn rọi, phím lơ lửng) — chúng cần phím thật ở
+    /// khung đầu. Bạn đồng hành / hiệu ứng bấm / nền theme không bám phím ⇒ vẫn dùng được, dựng như cũ.
+    private var snapshotEligible: Bool {
+        (plane == .letters || plane == .numbers || plane == .symbols)
+            && KeySnapshot.themeAllows(
+                keyMotion: themeSettings.effectiveKeyStyle.keyMotion, keyShape: themeSettings.effectiveKeyStyle.keyShape,
+                floatActive: keyFloat != nil, keyFrameOverlays: mole != nil)
+    }
+    #if DEBUG
+    var debugSnapshotEligible: Bool { snapshotEligible }
+    var debugKeyEffectEmits: Int { keyEffects?.debugEmitCount ?? -1 }
+    /// Test: viền cầu vồng (lớp riêng) — nằm TRÊN vùng phím (ảnh / phím thật), không thuộc cây vùng phím;
+    /// số khung phím nó đang viền.
+    var debugRainbowLayering: (aboveKeys: Bool, insideKeys: Bool, outlines: Int)? {
+        guard let r = rainbow, let i = subviews.firstIndex(of: r),
+              let k = subviews.firstIndex(of: rowsContainer) else { return nil }
+        return (i > k, r.isDescendant(of: rowsContainer), r.outlines.count)
+    }
+    #endif
+    private var displayScaleNow: CGFloat {
+        traitCollection.displayScale > 0 ? traitCollection.displayScale : UIScreen.main.scale
+    }
+    /// Khung đầu có thứ để hiện: phím thật hoặc ảnh lưới phím.
+    var firstFrameReady: Bool { !initialBuildPending || snapState == .showing }
+
+    /// Mọi thứ làm đổi hình lưới phím — không chắc thì có mặt. Khung vùng phím khoá riêng
+    /// (KeySnapshot.frameKey). Thứ tự cố định, KHÔNG dùng phản chiếu (Mirror / in tên case enum tốn
+    /// ~15–20 ms lúc tiến trình lạnh — đo 09/11/2026): enum ghi rawValue / mã tay, bảng màu liệt kê
+    /// tay (KeySnapshot.paletteKey), kiểu phím + theme tự tạo qua chuỗi JSON chuẩn của chúng.
+    func snapshotKeyParts() -> [String] {
+        let tc = traitCollection
+        func b(_ v: Bool) -> String { v ? "1" : "0" }
+        let logo = UserDefaultsProvider.shared?.object(forKey: "showSpaceLogo").map { "\($0)" } ?? "nil"
+        let a11y = [UIAccessibility.isBoldTextEnabled, UIAccessibility.isDarkerSystemColorsEnabled,
+                    UIAccessibility.isReduceTransparencyEnabled, UIAccessibility.buttonShapesEnabled,
+                    UIAccessibility.shouldDifferentiateWithoutColor, UIAccessibility.isGrayscaleEnabled,
+                    UIAccessibility.isInvertColorsEnabled].map(b).joined()
+        let planeCode: String
+        switch plane {
+        case .letters: planeCode = "letters"
+        case .numbers: planeCode = "numbers"
+        case .symbols: planeCode = "symbols"
+        case .emoji: planeCode = "emoji"
+        case .templates: planeCode = "templates"
+        case .emojiSearch: planeCode = "emojiSearch"
+        case .keypad: planeCode = "keypad"
+        }
+        let shiftCode = shift == .off ? "off" : (shift == .on ? "on" : "caps")
+        let kindCode: String
+        switch inputKind {
+        case .normal: kindCode = "normal"
+        case .number: kindCode = "number"
+        case .email: kindCode = "email"
+        case .url: kindCode = "url"
+        case .search: kindCode = "search"
+        }
+        let keypadCode: String
+        switch keypadStyle {
+        case nil: keypadCode = "-"
+        case .digits?: keypadCode = "digits"
+        case .decimal(let sep)?: keypadCode = "decimal" + sep
+        case .phone?: keypadCode = "phone"
+        }
+        func alts(_ m: [Character: String]) -> String {
+            m.sorted { $0.key < $1.key }.map { "\($0.key)\($0.value)" }.joined(separator: ",")
+        }
+        let g = geomSig
+        let variant = themeSettings.variantChoice
+        return [
+            KeySnapshot.schema, KeySnapshot.buildVersion,
+            "scale=\(displayScaleNow)", "pad=\(b(Self.isPad))", "land=\(b(isLandscapeNow))",
+            "dir=\(effectiveUserInterfaceLayoutDirection.rawValue)",
+            "cat=\(tc.preferredContentSizeCategory.rawValue)", "legib=\(tc.legibilityWeight.rawValue)",
+            "contrast=\(tc.accessibilityContrast.rawValue)", "gamut=\(tc.displayGamut.rawValue)", "a11y=\(a11y)",
+            "lang=\(L10n.lang)", "logo=\(b(AppFlavor.spaceBarLogo)),\(logo)",
+            "plane=\(planeCode)", "shift=\(shiftCode)", "kind=\(kindCode)", "keypad=\(keypadCode)",
+            "ret=\(returnTitle)", "dark=\(b(dark)),\(b(systemDark))", "wall=\(b(wallpaperActive))",
+            "theme=\(themeSettings.themeId)", "variant=\(variant.zodiac.rawValue),\(variant.pride.rawValue)",
+            "custom=\(themeSettings.custom?.canonical ?? "-")", "palette=\(KeySnapshot.paletteKey(palette))",
+            "style=\(KeyStyleStore.json(keyStyle).canonical)",
+            "assets=\(themeAssets?.signature ?? "-")", "corner=\(Self.cornerPercent.map { "\($0)" } ?? "-")",
+            "globe=\(b(needsGlobe))", "nrow=\(b(numberRowEnabled)),\(b(numberRowFullHeight))",
+            "side=\(spaceSideKey.rawValue)", "large=\(b(largeKeys))",
+            "emoji=\(b(emojiInBar)),\(emojiKeyPlacement.rawValue)", "press=\(b(keyPressHighlightEnabled))",
+            "alts=\(alts(activeAlts))", "salts=\(alts(shiftAlts))", "split=\(b(splitSetting)),\(b(splitMode))",
+            "geom=\(g.gap),\(g.keyGap),\(g.sideMargin)", "adj=\(rowHeightAdjust),\(keyboardRaise)",
+            "hand=\(oneHand.rawValue)", "space=\(spaceLanguage.rawValue),\(b(spaceFlickEnabled))",
+            "piano=\(b(Self.pianoEnabled))",
+            "bar=\(b(suggestionsEnabled)),\(barHeight.rawValue),\(b(dismissButtonEnabled))",
+            "tpl=\(b(templatesEnabled)),\(b(textToolsEnabled))",
+        ]
+    }
+
+    private func snapshotHash() -> String {
+        StartupTrace.span("kv.snapshotKey") { KeySnapshot.digest(snapshotKeyParts()) }
+    }
+
+    /// rebuild() của lần dựng đầu: có ảnh cùng khoá ⇒ chuẩn bị như đầu rebuildBody (chiều cao xin,
+    /// vùng phím, một tay…) nhưng KHÔNG dựng — lượt layout quyết (layoutSnapshot). true = đã hoãn.
+    /// Không có ảnh nào / tắt ⇒ false ngay (không tính khoá).
+    private func armSnapshot() -> Bool {
+        guard snapState == .off || snapState == .armed, !isTornDown, snapshotEnabled,
+              let stored = KeySnapshot.Store.current() else { return false }
+        // Khoá trạng thái CHƯA so ở đây: sau endBatch controller còn đổi shift (updateAutoShift —
+        // configureInputKind vừa tắt shift, đầu ô bật lại) ⇒ so ở layoutSnapshot với trạng thái cuối.
+        guard KeySnapshot.decide(enabled: true, voiceOver: KeySnapshot.voiceOverRunning, eligible: snapshotEligible,
+                                 stored: stored, hash: stored.hash, frame: nil) == .pending
+        else { snapState = .done; return false }
+        prepareForDeferredBuild()
+        snapState = .armed
+        setNeedsLayout()
+        return true
+    }
+
+    /// Phần đầu của rebuildBody không cần phím (hình học lần hiện phải đúng như khi dựng thật).
+    private func prepareForDeferredBuild() {
+        letterGeometryCache = nil
+        activeAlts = currentAlts()
+        shiftAlts = currentShiftAlts()
+        updateSuggestionChrome()
+        applyOneHand()
+    }
+
+    /// Sau layoutRowsArea. armed ⇒ khung vùng phím đã biết: khớp ⇒ hiện ảnh, không ⇒ dựng ngay
+    /// (đường cũ). showing ⇒ cỡ vùng phím hay khoá trạng thái đổi ⇒ phím thật.
+    private func layoutSnapshot() {
+        let k = displayScaleNow
+        let size = rowsContainer.bounds.size
+        switch snapState {
+        case .armed:
+            guard !rebuildDeferred, !isTornDown, initialBuildPending else { return }
+            let frame = size.width > 0 && size.height > 0
+                ? KeySnapshot.frameKey(exact: rowsContainer.exactFrame, scale: k) : nil
+            let use = KeySnapshot.decide(enabled: snapshotEnabled, voiceOver: KeySnapshot.voiceOverRunning,
+                                         eligible: snapshotEligible, stored: KeySnapshot.Store.current(),
+                                         hash: snapshotHash(), frame: frame,
+                                         pixelSize: KeySnapshot.pixelSize(size, scale: k))
+            switch use {
+            case .pending:
+                return   // vùng phím 0 (host chưa đặt khung): chưa vẽ gì — chờ lượt có cỡ
+            case .show(let e):
+                if let got = StartupTrace.span("kv.snapshotLoad", { KeySnapshot.Store.load(e) }) {
+                    snapOutlines = got.outlines
+                    showSnapshot(got.image, entry: e)
+                    return
+                }
+                snapState = .done
+                rebuild()
+            case .build:
+                snapState = .done
+                rebuild()
+            }
+        case .showing:
+            if snapLayer?.frame.size != size || snapEntry?.hash != snapshotHash() { goLive() }
+        case .off, .done:
+            break
+        }
+    }
+
+    private func showSnapshot(_ image: CGImage, entry: KeySnapshot.Entry) {
+        let l = CALayer()
+        l.contents = image
+        l.contentsScale = displayScaleNow
+        l.contentsGravity = .resize
+        l.frame = rowsContainer.bounds
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        rowsContainer.layer.addSublayer(l)
+        CATransaction.commit()
+        snapLayer = l
+        snapEntry = entry
+        snapState = .showing
+        StartupTrace.event("keySnapshot")
+        FrameTrace.event("keySnapshot")
+        // Phím thật ngay sau commit khung đầu (cùng cơ chế việc hoãn của controller): khối main.async
+        // này chạy TRƯỚC nguồn chạm của lượt runloop kế ⇒ chạm sau khung đầu đã gặp phím thật.
+        snapPost.schedule { [weak self] in self?.goLive() }
+    }
+
+    /// Bỏ ảnh, dựng phím thật theo trạng thái HIỆN TẠI và xếp ngay — cùng một transaction ⇒ khung kế
+    /// là phím thật đúng chỗ ảnh (không nháy rỗng). Ảnh (≈ rộng × cao × 4 byte) nhả ngay tại đây.
+    func goLive() {
+        guard snapState == .armed || snapState == .showing else { return }
+        StartupTrace.span("kv.snapshotLive") {
+            snapPost.cancel()
+            snapState = .done
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            snapLayer?.removeFromSuperlayer()
+            snapLayer = nil
+            snapEntry = nil
+            snapOutlines = []
+            if !isTornDown {
+                if initialBuildPending { rebuild() }   // batch đang mở ⇒ endBatch dựng
+                if snapBadgePending, !initialBuildPending { snapBadgePending = false; showLanguageBadge() }
+                if inLayoutPass { setNeedsLayout() } else { layoutIfNeeded() }
+            }
+            CATransaction.commit()
+            #if DEBUG
+            // Đo (KeyboardStartupTests): gồm cả phần vẽ phím ở commit kế.
+            if StartupTrace.recording != nil, !inLayoutPass { CATransaction.flush() }
+            #endif
+        }
+        StartupTrace.event("keysLive")
+        FrameTrace.event("keysLive")
+    }
+
+    /// Xé view: bỏ ảnh + việc hẹn.
+    private func dropSnapshot() {
+        snapPost.cancel()
+        snapLayer?.removeFromSuperlayer()
+        snapLayer = nil
+        snapEntry = nil
+        snapState = .done
+    }
+
+    /// Controller gọi ở viewDidAppear: chụp sau `captureDelay` nếu vẫn đúng trạng thái mở đầu.
+    func scheduleSnapshotCapture() {
+        guard snapshotEnabled, !snapCaptureScheduled, !isTornDown else { return }
+        snapCaptureScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + KeySnapshot.captureDelay) { [weak self] in
+            self?.captureSnapshotIfNeeded()
+        }
+    }
+
+    /// Chụp vùng phím (render(in:) trên main, ~một lần mỗi khi khoá đổi) rồi ghi nền. true = đã chụp.
+    @discardableResult
+    func captureSnapshotIfNeeded(done: (() -> Void)? = nil) -> Bool {
+        guard snapshotEnabled, !isTornDown, window != nil, !KeySnapshot.Store.saving else { return false }
+        let k = displayScaleNow
+        let px = KeySnapshot.pixelSize(rowsContainer.bounds.size, scale: k)
+        guard px.width > 0, px.height > 0 else { return false }
+        let entry = KeySnapshot.Entry(hash: snapshotHash(),
+                                      frame: KeySnapshot.frameKey(exact: rowsContainer.exactFrame, scale: k),
+                                      pixelWidth: px.width, pixelHeight: px.height)
+        guard KeySnapshot.shouldCapture(enabled: true, voiceOver: KeySnapshot.voiceOverRunning,
+                                        eligible: snapshotEligible, interacted: snapInteracted,
+                                        showing: snapState == .armed || snapState == .showing,
+                                        keysBuilt: !initialBuildPending && !rowsContainer.arrangedSubviews.isEmpty,
+                                        unstable: snapshotUnstable(), stored: KeySnapshot.Store.current(),
+                                        entry: entry),
+              let ctx = KeySnapshot.Store.makeContext(entry) else { return false }
+        StartupTrace.span("kv.snapshotCapture") { renderRows(into: ctx, scale: k, pixelHeight: px.height) }
+        KeySnapshot.Store.save(entry, context: ctx, outlines: keyOutlines(), done: done)
+        return true
+    }
+
+    /// Khung + bo góc từng phím đang hiện (toạ độ rowsContainer) — như layoutRainbow đo.
+    private func keyOutlines() -> [KeySnapshot.Store.Outline] {
+        var out: [KeySnapshot.Store.Outline] = []
+        func walk(_ x: UIView) {
+            if let b = x as? KeyButton {
+                if !b.isHidden, b.bounds.width > 0 {
+                    out.append(.init(rect: b.convert(b.bounds, to: rowsContainer), radius: b.layer.cornerRadius))
+                }
+            } else { x.subviews.forEach(walk) }
+        }
+        walk(rowsContainer)
+        return out
+    }
+
+    private func renderRows(into ctx: CGContext, scale k: CGFloat, pixelHeight: Int) {
+        ctx.translateBy(x: 0, y: CGFloat(pixelHeight))
+        ctx.scaleBy(x: k, y: -k)
+        // Logo / mã ngôn ngữ phím cách ẩn trong ảnh: lần mở sau nhãn "ViệtTelex" chiếm chỗ đó
+        // (đường cũ cũng ẩn logo lúc nhãn hiện) — ảnh khớp khung đầu của đường cũ.
+        let mark = spaceMarkView
+        let markHidden = mark?.isHidden ?? true
+        mark?.isHidden = true
+        UIGraphicsPushContext(ctx)
+        rowsContainer.layer.render(in: ctx)
+        UIGraphicsPopContext()
+        mark?.isHidden = markHidden
+    }
+
+    /// Layer đang chạy animation (ảnh sẽ là trạng thái giữa chừng) hoặc loại render(in:) không vẽ
+    /// đúng (bộ lọc, emitter, Metal, replicator) ⇒ không chụp.
+    private func snapshotUnstable() -> Bool {
+        func bad(_ l: CALayer) -> Bool {
+            if let a = l.animationKeys(), !a.isEmpty { return true }
+            if l.filters?.isEmpty == false || l.backgroundFilters?.isEmpty == false || l.compositingFilter != nil {
+                return true
+            }
+            if l is CAEmitterLayer || l is CAMetalLayer || l is CAReplicatorLayer { return true }
+            if let m = l.mask, bad(m) { return true }
+            return l.sublayers?.contains(where: bad) ?? false
+        }
+        return bad(rowsContainer.layer)
+    }
+
+    #if DEBUG
+    var debugSnapshotShowing: Bool { snapState == .showing }
+    var debugSnapshotArmed: Bool { snapState == .armed }
+    var debugSnapshotHash: String { KeySnapshot.digest(snapshotKeyParts()) }
+    var debugSnapshotImage: CGImage? { snapLayer.map { $0.contents as! CGImage } }
+    /// Test: vẽ vùng phím đang hiện đúng như lúc chụp (so điểm ảnh với ảnh đã lưu).
+    func debugRenderRows() -> (entry: KeySnapshot.Entry, bytes: Data)? {
+        let k = displayScaleNow
+        let px = KeySnapshot.pixelSize(rowsContainer.bounds.size, scale: k)
+        let e = KeySnapshot.Entry(hash: KeySnapshot.digest(snapshotKeyParts()),
+                                  frame: KeySnapshot.frameKey(exact: rowsContainer.exactFrame, scale: k),
+                                  pixelWidth: px.width, pixelHeight: px.height)
+        guard px.width > 0, px.height > 0, let ctx = KeySnapshot.Store.makeContext(e), let p = ctx.data else { return nil }
+        renderRows(into: ctx, scale: k, pixelHeight: px.height)
+        return (e, Data(bytes: p, count: e.byteCount))
+    }    #endif
+
     private func rebuild() {
         guard !rebuildDeferred else { return }   // batchConfigure rebuild 1 lần cuối
+        // Ảnh lưới phím đang hiện mà trạng thái đổi ⇒ phím thật ngay (goLive dựng theo trạng thái mới).
+        if snapState == .showing { goLive(); return }
+        // Lần dựng đầu có ảnh cùng khoá ⇒ hoãn dựng tới lượt layout (biết khung vùng phím).
+        if initialBuildPending, armSnapshot() { return }
         StartupTrace.span("kv.rebuild") { rebuildBody() }
     }
     private func rebuildBody() {
@@ -5894,6 +6245,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var flickCarousel: (box: UIView, cur: UILabel, next: UILabel)?
 
     func configureSpaceFlick(enabled: Bool, language: KeyboardLanguage) {
+        if snapState == .showing, enabled != spaceFlickEnabled || language != spaceLanguage { goLive() }
         let changed = spaceFlickEnabled != enabled
         spaceFlickEnabled = enabled
         if !enabled { flickStart = nil; endFlickPreview(committed: false, animated: false) }
@@ -6057,6 +6409,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     /// Stock iOS flashes the layout name ("English (US)") on the spacebar when
     /// the keyboard appears. Same here: "ViệtTelex" for ~700ms, then fade.
     func showLanguageBadge() {
+        // Ảnh lưới phím (chưa có phím thật): nhãn hiện khi phím thật dựng (goLive).
+        if snapState == .armed || snapState == .showing { snapBadgePending = true; return }
         guard let space = spaceBar else { return }
         let l = UILabel()
         l.text = spaceLanguage == .en ? KeyboardLanguage.en.displayName : "ViệtTelex"
@@ -6087,6 +6441,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     // Button thật (space, shift, backspace, số/ký hiệu, slot bar…) vẫn nhận
     // touch trực tiếp như cũ.
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        // Chạm khi khung đầu còn là ảnh lưới phím: dựng phím thật NGAY rồi hit-test như thường
+        // (chạm không mất — KeyboardStartupTests.testSnapshotTouchBeforeLiveKeysIsNotLost).
+        if snapState == .showing { goLive() }
+        if event?.type == .touches { snapInteracted = true }
         let v = routedHitTest(point, with: event, time: event?.timestamp)
         if TouchLog.enabled, let e = event, e.type == .touches {
             let target: String
@@ -7051,6 +7409,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     #endif
 
     private func tapped(_ key: Key) {
+        snapInteracted = true   // đã gõ ⇒ không còn trạng thái mở đầu, không chụp ảnh lưới phím
         // Hiệu ứng khi bấm phím: lấy điểm đã đánh dấu (fxMark), chữ chèn TRƯỚC rồi mới hẹn vẽ.
         let fx = fxRect
         fxRect = nil
@@ -7363,7 +7722,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         guard let v = rainbow else { return }
         if v.frame != bounds { v.frame = bounds }
         var frames: [CGRect] = [], radii: [CGFloat] = []
-        if !rowsContainer.isHidden {
+        if snapState == .showing {
+            // Khung đầu còn là ảnh: viền theo khung phím lưu kèm ảnh (phím thật chưa dựng).
+            for o in snapOutlines { frames.append(rowsContainer.convert(o.rect, to: v)); radii.append(o.radius) }
+        } else if !rowsContainer.isHidden {
             // Khung phím của lượt layout NÀY (hàng xếp lồng nhau — như hoạ tiết): đo sau khi hàng đã xếp.
             rowsContainer.layoutIfNeeded()
             for row in rowsContainer.arrangedSubviews where !row.isHidden { row.layoutIfNeeded() }
