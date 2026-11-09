@@ -355,6 +355,9 @@ targets:
         buildPhase: resources
       - path: Keyboard/Resources/futoswipe.bin
         buildPhase: resources
+      # Trie chọn phím thông minh dựng sẵn (chung Android) — KeyPriorBlobTests.
+      - path: Keyboard/Resources/keyprior.bin
+        buildPhase: resources
       - path: Keyboard/Resources/Buddies
         buildPhase: resources
     settings:
