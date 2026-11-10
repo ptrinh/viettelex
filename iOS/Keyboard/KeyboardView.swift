@@ -298,6 +298,13 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var cornerGlyphLayer: CATextLayer?
     private var wallpaperActive = false
     private var wallpaperLoadedFor: CGSize = .zero
+    /// Ảnh nền / ảnh nền + tiền cảnh theme: mới nhất thắng qua các khung tạm của host (SizedDecodeGate).
+    private let wallpaperGate = SizedDecodeGate()
+    private let themeScreenGate = SizedDecodeGate()
+    /// Khung tạm đang chờ đứng yên (SizedDecodeGate.settleDelay) — hết giờ mà cỡ không đổi ⇒ giải ở cỡ đó.
+    private var pendingSettle: (size: CGSize, work: DispatchWorkItem)?
+    /// Cỡ tạm đã đứng yên đủ lâu ⇒ không hoãn nữa.
+    private var settledSize: CGSize?
     /// Tệp tải về của theme (theme JSON: phông / ảnh nền / tiền cảnh / skin phím) — nạp MỘT lần mỗi theme
     /// (ThemeAssetLoader, cache theo chữ ký). Theme không có tệp ⇒ nil, mọi đường bên dưới thoát ngay.
     private var themeAssets: LoadedThemeAssets?
@@ -395,6 +402,8 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         wallpaperView.image = nil
         wallpaperLoadedFor = .zero
         themeImageView.image = nil; foregroundView.image = nil; themeScreenLoadedFor = nil
+        wallpaperGate.cancel(); themeScreenGate.cancel()
+        pendingSettle?.work.cancel(); pendingSettle = nil
         Self.stripSubviews(of: self, constraints: true)
         removeFromSuperview()
     }
@@ -2092,6 +2101,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             wallpaperView.image = nil          // nhả bitmap ngay khi tắt ảnh nền
             spotlight?.setPhoto(nil)
             wallpaperLoadedFor = .zero
+            wallpaperGate.cancel()             // việc đang chờ không gán lại ảnh
         } else {
             wallpaperLoadedFor = .zero         // version/cỡ có thể đã đổi → nạp lại
             setNeedsLayout()
@@ -2125,19 +2135,56 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
               bounds.width > 0, bounds.height > 0 else { return }
         if foregroundView.superview === self, foregroundView.frame != bounds { foregroundView.frame = bounds }
         if let l = themeScreenLoadedFor, l.size == bounds.size, l.sig == a.signature { return }
+        guard !deferDecodeForInterimSize() else { return }
         themeScreenLoadedFor = (bounds.size, a.signature)
         let size = bounds.size, sig = a.signature
         let scale = Wallpaper.decodeScale(screenScale: window?.screen.scale ?? UIScreen.main.scale)
         let bgURL = themeImageView.isHidden ? nil : a.backgroundURL, fgURL = a.foregroundURL
+        let gate = themeScreenGate, ticket = gate.next()
         Wallpaper.queue.async { [weak self] in
+            guard gate.isCurrent(ticket) else { return }     // đã có yêu cầu mới hơn (khung tạm) ⇒ không giải
             let bg = bgURL.flatMap { ThemeAssetLoader.loadScreen($0, viewSize: size, scale: scale, fill: true) }
+            guard gate.isCurrent(ticket) else { return }
             let fg = fgURL.flatMap { ThemeAssetLoader.loadScreen($0, viewSize: size, scale: scale, fill: false) }
             DispatchQueue.main.async {
                 guard let self, self.themeAssets?.signature == sig else { return }
+                switch gate.verdict(ticket, requested: size, current: self.bounds.size) {
+                case .stale: return
+                case .resized:
+                    // Đổi cỡ trong lúc giải: xin lại ở cỡ hiện tại (cùng cỡ cũ quay lại cũng phải gán).
+                    self.themeScreenLoadedFor = nil; self.setNeedsLayout(); return
+                case .apply: break
+                }
+                #if DEBUG
+                self.debugThemeScreenApplies.append(size)
+                #endif
                 if !self.themeImageView.isHidden { self.themeImageView.image = bg }
                 if !self.foregroundView.isHidden { self.foregroundView.image = fg }
             }
         }
+    }
+
+    /// true ⇒ view đang ở khung tạm của host (chiều cao ≠ chiều cao xin — SizedDecodeGate.isInterim):
+    /// hoãn giải ảnh, hẹn kiểm lại sau settleDelay. Cỡ đứng yên đủ lâu (host giữ cỡ khác) ⇒ coi là cỡ
+    /// cuối và giải — ảnh nền KHÔNG bao giờ bị bỏ. Chỉ view của controller (primesLastHeight): view
+    /// dựng riêng (test, preview) không có chuỗi khung host.
+    private func deferDecodeForInterimSize() -> Bool {
+        guard primesLastHeight, settledSize != bounds.size,
+              SizedDecodeGate.isInterim(viewHeight: bounds.height, expected: constraintHeight) else { return false }
+        let size = bounds.size
+        if let p = pendingSettle, p.size == size { return true }
+        pendingSettle?.work.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, !self.isTornDown else { return }
+            self.pendingSettle = nil
+            guard self.bounds.size == size else { return }   // lại đổi cỡ: lượt layout của cỡ mới tự lo
+            self.settledSize = size
+            self.loadWallpaperIfNeeded()
+            self.loadThemeScreensIfNeeded()
+        }
+        pendingSettle = (size, work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + SizedDecodeGate.settleDelay, execute: work)
+        return true
     }
 
     private static let systemMajor = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
@@ -2356,6 +2403,9 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         CATransaction.commit()
     }
     #if DEBUG
+    /// Test: cỡ (lúc xin) của mỗi lần ảnh nền / ảnh theme thật sự được gán — mới nhất thắng.
+    var debugWallpaperApplies: [CGSize] = []
+    var debugThemeScreenApplies: [CGSize] = []
     /// Test: frame nền theme / ảnh nền / lớp phủ + bán kính bo.
     var debugBackdrop: (frames: [CGRect], radius: CGFloat) {
         ([themeBackdrop.frame, wallpaperView.frame, wallpaperDim.frame], themeBackdrop.layer.cornerRadius)
@@ -2394,14 +2444,29 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private func loadWallpaperIfNeeded() {
         guard wallpaperActive, bounds.width > 0, bounds.height > 0,
               bounds.size != wallpaperLoadedFor else { return }
+        guard !deferDecodeForInterimSize() else { return }   // khung tạm của host: chưa giải
         wallpaperLoadedFor = bounds.size
         let size = bounds.size
         let scale = Wallpaper.decodeScale(screenScale: window?.screen.scale ?? UIScreen.main.scale)
         let version = themeSettings.version
+        let gate = wallpaperGate, ticket = gate.next()
         Wallpaper.queue.async { [weak self] in
-            let img = Wallpaper.loadForKeyboard(version: version, viewSize: size, scale: scale)
+            // Vé cũ (đã có yêu cầu ở cỡ khác) ⇒ bỏ: không giải, không đuổi ảnh đang cache.
+            guard gate.isCurrent(ticket) else { return }
+            let img = Wallpaper.loadForKeyboard(version: version, viewSize: size, scale: scale,
+                                                stillWanted: { gate.isCurrent(ticket) })
             DispatchQueue.main.async {
                 guard let self, self.wallpaperActive else { return }
+                switch gate.verdict(ticket, requested: size, current: self.bounds.size) {
+                case .stale: return
+                case .resized:
+                    // Đổi cỡ trong lúc giải: xin lại ở cỡ hiện tại (cùng cỡ cũ quay lại cũng phải gán).
+                    self.wallpaperLoadedFor = .zero; self.setNeedsLayout(); return
+                case .apply: break
+                }
+                #if DEBUG
+                self.debugWallpaperApplies.append(size)
+                #endif
                 self.wallpaperView.image = img
                 self.spotlight?.setPhoto(img?.cgImage)   // Đèn rọi: CÙNG CGImage (không sao chép)
             }
@@ -7057,11 +7122,23 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         }
         guard let id = swipeTouchID else { return }     // tắt / không theo dõi ⇒ 0 việc
         for t in touches where ObjectIdentifier(t) == id {
-            for c in event?.coalescedTouches(for: t) ?? [t] {
-                swipeMoved(to: c.location(in: self), time: c.timestamp)
-                if swipeTouchID == nil { return }
-            }
+            let samples = (event?.coalescedTouches(for: t) ?? [t]).lazy.map { ($0.location(in: self), $0.timestamp) }
+            if !swipeMovedBatch(samples) { return }
         }
+    }
+
+    /// Một lượt touchesMoved của ngón đang vuốt: MỌI điểm gộp (coalesced, 120 Hz) vào decoder + nét như
+    /// trước, nhưng nét chỉ dựng path + commit MỘT lần cuối lượt (màn 60 Hz chỉ hiện lần cuối).
+    /// false = ngón thôi được theo dõi (phân loại ra chạm) — dừng như trước.
+    @discardableResult
+    private func swipeMovedBatch<S: Sequence>(_ samples: S) -> Bool where S.Element == (CGPoint, TimeInterval) {
+        var dirty = false
+        defer { if dirty { trail?.redraw() } }
+        for (p, time) in samples {
+            if swipeMoved(to: p, time: time) { dirty = true }
+            if swipeTouchID == nil { return false }
+        }
+        return true
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -7331,26 +7408,29 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         if !swipeActive { swipeTouchID = nil }
     }
 
-    private func swipeMoved(to raw: CGPoint, time: TimeInterval) {
+    /// Một điểm của ngón đang theo dõi. Trả true khi nét vuốt cần vẽ lại — người gọi (swipeMovedBatch)
+    /// vẽ một lần cho cả lượt điểm gộp.
+    private func swipeMoved(to raw: CGPoint, time: TimeInterval) -> Bool {
         let p = TouchGeometry.keySelectionPoint(raw)
         swipePath?.add(x: Float(p.x), y: Float(p.y), t: time)
         if swipeActive {
-            trail?.add(raw, time)
-            trail?.redraw()
-            return
+            trail?.add(raw, time)   // hạt (pháo hoa…) vẫn bắn theo từng điểm
+            return trail != nil
         }
-        guard var c = classifier else { return }
-        if keyCmd?.isCandidate == true { return }    // vuốt-lên-lệnh còn sống ⇒ chưa quyết vuốt
+        guard var c = classifier else { return false }
+        if keyCmd?.isCandidate == true { return false }    // vuốt-lên-lệnh còn sống ⇒ chưa quyết vuốt
         let d = c.move(to: p, time: time)
         classifier = c
         switch d {
-        case .swipe: beginSwipe()
+        case .swipe: beginSwipe(redraw: false); return trail != nil
         case .tap: stopClassifying()
         case .undecided: break
         }
+        return false
     }
 
-    private func beginSwipe() {
+    /// `redraw` false: đang trong một lượt điểm gộp — swipeMovedBatch vẽ một lần cuối lượt.
+    private func beginSwipe(redraw: Bool = true) {
         swipeActive = true
         classifier = nil
         dropAltHold()
@@ -7374,7 +7454,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
                       path.ts[i])
             }
         }
-        t.redraw()
+        if redraw { t.redraw() }
     }
 
     /// Nhấc tay: true nếu touch này là một cú vuốt (đã giao cho controller).
@@ -7980,19 +8060,23 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     var debugBalloonVisible: Bool { balloonMade && !balloon.isHidden && balloon.superview?.superview != nil }
     /// Test hook: một touch chữ chạm tại `p0`, kéo qua `points` (cách nhau `dt` giây),
     /// nhấc tay ở điểm cuối — đi đúng đường router (routeDown → swipeMoved → routeUp).
-    /// Trả true nếu touch thành vuốt.
+    /// Trả true nếu touch thành vuốt. `coalesced` n: mỗi lượt touchesMoved mang n điểm gộp (cảm ứng
+    /// 120 Hz trên màn 60 Hz ⇒ 2) — cùng đường swipeMovedBatch như touchesMoved thật.
     @discardableResult
     func debugTouch(from p0: CGPoint, through points: [CGPoint], dt: TimeInterval = 0.016,
-                    start t0: TimeInterval) -> Bool {
+                    start t0: TimeInterval, coalesced: Int = 1) -> Bool {
         let token = NSObject()
         let id = ObjectIdentifier(token)
         routeDown(id, at: p0, time: t0, batch: 1)
         var t = t0
         var swiped = false
-        for p in points {
-            t += dt
-            if keyCmdTouchID == id { keyCommandMoved(to: p) }
-            if swipeTouchID == id { swipeMoved(to: p, time: t) }
+        let n = max(coalesced, 1)
+        for start in stride(from: 0, to: points.count, by: n) {
+            let chunk = points[start..<min(start + n, points.count)]
+            var samples: [(CGPoint, TimeInterval)] = []
+            for p in chunk { t += dt; samples.append((p, t)) }
+            if keyCmdTouchID == id, let last = chunk.last { keyCommandMoved(to: last) }
+            if swipeTouchID == id { swipeMovedBatch(samples) }
             if swipeActive { swiped = true }
         }
         let ups = debugSwipeUps

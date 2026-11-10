@@ -473,8 +473,16 @@ final class SwipeTrailRenderer {
         l.isHidden = false
     }
 
+    #if DEBUG
+    /// Test: số lần dựng path + commit (KeyboardView vẽ MỘT lần mỗi lượt touchesMoved, không mỗi điểm gộp).
+    var debugRedraws = 0
+    #endif
+
     func redraw() {
         guard count > 0, !strokeLayers.isEmpty else { return }
+        #if DEBUG
+        debugRedraws += 1
+        #endif
         let path = CGMutablePath()
         if style == .brush {
             buildBrush(path)

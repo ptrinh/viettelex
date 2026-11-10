@@ -230,3 +230,27 @@ trình lạnh riêng (Mac dùng chung, nhiễu). "Sẵn chạm" = khung đầu +
 Ấm (cùng tiến trình): khung đầu 11,7 → 7,0 (mặc định); footprint sau didAppear không đổi (ảnh nhả).
 Đánh đổi: phím hiện sớm hơn ~13–17 ms, nhận chạm muộn hơn ~1–6 ms (chạm sớm hơn thì dựng ngay lúc chạm).
 Cần đo lại trên máy thật (Release, mục 2).
+
+## 7. Ảnh nền theo khung host, phím 🌐 iPad, nét vuốt (10/11/2026)
+
+- **Ảnh nền / ảnh nền + tiền cảnh theme — mới nhất thắng** (`SizedDecodeGate`, Wallpaper.swift). Trước: mỗi
+  khung tạm của host (0 → 896 → 452 → 268 → chiều cao xin) xếp một lần giải JPEG + cắt trên
+  `Wallpaper.queue`; khung tạm đầu tiên đuổi luôn ảnh đã cache của lần hiện trước; ảnh cũ được gán lần
+  lượt, ảnh đúng về sau cùng. Giờ: view của controller (`primesLastHeight`) KHÔNG xin giải khi chiều cao
+  view ≠ chiều cao đang xin (> 1 pt) — hẹn kiểm lại sau `settleDelay` (0,2 s): cỡ đứng yên ⇒ coi là cỡ
+  cuối và giải (host giữ cỡ khác vẫn có ảnh). Mỗi yêu cầu lấy vé; việc đã xếp mà vé cũ thì bỏ ngay đầu khối,
+  `loadForKeyboard(stillWanted:)` không đuổi cache khi vé đã cũ; kết quả về main chỉ gán khi vé mới nhất
+  VÀ cỡ lúc xin = `bounds.size` (vé mới nhất mà view đã đổi cỡ ⇒ xin lại ở cỡ hiện tại). Hiện lại cùng cỡ
+  ⇒ 0 lần giải (cache). Cảnh nền / hoạ tiết / viền cầu vồng KHÔNG chặn theo khung tạm: chạy đồng bộ trên
+  main và khung đầu có thể là khung tạm — chặn thì khung đầu thiếu hoạ tiết.
+- **iPad dựng hai lần vì phím 🌐**: trước đây chỉ iPhone đoán phím 🌐 trước khung đầu; iPad dựng hàng đáy
+  không 🌐 rồi didAppear (`needsInputModeSwitchKey` = true) dựng lại cả plane (hàng đáy đổi sau khi trượt
+  lên, ảnh lưới phím không khớp). Giờ `GlobeMemory` nhớ giá trị thật lần trước (biến tĩnh + một Bool trong
+  defaults riêng của extension) và `KeyLayout.preFrameGlobeGuess` dùng nó trên mọi loại máy; iPhone chưa
+  nhớ vẫn đoán theo nút Home; didAppear vẫn sửa khi khác. Trong XCTest `GlobeMemory` mặc định tắt.
+- **Nét vuốt**: touchesMoved đưa MỌI điểm gộp (coalesced) vào decoder và nét như trước, nhưng dựng path +
+  commit nét MỘT lần mỗi lượt (`swipeMovedBatch`) — trước: mỗi điểm gộp một lần (cảm ứng 120 Hz trên màn
+  60 Hz ⇒ lần đầu bỏ phí). Hạt (pháo hoa…) vẫn bắn theo từng điểm.
+- Test: `OpenPathPerfTests` (chuỗi khung host ⇒ đúng 1 lần giải + 1 lần gán ở cỡ cuối; hiện lại cùng cỡ ⇒
+  0 lần giải; host giữ cỡ khác vẫn có ảnh; iPad có giá trị nhớ ⇒ 0 lần dựng ở didAppear; ≤ 1 lần vẽ nét
+  mỗi lượt touchesMoved, đầu vào decoder y hệt). Chưa đo giờ trên máy thật.

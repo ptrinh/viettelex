@@ -266,6 +266,25 @@ final class KeyboardViewController: UIInputViewController {
     var debugPasteboard: PasteboardSource?
     var debugFullAccess: Bool?
     override var hasFullAccess: Bool { debugFullAccess ?? super.hasFullAccess }
+    /// Test: loại máy + needsInputModeSwitchKey giả (đoán phím 🌐 trước khung đầu — GlobeMemory).
+    nonisolated(unsafe) static var debugIdiom: UIUserInterfaceIdiom?
+    nonisolated(unsafe) static var debugNeedsSwitchKey: Bool?
+    #endif
+
+    private var deviceIdiom: UIUserInterfaceIdiom {
+        #if DEBUG
+        if let i = Self.debugIdiom { return i }
+        #endif
+        return UIDevice.current.userInterfaceIdiom
+    }
+    /// needsInputModeSwitchKey — chỉ đọc ở didAppear (đọc sớm hơn iOS in warning, giá trị chưa đáng tin).
+    private var realNeedsSwitchKey: Bool {
+        #if DEBUG
+        if let v = Self.debugNeedsSwitchKey { return v }
+        #endif
+        return needsInputModeSwitchKey
+    }
+    #if DEBUG
     /// Test: nội dung lịch sử clipboard hiện có.
     var debugClipTexts: [String] { clip.items(now: Date().timeIntervalSince1970).map(\.text) }
     func debugToggleClipboardPanel() { toggleClipboardPanel() }
@@ -391,8 +410,10 @@ final class KeyboardViewController: UIInputViewController {
         // cho lúc KeyboardView chưa layout + đoán phím 🌐 (iPhone nút Home) — didAppear sửa nếu sai.
         let hint = appearanceLayoutHint()
         keyboard.layoutHint = hint
-        if UIDevice.current.userInterfaceIdiom == .phone, let s = hint.screen {
-            keyboard.setNeedsGlobe(KeyLayout.phoneHasHomeButton(screen: s))
+        // Giá trị thật lần trước (GlobeMemory) thắng trên mọi loại máy — iPad hết dựng lại cả plane ở didAppear.
+        if let g = KeyLayout.preFrameGlobeGuess(remembered: GlobeMemory.remembered(),
+                                                phone: deviceIdiom == .phone, screen: hint.screen) {
+            keyboard.setNeedsGlobe(g)
         }
         L10n.reload()   // ngôn ngữ giao diện app (uiLanguage) — một lần mỗi lần hiện
         TouchLog.loadSetting()
@@ -1612,7 +1633,9 @@ final class KeyboardViewController: UIInputViewController {
         // Trait host đã resolve khi view vào window — sửa sáng/tối nếu lúc
         // viewWillAppear đoán sai (phím sáng trên nền tối).
         keyboard?.updateDark(presentationDark)
-        keyboard?.setNeedsGlobe(needsInputModeSwitchKey)
+        let globe = realNeedsSwitchKey
+        keyboard?.setNeedsGlobe(globe)
+        GlobeMemory.record(globe)        // đoán trước khung đầu của lần hiện sau
         refreshFullAccessIfChanged()
         pushSwipeLayout(prepare: true)   // frame phím đã thật → dựng template ở nền
         // Ảnh lưới phím cho lần mở sau (KeySnapshot): chụp khi đã yên, chỉ khi khoá đổi; tắt ⇒ không làm gì.
