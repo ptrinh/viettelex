@@ -830,7 +830,7 @@ enum ModeNames {
     static let auto = "Auto"
     static let inPlace = "Edit in the field"
     static let marked = "Underline while typing"
-    static let tap = "Real keystrokes (no underline)"
+    static let tap = "Real keystrokes"
     static let selection = "Real keystrokes: select and retype"
     static let emptyReset = "Real keystrokes: Excel style"
     static let axDetect = "Choose per field"
