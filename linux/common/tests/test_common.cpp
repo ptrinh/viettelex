@@ -777,10 +777,10 @@ void testTextToolNamesAndSelection() {
     // Key-path probe: no process spawn when it cannot change the answer.
     reads = 0;
     bool anchorSeen = false;
-    const std::string cachedFar = "khac", cachedHere = "hoc", none;
+    const std::string cachedFar = "khac", cachedHere = "hoc", noCache;
     // Cache not against the caret ⇒ no external read at all.
     CHECK(!selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &cachedFar, true, primaryIs("hoc")));
-    CHECK(!selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &none, true, primaryIs("hoc")));
+    CHECK(!selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &noCache, true, primaryIs("hoc")));
     CHECK_EQ(reads, 0);
     // Cache against the caret ⇒ confirmed live (stale cache after deselect ⇒ false).
     CHECK(selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &cachedHere, true, primaryIs("hoc")));
