@@ -504,20 +504,87 @@ enum TapWordBreak {
 /// soạn (như một phím ranh giới không phát gì). Tap: bật cờ dưới stateLock, phím vật
 /// lý kế tiếp tiêu thụ trên TAP thread (cùng cách pendingEngineReset). IMK: bỏ cụm
 /// trên MAIN. Tên in-process `com.viettelex.resetComposition` giữ nguyên vai trò cũ.
+/// BẤT ĐỒNG BỘ: post rồi gửi phím ngay thì phím có thể tới trước tín hiệu. Post dồn
+/// dập được gộp (Gate). Công tắc Cài đặt → Nâng cao / Gỡ lỗi (`AppState.endWordSignal`,
+/// mặc định bật); tắt = không đăng ký observer nào.
 enum EndWordSignal {
     static let name = "com.viettelex.endWord"
+    /// Hai lần post cách nhau ít hơn ngưỡng này ⇒ lần sau bị bỏ (script post dồn dập,
+    /// gửi cả hai kênh cho chắc). Đây là chống dội, không phải luật gõ: tín hiệu vốn bất
+    /// đồng bộ.
+    static let minIntervalNs: UInt64 = 50_000_000
+    private static let lock = NSLock()
     private static var notifyToken: Int32 = -1   // NOTIFY_TOKEN_INVALID (macro không vào Swift)
-    private static var installed = false
+    private static var distributedRegistered = false
+    private static var gate = Gate()
+    /// Observer cho CFNotificationCenterRemoveObserver (nil thì không gỡ riêng được).
+    private final class ObserverTag {}
+    private static let observerTag = ObserverTag()
 
-    /// MAIN, một lần lúc khởi động (không chạy trong test host).
-    static func install() {
-        guard !installed else { return }
-        installed = true
-        notify_register_dispatch(name, &notifyToken, DispatchQueue.main) { _ in deliver() }
-        CFNotificationCenterAddObserver(
-            CFNotificationCenterGetDistributedCenter(), nil,
-            { _, _, _, _, _ in DispatchQueue.main.async { EndWordSignal.deliver() } },
-            name as CFString, nil, .deliverImmediately)
+    /// Gộp + chống dội (pure, để test): một lần giao đang chờ trên MAIN ⇒ bỏ lần post
+    /// mới; lần post cách lần được nhận trước < `minIntervalNs` ⇒ bỏ.
+    struct Gate {
+        private(set) var pending = false
+        private(set) var lastAcceptedNs: UInt64?
+        /// true = lên lịch giao.
+        mutating func accept(nowNs: UInt64) -> Bool {
+            if pending { return false }
+            if let last = lastAcceptedNs, nowNs &- last < EndWordSignal.minIntervalNs { return false }
+            pending = true; lastAcceptedNs = nowNs
+            return true
+        }
+        mutating func delivered() { pending = false }
+    }
+
+    /// Đã đăng ký observer nào chưa (Darwin hoặc distributed).
+    static var isRegistered: Bool { lock.withLock { notifyToken != -1 || distributedRegistered } }
+
+    /// MAIN, lúc khởi động (không chạy trong test host) và mỗi lần đổi công tắc trong
+    /// Cài đặt. Tắt ⇒ gỡ cả hai observer: không đăng ký gì, chi phí 0.
+    static func install() { apply(enabled: AppState.shared.endWordSignal) }
+
+    static func apply(enabled: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        if enabled {
+            if notifyToken == -1 {
+                var token: Int32 = -1
+                let status = notify_register_dispatch(name, &token, DispatchQueue.main) { _ in received() }
+                if status == 0 /* NOTIFY_STATUS_OK */ {
+                    notifyToken = token
+                } else {
+                    DebugLog.log("endWord: notify_register_dispatch failed status=\(status) — Darwin notify channel off")
+                }
+            }
+            if !distributedRegistered {
+                CFNotificationCenterAddObserver(
+                    CFNotificationCenterGetDistributedCenter(),
+                    Unmanaged.passUnretained(observerTag).toOpaque(),
+                    { _, _, _, _, _ in EndWordSignal.received() },
+                    name as CFString, nil, .deliverImmediately)
+                distributedRegistered = true
+            }
+        } else {
+            if notifyToken != -1 { notify_cancel(notifyToken); notifyToken = -1 }
+            if distributedRegistered {
+                CFNotificationCenterRemoveObserver(
+                    CFNotificationCenterGetDistributedCenter(),
+                    Unmanaged.passUnretained(observerTag).toOpaque(),
+                    CFNotificationName(name as CFString), nil)
+                distributedRegistered = false
+            }
+            gate = Gate()
+        }
+    }
+
+    /// Một lần post tới (bất kỳ kênh/thread nào): gộp + chống dội rồi giao trên MAIN.
+    static func received() {
+        let now = DispatchTime.now().uptimeNanoseconds
+        guard lock.withLock({ gate.accept(nowNs: now) }) else { return }
+        DispatchQueue.main.async {
+            lock.withLock { gate.delivered() }
+            deliver()
+        }
     }
 
     /// MAIN. Rẻ: một lock trip cho tap + một lần bỏ cụm IMK nếu đang soạn.

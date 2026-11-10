@@ -581,6 +581,14 @@ final class AppState: @unchecked Sendable {
     /// health events (create/teardown, breaker trips, emit counts — never typed text),
     /// which the user copies from Settings → Thử Nghiệm to share when reporting a hang.
     /// Off = `DebugLog.log` early-returns, so it costs nothing on the hot path.
+    /// Nhận tín hiệu "kết thúc từ" `com.viettelex.endWord` từ app khác (#156, mặc định
+    /// BẬT). Không ở đường phím: chỉ đọc lúc khởi động + khi đổi công tắc
+    /// (EndWordSignal.apply) — tắt = không đăng ký observer nào.
+    var endWordSignal: Bool {
+        get { defaults.object(forKey: "endWordSignal") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "endWordSignal") }
+    }
+
     private var _debugLogging: Bool
     var debugLogging: Bool {
         get { lock.withLock { _debugLogging } }

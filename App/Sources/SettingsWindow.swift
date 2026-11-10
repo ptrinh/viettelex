@@ -219,6 +219,13 @@ final class SettingsModel: ObservableObject {
     }
     @Published var safeUnknownApps: Bool { didSet { AppState.shared.safeUnknownApps = safeUnknownApps } }
     @Published var debugLogging: Bool { didSet { AppState.shared.debugLogging = debugLogging } }
+    /// Tín hiệu "kết thúc từ" (#156): đổi là đăng ký / gỡ observer ngay.
+    @Published var endWordSignal: Bool {
+        didSet {
+            AppState.shared.endWordSignal = endWordSignal
+            EndWordSignal.apply(enabled: endWordSignal)
+        }
+    }
     @Published var autoUpdateCheck: Bool { didSet { AppState.shared.autoUpdateCheck = autoUpdateCheck } }
     /// UI language: "system" / "en" / "vi". Changing it re-renders every view that
     /// observes this model (they call `loc(_:)`), so the switch is live — no relaunch.
@@ -287,6 +294,7 @@ final class SettingsModel: ObservableObject {
             ? savedLayout : KeyboardLayoutOverride.systemDefault
         safeUnknownApps = AppState.shared.safeUnknownApps
         debugLogging = AppState.shared.debugLogging
+        endWordSignal = AppState.shared.endWordSignal
         autoUpdateCheck = AppState.shared.autoUpdateCheck
         uiLanguage = AppState.shared.uiLanguage
         reloadShortcuts()
@@ -1505,7 +1513,8 @@ struct GeneralTab: View {
         static let icloudUnavailable = "Not available in this build (it isn’t signed with iCloud)."
         static let weekly = "Manual check: the newest release on GitHub. Weekly check: the stable channel."
         static let debugLog = "Records events in memory, never your text. Reproduce the bug, then copy the log."
-        static let all = [menuIcon, icloud, icloudUnavailable, weekly, debugLog]
+        static let endWord = "Apps and scripts can post com.viettelex.endWord to end the word being typed."
+        static let all = [menuIcon, icloud, icloudUnavailable, weekly, debugLog, endWord]
     }
 
     var body: some View {
@@ -1567,11 +1576,16 @@ struct GeneralTab: View {
 struct DiagnosticsSection: View {
     /// Tên mục chung desktop (spec cleanup §4): "Nâng cao / Gỡ lỗi".
     static let headerKey = "Advanced / Debugging"
+    static let endWordTitle = "Accept the “end of word” signal from other apps"
     @EnvironmentObject var model: SettingsModel
     @State private var saveResult: String?
 
     var body: some View {
         Section(header: Label(model.loc(Self.headerKey), systemImage: "stethoscope")) {
+            // #156: tín hiệu cho người viết app/script (hdsd). Mặc định bật; tắt = 0 chi phí.
+            Toggle(isOn: $model.endWordSignal) {
+                SettingRowLabel(title: model.loc(Self.endWordTitle), caption: model.loc(GeneralTab.C.endWord))
+            }
             Toggle(isOn: $model.debugLogging) {
                 SettingRowLabel(title: model.loc("Record debug log"), caption: model.loc(GeneralTab.C.debugLog))
             }
@@ -1668,7 +1682,7 @@ enum DebugHeader {
             // from every prior debug log meant a tester's own `defaults write` was invisible
             // evidence ("chỉ mỗi em bị" — 2026-08-05).
             "flags: modifyInPlace=\(s.tapModifyEventInPlace) skipKeyUp=\(s.tapSkipSyntheticKeyUp) axReplace=\(s.axSelectionReplace) breaker=\(s.tapCascadeBreaker) nativeFastPath=\(s.tapNativeFastPath)",
-            "settings: simpleTelex=\(s.simpleTelex) freeMarking=\(s.freeMarking) modern=\(s.modernOrthography) liveSpell=\(s.liveSpellCheck) autoRestore=\(s.autoRestore) vni=\(s.vniMode) quick=\(s.quickTelex) ctxEnglish=\(s.contextualEnglish) retroEnglish=\(s.retroactiveEnglish) freqEnglish=\(s.englishByFrequency) teencode=\(s.teencode) collisionVN=\(s.collisionPrefersVietnamese) reEdit=\(s.reEditWord) bracket=\(s.bracketVowels) safeUnknown=\(s.safeUnknownApps)",
+            "settings: simpleTelex=\(s.simpleTelex) freeMarking=\(s.freeMarking) modern=\(s.modernOrthography) liveSpell=\(s.liveSpellCheck) autoRestore=\(s.autoRestore) vni=\(s.vniMode) quick=\(s.quickTelex) ctxEnglish=\(s.contextualEnglish) retroEnglish=\(s.retroactiveEnglish) freqEnglish=\(s.englishByFrequency) teencode=\(s.teencode) collisionVN=\(s.collisionPrefersVietnamese) reEdit=\(s.reEditWord) bracket=\(s.bracketVowels) safeUnknown=\(s.safeUnknownApps) endWord=\(s.endWordSignal)",
             // Count only — the trigger/expansion pairs are USER-TYPED content the log
             // must never carry (same rule as everywhere else here), but a nonzero count
             // is itself diagnostic: a custom gõ tắt entry colliding with a Vietnamese

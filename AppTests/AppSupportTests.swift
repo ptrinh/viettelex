@@ -1735,3 +1735,50 @@ final class TapWordBreakTests: XCTestCase {
         XCTAssertEqual(s.engine.composed, "tôi")
     }
 }
+
+// Follow-up #156: tín hiệu com.viettelex.endWord — post dồn dập (script gửi cả hai kênh,
+// vòng lặp) không được thành một hàng dài lần giao trên MAIN; công tắc tắt = không có
+// observer nào (0 chi phí).
+final class EndWordSignalTests: XCTestCase {
+    private let ms: UInt64 = 1_000_000
+
+    /// Một lần giao đang chờ ⇒ lần post mới bị gộp, dù đã quá 50 ms.
+    func testCoalescesWhileDeliveryPending() {
+        var g = EndWordSignal.Gate()
+        XCTAssertTrue(g.accept(nowNs: 1_000 * ms))
+        XCTAssertFalse(g.accept(nowNs: 1_200 * ms), "đang chờ giao: gộp")
+        g.delivered()
+        XCTAssertTrue(g.accept(nowNs: 1_300 * ms))
+    }
+
+    /// Hai post cách nhau < 50 ms (Darwin + distributed cùng lúc) ⇒ chỉ một lần.
+    func testIgnoresPostsCloserThanMinInterval() {
+        var g = EndWordSignal.Gate()
+        XCTAssertTrue(g.accept(nowNs: 1_000 * ms)); g.delivered()
+        XCTAssertFalse(g.accept(nowNs: 1_000 * ms + 10 * ms))
+        XCTAssertFalse(g.accept(nowNs: 1_000 * ms + 49 * ms))
+        XCTAssertTrue(g.accept(nowNs: 1_000 * ms + 50 * ms))
+        XCTAssertEqual(EndWordSignal.minIntervalNs, 50 * ms)
+    }
+
+    /// Công tắc: tắt ⇒ không đăng ký kênh nào; bật lại ⇒ đăng ký; lặp lại không đăng ký trùng.
+    func testSwitchOffMeansNotRegistered() {
+        EndWordSignal.apply(enabled: false)
+        XCTAssertFalse(EndWordSignal.isRegistered)
+        EndWordSignal.apply(enabled: true)
+        XCTAssertTrue(EndWordSignal.isRegistered)
+        EndWordSignal.apply(enabled: true)
+        XCTAssertTrue(EndWordSignal.isRegistered)
+        EndWordSignal.apply(enabled: false)
+        EndWordSignal.apply(enabled: false)
+        XCTAssertFalse(EndWordSignal.isRegistered)
+    }
+
+    /// Nhãn công tắc có bản tiếng Việt (chú thích nằm trong GeneralTab.C.all — test chung).
+    func testSwitchTitleTranslated() throws {
+        let path = try XCTUnwrap(Bundle.main.path(forResource: "vi", ofType: "lproj"))
+        let vi = try XCTUnwrap(Bundle(path: path))
+        XCTAssertEqual(vi.localizedString(forKey: DiagnosticsSection.endWordTitle, value: "∅", table: nil),
+                       "Nhận tín hiệu “kết thúc từ” từ app khác")
+    }
+}

@@ -151,8 +151,11 @@ phím/click nó thấy, nên hai ca sau từng làm từ đầu tiên dính ch�
   — Darwin notify (`notifyutil -p com.viettelex.endWord`, `notify_post()`) hoặc
   `DistributedNotificationCenter` — để kết thúc từ đang soạn như một phím ranh giới
   không phát gì (tap: cờ dưới `stateLock`, phím kế tiếp tiêu thụ trên tap thread; IMK:
-  bỏ cụm, marked thì chốt chữ đang hiện). Không đọc object/userInfo, không đọc/ghi chữ,
-  không đổi cài đặt. `com.viettelex.resetComposition` vẫn chỉ là tên in-process
+  bỏ cụm, marked thì chốt chữ đang hiện). Tín hiệu là BẤT ĐỒNG BỘ: phím gửi ngay sau
+  khi post có thể tới trước nó. Gộp: một lần giao đang chờ thì bỏ lần post mới, và
+  bỏ lần post cách lần được nhận trước < 50 ms. Công tắc ở Cài đặt → Nâng cao / Gỡ lỗi
+  (mặc định bật; tắt = không đăng ký observer nào). Không đọc object/userInfo, không
+  đọc/ghi chữ, không đổi cài đặt. `com.viettelex.resetComposition` vẫn chỉ là tên in-process
   (click/⌘-tổ hợp từ tap báo IMK), không nhận từ ngoài.
 
 *(EN) Non-key word boundaries: a focus change without a click (a DIFFERENT IMK
@@ -160,7 +163,9 @@ controller activated since the last key; the same controller re-activating is th
 field) drops the old field's context and starts a new word, except after a late
 activation the IMK client already saw a key for, and except Chromium/Electron. Apps that
 use letter keys as commands can post `com.viettelex.endWord` (Darwin notify or
-distributed notification, no payload) to end the word in progress.*
+distributed notification, no payload) to end the word in progress; delivery is
+asynchronous, coalesced (posts < 50 ms apart are dropped), and can be turned off in
+Settings → Advanced / Debugging.*
 
 ### 4. Tap: selection-replace (Shift+←×N rồi ghi đè)
 

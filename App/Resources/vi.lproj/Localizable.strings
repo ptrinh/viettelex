@@ -409,6 +409,8 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "One color only. Changing it breaks the app’s code seal (it still works). Restart to apply." = "Chỉ một màu. Đổi biểu tượng làm mất niêm chữ ký của app (vẫn chạy). Cần khởi động lại máy.";
 "Same Apple ID as VietTelex on iPhone. Syncs Telex options and shortcuts; iCloud wins first." = "Cùng Apple ID với VietTelex trên iPhone. Đồng bộ tuỳ chọn Telex và gõ tắt; lần đầu lấy iCloud.";
 "Records events in memory, never your text. Reproduce the bug, then copy the log." = "Ghi sự kiện trong bộ nhớ, không ghi chữ bạn gõ. Tái hiện lỗi rồi chép nhật ký.";
+"Accept the “end of word” signal from other apps" = "Nhận tín hiệu “kết thúc từ” từ app khác";
+"Apps and scripts can post com.viettelex.endWord to end the word being typed." = "App và script có thể gửi com.viettelex.endWord để kết thúc từ đang gõ.";
 "Expands on space/Enter; case follows (ko → không, Ko → Không). ⌥↩ new line." = "Bung ra khi gõ dấu cách/Enter; hoa thường theo bạn (ko → không, Ko → Không). ⌥↩ xuống dòng.";
 "Chrome/Electron apps expand these via macOS. Short ones (h) can break words: delete in macOS." = "App Chrome/Electron dùng bản của macOS. Mục ngắn (h) có thể làm hỏng chữ: hãy xoá trong macOS.";
 
