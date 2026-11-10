@@ -17,9 +17,18 @@ enum Wallpaper {
     static let sourceMaxEdge = 2048
 
     static var url: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppFlavor.appGroup)?
+        #if DEBUG
+        if let u = debugURLOverride { return u }
+        #endif
+        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppFlavor.appGroup)?
             .appendingPathComponent(fileName)
     }
+    #if DEBUG
+    /// Test: ảnh nền đọc từ tệp tạm thay vì App Group.
+    nonisolated(unsafe) static var debugURLOverride: URL?
+    /// Test: số lần giải thật (cache trượt) trong loadForKeyboard.
+    nonisolated(unsafe) static var debugDecodes = 0
+    #endif
 
     /// Thu nhỏ bằng ImageIO (không giải ảnh gốc vào RAM). Cạnh dài ≤ maxPixel.
     static func downsample(source: CGImageSource, maxPixel: Int) -> CGImage? {
@@ -161,7 +170,10 @@ enum Wallpaper {
     nonisolated(unsafe) private static var cache: (key: String, image: UIImage)?
 
     /// Ảnh cho bàn phím; nil nếu không có file. Cache theo version + cỡ.
-    static func loadForKeyboard(version: Double, viewSize: CGSize, scale: CGFloat) -> UIImage? {
+    /// `stillWanted` false (yêu cầu đã bị yêu cầu mới hơn thay — SizedDecodeGate) ⇒ trả nil
+    /// TRƯỚC khi nhả cache / giải: yêu cầu cũ không bao giờ đuổi ảnh đang cache.
+    static func loadForKeyboard(version: Double, viewSize: CGSize, scale: CGFloat,
+                                stillWanted: () -> Bool = { true }) -> UIImage? {
         guard let url, FileManager.default.fileExists(atPath: url.path) else { cache = nil; return nil }
         guard let src = CGImageSourceCreateWithURL(url as CFURL,
                 [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
@@ -175,7 +187,11 @@ enum Wallpaper {
         let target = CGSize(width: (viewSize.width * scale).rounded(), height: (viewSize.height * scale).rounded())
         let key = "\(version)|\(px)|\(Int(target.width))x\(Int(target.height))"
         if let c = cache, c.key == key { return c.image }
+        guard stillWanted() else { return nil }
         cache = nil                     // nhả ảnh cũ TRƯỚC khi giải ảnh mới
+        #if DEBUG
+        debugDecodes += 1
+        #endif
         guard let full = downsample(source: src, maxPixel: px) else { return nil }
         // Chỉ giữ phần HIỆN (aspect-fill cắt giữa): ảnh dọc 3:4 trên bàn phím ngang chỉ lộ
         // ~55 % — bitmap giữ lại cỡ đúng view thay vì cả ảnh.
@@ -215,6 +231,51 @@ enum Wallpaper {
     /// mờ + phủ tối + thường trong suốt một phần ⇒ mắt không phân biệt, mà bitmap 810×1080
     /// @3x (3,4 MB) còn ~1,5 MB (RAM-AUDIT.md §6).
     static func decodeScale(screenScale: CGFloat) -> CGFloat { min(screenScale, 2) }
+}
+
+/// Giải ảnh theo cỡ view kiểu "mới nhất thắng". Lúc mở, host đưa view qua vài khung tạm
+/// (0 → cả màn hình → … → chiều cao xin — KEYBOARD-STARTUP.md) trước khung cuối: mỗi yêu cầu
+/// lấy một vé; việc đã xếp hàng mà vé không còn mới nhất thì bỏ ngay đầu khối (không giải,
+/// không đuổi cache), kết quả về main chỉ được gán khi vé còn mới nhất VÀ cỡ lúc xin = cỡ view.
+final class SizedDecodeGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var current = 0
+
+    /// Yêu cầu mới (main) ⇒ mọi vé trước thành cũ.
+    func next() -> Int {
+        lock.lock(); defer { lock.unlock() }
+        current += 1
+        return current
+    }
+    /// Huỷ mọi yêu cầu đang chờ (tắt ảnh nền, xé view).
+    func cancel() { _ = next() }
+    /// Gọi được từ mọi thread (đầu khối trên Wallpaper.queue, trước khi đuổi cache).
+    func isCurrent(_ ticket: Int) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return ticket == current
+    }
+
+    enum Verdict: Equatable {
+        /// Gán ảnh.
+        case apply
+        /// Vé cũ: có yêu cầu mới hơn — bỏ, KHÔNG làm gì thêm.
+        case stale
+        /// Vé mới nhất nhưng view đã đổi cỡ: bỏ ảnh, xin lại ở cỡ hiện tại.
+        case resized
+    }
+    /// Kết quả của vé `ticket` (xin ở cỡ `requested`) về tới main khi view đang ở cỡ `current`.
+    func verdict(_ ticket: Int, requested: CGSize, current size: CGSize) -> Verdict {
+        guard isCurrent(ticket) else { return .stale }
+        return requested == size ? .apply : .resized
+    }
+
+    /// Cỡ đang là khung tạm của host: chiều cao view khác chiều cao đang xin (> 1 pt). Hoãn giải
+    /// tới khi khớp, hoặc cỡ đứng yên `settleDelay` (host giữ cỡ khác — vẫn phải có ảnh).
+    static func isInterim(viewHeight: CGFloat, expected: CGFloat) -> Bool {
+        expected > 0 && abs(viewHeight - expected) > 1
+    }
+    /// Cỡ tạm đứng yên chừng này ⇒ coi là cỡ cuối, giải luôn.
+    static let settleDelay: TimeInterval = 0.2
 }
 
 /// Khung cắt ảnh nền, CHUẨN HOÁ 0…1 theo ảnh gốc đã lưu (đã xoay EXIF): x, y = góc trên-trái.

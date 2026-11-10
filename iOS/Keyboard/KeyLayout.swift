@@ -172,6 +172,15 @@ enum KeyLayout {
         return long > 0 && long < 812
     }
 
+    /// Đoán phím 🌐 trước khung đầu (viewWillAppear): giá trị THẬT lần trước (GlobeMemory) thắng
+    /// trên mọi loại máy; chưa có ⇒ iPhone đoán theo nút Home, iPad không đoán (nil = giữ nguyên).
+    /// didAppear vẫn sửa nếu sai.
+    static func preFrameGlobeGuess(remembered: Bool?, phone: Bool, screen: CGSize?) -> Bool? {
+        if let remembered { return remembered }
+        guard phone, let screen else { return nil }
+        return phoneHasHomeButton(screen: screen)
+    }
+
     /// iPhone ngang theo BỀ NGANG view (dọc ≤ 440pt, ngang ≥ 568pt) — không tin
     /// interfaceOrientation của scene extension (có lúc lệch với host ⇒ xin 162pt ngang
     /// khi đang dọc = phím lùn). width 0 (chưa layout) thì mới dùng orientation.
@@ -610,4 +619,42 @@ struct HostOversize {
         nudges += 1
         return nudges == 1 ? .remeasure : .bump
     }
+}
+
+/// `needsInputModeSwitchKey` thật của lần hiện trước (chỉ đáng tin ở viewDidAppear): biến tĩnh
+/// của tiến trình + một Bool trong defaults riêng của extension (tiến trình lạnh vẫn đoán đúng).
+/// iPad trước đây dựng hàng đáy KHÔNG có 🌐 rồi didAppear dựng lại cả plane (hàng đáy đổi sau khi
+/// trượt lên, ảnh lưới phím không bao giờ khớp).
+enum GlobeMemory {
+    static let key = "lastNeedsInputModeSwitchKey"
+    nonisolated(unsafe) private static var cached: Bool??
+
+    /// Giá trị nhớ; nil = chưa từng thấy giá trị thật.
+    static func remembered(_ d: UserDefaults = .standard) -> Bool? {
+        guard enabled else { return nil }
+        if let c = cached { return c }
+        let v = d.object(forKey: key) as? Bool
+        cached = .some(v)
+        return v
+    }
+    /// Ghi giá trị thật (didAppear) — chỉ chạm defaults khi đổi.
+    static func record(_ on: Bool, _ d: UserDefaults = .standard) {
+        guard enabled, remembered(d) != on else { return }
+        cached = .some(on)
+        d.set(on, forKey: key)
+    }
+    private static var enabled: Bool {
+        #if DEBUG
+        if let e = debugEnabled { return e }
+        // Trong XCTest mặc định TẮT: giá trị một test ghi không lẫn sang đoán của test khác.
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return false }
+        #endif
+        return true
+    }
+    #if DEBUG
+    /// Test: ép bật/tắt (nil = mặc định).
+    nonisolated(unsafe) static var debugEnabled: Bool?
+    /// Test: quên giá trị trong tiến trình (lần đọc kế đọc lại defaults).
+    static func debugReset() { cached = nil }
+    #endif
 }
