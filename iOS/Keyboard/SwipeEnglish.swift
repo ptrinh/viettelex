@@ -195,7 +195,9 @@ enum SwipeEnglish {
         if let l = loaded { return l }
         #if DEBUG
         debugLoads += 1
+        #if !os(Linux)
         if Thread.isMainThread { debugMainThreadLoads += 1 }
+        #endif
         #endif
         let l = load()
         loaded = l
@@ -213,7 +215,13 @@ enum SwipeEnglish {
 
     /// Nạp lexicon + bảng từ phổ biến ở nền. An toàn gọi lại.
     static func warmUp() {
+        #if os(Linux)
+        // viettelex-text-tool: FoundationEssentials, không Dispatch; process một việc, không có
+        // main thread phải giữ mượt ⇒ nạp đồng bộ (NSLock, NSData: LinuxShims.swift).
+        _ = top
+        #else
         DispatchQueue.global(qos: .utility).async { _ = top }
+        #endif
     }
 
     #if DEBUG
