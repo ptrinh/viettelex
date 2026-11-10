@@ -735,6 +735,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         feedback.hapticStrength = settings.hapticStrength
         // Âm thanh phím riêng: TẮT ⇒ nhả/không dựng gì (tiếng hệ thống như cũ).
         feedback.configureSound(settings.keySound, settings.keySoundVolume, settings.keySoundStyle) { worker().post(it) }
+        if (session.warmEnglishOnShow && !SwipeEnglish.isLoaded) worker().post { SwipeEnglish.warm() }   // Tự sửa: main chỉ tra không nạp
         kb.searchSettings = settings
         syncClipHistory(settings.clipboardHistory, settings.clipboardTtl)
         // Copy lúc process IME chưa sống (listener không thấy) → bù khi hiện, không làm mới mục cũ.
@@ -901,7 +902,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         handler.removeCallbacks(autoShiftRun); handler.removeCallbacks(suggestRun); handler.removeCallbacks(shiftRun)
         trackpadMoved = false                  // ô đóng: không auto-shift/gợi ý lúc nhả trackpad
         keyboard?.onHidden()
-        feedback.releaseSound()                // âm phím riêng: nhả SoundPool khi ẩn
+        feedback.onHidden()                    // âm phím riêng: dừng tiếng đang kêu, GIỮ mẫu đã nạp (nhả ở releaseIdle)
         closeClipboardPane()
         inputShown = false
         session.pasteOnce.ended()              // ẩn bàn phím: lời mời dán đang hiện coi như bỏ qua
@@ -931,6 +932,13 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         settingsCache = null
     }
 
+    /** API cũ (≈ TRIM_MEMORY_COMPLETE): bàn phím đang ẩn ⇒ nhả như hẹn giờ ẩn (gồm SoundPool). */
+    @Deprecated("Deprecated in Java")
+    override fun onLowMemory() {
+        @Suppress("DEPRECATION") super.onLowMemory()
+        if (!inputShown) releaseIdle()
+    }
+
     /** Hẹn giờ ẩn (RAM-AUDIT #6): bàn phím ẩn liền [IDLE_RELEASE_MS] ⇒ nhả dữ liệu nạp lại được. */
     private val idleRelease = Runnable { if (!inputShown) releaseIdle() }
 
@@ -952,6 +960,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         keyboard?.releaseIdleCaches()
         clipPane?.let { if (it.visibility != View.VISIBLE) { it.listener = null; root?.overlay = null; clipPane = null } }
         templatesCache = null
+        // RAM 10/11/2026: SoundPool giữ qua các lần ẩn ngắn, nhả ở đây; cache từ vựng vuốt theo decoder vừa bỏ.
+        feedback.releaseSound()
+        com.viettelex.keyboard.SwipeVocab.release()
     }
 
     /**
@@ -963,7 +974,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         if (!english && !wall) return
         englishReleased = false; wallpaperReleased = false
         val jobs = ArrayList<Runnable>(2)
-        if (english) jobs += Runnable { SwipeEnglish.lexicon }
+        if (english) jobs += Runnable { SwipeEnglish.warm() }
         if (wall) root?.reloadWallpaper { jobs += it }
         if (jobs.isEmpty()) return
         Thread({ jobs.forEach { it.run() } }, "vt-rewarm").apply { priority = Thread.MIN_PRIORITY + 1 }.start()
@@ -1339,7 +1350,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         // Dựng template nền (~320 KB) — một luồng nhờ swipeLock; decode chờ nếu chưa xong.
         worker().post {
             synchronized(swipeLock) { if (swipeDecoder === dec) dec.prepare() }
-            if (session.swipeEnglish) SwipeEnglish.lexicon     // nạp từ điển Anh ở nền (lazy, thread-safe)
+            if (session.swipeEnglish) SwipeEnglish.warm(swipe = true)   // từ điển Anh + bảng vuốt ở nền (lazy, thread-safe)
             SyllableLM.shared       // map mô hình trigram (vnlm.bin — thanh gợi ý + Thêm dấu cũng dùng)
         }
     }

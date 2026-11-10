@@ -34,7 +34,11 @@ import java.io.File
  * tiếng theo kiểu keySoundStyle ([KeySoundSynth] 5 kiểu tổng hợp, hoặc âm tự chọn trong
  * noBackupFilesDir) qua SoundPool nạp sẵn, theo âm lượng thanh trượt, KHÔNG kèm tiếng hệ
  * thống; im khi máy ở Rung/Im lặng (như Gboard/AOSP LatinIME). SoundPool rảnh không tốn
- * CPU (không có luồng render liên tục như AVAudioEngine iOS) và được nhả khi ẩn bàn phím.
+ * CPU (không có luồng render liên tục như AVAudioEngine iOS), không xin audio focus / wake lock.
+ * Ẩn bàn phím ([onHidden]) chỉ DỪNG tiếng đang kêu (autoPause — không còn stream active giữ
+ * đường ra âm thanh), GIỮ mẫu đã nạp: hiện lại cùng kiểu ⇒ 0 lần nạp, phím đầu kêu ngay (trước
+ * 10/11/2026 dựng lại SoundPool + nạp 3–30 mẫu mỗi lần hiện, phím đầu im tới khi nạp xong).
+ * Nhả hẳn ([releaseSound]): hẹn giờ ẩn 3 phút / thiếu RAM (IME releaseIdle), đổi kiểu, tắt âm.
  * Kiểu "Hệ thống" (keySoundStyle = system) ⇒ y như TẮT: playSoundEffect, không dựng SoundPool,
  * không đọc ringer — 0 chi phí.
  *
@@ -99,6 +103,16 @@ class Feedback(private val ctx: Context) {
         private set
     private var ringerNormal = true
     private var ringerCheckedAt = 0L
+    /** Test: số SoundPool đã dựng / số mẫu đã gọi nạp (hiện lại cùng kiểu không được tăng). */
+    var poolBuilds = 0
+        private set
+    var sampleLoads = 0
+        private set
+    /** Đang giữ SoundPool (test). */
+    val hasPool: Boolean get() = pool != null
+
+    private fun load(p: SoundPool, path: String): Int { sampleLoads++; return p.load(path, 1) }
+
     /** Test hook: đường âm lần bấm gần nhất. */
     var lastRoute: KeySoundSynth.Route? = null
         private set
@@ -181,7 +195,7 @@ class Feedback(private val ctx: Context) {
             AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).build()
-        pool = p; poolKey = key
+        pool = p; poolKey = key; poolBuilds++
         val fresh = BooleanArray(ids.size); loaded = fresh
         val dir = ctx.cacheDir
         if (inst != null) { configurePiano(p, dir, inst, worker); loadSqueak(); loadSurf(); return }
@@ -201,13 +215,13 @@ class Feedback(private val ctx: Context) {
             val vars = rainVariantFiles(dir, style)
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 if (pool !== p) return@post
-                if (ret != null) returnId = p.load(ret.path, 1)
-                vars.forEachIndexed { i, f -> if (f != null && i < variantIds.size) variantIds[i] = p.load(f.path, 1) }
+                if (ret != null) returnId = load(p, ret.path)
+                vars.forEachIndexed { i, f -> if (f != null && i < variantIds.size) variantIds[i] = load(p, f.path) }
                 val custom = files.distinct().size == 1 && files[0] == customFile
                 var sharedId = 0
                 files.forEachIndexed { i, f ->
                     if (f == null) return@forEachIndexed
-                    ids[i] = if (custom && sharedId != 0) sharedId else p.load(f.path, 1).also { sharedId = it }
+                    ids[i] = if (custom && sharedId != 0) sharedId else load(p, f.path).also { sharedId = it }
                     kindGain[i] = if (custom) CUSTOM_KIND_GAIN[i] else 1f
                 }
             }
@@ -231,11 +245,11 @@ class Feedback(private val ctx: Context) {
             val extras = pianoExtraFiles(dir, inst)
             main.post {
                 if (pool !== p) return@post
-                for ((m, f) in notes) if (f != null) pianoIds[m] = p.load(f.path, 1)
+                for ((m, f) in notes) if (f != null) pianoIds[m] = load(p, f.path)
                 // Cùng file (cách = hợp âm 0) ⇒ cùng sample id, không nạp đôi.
                 val loadedIds = HashMap<String, Int>()
                 extras.forEachIndexed { i, f ->
-                    if (f != null && i < pianoExtra.size) pianoExtra[i] = loadedIds.getOrPut(f.path) { p.load(f.path, 1) }
+                    if (f != null && i < pianoExtra.size) pianoExtra[i] = loadedIds.getOrPut(f.path) { load(p, f.path) }
                 }
             }
         })
@@ -253,7 +267,7 @@ class Feedback(private val ctx: Context) {
             val notes = inst.map.notes.map { it to pianoNoteFile(dir, inst, it, sustain = true) }
             main.post {
                 if (pool !== p) return@post
-                for ((m, f) in notes) if (f != null) sustainIds[m] = p.load(f.path, 1)
+                for ((m, f) in notes) if (f != null) sustainIds[m] = load(p, f.path)
                 sustainState = 2
             }
         })
@@ -273,7 +287,7 @@ class Feedback(private val ctx: Context) {
         val dir = ctx.cacheDir
         w(Runnable {
             val f = squeakFile(dir)
-            main.post { if (pool === p && squeakWanted && f != null) squeakId = p.load(f.path, 1) }
+            main.post { if (pool === p && squeakWanted && f != null) squeakId = load(p, f.path) }
         })
     }
 
@@ -315,7 +329,7 @@ class Feedback(private val ctx: Context) {
         val kind = eventSound
         w(Runnable {
             val f = if (kind == EventSound.CHEER) cheerFile(dir) else surfFile(dir)
-            main.post { if (pool === p && surfWanted && eventSound == kind && f != null) surfId = p.load(f.path, 1) }
+            main.post { if (pool === p && surfWanted && eventSound == kind && f != null) surfId = load(p, f.path) }
         })
     }
 
@@ -353,7 +367,22 @@ class Feedback(private val ctx: Context) {
         return true
     }
 
-    /** Nhả SoundPool (ẩn bàn phím, thiếu RAM, tắt setting). */
+    /**
+     * Bàn phím ẩn: dừng mọi stream đang kêu (nốt ngân / sóng vỗ / "ding"), GIỮ SoundPool + mẫu đã
+     * nạp. Stream dừng ⇒ AudioFlinger cho đường ra âm thanh về standby như khi pool rỗng.
+     */
+    fun onHidden() {
+        pool?.let { p ->
+            for (s in pianoStreams) if (s != 0) p.stop(s)
+            for (s in sustainStreams) if (s != 0) p.stop(s)
+            for (s in surfStreams) if (s != 0) p.stop(s)
+            p.autoPause()      // tiếng phím ngắn không giữ id: dừng nốt phần còn lại
+        }
+        pianoStreams.fill(0); sustainStreams.fill(0); surfStreams.fill(0)
+        pedal.reset()
+    }
+
+    /** Nhả SoundPool (hẹn giờ ẩn / thiếu RAM, đổi kiểu, tắt setting, huỷ service). */
     fun releaseSound() {
         pool?.release()
         pool = null
