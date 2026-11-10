@@ -55,6 +55,10 @@ _ = FrontmostApp.shared
 // re-attempted from activateServer once permission is granted.
 TerminalTapController.shared.ensureRunning()
 
+// Issue #156: app khác báo "kết thúc từ" (`notifyutil -p com.viettelex.endWord`) —
+// chỉ bỏ từ đang soạn, xem EndWordSignal.
+EndWordSignal.install()
+
 // Authoritative gate for the tap: whenever macOS switches the selected keyboard input
 // source, recompute whether VietTelex is active. This catches per-document switching
 // (which can restore VietTelex on focus-return without an activateServer call) and

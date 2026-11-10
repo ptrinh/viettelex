@@ -339,6 +339,12 @@ final class TelexInputController: IMKInputController {
         guard event.type == .keyDown,
               let client = sender as? IMKTextInput else { return false }
 
+        // Issue #156 (TapWordBreak): client vừa activate đã nhận phím ⇒ một
+        // activateServer tới SAU phím đầu của ô mới (#110) không được làm tap bỏ từ.
+        // Không lọc burst synthetic của mình: giữa activateServer và phím vật lý đầu
+        // tiên ở ô mới tap không phát gì, và lọc tốn một bản sao CGEvent mỗi phím.
+        ClientFocus.noteClientKey()
+
         // Phím thật tới khi bản re-post Return/Tab của mình chưa quay lại = app đã xếp nó
         // TRƯỚC Return ⇒ nuốt, post lại sau bản sao (RepostOrder). Trước MỌI xử lý khác:
         // phím này chưa được phép đụng tới văn bản / trạng thái (gợi ý, dấu cách vừa nhận…).
@@ -1740,6 +1746,17 @@ final class TelexInputController: IMKInputController {
                 + "expected=\(expected) polls=\(r.polls) strike=\(catchUpTimeouts)")
         }
         return r.caughtUp
+    }
+
+    /// EndWordSignal (#156, MAIN): app khác báo "kết thúc từ" — kết thúc cụm đang soạn
+    /// của controller đang activate như một ranh giới KHÔNG phát gì (không nở gõ tắt,
+    /// không khôi phục tiếng Anh). In-place/tap: chữ đã nằm trong ô, chỉ quên. Marked:
+    /// chốt đúng chữ đang gạch chân (endComposition) — bỏ qua thì lần setMarkedText sau
+    /// sẽ thay mất nó. Engine rỗng ⇒ không làm gì.
+    static func endWordFromSignal() {
+        guard let c = activeController, !c.engine.isEmpty || c.engine.canReopenLastCommit else { return }
+        if !c.engine.isEmpty, let client = c.client() as? IMKTextInput { c.endComposition(client) }
+        c.dropComposition(cause: "endWord-signal")
     }
 
     /// Drop the composition, LOGGING the cause when it wasn't empty. A silent mid-word

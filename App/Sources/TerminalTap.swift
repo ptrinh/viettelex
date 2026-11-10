@@ -22,6 +22,7 @@
 import Cocoa
 import Carbon.HIToolbox
 import ApplicationServices
+import notify          // EndWordSignal: notify_register_dispatch (Darwin notify, #156)
 import TelexCore
 
 /// THIS build's bundle id — never the ship constant hardcoded at a call site.
@@ -400,20 +401,99 @@ enum DetectorBackoff {
 ///   đang phục vụ nó, nil với mọi client khác (issue #110). Một client KHÁC được
 ///   activate là bằng chứng panel đã mất bàn phím — cùng lập luận với
 ///   SpotlightDetector.noteUnfocused.
+/// - `clientKeySinceActivation`: IMK đã nhận một phím thật trong client vừa activate
+///   (issue #156, xem TapWordBreak). Đặt bởi TelexInputController.handle (MAIN), xoá
+///   ở mỗi activateServer; tap chỉ đọc khi epoch đã lệch giữa từ (hiếm).
 enum ClientFocus {
     private static let lock = NSLock()
     private static var _epoch: UInt64 = 0
     private static var _overlayLauncher: String?
+    private static var _clientKeySinceActivation = false
 
     static func noteActivated(client: String?) {
         lock.withLock {
             _epoch &+= 1
             _overlayLauncher = AppState.isOverlayLauncher(client) ? client : nil
+            _clientKeySinceActivation = false
         }
+    }
+
+    /// IMK vừa nhận một keyDown thật (không phải burst của mình) trong client đang
+    /// activate. MAIN, mỗi phím IMK: một lock trip.
+    static func noteClientKey() {
+        lock.withLock { _clientKeySinceActivation = true }
     }
 
     static var epoch: UInt64 { lock.withLock { _epoch } }
     static var overlayLauncher: String? { lock.withLock { _overlayLauncher } }
+    static var clientKeySinceActivation: Bool { lock.withLock { _clientKeySinceActivation } }
+}
+
+/// Issue #156 (Ghostty, 10/11/2026): hai split, gõ "m" ở split A, đổi focus sang split B
+/// KHÔNG bằng click / phím ranh giới (AppleScript, phím tắt của app đã nuốt) rồi gõ
+/// "vieejt␣" ⇒ ra "vieejt": engine của tap vẫn giữ "m" của ô cũ nên từ đầu tiên ở ô
+/// mới dính vào nó ("mvieejt" không phải âm tiết). Đường IMK không bị vì activateServer
+/// gọi dropComposition; tap thì chưa bao giờ nghe activateServer.
+///
+/// Luật (không AX, không ngưỡng thời gian — một phép so trên đường phím):
+/// - `focusMoved`: phím vật lý tới khi ĐÃ CÓ activateServer kể từ phím/click trước
+///   (FocusAnchor — cùng neo với re-edit #111) mà engine còn giữ từ (hoặc ảnh chụp
+///   mở lại từ vừa chốt) ⇒ bỏ từ cũ, phím này bắt đầu từ mới. Không phát gì: chữ cũ đã
+///   nằm ở ô cũ.
+/// - NGOẠI LỆ cuộc đua phím đầu (#110 — Raycast): app chỉ activate client mới khi
+///   phím ĐẦU TIÊN tới nó, nên activateServer đến SAU phím đó. Khi đó IMK đã thấy phím
+///   ấy trong client mới (`clientKeySinceActivation`) ⇒ từ đang soạn ĐÃ là của ô mới:
+///   giữ nguyên, không bao giờ reset mất phím đầu.
+/// - Họ Chromium/Electron bị loại: activateServer ở đó có thể tới giữa từ trong cùng
+///   một ô (popup gợi ý, danh sách mention, ô dựng lại); click/⌘-tổ hợp vẫn reset như
+///   cũ. Chưa biết họ (`nil` — chưa dò xong) ⇒ coi như loại (giữ hành vi cũ).
+/// - `endWord`: tín hiệu "kết thúc từ" từ app khác (EndWordSignal) — chỉ bỏ từ đang
+///   soạn; engine rỗng ⇒ không làm gì.
+/// Pure để test.
+enum TapWordBreak {
+    static func focusMoved(engineHoldsWord: Bool, focusStable: Bool,
+                           clientKeySinceActivation: () -> Bool,
+                           chromiumFamily: () -> Bool?) -> Bool {
+        guard engineHoldsWord, !focusStable else { return false }
+        guard !clientKeySinceActivation() else { return false }
+        return chromiumFamily() == false
+    }
+
+    static func endWord(signalPending: Bool, engineHoldsWord: Bool) -> Bool {
+        signalPending && engineHoldsWord
+    }
+}
+
+/// Issue #156 phần 2: app khác (TUI dùng j/k/i làm lệnh, script đổi split…) báo
+/// "kết thúc từ" mà không phải gửi phím giả. Tên DUY NHẤT, nhận qua CẢ HAI kênh:
+/// - Darwin notify (`notifyutil -p com.viettelex.endWord`, `notify_post()` trong C);
+/// - DistributedNotificationCenter (`DistributedNotificationCenter.default()
+///   .postNotificationName(.init("com.viettelex.endWord"), object: nil)`).
+/// Không đọc object/userInfo, không đọc/ghi chữ, không đổi cài đặt: chỉ bỏ từ đang
+/// soạn (như một phím ranh giới không phát gì). Tap: bật cờ dưới stateLock, phím vật
+/// lý kế tiếp tiêu thụ trên TAP thread (cùng cách pendingEngineReset). IMK: bỏ cụm
+/// trên MAIN. Tên in-process `com.viettelex.resetComposition` giữ nguyên vai trò cũ.
+enum EndWordSignal {
+    static let name = "com.viettelex.endWord"
+    private static var notifyToken: Int32 = -1   // NOTIFY_TOKEN_INVALID (macro không vào Swift)
+    private static var installed = false
+
+    /// MAIN, một lần lúc khởi động (không chạy trong test host).
+    static func install() {
+        guard !installed else { return }
+        installed = true
+        notify_register_dispatch(name, &notifyToken, DispatchQueue.main) { _ in deliver() }
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDistributedCenter(), nil,
+            { _, _, _, _, _ in DispatchQueue.main.async { EndWordSignal.deliver() } },
+            name as CFString, nil, .deliverImmediately)
+    }
+
+    /// MAIN. Rẻ: một lock trip cho tap + một lần bỏ cụm IMK nếu đang soạn.
+    static func deliver() {
+        TerminalTapController.shared.requestEndWord()
+        TelexInputController.endWordFromSignal()
+    }
 }
 
 /// Issue #110 vòng 2 (02/10/2026, v1.8.8, Raycast 2.6 trên Edge): CUỘC ĐUA PHÍM ĐẦU.
@@ -2320,6 +2400,14 @@ final class TerminalTapController {
     /// practice, since the tap can't deliver before it is enabled, but it was the one
     /// place main touched tap-thread state.) Guarded by `stateLock`.
     private var pendingEngineReset = false
+    /// Issue #156: EndWordSignal vừa tới (MAIN) — phím vật lý kế tiếp bỏ từ đang soạn
+    /// trên TAP thread. Gộp vào cùng lock trip với `pendingEngineReset`. `stateLock`.
+    private var pendingEndWord = false
+
+    /// MAIN (EndWordSignal.deliver). Một lock trip; engine do TAP thread tự xử lý.
+    func requestEndWord() {
+        stateLock.withLock { pendingEndWord = true }
+    }
 
     /// Uptime of the last REAL keyDown seen by the callback, 0 = none yet. Written on
     /// the TAP thread, read by the watchdog on MAIN — guarded by `stateLock` (folded
@@ -3163,15 +3251,26 @@ final class TerminalTapController {
 
         // Mọi phím vật lý (cả chord ⌘K đổi hội thoại) neo focus cho re-edit (#111).
         reEditFocusStable = reEditFocus.observe(ClientFocus.epoch)
+        // Issue #156: focus đã sang ô khác (activateServer) mà không có click / phím
+        // ranh giới ⇒ từ trong engine là của ô CŨ. Ổn định (ca thường): một phép so Bool.
+        if !reEditFocusStable,
+           TapWordBreak.focusMoved(
+                engineHoldsWord: !engine.isEmpty || engine.canReopenLastCommit,
+                focusStable: false,
+                clientKeySinceActivation: { ClientFocus.clientKeySinceActivation },
+                chromiumFamily: { SystemReplacementGuard.shared.chromiumFamilyCached(FrontmostApp.shared.bundleID) }) {
+            DebugLog.log("tap: focus moved since last key (activateServer) → new word (#156)")
+            abandonWordForNewContext()
+        }
         if handoffKeys >= 0 {
             handoffKeys += 1
             if handoffKeys > 1 { TapHandoff.clear(); handoffKeys = -1 }
         }
 
         // Gõ tắt hoàn tác: chỉ ⌫ NGAY SAU lần nở — mọi phím thật khác tiêu thụ nó.
-        let pendingShortcutUndo = shortcutUndo
+        var pendingShortcutUndo = shortcutUndo
         shortcutUndo = nil
-        let pendingRetroUndo = retroUndo
+        var pendingRetroUndo = retroUndo
         retroUndo = nil
         let prevSpaceNs = periodSpaceNs
         let prevEmDashOurs = lastEmDashOurs
@@ -3197,17 +3296,25 @@ final class TerminalTapController {
         chordRecognizer.disarm(flags: event.flags)
 
         var wakeWatchdog = false
-        let needsEngineReset: Bool = stateLock.withLock {
+        let (needsEngineReset, endWordPending): (Bool, Bool) = stateLock.withLock {
             if Self.stampsLiveness(imeActive: active) {
                 lastKeyDownNs = DispatchTime.now().uptimeNanoseconds
                 // First key after idle: back to the 3s cadence (one hop per idle
                 // stretch, not per key — the flag flips once).
                 if watchdogSlow { watchdogSlow = false; wakeWatchdog = true }
             }
-            defer { pendingEngineReset = false }
-            return pendingEngineReset
+            defer { pendingEngineReset = false; pendingEndWord = false }
+            return (pendingEngineReset, pendingEndWord)
         }
         if needsEngineReset { engine.reset(); shortcutTail.reset() }
+        // EndWordSignal (#156): app báo "kết thúc từ" — bỏ từ đang soạn, không phát gì.
+        // Engine rỗng ⇒ không làm gì.
+        if TapWordBreak.endWord(signalPending: endWordPending,
+                                engineHoldsWord: !engine.isEmpty || engine.canReopenLastCommit) {
+            DebugLog.log("tap: end-word signal → new word (#156)")
+            abandonWordForNewContext()
+            pendingShortcutUndo = nil; pendingRetroUndo = nil
+        }
         if wakeWatchdog {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.watchdog != nil else { return }
@@ -3781,6 +3888,21 @@ final class TerminalTapController {
             noteHandoff()
         }
         return nil
+    }
+
+    /// Issue #156: từ đang soạn thuộc về một ngữ cảnh đã qua (ô cũ trước khi đổi focus,
+    /// hoặc app báo EndWordSignal) — bỏ nó như click bỏ (không phát ⌫/chữ nào: chữ cũ đã
+    /// nằm đúng chỗ của nó), phím kế tiếp bắt đầu từ mới. Chữ trước con trỏ không còn
+    /// biết ⇒ cụm gõ tắt coi như con trỏ đã dời (#99), hoàn tác một lần hết hiệu lực.
+    /// Không đụng neo re-edit (FocusAnchor) hay TapHandoff. TAP thread.
+    private func abandonWordForNewContext() {
+        engine.reset()
+        shortcutTail.caretMoved(); shortcutUndo = nil; retroUndo = nil
+        autoCappedWord = false; suppressAutoCap = false; lastEmDashOurs = false; periodSpaceNs = 0
+        toneRun.reset()
+        numberPrevRun = ""
+        lastTapKeyWasDigit = false
+        lastTapKeyWasBoundary = true   // như một ranh giới: re-edit không seed xuyên qua nó
     }
 
     /// TapHandoff (#110): tap vừa tự đặt chữ của từ đang soạn lên màn hình. Nếu phím

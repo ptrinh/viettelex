@@ -122,8 +122,30 @@ final class SystemReplacementGuard {
     /// main/tap thread — ranh giới đầu tiên không phải đọc ổ đĩa.
     func activated(bundleID: String?) {
         refreshIfStale()
-        guard let id = bundleID, lock.withLock({ !table.isEmpty && enabled[id] == nil }) else { return }
+        guard let id = bundleID else { return }
+        // Họ Chromium cũng là input của TapWordBreak (#156) ⇒ dò sẵn cho MỌI client mới,
+        // không chỉ khi có bảng (một lần liệt kê Frameworks mỗi bundle id mỗi phiên).
+        prefetchChromiumFamily(id)
+        guard lock.withLock({ !table.isEmpty && enabled[id] == nil }) else { return }
         DispatchQueue.global(qos: .utility).async { _ = self.appSubstitutes(id) }
+    }
+
+    /// Họ Chromium/Electron của app, CHỈ từ bộ nhớ đệm (an toàn trên tap thread, không
+    /// đọc ổ đĩa). Chưa dò ⇒ nil và đặt lịch dò nền cho lần sau.
+    func chromiumFamilyCached(_ bundleID: String?) -> Bool? {
+        guard let id = bundleID else { return nil }
+        if let v = lock.withLock({ chromium[id] }) { return v }
+        prefetchChromiumFamily(id)
+        return nil
+    }
+
+    private func prefetchChromiumFamily(_ id: String) {
+        guard lock.withLock({ chromium[id] == nil }) else { return }
+        DispatchQueue.global(qos: .utility).async {
+            guard self.lock.withLock({ self.chromium[id] == nil }) else { return }
+            let v = Self.detectChromium(id)
+            self.lock.withLock { self.chromium[id] = v }
+        }
     }
 
     /// Ranh giới vừa khớp một khoá gõ tắt: có để macOS nở thay không (issue #117).
