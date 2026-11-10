@@ -13,6 +13,9 @@
 #include "telexcore.h"
 
 #include <atomic>
+#include <csignal>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <cctype>
 #include <chrono>
 #include <mutex>
@@ -598,6 +601,72 @@ void testDirectMode() {
     CHECK_EQ(r.m.doc, std::string("echo 1.200.000 ₫ "));
 }
 
+// MARK: HintService robustness (fake helpers, no Swift needed)
+
+std::string fakeHelper(const std::string &dir, const std::string &name, const std::string &body) {
+    std::string p = dir + "/" + name;
+    FILE *f = std::fopen(p.c_str(), "w");
+    std::fprintf(f, "#!/bin/sh\n%s\n", body.c_str());
+    std::fclose(f);
+    chmod(p.c_str(), 0755);
+    return p;
+}
+
+int countLines(const std::string &path) {
+    FILE *f = std::fopen(path.c_str(), "r");
+    if (!f) return 0;
+    int n = 0;
+    for (int c; (c = std::fgetc(f)) != EOF;) n += c == '\n';
+    std::fclose(f);
+    return n;
+}
+
+// A helper that dies at start (broken install / missing data) was respawned twice per word
+// forever; now spawning pauses after kMaxFailures deaths in a row.
+void testHelperDyingAtStartBacksOff() {
+    char tmpl[] = "/tmp/vt-hint-XXXXXX";
+    const char *d = mkdtemp(tmpl);
+    if (!d) { ++g_fail; return; }
+    const std::string dir = d, log = dir + "/spawns";
+    std::string helper = fakeHelper(dir, "dies", "echo x >> '" + log + "'; exit 3");
+    HintService svc([](std::function<void()>) {}, helper);
+    std::string ans;
+    for (int i = 0; i < 10; ++i) CHECK(!svc.query("math 1+1=", ans, 2000));
+    CHECK_EQ(countLines(log), HintService::kMaxFailures);
+    CHECK_EQ(svc.helperPid(), -1);
+    std::remove(log.c_str());
+    std::remove(helper.c_str());
+    rmdir(d);
+}
+
+// After its 2-minute idle exit nobody waited for the helper: a zombie until the next word.
+void testExitedHelperIsReaped() {
+    char tmpl[] = "/tmp/vt-hint-XXXXXX";
+    const char *d = mkdtemp(tmpl);
+    if (!d) { ++g_fail; return; }
+    const std::string dir = d;
+    // Answers once, then quits (like the idle exit).
+    std::string helper = fakeHelper(dir, "once", "read l; echo none; exit 0");
+    HintService svc([](std::function<void()>) {}, helper);
+    std::string ans;
+    CHECK(svc.query("math 1+1=", ans, 2000));
+    CHECK_EQ(ans, std::string("none"));
+    int pid = svc.helperPid();
+    CHECK(pid > 0);
+    bool reaped = false;
+    for (int i = 0; i < 200 && !reaped; ++i) {  // ≤ 2 s for the shell to exit
+        reaped = svc.reapExitedHelper();
+        if (!reaped) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    CHECK(reaped);
+    CHECK_EQ(svc.helperPid(), -1);
+    CHECK(kill(pid, 0) != 0);  // gone for good, not a zombie
+    // The next request simply spawns it again (not counted as a failure).
+    CHECK(svc.query("math 1+1=", ans, 2000));
+    std::remove(helper.c_str());
+    rmdir(d);
+}
+
 // MARK: HintService + viettelex-text-tool --serve (real helper)
 
 void testHintServiceEndToEnd() {
@@ -702,6 +771,8 @@ int main() {
     testTypoSkipsKnownEnglish();
     testPasswordAndEnglish();
     testDirectMode();
+    testHelperDyingAtStartBacksOff();
+    testExitedHelperIsReaped();
     testHintServiceEndToEnd();
     std::printf("caret hint tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
