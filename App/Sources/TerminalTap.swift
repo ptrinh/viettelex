@@ -404,18 +404,39 @@ enum DetectorBackoff {
 /// - `clientKeySinceActivation`: IMK đã nhận một phím thật trong client vừa activate
 ///   (issue #156, xem TapWordBreak). Đặt bởi TelexInputController.handle (MAIN), xoá
 ///   ở mỗi activateServer; tap chỉ đọc khi epoch đã lệch giữa từ (hiếm).
+/// - `controller`: số hiệu (serial) của IMKInputController vừa activate — TapWordBreak
+///   (#156) neo vào nó, KHÔNG vào `epoch`: cùng một controller deactivate→activate lại
+///   (WKWebView ~250 ms sau ⌫, popup, cửa sổ phụ) là CÙNG ô ⇒ không cắt từ; controller
+///   khác (IMK tạo một controller cho mỗi client/ô nhập) ⇒ ô khác ⇒ cắt từ. Serial do
+///   `newControllerSerial()` cấp, không dùng ObjectIdentifier (địa chỉ của controller đã
+///   giải phóng có thể được cấp lại cho controller mới ⇒ "trùng" giả).
 enum ClientFocus {
     private static let lock = NSLock()
     private static var _epoch: UInt64 = 0
+    private static var _controller: UInt64 = 0
+    private static var _serials: UInt64 = 0
     private static var _overlayLauncher: String?
     private static var _clientKeySinceActivation = false
 
-    static func noteActivated(client: String?) {
+    /// Số hiệu duy nhất cho một IMKInputController (gọi một lần lúc khởi tạo). 0 không
+    /// bao giờ được cấp (= chưa có activate nào).
+    static func newControllerSerial() -> UInt64 {
+        lock.withLock { _serials &+= 1; return _serials }
+    }
+
+    /// `controller`: serial của controller vừa activate (xem `newControllerSerial`).
+    static func noteActivated(client: String?, controller: UInt64 = 0) {
         lock.withLock {
             _epoch &+= 1
+            _controller = controller
             _overlayLauncher = AppState.isOverlayLauncher(client) ? client : nil
             _clientKeySinceActivation = false
         }
+    }
+
+    /// Một lock trip cho cả hai neo trên đường phím của tap.
+    static var snapshot: (epoch: UInt64, controller: UInt64) {
+        lock.withLock { (_epoch, _controller) }
     }
 
     /// IMK vừa nhận một keyDown thật (không phải burst của mình) trong client đang
@@ -436,10 +457,14 @@ enum ClientFocus {
 /// gọi dropComposition; tap thì chưa bao giờ nghe activateServer.
 ///
 /// Luật (không AX, không ngưỡng thời gian — một phép so trên đường phím):
-/// - `focusMoved`: phím vật lý tới khi ĐÃ CÓ activateServer kể từ phím/click trước
-///   (FocusAnchor — cùng neo với re-edit #111) mà engine còn giữ từ (hoặc ảnh chụp
-///   mở lại từ vừa chốt) ⇒ bỏ từ cũ, phím này bắt đầu từ mới. Không phát gì: chữ cũ đã
-///   nằm ở ô cũ.
+/// - `focusMoved`: phím vật lý tới khi controller IMK đang activate KHÁC controller lúc
+///   phím/click trước (FocusAnchor trên `ClientFocus.controller`) ⇒ bỏ ngữ cảnh của ô
+///   cũ (từ đang soạn, cụm gõ tắt, cờ "dính số", cụm số của chip tiền, chuỗi Thêm
+///   dấu), phím này bắt đầu từ mới. Không phát gì: chữ cũ đã nằm ở ô cũ. CÙNG controller
+///   activate lại (WKWebView deactivate→activate 250 ms sau ⌫, MACOS_IME_NOTES) KHÔNG
+///   phải đổi ô ⇒ giữ từ ("viê" + activate lại + "tj" vẫn ra "việt"). Re-edit (#111)
+///   vẫn neo `epoch` (mọi activate). Bỏ ngữ cảnh cả khi engine rỗng: "50" ở split A
+///   rồi "ko␣" ở split B — cờ dính-số của A không được chặn gõ tắt ở B.
 /// - NGOẠI LỆ cuộc đua phím đầu (#110 — Raycast): app chỉ activate client mới khi
 ///   phím ĐẦU TIÊN tới nó, nên activateServer đến SAU phím đó. Khi đó IMK đã thấy phím
 ///   ấy trong client mới (`clientKeySinceActivation`) ⇒ từ đang soạn ĐÃ là của ô mới:
@@ -447,14 +472,20 @@ enum ClientFocus {
 /// - Họ Chromium/Electron bị loại: activateServer ở đó có thể tới giữa từ trong cùng
 ///   một ô (popup gợi ý, danh sách mention, ô dựng lại); click/⌘-tổ hợp vẫn reset như
 ///   cũ. Chưa biết họ (`nil` — chưa dò xong) ⇒ coi như loại (giữ hành vi cũ).
+/// - Cuộc đua còn lại (đã cân nhắc, CHẤP NHẬN — không thêm ngưỡng thời gian): gõ
+///   trước (type-ahead) vào ô mới mà activateServer tới SAU phím đầu k1; nếu k2 tới
+///   tap trong khoảng giữa `noteActivated` và `handle(k1)` trên MAIN (hai tin nhắn IMK
+///   liền nhau, cỡ vài ms) thì từ bị cắt sau k1. k1 KHÔNG bao giờ mất (nó đã nằm trên
+///   màn hình, chỉ ngữ cảnh soạn của nó bị bỏ). Từ khi chỉ controller KHÁC mới cắt từ,
+///   cuộc đua chỉ còn ở lần đổi ô thật.
 /// - `endWord`: tín hiệu "kết thúc từ" từ app khác (EndWordSignal) — chỉ bỏ từ đang
 ///   soạn; engine rỗng ⇒ không làm gì.
 /// Pure để test.
 enum TapWordBreak {
-    static func focusMoved(engineHoldsWord: Bool, focusStable: Bool,
+    static func focusMoved(focusStable: Bool,
                            clientKeySinceActivation: () -> Bool,
                            chromiumFamily: () -> Bool?) -> Bool {
-        guard engineHoldsWord, !focusStable else { return false }
+        guard !focusStable else { return false }
         guard !clientKeySinceActivation() else { return false }
         return chromiumFamily() == false
     }
@@ -2834,6 +2865,9 @@ final class TerminalTapController {
     /// TAP-thread confined.
     private var reEditFocus = FocusAnchor()
     private var reEditFocusStable = true
+    /// Neo ô cho TapWordBreak (#156): serial controller IMK lúc phím/click trước (xem
+    /// ClientFocus.controller). TAP-thread confined.
+    private var wordFocus = FocusAnchor()
     /// Vị trí click gần nhất chưa bị một phím chữ tiêu thụ (#135, xem ReEditClickCheck).
     /// TAP-thread confined.
     private var reEditClickPoint: CGPoint?
@@ -3229,7 +3263,9 @@ final class TerminalTapController {
             CaretHint.shared.dismissForClick(at: event.location)
             lastTapKeyWasBoundary = false   // click at a word's end re-arms re-edit
             reEditClickPoint = event.location   // …nhưng chỉ khi click trong ô (#135)
-            _ = reEditFocus.observe(ClientFocus.epoch)   // click = neo focus mới (#111)
+            let focus = ClientFocus.snapshot
+            _ = reEditFocus.observe(focus.epoch)          // click = neo focus mới (#111)
+            _ = wordFocus.observe(focus.controller)       // …và neo ô cho TapWordBreak (#156)
             if handoffKeys >= 0 { TapHandoff.clear(); handoffKeys = -1 }   // #110
             lastTapKeyWasDigit = false
             chordRecognizer.disarm(flags: event.flags)        // click giữa lúc giữ chord = không phải toggle
@@ -3250,12 +3286,14 @@ final class TerminalTapController {
         }
 
         // Mọi phím vật lý (cả chord ⌘K đổi hội thoại) neo focus cho re-edit (#111).
-        reEditFocusStable = reEditFocus.observe(ClientFocus.epoch)
-        // Issue #156: focus đã sang ô khác (activateServer) mà không có click / phím
-        // ranh giới ⇒ từ trong engine là của ô CŨ. Ổn định (ca thường): một phép so Bool.
-        if !reEditFocusStable,
+        let focus = ClientFocus.snapshot
+        reEditFocusStable = reEditFocus.observe(focus.epoch)
+        // Issue #156: focus đã sang ô khác (controller IMK khác) mà không có click / phím
+        // ranh giới ⇒ từ trong engine và ngữ cảnh quanh nó là của ô CŨ — bỏ hết, kể cả
+        // khi engine rỗng (cờ dính-số / cụm gõ tắt). Cùng controller activate lại ⇒ cùng
+        // ô, giữ từ. Ổn định (ca thường): một phép so UInt64.
+        if !wordFocus.observe(focus.controller),
            TapWordBreak.focusMoved(
-                engineHoldsWord: !engine.isEmpty || engine.canReopenLastCommit,
                 focusStable: false,
                 clientKeySinceActivation: { ClientFocus.clientKeySinceActivation },
                 chromiumFamily: { SystemReplacementGuard.shared.chromiumFamilyCached(FrontmostApp.shared.bundleID) }) {

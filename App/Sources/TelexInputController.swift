@@ -59,6 +59,9 @@ final class TelexInputController: IMKInputController {
     private var toneRun = ToneRunLogic.Tracker()
     /// Controller vừa activate (main) — CaretHint mượn client của nó để lấy firstRect cho ô nổi.
     private(set) static weak var activeController: TelexInputController?
+    /// Số hiệu duy nhất của controller này (#156, ClientFocus.controller): IMK tạo một
+    /// controller cho mỗi client/ô nhập — tap so số này để biết phím có sang ô khác không.
+    let focusSerial: UInt64 = ClientFocus.newControllerSerial()
     /// ⌫ ngay sau khi nở gõ tắt → trả lại chữ đã gõ (một lần, chỉ in-place, verify màn
     /// hình). Bị tiêu thụ bởi BẤT KỲ phím thật nào tới sau.
     private var shortcutUndo: ShortcutUndo?
@@ -2824,7 +2827,10 @@ final class TelexInputController: IMKInputController {
         if SystemAutoTextSettings.shared.current.capitalize { FocusedRole.refreshAsync() }
         // Tap-side view of this activation: focus epoch for re-edit(tap) (#111) and
         // the overlay-launcher latch (#110). Before anything else reads the client.
-        ClientFocus.noteActivated(client: activatedClient != nil ? AppState.shared.currentBundleID : nil)
+        // Serial controller (#156): tap chỉ cắt từ khi controller KHÁC lần trước.
+        let previousController = ClientFocus.snapshot.controller
+        ClientFocus.noteActivated(client: activatedClient != nil ? AppState.shared.currentBundleID : nil,
+                                  controller: focusSerial)
         pendingTapHandoff = activatedClient != nil && AppState.isOverlayLauncher(AppState.shared.currentBundleID)
         if activatedClient != nil {
             // Spotlight took focus: stamp the visibility cache NOW — the overlay-raw
@@ -2864,7 +2870,9 @@ final class TelexInputController: IMKInputController {
             }
             // What identifier does this client REPORT? (Catalyst/Electron apps may not
             // report what NSWorkspace says — a mismatch mis-routes every mode lookup.)
-            DebugLog.log("activateServer client=\(AppState.shared.currentBundleID ?? "nil") front=\(FrontmostApp.shared.bundleID ?? "?")")
+            // ctl=: serial controller (#156) — hai split / hai ô phải ra hai số khác nhau;
+            // "same" = cùng ô activate lại (tap giữ từ đang soạn).
+            DebugLog.log("activateServer client=\(AppState.shared.currentBundleID ?? "nil") front=\(FrontmostApp.shared.bundleID ?? "?") ctl=#\(focusSerial)\(previousController == focusSerial ? " same" : "")")
             maybePromptAccessibility(AppState.shared.currentBundleID)
             UpdateCheck.maybeAutoCheck()   // opt-in weekly; two cheap guards inside
         }

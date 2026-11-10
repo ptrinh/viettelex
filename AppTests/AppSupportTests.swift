@@ -1475,41 +1475,65 @@ final class BoundaryProbeDowngradeTests: XCTestCase {
 // (CGEvent + post thật) nên quyết định được tách ra hàm thuần.
 final class TapWordBreakTests: XCTestCase {
 
-    /// Một phiên tap tối giản: cùng engine, cùng neo, epoch + cờ IMK do test điều khiển.
+    /// Một phiên tap tối giản: cùng engine, cùng neo, controller IMK + cờ IMK do test
+    /// điều khiển. Ranh giới (khoảng trắng, chữ số) đi như tap: tra gõ tắt với cờ
+    /// dính-số + cụm (ShortcutTail), rồi nối vào cụm.
     private struct TapSession {
         var engine: TelexEngine = {
             var e = TelexEngine(); e.freeMarking = true; return e
         }()
-        var anchor = FocusAnchor()
+        var anchor: FocusAnchor = { var a = FocusAnchor(); _ = a.observe(7); return a }()   // đã neo ở ô 7
         var epoch: UInt64 = 40
+        var controller: UInt64 = 7       // serial controller IMK đang activate
+        private var nextController: UInt64 = 100
         var clientKey = false            // IMK đã thấy phím trong client vừa activate
         var chromium: Bool? = false
         var endWordPending = false
         var breaks = 0
+        var glued = false                // lastTapKeyWasDigit
+        var tail = ShortcutTail()
+        var table = ShortcutTable(["ko": "không"])
+        var expansions: [String] = []
 
-        /// activateServer: epoch +1, cờ phím IMK xoá (như ClientFocus.noteActivated).
-        mutating func activate() { epoch &+= 1; clientKey = false }
+        /// activateServer của controller KHÁC (ô khác): epoch +1, serial mới, cờ IMK xoá.
+        mutating func activate() { nextController &+= 1; activate(controller: nextController) }
+        /// activateServer của một controller cụ thể (cùng serial = cùng ô activate lại).
+        mutating func activate(controller id: UInt64) { epoch &+= 1; controller = id; clientKey = false }
+        mutating func reactivateSameField() { activate(controller: controller) }
 
         mutating func key(_ ch: Character) {
-            let stable = anchor.observe(epoch)
-            let holds = !engine.isEmpty || engine.canReopenLastCommit
+            let stable = anchor.observe(controller)
             let ck = clientKey, chr = chromium
-            if !stable, TapWordBreak.focusMoved(engineHoldsWord: holds, focusStable: stable,
+            if !stable, TapWordBreak.focusMoved(focusStable: stable,
                                                 clientKeySinceActivation: { ck },
                                                 chromiumFamily: { chr }) {
-                engine.reset(); breaks += 1
+                // = abandonWordForNewContext
+                engine.reset(); tail.caretMoved(); glued = false; breaks += 1
             }
             if TapWordBreak.endWord(signalPending: endWordPending,
                                     engineHoldsWord: !engine.isEmpty || engine.canReopenLastCommit) {
                 engine.reset(); breaks += 1
             }
             endWordPending = false
-            _ = engine.feed(ch)
+            if ch.isLetter {
+                _ = engine.feed(ch)
+                return
+            }
+            let b = String(ch)
+            let allow = ShortcutMatch.triggers(boundary: b, glued: glued)
+            let m = ShortcutMatch.find(in: table, composed: engine.composed, raw: engine.rawKeystrokes,
+                                       run: tail.run, allowWord: allow.word, allowToken: allow.token,
+                                       allowAlnum: allow.alnum)
+            if let m { expansions.append(m.expansion) }
+            tail.append(m?.expansion ?? engine.composed)
+            tail.append(b)
+            engine.reset()
+            glued = TelexInputController.gluesShortcutToken(ch.asciiValue)
         }
 
         mutating func type(_ s: String) { for c in s { key(c) } }
         /// Click: tap reset engine + neo lại (nhánh leftMouseDown).
-        mutating func click() { engine.reset(); _ = anchor.observe(epoch) }
+        mutating func click() { engine.reset(); tail.caretMoved(); glued = false; _ = anchor.observe(controller) }
     }
 
     /// Ca của issue: "m" ở split A, AppleScript đổi focus (activateServer), "vieejt" ở B.
@@ -1522,6 +1546,29 @@ final class TapWordBreakTests: XCTestCase {
         XCTAssertEqual(s.breaks, 1)
     }
 
+    /// Follow-up #156: CÙNG ô activate lại giữa từ (WKWebView deactivate→activate ~250 ms,
+    /// MACOS_IME_NOTES) — "viê" + activate lại + "tj" phải ra "việt", không "viêtj".
+    func testSameControllerReactivationMidWordKeepsTheWord() {
+        var s = TapSession()
+        s.type("viee")
+        s.reactivateSameField()
+        s.type("tj")
+        XCTAssertEqual(s.engine.composed, "việt")
+        XCTAssertEqual(s.breaks, 0)
+    }
+
+    /// A → B → A không phím nào ở B: quay về đúng ô cũ, con trỏ không dời ⇒ giữ từ.
+    func testReturningToTheSameControllerKeepsTheWord() {
+        var s = TapSession()
+        let a = s.controller
+        s.type("viee")
+        s.activate()                                  // B
+        s.activate(controller: a)                     // lại A
+        s.type("tj")
+        XCTAssertEqual(s.engine.composed, "việt")
+        XCTAssertEqual(s.breaks, 0)
+    }
+
     /// Hành vi cũ (lỗi) để biết test trên thật sự bảo vệ điều gì.
     func testWithoutBreakTheWordGlues() {
         var e = TelexEngine(); e.freeMarking = true
@@ -1529,14 +1576,14 @@ final class TapWordBreakTests: XCTestCase {
         XCTAssertNotEqual(e.composed, "việt")
     }
 
-    /// Cùng epoch (không đổi focus) ⇒ giữ từ, gõ liền một mạch.
-    func testSameEpochKeepsTheWord() {
+    /// Không đổi focus ⇒ giữ từ, gõ liền một mạch.
+    func testSameFocusKeepsTheWord() {
         var s = TapSession()
         s.type("vie")
         s.type("ejt")
         XCTAssertEqual(s.engine.composed, "việt")
         XCTAssertEqual(s.breaks, 0)
-        XCTAssertFalse(TapWordBreak.focusMoved(engineHoldsWord: true, focusStable: true,
+        XCTAssertFalse(TapWordBreak.focusMoved(focusStable: true,
                                                clientKeySinceActivation: { false },
                                                chromiumFamily: { false }))
     }
@@ -1553,20 +1600,37 @@ final class TapWordBreakTests: XCTestCase {
         XCTAssertEqual(s.breaks, 0)
     }
 
-    /// Engine rỗng (vừa có ranh giới) ⇒ đổi focus không có gì để bỏ.
-    func testEmptyEngineIsNotABreak() {
-        XCTAssertFalse(TapWordBreak.focusMoved(engineHoldsWord: false, focusStable: false,
-                                               clientKeySinceActivation: { false },
-                                               chromiumFamily: { false }))
+    /// Follow-up #156: đổi ô khi engine RỖNG vẫn bỏ ngữ cảnh của ô cũ — "50" ở split A
+    /// (cờ dính-số, cụm "50"), đổi focus, "ko␣" ở split B phải nở "không".
+    func testNumberThenFocusMoveThenShortcutExpands() {
+        XCTAssertTrue(TapWordBreak.focusMoved(focusStable: false,
+                                              clientKeySinceActivation: { false },
+                                              chromiumFamily: { false }),
+                      "engine rỗng vẫn là đổi ô")
+        var s = TapSession()
+        s.type("50")
+        XCTAssertTrue(s.engine.isEmpty)
+        let before = s.breaks
+        s.activate()                                  // split B
+        s.type("ko ")
+        XCTAssertEqual(s.expansions, ["không"])
+        XCTAssertEqual(s.breaks, before + 1)
+    }
+
+    /// Đối chứng: cùng ô, "50ko␣" là từ dính số (#82) ⇒ không nở.
+    func testNumberGluedWordInSameFieldDoesNotExpand() {
+        var s = TapSession()
+        s.type("50ko ")
+        XCTAssertEqual(s.expansions, [])
     }
 
     /// Chromium/Electron: activateServer có thể tới giữa từ trong cùng ô ⇒ không áp
     /// luật; chưa dò xong họ app (nil) ⇒ cũng không (giữ hành vi cũ, fail-closed).
     func testChromiumAndElectronAreExcluded() {
-        XCTAssertFalse(TapWordBreak.focusMoved(engineHoldsWord: true, focusStable: false,
+        XCTAssertFalse(TapWordBreak.focusMoved(focusStable: false,
                                                clientKeySinceActivation: { false },
                                                chromiumFamily: { true }))
-        XCTAssertFalse(TapWordBreak.focusMoved(engineHoldsWord: true, focusStable: false,
+        XCTAssertFalse(TapWordBreak.focusMoved(focusStable: false,
                                                clientKeySinceActivation: { false },
                                                chromiumFamily: { nil }))
         var s = TapSession(); s.chromium = true
@@ -1578,33 +1642,21 @@ final class TapWordBreakTests: XCTestCase {
     /// Ca thường (ổn định) không chạm cờ IMK hay đĩa: closure không được gọi.
     func testStableFocusReadsNothingElse() {
         var touched = false
-        _ = TapWordBreak.focusMoved(engineHoldsWord: true, focusStable: true,
+        _ = TapWordBreak.focusMoved(focusStable: true,
                                     clientKeySinceActivation: { touched = true; return false },
                                     chromiumFamily: { touched = true; return false })
         XCTAssertFalse(touched)
-    }
-
-    /// Ảnh chụp mở lại từ vừa chốt (⌫ #40) của ô cũ cũng là "từ của ô cũ".
-    func testReopenSnapshotCountsAsHeldWord() {
-        var e = TelexEngine(); e.freeMarking = true
-        for c in "thays" { _ = e.feed(c) }
-        _ = e.commitBoundary(autoRestore: false, boundary: " ")
-        XCTAssertTrue(e.isEmpty)
-        XCTAssertTrue(e.canReopenLastCommit)
-        XCTAssertTrue(TapWordBreak.focusMoved(engineHoldsWord: !e.isEmpty || e.canReopenLastCommit,
-                                              focusStable: false,
-                                              clientKeySinceActivation: { false },
-                                              chromiumFamily: { false }))
     }
 
     /// Phần 2: TUI nuốt j/k/i làm lệnh rồi báo "kết thúc từ" ⇒ "vieejt" ra "việt".
     func testEndWordSignalStartsNewWord() {
         var s = TapSession()
         s.type("jki")
+        let before = s.breaks
         s.endWordPending = true
         s.type("vieejt")
         XCTAssertEqual(s.engine.composed, "việt")
-        XCTAssertEqual(s.breaks, 1)
+        XCTAssertEqual(s.breaks, before + 1)
     }
 
     /// Tín hiệu khi engine rỗng: không làm gì (không đếm là một lần bỏ từ).
@@ -1613,20 +1665,40 @@ final class TapWordBreakTests: XCTestCase {
         XCTAssertFalse(TapWordBreak.endWord(signalPending: false, engineHoldsWord: true))
         XCTAssertTrue(TapWordBreak.endWord(signalPending: true, engineHoldsWord: true))
         var s = TapSession()
+        _ = s.anchor.observe(s.controller)
         s.endWordPending = true
         s.type("vieejt")
         XCTAssertEqual(s.engine.composed, "việt")
         XCTAssertEqual(s.breaks, 0)
     }
 
-    /// ClientFocus: activateServer xoá cờ phím IMK, phím IMK đặt lại.
+    /// ClientFocus: activateServer xoá cờ phím IMK, phím IMK đặt lại; ghi serial controller.
     func testClientFocusTracksIMKKeySinceActivation() {
-        ClientFocus.noteActivated(client: "com.mitchellh.ghostty")
+        ClientFocus.noteActivated(client: "com.mitchellh.ghostty", controller: 11)
         XCTAssertFalse(ClientFocus.clientKeySinceActivation)
+        XCTAssertEqual(ClientFocus.snapshot.controller, 11)
         ClientFocus.noteClientKey()
         XCTAssertTrue(ClientFocus.clientKeySinceActivation)
-        ClientFocus.noteActivated(client: "com.mitchellh.ghostty")
+        ClientFocus.noteActivated(client: "com.mitchellh.ghostty", controller: 12)
         XCTAssertFalse(ClientFocus.clientKeySinceActivation, "split mới: chưa có phím nào")
+        XCTAssertEqual(ClientFocus.snapshot.controller, 12)
+    }
+
+    /// Serial controller: duy nhất, khác 0, tăng dần (không tái dùng như địa chỉ object).
+    func testControllerSerialsAreUniqueAndNonZero() {
+        let a = ClientFocus.newControllerSerial(), b = ClientFocus.newControllerSerial()
+        XCTAssertNotEqual(a, 0)
+        XCTAssertNotEqual(a, b)
+        XCTAssertGreaterThan(b, a)
+    }
+
+    /// Re-edit (#111) vẫn thấy MỌI activate (epoch), kể cả cùng controller.
+    func testEpochStillAdvancesOnSameControllerReactivation() {
+        ClientFocus.noteActivated(client: "com.apple.Safari", controller: 21)
+        let e0 = ClientFocus.snapshot.epoch
+        ClientFocus.noteActivated(client: "com.apple.Safari", controller: 21)
+        XCTAssertEqual(ClientFocus.snapshot.epoch, e0 &+ 1)
+        XCTAssertEqual(ClientFocus.snapshot.controller, 21)
     }
 
     /// Tên tín hiệu là hợp đồng công khai (tài liệu + app bên ngoài) — đừng đổi.
@@ -1635,23 +1707,29 @@ final class TapWordBreakTests: XCTestCase {
         XCTAssertNotEqual(EndWordSignal.name, Notification.Name.telexResetComposition.rawValue)
     }
 
-    /// Phiên thật (bài học #116): gõ, click, đổi focus, đua phím đầu, tín hiệu — xen kẽ
-    /// trên CÙNG một phiên.
+    /// Phiên thật (bài học #116): gõ, click, đổi focus, activate lại cùng ô, đua phím đầu,
+    /// số rồi đổi ô, tín hiệu — xen kẽ trên CÙNG một phiên.
     func testRealisticSessionSequence() {
         var s = TapSession()
-        s.type("xin"); s.engine.reset()               // "xin␣" (ranh giới)
+        s.type("xin ")
         s.type("m")                                   // split A
         s.activate()                                  // AppleScript → split B
         s.type("vieejt")
         XCTAssertEqual(s.engine.composed, "việt")
-        s.engine.reset()                              // ␣
+        s.type(" ")
         s.click(); s.activate()                       // click sang ô khác (activate sau click)
-        s.type("ddi")
-        XCTAssertEqual(s.engine.composed, "đi", "click đã reset — activate sau click không cắt \"d\"")
-        s.engine.reset()
+        s.type("ddee")
+        s.reactivateSameField()                       // WebKit activate lại cùng ô giữa từ
+        s.type("nf")
+        XCTAssertEqual(s.engine.composed, "đền", "cùng ô activate lại: không cắt từ")
+        s.type(" ")
         s.type("n"); s.activate(); s.clientKey = true // đua phím đầu: activate trễ sau "n"
         s.type("aay")
         XCTAssertEqual(s.engine.composed, "nây")
+        s.type(" 50")
+        s.activate()                                  // đổi split sau số
+        s.type("ko ")
+        XCTAssertEqual(s.expansions, ["không"])
         s.type("j"); s.endWordPending = true          // TUI: "j" là lệnh, app báo kết thúc từ
         s.type("tooi")
         XCTAssertEqual(s.engine.composed, "tôi")
