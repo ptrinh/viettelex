@@ -573,7 +573,13 @@ public:
                                   *config_.surroundingMode ? "\"surrounding\"" : "\"preedit\"");
         text = vt::setConfigValue(text, "general", "per_app_state", b(*config_.perAppState));
         text = vt::setConfigValue(text, "general", "preedit_underline", b(*config_.preeditUnderline));
-        vt::writeFileAtomic(vt::configPath(), text);
+        if (!vt::writeFileAtomic(vt::configPath(), text)) {
+            // Read-only / full ~/.config: nothing changed — show the real values again
+            // instead of pretending the dialog's choice took effect.
+            FCITX_WARN() << "VietTelex: cannot write " << vt::configPath();
+            syncConfigFromSettings();
+            return;
+        }
         applySettingsToAll();  // don't wait for inotify
     }
 

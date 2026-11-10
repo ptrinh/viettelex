@@ -153,10 +153,8 @@ EN = {
     "Menu “Công cụ…” của bộ gõ (khay Fcitx5 / menu IBus) liệt kê 6 công cụ trên.":
         "The input method’s “Tools…” menu (Fcitx5 tray / IBus menu) lists the 6 tools above.",
     "Chưa cài gói viettelex-text-tools": "viettelex-text-tools is not installed",
-    "Gợi ý từ, gợi ý cạnh con trỏ và công cụ văn bản cần gói này. Cài bằng lệnh dưới đây rồi "
-    "khởi động lại bộ gõ.":
-        "Word suggestions, suggestions next to the caret and text tools need this package. Install "
-        "it with the command below, then restart the input method.",
+    "Cần cho gợi ý và công cụ văn bản. Cài bằng lệnh dưới đây rồi khởi động lại bộ gõ.":
+        "Needed for suggestions and text tools. Run the command below, then restart the input method.",
     "Gợi ý cạnh con trỏ": "Suggestions next to the caret",
     "Chỉ Tab mới áp dụng, Esc bỏ; không bao giờ tự thay. Cần gói viettelex-text-tools.":
         "Only Tab applies it, Esc dismisses; never replaces by itself. Needs viettelex-text-tools.",

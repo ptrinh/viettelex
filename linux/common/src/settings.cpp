@@ -673,17 +673,44 @@ bool mkdirs(const std::string &dir) {
     return true;
 }
 
-bool writeFileAtomic(const std::string &path, const std::string &data) {
+bool writeFileAtomic(const std::string &pathIn, const std::string &data) {
+    // A symlinked config.toml (dotfiles repo) stays a symlink: write through to its target.
+    std::string path = pathIn;
+    if (char *real = ::realpath(pathIn.c_str(), nullptr)) {
+        path = real;
+        std::free(real);
+    }
     size_t slash = path.rfind('/');
     if (slash != std::string::npos) mkdirs(path.substr(0, slash));
-    std::string tmp = path + ".tmp";
-    {
-        std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
-        if (!f) return false;
-        f << data;
-        if (!f) return false;
+    // Unique temp name: the settings app and the Fcitx5 dialog may write at the same time.
+    std::string tmpl = path + ".XXXXXX";
+    std::vector<char> buf(tmpl.begin(), tmpl.end());
+    buf.push_back('\0');
+    int fd = ::mkstemp(buf.data());
+    if (fd < 0) return false;
+    const std::string tmp(buf.data());
+    struct stat st;
+    mode_t mode = 0644;
+    if (::stat(path.c_str(), &st) == 0) mode = st.st_mode & 07777;
+    else {
+        mode_t um = ::umask(0);
+        ::umask(um);
+        mode = 0666 & ~um;
     }
-    return std::rename(tmp.c_str(), path.c_str()) == 0;
+    (void)::fchmod(fd, mode);  // best effort: mkstemp's 0600 is still safe
+    bool ok = true;
+    size_t off = 0;
+    while (ok && off < data.size()) {
+        ssize_t w = ::write(fd, data.data() + off, data.size() - off);
+        if (w < 0 && errno == EINTR) continue;
+        if (w <= 0) ok = false;
+        else off += size_t(w);
+    }
+    if (ok && ::fsync(fd) != 0) ok = false;
+    if (::close(fd) != 0) ok = false;
+    if (ok && std::rename(tmp.c_str(), path.c_str()) == 0) return true;
+    ::unlink(tmp.c_str());
+    return false;
 }
 
 Settings loadSettings(const std::string &dir) {

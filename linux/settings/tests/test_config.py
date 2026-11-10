@@ -152,6 +152,59 @@ class ParseTests(unittest.TestCase):
             self.assertEqual(os.listdir(os.path.join(d, "viettelex")), ["config.toml"])
             self.assertTrue(config.Config(c.path).get("typing", "quick_telex"))
 
+    def test_atomic_write_keeps_symlink_and_mode(self):
+        with tempfile.TemporaryDirectory() as d:
+            real = os.path.join(d, "dotfiles", "config.toml")
+            os.makedirs(os.path.dirname(real))
+            with open(real, "w") as f:
+                f.write("[typing]\n")
+            os.chmod(real, 0o640)
+            link = os.path.join(d, "viettelex", "config.toml")
+            os.makedirs(os.path.dirname(link))
+            os.symlink(real, link)
+            c = config.Config(link)
+            c.set("typing", "quick_telex", True)
+            self.assertTrue(os.path.islink(link))
+            self.assertEqual(os.stat(real).st_mode & 0o777, 0o640)
+            self.assertTrue(config.Config(real).get("typing", "quick_telex"))
+            self.assertEqual(sorted(os.listdir(os.path.dirname(real))), ["config.toml"])
+
+    def test_atomic_write_unique_tmp_names(self):
+        seen = []
+        real_mkstemp = tempfile.mkstemp
+
+        def spy(*a, **k):
+            fd, p = real_mkstemp(*a, **k)
+            seen.append(p)
+            return fd, p
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "config.toml")
+            config.tempfile.mkstemp = spy
+            try:
+                config.atomic_write(p, "a\n")
+                config.atomic_write(p, "b\n")
+            finally:
+                config.tempfile.mkstemp = real_mkstemp
+            self.assertEqual(len(set(seen)), 2)
+            self.assertTrue(all(os.path.basename(s).startswith("config.toml.") for s in seen))
+            self.assertNotIn(p + ".tmp", seen)       # tên cố định cũ, đụng hộp Fcitx5
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root bỏ qua quyền thư mục")
+    def test_read_only_config_raises_and_keeps_disk_state(self):
+        with tempfile.TemporaryDirectory() as d:
+            vd = os.path.join(d, "viettelex")
+            c = config.Config(os.path.join(vd, "config.toml"))
+            c.set("typing", "quick_telex", True)
+            os.chmod(vd, 0o500)
+            try:
+                with self.assertRaises(OSError):
+                    c.set("typing", "quick_telex", False)
+                # Mô hình trong bộ nhớ = đĩa (giao diện vẽ lại theo nó), không file tạm sót.
+                self.assertTrue(c.get("typing", "quick_telex"))
+                self.assertEqual(os.listdir(vd), ["config.toml"])
+            finally:
+                os.chmod(vd, 0o700)
+
     def test_app_mode_auto_removes_and_lowercases(self):
         with tempfile.TemporaryDirectory() as d:
             c = config.Config(os.path.join(d, "config.toml"))
@@ -292,8 +345,9 @@ class HotkeyTests(unittest.TestCase):
     def test_names_match_cpp_parse_hotkey(self):
         # Bảng tên keysym phải y hệt `names` trong parseHotkey (common/src/settings.cpp).
         import re
-        src = open(os.path.join(os.path.dirname(__file__), "..", "..", "common", "src",
-                                "settings.cpp"), encoding="utf-8").read()
+        with open(os.path.join(os.path.dirname(__file__), "..", "..", "common", "src",
+                               "settings.cpp"), encoding="utf-8") as f:
+            src = f.read()
         body = src[src.index("bool parseHotkey("):]
         table = body[body.index("names = {"):body.index("};", body.index("names = {"))]
         cpp = dict(re.findall(r"""\{"([a-z]+)",\s*('(?:\\.|[^'])'|[\w:]+)\}""", table))

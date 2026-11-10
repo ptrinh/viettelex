@@ -974,6 +974,41 @@ void testConfigParse() {
           e.collisionPrefersVietnamese && !e.vni && e.displayMode == DisplayMode::Preedit);
 }
 
+// writeFileAtomic: a symlinked config.toml stays a symlink (the target is rewritten), the temp
+// name is unique (the settings app and the Fcitx5 dialog share the dir), a read-only dir is
+// reported as a failure and leaves nothing behind, the file mode is kept.
+void testWriteFileAtomic() {
+    char tmpl[] = "/tmp/vt-write-XXXXXX";
+    const char *d = mkdtemp(tmpl);
+    if (!d) { ++g_fail; return; }
+    const std::string dir = d, target = dir + "/real.toml", link = dir + "/config.toml";
+    CHECK(writeFileAtomic(target, "a\n"));
+    chmod(target.c_str(), 0640);
+    CHECK(symlink("real.toml", link.c_str()) == 0);
+    CHECK(writeFileAtomic(link, "b\n"));
+    struct stat st;
+    CHECK(lstat(link.c_str(), &st) == 0 && S_ISLNK(st.st_mode));
+    std::string text;
+    CHECK(readFile(target, text) && text == "b\n");
+    CHECK(stat(target.c_str(), &st) == 0 && (st.st_mode & 0777) == 0640);
+    // No fixed "<name>.tmp" left over or reused.
+    CHECK(access((target + ".tmp").c_str(), F_OK) != 0);
+    const std::string ro = dir + "/ro";
+    mkdir(ro.c_str(), 0700);
+    CHECK(writeFileAtomic(ro + "/config.toml", "x\n"));
+    chmod(ro.c_str(), 0500);
+    if (geteuid() != 0) {  // root ignores the mode
+        CHECK(!writeFileAtomic(ro + "/config.toml", "y\n"));
+        CHECK(readFile(ro + "/config.toml", text) && text == "x\n");
+    }
+    chmod(ro.c_str(), 0700);
+    std::remove((ro + "/config.toml").c_str());
+    rmdir(ro.c_str());
+    std::remove(link.c_str());
+    std::remove(target.c_str());
+    rmdir(d);
+}
+
 void testSetConfigValue() {
     std::string t = "# mine\n[typing]\nfree_marking = true # c\nfuture_key = 3\n\n[general]\nper_app_state = true\n";
     std::string u = setConfigValue(t, "typing", "free_marking", "false");
@@ -3491,6 +3526,7 @@ int main() {
     testModesAgreeOnRandomScripts();
     testConfigParse();
     testSetConfigValue();
+    testWriteFileAtomic();
     testShortcutFile();
     testShortcutFileQuoting();
     testHotkeyParse();

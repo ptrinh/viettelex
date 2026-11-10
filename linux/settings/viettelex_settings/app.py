@@ -205,6 +205,26 @@ class SettingsWindow(Adw.PreferencesWindow):
     def toast(self, text):
         self.add_toast(Adw.Toast.new(esc(text)))
 
+    def save_config(self, fn, *args):
+        """Mọi lần ghi config.toml / shortcuts.yml đi qua đây: ~/.config chỉ đọc / đầy ⇒ báo
+        một câu và đưa giao diện về đúng trạng thái trên đĩa (công tắc không bật "giả")."""
+        try:
+            fn(*args)
+            return True
+        except OSError:
+            self.toast(_("Không ghi được cấu hình trong ~/.config."))
+            GLib.idle_add(self._show_saved_state)   # sau handler đang chạy (vd notify::active)
+            return False
+
+    def _show_saved_state(self):
+        self.cfg.load()
+        for f in self.refreshers:
+            f()
+        self.refresh_dependents()
+        self.shortcut_map = shortcuts.load()
+        self._rebuild_shortcuts()
+        return False
+
     def switch(self, group, section, key, title, subtitle=None, invert=False):
         r = row(title, subtitle)
         sw = Gtk.Switch(valign=Gtk.Align.CENTER)
@@ -216,7 +236,7 @@ class SettingsWindow(Adw.PreferencesWindow):
             sw.set_active(not v if invert else v)
         refresh()
         def toggled(s, _p):
-            self.cfg.set(section, key, (not s.get_active()) if invert else s.get_active())
+            self.save_config(self.cfg.set, section, key, (not s.get_active()) if invert else s.get_active())
             self.refresh_dependents()        # dòng con ngay dưới hiện/ẩn ngay (§0.4)
         sw.connect("notify::active", toggled)
         self.refreshers.append(refresh)
@@ -239,7 +259,8 @@ class SettingsWindow(Adw.PreferencesWindow):
         def changed(rr, _p):
             i = rr.get_selected()
             if 0 <= i < len(values):
-                self.cfg.set(section, key, values[i])
+                if not self.save_config(self.cfg.set, section, key, values[i]):
+                    return
                 self.refresh_dependents()
                 if on_change:
                     on_change()
@@ -570,8 +591,7 @@ class SettingsWindow(Adw.PreferencesWindow):
             cmd = updater.install_cmd("viettelex-text-tools")
             g = Adw.PreferencesGroup()
             w = row(_("Chưa cài gói viettelex-text-tools"),
-                    _("Gợi ý từ, gợi ý cạnh con trỏ và công cụ văn bản cần gói này. Cài bằng lệnh "
-                      "dưới đây rồi khởi động lại bộ gõ.") + "\n" + cmd)
+                    _("Cần cho gợi ý và công cụ văn bản. Cài bằng lệnh dưới đây rồi khởi động lại bộ gõ.") + "\n" + cmd)
             w.add_prefix(Gtk.Image(icon_name="dialog-warning-symbolic"))
             cb = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER,
                             tooltip_text=_("Chép lệnh"))
@@ -641,7 +661,8 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.hotkey_btn.set_label(hotkey_label(hk) or _("Tắt"))
 
     def set_hotkey(self, value):
-        self.cfg.set("general", "toggle_hotkey", value)
+        if not self.save_config(self.cfg.set, "general", "toggle_hotkey", value):
+            return
         self._refresh_hotkey()
         conflict = gnome_hotkey_conflict(value)
         if conflict:
@@ -652,7 +673,8 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.addtones_btn.set_label(hotkey_label(hk) or _("Tắt"))
 
     def set_addtones_hotkey(self, value):
-        self.cfg.set("general", "add_tones_hotkey", value)
+        if not self.save_config(self.cfg.set, "general", "add_tones_hotkey", value):
+            return
         self._refresh_addtones()
         conflict = gnome_hotkey_conflict(value)
         if conflict:
@@ -676,7 +698,9 @@ class SettingsWindow(Adw.PreferencesWindow):
         def toggled(s, _p):
             if s.get_active() == on():
                 return
-            self.cfg.set("experimental", "no_underline", "forward-keys" if s.get_active() else "off")
+            if not self.save_config(self.cfg.set, "experimental", "no_underline",
+                             "forward-keys" if s.get_active() else "off"):
+                return
             self.sync_launchers(announce=True)
         handler = sw.connect("notify::active", toggled)
 
@@ -980,8 +1004,10 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.sc_val.grab_focus()
 
     def _save_shortcuts(self):
-        shortcuts.save(self.shortcut_map)
+        if not self.save_config(shortcuts.save, self.shortcut_map):
+            return False
         self._rebuild_shortcuts()
+        return True
 
     def add_shortcut(self):
         k = self.sc_key.get_text().strip()
@@ -993,7 +1019,8 @@ class SettingsWindow(Adw.PreferencesWindow):
             self.toast(_("Nhập cụm từ sẽ thay thế."))
             return
         self.shortcut_map[k] = v
-        self._save_shortcuts()
+        if not self._save_shortcuts():
+            return                        # giữ chữ trong ô để thử lại
         self.sc_key.set_text("")
         self.sc_val.set_text("")
         self.sc_key.grab_focus()
@@ -1010,7 +1037,8 @@ class SettingsWindow(Adw.PreferencesWindow):
             return
         d = {k: v for k, v in d.items() if shortcuts.valid_key(k)}
         self.shortcut_map.update(d)
-        self._save_shortcuts()
+        if not self._save_shortcuts():
+            return
         self.toast(_("Đã nhập %d gõ tắt — gộp vào bảng hiện có (mục trùng lấy giá trị mới).")
                    % len(d))
 
@@ -1109,7 +1137,8 @@ class SettingsWindow(Adw.PreferencesWindow):
             self.mode_rows.append(r)
 
     def _mode_changed(self, app, mode, rebuild=False):
-        self.cfg.set_app_mode(app, mode)
+        if not self.save_config(self.cfg.set_app_mode, app, mode):
+            return
         if rebuild or mode == "auto":
             GLib.idle_add(self._rebuild_modes)
 
@@ -1119,7 +1148,8 @@ class SettingsWindow(Adw.PreferencesWindow):
             self.toast(_("Nhập tên app (không chứa dấu cách)."))
             return
         mode = APP_MODE_CHOICES[1 + self.mode_pick.get_selected()][0]
-        self.cfg.set_app_mode(app, mode)
+        if not self.save_config(self.cfg.set_app_mode, app, mode):
+            return
         self.mode_app.set_text("")
         self._rebuild_modes()
 
@@ -1134,7 +1164,8 @@ class SettingsWindow(Adw.PreferencesWindow):
             mode = MAC_MODE_MAP.get(mode, mode)
             if mode in config.APP_MODES and app.strip():
                 good[app] = mode
-        self.cfg.set_app_modes(good)
+        if not self.save_config(self.cfg.set_app_modes, good):
+            return
         applied = len(good)
         self._rebuild_modes()
         self.toast(_("Đã nhập %d chế độ app. Mục có chế độ không hợp lệ bị bỏ qua.") % applied)

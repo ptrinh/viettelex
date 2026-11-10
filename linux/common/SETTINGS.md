@@ -13,7 +13,12 @@ Parser tham chiếu: `linux/common/src/settings.cpp` (C++17, không phụ thuộ
 | Lối tắt Chrome/Electron có cờ IME Wayland (§9) | `$XDG_DATA_HOME/applications/<id>.desktop` có dòng `X-VietTelex-Generated=` | settings app — chỉ file mang dòng đó |
 
 - Thiếu file / thiếu key / giá trị sai kiểu → dùng **mặc định** bên dưới (không lỗi, không crash).
-- **Ghi nguyên tử**: ghi `config.toml.tmp` rồi `rename()` sang `config.toml` (cùng thư mục).
+- **Ghi nguyên tử**: ghi file tạm tên duy nhất `config.toml.XXXXXX` (mkstemp — app cài đặt và
+  hộp cấu hình Fcitx5 có thể ghi cùng lúc) rồi `rename()` sang `config.toml` (cùng thư mục),
+  giữ quyền file cũ. `config.toml` là symlink (dotfiles) ⇒ ghi vào đích (`realpath`), symlink
+  giữ nguyên (inotify khi đó không thấy — frontend nhận qua kiểm tra `mtime` lúc focus-in).
+  Ghi lỗi (~/.config chỉ đọc / đầy) ⇒ app cài đặt báo "Không ghi được cấu hình trong ~/.config."
+  và vẽ lại theo đúng file trên đĩa; hộp Fcitx5 hiện lại giá trị cũ.
   Frontend theo dõi **thư mục** `viettelex/` bằng inotify (`IN_CLOSE_WRITE | IN_MOVED_TO |
   IN_DELETE`) và nạp lại ngay — không cần restart IM. Frontend cũng tự kiểm tra `mtime`
   mỗi lần focus-in (dự phòng khi inotify không có).

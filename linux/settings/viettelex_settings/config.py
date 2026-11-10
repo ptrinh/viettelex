@@ -3,13 +3,14 @@
 Không phụ thuộc thư viện ngoài (Ubuntu 22.04 có Python 3.10, chưa có tomllib).
 Hàm thuần (parse/dump) tách riêng để test không cần GTK.
 
-Ghi nguyên tử: config.toml.tmp → rename() (frontend theo dõi thư mục bằng inotify).
+Ghi nguyên tử: file tạm tên duy nhất → rename() (frontend theo dõi thư mục bằng inotify).
 Ghi TẠI CHỖ (SETTINGS.md "Ghi chung file"): hộp cấu hình Fcitx5 cũng ghi file này, nên mỗi
 lần đổi chỉ nạp lại file rồi sửa đúng dòng của key vừa đổi — comment, thứ tự và key lạ
 giữ nguyên (update_text).
 """
 
 import os
+import tempfile
 
 # Mặc định chính xác theo SETTINGS.md §2 (= bản macOS 1.7.12).
 DEFAULTS = {
@@ -344,13 +345,35 @@ def normalize(data):
 
 
 def atomic_write(path, text):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        f.write(text)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
+    """Ghi nguyên tử. File là symlink (dotfiles) ⇒ ghi vào đích, symlink giữ nguyên; tên tạm
+    duy nhất (app này và hộp cấu hình Fcitx5 có thể ghi cùng lúc); giữ quyền file cũ. Lỗi
+    (~/.config chỉ đọc / đầy) ⇒ OSError, không để lại file tạm."""
+    path = os.path.realpath(path)
+    d = os.path.dirname(path)
+    os.makedirs(d, exist_ok=True)
+    try:
+        mode = os.stat(path).st_mode & 0o7777
+    except OSError:
+        um = os.umask(0)
+        os.umask(um)
+        mode = 0o666 & ~um
+    fd, tmp = tempfile.mkstemp(prefix=os.path.basename(path) + ".", dir=d)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.chmod(tmp, mode)
+        except OSError:
+            pass
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 class Config:
