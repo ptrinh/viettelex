@@ -822,6 +822,13 @@ void testSurroundingCache() {
     CHECK(!empty.get());
     CHECK(!empty.get());
     CHECK_EQ(none, 1);
+
+    // Frontends attach the hint sink at focus-in when the helper appeared after start-up
+    // (viettelex-text-tools installed later): they ask hasHintSink() first.
+    Session s;
+    CHECK(!s.hasHintSink());
+    s.setHintSink([](const HintRequest &) {});
+    CHECK(s.hasHintSink());
 }
 
 void testPrimaryFirstToolWins() {

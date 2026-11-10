@@ -565,6 +565,22 @@ class SettingsWindow(Adw.PreferencesWindow):
         page = Adw.PreferencesPage(title=_("Gợi ý & công cụ"), icon_name="preferences-system-symbolic")
         off_note = _("Không chạy ở terminal, trình soạn code, ô web/email, ô mật khẩu và khi gõ English.")
 
+        if detect.text_tool_path() is None:
+            # Không có helper thì mọi công tắc dưới đây không làm gì — nói rõ thay vì im lặng.
+            cmd = updater.install_cmd("viettelex-text-tools")
+            g = Adw.PreferencesGroup()
+            w = row(_("Chưa cài gói viettelex-text-tools"),
+                    _("Gợi ý từ, gợi ý cạnh con trỏ và công cụ văn bản cần gói này. Cài bằng lệnh "
+                      "dưới đây rồi khởi động lại bộ gõ.") + "\n" + cmd)
+            w.add_prefix(Gtk.Image(icon_name="dialog-warning-symbolic"))
+            cb = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER,
+                            tooltip_text=_("Chép lệnh"))
+            cb.add_css_class("flat")
+            cb.connect("clicked", lambda _b: self.copy_text(cmd))
+            w.add_suffix(cb)
+            g.add(w)
+            page.add(g)
+
         g = Adw.PreferencesGroup(title=_("Gợi ý từ"), description=off_note)
         for key, title, sub in PREDICTION_SWITCHES:
             r = self.switch(g, "general", key, _(title), _(sub))

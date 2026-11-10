@@ -564,6 +564,9 @@ void focusCommon(VtIBusEngine *self) {
         if (text) g_object_unref(text);  // a new reference (IBus 1.5.26 … main)
     }
     self->session->focusIn();
+    // viettelex-text-tools installed after this engine was created: hints from now on.
+    if (!self->session->hasHintSink() && G().hints && G().hints->available())
+        self->session->setHintSink([self](const vt::HintRequest &r) { submitHint(self, r); });
     refreshPropLabels(self);
     ibus_engine_register_properties(IBUS_ENGINE(self), self->props);
     updateModeProp(self);

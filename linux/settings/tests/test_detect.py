@@ -91,6 +91,29 @@ GNOME_IBUS = dict(env={"GTK_IM_MODULE": "ibus"}, ibus_running=True, ibus_compone
                   gnome_sources="[('xkb', 'us'), ('ibus', 'viettelex')]")
 
 
+class TextToolPathTests(unittest.TestCase):
+    """Thiếu viettelex-text-tools ⇒ trang Gợi ý & công cụ hiện cảnh báo + lệnh cài."""
+
+    def test_finds_multiarch_lib64_and_env(self):
+        files = {"/usr/lib/x86_64-linux-gnu/viettelex/viettelex-text-tool"}
+        glob_ = lambda pat: [f for f in files if __import__("fnmatch").fnmatch(f, pat)]
+        exe = lambda p: p in files
+        self.assertEqual(detect.text_tool_path({}, glob_, exe),
+                         "/usr/lib/x86_64-linux-gnu/viettelex/viettelex-text-tool")
+        files = {"/usr/lib64/viettelex/viettelex-text-tool"}
+        self.assertEqual(detect.text_tool_path({}, glob_, exe), "/usr/lib64/viettelex/viettelex-text-tool")
+        files = {"/opt/x/tool"}
+        self.assertEqual(detect.text_tool_path({"VIETTELEX_TEXT_TOOL": "/opt/x/tool"}, glob_, exe),
+                         "/opt/x/tool")
+
+    def test_missing(self):
+        self.assertIsNone(detect.text_tool_path({}, lambda _p: [], lambda _p: False))
+        # file có nhưng không chạy được = chưa cài đúng
+        self.assertIsNone(detect.text_tool_path(
+            {}, lambda p: ["/usr/lib/viettelex/viettelex-text-tool"] if p.startswith("/usr/lib/v") else [],
+            lambda _p: False))
+
+
 class IBusLoadedTests(unittest.TestCase):
     """Daemon IBus đang chạy đã nạp engine VietTelex chưa (`ibus list-engine --name-only`)."""
 

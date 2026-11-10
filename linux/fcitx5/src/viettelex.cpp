@@ -500,6 +500,9 @@ public:
             st->anchorSeen = false;  // one context can serve several apps (GNOME Wayland)
             ensureAppState(st);
             st->session.focusIn();
+            // viettelex-text-tools installed after this context was created: hints from now on.
+            if (!st->session.hasHintSink() && hintsAvailable())
+                st->session.setHintSink([this, ic](const vt::HintRequest &r) { submitHint(ic, r); });
             ic->statusArea().addAction(fcitx::StatusGroup::InputMethod, &modeAction_);
             updateToolsAction(ic);
             updateAction(st);
