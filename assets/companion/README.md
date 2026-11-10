@@ -13,20 +13,20 @@ sleep. Gentle dance uses 0–1–0–6. Fast dance uses
 0–1–0–1–2–3–4–5–6–0. Sleep switches directly to frame 7, exactly like the
 boy; there is no stand-to-sleep transition or separate sleep atlas.
 
-Production resources are `iOS/Keyboard/Resources/Buddies/buddy-<id>-v2-512.png` (iOS companion,
-pre-scaled by `iOS/Scripts/make-buddy-512.swift`; full-size `buddy-girl-v2.png` / `buddy-boy-v2.png`
-stay in the iOS bundle only for the Night Club dancer)
-and byte-identical copies under `android/app/src/main/assets/`. The other
-production sources are `boy-v2-alpha.png`, `cat-v2-source.png`, and
-`chick-v2-source.png`. Old 24-frame girl sources and preview videos are retained
-only as design history; they are not bundled.
+**Source of truth** for the full-resolution atlases is this folder: `girl-eight-source.png`,
+`boy-v2-alpha.png`, `cat-v2-source.png`, `chick-v2-source.png` (byte-identical to the
+`buddy-<id>-v2.png` files that used to ship). `iOS/Scripts/make-buddy-512.swift` reads them and
+writes the companion atlases `iOS/Keyboard/Resources/Buddies/buddy-<id>-v2-512.png`; Android
+ships byte-identical copies of those 512-px files in `android/app/src/main/assets/` (checked by
+`BuddyPreviewSmokeTests`). Full-size `buddy-girl-v2.png` / `buddy-boy-v2.png` stay in both apps
+only for the Night Club dancer (girl or boy); full-size cat and chick ship nowhere. Old 24-frame
+girl sources and preview videos are retained only as design history; they are not bundled.
 
-The four production PNGs total **6,834,269 bytes** before app packaging.
-Each atlas is decoded once, cached with a 3 MiB per-process limit, and shared
-between visible views. iOS caps decode at a 512-pixel long edge. Android uses
-sampled decode with a 512-pixel target. Neither platform decodes or builds
-paths per animation frame. Quiet sleep and low-power mode are static; missing
-art and seasonal costumes use the existing vector renderer.
+The four 512-px companion atlases total **705,358 bytes**. Each platform keeps one decoded
+companion atlas per process (decoded off the main thread, dropped when the companion is off or
+the keyboard has been hidden for a while). Neither platform decodes or builds paths per animation
+frame. Quiet sleep and low-power mode are static; missing art and seasonal costumes use the
+existing vector renderer.
 
 Keep cell boundaries clear: atlas thumbnailing can blend neighboring cells.
 The approved girl's alpha is nearly zero at every grid boundary and her

@@ -186,6 +186,11 @@ object NightDancer {
     const val ROWS = 2
     /** Trần cạnh dài atlas khi giải (px) — ≤ 2048 × 1365 × 4 B ≈ 11 MB; atlas hiện 1536 × 1024 ⇒ 6,3 MB. */
     const val MAX_LONG_EDGE = 2048
+    /**
+     * Trần scale khi giải: tối đa @2x (máy @3x giải ở @2x rồi phóng) — = iOS NightDancer.maxDecodeScale. Người nhảy
+     * chìm trong tối (~12 % sáng) sau phím, chỉ vùng đèn rọi thấy màu thật ⇒ @2x phóng lên @2,6–3,5 mắt không phân biệt.
+     */
+    const val MAX_DECODE_SCALE = 2.0
 
     fun frame(variant: Int): Int = Math.floorMod(variant, VARIANTS) % FRAMES
     fun mirrored(variant: Int): Boolean = Math.floorMod(variant, VARIANTS) >= FRAMES
@@ -224,13 +229,13 @@ object NightDancer {
     }
 
     /**
-     * Cạnh dài (px) cần giải atlas [atlasW] × [atlasH] để ô cao đúng [displayHeight] (pt / dp) × [scale] (px mỗi pt) —
+     * Cạnh dài (px) cần giải atlas [atlasW] × [atlasH] để ô cao đúng [displayHeight] (pt / dp) × min([scale], @2x) —
      * không quá ảnh gốc, không quá [MAX_LONG_EDGE]. Giải MỘT lần (không giải lại mỗi khung).
      */
     fun decodeLongEdge(displayHeight: Double, scale: Double, atlasW: Int, atlasH: Int): Int {
         if (atlasW <= 0 || atlasH <= 0) return 0
         val native = maxOf(atlasW, atlasH)
-        val needH = displayHeight * scale * ROWS
+        val needH = displayHeight * minOf(scale, MAX_DECODE_SCALE) * ROWS
         val need = Math.ceil(needH * native / atlasH).toInt()
         return minOf(need, native, MAX_LONG_EDGE)
     }
@@ -241,6 +246,18 @@ object NightDancer {
         if (target <= 0) return s
         while (nativeLongEdge / (s * 2) >= target) s *= 2
         return s
+    }
+
+    /**
+     * Kế hoạch giải Android cho cạnh dài [target]: (inSampleSize, inDensity, inTargetDensity). inSampleSize chỉ chia
+     * đôi ⇒ còn thừa thì BitmapFactory thu tiếp đúng [target] (inDensity = cạnh sau lấy mẫu, inTargetDensity = [target];
+     * 0, 0 = không thu). Chọn thu đúng cỡ thay vì lấy mẫu 2 (768 px): dưới đèn rọi người nhảy hiện màu thật, ô 256 px
+     * phóng ~2,5× sẽ nhoè rõ; thu về @2x thì như cũ. = iOS (thumbnail đúng cạnh).
+     */
+    fun decodePlan(nativeLongEdge: Int, target: Int): IntArray {
+        val s = sampleSize(nativeLongEdge, target)
+        val sampled = nativeLongEdge / s
+        return if (target <= 0 || sampled <= target) intArrayOf(s, 0, 0) else intArrayOf(s, sampled, target)
     }
 
     /** RAM ảnh đã giải (byte, RGBA 8-bit) khi cạnh dài = [longEdge]. */

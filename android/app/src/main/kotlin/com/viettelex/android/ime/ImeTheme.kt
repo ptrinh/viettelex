@@ -46,8 +46,14 @@ class ImeTheme(ctx: Context, val settings: ThemeSettings = ThemeSettings(), wall
     /** Mốc mục lục (app tải xong ⇒ đổi ⇒ dựng lại view). Chỉ stat khi theme có tệp. */
     private val assetStamp: Long = if (assetPlan == null) 0L
         else java.io.File(assetDir, com.viettelex.keyboard.ThemeAssetStore.INDEX_NAME).lastModified()
-    /** Giải LƯỜI (view đầu tiên cần) — dựng ImeTheme chỉ để so chữ ký không giải ảnh nào. */
-    val assets: LoadedThemeAssets? by lazy { assetPlan?.let { ThemeAssetLoader.load(it, assetDir, assetStamp) } }
+    /**
+     * Giải LƯỜI (view đầu tiên cần) — dựng ImeTheme chỉ để so chữ ký không giải ảnh nào. Theme không có tệp ⇒ bỏ bộ
+     * skin / phông của theme trước trong cache cấp process (trước đây giữ tới khi process chết).
+     */
+    val assets: LoadedThemeAssets? by lazy {
+        if (assetPlan == null) { ThemeAssetLoader.dropCache(); null }
+        else ThemeAssetLoader.load(assetPlan, assetDir, assetStamp)
+    }
 
     /**
      * Theo giờ ("schedule" — [com.viettelex.keyboard.ThemeSchedule]): phút lúc dựng theme + mục lịch đang hiệu lực. Theme

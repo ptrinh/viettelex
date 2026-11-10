@@ -2554,6 +2554,25 @@ open class KeyEffectView(context: Context, private val density: Float) : View(co
 
     // MARK: dựng sẵn
 
+    /**
+     * Hẹn giờ ẩn (bàn phím đang ẩn, đã [halt]): bỏ ảnh dựng sẵn — dải Matrix, emoji (Emoji theo chữ / Từ khoá), cá
+     * (Biển), chữ theme; true nếu có. [rewarm] dựng lại ngoài main lúc hiện (như lần đầu chọn kiểu; Emoji theo chữ còn
+     * tự vẽ bù khi thiếu). Đốm mực / đèn lồng (nhỏ, dựng đồng bộ lúc đổi kiểu) giữ nguyên.
+     */
+    fun releaseIdle(): Boolean {
+        val had = strips != null || emojiBitmaps.isNotEmpty() || kwEmoji.isNotEmpty() || seaFishBmp != null || thGlyphs.isNotEmpty()
+        strips = null; emojiBitmaps = emptyMap(); kwEmoji = emptyMap(); seaFishBmp = null
+        thGlyphs.clear(); slotBmp.fill(null)
+        return had
+    }
+
+    /** Hiện lại sau [releaseIdle]: dựng lại ảnh của kiểu đang chọn trên luồng nền (đã có ⇒ không làm gì). */
+    fun rewarm() = prewarm(sim.effect)
+
+    /** Test: số ảnh dựng sẵn đang giữ. */
+    internal val prerenderedCount: Int get() =
+        (strips?.size ?: 0) + emojiBitmaps.size + kwEmoji.size + (seaFishBmp?.size ?: 0) + thGlyphs.size
+
     /** Ảnh dựng NGOÀI main (dải Matrix, emoji) — một lần mỗi lần đổi kiểu. */
     private fun prewarm(e: KeyEffect) {
         when (e) {

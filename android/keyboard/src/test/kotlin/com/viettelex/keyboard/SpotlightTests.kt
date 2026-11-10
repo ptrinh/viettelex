@@ -160,9 +160,13 @@ class SpotlightTests {
         assertEquals(221.0, r[3], 1e-9); assertEquals(165.75, r[2], 1e-9)
         assertEquals(117.125, r[0], 1e-9); assertEquals(39.0, r[1], 1e-9)
         assertTrue(r[0] >= 0 && r[0] + r[2] <= 400 && r[1] >= 0 && r[1] + r[3] <= 260)
-        // Cỡ giải theo cỡ hiển thị (atlas 1536 × 1024): @3x chạm ảnh gốc, @2x nhỏ hơn, cỡ nhỏ thì nhỏ nữa; trần 2048.
-        assertEquals(1536, NightDancer.decodeLongEdge(221.0, 3.0, 1536, 1024))
+        // Cỡ giải theo cỡ hiển thị (atlas 1536 × 1024), trần @2x; cỡ nhỏ thì nhỏ nữa; trần 2048.
+        // Audit 10/11/2026: @3x từng giải trọn 1536 px (6,3 MB) để hiện một ô ⇒ nay trần @2x (= iOS NightClubTests).
+        assertEquals(1326, NightDancer.decodeLongEdge(221.0, 3.0, 1536, 1024))
+        assertEquals("cao hơn ⇒ tới cỡ gốc", 1536, NightDancer.decodeLongEdge(300.0, 3.0, 1536, 1024))
+        assertEquals(663, NightDancer.decodeLongEdge(221.0, 1.0, 1536, 1024))
         assertEquals(1326, NightDancer.decodeLongEdge(221.0, 2.0, 1536, 1024))
+        assertEquals("@2,625 (420 dpi) ⇒ cũng @2x", 1326, NightDancer.decodeLongEdge(221.0, 2.625, 1536, 1024))
         assertEquals(510, NightDancer.decodeLongEdge(85.0, 2.0, 1536, 1024))
         assertEquals(2048, NightDancer.decodeLongEdge(400.0, 3.0, 4096, 2731))
         assertEquals(0, NightDancer.decodeLongEdge(221.0, 3.0, 0, 0))
@@ -173,5 +177,17 @@ class SpotlightTests {
         assertEquals(1, NightDancer.sampleSize(1536, 1536)); assertEquals(1, NightDancer.sampleSize(1536, 1326))
         assertEquals(2, NightDancer.sampleSize(1536, 510)); assertEquals(4, NightDancer.sampleSize(1536, 300))
         assertEquals(1, NightDancer.sampleSize(1536, 0))
+        // Kế hoạch giải: lấy mẫu (chia đôi) rồi thu ĐÚNG cạnh cần — không lấy mẫu 2 (768 px, nhoè dưới đèn rọi).
+        assertEquals(listOf(1, 1536, 1326), NightDancer.decodePlan(1536, 1326).toList())
+        assertEquals("đúng cỡ gốc ⇒ không thu", listOf(1, 0, 0), NightDancer.decodePlan(1536, 1536).toList())
+        assertEquals(listOf(2, 768, 510), NightDancer.decodePlan(1536, 510).toList())
+        assertEquals(listOf(2, 0, 0), NightDancer.decodePlan(1536, 768).toList())
+        assertEquals(listOf(1, 0, 0), NightDancer.decodePlan(1536, 0).toList())
+        for (target in listOf(300, 510, 663, 769, 1000, 1326, 1535)) {
+            val p = NightDancer.decodePlan(1536, target)
+            val out = if (p[1] > 0) p[2] else 1536 / p[0]
+            assertEquals("cạnh sau giải = cạnh cần ($target)", target, out)
+        }
+        assertTrue("RAM @2x < bản gốc", NightDancer.decodedBytes(1326, 1536, 1024) < NightDancer.decodedBytes(1536, 1536, 1024))
     }
 }

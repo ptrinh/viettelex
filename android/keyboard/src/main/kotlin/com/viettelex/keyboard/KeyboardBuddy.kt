@@ -192,6 +192,48 @@ object BuddyGate {
     fun allows(c: BuddyCharacter): Boolean = !c.isPlus || allows
 }
 
+/**
+ * Chuyển động phụ lúc NGHỈ (bong bóng koi khi ngủ, bóng bay Tết Thiếu nhi nhún) — luật "nghỉ = 0 hoạt ảnh": chạy
+ * đúng vài nhịp rồi đứng yên, không bao giờ vẽ lại mãi khi không gõ. = iOS BuddyIdleMotion (cùng số). Hàm thuần.
+ */
+object BuddyIdleMotion {
+    /** Bong bóng koi: số bong bóng, số nhịp mỗi bong bóng (mỗi nhịp [BUBBLE_PERIOD] giây), bong bóng sau trễ [BUBBLE_STAGGER]. */
+    const val BUBBLES = 3
+    const val BUBBLE_CYCLES = 3
+    const val BUBBLE_PERIOD = 2.4
+    const val BUBBLE_STAGGER = 0.8
+    /** Bóng bay nhún: số nhịp (mỗi nhịp [BALLOON_PERIOD] giây) mỗi lần bàn phím hiện. */
+    const val BALLOON_BOBS = 3
+    const val BALLOON_PERIOD = 2.0
+    /** Từ lúc ngủ tới khi bong bóng cuối tan (giây). */
+    const val BUBBLE_SPAN = (BUBBLES - 1) * BUBBLE_STAGGER + BUBBLE_CYCLES * BUBBLE_PERIOD
+    const val BALLOON_SPAN = BALLOON_BOBS * BALLOON_PERIOD
+
+    /**
+     * Bong bóng koi chỉ khi ngủ, không tiết kiệm pin, và ĐÃ gõ ít nhất một phím từ lúc bàn phím hiện
+     * (mở bàn phím ⇒ koi ngủ yên, không bong bóng).
+     */
+    fun bubbles(c: BuddyCharacter, asleep: Boolean, lowPower: Boolean, typedSinceShown: Boolean): Boolean =
+        c == BuddyCharacter.KOI && asleep && !lowPower && typedSinceShown
+
+    /** Bong bóng còn chuyển động [sinceSleep] giây sau lúc ngủ (hết ⇒ không cần khung hình nào nữa). */
+    fun bubblesMoving(sinceSleep: Double): Boolean = sinceSleep >= 0 && sinceSleep < BUBBLE_SPAN
+
+    /** Pha 0…1 của bong bóng [i] sau [sinceSleep] giây ngủ; null = chưa tới lượt / đã hết nhịp (không vẽ). */
+    fun bubblePhase(sinceSleep: Double, i: Int): Double? {
+        val local = (sinceSleep - i * BUBBLE_STAGGER) / BUBBLE_PERIOD
+        if (local < 0 || local >= BUBBLE_CYCLES) return null
+        return local - floor(local)
+    }
+
+    /** Bóng bay còn nhún [sinceShown] giây sau lúc hiện. */
+    fun balloonMoving(sinceShown: Double): Boolean = sinceShown >= 0 && sinceShown < BALLOON_SPAN
+
+    /** Độ nhún (−1…1, nhân biên độ khi vẽ) [sinceShown] giây sau lúc hiện; hết nhịp ⇒ 0 (đứng yên, liền mạch vì sin(kπ) = 0). */
+    fun balloonBob(sinceShown: Double): Double =
+        if (balloonMoving(sinceShown)) kotlin.math.sin(sinceShown * 2 * Math.PI / BALLOON_PERIOD) else 0.0
+}
+
 object BuddyPolicy {
     /** Tắt / hết Plus ⇒ [BuddyCharacter.OFF] (không tạo view). */
     fun active(setting: BuddyCharacter, plus: Boolean): BuddyCharacter =
@@ -1818,6 +1860,25 @@ class BuddySprites(val sleep: String, val rest: String, val dance: List<List<Str
             var s = 1
             while (max(width, height) / s > maxEdge) s *= 2
             return s
+        }
+
+        /**
+         * Asset atlas Bạn đồng hành: bản 512 px dựng sẵn (cùng tệp iOS `buddy-<id>-v2-512.png`, sinh bởi
+         * iOS/Scripts/make-buddy-512.swift) ⇒ giải thẳng, không giải trọn PNG 1536 px rồi lấy mẫu. Bản gốc chỉ còn cho
+         * người nhảy Night Club ([NightDancer.character]: cô gái, chàng trai).
+         */
+        fun atlasAsset(c: BuddyCharacter): String = "buddy-${c.id}-v2-512.png"
+
+        /**
+         * Giây tới lần đổi khung kế của chuỗi [count] khung chạy hết trong [duration] giây, đã chạy [elapsed] giây —
+         * khung đứng yên giữa hai mốc ⇒ hẹn vẽ lại đúng mốc thay vì mỗi 50–80 ms. Đang đúng mốc ⇒ cả một khung.
+         */
+        fun nextFrameDelay(elapsed: Double, duration: Double, count: Int): Double {
+            if (count <= 0 || duration <= 0) return Double.POSITIVE_INFINITY
+            val step = duration / count
+            val e = max(0.0, elapsed)
+            val next = (floor(e / step) + 1) * step
+            return max(next - e, 0.0)
         }
     }
 }
