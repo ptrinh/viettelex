@@ -210,6 +210,24 @@ enum BuddyGate {
     static func allows(_ c: BuddyCharacter) -> Bool { !c.isPlus || allows }
 }
 
+/// Chuyển động phụ lúc NGHỈ (bong bóng koi khi ngủ, bóng bay Tết Thiếu nhi nhún) — luật "nghỉ = 0 hoạt ảnh":
+/// chạy đúng vài nhịp rồi tự gỡ (như AIEye.breathCycles), không bao giờ `.infinity` (render server khỏi vẽ
+/// lại bàn phím liên tục khi không gõ). Hàm thuần.
+enum BuddyIdleMotion {
+    /// Bong bóng koi: số nhịp mỗi bong bóng (mỗi nhịp `bubblePeriod` giây) mỗi lần ngủ.
+    static let bubbleCycles: Float = 3
+    static let bubblePeriod = 2.4
+    /// Bóng bay nhún: số nhịp (mỗi nhịp `balloonPeriod` giây) mỗi lần hiện lại.
+    static let balloonBobs: Float = 3
+    static let balloonPeriod = 2.0
+
+    /// Bong bóng koi chỉ khi ngủ, không tiết kiệm pin, và ĐÃ gõ ít nhất một phím từ lúc bàn phím hiện
+    /// (mở bàn phím ⇒ koi ngủ yên, không bong bóng).
+    static func bubbles(_ c: BuddyCharacter, asleep: Bool, lowPower: Bool, typedSinceShown: Bool) -> Bool {
+        c == .koi && asleep && !lowPower && typedSinceShown
+    }
+}
+
 enum BuddyPolicy {
     /// Nhân vật thực hiện — hàm thuần: tắt / hết Plus ⇒ `.off` (không tạo view).
     static func active(setting: BuddyCharacter, plus: Bool) -> BuddyCharacter {
@@ -1305,6 +1323,13 @@ struct BuddySprites {
     static func rows(_ c: BuddyCharacter) -> Int { 2 }
     static func rest(_ c: BuddyCharacter) -> Int { 0 }
     static func sleep(_ c: BuddyCharacter) -> Int { 7 }
+    /// Cạnh dài atlas Bạn đồng hành (px): bundle có sẵn bản 512 (iOS/Scripts/make-buddy-512.swift) ⇒ giải
+    /// thẳng, không giải trọn PNG 1536 px rồi thu nhỏ lúc mở bàn phím (~6 MB tạm + vài chục ms CPU nền).
+    static let atlasEdge = 512
+    /// Tên resource atlas: da của app (nếu có) hoặc bản 512 px. Night Club đọc riêng bản gốc (NightDancer).
+    static func atlasName(_ c: BuddyCharacter) -> String { c.skin?.atlas ?? "buddy-\(c.rawValue)-v2-512" }
+    /// Ảnh đã ≤ `atlasEdge` ⇒ giải thẳng (CGImageSourceCreateImageAtIndex); lớn hơn (da lạ) ⇒ thumbnail như cũ.
+    static func decodesDirect(width: Int, height: Int) -> Bool { width > 0 && height > 0 && max(width, height) <= atlasEdge }
     /// Khung lật gương = ô + `mirror` (nhấc chân trái ↔ chân phải): gấp đôi số dáng, không thêm ảnh.
     static let mirror = 100
     @inline(__always) static func cell(_ frame: Int) -> Int { frame % mirror }

@@ -331,6 +331,44 @@ lượt này vì cần theme tải về; bỏ chúng chỉ xảy ra khi ẩn.
 extension (§1 chú thích ²) ⇒ chưa có số footprint process thật cho đợt này; số trên là heap trong process test.
 Cần máy thật: theme có nhạc cụ, đạp pedal, nghỉ 8 s, đo footprint trước/sau.
 
+## 4e. Bạn đồng hành + Night Club: atlas và hoạt ảnh lúc nghỉ (10/11/2026)
+
+Ba chỗ từ audit hiệu năng:
+
+1. **Hoạt ảnh lúc nghỉ.** Bong bóng koi (khi ngủ) và bóng bay Tết Thiếu nhi lặp `.infinity` ⇒ render
+   server vẽ lại bàn phím liên tục cả khi không gõ; bong bóng chạy ngay lúc mở bàn phím (koi đang ngủ).
+   Nay `BuddyIdleMotion`: 3 nhịp rồi tự gỡ; mở / hiện lại bàn phím chưa gõ ⇒ không bong bóng.
+   (Không đo được bằng footprint — đây là CPU/GPU render server, không phải RAM.)
+2. **Night Club giải trọn atlas 1536 px trên máy @3x.** Nay trần @2x (`NightDancer.maxDecodeScale`, như
+   `Wallpaper.decodeScale`); cạnh cần = cỡ gốc (iPad / bàn phím cao) ⇒ `CGImageSourceCreateImageAtIndex`
+   thay vì thumbnail cùng cỡ.
+3. **Bạn đồng hành giải PNG 1536 px để lấy thumbnail 512.** Nay bundle có sẵn `buddy-<id>-v2-512.png`
+   (`iOS/Scripts/make-buddy-512.swift`: cùng lệnh thumbnail ImageIO như trước ⇒ điểm ảnh trùng 100 %,
+   đã so từng byte cả 4 nhân vật), giải thẳng. Bản gốc chỉ còn cô gái + chàng trai (Night Club đọc);
+   mèo + gà con bản gốc đã gỡ khỏi bundle.
+
+Đo bằng `KeyboardBuddyTests/testMeasureAtlasCost*` (simulator iPhone 17, Debug, mỗi biến thể một
+lần `xcodebuild -only-testing` riêng — đỉnh `ledger_phys_footprint_peak` chỉ tăng trong một process;
+mỗi biến thể chạy 2 lần, số đỉnh lặp lại khớp; thời gian là trung vị 5 lần giải, dao động theo tải máy):
+
+| Biến thể | Ảnh giữ lại | Đỉnh footprint lúc giải | Thời gian |
+|---|---|---|---|
+| Bạn đồng hành cũ (thumbnail 512 từ PNG 1536) | 0,67 MB | +3,84…3,92 MB | 19–54 ms |
+| Bạn đồng hành mới (bản 512 giải thẳng) | 0,67 MB | +0,00 MB | 1,6–2,1 ms |
+| Night Club cũ (@3x, người nhảy 221 pt ⇒ 1536 × 1024) | 6,00 MB | +17,31 MB | 14–20 ms |
+| Night Club mới (trần @2x ⇒ 1326 × 884) | 4,48 MB | +14,52 MB | 25–27 ms |
+
+Night Club: PNG không giải thu nhỏ được ⇒ bản mới vẫn phải giải trọn ảnh tạm (đỉnh chỉ giảm ~2,8 MB,
+CPU nền một lần nhiều hơn ~10 ms), nhưng ảnh GIỮ suốt lúc dùng theme giảm 1,5 MB. Bỏ hẳn đỉnh tạm
+cần tách tệp theo khung — không làm.
+
+Dung lượng appex (PNG sau bước nén PNG của Xcode, đo bằng `xcrun copypng -compress`): gỡ mèo
+(1.597.363 B) + gà con (1.161.075 B) gốc, thêm 4 bản 512 (666.596 B) ⇒ **−2.091.842 B (~−2,0 MB)**;
+tệp nguồn trong repo −2.326.033 B.
+
+`ram-audit.sh` (process extension thật) không chạy lần này: cần thêm bàn phím + Toàn quyền bằng tay
+trên simulator; số trên là đo trong process test.
+
 ## 5. UserLangModel
 
 **Đã làm (09/2026)** — `UserLMTables` trong Keyboard/UserLangModel.swift: từ intern thành id

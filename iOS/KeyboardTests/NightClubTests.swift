@@ -189,10 +189,18 @@ final class NightClubTests: XCTestCase {
         XCTAssertEqual(r.height, 221, accuracy: 1e-9); XCTAssertEqual(r.width, 165.75, accuracy: 1e-9)
         XCTAssertEqual(r.minX, 117.125, accuracy: 1e-9); XCTAssertEqual(r.minY, 39, accuracy: 1e-9)
         XCTAssertTrue(CGRect(x: 0, y: 0, width: 400, height: 260).contains(r))
-        XCTAssertEqual(NightDancer.decodeLongEdge(displayHeight: 221, scale: 3, atlasW: 1536, atlasH: 1024), 1536)
+        // Audit 10/11/2026: @3x từng giải trọn 1536 px (6,3 MB) để hiện một ô ⇒ nay trần @2x như Wallpaper.decodeScale.
+        XCTAssertEqual(NightDancer.decodeLongEdge(displayHeight: 221, scale: 3, atlasW: 1536, atlasH: 1024), 1326)
+        XCTAssertEqual(NightDancer.decodeLongEdge(displayHeight: 300, scale: 3, atlasW: 1536, atlasH: 1024), 1536, "cao hơn ⇒ tới cỡ gốc")
+        XCTAssertEqual(NightDancer.decodeLongEdge(displayHeight: 221, scale: 1, atlasW: 1536, atlasH: 1024), 663)
         XCTAssertEqual(NightDancer.decodeLongEdge(displayHeight: 221, scale: 2, atlasW: 1536, atlasH: 1024), 1326)
         XCTAssertEqual(NightDancer.decodeLongEdge(displayHeight: 85, scale: 2, atlasW: 1536, atlasH: 1024), 510)
         XCTAssertEqual(NightDancer.decodeLongEdge(displayHeight: 400, scale: 3, atlasW: 4096, atlasH: 2731), 2048)
+        // Cạnh cần = cỡ gốc ⇒ giải thẳng (không thumbnail); nhỏ hơn / gốc vượt trần ⇒ thumbnail.
+        XCTAssertTrue(NightDancer.decodesNative(longEdge: 1536, atlasW: 1536, atlasH: 1024))
+        XCTAssertFalse(NightDancer.decodesNative(longEdge: 1326, atlasW: 1536, atlasH: 1024))
+        XCTAssertFalse(NightDancer.decodesNative(longEdge: 2048, atlasW: 4096, atlasH: 2731))
+        XCTAssertFalse(NightDancer.decodesNative(longEdge: 0, atlasW: 0, atlasH: 0))
         XCTAssertEqual(NightDancer.decodeLongEdge(displayHeight: 221, scale: 3, atlasW: 0, atlasH: 0), 0)
         XCTAssertEqual(NightDancer.decodedBytes(longEdge: 1536, atlasW: 1536, atlasH: 1024), 6_291_456)
         XCTAssertEqual(NightDancer.decodedBytes(longEdge: 1326, atlasW: 1536, atlasH: 1024), 4_688_736)
@@ -212,11 +220,14 @@ final class NightClubTests: XCTestCase {
         let before = footprint()
         let img = try XCTUnwrap(NightDancer.decodeAtlas(.girl, displayHeight: 221, scale: 3))
         let after = footprint()
-        XCTAssertEqual(max(img.width, img.height), 1536, "@3x, bàn phím 260 pt ⇒ ảnh gốc 1536 px (không mờ)")
-        XCTAssertEqual(img.bytesPerRow * img.height, 6_291_456, accuracy: 64 * 1024)
+        XCTAssertEqual(max(img.width, img.height), 1326, "@3x, bàn phím 260 pt ⇒ giải ở @2x (1326 px), không trọn 1536 px")
+        XCTAssertEqual(img.bytesPerRow * img.height, 4_688_736, accuracy: 64 * 1024)
         print("NightDancer RAM: ảnh \(img.width)×\(img.height) = \(img.bytesPerRow * img.height) B; phys_footprint +\(after - before) B")
         let small = try XCTUnwrap(NightDancer.decodeAtlas(.boy, displayHeight: 85, scale: 2))
         XCTAssertEqual(max(small.width, small.height), 510, "cỡ nhỏ ⇒ giải nhỏ")
+        let full = try XCTUnwrap(NightDancer.decodeAtlas(.girl, displayHeight: 400, scale: 2))
+        XCTAssertEqual(full.width, 1536, "cao ⇒ giải thẳng cỡ gốc")
+        XCTAssertEqual(full.height, 1024)
     }
 
     // MARK: Lớp đèn rọi
