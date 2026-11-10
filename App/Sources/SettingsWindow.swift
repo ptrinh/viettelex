@@ -833,7 +833,7 @@ enum ModeNames {
     static let tap = "Real keystrokes"
     static let selection = "Select and retype"
     static let emptyReset = "Excel style"
-    static let axDetect = "Choose per field"
+    static let axDetect = "Detect per field"
     static let passthrough = "Vietnamese off"
     /// Đuôi cho mục cần quyền khi chưa cấp: "Tên (cần quyền Trợ năng)".
     static let needsPermission = "needs {PANE}"

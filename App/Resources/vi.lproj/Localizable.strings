@@ -387,7 +387,7 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Real keystrokes" = "Phím thật";
 "Select and retype" = "Chọn rồi gõ lại";
 "Excel style" = "Kiểu Excel";
-"Choose per field" = "Tự chọn theo từng ô";
+"Detect per field" = "Tự dò từng ô";
 "Vietnamese off" = "Tắt tiếng Việt";
 "needs {PANE}" = "cần quyền {PANE}";
 "Safe typing for unrecognized apps" = "Dùng cách gõ an toàn cho ứng dụng chưa nhận diện";
