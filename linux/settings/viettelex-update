@@ -4,12 +4,23 @@
 #
 #   viettelex-update apt <gói>...   apt-get update CHỈ kho VietTelex, rồi
 #                                   apt-get install --only-upgrade <gói>
-#   viettelex-update deb <thư mục>  cài các .deb VietTelex trong thư mục (đã kiểm SHA256
-#                                   bởi app) bằng apt-get install ./….deb
+#   viettelex-update deb <thư mục>  cài các .deb VietTelex trong thư mục bằng
+#                                   apt-get install ./….deb — CHỈ file có SHA256 đúng như
+#                                   stable.json do chính helper này tải (xem dưới)
 #
 # Chỉ nhận gói trong danh sách trắng; file .deb được chép vào thư mục root-only rồi kiểm
 # tên gói bằng dpkg-deb trước khi cài. Mã thoát: 0 xong, 2 sai tham số, 3 apt/dpkg đang
-# bận, 4 apt lỗi.
+# bận, 4 apt lỗi, 5 .deb không khớp SHA256 của bản phát hành / không tải được stable.json.
+#
+# Mô hình đe doạ (chế độ deb): người gọi là process KHÔNG đặc quyền của người dùng — có thể
+# là mã độc cùng uid. Polkit để allow_active = auth_admin_keep, nên ngay sau một lần cập nhật
+# thật, process đó gọi lại pkexec không cần mật khẩu. Nếu helper tin "app đã kiểm SHA256",
+# nó sẽ cài bằng root bất kỳ .deb nào mang tên gói trong danh sách trắng (postinst = root).
+# Vì vậy helper tự lấy danh sách SHA256 của bản phát hành (https://viettelex.com/stable.json,
+# mục linux.sha256 — cùng nguồn app dùng, qua TLS, URL cố định) và chỉ cài file khớp, kiểm
+# trên bản đã chép vào thư mục root-only (không bị tráo giữa lúc kiểm và lúc cài). Người gọi
+# không chọn được nguồn: VT_STABLE_JSON (file cục bộ, cho test e2e) chỉ có hiệu lực khi KHÔNG
+# chạy qua pkexec (pkexec xoá môi trường và đặt PKEXEC_UID). Chế độ apt dựa vào chữ ký kho APT.
 set -u
 export DEBIAN_FRONTEND=noninteractive
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
@@ -18,6 +29,7 @@ export LC_ALL=C.UTF-8
 ALLOWED="libviettelex-core viettelex-fcitx5 viettelex-ibus viettelex-text-tools viettelex-settings viettelex"
 SOURCES="/etc/apt/sources.list.d/viettelex.sources /etc/apt/sources.list.d/viettelex.list"
 LOCK_WAIT=${VT_LOCK_WAIT:-60}
+STABLE_URL="https://viettelex.com/stable.json"
 
 die() { echo "viettelex-update: $2" >&2; exit "$1"; }
 allowed() { case " $ALLOWED " in *" $1 "*) return 0 ;; esac; return 1; }
@@ -69,6 +81,31 @@ case "$mode" in
       n=$((n + 1))
     done
     [ $n -gt 0 ] || die 2 "không có .deb nào"
+    # Tự kiểm SHA256 (xem "Mô hình đe doạ" ở đầu file) — không tin app gọi mình.
+    if [ -z "${PKEXEC_UID:-}" ] && [ -n "${VT_STABLE_JSON:-}" ]; then
+      cp -- "$VT_STABLE_JSON" "$work/stable.json" || die 5 "không đọc được $VT_STABLE_JSON"
+    else
+      python3 -I -c '
+import sys, urllib.request
+req = urllib.request.Request(sys.argv[1], headers={"User-Agent": "VietTelex-Linux-update"})
+with urllib.request.urlopen(req, timeout=30) as r, open(sys.argv[2], "wb") as f:
+    f.write(r.read(1 << 22))
+' "$STABLE_URL" "$work/stable.json" 2>/dev/null || die 5 "không tải được $STABLE_URL"
+    fi
+    for f in "$work"/*.deb; do
+      b=$(basename "$f")
+      want=$(python3 -I -c '
+import json, re, sys
+try:
+    s = json.load(open(sys.argv[1], encoding="utf-8"))["linux"]["sha256"][sys.argv[2]]
+except Exception:
+    s = ""
+print(s.lower() if isinstance(s, str) and re.fullmatch(r"[0-9a-fA-F]{64}", s) else "")
+' "$work/stable.json" "$b")
+      [ -n "$want" ] || die 5 "$b không có trong danh sách SHA256 của bản phát hành"
+      got=$(sha256sum -- "$f" | cut -d" " -f1)
+      [ "$got" = "$want" ] || die 5 "sai SHA256: $b"
+    done
     chmod 0755 "$work"; chmod 0644 "$work"/*.deb   # _apt đọc được khi sandbox tải gói
     echo "==> apt-get install ($n .deb)"
     apt_run install -y "$work"/*.deb

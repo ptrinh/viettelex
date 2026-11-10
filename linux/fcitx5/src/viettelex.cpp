@@ -76,13 +76,12 @@ namespace vt = viettelex;
 FCITX_CONFIGURATION(
     VietTelexConfig,
     fcitx::Option<bool> vni{this, "VNI", "Kiểu gõ VNI (thay cho Telex)", false};
-    fcitx::Option<bool> preeditUnderline{this, "PreeditUnderline", "Gạch chân chữ đang gõ", false};
+    fcitx::Option<bool> preeditUnderline{this, "PreeditUnderline", "Hiện gạch chân chữ đang gõ", false};
     // [general] display_mode = "surrounding". The key stays "NoUnderline" (existing
     // fcitx5 configs); it is NOT [experimental] no_underline ("Bỏ gạch chân trong
     // Chrome/Electron", settings app only), so the label names the display mode.
     fcitx::Option<bool> surroundingMode{this, "NoUnderline",
-                                        "Cách hiện từ đang gõ: sửa trực tiếp (surrounding), app không hỗ trợ "
-                                        "tự về chữ đang gõ (preedit)",
+                                        "Sửa thẳng trong ô (tắt — và ở app không hỗ trợ: Soạn từ rồi chèn)",
                                         false};
     fcitx::Option<bool> spellCheck{this, "SpellCheck", "Kiểm tra chính tả khi gõ", true};
     fcitx::Option<bool> autoRestore{this, "AutoRestore", "Tự khôi phục từ không phải tiếng Việt", true};
@@ -116,11 +115,11 @@ constexpr uint64_t kCapMultiline = 1ull << 35;
 // fcitx::InputContext → viettelex::InputContext
 class FcitxClient final : public vt::InputContext {
 public:
-    using ReadPrimary = std::function<bool(std::string &)>;
-    // readPrimary: PRIMARY selection for selectionAtCaret (the clipboard addon's cache);
-    // empty = a short external read (wl-paste / xclip / xsel).
-    explicit FcitxClient(fcitx::InputContext *ic, ReadPrimary readPrimary = {})
-        : ic_(ic), readPrimary_(std::move(readPrimary)) {}
+    // cachedPrimary: the clipboard addon's in-process PRIMARY cache for selectionAtCaret
+    // (false = no addon); anchorSeen: VietTelexState::anchorSeen (null = do not learn).
+    using CachedPrimary = std::function<bool(std::string &)>;
+    explicit FcitxClient(fcitx::InputContext *ic, CachedPrimary cachedPrimary = {}, bool *anchorSeen = nullptr)
+        : ic_(ic), cachedPrimary_(std::move(cachedPrimary)), anchorSeen_(anchorSeen) {}
 
     void setPreedit(const std::string &s, bool misspelled) override {
         fcitx::Text text;
@@ -273,15 +272,22 @@ public:
         if (!ic_->capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText)) return false;
         const auto &st = ic_->surroundingText();
         if (!st.isValid()) return true;
-        return vt::selectionAtCaret(st.text(), st.cursor(), st.anchor(), [this](std::string &p) {
-            if (readPrimary_) return readPrimary_(p);
-            return vt::readPrimarySelection(p, 150);
-        });
+        // Cheapest first (vt::selectionAtCaretProbe): no process spawn on the key path when
+        // the host reports real anchors or the cached PRIMARY is not at the caret.
+        bool scratch = false;
+        bool &seen = anchorSeen_ ? *anchorSeen_ : scratch;
+        std::string cached;
+        const bool haveCache = cachedPrimary_ && cachedPrimary_(cached);
+        return vt::selectionAtCaretProbe(st.text(), st.cursor(), st.anchor(), seen,
+                                         haveCache ? &cached : nullptr,
+                                         vt::primarySelectionToolAvailable(),
+                                         [](std::string &p) { return vt::readPrimarySelection(p, 150); });
     }
 
 private:
     fcitx::InputContext *ic_;
-    ReadPrimary readPrimary_;
+    CachedPrimary cachedPrimary_;
+    bool *anchorSeen_;
 };
 
 class VietTelexState final : public fcitx::InputContextProperty {
@@ -293,6 +299,9 @@ public:
     std::string clientId;  // ic->program()
     bool stateLoaded = false;
     bool rememberState = true;  // AppPolicy.rememberState of the current field
+    // The host reported anchor != cursor in this focus: its anchors are real, so no PRIMARY
+    // probe before reach-backs (vt::selectionAtCaretProbe). Cleared at activation.
+    bool anchorSeen = false;
     vt::PolicyCache policy;     // inputs of the field policy last applied (refreshFieldFlags)
     // Text tool result that arrived while this context had no focus (the tray menu took
     // it): committed on the next activation if still fresh.
@@ -376,7 +385,7 @@ public:
         g_pickCandidate = [this](fcitx::InputContext *ic) {
             try {
                 if (!ic || instance_->inputMethod(ic) != "viettelex") return;
-                FcitxClient client(ic, primaryReader(ic));
+                FcitxClient client(ic, primaryCache(ic), &state(ic)->anchorSeen);
                 state(ic)->session.chooseHint(client);
             } catch (...) {
             }
@@ -457,7 +466,7 @@ public:
             auto *ic = event.inputContext();
             auto *st = state(ic);
             ensureAppState(st);
-            FcitxClient client(ic, primaryReader(ic));
+            FcitxClient client(ic, primaryCache(ic), &state(ic)->anchorSeen);
             refreshFieldFlags(st, client);
             vt::KeyEvent ev = toVt(event);
             if (st->session.isAddTonesHotkey(ev)) {
@@ -487,8 +496,12 @@ public:
             if (watcher_.changedOnDiskUnwatched()) applySettingsToAll();  // inotify fallback
             auto *st = state(ic);
             st->stateLoaded = false;
+            st->anchorSeen = false;  // one context can serve several apps (GNOME Wayland)
             ensureAppState(st);
             st->session.focusIn();
+            // viettelex-text-tools installed after this context was created: hints from now on.
+            if (!st->session.hasHintSink() && hintsAvailable())
+                st->session.setHintSink([this, ic](const vt::HintRequest &r) { submitHint(ic, r); });
             ic->statusArea().addAction(fcitx::StatusGroup::InputMethod, &modeAction_);
             updateToolsAction(ic);
             updateAction(st);
@@ -512,11 +525,16 @@ public:
             //   commits the preedit before sending Reset — a click in Ptyxis/VTE gave "thửthử".
             // Any other reset (IM switch, Wayland / IBus-frontend clients, preedit shown in the
             // panel): commit it ourselves so it is not lost.
+            // Both of those commit only the CLIENT preedit (Fcitx5 5.0.14 … master, instance.cpp
+            // FocusOut/ReservedFirst: `inputPanel().clientPreedit().toStringForCommit()`). Without
+            // CapabilityFlag::Preedit the word is in the PANEL preedit (FcitxClient::setPreedit)
+            // and nobody else commits it — so we do, also on focus-out.
             const auto &caps = ic->capabilityFlags();
-            bool clientCommits = caps.test(fcitx::CapabilityFlag::ClientUnfocusCommit) &&
-                                 caps.test(fcitx::CapabilityFlag::Preedit);
-            bool alreadyCommitted = event.type() == fcitx::EventType::InputContextFocusOut ||
-                                    (event.type() == fcitx::EventType::InputContextReset && clientCommits);
+            const bool clientPreedit = caps.test(fcitx::CapabilityFlag::Preedit);
+            bool clientCommits = caps.test(fcitx::CapabilityFlag::ClientUnfocusCommit) && clientPreedit;
+            bool alreadyCommitted =
+                (event.type() == fcitx::EventType::InputContextFocusOut && clientPreedit) ||
+                (event.type() == fcitx::EventType::InputContextReset && clientCommits);
             st->session.finish(client, !alreadyCommitted);
         } catch (...) {
         }
@@ -554,7 +572,13 @@ public:
                                   *config_.surroundingMode ? "\"surrounding\"" : "\"preedit\"");
         text = vt::setConfigValue(text, "general", "per_app_state", b(*config_.perAppState));
         text = vt::setConfigValue(text, "general", "preedit_underline", b(*config_.preeditUnderline));
-        vt::writeFileAtomic(vt::configPath(), text);
+        if (!vt::writeFileAtomic(vt::configPath(), text)) {
+            // Read-only / full ~/.config: nothing changed — show the real values again
+            // instead of pretending the dialog's choice took effect.
+            FCITX_WARN() << "VietTelex: cannot write " << vt::configPath();
+            syncConfigFromSettings();
+            return;
+        }
         applySettingsToAll();  // don't wait for inotify
     }
 
@@ -574,19 +598,17 @@ private:
     FCITX_ADDON_DEPENDENCY_LOADER(clipboard, instance_->addonManager());
 #endif
 
-    // PRIMARY from the clipboard addon's in-process cache (no IPC); empty = no addon. The
+    // PRIMARY from the clipboard addon's in-process cache (no IPC); false = no addon. The
     // cache keeps the last text after the app drops the selection (GTK3 entry: select, then
-    // End) — so a cached hit is confirmed with a short external read when a tool exists.
-    FcitxClient::ReadPrimary primaryReader(fcitx::InputContext *ic) {
+    // End) — so a cached hit at the caret is confirmed with a short external read when a
+    // tool exists (vt::selectionAtCaretProbe); a miss costs nothing.
+    FcitxClient::CachedPrimary primaryCache(fcitx::InputContext *ic) {
 #if defined(VT_HAVE_FCITX_CLIPBOARD)
         return [this, ic](std::string &out) {
             auto *clip = clipboard();
-            if (!clip) return vt::readPrimarySelection(out, 150);
+            if (!clip) return false;
             out = clip->call<fcitx::IClipboard::primary>(ic);
-            if (out.empty()) return false;
-            std::string live;
-            if (vt::readPrimarySelection(live, 150) || vt::primarySelectionToolAvailable()) out = live;
-            return !out.empty();
+            return true;
         };
 #else
         (void)ic;

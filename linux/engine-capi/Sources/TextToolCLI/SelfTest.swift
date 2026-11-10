@@ -489,6 +489,18 @@ func caretSelfTest(fixtures: String) -> Int {
         check(LearnStore.shared.msUntilSave() != nil, "hẹn lưu")
         LearnStore.shared.saveIfDue(now: LearnStore.now() + LearnStore.saveDelay + 1)
         check(LearnStore.shared.msUntilSave() == nil, "đã lưu")
+        // Dữ liệu gõ của người dùng: chỉ chủ đọc được (0600), dù umask là 022.
+        do {
+            let old = umask(0o022)
+            defer { umask(old) }
+            _ = HintProtocol.handle("learn\tphở\t\t\t1")
+            LearnStore.shared.saveIfDue(force: true)
+            var st = stat()
+            check(stat(LearnStore.shared.url.path, &st) == 0 && (st.st_mode & 0o777) == 0o600,
+                  "học: learned-words.bin 0600")
+            check(!FileManager.default.fileExists(atPath: LearnStore.shared.url.path + ".tmp\(getpid())"),
+                  "học: không sót file tạm")
+        }
         // App Cài đặt "Xoá từ đã học": ghi kho rỗng ⇒ process con thấy file đổi ⇒ nạp lại rỗng.
         _ = HintProtocol.handle("learn\tphở\t\t\t1")
         _ = LearnedModel.write(model().snapshot().encoded(), to: LearnStore.shared.url)

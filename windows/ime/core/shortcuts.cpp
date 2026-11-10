@@ -1,6 +1,7 @@
 #include "shortcuts.h"
 
 #include <cstdint>
+#include <cstring>
 #include <vector>
 
 #include "utf.h"
@@ -164,23 +165,116 @@ std::string toFlatJson(const StringMap& m) {
     return o;
 }
 
+// Port 1:1 of macOS ShortcutImporter (App/Sources/AppState.swift): a key containing ':' or
+// starting with # ; // " ' is written double-quoted; a double-quoted value is escaped
+// (\\ \" \n) and unescaped on read (\n \t \\ \"). Files written by either side round-trip on
+// the other; old unquoted files read as before.
+namespace {
+
+std::string scEscape(const std::string &s) {
+    std::string out;
+    for (size_t i = 0; i < s.size(); ++i) {
+        char c = s[i];
+        if (c == '\\') out += "\\\\";
+        else if (c == '"') out += "\\\"";
+        else if (c == '\r') {
+            if (i + 1 < s.size() && s[i + 1] == '\n') ++i;
+            out += "\\n";
+        } else if (c == '\n') out += "\\n";
+        else out += c;
+    }
+    return out;
+}
+
+std::string scUnescape(const std::string &s) {
+    if (s.find('\\') == std::string::npos) return s;
+    std::string out;
+    for (size_t i = 0; i < s.size(); ++i) {
+        char c = s[i];
+        if (c != '\\') { out += c; continue; }
+        if (i + 1 >= s.size()) { out += '\\'; break; }
+        char n = s[++i];
+        switch (n) {
+        case 'n': out += '\n'; break;
+        case 't': out += '\t'; break;
+        case '\\': out += '\\'; break;
+        case '"': out += '"'; break;
+        default: out += '\\'; out += n;
+        }
+    }
+    return out;
+}
+
+// `"…"` at the start of `s` → unescaped content + index past the closing quote.
+bool scQuotedPrefix(const std::string &s, std::string &out, size_t &after) {
+    std::string raw;
+    for (size_t i = 1; i < s.size(); ++i) {
+        char c = s[i];
+        if (c == '\\') {
+            if (i + 1 >= s.size()) return false;
+            raw += c;
+            raw += s[++i];
+            continue;
+        }
+        if (c == '"') {
+            out = scUnescape(raw);
+            after = i + 1;
+            return true;
+        }
+        raw += c;
+    }
+    return false;
+}
+
+bool scStarts(const std::string &s, const char *p) { return s.compare(0, std::strlen(p), p) == 0; }
+
+std::string scQuoteKey(const std::string &k) {
+    bool needs = k.find(':') != std::string::npos || scStarts(k, "#") || scStarts(k, ";") ||
+                 scStarts(k, "//") || scStarts(k, "\"") || scStarts(k, "'");
+    return needs ? "\"" + scEscape(k) + "\"" : k;
+}
+
+std::string scQuoteValue(const std::string &v) {
+    if (v.find('\n') != std::string::npos || v.find('\r') != std::string::npos) return "\"" + scEscape(v) + "\"";
+    bool needs = !v.empty() && (v.front() == ' ' || v.back() == ' ' || v.front() == '\'' ||
+                                v.front() == '"' || v.front() == '#');
+    return needs ? "\"" + scEscape(v) + "\"" : v;
+}
+
+}  // namespace
+
 bool parseShortcutFile(const std::string& text, StringMap& out) {
     out.clear();
     StringMap json;
     if (parseFlatJson(text, json) && !json.empty()) { out = json; return true; }
+    const std::string body = scStarts(text, "\xEF\xBB\xBF") ? text.substr(3) : text;
     size_t start = 0;
-    while (start <= text.size()) {
-        size_t nl = text.find('\n', start);
-        std::string raw = text.substr(start, nl == std::string::npos ? std::string::npos : nl - start);
-        start = nl == std::string::npos ? text.size() + 1 : nl + 1;
+    while (start < body.size()) {
+        size_t nl = body.find_first_of("\r\n", start);
+        std::string raw = body.substr(start, nl == std::string::npos ? std::string::npos : nl - start);
+        if (nl == std::string::npos) start = body.size();
+        else start = (body[nl] == '\r' && nl + 1 < body.size() && body[nl + 1] == '\n') ? nl + 2 : nl + 1;
         std::string line = trim(raw);
         if (line.empty() || line[0] == ';' || line[0] == '#' || line.compare(0, 2, "//") == 0) continue;
-        size_t colon = line.find(':');
-        if (colon == std::string::npos) continue;
-        std::string key = trim(line.substr(0, colon));
-        std::string value = trim(line.substr(colon + 1));
-        if (value.size() >= 2 && ((value.front() == '"' && value.back() == '"') ||
-                                  (value.front() == '\'' && value.back() == '\'')))
+        std::string key, rest, quotedKey;
+        size_t after = 0;
+        if (line[0] == '"' && scQuotedPrefix(line, quotedKey, after)) {
+            size_t r = after;
+            while (r < line.size() && (line[r] == ' ' || line[r] == '\t')) ++r;
+            if (r >= line.size() || line[r] != ':') continue;
+            key = quotedKey;
+            rest = line.substr(r + 1);
+        } else {
+            size_t colon = line.find(':');
+            if (colon == std::string::npos) continue;
+            key = line.substr(0, colon);
+            rest = line.substr(colon + 1);
+        }
+        key = trim(key);
+        std::string value = trim(rest);
+        if (charCount(value) >= 2 && value.front() == '"' && value.back() == '"')
+            value = scUnescape(value.substr(1, value.size() - 2));
+        else if (charCount(value) >= 2 && value.front() == '\'' && value.back() == '\'')
             value = value.substr(1, value.size() - 2);
         if (key.empty() || value.empty() || charCount(key) > 64 || hasWhitespace(key)) continue;
         out[key] = value;
@@ -190,12 +284,7 @@ bool parseShortcutFile(const std::string& text, StringMap& out) {
 
 std::string exportShortcutsYaml(const StringMap& m) {
     std::string o = "# VietTelex — bảng gõ tắt\n";
-    for (const auto& kv : m) {
-        const std::string& v = kv.second;
-        bool quote = !v.empty() && (v.front() == ' ' || v.back() == ' ' || v.front() == '\'' ||
-                                    v.front() == '"' || v.front() == '#');
-        o += kv.first + ": " + (quote ? "\"" + v + "\"" : v) + "\n";
-    }
+    for (const auto& kv : m) o += scQuoteKey(kv.first) + ": " + scQuoteValue(kv.second) + "\n";
     return o;
 }
 

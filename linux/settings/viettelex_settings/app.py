@@ -33,7 +33,7 @@ STABLE_JSON = "https://viettelex.com/stable.json"  # trực tiếp HTTPS (github
 
 APP_MODE_CHOICES = [
     ("auto", N_("Tự động")),
-    ("preedit", N_("Gạch chân chữ đang gõ")),
+    ("preedit", N_("Soạn từ rồi chèn")),
     ("surrounding", N_("Sửa thẳng trong ô")),
     ("direct", N_("Gõ thẳng, sửa bằng Backspace")),
     ("off", N_("Tắt tiếng Việt")),
@@ -205,6 +205,26 @@ class SettingsWindow(Adw.PreferencesWindow):
     def toast(self, text):
         self.add_toast(Adw.Toast.new(esc(text)))
 
+    def save_config(self, fn, *args):
+        """Mọi lần ghi config.toml / shortcuts.yml đi qua đây: ~/.config chỉ đọc / đầy ⇒ báo
+        một câu và đưa giao diện về đúng trạng thái trên đĩa (công tắc không bật "giả")."""
+        try:
+            fn(*args)
+            return True
+        except OSError:
+            self.toast(_("Không ghi được cấu hình trong ~/.config."))
+            GLib.idle_add(self._show_saved_state)   # sau handler đang chạy (vd notify::active)
+            return False
+
+    def _show_saved_state(self):
+        self.cfg.load()
+        for f in self.refreshers:
+            f()
+        self.refresh_dependents()
+        self.shortcut_map = shortcuts.load()
+        self._rebuild_shortcuts()
+        return False
+
     def switch(self, group, section, key, title, subtitle=None, invert=False):
         r = row(title, subtitle)
         sw = Gtk.Switch(valign=Gtk.Align.CENTER)
@@ -216,7 +236,7 @@ class SettingsWindow(Adw.PreferencesWindow):
             sw.set_active(not v if invert else v)
         refresh()
         def toggled(s, _p):
-            self.cfg.set(section, key, (not s.get_active()) if invert else s.get_active())
+            self.save_config(self.cfg.set, section, key, (not s.get_active()) if invert else s.get_active())
             self.refresh_dependents()        # dòng con ngay dưới hiện/ẩn ngay (§0.4)
         sw.connect("notify::active", toggled)
         self.refreshers.append(refresh)
@@ -239,7 +259,8 @@ class SettingsWindow(Adw.PreferencesWindow):
         def changed(rr, _p):
             i = rr.get_selected()
             if 0 <= i < len(values):
-                self.cfg.set(section, key, values[i])
+                if not self.save_config(self.cfg.set, section, key, values[i]):
+                    return
                 self.refresh_dependents()
                 if on_change:
                     on_change()
@@ -565,6 +586,21 @@ class SettingsWindow(Adw.PreferencesWindow):
         page = Adw.PreferencesPage(title=_("Gợi ý & công cụ"), icon_name="preferences-system-symbolic")
         off_note = _("Không chạy ở terminal, trình soạn code, ô web/email, ô mật khẩu và khi gõ English.")
 
+        if detect.text_tool_path() is None:
+            # Không có helper thì mọi công tắc dưới đây không làm gì — nói rõ thay vì im lặng.
+            cmd = updater.install_cmd("viettelex-text-tools")
+            g = Adw.PreferencesGroup()
+            w = row(_("Chưa cài gói viettelex-text-tools"),
+                    _("Cần cho gợi ý và công cụ văn bản. Cài bằng lệnh dưới đây rồi khởi động lại bộ gõ.") + "\n" + cmd)
+            w.add_prefix(Gtk.Image(icon_name="dialog-warning-symbolic"))
+            cb = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER,
+                            tooltip_text=_("Chép lệnh"))
+            cb.add_css_class("flat")
+            cb.connect("clicked", lambda _b: self.copy_text(cmd))
+            w.add_suffix(cb)
+            g.add(w)
+            page.add(g)
+
         g = Adw.PreferencesGroup(title=_("Gợi ý từ"), description=off_note)
         for key, title, sub in PREDICTION_SWITCHES:
             r = self.switch(g, "general", key, _(title), _(sub))
@@ -625,7 +661,8 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.hotkey_btn.set_label(hotkey_label(hk) or _("Tắt"))
 
     def set_hotkey(self, value):
-        self.cfg.set("general", "toggle_hotkey", value)
+        if not self.save_config(self.cfg.set, "general", "toggle_hotkey", value):
+            return
         self._refresh_hotkey()
         conflict = gnome_hotkey_conflict(value)
         if conflict:
@@ -636,7 +673,8 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.addtones_btn.set_label(hotkey_label(hk) or _("Tắt"))
 
     def set_addtones_hotkey(self, value):
-        self.cfg.set("general", "add_tones_hotkey", value)
+        if not self.save_config(self.cfg.set, "general", "add_tones_hotkey", value):
+            return
         self._refresh_addtones()
         conflict = gnome_hotkey_conflict(value)
         if conflict:
@@ -660,7 +698,9 @@ class SettingsWindow(Adw.PreferencesWindow):
         def toggled(s, _p):
             if s.get_active() == on():
                 return
-            self.cfg.set("experimental", "no_underline", "forward-keys" if s.get_active() else "off")
+            if not self.save_config(self.cfg.set, "experimental", "no_underline",
+                             "forward-keys" if s.get_active() else "off"):
+                return
             self.sync_launchers(announce=True)
         handler = sw.connect("notify::active", toggled)
 
@@ -840,7 +880,12 @@ class SettingsWindow(Adw.PreferencesWindow):
             if not mods:
                 title.set_label(_("Cần thêm Ctrl, Alt, Shift hoặc Super"))
                 return True
-            value = config.normalize_hotkey("+".join(mods + [name]))
+            # Chỉ nhận tổ hợp frontend đọc được (cùng luật parseHotkey C++) — không thì lưu
+            # vào là mất phím chuyển mà không báo gì.
+            value, err = config.captured_hotkey(mods, name)
+            if err == "modifier":
+                title.set_label(_("Cần thêm Ctrl, Alt hoặc Super"))
+                return True
             if value is None:
                 title.set_label(_("Không dùng được %s — chọn tổ hợp khác") % "+".join(mods + [name]))
                 return True
@@ -942,7 +987,7 @@ class SettingsWindow(Adw.PreferencesWindow):
             self.sc_rows.append(r)
             return
         for key in sorted(self.shortcut_map):
-            r = row(key, self.shortcut_map[key])
+            r = row(key, shortcuts.one_line(self.shortcut_map[key]))
             r.set_activatable(True)
             r.connect("activated", lambda _r, k=key: self._edit_shortcut(k))
             d = Gtk.Button(icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER,
@@ -959,8 +1004,10 @@ class SettingsWindow(Adw.PreferencesWindow):
         self.sc_val.grab_focus()
 
     def _save_shortcuts(self):
-        shortcuts.save(self.shortcut_map)
+        if not self.save_config(shortcuts.save, self.shortcut_map):
+            return False
         self._rebuild_shortcuts()
+        return True
 
     def add_shortcut(self):
         k = self.sc_key.get_text().strip()
@@ -972,7 +1019,8 @@ class SettingsWindow(Adw.PreferencesWindow):
             self.toast(_("Nhập cụm từ sẽ thay thế."))
             return
         self.shortcut_map[k] = v
-        self._save_shortcuts()
+        if not self._save_shortcuts():
+            return                        # giữ chữ trong ô để thử lại
         self.sc_key.set_text("")
         self.sc_val.set_text("")
         self.sc_key.grab_focus()
@@ -989,7 +1037,8 @@ class SettingsWindow(Adw.PreferencesWindow):
             return
         d = {k: v for k, v in d.items() if shortcuts.valid_key(k)}
         self.shortcut_map.update(d)
-        self._save_shortcuts()
+        if not self._save_shortcuts():
+            return
         self.toast(_("Đã nhập %d gõ tắt — gộp vào bảng hiện có (mục trùng lấy giá trị mới).")
                    % len(d))
 
@@ -1044,10 +1093,10 @@ class SettingsWindow(Adw.PreferencesWindow):
         # Hiển thị chữ đang gõ: nhãn theo triệu chứng, gom trong Nâng cao (SETTINGS-CLEANUP-SPEC §4).
         g = Adw.PreferencesGroup(
             title=_("Hiển thị chữ đang gõ"),
-            description=_("Gạch chân: đúng chữ ở mọi app. Sửa thẳng trong ô: như macOS, chỉ ở app hỗ trợ."))
+            description=_("Soạn từ rồi chèn: đúng chữ ở mọi app. Sửa thẳng trong ô: như macOS, chỉ ở app hỗ trợ."))
         adv = self.advanced(g, _("Cách hiện chữ đang gõ, gạch chân, terminal, Chrome/Electron"))
         self.combo(adv, "general", "display_mode", _("Cách hiện chữ đang gõ"),
-                   [("preedit", _("Gạch chân chữ đang gõ")), ("surrounding", _("Sửa thẳng trong ô"))])
+                   [("preedit", _("Soạn từ rồi chèn")), ("surrounding", _("Sửa thẳng trong ô"))])
         self.switch(adv, "general", "preedit_underline", _("Hiện gạch chân chữ đang gõ"),
                     _("Tắt: chữ đang gõ trông như chữ thường (GTK, Qt, VTE X11). Chrome/Electron vẫn tự gạch."))
         self.switch(adv, "general", "terminal_direct", _("Terminal: gõ thẳng, sửa dấu bằng Backspace"),
@@ -1088,7 +1137,8 @@ class SettingsWindow(Adw.PreferencesWindow):
             self.mode_rows.append(r)
 
     def _mode_changed(self, app, mode, rebuild=False):
-        self.cfg.set_app_mode(app, mode)
+        if not self.save_config(self.cfg.set_app_mode, app, mode):
+            return
         if rebuild or mode == "auto":
             GLib.idle_add(self._rebuild_modes)
 
@@ -1098,7 +1148,8 @@ class SettingsWindow(Adw.PreferencesWindow):
             self.toast(_("Nhập tên app (không chứa dấu cách)."))
             return
         mode = APP_MODE_CHOICES[1 + self.mode_pick.get_selected()][0]
-        self.cfg.set_app_mode(app, mode)
+        if not self.save_config(self.cfg.set_app_mode, app, mode):
+            return
         self.mode_app.set_text("")
         self._rebuild_modes()
 
@@ -1113,7 +1164,8 @@ class SettingsWindow(Adw.PreferencesWindow):
             mode = MAC_MODE_MAP.get(mode, mode)
             if mode in config.APP_MODES and app.strip():
                 good[app] = mode
-        self.cfg.set_app_modes(good)
+        if not self.save_config(self.cfg.set_app_modes, good):
+            return
         applied = len(good)
         self._rebuild_modes()
         self.toast(_("Đã nhập %d chế độ app. Mục có chế độ không hợp lệ bị bỏ qua.") % applied)
@@ -1344,14 +1396,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         return False
 
 
-def hotkey_label(value):
-    """'Ctrl+space' → 'Ctrl+Space' (chỉ để hiển thị; file giữ đúng tên keysym)."""
-    if not value:
-        return ""
-    parts = value.split("+")
-    key = parts[-1]
-    key = key.upper() if len(key) == 1 else key[:1].upper() + key[1:]
-    return "+".join(parts[:-1] + [key])
+hotkey_label = config.hotkey_display   # 'Ctrl+Shift+at' → 'Ctrl+Shift+@' (file giữ tên keysym)
 
 
 def read_table(path):

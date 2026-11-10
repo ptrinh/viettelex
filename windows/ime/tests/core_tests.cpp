@@ -298,6 +298,27 @@ TEST(shortcut_import_formats) {
     CHECK(back == m);
 }
 
+// Quoted keys (":D", "a:b", "#x"…) and escaped multi-line values, as macOS ShortcutImporter
+// writes them — linux/common/tests/data/shortcuts-macos.yml is macOS exportYAML output.
+TEST(shortcut_quoted_keys_like_macos) {
+    StringMap want{
+        {":D", "😀"}, {"a:b", "x"}, {"#x", "hash"}, {";x", "semi"}, {"//x", "slash"},
+        {"\"k", "dq"}, {"'k", "sq"}, {"sig", "Thân mến,\nPhil"}, {"bs", "C:\\temp"},
+        {"q", "\"trích\""}, {"sp", " có space "}, {"ko", "không"}, {"url", "http://x"}, {"tab", "a\tb"},
+    };
+    const std::string mac =
+        "# VietTelex — bảng gõ tắt\n\"\\\"k\": dq\n\"#x\": hash\n\"'k\": sq\n\"//x\": slash\n"
+        "\":D\": 😀\n\";x\": semi\n\"a:b\": x\nbs: C:\\temp\nko: không\nq: \"\\\"trích\\\"\"\n"
+        "sig: \"Thân mến,\\nPhil\"\nsp: \" có space \"\ntab: a\tb\nurl: http://x\n";
+    CHECK_EQ(exportShortcutsYaml(want), mac);
+    StringMap r;
+    CHECK(parseShortcutFile(mac, r));
+    CHECK(r == want);
+    CHECK(parseShortcutFile("\xEF\xBB\xBFko: không\r\ndc: được\r\n", r));
+    CHECK_EQ(r.size(), size_t(2));
+    CHECK_EQ(r["dc"], std::string("được"));
+}
+
 TEST(shortcut_lookup_rules) {
     std::map<std::u16string, std::u16string> t{{u"vn", u"Việt Nam"}, {u"cf", u"cà phê"}};
     std::u16string e;

@@ -22,6 +22,9 @@ import Glibc
 import Darwin
 #endif
 
+/// POSIX write(2) — ngoài class để không đụng tên với LearnStore.write(_:).
+private func posixWrite(_ fd: Int32, _ p: UnsafeRawPointer, _ n: Int) -> Int { write(fd, p, n) }
+
 final class LearnStore {
     static let shared = LearnStore()
     /// Gộp lượt lưu (giây sau lượt học cuối).
@@ -126,8 +129,38 @@ final class LearnStore {
     private func write(_ m: LearnedModel) {
         let data = m.snapshot().encoded()
         m.markSaved()
-        LearnedModel.write(data, to: url)
+        _ = Self.writePrivate(data, to: url)
         seen = fileStat()
         lastStat = Self.now()
+    }
+
+    /// Ghi nguyên tử, CHỈ chủ đọc được (0600; thư mục mới 0700): file là từ / cặp từ người dùng
+    /// hay gõ. Data.write(.atomic) để quyền theo umask (thường 0644, người khác trên máy đọc
+    /// được). File tạm mở O_EXCL 0600 ngay từ đầu — không có lúc nào lộ quyền rộng hơn.
+    @discardableResult
+    static func writePrivate(_ data: Data, to url: URL) -> Bool {
+        let dir = url.deletingLastPathComponent().path
+        if access(dir, F_OK) != 0 {
+            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true,
+                                                     attributes: [.posixPermissions: 0o700])
+        }
+        let tmp = url.path + ".tmp\(getpid())"
+        unlink(tmp)
+        let fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o600)
+        guard fd >= 0 else { return false }
+        var ok = data.withUnsafeBytes { raw -> Bool in
+            var off = 0
+            while off < raw.count {
+                let w = posixWrite(fd, raw.baseAddress! + off, raw.count - off)
+                if w < 0 { if errno == EINTR { continue }; return false }
+                off += w
+            }
+            return true
+        }
+        if ok && fsync(fd) != 0 { ok = false }
+        if close(fd) != 0 { ok = false }
+        if ok && rename(tmp, url.path) == 0 { return true }
+        unlink(tmp)
+        return false
     }
 }

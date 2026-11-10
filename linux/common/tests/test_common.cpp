@@ -8,6 +8,7 @@
 #include "viettelex/retro_english.h"
 #include "viettelex/session.h"
 #include "viettelex/settings.h"
+#include "viettelex/surrounding_cache.h"
 #include "viettelex/text_tools.h"
 #include "viettelex/watcher.h"
 
@@ -20,6 +21,7 @@
 #include <mutex>
 #include <random>
 #include <string>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
 
@@ -771,6 +773,99 @@ void testTextToolNamesAndSelection() {
     CHECK(!selectionAtCaret("toi di hoc", 10, 10, primaryIs("")));     // no PRIMARY / no tool
     CHECK(!selectionAtCaret("toi di hoc", 10, 10, {}));
     CHECK_EQ(reads, 4);
+
+    // Key-path probe: no process spawn when it cannot change the answer.
+    reads = 0;
+    bool anchorSeen = false;
+    const std::string cachedFar = "khac", cachedHere = "hoc", noCache;
+    // Cache not against the caret ⇒ no external read at all.
+    CHECK(!selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &cachedFar, true, primaryIs("hoc")));
+    CHECK(!selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &noCache, true, primaryIs("hoc")));
+    CHECK_EQ(reads, 0);
+    // Cache against the caret ⇒ confirmed live (stale cache after deselect ⇒ false).
+    CHECK(selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &cachedHere, true, primaryIs("hoc")));
+    CHECK(!selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &cachedHere, true, primaryIs("")));
+    CHECK_EQ(reads, 2);
+    // No live tool installed: the cache decides.
+    CHECK(selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &cachedHere, false, primaryIs("")));
+    CHECK_EQ(reads, 2);
+    // No cache (IBus / no clipboard addon) ⇒ live read.
+    CHECK(selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, nullptr, true, primaryIs("hoc")));
+    CHECK_EQ(reads, 3);
+    // A host that reported a real anchor once: anchor == cursor means no selection, no probe.
+    CHECK(selectionAtCaretProbe("toi di hoc", 10, 7, anchorSeen, nullptr, true, primaryIs("hoc")));
+    CHECK(anchorSeen);
+    CHECK(!selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, nullptr, true, primaryIs("hoc")));
+    CHECK(!selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &cachedHere, true, primaryIs("hoc")));
+    CHECK_EQ(reads, 3);
+}
+
+// readPrimarySelection stops at the first tool that answers (exit 0), even with nothing
+// selected: wl-paste answering "" must not cost another 150 ms in xclip.
+// IBus frontend: one ibus_engine_get_surrounding_text (a D-Bus signal + a new ref) per
+// engine callback instead of 3–5; re-read after our own delete (IBus rewrites its copy).
+void testSurroundingCache() {
+    int fetches = 0;
+    SurroundingCache c([&fetches](SurroundingSnapshot &s) {
+        ++fetches;
+        s.text = "toi di";
+        s.cursor = s.anchor = 6;
+        return true;
+    });
+    for (int i = 0; i < 5; ++i) CHECK(c.get() && c.get()->text == "toi di");
+    CHECK_EQ(fetches, 1);
+    c.invalidate();
+    CHECK(c.get());
+    CHECK_EQ(fetches, 2);
+    int none = 0;
+    SurroundingCache empty([&none](SurroundingSnapshot &) { ++none; return false; });
+    CHECK(!empty.get());
+    CHECK(!empty.get());
+    CHECK_EQ(none, 1);
+
+    // Frontends attach the hint sink at focus-in when the helper appeared after start-up
+    // (viettelex-text-tools installed later): they ask hasHintSink() first.
+    Session s;
+    CHECK(!s.hasHintSink());
+    s.setHintSink([](const HintRequest &) {});
+    CHECK(s.hasHintSink());
+}
+
+void testPrimaryFirstToolWins() {
+    char tmpl[] = "/tmp/vt-primary-XXXXXX";
+    const char *dir = mkdtemp(tmpl);
+    if (!dir) { ++g_fail; return; }
+    const std::string d = dir;
+    auto script = [&](const std::string &name, const std::string &body) {
+        std::string p = d + "/" + name;
+        FILE *f = std::fopen(p.c_str(), "w");
+        std::fprintf(f, "#!/bin/sh\n%s\n", body.c_str());
+        std::fclose(f);
+        chmod(p.c_str(), 0755);
+    };
+    script("wl-paste", "exit 0");                                  // nothing selected
+    script("xclip", "touch '" + d + "/xclip-ran'; printf stale");
+    const char *oldPath = std::getenv("PATH"), *oldWl = std::getenv("WAYLAND_DISPLAY"),
+               *oldX = std::getenv("DISPLAY");
+    const std::string savePath = oldPath ? oldPath : "", saveWl = oldWl ? oldWl : "", saveX = oldX ? oldX : "";
+    setenv("PATH", (d + ":/usr/bin:/bin").c_str(), 1);
+    setenv("WAYLAND_DISPLAY", "wayland-test", 1);
+    setenv("DISPLAY", ":99", 1);
+    std::string out = "x";
+    CHECK(!readPrimarySelection(out, 2000));
+    CHECK(out.empty());
+    CHECK(access((d + "/xclip-ran").c_str(), F_OK) != 0);
+    script("wl-paste", "printf hoc");
+    CHECK(readPrimarySelection(out, 2000));
+    CHECK_EQ(out, std::string("hoc"));
+    script("wl-paste", "exit 1");                                  // no wl-paste answer ⇒ next tool
+    CHECK(readPrimarySelection(out, 2000));
+    CHECK_EQ(out, std::string("stale"));
+    setenv("PATH", savePath.c_str(), 1);
+    if (oldWl) setenv("WAYLAND_DISPLAY", saveWl.c_str(), 1); else unsetenv("WAYLAND_DISPLAY");
+    if (oldX) setenv("DISPLAY", saveX.c_str(), 1); else unsetenv("DISPLAY");
+    for (const char *f : {"wl-paste", "xclip", "xclip-ran"}) std::remove((d + "/" + f).c_str());
+    rmdir(dir);
 }
 
 // Runs the real viettelex-text-tool when ctest points at it (VIETTELEX_TEXT_TOOL).
@@ -879,6 +974,41 @@ void testConfigParse() {
           e.collisionPrefersVietnamese && !e.vni && e.displayMode == DisplayMode::Preedit);
 }
 
+// writeFileAtomic: a symlinked config.toml stays a symlink (the target is rewritten), the temp
+// name is unique (the settings app and the Fcitx5 dialog share the dir), a read-only dir is
+// reported as a failure and leaves nothing behind, the file mode is kept.
+void testWriteFileAtomic() {
+    char tmpl[] = "/tmp/vt-write-XXXXXX";
+    const char *d = mkdtemp(tmpl);
+    if (!d) { ++g_fail; return; }
+    const std::string dir = d, target = dir + "/real.toml", link = dir + "/config.toml";
+    CHECK(writeFileAtomic(target, "a\n"));
+    chmod(target.c_str(), 0640);
+    CHECK(symlink("real.toml", link.c_str()) == 0);
+    CHECK(writeFileAtomic(link, "b\n"));
+    struct stat st;
+    CHECK(lstat(link.c_str(), &st) == 0 && S_ISLNK(st.st_mode));
+    std::string text;
+    CHECK(readFile(target, text) && text == "b\n");
+    CHECK(stat(target.c_str(), &st) == 0 && (st.st_mode & 0777) == 0640);
+    // No fixed "<name>.tmp" left over or reused.
+    CHECK(access((target + ".tmp").c_str(), F_OK) != 0);
+    const std::string ro = dir + "/ro";
+    mkdir(ro.c_str(), 0700);
+    CHECK(writeFileAtomic(ro + "/config.toml", "x\n"));
+    chmod(ro.c_str(), 0500);
+    if (geteuid() != 0) {  // root ignores the mode
+        CHECK(!writeFileAtomic(ro + "/config.toml", "y\n"));
+        CHECK(readFile(ro + "/config.toml", text) && text == "x\n");
+    }
+    chmod(ro.c_str(), 0700);
+    std::remove((ro + "/config.toml").c_str());
+    rmdir(ro.c_str());
+    std::remove(link.c_str());
+    std::remove(target.c_str());
+    rmdir(d);
+}
+
 void testSetConfigValue() {
     std::string t = "# mine\n[typing]\nfree_marking = true # c\nfuture_key = 3\n\n[general]\nper_app_state = true\n";
     std::string u = setConfigValue(t, "typing", "free_marking", "false");
@@ -916,6 +1046,42 @@ void testShortcutFile() {
     CHECK_EQ(parseShortcuts(exportShortcuts(t)), t);
 }
 
+// Quoted keys / escaped values, exactly as macOS ShortcutImporter writes them
+// (tests/data/shortcuts-macos.yml was produced by macOS exportYAML; the Python settings app
+// test reads the same file). Before: ":D" was split at its own ':' and vanished.
+void testShortcutFileQuoting() {
+    ShortcutTable want = {
+        {":D", "😀"}, {"a:b", "x"}, {"#x", "hash"}, {";x", "semi"}, {"//x", "slash"},
+        {"\"k", "dq"}, {"'k", "sq"}, {"sig", "Thân mến,\nPhil"}, {"bs", "C:\\temp"},
+        {"q", "\"trích\""}, {"sp", " có space "}, {"ko", "không"}, {"url", "http://x"}, {"tab", "a\tb"},
+    };
+    std::string fixture;
+    if (readFile(std::string(VT_SOURCE_ROOT) + "/linux/common/tests/data/shortcuts-macos.yml", fixture)) {
+        CHECK_EQ(exportShortcuts(want), fixture);  // byte for byte what macOS writes
+        CHECK_EQ(parseShortcuts(fixture), want);
+    } else {
+        ++g_fail;
+        std::fprintf(stderr, "tests/data/shortcuts-macos.yml not found\n");
+    }
+    CHECK_EQ(parseShortcuts(exportShortcuts(want)), want);
+    // Line written by iOS/Android/macOS (macOS AppTests testParsesFilesWrittenByIOSAndAndroid).
+    ShortcutTable phone = parseShortcuts(
+        "# VietTelex — bảng gõ tắt\n\"->\": →\n\":)\": 🙂\nk2: không hai\nq: \"\"trích\"\"\n"
+        "sig: \"Thân mến,\\nPhil\"\nsp: \" có space \"\n");
+    ShortcutTable phoneWant = {{"->", "→"}, {":)", "🙂"}, {"k2", "không hai"}, {"q", "\"trích\""},
+                               {"sig", "Thân mến,\nPhil"}, {"sp", " có space "}};
+    CHECK_EQ(phone, phoneWant);
+    // BOM + CRLF; old unquoted files keep loading; unterminated quoted key = old rule.
+    ShortcutTable crlf = parseShortcuts("\xEF\xBB\xBFko: không\r\ndc: được\r\n");
+    CHECK_EQ(crlf.size(), size_t(2));
+    CHECK_EQ(crlf["dc"], std::string("được"));
+    ShortcutTable old = parseShortcuts("url: http://x\n\"bad: x\n");
+    CHECK_EQ(old["url"], std::string("http://x"));
+    CHECK_EQ(old.count(":D"), size_t(0));
+    // A quoted key must be followed by ':'.
+    CHECK_EQ(parseShortcuts("\":D\" 😀\n").size(), size_t(0));
+}
+
 void testHotkeyParse() {
     Hotkey h;
     CHECK(parseHotkey("Ctrl+space", h));
@@ -930,6 +1096,42 @@ void testHotkeyParse() {
     CHECK(!parseHotkey("", h));
     CHECK(!parseHotkey("a", h));
     CHECK(!parseHotkey("Hyper+x", h));
+    // What the settings app's key capture stores (GTK keyval after Shift = the keysym the
+    // frontend receives): Ctrl+Shift+2 on US = "at", Ctrl+Shift+. = "greater", arrows.
+    CHECK(parseHotkey("Ctrl+Shift+at", h));
+    CHECK_EQ(h.keysym, uint32_t('@'));
+    CHECK_EQ(h.mods, uint32_t(VT_MOD_CTRL | VT_MOD_SHIFT));
+    CHECK(parseHotkey("Ctrl+Shift+greater", h));
+    CHECK_EQ(h.keysym, uint32_t('>'));
+    CHECK(parseHotkey("Alt+Left", h));
+    CHECK_EQ(h.keysym, uint32_t(ks::Left));
+    CHECK(parseHotkey("Ctrl++", h));
+    CHECK_EQ(h.keysym, uint32_t('+'));
+    CHECK(parseHotkey("Shift+F9", h));
+    // Printable keys need Ctrl/Alt/Super (Shift+a would swallow capital A); without any
+    // modifier only F1–F24; no duplicate modifiers; F-key names exact.
+    CHECK(!parseHotkey("Shift+a", h));
+    CHECK(!parseHotkey("Shift+space", h));
+    CHECK(!parseHotkey("Shift+exclam", h));
+    CHECK(!parseHotkey("Tab", h));
+    CHECK(!parseHotkey("Left", h));
+    CHECK(!parseHotkey("Ctrl+Ctrl+a", h));
+    CHECK(!parseHotkey("Ctrl+F1x", h));
+    CHECK(!parseHotkey("Ctrl+F25", h));
+    CHECK(!parseHotkey("Ctrl+KP_1", h));
+    CHECK_EQ(hotkeyLabel("Ctrl+Shift+at"), std::string("Ctrl+Shift+@"));
+    CHECK_EQ(hotkeyLabel("Ctrl++"), std::string("Ctrl++"));
+    // The session matches the stored keysym against the delivered one.
+    Settings st;
+    st.toggleHotkey = "Ctrl+Shift+at";
+    Session s;
+    s.applySettings(st);
+    KeyEvent ev;
+    ev.keysym = '@';
+    ev.mods = VT_MOD_CTRL | VT_MOD_SHIFT;
+    CHECK(s.isToggleHotkey(ev));
+    ev.keysym = '2';
+    CHECK(!s.isToggleHotkey(ev));
 }
 
 // MARK: - Surrounding safety (terminals, generic app ids, selections)
@@ -3324,7 +3526,9 @@ int main() {
     testModesAgreeOnRandomScripts();
     testConfigParse();
     testSetConfigValue();
+    testWriteFileAtomic();
     testShortcutFile();
+    testShortcutFileQuoting();
     testHotkeyParse();
     testAppPolicy();
     testUnknownAppIdsArePreeditWithoutEdits();
@@ -3366,6 +3570,8 @@ int main() {
     testTextToolSettings();
     testAddTonesHotkey();
     testTextToolNamesAndSelection();
+    testPrimaryFirstToolWins();
+    testSurroundingCache();
     testTextToolHelper();
     testForwardKeysTypesInPlace();
     testForwardKeysHostLags();

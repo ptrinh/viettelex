@@ -174,6 +174,9 @@ class ChecksumAndResultTests(unittest.TestCase):
         self.assertIn("bận", updater.result_message(
             4, "E: Could not get lock /var/lib/dpkg/lock-frontend", "1.0.4")[1])
         out = "\n".join("line %d" % i for i in range(20)) + "\nE: Broken packages"
+        ok, m = updater.result_message(updater.EXIT_VERIFY, "sai SHA256: x.deb", "1.0.4")
+        self.assertFalse(ok)
+        self.assertIn("không cài", m)
         ok, m = updater.result_message(4, out, "1.0.4")
         self.assertFalse(ok)
         self.assertIn("E: Broken packages", m)

@@ -119,6 +119,22 @@ void scheduleEvent(EventDispatcher *dispatcher, Instance *instance) {
         ic->focusOut();
         ic->focusIn();
 
+        // 5b. … also when the client cannot draw preedit (no CapabilityFlag::Preedit): the
+        //     word lives in the PANEL preedit, which Fcitx5's own focus-out commit
+        //     (instance.cpp: clientPreedit().toStringForCommit()) never sees — VietTelex must
+        //     commit it, exactly once. A leftover expectation would make the "google" commit
+        //     below mismatch; a second commit would hit an empty expectation queue.
+        ic->setCapabilityFlags(CapabilityFlags{});
+        type(tf, uuid, "dduwowcj");
+        EXPECT(preeditOf(ic).empty());
+        EXPECT(ic->inputPanel().preedit().toString() == "được");
+        tf->call<ITestFrontend::pushCommitExpectation>("được");
+        ic->focusOut();
+        ic->focusIn();
+        ic->setCapabilityFlags(CapabilityFlags{CapabilityFlag::Preedit});
+        tf->call<ITestFrontend::pushCommitExpectation>("google");
+        type(tf, uuid, "google ");
+
         // 6. live settings: write shortcuts.yml + VNI; inotify must apply it without restart
         {
             std::ofstream(g_cfgDir + "/viettelex/shortcuts.yml.tmp") << "ko: không\n";

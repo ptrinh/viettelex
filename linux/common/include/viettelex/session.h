@@ -169,6 +169,9 @@ public:
     // Where trigger requests go (the frontend's HintService); unset = hints off whatever the
     // settings say (helper not installed). Results come back through deliverHint.
     void setHintSink(std::function<void(const HintRequest &)> sink);
+    // Frontends re-check at focus-in: viettelex-text-tools installed after the IM started
+    // (one access()) gets its sink then, without restarting the input method.
+    bool hasHintSink() const { return static_cast<bool>(hintSink_); }
     // Main thread: a helper answer for the request made at generation `gen`. Shown only when
     // nothing was typed since (the generation still matches) and the typed text still ends
     // with what it would replace.

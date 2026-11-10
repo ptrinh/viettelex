@@ -4,6 +4,7 @@ Tách phần thu thập (collect: đọc /proc, file, gsettings) khỏi phần k
 (assess: hàm thuần trên dict) để test được không cần máy có Fcitx5/IBus.
 """
 
+import glob
 import os
 import shutil
 import subprocess
@@ -162,6 +163,26 @@ def ibus_restart_action(a, already_restarted):
     if a.get("ibus_loaded") is not False:
         return None
     return "still_missing" if already_restarted else "restart"
+
+
+# viettelex-text-tool (gói viettelex-text-tools): thư mục riêng ${libdir}/viettelex —
+# Debian /usr/lib/<multiarch>, Fedora /usr/lib64, Arch /usr/lib (CMake VT_TEXT_TOOL_INSTALLED).
+TEXT_TOOL_GLOBS = ("/usr/lib/*/viettelex/viettelex-text-tool", "/usr/lib64/viettelex/viettelex-text-tool",
+                   "/usr/lib/viettelex/viettelex-text-tool")
+
+
+def text_tool_path(env=None, globber=None, executable=None):
+    """Đường dẫn helper công cụ văn bản / gợi ý, hoặc None khi chưa cài viettelex-text-tools."""
+    env = os.environ if env is None else env
+    globber = globber or glob.glob
+    executable = executable or (lambda p: os.access(p, os.X_OK))
+    cands = [env["VIETTELEX_TEXT_TOOL"]] if env.get("VIETTELEX_TEXT_TOOL") else []
+    for g in TEXT_TOOL_GLOBS:
+        cands += sorted(globber(g))
+    for p in cands:
+        if executable(p):
+            return p
+    return None
 
 
 def fcitx5_profile_path():

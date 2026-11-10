@@ -18,6 +18,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -198,6 +199,15 @@ public:
     // Synchronous round trip (worker thread / tests): false on no answer / timeout.
     bool query(const std::string &line, std::string &answer, int timeoutMs = 3000);
     bool available() const;
+    // The helper quits by itself after 2 idle minutes: reap it (no zombie). The worker calls
+    // this every kReapEvery while a helper exists; true = it had exited and was reaped.
+    bool reapExitedHelper();
+    int helperPid() const { return pid_; }  // tests / debug
+    // A helper that dies before answering (broken install, missing data, crash at start) is
+    // not respawned for every request (≈ 2 spawns per word): after kMaxFailures deaths in a
+    // row, spawning pauses kBackoffBase × 2^n (≤ kBackoffMax); any answer resets it.
+    static constexpr int kMaxFailures = 3;
+    static constexpr int kBackoffBaseMs = 10000, kBackoffMaxMs = 300000, kReapEveryMs = 30000;
 
 private:
     struct Job {
@@ -223,6 +233,8 @@ private:
     std::atomic<int> pid_{-1};  // read by the destructor to unblock a query in flight
     int in_ = -1, out_ = -1;
     std::string buf_;
+    int failures_ = 0;  // helper deaths without an answer, in a row (procMu_)
+    std::chrono::steady_clock::time_point noSpawnUntil_{};  // procMu_
 };
 
 }  // namespace viettelex

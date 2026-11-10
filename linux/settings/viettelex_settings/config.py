@@ -3,13 +3,14 @@
 Không phụ thuộc thư viện ngoài (Ubuntu 22.04 có Python 3.10, chưa có tomllib).
 Hàm thuần (parse/dump) tách riêng để test không cần GTK.
 
-Ghi nguyên tử: config.toml.tmp → rename() (frontend theo dõi thư mục bằng inotify).
+Ghi nguyên tử: file tạm tên duy nhất → rename() (frontend theo dõi thư mục bằng inotify).
 Ghi TẠI CHỖ (SETTINGS.md "Ghi chung file"): hộp cấu hình Fcitx5 cũng ghi file này, nên mỗi
 lần đổi chỉ nạp lại file rồi sửa đúng dòng của key vừa đổi — comment, thứ tự và key lạ
 giữ nguyên (update_text).
 """
 
 import os
+import tempfile
 
 # Mặc định chính xác theo SETTINGS.md §2 (= bản macOS 1.7.12).
 DEFAULTS = {
@@ -110,9 +111,14 @@ def clear_learned_words(path=None):
     chạy thấy file đổi và nạp lại rỗng, không ghi đè lại dữ liệu cũ đang giữ trong RAM."""
     import time
     path = path or learned_words_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
     tmp = path + ".tmp"
-    with open(tmp, "wb") as f:
+    try:
+        os.unlink(tmp)
+    except OSError:
+        pass
+    # Chỉ chủ đọc được (0600) như process con ghi (LearnStore.writePrivate).
+    with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as f:
         f.write(empty_learned_store(int(time.time() * 1000)))
         f.flush()
         os.fsync(f.fileno())
@@ -334,21 +340,45 @@ def normalize(data):
         g["quote_style"] = "curly"
     if out["experimental"]["no_underline"] not in NO_UNDERLINE_MODES:
         out["experimental"]["no_underline"] = "off"
-    if g["add_tones_hotkey"] and normalize_hotkey(g["add_tones_hotkey"]) is None:
-        g["add_tones_hotkey"] = ""
+    # Frontend không đọc được ⇒ nó không có phím nào: hiện đúng như vậy (tắt), đừng hiện phím ma.
+    for k in ("toggle_hotkey", "add_tones_hotkey"):
+        if g[k] and normalize_hotkey(g[k]) is None:
+            g[k] = ""
     out["app_modes"] = {k: v for k, v in out["app_modes"].items()
                         if isinstance(v, str) and v in APP_MODES and k.strip()}
     return out
 
 
 def atomic_write(path, text):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        f.write(text)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
+    """Ghi nguyên tử. File là symlink (dotfiles) ⇒ ghi vào đích, symlink giữ nguyên; tên tạm
+    duy nhất (app này và hộp cấu hình Fcitx5 có thể ghi cùng lúc); giữ quyền file cũ. Lỗi
+    (~/.config chỉ đọc / đầy) ⇒ OSError, không để lại file tạm."""
+    path = os.path.realpath(path)
+    d = os.path.dirname(path)
+    os.makedirs(d, exist_ok=True)
+    try:
+        mode = os.stat(path).st_mode & 0o7777
+    except OSError:
+        um = os.umask(0)
+        os.umask(um)
+        mode = 0o666 & ~um
+    fd, tmp = tempfile.mkstemp(prefix=os.path.basename(path) + ".", dir=d)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.chmod(tmp, mode)
+        except OSError:
+            pass
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 class Config:
@@ -410,31 +440,111 @@ class Config:
 
 MODIFIERS = ("Ctrl", "Alt", "Shift", "Super")
 
+# Tên keysym X frontend hiểu — bản sao bảng `names` trong parseHotkey (common/src/settings.cpp;
+# test_config so khớp hai bảng). Khoá viết thường → (cách viết lưu vào file, ký tự hiển thị).
+# Lưu đúng keysym GTK báo khi bấm (= keysym frontend nhận): Ctrl+Shift+2 trên bàn phím US là
+# "Ctrl+Shift+at" (hiện "Ctrl+Shift+@").
+HOTKEY_NAMES = {
+    "space": ("space", "Space"), "grave": ("grave", "`"), "tab": ("Tab", "Tab"),
+    "return": ("Return", "Return"), "escape": ("Escape", "Escape"),
+    "backspace": ("BackSpace", "BackSpace"), "comma": ("comma", ","), "period": ("period", "."),
+    "slash": ("slash", "/"), "semicolon": ("semicolon", ";"), "apostrophe": ("apostrophe", "'"),
+    "minus": ("minus", "-"), "equal": ("equal", "="), "bracketleft": ("bracketleft", "["),
+    "bracketright": ("bracketright", "]"), "backslash": ("backslash", "\\"), "plus": ("plus", "+"),
+    "exclam": ("exclam", "!"), "quotedbl": ("quotedbl", '"'), "numbersign": ("numbersign", "#"),
+    "dollar": ("dollar", "$"), "percent": ("percent", "%"), "ampersand": ("ampersand", "&"),
+    "parenleft": ("parenleft", "("), "parenright": ("parenright", ")"),
+    "asterisk": ("asterisk", "*"), "colon": ("colon", ":"), "less": ("less", "<"),
+    "greater": ("greater", ">"), "question": ("question", "?"), "at": ("at", "@"),
+    "asciicircum": ("asciicircum", "^"), "underscore": ("underscore", "_"),
+    "braceleft": ("braceleft", "{"), "bar": ("bar", "|"), "braceright": ("braceright", "}"),
+    "asciitilde": ("asciitilde", "~"),
+    "left": ("Left", "←"), "right": ("Right", "→"), "up": ("Up", "↑"), "down": ("Down", "↓"),
+}
+_PRINTABLE_NAMES = {k for k, (_n, label) in HOTKEY_NAMES.items()
+                    if len(label) == 1 and label.isascii()} | {"space"}
+
+
+def _hotkey_key(key):
+    """Phím cuối → (cách viết chuẩn, in được?) hoặc None — đúng luật parseHotkey C++."""
+    lk = key.lower()
+    if lk in HOTKEY_NAMES:
+        return HOTKEY_NAMES[lk][0], lk in _PRINTABLE_NAMES
+    if len(key) == 1 and 0x20 < ord(key) < 0x7f:
+        return key.lower(), True
+    if 2 <= len(lk) <= 3 and lk[0] == "f" and lk[1:].isdigit() and lk[1:].isascii():
+        n = int(lk[1:])
+        if 1 <= n <= 24:
+            return "F%d" % n, False
+    return None
+
 
 def normalize_hotkey(text):
-    """'ctrl + Space' → 'Ctrl+space'. Trả None nếu không hợp lệ; '' = tắt."""
+    """'ctrl + Space' → 'Ctrl+space'. Trả None nếu frontend không đọc được; '' = tắt.
+
+    Cùng luật parseHotkey (common/src/settings.cpp): modifier Ctrl/Control, Alt, Shift,
+    Super/Meta; phím = tên trong HOTKEY_NAMES, một ký tự ASCII in được, hoặc F1–F24; phím in
+    được cần Ctrl/Alt/Super (Shift+a sẽ nuốt chữ A); không modifier chỉ F1–F24; cấm Super+space."""
     text = text.strip()
     if not text:
         return ""
-    parts = [p.strip() for p in text.split("+")]
-    if len(parts) < 2 or any(not p for p in parts):
-        return None
+    # Tách ở "+" như C++: "Ctrl++" = phím "+".
+    parts, start = [], 0
+    for i, c in enumerate(text):
+        if c == "+" and i > start:
+            parts.append(text[start:i])
+            start = i + 1
+    parts.append(text[start:])
+    parts = [p.strip() for p in parts]
     mods, key = parts[:-1], parts[-1]
     canon = []
     for m in mods:
-        mm = {"control": "Ctrl", "ctl": "Ctrl", "win": "Super", "meta": "Super"}.get(
-            m.lower(), m.capitalize())
-        if mm not in MODIFIERS or mm in canon:
+        mm = {"ctrl": "Ctrl", "control": "Ctrl", "alt": "Alt", "shift": "Shift",
+              "super": "Super", "meta": "Super"}.get(m.lower())
+        if mm is None or mm in canon:
             return None
         canon.append(mm)
     canon.sort(key=MODIFIERS.index)
-    if len(key) == 1:
-        key = key.lower()
-    elif key.lower() == "space":
-        key = "space"
+    k = _hotkey_key(key)
+    if k is None:
+        return None
+    key, printable = k
     if canon == ["Super"] and key == "space":
         return None       # GNOME dùng Super+Space — hợp đồng cấm
+    if printable and not any(m in ("Ctrl", "Alt", "Super") for m in canon):
+        return None
+    if not canon and not (key.startswith("F") and key[1:].isdigit()):
+        return None
     return "+".join(canon + [key])
+
+
+def captured_hotkey(mods, keyname):
+    """Tổ hợp vừa bấm trong hộp bắt phím (modifier + tên keyval GTK) → (giá trị, lỗi).
+
+    lỗi: None (dùng được), "modifier" (phím in được cần Ctrl/Alt/Super — Shift+a là gõ chữ
+    A), "unsupported" (frontend không đọc được phím này: bàn phím số, ISO_Left_Tab…)."""
+    value = normalize_hotkey("+".join(list(mods) + [keyname]))
+    if value is not None:
+        return value, None
+    k = _hotkey_key(keyname)
+    if k is not None and k[1] and not any(m in ("Ctrl", "Alt", "Super") for m in mods):
+        return None, "modifier"
+    return None, "unsupported"
+
+
+def hotkey_display(value):
+    """'Ctrl+Shift+at' → 'Ctrl+Shift+@', 'Ctrl+space' → 'Ctrl+Space' (chỉ để hiển thị)."""
+    if not value:
+        return ""
+    plus = value.rfind("+", 0, len(value) - 1)
+    mods, key = (value[:plus + 1], value[plus + 1:]) if plus >= 0 else ("", value)
+    if key.lower() in HOTKEY_NAMES:
+        key = HOTKEY_NAMES[key.lower()][1]
+    elif len(key) == 1:
+        key = key.upper()
+    else:
+        key = key[:1].upper() + key[1:]
+    return mods + key
 
 
 def action_hotkey_error(value, toggle_hotkey):

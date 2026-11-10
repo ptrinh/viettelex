@@ -13,7 +13,12 @@ Parser tham chiếu: `linux/common/src/settings.cpp` (C++17, không phụ thuộ
 | Lối tắt Chrome/Electron có cờ IME Wayland (§9) | `$XDG_DATA_HOME/applications/<id>.desktop` có dòng `X-VietTelex-Generated=` | settings app — chỉ file mang dòng đó |
 
 - Thiếu file / thiếu key / giá trị sai kiểu → dùng **mặc định** bên dưới (không lỗi, không crash).
-- **Ghi nguyên tử**: ghi `config.toml.tmp` rồi `rename()` sang `config.toml` (cùng thư mục).
+- **Ghi nguyên tử**: ghi file tạm tên duy nhất `config.toml.XXXXXX` (mkstemp — app cài đặt và
+  hộp cấu hình Fcitx5 có thể ghi cùng lúc) rồi `rename()` sang `config.toml` (cùng thư mục),
+  giữ quyền file cũ. `config.toml` là symlink (dotfiles) ⇒ ghi vào đích (`realpath`), symlink
+  giữ nguyên (inotify khi đó không thấy — frontend nhận qua kiểm tra `mtime` lúc focus-in).
+  Ghi lỗi (~/.config chỉ đọc / đầy) ⇒ app cài đặt báo "Không ghi được cấu hình trong ~/.config."
+  và vẽ lại theo đúng file trên đĩa; hộp Fcitx5 hiện lại giá trị cũ.
   Frontend theo dõi **thư mục** `viettelex/` bằng inotify (`IN_CLOSE_WRITE | IN_MOVED_TO |
   IN_DELETE`) và nạp lại ngay — không cần restart IM. Frontend cũng tự kiểm tra `mtime`
   mỗi lần focus-in (dự phòng khi inotify không có).
@@ -44,8 +49,8 @@ shortcuts_enabled = true            # Bật bảng gõ tắt (shortcuts.yml)
 re_edit_word = true                 # Sửa dấu từ đã gõ khi đặt con trỏ ngay sau nó ("toan" + s → toán)
 
 [general]
-display_mode = "preedit"            # "preedit" (chữ đang gõ, mặc định) | "surrounding" (sửa trực tiếp)
-preedit_underline = false           # Gạch chân chữ đang gõ (false = gửi attr "không gạch chân")
+display_mode = "preedit"            # "preedit" = "Soạn từ rồi chèn" (mặc định) | "surrounding" = "Sửa thẳng trong ô"
+preedit_underline = false           # "Hiện gạch chân chữ đang gõ" (false = gửi attr "không gạch chân")
 underline_misspelled = false        # Gạch đỏ âm tiết sai chính tả khi gõ (chỉ preedit; IBus: gạch lỗi + chữ đỏ, Fcitx5: gạch chân)
 terminal_direct = true              # Terminal: gõ thẳng, sửa dấu bằng BackSpace forward (khi host hỗ trợ)
 toggle_hotkey = "Ctrl+space"        # xem §4; "" = tắt phím chuyển
@@ -150,20 +155,35 @@ dùng chung key `default` (nhớ Việt/Anh chung, `[app_modes]` không áp dụ
 
 ## 3. `shortcuts.yml` — cùng định dạng macOS
 
-Flat YAML `key: value`, một mục mỗi dòng, `:` đầu tiên tách key/value; bỏ qua dòng trống và
-dòng bắt đầu bằng `#`, `;`, `//`; key không chứa khoảng trắng, ≤ 64 ký tự; value được trim, bỏ
-một cặp ngoặc `"…"`/`'…'` bao ngoài. Export: header `# VietTelex — bảng gõ tắt`, key sắp xếp,
-value có khoảng trắng đầu/cuối hoặc bắt đầu bằng `'` `"` `#` thì bọc `"…"`. File
-`sample-shortcuts.yml` ở gốc repo là ví dụ hợp lệ. Import (settings app) nên chấp nhận thêm JSON
-object `{"key":"value"}` như macOS, nhưng **file lưu trên đĩa luôn là flat YAML**.
+Port 1:1 `ShortcutImporter` của macOS (`App/Sources/AppState.swift`; cùng iOS/Android/Windows).
+Flat YAML `key: value`, một mục mỗi dòng (`\n`, `\r\n`, `\r`; BOM đầu file bỏ qua); bỏ qua
+dòng trống và dòng bắt đầu bằng `#`, `;`, `//`. Key: nếu dòng mở đầu bằng `"` và có nháy đóng
+thì key là chuỗi trong ngoặc kép (unescape), sau đó (bỏ khoảng trắng) phải là `:`; không thì `:`
+đầu tiên tách key/value. Key không chứa khoảng trắng, ≤ 64 ký tự. Value được trim; bọc `"…"` ⇒
+bỏ ngoặc và unescape `\n` `\t` `\\` `\"` (escape khác giữ nguyên); bọc `'…'` ⇒ chỉ bỏ ngoặc.
+
+Export: header `# VietTelex — bảng gõ tắt`, key sắp xếp (thứ tự byte). Key chứa `:` hoặc bắt đầu
+bằng `#` `;` `//` `"` `'` ⇒ `"…"` có escape (`":D": 😀`, `"a:b": x`). Value nhiều dòng (`\n`/`\r`),
+có khoảng trắng đầu/cuối, hoặc bắt đầu bằng `'` `"` `#` ⇒ `"…"` có escape (`\\` `\"`, xuống dòng
+→ `\n`): `sig: "Thân mến,\nPhil"`. Còn lại ghi nguyên văn — file cũ không ngoặc đọc như trước.
+Mẫu byte-chuẩn do macOS ghi: `linux/common/tests/data/shortcuts-macos.yml` (test C++ và Python
+cùng so). File `sample-shortcuts.yml` ở gốc repo là ví dụ hợp lệ. Import (settings app) chấp
+nhận thêm JSON object `{"key":"value"}` như macOS, nhưng **file lưu trên đĩa luôn là flat YAML**.
 
 Khớp khi gõ: ở boundary, tra từ đã ghép (`composed`) trước, rồi phím thô (`raw`) — như macOS.
 
 ## 4. Phím chuyển Việt/Anh (`toggle_hotkey`)
 
-Chuỗi `Mod+Mod+key`: modifier trong `Ctrl`, `Alt`, `Shift`, `Super` (không phân biệt hoa thường),
-`key` là tên keysym X11 (`space`, `grave`, `z`, `F12`…). Mặc định `Ctrl+space`. Không cho phép
-`Super+space` (GNOME dùng). Trên Fcitx5, `Ctrl+space` trùng trigger key mặc định của Fcitx5: khi
+Chuỗi `Mod+Mod+key`: modifier trong `Ctrl`/`Control`, `Alt`, `Shift`, `Super`/`Meta` (không
+phân biệt hoa thường, không lặp), `key` là: một ký tự ASCII in được (`z`, `2`, `+` — `Ctrl++`),
+`F1`–`F24`, hoặc tên keysym X11 trong bảng `names` của `parseHotkey` (`space`, `Tab`, `Return`,
+`Escape`, `BackSpace`, `Left`/`Right`/`Up`/`Down` và tên mọi dấu câu ASCII: `grave`, `period`,
+`at`, `greater`, `exclam`…; app cài đặt giữ bản sao `config.HOTKEY_NAMES`, có test so khớp).
+Phím so theo **keysym nhận được** (sau Shift): app cài đặt lưu đúng keyval GTK báo, nên
+Ctrl+Shift+2 trên bàn phím US là `Ctrl+Shift+at` (hiện "Ctrl+Shift+@"). Phím in được (kể cả
+`space`) phải có Ctrl/Alt/Super (`Shift+a` sẽ nuốt chữ A); không modifier chỉ được F1–F24.
+Chuỗi không đọc được ⇒ frontend không có phím đó (app cài đặt hiện "Tắt", hộp bắt phím từ chối
+ngay: "Không dùng được …"). Mặc định `Ctrl+space`. Không cho phép `Super+space` (GNOME dùng). Trên Fcitx5, `Ctrl+space` trùng trigger key mặc định của Fcitx5: khi
 VietTelex đang là IM hiện hành, VietTelex bắt phím trước và chỉ đổi Việt/Anh (vẫn ở VietTelex);
 khi đang ở keyboard-us thì trigger của Fcitx5 chuyển sang VietTelex như thường. Chuỗi rỗng = không có phím chuyển (vẫn đổi qua menu IM).
 
@@ -201,7 +221,10 @@ vùng chọn** (toi di hoc → tôi đi học), **HOA**, **thường**, **Hoa Đ
   PRIMARY nhưng chỉ khi nó nằm sát con trỏ (chữ ngay trước/sau con trỏ trùng nó), không thì không
   làm gì. App không báo surrounding: vùng chọn PRIMARY (Fcitx5: addon
   clipboard; IBus/dự phòng: `wl-paste --primary` / `xclip` / `xsel` nếu có sẵn — không phải
-  phụ thuộc bắt buộc).
+  phụ thuộc bắt buộc). Trên đường phím (trước re-edit / ⌫ mở lại / xoá của gõ tắt), đọc
+  PRIMARY bên ngoài (≤ 150 ms mỗi công cụ, dừng ở công cụ đầu tiên trả lời) chỉ khi cần:
+  không khi app đã báo anchor ≠ cursor trong lần focus này (GTK4, Qt — anchor thật), không khi
+  bản cache của addon clipboard Fcitx5 không nằm sát con trỏ (`selectionAtCaretProbe`).
 - Thay: commit kết quả đè lên vùng chọn (gõ đè thay vùng chọn). **Không đụng clipboard** nên
   không có gì phải khôi phục. Nếu menu làm app mất focus, kết quả được commit ở lần focus lại
   (trong 3 giây).

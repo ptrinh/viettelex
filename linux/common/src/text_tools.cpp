@@ -275,10 +275,12 @@ std::string uiText(const std::string &vi, bool english) {
 std::string hotkeyLabel(const std::string &value) {
     Hotkey hk;
     if (!parseHotkey(value, hk)) return std::string();
-    size_t plus = value.rfind('+');
+    size_t plus = value.size() >= 2 ? value.rfind('+', value.size() - 2) : std::string::npos;  // "Ctrl++"
     std::string mods = plus == std::string::npos ? std::string() : value.substr(0, plus + 1);
     std::string key = plus == std::string::npos ? value : value.substr(plus + 1);
-    if (!key.empty()) key[0] = char(std::toupper(static_cast<unsigned char>(key[0])));  // space → Space, z → Z
+    if (hk.keysym > 0x20 && hk.keysym < 0x7f)  // z → Z, at → @ (config.hotkey_display)
+        key = std::string(1, char(std::toupper(static_cast<int>(hk.keysym))));
+    else if (!key.empty()) key[0] = char(std::toupper(static_cast<unsigned char>(key[0])));  // space → Space
     return mods + key;
 }
 
@@ -334,6 +336,23 @@ bool selectionAtCaret(const std::string &text, unsigned cursor, unsigned anchor,
     return primaryAdjacentToCursor(text, cursor, p);
 }
 
+bool selectionAtCaretProbe(const std::string &text, unsigned cursor, unsigned anchor, bool &anchorSeen,
+                           const std::string *cachedPrimary, bool liveTool,
+                           const std::function<bool(std::string &)> &readLive) {
+    if (anchor != cursor) {
+        anchorSeen = true;
+        return true;
+    }
+    if (anchorSeen) return false;
+    if (cachedPrimary) {
+        if (!primaryAdjacentToCursor(text, cursor, *cachedPrimary)) return false;
+        if (!liveTool) return true;
+    }
+    std::string p;
+    if (!readLive || !readLive(p)) return false;
+    return primaryAdjacentToCursor(text, cursor, p);
+}
+
 namespace {
 std::vector<std::vector<std::string>> primaryCommands() {
     std::vector<std::vector<std::string>> cmds;
@@ -357,11 +376,13 @@ bool primarySelectionToolAvailable() { return !primaryCommands().empty(); }
 
 bool readPrimarySelection(std::string &out, int timeoutMs) {
     out.clear();
+    // The first tool that answers (exit 0) is the answer — empty = nothing selected; the next
+    // tool would only spend another timeout saying the same.
     for (const auto &c : primaryCommands()) {
         std::string s;
-        if (runProcess(c, "", s, timeoutMs, kTextToolMaxChars * 4 + 16) == 0 && !s.empty()) {
+        if (runProcess(c, "", s, timeoutMs, kTextToolMaxChars * 4 + 16) == 0) {
             out = std::move(s);
-            return true;
+            return !out.empty();
         }
     }
     return false;

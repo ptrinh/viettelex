@@ -415,7 +415,19 @@ void HintService::loop() {
         std::deque<std::string> lines;
         {
             std::unique_lock<std::mutex> l(mu_);
-            cv_.wait(l, [this] { return stop_ || next_ || !oneway_.empty(); });
+            auto ready = [this] { return stop_ || next_ || !oneway_.empty(); };
+            // While a helper exists, wake up now and then to reap it once it quit on idle.
+            while (!ready()) {
+                if (pid_ > 0) {
+                    if (!cv_.wait_for(l, std::chrono::milliseconds(kReapEveryMs), ready)) {
+                        l.unlock();
+                        reapExitedHelper();
+                        l.lock();
+                    }
+                } else {
+                    cv_.wait(l, ready);
+                }
+            }
             if (stop_) return;
             lines.swap(oneway_);
         }
@@ -480,9 +492,21 @@ void HintService::stopHelper() {
     pid_ = -1;
 }
 
+bool HintService::reapExitedHelper() {
+    std::lock_guard<std::mutex> l(procMu_);
+    int pid = pid_;
+    if (pid <= 0) return false;
+    int st = 0;
+    if (waitpid(pid, &st, WNOHANG) != pid) return false;
+    pid_ = -1;  // already reaped: stopHelper must not wait for it again
+    stopHelper();
+    return true;
+}
+
 bool HintService::ensureHelper() {
     if (pid_ > 0) return true;
     if (!available()) return false;
+    if (failures_ >= kMaxFailures && std::chrono::steady_clock::now() < noSpawnUntil_) return false;
     int inPipe[2], outPipe[2];
     if (pipe2(inPipe, O_CLOEXEC) != 0) return false;
     if (pipe2(outPipe, O_CLOEXEC) != 0) {
@@ -551,6 +575,7 @@ bool HintService::query(const std::string &line, std::string &answer, int timeou
             if (nl != std::string::npos) {
                 answer = buf_.substr(0, nl);
                 buf_.erase(0, nl + 1);
+                failures_ = 0;
                 return true;
             }
             struct pollfd p = {out_, POLLIN, 0};
@@ -570,6 +595,16 @@ bool HintService::query(const std::string &line, std::string &answer, int timeou
             }
         }
         stopHelper();
+        // Died (or closed its pipe) without answering. Once is normal — it quits after 2 idle
+        // minutes, maybe right before this request — but in a row it is a helper that cannot
+        // start: back off instead of spawning twice per word forever.
+        if (++failures_ >= kMaxFailures) {
+            int n = failures_ - kMaxFailures;
+            long ms = long(kBackoffBaseMs) << (n < 5 ? n : 5);
+            if (ms > kBackoffMaxMs) ms = kBackoffMaxMs;
+            noSpawnUntil_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
+            return false;
+        }
         if (left() == 0) return false;
     }
     return false;

@@ -198,6 +198,9 @@ make -C linux/settings check PYTHON=%{python3}
 %{_datadir}/icons/hicolor/scalable/status/viettelex*.svg
 
 %files text-tools
+# Cũng sở hữu thư mục riêng (libviettelex-core cũng vậy — rpm cho phép): gói này cài được một
+# mình (Enhances, không Requires core) nên không được để thư mục mồ côi khi gỡ.
+%dir %{_libdir}/viettelex
 %{_libdir}/viettelex/viettelex-text-tool
 %{_datadir}/viettelex/
 

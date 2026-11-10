@@ -112,7 +112,7 @@ EN = {
     "Ưu tiên tiếng Việt": "Prefer Vietnamese",
     "Ưu tiên tiếng Anh": "Prefer English",
     "Hiển thị chữ đang gõ": "Word being typed",
-    "Gạch chân chữ đang gõ": "Underline the word being typed",
+    "Soạn từ rồi chèn": "Compose the word, then insert",
     "Tắt: chữ đang gõ trông như chữ thường (GTK, Qt, VTE X11). Chrome/Electron vẫn tự gạch.":
         "Off: the word being typed looks like normal text (GTK, Qt, X11 VTE). Chrome still underlines.",
     "Terminal: gõ thẳng, sửa dấu bằng Backspace": "Terminals: type directly, fix marks with Backspace",
@@ -152,6 +152,9 @@ EN = {
     "Hiện công cụ văn bản trong menu": "Show text tools in the menu",
     "Menu “Công cụ…” của bộ gõ (khay Fcitx5 / menu IBus) liệt kê 6 công cụ trên.":
         "The input method’s “Tools…” menu (Fcitx5 tray / IBus menu) lists the 6 tools above.",
+    "Chưa cài gói viettelex-text-tools": "viettelex-text-tools is not installed",
+    "Cần cho gợi ý và công cụ văn bản. Cài bằng lệnh dưới đây rồi khởi động lại bộ gõ.":
+        "Needed for suggestions and text tools. Run the command below, then restart the input method.",
     "Gợi ý cạnh con trỏ": "Suggestions next to the caret",
     "Chỉ Tab mới áp dụng, Esc bỏ; không bao giờ tự thay. Cần gói viettelex-text-tools.":
         "Only Tab applies it, Esc dismisses; never replaces by itself. Needs viettelex-text-tools.",
@@ -385,6 +388,8 @@ EN = {
     "Không tải được %s — kiểm tra mạng rồi thử lại.":
         "Couldn’t download %s — check your connection and try again.",
     "Sai mã SHA256 của %s — đã huỷ, không cài.": "SHA256 mismatch for %s — cancelled, nothing installed.",
+    "Không xác minh được gói tải về với bản phát hành chính thức — đã huỷ, không cài.":
+        "Couldn’t verify the downloaded packages against the official release — cancelled, nothing installed.",
     "Đang cài (cần mật khẩu quản trị)…": "Installing (administrator password required)…",
     "Không chạy được pkexec: %s": "Couldn’t run pkexec: %s",
 
@@ -584,8 +589,8 @@ EN = {
         'Apps',
     'Cách gõ theo từng app':
         'Typing mode per app',
-    "Gạch chân: đúng chữ ở mọi app. Sửa thẳng trong ô: như macOS, chỉ ở app hỗ trợ.":
-        "Underline: correct text in every app. Edit right in the field: like macOS, supported apps only.",
+    "Soạn từ rồi chèn: đúng chữ ở mọi app. Sửa thẳng trong ô: như macOS, chỉ ở app hỗ trợ.":
+        "Compose, then insert: right in every app. Edit right in the field: like macOS, some apps.",
     'Chung':
         'General',
     'Với Fcitx5, app GTK (Firefox, Terminal, Text Editor…) không gạch chân chữ đang gõ và thanh trên cùng hiện icon VietTelex. Chrome/Electron vẫn có thể gạch chân (xem trang Ứng dụng → Tương thích ứng dụng).':

@@ -107,7 +107,6 @@ size_t utf8Count(const std::string &s) {
 }
 
 bool startsWith(const std::string &s, const char *p) { return s.rfind(p, 0) == 0; }
-bool endsWith(const std::string &s, char c) { return !s.empty() && s.back() == c; }
 
 std::string envOr(const char *var, const std::string &fallbackUnderHome) {
     const char *v = std::getenv(var);
@@ -458,19 +457,113 @@ bool shortcutExpansion(const ShortcutTable &t, const std::string &typed, std::st
     return false;  // kO: mixed case
 }
 
-ShortcutTable parseShortcuts(const std::string &yaml) {
-    ShortcutTable out;
-    std::istringstream in(yaml);
+// Port 1:1 of macOS ShortcutImporter (App/Sources/AppState.swift): a key containing ':' or
+// starting with # ; // " ' is written double-quoted; a double-quoted value is escaped
+// (\\ \" \n) and unescaped on read (\n \t \\ \"). Files written by either side round-trip on
+// the other; old unquoted files read as before.
+namespace {
+
+std::string scEscape(const std::string &s) {
+    std::string out;
+    for (size_t i = 0; i < s.size(); ++i) {
+        char c = s[i];
+        if (c == '\\') out += "\\\\";
+        else if (c == '"') out += "\\\"";
+        else if (c == '\r') {
+            if (i + 1 < s.size() && s[i + 1] == '\n') ++i;
+            out += "\\n";
+        } else if (c == '\n') out += "\\n";
+        else out += c;
+    }
+    return out;
+}
+
+std::string scUnescape(const std::string &s) {
+    if (s.find('\\') == std::string::npos) return s;
+    std::string out;
+    for (size_t i = 0; i < s.size(); ++i) {
+        char c = s[i];
+        if (c != '\\') { out += c; continue; }
+        if (i + 1 >= s.size()) { out += '\\'; break; }
+        char n = s[++i];
+        switch (n) {
+        case 'n': out += '\n'; break;
+        case 't': out += '\t'; break;
+        case '\\': out += '\\'; break;
+        case '"': out += '"'; break;
+        default: out += '\\'; out += n;
+        }
+    }
+    return out;
+}
+
+// `"…"` at the start of `s` → unescaped content + index past the closing quote.
+bool scQuotedPrefix(const std::string &s, std::string &out, size_t &after) {
     std::string raw;
-    while (std::getline(in, raw)) {
+    for (size_t i = 1; i < s.size(); ++i) {
+        char c = s[i];
+        if (c == '\\') {
+            if (i + 1 >= s.size()) return false;
+            raw += c;
+            raw += s[++i];
+            continue;
+        }
+        if (c == '"') {
+            out = scUnescape(raw);
+            after = i + 1;
+            return true;
+        }
+        raw += c;
+    }
+    return false;
+}
+
+
+std::string scQuoteKey(const std::string &k) {
+    bool needs = k.find(':') != std::string::npos || startsWith(k, "#") || startsWith(k, ";") ||
+                 startsWith(k, "//") || startsWith(k, "\"") || startsWith(k, "'");
+    return needs ? "\"" + scEscape(k) + "\"" : k;
+}
+
+std::string scQuoteValue(const std::string &v) {
+    if (v.find('\n') != std::string::npos || v.find('\r') != std::string::npos) return "\"" + scEscape(v) + "\"";
+    bool needs = !v.empty() && (v.front() == ' ' || v.back() == ' ' || v.front() == '\'' ||
+                                v.front() == '"' || v.front() == '#');
+    return needs ? "\"" + scEscape(v) + "\"" : v;
+}
+
+}  // namespace
+
+ShortcutTable parseShortcuts(const std::string &yamlIn) {
+    ShortcutTable out;
+    const std::string yaml = startsWith(yamlIn, "\xEF\xBB\xBF") ? yamlIn.substr(3) : yamlIn;
+    size_t pos = 0;
+    while (pos < yaml.size()) {
+        size_t nl = yaml.find_first_of("\r\n", pos);
+        std::string raw = yaml.substr(pos, nl == std::string::npos ? std::string::npos : nl - pos);
+        if (nl == std::string::npos) pos = yaml.size();
+        else pos = (yaml[nl] == '\r' && nl + 1 < yaml.size() && yaml[nl + 1] == '\n') ? nl + 2 : nl + 1;
         std::string line = trim(raw);
         if (line.empty() || line[0] == ';' || line[0] == '#' || startsWith(line, "//")) continue;
-        size_t colon = line.find(':');
-        if (colon == std::string::npos) continue;
-        std::string key = trim(line.substr(0, colon));
-        std::string value = trim(line.substr(colon + 1));
-        if (utf8Count(value) >= 2 &&
-            ((value.front() == '"' && endsWith(value, '"')) || (value.front() == '\'' && endsWith(value, '\''))))
+        std::string key, rest, quotedKey;
+        size_t after = 0;
+        if (line[0] == '"' && scQuotedPrefix(line, quotedKey, after)) {
+            size_t r = after;
+            while (r < line.size() && (line[r] == ' ' || line[r] == '\t')) ++r;
+            if (r >= line.size() || line[r] != ':') continue;
+            key = quotedKey;
+            rest = line.substr(r + 1);
+        } else {
+            size_t colon = line.find(':');
+            if (colon == std::string::npos) continue;
+            key = line.substr(0, colon);
+            rest = line.substr(colon + 1);
+        }
+        key = trim(key);
+        std::string value = trim(rest);
+        if (utf8Count(value) >= 2 && value.front() == '"' && value.back() == '"')
+            value = scUnescape(value.substr(1, value.size() - 2));
+        else if (utf8Count(value) >= 2 && value.front() == '\'' && value.back() == '\'')
             value = value.substr(1, value.size() - 2);
         if (key.empty() || value.empty() || utf8Count(key) > 64) continue;
         bool ws = false;
@@ -483,12 +576,8 @@ ShortcutTable parseShortcuts(const std::string &yaml) {
 
 std::string exportShortcuts(const ShortcutTable &t) {
     std::string out = "# VietTelex — bảng gõ tắt\n";
-    for (auto &kv : t) {  // std::map: sorted by key (byte order, like Swift's sorted())
-        const std::string &v = kv.second;
-        bool q = !v.empty() && (v.front() == ' ' || v.back() == ' ' || v.front() == '\'' ||
-                                v.front() == '"' || v.front() == '#');
-        out += kv.first + ": " + (q ? "\"" + v + "\"" : v) + "\n";
-    }
+    for (auto &kv : t)  // std::map: sorted by key (byte order, like Swift's sorted())
+        out += scQuoteKey(kv.first) + ": " + scQuoteValue(kv.second) + "\n";
     return out;
 }
 
@@ -507,32 +596,50 @@ bool parseHotkey(const std::string &spec, Hotkey &out) {
     Hotkey hk;
     for (size_t i = 0; i + 1 < parts.size(); ++i) {
         std::string m = lower(trim(parts[i]));
-        if (m == "ctrl" || m == "control") hk.mods |= VT_MOD_CTRL;
-        else if (m == "alt") hk.mods |= VT_MOD_ALT;
-        else if (m == "shift") hk.mods |= VT_MOD_SHIFT;
-        else if (m == "super" || m == "meta") hk.mods |= VT_MOD_SUPER;
+        uint32_t bit;
+        if (m == "ctrl" || m == "control") bit = VT_MOD_CTRL;
+        else if (m == "alt") bit = VT_MOD_ALT;
+        else if (m == "shift") bit = VT_MOD_SHIFT;
+        else if (m == "super" || m == "meta") bit = VT_MOD_SUPER;
         else return false;
+        if (hk.mods & bit) return false;  // "Ctrl+Ctrl+a" (settings app rejects it too)
+        hk.mods |= bit;
     }
     std::string key = trim(parts.back());
     std::string lk = lower(key);
+    // X keysym names (lowercased). The settings app stores the keysym GTK reports, which is
+    // the keysym the frontend later receives — Ctrl+Shift+2 on a US layout is
+    // "Ctrl+Shift+at" — so every printable ASCII keysym name is here. The settings app
+    // mirrors this table (config.HOTKEY_NAMES; a test compares the two).
     static const std::map<std::string, uint32_t> names = {
         {"space", 0x20}, {"grave", 0x60}, {"tab", ks::Tab}, {"return", ks::Return},
         {"escape", ks::Escape}, {"backspace", ks::BackSpace}, {"comma", ','}, {"period", '.'},
         {"slash", '/'}, {"semicolon", ';'}, {"apostrophe", '\''}, {"minus", '-'}, {"equal", '='},
         {"bracketleft", '['}, {"bracketright", ']'}, {"backslash", '\\'}, {"plus", '+'},
+        {"exclam", '!'}, {"quotedbl", '"'}, {"numbersign", '#'}, {"dollar", '$'},
+        {"percent", '%'}, {"ampersand", '&'}, {"parenleft", '('}, {"parenright", ')'},
+        {"asterisk", '*'}, {"colon", ':'}, {"less", '<'}, {"greater", '>'}, {"question", '?'},
+        {"at", '@'}, {"asciicircum", '^'}, {"underscore", '_'}, {"braceleft", '{'},
+        {"bar", '|'}, {"braceright", '}'}, {"asciitilde", '~'},
+        {"left", ks::Left}, {"right", ks::Right}, {"up", ks::Up}, {"down", ks::Down},
     };
     auto it = names.find(lk);
     if (it != names.end()) hk.keysym = it->second;
     else if (key.size() == 1 && (unsigned char)key[0] > 0x20 && (unsigned char)key[0] < 0x7f)
         hk.keysym = (uint32_t)(unsigned char)lower(key)[0];
-    else if (lk.size() >= 2 && lk[0] == 'f' && isdigit((unsigned char)lk[1])) {
+    else if ((lk.size() == 2 || lk.size() == 3) && lk[0] == 'f' && isdigit((unsigned char)lk[1]) &&
+             (lk.size() == 2 || isdigit((unsigned char)lk[2]))) {
         int n = std::atoi(lk.c_str() + 1);
         if (n < 1 || n > 24) return false;
         hk.keysym = 0xffbe + uint32_t(n - 1);  // XK_F1
     } else return false;
     // Super+space belongs to GNOME's input-source switcher (spec §4/§6).
     if (hk.keysym == 0x20 && hk.mods == VT_MOD_SUPER) return false;
-    if (hk.mods == 0 && hk.keysym < 0x7f) return false;  // a bare printable key would eat typing
+    // A printable key needs Ctrl/Alt/Super: bare or Shift-only ("Shift+a") would eat typing
+    // (capital A). Without any modifier only F1–F24 (a bare Tab / Return / arrow would too).
+    bool printable = hk.keysym >= 0x20 && hk.keysym < 0x7f;
+    if (printable && !(hk.mods & (VT_MOD_CTRL | VT_MOD_ALT | VT_MOD_SUPER))) return false;
+    if (hk.mods == 0 && !(hk.keysym >= 0xffbe && hk.keysym <= 0xffd5)) return false;
     out = hk;
     return true;
 }
@@ -566,17 +673,44 @@ bool mkdirs(const std::string &dir) {
     return true;
 }
 
-bool writeFileAtomic(const std::string &path, const std::string &data) {
+bool writeFileAtomic(const std::string &pathIn, const std::string &data) {
+    // A symlinked config.toml (dotfiles repo) stays a symlink: write through to its target.
+    std::string path = pathIn;
+    if (char *real = ::realpath(pathIn.c_str(), nullptr)) {
+        path = real;
+        std::free(real);
+    }
     size_t slash = path.rfind('/');
     if (slash != std::string::npos) mkdirs(path.substr(0, slash));
-    std::string tmp = path + ".tmp";
-    {
-        std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
-        if (!f) return false;
-        f << data;
-        if (!f) return false;
+    // Unique temp name: the settings app and the Fcitx5 dialog may write at the same time.
+    std::string tmpl = path + ".XXXXXX";
+    std::vector<char> buf(tmpl.begin(), tmpl.end());
+    buf.push_back('\0');
+    int fd = ::mkstemp(buf.data());
+    if (fd < 0) return false;
+    const std::string tmp(buf.data());
+    struct stat st;
+    mode_t mode = 0644;
+    if (::stat(path.c_str(), &st) == 0) mode = st.st_mode & 07777;
+    else {
+        mode_t um = ::umask(0);
+        ::umask(um);
+        mode = 0666 & ~um;
     }
-    return std::rename(tmp.c_str(), path.c_str()) == 0;
+    (void)::fchmod(fd, mode);  // best effort: mkstemp's 0600 is still safe
+    bool ok = true;
+    size_t off = 0;
+    while (ok && off < data.size()) {
+        ssize_t w = ::write(fd, data.data() + off, data.size() - off);
+        if (w < 0 && errno == EINTR) continue;
+        if (w <= 0) ok = false;
+        else off += size_t(w);
+    }
+    if (ok && ::fsync(fd) != 0) ok = false;
+    if (::close(fd) != 0) ok = false;
+    if (ok && std::rename(tmp.c_str(), path.c_str()) == 0) return true;
+    ::unlink(tmp.c_str());
+    return false;
 }
 
 Settings loadSettings(const std::string &dir) {
