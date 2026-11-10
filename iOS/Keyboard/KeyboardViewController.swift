@@ -692,8 +692,22 @@ final class KeyboardViewController: UIInputViewController {
         // (view đang hiện vẫn giữ ảnh của nó — cache tĩnh chỉ để lần hiện sau khỏi giải lại).
         keyboard?.dropCaches()
         Wallpaper.queue.async { Wallpaper.dropCache() }
-        if view.window == nil { swipe = nil }
-        if view.window == nil { KeySound.shared.shutdown() }
+        let visible = view.window != nil
+        Self.purgeStaticCaches(visible: visible, activeBuddy: keyboard?.buddy?.character)
+        keyboard?.spotlight?.purgeAtlasIfOffscreen()
+        if !visible { swipe = nil }
+        if !visible { KeySound.shared.shutdown() }
+    }
+
+    /// Cache tĩnh thêm từ giữa 10/2026 (RAM-AUDIT.md, 10/11/2026). Ẩn ⇒ bỏ hết; đang hiện ⇒ chỉ bỏ thứ KHÔNG trên màn
+    /// hình (không bao giờ làm trống thứ user đang nhìn): tệp theme tải về (một mục = theme đang dùng ⇒ giữ khi hiện),
+    /// atlas Bạn đồng hành (giữ nhân vật đang hiện), từ vựng vuốt (giữ chế độ lọc đang dùng), bộ nốt ngân nhạc cụ
+    /// (chỉ dùng khi đạp pedal — nốt kế phát bản thường rồi dựng lại). Tất cả nạp lại lười ở lần dùng sau.
+    static func purgeStaticCaches(visible: Bool, activeBuddy: BuddyCharacter?) {
+        if !visible { ThemeAssetLoader.dropCache() }
+        BuddyView.purgeAtlasCache(keeping: visible ? activeBuddy : nil)
+        SwipeVocab.purge(keepActive: visible)
+        KeySound.shared.releaseSustainBank()
     }
 
     // Host truyền .default là thường — dark/light thật nằm ở trait hệ thống,

@@ -186,6 +186,16 @@ enum SwipeVocab {
         return v
     }
 
+    /// Cảnh báo bộ nhớ (10/11/2026): bỏ từ vựng dựng sẵn. `keepActive` (bàn phím đang hiện) ⇒ giữ bản của chế độ
+    /// lọc ĐANG dùng (decoder đang giữ template theo nó), chỉ bỏ chế độ kia; false (ẩn) ⇒ bỏ hết. Dựng lại lười.
+    static func purge(keepActive: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        if keepActive { cache = cache.filter { $0.key == filterOn } } else { cache.removeAll() }
+    }
+
+    /// Chế độ lọc có từ vựng đang nằm cache (test).
+    static var cachedModes: Set<Bool> { lock.lock(); defer { lock.unlock() }; return Set(cache.keys) }
+
     static func isSensitive(_ word: String) -> Bool { SensitiveWords.set.contains(word) }
 
     static func build(filter: Bool, shortcuts: [Entry] = []) -> Vocab {

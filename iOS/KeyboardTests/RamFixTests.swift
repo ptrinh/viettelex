@@ -101,6 +101,121 @@ final class RamFixTests: XCTestCase {
         r.close()
     }
 
+    // MARK: cảnh báo bộ nhớ — cache thêm từ 10/2026 (RAM-AUDIT.md 10/11/2026)
+
+    /// Nạp đủ các cache tĩnh: tệp theme (một mục), atlas Bạn đồng hành của 2 nhân vật, từ vựng vuốt cả 2 chế độ lọc.
+    @MainActor private func fillLateCaches(themeDir: URL) -> ThemeAssetPlan {
+        var plan = ThemeAssetPlan()
+        plan.background = ThemeAssetRef(url: "https://example.invalid/bg.jpg", sha256: nil)
+        XCTAssertNotNil(ThemeAssetLoader.load(plan, dir: themeDir))
+        for c in [BuddyCharacter.cat, .chick] {
+            BuddyView(character: c, bar: 0x222222, lowPower: true, artStyle: .sprite).halt()   // giải đồng bộ ⇒ vào cache
+            XCTAssertTrue(BuddyView.atlasCached(c), "\(c)")
+        }
+        let saved = SwipeVocab.filterSensitive
+        for f in [!saved, saved] { SwipeVocab.filterSensitive = f; _ = SwipeVocab.current }
+        XCTAssertEqual(SwipeVocab.cachedModes, [true, false])
+        return plan
+    }
+
+    #if DEBUG
+    /// Ẩn: bỏ HẾT (tệp theme, mọi atlas Bạn đồng hành, cả hai từ vựng vuốt); dùng lại ⇒ nạp lại đúng.
+    @MainActor func testMemoryWarningHiddenDropsLateCaches() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ramfix-theme-\(UUID())")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir); ThemeAssetLoader.dropCache() }
+        let plan = fillLateCaches(themeDir: dir)
+        let active = SwipeVocab.filterSensitive
+        let h0 = RamBreakdownTests.heapBytes(), f0 = KeyboardBenchTests.footprintMB()
+        KeyboardViewController.purgeStaticCaches(visible: false, activeBuddy: .cat)   // ẩn: nhân vật bỏ qua
+        KeySound.shared.debugDrain()
+        print(String(format: "RAMFIX late-caches hidden purge: heap %+.2fMB footprint %+.2fMB",
+                     Double(RamBreakdownTests.heapBytes() - h0) / 1_048_576, KeyboardBenchTests.footprintMB() - f0))
+        XCTAssertFalse(BuddyView.atlasCached(.cat)); XCTAssertFalse(BuddyView.atlasCached(.chick))
+        XCTAssertTrue(SwipeVocab.cachedModes.isEmpty)
+        let loads = ThemeAssetLoader.loadCount
+        XCTAssertNotNil(ThemeAssetLoader.load(plan, dir: dir))
+        XCTAssertEqual(ThemeAssetLoader.loadCount, loads + 1, "tệp theme đã bỏ ⇒ giải lại")
+        // Nạp lại lười, đúng.
+        let v = BuddyView(character: .cat, bar: 0x222222, lowPower: true, artStyle: .sprite)
+        XCTAssertTrue(v.atlasReady); XCTAssertTrue(BuddyView.atlasCached(.cat)); v.halt()
+        let vocab = SwipeVocab.current
+        XCTAssertEqual(vocab.filter, active)
+        XCTAssertEqual(vocab.forms.count, SwipeVocab.build(filter: active, shortcuts: SwipeVocab.shortcuts).forms.count)
+    }
+
+    /// Đang hiện: GIỮ thứ đang trên màn (tệp theme đang dùng, atlas nhân vật đang hiện, từ vựng chế độ lọc đang dùng),
+    /// chỉ bỏ phần không hiện (nhân vật khác, chế độ lọc kia).
+    @MainActor func testMemoryWarningVisibleKeepsActiveAssets() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ramfix-theme-\(UUID())")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir); ThemeAssetLoader.dropCache() }
+        let plan = fillLateCaches(themeDir: dir)
+        let active = SwipeVocab.filterSensitive
+        let vocab = SwipeVocab.current
+        KeyboardViewController.purgeStaticCaches(visible: true, activeBuddy: .cat)
+        XCTAssertTrue(BuddyView.atlasCached(.cat), "nhân vật đang hiện giữ nguyên")
+        XCTAssertFalse(BuddyView.atlasCached(.chick), "nhân vật khác bỏ")
+        XCTAssertEqual(SwipeVocab.cachedModes, [active])
+        XCTAssertTrue(SwipeVocab.current === vocab, "decoder đang giữ từ vựng này — không dựng lại")
+        let loads = ThemeAssetLoader.loadCount
+        XCTAssertNotNil(ThemeAssetLoader.load(plan, dir: dir))
+        XCTAssertEqual(ThemeAssetLoader.loadCount, loads, "tệp theme đang dùng: không giải lại")
+        // Bạn đồng hành ẩn (nil) khi bàn phím đang hiện ⇒ không còn nhân vật nào cần giữ.
+        KeyboardViewController.purgeStaticCaches(visible: true, activeBuddy: nil)
+        XCTAssertFalse(BuddyView.atlasCached(.cat))
+    }
+
+    /// Đường thật: controller trong cửa sổ (đang hiện) nhận cảnh báo ⇒ giữ tệp theme + từ vựng đang dùng; đóng (ẩn)
+    /// rồi cảnh báo ⇒ bỏ hết.
+    @MainActor func testMemoryWarningControllerVisibleVsHidden() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ramfix-theme-\(UUID())")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir); ThemeAssetLoader.dropCache() }
+        let r = autoreleasepool { KeyboardBenchTests.Rig() }
+        let plan = fillLateCaches(themeDir: dir)
+        let active = SwipeVocab.filterSensitive
+        XCTAssertNotNil(r.vc.view.window)
+        r.vc.didReceiveMemoryWarning()
+        XCTAssertEqual(SwipeVocab.cachedModes, [active])
+        let loads = ThemeAssetLoader.loadCount
+        _ = ThemeAssetLoader.load(plan, dir: dir)
+        XCTAssertEqual(ThemeAssetLoader.loadCount, loads)
+        r.close()
+        XCTAssertNil(r.vc.view.window)
+        r.vc.didReceiveMemoryWarning()
+        KeySound.shared.debugDrain()
+        XCTAssertTrue(SwipeVocab.cachedModes.isEmpty)
+        XCTAssertFalse(BuddyView.atlasCached(.cat)); XCTAssertFalse(BuddyView.atlasCached(.chick))
+        _ = ThemeAssetLoader.load(plan, dir: dir)
+        XCTAssertEqual(ThemeAssetLoader.loadCount, loads + 1)
+    }
+    #endif
+
+    /// Người nhảy Night Club: ngoài cửa sổ ⇒ thả atlas; trong cửa sổ ⇒ giữ (đang hiện); gắn lại cửa sổ ⇒ giải lại.
+    @MainActor func testNightDancerAtlasPurgeOnlyOffscreenAndReloads() throws {
+        let v = SpotlightView(frame: CGRect(x: 0, y: 0, width: 400, height: 300))
+        v.layoutIfNeeded()
+        v.setPhoto(nil)
+        v.debugLoadAtlasNow(scale: 2)
+        XCTAssertNotNil(v.debugAtlas)
+        let win = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 300))
+        win.isHidden = false
+        win.addSubview(v)
+        XCTAssertFalse(v.purgeAtlasIfOffscreen(), "đang hiện ⇒ giữ")
+        XCTAssertNotNil(v.debugAtlas)
+        XCTAssertTrue(v.debugDancerVisible)
+        v.removeFromSuperview()
+        XCTAssertTrue(v.purgeAtlasIfOffscreen())
+        XCTAssertNil(v.debugAtlas)
+        win.addSubview(v)
+        let deadline = Date().addingTimeInterval(3)
+        while v.debugAtlas == nil && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        XCTAssertNotNil(v.debugAtlas, "hiện lại ⇒ giải lại")
+        XCTAssertTrue(v.debugDancerVisible)
+        v.halt(); v.removeFromSuperview(); win.isHidden = true
+    }
+
     // MARK: ảnh nền
 
     func testWallpaperDecodeScaleCapsAt2x() {

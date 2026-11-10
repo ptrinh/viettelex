@@ -194,6 +194,14 @@ final class SpotlightView: UIView {
     private var atlas: CGImage?
     private var atlasGen = 0
     private var atlasLoading = false
+    /// Cảnh báo bộ nhớ (10/11/2026): KHÔNG trong cửa sổ ⇒ thả atlas người nhảy; đang hiện ⇒ giữ (không làm trống).
+    /// Gắn lại vào cửa sổ ⇒ giải lại (didMoveToWindow → ensureAtlas). true nếu đã thả.
+    @discardableResult
+    func purgeAtlasIfOffscreen() -> Bool {
+        guard window == nil, atlas != nil || atlasLoading else { return false }
+        dropAtlas()
+        return true
+    }
     private var flashes = 0
     /// Biến thể đang hiện (khung × lật — NightDancer.next); 0 = đứng thẳng trước lần nháy đầu.
     private(set) var variant = 0
@@ -593,7 +601,7 @@ final class SpotlightView: UIView {
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
-        if window == nil { halt() }
+        if window == nil { halt() } else if dancerBuilt { ensureAtlas() }   // atlas thả lúc ẩn (purgeAtlasIfOffscreen) ⇒ giải lại
     }
 
     #if DEBUG

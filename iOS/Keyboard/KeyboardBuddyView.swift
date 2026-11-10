@@ -57,6 +57,18 @@ final class BuddyView: UIView {
         return cache
     }()
 
+    /// Cảnh báo bộ nhớ (10/11/2026): bỏ atlas trong cache tĩnh, GIỮ atlas của `keeping` (nhân vật đang hiện) — view
+    /// đang hiện vẫn giữ CGImage riêng nên không bao giờ trống; nil (bàn phím ẩn) ⇒ bỏ hết. Lần hiện sau giải lại.
+    static func purgeAtlasCache(keeping: BuddyCharacter?) {
+        let keep = keeping.flatMap(atlasRef).flatMap { r in atlasCache.object(forKey: r.name as NSString).map { (r.name, $0) } }
+        atlasCache.removeAllObjects()
+        if let k = keep { atlasCache.setObject(k.1, forKey: k.0 as NSString, cost: k.1.bytesPerRow * k.1.height) }
+    }
+    /// Atlas của `character` đang nằm trong cache tĩnh (test).
+    static func atlasCached(_ character: BuddyCharacter) -> Bool {
+        atlasRef(character).map { atlasCache.object(forKey: $0.name as NSString) != nil } ?? false
+    }
+
     /// Tên + URL atlas (chỉ tra bundle — không chạm ImageIO: lần đầu trong process ImageIO tự khởi
     /// tạo ~10 ms trên main); nil = không có ảnh ⇒ vector.
     private struct AtlasRef { let name: String; let url: URL }

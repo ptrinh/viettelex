@@ -295,6 +295,42 @@ cộng float), prior từng phím khớp, blob hỏng bị từ chối.
 Đổi dữ liệu nguồn (vnlexicon / enlexicon / seed / TelexSpell): sinh lại bên Android rồi chép tệp
 sang iOS — test iOS đỏ nếu hai bản lệch.
 
+## 4d. Âm nhạc cụ + cảnh báo bộ nhớ (10/11/2026)
+
+**Bộ nốt ngân (Piano / Đàn tranh / Ghi-ta, pedal Shift/Caps).** Trước: dựng lười bằng cách tổng hợp CẢ 25 nốt ra
+`[Float]` rồi mới chép từng nốt sang `AVAudioPCMBuffer` ⇒ hai bản cả bộ cùng sống; bộ dựng xong giữ tới `shutdown()`
+(nghỉ 8 s giữ nguyên, cảnh báo bộ nhớ lúc đang hiện không nhả gì). Sau (`KeySound.sustainPCMBank`): mỗi nốt tổng hợp →
+chép vào PCM → `[Float]` nhả ngay (đỉnh = bộ PCM + một nốt). Nghỉ 8 s (`idleCheck`) và cảnh báo bộ nhớ
+(`releaseSustainBank`, cả khi đang hiện) nhả bộ ngân — node giữ nguyên, nốt đang ngân không bị cắt (node tự giữ buffer
+đã lên lịch tới khi phát xong). Pedal lần sau dựng lại nền; nốt ngân trong lúc đó phát bản thường. Lượt dựng đang chạy
+lúc bị nhả thì bỏ kết quả (bộ đếm thế hệ). Đường phím vẫn chỉ `lock.try()`.
+
+| `KeySoundTests.testSustainBankBuildPeakIsOneBank` (simulator iPhone 17, iOS 27, Debug, heap malloc) | cũ | mới |
+|---|---|---|
+| Đỉnh heap khi dựng bộ ngân (Piano / Đàn tranh / Ghi-ta, bộ 2,63 MB) | 5,37 MB | 2,63–2,64 MB |
+| Giữ khi bàn phím đang hiện, đã nghỉ ≥ 8 s hoặc sau cảnh báo bộ nhớ | 2,63 MB | 0 |
+
+**Cảnh báo bộ nhớ — cache thêm từ giữa 10/2026** (`KeyboardViewController.purgeStaticCaches`). Ẩn ⇒ bỏ hết; đang
+hiện ⇒ chỉ bỏ thứ không trên màn hình (không bao giờ làm trống thứ đang nhìn), mọi thứ nạp lại lười:
+
+| Cache | Ẩn | Đang hiện |
+|---|---|---|
+| `ThemeAssetLoader.cache` (skin/phông theme tải về — một mục = theme đang dùng) | bỏ | giữ |
+| `BuddyView.atlasCache` (≤ 3 MiB) | bỏ hết | giữ atlas nhân vật đang hiện, bỏ phần còn lại |
+| Atlas người nhảy Night Club (giữ trong `SpotlightView`, không phải cache tĩnh) | thả nếu view ngoài cửa sổ (thường đã thả cùng `tearDown`); gắn lại cửa sổ ⇒ giải lại | giữ |
+| `SwipeVocab.cache` (2 chế độ lọc) | bỏ cả hai | giữ chế độ đang dùng, bỏ chế độ kia |
+| Bộ nốt ngân nhạc cụ | (engine đã `shutdown`) | bỏ |
+
+Đo `RamFixTests.testMemoryWarningHiddenDropsLateCaches` (cùng simulator, Debug; nạp tệp theme RỖNG — không ảnh, atlas
+mèo + gà con, từ vựng vuốt cả hai chế độ, rồi bỏ khi ẩn): heap **−0,13 MB**, phys_footprint đo được **±0,00 MB**. Phần
+lớn là từ vựng vuốt; atlas Bạn đồng hành (ảnh ImageIO ≤ 512 px) không hiện rõ trong heap malloc lẫn footprint của
+process test — chưa tách được con số riêng. Skin/phông theme thật (ngân sách skin ≤ 4 MB — `ThemeAssetTests.testHeavyThemeOnRealKeyboard`) không đo trong
+lượt này vì cần theme tải về; bỏ chúng chỉ xảy ra khi ẩn.
+
+**Chưa đo được**: `ram-audit.sh` không có mốc nhạc cụ + pedal, và simulator không bắn được cảnh báo bộ nhớ cho process
+extension (§1 chú thích ²) ⇒ chưa có số footprint process thật cho đợt này; số trên là heap trong process test.
+Cần máy thật: theme có nhạc cụ, đạp pedal, nghỉ 8 s, đo footprint trước/sau.
+
 ## 5. UserLangModel
 
 **Đã làm (09/2026)** — `UserLMTables` trong Keyboard/UserLangModel.swift: từ intern thành id
