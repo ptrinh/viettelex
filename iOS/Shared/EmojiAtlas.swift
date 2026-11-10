@@ -233,15 +233,40 @@ final class EmojiAtlasStore {
     /// Ảnh riêng của một emoji (bản sao, không dính trang) — nil ⇒ vẽ chữ.
     func tile(_ e: String) -> CGImage? {
         guard let loc = index.locate(e), let page = pageImage(loc.page) else { return nil }
+        return copyTile(page, slot: loc.slot, px: manifest.slotPx)
+    }
+
+    /// Chép ô `slot` của trang ra bitmap riêng `px` × `px` (thu nhỏ nếu px < slotPx).
+    private func copyTile(_ page: CGImage, slot: Int, px: Int) -> CGImage? {
         let s = manifest.slotPx
-        let r = CGRect(x: (loc.slot % manifest.cols) * s, y: (loc.slot / manifest.cols) * s, width: s, height: s)
-        guard let crop = page.cropping(to: r),
-              let ctx = CGContext(data: nil, width: s, height: s, bitsPerComponent: 8, bytesPerRow: 0,
+        let r = CGRect(x: (slot % manifest.cols) * s, y: (slot / manifest.cols) * s, width: s, height: s)
+        guard px > 0, let crop = page.cropping(to: r),
+              let ctx = CGContext(data: nil, width: px, height: px, bitsPerComponent: 8, bytesPerRow: 0,
                                   space: page.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!,
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return nil }
-        ctx.draw(crop, in: CGRect(x: 0, y: 0, width: s, height: s))
+        ctx.interpolationQuality = .high
+        ctx.draw(crop, in: CGRect(x: 0, y: 0, width: px, height: px))
         return ctx.makeImage()
+    }
+
+    /// Thanh gợi ý (SuggestionEmojiTiles): ảnh `px` × `px` của các emoji, giải mã mỗi trang cần
+    /// MỘT lần rồi bỏ ngay — KHÔNG vào LRU trang (bar không giữ trang ~1,3 MB chỉ để lấy 1–3 ô).
+    /// Chỉ đọc trạng thái bất biến (dir, manifest, index mmap) ⇒ gọi từ luồng nền được.
+    /// Emoji không có trong atlas / trang mất ⇒ không có trong kết quả (bên gọi vẽ chữ).
+    func renderTiles(_ emojis: [String], px: Int) -> [String: CGImage] {
+        var byPage: [Int: [(String, Int)]] = [:]
+        for e in emojis {
+            if let loc = index.locate(e) { byPage[loc.page, default: []].append((e, loc.slot)) }
+        }
+        var out: [String: CGImage] = [:]
+        for (p, items) in byPage.sorted(by: { $0.key < $1.key }) where p >= 0 && p < manifest.pageFiles.count {
+            autoreleasepool {
+                guard let page = Self.decode(dir.appendingPathComponent(manifest.pageFiles[p])) else { return }
+                for (e, slot) in items { out[e] = copyTile(page, slot: slot, px: px) }
+            }
+        }
+        return out
     }
 
     func tileImage(_ e: String) -> UIImage? {
