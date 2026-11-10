@@ -646,7 +646,7 @@ final class KeyboardViewController: UIInputViewController {
     private func warmUpData() {
         let wantsLM = showSuggestionsSetting || swipeSetting || addTonesSetting
         if wantsLM { _ = langModel }
-        // Lexicon tiếng Anh (bảng offset trên mmap, ~0,1 MB — RAM-AUDIT.md §4d): main thread
+        // Lexicon tiếng Anh (bảng offset trên mmap, ~0,1 MB — RAM-AUDIT.md §4f): main thread
         // chỉ hỏi bản đã nạp (containsIfLoaded) ⇒ nạp sẵn ở nền để gợi ý / tự sửa đúng ngay từ đầu.
         if showSuggestionsSetting || autoCorrectSetting || addTonesSetting { SwipeEnglish.warmUp() }
         let swipeOn = swipeSetting

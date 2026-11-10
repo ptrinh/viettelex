@@ -168,7 +168,7 @@ phần tăng. Sắp theo mức ảnh hưởng thực tế:
 | 10 | `EmojiData.categories` (mảng ~3.800 String) | 1,8 MB heap | ✗ static suốt đời |
 | 11 | planeCache (số + ký hiệu) | 1,4–2,6 MB | chỉ khi đổi chữ ký |
 | 12 | TelexKeyPrior (trie smartTouch) | ~1 MB heap | ✗ static |
-| 13 | enlexicon parse / SwipeDecoder template | 0,7 / 0,36 MB (10/11/2026: lexicon 0,1 MB, bảng phím vuốt +0,35 MB chỉ khi vuốt tiếng Anh — §4d) | template nhả khi `swipe = nil` |
+| 13 | enlexicon parse / SwipeDecoder template | 0,7 / 0,36 MB (10/11/2026: lexicon 0,1 MB, bảng phím vuốt +0,35 MB chỉ khi vuốt tiếng Anh — §4f) | template nhả khi `swipe = nil` |
 | — | vnlm / vnlexicon / emoji.bin / futoswipe.bin (mmap) | ~0 dirty | trang sạch |
 
 ## 3. Rò rỉ #1 — cây view cũ sống mãi

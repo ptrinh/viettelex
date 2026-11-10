@@ -1,4 +1,4 @@
-// SuggestionEmojiTiles — emoji trên THANH GỢI Ý vẽ từ atlas (iOS/docs/RAM-AUDIT.md §4d).
+// SuggestionEmojiTiles — emoji trên THANH GỢI Ý vẽ từ atlas (iOS/docs/RAM-AUDIT.md §4f).
 //
 // Trước: ô emoji của thanh gợi ý (EmojiSuggest, mặc định BẬT) vẽ bằng CHỮ ⇒ lần đầu có emoji CoreText
 // nạp font Apple Color Emoji (~1,8 MB) + cache glyph mỗi emoji khác nhau không bao giờ nhả — đi vòng

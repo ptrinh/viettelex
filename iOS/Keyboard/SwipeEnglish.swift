@@ -6,7 +6,7 @@
 //   • `SwipeEnglish.lexicon`: ~20k từ tiếng Anh + tần suất 1 byte CÙNG THANG với
 //     vnlexicon (Resources/enlexicon.bin, sinh bởi Scripts/gen-enlexicon.py; nguồn +
 //     giấy phép: docs/DATA-SOURCES.md). Đọc TẠI CHỖ trên file mmap (10/11/2026,
-//     iOS/docs/RAM-AUDIT.md §4d): heap chỉ còn bảng offset 4 B/từ + tần suất 1 B/từ;
+//     iOS/docs/RAM-AUDIT.md §4f): heap chỉ còn bảng offset 4 B/từ + tần suất 1 B/từ;
 //     chuỗi từ chỉ dựng khi thật sự trả ra. Bảng phím cho gõ vuốt (`Lexicon.swipe`) dựng
 //     lười lần đầu decoder tiếng Anh cần — tắt vuốt tiếng Anh thì không bao giờ dựng.
 //     Định dạng file KHÔNG đổi (Kotlin đọc cùng file).
