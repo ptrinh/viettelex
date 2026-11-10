@@ -15,12 +15,18 @@
 // they fall back to their own writable temp folder (…\Packages\<pkg>\AC\Temp\
 // VietTelex-debug.log), and if even that fails, to OutputDebugString only.
 #pragma once
+#include <cstdint>
 #include <string>
 #include <vector>
+
+#include "debug_log.h"
 
 namespace vtx {
 
 void debugFileWrite(const char* component, const std::string& msg);
+// The same line with the time it happened (local time + GetTickCount64): VietTelex.exe's
+// hook thread queues its lines and a writer writes them later (app/core/log_queue.h).
+void debugFileWriteAt(const char* component, const std::string& msg, const LogStamp& t, uint64_t tickMs);
 // VietTelex.exe: the header messages ("# key: value", debug_header.h formatDebugHeader)
 // written after this process's context line. `emitNow`: write context + header right
 // away (app start, logging just turned on); otherwise they are kept for the next new

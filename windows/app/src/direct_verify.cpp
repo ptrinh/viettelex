@@ -33,8 +33,22 @@ std::atomic<bool> g_quit{false};
 
 const char* g_path = "";
 
+// While attached to the user's console, a Ctrl+C / Ctrl+Break typed there is delivered to
+// THIS process too, and the default handler is ExitProcess: VietTelex.exe vanished. Ours
+// says "handled" for those. (A console CLOSED during the few milliseconds we are attached
+// still ends every attached process — Windows does not let a handler refuse that.)
+BOOL WINAPI ignoreConsoleCtrl(DWORD type) {
+    return type == CTRL_C_EVENT || type == CTRL_BREAK_EVENT ? TRUE : FALSE;
+}
+
 Echo readConsole(HWND fg, const std::u16string& expected) {
     g_path = "console";
+    static bool handlerSet = false;  // verifier thread only
+    if (!handlerSet) handlerSet = SetConsoleCtrlHandler(ignoreConsoleCtrl, TRUE) != FALSE;
+    if (!handlerSet) {  // never attach without it
+        g_path = "console (no ctrl handler)";
+        return Echo::Unverifiable;
+    }
     DWORD pid = 0;
     GetWindowThreadProcessId(fg, &pid);
     if (!pid || !AttachConsole(pid)) {

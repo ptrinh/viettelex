@@ -1773,15 +1773,9 @@ void uninstallVietTelex() {
         return;
     }
     const std::wstring params = widen(uninstallParameters(code));
-    SHELLEXECUTEINFOW sei = {};
-    sei.cbSize = sizeof sei;
-    sei.fMask = SEE_MASK_NOASYNC;
-    sei.hwnd = g_wnd;
-    sei.lpVerb = L"open";
-    sei.lpFile = L"msiexec.exe";
-    sei.lpParameters = params.c_str();
-    sei.nShow = SW_SHOWNORMAL;
-    if (ShellExecuteExW(&sei)) {
+    // msiexec by full path + the update watcher (--uninstall): if the UAC prompt or the MSI
+    // dialog is cancelled, the watcher starts the app again instead of leaving none running.
+    if (runMsiexecWithWatcher(params, true)) {
         if (g_wnd) DestroyWindow(g_wnd);
         if (g_mainWnd) PostMessageW(g_mainWnd, WM_CLOSE, 0, 0);  // tray app exits; typing is unaffected
     }

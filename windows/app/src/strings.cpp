@@ -144,6 +144,13 @@ const Pair kStrings[] = {
     {L"Có bản mới %s. Tải và cài đặt?", L"Version %s is available. Download and install?"},
     {L"Không kiểm tra được cập nhật.", L"Could not check for updates."},
     {L"Tệp cài đặt tải về không có chữ ký hợp lệ — đã huỷ.", L"The downloaded installer is not validly signed — cancelled."},
+    {L"Không tải được bản cập nhật. Mở trang tải về để tải bằng tay?",
+     L"Could not download the update. Open the download page to get it yourself?"},
+    {L"Không kiểm tra được chữ ký của bản cập nhật (có thể do mất mạng hoặc proxy chặn) — chưa cài gì. Mở trang tải "
+     L"về để tải bằng tay?",
+     L"Could not check the update's signature (maybe offline, or a proxy blocks the check) — nothing was installed. "
+     L"Open the download page to get it yourself?"},
+    {L"Đang tải bản cập nhật, vui lòng chờ.", L"The update is downloading, please wait."},
     {L"Không đọc được tệp gõ tắt.", L"Could not read the shortcut file."},
     {L"Ứng dụng này chạy với quyền quản trị: cách gõ bằng phím thật không gõ vào được. Chạy VietTelex bằng quyền quản trị hoặc đổi cách gõ của ứng dụng.",
      L"This app runs as administrator: real keystrokes cannot type into it. Run VietTelex as administrator or change the app's mode."},

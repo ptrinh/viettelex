@@ -11,6 +11,7 @@
 
 #include "settings_store.h"
 #include "setup_helper_logic.h"
+#include "strings.h"
 #include "update_check.h"
 #include "version.h"
 
@@ -134,18 +135,22 @@ struct DownloadJob {
     std::wstring url;
 };
 
-bool signerMatches(HANDLE stateData) {
-    const std::wstring expected = expectedPublisher();
-    if (expected.empty()) return false;   // fail closed: no pinned publisher, no install
-    CRYPT_PROVIDER_DATA* pd = WTHelperProvDataFromStateData(stateData);
+// The leaf signer against the pinned publisher. Unknown = no readable signer (a chain
+// WinVerifyTrust could not finish, e.g. revocation unreachable, may still name it).
+Signer signerOf(HANDLE stateData, const std::wstring& expected) {
+    CRYPT_PROVIDER_DATA* pd = stateData ? WTHelperProvDataFromStateData(stateData) : nullptr;
     CRYPT_PROVIDER_SGNR* sg = pd ? WTHelperGetProvSignerFromChain(pd, 0, FALSE, 0) : nullptr;
-    if (!sg || !sg->pasCertChain || sg->csCertChain == 0) return false;
+    if (!sg || !sg->pasCertChain || sg->csCertChain == 0 || !sg->pasCertChain[0].pCert) return Signer::Unknown;
     wchar_t name[256];
     DWORD n = CertGetNameStringW(sg->pasCertChain[0].pCert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, nullptr, name, 256);
-    return n > 1 && expected == name;
+    if (n <= 1) return Signer::Unknown;
+    return !expected.empty() && expected == name ? Signer::Matches : Signer::Differs;
 }
 
-bool verifyAuthenticode(const std::wstring& path) {
+// Fail closed: no pinned publisher (dev build) or any other signer is Untrusted; only a
+// revocation server that could not be reached is told apart (update_check.h).
+SignatureCheck verifyAuthenticode(const std::wstring& path) {
+    const std::wstring expected = expectedPublisher();
     WINTRUST_FILE_INFO fi = {};
     fi.cbStruct = sizeof fi;
     fi.pcwszFilePath = path.c_str();
@@ -158,10 +163,11 @@ bool verifyAuthenticode(const std::wstring& path) {
     wd.dwStateAction = WTD_STATEACTION_VERIFY;
     GUID action = WINTRUST_ACTION_GENERIC_VERIFY_V2;
     LONG st = WinVerifyTrust(static_cast<HWND>(INVALID_HANDLE_VALUE), &action, &wd);
-    bool ok = st == ERROR_SUCCESS && signerMatches(wd.hWVTStateData);
+    const SignatureCheck r =
+        classifySignature(static_cast<uint32_t>(st), !expected.empty(), signerOf(wd.hWVTStateData, expected));
     wd.dwStateAction = WTD_STATEACTION_CLOSE;
     WinVerifyTrust(static_cast<HWND>(INVALID_HANDLE_VALUE), &action, &wd);
-    return ok;
+    return r;
 }
 
 DWORD WINAPI downloadThread(void* p) {
@@ -177,11 +183,16 @@ DWORD WINAPI downloadThread(void* p) {
             std::string unused;
             bool got = httpGet(host.c_str(), path.c_str(), kMaxMsi, unused, f);
             CloseHandle(f);
+            SignatureCheck sig = got ? verifyAuthenticode(file) : SignatureCheck::Untrusted;
+            if (sig == SignatureCheck::Unverifiable) {  // CRL / OCSP unreachable: one more try
+                Sleep(3000);
+                sig = verifyAuthenticode(file);
+            }
             if (!got) {
                 DeleteFileW(file.c_str());
-            } else if (!verifyAuthenticode(file)) {
+            } else if (sig != SignatureCheck::Trusted) {
                 DeleteFileW(file.c_str());
-                status = kDownloadBadSignature;
+                status = sig == SignatureCheck::Unverifiable ? kDownloadUnverified : kDownloadBadSignature;
             } else {
                 status = kDownloadOk;
                 outPath = new wchar_t[file.size() + 1];
@@ -194,39 +205,53 @@ DWORD WINAPI downloadThread(void* p) {
     return 0;
 }
 
+// Every self-update step goes through this (UI thread only; update_check.h UpdateFlow).
+UpdateFlow g_flow;
+
 }  // namespace
 
+UpdateFlow& updateFlow() { return g_flow; }
+
 void startUpdateCheck(HWND notify, bool interactive) {
+    switch (g_flow.requestCheck(interactive)) {
+        case UpdateFlow::Request::Joined: return;  // the running check answers both
+        case UpdateFlow::Request::Busy:
+            // A prompt is on screen, or the update is downloading / installing: start nothing.
+            if (interactive && g_flow.busyWithDownload())
+                MessageBoxW(nullptr, tr(S::UpdateBusy), tr(S::AppName), MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
+            return;
+        case UpdateFlow::Request::Start: break;
+    }
     auto* job = new CheckJob{notify, interactive};
     HANDLE t = CreateThread(nullptr, 0, checkThread, job, 0, nullptr);
-    if (t) CloseHandle(t);
-    else delete job;
+    if (t) {
+        CloseHandle(t);
+    } else {
+        delete job;
+        g_flow.checkNotStarted();
+    }
 }
 
-void startDownload(HWND notify, const wchar_t* url) {
+bool startDownload(HWND notify, const wchar_t* url) {
     auto* job = new DownloadJob{notify, url};
     HANDLE t = CreateThread(nullptr, 0, downloadThread, job, 0, nullptr);
     if (t) CloseHandle(t);
     else delete job;
+    return t != nullptr;
 }
 
-bool runInstaller(const wchar_t* msiPath, const wchar_t* version) {
+bool runMsiexecWithWatcher(const std::wstring& args, bool uninstall) {
     // msiexec elevates itself. We get its process handle so a detached watcher can bring
-    // the app back if the install is cancelled or fails (setup_helper_logic.h). Always
-    // with a verbose log: %LOCALAPPDATA%\VietTelex\update-<version>.log.
-    std::wstring args = L"/i \"" + std::wstring(msiPath) + L"\"";
-    wchar_t lad[MAX_PATH];
-    DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", lad, MAX_PATH);
-    if (n > 0 && n < MAX_PATH) {
-        const std::wstring dir = std::wstring(lad) + L"\\VietTelex";
-        CreateDirectoryW(dir.c_str(), nullptr);
-        args += L" /l*v \"" + dir + L"\\" + vtx::updateLogName(narrow(version ? version : L"")) + L"\"";
-    }
+    // the app back if the install / uninstall is cancelled or fails (setup_helper_logic.h).
+    wchar_t sys[MAX_PATH];
+    const UINT sl = GetSystemDirectoryW(sys, MAX_PATH);
+    const std::wstring msiexec = sl > 0 && sl < MAX_PATH ? vtx::msiexecPath(std::wstring(sys, sl)) : std::wstring();
+    if (msiexec.empty()) return false;
     SHELLEXECUTEINFOW sei = {};
     sei.cbSize = sizeof sei;
     sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
     sei.lpVerb = L"open";
-    sei.lpFile = L"msiexec.exe";
+    sei.lpFile = msiexec.c_str();
     sei.lpParameters = args.c_str();
     sei.nShow = SW_SHOWNORMAL;
     if (!ShellExecuteExW(&sei)) return false;
@@ -238,7 +263,7 @@ bool runInstaller(const wchar_t* msiPath, const wchar_t* version) {
         if (pid && GetModuleFileNameW(nullptr, self, MAX_PATH) && GetTempPathW(MAX_PATH, tmp)) {
             const std::wstring watcher = std::wstring(tmp) + vtx::kWatcherFileName;
             if (CopyFileW(self, watcher.c_str(), FALSE)) {
-                std::wstring cmd = L"\"" + watcher + L"\" " + vtx::watcherArgs(pid);
+                std::wstring cmd = L"\"" + watcher + L"\" " + vtx::watcherArgs(pid, uninstall);
                 STARTUPINFOW si = {};
                 si.cb = sizeof si;
                 PROCESS_INFORMATION pi = {};
@@ -253,10 +278,25 @@ bool runInstaller(const wchar_t* msiPath, const wchar_t* version) {
     return true;
 }
 
+bool runInstaller(const wchar_t* msiPath, const wchar_t* version) {
+    // Always with a verbose log: %LOCALAPPDATA%\VietTelex\update-<version>.log.
+    std::wstring args = L"/i \"" + std::wstring(msiPath) + L"\"";
+    wchar_t lad[MAX_PATH];
+    DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", lad, MAX_PATH);
+    if (n > 0 && n < MAX_PATH) {
+        const std::wstring dir = std::wstring(lad) + L"\\VietTelex";
+        CreateDirectoryW(dir.c_str(), nullptr);
+        args += L" /l*v \"" + dir + L"\\" + vtx::updateLogName(narrow(version ? version : L"")) + L"\"";
+    }
+    return runMsiexecWithWatcher(args, false);
+}
+
 bool autoCheckDue() {
-    unsigned long long last = readQword(L"lastAutoUpdateCheckAt");
-    unsigned long long now = static_cast<unsigned long long>(time(nullptr));
-    return now < last || now - last >= 24ull * 3600ull;
+    return autoCheckDueAt(static_cast<unsigned long long>(time(nullptr)), readQword(L"lastAutoUpdateCheckAt"));
+}
+
+unsigned autoCheckDelay() {
+    return autoCheckDelayMs(static_cast<unsigned long long>(time(nullptr)), readQword(L"lastAutoUpdateCheckAt"));
 }
 
 void markAutoChecked() { writeQword(L"lastAutoUpdateCheckAt", static_cast<unsigned long long>(time(nullptr))); }

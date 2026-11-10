@@ -98,8 +98,16 @@ namespace vtx {
 //   4. when msiexec exits the watcher starts the installed app if none is running (UAC
 //      cancelled / install failed: the old version comes back instead of nothing).
 constexpr const wchar_t* kWatcherFileName = L"VietTelex-update-watcher.exe";
-std::wstring watcherArgs(unsigned long msiexecPid);
+// (2026-11) "Gỡ cài đặt VietTelex" uses the same watcher (`uninstall`: "--uninstall" added):
+// a cancelled UAC prompt / MSI dialog brings the app back instead of leaving nothing
+// running. After a real uninstall nothing is installed, so nothing starts; the watcher then
+// writes no log (the folder was just erased: "gỡ sạch").
+std::wstring watcherArgs(unsigned long msiexecPid, bool uninstall = false);
 bool parseWaitInstallArg(const std::vector<std::wstring>& argv, unsigned long& pid);
+bool parseWatcherUninstallArg(const std::vector<std::wstring>& argv);
+// msiexec by its full path in the system folder (GetSystemDirectoryW), never by a bare name
+// a search path could resolve elsewhere. "" when the folder is unknown.
+std::wstring msiexecPath(const std::wstring& systemDir);
 enum class AfterInstall { Nothing, LaunchInstalled };
 // msiexec's exit code decides: 0 / 3010 / 1641 = success (the MSI's LaunchApp started the
 // new app — never start another); anything else (1602 cancelled, 1603 failed, ...) =

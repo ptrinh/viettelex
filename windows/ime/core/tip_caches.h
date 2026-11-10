@@ -134,6 +134,33 @@ private:
     uintptr_t root_ = 0;
 };
 
+// (2026-11 audit) Can the app's hook reach this process (UIPI)? In a Direct field the TIP
+// asked on EVERY key: FindWindow, OpenProcessToken on itself, OpenProcess + token on the app.
+// This process's integrity never changes; the app's only with a new app process. Kept per
+// focus, keyed by (app window, app pid): a restarted app is asked again.
+class HookReachCache {
+public:
+    // True with `reaches` set when this (window, pid) was answered since the last reset.
+    bool lookup(uintptr_t appWindow, uint32_t appPid, bool& reaches) const {
+        if (!valid_ || appWindow != wnd_ || appPid != pid_) return false;
+        reaches = reaches_;
+        return true;
+    }
+    void store(uintptr_t appWindow, uint32_t appPid, bool reaches) {
+        wnd_ = appWindow;
+        pid_ = appPid;
+        reaches_ = reaches;
+        valid_ = true;
+    }
+    void reset() { valid_ = false; }
+
+private:
+    uintptr_t wnd_ = 0;
+    uint32_t pid_ = 0;
+    bool reaches_ = false;
+    bool valid_ = false;
+};
+
 // (M1) Chế độ game is VietTelex.exe's runtime state (cleared at its start). If the app is
 // gone (crashed, autostart off), a stale "on" in the snapshot must not leave every key
 // passing through forever. `appRunning` is only asked when the snapshot says on.

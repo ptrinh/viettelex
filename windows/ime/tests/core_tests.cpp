@@ -693,3 +693,40 @@ TEST(effective_game_mode_asks_app_only_when_on) {
     CHECK(!effectiveGameMode(true, [&] { ++asked; return false; }));  // app gone: stale "on" ignored
     CHECK(asked == 2);
 }
+
+// ---- 2026-11 audit: window properties left by a killed VietTelex.exe -------------------
+
+// VietTelex.Suspend / VietTelex.DirectOn on another process's window outlive a killed app
+// (TerminateProcess: no cleanup). Their value is the app's main window; the TIP honours one
+// only while it is the LIVE app window.
+TEST(window_props_honoured_only_from_the_live_app) {
+    const uintptr_t app = 0x000A0B2Cu;
+    CHECK(propFromLiveApp(app, app));
+    CHECK(!propFromLiveApp(0, app));            // no property
+    CHECK(!propFromLiveApp(app, 0));            // app not running: a stale property is ignored
+    CHECK(!propFromLiveApp(app, 0x000C0D2Eu));  // app restarted: another window
+    CHECK(!propFromLiveApp(1, app));            // the pre-fix value (1 / reason bits): stale
+    CHECK(!propFromLiveApp(0, 0));
+#if UINTPTR_MAX > 0xFFFFFFFFu
+    // A WOW64 (x86) TIP reads a 64-bit app's value truncated to 32 bits; HWNDs fit.
+    CHECK(propFromLiveApp(app, static_cast<uintptr_t>(0xFFFFFFFF00000000ull) | app));
+    CHECK(!propFromLiveApp(static_cast<uintptr_t>(0x100000000ull), static_cast<uintptr_t>(0x100000000ull)));
+#endif
+}
+
+// The TIP re-derived "can the hook reach this process" on every key in a Direct field
+// (FindWindow, OpenProcessToken on itself, OpenProcess + token on the app).
+TEST(hook_reach_cache_per_app_window_and_pid) {
+    HookReachCache c;
+    bool r = true;
+    CHECK(!c.lookup(10, 100, r));  // nothing yet: ask
+    c.store(10, 100, false);
+    r = true;
+    CHECK(c.lookup(10, 100, r) && !r);
+    CHECK(!c.lookup(11, 100, r));  // another app window
+    CHECK(!c.lookup(10, 101, r));  // another app process (restarted, window handle reused)
+    c.store(10, 101, true);
+    CHECK(c.lookup(10, 101, r) && r);
+    c.reset();  // focus change
+    CHECK(!c.lookup(10, 101, r));
+}

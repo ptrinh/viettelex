@@ -483,31 +483,72 @@ void runCommand(unsigned cmd, LPARAM lp = 0) {
 
 wchar_t g_pendingVersion[32] = {};  // version being installed (names the msiexec log)
 
+// ---- automatic update check: once a day, also for a PC that never restarts the app -----
+// One-shot timer to the next due time (no polling), re-armed after each automatic check and
+// on resume from sleep (update_check.h autoCheckDelayMs).
+constexpr UINT_PTR kTimerAutoUpdate = 0x5602;
+
+void armAutoUpdateTimer() {
+    if (!g_mainWnd) return;
+    KillTimer(g_mainWnd, kTimerAutoUpdate);
+    if (!g_settings.autoUpdateCheck) return;
+    const unsigned delay = autoCheckDelay();
+    SetTimer(g_mainWnd, kTimerAutoUpdate, delay ? delay : 60000, nullptr);  // due: retry in a minute
+}
+
+// App start, the timer, resume from sleep: check if due, else wait for the rest.
+void autoUpdateTick() {
+    if (g_mainWnd) KillTimer(g_mainWnd, kTimerAutoUpdate);
+    if (!g_settings.autoUpdateCheck) return;
+    if (autoCheckDue() && updateFlow().phase() == UpdateFlow::Phase::Idle) {
+        startUpdateCheck(g_mainWnd, false);  // its result re-arms the timer
+        if (updateFlow().phase() == UpdateFlow::Phase::Checking) return;
+    }
+    armAutoUpdateTimer();
+}
+
+// Yes / No box for a failed update: Yes opens the download page.
+void offerDownloadPage(S text) {
+    if (MessageBoxW(nullptr, tr(text), tr(S::AppName), MB_YESNO | MB_ICONWARNING | MB_SETFOREGROUND) == IDYES)
+        ShellExecuteW(nullptr, L"open", vtx::kWindowsDownloadPageUrl, nullptr, nullptr, SW_SHOWNORMAL);
+}
+
 void onUpdateChecked(UpdateInfo* info) {
-    if (!info->interactive) markAutoChecked();
+    // Interactive when any request it answered was (a click joining an automatic check).
+    const bool interactive = updateFlow().checkDone() || info->interactive;
+    if (!info->interactive) {
+        markAutoChecked();
+        armAutoUpdateTimer();
+    }
+    // The automatic check's prompt pops up unasked, maybe while the user types: No is the
+    // default, so a key typed as it appears cannot start an install.
+    const UINT ask = MB_YESNO | MB_ICONINFORMATION | MB_SETFOREGROUND | (interactive ? 0 : MB_DEFBUTTON2);
     if (info->available && portableMode()) {
         // Portable: no self-update — the download page has the new zip.
-        const bool show = info->interactive || readString(L"lastNotifiedUpdateVersion") != info->version;
-        if (show) {
+        const bool show = interactive || readString(L"lastNotifiedUpdateVersion") != info->version;
+        if (show && updateFlow().beginPrompt()) {
             writeString(L"lastNotifiedUpdateVersion", info->version);
             wchar_t msg[256];
             wsprintfW(msg, tr(S::PortableUpdateAvailable), info->version);
-            if (MessageBoxW(nullptr, msg, tr(S::AppName), MB_YESNO | MB_ICONINFORMATION | MB_SETFOREGROUND) == IDYES)
+            if (MessageBoxW(nullptr, msg, tr(S::AppName), ask) == IDYES)
                 ShellExecuteW(nullptr, L"open", vtx::portable::kDownloadPageUrl, nullptr, nullptr, SW_SHOWNORMAL);
+            updateFlow().promptDone(false);
         }
     } else if (info->available) {
         wchar_t msg[256];
         wsprintfW(msg, tr(S::UpdateAvailable), info->version);
         // Auto-check notifies once per version (lastNotifiedUpdateVersion, as macOS).
-        bool show = info->interactive || readString(L"lastNotifiedUpdateVersion") != info->version;
-        if (show) {
+        bool show = interactive || readString(L"lastNotifiedUpdateVersion") != info->version;
+        if (show && updateFlow().beginPrompt()) {
             writeString(L"lastNotifiedUpdateVersion", info->version);
-            if (MessageBoxW(nullptr, msg, tr(S::AppName), MB_YESNO | MB_ICONINFORMATION | MB_SETFOREGROUND) == IDYES) {
+            bool downloading = false;
+            if (MessageBoxW(nullptr, msg, tr(S::AppName), ask) == IDYES) {
                 lstrcpynW(g_pendingVersion, info->version, 32);
-                startDownload(g_mainWnd, info->url);
+                downloading = startDownload(g_mainWnd, info->url);
             }
+            updateFlow().promptDone(downloading);
         }
-    } else if (info->interactive) {
+    } else if (interactive) {
         MessageBoxW(nullptr, info->ok ? tr(S::UpToDate) : tr(S::UpdateFailed), tr(S::AppName),
                     MB_OK | (info->ok ? MB_ICONINFORMATION : MB_ICONWARNING) | MB_SETFOREGROUND);
     }
@@ -518,10 +559,16 @@ void onDownloaded(WPARAM status, wchar_t* path) {
     if (status == kDownloadOk && path) {
         // Hand off and leave NOW: saves nothing pending (settings are saved on change),
         // WM_DESTROY removes the tray icon, WinMain releases the single-instance mutex.
-        if (runInstaller(path, g_pendingVersion)) PostMessageW(g_mainWnd, WM_CLOSE, 0, 0);
+        const bool started = runInstaller(path, g_pendingVersion);
+        updateFlow().downloadDone(started);
+        if (started) PostMessageW(g_mainWnd, WM_CLOSE, 0, 0);
+        else offerDownloadPage(S::UpdateDownloadFailed);
     } else {
-        MessageBoxW(nullptr, status == kDownloadBadSignature ? tr(S::UpdateBadSignature) : tr(S::UpdateFailed),
-                    tr(S::AppName), MB_OK | MB_ICONWARNING | MB_SETFOREGROUND);
+        updateFlow().downloadDone(false);
+        if (status == kDownloadBadSignature)
+            MessageBoxW(nullptr, tr(S::UpdateBadSignature), tr(S::AppName), MB_OK | MB_ICONWARNING | MB_SETFOREGROUND);
+        else
+            offerDownloadPage(status == kDownloadUnverified ? S::UpdateUnverified : S::UpdateDownloadFailed);
     }
     delete[] path;
 }
@@ -559,6 +606,10 @@ LRESULT CALLBACK mainProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 onIdleTrimTimer(h);
                 return 0;
             }
+            if (wp == kTimerAutoUpdate) {
+                autoUpdateTick();
+                return 0;
+            }
             if (wp == 77) {
                 KillTimer(h, 77);
                 NOTIFYICONDATAW nid = {};
@@ -568,6 +619,9 @@ LRESULT CALLBACK mainProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 Shell_NotifyIconW(NIM_DELETE, &nid);
             }
             return 0;
+        case WM_POWERBROADCAST:  // back from sleep: the daily check may be due
+            if (wp == PBT_APMRESUMEAUTOMATIC) autoUpdateTick();
+            return TRUE;
         case WM_QUERYENDSESSION: return TRUE;
         case WM_ENDSESSION:
             if (wp) DestroyWindow(h);
@@ -661,12 +715,15 @@ int setProfileIcon(const std::string& name) {
 // `--wait-install <pid>` (a copy of this exe in %TEMP%): wait for msiexec, then start the
 // installed VietTelex if the MSI's LaunchApp did not (UAC cancelled, install failed).
 // Appends one line to %LOCALAPPDATA%\VietTelex\update-watcher.log (evidence for reports).
-void watcherLog(const std::wstring& line) {
+// `createFolder` false (after an uninstall): only into a folder that still exists — "gỡ sạch"
+// just erased it.
+void watcherLog(const std::wstring& line, bool createFolder) {
     wchar_t dir[MAX_PATH];
     DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", dir, MAX_PATH);
     if (n == 0 || n >= MAX_PATH) return;
     std::wstring folder = std::wstring(dir) + L"\\VietTelex";
-    CreateDirectoryW(folder.c_str(), nullptr);
+    if (createFolder) CreateDirectoryW(folder.c_str(), nullptr);
+    else if (GetFileAttributesW(folder.c_str()) == INVALID_FILE_ATTRIBUTES) return;
     HANDLE f = CreateFileW((folder + L"\\" + vtx::kWatcherLogName).c_str(), FILE_APPEND_DATA, FILE_SHARE_READ,
                            nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (f == INVALID_HANDLE_VALUE) return;
@@ -683,7 +740,9 @@ void watcherLog(const std::wstring& line) {
 // `--wait-install <pid>` (a copy of this exe in %TEMP%): wait for msiexec, then — only if
 // it FAILED or was cancelled — start the installed VietTelex (success: the MSI's
 // LaunchApp already started the new version; starting another would race it).
-int waitInstall(unsigned long pid) {
+// `uninstall` ("Gỡ cài đặt VietTelex", msiexec /x): cancelled = the app comes back; done =
+// nothing is installed, nothing starts.
+int waitInstall(unsigned long pid, bool uninstall) {
     bool known = false;
     DWORD code = 0;
     if (HANDLE p = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
@@ -702,16 +761,17 @@ int waitInstall(unsigned long pid) {
     if (runningWnd) GetWindowTextW(runningWnd, title, 64);
     const vtx::AfterInstall act = vtx::afterInstallAction(known, code, runningWnd != nullptr, have);
     wchar_t line[512];
-    wsprintfW(line, L"watcher %s: msiexec pid %lu exit %s%lu, running=\"%s\", installed=%s -> %s",
-              VTX_VER_STRING_W, pid, known ? L"" : L"unknown/", static_cast<unsigned long>(code), title,
+    wsprintfW(line, L"watcher %s%s: msiexec pid %lu exit %s%lu, running=\"%s\", installed=%s -> %s",
+              VTX_VER_STRING_W, uninstall ? L" (uninstall)" : L"", pid, known ? L"" : L"unknown/", static_cast<unsigned long>(code), title,
               have ? exe : L"(none)", act == vtx::AfterInstall::LaunchInstalled ? L"relaunch installed app" : L"nothing");
-    watcherLog(line);
+    watcherLog(line, !uninstall);
     if (act == vtx::AfterInstall::LaunchInstalled)
         ShellExecuteW(nullptr, L"open", exe, L"--settings", nullptr, SW_SHOWNORMAL);
     return 0;
 }
 
 unsigned long g_waitPid = 0;
+bool g_waitUninstall = false;  // --wait-install <pid> --uninstall
 SetupTrigger g_setupTrigger = SetupTrigger::Installer;
 
 unsigned parseCommandArg(const wchar_t* cmdLine, bool& background, int& oneShot) {
@@ -721,7 +781,10 @@ unsigned parseCommandArg(const wchar_t* cmdLine, bool& background, int& oneShot)
     {
         std::vector<std::wstring> all;
         for (int i = 1; argv && i < argc; ++i) all.push_back(argv[i]);
-        if (vtx::parseWaitInstallArg(all, g_waitPid)) oneShot = 4;
+        if (vtx::parseWaitInstallArg(all, g_waitPid)) {
+            oneShot = 4;
+            g_waitUninstall = vtx::parseWatcherUninstallArg(all);
+        }
         vtx::parseSetupUserArgs(all, g_setupTrigger);
     }
     for (int i = 1; argv && i < argc; ++i) {
@@ -753,6 +816,7 @@ void settingsChanged() {
     hookConfigure(g_settings);
     textActionsConfigure();
     gameConfigure();
+    armAutoUpdateTimer();  // "Tự kiểm tra cập nhật" turned on / off
 }
 
 // Per-user setup (onboarding.h planUserSetup): keyboard in the user's list, autostart, the
@@ -875,9 +939,11 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
         return 0;  // never UI here: Active Setup runs before the desktop exists
     }
     if (oneShot == 3) return setProfileIcon(g_profileIconArg);  // elevated helper
-    if (oneShot == 4) return waitInstall(g_waitPid);             // detached update watcher
+    if (oneShot == 4) return waitInstall(g_waitPid, g_waitUninstall);             // detached update watcher
     if (oneShot == 2) {  // uninstaller: "gỡ sạch"
-        if (HWND h = FindWindowW(kAppWindowClass, nullptr)) PostMessageW(h, WM_CLOSE, 0, 0);
+        // Wait for a running app to exit first: it saves learned words at exit, which would
+        // put a file back after the erase below.
+        closeRunningApps(GetCurrentProcessId(), vtx::kQuitGraceMs);
         removeKeyboardForUser();
         setAutostart(false);
         eraseUserData();
@@ -998,7 +1064,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int) {
     } else if (!background) {
         showSettings(Tab::Typing);
     }
-    if (g_settings.autoUpdateCheck && autoCheckDue()) startUpdateCheck(g_mainWnd, false);
+    autoUpdateTick();  // due: check now; else a one-shot timer for the rest of the day
     requestIdleTrim();  // a window shown above drops it; its closing asks again
 
     MSG msg;

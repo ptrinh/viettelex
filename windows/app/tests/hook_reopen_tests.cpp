@@ -5,6 +5,7 @@
 
 #include <string>
 
+#include "direct_policy.h"
 #include "hook_reopen.h"
 #include "keymap.h"
 #include "session.h"
@@ -408,4 +409,37 @@ TEST(hook_reopen_vni) {
     c.click();
     c.type("\b1");
     CHECK_EQ(c.text(), std::string("toan1"));
+}
+
+// 2026-11 audit (portable build): "ba" in Notepad, Win, "w" in Start search typed one
+// backspace + "ă" into the search box — kCmdForeground kept the word when the hook was
+// already installed for the old window. Another window now drops the word and the context.
+TEST(hook_foreground_switch_between_hooked_windows_starts_a_new_word) {
+    const uintptr_t notepad = 0x1010, search = 0x2020;
+    for (int fixed = 0; fixed < 2; ++fixed) {
+        HookRig r;
+        r.type("ba");
+        CHECK_EQ(r.text(), std::string("ba"));
+        r.modifier(0x5B);  // VK_LWIN
+        const ForegroundUpdate up = foregroundUpdate(notepad, true, search);
+        CHECK(up.resetWord && !up.keepArming);
+        r.screen = Screen();  // the Start search box: empty
+        if (fixed) {          // hook_fallback.cpp kCmdForeground
+            r.s.reset();
+            r.trail.invalidate();
+            r.s.resetContext();
+        }
+        r.type("w");
+        // Fixed: "w" starts a new word there (Telex: ư). The old bug: "ba" went on, the
+        // hook sent backspaces + "ă" into the search box.
+        if (fixed) CHECK_EQ(r.text(), std::string("ư"));
+        else CHECK(r.text().find("ă") != std::string::npos);
+    }
+    // The same window (a mid-focus re-publish, a TIP handover): keep its state.
+    const ForegroundUpdate same = foregroundUpdate(notepad, true, notepad);
+    CHECK(!same.resetWord && same.keepArming);
+    // Not hooked before: no arming to keep, nothing to drop in that window.
+    const ForegroundUpdate first = foregroundUpdate(notepad, false, notepad);
+    CHECK(!first.resetWord && !first.keepArming);
+    CHECK(foregroundUpdate(0, false, notepad).resetWord);
 }

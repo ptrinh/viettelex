@@ -85,6 +85,26 @@ bool isPasswordField(const std::string& windowClass, uint32_t style);
 std::wstring autostartCommand(const std::wstring& exePath);
 bool autostartPointsHere(const std::wstring& runValue, const std::wstring& exePath);
 
+// (2026-11 audit) settings.ini is serialised under the settings lock and written to disk
+// AFTER that lock is released: the keyboard hook reads the per-app Việt/Anh memory under it
+// at every word start, and a save held it across CreateFile + WriteFile + a write-through
+// MoveFileEx. Saves are numbered in lock order (`stage`, under the settings lock); the file
+// writes are serialised by a second lock, and one whose number is not newer than the last
+// written is skipped — an earlier save never overwrites a later one.
+class SaveSequencer {
+public:
+    uint64_t stage() { return ++staged_; }
+    bool shouldWrite(uint64_t seq) const { return seq > written_; }
+    // After the attempt (written or failed): older saves still waiting are skipped.
+    void done(uint64_t seq) {
+        if (seq > written_) written_ = seq;
+    }
+
+private:
+    uint64_t staged_ = 0;
+    uint64_t written_ = 0;
+};
+
 // ---- settings.ini: the registry values the installed build keeps under HKCU -------------
 // One value per line, "name=type:data" (UTF-8). Types: dword (decimal), qword (decimal),
 // sz (escaped: \\ \n \r \t), hex (binary). Lines starting with ';' or '#', blank lines

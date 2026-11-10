@@ -1,5 +1,6 @@
 #include "text_service.h"
 
+#include <atomic>
 #include <cstdio>
 #include <new>
 
@@ -393,7 +394,10 @@ bool TextService::directServesHere() const {
     if (root && GetPropW(root, kNoDirectProp)) return false;
     // Handover ack (1.1.5): the hook confirmed it types in this window. Without it the TIP
     // composes (no underline) — a rule or a request alone left words raw (cmd, 1.1.4).
-    if (!root || !GetPropW(root, kDirectOnProp)) return false;
+    // Its value is the app window that set it: a killed app's ack types nothing (2026-11).
+    if (!root || !propFromLiveApp(reinterpret_cast<uintptr_t>(GetPropW(root, kDirectOnProp)),
+                                  reinterpret_cast<uintptr_t>(app)))
+        return false;
     return hookReachesHere(app);
 }
 
@@ -429,16 +433,28 @@ AppView TextService::focusEditEndsWith(ITfContext* ctx, const std::u16string& ta
 
 // UIPI: VietTelex.exe's SendInput cannot reach this process when it runs at a HIGHER
 // integrity than the app (started "as administrator") or the app's token is unreadable.
+// Asked per key in a Direct field: this process's integrity is read once, the app's once per
+// focus and app process (tip_caches.h HookReachCache).
 bool TextService::hookReachesHere(HWND app) const {
-    DWORD appPid = 0, own = 0x2000, theirs = 0;
+    DWORD appPid = 0, theirs = 0;
     GetWindowThreadProcessId(app, &appPid);
-    tokenIntegrity(GetCurrentProcess(), own);
+    bool reaches = false;
+    if (reachCache_.lookup(reinterpret_cast<uintptr_t>(app), appPid, reaches)) return reaches;
+    static std::atomic<DWORD> ownRid{0};
+    DWORD own = ownRid.load(std::memory_order_relaxed);
+    if (!own) {
+        own = 0x2000;
+        tokenIntegrity(GetCurrentProcess(), own);
+        ownRid.store(own, std::memory_order_relaxed);
+    }
     bool known = false;
     if (HANDLE p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, appPid)) {
         known = tokenIntegrity(p, theirs);
         CloseHandle(p);
     }
-    return hookReachesThisProcess(known, theirs, own);
+    reaches = hookReachesThisProcess(known, theirs, own);
+    reachCache_.store(reinterpret_cast<uintptr_t>(app), appPid, reaches);
+    return reaches;
 }
 
 bool TextService::typingEnabled() const {
@@ -561,9 +577,11 @@ void TextService::readSuspendProp() {
     HWND f = GetFocus();
     if (!f) f = GetForegroundWindow();
     HWND root = f ? GetAncestor(f, GA_ROOT) : nullptr;
-    const uint32_t bits =
-        root ? static_cast<uint32_t>(reinterpret_cast<UINT_PTR>(GetPropW(root, kSuspendProp))) : 0;
-    suspendPosted_ = bits & kSuspendFullscreen;
+    const uintptr_t v = root ? reinterpret_cast<uintptr_t>(GetPropW(root, kSuspendProp)) : 0;
+    // Only from the live app (a killed app's property would pass every key here forever).
+    suspendPosted_ =
+        v && propFromLiveApp(v, reinterpret_cast<uintptr_t>(FindWindowW(kAppWindowClass, nullptr))) ? kSuspendFullscreen
+                                                                                                     : 0;
 }
 
 void TextService::setVietnamese(bool on) {
@@ -707,6 +725,7 @@ void TextService::evaluateHost(ITfContext* ctx) {
         if (c.transitory) {
             c.cuasEmulated = compartmentFlag(dm, kCompartmentTsfEmulated, 0x1);
             VARIANT v;
+            VariantInit(&v);  // parentFailed_ skips compartmentVariant: never clear stack garbage
             if (!parentFailed_ && compartmentVariant(dm, kCompartmentTransitoryParent, v) &&
                 v.vt == VT_UNKNOWN && v.punkVal) {
                 ITfDocumentMgr* parent = nullptr;
@@ -890,6 +909,7 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     SafeRelease(targetCtx_);
     host_ = HostText::Normal;
     directBlockedLogged_ = false;
+    reachCache_.reset();
     retypeLogged_ = false;
     notTextFieldLogged_ = false;
     contextLogged_ = false;

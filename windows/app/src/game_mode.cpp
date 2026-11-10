@@ -97,7 +97,8 @@ void applyStep(const FullscreenTracker::Step& s) {
     }
     if (s.suspend) {
         HWND w = reinterpret_cast<HWND>(s.suspend);
-        SetPropW(w, kSuspendProp, reinterpret_cast<HANDLE>(static_cast<UINT_PTR>(kSuspendFullscreen)));
+        // Value = our main window: the TIP ignores it once this app is gone (propFromLiveApp).
+        SetPropW(w, kSuspendProp, reinterpret_cast<HANDLE>(g_mainWnd));
         postToTips(w, kSuspendFullscreen | gameBit());
         appLog("game", "exclusive fullscreen / slideshow in front: keys pass through");
     }

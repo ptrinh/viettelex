@@ -8,6 +8,7 @@
 #include "debug_file.h"
 #include "direct_policy.h"
 #include "input_switch.h"
+#include "log_queue.h"
 #include "portable.h"
 #include "settings_store.h"
 
@@ -177,5 +178,52 @@ bool appLogging() { return g_logging.load(); }
 void appLog(const char* component, const std::string& msg) {
     if (g_logging.load()) debugFileWrite(component, msg);
 }
+
+// ---- lines from the keyboard hook's thread (core/log_queue.h) --------------------------
+namespace {
+struct QueuedLine {
+    LogStamp t;
+    uint64_t tick = 0;
+    const char* component = "";  // string literals only
+    std::string msg;
+};
+SRWLOCK g_queueLock = SRWLOCK_INIT;   // push / take: memory only, never held across I/O
+SRWLOCK g_writerLock = SRWLOCK_INIT;  // one writer at a time: lines stay in order
+DeferredLines<QueuedLine> g_queue;
+
+// Writes everything queued, batch by batch, in order. Pool callback and exit flush.
+void drainQueuedLines() {
+    AcquireSRWLockExclusive(&g_writerLock);
+    for (;;) {
+        AcquireSRWLockExclusive(&g_queueLock);
+        std::vector<QueuedLine> batch = g_queue.take();
+        const size_t dropped = g_queue.takeDropped();
+        ReleaseSRWLockExclusive(&g_queueLock);
+        for (const QueuedLine& l : batch) debugFileWriteAt(l.component, l.msg, l.t, l.tick);
+        if (dropped) debugFileWrite("hook", std::to_string(dropped) + " debug lines dropped (log writer behind)");
+        if (batch.empty()) break;
+    }
+    ReleaseSRWLockExclusive(&g_writerLock);
+}
+
+void CALLBACK queuedLinesWriter(PTP_CALLBACK_INSTANCE, void*) { drainQueuedLines(); }
+}  // namespace
+
+void appLogDeferred(const char* component, const std::string& msg) {
+    if (!g_logging.load()) return;
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    QueuedLine l;
+    l.t = LogStamp{st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds};
+    l.tick = GetTickCount64();
+    l.component = component;
+    l.msg = msg;
+    AcquireSRWLockExclusive(&g_queueLock);
+    const bool schedule = g_queue.push(std::move(l));
+    if (schedule && !TrySubmitThreadpoolCallback(queuedLinesWriter, nullptr, nullptr)) g_queue.scheduleFailed();
+    ReleaseSRWLockExclusive(&g_queueLock);
+}
+
+void appLogDrain() { drainQueuedLines(); }
 
 }  // namespace vtx::app
