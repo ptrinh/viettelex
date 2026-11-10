@@ -392,7 +392,17 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "needs {PANE}" = "cần quyền {PANE}";
 "Safe typing for unrecognized apps" = "Dùng cách gõ an toàn cho ứng dụng chưa nhận diện";
 "App types wrong or underlines? Change its mode — if unsure, leave it on Auto." = "App gõ sai hoặc bị gạch chân? Đổi cách gõ cho app đó — không chắc thì để Tự động.";
-"Apps not yet recognized: retype with Backspace instead of guessing." = "App chưa nhận diện: gõ lại bằng Backspace thay vì tự đoán.";
+"Unrecognized apps: Real keystrokes (Underline without permission) instead of guessing." = "App chưa nhận diện: dùng Phím thật (chưa cấp quyền thì Gạch chân) thay vì tự đoán.";
+"Auto: VietTelex picks how to type in this app." = "Tự động: VietTelex tự chọn cách gõ cho app này.";
+"Edit in the field: tones are fixed right inside the text field." = "Sửa thẳng trong ô: dấu được sửa ngay trong ô chữ.";
+"Real keystrokes: types like a keyboard (Backspace, retype), no underline." = "Phím thật: gõ như bàn phím (xoá rồi gõ lại), không gạch chân.";
+"Underline: the word being typed is underlined and always shows correctly." = "Gạch chân: từ đang gõ được gạch chân, luôn hiện đúng.";
+"Detect per field: picks a mode for each field (address bar, page…)." = "Tự dò từng ô: chọn cách gõ cho từng ô (thanh địa chỉ, trang…).";
+"Select and retype: selects the word being typed, then types over it." = "Chọn rồi gõ lại: chọn từ đang gõ rồi gõ đè lên.";
+"Excel style: only for Excel cells." = "Kiểu Excel: chỉ dành cho ô của Excel.";
+"Vietnamese off: keys reach this app unchanged." = "Tắt tiếng Việt: phím tới app này nguyên vẹn.";
+"Import…" = "Nhập…";
+"Supported formats: YAML, JSON, or one key:value per line." = "Định dạng hỗ trợ: YAML, JSON, hoặc mỗi dòng một cặp khoá:giá trị.";
 "Forgets learned modes; the modes you picked stay." = "Quên cách gõ đã học; cách gõ bạn tự chọn vẫn giữ.";
 "Type a sum ending in = (12*3=); the result shows by the cursor, Tab inserts it." = "Gõ phép tính kết thúc bằng = (12*3=); kết quả hiện cạnh con trỏ, Tab để chèn.";
 "Type 1tr2 + space → 1.200.000 ₫ shows by the cursor; Tab replaces." = "Gõ 1tr2 + dấu cách → 1.200.000 ₫ hiện cạnh con trỏ; Tab để thay.";

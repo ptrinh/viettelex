@@ -1304,11 +1304,24 @@ struct ModeTableTab: View {
     /// gõ cần nó, "Xoá dữ liệu đã học" giải thích bằng tooltip).
     enum C {
         static let intro = "App types wrong or underlines? Change its mode — if unsure, leave it on Auto."
-        static let safe = "Apps not yet recognized: retype with Backspace instead of guessing."
+        static let safe = "Unrecognized apps: Real keystrokes (Underline without permission) instead of guessing."
         static let relearn = "Forgets learned modes; the modes you picked stay."
         static let all = [intro, safe, relearn]
     }
     static let safeTitle = "Safe typing for unrecognized apps"
+
+    /// Một dòng giải thích cách gõ đang chọn (tooltip của picker trong bảng), theo tag
+    /// AppState.AppMode. Khoá Localizable.strings.
+    static let modeHelp: [String: String] = [
+        "auto": "Auto: VietTelex picks how to type in this app.",
+        "inPlace": "Edit in the field: tones are fixed right inside the text field.",
+        "tap": "Real keystrokes: types like a keyboard (Backspace, retype), no underline.",
+        "marked": "Underline: the word being typed is underlined and always shows correctly.",
+        "axDetect": "Detect per field: picks a mode for each field (address bar, page…).",
+        "selection": "Select and retype: selects the word being typed, then types over it.",
+        "emptyReset": "Excel style: only for Excel cells.",
+        "passthrough": "Vietnamese off: keys reach this app unchanged.",
+    ]
 
     /// Tên cách gõ cần quyền: thêm "(cần quyền …)" chỉ khi CHƯA cấp — cấp rồi thì gọn.
     private func axModeName(_ key: String) -> String {
@@ -1378,6 +1391,8 @@ struct ModeTableTab: View {
                         Text(model.loc(ModeNames.passthrough)).tag("passthrough")
                     }
                     .labelsHidden()
+                    .accessibilityLabel(row.name)
+                    .help(model.loc(Self.modeHelp[model.appMode(row.id)] ?? Self.modeHelp["auto"]!))
                 }.width(min: 150)
                 TableColumn("") { row in
                     if row.deletable {
@@ -1431,7 +1446,7 @@ struct ModeTableTab: View {
                 }
                 .help(model.loc(C.relearn))
                 Spacer()
-                Button { importModes() } label: { Label(model.loc("Import…"), systemImage: "square.and.arrow.up.on.square") }
+                Button { importModes() } label: { Label(model.loc("Import…"), systemImage: "square.and.arrow.down") }
                 Button { exportModes() } label: { Label(model.loc("Export to YAML…"), systemImage: "square.and.arrow.up") }
             }
             // Từ tab Thử nghiệm (14/10/2026): "app nào gõ thế nào". "Giữ VietTelex khi macOS tự đổi
@@ -2014,7 +2029,7 @@ struct ShortcutsTab: View {
             if !model.systemConflicts.isEmpty { systemConflictNote }
 
             HStack {
-                Button { importPlist() } label: { Label(model.loc("Import…"), systemImage: "square.and.arrow.up.on.square") }
+                Button { importPlist() } label: { Label(model.loc("Import…"), systemImage: "square.and.arrow.down") }
                 Button { exportPlist() } label: { Label(model.loc("Export to YAML…"), systemImage: "square.and.arrow.up") }
                 Spacer()
             }

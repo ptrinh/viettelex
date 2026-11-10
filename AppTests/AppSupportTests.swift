@@ -1834,3 +1834,45 @@ final class SelfUpdaterSafetyTests: XCTestCase {
         XCTAssertNil(SelfUpdater.versionRefusal(downloaded: "1.9.4", requested: "1.9.4", running: nil))
     }
 }
+
+// Bảng Ứng dụng: chú thích "cách gõ an toàn" dùng đúng tên cách gõ (Phím thật / Gạch chân),
+// mỗi cách gõ có một dòng giải thích (tooltip picker) cả hai ngôn ngữ, nút Nhập… có bản Việt.
+final class ModeTableStringsTests: XCTestCase {
+    private func vi() throws -> Bundle {
+        let path = try XCTUnwrap(Bundle.main.path(forResource: "vi", ofType: "lproj"))
+        return try XCTUnwrap(Bundle(path: path))
+    }
+
+    func testSafeCaptionUsesModeNames() throws {
+        let v = try vi().localizedString(forKey: ModeTableTab.C.safe, value: "∅", table: nil)
+        let tap = try vi().localizedString(forKey: ModeNames.tap, value: "∅", table: nil)
+        let marked = try vi().localizedString(forKey: ModeNames.marked, value: "∅", table: nil)
+        XCTAssertTrue(v.contains(tap), v)
+        XCTAssertTrue(v.contains(marked), v)
+        XCTAssertFalse(v.contains("Backspace"), v)
+        XCTAssertTrue(ModeTableTab.C.safe.contains(ModeNames.tap))
+    }
+
+    func testEveryModeHasOneLineHelpInBothLanguages() throws {
+        let b = try vi()
+        XCTAssertEqual(Set(ModeTableTab.modeHelp.keys), Set(AppState.AppMode.allCases.map(\.rawValue)))
+        for (tag, key) in ModeTableTab.modeHelp {
+            let v = b.localizedString(forKey: key, value: "∅", table: nil)
+            XCTAssertNotEqual(v, "∅", key)
+            XCTAssertLessThanOrEqual(key.count, 95, key)
+            XCTAssertLessThanOrEqual(v.count, 95, v)
+            XCTAssertFalse(v.contains("\n") || key.contains("\n"), tag)
+        }
+        // Tooltip bắt đầu bằng đúng tên cách gõ hiện trong picker.
+        let tapName = b.localizedString(forKey: ModeNames.tap, value: "∅", table: nil)
+        XCTAssertTrue(b.localizedString(forKey: ModeTableTab.modeHelp["tap"]!, value: "∅", table: nil).hasPrefix(tapName))
+        XCTAssertTrue(ModeTableTab.modeHelp["tap"]!.hasPrefix(ModeNames.tap))
+    }
+
+    func testImportStringsTranslated() throws {
+        let b = try vi()
+        XCTAssertEqual(b.localizedString(forKey: "Import…", value: "∅", table: nil), "Nhập…")
+        XCTAssertNotEqual(b.localizedString(forKey: "Supported formats: YAML, JSON, or one key:value per line.",
+                                            value: "∅", table: nil), "∅")
+    }
+}
