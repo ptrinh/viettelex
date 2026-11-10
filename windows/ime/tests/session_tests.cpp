@@ -1648,6 +1648,17 @@ TEST(shortcut_typed_with_a_capital_expands_with_one) {
     }
 }
 
+TEST(shortcut_key_with_dd_typed_with_a_capital_expands) {
+    // 2026-11 Windows report (1.3.20): key "đc" -> "được"; "đc" expanded, "Đc" stayed "Đc".
+    for (OutputMode m : {OutputMode::Composition, OutputMode::InPlace}) {
+        Rig r(m);
+        r.settings.shortcuts[u"đc"] = u"được";
+        r.apply();
+        r.type("ddc Ddc DDc DDC ");
+        CHECK_EQ(r.text(), std::string("được Được Được ĐƯỢC "));
+    }
+}
+
 // ---- Not a text field: a WPF list with type-to-filter (Windows field report 1.3.x) ----
 namespace {
 // The focused element is a file list. Its TSF store (WPF's default one) never holds text;
