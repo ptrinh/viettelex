@@ -306,6 +306,10 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 "Keep VietTelex when macOS auto-switches the input source" = "Giữ VietTelex khi macOS tự đổi bộ gõ";
 "Input Sources…" = "Nguồn nhập liệu…";
 
+/* Tự đổi nguồn nhập theo ứng dụng / tài liệu — cài đặt của macOS (Phil 10/11/2026) */
+"Remember the keyboard for each app or document" = "Nhớ bàn phím riêng cho từng ứng dụng, tài liệu";
+"Click Open… and turn on “Automatically switch to a document’s input source” in macOS settings." = "Bấm Mở… rồi bật “Tự động chuyển sang nguồn đầu vào của tài liệu” trong cài đặt macOS.";
+
 /* Cài đặt nguồn nhập liệu của macOS (Phil 18/10/2026) */
 "Open Input Sources settings…" = "Mở cài đặt nguồn nhập liệu…";
 

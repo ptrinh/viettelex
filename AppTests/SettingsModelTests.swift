@@ -59,6 +59,18 @@ final class SettingsModelTests: XCTestCase {
         XCTAssertTrue(title.contains("Viết hoa") && title.contains("gợi ý"))
     }
 
+    /// Phil 10/11/2026: tự đổi nguồn nhập theo ứng dụng / tài liệu là cài đặt của macOS — dòng riêng ở
+    /// cấp 1 của mục Chuyển Việt/Anh, gọi đúng tên công tắc macOS (bản tiếng Việt của macOS).
+    func testPerDocumentInputSourceRowNamesTheMacOSSwitch() throws {
+        let path = try XCTUnwrap(Bundle.main.path(forResource: "vi", ofType: "lproj"))
+        let vi = try XCTUnwrap(Bundle(path: path))
+        let title = vi.localizedString(forKey: TypingTab.perDocumentTitle, value: nil, table: nil)
+        XCTAssertTrue(title.contains("ứng dụng") && title.contains("tài liệu"), title)
+        let cap = vi.localizedString(forKey: TypingTab.perDocumentCaption, value: nil, table: nil)
+        XCTAssertTrue(cap.contains("Tự động chuyển sang nguồn đầu vào của tài liệu"), cap)
+        XCTAssertTrue(TypingTab.perDocumentCaption.contains("Automatically switch to a document’s input source"))
+    }
+
     func testTeencodeToggleKeepsItsName() throws {
         let path = try XCTUnwrap(Bundle.main.path(forResource: "vi", ofType: "lproj"))
         let vi = try XCTUnwrap(Bundle(path: path))

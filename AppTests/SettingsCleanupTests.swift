@@ -174,7 +174,7 @@ final class SettingsCleanupTests: XCTestCase {
     func testNewKeysTranslated() throws {
         let vi = try viBundle()
         for k in [TypingTab.styleAdvancedSummary, TypingTab.switchAdvancedSummary,
-                  TypingTab.systemSettingsCaption, "Keyboard layout", "Open…", "Open Input Sources settings…",
+                  TypingTab.systemSettingsCaption, TypingTab.perDocumentTitle, TypingTab.perDocumentCaption, "Keyboard layout", "Open…", "Open Input Sources settings…",
                   "Word that is both English and Vietnamese", "macOS input source shortcut",
                   "Expanded", "Collapsed", ModeTableTab.safeTitle] + Self.allCaptions + ModeNames.all {
             XCTAssertNotEqual(vi.localizedString(forKey: k, value: "∅", table: nil), "∅", k)

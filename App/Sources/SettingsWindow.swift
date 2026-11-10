@@ -858,6 +858,10 @@ struct TypingTab: View {
     static let mixedAdvancedSummary = "Restore English words, context, colliding words, fixing earlier words…"
     static let switchAdvancedSummary = "Keep VietTelex when macOS switches, macOS shortcut…"
     /// Dòng link cài đặt hệ thống cuối trang (thay mục "Viết hoa, gợi ý chữ…" cũ).
+    /// Phil 10/11/2026: tính năng quan trọng của macOS mà người dùng không biết — đặt ở cấp 1 của mục
+    /// "Chuyển Việt/Anh" (không nằm trong Nâng cao, không chỉ là dòng link cuối trang).
+    static let perDocumentTitle = "Remember the keyboard for each app or document"
+    static let perDocumentCaption = "Click Open… and turn on “Automatically switch to a document’s input source” in macOS settings."
     static let systemSettingsCaption = "Capitalization, word suggestions, period on double space, smart quotes: set in macOS."
 
     /// Chú thích MỘT dòng ngắn cho từng cài đặt (06/11/2026: rút gọn — mỗi chú thích ≤ ~90 ký tự,
@@ -1133,6 +1137,11 @@ struct TypingTab: View {
                     Text("⌘⇧  Command + Shift").tag("cmd-shift")
                 } label: {
                     rowLabel("Toggle VietTelex with", model.loc(C.hotkey))
+                }
+                HStack {
+                    rowLabel(Self.perDocumentTitle, model.loc(Self.perDocumentCaption))
+                    Spacer()
+                    Button(model.loc("Open…")) { TelexInputController.openKeyboardInputSources() }
                 }
                 advancedRow($switchAdvancedOpen, summary: Self.switchAdvancedSummary)
                 if switchAdvancedOpen {
