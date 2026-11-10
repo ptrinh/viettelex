@@ -512,11 +512,16 @@ public:
             //   commits the preedit before sending Reset — a click in Ptyxis/VTE gave "thửthử".
             // Any other reset (IM switch, Wayland / IBus-frontend clients, preedit shown in the
             // panel): commit it ourselves so it is not lost.
+            // Both of those commit only the CLIENT preedit (Fcitx5 5.0.14 … master, instance.cpp
+            // FocusOut/ReservedFirst: `inputPanel().clientPreedit().toStringForCommit()`). Without
+            // CapabilityFlag::Preedit the word is in the PANEL preedit (FcitxClient::setPreedit)
+            // and nobody else commits it — so we do, also on focus-out.
             const auto &caps = ic->capabilityFlags();
-            bool clientCommits = caps.test(fcitx::CapabilityFlag::ClientUnfocusCommit) &&
-                                 caps.test(fcitx::CapabilityFlag::Preedit);
-            bool alreadyCommitted = event.type() == fcitx::EventType::InputContextFocusOut ||
-                                    (event.type() == fcitx::EventType::InputContextReset && clientCommits);
+            const bool clientPreedit = caps.test(fcitx::CapabilityFlag::Preedit);
+            bool clientCommits = caps.test(fcitx::CapabilityFlag::ClientUnfocusCommit) && clientPreedit;
+            bool alreadyCommitted =
+                (event.type() == fcitx::EventType::InputContextFocusOut && clientPreedit) ||
+                (event.type() == fcitx::EventType::InputContextReset && clientCommits);
             st->session.finish(client, !alreadyCommitted);
         } catch (...) {
         }
