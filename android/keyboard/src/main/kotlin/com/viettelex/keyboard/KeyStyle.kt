@@ -93,6 +93,21 @@ data class KeyStyle(
     val hintScale: Float get() = 1f + (letterScale - 1f) * 0.45f
 
     /**
+     * "Màu viền phím" (Tuỳ chỉnh nâng cao): MỘT màu 0xRRGGBB cho cả sáng lẫn tối, null = theo theme. KHÔNG có trường
+     * lưu riêng — nằm trong bản vá [light] / [dark] khoá "border" CÓ SẴN. Lý do: [KeyStyleStore] đọc CHẶT, khoá lạ ở
+     * cấp mục ⇒ bản app cũ bỏ CẢ mục của theme; "border" trong light/dark thì mọi bản đã hiểu (và vẽ luôn). Vẽ:
+     * [applyPatch] → [ThemePalette.keyBorder] ⇒ mọi chỗ viền phím (phím, ô phóng to, popup, Pixel, viền chì Kính màu);
+     * theme không viền ⇒ viền 1dp. iOS `KeyStyle.borderColor` y hệt.
+     */
+    val borderColor: Int? get() = (light.border ?: dark.border)?.let { it and 0xFFFFFF }
+
+    /** Đặt / bỏ "Màu viền phím": cả hai chế độ cùng màu (đục); null ⇒ xoá "border" ở cả hai. */
+    fun withBorderColor(rgb: Int?): KeyStyle {
+        val v = rgb?.let { (0xFF shl 24) or (it and 0xFFFFFF) }
+        return copy(light = light.copy(border = v), dark = dark.copy(border = v))
+    }
+
+    /**
      * Màu phím theo lựa chọn (trước ảnh nền / độ trong suốt). Chữ người dùng chọn giữ nguyên;
      * chỉ đổi nền ⇒ chữ theme đổi đen/trắng nếu không đọc được. Balloon/popup đi theo.
      */
@@ -174,6 +189,14 @@ data class KeyStyle(
 
         /** Chữ/icon trên nền nhấn: giữ [themeInk] nếu ≥ 3:1, không thì đen/trắng tương phản hơn. */
         fun accentInk(themeInk: Int, accent: Int): Int = KeyboardTransparency.readable(themeInk, accent)
+
+        /**
+         * Theme có viền KHÔNG phải một màu — cầu vồng / cực quang / Ảo giác / Tự hào ("borderFx") hoặc skin ảnh tải
+         * về: ô "Màu viền phím" mờ đi kèm một dòng giải thích. [p] = palette đã giải (gồm bản vá), [assets] = tệp thực
+         * dùng của theme. iOS `KeyStyle.borderLocked` y hệt.
+         */
+        fun borderLocked(p: ThemePalette, assets: ThemeAssetSpec): Boolean =
+            p.rainbowBorder || p.auroraBorder || p.hueFlow || assets.keys.isNotEmpty()
 
         /** Theme đầy đủ người dùng sửa → bản vá so với màu gốc + kiểu chữ — y hệt iOS KeyStyle.fromEdited. */
         fun fromEdited(edited: ThemeSpec, baseLight: ThemeSlots, baseDark: ThemeSlots): Pair<KeyStyle, Boolean> {

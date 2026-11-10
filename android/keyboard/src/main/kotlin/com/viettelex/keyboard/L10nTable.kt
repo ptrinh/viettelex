@@ -764,6 +764,8 @@ object L10nTable {
         put("Màu chữ trên phím", "Key label colour")
         put("Màu nền phím", "Key colour")
         put("Màu nhấn", "Accent colour")
+        put("Màu viền phím", "Key border colour")
+        put("Giao diện này dùng viền hiệu ứng riêng.", "This theme uses its own effect border.")
         put("Quá lớn (tối đa 16 KB).", "Too large (max 16 KB).")
         put("Không phải văn bản UTF-8 hợp lệ.", "Not valid UTF-8 text.")
         put("JSON sai cú pháp ở %s (dòng:cột).", "JSON syntax error at %s (line:column).")

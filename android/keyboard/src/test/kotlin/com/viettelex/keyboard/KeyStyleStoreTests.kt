@@ -266,4 +266,125 @@ class KeyStyleStoreTests {
         assertEquals(emptyMap<String, Any>(), BackupSettings.migrateLegacyStyle(
             mapOf(Keys.KEY_LABEL_COLOR to -1, Keys.KEY_LABEL_FONT to "default"), "mint", emptyMap()))
     }
+
+    // ---- màu viền phím (11/2026) — lưu trong light/dark "border" có sẵn; iOS PerThemeKeyStyleTests y hệt
+
+    /** Chuỗi chung — iOS PerThemeKeyStyleTests.borderFixture phải trùng từng ký tự. */
+    private val borderFixture = """{"nightclub":{"accent":"#FF2FD0","dark":{"border":"#33CCFF"},"light":{"border":"#33CCFF"}},"pink":{"corner":70}}"""
+    /** Khoá cấp mục MỌI bản app đã phát hành đọc được ([ThemeSpecParser.override], trước 11/2026) — khoá lạ ⇒ bản cũ bỏ cả mục. */
+    private val releasedEntryKeys = setOf("label", "fill", "accent", "corner", "fontScale", "font", "weight", "light",
+        "dark", "sound", "effect", "swipe", "game", "keyShape", "photoFx", "keyMotion")
+    private val effectThemes = setOf(KeyboardTheme.RGB, KeyboardTheme.AI, KeyboardTheme.TRIPPY, KeyboardTheme.PRIDE)
+
+    /** Palette như trang Giao diện / IME dựng (gồm biến thể Tự hào / Cung hoàng đạo). */
+    private fun pagePalette(s: ThemeSettings, dark: Boolean): ThemePalette {
+        val base = s.basePalette(dark) ?: imePalette(ThemeSettings(theme = KeyboardTheme.SYSTEM), dark)
+        return s.styledCurrent(base, dark).withTransparency(s.keyboardTransparency, s.labelTransparency, dark)
+    }
+
+    @Test fun borderColorRoundTripAndCompat() {
+        val club = KeyStyle(accentColor = 0xFF2FD0).withBorderColor(0x33CCFF)
+        val map = mapOf("nightclub" to club, "pink" to KeyStyle(corner = 70))
+        assertEquals(borderFixture, KeyStyleStore.serialize(map))
+        val back = KeyStyleStore.parse(borderFixture)
+        assertEquals(map, back)
+        assertEquals(0x33CCFF, back["nightclub"]?.borderColor)
+        assertEquals(0xFF33CCFF.toInt(), back["nightclub"]?.light?.border)
+        assertEquals(0xFF33CCFF.toInt(), back["nightclub"]?.dark?.border)
+        assertEquals("sao lưu / đồng bộ giữ nguyên", borderFixture, KeyStyleStore.normalize(borderFixture))
+        // Dữ liệu cũ (không có viền) ⇒ null, các trường khác như cũ.
+        val old = KeyStyleStore.parse("""{"nightclub":{"accent":"#FF2FD0"}}""")
+        assertNull(old["nightclub"]?.borderColor)
+        assertEquals(KeyStyle(accentColor = 0xFF2FD0), old["nightclub"])
+        // Bản app cũ: mục chỉ dùng khoá cấp mục đã phát hành ⇒ không bị bỏ cả mục.
+        val top = (StrictJson.parse(borderFixture, StrictJson.Limits()) as StrictJson.Result.Ok).v as SJ.Obj
+        for ((_, entry) in top.m) for ((k, _) in (entry as SJ.Obj).m) assertTrue(k, k in releasedEntryKeys)
+        // Đặt rồi bỏ ⇒ đúng như chưa chỉnh.
+        val st = KeyStyle().withBorderColor(0x123456)
+        assertFalse(st.isDefault)
+        assertTrue(st.withBorderColor(null).isDefault)
+        assertEquals("{}", KeyStyleStore.serialize(mapOf("mint" to st.withBorderColor(null))))
+        // Chỉ đụng "border" của bản vá JSON.
+        val patched = KeyStyle(light = ThemeSlots(key = 0xFF102030.toInt())).withBorderColor(0xABCDEF).withBorderColor(null)
+        assertEquals(0xFF102030.toInt(), patched.light.key)
+        assertNull(patched.light.border)
+    }
+
+    @Test fun borderColorPalette() {
+        for (dark in listOf(false, true)) {
+            // Theme có viền (Neon Night Club: ống neon hồng) ⇒ viền theo màu chọn, đục; chỉ viền đổi.
+            val clubBase = KeyboardTheme.NIGHTCLUB.palette(dark)!!
+            assertNotNull(clubBase.keyBorder)
+            val s0 = ThemeSettings(theme = KeyboardTheme.NIGHTCLUB)
+            assertEquals("chưa chọn ⇒ y như cũ", clubBase, pagePalette(s0, dark))
+            val s = s0.withKeyStyle(s0.keyStyle.withBorderColor(0x33CCFF))
+            val club = pagePalette(s, dark)
+            assertEquals(c.rgb(0x33CCFF), club.keyBorder)
+            assertEquals("chỉ viền đổi", clubBase.copy(keyBorder = c.rgb(0x33CCFF)), club)
+            val ps = KeyPopupStyle.make(club, s.effectiveKeyStyle, dark)
+            assertEquals("ô phóng to / popup viền cùng màu", c.rgb(0x33CCFF), ps.border)
+            assertEquals(1f, ps.borderWidth)
+            assertFalse(KeyStyle.borderLocked(club, s.effectiveKeyStyle.assets))
+
+            // Theme không viền ⇒ có viền 1dp màu chọn.
+            val mintBase = KeyboardTheme.MINT.palette(dark)!!
+            assertNull(mintBase.keyBorder)
+            val m0 = ThemeSettings(theme = KeyboardTheme.MINT)
+            assertEquals(mintBase, pagePalette(m0, dark))
+            val m = m0.withKeyStyle(KeyStyle().withBorderColor(0xFF9500))
+            val mint = pagePalette(m, dark)
+            assertEquals(c.rgb(0xFF9500), mint.keyBorder)
+            assertEquals(1f, KeyPopupStyle.make(mint, m.effectiveKeyStyle, dark).borderWidth)
+            // Đi cùng độ trong suốt phím như viền theme.
+            val tr = m.copy(keyboardTransparency = 60)
+            val tb = pagePalette(tr, dark).keyBorder!!
+            assertEquals(0xFF9500, tb and 0xFFFFFF)
+            assertEquals(102.0, c.alpha(tb).toDouble(), 1.0)
+
+            // Viền hiệu ứng (cầu vồng / cực quang / Ảo giác / Tự hào) ⇒ ô khoá; còn lại (kể cả Pixel, Kính màu) ⇒ mở.
+            for (t in KeyboardTheme.entries) {
+                val ts = ThemeSettings(theme = t)
+                assertEquals("$t", t in effectThemes, KeyStyle.borderLocked(pagePalette(ts, dark), ts.effectiveKeyStyle.assets))
+            }
+            for (t in listOf(KeyboardTheme.PIXEL, KeyboardTheme.STAINED_GLASS)) {
+                val ts = ThemeSettings(theme = t).withKeyStyle(KeyStyle().withBorderColor(0x00FF00))
+                assertEquals("$t", c.rgb(0x00FF00), pagePalette(ts, dark).keyBorder)
+            }
+            // Skin ảnh tải về ⇒ khoá.
+            val skinned = ThemeAssetSpec(keys = mapOf("default" to ThemeKeySkin(ThemeAssetRef("https://example.com/k.png"))))
+            assertTrue(KeyStyle.borderLocked(mintBase, skinned))
+        }
+        // Không chọn ⇒ palette mọi theme y như trước.
+        for (t in KeyboardTheme.entries) for (dark in listOf(false, true)) {
+            val base = t.palette(dark) ?: continue
+            assertEquals("$t", base, KeyStyle().applyPatch(base, dark))
+        }
+        // Hết Plus ⇒ không áp (giá trị giữ nguyên).
+        lockPlus()
+        val locked = ThemeSettings(theme = KeyboardTheme.MINT).withKeyStyle(KeyStyle().withBorderColor(0xFF0000))
+        assertNull(pagePalette(locked, true).keyBorder)
+        assertEquals(0xFF0000, locked.keyStyle.borderColor)
+    }
+
+    /** Mô hình ô "Màu viền phím" (ThemeAdvanced: onChange(style.withBorderColor(it))): ghi / "Theo theme" / lưu đúng theme. */
+    @Test fun borderColorSettingsWriteAndReset() {
+        var s = ThemeSettings(theme = KeyboardTheme.NIGHTCLUB)
+        s = s.withKeyStyle(s.keyStyle.withBorderColor(0x33CCFF))
+        s = s.withKeyStyle(s.keyStyle.copy(accentColor = 0xFF2FD0))
+        s = s.withKeyStyle(KeyStyle(corner = 70), KeyboardTheme.PINK)
+        val prefs = FakePrefs()
+        prefs.save(s)
+        assertEquals(borderFixture, prefs.m[Keys.KEY_STYLES])
+        val loaded = ThemeSettings.load(prefs.get)
+        assertEquals(s.keyStyles, loaded.keyStyles)
+        assertEquals(0x33CCFF, loaded.keyStyle.borderColor)
+        // Theme khác không bị ảnh hưởng.
+        val mint = s.copy(theme = KeyboardTheme.MINT)
+        assertNull(mint.keyStyle.borderColor)
+        assertNull(pagePalette(mint, true).keyBorder)
+        // "Theo theme" ⇒ về viền hồng của theme.
+        s = s.withKeyStyle(s.keyStyle.withBorderColor(null))
+        assertEquals(KeyStyle(accentColor = 0xFF2FD0), s.keyStyle)
+        assertEquals(KeyboardTheme.NIGHTCLUB.palette(true)!!.keyBorder, pagePalette(s, true).keyBorder)
+    }
 }

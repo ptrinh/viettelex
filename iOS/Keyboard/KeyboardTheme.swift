@@ -1356,6 +1356,28 @@ struct KeyStyle: Equatable {
     /// Chuyển động nền của phím của theme ("keyMotion", ThemeExtraIds.keyMotions) — bàn phím đọc từ kiểu thực dùng (FloatPolicy).
     var keyMotion: String? = nil
 
+    /// "Màu viền phím" (Tuỳ chỉnh nâng cao): MỘT màu cho cả sáng lẫn tối, nil = theo theme. KHÔNG có trường lưu
+    /// riêng — nằm trong bản vá `light` / `dark` khoá "border" CÓ SẴN (đặt = cả hai chế độ, đục; bỏ = xoá cả hai).
+    /// Lý do: KeyStyleStore đọc CHẶT, khoá lạ ở cấp mục ⇒ bản app cũ bỏ CẢ mục của theme (mất màu / bo góc / phông);
+    /// "border" trong light/dark thì mọi bản đã hiểu (và vẽ luôn). Vẽ: applyPatch → `keyBorder` ⇒ mọi chỗ viền phím
+    /// (phím chữ / chức năng / cách / Nhập, ô phóng to, popup, Pixel, viền chì Kính màu); theme không viền ⇒ viền 1pt.
+    /// Android `KeyStyle.borderColor` / `withBorderColor` y hệt.
+    var borderColor: UInt32? {
+        get { (light.border ?? dark.border).map { $0 & 0xFFFFFF } }
+        set {
+            let v = newValue.map { 0xFF00_0000 | ($0 & 0xFFFFFF) }
+            light.border = v
+            dark.border = v
+        }
+    }
+
+    /// Theme có viền KHÔNG phải một màu — cầu vồng / cực quang / Ảo giác / Tự hào ("borderFx") hoặc skin ảnh tải về:
+    /// ô "Màu viền phím" mờ đi kèm một dòng giải thích (không đè viền hiệu ứng — nó là bản sắc của theme, và
+    /// skin ảnh không vẽ viền). `p` = palette đã giải (gồm bản vá), `assets` = tệp thực dùng của theme.
+    static func borderLocked(_ p: KeyboardPalette, assets: ThemeAssetSpec) -> Bool {
+        p.rainbowBorder || p.auroraBorder || p.hueFlow || !assets.keys.isEmpty
+    }
+
     static let `default` = KeyStyle()
     var isDefault: Bool { self == .default }
     /// Có đổi chữ (phông / độ đậm / cỡ / phông tải về) — bật đường đo + kẹp chữ.
@@ -1505,6 +1527,7 @@ struct KeyStyle: Equatable {
 ///   {"pink":{"accent":"#D6336C","corner":70},"system":{"dark":{"key":"#202020"},"fill":"#102030"}}
 /// Trường (đều tuỳ chọn): label / fill / accent = "#RRGGBB" (áp cả sáng lẫn tối, chữ tự đọc được),
 /// corner 0…100, fontScale 80…150, font, weight, light / dark = vá màu từng chế độ (khoá như theme JSON).
+/// "Màu viền phím" = light.border + dark.border cùng "#RRGGBB" (KeyStyle.borderColor — không thêm khoá cấp mục).
 /// Theme không chỉnh gì thì không có mục; trống = "{}".
 enum KeyStyleStore {
     static let key = "keyStyles"

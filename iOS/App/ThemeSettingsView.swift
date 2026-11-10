@@ -383,6 +383,15 @@ struct ThemeSettingsView: View {
         colorRow(L("Màu nền phím"), \.fillColor, current: palette.keyFill)
         // Nhập/hành động, ⇧ bật, vệt gõ vuốt — chữ trên nó tự đổi đen/trắng nếu cần.
         colorRow(L("Màu nhấn"), \.accentColor, current: palette.accent)
+        // Viền mọi phím (+ ô phóng to); theme không viền ⇒ viền mảnh. Viền hiệu ứng / skin ảnh ⇒ mờ + giải thích.
+        let borderLocked = KeyStyle.borderLocked(palette, assets: settings.effectiveKeyStyle.assets)
+        VStack(alignment: .leading, spacing: 4) {
+            colorRow(L("Màu viền phím"), \.borderColor, current: palette.keyBorder ?? palette.keyInk, locked: borderLocked)
+            if borderLocked {
+                Text(L("Giao diện này dùng viền hiệu ứng riêng."))
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
         VStack(alignment: .leading) {
             HStack {
                 Text(settings.keyStyle.corner.map { L("Độ bo góc phím: %@%", $0) } ?? L("Độ bo góc phím: mặc định"))
@@ -441,12 +450,14 @@ struct ThemeSettingsView: View {
     /// Bo mặc định (8pt trên phím ~42pt) ≈ 40% nửa cạnh ngắn — vị trí thanh trượt khi chưa chỉnh.
     static let defaultCornerPercent = 40
 
-    private func colorRow(_ title: String, _ kp: WritableKeyPath<KeyStyle, UInt32?>, current: RGBA) -> some View {
+    private func colorRow(_ title: String, _ kp: WritableKeyPath<KeyStyle, UInt32?>, current: RGBA,
+                          locked: Bool = false) -> some View {
         HStack {
             ColorPicker(title, selection: Binding(
                 get: { Color(uiColor: settings.keyStyle[keyPath: kp].map { RGBA(hex: $0).ui } ?? RGBA(r: current.r, g: current.g, b: current.b).ui) },
                 set: { settings.keyStyle[keyPath: kp] = Self.rgb(UIColor($0)); save() }),
                         supportsOpacity: false)
+                .disabled(locked)
             if settings.keyStyle[keyPath: kp] != nil {
                 Button(L("Theo theme")) { settings.keyStyle[keyPath: kp] = nil; save() }.buttonStyle(.borderless)
             }

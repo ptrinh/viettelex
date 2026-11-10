@@ -495,7 +495,7 @@ fun ThemePage(onBack: () -> Unit, onOpenPlus: () -> Unit = {}) {
         update(ns)
         ThemeAssetFlow.gcAsync(ctx)
         assetPrompt.offer(ctx, ns.effectiveKeyStyle.assets)
-    })
+    }, borderLocked = KeyStyle.borderLocked(pal, s.effectiveKeyStyle.assets))
     ThemeAssetPromptHost(assetPrompt, onOpenPlus)
 
     // Tính Năng → Giao diện gộp luôn chiều cao hàng + logo (không thuộc "Khôi phục giao diện gốc").
