@@ -128,7 +128,10 @@ object ThemeAssetLoader {
         return out
     }
 
+    /** Theme không có tệp ([ImeTheme.assets]) ⇒ bỏ skin / phông của theme trước (không còn view nào vẽ). */
     @Synchronized fun dropCache() { cache = null }
+    /** Test: bộ đang cache. */
+    internal val cached: LoadedThemeAssets? @Synchronized get() = cache
 
     /** Skin: giải có lấy mẫu rồi thu về cạnh dài ≤ [edge] (ảnh đã lưu ≤ 512). */
     private fun decodeKey(f: File, edge: Int): Bitmap? = runCatching {

@@ -358,6 +358,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         accessibility = (getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager)?.also {
             it.addTouchExplorationStateChangeListener(touchExplorationListener)
         }
+        BuddyView.prewarm(this, prefs)   // atlas Bạn đồng hành giải nền từ giờ ⇒ khung đầu đã có ảnh
         ImeTrace.end()
         if (BuildConfig.DEBUG) Log.d(TAG, "perf onCreate ${SystemClock.elapsedRealtime() - t0} ms")
     }
@@ -553,13 +554,14 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         val c = com.viettelex.keyboard.BuddyPolicy.active(setting, com.viettelex.keyboard.BuddyGate.allows(setting))
         if (c == com.viettelex.keyboard.BuddyCharacter.OFF) {
             r.buddy = null; r.aiEye = null; st.buddyDp = 0f; keyboard?.eyeLook = null
+            BuddyView.SpriteAssets.drop()   // tắt ⇒ không giữ atlas cấp process
             session.trackBoundaryWord = r.effects?.wantsBoundaryWord == true
             return
         }
         val low = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true
         // Mắt AI: view riêng (không khung hình / điệu nhảy, không tra từ) — cùng ô + "Vị trí & cỡ".
         if (c == com.viettelex.keyboard.BuddyCharacter.AI) {
-            r.buddy = null
+            r.buddy = null; BuddyView.SpriteAssets.drop()
             val e = r.aiEye ?: AIEyeView(this, th.density, low)
             e.lowPower = low
             r.aiEye = e
@@ -583,6 +585,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         } else {
             r.buddy = BuddyView(this, c, th.density, com.viettelex.keyboard.BuddyHalo.opaque(th.bg, th.dark), low, season,
                 artStyle = style).apply { onTimeChanged = { this@VietTelexIME.applyBuddy(setting, style, placement, th, st) } }
+            if (r.buddy?.wantsAtlas != true) BuddyView.SpriteAssets.drop()   // Vẽ nét ⇒ không cần atlas
         }
         r.buddyPlacement = placement
         st.buddyDp = placement.zoneWidth(StripGeometry.BUDDY_W.toDouble()).toFloat()
@@ -1023,6 +1026,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         // RAM 10/11/2026: SoundPool giữ qua các lần ẩn ngắn, nhả ở đây; cache từ vựng vuốt theo decoder vừa bỏ.
         feedback.releaseSound()
         com.viettelex.keyboard.SwipeVocab.release()
+        // RAM-AUDIT 10/11/2026: atlas Bạn đồng hành (view đã nhả ở dropWallpaper — cùng người nhảy Night Club, ảnh hiệu
+        // ứng phím; nạp lại ở reloadWallpaper trên vt-rewarm) ⇒ bỏ luôn bản cache cấp process.
+        BuddyView.SpriteAssets.drop()
     }
 
     /**

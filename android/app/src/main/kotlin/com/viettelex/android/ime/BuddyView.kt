@@ -18,6 +18,7 @@ import com.viettelex.keyboard.BuddyDriver
 import com.viettelex.keyboard.BuddyFX
 import com.viettelex.keyboard.BuddyFraming
 import com.viettelex.keyboard.BuddyHalo
+import com.viettelex.keyboard.BuddyIdleMotion
 import com.viettelex.keyboard.BuddyProp
 import com.viettelex.keyboard.BuddyOutfit
 import com.viettelex.keyboard.BuddyPart
@@ -61,32 +62,78 @@ class BuddyView(
     artStyle: BuddyStyle = BuddyStyle.DEFAULT,
 ) : View(context) {
     val artStyle: BuddyStyle = artStyle.resolved(character)
-    private object SpriteAssets {
-        private val cache = object : android.util.LruCache<String, Bitmap>(3_145_728) {
-            override fun sizeOf(key: String, value: Bitmap): Int = value.allocationByteCount
+    /**
+     * Atlas Hoạt hình (RAM-AUDIT 10/11/2026): MỘT bản cấp process (nhân vật đang dùng — đổi nhân vật thay bản cũ),
+     * giải bản 512 px dựng sẵn ([BuddySprites.atlasAsset]) NGOÀI main. Tắt Bạn đồng hành / ẩn lâu ⇒ [drop].
+     * Đọc cache không khoá (main không bao giờ chờ luồng đang giải).
+     */
+    internal object SpriteAssets {
+        private class Entry(val name: String, val bitmap: Bitmap)
+        @Volatile private var entry: Entry? = null
+        @Volatile private var gen = 0
+        private val decodeLock = Any()
+        private val executor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+            Thread(r, "vt-buddy").apply { isDaemon = true; priority = Thread.MIN_PRIORITY + 1 }
         }
 
-        @Synchronized fun load(context: Context, character: BuddyCharacter): Bitmap? {
+        fun cached(character: BuddyCharacter): Bitmap? =
+            entry?.takeIf { it.name == BuddySprites.atlasAsset(character) }?.bitmap
+        /** Test / đo: byte ảnh đang giữ trong cache (0 = rỗng). */
+        val cachedBytes: Int get() = entry?.bitmap?.allocationByteCount ?: 0
+
+        /** Giải (đồng bộ — gọi từ luồng nền / test) rồi giữ làm bản cache duy nhất. Hai luồng cùng xin ⇒ giải một lần. */
+        fun load(context: Context, character: BuddyCharacter): Bitmap? {
             if (character == BuddyCharacter.OFF) return null
-            val name = "buddy-${character.id}-v2.png"
-            cache.get(name)?.let { return it }
+            cached(character)?.let { return it }
+            synchronized(decodeLock) {
+                cached(character)?.let { return it }
+                val g = gen
+                val b = decode(context, BuddySprites.atlasAsset(character)) ?: return null
+                if (g == gen) entry = Entry(BuddySprites.atlasAsset(character), b)   // [drop] giữa chừng ⇒ không giữ lại
+                return b
+            }
+        }
+
+        /** Giải trên luồng "vt-buddy"; [done] chạy trên main. */
+        fun loadAsync(context: Context, character: BuddyCharacter, done: (Bitmap?) -> Unit) {
+            val app = context.applicationContext
+            val main = android.os.Handler(android.os.Looper.getMainLooper())
+            executor.execute { val b = load(app, character); main.post { done(b) } }
+        }
+
+        /** Giải sẵn (onCreate: khung đầu thường đã có ảnh). */
+        fun prewarm(context: Context, character: BuddyCharacter) {
+            val app = context.applicationContext
+            executor.execute { load(app, character) }
+        }
+
+        fun drop() { gen++; entry = null }
+
+        /** Test: chờ hàng đợi giải nền chạy hết. */
+        internal fun drain() { executor.submit {}.get() }
+
+        private fun decode(context: Context, name: String): Bitmap? {
             return try {
                 val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 context.assets.open(name).use { BitmapFactory.decodeStream(it, null, options) }
                 options.inJustDecodeBounds = false
                 options.inScaled = false
                 // #144: Options.inSampleSize mặc định 0 — tính bằng hàm thuần (bắt đầu từ 1), không chia cho field.
+                // Bản 512 px ⇒ 1 (giải thẳng); ảnh lạ lớn hơn vẫn lấy mẫu như cũ.
                 options.inSampleSize = BuddySprites.sampleSize(options.outWidth, options.outHeight) ?: return null
-                context.assets.open(name).use {
-                    BitmapFactory.decodeStream(it, null, options)
-                }.also { if (it != null) cache.put(name, it) }
+                context.assets.open(name).use { BitmapFactory.decodeStream(it, null, options) }
             } catch (_: java.io.IOException) { null } // Keep vector fallback for missing assets.
             catch (_: RuntimeException) { null } // Ảnh hỏng / decoder lỗi ⇒ vector, không văng trang cài đặt hay IME.
             catch (_: OutOfMemoryError) { null } // Máy ít RAM ⇒ vector.
         }
     }
     // Hoạt hình: chỉ nạp ảnh atlas; thiếu ảnh ⇒ lùi về vector. Vẽ nét: không nạp ảnh.
-    private var spriteAtlas = if (this.artStyle == BuddyStyle.SPRITE) SpriteAssets.load(context, character) else null
+    /** Kiểu Hoạt hình ⇒ cần atlas. */
+    val wantsAtlas: Boolean = this.artStyle == BuddyStyle.SPRITE && character != BuddyCharacter.OFF
+    private var spriteAtlas: Bitmap? = if (wantsAtlas) SpriteAssets.cached(character) else null
+    /** Atlas chưa có (đang giải nền / đã nhả lúc ẩn lâu): ô TRỐNG tới khi xong — không lóe vector rồi nhảy sang ảnh. */
+    private var spritePending = wantsAtlas && spriteAtlas == null
+    private var atlasLoading = false
     private val spriteSource = Rect()
     private val spriteTarget = RectF()
     private val spritePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
@@ -153,7 +200,7 @@ class BuddyView(
     val driver = BuddyDriver(rig, lowPower).apply {
         this.character = this@BuddyView.character
         danceSeed = kotlin.random.Random.nextInt(1_000_001)
-        vectorDance = spriteAtlas == null
+        vectorDance = !wantsAtlas   // atlas hỏng / thiếu ⇒ [attachAtlas] chuyển về vector
     }
     private val outfit = BuddyOutfit.make(artStyle.season(season), character,
         artStyle == BuddyStyle.VECTOR && clockPart == BuddyClock.Part.NIGHT)
@@ -190,7 +237,13 @@ class BuddyView(
             }
         }
         val save = c.save(); val sc = pulse(f)
-        if (reaction == BuddyReaction.BALLOON && !driver.lowPower) c.translate(0f, (kotlin.math.sin(clock() * Math.PI) * 3).toFloat())
+        if (reaction == BuddyReaction.BALLOON && !driver.lowPower) {
+            // Phản ứng bóng bay: nhún suốt phản ứng (hữu hạn); bóng bay Tết Thiếu nhi lúc nghỉ: vài nhịp từ lúc hiện.
+            val t = clock()
+            val bob = if ((driver.shown as? BuddyPhase.React)?.reaction == BuddyReaction.BALLOON) kotlin.math.sin(t * Math.PI)
+                else BuddyIdleMotion.balloonBob(t - balloonFrom)
+            c.translate(0f, (bob * 3).toFloat())
+        }
         c.scale(sc, sc, rig.heart.x.toFloat(), rig.heart.y.toFloat())
         for (p in art) { p.fill?.let { c.drawPath(p.path, it) }; p.stroke?.let { c.drawPath(p.path, it) } }
         c.restoreToCount(save)
@@ -248,12 +301,78 @@ class BuddyView(
     private val tick = Runnable { invalidate() }
     private var tickAt = Double.NaN
 
+    // Chuyển động lúc nghỉ hữu hạn ([BuddyIdleMotion] = iOS): bong bóng koi chỉ sau phím đầu của lần hiện, vài nhịp
+    // từ lúc ngủ; bóng bay Tết Thiếu nhi nhún vài nhịp từ lúc hiện. Hết nhịp ⇒ 0 khung hình.
+    private var typedSinceShown = false
+    private var wasAsleep = false
+    private var sleepFrom = Double.NEGATIVE_INFINITY
+    private var balloonFrom = Double.NEGATIVE_INFINITY
+
     init {
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         isClickable = false
         for ((i, p) in pieces.withIndex()) build(p, paths[i])
         applyTones()
+        if (spritePending) requestAtlas()
     }
+
+    // MARK: atlas (giải nền, nhả khi ẩn lâu)
+
+    private fun requestAtlas() {
+        if (atlasLoading) return
+        atlasLoading = true
+        SpriteAssets.loadAsync(context, character) { attachAtlas(it) }
+    }
+
+    private fun attachAtlas(b: Bitmap?) {
+        atlasLoading = false
+        if (!spritePending) return
+        spritePending = false
+        spriteAtlas = b
+        if (b == null) driver.vectorDance = true   // thiếu / hỏng ảnh ⇒ khung vector như trước
+        invalidate()
+    }
+
+    /** Hẹn giờ ẩn: bỏ tham chiếu atlas (true nếu đang giữ); [rewarmAtlas] / lần hiện kế giải lại nền. Chỉ gọi khi ẩn. */
+    fun releaseAtlas(): Boolean {
+        if (!wantsAtlas || spriteAtlas == null) return false
+        spriteAtlas = null; spritePending = true
+        return true
+    }
+
+    /** Hiện lại sau [releaseAtlas]: giải trên [background] (vt-rewarm) — thường xong trước khung đầu; chưa xong ⇒ ô trống. */
+    fun rewarmAtlas(background: (Runnable) -> Unit) {
+        if (!spritePending || atlasLoading) return
+        atlasLoading = true
+        val app = context.applicationContext; val c = character
+        background(Runnable {
+            // Tắt / đổi nhân vật trong lúc ẩn ⇒ view đã gỡ: không giải (cache khỏi giữ ảnh không ai dùng).
+            val b = if (parent != null) SpriteAssets.load(app, c) else null
+            android.os.Handler(android.os.Looper.getMainLooper()).post { attachAtlas(b) }
+        })
+    }
+
+    /** Test: giải đồng bộ. */
+    internal fun loadAtlasNow() { if (spritePending) attachAtlas(SpriteAssets.load(context, character)) }
+    internal val atlasBitmap: Bitmap? get() = spriteAtlas
+    internal val atlasPending: Boolean get() = spritePending
+
+    /** Bàn phím vừa hiện (gắn cửa sổ / cửa sổ hiện lại): chưa gõ, bóng bay nhún lại từ đầu; atlas đã nhả ⇒ giải lại. */
+    internal fun appear() {
+        typedSinceShown = false
+        balloonFrom = clock()
+        if (spritePending) requestAtlas()
+        invalidate()
+    }
+
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility == VISIBLE) appear()
+    }
+
+    private fun koiBubbles(t: Double): Boolean =
+        BuddyIdleMotion.bubbles(character, driver.shown is BuddyPhase.Asleep, driver.lowPower, typedSinceShown) &&
+            BuddyIdleMotion.bubblesMoving(t - sleepFrom)
 
     /** Nền thanh gợi ý (RGB đục) — đổi theme / sáng-tối ⇒ màu quầng + viền. */
     fun setBar(bar: Int) {
@@ -288,15 +407,16 @@ class BuddyView(
 
     // MARK: đầu vào (đường phím — chỉ ghi giờ; đổi trạng thái ⇒ một invalidate, vẽ ở khung kế)
 
-    fun keyPressed() { val t = clock(); val woke = driver.shown is BuddyPhase.Asleep; driver.keyPressed(t)
+    fun keyPressed() { typedSinceShown = true; val t = clock(); val woke = driver.shown is BuddyPhase.Asleep; driver.keyPressed(t)
         if (woke && clockPart == BuddyClock.Part.MORNING && !driver.lowPower) driver.react(BuddyReaction.YAWN, t)
         afterInput(t) }
-    fun deletePressed() { val t = clock(); val serial = driver.brain.reactSerial; driver.deletePressed(t)
+    fun deletePressed() { typedSinceShown = true; val t = clock(); val serial = driver.brain.reactSerial; driver.deletePressed(t)
         if (driver.brain.reactSerial != serial) BuddySignature.reaction(character, BuddyReaction.PANIC)?.let { showSignature(it, t) }
         afterInput(t) }
-    fun cheer() { val t = clock(); driver.cheer(t); if (birthdayToday && !driver.lowPower) driver.react(BuddyReaction.CAKE, t)
+    fun cheer() { typedSinceShown = true; val t = clock(); driver.cheer(t); if (birthdayToday && !driver.lowPower) driver.react(BuddyReaction.CAKE, t)
         cheerSerial++; BuddySignature.cheer(character, cheerSerial)?.let { showSignature(it, t) }; afterInput(t) }
     fun wordCommitted(word: String, prev: String?, prev2: String?) {
+        typedSinceShown = true
         val t = clock()
         // Mùa chốt lúc bàn phím hiện; đổi ngày được kiểm tra tối đa mỗi phút khi còn thấy.
         driver.season = season
@@ -334,11 +454,13 @@ class BuddyView(
         else if (tickAt.isNaN()) schedule(t)
     }
 
-    private fun schedule(t: Double) {
+    /** Hẹn MỘT lần vẽ ở mốc gần nhất: đổi trạng thái, đọc giờ mỗi phút, ngáp đêm, [frameAt] (đổi khung atlas kế). */
+    private fun schedule(t: Double, frameAt: Double? = null) {
         if (!isAttachedToWindow || !shownInSlot) { halt(); return }
         var d = driver.nextDeadline(t)
         val minute = lastClockRead + 60.0
         d = if (d == null) minute else minOf(d, minute)
+        if (frameAt != null) d = minOf(d, frameAt)
         if (clockPart == BuddyClock.Part.NIGHT && !driver.lowPower && driver.shown is BuddyPhase.Idle) {
             val yawn = lastNightYawn + 5.0
             d = if (d == null) yawn else minOf(d, yawn)
@@ -359,6 +481,7 @@ class BuddyView(
         val cal = java.util.Calendar.getInstance()
         clockPart = BuddyClock.part(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
         driver.beginAppearance(kotlin.random.Random.nextInt(1_000_001))
+        appear()
         scheduleMoment()
         if (birthdayToday) {
             val stamp = cal.get(java.util.Calendar.YEAR) * 10000 + (cal.get(java.util.Calendar.MONTH) + 1) * 100 + cal.get(java.util.Calendar.DAY_OF_MONTH)
@@ -371,15 +494,36 @@ class BuddyView(
 
     override fun onDetachedFromWindow() { halt(); momentCheered = false; super.onDetachedFromWindow() }
 
-    /** Có cần khung kế không — = driver (ngủ yên / đứng yên = false). */
+    /**
+     * Có cần khung kế NGAY (mỗi vsync / 50–80 ms) không — chỉ chuyển động thật sự liên tục: phản ứng, chữ ký, nhảy
+     * Hoạt hình, nhún bóng bay / bong bóng koi CÒN trong số nhịp ([BuddyIdleMotion]). Lắc nghỉ / cổ vũ Hoạt hình đổi
+     * khung theo nấc ⇒ [spriteFrameAt] hẹn đúng mốc. Ngủ yên / đứng yên = false.
+     */
     fun animating(t: Double = clock()): Boolean {
-        if (season == BuddySeason.CHILDRENS_DAY && !driver.lowPower) return true
-        if (!driver.lowPower && (t < signatureUntil || (character == BuddyCharacter.KOI && driver.shown is BuddyPhase.Asleep))) return true
-        if (spriteAtlas != null) return !driver.lowPower && when (driver.shown) {
-            is BuddyPhase.Dancing, BuddyPhase.Idle, BuddyPhase.Cheering, is BuddyPhase.React -> true
+        if (driver.lowPower) return false
+        if (season == BuddySeason.CHILDRENS_DAY && driver.shown !is BuddyPhase.React &&
+            BuddyIdleMotion.balloonMoving(t - balloonFrom)) return true
+        if (t < signatureUntil || koiBubbles(t)) return true
+        if (spriteAtlas != null || spritePending) return when (driver.shown) {
+            is BuddyPhase.Dancing, is BuddyPhase.React -> true
             else -> false
         }
         return driver.animating(t) || fxActive(t)
+    }
+
+    /**
+     * Mốc (giây) đổi khung atlas kế khi Hoạt hình đang lắc nghỉ / cổ vũ — khung đứng yên giữa hai mốc ⇒ một lần vẽ mỗi
+     * khung (lắc nghỉ: 0,8 s) thay vì mỗi 50–80 ms. null = không có chuỗi khung (ngủ / đứng / tiết kiệm pin).
+     */
+    internal fun spriteFrameAt(t: Double): Double? {
+        if (spriteAtlas == null || driver.lowPower) return null
+        val elapsed = t - driver.phaseStart
+        val delay = when (driver.shown) {
+            BuddyPhase.Idle -> BuddySprites.nextFrameDelay(elapsed, BuddySprites.IDLE_DURATION, BuddySprites.IDLE.size)
+            BuddyPhase.Cheering -> BuddySprites.nextFrameDelay(elapsed, com.viettelex.keyboard.BuddyBrain.CHEER, BuddySprites.CHEER.size)
+            else -> return null
+        }
+        return t + delay
     }
 
     private fun fxActive(t: Double): Boolean = !driver.lowPower && (driver.shown is BuddyPhase.React || t < signatureUntil)
@@ -400,8 +544,12 @@ class BuddyView(
             lastNightYawn = t; react(BuddyReaction.YAWN)
         }
         driver.update(t)
+        val asleep = driver.shown is BuddyPhase.Asleep
+        if (asleep && !wasAsleep) sleepFrom = driver.phaseStart   // mốc ngủ (zzz → yên không tính lại)
+        wasAsleep = asleep
         tickAt = Double.NaN
         if (!shownInSlot || width <= 0 || height <= 0) { schedule(t); return }
+        if (spritePending) { schedule(t); return }   // atlas đang giải nền: ô trống, ảnh tới thì [attachAtlas] vẽ
         spriteAtlas?.let {
             drawSprite(c, it, t)
             val reaction = driver.shown as? BuddyPhase.React
@@ -415,7 +563,8 @@ class BuddyView(
                 c.restore()
             }
             drawFX(c, t)
-            if (animating(t)) postInvalidateDelayed(if (character == BuddyCharacter.GIRL) 50L else 80L) else schedule(t)
+            if (animating(t)) postInvalidateDelayed(if (character == BuddyCharacter.GIRL) 50L else 80L)
+            else schedule(t, spriteFrameAt(t))
             return
         }
         val vp = rig.viewport(framing)
@@ -441,7 +590,7 @@ class BuddyView(
         drawHolidayMoment(c)
         drawFX(c, t)
         if (animating(t)) {
-            if (character == BuddyCharacter.KOI && driver.shown is BuddyPhase.Asleep) postInvalidateDelayed(160L)
+            if (character == BuddyCharacter.KOI && driver.shown is BuddyPhase.Asleep && koiBubbles(t)) postInvalidateDelayed(160L)
             else if (season == BuddySeason.CHILDRENS_DAY && driver.shown !is BuddyPhase.Dancing) postInvalidateDelayed(80L)
             else postInvalidateOnAnimation()
         } else schedule(t)
@@ -635,10 +784,10 @@ class BuddyView(
         c.translate(0f, rig.sleepOffset(framing).toFloat())
         drawHalo(c, BuddyPart.SLEEP)
         for (i in byPart[BuddyPart.SLEEP.ordinal]) drawPiece(c, i)
-        if (character == BuddyCharacter.KOI && !driver.lowPower) {
+        if (koiBubbles(t)) {
             fxStroke.color = 0xFF79C9E9.toInt(); fxStroke.strokeWidth = 1.5f
-            for (i in 0..2) {
-                val phase = ((t / 2.4 + i / 3.0) % 1.0).toFloat()
+            for (i in 0 until BuddyIdleMotion.BUBBLES) {
+                val phase = (BuddyIdleMotion.bubblePhase(t - sleepFrom, i) ?: continue).toFloat()
                 fxStroke.alpha = (255 * kotlin.math.sin(Math.PI * phase).coerceAtLeast(0.0)).toInt()
                 c.drawCircle((i - 1) * 8f, 11f - 28f * phase, (2 + i).toFloat(), fxStroke)
             }
@@ -862,6 +1011,18 @@ class BuddyView(
     }
 
     companion object {
+        /**
+         * IME onCreate: Bạn đồng hành Hoạt hình đang bật ⇒ giải atlas trên luồng nền NGAY (vài ms với bản 512 px) để
+         * khung đầu đã có ảnh — không ô trống, không lóe vector. Tắt / Vẽ nét / Mắt AI ⇒ không làm gì.
+         */
+        fun prewarm(context: Context, prefs: android.content.SharedPreferences) {
+            val setting = BuddyCharacter.of(runCatching { prefs.getString(com.viettelex.keyboard.Keys.KEYBOARD_BUDDY, null) }.getOrNull())
+            val c = com.viettelex.keyboard.BuddyPolicy.active(setting, com.viettelex.keyboard.BuddyGate.allows(setting))
+            if (c == BuddyCharacter.OFF) return
+            val style = BuddyStyle.of(runCatching { prefs.getString(BuddyStyle.key(c), null) }.getOrNull()).resolved(c)
+            if (style == BuddyStyle.SPRITE) SpriteAssets.prewarm(context, c)
+        }
+
         fun svg(d: String): Path {
             val p = Path()
             for (cmd in BuddySVG.parse(d)) when (cmd) {

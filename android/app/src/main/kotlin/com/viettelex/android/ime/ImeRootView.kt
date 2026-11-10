@@ -202,19 +202,29 @@ class ImeRootView(
 
     private var reloadGen = 0
 
-    /** Hẹn giờ ẩn: bỏ bitmap (true nếu đã có) — [reloadWallpaper] lúc hiện lại. */
+    /**
+     * Hẹn giờ ẩn / huỷ service: bỏ bitmap của các view (true nếu đã có) — [reloadWallpaper] lúc hiện lại. Gồm ảnh nền,
+     * ảnh theme, atlas người nhảy Night Club, atlas Bạn đồng hành, ảnh dựng sẵn của hiệu ứng phím. Chỉ gọi khi ẩn.
+     */
     fun dropWallpaper(): Boolean {
         var had = wallpaper != null
         wallpaper = null; reloadGen++
-        spotlight?.setPhoto(null, null)
+        // Đèn rọi: bỏ ảnh nền + atlas người nhảy, KHÔNG giải lại lúc đang ẩn (setPhoto(null) từng giải ~4–6 MB ở đây).
+        spotlight?.let { it.release(); had = true }
         if (themeBg != null) { themeBg = null; themeBgW = 0; themeBgH = 0; had = true }
         if (foreground?.drop() == true) had = true
+        if (buddy?.releaseAtlas() == true) had = true
+        if (effects?.releaseIdle() == true) had = true
         return had
     }
 
     /** Giải lại ảnh nền trên [background] (không chặn main); chưa xong thì nền màu theme. */
     fun reloadWallpaper(background: (Runnable) -> Unit) {
         foreground?.reload(background)
+        buddy?.rewarmAtlas(background)
+        effects?.rewarm()
+        // Đèn rọi không ảnh nền: người nhảy giải lại trên cùng luồng nền; có ảnh nền ⇒ setWallpaper bên dưới đánh thức.
+        if (wallpaperFile == null) spotlight?.resume(background)
         themeBgFile?.let { tf ->
             val w = if (floating) panel.width() else width
             val h = if (floating) panel.height() else height

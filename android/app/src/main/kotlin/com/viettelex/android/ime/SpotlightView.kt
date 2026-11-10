@@ -142,38 +142,61 @@ class SpotlightView(context: Context, private val density: Float) : View(context
 
     /** Ảnh nền đang hiện của ImeRootView (CHÍNH bitmap + ma trận center-crop theo toạ độ view gốc) hoặc null = hoạ tiết. */
     fun setPhoto(b: Bitmap?, m: Matrix?) {
-        if (photo === b && photoMatrix === m) return
+        suspended = false                                               // đường sống (đang hiện / vừa nạp lại)
+        if (photo === b && photoMatrix === m) { if (b == null) maybeLoadAtlas(); return }
         photo = b; photoMatrix = m
         if (b != null) { atlas = null; atlasGen++; loading = false }   // có ảnh nền ⇒ không người nhảy, thả atlas
         else maybeLoadAtlas()
         invalidate()
     }
 
-    /** Test: atlas người nhảy đang giữ (null = chưa giải / có ảnh nền). */
-    internal val dancerAtlas: Bitmap? get() = atlas
+    /**
+     * Ẩn lâu / huỷ service (RAM-AUDIT 10/11/2026): bỏ atlas người nhảy + tham chiếu ảnh nền, KHÔNG giải lại (trước đây
+     * dropWallpaper gọi setPhoto(null) ⇒ chính lúc nhả lại GIẢI người nhảy ~4–6 MB khi bàn phím đang ẩn). Đứng im tới
+     * [resume] (hiện lại, luồng vt-rewarm) hoặc [setPhoto] (ảnh nền nạp lại).
+     */
+    fun release() {
+        suspended = true
+        photo = null; photoMatrix = null
+        atlas = null; atlasGen++; loading = false
+    }
 
-    /** Giải atlas người nhảy MỘT lần trên luồng nền (chỉ khi không có ảnh nền và đã biết cỡ). */
-    private fun maybeLoadAtlas() {
-        if (photo != null || atlas != null || loading || height <= 0) return
+    /** Hiện lại sau [release], theme không ảnh nền: giải người nhảy trên [background] (không chặn khung đầu). */
+    fun resume(background: (Runnable) -> Unit) {
+        if (!suspended) return
+        suspended = false
+        maybeLoadAtlas(background)
+    }
+
+    /** Test: atlas người nhảy đang giữ (null = chưa giải / có ảnh nền / đã nhả). */
+    internal val dancerAtlas: Bitmap? get() = atlas
+    /** Test: đang chờ giải nền. */
+    internal val dancerLoading: Boolean get() = loading
+    @Volatile private var suspended = false
+
+    /** Giải atlas người nhảy MỘT lần trên luồng nền (chỉ khi không có ảnh nền, đã biết cỡ, không bị [release]). */
+    private fun maybeLoadAtlas(background: (Runnable) -> Unit = { ATLAS_EXECUTOR.execute(it) }) {
+        if (suspended || photo != null || atlas != null || loading || height <= 0) return
         loading = true
         val gen = atlasGen
         val c = dancer
         val displayDp = height * NightDancer.HEIGHT_FRACTION / density
         val app = context.applicationContext
-        ATLAS_EXECUTOR.execute {
-            val b = decodeAtlas(app, c, displayDp, density.toDouble())
-            post {
+        val hw = isHardwareAccelerated
+        background(Runnable {
+            val b = decodeAtlas(app, c, displayDp, density.toDouble(), hw)
+            MAIN.post {
                 if (gen != atlasGen) return@post
                 loading = false
                 if (photo == null) { atlas = b; invalidate() }
             }
-        }
+        })
     }
 
     /** Test: giải đồng bộ (Robolectric). */
     internal fun loadAtlasNow() {
         if (photo != null) return
-        atlas = decodeAtlas(context, dancer, height * NightDancer.HEIGHT_FRACTION / density, density.toDouble())
+        atlas = decodeAtlas(context, dancer, height * NightDancer.HEIGHT_FRACTION / density, density.toDouble(), false)
     }
     internal val hasPhoto: Boolean get() = photo != null
 
@@ -266,7 +289,10 @@ class SpotlightView(context: Context, private val density: Float) : View(context
         val ph = photo
         if (ph != null) canvas.drawRect(0f, 0f, w, h, darkPaint)
         // Người nhảy chìm trong tối (ngoài đèn) — trước lớp đèn.
-        val dance = if (ph == null) atlas?.takeIf { dancerRects(it, w, h) } else null
+        // Bitmap HARDWARE chỉ vẽ được trên canvas GPU (canvas phần mềm — vd chụp view — bỏ qua người nhảy).
+        val dance = if (ph == null) atlas?.takeIf {
+            !(it.config == Bitmap.Config.HARDWARE && !canvas.isHardwareAccelerated) && dancerRects(it, w, h)
+        } else null
         if (dance != null) drawDancer(canvas, dance, shadePaint, 0f, 0f)
         val now = SystemClock.uptimeMillis() / 1000.0
         var alive = false
@@ -386,21 +412,32 @@ class SpotlightView(context: Context, private val density: Float) : View(context
         const val MAX_PENDING = 4
         private val RIM_DX = FloatArray(8) { Math.cos(Math.PI / 4 * it).toFloat() }
         private val RIM_DY = FloatArray(8) { Math.sin(Math.PI / 4 * it).toFloat() }
+        /** Trả kết quả về main kể cả khi view chưa gắn cửa sổ (View.post khi đó chỉ chạy lúc gắn). */
+        private val MAIN = android.os.Handler(android.os.Looper.getMainLooper())
         private val ATLAS_EXECUTOR = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
             Thread(r, "vt-dancer").apply { isDaemon = true }
         }
 
-        /** Giải atlas buddy-<id>-v2.png theo cỡ hiển thị (inSampleSize — [NightDancer.sampleSize]). Lỗi / OOM ⇒ null. */
-        internal fun decodeAtlas(context: Context, c: BuddyCharacter, displayDp: Double, density: Double): Bitmap? = try {
+        /**
+         * Giải atlas gốc buddy-<id>-v2.png theo cỡ hiển thị, tối đa @2x ([NightDancer.decodeLongEdge] /
+         * [NightDancer.decodePlan]: lấy mẫu rồi thu đúng cạnh). [hardware] (cửa sổ vẽ GPU) ⇒ chuyển
+         * [Bitmap.Config.HARDWARE] như ảnh nền (bỏ bản CPU ở native heap; canvas phần mềm bỏ qua). Lỗi / OOM ⇒ null.
+         */
+        internal fun decodeAtlas(context: Context, c: BuddyCharacter, displayDp: Double, density: Double,
+                                 hardware: Boolean): Bitmap? = try {
             val name = "buddy-${c.id}-v2.png"
             val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             context.assets.open(name).use { BitmapFactory.decodeStream(it, null, o) }
             val target = NightDancer.decodeLongEdge(displayDp, density, o.outWidth, o.outHeight)
             if (target <= 0) null else {
+                val plan = NightDancer.decodePlan(maxOf(o.outWidth, o.outHeight), target)
                 o.inJustDecodeBounds = false
-                o.inScaled = false
-                o.inSampleSize = NightDancer.sampleSize(maxOf(o.outWidth, o.outHeight), target)
-                context.assets.open(name).use { BitmapFactory.decodeStream(it, null, o) }
+                o.inSampleSize = plan[0]
+                o.inScaled = plan[1] > 0
+                if (o.inScaled) { o.inDensity = plan[1]; o.inTargetDensity = plan[2] }
+                val cpu = context.assets.open(name).use { BitmapFactory.decodeStream(it, null, o) }
+                if (cpu == null || !hardware) cpu
+                else runCatching { cpu.copy(Bitmap.Config.HARDWARE, false) }.getOrNull()?.also { cpu.recycle() } ?: cpu
             }
         } catch (_: java.io.IOException) { null } catch (_: RuntimeException) { null } catch (_: OutOfMemoryError) { null }
     }
