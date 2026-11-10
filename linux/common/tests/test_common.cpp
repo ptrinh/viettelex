@@ -966,6 +966,42 @@ void testHotkeyParse() {
     CHECK(!parseHotkey("", h));
     CHECK(!parseHotkey("a", h));
     CHECK(!parseHotkey("Hyper+x", h));
+    // What the settings app's key capture stores (GTK keyval after Shift = the keysym the
+    // frontend receives): Ctrl+Shift+2 on US = "at", Ctrl+Shift+. = "greater", arrows.
+    CHECK(parseHotkey("Ctrl+Shift+at", h));
+    CHECK_EQ(h.keysym, uint32_t('@'));
+    CHECK_EQ(h.mods, uint32_t(VT_MOD_CTRL | VT_MOD_SHIFT));
+    CHECK(parseHotkey("Ctrl+Shift+greater", h));
+    CHECK_EQ(h.keysym, uint32_t('>'));
+    CHECK(parseHotkey("Alt+Left", h));
+    CHECK_EQ(h.keysym, uint32_t(ks::Left));
+    CHECK(parseHotkey("Ctrl++", h));
+    CHECK_EQ(h.keysym, uint32_t('+'));
+    CHECK(parseHotkey("Shift+F9", h));
+    // Printable keys need Ctrl/Alt/Super (Shift+a would swallow capital A); without any
+    // modifier only F1–F24; no duplicate modifiers; F-key names exact.
+    CHECK(!parseHotkey("Shift+a", h));
+    CHECK(!parseHotkey("Shift+space", h));
+    CHECK(!parseHotkey("Shift+exclam", h));
+    CHECK(!parseHotkey("Tab", h));
+    CHECK(!parseHotkey("Left", h));
+    CHECK(!parseHotkey("Ctrl+Ctrl+a", h));
+    CHECK(!parseHotkey("Ctrl+F1x", h));
+    CHECK(!parseHotkey("Ctrl+F25", h));
+    CHECK(!parseHotkey("Ctrl+KP_1", h));
+    CHECK_EQ(hotkeyLabel("Ctrl+Shift+at"), std::string("Ctrl+Shift+@"));
+    CHECK_EQ(hotkeyLabel("Ctrl++"), std::string("Ctrl++"));
+    // The session matches the stored keysym against the delivered one.
+    Settings st;
+    st.toggleHotkey = "Ctrl+Shift+at";
+    Session s;
+    s.applySettings(st);
+    KeyEvent ev;
+    ev.keysym = '@';
+    ev.mods = VT_MOD_CTRL | VT_MOD_SHIFT;
+    CHECK(s.isToggleHotkey(ev));
+    ev.keysym = '2';
+    CHECK(!s.isToggleHotkey(ev));
 }
 
 // MARK: - Surrounding safety (terminals, generic app ids, selections)

@@ -169,9 +169,16 @@ Khớp khi gõ: ở boundary, tra từ đã ghép (`composed`) trước, rồi p
 
 ## 4. Phím chuyển Việt/Anh (`toggle_hotkey`)
 
-Chuỗi `Mod+Mod+key`: modifier trong `Ctrl`, `Alt`, `Shift`, `Super` (không phân biệt hoa thường),
-`key` là tên keysym X11 (`space`, `grave`, `z`, `F12`…). Mặc định `Ctrl+space`. Không cho phép
-`Super+space` (GNOME dùng). Trên Fcitx5, `Ctrl+space` trùng trigger key mặc định của Fcitx5: khi
+Chuỗi `Mod+Mod+key`: modifier trong `Ctrl`/`Control`, `Alt`, `Shift`, `Super`/`Meta` (không
+phân biệt hoa thường, không lặp), `key` là: một ký tự ASCII in được (`z`, `2`, `+` — `Ctrl++`),
+`F1`–`F24`, hoặc tên keysym X11 trong bảng `names` của `parseHotkey` (`space`, `Tab`, `Return`,
+`Escape`, `BackSpace`, `Left`/`Right`/`Up`/`Down` và tên mọi dấu câu ASCII: `grave`, `period`,
+`at`, `greater`, `exclam`…; app cài đặt giữ bản sao `config.HOTKEY_NAMES`, có test so khớp).
+Phím so theo **keysym nhận được** (sau Shift): app cài đặt lưu đúng keyval GTK báo, nên
+Ctrl+Shift+2 trên bàn phím US là `Ctrl+Shift+at` (hiện "Ctrl+Shift+@"). Phím in được (kể cả
+`space`) phải có Ctrl/Alt/Super (`Shift+a` sẽ nuốt chữ A); không modifier chỉ được F1–F24.
+Chuỗi không đọc được ⇒ frontend không có phím đó (app cài đặt hiện "Tắt", hộp bắt phím từ chối
+ngay: "Không dùng được …"). Mặc định `Ctrl+space`. Không cho phép `Super+space` (GNOME dùng). Trên Fcitx5, `Ctrl+space` trùng trigger key mặc định của Fcitx5: khi
 VietTelex đang là IM hiện hành, VietTelex bắt phím trước và chỉ đổi Việt/Anh (vẫn ở VietTelex);
 khi đang ở keyboard-us thì trigger của Fcitx5 chuyển sang VietTelex như thường. Chuỗi rỗng = không có phím chuyển (vẫn đổi qua menu IM).
 

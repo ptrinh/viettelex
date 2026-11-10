@@ -840,7 +840,12 @@ class SettingsWindow(Adw.PreferencesWindow):
             if not mods:
                 title.set_label(_("Cần thêm Ctrl, Alt, Shift hoặc Super"))
                 return True
-            value = config.normalize_hotkey("+".join(mods + [name]))
+            # Chỉ nhận tổ hợp frontend đọc được (cùng luật parseHotkey C++) — không thì lưu
+            # vào là mất phím chuyển mà không báo gì.
+            value, err = config.captured_hotkey(mods, name)
+            if err == "modifier":
+                title.set_label(_("Cần thêm Ctrl, Alt hoặc Super"))
+                return True
             if value is None:
                 title.set_label(_("Không dùng được %s — chọn tổ hợp khác") % "+".join(mods + [name]))
                 return True
@@ -1344,14 +1349,7 @@ class SettingsWindow(Adw.PreferencesWindow):
         return False
 
 
-def hotkey_label(value):
-    """'Ctrl+space' → 'Ctrl+Space' (chỉ để hiển thị; file giữ đúng tên keysym)."""
-    if not value:
-        return ""
-    parts = value.split("+")
-    key = parts[-1]
-    key = key.upper() if len(key) == 1 else key[:1].upper() + key[1:]
-    return "+".join(parts[:-1] + [key])
+hotkey_label = config.hotkey_display   # 'Ctrl+Shift+at' → 'Ctrl+Shift+@' (file giữ tên keysym)
 
 
 def read_table(path):

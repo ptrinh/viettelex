@@ -243,6 +243,71 @@ class HotkeyTests(unittest.TestCase):
         self.assertIsNone(config.normalize_hotkey("space"))
         self.assertIsNone(config.normalize_hotkey("Hyper+a"))
         self.assertIsNone(config.normalize_hotkey("Ctrl+Ctrl+a"))
+        self.assertIsNone(config.normalize_hotkey("Shift+a"))        # nuốt chữ A
+        self.assertIsNone(config.normalize_hotkey("Shift+space"))
+        self.assertIsNone(config.normalize_hotkey("Tab"))            # không modifier: chỉ F1–F24
+        self.assertIsNone(config.normalize_hotkey("Ctrl+KP_1"))
+        self.assertIsNone(config.normalize_hotkey("Ctrl+F25"))
+        self.assertIsNone(config.normalize_hotkey("Ctrl+F1x"))
+        self.assertIsNone(config.normalize_hotkey("Win+a"))          # C++ không biết "win"
+        self.assertIsNone(config.normalize_hotkey("Ctrl+Shift+ISO_Left_Tab"))
+
+    def test_keys_frontend_reads(self):
+        # GTK báo keyval sau Shift: Ctrl+Shift+2 (US) = "at", Ctrl+Shift+. = "greater".
+        self.assertEqual(config.normalize_hotkey("Ctrl+Shift+at"), "Ctrl+Shift+at")
+        self.assertEqual(config.normalize_hotkey("Ctrl+Shift+greater"), "Ctrl+Shift+greater")
+        self.assertEqual(config.normalize_hotkey("Alt+left"), "Alt+Left")
+        self.assertEqual(config.normalize_hotkey("Ctrl+period"), "Ctrl+period")
+        self.assertEqual(config.normalize_hotkey("Ctrl+2"), "Ctrl+2")
+        self.assertEqual(config.normalize_hotkey("Ctrl++"), "Ctrl++")
+        self.assertEqual(config.normalize_hotkey("F9"), "F9")
+        self.assertEqual(config.normalize_hotkey("Shift+F9"), "Shift+F9")
+        self.assertEqual(config.normalize_hotkey("Shift+Left"), "Shift+Left")
+        self.assertEqual(config.normalize_hotkey("Control+Meta+x"), "Ctrl+Super+x")
+
+    def test_display(self):
+        self.assertEqual(config.hotkey_display("Ctrl+Shift+at"), "Ctrl+Shift+@")
+        self.assertEqual(config.hotkey_display("Ctrl+space"), "Ctrl+Space")
+        self.assertEqual(config.hotkey_display("Alt+Left"), "Alt+←")
+        self.assertEqual(config.hotkey_display("Ctrl+z"), "Ctrl+Z")
+        self.assertEqual(config.hotkey_display("Ctrl++"), "Ctrl++")
+        self.assertEqual(config.hotkey_display("F9"), "F9")
+
+    def test_captured(self):
+        self.assertEqual(config.captured_hotkey(["Ctrl", "Shift"], "at"), ("Ctrl+Shift+at", None))
+        self.assertEqual(config.captured_hotkey(["Shift"], "a"), (None, "modifier"))
+        self.assertEqual(config.captured_hotkey(["Shift"], "exclam"), (None, "modifier"))
+        self.assertEqual(config.captured_hotkey(["Ctrl"], "KP_Add"), (None, "unsupported"))
+        self.assertEqual(config.captured_hotkey(["Super"], "space"), (None, "unsupported"))
+        self.assertEqual(config.captured_hotkey(["Alt"], "Left"), ("Alt+Left", None))
+
+    def test_normalize_resets_unreadable_stored_hotkeys(self):
+        d = config.normalize({"general": {"toggle_hotkey": "Ctrl+Shift+KP_1",
+                                          "add_tones_hotkey": "Shift+a"}})
+        self.assertEqual(d["general"]["toggle_hotkey"], "")
+        self.assertEqual(d["general"]["add_tones_hotkey"], "")
+        d = config.normalize({"general": {"toggle_hotkey": "Ctrl+Shift+at"}})
+        self.assertEqual(d["general"]["toggle_hotkey"], "Ctrl+Shift+at")
+
+    def test_names_match_cpp_parse_hotkey(self):
+        # Bảng tên keysym phải y hệt `names` trong parseHotkey (common/src/settings.cpp).
+        import re
+        src = open(os.path.join(os.path.dirname(__file__), "..", "..", "common", "src",
+                                "settings.cpp"), encoding="utf-8").read()
+        body = src[src.index("bool parseHotkey("):]
+        table = body[body.index("names = {"):body.index("};", body.index("names = {"))]
+        cpp = dict(re.findall(r"""\{"([a-z]+)",\s*('(?:\\.|[^'])'|[\w:]+)\}""", table))
+        self.assertEqual(set(cpp), set(config.HOTKEY_NAMES))
+        for name, sym in cpp.items():
+            sym = sym.strip()
+            label = config.HOTKEY_NAMES[name][1]
+            if sym.startswith("'"):
+                ch = sym[1:-1].encode().decode("unicode_escape")
+                self.assertEqual(label, ch, name)
+            elif sym == "0x20":
+                self.assertEqual(name, "space")
+            # tên chuẩn lưu vào file đọc lại được (C++ so không phân biệt hoa thường)
+            self.assertEqual(config.HOTKEY_NAMES[name][0].lower(), name)
 
 
 if __name__ == "__main__":

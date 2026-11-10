@@ -596,32 +596,50 @@ bool parseHotkey(const std::string &spec, Hotkey &out) {
     Hotkey hk;
     for (size_t i = 0; i + 1 < parts.size(); ++i) {
         std::string m = lower(trim(parts[i]));
-        if (m == "ctrl" || m == "control") hk.mods |= VT_MOD_CTRL;
-        else if (m == "alt") hk.mods |= VT_MOD_ALT;
-        else if (m == "shift") hk.mods |= VT_MOD_SHIFT;
-        else if (m == "super" || m == "meta") hk.mods |= VT_MOD_SUPER;
+        uint32_t bit;
+        if (m == "ctrl" || m == "control") bit = VT_MOD_CTRL;
+        else if (m == "alt") bit = VT_MOD_ALT;
+        else if (m == "shift") bit = VT_MOD_SHIFT;
+        else if (m == "super" || m == "meta") bit = VT_MOD_SUPER;
         else return false;
+        if (hk.mods & bit) return false;  // "Ctrl+Ctrl+a" (settings app rejects it too)
+        hk.mods |= bit;
     }
     std::string key = trim(parts.back());
     std::string lk = lower(key);
+    // X keysym names (lowercased). The settings app stores the keysym GTK reports, which is
+    // the keysym the frontend later receives — Ctrl+Shift+2 on a US layout is
+    // "Ctrl+Shift+at" — so every printable ASCII keysym name is here. The settings app
+    // mirrors this table (config.HOTKEY_NAMES; a test compares the two).
     static const std::map<std::string, uint32_t> names = {
         {"space", 0x20}, {"grave", 0x60}, {"tab", ks::Tab}, {"return", ks::Return},
         {"escape", ks::Escape}, {"backspace", ks::BackSpace}, {"comma", ','}, {"period", '.'},
         {"slash", '/'}, {"semicolon", ';'}, {"apostrophe", '\''}, {"minus", '-'}, {"equal", '='},
         {"bracketleft", '['}, {"bracketright", ']'}, {"backslash", '\\'}, {"plus", '+'},
+        {"exclam", '!'}, {"quotedbl", '"'}, {"numbersign", '#'}, {"dollar", '$'},
+        {"percent", '%'}, {"ampersand", '&'}, {"parenleft", '('}, {"parenright", ')'},
+        {"asterisk", '*'}, {"colon", ':'}, {"less", '<'}, {"greater", '>'}, {"question", '?'},
+        {"at", '@'}, {"asciicircum", '^'}, {"underscore", '_'}, {"braceleft", '{'},
+        {"bar", '|'}, {"braceright", '}'}, {"asciitilde", '~'},
+        {"left", ks::Left}, {"right", ks::Right}, {"up", ks::Up}, {"down", ks::Down},
     };
     auto it = names.find(lk);
     if (it != names.end()) hk.keysym = it->second;
     else if (key.size() == 1 && (unsigned char)key[0] > 0x20 && (unsigned char)key[0] < 0x7f)
         hk.keysym = (uint32_t)(unsigned char)lower(key)[0];
-    else if (lk.size() >= 2 && lk[0] == 'f' && isdigit((unsigned char)lk[1])) {
+    else if ((lk.size() == 2 || lk.size() == 3) && lk[0] == 'f' && isdigit((unsigned char)lk[1]) &&
+             (lk.size() == 2 || isdigit((unsigned char)lk[2]))) {
         int n = std::atoi(lk.c_str() + 1);
         if (n < 1 || n > 24) return false;
         hk.keysym = 0xffbe + uint32_t(n - 1);  // XK_F1
     } else return false;
     // Super+space belongs to GNOME's input-source switcher (spec §4/§6).
     if (hk.keysym == 0x20 && hk.mods == VT_MOD_SUPER) return false;
-    if (hk.mods == 0 && hk.keysym < 0x7f) return false;  // a bare printable key would eat typing
+    // A printable key needs Ctrl/Alt/Super: bare or Shift-only ("Shift+a") would eat typing
+    // (capital A). Without any modifier only F1–F24 (a bare Tab / Return / arrow would too).
+    bool printable = hk.keysym >= 0x20 && hk.keysym < 0x7f;
+    if (printable && !(hk.mods & (VT_MOD_CTRL | VT_MOD_ALT | VT_MOD_SUPER))) return false;
+    if (hk.mods == 0 && !(hk.keysym >= 0xffbe && hk.keysym <= 0xffd5)) return false;
     out = hk;
     return true;
 }
