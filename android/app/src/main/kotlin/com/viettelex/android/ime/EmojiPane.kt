@@ -130,13 +130,22 @@ class EmojiPane(
         iconsLeft = side + abcW + gap
         iconW = (w - 2 * side - 2 * abcW - 2 * gap) / SLOTS
         relayoutSections()
-        layoutKaomoji()
+        // Kaomoji: dàn LƯỜI lúc mở tab ^‿^ (lần đầu chạm bảng kaomoji của emoji.bin + đo ~136 chuỗi kéo
+        // font dự phòng nguội — không làm trong lượt layout đầu của bàn phím). Tab đang mở ⇒ dàn ngay.
+        if (kaomoji) layoutKaomoji() else kaoDirty = true
     }
+
+    /** Bố cục kaomoji ([chips]) lỗi thời — dàn lại ở lần mở tab kế ([ensureKaomoji]). */
+    private var kaoDirty = true
+
+    private fun ensureKaomoji() { if (kaoDirty) layoutKaomoji() }
 
     /** Dàn dòng các viên kaomoji theo bề ngang (toạ độ nội dung, chưa trừ kaoScrollY). */
     private fun layoutKaomoji() {
         chips.clear(); kaoHeaders.clear()
         if (width == 0f) return
+        kaoDirty = false
+        ImeCost.kaomojiLayouts++
         val side = 8 * d; val gap = 6 * d; val h = 34 * d
         var y = collTop + 2 * d
         for (g in EmojiData.kaomoji) {
@@ -158,7 +167,7 @@ class EmojiPane(
     private fun maxKaoScroll() = maxOf(0f, kaoContentH - (rowTop - theme.dp(1f)))
 
     /** Test hook: các mục kaomoji theo thứ tự hiển thị. */
-    internal val kaomojiItems: List<String> get() = chips.map { it.text }
+    internal val kaomojiItems: List<String> get() { ensureKaomoji(); return chips.map { it.text } }
 
     private fun relayoutSections() {
         if (width == 0f) return
@@ -467,6 +476,7 @@ class EmojiPane(
 
     private fun showKaomoji() {
         kaomoji = true
+        ensureKaomoji()
         scroller.forceFinished(true)
         dismissPopup()
         host.invalidate()
@@ -475,6 +485,7 @@ class EmojiPane(
     /** Kaomoji tại điểm chạm (toạ độ view) — internal cho test. */
     internal fun kaomojiAt(x: Float, y: Float): String? {
         if (y >= rowTop - 2 * d) return null
+        ensureKaomoji()
         val cy = y + kaoScrollY
         return chips.firstOrNull { x >= it.l && x < it.r && cy >= it.t && cy < it.b }?.text
     }
@@ -524,7 +535,7 @@ class EmojiPane(
     }
 
     /** Bàn phím ẩn lâu: bỏ danh sách emoji (String theo category) — [open] dựng lại. */
-    fun releaseData() { sections = emptyList() }
+    fun releaseData() { sections = emptyList(); chips.clear(); kaoHeaders.clear(); kaoDirty = true }
 
     fun onHidden() {
         host.removeCallbacks(holdRun); host.removeCallbacks(delStartRun); host.removeCallbacks(delTickRun)

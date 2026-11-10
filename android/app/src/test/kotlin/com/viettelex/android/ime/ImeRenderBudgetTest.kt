@@ -222,6 +222,91 @@ class ImeRenderBudgetTest {
         assertEquals(0, ImeCost.barRefreshes)
     }
 
+    // MARK: không đọc / nạp gì thừa trước khung đầu (đợt 10/11/2026)
+
+    private fun capField(initial: String?) = field(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES).apply {
+        initialCapsMode = android.text.TextUtils.CAP_MODE_SENTENCES
+        val n = initial?.length ?: 0
+        initialSelStart = n; initialSelEnd = n
+        if (initial != null) setInitialSurroundingText(initial)
+    }
+
+    /** Ô viết hoa đầu câu + chữ ban đầu tin được (API 30+): auto-shift lúc hiện KHÔNG đọc ô (0 IPC). */
+    @Test fun firstAutoShiftUsesInitialTextWithoutReads() {
+        val port = ImePerf.CountingPort(FakeEditor("Xin chào. "))
+        ime.testPort = port
+        val kb = keyboard(show(capField("Xin chào. ")))
+        assertEquals("getTextBeforeCursor trước khung đầu", 0, port.reads)
+        assertEquals("sau \". \" phải bật shift", KeyboardView.Shift.ON, kb.shift)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(100))
+        assertEquals(KeyboardView.Shift.ON, kb.shift)
+    }
+
+    /** Giữa câu: chữ ban đầu cho shift TẮT ngay ở khung đầu (không chờ đọc). */
+    @Test fun firstAutoShiftMidSentenceFromInitialText() {
+        val port = ImePerf.CountingPort(FakeEditor("xin chào"))
+        ime.testPort = port
+        val kb = keyboard(show(capField("xin chào").apply { initialCapsMode = 0 }))
+        assertEquals(0, port.reads)
+        assertEquals(KeyboardView.Shift.OFF, kb.shift)
+    }
+
+    /** Không có chữ ban đầu: khung đầu theo initialCapsMode, 0 IPC; đọc xác nhận ngay sau khung đầu. */
+    @Test fun firstAutoShiftWithoutInitialTextConfirmsAfterFirstFrame() {
+        val port = ImePerf.CountingPort(FakeEditor("xin chào"))   // giữa câu, app báo initialCaps sai
+        ime.testPort = port
+        val kb = keyboard(show(capField(null).apply { initialSelStart = 8; initialSelEnd = 8 }))
+        assertEquals("getTextBeforeCursor trước khung đầu", 0, port.reads)
+        assertEquals("khung đầu theo initialCapsMode", KeyboardView.Shift.ON, kb.shift)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(100))
+        assertTrue("xác nhận sau khung đầu phải đọc ô", port.reads >= 1)
+        assertEquals("chữ thật giữa câu ⇒ shift tắt", KeyboardView.Shift.OFF, kb.shift)
+    }
+
+    /** Kaomoji (emoji.bin + đo ~136 chuỗi) chỉ dàn khi mở tab ^‿^ — không ở lượt layout đầu, không khi mở bảng emoji. */
+    @Test fun kaomojiNotLaidOutUntilTabOpens() {
+        val kb = keyboard(show())
+        assertEquals("dàn kaomoji lúc hiện bàn phím", 0, ImeCost.kaomojiLayouts)
+        kb.setPlane(Plane.EMOJI); frame(root!!)
+        assertEquals("dàn kaomoji khi mở bảng emoji (tab kaomoji chưa mở)", 0, ImeCost.kaomojiLayouts)
+        assertTrue(kb.emojiPane.kaomojiItems.isNotEmpty())   // mở tab
+        assertEquals(1, ImeCost.kaomojiLayouts)
+    }
+
+    /** Mẫu câu: không đọc / giải / cắt "…" khi bảng ☰ đóng; nạp một lần lúc mở bảng. */
+    @Test fun templatesNotLoadedUntilPaneOpens() {
+        val kb = keyboard(show())
+        hide(); show()
+        assertEquals("nạp mẫu câu khi bảng ☰ đóng", 0, ImeCost.templateLoads)
+        kb.setPlane(Plane.TEMPLATES); frame(root!!)
+        assertEquals(1, ImeCost.templateLoads)
+        kb.setPlane(Plane.LETTERS); kb.setPlane(Plane.TEMPLATES); frame(root!!)
+        assertEquals("mở lại: từ cache", 1, ImeCost.templateLoads)
+    }
+
+    /** Dò IME giọng nói (binder) sau khung đầu, không trong onStartInputView. */
+    @Test fun voiceProbeRunsAfterFirstFrame() {
+        show()
+        assertEquals("dò IME giọng nói trước khung đầu", 0, ImeCost.voiceProbes)
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(100))
+        assertEquals(1, ImeCost.voiceProbes)
+    }
+
+    /** Trình tiết kiệm pin: không tính năng có cổng pin (mặc định) ⇒ không đọc lần nào. */
+    @Test fun powerSaveNotReadWithoutGatedFeature() {
+        show()
+        assertEquals(0, ime.powerSaveShow.reads)
+    }
+
+    /** Cỡ bàn phím dọc cho app cài đặt: ghi SAU lượt layout/vẽ đầu (prefs runtime không trong khung đầu). */
+    @Test fun portraitSizeRecordedAfterFirstFrame() {
+        val sp = ime.getSharedPreferences(com.viettelex.keyboard.Keys.RUNTIME_PREFS, android.content.Context.MODE_PRIVATE)
+        show()
+        assertEquals(null, sp.getString(com.viettelex.keyboard.Keys.IME_PORTRAIT_SIZE, null))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertNotNull(sp.getString(com.viettelex.keyboard.Keys.IME_PORTRAIT_SIZE, null))
+    }
+
     // MARK: bấm phím
 
     private fun tap(kb: KeyboardView, label: String) {

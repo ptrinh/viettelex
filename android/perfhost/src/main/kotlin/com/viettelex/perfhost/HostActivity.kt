@@ -22,7 +22,11 @@ class HostActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        field = EditText(this).apply { contentDescription = "field"; hint = "field" }
+        // Viết hoa đầu câu (như ô chat): đo luôn đường auto-shift lúc hiện (không đọc ô trước khung đầu).
+        field = EditText(this).apply {
+            contentDescription = "field"; hint = "field"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        }
         val show = Button(this).apply { text = "show"; contentDescription = "show"; setOnClickListener { showIme() } }
         val hide = Button(this).apply { text = "hide"; contentDescription = "hide"; setOnClickListener { hideIme() } }
         val root = LinearLayout(this).apply {

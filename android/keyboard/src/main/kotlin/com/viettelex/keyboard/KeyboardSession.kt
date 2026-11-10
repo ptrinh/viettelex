@@ -319,6 +319,11 @@ class KeyboardSession(
     private var lastResetAt: Long? = null
     /** Chưa gõ phím nào từ startInput — [FieldTraits.initialCaps] còn hiệu lực. */
     private var initialCapsPending = true
+    /**
+     * Lần [updateAutoShift] gần nhất chạy KHÔNG đọc ô (allowRead = false, khung đầu) và không có chữ
+     * sẵn ⇒ shift là phỏng đoán theo [FieldTraits.initialCaps]; IME gọi lại có đọc sau khung đầu.
+     */
+    var autoShiftUnverified = false; private set
 
     /** Tăng mỗi phím — IME so với KeyOutcome.generation để bỏ lượt cũ. */
     var generation = 0; private set
@@ -721,7 +726,8 @@ class KeyboardSession(
      * CAP, hoặc KHÔNG đọc được chữ trước con trỏ — null ≠ ô trống, trước đây coi null là ""
      * nên bật shift sai giữa câu). Chỉ nâng OFF→ON là việc của IME (không hạ CAPS).
      */
-    fun updateAutoShift(proxy: TextProxy): Boolean? {
+    fun updateAutoShift(proxy: TextProxy, allowRead: Boolean = true): Boolean? {
+        autoShiftUnverified = false
         // Tắt: không đọc context; chỉ hạ shift do chính mình bật trước đó (shift tay giữ nguyên).
         if (!autoCapitalize) return if (autoShiftOn) { autoShiftOn = false; false } else null
         // Ô địa chỉ / tìm kiếm: không bao giờ hoa đầu câu — chỉ hạ shift do mình bật (kể cả còn
@@ -729,7 +735,9 @@ class KeyboardSession(
         if (traits.lowercaseSuggestions) return if (autoShiftOn) { autoShiftOn = false; false } else null
         val mode = capMode(traits)
         if (mode == CapMode.NONE) return null
-        val before = proxy.contextBeforeInput()
+        val before = proxy.contextForShift(allowRead)
+        // Không đọc (khung đầu) và không có chữ sẵn ⇒ đoán theo initialCapsMode, IME xác nhận sau khung đầu.
+        autoShiftUnverified = before == null && !allowRead && mode != CapMode.CHARACTERS
         val auto = when {
             before != null -> autoShiftFor(before, mode)
             mode == CapMode.CHARACTERS -> true

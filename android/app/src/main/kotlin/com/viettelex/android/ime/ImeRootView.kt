@@ -141,7 +141,9 @@ class ImeRootView(
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         if (floating) return              // ảnh nền theo cỡ khung — onLayout lo
-        recordPortraitSize(w, h)
+        // Ghi cỡ cho app cài đặt SAU lượt layout/vẽ đầu (đọc prefs runtime không nằm trong khung đầu).
+        // Handler của main looper (View.post khi chưa gắn cửa sổ thì chờ tới lúc gắn).
+        android.os.Handler(android.os.Looper.getMainLooper()).post { recordPortraitSize(w, h) }
         loadWallpaperFor(w, h)
         loadThemeBgFor(w, h)
     }

@@ -47,6 +47,8 @@ Hai lớp bảo vệ:
 | `VT.layoutBuild` | đồng bộ | `KeyLayout.build` (lỡ cache bố cục) |
 | `VT.planeSwitch` | đồng bộ | đổi bảng phím (chữ ↔ ?123 …) |
 | `VT.onKey` | đồng bộ | xử lý một phím (session + IcProxy) |
+| `VT.suggest` | đồng bộ | lượt gợi ý hẹn giờ sau phím, phần main (gồm đường ranh giới từ khi gõ dấu cách) |
+| `VT.suggestBg` | đồng bộ (worker) | phần nền của lượt gợi ý |
 | `VT.keyToDraw` | async (cookie 3) | ACTION_DOWN → lượt vẽ kế của bất kỳ view bàn phím nào |
 | `Host.imeShowToAnimStart` | async, app chủ | `show(ime())` → `WindowInsetsAnimation.onStart` (khuôn AOSP ImePerfTest) |
 | `Host.imeShowToAnimEnd` | async, app chủ | `show(ime())` → `onEnd` (gồm hoạt ảnh của hệ thống) |
@@ -78,6 +80,7 @@ Kết quả: `OUT_DIR/com.viettelex.benchmark-benchmarkData.json` + một `.perf
 | `showCold` | process IME vừa bị giết (force-stop) → chọn lại IME + `show(ime())` trong khối đo: `VT.onCreate`, `VT.onCreateInputView`, `VT.onStartInputView`, `VT.showToFirstDraw`, `Host.*` |
 | `showWarm` | ẩn rồi hiện lại khi process + cây view còn sống |
 | `typing` | 20 chạm phím chữ: `VT.keyToDraw` (avg), `VT.onKey` (avg), số `VT.kbDraw` (lưới vẽ lại), `FrameTimingMetric` của process IME |
+| `typingWords` | như `typing` nhưng dấu cách sau mỗi 4 chữ: thêm `VT.suggest` (avg / sum), `VT.suggestBg` (avg), `VT.onKey` (sum) — số cho đường ranh giới từ |
 | `planeSwitch` | 6 lần ?123 ↔ chữ: `VT.planeSwitch`, số `VT.layoutBuild`, `FrameTimingMetric` |
 
 Ghi chú khi đo:
@@ -131,9 +134,19 @@ bộ unit test mặc định, ~6 s). Số đo hiện tại in ra stdout (`BUDGET
 | `startInputDefersSuggestionBarPastFirstFrame` | gợi ý lúc hiện KHÔNG chạy trong `onStartInputView`; chạy đúng một lần sau khung kế | 0 → 1 | 0 → 1 |
 | `keysTypedBeforeDeferredBarAreNotLost` | gõ ngay khi vừa hiện (lượt hoãn chưa chạy): phím đầu vào ô đúng, lượt hoãn tự bỏ | "xi" / 0 | "xi" / 0 |
 | `deferredBarDroppedWhenHiddenFirst` | ẩn trước khung kế: lượt hoãn không chạy | 0 | 0 |
+| `firstAutoShiftUsesInitialTextWithoutReads` | ô viết hoa đầu câu + chữ ban đầu tin được: `getTextBeforeCursor` trước khung đầu | 0 | 0 (trước: 2 — đã kiểm ngược) |
+| `firstAutoShiftMidSentenceFromInitialText` | giữa câu: shift tắt ngay khung đầu, 0 lần đọc | 0 | 0 |
+| `firstAutoShiftWithoutInitialTextConfirmsAfterFirstFrame` | không có chữ ban đầu: 0 lần đọc trước khung đầu, khung đầu theo initialCapsMode, đọc xác nhận sau | 0 → ≥ 1 | 0 → 1+ |
+| `kaomojiNotLaidOutUntilTabOpens` | dàn kaomoji khi hiện / khi mở bảng emoji / khi mở tab ^‿^ | 0 / 0 / 1 | 0 / 0 / 1 |
+| `templatesNotLoadedUntilPaneOpens` | nạp mẫu câu khi bảng ☰ đóng / lúc mở / mở lại | 0 / 1 / 1 | 0 / 1 / 1 |
+| `voiceProbeRunsAfterFirstFrame` | dò IME giọng nói trong `onStartInputView` / sau khung đầu | 0 / 1 | 0 / 1 |
+| `powerSaveNotReadWithoutGatedFeature` | đọc Trình tiết kiệm pin khi không tính năng nào cần | 0 | 0 |
+| `portraitSizeRecordedAfterFirstFrame` | ghi cỡ bàn phím dọc (prefs runtime) trong lượt layout đầu | 0 | 0 |
 
 Liên quan: `keyboard/.../UserLMSeedAsyncTests.kt` (seed người dùng mới parse trên io, không chặn
-`onStartInputView`).
+`onStartInputView`); `IcProxyTest` (`seededTextServesShiftWithoutReads`, `seededTextExpiresOnEditOrExternalChange`,
+`unreliableAlwaysReads` — đường chặt vẫn đọc thật); `KeyboardSessionTests.testFirstFrameShiftReadsNothingAndIsConfirmedLater`;
+`ShowPathCachesTest` (pin đọc ≤ 1 lần mỗi lần hiện; ClipDescription một lần mỗi mục clipboard; thứ tự mở prefs).
 
 **Quy trình nâng ngân sách** (khi một test đỏ):
 1. Đọc thông báo — nó nói việc gì vượt trần.
@@ -255,4 +268,23 @@ Mục khác:
   Typeface đặt một lần mỗi view; 0 B cấp phát mỗi lượt vẽ — `keyGridRedrawAllocatesNothing`). Không đổi.
 - Baseline/Startup Profile: đã có (`ImeBaselineProfile`); đợt này không đổi lớp nào trên đường hiện nên không sinh lại.
 - Còn lại trong `onStartInputView`: `VT.startInput.extras` ~1.4 ms (hiệu ứng / nhân vật / gõ vuốt / dò IME giọng nói
-  qua IPC) — ứng viên kế, chưa làm (sát ngưỡng 1 ms trên emulator).
+  qua IPC) — ứng viên kế, chưa làm (sát ngưỡng 1 ms trên emulator). Dò giọng nói + đọc pin đã dời / bớt ở đợt 10/11/2026.
+
+### Đợt 10/11/2026: không đọc ô / không nạp thừa trước khung đầu
+
+Rà đường hiện bàn phím tìm việc chặn (IPC sang app, binder hệ thống, đọc đĩa) nằm TRƯỚC khung đầu có phím:
+
+| # | Trước | Sau |
+|---|---|---|
+| 1 | Ô viết hoa đầu câu: 2 lần `getTextBeforeCursor` (một trong `kb.configure` → `onPlaneChanged`, một ở cuối `onStartInputView`) — mỗi lần là một vòng chờ UI thread của app (lúc app đang mở activity thì chờ lâu) | Bỏ lần trong `configure`. Lần cuối không đọc: dùng chữ ban đầu hệ thống gửi kèm ô (API 30+, đã đối chiếu `initialSel`; chỉ hiệu lực tới edit đầu / đổi từ ngoài — `IcProxy.contextForShift`); không có thì theo `initialCapsMode`, xác nhận bằng chữ thật ngay sau khung đầu (`firstBarRun`). Sai shift tệ nhất một khung. ⌫ / `confirmTail` / sửa từ vẫn theo luật chặt (`contextBeforeInput`). `:perfhost` nay là ô `textCapSentences` để benchmark đi đúng đường này |
+| 2 | Lượt layout đầu dàn tab kaomoji: lần đầu chạm bảng kaomoji của `emoji.bin` + đo ~136 chuỗi (kéo font dự phòng nguội) | Dàn lười lúc mở tab ^‿^ (đổi cỡ khi tab đóng ⇒ đánh dấu, dàn lại lần mở kế); `releaseIdleCaches` nhả luôn bố cục kaomoji |
+| 3 | Mẫu câu đọc + giải YAML/JSON và cắt "…" từng mẫu trong `onStartInputView` dù bảng ☰ đóng; lặp lại sau mỗi lần nhả idle | `KeyboardView.configure` nhận nguồn lười; nạp + dàn ở lần mở bảng ☰ |
+| 4 | Dò IME giọng nói (1 + N binder InputMethodManager) mỗi lần vào ô mới; Trình tiết kiệm pin đọc 3 lần mỗi lần hiện kể cả khi không tính năng nào cần | Dò giọng nói trên worker sau khung đầu (khung đầu dùng kết quả lần trước); pin đọc tối đa một lần mỗi lần hiện, chỉ khi theme / hiệu ứng thật sự có Đập chuột / Đèn rọi / Lơ lửng (`PerShowFlag`) |
+| 5 | Ba file prefs (`viettelex`, `ime_state`, `viettelex_runtime`) nạp nối đuôi nhau trên main, file runtime nằm trong lượt layout đầu | Mở cả ba ở đầu `onCreate` (nạp song song trên thread nền của SharedPreferences, file cài đặt mở cuối — `ImePrefFiles`); ghi cỡ bàn phím dọc hoãn ra sau lượt layout |
+| 6 | Nút Dán: `hasText()` + `clipId()` mỗi lần cache 2 s hết hạn và mỗi lần hiện — mỗi cái một binder `getPrimaryClipDescription` | `ClipFactsCache`: một binder mỗi mục clipboard (listener đổi clip) + một lần mỗi lần hiện (quyền đọc clipboard theo focus) |
+
+Thêm mốc `VT.suggest` / `VT.suggestBg` và test `typingWords` (dấu cách sau mỗi 4 chữ) để có số cho đường ranh giới từ —
+chỉ đo, đường đó vẫn chạy trên main như cũ.
+
+Chưa đo bằng Macrobenchmark trên emulator đợt này (mọi thay đổi kiểm bằng unit test đếm việc ở trên); chạy
+`showCold` / `showWarm` / `typingWords` A/B theo mục "Đo bằng Macrobenchmark" trước khi kết luận về ms.

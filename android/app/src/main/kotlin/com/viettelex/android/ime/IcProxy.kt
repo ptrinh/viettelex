@@ -92,6 +92,7 @@ class IcProxy(
     fun begin(): Boolean {
         val c = portOf() ?: return false
         afterCache = null                     // edit thường: văn bản sau con trỏ có thể đổi
+        seedVersion = -1                      // bắt đầu edit: chữ ban đầu không còn là bằng chứng
         if (depth++ == 0) {
             ic = c
             c.beginBatch()
@@ -109,13 +110,21 @@ class IcProxy(
     private fun conn(): EditorPort? = ic ?: portOf()
 
     /** Cổng thô cho bảng sửa văn bản ([EditCommands]); trong batch nếu đang mở. */
-    internal fun editorPort(): EditorPort? { afterCache = null; return conn() }
+    internal fun editorPort(): EditorPort? { afterCache = null; seedVersion = -1; return conn() }
+
+    /**
+     * [TextShadow.version] lúc nạp shadow từ chữ ban đầu của ô ([startInput]); -1 = không có. Còn bằng
+     * version hiện tại ⇒ chưa có edit / đổi từ ngoài nào (mọi thay đổi shadow tăng version; [begin]
+     * và [editorPort] cũng xoá mốc) ⇒ [contextForShift] dùng được mà không cần [SelectionTracker.reliable].
+     */
+    private var seedVersion = -1
 
     /** onStartInputView: [initialBefore] = getInitialTextBeforeCursor đã đối chiếu initialSel (null nếu không tin). */
     fun startInput(initialBefore: CharSequence?, atFieldStart: Boolean) {
         failed = false
         finishComposingPending = false
         if (initialBefore != null) shadow.set(initialBefore, atFieldStart) else shadow.invalidate()
+        seedVersion = if (initialBefore != null) shadow.version else -1
     }
 
     /** Đổi từ ngoài (onUpdateSelection không khớp mốc): văn bản trước con trỏ phải đọc lại. */
@@ -195,6 +204,17 @@ class IcProxy(
     override fun contextBeforeInput(): String? {
         if (tracker.reliable) shadow.text()?.let { return it }
         return readBefore()
+    }
+
+    /**
+     * Auto-shift (xem [TextProxy.contextForShift]): như [contextBeforeInput] nhưng nhận thêm shadow
+     * nạp từ chữ ban đầu của ô khi nó còn nguyên (chưa edit, chưa đổi từ ngoài) — lần auto-shift đầu
+     * lúc hiện bàn phím khỏi một vòng getTextBeforeCursor chặn trên UI thread của app.
+     * [confirmTail] / ⌫ / sửa từ vẫn theo luật chặt của [contextBeforeInput].
+     */
+    override fun contextForShift(allowRead: Boolean): String? {
+        if (tracker.reliable || seedVersion == shadow.version) shadow.text()?.let { return it }
+        return if (allowRead) readBefore() else null
     }
 
     /** Đọc IPC (đo thời gian, ghi TouchLog) và nạp lại shadow. */
@@ -495,8 +515,12 @@ class TextShadow(private val cap: Int) {
     private val sb = StringBuilder()
     private var valid = false
     private var atStart = false
+    /** Tăng ở MỌI thay đổi (nạp, bỏ, chèn, xoá) — IcProxy biết shadow còn là bản chữ ban đầu không. */
+    var version = 0
+        private set
 
     fun set(s: CharSequence, atFieldStart: Boolean) {
+        version++
         sb.setLength(0)
         if (s.length > cap) { sb.append(s, s.length - cap, s.length); atStart = false }
         else { sb.append(s); atStart = atFieldStart }
@@ -504,11 +528,12 @@ class TextShadow(private val cap: Int) {
         checkLow()
     }
 
-    fun invalidate() { valid = false; sb.setLength(0) }
+    fun invalidate() { version++; valid = false; sb.setLength(0) }
 
     fun text(): String? = if (valid) sb.toString() else null
 
     fun inserted(s: String) {
+        version++
         if (!valid) return
         sb.append(s)
         if (sb.length > cap) {
@@ -521,6 +546,7 @@ class TextShadow(private val cap: Int) {
     }
 
     fun deleted(utf16: Int) {
+        version++
         if (!valid || utf16 <= 0) return
         if (utf16 > sb.length) {
             if (atStart) sb.setLength(0) else invalidate()

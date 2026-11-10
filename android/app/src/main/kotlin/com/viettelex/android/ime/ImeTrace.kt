@@ -26,6 +26,10 @@ object ImeTrace {
     const val BAR_AFTER_FIRST_FRAME = "VT.barAfterFirstFrame"
     const val LAYOUT_BUILD = "VT.layoutBuild"
     const val ON_KEY = "VT.onKey"
+    /** Lượt gợi ý hẹn giờ sau phím (phần main — gồm đường ranh giới từ khi gõ dấu cách). */
+    const val SUGGEST = "VT.suggest"
+    /** Phần nền của lượt gợi ý (worker). */
+    const val SUGGEST_BG = "VT.suggestBg"
     /** ACTION_DOWN trên lưới phím → lượt vẽ kế của bất kỳ view bàn phím nào (cookie 3). */
     const val KEY_TO_DRAW = "VT.keyToDraw"
 
