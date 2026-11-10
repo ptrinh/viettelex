@@ -100,6 +100,7 @@ class ParseTests(unittest.TestCase):
             self.assertEqual(len(data), 36)
             self.assertEqual(data[:4], b"VTL2")
             self.assertFalse(os.path.exists(p + ".tmp"))
+            self.assertEqual(os.stat(p).st_mode & 0o777, 0o600)   # dữ liệu gõ: chỉ chủ đọc
 
     def test_underline_misspelled_roundtrip(self):
         out = config.update_text("[general]\npreedit_underline = false\n",

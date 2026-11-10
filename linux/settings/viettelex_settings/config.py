@@ -111,9 +111,14 @@ def clear_learned_words(path=None):
     chạy thấy file đổi và nạp lại rỗng, không ghi đè lại dữ liệu cũ đang giữ trong RAM."""
     import time
     path = path or learned_words_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
     tmp = path + ".tmp"
-    with open(tmp, "wb") as f:
+    try:
+        os.unlink(tmp)
+    except OSError:
+        pass
+    # Chỉ chủ đọc được (0600) như process con ghi (LearnStore.writePrivate).
+    with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as f:
         f.write(empty_learned_store(int(time.time() * 1000)))
         f.flush()
         os.fsync(f.fileno())

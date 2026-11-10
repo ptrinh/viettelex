@@ -41,7 +41,9 @@ mkdir -p "$STAGE"
 
 # Chỉ những gì gói cần: engine Swift dùng chung (TelexCore) + cây linux/ + file mẫu +
 # nguồn iOS mà viettelex-text-tool symlink tới (Thêm dấu/TextTools + dữ liệu + fixture chung).
-( cd "$REPO" && tar -cf - \
+# Ghi ra file rồi mới giải nén: sh (dash) không có pipefail, nên `tar | tar` nuốt lỗi của tar
+# đầu (file trong danh sách đã bị xoá / đổi tên ⇒ "Cannot stat" nhưng build vẫn chạy tiếp).
+( cd "$REPO" && tar -cf "$WORK/stage.tar" \
     --exclude='.build' --exclude='.swiftpm' --exclude='__pycache__' \
     --exclude='linux/packaging/out' --exclude='linux/dist' --exclude='*.o' \
     LICENSE sample-shortcuts.yml typing-modes.yml TelexCore linux \
@@ -58,7 +60,10 @@ mkdir -p "$STAGE"
     iOS/KeyboardTests/Fixtures/text-tools.txt iOS/KeyboardTests/Fixtures/add-tones.txt \
     iOS/KeyboardTests/Fixtures/math-results.txt iOS/KeyboardTests/Fixtures/number-chips.txt \
     windows/app/tests/fixtures/word-prediction.tsv windows/app/tests/fixtures/learned-words.bin \
-    android/telexcore/src/test/resources/golden.tsv.gz ) | tar -xf - -C "$STAGE"
+    android/telexcore/src/test/resources/golden.tsv.gz ) \
+  || { echo "✗ thiếu file trong danh sách dàn nguồn (xem lỗi tar ở trên)" >&2; exit 1; }
+tar -xf "$WORK/stage.tar" -C "$STAGE"
+rm -f "$WORK/stage.tar"
 cp -a "$HERE/debian" "$STAGE/debian"
 # Symlink trong linux/ trỏ ra ngoài cây đã dàn (thêm file iOS mới mà quên liệt kê ở trên) ⇒ dừng
 # ngay, rõ ràng — đừng để make báo "No rule to make target" giữa chừng build (1.0.5).
