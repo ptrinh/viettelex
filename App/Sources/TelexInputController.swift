@@ -1183,7 +1183,7 @@ final class TelexInputController: IMKInputController {
             }
         }
 
-        // RE-EDIT (experimental, opt-in): a tone/mark key on an EMPTY engine right after a
+        // RE-EDIT ("Fix tones of typed words", default ON): a tone/mark key on an EMPTY engine right after a
         // word means "add this diacritic to that word" ("toan" + s → toán). Seed the
         // engine from the text on screen so the normal replace machinery does the edit.
         if engine.isEmpty, tracking, selToClear == 0, !afterRawInsert,
@@ -1335,7 +1335,7 @@ final class TelexInputController: IMKInputController {
         return false
     }
 
-    // MARK: - Re-edit the word before the caret (experimental)
+    // MARK: - Re-edit the word before the caret ("Fix tones of typed words", default ON)
 
     /// Does this key put exactly ONE printable character on screen after the word it
     /// just ended? Only then is the next ⌫ deleting a boundary character, which is the

@@ -149,7 +149,7 @@ final class SettingsModel: ObservableObject {
     @Published var autoRestore: Bool { didSet { AppState.shared.autoRestore = autoRestore } }
     @Published var freeMarking: Bool { didSet { AppState.shared.freeMarking = freeMarking } }
     @Published var modernOrthography: Bool { didSet { AppState.shared.modernOrthography = modernOrthography } }
-    /// "Sửa dấu từ đã gõ" — key có từ trước (mặc định bật), trước 11/2026 không có UI trên macOS.
+    /// "Sửa dấu từ đã gõ" — key có từ trước (mặc định bật), có UI + đồng bộ iCloud từ 11/2026.
     @Published var reEditWord: Bool { didSet { AppState.shared.reEditWord = reEditWord } }
     @Published var liveSpellCheck: Bool { didSet { AppState.shared.liveSpellCheck = liveSpellCheck } }
     @Published var simpleTelex: Bool { didSet { AppState.shared.simpleTelex = simpleTelex } }

@@ -3942,7 +3942,7 @@ final class TerminalTapController {
             return nil
         }
 
-        // RE-EDIT (experimental, opt-in): a tone/mark key on an EMPTY engine right
+        // RE-EDIT ("Fix tones of typed words", default ON): a tone/mark key on an EMPTY engine right
         // after a word means "add this diacritic to that word" — seed from the text
         // already on screen so the replace below edits IT instead of starting fresh.
         if Self.reEditGateOpen(engineIsEmpty: engine.isEmpty, reEditEnabled: AppState.shared.reEditWord,

@@ -106,6 +106,23 @@ final class ICloudSyncTests: XCTestCase {
         XCTAssertEqual(mac.settings["quickTelex"], false)
     }
 
+    /// "Sửa dấu từ đã gõ": macOS nay có công tắc ⇒ đồng bộ cả hai chiều dưới tên chuẩn
+    /// `reEditWords` (iOS BackupFormat / Android), key macOS là `reEditWord`.
+    func testReEditWordsSyncsBothWays() {
+        XCTAssertTrue(MacSyncStore.settings.contains { $0.canonical == "reEditWords" && $0.local == "reEditWord" })
+        let cloud = FakeCloud(), mac = FakeMac()
+        mac.settings = ["reEditWord": false]
+        mac.sync(cloud, now: 1000)
+        XCTAssertEqual(domain(cloud, .settings)["reEditWords"], SyncEntry(v: "false", t: 1000), "Mac → iCloud")
+        XCTAssertNil(domain(cloud, .settings)["reEditWord"])
+
+        var s = domain(cloud, .settings)
+        s["reEditWords"] = SyncEntry(v: "true", t: 3000)          // iPhone bật lại sau
+        cloud.store[SyncSection.settings.cloudKey] = SyncMerge.encode(s)
+        mac.sync(cloud, now: 3500)
+        XCTAssertEqual(mac.settings["reEditWord"], true, "iCloud → Mac")
+    }
+
     func testMalformedCloudValueIgnored() {
         let cloud = FakeCloud(), mac = FakeMac()
         mac.settings = ["teencode": true]

@@ -116,8 +116,10 @@ final class AppState: @unchecked Sendable {
     // an toàn mà không ai biết. Khác legacyKeys (không còn đọc), đừng gộp chung.
     // 14/10/2026 (sắp xếp lại Cài đặt, bỏ tab Thử nghiệm): thêm "Bỏ qua key-up tổng
     // hợp" + "Thay thế qua AX (Chrome/Spotlight)" — cả hai mặc định bật từ lâu.
+    // 11/2026: "reEditWord" RA KHỎI danh sách — nó lại có công tắc ("Sửa dấu từ đã gõ") và
+    // đồng bộ iCloud; xoá ở mỗi lần khởi động làm lựa chọn TẮT của user mất sau khi khởi
+    // động lại (rồi đẩy "bật" lên iCloud đè iPhone).
     static let graduatedKeys = [
-        "reEditWord",             // Gõ thêm dấu cho từ ngay trước con trỏ
         "tapCascadeBreaker",      // Bộ ngắt chống tràn sự kiện
         "tapModifyEventInPlace",  // Sửa sự kiện phím tại chỗ
         "tapSkipSyntheticKeyUp",  // Bỏ qua key-up tổng hợp
@@ -162,6 +164,7 @@ final class AppState: @unchecked Sendable {
         // "Đoán từ trùng theo tần suất" (thử nghiệm, 05/11/2026): mặc định TẮT.
         _englishByFrequency = (defaults.object(forKey: Key.englishByFrequency) as? Bool) ?? false
         _collisionPrefersVietnamese = (defaults.object(forKey: Key.collisionPrefersVietnamese) as? Bool) ?? true
+        _reEditWord = (defaults.object(forKey: Key.reEditWord) as? Bool) ?? true
         tapNativeFastPath = (defaults.object(forKey: "tapNativeFastPath") as? Bool) ?? true
         _tapModifyEventInPlace = (defaults.object(forKey: "tapModifyEventInPlace") as? Bool) ?? true
         _tapSkipSyntheticKeyUp = (defaults.object(forKey: "tapSkipSyntheticKeyUp") as? Bool) ?? true
@@ -355,9 +358,13 @@ final class AppState: @unchecked Sendable {
     ///    gate keystream của #38 chặn seed xuyên boundary; poke AX cho app Electron
     ///    (1.5.11) làm verify đọc được caret thật thay vì degrade im lặng.
     ///    Chính lớp "đoán rồi transform bậy" của 04/08 giờ không còn đường chạy.
+    ///  • 11/2026: có công tắc trên macOS (Gõ phím → Nâng cao) + đồng bộ iCloud
+    ///    (`reEditWords` như iOS/Android). Cache trong bộ nhớ: tap đọc nó ở MỌI phím chữ.
+    private var _reEditWord: Bool
     var reEditWord: Bool {
-        get { defaults.object(forKey: Key.reEditWord) as? Bool ?? true }
-        set { defaults.set(newValue, forKey: Key.reEditWord) }
+        get { lock.withLock { _reEditWord } }
+        set { lock.withLock { _reEditWord = newValue }
+              defaults.set(newValue, forKey: Key.reEditWord) }
     }
 
     /// Hotkey chuyển input source: "off" (default) / "ctrl-shift" / "opt-shift" /
@@ -1397,6 +1404,7 @@ final class AppState: @unchecked Sendable {
         case Key.teencode: return teencode
         case Key.autoRestore: return autoRestore
         case Key.liveSpellCheck: return liveSpellCheck
+        case Key.reEditWord: return reEditWord
         case "filterSensitive": return filterSensitive
         default: return nil
         }
@@ -1423,6 +1431,7 @@ final class AppState: @unchecked Sendable {
         case Key.teencode: teencode = v
         case Key.autoRestore: autoRestore = v
         case Key.liveSpellCheck: liveSpellCheck = v
+        case Key.reEditWord: reEditWord = v
         case "filterSensitive": filterSensitive = v
         default: break
         }

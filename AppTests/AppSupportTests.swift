@@ -905,6 +905,9 @@ extension AppSupportTests {
             ({ s.debugLogging }, { s.debugLogging = $0 }),
             ({ s.autoUpdateCheck }, { s.autoUpdateCheck = $0 }),
             ({ s.axPromptShown }, { s.axPromptShown = $0 }),
+            // Cache trong bộ nhớ (tap đọc ở mỗi phím chữ) — ghi phải tới cả cache lẫn đĩa.
+            ({ s.reEditWord }, { s.reEditWord = $0 }),
+            ({ s.syncedSetting("reEditWord") ?? false }, { s.setSyncedSetting("reEditWord", $0) }),
         ]
         for accessor in bools {
             let saved = accessor.get()
@@ -929,9 +932,12 @@ extension AppSupportTests {
     /// cũ của tester bị xoá lúc khởi động ⇒ hành vi luôn bật (default true).
     func testGraduatedKeysClearOldOffValues() throws {
         for key in ["tapSkipSyntheticKeyUp", "axSelectionReplace",
-                    "reEditWord", "tapCascadeBreaker", "tapModifyEventInPlace"] {
+                    "tapCascadeBreaker", "tapModifyEventInPlace"] {
             XCTAssertTrue(AppState.graduatedKeys.contains(key), key)
         }
+        // 11/2026: "Sửa dấu từ đã gõ" có công tắc + đồng bộ iCloud lại — TẮT phải sống qua
+        // lần khởi động sau (không thì Mac còn đẩy "bật" lên iCloud đè iPhone).
+        XCTAssertFalse(AppState.graduatedKeys.contains("reEditWord"))
         let suite = "test.viettelex.graduated.\(UUID().uuidString)"
         let d = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { d.removePersistentDomain(forName: suite) }
