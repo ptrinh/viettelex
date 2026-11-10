@@ -13,9 +13,9 @@ final class SwipeEnglishTests: XCTestCase {
     private func englishCorpus(_ n: Int = 1000) -> [String] {
         let e = SwipeEnglish.lexicon
         return (0..<e.count)
-            .filter { SwipeSim.collapse(e.words[$0]).count >= 2 }
-            .sorted { e.freq[$0] != e.freq[$1] ? e.freq[$0] > e.freq[$1] : e.words[$0] < e.words[$1] }
-            .prefix(n).map { e.words[$0] }
+            .filter { SwipeSim.collapse(e.word($0)).count >= 2 }
+            .sorted { e.freq[$0] != e.freq[$1] ? e.freq[$0] > e.freq[$1] : e.word($0) < e.word($1) }
+            .prefix(n).map { e.word($0) }
     }
 
     private func vnCorpus(_ n: Int = 500) -> [String] {
@@ -51,10 +51,10 @@ final class SwipeEnglishTests: XCTestCase {
         XCTAssertTrue(SwipeEnglish.contains("check") && SwipeEnglish.contains("mail"))
         XCTAssertFalse(SwipeEnglish.contains("a"))
         XCTAssertFalse(SwipeEnglish.contains("fuck"))
-        XCTAssertEqual(Int(e.bucketStart[676]), e.count)
+        XCTAssertEqual(Int(e.swipe.bucketStart[676]), e.count)
         let i = SwipeEnglish.index(of: "hello")!
-        let keys = (Int(e.keyStart[i])..<Int(e.keyStart[i + 1]))
-            .map { String(UnicodeScalar(e.keys[$0] + 97)) }.joined()
+        let keys = (Int(e.swipe.keyStart[i])..<Int(e.swipe.keyStart[i + 1]))
+            .map { String(UnicodeScalar(e.swipe.keys[$0] + 97)) }.joined()
         XCTAssertEqual(keys, "helo")
     }
 

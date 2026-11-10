@@ -490,7 +490,7 @@ final class SwipeDecoder {
             let f = topIdx[k]
             var s = topScore[k]
             if f >= fc, let en {
-                let w = en.words[f - fc]
+                let w = en.word(f - fc)
                 if let englishContext { s += englishContext(w) }
                 out.append(SwipeCandidate(folded: w, score: s, lang: .en))
                 continue
@@ -527,6 +527,7 @@ final class SwipeDecoder {
         let lam = params.lambdaFreq
         let ov = params.overshoot * w * ovScale
         let ovStart = ov > 0 ? ovFrom : n, od = ovDepth
+        let t = en.swipe   // bảng phím vuốt (dựng lười lần decode tiếng Anh đầu)
         // buffer cục bộ (tránh kiểm tra độc quyền truy cập property mỗi phần tử)
         var kx = ekx, ky = eky, rx = erx, ry = ery
         var okFirst = [Bool](repeating: false, count: 26), okLast = okFirst
@@ -541,13 +542,13 @@ final class SwipeDecoder {
         for a in 0..<26 where okFirst[a] {
             for b in 0..<26 where okLast[b] {
                 let bk = a * 26 + b
-                for o in Int(en.bucketStart[bk])..<Int(en.bucketStart[bk + 1]) {
-                    let i = Int(en.order[o])
-                    let lo = Int(en.keyStart[i]), hi = Int(en.keyStart[i + 1])
+                for o in Int(t.bucketStart[bk])..<Int(t.bucketStart[bk + 1]) {
+                    let i = Int(t.order[o])
+                    let lo = Int(t.keyStart[i]), hi = Int(t.keyStart[i + 1])
                     guard hi - lo <= kx.count else { continue }
                     var mk = 0, ok = true
                     for j in lo..<hi {
-                        let k = Int(en.keys[j])
+                        let k = Int(t.keys[j])
                         let x = l.centers[k * 2]
                         guard x.isFinite else { ok = false; break }
                         kx[mk] = x; ky[mk] = l.centers[k * 2 + 1]; mk += 1
@@ -651,7 +652,7 @@ final class SwipeDecoder {
             keys = forms.keys; lo = Int(forms.keyStart[idx]); hi = Int(forms.keyStart[idx + 1])
         } else {
             guard let en else { return -1 }
-            keys = en.keys; lo = Int(en.keyStart[idx - fc]); hi = Int(en.keyStart[idx - fc + 1])
+            let t = en.swipe; keys = t.keys; lo = Int(t.keyStart[idx - fc]); hi = Int(t.keyStart[idx - fc + 1])
         }
         guard hi - lo <= rkx.count else { return -1 }
         var k = 0

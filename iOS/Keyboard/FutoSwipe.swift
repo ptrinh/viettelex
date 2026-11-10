@@ -244,7 +244,8 @@ final class FutoSwipe {
         let maxPrior = lambdaFreq + (en != nil ? max(0, enBias) : 0)
         searchList(forms.keys, forms.keyStart, fc, 0, { Int(forms.freq[$0]) }, m, w, lambdaFreq, 0, maxPrior)
         if let en {
-            searchList(en.keys, en.keyStart, en.count, fc, { Int(en.freq[$0]) }, m, w, lambdaFreq, enBias, maxPrior)
+            let t = en.swipe
+            searchList(t.keys, t.keyStart, en.count, fc, { Int(en.freq[$0]) }, m, w, lambdaFreq, enBias, maxPrior)
         }
     }
 
@@ -336,7 +337,7 @@ final class FutoSwipe {
                 for k in 0..<topFilled {
                     let idx = topIdx[k]
                     let isEn = idx >= fc
-                    let word = isEn ? en!.words[idx - fc] : forms.folded[idx]
+                    let word = isEn ? en!.word(idx - fc) : forms.folded[idx]
                     guard seen.insert(word).inserted else { continue }
                     var s = minShark + params.ensembleWeight * (topAc[k] - best)
                     if !isEn, let context { s += context(word) }
@@ -350,7 +351,7 @@ final class FutoSwipe {
                 let idx = topIdx[k]
                 var s = topScore[k]
                 if idx >= fc {
-                    let word = en!.words[idx - fc]
+                    let word = en!.word(idx - fc)
                     if let englishContext { s += englishContext(word) }
                     out.append(SwipeCandidate(folded: word, score: s, lang: .en))
                 } else {

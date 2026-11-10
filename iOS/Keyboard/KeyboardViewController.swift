@@ -646,6 +646,9 @@ final class KeyboardViewController: UIInputViewController {
     private func warmUpData() {
         let wantsLM = showSuggestionsSetting || swipeSetting || addTonesSetting
         if wantsLM { _ = langModel }
+        // Lexicon tiếng Anh (bảng offset trên mmap, ~0,1 MB — RAM-AUDIT.md §4d): main thread
+        // chỉ hỏi bản đã nạp (containsIfLoaded) ⇒ nạp sẵn ở nền để gợi ý / tự sửa đúng ngay từ đầu.
+        if showSuggestionsSetting || autoCorrectSetting || addTonesSetting { SwipeEnglish.warmUp() }
         let swipeOn = swipeSetting
         // Dữ liệu vuốt / âm tiết tiếng Việt: app chỉ tiếng Anh không nạp (có thể không đóng gói).
         if (showSuggestionsSetting || swipeOn) && AppFlavor.vietnameseInput {
@@ -1387,8 +1390,11 @@ final class KeyboardViewController: UIInputViewController {
                                 hasCompletion: { !VNSuggest.matches($0, poolLimit: 1).isEmpty })
         let fix = pl.flatMap {
             AutoCorrect.decide($0, touches: wordTouches, isKnown: { [self] w in
+                // Từ Anh (AutoCorrect.isEnglish) không chặn main: lexicon chưa nạp xong ⇒ coi là
+                // đã biết (không sửa) — an toàn hơn sửa nhầm một từ Anh.
                 autoCorrectRejected.contains(w) || lexiconWords.contains(w)
-                    || langModel.isUserWord(w) || AutoCorrect.isEnglish(w)
+                    || langModel.isUserWord(w) || (SwipeEnglish.containsIfLoaded(w) ?? true)
+                    || EnglishContextLookup.opensEnglishRun(w)
             })
         }
         acMemo = (raw, fix)
@@ -1930,14 +1936,16 @@ final class KeyboardViewController: UIInputViewController {
     /// `englishNextFill`).
     private func padWords(_ base: [String], need: Int, typed: String = "", afterWord: Bool = false) -> [String] {
         guard base.count < need else { return Array(base.prefix(need)) }
+        // Main thread: không bao giờ nạp lexicon tiếng Anh ở đây — chưa nạp xong (vài ms đầu phiên,
+        // warmUpData nạp nền) ⇒ coi như không phải từ Anh (đệm như sau âm tiết Việt).
         if afterWord, let prev = lastWord, !SuggestRank.padsWithTopWords(prev, english: bridge.englishMode,
-                                                                         isEnglish: { SwipeEnglish.contains($0) }) {
+                                                                         isEnglish: { SwipeEnglish.containsIfLoaded($0) ?? false }) {
             let p2 = lastWord2, fs = filterSensitive
             return SuggestRank.englishNextFill(base, table: EnglishNext.next(after: prev), need: need, typed: typed,
                                                filter: { SensitiveWords.filter($0, after: prev, prev2: p2, enabled: fs) },
                                                display: { caseForContext(properCase($0), typed: typed) })
         }
-        let top = bridge.englishMode ? SwipeEnglish.top : langModel.topWords(limit: need + 12)
+        let top = bridge.englishMode ? (SwipeEnglish.topIfLoaded ?? []) : langModel.topWords(limit: need + 12)
         let candidates = SensitiveWords.filter(top, after: lastWord, prev2: lastWord2, enabled: filterSensitive)
             .map { caseForContext(properCase($0), typed: typed) }
         return SuggestionFill.pad(base, with: candidates, need: need, excluding: typed)
@@ -2065,7 +2073,7 @@ final class KeyboardViewController: UIInputViewController {
             // Tiếng Anh: từ kế tiếp cá nhân chỉ giữ từ tiếng Anh; đầu ô đệm bằng từ Anh phổ biến,
             // sau một từ thì KHÔNG (#146: "they" → "the of and" là top unigram, không phải ngữ cảnh)
             let personal = lastWord.map { langModel.nextWords(after: $0, prev2: lastWord2, limit: 12) } ?? []
-            let en = SensitiveWords.filter(personal.filter { SwipeEnglish.contains($0.lowercased()) },
+            let en = SensitiveWords.filter(personal.filter { SwipeEnglish.containsIfLoaded($0.lowercased()) ?? false },
                                            after: lastWord, prev2: lastWord2, enabled: filterSensitive).prefix(slotWant)
             set.nextWords = padWords(en.map { caseForContext($0) }, need: slotWant, afterWord: true)
         } else if let prev = lastWord {
@@ -3042,7 +3050,7 @@ extension KeyboardViewController {
 
     /// Nạp enlexicon + bảng từ phổ biến ở nền (lần đầu vào Tiếng Anh), khỏi trễ phím đầu.
     fileprivate func warmUpEnglish() {
-        DispatchQueue.global(qos: .utility).async { _ = SwipeEnglish.top }
+        SwipeEnglish.warmUp()
     }
 
     /// Từ vuốt được chốt bởi phím chữ trước (dấu cách treo) — học khi chắc chắn.

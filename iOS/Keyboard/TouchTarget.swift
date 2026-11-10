@@ -323,13 +323,12 @@ final class TelexKeyPrior: @unchecked Sendable {
         var syl: [(String, Int)] = []
         syl.reserveCapacity(VNLexicon2Data.count)
         for id in 0..<VNLexicon2Data.count { syl.append((VNSuggest.display(id), VNSuggest.freq(id: id))) }
-        // Parse riêng (không giữ SwipeEnglish.lexicon trong RAM khi tắt gõ vuốt).
-        final class BundleToken {}
-        var en: [(String, Int)] = []
-        if let url = Bundle(for: BundleToken.self).url(forResource: "enlexicon", withExtension: "bin"),
-           let d = try? Data(contentsOf: url, options: .alwaysMapped), let lx = SwipeEnglish.parse(d) {
-            en = (0..<lx.count).map { (lx.words[$0], Int(lx.freq[$0])) }
-        }
+        // Dùng chung SwipeEnglish.lexicon: từ 10/11/2026 nó đọc tại chỗ trên mmap (bảng offset
+        // ~80 KB, không dựng bảng phím vuốt) và gợi ý / tự sửa đã nạp sẵn ⇒ parse riêng chỉ nhân đôi.
+        // (Ghi chú cũ "parse riêng để không giữ lexicon khi tắt gõ vuốt" không còn đúng: lexicon
+        // vốn được nạp gần như mọi phiên có gợi ý.) Đường này chỉ chạy khi thiếu keyprior.bin.
+        let lx = SwipeEnglish.lexicon
+        let en: [(String, Int)] = (0..<lx.count).map { (lx.word($0), Int(lx.freq[$0])) }
         let chat = chatWords(SeedData.unigrams).filter { !VNSuggest.contains($0.0) }
         return build(syllables: syl, english: en, chat: chat, lambda: lambda, englishShare: englishShare)
     }

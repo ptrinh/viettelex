@@ -191,7 +191,7 @@ final class TypoFixEvalTests: XCTestCase {
         return (0..<n).map { _ in
             var r = rng.unit() * tot, i = 0
             while i < w.count - 1, r > w[i] { r -= w[i]; i += 1 }
-            return lx.words[i]
+            return lx.word(i)
         }
     }
 
