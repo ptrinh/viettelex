@@ -969,17 +969,22 @@ extension AppSupportTests {
     /// snapshot (see the AppState doc for the full history). Pinned in both directions:
     /// a fresh install has it on, and an explicit OFF must survive the ON default —
     /// that opt-out is the escape hatch if the 04/08 class ever resurfaces.
-    func testReEditGateDefaultsOn() {
+    func testReEditGateDefaultsOn() throws {
+        // The value is cached in memory now (tap hot path), so the launch-time read is
+        // tested on a private suite instead of deleting the live key mid-session.
+        let suite = "test.viettelex.reedit.\(UUID().uuidString)"
+        let d = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { d.removePersistentDomain(forName: suite) }
+        XCTAssertTrue(AppState.storedReEditWord(d), "fresh install: reach-back behaviors on by default")
+        d.set(false, forKey: "reEditWord")
+        XCTAssertFalse(AppState.storedReEditWord(d), "explicit OFF must survive the ON default")
+        AppState.clearGraduatedKeys(in: d)
+        XCTAssertFalse(AppState.storedReEditWord(d), "…and survive the launch-time graduated-key sweep")
         let s = AppState.shared
-        let saved = s.defaults.object(forKey: "reEditWord") as? Bool
-        defer {
-            if let saved { s.defaults.set(saved, forKey: "reEditWord") }
-            else { s.defaults.removeObject(forKey: "reEditWord") }
-        }
-        s.defaults.removeObject(forKey: "reEditWord")
-        XCTAssertTrue(s.reEditWord, "fresh install: reach-back behaviors on by default")
+        let saved = s.reEditWord
+        defer { s.reEditWord = saved }
         s.reEditWord = false
-        XCTAssertFalse(s.reEditWord, "explicit OFF must survive the ON default")
+        XCTAssertFalse(s.reEditWord)
     }
 }
 

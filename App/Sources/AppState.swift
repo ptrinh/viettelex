@@ -164,7 +164,7 @@ final class AppState: @unchecked Sendable {
         // "Đoán từ trùng theo tần suất" (thử nghiệm, 05/11/2026): mặc định TẮT.
         _englishByFrequency = (defaults.object(forKey: Key.englishByFrequency) as? Bool) ?? false
         _collisionPrefersVietnamese = (defaults.object(forKey: Key.collisionPrefersVietnamese) as? Bool) ?? true
-        _reEditWord = (defaults.object(forKey: Key.reEditWord) as? Bool) ?? true
+        _reEditWord = Self.storedReEditWord(defaults)
         tapNativeFastPath = (defaults.object(forKey: "tapNativeFastPath") as? Bool) ?? true
         _tapModifyEventInPlace = (defaults.object(forKey: "tapModifyEventInPlace") as? Bool) ?? true
         _tapSkipSyntheticKeyUp = (defaults.object(forKey: "tapSkipSyntheticKeyUp") as? Bool) ?? true
@@ -361,6 +361,10 @@ final class AppState: @unchecked Sendable {
     ///  • 11/2026: có công tắc trên macOS (Gõ phím → Nâng cao) + đồng bộ iCloud
     ///    (`reEditWords` như iOS/Android). Cache trong bộ nhớ: tap đọc nó ở MỌI phím chữ.
     private var _reEditWord: Bool
+    /// Giá trị lúc khởi động: key vắng (cài mới) = BẬT. Tách ra để test với suite riêng.
+    static func storedReEditWord(_ d: UserDefaults) -> Bool {
+        (d.object(forKey: Key.reEditWord) as? Bool) ?? true
+    }
     var reEditWord: Bool {
         get { lock.withLock { _reEditWord } }
         set { lock.withLock { _reEditWord = newValue }
