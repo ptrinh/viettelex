@@ -170,6 +170,9 @@ private:
     void afterHintApplied(bool ok, ITfContext* c, const hints::Suggestion& s);
     bool hintKeyTest(WPARAM wp, BOOL* eaten);  // true = handled (eaten set)
     void notePassedBy(const KeyInput& k);      // session_.noteKeyPassedBy + passNoted_
+    HRESULT testKeyDownBody(ITfContext* ctx, WPARAM wp, BOOL* eaten);         // OnTestKeyDown body
+    HRESULT keyDownBody(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL* eaten);   // OnKeyDown body
+    bool keyOfferedAgain(bool atTest, WPARAM wp, LPARAM lp);  // tip_caches.h KeyEventRepeat
 
     bool initThreadMgrSink();
     void uninitThreadMgrSink();
@@ -228,6 +231,8 @@ private:
     unsigned long settingsGen_ = 0;
     FocusStateNotify focusNotify_;      // tray state posts at focus changes (tip_caches.h)
     PerKeyOnce hostEval_;               // evaluateHost once per key (tip_caches.h)
+    KeyEventRepeat keyRepeat_;          // a key we let through, offered again (tip_caches.h)
+    bool keyRepeatLogged_ = false;      // once per focus
     bool ownKeyEdit_ = false;           // inside OnKeyDown's synchronous edit session
     SwitchHotkey hotkey_ = SwitchHotkey::CtrlShift;
     ModifierChord chord_;

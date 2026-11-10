@@ -190,12 +190,13 @@ bool fieldPrefersComposition(const std::string& exe, const int* scopes, size_t c
 bool shellSearchPrefersComposition(const std::string& app, bool asyncStore);
 
 // (2026-11, 1.3.19 report) Word's own UI text boxes — the Navigation pane search box
-// (Ctrl+F), the ribbon search: Office NetUI, focus window class "NetUIHWND" (the document
-// body is "_WwG": not this). The search box re-sets its text while a search runs, so an
-// in-place replace can be undone ("đầu mối" -> "đàu môi"); the session detects that from
-// the screen (session.h takeFieldUnreliable), but only after one damaged word, and only
-// when it reads the app's rewrite back whole. Composition never edits committed text:
-// compose there from the first letter. Sync stores only; `exe` = lowercase process name.
+// (Ctrl+F), the ribbon search. The debug log of 1.3.18–1.3.20 shows the Navigation search
+// box as focus class "RICHEDIT60W" (Office's RichEdit, its own TSF store, sync, not
+// transitory); "NetUIHWND" (the NetUI host) is kept. The document body is "_WwG": not this.
+// That box offers every key we let through a second time before inserting it (tip_caches.h
+// KeyEventRepeat), and re-sets its text while a search runs, so in place it lost marks
+// ("đầu mối" -> "đâù môí"); composition never lets a letter through or edits committed
+// text: compose there from the first letter. Sync stores only; `exe` = lowercase name.
 bool officeUiPrefersComposition(const std::string& exe, const std::u16string& focusClass, bool asyncStore);
 
 // (2026-11) Control kinds of THIS app where in-place proved unreliable on a sync store
