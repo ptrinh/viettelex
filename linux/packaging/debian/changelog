@@ -1,3 +1,29 @@
+viettelex (1.0.25) UNRELEASED; urgency=medium
+
+  * Sửa: gõ tắt có dấu hai chấm (:D) không còn biến mất; đọc đúng file gõ tắt
+    xuất từ macOS.
+  * Sửa: phím chuyển Việt/Anh như Ctrl+Shift+2, Alt+← giờ chạy được; tổ hợp
+    không dùng được thì báo ngay.
+  * Sửa (Fcitx5): không còn mất từ đang gõ khi bấm sang cửa sổ khác.
+  * Gõ nhanh hơn ở chế độ Sửa thẳng trong ô; hết rò bộ nhớ trên IBus.
+  * Cài đặt báo khi thiếu gói viettelex-text-tools và khi không ghi được cấu
+    hình. Chế độ mặc định đổi tên thành "Soạn từ rồi chèn".
+  * Trình cập nhật tự kiểm mã băm gói trước khi cài.
+  * ---
+  * Fixed: shortcuts containing a colon (:D) no longer vanish; shortcut files
+    exported from macOS load correctly.
+  * Fixed: toggle hotkeys such as Ctrl+Shift+2 or Alt+Left now work; unusable
+    combinations are rejected at once.
+  * Fixed (Fcitx5): the word in progress is no longer lost when you click
+    another window.
+  * Faster typing in "Edit right in the field" mode; an IBus memory leak is
+    gone.
+  * Settings warns when viettelex-text-tools is missing or the config cannot
+    be saved. The default mode is now called "Compose the word, then insert".
+  * The updater verifies the package hash itself before installing.
+
+ -- VietTelex Maintainers <maintainers@viettelex.invalid>  Wed, 11 Nov 2026 01:00:00 +0700
+
 viettelex (1.0.24) UNRELEASED; urgency=medium
 
   * Gợi ý âm lịch: gõ "âm lịch", "ngày âm" hoặc "ÂL" rồi dấu cách → "30/9 năm
