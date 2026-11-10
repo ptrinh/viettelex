@@ -8,6 +8,7 @@
 #include "viettelex/retro_english.h"
 #include "viettelex/session.h"
 #include "viettelex/settings.h"
+#include "viettelex/surrounding_cache.h"
 #include "viettelex/text_tools.h"
 #include "viettelex/watcher.h"
 
@@ -20,6 +21,7 @@
 #include <mutex>
 #include <random>
 #include <string>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
 
@@ -771,6 +773,92 @@ void testTextToolNamesAndSelection() {
     CHECK(!selectionAtCaret("toi di hoc", 10, 10, primaryIs("")));     // no PRIMARY / no tool
     CHECK(!selectionAtCaret("toi di hoc", 10, 10, {}));
     CHECK_EQ(reads, 4);
+
+    // Key-path probe: no process spawn when it cannot change the answer.
+    reads = 0;
+    bool anchorSeen = false;
+    const std::string cachedFar = "khac", cachedHere = "hoc", none;
+    // Cache not against the caret ⇒ no external read at all.
+    CHECK(!selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &cachedFar, true, primaryIs("hoc")));
+    CHECK(!selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &none, true, primaryIs("hoc")));
+    CHECK_EQ(reads, 0);
+    // Cache against the caret ⇒ confirmed live (stale cache after deselect ⇒ false).
+    CHECK(selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &cachedHere, true, primaryIs("hoc")));
+    CHECK(!selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &cachedHere, true, primaryIs("")));
+    CHECK_EQ(reads, 2);
+    // No live tool installed: the cache decides.
+    CHECK(selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &cachedHere, false, primaryIs("")));
+    CHECK_EQ(reads, 2);
+    // No cache (IBus / no clipboard addon) ⇒ live read.
+    CHECK(selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, nullptr, true, primaryIs("hoc")));
+    CHECK_EQ(reads, 3);
+    // A host that reported a real anchor once: anchor == cursor means no selection, no probe.
+    CHECK(selectionAtCaretProbe("toi di hoc", 10, 7, anchorSeen, nullptr, true, primaryIs("hoc")));
+    CHECK(anchorSeen);
+    CHECK(!selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, nullptr, true, primaryIs("hoc")));
+    CHECK(!selectionAtCaretProbe("toi di hoc", 10, 10, anchorSeen, &cachedHere, true, primaryIs("hoc")));
+    CHECK_EQ(reads, 3);
+}
+
+// readPrimarySelection stops at the first tool that answers (exit 0), even with nothing
+// selected: wl-paste answering "" must not cost another 150 ms in xclip.
+// IBus frontend: one ibus_engine_get_surrounding_text (a D-Bus signal + a new ref) per
+// engine callback instead of 3–5; re-read after our own delete (IBus rewrites its copy).
+void testSurroundingCache() {
+    int fetches = 0;
+    SurroundingCache c([&fetches](SurroundingSnapshot &s) {
+        ++fetches;
+        s.text = "toi di";
+        s.cursor = s.anchor = 6;
+        return true;
+    });
+    for (int i = 0; i < 5; ++i) CHECK(c.get() && c.get()->text == "toi di");
+    CHECK_EQ(fetches, 1);
+    c.invalidate();
+    CHECK(c.get());
+    CHECK_EQ(fetches, 2);
+    int none = 0;
+    SurroundingCache empty([&none](SurroundingSnapshot &) { ++none; return false; });
+    CHECK(!empty.get());
+    CHECK(!empty.get());
+    CHECK_EQ(none, 1);
+}
+
+void testPrimaryFirstToolWins() {
+    char tmpl[] = "/tmp/vt-primary-XXXXXX";
+    const char *dir = mkdtemp(tmpl);
+    if (!dir) { ++g_fail; return; }
+    const std::string d = dir;
+    auto script = [&](const std::string &name, const std::string &body) {
+        std::string p = d + "/" + name;
+        FILE *f = std::fopen(p.c_str(), "w");
+        std::fprintf(f, "#!/bin/sh\n%s\n", body.c_str());
+        std::fclose(f);
+        chmod(p.c_str(), 0755);
+    };
+    script("wl-paste", "exit 0");                                  // nothing selected
+    script("xclip", "touch '" + d + "/xclip-ran'; printf stale");
+    const char *oldPath = std::getenv("PATH"), *oldWl = std::getenv("WAYLAND_DISPLAY"),
+               *oldX = std::getenv("DISPLAY");
+    const std::string savePath = oldPath ? oldPath : "", saveWl = oldWl ? oldWl : "", saveX = oldX ? oldX : "";
+    setenv("PATH", (d + ":/usr/bin:/bin").c_str(), 1);
+    setenv("WAYLAND_DISPLAY", "wayland-test", 1);
+    setenv("DISPLAY", ":99", 1);
+    std::string out = "x";
+    CHECK(!readPrimarySelection(out, 2000));
+    CHECK(out.empty());
+    CHECK(access((d + "/xclip-ran").c_str(), F_OK) != 0);
+    script("wl-paste", "printf hoc");
+    CHECK(readPrimarySelection(out, 2000));
+    CHECK_EQ(out, std::string("hoc"));
+    script("wl-paste", "exit 1");                                  // no wl-paste answer ⇒ next tool
+    CHECK(readPrimarySelection(out, 2000));
+    CHECK_EQ(out, std::string("stale"));
+    setenv("PATH", savePath.c_str(), 1);
+    if (oldWl) setenv("WAYLAND_DISPLAY", saveWl.c_str(), 1); else unsetenv("WAYLAND_DISPLAY");
+    if (oldX) setenv("DISPLAY", saveX.c_str(), 1); else unsetenv("DISPLAY");
+    for (const char *f : {"wl-paste", "xclip", "xclip-ran"}) std::remove((d + "/" + f).c_str());
+    rmdir(dir);
 }
 
 // Runs the real viettelex-text-tool when ctest points at it (VIETTELEX_TEXT_TOOL).
@@ -3439,6 +3527,8 @@ int main() {
     testTextToolSettings();
     testAddTonesHotkey();
     testTextToolNamesAndSelection();
+    testPrimaryFirstToolWins();
+    testSurroundingCache();
     testTextToolHelper();
     testForwardKeysTypesInPlace();
     testForwardKeysHostLags();

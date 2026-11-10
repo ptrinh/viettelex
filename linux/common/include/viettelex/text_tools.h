@@ -71,6 +71,19 @@ bool primaryAdjacentToCursor(const std::string &text, unsigned cursor, const std
 bool selectionAtCaret(const std::string &text, unsigned cursor, unsigned anchor,
                       const std::function<bool(std::string &)> &readPrimary);
 
+// Key-path form used by the frontends — the external PRIMARY read spawns a process (150 ms
+// budget per tool) on the IM thread, so the cheapest answer wins:
+// - anchor != cursor ⇒ true, and `anchorSeen` is set: this host reports real anchors (GTK4,
+//   Qt, text-input-v3), so from then on (until the frontend clears it at focus-in)
+//   anchor == cursor really means "no selection" ⇒ false without any probe;
+// - `cachedPrimary` (Fcitx5 clipboard addon, in process; null = no cache): not against the
+//   caret ⇒ false without spawning; against it ⇒ confirmed by `readLive` when `liveTool`
+//   (the cache keeps the text after the app drops the selection);
+// - no cache ⇒ `readLive`.
+bool selectionAtCaretProbe(const std::string &text, unsigned cursor, unsigned anchor, bool &anchorSeen,
+                           const std::string *cachedPrimary, bool liveTool,
+                           const std::function<bool(std::string &)> &readLive);
+
 // PRIMARY selection (the highlighted text) through wl-paste --primary (Wayland) or
 // xclip / xsel (X11) — only when such a tool is on PATH. Blocking: worker thread only.
 bool readPrimarySelection(std::string &out, int timeoutMs = 700);

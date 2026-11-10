@@ -116,11 +116,11 @@ constexpr uint64_t kCapMultiline = 1ull << 35;
 // fcitx::InputContext → viettelex::InputContext
 class FcitxClient final : public vt::InputContext {
 public:
-    using ReadPrimary = std::function<bool(std::string &)>;
-    // readPrimary: PRIMARY selection for selectionAtCaret (the clipboard addon's cache);
-    // empty = a short external read (wl-paste / xclip / xsel).
-    explicit FcitxClient(fcitx::InputContext *ic, ReadPrimary readPrimary = {})
-        : ic_(ic), readPrimary_(std::move(readPrimary)) {}
+    // cachedPrimary: the clipboard addon's in-process PRIMARY cache for selectionAtCaret
+    // (false = no addon); anchorSeen: VietTelexState::anchorSeen (null = do not learn).
+    using CachedPrimary = std::function<bool(std::string &)>;
+    explicit FcitxClient(fcitx::InputContext *ic, CachedPrimary cachedPrimary = {}, bool *anchorSeen = nullptr)
+        : ic_(ic), cachedPrimary_(std::move(cachedPrimary)), anchorSeen_(anchorSeen) {}
 
     void setPreedit(const std::string &s, bool misspelled) override {
         fcitx::Text text;
@@ -273,15 +273,22 @@ public:
         if (!ic_->capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText)) return false;
         const auto &st = ic_->surroundingText();
         if (!st.isValid()) return true;
-        return vt::selectionAtCaret(st.text(), st.cursor(), st.anchor(), [this](std::string &p) {
-            if (readPrimary_) return readPrimary_(p);
-            return vt::readPrimarySelection(p, 150);
-        });
+        // Cheapest first (vt::selectionAtCaretProbe): no process spawn on the key path when
+        // the host reports real anchors or the cached PRIMARY is not at the caret.
+        bool scratch = false;
+        bool &seen = anchorSeen_ ? *anchorSeen_ : scratch;
+        std::string cached;
+        const bool haveCache = cachedPrimary_ && cachedPrimary_(cached);
+        return vt::selectionAtCaretProbe(st.text(), st.cursor(), st.anchor(), seen,
+                                         haveCache ? &cached : nullptr,
+                                         vt::primarySelectionToolAvailable(),
+                                         [](std::string &p) { return vt::readPrimarySelection(p, 150); });
     }
 
 private:
     fcitx::InputContext *ic_;
-    ReadPrimary readPrimary_;
+    CachedPrimary cachedPrimary_;
+    bool *anchorSeen_;
 };
 
 class VietTelexState final : public fcitx::InputContextProperty {
@@ -293,6 +300,9 @@ public:
     std::string clientId;  // ic->program()
     bool stateLoaded = false;
     bool rememberState = true;  // AppPolicy.rememberState of the current field
+    // The host reported anchor != cursor in this focus: its anchors are real, so no PRIMARY
+    // probe before reach-backs (vt::selectionAtCaretProbe). Cleared at activation.
+    bool anchorSeen = false;
     vt::PolicyCache policy;     // inputs of the field policy last applied (refreshFieldFlags)
     // Text tool result that arrived while this context had no focus (the tray menu took
     // it): committed on the next activation if still fresh.
@@ -376,7 +386,7 @@ public:
         g_pickCandidate = [this](fcitx::InputContext *ic) {
             try {
                 if (!ic || instance_->inputMethod(ic) != "viettelex") return;
-                FcitxClient client(ic, primaryReader(ic));
+                FcitxClient client(ic, primaryCache(ic), &state(ic)->anchorSeen);
                 state(ic)->session.chooseHint(client);
             } catch (...) {
             }
@@ -457,7 +467,7 @@ public:
             auto *ic = event.inputContext();
             auto *st = state(ic);
             ensureAppState(st);
-            FcitxClient client(ic, primaryReader(ic));
+            FcitxClient client(ic, primaryCache(ic), &state(ic)->anchorSeen);
             refreshFieldFlags(st, client);
             vt::KeyEvent ev = toVt(event);
             if (st->session.isAddTonesHotkey(ev)) {
@@ -487,6 +497,7 @@ public:
             if (watcher_.changedOnDiskUnwatched()) applySettingsToAll();  // inotify fallback
             auto *st = state(ic);
             st->stateLoaded = false;
+            st->anchorSeen = false;  // one context can serve several apps (GNOME Wayland)
             ensureAppState(st);
             st->session.focusIn();
             ic->statusArea().addAction(fcitx::StatusGroup::InputMethod, &modeAction_);
@@ -579,19 +590,17 @@ private:
     FCITX_ADDON_DEPENDENCY_LOADER(clipboard, instance_->addonManager());
 #endif
 
-    // PRIMARY from the clipboard addon's in-process cache (no IPC); empty = no addon. The
+    // PRIMARY from the clipboard addon's in-process cache (no IPC); false = no addon. The
     // cache keeps the last text after the app drops the selection (GTK3 entry: select, then
-    // End) — so a cached hit is confirmed with a short external read when a tool exists.
-    FcitxClient::ReadPrimary primaryReader(fcitx::InputContext *ic) {
+    // End) — so a cached hit at the caret is confirmed with a short external read when a
+    // tool exists (vt::selectionAtCaretProbe); a miss costs nothing.
+    FcitxClient::CachedPrimary primaryCache(fcitx::InputContext *ic) {
 #if defined(VT_HAVE_FCITX_CLIPBOARD)
         return [this, ic](std::string &out) {
             auto *clip = clipboard();
-            if (!clip) return vt::readPrimarySelection(out, 150);
+            if (!clip) return false;
             out = clip->call<fcitx::IClipboard::primary>(ic);
-            if (out.empty()) return false;
-            std::string live;
-            if (vt::readPrimarySelection(live, 150) || vt::primarySelectionToolAvailable()) out = live;
-            return !out.empty();
+            return true;
         };
 #else
         (void)ic;

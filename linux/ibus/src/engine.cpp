@@ -26,6 +26,7 @@
 #include "viettelex/gnome_monitor.h"
 #include "viettelex/session.h"
 #include "viettelex/settings.h"
+#include "viettelex/surrounding_cache.h"
 #include "viettelex/text_tools.h"
 #include "viettelex/watcher.h"
 
@@ -71,6 +72,9 @@ struct VtIBusEngine {
     // (XIM, some Qt/Electron builds, terminals), so "nothing before the caret" was trusted.
     gboolean surroundingProven;
     gboolean tableShown;  // the word-prediction lookup table is up
+    // The client reported anchor != cursor in this focus: its anchors are real, so no PRIMARY
+    // probe before reach-backs (vt::selectionAtCaretProbe). Cleared at focus-in.
+    bool anchorSeen;
 };
 
 struct VtIBusEngineClass {
@@ -122,7 +126,26 @@ constexpr guint kBackSpaceKeycode = 14;  // evdev KEY_BACKSPACE (IBus keycodes a
 
 class IBusClient final : public vt::InputContext {
 public:
-    explicit IBusClient(IBusEngine *e) : e_(e) {}
+    // Surrounding text is read once per engine callback (vt::SurroundingCache): an IBusClient
+    // lives for one vfunc.
+    explicit IBusClient(IBusEngine *e) : e_(e), surrounding_([e](vt::SurroundingSnapshot &out) {
+        return readSurrounding(e, out);
+    }) {}
+    // ibus_engine_get_surrounding_text returns a new reference (g_object_ref in IBus 1.5.26 …
+    // main) and emits RequireSurroundingText: copy the text out, drop the ref.
+    static bool readSurrounding(IBusEngine *e, vt::SurroundingSnapshot &out) {
+        IBusText *text = nullptr;
+        guint cursor = 0, anchor = 0;
+        ibus_engine_get_surrounding_text(e, &text, &cursor, &anchor);
+        if (!text) return false;
+        const gchar *s = ibus_text_get_text(text);
+        const bool ok = s != nullptr;
+        if (ok) out.text = s;
+        out.cursor = cursor;
+        out.anchor = anchor;
+        g_object_unref(text);
+        return ok;
+    }
     void setPreedit(const std::string &s, bool misspelled) override {
         if (s.empty()) {
             ibus_engine_update_preedit_text_with_mode(e_, ibus_text_new_from_static_string(""), 0, FALSE,
@@ -151,17 +174,18 @@ public:
     // vt::InputContext::reportedCharsBeforeCursor); nothing at all when 0 is allowed.
     void deleteBeforeCursor(int n) override {
         n = vt::clampDeleteToReport(n, reportedCharsBeforeCursor());
-        if (n > 0) ibus_engine_delete_surrounding_text(e_, -n, guint(n));
+        if (n > 0) {
+            ibus_engine_delete_surrounding_text(e_, -n, guint(n));
+            surrounding_.invalidate();  // IBus rewrote its copy of the text
+        }
     }
     // The engine's copy of the last report (whether proven or not: an empty field reports "").
     long reportedCharsBeforeCursor() override {
         if (!(e_->client_capabilities & IBUS_CAP_SURROUNDING_TEXT)) return -1;
-        IBusText *text = nullptr;
-        guint cursor = 0, anchor = 0;
-        ibus_engine_get_surrounding_text(e_, &text, &cursor, &anchor);
-        if (!text) return 0;
-        guint len = ibus_text_get_length(text);
-        return long(cursor < len ? cursor : len);
+        const vt::SurroundingSnapshot *sn = surrounding_.get();
+        if (!sn) return 0;
+        glong len = g_utf8_strlen(sn->text.c_str(), -1);
+        return long(glong(sn->cursor) < len ? glong(sn->cursor) : len);
     }
     // Direct (terminals on the GTK2/3 IBus module, see vt::ClientHost): BackSpace and the new
     // text all go out as ForwardKeyEvent. The module gdk_event_put()s each one, so they reach
@@ -218,11 +242,10 @@ public:
         ibus_engine_update_auxiliary_text(e_, ibus_text_new_from_string(aux.c_str()), TRUE);
     }
     bool textBeforeCursor(std::string &out) override {
-        IBusText *text = nullptr;
-        guint cursor = 0, anchor = 0;
-        if (!read(text, cursor, anchor)) return false;
-        const gchar *s = ibus_text_get_text(text);
-        if (!s) return false;
+        const vt::SurroundingSnapshot *sn = read();
+        if (!sn) return false;
+        const gchar *s = sn->text.c_str();
+        const guint cursor = sn->cursor;
         glong len = g_utf8_strlen(s, -1);
         if (glong(cursor) > len) return false;
         const gchar *end = g_utf8_offset_to_pointer(s, glong(cursor));
@@ -231,11 +254,10 @@ public:
     }
     // Verify-before-delete (Session) asks before every in-place edit: copy only the tail.
     bool textBeforeCursorTail(size_t maxChars, std::string &out) override {
-        IBusText *text = nullptr;
-        guint cursor = 0, anchor = 0;
-        if (!read(text, cursor, anchor)) return false;
-        const gchar *s = ibus_text_get_text(text);
-        if (!s) return false;
+        const vt::SurroundingSnapshot *sn = read();
+        if (!sn) return false;
+        const gchar *s = sn->text.c_str();
+        const guint cursor = sn->cursor;
         glong len = g_utf8_strlen(s, -1);
         if (glong(cursor) > len) return false;
         const gchar *end = g_utf8_offset_to_pointer(s, glong(cursor));
@@ -245,32 +267,30 @@ public:
         return true;
     }
     bool hasSelection() override {
-        IBusText *text = nullptr;
-        guint cursor = 0, anchor = 0;
-        if (!read(text, cursor, anchor)) return false;
-        return anchor != cursor;
+        const vt::SurroundingSnapshot *sn = read();
+        return sn && sn->anchor != sn->cursor;
     }
     // Before a reach-back only (Session): the GTK3 IBus module (Firefox, Chromium, GTK3 apps)
     // sends anchor == cursor even with text selected — then PRIMARY against the caret, read
     // with a short timeout (rare: re-edit / ⌫ reopen / shortcut or auto-restore delete).
     bool selectionAtCaret() override {
-        IBusText *text = nullptr;
-        guint cursor = 0, anchor = 0;
-        if (!read(text, cursor, anchor)) return false;
-        const gchar *s = ibus_text_get_text(text);
-        if (!s) return anchor != cursor;
-        return vt::selectionAtCaret(s, cursor, anchor,
-                                    [](std::string &p) { return vt::readPrimarySelection(p, 150); });
+        const vt::SurroundingSnapshot *sn = read();
+        if (!sn) return false;
+        // No process spawn when this host already showed real anchors (GTK4, Qt) in this
+        // focus (vt::selectionAtCaretProbe); IBus has no in-process PRIMARY cache.
+        return vt::selectionAtCaretProbe(sn->text, sn->cursor, sn->anchor,
+                                         reinterpret_cast<VtIBusEngine *>(e_)->anchorSeen, nullptr, true,
+                                         [](std::string &p) { return vt::readPrimarySelection(p, 150); });
     }
 
 private:
-    bool read(IBusText *&text, guint &cursor, guint &anchor) {
-        if (!(e_->client_capabilities & IBUS_CAP_SURROUNDING_TEXT)) return false;
-        if (!reinterpret_cast<VtIBusEngine *>(e_)->surroundingProven) return false;
-        ibus_engine_get_surrounding_text(e_, &text, &cursor, &anchor);
-        return text != nullptr;
+    const vt::SurroundingSnapshot *read() {
+        if (!(e_->client_capabilities & IBUS_CAP_SURROUNDING_TEXT)) return nullptr;
+        if (!reinterpret_cast<VtIBusEngine *>(e_)->surroundingProven) return nullptr;
+        return surrounding_.get();
     }
     IBusEngine *e_;
+    vt::SurroundingCache surrounding_;
 };
 
 void updateModeProp(VtIBusEngine *self) {
@@ -397,11 +417,10 @@ void runTextTool(VtIBusEngine *self, vt::TextTool tool) {
     vt::TextToolRunner::Source source;
     if ((engine->client_capabilities & IBUS_CAP_SURROUNDING_TEXT) && self->surroundingProven) {
         // The app reports its text: its selection is authoritative.
-        IBusText *t = nullptr;
-        guint cursor = 0, anchor = 0;
-        ibus_engine_get_surrounding_text(engine, &t, &cursor, &anchor);
-        const gchar *s = t ? ibus_text_get_text(t) : nullptr;
-        if (!s) return;
+        vt::SurroundingSnapshot sn;
+        if (!IBusClient::readSurrounding(engine, sn)) return;
+        const std::string s = sn.text;
+        const guint cursor = sn.cursor, anchor = sn.anchor;
         std::string sel;
         if (vt::selectionFromSurrounding(s, cursor, anchor, sel)) {
             source = [sel](std::string &out) {
@@ -411,7 +430,7 @@ void runTextTool(VtIBusEngine *self, vt::TextTool tool) {
         } else {
             // No selection reported — GTK3 never reports one (no anchor): PRIMARY, but only
             // when it touches the caret, else nothing to do.
-            source = [text = std::string(s), cursor](std::string &out) {
+            source = [text = s, cursor](std::string &out) {
                 std::string p;
                 if (!vt::readPrimarySelection(p) || !vt::primaryAdjacentToCursor(text, cursor, p)) return false;
                 out = std::move(p);
@@ -530,6 +549,7 @@ gboolean processKeyEvent(IBusEngine *engine, guint keyval, guint keycode, guint 
 void focusCommon(VtIBusEngine *self) {
     if (G().watcher->changedOnDiskUnwatched()) applySettingsToAll();  // inotify fallback
     self->surroundingProven = FALSE;  // prove it again for this field
+    self->anchorSeen = false;         // one context can serve several apps (GNOME Wayland)
     self->focused = TRUE;
     *self->appId = effectiveAppId(*self->clientId);
     loadAppState(self);
@@ -541,6 +561,7 @@ void focusCommon(VtIBusEngine *self) {
         IBusText *text = nullptr;
         guint cursor = 0, anchor = 0;
         ibus_engine_get_surrounding_text(IBUS_ENGINE(self), &text, &cursor, &anchor);
+        if (text) g_object_unref(text);  // a new reference (IBus 1.5.26 … main)
     }
     self->session->focusIn();
     refreshPropLabels(self);

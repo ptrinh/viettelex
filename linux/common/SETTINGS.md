@@ -216,7 +216,10 @@ vùng chọn** (toi di hoc → tôi đi học), **HOA**, **thường**, **Hoa Đ
   PRIMARY nhưng chỉ khi nó nằm sát con trỏ (chữ ngay trước/sau con trỏ trùng nó), không thì không
   làm gì. App không báo surrounding: vùng chọn PRIMARY (Fcitx5: addon
   clipboard; IBus/dự phòng: `wl-paste --primary` / `xclip` / `xsel` nếu có sẵn — không phải
-  phụ thuộc bắt buộc).
+  phụ thuộc bắt buộc). Trên đường phím (trước re-edit / ⌫ mở lại / xoá của gõ tắt), đọc
+  PRIMARY bên ngoài (≤ 150 ms mỗi công cụ, dừng ở công cụ đầu tiên trả lời) chỉ khi cần:
+  không khi app đã báo anchor ≠ cursor trong lần focus này (GTK4, Qt — anchor thật), không khi
+  bản cache của addon clipboard Fcitx5 không nằm sát con trỏ (`selectionAtCaretProbe`).
 - Thay: commit kết quả đè lên vùng chọn (gõ đè thay vùng chọn). **Không đụng clipboard** nên
   không có gì phải khôi phục. Nếu menu làm app mất focus, kết quả được commit ở lần focus lại
   (trong 3 giây).

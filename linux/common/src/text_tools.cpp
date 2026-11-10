@@ -336,6 +336,23 @@ bool selectionAtCaret(const std::string &text, unsigned cursor, unsigned anchor,
     return primaryAdjacentToCursor(text, cursor, p);
 }
 
+bool selectionAtCaretProbe(const std::string &text, unsigned cursor, unsigned anchor, bool &anchorSeen,
+                           const std::string *cachedPrimary, bool liveTool,
+                           const std::function<bool(std::string &)> &readLive) {
+    if (anchor != cursor) {
+        anchorSeen = true;
+        return true;
+    }
+    if (anchorSeen) return false;
+    if (cachedPrimary) {
+        if (!primaryAdjacentToCursor(text, cursor, *cachedPrimary)) return false;
+        if (!liveTool) return true;
+    }
+    std::string p;
+    if (!readLive || !readLive(p)) return false;
+    return primaryAdjacentToCursor(text, cursor, p);
+}
+
 namespace {
 std::vector<std::vector<std::string>> primaryCommands() {
     std::vector<std::vector<std::string>> cmds;
@@ -359,11 +376,13 @@ bool primarySelectionToolAvailable() { return !primaryCommands().empty(); }
 
 bool readPrimarySelection(std::string &out, int timeoutMs) {
     out.clear();
+    // The first tool that answers (exit 0) is the answer — empty = nothing selected; the next
+    // tool would only spend another timeout saying the same.
     for (const auto &c : primaryCommands()) {
         std::string s;
-        if (runProcess(c, "", s, timeoutMs, kTextToolMaxChars * 4 + 16) == 0 && !s.empty()) {
+        if (runProcess(c, "", s, timeoutMs, kTextToolMaxChars * 4 + 16) == 0) {
             out = std::move(s);
-            return true;
+            return !out.empty();
         }
     }
     return false;
