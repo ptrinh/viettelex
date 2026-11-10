@@ -1782,3 +1782,49 @@ final class EndWordSignalTests: XCTestCase {
                        "Nhận tín hiệu “kết thúc từ” từ app khác")
     }
 }
+
+// Tự cập nhật: (1) swap thất bại sau khi đã dừng tap (cách ly 600 s) phải bật lại tap
+// ngay — trước đây terminal gõ chữ thô 10 phút; (2) bản tải về phải đúng bản đã hỏi và
+// mới hơn bản đang chạy (không hạ cấp, không cài lại chính nó).
+final class SelfUpdaterSafetyTests: XCTestCase {
+    private struct SwapFailed: Error {}
+
+    func testFailedSwapResumesTheTap() async {
+        var log: [String] = []
+        do {
+            try await SelfUpdater.installStoppingTap(
+                stop: { log.append("stop") },
+                install: { log.append("install"); throw SwapFailed() },
+                resume: { log.append("resume") })
+            XCTFail("lỗi swap phải được ném tiếp (onFailure + hộp thoại)")
+        } catch {
+            XCTAssertTrue(error is SwapFailed)
+        }
+        XCTAssertEqual(log, ["stop", "install", "resume"])
+    }
+
+    func testSuccessfulSwapDoesNotResume() async throws {
+        var log: [String] = []
+        try await SelfUpdater.installStoppingTap(
+            stop: { log.append("stop") },
+            install: { log.append("install") },
+            resume: { log.append("resume") })
+        XCTAssertEqual(log, ["stop", "install"], "thành công ⇒ exit(0) sau đó, tap giữ nguyên dừng")
+    }
+
+    func testVersionGate() {
+        XCTAssertNil(SelfUpdater.versionRefusal(downloaded: "1.9.4", requested: "1.9.4", running: "1.9.3"))
+        // Zip đặt nhầm tên / bản khác bản đã hỏi.
+        XCTAssertNotNil(SelfUpdater.versionRefusal(downloaded: "1.9.5", requested: "1.9.4", running: "1.9.3"))
+        // Hạ cấp và cài lại chính nó.
+        XCTAssertNotNil(SelfUpdater.versionRefusal(downloaded: "1.9.2", requested: "1.9.2", running: "1.9.3"))
+        XCTAssertNotNil(SelfUpdater.versionRefusal(downloaded: "1.9.3", requested: "1.9.3", running: "1.9.3"))
+        // Không có / sai định dạng phiên bản.
+        XCTAssertNotNil(SelfUpdater.versionRefusal(downloaded: nil, requested: "1.9.4", running: "1.9.3"))
+        XCTAssertNotNil(SelfUpdater.versionRefusal(downloaded: "1.9.4-beta", requested: "1.9.4", running: "1.9.3"))
+        // So số, không so chuỗi: 1.10.0 mới hơn 1.9.3.
+        XCTAssertNil(SelfUpdater.versionRefusal(downloaded: "1.10.0", requested: "1.10.0", running: "1.9.3"))
+        // Bản đang chạy không đọc được: chỉ còn luật "đúng bản đã hỏi".
+        XCTAssertNil(SelfUpdater.versionRefusal(downloaded: "1.9.4", requested: "1.9.4", running: nil))
+    }
+}

@@ -3151,6 +3151,14 @@ final class TerminalTapController {
         teardown()
     }
 
+    /// Self-update swap FAILED after stopForUpdate(): we keep running the old bundle,
+    /// so lift the 600 s update quarantine and bring the tap back now. MAIN.
+    func resumeAfterFailedUpdate() {
+        DebugLog.log("update: swap failed → tap quarantine lifted, restarting tap")
+        quarantineUntilNs = 0
+        ensureRunning()
+    }
+
     /// Called from the menu repair flow / TCC change notification: the user just
     /// DID something about the permission — drop the backoff and re-evaluate now.
     func retryNow() {
