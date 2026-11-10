@@ -149,7 +149,7 @@ final class SettingsModel: ObservableObject {
     @Published var autoRestore: Bool { didSet { AppState.shared.autoRestore = autoRestore } }
     @Published var freeMarking: Bool { didSet { AppState.shared.freeMarking = freeMarking } }
     @Published var modernOrthography: Bool { didSet { AppState.shared.modernOrthography = modernOrthography } }
-    /// "Sửa dấu từ đã gõ" — key có từ trước (mặc định bật), trước 11/2026 không có UI trên macOS.
+    /// "Sửa dấu từ đã gõ" — key có từ trước (mặc định bật), có UI + đồng bộ iCloud từ 11/2026.
     @Published var reEditWord: Bool { didSet { AppState.shared.reEditWord = reEditWord } }
     @Published var liveSpellCheck: Bool { didSet { AppState.shared.liveSpellCheck = liveSpellCheck } }
     @Published var simpleTelex: Bool { didSet { AppState.shared.simpleTelex = simpleTelex } }
@@ -219,6 +219,13 @@ final class SettingsModel: ObservableObject {
     }
     @Published var safeUnknownApps: Bool { didSet { AppState.shared.safeUnknownApps = safeUnknownApps } }
     @Published var debugLogging: Bool { didSet { AppState.shared.debugLogging = debugLogging } }
+    /// Tín hiệu "kết thúc từ" (#156): đổi là đăng ký / gỡ observer ngay.
+    @Published var endWordSignal: Bool {
+        didSet {
+            AppState.shared.endWordSignal = endWordSignal
+            EndWordSignal.apply(enabled: endWordSignal)
+        }
+    }
     @Published var autoUpdateCheck: Bool { didSet { AppState.shared.autoUpdateCheck = autoUpdateCheck } }
     /// UI language: "system" / "en" / "vi". Changing it re-renders every view that
     /// observes this model (they call `loc(_:)`), so the switch is live — no relaunch.
@@ -287,6 +294,7 @@ final class SettingsModel: ObservableObject {
             ? savedLayout : KeyboardLayoutOverride.systemDefault
         safeUnknownApps = AppState.shared.safeUnknownApps
         debugLogging = AppState.shared.debugLogging
+        endWordSignal = AppState.shared.endWordSignal
         autoUpdateCheck = AppState.shared.autoUpdateCheck
         uiLanguage = AppState.shared.uiLanguage
         reloadShortcuts()
@@ -1296,11 +1304,24 @@ struct ModeTableTab: View {
     /// gõ cần nó, "Xoá dữ liệu đã học" giải thích bằng tooltip).
     enum C {
         static let intro = "App types wrong or underlines? Change its mode — if unsure, leave it on Auto."
-        static let safe = "Apps not yet recognized: retype with Backspace instead of guessing."
+        static let safe = "Unrecognized apps: Real keystrokes (Underline without permission) instead of guessing."
         static let relearn = "Forgets learned modes; the modes you picked stay."
         static let all = [intro, safe, relearn]
     }
     static let safeTitle = "Safe typing for unrecognized apps"
+
+    /// Một dòng giải thích cách gõ đang chọn (tooltip của picker trong bảng), theo tag
+    /// AppState.AppMode. Khoá Localizable.strings.
+    static let modeHelp: [String: String] = [
+        "auto": "Auto: VietTelex picks how to type in this app.",
+        "inPlace": "Edit in the field: tones are fixed right inside the text field.",
+        "tap": "Real keystrokes: types like a keyboard (Backspace, retype), no underline.",
+        "marked": "Underline: the word being typed is underlined and always shows correctly.",
+        "axDetect": "Detect per field: picks a mode for each field (address bar, page…).",
+        "selection": "Select and retype: selects the word being typed, then types over it.",
+        "emptyReset": "Excel style: only for Excel cells.",
+        "passthrough": "Vietnamese off: keys reach this app unchanged.",
+    ]
 
     /// Tên cách gõ cần quyền: thêm "(cần quyền …)" chỉ khi CHƯA cấp — cấp rồi thì gọn.
     private func axModeName(_ key: String) -> String {
@@ -1370,6 +1391,8 @@ struct ModeTableTab: View {
                         Text(model.loc(ModeNames.passthrough)).tag("passthrough")
                     }
                     .labelsHidden()
+                    .accessibilityLabel(row.name)
+                    .help(model.loc(Self.modeHelp[model.appMode(row.id)] ?? Self.modeHelp["auto"]!))
                 }.width(min: 150)
                 TableColumn("") { row in
                     if row.deletable {
@@ -1423,7 +1446,7 @@ struct ModeTableTab: View {
                 }
                 .help(model.loc(C.relearn))
                 Spacer()
-                Button { importModes() } label: { Label(model.loc("Import…"), systemImage: "square.and.arrow.up.on.square") }
+                Button { importModes() } label: { Label(model.loc("Import…"), systemImage: "square.and.arrow.down") }
                 Button { exportModes() } label: { Label(model.loc("Export to YAML…"), systemImage: "square.and.arrow.up") }
             }
             // Từ tab Thử nghiệm (14/10/2026): "app nào gõ thế nào". "Giữ VietTelex khi macOS tự đổi
@@ -1505,7 +1528,8 @@ struct GeneralTab: View {
         static let icloudUnavailable = "Not available in this build (it isn’t signed with iCloud)."
         static let weekly = "Manual check: the newest release on GitHub. Weekly check: the stable channel."
         static let debugLog = "Records events in memory, never your text. Reproduce the bug, then copy the log."
-        static let all = [menuIcon, icloud, icloudUnavailable, weekly, debugLog]
+        static let endWord = "Apps and scripts can post com.viettelex.endWord to end the word being typed."
+        static let all = [menuIcon, icloud, icloudUnavailable, weekly, debugLog, endWord]
     }
 
     var body: some View {
@@ -1567,11 +1591,16 @@ struct GeneralTab: View {
 struct DiagnosticsSection: View {
     /// Tên mục chung desktop (spec cleanup §4): "Nâng cao / Gỡ lỗi".
     static let headerKey = "Advanced / Debugging"
+    static let endWordTitle = "Accept the “end of word” signal from other apps"
     @EnvironmentObject var model: SettingsModel
     @State private var saveResult: String?
 
     var body: some View {
         Section(header: Label(model.loc(Self.headerKey), systemImage: "stethoscope")) {
+            // #156: tín hiệu cho người viết app/script (hdsd). Mặc định bật; tắt = 0 chi phí.
+            Toggle(isOn: $model.endWordSignal) {
+                SettingRowLabel(title: model.loc(Self.endWordTitle), caption: model.loc(GeneralTab.C.endWord))
+            }
             Toggle(isOn: $model.debugLogging) {
                 SettingRowLabel(title: model.loc("Record debug log"), caption: model.loc(GeneralTab.C.debugLog))
             }
@@ -1668,7 +1697,7 @@ enum DebugHeader {
             // from every prior debug log meant a tester's own `defaults write` was invisible
             // evidence ("chỉ mỗi em bị" — 2026-08-05).
             "flags: modifyInPlace=\(s.tapModifyEventInPlace) skipKeyUp=\(s.tapSkipSyntheticKeyUp) axReplace=\(s.axSelectionReplace) breaker=\(s.tapCascadeBreaker) nativeFastPath=\(s.tapNativeFastPath)",
-            "settings: simpleTelex=\(s.simpleTelex) freeMarking=\(s.freeMarking) modern=\(s.modernOrthography) liveSpell=\(s.liveSpellCheck) autoRestore=\(s.autoRestore) vni=\(s.vniMode) quick=\(s.quickTelex) ctxEnglish=\(s.contextualEnglish) retroEnglish=\(s.retroactiveEnglish) freqEnglish=\(s.englishByFrequency) teencode=\(s.teencode) collisionVN=\(s.collisionPrefersVietnamese) reEdit=\(s.reEditWord) bracket=\(s.bracketVowels) safeUnknown=\(s.safeUnknownApps)",
+            "settings: simpleTelex=\(s.simpleTelex) freeMarking=\(s.freeMarking) modern=\(s.modernOrthography) liveSpell=\(s.liveSpellCheck) autoRestore=\(s.autoRestore) vni=\(s.vniMode) quick=\(s.quickTelex) ctxEnglish=\(s.contextualEnglish) retroEnglish=\(s.retroactiveEnglish) freqEnglish=\(s.englishByFrequency) teencode=\(s.teencode) collisionVN=\(s.collisionPrefersVietnamese) reEdit=\(s.reEditWord) bracket=\(s.bracketVowels) safeUnknown=\(s.safeUnknownApps) endWord=\(s.endWordSignal)",
             // Count only — the trigger/expansion pairs are USER-TYPED content the log
             // must never carry (same rule as everywhere else here), but a nonzero count
             // is itself diagnostic: a custom gõ tắt entry colliding with a Vietnamese
@@ -2000,7 +2029,7 @@ struct ShortcutsTab: View {
             if !model.systemConflicts.isEmpty { systemConflictNote }
 
             HStack {
-                Button { importPlist() } label: { Label(model.loc("Import…"), systemImage: "square.and.arrow.up.on.square") }
+                Button { importPlist() } label: { Label(model.loc("Import…"), systemImage: "square.and.arrow.down") }
                 Button { exportPlist() } label: { Label(model.loc("Export to YAML…"), systemImage: "square.and.arrow.up") }
                 Spacer()
             }

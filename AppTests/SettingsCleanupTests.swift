@@ -68,9 +68,11 @@ final class SettingsCleanupTests: XCTestCase {
     /// "Sửa dấu từ đã gõ" có UI mới trên macOS — ghi đúng key cũ `reEditWord`, mặc định vẫn bật.
     func testReEditWordToggleUsesExistingKey() {
         let s = AppState.shared
-        let saved = s.defaults.object(forKey: "reEditWord")
-        defer { s.defaults.set(saved, forKey: "reEditWord") }
-        s.defaults.removeObject(forKey: "reEditWord")
+        let saved = s.reEditWord
+        defer { s.reEditWord = saved }
+        // Giá trị nay cache trong bộ nhớ (đường phím): xoá key trên đĩa không còn đổi được
+        // nó giữa phiên, nên đặt qua property thay vì removeObject.
+        s.reEditWord = true
         XCTAssertTrue(s.reEditWord)
         let model = SettingsModel(selected: .typing)
         XCTAssertTrue(model.reEditWord)

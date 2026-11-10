@@ -905,6 +905,9 @@ extension AppSupportTests {
             ({ s.debugLogging }, { s.debugLogging = $0 }),
             ({ s.autoUpdateCheck }, { s.autoUpdateCheck = $0 }),
             ({ s.axPromptShown }, { s.axPromptShown = $0 }),
+            // Cache trong bộ nhớ (tap đọc ở mỗi phím chữ) — ghi phải tới cả cache lẫn đĩa.
+            ({ s.reEditWord }, { s.reEditWord = $0 }),
+            ({ s.syncedSetting("reEditWord") ?? false }, { s.setSyncedSetting("reEditWord", $0) }),
         ]
         for accessor in bools {
             let saved = accessor.get()
@@ -929,9 +932,12 @@ extension AppSupportTests {
     /// cũ của tester bị xoá lúc khởi động ⇒ hành vi luôn bật (default true).
     func testGraduatedKeysClearOldOffValues() throws {
         for key in ["tapSkipSyntheticKeyUp", "axSelectionReplace",
-                    "reEditWord", "tapCascadeBreaker", "tapModifyEventInPlace"] {
+                    "tapCascadeBreaker", "tapModifyEventInPlace"] {
             XCTAssertTrue(AppState.graduatedKeys.contains(key), key)
         }
+        // 11/2026: "Sửa dấu từ đã gõ" có công tắc + đồng bộ iCloud lại — TẮT phải sống qua
+        // lần khởi động sau (không thì Mac còn đẩy "bật" lên iCloud đè iPhone).
+        XCTAssertFalse(AppState.graduatedKeys.contains("reEditWord"))
         let suite = "test.viettelex.graduated.\(UUID().uuidString)"
         let d = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { d.removePersistentDomain(forName: suite) }
@@ -963,17 +969,22 @@ extension AppSupportTests {
     /// snapshot (see the AppState doc for the full history). Pinned in both directions:
     /// a fresh install has it on, and an explicit OFF must survive the ON default —
     /// that opt-out is the escape hatch if the 04/08 class ever resurfaces.
-    func testReEditGateDefaultsOn() {
+    func testReEditGateDefaultsOn() throws {
+        // The value is cached in memory now (tap hot path), so the launch-time read is
+        // tested on a private suite instead of deleting the live key mid-session.
+        let suite = "test.viettelex.reedit.\(UUID().uuidString)"
+        let d = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { d.removePersistentDomain(forName: suite) }
+        XCTAssertTrue(AppState.storedReEditWord(d), "fresh install: reach-back behaviors on by default")
+        d.set(false, forKey: "reEditWord")
+        XCTAssertFalse(AppState.storedReEditWord(d), "explicit OFF must survive the ON default")
+        AppState.clearGraduatedKeys(in: d)
+        XCTAssertFalse(AppState.storedReEditWord(d), "…and survive the launch-time graduated-key sweep")
         let s = AppState.shared
-        let saved = s.defaults.object(forKey: "reEditWord") as? Bool
-        defer {
-            if let saved { s.defaults.set(saved, forKey: "reEditWord") }
-            else { s.defaults.removeObject(forKey: "reEditWord") }
-        }
-        s.defaults.removeObject(forKey: "reEditWord")
-        XCTAssertTrue(s.reEditWord, "fresh install: reach-back behaviors on by default")
+        let saved = s.reEditWord
+        defer { s.reEditWord = saved }
         s.reEditWord = false
-        XCTAssertFalse(s.reEditWord, "explicit OFF must survive the ON default")
+        XCTAssertFalse(s.reEditWord)
     }
 }
 
@@ -1475,41 +1486,65 @@ final class BoundaryProbeDowngradeTests: XCTestCase {
 // (CGEvent + post thật) nên quyết định được tách ra hàm thuần.
 final class TapWordBreakTests: XCTestCase {
 
-    /// Một phiên tap tối giản: cùng engine, cùng neo, epoch + cờ IMK do test điều khiển.
+    /// Một phiên tap tối giản: cùng engine, cùng neo, controller IMK + cờ IMK do test
+    /// điều khiển. Ranh giới (khoảng trắng, chữ số) đi như tap: tra gõ tắt với cờ
+    /// dính-số + cụm (ShortcutTail), rồi nối vào cụm.
     private struct TapSession {
         var engine: TelexEngine = {
             var e = TelexEngine(); e.freeMarking = true; return e
         }()
-        var anchor = FocusAnchor()
+        var anchor: FocusAnchor = { var a = FocusAnchor(); _ = a.observe(7); return a }()   // đã neo ở ô 7
         var epoch: UInt64 = 40
+        var controller: UInt64 = 7       // serial controller IMK đang activate
+        private var nextController: UInt64 = 100
         var clientKey = false            // IMK đã thấy phím trong client vừa activate
         var chromium: Bool? = false
         var endWordPending = false
         var breaks = 0
+        var glued = false                // lastTapKeyWasDigit
+        var tail = ShortcutTail()
+        var table = ShortcutTable(["ko": "không"])
+        var expansions: [String] = []
 
-        /// activateServer: epoch +1, cờ phím IMK xoá (như ClientFocus.noteActivated).
-        mutating func activate() { epoch &+= 1; clientKey = false }
+        /// activateServer của controller KHÁC (ô khác): epoch +1, serial mới, cờ IMK xoá.
+        mutating func activate() { nextController &+= 1; activate(controller: nextController) }
+        /// activateServer của một controller cụ thể (cùng serial = cùng ô activate lại).
+        mutating func activate(controller id: UInt64) { epoch &+= 1; controller = id; clientKey = false }
+        mutating func reactivateSameField() { activate(controller: controller) }
 
         mutating func key(_ ch: Character) {
-            let stable = anchor.observe(epoch)
-            let holds = !engine.isEmpty || engine.canReopenLastCommit
+            let stable = anchor.observe(controller)
             let ck = clientKey, chr = chromium
-            if !stable, TapWordBreak.focusMoved(engineHoldsWord: holds, focusStable: stable,
+            if !stable, TapWordBreak.focusMoved(focusStable: stable,
                                                 clientKeySinceActivation: { ck },
                                                 chromiumFamily: { chr }) {
-                engine.reset(); breaks += 1
+                // = abandonWordForNewContext
+                engine.reset(); tail.caretMoved(); glued = false; breaks += 1
             }
             if TapWordBreak.endWord(signalPending: endWordPending,
                                     engineHoldsWord: !engine.isEmpty || engine.canReopenLastCommit) {
                 engine.reset(); breaks += 1
             }
             endWordPending = false
-            _ = engine.feed(ch)
+            if ch.isLetter {
+                _ = engine.feed(ch)
+                return
+            }
+            let b = String(ch)
+            let allow = ShortcutMatch.triggers(boundary: b, glued: glued)
+            let m = ShortcutMatch.find(in: table, composed: engine.composed, raw: engine.rawKeystrokes,
+                                       run: tail.run, allowWord: allow.word, allowToken: allow.token,
+                                       allowAlnum: allow.alnum)
+            if let m { expansions.append(m.expansion) }
+            tail.append(m?.expansion ?? engine.composed)
+            tail.append(b)
+            engine.reset()
+            glued = TelexInputController.gluesShortcutToken(ch.asciiValue)
         }
 
         mutating func type(_ s: String) { for c in s { key(c) } }
         /// Click: tap reset engine + neo lại (nhánh leftMouseDown).
-        mutating func click() { engine.reset(); _ = anchor.observe(epoch) }
+        mutating func click() { engine.reset(); tail.caretMoved(); glued = false; _ = anchor.observe(controller) }
     }
 
     /// Ca của issue: "m" ở split A, AppleScript đổi focus (activateServer), "vieejt" ở B.
@@ -1522,6 +1557,29 @@ final class TapWordBreakTests: XCTestCase {
         XCTAssertEqual(s.breaks, 1)
     }
 
+    /// Follow-up #156: CÙNG ô activate lại giữa từ (WKWebView deactivate→activate ~250 ms,
+    /// MACOS_IME_NOTES) — "viê" + activate lại + "tj" phải ra "việt", không "viêtj".
+    func testSameControllerReactivationMidWordKeepsTheWord() {
+        var s = TapSession()
+        s.type("viee")
+        s.reactivateSameField()
+        s.type("tj")
+        XCTAssertEqual(s.engine.composed, "việt")
+        XCTAssertEqual(s.breaks, 0)
+    }
+
+    /// A → B → A không phím nào ở B: quay về đúng ô cũ, con trỏ không dời ⇒ giữ từ.
+    func testReturningToTheSameControllerKeepsTheWord() {
+        var s = TapSession()
+        let a = s.controller
+        s.type("viee")
+        s.activate()                                  // B
+        s.activate(controller: a)                     // lại A
+        s.type("tj")
+        XCTAssertEqual(s.engine.composed, "việt")
+        XCTAssertEqual(s.breaks, 0)
+    }
+
     /// Hành vi cũ (lỗi) để biết test trên thật sự bảo vệ điều gì.
     func testWithoutBreakTheWordGlues() {
         var e = TelexEngine(); e.freeMarking = true
@@ -1529,14 +1587,14 @@ final class TapWordBreakTests: XCTestCase {
         XCTAssertNotEqual(e.composed, "việt")
     }
 
-    /// Cùng epoch (không đổi focus) ⇒ giữ từ, gõ liền một mạch.
-    func testSameEpochKeepsTheWord() {
+    /// Không đổi focus ⇒ giữ từ, gõ liền một mạch.
+    func testSameFocusKeepsTheWord() {
         var s = TapSession()
         s.type("vie")
         s.type("ejt")
         XCTAssertEqual(s.engine.composed, "việt")
         XCTAssertEqual(s.breaks, 0)
-        XCTAssertFalse(TapWordBreak.focusMoved(engineHoldsWord: true, focusStable: true,
+        XCTAssertFalse(TapWordBreak.focusMoved(focusStable: true,
                                                clientKeySinceActivation: { false },
                                                chromiumFamily: { false }))
     }
@@ -1553,20 +1611,37 @@ final class TapWordBreakTests: XCTestCase {
         XCTAssertEqual(s.breaks, 0)
     }
 
-    /// Engine rỗng (vừa có ranh giới) ⇒ đổi focus không có gì để bỏ.
-    func testEmptyEngineIsNotABreak() {
-        XCTAssertFalse(TapWordBreak.focusMoved(engineHoldsWord: false, focusStable: false,
-                                               clientKeySinceActivation: { false },
-                                               chromiumFamily: { false }))
+    /// Follow-up #156: đổi ô khi engine RỖNG vẫn bỏ ngữ cảnh của ô cũ — "50" ở split A
+    /// (cờ dính-số, cụm "50"), đổi focus, "ko␣" ở split B phải nở "không".
+    func testNumberThenFocusMoveThenShortcutExpands() {
+        XCTAssertTrue(TapWordBreak.focusMoved(focusStable: false,
+                                              clientKeySinceActivation: { false },
+                                              chromiumFamily: { false }),
+                      "engine rỗng vẫn là đổi ô")
+        var s = TapSession()
+        s.type("50")
+        XCTAssertTrue(s.engine.isEmpty)
+        let before = s.breaks
+        s.activate()                                  // split B
+        s.type("ko ")
+        XCTAssertEqual(s.expansions, ["không"])
+        XCTAssertEqual(s.breaks, before + 1)
+    }
+
+    /// Đối chứng: cùng ô, "50ko␣" là từ dính số (#82) ⇒ không nở.
+    func testNumberGluedWordInSameFieldDoesNotExpand() {
+        var s = TapSession()
+        s.type("50ko ")
+        XCTAssertEqual(s.expansions, [])
     }
 
     /// Chromium/Electron: activateServer có thể tới giữa từ trong cùng ô ⇒ không áp
     /// luật; chưa dò xong họ app (nil) ⇒ cũng không (giữ hành vi cũ, fail-closed).
     func testChromiumAndElectronAreExcluded() {
-        XCTAssertFalse(TapWordBreak.focusMoved(engineHoldsWord: true, focusStable: false,
+        XCTAssertFalse(TapWordBreak.focusMoved(focusStable: false,
                                                clientKeySinceActivation: { false },
                                                chromiumFamily: { true }))
-        XCTAssertFalse(TapWordBreak.focusMoved(engineHoldsWord: true, focusStable: false,
+        XCTAssertFalse(TapWordBreak.focusMoved(focusStable: false,
                                                clientKeySinceActivation: { false },
                                                chromiumFamily: { nil }))
         var s = TapSession(); s.chromium = true
@@ -1578,33 +1653,21 @@ final class TapWordBreakTests: XCTestCase {
     /// Ca thường (ổn định) không chạm cờ IMK hay đĩa: closure không được gọi.
     func testStableFocusReadsNothingElse() {
         var touched = false
-        _ = TapWordBreak.focusMoved(engineHoldsWord: true, focusStable: true,
+        _ = TapWordBreak.focusMoved(focusStable: true,
                                     clientKeySinceActivation: { touched = true; return false },
                                     chromiumFamily: { touched = true; return false })
         XCTAssertFalse(touched)
-    }
-
-    /// Ảnh chụp mở lại từ vừa chốt (⌫ #40) của ô cũ cũng là "từ của ô cũ".
-    func testReopenSnapshotCountsAsHeldWord() {
-        var e = TelexEngine(); e.freeMarking = true
-        for c in "thays" { _ = e.feed(c) }
-        _ = e.commitBoundary(autoRestore: false, boundary: " ")
-        XCTAssertTrue(e.isEmpty)
-        XCTAssertTrue(e.canReopenLastCommit)
-        XCTAssertTrue(TapWordBreak.focusMoved(engineHoldsWord: !e.isEmpty || e.canReopenLastCommit,
-                                              focusStable: false,
-                                              clientKeySinceActivation: { false },
-                                              chromiumFamily: { false }))
     }
 
     /// Phần 2: TUI nuốt j/k/i làm lệnh rồi báo "kết thúc từ" ⇒ "vieejt" ra "việt".
     func testEndWordSignalStartsNewWord() {
         var s = TapSession()
         s.type("jki")
+        let before = s.breaks
         s.endWordPending = true
         s.type("vieejt")
         XCTAssertEqual(s.engine.composed, "việt")
-        XCTAssertEqual(s.breaks, 1)
+        XCTAssertEqual(s.breaks, before + 1)
     }
 
     /// Tín hiệu khi engine rỗng: không làm gì (không đếm là một lần bỏ từ).
@@ -1613,20 +1676,40 @@ final class TapWordBreakTests: XCTestCase {
         XCTAssertFalse(TapWordBreak.endWord(signalPending: false, engineHoldsWord: true))
         XCTAssertTrue(TapWordBreak.endWord(signalPending: true, engineHoldsWord: true))
         var s = TapSession()
+        _ = s.anchor.observe(s.controller)
         s.endWordPending = true
         s.type("vieejt")
         XCTAssertEqual(s.engine.composed, "việt")
         XCTAssertEqual(s.breaks, 0)
     }
 
-    /// ClientFocus: activateServer xoá cờ phím IMK, phím IMK đặt lại.
+    /// ClientFocus: activateServer xoá cờ phím IMK, phím IMK đặt lại; ghi serial controller.
     func testClientFocusTracksIMKKeySinceActivation() {
-        ClientFocus.noteActivated(client: "com.mitchellh.ghostty")
+        ClientFocus.noteActivated(client: "com.mitchellh.ghostty", controller: 11)
         XCTAssertFalse(ClientFocus.clientKeySinceActivation)
+        XCTAssertEqual(ClientFocus.snapshot.controller, 11)
         ClientFocus.noteClientKey()
         XCTAssertTrue(ClientFocus.clientKeySinceActivation)
-        ClientFocus.noteActivated(client: "com.mitchellh.ghostty")
+        ClientFocus.noteActivated(client: "com.mitchellh.ghostty", controller: 12)
         XCTAssertFalse(ClientFocus.clientKeySinceActivation, "split mới: chưa có phím nào")
+        XCTAssertEqual(ClientFocus.snapshot.controller, 12)
+    }
+
+    /// Serial controller: duy nhất, khác 0, tăng dần (không tái dùng như địa chỉ object).
+    func testControllerSerialsAreUniqueAndNonZero() {
+        let a = ClientFocus.newControllerSerial(), b = ClientFocus.newControllerSerial()
+        XCTAssertNotEqual(a, 0)
+        XCTAssertNotEqual(a, b)
+        XCTAssertGreaterThan(b, a)
+    }
+
+    /// Re-edit (#111) vẫn thấy MỌI activate (epoch), kể cả cùng controller.
+    func testEpochStillAdvancesOnSameControllerReactivation() {
+        ClientFocus.noteActivated(client: "com.apple.Safari", controller: 21)
+        let e0 = ClientFocus.snapshot.epoch
+        ClientFocus.noteActivated(client: "com.apple.Safari", controller: 21)
+        XCTAssertEqual(ClientFocus.snapshot.epoch, e0 &+ 1)
+        XCTAssertEqual(ClientFocus.snapshot.controller, 21)
     }
 
     /// Tên tín hiệu là hợp đồng công khai (tài liệu + app bên ngoài) — đừng đổi.
@@ -1635,25 +1718,166 @@ final class TapWordBreakTests: XCTestCase {
         XCTAssertNotEqual(EndWordSignal.name, Notification.Name.telexResetComposition.rawValue)
     }
 
-    /// Phiên thật (bài học #116): gõ, click, đổi focus, đua phím đầu, tín hiệu — xen kẽ
-    /// trên CÙNG một phiên.
+    /// Phiên thật (bài học #116): gõ, click, đổi focus, activate lại cùng ô, đua phím đầu,
+    /// số rồi đổi ô, tín hiệu — xen kẽ trên CÙNG một phiên.
     func testRealisticSessionSequence() {
         var s = TapSession()
-        s.type("xin"); s.engine.reset()               // "xin␣" (ranh giới)
+        s.type("xin ")
         s.type("m")                                   // split A
         s.activate()                                  // AppleScript → split B
         s.type("vieejt")
         XCTAssertEqual(s.engine.composed, "việt")
-        s.engine.reset()                              // ␣
+        s.type(" ")
         s.click(); s.activate()                       // click sang ô khác (activate sau click)
-        s.type("ddi")
-        XCTAssertEqual(s.engine.composed, "đi", "click đã reset — activate sau click không cắt \"d\"")
-        s.engine.reset()
+        s.type("ddee")
+        s.reactivateSameField()                       // WebKit activate lại cùng ô giữa từ
+        s.type("nf")
+        XCTAssertEqual(s.engine.composed, "đền", "cùng ô activate lại: không cắt từ")
+        s.type(" ")
         s.type("n"); s.activate(); s.clientKey = true // đua phím đầu: activate trễ sau "n"
         s.type("aay")
         XCTAssertEqual(s.engine.composed, "nây")
+        s.type(" 50")
+        s.activate()                                  // đổi split sau số
+        s.type("ko ")
+        XCTAssertEqual(s.expansions, ["không"])
         s.type("j"); s.endWordPending = true          // TUI: "j" là lệnh, app báo kết thúc từ
         s.type("tooi")
         XCTAssertEqual(s.engine.composed, "tôi")
+    }
+}
+
+// Follow-up #156: tín hiệu com.viettelex.endWord — post dồn dập (script gửi cả hai kênh,
+// vòng lặp) không được thành một hàng dài lần giao trên MAIN; công tắc tắt = không có
+// observer nào (0 chi phí).
+final class EndWordSignalTests: XCTestCase {
+    private let ms: UInt64 = 1_000_000
+
+    /// Một lần giao đang chờ ⇒ lần post mới bị gộp, dù đã quá 50 ms.
+    func testCoalescesWhileDeliveryPending() {
+        var g = EndWordSignal.Gate()
+        XCTAssertTrue(g.accept(nowNs: 1_000 * ms))
+        XCTAssertFalse(g.accept(nowNs: 1_200 * ms), "đang chờ giao: gộp")
+        g.delivered()
+        XCTAssertTrue(g.accept(nowNs: 1_300 * ms))
+    }
+
+    /// Hai post cách nhau < 50 ms (Darwin + distributed cùng lúc) ⇒ chỉ một lần.
+    func testIgnoresPostsCloserThanMinInterval() {
+        var g = EndWordSignal.Gate()
+        XCTAssertTrue(g.accept(nowNs: 1_000 * ms)); g.delivered()
+        XCTAssertFalse(g.accept(nowNs: 1_000 * ms + 10 * ms))
+        XCTAssertFalse(g.accept(nowNs: 1_000 * ms + 49 * ms))
+        XCTAssertTrue(g.accept(nowNs: 1_000 * ms + 50 * ms))
+        XCTAssertEqual(EndWordSignal.minIntervalNs, 50 * ms)
+    }
+
+    /// Công tắc: tắt ⇒ không đăng ký kênh nào; bật lại ⇒ đăng ký; lặp lại không đăng ký trùng.
+    func testSwitchOffMeansNotRegistered() {
+        EndWordSignal.apply(enabled: false)
+        XCTAssertFalse(EndWordSignal.isRegistered)
+        EndWordSignal.apply(enabled: true)
+        XCTAssertTrue(EndWordSignal.isRegistered)
+        EndWordSignal.apply(enabled: true)
+        XCTAssertTrue(EndWordSignal.isRegistered)
+        EndWordSignal.apply(enabled: false)
+        EndWordSignal.apply(enabled: false)
+        XCTAssertFalse(EndWordSignal.isRegistered)
+    }
+
+    /// Nhãn công tắc có bản tiếng Việt (chú thích nằm trong GeneralTab.C.all — test chung).
+    func testSwitchTitleTranslated() throws {
+        let path = try XCTUnwrap(Bundle.main.path(forResource: "vi", ofType: "lproj"))
+        let vi = try XCTUnwrap(Bundle(path: path))
+        XCTAssertEqual(vi.localizedString(forKey: DiagnosticsSection.endWordTitle, value: "∅", table: nil),
+                       "Nhận tín hiệu “kết thúc từ” từ app khác")
+    }
+}
+
+// Tự cập nhật: (1) swap thất bại sau khi đã dừng tap (cách ly 600 s) phải bật lại tap
+// ngay — trước đây terminal gõ chữ thô 10 phút; (2) bản tải về phải đúng bản đã hỏi và
+// mới hơn bản đang chạy (không hạ cấp, không cài lại chính nó).
+final class SelfUpdaterSafetyTests: XCTestCase {
+    private struct SwapFailed: Error {}
+
+    func testFailedSwapResumesTheTap() async {
+        var log: [String] = []
+        do {
+            try await SelfUpdater.installStoppingTap(
+                stop: { log.append("stop") },
+                install: { log.append("install"); throw SwapFailed() },
+                resume: { log.append("resume") })
+            XCTFail("lỗi swap phải được ném tiếp (onFailure + hộp thoại)")
+        } catch {
+            XCTAssertTrue(error is SwapFailed)
+        }
+        XCTAssertEqual(log, ["stop", "install", "resume"])
+    }
+
+    func testSuccessfulSwapDoesNotResume() async throws {
+        var log: [String] = []
+        try await SelfUpdater.installStoppingTap(
+            stop: { log.append("stop") },
+            install: { log.append("install") },
+            resume: { log.append("resume") })
+        XCTAssertEqual(log, ["stop", "install"], "thành công ⇒ exit(0) sau đó, tap giữ nguyên dừng")
+    }
+
+    func testVersionGate() {
+        XCTAssertNil(SelfUpdater.versionRefusal(downloaded: "1.9.4", requested: "1.9.4", running: "1.9.3"))
+        // Zip đặt nhầm tên / bản khác bản đã hỏi.
+        XCTAssertNotNil(SelfUpdater.versionRefusal(downloaded: "1.9.5", requested: "1.9.4", running: "1.9.3"))
+        // Hạ cấp và cài lại chính nó.
+        XCTAssertNotNil(SelfUpdater.versionRefusal(downloaded: "1.9.2", requested: "1.9.2", running: "1.9.3"))
+        XCTAssertNotNil(SelfUpdater.versionRefusal(downloaded: "1.9.3", requested: "1.9.3", running: "1.9.3"))
+        // Không có / sai định dạng phiên bản.
+        XCTAssertNotNil(SelfUpdater.versionRefusal(downloaded: nil, requested: "1.9.4", running: "1.9.3"))
+        XCTAssertNotNil(SelfUpdater.versionRefusal(downloaded: "1.9.4-beta", requested: "1.9.4", running: "1.9.3"))
+        // So số, không so chuỗi: 1.10.0 mới hơn 1.9.3.
+        XCTAssertNil(SelfUpdater.versionRefusal(downloaded: "1.10.0", requested: "1.10.0", running: "1.9.3"))
+        // Bản đang chạy không đọc được: chỉ còn luật "đúng bản đã hỏi".
+        XCTAssertNil(SelfUpdater.versionRefusal(downloaded: "1.9.4", requested: "1.9.4", running: nil))
+    }
+}
+
+// Bảng Ứng dụng: chú thích "cách gõ an toàn" dùng đúng tên cách gõ (Phím thật / Gạch chân),
+// mỗi cách gõ có một dòng giải thích (tooltip picker) cả hai ngôn ngữ, nút Nhập… có bản Việt.
+final class ModeTableStringsTests: XCTestCase {
+    private func vi() throws -> Bundle {
+        let path = try XCTUnwrap(Bundle.main.path(forResource: "vi", ofType: "lproj"))
+        return try XCTUnwrap(Bundle(path: path))
+    }
+
+    func testSafeCaptionUsesModeNames() throws {
+        let v = try vi().localizedString(forKey: ModeTableTab.C.safe, value: "∅", table: nil)
+        let tap = try vi().localizedString(forKey: ModeNames.tap, value: "∅", table: nil)
+        let marked = try vi().localizedString(forKey: ModeNames.marked, value: "∅", table: nil)
+        XCTAssertTrue(v.contains(tap), v)
+        XCTAssertTrue(v.contains(marked), v)
+        XCTAssertFalse(v.contains("Backspace"), v)
+        XCTAssertTrue(ModeTableTab.C.safe.contains(ModeNames.tap))
+    }
+
+    func testEveryModeHasOneLineHelpInBothLanguages() throws {
+        let b = try vi()
+        XCTAssertEqual(Set(ModeTableTab.modeHelp.keys), Set(AppState.AppMode.allCases.map(\.rawValue)))
+        for (tag, key) in ModeTableTab.modeHelp {
+            let v = b.localizedString(forKey: key, value: "∅", table: nil)
+            XCTAssertNotEqual(v, "∅", key)
+            XCTAssertLessThanOrEqual(key.count, 95, key)
+            XCTAssertLessThanOrEqual(v.count, 95, v)
+            XCTAssertFalse(v.contains("\n") || key.contains("\n"), tag)
+        }
+        // Tooltip bắt đầu bằng đúng tên cách gõ hiện trong picker.
+        let tapName = b.localizedString(forKey: ModeNames.tap, value: "∅", table: nil)
+        XCTAssertTrue(b.localizedString(forKey: ModeTableTab.modeHelp["tap"]!, value: "∅", table: nil).hasPrefix(tapName))
+        XCTAssertTrue(ModeTableTab.modeHelp["tap"]!.hasPrefix(ModeNames.tap))
+    }
+
+    func testImportStringsTranslated() throws {
+        let b = try vi()
+        XCTAssertEqual(b.localizedString(forKey: "Import…", value: "∅", table: nil), "Nhập…")
+        XCTAssertNotEqual(b.localizedString(forKey: "Supported formats: YAML, JSON, or one key:value per line.",
+                                            value: "∅", table: nil), "∅")
     }
 }

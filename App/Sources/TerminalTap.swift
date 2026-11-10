@@ -404,18 +404,39 @@ enum DetectorBackoff {
 /// - `clientKeySinceActivation`: IMK đã nhận một phím thật trong client vừa activate
 ///   (issue #156, xem TapWordBreak). Đặt bởi TelexInputController.handle (MAIN), xoá
 ///   ở mỗi activateServer; tap chỉ đọc khi epoch đã lệch giữa từ (hiếm).
+/// - `controller`: số hiệu (serial) của IMKInputController vừa activate — TapWordBreak
+///   (#156) neo vào nó, KHÔNG vào `epoch`: cùng một controller deactivate→activate lại
+///   (WKWebView ~250 ms sau ⌫, popup, cửa sổ phụ) là CÙNG ô ⇒ không cắt từ; controller
+///   khác (IMK tạo một controller cho mỗi client/ô nhập) ⇒ ô khác ⇒ cắt từ. Serial do
+///   `newControllerSerial()` cấp, không dùng ObjectIdentifier (địa chỉ của controller đã
+///   giải phóng có thể được cấp lại cho controller mới ⇒ "trùng" giả).
 enum ClientFocus {
     private static let lock = NSLock()
     private static var _epoch: UInt64 = 0
+    private static var _controller: UInt64 = 0
+    private static var _serials: UInt64 = 0
     private static var _overlayLauncher: String?
     private static var _clientKeySinceActivation = false
 
-    static func noteActivated(client: String?) {
+    /// Số hiệu duy nhất cho một IMKInputController (gọi một lần lúc khởi tạo). 0 không
+    /// bao giờ được cấp (= chưa có activate nào).
+    static func newControllerSerial() -> UInt64 {
+        lock.withLock { _serials &+= 1; return _serials }
+    }
+
+    /// `controller`: serial của controller vừa activate (xem `newControllerSerial`).
+    static func noteActivated(client: String?, controller: UInt64 = 0) {
         lock.withLock {
             _epoch &+= 1
+            _controller = controller
             _overlayLauncher = AppState.isOverlayLauncher(client) ? client : nil
             _clientKeySinceActivation = false
         }
+    }
+
+    /// Một lock trip cho cả hai neo trên đường phím của tap.
+    static var snapshot: (epoch: UInt64, controller: UInt64) {
+        lock.withLock { (_epoch, _controller) }
     }
 
     /// IMK vừa nhận một keyDown thật (không phải burst của mình) trong client đang
@@ -436,10 +457,14 @@ enum ClientFocus {
 /// gọi dropComposition; tap thì chưa bao giờ nghe activateServer.
 ///
 /// Luật (không AX, không ngưỡng thời gian — một phép so trên đường phím):
-/// - `focusMoved`: phím vật lý tới khi ĐÃ CÓ activateServer kể từ phím/click trước
-///   (FocusAnchor — cùng neo với re-edit #111) mà engine còn giữ từ (hoặc ảnh chụp
-///   mở lại từ vừa chốt) ⇒ bỏ từ cũ, phím này bắt đầu từ mới. Không phát gì: chữ cũ đã
-///   nằm ở ô cũ.
+/// - `focusMoved`: phím vật lý tới khi controller IMK đang activate KHÁC controller lúc
+///   phím/click trước (FocusAnchor trên `ClientFocus.controller`) ⇒ bỏ ngữ cảnh của ô
+///   cũ (từ đang soạn, cụm gõ tắt, cờ "dính số", cụm số của chip tiền, chuỗi Thêm
+///   dấu), phím này bắt đầu từ mới. Không phát gì: chữ cũ đã nằm ở ô cũ. CÙNG controller
+///   activate lại (WKWebView deactivate→activate 250 ms sau ⌫, MACOS_IME_NOTES) KHÔNG
+///   phải đổi ô ⇒ giữ từ ("viê" + activate lại + "tj" vẫn ra "việt"). Re-edit (#111)
+///   vẫn neo `epoch` (mọi activate). Bỏ ngữ cảnh cả khi engine rỗng: "50" ở split A
+///   rồi "ko␣" ở split B — cờ dính-số của A không được chặn gõ tắt ở B.
 /// - NGOẠI LỆ cuộc đua phím đầu (#110 — Raycast): app chỉ activate client mới khi
 ///   phím ĐẦU TIÊN tới nó, nên activateServer đến SAU phím đó. Khi đó IMK đã thấy phím
 ///   ấy trong client mới (`clientKeySinceActivation`) ⇒ từ đang soạn ĐÃ là của ô mới:
@@ -447,14 +472,20 @@ enum ClientFocus {
 /// - Họ Chromium/Electron bị loại: activateServer ở đó có thể tới giữa từ trong cùng
 ///   một ô (popup gợi ý, danh sách mention, ô dựng lại); click/⌘-tổ hợp vẫn reset như
 ///   cũ. Chưa biết họ (`nil` — chưa dò xong) ⇒ coi như loại (giữ hành vi cũ).
+/// - Cuộc đua còn lại (đã cân nhắc, CHẤP NHẬN — không thêm ngưỡng thời gian): gõ
+///   trước (type-ahead) vào ô mới mà activateServer tới SAU phím đầu k1; nếu k2 tới
+///   tap trong khoảng giữa `noteActivated` và `handle(k1)` trên MAIN (hai tin nhắn IMK
+///   liền nhau, cỡ vài ms) thì từ bị cắt sau k1. k1 KHÔNG bao giờ mất (nó đã nằm trên
+///   màn hình, chỉ ngữ cảnh soạn của nó bị bỏ). Từ khi chỉ controller KHÁC mới cắt từ,
+///   cuộc đua chỉ còn ở lần đổi ô thật.
 /// - `endWord`: tín hiệu "kết thúc từ" từ app khác (EndWordSignal) — chỉ bỏ từ đang
 ///   soạn; engine rỗng ⇒ không làm gì.
 /// Pure để test.
 enum TapWordBreak {
-    static func focusMoved(engineHoldsWord: Bool, focusStable: Bool,
+    static func focusMoved(focusStable: Bool,
                            clientKeySinceActivation: () -> Bool,
                            chromiumFamily: () -> Bool?) -> Bool {
-        guard engineHoldsWord, !focusStable else { return false }
+        guard !focusStable else { return false }
         guard !clientKeySinceActivation() else { return false }
         return chromiumFamily() == false
     }
@@ -473,20 +504,87 @@ enum TapWordBreak {
 /// soạn (như một phím ranh giới không phát gì). Tap: bật cờ dưới stateLock, phím vật
 /// lý kế tiếp tiêu thụ trên TAP thread (cùng cách pendingEngineReset). IMK: bỏ cụm
 /// trên MAIN. Tên in-process `com.viettelex.resetComposition` giữ nguyên vai trò cũ.
+/// BẤT ĐỒNG BỘ: post rồi gửi phím ngay thì phím có thể tới trước tín hiệu. Post dồn
+/// dập được gộp (Gate). Công tắc Cài đặt → Nâng cao / Gỡ lỗi (`AppState.endWordSignal`,
+/// mặc định bật); tắt = không đăng ký observer nào.
 enum EndWordSignal {
     static let name = "com.viettelex.endWord"
+    /// Hai lần post cách nhau ít hơn ngưỡng này ⇒ lần sau bị bỏ (script post dồn dập,
+    /// gửi cả hai kênh cho chắc). Đây là chống dội, không phải luật gõ: tín hiệu vốn bất
+    /// đồng bộ.
+    static let minIntervalNs: UInt64 = 50_000_000
+    private static let lock = NSLock()
     private static var notifyToken: Int32 = -1   // NOTIFY_TOKEN_INVALID (macro không vào Swift)
-    private static var installed = false
+    private static var distributedRegistered = false
+    private static var gate = Gate()
+    /// Observer cho CFNotificationCenterRemoveObserver (nil thì không gỡ riêng được).
+    private final class ObserverTag {}
+    private static let observerTag = ObserverTag()
 
-    /// MAIN, một lần lúc khởi động (không chạy trong test host).
-    static func install() {
-        guard !installed else { return }
-        installed = true
-        notify_register_dispatch(name, &notifyToken, DispatchQueue.main) { _ in deliver() }
-        CFNotificationCenterAddObserver(
-            CFNotificationCenterGetDistributedCenter(), nil,
-            { _, _, _, _, _ in DispatchQueue.main.async { EndWordSignal.deliver() } },
-            name as CFString, nil, .deliverImmediately)
+    /// Gộp + chống dội (pure, để test): một lần giao đang chờ trên MAIN ⇒ bỏ lần post
+    /// mới; lần post cách lần được nhận trước < `minIntervalNs` ⇒ bỏ.
+    struct Gate {
+        private(set) var pending = false
+        private(set) var lastAcceptedNs: UInt64?
+        /// true = lên lịch giao.
+        mutating func accept(nowNs: UInt64) -> Bool {
+            if pending { return false }
+            if let last = lastAcceptedNs, nowNs &- last < EndWordSignal.minIntervalNs { return false }
+            pending = true; lastAcceptedNs = nowNs
+            return true
+        }
+        mutating func delivered() { pending = false }
+    }
+
+    /// Đã đăng ký observer nào chưa (Darwin hoặc distributed).
+    static var isRegistered: Bool { lock.withLock { notifyToken != -1 || distributedRegistered } }
+
+    /// MAIN, lúc khởi động (không chạy trong test host) và mỗi lần đổi công tắc trong
+    /// Cài đặt. Tắt ⇒ gỡ cả hai observer: không đăng ký gì, chi phí 0.
+    static func install() { apply(enabled: AppState.shared.endWordSignal) }
+
+    static func apply(enabled: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        if enabled {
+            if notifyToken == -1 {
+                var token: Int32 = -1
+                let status = notify_register_dispatch(name, &token, DispatchQueue.main) { _ in received() }
+                if status == 0 /* NOTIFY_STATUS_OK */ {
+                    notifyToken = token
+                } else {
+                    DebugLog.log("endWord: notify_register_dispatch failed status=\(status) — Darwin notify channel off")
+                }
+            }
+            if !distributedRegistered {
+                CFNotificationCenterAddObserver(
+                    CFNotificationCenterGetDistributedCenter(),
+                    Unmanaged.passUnretained(observerTag).toOpaque(),
+                    { _, _, _, _, _ in EndWordSignal.received() },
+                    name as CFString, nil, .deliverImmediately)
+                distributedRegistered = true
+            }
+        } else {
+            if notifyToken != -1 { notify_cancel(notifyToken); notifyToken = -1 }
+            if distributedRegistered {
+                CFNotificationCenterRemoveObserver(
+                    CFNotificationCenterGetDistributedCenter(),
+                    Unmanaged.passUnretained(observerTag).toOpaque(),
+                    CFNotificationName(name as CFString), nil)
+                distributedRegistered = false
+            }
+            gate = Gate()
+        }
+    }
+
+    /// Một lần post tới (bất kỳ kênh/thread nào): gộp + chống dội rồi giao trên MAIN.
+    static func received() {
+        let now = DispatchTime.now().uptimeNanoseconds
+        guard lock.withLock({ gate.accept(nowNs: now) }) else { return }
+        DispatchQueue.main.async {
+            lock.withLock { gate.delivered() }
+            deliver()
+        }
     }
 
     /// MAIN. Rẻ: một lock trip cho tap + một lần bỏ cụm IMK nếu đang soạn.
@@ -2834,6 +2932,9 @@ final class TerminalTapController {
     /// TAP-thread confined.
     private var reEditFocus = FocusAnchor()
     private var reEditFocusStable = true
+    /// Neo ô cho TapWordBreak (#156): serial controller IMK lúc phím/click trước (xem
+    /// ClientFocus.controller). TAP-thread confined.
+    private var wordFocus = FocusAnchor()
     /// Vị trí click gần nhất chưa bị một phím chữ tiêu thụ (#135, xem ReEditClickCheck).
     /// TAP-thread confined.
     private var reEditClickPoint: CGPoint?
@@ -3050,6 +3151,14 @@ final class TerminalTapController {
         teardown()
     }
 
+    /// Self-update swap FAILED after stopForUpdate(): we keep running the old bundle,
+    /// so lift the 600 s update quarantine and bring the tap back now. MAIN.
+    func resumeAfterFailedUpdate() {
+        DebugLog.log("update: swap failed → tap quarantine lifted, restarting tap")
+        quarantineUntilNs = 0
+        ensureRunning()
+    }
+
     /// Called from the menu repair flow / TCC change notification: the user just
     /// DID something about the permission — drop the backoff and re-evaluate now.
     func retryNow() {
@@ -3229,7 +3338,9 @@ final class TerminalTapController {
             CaretHint.shared.dismissForClick(at: event.location)
             lastTapKeyWasBoundary = false   // click at a word's end re-arms re-edit
             reEditClickPoint = event.location   // …nhưng chỉ khi click trong ô (#135)
-            _ = reEditFocus.observe(ClientFocus.epoch)   // click = neo focus mới (#111)
+            let focus = ClientFocus.snapshot
+            _ = reEditFocus.observe(focus.epoch)          // click = neo focus mới (#111)
+            _ = wordFocus.observe(focus.controller)       // …và neo ô cho TapWordBreak (#156)
             if handoffKeys >= 0 { TapHandoff.clear(); handoffKeys = -1 }   // #110
             lastTapKeyWasDigit = false
             chordRecognizer.disarm(flags: event.flags)        // click giữa lúc giữ chord = không phải toggle
@@ -3250,12 +3361,14 @@ final class TerminalTapController {
         }
 
         // Mọi phím vật lý (cả chord ⌘K đổi hội thoại) neo focus cho re-edit (#111).
-        reEditFocusStable = reEditFocus.observe(ClientFocus.epoch)
-        // Issue #156: focus đã sang ô khác (activateServer) mà không có click / phím
-        // ranh giới ⇒ từ trong engine là của ô CŨ. Ổn định (ca thường): một phép so Bool.
-        if !reEditFocusStable,
+        let focus = ClientFocus.snapshot
+        reEditFocusStable = reEditFocus.observe(focus.epoch)
+        // Issue #156: focus đã sang ô khác (controller IMK khác) mà không có click / phím
+        // ranh giới ⇒ từ trong engine và ngữ cảnh quanh nó là của ô CŨ — bỏ hết, kể cả
+        // khi engine rỗng (cờ dính-số / cụm gõ tắt). Cùng controller activate lại ⇒ cùng
+        // ô, giữ từ. Ổn định (ca thường): một phép so UInt64.
+        if !wordFocus.observe(focus.controller),
            TapWordBreak.focusMoved(
-                engineHoldsWord: !engine.isEmpty || engine.canReopenLastCommit,
                 focusStable: false,
                 clientKeySinceActivation: { ClientFocus.clientKeySinceActivation },
                 chromiumFamily: { SystemReplacementGuard.shared.chromiumFamilyCached(FrontmostApp.shared.bundleID) }) {
@@ -3829,7 +3942,7 @@ final class TerminalTapController {
             return nil
         }
 
-        // RE-EDIT (experimental, opt-in): a tone/mark key on an EMPTY engine right
+        // RE-EDIT ("Fix tones of typed words", default ON): a tone/mark key on an EMPTY engine right
         // after a word means "add this diacritic to that word" — seed from the text
         // already on screen so the replace below edits IT instead of starting fresh.
         if Self.reEditGateOpen(engineIsEmpty: engine.isEmpty, reEditEnabled: AppState.shared.reEditWord,

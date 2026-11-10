@@ -134,26 +134,38 @@ Backspace×N + keyDown mang chuỗi Unicode.
 phím/click nó thấy, nên hai ca sau từng làm từ đầu tiên dính chữ cũ ("m" + "vieejt"
 → "mvieejt"):
 - *Đổi focus không click* (split Ghostty/iTerm qua AppleScript, phím tắt app nuốt):
-  phím vật lý tới khi đã có `activateServer` kể từ phím/click trước (cùng neo
-  `FocusAnchor` với re-edit #111) mà engine còn giữ từ ⇒ bỏ từ, phím này mở từ mới
-  (`TapWordBreak.focusMoved`). Trừ khi IMK đã nhận phím trong client mới
+  phím vật lý tới khi controller IMK đang activate KHÁC controller lúc phím/click trước
+  (`FocusAnchor` trên serial controller `ClientFocus.controller`; IMK tạo một controller
+  cho mỗi client/ô) ⇒ bỏ ngữ cảnh của ô cũ — từ đang soạn, cụm gõ tắt, cờ dính-số, cụm
+  số của chip tiền, chuỗi Thêm dấu — cả khi engine rỗng ("50" ở split A rồi "ko␣" ở B
+  phải nở), phím này mở từ mới (`TapWordBreak.focusMoved`). CÙNG controller activate
+  lại (WKWebView deactivate→activate 250 ms sau ⌫) là cùng ô ⇒ giữ từ. Re-edit (#111)
+  vẫn neo `epoch` (mọi activate). Trừ khi IMK đã nhận phím trong client mới
   (`ClientFocus.clientKeySinceActivation` — `activateServer` tới SAU phím đầu, lớp
   Raycast #110: giữ từ, không mất phím đầu) và trừ họ Chromium/Electron
-  (`activateServer` có thể tới giữa từ trong cùng ô). Ca thường: một phép so Bool,
-  không AX, không ngưỡng thời gian.
+  (`activateServer` có thể tới giữa từ trong cùng ô). Ca thường: một phép so UInt64,
+  không AX, không ngưỡng thời gian. Cuộc đua còn lại (chấp nhận, ghi ở `TapWordBreak`):
+  gõ trước vào ô mới, k2 tới tap giữa `activateServer` và `handle(k1)` ⇒ từ cắt sau k1;
+  k1 không mất. Log `activateServer … ctl=#N` cho biết serial (hai split phải khác số).
 - *App dùng chữ cái làm lệnh* (TUI `j`/`k`/`i`): app gửi tín hiệu **`com.viettelex.endWord`**
   — Darwin notify (`notifyutil -p com.viettelex.endWord`, `notify_post()`) hoặc
   `DistributedNotificationCenter` — để kết thúc từ đang soạn như một phím ranh giới
   không phát gì (tap: cờ dưới `stateLock`, phím kế tiếp tiêu thụ trên tap thread; IMK:
-  bỏ cụm, marked thì chốt chữ đang hiện). Không đọc object/userInfo, không đọc/ghi chữ,
-  không đổi cài đặt. `com.viettelex.resetComposition` vẫn chỉ là tên in-process
+  bỏ cụm, marked thì chốt chữ đang hiện). Tín hiệu là BẤT ĐỒNG BỘ: phím gửi ngay sau
+  khi post có thể tới trước nó. Gộp: một lần giao đang chờ thì bỏ lần post mới, và
+  bỏ lần post cách lần được nhận trước < 50 ms. Công tắc ở Cài đặt → Nâng cao / Gỡ lỗi
+  (mặc định bật; tắt = không đăng ký observer nào). Không đọc object/userInfo, không
+  đọc/ghi chữ, không đổi cài đặt. `com.viettelex.resetComposition` vẫn chỉ là tên in-process
   (click/⌘-tổ hợp từ tap báo IMK), không nhận từ ngoài.
 
-*(EN) Non-key word boundaries: a focus change without a click (activateServer since
-the last key, engine non-empty) starts a new word, except after a late activation
-the IMK client already saw a key for, and except Chromium/Electron. Apps that use
-letter keys as commands can post `com.viettelex.endWord` (Darwin notify or distributed
-notification, no payload) to end the word in progress.*
+*(EN) Non-key word boundaries: a focus change without a click (a DIFFERENT IMK
+controller activated since the last key; the same controller re-activating is the same
+field) drops the old field's context and starts a new word, except after a late
+activation the IMK client already saw a key for, and except Chromium/Electron. Apps that
+use letter keys as commands can post `com.viettelex.endWord` (Darwin notify or
+distributed notification, no payload) to end the word in progress; delivery is
+asynchronous, coalesced (posts < 50 ms apart are dropped), and can be turned off in
+Settings → Advanced / Debugging.*
 
 ### 4. Tap: selection-replace (Shift+←×N rồi ghi đè)
 

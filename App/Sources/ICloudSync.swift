@@ -20,8 +20,8 @@ import Security
 /// SyncLocal của macOS: map tên setting CHUẨN (BackupSettings iOS/Android) ⇄ AppState.
 final class MacSyncStore: SyncLocal {
     struct Setting { let canonical: String; let local: String }
-    /// Chỉ setting cùng nghĩa trên cả hai nền tảng. Không có: reEditWords (macOS luôn bật),
-    /// vniMode/bracketVowels (chỉ macOS), các setting bàn phím cảm ứng.
+    /// Chỉ setting cùng nghĩa trên cả hai nền tảng. Không có: vniMode/bracketVowels (chỉ
+    /// macOS), các setting bàn phím cảm ứng.
     static let settings: [Setting] = [
         Setting(canonical: "simpleTelex", local: "simpleTelex"),
         Setting(canonical: "freeMarking", local: "freeMarking"),
@@ -33,6 +33,7 @@ final class MacSyncStore: SyncLocal {
         Setting(canonical: "teencode", local: "teencode"),
         Setting(canonical: "autoRestore", local: "autoRestore"),
         Setting(canonical: "liveSpellCheck", local: "liveSpellCheck"),
+        Setting(canonical: "reEditWords", local: "reEditWord"),            // "Sửa dấu từ đã gõ"
         Setting(canonical: "filterSensitive", local: "filterSensitive"),   // "Lọc từ nhạy cảm"
     ]
     static let managed = Set(settings.map(\.canonical))

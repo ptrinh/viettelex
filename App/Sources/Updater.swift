@@ -507,6 +507,14 @@ enum SelfUpdater {
                 // one designated requirement, checked at both ends of the pipeline.
                 try runTool("/usr/bin/codesign", ["--verify", "--deep", "--strict", newApp.path])
                 try verifyDesignatedRequirement(at: newApp)
+                // Đúng bản đã hỏi, và mới hơn bản đang chạy: một bản cũ hơn (dù ký đúng)
+                // không được đè lên — chống hạ cấp + chống zip đặt nhầm tên.
+                let downloaded = NSDictionary(contentsOf: newApp.appendingPathComponent("Contents/Info.plist"))?["CFBundleShortVersionString"] as? String
+                let running = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+                if let reason = versionRefusal(downloaded: downloaded, requested: version, running: running) {
+                    throw NSError(domain: "SelfUpdater", code: 6,
+                                  userInfo: [NSLocalizedDescriptionKey: reason])
+                }
 
                 let dest = ("~/Library/Input Methods/VietTelex.app" as NSString).expandingTildeInPath
                 // Stop the event tap BEFORE the bundle under us is replaced. Apple's
@@ -516,8 +524,13 @@ enum SelfUpdater {
                 // is exactly the state that comes back as "listed but refused" after an
                 // update. We exit a few lines below anyway — this just makes sure the tap
                 // is gone first, not at some arbitrary point during teardown.
-                await MainActor.run { TerminalTapController.shared.stopForUpdate() }
-                try installBundle(from: newApp, to: URL(fileURLWithPath: dest))
+                // Swap fails (disk, permissions…) ⇒ the IME keeps running the OLD bundle:
+                // the tap must come back now, not after the 600 s update quarantine
+                // (terminals would type raw for ten minutes).
+                try await installStoppingTap(
+                    stop: { TerminalTapController.shared.stopForUpdate() },
+                    install: { try installBundle(from: newApp, to: URL(fileURLWithPath: dest)) },
+                    resume: { TerminalTapController.shared.resumeAfterFailedUpdate() })
                 // Refresh the LaunchServices registration so the Text Input system relaunches
                 // from the new bundle (mirrors notarize-install.sh).
                 try? runTool("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister", ["-f", dest])
@@ -534,6 +547,8 @@ enum SelfUpdater {
                     done.window.level = .floating
                     done.window.orderFrontRegardless()
                     _ = done.runModal()
+                    // exit(0) skips applicationWillTerminate: save "Học từ bạn gõ" now.
+                    LearnedWords.shared.flush()
                     exit(0)   // macOS relaunches the IME (new binary) on demand
                 }
             } catch {
@@ -554,6 +569,37 @@ enum SelfUpdater {
                     }
                 }
             }
+        }
+    }
+
+    /// nil = OK to install; otherwise why not. The downloaded bundle must report exactly
+    /// the version we asked for (a mislabeled asset is not that release) and be strictly
+    /// newer than the running one (never downgrade, never reinstall the same build).
+    static func versionRefusal(downloaded: String?, requested: String, running: String?) -> String? {
+        guard let downloaded, UpdateCheck.isValidVersion(downloaded) else {
+            return "downloaded app has no valid version"
+        }
+        guard downloaded == requested else {
+            return "downloaded app is \(downloaded), expected \(requested)"
+        }
+        if let running, UpdateCheck.isValidVersion(running),
+           !UpdateCheck.isNewer(downloaded, than: running) {
+            return "\(downloaded) is not newer than the running \(running)"
+        }
+        return nil
+    }
+
+    /// Stop the tap (MAIN), swap the bundle, and if the swap throws, bring the tap back
+    /// (MAIN) before rethrowing — the update quarantine must not outlive a failed swap.
+    static func installStoppingTap(stop: @MainActor () -> Void,
+                                   install: () throws -> Void,
+                                   resume: @MainActor () -> Void) async throws {
+        await MainActor.run { stop() }
+        do {
+            try install()
+        } catch {
+            await MainActor.run { resume() }
+            throw error
         }
     }
 
