@@ -112,7 +112,7 @@ EN = {
     "Ưu tiên tiếng Việt": "Prefer Vietnamese",
     "Ưu tiên tiếng Anh": "Prefer English",
     "Hiển thị chữ đang gõ": "Word being typed",
-    "Gạch chân chữ đang gõ": "Underline the word being typed",
+    "Soạn từ rồi chèn": "Compose the word, then insert",
     "Tắt: chữ đang gõ trông như chữ thường (GTK, Qt, VTE X11). Chrome/Electron vẫn tự gạch.":
         "Off: the word being typed looks like normal text (GTK, Qt, X11 VTE). Chrome still underlines.",
     "Terminal: gõ thẳng, sửa dấu bằng Backspace": "Terminals: type directly, fix marks with Backspace",
@@ -589,8 +589,8 @@ EN = {
         'Apps',
     'Cách gõ theo từng app':
         'Typing mode per app',
-    "Gạch chân: đúng chữ ở mọi app. Sửa thẳng trong ô: như macOS, chỉ ở app hỗ trợ.":
-        "Underline: correct text in every app. Edit right in the field: like macOS, supported apps only.",
+    "Soạn từ rồi chèn: đúng chữ ở mọi app. Sửa thẳng trong ô: như macOS, chỉ ở app hỗ trợ.":
+        "Compose, then insert: right in every app. Edit right in the field: like macOS, some apps.",
     'Chung':
         'General',
     'Với Fcitx5, app GTK (Firefox, Terminal, Text Editor…) không gạch chân chữ đang gõ và thanh trên cùng hiện icon VietTelex. Chrome/Electron vẫn có thể gạch chân (xem trang Ứng dụng → Tương thích ứng dụng).':

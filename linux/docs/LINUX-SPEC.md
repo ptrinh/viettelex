@@ -53,8 +53,8 @@ Linux không có "tap backspace" ổn định như macOS; hai cách chuẩn củ
 
 | Chế độ | Cách làm | Ưu | Nhược |
 |---|---|---|---|
-| **Preedit** (mặc định) | từ đang gõ là preedit (gạch chân), commit ở boundary | chạy mọi nơi: GTK, Qt, Electron, Chrome, terminal, Wayland/X11 | có gạch chân như ibus-unikey |
-| **Surrounding text** (tuỳ chọn "Sửa trực tiếp") | commit từng phím; sửa dấu bằng `delete_surrounding_text` rồi commit | giống macOS/Windows | chỉ ổn ở app GTK/Qt hỗ trợ surrounding text |
+| **Preedit** — "Soạn từ rồi chèn" (mặc định) | từ đang gõ là preedit (gạch chân), commit ở boundary | chạy mọi nơi: GTK, Qt, Electron, Chrome, terminal, Wayland/X11 | có gạch chân như ibus-unikey |
+| **Surrounding text** — "Sửa thẳng trong ô" (tuỳ chọn) | commit từng phím; sửa dấu bằng `delete_surrounding_text` rồi commit | giống macOS/Windows | chỉ ổn ở app GTK/Qt hỗ trợ surrounding text |
 | **Direct** (terminal, tự động) | gõ thẳng; sửa dấu bằng BackSpace *forward* + chữ mới cũng *forward* thành phím (kiểu UniKey/Windows) | không gạch chân trong terminal | chỉ ở host giữ đúng thứ tự phím forward (§3.1) |
 
 - Chế độ 2 tự hạ về Preedit khi `IBUS_CAP_SURROUNDING_TEXT` / `CapabilityFlag::SurroundingText`
@@ -62,8 +62,8 @@ Linux không có "tap backspace" ổn định như macOS; hai cách chuẩn củ
   wezterm, foot; Electron/Chromium trên Wayland; LibreOffice).
 - **Bảng cơ chế theo app** (tương đương tab "Bảng cơ chế gõ" macOS): key = `program`
   (Fcitx5) / `client` + WM_CLASS / app-id Wayland (IBus). User ép tay Preedit/Surrounding.
-- Preedit style: **không gạch chân** mặc định (`preedit_underline = false`, "Gạch chân chữ đang
-  gõ"); IBus gửi `IBUS_ATTR_UNDERLINE_NONE` tường minh, Fcitx5 gửi `TextFormatFlag::NoFlag`. Ở
+- Preedit style: **không gạch chân** mặc định (`preedit_underline = false`, "Hiện gạch chân chữ
+  đang gõ"); IBus gửi `IBUS_ATTR_UNDERLINE_NONE` tường minh, Fcitx5 gửi `TextFormatFlag::NoFlag`. Ở
   Surrounding/Direct bỏ preedit hoàn toàn.
 - Mất focus / click chuột / đổi con trỏ → commit preedit (không nuốt chữ), reset engine.
 - **Có vùng chọn thì không với ngược** (sửa dấu từ cũ, ⌫ mở lại từ, gõ tắt / tự khôi phục ở
@@ -251,7 +251,7 @@ theo cài đặt hệ thống; Linux: công tắc riêng, mặc định tắt (`
 
 **Vì sao cần**: mọi app Wayland gõ qua *một* input context của gnome-shell → IBus báo
 `gnome-shell` (≥ 1.5.28) hoặc `default` (1.5.26, Ubuntu 22.04), Fcitx5 < 5.1.22 báo
-`gnome-shell` → không nhớ Việt/Anh theo app, không bật được chế độ không gạch chân.
+`gnome-shell` → không nhớ Việt/Anh theo app, không bật được chế độ "Sửa thẳng trong ô".
 
 **Các đường đã xét** (GNOME 42 = 22.04, 46 = 24.04):
 
@@ -289,7 +289,7 @@ policy sau khi resolve); `test_gnome_monitor` chạy dưới `dbus-run-session` 
 portal giả (allow-list, BecomeMonitor thật, reply trễ, gọi theo unique name, unsafe mode).
 
 **Kiểm thử tay** (Ubuntu 22.04 và 24.04, phiên "Ubuntu" Wayland, IBus hoặc Fcitx5):
-1. Cài gói, bật VietTelex, bật *Không gạch chân*. Đăng xuất/đăng nhập (hoặc `ibus restart`).
+1. Cài gói, bật VietTelex, bật *Sửa thẳng trong ô*. Đăng xuất/đăng nhập (hoặc `ibus restart`).
 2. `busctl --user status org.freedesktop.impl.portal.desktop.gnome` phải có tiến trình
    (portal chạy). `dbus-monitor --session "member='GetRunningApplications'"` thấy lời gọi mỗi
    khi Alt+Tab.
@@ -343,5 +343,5 @@ portal giả (allow-list, BecomeMonitor thật, reply trễ, gọi theo unique n
 
 ## Quyết định đã chốt (26/09/2026)
 1. **Fcitx5 trước**, IBus ngay sau.
-2. Mặc định **preedit (gạch chân)**; "Không gạch chân" là tuỳ chọn.
+2. Mặc định **preedit** ("Soạn từ rồi chèn"); "Sửa thẳng trong ô" (surrounding) là tuỳ chọn.
 3. **Hỗ trợ cả Ubuntu 22.04** (ngoài 24.04, 26.04).

@@ -49,7 +49,7 @@ class ParseTests(unittest.TestCase):
         self.assertFalse(n["typing"]["teencode"])
         self.assertEqual(n["general"]["display_mode"], "preedit")
         self.assertEqual(n["general"]["toggle_hotkey"], "Ctrl+space")
-        self.assertFalse(n["general"]["preedit_underline"])  # "Gạch chân chữ đang gõ" off
+        self.assertFalse(n["general"]["preedit_underline"])  # "Hiện gạch chân chữ đang gõ" off
         self.assertIs(n["general"]["underline_misspelled"], False)  # gạch đỏ: opt-in
         self.assertTrue(n["general"]["terminal_direct"])
         # Gợi ý cạnh con trỏ = macOS 1.8.2: bật hết trừ Thêm dấu cho câu không dấu.

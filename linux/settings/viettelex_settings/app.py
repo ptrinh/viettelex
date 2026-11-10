@@ -33,7 +33,7 @@ STABLE_JSON = "https://viettelex.com/stable.json"  # trực tiếp HTTPS (github
 
 APP_MODE_CHOICES = [
     ("auto", N_("Tự động")),
-    ("preedit", N_("Gạch chân chữ đang gõ")),
+    ("preedit", N_("Soạn từ rồi chèn")),
     ("surrounding", N_("Sửa thẳng trong ô")),
     ("direct", N_("Gõ thẳng, sửa bằng Backspace")),
     ("off", N_("Tắt tiếng Việt")),
@@ -1093,10 +1093,10 @@ class SettingsWindow(Adw.PreferencesWindow):
         # Hiển thị chữ đang gõ: nhãn theo triệu chứng, gom trong Nâng cao (SETTINGS-CLEANUP-SPEC §4).
         g = Adw.PreferencesGroup(
             title=_("Hiển thị chữ đang gõ"),
-            description=_("Gạch chân: đúng chữ ở mọi app. Sửa thẳng trong ô: như macOS, chỉ ở app hỗ trợ."))
+            description=_("Soạn từ rồi chèn: đúng chữ ở mọi app. Sửa thẳng trong ô: như macOS, chỉ ở app hỗ trợ."))
         adv = self.advanced(g, _("Cách hiện chữ đang gõ, gạch chân, terminal, Chrome/Electron"))
         self.combo(adv, "general", "display_mode", _("Cách hiện chữ đang gõ"),
-                   [("preedit", _("Gạch chân chữ đang gõ")), ("surrounding", _("Sửa thẳng trong ô"))])
+                   [("preedit", _("Soạn từ rồi chèn")), ("surrounding", _("Sửa thẳng trong ô"))])
         self.switch(adv, "general", "preedit_underline", _("Hiện gạch chân chữ đang gõ"),
                     _("Tắt: chữ đang gõ trông như chữ thường (GTK, Qt, VTE X11). Chrome/Electron vẫn tự gạch."))
         self.switch(adv, "general", "terminal_direct", _("Terminal: gõ thẳng, sửa dấu bằng Backspace"),

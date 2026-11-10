@@ -49,8 +49,8 @@ shortcuts_enabled = true            # Bật bảng gõ tắt (shortcuts.yml)
 re_edit_word = true                 # Sửa dấu từ đã gõ khi đặt con trỏ ngay sau nó ("toan" + s → toán)
 
 [general]
-display_mode = "preedit"            # "preedit" (chữ đang gõ, mặc định) | "surrounding" (sửa trực tiếp)
-preedit_underline = false           # Gạch chân chữ đang gõ (false = gửi attr "không gạch chân")
+display_mode = "preedit"            # "preedit" = "Soạn từ rồi chèn" (mặc định) | "surrounding" = "Sửa thẳng trong ô"
+preedit_underline = false           # "Hiện gạch chân chữ đang gõ" (false = gửi attr "không gạch chân")
 underline_misspelled = false        # Gạch đỏ âm tiết sai chính tả khi gõ (chỉ preedit; IBus: gạch lỗi + chữ đỏ, Fcitx5: gạch chân)
 terminal_direct = true              # Terminal: gõ thẳng, sửa dấu bằng BackSpace forward (khi host hỗ trợ)
 toggle_hotkey = "Ctrl+space"        # xem §4; "" = tắt phím chuyển

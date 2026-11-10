@@ -249,6 +249,30 @@ class LabelTests(unittest.TestCase):
         bad += [v for v in i18n.EN.values() if jargon.search(v)]
         self.assertEqual(bad, [])
 
+    def test_one_name_per_display_mode(self):
+        """Mỗi chế độ hiển thị MỘT tên ở mọi nơi (app cài đặt, hộp Fcitx5, tài liệu): preedit =
+        "Soạn từ rồi chèn" (đúng cả khi gạch chân tắt — mặc định), surrounding = "Sửa thẳng
+        trong ô". Tên cũ ("Gạch chân chữ đang gõ" cho chế độ, "sửa trực tiếp", "Không gạch
+        chân" cho chế độ) không quay lại."""
+        src = read("app.py")
+        self.assertNotIn('"Gạch chân chữ đang gõ"', src)
+        self.assertIn('("preedit", N_("Soạn từ rồi chèn"))', src)
+        self.assertIn('("preedit", _("Soạn từ rồi chèn")), ("surrounding", _("Sửa thẳng trong ô"))', src)
+        self.assertEqual(i18n.EN["Soạn từ rồi chèn"], "Compose the word, then insert")
+        self.assertEqual(i18n.EN["Sửa thẳng trong ô"], "Edit right in the field")
+        root = os.path.join(HERE, "..", "..")
+        with open(os.path.join(root, "fcitx5", "src", "viettelex.cpp"), encoding="utf-8") as f:
+            fx = f.read()
+        self.assertIn("Sửa thẳng trong ô", fx)
+        self.assertIn("Soạn từ rồi chèn", fx)
+        self.assertNotIn("sửa trực tiếp (surrounding)", fx)
+        for doc in ("common/SETTINGS.md", "docs/LINUX-SPEC.md", "README.md"):
+            with open(os.path.join(root, doc), encoding="utf-8") as f:
+                text = f.read()
+            self.assertNotIn("*Không gạch chân*", text, doc)
+            self.assertNotIn("Sửa trực tiếp", text, doc)
+            self.assertNotIn("(sửa trực tiếp)", text, doc)
+
     def test_captions_are_short(self):
         """Mỗi chú thích trong cửa sổ cài đặt là MỘT dòng ngắn (06/11/2026, cùng giới hạn macOS /
         Windows): mọi chuỗi _()/N_() của SettingsWindow và hằng cấp module ≤ 95 ký tự, vi lẫn en."""

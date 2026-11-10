@@ -207,9 +207,9 @@ to your machine, each with a copy button.
 
 - **GNOME Wayland**: mọi app dùng chung một input context (IBus, và Fcitx5 < 5.1.22); VietTelex
   hỏi gnome-shell app nào đang focus (qua D-Bus, cần xdg-desktop-portal-gnome — mặc định có),
-  nên *Không gạch chân* và nhớ Việt/Anh theo app vẫn dùng được. Chưa biết app → tự về gạch chân.
+  nên *Sửa thẳng trong ô* và nhớ Việt/Anh theo app vẫn dùng được. Chưa biết app → tự về gạch chân.
   / *All apps share one input context; VietTelex reads the focused app from gnome-shell over
-  D-Bus (needs xdg-desktop-portal-gnome, installed by default), so no-underline mode and per-app
+  D-Bus (needs xdg-desktop-portal-gnome, installed by default), so "Edit right in the field" and per-app
   memory work. Unknown app → falls back to underline.*
 - **Ubuntu 22.04 + IBus 1.5.26**: IBus không báo app nào đang gõ → trên GNOME Wayland lấy app
   đang focus như trên; app X11 riêng lẻ vẫn là "default". / *IBus 1.5.26 reports no app id; on

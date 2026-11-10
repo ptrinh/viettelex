@@ -76,13 +76,12 @@ namespace vt = viettelex;
 FCITX_CONFIGURATION(
     VietTelexConfig,
     fcitx::Option<bool> vni{this, "VNI", "Kiểu gõ VNI (thay cho Telex)", false};
-    fcitx::Option<bool> preeditUnderline{this, "PreeditUnderline", "Gạch chân chữ đang gõ", false};
+    fcitx::Option<bool> preeditUnderline{this, "PreeditUnderline", "Hiện gạch chân chữ đang gõ", false};
     // [general] display_mode = "surrounding". The key stays "NoUnderline" (existing
     // fcitx5 configs); it is NOT [experimental] no_underline ("Bỏ gạch chân trong
     // Chrome/Electron", settings app only), so the label names the display mode.
     fcitx::Option<bool> surroundingMode{this, "NoUnderline",
-                                        "Cách hiện từ đang gõ: sửa trực tiếp (surrounding), app không hỗ trợ "
-                                        "tự về chữ đang gõ (preedit)",
+                                        "Sửa thẳng trong ô (tắt — và ở app không hỗ trợ: Soạn từ rồi chèn)",
                                         false};
     fcitx::Option<bool> spellCheck{this, "SpellCheck", "Kiểm tra chính tả khi gõ", true};
     fcitx::Option<bool> autoRestore{this, "AutoRestore", "Tự khôi phục từ không phải tiếng Việt", true};

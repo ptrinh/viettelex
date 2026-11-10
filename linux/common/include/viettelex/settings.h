@@ -50,7 +50,7 @@ struct Settings {
     bool reEditWord = true;
     // [general]
     DisplayMode displayMode = DisplayMode::Preedit;  // Preedit | Surrounding only
-    bool preeditUnderline = false;  // "Gạch chân chữ đang gõ" (clients that honour attributes)
+    bool preeditUnderline = false;  // "Hiện gạch chân chữ đang gõ" (clients that honour attributes)
     // "Gạch đỏ âm tiết sai chính tả khi gõ": preedit of a word that cannot become a syllable
     // gets the error style (IBus: error underline + red text; Fcitx5: underline). Preedit only.
     bool underlineMisspelled = false;
