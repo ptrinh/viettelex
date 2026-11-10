@@ -232,6 +232,7 @@ private:
     FocusStateNotify focusNotify_;      // tray state posts at focus changes (tip_caches.h)
     PerKeyOnce hostEval_;               // evaluateHost once per key (tip_caches.h)
     KeyEventRepeat keyRepeat_;          // a key we let through, offered again (tip_caches.h)
+    mutable HookReachCache reachCache_; // UIPI answer per focus + app process (tip_caches.h)
     bool keyRepeatLogged_ = false;      // once per focus
     bool ownKeyEdit_ = false;           // inside OnKeyDown's synchronous edit session
     SwitchHotkey hotkey_ = SwitchHotkey::CtrlShift;

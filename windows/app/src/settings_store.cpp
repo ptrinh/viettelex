@@ -8,6 +8,7 @@
 
 #include "portable.h"
 #include "shortcuts.h"
+#include "store_files.h"
 #include "word_prediction.h"
 #include "utf.h"
 
@@ -81,20 +82,30 @@ void kvLoadLocked() {
     CloseHandle(f);
 }
 
-// Atomic replace (temp file + MoveFileEx), like the installed build's snapshot.
-void kvSaveLocked() {
-    if (g_iniPath.empty()) return;
-    const size_t slash = g_iniPath.find_last_of(L'\\');
-    if (slash != std::wstring::npos) CreateDirectoryW(g_iniPath.substr(0, slash).c_str(), nullptr);
-    const std::string text = g_kv.serialize();
-    const std::wstring tmp = g_iniPath + L".tmp";
-    HANDLE f = CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (f == INVALID_HANDLE_VALUE) return;
-    DWORD wrote = 0;
-    const bool ok = WriteFile(f, text.data(), static_cast<DWORD>(text.size()), &wrote, nullptr) && wrote == text.size();
-    CloseHandle(f);
-    if (ok) MoveFileExW(tmp.c_str(), g_iniPath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
-    else DeleteFileW(tmp.c_str());
+// The disk side of a save, OUTSIDE g_kvLock (portable.h SaveSequencer): the hook thread's
+// per-app Việt/Anh read at a word start never waits for a flush. Atomic replace (temp file +
+// MoveFileEx), like the installed build's snapshot.
+SRWLOCK g_kvFileLock = SRWLOCK_INIT;  // file writes, in order
+portable::SaveSequencer g_kvSeq;      // stage(): under g_kvLock; the rest under g_kvFileLock
+
+void kvWriteFile(const std::string& text, uint64_t seq) {
+    AcquireSRWLockExclusive(&g_kvFileLock);
+    if (g_kvSeq.shouldWrite(seq) && !g_iniPath.empty()) {
+        const size_t slash = g_iniPath.find_last_of(L'\\');
+        if (slash != std::wstring::npos) CreateDirectoryW(g_iniPath.substr(0, slash).c_str(), nullptr);
+        const std::wstring tmp = g_iniPath + L".tmp";
+        HANDLE f = CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (f != INVALID_HANDLE_VALUE) {
+            DWORD wrote = 0;
+            const bool ok =
+                WriteFile(f, text.data(), static_cast<DWORD>(text.size()), &wrote, nullptr) && wrote == text.size();
+            CloseHandle(f);
+            if (ok) MoveFileExW(tmp.c_str(), g_iniPath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+            else DeleteFileW(tmp.c_str());
+        }
+    }
+    g_kvSeq.done(seq);
+    ReleaseSRWLockExclusive(&g_kvFileLock);
 }
 
 // One open of the store: the HKCU key, or the settings.ini map under its lock (written back
@@ -114,8 +125,15 @@ public:
     ~Store() {
         if (g_portable) {
             if (write_) {
-                if (dirty_) kvSaveLocked();
+                // Serialise under the lock (memory only), write after releasing it.
+                std::string text;
+                uint64_t seq = 0;
+                if (dirty_) {
+                    text = g_kv.serialize();
+                    seq = g_kvSeq.stage();
+                }
                 ReleaseSRWLockExclusive(&g_kvLock);
+                if (seq) kvWriteFile(text, seq);
             } else {
                 ReleaseSRWLockShared(&g_kvLock);
             }
@@ -238,10 +256,51 @@ void grantAppContainerRead(const std::wstring& dir) {
     LocalFree(sd);
 }
 
+// Both AppContainer SIDs have an inheritable allow ACE on the folder (what
+// grantAppContainerRead adds). Unreadable DACL = not present.
+bool appContainerReadGranted(const std::wstring& dir) {
+    PACL dacl = nullptr;
+    PSECURITY_DESCRIPTOR sd = nullptr;
+    if (GetNamedSecurityInfoW(dir.c_str(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, &dacl, nullptr,
+                              &sd) != ERROR_SUCCESS)
+        return false;
+    bool found[2] = {false, false};
+    PSID sids[2] = {nullptr, nullptr};
+    ConvertStringSidToSidW(L"S-1-15-2-1", &sids[0]);
+    ConvertStringSidToSidW(L"S-1-15-2-2", &sids[1]);
+    if (dacl) {
+        for (DWORD i = 0; i < dacl->AceCount; ++i) {
+            void* ace = nullptr;
+            if (!GetAce(dacl, i, &ace)) continue;
+            auto* a = static_cast<ACCESS_ALLOWED_ACE*>(ace);
+            if (a->Header.AceType != ACCESS_ALLOWED_ACE_TYPE) continue;
+            if ((a->Header.AceFlags & (OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE)) !=
+                (OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE))
+                continue;
+            if (!(a->Mask & (GENERIC_READ | FILE_READ_DATA))) continue;
+            for (int k = 0; k < 2; ++k)
+                if (sids[k] && EqualSid(reinterpret_cast<PSID>(&a->SidStart), sids[k])) found[k] = true;
+        }
+    }
+    for (PSID sid : sids)
+        if (sid) LocalFree(sid);
+    LocalFree(sd);
+    return (found[0] || !sids[0]) && (found[1] || !sids[1]);
+}
+
+bool g_aclChecked = false;  // UI thread (saves)
+
 bool writeSnapshotFile(const std::vector<uint8_t>& bytes) {
     std::wstring dir = localAppDataDir();
     if (dir.empty()) return false;
-    if (CreateDirectoryW(dir.c_str(), nullptr) || GetLastError() == ERROR_ALREADY_EXISTS) grantAppContainerRead(dir);
+    // The DACL is rewritten only for a new folder, or once per process when the grant is
+    // missing — not at every save (store_files.h appContainerGrantNeeded).
+    const bool created = CreateDirectoryW(dir.c_str(), nullptr) != FALSE;
+    if (created || GetLastError() == ERROR_ALREADY_EXISTS) {
+        const bool present = !created && !g_aclChecked && appContainerReadGranted(dir);
+        if (appContainerGrantNeeded(created, g_aclChecked, present)) grantAppContainerRead(dir);
+        g_aclChecked = true;
+    }
     const std::wstring tmp = dir + L"\\settings.bin.tmp";
     const std::wstring dst = dir + L"\\settings.bin";
     HANDLE f = CreateFileW(tmp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -426,15 +485,28 @@ void eraseUserData() {
     if (g_portable) {  // never reached from the UI (no uninstaller in portable); kept total
         AcquireSRWLockExclusive(&g_kvLock);
         g_kv.clear();
-        if (!g_iniPath.empty()) DeleteFileW(g_iniPath.c_str());
+        const uint64_t seq = g_kvSeq.stage();  // saves staged before this are not written
         ReleaseSRWLockExclusive(&g_kvLock);
+        AcquireSRWLockExclusive(&g_kvFileLock);
+        if (!g_iniPath.empty()) DeleteFileW(g_iniPath.c_str());
+        g_kvSeq.done(seq);
+        ReleaseSRWLockExclusive(&g_kvFileLock);
         return;
     }
     RegDeleteTreeW(HKEY_CURRENT_USER, kRoot);
     std::wstring dir = localAppDataDir();
     if (dir.empty()) return;
-    DeleteFileW((dir + L"\\settings.bin").c_str());
-    DeleteFileW((dir + L"\\settings.bin.tmp").c_str());
+    // Every file VietTelex writes there, by name (store_files.h); anything else stays, and
+    // so does the folder then.
+    WIN32_FIND_DATAW fd;
+    HANDLE find = FindFirstFileW((dir + L"\\*").c_str(), &fd);
+    if (find != INVALID_HANDLE_VALUE) {
+        do {
+            if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && isUserDataFileName(fd.cFileName))
+                DeleteFileW((dir + L"\\" + fd.cFileName).c_str());
+        } while (FindNextFileW(find, &fd));
+        FindClose(find);
+    }
     RemoveDirectoryW(dir.c_str());
 }
 

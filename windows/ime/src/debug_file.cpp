@@ -216,8 +216,10 @@ void ensureIdentityLocked() {
 void debugFileWrite(const char* component, const std::string& msg) {
     SYSTEMTIME st;
     GetLocalTime(&st);
-    const LogStamp t = stampOf(st);
-    const uint64_t ms = GetTickCount64();
+    debugFileWriteAt(component, msg, stampOf(st), GetTickCount64());
+}
+
+void debugFileWriteAt(const char* component, const std::string& msg, const LogStamp& t, uint64_t ms) {
     AcquireSRWLockExclusive(&g_lock);
     ensureIdentityLocked();
     const std::string body = g_collapse.offer(t, ms, GetCurrentProcessId(), g_exe, component, msg);

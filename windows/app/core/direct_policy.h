@@ -29,6 +29,23 @@ SendOutcome classifySend(unsigned sent, unsigned total);
 // window the word started in, and the input desktop the normal one.
 bool injectionAllowed(uintptr_t foregroundNow, uintptr_t foregroundOfWord, bool secureDesktop);
 
+// (2026-11 audit) A foreground update reaches the hook thread. `resetWord`: it names another
+// window than the one the hooked word belongs to (two hooked windows: Notepad, then Win ->
+// Start search) — the word in progress and the engine context are the old window's; kept,
+// the next key would continue that word and its backspaces would land in the new window.
+// `keepArming`: the same window, already hooked (a mid-focus re-publish, a TIP handover) —
+// its state stays as it is. Window handles as integers.
+struct ForegroundUpdate {
+    bool resetWord = false;
+    bool keepArming = false;
+};
+inline ForegroundUpdate foregroundUpdate(uintptr_t wordWindow, bool hookWanted, uintptr_t newWindow) {
+    ForegroundUpdate u;
+    u.resetWord = wordWindow != newWindow;
+    u.keepArming = hookWanted && wordWindow == newWindow;
+    return u;
+}
+
 // (2) Echo verification. `before` = text the host shows immediately before the caret
 // (console buffer row up to the cursor, UIA text range); `expected` = the word Direct
 // typed. Console rows are padded with spaces only AFTER the cursor, so compare exactly.

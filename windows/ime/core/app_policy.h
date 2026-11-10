@@ -37,6 +37,16 @@ constexpr const wchar_t* kDirectOnProp = L"VietTelex.DirectOn";
 // GetWindowThreadProcessId names the CLIENT (cmd.exe) thread, whose keyboard layout says
 // nothing about conhost's input method.
 constexpr const wchar_t* kTipLangProp = L"VietTelex.Lang";
+// (2026-11) kDirectOnProp and kSuspendProp (game_ipc.h) sit on OTHER processes' windows and
+// are removed only by a clean exit of VietTelex.exe. Their value is the app's main window
+// (kAppWindowClass), and the TIP honours one only while that is the live app window: after
+// the app was killed, a stale DirectOn would leave a field to nobody and a stale Suspend
+// would pass every key there. Compared on 32 bits: a WOW64 (x86) TIP reads a 64-bit app's
+// value truncated, and HWNDs fit in 32 bits.
+inline bool propFromLiveApp(uintptr_t propValue, uintptr_t liveAppWindow) {
+    return static_cast<uint32_t>(liveAppWindow) != 0 &&
+           static_cast<uint32_t>(propValue) == static_cast<uint32_t>(liveAppWindow);
+}
 // The hook (not the TIP) types for this mode.
 inline bool hookTypes(AppMode m) { return m == AppMode::HookFallback || m == AppMode::Direct; }
 

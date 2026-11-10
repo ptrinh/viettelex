@@ -46,6 +46,11 @@ bool activateVietTelexForChord(SwitchHotkey hotkey, bool suspended);
 void appSetLogging(bool on);
 bool appLogging();
 void appLog(const char* component, const std::string& msg);
+// The keyboard hook's thread: the line is queued (with its time) and written by a pool
+// thread, never inside the hook callback (core/log_queue.h). `component`: a string literal.
+void appLogDeferred(const char* component, const std::string& msg);
+// Writes every queued line now (app exit, after the hook thread stopped).
+void appLogDrain();
 
 std::string narrowAscii(const std::wstring& w);
 

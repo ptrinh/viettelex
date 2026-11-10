@@ -24,7 +24,9 @@
 namespace vtx {
 
 constexpr unsigned kTipSuspendMsg = 0x8000u + 0x5Eu;  // WM_APP + 0x5E: wParam = reason bits
-constexpr const wchar_t* kSuspendProp = L"VietTelex.Suspend";  // value = reason bits (non-zero)
+// Value = VietTelex.exe's main window (app_policy.h propFromLiveApp): set = the window is an
+// exclusive fullscreen app (kSuspendFullscreen). A property a killed app left behind is ignored.
+constexpr const wchar_t* kSuspendProp = L"VietTelex.Suspend";
 
 enum : uint32_t {
     kSuspendFullscreen = 1u,

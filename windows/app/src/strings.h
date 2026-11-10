@@ -71,6 +71,9 @@ enum class S {
     UpdateAvailable,
     UpdateFailed,
     UpdateBadSignature,
+    UpdateDownloadFailed,  // + "open the download page?" (Yes/No)
+    UpdateUnverified,      // signature not checkable (offline / proxy) + "open the download page?"
+    UpdateBusy,            // "Kiểm tra cập nhật" while the update is downloading
     ImportFailed,
     ElevatedHookNotice,
     // 1.1.5: per-app Việt/Anh — who remembers depends on how you switch

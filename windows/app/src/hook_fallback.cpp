@@ -1,5 +1,7 @@
 #include "hook_fallback.h"
+#include "app.h"
 #include "debug_context.h"
+#include "debug_file.h"
 
 #include <windows.h>
 
@@ -191,6 +193,10 @@ bool foregroundVietnamese() { return fgVietnamese(h->fgHwnd, h->app); }
 
 void markNoDirect(DWORD tid, const char* why);
 
+// Hook thread: a debug line is queued, never written inside the hook callback (a slow disk
+// would hold every key; foreground.h appLogDeferred).
+void hookLog(const std::string& msg) { appLogDeferred("hook", msg); }
+
 // The caret may have moved / the text is unknown: forget the word and the ⌫ trail.
 void dropWord() {
     h->session.reset();
@@ -220,7 +226,7 @@ void splitDrop(const char* why) {
     h->split.clear();
     stopSplitTimer();
     dropWord();
-    appLog("hook", std::string("split correction: pending text dropped, word reset (") + why + ")");
+    hookLog(std::string("split correction: pending text dropped, word reset (") + why + ")");
 }
 
 // One SendInput of a split chunk. Blocked / cut short: like the one-batch path, the screen
@@ -231,7 +237,7 @@ SendOutcome splitSend(std::vector<INPUT>& ev) {
     const UINT sent = SendInput(total, ev.data(), sizeof(INPUT));
     const SendOutcome out = classifySend(sent, total);
     if (out != SendOutcome::Ok) {
-        appLog("hook", "SendInput " + std::to_string(sent) + "/" + std::to_string(total) + " events (split correction)");
+        hookLog("SendInput " + std::to_string(sent) + "/" + std::to_string(total) + " events (split correction)");
         h->split.clear();
         stopSplitTimer();
         dropWord();
@@ -255,7 +261,7 @@ void splitFlush(const std::vector<INPUT>& after, const char* why) {
     std::vector<INPUT> all = h->split.drain();
     stopSplitTimer();
     if (all.empty() && after.empty()) return;
-    if (!all.empty() && appLogging()) appLog("hook", std::string("split correction: pending text sent at once (") + why + ")");
+    if (!all.empty() && appLogging()) hookLog(std::string("split correction: pending text sent at once (") + why + ")");
     all.insert(all.end(), after.begin(), after.end());
     if (splitSend(all) == SendOutcome::Ok) verifyLatestEdit();
 }
@@ -351,7 +357,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
             if (st != WordAdoption::Start::Unknown) h->arming.armNow();
             h->trail.invalidate();
             if (appLogging())
-                appLog("hook", std::string("TIP handover: word in progress ") +
+                hookLog(std::string("TIP handover: word in progress ") +
                                    (st == WordAdoption::Start::Adopted   ? (h->adoption.owes() ? "adopted (screen fixed with this key)" : "adopted")
                                     : st == WordAdoption::Start::Nothing ? "none, typing from this key"
                                                                          : "unknown, waiting for a boundary"));
@@ -377,7 +383,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
         case ReopenTrail::Before::Reopened:
             // ⌫ deletes the separator after the last word, which is back in the engine: the
             // app deletes it, the next keys edit the word. Nothing injected.
-            if (appLogging()) appLog("hook", "backspace: last word reopened");
+            if (appLogging()) hookLog("backspace: last word reopened");
             return passKey(code, wp, lp, *kb, k);
         case ReopenTrail::Before::Popped: h->session.noteKeyPassedBy(k); return passKey(code, wp, lp, *kb, k);
         case ReopenTrail::Before::Normal: break;
@@ -424,7 +430,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
                           false)) {
         splitDrop("foreground changed");
         dropWord();
-        appLog("hook", "foreground changed before injection: edit dropped, word reset");
+        hookLog("foreground changed before injection: edit dropped, word reset");
         return CallNextHookEx(nullptr, code, wp, lp);
     }
     // A modifier pressed since the key (or AltGr) would turn our VK_BACK into Ctrl+Backspace
@@ -432,7 +438,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     if (!injectionModifiersSafe(GetAsyncKeyState(VK_CONTROL) < 0, GetAsyncKeyState(VK_MENU) < 0,
                                 GetAsyncKeyState(VK_LWIN) < 0 || GetAsyncKeyState(VK_RWIN) < 0)) {
         dropWord();
-        appLog("hook", "modifier held at injection: edit dropped, word reset");
+        hookLog("modifier held at injection: edit dropped, word reset");
         return CallNextHookEx(nullptr, code, wp, lp);
     }
     // Java AWT (JetBrains): the text goes kSplitCorrectionDelayMs after the Backspaces, and
@@ -440,7 +446,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     if (h->splitHost) {
         const SendOutcome out = splitSubmit(sink.inputs);
         if (appLogging())
-            appLog("hook", std::string("split correction: ") + std::to_string(sink.backspaces) + " backspaces, " +
+            hookLog(std::string("split correction: ") + std::to_string(sink.backspaces) + " backspaces, " +
                                std::to_string(sink.units) + " units, " + std::to_string(h->split.pendingChunks()) +
                                " chunk(s) waiting, key class " + std::to_string(static_cast<int>(k.kind)));
         if (out != SendOutcome::Ok) return out == SendOutcome::NothingSent ? CallNextHookEx(nullptr, code, wp, lp) : 1;
@@ -452,7 +458,7 @@ LRESULT CALLBACK keyboardProc(int code, WPARAM wp, LPARAM lp) {
     const UINT sent = SendInput(total, sink.inputs.data(), sizeof(INPUT));
     const SendOutcome out = classifySend(sent, total);
     if (appLogging())
-        appLog("hook", "SendInput " + std::to_string(sent) + "/" + std::to_string(total) + " events (" +
+        hookLog("SendInput " + std::to_string(sent) + "/" + std::to_string(total) + " events (" +
                            std::to_string(sink.backspaces) + " backspaces, " + std::to_string(sink.units) +
                            " units) key class " + std::to_string(static_cast<int>(k.kind)));
     if (out != SendOutcome::Ok) {
@@ -491,7 +497,7 @@ void markNoDirect(DWORD tid, const char* why) {
     if (!field) field = h ? h->fgHwnd : nullptr;
     if (field) SetPropW(field, kNoDirectProp, reinterpret_cast<HANDLE>(1));
     if (h && h->fgHwnd && field != h->fgHwnd) SetPropW(h->fgHwnd, kNoDirectProp, reinterpret_cast<HANDLE>(1));
-    directLog(std::string("direct mode -> composition for this field: ") + why);
+    appLogDeferred("direct", std::string("direct mode -> composition for this field: ") + why);
 }
 
 // kDirectOnProp: the TIP stays out of a window only while this is set (handover ack).
@@ -499,7 +505,9 @@ void setAck(HWND w) {
     if (h->ackHwnd == w) return;
     if (h->ackHwnd) RemovePropW(h->ackHwnd, kDirectOnProp);
     h->ackHwnd = w;
-    if (w) SetPropW(w, kDirectOnProp, reinterpret_cast<HANDLE>(1));
+    // Value = our main window: the TIP ignores the ack once this app is gone (killed: no
+    // cleanup), instead of leaving the field to nobody (app_policy.h propFromLiveApp).
+    if (w) SetPropW(w, kDirectOnProp, reinterpret_cast<HANDLE>(g_mainWnd));
 }
 
 // Raw input (RIDEV_INPUTSINK: every key system-wide) only feeds the hook watchdog, so it
@@ -580,7 +588,7 @@ void configureSession(const Settings& s) {
         h->watchChord = watch;
         h->chord.disarm();
         syncHooks();
-        appLog("hook", watch ? "Ctrl+Shift watcher on (switches to VietTelex from another keyboard)"
+        hookLog(watch ? "Ctrl+Shift watcher on (switches to VietTelex from another keyboard)"
                              : "Ctrl+Shift watcher off");
     }
 }
@@ -625,8 +633,16 @@ DWORD WINAPI hookThreadMain(void*) {
                 }
                 case kCmdForeground: {
                     std::unique_ptr<Foreground> f(reinterpret_cast<Foreground*>(msg.lParam));
-                    const bool wasEngaged = h->wanted && h->fgHwnd == f->hwnd;
-                    if (!f->install || h->fgHwnd != f->hwnd) splitDrop("foreground changed");
+                    const ForegroundUpdate up = foregroundUpdate(reinterpret_cast<uintptr_t>(h->fgHwnd), h->wanted,
+                                                                 reinterpret_cast<uintptr_t>(f->hwnd));
+                    const bool wasEngaged = up.keepArming;
+                    if (!f->install || up.resetWord) splitDrop("foreground changed");
+                    if (up.resetWord) {
+                        // Another window: the word in progress is the old window's
+                        // (applyWanted resets nothing while the hook stays installed).
+                        dropWord();
+                        h->session.resetContext();
+                    }
                     h->splitHost = f->install && splitsCorrection(f->app.windowClass);
                     h->fgExe = f->exe;
                     h->app = f->app;
@@ -653,7 +669,7 @@ DWORD WINAPI hookThreadMain(void*) {
                     setAck(nullptr);
                     h->arming.disengaged();
                     h->adoption.drop();
-                    appLog("hook", "stopped for this field (Direct fell back to composition)");
+                    hookLog("stopped for this field (Direct fell back to composition)");
                     break;
                 case kCmdSuspend: {
                     const bool on = msg.wParam != 0;
@@ -668,7 +684,7 @@ DWORD WINAPI hookThreadMain(void*) {
                     // resume mid-word: typing starts at the next boundary.
                     syncHooks();
                     if (!on && h->wanted) h->arming.engaged(false);
-                    appLog("hook", h->suspended ? "suspended (game / fullscreen): hooks removed" : "resumed");
+                    hookLog(h->suspended ? "suspended (game / fullscreen): hooks removed" : "resumed");
                     break;
                 }
                 case kCmdSyncHooks: syncHooks(); break;
@@ -878,6 +894,8 @@ void hookShutdown() {
         CloseHandle(g_hookThread);
         g_hookThread = nullptr;
     }
+    appLogDrain();  // the hook thread's queued lines (debugFileFlush below them at exit)
+    if (appLogging()) debugFileFlush();
     if (g_hookReady) CloseHandle(g_hookReady);
     g_hookReady = nullptr;
     delete u;

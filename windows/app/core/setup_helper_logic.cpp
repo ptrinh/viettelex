@@ -155,7 +155,21 @@ Handoff decideHandoff(const std::wstring& runningTitle, const std::string& ourVe
 
 namespace vtx {
 
-std::wstring watcherArgs(unsigned long pid) { return L"--wait-install " + std::to_wstring(pid); }
+std::wstring watcherArgs(unsigned long pid, bool uninstall) {
+    return L"--wait-install " + std::to_wstring(pid) + (uninstall ? L" --uninstall" : L"");
+}
+
+bool parseWatcherUninstallArg(const std::vector<std::wstring>& argv) {
+    for (const std::wstring& a : argv)
+        if (a == L"--uninstall") return true;
+    return false;
+}
+
+std::wstring msiexecPath(const std::wstring& systemDir) {
+    if (systemDir.empty()) return {};
+    const bool sep = systemDir.back() == L'\\' || systemDir.back() == L'/';
+    return systemDir + (sep ? L"" : L"\\") + L"msiexec.exe";
+}
 
 bool parseWaitInstallArg(const std::vector<std::wstring>& argv, unsigned long& pid) {
     for (size_t i = 0; i + 1 < argv.size(); ++i) {
