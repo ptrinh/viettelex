@@ -383,10 +383,10 @@ Chọn “Sửa tự động” để VietTelex xoá mục quyền cũ của ch�
 
 /* Chú thích ngắn một dòng — các tab còn lại + tên cách gõ theo triệu chứng (06/11/2026) */
 "Edit in the field" = "Sửa thẳng trong ô";
-"Underline while typing" = "Gạch chân chữ đang gõ";
+"Underline" = "Gạch chân";
 "Real keystrokes" = "Phím thật";
-"Real keystrokes: select and retype" = "Phím thật: chọn rồi gõ lại";
-"Real keystrokes: Excel style" = "Phím thật: kiểu Excel";
+"Select and retype" = "Chọn rồi gõ lại";
+"Excel style" = "Kiểu Excel";
 "Choose per field" = "Tự chọn theo từng ô";
 "Vietnamese off" = "Tắt tiếng Việt";
 "needs {PANE}" = "cần quyền {PANE}";

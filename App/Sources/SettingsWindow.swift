@@ -829,10 +829,10 @@ struct SettingRowLabel: View {
 enum ModeNames {
     static let auto = "Auto"
     static let inPlace = "Edit in the field"
-    static let marked = "Underline while typing"
+    static let marked = "Underline"
     static let tap = "Real keystrokes"
-    static let selection = "Real keystrokes: select and retype"
-    static let emptyReset = "Real keystrokes: Excel style"
+    static let selection = "Select and retype"
+    static let emptyReset = "Excel style"
     static let axDetect = "Choose per field"
     static let passthrough = "Vietnamese off"
     /// Đuôi cho mục cần quyền khi chưa cấp: "Tên (cần quyền Trợ năng)".
