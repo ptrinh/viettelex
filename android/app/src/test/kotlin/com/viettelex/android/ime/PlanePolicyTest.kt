@@ -209,16 +209,16 @@ class PlanePolicyTest {
     }
 
     @Test fun symbolReturnDefaultsAndParsing() {
-        assertEquals(SymbolReturn.AUTO, SymbolReturn.DEFAULT)
+        assertEquals(SymbolReturn.OFF, SymbolReturn.DEFAULT)
         assertEquals("symbolReturn", com.viettelex.keyboard.Keys.SYMBOL_RETURN)
-        assertEquals(SymbolReturn.AUTO, SymbolReturn.of(null))
-        assertEquals(SymbolReturn.AUTO, SymbolReturn.of("turbo"))
+        assertEquals(SymbolReturn.OFF, SymbolReturn.of(null))
+        assertEquals(SymbolReturn.OFF, SymbolReturn.of("turbo"))
         assertEquals(SymbolReturn.ALWAYS, SymbolReturn.of("always"))
         assertEquals(SymbolReturn.OFF, SymbolReturn.of("off"))
         assertEquals(listOf("auto", "always", "off"), SymbolReturn.entries.map { it.id })
         assertEquals(SymbolReturn.ALWAYS, com.viettelex.keyboard.KeyboardSettings.load {
             if (it == com.viettelex.keyboard.Keys.SYMBOL_RETURN) "always" else null }.symbolReturn)
-        assertEquals(SymbolReturn.AUTO, com.viettelex.keyboard.KeyboardSettings.load { null }.symbolReturn)
+        assertEquals(SymbolReturn.OFF, com.viettelex.keyboard.KeyboardSettings.load { null }.symbolReturn)
     }
 
     @Test fun symbolReturnModesNeverInNumericFieldOrOtherPlanes() {

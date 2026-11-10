@@ -110,12 +110,13 @@ final class ClauseEndReturnTests: XCTestCase {
         }
     }
 
-    /// Mặc định = Tự động; bảng cũ (mode mặc định) không đổi nghĩa.
-    func testDefaultIsAuto() {
-        XCTAssertEqual(SymbolReturn.defaultValue, .auto)
+    /// Mặc định = Tắt (10/11/2026: người dùng tưởng về ABC sau một ký tự là lỗi); "auto" vẫn đọc được.
+    func testDefaultIsOff() {
+        XCTAssertEqual(SymbolReturn.parse("auto"), .auto)
+        XCTAssertEqual(SymbolReturn.defaultValue, .off)   // 10/11/2026: mặc định Tắt
         XCTAssertEqual(SymbolReturn.key, "symbolReturn")
-        XCTAssertEqual(SymbolReturn.parse(nil), .auto)
-        XCTAssertEqual(SymbolReturn.parse("turbo"), .auto)
+        XCTAssertEqual(SymbolReturn.parse(nil), .off)
+        XCTAssertEqual(SymbolReturn.parse("turbo"), .off)
         XCTAssertEqual(SymbolReturn.parse("always"), .always)
         XCTAssertEqual(SymbolReturn.parse("off"), .off)
         XCTAssertEqual(SymbolReturn.allCases.map(\.rawValue), ["auto", "always", "off"])

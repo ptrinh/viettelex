@@ -561,15 +561,16 @@ enum SpaceSideKey: String, CaseIterable {
 
 /// "Về bàn chữ sau ký hiệu" (Tính năng → Phím & cử chỉ; khoá App Group `symbolReturn`, cùng chuỗi
 /// với Android Keys.SYMBOL_RETURN; 06/11/2026). Chạm một ký tự ở plane 123/#+= rồi:
-///  • `.auto` (mặc định, "Tự động"): dấu kết vế . , ? ! ) " ' : ; (… ” ’ ») về chữ ngay; ký hiệu khác ở lại.
+///  • `.auto` ("Tự động"): dấu kết vế . , ? ! ) " ' : ; (… ” ’ ») về chữ ngay; ký hiệu khác ở lại.
 ///  • `.always` ("Luôn"): MỌI ký hiệu về chữ ngay; chữ số ở lại.
-///  • `.off` ("Tắt"): không về sau ký hiệu — chỉ dấu cách đưa về chữ.
+///  • `.off` (mặc định từ 10/11/2026, "Tắt"): không về sau ký hiệu — chỉ dấu cách đưa về chữ.
+///    (Người dùng tưởng "chọn một ký tự là bị về ABC" là lỗi — email 10/11/2026.)
 /// Ngay sau chữ số thì . , : ở lại (2.5, 1,000, 10:30); ô số không bao giờ về. Dấu cách vẫn đưa
 /// về chữ ở cả ba chế độ (PlanePolicy.returnToLettersOnSpace). Đọc lúc hiện — 0 chi phí mỗi phím.
 enum SymbolReturn: String, CaseIterable {
     case auto, always, off
     static let key = "symbolReturn"
-    static let defaultValue: SymbolReturn = .auto
+    static let defaultValue: SymbolReturn = .off
     /// Giá trị lạ / thiếu ⇒ mặc định.
     static func parse(_ raw: Any?) -> SymbolReturn {
         (raw as? String).flatMap(SymbolReturn.init(rawValue:)) ?? defaultValue

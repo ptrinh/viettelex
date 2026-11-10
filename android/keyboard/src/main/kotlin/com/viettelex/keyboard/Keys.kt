@@ -151,7 +151,7 @@ object Keys {
     const val HOLD_SHIFT_SYMBOLS = "holdShiftSymbols"
     /** String "comma" | "period" | "both" | "off" — phím cạnh dấu cách bàn chữ điện thoại ([SpaceSideKey]), mặc định "comma". */
     const val SPACE_SIDE_KEY = "spaceSideKey"
-    /** String "auto" | "always" | "off" — về bàn chữ sau ký hiệu ở plane ?123 ([SymbolReturn]), mặc định "auto". */
+    /** String "auto" | "always" | "off" — về bàn chữ sau ký hiệu ở plane ?123 ([SymbolReturn]), mặc định "off" (từ 10/11/2026). */
     const val SYMBOL_RETURN = "symbolReturn"
     /** Bool — "Phím to" (điện thoại): "," "." hàng đáy rộng bằng phím 😊, mặc định TẮT. Tên như iOS App Group. */
     const val LARGE_KEYS = "largeKeys"

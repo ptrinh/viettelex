@@ -134,7 +134,7 @@ data class KeyboardSettings(
     var holdShiftSymbols: Boolean = true,
     /** Phím cạnh dấu cách (bàn chữ ô thường; tablet: có / không "," "." hai bên space) — mặc định "," ([SpaceSideKey]). */
     var spaceSideKey: SpaceSideKey = SpaceSideKey.DEFAULT,
-    /** "Về bàn chữ sau ký hiệu": Tự động (mặc định) / Luôn / Tắt ([SymbolReturn]). Giống iOS. */
+    /** "Về bàn chữ sau ký hiệu": Tự động / Luôn / Tắt (mặc định) ([SymbolReturn]). Giống iOS. */
     var symbolReturn: SymbolReturn = SymbolReturn.DEFAULT,
     /** "Phím to" (điện thoại): "," "." cạnh space rộng bằng phím 😊 — mặc định TẮT. Giống iOS (LargeKeys). */
     var largeKeys: Boolean = false,

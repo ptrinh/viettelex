@@ -682,7 +682,7 @@ private fun SpaceSideKeyRow() = ChoiceRow(Keys.SPACE_SIDE_KEY, Prefs.D.spaceSide
         SpaceSideKey.BOTH.id to tr("Cả hai"), SpaceSideKey.OFF.id to tr("Tắt"))) { SpaceSideKey.of(it).id }
 
 /**
- * "Về bàn chữ sau ký hiệu": Tự động (mặc định) / Luôn / Tắt — [SymbolReturn]. Cùng khoá + giá trị iOS.
+ * "Về bàn chữ sau ký hiệu": Tự động / Luôn / Tắt (mặc định) — [SymbolReturn]. Cùng khoá + giá trị iOS.
  */
 @Composable
 private fun SymbolReturnRow() = ChoiceRow(Keys.SYMBOL_RETURN, Prefs.D.symbolReturn.id, tr("Về bàn chữ sau ký hiệu"),
