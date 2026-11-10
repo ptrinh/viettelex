@@ -564,6 +564,8 @@ enum L10n {
         "Màu chữ trên phím": "Key label colour",
         "Màu nền phím": "Key colour",
         "Màu nhấn": "Accent colour",
+        "Màu viền phím": "Key border colour",
+        "Giao diện này dùng viền hiệu ứng riêng.": "This theme uses its own effect border.",
         "Quá lớn (tối đa 16 KB).": "Too large (max 16 KB).",
         "Không phải văn bản UTF-8 hợp lệ.": "Not valid UTF-8 text.",
         "JSON sai cú pháp ở %@ (dòng:cột).": "JSON syntax error at %@ (line:column).",

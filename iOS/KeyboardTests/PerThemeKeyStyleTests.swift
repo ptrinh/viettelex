@@ -389,4 +389,175 @@ final class PerThemeKeyStyleTests: XCTestCase {
         XCTAssertNil(kb.debugPopupStyle.border)
         XCTAssertEqual(kb.debugPopupStyle.fill, KeyboardTheme.oled.palette(systemDark: true).keyFill)
     }
+
+    // MARK: màu viền phím (11/2026) — lưu trong light/dark "border" có sẵn; Android KeyStyleStoreTests y hệt
+
+    /// Chuỗi chung — Android KeyStyleStoreTests.BORDER_FIXTURE phải trùng từng ký tự.
+    static let borderFixture = ##"{"nightclub":{"accent":"#FF2FD0","dark":{"border":"#33CCFF"},"light":{"border":"#33CCFF"}},"pink":{"corner":70}}"##
+    /// Khoá cấp mục mà MỌI bản app đã phát hành đọc được (ThemeSpecParser.override, trước 11/2026). Khoá lạ ⇒ bản
+    /// cũ bỏ CẢ mục của theme — màu viền KHÔNG được thêm khoá mới ở đây.
+    static let releasedEntryKeys: Set<String> = ["label", "fill", "accent", "corner", "fontScale", "font", "weight", "light",
+                                                 "dark", "sound", "effect", "swipe", "game", "keyShape", "photoFx", "keyMotion"]
+
+    func testBorderColorRoundTripAndCompat() {
+        var club = KeyStyle(accentColor: 0xFF2FD0)
+        club.borderColor = 0x33CCFF
+        let map: [String: KeyStyle] = ["nightclub": club, "pink": KeyStyle(corner: 70)]
+        XCTAssertEqual(KeyStyleStore.serialize(map), Self.borderFixture)
+        let back = KeyStyleStore.parse(Self.borderFixture)
+        XCTAssertEqual(back, map)
+        XCTAssertEqual(back["nightclub"]?.borderColor, 0x33CCFF)
+        XCTAssertEqual(back["nightclub"]?.light.border, 0xFF33CCFF)
+        XCTAssertEqual(back["nightclub"]?.dark.border, 0xFF33CCFF)
+        XCTAssertEqual(KeyStyleStore.normalize(Self.borderFixture), Self.borderFixture, "sao lưu / iCloud giữ nguyên")
+        // Dữ liệu cũ (không có viền) ⇒ nil, các trường khác như cũ.
+        let old = KeyStyleStore.parse(##"{"nightclub":{"accent":"#FF2FD0"}}"##)
+        XCTAssertNil(old["nightclub"]?.borderColor)
+        XCTAssertEqual(old["nightclub"], KeyStyle(accentColor: 0xFF2FD0))
+        // Bản app cũ: mục chỉ dùng khoá cấp mục đã phát hành ⇒ không bị bỏ cả mục.
+        guard case .success(.object(let top)) = StrictJSON.parse(Self.borderFixture, limits: KeyStyleStore.limits) else {
+            return XCTFail("fixture")
+        }
+        for (_, entry) in top {
+            guard case .object(let fields) = entry else { return XCTFail("entry") }
+            for (k, _) in fields { XCTAssertTrue(Self.releasedEntryKeys.contains(k), k) }
+        }
+        // Đặt rồi bỏ ⇒ đúng như chưa chỉnh (không để lại bản vá rỗng).
+        var st = KeyStyle()
+        st.borderColor = 0x123456
+        XCTAssertFalse(st.isDefault)
+        st.borderColor = nil
+        XCTAssertTrue(st.isDefault)
+        XCTAssertEqual(KeyStyleStore.serialize(["mint": st]), "{}")
+        // Giữ màu khác của bản vá JSON (chỉ đụng "border").
+        var patched = KeyStyle()
+        patched.light.key = 0xFF102030
+        patched.borderColor = 0xABCDEF
+        patched.borderColor = nil
+        XCTAssertEqual(patched.light.key, 0xFF102030)
+        XCTAssertNil(patched.light.border)
+    }
+
+    func testBorderColorPalette() {
+        let effectThemes: [KeyboardTheme] = [.rgb, .ai, .trippy, .pride]
+        for dark in [false, true] {
+            // Theme có viền (Neon Night Club: ống neon hồng) ⇒ viền theo màu chọn, đục; chỉ viền đổi.
+            let clubBase = KeyboardTheme.nightclub.palette(systemDark: dark)
+            XCTAssertNotNil(clubBase.keyBorder)
+            var s = ThemeSettings(theme: .nightclub)
+            XCTAssertEqual(s.palette(systemDark: dark, wallpaperActive: false), clubBase, "chưa chọn ⇒ y như cũ")
+            s.keyStyle.borderColor = 0x33CCFF
+            let club = s.palette(systemDark: dark, wallpaperActive: false)
+            XCTAssertEqual(club.keyBorder, RGBA(hex: 0x33CCFF))
+            var expect = clubBase
+            expect.keyBorder = RGBA(hex: 0x33CCFF)
+            XCTAssertEqual(club, expect, "chỉ viền đổi")
+            let ps = KeyPopupStyle.make(club, style: s.effectiveKeyStyle, systemDark: dark, wallpaper: false)
+            XCTAssertEqual(ps.border, RGBA(hex: 0x33CCFF), "ô phóng to / popup viền cùng màu")
+            XCTAssertEqual(ps.borderWidth, 1)
+            XCTAssertFalse(KeyStyle.borderLocked(club, assets: s.effectiveKeyStyle.assets))
+
+            // Theme không viền ⇒ có viền 1pt màu chọn.
+            let mintBase = KeyboardTheme.mint.palette(systemDark: dark)
+            XCTAssertNil(mintBase.keyBorder)
+            var m = ThemeSettings(theme: .mint)
+            XCTAssertEqual(m.palette(systemDark: dark, wallpaperActive: false), mintBase)
+            m.keyStyle.borderColor = 0xFF9500
+            let mint = m.palette(systemDark: dark, wallpaperActive: false)
+            XCTAssertEqual(mint.keyBorder, RGBA(hex: 0xFF9500))
+            XCTAssertEqual(KeyPopupStyle.make(mint, style: m.effectiveKeyStyle, systemDark: dark, wallpaper: false).borderWidth, 1)
+            // Đi cùng độ trong suốt phím như viền theme.
+            var tr = ThemeSettings(theme: .mint, keyboardTransparency: 60)
+            tr.keyStyle.borderColor = 0xFF9500
+            XCTAssertEqual(tr.palette(systemDark: dark, wallpaperActive: false).keyBorder?.a ?? 0, 0.4, accuracy: 1e-9)
+
+            // Viền hiệu ứng (cầu vồng / cực quang / Ảo giác / Tự hào) ⇒ ô khoá; còn lại (kể cả Pixel, Kính màu) ⇒ mở.
+            for t in KeyboardTheme.allCases {
+                let ts = ThemeSettings(theme: t)
+                XCTAssertEqual(KeyStyle.borderLocked(ts.palette(systemDark: dark, wallpaperActive: false),
+                                                     assets: ts.effectiveKeyStyle.assets), effectThemes.contains(t), "\(t)")
+            }
+            for t in [KeyboardTheme.pixel, .stainedGlass] {
+                var ts = ThemeSettings(theme: t)
+                ts.keyStyle.borderColor = 0x00FF00
+                XCTAssertEqual(ts.palette(systemDark: dark, wallpaperActive: false).keyBorder, RGBA(hex: 0x00FF00), "\(t)")
+            }
+            // Skin ảnh tải về ⇒ khoá.
+            var skinned = ThemeAssetSpec()
+            skinned.keys["default"] = ThemeKeySkin(image: ThemeAssetRef(url: "https://example.com/k.png", sha256: nil))
+            XCTAssertTrue(KeyStyle.borderLocked(mintBase, assets: skinned))
+        }
+        // Không chọn ⇒ palette mọi theme y như trước (không thêm gì).
+        for t in KeyboardTheme.allCases {
+            for dark in [false, true] {
+                XCTAssertEqual(KeyStyle().applyPatch(to: t.palette(systemDark: dark), dark: dark), t.palette(systemDark: dark), "\(t)")
+            }
+        }
+        // Hết Plus ⇒ không áp (giá trị giữ nguyên).
+        PlusGate.paywallEnabled = true; PlusGate.setPurchased(false); PlusGate.debugOverride = false
+        var locked = ThemeSettings(theme: .mint)
+        locked.keyStyle.borderColor = 0xFF0000
+        XCTAssertNil(locked.palette(systemDark: true, wallpaperActive: false).keyBorder)
+        XCTAssertEqual(locked.keyStyle.borderColor, 0xFF0000)
+    }
+
+    /// Mô hình ô "Màu viền phím": ghi qua keyPath như ba ô màu kia, "Theo theme" = nil; lưu / đọc giữ đúng theme.
+    func testBorderColorSettingsWriteAndReset() {
+        var s = ThemeSettings(theme: .nightclub)
+        let kp: WritableKeyPath<KeyStyle, UInt32?> = \.borderColor
+        s.keyStyle[keyPath: kp] = 0x33CCFF
+        s.keyStyle.accentColor = 0xFF2FD0
+        s.setStyle(KeyStyle(corner: 70), for: .pink)
+        s.save(d)
+        XCTAssertEqual(d.string(forKey: KeyStyleStore.key), Self.borderFixture)
+        let loaded = ThemeSettings.load(d)
+        XCTAssertEqual(loaded.keyStyles, s.keyStyles)
+        XCTAssertEqual(loaded.keyStyle.borderColor, 0x33CCFF)
+        // Theme khác không bị ảnh hưởng.
+        s.theme = .mint
+        XCTAssertNil(s.keyStyle.borderColor)
+        XCTAssertNil(s.palette(systemDark: true, wallpaperActive: false).keyBorder)
+        // "Theo theme" ⇒ về viền hồng của theme.
+        s.theme = .nightclub
+        s.keyStyle[keyPath: kp] = nil
+        XCTAssertEqual(s.keyStyle, KeyStyle(accentColor: 0xFF2FD0))
+        XCTAssertEqual(s.palette(systemDark: true, wallpaperActive: false).keyBorder,
+                       KeyboardTheme.nightclub.palette(systemDark: true).keyBorder)
+    }
+
+    /// Bàn phím thật: phím (kể cả theme không viền) vẽ viền 1pt màu chọn; khoá ảnh khung đầu đổi theo màu viền.
+    @MainActor func testKeyboardViewDrawsBorderColorAndSnapshotKeyChanges() {
+        let ud = UserDefaultsProvider.shared
+        let keys = [ThemeSettings.themeKey, KeyStyleStore.key] + KeyStyleStore.legacyKeys
+        let saved = keys.map { ud?.object(forKey: $0) }
+        defer { for (k, v) in zip(keys, saved) { ud?.set(v, forKey: k) } }
+        for k in KeyStyleStore.legacyKeys { ud?.removeObject(forKey: k) }
+        ud?.set("mint", forKey: ThemeSettings.themeKey)
+        ud?.set(KeyStyleStore.empty, forKey: KeyStyleStore.key)
+        let kb = KeyboardView(needsGlobe: false, inputController: nil) { _ in }
+        kb.frame = CGRect(x: 0, y: 0, width: 390, height: 300)
+        kb.applyAppearance(.dark, style: .dark)
+        XCTAssertNil(kb.debugPalette.keyBorder)
+        XCTAssertTrue(kb.debugAllKeyButtons().allSatisfy { $0.layer.borderWidth == 0 }, "chưa chọn ⇒ không viền như cũ")
+        let none = KeySnapshot.digest(kb.snapshotKeyParts())
+        func apply(_ c: UInt32) -> String {
+            var st = KeyStyle()
+            st.borderColor = c
+            ud?.set(KeyStyleStore.serialize(["mint": st]), forKey: KeyStyleStore.key)
+            kb.applyAppearance(.dark, style: .dark)
+            return KeySnapshot.digest(kb.snapshotKeyParts())
+        }
+        let blue = apply(0x0A84FF)
+        XCTAssertEqual(kb.debugPalette.keyBorder, RGBA(hex: 0x0A84FF))
+        let buttons = kb.debugAllKeyButtons()
+        XCTAssertFalse(buttons.isEmpty)
+        for b in buttons {
+            XCTAssertEqual(b.layer.borderWidth, 1)
+            XCTAssertEqual(b.layer.borderColor, RGBA(hex: 0x0A84FF).ui.cgColor)
+        }
+        XCTAssertNotNil(kb.debugPopupStyle.border)
+        let red = apply(0xFF3B30)
+        XCTAssertNotEqual(none, blue)
+        XCTAssertNotEqual(blue, red, "đổi màu viền ⇒ khoá ảnh khung đầu khác (không hiện ảnh cũ)")
+    }
 }

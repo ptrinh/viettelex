@@ -46,11 +46,12 @@ private const val DEFAULT_CORNER_PERCENT = 30
 /**
  * "Tuỳ chỉnh nâng cao" (Plus) ở trang Giao diện — thu gọn mặc định. Chưa có Plus: chạm mở màn
  * VietTelex Plus ([onOpenPlus]); giá trị đã lưu chỉ áp khi có Plus ([com.viettelex.keyboard.ThemeSettings.effectiveKeyStyle]).
- * [palette] = palette đang xem trước (màu "theo theme" hiện ở ô màu).
+ * [palette] = palette đang xem trước (màu "theo theme" hiện ở ô màu). [borderLocked] = theme có viền hiệu ứng / skin
+ * ảnh ([KeyStyle.borderLocked]) ⇒ ô "Màu viền phím" mờ + giải thích.
  */
 @Composable
 internal fun AdvancedStyleSection(style: KeyStyle, palette: ThemePalette, onChange: (KeyStyle) -> Unit, onOpenPlus: () -> Unit,
-                                  onFontAsset: (KeyStyle) -> Unit = onChange) {
+                                  onFontAsset: (KeyStyle) -> Unit = onChange, borderLocked: Boolean = false) {
     val c = LocalVT.current
     val allowed = ThemeGate.allowsAdvanced
     var open by rememberSaveable { mutableStateOf(false) }
@@ -71,6 +72,13 @@ internal fun AdvancedStyleSection(style: KeyStyle, palette: ThemePalette, onChan
         RowDivider()
         // Nhập/hành động, ⇧ bật, vệt gõ vuốt — chữ trên nó tự đổi đen/trắng nếu cần.
         ColorRow(tr("Màu nhấn"), style.accentColor, palette.action) { onChange(style.copy(accentColor = it)) }
+        RowDivider()
+        // Viền mọi phím (+ ô phóng to); theme không viền ⇒ viền mảnh. Viền hiệu ứng / skin ảnh ⇒ mờ + giải thích.
+        ColorRow(tr("Màu viền phím"), style.borderColor, palette.keyBorder ?: palette.keyInk, enabled = !borderLocked) {
+            onChange(style.withBorderColor(it))
+        }
+        if (borderLocked) Text(tr("Giao diện này dùng viền hiệu ứng riêng."), style = VTType.footnote, color = c.secondary,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
         RowDivider()
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -202,12 +210,12 @@ private fun <T> OptionChips(title: String, options: List<T>, selected: T, label:
 
 /** Dòng màu: ô màu hiện tại (theo theme khi chưa chọn) — chạm mở bảng chọn; "Theo theme" về mặc định. */
 @Composable
-private fun ColorRow(title: String, value: Int?, themeColor: Int, onPick: (Int?) -> Unit) {
+private fun ColorRow(title: String, value: Int?, themeColor: Int, enabled: Boolean = true, onPick: (Int?) -> Unit) {
     val c = LocalVT.current
     var picking by remember { mutableStateOf(false) }
     val shown = value?.let { 0xFF000000.toInt() or it } ?: (themeColor or 0xFF000000.toInt())
-    VTRow(onClick = { picking = true }) {
-        Text(title, style = VTType.body, color = c.label, modifier = Modifier.weight(1f))
+    VTRow(onClick = if (enabled) { { picking = true } } else null) {
+        Text(title, style = VTType.body, color = if (enabled) c.label else c.secondary, modifier = Modifier.weight(1f))
         if (value != null) TextButton(onClick = { onPick(null) }) { Text(tr("Theo theme")) }
         Box(Modifier.size(28.dp).background(Color(shown), CircleShape).border(1.dp, c.separator, CircleShape))
     }
