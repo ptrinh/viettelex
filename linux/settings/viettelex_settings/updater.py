@@ -19,7 +19,8 @@ Hai đường cập nhật (quyết định bởi plan()):
   - "apt": máy đã thêm kho APT VietTelex → helper root chạy apt-get update (chỉ kho
     VietTelex) + apt-get install --only-upgrade các gói đang cài.
   - "deb": cài từ .deb tải tay → app tải đúng bộ .deb (series + arch), kiểm SHA256,
-    rồi helper root cài bằng apt-get install ./….deb.
+    rồi helper root TỰ kiểm lại SHA256 với stable.json nó tự tải (không tin app — xem
+    "Mô hình đe doạ" trong viettelex-update) và cài bằng apt-get install ./….deb.
 Helper chạy qua pkexec (polkit action org.viettelex.update).
 
 Gói RPM (Fedora/EL), Fedora Atomic (rpm-ostree) và Arch (pacman) không có helper: gói ghi
@@ -68,6 +69,7 @@ EXIT_OK = 0
 EXIT_USAGE = 2
 EXIT_LOCK = 3
 EXIT_APT = 4
+EXIT_VERIFY = 5   # helper tự kiểm: .deb không khớp SHA256 của stable.json nó tự tải
 # pkexec: 126 = người dùng bấm Huỷ / không được phép, 127 = không xác thực được.
 EXIT_PKEXEC_DISMISSED = 126
 EXIT_PKEXEC_NOAUTH = 127
@@ -295,6 +297,9 @@ def result_message(code, output, version):
             or "Unable to acquire the dpkg frontend lock" in (output or ""):
         return False, _("Trình quản lý gói đang bận (Software Updater/apt khác đang chạy). "
                          "Đợi xong rồi thử lại.")
+    if code == EXIT_VERIFY:
+        return False, _("Không xác minh được gói tải về với bản phát hành chính thức — đã huỷ, "
+                        "không cài.")
     return False, _("Cập nhật lỗi (mã %d):\n%s") % (code, tail(output) or _("không có thông báo"))
 
 

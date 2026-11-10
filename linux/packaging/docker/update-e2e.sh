@@ -66,7 +66,17 @@ echo "$out" | grep -q "SHA256" || fail "sha msg"; isver viettelex-ibus $OLD
 echo "-- host lạ bị chặn (không prefix)"
 out=$(python3 -c "$PY; lin['download']='http://127.0.0.1:8000/gh/'; print(u.run_update(lin, print))" | tail -1); echo "$out"
 echo "$out" | grep -q "không hợp lệ" || fail "prefix"
+echo "-- helper tự kiểm SHA256 (không tin app): .deb đúng tên gói nhưng không khớp stable.json"
+mkdir -p /srv/evil; cp /srv/bad/viettelex-ibus_$NEW.${S}1_$A.deb /srv/evil/
+VT_STABLE_JSON=/fake/stable.json /usr/libexec/viettelex/viettelex-update deb /srv/evil; [ $? = 5 ] || fail "helper sha"
+isver viettelex-ibus $OLD
+echo "-- qua pkexec (PKEXEC_UID) thì VT_STABLE_JSON bị bỏ qua: tải stable.json thật, bản thử không có ⇒ 5"
+cp /srv/gh/viettelex-ibus_$NEW.${S}1_$A.deb /srv/evil/
+PKEXEC_UID=1000 VT_STABLE_JSON=/fake/stable.json /usr/libexec/viettelex/viettelex-update deb /srv/evil; [ $? = 5 ] || fail "override under pkexec"
+isver viettelex-ibus $OLD
+rm -rf /srv/evil
 echo "-- cập nhật thật (.deb)"
+export VT_STABLE_JSON=/fake/stable.json   # helper chạy thẳng bằng root (pkexec giả): SHA256 của bản thử
 out=$(python3 -c "$PY; lin['download']='http://127.0.0.1:8000/gh/'; print(u.run_update(lin, print, allowed_prefix='http://127.0.0.1:8000/'))"); echo "$out" | tail -3
 echo "$out" | tail -1 | grep -q "(True" || fail "deb run_update"
 vers; for p in libviettelex-core viettelex-ibus viettelex-settings; do isver $p $NEW; done

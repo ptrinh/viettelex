@@ -388,6 +388,8 @@ EN = {
     "Không tải được %s — kiểm tra mạng rồi thử lại.":
         "Couldn’t download %s — check your connection and try again.",
     "Sai mã SHA256 của %s — đã huỷ, không cài.": "SHA256 mismatch for %s — cancelled, nothing installed.",
+    "Không xác minh được gói tải về với bản phát hành chính thức — đã huỷ, không cài.":
+        "Couldn’t verify the downloaded packages against the official release — cancelled, nothing installed.",
     "Đang cài (cần mật khẩu quản trị)…": "Installing (administrator password required)…",
     "Không chạy được pkexec: %s": "Couldn’t run pkexec: %s",
 
