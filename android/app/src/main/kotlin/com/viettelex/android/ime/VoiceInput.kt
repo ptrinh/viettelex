@@ -38,15 +38,23 @@ object VoicePicker {
 class VoiceInput(private val ims: InputMethodService) {
     private val imm get() = ims.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
 
-    private class Target(val imi: InputMethodInfo, val subtype: InputMethodSubtype)
+    class Target internal constructor(val imi: InputMethodInfo, val subtype: InputMethodSubtype)
 
-    /** Đọc lại mỗi lần bàn phím hiện (user có thể bật/tắt IME giọng nói trong Cài đặt). */
+    /**
+     * Đọc lại mỗi lần vào ô mới (user có thể bật/tắt IME giọng nói trong Cài đặt) — IME dò bằng [probe]
+     * trên worker SAU khung đầu rồi [apply] trên main. Chỉ main đọc/ghi.
+     */
     private var target: Target? = null
     val available: Boolean get() = target != null
 
-    fun refresh() {
-        target = try { find() } catch (_: Exception) { null }
-    }
+    /** Dò đồng bộ (main) — đường chạm 🎤 khi lần chuyển trước thất bại. */
+    fun refresh() { apply(probe()) }
+
+    /** 1 + N binder tới InputMethodManager; gọi được từ thread nền. */
+    fun probe(): Target? = try { find() } catch (_: Exception) { null }
+
+    /** Áp kết quả [probe] (main). */
+    fun apply(t: Target?) { target = t }
 
     private fun find(): Target? {
         val m = imm

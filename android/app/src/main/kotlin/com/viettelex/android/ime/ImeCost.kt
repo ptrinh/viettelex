@@ -18,6 +18,15 @@ internal object ImeCost {
     @JvmField var gridRecords = 0
     /** Lượt gợi ý lúc hiện bàn phím (hoãn ra sau khung đầu — VietTelexIME.firstBarRun). */
     @JvmField var barRefreshes = 0
+    /** Dàn tab kaomoji (EmojiPane) — chỉ khi mở tab ^‿^. */
+    @JvmField var kaomojiLayouts = 0
+    /** Nạp mẫu câu (pref JSON / YAML asset) — chỉ khi mở bảng ☰. */
+    @JvmField var templateLoads = 0
+    /** Dò IME giọng nói (binder InputMethodManager) — sau khung đầu, trên worker. */
+    @JvmField var voiceProbes = 0
 
-    fun reset() { inputViews = 0; themes = 0; layoutBuilds = 0; keyboardDraws = 0; gridRecords = 0; barRefreshes = 0 }
+    fun reset() {
+        inputViews = 0; themes = 0; layoutBuilds = 0; keyboardDraws = 0; gridRecords = 0; barRefreshes = 0
+        kaomojiLayouts = 0; templateLoads = 0; voiceProbes = 0
+    }
 }

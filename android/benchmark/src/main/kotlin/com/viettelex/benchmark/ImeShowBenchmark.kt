@@ -119,6 +119,27 @@ class ImeShowBenchmark {
         Thread.sleep(300)
     }
 
+    /**
+     * Gõ 20 chữ chia thành từ (dấu cách sau mỗi 4 chữ): như [typing] nhưng mỗi dấu cách đi đường ranh giới
+     * từ (chốt từ, học, gợi ý từ kế) — `VT.suggest` (phần main của lượt gợi ý), `VT.suggestBg` (phần nền).
+     */
+    @Test fun typingWords() = rule.measureRepeated(IME,
+        listOf(FrameTimingMetric(), section("VT.keyToDraw", Mode.Average), section("VT.onKey", Mode.Average),
+            section("VT.onKey", Mode.Sum), section("VT.suggest", Mode.Average), section("VT.suggest", Mode.Sum),
+            section("VT.suggestBg", Mode.Average), section("VT.kbDraw", Mode.Count)),
+        iterations, config, compilation, startupMode = null,
+        setupBlock = { selectIme(); openHost(); show() }) {
+        val kb = keyboardBounds()
+        val y = kb.top + (kb.height() * 0.45f).toInt()
+        // Phím cách: giữa hàng cuối.
+        val spaceX = kb.centerX(); val spaceY = kb.bottom - kb.height() / 10
+        repeat(20) { i ->
+            device.click(kb.left + kb.width() * (1 + (i * 7) % 9) / 10, y); Thread.sleep(60)
+            if (i % 4 == 3) { device.click(spaceX, spaceY); Thread.sleep(60) }
+        }
+        Thread.sleep(300)
+    }
+
     /** Đổi bảng phím chữ ↔ ?123 (VT.planeSwitch, dựng / lấy layout từ cache). */
     @Test fun planeSwitch() = rule.measureRepeated(IME,
         listOf(FrameTimingMetric(), section("VT.planeSwitch", Mode.Average), section("VT.layoutBuild", Mode.Count),

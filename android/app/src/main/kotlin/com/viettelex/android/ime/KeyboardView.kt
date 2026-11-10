@@ -210,7 +210,13 @@ class KeyboardView(
     private var altShiftWas = Shift.OFF
     private val altRun = Runnable { fireAlt() }
     private var templatesEnabled = true
-    private var templates: List<TemplateItem> = emptyList()
+    /**
+     * Mẫu câu: nguồn LƯỜI — chỉ gọi khi bảng ☰ thật sự mở ([syncTemplatesPane]); bảng đóng thì không đọc /
+     * giải YAML, không cắt "…" từng mẫu trước khung đầu (docs/PERF-IME-SHOW.md, đợt 10/11/2026).
+     */
+    private var templates: () -> List<TemplateItem> = { emptyList() }
+    /** Nội dung lưới mẫu câu cần dựng lại (nguồn / công cụ / chế độ đổi) — làm ở lần mở bảng kế. */
+    private var templatesPaneStale = true
 
     // --- popup nhiều lựa chọn kiểu stock iOS (DomainPopup / KeyVariants) ---
     // Giữ "." bàn chữ ô URL / email ⇒ đuôi tên miền; giữ "," bàn chữ ⇒ dấu câu (CommaPopup);
@@ -263,10 +269,17 @@ class KeyboardView(
     }
 
     private fun refreshTemplatesPane() {
-        val p = TemplatesMenu.pane(textToolsMode, templatesEnabled, textToolsEnabled, translateEnabled)
-        templatesPane.setItems(if (p.showTemplates) templates else emptyList())
-        templatesPane.setExtras(p.extras, gear = p.gear)
+        templatesPaneStale = true
         if (plane == Plane.TEMPLATES) rebuild()
+    }
+
+    /** Bảng ☰ đang hiện: nạp mẫu câu (lần đầu) + đặt chip. Bảng khác ⇒ không gọi. */
+    private fun syncTemplatesPane() {
+        if (!templatesPaneStale) return
+        templatesPaneStale = false
+        val p = TemplatesMenu.pane(textToolsMode, templatesEnabled, textToolsEnabled, translateEnabled)
+        templatesPane.setItems(if (p.showTemplates) templates() else emptyList())
+        templatesPane.setExtras(p.extras, gear = p.gear)
     }
     var keyAreaPx = theme.dp(218f); private set
 
@@ -430,7 +443,7 @@ class KeyboardView(
     private var trackpadSelect = false
     private val yOffPx = TouchGeometry.yOffset * d
 
-    private val emojiPane = EmojiPane(this, theme, feedback)
+    internal val emojiPane = EmojiPane(this, theme, feedback)
     // Tìm emoji (27/09/2026): plane EMOJI_SEARCH = ô tìm + plane chữ; phím vào [search]
     // (Telex riêng), không tới ô nhập. return / 😊 → về lưới emoji; ?123 → plane số.
     private val searchBar = EmojiSearchBar(this, theme)
@@ -788,7 +801,7 @@ class KeyboardView(
     // MARK: cấu hình
 
     fun configure(returnLabel: String, kind: InputKind, needsGlobe: Boolean, showLogo: Boolean,
-                  templatesEnabled: Boolean, templates: List<TemplateItem>, keyAreaPx: Float,
+                  templatesEnabled: Boolean, templates: () -> List<TemplateItem>, keyAreaPx: Float,
                   numberSigned: Boolean = false, numberDecimal: Boolean = false, numberRow: Boolean = false,
                   numberRowFull: Boolean = false, spaceSideKey: SpaceSideKey = SpaceSideKey.DEFAULT,
                   emojiInStrip: Boolean = false, labelSize: KeyLabelSize = KeyLabelSize.DEFAULT,
@@ -957,8 +970,11 @@ class KeyboardView(
             val sz = theme.dp(22f)
             logoRect.set(it.right - theme.dp(10f) - sz, it.centerY - sz / 2, it.right - theme.dp(10f), it.centerY + sz / 2)
         }
-        val paneBottom = if (plane == Plane.TEMPLATES) keyAreaPx - KeyLayout.rowUnit(keyAreaPx, numberRow, d, numberRowFull) else keyAreaPx
-        templatesPane.layout(width.toFloat(), paneBottom)
+        // Bảng mẫu câu / emoji chỉ dàn khi đang hiện (bảng chữ lúc hiện bàn phím không trả phí của chúng).
+        if (plane == Plane.TEMPLATES) {
+            syncTemplatesPane()
+            templatesPane.layout(width.toFloat(), keyAreaPx - KeyLayout.rowUnit(keyAreaPx, numberRow, d, numberRowFull))
+        }
         emojiPane.layout(width.toFloat(), keyAreaPx)
         searchBar.layout(width.toFloat(), KeyLayout.searchHeaderPx(keyAreaPx))
         if (plane == Plane.EMOJI_SEARCH) refreshSearch()

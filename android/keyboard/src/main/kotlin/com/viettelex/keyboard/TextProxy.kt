@@ -17,6 +17,13 @@ interface TextProxy {
     val isSecure: Boolean
     /** Văn bản trước con trỏ (vài trăm ký tự là đủ); null nếu không đọc được. */
     fun contextBeforeInput(): String? = null
+    /**
+     * Văn bản trước con trỏ CHỈ để quyết định auto-shift (sai thì tệ nhất là shift lệch tới lần
+     * xác nhận kế — không bao giờ dùng cho quyết định sửa chữ). Được dùng thêm bản chữ ban đầu do
+     * hệ thống gửi kèm ô (chưa qua lần edit / đổi từ ngoài nào). [allowRead] = false ⇒ không đọc
+     * IPC: không có bản sẵn thì trả null. Mặc định = [contextBeforeInput] (proxy test không có IPC).
+     */
+    fun contextForShift(allowRead: Boolean = true): String? = contextBeforeInput()
     /** 🗑 mẫu câu: xoá sạch ô (giới hạn an toàn 20 000 ký tự). */
     fun clearAll() {}
     /**

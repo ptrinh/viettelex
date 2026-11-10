@@ -138,15 +138,38 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
      * hạ [firstBarPending] ⇒ lượt hoãn này bỏ qua, lượt gợi ý của chính phím đó lo bar.
      */
     private var firstBarPending = false
+    /** Đang trong kb.configure của [startInputView] ⇒ [onPlaneChanged] không auto-shift (làm ở cuối). */
+    private var configuringKb = false
     private val firstBarRun = Runnable {
         if (!firstBarPending || !inputShown || pendingGen != session.generation) return@Runnable
         firstBarPending = false
+        // Khung đầu dùng initialCapsMode (không có chữ ban đầu tin được): nay đọc chữ thật để xác nhận.
+        if (session.autoShiftUnverified) applyAutoShift()
         ImeCost.barRefreshes++
         ImeTrace.begin(ImeTrace.BAR_AFTER_FIRST_FRAME)
         try { refreshBar() } finally { ImeTrace.end() }
     }
     /** Khung kế (callback hoạt ảnh) ⇒ post: chạy sau traversal của chính khung đó (đã vẽ phím). */
-    private val firstBarFrame = android.view.Choreographer.FrameCallback { handler.post(firstBarRun) }
+    private val firstBarFrame = android.view.Choreographer.FrameCallback {
+        handler.post(firstBarRun)
+        if (voiceProbePending) { voiceProbePending = false; probeVoice() }
+    }
+
+    /** Lần hiện này cần dò lại IME giọng nói (ô mới) — làm sau khung đầu. */
+    private var voiceProbePending = false
+
+    /** Dò IME giọng nói trên worker, áp kết quả trên main (giữ lâu "," / menu 😊). */
+    private fun probeVoice() {
+        ImeCost.voiceProbes++
+        val v = voice
+        worker().post {
+            val t = v.probe()
+            handler.post {
+                v.apply(t)
+                if (inputShown) keyboard?.setVoiceAvailable(v.available && !field.isSecure)
+            }
+        }
+    }
 
     private fun refreshBarAfterFirstFrame() {
         pendingGen = session.generation
@@ -155,7 +178,11 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         android.view.Choreographer.getInstance().removeFrameCallback(firstBarFrame)
         android.view.Choreographer.getInstance().postFrameCallback(firstBarFrame)
     }
-    private val suggestRun = Runnable { if (pendingGen == session.generation) refreshBar() }
+    private val suggestRun = Runnable {
+        if (pendingGen != session.generation) return@Runnable
+        ImeTrace.begin(ImeTrace.SUGGEST)
+        try { refreshBar() } finally { ImeTrace.end() }
+    }
     /**
      * Shift đổi ⇒ vẽ lại bar như Gboard. Trễ bằng [SUGGEST_DELAY_MS] để lượt gợi ý của chính
      * phím vừa gõ (dấu cách ⇒ auto-shift) chạy trước — session thấy bar đã đúng thì bỏ qua.
@@ -194,6 +221,14 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
     private fun settings(): KeyboardSettings = settingsCache ?: VTPrefs.settings(prefs).also { settingsCache = it }
     /** Mẫu câu đã nạp (asset YAML / pref JSON) — nạp lười lần đầu cần, xoá khi pref đổi. */
     private var templatesCache: List<TemplateItem>? = null
+    /**
+     * Nguồn mẫu câu cho bảng ☰ — KeyboardView gọi LƯỜI lúc mở bảng (trước đây đọc + giải YAML và cắt
+     * "…" từng mẫu trong onStartInputView dù bảng đóng; lặp lại sau mỗi lần [releaseIdle]).
+     */
+    private val templatesSource: () -> List<TemplateItem> = {
+        if (!settings().templatesEnabled) emptyList()
+        else templatesCache ?: run { ImeCost.templateLoads++; VTPrefs.templates(this, prefs) }.also { templatesCache = it }
+    }
     /** Pref đổi từ lần so theme trước ⇒ phải dựng lại ImeTheme để so chữ ký. */
     private var themeStale = true
     private var themeUiMode = -1
@@ -278,6 +313,11 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         }
         super.onCreate()
         ImeTrace.begin("VT.onCreate.data")
+        // Mở cả ba file prefs trước ⇒ nạp song song trên thread nền ([ImePrefFiles]); file cài đặt mở cuối.
+        for (name in ImePrefFiles.PRIME_ORDER) {
+            val sp = getSharedPreferences(name, MODE_PRIVATE)
+            if (name == ImePrefFiles.STATE) stateStoreCache = sp
+        }
         prefs = VTPrefs.of(this)
         // Migration mẫu câu động (một lần mỗi máy) chạy NGAY ở đây: để lười tới lúc nạp mẫu câu thì
         // lần ghi cờ đó đánh dấu theme "cũ" + đổi mốc file ⇒ lần mở bàn phím sau dựng lại ImeTheme
@@ -562,9 +602,11 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
      */
     private fun applyMole(th: ImeTheme, kb: KeyboardView) {
         val r = root ?: return
-        val on = com.viettelex.keyboard.MolePolicy.active(th.keyStyle.game,
+        // Pin chỉ đọc khi theme thật sự có trò chơi (và tối đa một lần mỗi lần hiện — [powerSaveShow]).
+        val on = th.keyStyle.game == com.viettelex.keyboard.MoleGame.THEME_GAME &&
+            com.viettelex.keyboard.MolePolicy.active(th.keyStyle.game,
             PlusGate.isUnlocked(PlusFeature.PREMIUM_THEMES),
-            powerSave = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true,
+            powerSave = powerSaveShow.get(),
             talkBack = accessibility?.isTouchExplorationEnabled == true)
         feedback.setSqueakEnabled(on)
         if (!on) { r.mole = null; kb.mole = null; return }
@@ -592,9 +634,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
      */
     private fun applySpotlight(th: ImeTheme, kb: KeyboardView, buddy: com.viettelex.keyboard.BuddyCharacter) {
         val r = root ?: return
-        val on = com.viettelex.keyboard.SpotlightPolicy.active(th.keyStyle.photoFx,
-            PlusGate.isUnlocked(PlusFeature.PREMIUM_THEMES),
-            lowPower = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true)
+        val on = th.keyStyle.photoFx == com.viettelex.keyboard.ThemeExtraIds.SPOTLIGHT &&
+            com.viettelex.keyboard.SpotlightPolicy.active(th.keyStyle.photoFx,
+            PlusGate.isUnlocked(PlusFeature.PREMIUM_THEMES), lowPower = powerSaveShow.get())
         if (!on) { r.spotlight = null; kb.spotlight = null; return }
         val v = r.spotlight ?: SpotlightView(this, th.density)
         v.dancer = com.viettelex.keyboard.NightDancer.character(buddy)   // người nhảy: chàng trai nếu đang chọn, không thì cô gái
@@ -608,12 +650,22 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
      * chạy; [KeyFloatDriver] theo đồng hồ thật, không qua ValueAnimator). Không ⇒ null (0 chi phí).
      */
     private fun applyKeyFloat(setting: com.viettelex.keyboard.KeyEffect, th: ImeTheme, kb: KeyboardView) {
-        val powerSave = (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true
+        // Pin chỉ quyết định khi có yêu cầu "lơ lửng" (hiệu ứng hoặc theme); không ⇒ không đọc.
+        val wants = setting == com.viettelex.keyboard.KeyEffect.FLOAT ||
+            th.keyStyle.keyMotion == com.viettelex.keyboard.ThemeExtraIds.FLOAT_MOTION
+        val powerSave = wants && powerSaveShow.get()
         val fx = com.viettelex.keyboard.KeyEffectPolicy.active(setting, com.viettelex.keyboard.KeyEffectGate.allows(setting), powerSave)
         val on = com.viettelex.keyboard.FloatPolicy.active(fx, th.keyStyle.keyMotion,
             plus = PlusGate.isUnlocked(PlusFeature.PREMIUM_THEMES), lowPower = powerSave)
         kb.keyFloat = if (on) kb.keyFloat ?: KeyFloatDriver() else null
     }
+
+    /**
+     * Trình tiết kiệm pin cho Đập chuột / Đèn rọi / Lơ lửng: MỘT binder mỗi lần hiện, chỉ khi theme / hiệu
+     * ứng cần (trước đây 3 lần đọc mỗi lần hiện kể cả khi không tính năng nào bật).
+     */
+    @androidx.annotation.VisibleForTesting internal val powerSaveShow =
+        PerShowFlag { (getSystemService(POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true }
 
     /** Thống kê Đập chuột trong RAM (đọc file lúc gắn view, ghi file trên worker mỗi lần đập). */
     private var moleStats = com.viettelex.keyboard.MoleStats()
@@ -738,6 +790,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         if (session.warmEnglishOnShow && !SwipeEnglish.isLoaded) worker().post { SwipeEnglish.warm() }   // Tự sửa: main chỉ tra không nạp
         kb.searchSettings = settings
         syncClipHistory(settings.clipboardHistory, settings.clipboardTtl)
+        // Quyền đọc clipboard theo focus: ClipDescription nhớ theo mục clip, đọc lại một lần mỗi lần hiện.
+        clipboard.invalidateFacts()
         // Copy lúc process IME chưa sống (listener không thấy) → bù khi hiện, không làm mới mục cũ.
         if (session.recordClip(field.isSecure, onlyIfNew = true)) saveClipHistory()
         closeClipboardPane()
@@ -772,17 +826,18 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         applyFloating(settings.floatingKeyboard, settings)
         kb.setEditHasSelection(info.initialSelStart >= 0 && info.initialSelStart != info.initialSelEnd)
         st.setExtras(clipButton = settings.clipboardHistory, open = false)
-        val templates = if (settings.templatesEnabled)
-            templatesCache ?: VTPrefs.templates(this, prefs).also { templatesCache = it } else emptyList()
         ImeTrace.begin("VT.startInput.kbConfigure")
-        kb.configure(field.returnLabel, field.kind, needsGlobe(), settings.showSpaceLogo,
-            settings.templatesEnabled, templates,
+        configuringKb = true
+        try { kb.configure(field.returnLabel, field.kind, needsGlobe(), settings.showSpaceLogo,
+            settings.templatesEnabled, templatesSource,
             th.dp(KeyLayout.keyAreaDp(th.tablet, th.landscape, settings.rowHeightAdjust, settings.numberRow,
                 settings.numberRowFullHeight, resources.configuration.screenHeightDp.toFloat())),
             field.numberSigned, field.numberDecimal, settings.numberRow, settings.numberRowFullHeight,
             settings.spaceSideKey, emojiInStrip, settings.keyLabelSize, settings.splitKeyboard, settings.largeKeys)
+        } finally { configuringKb = false }
         ImeTrace.end()
         ImeTrace.begin("VT.startInput.extras")
+        powerSaveShow.reset()   // Trình tiết kiệm pin: đọc lại tối đa một lần cho lần hiện này
         kb.keyPreview = settings.keyPreview
         kb.keyPressHighlight = settings.keyPressHighlight
         applyKeyEffect(settings.keyEffect, th, kb)
@@ -805,7 +860,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         st.setPlane(kb.plane)
         // Giữ lâu "," = gõ giọng nói: chỉ khi máy có IME giọng nói (đọc lại khi vào ô mới —
         // user có thể bật/tắt trong Cài đặt), không ở ô mật khẩu.
-        if (!restarting || !voiceChecked) { voice.refresh(); voiceChecked = true }
+        // Dò IME giọng nói = 1 + N binder (enabledInputMethodList + subtype từng IME): KHÔNG trước khung đầu —
+        // khung đầu dùng kết quả lần trước, dò lại trên worker sau khung đầu ([firstBarFrame] → [probeVoice]).
+        if (!restarting || !voiceChecked) { voiceProbePending = true; voiceChecked = true }
         kb.setVoiceAvailable(voice.available && !field.isSecure)
         updateSwipeTyping()
         ImeTrace.end()
@@ -814,7 +871,10 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
         session.invalidatePasteCache()
         if (!restarting) session.pasteOnce.ended()   // ô mới: lời mời dán đang hiện coi như bỏ qua
-        applyAutoShift()
+        // Không đọc ô trước khung đầu (getTextBeforeCursor chặn trên UI thread của app — lúc app đang mở
+        // activity thì chờ lâu): chữ ban đầu hệ thống gửi kèm (API 30+, đã đối chiếu initialSel) hoặc
+        // initialCapsMode; trường hợp sau được xác nhận bằng chữ thật ngay sau khung đầu ([firstBarRun]).
+        applyAutoShift(allowRead = false)
         refreshBarAfterFirstFrame()   // ô trống → gợi mở đầu, ngay SAU khung có phím
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "perf onStartInputView ${SystemClock.elapsedRealtime() - t0} ms")
@@ -1146,7 +1206,7 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     private var stateStoreCache: SharedPreferences? = null
     private fun stateStore(): SharedPreferences =
-        stateStoreCache ?: getSharedPreferences("ime_state", MODE_PRIVATE).also { stateStoreCache = it }
+        stateStoreCache ?: getSharedPreferences(ImePrefFiles.STATE, MODE_PRIVATE).also { stateStoreCache = it }
 
     /** enlexicon + bảng từ phổ biến nạp nền (lần đầu vào Tiếng Anh), khỏi trễ phím đầu. */
     private fun warmEnglish() { worker().post { com.viettelex.keyboard.SwipeEnglish.top } }
@@ -1590,7 +1650,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
         strip?.setPlane(plane)
         // Về chữ: viết hoa đầu câu theo context lúc đó (". " tự thêm ở plane 123 ⇒ hoa) —
         // một lần đọc context mỗi lần đổi plane, không mỗi phím.
-        if (inputShown && fieldReady && PlanePolicy.reevaluatesShift(plane)) applyAutoShift()
+        // Trong kb.configure lúc hiện: bỏ — startInputView tự auto-shift MỘT lần ở cuối (không đọc ô hai lần).
+        if (inputShown && fieldReady && !configuringKb && PlanePolicy.reevaluatesShift(plane)) applyAutoShift()
     }
 
     /** Recents emoji ở prefs trạng thái (không kích listener cài đặt/theme); bản cũ chuyển một lần. */
@@ -1891,8 +1952,9 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
 
     // MARK: auto-shift + gợi ý
 
-    private fun applyAutoShift() {
-        val on = session.updateAutoShift(proxy) ?: return
+    /** [allowRead] = false: khung đầu lúc hiện — không đọc ô (xem [KeyboardSession.autoShiftUnverified]). */
+    private fun applyAutoShift(allowRead: Boolean = true) {
+        val on = session.updateAutoShift(proxy, allowRead) ?: return
         keyboard?.setAutoShift(on)
     }
 
@@ -1920,7 +1982,8 @@ class VietTelexIME : InputMethodService(), KeyboardView.Listener, StripView.List
             is SuggestionPlan.Background -> {
                 val job = plan.job
                 worker().post {
-                    val r = job.compute()
+                    ImeTrace.begin(ImeTrace.SUGGEST_BG)
+                    val r = try { job.compute() } finally { ImeTrace.end() }
                     handler.post { session.completeSuggestions(job, r, proxy)?.let { strip?.show(it) } }
                 }
             }

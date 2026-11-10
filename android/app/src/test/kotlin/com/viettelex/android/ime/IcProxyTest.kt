@@ -242,11 +242,64 @@ class IcProxyTest {
         assertEquals(r0 + 1, ed.reads)
     }
 
+    /**
+     * Đường CHẶT (⌫, confirmTail, sửa từ): tracker chưa tin ⇒ luôn đọc thật — kể cả khi shadow vừa nạp từ
+     * chữ ban đầu của ô. Đổi 10/11/2026: chỉ AUTO-SHIFT được dùng chữ ban đầu ([contextForShift]).
+     */
     @Test fun unreliableAlwaysReads() {
         val ed = FakeEditor("abc")
         val p = proxy(ed, reliable = false)
         p.contextBeforeInput(); p.contextBeforeInput()
         assertEquals(2, ed.reads)
+        // Chữ ban đầu tin được (initialSel khớp) vẫn KHÔNG phục vụ đường chặt.
+        val ed2 = FakeEditor("Chào. ")
+        tracker.reset(6, 6)
+        val p2 = IcProxy({ ed2 }, tracker)
+        p2.startInput("Chào. ", atFieldStart = true)
+        assertEquals("Chào. ", p2.contextBeforeInput())
+        assertTrue(p2.confirmTail("o. "))
+        assertEquals(2, ed2.reads)
+    }
+
+    /** Lần auto-shift đầu lúc hiện: chữ ban đầu (đã đối chiếu initialSel) ⇒ 0 lần đọc IPC. */
+    @Test fun seededTextServesShiftWithoutReads() {
+        val ed = FakeEditor("Chào. ")
+        tracker.reset(6, 6)
+        val p = IcProxy({ ed }, tracker)
+        p.startInput("Chào. ", atFieldStart = true)
+        assertEquals("Chào. ", p.contextForShift(allowRead = false))
+        assertEquals("Chào. ", p.contextForShift(allowRead = true))   // đổi bảng phím trước khi gõ: vẫn 0 IPC
+        assertEquals(0, ed.reads)
+    }
+
+    /** Chữ ban đầu hết hiệu lực sau edit đầu / đổi từ ngoài ⇒ về luật thường (đọc nếu được phép). */
+    @Test fun seededTextExpiresOnEditOrExternalChange() {
+        val ed = FakeEditor("Chào. ")
+        tracker.reset(6, 6)
+        val p = IcProxy({ ed }, tracker)
+        p.startInput("Chào. ", atFieldStart = true)
+        p.batch { insertText("x") }                    // tracker chưa nhận update khớp ⇒ chưa tin
+        assertNull(p.contextForShift(allowRead = false))
+        assertEquals("Chào. x", p.contextForShift(allowRead = true))
+        assertEquals(1, ed.reads)
+
+        val ed2 = FakeEditor("Chào. ")
+        tracker.reset(6, 6)
+        val p2 = IcProxy({ ed2 }, tracker)
+        p2.startInput("Chào. ", atFieldStart = true)
+        p2.invalidateShadow()                          // onUpdateSelection: đổi từ ngoài
+        assertNull(p2.contextForShift(allowRead = false))
+        assertEquals(0, ed2.reads)
+    }
+
+    /** Không có chữ ban đầu tin được (API < 30 / initialSel lệch): khung đầu không đọc, trả null. */
+    @Test fun noSeedNoReadWhenReadsDisallowed() {
+        val ed = FakeEditor("abc")
+        val p = proxy(ed, reliable = false)
+        assertNull(p.contextForShift(allowRead = false))
+        assertEquals(0, ed.reads)
+        assertEquals("abc", p.contextForShift(allowRead = true))
+        assertEquals(1, ed.reads)
     }
 
     @Test fun initialTextSeedsShadow() {

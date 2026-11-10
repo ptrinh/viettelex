@@ -351,6 +351,40 @@ class KeyboardSessionTests {
         assertEquals(true, chars.updateAutoShift(NullCtxProxy()))
     }
 
+    /** Ô chỉ có chữ khi đọc IPC: [contextForShift] trả null nếu không được đọc (khung đầu). */
+    private class ReadOnlyIpcProxy(val text: String) : TextProxy {
+        var reads = 0
+        override val isSecure: Boolean get() = false
+        override fun insertText(text: String) {}
+        override fun deleteCodePoints(count: Int) {}
+        override fun deleteBackward() {}
+        override fun contextBeforeInput(): String { reads++; return text }
+        override fun contextForShift(allowRead: Boolean): String? = if (allowRead) contextBeforeInput() else null
+    }
+
+    /**
+     * Khung đầu lúc hiện (allowRead = false): không đọc ô; đoán theo initialCapsMode và đánh dấu chưa xác
+     * nhận ⇒ IME đọc lại sau khung đầu. Lần có đọc xoá dấu và cho kết quả thật.
+     */
+    @Test fun testFirstFrameShiftReadsNothingAndIsConfirmedLater() {
+        val s = session(traits = FieldTraits(capSentences = true, initialCaps = true))
+        val p = ReadOnlyIpcProxy("xin chào")            // giữa câu: shift thật phải TẮT
+        assertEquals(true, s.updateAutoShift(p, allowRead = false))
+        assertEquals(0, p.reads)
+        assertTrue(s.autoShiftUnverified)
+        assertEquals(false, s.updateAutoShift(p))        // xác nhận sau khung đầu
+        assertEquals(1, p.reads)
+        assertFalse(s.autoShiftUnverified)
+        // Có chữ sẵn (MockProxy) ⇒ không phải đoán.
+        val s2 = session(traits = FieldTraits(capSentences = true))
+        s2.updateAutoShift(MockProxy(), allowRead = false)
+        assertFalse(s2.autoShiftUnverified)
+        // Viết hoa mọi chữ: không cần chữ để biết.
+        val s3 = session(traits = FieldTraits(capCharacters = true))
+        assertEquals(true, s3.updateAutoShift(ReadOnlyIpcProxy(""), allowRead = false))
+        assertFalse(s3.autoShiftUnverified)
+    }
+
     /** Công tắc "Tự động viết hoa đầu câu" TẮT: không auto-shift, không đọc context cho nó. */
     @Test fun testAutoCapitalizeOffNeverShifts() {
         for (t in listOf(FieldTraits(capSentences = true, initialCaps = true), FieldTraits(capWords = true),

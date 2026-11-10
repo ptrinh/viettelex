@@ -119,26 +119,37 @@ class AndroidClipboard(context: Context) : ClipboardSource {
 
     override val changeCount: Int get() = count
 
-    override fun hasText(): Boolean = try {
-        val d = cm.primaryClipDescription
-        d != null && (d.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) || d.hasMimeType("text/*")) && isRecent(d)
-    } catch (_: Exception) { false }
+    /**
+     * ClipDescription của clip hiện tại — một binder mỗi lần clip đổi ([count]) / mỗi lần hiện
+     * ([invalidateFacts]); hasText / isSensitive / clipId đọc từ đây.
+     */
+    private val facts = ClipFactsCache {
+        try {
+            cm.primaryClipDescription?.let { d ->
+                ClipFacts(text = d.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) || d.hasMimeType("text/*"),
+                    timestamp = d.timestamp,
+                    sensitive = d.extras?.getBoolean(EXTRA_IS_SENSITIVE, false) == true)
+            }
+        } catch (_: Exception) { null }
+    }
+
+    /** Bàn phím vừa hiện: quyền đọc clipboard có thể vừa đổi ⇒ đọc lại ClipDescription ở lần cần kế. */
+    fun invalidateFacts() = facts.invalidate()
+
+    override fun hasText(): Boolean = facts.get(count)?.let { it.text && isRecent(it.timestamp) } ?: false
 
     /**
      * Clip copy TRƯỚC khi process IME sống thì listener không thấy — dùng timestamp hệ
      * thống (API 26) để không mời dán clip cũ > 180 s. Chịu cả hai time base.
      */
-    private fun isRecent(d: ClipDescription): Boolean {
-        val ts = d.timestamp
+    private fun isRecent(ts: Long): Boolean {
         if (ts <= 0) return true
         val now = if (ts > 1_000_000_000_000L) System.currentTimeMillis() else SystemClock.elapsedRealtime()
         return now - ts < 180_000
     }
 
     /** Android 13+: app nguồn đánh dấu EXTRA_IS_SENSITIVE (mật khẩu, OTP từ trình quản lý mật khẩu). */
-    override fun isSensitive(): Boolean = try {
-        cm.primaryClipDescription?.extras?.getBoolean(EXTRA_IS_SENSITIVE, false) == true
-    } catch (_: Exception) { false }
+    override fun isSensitive(): Boolean = facts.get(count)?.sensitive == true
 
     override fun readText(): String? = try {
         cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(ctx)?.toString()
@@ -154,7 +165,7 @@ class AndroidClipboard(context: Context) : ClipboardSource {
      * process IME chết). Không có ⇒ hash nội dung nếu đã đọc sẵn, cuối cùng changeCount.
      */
     override fun clipId(): Long {
-        val ts = try { cm.primaryClipDescription?.timestamp ?: 0L } catch (_: Exception) { 0L }
+        val ts = facts.get(count)?.timestamp ?: 0L
         if (ts > 0) return ts
         val h = readHash
         return if (h != null && readHashCount == count) (1L shl 40) + h else -1L - count
