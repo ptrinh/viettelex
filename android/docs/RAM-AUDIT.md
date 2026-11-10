@@ -46,7 +46,7 @@ Mở app cài đặt (Compose, **cùng process**) rồi thoát: PSS IME 40.4 →
 | Cấu trúc | Giữ lại | Rác lúc dựng | Khi nào sống |
 |---|---|---|---|
 | FutoSwipeModel (fp16 → FloatArray + scratch) | **3.4 MB** | 2.8 MB | FUTO bật; nhả lúc ẩn ⇒ nạp lại mỗi lần hiện |
-| SwipeEnglish.lexicon (~25k String) | **1.4 MB** | 1.9 MB | vuốt tiếng Anh / gõ EN — `by lazy` trong object, **không bao giờ nhả** |
+| SwipeEnglish.lexicon (~25k String) | **1.4 MB** | 1.9 MB | vuốt tiếng Anh / gõ EN — `by lazy` trong object, **không bao giờ nhả** (→ 10/11/2026: 78.5 KB tại chỗ, xem cuối file) |
 | UserLangModel đầy cap — bảng gọn 09/2026 (trước: HashMap lồng 1.25–1.5 MB) | **0.34 MB** | — | luôn (seed mới: <0.1 MB) |
 | TelexKeyPrior (chọn phím thông minh, **mặc định BẬT**) | 0.86 MB | **31 MB** | luôn; nhả ở onTrimMemory ⇒ dựng lại |
 | SwipeDecoder templates | 0.37 MB | 0.5 MB | gõ vuốt |
@@ -89,11 +89,11 @@ Kịch bản: 15 lần hiện/ẩn, 4 lần xoay, 3 lần đổi IME (Gboard ↔
 | 4 | **Ảnh nền**: giải `inPreferredConfig = RGB_565` (JPEG không alpha; paint alpha vẫn chạy) hoặc `Bitmap.Config.HARDWARE` (bỏ bản CPU); cắt đúng vùng center-crop bằng `BitmapRegionDecoder` hoặc lưu sẵn ảnh đã crop theo tỉ lệ bàn phím lúc import. `WallpaperBitmap.drop()` khi ẩn lâu. **28/09/2026 trình chỉnh khung**: app nướng sẵn đúng vùng người dùng kéo/zoom (bản gốc ≤2048 chỉ ở app, `WallpaperMath.bakedSize` giữ mật độ điểm ảnh như bản cũ × zoom, trần 1080) ⇒ IME vẫn BitmapRegionDecoder + HARDWARE, khung mặc định giải đúng số điểm ảnh như trước, zoom không vượt trần cũ (`WallpaperCropTests.decodeRamNotAboveBefore`). | −1.7…3.4 MB native (+ tương đương GPU) | Thấp (565 có thể vằn trên ảnh mờ → bật dither) |
 | 5 | **App cài đặt cùng process IME**: rẻ — `finish()` MainActivity ở `onStop` (không phải đổi cấu hình) để Compose/HWUI của activity được dọn; triệt để — `android:process=":settings"` (nhưng IME đang dựa `OnSharedPreferenceChangeListener` cùng process ⇒ phải đổi sang cơ chế liên process). | −10…16 MB sau khi user từng mở cài đặt/Luyện vuốt | Rẻ: thấp (mất trạng thái tab khi quay lại); tách process: cao |
 | 6 | **onTrimMemory gần như chết**: API 34+ không gửi `TRIM_MEMORY_RUNNING_*`; IME đang chọn ở procState 5 / oom_adj 100 nên cũng không nhận `BACKGROUND`. Thay bằng **hẹn giờ ẩn** (vd 30–60 s sau `onFinishInputView`, huỷ khi hiện lại): nhả FUTO, SwipeEnglish.lexicon, WallpaperBitmap, emoji category strings, ClipboardPane view, templatesCache. Giữ TelexKeyPrior (#1). | 2–7 MB lúc ẩn (tuỳ tính năng) | Thấp |
-| 7 | **SwipeEnglish.lexicon** (1.4 MB, không bao giờ nhả): đọc từ tại chỗ trên buffer mmap (so byte ASCII, không String) hoặc holder nhả được (#6). | −1.4 MB khi vuốt EN / gõ EN | TB |
+| 7 | ✅ **ĐÃ LÀM 10/11/2026** — **SwipeEnglish.lexicon** (1.4 MB, không bao giờ nhả): đọc từ tại chỗ trên buffer mmap (so byte ASCII, không String) hoặc holder nhả được (#6). Xem mục 10/11/2026. | −1.4 MB khi vuốt EN / gõ EN | xong (test parity toàn bộ từ điển) |
 | 8 | **Cấp phát mỗi phím**: `composeTrial` dùng lại một `TelexEngine` scratch mỗi luồng (reset thay vì `TelexEngine()`); `autoShiftFor` duyệt ngược thay vì `trim` copy. | −3 KB/phím (~−45 % trên đường gợi ý) | Thấp (có test engine) |
 | 9 | ✅ **ĐÃ LÀM 09/2026** — UserLangModel: từ intern thành id (băm mở IntArray), uni IntArray, bi/tri LongArray sắp `(id shl 32 or count)`, file VTL2 chung iOS (CRC32; v1 "VTLM" chuyển một lần). Đo `UserLMCompactTests.measureHeavyUser` (2.990/5.990/2.990): heap 1.25 → **0.34 MB**, file 148 → 115 KB, nạp 2.3 → 1.3 ms, lưu 3.4 → 0.8 ms, `nextWords` 2.1 → 1.8 µs, `count` 41 → 33 ns, `trigramCount` 187 → 87 ns, `bigramCount` 84 → 117 ns (hai lần tra băm tự viết thay vì HashMap lồng — vẫn ~0.1 µs). Snapshot lưu chỉ copy mảng nguyên thuỷ. | −~1 MB + bớt churn lúc lưu | xong (property test so bản cũ) |
 
-Không cần làm: không có Compose trong view IME (KeyboardView vẽ một canvas, EmojiPane vẽ trực tiếp — không view per emoji); không `largeHeap`; R8 minify + shrinkResources đã bật; SoundPool nhả khi ẩn, mẫu âm nhỏ; không có view leak khi xoay/hiện-ẩn.
+Không cần làm: không có Compose trong view IME (KeyboardView vẽ một canvas, EmojiPane vẽ trực tiếp — không view per emoji); không `largeHeap`; R8 minify + shrinkResources đã bật; SoundPool nhả khi ẩn, mẫu âm nhỏ; không có view leak khi xoay/hiện-ẩn. (10/11/2026: SoundPool **không** còn nhả mỗi lần ẩn — giữ qua các lần ẩn, nhả ở hẹn giờ ẩn / thiếu RAM; xem mục 10/11/2026.)
 
 ## Kinh nghiệm IME khác (đối chiếu)
 
@@ -123,3 +123,30 @@ Cùng kịch bản `ram-audit.sh matrix` (thêm trạng thái `hidden-idle` = �
 - **#5** app cài đặt: finish ở onStop (trừ khi app vừa mở activity khác chờ kết quả / tắt màn hình — `SettingsExit`, có test). Heap dump tìm ra **rò thật**: Play Billing (hẹn giờ nối lại) → store → lambda → `MainActivity` sống thêm ~2–3 phút; PowerManager lấy từ activity cũng giữ activity. Sửa (WeakReference, `endConnection` ở onDestroy, applicationContext) ⇒ 0 instance ngay khi rời app. **Nhưng PSS vẫn +15 MB** (Dalvik heap chưa trim + malloc/HWUI giữ trang + .art/.oat Compose): process IME ở oom_adj 100 không được ART trim heap — chỉ tách process `:settings` mới trả hết (phải làm lại đồng bộ prefs, chưa làm).
 - **#6** hẹn giờ ẩn 45 s (`IDLE_RELEASE_MS`): nhả FUTO, từ điển Anh (1.4 MB), template vuốt, ảnh nền, String emoji, bảng clipboard, cache mẫu câu; hiện lại ⇒ nạp lại trên luồng `vt-rewarm` ưu tiên thấp (không chen hàng đợi gợi ý; ảnh nền hiện lại sau < 1 s, đã chụp màn hình kiểm). Heap sống lúc `hidden-idle` (all) 7.5 → 3.2 MB; PSS chỉ về khi ART trim heap (trim-bg).
 - `hprof-summary.py --path` bỏ cạnh `Reference.referent` (WeakHashMap$Entry…) — trước đó có thể in đường giả qua tham chiếu yếu.
+
+## 10/11/2026 — #7 từ điển Anh tại chỗ + main thread không nạp + SoundPool giữ qua lần ẩn
+
+**Từ điển Anh (enlexicon.bin, 20 059 từ) — đọc tại chỗ.** Định dạng file **không đổi** (iOS đọc cùng file). `SwipeEnglish.Lexicon` chỉ giữ `IntArray` vị trí từng mục; `contains`/`indexOf`/`completions` tìm nhị phân so byte ASCII ngay trên buffer mmap, String chỉ dựng cho từ trả ra; sửa chính tả (`EnglishAssist.corrections`) đọc qua một `CharSequence` dùng lại. Bảng riêng gõ vuốt (`keys`/`keyStart`/`order`/`bucketStart`/`freq`) thành `Lexicon.swipe`, dựng lười khi decoder vuốt tiếng Anh cần (vuốt tiếng Anh tắt ⇒ không dựng — có test).
+
+Số đo JVM (`VT_SLOW_TESTS=1 … --tests '*RamFootprintTests.englishLexiconInPlace' -i | grep RAM`, 2 lần chạy cho cùng số heap; JVM ≈ ART ±15 % như trên):
+
+| | Giữ lại | Cấp phát lúc nạp | Nạp (JVM, đã JIT) |
+|---|---|---|---|
+| Cũ: ~20k String + bảng vuốt | 1 435.9 KB | 1.91 MB | 0.61–1.30 ms |
+| Mới: chỉ vị trí (mọi phiên có gợi ý) | **78.5 KB** | 0.08 MB | 0.08–0.17 ms |
+| Mới: + bảng vuốt (chỉ khi vuốt tiếng Anh bật) | +374.5 KB | +0.66 MB | +0.29–0.52 ms |
+
+`indexOf` (JVM): 132–141 → 187–193 ns (so byte qua ByteBuffer thay vì String.compareTo — vẫn dưới 0.2 µs). Thời gian nạp trên máy thật dài hơn JVM nhiều lần (ghi chú cũ: hàng chục ms cho bản String) — chưa đo lại trên máy.
+
+**Parity** (`EnglishLexiconInPlaceTests`, so với bản cũ giữ nguyên văn trong test): từ + tần suất từng mục, `indexOf` cho mọi từ và ~6 biến thể mỗi từ (thêm/bớt chữ, hoa, ký tự ngoài ASCII), `completions` cho mọi tiền tố 1–3 chữ + mọi tiền tố của 1/7 từ (> 5 000 tiền tố × 2 giới hạn), `topWords`, `corrections` trên > 1 000 lỗi gõ, bảng vuốt byte-bằng, blob hỏng bị từ chối như cũ.
+
+**Main thread không bao giờ nạp từ điển Anh.** Trước: tô nền sửa (bật cùng gợi ý) → `completeSuggestions` (main) → `AutoCorrect.isEnglish` → `SwipeEnglish.contains` ⇒ từ 3 chữ (EnglishAssist chỉ từ 4 phím nên worker chưa nạp) parse trên main, lặp lại sau mỗi lần nhả 3 phút. Giờ:
+- `AutoCorrect.isEnglish` tra bảng hằng `opensEnglishRun` trước (OR thuần — cùng kết quả, có test trên 1/5 từ điển).
+- Main dùng `AutoCorrect.isEnglishIfLoaded` (không nạp). **Chưa nạp ⇒ coi là từ đã biết ⇒ không sửa** — chỉ có thể bỏ lỡ một lần sửa, không bao giờ sửa nhầm từ tiếng Anh sang tiếng Việt (ô tô nền và dấu cách vẫn cùng một quyết định).
+- Worker nạp trước khi main cần: `SuggestJob.compute()` khi có plan sửa; IME lúc hiện khi bật Tự sửa ở dấu cách (thanh gợi ý có thể tắt); luồng `vt-rewarm` sau nhả.
+- Còn lại (không đổi): `SwipeVocab.setShortcuts` lúc hiện khi bật gõ vuốt + gõ tắt vẫn gọi `contains` trên main — giờ chỉ là dựng vị trí (0.08–0.17 ms JVM, 0.08 MB).
+
+**Âm phím: SoundPool giữ qua các lần ẩn.** Trước: ẩn ⇒ `release()`, hiện ⇒ dựng SoundPool mới + nạp lại mọi mẫu (3–7 file; Piano / Đàn tranh / Ghi-ta ~30 file ≈ 1–1.6 MB PCM), phím đầu im tới khi nạp xong. Giờ: ẩn ⇒ `Feedback.onHidden()` dừng stream đang kêu (nốt ngân, sóng vỗ, rồi `autoPause` cho phần còn lại) và giữ mẫu; hiện lại cùng kiểu ⇒ **0 lần nạp** (`FeedbackPoolLifecycleTest`, cả kiểu thường lẫn Piano). SoundPool không xin audio focus / wake lock; hết stream active thì đường ra âm thanh về standby như khi không có pool. Nhả hẳn ở `releaseIdle()` (hẹn giờ ẩn 3 phút, `onTrimMemory` BACKGROUND+ khi đang ẩn, `onLowMemory` mới thêm), đổi kiểu âm, tắt âm.
+
+**SwipeVocab.cache** (Vocab vuốt đã dựng — static) giờ cũng bỏ ở `releaseIdle()` cùng decoder vuốt; dựng lại y hệt (có test).
+

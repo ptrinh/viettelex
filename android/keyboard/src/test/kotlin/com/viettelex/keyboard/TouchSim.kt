@@ -109,13 +109,13 @@ object TouchSim {
     /** Từ tiếng Anh theo tần suất enlexicon (thang vnlexicon) — gõ xen câu Việt. */
     fun englishWords(n: Int, rng: Random): List<List<String>> {
         val lx = SwipeEnglish.lexicon
-        val w = DoubleArray(lx.count) { Math.exp(0.06 * (lx.freq[it] - 255)) }
+        val w = DoubleArray(lx.count) { Math.exp(0.06 * (lx.freq(it) - 255)) }
         val tot = w.sum()
         return List(n) {
             var r = rng.nextDouble() * tot
             var i = 0
             while (i < w.size - 1 && r > w[i]) { r -= w[i]; i++ }
-            listOf(lx.words[i])
+            listOf(lx.word(i))
         }
     }
 

@@ -68,6 +68,33 @@ class RamFootprintTests {
         assertTrue("emoji categories nhả được", freed("EmojiData.categories", { EmojiData.categories }, EmojiData::releaseCategories) < 60)
     }
 
+    /**
+     * RAM-AUDIT #7 (10/11/2026): enlexicon tại chỗ (IntArray vị trí) vs bản cũ (~20k String + bảng
+     * vuốt dựng ngay). Bảng vuốt chỉ dựng khi vuốt tiếng Anh bật ⇒ đo riêng.
+     */
+    @Test fun englishLexiconInPlace() {
+        SlowTests.assume()
+        val buf = KeyboardData.buffer(Keys.ASSET_EN_LEXICON)
+        repeat(3) { LegacyEnglishLexicon.parse(buf); SwipeEnglish.parse(buf)!!.swipe }   // JIT
+        val (oldKeep, oldGarbage) = retained("enlexicon CŨ (String + bảng vuốt)") { LegacyEnglishLexicon.parse(buf) }
+        val (newKeep, newGarbage) = retained("enlexicon tại chỗ (chỉ offsets)") { SwipeEnglish.parse(buf) }
+        val lex = SwipeEnglish.parse(buf)!!
+        val (swKeep, swGarbage) = retained("enlexicon .swipe (vuốt tiếng Anh)") { lex.swipe }
+        println(String.format("RAM enlexicon count=%d: cũ %.1f KB (+%.2f MB rác) → mới %.1f KB (+%.2f MB rác); bảng vuốt %.1f KB (+%.2f MB rác)",
+            lex.count, oldKeep, oldGarbage, newKeep, newGarbage, swKeep, swGarbage))
+        fun ms(n: Int, f: () -> Unit): Double { val t = System.nanoTime(); repeat(n) { f() }; return (System.nanoTime() - t) / 1e6 / n }
+        println(String.format("RAM enlexicon nạp: cũ %.2f ms, mới %.2f ms, bảng vuốt %.2f ms",
+            ms(20) { LegacyEnglishLexicon.parse(buf) }, ms(20) { SwipeEnglish.parse(buf) }, ms(20) { SwipeEnglish.parse(buf)!!.swipe }))
+        val old = LegacyEnglishLexicon.parse(buf)!!
+        val words = (0 until lex.count step 7).map { lex.word(it) } + (0 until lex.count step 7).map { lex.word(it) + "q" }
+        repeat(3) { for (w in words) { old.indexOf(w); lex.indexOf(w) } }
+        val tOld = ms(5) { for (w in words) old.indexOf(w) } / words.size * 1e6
+        val tNew = ms(5) { for (w in words) lex.indexOf(w) } / words.size * 1e6
+        println(String.format("RAM enlexicon indexOf: cũ %.0f ns, mới %.0f ns", tOld, tNew))
+        assertTrue("tại chỗ giữ ≤ ~100 KB: $newKeep", newKeep < 160)
+        assertTrue("không dựng String: $newGarbage MB", newGarbage < 0.3)
+    }
+
     private val mx = ManagementFactory.getThreadMXBean() as com.sun.management.ThreadMXBean
     private fun allocated() = mx.getThreadAllocatedBytes(Thread.currentThread().id)
 

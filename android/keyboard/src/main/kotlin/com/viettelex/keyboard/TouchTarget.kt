@@ -375,13 +375,13 @@ class TelexKeyPrior(val trie: KeyTrie) {
 
         /** Dựng từ vnlexicon + enlexicon + seed chat — vài chục ms, gọi ngoài main thread. */
         fun fromLexicon(lambda: Float = LAMBDA, englishShare: Float = ENGLISH): TelexKeyPrior {
-            // Parse riêng (không giữ SwipeEnglish.lexicon ~20k String trong RAM khi tắt gõ vuốt).
+            // Chỉ mục riêng (không giữ SwipeEnglish.lexicon khi tắt gõ vuốt).
             val en = try { SwipeEnglish.parse(KeyboardData.buffer(Keys.ASSET_EN_LEXICON)) } catch (e: Exception) { null }
-                ?: SwipeEnglish.Lexicon(emptyArray(), IntArray(0), ByteArray(0), IntArray(1), IntArray(0), IntArray(677))
+                ?: SwipeEnglish.EMPTY
             val seed = try { SeedData.unigrams } catch (e: Exception) { emptyMap() }
             return build(
                 (0 until VNLexicon2Data.count).asSequence().map { VNSuggest.display(it) to VNSuggest.freq(it) },
-                (0 until en.count).asSequence().map { en.words[it] to en.freq[it] },
+                (0 until en.count).asSequence().map { en.word(it) to en.freq(it) },
                 chatWords(seed).filter { !VNSuggest.contains(it.first) }, lambda, englishShare,
             )
         }

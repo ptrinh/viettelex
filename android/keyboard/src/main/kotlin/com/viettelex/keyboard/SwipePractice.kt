@@ -58,8 +58,8 @@ object SwipePractice {
     /** Từ tiếng Anh phổ biến, ≥ 3 chữ, KHÔNG trùng chuỗi dạng Việt (the/thế — nét y hệt). */
     val english: List<Target> by lazy {
         val en = SwipeEnglish.lexicon
-        en.words.indices.sortedByDescending { en.freq[it] }.asSequence()
-            .map { en.words[it] }
+        (0 until en.count).sortedByDescending { en.freq(it) }.asSequence()
+            .map { en.word(it) }
             .filter { it.length >= 3 && SwipeLexicon.indexOf(it) < 0 }
             .take(EN_POOL).map { Target(it, it, SwipeLang.EN) }.toList()
     }

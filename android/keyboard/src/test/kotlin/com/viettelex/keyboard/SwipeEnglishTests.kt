@@ -21,9 +21,9 @@ class SwipeEnglishTests {
     private fun englishCorpus(n: Int = 1000): List<String> {
         val e = SwipeEnglish.lexicon
         return (0 until e.count)
-            .filter { SwipeSim.collapse(e.words[it]).length >= 2 }
-            .sortedWith(compareBy({ -e.freq[it] }, { e.words[it] }))
-            .take(n).map { e.words[it] }
+            .filter { SwipeSim.collapse(e.word(it)).length >= 2 }
+            .sortedWith(compareBy({ -e.freq(it) }, { e.word(it) }))
+            .take(n).map { e.word(it) }
     }
 
     /** 500 dạng Việt phổ biến nhất — cùng bộ SwipeDecoderTests. */
@@ -60,7 +60,8 @@ class SwipeEnglishTests {
     }
 
     @Test fun lexiconLoadsAndBuckets() {
-        val e = SwipeEnglish.lexicon
+        val l = SwipeEnglish.lexicon
+        val e = l.swipe
         assertTrue("${e.count}", e.count in 10_000..20_100)   // 20.000 + SUPPLEMENT của gen-enlexicon
         assertTrue(SwipeEnglish.contains("check") && SwipeEnglish.contains("mail") && SwipeEnglish.contains("the"))
         assertTrue(!SwipeEnglish.contains("a") && !SwipeEnglish.contains("fuck"))   // 1 chữ / tục bị lọc

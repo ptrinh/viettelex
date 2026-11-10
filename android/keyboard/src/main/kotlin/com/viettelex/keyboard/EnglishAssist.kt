@@ -77,18 +77,7 @@ object EnglishAssist {
         return if (fixes.isEmpty()) null else Result(fixes, Kind.CORRECTION)
     }
 
-    fun indexOf(word: String, lex: SwipeEnglish.Lexicon): Int {
-        val a = lex.words
-        var lo = 0; var hi = a.size
-        while (lo < hi) { val mid = (lo + hi) / 2; if (a[mid] < word) lo = mid + 1 else hi = mid }
-        return if (lo < a.size && a[lo] == word) lo else -1
-    }
-
-    private fun lowerBound(a: Array<String>, key: String): Int {
-        var lo = 0; var hi = a.size
-        while (lo < hi) { val mid = (lo + hi) / 2; if (a[mid] < key) lo = mid + 1 else hi = mid }
-        return lo
-    }
+    fun indexOf(word: String, lex: SwipeEnglish.Lexicon): Int = lex.indexOf(word)
 
     private class Hit(val d: Int, val whole: Boolean, val f: Int, val i: Int)
 
@@ -100,20 +89,19 @@ object EnglishAssist {
         val n = low.length
         if (n < TYPO_MIN_LEN) return emptyList()
         val maxD = if (n >= TYPO_LONG_LEN) 2 else 1
-        val a = lex.words
         val first = low[0]
-        val start = lowerBound(a, first.toString())
-        val end = if (first >= 'z') a.size else lowerBound(a, (first + 1).toString())
+        val start = lex.lowerBound(first.toString())
+        val end = if (first >= 'z') lex.count else lex.lowerBound((first + 1).toString())
         val hits = ArrayList<Hit>()
         val rows = IntArray(3 * (n + 1))
         val out = IntArray(2)
+        val w = lex.View()     // đọc tại chỗ trên buffer — không String mỗi từ
         for (i in start until end) {
-            val f = lex.freq[i]
+            val f = lex.freq(i)
             if (f < TYPO_MIN_FREQ) continue
-            val w = a[i]
-            val m = w.length
+            val m = lex.length(i)
             if (m < n - maxD) continue
-            distance(w, low, maxD, rows, out)
+            distance(w.at(i), low, maxD, rows, out)
             val full = out[0]; val prefix = out[1]
             if (full in 1..maxD) hits.add(Hit(full, true, f, i))
             else if (m > n && prefix in 1..maxD) hits.add(Hit(prefix, false, f, i))
@@ -126,7 +114,7 @@ object EnglishAssist {
                 else -> x.i - y.i
             }
         }
-        return hits.take(limit).map { a[it.i] }
+        return hits.take(limit).map { lex.word(it.i) }
     }
 
     /**
@@ -134,7 +122,7 @@ object EnglishAssist {
      * nhất trên các tiền tố của [w] dài |r|±maxD; > maxD ⇒ maxD + 1. Chỉ tính dải chéo 2·maxD+1, tới
      * hàng |r|+maxD.
      */
-    fun distance(w: String, r: String, maxD: Int, rows: IntArray, out: IntArray) {
+    fun distance(w: CharSequence, r: String, maxD: Int, rows: IntArray, out: IntArray) {
         val n = r.length; val m = w.length; val inf = maxD + 1; val stride = n + 1
         out[0] = inf; out[1] = inf
         if (m < n - maxD) return

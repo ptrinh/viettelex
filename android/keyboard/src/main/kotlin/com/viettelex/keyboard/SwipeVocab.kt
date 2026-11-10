@@ -171,6 +171,15 @@ object SwipeVocab {
         synchronized(lock) { return cache.getOrPut(f) { build(f) } }
     }
 
+    /** Có Vocab đã dựng trong cache (test). */
+    val isCached: Boolean get() = synchronized(lock) { cache.isNotEmpty() }
+
+    /**
+     * Bỏ Vocab đã dựng (IME releaseIdle bỏ decoder vuốt — giữ Vocab là giữ forms/keys đã chép).
+     * Bảng gõ tắt ([shortcuts]) giữ nguyên ⇒ lần vuốt sau dựng lại Y HỆT.
+     */
+    fun release() { synchronized(lock) { cache.clear() } }
+
     fun isSensitive(word: String): Boolean = word in SensitiveWords.set
 
     /** Dựng từ vựng cho chế độ lọc [filter]. SwipeWord.score = tần suất thô (0–255). */

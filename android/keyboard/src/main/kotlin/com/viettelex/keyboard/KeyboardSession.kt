@@ -275,6 +275,8 @@ class SuggestJob internal constructor(
         val plan = if (wantPlan && pool.isEmpty()) AutoCorrect.plan(raw, compose = { bridge.composeTrial(it) },
             frequency = { VNSuggest.frequency(it) },
             hasCompletion = { VNSuggest.matches(it, poolLimit = 1).isNotEmpty() }) else null
+        // Có plan ⇒ main sắp hỏi "từ tiếng Anh?" ([AutoCorrect.isEnglishIfLoaded], không nạp): nạp ở đây.
+        if (plan != null) SwipeEnglish.warm()
         return Result(pool, fix, SuggestRank.inlinePmi(pool, prev, prev2 = prev2), slip, english, plan)
     }
 }
@@ -564,8 +566,21 @@ class KeyboardSession(
         return fix
     }
 
+    /**
+     * MAIN thread ⇒ KHÔNG nạp enlexicon ([AutoCorrect.isEnglishIfLoaded]). Chưa nạp (đầu phiên / vừa
+     * nhả lúc ẩn lâu, worker chưa hâm xong) ⇒ coi là ĐÃ BIẾT ⇒ không sửa: thà bỏ lỡ một lần sửa còn
+     * hơn sửa nhầm từ tiếng Anh sang tiếng Việt. Worker hâm nóng trước khi thanh gợi ý cần
+     * ([SuggestJob.compute] khi có plan; IME lúc hiện khi bật Tự sửa — [warmEnglishOnShow]).
+     */
     private fun isKnownForAutoCorrect(w: String): Boolean =
-        w in autoCorrectRejected || langModel.isUserWord(w) || AutoCorrect.isEnglish(w)
+        w in autoCorrectRejected || langModel.isUserWord(w) || (AutoCorrect.isEnglishIfLoaded(w) ?: true)
+
+    /**
+     * Tự sửa ở dấu cách (Thử nghiệm) bật ⇒ IME hâm nóng enlexicon trên worker lúc hiện
+     * ([SwipeEnglish.warm]) — kể cả khi thanh gợi ý tắt (không có [SuggestJob] nào hâm). Chỉ tô nền
+     * sửa (mặc định) thì [SuggestJob.compute] hâm lười khi có plan — phiên mặc định không nạp sẵn.
+     */
+    val warmEnglishOnShow: Boolean get() = autoCorrectOn
 
     /** ⌫ / chip vừa trả lại chữ gốc: nhớ để không sửa lại, học chữ gốc thay từ đã sửa. */
     private fun onAutoCorrectReverted(original: String, fixed: String?) {

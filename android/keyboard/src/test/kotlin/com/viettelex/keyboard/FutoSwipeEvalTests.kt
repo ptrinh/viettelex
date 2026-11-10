@@ -116,8 +116,8 @@ class FutoSwipeEvalTests {
         val vn = (0 until forms.count).filter { SwipeSim.collapse(forms.folded[it]).length >= 2 }
             .sortedWith(compareBy({ -forms.freq[it] }, { forms.folded[it] })).take(500).map { forms.folded[it] }
         val e = SwipeEnglish.lexicon
-        val en = (0 until e.count).filter { SwipeSim.collapse(e.words[it]).length >= 2 }
-            .sortedWith(compareBy({ -e.freq[it] }, { e.words[it] })).take(500).map { e.words[it] }
+        val en = (0 until e.count).filter { SwipeSim.collapse(e.word(it)).length >= 2 }
+            .sortedWith(compareBy({ -e.freq(it) }, { e.word(it) })).take(500).map { e.word(it) }
         val shark = SwipeDecoder().also { it.setLayout(layout) }
         for (realistic in listOf(true, false)) {
             val tag = if (realistic) "nhịp" else "đều"

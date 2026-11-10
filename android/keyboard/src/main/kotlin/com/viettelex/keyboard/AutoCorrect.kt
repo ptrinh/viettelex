@@ -57,9 +57,17 @@ object AutoCorrect {
     fun fieldAllows(f: FieldTraits): Boolean =
         !f.isSecure && !f.passthrough && !f.urlField && f.suggestionsAllowed && !f.capWords && !f.capCharacters
 
-    /** Từ tiếng Anh (enlexicon + từ mở mạch tiếng Anh của engine) — không sửa sang tiếng Việt. */
+    /**
+     * Từ tiếng Anh (từ mở mạch tiếng Anh của engine + enlexicon) — không sửa sang tiếng Việt. Tra
+     * bảng hằng (rẻ) TRƯỚC: cùng kết quả (OR thuần, không phụ thuộc thứ tự), khỏi chạm enlexicon.
+     * NẠP từ điển nếu chưa — chỉ gọi ngoài main thread; main dùng [isEnglishIfLoaded].
+     */
     fun isEnglish(w: String): Boolean =
-        SwipeEnglish.contains(w) || com.viettelex.telexcore.EnglishContextLookup.opensEnglishRun(w)
+        com.viettelex.telexcore.EnglishContextLookup.opensEnglishRun(w) || SwipeEnglish.contains(w)
+
+    /** Như [isEnglish] nhưng KHÔNG nạp enlexicon (main thread): null = chưa biết (từ điển chưa nạp). */
+    fun isEnglishIfLoaded(w: String): Boolean? =
+        if (com.viettelex.telexcore.EnglishContextLookup.opensEnglishRun(w)) true else SwipeEnglish.containsOrNull(w)
 
     /** Từ đã hoàn tác tự sửa (chữ thường) — nhớ tối đa [cap] từ gần nhất. Lưu dạng dòng. */
     class Rejected(private val cap: Int = 300) {
