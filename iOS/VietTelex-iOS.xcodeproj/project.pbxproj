@@ -362,6 +362,7 @@
 		964544F4D3639ADFC09EC2AD /* BarEmojiAtlasTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F08F9AA26FB763D7126A1E99 /* BarEmojiAtlasTests.swift */; };
 		96D7630D602618705D221481 /* KeyGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBCB7D7DAA868C8FB4B96C87 /* KeyGeometry.swift */; };
 		97288B75218EA29FE00BFDDF /* README.txt in Resources */ = {isa = PBXBuildFile; fileRef = 8352627FA542E2B2D34D819F /* README.txt */; };
+		972F99194712C0E0084B37A2 /* OpenPathPerfTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78A47F061095DF36DE434BD3 /* OpenPathPerfTests.swift */; };
 		97F9637DFB81CD5F1E03CF30 /* EnglishAssistTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE524268FAF6BB053C5C7D98 /* EnglishAssistTests.swift */; };
 		9838BAAFDE2D5FDA55AE5EAF /* Wallpaper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A12BC49EB45298684CF97D /* Wallpaper.swift */; };
 		98D3B888CD30F576395743A1 /* TelexCore in Frameworks */ = {isa = PBXBuildFile; productRef = B8BD21996A8B1BBF90643B87 /* TelexCore */; };
@@ -833,6 +834,7 @@
 		77323AD52A4C80D9D12CE505 /* FootballFx.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootballFx.swift; sourceTree = "<group>"; };
 		778ABAFB76C1046BD2E3A1AD /* SwipeGesture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeGesture.swift; sourceTree = "<group>"; };
 		7872C603074592FDF8DFB718 /* buddy-girl-v2-512.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "buddy-girl-v2-512.png"; sourceTree = "<group>"; };
+		78A47F061095DF36DE434BD3 /* OpenPathPerfTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenPathPerfTests.swift; sourceTree = "<group>"; };
 		79FD55F59F8275BCD7B566DD /* TranslatePrefs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslatePrefs.swift; sourceTree = "<group>"; };
 		7A239D979FCA572C550C6E31 /* SwipeShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeShortcutTests.swift; sourceTree = "<group>"; };
 		7A5658CD4BA507DF2BA12245 /* LunarCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LunarCalendar.swift; sourceTree = "<group>"; };
@@ -1374,6 +1376,7 @@
 				F0396F7F4C967F32F6246FFB /* NumericKeypadTests.swift */,
 				667215621CB316149B211C19 /* OnboardingTests.swift */,
 				769E76C687A1221F2389FD54 /* OneHandTests.swift */,
+				78A47F061095DF36DE434BD3 /* OpenPathPerfTests.swift */,
 				EF30CED4269435719F2F5392 /* PasteOfferOnceTests.swift */,
 				97ECEDAAFA381A793709FAE3 /* PerfSizeUXFixTests.swift */,
 				0129B5AA6C2F6547A9634969 /* PerfSwitchTests.swift */,
@@ -2324,6 +2327,7 @@
 				5F94604D4080EA5C36D244FC /* OnboardingTests.swift in Sources */,
 				997D4F301589CFBB416A80EC /* OneHand.swift in Sources */,
 				0838D223301F8D5042A2F43D /* OneHandTests.swift in Sources */,
+				972F99194712C0E0084B37A2 /* OpenPathPerfTests.swift in Sources */,
 				D59FEC004410CCD1216A4438 /* PasteOfferOnce.swift in Sources */,
 				EA30B87C4D7AE6B3A7AFFCB7 /* PasteOfferOnceTests.swift in Sources */,
 				2EADB038BF9A63A56A227EA6 /* PerThemeKeyStyleTests.swift in Sources */,
