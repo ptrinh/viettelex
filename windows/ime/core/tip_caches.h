@@ -58,6 +58,50 @@ private:
     bool valid_ = false;
 };
 
+// (2026-11, Word's Navigation search box — focus class RICHEDIT60W, debug log of 1.3.18–
+// 1.3.20) One key event offered to the TIP TWICE: a key the TIP lets through is handed to
+// the keystroke manager again before the app inserts it (Word's message loop, then the
+// RichEdit itself). The second offer saw the word without that letter ("the store shows none
+// of the typed keys", "no longer ends with the word") and dropped it — every word of the
+// search came out wrong ("ddaauf moois" -> "đâù môí"). Only a key that was already let
+// through is a repeat: same wParam, lParam and message time (a new press or an auto-repeat
+// is a new message; a key-up ends the press). A claimed key is never offered again.
+class KeyEventRepeat {
+public:
+    struct Id {
+        uint64_t wp = 0;
+        uint64_t lp = 0;
+        uint32_t time = 0;  // GetMessageTime
+        bool operator==(const Id& o) const { return wp == o.wp && lp == o.lp && time == o.time; }
+    };
+    // OnTestKeyDown: true = this event was already let through (by OnTestKeyDown or OnKeyDown).
+    bool atTest(const Id& id) const { return state_ != State::None && id == id_; }
+    // OnKeyDown: true = OnKeyDown already let this event through. (OnKeyDown right after an
+    // OnTestKeyDown that declined the key is the same offer: it runs as before.)
+    bool atKeyDown(const Id& id) const { return state_ == State::KeyDownPassed && id == id_; }
+    void begin(const Id& id) {
+        id_ = id;
+        state_ = State::None;
+    }
+    void testDeclined(const Id& id) {
+        id_ = id;
+        state_ = State::TestDeclined;
+    }
+    void keyDownDone(const Id& id, bool eaten) {
+        id_ = id;
+        state_ = eaten ? State::None : State::KeyDownPassed;
+    }
+    void keyUp(uint64_t wp) {
+        if (wp == id_.wp) state_ = State::None;
+    }
+    void reset() { state_ = State::None; }
+
+private:
+    enum class State : uint8_t { None, TestDeclined, KeyDownPassed };
+    Id id_;
+    State state_ = State::None;
+};
+
 // (M1) The Việt/Anh state VietTelex.exe is told at a FOCUS change (AppCommand::
 // StateChanged) only feeds the optional tray icon. Post only when the tray is on and the
 // state or the focus root window differs from what this thread last told it — the app's

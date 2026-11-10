@@ -230,7 +230,7 @@ bool shellSearchPrefersComposition(const std::string& app, bool asyncStore) {
 }
 
 bool officeUiPrefersComposition(const std::string& exe, const std::u16string& focusClass, bool asyncStore) {
-    return !asyncStore && exe == "winword.exe" && focusClass == u"NetUIHWND";
+    return !asyncStore && exe == "winword.exe" && (focusClass == u"NetUIHWND" || focusClass == u"RICHEDIT60W");
 }
 
 }  // namespace vtx

@@ -8,6 +8,7 @@
 #include "settings.h"
 #include "shortcuts.h"
 #include "app_policy.h"
+#include "tip_caches.h"
 #include "typed_word.h"
 #include "ipc.h"
 #include "test.h"
@@ -2518,6 +2519,10 @@ TEST(word_ui_text_boxes_compose_from_the_first_letter) {
     CHECK(!officeUiPrefersComposition("winword.exe", u"NetUIHWND", true));  // async store
     CHECK(!officeUiPrefersComposition("winword.exe", u"", false));
     CHECK(!officeUiPrefersComposition("notepad.exe", u"NetUIHWND", false));
+    CHECK(officeUiPrefersComposition("winword.exe", u"RICHEDIT60W", false));  // the box in the log
+    CHECK(!officeUiPrefersComposition("winword.exe", u"RICHEDIT60W", true));
+    CHECK(!officeUiPrefersComposition("excel.exe", u"RICHEDIT60W", false));    // Word only
+    CHECK(!officeUiPrefersComposition("winword.exe", u"RichEdit20W", false));
     // Composing there (setPreferComposition, as the TIP does): the phrase comes out whole
     // even when the box undoes every replace.
     Rig r(OutputMode::InPlace);
@@ -2526,6 +2531,130 @@ TEST(word_ui_text_boxes_compose_from_the_first_letter) {
     r.type("ddaafu moois ");
     CHECK_EQ(r.text(), std::string("đầu mối "));
     CHECK_EQ(r.doc.replaces, 0);  // never edited in place
+}
+
+// 1.3.20 report (installed TIP, reinstalled, Word restarted): the Navigation search box
+// still gave wrong marks. Its debug log (1.3.18, 1.3.19 and 1.3.20 alike) shows focus class
+// "RICHEDIT60W" — not "NetUIHWND", so officeUiPrefersComposition never matched — a sync,
+// non-transitory store, in-place, and per word three "word dropped" lines on consecutive keys
+// with no rewrite / undo line at all. Model that reproduces those lines EXACTLY (same order,
+// same read / word lengths, the last word holding 2 keys at the focus change): every key the
+// TIP lets through is offered to the keystroke manager a second time before the box inserts
+// it (Word's loop, then the RichEdit). The second offer sees the word without that letter.
+namespace {
+std::string* gNavLog = nullptr;
+struct WordNavSearch : Rig {
+    KeyEventRepeat rep;
+    bool guard = true;  // the TIP's KeyEventRepeat (OnTestKeyDown / OnKeyDown / key-up)
+    uint32_t clock = 0;
+    std::string log;
+    explicit WordNavSearch(OutputMode m) : Rig(m) {
+        settings.freeMarking = false;  // the tester's settings in that log
+        settings.underlineMisspelled = true;
+        SessionOptions o;
+        o.engineFlags = settings.engineFlags();
+        o.autoRestore = settings.autoRestore;
+        o.reEditWord = settings.reEditWord;
+        o.underlineMisspelled = settings.underlineMisspelled;
+        o.shortcuts = &settings.shortcuts;
+        o.log = [](const char* m) {
+            if (gNavLog) *gNavLog += std::string(m) + "\n";
+        };
+        s.configure(o);
+        s.setPassedKeysReachApp(true);  // TSF-native store (app_policy passedKeysReachApp)
+        gNavLog = &log;
+    }
+    ~WordNavSearch() { gNavLog = nullptr; }
+    // One offer = OnTestKeyDown + OnKeyDown, as text_service.cpp calls the guard.
+    bool offer(const KeyInput& k, const KeyEventRepeat::Id& id) {
+        if (guard && rep.atTest(id)) return false;
+        if (guard) rep.begin(id);
+        if (!s.wantsKey(k)) {
+            s.noteKeyPassedBy(k);
+            if (guard) rep.testDeclined(id);
+            return false;
+        }
+        if (guard && rep.atKeyDown(id)) return false;
+        const bool eaten = s.handleKey(k, doc);
+        if (guard) rep.keyDownDone(id, eaten);
+        return eaten;
+    }
+    void typeKeys(const char* keys) {
+        for (const char* p = keys; *p; ++p) {
+            KeyInput k;
+            k.kind = KeyKind::Char;
+            k.ch = static_cast<unsigned char>(*p);
+            const KeyEventRepeat::Id id{static_cast<uint64_t>(*p), 1, clock += 120};  // one press
+            bool eaten = offer(k, id);
+            if (!eaten) eaten = offer(k, id);  // the box hands the same key event over again
+            if (!eaten) {
+                CHECK(!doc.comp);
+                doc.appInsert(static_cast<char16_t>(*p));
+            }
+            if (guard) rep.keyUp(id.wp);
+        }
+    }
+};
+}  // namespace
+
+TEST(word_navigation_search_offering_passed_keys_twice_reproduces_the_log) {
+    // Unguarded: exactly the tester's log lines (lengths only) and the damaged phrase.
+    WordNavSearch r(OutputMode::InPlace);
+    r.guard = false;
+    r.typeKeys("ddaauf moois");
+    const std::string dropped = "in-place: text before the caret no longer ends with the word -> word dropped, "
+                                "this key starts a new word ";
+    CHECK_EQ(r.log, std::string("in-place: the store shows none of the typed keys although the app got them -> "
+                                "word as typed\n") +
+                        dropped + "(read 1, word 2)\n" + dropped + "(read 2, word 2)\n" +  // đầu
+                        dropped + "(read 1, word 1)\n" + dropped + "(read 2, word 2)\n" +  // mối
+                        dropped + "(read 2, word 2)\n");
+    CHECK_EQ(r.s.rawKeys().size(), static_cast<size_t>(2));  // "focus changed mid-word (2 keys)"
+    CHECK_EQ(r.text(), std::string("đâù môí"));
+}
+
+TEST(word_navigation_search_second_offer_is_ignored) {
+    // The TIP ignores the second offer of a key it let through: in place, nothing dropped.
+    WordNavSearch r(OutputMode::InPlace);
+    r.typeKeys("tieengs vieetj ddaauf moois ");
+    CHECK_EQ(r.text(), std::string("tiếng việt đầu mối "));
+    CHECK_EQ(r.log, std::string());
+    // Composing from the first letter (officeUiPrefersComposition: the box's class) works even
+    // if the second offer slipped through (a host where the message time differs).
+    WordNavSearch c(OutputMode::InPlace);
+    c.guard = false;
+    CHECK(officeUiPrefersComposition("winword.exe", u"RICHEDIT60W", false));
+    c.s.setPreferComposition(true);
+    c.typeKeys("tieengs vieetj ddaauf moois ");
+    CHECK_EQ(c.text(), std::string("tiếng việt đầu mối "));
+    CHECK_EQ(c.doc.replaces, 0);
+}
+
+TEST(key_event_repeat_only_matches_the_same_passed_event) {
+    KeyEventRepeat r;
+    const KeyEventRepeat::Id a{'D', 0x00200001, 1000};
+    r.begin(a);
+    CHECK(!r.atTest(a));
+    CHECK(!r.atKeyDown(a));       // OnKeyDown right after OnTestKeyDown: the same offer
+    r.keyDownDone(a, true);       // claimed: never offered again, nothing to ignore
+    CHECK(!r.atTest(a));
+    r.keyDownDone(a, false);      // let through
+    CHECK(r.atTest(a));
+    CHECK(r.atKeyDown(a));
+    const KeyEventRepeat::Id later{'D', 0x00200001, 1016};  // a new press of the same key
+    CHECK(!r.atTest(later));
+    const KeyEventRepeat::Id repeat{'D', 0x40200001, 1000};  // auto-repeat: another lParam
+    CHECK(!r.atTest(repeat));
+    r.keyUp('E');
+    CHECK(r.atTest(a));
+    r.keyUp('D');                 // the press ended
+    CHECK(!r.atTest(a));
+    r.begin(a);
+    r.testDeclined(a);            // OnTestKeyDown let it through
+    CHECK(r.atTest(a));           // a second OnTestKeyDown: ignored
+    CHECK(!r.atKeyDown(a));       // OnKeyDown of that same offer still runs
+    r.reset();
+    CHECK(!r.atTest(a));
 }
 
 TEST(unreliable_controls_are_remembered_by_class) {

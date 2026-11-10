@@ -759,12 +759,12 @@ void TextService::evaluateHost(ITfContext* ctx) {
         session_.setPreferComposition(true);
         config::log("control kind undid in-place edits before in this app -> composition from the first letter");
     }
-    // Word's NetUI text boxes (Navigation pane search, Ctrl+F): the search box re-sets its
-    // text and undoes in-place replaces (app_policy.h officeUiPrefersComposition).
+    // Word's own UI text boxes (Navigation pane search, Ctrl+F: RICHEDIT60W): the search box
+    // offers passed keys twice and re-sets its text (app_policy.h officeUiPrefersComposition).
     if (session_.outputMode() == OutputMode::InPlace && !session_.prefersComposition() &&
         officeUiPrefersComposition(config::exeName(), focusClass_, session_.asyncStore())) {
         session_.setPreferComposition(true);
-        config::log("Word UI text box (NetUIHWND): composition from the first letter");
+        config::log("Word UI text box: composition from the first letter");
     }
     // Windows search on an async store: compose from the first letter — the first word of
     // every search lost its tone key in place (app_policy.h shellSearchPrefersComposition).
@@ -893,6 +893,8 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* focus, ITfDocumentMgr*) {
     retypeLogged_ = false;
     notTextFieldLogged_ = false;
     contextLogged_ = false;
+    keyRepeat_.reset();
+    keyRepeatLogged_ = false;
     typedWord_.clear();  // a new element: its word starts afresh
     clearTypedWord();
     bool keptPassAsTyped = false;  // a WPF list handover kept: keys still pass as typed there
@@ -1190,9 +1192,32 @@ void TextService::notePassedBy(const KeyInput& k) {
     passNoted_ = true;
 }
 
-STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL* eaten) {
+// The same key event offered again after we let it through (tip_caches.h KeyEventRepeat —
+// Word's Navigation search box): it already went to the app, nobody handles it twice.
+bool TextService::keyOfferedAgain(bool atTest, WPARAM wp, LPARAM lp) {
+    const KeyEventRepeat::Id id{static_cast<uint64_t>(wp), static_cast<uint64_t>(lp),
+                                static_cast<uint32_t>(GetMessageTime())};
+    if (!(atTest ? keyRepeat_.atTest(id) : keyRepeat_.atKeyDown(id))) return false;
+    if (!keyRepeatLogged_ && config::logging()) {
+        keyRepeatLogged_ = true;
+        config::log("the app offers a key we let through a second time -> second offer ignored");
+    }
+    return true;
+}
+
+STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL* eaten) {
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
+    if (keyOfferedAgain(true, wp, lp)) return S_OK;
+    const KeyEventRepeat::Id id{static_cast<uint64_t>(wp), static_cast<uint64_t>(lp),
+                                static_cast<uint32_t>(GetMessageTime())};
+    keyRepeat_.begin(id);
+    const HRESULT hr = testKeyDownBody(ctx, wp, eaten);
+    if (!*eaten) keyRepeat_.testDeclined(id);
+    return hr;
+}
+
+HRESULT TextService::testKeyDownBody(ITfContext* ctx, WPARAM wp, BOOL* eaten) {
     if (isOwnInjected(static_cast<uintptr_t>(GetMessageExtraInfo()))) {  // typed by our hook
         // The hook's edits (or a key this TIP retyped): the raw record no longer says what
         // the screen shows (typed_word.h).
@@ -1268,6 +1293,15 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM wp, LPARAM, BOOL
 STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL* eaten) {
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
+    if (keyOfferedAgain(false, wp, lp)) return S_OK;
+    const HRESULT hr = keyDownBody(ctx, wp, lp, eaten);
+    keyRepeat_.keyDownDone({static_cast<uint64_t>(wp), static_cast<uint64_t>(lp),
+                            static_cast<uint32_t>(GetMessageTime())},
+                           *eaten != FALSE);
+    return hr;
+}
+
+HRESULT TextService::keyDownBody(ITfContext* ctx, WPARAM wp, LPARAM lp, BOOL* eaten) {
     if (isOwnInjected(static_cast<uintptr_t>(GetMessageExtraInfo()))) return S_OK;
     altZLatch_.noteKey(static_cast<uint32_t>(wp), true);  // hosts that skip OnTestKeyDown
     if (hintKeyAct_ >= 0 || hint_) {
@@ -1393,6 +1427,7 @@ STDMETHODIMP TextService::OnTestKeyUp(ITfContext*, WPARAM wp, LPARAM, BOOL* eate
     *eaten = FALSE;
     const uint32_t vkey = static_cast<uint32_t>(wp);
     altZLatch_.noteKey(vkey, false);  // Z / Alt released: the next Alt+Z toggles again
+    keyRepeat_.keyUp(static_cast<uint64_t>(wp));
     if (isModifierVk(vkey)) onModifierEvent(vkey, false);
     return S_OK;
 }
@@ -1401,6 +1436,7 @@ STDMETHODIMP TextService::OnKeyUp(ITfContext*, WPARAM wp, LPARAM, BOOL* eaten) {
     if (!eaten) return E_INVALIDARG;
     *eaten = FALSE;
     altZLatch_.noteKey(static_cast<uint32_t>(wp), false);  // hosts that skip OnTestKeyUp
+    keyRepeat_.keyUp(static_cast<uint64_t>(wp));
     return S_OK;
 }
 
