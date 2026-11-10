@@ -168,7 +168,7 @@ phần tăng. Sắp theo mức ảnh hưởng thực tế:
 | 10 | `EmojiData.categories` (mảng ~3.800 String) | 1,8 MB heap | ✗ static suốt đời |
 | 11 | planeCache (số + ký hiệu) | 1,4–2,6 MB | chỉ khi đổi chữ ký |
 | 12 | TelexKeyPrior (trie smartTouch) | ~1 MB heap | ✗ static |
-| 13 | enlexicon parse / SwipeDecoder template | 0,7 / 0,36 MB | template nhả khi `swipe = nil` |
+| 13 | enlexicon parse / SwipeDecoder template | 0,7 / 0,36 MB (10/11/2026: lexicon 0,1 MB, bảng phím vuốt +0,35 MB chỉ khi vuốt tiếng Anh — §4d) | template nhả khi `swipe = nil` |
 | — | vnlm / vnlexicon / emoji.bin / futoswipe.bin (mmap) | ~0 dirty | trang sạch |
 
 ## 3. Rò rỉ #1 — cây view cũ sống mãi
@@ -368,6 +368,65 @@ tệp nguồn trong repo −2.326.033 B.
 
 `ram-audit.sh` (process extension thật) không chạy lần này: cần thêm bàn phím + Toàn quyền bằng tay
 trên simulator; số trên là đo trong process test.
+
+## 4f. Đợt 10/11/2026 — emoji thanh gợi ý + lexicon tiếng Anh
+
+**1. Emoji trên thanh gợi ý vẽ từ atlas** (`Keyboard/SuggestionEmojiTiles.swift`). Trước: ô emoji của
+thanh gợi ý (EmojiSuggest, mặc định BẬT) gọi `setTitle(emoji)` ⇒ CoreText nạp font Apple Color Emoji
+(~1,8 MB) ở emoji đầu tiên + cache glyph mỗi emoji khác nhau, không nhả — đi vòng qua atlas của §4b.
+Giờ: atlas hợp lệ ⇒ `UIImageView` cạnh cố định (= glyph chữ 20 pt, căn giữa ô; khung chỉ tính lại khi
+ô đổi). Trang giải mã Ở NỀN (`EmojiAtlasStore.renderTiles`: mỗi trang cần một lần, chép ô thu về
+60 px @3x ≈ 14 KB rồi bỏ trang — không vào LRU trang của bảng emoji, không đụng
+`EmojiAtlasStore.current`); LRU 12 ô / KeyboardView, nhả khi tearDown / cảnh báo bộ nhớ. Emoji chưa có
+ảnh: ô TRỐNG một nhịp (không bao giờ hiện emoji khác — kết quả nền chỉ áp cho ô còn muốn đúng emoji
+đó; `reset()` tăng thế hệ ⇒ kết quả đang bay bị bỏ). Không atlas / emoji không có trong atlas ⇒ chữ
+như cũ. Chữ ký bar không đổi ⇒ bar vẫn không làm gì. Bàn phím không gợi ý emoji ⇒ không mở atlas.
+
+| `BarEmojiAtlasTests` bộ chậm (simulator iPhone 17, iOS 27, Debug, phys_footprint, mỗi biến thể một process) | chữ (trước) | atlas (sau) |
+|---|---|---|
+| 30 lượt × 3 emoji khác nhau (90 emoji) trên thanh gợi ý | +4,6 / +4,9 MB | +2,2 / +2,2 / +2,2 MB |
+| Đỉnh | +4,9 MB | +2,2 MB |
+
+Ghi chú đo: phần +2,2 MB của biến thể atlas CHƯA tách được (ô LRU chỉ 12 × 14 KB; nghi một lần cho
+bộ giải PNG của ImageIO + backing store CA của 3 `UIImageView` + luồng nền) — có thể là chi phí cố
+định chứ không tăng theo số emoji; chưa đo trên máy thật. Biến thể chữ tăng theo số emoji khác nhau
+(§4: ~8,5 KB/emoji + font). **Cần máy thật**: `ram-audit.sh` mốc "Sau 200 phím" với emoji gợi ý bật.
+
+**2. Lexicon tiếng Anh (enlexicon.bin, 20.059 từ) đọc tại chỗ trên mmap** (`Keyboard/SwipeEnglish.swift`).
+Trước: `parse` chép file ra `[UInt8]`, dựng `words: [String]` + `keys`/`keyStart`/`order`/`bucketStart`
+cho gõ vuốt — nạp gần như mọi phiên có gợi ý (`SuggestRank.padsWithTopWords` hỏi tiếng Anh TRƯỚC cả khi
+từ trước là âm tiết Việt; `EnglishAssist`), có lúc ngay trên main trong sự kiện phím. Giờ:
+- `padsWithTopWords`: `isVietSyllable || !isEnglish` (≡ `!isEnglish || isVietSyllable`, hai hàm thuần) ⇒
+  từ trước tiếng Việt không chạm lexicon tiếng Anh.
+- `Lexicon` là lớp trên `NSData` mmap: bảng offset `[UInt32]` + `freq [UInt8]`; String chỉ dựng cho từ
+  trả ra (`word(i)`); tìm nhị phân / tiền tố / sửa chính tả so byte tại chỗ. Định dạng file KHÔNG đổi
+  (Android đọc cùng file).
+- Bảng phím vuốt (`Lexicon.swipe`) dựng lười lần đầu decoder tiếng Anh (SHARK2 / FUTO) cần;
+  `SwipeTyping.preloadEnglish` dựng sẵn ở nền khi bật vuốt tiếng Anh. Tắt ⇒ không bao giờ dựng.
+- Main thread không bao giờ nạp: thanh gợi ý / tự sửa / chế độ Tiếng Anh dùng `containsIfLoaded` /
+  `topIfLoaded` (chưa nạp ⇒ "chưa biết" + hẹn nạp nền: đệm như sau âm tiết Việt; tự sửa coi là từ đã
+  biết — không sửa). `warmUpData` (sau khung đầu) nạp nền khi bật gợi ý / tự sửa / Thêm dấu. Còn lại
+  (chưa đổi, vì dùng chung macOS/Linux): `AddTones` và `SwipeLangContext.classify` gọi `contains` chặn —
+  hai đường này chạy sau warm-up (Thêm dấu / vuốt tiếng Anh đã nạp sẵn khi bật).
+
+| `EnglishLexiconParityTests.testMeasureHeap` (simulator, Debug, heap `malloc_zone_statistics`) | |
+|---|---|
+| Bản cũ: words + freq + bảng phím (giữ lại) | 776 KB |
+| Bản mới, không vuốt tiếng Anh: offset + freq | **100 KB** |
+| + bảng phím vuốt khi bật vuốt tiếng Anh (lười) | +355 KB |
+
+Đỉnh tạm thời của bản cũ (chép `[UInt8]` ~180 KB + `first`/`last` `[Int]` ~320 KB) không còn: bản mới
+đọc thẳng trên mmap. Kết quả tra cứu y hệt: `EnglishLexiconParityTests` giữ nguyên văn bản cũ và so trên
+TOÀN BỘ lexicon — thành viên + tần suất mọi từ, ~51k chuỗi không có (biến dạng, chữ hoa, có dấu, KELVIN
+SIGN), hoàn thành mọi tiền tố (50.777, đủ thứ tự cho tiền tố ≤ 2 chữ), `topWords` toàn bộ, sửa chính tả
+trên lỗi giả, bảng phím vuốt trùng từng phần tử, file hỏng bị từ chối ở cùng chỗ.
+
+`TouchTarget.fromLexicon` (đường dự phòng khi thiếu keyprior.bin) dùng chung `SwipeEnglish.lexicon` thay
+vì parse riêng — ghi chú cũ "parse riêng để không giữ lexicon khi tắt gõ vuốt" không còn đúng (lexicon
+vốn nạp gần như mọi phiên có gợi ý, và giờ không kèm bảng phím vuốt).
+
+Chưa đo: `ram-audit.sh` (XCUITest ~8 phút/cấu hình) — máy build đang tải song song; số trên là đo trong
+process test.
 
 ## 5. UserLangModel
 

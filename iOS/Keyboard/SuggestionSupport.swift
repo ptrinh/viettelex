@@ -127,6 +127,8 @@ enum SuggestRank {
     /// không phải âm tiết Việt giữa câu Việt — "they") ⇒ KHÔNG đệm: "they" → "the of and" (top
     /// unigram) là gợi ý sai; chỉ còn bằng chứng ngữ cảnh thật (cặp cá nhân / seed).
     /// `isEnglish`/`isVietSyllable` nhận từ chữ thường; chỉ gọi khi cần (ít ô hơn cần). Android y hệt.
+    /// Hỏi âm tiết Việt TRƯỚC (10/11/2026): `V || !E` ≡ `!E || V` (hai hàm thuần), nhưng từ trước là
+    /// âm tiết Việt — trường hợp thường gặp — thì không bao giờ chạm lexicon tiếng Anh.
     /// Không mặc định `SwipeEnglish.contains`: file này còn biên dịch ở chỗ không có SwipeEnglish
     /// (windows/app/tools/gen_prediction_golden.sh) — caller truyền vào.
     static func padsWithTopWords(_ prev: String?, english: Bool,
@@ -135,7 +137,7 @@ enum SuggestRank {
         guard let prev else { return true }
         if english { return false }
         let low = prev.lowercased()
-        return !isEnglish(low) || isVietSyllable(low)
+        return isVietSyllable(low) || !isEnglish(low)
     }
 
     /// Ô "từ kế tiếp" sau từ tiếng Anh khi `padsWithTopWords` = false: `base` (cặp cá nhân) trước,

@@ -208,9 +208,10 @@ final class SwipeTyping {
         queue.async { [weak self] in self?.futo?.release() }
     }
 
-    /// Nạp từ điển tiếng Anh ở nền (lần vuốt đầu khỏi chờ ~vài chục ms). An toàn gọi lại.
+    /// Nạp từ điển tiếng Anh + bảng phím vuốt (chỉ vuốt tiếng Anh cần) ở nền — lần vuốt đầu khỏi
+    /// chờ. An toàn gọi lại.
     func preloadEnglish() {
-        queue.async { _ = SwipeEnglish.lexicon }
+        queue.async { _ = SwipeEnglish.lexicon.swipe }
     }
 
     /// Cú vuốt bắt đầu: huỷ chữ đầu (đã chèn lúc chạm xuống). Không huỷ được (màn hình

@@ -14,7 +14,7 @@ final class CaretSuggestionsTests: XCTestCase {
 
     /// EnglishLite (mmap + offset) phải trả lời y hệt SwipeEnglish (giải mã đầy đủ).
     func testEnglishLiteMatchesSwipeEnglish() {
-        let words = SwipeEnglish.lexicon.words
+        let words = SwipeEnglish.lexicon.allWords()
         XCTAssertGreaterThan(words.count, 1000)
         XCTAssertEqual(EnglishLite.count, words.count)
         for w in words { XCTAssertTrue(EnglishLite.contains(w), w) }

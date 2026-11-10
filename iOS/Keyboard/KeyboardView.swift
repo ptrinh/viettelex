@@ -380,6 +380,7 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         dropAltHold()
         planeCache.removeAll()
         EmojiData.dropCaches()
+        barEmojiTiles?.reset(); barEmojiTiles = nil
         letterKeys.removeAll(); shiftKeys = []; crossRowConstraints = []
         spaceBar = nil; spaceLogo = nil; spaceCode = nil; indentedRow = nil
         overlayPanel?.removeFromSuperview(); overlayPanel = nil
@@ -404,6 +405,12 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
     func dropCaches() {
         planeCache.removeAll()
         EmojiData.dropCaches()
+        if let t = barEmojiTiles {
+            t.reset()   // ô đang hiện giữ ảnh của nó; ô đang chờ (việc nền vừa bị bỏ) xin lại
+            for (i, b) in emojiButtons.enumerated() where barEmojiWanted[i] != nil && b.title(for: .normal) == nil
+                && (suggestionBar.emojiImages[i]?.isHidden ?? true) { applyBarEmoji(i) }
+            t.flush()
+        }
         KeyButton.dropTextSizeCache()
     }
 
@@ -1301,7 +1308,40 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
             let ew = c.width / CGFloat(emojiCount)
             for (i, b) in emojis.enumerated() where i < emojiCount {
                 b.frame = CGRect(x: c.minX + CGFloat(i) * ew, y: 0, width: ew, height: c.height)
+                if let v = emojiImages[i] { v.frame = emojiImageFrame(in: b.bounds) }
             }
+        }
+
+        /// Ảnh emoji (atlas — SuggestionEmojiTiles) trong ô emoji `i`: tạo lười lần đầu có ảnh, cạnh
+        /// cố định = glyph chữ cùng cỡ, căn giữa ô (khung chỉ tính lại khi ô / cạnh đổi — mỗi phím chỉ
+        /// đổi `image`). Ô giữ nguyên kích thước dù ảnh hay chữ.
+        private(set) var emojiImages: [UIImageView?] = [nil, nil, nil]
+        private var emojiImageSide: CGFloat = 0
+        func emojiImageView(_ i: Int, side: CGFloat) -> UIImageView {
+            if side != emojiImageSide {
+                emojiImageSide = side
+                for (j, v) in emojiImages.enumerated() { v?.frame = emojiImageFrame(in: emojis[j].bounds) }
+            }
+            if let v = emojiImages[i] { return v }
+            let v = UIImageView()
+            v.contentMode = .scaleAspectFit
+            v.isUserInteractionEnabled = false
+            v.isAccessibilityElement = false
+            v.frame = emojiImageFrame(in: emojis[i].bounds)
+            emojis[i].addSubview(v)
+            emojiImages[i] = v
+            return v
+        }
+        func hideEmojiImage(_ i: Int) {
+            guard let v = emojiImages[i], !v.isHidden else { return }
+            v.isHidden = true
+            v.image = nil
+        }
+        private func emojiImageFrame(in b: CGRect) -> CGRect {
+            let s = emojiImageSide
+            let k = traitCollection.displayScale > 0 ? traitCollection.displayScale : UIScreen.main.scale
+            return CGRect(x: ((b.width - s) / 2 * k).rounded() / k, y: ((b.height - s) / 2 * k).rounded() / k,
+                          width: s, height: s)
         }
 
         override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
@@ -1625,17 +1665,23 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         suggestionBar.setPill(pillIndex)
         applyPillInk()
         // slot emoji (chỉ ở chế độ đang gõ, khi có emoji)
+        // Ảnh từ atlas (SuggestionEmojiTiles) — không vẽ chữ emoji ⇒ không nạp font Apple Color Emoji.
         suggestionBar.setEmojiCount(emojis.count)
         for (i, b) in emojiButtons.enumerated() {
             if i < emojis.count {
-                if b.title(for: .normal) != emojis[i] { b.setTitle(emojis[i], for: .normal) }
+                if barEmojiWanted[i] != emojis[i] {
+                    barEmojiWanted[i] = emojis[i]
+                    applyBarEmoji(i)
+                }
                 b.payload = emojis[i]
                 if b.isHidden { b.isHidden = false }
             } else {
                 if !b.isHidden { b.isHidden = true }
                 b.payload = nil
+                barEmojiWanted[i] = nil
             }
         }
+        barEmojiTiles?.flush()
         // Vạch ngăn cố định: hiện khi bar có nội dung (ô trống vẫn giữ chỗ — như stock).
         let anyVisible = texts.contains { $0 != nil } || !emojis.isEmpty
         let usable = suggestionBar.usableDividers
@@ -1646,6 +1692,66 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         // Nút Dán kiểu iOS 27: MỘT ô rộng giữa bar, 2 dòng, thay cả 3 slot.
         setPasteCard(visible: pasteCardOn, image: set.pasteIsImage, ink: ink)
     }
+
+    // MARK: emoji trên thanh gợi ý (atlas)
+
+    /// Tạo lười ở emoji ĐẦU TIÊN của phiên (bàn phím không gợi ý emoji ⇒ không mở atlas). Sống cùng
+    /// KeyboardView (tearDown nhả).
+    private var barEmojiTiles: SuggestionEmojiTiles?
+    /// Emoji mỗi ô emoji đang muốn hiện (nil = ô ẩn). Kết quả nền chỉ áp khi còn khớp ⇒ không bao
+    /// giờ hiện emoji cũ / sai.
+    private var barEmojiWanted: [String?] = [nil, nil, nil]
+    /// Test: thay nguồn atlas của bar (mặc định App Group).
+    static var barEmojiOpener: (() -> EmojiAtlasStore?)?
+
+    private func barTiles() -> SuggestionEmojiTiles {
+        if let t = barEmojiTiles { return t }
+        let scale = UIScreen.main.scale
+        let open = Self.barEmojiOpener ?? SuggestionEmojiTiles.keyboardOpener(
+            scale: scale, pad: UIDevice.current.userInterfaceIdiom == .pad)
+        let t = SuggestionEmojiTiles(fontSize: emojiButtons.first?.titleFont.pointSize ?? 20, scale: scale, open: open)
+        t.onReady = { [weak self] e in self?.barEmojiReady(e) }
+        barEmojiTiles = t
+        return t
+    }
+
+    /// Vẽ ô emoji `i` theo `barEmojiWanted[i]`: ảnh có sẵn / chữ (không atlas, không có trong atlas) /
+    /// trống một nhịp (đang giải mã — ô giữ nguyên kích thước).
+    private func applyBarEmoji(_ i: Int) {
+        guard i < emojiButtons.count, let e = barEmojiWanted[i] else { return }
+        let b = emojiButtons[i]
+        b.accessibilityLabel = e
+        let tiles = barTiles()
+        switch tiles.lookup(e) {
+        case .image(let img):
+            let v = suggestionBar.emojiImageView(i, side: tiles.side)
+            if v.image !== img { v.image = img }
+            if v.isHidden { v.isHidden = false }
+            if b.title(for: .normal) != nil { b.setTitle(nil, for: .normal) }
+        case .text:
+            suggestionBar.hideEmojiImage(i)
+            if b.title(for: .normal) != e { b.setTitle(e, for: .normal) }
+        case .pending:
+            suggestionBar.hideEmojiImage(i)
+            if b.title(for: .normal) != nil { b.setTitle(nil, for: .normal) }
+        }
+    }
+
+    private func barEmojiReady(_ e: String) {
+        for i in barEmojiWanted.indices where barEmojiWanted[i] == e { applyBarEmoji(i) }
+        barEmojiTiles?.flush()
+    }
+
+    #if DEBUG
+    /// Test: mỗi ô emoji đang hiện — (ảnh atlas?, chữ đang vẽ).
+    func debugBarEmojiCells() -> [(image: UIImage?, title: String?)] {
+        emojiButtons.enumerated().filter { !$0.element.isHidden }.map { i, b in
+            let v = suggestionBar.emojiImages[i]
+            return (v.flatMap { $0.isHidden ? nil : $0.image }, b.title(for: .normal))
+        }
+    }
+    var debugBarEmojiTiles: SuggestionEmojiTiles? { barEmojiTiles }
+    #endif
 
     // MARK: Clipboard (lịch sử + chip) — không có chỉ báo ẩn danh (Phil 27/09 bỏ icon mắt gạch)
     /// Payload chip tách số: prefix + giá trị cần chèn.
@@ -7924,6 +8030,10 @@ final class KeyboardView: UIView, UIInputViewAudioFeedback {
         for (b, l) in shown where barShown && !b.isHidden && !(l?.text ?? "").isEmpty {
             b.layoutIfNeeded()
             if let l { titles.append(convert(l.bounds, from: l)) }
+        }
+        // Emoji vẽ bằng ảnh atlas: khung ảnh thay khung chữ.
+        for (i, b) in emojiButtons.enumerated() where barShown && !b.isHidden {
+            if let v = suggestionBar.emojiImages[i], !v.isHidden, v.image != nil { titles.append(convert(v.bounds, from: v)) }
         }
         let card = pasteCardMade && pasteCard.superview != nil && !pasteCard.isHidden ? pasteCard.frame : nil
         return (cells, divs, titles, card)

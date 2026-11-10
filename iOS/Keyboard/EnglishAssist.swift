@@ -17,8 +17,8 @@
 //
 // HIỆU NĂNG: chạy trên hàng đợi nền của thanh gợi ý (như VNSuggest/AdjacentKeyFixer). Từ rõ
 // là tiếng Việt (chữ đang hiện là âm tiết phổ biến) hoặc phím thô < 4 / không phải a–z ⇒ trả
-// nil TRƯỚC khi chạm lexicon tiếng Anh (0 chi phí thêm). Lexicon = SwipeEnglish.lexicon, vốn
-// đã nạp sẵn ở bàn phím (SwipeEnglish.top lúc khởi động, AutoCorrect) — không thêm RAM.
+// nil TRƯỚC khi chạm lexicon tiếng Anh (0 chi phí thêm). Lexicon = SwipeEnglish.lexicon (đọc tại
+// chỗ trên mmap, nạp sẵn ở nền sau khung đầu — warmUpData) — không thêm RAM.
 // Nhận gợi ý: đường chạm gợi ý có sẵn (xoá từ đang gõ, chèn nguyên văn + dấu cách, reset
 // engine) ⇒ Telex không bỏ dấu lại.
 import Foundation
@@ -98,18 +98,10 @@ enum EnglishAssist {
         let n = r.count
         guard n >= typoMinLen, let first = r.first else { return [] }
         let maxD = n >= typoLongLen ? 2 : 1
-        // dải từ bắt đầu bằng chữ đầu (words đã sort)
-        let a = lex.words
-        func lower(_ key: String) -> Int {
-            var lo = 0, hi = a.count
-            while lo < hi {
-                let mid = (lo + hi) / 2
-                if a[mid] < key { lo = mid + 1 } else { hi = mid }
-            }
-            return lo
-        }
-        let start = lower(String(UnicodeScalar(first)))
-        let end = first >= 122 ? a.count : lower(String(UnicodeScalar(first + 1)))
+        // dải từ bắt đầu bằng chữ đầu (từ đã sort theo byte; đọc tại chỗ trên mmap, không dựng String)
+        func lower(_ b: UInt8) -> Int { [b].withUnsafeBufferPointer { lex.lowerBound($0) } }
+        let start = lower(first)
+        let end = first >= 122 ? lex.count : lower(first + 1)
         // (khoảng cách, cả từ?, tần suất, chỉ số)
         var hits: [(d: Int, whole: Bool, f: Int, i: Int)] = []
         // ba hàng DP (OSA cần hàng i-2) — cấp một lần, dùng lại cho mọi từ
@@ -121,10 +113,9 @@ enum EnglishAssist {
                 defer { i += 1 }
                 let f = Int(lex.freq[i])
                 guard f >= typoMinFreq else { continue }
-                var word = a[i]
-                let m = word.utf8.count
+                let m = lex.wordLength(i)
                 guard m >= n - maxD else { continue }
-                let d = word.withUTF8 { distance($0, rb, maxD: maxD, rows: rows) }
+                let d = lex.withWordBytes(i) { distance($0, rb, maxD: maxD, rows: rows) }
                 if let full = d.full, full > 0 {
                     hits.append((full, true, f, i))
                 } else if m > n, let p = d.prefix, p > 0 {
@@ -137,7 +128,7 @@ enum EnglishAssist {
             if $0.d != $1.d { return $0.d < $1.d }
             return $0.f != $1.f ? $0.f > $1.f : $0.i < $1.i
         }
-        return hits.prefix(limit).map { a[$0.i] }
+        return hits.prefix(limit).map { lex.word($0.i) }
     }
 
     /// Khoảng cách Damerau (OSA) ≤ `maxD` giữa từ `w` và phím thô `r`: `full` = cả từ, `prefix` =
@@ -204,18 +195,5 @@ enum EnglishAssist {
         var seen = Set<String>(), out: [String] = []
         for w in ordered where seen.insert(w.lowercased()).inserted { out.append(w) }
         return out
-    }
-}
-
-extension SwipeEnglish {
-    /// `index(of:)` trên một lexicon cụ thể (test truyền lexicon nhỏ).
-    static func index(of word: String, in lex: Lexicon) -> Int? {
-        let a = lex.words
-        var lo = 0, hi = a.count
-        while lo < hi {
-            let mid = (lo + hi) / 2
-            if a[mid] < word { lo = mid + 1 } else { hi = mid }
-        }
-        return lo < a.count && a[lo] == word ? lo : nil
     }
 }

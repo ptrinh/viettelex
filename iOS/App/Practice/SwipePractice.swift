@@ -97,8 +97,8 @@ enum SwipePractice {
     /// Từ tiếng Anh phổ biến, ≥ 3 chữ, KHÔNG trùng chuỗi dạng Việt (the/thế — nét y hệt).
     static let english: [Target] = {
         let en = SwipeEnglish.lexicon
-        let words = en.words.indices.sorted { en.freq[$0] != en.freq[$1] ? en.freq[$0] > en.freq[$1] : $0 < $1 }
-            .lazy.map { en.words[$0] }
+        let words = en.freq.indices.sorted { en.freq[$0] != en.freq[$1] ? en.freq[$0] > en.freq[$1] : $0 < $1 }
+            .lazy.map { en.word($0) }
             .filter { $0.count >= 3 && SwipeLexicon.index(of: $0) == nil }
             .prefix(enPool)
         return words.map { Target(word: $0, folded: $0, lang: .en) }
