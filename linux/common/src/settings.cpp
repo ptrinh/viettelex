@@ -107,7 +107,6 @@ size_t utf8Count(const std::string &s) {
 }
 
 bool startsWith(const std::string &s, const char *p) { return s.rfind(p, 0) == 0; }
-bool endsWith(const std::string &s, char c) { return !s.empty() && s.back() == c; }
 
 std::string envOr(const char *var, const std::string &fallbackUnderHome) {
     const char *v = std::getenv(var);
@@ -458,19 +457,113 @@ bool shortcutExpansion(const ShortcutTable &t, const std::string &typed, std::st
     return false;  // kO: mixed case
 }
 
-ShortcutTable parseShortcuts(const std::string &yaml) {
-    ShortcutTable out;
-    std::istringstream in(yaml);
+// Port 1:1 of macOS ShortcutImporter (App/Sources/AppState.swift): a key containing ':' or
+// starting with # ; // " ' is written double-quoted; a double-quoted value is escaped
+// (\\ \" \n) and unescaped on read (\n \t \\ \"). Files written by either side round-trip on
+// the other; old unquoted files read as before.
+namespace {
+
+std::string scEscape(const std::string &s) {
+    std::string out;
+    for (size_t i = 0; i < s.size(); ++i) {
+        char c = s[i];
+        if (c == '\\') out += "\\\\";
+        else if (c == '"') out += "\\\"";
+        else if (c == '\r') {
+            if (i + 1 < s.size() && s[i + 1] == '\n') ++i;
+            out += "\\n";
+        } else if (c == '\n') out += "\\n";
+        else out += c;
+    }
+    return out;
+}
+
+std::string scUnescape(const std::string &s) {
+    if (s.find('\\') == std::string::npos) return s;
+    std::string out;
+    for (size_t i = 0; i < s.size(); ++i) {
+        char c = s[i];
+        if (c != '\\') { out += c; continue; }
+        if (i + 1 >= s.size()) { out += '\\'; break; }
+        char n = s[++i];
+        switch (n) {
+        case 'n': out += '\n'; break;
+        case 't': out += '\t'; break;
+        case '\\': out += '\\'; break;
+        case '"': out += '"'; break;
+        default: out += '\\'; out += n;
+        }
+    }
+    return out;
+}
+
+// `"…"` at the start of `s` → unescaped content + index past the closing quote.
+bool scQuotedPrefix(const std::string &s, std::string &out, size_t &after) {
     std::string raw;
-    while (std::getline(in, raw)) {
+    for (size_t i = 1; i < s.size(); ++i) {
+        char c = s[i];
+        if (c == '\\') {
+            if (i + 1 >= s.size()) return false;
+            raw += c;
+            raw += s[++i];
+            continue;
+        }
+        if (c == '"') {
+            out = scUnescape(raw);
+            after = i + 1;
+            return true;
+        }
+        raw += c;
+    }
+    return false;
+}
+
+
+std::string scQuoteKey(const std::string &k) {
+    bool needs = k.find(':') != std::string::npos || startsWith(k, "#") || startsWith(k, ";") ||
+                 startsWith(k, "//") || startsWith(k, "\"") || startsWith(k, "'");
+    return needs ? "\"" + scEscape(k) + "\"" : k;
+}
+
+std::string scQuoteValue(const std::string &v) {
+    if (v.find('\n') != std::string::npos || v.find('\r') != std::string::npos) return "\"" + scEscape(v) + "\"";
+    bool needs = !v.empty() && (v.front() == ' ' || v.back() == ' ' || v.front() == '\'' ||
+                                v.front() == '"' || v.front() == '#');
+    return needs ? "\"" + scEscape(v) + "\"" : v;
+}
+
+}  // namespace
+
+ShortcutTable parseShortcuts(const std::string &yamlIn) {
+    ShortcutTable out;
+    const std::string yaml = startsWith(yamlIn, "\xEF\xBB\xBF") ? yamlIn.substr(3) : yamlIn;
+    size_t pos = 0;
+    while (pos < yaml.size()) {
+        size_t nl = yaml.find_first_of("\r\n", pos);
+        std::string raw = yaml.substr(pos, nl == std::string::npos ? std::string::npos : nl - pos);
+        if (nl == std::string::npos) pos = yaml.size();
+        else pos = (yaml[nl] == '\r' && nl + 1 < yaml.size() && yaml[nl + 1] == '\n') ? nl + 2 : nl + 1;
         std::string line = trim(raw);
         if (line.empty() || line[0] == ';' || line[0] == '#' || startsWith(line, "//")) continue;
-        size_t colon = line.find(':');
-        if (colon == std::string::npos) continue;
-        std::string key = trim(line.substr(0, colon));
-        std::string value = trim(line.substr(colon + 1));
-        if (utf8Count(value) >= 2 &&
-            ((value.front() == '"' && endsWith(value, '"')) || (value.front() == '\'' && endsWith(value, '\''))))
+        std::string key, rest, quotedKey;
+        size_t after = 0;
+        if (line[0] == '"' && scQuotedPrefix(line, quotedKey, after)) {
+            size_t r = after;
+            while (r < line.size() && (line[r] == ' ' || line[r] == '\t')) ++r;
+            if (r >= line.size() || line[r] != ':') continue;
+            key = quotedKey;
+            rest = line.substr(r + 1);
+        } else {
+            size_t colon = line.find(':');
+            if (colon == std::string::npos) continue;
+            key = line.substr(0, colon);
+            rest = line.substr(colon + 1);
+        }
+        key = trim(key);
+        std::string value = trim(rest);
+        if (utf8Count(value) >= 2 && value.front() == '"' && value.back() == '"')
+            value = scUnescape(value.substr(1, value.size() - 2));
+        else if (utf8Count(value) >= 2 && value.front() == '\'' && value.back() == '\'')
             value = value.substr(1, value.size() - 2);
         if (key.empty() || value.empty() || utf8Count(key) > 64) continue;
         bool ws = false;
@@ -483,12 +576,8 @@ ShortcutTable parseShortcuts(const std::string &yaml) {
 
 std::string exportShortcuts(const ShortcutTable &t) {
     std::string out = "# VietTelex — bảng gõ tắt\n";
-    for (auto &kv : t) {  // std::map: sorted by key (byte order, like Swift's sorted())
-        const std::string &v = kv.second;
-        bool q = !v.empty() && (v.front() == ' ' || v.back() == ' ' || v.front() == '\'' ||
-                                v.front() == '"' || v.front() == '#');
-        out += kv.first + ": " + (q ? "\"" + v + "\"" : v) + "\n";
-    }
+    for (auto &kv : t)  // std::map: sorted by key (byte order, like Swift's sorted())
+        out += scQuoteKey(kv.first) + ": " + scQuoteValue(kv.second) + "\n";
     return out;
 }
 

@@ -942,7 +942,7 @@ class SettingsWindow(Adw.PreferencesWindow):
             self.sc_rows.append(r)
             return
         for key in sorted(self.shortcut_map):
-            r = row(key, self.shortcut_map[key])
+            r = row(key, shortcuts.one_line(self.shortcut_map[key]))
             r.set_activatable(True)
             r.connect("activated", lambda _r, k=key: self._edit_shortcut(k))
             d = Gtk.Button(icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER,

@@ -916,6 +916,42 @@ void testShortcutFile() {
     CHECK_EQ(parseShortcuts(exportShortcuts(t)), t);
 }
 
+// Quoted keys / escaped values, exactly as macOS ShortcutImporter writes them
+// (tests/data/shortcuts-macos.yml was produced by macOS exportYAML; the Python settings app
+// test reads the same file). Before: ":D" was split at its own ':' and vanished.
+void testShortcutFileQuoting() {
+    ShortcutTable want = {
+        {":D", "😀"}, {"a:b", "x"}, {"#x", "hash"}, {";x", "semi"}, {"//x", "slash"},
+        {"\"k", "dq"}, {"'k", "sq"}, {"sig", "Thân mến,\nPhil"}, {"bs", "C:\\temp"},
+        {"q", "\"trích\""}, {"sp", " có space "}, {"ko", "không"}, {"url", "http://x"}, {"tab", "a\tb"},
+    };
+    std::string fixture;
+    if (readFile(std::string(VT_SOURCE_ROOT) + "/linux/common/tests/data/shortcuts-macos.yml", fixture)) {
+        CHECK_EQ(exportShortcuts(want), fixture);  // byte for byte what macOS writes
+        CHECK_EQ(parseShortcuts(fixture), want);
+    } else {
+        ++g_fail;
+        std::fprintf(stderr, "tests/data/shortcuts-macos.yml not found\n");
+    }
+    CHECK_EQ(parseShortcuts(exportShortcuts(want)), want);
+    // Line written by iOS/Android/macOS (macOS AppTests testParsesFilesWrittenByIOSAndAndroid).
+    ShortcutTable phone = parseShortcuts(
+        "# VietTelex — bảng gõ tắt\n\"->\": →\n\":)\": 🙂\nk2: không hai\nq: \"\"trích\"\"\n"
+        "sig: \"Thân mến,\\nPhil\"\nsp: \" có space \"\n");
+    ShortcutTable phoneWant = {{"->", "→"}, {":)", "🙂"}, {"k2", "không hai"}, {"q", "\"trích\""},
+                               {"sig", "Thân mến,\nPhil"}, {"sp", " có space "}};
+    CHECK_EQ(phone, phoneWant);
+    // BOM + CRLF; old unquoted files keep loading; unterminated quoted key = old rule.
+    ShortcutTable crlf = parseShortcuts("\xEF\xBB\xBFko: không\r\ndc: được\r\n");
+    CHECK_EQ(crlf.size(), size_t(2));
+    CHECK_EQ(crlf["dc"], std::string("được"));
+    ShortcutTable old = parseShortcuts("url: http://x\n\"bad: x\n");
+    CHECK_EQ(old["url"], std::string("http://x"));
+    CHECK_EQ(old.count(":D"), size_t(0));
+    // A quoted key must be followed by ':'.
+    CHECK_EQ(parseShortcuts("\":D\" 😀\n").size(), size_t(0));
+}
+
 void testHotkeyParse() {
     Hotkey h;
     CHECK(parseHotkey("Ctrl+space", h));
@@ -3325,6 +3361,7 @@ int main() {
     testConfigParse();
     testSetConfigValue();
     testShortcutFile();
+    testShortcutFileQuoting();
     testHotkeyParse();
     testAppPolicy();
     testUnknownAppIdsArePreeditWithoutEdits();

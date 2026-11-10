@@ -150,12 +150,20 @@ dùng chung key `default` (nhớ Việt/Anh chung, `[app_modes]` không áp dụ
 
 ## 3. `shortcuts.yml` — cùng định dạng macOS
 
-Flat YAML `key: value`, một mục mỗi dòng, `:` đầu tiên tách key/value; bỏ qua dòng trống và
-dòng bắt đầu bằng `#`, `;`, `//`; key không chứa khoảng trắng, ≤ 64 ký tự; value được trim, bỏ
-một cặp ngoặc `"…"`/`'…'` bao ngoài. Export: header `# VietTelex — bảng gõ tắt`, key sắp xếp,
-value có khoảng trắng đầu/cuối hoặc bắt đầu bằng `'` `"` `#` thì bọc `"…"`. File
-`sample-shortcuts.yml` ở gốc repo là ví dụ hợp lệ. Import (settings app) nên chấp nhận thêm JSON
-object `{"key":"value"}` như macOS, nhưng **file lưu trên đĩa luôn là flat YAML**.
+Port 1:1 `ShortcutImporter` của macOS (`App/Sources/AppState.swift`; cùng iOS/Android/Windows).
+Flat YAML `key: value`, một mục mỗi dòng (`\n`, `\r\n`, `\r`; BOM đầu file bỏ qua); bỏ qua
+dòng trống và dòng bắt đầu bằng `#`, `;`, `//`. Key: nếu dòng mở đầu bằng `"` và có nháy đóng
+thì key là chuỗi trong ngoặc kép (unescape), sau đó (bỏ khoảng trắng) phải là `:`; không thì `:`
+đầu tiên tách key/value. Key không chứa khoảng trắng, ≤ 64 ký tự. Value được trim; bọc `"…"` ⇒
+bỏ ngoặc và unescape `\n` `\t` `\\` `\"` (escape khác giữ nguyên); bọc `'…'` ⇒ chỉ bỏ ngoặc.
+
+Export: header `# VietTelex — bảng gõ tắt`, key sắp xếp (thứ tự byte). Key chứa `:` hoặc bắt đầu
+bằng `#` `;` `//` `"` `'` ⇒ `"…"` có escape (`":D": 😀`, `"a:b": x`). Value nhiều dòng (`\n`/`\r`),
+có khoảng trắng đầu/cuối, hoặc bắt đầu bằng `'` `"` `#` ⇒ `"…"` có escape (`\\` `\"`, xuống dòng
+→ `\n`): `sig: "Thân mến,\nPhil"`. Còn lại ghi nguyên văn — file cũ không ngoặc đọc như trước.
+Mẫu byte-chuẩn do macOS ghi: `linux/common/tests/data/shortcuts-macos.yml` (test C++ và Python
+cùng so). File `sample-shortcuts.yml` ở gốc repo là ví dụ hợp lệ. Import (settings app) chấp
+nhận thêm JSON object `{"key":"value"}` như macOS, nhưng **file lưu trên đĩa luôn là flat YAML**.
 
 Khớp khi gõ: ở boundary, tra từ đã ghép (`composed`) trước, rồi phím thô (`raw`) — như macOS.
 
