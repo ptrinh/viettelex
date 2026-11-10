@@ -13,7 +13,9 @@ sleep. Gentle dance uses 0–1–0–6. Fast dance uses
 0–1–0–1–2–3–4–5–6–0. Sleep switches directly to frame 7, exactly like the
 boy; there is no stand-to-sleep transition or separate sleep atlas.
 
-Production resources are `iOS/Keyboard/Resources/Buddies/buddy-<id>-v2.png`
+Production resources are `iOS/Keyboard/Resources/Buddies/buddy-<id>-v2-512.png` (iOS companion,
+pre-scaled by `iOS/Scripts/make-buddy-512.swift`; full-size `buddy-girl-v2.png` / `buddy-boy-v2.png`
+stay in the iOS bundle only for the Night Club dancer)
 and byte-identical copies under `android/app/src/main/assets/`. The other
 production sources are `boy-v2-alpha.png`, `cat-v2-source.png`, and
 `chick-v2-source.png`. Old 24-frame girl sources and preview videos are retained

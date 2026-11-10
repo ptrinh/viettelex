@@ -38,6 +38,7 @@
 		0E9B932EADC04178D1A36C72 /* SwipePractice.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE4C2C271F18A006B9967589 /* SwipePractice.swift */; };
 		0F638DDA7C5DE1FC8DA03D46 /* KeyLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3125082F1A2E31162FC7045 /* KeyLayoutTests.swift */; };
 		0FC30ADCCD6DA0E278D59DD3 /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 738732B955CD39C76B2484C7 /* SeedData.swift */; };
+		1006C28AAF120F2F4BFBA2DF /* buddy-chick-v2-512.png in Resources */ = {isa = PBXBuildFile; fileRef = 9EB23AD6159807EB06E92438 /* buddy-chick-v2-512.png */; };
 		10E12A8AE292F6C04BBD5C50 /* KeyCommandGesture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9556E09A2E0A2C9C3E9D1CBD /* KeyCommandGesture.swift */; };
 		119898CF9669A5C213B9EACB /* Shortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8ED337D5676E88733DA615 /* Shortcuts.swift */; };
 		12C8D72D20143A7862D7B51D /* SuggestionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A392056B54E623933F9CD3 /* SuggestionSupport.swift */; };
@@ -102,7 +103,6 @@
 		28C579703223D53D46A60F0D /* swipe-paths-en.txt in Resources */ = {isa = PBXBuildFile; fileRef = 38966B5E3DF4C19B07287B0C /* swipe-paths-en.txt */; };
 		28F59AFC0EA801B2565A2A41 /* FeaturePages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CD424A6A736C971B3F87998 /* FeaturePages.swift */; };
 		2A7289C8E1E1291CF3F0E332 /* SwipeShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A239D979FCA572C550C6E31 /* SwipeShortcutTests.swift */; };
-		2AAB660716F8511DAA1EA753 /* buddy-chick-v2.png in Resources */ = {isa = PBXBuildFile; fileRef = 3709709ACAA431BAEAEDA597 /* buddy-chick-v2.png */; };
 		2ADC518FE5C55961C93038B7 /* swipe-lang-sentences.txt in Resources */ = {isa = PBXBuildFile; fileRef = CFEF10E3C02C542D5C49792E /* swipe-lang-sentences.txt */; };
 		2B019DB27C4B5571D08103E7 /* LegacyUserLangModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B77A866D636FA255421EC2DA /* LegacyUserLangModel.swift */; };
 		2B0B920D87566C26DAABB175 /* SwipePracticeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0C7CC44A57FCB3E41047D7 /* SwipePracticeTests.swift */; };
@@ -184,7 +184,6 @@
 		47E7F5A4D1C2F4DB41A97D74 /* SwipeVocabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32954DB2D38C5B9675E4964D /* SwipeVocabTests.swift */; };
 		4934EAD525E4B9A0DFBE254F /* vnlm.bin in Resources */ = {isa = PBXBuildFile; fileRef = 6C7EDE7A95356B8F9043D32F /* vnlm.bin */; };
 		494C4B384B2DBC6186E8706F /* ThemeFxPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E368A1D5BE9B4A93BFC10AA /* ThemeFxPack.swift */; };
-		496986778385E9E06B65D0C1 /* buddy-cat-v2.png in Resources */ = {isa = PBXBuildFile; fileRef = 2F849B6D66CDB74FA974513D /* buddy-cat-v2.png */; };
 		4A1DAD15F27FA4005C5D4058 /* TranslatePrefs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FD55F59F8275BCD7B566DD /* TranslatePrefs.swift */; };
 		4A60DBA8CC57E903ECFBDA54 /* AIProofreadPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC97B8AC6D8335D37B6565AD /* AIProofreadPanel.swift */; };
 		4AA544D4589B692D3D96DA20 /* KeystrokeCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F212F74EAF47564BF3FF101C /* KeystrokeCounter.swift */; };
@@ -200,6 +199,7 @@
 		4F177B14857E493A92E95B00 /* PlaneCacheLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EAFABBBF6544841D633BFD9 /* PlaneCacheLayoutTests.swift */; };
 		50E3CBBD5E6ED6042524F78C /* SuggestionSlotsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA0F7617C32E2C08352F2220 /* SuggestionSlotsTests.swift */; };
 		5100ED384E1E854AF5F05679 /* EmojiSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD1ABEB72F0DCCF278A46E7 /* EmojiSearch.swift */; };
+		5113839EB9D2D70BCEDA668F /* buddy-boy-v2-512.png in Resources */ = {isa = PBXBuildFile; fileRef = 97D27F97F78E8FB65B4AEC80 /* buddy-boy-v2-512.png */; };
 		51CA5A07AC3ABDAA5CA756C2 /* ClipDetect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F980E450F0B3851CDC5361F /* ClipDetect.swift */; };
 		5219B81A88BC7A0F77DC8467 /* TelexCore in Frameworks */ = {isa = PBXBuildFile; productRef = BE8679AE19C0C9801BE52ADF /* TelexCore */; };
 		5406C93442D01C39B19B9752 /* SwipeVocab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03130513F64077C5E7BBBE54 /* SwipeVocab.swift */; };
@@ -209,6 +209,7 @@
 		56A777226E4EE6F376D0E1A6 /* SettingsCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E0AB954C50D9179C05C351 /* SettingsCleanupTests.swift */; };
 		575DF631A38BBAD892B438A3 /* LunarDate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A47D56948509C053EEAE005 /* LunarDate.swift */; };
 		57B03DA8BC2D4EC683C58993 /* be-vietnam-pro.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BB1DCD35542C6BD215740CDE /* be-vietnam-pro.ttf */; };
+		57BA38B8B67AD173649912AD /* buddy-girl-v2-512.png in Resources */ = {isa = PBXBuildFile; fileRef = 7872C603074592FDF8DFB718 /* buddy-girl-v2-512.png */; };
 		588985D99D9E6017D3444A26 /* SuggestionInk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6152562FF50F2AE0026EE23A /* SuggestionInk.swift */; };
 		58941CA9330AF7008615428D /* PlusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0814D05DBC52BABAEF7FE2 /* PlusView.swift */; };
 		59184856DB1424FEC29F3781 /* TouchLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73661E1643A0CAA02517C00 /* TouchLog.swift */; };
@@ -243,6 +244,7 @@
 		6644AE50C0BC33D2EC05AB6D /* LineBreak.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E72B42E221624B843FECDBB /* LineBreak.swift */; };
 		665AA760B41DC86808F42E23 /* TouchLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73661E1643A0CAA02517C00 /* TouchLog.swift */; };
 		6689B752583E4AE424F48573 /* EngineBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD709650C25830CA926EBCF /* EngineBridge.swift */; };
+		67226C0FCCDBB93314980E0D /* buddy-boy-v2-512.png in Resources */ = {isa = PBXBuildFile; fileRef = 97D27F97F78E8FB65B4AEC80 /* buddy-boy-v2-512.png */; };
 		673B126D70D140C3758BEA30 /* BuiltinThemes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69841F9C38AF675A240AD5A7 /* BuiltinThemes.swift */; };
 		674C4F80BF422C056620EFE0 /* KeystrokeCounter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F212F74EAF47564BF3FF101C /* KeystrokeCounter.swift */; };
 		6774A0A250BD2EC8623C7C77 /* SwipeReviseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5934AB6CE713D08F46A5E0C1 /* SwipeReviseTests.swift */; };
@@ -298,6 +300,7 @@
 		7E077DE51702D8A5C5A44038 /* EmojiData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE050ECA55A95B273F9E18A0 /* EmojiData.swift */; };
 		7EDE6D0D61C70DB6EDAF8436 /* SuggestionBarHeight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D5175437869F54D6E628A5 /* SuggestionBarHeight.swift */; };
 		7F07309176405096F3652EB4 /* RetroEnglishBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F299BCC57B1DB9FC94AD14A /* RetroEnglishBridgeTests.swift */; };
+		812121603D4F1F93904239EE /* buddy-chick-v2-512.png in Resources */ = {isa = PBXBuildFile; fileRef = 9EB23AD6159807EB06E92438 /* buddy-chick-v2-512.png */; };
 		81C0F52CD34495D609EC6D0B /* NumericKeypad.swift in Sources */ = {isa = PBXBuildFile; fileRef = C007A36B32C0446F5DA0D89F /* NumericKeypad.swift */; };
 		8223496B8AEF51A27BFA7AD9 /* SuggestionInk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6152562FF50F2AE0026EE23A /* SuggestionInk.swift */; };
 		8230AC1E2000E3632E55037B /* swipe-traces-sample.json in Resources */ = {isa = PBXBuildFile; fileRef = 5E8B28C264666A6160445981 /* swipe-traces-sample.json */; };
@@ -333,7 +336,7 @@
 		8D25DCCE3CDCCBAFED8AE0D3 /* SuggestionCount.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C67EF4DD8066AD3C798959 /* SuggestionCount.swift */; };
 		8D6E7D3A71535D50B41B1D69 /* SyllableLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A253A0432EF946B10B4E511 /* SyllableLM.swift */; };
 		8DE8F0376AD4F1CB2382F531 /* Trackpad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58D98494210ACD4B0ED51A92 /* Trackpad.swift */; };
-		8E03C4D4CEA24F7E8B669C53 /* buddy-cat-v2.png in Resources */ = {isa = PBXBuildFile; fileRef = 2F849B6D66CDB74FA974513D /* buddy-cat-v2.png */; };
+		8E8C224D3E86134FC32569E4 /* buddy-girl-v2-512.png in Resources */ = {isa = PBXBuildFile; fileRef = 7872C603074592FDF8DFB718 /* buddy-girl-v2-512.png */; };
 		8ECAE0FEE3CD0AD5D5A6F10D /* KeyVariantsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AFA2F7162222243B187E853 /* KeyVariantsTests.swift */; };
 		8ED2C863FDB34599CA463016 /* TranslatePrefs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FD55F59F8275BCD7B566DD /* TranslatePrefs.swift */; };
 		8EFE03B0F8E51977E629FE86 /* RetroEnglishUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45174CB35A9FB727F1BF5F4F /* RetroEnglishUI.swift */; };
@@ -400,7 +403,6 @@
 		AB0F2E167DA8AA1EBD8F37E5 /* PlusGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D488C3ADF837AC9FCDD9EC1D /* PlusGate.swift */; };
 		AB3FDDE7EE22D498D55C496F /* Zodiac.swift in Sources */ = {isa = PBXBuildFile; fileRef = 625D4BBB065084DF9D051CE0 /* Zodiac.swift */; };
 		AC2407E83BA2FC77C45DE3FF /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 738732B955CD39C76B2484C7 /* SeedData.swift */; };
-		AC5A40141A59AD642474D654 /* buddy-chick-v2.png in Resources */ = {isa = PBXBuildFile; fileRef = 3709709ACAA431BAEAEDA597 /* buddy-chick-v2.png */; };
 		AC6E9978B1D5F292B09158AE /* KeySoundTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8B6F1BC1B564638DA93D085 /* KeySoundTests.swift */; };
 		AD67BC077725334F09B0357B /* SwipeTyping.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BA79FCDFB7209A8D1C65B0 /* SwipeTyping.swift */; };
 		ADD40A7393F6B610F37C4C4E /* MeritGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B294619B1349B1116862526 /* MeritGlass.swift */; };
@@ -482,6 +484,7 @@
 		D12405A0B0E9F812580C25F2 /* RamFixTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB757354715E62384994C56 /* RamFixTests.swift */; };
 		D12EE5FDDD99168FAD725605 /* SyncCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079761CFA779BBD4401101EF /* SyncCore.swift */; };
 		D1D473B187EF1FC2AC8A8420 /* KeyCommandGesture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9556E09A2E0A2C9C3E9D1CBD /* KeyCommandGesture.swift */; };
+		D1FF42EB790011B08F41B1F4 /* buddy-cat-v2-512.png in Resources */ = {isa = PBXBuildFile; fileRef = 9DBBFA67C16011F64EAA0907 /* buddy-cat-v2-512.png */; };
 		D3280160129E83532E28D054 /* Translate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADEE2E97D8CBDA3CAE8C94C1 /* Translate.swift */; };
 		D3E8612244CA2A705B0E80AE /* Drift.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1004150693E0D28BF19C388 /* Drift.swift */; };
 		D3F8E4EFCD63DA847B35F639 /* SuggestionCountTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4FB2FAF13758F39DEA42ECE /* SuggestionCountTests.swift */; };
@@ -527,6 +530,7 @@
 		E318F2FD0A91CFD018E4BC65 /* Wallpaper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A12BC49EB45298684CF97D /* Wallpaper.swift */; };
 		E36CA3CB7199842336DF87EB /* UserLMTables.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B560D6CFFCE1B0B57742E3 /* UserLMTables.swift */; };
 		E373E5A2EFC2168C0356254B /* KeyEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = D464912521BAEE32297B4D44 /* KeyEffects.swift */; };
+		E5B2563CA6BBF2357B28F1FD /* buddy-cat-v2-512.png in Resources */ = {isa = PBXBuildFile; fileRef = 9DBBFA67C16011F64EAA0907 /* buddy-cat-v2-512.png */; };
 		E6D596FF4699916EC99C811C /* KeyGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 491E9FDC24E9CC711FC62BD8 /* KeyGeometryTests.swift */; };
 		E6D7D2C5B7DEFCC7FFEDEA63 /* DynamicSnippets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45FD7A68B46DF76459196CD4 /* DynamicSnippets.swift */; };
 		E74F85FA5D7275FFA0E8F759 /* NumberRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8993F83A60C653C26799EC /* NumberRowTests.swift */; };
@@ -715,7 +719,6 @@
 		2D148C459EDB5655C7C98BE2 /* AIProofread.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIProofread.swift; sourceTree = "<group>"; };
 		2D6434BF385E0EB2AC3B5010 /* AddTonesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTonesTests.swift; sourceTree = "<group>"; };
 		2E2A0AFF771A8FB37173583D /* SuggestionSlots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionSlots.swift; sourceTree = "<group>"; };
-		2F849B6D66CDB74FA974513D /* buddy-cat-v2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "buddy-cat-v2.png"; sourceTree = "<group>"; };
 		2FB51185695E11F791C05484 /* SuggestionInkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionInkTests.swift; sourceTree = "<group>"; };
 		30FDB51E50979B78B42D92A7 /* VTCatch.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VTCatch.h; sourceTree = "<group>"; };
 		31AD519DC648CF654359B2C8 /* ICloudSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudSync.swift; sourceTree = "<group>"; };
@@ -726,7 +729,6 @@
 		360B593D7FFB9CC01D2AFAA7 /* TranslateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateTests.swift; sourceTree = "<group>"; };
 		36C728D6BE87D4E515070B03 /* WallpaperCropTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperCropTests.swift; sourceTree = "<group>"; };
 		36CBDCACC7AFAA9B0191DCD7 /* ThemeJSONEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeJSONEditorView.swift; sourceTree = "<group>"; };
-		3709709ACAA431BAEAEDA597 /* buddy-chick-v2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "buddy-chick-v2.png"; sourceTree = "<group>"; };
 		37F4E4230B496AA3A0BCE3FA /* KeyPriorBlobTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyPriorBlobTests.swift; sourceTree = "<group>"; };
 		3892A75525A06BACCAE066AB /* UXFeedbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UXFeedbackTests.swift; sourceTree = "<group>"; };
 		38966B5E3DF4C19B07287B0C /* swipe-paths-en.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "swipe-paths-en.txt"; sourceTree = "<group>"; };
@@ -825,6 +827,7 @@
 		76BB26AFD798587729A1131F /* Kaleido.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kaleido.swift; sourceTree = "<group>"; };
 		77323AD52A4C80D9D12CE505 /* FootballFx.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootballFx.swift; sourceTree = "<group>"; };
 		778ABAFB76C1046BD2E3A1AD /* SwipeGesture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeGesture.swift; sourceTree = "<group>"; };
+		7872C603074592FDF8DFB718 /* buddy-girl-v2-512.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "buddy-girl-v2-512.png"; sourceTree = "<group>"; };
 		79FD55F59F8275BCD7B566DD /* TranslatePrefs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslatePrefs.swift; sourceTree = "<group>"; };
 		7A239D979FCA572C550C6E31 /* SwipeShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeShortcutTests.swift; sourceTree = "<group>"; };
 		7A5658CD4BA507DF2BA12245 /* LunarCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LunarCalendar.swift; sourceTree = "<group>"; };
@@ -865,11 +868,14 @@
 		9556E09A2E0A2C9C3E9D1CBD /* KeyCommandGesture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCommandGesture.swift; sourceTree = "<group>"; };
 		95E0A5B88D8B8B98DFC5583D /* frequency-english-parity.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "frequency-english-parity.txt"; sourceTree = "<group>"; };
 		95F2B6D4AD796E9D33B623BA /* DomainPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainPopup.swift; sourceTree = "<group>"; };
+		97D27F97F78E8FB65B4AEC80 /* buddy-boy-v2-512.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "buddy-boy-v2-512.png"; sourceTree = "<group>"; };
 		97ECEDAAFA381A793709FAE3 /* PerfSizeUXFixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerfSizeUXFixTests.swift; sourceTree = "<group>"; };
 		9A253A0432EF946B10B4E511 /* SyllableLM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyllableLM.swift; sourceTree = "<group>"; };
 		9BD2C6C345D6A11225ECC3C7 /* PromoFramesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromoFramesTests.swift; sourceTree = "<group>"; };
 		9C0337F79C073AF35EA561F0 /* ThemeAssetDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeAssetDownloader.swift; sourceTree = "<group>"; };
+		9DBBFA67C16011F64EAA0907 /* buddy-cat-v2-512.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "buddy-cat-v2-512.png"; sourceTree = "<group>"; };
 		9DD4CB65047DC812E4E9B04C /* baloo-2.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "baloo-2.ttf"; sourceTree = "<group>"; };
+		9EB23AD6159807EB06E92438 /* buddy-chick-v2-512.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "buddy-chick-v2-512.png"; sourceTree = "<group>"; };
 		9F9FF65E125861AD8DCB6B4D /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		A087DB1153D19136851D711B /* KeyboardThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardThemeTests.swift; sourceTree = "<group>"; };
 		A110506AFC988F434CA23CB6 /* TemplatesToggleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplatesToggleTests.swift; sourceTree = "<group>"; };
@@ -1161,9 +1167,11 @@
 		2F3946370174EE4EBB04ADFB /* Buddies */ = {
 			isa = PBXGroup;
 			children = (
+				97D27F97F78E8FB65B4AEC80 /* buddy-boy-v2-512.png */,
 				BBDFD4831F701CE3922C7ACB /* buddy-boy-v2.png */,
-				2F849B6D66CDB74FA974513D /* buddy-cat-v2.png */,
-				3709709ACAA431BAEAEDA597 /* buddy-chick-v2.png */,
+				9DBBFA67C16011F64EAA0907 /* buddy-cat-v2-512.png */,
+				9EB23AD6159807EB06E92438 /* buddy-chick-v2-512.png */,
+				7872C603074592FDF8DFB718 /* buddy-girl-v2-512.png */,
 				195CBD6A539777991FFCD89C /* buddy-girl-v2.png */,
 			);
 			path = Buddies;
@@ -1807,9 +1815,11 @@
 				A354F35BE23603DF53A32A80 /* SpaceLogoEN@2x.png in Resources */,
 				3E96D77C5495AF76D505EA0F /* SpaceLogoEN@3x.png in Resources */,
 				080FA12CECE7599A9E41A483 /* Tiny5-Regular.ttf in Resources */,
+				5113839EB9D2D70BCEDA668F /* buddy-boy-v2-512.png in Resources */,
 				72FADD3D9A76936B50D45FA3 /* buddy-boy-v2.png in Resources */,
-				8E03C4D4CEA24F7E8B669C53 /* buddy-cat-v2.png in Resources */,
-				AC5A40141A59AD642474D654 /* buddy-chick-v2.png in Resources */,
+				E5B2563CA6BBF2357B28F1FD /* buddy-cat-v2-512.png in Resources */,
+				812121603D4F1F93904239EE /* buddy-chick-v2-512.png in Resources */,
+				8E8C224D3E86134FC32569E4 /* buddy-girl-v2-512.png in Resources */,
 				B1B6113C2DB0A1A48B20FEDE /* buddy-girl-v2.png in Resources */,
 				36DBD03FE63A6B9E03DF751C /* emoji.bin in Resources */,
 				876CA615D351027075313D49 /* enlexicon.bin in Resources */,
@@ -1835,9 +1845,11 @@
 				14AD6AB390189A6785E57A46 /* backup-legacy-keystyle.json in Resources */,
 				0BA146A5605A6C79C1FD23BC /* backup-too-new.json in Resources */,
 				0D74B9E1C49AB9872006D893 /* bigram-heldout.txt in Resources */,
+				67226C0FCCDBB93314980E0D /* buddy-boy-v2-512.png in Resources */,
 				3F11A3036A6423CEE101AA3A /* buddy-boy-v2.png in Resources */,
-				496986778385E9E06B65D0C1 /* buddy-cat-v2.png in Resources */,
-				2AAB660716F8511DAA1EA753 /* buddy-chick-v2.png in Resources */,
+				D1FF42EB790011B08F41B1F4 /* buddy-cat-v2-512.png in Resources */,
+				1006C28AAF120F2F4BFBA2DF /* buddy-chick-v2-512.png in Resources */,
+				57BA38B8B67AD173649912AD /* buddy-girl-v2-512.png in Resources */,
 				399ACBBB25EBADB0EB138EBE /* buddy-girl-v2.png in Resources */,
 				467594276DC8BAEF5AC22F0E /* chat-cases.txt in Resources */,
 				20F63EA1CEB8F35CCDFB7724 /* emoji.bin in Resources */,

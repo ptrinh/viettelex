@@ -754,6 +754,7 @@ private extension UIColor {
 /// 1 nhảy, 2 xoay ¾, 3 nghiêng phải, 4 sau lưng, 5 nghiêng trái, 6 xoay về; 7 ngủ không dùng) cỡ lớn phía sau phím, chìm
 /// trong tối (~12 % sáng); chỉ vùng đèn rọi thấy màu thật + viền neon theo màu đèn. Mỗi lần đèn nháy ⇒ biến thể kế: 7 khung
 /// × {thường, lật ngang} = 14 biến thể. Hàm THUẦN — Android NightDancer cùng số (test chung).
+/// Bundle iOS chỉ giữ bản gốc 1536 px của `character(_:)` (cô gái, chàng trai); Bạn đồng hành dùng bản 512 px.
 enum NightDancer {
     /// Chuỗi nhảy nhanh (khung atlas) — trọng số chọn khung; bỏ khung 7 (ngủ).
     static let sequence = [0, 1, 0, 1, 2, 3, 4, 5, 6]
@@ -772,6 +773,9 @@ enum NightDancer {
     static let columns = 4, rows = 2
     /// Trần cạnh dài atlas khi giải (px) — ≤ 2048 × 1365 × 4 B ≈ 11 MB; atlas hiện 1536 × 1024 ⇒ 6,3 MB.
     static let maxLongEdge = 2048
+    /// Trần scale khi giải: tối đa @2x (máy @3x giải ở @2x rồi phóng) — như Wallpaper.decodeScale. Người nhảy
+    /// chìm trong tối (~12 % sáng) sau phím ⇒ mắt không phân biệt; bàn phím 260 pt @3x: 6,3 MB ⇒ 4,7 MB.
+    static let maxDecodeScale = 2.0
 
     static func frame(_ variant: Int) -> Int { ((variant % variants) + variants) % variants % frames }
     static func mirrored(_ variant: Int) -> Bool { ((variant % variants) + variants) % variants >= frames }
@@ -807,12 +811,20 @@ enum NightDancer {
         return CGRect(x: (w - fw) / 2, y: h - fh, width: fw, height: fh)
     }
 
-    /// Cạnh dài (px) cần giải atlas để ô cao đúng `displayHeight` pt × `scale` — không quá ảnh gốc, không quá trần.
+    /// Cạnh dài (px) cần giải atlas để ô cao đúng `displayHeight` pt × min(`scale`, @2x) — không quá ảnh gốc, không quá trần.
     static func decodeLongEdge(displayHeight: Double, scale: Double, atlasW: Int, atlasH: Int) -> Int {
         guard atlasW > 0, atlasH > 0 else { return 0 }
         let native = Swift.max(atlasW, atlasH)
-        let need = Int((displayHeight * scale * Double(rows) * Double(native) / Double(atlasH)).rounded(.up))
+        let s = Swift.min(scale, maxDecodeScale)
+        let need = Int((displayHeight * s * Double(rows) * Double(native) / Double(atlasH)).rounded(.up))
         return Swift.min(need, native, maxLongEdge)
+    }
+
+    /// Cạnh cần giải = cỡ gốc (và gốc không quá trần) ⇒ giải thẳng ảnh (CGImageSourceCreateImageAtIndex),
+    /// không qua đường thumbnail (thumbnail cùng cỡ = giải + chép thêm một bitmap).
+    static func decodesNative(longEdge: Int, atlasW: Int, atlasH: Int) -> Bool {
+        let native = Swift.max(atlasW, atlasH)
+        return longEdge > 0 && longEdge >= native && native <= maxLongEdge
     }
 
     /// RAM ảnh đã giải (byte, RGBA 8-bit) khi cạnh dài = `longEdge`.
@@ -831,6 +843,9 @@ enum NightDancer {
               let w = props[kCGImagePropertyPixelWidth] as? Int, let h = props[kCGImagePropertyPixelHeight] as? Int else { return nil }
         let edge = decodeLongEdge(displayHeight: displayHeight, scale: scale, atlasW: w, atlasH: h)
         guard edge > 0 else { return nil }
+        if decodesNative(longEdge: edge, atlasW: w, atlasH: h) {
+            return CGImageSourceCreateImageAtIndex(src, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
+        }
         return CGImageSourceCreateThumbnailAtIndex(src, 0, [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceThumbnailMaxPixelSize: edge,

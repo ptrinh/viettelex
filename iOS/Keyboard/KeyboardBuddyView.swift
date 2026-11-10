@@ -62,20 +62,26 @@ final class BuddyView: UIView {
     private struct AtlasRef { let name: String; let url: URL }
     private static func atlasRef(_ character: BuddyCharacter) -> AtlasRef? {
         guard character != .off else { return nil }
-        let name = character.skin?.atlas ?? "buddy-\(character.rawValue)-v2"
+        let name = BuddySprites.atlasName(character)
         guard let url = VTBundleResource.url(name, "png", anchor: BuddyView.self) else { return nil }
         return AtlasRef(name: name, url: url)
     }
 
-    /// Giải atlas (thumbnail ≤512px, giải ngay) — gọi được từ mọi thread (NSCache an toàn đa luồng).
+    /// Giải atlas (bản 512 px có sẵn ⇒ giải thẳng; ảnh lớn hơn ⇒ thumbnail ≤512px; giải ngay) — gọi được từ
+    /// mọi thread (NSCache an toàn đa luồng).
     private static func decodeAtlas(_ ref: AtlasRef) -> CGImage? {
         if let image = atlasCache.object(forKey: ref.name as NSString) { return image }
-        guard let source = CGImageSourceCreateWithURL(ref.url as CFURL, nil),
-              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+        guard let source = CGImageSourceCreateWithURL(ref.url as CFURL, nil) else { return nil }
+        let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let w = props?[kCGImagePropertyPixelWidth] as? Int ?? 0, h = props?[kCGImagePropertyPixelHeight] as? Int ?? 0
+        let decoded = BuddySprites.decodesDirect(width: w, height: h)
+            ? CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
+            : CGImageSourceCreateThumbnailAtIndex(source, 0, [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceThumbnailMaxPixelSize: 512,
+                kCGImageSourceThumbnailMaxPixelSize: BuddySprites.atlasEdge,
                 kCGImageSourceShouldCacheImmediately: true
-              ] as CFDictionary) else { return nil }
+              ] as CFDictionary)
+        guard let image = decoded else { return nil }
         atlasCache.setObject(image, forKey: ref.name as NSString, cost: image.bytesPerRow * image.height)
         return image
     }
@@ -95,6 +101,10 @@ final class BuddyView: UIView {
     #if DEBUG
     /// Test: ảnh atlas đã gắn (giải nền xong).
     var atlasReady: Bool { spriteAtlas != nil }
+    /// Test: cỡ ảnh atlas đã gắn (px).
+    var atlasPixelSize: CGSize? { spriteAtlas.map { CGSize(width: $0.width, height: $0.height) } }
+    /// Test: tên resource atlas đã chọn (nil = vector).
+    var atlasResourceName: String? { spriteMode ? Self.atlasRef(character)?.name : nil }
     /// Test: xoá cache atlas tĩnh (mô phỏng process lạnh).
     static func debugDropAtlasCache() { atlasCache.removeAllObjects() }
     #endif
@@ -145,6 +155,8 @@ final class BuddyView: UIView {
     private var cheerSerial = 0
     private var activeSignature: BuddySignature?
     private var bubbleLayers: [CAShapeLayer] = []
+    /// Đã gõ (phím / ⌫ / chọn gợi ý) từ lúc bàn phím hiện — chưa gõ thì koi ngủ không bong bóng.
+    private var typedSinceShown = false
 
     /// Giận: mặt đỏ + lông mày cau (trong đầu).
     private let flush = CAShapeLayer(), brows = CAShapeLayer()
@@ -153,7 +165,7 @@ final class BuddyView: UIView {
     private var badge: CAShapeLayer?
     private var badgeText: CATextLayer?
 
-    /// - asyncAtlas: giải ảnh atlas trên nền (bàn phím: khung đầu không chờ PNG 1–1,6 MB); ô trống tới
+    /// - asyncAtlas: giải ảnh atlas trên nền (bàn phím: khung đầu không chờ giải PNG); ô trống tới
     ///   khi xong, không lóe vector. Cache nóng ⇒ gắn ngay. false (app / test): giải đồng bộ như cũ.
     init(character: BuddyCharacter, bar: UInt32, lowPower: Bool, framing: BuddyFraming = .bar, season: BuddySeason? = nil,
          artStyle: BuddyStyle = .defaultValue, asyncAtlas: Bool = false) {
@@ -266,6 +278,7 @@ final class BuddyView: UIView {
     override func didMoveToWindow() {
         super.didMoveToWindow()
         if window != nil {
+            typedSinceShown = false
             updateHolidayMoment()
             if season == .childrensDay { startBalloon() }
             lastClockRead = clock()
@@ -352,6 +365,7 @@ final class BuddyView: UIView {
     }
 
     @inline(__always) private func afterInput(_ now: Double) {
+        typedSinceShown = true
         let v = BuddyPolicy.visual(brain.phase(at: now), lowPower: lowPower)
         if v != shown || (isReact(v) && brain.reactSerial != shownSerial) { queueApply() }
         if timer == nil { schedule(now) }
@@ -742,14 +756,19 @@ final class BuddyView: UIView {
         for z in zLayers { z.removeAllAnimations() }
     }
 
+    /// Bong bóng koi lúc ngủ: `BuddyIdleMotion.bubbleCycles` nhịp rồi tự gỡ (không lặp mãi); chưa gõ ⇒ không chạy.
     private func startBubbles() {
-        guard !lowPower, bounds.width > 0, bounds.height > 0 else { stopBubbles(); return }
+        let asleep: Bool
+        if case .asleep = shown { asleep = true } else { asleep = false }
+        guard BuddyIdleMotion.bubbles(character, asleep: asleep, lowPower: lowPower, typedSinceShown: typedSinceShown),
+              bounds.width > 0, bounds.height > 0 else { stopBubbles(); return }
         if bubbleLayers.first?.animation(forKey: "rise") != nil { return }
         while bubbleLayers.count < 3 {
             let bubble = CAShapeLayer()
             bubble.fillColor = UIColor.clear.cgColor
             bubble.strokeColor = Self.cg(0x79C9E9)
             bubble.lineWidth = 1.5
+            bubble.opacity = 0   // model ẩn: trước beginTime / sau nhịp cuối không đứng im trên màn hình
             layer.addSublayer(bubble)
             bubbleLayers.append(bubble)
         }
@@ -762,7 +781,7 @@ final class BuddyView: UIView {
             let fade = CAKeyframeAnimation(keyPath: "opacity")
             fade.values = [0, 0.8, 0.8, 0]; fade.keyTimes = [0, 0.2, 0.7, 1]
             let group = CAAnimationGroup(); group.animations = [rise, fade]
-            group.duration = 2.4; group.repeatCount = .infinity
+            group.duration = BuddyIdleMotion.bubblePeriod; group.repeatCount = BuddyIdleMotion.bubbleCycles
             group.beginTime = CACurrentMediaTime() + Double(i) * 0.8
             bubble.add(group, forKey: "rise")
         }
@@ -1171,8 +1190,8 @@ final class BuddyView: UIView {
         let group = holidayProp(.balloon); group.isHidden = false
         guard !lowPower, window != nil, group.animation(forKey: "bob") == nil else { return }
         let bob = CAKeyframeAnimation(keyPath: "transform.translation.y")
-        bob.values = [0, -4, 0]; bob.keyTimes = [0, 0.5, 1]; bob.duration = 2
-        bob.repeatCount = .infinity
+        bob.values = [0, -4, 0]; bob.keyTimes = [0, 0.5, 1]; bob.duration = BuddyIdleMotion.balloonPeriod
+        bob.repeatCount = BuddyIdleMotion.balloonBobs   // vài nhịp rồi đứng yên (nghỉ = 0 hoạt ảnh)
         group.add(bob, forKey: "bob")
     }
 
@@ -1233,7 +1252,7 @@ final class BuddyView: UIView {
         build()
         if birthdayToday { holidayProp(.cake).isHidden = false }
         if season == .childrensDay { startBalloon() }
-        if character == .koi, !lowPower, case .asleep = shown { stopBubbles(); startBubbles() }
+        if character == .koi, !lowPower, typedSinceShown, case .asleep = shown { stopBubbles(); startBubbles() }
     }
 
     /// Dựng path theo cỡ view (chỉ khi cỡ đổi). Nhân vật đứng đáy ô, giữa ngang.
@@ -1418,6 +1437,10 @@ final class BuddyView: UIView {
         return count(layer)
     }
     var hasPendingTimer: Bool { timer != nil }
+    /// repeatCount các hoạt ảnh bong bóng koi đang gắn (rỗng = không bong bóng).
+    var bubbleRepeatCounts: [Float] { bubbleLayers.compactMap { $0.animation(forKey: "rise")?.repeatCount } }
+    /// repeatCount hoạt ảnh nhún của bóng bay (nil = không nhún).
+    var balloonBobRepeatCount: Float? { holidayProps[.balloon]?.0.animation(forKey: "bob")?.repeatCount }
     /// Khung nhân vật trong view (pt).
     var figureFrame: CGRect { spriteMode ? sprite.frame : stage.frame }
     /// Hạt hiệu ứng đã dựng (pool) + "biển" đang hiện.

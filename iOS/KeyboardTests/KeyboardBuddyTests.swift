@@ -3,6 +3,7 @@
 // Số tham chiếu (bậc, mốc giờ, checksum bảng hình) GIỐNG HỆT android KeyboardBuddyTests.
 import XCTest
 import UIKit
+import ImageIO
 
 final class KeyboardBuddyTests: XCTestCase {
     private let suite = "vt-buddy-tests"
@@ -425,6 +426,32 @@ final class KeyboardBuddyTests: XCTestCase {
       }
     }
 
+    /// Audit 10/11/2026: Bạn đồng hành từng giải trọn PNG 1536 × 1024 (~6 MB tạm + vài chục ms CPU) chỉ để lấy
+    /// thumbnail 512 px. Nay bundle có sẵn bản 512 (giải thẳng); bản gốc chỉ còn cho người nhảy Night Club.
+    @MainActor func testBuddyLoadsPrescaled512Atlas() throws {
+        XCTAssertTrue(BuddySprites.decodesDirect(width: 512, height: 341))
+        XCTAssertTrue(BuddySprites.decodesDirect(width: 512, height: 256))
+        XCTAssertFalse(BuddySprites.decodesDirect(width: 1536, height: 1024), "ảnh lớn ⇒ thumbnail")
+        XCTAssertFalse(BuddySprites.decodesDirect(width: 0, height: 0))
+        let anchor = BuddyView.self
+        for c in BuddyCharacter.allCases where BuddyStyle.hasAtlas(c) && c.skin == nil {
+            XCTAssertEqual(BuddySprites.atlasName(c), "buddy-\(c.rawValue)-v2-512")
+            let url = try XCTUnwrap(VTBundleResource.url("buddy-\(c.rawValue)-v2-512", "png", anchor: anchor), "\(c): thiếu atlas 512")
+            let size = try XCTUnwrap((try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? Int)
+            XCTAssertLessThan(size, 300_000, "\(c): atlas 512 nhỏ gọn")
+            BuddyView.debugDropAtlasCache()
+            let v = BuddyView(character: c, bar: 0x222222, lowPower: false)
+            XCTAssertEqual(v.atlasResourceName, "buddy-\(c.rawValue)-v2-512")
+            let px = try XCTUnwrap(v.atlasPixelSize)
+            XCTAssertEqual(max(px.width, px.height), 512, "\(c): cùng cỡ thumbnail 512 như trước ⇒ nét không đổi")
+            v.halt()
+            // Bản gốc chỉ còn cho nhân vật Night Club dùng; còn lại đã gỡ khỏi bundle.
+            let full = VTBundleResource.url("buddy-\(c.rawValue)-v2", "png", anchor: anchor)
+            if NightDancer.character(c) == c { XCTAssertNotNil(full, "\(c): Night Club cần bản gốc") }
+            else { XCTAssertNil(full, "\(c): bản gốc không ai đọc ⇒ không đóng gói") }
+        }
+    }
+
     /// Khởi động lạnh (cache trống): bàn phím giải atlas NỀN — init không chờ, không dựng vector thay
     /// thế (không lóe hình sai), ô trống tới khi xong rồi hiện đúng dáng đang đặt.
     @MainActor func testAsyncAtlasDecodeEventuallyShowsSprite() throws {
@@ -526,7 +553,7 @@ final class KeyboardBuddyTests: XCTestCase {
         for c in BuddyCharacter.rigged {
             let v = makeView(c, clock: clock)
             XCTAssertEqual(v.shown, .asleep(zzz: false))
-            XCTAssertEqual(v.runningAnimationCount, c == .koi ? 3 : 0, "\(c): mới hiện — ngủ yên")
+            XCTAssertEqual(v.runningAnimationCount, 0, "\(c): mới hiện — ngủ yên (koi: chưa gõ ⇒ chưa bong bóng)")
             XCTAssertFalse(v.hasPendingTimer)
             for _ in 0..<20 { clock.t += 0.1; v.keyPressed() }
             v.tick()
@@ -545,6 +572,66 @@ final class KeyboardBuddyTests: XCTestCase {
             XCTAssertFalse(v.hasPendingTimer, "\(c): ngủ yên ⇒ không hẹn giờ")
             v.halt()
         }
+    }
+
+    /// Audit 10/11/2026: bong bóng koi lặp `.infinity` từ lúc mở bàn phím (koi ngủ) ⇒ render server vẽ lại bàn
+    /// phím liên tục khi không gõ. Nay: mở bàn phím / hiện lại ⇒ không bong bóng; ngủ sau khi gõ ⇒ đúng vài nhịp hữu hạn.
+    @MainActor func testKoiBubblesFiniteAndNotBeforeFirstKey() {
+        XCTAssertTrue(BuddyIdleMotion.bubbleCycles.isFinite)
+        XCTAssertLessThanOrEqual(BuddyIdleMotion.bubbleCycles, 5)
+        XCTAssertFalse(BuddyIdleMotion.bubbles(.koi, asleep: true, lowPower: false, typedSinceShown: false))
+        XCTAssertTrue(BuddyIdleMotion.bubbles(.koi, asleep: true, lowPower: false, typedSinceShown: true))
+        XCTAssertFalse(BuddyIdleMotion.bubbles(.koi, asleep: true, lowPower: true, typedSinceShown: true))
+        XCTAssertFalse(BuddyIdleMotion.bubbles(.koi, asleep: false, lowPower: false, typedSinceShown: true))
+        XCTAssertFalse(BuddyIdleMotion.bubbles(.cat, asleep: true, lowPower: false, typedSinceShown: true))
+
+        let clock = Clock()
+        let v = makeView(.koi, clock: clock)
+        let win = UIWindow(frame: CGRect(x: 0, y: 0, width: 200, height: 100))
+        win.isHidden = false
+        win.addSubview(v)
+        v.clockPart = .day
+        XCTAssertEqual(v.shown, .asleep(zzz: false))
+        XCTAssertEqual(v.bubbleRepeatCounts, [], "mở bàn phím, chưa gõ ⇒ không bong bóng")
+        XCTAssertEqual(v.runningAnimationCount, 0)
+        v.setNeedsLayout(); v.frame.size.width += 2; v.layoutIfNeeded()
+        XCTAssertEqual(v.bubbleRepeatCounts, [], "đổi cỡ lúc chưa gõ cũng không bật bong bóng")
+        for _ in 0..<5 { clock.t += 0.2; v.keyPressed() }
+        v.tick()
+        XCTAssertEqual(v.bubbleRepeatCounts, [], "đang thức ⇒ không bong bóng")
+        clock.t += BuddyBrain.sleepAfter + 0.1; v.tick()
+        guard case .asleep = v.shown else { return XCTFail("không gõ ⇒ ngủ") }
+        XCTAssertEqual(v.bubbleRepeatCounts.count, 3, "ngủ sau khi gõ ⇒ bong bóng")
+        for r in v.bubbleRepeatCounts {
+            XCTAssertTrue(r.isFinite, "không lặp mãi")
+            XCTAssertEqual(r, BuddyIdleMotion.bubbleCycles)
+        }
+        // Ẩn rồi hiện lại bàn phím: lại như mở mới — chưa gõ ⇒ không bong bóng.
+        v.removeFromSuperview()
+        XCTAssertEqual(v.bubbleRepeatCounts, [])
+        win.addSubview(v)
+        XCTAssertEqual(v.bubbleRepeatCounts, [], "hiện lại, chưa gõ ⇒ không bong bóng")
+        v.removeFromSuperview()
+        win.isHidden = true
+    }
+
+    /// Audit 10/11/2026: bóng bay Tết Thiếu nhi nhún `.infinity` khi nghỉ ⇒ nay vài nhịp hữu hạn.
+    @MainActor func testChildrensDayBalloonBobIsFinite() throws {
+        XCTAssertTrue(BuddyIdleMotion.balloonBobs.isFinite)
+        let clock = Clock()
+        let v = BuddyView(character: .cat, bar: BuddyHalo.systemLight, lowPower: false, season: .childrensDay, artStyle: .vector)
+        v.clock = { clock.t }
+        v.clockPart = .day
+        v.frame = CGRect(x: 0, y: 0, width: KeyboardView.buddyZoneWidth, height: 40)
+        let win = UIWindow(frame: CGRect(x: 0, y: 0, width: 200, height: 100))
+        win.isHidden = false
+        win.addSubview(v)
+        v.layoutIfNeeded()
+        let bob = try XCTUnwrap(v.balloonBobRepeatCount, "Tết Thiếu nhi: bóng bay nhún khi hiện")
+        XCTAssertTrue(bob.isFinite, "không nhún mãi")
+        XCTAssertEqual(bob, BuddyIdleMotion.balloonBobs)
+        v.removeFromSuperview()
+        win.isHidden = true
     }
 
     /// Hẹn giờ chỉ khi view nằm trong cửa sổ (bàn phím đang hiện); gỡ khỏi cửa sổ ⇒ huỷ hẹn giờ.
@@ -1330,5 +1417,64 @@ final class KeyboardBuddyTests: XCTestCase {
                 for (a, b) in zip(values, expected[i * 2 + j]) { XCTAssertEqual(a, b, accuracy: 1e-6) }
             }
         }
+    }
+
+    // MARK: Đo chi phí giải atlas (RAM-AUDIT.md §10/11/2026) — in log "ATLAS-COST", không khẳng định số.
+    // Đỉnh phys_footprint chỉ tăng trong một process ⇒ mỗi biến thể một test, chạy RIÊNG từng test
+    // (-only-testing:…/testMeasureAtlasCost…) thì số đỉnh mới sạch; chạy chung cả bộ thì chỉ xem thời gian.
+
+    private func vmFootprint() -> (now: Int, peak: Int) {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let kr = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
+        }
+        return kr == KERN_SUCCESS ? (Int(info.phys_footprint), Int(info.ledger_phys_footprint_peak)) : (0, 0)
+    }
+    private func thumbDecode(_ url: URL, _ edge: Int) -> CGImage? {
+        CGImageSourceCreateWithURL(url as CFURL, nil).flatMap {
+            CGImageSourceCreateThumbnailAtIndex($0, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceThumbnailMaxPixelSize: edge, kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
+        }
+    }
+    private func directDecode(_ url: URL) -> CGImage? {
+        CGImageSourceCreateWithURL(url as CFURL, nil).flatMap {
+            CGImageSourceCreateImageAtIndex($0, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
+        }
+    }
+    private func atlasURL(_ name: String) throws -> URL {
+        try XCTUnwrap(VTBundleResource.url(name, "png", anchor: BuddyView.self), name)
+    }
+    /// Một biến thể: khởi động ImageIO bằng ảnh nhỏ khác (không tính), đo đỉnh lần giải đầu, rồi trung vị 5 lần.
+    private func measureAtlas(_ label: String, _ decode: () -> CGImage?) throws {
+        let warm = try atlasURL("buddy-chick-v2-512")
+        _ = autoreleasepool { directDecode(warm) }
+        let before = vmFootprint()
+        let img = try XCTUnwrap(autoreleasepool { decode() }, label)
+        let after = vmFootprint()
+        var times: [Double] = []
+        for _ in 0..<5 {
+            let t0 = CACurrentMediaTime()
+            _ = autoreleasepool { decode() }
+            times.append((CACurrentMediaTime() - t0) * 1000)
+        }
+        print(String(format: "ATLAS-COST %@: %d×%d, ảnh giữ lại %.2f MB, đỉnh footprint +%.2f MB, %.1f ms (trung vị 5 lần)",
+                     label, img.width, img.height, Double(img.bytesPerRow * img.height) / 1_048_576,
+                     Double(max(0, after.peak - before.peak)) / 1_048_576, times.sorted()[2]))
+    }
+    func testMeasureAtlasCostBuddyNew() throws {
+        let url = try atlasURL("buddy-boy-v2-512")
+        try measureAtlas("buddy mới (512 giải thẳng)") { directDecode(url) }
+    }
+    func testMeasureAtlasCostBuddyOld() throws {
+        let url = try atlasURL("buddy-boy-v2")
+        try measureAtlas("buddy cũ (thumbnail 512 từ PNG 1536)") { thumbDecode(url, 512) }
+    }
+    func testMeasureAtlasCostNightClubNew() throws {
+        try measureAtlas("night club mới (@3x, 221 pt ⇒ trần @2x)") { NightDancer.decodeAtlas(.girl, displayHeight: 221, scale: 3) }
+    }
+    func testMeasureAtlasCostNightClubOld() throws {
+        let url = try atlasURL("buddy-girl-v2")
+        try measureAtlas("night club cũ (@3x, 221 pt ⇒ trọn 1536)") { thumbDecode(url, 1536) }
     }
 }
