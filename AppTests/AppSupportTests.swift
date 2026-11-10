@@ -1465,3 +1465,195 @@ final class BoundaryProbeDowngradeTests: XCTestCase {
         XCTAssertEqual(TelexInputController.effectiveProbeKind(.shadow, boundaryCommit: true), .shadow)
     }
 }
+
+// Issue #156 (Ghostty, 10/11/2026): đổi focus sang split khác không bằng click / phím
+// ranh giới ⇒ engine của tap còn giữ chữ của ô CŨ, từ đầu tiên ở ô mới dính vào nó
+// ("m" ở split A, rồi "vieejt␣" ở split B ra "vieejt"). Và: TUI dùng j/k/i làm lệnh
+// ⇒ engine "jkivieejt"; app cần một tín hiệu "kết thúc từ" (EndWordSignal).
+// Mô phỏng đúng thứ tự trên đường phím của tap: neo FocusAnchor → TapWordBreak →
+// (bỏ từ) → feed. Chính nhánh trong TerminalTapController.handle không unit-test được
+// (CGEvent + post thật) nên quyết định được tách ra hàm thuần.
+final class TapWordBreakTests: XCTestCase {
+
+    /// Một phiên tap tối giản: cùng engine, cùng neo, epoch + cờ IMK do test điều khiển.
+    private struct TapSession {
+        var engine: TelexEngine = {
+            var e = TelexEngine(); e.freeMarking = true; return e
+        }()
+        var anchor = FocusAnchor()
+        var epoch: UInt64 = 40
+        var clientKey = false            // IMK đã thấy phím trong client vừa activate
+        var chromium: Bool? = false
+        var endWordPending = false
+        var breaks = 0
+
+        /// activateServer: epoch +1, cờ phím IMK xoá (như ClientFocus.noteActivated).
+        mutating func activate() { epoch &+= 1; clientKey = false }
+
+        mutating func key(_ ch: Character) {
+            let stable = anchor.observe(epoch)
+            let holds = !engine.isEmpty || engine.canReopenLastCommit
+            let ck = clientKey, chr = chromium
+            if !stable, TapWordBreak.focusMoved(engineHoldsWord: holds, focusStable: stable,
+                                                clientKeySinceActivation: { ck },
+                                                chromiumFamily: { chr }) {
+                engine.reset(); breaks += 1
+            }
+            if TapWordBreak.endWord(signalPending: endWordPending,
+                                    engineHoldsWord: !engine.isEmpty || engine.canReopenLastCommit) {
+                engine.reset(); breaks += 1
+            }
+            endWordPending = false
+            _ = engine.feed(ch)
+        }
+
+        mutating func type(_ s: String) { for c in s { key(c) } }
+        /// Click: tap reset engine + neo lại (nhánh leftMouseDown).
+        mutating func click() { engine.reset(); _ = anchor.observe(epoch) }
+    }
+
+    /// Ca của issue: "m" ở split A, AppleScript đổi focus (activateServer), "vieejt" ở B.
+    func testFocusMoveWithoutClickStartsNewWord() {
+        var s = TapSession()
+        s.type("m")
+        s.activate()                                  // split B được focus
+        s.type("vieejt")
+        XCTAssertEqual(s.engine.composed, "việt", "từ đầu tiên ở ô mới không dính chữ ô cũ")
+        XCTAssertEqual(s.breaks, 1)
+    }
+
+    /// Hành vi cũ (lỗi) để biết test trên thật sự bảo vệ điều gì.
+    func testWithoutBreakTheWordGlues() {
+        var e = TelexEngine(); e.freeMarking = true
+        for c in "mvieejt" { _ = e.feed(c) }
+        XCTAssertNotEqual(e.composed, "việt")
+    }
+
+    /// Cùng epoch (không đổi focus) ⇒ giữ từ, gõ liền một mạch.
+    func testSameEpochKeepsTheWord() {
+        var s = TapSession()
+        s.type("vie")
+        s.type("ejt")
+        XCTAssertEqual(s.engine.composed, "việt")
+        XCTAssertEqual(s.breaks, 0)
+        XCTAssertFalse(TapWordBreak.focusMoved(engineHoldsWord: true, focusStable: true,
+                                               clientKeySinceActivation: { false },
+                                               chromiumFamily: { false }))
+    }
+
+    /// Cuộc đua phím đầu (#110 — Raycast): activateServer tới SAU phím đầu tiên của ô
+    /// mới, và IMK đã nhận phím đó trong client mới ⇒ KHÔNG reset, phím đầu không mất.
+    func testLateActivationNeverDropsTheFirstKey() {
+        var s = TapSession()
+        s.type("d")                                   // phím đầu ở ô mới, engine rỗng trước đó
+        s.activate()                                  // activateServer tới trễ…
+        s.clientKey = true                            // …ngay trước handle(d) của client mới
+        s.type("di")
+        XCTAssertEqual(s.engine.composed, "đi", "phím đầu \"d\" phải còn trong từ")
+        XCTAssertEqual(s.breaks, 0)
+    }
+
+    /// Engine rỗng (vừa có ranh giới) ⇒ đổi focus không có gì để bỏ.
+    func testEmptyEngineIsNotABreak() {
+        XCTAssertFalse(TapWordBreak.focusMoved(engineHoldsWord: false, focusStable: false,
+                                               clientKeySinceActivation: { false },
+                                               chromiumFamily: { false }))
+    }
+
+    /// Chromium/Electron: activateServer có thể tới giữa từ trong cùng ô ⇒ không áp
+    /// luật; chưa dò xong họ app (nil) ⇒ cũng không (giữ hành vi cũ, fail-closed).
+    func testChromiumAndElectronAreExcluded() {
+        XCTAssertFalse(TapWordBreak.focusMoved(engineHoldsWord: true, focusStable: false,
+                                               clientKeySinceActivation: { false },
+                                               chromiumFamily: { true }))
+        XCTAssertFalse(TapWordBreak.focusMoved(engineHoldsWord: true, focusStable: false,
+                                               clientKeySinceActivation: { false },
+                                               chromiumFamily: { nil }))
+        var s = TapSession(); s.chromium = true
+        s.type("vie"); s.activate(); s.type("ejt")    // popup gợi ý giữa từ: từ đi tiếp
+        XCTAssertEqual(s.engine.composed, "việt")
+        XCTAssertEqual(s.breaks, 0)
+    }
+
+    /// Ca thường (ổn định) không chạm cờ IMK hay đĩa: closure không được gọi.
+    func testStableFocusReadsNothingElse() {
+        var touched = false
+        _ = TapWordBreak.focusMoved(engineHoldsWord: true, focusStable: true,
+                                    clientKeySinceActivation: { touched = true; return false },
+                                    chromiumFamily: { touched = true; return false })
+        XCTAssertFalse(touched)
+    }
+
+    /// Ảnh chụp mở lại từ vừa chốt (⌫ #40) của ô cũ cũng là "từ của ô cũ".
+    func testReopenSnapshotCountsAsHeldWord() {
+        var e = TelexEngine(); e.freeMarking = true
+        for c in "thays" { _ = e.feed(c) }
+        _ = e.commitBoundary(autoRestore: false, boundary: " ")
+        XCTAssertTrue(e.isEmpty)
+        XCTAssertTrue(e.canReopenLastCommit)
+        XCTAssertTrue(TapWordBreak.focusMoved(engineHoldsWord: !e.isEmpty || e.canReopenLastCommit,
+                                              focusStable: false,
+                                              clientKeySinceActivation: { false },
+                                              chromiumFamily: { false }))
+    }
+
+    /// Phần 2: TUI nuốt j/k/i làm lệnh rồi báo "kết thúc từ" ⇒ "vieejt" ra "việt".
+    func testEndWordSignalStartsNewWord() {
+        var s = TapSession()
+        s.type("jki")
+        s.endWordPending = true
+        s.type("vieejt")
+        XCTAssertEqual(s.engine.composed, "việt")
+        XCTAssertEqual(s.breaks, 1)
+    }
+
+    /// Tín hiệu khi engine rỗng: không làm gì (không đếm là một lần bỏ từ).
+    func testEndWordSignalOnEmptyEngineDoesNothing() {
+        XCTAssertFalse(TapWordBreak.endWord(signalPending: true, engineHoldsWord: false))
+        XCTAssertFalse(TapWordBreak.endWord(signalPending: false, engineHoldsWord: true))
+        XCTAssertTrue(TapWordBreak.endWord(signalPending: true, engineHoldsWord: true))
+        var s = TapSession()
+        s.endWordPending = true
+        s.type("vieejt")
+        XCTAssertEqual(s.engine.composed, "việt")
+        XCTAssertEqual(s.breaks, 0)
+    }
+
+    /// ClientFocus: activateServer xoá cờ phím IMK, phím IMK đặt lại.
+    func testClientFocusTracksIMKKeySinceActivation() {
+        ClientFocus.noteActivated(client: "com.mitchellh.ghostty")
+        XCTAssertFalse(ClientFocus.clientKeySinceActivation)
+        ClientFocus.noteClientKey()
+        XCTAssertTrue(ClientFocus.clientKeySinceActivation)
+        ClientFocus.noteActivated(client: "com.mitchellh.ghostty")
+        XCTAssertFalse(ClientFocus.clientKeySinceActivation, "split mới: chưa có phím nào")
+    }
+
+    /// Tên tín hiệu là hợp đồng công khai (tài liệu + app bên ngoài) — đừng đổi.
+    func testEndWordSignalNameIsStable() {
+        XCTAssertEqual(EndWordSignal.name, "com.viettelex.endWord")
+        XCTAssertNotEqual(EndWordSignal.name, Notification.Name.telexResetComposition.rawValue)
+    }
+
+    /// Phiên thật (bài học #116): gõ, click, đổi focus, đua phím đầu, tín hiệu — xen kẽ
+    /// trên CÙNG một phiên.
+    func testRealisticSessionSequence() {
+        var s = TapSession()
+        s.type("xin"); s.engine.reset()               // "xin␣" (ranh giới)
+        s.type("m")                                   // split A
+        s.activate()                                  // AppleScript → split B
+        s.type("vieejt")
+        XCTAssertEqual(s.engine.composed, "việt")
+        s.engine.reset()                              // ␣
+        s.click(); s.activate()                       // click sang ô khác (activate sau click)
+        s.type("ddi")
+        XCTAssertEqual(s.engine.composed, "đi", "click đã reset — activate sau click không cắt \"d\"")
+        s.engine.reset()
+        s.type("n"); s.activate(); s.clientKey = true // đua phím đầu: activate trễ sau "n"
+        s.type("aay")
+        XCTAssertEqual(s.engine.composed, "nây")
+        s.type("j"); s.endWordPending = true          // TUI: "j" là lệnh, app báo kết thúc từ
+        s.type("tooi")
+        XCTAssertEqual(s.engine.composed, "tôi")
+    }
+}
