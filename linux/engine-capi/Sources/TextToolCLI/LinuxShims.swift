@@ -113,12 +113,68 @@ extension StringProtocol {
     }
 }
 
-/// AdjacentKeyFixer.Cache (không dùng trong CLI nhưng phải biên dịch được).
+/// AdjacentKeyFixer.Cache, SwipeEnglish (nạp lexicon / bảng phím vuốt).
 final class NSLock {
     private var m = pthread_mutex_t()
     init() { pthread_mutex_init(&m, nil) }
     deinit { pthread_mutex_destroy(&m) }
     func lock() { pthread_mutex_lock(&m) }
     func unlock() { pthread_mutex_unlock(&m) }
+    /// Không chặn: true = đã giữ khoá (phải unlock).
+    func `try`() -> Bool { pthread_mutex_trylock(&m) == 0 }
+}
+
+/// SwipeEnglish.Lexicon đọc enlexicon.bin TẠI CHỖ qua `bytes` (con trỏ ổn định suốt đời
+/// đối tượng) — FoundationEssentials không có NSData. File: mmap chỉ đọc (như
+/// `.alwaysMapped` trên Apple: trang sạch, heap không chứa file); `init(data:)` (test,
+/// bảng dựng tay): chép vào bộ nhớ riêng. Chỉ phần API SwipeEnglish dùng.
+final class NSData {
+    typealias ReadingOptions = Data.ReadingOptions
+    struct ReadError: Error { let errno: Int32 }
+
+    let bytes: UnsafeRawPointer
+    let length: Int
+    private let mapped: Bool
+
+    init() {
+        bytes = UnsafeRawPointer(UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1))
+        length = 0
+        mapped = false
+    }
+
+    init(data: Data) {
+        let p = UnsafeMutableRawPointer.allocate(byteCount: max(data.count, 1), alignment: 1)
+        data.withUnsafeBytes { if let b = $0.baseAddress { p.copyMemory(from: b, byteCount: $0.count) } }
+        bytes = UnsafeRawPointer(p)
+        length = data.count
+        mapped = false
+    }
+
+    /// Luôn mmap (bỏ qua `options` — chỉ `.alwaysMapped` được dùng). File rỗng ⇒ NSData rỗng.
+    init(contentsOf url: URL, options: ReadingOptions = []) throws {
+        let fd = open(url.path, O_RDONLY | O_CLOEXEC)
+        guard fd >= 0 else { throw ReadError(errno: errno) }
+        defer { close(fd) }
+        var st = stat()
+        guard fstat(fd, &st) == 0 else { throw ReadError(errno: errno) }
+        let n = Int(st.st_size)
+        if n == 0 {
+            bytes = UnsafeRawPointer(UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1))
+            length = 0
+            mapped = false
+            return
+        }
+        guard let p = mmap(nil, n, PROT_READ, MAP_PRIVATE, fd, 0), p != MAP_FAILED else {
+            throw ReadError(errno: errno)
+        }
+        bytes = UnsafeRawPointer(p)
+        length = n
+        mapped = true
+    }
+
+    deinit {
+        if mapped { munmap(UnsafeMutableRawPointer(mutating: bytes), length) }
+        else { UnsafeMutableRawPointer(mutating: bytes).deallocate() }
+    }
 }
 #endif
