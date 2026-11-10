@@ -28,7 +28,8 @@
 //   năng mà một pool 8 AVAudioPlayerNode (22.05 kHz) xoay vòng ⇒ nốt chồng nhau, bấm nhiều phím cùng
 //   lúc thành hợp âm (giọng cùng cửa sổ 60 ms hạ 1/√n — không vỡ tiếng). Buffer mọi nốt dựng sẵn lúc
 //   hiện (~1.97 MB). Pedal (Shift/Caps): pool 8 node thứ hai 11.025 kHz với bộ nốt ngân 2.5 s, dựng
-//   LƯỜI lần đầu đạp pedal (~2.76 MB; trong lúc dựng nốt phát bản thường). Kiểu khác: đường 3 tiếng
+//   LƯỜI lần đầu đạp pedal (~2.76 MB; trong lúc dựng nốt phát bản thường; dựng từng nốt thẳng vào PCM — không giữ
+//   cả bộ [Float] song song), NHẢ khi nghỉ 8 s / cảnh báo bộ nhớ (10/11/2026). Kiểu khác: đường 3 tiếng
 //   như cũ, chỉ thêm một phép so bool.
 // - ĐÀN TRANH (theme Sen Việt, 19/10/2026): CÙNG đường Piano (pool 8 giọng, pedal, bộ ngân dựng lười, damper) —
 //   chỉ khác bảng nốt + bộ tổng hợp (KeyInstrument). Bộ nốt thường 1.0 s ⇒ ~2.45 MB Float32; bộ ngân ~2.76 MB như
@@ -98,6 +99,8 @@ final class KeySound {
     private var sustainPool = VoicePool(size: PianoSynth.voices)
     private var sustainReady = false
     private var sustainBuilding = false
+    /// Tăng mỗi lần nhả bộ ngân — lượt dựng đang chạy nền thấy lệch ⇒ bỏ kết quả.
+    private var sustainGen = 0
     /// Giọng của lần phát piano gần nhất (test hợp âm); −1 = chưa.
     private(set) var lastPianoVoice = -1
 
@@ -448,18 +451,22 @@ final class KeySound {
         }
     }
 
-    /// Bộ nốt ngân: dựng NỀN lần đầu đạp pedal (tổng hợp ngoài lock, gắn node trong lock).
+    /// Bộ nốt ngân: dựng NỀN lần đầu đạp pedal (tổng hợp + chép PCM ngoài lock, gắn node trong lock).
+    /// Nhả (nghỉ 8 s / cảnh báo bộ nhớ — `releaseSustainLocked`) ⇒ lần pedal kế dựng lại; nốt đó phát bản thường.
     private func kickSustainBuildLocked() {
         guard pianoMode, !sustainReady, !sustainBuilding else { return }
         sustainBuilding = true
-        let inst = instrument
+        let inst = instrument, gen = sustainGen
         queue.async { [self] in
-            let banks = inst.map.notes.map { ($0, inst.note($0, sustain: true)) }
+            guard let fmt = AVAudioFormat(standardFormatWithSampleRate: PianoSynth.sustainSampleRate, channels: 1) else {
+                lock.lock(); sustainBuilding = false; lock.unlock(); return
+            }
+            let banks = Self.sustainPCMBank(inst, fmt)
             lock.lock(); defer { lock.unlock() }
             sustainBuilding = false
-            guard pianoMode, instrument == inst, let e = engine,
-                  let fmt = AVAudioFormat(standardFormatWithSampleRate: PianoSynth.sustainSampleRate, channels: 1) else { return }
-            for (m, s) in banks { sustainBuf[m] = Self.pcm(s, fmt) }
+            // Bị nhả / đổi nhạc cụ trong lúc dựng ⇒ bỏ bộ vừa dựng (không giữ lại sau cảnh báo bộ nhớ / nghỉ).
+            guard pianoMode, instrument == inst, gen == sustainGen, let e = engine else { return }
+            for (m, b) in banks { sustainBuf[m] = b }
             if sustainNodes.isEmpty {
                 for _ in 0..<PianoSynth.voices {
                     let n = AVAudioPlayerNode()
@@ -471,6 +478,37 @@ final class KeySound {
             sustainReady = true
         }
     }
+
+    /// Bộ PCM nốt ngân, MỖI NỐT một bước: tổng hợp [Float] → chép vào AVAudioPCMBuffer → [Float] nhả ngay. Đỉnh RAM
+    /// = bộ PCM + MỘT nốt (~110 KB), không phải hai bản cả bộ (~2 × 2,76 MB) như khi tổng hợp hết rồi mới chép.
+    /// `step` (test đo heap) gọi sau mỗi nốt, lúc [Float] của nốt đó đã nhả.
+    static func sustainPCMBank(_ inst: KeyInstrument, _ fmt: AVAudioFormat,
+                               step: ((Int) -> Void)? = nil) -> [(Int, AVAudioPCMBuffer)] {
+        var out: [(Int, AVAudioPCMBuffer)] = []
+        out.reserveCapacity(inst.map.notes.count)
+        for m in inst.map.notes {
+            if let b = autoreleasepool(invoking: { pcm(inst.note(m, sustain: true), fmt) }) { out.append((m, b)) }
+            step?(m)
+        }
+        return out
+    }
+
+    /// Nhả bộ nốt ngân (giữ node — không cắt nốt đang ngân: node tự giữ buffer đã lên lịch tới khi phát xong).
+    /// Lần pedal kế dựng lại lười; trong lúc dựng nốt phát bản thường.
+    private func releaseSustainLocked() {
+        sustainGen &+= 1
+        guard sustainReady || sustainBuf.contains(where: { $0 != nil }) else { return }
+        sustainBuf = [AVAudioPCMBuffer?](repeating: nil, count: 128)
+        sustainReady = false
+    }
+
+    /// Cảnh báo bộ nhớ (bàn phím đang hiện): nhả bộ nốt ngân (~2,76 MB) — không chặn main (lock bận ⇒ xếp hàng).
+    func releaseSustainBank() {
+        configure { [self] in releaseSustainLocked() }
+    }
+
+    /// Bộ nốt ngân đang giữ (test).
+    var hasSustainBank: Bool { lock.lock(); defer { lock.unlock() }; return sustainReady || sustainBuf.contains { $0 != nil } }
 
     private static func pcm(_ s: [Float], _ fmt: AVAudioFormat) -> AVAudioPCMBuffer? {
         guard let b = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: AVAudioFrameCount(s.count)),
@@ -631,8 +669,10 @@ final class KeySound {
         guard running, let e = engine else { return }
         let d = Self.idleDecision(now: CACurrentMediaTime(), lastPlay: lastPlay, timeout: idleTimeout)
         if !d.stop { scheduleIdleCheckLocked(after: d.recheck); return }
-        // Nghỉ: giữ node/buffer (khởi động lại nhanh), dừng phần cứng + nhả session.
+        // Nghỉ: giữ node + bộ nốt thường (khởi động lại nhanh), dừng phần cứng + nhả session. Bộ nốt NGÂN (~2,76 MB,
+        // chỉ dùng khi đạp pedal) nhả — nghỉ 8 s thì nốt ngân 2,5 s đã tắt; pedal lần sau dựng lại lười.
         running = false
+        releaseSustainLocked()
         e.pause()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         #if DEBUG

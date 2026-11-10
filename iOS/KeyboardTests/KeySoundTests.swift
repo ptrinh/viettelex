@@ -1085,4 +1085,113 @@ final class KeySoundTests: XCTestCase {
                      startMs, perUs, s.ioBufferDuration * 1000, s.outputLatency * 1000))
         XCTAssertLessThan(perUs, 1000)   // đường nóng < 1 ms/lần
     }
+
+    // MARK: Bộ nốt ngân — RAM (10/11/2026, RAM-AUDIT.md)
+
+    /// Dựng bộ ngân từng nốt thẳng vào PCM: heap lúc nào cũng ≈ phần PCM đã dựng + 1 nốt, KHÔNG bao giờ hai bản cả bộ
+    /// ([Float] + PCM) như cách cũ (tổng hợp 25 nốt rồi mới chép). Đo heap (malloc) thật ở mỗi bước; in số trước/sau.
+    func testSustainBankBuildPeakIsOneBank() throws {
+        let fmt = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: PianoSynth.sustainSampleRate, channels: 1))
+        func copy(_ s: [Float]) -> AVAudioPCMBuffer? {
+            guard let b = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: AVAudioFrameCount(s.count)),
+                  let ch = b.floatChannelData?[0] else { return nil }
+            s.withUnsafeBufferPointer { ch.update(from: $0.baseAddress!, count: s.count) }
+            b.frameLength = AVAudioFrameCount(s.count)
+            return b
+        }
+        for inst in [KeyInstrument.piano, .dantranh, .guitar] {
+            let bank = inst.sustainBankBytes, note = bank / inst.map.notes.count
+            // Cách CŨ (đo để so): [Float] cả bộ + PCM cả bộ cùng sống.
+            var oldPeak = 0
+            autoreleasepool {
+                let h0 = RamBreakdownTests.heapBytes()
+                let floats = inst.map.notes.map { inst.note($0, sustain: true) }
+                let pcms = floats.compactMap(copy)
+                oldPeak = RamBreakdownTests.heapBytes() - h0
+                XCTAssertEqual(pcms.count, inst.map.notes.count)
+            }
+            // Cách MỚI.
+            var peak = 0
+            var held = 0
+            autoreleasepool {
+                let h0 = RamBreakdownTests.heapBytes()
+                let banks = KeySound.sustainPCMBank(inst, fmt) { _ in peak = max(peak, RamBreakdownTests.heapBytes() - h0) }
+                held = RamBreakdownTests.heapBytes() - h0
+                XCTAssertEqual(banks.map(\.0), inst.map.notes, "\(inst)")
+                XCTAssertEqual(banks.reduce(0) { $0 + Int($1.1.frameLength) } * 4, bank, "\(inst)")
+                XCTAssertEqual(banks.first.map { Array(UnsafeBufferPointer(start: $0.1.floatChannelData![0], count: 64)) },
+                               Array(inst.note(inst.map.notes[0], sustain: true).prefix(64)), "đúng mẫu")
+            }
+            print(String(format: "SUSTAINBANK %@ bank=%.2fMB old-peak=%.2fMB new-peak=%.2fMB held=%.2fMB",
+                         "\(inst)", Double(bank) / 1_048_576, Double(oldPeak) / 1_048_576,
+                         Double(peak) / 1_048_576, Double(held) / 1_048_576))
+            XCTAssertGreaterThan(held, bank * 9 / 10, "PCM nằm trên heap (thước đo có nghĩa)")
+            XCTAssertGreaterThan(oldPeak, bank * 18 / 10, "cách cũ: hai bản cả bộ")
+            XCTAssertLessThan(peak, bank + 2 * note + 256 * 1024, "\(inst): không giữ bộ [Float] song song với PCM")
+        }
+    }
+
+    /// Engine thật (bỏ qua nếu không có audio): nghỉ 8 s ⇒ nhả bộ ngân; nốt ngân kế tiếp (sau khi engine dậy) phát
+    /// bản THƯỜNG (giọng pool thường) và dựng lại nền; dựng xong ⇒ nốt ngân dùng lại pool ngân.
+    func testIdleReleasesSustainBankThenFallsBackAndRebuilds() throws {
+        let ks = KeySound.shared
+        ks.debugDrain(); ks.debugWant(false); ks.stopNow()
+        setStyleSettled(ks, "piano")
+        ks.debugWant(true)
+        defer { ks.setStyle(KeySoundStyle.defaultStyle.rawValue); ks.debugDrain(); ks.debugWant(false); ks.stopNow() }
+        guard ks.startNow() else { throw XCTSkip("không có audio output trên máy test") }
+        XCTAssertFalse(ks.hasSustainBank, "chưa đạp pedal ⇒ chưa dựng")
+        XCTAssertTrue(playWhenSettled(ks, .pedal))
+        ks.debugDrain()
+        XCTAssertTrue(ks.hasSustainBank)
+        XCTAssertTrue(whenSettled(ks) { ks.playPiano(.note(60), sustain: true) })
+        XCTAssertGreaterThanOrEqual(ks.lastPianoVoice, PianoSynth.voices, "bộ ngân sẵn ⇒ giọng ngân")
+
+        ks.debugSetLastPlay(ago: 100)
+        ks.debugIdleCheck()
+        XCTAssertFalse(ks.isRunning)
+        XCTAssertFalse(ks.hasSustainBank, "nghỉ ⇒ nhả bộ ngân")
+
+        _ = ks.playPiano(.note(60), sustain: true)          // engine nghỉ ⇒ chỉ hẹn khởi động lại
+        let deadline = Date().addingTimeInterval(3)
+        while !ks.isRunning && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+        XCTAssertTrue(ks.isRunning)
+        ks.debugDrain()
+        var played = false
+        for _ in 0..<50 where !played {                      // KHÔNG drain trước: bắt đúng lần phát lúc bộ ngân còn trống
+            played = ks.playPiano(.note(64), sustain: true)
+            if !played { Thread.sleep(forTimeInterval: 0.01) }
+        }
+        XCTAssertTrue(played)
+        XCTAssertLessThan(ks.lastPianoVoice, PianoSynth.voices, "bộ ngân trống ⇒ phát bản thường, không im")
+        ks.debugDrain()
+        XCTAssertTrue(ks.hasSustainBank, "nốt ngân đó đã khởi động dựng lại")
+        XCTAssertTrue(whenSettled(ks) { ks.playPiano(.note(67), sustain: true) })
+        XCTAssertGreaterThanOrEqual(ks.lastPianoVoice, PianoSynth.voices)
+    }
+
+    /// Cảnh báo bộ nhớ (bàn phím đang hiện): nhả bộ ngân, engine vẫn chạy, phím vẫn kêu; lượt dựng đang chạy nền lúc
+    /// cảnh báo đến bị bỏ (không giữ lại bộ ngân sau cảnh báo).
+    func testMemoryWarningReleasesSustainBankEvenMidBuild() throws {
+        let ks = KeySound.shared
+        ks.debugDrain(); ks.debugWant(false); ks.stopNow()
+        setStyleSettled(ks, "guitar")
+        ks.debugWant(true)
+        defer { ks.setStyle(KeySoundStyle.defaultStyle.rawValue); ks.debugDrain(); ks.debugWant(false); ks.stopNow() }
+        guard ks.startNow() else { throw XCTSkip("không có audio output trên máy test") }
+        XCTAssertTrue(playWhenSettled(ks, .pedal)); ks.debugDrain()
+        XCTAssertTrue(ks.hasSustainBank)
+        ks.releaseSustainBank(); ks.debugDrain()
+        XCTAssertFalse(ks.hasSustainBank)
+        XCTAssertTrue(ks.isRunning, "chỉ nhả bộ ngân — engine + bộ thường giữ nguyên")
+        XCTAssertTrue(playWhenSettled(ks, .note(60)))
+        // Đang dựng (pedal vừa đạp, tổng hợp ~25 nốt trên queue) ⇒ cảnh báo tới ⇒ kết quả bị bỏ.
+        XCTAssertTrue(whenSettled(ks) { ks.playPiano(.pedal, sustain: false) })
+        ks.releaseSustainBank()
+        ks.debugDrain()
+        XCTAssertFalse(ks.hasSustainBank, "lượt dựng cũ không được gắn sau cảnh báo")
+        // Pedal sau đó dựng lại bình thường.
+        XCTAssertTrue(playWhenSettled(ks, .pedal)); ks.debugDrain()
+        XCTAssertTrue(ks.hasSustainBank)
+    }
 }
